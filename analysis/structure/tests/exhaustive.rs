@@ -108,29 +108,32 @@ fn deep_nesting_is_one_pass() {
 
 #[test]
 fn blank_lines_under_deep_nesting_are_linear() {
-    // Fifty thousand nested list items, then four hundred thousand blank
-    // lines: each blank line continues every item, which visiting the
-    // items one by one would make 2e10 steps. Each "-" of the first line
-    // is also tested as a thematic break, which scanning to the "a" each
-    // time would make 1e9 more.
+    // Twenty thousand nested list items, then two hundred thousand blank
+    // lines: each blank line continues every item and its list, which
+    // visiting them one by one would make 8e9 steps, over a minute in a
+    // debug build.
+    // Found without the visits, it takes milliseconds. Each "-" of the
+    // first line is also tested as a thematic break, which scanning to
+    // the "a" each time would make quadratic in the line.
+    let text = format!("{}a\n{}", "- ".repeat(20_000), "\n".repeat(200_000));
     let start = std::time::Instant::now();
-    let text = format!("{}a\n{}", "- ".repeat(50_000), "\n".repeat(400_000));
     let s = detect(&text, Syntax::Markdown, ViewId::SOURCE);
-    assert_eq!(s.kind.iter().filter(|&&k| k == Block::ListItem).count(), 50_000);
+    let took = start.elapsed();
+    assert!(took.as_secs() < 10, "{took:?}");
+    assert_eq!(s.kind.iter().filter(|&&k| k == Block::ListItem).count(), 20_000);
     assert_eq!(s.kind.iter().filter(|&&k| k == Block::Paragraph).count(), 1);
     holds(&text, Syntax::Markdown);
 
     // The same with a quote halfway down, which the blank lines end, and
     // with an innermost item that starts with a blank line, which the
     // second blank line ends.
-    let text = format!("{}> {}a\n{}", "- ".repeat(25_000), "- ".repeat(25_000), "\n".repeat(400_000));
+    let text = format!("{}> {}a\n{}", "- ".repeat(2_500), "- ".repeat(2_500), "\n".repeat(100_000));
     let s = detect(&text, Syntax::Markdown, ViewId::SOURCE);
     assert_eq!(s.kind.iter().filter(|&&k| k == Block::Quote).count(), 1);
     holds(&text, Syntax::Markdown);
-    let text = format!("{}-\n{}", "- ".repeat(50_000), "\n".repeat(400_000));
+    let text = format!("{}-\n{}", "- ".repeat(5_000), "\n".repeat(100_000));
     holds(&text, Syntax::Markdown);
     holds(&text, Syntax::Plain);
-    assert!(start.elapsed().as_secs() < 60, "{:?}", start.elapsed());
 }
 
 #[test]

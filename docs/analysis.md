@@ -1222,8 +1222,9 @@ runs them on any machine:
   three line breaks and with and without a leading byte order mark, and
   holds each layer to the document's checks, to trimmed spans and to
   giving the same layer twice; it also runs ten thousand nested quotes,
-  a thousand nested list items, fifty thousand nested list items under
-  four hundred thousand blank lines (which must take linear time), a
+  a thousand nested list items, twenty thousand nested list items under
+  two hundred thousand blank lines (which must parse in under ten
+  seconds; visiting every item on every blank line takes over a minute), a
   table row of 400 unclosed backtick runs and a long document.
 - `analysis/structure/tests/pipeline.rs` runs the annotator ahead of the
   chunker, whose chunks then stay inside the sections it found, and
