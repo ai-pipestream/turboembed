@@ -1,45 +1,51 @@
-//! Throughput of the two detectors on 10 MB of synthetic text: a few
-//! repeated lines, mostly ASCII with some accented and CJK text, a blank
-//! line after every fourth. Run with
-//! `cargo run --release -p turbo-sentdetect --example throughput`.
+//! Throughput of the maxent sentence detector on 10 MB of synthetic
+//! English text (a paragraph of varied sentences, repeated), with the
+//! published English model in tests/models. It is measured twice: on
+//! ASCII text, which the context generator walks by byte, and on the
+//! same text with one accented word per paragraph, which takes the
+//! general UTF-16 walk.
+//!
+//! ```text
+//! cargo run --release -p turbo-sentdetect --example throughput
+//! ```
 
-use std::hint::black_box;
+use std::path::Path;
 use std::time::Instant;
 
-use turbo_sentdetect::{WhitespaceMode, newline_spans, paragraph_spans};
+use turbo_maxent::ModelFile;
+use turbo_sentdetect::{Scratch, SentenceDetector, SentenceModel, WhitespaceMode};
 
-const LINES: [&str; 4] = [
-    "The quick brown fox jumps over the lazy dog, and then it runs away.\n",
-    "  Indented line with trailing spaces and a tab\t  \r\n",
-    "Une ligne en français, avec des accents: é, è, à, ç.\n",
-    "日本語の文も少し含まれています。\u{3000}全角スペースも。\n\n",
-];
+const PARAGRAPH: &str = "Mr. Smith arrived at the station at 9 a.m. on Monday. He was carrying a small brown \
+    suitcase! Did Dr. Brown meet him on the platform? The budget was 2.5 million dollars, e.g. for the new \
+    roof. Prices on the main index closed 0.3 percent higher. \"Stop,\" she said. They walked to the car \
+    and drove away.\n\n";
 
 fn main() {
-    let mut text = String::with_capacity(10 << 20);
-    'fill: loop {
-        for line in LINES {
-            if text.len() + line.len() > 10 << 20 {
-                break 'fill;
-            }
-            text.push_str(line);
-        }
+    let path = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/models/opennlp-en-ud-ewt-sentence-1.3-2.5.4.bin");
+    let model = SentenceModel::open(ModelFile::read(path).expect("the English model")).expect("a sentence model");
+    let detector = SentenceDetector::new(model, WhitespaceMode::Unicode);
+    run(&detector, "ASCII", PARAGRAPH);
+    run(&detector, "non-ASCII", &PARAGRAPH.replace("the car", "the caf\u{e9}"));
+}
+
+fn run(detector: &SentenceDetector, what: &str, paragraph: &str) {
+    let target = 10 * 1024 * 1024;
+    let mut text = String::with_capacity(target + paragraph.len());
+    while text.len() < target {
+        text.push_str(paragraph);
     }
-    let mb = text.len() as f64 / 1e6;
+
+    let mut scratch = Scratch::new();
     let mut out = Vec::new();
-    for (name, run) in [
-        ("newline", newline_spans as fn(&str, WhitespaceMode, &mut Vec<_>)),
-        ("paragraph", paragraph_spans as fn(&str, WhitespaceMode, &mut Vec<_>)),
-    ] {
-        for mode in [WhitespaceMode::Unicode, WhitespaceMode::Legacy] {
-            let mut best = f64::INFINITY;
-            for _ in 0..10 {
-                out.clear();
-                let t = Instant::now();
-                run(black_box(&text), mode, &mut out);
-                best = best.min(t.elapsed().as_secs_f64());
-            }
-            println!("{name:9} {mode:?}: {} spans, {:.0} MB/s", out.len(), mb / best);
-        }
+    // One warm-up run grows the buffers, then the timed runs.
+    detector.detect_with(&text, &mut scratch, &mut out);
+    let runs = 5;
+    let start = Instant::now();
+    for _ in 0..runs {
+        out.clear();
+        detector.detect_with(&text, &mut scratch, &mut out);
     }
+    let seconds = start.elapsed().as_secs_f64() / f64::from(runs);
+    let mb = text.len() as f64 / (1024.0 * 1024.0);
+    println!("{what}: {mb:.1} MB, {} sentences, {:.1} ms per run, {:.1} MB/s", out.len(), seconds * 1e3, mb / seconds);
 }

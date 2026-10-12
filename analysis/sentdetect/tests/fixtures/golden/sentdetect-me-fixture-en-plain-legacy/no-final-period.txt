@@ -1,0 +1,9 @@
+component: sentdetect-me-fixture-en-plain
+opennlp: cdf33c653d5d61d5af7d37ffee189a83bd8392ea
+jdk: 21.0.12.1
+whitespace: legacy
+model: en-plain.bin
+model-sha256: 1aba902faf675b56393a3e5ce67591be5fb86d70a0f328ebccd36dfa715b3825
+input: This sentence ends here. This one does not
+span: 0 24 0 24 0.9912202591743693
+span: 25 42 25 42 1.0

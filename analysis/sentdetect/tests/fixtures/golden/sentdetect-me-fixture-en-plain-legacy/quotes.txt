@@ -1,0 +1,13 @@
+component: sentdetect-me-fixture-en-plain
+opennlp: cdf33c653d5d61d5af7d37ffee189a83bd8392ea
+jdk: 21.0.12.1
+whitespace: legacy
+model: en-plain.bin
+model-sha256: 1aba902faf675b56393a3e5ce67591be5fb86d70a0f328ebccd36dfa715b3825
+input: He said "Stop." Then he left. She asked 'Why?' and smiled. "Done!" he cried.
+span: 0 14 0 14 0.9350757632339352
+span: 14 29 14 29 0.992001287424343
+span: 30 45 30 45 0.6025586442470395
+span: 45 58 45 58 0.7123610240448311
+span: 59 65 59 65 0.746513311949244
+span: 65 76 65 76 0.9044998046862129

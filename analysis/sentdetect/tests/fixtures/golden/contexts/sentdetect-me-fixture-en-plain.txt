@@ -1,0 +1,319 @@
+component: sentdetect-me-fixture-en-plain-contexts
+opennlp: cdf33c653d5d61d5af7d37ffee189a83bd8392ea
+jdk: 21.0.12.1
+whitespace: unicode
+model: en-plain.bin
+model-sha256: 1aba902faf675b56393a3e5ce67591be5fb86d70a0f328ebccd36dfa715b3825
+outcomes: s n
+input: MR. SMITH and mr. jones met. PROF. X spoke at 9 A.M. sharp. Fine.
+at: 2
+features: sn	eos=.	x=MR	2	xcap	v=	s=	n=SMITH	ncap
+probs: 0.1336292958215495 0.8663707041784505
+decision: no-split
+at: 16
+features: sn	eos=.	x=mr	2	v=and	s=	n=jones
+probs: 0.10132684925170239 0.8986731507482977
+decision: no-split
+at: 27
+features: sn	eos=.	x=met	3	v=jones	s=	n=PROF.	ncap
+probs: 0.9434295762814199 0.05657042371858016
+decision: split
+at: 33
+features: sn	eos=.	x=PROF	4	xcap	v=met.	s=	n=X	ncap
+probs: 0.9335163089539439 0.06648369104605609
+decision: split
+at: 49
+features: eos=.	x=A	1	xcap	v=9	s=M	scap	n=sharp.
+probs: 0.001025986726108392 0.9989740132738917
+decision: no-split
+at: 51
+features: sn	eos=.	x=.M	2	v=A	vcap	s=	n=sharp.
+probs: 0.22125906146201166 0.7787409385379883
+decision: no-split
+at: 58
+features: sn	eos=.	x=sharp	5	v=A.M.	vcap	s=	n=Fine.	ncap
+probs: 0.9701205003476437 0.029879499652356343
+decision: split
+at: 64
+features: eos=.	x=Fine	4	xcap	v=sharp.	s=	n=
+probs: 0.659604319907141 0.3403956800928591
+decision: split
+input: (Mr. Smith) came. 'Dr. Jones' left. It was tea, cake, etc. and more. We read the U.S. report.
+at: 3
+features: sn	eos=.	x=(Mr	3	v=	s=	n=Smith)	ncap
+probs: 0.8371246199103674 0.16287538008963254
+decision: split
+at: 16
+features: sn	eos=.	x=came	4	v=Smith)	vcap	s=	n='Dr.
+probs: 0.914554270048843 0.08544572995115685
+decision: split
+at: 21
+features: sn	eos=.	x='Dr	3	v=came.	s=	n=Jones'	ncap
+probs: 0.9434295762814199 0.05657042371858016
+decision: split
+at: 34
+features: sn	eos=.	x=left	4	v=Jones'	vcap	s=	n=It	ncap
+probs: 0.9960169226212398 0.0039830773787601775
+decision: split
+at: 57
+features: sn	eos=.	x=etc	3	v=cake,	s=	n=and
+probs: 0.19836670897791542 0.8016332910220846
+decision: no-split
+at: 67
+features: sn	eos=.	x=more	4	v=and	s=	n=We	ncap
+probs: 0.9603466199466928 0.03965338005330721
+decision: split
+at: 82
+features: eos=.	x=U	1	xcap	v=the	s=S	scap	n=report.
+probs: 0.0028307706900718653 0.9971692293099281
+decision: no-split
+at: 84
+features: sn	eos=.	x=.S	2	v=U	vcap	s=	n=report.
+probs: 0.03804166331126575 0.9619583366887343
+decision: no-split
+at: 92
+features: eos=.	x=report	6	v=U.S.	vcap	s=	n=
+probs: 0.8230650428153058 0.17693495718469418
+decision: split
+input: Dr. Who arrived. Mr. Bean too. Then et al. agreed.
+at: 2
+features: sn	eos=.	x=Dr	2	xcap	v=	s=	n=Who	ncap
+probs: 0.07212538890681068 0.9278746110931894
+decision: no-split
+at: 15
+features: sn	eos=.	x=arrived	7	v=Who	vcap	s=	n=Mr.	ncap
+probs: 0.9797043174935209 0.020295682506479118
+decision: split
+at: 19
+features: sn	eos=.	x=Mr	2	xcap	v=arrived.	s=	n=Bean	ncap
+probs: 0.16115226862466298 0.8388477313753371
+decision: no-split
+at: 29
+features: sn	eos=.	x=too	3	v=Bean	vcap	s=	n=Then	ncap
+probs: 0.9156916922448117 0.08430830775518831
+decision: split
+at: 41
+features: sn	eos=.	x=al	2	v=et	s=	n=agreed.
+probs: 0.3752245295376434 0.6247754704623567
+decision: no-split
+at: 49
+features: eos=.	x=agreed	6	v=al.	s=	n=
+probs: 0.9076882449782794 0.09231175502172073
+decision: split
+input: Mr. Smith met Dr. Brown at 5 p.m. on Main St. today. He left early.
+at: 2
+features: sn	eos=.	x=Mr	2	xcap	v=	s=	n=Smith	ncap
+probs: 0.020265649141565503 0.9797343508584344
+decision: no-split
+at: 16
+features: sn	eos=.	x=Dr	2	xcap	v=met	s=	n=Brown	ncap
+probs: 0.04808835549992057 0.9519116445000795
+decision: no-split
+at: 32
+features: sn	eos=.	x=.m	2	v=p	s=	n=on
+probs: 0.09341810556019187 0.9065818944398081
+decision: no-split
+at: 44
+features: sn	eos=.	x=St	2	xcap	v=Main	vcap	s=	n=today.
+probs: 0.019155119583685324 0.9808448804163147
+decision: no-split
+at: 51
+features: sn	eos=.	x=today	5	v=St.	vcap	s=	n=He	ncap
+probs: 0.9959970412299071 0.004002958770092952
+decision: split
+at: 66
+features: eos=.	x=early	5	v=left	s=	n=
+probs: 0.9502323836343624 0.049767616365637674
+decision: split
+input: Alpha.\u001CBeta.\u001F Gamma. \u00A0Delta.
+at: 11
+features: eos=.	x=.\u001CBeta	6	v=Alpha	vcap	s=	n=Gamma.	ncap
+probs: 0.9293826319475235 0.07061736805247651
+decision: split
+at: 19
+features: sn	eos=.	x=Gamma	5	xcap	v=Alpha.\u001CBeta.	vcap	s=	n=Delta.	ncap
+probs: 0.8335916593313393 0.16640834066866078
+decision: split
+at: 27
+features: eos=.	x=\u00A0Delta	6	v=Gamma.	vcap	s=	n=
+probs: 0.8230650428153058 0.17693495718469418
+decision: split
+input: One.\r\nTwo.\rThree.\n\nFour. 
+at: 3
+features: sn	eos=.	x=One	3	xcap	v=	s=	n=Two.	ncap
+probs: 0.44226835622793587 0.5577316437720641
+decision: no-split
+at: 9
+features: sn	eos=.	x=Two	3	xcap	v=One.	vcap	s=	n=Three.	ncap
+probs: 0.5489948518992225 0.4510051481007775
+decision: split
+at: 16
+features: sn	eos=.	x=Three	5	xcap	v=Two.	vcap	s=	n=Four.	ncap
+probs: 0.8335916593313393 0.16640834066866078
+decision: split
+at: 23
+features: sn	eos=.	x=Four	4	xcap	v=Three.	vcap	s=	n=
+probs: 0.7013079417800043 0.29869205821999567
+decision: split
+input: Das ist z.B. gut. Wir sahen u.a. Gedanken.Bekannt sind sie. Wait... What?! Really?? Yes!
+at: 9
+features: eos=.	x=z	1	v=ist	s=B	scap	n=gut.
+probs: 0.0090919327309152 0.9909080672690849
+decision: no-split
+at: 11
+features: sn	eos=.	x=.B	2	v=z	s=	n=gut.
+probs: 0.3752245295376434 0.6247754704623567
+decision: no-split
+at: 16
+features: sn	eos=.	x=gut	3	v=z.B.	s=	n=Wir	ncap
+probs: 0.9434295762814199 0.05657042371858016
+decision: split
+at: 31
+features: sn	eos=.	x=.a	2	v=u	s=	n=Gedanken.Bekannt	ncap
+probs: 0.7643635075425844 0.23563649245741566
+decision: split
+at: 41
+features: eos=.	x=Gedanken	8	xcap	v=u.a.	s=Bekannt	scap	n=sind
+probs: 0.18931958520677172 0.8106804147932284
+decision: no-split
+at: 58
+features: sn	eos=.	x=sie	3	v=sind	s=	n=Wait...	ncap
+probs: 0.9434295762814199 0.05657042371858016
+decision: split
+at: 66
+features: sn	eos=.	x=.	1	v=Wait.	vcap	s=	n=What?!	ncap
+probs: 0.17053794810202805 0.829462051897972
+decision: no-split
+at: 73
+features: sn	eos=!	x=?	1	v=What	vcap	s=	n=Really??	ncap
+probs: 0.23814750649598657 0.7618524935040134
+decision: no-split
+at: 82
+features: sn	eos=?	x=?	1	v=Really	vcap	s=	n=Yes!	ncap
+probs: 0.18500489266738682 0.8149951073326132
+decision: no-split
+at: 87
+features: eos=!	x=Yes	3	xcap	v=Really??	vcap	s=	n=
+probs: 0.20344455896098323 0.7965554410390168
+decision: no-split
+input: I love pizza \uD83C\uDF55 so much. Do you? \uD83D\uDC4D\uD83C\uDFFD Yes.
+at: 23
+features: sn	eos=.	x=much	4	v=so	s=	n=Do	ncap
+probs: 0.9918709393356412 0.008129060664358883
+decision: split
+at: 31
+features: sn	eos=?	x=you	3	v=Do	vcap	s=	n=\uD83D\uDC4D\uD83C\uDFFD
+probs: 0.7848680692891438 0.2151319307108562
+decision: split
+at: 41
+features: eos=.	x=Yes	3	xcap	v=\uD83D\uDC4D\uD83C\uDFFD	s=	n=
+probs: 0.26204171888581274 0.7379582811141874
+decision: no-split
+input:   Hello there.   General Kenobi.  \n
+at: 13
+features: sn	eos=.	x=there	5	v=Hello	vcap	s=	n=General	ncap
+probs: 0.9787693081780076 0.02123069182199251
+decision: split
+at: 31
+features: sn	eos=.	x=Kenobi	6	xcap	v=General	vcap	s=	n=
+probs: 0.6476632141344276 0.3523367858655724
+decision: split
+input: First line.\u0085Second line.\u2028Third line.\u2029Fourth.
+at: 10
+features: sn	eos=.	x=line	4	v=First	vcap	s=	n=Second	ncap
+probs: 0.9839048925363955 0.01609510746360446
+decision: split
+at: 23
+features: sn	eos=.	x=line	4	v=\u0085Second	s=	n=Third	ncap
+probs: 0.9891314122469111 0.010868587753088917
+decision: split
+at: 35
+features: sn	eos=.	x=line	4	v=\u2028Third	s=	n=Fourth.	ncap
+probs: 0.9891314122469111 0.010868587753088917
+decision: split
+at: 43
+features: eos=.	x=\u2029Fourth	7	v=line.	s=	n=
+probs: 0.9064485175156606 0.09355148248433945
+decision: split
+input: .
+at: 0
+features: eos=.	x=	v=	s=	n=
+probs: 0.6706554678480567 0.3293445321519432
+decision: split
+input: This sentence ends here. This one does not
+at: 23
+features: sn	eos=.	x=here	4	v=ends	s=	n=This	ncap
+probs: 0.9912202591743693 0.008779740825630817
+decision: split
+input: Pi is 3.14159 and version 2.5.4 shipped. Costs rose 4.5 percent. It is 1. Then 2.
+at: 7
+features: eos=.	x=3	1	v=is	s=14159	n=and
+probs: 0.0044098191319174385 0.9955901808680825
+decision: no-split
+at: 29
+features: eos=.	x=.5	2	v=2	s=4	n=shipped.
+probs: 0.052791101995306594 0.9472088980046934
+decision: no-split
+at: 39
+features: sn	eos=.	x=shipped	7	v=2.5.4	s=	n=Costs	ncap
+probs: 0.9900682462525706 0.009931753747429441
+decision: split
+at: 53
+features: eos=.	x=4	1	v=rose	s=5	n=percent.
+probs: 0.023794544680287508 0.9762054553197124
+decision: no-split
+at: 63
+features: sn	eos=.	x=percent	7	v=4.5	s=	n=It	ncap
+probs: 0.9984796191179321 0.0015203808820678862
+decision: split
+at: 72
+features: sn	eos=.	x=1	1	v=is	s=	n=Then	ncap
+probs: 0.3683371627424899 0.6316628372575102
+decision: no-split
+at: 80
+features: eos=.	x=2	1	v=Then	vcap	s=	n=
+probs: 0.019575441449213478 0.9804245585507866
+decision: no-split
+input: He said "Stop." Then he left. She asked 'Why?' and smiled. "Done!" he cried.
+at: 13
+features: eos=.	x="Stop	5	v=said	s="	n=Then	ncap
+probs: 0.9350757632339352 0.06492423676606483
+decision: split
+at: 28
+features: sn	eos=.	x=left	4	v=he	s=	n=She	ncap
+probs: 0.992001287424343 0.007998712575657074
+decision: split
+at: 44
+features: eos=?	x='Why	4	v=asked	s='	n=and
+probs: 0.6025586442470395 0.3974413557529605
+decision: split
+at: 57
+features: sn	eos=.	x=smiled	6	v=and	s=	n="Done!"
+probs: 0.7123610240448311 0.2876389759551688
+decision: split
+at: 64
+features: eos=!	x="Done	5	v=smiled.	s="	n=he
+probs: 0.746513311949244 0.253486688050756
+decision: split
+at: 75
+features: eos=.	x=cried	5	v=he	s=	n=
+probs: 0.9044998046862129 0.0955001953137871
+decision: split
+input: It ended.\uD83D\uDE00 Next one starts.\uD801\uDC00Deseret here. Last.\uD83D\uDE00
+at: 8
+features: eos=.	x=ended	5	v=It	vcap	s=\uD83D\uDE00	n=Next	ncap
+probs: 0.8319190957848859 0.1680809042151142
+decision: split
+at: 27
+features: eos=.	x=starts	6	v=one	s=\uD801\uDC00Deseret	n=here.
+probs: 0.6678819623633404 0.33211803763665954
+decision: split
+at: 42
+features: sn	eos=.	x=here	4	v=starts.\uD801\uDC00Deseret	s=	n=Last.\uD83D\uDE00	ncap
+probs: 0.9891314122469111 0.010868587753088917
+decision: split
+at: 48
+features: eos=.	x=Last	4	xcap	v=here.	s=\uD83D	n=
+probs: 0.4307118233420218 0.5692881766579782
+decision: no-split
+input:  \t\n  \u3000 

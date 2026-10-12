@@ -1,0 +1,10 @@
+component: sentdetect-me-fixture-en-abbrev
+opennlp: cdf33c653d5d61d5af7d37ffee189a83bd8392ea
+jdk: 21.0.12.1
+whitespace: legacy
+model: en-abbrev.bin
+model-sha256: 40a1d56b460d0c6b4f878c32858419136c89c75f40b84b0f9795a77a083cf2ec
+input: Pi is 3.14159 and version 2.5.4 shipped. Costs rose 4.5 percent. It is 1. Then 2.
+span: 0 40 0 40 0.9894422428850408
+span: 41 64 41 64 0.9981986111465854
+span: 65 81 65 81 1.0

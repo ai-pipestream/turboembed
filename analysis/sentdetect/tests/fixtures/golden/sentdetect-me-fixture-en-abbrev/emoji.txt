@@ -1,0 +1,10 @@
+component: sentdetect-me-fixture-en-abbrev
+opennlp: cdf33c653d5d61d5af7d37ffee189a83bd8392ea
+jdk: 21.0.12.1
+whitespace: unicode
+model: en-abbrev.bin
+model-sha256: 40a1d56b460d0c6b4f878c32858419136c89c75f40b84b0f9795a77a083cf2ec
+input: I love pizza \uD83C\uDF55 so much. Do you? \uD83D\uDC4D\uD83C\uDFFD Yes.
+span: 0 26 0 24 0.9919180729004712
+span: 27 34 25 32 0.8121590849928789
+span: 35 48 33 42 1.0
