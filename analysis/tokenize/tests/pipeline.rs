@@ -1,8 +1,7 @@
 //! The tokenizers as pipeline steps: optional sentences, the sentence
 //! column, provenance, and the word types aligned to the tokens.
 
-use turbo_analysis::annotate::Step;
-use turbo_analysis::{Analyzer, Annotator, Bound, Document, Error, Ix, IxRange, Key, Layer, Refs, Span, Spans, View};
+use turbo_analysis::{Analyzer, Annotator, Document, Error, Ix, IxRange, Key, Layer, Refs, Span, Spans, View};
 use turbo_analysis_layers::{Sentences, Tokens};
 use turbo_tokenize::{
     SimpleTokenizer, TokenizerOptions, UntypedWordTokenizer, WhitespaceTokenizer, WordTokenizer, WordType, WordTypes,
@@ -84,45 +83,28 @@ fn whitespace_tokens_keep_newlines() {
     assert_eq!(words(&plain[0]), ["a", "\n", "b"]);
 }
 
-/// The analyzer refuses, when it builds a pipeline, a step whose aligned
-/// output hangs on a layer it does not read, and it does not yet count the
-/// step's own outputs as such a layer. `WordTokenizer` writes the tokens
-/// and the word types aligned to them, so it is refused today. This test
-/// pins that; when the analyzer accepts an anchor among a step's own
-/// outputs, it fails, and `typed_word_tokens` should run through the
-/// analyzer instead.
-#[test]
-fn analyzer_refuses_types_aligned_to_own_tokens() {
-    let err = Analyzer::builder().add(WordTokenizer::new()).build().err().unwrap();
-    assert_eq!(
-        err,
-        Error::Pipeline(
-            "turbo-tokenize:uax29 writes turbo:word-types, aligned to opennlp:tokens, without reading opennlp:tokens"
-                .into()
-        )
-    );
-}
-
-/// `WordTokenizer` driven through the same `Step` interface the analyzer
-/// uses, after a pipeline wrote the sentences: the document checks that
-/// the word types are as long as the tokens when it takes them.
+/// `WordTokenizer` writes the tokens and then the word types aligned to
+/// them. The analyzer takes such a step: the types are made on the tokens
+/// the same step wrote, and the document checks that the two are equally
+/// long when it stores them.
 #[test]
 fn typed_word_tokens() {
-    let analyzer = Analyzer::builder().add(Sentencer).build().unwrap();
+    let analyzer = Analyzer::builder().add(WordTokenizer::new()).add(Sentencer).build().unwrap();
+    assert_eq!(analyzer.plan(), [vec!["test:sentences"], vec!["turbo-tokenize:uax29"]]);
     let mut docs = vec![Document::new(TEXT), Document::new("...")];
-    assert!(analyzer.run(&mut docs).iter().all(Result::is_ok));
-    let step = Bound::new(WordTokenizer::new());
-    let out = step.compute(&docs);
-    let mut status = vec![Ok(()), Ok(())];
-    step.store(out, &mut docs, &mut status);
+    let status = analyzer.run(&mut docs);
     assert!(status.iter().all(Result::is_ok), "{status:?}");
 
     let doc = &docs[0];
+    assert_eq!(words(doc), ["Hi", "there", "\u{65e5}", "\u{672c}", "42", "Bye", "\u{1f600}"]);
     let types = doc.get::<WordTypes>().unwrap();
     assert_eq!(types.len(), doc.get::<Tokens>().unwrap().len());
     use WordType::*;
     assert_eq!(types.kind, [Alphanumeric, Alphanumeric, Ideographic, Ideographic, Numeric, Alphanumeric, Emoji]);
     assert_eq!(doc.made_on(Key::<WordTypes>::DEFAULT.id()), [Key::<Tokens>::DEFAULT.id()]);
+    let p = doc.provenance(Key::<WordTypes>::DEFAULT.id()).unwrap();
+    assert_eq!(p.annotator, "turbo-tokenize:uax29");
+    assert_eq!(p.on, [Key::<Tokens>::DEFAULT.id()]);
     assert_eq!(doc.get::<Tokens>().unwrap().of(Ix::new(1)), IxRange::new(2, 5));
     // Punctuation alone is no word: an empty, complete pair of layers.
     assert!(docs[1].get::<Tokens>().unwrap().is_empty() && docs[1].get::<WordTypes>().unwrap().is_empty());

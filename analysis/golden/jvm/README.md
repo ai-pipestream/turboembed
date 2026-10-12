@@ -27,9 +27,9 @@ Each file in these directories is named after its input (`<input>.txt`).
 inputs (`spanish`, `french`, `numbers`, `urls-emails`, `supplementary`), every context
 `DefaultTokenContextGenerator` built and the two probabilities the model returned.
 
-`analysis/tokenize/tests/golden/uax29-wordbreaktest.txt` is a plain copy of OpenNLP's
-`WordBreakTest.txt` test resource (Unicode 17.0, license header kept). The program
-does not write it.
+`analysis/tokenize/tests/golden/uax29-wordbreaktest.txt` is an unchanged copy of
+Unicode's `auxiliary/WordBreakTest.txt` for Unicode 18.0.0 (license header kept). The
+program does not write it.
 
 Models are found by their manifest: every `*.bin` file in the models directory whose
 `Component-Name` is `TokenizerME` gets tokenizer and context files, and one whose
@@ -82,6 +82,64 @@ check accepts, are not consulted and have no `unit:` line. The loop is a copy of
 the program checks that the spans it rebuilds equal `TokenizerME.tokenizePos` for each
 input.
 
+## Variant runs
+
+`Variants` writes four sets of files that the plain run cannot, because no UD model has an
+abbreviation dictionary or the alphanumeric optimization, and the detokenizer has no model.
+It reads `variants/` (committed data, below) and the same `inputs/` and models directory, and
+leaves the files above untouched.
+
+| Run | Directory under `analysis/tokenize/tests/golden` | Inputs |
+|---|---|---|
+| `TokenizerME` of the fixture model `variants/abbreviations/tokenizer-abbreviations.bin` (OpenNLP-trained on six sentences, case-insensitive dictionary `Dr.`, `U.S.`, `e.g.` inside the model file) | `variants/abbreviations-fixture` | `variants/abbreviations/*.txt` and `inputs/` |
+| `TokenizerME` of the English UD model with `variants/abbreviations/english-dictionary.xml` added through `TokenizerFactory` | `variants/abbreviations-en` | same |
+| `TokenizerME` of each UD model on inputs where it splits between the halves of a surrogate pair | `variants/surrogate-<language>` | `variants/surrogate/*.txt` (the file name starts with the language it splits in; every model runs every file) |
+| `TokenizerME` of each UD model rebuilt through `TokenizerFactory` with `useAlphaNumericOptimization` on and the model's own pattern | `variants/alphanumeric-<language>` | `inputs/` and `variants/alphanumeric/*.txt` |
+| Feature and probability files for the abbreviation and alphanumeric runs | `variants/contexts/tokenizer-me-<name>.txt` | the abbreviation inputs; the five context inputs and `mixed` |
+| `DictionaryDetokenizer` | `detokenizer/<case>.txt` | `variants/detokenizer/cases/*.txt` with `variants/detokenizer/dictionaries/` |
+
+Tokenizer files have the format above plus a line after the model lines: `abbreviations:` (the
+dictionary file and its SHA-256) for the English run and `effective-alpha-numeric-pattern:` for the
+alphanumeric runs. The `alpha-numeric-pattern` line of a rebuilt model is the pattern the factory
+wrote to the manifest, which is the pattern of the model's language.
+
+A detokenizer case file has one token per line (the part of the name before the first `-` names
+the dictionary `<name>-detokenizer.xml`; an empty file is an empty token list). The golden file is:
+
+```
+component: detokenizer
+opennlp: <commit>
+jdk: <java.version>
+whitespace: unicode
+dictionary: <file name>
+dictionary-sha256: <hex>
+split-marker: <SPLIT>
+tokens: <count>
+token: <escaped token> <DetokenizationOperation name>     (one per token)
+text: <escaped detokenize(tokens, null)>
+text-marked: <escaped detokenize(tokens, "<SPLIT>")>
+```
+
+`variants/detokenizer/dictionaries/{en,fr,pt,latin}-detokenizer.xml` are Apache OpenNLP's files
+(license header kept); `quotes-detokenizer.xml` is two `RIGHT_LEFT_MATCHING` entries.
+
+Run it the same way as `Golden`, with the five UD tokenizer models in `$MODELS`:
+
+```
+java -cp "/path/to/classes:$CP" Variants "$OPENNLP_COMMIT" analysis/golden/jvm/variants \
+    analysis/golden/jvm/inputs "$MODELS" analysis
+```
+
+## Alphanumeric pattern
+
+`TokenizerFactory.getAlphaNumericPattern` never returns `null`: without a manifest value it returns
+the pattern of the model's language (`lang.Factory.getAlphanumeric`), which is
+`Factory.DEFAULT_ALPHANUMERIC` only for a language without its own pattern. `TokenizerME`'s
+fallback to `DEFAULT_ALPHANUMERIC` therefore never runs for a model, and `ContextRuns` takes the
+factory's pattern with the same fallback. The UD models carry a manifest pattern only for their
+language, so with the optimization on, French accepts `caf\u00E9` as one alphanumeric token and
+English does not.
+
 ## Provenance
 
 - OpenNLP: the 3.0.0-SNAPSHOT jars built from the OpenNLP checkout at commit
@@ -115,6 +173,7 @@ exception from a component, a mismatch in the context loop) is listed after it.
 | `TokenizerRuns.java` | Simple, whitespace, UAX #29 and `TokenizerME` files |
 | `SentenceRuns.java` | Newline and `SentenceDetectorME` files |
 | `ContextRuns.java` | Feature and probability files |
+| `Variants.java` | Entry point of the variant runs: abbreviations, surrogate halves, alphanumeric optimization, detokenizer |
 | `GoldenFile.java` | Header, input and span lines |
 | `TextEscape.java`, `Utf8Offsets.java` | Escaping and offset conversion |
 | `ModelFile.java`, `ModelHeader.java` | Model discovery and header lines |

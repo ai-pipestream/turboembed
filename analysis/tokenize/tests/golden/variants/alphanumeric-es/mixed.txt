@@ -1,0 +1,27 @@
+component: tokenizer-me-es
+opennlp: cdf33c653d5d61d5af7d37ffee189a83bd8392ea
+jdk: 21.0.12.1
+whitespace: unicode
+model: opennlp-es-ud-gsd-tokens-1.3-2.5.4.bin
+model-sha256: 309de611ff7a8c4227c57086838d4783bcede8520026d7ad416c85a513567ce7
+alpha-numeric-pattern: ^[0-9a-z\u00E1\u00E9\u00ED\u00F3\u00FA\u00FC\u00FD\u00F1A-Z\u00C1\u00C9\u00CD\u00D3\u00DA\u00DD\u00D1]+$
+use-alpha-numeric-optimization: true
+effective-alpha-numeric-pattern: ^[0-9a-z\u00E1\u00E9\u00ED\u00F3\u00FA\u00FC\u00FD\u00F1A-Z\u00C1\u00C9\u00CD\u00D3\u00DA\u00DD\u00D1]+$
+input: abc123 x9 Dr. caf\u00E9 \u00FCber a\u00F1o a\u00E7\u00E3o 3.14 a.b \u65E5\u672C\u8A9E hello,world 42 R$5 (ok) it's
+span: 0 6 0 6 1.0
+span: 7 9 7 9 1.0
+span: 10 13 10 13 0.7907995073244818
+span: 14 19 14 18 1.0
+span: 20 25 19 23 1.0
+span: 26 30 24 27 1.0
+span: 31 37 28 32 0.9952628526482605
+span: 38 42 33 37 0.9968538795770469
+span: 43 46 38 41 0.9534488371375172
+span: 47 56 42 45 0.9382885690545305
+span: 57 68 46 57 0.9183412409680236
+span: 69 71 58 60 1.0
+span: 72 75 61 64 0.9994824136250069
+span: 76 77 65 66 0.9960767237591843
+span: 77 79 66 68 0.9996048560886354
+span: 79 80 68 69 1.0
+span: 81 85 70 74 0.6913712135815893

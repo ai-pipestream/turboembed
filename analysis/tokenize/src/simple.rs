@@ -20,7 +20,8 @@
 
 use turbo_analysis::{Annotator, Error, Refs, Span, View};
 use turbo_analysis_layers::{Sentences, Tokens};
-use turbo_unicode::{WhitespaceMode, java};
+use turbo_unicode::WhitespaceMode;
+use turbo_unicode::java::code_point as java;
 
 use crate::TokenizerOptions;
 use crate::unit::tokenize_units;

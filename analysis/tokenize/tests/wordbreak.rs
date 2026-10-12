@@ -1,4 +1,4 @@
-//! Every case of Unicode's WordBreakTest.txt (Unicode 17.0) through
+//! Every case of Unicode's WordBreakTest.txt (Unicode 18.0) through
 //! `word_boundaries`.
 
 use std::path::Path;
@@ -30,6 +30,6 @@ fn every_case_of_word_break_test() {
         assert_eq!(out, expected, "line {}: {line}", n + 1);
         cases += 1;
     }
-    // The 17.0 file's case count, so a reader that skipped lines cannot pass.
+    // The 18.0 file's case count, so a reader that skipped lines cannot pass.
     assert_eq!(cases, 1944);
 }

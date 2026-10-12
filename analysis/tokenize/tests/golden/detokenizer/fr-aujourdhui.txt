@@ -1,0 +1,19 @@
+component: detokenizer
+opennlp: cdf33c653d5d61d5af7d37ffee189a83bd8392ea
+jdk: 21.0.12.1
+whitespace: unicode
+dictionary: fr-detokenizer.xml
+dictionary-sha256: 7531a62ab0d6e9036bedb6419f69322ed376851964b74b70faccc33b9106fa19
+split-marker: <SPLIT>
+tokens: 9
+token: Aujourd' MERGE_TO_RIGHT
+token: hui NO_OPERATION
+token: , MERGE_TO_LEFT
+token: c' MERGE_TO_RIGHT
+token: est NO_OPERATION
+token: l' MERGE_TO_RIGHT
+token: ex- MERGE_TO_RIGHT
+token: pr\u00E9sident NO_OPERATION
+token: ! MERGE_TO_LEFT
+text: Aujourd'hui, c'est l'ex-pr\u00E9sident!
+text-marked: Aujourd'<SPLIT>hui<SPLIT>, c'<SPLIT>est l'<SPLIT>ex-<SPLIT>pr\u00E9sident<SPLIT>!

@@ -9,7 +9,7 @@
 
 use turbo_tokenize_layers::WordType;
 use turbo_unicode::Script;
-use turbo_unicode::java;
+use turbo_unicode::java::code_point as java;
 use turbo_unicode::word_break::{is_extended_pictographic, is_regional_indicator};
 
 use crate::utf8::decode;
@@ -34,7 +34,7 @@ fn script_type(cp: u32) -> Option<WordType> {
         | Script::TaiLe
         | Script::NewTaiLue
         | Script::TaiViet => Some(WordType::SoutheastAsian),
-        Script::Other => None,
+        _ => None,
     }
 }
 

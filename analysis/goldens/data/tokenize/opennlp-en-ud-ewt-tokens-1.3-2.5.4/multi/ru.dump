@@ -1,0 +1,1854 @@
+dump 1
+generator	turbo-goldens-java	1
+opennlp	92d486d05151ef00b6d145c405046aa3a33b5a48	3.0.0-PRE-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-1-24.04.4-Ubuntu	Ubuntu
+unicode	15.0
+input	multi/ru	307	170	0694c88d949a90a29192dbe856add99bbd2f60b9be7448fa0d53b04407bfbbbf
+model	opennlp-en-ud-ewt-tokens-1.3-2.5.4.bin	147d1cdcb89ca5d9bd0ead8fddf2cc14ae543a9151803fe56b3c1fa152b986605e34fb6dda4819c68aa22fc9bffa6bfab14f916b7d0bf4892d452686af34778a
+annotator	opennlp.tools.tokenize.TokenizerME	tokenizePos
+point	0	2	12	2	0	none
+context	p=З
+context	s=има
+context	p1=З
+context	p1_alpha
+context	p1_caps
+context	p2=bok
+context	p1f1=Зи
+context	f1=и
+context	f1_alpha
+context	f2=м
+context	f2_alpha
+context	f12=им
+outcome	F	3fefa71c95889f18 0.9891493721561089
+outcome	T	3f8638da9dd839bc 0.010850627843891007
+end	0
+point	1	4	14	2	0	none
+context	p=Зи
+context	s=ма
+context	p1=и
+context	p1_alpha
+context	p2=З
+context	p2_alpha
+context	p2_caps
+context	p21=Зи
+context	p1f1=им
+context	f1=м
+context	f1_alpha
+context	f2=а
+context	f2_alpha
+context	f12=ма
+outcome	F	3fef40ff03df5671 0.9766841006882726
+outcome	T	3f97e01f841531cb 0.023315899311727322
+end	1
+point	2	6	11	2	0	none
+context	p=Зим
+context	s=а
+context	p1=м
+context	p1_alpha
+context	p2=и
+context	p2_alpha
+context	p21=им
+context	p1f1=ма
+context	f1=а
+context	f1_alpha
+context	f2=bok
+outcome	F	3fede55432257161 0.9342442492884794
+outcome	T	3fb0d55e6ed474f2 0.06575575071152054
+end	2
+point	3	14	11	2	0	none
+context	p=э
+context	s=том
+context	p1=э
+context	p1_alpha
+context	p2=bok
+context	p1f1=эт
+context	f1=т
+context	f1_alpha
+context	f2=о
+context	f2_alpha
+context	f12=то
+outcome	F	3fef54b382e2ee0c 0.9790895038963199
+outcome	T	3f95698fa3a23e77 0.02091049610368009
+end	3
+point	4	16	13	2	0	none
+context	p=эт
+context	s=ом
+context	p1=т
+context	p1_alpha
+context	p2=э
+context	p2_alpha
+context	p21=эт
+context	p1f1=то
+context	f1=о
+context	f1_alpha
+context	f2=м
+context	f2_alpha
+context	f12=ом
+outcome	F	3feef684ace24049 0.967592561401042
+outcome	T	3fa097b531dbfb73 0.032407438598958026
+end	4
+point	5	18	11	2	0	none
+context	p=это
+context	s=м
+context	p1=о
+context	p1_alpha
+context	p2=т
+context	p2_alpha
+context	p21=то
+context	p1f1=ом
+context	f1=м
+context	f1_alpha
+context	f2=bok
+outcome	F	3fede55432257161 0.9342442492884794
+outcome	T	3fb0d55e6ed474f2 0.06575575071152054
+end	5
+point	6	23	11	2	0	none
+context	p=г
+context	s=оду
+context	p1=г
+context	p1_alpha
+context	p2=bok
+context	p1f1=го
+context	f1=о
+context	f1_alpha
+context	f2=д
+context	f2_alpha
+context	f12=од
+outcome	F	3fef54b382e2ee0c 0.9790895038963199
+outcome	T	3f95698fa3a23e77 0.02091049610368009
+end	6
+point	7	25	13	2	0	none
+context	p=го
+context	s=ду
+context	p1=о
+context	p1_alpha
+context	p2=г
+context	p2_alpha
+context	p21=го
+context	p1f1=од
+context	f1=д
+context	f1_alpha
+context	f2=у
+context	f2_alpha
+context	f12=ду
+outcome	F	3feef684ace24049 0.967592561401042
+outcome	T	3fa097b531dbfb73 0.032407438598958026
+end	7
+point	8	27	11	2	0	none
+context	p=год
+context	s=у
+context	p1=д
+context	p1_alpha
+context	p2=о
+context	p2_alpha
+context	p21=од
+context	p1f1=ду
+context	f1=у
+context	f1_alpha
+context	f2=bok
+outcome	F	3fede55432257161 0.9342442492884794
+outcome	T	3fb0d55e6ed474f2 0.06575575071152054
+end	8
+point	9	32	11	2	0	none
+context	p=п
+context	s=ришла
+context	p1=п
+context	p1_alpha
+context	p2=bok
+context	p1f1=пр
+context	f1=р
+context	f1_alpha
+context	f2=и
+context	f2_alpha
+context	f12=ри
+outcome	F	3fef54b382e2ee0c 0.9790895038963199
+outcome	T	3f95698fa3a23e77 0.02091049610368009
+end	9
+point	10	34	13	2	0	none
+context	p=пр
+context	s=ишла
+context	p1=р
+context	p1_alpha
+context	p2=п
+context	p2_alpha
+context	p21=пр
+context	p1f1=ри
+context	f1=и
+context	f1_alpha
+context	f2=ш
+context	f2_alpha
+context	f12=иш
+outcome	F	3feef684ace24049 0.967592561401042
+outcome	T	3fa097b531dbfb73 0.032407438598958026
+end	10
+point	11	36	13	2	0	none
+context	p=при
+context	s=шла
+context	p1=и
+context	p1_alpha
+context	p2=р
+context	p2_alpha
+context	p21=ри
+context	p1f1=иш
+context	f1=ш
+context	f1_alpha
+context	f2=л
+context	f2_alpha
+context	f12=шл
+outcome	F	3feef684ace24049 0.967592561401042
+outcome	T	3fa097b531dbfb73 0.032407438598958026
+end	11
+point	12	38	13	2	0	none
+context	p=приш
+context	s=ла
+context	p1=ш
+context	p1_alpha
+context	p2=и
+context	p2_alpha
+context	p21=иш
+context	p1f1=шл
+context	f1=л
+context	f1_alpha
+context	f2=а
+context	f2_alpha
+context	f12=ла
+outcome	F	3feef684ace24049 0.967592561401042
+outcome	T	3fa097b531dbfb73 0.032407438598958026
+end	12
+point	13	40	11	2	0	none
+context	p=пришл
+context	s=а
+context	p1=л
+context	p1_alpha
+context	p2=ш
+context	p2_alpha
+context	p21=шл
+context	p1f1=ла
+context	f1=а
+context	f1_alpha
+context	f2=bok
+outcome	F	3fede55432257161 0.9342442492884794
+outcome	T	3fb0d55e6ed474f2 0.06575575071152054
+end	13
+point	14	45	11	2	0	none
+context	p=р
+context	s=ано.
+context	p1=р
+context	p1_alpha
+context	p2=bok
+context	p1f1=ра
+context	f1=а
+context	f1_alpha
+context	f2=н
+context	f2_alpha
+context	f12=ан
+outcome	F	3fef54b382e2ee0c 0.9790895038963199
+outcome	T	3f95698fa3a23e77 0.02091049610368009
+end	14
+point	15	47	13	2	0	none
+context	p=ра
+context	s=но.
+context	p1=а
+context	p1_alpha
+context	p2=р
+context	p2_alpha
+context	p21=ра
+context	p1f1=ан
+context	f1=н
+context	f1_alpha
+context	f2=о
+context	f2_alpha
+context	f12=но
+outcome	F	3feef684ace24049 0.967592561401042
+outcome	T	3fa097b531dbfb73 0.032407438598958026
+end	15
+point	16	49	13	2	0	none
+context	p=ран
+context	s=о.
+context	p1=н
+context	p1_alpha
+context	p2=а
+context	p2_alpha
+context	p21=ан
+context	p1f1=но
+context	f1=о
+context	f1_alpha
+context	f2=.
+context	f2_eos
+context	f12=о.
+outcome	F	3fee8b9d84e5277c 0.9545428844078141
+outcome	T	3fa74627b1ad8849 0.045457115592185966
+end	16
+point	17	51	11	2	0	none
+context	p=рано
+context	s=.
+context	p1=о
+context	p1_alpha
+context	p2=н
+context	p2_alpha
+context	p21=но
+context	p1f1=о.
+context	f1=.
+context	f1_eos
+context	f2=bok
+outcome	F	3f9d7b304c47c091 0.028790239959505973
+outcome	T	3fef14267d9dc1fb 0.971209760040494
+end	17
+point	18	55	12	2	0	none
+context	p=У
+context	s=же
+context	p1=У
+context	p1_alpha
+context	p1_caps
+context	p2=bok
+context	p1f1=Уж
+context	f1=ж
+context	f1_alpha
+context	f2=е
+context	f2_alpha
+context	f12=же
+outcome	F	3fefa71c95889f18 0.9891493721561089
+outcome	T	3f8638da9dd839bc 0.010850627843891007
+end	18
+point	19	57	12	2	0	none
+context	p=Уж
+context	s=е
+context	p1=ж
+context	p1_alpha
+context	p2=У
+context	p2_alpha
+context	p2_caps
+context	p21=Уж
+context	p1f1=же
+context	f1=е
+context	f1_alpha
+context	f2=bok
+outcome	F	3fee78a9c6c8f9f6 0.9522293932457717
+outcome	T	3fa87563937060a5 0.04777060675422832
+end	19
+point	20	65	11	2	0	none
+context	p=о
+context	s=ктябре
+context	p1=о
+context	p1_alpha
+context	p2=bok
+context	p1f1=ок
+context	f1=к
+context	f1_alpha
+context	f2=т
+context	f2_alpha
+context	f12=кт
+outcome	F	3fef54b382e2ee0c 0.9790895038963199
+outcome	T	3f95698fa3a23e77 0.02091049610368009
+end	20
+point	21	67	13	2	0	none
+context	p=ок
+context	s=тябре
+context	p1=к
+context	p1_alpha
+context	p2=о
+context	p2_alpha
+context	p21=ок
+context	p1f1=кт
+context	f1=т
+context	f1_alpha
+context	f2=я
+context	f2_alpha
+context	f12=тя
+outcome	F	3feef684ace24049 0.967592561401042
+outcome	T	3fa097b531dbfb73 0.032407438598958026
+end	21
+point	22	69	13	2	0	none
+context	p=окт
+context	s=ябре
+context	p1=т
+context	p1_alpha
+context	p2=к
+context	p2_alpha
+context	p21=кт
+context	p1f1=тя
+context	f1=я
+context	f1_alpha
+context	f2=б
+context	f2_alpha
+context	f12=яб
+outcome	F	3feef684ace24049 0.967592561401042
+outcome	T	3fa097b531dbfb73 0.032407438598958026
+end	22
+point	23	71	13	2	0	none
+context	p=октя
+context	s=бре
+context	p1=я
+context	p1_alpha
+context	p2=т
+context	p2_alpha
+context	p21=тя
+context	p1f1=яб
+context	f1=б
+context	f1_alpha
+context	f2=р
+context	f2_alpha
+context	f12=бр
+outcome	F	3feef684ace24049 0.967592561401042
+outcome	T	3fa097b531dbfb73 0.032407438598958026
+end	23
+point	24	73	13	2	0	none
+context	p=октяб
+context	s=ре
+context	p1=б
+context	p1_alpha
+context	p2=я
+context	p2_alpha
+context	p21=яб
+context	p1f1=бр
+context	f1=р
+context	f1_alpha
+context	f2=е
+context	f2_alpha
+context	f12=ре
+outcome	F	3feef684ace24049 0.967592561401042
+outcome	T	3fa097b531dbfb73 0.032407438598958026
+end	24
+point	25	75	11	2	0	none
+context	p=октябр
+context	s=е
+context	p1=р
+context	p1_alpha
+context	p2=б
+context	p2_alpha
+context	p21=бр
+context	p1f1=ре
+context	f1=е
+context	f1_alpha
+context	f2=bok
+outcome	F	3fede55432257161 0.9342442492884794
+outcome	T	3fb0d55e6ed474f2 0.06575575071152054
+end	25
+point	26	80	11	2	0	none
+context	p=в
+context	s=ыпал
+context	p1=в
+context	p1_alpha
+context	p2=bok
+context	p1f1=вы
+context	f1=ы
+context	f1_alpha
+context	f2=п
+context	f2_alpha
+context	f12=ып
+outcome	F	3fef54b382e2ee0c 0.9790895038963199
+outcome	T	3f95698fa3a23e77 0.02091049610368009
+end	26
+point	27	82	13	2	0	none
+context	p=вы
+context	s=пал
+context	p1=ы
+context	p1_alpha
+context	p2=в
+context	p2_alpha
+context	p21=вы
+context	p1f1=ып
+context	f1=п
+context	f1_alpha
+context	f2=а
+context	f2_alpha
+context	f12=па
+outcome	F	3feef684ace24049 0.967592561401042
+outcome	T	3fa097b531dbfb73 0.032407438598958026
+end	27
+point	28	84	13	2	0	none
+context	p=вып
+context	s=ал
+context	p1=п
+context	p1_alpha
+context	p2=ы
+context	p2_alpha
+context	p21=ып
+context	p1f1=па
+context	f1=а
+context	f1_alpha
+context	f2=л
+context	f2_alpha
+context	f12=ал
+outcome	F	3feef684ace24049 0.967592561401042
+outcome	T	3fa097b531dbfb73 0.032407438598958026
+end	28
+point	29	86	11	2	0	none
+context	p=выпа
+context	s=л
+context	p1=а
+context	p1_alpha
+context	p2=п
+context	p2_alpha
+context	p21=па
+context	p1f1=ал
+context	f1=л
+context	f1_alpha
+context	f2=bok
+outcome	F	3fede55432257161 0.9342442492884794
+outcome	T	3fb0d55e6ed474f2 0.06575575071152054
+end	29
+point	30	91	11	2	0	none
+context	p=п
+context	s=ервый
+context	p1=п
+context	p1_alpha
+context	p2=bok
+context	p1f1=пе
+context	f1=е
+context	f1_alpha
+context	f2=р
+context	f2_alpha
+context	f12=ер
+outcome	F	3fef54b382e2ee0c 0.9790895038963199
+outcome	T	3f95698fa3a23e77 0.02091049610368009
+end	30
+point	31	93	13	2	0	none
+context	p=пе
+context	s=рвый
+context	p1=е
+context	p1_alpha
+context	p2=п
+context	p2_alpha
+context	p21=пе
+context	p1f1=ер
+context	f1=р
+context	f1_alpha
+context	f2=в
+context	f2_alpha
+context	f12=рв
+outcome	F	3feef684ace24049 0.967592561401042
+outcome	T	3fa097b531dbfb73 0.032407438598958026
+end	31
+point	32	95	13	2	0	none
+context	p=пер
+context	s=вый
+context	p1=р
+context	p1_alpha
+context	p2=е
+context	p2_alpha
+context	p21=ер
+context	p1f1=рв
+context	f1=в
+context	f1_alpha
+context	f2=ы
+context	f2_alpha
+context	f12=вы
+outcome	F	3feef684ace24049 0.967592561401042
+outcome	T	3fa097b531dbfb73 0.032407438598958026
+end	32
+point	33	97	13	2	0	none
+context	p=перв
+context	s=ый
+context	p1=в
+context	p1_alpha
+context	p2=р
+context	p2_alpha
+context	p21=рв
+context	p1f1=вы
+context	f1=ы
+context	f1_alpha
+context	f2=й
+context	f2_alpha
+context	f12=ый
+outcome	F	3feef684ace24049 0.967592561401042
+outcome	T	3fa097b531dbfb73 0.032407438598958026
+end	33
+point	34	99	11	2	0	none
+context	p=первы
+context	s=й
+context	p1=ы
+context	p1_alpha
+context	p2=в
+context	p2_alpha
+context	p21=вы
+context	p1f1=ый
+context	f1=й
+context	f1_alpha
+context	f2=bok
+outcome	F	3fede55432257161 0.9342442492884794
+outcome	T	3fb0d55e6ed474f2 0.06575575071152054
+end	34
+point	35	104	11	2	0	none
+context	p=с
+context	s=нег,
+context	p1=с
+context	p1_alpha
+context	p2=bok
+context	p1f1=сн
+context	f1=н
+context	f1_alpha
+context	f2=е
+context	f2_alpha
+context	f12=не
+outcome	F	3fef54b382e2ee0c 0.9790895038963199
+outcome	T	3f95698fa3a23e77 0.02091049610368009
+end	35
+point	36	106	13	2	0	none
+context	p=сн
+context	s=ег,
+context	p1=н
+context	p1_alpha
+context	p2=с
+context	p2_alpha
+context	p21=сн
+context	p1f1=не
+context	f1=е
+context	f1_alpha
+context	f2=г
+context	f2_alpha
+context	f12=ег
+outcome	F	3feef684ace24049 0.967592561401042
+outcome	T	3fa097b531dbfb73 0.032407438598958026
+end	36
+point	37	108	12	2	0	none
+context	p=сне
+context	s=г,
+context	p1=е
+context	p1_alpha
+context	p2=н
+context	p2_alpha
+context	p21=не
+context	p1f1=ег
+context	f1=г
+context	f1_alpha
+context	f2=,
+context	f12=г,
+outcome	F	3fef5de6ae7e29c4 0.9802125366271004
+outcome	T	3f94432a303ac77a 0.019787463372899584
+end	37
+point	38	110	10	2	0	none
+context	p=снег
+context	s=,
+context	p1=г
+context	p1_alpha
+context	p2=е
+context	p2_alpha
+context	p21=ег
+context	p1f1=г,
+context	f1=,
+context	f2=bok
+outcome	F	3f1238315b390bcc 6.950188872516179E-5
+outcome	T	3fefff6e3e752637 0.9999304981112748
+end	38
+point	39	117	11	2	0	none
+context	p=д
+context	s=ети
+context	p1=д
+context	p1_alpha
+context	p2=bok
+context	p1f1=де
+context	f1=е
+context	f1_alpha
+context	f2=т
+context	f2_alpha
+context	f12=ет
+outcome	F	3fef54b382e2ee0c 0.9790895038963199
+outcome	T	3f95698fa3a23e77 0.02091049610368009
+end	39
+point	40	119	13	2	0	none
+context	p=де
+context	s=ти
+context	p1=е
+context	p1_alpha
+context	p2=д
+context	p2_alpha
+context	p21=де
+context	p1f1=ет
+context	f1=т
+context	f1_alpha
+context	f2=и
+context	f2_alpha
+context	f12=ти
+outcome	F	3feef684ace24049 0.967592561401042
+outcome	T	3fa097b531dbfb73 0.032407438598958026
+end	40
+point	41	121	11	2	0	none
+context	p=дет
+context	s=и
+context	p1=т
+context	p1_alpha
+context	p2=е
+context	p2_alpha
+context	p21=ет
+context	p1f1=ти
+context	f1=и
+context	f1_alpha
+context	f2=bok
+outcome	F	3fede55432257161 0.9342442492884794
+outcome	T	3fb0d55e6ed474f2 0.06575575071152054
+end	41
+point	42	126	11	2	0	none
+context	p=п
+context	s=обежали
+context	p1=п
+context	p1_alpha
+context	p2=bok
+context	p1f1=по
+context	f1=о
+context	f1_alpha
+context	f2=б
+context	f2_alpha
+context	f12=об
+outcome	F	3fef54b382e2ee0c 0.9790895038963199
+outcome	T	3f95698fa3a23e77 0.02091049610368009
+end	42
+point	43	128	13	2	0	none
+context	p=по
+context	s=бежали
+context	p1=о
+context	p1_alpha
+context	p2=п
+context	p2_alpha
+context	p21=по
+context	p1f1=об
+context	f1=б
+context	f1_alpha
+context	f2=е
+context	f2_alpha
+context	f12=бе
+outcome	F	3feef684ace24049 0.967592561401042
+outcome	T	3fa097b531dbfb73 0.032407438598958026
+end	43
+point	44	130	13	2	0	none
+context	p=поб
+context	s=ежали
+context	p1=б
+context	p1_alpha
+context	p2=о
+context	p2_alpha
+context	p21=об
+context	p1f1=бе
+context	f1=е
+context	f1_alpha
+context	f2=ж
+context	f2_alpha
+context	f12=еж
+outcome	F	3feef684ace24049 0.967592561401042
+outcome	T	3fa097b531dbfb73 0.032407438598958026
+end	44
+point	45	132	13	2	0	none
+context	p=побе
+context	s=жали
+context	p1=е
+context	p1_alpha
+context	p2=б
+context	p2_alpha
+context	p21=бе
+context	p1f1=еж
+context	f1=ж
+context	f1_alpha
+context	f2=а
+context	f2_alpha
+context	f12=жа
+outcome	F	3feef684ace24049 0.967592561401042
+outcome	T	3fa097b531dbfb73 0.032407438598958026
+end	45
+point	46	134	13	2	0	none
+context	p=побеж
+context	s=али
+context	p1=ж
+context	p1_alpha
+context	p2=е
+context	p2_alpha
+context	p21=еж
+context	p1f1=жа
+context	f1=а
+context	f1_alpha
+context	f2=л
+context	f2_alpha
+context	f12=ал
+outcome	F	3feef684ace24049 0.967592561401042
+outcome	T	3fa097b531dbfb73 0.032407438598958026
+end	46
+point	47	136	13	2	0	none
+context	p=побежа
+context	s=ли
+context	p1=а
+context	p1_alpha
+context	p2=ж
+context	p2_alpha
+context	p21=жа
+context	p1f1=ал
+context	f1=л
+context	f1_alpha
+context	f2=и
+context	f2_alpha
+context	f12=ли
+outcome	F	3feef684ace24049 0.967592561401042
+outcome	T	3fa097b531dbfb73 0.032407438598958026
+end	47
+point	48	138	11	2	0	none
+context	p=побежал
+context	s=и
+context	p1=л
+context	p1_alpha
+context	p2=а
+context	p2_alpha
+context	p21=ал
+context	p1f1=ли
+context	f1=и
+context	f1_alpha
+context	f2=bok
+outcome	F	3fede55432257161 0.9342442492884794
+outcome	T	3fb0d55e6ed474f2 0.06575575071152054
+end	48
+point	49	143	11	2	0	none
+context	p=к
+context	s=ататься
+context	p1=к
+context	p1_alpha
+context	p2=bok
+context	p1f1=ка
+context	f1=а
+context	f1_alpha
+context	f2=т
+context	f2_alpha
+context	f12=ат
+outcome	F	3fef54b382e2ee0c 0.9790895038963199
+outcome	T	3f95698fa3a23e77 0.02091049610368009
+end	49
+point	50	145	13	2	0	none
+context	p=ка
+context	s=таться
+context	p1=а
+context	p1_alpha
+context	p2=к
+context	p2_alpha
+context	p21=ка
+context	p1f1=ат
+context	f1=т
+context	f1_alpha
+context	f2=а
+context	f2_alpha
+context	f12=та
+outcome	F	3feef684ace24049 0.967592561401042
+outcome	T	3fa097b531dbfb73 0.032407438598958026
+end	50
+point	51	147	13	2	0	none
+context	p=кат
+context	s=аться
+context	p1=т
+context	p1_alpha
+context	p2=а
+context	p2_alpha
+context	p21=ат
+context	p1f1=та
+context	f1=а
+context	f1_alpha
+context	f2=т
+context	f2_alpha
+context	f12=ат
+outcome	F	3feef684ace24049 0.967592561401042
+outcome	T	3fa097b531dbfb73 0.032407438598958026
+end	51
+point	52	149	13	2	0	none
+context	p=ката
+context	s=ться
+context	p1=а
+context	p1_alpha
+context	p2=т
+context	p2_alpha
+context	p21=та
+context	p1f1=ат
+context	f1=т
+context	f1_alpha
+context	f2=ь
+context	f2_alpha
+context	f12=ть
+outcome	F	3feef684ace24049 0.967592561401042
+outcome	T	3fa097b531dbfb73 0.032407438598958026
+end	52
+point	53	151	13	2	0	none
+context	p=катат
+context	s=ься
+context	p1=т
+context	p1_alpha
+context	p2=а
+context	p2_alpha
+context	p21=ат
+context	p1f1=ть
+context	f1=ь
+context	f1_alpha
+context	f2=с
+context	f2_alpha
+context	f12=ьс
+outcome	F	3feef684ace24049 0.967592561401042
+outcome	T	3fa097b531dbfb73 0.032407438598958026
+end	53
+point	54	153	13	2	0	none
+context	p=катать
+context	s=ся
+context	p1=ь
+context	p1_alpha
+context	p2=т
+context	p2_alpha
+context	p21=ть
+context	p1f1=ьс
+context	f1=с
+context	f1_alpha
+context	f2=я
+context	f2_alpha
+context	f12=ся
+outcome	F	3feef684ace24049 0.967592561401042
+outcome	T	3fa097b531dbfb73 0.032407438598958026
+end	54
+point	55	155	11	2	0	none
+context	p=кататьс
+context	s=я
+context	p1=с
+context	p1_alpha
+context	p2=ь
+context	p2_alpha
+context	p21=ьс
+context	p1f1=ся
+context	f1=я
+context	f1_alpha
+context	f2=bok
+outcome	F	3fede55432257161 0.9342442492884794
+outcome	T	3fb0d55e6ed474f2 0.06575575071152054
+end	55
+point	56	160	9	2	0	none
+context	p=н
+context	s=а
+context	p1=н
+context	p1_alpha
+context	p2=bok
+context	p1f1=на
+context	f1=а
+context	f1_alpha
+context	f2=bok
+outcome	F	3feea020780b9306 0.9570467323906946
+outcome	T	3fa5fdf87f46cfa4 0.04295326760930543
+end	56
+point	57	165	11	2	0	none
+context	p=с
+context	s=анках.
+context	p1=с
+context	p1_alpha
+context	p2=bok
+context	p1f1=са
+context	f1=а
+context	f1_alpha
+context	f2=н
+context	f2_alpha
+context	f12=ан
+outcome	F	3fef54b382e2ee0c 0.9790895038963199
+outcome	T	3f95698fa3a23e77 0.02091049610368009
+end	57
+point	58	167	13	2	0	none
+context	p=са
+context	s=нках.
+context	p1=а
+context	p1_alpha
+context	p2=с
+context	p2_alpha
+context	p21=са
+context	p1f1=ан
+context	f1=н
+context	f1_alpha
+context	f2=к
+context	f2_alpha
+context	f12=нк
+outcome	F	3feef684ace24049 0.967592561401042
+outcome	T	3fa097b531dbfb73 0.032407438598958026
+end	58
+point	59	169	13	2	0	none
+context	p=сан
+context	s=ках.
+context	p1=н
+context	p1_alpha
+context	p2=а
+context	p2_alpha
+context	p21=ан
+context	p1f1=нк
+context	f1=к
+context	f1_alpha
+context	f2=а
+context	f2_alpha
+context	f12=ка
+outcome	F	3feef684ace24049 0.967592561401042
+outcome	T	3fa097b531dbfb73 0.032407438598958026
+end	59
+point	60	171	13	2	0	none
+context	p=санк
+context	s=ах.
+context	p1=к
+context	p1_alpha
+context	p2=н
+context	p2_alpha
+context	p21=нк
+context	p1f1=ка
+context	f1=а
+context	f1_alpha
+context	f2=х
+context	f2_alpha
+context	f12=ах
+outcome	F	3feef684ace24049 0.967592561401042
+outcome	T	3fa097b531dbfb73 0.032407438598958026
+end	60
+point	61	173	13	2	0	none
+context	p=санка
+context	s=х.
+context	p1=а
+context	p1_alpha
+context	p2=к
+context	p2_alpha
+context	p21=ка
+context	p1f1=ах
+context	f1=х
+context	f1_alpha
+context	f2=.
+context	f2_eos
+context	f12=х.
+outcome	F	3fee8b9d84e5277c 0.9545428844078141
+outcome	T	3fa74627b1ad8849 0.045457115592185966
+end	61
+point	62	175	11	2	0	none
+context	p=санках
+context	s=.
+context	p1=х
+context	p1_alpha
+context	p2=а
+context	p2_alpha
+context	p21=ах
+context	p1f1=х.
+context	f1=.
+context	f1_eos
+context	f2=bok
+outcome	F	3f9d7b304c47c091 0.028790239959505973
+outcome	T	3fef14267d9dc1fb 0.971209760040494
+end	62
+point	63	182	11	2	0	none
+context	p=г
+context	s=ороде
+context	p1=г
+context	p1_alpha
+context	p2=bok
+context	p1f1=го
+context	f1=о
+context	f1_alpha
+context	f2=р
+context	f2_alpha
+context	f12=ор
+outcome	F	3fef54b382e2ee0c 0.9790895038963199
+outcome	T	3f95698fa3a23e77 0.02091049610368009
+end	63
+point	64	184	13	2	0	none
+context	p=го
+context	s=роде
+context	p1=о
+context	p1_alpha
+context	p2=г
+context	p2_alpha
+context	p21=го
+context	p1f1=ор
+context	f1=р
+context	f1_alpha
+context	f2=о
+context	f2_alpha
+context	f12=ро
+outcome	F	3feef684ace24049 0.967592561401042
+outcome	T	3fa097b531dbfb73 0.032407438598958026
+end	64
+point	65	186	13	2	0	none
+context	p=гор
+context	s=оде
+context	p1=р
+context	p1_alpha
+context	p2=о
+context	p2_alpha
+context	p21=ор
+context	p1f1=ро
+context	f1=о
+context	f1_alpha
+context	f2=д
+context	f2_alpha
+context	f12=од
+outcome	F	3feef684ace24049 0.967592561401042
+outcome	T	3fa097b531dbfb73 0.032407438598958026
+end	65
+point	66	188	13	2	0	none
+context	p=горо
+context	s=де
+context	p1=о
+context	p1_alpha
+context	p2=р
+context	p2_alpha
+context	p21=ро
+context	p1f1=од
+context	f1=д
+context	f1_alpha
+context	f2=е
+context	f2_alpha
+context	f12=де
+outcome	F	3feef684ace24049 0.967592561401042
+outcome	T	3fa097b531dbfb73 0.032407438598958026
+end	66
+point	67	190	11	2	0	none
+context	p=город
+context	s=е
+context	p1=д
+context	p1_alpha
+context	p2=о
+context	p2_alpha
+context	p21=од
+context	p1f1=де
+context	f1=е
+context	f1_alpha
+context	f2=bok
+outcome	F	3fede55432257161 0.9342442492884794
+outcome	T	3fb0d55e6ed474f2 0.06575575071152054
+end	67
+point	68	195	11	2	0	none
+context	p=б
+context	s=ыстро
+context	p1=б
+context	p1_alpha
+context	p2=bok
+context	p1f1=бы
+context	f1=ы
+context	f1_alpha
+context	f2=с
+context	f2_alpha
+context	f12=ыс
+outcome	F	3fef54b382e2ee0c 0.9790895038963199
+outcome	T	3f95698fa3a23e77 0.02091049610368009
+end	68
+point	69	197	13	2	0	none
+context	p=бы
+context	s=стро
+context	p1=ы
+context	p1_alpha
+context	p2=б
+context	p2_alpha
+context	p21=бы
+context	p1f1=ыс
+context	f1=с
+context	f1_alpha
+context	f2=т
+context	f2_alpha
+context	f12=ст
+outcome	F	3feef684ace24049 0.967592561401042
+outcome	T	3fa097b531dbfb73 0.032407438598958026
+end	69
+point	70	199	13	2	0	none
+context	p=быс
+context	s=тро
+context	p1=с
+context	p1_alpha
+context	p2=ы
+context	p2_alpha
+context	p21=ыс
+context	p1f1=ст
+context	f1=т
+context	f1_alpha
+context	f2=р
+context	f2_alpha
+context	f12=тр
+outcome	F	3feef684ace24049 0.967592561401042
+outcome	T	3fa097b531dbfb73 0.032407438598958026
+end	70
+point	71	201	13	2	0	none
+context	p=быст
+context	s=ро
+context	p1=т
+context	p1_alpha
+context	p2=с
+context	p2_alpha
+context	p21=ст
+context	p1f1=тр
+context	f1=р
+context	f1_alpha
+context	f2=о
+context	f2_alpha
+context	f12=ро
+outcome	F	3feef684ace24049 0.967592561401042
+outcome	T	3fa097b531dbfb73 0.032407438598958026
+end	71
+point	72	203	11	2	0	none
+context	p=быстр
+context	s=о
+context	p1=р
+context	p1_alpha
+context	p2=т
+context	p2_alpha
+context	p21=тр
+context	p1f1=ро
+context	f1=о
+context	f1_alpha
+context	f2=bok
+outcome	F	3fede55432257161 0.9342442492884794
+outcome	T	3fb0d55e6ed474f2 0.06575575071152054
+end	72
+point	73	208	11	2	0	none
+context	p=р
+context	s=асчистили
+context	p1=р
+context	p1_alpha
+context	p2=bok
+context	p1f1=ра
+context	f1=а
+context	f1_alpha
+context	f2=с
+context	f2_alpha
+context	f12=ас
+outcome	F	3fef54b382e2ee0c 0.9790895038963199
+outcome	T	3f95698fa3a23e77 0.02091049610368009
+end	73
+point	74	210	13	2	0	none
+context	p=ра
+context	s=счистили
+context	p1=а
+context	p1_alpha
+context	p2=р
+context	p2_alpha
+context	p21=ра
+context	p1f1=ас
+context	f1=с
+context	f1_alpha
+context	f2=ч
+context	f2_alpha
+context	f12=сч
+outcome	F	3feef684ace24049 0.967592561401042
+outcome	T	3fa097b531dbfb73 0.032407438598958026
+end	74
+point	75	212	13	2	0	none
+context	p=рас
+context	s=чистили
+context	p1=с
+context	p1_alpha
+context	p2=а
+context	p2_alpha
+context	p21=ас
+context	p1f1=сч
+context	f1=ч
+context	f1_alpha
+context	f2=и
+context	f2_alpha
+context	f12=чи
+outcome	F	3feef684ace24049 0.967592561401042
+outcome	T	3fa097b531dbfb73 0.032407438598958026
+end	75
+point	76	214	13	2	0	none
+context	p=расч
+context	s=истили
+context	p1=ч
+context	p1_alpha
+context	p2=с
+context	p2_alpha
+context	p21=сч
+context	p1f1=чи
+context	f1=и
+context	f1_alpha
+context	f2=с
+context	f2_alpha
+context	f12=ис
+outcome	F	3feef684ace24049 0.967592561401042
+outcome	T	3fa097b531dbfb73 0.032407438598958026
+end	76
+point	77	216	13	2	0	none
+context	p=расчи
+context	s=стили
+context	p1=и
+context	p1_alpha
+context	p2=ч
+context	p2_alpha
+context	p21=чи
+context	p1f1=ис
+context	f1=с
+context	f1_alpha
+context	f2=т
+context	f2_alpha
+context	f12=ст
+outcome	F	3feef684ace24049 0.967592561401042
+outcome	T	3fa097b531dbfb73 0.032407438598958026
+end	77
+point	78	218	13	2	0	none
+context	p=расчис
+context	s=тили
+context	p1=с
+context	p1_alpha
+context	p2=и
+context	p2_alpha
+context	p21=ис
+context	p1f1=ст
+context	f1=т
+context	f1_alpha
+context	f2=и
+context	f2_alpha
+context	f12=ти
+outcome	F	3feef684ace24049 0.967592561401042
+outcome	T	3fa097b531dbfb73 0.032407438598958026
+end	78
+point	79	220	13	2	0	none
+context	p=расчист
+context	s=или
+context	p1=т
+context	p1_alpha
+context	p2=с
+context	p2_alpha
+context	p21=ст
+context	p1f1=ти
+context	f1=и
+context	f1_alpha
+context	f2=л
+context	f2_alpha
+context	f12=ил
+outcome	F	3feef684ace24049 0.967592561401042
+outcome	T	3fa097b531dbfb73 0.032407438598958026
+end	79
+point	80	222	13	2	0	none
+context	p=расчисти
+context	s=ли
+context	p1=и
+context	p1_alpha
+context	p2=т
+context	p2_alpha
+context	p21=ти
+context	p1f1=ил
+context	f1=л
+context	f1_alpha
+context	f2=и
+context	f2_alpha
+context	f12=ли
+outcome	F	3feef684ace24049 0.967592561401042
+outcome	T	3fa097b531dbfb73 0.032407438598958026
+end	80
+point	81	224	11	2	0	none
+context	p=расчистил
+context	s=и
+context	p1=л
+context	p1_alpha
+context	p2=и
+context	p2_alpha
+context	p21=ил
+context	p1f1=ли
+context	f1=и
+context	f1_alpha
+context	f2=bok
+outcome	F	3fede55432257161 0.9342442492884794
+outcome	T	3fb0d55e6ed474f2 0.06575575071152054
+end	81
+point	82	229	11	2	0	none
+context	p=д
+context	s=ороги.
+context	p1=д
+context	p1_alpha
+context	p2=bok
+context	p1f1=до
+context	f1=о
+context	f1_alpha
+context	f2=р
+context	f2_alpha
+context	f12=ор
+outcome	F	3fef54b382e2ee0c 0.9790895038963199
+outcome	T	3f95698fa3a23e77 0.02091049610368009
+end	82
+point	83	231	13	2	0	none
+context	p=до
+context	s=роги.
+context	p1=о
+context	p1_alpha
+context	p2=д
+context	p2_alpha
+context	p21=до
+context	p1f1=ор
+context	f1=р
+context	f1_alpha
+context	f2=о
+context	f2_alpha
+context	f12=ро
+outcome	F	3feef684ace24049 0.967592561401042
+outcome	T	3fa097b531dbfb73 0.032407438598958026
+end	83
+point	84	233	13	2	0	none
+context	p=дор
+context	s=оги.
+context	p1=р
+context	p1_alpha
+context	p2=о
+context	p2_alpha
+context	p21=ор
+context	p1f1=ро
+context	f1=о
+context	f1_alpha
+context	f2=г
+context	f2_alpha
+context	f12=ог
+outcome	F	3feef684ace24049 0.967592561401042
+outcome	T	3fa097b531dbfb73 0.032407438598958026
+end	84
+point	85	235	13	2	0	none
+context	p=доро
+context	s=ги.
+context	p1=о
+context	p1_alpha
+context	p2=р
+context	p2_alpha
+context	p21=ро
+context	p1f1=ог
+context	f1=г
+context	f1_alpha
+context	f2=и
+context	f2_alpha
+context	f12=ги
+outcome	F	3feef684ace24049 0.967592561401042
+outcome	T	3fa097b531dbfb73 0.032407438598958026
+end	85
+point	86	237	13	2	0	none
+context	p=дорог
+context	s=и.
+context	p1=г
+context	p1_alpha
+context	p2=о
+context	p2_alpha
+context	p21=ог
+context	p1f1=ги
+context	f1=и
+context	f1_alpha
+context	f2=.
+context	f2_eos
+context	f12=и.
+outcome	F	3fee8b9d84e5277c 0.9545428844078141
+outcome	T	3fa74627b1ad8849 0.045457115592185966
+end	86
+point	87	239	11	2	0	none
+context	p=дороги
+context	s=.
+context	p1=и
+context	p1_alpha
+context	p2=г
+context	p2_alpha
+context	p21=ги
+context	p1f1=и.
+context	f1=.
+context	f1_eos
+context	f2=bok
+outcome	F	3f9d7b304c47c091 0.028790239959505973
+outcome	T	3fef14267d9dc1fb 0.971209760040494
+end	87
+point	88	243	12	2	0	none
+context	p=М
+context	s=ногие
+context	p1=М
+context	p1_alpha
+context	p1_caps
+context	p2=bok
+context	p1f1=Мн
+context	f1=н
+context	f1_alpha
+context	f2=о
+context	f2_alpha
+context	f12=но
+outcome	F	3fefa71c95889f18 0.9891493721561089
+outcome	T	3f8638da9dd839bc 0.010850627843891007
+end	88
+point	89	245	14	2	0	none
+context	p=Мн
+context	s=огие
+context	p1=н
+context	p1_alpha
+context	p2=М
+context	p2_alpha
+context	p2_caps
+context	p21=Мн
+context	p1f1=но
+context	f1=о
+context	f1_alpha
+context	f2=г
+context	f2_alpha
+context	f12=ог
+outcome	F	3fef40ff03df5671 0.9766841006882726
+outcome	T	3f97e01f841531cb 0.023315899311727322
+end	89
+point	90	247	13	2	0	none
+context	p=Мно
+context	s=гие
+context	p1=о
+context	p1_alpha
+context	p2=н
+context	p2_alpha
+context	p21=но
+context	p1f1=ог
+context	f1=г
+context	f1_alpha
+context	f2=и
+context	f2_alpha
+context	f12=ги
+outcome	F	3feef684ace24049 0.967592561401042
+outcome	T	3fa097b531dbfb73 0.032407438598958026
+end	90
+point	91	249	13	2	0	none
+context	p=Мног
+context	s=ие
+context	p1=г
+context	p1_alpha
+context	p2=о
+context	p2_alpha
+context	p21=ог
+context	p1f1=ги
+context	f1=и
+context	f1_alpha
+context	f2=е
+context	f2_alpha
+context	f12=ие
+outcome	F	3feef684ace24049 0.967592561401042
+outcome	T	3fa097b531dbfb73 0.032407438598958026
+end	91
+point	92	251	11	2	0	none
+context	p=Многи
+context	s=е
+context	p1=и
+context	p1_alpha
+context	p2=г
+context	p2_alpha
+context	p21=ги
+context	p1f1=ие
+context	f1=е
+context	f1_alpha
+context	f2=bok
+outcome	F	3fede55432257161 0.9342442492884794
+outcome	T	3fb0d55e6ed474f2 0.06575575071152054
+end	92
+point	93	256	11	2	0	none
+context	p=ж
+context	s=ители
+context	p1=ж
+context	p1_alpha
+context	p2=bok
+context	p1f1=жи
+context	f1=и
+context	f1_alpha
+context	f2=т
+context	f2_alpha
+context	f12=ит
+outcome	F	3fef54b382e2ee0c 0.9790895038963199
+outcome	T	3f95698fa3a23e77 0.02091049610368009
+end	93
+point	94	258	13	2	0	none
+context	p=жи
+context	s=тели
+context	p1=и
+context	p1_alpha
+context	p2=ж
+context	p2_alpha
+context	p21=жи
+context	p1f1=ит
+context	f1=т
+context	f1_alpha
+context	f2=е
+context	f2_alpha
+context	f12=те
+outcome	F	3feef684ace24049 0.967592561401042
+outcome	T	3fa097b531dbfb73 0.032407438598958026
+end	94
+point	95	260	13	2	0	none
+context	p=жит
+context	s=ели
+context	p1=т
+context	p1_alpha
+context	p2=и
+context	p2_alpha
+context	p21=ит
+context	p1f1=те
+context	f1=е
+context	f1_alpha
+context	f2=л
+context	f2_alpha
+context	f12=ел
+outcome	F	3feef684ace24049 0.967592561401042
+outcome	T	3fa097b531dbfb73 0.032407438598958026
+end	95
+point	96	262	13	2	0	none
+context	p=жите
+context	s=ли
+context	p1=е
+context	p1_alpha
+context	p2=т
+context	p2_alpha
+context	p21=те
+context	p1f1=ел
+context	f1=л
+context	f1_alpha
+context	f2=и
+context	f2_alpha
+context	f12=ли
+outcome	F	3feef684ace24049 0.967592561401042
+outcome	T	3fa097b531dbfb73 0.032407438598958026
+end	96
+point	97	264	11	2	0	none
+context	p=жител
+context	s=и
+context	p1=л
+context	p1_alpha
+context	p2=е
+context	p2_alpha
+context	p21=ел
+context	p1f1=ли
+context	f1=и
+context	f1_alpha
+context	f2=bok
+outcome	F	3fede55432257161 0.9342442492884794
+outcome	T	3fb0d55e6ed474f2 0.06575575071152054
+end	97
+point	98	269	11	2	0	none
+context	p=р
+context	s=ады
+context	p1=р
+context	p1_alpha
+context	p2=bok
+context	p1f1=ра
+context	f1=а
+context	f1_alpha
+context	f2=д
+context	f2_alpha
+context	f12=ад
+outcome	F	3fef54b382e2ee0c 0.9790895038963199
+outcome	T	3f95698fa3a23e77 0.02091049610368009
+end	98
+point	99	271	13	2	0	none
+context	p=ра
+context	s=ды
+context	p1=а
+context	p1_alpha
+context	p2=р
+context	p2_alpha
+context	p21=ра
+context	p1f1=ад
+context	f1=д
+context	f1_alpha
+context	f2=ы
+context	f2_alpha
+context	f12=ды
+outcome	F	3feef684ace24049 0.967592561401042
+outcome	T	3fa097b531dbfb73 0.032407438598958026
+end	99
+point	100	273	11	2	0	none
+context	p=рад
+context	s=ы
+context	p1=д
+context	p1_alpha
+context	p2=а
+context	p2_alpha
+context	p21=ад
+context	p1f1=ды
+context	f1=ы
+context	f1_alpha
+context	f2=bok
+outcome	F	3fede55432257161 0.9342442492884794
+outcome	T	3fb0d55e6ed474f2 0.06575575071152054
+end	100
+point	101	278	11	2	0	none
+context	p=х
+context	s=олодной
+context	p1=х
+context	p1_alpha
+context	p2=bok
+context	p1f1=хо
+context	f1=о
+context	f1_alpha
+context	f2=л
+context	f2_alpha
+context	f12=ол
+outcome	F	3fef54b382e2ee0c 0.9790895038963199
+outcome	T	3f95698fa3a23e77 0.02091049610368009
+end	101
+point	102	280	13	2	0	none
+context	p=хо
+context	s=лодной
+context	p1=о
+context	p1_alpha
+context	p2=х
+context	p2_alpha
+context	p21=хо
+context	p1f1=ол
+context	f1=л
+context	f1_alpha
+context	f2=о
+context	f2_alpha
+context	f12=ло
+outcome	F	3feef684ace24049 0.967592561401042
+outcome	T	3fa097b531dbfb73 0.032407438598958026
+end	102
+point	103	282	13	2	0	none
+context	p=хол
+context	s=одной
+context	p1=л
+context	p1_alpha
+context	p2=о
+context	p2_alpha
+context	p21=ол
+context	p1f1=ло
+context	f1=о
+context	f1_alpha
+context	f2=д
+context	f2_alpha
+context	f12=од
+outcome	F	3feef684ace24049 0.967592561401042
+outcome	T	3fa097b531dbfb73 0.032407438598958026
+end	103
+point	104	284	13	2	0	none
+context	p=холо
+context	s=дной
+context	p1=о
+context	p1_alpha
+context	p2=л
+context	p2_alpha
+context	p21=ло
+context	p1f1=од
+context	f1=д
+context	f1_alpha
+context	f2=н
+context	f2_alpha
+context	f12=дн
+outcome	F	3feef684ace24049 0.967592561401042
+outcome	T	3fa097b531dbfb73 0.032407438598958026
+end	104
+point	105	286	13	2	0	none
+context	p=холод
+context	s=ной
+context	p1=д
+context	p1_alpha
+context	p2=о
+context	p2_alpha
+context	p21=од
+context	p1f1=дн
+context	f1=н
+context	f1_alpha
+context	f2=о
+context	f2_alpha
+context	f12=но
+outcome	F	3feef684ace24049 0.967592561401042
+outcome	T	3fa097b531dbfb73 0.032407438598958026
+end	105
+point	106	288	13	2	0	none
+context	p=холодн
+context	s=ой
+context	p1=н
+context	p1_alpha
+context	p2=д
+context	p2_alpha
+context	p21=дн
+context	p1f1=но
+context	f1=о
+context	f1_alpha
+context	f2=й
+context	f2_alpha
+context	f12=ой
+outcome	F	3feef684ace24049 0.967592561401042
+outcome	T	3fa097b531dbfb73 0.032407438598958026
+end	106
+point	107	290	11	2	0	none
+context	p=холодно
+context	s=й
+context	p1=о
+context	p1_alpha
+context	p2=н
+context	p2_alpha
+context	p21=но
+context	p1f1=ой
+context	f1=й
+context	f1_alpha
+context	f2=bok
+outcome	F	3fede55432257161 0.9342442492884794
+outcome	T	3fb0d55e6ed474f2 0.06575575071152054
+end	107
+point	108	295	11	2	0	none
+context	p=п
+context	s=огоде.
+context	p1=п
+context	p1_alpha
+context	p2=bok
+context	p1f1=по
+context	f1=о
+context	f1_alpha
+context	f2=г
+context	f2_alpha
+context	f12=ог
+outcome	F	3fef54b382e2ee0c 0.9790895038963199
+outcome	T	3f95698fa3a23e77 0.02091049610368009
+end	108
+point	109	297	13	2	0	none
+context	p=по
+context	s=годе.
+context	p1=о
+context	p1_alpha
+context	p2=п
+context	p2_alpha
+context	p21=по
+context	p1f1=ог
+context	f1=г
+context	f1_alpha
+context	f2=о
+context	f2_alpha
+context	f12=го
+outcome	F	3feef684ace24049 0.967592561401042
+outcome	T	3fa097b531dbfb73 0.032407438598958026
+end	109
+point	110	299	13	2	0	none
+context	p=пог
+context	s=оде.
+context	p1=г
+context	p1_alpha
+context	p2=о
+context	p2_alpha
+context	p21=ог
+context	p1f1=го
+context	f1=о
+context	f1_alpha
+context	f2=д
+context	f2_alpha
+context	f12=од
+outcome	F	3feef684ace24049 0.967592561401042
+outcome	T	3fa097b531dbfb73 0.032407438598958026
+end	110
+point	111	301	13	2	0	none
+context	p=пого
+context	s=де.
+context	p1=о
+context	p1_alpha
+context	p2=г
+context	p2_alpha
+context	p21=го
+context	p1f1=од
+context	f1=д
+context	f1_alpha
+context	f2=е
+context	f2_alpha
+context	f12=де
+outcome	F	3feef684ace24049 0.967592561401042
+outcome	T	3fa097b531dbfb73 0.032407438598958026
+end	111
+point	112	303	13	2	0	none
+context	p=погод
+context	s=е.
+context	p1=д
+context	p1_alpha
+context	p2=о
+context	p2_alpha
+context	p21=од
+context	p1f1=де
+context	f1=е
+context	f1_alpha
+context	f2=.
+context	f2_eos
+context	f12=е.
+outcome	F	3fee8b9d84e5277c 0.9545428844078141
+outcome	T	3fa74627b1ad8849 0.045457115592185966
+end	112
+point	113	305	11	2	0	none
+context	p=погоде
+context	s=.
+context	p1=е
+context	p1_alpha
+context	p2=д
+context	p2_alpha
+context	p21=де
+context	p1f1=е.
+context	f1=.
+context	f1_eos
+context	f2=bok
+outcome	F	3f9d7b304c47c091 0.028790239959505973
+outcome	T	3fef14267d9dc1fb 0.971209760040494
+end	113
