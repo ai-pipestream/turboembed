@@ -1,0 +1,9 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-1-24.04.4-Ubuntu	Ubuntu
+unicode	15.0
+input	norm/ellipsis-extra	101	91	f89b1697840d8d3f339f9e2e476a93b6bb17a768814068d6980b6ee9d0812896
+annotator	opennlp.tools.util.normalizer.DashCharSequenceNormalizer	normalizeAligned
+layer	turbo:view	text	0	start:u32	end:u32	with:str
+end	turbo:view

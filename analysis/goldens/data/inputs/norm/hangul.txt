@@ -1,0 +1,3 @@
+한글 composed, and decomposed 한글 jamo.
+Mixed: 가 가 각 and 대한민국 대한민국.
+Compatibility jamo ㄱㅏ and halfwidth ﾡￂ stay different under NFC.

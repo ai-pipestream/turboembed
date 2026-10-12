@@ -78,6 +78,26 @@ final class Utf8Offsets {
   }
 
   /**
+   * Converts the half open UTF-16 span {@code [start, end)} to the smallest UTF-8 byte span that
+   * holds it: an end between the halves of a surrogate pair widens to the whole character (the
+   * start rounds down to the character's first byte, the end up to the byte after it), and
+   * {@link Enclosing#cut()} says whether either end did. Fails when either end is outside the
+   * text or the span is reversed.
+   */
+  Enclosing enclosing(int start, int end) {
+    if (start < 0 || end > byteAt.length - 1 || start > end) {
+      throw new IllegalArgumentException(
+          "input " + inputId + ": span [" + start + ", " + end + ") is not inside the text of "
+              + (byteAt.length - 1) + " UTF-16 units");
+    }
+    boolean startCuts = byteAt[start] == INSIDE_PAIR;
+    boolean endCuts = byteAt[end] == INSIDE_PAIR;
+    int s = startCuts ? byteAt[start - 1] : byteAt[start];
+    int e = endCuts ? byteAt[end + 1] : byteAt[end];
+    return new Enclosing(s, e, startCuts || endCuts);
+  }
+
+  /**
    * Converts one UTF-16 index, a position OpenNLP decided at rather than a span end, to a byte
    * offset. An index between the two halves of a surrogate pair is a real decision point for
    * an annotator that walks UTF-16 units, so it is not refused: it gives the byte offset of the
@@ -96,6 +116,12 @@ final class Utf8Offsets {
 
   /** A half open span of UTF-8 byte offsets. */
   record ByteSpan(int start, int end) {}
+
+  /**
+   * A half open span of UTF-8 byte offsets that holds a UTF-16 span, and whether the UTF-16 span
+   * starts or ends between the halves of a surrogate pair, so that the byte span is wider.
+   */
+  record Enclosing(int start, int end, boolean cut) {}
 
   /**
    * A UTF-8 byte offset and the UTF-16 unit within the code point there: 0 at its start, 1

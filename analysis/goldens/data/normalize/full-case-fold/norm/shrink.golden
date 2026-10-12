@@ -1,0 +1,22 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-1-24.04.4-Ubuntu	Ubuntu
+unicode	15.0
+input	norm/shrink	195	195	f8218b81a6b90a7ae234ff6231d85df1a9a4b168e1b8496d72e79b0d094ebb6a
+annotator	opennlp.tools.util.normalizer.FullCaseFoldCharSequenceNormalizer	normalizeAligned
+layer	turbo:view	text	13	start:u32	end:u32	with:str
+60	61	w
+70	71	r
+82	83	s
+129	130	a
+130	131	a
+131	132	a
+132	133	a
+133	134	a
+134	135	a
+136	137	z
+137	138	z
+138	139	z
+139	140	z
+end	turbo:view
