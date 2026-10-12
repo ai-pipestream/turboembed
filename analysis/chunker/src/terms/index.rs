@@ -1,6 +1,7 @@
 //! Tokens to terms: the vocabulary of a document and the term of each
 //! token.
 
+use turbo_analysis::text::Edit;
 use turbo_analysis::{Annotator, Error, Ix, Refs, Span, View};
 use turbo_analysis_layers::{Strs, Tokens};
 
@@ -16,11 +17,20 @@ use super::layer::{Terms, Vocabulary};
 /// way. The tokens are either in that view or in its parent, the view it
 /// was made from, so they can be found on the source text and their terms
 /// read from the folded one; a token's span is mapped through the view's
-/// alignment.
+/// alignment. Its edits must not cross a token edge: an edge strictly inside
+/// an edit (one edit "don't" to "do not" over the tokens "do" and "n't")
+/// would give both tokens the whole replacement, so such a document is
+/// refused. Case folding replaces one character per edit, so it never
+/// does.
 ///
-/// A token with no letter or digit (`char::is_alphanumeric`) is not a
-/// term: punctuation would otherwise be in nearly every unit and count
-/// toward every length, where Lucene's standard tokenizer drops it.
+/// A token is a term when it holds at least one character that
+/// `char::is_alphanumeric` accepts (an alphabetic character, or a number
+/// of category Nd, Nl or No); a token of punctuation or symbols alone,
+/// such as a period, is not, and counts toward no length. Lucene's
+/// `StandardTokenizer` decides by UAX #29 word boundaries instead: it
+/// keeps emoji as tokens, which are no terms here, and makes no token of a
+/// lone No character such as "½", which is a term here. Its splits also
+/// differ from the word tokenizer's, so the terms here are not Lucene's.
 pub struct TermIndexer;
 
 impl Annotator for TermIndexer {
@@ -40,6 +50,25 @@ impl Annotator for TermIndexer {
                 ),
             });
         }
+        if !in_view {
+            let edits = view.alignment().edits();
+            for (i, s) in tokens.spans.iter() {
+                if let Some(e) = [s.start, s.end].into_iter().find_map(|x| inside(edits, x)) {
+                    return Err(Error::Annotator {
+                        annotator: Self::ID,
+                        detail: format!(
+                            "token {} at {}..{} has an edge inside the edit of {}..{} that made the terms' view; \
+                             the view's edits must not cross a token edge",
+                            i.get(),
+                            s.start,
+                            s.end,
+                            e.parent.start,
+                            e.parent.end
+                        ),
+                    });
+                }
+            }
+        }
         let text = view.text();
         let span = |s: Span| if in_view { s } else { view.alignment().span_to_child(s) };
         let words: Vec<Option<&str>> = tokens
@@ -50,6 +79,16 @@ impl Annotator for TermIndexer {
         let (vocabulary, term) = intern(&words);
         Ok((vocabulary, Terms { term }))
     }
+}
+
+/// The edit whose parent bytes hold offset `x` strictly inside them, if
+/// any. Mapping a span edge there would widen it to the whole edit, so
+/// two tokens in one edit would both read its whole replacement. An
+/// insertion (an edit of no parent bytes) holds no offset strictly inside
+/// it. A binary search: the edits are in text order and do not overlap.
+fn inside(edits: &[Edit], x: u32) -> Option<Edit> {
+    let k = edits.partition_point(|e| e.parent.end <= x);
+    edits.get(k).filter(|e| e.parent.start < x).copied()
 }
 
 /// The distinct words in byte order, and each word's id among them. Sorts

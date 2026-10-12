@@ -67,12 +67,17 @@ impl<L: Layer> Annotator for TermCounter<L> {
             None if units.len() == 1 => std::iter::once(0..starts.len()).collect(),
             None => return Err(fail(format!("{} units with no spans; only one can hold every token", units.len()))),
         };
-        Ok((count(&terms.term, vocabulary.len(), &ranges),))
+        Ok((count(&terms.term, vocabulary.len(), &ranges).map_err(fail)?,))
     }
 }
 
-/// The term counts of each run of tokens.
-pub fn count<L>(term: &[Option<Ix<Vocabulary>>], vocabulary: usize, units: &[Range<usize>]) -> TermStats<L> {
+/// The term counts of each run of tokens. Refused when a unit holds, or
+/// all units together hold, more terms than a u32 counts.
+pub fn count<L>(
+    term: &[Option<Ix<Vocabulary>>],
+    vocabulary: usize,
+    units: &[Range<usize>],
+) -> Result<TermStats<L>, String> {
     let mut s = TermStats {
         row: Vec::with_capacity(units.len() + 1),
         term: Vec::new(),
@@ -96,10 +101,11 @@ pub fn count<L>(term: &[Option<Ix<Vocabulary>>], vocabulary: usize, units: &[Ran
                 s.df[t.get()] += 1;
             }
         }
-        s.length.push(ids.len() as u32);
-        s.row.push(s.term.len() as u32);
+        let too_many = |what: &str, n: usize| format!("{what} of {n} terms, more than a u32 counts");
+        s.length.push(u32::try_from(ids.len()).map_err(|_| too_many("a unit", ids.len()))?);
+        s.row.push(u32::try_from(s.term.len()).map_err(|_| too_many("rows", s.term.len()))?);
     }
-    s
+    Ok(s)
 }
 
 #[cfg(test)]
@@ -115,7 +121,7 @@ mod tests {
     fn counts_are_sparse_sorted_rows_with_lengths_and_df() {
         // Terms 0..3; None is a token that is no term.
         let term = ids(&[Some(2), Some(0), None, Some(2), Some(1), Some(2)]);
-        let s: TermStats<Chunks> = count(&term, 4, &[0..4, 4..6, 0..6, 3..3]);
+        let s: TermStats<Chunks> = count(&term, 4, &[0..4, 4..6, 0..6, 3..3]).unwrap();
         assert_eq!(s.row, [0, 2, 4, 7, 7]);
         let (t, tf) = s.unit(Ix::new(0));
         assert_eq!((t.iter().map(|t| t.get()).collect::<Vec<_>>(), tf), (vec![0, 2], &[1, 2][..]));
@@ -129,14 +135,14 @@ mod tests {
     #[test]
     fn a_repeated_term_after_a_unit_ends_starts_a_new_entry() {
         // Unit 0 ends with term 1, unit 1 starts with it.
-        let s: TermStats<Chunks> = count(&ids(&[Some(1), Some(1)]), 2, &[0..1, 1..2]);
+        let s: TermStats<Chunks> = count(&ids(&[Some(1), Some(1)]), 2, &[0..1, 1..2]).unwrap();
         assert_eq!((s.row.as_slice(), s.tf.as_slice(), s.df.as_slice()), (&[0, 1, 2][..], &[1, 1][..], &[0, 2][..]));
         assert_eq!(s.check(), Ok(()));
     }
 
     #[test]
     fn the_check_refuses_inconsistent_columns() {
-        let good = || count::<Chunks>(&ids(&[Some(0), Some(1), Some(1)]), 2, std::slice::from_ref(&(0..3)));
+        let good = || count::<Chunks>(&ids(&[Some(0), Some(1), Some(1)]), 2, std::slice::from_ref(&(0..3))).unwrap();
         let mut s = good();
         s.length[0] = 2;
         assert!(s.check().unwrap_err().contains("sum of its counts"));

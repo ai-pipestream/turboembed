@@ -528,9 +528,20 @@ lowercased here. To match without case, read a case folded view
 indexer bound with `.read(0, "folded")`); the tokens can stay on the
 source, since a token's span is mapped through the folded view's
 alignment to its parent. A view further down a chain than that is
-refused. A token with no letter or digit (a period) is not a term and
-counts toward no length, as Lucene's standard tokenizer drops
-punctuation. The vocabulary is in byte order, each term once, so a
+refused. The view's edits must not cross a token edge: with one edit
+turning "don't" into "do not" over the tokens "do" and "n't", each
+token would map to the whole replacement, so a document with a token
+edge strictly inside an edit is refused. Case folding replaces one
+character per edit and never crosses one.
+
+A token is a term when it holds at least one character
+`char::is_alphanumeric` accepts (an alphabetic character, or a number
+of category Nd, Nl or No). A token of punctuation or symbols alone (a
+period) is not, and counts toward no length. This is close to Lucene's
+`StandardTokenizer`, which drops punctuation, but not the same: that
+tokenizer splits by UAX #29 word boundaries, keeps emoji as tokens
+(no terms here) and makes no token of a lone No character such as "½"
+(a term here), and its splits differ from the word tokenizer's. The vocabulary is in byte order, each term once, so a
 term's id depends only on which terms the document holds, and a lookup
 is a binary search.
 
@@ -1067,7 +1078,13 @@ runs them on any machine:
   the test for four settings of k1 and b, Lucene's idf, an idf from a
   caller's corpus statistics against the document's own, ranking ties,
   full case folding that changes bytes, a token a unit cuts, units in
-  another view and a view too far from the tokens. The unit tests hold
+  another view and a view too far from the tokens. Two scores are
+  worked by hand from Lucene 9's formula in the test's comments. It
+  also holds a query term given twice, units with no terms left out of
+  the local N and mean, a mean length of zero, a view whose edit crosses
+  a token edge (refused) beside one whose edits do not, and the
+  counter's refusals: tokens out of order and a layer of several units
+  with no spans. The unit tests hold
   the interning, the sparse rows and the layer's checks.
 - `analysis/embed/tests/subwords.rs` runs the subwords annotator on the
   small BERT's WordPiece bundle, a byte-level BPE bundle and BGE-M3's
