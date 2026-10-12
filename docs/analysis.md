@@ -20,7 +20,7 @@ nothing here is in the C header or the gRPC server.
 | `turbo-analysis-layers` | `analysis/layers/` | The layers add-ons share (below) |
 | `turbo-chunker` | `analysis/chunker/` | The chunker, and term statistics and BM25 per chunk, section and document |
 | `turbo-analysis-embed` | `analysis/embed/` | The embedding model as analysis steps: the subwords of a text view from the bundle's tokenizer, and a vector per sentence and per chunk |
-| `turbo-numeric` | `analysis/numeric/` | The number scanner, which writes `turbo:numbers` ([numbers.md](numbers.md)) |
+| `turbo-numeric` | `analysis/numeric/` | The number scanner, which writes `turbo:numbers` ([numbers.md](numbers.md)); the money extractor, which writes `turbo:money`, the ECB rate table and the conversion step, which writes the `converted` instance of `turbo:money` ([money.md](money.md)) |
 | `turbo-jvm` | `analysis/jvm/` | JVM behaviour the OpenNLP ports must reproduce bit for bit |
 | `turbo-goldens` | `analysis/goldens/` | Golden layer files from the JVM: the reader, the writer, the comparison, loading golden layers as test inputs, SHA-256 and SHA-512 |
 | `turbo-sequence` | `analysis/sequence/` | OpenNLP's beam search, BIO and BILOU codecs and feature generation framework (generators, `StringPattern` and the XML descriptors), with the context generators and validators of the part-of-speech tagger, chunker and name finder, the part-of-speech tag dictionary (`tags.tagdict`) and the Penn Treebank and Universal Dependencies tag mapping. Its crate documentation lists the OpenNLP behaviour it reproduces that is surprising, and the one it does not yet (QN models in a beam search); `analysis/sequence/README.md` describes its JVM golden files |
@@ -272,6 +272,7 @@ fields mean bumps its `SCHEMA`.
 | `Boundaries` | `turbo:boundaries` | sentences | `turbo-analysis-layers` |
 | `Chunks` | `turbo:chunks` | text | `turbo-analysis-layers` |
 | `Numbers` | `turbo:numbers` | text | `turbo-analysis-layers` |
+| `Money` | `turbo:money` (and the instance `converted`) | text | `turbo-analysis-layers` |
 | `Vectors<L>` | `opennlp:embeddings<L>` | `L` | `turbo-analysis-layers` |
 | `Confidence<L>` | `turbo:confidence<L>` | `L` | `turbo-analysis-layers` |
 | `Utf16Spans<L>` | `turbo:utf16<L>` | `L` | `turbo-analysis-layers` |
@@ -795,6 +796,7 @@ The layers and their columns, in order:
 | `opennlp:entities` | `text` | `start:u32`, `end:u32`, `token_start:u32`, `token_end:u32`, `kind:str`, `prob:f64` |
 | `opennlp:language` | `document` | `code:str`, `confidence:f64` |
 | `turbo:numbers` | `text` | `start:u32`, `end:u32`, `numeral_end:u32`, `negative:u32`, `coefficient:str`, `scale:u32`, `plain:str` |
+| `turbo:money` | `text` | `start:u32`, `end:u32`, `coefficient:str`, `negative:u32`, `scale:u32`, `plain:str`, `currency:str` |
 | `turbo:view` | `text` | `start:u32`, `end:u32`, `with:str` |
 
 `opennlp:language` has a row per language the detector ranked, best
@@ -981,6 +983,8 @@ The generator writes these layers, in this order within a golden:
 | `langdetect` (`LanguageDetectorME.predictLanguages`) | `opennlp:language` |
 | `normalize` (each normalizer) | `turbo:view` |
 | `numbers` (`NumberScan.parse`, per notation) | `turbo:numbers` |
+| `money` (`CursorMoneyExtractor.extract` in `MoneyAnnotator`, per notation) | `turbo:money` |
+| `money-convert` (`EcbFxRates.convert` in `MoneyConversionAnnotator`, per notation) | `turbo:money` |
 
 `numbers/<notation>/num/<id>.golden` (`latin-us`, `latin-eu`) holds
 `turbo:numbers`, anchored on the text, with one row per number mention:
@@ -996,6 +1000,19 @@ record gives `LATIN_US` or `LATIN_EU`. The scan is the mention loop of
 `CursorQuantityExtractor` of the `numeric` module of `opennlp-addons`
 (pinned in `analysis/goldens-tool/src/recipe.rs`) without the money
 exclusion and without units; there is no model and no dump.
+
+`money/<notation>/money/<id>.golden` and
+`money-convert/<notation>/money/<id>.golden` both hold
+`turbo:money`, one row per mention, with the columns `start`,
+`end` (UTF-8 byte offsets, from the `-`, symbol or first digit to the end
+of the mention), `coefficient`, `negative`, `scale`, `plain` (as for
+`turbo:numbers`) and `currency` (the ISO 4217 code). Both have `config
+notation`; the conversion goldens also have `config target` (`EUR`),
+`config as_of` (`2026-03-15`) and `config snapshot`
+(`rates/ecb-snapshot.csv`, relative to `analysis/goldens/data`). A mention
+without a rate has no row in a conversion golden. The generator reads
+the snapshot from the `rates` directory beside the inputs; `turbo-goldens
+generate` mounts it at `/rates`. See [money.md](money.md#golden-files).
 
 Other crates write goldens of their own layer types in the same format,
 which the generator does not make: a tokenizer crate's

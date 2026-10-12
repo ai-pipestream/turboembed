@@ -1,0 +1,17 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-1-24.04.4-Ubuntu	Ubuntu
+unicode	15.0
+input	money/negative-ranges	58	52	a33ecce5732804763baf6934442e2464bdfdd31e3bf2a2b2cb595fc3fe03a416
+annotator	opennlp.tools.money.CursorMoneyExtractor	extract
+config	notation	LATIN_EU
+layer	turbo:money	text	7	start:u32	end:u32	coefficient:str	negative:u32	scale:u32	plain:str	currency:str
+0	4	100	0	0	100	USD
+5	9	200	0	0	200	USD
+14	19	50	0	0	50	EUR
+20	25	60	0	0	60	EUR
+30	35	50	0	0	50	EUR
+36	39	60	0	0	60	USD
+47	57	20	0	0	20	USD
+end	turbo:money
