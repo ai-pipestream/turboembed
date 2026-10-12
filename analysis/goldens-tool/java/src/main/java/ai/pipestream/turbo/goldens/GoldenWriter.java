@@ -40,8 +40,30 @@ final class GoldenWriter {
   }
 
   /**
+   * Returns the whole file for a run where the annotator threw: the header records, ending with
+   * the {@code config} records, and {@code error <class> <message>} as the last line, with no
+   * layer blocks. The message is a {@code str} field.
+   */
+  static byte[] writeError(Header h, String exceptionClass, String message) {
+    if (exceptionClass.isEmpty()) {
+      throw new IllegalArgumentException("the error record needs the exception's class");
+    }
+    StringBuilder out = new StringBuilder();
+    out.append("golden ").append(FORMAT_VERSION).append('\n');
+    header(out, h);
+    line(out, "error", escape(exceptionClass), escape(message));
+    return utf8(out);
+  }
+
+  /** {@link #writeError(Header, String, String)} for the exception the annotator threw. */
+  static byte[] writeError(Header h, AnnotatorException e) {
+    return writeError(h, e.exceptionClass(), e.exceptionMessage());
+  }
+
+  /**
    * Appends the header records that follow the first line, from {@code generator} to
-   * {@code annotator} and its {@code config} lines. A golden and a decision point dump (see {@link DumpWriter}) share them.
+   * {@code annotator} and its {@code config} records, one per option sorted by key. A golden and a
+   * decision point dump (see {@link DumpWriter}) share them.
    */
   static void header(StringBuilder out, Header h) {
     line(out, "generator", GENERATOR, Integer.toString(GENERATOR_VERSION));

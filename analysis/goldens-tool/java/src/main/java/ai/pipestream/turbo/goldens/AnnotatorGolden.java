@@ -31,8 +31,11 @@ interface AnnotatorGolden {
     return !input.set().equals(NormalizerGolden.INPUT_SET);
   }
 
-  /** Runs the annotator on the input and returns its layers in the order the format lists them. */
-  List<Layer> layers(Input input);
+  /**
+   * Runs the annotator on the input and returns its layers in the order the format lists them.
+   * Throws {@link AnnotatorException} when the OpenNLP annotator threw on the input.
+   */
+  List<Layer> layers(Input input) throws AnnotatorException;
 
   /** The model directory of the golden's path: the first model's base name, or {@code none}. */
   default String modelDir() {

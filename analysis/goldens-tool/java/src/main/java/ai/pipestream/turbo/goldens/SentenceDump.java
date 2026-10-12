@@ -51,8 +51,15 @@ final class SentenceDump implements AnnotatorDump {
   }
 
   @Override
-  public Run run(Input input) {
-    List<Layer> layers = SentenceGolden.layers(detector, input);
+  public Run run(Input input) throws AnnotatorException {
+    List<Layer> layers;
+    try {
+      layers = SentenceGolden.layers(detector, input);
+    } catch (AnnotatorException e) {
+      // What the model was asked before the annotator threw belongs to no dump.
+      recorder.discard();
+      throw e;
+    }
     List<DecisionPoint> points = new ArrayList<>();
     for (Evaluation e : recorder.take()) {
       ContextRequest r = e.request();

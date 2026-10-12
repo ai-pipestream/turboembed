@@ -71,10 +71,12 @@ pub fn compare(expected: &Path, actual: &Path) -> Result<Differences, String> {
 }
 
 /// Checks the decision point dumps under `root`, at the header level only:
-/// every golden of a [`DUMPED_ANNOTATORS`] entry has a dump beside it and
-/// every dump a golden, each dump's header parses, and the header names the
-/// input and the model of the dump's path. The other annotators must have
-/// no dumps. Returns the number of dumps checked.
+/// every golden of a [`DUMPED_ANNOTATORS`] entry has a dump beside it
+/// unless the golden has an error record (the annotator threw on that
+/// input, so there was nothing to record), every dump has a golden, each
+/// dump's header parses, and the header names the input and the model of
+/// the dump's path. The other annotators must have no dumps. Returns the
+/// number of dumps checked.
 pub fn check_dumps(root: &Path) -> Result<usize, String> {
     let mut count = 0;
     for a in ANNOTATORS {
@@ -99,6 +101,15 @@ pub fn check_dumps(root: &Path) -> Result<usize, String> {
                 continue;
             }
             let dump = dump_beside(rel).expect("a golden's path");
+            if golden_threw(&dir.join(rel))? {
+                if files.contains(&dump) {
+                    return Err(format!(
+                        "{}: the golden has an error record, so it has no dump",
+                        dir.join(&dump).display()
+                    ));
+                }
+                continue;
+            }
             if !files.contains(&dump) {
                 return Err(format!("{}: the golden has no dump beside it", dir.join(rel).display()));
             }
@@ -109,6 +120,20 @@ pub fn check_dumps(root: &Path) -> Result<usize, String> {
         }
     }
     Ok(count)
+}
+
+/// Whether the golden at `path` has an error record: a line `error\t...`
+/// among its header records, before the first `layer` line. A layer row
+/// can start with any text, so the search stops at the first layer.
+pub fn golden_threw(path: &Path) -> Result<bool, String> {
+    let bytes = fs::read(path).map_err(|e| format!("{}: {e}", path.display()))?;
+    let text = std::str::from_utf8(&bytes).map_err(|e| format!("{}: not UTF-8: {e}", path.display()))?;
+    Ok(header_has_error(text))
+}
+
+/// Whether a golden's text has an error record before its first layer.
+fn header_has_error(text: &str) -> bool {
+    text.split('\n').take_while(|l| !l.starts_with("layer\t")).any(|l| l.starts_with("error\t"))
 }
 
 /// Fails unless a dump at `<model>/<set>/<id>.dump` (relative to its
@@ -222,6 +247,38 @@ mod tests {
         put("normalize/dash/norm/a.dump", &dump_text("norm/a"));
         let e = check_dumps(&root).unwrap_err();
         assert!(e.contains("without a model"), "{e}");
+        fs::remove_dir_all(&root).unwrap();
+    }
+
+    const ERROR_GOLDEN: &str = "golden 1\ngenerator\tg\t1\nannotator\ta.B\trun\nconfig\tk\tv\n\
+        error\tjava.lang.IllegalArgumentException\tstart index must be zero or greater: -1\n";
+
+    #[test]
+    fn an_error_record_is_found_in_the_header_only() {
+        assert!(header_has_error(ERROR_GOLDEN));
+        assert!(!header_has_error(
+            "golden 1\nannotator\ta.B\trun\nlayer\tx\tdocument\t1\tcode:str\nerror\tv\nend\tx\n"
+        ));
+        assert!(!header_has_error("golden 1\nannotator\ta.B\trun\nconfig\terror\tx\n"));
+    }
+
+    #[test]
+    fn a_golden_with_an_error_record_has_no_dump() {
+        let root = std::env::temp_dir().join(format!("turbo-goldens-error-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&root);
+        let put = |rel: &str, text: &str| {
+            let p = root.join(rel);
+            fs::create_dir_all(p.parent().unwrap()).unwrap();
+            fs::write(p, text).unwrap();
+        };
+        put("tokenize/m/en/a.golden", "golden 1\n");
+        put("tokenize/m/en/a.dump", &dump_text("en/a"));
+        put("tokenize/m/en/threw.golden", ERROR_GOLDEN);
+        assert_eq!(check_dumps(&root).unwrap(), 1);
+
+        put("tokenize/m/en/threw.dump", &dump_text("en/threw"));
+        let e = check_dumps(&root).unwrap_err();
+        assert!(e.contains("threw.dump: the golden has an error record"), "{e}");
         fs::remove_dir_all(&root).unwrap();
     }
 }

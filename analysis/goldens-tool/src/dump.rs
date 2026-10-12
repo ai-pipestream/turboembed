@@ -34,6 +34,9 @@ pub struct DumpHeader {
     /// The `annotator` record: the OpenNLP class and the method called on it.
     pub annotator_class: String,
     pub method: String,
+    /// The `config` records, key and value, in the order written (sorted by
+    /// key); none for an annotator run without options.
+    pub config: Vec<(String, String)>,
 }
 
 /// The `input` record: `<set>/<id>`, the lengths in UTF-8 bytes and UTF-16
@@ -107,6 +110,11 @@ impl DumpHeader {
         }
         let f = lines.record("annotator", 3)?;
         let (annotator_class, method) = (lines.str(f[1])?, lines.str(f[2])?);
+        let mut config = Vec::new();
+        while lines.peek_tag() == Some("config") {
+            let f = lines.record("config", 3)?;
+            config.push((lines.str(f[1])?, lines.str(f[2])?));
+        }
         match lines.peek_tag() {
             None | Some("point") => {}
             Some(other) => {
@@ -127,6 +135,7 @@ impl DumpHeader {
             models,
             annotator_class,
             method,
+            config,
         })
     }
 }
@@ -306,6 +315,19 @@ mod tests {
         assert_eq!(h.models, vec![ModelRecord { file: "m.bin".into(), sha512: [0xab; 64] }]);
         assert_eq!(h.annotator_class, "opennlp.tools.sentdetect.SentenceDetectorME");
         assert_eq!(h.method, "sentPosDetect");
+    }
+
+    #[test]
+    fn config_records_follow_the_annotator_as_in_a_golden() {
+        let h = DumpHeader::parse(&dump(
+            "annotator\ta.B\trun\nconfig\ta\tt\\tab\nconfig\tz\t1\npoint\t0\t0\t1\t2\t0\tnone\n",
+        ))
+        .unwrap();
+        assert_eq!(h.config, vec![("a".into(), "t\tab".into()), ("z".into(), "1".into())]);
+        assert!(DumpHeader::parse(&dump("annotator\ta.B\trun\n")).unwrap().config.is_empty());
+
+        let e = DumpHeader::parse(&dump("annotator\ta.B\trun\nconfig\tk\n")).unwrap_err();
+        assert_eq!(e.to_string(), "line 9: a `config` record has 3 fields, this one 2");
     }
 
     #[test]
