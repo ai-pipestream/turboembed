@@ -57,13 +57,32 @@ impl Alignment {
         map(&self.edits, x, side, |e| e.parent, |e| e.child)
     }
 
+    /// A child span in parent bytes: its start mapped as a `Side::Start`,
+    /// its end as a `Side::End`.
+    ///
+    /// Inserted or deleted bytes belong to neither neighbour, so an empty
+    /// span at them stays empty and lands before them. Mapped as two single
+    /// offsets, the start of such a span would go after those bytes and its
+    /// end before them; the span keeps the smaller of the two offsets
+    /// instead. Every other span maps as its two offsets do.
     pub fn span_to_parent(&self, s: Span) -> Span {
-        Span::new(self.to_parent(s.start, Side::Start), self.to_parent(s.end, Side::End))
+        ordered(self.to_parent(s.start, Side::Start), self.to_parent(s.end, Side::End))
     }
 
+    /// A parent span in child bytes, by the same rules as `span_to_parent`:
+    /// an empty span at inserted or deleted bytes stays empty and lands
+    /// before them.
     pub fn span_to_child(&self, s: Span) -> Span {
-        Span::new(self.to_child(s.start, Side::Start), self.to_child(s.end, Side::End))
+        ordered(self.to_child(s.start, Side::Start), self.to_child(s.end, Side::End))
     }
+}
+
+/// The span from a mapped start to a mapped end. A start can only map past
+/// the end when the span was empty and sat on an edit with an empty side;
+/// the result is then the empty span at the end, which is the offset before
+/// the inserted or deleted bytes.
+fn ordered(start: u32, end: u32) -> Span {
+    Span::new(start.min(end), end)
 }
 
 fn map(edits: &[Edit], x: u32, side: Side, from: impl Fn(&Edit) -> Span, to: impl Fn(&Edit) -> Span) -> u32 {
