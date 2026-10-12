@@ -1,0 +1,48 @@
+case_sensitive false
+size 12
+min_tokens 1
+max_tokens 2
+set	<tag>
+set	Mr.
+set	New	York
+set	New\u0020York
+set	\uD801\uDC00
+set	a&b
+set	caf\u00E9
+set	e.g.
+set	leading	\u00DF
+set	line\u0020one\u000Aline\u0020two
+set	spaced
+set	x
+contains	true	Mr.
+contains	true	mr.
+contains	true	MR.
+contains	true	New	York
+contains	true	new	york
+contains	true	New\u0020York
+contains	true	a&b
+contains	true	<tag>
+contains	true	caf\u00E9
+contains	true	CAF\u00C9
+contains	true	line\u0020one\u000Aline\u0020two
+contains	true	spaced
+contains	true	x
+contains	true	e.g.
+contains	true	E.G.
+contains	false	\u00DF
+contains	true	\uD801\uDC00
+contains	true	\uD801\uDC28
+contains	false	leading
+entry	@note=single\u0020"quoted"	@operation=MOVE_RIGHT	Mr.
+entry	New	York
+entry	New\u0020York
+entry	a&b
+entry	<tag>
+entry	caf\u00E9
+entry	CAF\u00C9
+entry	line\u0020one\u000Aline\u0020two
+entry	@note=line\u0020break\u000Akept	spaced
+entry	e.g.
+entry	\uD801\uDC00
+entry	x
+entry	leading	\u00DF

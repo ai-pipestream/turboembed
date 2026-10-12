@@ -1846,6 +1846,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "turbo-maxent"
+version = "0.1.0"
+dependencies = [
+ "turbo-jvm",
+ "turbo-unicode",
+]
+
+[[package]]
 name = "turbo-normalize"
 version = "0.1.0"
 dependencies = [
@@ -1861,6 +1869,15 @@ version = "0.1.0"
 dependencies = [
  "turbo-analysis",
  "turbo-analysis-layers",
+]
+
+[[package]]
+name = "turbo-sentdetect"
+version = "0.1.0"
+dependencies = [
+ "turbo-analysis",
+ "turbo-analysis-layers",
+ "turbo-unicode",
 ]
 
 [[package]]

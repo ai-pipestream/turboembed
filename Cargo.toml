@@ -14,8 +14,10 @@ members = [
     "analysis/jvm",
     "analysis/unicode",
     "analysis/unicode-gen",
+    "analysis/maxent",
     "analysis/normalize",
     "analysis/normalize-layers",
+    "analysis/sentdetect",
     "analysis/tokenize",
     "analysis/tokenize-layers",
 ]
