@@ -74,8 +74,6 @@ pub trait GoldenCompare: Layer {
     /// The golden layer's columns, in order.
     const COLUMNS: &'static [ColumnSpec];
 
-    /// Compares this layer with its golden layer, whose anchor and columns
-    /// are already checked against the type.
     /// The golden layer's anchor: by default the layer's own `Layer::anchor`.
     fn golden_anchor() -> GoldenAnchor {
         match Self::anchor() {
@@ -85,6 +83,8 @@ pub trait GoldenCompare: Layer {
         }
     }
 
+    /// Compares this layer with its golden layer, whose anchor and columns
+    /// are already checked against the type.
     fn compare(&self, cx: &Cx<'_>, golden: &GoldenLayer, tol: Tolerance) -> Result<(), Mismatch>;
 }
 
