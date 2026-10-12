@@ -1,0 +1,8 @@
+# archive entry method size crc32
+deflated.zip text.txt deflated 3000 f4b1f3c5
+deflated.zip dir/random.bin deflated 700 723f88ae
+deflated.zip empty.txt deflated 0 00000000
+deflated.zip näme.txt deflated 10 4811c948
+stored.zip small.txt stored 10 4811c948
+stored.zip text.txt deflated 3000 f4b1f3c5
+stored.zip random.bin stored 700 723f88ae

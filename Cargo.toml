@@ -10,6 +10,7 @@ members = [
     "analysis/chunker",
     "analysis/unicode",
     "analysis/unicode-gen",
+    "analysis/maxent",
     "analysis/normalize",
     "analysis/normalize-layers",
 ]
