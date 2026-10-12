@@ -1790,6 +1790,10 @@ name = "turbo-goldens-tool"
 version = "0.1.0"
 
 [[package]]
+name = "turbo-jvm"
+version = "0.1.0"
+
+[[package]]
 name = "turbo-kserve"
 version = "0.1.0"
 dependencies = [

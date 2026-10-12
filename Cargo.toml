@@ -1,6 +1,15 @@
 [workspace]
-members = ["core", "bundle", "bench", "server", "demo", "analysis/core", "analysis/layers", "analysis/chunker",
+members = [
+    "core",
+    "bundle",
+    "bench",
+    "server",
+    "demo",
+    "analysis/core",
+    "analysis/layers",
+    "analysis/chunker",
     "analysis/goldens-tool",
+    "analysis/jvm",
 ]
 resolver = "3"
 
