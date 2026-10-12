@@ -17,7 +17,6 @@ members = [
     "analysis/goldens",
     "analysis/goldens-tool",
     "analysis/jvm",
-    "analysis/tokenize",
     "analysis/tokenize-layers",
 ]
 resolver = "3"
