@@ -47,16 +47,16 @@ features and the same splits, the ports walk the text as code units too.
   simple one-to-one mapping). A surrogate half is in no class, as in
   Java. Rust's `char::is_numeric` and `char::is_alphabetic` are wider
   than Java's `isDigit` and `isLetter`, so they are not used.
-- The tables are generated from the Unicode 17.0 Character Database
+- The tables are generated from the Unicode 18.0 Character Database
   files under `analysis/unicode/ucd/` by `turbo-unicode-gen`, with each
   Java class derived the way the JDK defines it, and checked in as Rust
   source, so a build needs no data files. The JDK the golden files are
   made with (JDK 21) implements Unicode 15.0: a character added since is
   unassigned to it and in no class, while here it is classified by the
-  17.0 data. For code points both assign, the answers differ for 34
+  18.0 data. For code points both assign, the answers differ for 34
   (U+0295, and the combining Latin small letters U+0363..U+036F and
-  U+1DD3..U+1DE6), listed in the `java` module and checked by a test
-  against a running JDK.
+  U+1DD3..U+1DE6), listed in the `java::code_point` module and checked
+  by a test against a running JDK.
 
 ### Whitespace
 
@@ -209,7 +209,7 @@ make it decode a character and ask the mode.
 
 ### `WordTokenizer` (UAX #29)
 
-Word boundaries by UAX #29 rules WB1 to WB999 over the Unicode 17.0
+Word boundaries by UAX #29 rules WB1 to WB999 over the Unicode 18.0
 `Word_Break` property, with `Extended_Pictographic` for WB3c. The
 segmenter is a state machine over the last two significant classes, the
 current class and, where a rule needs it, the next significant class and
