@@ -17,6 +17,7 @@ context	n=You
 context	ncap
 outcome	s	3feff753ec373feb 0.9989413846578804
 outcome	n	3f51582791802a53 0.0010586153421196134
+acceptable	1
 end	0
 point	1	100	6	2	0	none
 context	eos=.
@@ -39,6 +40,7 @@ context	n=Visit
 context	ncap
 outcome	s	3fefba8e6287bd8d 0.9915229725283311
 outcome	n	3f815c675e109cce 0.00847702747166892
+acceptable	1
 end	2
 point	3	139	7	2	0	none
 context	sn
@@ -50,6 +52,7 @@ context	s=
 context	n=before
 outcome	s	3fef865a9fcba523 0.9851506348615299
 outcome	n	3f8e69580d16b71f 0.01484936513847007
+acceptable	1
 end	3
 point	4	219	8	2	0	none
 context	sn
@@ -62,6 +65,7 @@ context	n=Links
 context	ncap
 outcome	s	3fefdf40d4bada2f 0.9960025935059259
 outcome	n	3f705f95a292e84b 0.00399740649407405
+acceptable	1
 end	4
 point	5	238	7	2	0	none
 context	sn
@@ -73,4 +77,5 @@ context	s=
 context	n=
 outcome	s	3fefffad36f86364 0.9999605249059695
 outcome	n	3f04b241e726f5cf 3.947509403044344E-5
+acceptable	1
 end	5

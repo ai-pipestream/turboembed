@@ -1,0 +1,34 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	detokenizer/fr-elision	31	30	dff6456b6dad521cd15b90b3350b6188e3feb76d5f8d062f338cebde75db181c
+model	fr-detokenizer.xml	9c6c9165060e7ff2801b9cb5e6c778e1e93bc68fc4c3fcd4d44b23dbb3254f048e7c9f4d036e1d1bacac6f337f105105990956baf3775f41bc0d97045a25346d
+annotator	opennlp.tools.tokenize.DictionaryDetokenizer	detokenize
+config	splitMarker	<SPLIT>
+layer	opennlp:tokens	text	9	start:u32	end:u32
+0	2
+3	8
+9	12
+13	15
+16	17
+18	20
+21	24
+25	28
+29	30
+end	opennlp:tokens
+layer	turbo:detokenization	aligned:opennlp:tokens	9	operation:str
+MERGE_TO_RIGHT
+NO_OPERATION
+MERGE_TO_RIGHT
+NO_OPERATION
+NO_OPERATION
+NO_OPERATION
+NO_OPERATION
+NO_OPERATION
+MERGE_TO_LEFT
+end	turbo:detokenization
+layer	turbo:detokenized	document	1	text:str	marked:str
+L'homme qu'il a vu est là.	L'<SPLIT>homme qu'<SPLIT>il a vu est là<SPLIT>.
+end	turbo:detokenized

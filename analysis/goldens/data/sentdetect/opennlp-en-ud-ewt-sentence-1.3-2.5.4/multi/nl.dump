@@ -17,6 +17,7 @@ context	n=De
 context	ncap
 outcome	s	3fefc125292beaa6 0.9923272899753399
 outcome	n	3f7f6d6b6a0aad64 0.0076727100246601655
+acceptable	1
 end	0
 point	1	99	8	2	0	none
 context	sn
@@ -29,6 +30,7 @@ context	n=Op
 context	ncap
 outcome	s	3fefd9789f48f387 0.9952967749628535
 outcome	n	3f7343b05b863cad 0.004703225037146525
+acceptable	1
 end	1
 point	2	142	8	2	0	none
 context	sn
@@ -41,6 +43,7 @@ context	n=Toeristen
 context	ncap
 outcome	s	3fefd9789f48f387 0.9952967749628535
 outcome	n	3f7343b05b863cad 0.004703225037146525
+acceptable	1
 end	2
 point	3	197	7	2	0	none
 context	sn
@@ -52,4 +55,5 @@ context	s=
 context	n=
 outcome	s	3fefffb1635db8db 0.9999625149482897
 outcome	n	3f03a72891c91e5c 3.7485051710248115E-5
+acceptable	1
 end	3

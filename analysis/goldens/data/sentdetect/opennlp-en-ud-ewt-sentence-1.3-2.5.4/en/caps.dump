@@ -17,6 +17,7 @@ context	n=DO
 context	ncap
 outcome	s	3feff561ec8ba238 0.9987039203670696
 outcome	n	3f553c26e8bb8f3d 0.0012960796329303935
+acceptable	1
 end	0
 point	1	80	10	2	0	none
 context	sn
@@ -31,6 +32,7 @@ context	n=Most
 context	ncap
 outcome	s	3fefb0f2b8471ff0 0.9903501128364933
 outcome	n	3f83c351ee3803e3 0.009649887163506626
+acceptable	1
 end	1
 point	2	112	8	2	0	none
 context	sn
@@ -43,6 +45,7 @@ context	n=THE
 context	ncap
 outcome	s	3fefa3187d5da34e 0.988659138541246
 outcome	n	3f8739e0a8972c6e 0.011340861458753983
+acceptable	1
 end	2
 point	3	142	10	2	0	none
 context	sn
@@ -57,6 +60,7 @@ context	n=After
 context	ncap
 outcome	s	3fef3ede60eb89fe 0.9764243977518274
 outcome	n	3f982433e28ec02f 0.023575602248172508
+acceptable	1
 end	3
 point	4	179	7	2	0	none
 context	sn
@@ -68,4 +72,5 @@ context	s=
 context	n=
 outcome	s	3fefffbf841908ca 0.9999692516360252
 outcome	n	3f001ef9bdcd57cd 3.074836397469437E-5
+acceptable	1
 end	4

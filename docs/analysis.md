@@ -524,8 +524,13 @@ layer on a `Document` with its golden layer.
 The input texts are `analysis/goldens/data/inputs/<set>/<id>.txt`, the
 file's bytes being the text, and each golden is
 `analysis/goldens/data/<annotator>/<model>/<set>/<id>.golden`: one per
-annotator (`sentdetect`, `tokenize`, `langdetect`, ...), model (its file
-name without `.bin`, or `none`) and input. `turbo_goldens::data_dir()`
+annotator (`sentdetect`, `tokenize`, `detokenize`, `langdetect`, ...),
+run and input. The run directory is the first model file's name without
+`.bin` (or `.xml` for a dictionary), with `+` and the names of the run's
+options appended when it has any (`+legacy`, `+keep-new-lines`,
+`+alphanumeric`, `+english-dictionary`); a run without a model names
+itself there (`simple`, `whitespace`, `uax29`, `newline`, or a
+normalizer's name). `turbo_goldens::data_dir()`
 is that directory, for tests in any crate.
 
 ### The format
@@ -552,7 +557,12 @@ other. Then one header record per line, a keyword and its fields:
 - `config <key> <value>`: zero or more, one per option the annotator
   was run with, sorted by key, each key once, so two goldens of one class
   run with different options are told apart. Key and value are `str`
-  fields, escaped as below.
+  fields, escaped as below. The keys written now are `whitespace`
+  (`legacy` for a run in OpenNLP's legacy `WhitespaceMode`; the default
+  mode writes no record), `keepNewLines` (`true`),
+  `useAlphaNumericOptimization` (`true`) with `alphaNumericPattern` (the
+  pattern the tokenizer uses), `splitMarker` (the detokenizer's marker)
+  and the normalizers' options.
 - `error <class> <message>`: only for a run where the annotator threw
   on the JVM, after the config records and the last line of the file.
   The class is the exception's, such as
@@ -618,6 +628,9 @@ The layers and their columns, in order:
 | `opennlp:entities` | `text` | `start:u32`, `end:u32`, `token_start:u32`, `token_end:u32`, `kind:str`, `prob:f64` |
 | `opennlp:language` | `document` | `code:str`, `confidence:f64` |
 | `turbo:view` | `text` | `start:u32`, `end:u32`, `with:str` |
+| `turbo:word-types` | `aligned:opennlp:tokens` | `kind:str` |
+| `turbo:detokenization` | `aligned:opennlp:tokens` | `operation:str` |
+| `turbo:detokenized` | `document` | `text:str`, `marked:str` |
 
 `opennlp:language` has a row per language the detector ranked, best
 first. A `turbo:view` block is what a normalizer produced: a row per
@@ -625,6 +638,16 @@ edit, in text order, where `start..end` is the span of the source text
 the edit replaces (empty for an insertion) and `with` is the
 replacement (empty for a deletion). The JVM writes adjacent one-to-one
 replacements as separate rows, one per character.
+
+`turbo:word-types` holds the UAX #29 word type of each token, the
+`WordType` name OpenNLP gives it (`ALPHANUMERIC`, `NUMERIC`, `EMOJI`, ...). A
+detokenizer golden's `opennlp:tokens` are the lines of its input file, one
+token per line, each row the line's bytes without its line feed;
+`turbo:detokenization` is the `DetokenizationOperation` name
+`DictionaryDetokenizer.detokenize(String[])` gave each token, and the one
+`turbo:detokenized` row is what `detokenize(String[], String)` returned
+with no split marker (`text`) and with the `splitMarker` config value
+(`marked`).
 
 The ids are the layer types' own (`Layer::ID`, and `Layer::OF`
 for a generic layer, printed as `turbo:confidence<opennlp:tokens>`), and
@@ -783,14 +806,15 @@ The goldens in `analysis/goldens/data` are made by `turbo-goldens`
 (crate `turbo-goldens-tool` in `analysis/goldens-tool`). It builds a
 container from a pinned `eclipse-temurin:21-jdk` digest with OpenNLP
 built from a pinned commit of the fork, runs the Java generator in it
-without a network over the inputs and the models (each model checked
-against its published SHA-512), and writes
-`<annotator>/<model>/<set>/<id>.golden` for every annotator and input.
-`turbo-goldens verify` regenerates them into a scratch directory and
+without a network over the inputs the models (each model checked
+against its published SHA-512) and the fixtures (checked against the
+SHA-512 `recipe.rs` lists), and writes
+`<annotator>/<model>/<set>/<id>.golden` for every run and every input
+of the sets it takes. `turbo-goldens verify` regenerates them into a scratch directory and
 fails on any file whose bytes differ. The checked in goldens were made
 by `turbo-goldens generate` in that container, and `verify` reproduces
 them byte for byte.
-`analysis/goldens-tool/README.md` has the commands.
+`analysis/goldens-tool/README.md` has the commands and lists every run.
 
 The generator writes these layers, in this order within a golden:
 
@@ -799,12 +823,11 @@ The generator writes these layers, in this order within a golden:
 | `sentdetect` (`SentenceDetectorME.sentPosDetect`) | `opennlp:sentences`, `turbo:utf16<opennlp:sentences>` when a sentence cuts a character, `turbo:confidence<opennlp:sentences>` |
 | `tokenize` (`TokenizerME.tokenizePos`) | `opennlp:tokens`, `turbo:utf16<opennlp:tokens>` when a token cuts a character, `turbo:confidence<opennlp:tokens>` |
 | `langdetect` (`LanguageDetectorME.predictLanguages`) | `opennlp:language` |
+| `sentdetect` (`NewlineSentenceDetector.sentPosDetect`) | `opennlp:sentences` |
+| `tokenize` (`SimpleTokenizer`, `WhitespaceTokenizer` `tokenizePos`) | `opennlp:tokens`, `turbo:utf16<opennlp:tokens>` when a token cuts a character |
+| `tokenize` (`WordTokenizer.tokenizeTyped`, UAX #29) | `opennlp:tokens`, `turbo:utf16<opennlp:tokens>` when a token cuts a character, `turbo:word-types` |
+| `detokenize` (`DictionaryDetokenizer.detokenize`) | `opennlp:tokens`, `turbo:detokenization`, `turbo:detokenized` |
 | `normalize` (each normalizer) | `turbo:view` |
-
-Other crates write goldens of their own layer types in the same format,
-which the generator does not make: a tokenizer crate's
-`turbo:word-types`, one `kind:str` per token, aligned to
-`opennlp:tokens`, is one.
 
 When the OpenNLP annotator throws on an input, the golden holds the
 header records, the `config` records and then, as its last line,
@@ -813,8 +836,9 @@ what `getMessage()` returned (empty for null), escaped as a `str`
 field. It has no layer blocks, and that input has no decision point
 dump. Only the call into the annotator is caught this way; any other
 exception (an input or model that cannot be read, one of the
-generator's own checks) stops the generator. None of the three
-annotators throws on the checked in inputs.
+generator's own checks) stops the generator. Of the checked in goldens,
+only `SimpleTokenizer` with `keepNewLines` throws, on the whitespace only
+input.
 
 `TokenizerME` decides at every UTF-16 unit inside a whitespace token, so
 it can split a character outside the Basic Multilingual Plane between
@@ -829,12 +853,14 @@ aligned to it, with one row per row: `start16:u32` and `end16:u32`, the
 JVM's exact half open span in UTF-16 units, and `cut:u32`, 1 for a row
 that cut a character and 0 otherwise. The layer is written only when at
 least one row cuts a character, so every other golden is as it was.
-`analysis/goldens/data/inputs/en/emoji-split.txt` is such an input for
-the tokenizer.
+`analysis/goldens/data/inputs/en/emoji-split.txt` and the
+`inputs/surrogate` set are such inputs for the tokenizer models.
 
 ## Decision point dumps
 
-Beside each golden, `<annotator>/<model>/<set>/<id>.dump` records every
+Beside each golden of `sentdetect`, `tokenize` and `langdetect` that
+names a model and has no error record,
+`<annotator>/<model>/<set>/<id>.dump` records every
 decision the annotator asked its maxent model for on that input: the
 context strings the context generator produced and the probability of
 each outcome that `eval` returned. A Rust context generator and the
@@ -865,6 +891,7 @@ context	<str>
 ...
 outcome	<label str>	<f64>
 ...
+acceptable	<0 or 1>                    (sentence detector only, see below)
 end	<index u32>
 point	...
 ```
@@ -873,8 +900,7 @@ point	...
 - The header records are the ones the golden at the same path has, with
   the same values: the same `generator`, `opennlp`, `jdk`, `unicode` and
   `input` lines, one `model` line per model loaded, the same
-  `annotator` class and method, and the same `config` records (none of
-  the three annotators with dumps is run with options now).
+  `annotator` class and method, and the same `config` records.
 - Then one block per `eval` call, in the order the annotator made them,
   numbered from 0. A dump with no decision points (a text without an
   end of sentence character) is its header alone.
@@ -898,6 +924,11 @@ point	...
 - `outcomes` lines follow, `outcome	<label>	<f64>`, one per outcome of the
   model in its outcome index order (`getOutcome(0)`, `getOutcome(1)`,
   ...), with the probability `eval` returned for it.
+- `acceptable	<0|1>` follows the outcomes only in a sentence detector
+  dump, and only for a point whose best outcome is the split outcome
+  `s`: it is what `SentenceDetectorME.isAcceptableBreak` returned for
+  that candidate, 0 when the abbreviation dictionary refused the split.
+  A point without the record is one the model did not want to split at.
 - `end	<index>` closes the block; the index must match.
 
 The `str` escapes are the golden format's: `\t`, `\n`, `\r`, `\\`, and
@@ -950,7 +981,12 @@ How a decision's position is found, per annotator:
 
 Nothing in a dump is inferred: every context, value and probability is
 what `eval` received or returned, and every position is what the
-annotator passed to its context generator. The layers the recording
+annotator passed to its context generator. For `acceptable`, the
+recording sentence detector overrides `isAcceptableBreak`, records its
+argument and result, and passes the call on; the generator pairs each
+point whose best outcome is a split with the next such call, checks that
+it names the same text and candidate, and fails if any call is left
+over. The layers the recording
 annotator produces are written as a golden and compared byte for byte
 with the plain annotator's golden for the same input; the generator
 fails if they differ, so a dump is only written when recording changed
@@ -958,14 +994,15 @@ nothing the annotator computed.
 
 ### Making them
 
-`Main` writes the dumps when given `--dumps` after its four arguments.
+`Main` writes the dumps when given `--dumps` after its five arguments.
 The driver always passes it (`GENERATOR_ARGS` in
 `analysis/goldens-tool/src/recipe.rs`, forwarded by the container's
 entrypoint), so `turbo-goldens generate` writes and installs goldens and
 dumps together, and `turbo-goldens verify` compares both byte for byte.
 `verify` and `generate` also check, at the header level only, that every
-golden of these three annotators has a dump beside it, except one with
-an error record, which has none, that every dump has a golden, and that
+golden of these three annotators with a `model` record has a dump beside
+it, except one with an error record, which has none (and that a golden
+without a model has none), that every dump has a golden, and that
 each dump's header parses and names the input and model of its path. The
 checked in dumps were made in the same container run as the goldens.
 

@@ -5,7 +5,8 @@
 # passes ../java as the build context. The base image digest and the commit
 # are also Rust constants in ../src/recipe.rs; a test checks they agree.
 # Models are not in the image: `turbo-goldens generate` mounts them, with the
-# inputs, read only, and runs the container without a network.
+# inputs and the checked in fixtures, read only, and runs the container without
+# a network.
 
 FROM eclipse-temurin:21-jdk@sha256:3e3c176ffed168beb42c607be9bc1639b466cf00261a0fb04425562c9d0c5c2b
 
@@ -41,7 +42,7 @@ RUN /opennlp/mvnw -q -f /generator/pom.xml package
 # generator; the driver passes --dumps so the decision point dumps are written
 # beside the goldens.
 RUN printf '%s\n' '#!/bin/sh' \
-      'exec java -jar /generator/target/turbo-goldens-java.jar /inputs /models /out "$(cat /opennlp.commit)" "$@"' \
+      'exec java -jar /generator/target/turbo-goldens-java.jar /inputs /models /fixtures /out "$(cat /opennlp.commit)" "$@"' \
       > /usr/local/bin/turbo-goldens-java \
  && chmod 0755 /usr/local/bin/turbo-goldens-java
 

@@ -17,6 +17,7 @@ context	n=Then
 context	ncap
 outcome	s	3fefbe2ca91fa36d 0.9919646552271907
 outcome	n	3f8074d5b817248a 0.008035344772809223
+acceptable	1
 end	0
 point	1	69	8	2	0	none
 context	sn
@@ -29,6 +30,7 @@ context	n=Fish
 context	ncap
 outcome	s	3fefa496896130b3 0.9888413127132679
 outcome	n	3f86da5da7b3d349 0.011158687286732099
+acceptable	1
 end	1
 point	2	95	7	2	0	none
 context	sn
@@ -40,4 +42,5 @@ context	s=
 context	n=
 outcome	s	3fefffcc8771947a 0.9999754567512718
 outcome	n	3ef9bc4735c30d10 2.454324872825953E-5
+acceptable	1
 end	2

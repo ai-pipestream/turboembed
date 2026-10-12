@@ -18,6 +18,7 @@ context	n=Il
 context	ncap
 outcome	s	3fefd63ba7aa8201 0.9949014925696816
 outcome	n	3f74e22c2abeff89 0.005098507430318374
+acceptable	1
 end	0
 point	1	104	8	2	0	none
 context	sn
@@ -30,6 +31,7 @@ context	n=Mia
 context	ncap
 outcome	s	3fefdd2713ebe2ec 0.9957461728182273
 outcome	n	3f716c760a0e89cd 0.004253827181772652
+acceptable	1
 end	1
 point	2	156	8	2	0	none
 context	sn
@@ -42,6 +44,7 @@ context	n=Perché
 context	ncap
 outcome	s	3fefdc7c377a6ef0 0.9956646998939203
 outcome	n	3f71c1e442c88827 0.004335300106079776
+acceptable	1
 end	2
 point	3	195	7	2	0	none
 context	sn
@@ -53,4 +56,5 @@ context	s=
 context	n=
 outcome	s	3fefffca2ef25c54 0.9999743382385398
 outcome	n	3efae886d1d5eeaf 2.5661761460223333E-5
+acceptable	1
 end	3

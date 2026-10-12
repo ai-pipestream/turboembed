@@ -17,6 +17,7 @@ context	n=Abrió
 context	ncap
 outcome	s	3fefe7a7704322e4 0.9970280830976574
 outcome	n	3f68588fbcdd1c5f 0.002971916902342594
+acceptable	1
 end	0
 point	1	99	7	2	0	none
 context	sn
@@ -28,6 +29,7 @@ context	s=
 context	n=¡Los
 outcome	s	3fef926ca405cd77 0.9866240695541099
 outcome	n	3f8b64d6fe8ca1fb 0.013375930445890019
+acceptable	1
 end	1
 point	2	131	8	2	0	none
 context	sn
@@ -40,6 +42,7 @@ context	n=La
 context	ncap
 outcome	s	3fef9abb9334e092 0.9876382708671534
 outcome	n	3f89511b32c7db95 0.012361729132846647
+acceptable	1
 end	2
 point	3	139	10	2	0	none
 context	sn
@@ -54,6 +57,7 @@ context	n=Gómez
 context	ncap
 outcome	s	3fedda83906ab8d7 0.9329240627901311
 outcome	n	3fb12be37caa3949 0.06707593720986894
+acceptable	1
 end	3
 point	4	193	7	2	0	none
 context	sn
@@ -65,4 +69,5 @@ context	s=
 context	n=
 outcome	s	3fefffafe0422a3d 0.9999617939041127
 outcome	n	3f0407ef7570943f 3.82060958872628E-5
+acceptable	1
 end	4

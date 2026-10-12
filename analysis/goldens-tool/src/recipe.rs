@@ -1,5 +1,6 @@
 //! What the goldens are made from, as constants: the container's base
-//! image, the OpenNLP commit, the models and the input sets. The container
+//! image, the OpenNLP commit, the models, the checked in fixtures and the
+//! input sets. The container
 //! recipe (`container/Dockerfile`) repeats the base image and the commit;
 //! a test checks that both say the same.
 
@@ -25,9 +26,10 @@ pub struct Model {
     pub sha512: &'static str,
 }
 
-/// The models, in the order the generator loads them. The file names are
-/// the ones the generator's main class opens in the models directory.
-pub const MODELS: [Model; 3] = [
+/// The published models, in the order the generator loads them. The file
+/// names are the ones the generator's `Runs` class opens in the models
+/// directory.
+pub const MODELS: [Model; 9] = [
     Model {
         file: "opennlp-en-ud-ewt-sentence-1.3-2.5.4.bin",
         url: "https://downloads.apache.org/opennlp/models/ud-models-1.3/opennlp-en-ud-ewt-sentence-1.3-2.5.4.bin",
@@ -35,10 +37,46 @@ pub const MODELS: [Model; 3] = [
                  ef211e477db480b7253431de079fd66dfd14329cd7d19ad1f565155eb0cf5191",
     },
     Model {
+        file: "opennlp-de-ud-gsd-sentence-1.3-2.5.4.bin",
+        url: "https://downloads.apache.org/opennlp/models/ud-models-1.3/opennlp-de-ud-gsd-sentence-1.3-2.5.4.bin",
+        sha512: "c811604c24cdbe490ab42dcffdbae63f9a74b39622f21b7b31f63eea566ffe35\
+                 ef871f0da905e61180656b877cf0be4d626588c6312fcc18df5ab9a35b4183fa",
+    },
+    Model {
+        file: "opennlp-pt-ud-gsd-sentence-1.3-2.5.4.bin",
+        url: "https://downloads.apache.org/opennlp/models/ud-models-1.3/opennlp-pt-ud-gsd-sentence-1.3-2.5.4.bin",
+        sha512: "0c0390b36530ce9807e9f3d69cfd09524d965506dbb6e2aab2f34556c8858903\
+                 d538433b828e1f6ed7eaca92f336a04be83461a45b28b177d01ba372fafa35f8",
+    },
+    Model {
         file: "opennlp-en-ud-ewt-tokens-1.3-2.5.4.bin",
         url: "https://downloads.apache.org/opennlp/models/ud-models-1.3/opennlp-en-ud-ewt-tokens-1.3-2.5.4.bin",
         sha512: "147d1cdcb89ca5d9bd0ead8fddf2cc14ae543a9151803fe56b3c1fa152b98660\
                  5e34fb6dda4819c68aa22fc9bffa6bfab14f916b7d0bf4892d452686af34778a",
+    },
+    Model {
+        file: "opennlp-de-ud-gsd-tokens-1.3-2.5.4.bin",
+        url: "https://downloads.apache.org/opennlp/models/ud-models-1.3/opennlp-de-ud-gsd-tokens-1.3-2.5.4.bin",
+        sha512: "343c9fe93ff301b736f30fa2e0d954b270994a1535ec2bd424553cbd82b13eb0\
+                 d86aa2042946db62322430a8b5a8f29a8a2d882f107cb26c6d4f6d494d97debf",
+    },
+    Model {
+        file: "opennlp-es-ud-gsd-tokens-1.3-2.5.4.bin",
+        url: "https://downloads.apache.org/opennlp/models/ud-models-1.3/opennlp-es-ud-gsd-tokens-1.3-2.5.4.bin",
+        sha512: "ba5280ca74b190515f630ed2b2257a758e8baa876a8da3c02735f81a5543c37f\
+                 7bc57614fd1ecb2850b4a2df98b2d2e452718de43f676f9b63b064206f86c467",
+    },
+    Model {
+        file: "opennlp-fr-ud-gsd-tokens-1.3-2.5.4.bin",
+        url: "https://downloads.apache.org/opennlp/models/ud-models-1.3/opennlp-fr-ud-gsd-tokens-1.3-2.5.4.bin",
+        sha512: "18e56e96eae9741935c5f54f16d3c6933e151ec550b882d2e5e1194ac02c6b1e\
+                 56063843ff3805a35cf44810091674ef6bf2f080d1bc761770d8b09ee9a01277",
+    },
+    Model {
+        file: "opennlp-pt-ud-gsd-tokens-1.3-2.5.4.bin",
+        url: "https://downloads.apache.org/opennlp/models/ud-models-1.3/opennlp-pt-ud-gsd-tokens-1.3-2.5.4.bin",
+        sha512: "6ff66aec4835e9d5caeeb50a2e70bd673840ef6219fe1dc4018c8f9999b21b95\
+                 9c52fdac68844a0934bbcd77346743627f728fb9c99b7ca468e795fc5291c3bb",
     },
     Model {
         file: "langdetect-183.bin",
@@ -48,8 +86,68 @@ pub const MODELS: [Model; 3] = [
     },
 ];
 
+/// A checked in file the generator loads from the fixtures directory,
+/// `analysis/goldens/data/fixtures`: a model trained for the tests or a
+/// dictionary, and the SHA-512 of its bytes.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Fixture {
+    pub file: &'static str,
+    pub sha512: &'static str,
+}
+
+/// The fixtures, which are all the files of the fixtures directory. The
+/// file names are the ones the generator's `Runs` class opens there.
+pub const FIXTURES: [Fixture; 9] = [
+    Fixture {
+        file: "en-abbrev.bin",
+        sha512: "759ab1defc61351f53cdd82a26e708789a225feb6e1ec0cfd6e2e54f35f67c14\
+                 511f44d0eb73216f9d4c89c0fb26ea28fd6931a7c4f851d09ca487d0a39700fd",
+    },
+    Fixture {
+        file: "en-plain.bin",
+        sha512: "8da69d821956999ff898cf23963145cc134beb2bb59aa1ccc5e93d90b0489505\
+                 7057d80baf0e8c726bf28dea47021e51eab43689c8dc5fb78c99f19949c93ad8",
+    },
+    Fixture {
+        file: "tokenizer-abbreviations.bin",
+        sha512: "361484f0a67e129fe6f19908704d23e83c8a2bf4551a5f7eec3b40b9082a66b7\
+                 026d429233c11639b35bccf042d347d79222cfed62685563f2a926cb8a2460d4",
+    },
+    Fixture {
+        file: "english-dictionary.xml",
+        sha512: "e824b14f66036b2703cbbd3af6a893f7f07cf282c9e8021ae7be38f10da305a8\
+                 7aef48b129923f3973c78f495c2ed073adcad68c90c2f7d94bc6d32870839164",
+    },
+    Fixture {
+        file: "en-detokenizer.xml",
+        sha512: "d071b56f77ae5b6aff0a591c1cf7e601a4007b5fdbcc0bd3fc31e8c84e95ec23\
+                 2df9765a70bfef786f75dbefcc4cad7d053b34b00ecc805507192a5fddc81260",
+    },
+    Fixture {
+        file: "fr-detokenizer.xml",
+        sha512: "9c6c9165060e7ff2801b9cb5e6c778e1e93bc68fc4c3fcd4d44b23dbb3254f04\
+                 8e7c9f4d036e1d1bacac6f337f105105990956baf3775f41bc0d97045a25346d",
+    },
+    Fixture {
+        file: "latin-detokenizer.xml",
+        sha512: "8de094b90fd1856620ddb7c0d361833055c58d945b13f8263d027797de9510f6\
+                 e1cd4b73fffaa6693dab807a11b618ffe8d6ec060d2d4fc40cdc83a91afaa32f",
+    },
+    Fixture {
+        file: "pt-detokenizer.xml",
+        sha512: "36be57752d28262efa8fdb0b0d4d997a28f00eb32890419210911303459a1b3a\
+                 0ccecc29281f5a415a80b20fb75ac973e52237605960bd7669e2409738f19555",
+    },
+    Fixture {
+        file: "quotes-detokenizer.xml",
+        sha512: "d8444302db26d336e30283fa9caf62250b55c671e775629137499b16615e0d2b\
+                 6686379cff4d1baa34157deebe61170ebbf9a28d9e0f09622f1aefd7bcf285f0",
+    },
+];
+
 /// The input sets under `analysis/goldens/data/inputs`.
-pub const INPUT_SETS: [&str; 3] = ["en", "multi", "norm"];
+pub const INPUT_SETS: [&str; 9] =
+    ["en", "multi", "norm", "edge", "surrogate", "abbreviations", "alphanumeric", "sentence-fixture", "detokenizer"];
 
 /// The arguments the driver passes to the generator after the fixed ones
 /// (the inputs, models and output directories and the commit, which the
@@ -60,12 +158,14 @@ pub const GENERATOR_ARGS: [&str; 1] = ["--dumps"];
 
 /// The annotator directories the generator writes, which `generate`
 /// replaces and `verify` compares. The data directory holds other things
-/// (the inputs, a README) that neither touches.
-pub const ANNOTATORS: [&str; 4] = ["sentdetect", "tokenize", "langdetect", "normalize"];
+/// (the inputs, the fixtures, a README) that neither touches.
+pub const ANNOTATORS: [&str; 5] = ["sentdetect", "tokenize", "langdetect", "normalize", "detokenize"];
 
-/// The annotators that ask a maxent model for their decisions and so have
-/// a decision point dump beside each golden. The normalizers use no model
-/// and have none.
+/// The annotators with runs that ask a maxent model for their decisions:
+/// each golden of theirs whose header names a model has a decision point
+/// dump beside it. Their runs without a model (the simple, whitespace and
+/// UAX #29 tokenizers and the newline detector) have none, nor do the
+/// normalizers and the detokenizer, which ask no model.
 pub const DUMPED_ANNOTATORS: [&str; 3] = ["sentdetect", "tokenize", "langdetect"];
 
 /// The input set the normalizers run on. They run on no other set, and the
@@ -111,10 +211,26 @@ mod tests {
     }
 
     #[test]
-    fn the_generator_opens_the_same_model_files() {
-        let main = include_str!("../java/src/main/java/ai/pipestream/turbo/goldens/Main.java");
-        for m in MODELS {
-            assert!(main.contains(&format!("\"{}\"", m.file)), "Main.java does not name {}", m.file);
+    fn every_fixture_has_a_file_and_a_sha512() {
+        for f in FIXTURES {
+            assert!(is_lower_hex(f.sha512, 128), "{}: {}", f.file, f.sha512);
+            assert!(f.file.ends_with(".bin") || f.file.ends_with(".xml"), "{}", f.file);
+        }
+    }
+
+    #[test]
+    fn the_generator_opens_the_same_model_and_fixture_files() {
+        let runs = include_str!("../java/src/main/java/ai/pipestream/turbo/goldens/Runs.java");
+        for file in MODELS.iter().map(|m| m.file).chain(FIXTURES.iter().map(|f| f.file)) {
+            assert!(runs.contains(&format!("\"{file}\"")), "Runs.java does not name {file}");
+        }
+    }
+
+    #[test]
+    fn the_generator_names_the_same_input_sets() {
+        let runs = include_str!("../java/src/main/java/ai/pipestream/turbo/goldens/Runs.java");
+        for set in INPUT_SETS.iter().filter(|s| **s != NORMALIZER_INPUT_SET) {
+            assert!(runs.contains(&format!("= \"{set}\";")), "Runs.java does not name the input set {set}");
         }
     }
 
@@ -125,7 +241,10 @@ mod tests {
             assert!(main.contains(&format!("\"{arg}\"")), "Main.java does not take {arg}");
         }
         let dockerfile = include_str!("../container/Dockerfile");
-        assert!(dockerfile.contains("\"$(cat /opennlp.commit)\" \"$@\""), "the entrypoint drops its arguments");
+        assert!(
+            dockerfile.contains("/inputs /models /fixtures /out \"$(cat /opennlp.commit)\" \"$@\""),
+            "the entrypoint does not pass the mounts in the generator's order, or drops its arguments"
+        );
     }
 
     #[test]
@@ -137,10 +256,13 @@ mod tests {
     }
 
     #[test]
-    fn every_input_set_is_present() {
-        let data = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../goldens/data/inputs");
+    fn every_input_set_and_fixture_is_present() {
+        let data = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../goldens/data");
         for set in INPUT_SETS {
-            assert!(data.join(set).is_dir(), "{}", data.join(set).display());
+            assert!(data.join("inputs").join(set).is_dir(), "{}", data.join(set).display());
+        }
+        for f in FIXTURES {
+            assert!(data.join("fixtures").join(f.file).is_file(), "{}", f.file);
         }
     }
 }

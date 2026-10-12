@@ -17,6 +17,7 @@ context	n=The
 context	ncap
 outcome	s	3fefcd103392e4f2 0.9937821395207307
 outcome	n	3f7977e6368d86cd 0.006217860479269266
+acceptable	1
 end	0
 point	1	92	8	2	0	none
 context	sn
@@ -29,6 +30,7 @@ context	n=And
 context	ncap
 outcome	s	3fefd67e4113c01c 0.9949332495725716
 outcome	n	3f74c0df761ff1fb 0.00506675042742843
+acceptable	1
 end	1
 point	2	151	7	2	0	none
 context	sn
@@ -40,4 +42,5 @@ context	s=
 context	n=
 outcome	s	3feffebd10425165 0.9998460118827494
 outcome	n	3f242efbdae9aa78 1.5398811725060905E-4
+acceptable	1
 end	2

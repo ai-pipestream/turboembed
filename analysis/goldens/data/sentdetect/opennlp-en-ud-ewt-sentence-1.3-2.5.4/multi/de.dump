@@ -19,6 +19,7 @@ context	n=Viele
 context	ncap
 outcome	s	3fef920f8b3d6e78 0.9865796775370219
 outcome	n	3f8b7c1d30a46211 0.013420322462978114
+acceptable	1
 end	0
 point	1	128	7	2	0	none
 context	eos=.
@@ -41,6 +42,7 @@ context	s=
 context	n=die
 outcome	s	3feab916bef16240 0.835093853888857
 outcome	n	3fc51ba5043a7702 0.16490614611114301
+acceptable	1
 end	2
 point	3	152	9	2	0	none
 context	sn
@@ -54,6 +56,7 @@ context	n=Die
 context	ncap
 outcome	s	3fef74a6ed432687 0.9829897531537463
 outcome	n	3f916b22579b2f1f 0.017010246846253737
+acceptable	1
 end	3
 point	4	195	9	2	0	none
 context	sn
@@ -67,6 +70,7 @@ context	n=Morgen
 context	ncap
 outcome	s	3fefb26b37ab56ac 0.9905296408930631
 outcome	n	3f836532152a54c3 0.009470359106936837
+acceptable	1
 end	4
 point	5	237	7	2	0	none
 context	sn
@@ -78,4 +82,5 @@ context	s=
 context	n=
 outcome	s	3fefff71b8da911e 0.9999321566033677
 outcome	n	3f11c8e4addc3955 6.784339663232682E-5
+acceptable	1
 end	5

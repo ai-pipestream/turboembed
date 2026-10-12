@@ -1,0 +1,84 @@
+dump 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	edge/emoji-keycap	42	30	579cb532486986a4ea86b75b4d584563581d9d0f39b0fa67b852ce5691b97d77
+model	opennlp-de-ud-gsd-tokens-1.3-2.5.4.bin	343c9fe93ff301b736f30fa2e0d954b270994a1535ec2bd424553cbd82b13eb0d86aa2042946db62322430a8b5a8f29a8a2d882f107cb26c6d4f6d494d97debf
+annotator	opennlp.tools.tokenize.TokenizerME	tokenizePos
+config	alphaNumericPattern	^[A-Za-z0-9äéöüÄÉÖÜß]+$
+config	useAlphaNumericOptimization	true
+point	0	7	9	2	0	none
+context	p=1
+context	s=️⃣
+context	p1=1
+context	p1_num
+context	p2=bok
+context	p1f1=1️
+context	f1=️
+context	f2=⃣
+context	f12=️⃣
+outcome	F	3fef630e9ce3adf4 0.9808419288869445
+outcome	T	3f939e2c638a4181 0.019158071113055456
+end	0
+point	1	10	9	2	0	none
+context	p=1️
+context	s=⃣
+context	p1=️
+context	p2=1
+context	p2_num
+context	p21=1️
+context	p1f1=️⃣
+context	f1=⃣
+context	f2=bok
+outcome	F	3fe759a645958a6a 0.7296935423913287
+outcome	T	3fd14cb374d4eb2c 0.27030645760867134
+end	1
+point	2	20	8	2	0	none
+context	p=#
+context	s=️⃣
+context	p1=#
+context	p2=bok
+context	p1f1=#️
+context	f1=️
+context	f2=⃣
+context	f12=️⃣
+outcome	F	3fe0d830ae497612 0.5263904003183504
+outcome	T	3fde4f9ea36d13dc 0.4736095996816496
+end	2
+point	3	23	8	2	0	none
+context	p=#️
+context	s=⃣
+context	p1=️
+context	p2=#
+context	p21=#️
+context	p1f1=️⃣
+context	f1=⃣
+context	f2=bok
+outcome	F	3fe0173a640195ec 0.5028354600187277
+outcome	T	3fdfd18b37fcd429 0.49716453998127236
+end	3
+point	4	31	8	2	0	none
+context	p=*
+context	s=️⃣
+context	p1=*
+context	p2=bok
+context	p1f1=*️
+context	f1=️
+context	f2=⃣
+context	f12=️⃣
+outcome	F	3fe0d830ae497612 0.5263904003183504
+outcome	T	3fde4f9ea36d13dc 0.4736095996816496
+end	4
+point	5	34	8	2	0	none
+context	p=*️
+context	s=⃣
+context	p1=️
+context	p2=*
+context	p21=*️
+context	p1f1=️⃣
+context	f1=⃣
+context	f2=bok
+outcome	F	3fe0173a640195ec 0.5028354600187277
+outcome	T	3fdfd18b37fcd429 0.49716453998127236
+end	5

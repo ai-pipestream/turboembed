@@ -1,0 +1,48 @@
+dump 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	sentence-fixture/control-separators	29	28	152328ba121cba53a11ef7ae62a3c404fb456a744ec18480d2f0fd1834f5130c
+model	en-plain.bin	8da69d821956999ff898cf23963145cc134beb2bb59aa1ccc5e93d90b04895057057d80baf0e8c726bf28dea47021e51eab43689c8dc5fb78c99f19949c93ad8
+annotator	opennlp.tools.sentdetect.SentenceDetectorME	sentPosDetect
+point	0	11	8	2	0	none
+context	eos=.
+context	x=.\u001cBeta
+context	6
+context	v=Alpha
+context	vcap
+context	s=
+context	n=Gamma.
+context	ncap
+outcome	n	3fb213fad650a2a6 0.07061736805247651
+outcome	s	3fedbd80a535ebab 0.9293826319475235
+acceptable	1
+end	0
+point	1	19	10	2	0	none
+context	sn
+context	eos=.
+context	x=Gamma
+context	5
+context	xcap
+context	v=Alpha.\u001cBeta.
+context	vcap
+context	s=
+context	n=Delta.
+context	ncap
+outcome	n	3fc54cde567a0d1a 0.16640834066866078
+outcome	s	3feaacc86a617cba 0.8335916593313393
+acceptable	1
+end	1
+point	2	28	7	2	0	none
+context	eos=.
+context	x= Delta
+context	6
+context	v=Gamma.
+context	vcap
+context	s=
+context	n=
+outcome	n	3fc6a5cdff504f5b 0.17693495718469418
+outcome	s	3fea568c802bec29 0.8230650428153058
+acceptable	1
+end	2

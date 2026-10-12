@@ -1,0 +1,85 @@
+dump 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	sentence-fixture/abbreviation-first	50	50	0a02f068acf32b5df32ce7f249001cd76c9c1a78a5155bc0c274e9abd76d8c92
+model	en-plain.bin	8da69d821956999ff898cf23963145cc134beb2bb59aa1ccc5e93d90b04895057057d80baf0e8c726bf28dea47021e51eab43689c8dc5fb78c99f19949c93ad8
+annotator	opennlp.tools.sentdetect.SentenceDetectorME	sentPosDetect
+config	whitespace	legacy
+point	0	2	9	2	0	none
+context	sn
+context	eos=.
+context	x=Dr
+context	2
+context	xcap
+context	v=
+context	s=
+context	n=Who
+context	ncap
+outcome	n	3fedb12618ade30f 0.9278746110931894
+outcome	s	3fb276cf3a90e78b 0.07212538890681068
+end	0
+point	1	15	9	2	0	none
+context	sn
+context	eos=.
+context	x=arrived
+context	7
+context	v=Who
+context	vcap
+context	s=
+context	n=Mr.
+context	ncap
+outcome	n	3f94c86432761850 0.020295682506479118
+outcome	s	3fef59bcde6c4f3e 0.9797043174935209
+acceptable	1
+end	1
+point	2	19	9	2	0	none
+context	sn
+context	eos=.
+context	x=Mr
+context	2
+context	xcap
+context	v=arrived.
+context	s=
+context	n=Bean
+context	ncap
+outcome	n	3fead7d732929674 0.8388477313753371
+outcome	s	3fc4a0a335b5a632 0.16115226862466298
+end	2
+point	3	29	9	2	0	none
+context	sn
+context	eos=.
+context	x=too
+context	3
+context	v=Bean
+context	vcap
+context	s=
+context	n=Then
+context	ncap
+outcome	n	3fb5953ab096f273 0.08430830775518831
+outcome	s	3fed4d58a9ed21b2 0.9156916922448117
+acceptable	1
+end	3
+point	4	41	7	2	0	none
+context	sn
+context	eos=.
+context	x=al
+context	2
+context	v=et
+context	s=
+context	n=agreed.
+outcome	n	3fe3fe29209f52a0 0.6247754704623567
+outcome	s	3fd803adbec15ac2 0.3752245295376434
+end	4
+point	5	49	6	2	0	none
+context	eos=.
+context	x=agreed
+context	6
+context	v=al.
+context	s=
+context	n=
+outcome	n	3fb7a1be40dacaa0 0.09231175502172073
+outcome	s	3fed0bc837e4a6ad 0.9076882449782794
+acceptable	1
+end	5

@@ -14,13 +14,15 @@ import java.util.stream.Stream;
 /**
  * Writes every golden for every input, and with {@code --dumps} every decision point dump too.
  *
- * <p>Usage: {@code <inputs dir> <models dir> <out dir> <opennlp commit> [--dumps]}. The inputs
- * directory holds one directory per input set, each holding {@code <id>.txt} files. The models
- * directory holds the model files named below. The output directory must be empty or absent; it
- * receives {@code <annotator>/<model>/<set>/<id>.golden} for each annotator and input, and with
- * {@code --dumps} {@code <annotator>/<model>/<set>/<id>.dump} beside it, written in sorted order
- * of their paths. The commit is the 40 hex digit commit the OpenNLP runtime was built from, which
- * the jar does not record itself.</p>
+ * <p>Usage: {@code <inputs dir> <models dir> <fixtures dir> <out dir> <opennlp commit> [--dumps]}.
+ * The inputs directory holds one directory per input set, each holding {@code <id>.txt} files.
+ * The models directory holds the published model files and the fixtures directory the checked in
+ * ones, named in {@link Runs}. The output directory must be empty or absent; it receives
+ * {@code <annotator>/<model>/<set>/<id>.golden} for each annotator run and input it runs on, and
+ * with {@code --dumps} {@code <annotator>/<model>/<set>/<id>.dump} beside the golden of each run
+ * that asks a maxent model, written in sorted order of their paths. The commit is the 40 hex
+ * digit commit the OpenNLP runtime was built from, which the jar does not record itself. Every
+ * input must be one that at least one run takes.</p>
  *
  * <p>When the OpenNLP annotator throws on an input, its golden holds the header, the
  * {@code config} records and an {@code error} record with the exception's class and message, and
@@ -32,44 +34,37 @@ import java.util.stream.Stream;
  */
 public final class Main {
 
-  /** The model files the generator loads from the models directory. */
-  static final String SENTENCE_MODEL = "opennlp-en-ud-ewt-sentence-1.3-2.5.4.bin";
-  static final String TOKEN_MODEL = "opennlp-en-ud-ewt-tokens-1.3-2.5.4.bin";
-  static final String LANGUAGE_MODEL = "langdetect-183.bin";
-
   /** The option that adds the decision point dumps. */
   static final String DUMPS_OPTION = "--dumps";
 
   private Main() {}
 
   public static void main(String[] args) throws IOException {
-    boolean dumps = args.length == 5 && args[4].equals(DUMPS_OPTION);
-    if (args.length != 4 && !dumps) {
-      System.err.println("usage: turbo-goldens-java <inputs dir> <models dir> <out dir> <opennlp commit> ["
+    boolean dumps = args.length == 6 && args[5].equals(DUMPS_OPTION);
+    if (args.length != 5 && !dumps) {
+      System.err.println("usage: turbo-goldens-java <inputs dir> <models dir> <fixtures dir> <out dir> <opennlp commit> ["
           + DUMPS_OPTION + "]");
       System.exit(2);
     }
     Path inputs = Path.of(args[0]);
     Path models = Path.of(args[1]);
-    Path out = Path.of(args[2]);
-    String commit = args[3];
+    Path fixtures = Path.of(args[2]);
+    Path out = Path.of(args[3]);
+    String commit = args[4];
     if (!commit.matches("[0-9a-f]{40}")) {
       throw new IllegalArgumentException("the OpenNLP commit must be 40 lowercase hex digits: " + commit);
     }
     Jdk jdk = Jdk.current();
     String version = OpennlpVersion.read();
-    SentenceGolden sentences = SentenceGolden.load(models.resolve(SENTENCE_MODEL));
-    TokenGolden tokens = TokenGolden.load(models.resolve(TOKEN_MODEL));
-    LanguageGolden languages = LanguageGolden.load(models.resolve(LANGUAGE_MODEL));
-    List<AnnotatorGolden> annotators = new ArrayList<>(List.of(sentences, tokens, languages));
-    annotators.addAll(NormalizerGolden.all());
-    List<AnnotatorDump> recorders = dumps
-        ? List.of(SentenceDump.of(sentences), TokenDump.of(tokens), LanguageDump.of(languages))
-        : List.of();
+    Runs.All runs = Runs.load(models, fixtures);
+    List<AnnotatorDump> recorders = dumps ? runs.recorders() : List.of();
 
     Map<Path, byte[]> files = new TreeMap<>();
     for (Input input : readInputs(inputs)) {
-      generate(input, annotators, recorders, a -> header(commit, version, jdk, input, a), files);
+      if (runs.annotators().stream().noneMatch(a -> a.accepts(input))) {
+        throw new IllegalStateException("no annotator runs on the input " + input.inputId());
+      }
+      generate(input, runs.annotators(), recorders, a -> header(commit, version, jdk, input, a), files);
     }
     write(out, files);
     System.out.println("wrote " + files.size() + " files to " + out);

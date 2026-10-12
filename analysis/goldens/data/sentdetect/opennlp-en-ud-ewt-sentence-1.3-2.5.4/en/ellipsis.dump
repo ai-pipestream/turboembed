@@ -17,6 +17,7 @@ context	n=Then
 context	ncap
 outcome	s	3fee0bb182a8a757 0.9389274169854883
 outcome	n	3faf44e7d5758a92 0.0610725830145117
+acceptable	1
 end	0
 point	1	60	8	2	0	none
 context	sn
@@ -29,6 +30,7 @@ context	n=She
 context	ncap
 outcome	s	3feff21933dbd7e9 0.9983030331484289
 outcome	n	3f5bcd9848502db9 0.0016969668515710425
+acceptable	1
 end	1
 point	2	87	8	2	0	none
 context	sn
@@ -41,6 +43,7 @@ context	n=Wait.
 context	ncap
 outcome	s	3fefcc9482a4835e 0.9937231589902742
 outcome	n	3f79b5beadbe5106 0.006276841009725814
+acceptable	1
 end	2
 point	3	93	8	2	0	none
 context	sn
@@ -88,6 +91,7 @@ context	n=The
 context	ncap
 outcome	s	3feff9b39450e417 0.9992311379238598
 outcome	n	3f4931aebc6fa44a 7.688620761402501E-4
+acceptable	1
 end	6
 point	7	142	7	2	0	none
 context	sn
@@ -99,4 +103,5 @@ context	s=
 context	n=
 outcome	s	3feff2fcbb84c3d1 0.9984115278695019
 outcome	n	3f5a0688f6785f86 0.0015884721304981488
+acceptable	1
 end	7

@@ -16,6 +16,7 @@ context	s=
 context	n=كانت
 outcome	s	3fef926ca405cd77 0.9866240695541099
 outcome	n	3f8b64d6fe8ca1fb 0.013375930445890019
+acceptable	1
 end	0
 point	1	125	7	2	0	none
 context	sn
@@ -27,6 +28,7 @@ context	s=
 context	n=اشترت
 outcome	s	3fef926ca405cd77 0.9866240695541099
 outcome	n	3f8b64d6fe8ca1fb 0.013375930445890019
+acceptable	1
 end	1
 point	2	174	7	2	0	none
 context	sn
@@ -38,4 +40,5 @@ context	s=
 context	n=هل
 outcome	s	3fef926ca405cd77 0.9866240695541099
 outcome	n	3f8b64d6fe8ca1fb 0.013375930445890019
+acceptable	1
 end	2

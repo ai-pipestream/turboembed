@@ -22,6 +22,12 @@ pub fn inputs_dir() -> PathBuf {
     data_dir().join("inputs")
 }
 
+/// `analysis/goldens/data/fixtures`: the checked in models and dictionaries
+/// the generator loads besides the published models.
+pub fn fixtures_dir() -> PathBuf {
+    data_dir().join("fixtures")
+}
+
 /// The Maven project the container builds, which is the image's build context.
 pub fn java_dir() -> PathBuf {
     tool_dir().join("java")

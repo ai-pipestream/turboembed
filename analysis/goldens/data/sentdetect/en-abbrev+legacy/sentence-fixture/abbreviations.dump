@@ -1,0 +1,88 @@
+dump 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	sentence-fixture/abbreviations	67	67	14ab4e35df9c6ccf8789b218ed897aecd88c73fea53a6b06933ca4c4c4cedb30
+model	en-abbrev.bin	759ab1defc61351f53cdd82a26e708789a225feb6e1ec0cfd6e2e54f35f67c14511f44d0eb73216f9d4c89c0fb26ea28fd6931a7c4f851d09ca487d0a39700fd
+annotator	opennlp.tools.sentdetect.SentenceDetectorME	sentPosDetect
+config	whitespace	legacy
+point	0	2	10	2	0	none
+context	sn
+context	eos=.
+context	x=Mr
+context	2
+context	xcap
+context	xabbrev
+context	v=
+context	s=
+context	n=Smith
+context	ncap
+outcome	n	3fef6f4afb7ace0e 0.9823355590546627
+outcome	s	3f9216a090a63e50 0.017664440945337312
+end	0
+point	1	16	10	2	0	none
+context	sn
+context	eos=.
+context	x=Dr
+context	2
+context	xcap
+context	xabbrev
+context	v=met
+context	s=
+context	n=Brown
+context	ncap
+outcome	n	3feedbeeba41d990 0.9643472326122708
+outcome	s	3fa241145be26707 0.035652767387729205
+end	1
+point	2	32	7	2	0	none
+context	sn
+context	eos=.
+context	x=.m
+context	2
+context	v=p
+context	s=
+context	n=on
+outcome	n	3fecd758e523c405 0.9012875056633908
+outcome	s	3fb94538d6e1dfd5 0.09871249433660918
+end	2
+point	3	44	10	2	0	none
+context	sn
+context	eos=.
+context	x=St
+context	2
+context	xcap
+context	xabbrev
+context	v=Main
+context	vcap
+context	s=
+context	n=today.
+outcome	n	3fef9c6d535b9c4a 0.9878450992663457
+outcome	s	3f88e4ab2918ed82 0.012154900733654331
+end	3
+point	4	51	10	2	0	none
+context	sn
+context	eos=.
+context	x=today
+context	5
+context	v=St.
+context	vcap
+context	vabbrev
+context	s=
+context	n=He
+context	ncap
+outcome	n	3f724f093a59f48f 0.00446990589773323
+outcome	s	3fefdb61ed8b4c16 0.9955300941022667
+acceptable	1
+end	4
+point	5	66	6	2	0	none
+context	eos=.
+context	x=early
+context	5
+context	v=left
+context	s=
+context	n=
+outcome	n	3fab567fc6ec0f4e 0.05339431098221202
+outcome	s	3fee4a9803913f0c 0.9466056890177881
+acceptable	1
+end	5

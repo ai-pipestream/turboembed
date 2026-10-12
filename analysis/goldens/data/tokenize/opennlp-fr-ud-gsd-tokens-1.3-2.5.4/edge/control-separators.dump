@@ -1,0 +1,126 @@
+dump 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	edge/control-separators	14	14	4b8b0f0cf5b626b1f4d744c04f4396cb1a1b1d6684f1a13c3cae82102d1b807a
+model	opennlp-fr-ud-gsd-tokens-1.3-2.5.4.bin	18e56e96eae9741935c5f54f16d3c6933e151ec550b882d2e5e1194ac02c6b1e56063843ff3805a35cf44810091674ef6bf2f080d1bc761770d8b09ee9a01277
+annotator	opennlp.tools.tokenize.TokenizerME	tokenizePos
+point	0	1	10	2	0	none
+context	p=a
+context	s=\u001cb\u001dc\u001ed\u001fe
+context	p1=a
+context	p1_alpha
+context	p2=bok
+context	p1f1=a\u001c
+context	f1=\u001c
+context	f2=b
+context	f2_alpha
+context	f12=\u001cb
+outcome	F	3fefe9f3b1eeb5af 0.9973085856669764
+outcome	T	3f660c4e114a509f 0.002691414333023514
+end	0
+point	1	2	11	2	0	none
+context	p=a\u001c
+context	s=b\u001dc\u001ed\u001fe
+context	p1=\u001c
+context	p2=a
+context	p2_alpha
+context	p21=a\u001c
+context	p1f1=\u001cb
+context	f1=b
+context	f1_alpha
+context	f2=\u001d
+context	f12=b\u001d
+outcome	F	3fefa7608ea0aca3 0.9891817842193585
+outcome	T	3f8627dc57d4d73f 0.010818215780641459
+end	1
+point	2	3	11	2	0	none
+context	p=a\u001cb
+context	s=\u001dc\u001ed\u001fe
+context	p1=b
+context	p1_alpha
+context	p2=\u001c
+context	p21=\u001cb
+context	p1f1=b\u001d
+context	f1=\u001d
+context	f2=c
+context	f2_alpha
+context	f12=\u001dc
+outcome	F	3fef8b7ad41a842b 0.9857763426445038
+outcome	T	3f8d214af95ef541 0.014223657355496246
+end	2
+point	3	4	11	2	0	none
+context	p=a\u001cb\u001d
+context	s=c\u001ed\u001fe
+context	p1=\u001d
+context	p2=b
+context	p2_alpha
+context	p21=b\u001d
+context	p1f1=\u001dc
+context	f1=c
+context	f1_alpha
+context	f2=\u001e
+context	f12=c\u001e
+outcome	F	3fefd65ec9c908d3 0.9949182454222644
+outcome	T	3f74d09b1b7b9713 0.0050817545777357585
+end	3
+point	4	5	11	2	0	none
+context	p=a\u001cb\u001dc
+context	s=\u001ed\u001fe
+context	p1=c
+context	p1_alpha
+context	p2=\u001d
+context	p21=\u001dc
+context	p1f1=c\u001e
+context	f1=\u001e
+context	f2=d
+context	f2_alpha
+context	f12=\u001ed
+outcome	F	3fef7859c758cd48 0.9834412473195835
+outcome	T	3f90f4c714e65707 0.016558752680416535
+end	4
+point	5	6	11	2	0	none
+context	p=a\u001cb\u001dc\u001e
+context	s=d\u001fe
+context	p1=\u001e
+context	p2=c
+context	p2_alpha
+context	p21=c\u001e
+context	p1f1=\u001ed
+context	f1=d
+context	f1_alpha
+context	f2=\u001f
+context	f12=d\u001f
+outcome	F	3fef8f655d869b1f 0.9862543894458645
+outcome	T	3f8c26a89e593832 0.013745610554135455
+end	5
+point	6	7	11	2	0	none
+context	p=a\u001cb\u001dc\u001ed
+context	s=\u001fe
+context	p1=d
+context	p1_alpha
+context	p2=\u001e
+context	p21=\u001ed
+context	p1f1=d\u001f
+context	f1=\u001f
+context	f2=e
+context	f2_alpha
+context	f12=\u001fe
+outcome	F	3fef2a96f24e36f1 0.9739489300279428
+outcome	T	3f9aad21b63921ec 0.026051069972057236
+end	6
+point	7	8	10	2	0	none
+context	p=a\u001cb\u001dc\u001ed\u001f
+context	s=e
+context	p1=\u001f
+context	p2=d
+context	p2_alpha
+context	p21=d\u001f
+context	p1f1=\u001fe
+context	f1=e
+context	f1_alpha
+context	f2=bok
+outcome	F	3fef317ee7864cbb 0.9747919580426222
+outcome	T	3f99d0230f3668b4 0.025208041957377872
+end	7

@@ -100,15 +100,17 @@ impl Options {
     }
 }
 
-/// Fetches the models, checks the inputs and runs the container into a
-/// fresh scratch directory, which the caller installs or compares.
+/// Fetches the models, checks the fixtures and the inputs and runs the
+/// container into a fresh scratch directory, which the caller installs or
+/// compares.
 fn generate(models_dir: &Path) -> Result<output::RunDir, String> {
     models::fetch(models_dir)?;
+    models::check_fixtures(&paths::fixtures_dir())?;
     check_input_sets(&paths::inputs_dir())?;
     let scratch = paths::scratch_dir();
     fs::create_dir_all(&scratch).map_err(|e| format!("{}: {e}", scratch.display()))?;
     let run = output::RunDir::new(&scratch)?;
-    docker::generate(&paths::inputs_dir(), models_dir, run.path())?;
+    docker::generate(&paths::inputs_dir(), models_dir, &paths::fixtures_dir(), run.path())?;
     run.check_layout()?;
     output::check_dumps(run.path())?;
     Ok(run)

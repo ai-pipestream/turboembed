@@ -17,6 +17,7 @@ context	n=Уже
 context	ncap
 outcome	s	3fefc125292beaa6 0.9923272899753399
 outcome	n	3f7f6d6b6a0aad64 0.0076727100246601655
+acceptable	1
 end	0
 point	1	175	8	2	0	none
 context	sn
@@ -29,6 +30,7 @@ context	n=В
 context	ncap
 outcome	s	3fefdc7c377a6ef0 0.9956646998939203
 outcome	n	3f71c1e442c88827 0.004335300106079776
+acceptable	1
 end	1
 point	2	239	8	2	0	none
 context	sn
@@ -41,6 +43,7 @@ context	n=Многие
 context	ncap
 outcome	s	3fefdc7c377a6ef0 0.9956646998939203
 outcome	n	3f71c1e442c88827 0.004335300106079776
+acceptable	1
 end	2
 point	3	305	7	2	0	none
 context	sn
@@ -52,4 +55,5 @@ context	s=
 context	n=
 outcome	s	3fefffafe0422a3d 0.9999617939041127
 outcome	n	3f0407ef7570943f 3.82060958872628E-5
+acceptable	1
 end	3

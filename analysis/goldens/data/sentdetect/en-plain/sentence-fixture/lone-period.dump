@@ -1,0 +1,18 @@
+dump 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	sentence-fixture/lone-period	1	1	cdb4ee2aea69cc6a83331bbe96dc2caa9a299d21329efb0336fc02a82e1839a8
+model	en-plain.bin	8da69d821956999ff898cf23963145cc134beb2bb59aa1ccc5e93d90b04895057057d80baf0e8c726bf28dea47021e51eab43689c8dc5fb78c99f19949c93ad8
+annotator	opennlp.tools.sentdetect.SentenceDetectorME	sentPosDetect
+point	0	0	5	2	0	none
+context	eos=.
+context	x=
+context	v=
+context	s=
+context	n=
+outcome	n	3fd513fb16ad6087 0.3293445321519432
+outcome	s	3fe5760274a94fbc 0.6706554678480567
+acceptable	1
+end	0

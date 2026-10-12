@@ -37,6 +37,7 @@ context	n=Version
 context	ncap
 outcome	s	3fefef802a0e9e91 0.9979859181812164
 outcome	n	3f607fd5f1616f33 0.0020140818187836195
+acceptable	1
 end	2
 point	3	71	6	2	0	none
 context	eos=.
@@ -59,6 +60,7 @@ context	n=The
 context	ncap
 outcome	s	3fefe518cedc9572 0.9967159309641558
 outcome	n	3f6ae731236a8e61 0.003284069035844259
+acceptable	1
 end	4
 point	5	162	6	2	0	none
 context	eos=.
@@ -81,6 +83,7 @@ context	n=Pi
 context	ncap
 outcome	s	3fefdeaa56cdf5e5 0.9959308333779374
 outcome	n	3f70aad499050d5d 0.004069166622062551
+acceptable	1
 end	6
 point	7	193	8	2	0	none
 context	sn
@@ -93,6 +96,7 @@ context	n=Section
 context	ncap
 outcome	s	3fefe906f5db720f 0.9971957017801872
 outcome	n	3f66f90a248defdd 0.0028042982198126357
+acceptable	1
 end	7
 point	8	204	7	2	0	none
 context	eos=.
@@ -115,4 +119,5 @@ context	s=
 context	n=
 outcome	s	3fefff912cb6cb31 0.9999471543618254
 outcome	n	3f0bb4d24d33eced 5.284563817472576E-5
+acceptable	1
 end	9

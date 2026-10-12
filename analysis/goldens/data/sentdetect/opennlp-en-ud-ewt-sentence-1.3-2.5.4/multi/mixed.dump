@@ -17,6 +17,7 @@ context	n=Mathematicians
 context	ncap
 outcome	s	3fef7d91e1d7c9c3 0.9840783511156633
 outcome	n	3f904dc3c506c79a 0.01592164888433665
+acceptable	1
 end	0
 point	1	117	8	2	0	none
 context	sn
@@ -29,6 +30,7 @@ context	n=Мой
 context	ncap
 outcome	s	3fefe5aa800b3ba2 0.996785402379704
 outcome	n	3f6a557ff4c45da1 0.0032145976202959258
+acceptable	1
 end	1
 point	2	163	8	2	0	none
 context	sn
@@ -41,6 +43,7 @@ context	s=
 context	n=我喜欢𠀀这个字吗？
 outcome	s	3fed0f11eaca3b8f 0.9080895982495906
 outcome	n	3fb78770a9ae2387 0.09191040175040942
+acceptable	1
 end	2
 point	3	206	7	2	0	none
 context	sn
@@ -52,4 +55,5 @@ context	s=
 context	n=
 outcome	s	3feffea2504a6174 0.9998332565474315
 outcome	n	3f25dafb59e8c9cd 1.6674345256857543E-4
+acceptable	1
 end	3

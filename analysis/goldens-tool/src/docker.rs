@@ -27,10 +27,11 @@ pub fn image_id() -> Result<String, String> {
 }
 
 /// Runs the generator in the image without a network, with `inputs` at
-/// /inputs and `models` at /models read only and `out` at /out, as the
-/// calling user so the files written are theirs. The generator gets
-/// [`recipe::GENERATOR_ARGS`], so it writes the dumps beside the goldens.
-pub fn generate(inputs: &Path, models: &Path, out: &Path) -> Result<(), String> {
+/// /inputs, `models` at /models and `fixtures` at /fixtures read only and
+/// `out` at /out, as the calling user so the files written are theirs. The
+/// generator gets [`recipe::GENERATOR_ARGS`], so it writes the dumps beside
+/// the goldens.
+pub fn generate(inputs: &Path, models: &Path, fixtures: &Path, out: &Path) -> Result<(), String> {
     image_id()?;
     let mut cmd = Command::new("docker");
     cmd.args(["run", "--rm", "--network", "none"])
@@ -38,6 +39,8 @@ pub fn generate(inputs: &Path, models: &Path, out: &Path) -> Result<(), String> 
         .arg(format!("type=bind,src={},dst=/inputs,readonly", canonical(inputs)?.display()))
         .arg("--mount")
         .arg(format!("type=bind,src={},dst=/models,readonly", canonical(models)?.display()))
+        .arg("--mount")
+        .arg(format!("type=bind,src={},dst=/fixtures,readonly", canonical(fixtures)?.display()))
         .arg("--mount")
         .arg(format!("type=bind,src={},dst=/out", canonical(out)?.display()));
     if let Some(user) = current_user() {
