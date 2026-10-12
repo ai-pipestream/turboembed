@@ -8,8 +8,7 @@
  * code point and {@code toLowerCase(int)} in hexadecimal, {@code getType(int)}
  * in decimal, and the flags as a hexadecimal bit mask: 0x01 isWhitespace, 0x02
  * isAlphabetic, 0x04 isUpperCase, 0x08 isLetter, 0x10 isDigit, 0x20
- * isSpaceChar. The script is the {@code Character.UnicodeScript} name for the
- * scripts turbo-unicode distinguishes and {@code OTHER} for the rest.
+ * isSpaceChar. The script is the {@code Character.UnicodeScript} name.
  */
 public final class JavaChars {
 
@@ -52,15 +51,6 @@ public final class JavaChars {
         .append(Character.getType(cp)).append(' ')
         .append(Integer.toHexString(flags)).append(' ')
         .append(Integer.toHexString(Character.toLowerCase(cp))).append(' ')
-        .append(script(cp)).append('\n');
-  }
-
-  private static String script(int cp) {
-    Character.UnicodeScript script = Character.UnicodeScript.of(cp);
-    return switch (script) {
-      case HAN, HIRAGANA, KATAKANA, HANGUL, THAI, LAO, MYANMAR, KHMER, TAI_LE, NEW_TAI_LUE,
-          TAI_VIET -> script.name();
-      default -> "OTHER";
-    };
+        .append(Character.UnicodeScript.of(cp).name()).append('\n');
   }
 }
