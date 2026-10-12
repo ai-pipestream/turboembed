@@ -198,11 +198,29 @@ pub struct Subwords {
     pub spans: Spans<Subwords>,
     pub ids: Vec<i32>,
     pub model: ModelRef,
+    /// The word token each piece belongs to, when the pieces were made
+    /// from word tokens (a WordPiece or Unigram tokenizer splitting each
+    /// word), so a token's pieces are a range found by binary search.
+    pub token: Option<Vec<Ix<Tokens>>>,
+}
+
+impl Subwords {
+    /// The pieces of one word token: a binary search, no scan.
+    pub fn of(&self, t: Ix<Tokens>) -> IxRange<Subwords> {
+        let col = self.token.as_deref().expect("subwords made per token");
+        let a = col.partition_point(|&x| x < t);
+        let b = a + col[a..].partition_point(|&x| x == t);
+        IxRange::new(a as u32, b as u32)
+    }
 }
 
 impl Layer for Subwords {
     const ID: &'static str = "opennlp:subwords";
     positional!(Subwords);
+    fn indexes(&self) -> Vec<(KeyId, usize)> {
+        let Some(t) = &self.token else { return Vec::new() };
+        vec![(Key::<Tokens>::DEFAULT.id(), t.last().map_or(0, |i| i.get() + 1))]
+    }
     fn check(&self) -> Result<(), String> {
         let (start, end) = self.spans.columns();
         if self.ids.len() != start.len() {
@@ -211,7 +229,11 @@ impl Layer for Subwords {
         if !start.windows(2).all(|w| w[0] <= w[1]) || !end.windows(2).all(|w| w[0] <= w[1]) {
             return Err("subwords in text order".into());
         }
-        Ok(())
+        match &self.token {
+            Some(t) if t.len() != start.len() => Err("a token for every subword".into()),
+            Some(t) if !t.windows(2).all(|w| w[0] <= w[1]) => Err("subwords in token order".into()),
+            _ => Ok(()),
+        }
     }
 }
 
@@ -219,7 +241,7 @@ impl Layer for Subwords {
 pub struct PosTags {
     pub tagset: Arc<TagSet>,
     pub tags: Vec<Tag>,
-    pub prob: Option<Vec<f32>>,
+    pub prob: Option<Vec<f64>>,
 }
 
 impl Layer for PosTags {
@@ -275,7 +297,7 @@ pub struct Entities {
     pub tokens: Vec<IxRange<Tokens>>,
     pub kind: Vec<Tag>,
     pub kinds: Arc<TagSet>,
-    pub score: Vec<f32>,
+    pub score: Vec<f64>,
 }
 
 impl Layer for Entities {
@@ -320,6 +342,8 @@ pub enum Cut {
 /// step weighs and sums them into the default instance, since a layer has
 /// one writer; the chunker reads only that.
 pub struct Boundaries {
+    /// f32, unlike the model probabilities in other layers: costs are
+    /// computed here in Rust and never compared against OpenNLP's output.
     pub cost: Vec<f32>,
     pub reason: Vec<Cut>,
 }
@@ -423,12 +447,12 @@ impl<L: Layer> Layer for Vectors<L> {
 /// A confidence per item of layer `L`, for any layer whose producer has
 /// one: a tokenizer's, a name finder's, a parser's arcs.
 pub struct Confidence<L> {
-    pub value: Vec<f32>,
+    pub value: Vec<f64>,
     pub _of: PhantomData<fn() -> L>,
 }
 
 impl<L: Layer> Confidence<L> {
-    pub fn new(value: Vec<f32>) -> Confidence<L> {
+    pub fn new(value: Vec<f64>) -> Confidence<L> {
         Confidence { value, _of: PhantomData }
     }
 }
@@ -453,7 +477,7 @@ impl<L: Layer> Layer for Confidence<L> {
 /// The document's language: a document-scoped layer.
 pub struct Language {
     pub code: String,
-    pub score: f32,
+    pub score: f64,
 }
 
 impl Layer for Language {
