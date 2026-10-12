@@ -1,13 +1,17 @@
 //! The subwords annotator on real bundles: the small BERT's WordPiece,
-//! a byte-level BPE and BGE-M3's Unigram, through the analyzer and into a
-//! document, which checks every span. The WordPiece pieces are compared
-//! with upstream `tokenizers`, id for id and span for span.
+//! a byte-level BPE, BGE-M3's Unigram and SentencePiece `.model` files,
+//! through the analyzer and into a document, which checks every span.
+//! The WordPiece pieces are compared with upstream `tokenizers`, and the
+//! SentencePiece pieces with Google's sentencepiece library, id for id
+//! and span for span.
 
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicUsize, Ordering};
 
 use turbo::bundle::{Bundle, sha256_hex};
-use turbo::manifest::{Bpe, Manifest, PromptRole, SpecialRole, SpecialToken, Truncation, Unigram};
+use turbo::manifest::{
+    Bpe, Manifest, PromptRole, SentencePiece, SentencePieceAlgorithm, SpecialRole, SpecialToken, Truncation, Unigram,
+};
 use turbo::tokenizer::{Encode, Tokenizer};
 use turbo_analysis::registry::{Registry, Spec};
 use turbo_analysis::*;
@@ -61,16 +65,28 @@ impl Drop for TempBundle {
 /// and written back; the tokenizer is built unchecked, since the
 /// bundle's reference ids are the WordPiece ones.
 fn bundle_with(name: &str, tokenizer_json: &Path, edit: impl FnOnce(&mut Manifest)) -> (TempBundle, Tokenizer, Bundle) {
+    bundle_with_file(name, tokenizer_json, "tokenizer.json", edit)
+}
+
+/// The same with the tokenizer file under `file` in the bundle.
+fn bundle_with_file(
+    name: &str,
+    tokenizer: &Path,
+    file: &str,
+    edit: impl FnOnce(&mut Manifest),
+) -> (TempBundle, Tokenizer, Bundle) {
     // Tests run side by side, and two may write the same kind of bundle.
     static NEXT: AtomicUsize = AtomicUsize::new(0);
     let n = NEXT.fetch_add(1, Ordering::Relaxed);
     let dir = std::env::temp_dir().join(format!("turbo-embed-test-{}-{name}-{n}", std::process::id()));
     let _ = std::fs::remove_dir_all(&dir);
     std::fs::create_dir_all(&dir).unwrap();
-    let bytes = std::fs::read(tokenizer_json).unwrap();
-    std::fs::write(dir.join("tokenizer.json"), &bytes).unwrap();
+    let bytes = std::fs::read(tokenizer).unwrap();
+    std::fs::write(dir.join(file), &bytes).unwrap();
     let mut m = Manifest::parse(&std::fs::read(wordpiece_dir().join("manifest.json")).unwrap()).unwrap();
     let entry = m.files.iter_mut().find(|f| f.path == "tokenizer.json").unwrap();
+    entry.path = file.into();
+    m.tokenizer.file = file.into();
     entry.size = bytes.len() as u64;
     entry.sha256 = sha256_hex(&bytes);
     m.tokenizer.normalizer = None;
@@ -131,6 +147,49 @@ fn unigram() -> (TempBundle, SubwordAnnotator) {
     (dir, SubwordAnnotator::new(tok, &bundle))
 }
 
+fn sentencepiece_dir() -> PathBuf {
+    testdata().join("sentencepiece")
+}
+
+/// A model of testdata/sentencepiece in a bundle, with its control and
+/// unknown pieces as the special tokens and `template`.
+fn sentencepiece(
+    model: &str,
+    algorithm: SentencePieceAlgorithm,
+    specials: &[(SpecialRole, &str, u32)],
+    template: &[&str],
+) -> (TempBundle, SubwordAnnotator) {
+    let path = sentencepiece_dir().join(format!("{model}.model"));
+    let (dir, tok, bundle) = bundle_with_file(model, &path, "tokenizer.model", |m| {
+        m.model.id = format!("turbo-testdata/{model}");
+        m.tokenizer.sentencepiece = Some(SentencePiece { algorithm });
+        m.tokenizer.special_tokens = specials.iter().map(|&(r, c, id)| special(r, c, id, false)).collect();
+        m.tokenizer.template = template.iter().map(|&t| t.to_owned()).collect();
+        m.architecture.as_mut().unwrap().vocab_size = 32100;
+    });
+    assert_eq!(tok.kind_name(), "sentencepiece");
+    (dir, SubwordAnnotator::new(tok, &bundle))
+}
+
+/// T5's model: unigram with the nmt_nfkc character map.
+fn t5() -> (TempBundle, SubwordAnnotator) {
+    let specials = [(SpecialRole::Pad, "<pad>", 0), (SpecialRole::Eos, "</s>", 1), (SpecialRole::Unk, "<unk>", 2)];
+    sentencepiece("t5", SentencePieceAlgorithm::Unigram, &specials, &["$TEXT", "</s>"])
+}
+
+/// A small BPE with byte fallback, spaces kept as Llama's model keeps
+/// them.
+fn bpe_bytes() -> (TempBundle, SubwordAnnotator) {
+    let specials = [(SpecialRole::Unk, "<unk>", 0), (SpecialRole::Bos, "<s>", 1), (SpecialRole::Eos, "</s>", 2)];
+    sentencepiece("bpe-bytes", SentencePieceAlgorithm::Bpe, &specials, &["<s>", "$TEXT"])
+}
+
+/// A small unigram model with byte fallback.
+fn unigram_bytes() -> (TempBundle, SubwordAnnotator) {
+    let specials = [(SpecialRole::Unk, "<unk>", 0), (SpecialRole::Bos, "<s>", 1), (SpecialRole::Eos, "</s>", 2)];
+    sentencepiece("unigram-bytes", SentencePieceAlgorithm::Unigram, &specials, &["<s>", "$TEXT", "</s>"])
+}
+
 /// The whole text, no special tokens, no prefix: what the layer holds.
 fn bare() -> Encode {
     Encode { add_special_tokens: false, truncation: Truncation::None, max_tokens: u32::MAX, prompt: PromptRole::None }
@@ -185,6 +244,109 @@ fn bpe_pieces_are_taken_on_every_text() {
 fn unigram_pieces_are_taken_on_every_text() {
     let (_dir, a) = unigram();
     every_text_is_taken(a);
+}
+
+#[test]
+fn sentencepiece_pieces_are_taken_on_every_text() {
+    for (_dir, a) in [t5(), bpe_bytes(), unigram_bytes()] {
+        every_text_is_taken(a);
+    }
+}
+
+/// What the library gave for one text (testdata/sentencepiece).
+struct Golden {
+    text: String,
+    norm_to_orig: Vec<u32>,
+    ids: Vec<i32>,
+    offsets: Vec<[u32; 2]>,
+    decoded: String,
+}
+
+fn goldens(model: &str) -> Vec<Golden> {
+    let file = std::fs::read_to_string(sentencepiece_dir().join(format!("{model}.goldens.jsonl"))).unwrap();
+    let nums = |v: &serde_json::Value| -> Vec<u32> {
+        v.as_array().unwrap().iter().map(|x| x.as_u64().unwrap() as u32).collect()
+    };
+    let mut out = Vec::new();
+    for line in file.lines().skip(1) {
+        let v: serde_json::Value = serde_json::from_str(line).unwrap();
+        if v.get("long").is_some() {
+            continue;
+        }
+        out.push(Golden {
+            text: v["text"].as_str().unwrap().to_owned(),
+            norm_to_orig: nums(&v["norm_to_orig"]),
+            ids: nums(&v["ids"]).into_iter().map(|x| x as i32).collect(),
+            offsets: v["offsets"].as_array().unwrap().iter().map(|o| [nums(o)[0], nums(o)[1]]).collect(),
+            decoded: v["decoded"].as_str().unwrap().to_owned(),
+        });
+    }
+    out
+}
+
+/// The span the layer gives a piece the library put at `[b, e)`, by the
+/// rules every kind's spans follow (docs/tokenizer.md): a piece the
+/// library leaves empty (a byte piece before the last of its character,
+/// or a piece written for part of one input character) runs to where
+/// the input it came from ends, the next source in norm_to_orig; then
+/// whitespace at either end is left out unless that is all there is.
+fn layer_span(g: &Golden, [b, e]: [u32; 2]) -> [u32; 2] {
+    let e = if e > b { e } else { g.norm_to_orig.iter().copied().find(|&o| o > b).unwrap_or(b) };
+    trimmed(&g.text, [b, e])
+}
+
+/// The layer holds the library's ids, and its spans are the library's
+/// offsets by the rules of layer_span, on every text of the goldens; the
+/// ids decode to the library's text.
+#[test]
+fn sentencepiece_pieces_match_the_library() {
+    for (model, (_dir, a)) in [("t5", t5()), ("bpe-bytes", bpe_bytes()), ("unigram-bytes", unigram_bytes())] {
+        let goldens = goldens(model);
+        let mut docs: Vec<Document> = goldens.iter().map(|g| Document::new(g.text.as_str())).collect();
+        let decoded: Vec<String> = goldens.iter().map(|g| a.tokenizer().decode(&g.ids, false).unwrap()).collect();
+        for s in run(a, &mut docs, false) {
+            s.unwrap();
+        }
+        let mut differ = 0;
+        for ((g, doc), decoded) in goldens.iter().zip(&docs).zip(decoded) {
+            let want: Vec<(i32, [u32; 2])> =
+                g.ids.iter().zip(&g.offsets).map(|(&id, &o)| (id, layer_span(g, o))).collect();
+            assert_eq!(pairs(doc.get::<Subwords>().unwrap()), want, "{model}: {:?}", g.text);
+            assert_eq!(decoded, g.decoded, "{model}: decode of {:?}", g.text);
+            differ += usize::from(want.iter().zip(&g.offsets).any(|((_, s), o)| s != o));
+        }
+        // The rules change the library's offsets on most texts: a piece
+        // after a space starts with it there.
+        assert!(differ > goldens.len() / 2, "{model}: {differ} of {} texts", goldens.len());
+    }
+}
+
+/// A character a byte-fallback model has no piece for is its bytes'
+/// pieces, every one spanning the whole character, where the library
+/// gives the last its offsets and the others an empty one at its start.
+#[test]
+fn byte_fallback_pieces_of_one_character_share_its_span() {
+    let (_dir, a) = bpe_bytes();
+    let text = "a \u{13000} b";
+    let glyph = text.find('\u{13000}').unwrap() as u32;
+    let mut docs = vec![Document::new(text)];
+    run(a, &mut docs, false).remove(0).unwrap();
+    let sub = docs[0].get::<Subwords>().unwrap();
+    let on_glyph: Vec<Span> = sub.spans.iter().map(|(_, s)| s).filter(|s| s.start == glyph).collect();
+    assert_eq!(on_glyph.len(), 4, "{:?}", sub.spans);
+    assert!(on_glyph.iter().all(|s| s.end == glyph + 4), "{:?}", sub.spans);
+}
+
+/// The library matches no special token in the text: T5's `</s>` written
+/// there is its characters, not the end-of-sequence id.
+#[test]
+fn a_special_token_written_in_the_text_is_its_characters() {
+    let (_dir, a) = t5();
+    let ids = a.tokenizer().encode("a </s> b", bare()).unwrap();
+    assert!(!ids.contains(&1), "{ids:?}");
+    let g = goldens("t5");
+    let line = g.iter().find(|g| g.text.contains("</s>")).unwrap();
+    assert_eq!(a.tokenizer().encode(&line.text, bare()).unwrap(), line.ids);
 }
 
 /// The bundle's id and revision, and the SHA-256 of its manifest, name
