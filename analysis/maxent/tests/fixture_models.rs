@@ -6,11 +6,11 @@
 mod common;
 
 use common::{doubles, modified_utf8, unescape};
-use turbo_maxent::{Dictionary, MaxentModel, ModelFile, ModelKind};
+use turbo_maxent::{Dictionary, MaxentModel, ModelFile, ModelKind, best_outcome};
 
-/// One expected evaluation: the features as modified UTF-8 and the
-/// probabilities the JVM gave.
-type Case = (Vec<Vec<u8>>, Vec<f64>);
+/// One expected evaluation: the features and the probabilities the JVM
+/// gave.
+type Case = (Vec<String>, Vec<f64>);
 
 /// The outcome names and expected evaluations for one model.
 fn expected(model: &str) -> (Vec<String>, Vec<Case>) {
@@ -28,11 +28,8 @@ fn expected(model: &str) -> (Vec<String>, Vec<Case>) {
             continue;
         }
         let features = f.next().unwrap();
-        let features: Vec<Vec<u8>> = if features.is_empty() {
-            Vec::new()
-        } else {
-            features.split(' ').map(|s| modified_utf8(&unescape(s))).collect()
-        };
+        let features: Vec<String> =
+            if features.is_empty() { Vec::new() } else { features.split(' ').map(unescape).collect() };
         cases.push((features, doubles(f.next().unwrap())));
     }
     (outcomes, cases)
@@ -43,28 +40,20 @@ fn check(model: &MaxentModel, name: &str) {
     assert_eq!(model.outcomes().collect::<Vec<_>>(), outcomes, "{name}");
     assert!(!cases.is_empty());
     let mut out = vec![0.0; model.num_outcomes()];
-    let mut exact = 0;
-    let mut total = 0;
+    let mut bytes_out = vec![0.0; model.num_outcomes()];
     for (features, want) in &cases {
-        let context: Vec<&[u8]> = features.iter().map(Vec::as_slice).collect();
+        let context: Vec<&str> = features.iter().map(String::as_str).collect();
         model.eval(&context, &mut out);
-        for (got, want) in out.iter().zip(want) {
-            assert!((got - want).abs() <= 1e-9, "{name} {features:?}: {got} vs {want}");
-            // Probabilities are positive, so their bit patterns order like
-            // their values and the difference counts units in the last place.
-            let ulps = (got.to_bits() as i64 - want.to_bits() as i64).abs();
-            assert!(ulps <= 1, "{name} {features:?}: {got} vs {want} differ by {ulps} ulps");
-            exact += usize::from(got == want);
-            total += 1;
-        }
+        // Bit for bit: the same sums in the same order, and StrictMath's
+        // exp and log.
+        assert_eq!(&out, want, "{name} {features:?}");
+        let encoded: Vec<Vec<u8>> = features.iter().map(|f| modified_utf8(f)).collect();
+        let encoded: Vec<&[u8]> = encoded.iter().map(Vec::as_slice).collect();
+        model.eval_modified_utf8(&encoded, &mut bytes_out);
+        assert_eq!(&bytes_out, want, "{name} {features:?} as modified UTF-8");
         let best = want.iter().enumerate().fold(0, |b, (i, &p)| if want[b] < p { i } else { b });
-        assert_eq!(model.best_outcome(&out), best);
+        assert_eq!(best_outcome(&out), best);
     }
-    // f64::exp and f64::ln are the platform's, not StrictMath's fdlibm, so a
-    // probability can differ from the JVM's by one unit in the last place
-    // (on the machine the fixtures were checked on, 11 of 100 do). Most
-    // agree exactly.
-    assert!(exact * 2 > total, "{name}: only {exact} of {total} probabilities are bit-identical");
 }
 
 fn read_model(name: &str) -> MaxentModel {
@@ -96,11 +85,15 @@ fn perceptron_probabilities_match_the_jvm() {
 fn predicates_are_keyed_by_modified_utf8() {
     let m = read_model("gis.model");
     // NUL is C0 80 and U+1F600 is two three-byte surrogate sequences.
-    assert!(m.has_predicate(b"w=\xC0\x80"));
-    assert!(!m.has_predicate(b"w=\0"));
-    assert!(m.has_predicate(b"w=\xED\xA0\xBD\xED\xB8\x80"));
-    assert!(!m.has_predicate("w=\u{1F600}".as_bytes()));
-    assert!(m.has_predicate("w=été".as_bytes()));
+    assert!(m.has_predicate_modified_utf8(b"w=\xC0\x80"));
+    assert!(!m.has_predicate_modified_utf8(b"w=\0"));
+    assert!(m.has_predicate_modified_utf8(b"w=\xED\xA0\xBD\xED\xB8\x80"));
+    assert!(!m.has_predicate_modified_utf8("w=\u{1F600}".as_bytes()));
+    assert!(m.has_predicate_modified_utf8("w=été".as_bytes()));
+    // The &str lookup encodes the first two.
+    assert!(m.has_predicate("w=\0"));
+    assert!(m.has_predicate("w=\u{1F600}"));
+    assert!(m.has_predicate("w=été"));
 }
 
 #[test]
