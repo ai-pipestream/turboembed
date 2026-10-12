@@ -476,6 +476,7 @@ words ending in one or more combining marks, in Latin NFD and
 Devanagari, and marks without a letter; the compound mode, including the
 alignment of the kept hyphen; and 4000 generated texts in both modes
 compared with a reference written over a character vector.
+
 ### Accent folding (`analysis/normalize/src/accent_fold.rs`) and the run pass (`analysis/normalize/src/fold_runs.rs`)
 
 `AccentFold` (id `turbo:normalize:accent-fold`) removes accents. It does
