@@ -2,7 +2,9 @@
 
 Files made by Java, for comparing the Rust readers with the JVM. The Java
 programs that made them are in `src/`. The JVM is used to make the files
-only; nothing calls it at test time.
+only; nothing calls it at test time. They are produced by compiling and running these
+programs by hand with `javac` against the pinned OpenNLP fork (see Provenance), and will
+move to the `analysis/golden/jvm` generator.
 
 ## What is here
 

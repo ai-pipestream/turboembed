@@ -145,10 +145,13 @@ impl Dictionary {
         self.entries.iter().map(|e| e.split(SEPARATOR))
     }
 
-    /// The first token of each entry, in no particular order, as OpenNLP's
-    /// `Dictionary.asStringSet` iterates them: entries that share a first
-    /// token give it once each. In a case-insensitive dictionary the
-    /// tokens are lowercased.
+    /// The first token of each entry, in no particular order: entries that
+    /// share a first token give it once each, as OpenNLP's
+    /// `Dictionary.asStringSet` iterates them. In a case-insensitive
+    /// dictionary the tokens here are lowercased, where `asStringSet`
+    /// gives each entry's original casing; the lowercased form is what
+    /// `SentenceDetectorME`'s `AbbreviationIndex` builds from it, by
+    /// lowercasing each first token with `StringUtil.toLowerCase`.
     pub fn as_set(&self) -> impl Iterator<Item = &str> {
         self.entries.iter().map(|e| e.split(SEPARATOR).next().unwrap_or(""))
     }
