@@ -256,7 +256,7 @@ layer on a `Document` with its golden layer.
 
 The input texts are `analysis/goldens/data/inputs/<set>/<id>.txt`, the
 file's bytes being the text, and each golden is
-`analysis/goldens/data/<annotator>/<model>/<id>.golden`: one per
+`analysis/goldens/data/<annotator>/<model>/<set>/<id>.golden`: one per
 annotator (`sentdetect`, `tokenize`, `langdetect`, ...), model (its file
 name without `.bin`, or `none`) and input. `turbo_goldens::data_dir()`
 is that directory, for tests in any crate.
@@ -282,8 +282,13 @@ other. Then one header record per line, a keyword and its fields:
 - `annotator <class> <method>`: the Java class and method that ran,
   such as `opennlp.tools.sentdetect.SentenceDetectorME` and
   `sentPosDetect`.
+- `config <key> <value>`: zero or more, one per option the annotator
+  was run with, sorted by key, each key once, so two goldens of one class
+  run with different options are told apart. Key and value are `str`
+  fields, escaped as below.
 
-Header fields are written as they are; none holds a tab or a line end.
+The other header fields are written as they are; none holds a tab or a
+line end.
 One or more layer blocks follow. Each starts with
 `layer <id> <anchor> <rows> <name:type>...`, where the anchor is `text`,
 `aligned:<layer id>` or `document` and the list names every column with
@@ -321,9 +326,16 @@ The layers and their columns, in order:
 | `opennlp:lemmas` | `aligned:opennlp:tokens` | `lemma:str` |
 | `opennlp:entities` | `text` | `start:u32`, `end:u32`, `token_start:u32`, `token_end:u32`, `kind:str`, `prob:f64` |
 | `opennlp:language` | `document` | `code:str`, `confidence:f64` |
+| `turbo:view` | `text` | `start:u32`, `end:u32`, `with:str` |
 
 `opennlp:language` has a row per language the detector ranked, best
-first. The ids are the layer types' own (`Layer::ID`, and `Layer::OF`
+first. A `turbo:view` block is what a normalizer produced: a row per
+edit, in text order, where `start..end` is the span of the source text
+the edit replaces (empty for an insertion) and `with` is the
+replacement (empty for a deletion). The JVM writes adjacent one-to-one
+replacements as separate rows, one per character.
+
+The ids are the layer types' own (`Layer::ID`, and `Layer::OF`
 for a generic layer, printed as `turbo:confidence<opennlp:tokens>`), and
 the reader refuses an id no layer type has, a second block for one id,
 and a block whose anchor or columns, by name and type, are not its
@@ -334,8 +346,8 @@ type's. Every error names the line and what was expected there.
 ```rust
 use turbo_goldens::{Golden, Tolerance, assert_matches_golden, data_dir};
 
-// tokenize/<model>/<id>.golden, for one model and one input
-let golden = Golden::read(data_dir().join("tokenize").join(model).join(format!("{id}.golden")))?;
+// tokenize/<model>/<set>/<id>.golden, for one model and one input
+let golden = Golden::read(data_dir().join("tokenize").join(model).join(set).join(format!("{id}.golden")))?;
 let text = golden.input_text(data_dir())?; // checks the length and SHA-256
 let doc = run_the_tokenizer(text);
 assert_matches_golden::<Tokens>(&doc, &golden, Tolerance::exact());
@@ -355,6 +367,15 @@ bits (so -0.0 and 0.0 differ), and `Abs(d)` takes two finite values at
 most `d` apart, or the same infinity, or two NaNs. `Language` holds the
 best language, so it is compared with row 0. POS tags without
 probabilities do not match a golden that has them.
+
+A normalized `View` is compared by its key (`Key::named("nfkc")`):
+the source with the golden's edits applied must be the view's text,
+byte for byte, and then the edits must be the view's alignment, edit by
+edit. A Rust alignment merges edits that touch, so the golden's touching
+rows are merged the same way first, and an item in a report is a merged
+edit. Only a view made from the source is compared: a view made from
+another view is reported as such, since composing a chain's edits into
+edits against the source is not built.
 
 The first difference is reported for a person: the layer, the item, the
 spans on both sides with the text they cover (for an aligned layer, the
@@ -392,13 +413,15 @@ runs them on any machine:
   each chunk to the budget.
 - `analysis/goldens/tests/goldens.rs` reads a hand written golden file
   (`tests/fixtures/zurich.golden`, over a short input beside it) into
-  typed fields, writes it back byte for byte, and compares a document
-  built to match it, layer by layer. Deliberate differences (a span
-  shifted by a byte, a changed tag, a value just outside the tolerance,
-  a missing row, a golden layer with the wrong columns, another language
-  code, tags without probabilities) each fail with a report naming the
-  item, its text and both values, and a malformed file of each kind is
-  refused with its line. The unit tests hold the escapes, the FIPS 180-4
+  typed fields, as it does a second with options and a normalized view
+  (`tests/fixtures/ligature.golden`), writes each back byte for byte,
+  and compares documents built to match them, layer by layer.
+  Deliberate differences (a span shifted by a byte, a changed tag, a
+  value just outside the tolerance, a missing row, a golden layer with
+  the wrong columns, another language code, tags without probabilities,
+  a view's text or edits) each fail with a report naming the item, its
+  text and both values, and a malformed file of each kind is refused
+  with its line. The unit tests hold the escapes, the FIPS 180-4
   test vectors and Java's `Double.toString`.
 - A doctest on `Ix` checks that an index into the wrong layer does not
   compile.
