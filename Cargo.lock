@@ -1786,6 +1786,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "turbo-eval"
+version = "0.1.0"
+dependencies = [
+ "serde",
+ "serde_json",
+ "turbo",
+ "turbo-jvm",
+]
+
+[[package]]
 name = "turbo-goldens"
 version = "0.1.0"
 dependencies = [

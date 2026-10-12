@@ -11,6 +11,7 @@ members = [
     "analysis/goldens",
     "analysis/goldens-tool",
     "analysis/jvm",
+    "analysis/eval",
 ]
 resolver = "3"
 
