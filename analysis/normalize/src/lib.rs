@@ -32,6 +32,7 @@ use turbo_analysis::{Alignment, Annotator, Error, Refs, Span, View, ViewBuilder}
 
 pub mod accent_fold;
 pub mod artifacts;
+pub mod assets;
 pub mod bullets;
 pub mod case_fold;
 pub mod chain;
@@ -61,6 +62,7 @@ pub mod whitespace;
 
 pub use accent_fold::{AccentFold, StrokeLetters};
 pub use artifacts::{Artifact, ArtifactDetector, ArtifactDetectorBuilder, KindSet, RepeatedLines};
+pub use assets::{Asset, AssetDetector, AssetFold};
 pub use bullets::Bullets;
 pub use case_fold::{CaseFold, CaseFoldMode};
 pub use chain::Chain;
