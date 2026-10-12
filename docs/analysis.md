@@ -19,6 +19,7 @@ nothing here is in the C header or the gRPC server.
 | `turbo-analysis` | `analysis/core/` | The document, views, offset tables, layers, keys, provenance, annotators, the analyzer and the registry |
 | `turbo-analysis-layers` | `analysis/layers/` | The layers add-ons share (below) |
 | `turbo-chunker` | `analysis/chunker/` | The chunker |
+| `turbo-structure` | `analysis/structure/` | Document structure (`turbo:structure`) from plain text and Markdown |
 | `turbo-analysis-embed` | `analysis/embed/` | The embedding model as analysis steps: the subwords of a text view from the bundle's tokenizer, and a vector per sentence and per chunk |
 | `turbo-jvm` | `analysis/jvm/` | JVM behaviour the OpenNLP ports must reproduce bit for bit |
 | `turbo-goldens` | `analysis/goldens/` | Golden layer files from the JVM: the reader, the writer, the comparison, loading golden layers as test inputs, SHA-256 and SHA-512 |
@@ -475,6 +476,94 @@ is made or at the first write, with an error naming the backend and the
 range write the vector steps need. A result of another shape than the
 run was written for, or a read of fewer bytes, is an error, never a
 shorter set of vectors.
+
+## Structure
+
+`Structure` (`turbo:structure`) is a document's blocks as a tree:
+sections, headings, paragraphs, lists and list items, tables with their
+rows and cells, code blocks and block quotes (`Block` also has captions,
+footnotes and page headers and footers, for extractors of HTML and PDF
+layout to write). Each block has a span, a kind, a parent and a depth:
+a heading's or a section's level, a list's, a list item's or a quote's
+nesting (1 for the outermost), and 0 for the rest. The blocks are in
+text order with each parent before its children; the layer's check
+refuses a parent at or after its child, a block outside its parent's
+span, a block that starts before the one before it, and two siblings
+that overlap. A shared column of kinds rather than a layer per kind keeps
+the nesting (a code block inside a list item inside a quote) in one
+place for the chunker to read.
+
+`StructureAnnotator` in `turbo-structure` reads a `View` and writes the
+layer; `detect` does the same outside a pipeline, and
+`StructureProvider` offers it to a registry as `structure`, with no model
+location and one option, `syntax`: `markdown` (the default) or `plain`.
+`ParagraphDetector` in `turbo-sentdetect` writes the same layer with
+paragraphs alone (docs/segmentation.md); a pipeline runs one of the two,
+since a layer has one writer.
+It is written by hand, with no Markdown library: one pass over the
+lines, keeping the open quotes and list items and at most one open
+paragraph, code block or table inside them, as CommonMark's reference
+parser does. A line ends at `\n`, `\r\n` or a lone `\r`, as for
+`ParagraphDetector`. Every span starts at its block's first character
+that is not whitespace (the marker, for a quote, a list item, a heading
+or a code fence) and ends after its last one, so line breaks, trailing
+blank lines and the indentation of a first line are outside it. A line
+is blank when it holds only whitespace (`char::is_whitespace`, so a line
+of U+3000 or U+00A0 is blank too). A byte order mark at the start of the
+view is in no block. A thematic break (`***`, `---`) ends the block before
+it and is no block itself.
+
+Sections come from the headings at the top level: a section runs from
+its heading to the end of the last top-level block before the next
+heading of the same or a higher level, and holds the heading, the blocks
+after it and the sections of lower levels. A document whose first
+heading is level 2 has level 2 sections at the top. Blocks before the
+first heading are in no section, and a heading inside a quote or a list
+item opens none. The chunker cuts each top-level section on its own.
+
+With `markdown`, the blocks are CommonMark's: ATX and setext headings,
+paragraphs, block quotes with lazy continuation lines, bullet and ordered
+lists (an item continues while a line is indented to its content, an
+ordered item interrupts a paragraph only when it starts at 1, an empty
+item never does, and a list holds the items of one bullet character or
+one delimiter), and fenced and indented code. Tabs stop every four
+columns. A list item's indentation is measured from where its parent's
+content starts on each line, as CommonMark does, so `> > 1.  one` and
+`>>     two` continue one item. On the 515 examples of the CommonMark
+0.31.2 specification that have neither an HTML block nor a link
+reference definition, the kinds and nesting of the blocks were compared
+with pulldown-cmark's, once, outside the repository, and agree on all
+(paragraphs directly inside list items left out of the comparison, since
+pulldown-cmark omits them in tight lists); the comparison is not a test
+here, since the crate takes no dependency on a Markdown library.
+What it does not do: HTML blocks and link reference definitions are
+paragraphs, footnote definitions and front matter are not recognized,
+and a list is not marked tight or loose.
+
+GFM pipe tables are tables: a delimiter row (`|---|:-:|`, with at least
+one `|`) under a line with as many cells turns that line into the
+header, splitting it from the paragraph above when there is one. The
+rows run to a blank line or a line that starts another block, and every
+row (the header included, the delimiter row not) is a `TableRow` with a
+`TableCell` per cell, the cell's span trimmed, an empty cell an empty
+span where the cell starts. A leading and a trailing `|` are not cells.
+A `|` escaped with a backslash or inside a backtick code span does not
+split a cell. That differs from GFM, where a pipe inside a code span
+splits the cell unless it is escaped: a pipe inside code (`a | b`, a
+shell pipeline) is almost always the code's own, and splitting there
+gives a row more cells than its header. A body row keeps the cells it
+has; it is not padded or cut to the header's width.
+
+With `plain`, a text is read as a letter or a contract: paragraphs
+between blank lines, the same list items (and `•` as a bullet), quotes
+marked with `>`, and headings of two kinds, a line of its own underlined
+with `=` (level 1) or `-` (level 2), and a paragraph of one line at the
+top level that is in capitals (at least two letters, an upper case one
+among them, no lower case one), at most 80 characters long, and does
+not end with `.`, `,`, `;` or `:` (level 1). An underline under a
+paragraph of several lines ends the paragraph and is no heading. There
+are no `#` headings, no code and no tables, so an indented line is text.
+Tables of aligned columns in plain text are not detected.
 
 ## The chunker
 
@@ -974,7 +1063,7 @@ be proven on a machine with Docker.
 
 ## Tests
 
-`cargo test -p turbo-analysis -p turbo-analysis-layers -p turbo-chunker -p turbo-analysis-embed -p turbo-jvm -p turbo-goldens`
+`cargo test -p turbo-analysis -p turbo-analysis-layers -p turbo-chunker -p turbo-structure -p turbo-analysis-embed -p turbo-jvm -p turbo-goldens`
 runs them on any machine:
 
 - `analysis/core/tests/pipeline.rs` runs a pipeline of toy annotators
@@ -993,6 +1082,24 @@ runs them on any machine:
   that are never crossed, and a paragraph break's token counted inside
   a chunk. The chunker's unit tests hold the optimizer against filling
   each chunk to the budget.
+- `analysis/structure/tests/fixtures.rs` holds hand-labelled documents,
+  each one's whole structure written out block by block with the text
+  each span covers: Markdown with nested sections, setext and ATX
+  headings in one hierarchy, fenced code holding heading, list and table
+  lines, unclosed fences, indented code, nested and mixed lists with
+  tabs and lazy lines, what may interrupt a paragraph, items that start
+  blank, tables with escaped pipes and pipes in code, quotes, CR LF and
+  lone CR breaks, Unicode text and whitespace, empty and whitespace-only
+  documents, and plain text.
+- `analysis/structure/tests/exhaustive.rs` runs every document of up to
+  three lines from 29 tricky lines, in both syntaxes and with both line
+  breaks, and holds each layer to the document's checks, to trimmed
+  spans and to giving the same layer twice; it also runs ten thousand
+  nested quotes, a thousand nested list items, a table row of 400
+  unclosed backtick runs and a long document.
+- `analysis/structure/tests/pipeline.rs` runs the annotator ahead of the
+  chunker, whose chunks then stay inside the sections it found, and
+  builds it through the provider.
 - `analysis/embed/tests/subwords.rs` runs the subwords annotator on the
   small BERT's WordPiece bundle, a byte-level BPE bundle and BGE-M3's
   Unigram, over the tokenizer test texts, and checks that the document

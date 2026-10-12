@@ -111,7 +111,8 @@ pub struct Structure {
     pub spans: Spans<Structure>,
     pub kind: Vec<Block>,
     pub parent: Vec<Option<Ix<Structure>>>,
-    /// Heading depth, list depth.
+    /// A heading's or a section's level, a list's, list item's or
+    /// quote's nesting (1 for the outermost), 0 otherwise.
     pub depth: Vec<u8>,
 }
 
@@ -124,6 +125,7 @@ pub enum Block {
     ListItem,
     Table,
     TableRow,
+    TableCell,
     Code,
     Quote,
     Caption,
@@ -139,6 +141,32 @@ impl Layer for Structure {
         let n = self.spans.len();
         if self.kind.len() != n || self.parent.len() != n || self.depth.len() != n {
             return Err("a kind, a parent and a depth for every block".into());
+        }
+        // Blocks are a tree in text order: each block starts at or after
+        // the one before it, inside its parent, which comes before it, and
+        // after the end of its previous sibling.
+        let (start, end) = self.spans.columns();
+        let mut last_child_end = vec![0u32; n];
+        let mut last_top_end = 0u32;
+        for i in 0..n {
+            if i > 0 && start[i] < start[i - 1] {
+                return Err(format!("block {i} starts before the block before it"));
+            }
+            let sibling_end = match self.parent[i] {
+                Some(p) if p.get() >= i => return Err(format!("block {i} has a parent at or after it")),
+                Some(p) => {
+                    let p = p.get();
+                    if start[i] < start[p] || end[i] > end[p] {
+                        return Err(format!("block {i} is outside its parent {p}"));
+                    }
+                    &mut last_child_end[p]
+                }
+                None => &mut last_top_end,
+            };
+            if start[i] < *sibling_end {
+                return Err(format!("block {i} overlaps the block before it"));
+            }
+            *sibling_end = end[i];
         }
         Ok(())
     }
@@ -588,6 +616,37 @@ mod tests {
         assert!(short.check().is_err());
         let backwards = Utf16Spans::<Tokens>::new(vec![0, 4], vec![1, 3], vec![false, false]);
         assert_eq!(backwards.check().unwrap_err(), "UTF-16 span 1 ends before it starts: 4..3");
+    }
+
+    /// Blocks from (start, end, parent).
+    fn blocks(list: &[(u32, u32, Option<u32>)]) -> Structure {
+        let mut spans = Spans::new(ViewId::SOURCE);
+        for &(a, b, _) in list {
+            spans.push(turbo_analysis::Span::new(a, b));
+        }
+        let n = list.len();
+        let parent = list.iter().map(|&(_, _, p)| p.map(Ix::new)).collect();
+        Structure { spans, kind: vec![Block::Paragraph; n], parent, depth: vec![0; n] }
+    }
+
+    #[test]
+    fn structure_is_a_tree_in_text_order() {
+        // A section holding a heading and a list of two items.
+        let ok =
+            [(0, 20, None), (0, 5, Some(0)), (7, 20, Some(0)), (7, 12, Some(2)), (13, 20, Some(2)), (21, 30, None)];
+        assert_eq!(blocks(&ok).check(), Ok(()));
+        assert_eq!(blocks(&[]).check(), Ok(()));
+        // Empty blocks may touch their neighbours.
+        assert_eq!(blocks(&[(0, 4, None), (1, 1, Some(0)), (1, 3, Some(0))]).check(), Ok(()));
+        let err = |list: &[(u32, u32, Option<u32>)]| blocks(list).check().unwrap_err();
+        assert!(err(&[(5, 9, None), (0, 4, None)]).contains("starts before"));
+        assert!(err(&[(0, 9, Some(0))]).contains("parent at or after"));
+        assert!(err(&[(0, 9, None), (2, 10, Some(0))]).contains("outside its parent"));
+        assert!(err(&[(0, 9, None), (2, 6, Some(0)), (4, 8, Some(0))]).contains("overlaps"));
+        assert!(err(&[(0, 5, None), (3, 8, None)]).contains("overlaps"));
+        let mut short = blocks(&ok);
+        short.depth.pop();
+        assert!(short.check().unwrap_err().contains("a depth for every block"));
     }
 
     fn toy() -> ModelRef {
