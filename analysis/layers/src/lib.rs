@@ -19,6 +19,7 @@ use turbo_analysis::{Anchor, Ix, IxRange, Key, KeyId, Layer, ModelRef, Spans, Vi
 pub use levels::{Level, Levels, Unit, VectorKind};
 pub use money::{CONVERTED_MONEY, Currency, Money, MoneyMention};
 pub use numbers::{DecimalRef, Multiplier, NumberMention, NumberNotation, Numbers, ScaleMarker};
+pub use quantities::{PERCENT, Quantities, QuantityMention};
 
 /// A closed set of labels (a POS tag set, entity kinds, dependency
 /// relations), interned: a layer stores a u16 per item, never a string.
@@ -112,6 +113,7 @@ macro_rules! positional {
 mod levels;
 mod money;
 mod numbers;
+mod quantities;
 
 /// Document structure from the parser upstream or a structure annotator:
 /// sections, headings, lists, tables, code, as a tree.
