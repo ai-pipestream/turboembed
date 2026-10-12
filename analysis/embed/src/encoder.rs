@@ -7,7 +7,7 @@ use std::ffi::c_char;
 use std::path::Path;
 use std::ptr;
 
-use turbo::status::{DEVICE_NOT_FOUND, Error, INVALID_ARGUMENT, UNSUPPORTED_OPTION};
+use turbo::status::{DEVICE_NOT_FOUND, Error, INTERNAL, INVALID_ARGUMENT, UNSUPPORTED, UNSUPPORTED_OPTION};
 use turbo::*;
 use turbo_analysis::Execution;
 
@@ -206,7 +206,9 @@ impl Encoder {
             cpu_threads: o.cpu_threads,
             max_ranges,
         };
-        check(unsafe { turbo_session_create(e.model, &desc, &mut e.session, &mut err) }, &err)?;
+        let backend = field(&device.backend);
+        check(unsafe { turbo_session_create(e.model, &desc, &mut e.session, &mut err) }, &err)
+            .map_err(|x| needs_range_write(x, &backend))?;
         let mut s: turbo_session_info = unsafe { std::mem::zeroed() };
         s.struct_size = size_of::<turbo_session_info>() as u32;
         check(unsafe { turbo_session_get_info(e.session, &mut s, &mut err) }, &err)?;
@@ -220,7 +222,7 @@ impl Encoder {
             l2: m.normalize == TURBO_NORMALIZE_L2,
             compute_dtype: s.compute_dtype,
             execution: Execution {
-                backend: field(&device.backend),
+                backend,
                 device: field(&device.name),
                 precision: format!("{} ({})", dtype_name(s.compute_dtype), o.precision.name()),
             },
@@ -282,8 +284,8 @@ impl Encoder {
         let rc = unsafe {
             turbo_embed_write_ranges(self.session, &rows.batch(), ranges.as_ptr(), ranges.len() as u32, &o, &mut err)
         };
-        check(rc, &err)?;
-        self.run(out)
+        check(rc, &err).map_err(|x| needs_range_write(x, &self.info.execution.backend))?;
+        self.run(ranges.len() as u32, out)
     }
 
     /// The row path, for comparing a range with its row: a mean-pooled
@@ -293,12 +295,13 @@ impl Encoder {
         let o = options(TURBO_POOLING_MEAN, normalize);
         let mut err = new_error();
         check(unsafe { turbo_embed_write_tokens(self.session, &rows.batch(), &o, &mut err) }, &err)?;
-        self.run(out)
+        self.run(rows.len(), out)
     }
 
-    /// Runs what was written and reads the vectors into `out`, which is
-    /// resized to them and otherwise reused.
-    fn run(&mut self, out: &mut Vec<f32>) -> Result<(), Error> {
+    /// Runs what was written and reads its `batch` vectors into `out`,
+    /// which is resized to them and otherwise reused. A result of another
+    /// shape, or a read of fewer bytes, is an error.
+    fn run(&mut self, batch: u32, out: &mut Vec<f32>) -> Result<(), Error> {
         struct Owned(*mut turbo_result);
         impl Drop for Owned {
             fn drop(&mut self) {
@@ -314,11 +317,49 @@ impl Encoder {
         if info.dtype != TURBO_DTYPE_F32 {
             return Err(Error::new(UNSUPPORTED_OPTION, format!("vectors of {}, not f32", dtype_name(info.dtype))));
         }
-        out.resize(info.batch as usize * info.dim as usize, 0.0);
+        result_shape(&info, batch, self.info.dim)?;
+        out.resize(batch as usize * self.info.dim as usize, 0.0);
         let mut written = 0u64;
         let bytes = size_of_val(out.as_slice()) as u64;
-        check(unsafe { turbo_result_read(r.0, out.as_mut_ptr().cast(), bytes, &mut written, &mut err) }, &err)
+        check(unsafe { turbo_result_read(r.0, out.as_mut_ptr().cast(), bytes, &mut written, &mut err) }, &err)?;
+        if written != bytes {
+            return Err(Error::new(INTERNAL, format!("the result read {written} bytes of {bytes}")));
+        }
+        Ok(())
     }
+}
+
+/// A result of `batch` vectors of `dim` values, as the run was written,
+/// or why it is not.
+fn result_shape(info: &turbo_result_info, batch: u32, dim: u32) -> Result<(), Error> {
+    if info.batch != batch || info.dim != dim {
+        return Err(Error::new(
+            INTERNAL,
+            format!("a result of {} vectors of {}, for {batch} vectors of {dim}", info.batch, info.dim),
+        ));
+    }
+    Ok(())
+}
+
+/// The core's refusal of a range write, from a backend that pools no
+/// ranges, as what the vector steps need; any other error as it is. The
+/// core refuses at the session, when max_ranges is other than max_batch
+/// (`UNSUPPORTED_OPTION` on field 7), and at the write, when the backend
+/// does not offer `embed_write_ranges` (`UNSUPPORTED`).
+fn needs_range_write(e: Error, backend: &str) -> Error {
+    let at_session = e.code == UNSUPPORTED_OPTION && e.field == 7 && e.message.contains("pools no ranges");
+    let at_write = e.code == UNSUPPORTED && e.message.contains("does not offer embed_write_ranges");
+    if !(at_session || at_write) {
+        return e;
+    }
+    Error::new(
+        UNSUPPORTED,
+        format!(
+            "the {backend} backend pools no ranges: sentence and chunk vectors need a backend with the range write \
+             (embed_write_ranges); {}",
+            e.message
+        ),
+    )
 }
 
 fn options(pooling: u32, normalize: u32) -> turbo_embed_options {
@@ -417,5 +458,46 @@ impl Rows {
             mask: self.mask.as_ptr(),
             types: ptr::null(),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn info(batch: u32, dim: u32) -> turbo_result_info {
+        let mut i: turbo_result_info = unsafe { std::mem::zeroed() };
+        i.batch = batch;
+        i.dim = dim;
+        i
+    }
+
+    #[test]
+    fn a_result_of_another_shape_is_refused() {
+        assert!(result_shape(&info(3, 32), 3, 32).is_ok());
+        let e = result_shape(&info(2, 32), 3, 32).unwrap_err();
+        assert_eq!(e.code, INTERNAL);
+        assert_eq!(e.message, "a result of 2 vectors of 32, for 3 vectors of 32");
+        assert!(result_shape(&info(3, 16), 3, 32).is_err());
+        assert!(result_shape(&info(4, 32), 3, 32).is_err());
+    }
+
+    /// The core's two refusals of a range write, as the core words them
+    /// (session.rs and backend.rs), name the backend and the write the
+    /// vector steps need; other errors pass through.
+    #[test]
+    fn a_backend_without_the_range_write_is_named() {
+        let session = Error::field(UNSUPPORTED_OPTION, 7, "max_ranges 128: the hailo backend pools no ranges");
+        let write = Error::new(UNSUPPORTED, "the hailo backend does not offer embed_write_ranges");
+        for e in [session, write] {
+            let m = needs_range_write(e, "hailo");
+            assert_eq!(m.code, UNSUPPORTED);
+            assert!(m.message.starts_with("the hailo backend pools no ranges: sentence and chunk vectors need"), "{m}");
+            assert!(m.message.contains("(embed_write_ranges)"), "{m}");
+        }
+        let other = Error::field(UNSUPPORTED_OPTION, 7, "max_ranges 900 is over max_batch 8 times max_seq 64, 512");
+        assert_eq!(needs_range_write(other.clone(), "cpu"), other);
+        let other = Error::new(UNSUPPORTED, "the x backend does not offer embed_write_tokens");
+        assert_eq!(needs_range_write(other.clone(), "x"), other);
     }
 }

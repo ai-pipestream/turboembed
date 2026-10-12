@@ -3,11 +3,12 @@
 //! layout against the tokenizer, a range over a whole row against the
 //! row's own vector bit for bit, and every vector the annotator writes
 //! against the same range run on its own, in a session of its own, with
-//! the parts of an item longer than a window combined by hand. Then the
-//! cases the window policy (docs/analysis.md) names: several windows, a
-//! sentence across a window's end, an item longer than a window, items
-//! with no pieces, and documents sharing runs; provenance, the provider,
-//! and the refusals.
+//! the parts of an item pooled over several windows combined by hand.
+//! Then the cases the window policy (docs/analysis.md) names: several
+//! windows, a sentence across a window's end, an item longer than a
+//! window, sentence windows that the chunks do not change, a chunk over
+//! text no sentence covers, items with no pieces, and documents sharing
+//! runs; provenance, the provider, malformed input, and the refusals.
 //!
 //! `on_the_device_turbo_test_device_names` runs the annotator on the
 //! device TURBO_TEST_DEVICE names (a backend name or a device index) and
@@ -157,19 +158,22 @@ fn reference(a: &VectorAnnotator, d: &Document, sentences: bool, chunks: bool) -
     let c = &d.get::<Chunks>().unwrap().spans;
     let mut vs = vec![0f32; if sentences { s.len() * dim } else { 0 }];
     let mut vc = vec![0f32; if chunks { c.len() * dim } else { 0 }];
+    // The sentences lay out the windows when they are given, else the
+    // chunks.
     if sentences {
         for (i, span) in s.iter() {
             let t = Target { doc: 0, which: Which::Sentences, item: i.get() as u32 };
-            plan.item(t, pieces_of(starts, ends, span.start, span.end));
+            plan.layout(t, pieces_of(starts, ends, span.start, span.end));
         }
     }
     if chunks {
         for (i, span) in c.iter() {
             let t = Target { doc: 0, which: Which::Chunks, item: i.get() as u32 };
-            plan.item(t, pieces_of(starts, ends, span.start, span.end));
+            let r = pieces_of(starts, ends, span.start, span.end);
+            if sentences { plan.item(t, r) } else { plan.layout(t, r) }
         }
     }
-    plan.place(0, starts.len() as u32);
+    plan.place(0, starts.len() as u32).unwrap();
     let (head, tail) = a.row_ends();
     let mut rows = Rows::new(info.max_seq, 0);
     let mut flat = Vec::new();
@@ -411,11 +415,17 @@ fn an_item_longer_than_a_window_is_the_weighted_mean_of_its_parts() {
     let mut docs = [document(&text, &s, &chunks)];
     run(SentenceChunkVectors(a.clone()), &mut docs);
     let (ws, wc, plan) = reference(&a, &docs[0], true, true);
-    // Every chunk is longer than a window of 14 pieces.
+    // Every chunk is longer than a window of 14 pieces. Its parts follow
+    // the sentences' windows, each piece in one part, and add no window.
     assert_eq!(plan.split.len(), 3);
-    let parts = plan.placed.iter().filter(|x| !x.whole && x.target == plan.split[0].target).count();
-    let n = plan.split[0].pieces;
-    assert_eq!(parts as u32, n.div_ceil(a.width()));
+    for sp in &plan.split {
+        let parts: Vec<_> = plan.placed.iter().filter(|x| x.target == sp.target).collect();
+        assert!(parts.iter().all(|x| !x.whole));
+        assert!(parts.len() as u32 >= sp.pieces.div_ceil(a.width()));
+        assert_eq!(parts.iter().map(|x| x.end - x.start).sum::<u32>(), sp.pieces);
+    }
+    let (_, _, alone) = reference(&a, &docs[0], true, false);
+    assert_eq!(plan.windows, alone.windows);
     let vc = chunk_vectors(&docs[0]);
     close("chunks", &vc.data, &wc);
     close("sentences", &sentence_vectors(&docs[0]).data, &ws);
@@ -451,10 +461,20 @@ fn items_with_no_pieces_get_the_zero_vector() {
         assert!(vs.row(Ix::new(i)).iter().all(|&x| x == 0.0), "sentence {i}");
     }
     assert!(vc.row(Ix::new(1)).iter().all(|&x| x == 0.0), "a chunk of the two");
+    // The layers name them, and pass their own check.
+    assert_eq!(vs.empty, [Ix::new(1), Ix::new(2)]);
+    assert_eq!(vc.empty, [Ix::new(1)]);
+    assert!(vs.is_empty(Ix::new(2)) && !vs.is_empty(Ix::new(3)) && !vc.is_empty(Ix::new(0)));
+    assert_eq!((vs.check(), vc.check()), (Ok(()), Ok(())));
     assert!(is_unit(vs.row(Ix::new(0))) && is_unit(vs.row(Ix::new(3))) && is_unit(vc.row(Ix::new(0))));
     let (ws, wc, _) = reference(&a, &docs[0], true, true);
     close("sentences", &vs.data, &ws);
     close("chunks", &vc.data, &wc);
+
+    // The chunks alone lay out the windows: the same chunk has no vector.
+    let mut alone = [document(text, &s, &[(0, 4, 0, None), (1, 3, 1, Some(0))])];
+    run(ChunkVectors(a.clone()), &mut alone);
+    assert_eq!(chunk_vectors(&alone[0]).empty, [Ix::new(1)]);
 
     // A document with no sentences and no chunks: empty layers.
     let mut empty = [document("", &[], &[])];
@@ -481,6 +501,135 @@ fn documents_of_a_batch_get_what_each_gets_alone() {
         close("sentences against the reference", &sentence_vectors(d).data, &ws);
         close("chunks against the reference", &chunk_vectors(d).data, &wc);
     }
+}
+
+/// The chunk hierarchy of `text_of(12)` in rows of 24 tokens: the whole
+/// text, halves and quarters longer than a window, and pairs of sentences
+/// that fit one.
+fn hierarchy() -> Vec<(u32, u32, u8, Option<u32>)> {
+    let mut c = vec![(0, 12, 0, None), (0, 6, 1, Some(0)), (6, 12, 1, Some(0))];
+    for q in 0..4 {
+        c.push((3 * q, 3 * q + 3, 2, Some(1 + q / 2)));
+    }
+    for i in 0..6 {
+        c.push((2 * i, 2 * i + 2, 3, Some(3 + (2 * i) / 3)));
+    }
+    c
+}
+
+/// The sentences lay out the windows whether or not the chunks come with
+/// them, so a sentence's vector is the same bits from either step, and the
+/// chunks, long and short, add no window where the sentences hold every
+/// piece.
+#[test]
+fn sentence_vectors_are_the_same_with_or_without_the_chunks() {
+    let a = open(24);
+    let (text, s) = text_of(12);
+    let mut alone = [document(&text, &s, &hierarchy())];
+    let mut both = [document(&text, &s, &hierarchy())];
+    run(SentenceVectors(a.clone()), &mut alone);
+    run(SentenceChunkVectors(a.clone()), &mut both);
+    let bits = |v: &[f32]| v.iter().map(|x| x.to_bits()).collect::<Vec<_>>();
+    assert_eq!(bits(&sentence_vectors(&alone[0]).data), bits(&sentence_vectors(&both[0]).data));
+
+    let (_, _, by_sentences) = reference(&a, &alone[0], true, false);
+    let (ws, wc, with_chunks) = reference(&a, &both[0], true, true);
+    assert!(by_sentences.windows.len() > 1);
+    assert_eq!(with_chunks.windows, by_sentences.windows);
+    // Some chunks are longer than a window, and one is the whole text.
+    assert!(with_chunks.split.iter().any(|x| x.target.item == 0));
+    assert!(with_chunks.split.iter().any(|x| x.pieces > a.width()));
+    close("sentences", &sentence_vectors(&both[0]).data, &ws);
+    close("chunks", &chunk_vectors(&both[0]).data, &wc);
+
+    // Without the pairs, the chunks alone lay out other windows than the
+    // sentences do, so their vectors can differ; provenance says which
+    // layer laid out the windows.
+    let mut chunks = [document(&text, &s, &hierarchy()[..7])];
+    run(ChunkVectors(a.clone()), &mut chunks);
+    let (_, wc, by_chunks) = reference(&a, &chunks[0], false, true);
+    assert_ne!(by_chunks.windows, by_sentences.windows);
+    close("chunks laid out by the chunks", &chunk_vectors(&chunks[0]).data, &wc);
+    let key = Key::<Vectors<Chunks>>::DEFAULT.id();
+    assert_ne!(chunks[0].provenance(key).unwrap().config, both[0].provenance(key).unwrap().config);
+    let key = Key::<Vectors<Sentences>>::DEFAULT.id();
+    assert_eq!(alone[0].provenance(key).unwrap().config, both[0].provenance(key).unwrap().config);
+}
+
+/// Text between two sentences that no sentence covers: the sentences'
+/// windows do not hold it, so a chunk over both adds windows there.
+#[test]
+fn a_chunk_over_text_no_sentence_covers_adds_a_window_there() {
+    let a = open(16);
+    let (text, all) = text_of(5);
+    // Sentences 0 and 4 alone; 1 to 3 lie between them in no sentence.
+    let s = [all[0], all[4]];
+    let mut docs = [document(&text, &s, &[(0, 2, 0, None)])];
+    run(SentenceChunkVectors(a.clone()), &mut docs);
+    let (ws, wc, plan) = reference(&a, &docs[0], true, true);
+    let (_, _, by_sentences) = reference(&a, &docs[0], true, false);
+    assert_eq!(by_sentences.windows.len(), 2);
+    assert!(plan.windows.len() > 2, "{:?}", plan.windows);
+    assert_eq!(plan.windows[..2], by_sentences.windows[..]);
+    // The chunk's parts cover each of its pieces once.
+    let n: u32 = plan.placed.iter().filter(|x| x.target.which == Which::Chunks).map(|x| x.end - x.start).sum();
+    assert_eq!(n, plan.split[0].pieces);
+    close("sentences", &sentence_vectors(&docs[0]).data, &ws);
+    close("chunks", &chunk_vectors(&docs[0]).data, &wc);
+}
+
+/// `embed` takes its input from any caller, so it checks what an analyzer
+/// would: an id per piece, pieces in text order, spans that do not end
+/// before they start. Each such document fails alone.
+#[test]
+fn malformed_input_fails_the_document() {
+    let a = open(0);
+    let (text, s) = text_of(2);
+    let mut docs = [document(&text, &s, &[(0, 2, 0, None)])];
+    run(SentenceVectors(a.clone()), &mut docs);
+    let sub = docs[0].get::<Subwords>().unwrap();
+    let sentences = &docs[0].get::<Sentences>().unwrap().spans;
+    let (starts, ends) = sub.spans.columns();
+    let with = |spans: &[(u32, u32)], ids: Vec<i32>| {
+        let mut columns = Spans::new(sub.spans.view());
+        for &(x, y) in spans {
+            columns.push(Span { start: x, end: y });
+        }
+        Subwords { spans: columns, ids, model: sub.model.clone(), token: None }
+    };
+    let pairs: Vec<(u32, u32)> = starts.iter().copied().zip(ends.iter().copied()).collect();
+    let short = with(&pairs, sub.ids[1..].to_vec());
+    let mut swapped = pairs.clone();
+    swapped.swap(0, 1);
+    let unordered = with(&swapped, sub.ids.clone());
+    let mut inverted = pairs.clone();
+    inverted[0] = (inverted[0].1, inverted[0].0);
+    let inverted = with(&inverted, sub.ids.clone());
+    let mut backwards = Spans::<Sentences>::new(sentences.view());
+    backwards.push(Span { start: 9, end: 3 });
+    let mut backwards_chunk = Spans::<Chunks>::new(sentences.view());
+    backwards_chunk.push(Span { start: 9, end: 3 });
+    let inputs = [
+        Input { subwords: &short, sentences: Some(sentences), chunks: None },
+        Input { subwords: &unordered, sentences: Some(sentences), chunks: None },
+        Input { subwords: &inverted, sentences: Some(sentences), chunks: None },
+        Input { subwords: sub, sentences: Some(&backwards), chunks: None },
+        Input { subwords: sub, sentences: None, chunks: Some(&backwards_chunk) },
+        Input { subwords: sub, sentences: Some(sentences), chunks: None },
+    ];
+    let mut out = a.embed("test", &inputs);
+    for want in [
+        "an id for every subword",
+        "subwords in text order",
+        "subword 0 ends before it starts",
+        "sentence 0 ends before it starts: 9..3",
+        "chunk 0 ends before it starts: 9..3",
+    ] {
+        let e = out.remove(0).err().unwrap_or_else(|| panic!("{want}: refused")).to_string();
+        assert!(e.contains(want), "{want}: {e}");
+    }
+    let ok = out.remove(0).unwrap();
+    close("the good document", &ok.sentences.unwrap().data, &sentence_vectors(&docs[0]).data);
 }
 
 // ---- Provenance, the provider, refusals -----------------------------------------------

@@ -11,7 +11,7 @@ use turbo::tokenizer::{Encode, Tokenizer};
 use turbo::{TURBO_POOLING_MEAN, turbo_token_range};
 use turbo_analysis::annotate::Step;
 use turbo_analysis::registry::{Provider, Spec};
-use turbo_analysis::{Annotator, Bound, Error, Execution, ModelRef, Refs, Spans};
+use turbo_analysis::{Annotator, Bound, Error, Execution, Layer, ModelRef, Refs, Spans};
 use turbo_analysis_layers::{Chunks, Sentences, Subwords, Vectors};
 
 use crate::encoder::{Device, Encoder, EncoderInfo, EncoderOptions, Precision, Rows, normalize};
@@ -51,21 +51,21 @@ pub struct Output {
 /// Embeds windows of a text's subword pieces once each and pools a vector
 /// per sentence and per chunk over the encoder's final states, through
 /// the core's late pooling (`turbo_embed_write_ranges`). docs/analysis.md
-/// gives the window policy; in short:
+/// and the `window` module give the window policy; in short:
 ///
 /// - A row is the template's leading special tokens, the prompt's
 ///   prefix, a window of pieces and the trailing special tokens, so a
 ///   window holds `max_seq` less that overhead: the overhead the
 ///   chunker's budget counts.
-/// - An item is pooled over the pieces its span overlaps, in a window
-///   that holds them all; the special tokens and the prefix are never
-///   pooled.
-/// - An item longer than a window is pooled in parts, each from a window
-///   that holds it,
-///   and its vector is their mean weighted by pieces: the mean over all
-///   its pieces, each encoded in the context of its own part's window.
-/// - An item with no pieces has no token to pool and gets the zero
-///   vector, which no pooled unit vector is.
+/// - An item is pooled over the pieces its span overlaps; the special
+///   tokens and the prefix are never pooled, so a vector is not the one
+///   the text interface gives for the same span.
+/// - The sentences lay out the windows when the step has them, else the
+///   chunks. Every other item is pooled from a window that holds it
+///   whole, or in parts over several, its vector their mean weighted by
+///   pieces; a window is added only for pieces no window holds.
+/// - An item with no pieces has no token to pool: its row is the zero
+///   vector and the layer lists it in `Vectors::empty`.
 ///
 /// Vectors are normalized as the bundle says, on the host, with the
 /// arithmetic the core's CPU backend uses. The windows of every document
@@ -82,7 +82,10 @@ pub struct VectorAnnotator {
     tail: Vec<i32>,
     max_batch: u32,
     max_ranges: u32,
-    config: u64,
+    /// The settings every vector depends on besides the model and where
+    /// it runs: the row length and the prompt, as `config_hash` takes
+    /// them, before the layer that lays out the windows.
+    settings: [u32; 2],
 }
 
 /// What one batch works in, kept between batches.
@@ -185,8 +188,19 @@ impl VectorAnnotator {
             tail,
             max_batch: info.max_batch,
             max_ranges: info.max_ranges,
-            config: config_hash(&[info.max_seq, prompt]),
+            settings: [info.max_seq, prompt],
         })
+    }
+
+    /// The configuration hash of the vectors a step writes when `layout`
+    /// lays out its windows: the sentences for a step that reads them,
+    /// else the chunks. A chunk's vector depends on which.
+    pub fn config(&self, layout: Which) -> u64 {
+        let layout = match layout {
+            Which::Sentences => 0,
+            Which::Chunks => 1,
+        };
+        config_hash(&[self.settings[0], self.settings[1], layout])
     }
 
     pub fn model(&self) -> &ModelRef {
@@ -232,25 +246,34 @@ impl VectorAnnotator {
         let mut guard = self.lock();
         let st = &mut *guard;
         st.plan.clear();
-        for (d, (input, o)) in inputs.iter().zip(&out).enumerate() {
-            if o.is_err() {
-                continue;
-            }
+        for (d, (input, slot)) in inputs.iter().zip(&mut out).enumerate() {
+            let Ok(o) = slot else { continue };
             let (starts, ends) = input.subwords.spans.columns();
             let d = d as u32;
-            if let Some(s) = input.sentences {
+            // The finest layer given lays out the windows.
+            if let (Some(s), Some(v)) = (input.sentences, o.sentences.as_mut()) {
                 for (i, span) in s.iter() {
-                    let t = Target { doc: d, which: Which::Sentences, item: i.get() as u32 };
-                    st.plan.item(t, pieces_of(starts, ends, span.start, span.end));
+                    let r = pieces_of(starts, ends, span.start, span.end);
+                    if r.is_empty() {
+                        v.empty.push(i);
+                    }
+                    st.plan.layout(Target { doc: d, which: Which::Sentences, item: i.get() as u32 }, r);
                 }
             }
-            if let Some(c) = input.chunks {
+            if let (Some(c), Some(v)) = (input.chunks, o.chunks.as_mut()) {
+                let lays_out = input.sentences.is_none();
                 for (i, span) in c.iter() {
+                    let r = pieces_of(starts, ends, span.start, span.end);
+                    if r.is_empty() {
+                        v.empty.push(i);
+                    }
                     let t = Target { doc: d, which: Which::Chunks, item: i.get() as u32 };
-                    st.plan.item(t, pieces_of(starts, ends, span.start, span.end));
+                    if lays_out { st.plan.layout(t, r) } else { st.plan.item(t, r) }
                 }
             }
-            st.plan.place(d, starts.len() as u32);
+            if let Err(e) = st.plan.place(d, starts.len() as u32) {
+                *slot = Err(Error::Annotator { annotator, detail: e.to_string() });
+            }
         }
         if let Err(e) = self.run(st, inputs, &mut out) {
             let e = Error::Annotator { annotator, detail: e.to_string() };
@@ -283,9 +306,26 @@ impl VectorAnnotator {
     }
 
     /// Zero vectors for every item of `i`, or why its layers do not fit
-    /// together.
+    /// together: subwords of another model, a layer in another view, a
+    /// piece without its id, pieces out of text order, or a span that
+    /// ends before it starts.
     fn output_for(&self, annotator: &'static str, i: &Input<'_>) -> Result<Output, Error> {
         let fail = |detail: String| Err(Error::Annotator { annotator, detail });
+        // The subwords' own check: an id per piece, starts and ends in
+        // text order, which the binary searches over them rely on.
+        if let Err(e) = i.subwords.check() {
+            return fail(format!("the subwords: {e}"));
+        }
+        let (starts, ends) = i.subwords.spans.columns();
+        if let Some(k) = starts.iter().zip(ends).position(|(s, e)| s > e) {
+            return fail(format!("subword {k} ends before it starts: {}..{}", starts[k], ends[k]));
+        }
+        let items = [i.sentences.map(|s| ("sentence", s.columns())), i.chunks.map(|c| ("chunk", c.columns()))];
+        for (what, (starts, ends)) in items.into_iter().flatten() {
+            if let Some(k) = starts.iter().zip(ends).position(|(s, e)| s > e) {
+                return fail(format!("{what} {k} ends before it starts: {}..{}", starts[k], ends[k]));
+            }
+        }
         if i.subwords.model != self.model {
             return fail(format!(
                 "the subwords are {}'s pieces (revision {}), the vectors {}'s (revision {})",
@@ -299,8 +339,8 @@ impl VectorAnnotator {
         }
         let zeros = |n: usize| vec![0.0f32; n * self.dim as usize];
         Ok(Output {
-            sentences: i.sentences.map(|s| Vectors::new(self.dim, zeros(s.len()), self.model.clone())),
-            chunks: i.chunks.map(|c| Vectors::new(self.dim, zeros(c.len()), self.model.clone())),
+            sentences: i.sentences.map(|s| Vectors::new(self.dim, zeros(s.len()), Vec::new(), self.model.clone())),
+            chunks: i.chunks.map(|c| Vectors::new(self.dim, zeros(c.len()), Vec::new(), self.model.clone())),
         })
     }
 
@@ -356,7 +396,8 @@ fn pooling_name(pooling: u32) -> &'static str {
 }
 
 /// FNV-1a over the settings that change a vector besides the model and
-/// where it runs: the row length and the prompt.
+/// where it runs: the row length, the prompt and the layer that lays out
+/// the windows.
 fn config_hash(values: &[u32]) -> u64 {
     let mut h = 0xcbf2_9ce4_8422_2325u64;
     for b in values.iter().flat_map(|v| v.to_le_bytes()) {
@@ -366,9 +407,9 @@ fn config_hash(values: &[u32]) -> u64 {
 }
 
 /// The provenance every vector step gives: the model, where it ran and
-/// the settings.
+/// the settings, with the layer that lays out the step's windows.
 macro_rules! provenance {
-    () => {
+    ($layout:expr) => {
         fn model(&self) -> Option<ModelRef> {
             Some(self.0.model.clone())
         }
@@ -378,7 +419,7 @@ macro_rules! provenance {
         }
 
         fn config_hash(&self) -> u64 {
-            self.0.config
+            self.0.config($layout)
         }
     };
 }
@@ -404,7 +445,7 @@ impl Annotator for SentenceVectors {
         self.0.embed(Self::ID, &inputs).into_iter().map(|r| r.map(|o| (o.sentences.expect("asked for"),))).collect()
     }
 
-    provenance!();
+    provenance!(Which::Sentences);
 }
 
 /// Writes `opennlp:embeddings<turbo:chunks>`: a vector per chunk, at
@@ -429,7 +470,7 @@ impl Annotator for ChunkVectors {
         self.0.embed(Self::ID, &inputs).into_iter().map(|r| r.map(|o| (o.chunks.expect("asked for"),))).collect()
     }
 
-    provenance!();
+    provenance!(Which::Chunks);
 }
 
 /// Writes both, from the same windows: a sentence and the chunk it is in
@@ -458,7 +499,7 @@ impl Annotator for SentenceChunkVectors {
             .collect()
     }
 
-    provenance!();
+    provenance!(Which::Sentences);
 }
 
 /// Offers the vector steps to pipelines built from configuration, as

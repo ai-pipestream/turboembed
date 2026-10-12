@@ -360,47 +360,94 @@ A window holds at most `width` pieces: `max_seq` less the overhead. The
 special tokens and the prefix are never pooled; an item is pooled over
 its pieces alone.
 
-The window policy, for one document:
+Every window runs `width` pieces from its first piece, or to the end of
+the text. The window policy, for one document:
 
 1. An item covers the pieces whose span overlaps its own, found by
    binary search over the pieces' starts and ends. A piece that an
    item's edge cuts is covered, as the chunker counts it on both sides.
+   A piece of no bytes at offset `x` is covered by an item `[start, end)`
+   when `start <= x < end`: at the item's first byte or inside it, not at
+   its end. An empty item covers no piece, whatever sits at its offset.
 2. An item that covers no piece (an empty span, or whitespace a
    WordPiece tokenizer drops) is not placed.
-3. An item of more than `width` pieces is cut into parts of `width`
-   pieces from its first piece, the last part shorter, and each part is
-   placed like an item.
-4. The items and parts, sentences and chunks together, are sorted by
-   their first piece, then their last. In that order each goes in the
-   current window when that window holds all of it; otherwise a new
-   window starts at its first piece and runs `width` pieces, or to the
-   end of the text, and becomes the current window.
+3. The windows are laid out by the finest layer the step has: the
+   sentences for `SentenceVectors` and `SentenceChunkVectors`, the chunks
+   for `ChunkVectors`. Only the items of that layer that fit in `width`
+   pieces take part. Sorted by their first piece, then their last, each
+   goes in the current window when that window holds all of it;
+   otherwise a new window starts at its first piece and becomes the
+   current window.
+4. Every other item is placed once those windows exist: first the items
+   of the laying layer longer than `width`, then the items of the other
+   layer (the chunks, beside sentences), each group in the same order.
+   When an existing window holds the item whole, it is pooled there, in
+   the window with the lowest first piece that does. Otherwise it is
+   covered by the windows: from its first piece `p`, the window holding
+   `p` that reaches furthest gives the part from `p` to that window's
+   end, or to the item's end if that comes first, and the next part
+   starts there. Only where no window holds `p` is a new window added,
+   starting at `p`. Each of the item's pieces is in exactly one part.
 
-So every item of at most `width` pieces is pooled from one window that
-holds it whole, in the context of that window's text; a sentence that
-would cross a window's end starts the next window. Windows overlap
-where that happens, and the windows of a document are in text order.
+So the windows depend on the laying layer and never on the longer items
+beside it. A sentence is pooled from the same window, with the same
+bits, by `SentenceVectors` and by `SentenceChunkVectors`. A chunk over
+sentences that cover all of its pieces adds no window, however long it
+is; a chunk over text that no sentence covers (a gap between two
+sentences longer than what the windows reach) adds windows there. A
+sentence that would cross a window's end starts the next window, so
+windows overlap where that happens.
+
+A chunk's vector depends on which layer laid out the windows. The same
+chunk can get one vector from `ChunkVectors`, where the chunks lay out
+the windows, and another from `SentenceChunkVectors`, where the
+sentences do: the windows differ, so the context each piece is encoded
+in differs. The configuration hash says which layer laid out the
+windows, so the two are told apart in provenance.
 
 The windows of every document in a batch go through the same runs: up
 to the session's `max_batch` rows and `max_ranges` ranges a run (16 per
 row unless set). A window whose ranges do not all fit in a run goes
 again, with the rest, in the next.
 
+### What a pooled vector is
+
+A vector is the mean of the encoder's final states over the item's own
+pieces. The template's special tokens and the prompt's prefix are in
+every row, so they shape the context each piece is encoded in, but they
+are never pooled. So a sentence's vector here is not the vector the
+core's text interface (`turbo_embed_write_text`) gives for the same
+span: that pools over every token of its row, the special tokens and
+the prefix included, and encodes the span with only its own text in
+context.
+
+The prompt of the vector step (`VectorOptions::prompt`, the `prompt`
+option) must be the one the chunker's budget was counted with
+(`SubwordAnnotator::overhead` for that role, as `Budget::overhead`).
+The chunker takes the overhead as a number and the chunks layer does not
+record the prompt, so the vector step cannot check this: a pipeline that
+counts the budget for one role and embeds with another gets rows longer
+or shorter than the chunker planned for, and a chunk the chunker kept
+within `max_seq` may no longer fit one window.
+
 ### Items longer than a window, and items with no pieces
 
-An item longer than a window cannot be pooled from one pass of the
-encoder. Its vector is the mean of its parts' vectors weighted by their
-pieces: the mean of all its pieces' final states, each piece encoded in
-the context of its own part's window. The model cannot read more than
-`max_seq` tokens in one pass, so there is no single pass to match, and
-refusing such an item would fail every document with a chunk at a
-coarse level of the hierarchy (a section over many windows). Its parts
-are separate windows, so attention never crosses from one part to the
-next.
+An item that no window holds whole cannot be pooled from one pass of
+the encoder. Its vector is the mean of its parts' vectors weighted by
+their pieces: the mean of all its pieces' final states, each piece
+encoded in the context of its own part's window. The model cannot read
+more than `max_seq` tokens in one pass, so there is no single pass to
+match for an item longer than a window, and refusing such an item would
+fail every document with a chunk at a coarse level of the hierarchy (a
+section over many windows). Attention never crosses from one part's
+window to the next.
 
-An item that covers no piece has no token to pool. Its vector is the
-zero vector, which no unit vector is, so a reader can tell it from a
-pooled one; the layer stays aligned to its items.
+An item that covers no piece has no token to pool. Its row is the zero
+vector, so the layer stays aligned to its items, and `Vectors::empty`
+lists it (in order, each once; the layer's check holds every listed row
+to zeros). Cosine similarity is undefined for a zero vector: a reader
+skips the items `Vectors::is_empty` names rather than comparing them or
+indexing them.
 
 ### Normalization and provenance
 
@@ -415,7 +462,19 @@ Every vector layer's provenance has the bundle's id, revision and
 manifest hash as its model, and as its execution the backend, the
 device's name, and the precision as the dtype the session computes in
 and the tier asked for, such as `f32 (model)`. The configuration hash
-covers the row length and the prompt.
+covers the row length, the prompt, and the layer that lays out the
+windows: the sentences for `SentenceVectors` and `SentenceChunkVectors`,
+the chunks for `ChunkVectors`.
+
+The annotator checks what it is given, since `VectorAnnotator::embed`
+takes its input from any caller: an id for every piece, the pieces'
+starts and ends in text order, and no span that ends before it starts;
+a document that fails any of these fails alone. A backend that pools no
+ranges (one without `embed_write_ranges`) is refused when the session
+is made or at the first write, with an error naming the backend and the
+range write the vector steps need. A result of another shape than the
+run was written for, or a read of fewer bytes, is an error, never a
+shorter set of vectors.
 
 ## The chunker
 
@@ -912,12 +971,18 @@ runs them on any machine:
   own, the parts of a split item combined by hand: in one window,
   across several windows with runs smaller than a window's ranges, for
   a sentence that crosses a window's end, for chunks longer than a
-  window, and for three documents in one batch against each alone.
-  Items with no pieces get the zero vector, and empty layers stay
-  empty. It also checks provenance, the provider, subwords of another
-  model and sentences in another view, a model pooled by its first
-  token, and rows with no room for text. `window.rs`'s unit tests hold
-  the policy on hand-made spans. One test runs the steps on the device
+  window, for a chunk over text no sentence covers, and for three
+  documents in one batch against each alone. Sentence vectors are the
+  same bits with or without the chunks beside them, and a hierarchy of
+  chunks short and long adds no window to the sentences'. Items with
+  no pieces get the zero vector and are listed in the layer's `empty`,
+  and empty layers stay empty. It also checks provenance (the layer
+  that lays out the windows included), the provider, subwords of
+  another model and sentences in another view, malformed input to
+  `embed`, a model pooled by its first token, and rows with no room for
+  text. `window.rs`'s unit tests hold the policy on hand-made spans,
+  pieces of no bytes included; `encoder.rs`'s hold the result's shape
+  and the refusal of a backend that pools no ranges. One test runs the steps on the device
   `TURBO_TEST_DEVICE` names (a backend name or a device index), at the
   precision `TURBO_TEST_PRECISION` names, and holds the vectors to the
   CPU's within the tolerance the core gives that dtype; without the
