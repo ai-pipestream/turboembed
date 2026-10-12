@@ -338,8 +338,11 @@ on the JVM (`analysis/embed/tests/goldens.rs`), from the `subwords`
 goldens: the small BERT's bundle and the encoder read the same
 vocabulary, `analysis/goldens/data/fixtures/all-minilm-l6-v2-vocab.txt`, uncased, with words
 of up to 100 code points. On the 76 golden inputs, 65 give the same ids
-and spans. The core's tokenizer follows upstream `tokenizers`, and the
-other 11 differ from the JVM where upstream does:
+and spans. The core's tokenizer follows upstream `tokenizers`, not the
+JVM: the pieces feed embedding models that were trained on upstream's
+tokenization, so matching upstream is what keeps the vectors right, and
+the WordPiece pieces are also compared with upstream directly. The
+other 11 inputs differ from the JVM where upstream does:
 
 - A nonspacing mark that accent stripping removes (a combining acute,
   a variation selector U+FE0F, a virama, an Arabic vowel sign) is in
@@ -351,8 +354,8 @@ other 11 differ from the JVM where upstream does:
   character at a time. Final sigma has pieces of its own, so such words
   segment differently.
 - Combining marks out of canonical order: the JVM gives every piece of
-  the word the whole word's span. The ids are the same and our spans
-  lie inside the JVM's.
+  the whitespace-delimited run the whole run's span, punctuation
+  included. The ids are the same and our spans lie inside the JVM's.
 - The ideographs U+2B820 to U+2B91F are CJK for the JVM, which uses the
   reference BERT's ranges, so each is a word of its own; upstream's
   range starts at U+2B920, so here they join the word around them.

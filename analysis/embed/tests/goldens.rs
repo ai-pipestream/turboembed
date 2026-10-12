@@ -4,7 +4,8 @@
 //! ids and the spans are compared piece by piece.
 //!
 //! The Rust tokenizer follows upstream `tokenizers`, which differs from
-//! OpenNLP in four ways (docs/analysis.md, "Subwords"):
+//! OpenNLP in four ways (docs/analysis.md, "Against OpenNLP's WordPiece
+//! encoder"):
 //!
 //! - A nonspacing mark that accent stripping removes is inside the span
 //!   of the piece before it on the JVM, and outside it here.
@@ -96,6 +97,15 @@ fn cases() -> Vec<Case> {
         out.push(Case { name: format!("{}/{}", i.set, i.id), golden, doc: docs.remove(0) });
     }
     out
+}
+
+/// Our pieces for `text`, which is not a golden's input.
+fn rust_pieces(text: &str) -> Vec<(u32, [u32; 2])> {
+    let analyzer = Analyzer::builder().add(SubwordAnnotator::open(&bundle_dir()).unwrap()).build().unwrap();
+    let mut docs = vec![Document::new(text)];
+    analyzer.run(&mut docs).remove(0).unwrap();
+    let sub = docs[0].get::<Subwords>().expect("the subwords layer");
+    sub.ids.iter().zip(sub.spans.iter()).map(|(&id, (_, s))| (id as u32, [s.start, s.end])).collect()
 }
 
 fn case(name: &str) -> Case {
@@ -230,11 +240,7 @@ fn a_word_final_capital_sigma_is_final_sigma_on_the_jvm_only() {
     assert_eq!(text, "ΟΔΥΣΣΕΥΣ ΣΟΦΟΣ ΣΑΣ Σ ΑΣ. λόγος ΛΌΓΟΣ\n");
     let as_jvm = "ΟΔΥΣΣΕΥς ΣΟΦΟς ΣΑς Σ Ας. λόγος ΛΌΓΟς\n";
     assert_eq!(as_jvm.len(), text.len());
-    let analyzer = Analyzer::builder().add(SubwordAnnotator::open(&bundle_dir()).unwrap()).build().unwrap();
-    let mut docs = vec![Document::new(as_jvm)];
-    analyzer.run(&mut docs).remove(0).unwrap();
-    let ours_as_jvm = Case { name: c.name.clone(), golden: c.golden.clone(), doc: docs.remove(0) };
-    assert_eq!(ours_as_jvm.rust(), c.jvm());
+    assert_eq!(rust_pieces(as_jvm), c.jvm());
     assert_ne!(c.rust(), c.jvm());
     // The end of ΣΟΦΟΣ is one piece "##ος" on the JVM, and "##ο", "##σ" here.
     let end = text.find(" ΣΑΣ").unwrap() as u32;
@@ -243,24 +249,35 @@ fn a_word_final_capital_sigma_is_final_sigma_on_the_jvm_only() {
     assert!(c.rust().contains(&(id_of("##σ"), [end - 2, end])));
 }
 
-/// Marks out of canonical order: NFD reorders them, so the word's NFD
+/// Marks out of canonical order: NFD reorders them, so the run's NFD
 /// is not each character's NFD in turn, and `WordpieceEncoder` gives
-/// every piece of the word the whole word's span. The ids are the same,
-/// and each of our spans lies in the JVM's.
+/// every piece of the whitespace-delimited run the whole run's span,
+/// punctuation included, as it strips accents before it splits off
+/// punctuation. Every word of the input has marks out of order, so the
+/// JVM's pieces are exactly ours with each span widened to its run.
 #[test]
-fn marks_out_of_order_give_every_jvm_piece_the_whole_word() {
+fn marks_out_of_order_give_every_jvm_piece_the_whole_run() {
     let c = case("subwords/accents-reordered");
     let text = c.text();
-    let (jvm, rust) = (c.jvm(), c.rust());
-    assert_eq!(jvm.iter().map(|p| p.0).collect::<Vec<_>>(), rust.iter().map(|p| p.0).collect::<Vec<_>>());
-    for (j, r) in jvm.iter().zip(&rust) {
-        assert!(j.1[0] <= r.1[0] && r.1[1] <= j.1[1], "{j:?} {r:?}");
-    }
+    assert_eq!(text, "Vie\u{302}\u{323}t xa\u{301}\u{323}y o\u{308}\u{331}k.\n");
+    let runs: Vec<[u32; 2]> = text
+        .split([' ', '\n'])
+        .filter(|r| !r.is_empty())
+        .map(|r| {
+            let start = r.as_ptr() as usize - text.as_ptr() as usize;
+            [start as u32, (start + r.len()) as u32]
+        })
+        .collect();
+    assert_eq!(runs, [[0, 8], [9, 16], [17, 24]]);
+    let rust = c.rust();
+    let widened: Vec<_> = rust
+        .iter()
+        .map(|&(id, s)| (id, *runs.iter().find(|r| r[0] <= s[0] && s[1] <= r[1]).expect("a piece in a run")))
+        .collect();
+    assert_ne!(rust, widened);
+    assert_eq!(c.jvm(), widened);
     // "xa\u{301}\u{323}y" is two pieces, "x" and "##ay", both over all of it.
-    let x = text.find('x').unwrap() as u32;
-    let word = [x, x + 7];
-    assert_eq!(jvm.iter().filter(|p| p.1 == word).count(), 2);
-    assert!(rust.iter().all(|p| p.1 != word));
+    assert_eq!(c.jvm()[1..3], [(id_of("x"), [9, 16]), (id_of("##ay"), [9, 16])]);
 }
 
 /// The ideographs U+2B820 to U+2B91F are CJK on the JVM, which uses the
@@ -274,10 +291,15 @@ fn the_ideographs_from_u2b820_are_words_on_the_jvm_only() {
     let at = text.find('\u{2B820}').unwrap() as u32;
     let unk = id_of("[UNK]");
     let (jvm, rust) = (c.jvm(), c.rust());
-    assert!(jvm.contains(&(unk, [at, at + 4])) && jvm.contains(&(unk, [at + 4, at + 8])));
     assert!(rust.contains(&(unk, [at, at + 8])));
-    let outside = |p: &&(u32, [u32; 2])| p.1[1] <= at || p.1[0] >= at + 8;
-    assert_eq!(jvm.iter().filter(outside).collect::<Vec<_>>(), rust.iter().filter(outside).collect::<Vec<_>>());
+    // The JVM's pieces are ours with that one unknown piece split in two.
+    let split: Vec<_> = rust
+        .iter()
+        .flat_map(
+            |&p| if p == (unk, [at, at + 8]) { vec![(unk, [at, at + 4]), (unk, [at + 4, at + 8])] } else { vec![p] },
+        )
+        .collect();
+    assert_eq!(jvm, split);
 }
 
 /// A special token's string in the text is that special token here, as
@@ -295,4 +317,9 @@ fn special_token_strings_are_special_tokens_here_only() {
     let first = c.text().find("first").unwrap() as u32;
     assert!(rust.contains(&(id_of("first"), [first, first + 5])));
     assert!(jvm.contains(&(id_of("first"), [first, first + 5])));
+    // Written in lower case the strings are no special tokens here either,
+    // as upstream matches them case-sensitively, and every piece is the JVM's.
+    let lower = c.text().to_ascii_lowercase();
+    assert_ne!(lower, c.text());
+    assert_eq!(rust_pieces(&lower), jvm);
 }
