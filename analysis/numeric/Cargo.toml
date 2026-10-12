@@ -1,0 +1,14 @@
+[package]
+name = "turbo-numeric"
+version = "0.1.0"
+edition.workspace = true
+license.workspace = true
+publish = false
+
+[lib]
+name = "turbo_numeric"
+
+[dependencies]
+turbo-analysis = { path = "../core" }
+turbo-analysis-layers = { path = "../layers" }
+turbo-unicode = { path = "../unicode" }

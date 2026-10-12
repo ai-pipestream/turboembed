@@ -20,6 +20,7 @@ nothing here is in the C header or the gRPC server.
 | `turbo-analysis-layers` | `analysis/layers/` | The layers add-ons share (below) |
 | `turbo-chunker` | `analysis/chunker/` | The chunker |
 | `turbo-analysis-embed` | `analysis/embed/` | The embedding model as analysis steps: the subwords of a text view from the bundle's tokenizer, and a vector per sentence and per chunk |
+| `turbo-numeric` | `analysis/numeric/` | The number scanner, which writes `turbo:numbers` ([numbers.md](numbers.md)) |
 | `turbo-jvm` | `analysis/jvm/` | JVM behaviour the OpenNLP ports must reproduce bit for bit |
 | `turbo-goldens` | `analysis/goldens/` | Golden layer files from the JVM: the reader, the writer, the comparison, loading golden layers as test inputs, SHA-256 and SHA-512 |
 
