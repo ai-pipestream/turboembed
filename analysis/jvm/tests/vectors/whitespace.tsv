@@ -1,0 +1,26 @@
+# generator=Vectors.java	java.version=21.0.12.1	java.vm.version=21.0.12.1+1-1-24.04.4-Ubuntu	java.vm.name=OpenJDK 64-Bit Server VM	unicode=not exposed at run time	columns=code point (hex) for which Character.isWhitespace is true
+9
+a
+b
+c
+d
+1c
+1d
+1e
+1f
+20
+1680
+2000
+2001
+2002
+2003
+2004
+2005
+2006
+2008
+2009
+200a
+2028
+2029
+205f
+3000
