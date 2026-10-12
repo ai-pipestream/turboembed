@@ -1,15 +1,17 @@
 //! Compares the Java character class tables with a running JDK.
 //!
 //! The test compiles tests/jdk/JavaChars.java into a temporary directory,
-//! runs it, and checks every code point it prints (the whole BMP and every
-//! 257th code point above it) against `turbo_unicode::java::code_point`:
-//! general category, the six class tests, the simple lowercase mapping
-//! and the script. Code points the JDK reports as unassigned are skipped:
-//! the tables follow Unicode 18.0 and JDK 21 Unicode 15.0, so characters
-//! added since are known to differ. The list of known differences is for
-//! JDK 21. The test runs only when the `TURBO_TEST_JDK` environment
-//! variable is set and `java` and `javac` are on the PATH; otherwise it
-//! says so and passes.
+//! runs it, and checks every code point from U+0000 to U+10FFFF against
+//! `turbo_unicode::java::code_point`: general category, the six class
+//! tests, the simple lowercase mapping and the script. Code points the JDK
+//! reports as unassigned are skipped: the tables follow Unicode 18.0 and
+//! JDK 21 Unicode 15.0, so characters added since are known to differ.
+//! The list of known differences is for JDK 21, and the test fails on any
+//! other JDK feature version.
+//!
+//! The test runs only when the `TURBO_TEST_JDK` environment variable is
+//! set; otherwise it says so and passes. With `TURBO_TEST_JDK` set, a
+//! missing `java` or `javac` fails the test.
 
 use std::path::{Path, PathBuf};
 use std::process::Command;
@@ -27,18 +29,22 @@ fn run(command: &mut Command) -> Option<String> {
     Some(String::from_utf8(output.stdout).expect("the JDK prints ASCII"))
 }
 
-fn jdk_available() -> bool {
+/// Whether to run the comparison: `TURBO_TEST_JDK` is set. With it set,
+/// `java` and `javac` must be on the PATH, or the test fails.
+fn jdk_requested() -> bool {
     if std::env::var_os("TURBO_TEST_JDK").is_none() {
         eprintln!("skipped: set TURBO_TEST_JDK to compare with a JDK");
         return false;
     }
     let found = |tool: &str| Command::new(tool).arg("-version").output().is_ok_and(|o| o.status.success());
-    if !found("java") || !found("javac") {
-        eprintln!("skipped: java or javac is not on the PATH");
-        return false;
+    for tool in ["java", "javac"] {
+        assert!(found(tool), "TURBO_TEST_JDK is set and `{tool} -version` does not run; put JDK 21 on the PATH");
     }
     true
 }
+
+/// The JDK feature version the known differences are listed for.
+const JDK_FEATURE: u32 = 21;
 
 /// Compiles and runs JavaChars.java, returning its output.
 fn jdk_dump() -> String {
@@ -100,7 +106,7 @@ fn table_flags(cp: u32) -> u8 {
 }
 
 /// Code points JDK 21 (Unicode 15.0) assigns but classifies differently from
-/// Unicode 18.0, and how: 34 code points, [`KNOWN_DIFFERENCES`]. Any other
+/// Unicode 18.0, and how: 35 code points, [`KNOWN_DIFFERENCES`]. Any other
 /// difference fails the test, and so does a listed code point that does not
 /// differ.
 ///
@@ -109,6 +115,9 @@ fn table_flags(cp: u32) -> u8 {
 ///   changes.
 /// - The 33 combining Latin small letters U+0363..U+036F and U+1DD3..U+1DE6
 ///   have `Other_Alphabetic`, so `Alphabetic`, in 18.0 and not in 15.0.
+/// - U+1171E AHOM CONSONANT SIGN MEDIAL RA is `Mc` in 18.0 and `Mn` in 15.0
+///   (changed in Unicode 16.0). It is alphabetic either way, and no class
+///   changes.
 ///
 /// Every other code point the dump lists and both assign has the same
 /// category, classes, lowercase mapping and script in both.
@@ -122,19 +131,26 @@ fn known_difference(cp: u32, ours: &Answer, jdk: &Answer) -> bool {
     match cp {
         0x0295 => ours.category == GeneralCategory::Lo && jdk.category == GeneralCategory::Ll && same_but(true, 0),
         0x0363..=0x036F | 0x1DD3..=0x1DE6 => same_but(false, ALPHABETIC) && ours.flags & ALPHABETIC != 0,
+        0x1171E => ours.category == GeneralCategory::Mc && jdk.category == GeneralCategory::Mn && same_but(true, 0),
         _ => false,
     }
 }
 
 /// The number of code points [`known_difference`] accepts.
-const KNOWN_DIFFERENCES: usize = 1 + (0x036F - 0x0363 + 1) + (0x1DE6 - 0x1DD3 + 1);
+const KNOWN_DIFFERENCES: usize = 1 + (0x036F - 0x0363 + 1) + (0x1DE6 - 0x1DD3 + 1) + 1;
 
 #[test]
 fn tables_match_the_jdk() {
-    if !jdk_available() {
+    if !jdk_requested() {
         return;
     }
     let dump = jdk_dump();
+    let (version, dump) = dump.split_once('\n').expect("the dump starts with the JDK version");
+    let feature: u32 = version.trim().parse().expect("the first line is the JDK feature version");
+    assert_eq!(
+        feature, JDK_FEATURE,
+        "the known differences are listed for JDK {JDK_FEATURE} (Unicode 15.0); the java on the PATH is JDK {feature}"
+    );
     let mut checked = 0;
     let mut unassigned = 0;
     let mut known = 0;
@@ -160,7 +176,7 @@ fn tables_match_the_jdk() {
         "compared {checked} assigned code points, {known} of them known to differ; \
          skipped {unassigned} the JDK reports as unassigned"
     );
-    assert!(checked > 60_000, "the dump covers the BMP");
+    assert_eq!(checked + unassigned, 0x11_0000, "the dump covers every code point");
     assert!(differences.is_empty(), "{} code points differ:\n{}", differences.len(), differences.join("\n"));
     assert_eq!(known, KNOWN_DIFFERENCES, "every listed difference occurs");
 }

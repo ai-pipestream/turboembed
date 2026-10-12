@@ -2,9 +2,13 @@
 //! `WordBreakProperty.txt`, and `Extended_Pictographic` from
 //! `emoji-data.txt`, which rule WB3c uses.
 //!
-//! OpenNLP's UAX #29 tokenizer bundles its own copy of these files, from
-//! the Unicode version of the OpenNLP release; the tables here are built
-//! from the Unicode 18.0 files in `ucd/`. Unlike the Java character
+//! OpenNLP 3.x's UAX #29 tokenizer bundles its own
+//! `WordBreakProperty-17.0.0.txt`; the tables here are built from the
+//! Unicode 18.0 files in `ucd/`. The two differ on 558 code points, all
+//! newly assigned in Unicode 18.0 and `Other` in the 17.0 file: 515 are
+//! `ALetter` here, 37 `Extend` and 6 `Katakana`. On every other code point
+//! the `Word_Break` values are the same, so a golden file mismatch on text
+//! with a character new in 18.0 is expected. Unlike the Java character
 //! classes, these properties do not depend on the JDK.
 
 use crate::tables::props::{self, EXTENDED_PICTOGRAPHIC};
