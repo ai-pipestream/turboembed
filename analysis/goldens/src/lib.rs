@@ -20,8 +20,8 @@ pub mod write;
 use std::path::PathBuf;
 
 pub use compare::{
-    Cx, GoldenCompare, Item, Mismatch, Shape, Tolerance, assert_matches_golden, assert_matches_golden_key,
-    known_shapes, matches_golden, matches_golden_key, shape_of,
+    Cx, GoldenCompare, InputFound, Item, Mismatch, Shape, Tolerance, assert_matches_golden, assert_matches_golden_key,
+    check_input, check_shape, known_shapes, matches_golden, matches_golden_key, shape_of,
 };
 pub use format::{
     AnnotatorRef, Column, ColumnData, ColumnSpec, ColumnType, ConfigEntry, Generator, Golden, GoldenAnchor,
