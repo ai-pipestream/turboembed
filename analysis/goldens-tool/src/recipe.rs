@@ -94,8 +94,8 @@ pub const MODELS: [Model; 9] = [
 ];
 
 /// A checked in file the generator loads from the fixtures directory,
-/// `analysis/goldens/data/fixtures`: a model trained for the tests or a
-/// dictionary, and the SHA-512 of its bytes.
+/// `analysis/goldens/data/fixtures`: a model trained for the tests, a
+/// dictionary or a WordPiece vocabulary, and the SHA-512 of its bytes.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Fixture {
     pub file: &'static str,
@@ -104,7 +104,7 @@ pub struct Fixture {
 
 /// The fixtures, which are all the files of the fixtures directory. The
 /// file names are the ones the generator's `Runs` class opens there.
-pub const FIXTURES: [Fixture; 9] = [
+pub const FIXTURES: [Fixture; 10] = [
     Fixture {
         file: "en-abbrev.bin",
         sha512: "759ab1defc61351f53cdd82a26e708789a225feb6e1ec0cfd6e2e54f35f67c14\
@@ -150,10 +150,15 @@ pub const FIXTURES: [Fixture; 9] = [
         sha512: "d8444302db26d336e30283fa9caf62250b55c671e775629137499b16615e0d2b\
                  6686379cff4d1baa34157deebe61170ebbf9a28d9e0f09622f1aefd7bcf285f0",
     },
+    Fixture {
+        file: "all-minilm-l6-v2-vocab.txt",
+        sha512: "f51f06aae7f580a88998f6f7f24b52495c8d3d289fdbdc21231c05f3a8965783\
+                 074d95c17b819186f9a63b622280e8a051105a2161cd0d153fa57db7a0aba9f9",
+    },
 ];
 
 /// The input sets under `analysis/goldens/data/inputs`.
-pub const INPUT_SETS: [&str; 11] = [
+pub const INPUT_SETS: [&str; 12] = [
     "en",
     "multi",
     "norm",
@@ -165,6 +170,7 @@ pub const INPUT_SETS: [&str; 11] = [
     "alphanumeric",
     "sentence-fixture",
     "detokenizer",
+    "subwords",
 ];
 
 /// The arguments the driver passes to the generator after the fixed ones
@@ -178,15 +184,24 @@ pub const GENERATOR_ARGS: [&str; 1] = ["--dumps"];
 /// replaces and `verify` compares. The data directory holds other things
 /// (the inputs, the fixtures, the rate snapshot, a README) that neither
 /// touches.
-pub const ANNOTATORS: [&str; 8] =
-    ["sentdetect", "tokenize", "langdetect", "normalize", "numbers", "money", "money-convert", "detokenize"];
+pub const ANNOTATORS: [&str; 9] = [
+    "sentdetect",
+    "tokenize",
+    "langdetect",
+    "normalize",
+    "numbers",
+    "money",
+    "money-convert",
+    "detokenize",
+    "subwords",
+];
 
 /// The annotators with runs that ask a maxent model for their decisions:
 /// each golden of theirs whose header names a model has a decision point
 /// dump beside it. Their runs without a model (the simple, whitespace and
 /// UAX #29 tokenizers and the newline detector) have none, nor do the
-/// normalizers, the number scan, the money annotators and the
-/// detokenizer, which ask no model.
+/// normalizers, the number scan, the money annotators, the
+/// detokenizer and the WordPiece encoder, which ask no model.
 pub const DUMPED_ANNOTATORS: [&str; 3] = ["sentdetect", "tokenize", "langdetect"];
 
 /// The input set the normalizers run on. They run on no other set, and the
@@ -253,7 +268,7 @@ mod tests {
     fn every_fixture_has_a_file_and_a_sha512() {
         for f in FIXTURES {
             assert!(is_lower_hex(f.sha512, 128), "{}: {}", f.file, f.sha512);
-            assert!(f.file.ends_with(".bin") || f.file.ends_with(".xml"), "{}", f.file);
+            assert!(f.file.ends_with(".bin") || f.file.ends_with(".xml") || f.file.ends_with(".txt"), "{}", f.file);
         }
     }
 

@@ -67,7 +67,8 @@ cargo run -p turbo-goldens-tool -- verify [--models <dir>]
 ## Runs
 
 The golden path is `<annotator>/<model>/<set>/<id>.golden`. `<model>` is
-the first model file's name without `.bin` (or `.xml` for a dictionary).
+the first model file's name without `.bin` (or `.xml` for a dictionary,
+`.txt` for a vocabulary).
 A run with options has `+` and their names appended, so it does not share
 a directory with the same model run without them, and its options are
 `config` records. A run without a model names itself there instead.
@@ -91,6 +92,7 @@ a directory with the same model run without them, and its options are
 | `normalize` (each normalizer) | the normalizer's name | `norm` | see below |
 | `numbers` (`NumberScan` of the addons `numeric` module) | `latin-us`, `latin-eu` | `num` | `notation` |
 | `money`, `money-convert` (`MoneyAnnotator`, `MoneyConversionAnnotator`) | `latin-us`, `latin-eu` | `money` | `notation`; for conversions also `target`, `as_of`, `snapshot` |
+| `subwords` (`WordpieceEncoder`) | `all-minilm-l6-v2-vocab` (fixture) | `en`, `multi`, `edge`, `surrogate`, `subwords` | `lowerCase true`, `maxWordCodePoints 100` |
 
 - `+english-dictionary` is the English model rebuilt through
   `TokenizerModel(MaxentModel, Map, TokenizerFactory)` with the
@@ -112,6 +114,33 @@ a directory with the same model run without them, and its options are
 The fixtures (`analysis/goldens/data/fixtures`) are checked in, mounted at
 `/fixtures` and listed with their SHA-512 in `src/recipe.rs`; the data
 directory's README says where each comes from.
+
+## WordPiece goldens
+
+`subwords/all-minilm-l6-v2-vocab/<set>/<id>.golden` is what OpenNLP's
+`WordpieceEncoder` returned for the input, built from the fixture
+`all-minilm-l6-v2-vocab.txt` (the uncased BERT vocabulary of
+`testdata/all-minilm-l6-v2/tokenizer.json`, one piece per line, the line
+number being the id) with lower casing and accent stripping on and a
+limit of 100 code points per word: the BERT normalization and the greedy
+longest-match segmentation. The layer is `opennlp:subwords`, one row per
+piece with its UTF-8 byte span and its id. `encode` also returns `[CLS]`
+first and `[SEP]` last with empty spans at the ends of the text; the
+generator checks them and leaves them out, since they are not pieces of
+the text. The encoder asks no model, so there are no dumps.
+
+OpenNLP's `WordpieceTokenizer` is not what runs: at the commit in `src/recipe.rs` it
+does no normalization, and its `tokenizePos` throws, so it has no spans.
+`WordpieceEncoder` is the class with the BERT normalization, ids and
+spans.
+
+The `subwords` inputs are written for the project to reach the corners
+of the BERT normalization: accents precomposed, combining and out of
+canonical order, final sigma, the dotted capital I, Hangul, kana and CJK
+(and the CJK Extension E ideographs where the reference BERT and
+upstream `tokenizers` disagree), format characters, punctuation, spacing
+marks, pieces with no entry, special token strings, compatibility
+characters and words at the 100 code point limit.
 
 ## Normalizer goldens
 

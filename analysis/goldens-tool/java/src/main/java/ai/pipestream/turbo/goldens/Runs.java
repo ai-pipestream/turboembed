@@ -34,6 +34,7 @@ final class Runs {
   static final String ENGLISH_ABBREVIATIONS = "english-dictionary.xml";
   static final List<String> DETOKENIZER_DICTIONARIES = List.of("en-detokenizer.xml", "fr-detokenizer.xml",
       "latin-detokenizer.xml", "pt-detokenizer.xml", "quotes-detokenizer.xml");
+  static final String WORDPIECE_VOCABULARY = "all-minilm-l6-v2-vocab.txt";
 
   /** The input sets, the directories of the inputs directory. */
   static final String EN = "en";
@@ -44,6 +45,7 @@ final class Runs {
   static final String ALPHANUMERIC = "alphanumeric";
   static final String SENTENCE_FIXTURE = "sentence-fixture";
   static final String DETOKENIZER = "detokenizer";
+  static final String SUBWORDS = "subwords";
 
   private static final List<String> TOKEN_MODELS = List.of(TOKEN_MODEL_EN, TOKEN_MODEL_DE, TOKEN_MODEL_ES,
       TOKEN_MODEL_FR, TOKEN_MODEL_PT);
@@ -109,6 +111,9 @@ final class Runs {
     for (String d : DETOKENIZER_DICTIONARIES) {
       annotators.add(DetokenizerGolden.load(fixtures.resolve(d), Set.of(DETOKENIZER)));
     }
+
+    annotators.add(WordpieceGolden.load(fixtures.resolve(WORDPIECE_VOCABULARY),
+        Set.of(EN, MULTI, EDGE, SURROGATE, SUBWORDS)));
 
     LanguageGolden languages = LanguageGolden.load(models.resolve(LANGUAGE_MODEL), Set.of(EN, MULTI));
     annotators.add(languages);
