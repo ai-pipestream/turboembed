@@ -421,6 +421,111 @@ characters, whitespace and dashes from
 line-break and paragraph variants, and generated texts against a
 reference filter.
 
+### Placeholder normalizers and the shared scan (`placeholder.rs`)
+
+`Urls`, `BoundedUrls`, `SocialMedia`, `BoundedSocialMedia` and `Numbers`
+replace stretches of text with one space each: a URL, an e-mail address,
+a hashtag, a run of digits. Each is both a `Normalizer` and an
+`Annotator`:
+
+- as a `Normalizer` (directly, through `NormalizeStep`, or in a `Chain`)
+  it writes only the view;
+- as an `Annotator` it reads a `View` and writes the normalized `View`
+  and a `Placeholders` layer (`turbo:placeholders`, in
+  turbo-normalize-layers) with one row per replacement: the span of the
+  replaced text in the view it read and a `PlaceholderKind` (`Url`,
+  `Email`, `Hashtag`, `Mention`, `RetweetMarker`, `Emoticon`, `Number`).
+
+Both run the same scan function (`Urls::scan`, `SocialMedia::scan`, and
+so on), which writes through the `ViewBuilder` and reports each
+replacement to a sink; the `Normalizer` passes a sink that drops the
+reports. A placeholder's span is the exact source text that was
+replaced, and the view's alignment maps it to the space it became.
+
+All of these scanners work on the bytes of the UTF-8 text where the
+characters they look for are ASCII. A byte of a multi-byte character is
+never ASCII, so this reads non-ASCII characters exactly as OpenNLP's
+UTF-16 scans do (as characters outside every set).
+
+### URLs and e-mail addresses (`url/`)
+
+`Urls` (id `turbo:normalize:urls`) keeps the output of OpenNLP's
+`UrlCharSequenceNormalizer`, the normalizer the language detector models
+OpenNLP distributes were trained with:
+
+- a URL is lowercase `http://` or `https://` followed by a greedy run of
+  at least one of `[-_.?&~;+=/#0-9A-Za-z]`. Nothing is required before
+  the scheme (`xhttp://y` becomes `"x "`), and the run stops at the first
+  other character, so ports, percent escapes, userinfo and non-ASCII
+  hosts cut a URL short (`http://x:8080/y` becomes `" :8080/y"`);
+- an e-mail address (OpenNLP's `MailAddressScan`, in `analysis/normalize/src/url/mail.rs`) is a
+  maximal run of `[-+_.0-9A-Za-z]` whose preceding character is not in
+  that set, `@`, and a domain of `[-.0-9A-Za-z]` that does not start with
+  a dot and is at least two characters long (`a@b.` swallows the dot).
+
+OpenNLP removes URLs in one pass and addresses in a second pass over the
+result. `Urls` does both in one pass, trying a URL and then an address at
+each position, and produces the same text. The reasoning is in the
+documentation of `Urls::scan`; in short, the URL matches do not depend
+on what precedes them, an address can never contain the start of a URL
+except at the end of its domain, and the character after a URL can never
+start an address. The one case that needs care is a URL that begins
+inside a domain run (`a@bchttp://x`): OpenNLP's first pass turns the URL
+into a space, which ends the domain there, so `Urls` cuts the domain at
+the URL and checks its length again (`a@bchttp://x` becomes two spaces,
+`a@bhttp://x` becomes `"a@b "`).
+
+`BoundedUrls` (id `turbo:normalize:bounded-urls`) ports
+`BoundedUrlCharSequenceNormalizer`, which takes a URL whole as it is
+bounded in running text:
+
+- the scheme is any `[A-Za-z][A-Za-z0-9+.-]*` followed by `://`, not
+  preceded by a letter or digit (`Character.isLetterOrDigit`) or one of
+  `_ + - . :`, so the `https` in `git+https://` or `blob:https://` does
+  not start a URL;
+- the body runs to the first whitespace (OpenNLP's 25-character table,
+  `tables::is_whitespace`), control character, `Pi` or `Pf` quotation
+  mark, `<`, `>` or `"`;
+- trailing `. , ; : ! ?` and closing brackets without an opening bracket
+  in the body are given back to the text (`(http://x.y/a_(b))` becomes
+  `"( )"`);
+- `http` and `https` URLs (any letter case) become a space; URLs with
+  other schemes are copied unchanged, and no address is matched inside
+  them.
+
+The general categories come from turbo-unicode, which reads Unicode
+18.0.0; OpenNLP reads the JVM's (Unicode 15.0 on JDK 21). The only
+characters this affects are those assigned or recategorized since 15.0.
+
+Differences from OpenNLP:
+
+- `BoundedUrls` matches internationalized e-mail addresses (RFC 6531
+  local parts and U-label domains): the local-part and domain sets are
+  widened to every non-ASCII letter, digit and combining mark.
+  `José@example.com` and `用户@例子.广告` become one space each; OpenNLP
+  leaves both unchanged, and turns `éa@b.co` into `"é "`, removing only
+  the ASCII tail of the address, where `BoundedUrls` removes all of it.
+  An address must still not be preceded by a character of its local
+  part. `Urls` keeps the ASCII scan, because its output is the input of
+  the trained language detector models. Test:
+  `bounded_replaces_internationalized_addresses` in `analysis/normalize/tests/urls.rs`.
+
+Tests (`analysis/normalize/tests/urls.rs`): every expectation of OpenNLP's
+`UrlCharSequenceNormalizerCharacterizationTest` and
+`BoundedUrlCharSequenceNormalizerTest` (the cases with unpaired
+surrogates, which a Rust string cannot hold, are left out); the weird URL
+list of the characterization test checked against a two-pass reference
+that follows OpenNLP's passes one to one, with five of them also checked
+by hand; 40,000 generated inputs, half from OpenNLP's pool and half from
+pieces that make URLs and addresses touch, compared with the two-pass
+reference; the adversarial cases (a URL at the end of a sentence, in
+brackets, before a comma, two URLs one space apart, an address right
+after a URL, a non-ASCII host, `http://` alone) with their exact
+placeholder spans for both normalizers; linear work on long runs of
+closing brackets; and a pipeline that runs `BoundedUrls` and then
+`BoundedSocialMedia` through the analyzer and maps every placeholder
+back to the source.
+
 ### Alignment checks
 
 The tests of these normalizers run every input through
@@ -461,6 +566,19 @@ it overlaps.
   it runs on (`Character.digit`), so the same input gives different
   output on JDK 21 (Unicode 15.0) and later JDKs. Its tests do not state
   which Unicode version they expect.
+- `UrlCharSequenceNormalizer` and `SocialMediaCharSequenceNormalizer`
+  run two and four passes, each copying the text. Each can be one pass
+  with the same output. For URLs, the only care needed is to cut an
+  address's domain at a URL that starts inside it. For social media, the
+  only interaction is that the space a hashtag becomes can end an `rt`
+  unit, which makes `rt#tag` one replacement; the class documentation
+  does not mention it. `ShrinkCharSequenceNormalizer`'s three passes
+  can likewise be one.
+- `BoundedUrlCharSequenceNormalizer`'s address scan is ASCII only, so it
+  leaves `José@example.com` in place and turns `éa@b.co` into `"é "`,
+  removing part of an address and leaving the rest. Widening the
+  local-part and domain sets to non-ASCII letters, digits and marks
+  removes whole internationalized addresses.
 
 ## Tests
 
