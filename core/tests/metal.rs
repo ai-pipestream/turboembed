@@ -3,7 +3,9 @@
 //! weights read where the core holds them, a run's vectors left in shared
 //! memory, and a warm run's allocation count. The encoder's vectors are
 //! held to the f64 arithmetic of tests/common, to the CPU backend's, and
-//! to the bundle's reference vectors (tests/common/conformance.rs).
+//! to the bundle's reference vectors (tests/common/conformance.rs), and
+//! late pooling's ranges to the row path's vectors, the f64 arithmetic
+//! and the CPU backend's ranges.
 //!
 //! Built with the `metal` feature only, on macOS. A test that needs a
 //! device that runs the kernels says it was skipped, and passes, when the
@@ -162,6 +164,7 @@ fn the_backend_is_linked_before_the_cpu_and_names_itself() {
     assert_eq!(b.struct_size as usize, size_of::<backend::turbo_backend>());
     backend::check_table(b).unwrap();
     assert!(b.buffer_read.is_some() && b.session_run.is_some());
+    assert!(b.session_open.is_some() && b.embed_write_ranges.is_some(), "it pools ranges");
     let linked = backend::linked();
     let at = |name: &str| linked.iter().position(|t| t.name() == name);
     assert!(at("metal") < at("cpu"), "its devices come before the cpu's");
@@ -717,14 +720,21 @@ fn a_warm_run_allocates_nothing() {
     let _t = turn();
     let Some(_) = metal_device("a_warm_run_allocates_nothing") else { return };
     let l = on_metal(&tiny_bundle());
-    let s = Session::create(l.m, None).unwrap();
+    let mut d = session_desc(0, 0, TURBO_PRECISION_MODEL);
+    d.max_ranges = 128;
+    let s = Session::create(l.m, Some(&d)).unwrap();
     let tok = Tok::create(&tiny_bundle()).unwrap();
     let rows: Vec<Vec<i32>> = TEXTS.iter().map(|t| tok.row(t, None).unwrap()).collect();
     let small = Tokens::new(&rows, 0);
     let long = Tokens::new(&vec![(0..64).map(|i| 1000 + i).collect(); 64], 0);
-    let mut dst = vec![0f32; 64 * 32];
-    let mut run = |t: &Tokens| {
-        s.write_tokens(&t.batch(), None).unwrap();
+    // Two ranges on each of the 64 rows: more vectors than rows.
+    let halves: Vec<_> = (0..64).flat_map(|r| [range(r, 0, 32), range(r, 32, 64)]).collect();
+    let mut dst = vec![0f32; 128 * 32];
+    let mut run = |t: &Tokens, ranges: Option<&[turbo_token_range]>| {
+        match ranges {
+            Some(g) => s.write_ranges(&t.batch(), g, None).unwrap(),
+            None => s.write_tokens(&t.batch(), None).unwrap(),
+        }
         let r = s.run().unwrap();
         let i = r.info();
         let rc = unsafe {
@@ -733,11 +743,13 @@ fn a_warm_run_allocates_nothing() {
         assert_eq!(rc, 0);
         (i.host_allocs, i.device_allocs)
     };
-    run(&small);
-    run(&long);
+    run(&small, None);
+    run(&long, None);
+    run(&long, Some(&halves));
     let before = turbo::metal::allocations();
-    for (i, t) in [&small, &long, &small, &long].into_iter().enumerate() {
-        assert_eq!(run(t), (0, 0), "warm run {i}: the result's count");
+    let warm = [(&small, None), (&long, None), (&long, Some(&halves[..])), (&small, None), (&long, Some(&halves[..]))];
+    for (i, (t, g)) in warm.into_iter().enumerate() {
+        assert_eq!(run(t, g), (0, 0), "warm run {i}: the result's count");
     }
     assert_eq!(turbo::metal::allocations(), before, "the backend allocated nothing in warm runs");
 }
@@ -875,6 +887,150 @@ fn an_output_dim_is_cut_then_normalized_on_the_device() {
             assert!((*a as f64 - b).abs() < 1e-5, "{a} vs {b}");
         }
     }
+}
+
+// ---- Range pooling ---------------------------------------------------------------------
+
+/// A session on `m` of the model's size that takes `max_ranges` ranges.
+fn ranged_session(m: *mut turbo_model, max_ranges: u32) -> Session {
+    let mut d = session_desc(0, 0, TURBO_PRECISION_MODEL);
+    d.max_ranges = max_ranges;
+    Session::create(m, Some(&d)).unwrap_or_else(|e| panic!("{e:?}"))
+}
+
+fn bits(v: &[f32]) -> Vec<u32> {
+    v.iter().map(|x| x.to_bits()).collect()
+}
+
+/// A range over a whole row, padding and a masked token inside it
+/// included, is that row's MEAN vector from embed_write, bit for bit:
+/// the range kernel sums the same tokens in the same order.
+#[test]
+fn a_range_over_a_whole_row_is_the_rows_mean_vector_bit_for_bit() {
+    let _t = turn();
+    let Some(_) = metal_device("a_range_over_a_whole_row_is_the_rows_mean_vector_bit_for_bit") else { return };
+    let l = on_metal(&tiny_bundle());
+    let s = ranged_session(l.m, 8);
+    let t = awkward_rows(&tiny_bundle());
+    let whole: Vec<_> = (0..t.batch).map(|r| range(r, 0, t.seq)).collect();
+    for normalize in [TURBO_NORMALIZE_NONE, TURBO_NORMALIZE_L2] {
+        let o = opts(|o| {
+            o.pooling = TURBO_POOLING_MEAN;
+            o.normalize = normalize;
+        });
+        s.write_tokens(&t.batch(), Some(&o)).unwrap();
+        let rows = s.run().unwrap().rows();
+        s.write_ranges(&t.batch(), &whole, Some(&o)).unwrap();
+        let got = s.run().unwrap().rows();
+        assert_eq!(got.len(), rows.len());
+        for (r, (g, w)) in got.iter().zip(&rows).enumerate() {
+            assert_eq!(bits(g), bits(w), "normalize {normalize} row {r}");
+        }
+        // In another order, and a row twice: each vector is its row's.
+        let shuffled = [whole[2], whole[0], whole[2], whole[1]];
+        s.write_ranges(&t.batch(), &shuffled, Some(&o)).unwrap();
+        let got = s.run().unwrap().rows();
+        for (g, r) in got.iter().zip([2, 0, 2, 1]) {
+            assert_eq!(bits(g), bits(&rows[r]), "normalize {normalize} row {r} out of order");
+        }
+    }
+}
+
+/// Ranges of every kind (one live token, a span over a masked token and
+/// padding, two on one row, a row left out, the same range twice), more
+/// ranges than rows and fewer, with and without L2: the result's shape,
+/// each vector against the f64 encoder of tests/common and against the
+/// CPU backend's range write on the same rows. A plain write after a
+/// range write pools rows again.
+#[test]
+fn ranges_match_the_arithmetic_and_the_cpu() {
+    let _t = turn();
+    let Some(_) = metal_device("ranges_match_the_arithmetic_and_the_cpu") else { return };
+    let dir = tiny_bundle();
+    let plain = PlainBert::new(&dir);
+    let (g, c) = (on_metal(&dir), Loaded::load(&dir).unwrap());
+    let (gs, cs) = (ranged_session(g.m, 16), ranged_session(c.m, 16));
+    let t = awkward_rows(&dir);
+    let seq = t.seq;
+    let types = t.types.clone().unwrap();
+    let live = |r: u32| -> Vec<u32> { (0..seq).filter(|&p| t.mask[(r * seq + p) as usize] == 1).collect() };
+    let (l0, l1, l2) = (live(0), live(1), live(2));
+    // Row 1 is padded on the left, row 2 has its second column masked.
+    assert!(l1[0] > 0 && l2[1] > 1, "awkward rows: {l1:?} {l2:?}");
+    let many = vec![
+        range(0, l0[1], l0[1] + 1),
+        range(2, 0, l2[1] + 1),
+        range(2, 1, seq),
+        range(1, 0, seq),
+        range(1, seq - 2, seq),
+        range(0, 0, 3),
+        range(0, 2, *l0.last().unwrap() + 1),
+        range(0, l0[1], l0[1] + 1),
+        range(1, l1[0], l1[0] + 1),
+    ];
+    let few = vec![range(1, seq - 1, seq)];
+    let (mut worst, mut lowest) = (0f64, 1f64);
+    for ranges in [&many, &few] {
+        for normalize in [TURBO_NORMALIZE_NONE, TURBO_NORMALIZE_L2] {
+            let o = opts(|o| o.normalize = normalize);
+            gs.write_ranges(&t.batch(), ranges, Some(&o)).unwrap();
+            let run = gs.run().unwrap();
+            let info = run.info();
+            assert_eq!(info.batch as usize, ranges.len(), "one vector per range");
+            assert_eq!(info.bytes, ranges.len() as u64 * info.dim as u64 * 4);
+            let got = run.rows();
+            drop(run);
+            cs.write_ranges(&t.batch(), ranges, Some(&o)).unwrap();
+            let cpu = cs.run().unwrap().rows();
+            assert_eq!(got.len(), cpu.len());
+            for (i, (v, g)) in got.iter().zip(ranges.iter()).enumerate() {
+                let at = (g.row * seq) as usize..((g.row + 1) * seq) as usize;
+                let want = plain.embed_range(
+                    &t.ids[at.clone()],
+                    &t.mask[at.clone()],
+                    &types[at],
+                    g.start as usize,
+                    g.end as usize,
+                    v.len(),
+                    normalize == TURBO_NORMALIZE_L2,
+                );
+                for (a, w) in v.iter().zip(&want) {
+                    let d = (*a as f64 - w).abs();
+                    worst = worst.max(d);
+                    assert!(d < 1e-5 * (1.0 + w.abs()), "normalize {normalize} ranges[{i}] {g:?}: {a} vs {w}");
+                }
+                let c = cosine(v, &cpu[i]);
+                lowest = lowest.min(c);
+                assert!(c >= 0.9999, "normalize {normalize} ranges[{i}] {g:?}: cosine {c} with the cpu");
+            }
+        }
+    }
+    println!(
+        "ranges: largest difference from the f64 encoder {worst:.3e}; 1 - lowest cosine with the cpu {:.3e}",
+        1.0 - lowest
+    );
+
+    // A plain write replaces the range write: the run pools rows.
+    gs.write_tokens(&t.batch(), None).unwrap();
+    let rows = gs.run().unwrap();
+    assert_eq!(rows.info().batch, t.batch, "a vector per row again");
+}
+
+/// The GPU takes no thread count: cpu_threads other than 0 is refused by
+/// field 6, and 0 makes the session.
+#[test]
+fn cpu_threads_is_refused_by_field_6() {
+    let _t = turn();
+    let Some(_) = metal_device("cpu_threads_is_refused_by_field_6") else { return };
+    let l = on_metal(&tiny_bundle());
+    for threads in [1, 4] {
+        let mut d = session_desc(0, 0, TURBO_PRECISION_MODEL);
+        d.cpu_threads = threads;
+        let e = Session::create(l.m, Some(&d)).err().unwrap();
+        assert_eq!((e.code, e.field), (UNSUPPORTED_OPTION, 6), "{e:?}");
+        assert!(e.message.contains("not a CPU"), "{e:?}");
+    }
+    Session::create(l.m, Some(&session_desc(0, 0, TURBO_PRECISION_MODEL))).unwrap();
 }
 
 // ---- Limits and the largest shape ----------------------------------------------------

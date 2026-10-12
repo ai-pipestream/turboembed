@@ -487,6 +487,42 @@ kernel void pool(device const float *x [[buffer(0)]], device const int *mask [[b
     for (uint d = lane; d < p.output_dim; d += 32) dst[d] *= inv;
 }
 
+// One SIMD group per range of embed_write_ranges: the mean over the
+// range's tokens whose mask is 1, cut to output_dim, and when l2 is set,
+// scaled to unit length. ranges holds (row, start, end) as three uints per
+// range, as turbo_token_range lays them out; a uint3 would be 16 bytes.
+// A row's packed tokens end at its last live one, and the columns past it
+// are masked padding, so the range stops there. The sum runs in position
+// order with the same arithmetic as pool's mean, so a range over a whole
+// row gives that row's vector, bit for bit.
+kernel void pool_ranges(device const float *x [[buffer(0)]], device const int *mask [[buffer(1)]],
+                        device const uint2 *rows [[buffer(2)]], device const uint *ranges [[buffer(3)]],
+                        device float *out [[buffer(4)]], constant PoolParams &p [[buffer(5)]],
+                        uint r [[threadgroup_position_in_grid]], ushort lane [[thread_index_in_simdgroup]]) {
+    const uint2 row = rows[ranges[3 * r]];
+    const uint lo = ranges[3 * r + 1];
+    const uint hi = min(ranges[3 * r + 2], row.y);
+    device const int *m = mask + row.x;
+    device const float *xs = x + ulong(row.x) * p.hidden;
+    device float *dst = out + ulong(r) * p.output_dim;
+    float ss = 0.0f;
+    for (uint d = lane; d < p.output_dim; d += 32) {
+        float s = 0.0f;
+        uint n = 0;
+        for (uint t = lo; t < hi; t++) {
+            if (m[t] == 0) continue;
+            s += xs[ulong(t) * p.hidden + d];
+            n++;
+        }
+        const float val = s * (1.0f / float(n));
+        dst[d] = val;
+        ss += val * val;
+    }
+    if (p.l2 == 0) return;
+    const float inv = 1.0f / max(sqrt(simd_sum(ss)), 1e-12f);
+    for (uint d = lane; d < p.output_dim; d += 32) dst[d] *= inv;
+}
+
 // ---- Weights stored in F16 or BF16 -------------------------------------------
 
 kernel void widen_f16(device const half *src [[buffer(0)]], device float *dst [[buffer(1)]],

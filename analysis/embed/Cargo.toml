@@ -1,0 +1,23 @@
+[package]
+name = "turbo-analysis-embed"
+version = "0.1.0"
+edition.workspace = true
+license.workspace = true
+publish = false
+
+[lib]
+name = "turbo_analysis_embed"
+
+[dependencies]
+turbo-analysis = { path = "../core" }
+turbo-analysis-layers = { path = "../layers" }
+# The embedding model's own tokenizer, and later its vectors: the one
+# analysis crate that depends on the core.
+turbo = { path = "../../core" }
+
+[dev-dependencies]
+# The tests write a byte-level BPE bundle from a typed manifest.
+serde_json = "1"
+# The upstream tokenizer, which the WordPiece pieces and spans are
+# compared with.
+tokenizers = { version = "0.23", default-features = false, features = ["fancy-regex"] }

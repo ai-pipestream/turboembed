@@ -8,6 +8,11 @@
 //! its mask, its first token, or its last live token), cut to output_dim,
 //! and L2-normalized when asked.
 //!
+//! Rows written with ranges (`write_ranges`) are pooled by range instead:
+//! each range's vector is the mean over its columns' live tokens of the
+//! final hidden states, read where the encoder left them, with the same
+//! sum, cut and normalization as a row's mean.
+//!
 //! The rows of a batch are packed: row r's positions up to its last live
 //! token sit one after another with the other rows', so padding past that
 //! token is never computed. No output depends on it: attention skips
@@ -17,7 +22,8 @@
 //! A run is a sequence of steps, each split into tasks that the session's
 //! threads take (pool.rs): the embeddings and each LayerNorm by chunks of
 //! tokens, each linear layer by tiles of its output (kernels.rs), and
-//! attention by row, head and block of queries. A task computes each of
+//! attention by row, head and block of queries, and pooling by range by
+//! groups of ranges. A task computes each of
 //! its outputs whole, in the same order whichever thread takes it and
 //! however many threads there are; no sum is split between tasks. So a
 //! run gives the same bits for the same rows on any number of threads.
@@ -28,7 +34,7 @@
 use crate::backend::{
     TURBO_BERT_EMBEDDING_TENSORS, TURBO_BERT_LAYER_TENSORS, turbo_backend_embed_rows, turbo_backend_model,
 };
-use crate::{TURBO_NORMALIZE_L2, TURBO_POOLING_CLS, TURBO_POOLING_LAST};
+use crate::{TURBO_NORMALIZE_L2, TURBO_POOLING_CLS, TURBO_POOLING_LAST, turbo_token_range};
 
 use super::kernels::{Attend, Epilogue, Gemm, Isa, LANES, Micro, Packed, layer_norm, zeroed};
 use super::pool::Pool;
@@ -60,6 +66,20 @@ const FFN_LN_B: usize = 15;
 const TOKENS: usize = 16;
 /// Queries per attention task.
 const QUERIES: usize = 32;
+/// Range pooling tasks per thread, so that threads that finish early take
+/// more of the ranges, which differ in length.
+const RANGE_TASKS_PER_THREAD: usize = 4;
+
+/// What an encoder is allocated for.
+#[derive(Clone, Copy)]
+pub(super) struct Size {
+    /// The most threads it runs on.
+    pub threads: usize,
+    pub max_batch: usize,
+    pub max_seq: usize,
+    /// The most ranges one `write_ranges` holds.
+    pub max_ranges: usize,
+}
 
 pub(super) struct Encoder {
     layers: usize,
@@ -87,6 +107,10 @@ pub(super) struct Encoder {
     pooling: u32,
     normalize: u32,
     output_dim: usize,
+    /// The ranges the run pools by, as `write_ranges` copied them in, its
+    /// capacity the session's max_ranges. Empty after `write`: the run
+    /// then pools each row.
+    ranges: Vec<turbo_token_range>,
 
     /// Each row's first packed token and its length through its last
     /// live token.
@@ -120,17 +144,17 @@ pub(super) struct Encoder {
 }
 
 impl Encoder {
-    /// An encoder for `max_batch` rows of `max_seq` tokens over `tensors`
-    /// and `packed`, which stay where they are while it lives, run on up
-    /// to `threads` threads. Err is the bytes it could not allocate.
+    /// An encoder for `size.max_batch` rows of `size.max_seq` tokens and
+    /// up to `size.max_ranges` ranges over `tensors` and `packed`, which
+    /// stay where they are while it lives, run on up to `size.threads`
+    /// threads. Err is the bytes it could not allocate.
     pub(super) fn new(
         d: &turbo_backend_model,
         tensors: Vec<&[f32]>,
         packed: &Packed,
-        threads: usize,
-        max_batch: usize,
-        max_seq: usize,
+        size: Size,
     ) -> Result<Encoder, usize> {
+        let Size { threads, max_batch, max_seq, max_ranges } = size;
         debug_assert_eq!(tensors.len(), (TURBO_BERT_EMBEDDING_TENSORS + d.layers * TURBO_BERT_LAYER_TENSORS) as usize);
         debug_assert_eq!(packed.layers.len(), d.layers as usize);
         let (h, i) = (d.hidden as usize, d.intermediate as usize);
@@ -138,6 +162,8 @@ impl Encoder {
         let wide = |n: usize| tokens.checked_mul(n).ok_or(usize::MAX);
         let per_thread = Attend::scratch(max_seq, h / d.heads as usize);
         let stride = max_batch.checked_mul(max_seq.next_multiple_of(LANES)).ok_or(usize::MAX)?;
+        let mut ranges = Vec::new();
+        ranges.try_reserve_exact(max_ranges).map_err(|_| max_ranges.saturating_mul(size_of::<turbo_token_range>()))?;
         Ok(Encoder {
             layers: d.layers as usize,
             hidden: h,
@@ -156,6 +182,7 @@ impl Encoder {
             pooling: 0,
             normalize: 0,
             output_dim: 0,
+            ranges,
             rows: zeroed(max_batch)?,
             at: zeroed(tokens)?,
             padded: zeroed(max_batch)?,
@@ -187,8 +214,31 @@ impl Encoder {
         self.normalize
     }
 
-    /// Copy in the rows the core checked, dropping their stride.
+    /// Copy in the rows the core checked, dropping their stride; the run
+    /// pools each row.
     pub(super) fn write(&mut self, r: &turbo_backend_embed_rows, ids: &[i32], mask: &[i32], types: Option<&[i32]>) {
+        self.copy_rows(r, ids, mask, types);
+        self.ranges.clear();
+    }
+
+    /// Copy in the rows and the ranges the core checked; the run pools
+    /// each range. There are at most the session's max_ranges, so the
+    /// copy fits in the memory `new` gave it.
+    pub(super) fn write_ranges(
+        &mut self,
+        r: &turbo_backend_embed_rows,
+        ids: &[i32],
+        mask: &[i32],
+        types: Option<&[i32]>,
+        ranges: &[turbo_token_range],
+    ) {
+        debug_assert!(!ranges.is_empty() && ranges.len() <= self.ranges.capacity());
+        self.copy_rows(r, ids, mask, types);
+        self.ranges.clear();
+        self.ranges.extend_from_slice(ranges);
+    }
+
+    fn copy_rows(&mut self, r: &turbo_backend_embed_rows, ids: &[i32], mask: &[i32], types: Option<&[i32]>) {
         let (b, s, stride) = (r.batch as usize, r.seq as usize, r.row_stride as usize);
         debug_assert!(s <= self.max_seq && b * s <= self.ids.len());
         for row in 0..b {
@@ -206,8 +256,9 @@ impl Encoder {
         self.output_dim = r.output_dim as usize;
     }
 
-    /// Run the written rows into `out`, [batch, output_dim] packed, on
-    /// `pool`, which has at most the threads the encoder was made for.
+    /// Run the written rows into `out`, [batch, output_dim] packed, or
+    /// [ranges, output_dim] after `write_ranges`, on `pool`, which has at
+    /// most the threads the encoder was made for.
     pub(super) fn run(&mut self, pool: &mut Pool, out: &mut [f32]) {
         debug_assert!(pool.threads() * self.per_thread <= self.scratch.len());
         let tokens = self.pack();
@@ -247,7 +298,14 @@ impl Encoder {
             linear(pool, gemm(bufs.ffn, n_i, &pl.ffn_out, w(FFN_OUT_B), bufs.x, h, Epilogue::Residual));
             go(pool, Step::Norm(w(FFN_LN_W), w(FFN_LN_B)), chunks);
         }
-        self.pool(out);
+        if e.ranges.is_empty() {
+            self.pool(out);
+            return;
+        }
+        let count = e.ranges.len();
+        debug_assert!(out.len() >= count * e.output_dim);
+        let per_task = count.div_ceil(pool.threads() * RANGE_TASKS_PER_THREAD);
+        go(pool, Step::PoolRanges { out: out.as_mut_ptr(), per_task }, count.div_ceil(per_task));
     }
 
     /// Each row's place among the packed tokens, each token's place in
@@ -297,34 +355,57 @@ impl Encoder {
             match self.pooling {
                 TURBO_POOLING_CLS => dst.copy_from_slice(&self.x[start * h..][..od]),
                 TURBO_POOLING_LAST => dst.copy_from_slice(&self.x[(start + len - 1) * h..][..od]),
-                // Mean over the tokens whose mask is 1, as upstream's
-                // mean pooling divides the masked sum by the mask's sum.
-                _ => {
-                    dst.fill(0.0);
-                    let mask = &self.mask[r * self.seq..][..len];
-                    let mut n = 0u32;
-                    for (p, _) in mask.iter().enumerate().filter(|(_, m)| **m != 0) {
-                        for (d, &x) in dst.iter_mut().zip(&self.x[(start + p) * h..][..od]) {
-                            *d += x;
-                        }
-                        n += 1;
-                    }
-                    let inv = 1.0 / n as f32;
-                    for d in dst.iter_mut() {
-                        *d *= inv;
-                    }
-                }
+                _ => self.mean(&self.x, r, 0..len, dst),
             }
-            if self.normalize == TURBO_NORMALIZE_L2 {
-                // As upstream: divided by the norm, or by 1e-12 when the
-                // norm is smaller.
-                let norm = dst.iter().map(|&v| v as f64 * v as f64).sum::<f64>().sqrt().max(1e-12);
-                let inv = (1.0 / norm) as f32;
-                for d in dst.iter_mut() {
-                    *d *= inv;
-                }
+            self.finish(dst);
+        }
+    }
+
+    /// The mean of row `r`'s live tokens in columns `cols`, which end at
+    /// or before the row's packed length, from the hidden states `x`,
+    /// into `dst`: output_dim values. As upstream's mean pooling divides
+    /// the masked sum by the mask's sum: summed in F32 in column order,
+    /// then scaled by one over the count. At least one token is live.
+    #[inline(always)]
+    fn mean(&self, x: &[f32], r: usize, cols: std::ops::Range<usize>, dst: &mut [f32]) {
+        let (h, od) = (self.hidden, dst.len());
+        let start = self.rows[r].0;
+        dst.fill(0.0);
+        let mask = &self.mask[r * self.seq..][..cols.end];
+        let mut n = 0u32;
+        for p in cols.filter(|&p| mask[p] != 0) {
+            for (d, &x) in dst.iter_mut().zip(&x[(start + p) * h..][..od]) {
+                *d += x;
+            }
+            n += 1;
+        }
+        debug_assert!(n > 0, "row {r}: no live token to pool");
+        let inv = 1.0 / n as f32;
+        for d in dst.iter_mut() {
+            *d *= inv;
+        }
+    }
+
+    /// Normalize a pooled vector as the write asked.
+    #[inline(always)]
+    fn finish(&self, dst: &mut [f32]) {
+        if self.normalize == TURBO_NORMALIZE_L2 {
+            // As upstream: divided by the norm, or by 1e-12 when the
+            // norm is smaller.
+            let norm = dst.iter().map(|&v| v as f64 * v as f64).sum::<f64>().sqrt().max(1e-12);
+            let inv = (1.0 / norm) as f32;
+            for d in dst.iter_mut() {
+                *d *= inv;
             }
         }
+    }
+
+    /// The final hidden states of the last run, [packed tokens, hidden],
+    /// and where each row's tokens start among them and how many there
+    /// are through its last live token.
+    #[cfg(test)]
+    fn hidden_states(&self) -> (&[f32], &[(usize, usize)]) {
+        (&self.x, &self.rows[..self.batch])
     }
 }
 
@@ -348,6 +429,12 @@ enum Step<'a> {
     Attention,
     /// x = LayerNorm(x), with these weights and biases.
     Norm(&'a [f32], &'a [f32]),
+    /// Each written range's vector from x, `per_task` ranges a task,
+    /// into `out`, [ranges, output_dim] packed.
+    PoolRanges {
+        out: *mut f32,
+        per_task: usize,
+    },
 }
 
 /// A step and what its tasks read and write.
@@ -357,8 +444,10 @@ enum Step<'a> {
 /// from its own part in place: a chunk of tokens' rows of x (Lookup,
 /// Norm); a tile of rows by columns of the product's output (Linear); the
 /// ctx rows of a block of one row's queries in one head's columns, and the
-/// thread's own scratch (Attention). Steps are one after another: the
-/// pool returns only when every task of a step is done.
+/// thread's own scratch (Attention); the output rows of a group of ranges,
+/// reading x, which no task of the step writes (PoolRanges). Steps are
+/// one after another: the pool returns only when every task of a step is
+/// done.
 struct Job<'a> {
     e: &'a Encoder,
     bufs: Bufs,
@@ -383,6 +472,7 @@ impl Job<'_> {
                 Step::Linear(g) => g.task::<M>(t),
                 Step::Attention => self.attention::<M>(t, th),
                 Step::Norm(w, b) => self.norm(t, w, b),
+                Step::PoolRanges { out, per_task } => self.pool_ranges(t, *out, *per_task),
             }
         }
     }
@@ -428,6 +518,30 @@ impl Job<'_> {
         for tok in self.chunk(t) {
             // SAFETY: this chunk's token.
             layer_norm(unsafe { self.x_row(tok) }, w, b, self.e.eps);
+        }
+    }
+
+    /// Task t: ranges t * per_task onward, up to per_task of them, each
+    /// pooled whole, so a range's sum is one task's in column order.
+    ///
+    /// # Safety
+    /// `out` holds a vector of output_dim values for every written range.
+    #[inline(always)]
+    unsafe fn pool_ranges(&self, t: usize, out: *mut f32, per_task: usize) {
+        let e = self.e;
+        let od = e.output_dim;
+        // SAFETY: no task of this step writes x.
+        let x = unsafe { std::slice::from_raw_parts(self.bufs.x, self.tokens * e.hidden) };
+        let first = t * per_task;
+        for (i, range) in e.ranges.iter().enumerate().skip(first).take(per_task) {
+            let (row, len) = (range.row as usize, e.rows[range.row as usize].1);
+            // Columns past the row's last live token were not packed:
+            // they hold no live token to pool.
+            let cols = range.start as usize..(range.end as usize).min(len);
+            // SAFETY: range i's vector is this task's alone, inside out.
+            let dst = unsafe { std::slice::from_raw_parts_mut(out.add(i * od), od) };
+            e.mean(x, row, cols, dst);
+            e.finish(dst);
         }
     }
 
@@ -508,7 +622,7 @@ unsafe fn entry_avx512(j: &Job, t: usize, th: usize) {
 mod tests {
     use super::super::kernels::{Panels, exp, gelu};
     use super::*;
-    use crate::{TURBO_DTYPE_F32, TURBO_POOLING_MEAN};
+    use crate::{TURBO_DTYPE_F32, TURBO_NORMALIZE_NONE, TURBO_POOLING_MEAN};
 
     /// erf by its Taylor series in F64, which converges everywhere and is
     /// exact to rounding for |x| under 3.
@@ -747,7 +861,8 @@ mod tests {
             let packed = self.packed(isa);
             let mut pool = Pool::new(threads);
             assert_eq!(pool.threads(), threads);
-            let mut e = Encoder::new(&self.desc, self.slices(), &packed, threads, batch, seq).unwrap();
+            let size = Size { threads, max_batch: batch, max_seq: seq, max_ranges: batch };
+            let mut e = Encoder::new(&self.desc, self.slices(), &packed, size).unwrap();
             let rows = turbo_backend_embed_rows {
                 struct_size: size_of::<turbo_backend_embed_rows>() as u32,
                 batch: batch as u32,
@@ -822,6 +937,186 @@ mod tests {
             .map(|i| bits(&m.run(i, 3, &ids, &mask, b, s)))
             .collect();
         assert!(fused.windows(2).all(|w| w[0] == w[1]), "the fused kernels differ");
+    }
+
+    /// A run of `ranges` over the batch, on `threads` threads with the
+    /// fastest kernel: the vectors, and the hidden states each was pooled
+    /// from with each row's place among them.
+    struct Ranged {
+        out: Vec<f32>,
+        x: Vec<f32>,
+        rows: Vec<(usize, usize)>,
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    fn ranged(
+        m: &Model,
+        threads: usize,
+        (ids, mask, batch, seq): (&[i32], &[i32], usize, usize),
+        ranges: &[turbo_token_range],
+        normalize: u32,
+        output_dim: usize,
+    ) -> Ranged {
+        let isa = Isa::detect();
+        let packed = m.packed(isa);
+        let mut pool = Pool::new(threads);
+        let size = Size { threads, max_batch: batch, max_seq: seq, max_ranges: ranges.len() };
+        let mut e = Encoder::new(&m.desc, m.slices(), &packed, size).unwrap();
+        let rows = turbo_backend_embed_rows {
+            struct_size: size_of::<turbo_backend_embed_rows>() as u32,
+            batch: batch as u32,
+            seq: seq as u32,
+            row_stride: seq as u32,
+            ids: ids.as_ptr(),
+            mask: mask.as_ptr(),
+            types: std::ptr::null(),
+            pooling: TURBO_POOLING_MEAN,
+            normalize,
+            output_dim: output_dim as u32,
+            reserved: 0,
+        };
+        let mut out = vec![f32::NAN; ranges.len() * output_dim];
+        e.write_ranges(&rows, ids, mask, None, ranges);
+        e.run(&mut pool, &mut out);
+        let (x, packed_rows) = e.hidden_states();
+        Ranged { out, x: x.to_vec(), rows: packed_rows.to_vec() }
+    }
+
+    fn range(row: usize, start: usize, end: usize) -> turbo_token_range {
+        turbo_token_range { row: row as u32, start: start as u32, end: end as u32 }
+    }
+
+    /// A range over a whole row, padding and all, is the row's mean
+    /// vector bit for bit, normalized the same way, in any order and
+    /// when given twice.
+    #[test]
+    fn a_range_over_a_whole_row_is_the_row_s_mean() {
+        let m = Model::new();
+        let (ids, mask, b, s) = batch();
+        let want = m.run(Isa::detect(), 3, &ids, &mask, b, s);
+        let h = m.desc.hidden as usize;
+        let mut ranges: Vec<_> = (0..b).rev().map(|r| range(r, 0, s)).collect();
+        ranges.push(range(4, 0, s));
+        let got = ranged(&m, 3, (&ids, &mask, b, s), &ranges, TURBO_NORMALIZE_L2, h).out;
+        for (i, r) in ranges.iter().enumerate() {
+            let row = r.row as usize;
+            assert!(bits(&got[i * h..][..h]) == bits(&want[row * h..][..h]), "range {i} over row {row}");
+        }
+    }
+
+    /// Each range's vector is the mean of the hidden states of its live
+    /// tokens, summed in F32 in column order and scaled by one over the
+    /// count, cut to output_dim: single tokens, ranges that start or end
+    /// on masked tokens, and ranges that run into padding.
+    #[test]
+    fn a_range_s_vector_is_the_mean_of_its_live_tokens() {
+        let m = Model::new();
+        let (ids, mask, b, s) = batch();
+        let h = m.desc.hidden as usize;
+        let ranges = [
+            range(0, 0, 1),
+            range(0, 99, 100),
+            range(0, 17, 18),
+            range(1, 0, 100),
+            range(2, 2, 12),
+            range(2, 3, 5),
+            range(2, 11, 13),
+            range(2, 30, 100),
+            range(3, 63, 64),
+            range(4, 31, 35),
+            range(8, 16, 60),
+        ];
+        for od in [h, 64, 1] {
+            let run = ranged(&m, 2, (&ids, &mask, b, s), &ranges, TURBO_NORMALIZE_NONE, od);
+            for (i, r) in ranges.iter().enumerate() {
+                let (row, start, end) = (r.row as usize, r.start as usize, r.end as usize);
+                let (first, len) = run.rows[row];
+                let mut want = vec![0f32; od];
+                let mut n = 0u32;
+                for p in start..end.min(len) {
+                    if mask[row * s + p] != 0 {
+                        for (w, &x) in want.iter_mut().zip(&run.x[(first + p) * h..][..od]) {
+                            *w += x;
+                        }
+                        n += 1;
+                    }
+                }
+                let inv = 1.0 / n as f32;
+                want.iter_mut().for_each(|w| *w *= inv);
+                assert!(bits(&run.out[i * od..][..od]) == bits(&want), "range {i}, {od} values");
+            }
+            // Masked tokens and padding add nothing: row 2's columns 3,
+            // 10 and 11 are masked, and its live tokens end at 37.
+            let same = [
+                (range(2, 3, 5), range(2, 4, 5)),
+                (range(2, 10, 13), range(2, 12, 13)),
+                (range(2, 30, 100), range(2, 30, 37)),
+                (range(1, 0, 100), range(1, 0, 1)),
+            ];
+            let pairs: Vec<turbo_token_range> = same.iter().flat_map(|&(a, b)| [a, b]).collect();
+            let run = ranged(&m, 2, (&ids, &mask, b, s), &pairs, TURBO_NORMALIZE_NONE, od);
+            for (k, (x, y)) in same.iter().enumerate() {
+                let (a, b) = (&run.out[2 * k * od..][..od], &run.out[(2 * k + 1) * od..][..od]);
+                assert!(bits(a) == bits(b), "{x:?} and {y:?}");
+            }
+        }
+    }
+
+    /// Ranges give the same bits on any number of threads, with more
+    /// ranges than threads so that each task takes several.
+    #[test]
+    fn ranges_are_the_same_bits_on_any_number_of_threads() {
+        let m = Model::new();
+        let (ids, mask, b, s) = batch();
+        let lens = [100, 1, 37, 64, 65, 2, 33, 90, 17];
+        let mut ranges = Vec::new();
+        for (r, &len) in lens.iter().enumerate() {
+            for start in (0..len).step_by(3) {
+                ranges.push(range(r, start, (start + 1 + start % 7).min(s)));
+            }
+        }
+        let h = m.desc.hidden as usize;
+        let want = ranged(&m, 1, (&ids, &mask, b, s), &ranges, TURBO_NORMALIZE_L2, h).out;
+        assert!(want.iter().all(|v| v.is_finite()));
+        let most = std::thread::available_parallelism().map_or(1, std::num::NonZero::get);
+        for threads in [3, most] {
+            let got = ranged(&m, threads, (&ids, &mask, b, s), &ranges, TURBO_NORMALIZE_L2, h).out;
+            assert!(bits(&got) == bits(&want), "{threads} threads differ from 1");
+        }
+    }
+
+    /// A write of rows after a write of ranges pools rows again.
+    #[test]
+    fn a_write_of_rows_after_ranges_pools_rows() {
+        let m = Model::new();
+        let (ids, mask, b, s) = batch();
+        let h = m.desc.hidden as usize;
+        let isa = Isa::detect();
+        let want = m.run(isa, 2, &ids, &mask, b, s);
+        let packed = m.packed(isa);
+        let mut pool = Pool::new(2);
+        let size = Size { threads: 2, max_batch: b, max_seq: s, max_ranges: 3 };
+        let mut e = Encoder::new(&m.desc, m.slices(), &packed, size).unwrap();
+        let rows = turbo_backend_embed_rows {
+            struct_size: size_of::<turbo_backend_embed_rows>() as u32,
+            batch: b as u32,
+            seq: s as u32,
+            row_stride: s as u32,
+            ids: ids.as_ptr(),
+            mask: mask.as_ptr(),
+            types: std::ptr::null(),
+            pooling: TURBO_POOLING_MEAN,
+            normalize: TURBO_NORMALIZE_L2,
+            output_dim: h as u32,
+            reserved: 0,
+        };
+        let mut out = vec![f32::NAN; b * h];
+        e.write_ranges(&rows, &ids, &mask, None, &[range(0, 0, 5), range(1, 0, 1), range(2, 0, 3)]);
+        e.run(&mut pool, &mut out);
+        assert!(out[3 * h..].iter().all(|v| v.is_nan()), "three ranges write three vectors");
+        e.write(&rows, &ids, &mask, None);
+        e.run(&mut pool, &mut out);
+        assert!(bits(&out) == bits(&want));
     }
 
     /// How the run's time goes with threads and kernels, on a batch of
