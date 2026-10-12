@@ -50,26 +50,24 @@ pub struct Segment {
     /// Its length in the embedder's tokens, overhead included.
     pub tokens: u64,
     /// What its closing boundary, its size and the chunk term cost, in
-    /// `Boundaries::UNIT`s.
-    pub cost: i64,
+    /// `Boundaries::UNIT`s, exactly.
+    pub cost: i128,
 }
 
-/// The most a chunk's size penalty, or its chunk term, can be worth either
-/// way: 2^60 units. A chunk's cost (an i32 boundary, the penalty and the
-/// term) stays inside an i64, and a run's total, summed in i128 over at
-/// most 2^32 chunks, cannot overflow, so no total ever saturates and makes
-/// two different cuts look equal.
+/// The most a chunk term, which the caller supplies, can be worth either
+/// way: 2^60 units. A term past it counts as it.
 pub const TERM_MAX: i64 = 1 << 60;
 
 /// What a chunk of `size` tokens pays for its distance from the target:
 /// `size_weight` times the squared distance over the squared target,
-/// rounded down, so it is an integer like the boundary costs, and at most
-/// `TERM_MAX`. A target of zero is taken as one.
-pub fn penalty(size: u64, b: Budget) -> i64 {
+/// rounded down, so it is an integer like the boundary costs. It is
+/// exact, never capped: a size is at most 2^33 tokens (a u32 count and a
+/// u32 overhead) and the weight under 2^32, so the penalty is under 2^98
+/// and fits an i128. A target of zero is taken as one.
+pub fn penalty(size: u64, b: Budget) -> i128 {
     let t = i128::from(b.target.max(1));
     let d = i128::from(size) - t;
-    let p = i128::from(b.size_weight) * d * d / (t * t);
-    p.min(i128::from(TERM_MAX)) as i64
+    i128::from(b.size_weight) * d * d / (t * t)
 }
 
 /// How many of the embedder's tokens each run of sentences holds: the
@@ -98,16 +96,17 @@ impl Lengths {
         }
     }
 
-    /// Sentences of these lengths with nothing between them.
-    pub fn of(tokens: &[u32]) -> Lengths {
+    /// Sentences of these lengths with nothing between them, or `None`
+    /// when they hold more than `u32::MAX` tokens in all.
+    pub fn of(tokens: &[u32]) -> Option<Lengths> {
         let mut l = Lengths::default();
-        let mut at = 0;
+        let mut at = 0u32;
         for &t in tokens {
             l.start.push(at);
-            at += t;
+            at = at.checked_add(t)?;
             l.end.push(at);
         }
-        l
+        Some(l)
     }
 
     /// The tokens of sentences `[i, j)`.
@@ -126,10 +125,14 @@ impl Lengths {
 /// A chunk costs the boundary that closes it, its size penalty and
 /// `term(i, j)`, a cost of its own that a signal over whole chunks (how
 /// tightly its sentences cluster) adds; `no_term` adds nothing. The term
-/// is clamped to `TERM_MAX` either way.
+/// is clamped to `TERM_MAX` either way; the boundary and the penalty are
+/// exact.
 ///
-/// Costs are integers, so two cuts tie only when they cost exactly the
-/// same; of those, the one whose first boundary comes earliest wins, then
+/// Costs are integers, summed in i128, so two cuts tie only when they cost
+/// exactly the same. A chunk costs under 2^99, so a total of fewer than
+/// 2^28 chunks cannot overflow; past that the total saturates, which takes
+/// a quarter of a billion chunks each billions of tokens from the target.
+/// Of equal cuts, the one whose first boundary comes earliest wins, then
 /// its second, and so on. The table runs from the end of the run back, so
 /// each entry keeps the earliest end of equal least cost.
 pub fn segment(
@@ -141,8 +144,8 @@ pub fn segment(
     let n = cut.len();
     let size = |i: usize, j: usize| u64::from(tokens(i, j)) + u64::from(b.overhead);
     let cost = |i: usize, j: usize| {
-        let boundary = if j < n { i64::from(cut[j - 1]) } else { 0 };
-        boundary + penalty(size(i, j), b) + term(i, j).clamp(-TERM_MAX, TERM_MAX)
+        let boundary = if j < n { cut[j - 1] } else { 0 };
+        i128::from(boundary) + penalty(size(i, j), b) + i128::from(term(i, j).clamp(-TERM_MAX, TERM_MAX))
     };
     // best[i]: the least cost of cutting units [i, n); next[i]: where the
     // first chunk of that cut ends. The first end tried, one unit, is
@@ -154,7 +157,7 @@ pub fn segment(
             if j - i > 1 && size(i, j) > u64::from(b.max) {
                 break;
             }
-            let c = i128::from(cost(i, j)) + best[j];
+            let c = cost(i, j).saturating_add(best[j]);
             if j == i + 1 || c < best[i] {
                 best[i] = c;
                 next[i] = j;
@@ -264,7 +267,8 @@ impl Annotator for Chunker {
                     (_, Some(forced)) => forced,
                     (i, None) => bounds.reason[i - 1],
                 };
-                let row = Row { span: span(&r), level: 0, parent, cut, cost: s.cost, tokens: tokens(s.tokens)? };
+                let row =
+                    Row { span: span(&r), level: 0, parent, cut, cost: saturate(s.cost), tokens: tokens(s.tokens)? };
                 row.push(&mut chunks, r, s.tokens > u64::from(b.max));
             }
         }
@@ -302,11 +306,18 @@ impl Row {
     }
 }
 
-/// Runs of sentences in one top-level section. A sentence belongs to the
-/// section its start is in; sentences outside every section (a preamble)
-/// make runs of their own. The sections are sorted by where they start,
-/// so a structure out of text order cannot merge two of them. Two binary
-/// searches per sentence, no scan.
+/// A chunk's exact cost as the layer stores it: saturated to the i64
+/// range, which only a size penalty over 2^63 units leaves.
+fn saturate(cost: i128) -> i64 {
+    cost.clamp(i128::from(i64::MIN), i128::from(i64::MAX)) as i64
+}
+
+/// Runs of sentences in one top-level section. A section holds the
+/// sentences that start in it (`gaps::in_section`, the rule the boundary costs
+/// use too); sentences outside every section (a preamble) make runs of
+/// their own. The sections are sorted by where they start, so a structure
+/// out of text order cannot merge two of them. Two binary searches per
+/// section.
 fn sections(sentences: &Sentences, structure: &Structure) -> Vec<Range<usize>> {
     let mut tops: Vec<Span> = structure
         .spans
@@ -315,18 +326,23 @@ fn sections(sentences: &Sentences, structure: &Structure) -> Vec<Range<usize>> {
         .map(|(_, s)| s)
         .collect();
     tops.sort_unstable();
-    let of = |s: Span| {
-        let k = tops.partition_point(|t| t.end <= s.start);
-        tops.get(k).filter(|t| t.start <= s.start).map(|_| k)
-    };
-    let label: Vec<Option<usize>> = sentences.spans.iter().map(|(_, s)| of(s)).collect();
+    let (starts, _) = sentences.spans.columns();
     let mut runs = Vec::new();
-    let mut start = 0;
-    for i in 1..=label.len() {
-        if i == label.len() || label[i] != label[start] {
-            runs.push(start..i);
-            start = i;
+    let mut at = 0;
+    for &t in &tops {
+        let r = gaps::in_section(starts, t);
+        let r = r.start.max(at)..r.end;
+        if r.is_empty() {
+            continue;
         }
+        if at < r.start {
+            runs.push(at..r.start);
+        }
+        at = r.end;
+        runs.push(r);
+    }
+    if at < starts.len() {
+        runs.push(at..starts.len());
     }
     runs
 }
@@ -354,7 +370,7 @@ mod tests {
 
     /// Sentences of these lengths with nothing between them.
     fn of(tokens: &[u32]) -> impl Fn(usize, usize) -> u32 {
-        let l = Lengths::of(tokens);
+        let l = Lengths::of(tokens).unwrap();
         move |i, j| l.run(i, j)
     }
 
@@ -413,9 +429,29 @@ mod tests {
         assert_eq!(penalty(301, B), 0);
         // A target of zero is taken as one, not divided by.
         assert_eq!(penalty(3, Budget { target: 0, ..B }), 4000);
-        // A huge chunk is capped instead of overflowing.
+        // The largest penalty is exact, with no cap and no overflow.
         let heavy = Budget { size_weight: u32::MAX, target: 1, ..B };
-        assert_eq!(penalty(u64::from(u32::MAX) * 2, heavy), TERM_MAX);
+        let d = i128::from(u32::MAX) * 2 - 1;
+        assert_eq!(penalty(u64::from(u32::MAX) * 2, heavy), i128::from(u32::MAX) * d * d);
+    }
+
+    #[test]
+    fn huge_penalties_still_tell_cuts_apart() {
+        // One chunk of 80,000 tokens costs about 2^64.6 units, four of
+        // 20,000 about 2^62.6: under a cap both would be equal and the
+        // earliest end, one chunk, would win.
+        let b = Budget { max: 200_000, target: 1, size_weight: u32::MAX, overhead: 0 };
+        let segments = segment(&[0; 4], of(&[20_000; 4]), b, no_term);
+        let ends: Vec<usize> = segments.iter().map(|s| s.end).collect();
+        assert_eq!(ends, [1, 2, 3, 4]);
+    }
+
+    #[test]
+    fn lengths_past_u32_are_refused_not_wrapped() {
+        let l = Lengths::of(&[u32::MAX - 10, 10]).unwrap();
+        assert_eq!((l.run(0, 2), l.end[1]), (u32::MAX, u32::MAX));
+        assert_eq!(Lengths::of(&[u32::MAX - 10, 11]), None);
+        assert_eq!(Lengths::of(&[u32::MAX, 0, 1]), None);
     }
 
     #[test]
@@ -457,7 +493,7 @@ mod tests {
         assert_eq!(ends, [1, 3, 4]);
         // A term past the cap counts as the cap.
         let huge = |_: usize, _: usize| i64::MAX;
-        assert!(segment(&[1000; 4], of(&[100; 4]), B, huge).iter().all(|s| s.cost < i64::MAX));
+        assert!(segment(&[1000; 4], of(&[100; 4]), B, huge).iter().all(|s| s.cost <= i128::from(TERM_MAX) + 1000));
     }
 
     #[test]
@@ -486,7 +522,7 @@ mod tests {
     /// and, of equal totals, the cut whose boundaries come earliest.
     fn brute(cut: &[i32], tokens: &[u32], b: Budget, term: &dyn Fn(usize, usize) -> i64) -> (i128, Vec<usize>) {
         let n = tokens.len();
-        let l = Lengths::of(tokens);
+        let l = Lengths::of(tokens).unwrap();
         let mut best: Option<(i128, Vec<usize>)> = None;
         'masks: for mask in 0u32..1 << (n - 1) {
             let mut ends: Vec<usize> = (0..n - 1).filter(|g| mask >> g & 1 == 1).map(|g| g + 1).collect();
@@ -497,8 +533,8 @@ mod tests {
                 if j - i > 1 && size > u64::from(b.max) {
                     continue 'masks;
                 }
-                let boundary = if j < n { i64::from(cut[j - 1]) } else { 0 };
-                total += i128::from(boundary + penalty(size, b) + term(i, j).clamp(-TERM_MAX, TERM_MAX));
+                let boundary = if j < n { cut[j - 1] } else { 0 };
+                total += i128::from(boundary) + penalty(size, b) + i128::from(term(i, j).clamp(-TERM_MAX, TERM_MAX));
                 i = j;
             }
             if best.as_ref().is_none_or(|(t, e)| (total, &ends) < (*t, e)) {
@@ -529,7 +565,7 @@ mod tests {
             };
             let term: &dyn Fn(usize, usize) -> i64 = if case % 2 == 0 { &no_term } else { &banded };
             let segments = segment(&cut, of(&tokens), b, term);
-            let total: i128 = segments.iter().map(|s| i128::from(s.cost)).sum();
+            let total: i128 = segments.iter().map(|s| s.cost).sum();
             let ends: Vec<usize> = segments.iter().map(|s| s.end).collect();
             assert_eq!((total, ends), brute(&cut, &tokens, b, term), "case {case}: {tokens:?} {cut:?} {b:?}");
         }

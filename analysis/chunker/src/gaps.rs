@@ -6,7 +6,7 @@
 
 use std::ops::Range;
 
-use turbo_analysis::Spans;
+use turbo_analysis::{Span, Spans};
 use turbo_analysis_layers::{Block, Cut, Sentences, Structure};
 
 /// A unit no cut may fall inside unless it alone is over the budget: a
@@ -68,6 +68,12 @@ fn edge(kind: Block, at_start: bool) -> Cut {
     }
 }
 
+/// The sentences a section holds: those that start in it. Two binary
+/// searches over the sentence starts, which are in text order.
+pub fn in_section(starts: &[u32], section: Span) -> Range<usize> {
+    starts.partition_point(|&x| x < section.start)..starts.partition_point(|&x| x < section.end)
+}
+
 /// One gap per sentence, the last one the end of the text. A block holds
 /// the sentences it has a byte of, found with two binary searches; it
 /// starts at the gap before the first of them and ends at the gap after
@@ -78,6 +84,11 @@ fn edge(kind: Block, at_start: bool) -> Cut {
 /// Only the sentence detector says where sentences are: a block edge that
 /// falls inside a sentence moves to the gap before or after it, so two
 /// units whose bytes do not overlap can still share a sentence.
+///
+/// A section is the exception: it holds the sentences that start in it
+/// (`in_section`), the rule the chunker splits runs by, so a section start
+/// inside a sentence moves to the gap after that sentence, and sections
+/// never share one.
 pub fn gaps(sentences: &Spans<Sentences>, structure: Option<&Structure>) -> Gaps {
     let n = sentences.len();
     let mut out = Gaps { gap: vec![Gap { reason: Cut::Sentence, after_heading: false }; n], units: Vec::new() };
@@ -85,8 +96,11 @@ pub fn gaps(sentences: &Spans<Sentences>, structure: Option<&Structure>) -> Gaps
     let (starts, ends) = sentences.columns();
     for (i, s) in st.spans.iter() {
         let kind = st.kind[i.get()];
-        let first = ends.partition_point(|&e| e <= s.start);
-        let last = starts.partition_point(|&x| x < s.end);
+        let Range { start: first, end: last } = if kind == Block::Section {
+            in_section(starts, s)
+        } else {
+            ends.partition_point(|&e| e <= s.start)..starts.partition_point(|&x| x < s.end)
+        };
         if first >= last {
             continue;
         }

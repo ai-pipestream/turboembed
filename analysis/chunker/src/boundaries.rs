@@ -52,9 +52,9 @@ impl Costs {
 
 /// Writes the structural boundary costs: a cost and a reason after each
 /// sentence. Without structure every gap is a sentence boundary. It writes
-/// the default instance while it is the only boundary signal; once there
-/// are others, it is bound to write its own named instance and a summing
-/// step writes the default one.
+/// the default instance, as the only boundary signal; beside other
+/// signals, each should write a named instance and a summing step the
+/// default one.
 ///
 /// The hard limits (no cut inside a table row, code block or quote that
 /// fits the budget) are not costs: they depend on the budget, so the

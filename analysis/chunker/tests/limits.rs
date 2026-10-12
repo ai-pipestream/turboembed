@@ -426,3 +426,36 @@ fn chunks_nest_inside_their_parents_at_a_level_above() {
     short.over_budget.pop();
     assert!(short.check().is_err());
 }
+
+#[test]
+fn a_section_start_inside_a_sentence_is_one_gap_for_costs_and_runs() {
+    // The second section starts inside sentence 2, which starts in the
+    // first. Both the boundary costs and the runs give that sentence to
+    // the first section, so the section edge is the gap after it, and
+    // every chunk marked Section starts a run.
+    let text = "One one. Two two. Three three. Four four.";
+    let mut doc = plain(text);
+    let blocks = [(0, 24, Block::Section, None), (24, 41, Block::Section, None)];
+    doc.add(&Key::DEFAULT, structure(ViewId::SOURCE, &blocks), Provenance::by("parser")).unwrap();
+    let analyzer = Analyzer::builder()
+        .given(Key::<Sentences>::DEFAULT)
+        .given(Key::<Subwords>::DEFAULT)
+        .add(StructureBoundaries { costs: Costs::default() })
+        .add(Chunker { budget: Budget { max: 6, target: 4, size_weight: 1000, overhead: 0 } })
+        .build()
+        .unwrap();
+    let mut docs = vec![doc];
+    assert!(analyzer.run(&mut docs)[0].is_ok());
+    let doc = &docs[0];
+    let reasons = &doc.get::<Boundaries>().unwrap().reason;
+    assert_eq!(reasons[..3], [Cut::Sentence, Cut::Sentence, Cut::Section]);
+    let c = doc.get::<Chunks>().unwrap();
+    let runs: Vec<(usize, usize)> = (0..c.level.len())
+        .filter(|&i| c.level[i] == 1)
+        .map(|i| (c.sentences[i].start.get(), c.sentences[i].end.get()))
+        .collect();
+    assert_eq!(runs, [(0, 3), (3, 4)]);
+    for (&(a, _), cut) in sentences_of(doc).iter().zip(cuts(doc)) {
+        assert_eq!(cut == Cut::Section, runs.iter().skip(1).any(|r| r.0 == a), "chunk at sentence {a}");
+    }
+}

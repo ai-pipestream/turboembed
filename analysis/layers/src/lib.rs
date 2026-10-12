@@ -349,18 +349,20 @@ pub enum Cut {
 }
 
 /// What a chunk boundary after each sentence would cost, and the strongest
-/// reason at it. Each signal annotator (structure, topic shifts,
-/// coreference, discourse markers) writes its own named instance, and one
-/// step weighs and sums them into the default instance, since a layer has
-/// one writer; the chunker reads only that. A new signal is one more
-/// instance of this shape, never a new column.
+/// reason at it. The chunker reads only the default instance. With one
+/// boundary signal, that signal writes the default instance itself. With
+/// several (structure, topic shifts, coreference, discourse markers),
+/// each should write its own named instance and a step that weighs and
+/// sums them should write the default one, since a layer has one writer.
+/// A new signal is one more instance of this shape, never a new column.
 ///
 /// Costs are integers, in `UNIT`s, so every backend sums them to the same
 /// totals and picks the same cuts; a signal computed in floating point is
 /// rounded once, when it is written. A plain sentence boundary costs one
-/// unit; a cost can be negative, for a signal that argues for a cut. The
-/// step that weighs and sums the instances computes in i64 and saturates
-/// to the i32 range when it writes, so no weight or sum wraps around.
+/// unit; a cost can be negative, for a signal that argues for a cut. A
+/// step that weighs and sums several instances should compute in i64 and
+/// saturate to the i32 range when it writes, so no weight or sum wraps
+/// around.
 pub struct Boundaries {
     pub cost: Vec<i32>,
     pub reason: Vec<Cut>,
@@ -398,7 +400,8 @@ pub struct Chunks {
     pub cut: Vec<Cut>,
     /// What choosing this boundary cost the optimizer, in
     /// `Boundaries::UNIT`s: the cost of the cut that closes it plus its
-    /// size penalty.
+    /// size penalty and chunk term. The optimizer works with the exact
+    /// cost in i128; this is it saturated to the i64 range.
     pub cost: Vec<i64>,
     /// Its row's length in the embedder's tokens: counted over its whole
     /// span, with the overhead every row carries.
