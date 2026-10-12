@@ -8,6 +8,7 @@ members = [
     "analysis/core",
     "analysis/layers",
     "analysis/chunker",
+    "analysis/goldens",
     "analysis/goldens-tool",
     "analysis/jvm",
 ]
