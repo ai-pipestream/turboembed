@@ -32,7 +32,7 @@ fn chunker_inputs() -> Document {
     let ids = vec![0; pieces.len()];
     doc.add(&Key::DEFAULT, Sentences { spans: sentences }, Provenance::by("t")).unwrap();
     doc.add(&Key::DEFAULT, Subwords { spans: pieces, ids, model, token: None }, Provenance::by("t")).unwrap();
-    let bounds = Boundaries { cost: vec![1.0; n], reason: vec![Cut::Sentence; n] };
+    let bounds = Boundaries { cost: vec![Boundaries::UNIT; n], reason: vec![Cut::Sentence; n] };
     doc.add(&Key::DEFAULT, bounds, Provenance::by("t")).unwrap();
     doc
 }
@@ -44,7 +44,7 @@ fn chunk_texts(doc: &Document) -> Vec<(u8, &str)> {
 
 #[test]
 fn the_chunker_keeps_to_the_sections_found() {
-    let budget = Budget { max: 100, target: 100, size_weight: 1.0, overhead: 0 };
+    let budget = Budget { max: 100, target: 100, size_weight: 1, overhead: 0 };
     let analyzer = Analyzer::builder()
         .given(Key::<Sentences>::DEFAULT)
         .given(Key::<Subwords>::DEFAULT)

@@ -1,0 +1,420 @@
+component: features
+opennlp: cdf33c653d5d61d5af7d37ffee189a83bd8392ea
+jdk: 21.0.12.1
+descriptor: everything.xml
+sentence: 0
+tokens: Pierre	Vinken	,	61	years	old	,	will	join	the	board	as	a	nonexecutive	director	Nov.	29	.
+outcomes: other	person-start	person-cont	NN	t\u00E9	other	person-start	person-cont	NN	t\u00E9	other	person-start	person-cont	NN	t\u00E9	other	person-start	person-cont
+at: 0
+features: w=Pierre	wc=ic	st=pierre	pre=P	pre=Pi	pre=Pie	suf=e	suf=re	suf=rre	suf=erre	suf=ierre	suf=Pierre	ng=pi	ng=ie	ng=er	ng=rr	ng=re	ng=pie	ng=ier	ng=err	ng=rre	w,nw=Pierre,Vinken	wc,nc=ic,ic	w,nw,nnw=Pierre,Vinken,,	wc,nwc,nnwc=ic,ic,other	D=begin	pd=null	def
+at: 1
+features: w=Vinken	wc=ic	st=vinken	pre=V	pre=Vi	pre=Vin	suf=n	suf=en	suf=ken	suf=nken	suf=inken	suf=Vinken	ng=vi	ng=in	ng=nk	ng=ke	ng=en	ng=vin	ng=ink	ng=nke	ng=ken	pw,w=Pierre,Vinken	pwc,wc=ic,ic	w,nw=Vinken,,	wc,nc=ic,other	w,nw,nnw=Vinken,,,61	wc,nwc,nnwc=ic,other,2d	pd=null	t=other	def
+at: 2
+features: w=,	wc=other	st=,	pre=,	suf=,	pw,w=Vinken,,	pwc,wc=ic,other	w,nw=,,61	wc,nc=other,2d	ppw,pw,w=Pierre,Vinken,,	ppwc,pwc,wc=ic,ic,other	w,nw,nnw=,,61,years	wc,nwc,nnwc=other,2d,lc	pd=null	t=person-start	t2=other,person-start	def
+at: 3
+features: w=61	wc=2d	st=61	pre=6	pre=61	suf=1	suf=61	ng=61	pw,w=,,61	pwc,wc=other,2d	w,nw=61,years	wc,nc=2d,lc	ppw,pw,w=Vinken,,,61	ppwc,pwc,wc=ic,other,2d	w,nw,nnw=61,years,old	wc,nwc,nnwc=2d,lc,lc	pd=null	t=person-cont	t2=person-start,person-cont	def
+at: 4
+features: w=years	wc=lc	st=years	pre=y	pre=ye	pre=yea	suf=s	suf=rs	suf=ars	suf=ears	suf=years	ng=ye	ng=ea	ng=ar	ng=rs	ng=yea	ng=ear	ng=ars	pw,w=61,years	pwc,wc=2d,lc	w,nw=years,old	wc,nc=lc,lc	ppw,pw,w=,,61,years	ppwc,pwc,wc=other,2d,lc	w,nw,nnw=years,old,,	wc,nwc,nnwc=lc,lc,other	pd=null	t=NN	t2=person-cont,NN	def
+at: 5
+features: w=old	wc=lc	st=old	pre=o	pre=ol	pre=old	suf=d	suf=ld	suf=old	ng=ol	ng=ld	ng=old	pw,w=years,old	pwc,wc=lc,lc	w,nw=old,,	wc,nc=lc,other	ppw,pw,w=61,years,old	ppwc,pwc,wc=2d,lc,lc	w,nw,nnw=old,,,will	wc,nwc,nnwc=lc,other,lc	pd=null	t=t\u00E9	t2=NN,t\u00E9	def
+at: 6
+features: w=,	wc=other	st=,	pre=,	suf=,	pw,w=old,,	pwc,wc=lc,other	w,nw=,,will	wc,nc=other,lc	ppw,pw,w=years,old,,	ppwc,pwc,wc=lc,lc,other	w,nw,nnw=,,will,join	wc,nwc,nnwc=other,lc,lc	pd=null	t=other	t2=t\u00E9,other	def
+at: 7
+features: w=will	wc=lc	st=will	pre=w	pre=wi	pre=wil	suf=l	suf=ll	suf=ill	suf=will	ng=wi	ng=il	ng=ll	ng=wil	ng=ill	pw,w=,,will	pwc,wc=other,lc	w,nw=will,join	wc,nc=lc,lc	ppw,pw,w=old,,,will	ppwc,pwc,wc=lc,other,lc	w,nw,nnw=will,join,the	wc,nwc,nnwc=lc,lc,lc	pd=null	t=person-start	t2=other,person-start	def
+at: 8
+features: w=join	wc=lc	st=join	pre=j	pre=jo	pre=joi	suf=n	suf=in	suf=oin	suf=join	ng=jo	ng=oi	ng=in	ng=joi	ng=oin	pw,w=will,join	pwc,wc=lc,lc	w,nw=join,the	wc,nc=lc,lc	ppw,pw,w=,,will,join	ppwc,pwc,wc=other,lc,lc	w,nw,nnw=join,the,board	wc,nwc,nnwc=lc,lc,lc	pd=null	t=person-cont	t2=person-start,person-cont	def
+at: 9
+features: w=the	wc=lc	st=the	pre=t	pre=th	pre=the	suf=e	suf=he	suf=the	ng=th	ng=he	ng=the	pw,w=join,the	pwc,wc=lc,lc	w,nw=the,board	wc,nc=lc,lc	ppw,pw,w=will,join,the	ppwc,pwc,wc=lc,lc,lc	w,nw,nnw=the,board,as	wc,nwc,nnwc=lc,lc,lc	pd=null	t=NN	t2=person-cont,NN	def	browncluster=0101	c,browncluster=lc,0101	word.cluster1	word.cluster1
+at: 10
+features: w=board	wc=lc	st=board	pre=b	pre=bo	pre=boa	suf=d	suf=rd	suf=ard	suf=oard	suf=board	ng=bo	ng=oa	ng=ar	ng=rd	ng=boa	ng=oar	ng=ard	pw,w=the,board	pwc,wc=lc,lc	w,nw=board,as	wc,nc=lc,lc	ppw,pw,w=join,the,board	ppwc,pwc,wc=lc,lc,lc	w,nw,nnw=board,as,a	wc,nwc,nnwc=lc,lc,lc	pd=null	t=t\u00E9	t2=NN,t\u00E9	def
+at: 11
+features: w=as	wc=lc	st=as	pre=a	pre=as	suf=s	suf=as	ng=as	pw,w=board,as	pwc,wc=lc,lc	w,nw=as,a	wc,nc=lc,lc	ppw,pw,w=the,board,as	ppwc,pwc,wc=lc,lc,lc	w,nw,nnw=as,a,nonexecutive	wc,nwc,nnwc=lc,lc,lc	pd=null	t=other	t2=t\u00E9,other	def
+at: 12
+features: w=a	wc=lc	st=a	pre=a	suf=a	pw,w=as,a	pwc,wc=lc,lc	w,nw=a,nonexecutive	wc,nc=lc,lc	ppw,pw,w=board,as,a	ppwc,pwc,wc=lc,lc,lc	w,nw,nnw=a,nonexecutive,director	wc,nwc,nnwc=lc,lc,lc	pd=null	t=person-start	t2=other,person-start	def
+at: 13
+features: w=nonexecutive	wc=lc	st=nonexecutive	pre=n	pre=no	pre=non	suf=e	suf=ve	suf=ive	suf=tive	suf=utive	suf=cutive	ng=no	ng=on	ng=ne	ng=ex	ng=xe	ng=ec	ng=cu	ng=ut	ng=ti	ng=iv	ng=ve	ng=non	ng=one	ng=nex	ng=exe	ng=xec	ng=ecu	ng=cut	ng=uti	ng=tiv	ng=ive	pw,w=a,nonexecutive	pwc,wc=lc,lc	w,nw=nonexecutive,director	wc,nc=lc,lc	ppw,pw,w=as,a,nonexecutive	ppwc,pwc,wc=lc,lc,lc	w,nw,nnw=nonexecutive,director,Nov.	wc,nwc,nnwc=lc,lc,ic	pd=null	t=person-cont	t2=person-start,person-cont	def
+at: 14
+features: w=director	wc=lc	st=director	pre=d	pre=di	pre=dir	suf=r	suf=or	suf=tor	suf=ctor	suf=ector	suf=rector	ng=di	ng=ir	ng=re	ng=ec	ng=ct	ng=to	ng=or	ng=dir	ng=ire	ng=rec	ng=ect	ng=cto	ng=tor	pw,w=nonexecutive,director	pwc,wc=lc,lc	w,nw=director,Nov.	wc,nc=lc,ic	ppw,pw,w=a,nonexecutive,director	ppwc,pwc,wc=lc,lc,lc	w,nw,nnw=director,Nov.,29	wc,nwc,nnwc=lc,ic,2d	pd=null	t=NN	t2=person-cont,NN	def
+at: 15
+features: w=Nov.	wc=ic	stn=2	pt2=icother	st=nov	pta=icother	pre=N	pre=No	pre=Nov	suf=.	suf=v.	suf=ov.	suf=Nov.	ng=no	ng=ov	ng=v.	ng=nov	ng=ov.	pw,w=director,Nov.	pwc,wc=lc,ic	w,nw=Nov.,29	wc,nc=ic,2d	ppw,pw,w=nonexecutive,director,Nov.	ppwc,pwc,wc=lc,lc,ic	w,nw,nnw=Nov.,29,.	wc,nwc,nnwc=ic,2d,other	pd=null	t=t\u00E9	t2=NN,t\u00E9	def
+at: 16
+features: w=29	wc=2d	st=29	pre=2	pre=29	suf=9	suf=29	ng=29	pw,w=Nov.,29	pwc,wc=ic,2d	w,nw=29,.	wc,nc=2d,other	ppw,pw,w=director,Nov.,29	ppwc,pwc,wc=lc,ic,2d	pd=null	t=other	t2=t\u00E9,other	def
+at: 17
+features: w=.	wc=other	st=.	pre=.	suf=.	pw,w=29,.	pwc,wc=2d,other	ppw,pw,w=Nov.,29,.	ppwc,pwc,wc=ic,2d,other	S=end	pd=null	t=person-start	t2=other,person-start	def
+update
+sentence: 1
+tokens: Mr.	Smith	went	to	Washington	,	D.C.	,	on	1999-04-12	with	$	1,000	.
+outcomes: person-start	person-cont	NN	t\u00E9	other	person-start	person-cont	NN	t\u00E9	other	person-start	person-cont	NN	t\u00E9
+at: 0
+features: w=Mr.	wc=ic	stn=2	pt2=icother	st=mr	pta=icother	pre=M	pre=Mr	pre=Mr.	suf=.	suf=r.	suf=Mr.	ng=mr	ng=r.	ng=mr.	w,nw=Mr.,Smith	wc,nc=ic,ic	w,nw,nnw=Mr.,Smith,went	wc,nwc,nnwc=ic,ic,lc	pd=null	def
+at: 1
+features: w=Smith	wc=ic	st=smith	pre=S	pre=Sm	pre=Smi	suf=h	suf=th	suf=ith	suf=mith	suf=Smith	ng=sm	ng=mi	ng=it	ng=th	ng=smi	ng=mit	ng=ith	pw,w=Mr.,Smith	pwc,wc=ic,ic	w,nw=Smith,went	wc,nc=ic,lc	w,nw,nnw=Smith,went,to	wc,nwc,nnwc=ic,lc,lc	pd=null	t=person-start	def	browncluster=0110	browncluster=01100	c,browncluster=ic,0110	c,browncluster=ic,01100	word.cluster17	:w=dic	:w=dic=Smith
+at: 2
+features: w=went	wc=lc	st=went	pre=w	pre=we	pre=wen	suf=t	suf=nt	suf=ent	suf=went	ng=we	ng=en	ng=nt	ng=wen	ng=ent	pw,w=Smith,went	pwc,wc=ic,lc	w,nw=went,to	wc,nc=lc,lc	ppw,pw,w=Mr.,Smith,went	ppwc,pwc,wc=ic,ic,lc	w,nw,nnw=went,to,Washington	wc,nwc,nnwc=lc,lc,ic	pd=null	t=person-cont	t2=person-start,person-cont	def
+at: 3
+features: w=to	wc=lc	st=to	pre=t	pre=to	suf=o	suf=to	ng=to	pw,w=went,to	pwc,wc=lc,lc	w,nw=to,Washington	wc,nc=lc,ic	ppw,pw,w=Smith,went,to	ppwc,pwc,wc=ic,lc,lc	w,nw,nnw=to,Washington,,	wc,nwc,nnwc=lc,ic,other	pd=null	t=NN	t2=person-cont,NN	def
+at: 4
+features: w=Washington	wc=ic	st=washington	pre=W	pre=Wa	pre=Was	suf=n	suf=on	suf=ton	suf=gton	suf=ngton	suf=ington	ng=wa	ng=as	ng=sh	ng=hi	ng=in	ng=ng	ng=gt	ng=to	ng=on	ng=was	ng=ash	ng=shi	ng=hin	ng=ing	ng=ngt	ng=gto	ng=ton	pw,w=to,Washington	pwc,wc=lc,ic	w,nw=Washington,,	wc,nc=ic,other	ppw,pw,w=went,to,Washington	ppwc,pwc,wc=lc,lc,ic	w,nw,nnw=Washington,,,D.C.	wc,nwc,nnwc=ic,other,ic	pd=null	t=t\u00E9	t2=NN,t\u00E9	def	:w=dic	:w=dic=Washington
+at: 5
+features: w=,	wc=other	st=,	pre=,	suf=,	pw,w=Washington,,	pwc,wc=ic,other	w,nw=,,D.C.	wc,nc=other,ic	ppw,pw,w=to,Washington,,	ppwc,pwc,wc=lc,ic,other	w,nw,nnw=,,D.C.,,	wc,nwc,nnwc=other,ic,other	pd=person-start	t=other	t2=t\u00E9,other	def	:w=dic	:w=dic=,
+at: 6
+features: w=D.C.	wc=ic	stn=4	pt2=scother	pt3=scothersc	st=d	pt2=othersc	pt3=otherscother	pt2=scother	st=c	pta=scotherscother	pre=D	pre=D.	pre=D.C	suf=.	suf=C.	suf=.C.	suf=D.C.	ng=d.	ng=.c	ng=c.	ng=d.c	ng=.c.	pw,w=,,D.C.	pwc,wc=other,ic	w,nw=D.C.,,	wc,nc=ic,other	ppw,pw,w=Washington,,,D.C.	ppwc,pwc,wc=ic,other,ic	w,nw,nnw=D.C.,,,on	wc,nwc,nnwc=ic,other,lc	pd=null	t=person-start	t2=other,person-start	def	:w=dic	:w=dic=D.C.
+at: 7
+features: w=,	wc=other	st=,	pre=,	suf=,	pw,w=D.C.,,	pwc,wc=ic,other	w,nw=,,on	wc,nc=other,lc	ppw,pw,w=,,D.C.,,	ppwc,pwc,wc=other,ic,other	w,nw,nnw=,,on,1999-04-12	wc,nwc,nnwc=other,lc,dd	pd=person-start	t=person-cont	t2=person-start,person-cont	def
+at: 8
+features: w=on	wc=lc	st=on	pre=o	pre=on	suf=n	suf=on	ng=on	pw,w=,,on	pwc,wc=other,lc	w,nw=on,1999-04-12	wc,nc=lc,dd	ppw,pw,w=D.C.,,,on	ppwc,pwc,wc=ic,other,lc	w,nw,nnw=on,1999-04-12,with	wc,nwc,nnwc=lc,dd,lc	pd=null	t=NN	t2=person-cont,NN	def
+at: 9
+features: w=1999-04-12	wc=dd	stn=5	pt2=4dother	pt3=4dother2d	pt2=other2d	pt3=other2dother	pt2=2dother	pt3=2dother2d	pt2=other2d	pta=4dother2dother2d	pre=1	pre=19	pre=199	suf=2	suf=12	suf=-12	suf=4-12	suf=04-12	suf=-04-12	ng=19	ng=99	ng=9-	ng=-0	ng=04	ng=4-	ng=-1	ng=12	ng=199	ng=999	ng=99-	ng=9-0	ng=-04	ng=04-	ng=4-1	ng=-12	pw,w=on,1999-04-12	pwc,wc=lc,dd	w,nw=1999-04-12,with	wc,nc=dd,lc	ppw,pw,w=,,on,1999-04-12	ppwc,pwc,wc=other,lc,dd	w,nw,nnw=1999-04-12,with,$	wc,nwc,nnwc=dd,lc,other	pd=null	t=t\u00E9	t2=NN,t\u00E9	def
+at: 10
+features: w=with	wc=lc	st=with	pre=w	pre=wi	pre=wit	suf=h	suf=th	suf=ith	suf=with	ng=wi	ng=it	ng=th	ng=wit	ng=ith	pw,w=1999-04-12,with	pwc,wc=dd,lc	w,nw=with,$	wc,nc=lc,other	ppw,pw,w=on,1999-04-12,with	ppwc,pwc,wc=lc,dd,lc	w,nw,nnw=with,$,1,000	wc,nwc,nnwc=lc,other,4d	pd=null	t=other	t2=t\u00E9,other	def
+at: 11
+features: w=$	wc=other	st=$	pre=$	suf=$	pw,w=with,$	pwc,wc=lc,other	w,nw=$,1,000	wc,nc=other,4d	ppw,pw,w=1999-04-12,with,$	ppwc,pwc,wc=dd,lc,other	w,nw,nnw=$,1,000,.	wc,nwc,nnwc=other,4d,other	pd=null	t=person-start	t2=other,person-start	def
+at: 12
+features: w=1,000	wc=4d	stn=3	pt2=numother	pt3=numothernum	pt2=othernum	pta=numothernum	pre=1	pre=1,	pre=1,0	suf=0	suf=00	suf=000	suf=,000	suf=1,000	ng=1,	ng=,0	ng=00	ng=1,0	ng=,00	ng=000	pw,w=$,1,000	pwc,wc=other,4d	w,nw=1,000,.	wc,nc=4d,other	ppw,pw,w=with,$,1,000	ppwc,pwc,wc=lc,other,4d	pd=null	t=person-cont	t2=person-start,person-cont	def
+at: 13
+features: w=.	wc=other	st=.	pre=.	suf=.	pw,w=1,000,.	pwc,wc=4d,other	ppw,pw,w=$,1,000,.	ppwc,pwc,wc=other,4d,other	S=end	pd=person-cont	t=NN	t2=person-cont,NN	def
+update
+sentence: 2
+tokens: The	co-op	's	CEO	,	John	O'Neil	,	said	3.5	%	of	U.S.	sales	fell	.
+outcomes: person-cont	NN	t\u00E9	other	person-start	person-cont	NN	t\u00E9	other	person-start	person-cont	NN	t\u00E9	other	person-start	person-cont
+at: 0
+features: w=The	wc=ic	st=the	pre=T	pre=Th	pre=The	suf=e	suf=he	suf=The	ng=th	ng=he	ng=the	w,nw=The,co-op	wc,nc=ic,other	w,nw,nnw=The,co-op,'s	wc,nwc,nnwc=ic,other,other	pd=null	def	browncluster=0101	c,browncluster=ic,0101	word.cluster1	word.cluster2
+at: 1
+features: w=co-op	wc=other	stn=3	pt2=lcother	pt3=lcotherlc	st=co	pt2=otherlc	st=op	pta=lcotherlc	pre=c	pre=co	pre=co-	suf=p	suf=op	suf=-op	suf=o-op	suf=co-op	ng=co	ng=o-	ng=-o	ng=op	ng=co-	ng=o-o	ng=-op	pw,w=The,co-op	pwc,wc=ic,other	w,nw=co-op,'s	wc,nc=other,other	w,nw,nnw=co-op,'s,CEO	wc,nwc,nnwc=other,other,ac	pd=null	t=person-cont	def
+at: 2
+features: w='s	wc=other	stn=2	pt2=otherlc	st=s	pta=otherlc	pre='	pre='s	suf=s	suf='s	ng='s	pw,w=co-op,'s	pwc,wc=other,other	w,nw='s,CEO	wc,nc=other,ac	ppw,pw,w=The,co-op,'s	ppwc,pwc,wc=ic,other,other	w,nw,nnw='s,CEO,,	wc,nwc,nnwc=other,ac,other	pd=null	t=NN	t2=person-cont,NN	def
+at: 3
+features: w=CEO	wc=ac	st=ceo	pre=C	pre=CE	pre=CEO	suf=O	suf=EO	suf=CEO	ng=ce	ng=eo	ng=ceo	pw,w='s,CEO	pwc,wc=other,ac	w,nw=CEO,,	wc,nc=ac,other	ppw,pw,w=co-op,'s,CEO	ppwc,pwc,wc=other,other,ac	w,nw,nnw=CEO,,,John	wc,nwc,nnwc=ac,other,ic	pd=null	t=t\u00E9	t2=NN,t\u00E9	def
+at: 4
+features: w=,	wc=other	st=,	pre=,	suf=,	pw,w=CEO,,	pwc,wc=ac,other	w,nw=,,John	wc,nc=other,ic	ppw,pw,w='s,CEO,,	ppwc,pwc,wc=other,ac,other	w,nw,nnw=,,John,O'Neil	wc,nwc,nnwc=other,ic,ic	pd=NN	t=other	t2=t\u00E9,other	def
+at: 5
+features: w=John	wc=ic	st=john	pre=J	pre=Jo	pre=Joh	suf=n	suf=hn	suf=ohn	suf=John	ng=jo	ng=oh	ng=hn	ng=joh	ng=ohn	pw,w=,,John	pwc,wc=other,ic	w,nw=John,O'Neil	wc,nc=ic,ic	ppw,pw,w=CEO,,,John	ppwc,pwc,wc=ac,other,ic	w,nw,nnw=John,O'Neil,,	wc,nwc,nnwc=ic,ic,other	pd=null	t=person-start	t2=other,person-start	def	browncluster=0110	browncluster=011010	c,browncluster=ic,0110	c,browncluster=ic,011010	word.cluster17	:w=dic	:w=dic=John
+at: 6
+features: w=O'Neil	wc=ic	stn=3	pt2=scother	pt3=scotheric	st=o	pt2=otheric	st=neil	pta=scotheric	pre=O	pre=O'	pre=O'N	suf=l	suf=il	suf=eil	suf=Neil	suf='Neil	suf=O'Neil	ng=o'	ng='n	ng=ne	ng=ei	ng=il	ng=o'n	ng='ne	ng=nei	ng=eil	pw,w=John,O'Neil	pwc,wc=ic,ic	w,nw=O'Neil,,	wc,nc=ic,other	ppw,pw,w=,,John,O'Neil	ppwc,pwc,wc=other,ic,ic	w,nw,nnw=O'Neil,,,said	wc,nwc,nnwc=ic,other,lc	pd=null	t=person-cont	t2=person-start,person-cont	def
+at: 7
+features: w=,	wc=other	st=,	pre=,	suf=,	pw,w=O'Neil,,	pwc,wc=ic,other	w,nw=,,said	wc,nc=other,lc	ppw,pw,w=John,O'Neil,,	ppwc,pwc,wc=ic,ic,other	w,nw,nnw=,,said,3.5	wc,nwc,nnwc=other,lc,2d	pd=NN	t=NN	t2=person-cont,NN	def
+at: 8
+features: w=said	wc=lc	st=said	pre=s	pre=sa	pre=sai	suf=d	suf=id	suf=aid	suf=said	ng=sa	ng=ai	ng=id	ng=sai	ng=aid	pw,w=,,said	pwc,wc=other,lc	w,nw=said,3.5	wc,nc=lc,2d	ppw,pw,w=O'Neil,,,said	ppwc,pwc,wc=ic,other,lc	w,nw,nnw=said,3.5,%	wc,nwc,nnwc=lc,2d,other	pd=null	t=t\u00E9	t2=NN,t\u00E9	def	browncluster=1001	browncluster=10011	c,browncluster=lc,1001	c,browncluster=lc,10011
+at: 9
+features: w=3.5	wc=2d	stn=3	pt2=numother	pt3=numothernum	pt2=othernum	pta=numothernum	pre=3	pre=3.	pre=3.5	suf=5	suf=.5	suf=3.5	ng=3.	ng=.5	ng=3.5	pw,w=said,3.5	pwc,wc=lc,2d	w,nw=3.5,%	wc,nc=2d,other	ppw,pw,w=,,said,3.5	ppwc,pwc,wc=other,lc,2d	w,nw,nnw=3.5,%,of	wc,nwc,nnwc=2d,other,lc	pd=null	t=other	t2=t\u00E9,other	def
+at: 10
+features: w=%	wc=other	st=%	pre=%	suf=%	pw,w=3.5,%	pwc,wc=2d,other	w,nw=%,of	wc,nc=other,lc	ppw,pw,w=said,3.5,%	ppwc,pwc,wc=lc,2d,other	w,nw,nnw=%,of,U.S.	wc,nwc,nnwc=other,lc,ic	pd=null	t=person-start	t2=other,person-start	def
+at: 11
+features: w=of	wc=lc	st=of	pre=o	pre=of	suf=f	suf=of	ng=of	pw,w=%,of	pwc,wc=other,lc	w,nw=of,U.S.	wc,nc=lc,ic	ppw,pw,w=3.5,%,of	ppwc,pwc,wc=2d,other,lc	w,nw,nnw=of,U.S.,sales	wc,nwc,nnwc=lc,ic,lc	pd=null	t=person-cont	t2=person-start,person-cont	def	browncluster=1	c,browncluster=lc,1
+at: 12
+features: w=U.S.	wc=ic	stn=4	pt2=scother	pt3=scothersc	st=u	pt2=othersc	pt3=otherscother	pt2=scother	st=s	pta=scotherscother	pre=U	pre=U.	pre=U.S	suf=.	suf=S.	suf=.S.	suf=U.S.	ng=u.	ng=.s	ng=s.	ng=u.s	ng=.s.	pw,w=of,U.S.	pwc,wc=lc,ic	w,nw=U.S.,sales	wc,nc=ic,lc	ppw,pw,w=%,of,U.S.	ppwc,pwc,wc=other,lc,ic	w,nw,nnw=U.S.,sales,fell	wc,nwc,nnwc=ic,lc,lc	pd=null	t=NN	t2=person-cont,NN	def
+at: 13
+features: w=sales	wc=lc	st=sales	pre=s	pre=sa	pre=sal	suf=s	suf=es	suf=les	suf=ales	suf=sales	ng=sa	ng=al	ng=le	ng=es	ng=sal	ng=ale	ng=les	pw,w=U.S.,sales	pwc,wc=ic,lc	w,nw=sales,fell	wc,nc=lc,lc	ppw,pw,w=of,U.S.,sales	ppwc,pwc,wc=lc,ic,lc	w,nw,nnw=sales,fell,.	wc,nwc,nnwc=lc,lc,other	pd=null	t=t\u00E9	t2=NN,t\u00E9	def
+at: 14
+features: w=fell	wc=lc	st=fell	pre=f	pre=fe	pre=fel	suf=l	suf=ll	suf=ell	suf=fell	ng=fe	ng=el	ng=ll	ng=fel	ng=ell	pw,w=sales,fell	pwc,wc=lc,lc	w,nw=fell,.	wc,nc=lc,other	ppw,pw,w=U.S.,sales,fell	ppwc,pwc,wc=ic,lc,lc	pd=null	t=other	t2=t\u00E9,other	def	browncluster=1001	browncluster=100101	browncluster=10010110	c,browncluster=lc,1001	c,browncluster=lc,100101	c,browncluster=lc,10010110
+at: 15
+features: w=.	wc=other	st=.	pre=.	suf=.	pw,w=fell,.	pwc,wc=lc,other	ppw,pw,w=sales,fell,.	ppwc,pwc,wc=lc,lc,other	S=end	pd=t\u00E9	t=person-start	t2=other,person-start	def
+update
+sentence: 3
+tokens: She	paid	12/31/2020	invoices	at	4:30	p.m.	in	New	York	City	.
+outcomes: NN	t\u00E9	other	person-start	person-cont	NN	t\u00E9	other	person-start	person-cont	NN	t\u00E9
+at: 0
+features: w=She	wc=ic	st=she	pre=S	pre=Sh	pre=She	suf=e	suf=he	suf=She	ng=sh	ng=he	ng=she	w,nw=She,paid	wc,nc=ic,lc	w,nw,nnw=She,paid,12/31/2020	wc,nwc,nnwc=ic,lc,ds	pd=null	def
+at: 1
+features: w=paid	wc=lc	st=paid	pre=p	pre=pa	pre=pai	suf=d	suf=id	suf=aid	suf=paid	ng=pa	ng=ai	ng=id	ng=pai	ng=aid	pw,w=She,paid	pwc,wc=ic,lc	w,nw=paid,12/31/2020	wc,nc=lc,ds	w,nw,nnw=paid,12/31/2020,invoices	wc,nwc,nnwc=lc,ds,lc	pd=null	t=NN	def
+at: 2
+features: w=12/31/2020	wc=ds	stn=5	pt2=2dother	pt3=2dother2d	pt2=other2d	pt3=other2dother	pt2=2dother	pt3=2dother4d	pt2=other4d	pta=2dother2dother4d	pre=1	pre=12	pre=12/	suf=0	suf=20	suf=020	suf=2020	suf=/2020	suf=1/2020	ng=12	ng=2/	ng=/3	ng=31	ng=1/	ng=/2	ng=20	ng=02	ng=12/	ng=2/3	ng=/31	ng=31/	ng=1/2	ng=/20	ng=202	ng=020	pw,w=paid,12/31/2020	pwc,wc=lc,ds	w,nw=12/31/2020,invoices	wc,nc=ds,lc	ppw,pw,w=She,paid,12/31/2020	ppwc,pwc,wc=ic,lc,ds	w,nw,nnw=12/31/2020,invoices,at	wc,nwc,nnwc=ds,lc,lc	pd=null	t=t\u00E9	t2=NN,t\u00E9	def
+at: 3
+features: w=invoices	wc=lc	st=invoices	pre=i	pre=in	pre=inv	suf=s	suf=es	suf=ces	suf=ices	suf=oices	suf=voices	ng=in	ng=nv	ng=vo	ng=oi	ng=ic	ng=ce	ng=es	ng=inv	ng=nvo	ng=voi	ng=oic	ng=ice	ng=ces	pw,w=12/31/2020,invoices	pwc,wc=ds,lc	w,nw=invoices,at	wc,nc=lc,lc	ppw,pw,w=paid,12/31/2020,invoices	ppwc,pwc,wc=lc,ds,lc	w,nw,nnw=invoices,at,4:30	wc,nwc,nnwc=lc,lc,num	pd=null	t=other	t2=t\u00E9,other	def
+at: 4
+features: w=at	wc=lc	st=at	pre=a	pre=at	suf=t	suf=at	ng=at	pw,w=invoices,at	pwc,wc=lc,lc	w,nw=at,4:30	wc,nc=lc,num	ppw,pw,w=12/31/2020,invoices,at	ppwc,pwc,wc=ds,lc,lc	w,nw,nnw=at,4:30,p.m.	wc,nwc,nnwc=lc,num,other	pd=null	t=person-start	t2=other,person-start	def
+at: 5
+features: w=4:30	wc=num	stn=3	pt2=numother	pt3=numother2d	pt2=other2d	pta=numother2d	pre=4	pre=4:	pre=4:3	suf=0	suf=30	suf=:30	suf=4:30	ng=4:	ng=:3	ng=30	ng=4:3	ng=:30	pw,w=at,4:30	pwc,wc=lc,num	w,nw=4:30,p.m.	wc,nc=num,other	ppw,pw,w=invoices,at,4:30	ppwc,pwc,wc=lc,lc,num	w,nw,nnw=4:30,p.m.,in	wc,nwc,nnwc=num,other,lc	pd=null	t=person-cont	t2=person-start,person-cont	def
+at: 6
+features: w=p.m.	wc=other	stn=4	pt2=lcother	pt3=lcotherlc	st=p	pt2=otherlc	pt3=otherlcother	pt2=lcother	st=m	pta=lcotherlcother	pre=p	pre=p.	pre=p.m	suf=.	suf=m.	suf=.m.	suf=p.m.	ng=p.	ng=.m	ng=m.	ng=p.m	ng=.m.	pw,w=4:30,p.m.	pwc,wc=num,other	w,nw=p.m.,in	wc,nc=other,lc	ppw,pw,w=at,4:30,p.m.	ppwc,pwc,wc=lc,num,other	w,nw,nnw=p.m.,in,New	wc,nwc,nnwc=other,lc,ic	pd=null	t=NN	t2=person-cont,NN	def
+at: 7
+features: w=in	wc=lc	st=in	pre=i	pre=in	suf=n	suf=in	ng=in	pw,w=p.m.,in	pwc,wc=other,lc	w,nw=in,New	wc,nc=lc,ic	ppw,pw,w=4:30,p.m.,in	ppwc,pwc,wc=num,other,lc	w,nw,nnw=in,New,York	wc,nwc,nnwc=lc,ic,ic	pd=null	t=t\u00E9	t2=NN,t\u00E9	def
+at: 8
+features: w=New	wc=ic	st=new	pre=N	pre=Ne	pre=New	suf=w	suf=ew	suf=New	ng=ne	ng=ew	ng=new	pw,w=in,New	pwc,wc=lc,ic	w,nw=New,York	wc,nc=ic,ic	ppw,pw,w=p.m.,in,New	ppwc,pwc,wc=other,lc,ic	w,nw,nnw=New,York,City	wc,nwc,nnwc=ic,ic,ic	pd=null	t=other	t2=t\u00E9,other	def	:w=dic	:w=dic=New
+at: 9
+features: w=York	wc=ic	st=york	pre=Y	pre=Yo	pre=Yor	suf=k	suf=rk	suf=ork	suf=York	ng=yo	ng=or	ng=rk	ng=yor	ng=ork	pw,w=New,York	pwc,wc=ic,ic	w,nw=York,City	wc,nc=ic,ic	ppw,pw,w=in,New,York	ppwc,pwc,wc=lc,ic,ic	w,nw,nnw=York,City,.	wc,nwc,nnwc=ic,ic,other	pd=null	t=person-start	t2=other,person-start	def	word.cluster5	:w=dic	:w=dic=York
+at: 10
+features: w=City	wc=ic	st=city	pre=C	pre=Ci	pre=Cit	suf=y	suf=ty	suf=ity	suf=City	ng=ci	ng=it	ng=ty	ng=cit	ng=ity	pw,w=York,City	pwc,wc=ic,ic	w,nw=City,.	wc,nc=ic,other	ppw,pw,w=New,York,City	ppwc,pwc,wc=ic,ic,ic	pd=null	t=person-cont	t2=person-start,person-cont	def	:w=dic	:w=dic=City
+at: 11
+features: w=.	wc=other	st=.	pre=.	suf=.	pw,w=City,.	pwc,wc=ic,other	ppw,pw,w=York,City,.	ppwc,pwc,wc=ic,ic,other	S=end	pd=person-cont	t=NN	t2=person-cont,NN	def
+update
+sentence: 4
+tokens: Angela	Merkel	met	Emmanuel	Macron	in	Berlin	and	Paris	last	week	.
+outcomes: t\u00E9	other	person-start	person-cont	NN	t\u00E9	other	person-start	person-cont	NN	t\u00E9	other
+at: 0
+features: w=Angela	wc=ic	st=angela	pre=A	pre=An	pre=Ang	suf=a	suf=la	suf=ela	suf=gela	suf=ngela	suf=Angela	ng=an	ng=ng	ng=ge	ng=el	ng=la	ng=ang	ng=nge	ng=gel	ng=ela	w,nw=Angela,Merkel	wc,nc=ic,ic	w,nw,nnw=Angela,Merkel,met	wc,nwc,nnwc=ic,ic,lc	pd=null	def
+at: 1
+features: w=Merkel	wc=ic	st=merkel	pre=M	pre=Me	pre=Mer	suf=l	suf=el	suf=kel	suf=rkel	suf=erkel	suf=Merkel	ng=me	ng=er	ng=rk	ng=ke	ng=el	ng=mer	ng=erk	ng=rke	ng=kel	pw,w=Angela,Merkel	pwc,wc=ic,ic	w,nw=Merkel,met	wc,nc=ic,lc	w,nw,nnw=Merkel,met,Emmanuel	wc,nwc,nnwc=ic,lc,ic	pd=null	t=t\u00E9	def
+at: 2
+features: w=met	wc=lc	st=met	pre=m	pre=me	pre=met	suf=t	suf=et	suf=met	ng=me	ng=et	ng=met	pw,w=Merkel,met	pwc,wc=ic,lc	w,nw=met,Emmanuel	wc,nc=lc,ic	ppw,pw,w=Angela,Merkel,met	ppwc,pwc,wc=ic,ic,lc	w,nw,nnw=met,Emmanuel,Macron	wc,nwc,nnwc=lc,ic,ic	pd=null	t=other	t2=t\u00E9,other	def
+at: 3
+features: w=Emmanuel	wc=ic	st=emmanuel	pre=E	pre=Em	pre=Emm	suf=l	suf=el	suf=uel	suf=nuel	suf=anuel	suf=manuel	ng=em	ng=mm	ng=ma	ng=an	ng=nu	ng=ue	ng=el	ng=emm	ng=mma	ng=man	ng=anu	ng=nue	ng=uel	pw,w=met,Emmanuel	pwc,wc=lc,ic	w,nw=Emmanuel,Macron	wc,nc=ic,ic	ppw,pw,w=Merkel,met,Emmanuel	ppwc,pwc,wc=ic,lc,ic	w,nw,nnw=Emmanuel,Macron,in	wc,nwc,nnwc=ic,ic,lc	pd=null	t=person-start	t2=other,person-start	def
+at: 4
+features: w=Macron	wc=ic	st=macron	pre=M	pre=Ma	pre=Mac	suf=n	suf=on	suf=ron	suf=cron	suf=acron	suf=Macron	ng=ma	ng=ac	ng=cr	ng=ro	ng=on	ng=mac	ng=acr	ng=cro	ng=ron	pw,w=Emmanuel,Macron	pwc,wc=ic,ic	w,nw=Macron,in	wc,nc=ic,lc	ppw,pw,w=met,Emmanuel,Macron	ppwc,pwc,wc=lc,ic,ic	w,nw,nnw=Macron,in,Berlin	wc,nwc,nnwc=ic,lc,ic	pd=null	t=person-cont	t2=person-start,person-cont	def
+at: 5
+features: w=in	wc=lc	st=in	pre=i	pre=in	suf=n	suf=in	ng=in	pw,w=Macron,in	pwc,wc=ic,lc	w,nw=in,Berlin	wc,nc=lc,ic	ppw,pw,w=Emmanuel,Macron,in	ppwc,pwc,wc=ic,ic,lc	w,nw,nnw=in,Berlin,and	wc,nwc,nnwc=lc,ic,lc	pd=other	t=NN	t2=person-cont,NN	def
+at: 6
+features: w=Berlin	wc=ic	st=berlin	pre=B	pre=Be	pre=Ber	suf=n	suf=in	suf=lin	suf=rlin	suf=erlin	suf=Berlin	ng=be	ng=er	ng=rl	ng=li	ng=in	ng=ber	ng=erl	ng=rli	ng=lin	pw,w=in,Berlin	pwc,wc=lc,ic	w,nw=Berlin,and	wc,nc=ic,lc	ppw,pw,w=Macron,in,Berlin	ppwc,pwc,wc=ic,lc,ic	w,nw,nnw=Berlin,and,Paris	wc,nwc,nnwc=ic,lc,ic	pd=null	t=t\u00E9	t2=NN,t\u00E9	def	browncluster=0110	browncluster=011011	browncluster=0110111010	browncluster=011011101011011	c,browncluster=ic,0110	c,browncluster=ic,011011	c,browncluster=ic,0110111010	c,browncluster=ic,011011101011011	word.cluster40
+at: 7
+features: w=and	wc=lc	st=and	pre=a	pre=an	pre=and	suf=d	suf=nd	suf=and	ng=an	ng=nd	ng=and	pw,w=Berlin,and	pwc,wc=ic,lc	w,nw=and,Paris	wc,nc=lc,ic	ppw,pw,w=in,Berlin,and	ppwc,pwc,wc=lc,ic,lc	w,nw,nnw=and,Paris,last	wc,nwc,nnwc=lc,ic,lc	pd=null	t=other	t2=t\u00E9,other	def
+at: 8
+features: w=Paris	wc=ic	st=paris	pre=P	pre=Pa	pre=Par	suf=s	suf=is	suf=ris	suf=aris	suf=Paris	ng=pa	ng=ar	ng=ri	ng=is	ng=par	ng=ari	ng=ris	pw,w=and,Paris	pwc,wc=lc,ic	w,nw=Paris,last	wc,nc=ic,lc	ppw,pw,w=Berlin,and,Paris	ppwc,pwc,wc=ic,lc,ic	w,nw,nnw=Paris,last,week	wc,nwc,nnwc=ic,lc,lc	pd=null	t=person-start	t2=other,person-start	def	browncluster=0110	browncluster=011011	browncluster=0110111010	c,browncluster=ic,0110	c,browncluster=ic,011011	c,browncluster=ic,0110111010	word.cluster40	:w=dic	:w=dic=Paris
+at: 9
+features: w=last	wc=lc	st=last	pre=l	pre=la	pre=las	suf=t	suf=st	suf=ast	suf=last	ng=la	ng=as	ng=st	ng=las	ng=ast	pw,w=Paris,last	pwc,wc=ic,lc	w,nw=last,week	wc,nc=lc,lc	ppw,pw,w=and,Paris,last	ppwc,pwc,wc=lc,ic,lc	w,nw,nnw=last,week,.	wc,nwc,nnwc=lc,lc,other	pd=null	t=person-cont	t2=person-start,person-cont	def
+at: 10
+features: w=week	wc=lc	st=week	pre=w	pre=we	pre=wee	suf=k	suf=ek	suf=eek	suf=week	ng=we	ng=ee	ng=ek	ng=wee	ng=eek	pw,w=last,week	pwc,wc=lc,lc	w,nw=week,.	wc,nc=lc,other	ppw,pw,w=Paris,last,week	ppwc,pwc,wc=ic,lc,lc	pd=null	t=NN	t2=person-cont,NN	def
+at: 11
+features: w=.	wc=other	st=.	pre=.	suf=.	pw,w=week,.	pwc,wc=lc,other	ppw,pw,w=last,week,.	ppwc,pwc,wc=lc,lc,other	S=end	pd=t\u00E9	t=t\u00E9	t2=NN,t\u00E9	def
+update
+sentence: 5
+tokens: IBM	and	Microsoft	Corp.	reported	earnings	;	A.	B.	Smith	disagreed	.
+outcomes: other	person-start	person-cont	NN	t\u00E9	other	person-start	person-cont	NN	t\u00E9	other	person-start
+at: 0
+features: w=IBM	wc=ac	st=ibm	pre=I	pre=IB	pre=IBM	suf=M	suf=BM	suf=IBM	ng=ib	ng=bm	ng=ibm	w,nw=IBM,and	wc,nc=ac,lc	w,nw,nnw=IBM,and,Microsoft	wc,nwc,nnwc=ac,lc,ic	pd=null	def
+at: 1
+features: w=and	wc=lc	st=and	pre=a	pre=an	pre=and	suf=d	suf=nd	suf=and	ng=an	ng=nd	ng=and	pw,w=IBM,and	pwc,wc=ac,lc	w,nw=and,Microsoft	wc,nc=lc,ic	w,nw,nnw=and,Microsoft,Corp.	wc,nwc,nnwc=lc,ic,ic	pd=person-start	t=other	def
+at: 2
+features: w=Microsoft	wc=ic	st=microsoft	pre=M	pre=Mi	pre=Mic	suf=t	suf=ft	suf=oft	suf=soft	suf=osoft	suf=rosoft	ng=mi	ng=ic	ng=cr	ng=ro	ng=os	ng=so	ng=of	ng=ft	ng=mic	ng=icr	ng=cro	ng=ros	ng=oso	ng=sof	ng=oft	pw,w=and,Microsoft	pwc,wc=lc,ic	w,nw=Microsoft,Corp.	wc,nc=ic,ic	ppw,pw,w=IBM,and,Microsoft	ppwc,pwc,wc=ac,lc,ic	w,nw,nnw=Microsoft,Corp.,reported	wc,nwc,nnwc=ic,ic,lc	pd=null	t=person-start	t2=other,person-start	def
+at: 3
+features: w=Corp.	wc=ic	stn=2	pt2=icother	st=corp	pta=icother	pre=C	pre=Co	pre=Cor	suf=.	suf=p.	suf=rp.	suf=orp.	suf=Corp.	ng=co	ng=or	ng=rp	ng=p.	ng=cor	ng=orp	ng=rp.	pw,w=Microsoft,Corp.	pwc,wc=ic,ic	w,nw=Corp.,reported	wc,nc=ic,lc	ppw,pw,w=and,Microsoft,Corp.	ppwc,pwc,wc=lc,ic,ic	w,nw,nnw=Corp.,reported,earnings	wc,nwc,nnwc=ic,lc,lc	pd=null	t=person-cont	t2=person-start,person-cont	def
+at: 4
+features: w=reported	wc=lc	st=reported	pre=r	pre=re	pre=rep	suf=d	suf=ed	suf=ted	suf=rted	suf=orted	suf=ported	ng=re	ng=ep	ng=po	ng=or	ng=rt	ng=te	ng=ed	ng=rep	ng=epo	ng=por	ng=ort	ng=rte	ng=ted	pw,w=Corp.,reported	pwc,wc=ic,lc	w,nw=reported,earnings	wc,nc=lc,lc	ppw,pw,w=Microsoft,Corp.,reported	ppwc,pwc,wc=ic,ic,lc	w,nw,nnw=reported,earnings,;	wc,nwc,nnwc=lc,lc,other	pd=null	t=NN	t2=person-cont,NN	def
+at: 5
+features: w=earnings	wc=lc	st=earnings	pre=e	pre=ea	pre=ear	suf=s	suf=gs	suf=ngs	suf=ings	suf=nings	suf=rnings	ng=ea	ng=ar	ng=rn	ng=ni	ng=in	ng=ng	ng=gs	ng=ear	ng=arn	ng=rni	ng=nin	ng=ing	ng=ngs	pw,w=reported,earnings	pwc,wc=lc,lc	w,nw=earnings,;	wc,nc=lc,other	ppw,pw,w=Corp.,reported,earnings	ppwc,pwc,wc=ic,lc,lc	w,nw,nnw=earnings,;,A.	wc,nwc,nnwc=lc,other,cp	pd=null	t=t\u00E9	t2=NN,t\u00E9	def
+at: 6
+features: w=;	wc=other	st=;	pre=;	suf=;	pw,w=earnings,;	pwc,wc=lc,other	w,nw=;,A.	wc,nc=other,cp	ppw,pw,w=reported,earnings,;	ppwc,pwc,wc=lc,lc,other	w,nw,nnw=;,A.,B.	wc,nwc,nnwc=other,cp,cp	pd=null	t=other	t2=t\u00E9,other	def
+at: 7
+features: w=A.	wc=cp	stn=2	pt2=scother	st=a	pta=scother	pre=A	pre=A.	suf=.	suf=A.	ng=a.	pw,w=;,A.	pwc,wc=other,cp	w,nw=A.,B.	wc,nc=cp,cp	ppw,pw,w=earnings,;,A.	ppwc,pwc,wc=lc,other,cp	w,nw,nnw=A.,B.,Smith	wc,nwc,nnwc=cp,cp,ic	pd=null	t=person-start	t2=other,person-start	def
+at: 8
+features: w=B.	wc=cp	stn=2	pt2=scother	st=b	pta=scother	pre=B	pre=B.	suf=.	suf=B.	ng=b.	pw,w=A.,B.	pwc,wc=cp,cp	w,nw=B.,Smith	wc,nc=cp,ic	ppw,pw,w=;,A.,B.	ppwc,pwc,wc=other,cp,cp	w,nw,nnw=B.,Smith,disagreed	wc,nwc,nnwc=cp,ic,lc	pd=null	t=person-cont	t2=person-start,person-cont	def
+at: 9
+features: w=Smith	wc=ic	st=smith	pre=S	pre=Sm	pre=Smi	suf=h	suf=th	suf=ith	suf=mith	suf=Smith	ng=sm	ng=mi	ng=it	ng=th	ng=smi	ng=mit	ng=ith	pw,w=B.,Smith	pwc,wc=cp,ic	w,nw=Smith,disagreed	wc,nc=ic,lc	ppw,pw,w=A.,B.,Smith	ppwc,pwc,wc=cp,cp,ic	w,nw,nnw=Smith,disagreed,.	wc,nwc,nnwc=ic,lc,other	pd=person-cont	t=NN	t2=person-cont,NN	def	browncluster=0110	browncluster=01100	c,browncluster=ic,0110	c,browncluster=ic,01100	word.cluster17	:w=dic	:w=dic=Smith
+at: 10
+features: w=disagreed	wc=lc	st=disagreed	pre=d	pre=di	pre=dis	suf=d	suf=ed	suf=eed	suf=reed	suf=greed	suf=agreed	ng=di	ng=is	ng=sa	ng=ag	ng=gr	ng=re	ng=ee	ng=ed	ng=dis	ng=isa	ng=sag	ng=agr	ng=gre	ng=ree	ng=eed	pw,w=Smith,disagreed	pwc,wc=ic,lc	w,nw=disagreed,.	wc,nc=lc,other	ppw,pw,w=B.,Smith,disagreed	ppwc,pwc,wc=cp,ic,lc	pd=null	t=t\u00E9	t2=NN,t\u00E9	def
+at: 11
+features: w=.	wc=other	st=.	pre=.	suf=.	pw,w=disagreed,.	pwc,wc=lc,other	ppw,pw,w=Smith,disagreed,.	ppwc,pwc,wc=ic,lc,other	S=end	pd=other	t=other	t2=t\u00E9,other	def
+update
+sentence: 6
+tokens: \u00DCnal	\u00D6zdemir	lives	in	K\u00F6ln	,	not	M\u00FCnchen	.
+outcomes: person-start	person-cont	NN	t\u00E9	other	person-start	person-cont	NN	t\u00E9
+at: 0
+features: w=\u00DCnal	wc=ic	st=\u00FCnal	pre=\u00DC	pre=\u00DCn	pre=\u00DCna	suf=l	suf=al	suf=nal	suf=\u00DCnal	ng=\u00FCn	ng=na	ng=al	ng=\u00FCna	ng=nal	w,nw=\u00DCnal,\u00D6zdemir	wc,nc=ic,ic	w,nw,nnw=\u00DCnal,\u00D6zdemir,lives	wc,nwc,nnwc=ic,ic,lc	pd=null	def	word.cluster9
+at: 1
+features: w=\u00D6zdemir	wc=ic	st=\u00F6zdemir	pre=\u00D6	pre=\u00D6z	pre=\u00D6zd	suf=r	suf=ir	suf=mir	suf=emir	suf=demir	suf=zdemir	ng=\u00F6z	ng=zd	ng=de	ng=em	ng=mi	ng=ir	ng=\u00F6zd	ng=zde	ng=dem	ng=emi	ng=mir	pw,w=\u00DCnal,\u00D6zdemir	pwc,wc=ic,ic	w,nw=\u00D6zdemir,lives	wc,nc=ic,lc	w,nw,nnw=\u00D6zdemir,lives,in	wc,nwc,nnwc=ic,lc,lc	pd=null	t=person-start	def
+at: 2
+features: w=lives	wc=lc	st=lives	pre=l	pre=li	pre=liv	suf=s	suf=es	suf=ves	suf=ives	suf=lives	ng=li	ng=iv	ng=ve	ng=es	ng=liv	ng=ive	ng=ves	pw,w=\u00D6zdemir,lives	pwc,wc=ic,lc	w,nw=lives,in	wc,nc=lc,lc	ppw,pw,w=\u00DCnal,\u00D6zdemir,lives	ppwc,pwc,wc=ic,ic,lc	w,nw,nnw=lives,in,K\u00F6ln	wc,nwc,nnwc=lc,lc,ic	pd=null	t=person-cont	t2=person-start,person-cont	def
+at: 3
+features: w=in	wc=lc	st=in	pre=i	pre=in	suf=n	suf=in	ng=in	pw,w=lives,in	pwc,wc=lc,lc	w,nw=in,K\u00F6ln	wc,nc=lc,ic	ppw,pw,w=\u00D6zdemir,lives,in	ppwc,pwc,wc=ic,lc,lc	w,nw,nnw=in,K\u00F6ln,,	wc,nwc,nnwc=lc,ic,other	pd=t\u00E9	t=NN	t2=person-cont,NN	def
+at: 4
+features: w=K\u00F6ln	wc=ic	st=k\u00F6ln	pre=K	pre=K\u00F6	pre=K\u00F6l	suf=n	suf=ln	suf=\u00F6ln	suf=K\u00F6ln	ng=k\u00F6	ng=\u00F6l	ng=ln	ng=k\u00F6l	ng=\u00F6ln	pw,w=in,K\u00F6ln	pwc,wc=lc,ic	w,nw=K\u00F6ln,,	wc,nc=ic,other	ppw,pw,w=lives,in,K\u00F6ln	ppwc,pwc,wc=lc,lc,ic	w,nw,nnw=K\u00F6ln,,,not	wc,nwc,nnwc=ic,other,lc	pd=null	t=t\u00E9	t2=NN,t\u00E9	def	:w=dic	:w=dic=K\u00F6ln
+at: 5
+features: w=,	wc=other	st=,	pre=,	suf=,	pw,w=K\u00F6ln,,	pwc,wc=ic,other	w,nw=,,not	wc,nc=other,lc	ppw,pw,w=in,K\u00F6ln,,	ppwc,pwc,wc=lc,ic,other	w,nw,nnw=,,not,M\u00FCnchen	wc,nwc,nnwc=other,lc,ic	pd=t\u00E9	t=other	t2=t\u00E9,other	def
+at: 6
+features: w=not	wc=lc	st=not	pre=n	pre=no	pre=not	suf=t	suf=ot	suf=not	ng=no	ng=ot	ng=not	pw,w=,,not	pwc,wc=other,lc	w,nw=not,M\u00FCnchen	wc,nc=lc,ic	ppw,pw,w=K\u00F6ln,,,not	ppwc,pwc,wc=ic,other,lc	w,nw,nnw=not,M\u00FCnchen,.	wc,nwc,nnwc=lc,ic,other	pd=null	t=person-start	t2=other,person-start	def
+at: 7
+features: w=M\u00FCnchen	wc=ic	st=m\u00FCnchen	pre=M	pre=M\u00FC	pre=M\u00FCn	suf=n	suf=en	suf=hen	suf=chen	suf=nchen	suf=\u00FCnchen	ng=m\u00FC	ng=\u00FCn	ng=nc	ng=ch	ng=he	ng=en	ng=m\u00FCn	ng=\u00FCnc	ng=nch	ng=che	ng=hen	pw,w=not,M\u00FCnchen	pwc,wc=lc,ic	w,nw=M\u00FCnchen,.	wc,nc=ic,other	ppw,pw,w=,,not,M\u00FCnchen	ppwc,pwc,wc=other,lc,ic	pd=null	t=person-cont	t2=person-start,person-cont	def
+at: 8
+features: w=.	wc=other	st=.	pre=.	suf=.	pw,w=M\u00FCnchen,.	pwc,wc=ic,other	ppw,pw,w=not,M\u00FCnchen,.	ppwc,pwc,wc=lc,ic,other	S=end	pd=person-start	t=NN	t2=person-cont,NN	def
+update
+sentence: 7
+tokens: \u6771\u4EAC	\u306F	\u3072\u3089\u304C\u306A	\u3068	\u30AB\u30BF\u30AB\u30CA	\u3092	\u4F7F\u3046	\u3002
+outcomes: person-cont	NN	t\u00E9	other	person-start	person-cont	NN	t\u00E9
+at: 0
+features: w=\u6771\u4EAC	wc=other	st=\u6771\u4EAC	pre=\u6771	pre=\u6771\u4EAC	suf=\u4EAC	suf=\u6771\u4EAC	ng=\u6771\u4EAC	w,nw=\u6771\u4EAC,\u306F	wc,nc=other,jah	w,nw,nnw=\u6771\u4EAC,\u306F,\u3072\u3089\u304C\u306A	wc,nwc,nnwc=other,jah,jah	pd=null	def
+at: 1
+features: w=\u306F	wc=jah	st=\u306F	pre=\u306F	suf=\u306F	pw,w=\u6771\u4EAC,\u306F	pwc,wc=other,jah	w,nw=\u306F,\u3072\u3089\u304C\u306A	wc,nc=jah,jah	w,nw,nnw=\u306F,\u3072\u3089\u304C\u306A,\u3068	wc,nwc,nnwc=jah,jah,jah	pd=null	t=person-cont	def
+at: 2
+features: w=\u3072\u3089\u304C\u306A	wc=jah	st=\u3072\u3089\u304C\u306A	pre=\u3072	pre=\u3072\u3089	pre=\u3072\u3089\u304C	suf=\u306A	suf=\u304C\u306A	suf=\u3089\u304C\u306A	suf=\u3072\u3089\u304C\u306A	ng=\u3072\u3089	ng=\u3089\u304C	ng=\u304C\u306A	ng=\u3072\u3089\u304C	ng=\u3089\u304C\u306A	pw,w=\u306F,\u3072\u3089\u304C\u306A	pwc,wc=jah,jah	w,nw=\u3072\u3089\u304C\u306A,\u3068	wc,nc=jah,jah	ppw,pw,w=\u6771\u4EAC,\u306F,\u3072\u3089\u304C\u306A	ppwc,pwc,wc=other,jah,jah	w,nw,nnw=\u3072\u3089\u304C\u306A,\u3068,\u30AB\u30BF\u30AB\u30CA	wc,nwc,nnwc=jah,jah,jak	pd=null	t=NN	t2=person-cont,NN	def
+at: 3
+features: w=\u3068	wc=jah	st=\u3068	pre=\u3068	suf=\u3068	pw,w=\u3072\u3089\u304C\u306A,\u3068	pwc,wc=jah,jah	w,nw=\u3068,\u30AB\u30BF\u30AB\u30CA	wc,nc=jah,jak	ppw,pw,w=\u306F,\u3072\u3089\u304C\u306A,\u3068	ppwc,pwc,wc=jah,jah,jah	w,nw,nnw=\u3068,\u30AB\u30BF\u30AB\u30CA,\u3092	wc,nwc,nnwc=jah,jak,jah	pd=null	t=t\u00E9	t2=NN,t\u00E9	def
+at: 4
+features: w=\u30AB\u30BF\u30AB\u30CA	wc=jak	st=\u30AB\u30BF\u30AB\u30CA	pre=\u30AB	pre=\u30AB\u30BF	pre=\u30AB\u30BF\u30AB	suf=\u30CA	suf=\u30AB\u30CA	suf=\u30BF\u30AB\u30CA	suf=\u30AB\u30BF\u30AB\u30CA	ng=\u30AB\u30BF	ng=\u30BF\u30AB	ng=\u30AB\u30CA	ng=\u30AB\u30BF\u30AB	ng=\u30BF\u30AB\u30CA	pw,w=\u3068,\u30AB\u30BF\u30AB\u30CA	pwc,wc=jah,jak	w,nw=\u30AB\u30BF\u30AB\u30CA,\u3092	wc,nc=jak,jah	ppw,pw,w=\u3072\u3089\u304C\u306A,\u3068,\u30AB\u30BF\u30AB\u30CA	ppwc,pwc,wc=jah,jah,jak	w,nw,nnw=\u30AB\u30BF\u30AB\u30CA,\u3092,\u4F7F\u3046	wc,nwc,nnwc=jak,jah,other	pd=null	t=other	t2=t\u00E9,other	def
+at: 5
+features: w=\u3092	wc=jah	st=\u3092	pre=\u3092	suf=\u3092	pw,w=\u30AB\u30BF\u30AB\u30CA,\u3092	pwc,wc=jak,jah	w,nw=\u3092,\u4F7F\u3046	wc,nc=jah,other	ppw,pw,w=\u3068,\u30AB\u30BF\u30AB\u30CA,\u3092	ppwc,pwc,wc=jah,jak,jah	w,nw,nnw=\u3092,\u4F7F\u3046,\u3002	wc,nwc,nnwc=jah,other,other	pd=null	t=person-start	t2=other,person-start	def
+at: 6
+features: w=\u4F7F\u3046	wc=other	st=\u4F7F\u3046	pre=\u4F7F	pre=\u4F7F\u3046	suf=\u3046	suf=\u4F7F\u3046	ng=\u4F7F\u3046	pw,w=\u3092,\u4F7F\u3046	pwc,wc=jah,other	w,nw=\u4F7F\u3046,\u3002	wc,nc=other,other	ppw,pw,w=\u30AB\u30BF\u30AB\u30CA,\u3092,\u4F7F\u3046	ppwc,pwc,wc=jak,jah,other	pd=null	t=person-cont	t2=person-start,person-cont	def
+at: 7
+features: w=\u3002	wc=other	st=\u3002	pre=\u3002	suf=\u3002	pw,w=\u4F7F\u3046,\u3002	pwc,wc=other,other	ppw,pw,w=\u3092,\u4F7F\u3046,\u3002	ppwc,pwc,wc=jah,other,other	S=end	pd=null	t=NN	t2=person-cont,NN	def
+update
+sentence: 8
+tokens: The	\uD835\uDC00\uD835\uDC01\uD835\uDC02	index	rose	\uD83D\uDE00	while	caf\u00E9	prices	fell	.
+outcomes: NN	t\u00E9	other	person-start	person-cont	NN	t\u00E9	other	person-start	person-cont
+at: 0
+features: w=The	wc=ic	st=the	pre=T	pre=Th	pre=The	suf=e	suf=he	suf=The	ng=th	ng=he	ng=the	w,nw=The,\uD835\uDC00\uD835\uDC01\uD835\uDC02	wc,nc=ic,other	w,nw,nnw=The,\uD835\uDC00\uD835\uDC01\uD835\uDC02,index	wc,nwc,nnwc=ic,other,lc	pd=person-cont	def	browncluster=0101	c,browncluster=ic,0101	word.cluster1	word.cluster2
+at: 1
+features: w=\uD835\uDC00\uD835\uDC01\uD835\uDC02	wc=other	stn=6	pt2=jahjah	pt3=jahjahjah	pt2=jahjah	pt3=jahjahjah	pt2=jahjah	pt3=jahjahjah	pt2=jahjah	pt3=jahjahjah	pt2=jahjah	pta=jahjahjahjahjahjah	pre=\uD835	pre=\uD835\uDC00	pre=\uD835\uDC00\uD835	suf=\uDC02	suf=\uD835\uDC02	suf=\uDC01\uD835\uDC02	suf=\uD835\uDC01\uD835\uDC02	suf=\uDC00\uD835\uDC01\uD835\uDC02	suf=\uD835\uDC00\uD835\uDC01\uD835\uDC02	ng=\uD835\uDC00	ng=\uDC00\uD835	ng=\uD835\uDC01	ng=\uDC01\uD835	ng=\uD835\uDC02	ng=\uD835\uDC00\uD835	ng=\uDC00\uD835\uDC01	ng=\uD835\uDC01\uD835	ng=\uDC01\uD835\uDC02	pw,w=The,\uD835\uDC00\uD835\uDC01\uD835\uDC02	pwc,wc=ic,other	w,nw=\uD835\uDC00\uD835\uDC01\uD835\uDC02,index	wc,nc=other,lc	w,nw,nnw=\uD835\uDC00\uD835\uDC01\uD835\uDC02,index,rose	wc,nwc,nnwc=other,lc,lc	pd=null	t=NN	def
+at: 2
+features: w=index	wc=lc	st=index	pre=i	pre=in	pre=ind	suf=x	suf=ex	suf=dex	suf=ndex	suf=index	ng=in	ng=nd	ng=de	ng=ex	ng=ind	ng=nde	ng=dex	pw,w=\uD835\uDC00\uD835\uDC01\uD835\uDC02,index	pwc,wc=other,lc	w,nw=index,rose	wc,nc=lc,lc	ppw,pw,w=The,\uD835\uDC00\uD835\uDC01\uD835\uDC02,index	ppwc,pwc,wc=ic,other,lc	w,nw,nnw=index,rose,\uD83D\uDE00	wc,nwc,nnwc=lc,lc,other	pd=null	t=t\u00E9	t2=NN,t\u00E9	def
+at: 3
+features: w=rose	wc=lc	st=rose	pre=r	pre=ro	pre=ros	suf=e	suf=se	suf=ose	suf=rose	ng=ro	ng=os	ng=se	ng=ros	ng=ose	pw,w=index,rose	pwc,wc=lc,lc	w,nw=rose,\uD83D\uDE00	wc,nc=lc,other	ppw,pw,w=\uD835\uDC00\uD835\uDC01\uD835\uDC02,index,rose	ppwc,pwc,wc=other,lc,lc	w,nw,nnw=rose,\uD83D\uDE00,while	wc,nwc,nnwc=lc,other,lc	pd=null	t=other	t2=t\u00E9,other	def
+at: 4
+features: w=\uD83D\uDE00	wc=other	stn=2	pt2=jahjah	pta=jahjah	pre=\uD83D	pre=\uD83D\uDE00	suf=\uDE00	suf=\uD83D\uDE00	ng=\uD83D\uDE00	pw,w=rose,\uD83D\uDE00	pwc,wc=lc,other	w,nw=\uD83D\uDE00,while	wc,nc=other,lc	ppw,pw,w=index,rose,\uD83D\uDE00	ppwc,pwc,wc=lc,lc,other	w,nw,nnw=\uD83D\uDE00,while,caf\u00E9	wc,nwc,nnwc=other,lc,lc	pd=null	t=person-start	t2=other,person-start	def	browncluster=1110	c,browncluster=other,1110
+at: 5
+features: w=while	wc=lc	st=while	pre=w	pre=wh	pre=whi	suf=e	suf=le	suf=ile	suf=hile	suf=while	ng=wh	ng=hi	ng=il	ng=le	ng=whi	ng=hil	ng=ile	pw,w=\uD83D\uDE00,while	pwc,wc=other,lc	w,nw=while,caf\u00E9	wc,nc=lc,lc	ppw,pw,w=rose,\uD83D\uDE00,while	ppwc,pwc,wc=lc,other,lc	w,nw,nnw=while,caf\u00E9,prices	wc,nwc,nnwc=lc,lc,lc	pd=null	t=person-cont	t2=person-start,person-cont	def
+at: 6
+features: w=caf\u00E9	wc=lc	st=caf\u00E9	pre=c	pre=ca	pre=caf	suf=\u00E9	suf=f\u00E9	suf=af\u00E9	suf=caf\u00E9	ng=ca	ng=af	ng=f\u00E9	ng=caf	ng=af\u00E9	pw,w=while,caf\u00E9	pwc,wc=lc,lc	w,nw=caf\u00E9,prices	wc,nc=lc,lc	ppw,pw,w=\uD83D\uDE00,while,caf\u00E9	ppwc,pwc,wc=other,lc,lc	w,nw,nnw=caf\u00E9,prices,fell	wc,nwc,nnwc=lc,lc,lc	pd=null	t=NN	t2=person-cont,NN	def	browncluster=110	c,browncluster=lc,110	word.cluster33	word.cluster33
+at: 7
+features: w=prices	wc=lc	st=prices	pre=p	pre=pr	pre=pri	suf=s	suf=es	suf=ces	suf=ices	suf=rices	suf=prices	ng=pr	ng=ri	ng=ic	ng=ce	ng=es	ng=pri	ng=ric	ng=ice	ng=ces	pw,w=caf\u00E9,prices	pwc,wc=lc,lc	w,nw=prices,fell	wc,nc=lc,lc	ppw,pw,w=while,caf\u00E9,prices	ppwc,pwc,wc=lc,lc,lc	w,nw,nnw=prices,fell,.	wc,nwc,nnwc=lc,lc,other	pd=null	t=t\u00E9	t2=NN,t\u00E9	def
+at: 8
+features: w=fell	wc=lc	st=fell	pre=f	pre=fe	pre=fel	suf=l	suf=ll	suf=ell	suf=fell	ng=fe	ng=el	ng=ll	ng=fel	ng=ell	pw,w=prices,fell	pwc,wc=lc,lc	w,nw=fell,.	wc,nc=lc,other	ppw,pw,w=caf\u00E9,prices,fell	ppwc,pwc,wc=lc,lc,lc	pd=person-start	t=other	t2=t\u00E9,other	def	browncluster=1001	browncluster=100101	browncluster=10010110	c,browncluster=lc,1001	c,browncluster=lc,100101	c,browncluster=lc,10010110
+at: 9
+features: w=.	wc=other	st=.	pre=.	suf=.	pw,w=fell,.	pwc,wc=lc,other	ppw,pw,w=prices,fell,.	ppwc,pwc,wc=lc,lc,other	S=end	pd=t\u00E9	t=person-start	t2=other,person-start	def
+update
+sentence: 9
+tokens: e-mail	me	at	john@example.com	or	visit	www.example.com/a?b=1	!
+outcomes: t\u00E9	other	person-start	person-cont	NN	t\u00E9	other	person-start
+at: 0
+features: w=e-mail	wc=other	stn=3	pt2=lcother	pt3=lcotherlc	st=e	pt2=otherlc	st=mail	pta=lcotherlc	pre=e	pre=e-	pre=e-m	suf=l	suf=il	suf=ail	suf=mail	suf=-mail	suf=e-mail	ng=e-	ng=-m	ng=ma	ng=ai	ng=il	ng=e-m	ng=-ma	ng=mai	ng=ail	w,nw=e-mail,me	wc,nc=other,lc	w,nw,nnw=e-mail,me,at	wc,nwc,nnwc=other,lc,lc	pd=null	def
+at: 1
+features: w=me	wc=lc	st=me	pre=m	pre=me	suf=e	suf=me	ng=me	pw,w=e-mail,me	pwc,wc=other,lc	w,nw=me,at	wc,nc=lc,lc	w,nw,nnw=me,at,john@example.com	wc,nwc,nnwc=lc,lc,other	pd=null	t=t\u00E9	def
+at: 2
+features: w=at	wc=lc	st=at	pre=a	pre=at	suf=t	suf=at	ng=at	pw,w=me,at	pwc,wc=lc,lc	w,nw=at,john@example.com	wc,nc=lc,other	ppw,pw,w=e-mail,me,at	ppwc,pwc,wc=other,lc,lc	w,nw,nnw=at,john@example.com,or	wc,nwc,nnwc=lc,other,lc	pd=person-cont	t=other	t2=t\u00E9,other	def
+at: 3
+features: w=john@example.com	wc=other	stn=5	pt2=lcother	pt3=lcotherlc	st=john	pt2=otherlc	pt3=otherlcother	pt2=lcother	pt3=lcotherlc	st=example	pt2=otherlc	st=com	pta=lcotherlcotherlc	pre=j	pre=jo	pre=joh	suf=m	suf=om	suf=com	suf=.com	suf=e.com	suf=le.com	ng=jo	ng=oh	ng=hn	ng=n@	ng=@e	ng=ex	ng=xa	ng=am	ng=mp	ng=pl	ng=le	ng=e.	ng=.c	ng=co	ng=om	ng=joh	ng=ohn	ng=hn@	ng=n@e	ng=@ex	ng=exa	ng=xam	ng=amp	ng=mpl	ng=ple	ng=le.	ng=e.c	ng=.co	ng=com	pw,w=at,john@example.com	pwc,wc=lc,other	w,nw=john@example.com,or	wc,nc=other,lc	ppw,pw,w=me,at,john@example.com	ppwc,pwc,wc=lc,lc,other	w,nw,nnw=john@example.com,or,visit	wc,nwc,nnwc=other,lc,lc	pd=null	t=person-start	t2=other,person-start	def
+at: 4
+features: w=or	wc=lc	st=or	pre=o	pre=or	suf=r	suf=or	ng=or	pw,w=john@example.com,or	pwc,wc=other,lc	w,nw=or,visit	wc,nc=lc,lc	ppw,pw,w=at,john@example.com,or	ppwc,pwc,wc=lc,other,lc	w,nw,nnw=or,visit,www.example.com/a?b=1	wc,nwc,nnwc=lc,lc,an	pd=null	t=person-cont	t2=person-start,person-cont	def
+at: 5
+features: w=visit	wc=lc	st=visit	pre=v	pre=vi	pre=vis	suf=t	suf=it	suf=sit	suf=isit	suf=visit	ng=vi	ng=is	ng=si	ng=it	ng=vis	ng=isi	ng=sit	pw,w=or,visit	pwc,wc=lc,lc	w,nw=visit,www.example.com/a?b=1	wc,nc=lc,an	ppw,pw,w=john@example.com,or,visit	ppwc,pwc,wc=other,lc,lc	w,nw,nnw=visit,www.example.com/a?b=1,!	wc,nwc,nnwc=lc,an,other	pd=null	t=NN	t2=person-cont,NN	def
+at: 6
+features: w=www.example.com/a?b=1	wc=an	stn=11	pt2=lcother	pt3=lcotherlc	st=www	pt2=otherlc	pt3=otherlcother	pt2=lcother	pt3=lcotherlc	st=example	pt2=otherlc	pt3=otherlcother	pt2=lcother	pt3=lcotherlc	st=com	pt2=otherlc	pt3=otherlcother	pt2=lcother	pt3=lcotherlc	st=a	pt2=otherlc	pt3=otherlcother	pt2=lcother	pt3=lcothernum	st=b	pt2=othernum	pta=lcotherlcotherlcotherlcotherlcothernum	pre=w	pre=ww	pre=www	suf=1	suf==1	suf=b=1	suf=?b=1	suf=a?b=1	suf=/a?b=1	ng=ww	ng=w.	ng=.e	ng=ex	ng=xa	ng=am	ng=mp	ng=pl	ng=le	ng=e.	ng=.c	ng=co	ng=om	ng=m/	ng=/a	ng=a?	ng=?b	ng=b=	ng==1	ng=www	ng=ww.	ng=w.e	ng=.ex	ng=exa	ng=xam	ng=amp	ng=mpl	ng=ple	ng=le.	ng=e.c	ng=.co	ng=com	ng=om/	ng=m/a	ng=/a?	ng=a?b	ng=?b=	ng=b=1	pw,w=visit,www.example.com/a?b=1	pwc,wc=lc,an	w,nw=www.example.com/a?b=1,!	wc,nc=an,other	ppw,pw,w=or,visit,www.example.com/a?b=1	ppwc,pwc,wc=lc,lc,an	pd=null	t=t\u00E9	t2=NN,t\u00E9	def
+at: 7
+features: w=!	wc=other	st=!	pre=!	suf=!	pw,w=www.example.com/a?b=1,!	pwc,wc=an,other	ppw,pw,w=visit,www.example.com/a?b=1,!	ppwc,pwc,wc=lc,an,other	S=end	pd=null	t=other	t2=t\u00E9,other	def
+update
+sentence: 10
+tokens: Barack	Obama	was	born	in	Honolulu	,	Hawaii	.
+outcomes: other	person-start	person-cont	NN	t\u00E9	other	person-start	person-cont	NN
+at: 0
+features: w=Barack	wc=ic	st=barack	pre=B	pre=Ba	pre=Bar	suf=k	suf=ck	suf=ack	suf=rack	suf=arack	suf=Barack	ng=ba	ng=ar	ng=ra	ng=ac	ng=ck	ng=bar	ng=ara	ng=rac	ng=ack	w,nw=Barack,Obama	wc,nc=ic,ic	w,nw,nnw=Barack,Obama,was	wc,nwc,nnwc=ic,ic,lc	pd=null	def
+at: 1
+features: w=Obama	wc=ic	st=obama	pre=O	pre=Ob	pre=Oba	suf=a	suf=ma	suf=ama	suf=bama	suf=Obama	ng=ob	ng=ba	ng=am	ng=ma	ng=oba	ng=bam	ng=ama	pw,w=Barack,Obama	pwc,wc=ic,ic	w,nw=Obama,was	wc,nc=ic,lc	w,nw,nnw=Obama,was,born	wc,nwc,nnwc=ic,lc,lc	pd=null	t=other	def
+at: 2
+features: w=was	wc=lc	st=was	pre=w	pre=wa	pre=was	suf=s	suf=as	suf=was	ng=wa	ng=as	ng=was	pw,w=Obama,was	pwc,wc=ic,lc	w,nw=was,born	wc,nc=lc,lc	ppw,pw,w=Barack,Obama,was	ppwc,pwc,wc=ic,ic,lc	w,nw,nnw=was,born,in	wc,nwc,nnwc=lc,lc,lc	pd=null	t=person-start	t2=other,person-start	def
+at: 3
+features: w=born	wc=lc	st=born	pre=b	pre=bo	pre=bor	suf=n	suf=rn	suf=orn	suf=born	ng=bo	ng=or	ng=rn	ng=bor	ng=orn	pw,w=was,born	pwc,wc=lc,lc	w,nw=born,in	wc,nc=lc,lc	ppw,pw,w=Obama,was,born	ppwc,pwc,wc=ic,lc,lc	w,nw,nnw=born,in,Honolulu	wc,nwc,nnwc=lc,lc,ic	pd=null	t=person-cont	t2=person-start,person-cont	def
+at: 4
+features: w=in	wc=lc	st=in	pre=i	pre=in	suf=n	suf=in	ng=in	pw,w=born,in	pwc,wc=lc,lc	w,nw=in,Honolulu	wc,nc=lc,ic	ppw,pw,w=was,born,in	ppwc,pwc,wc=lc,lc,lc	w,nw,nnw=in,Honolulu,,	wc,nwc,nnwc=lc,ic,other	pd=t\u00E9	t=NN	t2=person-cont,NN	def
+at: 5
+features: w=Honolulu	wc=ic	st=honolulu	pre=H	pre=Ho	pre=Hon	suf=u	suf=lu	suf=ulu	suf=lulu	suf=olulu	suf=nolulu	ng=ho	ng=on	ng=no	ng=ol	ng=lu	ng=ul	ng=hon	ng=ono	ng=nol	ng=olu	ng=lul	ng=ulu	pw,w=in,Honolulu	pwc,wc=lc,ic	w,nw=Honolulu,,	wc,nc=ic,other	ppw,pw,w=born,in,Honolulu	ppwc,pwc,wc=lc,lc,ic	w,nw,nnw=Honolulu,,,Hawaii	wc,nwc,nnwc=ic,other,ic	pd=null	t=t\u00E9	t2=NN,t\u00E9	def
+at: 6
+features: w=,	wc=other	st=,	pre=,	suf=,	pw,w=Honolulu,,	pwc,wc=ic,other	w,nw=,,Hawaii	wc,nc=other,ic	ppw,pw,w=in,Honolulu,,	ppwc,pwc,wc=lc,ic,other	w,nw,nnw=,,Hawaii,.	wc,nwc,nnwc=other,ic,other	pd=person-start	t=other	t2=t\u00E9,other	def
+at: 7
+features: w=Hawaii	wc=ic	st=hawaii	pre=H	pre=Ha	pre=Haw	suf=i	suf=ii	suf=aii	suf=waii	suf=awaii	suf=Hawaii	ng=ha	ng=aw	ng=wa	ng=ai	ng=ii	ng=haw	ng=awa	ng=wai	ng=aii	pw,w=,,Hawaii	pwc,wc=other,ic	w,nw=Hawaii,.	wc,nc=ic,other	ppw,pw,w=Honolulu,,,Hawaii	ppwc,pwc,wc=ic,other,ic	pd=null	t=person-start	t2=other,person-start	def
+at: 8
+features: w=.	wc=other	st=.	pre=.	suf=.	pw,w=Hawaii,.	pwc,wc=ic,other	ppw,pw,w=,,Hawaii,.	ppwc,pwc,wc=other,ic,other	S=end	pd=person-cont	t=person-cont	t2=person-start,person-cont	def
+update
+sentence: 11
+tokens: He	said	:	"	I	'm	not	going	to	London	.	"
+outcomes: person-start	person-cont	NN	t\u00E9	other	person-start	person-cont	NN	t\u00E9	other	person-start	person-cont
+at: 0
+features: w=He	wc=ic	st=he	pre=H	pre=He	suf=e	suf=He	ng=he	w,nw=He,said	wc,nc=ic,lc	w,nw,nnw=He,said,:	wc,nwc,nnwc=ic,lc,other	pd=null	def
+at: 1
+features: w=said	wc=lc	st=said	pre=s	pre=sa	pre=sai	suf=d	suf=id	suf=aid	suf=said	ng=sa	ng=ai	ng=id	ng=sai	ng=aid	pw,w=He,said	pwc,wc=ic,lc	w,nw=said,:	wc,nc=lc,other	w,nw,nnw=said,:,"	wc,nwc,nnwc=lc,other,other	pd=other	t=person-start	def	browncluster=1001	browncluster=10011	c,browncluster=lc,1001	c,browncluster=lc,10011
+at: 2
+features: w=:	wc=other	st=:	pre=:	suf=:	pw,w=said,:	pwc,wc=lc,other	w,nw=:,"	wc,nc=other,other	ppw,pw,w=He,said,:	ppwc,pwc,wc=ic,lc,other	w,nw,nnw=:,",I	wc,nwc,nnwc=other,other,sc	pd=null	t=person-cont	t2=person-start,person-cont	def
+at: 3
+features: w="	wc=other	st="	pre="	suf="	pw,w=:,"	pwc,wc=other,other	w,nw=",I	wc,nc=other,sc	ppw,pw,w=said,:,"	ppwc,pwc,wc=lc,other,other	w,nw,nnw=",I,'m	wc,nwc,nnwc=other,sc,other	pd=null	t=NN	t2=person-cont,NN	def
+at: 4
+features: w=I	wc=sc	st=i	pre=I	suf=I	pw,w=",I	pwc,wc=other,sc	w,nw=I,'m	wc,nc=sc,other	ppw,pw,w=:,",I	ppwc,pwc,wc=other,other,sc	w,nw,nnw=I,'m,not	wc,nwc,nnwc=sc,other,lc	pd=null	t=t\u00E9	t2=NN,t\u00E9	def
+at: 5
+features: w='m	wc=other	stn=2	pt2=otherlc	st=m	pta=otherlc	pre='	pre='m	suf=m	suf='m	ng='m	pw,w=I,'m	pwc,wc=sc,other	w,nw='m,not	wc,nc=other,lc	ppw,pw,w=",I,'m	ppwc,pwc,wc=other,sc,other	w,nw,nnw='m,not,going	wc,nwc,nnwc=other,lc,lc	pd=null	t=other	t2=t\u00E9,other	def
+at: 6
+features: w=not	wc=lc	st=not	pre=n	pre=no	pre=not	suf=t	suf=ot	suf=not	ng=no	ng=ot	ng=not	pw,w='m,not	pwc,wc=other,lc	w,nw=not,going	wc,nc=lc,lc	ppw,pw,w=I,'m,not	ppwc,pwc,wc=sc,other,lc	w,nw,nnw=not,going,to	wc,nwc,nnwc=lc,lc,lc	pd=person-cont	t=person-start	t2=other,person-start	def
+at: 7
+features: w=going	wc=lc	st=going	pre=g	pre=go	pre=goi	suf=g	suf=ng	suf=ing	suf=oing	suf=going	ng=go	ng=oi	ng=in	ng=ng	ng=goi	ng=oin	ng=ing	pw,w=not,going	pwc,wc=lc,lc	w,nw=going,to	wc,nc=lc,lc	ppw,pw,w='m,not,going	ppwc,pwc,wc=other,lc,lc	w,nw,nnw=going,to,London	wc,nwc,nnwc=lc,lc,ic	pd=null	t=person-cont	t2=person-start,person-cont	def
+at: 8
+features: w=to	wc=lc	st=to	pre=t	pre=to	suf=o	suf=to	ng=to	pw,w=going,to	pwc,wc=lc,lc	w,nw=to,London	wc,nc=lc,ic	ppw,pw,w=not,going,to	ppwc,pwc,wc=lc,lc,lc	w,nw,nnw=to,London,.	wc,nwc,nnwc=lc,ic,other	pd=t\u00E9	t=NN	t2=person-cont,NN	def
+at: 9
+features: w=London	wc=ic	st=london	pre=L	pre=Lo	pre=Lon	suf=n	suf=on	suf=don	suf=ndon	suf=ondon	suf=London	ng=lo	ng=on	ng=nd	ng=do	ng=lon	ng=ond	ng=ndo	ng=don	pw,w=to,London	pwc,wc=lc,ic	w,nw=London,.	wc,nc=ic,other	ppw,pw,w=going,to,London	ppwc,pwc,wc=lc,lc,ic	w,nw,nnw=London,.,"	wc,nwc,nnwc=ic,other,other	pd=null	t=t\u00E9	t2=NN,t\u00E9	def	browncluster=0111	browncluster=011101	browncluster=0111011101	browncluster=01110111011101110111	c,browncluster=ic,0111	c,browncluster=ic,011101	c,browncluster=ic,0111011101	c,browncluster=ic,01110111011101110111
+at: 10
+features: w=.	wc=other	st=.	pre=.	suf=.	pw,w=London,.	pwc,wc=ic,other	w,nw=.,"	wc,nc=other,other	ppw,pw,w=to,London,.	ppwc,pwc,wc=lc,ic,other	pd=NN	t=other	t2=t\u00E9,other	def
+at: 11
+features: w="	wc=other	st="	pre="	suf="	pw,w=.,"	pwc,wc=other,other	ppw,pw,w=London,.,"	ppwc,pwc,wc=ic,other,other	S=end	pd=null	t=person-start	t2=other,person-start	def
+update
+sentence: 12
+tokens: \u0141\u00D3D\u0179	and	\u0391\u0398\u0397\u039D\u0391	are	cities	;	\u01C5	is	a	titlecase	letter	.
+outcomes: person-cont	NN	t\u00E9	other	person-start	person-cont	NN	t\u00E9	other	person-start	person-cont	NN
+at: 0
+features: w=\u0141\u00D3D\u0179	wc=ac	st=\u0142\u00F3d\u017A	pre=\u0141	pre=\u0141\u00D3	pre=\u0141\u00D3D	suf=\u0179	suf=D\u0179	suf=\u00D3D\u0179	suf=\u0141\u00D3D\u0179	ng=\u0142\u00F3	ng=\u00F3d	ng=d\u017A	ng=\u0142\u00F3d	ng=\u00F3d\u017A	w,nw=\u0141\u00D3D\u0179,and	wc,nc=ac,lc	w,nw,nnw=\u0141\u00D3D\u0179,and,\u0391\u0398\u0397\u039D\u0391	wc,nwc,nnwc=ac,lc,jah	pd=null	def
+at: 1
+features: w=and	wc=lc	st=and	pre=a	pre=an	pre=and	suf=d	suf=nd	suf=and	ng=an	ng=nd	ng=and	pw,w=\u0141\u00D3D\u0179,and	pwc,wc=ac,lc	w,nw=and,\u0391\u0398\u0397\u039D\u0391	wc,nc=lc,jah	w,nw,nnw=and,\u0391\u0398\u0397\u039D\u0391,are	wc,nwc,nnwc=lc,jah,lc	pd=person-start	t=person-cont	def
+at: 2
+features: w=\u0391\u0398\u0397\u039D\u0391	wc=jah	st=\u03B1\u03B8\u03B7\u03BD\u03B1	pre=\u0391	pre=\u0391\u0398	pre=\u0391\u0398\u0397	suf=\u0391	suf=\u039D\u0391	suf=\u0397\u039D\u0391	suf=\u0398\u0397\u039D\u0391	suf=\u0391\u0398\u0397\u039D\u0391	ng=\u03B1\u03B8	ng=\u03B8\u03B7	ng=\u03B7\u03BD	ng=\u03BD\u03B1	ng=\u03B1\u03B8\u03B7	ng=\u03B8\u03B7\u03BD	ng=\u03B7\u03BD\u03B1	pw,w=and,\u0391\u0398\u0397\u039D\u0391	pwc,wc=lc,jah	w,nw=\u0391\u0398\u0397\u039D\u0391,are	wc,nc=jah,lc	ppw,pw,w=\u0141\u00D3D\u0179,and,\u0391\u0398\u0397\u039D\u0391	ppwc,pwc,wc=ac,lc,jah	w,nw,nnw=\u0391\u0398\u0397\u039D\u0391,are,cities	wc,nwc,nnwc=jah,lc,lc	pd=null	t=NN	t2=person-cont,NN	def
+at: 3
+features: w=are	wc=lc	st=are	pre=a	pre=ar	pre=are	suf=e	suf=re	suf=are	ng=ar	ng=re	ng=are	pw,w=\u0391\u0398\u0397\u039D\u0391,are	pwc,wc=jah,lc	w,nw=are,cities	wc,nc=lc,lc	ppw,pw,w=and,\u0391\u0398\u0397\u039D\u0391,are	ppwc,pwc,wc=lc,jah,lc	w,nw,nnw=are,cities,;	wc,nwc,nnwc=lc,lc,other	pd=null	t=t\u00E9	t2=NN,t\u00E9	def
+at: 4
+features: w=cities	wc=lc	st=cities	pre=c	pre=ci	pre=cit	suf=s	suf=es	suf=ies	suf=ties	suf=ities	suf=cities	ng=ci	ng=it	ng=ti	ng=ie	ng=es	ng=cit	ng=iti	ng=tie	ng=ies	pw,w=are,cities	pwc,wc=lc,lc	w,nw=cities,;	wc,nc=lc,other	ppw,pw,w=\u0391\u0398\u0397\u039D\u0391,are,cities	ppwc,pwc,wc=jah,lc,lc	w,nw,nnw=cities,;,\u01C5	wc,nwc,nnwc=lc,other,lc	pd=null	t=other	t2=t\u00E9,other	def
+at: 5
+features: w=;	wc=other	st=;	pre=;	suf=;	pw,w=cities,;	pwc,wc=lc,other	w,nw=;,\u01C5	wc,nc=other,lc	ppw,pw,w=are,cities,;	ppwc,pwc,wc=lc,lc,other	w,nw,nnw=;,\u01C5,is	wc,nwc,nnwc=other,lc,lc	pd=person-start	t=person-start	t2=other,person-start	def
+at: 6
+features: w=\u01C5	wc=lc	st=\u01C6	pre=\u01C5	suf=\u01C5	pw,w=;,\u01C5	pwc,wc=other,lc	w,nw=\u01C5,is	wc,nc=lc,lc	ppw,pw,w=cities,;,\u01C5	ppwc,pwc,wc=lc,other,lc	w,nw,nnw=\u01C5,is,a	wc,nwc,nnwc=lc,lc,lc	pd=null	t=person-cont	t2=person-start,person-cont	def
+at: 7
+features: w=is	wc=lc	st=is	pre=i	pre=is	suf=s	suf=is	ng=is	pw,w=\u01C5,is	pwc,wc=lc,lc	w,nw=is,a	wc,nc=lc,lc	ppw,pw,w=;,\u01C5,is	ppwc,pwc,wc=other,lc,lc	w,nw,nnw=is,a,titlecase	wc,nwc,nnwc=lc,lc,lc	pd=null	t=NN	t2=person-cont,NN	def
+at: 8
+features: w=a	wc=lc	st=a	pre=a	suf=a	pw,w=is,a	pwc,wc=lc,lc	w,nw=a,titlecase	wc,nc=lc,lc	ppw,pw,w=\u01C5,is,a	ppwc,pwc,wc=lc,lc,lc	w,nw,nnw=a,titlecase,letter	wc,nwc,nnwc=lc,lc,lc	pd=person-cont	t=t\u00E9	t2=NN,t\u00E9	def
+at: 9
+features: w=titlecase	wc=lc	st=titlecase	pre=t	pre=ti	pre=tit	suf=e	suf=se	suf=ase	suf=case	suf=ecase	suf=lecase	ng=ti	ng=it	ng=tl	ng=le	ng=ec	ng=ca	ng=as	ng=se	ng=tit	ng=itl	ng=tle	ng=lec	ng=eca	ng=cas	ng=ase	pw,w=a,titlecase	pwc,wc=lc,lc	w,nw=titlecase,letter	wc,nc=lc,lc	ppw,pw,w=is,a,titlecase	ppwc,pwc,wc=lc,lc,lc	w,nw,nnw=titlecase,letter,.	wc,nwc,nnwc=lc,lc,other	pd=null	t=other	t2=t\u00E9,other	def
+at: 10
+features: w=letter	wc=lc	st=letter	pre=l	pre=le	pre=let	suf=r	suf=er	suf=ter	suf=tter	suf=etter	suf=letter	ng=le	ng=et	ng=tt	ng=te	ng=er	ng=let	ng=ett	ng=tte	ng=ter	pw,w=titlecase,letter	pwc,wc=lc,lc	w,nw=letter,.	wc,nc=lc,other	ppw,pw,w=a,titlecase,letter	ppwc,pwc,wc=lc,lc,lc	pd=null	t=person-start	t2=other,person-start	def
+at: 11
+features: w=.	wc=other	st=.	pre=.	suf=.	pw,w=letter,.	pwc,wc=lc,other	ppw,pw,w=titlecase,letter,.	ppwc,pwc,wc=lc,lc,other	S=end	pd=person-start	t=person-cont	t2=person-start,person-cont	def
+update
+sentence: 13
+tokens: One	more	sentence	about	Dr.	Jane	Doe	of	Acme	Inc.	in	Chicago	.
+outcomes: NN	t\u00E9	other	person-start	person-cont	NN	t\u00E9	other	person-start	person-cont	NN	t\u00E9	other
+at: 0
+features: w=One	wc=ic	st=one	pre=O	pre=On	pre=One	suf=e	suf=ne	suf=One	ng=on	ng=ne	ng=one	w,nw=One,more	wc,nc=ic,lc	w,nw,nnw=One,more,sentence	wc,nwc,nnwc=ic,lc,lc	pd=null	def
+at: 1
+features: w=more	wc=lc	st=more	pre=m	pre=mo	pre=mor	suf=e	suf=re	suf=ore	suf=more	ng=mo	ng=or	ng=re	ng=mor	ng=ore	pw,w=One,more	pwc,wc=ic,lc	w,nw=more,sentence	wc,nc=lc,lc	w,nw,nnw=more,sentence,about	wc,nwc,nnwc=lc,lc,lc	pd=null	t=NN	def
+at: 2
+features: w=sentence	wc=lc	st=sentence	pre=s	pre=se	pre=sen	suf=e	suf=ce	suf=nce	suf=ence	suf=tence	suf=ntence	ng=se	ng=en	ng=nt	ng=te	ng=nc	ng=ce	ng=sen	ng=ent	ng=nte	ng=ten	ng=enc	ng=nce	pw,w=more,sentence	pwc,wc=lc,lc	w,nw=sentence,about	wc,nc=lc,lc	ppw,pw,w=One,more,sentence	ppwc,pwc,wc=ic,lc,lc	w,nw,nnw=sentence,about,Dr.	wc,nwc,nnwc=lc,lc,ic	pd=null	t=t\u00E9	t2=NN,t\u00E9	def
+at: 3
+features: w=about	wc=lc	st=about	pre=a	pre=ab	pre=abo	suf=t	suf=ut	suf=out	suf=bout	suf=about	ng=ab	ng=bo	ng=ou	ng=ut	ng=abo	ng=bou	ng=out	pw,w=sentence,about	pwc,wc=lc,lc	w,nw=about,Dr.	wc,nc=lc,ic	ppw,pw,w=more,sentence,about	ppwc,pwc,wc=lc,lc,lc	w,nw,nnw=about,Dr.,Jane	wc,nwc,nnwc=lc,ic,ic	pd=null	t=other	t2=t\u00E9,other	def
+at: 4
+features: w=Dr.	wc=ic	stn=2	pt2=icother	st=dr	pta=icother	pre=D	pre=Dr	pre=Dr.	suf=.	suf=r.	suf=Dr.	ng=dr	ng=r.	ng=dr.	pw,w=about,Dr.	pwc,wc=lc,ic	w,nw=Dr.,Jane	wc,nc=ic,ic	ppw,pw,w=sentence,about,Dr.	ppwc,pwc,wc=lc,lc,ic	w,nw,nnw=Dr.,Jane,Doe	wc,nwc,nnwc=ic,ic,ic	pd=null	t=person-start	t2=other,person-start	def
+at: 5
+features: w=Jane	wc=ic	st=jane	pre=J	pre=Ja	pre=Jan	suf=e	suf=ne	suf=ane	suf=Jane	ng=ja	ng=an	ng=ne	ng=jan	ng=ane	pw,w=Dr.,Jane	pwc,wc=ic,ic	w,nw=Jane,Doe	wc,nc=ic,ic	ppw,pw,w=about,Dr.,Jane	ppwc,pwc,wc=lc,ic,ic	w,nw,nnw=Jane,Doe,of	wc,nwc,nnwc=ic,ic,lc	pd=null	t=person-cont	t2=person-start,person-cont	def
+at: 6
+features: w=Doe	wc=ic	st=doe	pre=D	pre=Do	pre=Doe	suf=e	suf=oe	suf=Doe	ng=do	ng=oe	ng=doe	pw,w=Jane,Doe	pwc,wc=ic,ic	w,nw=Doe,of	wc,nc=ic,lc	ppw,pw,w=Dr.,Jane,Doe	ppwc,pwc,wc=ic,ic,ic	w,nw,nnw=Doe,of,Acme	wc,nwc,nnwc=ic,lc,ic	pd=null	t=NN	t2=person-cont,NN	def
+at: 7
+features: w=of	wc=lc	st=of	pre=o	pre=of	suf=f	suf=of	ng=of	pw,w=Doe,of	pwc,wc=ic,lc	w,nw=of,Acme	wc,nc=lc,ic	ppw,pw,w=Jane,Doe,of	ppwc,pwc,wc=ic,ic,lc	w,nw,nnw=of,Acme,Inc.	wc,nwc,nnwc=lc,ic,ic	pd=NN	t=t\u00E9	t2=NN,t\u00E9	def	browncluster=1	c,browncluster=lc,1
+at: 8
+features: w=Acme	wc=ic	st=acme	pre=A	pre=Ac	pre=Acm	suf=e	suf=me	suf=cme	suf=Acme	ng=ac	ng=cm	ng=me	ng=acm	ng=cme	pw,w=of,Acme	pwc,wc=lc,ic	w,nw=Acme,Inc.	wc,nc=ic,ic	ppw,pw,w=Doe,of,Acme	ppwc,pwc,wc=ic,lc,ic	w,nw,nnw=Acme,Inc.,in	wc,nwc,nnwc=ic,ic,lc	pd=null	t=other	t2=t\u00E9,other	def
+at: 9
+features: w=Inc.	wc=ic	stn=2	pt2=icother	st=inc	pta=icother	pre=I	pre=In	pre=Inc	suf=.	suf=c.	suf=nc.	suf=Inc.	ng=in	ng=nc	ng=c.	ng=inc	ng=nc.	pw,w=Acme,Inc.	pwc,wc=ic,ic	w,nw=Inc.,in	wc,nc=ic,lc	ppw,pw,w=of,Acme,Inc.	ppwc,pwc,wc=lc,ic,ic	w,nw,nnw=Inc.,in,Chicago	wc,nwc,nnwc=ic,lc,ic	pd=null	t=person-start	t2=other,person-start	def
+at: 10
+features: w=in	wc=lc	st=in	pre=i	pre=in	suf=n	suf=in	ng=in	pw,w=Inc.,in	pwc,wc=ic,lc	w,nw=in,Chicago	wc,nc=lc,ic	ppw,pw,w=Acme,Inc.,in	ppwc,pwc,wc=ic,ic,lc	w,nw,nnw=in,Chicago,.	wc,nwc,nnwc=lc,ic,other	pd=t\u00E9	t=person-cont	t2=person-start,person-cont	def
+at: 11
+features: w=Chicago	wc=ic	st=chicago	pre=C	pre=Ch	pre=Chi	suf=o	suf=go	suf=ago	suf=cago	suf=icago	suf=hicago	ng=ch	ng=hi	ng=ic	ng=ca	ng=ag	ng=go	ng=chi	ng=hic	ng=ica	ng=cag	ng=ago	pw,w=in,Chicago	pwc,wc=lc,ic	w,nw=Chicago,.	wc,nc=ic,other	ppw,pw,w=Inc.,in,Chicago	ppwc,pwc,wc=ic,lc,ic	pd=null	t=NN	t2=person-cont,NN	def	browncluster=100	c,browncluster=ic,100
+at: 12
+features: w=.	wc=other	st=.	pre=.	suf=.	pw,w=Chicago,.	pwc,wc=ic,other	ppw,pw,w=in,Chicago,.	ppwc,pwc,wc=lc,ic,other	S=end	pd=NN	t=t\u00E9	t2=NN,t\u00E9	def
+update
+sentence: 14
+tokens: Smith	said	Smith	would	visit	Paris	again	in	2024	.
+outcomes: t\u00E9	other	person-start	person-cont	NN	t\u00E9	other	person-start	person-cont	NN
+at: 0
+features: w=Smith	wc=ic	st=smith	pre=S	pre=Sm	pre=Smi	suf=h	suf=th	suf=ith	suf=mith	suf=Smith	ng=sm	ng=mi	ng=it	ng=th	ng=smi	ng=mit	ng=ith	w,nw=Smith,said	wc,nc=ic,lc	w,nw,nnw=Smith,said,Smith	wc,nwc,nnwc=ic,lc,ic	pd=t\u00E9	def	browncluster=0110	browncluster=01100	c,browncluster=ic,0110	c,browncluster=ic,01100	browncluster,nbrowncluster=0110,1001	browncluster,nbrowncluster=01100,10011	word.cluster17	:w=dic	:w=dic=Smith
+at: 1
+features: w=said	wc=lc	st=said	pre=s	pre=sa	pre=sai	suf=d	suf=id	suf=aid	suf=said	ng=sa	ng=ai	ng=id	ng=sai	ng=aid	pw,w=Smith,said	pwc,wc=ic,lc	w,nw=said,Smith	wc,nc=lc,ic	w,nw,nnw=said,Smith,would	wc,nwc,nnwc=lc,ic,lc	pd=person-cont	t=t\u00E9	def	browncluster=1001	browncluster=10011	c,browncluster=lc,1001	c,browncluster=lc,10011	pbrowncluster,browncluster=0110,1001	pbrowncluster,browncluster=01100,10011	browncluster,nbrowncluster=1001,0110	browncluster,nbrowncluster=10011,01100
+at: 2
+features: w=Smith	wc=ic	st=smith	pre=S	pre=Sm	pre=Smi	suf=h	suf=th	suf=ith	suf=mith	suf=Smith	ng=sm	ng=mi	ng=it	ng=th	ng=smi	ng=mit	ng=ith	pw,w=said,Smith	pwc,wc=lc,ic	w,nw=Smith,would	wc,nc=ic,lc	ppw,pw,w=Smith,said,Smith	ppwc,pwc,wc=ic,lc,ic	w,nw,nnw=Smith,would,visit	wc,nwc,nnwc=ic,lc,lc	pd=t\u00E9	t=other	t2=t\u00E9,other	def	browncluster=0110	browncluster=01100	c,browncluster=ic,0110	c,browncluster=ic,01100	pbrowncluster,browncluster=1001,0110	pbrowncluster,browncluster=10011,01100	word.cluster17	:w=dic	:w=dic=Smith
+at: 3
+features: w=would	wc=lc	st=would	pre=w	pre=wo	pre=wou	suf=d	suf=ld	suf=uld	suf=ould	suf=would	ng=wo	ng=ou	ng=ul	ng=ld	ng=wou	ng=oul	ng=uld	pw,w=Smith,would	pwc,wc=ic,lc	w,nw=would,visit	wc,nc=lc,lc	ppw,pw,w=said,Smith,would	ppwc,pwc,wc=lc,ic,lc	w,nw,nnw=would,visit,Paris	wc,nwc,nnwc=lc,lc,ic	pd=null	t=person-start	t2=other,person-start	def
+at: 4
+features: w=visit	wc=lc	st=visit	pre=v	pre=vi	pre=vis	suf=t	suf=it	suf=sit	suf=isit	suf=visit	ng=vi	ng=is	ng=si	ng=it	ng=vis	ng=isi	ng=sit	pw,w=would,visit	pwc,wc=lc,lc	w,nw=visit,Paris	wc,nc=lc,ic	ppw,pw,w=Smith,would,visit	ppwc,pwc,wc=ic,lc,lc	w,nw,nnw=visit,Paris,again	wc,nwc,nnwc=lc,ic,lc	pd=t\u00E9	t=person-cont	t2=person-start,person-cont	def
+at: 5
+features: w=Paris	wc=ic	st=paris	pre=P	pre=Pa	pre=Par	suf=s	suf=is	suf=ris	suf=aris	suf=Paris	ng=pa	ng=ar	ng=ri	ng=is	ng=par	ng=ari	ng=ris	pw,w=visit,Paris	pwc,wc=lc,ic	w,nw=Paris,again	wc,nc=ic,lc	ppw,pw,w=would,visit,Paris	ppwc,pwc,wc=lc,lc,ic	w,nw,nnw=Paris,again,in	wc,nwc,nnwc=ic,lc,lc	pd=person-cont	t=NN	t2=person-cont,NN	def	browncluster=0110	browncluster=011011	browncluster=0110111010	c,browncluster=ic,0110	c,browncluster=ic,011011	c,browncluster=ic,0110111010	word.cluster40	:w=dic	:w=dic=Paris
+at: 6
+features: w=again	wc=lc	st=again	pre=a	pre=ag	pre=aga	suf=n	suf=in	suf=ain	suf=gain	suf=again	ng=ag	ng=ga	ng=ai	ng=in	ng=aga	ng=gai	ng=ain	pw,w=Paris,again	pwc,wc=ic,lc	w,nw=again,in	wc,nc=lc,lc	ppw,pw,w=visit,Paris,again	ppwc,pwc,wc=lc,ic,lc	w,nw,nnw=again,in,2024	wc,nwc,nnwc=lc,lc,4d	pd=null	t=t\u00E9	t2=NN,t\u00E9	def
+at: 7
+features: w=in	wc=lc	st=in	pre=i	pre=in	suf=n	suf=in	ng=in	pw,w=again,in	pwc,wc=lc,lc	w,nw=in,2024	wc,nc=lc,4d	ppw,pw,w=Paris,again,in	ppwc,pwc,wc=ic,lc,lc	w,nw,nnw=in,2024,.	wc,nwc,nnwc=lc,4d,other	pd=NN	t=other	t2=t\u00E9,other	def
+at: 8
+features: w=2024	wc=4d	st=2024	pre=2	pre=20	pre=202	suf=4	suf=24	suf=024	suf=2024	ng=20	ng=02	ng=24	ng=202	ng=024	pw,w=in,2024	pwc,wc=lc,4d	w,nw=2024,.	wc,nc=4d,other	ppw,pw,w=again,in,2024	ppwc,pwc,wc=lc,lc,4d	pd=null	t=person-start	t2=other,person-start	def
+at: 9
+features: w=.	wc=other	st=.	pre=.	suf=.	pw,w=2024,.	pwc,wc=4d,other	ppw,pw,w=in,2024,.	ppwc,pwc,wc=lc,4d,other	S=end	pd=other	t=person-cont	t2=person-start,person-cont	def
+update
+sentence: 15
+tokens: a
+outcomes: other
+at: 0
+features: w=a	wc=lc	st=a	pre=a	suf=a	S=end	pd=other	def
+update

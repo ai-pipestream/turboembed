@@ -33,7 +33,7 @@ pub mod model;
 mod model_reader;
 pub mod properties;
 pub mod sha256;
-mod xml;
+pub mod xml;
 pub mod zip;
 
 pub use container::ModelFile;

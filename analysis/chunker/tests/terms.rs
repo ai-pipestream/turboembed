@@ -61,6 +61,7 @@ fn document() -> Document {
         sentences: Vec::new(),
         cut: Vec::new(),
         cost: Vec::new(),
+        over_budget: Vec::new(),
         model_tokens: Vec::new(),
     };
     for (first, last, level, parent, s) in [
@@ -75,7 +76,8 @@ fn document() -> Document {
         ch.parent.push(parent.map(Ix::new));
         ch.sentences.push(IxRange::new(s.0, s.1));
         ch.cut.push(Cut::Sentence);
-        ch.cost.push(0.0);
+        ch.cost.push(0);
+        ch.over_budget.push(false);
         ch.model_tokens.push(0);
     }
     doc.add(&Key::DEFAULT, sentences, Provenance::by("t")).unwrap();
