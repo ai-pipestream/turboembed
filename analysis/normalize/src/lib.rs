@@ -32,6 +32,7 @@ use turbo_analysis::{Alignment, Annotator, Error, Refs, Span, View, ViewBuilder}
 
 pub mod accent_fold;
 pub mod bullets;
+pub mod case_fold;
 pub mod chain;
 pub mod confusables;
 pub mod dashes;
@@ -44,10 +45,12 @@ pub mod invisible;
 pub mod quotes;
 pub mod substitute;
 pub mod tables;
+pub mod unicode_form;
 pub mod whitespace;
 
 pub use accent_fold::{AccentFold, StrokeLetters};
 pub use bullets::Bullets;
+pub use case_fold::{CaseFold, CaseFoldMode};
 pub use chain::Chain;
 pub use confusables::ConfusableSkeleton;
 pub use dashes::Dashes;
@@ -57,6 +60,7 @@ pub use ellipsis::Ellipsis;
 pub use german::GermanUmlauts;
 pub use invisible::Invisible;
 pub use quotes::Quotes;
+pub use unicode_form::UnicodeForm;
 pub use whitespace::{Whitespace, WhitespaceMode};
 
 /// One text normalizer. Its only job is to copy `text` into `out`,
