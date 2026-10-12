@@ -100,6 +100,14 @@ class MaxentRecorderTest {
     MaxentRecorder never = MaxentRecorder.wrap(sentenceWeights());
     never.contextRequested(request, context);
     assertThrows(IllegalStateException.class, never::take);
+
+    // After an annotator threw, what it recorded is discarded, a pending request too.
+    MaxentRecorder threw = MaxentRecorder.wrap(sentenceWeights());
+    threw.contextRequested(request, context);
+    threw.eval(context);
+    threw.contextRequested(request, context);
+    threw.discard();
+    assertEquals(List.of(), threw.take());
   }
 
   private static Path save(BaseModel model, Path file) throws IOException {
@@ -114,7 +122,8 @@ class MaxentRecorderTest {
   }
 
   @Test
-  void theSentenceDumpHasEveryCandidateWithItsContextsAtItsByteOffset(@TempDir Path dir) throws IOException {
+  void theSentenceDumpHasEveryCandidateWithItsContextsAtItsByteOffset(@TempDir Path dir)
+      throws IOException, AnnotatorException {
     char[] eos = {'.'};
     SentenceModel model = new SentenceModel("en", sentenceWeights(), Map.of(),
         new SentenceDetectorFactory("en", true, null, eos));
@@ -141,7 +150,8 @@ class MaxentRecorderTest {
   }
 
   @Test
-  void theTokenDumpPairsRequestsWithTheirWhitespaceTokens(@TempDir Path dir) throws IOException {
+  void theTokenDumpPairsRequestsWithTheirWhitespaceTokens(@TempDir Path dir)
+      throws IOException, AnnotatorException {
     // No predicate of the tokenizer's contexts is known, so every decision is 0.5 and 0.5, and the
     // first outcome, F (no split), wins.
     GISModel weights = new GISModel(new Context[] {new Context(new int[] {0, 1}, new double[] {0.0, 0.0})},

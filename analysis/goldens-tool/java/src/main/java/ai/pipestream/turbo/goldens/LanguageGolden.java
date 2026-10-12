@@ -58,13 +58,13 @@ final class LanguageGolden implements AnnotatorGolden {
   }
 
   @Override
-  public List<Layer> layers(Input input) {
+  public List<Layer> layers(Input input) throws AnnotatorException {
     return layers(detector, input);
   }
 
   /** The layers {@code detector} produces for the input; {@link LanguageDump} runs it on its recording detector. */
-  static List<Layer> layers(LanguageDetectorME detector, Input input) {
-    Language[] languages = detector.predictLanguages(input.text());
+  static List<Layer> layers(LanguageDetectorME detector, Input input) throws AnnotatorException {
+    Language[] languages = AnnotatorException.call(() -> detector.predictLanguages(input.text()));
     String[] codes = new String[languages.length];
     double[] confidences = new double[languages.length];
     for (int i = 0; i < languages.length; i++) {
