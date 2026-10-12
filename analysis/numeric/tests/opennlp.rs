@@ -19,7 +19,7 @@ const NOTATIONS: [NumberNotation; 2] = [LatinUs, LatinEu];
 fn value(text: &str, apply_scale: bool, notation: NumberNotation) -> Option<(String, usize)> {
     let mut digits = String::new();
     let r = parse(text, 0, apply_scale, notation, &mut digits)?;
-    Some((DecimalRef { negative: false, digits: &digits, scale: r.scale }.to_plain_string(), r.end))
+    Some((DecimalRef { negative: false, digits: &digits, scale: r.scale.into() }.to_plain_string(), r.end))
 }
 
 // NumberNotationTest

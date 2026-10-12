@@ -369,7 +369,7 @@ mod tests {
     fn scan(text: &str, apply_scale: bool, notation: NumberNotation) -> Option<(String, usize)> {
         let mut digits = String::new();
         let r = parse(text, 0, apply_scale, notation, &mut digits)?;
-        let value = turbo_analysis_layers::DecimalRef { negative: false, digits: &digits, scale: r.scale };
+        let value = turbo_analysis_layers::DecimalRef { negative: false, digits: &digits, scale: r.scale.into() };
         Some((value.to_plain_string(), r.end))
     }
 

@@ -16,6 +16,7 @@ use std::sync::Arc;
 
 use turbo_analysis::{Anchor, Ix, IxRange, Key, KeyId, Layer, ModelRef, Spans, ViewId};
 
+pub use money::{CONVERTED_MONEY, Currency, Money, MoneyMention};
 pub use numbers::{DecimalRef, Multiplier, NumberMention, NumberNotation, Numbers, ScaleMarker};
 
 /// A closed set of labels (a POS tag set, entity kinds, dependency
@@ -107,6 +108,7 @@ macro_rules! positional {
     };
 }
 
+mod money;
 mod numbers;
 
 /// Document structure from the parser upstream or a structure annotator:
