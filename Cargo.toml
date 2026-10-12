@@ -18,6 +18,8 @@ members = [
     "analysis/normalize",
     "analysis/normalize-layers",
     "analysis/sentdetect",
+    "analysis/tokenize",
+    "analysis/tokenize-layers",
 ]
 resolver = "3"
 

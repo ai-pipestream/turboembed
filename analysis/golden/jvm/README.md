@@ -27,9 +27,8 @@ Each file in these directories is named after its input (`<input>.txt`).
 inputs (`spanish`, `french`, `numbers`, `urls-emails`, `supplementary`), every context
 `DefaultTokenContextGenerator` built and the two probabilities the model returned.
 
-`analysis/tokenize/tests/golden/uax29-wordbreaktest.txt` is a plain copy of OpenNLP's
-`WordBreakTest.txt` test resource, the Unicode 17.0 version OpenNLP bundles, with its
-license header kept; the Unicode license is in `analysis/unicode/ucd/LICENSE`. The
+`analysis/tokenize/tests/golden/uax29-wordbreaktest.txt` is an unchanged copy of
+Unicode's `auxiliary/WordBreakTest.txt` for Unicode 18.0.0 (license header kept). The
 program does not write it.
 
 Models are found by their manifest: every `*.bin` file in the models directory whose

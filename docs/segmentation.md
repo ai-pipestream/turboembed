@@ -19,7 +19,7 @@ where and why.
 | `turbo-jvm` | `analysis/jvm/` | JDK routines ported bit for bit; `turbo-maxent` uses `strict_math::exp` and `strict_math::log`, the fdlibm functions behind `StrictMath.exp` and `StrictMath.log` |
 | `turbo-maxent` | `analysis/maxent/` | OpenNLP model files: the zip container, the manifest, maxent and perceptron models and their evaluation, the dictionary XML |
 | `turbo-sentdetect` | `analysis/sentdetect/` | The newline detector, the paragraph detector and the maxent sentence detector |
-| `turbo-tokenize` | `analysis/tokenize/` | The simple and whitespace tokenizers, the UAX #29 word tokenizer, the maxent tokenizer, the dictionary detokenizer |
+| `turbo-tokenize` | `analysis/tokenize/` | The simple and whitespace tokenizers and the UAX #29 word tokenizer; the maxent tokenizer and the dictionary detokenizer are to come |
 | `turbo-tokenize-layers` | `analysis/tokenize-layers/` | The tokenizers' own layer: the word type of each token |
 
 They depend on the standard library, `turbo-analysis` and
@@ -184,6 +184,11 @@ sentences, each sentence is tokenized on its own and the `Tokens` layer
 carries the sentence of every token; without, the whole view is one
 unit. All write `Tokens`; the maxent tokenizer also writes
 `Confidence<Tokens>`, and the UAX #29 tokenizer also writes `WordTypes`.
+One function, `tokenize_units`, turns the view and the optional
+sentences into units and collects the tokens, so every tokenizer
+handles sentences the same way. Each tokenizer is also a plain function
+over a `&str` that appends spans to a caller's buffer
+(`simple_spans`, `whitespace_spans`, `word_tokens`).
 
 ### `SimpleTokenizer`
 
@@ -193,8 +198,11 @@ wherever the character changes, so `...` is one token and `.,` is two.
 Deviation: Java classifies each surrogate half on its own, so a
 character outside the BMP (an emoji, a rare CJK character) becomes two
 "other" tokens that each cover half a character. Half a character is
-not a valid UTF-8 span, so here such a character is one "other"
-character. This is noted as an OpenNLP finding.
+not a valid UTF-8 span, so here such a character is one "other" token
+covering the whole character. It is never merged with a neighbour, not
+even an identical character, because in Java no half ever joins the
+token before or after it; so the token's edges are exactly the outer
+edges of the Java halves. This is noted as an OpenNLP finding.
 
 The `keepNewLines` option emits each `\n` and `\r` as a token of its
 own. (The Java compares the character with the general category
@@ -219,21 +227,32 @@ make it decode a character and ask the mode.
 
 ### `WordTokenizer` (UAX #29)
 
-Word boundaries by UAX #29 rules WB1 to WB999 over the `Word_Break`
-property, with `Extended_Pictographic` for WB3c. `turbo-unicode` has the
-Unicode 18.0 property and OpenNLP bundles 17.0; docs/normalizers.md
-says how many characters differ and how. The segmenter is a state
-machine over the last two significant classes, the current class and,
-where a rule needs it, the next significant class and the regional
-indicator parity, so a document is one pass with no
-backtracking. Segments that hold no letter, digit or script character
-(punctuation, spaces) are not tokens. Each token's type is one of
-alphanumeric, numeric, ideographic, hiragana, katakana, hangul,
-southeast asian or emoji, by the script and classes of its characters,
-and goes to the `WordTypes` layer. Tokens longer than `max_token_length`
-UTF-16 code units (255 by default) are cut into pieces of that length,
-never inside a character. The boundaries are checked against every case
-of `WordBreakTest.txt`, the 17.0 copy OpenNLP bundles.
+Word boundaries by UAX #29 rules WB1 to WB999 over the Unicode 18.0
+`Word_Break` property, with `Extended_Pictographic` for WB3c. OpenNLP
+bundles the 17.0 property; docs/normalizers.md says which characters
+differ. The segmenter is a state machine over the last two significant
+classes, the current class and, where a rule needs it, the next
+significant class and the regional indicator parity, so a document is
+one pass with no backtracking. As in the Java, the decision for rules
+WB5 to WB999 comes from a table over (last, current) pairs derived at
+compile time from the rule cascade, and the cascade runs only for the
+pairs whose answer depends on the look-ahead or the parity. Segments
+that hold no letter, digit or script character (punctuation, spaces) are
+not tokens. Each token's type is one of alphanumeric, numeric,
+ideographic, hiragana, katakana, hangul, southeast asian or emoji, by
+the script and classes of its characters, and goes to the `WordTypes`
+layer. Tokens longer than `max_token_length` UTF-16 code units (255 by
+default) are cut into pieces of at most that length, each with the type
+of the whole word, never inside a character. The boundaries are checked
+against Unicode's `WordBreakTest.txt`, every case.
+
+`WordTokenizer` writes the `Tokens` first and then the `WordTypes`
+aligned to them, and runs in a pipeline like any other step: the
+analyzer accepts an aligned output whose anchor is an output the same
+step writes before it, and the document checks that the types are as
+long as the tokens when it stores them. `UntypedWordTokenizer` writes
+the same tokens without the types, for a pipeline that has no use for
+them.
 
 ### `TokenizerMe` (maxent)
 
