@@ -259,6 +259,46 @@ the generator directly under the JDK named in their headers; the
 container run is to be proven on a machine with Docker.
 `analysis/goldens-tool/README.md` has the commands.
 
+The generator writes these layers, in this order within a golden:
+
+| Annotator | Layers |
+|---|---|
+| `sentdetect` (`SentenceDetectorME.sentPosDetect`) | `opennlp:sentences`, `turbo:utf16<opennlp:sentences>` when a sentence cuts a character, `turbo:confidence<opennlp:sentences>` |
+| `tokenize` (`TokenizerME.tokenizePos`) | `opennlp:tokens`, `turbo:utf16<opennlp:tokens>` when a token cuts a character, `turbo:confidence<opennlp:tokens>` |
+| `langdetect` (`LanguageDetectorME.predictLanguages`) | `opennlp:language` |
+| `normalize` (each normalizer) | `turbo:view` |
+
+Other crates write goldens of their own layer types in the same format,
+which the generator does not make: a tokenizer crate's
+`turbo:word-types`, one `kind:str` per token, aligned to
+`opennlp:tokens`, is one.
+
+When the OpenNLP annotator throws on an input, the golden holds the
+header records, the `config` records and then, as its last line,
+`error <class> <message>`: the exception's fully qualified class and
+what `getMessage()` returned (empty for null), escaped as a `str`
+field. It has no layer blocks, and that input has no decision point
+dump. Only the call into the annotator is caught this way; any other
+exception (an input or model that cannot be read, one of the
+generator's own checks) stops the generator. None of the three
+annotators throws on the checked in inputs.
+
+`TokenizerME` decides at every UTF-16 unit inside a whitespace token, so
+it can split a character outside the Basic Multilingual Plane between
+two tokens (`'😀.` gives `'`, the high surrogate, the low surrogate and
+`.`). A byte offset cannot fall between the two halves, so the row of a
+span that starts or ends inside a surrogate pair holds the whole
+character (the start rounds down to the character's first byte, the
+end up to the byte after it), and the two halves are two rows over the
+same bytes. Right after the layer, the generator then writes
+`turbo:utf16<opennlp:tokens>` (or `turbo:utf16<opennlp:sentences>`),
+aligned to it, with one row per row: `start16:u32` and `end16:u32`, the
+JVM's exact half open span in UTF-16 units, and `cut:u32`, 1 for a row
+that cut a character and 0 otherwise. The layer is written only when at
+least one row cuts a character, so every other golden is as it was.
+`analysis/goldens/data/inputs/en/emoji-split.txt` is such an input for
+the tokenizer.
+
 ## Decision point dumps
 
 Beside each golden, `<annotator>/<model>/<set>/<id>.dump` records every
@@ -390,8 +430,9 @@ The driver always passes it (`GENERATOR_ARGS` in
 entrypoint), so `turbo-goldens generate` writes and installs goldens and
 dumps together, and `turbo-goldens verify` compares both byte for byte.
 `verify` and `generate` also check, at the header level only, that every
-golden has a dump beside it, that every dump has a golden, and that each
-dump's header parses and names the input and model of its path. The
+golden of these three annotators has a dump beside it, except one with
+an error record, which has none, that every dump has a golden, and that
+each dump's header parses and names the input and model of its path. The
 checked in dumps were made by running the generator directly under the
 JDK named in their headers, as the goldens were; the container run is to
 be proven on a machine with Docker.
