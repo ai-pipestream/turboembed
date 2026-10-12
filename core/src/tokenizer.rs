@@ -625,6 +625,17 @@ impl Tokenizer {
         self.template.iter().filter(|p| p.is_some()).count() as u32
     }
 
+    /// The special tokens the template puts before the text and those it
+    /// puts after it, as every row encoded with special tokens has them:
+    /// for a caller that lays out rows from pieces it already has.
+    pub fn template_ends(&self) -> (Vec<i32>, Vec<i32>) {
+        // The manifest holds the text once in every template.
+        let at = self.template.iter().position(Option::is_none).unwrap_or(self.template.len());
+        let head = self.template[..at].iter().flatten().copied().collect();
+        let tail = self.template.get(at + 1..).unwrap_or_default().iter().flatten().copied().collect();
+        (head, tail)
+    }
+
     /// One row of ids. Too long for `max_tokens` is cut as `truncation`
     /// says, or CAPACITY for TRUNCATE_NONE.
     pub fn encode(&self, text: &str, opts: Encode) -> Result<Vec<i32>> {

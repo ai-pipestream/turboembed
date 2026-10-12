@@ -19,7 +19,7 @@ nothing here is in the C header or the gRPC server.
 | `turbo-analysis` | `analysis/core/` | The document, views, offset tables, layers, keys, provenance, annotators, the analyzer and the registry |
 | `turbo-analysis-layers` | `analysis/layers/` | The layers add-ons share (below) |
 | `turbo-chunker` | `analysis/chunker/` | The chunker |
-| `turbo-analysis-embed` | `analysis/embed/` | The embedding model as analysis steps: the subwords of a text view from the bundle's tokenizer |
+| `turbo-analysis-embed` | `analysis/embed/` | The embedding model as analysis steps: the subwords of a text view from the bundle's tokenizer, and a vector per sentence and per chunk |
 | `turbo-jvm` | `analysis/jvm/` | JVM behaviour the OpenNLP ports must reproduce bit for bit |
 | `turbo-goldens` | `analysis/goldens/` | Golden layer files from the JVM: the reader, the writer, the comparison, loading golden layers as test inputs, SHA-256 and SHA-512 |
 
@@ -319,6 +319,103 @@ the token it belongs to (`align`), in one pass over both span lists:
 So the pieces of one token are a run, which `Subwords::of` finds by
 binary search. Tokens in another view, or out of order, fail the
 document. A document with pieces but no tokens gets no token column.
+
+## Vectors
+
+`VectorAnnotator` in `turbo-analysis-embed` writes a vector per sentence
+(`opennlp:embeddings<opennlp:sentences>`) and per chunk
+(`opennlp:embeddings<turbo:chunks>`). It embeds windows of the subword
+pieces once each and pools every item's vector from the encoder's final
+states over its pieces, through the core's late pooling
+(`turbo_embed_write_ranges` in include/turbo/turbo.h). It drives the core through its
+C interface, as any caller does, behind a small safe type (`Encoder`):
+a runtime, the model on the device asked for (the CPU, a backend by
+name, a device index, or the one `turbo_runtime_select` picks), and one
+session at the precision asked for.
+
+Three steps run it, since an aligned layer hangs on a layer the step
+reads: `SentenceVectors` reads the subwords and the sentences,
+`ChunkVectors` the subwords and the chunks, and `SentenceChunkVectors`
+all three and writes both from the same windows. They can share one
+loaded model (`Arc<VectorAnnotator>`). `VectorsProvider` offers them to
+a registry as `vectors`, the spec's location being the bundle directory
+and its options `layers` (`sentences`, `chunks`, `both`), `device`,
+`precision` and `prompt`.
+
+The subwords must be the same bundle's pieces (the layer's model is
+compared) and every layer must be in the subwords' view; a document
+where either fails fails alone.
+
+### Rows and windows
+
+A row is the template's leading special tokens, the prompt's prefix
+(the document role by default), the pieces of one window, then the
+template's trailing special tokens. The overhead around the pieces is
+`SubwordAnnotator::overhead` for the same role, the chunker's budget
+overhead, so a chunk the chunker kept within a budget of at most
+`max_seq` fits one window. The prefix is the prefix's own tokens, as
+the overhead counts them; a byte-level BPE or Unigram prefix that the
+tokenizer would merge with the text's first piece is not merged here.
+A window holds at most `width` pieces: `max_seq` less the overhead. The
+special tokens and the prefix are never pooled; an item is pooled over
+its pieces alone.
+
+The window policy, for one document:
+
+1. An item covers the pieces whose span overlaps its own, found by
+   binary search over the pieces' starts and ends. A piece that an
+   item's edge cuts is covered, as the chunker counts it on both sides.
+2. An item that covers no piece (an empty span, or whitespace a
+   WordPiece tokenizer drops) is not placed.
+3. An item of more than `width` pieces is cut into parts of `width`
+   pieces from its first piece, the last part shorter, and each part is
+   placed like an item.
+4. The items and parts, sentences and chunks together, are sorted by
+   their first piece, then their last. In that order each goes in the
+   current window when that window holds all of it; otherwise a new
+   window starts at its first piece and runs `width` pieces, or to the
+   end of the text, and becomes the current window.
+
+So every item of at most `width` pieces is pooled from one window that
+holds it whole, in the context of that window's text; a sentence that
+would cross a window's end starts the next window. Windows overlap
+where that happens, and the windows of a document are in text order.
+
+The windows of every document in a batch go through the same runs: up
+to the session's `max_batch` rows and `max_ranges` ranges a run (16 per
+row unless set). A window whose ranges do not all fit in a run goes
+again, with the rest, in the next.
+
+### Items longer than a window, and items with no pieces
+
+An item longer than a window cannot be pooled from one pass of the
+encoder. Its vector is the mean of its parts' vectors weighted by their
+pieces: the mean of all its pieces' final states, each piece encoded in
+the context of its own part's window. The model cannot read more than
+`max_seq` tokens in one pass, so there is no single pass to match, and
+refusing such an item would fail every document with a chunk at a
+coarse level of the hierarchy (a section over many windows). Its parts
+are separate windows, so attention never crosses from one part to the
+next.
+
+An item that covers no piece has no token to pool. Its vector is the
+zero vector, which no unit vector is, so a reader can tell it from a
+pooled one; the layer stays aligned to its items.
+
+### Normalization and provenance
+
+The core is asked for the plain means, and the vectors are normalized
+as the bundle says on the host, with the arithmetic of the core's CPU
+backend (the norm summed in f64, at least 1e-12), so a split item is
+normalized after its parts are combined. A bundle pooled by its first
+or last token is refused: late pooling is the mean, which is not the
+vector such a model was trained to give.
+
+Every vector layer's provenance has the bundle's id, revision and
+manifest hash as its model, and as its execution the backend, the
+device's name, and the precision as the dtype the session computes in
+and the tier asked for, such as `f32 (model)`. The configuration hash
+covers the row length and the prompt.
 
 ## The chunker
 
@@ -805,6 +902,27 @@ runs them on any machine:
   their word tokens (a BPE piece over two tokens, punctuation in no
   token), tokens that cannot be aligned, and the provider. The crate's
   unit tests hold `align` on hand-made spans.
+- `analysis/embed/tests/vectors.rs` runs the vector steps on the small
+  BERT on the CPU. The row is the tokenizer's own row for each prompt
+  role, and its overhead the subwords annotator's; a static model's has
+  none. A range over a whole row is the row's mean-pooled vector bit
+  for bit, and normalizing it on the host is the core's normalization
+  bit for bit. Every sentence and chunk vector (sentences alone, chunks
+  alone, both) is held to the same range run alone in a session of its
+  own, the parts of a split item combined by hand: in one window,
+  across several windows with runs smaller than a window's ranges, for
+  a sentence that crosses a window's end, for chunks longer than a
+  window, and for three documents in one batch against each alone.
+  Items with no pieces get the zero vector, and empty layers stay
+  empty. It also checks provenance, the provider, subwords of another
+  model and sentences in another view, a model pooled by its first
+  token, and rows with no room for text. `window.rs`'s unit tests hold
+  the policy on hand-made spans. One test runs the steps on the device
+  `TURBO_TEST_DEVICE` names (a backend name or a device index), at the
+  precision `TURBO_TEST_PRECISION` names, and holds the vectors to the
+  CPU's within the tolerance the core gives that dtype; without the
+  variable it says it was skipped. On a CUDA machine:
+  `TURBO_TEST_DEVICE=cuda cargo test -p turbo-analysis-embed --features turbo/cuda --test vectors on_the_device`.
 - `analysis/core/tests/offsets.rs` converts offsets in both directions
   at every character boundary of text with one to four byte
   characters, refuses offsets inside a surrogate pair and past the end,
@@ -853,7 +971,10 @@ runs them on any machine:
 ## Not built yet
 
 - The annotators themselves: normalizers, sentence detection,
-  tokenization, vectors through turboembed, and the boundary signals.
+  tokenization, and the boundary signals.
+- A comparison of the sentence vectors with OpenNLP's
+  `SentenceVectorsDL` on golden inputs, which needs the JVM container,
+  and a measurement of documents per second through the vector steps.
   The tests build their layers by hand or with toy annotators.
 - A parity check of the subwords against the JVM's WordPiece encoder on
   golden inputs; the WordPiece pieces are compared with upstream

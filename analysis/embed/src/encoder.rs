@@ -1,0 +1,421 @@
+//! The core's runtime, model and session behind one small safe type,
+//! driven through the C interface as any other caller drives it: rows of
+//! token ids in, and a mean-pooled vector per range of their tokens out
+//! (`turbo_embed_write_ranges`).
+
+use std::ffi::c_char;
+use std::path::Path;
+use std::ptr;
+
+use turbo::status::{DEVICE_NOT_FOUND, Error, INVALID_ARGUMENT, UNSUPPORTED_OPTION};
+use turbo::*;
+use turbo_analysis::Execution;
+
+/// The device a model runs on.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum Device {
+    /// The host's processors, through the cpu backend.
+    Cpu,
+    /// The first device the backend of this name lists: "cuda", "metal",
+    /// "levelzero" and so on, as `turbo_device_info.backend` names it.
+    Backend(String),
+    /// A device by its index in the runtime's list.
+    Index(u32),
+    /// The device `turbo_runtime_select` picks for embedding, which is
+    /// never a CPU.
+    Select,
+}
+
+/// The session's precision tier, `TURBO_PRECISION_*`.
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+pub enum Precision {
+    Model,
+    Fastest,
+    Exact,
+}
+
+impl Precision {
+    fn code(self) -> u32 {
+        match self {
+            Precision::Model => TURBO_PRECISION_MODEL,
+            Precision::Fastest => TURBO_PRECISION_FASTEST,
+            Precision::Exact => TURBO_PRECISION_EXACT,
+        }
+    }
+
+    pub fn name(self) -> &'static str {
+        match self {
+            Precision::Model => "model",
+            Precision::Fastest => "fastest",
+            Precision::Exact => "exact",
+        }
+    }
+}
+
+/// Where and how the model runs. A 0 is the default the field names.
+#[derive(Clone, Debug)]
+pub struct EncoderOptions {
+    pub device: Device,
+    pub precision: Precision,
+    /// Rows per run; 0 is the model's max_batch.
+    pub max_batch: u32,
+    /// Tokens per row, special tokens included; 0 is the model's max_seq.
+    pub max_seq: u32,
+    /// Ranges per run; 0 is 16 per row, at most one per token. The
+    /// session holds memory for this many vectors.
+    pub max_ranges: u32,
+    /// The threads a CPU session computes on; 0 is the core's default
+    /// (`TURBO_CPU_THREADS`, else one per processor). Another device
+    /// takes 0 alone.
+    pub cpu_threads: u32,
+}
+
+impl Default for EncoderOptions {
+    fn default() -> Self {
+        EncoderOptions {
+            device: Device::Cpu,
+            precision: Precision::Model,
+            max_batch: 0,
+            max_seq: 0,
+            max_ranges: 0,
+            cpu_threads: 0,
+        }
+    }
+}
+
+/// What a session resolved its options to, and the model's facts the
+/// annotator needs.
+#[derive(Clone, Debug)]
+pub struct EncoderInfo {
+    /// Values per vector.
+    pub dim: u32,
+    pub max_batch: u32,
+    pub max_seq: u32,
+    pub max_ranges: u32,
+    /// The bundle's pooling, `TURBO_POOLING_*`.
+    pub pooling: u32,
+    /// Whether the bundle normalizes its vectors to unit length.
+    pub l2: bool,
+    /// The dtype the session computes in, `TURBO_DTYPE_*`.
+    pub compute_dtype: u32,
+    /// Backend, device and precision, for provenance. The precision is
+    /// the dtype the session computes in, then the tier asked for:
+    /// "f32 (model)", "f16 (fastest)".
+    pub execution: Execution,
+}
+
+/// A loaded model and one session on it. A session has one owner at a
+/// time, as the C interface says; `&mut self` holds it to that.
+pub struct Encoder {
+    rt: *mut turbo_runtime,
+    ctx: *mut turbo_context,
+    model: *mut turbo_model,
+    session: *mut turbo_session,
+    info: EncoderInfo,
+}
+
+// SAFETY: the runtime, context and model may be used from any thread, and
+// the session from one owner at a time, which `&mut self` on every call
+// that uses it makes so.
+unsafe impl Send for Encoder {}
+
+impl Drop for Encoder {
+    fn drop(&mut self) {
+        // Each release takes NULL, so a half-made encoder drops too.
+        unsafe {
+            turbo_session_release(self.session);
+            turbo_model_release(self.model);
+            turbo_context_release(self.ctx);
+            turbo_runtime_release(self.rt);
+        }
+    }
+}
+
+fn new_error() -> turbo_error {
+    turbo_error { struct_size: size_of::<turbo_error>() as u32, code: 0, field: 0, message: [0; 496] }
+}
+
+/// A fixed-size C string field as a String.
+fn field(b: &[c_char]) -> String {
+    let bytes: Vec<u8> = b.iter().take_while(|&&c| c != 0).map(|&c| u8::from_ne_bytes(c.to_ne_bytes())).collect();
+    String::from_utf8_lossy(&bytes).into_owned()
+}
+
+/// A status from the C interface as the core's error, with its message.
+fn check(rc: i32, err: &turbo_error) -> Result<(), Error> {
+    if rc == 0 { Ok(()) } else { Err(Error::field(rc, err.field, field(&err.message))) }
+}
+
+fn dtype_name(dtype: u32) -> String {
+    match dtype {
+        TURBO_DTYPE_F32 => "f32".into(),
+        TURBO_DTYPE_F16 => "f16".into(),
+        TURBO_DTYPE_BF16 => "bf16".into(),
+        TURBO_DTYPE_I8 => "i8".into(),
+        TURBO_DTYPE_F64 => "f64".into(),
+        d => format!("dtype {d}"),
+    }
+}
+
+impl Encoder {
+    /// The bundle at `dir` on the device `o` names, and a session on it.
+    pub fn open(dir: &Path, o: &EncoderOptions) -> Result<Encoder, Error> {
+        let path =
+            dir.to_str().ok_or_else(|| Error::new(INVALID_ARGUMENT, format!("{}: not a UTF-8 path", dir.display())))?;
+        let mut err = new_error();
+        let mut e = Encoder {
+            rt: ptr::null_mut(),
+            ctx: ptr::null_mut(),
+            model: ptr::null_mut(),
+            session: ptr::null_mut(),
+            info: EncoderInfo {
+                dim: 0,
+                max_batch: 0,
+                max_seq: 0,
+                max_ranges: 0,
+                pooling: 0,
+                l2: false,
+                compute_dtype: 0,
+                execution: Execution { backend: String::new(), device: String::new(), precision: String::new() },
+            },
+        };
+        check(unsafe { turbo_runtime_create(ptr::null(), &mut e.rt, &mut err) }, &err)?;
+        let index = e.device_index(&o.device)?;
+        let device = e.device_info(index)?;
+        check(unsafe { turbo_context_create(e.rt, index, &mut e.ctx, &mut err) }, &err)?;
+        let text = turbo_text { ptr: path.as_ptr().cast(), len: path.len() as u64 };
+        check(unsafe { turbo_model_load(e.ctx, text, &mut e.model, &mut err) }, &err)?;
+
+        let mut m: turbo_model_info = unsafe { std::mem::zeroed() };
+        m.struct_size = size_of::<turbo_model_info>() as u32;
+        check(unsafe { turbo_model_get_info(e.model, &mut m, &mut err) }, &err)?;
+
+        let max_batch = if o.max_batch == 0 { m.max_batch } else { o.max_batch };
+        let max_seq = if o.max_seq == 0 { m.max_seq } else { o.max_seq };
+        let max_ranges = match o.max_ranges {
+            0 => max_batch.saturating_mul(16).min(max_batch.saturating_mul(max_seq)),
+            n => n,
+        };
+        let desc = turbo_session_desc {
+            struct_size: size_of::<turbo_session_desc>() as u32,
+            max_batch,
+            max_seq,
+            precision: o.precision.code(),
+            tuning: TURBO_AUTOTUNE_RUNTIME,
+            tuning_budget_ms: 0,
+            cpu_threads: o.cpu_threads,
+            max_ranges,
+        };
+        check(unsafe { turbo_session_create(e.model, &desc, &mut e.session, &mut err) }, &err)?;
+        let mut s: turbo_session_info = unsafe { std::mem::zeroed() };
+        s.struct_size = size_of::<turbo_session_info>() as u32;
+        check(unsafe { turbo_session_get_info(e.session, &mut s, &mut err) }, &err)?;
+
+        e.info = EncoderInfo {
+            dim: m.dim,
+            max_batch: s.max_batch,
+            max_seq: s.max_seq,
+            max_ranges,
+            pooling: m.pooling,
+            l2: m.normalize == TURBO_NORMALIZE_L2,
+            compute_dtype: s.compute_dtype,
+            execution: Execution {
+                backend: field(&device.backend),
+                device: field(&device.name),
+                precision: format!("{} ({})", dtype_name(s.compute_dtype), o.precision.name()),
+            },
+        };
+        Ok(e)
+    }
+
+    pub fn info(&self) -> &EncoderInfo {
+        &self.info
+    }
+
+    fn device_count(&self) -> Result<u32, Error> {
+        let (mut n, mut err) = (0, new_error());
+        check(unsafe { turbo_runtime_device_count(self.rt, &mut n, &mut err) }, &err)?;
+        Ok(n)
+    }
+
+    fn device_info(&self, index: u32) -> Result<turbo_device_info, Error> {
+        let mut info: turbo_device_info = unsafe { std::mem::zeroed() };
+        info.struct_size = size_of::<turbo_device_info>() as u32;
+        let mut err = new_error();
+        check(unsafe { turbo_runtime_device_info(self.rt, index, &mut info, &mut err) }, &err)?;
+        Ok(info)
+    }
+
+    /// The runtime's index of the device `d` names.
+    fn device_index(&self, d: &Device) -> Result<u32, Error> {
+        let n = self.device_count()?;
+        let find = |what: &str, f: &dyn Fn(&turbo_device_info) -> bool| -> Result<u32, Error> {
+            for i in 0..n {
+                if f(&self.device_info(i)?) {
+                    return Ok(i);
+                }
+            }
+            Err(Error::new(DEVICE_NOT_FOUND, format!("no {what} device is listed among {n}")))
+        };
+        match d {
+            Device::Cpu => find("cpu", &|i| i.kind == TURBO_DEVICE_CPU),
+            Device::Backend(name) => find(name, &|i| field(&i.backend) == *name),
+            Device::Index(i) if *i < n => Ok(*i),
+            Device::Index(i) => Err(Error::new(DEVICE_NOT_FOUND, format!("device {i}: the runtime lists {n}"))),
+            Device::Select => {
+                let (mut out, mut err) = (0, new_error());
+                let rc =
+                    unsafe { turbo_runtime_select(self.rt, TURBO_TASK_EMBED, &mut out, ptr::null_mut(), 0, &mut err) };
+                check(rc, &err)?;
+                Ok(out)
+            }
+        }
+    }
+
+    /// Late pooling: `rows` encoded once and, into `out`, the mean of the
+    /// encoder's final states over each range's tokens, neither cut nor
+    /// normalized: `[ranges.len(), dim]` values. A caller that wants unit
+    /// vectors normalizes them with `normalize`, as the core would.
+    pub fn run_ranges(&mut self, rows: &Rows, ranges: &[turbo_token_range], out: &mut Vec<f32>) -> Result<(), Error> {
+        let o = options(TURBO_POOLING_MEAN, TURBO_NORMALIZE_NONE);
+        let mut err = new_error();
+        let rc = unsafe {
+            turbo_embed_write_ranges(self.session, &rows.batch(), ranges.as_ptr(), ranges.len() as u32, &o, &mut err)
+        };
+        check(rc, &err)?;
+        self.run(out)
+    }
+
+    /// The row path, for comparing a range with its row: a mean-pooled
+    /// vector per row into `out`, normalized when `l2`.
+    pub fn run_rows(&mut self, rows: &Rows, l2: bool, out: &mut Vec<f32>) -> Result<(), Error> {
+        let normalize = if l2 { TURBO_NORMALIZE_L2 } else { TURBO_NORMALIZE_NONE };
+        let o = options(TURBO_POOLING_MEAN, normalize);
+        let mut err = new_error();
+        check(unsafe { turbo_embed_write_tokens(self.session, &rows.batch(), &o, &mut err) }, &err)?;
+        self.run(out)
+    }
+
+    /// Runs what was written and reads the vectors into `out`, which is
+    /// resized to them and otherwise reused.
+    fn run(&mut self, out: &mut Vec<f32>) -> Result<(), Error> {
+        struct Owned(*mut turbo_result);
+        impl Drop for Owned {
+            fn drop(&mut self) {
+                unsafe { turbo_result_release(self.0) };
+            }
+        }
+        let mut err = new_error();
+        let mut r = Owned(ptr::null_mut());
+        check(unsafe { turbo_session_run(self.session, &mut r.0, &mut err) }, &err)?;
+        let mut info: turbo_result_info = unsafe { std::mem::zeroed() };
+        info.struct_size = size_of::<turbo_result_info>() as u32;
+        check(unsafe { turbo_result_get_info(r.0, &mut info, &mut err) }, &err)?;
+        if info.dtype != TURBO_DTYPE_F32 {
+            return Err(Error::new(UNSUPPORTED_OPTION, format!("vectors of {}, not f32", dtype_name(info.dtype))));
+        }
+        out.resize(info.batch as usize * info.dim as usize, 0.0);
+        let mut written = 0u64;
+        let bytes = size_of_val(out.as_slice()) as u64;
+        check(unsafe { turbo_result_read(r.0, out.as_mut_ptr().cast(), bytes, &mut written, &mut err) }, &err)
+    }
+}
+
+fn options(pooling: u32, normalize: u32) -> turbo_embed_options {
+    turbo_embed_options {
+        struct_size: size_of::<turbo_embed_options>() as u32,
+        truncate: 0,
+        max_tokens: 0,
+        prompt_role: 0,
+        normalize,
+        pooling,
+        output_dim: 0,
+    }
+}
+
+/// Scales `v` to unit length as the core's CPU backend does after
+/// pooling: by one over the norm, summed in f64, or over 1e-12 when the
+/// norm is smaller. A zero vector stays zero.
+pub fn normalize(v: &mut [f32]) {
+    let norm = v.iter().map(|&x| x as f64 * x as f64).sum::<f64>().sqrt().max(1e-12);
+    let inv = (1.0 / norm) as f32;
+    for x in v {
+        *x *= inv;
+    }
+}
+
+/// Rows of token ids for one run, laid out `stride` apart and padded
+/// with the fill id under mask 0; the buffers are kept between runs.
+pub struct Rows {
+    ids: Vec<i32>,
+    mask: Vec<i32>,
+    stride: u32,
+    fill: i32,
+    batch: u32,
+    seq: u32,
+}
+
+impl Rows {
+    /// Rows of at most `stride` tokens, padded with `fill`.
+    pub fn new(stride: u32, fill: i32) -> Rows {
+        Rows { ids: Vec::new(), mask: Vec::new(), stride, fill, batch: 0, seq: 0 }
+    }
+
+    pub fn clear(&mut self) {
+        self.ids.clear();
+        self.mask.clear();
+        self.batch = 0;
+        self.seq = 0;
+    }
+
+    pub fn len(&self) -> u32 {
+        self.batch
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.batch == 0
+    }
+
+    /// The longest row: the batch's seq.
+    pub fn seq(&self) -> u32 {
+        self.seq
+    }
+
+    /// Adds a row made of `parts` one after another, and returns its
+    /// index. Panics when they hold more than `stride` tokens.
+    pub fn push(&mut self, parts: &[&[i32]]) -> u32 {
+        let stride = self.stride as usize;
+        let len: usize = parts.iter().map(|p| p.len()).sum();
+        assert!(len <= stride, "a row of {len} tokens is over the stride {stride}");
+        let at = self.ids.len();
+        self.ids.resize(at + stride, self.fill);
+        self.mask.resize(at + stride, 0);
+        let mut p = at;
+        for part in parts {
+            self.ids[p..p + part.len()].copy_from_slice(part);
+            p += part.len();
+        }
+        self.mask[at..p].fill(1);
+        self.seq = self.seq.max(len as u32);
+        self.batch += 1;
+        self.batch - 1
+    }
+
+    /// Row `r`'s ids and mask, through its stride.
+    pub fn row(&self, r: u32) -> (&[i32], &[i32]) {
+        let at = r as usize * self.stride as usize;
+        (&self.ids[at..at + self.stride as usize], &self.mask[at..at + self.stride as usize])
+    }
+
+    fn batch(&self) -> turbo_token_batch {
+        turbo_token_batch {
+            struct_size: size_of::<turbo_token_batch>() as u32,
+            batch: self.batch,
+            seq: self.seq,
+            row_stride: self.stride,
+            ids: self.ids.as_ptr(),
+            mask: self.mask.as_ptr(),
+            types: ptr::null(),
+        }
+    }
+}
