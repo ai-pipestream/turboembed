@@ -451,3 +451,48 @@ impl Layer for Assets {
         Ok(())
     }
 }
+
+/// The words a spelling corrector changed: for each, its span in the view
+/// the corrector read (so the original text is at hand to undo it), the
+/// text it became, and the edit distance of the correction. In compound
+/// correction a span can cover two words and the whitespace between them
+/// (a merge), and the text can hold two words (a split). The spans are in
+/// text order, do not overlap and are not empty.
+pub struct Corrections {
+    pub spans: Spans<Corrections>,
+    pub suggestion: Strs,
+    pub edit_distance: Vec<u8>,
+}
+
+impl Corrections {
+    pub fn new(view: ViewId) -> Corrections {
+        Corrections { spans: Spans::new(view), suggestion: Strs::default(), edit_distance: Vec::new() }
+    }
+}
+
+impl Layer for Corrections {
+    const ID: &'static str = "turbo:corrections";
+
+    fn len(&self) -> usize {
+        self.spans.len()
+    }
+
+    fn text_spans(&self) -> Option<(ViewId, &[u32], &[u32])> {
+        let (start, end) = self.spans.columns();
+        Some((self.spans.view(), start, end))
+    }
+
+    fn check(&self) -> Result<(), String> {
+        let n = self.spans.len();
+        if self.suggestion.len() != n || self.edit_distance.len() != n {
+            return Err("a suggestion and an edit distance for every correction".into());
+        }
+        if !self.spans.is_ordered() {
+            return Err("corrections in text order, not overlapping".into());
+        }
+        if self.spans.iter().any(|(_, s)| s.is_empty()) {
+            return Err("no empty correction".into());
+        }
+        Ok(())
+    }
+}
