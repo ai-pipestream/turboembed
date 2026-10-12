@@ -1346,8 +1346,6 @@ fn the_writer_writes_a_layer_with_no_rows_and_a_file_with_no_layers() {
 }
 
 #[test]
-#[ignore = "BUG: the writer does not check the anchor of a layer, so an aligned anchor holding a tab or a line end \
-            is written as part of the layer record and the file cannot be read back"]
 fn the_writer_refuses_a_tab_or_line_end_in_an_aligned_anchor() {
     for bad in ["a\tb", "a\nb", "a\rb"] {
         let mut g = full_golden();
@@ -1358,8 +1356,6 @@ fn the_writer_refuses_a_tab_or_line_end_in_an_aligned_anchor() {
 }
 
 #[test]
-#[ignore = "BUG: the writer accepts empty header text fields, an empty column name and an empty aligned anchor, \
-            which the reader refuses, so a file it writes can be unreadable"]
 fn what_the_writer_writes_the_reader_reads_for_empty_fields() {
     let cases: Vec<Edit> = vec![
         Box::new(|g| g.header.generator.name = String::new()),

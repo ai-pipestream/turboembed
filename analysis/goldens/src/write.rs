@@ -7,13 +7,15 @@
 use std::io::{self, Write};
 
 use crate::escape::escape_into;
-use crate::format::{ColumnData, Golden, GoldenLayer, Header, VERSION};
+use crate::format::{ColumnData, Golden, GoldenAnchor, GoldenLayer, Header, VERSION};
 use crate::hex::to_hex;
 
 impl Golden {
-    /// Writes the file. Refuses (as `InvalidInput`) a header field holding
-    /// a tab or a line end, which the format cannot carry, and a layer
-    /// with no columns or with columns of different lengths.
+    /// Writes the file. Refuses (as `InvalidInput`) what the reader would
+    /// refuse or the format cannot carry: an empty header field, aligned
+    /// anchor or column name, one holding a tab or a line end, unsorted
+    /// config keys, and a layer with no columns or with columns of
+    /// different lengths.
     pub fn write(&self, w: &mut impl Write) -> io::Result<()> {
         let mut out = String::new();
         self.write_to_string(&mut out)?;
@@ -43,6 +45,10 @@ fn write_header(h: &Header, out: &mut String) -> io::Result<()> {
     record(out, &["jdk", &h.jdk.version, &h.jdk.vm_version, &h.jdk.vendor])?;
     record(out, &["unicode", &h.unicode.to_string()])?;
     let i = &h.input;
+    // Tabs and line ends in the set and id are refused with the record.
+    if i.set.is_empty() || i.id.is_empty() {
+        return Err(invalid(format!("the input record's set {:?} or id {:?} is empty", i.set, i.id)));
+    }
     if i.set.contains('/') {
         return Err(invalid(format!("the input set {:?} holds a '/'", i.set)));
     }
@@ -77,13 +83,24 @@ fn write_header(h: &Header, out: &mut String) -> io::Result<()> {
     Ok(())
 }
 
-/// One header record. Header fields are written as they are, unescaped,
-/// so one that holds a tab or a line end cannot be written.
+/// A field written as it is, unescaped: a header field, an aligned
+/// anchor's layer id, a column name. The reader refuses one that is
+/// empty, and one holding a tab or a line end would break its record, so
+/// the writer refuses both.
+fn field(what: &str, f: &str) -> io::Result<()> {
+    if f.is_empty() {
+        return Err(invalid(format!("{what} is empty")));
+    }
+    if f.contains(['\t', '\n', '\r']) {
+        return Err(invalid(format!("{what} {f:?} holds a tab or a line end")));
+    }
+    Ok(())
+}
+
+/// One header record, every field checked by `field`.
 fn record(out: &mut String, fields: &[&str]) -> io::Result<()> {
     for (i, f) in fields.iter().enumerate() {
-        if f.contains(['\t', '\n', '\r']) {
-            return Err(invalid(format!("the {} record's field {f:?} holds a tab or a line end", fields[0])));
-        }
+        field(&format!("the {} record's field", fields[0]), f)?;
         if i > 0 {
             out.push('\t');
         }
@@ -112,12 +129,16 @@ fn write_layer(l: &GoldenLayer, out: &mut String) -> io::Result<()> {
     out.push_str("layer\t");
     out.push_str(&l.id);
     out.push('\t');
+    if let GoldenAnchor::Aligned(of) = &l.anchor {
+        field(&format!("the aligned anchor of {}", l.id), of)?;
+    }
     out.push_str(&l.anchor.to_string());
     out.push('\t');
     out.push_str(&rows.to_string());
     for c in &l.columns {
-        if c.name.contains(['\t', '\n', '\r', ':']) {
-            return Err(invalid(format!("the column name {:?} holds a tab, a line end or a ':'", c.name)));
+        field("the column name", &c.name)?;
+        if c.name.contains(':') {
+            return Err(invalid(format!("the column name {:?} holds a ':'", c.name)));
         }
         out.push('\t');
         out.push_str(&c.name);
