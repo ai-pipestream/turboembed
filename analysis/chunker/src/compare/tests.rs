@@ -151,7 +151,8 @@ fn an_added_and_a_removed_cut_are_two_disagreements() {
 #[test]
 fn levels_are_compared_apart_and_children_follow_their_parent() {
     // Two sections, the second starting at 50 in A and at 40 in B. The
-    // chunk at 60 is in both, but under different parents.
+    // chunks at 0 and 60 are in both, but under parents of different
+    // spans.
     let child = |s, e, p| Row { parent: Some(p), ..row(s, e) };
     let section = |s, e| Row { level: 1, ..row(s, e) };
     let a = chunks(ViewId::SOURCE, &[section(0, 5), child(0, 5, 0), section(5, 8), child(5, 6, 2), child(6, 8, 2)]);
@@ -165,13 +166,20 @@ fn levels_are_compared_apart_and_children_follow_their_parent() {
         .disagreements
         .iter()
         .map(|d| (d.level, d.parent, d.a.iter().map(|c| c.start).collect(), d.b.iter().map(|c| c.start).collect()))
-        .collect::<Vec<(u8, Option<u32>, Vec<u32>, Vec<u32>)>>();
+        .collect::<Vec<(u8, Option<Span>, Vec<u32>, Vec<u32>)>>();
     assert_eq!(
         got,
-        [(0, Some(40), vec![], vec![40, 60]), (0, Some(50), vec![50, 60], vec![]), (1, None, vec![50], vec![40]),]
+        [
+            (0, Some(Span::new(0, 40)), vec![], vec![0]),
+            (0, Some(Span::new(0, 50)), vec![0], vec![]),
+            (0, Some(Span::new(40, 80)), vec![], vec![40, 60]),
+            (0, Some(Span::new(50, 80)), vec![50, 60], vec![]),
+            (1, None, vec![50], vec![40]),
+        ]
     );
-    // The first chunks at 0, and the section at 0, are shared.
-    assert_eq!(r.matched, 2);
+    // Only the section at 0 is shared: the first chunks start alike, but
+    // under parents of different spans.
+    assert_eq!(r.matched, 1);
     // No shared cut fixes where these stretches open, and the optimizer
     // does not cut sections, so none has a margin.
     assert!(r.disagreements.iter().all(|d| d.margin_a.is_none() && d.margin_b.is_none()));
@@ -191,7 +199,8 @@ fn costs_that_do_not_fit_the_chunks_are_refused() {
     let short = Boundaries { cost: vec![1000], reason: vec![Cut::Sentence] };
     let b =
         Run { chunks: &a, execution: None, pricing: Some(Pricing { sentences: &s, boundaries: &short, budget: B }) };
-    let Err(Refused::Invalid { run: Side::B, .. }) = compare(run(&a), b) else { panic!("refused") };
+    let refused = compare(run(&a), b).unwrap_err();
+    assert_eq!(refused.to_string(), "run B: its costs need a boundary cost for every sentence");
 }
 
 #[test]
@@ -223,20 +232,130 @@ fn a_cut_at_no_sentence_start_of_the_other_run_has_no_margin() {
     assert_eq!(d.margin_b, Some(0));
 }
 
+fn priced<'a>(chunks: &'a Chunks, sentences: &'a Sentences, boundaries: &'a Boundaries, budget: Budget) -> Run<'a> {
+    Run { chunks, execution: None, pricing: Some(Pricing { sentences, boundaries, budget }) }
+}
+
+#[test]
+fn a_stretch_can_hold_several_cuts() {
+    // A cuts at 20 and 40, B only at 30: one choice, not three.
+    let t = |s, e| Row { tokens: 100 * (e - s), ..row(s, e) };
+    let a = chunks(ViewId::SOURCE, &[t(0, 2), t(2, 4), t(4, 6)]);
+    let b = chunks(ViewId::SOURCE, &[t(0, 3), t(3, 6)]);
+    let (s, costs) = (sentences(6), Boundaries { cost: vec![1000; 6], reason: vec![Cut::Sentence; 6] });
+    let r = compare(priced(&a, &s, &costs, B), priced(&b, &s, &costs, B)).unwrap();
+    let [d] = &r.disagreements[..] else { panic!("one disagreement, not {:?}", r.disagreements) };
+    let starts = |c: &[CutAt]| c.iter().map(|c| c.start).collect::<Vec<_>>();
+    assert_eq!((d.after, d.before, starts(&d.a), starts(&d.b)), (Some(0), None, vec![20, 40], vec![30]));
+    // A's three chunks of 200 pay 111 each and two boundaries of 1000;
+    // B's two of 300 pay one boundary.
+    assert_eq!((d.margin_a, d.margin_b), (Some(1000 - 2333), Some(2333 - 1000)));
+}
+
+#[test]
+fn a_stretch_in_a_section_that_is_not_the_last_is_priced_to_its_end() {
+    // Two sections of 30 bytes, cut alike but for the first. Sentences
+    // hold 100 tokens; the boundary after the first costs 500.
+    let section = |s, e| Row { level: 1, tokens: 100 * (e - s), ..row(s, e) };
+    let child = |s, e, p| Row { parent: Some(p), tokens: 100 * (e - s), ..row(s, e) };
+    let second = [section(3, 6), child(3, 4, 3), child(4, 6, 3)];
+    let mut ra = vec![section(0, 3), child(0, 1, 0), child(1, 3, 0)];
+    let mut rb = vec![section(0, 3), child(0, 2, 0), child(2, 3, 0)];
+    ra.extend(second.iter().map(|r| Row { ..*r }));
+    rb.extend(second.iter().map(|r| Row { ..*r }));
+    let (a, b) = (chunks(ViewId::SOURCE, &ra), chunks(ViewId::SOURCE, &rb));
+    let s = sentences(6);
+    let costs = Boundaries { cost: vec![500, 1000, 1000, 1000, 1000, 1000], reason: vec![Cut::Sentence; 6] };
+    let r = compare(priced(&a, &s, &costs, B), priced(&b, &s, &costs, B)).unwrap();
+    let [d] = &r.disagreements[..] else { panic!("one disagreement, not {:?}", r.disagreements) };
+    assert_eq!((d.parent, d.after, d.before), (Some(Span::new(0, 30)), Some(0), None));
+    // A: 500 after the first sentence, 444 for a chunk of 100, 111 for
+    // one of 200, and nothing at the section's end. B: 1000, 111, 444.
+    assert_eq!((d.margin_a, d.margin_b), (Some(1555 - 1055), Some(1055 - 1555)));
+}
+
+#[test]
+fn each_choice_is_sized_by_its_own_run_and_priced_by_the_others_budget() {
+    // B's tokenizer counts 150 tokens a sentence to A's 100, and B's
+    // target is 200 to A's 300.
+    let (a, b) = (
+        chunks(ViewId::SOURCE, &[Row { tokens: 100, ..row(0, 1) }, Row { tokens: 200, ..row(1, 3) }]),
+        chunks(ViewId::SOURCE, &[Row { tokens: 300, ..row(0, 2) }, Row { tokens: 150, ..row(2, 3) }]),
+    );
+    let (s, costs) = (sentences(3), Boundaries { cost: vec![1000; 3], reason: vec![Cut::Sentence; 3] });
+    let bb = Budget { target: 200, ..B };
+    let r = compare(priced(&a, &s, &costs, B), priced(&b, &s, &costs, bb)).unwrap();
+    let [d] = &r.disagreements[..] else { panic!("one disagreement, not {:?}", r.disagreements) };
+    // Under A's budget B's chunks of 300 and 150 pay 0 and 250, A's own
+    // of 100 and 200 pay 444 and 111. Under B's, A's pay 250 and 0, B's
+    // own 250 and 62.
+    assert_eq!(d.margin_a, Some(1250 - 1555));
+    assert_eq!(d.margin_b, Some(1250 - 1312));
+}
+
+#[test]
+fn children_of_parents_with_different_spans_have_no_margin() {
+    // A has one section of six sentences cut in three; B has two
+    // sections, of four and two, with the same three chunks. Matched by
+    // start alone, A's choice would be priced to 60 and B's to 40.
+    let section = |s, e| Row { level: 1, tokens: 100 * (e - s), ..row(s, e) };
+    let child = |s, e, p| Row { parent: Some(p), tokens: 100 * (e - s), ..row(s, e) };
+    let a = chunks(ViewId::SOURCE, &[section(0, 6), child(0, 2, 0), child(2, 4, 0), child(4, 6, 0)]);
+    let b = chunks(ViewId::SOURCE, &[section(0, 4), child(0, 2, 0), child(2, 4, 0), section(4, 6), child(4, 6, 3)]);
+    let (s, costs) = (sentences(6), Boundaries { cost: vec![1000; 6], reason: vec![Cut::Sentence; 6] });
+    let r = compare(priced(&a, &s, &costs, B), priced(&b, &s, &costs, B)).unwrap();
+    assert!(!r.is_identical());
+    assert!(r.disagreements.iter().all(|d| d.margin_a.is_none() && d.margin_b.is_none()), "{r:?}");
+}
+
+#[test]
+fn two_rows_at_one_place_or_overlapping_are_refused() {
+    let two = chunks(ViewId::SOURCE, &[row(0, 3), row(3, 6), row(3, 6)]);
+    let one = chunks(ViewId::SOURCE, &[row(0, 3), row(3, 6)]);
+    let refused = compare(run(&two), run(&one)).unwrap_err();
+    assert_eq!(
+        refused.to_string(),
+        "run A: its chunks need one row per place, and rows 1 and 2 both start at 30 on level 0"
+    );
+    let overlapping = chunks(ViewId::SOURCE, &[row(0, 4), row(3, 6)]);
+    let refused = compare(run(&one), run(&overlapping)).unwrap_err();
+    assert_eq!(
+        refused.to_string(),
+        "run B: its chunks need level 0 rows that do not overlap under one parent, and row 0 ends at 40 past row \
+         1's start at 30"
+    );
+}
+
+#[test]
+fn chunks_that_do_not_start_and_end_at_sentences_are_refused() {
+    let mut a = chunks(ViewId::SOURCE, &[row(0, 3), row(3, 6)]);
+    a.spans = Spans::new(ViewId::SOURCE);
+    a.spans.push(Span::new(0, 25));
+    a.spans.push(Span::new(25, 60));
+    let (s, costs) = (sentences(6), Boundaries { cost: vec![1000; 6], reason: vec![Cut::Sentence; 6] });
+    let refused = compare(priced(&a, &s, &costs, B), run(&a)).unwrap_err();
+    assert_eq!(
+        refused.to_string(),
+        "run A: its chunks need to start and end where its sentences do, and row 0 spans 0..25"
+    );
+}
+
 #[test]
 fn the_margin_is_what_the_optimizer_minimizes() {
-    // On generated runs, every change of one gap to the optimizer's own
-    // cut (a cut added or removed) costs at least as much, and the margin
-    // is exactly the difference of the two totals, each summed here from
-    // the boundary costs and `penalty` as the optimizer defines a chunk.
+    // On generated runs, with one section or two, the optimizer's own cut
+    // is changed at one to three gaps (cuts added or removed). Every
+    // stretch's margin is at least zero, B's is its negation, and their
+    // sum is exactly the difference of the two totals, each summed here
+    // from the boundary costs and `penalty` as the optimizer defines a
+    // chunk, with a section's end free.
     let mut state: u64 = 0x9e37_79b9_7f4a_7c15;
     let mut rand = |m: u64| {
         state = state.wrapping_mul(6_364_136_223_846_793_005).wrapping_add(1_442_695_040_888_963_407);
         (state >> 33) % m
     };
-    let mut checked = 0;
-    for case in 0..2000 {
-        let n = 2 + rand(9) as usize;
+    let (mut checked, mut several, mut sectioned) = (0, 0, 0);
+    for case in 0..3000 {
+        let n = 2 + rand(11) as usize;
         let tokens: Vec<u32> = (0..n).map(|_| rand(80) as u32).collect();
         let cost: Vec<i32> = (0..n).map(|_| rand(4001) as i32 - 1500).collect();
         let b = Budget {
@@ -245,59 +364,95 @@ fn the_margin_is_what_the_optimizer_minimizes() {
             size_weight: [0, 1000, 1_000_000][rand(3) as usize],
             overhead: rand(4) as u32,
         };
+        let split = if n >= 4 && rand(2) == 0 { Some(2 + rand(n as u64 - 3) as usize) } else { None };
+        let runs: Vec<std::ops::Range<usize>> = match split {
+            Some(k) => vec![0..k, k..n],
+            None => std::iter::once(0..n).collect(),
+        };
         let l = Lengths::of(&tokens).unwrap();
         let size = |i: usize, j: usize| u64::from(l.run(i, j)) + u64::from(b.overhead);
-        let total = |ends: &[usize]| {
-            let mut i = 0;
+        let total = |ends: &[Vec<usize>]| {
             let mut t = 0i128;
-            for &j in ends {
-                t += i128::from(if j < n { cost[j - 1] } else { 0 }) + penalty(size(i, j), b);
-                i = j;
+            for (r, ends) in runs.iter().zip(ends) {
+                let mut i = r.start;
+                for &j in ends {
+                    t += i128::from(if j < r.end { cost[j - 1] } else { 0 }) + penalty(size(i, j), b);
+                    i = j;
+                }
             }
             t
         };
-        let layer = |ends: &[usize]| {
-            let mut i = 0;
-            let rows: Vec<Row> = ends
-                .iter()
-                .map(|&j| {
-                    let r = Row { tokens: size(i, j) as u32, ..row(i as u32, j as u32) };
+        let fits = |ends: &[Vec<usize>]| {
+            runs.iter().zip(ends).all(|(r, ends)| {
+                let mut i = r.start;
+                ends.iter().all(|&j| {
+                    let ok = j - i == 1 || size(i, j) <= u64::from(b.max);
                     i = j;
-                    r
+                    ok
                 })
-                .collect();
+            })
+        };
+        let layer = |ends: &[Vec<usize>]| {
+            let mut rows = Vec::new();
+            for (r, ends) in runs.iter().zip(ends) {
+                let parent = split.map(|_| {
+                    rows.push(Row {
+                        level: 1,
+                        tokens: size(r.start, r.end) as u32,
+                        ..row(r.start as u32, r.end as u32)
+                    });
+                    rows.len() as u32 - 1
+                });
+                let mut i = r.start;
+                for &j in ends {
+                    rows.push(Row { parent, tokens: size(i, j) as u32, ..row(i as u32, j as u32) });
+                    i = j;
+                }
+            }
             chunks(ViewId::SOURCE, &rows)
         };
-        let segments = segment(&cost, |i, j| l.run(i, j), b, no_term);
-        let best: Vec<usize> = segments.iter().map(|s| s.end).collect();
-        assert_eq!(total(&best), segments.iter().map(|s| s.cost).sum::<i128>(), "case {case}");
+        let mut best = Vec::new();
+        let mut optimizer = 0i128;
+        for r in &runs {
+            let segments = segment(&cost[r.clone()], |i, j| l.run(r.start + i, r.start + j), b, no_term);
+            optimizer += segments.iter().map(|s| s.cost).sum::<i128>();
+            best.push(segments.iter().map(|s| r.start + s.end).collect::<Vec<usize>>());
+        }
+        assert_eq!(total(&best), optimizer, "case {case}");
         let (s, bounds) = (sentences(n as u32), Boundaries { cost: cost.clone(), reason: vec![Cut::Sentence; n] });
         let a = layer(&best);
         let pricing = Some(Pricing { sentences: &s, boundaries: &bounds, budget: b });
-        for g in 1..n {
-            let mut other: Vec<usize> = best.iter().copied().filter(|&e| e != g).collect();
-            if other.len() == best.len() {
-                other.push(g);
-                other.sort_unstable();
+        // The gaps inside a run, where a cut may be added or removed.
+        let gaps: Vec<(usize, usize)> =
+            runs.iter().enumerate().flat_map(|(k, r)| (r.start + 1..r.end).map(move |g| (k, g))).collect();
+        for _ in 0..6 {
+            let mut other = best.clone();
+            let changes = 1 + rand(3) as usize;
+            for _ in 0..changes {
+                let (k, g) = gaps[rand(gaps.len() as u64) as usize];
+                match other[k].binary_search(&g) {
+                    Ok(at) => drop(other[k].remove(at)),
+                    Err(at) => other[k].insert(at, g),
+                }
             }
-            let mut i = 0;
-            let fits = other.iter().all(|&j| {
-                let ok = j - i == 1 || size(i, j) <= u64::from(b.max);
-                i = j;
-                ok
-            });
-            if !fits {
+            if other == best || !fits(&other) {
                 continue;
             }
             let o = layer(&other);
             let r = compare(Run { chunks: &a, execution: None, pricing }, Run { chunks: &o, execution: None, pricing })
                 .unwrap();
-            let [d] = &r.disagreements[..] else { panic!("case {case}, gap {g}: {:?}", r.disagreements) };
-            let want = total(&other) - total(&best);
-            assert!(want >= 0, "case {case}, gap {g}: the optimizer's cut is not the least");
-            assert_eq!((d.margin_a, d.margin_b), (Some(want), Some(-want)), "case {case}, gap {g}");
+            let mut sum = 0i128;
+            for d in &r.disagreements {
+                let m = d.margin_a.unwrap_or_else(|| panic!("case {case}: no margin in {d:?}"));
+                assert!(m >= 0, "case {case}: the optimizer's cut is not the least in {d:?}");
+                assert_eq!(d.margin_b, Some(-m), "case {case}");
+                sum += m;
+            }
+            assert_eq!(sum, total(&other) - total(&best), "case {case}: {best:?} {other:?}");
             checked += 1;
+            several += usize::from(r.disagreements.len() > 1 || changes > 1);
+            sectioned += usize::from(split.is_some());
         }
     }
-    assert!(checked > 1000, "{checked}");
+    assert!(checked > 5000 && several > 1000 && sectioned > 1000, "{checked} {several} {sectioned}");
 }

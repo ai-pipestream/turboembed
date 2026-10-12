@@ -19,9 +19,22 @@ pub(super) type Choice<'c> = (&'c Chunks, usize, &'c [usize]);
 /// stretch is the same in both and drops out: the difference is how much
 /// more the run's whole cut would cost had it cut the stretch as `other`
 /// did.
+///
+/// `None` when the two choices end at different bytes, which only
+/// chunks that do not reach the end of their parent alike can do: the
+/// difference would then price more than the stretch.
 pub(super) fn margin(p: Option<Pricing<'_>>, before: Option<u32>, own: Choice<'_>, other: Choice<'_>) -> Option<i128> {
     let p = p?;
+    if before.is_none() && end(other) != end(own) {
+        return None;
+    }
     Some(price(&p, before, other)? - price(&p, before, own)?)
+}
+
+/// Where a choice's last chunk ends.
+fn end((chunks, first, cuts): Choice<'_>) -> u32 {
+    let last = cuts.last().copied().unwrap_or(first);
+    chunks.spans.get(Ix::new(last as u32)).end
 }
 
 /// What `p` charges for a choice's chunks: each closed by the next cut,

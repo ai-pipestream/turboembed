@@ -6,7 +6,7 @@
 
 use std::fmt;
 
-use turbo_analysis::{Execution, Ix, Layer, ViewId};
+use turbo_analysis::{Execution, Ix, Layer, Span, ViewId};
 use turbo_analysis_layers::{Boundaries, Chunks, Cut, Sentences};
 
 use crate::Budget;
@@ -63,9 +63,9 @@ impl Report<'_> {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Disagreement {
     pub level: u8,
-    /// The start of the parent chunk, the same in both runs; `None` for
-    /// chunks with no parent.
-    pub parent: Option<u32>,
+    /// The parent chunk's span, the same in both runs; `None` for chunks
+    /// with no parent.
+    pub parent: Option<Span>,
     /// The shared cut it follows; `None` from the first chunk on.
     pub after: Option<u32>,
     /// The shared cut it ends at; `None` to the last chunk.
@@ -75,13 +75,19 @@ pub struct Disagreement {
     pub b: Vec<CutAt>,
     /// How much more run A's own costs charge for cutting this stretch as
     /// B did than as A did, in `Boundaries::UNIT`s, exactly as the
-    /// optimizer adds them: zero is a tie, and a margin smaller than what
-    /// the precision tier moves a cost by explains the difference. It is
-    /// what A would pay to switch to B's choice, so it is at least the gap
-    /// between A's best and second best cut. `None` without A's costs,
-    /// above level 0 (the levels the optimizer does not cut), from the
-    /// first chunk on (where no shared cut fixes the opening chunk), or
-    /// where B cuts at a place that is no sentence start of A's.
+    /// optimizer adds them. Zero is a tie. As a rule of thumb, a margin
+    /// smaller than what the precision tiers move a boundary cost by
+    /// (compare `boundary_a` and `boundary_b`) points at precision as the
+    /// cause. It is what A would pay to switch to B's choice, so it is at
+    /// least the gap between A's best and second best cut. B's chunks are
+    /// priced even where they are over A's maximum, as if allowed.
+    ///
+    /// `None` without A's costs, above level 0 (the levels the optimizer
+    /// does not cut), from the first chunk on (where no shared cut fixes
+    /// the opening chunk), where B cuts at a place that is no sentence
+    /// start of A's, or where the two choices do not end at the same
+    /// byte. Children of parents whose spans differ are never in one
+    /// stretch, so they have no shared cut and no margin.
     pub margin_a: Option<i128>,
     pub margin_b: Option<i128>,
 }
@@ -133,16 +139,15 @@ impl fmt::Display for Refused {
 impl std::error::Error for Refused {}
 
 /// Compares the cuts of two runs. A cut is a chunk's start at its level
-/// under its parent, the parent named by its own start, so a chunk whose
-/// parent moved is a disagreement under each parent.
+/// under its parent, the parent named by its span, so a chunk whose
+/// parent moved or changed its end is a disagreement under each parent.
 pub fn compare<'a>(a: Run<'a>, b: Run<'a>) -> Result<Report<'a>, Refused> {
-    check(a, Side::A)?;
-    check(b, Side::B)?;
+    let pa = check(a, Side::A)?;
+    let pb = check(b, Side::B)?;
     let (va, vb) = (a.chunks.spans.view(), b.chunks.spans.view());
     if va != vb {
         return Err(Refused::Views { a: va, b: vb });
     }
-    let (pa, pb) = (places(a.chunks), places(b.chunks));
     let mut report = Report { a: a.execution, b: b.execution, matched: 0, disagreements: Vec::new() };
     let mut open = Open { group: None, after: None, a: Vec::new(), b: Vec::new() };
     let (mut i, mut j) = (0, 0);
@@ -180,26 +185,26 @@ pub fn compare<'a>(a: Run<'a>, b: Run<'a>) -> Result<Report<'a>, Refused> {
     Ok(report)
 }
 
-/// Where a cut is: its level, its parent's start and its own start. The
+/// Where a cut is: its level, its parent's span and its own start. The
 /// order is the report's.
 #[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
 struct Place {
     level: u8,
-    parent: Option<u32>,
+    parent: Option<Span>,
     start: u32,
 }
 
 impl Place {
-    fn group(self) -> (u8, Option<u32>) {
+    fn group(self) -> (u8, Option<Span>) {
         (self.level, self.parent)
     }
 }
 
 /// Every chunk's place with its row, sorted; ties keep row order.
 fn places(c: &Chunks) -> Vec<(Place, usize)> {
-    let start = |i: usize| c.spans.get(Ix::new(i as u32)).start;
+    let span = |i: usize| c.spans.get(Ix::new(i as u32));
     let mut v: Vec<(Place, usize)> = (0..c.spans.len())
-        .map(|i| (Place { level: c.level[i], parent: c.parent[i].map(|p| start(p.get())), start: start(i) }, i))
+        .map(|i| (Place { level: c.level[i], parent: c.parent[i].map(|p| span(p.get())), start: span(i).start }, i))
         .collect();
     v.sort_unstable();
     v
@@ -207,7 +212,7 @@ fn places(c: &Chunks) -> Vec<(Place, usize)> {
 
 /// The cuts seen since the last shared one in the current group.
 struct Open {
-    group: Option<(u8, Option<u32>)>,
+    group: Option<(u8, Option<Span>)>,
     /// The last shared cut: its offset and its row in A and in B.
     after: Option<(u32, usize, usize)>,
     a: Vec<usize>,
@@ -254,21 +259,55 @@ impl Open {
     }
 }
 
-fn check(run: Run<'_>, side: Side) -> Result<(), Refused> {
+/// Checks a run and returns its chunks' places. Refuses chunks that break
+/// the layer's invariants, two rows at one place, level 0 rows that
+/// overlap under one parent and, with costs, costs that do not fit the
+/// run: chunks must start and end where its sentences do.
+fn check(run: Run<'_>, side: Side) -> Result<Vec<(Place, usize)>, Refused> {
     let invalid = |detail: String| Refused::Invalid { run: side, detail };
-    run.chunks.check().map_err(|d| invalid(format!("its chunks need {d}")))?;
-    if let Some(c) = run.pricing {
-        if c.sentences.spans.view() != run.chunks.spans.view() {
-            return Err(invalid("its sentences and chunks are in different views".into()));
+    let c = run.chunks;
+    c.check().map_err(|d| invalid(format!("its chunks need {d}")))?;
+    let span = |i: usize| c.spans.get(Ix::new(i as u32));
+    let places = places(c);
+    for w in places.windows(2) {
+        let ((x, i), (y, j)) = (w[0], w[1]);
+        if x == y {
+            return Err(invalid(format!(
+                "its chunks need one row per place, and rows {i} and {j} both start at {} on level {}",
+                x.start, x.level
+            )));
         }
-        if c.boundaries.cost.len() != c.sentences.spans.len() {
-            return Err(invalid("a boundary cost for every sentence".into()));
-        }
-        if !c.sentences.spans.is_ordered() {
-            return Err(invalid("its sentences in text order".into()));
+        if x.level == 0 && x.group() == y.group() && span(i).end > y.start {
+            return Err(invalid(format!(
+                "its chunks need level 0 rows that do not overlap under one parent, and row {i} ends at {} past row \
+                 {j}'s start at {}",
+                span(i).end,
+                y.start
+            )));
         }
     }
-    Ok(())
+    if let Some(p) = run.pricing {
+        let sentences = &p.sentences.spans;
+        if sentences.view() != c.spans.view() {
+            return Err(invalid("its costs need sentences in the chunks' view".into()));
+        }
+        if p.boundaries.cost.len() != sentences.len() {
+            return Err(invalid("its costs need a boundary cost for every sentence".into()));
+        }
+        if !sentences.is_ordered() {
+            return Err(invalid("its costs need sentences in text order".into()));
+        }
+        let (starts, ends) = sentences.columns();
+        let at = |col: &[u32], x: u32| col.binary_search(&x).is_ok();
+        if let Some(i) = (0..c.spans.len()).find(|&i| !at(starts, span(i).start) || !at(ends, span(i).end)) {
+            let s = span(i);
+            return Err(invalid(format!(
+                "its chunks need to start and end where its sentences do, and row {i} spans {}..{}",
+                s.start, s.end
+            )));
+        }
+    }
+    Ok(places)
 }
 
 #[cfg(test)]
