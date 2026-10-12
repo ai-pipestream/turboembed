@@ -1,0 +1,12 @@
+Paragraph one has two
+lines inside it.
+
+Paragraph two follows   a blank line.
+
+
+
+Paragraph three after three blank lines.
+
+Paragraph four with CRLF.
+   
+Last one.
