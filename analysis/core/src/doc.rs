@@ -219,8 +219,9 @@ impl Document {
     /// not another type's, its own invariants, spans in bounds and on
     /// character boundaries, an aligned layer as long as its anchor, and
     /// every index into another layer inside it. The anchor and the
-    /// indexed layers are the instances the provenance says were read (the
-    /// gold tokens, when a tagger read those), or the default ones.
+    /// indexed layers are the instances the provenance names: one its step
+    /// wrote before this layer (`on`), else one it read (the gold tokens,
+    /// when a tagger read those), else the default one.
     pub fn add<L: Layer>(&mut self, key: &Key<L>, mut layer: L, provenance: Provenance) -> Result<(), Error> {
         let id = key.id();
         if self.has(id) {
@@ -331,10 +332,13 @@ impl Document {
     }
 }
 
-/// The instance of `of`'s layer type a layer was made on: the one its step
-/// read (the first, if it read several), or the default.
+/// The instance of `of`'s layer type a layer was made on: one its step
+/// wrote itself before this layer, else the one it read (the first, if it
+/// read several), else the default. A step's own output comes first: a
+/// retokenizer that reads gold tokens and writes its own tokens with a
+/// confidence for each scores the tokens it wrote.
 fn made_on(of: KeyId, p: &Provenance) -> KeyId {
-    p.reads.iter().copied().find(|r| r.ty == of.ty).unwrap_or(of)
+    p.on.iter().chain(&p.reads).copied().find(|r| r.ty == of.ty).unwrap_or(of)
 }
 
 /// Every span inside the text, start before end, and both ends on a
