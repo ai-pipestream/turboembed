@@ -42,8 +42,10 @@ run FeatureGolden "$golden" "$golden/expected" "$PIN"
 run CodecGolden "$golden/expected" "$PIN"
 if [ -n "$models" ]; then
     run BeamGolden "$golden" "$golden/expected" "$PIN" "$models"
+    run PosGolden "$golden" "$golden/expected" "$PIN" "$models"
 else
     run BeamGolden "$golden" "$golden/expected" "$PIN"
+    run PosGolden "$golden" "$golden/expected" "$PIN"
 fi
 
 # The code point StringPattern: the branch's StringPattern and

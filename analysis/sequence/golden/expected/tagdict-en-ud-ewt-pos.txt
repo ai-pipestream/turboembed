@@ -1,0 +1,4 @@
+component: POSDictionary
+opennlp: cdf33c653d5d61d5af7d37ffee189a83bd8392ea
+jdk: 21.0.12.1
+present: false

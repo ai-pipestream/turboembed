@@ -1,0 +1,4 @@
+Item A: $10
+Item B: €20
+Item C: 30 GBP
+Total: 60 dollars

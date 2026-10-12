@@ -16,6 +16,7 @@ use std::sync::Arc;
 
 use turbo_analysis::{Anchor, Ix, IxRange, Key, KeyId, Layer, ModelRef, Spans, ViewId};
 
+pub use money::{CONVERTED_MONEY, Currency, Money, MoneyMention};
 pub use numbers::{DecimalRef, Multiplier, NumberMention, NumberNotation, Numbers, ScaleMarker};
 
 /// A closed set of labels (a POS tag set, entity kinds, dependency
@@ -107,6 +108,7 @@ macro_rules! positional {
     };
 }
 
+mod money;
 mod numbers;
 
 /// Document structure from the parser upstream or a structure annotator:
@@ -115,7 +117,8 @@ pub struct Structure {
     pub spans: Spans<Structure>,
     pub kind: Vec<Block>,
     pub parent: Vec<Option<Ix<Structure>>>,
-    /// Heading depth, list depth.
+    /// A heading's or a section's level, a list's, list item's or
+    /// quote's nesting (1 for the outermost), 0 otherwise.
     pub depth: Vec<u8>,
 }
 
@@ -128,6 +131,7 @@ pub enum Block {
     ListItem,
     Table,
     TableRow,
+    TableCell,
     Code,
     Quote,
     Caption,
@@ -143,6 +147,32 @@ impl Layer for Structure {
         let n = self.spans.len();
         if self.kind.len() != n || self.parent.len() != n || self.depth.len() != n {
             return Err("a kind, a parent and a depth for every block".into());
+        }
+        // Blocks are a tree in text order: each block starts at or after
+        // the one before it, inside its parent, which comes before it, and
+        // after the end of its previous sibling.
+        let (start, end) = self.spans.columns();
+        let mut last_child_end = vec![0u32; n];
+        let mut last_top_end = 0u32;
+        for i in 0..n {
+            if i > 0 && start[i] < start[i - 1] {
+                return Err(format!("block {i} starts before the block before it"));
+            }
+            let sibling_end = match self.parent[i] {
+                Some(p) if p.get() >= i => return Err(format!("block {i} has a parent at or after it")),
+                Some(p) => {
+                    let p = p.get();
+                    if start[i] < start[p] || end[i] > end[p] {
+                        return Err(format!("block {i} is outside its parent {p}"));
+                    }
+                    &mut last_child_end[p]
+                }
+                None => &mut last_top_end,
+            };
+            if start[i] < *sibling_end {
+                return Err(format!("block {i} overlaps the block before it"));
+            }
+            *sibling_end = end[i];
         }
         Ok(())
     }
@@ -336,24 +366,46 @@ pub enum Cut {
     Heading,
     Paragraph,
     TopicShift,
-    Budget,
     Clause,
+    /// Between two list items or two table rows.
+    Item,
+    /// Inside a unit no cut may fall in (a table row, a code block, a
+    /// quote), allowed only because that unit alone is over the budget.
+    Inside(Block),
+    /// Inside a unit that fits the budget, allowed because units that
+    /// share sentences with it chain into a run over the budget, which
+    /// must be cut somewhere.
+    Overlap(Block),
 }
 
 /// What a chunk boundary after each sentence would cost, and the strongest
-/// reason at it. Each signal annotator (structure, topic shifts,
-/// coreference, discourse markers) writes its own named instance, and one
-/// step weighs and sums them into the default instance, since a layer has
-/// one writer; the chunker reads only that.
+/// reason at it. The chunker reads only the default instance. With one
+/// boundary signal, that signal writes the default instance itself. With
+/// several (structure, topic shifts, coreference, discourse markers),
+/// each should write its own named instance and a step that weighs and
+/// sums them should write the default one, since a layer has one writer.
+/// A new signal is one more instance of this shape, never a new column.
+///
+/// Costs are integers, in `UNIT`s, so every backend sums them to the same
+/// totals and picks the same cuts; a signal computed in floating point is
+/// rounded once, when it is written. A plain sentence boundary costs one
+/// unit; a cost can be negative, for a signal that argues for a cut. A
+/// step that weighs and sums several instances should compute in i64 and
+/// saturate to the i32 range when it writes, so no weight or sum wraps
+/// around.
 pub struct Boundaries {
-    /// f32, unlike the model probabilities in other layers: costs are
-    /// computed here in Rust and never compared against OpenNLP's output.
-    pub cost: Vec<f32>,
+    pub cost: Vec<i32>,
     pub reason: Vec<Cut>,
+}
+
+impl Boundaries {
+    /// The cost of a plain sentence boundary.
+    pub const UNIT: i32 = 1000;
 }
 
 impl Layer for Boundaries {
     const ID: &'static str = "turbo:boundaries";
+    const SCHEMA: u16 = 2;
     fn anchor() -> Anchor {
         Anchor::aligned::<Sentences>()
     }
@@ -363,9 +415,6 @@ impl Layer for Boundaries {
     fn check(&self) -> Result<(), String> {
         if self.reason.len() != self.cost.len() {
             return Err("a reason for every boundary".into());
-        }
-        if self.cost.iter().any(|c| !c.is_finite()) {
-            return Err("a finite cost for every boundary".into());
         }
         Ok(())
     }
@@ -379,15 +428,24 @@ pub struct Chunks {
     pub parent: Vec<Option<Ix<Chunks>>>,
     pub sentences: Vec<IxRange<Sentences>>,
     pub cut: Vec<Cut>,
-    /// What choosing this boundary cost the optimizer.
-    pub cost: Vec<f32>,
+    /// What choosing this boundary cost the optimizer, in
+    /// `Boundaries::UNIT`s: the cost of the cut that closes it plus its
+    /// size penalty and chunk term. The optimizer works with the exact
+    /// cost in i128; this is it saturated to the i64 range.
+    pub cost: Vec<i64>,
     /// Its row's length in the embedder's tokens: counted over its whole
     /// span, with the overhead every row carries.
     pub model_tokens: Vec<u32>,
+    /// Whether it is longer than the budget's maximum. At level 0 that is
+    /// one sentence alone, for a clause splitter to cut further; a row
+    /// above holds the chunks cut from it. Its `cut` still says why it
+    /// starts where it does.
+    pub over_budget: Vec<bool>,
 }
 
 impl Layer for Chunks {
     const ID: &'static str = "turbo:chunks";
+    const SCHEMA: u16 = 2;
     positional!(Chunks);
     fn indexes(&self) -> Vec<(KeyId, usize)> {
         vec![(Key::<Sentences>::DEFAULT.id(), self.sentences.iter().map(|r| r.end.get()).max().unwrap_or(0))]
@@ -400,12 +458,22 @@ impl Layer for Chunks {
             self.cut.len(),
             self.cost.len(),
             self.model_tokens.len(),
+            self.over_budget.len(),
         ];
         if columns.iter().any(|&l| l != self.spans.len()) {
             return Err("every column as long as the spans".into());
         }
-        if self.parent.iter().enumerate().any(|(i, p)| p.is_some_and(|p| p.get() >= i)) {
-            return Err("a parent before its children".into());
+        for (i, p) in self.parent.iter().enumerate() {
+            let Some(p) = *p else { continue };
+            if p.get() >= i {
+                return Err("a parent before its children".into());
+            }
+            if self.level[p.get()] <= self.level[i] {
+                return Err(format!("chunk {i} is not at a level below its parent's"));
+            }
+            if !self.spans.get(p).contains(self.spans.get(Ix::new(i as u32))) {
+                return Err(format!("chunk {i} is outside its parent"));
+            }
         }
         Ok(())
     }
@@ -551,19 +619,43 @@ impl<L: Layer> Layer for Utf16Spans<L> {
     }
 }
 
-/// The document's language: a document-scoped layer.
+/// The document's language: a document-scoped layer holding every
+/// language the detector ranked, best first, each with its score (the
+/// detector's probability). Item 0 is the best language.
+///
+/// Schema 2: schema 1 held the best language alone.
 pub struct Language {
-    pub code: String,
-    pub score: f64,
+    pub code: Strs,
+    pub score: Vec<f64>,
+}
+
+impl Language {
+    /// The best language and its score: item 0, or `None` when the
+    /// layer is empty.
+    pub fn best(&self) -> Option<(&str, f64)> {
+        self.score.first().map(|&s| (self.code.get(0), s))
+    }
+
+    /// The languages with their scores, best first.
+    pub fn iter(&self) -> impl Iterator<Item = (&str, f64)> {
+        self.code.iter().zip(self.score.iter().copied())
+    }
 }
 
 impl Layer for Language {
     const ID: &'static str = "opennlp:language";
+    const SCHEMA: u16 = 2;
     fn anchor() -> Anchor {
         Anchor::Document
     }
     fn len(&self) -> usize {
-        1
+        self.code.len()
+    }
+    fn check(&self) -> Result<(), String> {
+        if self.code.len() != self.score.len() {
+            return Err(format!("{} codes and {} scores", self.code.len(), self.score.len()));
+        }
+        Ok(())
     }
 }
 
@@ -592,6 +684,60 @@ mod tests {
         assert!(short.check().is_err());
         let backwards = Utf16Spans::<Tokens>::new(vec![0, 4], vec![1, 3], vec![false, false]);
         assert_eq!(backwards.check().unwrap_err(), "UTF-16 span 1 ends before it starts: 4..3");
+    }
+
+    /// Blocks from (start, end, parent).
+    fn blocks(list: &[(u32, u32, Option<u32>)]) -> Structure {
+        let mut spans = Spans::new(ViewId::SOURCE);
+        for &(a, b, _) in list {
+            spans.push(turbo_analysis::Span::new(a, b));
+        }
+        let n = list.len();
+        let parent = list.iter().map(|&(_, _, p)| p.map(Ix::new)).collect();
+        Structure { spans, kind: vec![Block::Paragraph; n], parent, depth: vec![0; n] }
+    }
+
+    #[test]
+    fn structure_is_a_tree_in_text_order() {
+        // A section holding a heading and a list of two items.
+        let ok =
+            [(0, 20, None), (0, 5, Some(0)), (7, 20, Some(0)), (7, 12, Some(2)), (13, 20, Some(2)), (21, 30, None)];
+        assert_eq!(blocks(&ok).check(), Ok(()));
+        assert_eq!(blocks(&[]).check(), Ok(()));
+        // Empty blocks may touch their neighbours.
+        assert_eq!(blocks(&[(0, 4, None), (1, 1, Some(0)), (1, 3, Some(0))]).check(), Ok(()));
+        let err = |list: &[(u32, u32, Option<u32>)]| blocks(list).check().unwrap_err();
+        assert!(err(&[(5, 9, None), (0, 4, None)]).contains("starts before"));
+        assert!(err(&[(0, 9, Some(0))]).contains("parent at or after"));
+        assert!(err(&[(0, 9, None), (2, 10, Some(0))]).contains("outside its parent"));
+        assert!(err(&[(0, 9, None), (2, 6, Some(0)), (4, 8, Some(0))]).contains("overlaps"));
+        assert!(err(&[(0, 5, None), (3, 8, None)]).contains("overlaps"));
+        let mut short = blocks(&ok);
+        short.depth.pop();
+        assert!(short.check().unwrap_err().contains("a depth for every block"));
+    }
+
+    #[test]
+    fn language_holds_the_ranking_best_first() {
+        let mut code = Strs::default();
+        code.push("deu");
+        code.push("nld");
+        let language = Language { code, score: vec![0.75, 0.25] };
+        assert_eq!(language.len(), 2);
+        assert_eq!(language.best(), Some(("deu", 0.75)));
+        assert_eq!(language.iter().collect::<Vec<_>>(), [("deu", 0.75), ("nld", 0.25)]);
+        assert_eq!(language.check(), Ok(()));
+        assert_eq!(Language::anchor(), Anchor::Document);
+        assert_eq!(Language::SCHEMA, 2);
+
+        let empty = Language { code: Strs::default(), score: Vec::new() };
+        assert_eq!(empty.best(), None);
+        assert!(empty.is_empty());
+
+        let mut code = Strs::default();
+        code.push("deu");
+        let short = Language { code, score: vec![0.5, 0.5] };
+        assert_eq!(short.check().unwrap_err(), "1 codes and 2 scores");
     }
 
     fn toy() -> ModelRef {

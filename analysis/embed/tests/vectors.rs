@@ -98,6 +98,7 @@ fn document(text: &str, sentences: &[(u32, u32)], chunks: &[(u32, u32, u8, Optio
         cut: Vec::new(),
         cost: Vec::new(),
         model_tokens: Vec::new(),
+        over_budget: Vec::new(),
     };
     for &(i, j, level, parent) in chunks {
         let (a, b) = (sentences[i as usize].0, sentences[j as usize - 1].1);
@@ -106,8 +107,9 @@ fn document(text: &str, sentences: &[(u32, u32)], chunks: &[(u32, u32, u8, Optio
         c.parent.push(parent.map(Ix::new));
         c.sentences.push(IxRange::new(i, j));
         c.cut.push(Cut::Sentence);
-        c.cost.push(0.0);
+        c.cost.push(0);
         c.model_tokens.push(0);
+        c.over_budget.push(false);
     }
     d.add(&Key::DEFAULT, c, Provenance::by("test")).unwrap();
     d
@@ -331,7 +333,7 @@ fn sentence_vectors_are_each_sentences_range() {
 fn chunk_vectors_are_each_chunks_range() {
     let a = open(0);
     let (text, s) = text_of(4);
-    let mut docs = [document(&text, &s, &[(0, 4, 0, None), (0, 2, 1, Some(0)), (2, 4, 1, Some(0))])];
+    let mut docs = [document(&text, &s, &[(0, 4, 1, None), (0, 2, 0, Some(0)), (2, 4, 0, Some(0))])];
     run(ChunkVectors(a.clone()), &mut docs);
     assert!(docs[0].get::<Vectors<Sentences>>().is_none());
     let v = chunk_vectors(&docs[0]);
@@ -411,7 +413,7 @@ fn a_sentence_across_a_window_end_is_pooled_from_a_window_that_holds_it() {
 fn an_item_longer_than_a_window_is_the_weighted_mean_of_its_parts() {
     let a = open(16);
     let (text, s) = text_of(8);
-    let chunks = [(0, 8, 0, None), (0, 4, 1, Some(0)), (4, 8, 1, Some(0))];
+    let chunks = [(0, 8, 1, None), (0, 4, 0, Some(0)), (4, 8, 0, Some(0))];
     let mut docs = [document(&text, &s, &chunks)];
     run(SentenceChunkVectors(a.clone()), &mut docs);
     let (ws, wc, plan) = reference(&a, &docs[0], true, true);
@@ -453,7 +455,7 @@ fn items_with_no_pieces_get_the_zero_vector() {
     let a = open(0);
     let text = "First sentence here.   Second one.";
     let s = [(0, 20), (20, 20), (20, 23), (23, 34)];
-    let mut docs = [document(text, &s, &[(0, 4, 0, None), (1, 3, 1, Some(0))])];
+    let mut docs = [document(text, &s, &[(0, 4, 1, None), (1, 3, 0, Some(0))])];
     run(SentenceChunkVectors(a.clone()), &mut docs);
     let (vs, vc) = (sentence_vectors(&docs[0]), chunk_vectors(&docs[0]));
     assert_eq!(Layer::len(vs), 4);
@@ -472,7 +474,7 @@ fn items_with_no_pieces_get_the_zero_vector() {
     close("chunks", &vc.data, &wc);
 
     // The chunks alone lay out the windows: the same chunk has no vector.
-    let mut alone = [document(text, &s, &[(0, 4, 0, None), (1, 3, 1, Some(0))])];
+    let mut alone = [document(text, &s, &[(0, 4, 1, None), (1, 3, 0, Some(0))])];
     run(ChunkVectors(a.clone()), &mut alone);
     assert_eq!(chunk_vectors(&alone[0]).empty, [Ix::new(1)]);
 
@@ -507,12 +509,12 @@ fn documents_of_a_batch_get_what_each_gets_alone() {
 /// text, halves and quarters longer than a window, and pairs of sentences
 /// that fit one.
 fn hierarchy() -> Vec<(u32, u32, u8, Option<u32>)> {
-    let mut c = vec![(0, 12, 0, None), (0, 6, 1, Some(0)), (6, 12, 1, Some(0))];
+    let mut c = vec![(0, 12, 3, None), (0, 6, 2, Some(0)), (6, 12, 2, Some(0))];
     for q in 0..4 {
-        c.push((3 * q, 3 * q + 3, 2, Some(1 + q / 2)));
+        c.push((3 * q, 3 * q + 3, 1, Some(1 + q / 2)));
     }
     for i in 0..6 {
-        c.push((2 * i, 2 * i + 2, 3, Some(3 + (2 * i) / 3)));
+        c.push((2 * i, 2 * i + 2, 0, Some(1 + i / 3)));
     }
     c
 }

@@ -189,7 +189,7 @@ struct Parts {
     prob: Option<Vec<f64>>,
     lemmas: Vec<&'static str>,
     entities: Vec<(u32, u32, u32, u32, &'static str, f64)>,
-    language: (&'static str, f64),
+    language: Vec<(&'static str, f64)>,
 }
 
 impl Parts {
@@ -203,7 +203,7 @@ impl Parts {
             prob: Some(vec![0.9712, 0.9554, 0.987, 0.9933, 0.8123, 0.99, 0.991, 0.9601, 0.99]),
             lemmas: vec!["Dr.", "Smith", "go", "to", "Zürich", ".", "it", "rain", "!"],
             entities: vec![(4, 9, 1, 2, "person", 0.8765432), (18, 25, 4, 5, "location", 0.7123)],
-            language: ("eng", 0.9312345678901234),
+            language: vec![("eng", 0.9312345678901234), ("deu", 0.0412), ("nld", 0.012), ("fra", 1.0e-5)],
         }
     }
 
@@ -236,8 +236,12 @@ impl Parts {
             score.push(p);
         }
         doc.add(&Key::DEFAULT, Entities { spans, tokens: toks, kind, kinds, score }, by()).unwrap();
-        let (code, score) = self.language;
-        doc.add(&Key::DEFAULT, Language { code: code.into(), score }, by()).unwrap();
+        let mut code = Strs::default();
+        for &(c, _) in &self.language {
+            code.push(c);
+        }
+        let score = self.language.iter().map(|&(_, s)| s).collect();
+        doc.add(&Key::DEFAULT, Language { code, score }, by()).unwrap();
         doc
     }
 }
@@ -372,7 +376,7 @@ fn a_golden_layer_with_the_wrong_columns() {
 #[test]
 fn a_language_code_difference() {
     let mut p = Parts::matching();
-    p.language.0 = "deu";
+    p.language[0].0 = "deu";
     let (m, shown) = mismatch::<Language>(&p, Tolerance::exact());
     assert!(matches!(m, Mismatch::Item { index: 0, what: "code", .. }), "{m:?}");
     has(
@@ -383,9 +387,9 @@ fn a_language_code_difference() {
             "golden: code \"eng\", confidence 3fedccac6fbfc4c9",
         ],
     );
-    // The best language is row 0 alone: the confidence is compared next.
+    // With the code equal, the confidence is compared next.
     let mut p = Parts::matching();
-    p.language.1 = 0.0412;
+    p.language[0].1 = 0.0412;
     let (m, _) = mismatch::<Language>(&p, Tolerance::abs(1e-9));
     assert!(matches!(m, Mismatch::Item { index: 0, what: "confidence", .. }), "{m:?}");
 }

@@ -36,7 +36,7 @@ struct Parts {
     prob: Option<Vec<f64>>,
     lemmas: Vec<&'static str>,
     entities: Vec<(u32, u32, u32, u32, &'static str, f64)>,
-    language: (&'static str, f64),
+    language: Vec<(&'static str, f64)>,
 }
 
 impl Parts {
@@ -50,7 +50,7 @@ impl Parts {
             prob: Some(vec![0.9712, 0.9554, 0.987, 0.9933, 0.8123, 0.99, 0.991, 0.9601, 0.99]),
             lemmas: vec!["Dr.", "Smith", "go", "to", "Zürich", ".", "it", "rain", "!"],
             entities: vec![(4, 9, 1, 2, "person", 0.8765432), (18, 25, 4, 5, "location", 0.7123)],
-            language: ("eng", 0.9312345678901234),
+            language: vec![("eng", 0.9312345678901234), ("deu", 0.0412), ("nld", 0.012), ("fra", 1.0e-5)],
         }
     }
 
@@ -79,8 +79,12 @@ impl Parts {
             score.push(p);
         }
         doc.add(&Key::DEFAULT, Entities { spans: sp, tokens: toks, kind, kinds, score }, by()).unwrap();
-        let (code, score) = self.language;
-        doc.add(&Key::DEFAULT, Language { code: code.into(), score }, by()).unwrap();
+        let mut code = Strs::default();
+        for &(c, _) in &self.language {
+            code.push(c);
+        }
+        let score = self.language.iter().map(|&(_, s)| s).collect();
+        doc.add(&Key::DEFAULT, Language { code, score }, by()).unwrap();
         doc
     }
 }
@@ -337,69 +341,63 @@ fn language_golden(rows: &[&str]) -> Golden {
 }
 
 #[test]
-fn language_compares_row_zero_only() {
+fn language_compares_every_row_in_rank_order() {
     let mut p = Parts::matching();
     let eng = "eng\t3fedccac6fbfc4c9 0.9312345678901234";
-    // The fixture has four rows; the best one is the Rust layer's.
+    let deu = "deu\t3fa5182a9930be0e 0.0412";
+    let nld = "nld\t3f889374bc6a7efa 0.012";
+    let fra = "fra\t3ee4f8b588e368f1 1.0E-5";
     assert_eq!(golden().layer("opennlp:language").unwrap().len(), 4);
     assert_eq!(matches_golden::<Language>(&p.doc(), &golden(), Tolerance::exact()), Ok(()));
-    // Rows after row 0 may hold anything, including the Rust layer's own code again,
-    // other codes, NaN and rows out of order of confidence.
-    let g = language_golden(&[
-        eng,
-        "eng\t3fedccac6fbfc4c9 0.9312345678901234",
-        "xx\t7ff8000000000000 NaN",
-        "yy\tffffffffffffffff NaN",
-    ]);
-    assert_eq!(matches_golden::<Language>(&p.doc(), &g, Tolerance::exact()), Ok(()));
-    // A golden with a single row.
-    let g = language_golden(&[eng]);
-    assert_eq!(matches_golden::<Language>(&p.doc(), &g, Tolerance::exact()), Ok(()));
-    // Row 0 differs while the Rust code is found in a later row: not a match.
-    let g = language_golden(&["deu\t3fedccac6fbfc4c9 0.93", "eng\t3fedccac6fbfc4c9 0.9312345678901234"]);
+    assert_eq!(
+        matches_golden::<Language>(&p.doc(), &language_golden(&[eng, deu, nld, fra]), Tolerance::exact()),
+        Ok(())
+    );
+    // Two rows swapped: the ranking differs at the first swapped row.
+    let g = language_golden(&[eng, nld, deu, fra]);
     let m = fail::<Language>(&p, &g, Tolerance::exact());
-    assert!(matches!(m, Mismatch::Item { index: 0, what: "code", .. }), "{m:?}");
-    says(&m.to_string(), &["opennlp:language item 0", "rust:   code \"eng\"", "golden: code \"deu\""]);
-    // Row 0's confidence is compared, with the tolerance.
-    p.language.1 += 1e-12;
-    let g = language_golden(&[eng, "deu\t3fa5182a9930be0e 0.0412"]);
-    assert_eq!(matches_golden::<Language>(&p.doc(), &g, Tolerance::abs(1e-9)), Ok(()));
-    let m = fail::<Language>(&p, &g, Tolerance::exact());
-    assert!(matches!(m, Mismatch::Item { index: 0, what: "confidence", .. }), "{m:?}");
-    // A golden with no rows has no best language: a count difference.
-    let g = language_golden(&[]);
-    let m = fail::<Language>(&Parts::matching(), &g, Tolerance::exact());
-    assert!(matches!(m, Mismatch::Count { rust: 1, golden: 0, .. }), "{m:?}");
-    says(&m.to_string(), &["opennlp:language: 1 items in Rust, 0 in the golden", "Rust item 0:", "Rust: code \"eng\""]);
+    assert!(matches!(m, Mismatch::Item { index: 1, what: "code", .. }), "{m:?}");
+    says(&m.to_string(), &["opennlp:language item 1", "rust:   code \"deu\"", "golden: code \"nld\""]);
+    // A later row's confidence is compared, with the tolerance.
+    p.language[3].1 += 1e-12;
+    assert_eq!(matches_golden::<Language>(&p.doc(), &golden(), Tolerance::abs(1e-9)), Ok(()));
+    let m = fail::<Language>(&p, &golden(), Tolerance::exact());
+    assert!(matches!(m, Mismatch::Item { index: 3, what: "confidence", .. }), "{m:?}");
+    // A golden with fewer rows: a count difference naming the first extra Rust row.
+    let m = fail::<Language>(&Parts::matching(), &language_golden(&[eng, deu]), Tolerance::exact());
+    assert!(matches!(m, Mismatch::Count { rust: 4, golden: 2, .. }), "{m:?}");
+    says(&m.to_string(), &["opennlp:language: 4 items in Rust, 2 in the golden", "Rust item 2:", "Rust: code \"nld\""]);
+    // A golden with no rows.
+    let m = fail::<Language>(&Parts::matching(), &language_golden(&[]), Tolerance::exact());
+    assert!(matches!(m, Mismatch::Count { rust: 4, golden: 0, .. }), "{m:?}");
 }
 
 #[test]
 fn language_with_unusual_values() {
     let eng = |bits: &str| format!("eng\t{bits} x");
     let mut p = Parts::matching();
+    p.language.truncate(1);
     // A NaN confidence matches only the same bits at exact, and any NaN at a tolerance.
-    p.language.1 = f64::from_bits(0x7ff8000000000000);
+    p.language[0].1 = f64::from_bits(0x7ff8000000000000);
     let g = language_golden(&[&eng("7ff8000000000000")]);
     assert_eq!(matches_golden::<Language>(&p.doc(), &g, Tolerance::exact()), Ok(()));
     let g = language_golden(&[&eng("fff8000000000000")]);
     assert!(matches!(fail::<Language>(&p, &g, Tolerance::exact()), Mismatch::Item { what: "confidence", .. }));
     assert_eq!(matches_golden::<Language>(&p.doc(), &g, Tolerance::abs(1e-9)), Ok(()));
     // Infinities: the same sign matches, the other does not, and a finite value is not near one.
-    p.language.1 = f64::INFINITY;
+    p.language[0].1 = f64::INFINITY;
     let g = language_golden(&[&eng("7ff0000000000000")]);
     assert_eq!(matches_golden::<Language>(&p.doc(), &g, Tolerance::abs(1e-9)), Ok(()));
     let g = language_golden(&[&eng("fff0000000000000")]);
     assert!(matches!(fail::<Language>(&p, &g, Tolerance::abs(f64::MAX)), Mismatch::Item { what: "confidence", .. }));
     // -0.0 and 0.0.
-    p.language.1 = 0.0;
+    p.language[0].1 = 0.0;
     let g = language_golden(&[&eng("8000000000000000")]);
     assert!(matches!(fail::<Language>(&p, &g, Tolerance::exact()), Mismatch::Item { what: "confidence", .. }));
     assert_eq!(matches_golden::<Language>(&p.doc(), &g, Tolerance::abs(0.0)), Ok(()));
     // An empty code is a code.
-    let mut p = Parts::matching();
-    p.language.0 = "";
+    p.language[0] = ("", f64::from_bits(0x3fedccac6fbfc4c9));
     let g = language_golden(&["\t3fedccac6fbfc4c9 x"]);
-    p.language.1 = f64::from_bits(0x3fedccac6fbfc4c9);
     assert_eq!(matches_golden::<Language>(&p.doc(), &g, Tolerance::exact()), Ok(()));
 }
 
@@ -433,7 +431,7 @@ fn every_item_report_names_its_layer_and_row() {
         p.entities[1].5 = 0.0;
         cases.push(("opennlp:entities", fail::<Entities>(&p, &g, Tolerance::exact())));
         let mut p = Parts::matching();
-        p.language.0 = "xx";
+        p.language[0].0 = "xx";
         cases.push(("opennlp:language", fail::<Language>(&p, &g, Tolerance::exact())));
         cases
     };

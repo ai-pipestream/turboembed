@@ -82,13 +82,11 @@ impl UnitCols<'_> {
     }
 }
 
-/// Labels: tags through their tag set, strings by column, or the one
-/// label of a document layer.
+/// Labels: tags through their tag set, or strings by column.
 #[derive(Copy, Clone)]
 pub enum Labels<'a> {
     Tags(&'a TagSet, &'a [Tag]),
     Strs(&'a Strs),
-    One(&'a str),
 }
 
 impl<'a> Labels<'a> {
@@ -96,7 +94,6 @@ impl<'a> Labels<'a> {
         match *self {
             Labels::Tags(set, tags) => set.label(tags[i]),
             Labels::Strs(s) => s.get(i),
-            Labels::One(s) => s,
         }
     }
 }

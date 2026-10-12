@@ -1,0 +1,21 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-1-24.04.4-Ubuntu	Ubuntu
+unicode	15.0
+input	money/conversion-currencies	105	95	ee69eb5017511f32c57aec28bb07af4003a72302fa69a8bf881fe0adf95d7a70
+annotator	opennlp.tools.money.CursorMoneyExtractor	extract
+config	notation	LATIN_EU
+layer	turbo:money	text	11	start:u32	end:u32	coefficient:str	negative:u32	scale:u32	plain:str	currency:str
+10	14	100	0	0	100	USD
+16	22	100	0	0	100	EUR
+24	29	100	0	0	100	GBP
+31	39	10000	0	3	10.000	JPY
+41	48	100	0	0	100	CHF
+50	58	5000	0	3	5.000	INR
+60	67	100	0	0	100	CNY
+69	77	1000	0	3	1.000	RUB
+79	85	500	0	0	500	THB
+87	93	20	0	0	20	EUR
+98	103	7	0	0	7	CAD
+end	turbo:money
