@@ -16,6 +16,8 @@ turbo-analysis-layers = { path = "../layers" }
 turbo = { path = "../../core" }
 
 [dev-dependencies]
+# The tests build the levels with the chunker crate's builder.
+turbo-chunker = { path = "../chunker" }
 # The tests write a byte-level BPE bundle from a typed manifest.
 serde_json = "1"
 # The upstream tokenizer, which the WordPiece pieces and spans are

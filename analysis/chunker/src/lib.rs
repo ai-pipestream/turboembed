@@ -26,6 +26,7 @@ pub use providers::{DriftProvider, StructureBoundariesProvider, WeighProvider};
 pub use sums::{Rows, Sums};
 pub use weigh::{DRIFT, STRUCTURE, WeighBoundaries, Weight, weigh};
 
+pub mod levels;
 pub mod terms;
 
 pub mod compare;

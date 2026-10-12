@@ -12,7 +12,7 @@ use turbo::{TURBO_POOLING_MEAN, turbo_token_range};
 use turbo_analysis::annotate::Step;
 use turbo_analysis::registry::{Provider, Spec};
 use turbo_analysis::{Annotator, Bound, Error, Execution, Layer, ModelRef, Refs, Spans};
-use turbo_analysis_layers::{Chunks, Sentences, Subwords, Vectors};
+use turbo_analysis_layers::{Chunks, Levels, Sentences, Subwords, VectorKind, Vectors};
 
 use crate::encoder::{Device, Encoder, EncoderInfo, EncoderOptions, Precision, Rows, normalize};
 use crate::window::{Placed, Plan, Target, Which, pieces_of};
@@ -35,17 +35,21 @@ impl Default for VectorOptions {
 }
 
 /// One document's layers for `VectorAnnotator::embed`: the subwords, and
-/// the sentences or the chunks or both, in the subwords' view.
+/// the sentences or the chunks or both, in the subwords' view; or the
+/// levels alone (see `crate::levels`).
 pub struct Input<'d> {
     pub subwords: &'d Subwords,
     pub sentences: Option<&'d Spans<Sentences>>,
     pub chunks: Option<&'d Spans<Chunks>>,
+    pub levels: Option<&'d Levels>,
 }
 
 /// One document's vectors: a layer for each kind of item it was given.
 pub struct Output {
     pub sentences: Option<Vectors<Sentences>>,
     pub chunks: Option<Vectors<Chunks>>,
+    /// For levels: each unit's local vector, then its contextual one.
+    pub levels: Option<[Vectors<Levels>; 2]>,
 }
 
 /// Embeds windows of a text's subword pieces once each and pools a vector
@@ -199,6 +203,7 @@ impl VectorAnnotator {
         let layout = match layout {
             Which::Sentences => 0,
             Which::Chunks => 1,
+            Which::Levels(_) => 2,
         };
         config_hash(&[self.settings[0], self.settings[1], layout])
     }
@@ -250,6 +255,14 @@ impl VectorAnnotator {
             let Ok(o) = slot else { continue };
             let (starts, ends) = input.subwords.spans.columns();
             let d = d as u32;
+            // The levels are placed scope by scope, before anything else
+            // is queued for the document.
+            if let (Some(l), Some(v)) = (input.levels, o.levels.as_mut())
+                && let Err(e) = crate::levels::plan(&mut st.plan, d, l, starts, ends, v)
+            {
+                *slot = Err(Error::Annotator { annotator, detail: e.to_string() });
+                continue;
+            }
             // The finest layer given lays out the windows.
             if let (Some(s), Some(v)) = (input.sentences, o.sentences.as_mut()) {
                 for (i, span) in s.iter() {
@@ -295,7 +308,8 @@ impl VectorAnnotator {
         if self.l2 {
             for o in out.iter_mut().flatten() {
                 let rows = [o.sentences.as_mut().map(|v| &mut v.data), o.chunks.as_mut().map(|v| &mut v.data)];
-                for data in rows.into_iter().flatten() {
+                let levels = o.levels.iter_mut().flatten().map(|v| &mut v.data);
+                for data in rows.into_iter().flatten().chain(levels) {
                     for v in data.chunks_exact_mut(dim) {
                         normalize(v);
                     }
@@ -320,7 +334,16 @@ impl VectorAnnotator {
         if let Some(k) = starts.iter().zip(ends).position(|(s, e)| s > e) {
             return fail(format!("subword {k} ends before it starts: {}..{}", starts[k], ends[k]));
         }
-        let items = [i.sentences.map(|s| ("sentence", s.columns())), i.chunks.map(|c| ("chunk", c.columns()))];
+        // The levels' own check: a parent for every unit, before it and
+        // around it, which placing each unit in its parent relies on.
+        if let Some(Err(e)) = i.levels.map(|l| l.check()) {
+            return fail(format!("the levels: {e}"));
+        }
+        let items = [
+            i.sentences.map(|s| ("sentence", s.columns())),
+            i.chunks.map(|c| ("chunk", c.columns())),
+            i.levels.map(|l| ("unit", l.spans.columns())),
+        ];
         for (what, (starts, ends)) in items.into_iter().flatten() {
             if let Some(k) = starts.iter().zip(ends).position(|(s, e)| s > e) {
                 return fail(format!("{what} {k} ends before it starts: {}..{}", starts[k], ends[k]));
@@ -333,7 +356,11 @@ impl VectorAnnotator {
             ));
         }
         let view = i.subwords.spans.view();
-        let views = [i.sentences.map(|s| ("sentences", s.view())), i.chunks.map(|c| ("chunks", c.view()))];
+        let views = [
+            i.sentences.map(|s| ("sentences", s.view())),
+            i.chunks.map(|c| ("chunks", c.view())),
+            i.levels.map(|l| ("levels", l.view())),
+        ];
         if let Some((what, v)) = views.into_iter().flatten().find(|(_, v)| *v != view) {
             return fail(format!("the {what} are in view {}, the subwords in view {}", v.0, view.0));
         }
@@ -341,6 +368,9 @@ impl VectorAnnotator {
         Ok(Output {
             sentences: i.sentences.map(|s| Vectors::new(self.dim, zeros(s.len()), Vec::new(), self.model.clone())),
             chunks: i.chunks.map(|c| Vectors::new(self.dim, zeros(c.len()), Vec::new(), self.model.clone())),
+            levels: i.levels.map(|l| {
+                VectorKind::ALL.map(|_| Vectors::new(self.dim, zeros(l.len()), Vec::new(), self.model.clone()))
+            }),
         })
     }
 
@@ -383,6 +413,7 @@ fn row_of(o: &mut Output, t: Target, dim: usize) -> &mut [f32] {
     let data = match t.which {
         Which::Sentences => &mut o.sentences.as_mut().expect("sentences were given").data,
         Which::Chunks => &mut o.chunks.as_mut().expect("chunks were given").data,
+        Which::Levels(kind) => &mut crate::levels::of_kind(o.levels.as_mut().expect("levels were given"), kind).data,
     };
     &mut data[t.item as usize * dim..(t.item as usize + 1) * dim]
 }
@@ -440,7 +471,7 @@ impl Annotator for SentenceVectors {
     fn annotate_batch<'d>(&self, inputs: Vec<Refs<'d, Self>>) -> Vec<Result<Self::Writes, Error>> {
         let inputs: Vec<Input<'_>> = inputs
             .into_iter()
-            .map(|(sub, s)| Input { subwords: sub, sentences: Some(&s.spans), chunks: None })
+            .map(|(sub, s)| Input { subwords: sub, sentences: Some(&s.spans), chunks: None, levels: None })
             .collect();
         self.0.embed(Self::ID, &inputs).into_iter().map(|r| r.map(|o| (o.sentences.expect("asked for"),))).collect()
     }
@@ -465,7 +496,7 @@ impl Annotator for ChunkVectors {
     fn annotate_batch<'d>(&self, inputs: Vec<Refs<'d, Self>>) -> Vec<Result<Self::Writes, Error>> {
         let inputs: Vec<Input<'_>> = inputs
             .into_iter()
-            .map(|(sub, c)| Input { subwords: sub, sentences: None, chunks: Some(&c.spans) })
+            .map(|(sub, c)| Input { subwords: sub, sentences: None, chunks: Some(&c.spans), levels: None })
             .collect();
         self.0.embed(Self::ID, &inputs).into_iter().map(|r| r.map(|o| (o.chunks.expect("asked for"),))).collect()
     }
@@ -490,7 +521,7 @@ impl Annotator for SentenceChunkVectors {
     fn annotate_batch<'d>(&self, inputs: Vec<Refs<'d, Self>>) -> Vec<Result<Self::Writes, Error>> {
         let inputs: Vec<Input<'_>> = inputs
             .into_iter()
-            .map(|(sub, s, c)| Input { subwords: sub, sentences: Some(&s.spans), chunks: Some(&c.spans) })
+            .map(|(sub, s, c)| Input { subwords: sub, sentences: Some(&s.spans), chunks: Some(&c.spans), levels: None })
             .collect();
         self.0
             .embed(Self::ID, &inputs)
@@ -505,7 +536,8 @@ impl Annotator for SentenceChunkVectors {
 /// Offers the vector steps to pipelines built from configuration, as
 /// "vectors". The spec's location is the bundle directory; its options:
 ///
-/// - `layers`: `sentences`, `chunks` or `both` (the default);
+/// - `layers`: `sentences`, `chunks`, `both` (the default), or `levels`
+///   for the local and contextual vectors of `Levels` (`LevelVectors`);
 /// - `device`: `cpu` (the default), `select`, a device index, or a backend
 ///   name such as `cuda`;
 /// - `precision`: `model` (the default), `fastest` or `exact`;
@@ -549,8 +581,8 @@ impl Provider<dyn Step> for VectorsProvider {
         let dir = spec.location.as_deref().ok_or_else(|| Error::Pipeline("vectors: no bundle location".into()))?;
         let o = parse_options(spec).map_err(|e| Error::Pipeline(format!("vectors: {e}")))?;
         let layers = spec.option("layers", "both");
-        if !matches!(layers, "sentences" | "chunks" | "both") {
-            return Err(Error::Pipeline(format!("vectors: layers {layers:?}: sentences, chunks or both")));
+        if !matches!(layers, "sentences" | "chunks" | "both" | "levels") {
+            return Err(Error::Pipeline(format!("vectors: layers {layers:?}: sentences, chunks, both or levels")));
         }
         let a =
             VectorAnnotator::open(dir, &o).map_err(|e| Error::Pipeline(format!("vectors: {}: {e}", dir.display())))?;
@@ -558,6 +590,7 @@ impl Provider<dyn Step> for VectorsProvider {
         Ok(match layers {
             "sentences" => Box::new(Bound::new(SentenceVectors(a))),
             "chunks" => Box::new(Bound::new(ChunkVectors(a))),
+            "levels" => Box::new(crate::levels::LevelVectors(a).bound()),
             _ => Box::new(Bound::new(SentenceChunkVectors(a))),
         })
     }
