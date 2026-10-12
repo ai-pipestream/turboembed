@@ -31,27 +31,40 @@ use turbo_analysis::text::Side;
 use turbo_analysis::{Alignment, Annotator, Error, Refs, Span, View, ViewBuilder};
 
 pub mod artifacts;
+pub mod accent_fold;
 pub mod bullets;
+pub mod case_fold;
 pub mod chain;
+pub mod confusables;
 pub mod dashes;
+pub mod dehyphenate;
 pub mod digits;
 pub mod ellipsis;
+mod fold_runs;
+pub mod german;
 pub mod invisible;
 pub mod noise;
 pub mod quotes;
 pub mod substitute;
 pub mod tables;
+pub mod unicode_form;
 pub mod whitespace;
 
 pub use artifacts::{Artifact, ArtifactDetector, ArtifactDetectorBuilder, KindSet, RepeatedLines};
+pub use accent_fold::{AccentFold, StrokeLetters};
 pub use bullets::Bullets;
+pub use case_fold::{CaseFold, CaseFoldMode};
 pub use chain::Chain;
+pub use confusables::ConfusableSkeleton;
 pub use dashes::Dashes;
+pub use dehyphenate::{Dehyphenate, DehyphenateMode};
 pub use digits::Digits;
 pub use ellipsis::Ellipsis;
+pub use german::GermanUmlauts;
 pub use invisible::Invisible;
 pub use noise::{Dictionary, NoiseFinding, NoiseScorer, NoiseStats};
 pub use quotes::Quotes;
+pub use unicode_form::UnicodeForm;
 pub use whitespace::{Whitespace, WhitespaceMode};
 
 /// One text normalizer. Its only job is to copy `text` into `out`,

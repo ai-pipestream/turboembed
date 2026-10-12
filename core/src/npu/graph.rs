@@ -25,15 +25,18 @@ use super::{Device, Driver, ir};
 use crate::backend::{
     TURBO_BERT_EMBEDDING_TENSORS, TURBO_FORMAT_OPENVINO_IR, TURBO_INPUT_EMBEDDINGS, TURBO_INPUT_TOKEN_IDS,
     TURBO_OUTPUT_HIDDEN_STATES, refuse, refuse_field, turbo_backend_embed_rows, turbo_backend_model, turbo_backend_run,
-    turbo_backend_tensor,
+    turbo_backend_session_desc, turbo_backend_tensor, turbo_backend_tuning,
 };
-use crate::status::{INVALID_ARGUMENT, INVALID_STATE, OUT_OF_MEMORY, PANIC, RUNTIME, UNSUPPORTED, UNSUPPORTED_OPTION};
+use crate::status::{
+    CAPACITY, INVALID_ARGUMENT, INVALID_STATE, INVALID_STRUCT_SIZE, OUT_OF_MEMORY, PANIC, RUNTIME, UNSUPPORTED,
+    UNSUPPORTED_OPTION,
+};
 use crate::{
     TURBO_DTYPE_F16, TURBO_DTYPE_F32, TURBO_EMBED_STAGE_DOWNLOAD, TURBO_EMBED_STAGE_ENCODE, TURBO_EMBED_STAGE_LOOKUP,
     TURBO_EMBED_STAGE_NORMALIZE, TURBO_EMBED_STAGE_POOL, TURBO_EMBED_STAGE_UPLOAD, TURBO_HANDLE_HOST_PTR,
     TURBO_NORMALIZE_L2, TURBO_PLACE_HOST, TURBO_POOLING_CLS, TURBO_POOLING_LAST, TURBO_POOLING_MEAN,
     TURBO_PRECISION_EXACT, TURBO_STAGE_DEVICE, TURBO_STAGE_HOST, TURBO_TASK_EMBED, turbo_buffer_desc, turbo_error,
-    turbo_log_fn, turbo_native_handle, turbo_text,
+    turbo_log_fn, turbo_native_handle, turbo_text, turbo_token_range,
 };
 
 // ---- Failures ----------------------------------------------------------------------
@@ -1275,26 +1278,41 @@ pub(crate) unsafe extern "C" fn model_release(model: *mut c_void) {
 
 // ---- Sessions ---------------------------------------------------------------------------
 
-/// What embed_write left for the next run.
+/// What embed_write or embed_write_ranges left for the next run.
 struct State {
     batch: u32,
     seq: u32,
     pooling: u32,
     normalize: u32,
     output_dim: u32,
+    vectors: Vectors,
     written: bool,
+}
+
+/// What a run writes one vector for.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Vectors {
+    /// Each row written, pooled as the write's pooling says, at the
+    /// row's index.
+    Rows,
+    /// Each range in `Rows::ranges`, the mean over its live tokens, at
+    /// the range's index.
+    Ranges,
 }
 
 pub(crate) struct Session {
     model: *const Model,
     max_seq: u32,
+    /// The most ranges one embed_write_ranges holds.
+    max_ranges: u32,
     /// One host buffer per graph input, a frame each, bound to the graph
     /// at every run.
     frames: Frames,
     /// The graph's hidden states, one frame.
     out_buf: Buffer,
-    /// The run's vectors, [batch, output_dim] F32: handed to
-    /// buffer_export, released with the session.
+    /// The run's vectors, [max(max_batch, max_ranges), hidden] F32 at
+    /// most, packed at output_dim: handed to buffer_export, released
+    /// with the session.
     result: Box<Buffer>,
     /// The rows as written, [max_batch, max_seq] at stride max_seq.
     rows: Mutex<Rows>,
@@ -1319,6 +1337,10 @@ struct Rows {
     /// the session is made so a run allocates nothing.
     gathered_rows: Vec<f32>,
     gathered_bias: Vec<f32>,
+    /// The ranges embed_write_ranges kept, in the order given. Its
+    /// capacity is max_ranges from the session's creation, so a write
+    /// fills it without allocating.
+    ranges: Vec<turbo_token_range>,
     state: State,
 }
 
@@ -1352,18 +1374,77 @@ pub(crate) unsafe extern "C" fn session_create_tuned(
     max_batch: u32,
     max_seq: u32,
     precision: u32,
-    tuning: *mut crate::backend::turbo_backend_tuning,
+    tuning: *mut turbo_backend_tuning,
     compute_dtype: *mut u32,
     out: *mut *mut c_void,
     err: *mut turbo_error,
 ) -> i32 {
     let rc = unsafe { session_create(model, task, max_batch, max_seq, precision, compute_dtype, out, err) };
-    if rc == 0 && !tuning.is_null() {
+    if rc == 0 {
+        unsafe { report_format(model, tuning) };
+    }
+    rc
+}
+
+/// The graph format the driver selected, as the session's choices. The
+/// one-path out fields stay: nothing is measured or cached.
+///
+/// # Safety
+/// `model` is a model this backend loaded; `tuning` is NULL or valid.
+unsafe fn report_format(model: *mut c_void, tuning: *mut turbo_backend_tuning) {
+    if let Some(t) = unsafe { tuning.as_mut() } {
         let format = unsafe { (*(model as *const Model)).graph_format };
-        let t = unsafe { &mut *tuning };
         t.tuned = crate::TURBO_TUNED_DEFAULT;
         t.tune_ms = 0;
         write_choices(&mut t.choices, format);
+    }
+}
+
+/// # Safety
+/// As turbo_backend.h says for session_open. The session is the one
+/// `session_create` makes, with its vectors sized for
+/// max(max_batch, max_ranges) rows, and the tuning out fields are
+/// filled as `session_create_tuned` fills them.
+pub(crate) unsafe extern "C" fn session_open(
+    model: *mut c_void,
+    desc: *const turbo_backend_session_desc,
+    tuning: *mut turbo_backend_tuning,
+    compute_dtype: *mut u32,
+    out: *mut *mut c_void,
+    err: *mut turbo_error,
+) -> i32 {
+    let rc = unsafe {
+        guarded(err, || {
+            // struct_size is read alone first: the fields after it are
+            // read only when it says they are there.
+            let size = (*desc).struct_size as usize;
+            let needed = std::mem::offset_of!(turbo_backend_session_desc, max_ranges) + size_of::<u32>();
+            if size < needed {
+                return Err(fail(
+                    INVALID_STRUCT_SIZE,
+                    format!("npu: turbo_backend_session_desc.struct_size is {size}, and max_ranges ends at {needed}"),
+                ));
+            }
+            let d = &*desc;
+            if d.cpu_threads != 0 {
+                return Err(fail_field(
+                    UNSUPPORTED_OPTION,
+                    6,
+                    format!(
+                        "npu: cpu_threads {}: the npu backend has no CPU thread count; 0 alone is taken",
+                        d.cpu_threads
+                    ),
+                ));
+            }
+            let m = &*(model as *const Model);
+            let s = open(m, d.task, d.max_batch, d.max_seq, d.precision, d.max_ranges)?;
+            *compute_dtype = m.compute_dtype;
+            *out = Box::into_raw(Box::new(s)) as *mut c_void;
+            Ok(())
+        })
+    };
+    if rc == 0 {
+        unsafe { report_format(model, tuning) };
     }
     rc
 }
@@ -1383,76 +1464,96 @@ pub(crate) unsafe extern "C" fn session_create(
     unsafe {
         guarded(err, || {
             let m = &*(model as *const Model);
-            if task != TURBO_TASK_EMBED {
-                return Err(fail(UNSUPPORTED, format!("npu: task {task} is not built; embed is")));
-            }
-            if precision == TURBO_PRECISION_EXACT {
-                return Err(fail_field(
-                    UNSUPPORTED_OPTION,
-                    3,
-                    format!(
-                        "npu: EXACT asks for F32 throughout, and the graph was compiled to compute in {}",
-                        if m.compute_dtype == TURBO_DTYPE_F16 { "F16" } else { "F32" }
-                    ),
-                ));
-            }
-            if max_seq > m.seq {
-                return Err(fail_field(
-                    UNSUPPORTED_OPTION,
-                    2,
-                    format!("npu: max_seq {max_seq} is over the graph's compiled seq {}", m.seq),
-                ));
-            }
-            let ctx = m.ctx();
-            let frame = m.frame_batch as u64 * m.seq as u64;
-            let (frames, gathered_rows, gathered_bias) = match &m.inputs {
-                GraphInputs::Tokens { ids, mask, types } => (
-                    Frames::Tokens {
-                        ids: Buffer::new(ctx, frame * ids.elem as u64, "token ids")?,
-                        mask: Buffer::new(ctx, frame * mask.elem as u64, "the mask")?,
-                        types: match types {
-                            Some(t) => Some(Buffer::new(ctx, frame * t.elem as u64, "token types")?),
-                            None => None,
-                        },
-                    },
-                    Vec::new(),
-                    Vec::new(),
-                ),
-                GraphInputs::Embeddings { rows, bias, heads, .. } => {
-                    let n_rows = frame * m.hidden as u64;
-                    let n_bias = m.frame_batch as u64 * u64::from(*heads) * m.seq as u64 * m.seq as u64;
-                    (
-                        Frames::Embeddings {
-                            rows: Buffer::new(ctx, n_rows * rows.elem as u64, "word rows")?,
-                            bias: Buffer::new(ctx, n_bias * bias.elem as u64, "the attention bias")?,
-                        },
-                        vec![0.0; n_rows as usize],
-                        vec![0.0; n_bias as usize],
-                    )
-                }
-            };
-            let s = Session {
-                model: m,
-                max_seq,
-                frames,
-                out_buf: Buffer::new(ctx, frame * m.hidden as u64 * m.output.elem as u64, "hidden states")?,
-                result: Box::new(Buffer::new(ctx, max_batch as u64 * m.hidden as u64 * 4, "the vectors")?),
-                rows: Mutex::new(Rows {
-                    ids: vec![0; (max_batch * max_seq) as usize],
-                    mask: vec![0; (max_batch * max_seq) as usize],
-                    types: vec![0; (max_batch * max_seq) as usize],
-                    acc: vec![0.0; m.hidden as usize],
-                    token: vec![0.0; m.hidden as usize],
-                    gathered_rows,
-                    gathered_bias,
-                    state: State { batch: 0, seq: 0, pooling: 0, normalize: 0, output_dim: 0, written: false },
-                }),
-            };
+            // Without session_open no ranges are written, and the vectors
+            // are the rows'.
+            let s = open(m, task, max_batch, max_seq, precision, max_batch)?;
             *compute_dtype = m.compute_dtype;
             *out = Box::into_raw(Box::new(s)) as *mut c_void;
             Ok(())
         })
     }
+}
+
+/// A session of task on `m`, with every buffer a run needs: the frames,
+/// the hidden states, max(max_batch, max_ranges) vectors, and room for
+/// max_ranges ranges.
+fn open(m: &Model, task: u32, max_batch: u32, max_seq: u32, precision: u32, max_ranges: u32) -> Res<Session> {
+    if task != TURBO_TASK_EMBED {
+        return Err(fail(UNSUPPORTED, format!("npu: task {task} is not built; embed is")));
+    }
+    if precision == TURBO_PRECISION_EXACT {
+        return Err(fail_field(
+            UNSUPPORTED_OPTION,
+            3,
+            format!(
+                "npu: EXACT asks for F32 throughout, and the graph was compiled to compute in {}",
+                if m.compute_dtype == TURBO_DTYPE_F16 { "F16" } else { "F32" }
+            ),
+        ));
+    }
+    if max_seq > m.seq {
+        return Err(fail_field(
+            UNSUPPORTED_OPTION,
+            2,
+            format!("npu: max_seq {max_seq} is over the graph's compiled seq {}", m.seq),
+        ));
+    }
+    let ctx = m.ctx();
+    let frame = m.frame_batch as u64 * m.seq as u64;
+    let (frames, gathered_rows, gathered_bias) = match &m.inputs {
+        GraphInputs::Tokens { ids, mask, types } => (
+            Frames::Tokens {
+                ids: Buffer::new(ctx, frame * ids.elem as u64, "token ids")?,
+                mask: Buffer::new(ctx, frame * mask.elem as u64, "the mask")?,
+                types: match types {
+                    Some(t) => Some(Buffer::new(ctx, frame * t.elem as u64, "token types")?),
+                    None => None,
+                },
+            },
+            Vec::new(),
+            Vec::new(),
+        ),
+        GraphInputs::Embeddings { rows, bias, heads, .. } => {
+            let n_rows = frame * m.hidden as u64;
+            let n_bias = m.frame_batch as u64 * u64::from(*heads) * m.seq as u64 * m.seq as u64;
+            (
+                Frames::Embeddings {
+                    rows: Buffer::new(ctx, n_rows * rows.elem as u64, "word rows")?,
+                    bias: Buffer::new(ctx, n_bias * bias.elem as u64, "the attention bias")?,
+                },
+                vec![0.0; n_rows as usize],
+                vec![0.0; n_bias as usize],
+            )
+        }
+    };
+    let vectors = u64::from(max_batch.max(max_ranges));
+    Ok(Session {
+        model: m,
+        max_seq,
+        max_ranges,
+        frames,
+        out_buf: Buffer::new(ctx, frame * m.hidden as u64 * m.output.elem as u64, "hidden states")?,
+        result: Box::new(Buffer::new(ctx, vectors * m.hidden as u64 * 4, "the vectors")?),
+        rows: Mutex::new(Rows {
+            ids: vec![0; (max_batch * max_seq) as usize],
+            mask: vec![0; (max_batch * max_seq) as usize],
+            types: vec![0; (max_batch * max_seq) as usize],
+            acc: vec![0.0; m.hidden as usize],
+            token: vec![0.0; m.hidden as usize],
+            gathered_rows,
+            gathered_bias,
+            ranges: Vec::with_capacity(max_ranges as usize),
+            state: State {
+                batch: 0,
+                seq: 0,
+                pooling: 0,
+                normalize: 0,
+                output_dim: 0,
+                vectors: Vectors::Rows,
+                written: false,
+            },
+        }),
+    })
 }
 
 /// # Safety
@@ -1471,50 +1572,134 @@ pub(crate) unsafe extern "C" fn embed_write(
     unsafe {
         guarded(err, || {
             let s = &*(session as *const Session);
+            let mut kept = s.rows.lock().unwrap_or_else(|p| p.into_inner());
+            keep_rows(s, &*rows, &mut kept)
+        })
+    }
+}
+
+/// # Safety
+/// As turbo_backend.h says for embed_write_ranges.
+pub(crate) unsafe extern "C" fn embed_write_ranges(
+    session: *mut c_void,
+    rows: *const turbo_backend_embed_rows,
+    ranges: *const turbo_token_range,
+    count: u32,
+    err: *mut turbo_error,
+) -> i32 {
+    unsafe {
+        guarded(err, || {
+            let s = &*(session as *const Session);
             let r = &*rows;
-            let m = s.model();
-            let (batch, seq, stride) = (r.batch as usize, r.seq as usize, r.row_stride as usize);
-            let mut rows = s.rows.lock().unwrap_or_else(|p| p.into_inner());
-            let dst_stride = s.max_seq as usize;
-            for row in 0..batch {
-                let src = row * stride;
-                let dst = row * dst_stride;
-                let ids = std::slice::from_raw_parts(r.ids.add(src), seq);
-                let mask = std::slice::from_raw_parts(r.mask.add(src), seq);
-                // The core promises at least one live token per row; a
-                // row without one would pool a mean over nothing, so it
-                // is refused here rather than returned as NaN.
-                if !mask.contains(&1) {
-                    rows.state.written = false;
-                    return Err(fail(INVALID_ARGUMENT, format!("npu: row {row} has no token with mask 1")));
-                }
-                rows.ids[dst..dst + seq].copy_from_slice(ids);
-                rows.mask[dst..dst + seq].copy_from_slice(mask);
-                match r.types.is_null() {
-                    true => rows.types[dst..dst + seq].fill(0),
-                    false => {
-                        let types = std::slice::from_raw_parts(r.types.add(src), seq);
-                        if let Some(why) = type_refusal(&m.inputs)
-                            && let Some(at) = types.iter().position(|&t| t != 0)
-                        {
-                            rows.state.written = false;
-                            return Err(type_error(row, at, types[at], why));
-                        }
-                        rows.types[dst..dst + seq].copy_from_slice(types);
-                    }
-                }
+            let mut kept = s.rows.lock().unwrap_or_else(|p| p.into_inner());
+            keep_rows(s, r, &mut kept)?;
+            // The rows are kept; the write stands only once the ranges are.
+            kept.state.written = false;
+            if count == 0 {
+                return Err(fail(INVALID_ARGUMENT, "npu: a write of ranges holds at least one"));
             }
-            rows.state = State {
-                batch: r.batch,
-                seq: r.seq,
-                pooling: r.pooling,
-                normalize: r.normalize,
-                output_dim: r.output_dim,
-                written: true,
-            };
+            let ranges = std::slice::from_raw_parts(ranges, count as usize);
+            keep_ranges(s.max_ranges, s.max_seq as usize, r, ranges, &mut kept)?;
+            kept.state.vectors = Vectors::Ranges;
+            kept.state.written = true;
             Ok(())
         })
     }
+}
+
+/// The rows of a write into the session's own, at stride max_seq, and the
+/// options with them: the state of a write of rows. A refused row leaves
+/// nothing written.
+///
+/// # Safety
+/// `r` and the arrays it points to are as turbo_backend.h says for
+/// embed_write.
+unsafe fn keep_rows(s: &Session, r: &turbo_backend_embed_rows, rows: &mut Rows) -> Res<()> {
+    let m = s.model();
+    let (batch, seq, stride) = (r.batch as usize, r.seq as usize, r.row_stride as usize);
+    let dst_stride = s.max_seq as usize;
+    rows.state.written = false;
+    for row in 0..batch {
+        let src = row * stride;
+        let dst = row * dst_stride;
+        let ids = unsafe { std::slice::from_raw_parts(r.ids.add(src), seq) };
+        let mask = unsafe { std::slice::from_raw_parts(r.mask.add(src), seq) };
+        // The core promises at least one live token per row; a row
+        // without one would pool a mean over nothing, so it is refused
+        // here rather than returned as NaN.
+        if !mask.contains(&1) {
+            return Err(fail(INVALID_ARGUMENT, format!("npu: row {row} has no token with mask 1")));
+        }
+        rows.ids[dst..dst + seq].copy_from_slice(ids);
+        rows.mask[dst..dst + seq].copy_from_slice(mask);
+        match r.types.is_null() {
+            true => rows.types[dst..dst + seq].fill(0),
+            false => {
+                let types = unsafe { std::slice::from_raw_parts(r.types.add(src), seq) };
+                if let Some(why) = type_refusal(&m.inputs)
+                    && let Some(at) = types.iter().position(|&t| t != 0)
+                {
+                    return Err(type_error(row, at, types[at], why));
+                }
+                rows.types[dst..dst + seq].copy_from_slice(types);
+            }
+        }
+    }
+    rows.state = State {
+        batch: r.batch,
+        seq: r.seq,
+        pooling: r.pooling,
+        normalize: r.normalize,
+        output_dim: r.output_dim,
+        vectors: Vectors::Rows,
+        written: true,
+    };
+    Ok(())
+}
+
+/// The ranges of a write, after the rows they index were kept. The core
+/// checks each range as turbo.h says; they are checked again here
+/// because pooling indexes the session's rows by them, and a range
+/// without a live token would be a mean over nothing. Copied into
+/// memory made with the session, so a write allocates nothing.
+fn keep_ranges(
+    max_ranges: u32,
+    stride: usize,
+    r: &turbo_backend_embed_rows,
+    ranges: &[turbo_token_range],
+    rows: &mut Rows,
+) -> Res<()> {
+    rows.ranges.clear();
+    if ranges.len() > max_ranges as usize {
+        return Err(fail(
+            CAPACITY,
+            format!("npu: {} ranges are over the session's max_ranges {max_ranges}", ranges.len()),
+        ));
+    }
+    if r.pooling != TURBO_POOLING_MEAN {
+        return Err(fail_field(
+            UNSUPPORTED_OPTION,
+            5,
+            format!("npu: pooling {}: a range is pooled by the mean alone", r.pooling),
+        ));
+    }
+    for (i, g) in ranges.iter().enumerate() {
+        if g.row >= r.batch || g.start >= g.end || g.end > r.seq {
+            return Err(fail(
+                INVALID_ARGUMENT,
+                format!(
+                    "npu: range {i} is row {} columns [{}, {}), outside {} rows of {} tokens",
+                    g.row, g.start, g.end, r.batch, r.seq
+                ),
+            ));
+        }
+        let at = g.row as usize * stride;
+        if !rows.mask[at + g.start as usize..at + g.end as usize].contains(&1) {
+            return Err(fail(INVALID_ARGUMENT, format!("npu: range {i} has no token with mask 1")));
+        }
+    }
+    rows.ranges.extend_from_slice(ranges);
+    Ok(())
 }
 
 /// An i32 row written into a graph input at the argument's precision.
@@ -1653,6 +1838,132 @@ fn write_embedding_frame(frame: &EmbedFrame<'_>, live: usize, first: usize, stri
     Ok(())
 }
 
+/// One frame of the graph's hidden states, [frame_batch, model_seq,
+/// hidden] at the output's precision, read in place.
+struct FrameStates<'a> {
+    values: Hidden<'a>,
+    model_seq: usize,
+    hidden: usize,
+}
+
+enum Hidden<'a> {
+    F16(&'a [u16]),
+    F32(&'a [f32]),
+}
+
+impl<'a> FrameStates<'a> {
+    /// The frame in `buf`, as halves for an FP16 output and as f32
+    /// otherwise.
+    ///
+    /// # Safety
+    /// Nothing writes `buf` while the frame is read.
+    unsafe fn read(buf: &'a Buffer, precision: u32, model_seq: usize, hidden: usize) -> FrameStates<'a> {
+        let values = match precision {
+            ze::GRAPH_ARGUMENT_PRECISION_FP16 => {
+                Hidden::F16(unsafe { std::slice::from_raw_parts(buf.ptr as *const u16, buf.bytes as usize / 2) })
+            }
+            _ => Hidden::F32(unsafe { std::slice::from_raw_parts(buf.ptr as *const f32, buf.bytes as usize / 4) }),
+        };
+        FrameStates { values, model_seq, hidden }
+    }
+
+    /// Token `t` of the frame's row `r` added into `acc` in f64, widened
+    /// through `token` when the frame is FP16.
+    fn add(&self, r: usize, t: usize, acc: &mut [f64], token: &mut [f32]) {
+        let at = (r * self.model_seq + t) * self.hidden;
+        let values: &[f32] = match self.values {
+            Hidden::F16(h) => {
+                widen_f16(&h[at..at + self.hidden], token);
+                token
+            }
+            Hidden::F32(v) => &v[at..at + self.hidden],
+        };
+        for (a, &v) in acc.iter_mut().zip(values) {
+            *a += v as f64;
+        }
+    }
+
+    /// The mean of the frame's row `r` over the tokens from column
+    /// `start` whose entry in `mask` is 1, into `acc`. `mask` is the
+    /// row's mask from `start` on, as long as the columns pooled. The
+    /// tokens are summed in column order, so a row and a range over the
+    /// same columns give the same bits.
+    fn mean(&self, r: usize, start: usize, mask: &[i32], acc: &mut [f64], token: &mut [f32]) {
+        acc.fill(0.0);
+        let mut live_tokens = 0f64;
+        for (k, &v) in mask.iter().enumerate() {
+            if v == 1 {
+                live_tokens += 1.0;
+                self.add(r, start + k, acc, token);
+            }
+        }
+        for a in acc.iter_mut() {
+            *a /= live_tokens;
+        }
+    }
+}
+
+/// The vectors whose tokens are in one frame, rows `first` to
+/// `first + live`, pooled, cut and normalized into `result`. A write of
+/// rows gives each live row its vector at the row's index. A write of
+/// ranges gives each range whose row is in the frame its vector at the
+/// range's index: ranges come in any order, and each frame pools the
+/// ones it holds, since the hidden-state buffer holds one frame at a
+/// time.
+fn pool_frame(states: &FrameStates<'_>, first: usize, live: usize, stride: usize, rows: &mut Rows, result: &mut [f32]) {
+    let Rows { mask, acc, token, ranges, state, .. } = rows;
+    let seq = state.seq as usize;
+    let dim = state.output_dim as usize;
+    match state.vectors {
+        Vectors::Rows => {
+            for r in 0..live {
+                let row = first + r;
+                let mask = &mask[row * stride..row * stride + seq];
+                match state.pooling {
+                    TURBO_POOLING_CLS => {
+                        acc.fill(0.0);
+                        states.add(r, 0, acc, token);
+                    }
+                    TURBO_POOLING_LAST => {
+                        acc.fill(0.0);
+                        states.add(r, mask.iter().rposition(|&v| v == 1).unwrap_or(0), acc, token);
+                    }
+                    _ => {
+                        debug_assert_eq!(state.pooling, TURBO_POOLING_MEAN);
+                        states.mean(r, 0, mask, acc, token);
+                    }
+                }
+                write_vector(&acc[..dim], state.normalize, &mut result[row * dim..(row + 1) * dim]);
+            }
+        }
+        Vectors::Ranges => {
+            for (i, g) in ranges.iter().enumerate() {
+                let row = g.row as usize;
+                if row < first || row >= first + live {
+                    continue;
+                }
+                let (start, end) = (g.start as usize, g.end as usize);
+                let at = row * stride;
+                states.mean(row - first, start, &mask[at + start..at + end], acc, token);
+                write_vector(&acc[..dim], state.normalize, &mut result[i * dim..(i + 1) * dim]);
+            }
+        }
+    }
+}
+
+/// A pooled vector, already cut to its length, normalized as `normalize`
+/// says and written to `dst` as f32.
+fn write_vector(vector: &[f64], normalize: u32, dst: &mut [f32]) {
+    let norm = match normalize {
+        // The same floor the cpu uses: a zero vector stays finite.
+        TURBO_NORMALIZE_L2 => vector.iter().map(|v| v * v).sum::<f64>().sqrt().max(1e-12),
+        _ => 1.0,
+    };
+    for (d, v) in dst.iter_mut().zip(vector) {
+        *d = (v / norm) as f32;
+    }
+}
+
 fn run(s: &Session, rows: &mut Rows, out: &mut turbo_backend_run) -> Res<()> {
     let m = s.model();
     let ctx = m.ctx();
@@ -1685,13 +1996,15 @@ fn run(s: &Session, rows: &mut Rows, out: &mut turbo_backend_run) -> Res<()> {
     bind(&m.output, &s.out_buf)?;
 
     let (batch, seq) = (rows.state.batch as usize, rows.state.seq as usize);
-    let (pooling, normalize, output_dim) = (rows.state.pooling, rows.state.normalize, rows.state.output_dim);
+    let normalize = rows.state.normalize;
     let (frame_batch, model_seq, hidden) = (m.frame_batch as usize, m.seq as usize, m.hidden as usize);
     let stride = s.max_seq as usize;
     let frames = batch.div_ceil(frame_batch);
     let mut h2d = 0u64;
     let mut d2h = 0u64;
-    let result = s.result.ptr as *mut f32;
+    // SAFETY: the session's vectors, made for max(max_batch, max_ranges)
+    // rows of hidden F32, and read by the caller only after the run.
+    let result = unsafe { std::slice::from_raw_parts_mut(s.result.ptr as *mut f32, s.result.bytes as usize / 4) };
 
     for frame in 0..frames {
         let first = frame * frame_batch;
@@ -1747,58 +2060,11 @@ fn run(s: &Session, rows: &mut Rows, out: &mut turbo_backend_run) -> Res<()> {
         ctx.execute(m.graph)?;
         d2h += s.out_buf.bytes;
 
-        // Pool, cut and normalize each live row on the host. Each token
-        // row is read once, as f32: widened from FP16 or read in place.
-        let frame_elems = live * model_seq * hidden;
-        let fp16 = m.output.precision == ze::GRAPH_ARGUMENT_PRECISION_FP16;
-        for r in 0..live {
-            let row = first + r;
-            let mask = &rows.mask[row * stride..row * stride + seq];
-            let (acc, token) = (&mut rows.acc, &mut rows.token);
-            let mut add = |t: usize, acc: &mut [f64]| {
-                let at = (r * model_seq + t) * hidden;
-                debug_assert!(at + hidden <= frame_elems);
-                let values: &[f32] = if fp16 {
-                    // SAFETY: out_buf holds the frame at the output's precision.
-                    let h = unsafe { std::slice::from_raw_parts((s.out_buf.ptr as *const u16).add(at), hidden) };
-                    widen_f16(h, token);
-                    token
-                } else {
-                    unsafe { std::slice::from_raw_parts((s.out_buf.ptr as *const f32).add(at), hidden) }
-                };
-                for (a, &v) in acc.iter_mut().zip(values) {
-                    *a += v as f64;
-                }
-            };
-            acc.fill(0.0);
-            match pooling {
-                TURBO_POOLING_CLS => add(0, acc),
-                TURBO_POOLING_LAST => add(mask.iter().rposition(|&v| v == 1).unwrap_or(0), acc),
-                _ => {
-                    debug_assert_eq!(pooling, TURBO_POOLING_MEAN);
-                    let mut live_tokens = 0f64;
-                    for (t, &v) in mask.iter().enumerate() {
-                        if v == 1 {
-                            live_tokens += 1.0;
-                            add(t, acc);
-                        }
-                    }
-                    for a in acc.iter_mut() {
-                        *a /= live_tokens;
-                    }
-                }
-            }
-            let dim = output_dim as usize;
-            let vector = &acc[..dim];
-            let norm = match normalize {
-                // The same floor the cpu uses: a zero vector stays finite.
-                TURBO_NORMALIZE_L2 => vector.iter().map(|v| v * v).sum::<f64>().sqrt().max(1e-12),
-                _ => 1.0,
-            };
-            for (h, v) in vector.iter().enumerate() {
-                unsafe { result.add(row * dim + h).write((v / norm) as f32) };
-            }
-        }
+        // Pool, cut and normalize on the host, reading the hidden states
+        // where the device left them.
+        // SAFETY: the execute above returned, and out_buf holds the frame.
+        let states = unsafe { FrameStates::read(&s.out_buf, m.output.precision, model_seq, hidden) };
+        pool_frame(&states, first, live, stride, rows, result);
     }
 
     out.placement = TURBO_PLACE_HOST;
@@ -2198,12 +2464,14 @@ mod tests {
             token: vec![0.0; hidden],
             gathered_rows: vec![7.0; frame * row_elems],
             gathered_bias: vec![7.0; frame * bias_elems],
+            ranges: Vec::new(),
             state: State {
                 batch: 2,
                 seq: written as u32,
                 pooling: 0,
                 normalize: 0,
                 output_dim: hidden as u32,
+                vectors: Vectors::Rows,
                 written: true,
             },
         };
@@ -2262,5 +2530,241 @@ mod tests {
         assert_eq!(lookup_stage(&embeddings), TURBO_STAGE_HOST);
         let tokens = GraphInputs::Tokens { ids: arg("input_ids"), mask: arg("attention_mask"), types: None };
         assert_eq!(lookup_stage(&tokens), TURBO_STAGE_DEVICE);
+    }
+
+    /// Rows of `seq` columns at stride `stride` with the given masks, set
+    /// up for a write of rows or of ranges, with hidden width `hidden`.
+    fn pooling_rows(
+        masks: &[&[i32]],
+        stride: usize,
+        hidden: usize,
+        normalize: u32,
+        ranges: &[turbo_token_range],
+    ) -> Rows {
+        let mut mask = vec![0; masks.len() * stride];
+        for (r, m) in masks.iter().enumerate() {
+            mask[r * stride..r * stride + m.len()].copy_from_slice(m);
+        }
+        let mut kept = Vec::with_capacity(8);
+        kept.extend_from_slice(ranges);
+        Rows {
+            ids: vec![0; masks.len() * stride],
+            mask,
+            types: vec![0; masks.len() * stride],
+            acc: vec![0.0; hidden],
+            token: vec![0.0; hidden],
+            gathered_rows: Vec::new(),
+            gathered_bias: Vec::new(),
+            ranges: kept,
+            state: State {
+                batch: masks.len() as u32,
+                seq: masks[0].len() as u32,
+                pooling: TURBO_POOLING_MEAN,
+                normalize,
+                output_dim: hidden as u32,
+                vectors: if ranges.is_empty() { Vectors::Rows } else { Vectors::Ranges },
+                written: true,
+            },
+        }
+    }
+
+    /// Hidden states for a frame of `frame_batch` rows: distinct values
+    /// that are not exact sums of one another, so a wrong token pooled
+    /// changes the bits.
+    fn hidden_frame(frame: usize, frame_batch: usize, model_seq: usize, hidden: usize) -> Vec<f32> {
+        (0..frame_batch * model_seq * hidden).map(|i| ((frame * 1000 + i) as f32 * 0.37).sin() * 3.1).collect()
+    }
+
+    /// Every frame of a batch through pool_frame, as run does, into a
+    /// result of `vectors` rows.
+    fn pool_all(
+        rows: &mut Rows,
+        frames: &[Vec<f32>],
+        frame_batch: usize,
+        model_seq: usize,
+        vectors: usize,
+    ) -> Vec<f32> {
+        let hidden = rows.acc.len();
+        let stride = rows.mask.len() / rows.state.batch as usize;
+        let batch = rows.state.batch as usize;
+        let mut result = vec![f32::NAN; vectors * hidden];
+        for (f, values) in frames.iter().enumerate() {
+            let first = f * frame_batch;
+            let live = (batch - first).min(frame_batch);
+            let states = FrameStates { values: Hidden::F32(values), model_seq, hidden };
+            pool_frame(&states, first, live, stride, rows, &mut result);
+        }
+        result
+    }
+
+    /// The mean in f64 of row `r` of a frame over the columns `cols`,
+    /// cut to nothing and not normalized: the oracle for a range.
+    fn host_mean(values: &[f32], r: usize, cols: &[usize], model_seq: usize, hidden: usize) -> Vec<f32> {
+        let mut acc = vec![0f64; hidden];
+        for &t in cols {
+            for (h, a) in acc.iter_mut().enumerate() {
+                *a += values[(r * model_seq + t) * hidden + h] as f64;
+            }
+        }
+        acc.iter().map(|a| (a / cols.len() as f64) as f32).collect()
+    }
+
+    #[test]
+    fn a_whole_row_range_pools_the_bits_the_row_does() {
+        // Three rows over two frames of two, written at a stride longer
+        // than seq, with padding at the ends of rows 1 and 2.
+        let (frame_batch, model_seq, hidden, stride) = (2, 5, 3, 6);
+        let masks: [&[i32]; 3] = [&[1, 1, 1, 1], &[1, 1, 1, 0], &[1, 1, 0, 0]];
+        let frames: Vec<Vec<f32>> = (0..2).map(|f| hidden_frame(f, frame_batch, model_seq, hidden)).collect();
+        for normalize in [TURBO_NORMALIZE_L2, crate::TURBO_NORMALIZE_NONE] {
+            let mut by_rows = pooling_rows(&masks, stride, hidden, normalize, &[]);
+            let rows = pool_all(&mut by_rows, &frames, frame_batch, model_seq, 3);
+            // Out of row order, the last frame's row first, a row twice.
+            let ranges = [
+                turbo_token_range { row: 2, start: 0, end: 4 },
+                turbo_token_range { row: 0, start: 0, end: 4 },
+                turbo_token_range { row: 1, start: 0, end: 4 },
+                turbo_token_range { row: 2, start: 0, end: 4 },
+            ];
+            let mut by_ranges = pooling_rows(&masks, stride, hidden, normalize, &ranges);
+            let got = pool_all(&mut by_ranges, &frames, frame_batch, model_seq, 4);
+            for (i, g) in ranges.iter().enumerate() {
+                let row = g.row as usize;
+                let want: Vec<u32> = rows[row * hidden..(row + 1) * hidden].iter().map(|v| v.to_bits()).collect();
+                let have: Vec<u32> = got[i * hidden..(i + 1) * hidden].iter().map(|v| v.to_bits()).collect();
+                assert_eq!(have, want, "range {i} over the whole of row {row}, normalize {normalize}");
+            }
+        }
+    }
+
+    #[test]
+    fn a_range_is_the_mean_of_its_live_tokens_alone() {
+        // Row 0 has a hole at column 1; row 1 has padding at the end.
+        // Ranges over part of a row, over the hole, and over padding pool
+        // the live tokens they cover and nothing else.
+        let (frame_batch, model_seq, hidden, stride) = (2, 4, 3, 4);
+        let masks: [&[i32]; 2] = [&[1, 0, 1, 1], &[1, 1, 0, 0]];
+        let frames = vec![hidden_frame(0, frame_batch, model_seq, hidden)];
+        let ranges = [
+            turbo_token_range { row: 0, start: 1, end: 3 },
+            turbo_token_range { row: 0, start: 0, end: 3 },
+            turbo_token_range { row: 1, start: 1, end: 4 },
+            turbo_token_range { row: 0, start: 2, end: 4 },
+            turbo_token_range { row: 1, start: 0, end: 1 },
+        ];
+        let live: [(usize, &[usize]); 5] = [(0, &[2]), (0, &[0, 2]), (1, &[1]), (0, &[2, 3]), (1, &[0])];
+        let mut rows = pooling_rows(&masks, stride, hidden, crate::TURBO_NORMALIZE_NONE, &ranges);
+        let got = pool_all(&mut rows, &frames, frame_batch, model_seq, ranges.len());
+        for (i, (row, cols)) in live.iter().enumerate() {
+            let want = host_mean(&frames[0], *row, cols, model_seq, hidden);
+            assert_eq!(&got[i * hidden..(i + 1) * hidden], &want[..], "range {i}");
+        }
+    }
+
+    #[test]
+    fn a_range_vector_is_cut_before_it_is_normalized() {
+        let (frame_batch, model_seq, hidden) = (1, 3, 4);
+        let masks: [&[i32]; 1] = [&[1, 1, 1]];
+        let frames = vec![hidden_frame(0, frame_batch, model_seq, hidden)];
+        let ranges = [turbo_token_range { row: 0, start: 0, end: 2 }];
+        let mut rows = pooling_rows(&masks, 3, hidden, TURBO_NORMALIZE_L2, &ranges);
+        rows.state.output_dim = 2;
+        let got = pool_all(&mut rows, &frames, frame_batch, model_seq, 2);
+        let mean = host_mean(&frames[0], 0, &[0, 1], model_seq, hidden);
+        let norm = mean[..2].iter().map(|&v| (v as f64).powi(2)).sum::<f64>().sqrt();
+        for h in 0..2 {
+            assert!((got[h] as f64 - mean[h] as f64 / norm).abs() < 1e-6, "{h}: {} {}", got[h], mean[h]);
+        }
+        assert!(got[2..].iter().all(|v| v.is_nan()), "nothing is written past output_dim");
+    }
+
+    #[test]
+    fn an_fp16_frame_pools_the_values_its_halves_name() {
+        // Halves of values exact in both precisions: the FP16 frame,
+        // widened on the way, pools to the F32 frame's bits.
+        let (model_seq, hidden) = (3, 2);
+        let wide = [1.0f32, -2.0, 0.5, 4.0, -0.25, 3.0];
+        let mut halves: Vec<u16> = wide.iter().map(|&v| f32_to_half(v)).collect();
+        let buf = Buffer { free: None, ptr: halves.as_mut_ptr().cast(), bytes: (halves.len() * 2) as u64 };
+        let fp16 = unsafe { FrameStates::read(&buf, ze::GRAPH_ARGUMENT_PRECISION_FP16, model_seq, hidden) };
+        assert!(matches!(fp16.values, Hidden::F16(h) if h.len() == 6));
+        let fp32 = FrameStates { values: Hidden::F32(&wide), model_seq, hidden };
+        let ranges = [turbo_token_range { row: 0, start: 0, end: 3 }];
+        let mut a = pooling_rows(&[&[1, 1, 0]], 3, hidden, TURBO_NORMALIZE_L2, &ranges);
+        let mut b = pooling_rows(&[&[1, 1, 0]], 3, hidden, TURBO_NORMALIZE_L2, &ranges);
+        let (mut ra, mut rb) = (vec![0f32; hidden], vec![0f32; hidden]);
+        pool_frame(&fp16, 0, 1, 3, &mut a, &mut ra);
+        pool_frame(&fp32, 0, 1, 3, &mut b, &mut rb);
+        assert_eq!(ra, rb);
+        // The mean of tokens 0 and 1 alone: (1 + 0.5) / 2 and (-2 + 4) / 2.
+        let norm = (0.75f64 * 0.75 + 1.0).sqrt();
+        assert_eq!(ra, [(0.75 / norm) as f32, (1.0 / norm) as f32]);
+    }
+
+    fn embed_rows(batch: u32, seq: u32, pooling: u32) -> turbo_backend_embed_rows {
+        turbo_backend_embed_rows {
+            struct_size: size_of::<turbo_backend_embed_rows>() as u32,
+            batch,
+            seq,
+            row_stride: seq,
+            ids: std::ptr::null(),
+            mask: std::ptr::null(),
+            types: std::ptr::null(),
+            pooling,
+            normalize: 0,
+            output_dim: 2,
+            reserved: 0,
+        }
+    }
+
+    #[test]
+    fn ranges_are_kept_in_order_in_the_memory_made_for_them() {
+        let mut rows = pooling_rows(&[&[1, 1, 0], &[0, 1, 1]], 4, 2, 0, &[]);
+        let capacity = rows.ranges.capacity();
+        let ranges = [
+            turbo_token_range { row: 1, start: 1, end: 3 },
+            turbo_token_range { row: 0, start: 0, end: 3 },
+            turbo_token_range { row: 1, start: 1, end: 3 },
+        ];
+        ok_msg(keep_ranges(3, 4, &embed_rows(2, 3, TURBO_POOLING_MEAN), &ranges, &mut rows));
+        assert_eq!(rows.ranges.len(), 3);
+        assert_eq!(rows.ranges.capacity(), capacity, "nothing was allocated");
+        for (k, g) in rows.ranges.iter().zip(&ranges) {
+            assert_eq!((k.row, k.start, k.end), (g.row, g.start, g.end));
+        }
+    }
+
+    #[test]
+    fn a_range_the_rows_cannot_pool_is_refused_by_its_index() {
+        let rows_of = || pooling_rows(&[&[1, 1, 0], &[0, 1, 1]], 4, 2, 0, &[]);
+        let r = embed_rows(2, 3, TURBO_POOLING_MEAN);
+        let ok = turbo_token_range { row: 0, start: 0, end: 2 };
+        let refused = |ranges: &[turbo_token_range], rows_desc: &turbo_backend_embed_rows| {
+            let mut rows = rows_of();
+            match keep_ranges(3, 4, rows_desc, ranges, &mut rows) {
+                Ok(()) => panic!("expected a refusal"),
+                Err(e) => {
+                    assert!(rows.ranges.is_empty(), "a refused write keeps no ranges");
+                    e
+                }
+            }
+        };
+        let e = refused(&[ok; 4], &r);
+        assert_eq!(e.code, CAPACITY, "{}", e.message);
+        assert!(e.message.contains("max_ranges 3"), "{}", e.message);
+        let e = refused(&[ok], &embed_rows(2, 3, TURBO_POOLING_CLS));
+        assert_eq!((e.code, e.field), (UNSUPPORTED_OPTION, 5), "{}", e.message);
+        for (bad, why) in [
+            (turbo_token_range { row: 2, start: 0, end: 1 }, "row outside the batch"),
+            (turbo_token_range { row: 0, start: 1, end: 1 }, "start not under end"),
+            (turbo_token_range { row: 0, start: 2, end: 4 }, "end over seq"),
+        ] {
+            let e = refused(&[ok, bad], &r);
+            assert_eq!(e.code, INVALID_ARGUMENT, "{why}: {}", e.message);
+            assert!(e.message.contains("range 1 "), "{why}: {}", e.message);
+        }
+        let e = refused(&[ok, ok, turbo_token_range { row: 1, start: 0, end: 1 }], &r);
+        assert_eq!(e.code, INVALID_ARGUMENT);
+        assert!(e.message.contains("range 2 has no token with mask 1"), "{}", e.message);
     }
 }

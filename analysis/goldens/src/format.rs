@@ -41,6 +41,9 @@ pub struct Header {
     /// The options the annotator was run with, sorted by key, so two
     /// goldens of one class run with different options are told apart.
     pub config: Vec<ConfigEntry>,
+    /// The exception the annotator threw, when it threw: such a file has
+    /// no layer blocks.
+    pub error: Option<JvmError>,
 }
 
 /// What wrote the file: `generator <name> <version>`.
@@ -114,6 +117,20 @@ pub struct AnnotatorRef {
 pub struct ConfigEntry {
     pub key: String,
     pub value: String,
+}
+
+/// An exception the annotator threw on the JVM: `error <class> <message>`,
+/// the message a `str` field. A run that throws writes no layers, and a
+/// comparison with such a golden reports the error, so a test that expects
+/// the Rust port to differ (where it corrects an OpenNLP defect) asserts
+/// its own output on purpose.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct JvmError {
+    /// The exception's fully qualified class, such as
+    /// `java.lang.IllegalArgumentException`.
+    pub class: String,
+    /// What `getMessage()` returned, empty when it returned null.
+    pub message: String,
 }
 
 /// What a golden layer's rows hang on, as the `layer` record writes it:
