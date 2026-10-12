@@ -105,8 +105,8 @@ at <https://www.ecb.europa.eu/stats/policy_and_exchange_rates/euro_reference_exc
 it may be reused with the source acknowledged.
 
 `money/<notation>/money/<id>.golden` and
-`money-convert/<notation>/money/<id>.golden` hold the layers
-`turbo:money` and `turbo:money-converted`; see
+`money-convert/<notation>/money/<id>.golden` both hold the
+layer `turbo:money`; see
 `analysis/goldens-tool/README.md`. Only the two money annotators run on
 the set, and they have no dumps.
 

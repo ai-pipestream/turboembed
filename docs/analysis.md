@@ -622,7 +622,6 @@ The layers and their columns, in order:
 | `opennlp:language` | `document` | `code:str`, `confidence:f64` |
 | `turbo:numbers` | `text` | `start:u32`, `end:u32`, `numeral_end:u32`, `negative:u32`, `coefficient:str`, `scale:u32`, `plain:str` |
 | `turbo:money` | `text` | `start:u32`, `end:u32`, `coefficient:str`, `negative:u32`, `scale:u32`, `plain:str`, `currency:str` |
-| `turbo:money-converted` | `text` | `start:u32`, `end:u32`, `coefficient:str`, `negative:u32`, `scale:u32`, `plain:str`, `currency:str` |
 | `turbo:view` | `text` | `start:u32`, `end:u32`, `with:str` |
 
 `opennlp:language` has a row per language the detector ranked, best
@@ -809,7 +808,7 @@ The generator writes these layers, in this order within a golden:
 | `normalize` (each normalizer) | `turbo:view` |
 | `numbers` (`NumberScan.parse`, per notation) | `turbo:numbers` |
 | `money` (`CursorMoneyExtractor.extract` in `MoneyAnnotator`, per notation) | `turbo:money` |
-| `money-convert` (`EcbFxRates.convert` in `MoneyConversionAnnotator`, per notation) | `turbo:money-converted` |
+| `money-convert` (`EcbFxRates.convert` in `MoneyConversionAnnotator`, per notation) | `turbo:money` |
 
 `numbers/<notation>/num/<id>.golden` (`latin-us`, `latin-eu`) holds
 `turbo:numbers`, anchored on the text, with one row per number mention:
@@ -827,15 +826,15 @@ record gives `LATIN_US` or `LATIN_EU`. The scan is the mention loop of
 exclusion and without units; there is no model and no dump.
 
 `money/<notation>/money/<id>.golden` and
-`money-convert/<notation>/money/<id>.golden` hold `turbo:money` and
-`turbo:money-converted`, one row per mention, with the columns `start`,
+`money-convert/<notation>/money/<id>.golden` both hold
+`turbo:money`, one row per mention, with the columns `start`,
 `end` (UTF-8 byte offsets, from the `-`, symbol or first digit to the end
 of the mention), `coefficient`, `negative`, `scale`, `plain` (as for
 `turbo:numbers`) and `currency` (the ISO 4217 code). Both have `config
 notation`; the conversion goldens also have `config target` (`EUR`),
 `config as_of` (`2026-03-15`) and `config snapshot`
 (`rates/ecb-snapshot.csv`, relative to `analysis/goldens/data`). A mention
-without a rate has no row in `turbo:money-converted`. The generator reads
+without a rate has no row in a conversion golden. The generator reads
 the snapshot from the `rates` directory beside the inputs; `turbo-goldens
 generate` mounts it at `/rates`. See [money.md](money.md#golden-files).
 

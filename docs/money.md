@@ -213,7 +213,7 @@ as for the other OpenNLP ports ([analysis.md](analysis.md#golden-files)).
 - Conversion: `analysis/goldens/data/money-convert/<notation>/money/<id>.golden`,
   from `MoneyConversionAnnotator` over `EcbFxRates` into EUR as of
   2026-03-15 (a Sunday, so the Friday 2026-03-13 row applies). Layer
-  `turbo:money-converted`; a mention without a rate has no row.
+  `turbo:money` as well; a mention without a rate has no row.
 
 Both layers have the columns `start`, `end` (UTF-8 byte offsets of the
 whole mention, sign and symbol included), `coefficient` (unscaled value

@@ -117,6 +117,14 @@ class MoneyGoldenTest {
   }
 
   @Test
+  void negativeFollowsTheAmountNotTheText() throws IOException {
+    // OpenNLP drops the minus before a currency code, and a negated zero is zero.
+    Layer us = layer(0, "-USD 5 and -$0.00");
+    assertEquals(List.of(0L, 0L), numbers(us, "negative"));
+    assertEquals(List.of("5", "0.00"), strings(us, "plain"));
+  }
+
+  @Test
   void offsetsAreUtf8BytesAndTheSignIsPartOfTheMention() throws IOException {
     // "é" is two bytes, so the mentions start at bytes 3 and 11.
     Layer us = layer(0, "é -$5 and 7.50€");

@@ -14,7 +14,7 @@ everything that makes them:
   of the addons module (see below) and writes one `turbo:numbers` golden
   per notation and input. For the `money` set it runs `MoneyAnnotator` with
   `CursorMoneyExtractor`, and `MoneyConversionAnnotator` with `EcbFxRates`
-  (see below), and writes `turbo:money` and `turbo:money-converted` goldens
+  (see below), and writes `turbo:money` goldens for both
   per notation and input. With `--dumps` it also writes a
   decision point dump beside each sentence, token and language golden:
   every context the annotator gave its maxent model and every outcome
@@ -130,7 +130,7 @@ Unicode 15.0 repertoire only. Only `NumberGolden` runs on them.
 mentions restated in EUR by `MoneyConversionAnnotator` with `EcbFxRates`
 as of 2026-03-15. Both have one row per mention with `start`, `end`
 (UTF-8 byte offsets), `coefficient`, `negative`, `scale`, `plain` and
-`currency`, in the layers `turbo:money` and `turbo:money-converted`. The
+`currency`, in the layer `turbo:money`. The
 `config` records are `notation`, and for the conversions `target`,
 `as_of` and `snapshot`. A mention without a usable rate has no row in the
 converted layer. An amount that comes out with a negative scale, such as

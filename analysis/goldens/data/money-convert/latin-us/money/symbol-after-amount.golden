@@ -9,7 +9,7 @@ config	as_of	2026-03-15
 config	notation	LATIN_US
 config	snapshot	rates/ecb-snapshot.csv
 config	target	EUR
-layer	turbo:money-converted	text	2	start:u32	end:u32	coefficient:str	negative:u32	scale:u32	plain:str	currency:str
+layer	turbo:money	text	2	start:u32	end:u32	coefficient:str	negative:u32	scale:u32	plain:str	currency:str
 14	19	50	0	0	50	EUR
 33	40	505	0	1	50.5	EUR
-end	turbo:money-converted
+end	turbo:money

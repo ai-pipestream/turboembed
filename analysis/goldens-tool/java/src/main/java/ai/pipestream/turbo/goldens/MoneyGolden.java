@@ -27,14 +27,14 @@ import opennlp.tools.money.MoneyConversionAnnotator;
  *   as a {@code turbo:money} layer with one row per mention;</li>
  *   <li>{@link Kind#CONVERT}: the same followed by {@code MoneyConversionAnnotator} into
  *   {@link #TARGET} as of {@link #AS_OF}, with the rates of the snapshot file, written as a
- *   {@code turbo:money-converted} layer. A mention without a usable rate has no row, as in the
+ *   {@code turbo:money} layer too, the layer the Rust conversion writes under its own key. A mention without a usable rate has no row, as in the
  *   annotator's own layer.</li>
  * </ul>
  *
  * <p>Both layers have the columns {@code start} and {@code end} (UTF-8 byte offsets of the
  * mention, from the minus sign or symbol to its last character), {@code coefficient} (the
- * unscaled value of the amount without sign), {@code negative} (1 when the mention starts with
- * {@code -}), {@code scale}, {@code plain} ({@code toPlainString()} of the amount, for a reader of
+ * unscaled value of the amount without sign), {@code negative} (1 when the amount is below
+ * zero, which a mention starting with {@code -} need not be), {@code scale}, {@code plain} ({@code toPlainString()} of the amount, for a reader of
  * the file) and {@code currency} (the ISO 4217 code). An amount with a negative scale, such as
  * {@code 2E+1}, is written with scale 0. The amount is
  * {@code (-1)^negative * coefficient / 10^scale}. The path of a golden is
@@ -65,7 +65,7 @@ final class MoneyGolden implements AnnotatorGolden {
   /** What a golden holds. */
   enum Kind {
     EXTRACT("money", "turbo:money", "opennlp.tools.money.CursorMoneyExtractor", "extract"),
-    CONVERT("money-convert", "turbo:money-converted", "opennlp.tools.money.EcbFxRates", "convert");
+    CONVERT("money-convert", "turbo:money", "opennlp.tools.money.EcbFxRates", "convert");
 
     private final String annotator;
     private final String layer;
@@ -178,7 +178,7 @@ final class MoneyGolden implements AnnotatorGolden {
       // written as 20. The value is the same.
       BigDecimal amount = m.amount().scale() < 0 ? m.amount().setScale(0) : m.amount();
       coefficients[k] = amount.unscaledValue().abs().toString();
-      negatives[k] = input.text().charAt(start) == '-' ? 1 : 0;
+      negatives[k] = amount.signum() < 0 ? 1 : 0;
       scales[k] = amount.scale();
       plain[k] = amount.toPlainString();
       currencies[k] = m.currency();
