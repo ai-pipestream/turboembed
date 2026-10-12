@@ -33,15 +33,24 @@
 //! on the longer items: a sentence gets the same window with or without
 //! the chunks beside it, and a chunk adds a window only over pieces no
 //! sentence's window holds.
+//!
+//! The units of `Levels` go through the same rules one unit at a time
+//! (`crate::levels`): each unit lays out windows over its own pieces
+//! alone, with `place` bounded by its last piece, and its children are
+//! the other items.
 
 use std::fmt;
 use std::ops::Range;
+
+use turbo_analysis_layers::VectorKind;
 
 /// The layer an item is in.
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub enum Which {
     Sentences,
     Chunks,
+    /// The units of `Levels`, for the vector of this kind.
+    Levels(VectorKind),
 }
 
 /// The vector one range is pooled into: item `item` of layer `which` in

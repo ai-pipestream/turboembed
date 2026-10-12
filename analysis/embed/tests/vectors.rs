@@ -26,7 +26,7 @@ use turbo_analysis::registry::{Registry, Spec};
 use turbo_analysis::*;
 use turbo_analysis_embed::window::{Plan, Target, Which, pieces_of};
 use turbo_analysis_embed::*;
-use turbo_analysis_layers::{Chunks, Cut, Sentences, Subwords, Vectors};
+use turbo_analysis_layers::{Chunks, Cut, Levels, Sentences, Subwords, Unit, Vectors};
 
 fn testdata() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR")).join("../../testdata")
@@ -611,13 +611,30 @@ fn malformed_input_fails_the_document() {
     backwards.push(Span { start: 9, end: 3 });
     let mut backwards_chunk = Spans::<Chunks>::new(sentences.view());
     backwards_chunk.push(Span { start: 9, end: 3 });
+    // Levels from (start, end, unit, parent), and a parent column of its own.
+    let levels = |rows: &[(u32, u32, Unit, Option<u32>)], parent: Option<Vec<Option<Ix<Levels>>>>| {
+        let mut spans = Spans::new(sentences.view());
+        for &(x, y, ..) in rows {
+            spans.push(Span::new(x, y));
+        }
+        let unit = rows.iter().map(|r| r.2).collect();
+        let parent = parent.unwrap_or_else(|| rows.iter().map(|r| r.3.map(Ix::new)).collect());
+        Levels { spans, unit, parent }
+    };
+    let chunk = Unit::Chunk(Ix::new(0));
+    let parent_after = levels(&[(0, 40, Unit::Document, None), (0, 5, chunk, Some(7))], None);
+    let short_parent = levels(&[(0, 40, Unit::Document, None), (0, 5, chunk, Some(0))], Some(vec![None]));
+    let outside = levels(&[(0, 10, Unit::Document, None), (0, 40, chunk, Some(0))], None);
     let inputs = [
-        Input { subwords: &short, sentences: Some(sentences), chunks: None },
-        Input { subwords: &unordered, sentences: Some(sentences), chunks: None },
-        Input { subwords: &inverted, sentences: Some(sentences), chunks: None },
-        Input { subwords: sub, sentences: Some(&backwards), chunks: None },
-        Input { subwords: sub, sentences: None, chunks: Some(&backwards_chunk) },
-        Input { subwords: sub, sentences: Some(sentences), chunks: None },
+        Input { subwords: &short, sentences: Some(sentences), chunks: None, levels: None },
+        Input { subwords: &unordered, sentences: Some(sentences), chunks: None, levels: None },
+        Input { subwords: &inverted, sentences: Some(sentences), chunks: None, levels: None },
+        Input { subwords: sub, sentences: Some(&backwards), chunks: None, levels: None },
+        Input { subwords: sub, sentences: None, chunks: Some(&backwards_chunk), levels: None },
+        Input { subwords: sub, sentences: None, chunks: None, levels: Some(&parent_after) },
+        Input { subwords: sub, sentences: None, chunks: None, levels: Some(&short_parent) },
+        Input { subwords: sub, sentences: None, chunks: None, levels: Some(&outside) },
+        Input { subwords: sub, sentences: Some(sentences), chunks: None, levels: None },
     ];
     let mut out = a.embed("test", &inputs);
     for want in [
@@ -626,6 +643,9 @@ fn malformed_input_fails_the_document() {
         "subword 0 ends before it starts",
         "sentence 0 ends before it starts: 9..3",
         "chunk 0 ends before it starts: 9..3",
+        "the levels: unit 1 has a parent at or after it",
+        "the levels: a unit and a parent for every span",
+        "the levels: unit 1 is outside its parent",
     ] {
         let e = out.remove(0).err().unwrap_or_else(|| panic!("{want}: refused")).to_string();
         assert!(e.contains(want), "{want}: {e}");
@@ -683,9 +703,9 @@ fn layers_that_do_not_fit_together_fail_the_document() {
     let mut elsewhere = Spans::<Sentences>::new(ViewId(1));
     elsewhere.push(Span::new(0, 3));
     let inputs = [
-        Input { subwords: &other, sentences: Some(sentences), chunks: None },
-        Input { subwords: sub, sentences: Some(&elsewhere), chunks: None },
-        Input { subwords: sub, sentences: Some(sentences), chunks: None },
+        Input { subwords: &other, sentences: Some(sentences), chunks: None, levels: None },
+        Input { subwords: sub, sentences: Some(&elsewhere), chunks: None, levels: None },
+        Input { subwords: sub, sentences: Some(sentences), chunks: None, levels: None },
     ];
     let mut out = a.embed("test", &inputs);
     let e = out.remove(0).err().unwrap().to_string();

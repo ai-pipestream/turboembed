@@ -16,6 +16,8 @@ turbo-analysis-layers = { path = "../layers" }
 turbo = { path = "../../core" }
 
 [dev-dependencies]
+# The tests build the levels with the chunker crate's builder.
+turbo-chunker = { path = "../chunker" }
 # The JVM's WordPiece goldens, which the pieces are compared with.
 turbo-goldens = { path = "../goldens" }
 # Unicode's nonspacing marks, which the JVM's spans run over and ours

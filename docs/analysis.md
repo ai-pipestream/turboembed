@@ -26,6 +26,10 @@ nothing here is in the C header or the gRPC server.
 | `turbo-goldens` | `analysis/goldens/` | Golden layer files from the JVM: the reader, the writer, the comparison, loading golden layers as test inputs, SHA-256 and SHA-512 |
 | `turbo-sequence` | `analysis/sequence/` | OpenNLP's beam search, BIO and BILOU codecs and feature generation framework (generators, `StringPattern` and the XML descriptors), with the context generators and validators of the part-of-speech tagger, chunker and name finder, the part-of-speech tag dictionary (`tags.tagdict`) and the Penn Treebank and Universal Dependencies tag mapping. Its crate documentation lists the OpenNLP behaviour it reproduces that is surprising, and the one it does not yet (QN models in a beam search); `analysis/sequence/README.md` describes its JVM golden files |
 | `turbo-namefind` | `analysis/namefind/` | OpenNLP's `DictionaryNameFinder`, `RegexNameFinder` and the patterns of `RegexNameFinderFactory`, which write `opennlp:entities` from `opennlp:tokens`, and the merge of several entity layers by `dropOverlappingSpans`. User patterns in Java syntax are translated to the `regex` crate or refused with a typed error; the crate documentation lists what is refused and the OpenNLP behaviour that is surprising, and `analysis/namefind/README.md` describes its JVM golden files |
+| `turbo-stem` | `analysis/stem/` | OpenNLP's stemmers: `PorterStemmer`, the 21 Snowball stemmers (generated from the Snowball sources OpenNLP's classes come from, over UTF-16 code units as in Java), the light and minimal stemmers, `CachingStemmer`, and `StemAnnotator` (OpenNLP's `StemmerAnnotator`), which writes `turbo:stems` from `opennlp:tokens`. Its crate documentation lists the OpenNLP behaviour that is surprising; `analysis/stem/README.md` describes its JVM golden files and how OpenNLP's Snowball stems differ from current Snowball's |
+| `turbo-stem-layers` | `analysis/stem-layers/` | The stemmers' layer, `turbo:stems` |
+| `turbo-stopword` | `analysis/stopword/` | OpenNLP's eleven bundled stopword lists (Bulgarian, Danish, German, English, Spanish, Finnish, French, Italian, Dutch, Portuguese, Russian) and `StopwordFilter.isStopword`, and the step that reads `opennlp:tokens` and, optionally, `opennlp:language` and writes `turbo:stopwords`, a flag per token; it flags and never removes. `analysis/stopword/data/README.md` gives each list's origin and license, the crate documentation lists the OpenNLP behaviour that is surprising, and `analysis/stopword/README.md` describes its JVM golden files |
+| `turbo-stopword-layers` | `analysis/stopword-layers/` | The `turbo:stopwords` layer and the languages that have a list (`StopwordLanguage`) |
 
 They need nothing beyond the standard library and each other, except
 `turbo-analysis-embed`, which runs the embedding model and so depends on
@@ -270,13 +274,16 @@ fields mean bumps its `SCHEMA`.
 | `Subwords` | `opennlp:subwords` | text | `turbo-analysis-layers` |
 | `PosTags` | `opennlp:pos` | tokens | `turbo-analysis-layers` |
 | `Lemmas` | `opennlp:lemmas` | tokens | `turbo-analysis-layers` |
+| `Stems` | `turbo:stems` | tokens | `turbo-stem-layers` |
 | `Dependencies` | `opennlp:dependencies` | tokens | `turbo-analysis-layers` |
 | `Entities` | `opennlp:entities` | text | `turbo-analysis-layers` |
 | `Boundaries` | `turbo:boundaries` | sentences | `turbo-analysis-layers` |
 | `Chunks` | `turbo:chunks` | text | `turbo-analysis-layers` |
+| `Levels` | `turbo:levels` | text | `turbo-analysis-layers` |
 | `Numbers` | `turbo:numbers` | text | `turbo-analysis-layers` |
 | `Money` | `turbo:money` (and the instance `converted`) | text | `turbo-analysis-layers` |
 | `Quantities` | `turbo:quantities` | text | `turbo-analysis-layers` |
+| `Stopwords` | `turbo:stopwords` | tokens | `turbo-stopword-layers` |
 | `Vectors<L>` | `opennlp:embeddings<L>` | `L` | `turbo-analysis-layers` |
 | `Confidence<L>` | `turbo:confidence<L>` | `L` | `turbo-analysis-layers` |
 | `Utf16Spans<L>` | `turbo:utf16<L>` | `L` | `turbo-analysis-layers` |
@@ -384,8 +391,9 @@ reads: `SentenceVectors` reads the subwords and the sentences,
 all three and writes both from the same windows. They can share one
 loaded model (`Arc<VectorAnnotator>`). `VectorsProvider` offers them to
 a registry as `vectors`, the spec's location being the bundle directory
-and its options `layers` (`sentences`, `chunks`, `both`), `device`,
-`precision` and `prompt`.
+and its options `layers` (`sentences`, `chunks`, `both`, `levels`),
+`device`, `precision` and `prompt`. `LevelVectors`, for `levels`, is
+described under "Levels" below.
 
 The subwords must be the same bundle's pieces (the layer's model is
 compared) and every layer must be in the subwords' view; a document
@@ -509,17 +517,18 @@ device's name, and the precision as the dtype the session computes in
 and the tier asked for, such as `f32 (model)`. The configuration hash
 covers the row length, the prompt, and the layer that lays out the
 windows: the sentences for `SentenceVectors` and `SentenceChunkVectors`,
-the chunks for `ChunkVectors`.
+the chunks for `ChunkVectors`, the levels for `LevelVectors`.
 
 The annotator checks what it is given, since `VectorAnnotator::embed`
 takes its input from any caller: an id for every piece, the pieces'
-starts and ends in text order, and no span that ends before it starts;
-a document that fails any of these fails alone. A backend that pools no
-ranges (one without `embed_write_ranges`) is refused when the session
-is made or at the first write, with an error naming the backend and the
-range write the vector steps need. A result of another shape than the
-run was written for, or a read of fewer bytes, is an error, never a
-shorter set of vectors.
+starts and ends in text order, no span that ends before it starts, and
+levels that pass their own check (a parent for every unit, before it
+and around it); a document that fails any of these fails alone. A
+backend that pools no ranges (one without `embed_write_ranges`) is
+refused when the session is made or at the first write, with an error
+naming the backend and the range write the vector steps need. A result
+of another shape than the run was written for, or a read of fewer
+bytes, is an error, never a shorter set of vectors.
 
 ## Structure
 
@@ -665,7 +674,8 @@ zero costs, a target of zero and several weights and overheads.
 its size penalty and clamped to plus or minus 2^60 units, since the
 caller supplies it. It is how a signal over whole
 chunks, such as how tightly a chunk's sentences cluster, enters the
-optimizer; the chunker passes `no_term`.
+optimizer; `Chunker` passes `no_term`, and `CohesiveChunker` passes
+cohesion (see Drift and cohesion below).
 
 ### Boundary costs
 
@@ -709,7 +719,8 @@ Each gap takes its strongest break:
 
 A gap where a heading ends costs 4000 more, so a heading stays with what
 it heads. With no structure every gap is a sentence boundary. It writes
-the default instance, as the only signal.
+the default instance when it is the only signal, and the `structure`
+instance beside drift.
 
 ### Hard limits
 
@@ -752,6 +763,141 @@ not at a level above its child or does not hold the child's span.
 Not measured yet: the chunker against the stage 0 baselines on the
 evaluation harness, with significance, which is still being built.
 
+### Drift and cohesion
+
+Two signals come from the sentence vectors (`Vectors<Sentences>`, late
+pooled). Both scale each vector to length one (`Rows`, which reads the
+layer in place and keeps one over each row's length). A sentence with
+no vector (one the layer's `empty` column lists, or a row of zeros or of
+non-finite numbers) adds nothing and is not counted: it has no direction
+to compare. Floating point (f64, summed in a fixed order) computes two
+quantities only, drift's cosines and cohesion's spread; each is rounded
+once to an integer, and every cost after that is integer arithmetic, so
+the same vectors give the same costs.
+
+Costs below are in the units `Boundaries` is written in: a plain
+sentence boundary is `Boundaries::UNIT`, 1000, so one of these units is
+a thousandth of a sentence boundary.
+
+**Drift** (`DriftBoundaries`, the `drift` instance of the boundaries) is
+a cost per gap. For the gap after sentence g:
+
+1. The cosine between the sum of the `window` (3) sentences with a
+   vector before the gap and the sum of the `window` after it, in
+   millionths, summed directly: drift needs memory for a few vectors,
+   not for the document. Only a gap with a full window on both sides is
+   scored, as NLTK's TextTiling leaves the gaps at the ends unscored.
+   With a window cut short at an end, a single odd first or last
+   sentence was compared alone, its gap was a valley with a wall on one
+   side only, and the optimizer set it apart as a chunk of its own (a
+   cost of -2000 at the first gap, against about -420 for the same
+   sentence in the middle). The price is no drift within `window - 1`
+   sentences of either end, where a cut would leave a chunk of fewer
+   than `window` sentences anyway. A gap that is not scored costs zero,
+   and the rest are scored among themselves, in order, skipping it. The
+   two gaps around an empty sentence see the same windows, so they cost
+   the same. `window` is a `NonZeroU32`.
+2. A moving average over `smoothing` (1) cosines on each side, rounded
+   to an integer. Near an end it takes as many on each side as the
+   nearer end allows, so the average stays centred and a valley next to
+   an end stays where it is.
+3. The score, by default the TextTiling depth (Hearst 1997): the
+   highest smoothed cosine reached walking left while it does not fall,
+   plus the same to the right, less twice the gap's own. It takes
+   linear time, since a walk continues the walk from its neighbour. A
+   steady slow drift has no valleys and scores nothing.
+4. A score under `floor` (0.01) counts as zero; the gap then costs
+   `-score * scale / 10^6`, truncated toward zero, where `scale` (2000)
+   is what a score of one takes off the gap: a depth of 0.5 takes off
+   one sentence boundary. `scale` is unsigned, so drift never makes a
+   cut dearer.
+5. A gap at the bottom of a valley (lower than the gap before, not
+   higher than the one after, so a flat bottom marks its first gap)
+   whose score is at least `shift` (0.1) gives `Cut::TopicShift`. A
+   single outlier sentence in the middle of a stretch passes it (its
+   dip is about 0.21 deep), and so does the first or last scored gap
+   when the window there still holds an outlier at an end (about 0.11):
+   the reason is named, and the cost (about -420 and -210) decides
+   whether a cut is made there. The default is untuned; the tests pin
+   this behaviour so a change to it is deliberate.
+
+Comparing groups of sentences rather than single sentences keeps one
+odd sentence from looking like a topic of its own: with a window of one,
+both gaps around an outlier are full-depth valleys and the optimizer
+sets it apart; with a window of three its dip is spread over six gaps
+at about a tenth of that depth, and it stays in its chunk.
+
+**Weighing.** `WeighBoundaries` reads the `structure` and `drift`
+instances and writes the default one: `(structure * ws + drift * wd) /
+1000` per gap, with each `Weight` a factor in thousandths (1000, the
+costs as they are, for each by default), products in i64, their sum
+saturating in i64, rounded down and saturated to the i32 range. The
+reason is the structure's, unless the structure saw only a sentence
+boundary and the drift a topic shift (and the drift weight is not zero).
+A further signal is one more read and one more weight. In a pipeline
+from configuration the three steps are `structure-boundaries` (option
+`instance`: `default` or `structure`), `drift-boundaries` (options
+`window`, `smoothing`, `score`, `floor`, `scale`, `shift`) and
+`weigh-boundaries` (options `structure`, `drift`); an unknown option, a
+value that does not parse, a negative `scale` and a `window` of zero are
+refused.
+
+**Cohesion** (`Cohesion`) is a chunk term. A chunk pays, for each of its
+sentences with a vector, one less its cosine to the chunk's centroid.
+With unit vectors summing to S over m sentences that sum is `m - |S|`,
+so the term is `weight * (m - |S|)`, computed in f64 and rounded once to
+the nearest integer, with `weight` (unsigned, 1000 by default) what a
+sentence at right angles to its chunk costs: zero for a chunk whose
+sentences all point one way, up to `weight * m` when they cancel.
+Splitting a chunk never raises the total (`|A| + |B| >= |A + B|`) and
+lowers it by exactly how far the parts point apart, so the term pulls
+cuts toward where the vectors part, and the boundary costs and the size
+penalty decide how many cuts that is worth.
+
+S comes from running sums of the unit vectors (`Sums`), so each chunk
+the optimizer tries costs one pass over the dimensions, whatever its
+length, and the optimizer's time is multiplied by the dimension. The
+sums take `(n + 1) * dim` f64s, so they are built for one run of the
+optimizer (a top-level section) at a time and dropped after it: memory
+follows the largest section, not the document. A document with no
+structure is one run, so its sums cover all of it (about 820 MB at
+100,000 sentences of dimension 1024); such a document needs sections, or
+the plain `Chunker`.
+
+`CohesiveChunker` is `Chunker` with this term. It is a step of its own,
+not an option of `Chunker`, because it reads the sentence vectors: a
+chunker that only might read them would still be ordered after them,
+and a pipeline whose one vector step pools both sentence and chunk
+vectors (`SentenceChunkVectors`, which reads the chunks) would then be a
+cycle. It is not used unless chosen.
+
+Alternatives in the code and tests:
+
+- Score by distance (`Score::Distance`, one less the smoothed cosine),
+  the quantity common semantic splitters threshold. On a slow drift it
+  lowers every gap alike, so no gap stands out and every cut is cheaper,
+  which favours more, smaller chunks. Depth is the default.
+- A window of one sentence: it sets an outlier sentence apart (a test
+  shows it).
+- Windows cut short at the ends of the document: they set an outlier
+  first or last sentence apart (step 1).
+- Smoothing cut short on one side only at the ends: it moved a topic
+  shift two sentences from the start onto the first gap.
+
+Not tried: a percentile threshold over the document (it makes a gap's
+cost depend on the whole document, so an edit far away moves it, and
+the optimizer needs costs, not a yes or no), C99's rank matrix, lexical
+TextTiling over tokens, windows that stop at section edges, and
+pairwise cohesion (mean cosine between all pairs, which needs a banded
+table of dot products rather than running sums).
+
+The defaults are not tuned. Whether drift or cohesion helps, and at
+what weights, needs the evaluation harness: retrieval records for the
+stage 1 chunker on structure alone, structure with drift at a few
+weights, and the cohesive chunker, at matched mean chunk length, with
+significance, plus the boundary suite (Pk and WindowDiff) and the time
+per document. None of that exists yet, so no gain is claimed.
+
 ## Term statistics and BM25
 
 `turbo_chunker::terms` counts terms per retrieval unit for lexical
@@ -791,7 +937,10 @@ units of one level, and writes `TermStats<L>`, aligned to the units:
 - `TermCounter<Structure>`: a row per structure block; the sections are
   the blocks of kind `Section`, and a nested section's terms count in it
   and in every section around it;
-- `TermCounter<View>`: one row for the whole document.
+- `TermCounter<View>`: one row for the whole document;
+- `TermCounter<Levels>`: a row per unit of the chunk, section and
+  document levels (see "Levels" below), so every level gets its counts
+  from the same code.
 
 A token is in the unit its start is in. Each row is sparse: the unit's
 term ids in ascending order with a count for each, by column, with
@@ -877,6 +1026,105 @@ run's maximum. Each choice is priced with the pricing run's budget but
 sized by its own run's token counts, which agree when the runs share a
 tokenizer; runs with different tokenizers mix two counts. There is no
 command for it: no record format holds chunks yet.
+
+## Levels
+
+`Levels` (`turbo:levels`, in `turbo-analysis-layers`) holds three levels
+of retrieval units over one view as a tree: the chunks, the sections
+they sit in, and the whole document. Each row has its exact span in the
+view, a `Unit` that names where it comes from (`Chunk` with its row of
+`Chunks`, `Section` with its block of `Structure`, or `Document`), and
+its parent. Row 0 is the document, over the whole view, leading and
+trailing whitespace included; the other rows follow in text order, a
+parent before its children: by start, then sections in structure order,
+then chunks. The layer refuses a second document, a unit with no parent
+or with a chunk as its parent, and a unit outside its parent's span.
+
+It is a layer of its own rather than more rows of `Chunks`. `Chunks` is
+the chunker's output and has one writer; its rows carry the optimizer's
+cost, the reason for the cut and a length in model tokens, which a
+section or the document does not have. A unit here points into
+`Chunks` or `Structure` instead, so nothing of those is copied but the
+spans that a positional layer needs.
+
+`LevelBuilder` in `turbo-chunker` reads the view, the sentences, the
+chunks and the structure when there is one, and writes the levels:
+
+- The chunks are the level 0 rows of `Chunks`. The rows the chunker
+  puts above them (one per top-level section run) are not repeated; the
+  sections come from the structure, nested ones included.
+- A section is every block of kind `Section`. Its parent is the nearest
+  section around it, or the document.
+- A chunk belongs to a section when every sentence of it starts in the
+  section, the rule the chunker splits its runs by. Its parent is the
+  innermost such section, or the document when there is none: text
+  before the first heading, after the last section, or a whole document
+  with no structure, whose levels are the document and its chunks.
+- The chunker never lets a chunk cross a top-level section, but the edge
+  of a nested section is only a cost, so a chunk can run across it.
+  Such a chunk belongs to the section around both, and shares bytes with
+  the nested section beside it: siblings may overlap, a unit never
+  leaves its parent.
+- A section's span is its block's, widened at the end to the end of the
+  last sentence that starts in it, when that sentence runs past the
+  block. The span depends on the sentences alone, not on how they were
+  chunked, never ends inside a sentence, and holds every chunk that
+  belongs to the section and every section nested in it. Its start
+  never moves, so every offset is a block's, a sentence's or the
+  view's.
+- An empty block or an empty chunk keeps its row, with its empty span.
+
+The time is the number of sections times the chunks that start in each,
+after three binary searches per section.
+
+Term statistics need no code of their own: `TermCounter<Levels>` counts
+the terms of every unit at every level (see "Term statistics and BM25"),
+and its df counts the units of all three levels that hold a term.
+
+### Local and contextual vectors
+
+`LevelVectors` in `turbo-analysis-embed` reads the subwords and the
+levels and writes two instances of `Vectors<Levels>`, both aligned to
+the levels, named by `VectorKind`: `local` and `contextual`
+(`VectorKind::key`). It is added to a pipeline with
+`LevelVectors::bound`, which gives each output its name; under the
+default name for both the pipeline is refused.
+
+- The local vector is pooled from rows that hold the unit's own pieces
+  and nothing else: the windows start at its first piece and stop at its
+  last.
+- The contextual vector is pooled from the rows of the unit's parent
+  (its section, a section around it, or the document), which stop at the
+  parent's last piece: the late chunking of Günther et al. (2024) within
+  the section or document. The document has no parent, so its
+  contextual vector is pooled from its own rows and equals its local
+  one. So does a unit whose parent holds no piece it does not, such as
+  a chunk that is its whole section.
+
+Both go through the window planner and the late pooling of the other
+vector steps, one unit at a time: the unit lays out windows over its
+own pieces, with the planner bounded by its last piece, its local vector
+is pooled from them, and each of its children is placed in them for its
+contextual vector. A unit that fits one window is one row. A longer one
+is cut into windows of the full width from its first piece, the last
+one shorter; its local vector is the mean of its parts weighted by
+pieces, and a child is pooled from the window that holds it whole, or
+in parts when it crosses from one window to the next. A child of a
+long parent therefore sees the context of its own window, not the
+whole parent. A child adds no window to its parent's, so each piece is
+encoded once for every unit that holds it: once per level, more where
+sections nest. A unit with no pieces has the zero vector in both and is
+listed in both layers' `empty`.
+
+The tests hold every vector of both kinds to the same unit pooled by
+hand, each range run alone in a session of its own, in rows of 64
+tokens (the whole text one window) and of 24 (the document and a
+section in parts), with and without structure, with empty units, and
+twice for the same bits.
+
+What each level and each kind of vector adds to retrieval is not
+measured yet: that needs the evaluation harness, which is still being
+built.
 
 ## Golden files
 
@@ -1452,6 +1700,16 @@ runs them on any machine:
   read the gaps a structure makes: each gap's strongest break, the
   units by their sentences, block edges inside sentences, which gaps
   units hold, and sections listed out of order.
+- `analysis/chunker/tests/levels.rs` builds the levels from Markdown
+  through the structure detector, the boundary costs and the chunker,
+  and from hand-made chunks and sections: every unit's span read back as
+  text, text before the first heading under the document, nested
+  sections three deep, a chunk across a nested section's edge under the
+  section around both, a section widened by a sentence past its end (a
+  nested one the same however its text is chunked), empty sections and
+  chunks, a document with no structure and one with no chunks, term
+  counts at every level against the view's own, determinism, and
+  overlapping chunks refused. The layer's unit tests hold its checks.
 - `analysis/chunker/tests/limits.rs` holds each hard limit over
   hand-made layers: a table row, a code block and a quote that fit are
   never cut even where the costs say to, each one over the budget is cut
@@ -1502,6 +1760,11 @@ runs them on any machine:
 - `analysis/structure/tests/pipeline.rs` runs the annotator ahead of the
   chunker, whose chunks then stay inside the sections it found, and
   builds it through the provider.
+- `analysis/embed/tests/levels.rs` holds every local and contextual
+  vector of the levels to the same unit pooled by hand on the small
+  BERT, in one window and in parts, with and without structure, with
+  empty units, and checks that the two kinds are named instances, that
+  both under one name are refused, determinism, and the provider.
 - `analysis/embed/tests/subwords.rs` runs the subwords annotator on the
   small BERT's WordPiece bundle, a byte-level BPE bundle and BGE-M3's
   Unigram, over the tokenizer test texts, and checks that the document
@@ -1602,13 +1865,14 @@ runs them on any machine:
 ## Not built yet
 
 - The annotators themselves: normalizers, sentence detection,
-  tokenization, and the boundary signals besides structure, with the
-  step that weighs and sums them.
+  tokenization, and the boundary signals besides structure and drift
+  (lexical cohesion, coreference, discourse markers).
 - A comparison of the sentence vectors with OpenNLP's
   `SentenceVectorsDL` on golden inputs, which needs the JVM container,
   and a measurement of documents per second through the vector steps.
   The tests build their layers by hand or with toy annotators.
 - The evaluation harness that every change to the chunker is measured
   with, and the chunker's records on it. It is also where the BM25 only
-  baseline is to be reported, from the term statistics above.
+  baseline is to be reported, from the term statistics above, and what
+  each level and each kind of level vector adds.
 - A gRPC surface, to be shared with the OpenNLP standard.
