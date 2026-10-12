@@ -10,6 +10,7 @@
 mod items;
 mod layers;
 mod mismatch;
+mod view;
 
 use std::fmt;
 
@@ -75,6 +76,15 @@ pub trait GoldenCompare: Layer {
 
     /// Compares this layer with its golden layer, whose anchor and columns
     /// are already checked against the type.
+    /// The golden layer's anchor: by default the layer's own `Layer::anchor`.
+    fn golden_anchor() -> GoldenAnchor {
+        match Self::anchor() {
+            Anchor::Text => GoldenAnchor::Text,
+            Anchor::Aligned { layer, .. } => GoldenAnchor::Aligned(layer.to_string()),
+            Anchor::Document => GoldenAnchor::Document,
+        }
+    }
+
     fn compare(&self, cx: &Cx<'_>, golden: &GoldenLayer, tol: Tolerance) -> Result<(), Mismatch>;
 }
 
@@ -125,17 +135,13 @@ pub struct Shape {
 /// `turbo_analysis::LayerName` prints it (`turbo:confidence<opennlp:tokens>`
 /// for a generic layer), and so is an aligned anchor's.
 pub fn shape_of<L: GoldenCompare>() -> Shape {
-    let anchor = match L::anchor() {
-        Anchor::Text => GoldenAnchor::Text,
-        Anchor::Aligned { layer, .. } => GoldenAnchor::Aligned(layer.to_string()),
-        Anchor::Document => GoldenAnchor::Document,
-    };
-    Shape { id: L::NAME.to_string(), anchor, columns: L::COLUMNS }
+    Shape { id: L::NAME.to_string(), anchor: L::golden_anchor(), columns: L::COLUMNS }
 }
 
 /// The shapes of every layer type a golden file may hold, which the reader
 /// checks each layer block against.
 pub fn known_shapes() -> Vec<Shape> {
+    use turbo_analysis::View;
     use turbo_analysis_layers::{Confidence, Entities, Language, Lemmas, PosTags, Sentences, Tokens};
     vec![
         shape_of::<Sentences>(),
@@ -146,6 +152,7 @@ pub fn known_shapes() -> Vec<Shape> {
         shape_of::<Lemmas>(),
         shape_of::<Entities>(),
         shape_of::<Language>(),
+        shape_of::<View>(),
     ]
 }
 
@@ -278,7 +285,8 @@ mod tests {
                 "opennlp:pos",
                 "opennlp:lemmas",
                 "opennlp:entities",
-                "opennlp:language"
+                "opennlp:language",
+                "turbo:view"
             ]
         );
     }

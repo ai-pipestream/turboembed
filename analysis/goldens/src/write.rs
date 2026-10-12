@@ -59,7 +59,22 @@ fn write_header(h: &Header, out: &mut String) -> io::Result<()> {
     for m in &h.models {
         record(out, &["model", &m.file, &to_hex(&m.sha512)])?;
     }
-    record(out, &["annotator", &h.annotator.class, &h.annotator.method])
+    record(out, &["annotator", &h.annotator.class, &h.annotator.method])?;
+    if let Some(w) = h.config.windows(2).find(|w| w[0].key >= w[1].key) {
+        return Err(invalid(format!(
+            "the config key {:?} comes after {:?}: keys are sorted, each once",
+            w[1].key, w[0].key
+        )));
+    }
+    // Key and value are str fields, escaped like a row's.
+    for c in &h.config {
+        out.push_str("config\t");
+        escape_into(&c.key, out);
+        out.push('\t');
+        escape_into(&c.value, out);
+        out.push('\n');
+    }
+    Ok(())
 }
 
 /// One header record. Header fields are written as they are, unescaped,

@@ -28,6 +28,17 @@ pub enum Mismatch {
     /// The golden has a value column the Rust layer holds no values for,
     /// such as POS tags made without probabilities.
     NoValues { layer: String, column: &'static str },
+    /// A normalized view's text differs from the source with the golden's
+    /// edits applied, first at byte `at`; `rust` and `golden` are the text
+    /// around it.
+    Text { layer: String, at: usize, rust: String, golden: String },
+    /// A view made from another view, not from the source. Its edits are
+    /// against its parent, and are not composed into edits against the
+    /// source, so it is not compared.
+    ChainedView { layer: String },
+    /// A golden layer that cannot be applied: edits that overlap or cut a
+    /// character.
+    BadGolden { layer: String, detail: String },
     /// One side has more items. `extra` is the first item past the
     /// shorter side, from the longer one.
     Count { layer: String, rust: usize, golden: usize, extra: Box<Item> },
@@ -66,6 +77,9 @@ impl Mismatch {
             | Anchor { layer, .. }
             | Columns { layer, .. }
             | NoValues { layer, .. }
+            | Text { layer, .. }
+            | ChainedView { layer, .. }
+            | BadGolden { layer, .. }
             | Count { layer, .. }
             | Item { layer, .. } => layer,
         }
@@ -101,6 +115,14 @@ impl fmt::Display for Mismatch {
                 f,
                 "{layer}: the Rust layer has no probabilities, and the golden has a {column} column to compare them with"
             ),
+            Text { layer, at, rust, golden } => write!(
+                f,
+                "{layer}: the normalized text differs from byte {at}\n  rust:   ...{rust:?}...\n  golden: ...{golden:?}..."
+            ),
+            ChainedView { layer } => {
+                write!(f, "{layer}: the view is made from another view; only a view made from the source is compared")
+            }
+            BadGolden { layer, detail } => write!(f, "{layer}: the golden cannot be applied: {detail}"),
             Count { layer, rust, golden, extra } => {
                 let (longer, n) = if rust > golden { ("Rust", golden) } else { ("golden", rust) };
                 write!(

@@ -1,0 +1,15 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	0123456789abcdef0123456789abcdef01234567	3.0.0-PRE-SNAPSHOT
+jdk	21.0.5	21.0.5+11-LTS	Eclipse Adoptium
+unicode	15.0
+input	test/ligature	26	20	9f3d1de1a0bee4d1ba51fa8b9c468bba5dbc3d4a708cab95e1b6b806ea8300a2
+annotator	opennlp.tools.util.normalizer.AggregateCharSequenceNormalizer	normalize
+config	form	NFKC
+config	separator	a\tb\u0001
+layer	turbo:view	text	4	start:u32	end:u32	with:str
+4	7	fi
+11	12	
+19	22	A
+22	25	B
+end	turbo:view

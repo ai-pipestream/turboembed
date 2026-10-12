@@ -24,8 +24,8 @@ pub use compare::{
     known_shapes, matches_golden, matches_golden_key, shape_of,
 };
 pub use format::{
-    AnnotatorRef, Column, ColumnData, ColumnSpec, ColumnType, Generator, Golden, GoldenAnchor, GoldenLayer, Header,
-    Input, Jdk, Model, OpenNlp, UnicodeVersion,
+    AnnotatorRef, Column, ColumnData, ColumnSpec, ColumnType, ConfigEntry, Generator, Golden, GoldenAnchor,
+    GoldenLayer, Header, Input, Jdk, Model, OpenNlp, UnicodeVersion,
 };
 pub use read::GoldenError;
 pub use sha::{Sha256, Sha512, sha256, sha512};

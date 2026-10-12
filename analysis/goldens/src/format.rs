@@ -38,6 +38,9 @@ pub struct Header {
     /// One per model file the annotator loaded, in the order loaded.
     pub models: Vec<Model>,
     pub annotator: AnnotatorRef,
+    /// The options the annotator was run with, sorted by key, so two
+    /// goldens of one class run with different options are told apart.
+    pub config: Vec<ConfigEntry>,
 }
 
 /// What wrote the file: `generator <name> <version>`.
@@ -103,6 +106,14 @@ pub struct AnnotatorRef {
     /// `opennlp.tools.sentdetect.SentenceDetectorME`.
     pub class: String,
     pub method: String,
+}
+
+/// One option the annotator was run with: `config <key> <value>`, both
+/// `str` fields.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct ConfigEntry {
+    pub key: String,
+    pub value: String,
 }
 
 /// What a golden layer's rows hang on, as the `layer` record writes it:

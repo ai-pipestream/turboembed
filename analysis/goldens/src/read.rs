@@ -12,8 +12,8 @@ use turbo_analysis_layers::Strs;
 use crate::compare::{Shape, known_shapes};
 use crate::escape::{EscapeError, unescape_into};
 use crate::format::{
-    AnnotatorRef, Column, ColumnData, ColumnType, Generator, Golden, GoldenAnchor, GoldenLayer, Header, Input, Jdk,
-    Model, OpenNlp, UnicodeVersion, VERSION,
+    AnnotatorRef, Column, ColumnData, ColumnType, ConfigEntry, Generator, Golden, GoldenAnchor, GoldenLayer, Header,
+    Input, Jdk, Model, OpenNlp, UnicodeVersion, VERSION,
 };
 use crate::hex::{digit, parse_hex, to_hex};
 use crate::sha::sha256;
@@ -43,6 +43,9 @@ pub enum GoldenError {
     Field { line: usize, field: String, expected: &'static str, found: String },
     /// A `str` field with a bad escape.
     Escape { line: usize, field: String, error: EscapeError },
+    /// A config record whose key is not after the one before it: keys are
+    /// sorted, each once.
+    ConfigOrder { line: usize, key: String, previous: String },
     /// A layer id this crate has no layer type for.
     UnknownLayer { line: usize, layer: String, known: Vec<String> },
     /// A layer whose anchor is not its type's.
@@ -87,6 +90,10 @@ impl fmt::Display for GoldenError {
                 write!(f, "line {line}: {field}: expected {expected}, found {found:?}")
             }
             Escape { line, field, error } => write!(f, "line {line}: {field}: {error}"),
+            ConfigOrder { line, key, previous } => write!(
+                f,
+                "line {line}: the config key {key:?} comes after {previous:?}, expected keys sorted and each once"
+            ),
             UnknownLayer { line, layer, known } => {
                 write!(f, "line {line}: no layer type has the id {layer}, expected one of {}", known.join(", "))
             }
@@ -144,7 +151,7 @@ impl Golden {
         let Some(body) = text.strip_suffix('\n') else {
             return Err(GoldenError::NoFinalLineEnd { line: 1 + text.matches('\n').count() });
         };
-        let mut lines = Lines { iter: body.split('\n'), line: 0 };
+        let mut lines = Lines { iter: body.split('\n').peekable(), line: 0 };
         let header = read_header(&mut lines)?;
         let shapes = known_shapes();
         let mut layers: Vec<GoldenLayer> = Vec::new();
@@ -187,7 +194,7 @@ impl Golden {
 
 /// The lines of the file, counting as it goes.
 struct Lines<'a> {
-    iter: std::str::Split<'a, char>,
+    iter: std::iter::Peekable<std::str::Split<'a, char>>,
     /// The number of the line last returned.
     line: usize,
 }
@@ -197,6 +204,11 @@ impl<'a> Lines<'a> {
         let l = self.iter.next()?;
         self.line += 1;
         Some(l)
+    }
+
+    /// The next line, without taking it.
+    fn peek(&mut self) -> Option<&'a str> {
+        self.iter.peek().copied()
     }
 
     fn expect(&mut self, expected: &str) -> Result<&'a str, GoldenError> {
@@ -303,7 +315,32 @@ fn read_header(lines: &mut Lines<'_>) -> Result<Header, GoldenError> {
             method: text_field(lines.line, "annotator method", method)?,
         };
     };
-    Ok(Header { generator, opennlp, jdk, unicode, input, models, annotator })
+    // Zero or more options, sorted by key, each key once.
+    let mut config: Vec<ConfigEntry> = Vec::new();
+    while let Some(l) = lines.peek().filter(|l| l.split('\t').next() == Some("config")) {
+        lines.next();
+        let line = lines.line;
+        let [key, value] = record(line, l, "config", ["key", "value"])?;
+        let mut buf = String::new();
+        unescape_into(key, &mut buf).map_err(|error| GoldenError::Escape {
+            line,
+            field: "config key".into(),
+            error,
+        })?;
+        let key = std::mem::take(&mut buf);
+        unescape_into(value, &mut buf).map_err(|error| GoldenError::Escape {
+            line,
+            field: "config value".into(),
+            error,
+        })?;
+        if let Some(previous) = config.last()
+            && previous.key >= key
+        {
+            return Err(GoldenError::ConfigOrder { line, key, previous: previous.key.clone() });
+        }
+        config.push(ConfigEntry { key, value: buf });
+    }
+    Ok(Header { generator, opennlp, jdk, unicode, input, models, annotator, config })
 }
 
 fn read_layer(
