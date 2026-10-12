@@ -3,8 +3,8 @@
 //! - The newline detector against `NewlineSentenceDetector`: every file of
 //!   the `newline` and `newline-legacy` golden directories.
 //! - The maxent detector against `SentenceDetectorME` with the published
-//!   English and Portuguese models: every file of `sentdetect-me-en` and
-//!   `sentdetect-me-pt`.
+//!   German, English and Portuguese models: every file of
+//!   `sentdetect-me-de`, `sentdetect-me-en` and `sentdetect-me-pt`.
 //! - The maxent detector with the two fixture models (one with an
 //!   abbreviation dictionary), in both whitespace modes: the spans, and
 //!   every context the detector built, feature by feature, with the
@@ -124,8 +124,10 @@ fn maxent_portuguese() {
     check_published("pt", "opennlp-pt-ud-gsd-sentence-1.3-2.5.4.bin");
 }
 
-// The sentdetect-me-de directory is not checked: the German model it was
-// made with is not in the repository (tests/models/README.md).
+#[test]
+fn maxent_german() {
+    check_published("de", "opennlp-de-ud-gsd-sentence-1.3-2.5.4.bin");
+}
 
 /// The fixture models' spans and contexts in one whitespace mode.
 fn check_fixture(name: &str, mode: WhitespaceMode) {
@@ -136,13 +138,13 @@ fn check_fixture(name: &str, mode: WhitespaceMode) {
     let suffix = if mode == WhitespaceMode::Legacy { "-legacy" } else { "" };
     let golden = common::fixtures().join("golden");
     let dir = golden.join(format!("{component}{suffix}"));
-    assert_eq!(check_maxent_dir(&dir, &component, &detector, &model_file), 16);
+    assert_eq!(check_maxent_dir(&dir, &component, &detector, &model_file), 17);
 
     let contexts = common::read_contexts(&golden.join("contexts").join(format!("{component}{suffix}.txt")));
     assert_eq!(contexts.component, format!("{component}-contexts"));
     assert_eq!(contexts.whitespace, mode);
     assert_eq!(contexts.model, model_file);
-    assert_eq!(contexts.inputs.len(), 16);
+    assert_eq!(contexts.inputs.len(), 17);
     let (mut scratch, mut out) = (Scratch::new(), Vec::new());
     let mut candidates = 0;
     for input in &contexts.inputs {

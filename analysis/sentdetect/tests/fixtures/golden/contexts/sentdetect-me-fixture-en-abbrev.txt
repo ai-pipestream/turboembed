@@ -316,4 +316,13 @@ at: 48
 features: eos=.	x=Last	4	xcap	v=here.	s=\uD83D	n=
 probs: 0.50730226664988 0.4926977333501199
 decision: split
+input: He thought hard.Bekannt. Sie kam.
+at: 15
+features: eos=.	x=hard	4	v=thought	s=Bekannt	scap	n=Sie	ncap
+probs: 0.9143696226128369 0.08563037738716302
+decision: split
+at: 32
+features: eos=.	x=kam	3	v=Sie	vcap	s=	n=
+probs: 0.5792726955734898 0.42072730442651013
+decision: split
 input:  \t\n  \u3000 
