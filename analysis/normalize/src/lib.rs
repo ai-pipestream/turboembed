@@ -31,8 +31,6 @@ use turbo_analysis::text::Side;
 use turbo_analysis::{Alignment, Annotator, Error, Refs, Span, View, ViewBuilder};
 
 pub mod accent_fold;
-pub mod accent_fold;
-pub mod artifacts;
 pub mod artifacts;
 pub mod assets;
 pub mod bullets;
@@ -59,14 +57,6 @@ pub mod spellcheck;
 pub mod substitute;
 pub mod symbols;
 pub mod tables;
-pub mod url;
-pub mod whitespace;
-
-pub use artifacts::{Artifact, ArtifactDetector, ArtifactDetectorBuilder, KindSet, RepeatedLines};
-pub mod unicode_form;
-pub mod whitespace;
-
-pub use accent_fold::{AccentFold, StrokeLetters};
 pub mod unicode_form;
 pub mod url;
 pub mod whitespace;
@@ -94,8 +84,6 @@ pub use social::{BoundedSocialMedia, SocialMedia};
 pub use spellcheck::{SpellCorrect, SpellCorrectMode, SymSpell};
 pub use symbols::{SymbolJoiner, SymbolWords};
 pub use unicode_form::UnicodeForm;
-pub use unicode_form::UnicodeForm;
-pub use url::{BoundedUrls, Urls};
 pub use url::{BoundedUrls, Urls};
 pub use whitespace::{Whitespace, WhitespaceMode};
 
