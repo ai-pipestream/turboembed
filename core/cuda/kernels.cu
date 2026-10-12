@@ -219,6 +219,11 @@ __device__ inline const int32_t *mask_of(const int32_t *rows, const Info &in) {
 __device__ inline const int32_t *types_of(const int32_t *rows, const Info &in) {
     return rows + 2 * (size_t)in.batch * in.seq;
 }
+/* A range write's ranges, (row, start, end) each, right after the rows'
+ * planes: two of them, or three with the types. */
+__device__ inline const int32_t *ranges_of(const int32_t *rows, const Info &in) {
+    return rows + (in.has_types ? 3 : 2) * (size_t)in.batch * in.seq;
+}
 
 // ---- The packing -----------------------------------------------------------------
 
@@ -348,6 +353,7 @@ __global__ void __launch_bounds__(PACK_BLOCK) pack_rows_kernel(PackArgs a) {
         in.output_dim = a.run.output_dim;
         in.has_types = a.run.has_types;
         in.items = items;
+        in.ranges = a.run.ranges;
         *p.info = in;
     }
     __syncthreads();
@@ -518,6 +524,25 @@ __device__ __forceinline__ float block_sum(float v, float *red) {
     return total;
 }
 
+/* What the pooling's item i covers: after embed_write, row i whole
+ * (positions 0 to its length); after a range write, range i's row and
+ * its positions start to end, the end cut to the row's length. Positions
+ * past the length are masked padding, never computed, so the cut drops
+ * nothing. The core checked that each range has a live token. */
+__device__ __forceinline__ void pool_item(const int32_t *rows, const Packing &p, const Info &in, int i, int *b, int *lo,
+                                          int *hi) {
+    if (in.ranges > 0) {
+        const int32_t *r = ranges_of(rows, in) + 3 * (size_t)i;
+        *b = r[0];
+        *lo = r[1];
+        *hi = min(r[2], p.len[r[0]]);
+    } else {
+        *b = i;
+        *lo = 0;
+        *hi = p.len[i];
+    }
+}
+
 /* The pooling reads the hidden states as F32, or at FASTEST as the F16
  * copy, the only stream written there. */
 __device__ __forceinline__ float pool_one(const float *p) { return *p; }
@@ -529,20 +554,22 @@ __device__ __forceinline__ float4 pool_quad(const __half *p) {
     return make_float4(v[0], v[1], v[2], v[3]);
 }
 
-/* A block per row, looping over the run's rows. The mean issues the loads
- * of POOL_AHEAD tokens before it adds any, then adds them in position
- * order. */
+/* A block per vector, looping over the run's rows, or its ranges after a
+ * range write (pool_item). The mean issues the loads of POOL_AHEAD tokens
+ * before it adds any, then adds them in position order. */
 template <typename TIn>
 __global__ void __launch_bounds__(POOL_BLOCK)
     pool_kernel(const TIn *x, const int32_t *rows, Packing p, int hidden, float *out) {
     __shared__ float red[POOL_WARPS];
     const Info in = *p.info;
     const int32_t *mask = mask_of(rows, in);
-    for (int b = blockIdx.x; b < in.batch; b += gridDim.x) {
+    const int vectors = in.ranges > 0 ? in.ranges : in.batch;
+    for (int i = blockIdx.x; i < vectors; i += gridDim.x) {
+        int b, lo, n;
+        pool_item(rows, p, in, i, &b, &lo, &n);
         const int32_t *m = mask + (size_t)b * in.seq;
-        const int n = p.len[b];
         const TIn *rw = x + (size_t)p.start[b] * hidden;
-        float *dst = out + (size_t)b * in.output_dim;
+        float *dst = out + (size_t)i * in.output_dim;
         float ss = 0.0f;
         for (int d = threadIdx.x; d < in.output_dim; d += POOL_BLOCK) {
             float val;
@@ -552,10 +579,11 @@ __global__ void __launch_bounds__(POOL_BLOCK)
                 // The row's length ends at its last live token.
                 val = pool_one(rw + (size_t)(n - 1) * hidden + d);
             } else {
-                // Mean over the tokens whose mask is 1, summed in position order.
+                // Mean over the tokens whose mask is 1, summed in position
+                // order from lo (0 for a row) to n.
                 float s = 0.0f;
                 unsigned c = 0;
-                for (int q0 = 0; q0 < n; q0 += POOL_AHEAD) {
+                for (int q0 = lo; q0 < n; q0 += POOL_AHEAD) {
                     float v[POOL_AHEAD];
                     int k[POOL_AHEAD];
 #pragma unroll
@@ -589,10 +617,11 @@ constexpr int POOL_GROUPS = 8;
 /* A thread's float4 loads in flight at once. */
 constexpr int POOL_QUADS_AHEAD = 8;
 
-/* A block per row, looping over the run's rows: a thread per four
- * columns of the pooled vector, and for the mean, as many groups of
- * such threads as the block holds (at most POOL_GROUPS), each summing a
- * contiguous run of the row's tokens in position order with
+/* A block per vector, looping over the run's rows, or its ranges after a
+ * range write (pool_item): a thread per four columns of the pooled
+ * vector, and for the mean, as many groups of such threads as the block
+ * holds (at most POOL_GROUPS), each summing a contiguous run of the
+ * row's (or range's) tokens in position order with
  * POOL_QUADS_AHEAD loads in flight; the first group adds the groups'
  * sums in group order. The vector stays in registers through the L2
  * normalization and is written once. */
@@ -609,19 +638,24 @@ __global__ void __launch_bounds__(POOL_BLOCK)
     int groups = POOL_BLOCK / quads;
     groups = !mean || groups < 1 ? 1 : groups > POOL_GROUPS ? POOL_GROUPS : groups;
     const int grp = threadIdx.x / quads, q = threadIdx.x % quads, d = 4 * q;
-    for (int b = blockIdx.x; b < in.batch; b += gridDim.x) {
+    const int vectors = in.ranges > 0 ? in.ranges : in.batch;
+    for (int i = blockIdx.x; i < vectors; i += gridDim.x) {
+        // The tokens from first to end; first is 0 for a row, so a range
+        // over a whole row is split into the same groups as the row.
+        int b, first, end;
+        pool_item(rows, p, in, i, &b, &first, &end);
         const int32_t *m = mask + (size_t)b * in.seq;
-        const int n = p.len[b];
+        const int n = end - first;
         const TIn *rw = x + (size_t)p.start[b] * hidden + d;
         float4 val = make_float4(0.0f, 0.0f, 0.0f, 0.0f);
         if (!mean) {
             if (threadIdx.x < quads) {
-                const int at = in.pooling == TURBO_POOLING_CLS ? 0 : n - 1;
+                const int at = in.pooling == TURBO_POOLING_CLS ? 0 : end - 1;
                 val = pool_quad(rw + (size_t)at * hidden);
             }
         } else {
             if (grp < groups) {
-                const int per = (n + groups - 1) / groups, lo = grp * per, hi = min(n, lo + per);
+                const int per = (n + groups - 1) / groups, lo = first + grp * per, hi = min(end, lo + per);
                 float4 sum = make_float4(0.0f, 0.0f, 0.0f, 0.0f);
                 unsigned c = 0;
                 for (int q0 = lo; q0 < hi; q0 += POOL_QUADS_AHEAD) {
@@ -675,7 +709,7 @@ __global__ void __launch_bounds__(POOL_BLOCK)
 #pragma unroll
             for (int j = 0; j < 4; j++) o[j] *= scale;
         }
-        float *dst = out + (size_t)b * in.output_dim;
+        float *dst = out + (size_t)i * in.output_dim;
         if (threadIdx.x < quads)
 #pragma unroll
             for (int j = 0; j < 4; j++)
@@ -4146,7 +4180,7 @@ cudaError_t make_plan(const Shape &s, Plan *p) {
     const int nb = query_tiles(s.seq_cap, ak.queries) + 1;
     p->pack_smem = (size_t)3 * nb * sizeof(int32_t);
     p->rows_grid = cap(((long long)s.tcap + ROW_WARPS - 1) / ROW_WARPS, s.sms * 8);
-    p->pool_grid = cap(s.batch_cap, s.sms * 4);
+    p->pool_grid = cap(s.batch_cap > s.ranges_cap ? s.batch_cap : s.ranges_cap, s.sms * 4);
     p->column_pool = s.column_pool || s.hidden > 4 * POOL_BLOCK;
     p->epi_grid = cap(s.tcap, s.sms * 8);
     p->fetch_grid = cap(((long long)3 * s.tcap / 4 + FETCH_BLOCK * FETCH_LOADS - 1) / (FETCH_BLOCK * FETCH_LOADS),
