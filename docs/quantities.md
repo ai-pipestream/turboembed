@@ -111,3 +111,24 @@ Behaviour that comes from the Java and is kept, though it looks wrong:
   `5 USD` is money.
 - A number with grouping the scan cannot read gives nothing at all:
   `1 000 kg` with a thin or no-break space, `1'000 kg` and `1,2345 km`.
+
+## Golden files
+
+JVM goldens for quantities come from the goldens tool
+(`analysis/goldens-tool`), as for the other OpenNLP ports
+([analysis.md](analysis.md#golden-files)).
+
+- Inputs: the `quantity` set, `analysis/goldens/data/inputs/quantity/`,
+  61 texts.
+- Goldens: `analysis/goldens/data/quantity/<notation>/quantity/<id>.golden`,
+  `latin-us` or `latin-eu`, from `QuantityAnnotator` over
+  `CursorQuantityExtractor` with its default units. Layer
+  `turbo:quantities`.
+
+The columns are `start`, `end` (UTF-8 byte offsets of the whole mention),
+`coefficient` (unscaled value without sign), `negative` (0 or 1, from the
+value's sign), `scale`, `plain` (`toPlainString()`) and `unit`. The value
+is `(-1)^negative * coefficient / 10^scale`. The `config` record is
+`notation` (`LATIN_US` or `LATIN_EU`). `analysis/numeric/tests/quantity_goldens.rs`
+runs `QuantityExtractor` over the set in both notations and compares the
+layer with the goldens row for row.

@@ -1,0 +1,1 @@
+Neither 1,2345 km nor 12,34 m nor 1.2.3 kg nor 1,2,3 kg is read.

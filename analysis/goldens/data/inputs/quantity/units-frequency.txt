@@ -1,0 +1,1 @@
+A 3 GHz core, a 100 MHz bus, a 44.1 kHz sample rate and 50 Hz mains.

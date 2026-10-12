@@ -1,0 +1,15 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	quantity/units-mass	82	82	1905915c20c5d03054927061814598fb2503c0f3dcbe285f396af00f5c5f6c4c
+annotator	opennlp.tools.quantity.CursorQuantityExtractor	extract
+config	notation	LATIN_US
+layer	turbo:quantities	text	5	start:u32	end:u32	coefficient:str	negative:u32	scale:u32	plain:str	unit:str
+5	10	80	0	0	80	kg
+20	25	250	0	0	250	g
+36	40	5	0	0	5	mg
+50	53	3	0	0	3	t
+68	72	2	0	0	2	oz
+end	turbo:quantities

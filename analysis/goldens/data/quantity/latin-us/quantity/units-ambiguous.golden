@@ -1,0 +1,14 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	quantity/units-ambiguous	77	77	ebbabd0424eeb8b0fd04c5595b1a5e7a1106d38199ac8f2dafca7542c5165f20
+annotator	opennlp.tools.quantity.CursorQuantityExtractor	extract
+config	notation	LATIN_US
+layer	turbo:quantities	text	4	start:u32	end:u32	coefficient:str	negative:u32	scale:u32	plain:str	unit:str
+8	11	5	0	0	5	m
+30	33	5	0	0	5	g
+49	52	5	0	0	5	t
+66	71	1	0	0	1	min
+end	turbo:quantities
