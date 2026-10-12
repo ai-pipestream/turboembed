@@ -2,16 +2,25 @@
 //! `DictionaryDetokenizerTest` and `DetokenizationDictionaryTest`, the
 //! dictionary checks, and the English, French and Portuguese dictionaries
 //! against what OpenNLP's `DictionaryDetokenizer` printed for the same
-//! tokens (tests/dictionaries/README.md).
+//! tokens (tests/dictionaries/README.md). Every golden file the JVM wrote
+//! under tests/golden/detokenizer is also run, which holds the cases
+//! written out here to the same values where they overlap.
+
+mod common;
 
 use turbo_analysis::Span;
 use turbo_maxent::Entries;
-use turbo_tokenize::{Detokenizer, DetokenizerDictionary, DictionaryError, Operation};
+use turbo_tokenize::{Detokenizer, DetokenizerDictionary, DictionaryError, DictionaryOperation, Operation};
 
 const L: Operation = Operation::MergeToLeft;
 const R: Operation = Operation::MergeToRight;
 const B: Operation = Operation::MergeBoth;
 const N: Operation = Operation::NoOperation;
+
+const MOVE_LEFT: DictionaryOperation = DictionaryOperation::MoveLeft;
+const MOVE_RIGHT: DictionaryOperation = DictionaryOperation::MoveRight;
+const MOVE_BOTH: DictionaryOperation = DictionaryOperation::MoveBoth;
+const MATCHING: DictionaryOperation = DictionaryOperation::RightLeftMatching;
 
 const MARKER: &str = "<SPLIT>";
 
@@ -65,7 +74,9 @@ fn spaced(tokens: &[&str]) -> (String, Vec<Span>) {
 #[test]
 fn java_detokenizer_operations() {
     let mut d = DetokenizerDictionary::new();
-    for (token, op) in [(".", L), ("!", L), ("(", R), (")", L), ("\"", Operation::RightLeftMatching), ("-", B)] {
+    for (token, op) in
+        [(".", MOVE_LEFT), ("!", MOVE_LEFT), ("(", MOVE_RIGHT), (")", MOVE_LEFT), ("\"", MATCHING), ("-", MOVE_BOTH)]
+    {
         d.insert(token, op);
     }
     let mut ops = Vec::new();
@@ -101,13 +112,13 @@ fn java_detokenize_to_string_2() {
 #[test]
 fn java_simple_dict() {
     let mut d = DetokenizerDictionary::new();
-    for (token, op) in [("\"", Operation::RightLeftMatching), ("(", R), (")", L), ("-", B)] {
+    for (token, op) in [("\"", MATCHING), ("(", MOVE_RIGHT), (")", MOVE_LEFT), ("-", MOVE_BOTH)] {
         d.insert(token, op);
     }
-    assert_eq!(d.get("\""), Some(Operation::RightLeftMatching));
-    assert_eq!(d.get("("), Some(R));
-    assert_eq!(d.get(")"), Some(L));
-    assert_eq!(d.get("-"), Some(B));
+    assert_eq!(d.get("\""), Some(MATCHING));
+    assert_eq!(d.get("("), Some(MOVE_RIGHT));
+    assert_eq!(d.get(")"), Some(MOVE_LEFT));
+    assert_eq!(d.get("-"), Some(MOVE_BOTH));
     assert_eq!(d.get("x"), None);
 }
 
@@ -150,8 +161,8 @@ fn single_token() {
 #[test]
 fn quote_flags_are_per_token() {
     let mut d = DetokenizerDictionary::new();
-    d.insert("\"", Operation::RightLeftMatching);
-    d.insert("'", Operation::RightLeftMatching);
+    d.insert("\"", MATCHING);
+    d.insert("'", MATCHING);
     check(&d, &["\"", "'", "a", "\"", "'"], &[R, R, N, L, L], "\"'a\"'", "\"<SPLIT>'<SPLIT>a<SPLIT>\"<SPLIT>'");
 }
 
@@ -212,10 +223,10 @@ fn latin_dictionary_entries() {
     let d = latin();
     // Eighteen entries, with the straight quote twice.
     assert_eq!(d.len(), 17);
-    assert_eq!(d.get("``"), Some(R));
-    assert_eq!(d.get("''"), Some(L));
-    assert_eq!(d.get("\""), Some(Operation::RightLeftMatching));
-    assert_eq!(d.get("-"), Some(B));
+    assert_eq!(d.get("``"), Some(MOVE_RIGHT));
+    assert_eq!(d.get("''"), Some(MOVE_LEFT));
+    assert_eq!(d.get("\""), Some(MATCHING));
+    assert_eq!(d.get("-"), Some(MOVE_BOTH));
 }
 
 #[test]
@@ -223,7 +234,7 @@ fn tokens_compare_exactly() {
     let xml =
         br#"<dictionary case_sensitive="false"><entry operation="MOVE_LEFT"><token>Xx</token></entry></dictionary>"#;
     let d = DetokenizerDictionary::read(xml).unwrap();
-    assert_eq!(d.get("Xx"), Some(L));
+    assert_eq!(d.get("Xx"), Some(MOVE_LEFT));
     assert_eq!(d.get("xx"), None);
     assert_eq!(d.get("XX"), None);
 }
@@ -372,4 +383,62 @@ fn portuguese() {
         "\"Bom dia\", disse o co-piloto.",
         "\"<SPLIT>Bom dia<SPLIT>\"<SPLIT>, disse o co<SPLIT>-<SPLIT>piloto<SPLIT>.",
     );
+}
+
+// The golden files of the generator's detokenizer run.
+
+/// Converts an OpenNLP `DetokenizationOperation` name.
+fn operation(name: &str) -> Operation {
+    match name {
+        "MERGE_TO_LEFT" => L,
+        "MERGE_TO_RIGHT" => R,
+        "MERGE_BOTH" => B,
+        "NO_OPERATION" => N,
+        other => panic!("operation {other}"),
+    }
+}
+
+/// The value of a `key: value` line of a golden file.
+fn value<'a>(lines: &[(&str, &'a str)], key: &str) -> &'a str {
+    lines.iter().find(|(k, _)| *k == key).unwrap_or_else(|| panic!("no {key}")).1
+}
+
+#[test]
+fn every_jvm_golden_file() {
+    let generator = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../golden/jvm/variants/detokenizer");
+    let dir = common::golden_dir().join("detokenizer");
+    let mut paths: Vec<_> = std::fs::read_dir(&dir).unwrap().map(|e| e.unwrap().path()).collect();
+    paths.sort();
+    let mut tokens_seen = 0;
+    for path in &paths {
+        let text = std::fs::read_to_string(path).unwrap();
+        let lines: Vec<(&str, &str)> =
+            text.lines().map(|l| l.split_once(": ").unwrap_or_else(|| (l.trim_end_matches(':'), ""))).collect();
+        assert_eq!(value(&lines, "component"), "detokenizer");
+        assert_eq!(value(&lines, "split-marker"), MARKER);
+        let name = value(&lines, "dictionary");
+        let xml = std::fs::read(generator.join("dictionaries").join(name)).unwrap();
+        assert_eq!(turbo_maxent::sha256(&xml).to_hex(), value(&lines, "dictionary-sha256"), "{name}");
+        let dictionary = DetokenizerDictionary::read(&xml).unwrap();
+
+        let mut tokens = Vec::new();
+        let mut operations = Vec::new();
+        for (_, line) in lines.iter().filter(|(k, _)| *k == "token") {
+            let (token, op) = line.rsplit_once(' ').unwrap();
+            tokens.push(common::unescape(token));
+            operations.push(operation(op));
+        }
+        assert_eq!(tokens.len(), value(&lines, "tokens").parse::<usize>().unwrap());
+        // The case file the JVM read has the same tokens, one per line.
+        let case = std::fs::read_to_string(generator.join("cases").join(path.file_name().unwrap())).unwrap();
+        assert_eq!(case.lines().collect::<Vec<_>>(), tokens, "{}", path.display());
+
+        let tokens: Vec<&str> = tokens.iter().map(String::as_str).collect();
+        let plain = common::unescape(value(&lines, "text"));
+        let marked = common::unescape(value(&lines, "text-marked"));
+        check(&dictionary, &tokens, &operations, &plain, &marked);
+        tokens_seen += tokens.len();
+    }
+    assert_eq!(paths.len(), 19);
+    assert_eq!(tokens_seen, 144);
 }

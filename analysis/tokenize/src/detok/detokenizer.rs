@@ -15,14 +15,15 @@
 //! written, the split marker is, when there is one. Nothing is written
 //! after the last token.
 //!
-//! The operations are resolved as the text is written, one token ahead,
-//! so detokenizing allocates nothing beyond the output, except a flag
-//! array when the dictionary has more than 64 matching tokens.
+//! The operations are resolved as the text is written, one token ahead.
+//! Besides growing the output, a call allocates only a flag vector of one
+//! `u64` per 64 matching tokens beyond the first 64, and nothing when the
+//! dictionary has at most 64 matching tokens.
 
 use turbo_analysis::Span;
 
-use super::Operation;
 use super::dictionary::DetokenizerDictionary;
+use super::{DictionaryOperation, Operation};
 
 /// Rebuilds text from tokens with a [`DetokenizerDictionary`].
 #[derive(Copy, Clone, Debug)]
@@ -88,7 +89,9 @@ impl<'d> Detokenizer<'d> {
         if n == 0 {
             return;
         }
-        out.reserve((0..n).map(|i| token(i).len() + 1).sum());
+        // Each gap between two tokens is a space or the marker.
+        let gap = split_marker.map_or(1, |m| m.len().max(1));
+        out.reserve((0..n).map(|i| token(i).len()).sum::<usize>() + (n - 1) * gap);
         let mut resolver = Resolver::new(self.dictionary);
         let mut current = resolver.next(token(0));
         let mut i = 0;
@@ -138,8 +141,11 @@ impl<'d> Resolver<'d> {
         let Some(rule) = self.dictionary.rule(token) else {
             return Operation::NoOperation;
         };
-        if rule.operation != Operation::RightLeftMatching {
-            return rule.operation;
+        match rule.operation {
+            DictionaryOperation::MoveLeft => return Operation::MergeToLeft,
+            DictionaryOperation::MoveRight => return Operation::MergeToRight,
+            DictionaryOperation::MoveBoth => return Operation::MergeBoth,
+            DictionaryOperation::RightLeftMatching => {}
         }
         let slot = rule.slot as usize;
         let word = if slot < 64 { &mut self.low } else { &mut self.high[(slot - 64) / 64] };
@@ -159,7 +165,7 @@ mod tests {
         let names: Vec<String> = (0..200).map(|i| format!("q{i}")).collect();
         let mut d = DetokenizerDictionary::new();
         for name in &names {
-            d.insert(name, Operation::RightLeftMatching);
+            d.insert(name, DictionaryOperation::RightLeftMatching);
         }
         let mut r = Resolver::new(&d);
         assert_eq!(r.high.len(), 3);
@@ -180,13 +186,35 @@ mod tests {
     }
 
     #[test]
+    fn the_output_is_reserved_once() {
+        let mut d = DetokenizerDictionary::new();
+        d.insert(".", DictionaryOperation::MoveLeft);
+        let detokenizer = Detokenizer::new(&d);
+        // A marker in every gap: 50 tokens and 49 markers of 7 bytes. An
+        // empty string grows to exactly what is reserved, so a capacity
+        // of exactly that length means the text never outgrew the one
+        // reservation.
+        let tokens: Vec<&str> = std::iter::repeat_n(".", 50).collect();
+        let mut out = String::new();
+        detokenizer.detokenize(&tokens, Some("<SPLIT>"), &mut out);
+        assert_eq!(out.len(), 50 + 49 * 7);
+        assert_eq!(out.capacity(), out.len());
+        // Without a marker every gap may be a space.
+        let tokens: Vec<&str> = std::iter::repeat_n("ab", 50).collect();
+        let mut out = String::new();
+        detokenizer.detokenize(&tokens, None, &mut out);
+        assert_eq!(out.capacity(), out.len());
+        assert_eq!(out.len(), 100 + 49);
+    }
+
+    #[test]
     fn few_matching_tokens_allocate_no_flags() {
         let mut d = DetokenizerDictionary::new();
         for i in 0..64 {
-            d.insert(&i.to_string(), Operation::RightLeftMatching);
+            d.insert(&i.to_string(), DictionaryOperation::RightLeftMatching);
         }
         assert_eq!(Resolver::new(&d).high.capacity(), 0);
-        d.insert("64", Operation::RightLeftMatching);
+        d.insert("64", DictionaryOperation::RightLeftMatching);
         assert_eq!(Resolver::new(&d).high.len(), 1);
     }
 }

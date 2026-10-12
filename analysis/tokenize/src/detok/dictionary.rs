@@ -21,7 +21,7 @@ use std::hash::{BuildHasherDefault, Hasher};
 
 use turbo_maxent::{Entries, Entry};
 
-use super::Operation;
+use super::DictionaryOperation;
 
 /// Why a detokenizer dictionary could not be built.
 #[derive(Debug)]
@@ -75,7 +75,7 @@ impl From<turbo_maxent::Error> for DictionaryError {
 /// What the dictionary holds for one token.
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub(crate) struct Rule {
-    pub(crate) operation: Operation,
+    pub(crate) operation: DictionaryOperation,
     /// For a `RightLeftMatching` token, its own index among the matching
     /// tokens, which the detokenizer uses to keep one open-or-closed flag
     /// per token. Unused for the other operations.
@@ -106,7 +106,7 @@ impl Hasher for Fnv {
     }
 }
 
-/// A map from tokens to their [`Operation`].
+/// A map from tokens to their [`DictionaryOperation`].
 #[derive(Clone, Debug, Default)]
 pub struct DetokenizerDictionary {
     rules: HashMap<Box<str>, Rule, BuildHasherDefault<Fnv>>,
@@ -137,19 +137,18 @@ impl DetokenizerDictionary {
     }
 
     /// Sets the operation of `token`, replacing any earlier one, as
-    /// OpenNLP's array constructor does. Setting
-    /// [`NoOperation`](Operation::NoOperation) makes the token behave as
-    /// if the dictionary did not hold it.
-    pub fn insert(&mut self, token: &str, operation: Operation) {
+    /// OpenNLP's array constructor does.
+    pub fn insert(&mut self, token: &str, operation: DictionaryOperation) {
+        let matching = operation == DictionaryOperation::RightLeftMatching;
         if let Some(rule) = self.rules.get_mut(token) {
-            if operation == Operation::RightLeftMatching && rule.operation != Operation::RightLeftMatching {
+            if matching && rule.operation != DictionaryOperation::RightLeftMatching {
                 rule.slot = self.slots;
                 self.slots += 1;
             }
             rule.operation = operation;
             return;
         }
-        let slot = if operation == Operation::RightLeftMatching {
+        let slot = if matching {
             self.slots += 1;
             self.slots - 1
         } else {
@@ -158,9 +157,9 @@ impl DetokenizerDictionary {
         self.rules.insert(token.into(), Rule { operation, slot });
     }
 
-    /// The operation the dictionary gives `token`, before any
-    /// `RightLeftMatching` is resolved, or `None` when it has none.
-    pub fn get(&self, token: &str) -> Option<Operation> {
+    /// The operation the dictionary gives `token`, or `None` when it
+    /// does not hold the token.
+    pub fn get(&self, token: &str) -> Option<DictionaryOperation> {
         self.rule(token).map(|r| r.operation)
     }
 
@@ -185,14 +184,14 @@ impl DetokenizerDictionary {
 }
 
 /// The token and operation of one entry, or why the entry is not valid.
-fn check_entry(index: usize, entry: &Entry) -> Result<(&str, Operation), DictionaryError> {
+fn check_entry(index: usize, entry: &Entry) -> Result<(&str, DictionaryOperation), DictionaryError> {
     let [token] = entry.tokens.as_slice() else {
         return Err(DictionaryError::TokenCount { index, tokens: entry.tokens.clone().into_boxed_slice() });
     };
     let Some(value) = entry.attribute("operation") else {
         return Err(DictionaryError::MissingOperation { index, token: token.clone() });
     };
-    match Operation::from_attribute(value) {
+    match DictionaryOperation::from_attribute(value) {
         Some(operation) => Ok((token, operation)),
         None => Err(DictionaryError::UnknownOperation { index, token: token.clone(), value: value.into() }),
     }
@@ -205,9 +204,9 @@ mod tests {
     #[test]
     fn later_entries_win() {
         let mut d = DetokenizerDictionary::new();
-        d.insert("-", Operation::MergeToLeft);
-        d.insert("-", Operation::MergeBoth);
-        assert_eq!(d.get("-"), Some(Operation::MergeBoth));
+        d.insert("-", DictionaryOperation::MoveLeft);
+        d.insert("-", DictionaryOperation::MoveBoth);
+        assert_eq!(d.get("-"), Some(DictionaryOperation::MoveBoth));
         assert_eq!(d.len(), 1);
         assert_eq!(d.get("+"), None);
     }
@@ -215,16 +214,16 @@ mod tests {
     #[test]
     fn matching_slots_are_handed_out_once_per_token() {
         let mut d = DetokenizerDictionary::new();
-        d.insert("\"", Operation::RightLeftMatching);
-        d.insert("'", Operation::RightLeftMatching);
+        d.insert("\"", DictionaryOperation::RightLeftMatching);
+        d.insert("'", DictionaryOperation::RightLeftMatching);
         // A repeated matching entry keeps its slot.
-        d.insert("\"", Operation::RightLeftMatching);
+        d.insert("\"", DictionaryOperation::RightLeftMatching);
         assert_eq!(d.rule("\"").unwrap().slot, 0);
         assert_eq!(d.rule("'").unwrap().slot, 1);
         assert_eq!(d.slots(), 2);
         // A token that becomes matching later gets a new slot.
-        d.insert("|", Operation::MergeToLeft);
-        d.insert("|", Operation::RightLeftMatching);
+        d.insert("|", DictionaryOperation::MoveLeft);
+        d.insert("|", DictionaryOperation::RightLeftMatching);
         assert_eq!(d.rule("|").unwrap().slot, 2);
         assert_eq!(d.slots(), 3);
     }

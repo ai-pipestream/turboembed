@@ -18,7 +18,7 @@ where and why.
 | `turbo-unicode` | `analysis/unicode/` | Character data: Java's character classes, the Unicode `White_Space` set, `Word_Break` and `Extended_Pictographic` properties, a UTF-16 code unit cursor over UTF-8 text |
 | `turbo-maxent` | `analysis/maxent/` | OpenNLP model files: the zip container, the manifest, maxent and perceptron models and their evaluation, the dictionary XML |
 | `turbo-sentdetect` | `analysis/sentdetect/` | The newline detector, the paragraph detector and the maxent sentence detector |
-| `turbo-tokenize` | `analysis/tokenize/` | The simple and whitespace tokenizers, the UAX #29 word tokenizer and the dictionary detokenizer; the maxent tokenizer comes in its own change |
+| `turbo-tokenize` | `analysis/tokenize/` | The simple, whitespace and UAX #29 word tokenizers, the maxent tokenizer and the dictionary detokenizer |
 | `turbo-tokenize-layers` | `analysis/tokenize-layers/` | The tokenizers' own layer: the word type of each token |
 
 They depend on the standard library, `turbo-analysis` and
@@ -275,13 +275,18 @@ quote) attaches to the right on its first occurrence and to the left on
 the next, with one flag per distinct token. `DetokenizerDictionary`
 reads the XML through `turbo-maxent`'s `Entries` and refuses, as the
 Java does, an entry without exactly one token or with an unknown or
-missing operation. `Detokenizer` gives the resolved operation of each
-token, or the rebuilt text with an optional split marker wherever two
-tokens were joined without a space. Its offset form,
+missing operation. The dictionary holds a `DictionaryOperation` (the
+four in the XML) per token; `Detokenizer` gives the resolved
+`Operation` of each token (merge left, right or both, or none, never
+the matching one), or the rebuilt text with an optional split marker
+wherever two tokens were joined without a space. Its offset form,
 `detokenize_spans`, also records the byte offset where each token
 starts in the rebuilt text, which OpenNLP does not provide. The
-operations are resolved one token ahead while the text is written, so
-nothing is allocated beyond the output.
+operations are resolved one token ahead while the text is written. A
+call reserves the output once, for the tokens and a space or the
+marker in every gap, and allocates one other thing: when the dictionary
+has more than 64 matching tokens, a vector of one `u64` flag word per
+64 matching tokens past the first 64.
 
 It is not an annotator: a `Tokens` layer keeps its spans, so the text
 between tokens is never lost and nothing needs rebuilding. The
