@@ -72,7 +72,7 @@ impl Annotator for StructureBoundaries {
         if structure.is_some_and(|s| s.spans.view() != sentences.spans.view()) {
             return Err(Error::Annotator { annotator: Self::ID, detail: "its inputs are in different views".into() });
         }
-        let gaps = gaps(&sentences.spans, structure);
+        let gaps = gaps(&sentences.spans, structure).gap;
         let cost = gaps
             .iter()
             .map(|g| self.costs.of(g.reason).saturating_add(if g.after_heading { self.costs.after_heading } else { 0 }))

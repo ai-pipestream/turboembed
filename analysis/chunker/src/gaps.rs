@@ -1,8 +1,8 @@
 //! What the document's structure says about each gap between two
-//! sentences: the strongest break there, whether a heading ends there,
-//! and the smallest unit no cut may fall inside that holds sentences on
-//! both sides. The boundary costs and the chunker's hard limits are both
-//! read from this, so the two never disagree about where a unit starts.
+//! sentences: the strongest break there and whether a heading ends there,
+//! and the units no cut may fall inside, by the sentences they hold. The
+//! boundary costs and the chunker's hard limits are both read from this,
+//! so the two never disagree about where a unit starts.
 
 use std::ops::Range;
 
@@ -15,17 +15,19 @@ pub fn is_unit(kind: Block) -> bool {
     matches!(kind, Block::TableRow | Block::Code | Block::Quote)
 }
 
-/// A table row, code block or quote that holds sentences on both sides of
-/// a gap.
+/// A table row, code block or quote that holds more than one sentence.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Unit {
     pub kind: Block,
     /// The sentences it holds a byte of.
     pub sentences: Range<usize>,
+    /// Its length in bytes, to tell the smaller of two units over the
+    /// same sentences.
+    pub bytes: u32,
 }
 
 /// The gap after one sentence. The gap after the last sentence is the end
-/// of the text: nothing is inside it.
+/// of the text.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Gap {
     /// The strongest break at the gap; `Cut::Sentence` when no block
@@ -34,8 +36,13 @@ pub struct Gap {
     /// A heading ends at the gap, so a cut there would part it from what
     /// it heads.
     pub after_heading: bool,
-    /// The smallest unit that holds sentences on both sides, if any.
-    pub inside: Option<Unit>,
+}
+
+/// The gaps, one per sentence, and the units in structure order.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct Gaps {
+    pub gap: Vec<Gap>,
+    pub units: Vec<Unit>,
 }
 
 /// How strong a break is: a section break beats a heading, which beats
@@ -66,24 +73,16 @@ fn edge(kind: Block, at_start: bool) -> Cut {
 /// starts at the gap before the first of them and ends at the gap after
 /// the last. A block that holds no sentence's byte (whitespace between
 /// two of them, or an empty block) makes no break. Time is the number of
-/// blocks times a binary search, plus the gaps inside each unit.
+/// blocks times a binary search.
 ///
 /// Only the sentence detector says where sentences are: a block edge that
-/// falls inside a sentence moves to the gap before or after it.
-pub fn gaps(sentences: &Spans<Sentences>, structure: Option<&Structure>) -> Vec<Gap> {
+/// falls inside a sentence moves to the gap before or after it, so two
+/// units whose bytes do not overlap can still share a sentence.
+pub fn gaps(sentences: &Spans<Sentences>, structure: Option<&Structure>) -> Gaps {
     let n = sentences.len();
-    let mut out = vec![Gap { reason: Cut::Sentence, after_heading: false, inside: None }; n];
+    let mut out = Gaps { gap: vec![Gap { reason: Cut::Sentence, after_heading: false }; n], units: Vec::new() };
     let Some(st) = structure else { return out };
     let (starts, ends) = sentences.columns();
-    let mut set = |g: usize, c: Cut| {
-        if rank(c) > rank(out[g].reason) {
-            out[g].reason = c;
-        }
-    };
-    // The byte length of the unit inside each gap, to prefer the smaller
-    // of two that hold the same sentences.
-    let mut inner_len = vec![u32::MAX; n];
-    let mut units = Vec::new();
     for (i, s) in st.spans.iter() {
         let kind = st.kind[i.get()];
         let first = ends.partition_point(|&e| e <= s.start);
@@ -91,31 +90,20 @@ pub fn gaps(sentences: &Spans<Sentences>, structure: Option<&Structure>) -> Vec<
         if first >= last {
             continue;
         }
+        let mut set = |g: usize, c: Cut| {
+            if rank(c) > rank(out.gap[g].reason) {
+                out.gap[g].reason = c;
+            }
+        };
         if first > 0 {
             set(first - 1, edge(kind, true));
         }
         set(last - 1, edge(kind, false));
         if kind == Block::Heading {
-            units.push((last - 1, None));
+            out.gap[last - 1].after_heading = true;
         }
         if is_unit(kind) && last - first > 1 {
-            units.push((first, Some((kind, first..last, s.len()))));
-        }
-    }
-    for (g, unit) in units {
-        let Some((kind, r, len)) = unit else {
-            out[g].after_heading = true;
-            continue;
-        };
-        for gap in r.start..r.end - 1 {
-            let smaller = match &out[gap].inside {
-                None => true,
-                Some(u) => (r.len(), len) < (u.sentences.len(), inner_len[gap]),
-            };
-            if smaller {
-                out[gap].inside = Some(Unit { kind, sentences: r.clone() });
-                inner_len[gap] = len;
-            }
+            out.units.push(Unit { kind, sentences: first..last, bytes: s.len() });
         }
     }
     out
@@ -147,14 +135,18 @@ mod tests {
         }
     }
 
+    fn reasons(g: &Gaps) -> Vec<Cut> {
+        g.gap.iter().map(|g| g.reason).collect()
+    }
+
     // Six sentences of nine bytes and a byte of space after each.
     const SIX: [(u32, u32); 6] = [(0, 9), (10, 19), (20, 29), (30, 39), (40, 49), (50, 59)];
 
     #[test]
     fn without_structure_every_gap_is_a_sentence_boundary() {
         let g = gaps(&sentences(&SIX), None);
-        assert!(g.iter().all(|g| g.reason == Cut::Sentence && !g.after_heading && g.inside.is_none()));
-        assert_eq!(g.len(), 6);
+        assert!(g.gap.iter().all(|g| g.reason == Cut::Sentence && !g.after_heading));
+        assert_eq!((g.gap.len(), g.units.len()), (6, 0));
     }
 
     #[test]
@@ -170,66 +162,53 @@ mod tests {
             (40, 59, Block::ListItem, Some(3)),
         ]);
         let g = gaps(&sentences(&SIX), Some(&st));
-        let reasons: Vec<Cut> = g.iter().map(|g| g.reason).collect();
-        assert_eq!(reasons, [Cut::Paragraph, Cut::Sentence, Cut::Paragraph, Cut::Item, Cut::Sentence, Cut::Section]);
-        let after: Vec<bool> = g.iter().map(|g| g.after_heading).collect();
+        assert_eq!(
+            reasons(&g),
+            [Cut::Paragraph, Cut::Sentence, Cut::Paragraph, Cut::Item, Cut::Sentence, Cut::Section]
+        );
+        let after: Vec<bool> = g.gap.iter().map(|g| g.after_heading).collect();
         assert_eq!(after, [true, false, false, false, false, false]);
-        assert!(g.iter().all(|g| g.inside.is_none()));
+        assert!(g.units.is_empty());
     }
 
     #[test]
     fn a_heading_starts_where_it_starts() {
         let st = structure(&[(0, 19, Block::Paragraph, None), (20, 29, Block::Heading, None)]);
         let g = gaps(&sentences(&SIX), Some(&st));
-        assert_eq!(g[1].reason, Cut::Heading);
-        assert!(g[2].after_heading);
+        assert_eq!(g.gap[1].reason, Cut::Heading);
+        assert!(g.gap[2].after_heading);
     }
 
     #[test]
-    fn the_gaps_inside_a_unit_name_it() {
+    fn units_are_named_by_their_sentences() {
         // A code block over sentences 1 to 3, a table row over 4 and 5.
         let st = structure(&[(10, 39, Block::Code, None), (40, 59, Block::TableRow, None)]);
         let g = gaps(&sentences(&SIX), Some(&st));
-        let code = Some(Unit { kind: Block::Code, sentences: 1..4 });
-        let row = Some(Unit { kind: Block::TableRow, sentences: 4..6 });
-        let inside: Vec<Option<Unit>> = g.iter().map(|g| g.inside.clone()).collect();
-        assert_eq!(inside, [None, code.clone(), code, None, row, None]);
+        let code = Unit { kind: Block::Code, sentences: 1..4, bytes: 29 };
+        let row = Unit { kind: Block::TableRow, sentences: 4..6, bytes: 19 };
+        assert_eq!(g.units, [code, row]);
         // The code block's end outranks the row's start.
-        assert_eq!((g[0].reason, g[3].reason, g[5].reason), (Cut::Paragraph, Cut::Paragraph, Cut::Item));
-    }
-
-    #[test]
-    fn the_smallest_unit_around_a_gap_is_the_one_named() {
-        // A quote over every sentence, holding a code block over 2 to 4.
-        let st = structure(&[(0, 59, Block::Quote, None), (20, 49, Block::Code, Some(0))]);
-        let g = gaps(&sentences(&SIX), Some(&st));
-        let kinds: Vec<Option<Block>> = g.iter().map(|g| g.inside.as_ref().map(|u| u.kind)).collect();
-        let (q, c) = (Some(Block::Quote), Some(Block::Code));
-        assert_eq!(kinds, [q, q, c, c, q, None]);
-        assert_eq!(g[0].inside.as_ref().unwrap().sentences, 0..6);
-    }
-
-    #[test]
-    fn a_unit_over_the_same_sentences_as_another_is_the_shorter() {
-        // A quote and the code block in it hold the same two sentences;
-        // the quote has a byte of markup more.
-        let st = structure(&[(9, 29, Block::Quote, None), (10, 29, Block::Code, Some(0))]);
-        let g = gaps(&sentences(&SIX), Some(&st));
-        assert_eq!(g[1].inside, Some(Unit { kind: Block::Code, sentences: 1..3 }));
-        // In the other order too.
-        let st = structure(&[(10, 29, Block::Code, None), (9, 29, Block::Quote, None)]);
-        assert_eq!(gaps(&sentences(&SIX), Some(&st))[1].inside.as_ref().unwrap().kind, Block::Code);
+        assert_eq!((g.gap[0].reason, g.gap[3].reason, g.gap[5].reason), (Cut::Paragraph, Cut::Paragraph, Cut::Item));
     }
 
     #[test]
     fn a_block_edge_inside_a_sentence_moves_to_its_gaps() {
-        // A code block from the middle of sentence 1 to the middle of 2:
-        // it holds bytes of both, so the gap between them is inside it.
+        // A code block from the middle of sentence 1 to the middle of 2
+        // holds bytes of both.
         let st = structure(&[(14, 25, Block::Code, None)]);
         let g = gaps(&sentences(&SIX), Some(&st));
-        assert_eq!(g[0].reason, Cut::Paragraph);
-        assert_eq!(g[1].inside, Some(Unit { kind: Block::Code, sentences: 1..3 }));
-        assert_eq!(g[2].reason, Cut::Paragraph);
+        assert_eq!(g.gap[0].reason, Cut::Paragraph);
+        assert_eq!(g.units, [Unit { kind: Block::Code, sentences: 1..3, bytes: 11 }]);
+        assert_eq!(g.gap[2].reason, Cut::Paragraph);
+    }
+
+    #[test]
+    fn units_apart_in_bytes_can_share_a_sentence() {
+        // Two rows meet in the middle of sentence 2.
+        let st = structure(&[(10, 24, Block::TableRow, None), (24, 39, Block::TableRow, None)]);
+        let g = gaps(&sentences(&SIX), Some(&st));
+        let spans: Vec<Range<usize>> = g.units.iter().map(|u| u.sentences.clone()).collect();
+        assert_eq!(spans, [1..3, 2..4]);
     }
 
     #[test]
@@ -237,14 +216,15 @@ mod tests {
         // The space between sentences 1 and 2, and an empty block.
         let st = structure(&[(19, 20, Block::Paragraph, None), (30, 30, Block::Code, None)]);
         let g = gaps(&sentences(&SIX), Some(&st));
-        assert!(g.iter().all(|g| g.reason == Cut::Sentence && g.inside.is_none()));
+        assert!(g.gap.iter().all(|g| g.reason == Cut::Sentence));
+        assert!(g.units.is_empty());
     }
 
     #[test]
     fn a_unit_of_one_sentence_holds_no_gap() {
         let st = structure(&[(10, 19, Block::Quote, None)]);
         let g = gaps(&sentences(&SIX), Some(&st));
-        assert!(g.iter().all(|g| g.inside.is_none()));
-        assert_eq!((g[0].reason, g[1].reason), (Cut::Paragraph, Cut::Paragraph));
+        assert!(g.units.is_empty());
+        assert_eq!((g.gap[0].reason, g.gap[1].reason), (Cut::Paragraph, Cut::Paragraph));
     }
 }

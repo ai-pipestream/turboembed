@@ -332,13 +332,16 @@ pub enum Cut {
     Heading,
     Paragraph,
     TopicShift,
-    Budget,
     Clause,
     /// Between two list items or two table rows.
     Item,
     /// Inside a unit no cut may fall in (a table row, a code block, a
     /// quote), allowed only because that unit alone is over the budget.
     Inside(Block),
+    /// Inside a unit that fits the budget, allowed because units that
+    /// share sentences with it chain into a run over the budget, which
+    /// must be cut somewhere.
+    Overlap(Block),
 }
 
 /// What a chunk boundary after each sentence would cost, and the strongest
@@ -351,7 +354,9 @@ pub enum Cut {
 /// Costs are integers, in `UNIT`s, so every backend sums them to the same
 /// totals and picks the same cuts; a signal computed in floating point is
 /// rounded once, when it is written. A plain sentence boundary costs one
-/// unit; a cost can be negative, for a signal that argues for a cut.
+/// unit; a cost can be negative, for a signal that argues for a cut. The
+/// step that weighs and sums the instances computes in i64 and saturates
+/// to the i32 range when it writes, so no weight or sum wraps around.
 pub struct Boundaries {
     pub cost: Vec<i32>,
     pub reason: Vec<Cut>,
@@ -394,6 +399,11 @@ pub struct Chunks {
     /// Its row's length in the embedder's tokens: counted over its whole
     /// span, with the overhead every row carries.
     pub model_tokens: Vec<u32>,
+    /// Whether it is longer than the budget's maximum. At level 0 that is
+    /// one sentence alone, for a clause splitter to cut further; a row
+    /// above holds the chunks cut from it. Its `cut` still says why it
+    /// starts where it does.
+    pub over_budget: Vec<bool>,
 }
 
 impl Layer for Chunks {
@@ -411,12 +421,22 @@ impl Layer for Chunks {
             self.cut.len(),
             self.cost.len(),
             self.model_tokens.len(),
+            self.over_budget.len(),
         ];
         if columns.iter().any(|&l| l != self.spans.len()) {
             return Err("every column as long as the spans".into());
         }
-        if self.parent.iter().enumerate().any(|(i, p)| p.is_some_and(|p| p.get() >= i)) {
-            return Err("a parent before its children".into());
+        for (i, p) in self.parent.iter().enumerate() {
+            let Some(p) = *p else { continue };
+            if p.get() >= i {
+                return Err("a parent before its children".into());
+            }
+            if self.level[p.get()] <= self.level[i] {
+                return Err(format!("chunk {i} is not at a level below its parent's"));
+            }
+            if !self.spans.get(p).contains(self.spans.get(Ix::new(i as u32))) {
+                return Err(format!("chunk {i} is outside its parent"));
+            }
         }
         Ok(())
     }

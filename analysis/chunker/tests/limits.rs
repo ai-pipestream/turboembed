@@ -52,19 +52,28 @@ fn plain(text: &str) -> Document {
 /// Blocks over sentences `[a, b)`, each with its parent's index.
 fn add_structure(doc: &mut Document, blocks: &[(usize, usize, Block, Option<u32>)]) {
     let s = doc.get::<Sentences>().unwrap();
-    let mut spans = Spans::new(s.spans.view());
+    let bytes: Vec<(u32, u32, Block, Option<u32>)> = blocks
+        .iter()
+        .map(|&(a, b, kind, parent)| {
+            (s.spans.get(Ix::new(a as u32)).start, s.spans.get(Ix::new(b as u32 - 1)).end, kind, parent)
+        })
+        .collect();
+    doc.add(&Key::DEFAULT, structure(doc.get::<Sentences>().unwrap().spans.view(), &bytes), Provenance::by("parser"))
+        .unwrap();
+}
+
+/// Blocks over bytes `[a, b)`, each with its parent's index.
+fn structure(view: ViewId, blocks: &[(u32, u32, Block, Option<u32>)]) -> Structure {
+    let mut spans = Spans::new(view);
     for &(a, b, ..) in blocks {
-        let (first, last) = (s.spans.get(Ix::new(a as u32)), s.spans.get(Ix::new(b as u32 - 1)));
-        spans.push(Span::new(first.start, last.end));
+        spans.push(Span::new(a, b));
     }
-    let n = blocks.len();
-    let structure = Structure {
+    Structure {
         spans,
         kind: blocks.iter().map(|b| b.2).collect(),
         parent: blocks.iter().map(|b| b.3.map(Ix::new)).collect(),
-        depth: vec![0; n],
-    };
-    doc.add(&Key::DEFAULT, structure, Provenance::by("parser")).unwrap();
+        depth: vec![0; blocks.len()],
+    }
 }
 
 /// A unit's cost after every sentence, but `cheap` after the ones named.
@@ -108,6 +117,11 @@ fn sentences_of(doc: &Document) -> Vec<(usize, usize)> {
 /// Why each cut chunk starts where it does.
 fn cuts(doc: &Document) -> Vec<Cut> {
     leaves(doc).into_iter().map(|i| doc.get::<Chunks>().unwrap().cut[i]).collect()
+}
+
+/// Whether each cut chunk is over the budget.
+fn over(doc: &Document) -> Vec<bool> {
+    leaves(doc).into_iter().map(|i| doc.get::<Chunks>().unwrap().over_budget[i]).collect()
 }
 
 /// Each cut chunk's length in model tokens.
@@ -219,14 +233,16 @@ fn a_unit_inside_one_over_the_budget_is_still_held() {
 fn a_sentence_is_never_cut_and_one_over_the_budget_stands_alone() {
     // The third sentence is twelve tokens, inside a code block that is
     // over the budget with it. Every chunk starts and ends on a sentence's
-    // edge, and the long sentence is a chunk of its own.
+    // edge, and the long sentence is a chunk of its own, marked as over
+    // the budget, and still says why it starts there.
     let text = "One one. Two two. A b c d e f g h i j k. Four four. Five five.";
     let mut doc = plain(text);
     add_costs(&mut doc, &[]);
     add_structure(&mut doc, &[(1, 4, Block::Code, None)]);
     let doc = run(doc, B);
     assert_eq!(sentences_of(&doc), [(0, 2), (2, 3), (3, 5)]);
-    assert_eq!(cuts(&doc), [Cut::DocumentStart, Cut::Budget, Cut::Inside(Block::Code)]);
+    assert_eq!(cuts(&doc), [Cut::DocumentStart, Cut::Inside(Block::Code), Cut::Inside(Block::Code)]);
+    assert_eq!(over(&doc), [false, true, false]);
     assert_eq!(tokens(&doc), [6, 12, 6]);
     let s = doc.get::<Sentences>().unwrap();
     let starts: Vec<u32> = s.spans.iter().map(|(_, s)| s.start).collect();
@@ -332,4 +348,81 @@ fn without_structure_every_boundary_is_a_sentence() {
     let b = docs[0].get::<Boundaries>().unwrap();
     assert_eq!(b.cost, [Boundaries::UNIT; 6]);
     assert_eq!(b.reason, [Cut::Sentence; 6]);
+}
+
+#[test]
+fn units_that_share_sentences_and_chain_over_the_budget_are_cut() {
+    // Three rows of a table, apart in bytes, whose edges fall inside
+    // sentences 1 and 2: each holds two sentences (eight tokens, which
+    // fit), and together they hold all four (sixteen, which do not).
+    let mut doc = plain("Aa bb cc. Dd ee ff. Gg hh ii. Jj kk ll.");
+    add_costs(&mut doc, &[]);
+    let rows = [
+        (0, 39, Block::Table, None),
+        (0, 14, Block::TableRow, Some(0)),
+        (14, 24, Block::TableRow, Some(0)),
+        (24, 39, Block::TableRow, Some(0)),
+    ];
+    doc.add(&Key::DEFAULT, structure(ViewId::SOURCE, &rows), Provenance::by("parser")).unwrap();
+    let doc = run(doc, Budget { max: 10, target: 8, ..B });
+    assert_eq!(sentences_of(&doc), [(0, 2), (2, 4)]);
+    assert_eq!(cuts(&doc), [Cut::DocumentStart, Cut::Overlap(Block::TableRow)]);
+    assert_eq!(over(&doc), [false, false]);
+}
+
+#[test]
+fn a_section_edge_is_a_cut_even_inside_a_unit() {
+    // The second section starts inside sentence 2, which belongs to the
+    // first by its start; a code block from there holds sentences 2 and 3
+    // and fits. The section wins: the unit is cut at its edge.
+    let text = "One one. Two two. Three three. Four four. Five five.";
+    let mut doc = plain(text);
+    add_costs(&mut doc, &[]);
+    let blocks = [(0, 24, Block::Section, None), (24, 52, Block::Section, None), (24, 41, Block::Code, Some(1))];
+    doc.add(&Key::DEFAULT, structure(ViewId::SOURCE, &blocks), Provenance::by("parser")).unwrap();
+    let doc = run(doc, B);
+    assert_eq!(sentences_of(&doc), [(0, 3), (3, 5)]);
+    assert_eq!(cuts(&doc), [Cut::DocumentStart, Cut::Section]);
+}
+
+#[test]
+fn a_chunk_over_the_budget_at_a_section_start_keeps_the_section() {
+    let text = "One one. Two two. A b c d e f g h i j k. Four four.";
+    let mut doc = plain(text);
+    add_costs(&mut doc, &[]);
+    add_structure(&mut doc, &[(0, 2, Block::Section, None), (2, 4, Block::Section, None)]);
+    let doc = run(doc, B);
+    assert_eq!(sentences_of(&doc), [(0, 2), (2, 3), (3, 4)]);
+    assert_eq!(cuts(&doc), [Cut::DocumentStart, Cut::Section, Cut::Sentence]);
+    assert_eq!(over(&doc), [false, true, false]);
+    // The second section is over the budget as a whole, as a row above.
+    let c = doc.get::<Chunks>().unwrap();
+    assert_eq!((c.level[2], c.over_budget[2], c.model_tokens[2]), (1, true, 15));
+}
+
+#[test]
+fn chunks_nest_inside_their_parents_at_a_level_above() {
+    let chunks = |spans: [(u32, u32); 2], level: [u8; 2]| {
+        let mut c = Chunks {
+            spans: Spans::new(ViewId::SOURCE),
+            level: level.to_vec(),
+            parent: vec![None, Some(Ix::new(0))],
+            sentences: vec![IxRange::new(0, 2), IxRange::new(0, 1)],
+            cut: vec![Cut::DocumentStart; 2],
+            cost: vec![0; 2],
+            model_tokens: vec![0; 2],
+            over_budget: vec![false; 2],
+        };
+        for (a, b) in spans {
+            c.spans.push(Span::new(a, b));
+        }
+        c
+    };
+    assert_eq!(chunks([(0, 20), (0, 9)], [1, 0]).check(), Ok(()));
+    assert!(chunks([(0, 20), (0, 9)], [0, 0]).check().unwrap_err().contains("level below"));
+    assert!(chunks([(0, 20), (0, 9)], [1, 2]).check().unwrap_err().contains("level below"));
+    assert!(chunks([(0, 9), (0, 20)], [1, 0]).check().unwrap_err().contains("outside its parent"));
+    let mut short = chunks([(0, 20), (0, 9)], [1, 0]);
+    short.over_budget.pop();
+    assert!(short.check().is_err());
 }
