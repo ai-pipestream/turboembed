@@ -1,0 +1,26 @@
+component: tokenizer-me-abbreviations-fixture
+opennlp: cdf33c653d5d61d5af7d37ffee189a83bd8392ea
+jdk: 21.0.12.1
+whitespace: unicode
+model: tokenizer-abbreviations.bin
+model-sha256: bd5334327d3c4ffab19765bec7755b71a9eaea50e4c23ce10712f48bdb14c7e1
+alpha-numeric-pattern: ^[A-Za-z0-9]+$
+use-alpha-numeric-optimization: false
+abbreviations: in the model file
+input: Wait... what? Well\u2026 maybe. . . . or not.. Hmm...... ok\u2026\u2026 end\n
+span: 0 7 0 7 0.26010873441875876
+span: 8 13 8 13 0.5065081544654219
+span: 14 21 14 19 0.5876593589167705
+span: 22 27 20 25 0.6263986262082256
+span: 27 28 25 26 1.0
+span: 29 30 27 28 1.0
+span: 31 32 29 30 1.0
+span: 33 34 31 32 1.0
+span: 35 37 33 35 0.9610461382203352
+span: 38 42 36 40 0.30043695724905073
+span: 42 43 40 41 1.0
+span: 44 53 42 51 0.13634800781928813
+span: 54 56 52 54 0.8208427659746556
+span: 56 59 54 55 0.5765481236763288
+span: 59 62 55 56 1.0
+span: 63 66 57 60 0.8714235860249557

@@ -1,0 +1,18 @@
+component: tokenizer-me-abbreviations-en
+opennlp: cdf33c653d5d61d5af7d37ffee189a83bd8392ea
+jdk: 21.0.12.1
+whitespace: unicode
+model: opennlp-en-ud-ewt-tokens-1.3-2.5.4.bin
+model-sha256: 95139111197ba9f1165fc12be8d4cbac05ea3912f995d167efa1a0e04e3e649a
+alpha-numeric-pattern: ^[A-Za-z0-9]+$
+use-alpha-numeric-optimization: false
+abbreviations: english-dictionary.xml sha256 95c6e0579cdb82676807b64a362c68b69b87004a00fff42f44356d10cb7618e9
+input: Smile \uD83D\uDE00 ok \uD83D\uDC4D\uD83C\uDFFD done \u2764\uFE0F \u263A end\n
+span: 0 5 0 5 0.9991396804269652
+span: 6 10 6 8 0.6970656730359681
+span: 11 13 9 11 0.9986064710868605
+span: 14 22 12 16 0.17748734424994767
+span: 23 27 17 21 0.9982538300356023
+span: 28 34 22 24 0.6970656730359681
+span: 35 38 25 26 1.0
+span: 39 42 27 30 0.9996587599387958

@@ -1,271 +1,210 @@
-//! `java.lang.Character`'s classes, on a code point given as `u32`.
+//! `java.lang.Character` and `String.toLowerCase(Locale.ROOT)` semantics
+//! on this crate's Unicode data.
 //!
-//! OpenNLP classifies characters with `java.lang.Character`, and its
-//! features and splits depend on the answers, so the ports ask the same
-//! questions here. Each function names the Java method it reproduces.
-//! A surrogate code unit (U+D800 to U+DFFF) is a valid argument: its
-//! category is [`GeneralCategory::Surrogate`] and it is in no class, as in
-//! Java, so a caller walking UTF-16 code units can classify each unit. A
-//! value above U+10FFFF is treated as unassigned.
+//! The OpenNLP normalizers are written against these JDK methods. The
+//! functions here follow the JDK's definitions (which categories count as
+//! letters, which spaces count as whitespace) but read the Unicode 18.0
+//! tables of this crate, so for characters assigned after the JDK's own
+//! Unicode version the answers can differ from a given JVM.
 //!
-//! The tables are built from the Unicode 17.0 character database, with
-//! each Java class derived from it the way the JDK defines it:
-//!
-//! | Function | Java method | Definition from the UCD |
-//! |---|---|---|
-//! | [`general_category`] | `getType(int)` | `DerivedGeneralCategory.txt`, in Java's numbering |
-//! | [`is_letter`] | `isLetter(int)` | general category `Lu`, `Ll`, `Lt`, `Lm` or `Lo` |
-//! | [`is_digit`] | `isDigit(int)` | general category `Nd` |
-//! | [`is_upper_case`] | `isUpperCase(int)` | general category `Lu`, or `Other_Uppercase` |
-//! | [`is_alphabetic`] | `isAlphabetic(int)` | `Alphabetic` (`DerivedCoreProperties.txt`) |
-//! | [`is_whitespace`] | `isWhitespace(int)` | `Zs`, `Zl` or `Zp` except U+00A0, U+2007 and U+202F; or U+0009 to U+000D; or U+001C to U+001F |
-//! | [`is_space_char`] | `isSpaceChar(int)` | general category `Zs`, `Zl` or `Zp` |
-//! | [`to_lower_case`] | `toLowerCase(int)` | the simple lowercase mapping, field 13 of `UnicodeData.txt` |
-//! | [`script`] | `UnicodeScript.of(int)` | `Scripts.txt`, for the scripts in [`Script`] |
-//!
-//! JDK 21, which OpenNLP's golden files are made with, implements Unicode
-//! 15.0. A character added in Unicode 15.1, 16.0 or 17.0 is unassigned to
-//! that JDK and in no class, while here it is classified by the 17.0 data.
-//! Where both assign a code point, the answers differ for 34 code points,
-//! all from changes Unicode made after 15.0: U+0295 is `Lo` here and `Ll`
-//! in JDK 21 (a letter either way), and the combining Latin small letters
-//! U+0363..U+036F and U+1DD3..U+1DE6 are alphabetic here and not in JDK
-//! 21. The `jdk` test compares every BMP code point and every 257th
-//! above with a running JDK and fails on any other difference.
+//! The functions here take a `char`. [`code_point`] has the classes the
+//! segmentation ports need on a code point given as `u32`, which may be a
+//! lone surrogate code unit, with `getType`'s numbering and
+//! `UnicodeScript.of`.
 
-use crate::tables::java::{self as table, flag};
+pub mod code_point;
 
-pub use crate::tables::java::{GeneralCategory, Script};
+use crate::ascii::push_lowercase_run;
+use crate::category::{GeneralCategory, general_category};
+use crate::props::bits;
+use crate::tables::case::{
+    LOWER_KEYS, LOWER_VALUES, SPECIAL_LOWER_KEYS, SPECIAL_LOWER_VALUES, UPPER_KEYS, UPPER_VALUES,
+};
+use crate::tables::category::DECIMAL_ZEROS;
+use crate::tables::props::{CASE_IGNORABLE, CASED, HAS_LOWER, HAS_SPECIAL_LOWER, HAS_UPPER};
+use crate::trie::find;
 
-/// The general category: `Character.getType(int)`.
+const CAPITAL_SIGMA: char = '\u{3A3}';
+const FINAL_SIGMA: char = '\u{3C2}';
+const SMALL_SIGMA: char = '\u{3C3}';
+
+/// `Character.isLetter`: general category Lu, Ll, Lt, Lm or Lo.
 #[inline]
-pub fn general_category(cp: u32) -> GeneralCategory {
-    table::general_category(cp)
+pub fn is_letter(c: char) -> bool {
+    if c.is_ascii() {
+        return c.is_ascii_alphabetic();
+    }
+    general_category(c).is_letter()
 }
 
-/// `Character.isLetter(int)`: general category `L*`.
+/// `Character.isLetterOrDigit`: a letter or a decimal digit (Nd).
 #[inline]
-pub fn is_letter(cp: u32) -> bool {
-    table::flags(cp) & flag::LETTER != 0
+pub fn is_letter_or_digit(c: char) -> bool {
+    if c.is_ascii() {
+        return c.is_ascii_alphanumeric();
+    }
+    let category = general_category(c);
+    category.is_letter() || category == GeneralCategory::Nd
 }
 
-/// `Character.isDigit(int)`: general category `Nd`. Narrower than Rust's
-/// `char::is_numeric`, which also accepts `Nl` and `No`.
+/// `Character.isDigit`: general category Nd.
 #[inline]
-pub fn is_digit(cp: u32) -> bool {
-    table::flags(cp) & flag::DIGIT != 0
+pub fn is_digit(c: char) -> bool {
+    if c.is_ascii() {
+        return c.is_ascii_digit();
+    }
+    general_category(c) == GeneralCategory::Nd
 }
 
-/// `Character.isLetterOrDigit(int)`.
-#[inline]
-pub fn is_letter_or_digit(cp: u32) -> bool {
-    table::flags(cp) & (flag::LETTER | flag::DIGIT) != 0
+/// `Character.digit(c, 10)` for a decimal digit: the digit value of an Nd
+/// character, `None` for every other character. Unlike the JDK method
+/// this does not accept the Latin letters of larger radixes.
+pub fn digit(c: char) -> Option<u8> {
+    if c.is_ascii() {
+        return c.is_ascii_digit().then(|| c as u8 - b'0');
+    }
+    if general_category(c) != GeneralCategory::Nd {
+        return None;
+    }
+    // Every Nd character is in a run of ten that starts at a zero, so its
+    // value is its distance from the closest zero at or below it.
+    let cp = c as u32;
+    let zero = DECIMAL_ZEROS[DECIMAL_ZEROS.partition_point(|&z| z <= cp) - 1];
+    Some((cp - zero) as u8)
 }
 
-/// `Character.isUpperCase(int)`: general category `Lu` or the
-/// `Other_Uppercase` property (Roman numerals, circled letters).
+/// `Character.isWhitespace`: a space separator, line separator or
+/// paragraph separator other than the no-break spaces U+00A0, U+2007 and
+/// U+202F, or one of U+0009 to U+000D and U+001C to U+001F. U+0085 NEXT
+/// LINE is not whitespace by this definition.
 #[inline]
-pub fn is_upper_case(cp: u32) -> bool {
-    table::flags(cp) & flag::UPPER_CASE != 0
+pub fn is_whitespace(c: char) -> bool {
+    match c {
+        ' ' | '\t'..='\r' | '\u{1C}'..='\u{1F}' => true,
+        '\u{A0}' | '\u{2007}' | '\u{202F}' => false,
+        _ if c.is_ascii() => false,
+        _ => general_category(c).is_separator(),
+    }
 }
 
-/// `Character.isAlphabetic(int)`: the `Alphabetic` property.
+/// `Character.isSpaceChar`: general category Zs, Zl or Zp.
 #[inline]
-pub fn is_alphabetic(cp: u32) -> bool {
-    table::flags(cp) & flag::ALPHABETIC != 0
+pub fn is_space_char(c: char) -> bool {
+    general_category(c).is_separator()
 }
 
-/// `Character.isWhitespace(int)`: space, line and paragraph separators
-/// other than the no-break spaces, plus the ASCII controls U+0009 to
-/// U+000D and U+001C to U+001F. U+0085 is not whitespace by this test.
+/// `Character.isSupplementaryCodePoint`: `c` is above U+FFFF and takes
+/// two UTF-16 code units.
 #[inline]
-pub fn is_whitespace(cp: u32) -> bool {
-    table::flags(cp) & flag::WHITESPACE != 0
+pub fn is_supplementary(c: char) -> bool {
+    c as u32 > 0xFFFF
 }
 
-/// `Character.getType(int) == Character.SPACE_SEPARATOR`: general
-/// category `Zs`.
+/// `Character.toLowerCase(int)`: the simple lowercase mapping, `c` itself
+/// when it has none.
 #[inline]
-pub fn is_space_separator(cp: u32) -> bool {
-    general_category(cp) == GeneralCategory::SpaceSeparator
+pub fn to_lower_char(c: char) -> char {
+    if c.is_ascii() {
+        return c.to_ascii_lowercase();
+    }
+    if bits(c) & HAS_LOWER == 0 {
+        return c;
+    }
+    find(&LOWER_KEYS, &LOWER_VALUES, c as u32).unwrap_or(c)
 }
 
-/// `Character.isSpaceChar(int)`: general category `Zs`, `Zl` or `Zp`.
+/// `Character.toUpperCase(int)`: the simple uppercase mapping, `c` itself
+/// when it has none.
 #[inline]
-pub fn is_space_char(cp: u32) -> bool {
-    matches!(
-        general_category(cp),
-        GeneralCategory::SpaceSeparator | GeneralCategory::LineSeparator | GeneralCategory::ParagraphSeparator
-    )
+pub fn to_upper_char(c: char) -> char {
+    if c.is_ascii() {
+        return c.to_ascii_uppercase();
+    }
+    if bits(c) & HAS_UPPER == 0 {
+        return c;
+    }
+    find(&UPPER_KEYS, &UPPER_VALUES, c as u32).unwrap_or(c)
 }
 
-/// `Character.toLowerCase(int)`: the simple one-to-one lowercase mapping,
-/// or the code point itself when it has none. U+0130 maps to U+0069, as
-/// in Java; the full mapping to "i" plus a combining dot is not used.
-#[inline]
-pub fn to_lower_case(cp: u32) -> u32 {
-    table::to_lower_case(cp)
+/// `String.toLowerCase(Locale.ROOT)`, appended to `out`: the simple
+/// lowercase mapping of each character, except that the unconditional
+/// lowercase mappings of SpecialCasing.txt apply (U+0130 becomes
+/// `i\u{307}`) and U+03A3 becomes final sigma U+03C2 where the Final_Sigma
+/// condition holds. The language-specific mappings of SpecialCasing.txt
+/// (Turkish, Azeri, Lithuanian) are not applied.
+pub fn to_lowercase(text: &str, out: &mut String) {
+    out.reserve(text.len());
+    let mut i = 0;
+    while i < text.len() {
+        let ascii_end = push_lowercase_run(text, i, out);
+        if ascii_end > i {
+            i = ascii_end;
+            continue;
+        }
+        let c = text[i..].chars().next().expect("i is at a character boundary");
+        push_lower(text, i, c, out);
+        i += c.len_utf8();
+    }
 }
 
-/// `Character.UnicodeScript.of(int)`, reduced to the scripts the UAX #29
-/// word type distinguishes; every other script is [`Script::Other`].
-#[inline]
-pub fn script(cp: u32) -> Script {
-    table::script(cp)
+/// What `String.toLowerCase(Locale.ROOT)` writes for one character.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Lowercase {
+    /// One character, which is the input character itself when it has no
+    /// lowercase mapping.
+    Char(char),
+    /// More than one character (U+0130 becomes `i\u{307}`).
+    Str(&'static str),
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
+/// The lowercase mapping [`to_lowercase`] applies to the character `c`
+/// that starts at byte `at` of `text`. The text is needed only for U+03A3
+/// GREEK CAPITAL LETTER SIGMA, whose mapping depends on the characters
+/// around it (the Final_Sigma condition); every other character maps the
+/// same wherever it stands. Calling this for each character of a text and
+/// writing the results gives the same string as [`to_lowercase`], so a
+/// caller can lowercase character by character and see which ones change.
+pub fn lowercase_at(text: &str, at: usize, c: char) -> Lowercase {
+    debug_assert!(text[at..].starts_with(c), "c is not the character at byte {at}");
+    if c == CAPITAL_SIGMA {
+        return Lowercase::Char(if is_final_sigma(text, at) { FINAL_SIGMA } else { SMALL_SIGMA });
+    }
+    if bits(c) & HAS_SPECIAL_LOWER != 0
+        && let Some(lower) = find(&SPECIAL_LOWER_KEYS, &SPECIAL_LOWER_VALUES, c as u32)
+    {
+        return Lowercase::Str(lower);
+    }
+    Lowercase::Char(to_lower_char(c))
+}
 
-    #[test]
-    fn categories_use_java_numbers() {
-        assert_eq!(GeneralCategory::ALL.len(), 30);
-        assert_eq!(GeneralCategory::UppercaseLetter.java_type(), 1);
-        assert_eq!(GeneralCategory::Control.java_type(), 15);
-        assert_eq!(GeneralCategory::PrivateUse.java_type(), 18);
-        assert_eq!(GeneralCategory::FinalQuotePunctuation.java_type(), 30);
-        assert_eq!(GeneralCategory::from_java_type(17), None);
-        assert_eq!(GeneralCategory::from_java_type(31), None);
-        for category in GeneralCategory::ALL {
-            assert_eq!(GeneralCategory::from_java_type(category.java_type()), Some(category));
-            assert_eq!(GeneralCategory::from_abbreviation(category.abbreviation()), Some(category));
+fn push_lower(text: &str, at: usize, c: char, out: &mut String) {
+    match lowercase_at(text, at, c) {
+        Lowercase::Char(lower) => out.push(lower),
+        Lowercase::Str(lower) => out.push_str(lower),
+    }
+}
+
+/// The Final_Sigma condition of Unicode section 3.13 for the sigma at
+/// byte `at`: a cased character comes before it with only case-ignorable
+/// characters between, and no cased character follows it with only
+/// case-ignorable characters between. A character that is both cased and
+/// case-ignorable counts as cased, as the definition's regular expressions
+/// allow.
+fn is_final_sigma(text: &str, at: usize) -> bool {
+    let after = at + CAPITAL_SIGMA.len_utf8();
+    cased_beyond_ignorables(text[..at].chars().rev()) && !cased_beyond_ignorables(text[after..].chars())
+}
+
+/// The first character of `chars` that is not case-ignorable is cased.
+fn cased_beyond_ignorables(chars: impl Iterator<Item = char>) -> bool {
+    for c in chars {
+        let bits = bits(c);
+        if bits & CASED != 0 {
+            return true;
+        }
+        if bits & CASE_IGNORABLE == 0 {
+            return false;
         }
     }
-
-    #[test]
-    fn general_category_values() {
-        use GeneralCategory::*;
-        let cases = [
-            (0x0041, UppercaseLetter),
-            (0x0061, LowercaseLetter),
-            (0x01C5, TitlecaseLetter),
-            (0x02B0, ModifierLetter),
-            (0x4E2D, OtherLetter),
-            (0x0301, NonSpacingMark),
-            (0x0030, DecimalDigitNumber),
-            (0x2167, LetterNumber),
-            (0x00B2, OtherNumber),
-            (0x0020, SpaceSeparator),
-            (0x2028, LineSeparator),
-            (0x2029, ParagraphSeparator),
-            (0x0009, Control),
-            (0x200B, Format),
-            (0xE000, PrivateUse),
-            (0xD800, Surrogate),
-            (0xDFFF, Surrogate),
-            (0x002D, DashPunctuation),
-            (0x0028, StartPunctuation),
-            (0x0029, EndPunctuation),
-            (0x005F, ConnectorPunctuation),
-            (0x002E, OtherPunctuation),
-            (0x002B, MathSymbol),
-            (0x0024, CurrencySymbol),
-            (0x005E, ModifierSymbol),
-            (0x1F600, OtherSymbol),
-            (0x00AB, InitialQuotePunctuation),
-            (0x00BB, FinalQuotePunctuation),
-            (0x0378, Unassigned),
-            (0x10FFFF, Unassigned),
-            (0x110000, Unassigned),
-            (u32::MAX, Unassigned),
-        ];
-        for (cp, expected) in cases {
-            assert_eq!(general_category(cp), expected, "U+{cp:04X}");
-        }
-    }
-
-    #[test]
-    fn letters_and_digits() {
-        assert!(is_letter('A' as u32) && is_letter(0x00AA) && is_letter(0x4E2D) && is_letter(0x10400));
-        assert!(!is_letter('1' as u32) && !is_letter(0x2167) && !is_letter(0x0301) && !is_letter(0xD800));
-        assert!(is_digit('7' as u32) && is_digit(0x0660) && is_digit(0xFF10) && is_digit(0x1D7CE));
-        // Superscript two is No and the Roman numeral eight is Nl: neither is a Java digit.
-        assert!(!is_digit(0x00B2) && !is_digit(0x2167) && !is_digit('a' as u32));
-        assert!(is_letter_or_digit('z' as u32) && is_letter_or_digit('0' as u32) && !is_letter_or_digit('_' as u32));
-    }
-
-    #[test]
-    fn upper_case_and_alphabetic() {
-        assert!(is_upper_case('A' as u32) && is_upper_case(0x10400));
-        // Other_Uppercase: Roman numeral eight and circled capital A.
-        assert!(is_upper_case(0x2167) && is_upper_case(0x24B6));
-        // Title case is not upper case.
-        assert!(!is_upper_case(0x01C5) && !is_upper_case('a' as u32) && !is_upper_case(0xD801));
-        assert!(is_alphabetic('a' as u32) && is_alphabetic(0x2167) && is_alphabetic(0x0345));
-        assert!(!is_alphabetic('1' as u32) && !is_alphabetic(0x0301) && !is_alphabetic(0xDC00));
-    }
-
-    #[test]
-    fn java_whitespace() {
-        for cp in [
-            0x09, 0x0A, 0x0B, 0x0C, 0x0D, 0x1C, 0x1D, 0x1E, 0x1F, 0x20, 0x1680, 0x2000, 0x200A, 0x2028, 0x2029, 0x205F,
-            0x3000,
-        ] {
-            assert!(is_whitespace(cp), "U+{cp:04X}");
-        }
-        for cp in [0x00, 0x08, 0x0E, 0x85, 0xA0, 0x2007, 0x202F, 0x200B, 0xFEFF, 0x180E, 'a' as u32, 0xD800] {
-            assert!(!is_whitespace(cp), "U+{cp:04X}");
-        }
-        assert!(is_space_separator(0xA0) && is_space_separator(0x2007) && is_space_separator(0x3000));
-        assert!(!is_space_separator(0x2028) && !is_space_separator(0x09));
-        assert!(is_space_char(0x2028) && is_space_char(0x2029) && is_space_char(0xA0) && !is_space_char(0x0A));
-    }
-
-    #[test]
-    fn simple_lower_case() {
-        let cases = [
-            (0x0041, 0x0061),
-            (0x0061, 0x0061),
-            (0x00C0, 0x00E0),
-            (0x0130, 0x0069),
-            (0x0049, 0x0069),
-            (0x01C5, 0x01C6),
-            (0x0391, 0x03B1),
-            (0x0410, 0x0430),
-            (0x10A0, 0x2D00),
-            (0x1E9E, 0x00DF),
-            (0x212A, 0x006B),
-            (0x2126, 0x03C9),
-            (0x2167, 0x2177),
-            (0x24B6, 0x24D0),
-            (0xFF21, 0xFF41),
-            (0x10400, 0x10428),
-            (0x1E900, 0x1E922),
-            (0x4E2D, 0x4E2D),
-            (0xD800, 0xD800),
-            (0x10FFFF, 0x10FFFF),
-        ];
-        for (cp, lower) in cases {
-            assert_eq!(to_lower_case(cp), lower, "U+{cp:04X}");
-        }
-    }
-
-    #[test]
-    fn scripts() {
-        let cases = [
-            (0x0041, Script::Other),
-            (0x4E2D, Script::Han),
-            (0x20000, Script::Han),
-            (0x3042, Script::Hiragana),
-            (0x30A2, Script::Katakana),
-            // The prolonged sound mark is Common, not Katakana.
-            (0x30FC, Script::Other),
-            (0xD55C, Script::Hangul),
-            (0x0E01, Script::Thai),
-            (0x0E81, Script::Lao),
-            (0x1000, Script::Myanmar),
-            (0x1780, Script::Khmer),
-            (0x1950, Script::TaiLe),
-            (0x1980, Script::NewTaiLue),
-            (0xAA80, Script::TaiViet),
-            (0x3000, Script::Other),
-        ];
-        for (cp, expected) in cases {
-            assert_eq!(script(cp), expected, "U+{cp:04X}");
-        }
-        assert_eq!(Script::TaiLe.java_name(), "TAI_LE");
-        assert_eq!(Script::from_property_name("New_Tai_Lue"), Some(Script::NewTaiLue));
-        assert_eq!(Script::from_property_name("Latin"), None);
-    }
+    false
 }

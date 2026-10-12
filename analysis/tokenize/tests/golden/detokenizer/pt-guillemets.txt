@@ -1,0 +1,19 @@
+component: detokenizer
+opennlp: cdf33c653d5d61d5af7d37ffee189a83bd8392ea
+jdk: 21.0.12.1
+whitespace: unicode
+dictionary: pt-detokenizer.xml
+dictionary-sha256: 22f60f1ac36f856361c4d062e49e897604aae97fecf5082169607bf91223c60f
+split-marker: <SPLIT>
+tokens: 9
+token: Ele NO_OPERATION
+token: disse NO_OPERATION
+token: \u00AB MERGE_TO_RIGHT
+token: ol\u00E1 NO_OPERATION
+token: \u00BB MERGE_TO_LEFT
+token: ( MERGE_TO_RIGHT
+token: baixinho NO_OPERATION
+token: ) MERGE_TO_LEFT
+token: . MERGE_TO_LEFT
+text: Ele disse \u00ABol\u00E1\u00BB (baixinho).
+text-marked: Ele disse \u00AB<SPLIT>ol\u00E1<SPLIT>\u00BB (<SPLIT>baixinho<SPLIT>)<SPLIT>.

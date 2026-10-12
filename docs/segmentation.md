@@ -289,6 +289,13 @@ offsets, its UTF-16 offsets and, when the component has one, its
 probability printed with Java's `Double.toString`. The tests compare
 spans exactly and probabilities within 1e-9.
 
+Four cases that none of the UD models reach have their own run
+(`Variants`, under `tokenize/tests/golden/variants` and
+`tokenize/tests/golden/detokenizer`): `TokenizerME` with an abbreviation
+dictionary, `TokenizerME` splitting between surrogate halves,
+`TokenizerME` with the alphanumeric optimization on, and the dictionary
+detokenizer on the English, French and Portuguese dictionaries.
+
 The JVM is used for golden files only. Nothing here calls into it at
 run time.
 
