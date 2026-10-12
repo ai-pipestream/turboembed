@@ -1,0 +1,114 @@
+ok	-	York
+ok	-	New York
+ok	i	new york( city)?
+ok	-	\d+
+ok	-	\d{3}-\d{4}
+ok	-	[A-Z][a-z]+
+ok	i	[a-z]+
+ok	i	[Z-a]+
+ok	-	\w+
+ok	-	\W+
+ok	-	\S+
+ok	-	\s
+ok	-	\h
+ok	-	\D+
+ok	-	\H+
+ok	-	\V+
+ok	-	.
+ok	-	.+
+ok	s	.+
+ok	-	(?s).+?
+ok	-	a.*?b
+ok	-	[^ ]+
+ok	-	[^a-z ]+
+ok	-	[]a]+
+ok	-	[^]a ]+
+ok	-	[a-]+
+ok	-	[-.@]+
+ok	-	[\v-]+
+ok	-	\Q.\E+
+ok	-	\Q(555)\E \d
+ok	-	\x41|B|\0103|\cD|\x{1F600}
+ok	-	😀
+ok	-	😀 \w+
+ok	-	[😀𝐀]+
+ok	-	[é-ö]+
+ok	i	é|É
+ok	i	ſ|k
+ok	-	(?i)k(?-i)K
+ok	-	((?i)new) York
+ok	-	(?i:new) york
+ok	-	(?<first>\w+) (?<second>\w+)
+ok	-	(?:a|ab)(?:c|bcd)
+ok	-	a|ab|abc
+ok	-	x*
+ok	-	a?
+ok	-	|b
+ok	-	()
+ok	-	\d{2,}
+ok	-	\d{1,2}?
+ok	-	(\d\d){2}
+ok	-	]}
+ok	-	^\w+
+ok	-	\A\w+
+ok	-	\w+$
+ok	-	\w+\Z
+ok	-	\w+\z
+ok	-	\b\w+\b
+ok	-	\bcom\b
+ok	-	\B\w\B
+ok	-	\b
+ok	-	[\x00-￿]+
+ok	-	[^\x{10000}-\x{10FFFF}]+
+ok	-	[^￿]+
+ok	-	[\s\S]{3}
+ok	-	}a
+unsupported	-	(?=a)a
+unsupported	-	(?<!x)a
+unsupported	-	(?>a+)
+unsupported	-	(a)\1
+unsupported	-	(?<n>a)\k<n>
+unsupported	-	a++
+unsupported	-	(a*)*b
+unsupported	-	(|a)+
+unsupported	-	x{1}{2}
+unsupported	-	^*
+unsupported	-	\b+
+unsupported	-	[a[b]]
+unsupported	-	[a&&b]
+unsupported	-	\p{L}
+unsupported	-	\uD800
+unsupported	-	(?m)^a
+unsupported	-	(?x)a b
+unsupported	-	(?u)é
+unsupported	-	\R
+unsupported	-	\X
+unsupported	-	\G
+unsupported	-	\b{g}
+syntax	-	{
+syntax	-	a{
+syntax	-	a{1
+syntax	-	x{,2}
+syntax	-	a{2,1}
+syntax	-	[]
+syntax	-	(?i)*
+syntax	-	a**
+syntax	-	*a
+syntax	-	\y
+syntax	-	\E
+syntax	-	(?<a>x)(?<a>y)
+syntax	-	(?<1a>x)
+syntax	-	\0
+syntax	-	\08
+syntax	-	\c
+syntax	-	\x4
+syntax	-	\x{110000}
+syntax	-	x{2147483648}
+syntax	-	(a
+syntax	-	a)
+syntax	-	[a-\d]
+syntax	-	[z-a]
+syntax	-	[\b]
+syntax	-	a\
+syntax	-	(?P<n>a)
+syntax	-	(?-i-s)a
