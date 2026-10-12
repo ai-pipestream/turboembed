@@ -34,7 +34,7 @@ pub use context::SdContext;
 pub use eos::{EndOfSentence, Position};
 pub use error::ModelError;
 pub use features::Features;
-pub use me::{Candidate, Decision, DetectorStep, Scratch, SentenceDetector, SentenceModel};
+pub use me::{Candidate, Decision, Scratch, SentenceDetector, SentenceModel};
 pub use newline::{NewlineDetector, newline_spans};
 pub use paragraph::{ParagraphDetector, paragraph_spans};
 pub use turbo_unicode::WhitespaceMode;

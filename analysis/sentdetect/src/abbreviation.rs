@@ -19,7 +19,7 @@
 use std::collections::{BTreeSet, HashSet};
 
 use turbo_maxent::Dictionary;
-use turbo_unicode::{Utf16Cursor, java};
+use turbo_unicode::{Utf16Cursor, java::code_point as java};
 
 use crate::eos::Position;
 

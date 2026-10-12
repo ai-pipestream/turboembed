@@ -95,7 +95,7 @@ fn newline_then_paragraph_then_reader() {
 /// with the sentence text: what a step after the maxent detector sees.
 struct Scored {
     text: Vec<String>,
-    confidence: Vec<f32>,
+    confidence: Vec<f64>,
 }
 
 impl Layer for Scored {
@@ -128,7 +128,9 @@ fn maxent_then_reader() {
     let model = SentenceModel::open(turbo_maxent::ModelFile::read(&path).unwrap()).unwrap();
     let detector = SentenceDetector::new(model, WhitespaceMode::Unicode);
     let model_ref = detector.sentence_model().model_ref().clone();
-    let analyzer = Analyzer::builder().add(ReadScores).step(detector.into_step()).build().unwrap();
+    // The detector aligns its confidence to the sentences it writes in the
+    // same step, so it is added as a plain annotator.
+    let analyzer = Analyzer::builder().add(ReadScores).add(detector).build().unwrap();
     assert_eq!(analyzer.plan(), [vec!["turbo-sentdetect:maxent"], vec!["test:read-scores"]]);
 
     // The first two texts are fixture inputs, so the values are those of
@@ -147,10 +149,10 @@ fn maxent_then_reader() {
     };
     let (text, confidence) = scored(&docs[0]);
     assert_eq!(text, ["Mr. Smith met Dr. Brown at 5 p.m. on Main St. today.", "He left early."]);
-    assert_eq!(confidence, [0.9955300941022667f64 as f32, 0.9466056890177881f64 as f32]);
+    assert_eq!(confidence, [0.9955300941022667, 0.9466056890177881]);
     let (text, confidence) = scored(&docs[1]);
     assert_eq!(text, ["It ended.\u{1F600}", "Next one starts.\u{10400}Deseret", "here.", "Last.\u{1F600}"]);
-    assert_eq!(confidence[3], 0.50730226664988f64 as f32);
+    assert_eq!(confidence[3], 0.50730226664988);
 
     // Whitespace only: no sentences, and both layers complete, not skipped.
     let d = &docs[2];

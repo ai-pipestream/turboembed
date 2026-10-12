@@ -30,7 +30,7 @@
 
 use turbo_maxent::Dictionary;
 use turbo_unicode::modified_utf8::{push_modified_utf8, push_str_modified_utf8};
-use turbo_unicode::{Utf16Cursor, WhitespaceMode, java};
+use turbo_unicode::{Utf16Cursor, WhitespaceMode, java::code_point as java};
 
 use crate::eos::{EndOfSentence, Position};
 use crate::features::Features;

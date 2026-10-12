@@ -191,13 +191,12 @@ offsets on character boundaries by construction: an end character is
 always a whole character. `SentenceDetector::detect` gives the spans and
 probabilities outside a pipeline, and `detect_traced` also hands every
 candidate's features, probabilities and decision to a callback. The
-probabilities are `f64`; the `Confidence` layer stores `f32`.
+probabilities are `f64`, and the `Confidence` layer stores them as they
+are.
 
-The annotator writes a layer aligned to another layer it writes, which
-the analyzer refuses for a plain `add`. `SentenceDetector::into_step`
-gives the step to add instead (`Analyzer::builder().step(..)`), which
-declares the confidence aligned to its own sentences output. It writes
-the default instances.
+The annotator's confidence output is aligned to the sentences it writes
+in the same step, which the analyzer accepts, so the detector is added
+with a plain `Analyzer::builder().add(..)`.
 
 The model's `ModelRef` is `opennlp:SentenceDetectorME:<language>`, the
 OpenNLP version in the manifest as the revision, and the SHA-256 of the
@@ -312,7 +311,9 @@ model and the whitespace mode, then the input text with `\n`, `\r`,
 `\\` and `\uXXXX` escapes, then one line per span with its UTF-8 byte
 offsets, its UTF-16 offsets and, when the component has one, its
 probability printed with Java's `Double.toString`. The tests compare
-spans exactly and probabilities within 1e-9.
+spans exactly; the sentence detector's tests compare probabilities
+exactly too, since `Double.toString` reads back to the same `f64` and the
+maxent arithmetic matches the JVM's.
 
 Four cases that none of the UD models reach have their own run
 (`Variants`, under `tokenize/tests/golden/variants` and

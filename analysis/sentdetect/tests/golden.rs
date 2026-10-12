@@ -10,8 +10,10 @@
 //!   every context the detector built, feature by feature, with the
 //!   model's probabilities and the decision.
 //!
-//! Spans are compared exactly in UTF-8 bytes and in UTF-16 code units;
-//! probabilities within 1e-9.
+//! Spans are compared exactly in UTF-8 bytes and in UTF-16 code units,
+//! and probabilities exactly: the golden files hold Java's
+//! `Double.toString`, which reads back to the same `f64`, and the model's
+//! arithmetic matches the JVM's bit for bit.
 
 mod common;
 
@@ -21,8 +23,6 @@ use turbo_analysis::Span;
 use turbo_maxent::ModelFile;
 use turbo_sentdetect::{Decision, Scratch, SentenceDetector, SentenceModel, WhitespaceMode, newline_spans};
 use turbo_unicode::utf16::{byte_to_utf16, utf16_to_byte};
-
-const TOLERANCE: f64 = 1e-9;
 
 /// The golden span of a span this crate found.
 fn golden_span(text: &str, s: Span, prob: Option<f64>) -> common::GoldenSpan {
@@ -42,13 +42,13 @@ fn check_offsets(g: &common::Golden, name: &str) {
     }
 }
 
-/// Spans equal, probabilities within the tolerance.
+/// Spans and probabilities equal.
 fn assert_spans(got: &[common::GoldenSpan], want: &[common::GoldenSpan], name: &str) {
     assert_eq!(got.len(), want.len(), "{name}: {got:?} against {want:?}");
     for (g, w) in got.iter().zip(want) {
         assert_eq!((g.utf8, g.utf16), (w.utf8, w.utf16), "{name}: {got:?} against {want:?}");
         let (gp, wp) = (g.prob.unwrap(), w.prob.expect("a probability in the golden file"));
-        assert!((gp - wp).abs() <= TOLERANCE, "{name}: probability {gp} against {wp}");
+        assert_eq!(gp.to_bits(), wp.to_bits(), "{name}: probability {gp} against {wp}");
     }
 }
 
@@ -168,8 +168,8 @@ fn check_fixture(name: &str, mode: WhitespaceMode) {
                 show(features),
                 show(&want.features)
             );
-            assert!((probs.0 - want.probs.0).abs() <= TOLERANCE, "{what} at {}: P(s)", want.at);
-            assert!((probs.1 - want.probs.1).abs() <= TOLERANCE, "{what} at {}: P(n)", want.at);
+            assert_eq!(probs.0.to_bits(), want.probs.0.to_bits(), "{what} at {}: P(s)", want.at);
+            assert_eq!(probs.1.to_bits(), want.probs.1.to_bits(), "{what} at {}: P(n)", want.at);
             let want_decision = match want.decision.as_str() {
                 "split" => Decision::Split,
                 "no-split" => Decision::NoSplit,

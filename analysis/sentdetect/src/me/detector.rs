@@ -4,7 +4,8 @@ use std::sync::Arc;
 
 use turbo_analysis::{Annotator, Error, ModelRef, Refs, Span, Spans, View};
 use turbo_analysis_layers::{Confidence, Sentences};
-use turbo_unicode::{WhitespaceMode, java};
+use turbo_maxent::best_outcome;
+use turbo_unicode::{WhitespaceMode, java::code_point as java};
 
 use crate::context::{Lookup, SdContext};
 use crate::eos::Position;
@@ -140,7 +141,7 @@ impl SentenceDetector {
 
             ctx.context(text, len16, cint, features, lookup);
             maxent.eval_features(features.iter(), probs);
-            let best = maxent.best_outcome(probs);
+            let best = best_outcome(probs);
             let decision = if best != model.split_outcome() {
                 Decision::NoSplit
             } else if model.abbreviation_index().is_some_and(|a| !a.allows_break(text, len16, index, cint, window)) {
@@ -195,11 +196,9 @@ impl Annotator for SentenceDetector {
         let mut found = Vec::new();
         self.detect_with(text, &mut Scratch::new(), &mut found);
         let mut spans = Spans::with_capacity(view.id(), found.len());
-        // The confidence layer stores f32; the probabilities are computed
-        // in f64, as in Java, and narrowed only here.
         let confidence = found.iter().map(|&(s, p)| {
             spans.push(s);
-            p as f32
+            p
         });
         let confidence = Confidence::new(confidence.collect());
         Ok((Sentences { spans }, confidence))
@@ -275,8 +274,8 @@ mod tests {
         let (sentences, confidence) = d.annotate((view,)).unwrap();
         assert_eq!(sentences.spans.view(), view.id());
         assert_eq!(sentences.spans.columns(), (&[0, 53][..], &[52, 67][..]));
-        // The golden probabilities, narrowed to f32.
-        assert_eq!(confidence.value, [0.9955300941022667f64 as f32, 0.9466056890177881f64 as f32]);
+        // The golden probabilities.
+        assert_eq!(confidence.value, [0.9955300941022667, 0.9466056890177881]);
         assert_ne!(d.config_hash(), detector("en-abbrev.bin", WhitespaceMode::Legacy).config_hash());
         assert_eq!(d.model().unwrap().id, "opennlp:SentenceDetectorME:en");
     }
