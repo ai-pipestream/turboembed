@@ -537,7 +537,8 @@ mod tests {
     fn a_table_from_before_tuned_sessions_is_known_and_offers_none() {
         let t = cpu_table(std::mem::offset_of!(turbo_backend, session_create_tuned));
         assert_eq!(std::mem::offset_of!(turbo_backend, session_create_tuned), 160);
-        assert_eq!(size_of::<turbo_backend>(), 168);
+        assert_eq!(std::mem::offset_of!(turbo_backend, session_open), 168);
+        assert_eq!(size_of::<turbo_backend>(), 184);
         check_table(&t).unwrap();
         assert!(offered!(&t, session_run).is_ok());
         // Whatever lies past the table's end is not read.
@@ -551,6 +552,86 @@ mod tests {
         t.session_create_tuned = Some(no_tuned);
         assert!(offered!(&t, session_create_tuned).is_ok());
         check_table(&t).unwrap();
+    }
+
+    /// A session_open and an embed_write_ranges for tables that must
+    /// have them, never called.
+    unsafe extern "C" fn no_open(
+        _: *mut c_void,
+        _: *const turbo_backend_session_desc,
+        _: *mut turbo_backend_tuning,
+        _: *mut u32,
+        _: *mut *mut c_void,
+        _: *mut turbo_error,
+    ) -> i32 {
+        crate::status::INTERNAL
+    }
+
+    unsafe extern "C" fn no_ranges(
+        _: *mut c_void,
+        _: *const turbo_backend_embed_rows,
+        _: *const turbo_token_range,
+        _: u32,
+        _: *mut turbo_error,
+    ) -> i32 {
+        crate::status::INTERNAL
+    }
+
+    #[test]
+    fn a_table_from_before_session_open_is_known_and_offers_neither() {
+        let mut t = cpu_table(std::mem::offset_of!(turbo_backend, session_open));
+        assert_eq!(std::mem::offset_of!(turbo_backend, session_open), 168);
+        t.session_create_tuned = Some(no_tuned);
+        check_table(&t).unwrap();
+        assert!(offered!(&t, session_create_tuned).is_ok());
+        // Whatever lies past the table's end is not read.
+        t.session_open = Some(no_open);
+        t.embed_write_ranges = Some(no_ranges);
+        check_table(&t).unwrap();
+        let e = offered!(&t, session_open).err().unwrap();
+        assert_eq!(e, Error::new(UNSUPPORTED, "the cpu backend does not offer session_open"));
+        let e = offered!(&t, embed_write_ranges).err().unwrap();
+        assert_eq!(e, Error::new(UNSUPPORTED, "the cpu backend does not offer embed_write_ranges"));
+        // The whole table offers each when it is there.
+        let mut t = cpu_table(size_of::<turbo_backend>());
+        t.session_open = None;
+        t.embed_write_ranges = None;
+        check_table(&t).unwrap();
+        assert_eq!(offered!(&t, session_open).err().unwrap().code, UNSUPPORTED);
+        assert_eq!(offered!(&t, embed_write_ranges).err().unwrap().code, UNSUPPORTED);
+        t.session_open = Some(no_open);
+        assert!(offered!(&t, session_open).is_ok());
+        check_table(&t).unwrap();
+        t.embed_write_ranges = Some(no_ranges);
+        assert!(offered!(&t, embed_write_ranges).is_ok());
+        check_table(&t).unwrap();
+        let t = cpu_table(std::mem::offset_of!(turbo_backend, embed_write_ranges));
+        assert_eq!(check_table(&t).unwrap_err().code, INTERNAL, "a size inside the session_open group is unknown");
+    }
+
+    #[test]
+    fn ranges_without_session_open_are_refused() {
+        let mut t = cpu_table(size_of::<turbo_backend>());
+        t.session_open = None;
+        t.embed_write_ranges = Some(no_ranges);
+        let e = check_table(&t).unwrap_err();
+        assert_eq!(e, Error::new(INTERNAL, "cpu backend: its table has embed_write_ranges and no session_open"));
+    }
+
+    #[test]
+    fn session_open_without_its_release_or_its_run_is_refused() {
+        let mut t = cpu_table(size_of::<turbo_backend>());
+        t.session_create = None;
+        t.session_open = Some(no_open);
+        t.session_release = None;
+        let e = check_table(&t).unwrap_err();
+        assert_eq!(e, Error::new(INTERNAL, "cpu backend: its table has session_open and no session_release"));
+        let mut t = cpu_table(size_of::<turbo_backend>());
+        t.session_create = None;
+        t.session_open = Some(no_open);
+        t.session_run = None;
+        let e = check_table(&t).unwrap_err();
+        assert_eq!(e, Error::new(INTERNAL, "cpu backend: its table has session_open and no session_run"));
     }
 
     #[test]
