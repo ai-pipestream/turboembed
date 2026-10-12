@@ -1927,6 +1927,24 @@ dependencies = [
 ]
 
 [[package]]
+name = "turbo-stem"
+version = "0.1.0"
+dependencies = [
+ "turbo-analysis",
+ "turbo-analysis-layers",
+ "turbo-stem-layers",
+ "turbo-unicode",
+]
+
+[[package]]
+name = "turbo-stem-layers"
+version = "0.1.0"
+dependencies = [
+ "turbo-analysis",
+ "turbo-analysis-layers",
+]
+
+[[package]]
 name = "turbo-structure"
 version = "0.1.0"
 dependencies = [

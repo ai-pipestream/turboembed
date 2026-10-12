@@ -1,0 +1,141 @@
+diff --git a/compiler/driver.c b/compiler/driver.c
+index e0b2e07..38be639 100644
+--- a/compiler/driver.c
++++ b/compiler/driver.c
+@@ -382,7 +382,7 @@ static int read_options(struct options * o, int argc, char * argv[]) {
+                 o->parent_class_name = DEFAULT_PYTHON_BASE_CLASS;
+             break;
+         case LANG_RUST:
+-            o->encoding = ENC_UTF8;
++            o->encoding = ENC_WIDECHARS;
+             break;
+         default:
+             break;
+diff --git a/compiler/generator_rust.c b/compiler/generator_rust.c
+index 924d183..e76e1aa 100644
+--- a/compiler/generator_rust.c
++++ b/compiler/generator_rust.c
+@@ -50,10 +50,9 @@ static void write_varref(struct generator * g, struct name * p) {
+ static void write_literal_string(struct generator * g, symbol * p) {
+ 
+     int i = 0;
+-    write_string(g, "\"");
++    write_string(g, "u16s!(\"");
+     while (i < SIZE(p)) {
+-        int ch;
+-        i += get_utf8(p + i, &ch);
++        int ch = p[i++];
+         if (32 <= ch && ch < 127) {
+             if (ch == '\"' || ch == '\\') write_string(g, "\\");
+             write_char(g, ch);
+@@ -63,7 +62,7 @@ static void write_literal_string(struct generator * g, symbol * p) {
+             write_string(g, "}");
+         }
+     }
+-    write_string(g, "\"");
++    write_string(g, "\")");
+ }
+ 
+ static void write_margin(struct generator * g) {
+@@ -256,14 +255,14 @@ static void generate_AE(struct generator * g, struct node * p) {
+             w(g, p->mode == m_forward ? "env.limit" : "env.limit_backward"); break;
+         case c_lenof:
+             g->V[0] = p->name;
+-            w(g, "(~V0.chars().count() as i32)");
++            w(g, "(~V0.len() as i32)");
+             break;
+         case c_sizeof:
+             g->V[0] = p->name;
+             w(g, "(~V0.len() as i32)");
+             break;
+         case c_len:
+-            w(g, "(env.current.chars().count() as i32)");
++            w(g, "(env.current.len() as i32)");
+             break;
+         case c_size:
+             w(g, "(env.current.len() as i32)");
+@@ -717,9 +716,7 @@ static void generate_sliceto(struct generator * g, struct node * p) {
+ 
+     write_comment(g, p);
+     g->V[0] = p->name;
+-    writef(g, "~M~V0 = env.slice_to();~N"
+-              "~Mif ~V0.is_empty() {~N"
+-              "~+~Mreturn false;~N~-~M}~N", p);
++    writef(g, "~M~V0 = env.slice_to();~N", p);
+ }
+ 
+ static void generate_address(struct generator * g, struct node * p) {
+@@ -877,7 +874,7 @@ static void generate_dollar(struct generator * g, struct node * p) {
+         g->V[0] = p->name;
+         g->B[0] = str_data(savevar_env);
+         /* Update string variable. */
+-        w(g, "~M~V0 = env.current.clone().into_owned();~N");
++        w(g, "~M~V0 = env.current.clone();~N");
+         /* Reset env */
+         w(g, "~M*env = ~B0;~N");
+     }
+@@ -975,7 +972,7 @@ static void generate_setup_context(struct generator * g) {
+         g->V[0] = q;
+         switch (q->type) {
+             case t_string:
+-                w(g, "~M~W0: String::new(),~N");
++                w(g, "~M~W0: Vec::new(),~N");
+                 break;
+             case t_integer:
+                 w(g, "~M~W0: 0,~N");
+@@ -1097,7 +1094,7 @@ static void generate_substring(struct generator * g, struct node * p) {
+         g->I[3] = bitmap;
+         g->I[4] = shortest_size - 1;
+         if (p->mode == m_forward) {
+-            sprintf(buf, "env.current.as_bytes()[(env.cursor + %d) as usize]", shortest_size - 1);
++            sprintf(buf, "env.current[(env.cursor + %d) as usize]", shortest_size - 1);
+             g->S[1] = buf;
+             if (shortest_size == 1) {
+                 writef(g, "~Mif (env.cursor >= env.limit", p);
+@@ -1105,7 +1102,7 @@ static void generate_substring(struct generator * g, struct node * p) {
+                 writef(g, "~Mif (env.cursor + ~I4 >= env.limit", p);
+             }
+         } else {
+-            g->S[1] = "env.current.as_bytes()[(env.cursor - 1) as usize]";
++            g->S[1] = "env.current[(env.cursor - 1) as usize]";
+             if (shortest_size == 1) {
+                 writef(g, "~Mif (env.cursor <= env.limit_backward", p);
+             } else {
+@@ -1119,13 +1116,13 @@ static void generate_substring(struct generator * g, struct node * p) {
+              */
+         } else if (n_cases == 1) {
+             g->I[4] = cases[0];
+-            writef(g, " || ~S1 as u8 != ~I4 as u8", p);
++            writef(g, " || ~S1 != ~I4", p);
+         } else if (n_cases == 2) {
+             g->I[4] = cases[0];
+             g->I[5] = cases[1];
+-            writef(g, " || (~S1 as u8 != ~I4 as u8 && ~S1 as u8 != ~I5 as u8)", p);
++            writef(g, " || (~S1 != ~I4 && ~S1 != ~I5)", p);
+         } else {
+-            writef(g, " || ~S1 as u8 >> 5 != ~I2 as u8 || ((~I3 as i32 >> (~S1 as u8 & 0x1f)) & 1) == 0", p);
++            writef(g, " || ~S1 >> 5 != ~I2 || ((~I3 as i32 >> (~S1 & 0x1f)) & 1) == 0", p);
+         }
+         write_string(g, ") ");
+         if (empty_case != -1) {
+@@ -1299,9 +1296,9 @@ static void generate_allow_warnings(struct generator * g) {
+ 
+ static void generate_class_begin(struct generator * g) {
+ 
+-    w(g, "use snowball::SnowballEnv;~N");
++    w(g, "use super::super::runtime::SnowballEnv;~N");
+     if (g->analyser->among_count > 0) {
+-        w(g, "use snowball::Among;~N~N");
++        w(g, "use super::super::runtime::Among;~N~N");
+     }
+ }
+ 
+@@ -1385,7 +1382,7 @@ static void generate_members(struct generator * g) {
+         g->V[0] = q;
+         switch (q->type) {
+             case t_string:
+-                w(g, "~M~W0: String,~N");
++                w(g, "~M~W0: Vec<u16>,~N");
+                 break;
+             case t_integer:
+                 w(g, "~M~W0: i32,~N");
