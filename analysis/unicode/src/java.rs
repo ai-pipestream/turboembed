@@ -140,19 +140,41 @@ pub fn to_lowercase(text: &str, out: &mut String) {
     }
 }
 
-fn push_lower(text: &str, at: usize, c: char, out: &mut String) {
+/// What `String.toLowerCase(Locale.ROOT)` writes for one character.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Lowercase {
+    /// One character, which is the input character itself when it has no
+    /// lowercase mapping.
+    Char(char),
+    /// More than one character (U+0130 becomes `i\u{307}`).
+    Str(&'static str),
+}
+
+/// The lowercase mapping [`to_lowercase`] applies to the character `c`
+/// that starts at byte `at` of `text`. The text is needed only for U+03A3
+/// GREEK CAPITAL LETTER SIGMA, whose mapping depends on the characters
+/// around it (the Final_Sigma condition); every other character maps the
+/// same wherever it stands. Calling this for each character of a text and
+/// writing the results gives the same string as [`to_lowercase`], so a
+/// caller can lowercase character by character and see which ones change.
+pub fn lowercase_at(text: &str, at: usize, c: char) -> Lowercase {
+    debug_assert!(text[at..].starts_with(c), "c is not the character at byte {at}");
     if c == CAPITAL_SIGMA {
-        out.push(if is_final_sigma(text, at) { FINAL_SIGMA } else { SMALL_SIGMA });
-        return;
+        return Lowercase::Char(if is_final_sigma(text, at) { FINAL_SIGMA } else { SMALL_SIGMA });
     }
-    let bits = bits(c);
-    if bits & HAS_SPECIAL_LOWER != 0
+    if bits(c) & HAS_SPECIAL_LOWER != 0
         && let Some(lower) = find(&SPECIAL_LOWER_KEYS, &SPECIAL_LOWER_VALUES, c as u32)
     {
-        out.push_str(lower);
-        return;
+        return Lowercase::Str(lower);
     }
-    out.push(to_lower_char(c));
+    Lowercase::Char(to_lower_char(c))
+}
+
+fn push_lower(text: &str, at: usize, c: char, out: &mut String) {
+    match lowercase_at(text, at, c) {
+        Lowercase::Char(lower) => out.push(lower),
+        Lowercase::Str(lower) => out.push_str(lower),
+    }
 }
 
 /// The Final_Sigma condition of Unicode section 3.13 for the sigma at

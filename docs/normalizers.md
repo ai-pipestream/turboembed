@@ -106,6 +106,10 @@ without the fullwidth and ASCII letters of larger radixes).
 `java::to_lowercase` implements Final_Sigma as Unicode section 3.13
 defines it; on the cases in `analysis/unicode/tests/java.rs` it gives the same output as
 OpenJDK 21.
+`java::lowercase_at` gives the mapping `to_lowercase` applies to one
+character, with U+03A3 decided from the text around it, so a normalizer
+can lowercase character by character and replace only the characters
+that change (`CaseFold::lowercase` does).
 
 **Tests.** `analysis/unicode/tests/normalization.rs` checks every line of
 NormalizationTest.txt (all five columns and the standard invariants), that
