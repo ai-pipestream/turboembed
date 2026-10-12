@@ -10,7 +10,7 @@
 FROM eclipse-temurin:21-jdk@sha256:3e3c176ffed168beb42c607be9bc1639b466cf00261a0fb04425562c9d0c5c2b
 
 ARG OPENNLP_REPO=https://github.com/ai-pipestream/opennlp
-ARG OPENNLP_COMMIT=92d486d05151ef00b6d145c405046aa3a33b5a48
+ARG OPENNLP_COMMIT=cdf33c653d5d61d5af7d37ffee189a83bd8392ea
 
 RUN apt-get update \
  && apt-get install -y --no-install-recommends git \

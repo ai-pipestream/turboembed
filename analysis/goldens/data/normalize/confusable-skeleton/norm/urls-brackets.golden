@@ -1,0 +1,21 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-1-24.04.4-Ubuntu	Ubuntu
+unicode	15.0
+input	norm/urls-brackets	224	224	abb75b5a2a892aeb815276b179aff4a513682ae58e195aa8cc84fd736cf2337e
+annotator	opennlp.tools.util.normalizer.ConfusableSkeletonCharSequenceNormalizer	normalize
+layer	turbo:view	text	12	start:u32	end:u32	with:str
+18	19	rn
+25	26	rn
+43	44	rn
+68	69	rn
+96	97	rn
+103	104	rn
+150	151	rn
+157	158	rn
+184	185	''
+196	197	rn
+203	204	rn
+211	212	''
+end	turbo:view

@@ -6,6 +6,7 @@ import java.nio.charset.CodingErrorAction;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 
 /**
  * Writes a golden file byte for byte as the format says: UTF-8, LF line ends, one tab between
@@ -32,6 +33,7 @@ final class GoldenWriter {
     StringBuilder out = new StringBuilder();
     out.append("golden ").append(FORMAT_VERSION).append('\n');
     header(out, h);
+    config(out, h);
     for (Layer layer : layers) {
       layer(out, layer);
     }
@@ -52,6 +54,16 @@ final class GoldenWriter {
       line(out, "model", escape(m.fileName()), m.sha512());
     }
     line(out, "annotator", escape(h.annotatorClass()), escape(h.method()));
+  }
+
+  /**
+   * Appends the {@code config} records, one per option, sorted by key. They follow the
+   * {@code annotator} record in a golden; a dump has none.
+   */
+  static void config(StringBuilder out, Header h) {
+    for (Map.Entry<String, String> e : h.config().entrySet()) {
+      line(out, "config", escape(e.getKey()), escape(e.getValue()));
+    }
   }
 
   private static void layer(StringBuilder out, Layer layer) {

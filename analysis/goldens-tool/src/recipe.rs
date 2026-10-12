@@ -7,14 +7,14 @@
 pub const BASE_IMAGE: &str = "eclipse-temurin:21-jdk";
 pub const BASE_IMAGE_DIGEST: &str = "sha256:3e3c176ffed168beb42c607be9bc1639b466cf00261a0fb04425562c9d0c5c2b";
 
-/// The OpenNLP fork and the commit on its `integration/3.0-pre` branch the
+/// The OpenNLP fork and the commit on its `kristian-3.x-features` branch the
 /// generator runs.
 pub const OPENNLP_REPO: &str = "https://github.com/ai-pipestream/opennlp";
-pub const OPENNLP_COMMIT: &str = "92d486d05151ef00b6d145c405046aa3a33b5a48";
+pub const OPENNLP_COMMIT: &str = "cdf33c653d5d61d5af7d37ffee189a83bd8392ea";
 
 /// The tag `turbo-goldens image` gives the image it builds. It names the
 /// OpenNLP commit, so an image built from another commit has another tag.
-pub const IMAGE_TAG: &str = "turbo-goldens-java:opennlp-92d486d05151";
+pub const IMAGE_TAG: &str = "turbo-goldens-java:opennlp-cdf33c653d5d";
 
 /// A model file the generator loads, where it is published and the SHA-512
 /// published beside it.
@@ -49,7 +49,7 @@ pub const MODELS: [Model; 3] = [
 ];
 
 /// The input sets under `analysis/goldens/data/inputs`.
-pub const INPUT_SETS: [&str; 2] = ["en", "multi"];
+pub const INPUT_SETS: [&str; 3] = ["en", "multi", "norm"];
 
 /// The arguments the driver passes to the generator after the fixed ones
 /// (the inputs, models and output directories and the commit, which the
@@ -60,7 +60,7 @@ pub const GENERATOR_ARGS: [&str; 1] = ["--dumps"];
 /// The annotator directories the generator writes, which `generate`
 /// replaces and `verify` compares. The data directory holds other things
 /// (the inputs, a README) that neither touches.
-pub const ANNOTATORS: [&str; 3] = ["sentdetect", "tokenize", "langdetect"];
+pub const ANNOTATORS: [&str; 4] = ["sentdetect", "tokenize", "langdetect", "normalize"];
 
 #[cfg(test)]
 mod tests {

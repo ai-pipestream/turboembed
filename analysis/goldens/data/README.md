@@ -60,3 +60,15 @@ JDK named in their headers, with the OpenNLP build and models the goldens
 were made with; the goldens of that run are byte for byte the checked in
 ones. The run in the pinned container, through `turbo-goldens generate`
 and `verify`, is still to be done on a machine with Docker.
+
+## Normalizer goldens
+
+`inputs/norm/` holds 61 short texts written for the normalizers: curly
+quotes and dashes, line ends and Unicode spaces, hyphenated line breaks,
+URLs and e-mail addresses, tweets, numbers, ligatures and normalization
+forms, Hangul, German, Greek and Turkish letters, confusables, emoji,
+English contractions, lone symbols and a few texts for the differences
+recorded in `docs/normalizers.md`. Every character is in the Unicode 15.0
+repertoire, which JDK 21 implements. `normalize/<name>/norm/<id>.golden`
+holds a `turbo:view` layer with the edits OpenNLP's normalizer `<name>`
+made to `inputs/norm/<id>.txt`; see `analysis/goldens-tool/README.md`.
