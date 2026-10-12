@@ -659,11 +659,38 @@ older than the runtime, it lists none and the runtime's log says why.
   that changes which block computes a row, never what it computes.)
   Against the fp32 reference, F32 must reach cosine 0.9999 and a largest
   absolute difference of 1e-4, F16 cosine 0.999 (docs/conformance.md).
+- **Range pooling.** `turbo_embed_write_ranges` sends the rows as
+  `embed_write` does, and its ranges, three `uint32` each as
+  `turbo_token_range` lays them out, right after the rows' arrays: into
+  the page-locked staging, where `fetch_rows` brings them to the device
+  in the same copy as the rows, or, when the rows went to the device
+  straight from the caller's page-locked memory, from the staging in one
+  more copy, since the caller's ranges are ordinary memory. The device's
+  rows region and the staging have room for the session's `max_ranges`
+  of them, made with the session. The count travels in the run's
+  arguments to `pack_rows`, which writes it beside the packing, so the
+  graph captured when the session was made serves a range run too. The
+  run encodes every row once, and the pooling kernel then writes one
+  vector per range, in range order, in place of one per row: the mean of
+  the final hidden states over the range's tokens whose mask is 1, cut
+  to `output_dim`, then normalized when `normalize` says so. A range
+  stops at its row's last live token, since the columns after it are
+  padding that is never computed. The range is pooled by the row's own
+  kernel (the groups of tokens, or a thread per column), its groups
+  split over the range's tokens as a row's are over the row's, so a
+  range over a whole row gives that row's vector bit for bit, and the
+  same range over the same rows gives the same bits whatever else the
+  batch holds. The session's output buffer holds
+  max(`max_batch`, `max_ranges`) vectors of `hidden` F32, made with the
+  session, so a range run allocates nothing either. The device is a GPU,
+  so `cpu_threads` (field 6 of `turbo_session_desc`) is 0 alone: any
+  other value is `TURBO_E_UNSUPPORTED_OPTION` naming field 6.
 - **What a result reports.** Stages: tokenize on the host for text,
   upload, lookup, encode and pool on the device, normalize fused into the
   pooling kernel when it runs, and no download: the vectors stay where
   they are. `h2d_bytes` is the rows sent by the write, 4 bytes per token
-  for each of ids, mask and (when given) types. `d2h_bytes` is 0 after the
+  for each of ids, mask and (when given) types, and 12 bytes per range
+  for a range write. `d2h_bytes` is 0 after the
   run and grows by each read. `host_allocs` and `device_allocs` are what
   the backend allocated on the running thread during the run, counted
   where it allocates; a run allocates nothing, cold or warm. The first

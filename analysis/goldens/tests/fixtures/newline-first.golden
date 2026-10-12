@@ -1,0 +1,9 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	0123456789abcdef0123456789abcdef01234567	3.0.0-PRE-SNAPSHOT
+jdk	21.0.5	21.0.5+11-LTS	Eclipse Adoptium
+unicode	15.0
+input	test/newline-first	11	11	eb783ec46c71892387c17c46cdae5ee94d202b74f75b5a4fc60b0b9d119a11fe
+annotator	opennlp.tools.tokenize.SimpleTokenizer	tokenizePos
+config	keepNewLines	true
+error	java.lang.IllegalArgumentException	start index must be zero or greater: -1

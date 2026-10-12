@@ -20,6 +20,12 @@
 //! over the bus, and the run leaves the vectors on the device, in the
 //! session's DEVICE buffer, which turbo_result_read copies back through
 //! buffer_read.
+//!
+//! embed_write_ranges packs the rows the same way and copies its ranges
+//! into the staging after the row table, where the pooling kernel reads
+//! them over the bus as the lookup kernel reads the rows. The run then
+//! writes one vector per range in place of one per row, so the output
+//! buffer holds max(max_batch, max_ranges) vectors of hidden F32.
 
 use std::ffi::c_void;
 use std::sync::Mutex;
@@ -31,15 +37,18 @@ use super::gpu::{
 use super::ze;
 use crate::backend::{
     TURBO_BERT_EMBEDDING_TENSORS, TURBO_BERT_LAYER_TENSORS, TURBO_FAMILY_BERT, TURBO_FAMILY_ROBERTA,
-    turbo_backend_embed_rows, turbo_backend_model, turbo_backend_run, turbo_backend_tuning,
+    turbo_backend_embed_rows, turbo_backend_model, turbo_backend_run, turbo_backend_session_desc, turbo_backend_tuning,
 };
-use crate::status::{INVALID_ARGUMENT, INVALID_STATE, UNSUPPORTED, UNSUPPORTED_OPTION, UNSUPPORTED_TASK};
+use crate::status::{
+    INVALID_ARGUMENT, INVALID_STATE, INVALID_STRUCT_SIZE, UNSUPPORTED, UNSUPPORTED_OPTION, UNSUPPORTED_TASK,
+};
 use crate::{
     TURBO_AUTOTUNE_ON, TURBO_AUTOTUNE_RETUNE, TURBO_DTYPE_F16, TURBO_DTYPE_F32, TURBO_EMBED_STAGE_DOWNLOAD,
     TURBO_EMBED_STAGE_ENCODE, TURBO_EMBED_STAGE_LOOKUP, TURBO_EMBED_STAGE_NORMALIZE, TURBO_EMBED_STAGE_POOL,
     TURBO_EMBED_STAGE_UPLOAD, TURBO_NORMALIZE_L2, TURBO_NORMALIZE_NONE, TURBO_PLACE_DEVICE, TURBO_POOLING_MEAN,
     TURBO_PRECISION_FASTEST, TURBO_PRECISION_MODEL, TURBO_STAGE_DEVICE, TURBO_STAGE_FUSED, TURBO_STAGE_UNUSED,
     TURBO_TASK_EMBED, TURBO_TUNED_CACHE, TURBO_TUNED_DEFAULT, TURBO_TUNED_FORCED, TURBO_TUNED_MEASURED, turbo_error,
+    turbo_token_range,
 };
 
 /// TURBO_BERT_* in turbo_backend.h: the embedding tensors, then each
@@ -75,6 +84,10 @@ const FEW_TOKENS: u32 = 256;
 /// Sub-groups of a pooling group, each summing every so-many tokens, as
 /// encoder.cl's POOL_SLICES.
 const POOL_SLICES: u32 = 8;
+/// Bytes of one turbo_token_range in the staging: row, start and end,
+/// three int32 as the pool_ranges kernel reads them.
+const RANGE_BYTES: usize = size_of::<turbo_token_range>();
+const _: () = assert!(RANGE_BYTES == 12);
 /// Work-items per group for the row kernels, as encoder.cl's BLOCK.
 const BLOCK: u32 = 128;
 /// Work-items per group for the elementwise kernels.
@@ -540,6 +553,8 @@ struct Kernels {
     add_layer_norm_group: Kernel,
     attention: Attention,
     pool: Kernel,
+    /// The mean over each range of embed_write_ranges, in place of pool.
+    pool_ranges: Kernel,
     normalize: Kernel,
 }
 
@@ -621,6 +636,7 @@ impl Kernels {
             add_layer_norm_group: c.kernel("add_layer_norm_group", row)?,
             attention,
             pool: c.kernel("pool", [16 * POOL_SLICES, 1, 1])?,
+            pool_ranges: c.kernel("pool_ranges", [16 * POOL_SLICES, 1, 1])?,
             normalize: c.kernel("normalize", row)?,
         })
     }
@@ -800,6 +816,8 @@ struct Session {
     linear: Linear,
     max_batch: u32,
     max_seq: u32,
+    /// The most ranges one embed_write_ranges may hold.
+    max_ranges: u32,
     scratch: *mut c_void,
     /// Each row's first packed token and its length through its last live
     /// token, [batch, 2] int32, as the lookup kernel copies it from the
@@ -819,16 +837,22 @@ struct Session {
     att: u64,
     tmp: u64,
     ffn: u64,
-    /// [max_batch, hidden] F32 on the device, handed out as the output.
+    /// [max(max_batch, max_ranges), hidden] F32 on the device, handed out
+    /// as the output: a row's vectors after embed_write, a range's after
+    /// embed_write_ranges, each output_dim values, packed.
     output: Box<Buffer>,
     /// The packed rows, which the device reads directly: ids, positions,
     /// types and mask, [max_batch * max_seq] int32 each, then the row
-    /// table, [max_batch, 2].
+    /// table, [max_batch, 2], then the ranges, [max_ranges, 3] (row,
+    /// start, end).
     staging: *mut c_void,
     /// What the last write left.
     written: bool,
     has_types: bool,
     batch: u32,
+    /// The ranges embed_write_ranges wrote, which the run pools by; 0
+    /// after embed_write, whose run pools each row.
+    ranges: u32,
     /// Live tokens, packed.
     tokens: u32,
     longest: u32,
@@ -853,6 +877,17 @@ impl Drop for Session {
     }
 }
 
+/// What a session is made for: session_open's description, or
+/// session_create's arguments with max_batch ranges.
+#[derive(Clone, Copy)]
+struct Shape {
+    task: u32,
+    max_batch: u32,
+    max_seq: u32,
+    precision: u32,
+    max_ranges: u32,
+}
+
 #[allow(clippy::too_many_arguments)]
 pub(crate) unsafe extern "C" fn session_create(
     model: *mut c_void,
@@ -864,6 +899,61 @@ pub(crate) unsafe extern "C" fn session_create(
     out: *mut *mut c_void,
     err: *mut turbo_error,
 ) -> i32 {
+    let shape = Shape { task, max_batch, max_seq, precision, max_ranges: max_batch };
+    unsafe { create(model, shape, compute_dtype, out, err) }
+}
+
+/// As turbo_backend.h says for session_open: the session's whole
+/// description, made as session_create_tuned makes one, its output sized
+/// for max_ranges vectors when those are more than max_batch. The device
+/// is not a CPU, so a thread count is refused.
+///
+/// # Safety
+/// As turbo_backend.h says for session_open.
+pub(crate) unsafe extern "C" fn session_open(
+    model: *mut c_void,
+    desc: *const turbo_backend_session_desc,
+    tuning: *mut turbo_backend_tuning,
+    compute_dtype: *mut u32,
+    out: *mut *mut c_void,
+    err: *mut turbo_error,
+) -> i32 {
+    let d = unsafe { &*desc };
+    let need = std::mem::offset_of!(turbo_backend_session_desc, max_ranges) + size_of::<u32>();
+    if (d.struct_size as usize) < need {
+        let message = format!(
+            "turbo_backend_session_desc of {} bytes: the levelzero backend reads it through max_ranges, {need} bytes",
+            d.struct_size
+        );
+        return unsafe { guarded(err, || Err(fail(INVALID_STRUCT_SIZE, message))) };
+    }
+    if d.cpu_threads != 0 {
+        let message = format!(
+            "cpu_threads {}: the levelzero backend's device is not a CPU; cpu_threads must be 0",
+            d.cpu_threads
+        );
+        return unsafe { guarded(err, || Err(fail_field(UNSUPPORTED_OPTION, 6, message))) };
+    }
+    let shape = Shape {
+        task: d.task,
+        max_batch: d.max_batch,
+        max_seq: d.max_seq,
+        precision: d.precision,
+        max_ranges: d.max_ranges,
+    };
+    unsafe { create_tuned(model, shape, tuning, compute_dtype, out, err) }
+}
+
+/// A session of `shape` on `model`, for session_create, and for
+/// session_create_tuned and session_open before they tune it.
+unsafe fn create(
+    model: *mut c_void,
+    shape: Shape,
+    compute_dtype: *mut u32,
+    out: *mut *mut c_void,
+    err: *mut turbo_error,
+) -> i32 {
+    let Shape { task, max_batch, max_seq, precision, max_ranges } = shape;
     unsafe {
         guarded(err, || {
             let m = &*(model as *const Model);
@@ -939,7 +1029,10 @@ pub(crate) unsafe extern "C" fn session_create(
             let wide = round_up(tokens * d.hidden as usize * 4, DEVICE_ALIGN);
             let narrow = if xmx { round_up(tokens * d.hidden as usize * 2, DEVICE_ALIGN) } else { 0 };
             let ffn = round_up(tokens * d.intermediate as usize * 4, DEVICE_ALIGN);
-            let output = round_up(max_batch as usize * d.hidden as usize * 4, DEVICE_ALIGN);
+            // The row path and the range path write their vectors to this
+            // one buffer, so it holds the larger of the two counts.
+            let vectors = max_batch.max(max_ranges) as usize;
+            let output = round_up(vectors * d.hidden as usize * 4, DEVICE_ALIGN);
             // FASTEST's sums are one part, where they are not taken by the
             // LayerNorm-fused kernels.
             let parts = if xmx { 1 } else { SPLITS as usize };
@@ -954,6 +1047,7 @@ pub(crate) unsafe extern "C" fn session_create(
                 linear: Linear::Own,
                 max_batch,
                 max_seq,
+                max_ranges,
                 scratch,
                 rows: 0,
                 packed_mask: 0,
@@ -968,6 +1062,7 @@ pub(crate) unsafe extern "C" fn session_create(
                 written: false,
                 has_types: false,
                 batch: 0,
+                ranges: 0,
                 tokens: 0,
                 longest: 0,
                 pooling: 0,
@@ -975,7 +1070,7 @@ pub(crate) unsafe extern "C" fn session_create(
                 output_dim: 0,
                 h2d: 0,
             });
-            s.staging = c.alloc_pinned(4 * tokens * 4 + max_batch as usize * 8)?;
+            s.staging = c.alloc_pinned(4 * tokens * 4 + max_batch as usize * 8 + max_ranges as usize * RANGE_BYTES)?;
             let mut p = scratch as u64;
             let mut take = |n: usize| {
                 let at = p;
@@ -992,7 +1087,7 @@ pub(crate) unsafe extern "C" fn session_create(
             s.tmp = take(parts * wide);
             s.ffn = take(ffn);
             let out_ptr = take(output) as usize as *mut c_void;
-            s.output = Box::new(Buffer::session_output(c, out_ptr, max_batch as u64 * d.hidden as u64 * 4));
+            s.output = Box::new(Buffer::session_output(c, out_ptr, vectors as u64 * d.hidden as u64 * 4));
             s.linear = match forced_linear()? {
                 Some(l) if l == Linear::Onednn && !onednn_runs(c, s.half.as_ref()) => {
                     return Err(fail(
@@ -1097,7 +1192,20 @@ pub(crate) unsafe extern "C" fn session_create_tuned(
     out: *mut *mut c_void,
     err: *mut turbo_error,
 ) -> i32 {
-    let rc = unsafe { session_create(model, task, max_batch, max_seq, precision, compute_dtype, out, err) };
+    let shape = Shape { task, max_batch, max_seq, precision, max_ranges: max_batch };
+    unsafe { create_tuned(model, shape, tuning, compute_dtype, out, err) }
+}
+
+/// The session `create` makes, then tuned as session_create_tuned says.
+unsafe fn create_tuned(
+    model: *mut c_void,
+    shape: Shape,
+    tuning: *mut turbo_backend_tuning,
+    compute_dtype: *mut u32,
+    out: *mut *mut c_void,
+    err: *mut turbo_error,
+) -> i32 {
+    let rc = unsafe { create(model, shape, compute_dtype, out, err) };
     if rc != 0 || tuning.is_null() {
         return rc;
     }
@@ -1264,6 +1372,7 @@ fn measure(s: &mut Session, order: [Linear; 2], budget_ms: u32) -> Res<Measured>
     let (tokens, longest, _) = unsafe { s.pack(&rows)? };
     s.has_types = false;
     s.batch = batch;
+    s.ranges = 0;
     s.tokens = tokens;
     s.longest = longest;
     s.pooling = rows.pooling;
@@ -1389,6 +1498,40 @@ impl Session {
         }
         let arrays = if r.types.is_null() { 3 } else { 4 };
         Ok((t as u32, longest, (arrays * t * 4 + r.batch as usize * 8) as u64))
+    }
+
+    /// Where the ranges sit in the staging: after the row table, which
+    /// holds max_batch rows.
+    fn ranges_at(&self) -> *mut turbo_token_range {
+        let n = self.max_batch as usize * self.max_seq as usize;
+        unsafe { (self.staging as *mut u8).add(4 * n * 4 + self.max_batch as usize * 8) as *mut turbo_token_range }
+    }
+
+    /// A write: the rows packed into the staging, and `ranges` copied
+    /// after them, none for embed_write, whose run pools each row. A write
+    /// that fails leaves nothing to run.
+    ///
+    /// # Safety
+    /// As `pack`; `ranges` holds at most max_ranges ranges.
+    unsafe fn write(&mut self, r: &turbo_backend_embed_rows, ranges: &[turbo_token_range]) -> Res<()> {
+        self.written = false;
+        // No crossing yet: the lookup kernel reads the packed rows, and the
+        // pooling kernel the ranges, from the staging when the run starts.
+        let (tokens, longest, sent) = unsafe { self.pack(r)? };
+        debug_assert!(ranges.len() <= self.max_ranges as usize);
+        unsafe { std::ptr::copy_nonoverlapping(ranges.as_ptr(), self.ranges_at(), ranges.len()) };
+        self.has_types = !r.types.is_null();
+        self.batch = r.batch;
+        self.ranges = ranges.len() as u32;
+        self.tokens = tokens;
+        self.longest = longest;
+        // The core writes a range run's pooling as TURBO_POOLING_MEAN.
+        self.pooling = if ranges.is_empty() { r.pooling } else { TURBO_POOLING_MEAN };
+        self.normalize = r.normalize;
+        self.output_dim = r.output_dim;
+        self.h2d = sent + (ranges.len() * RANGE_BYTES) as u64;
+        self.written = true;
+        Ok(())
     }
 
     /// The encoder over the packed rows through `layers` layers, appended
@@ -1831,19 +1974,37 @@ impl Session {
                 add_ln(q, ln.0, ln.1, ln.2, parts, "the feed-forward LayerNorm")?;
             }
         }
-        let args = [
-            Ptr(self.x),
-            Ptr(self.packed_mask),
-            Ptr(self.rows),
-            I32(h as i32),
-            I32(self.output_dim as i32),
-            I32(self.pooling as i32),
-            Ptr(self.output.ptr as u64),
-        ];
-        k.pool.launch(c, q, "pooling", &args, [batch, self.output_dim.div_ceil(16), 1])?;
+        // A vector per row, or per range after embed_write_ranges, whose
+        // ranges the kernel reads from the staging after the row table.
+        let vectors = if self.ranges > 0 {
+            let args = [
+                Ptr(self.x),
+                Ptr(self.packed_mask),
+                Ptr(self.rows),
+                Ptr(self.ranges_at() as u64),
+                I32(h as i32),
+                I32(self.output_dim as i32),
+                Ptr(self.output.ptr as u64),
+            ];
+            let groups = [self.ranges, self.output_dim.div_ceil(16), 1];
+            k.pool_ranges.launch(c, q, "range pooling", &args, groups)?;
+            self.ranges
+        } else {
+            let args = [
+                Ptr(self.x),
+                Ptr(self.packed_mask),
+                Ptr(self.rows),
+                I32(h as i32),
+                I32(self.output_dim as i32),
+                I32(self.pooling as i32),
+                Ptr(self.output.ptr as u64),
+            ];
+            k.pool.launch(c, q, "pooling", &args, [batch, self.output_dim.div_ceil(16), 1])?;
+            batch
+        };
         if self.normalize == TURBO_NORMALIZE_L2 {
             let args = [Ptr(self.output.ptr as u64), I32(self.output_dim as i32)];
-            k.normalize.launch(c, q, "normalization", &args, [batch, 1, 1])?;
+            k.normalize.launch(c, q, "normalization", &args, [vectors, 1, 1])?;
         }
         Ok(built.get())
     }
@@ -1854,23 +2015,29 @@ pub(crate) unsafe extern "C" fn embed_write(
     rows: *const turbo_backend_embed_rows,
     err: *mut turbo_error,
 ) -> i32 {
+    unsafe { guarded(err, || (*(session as *mut Session)).write(&*rows, &[])) }
+}
+
+/// The rows as embed_write takes them, and the ranges the run pools them
+/// by in place of each row. The core has checked each range and that
+/// there are 1 to max_ranges of them.
+pub(crate) unsafe extern "C" fn embed_write_ranges(
+    session: *mut c_void,
+    rows: *const turbo_backend_embed_rows,
+    ranges: *const turbo_token_range,
+    count: u32,
+    err: *mut turbo_error,
+) -> i32 {
     unsafe {
         guarded(err, || {
-            let (s, r) = (&mut *(session as *mut Session), &*rows);
-            s.written = false;
-            // No crossing yet: the lookup kernel reads the packed rows from
-            // the staging when the run starts.
-            let (tokens, longest, sent) = s.pack(r)?;
-            s.has_types = !r.types.is_null();
-            s.batch = r.batch;
-            s.tokens = tokens;
-            s.longest = longest;
-            s.pooling = r.pooling;
-            s.normalize = r.normalize;
-            s.output_dim = r.output_dim;
-            s.h2d = sent;
-            s.written = true;
-            Ok(())
+            let s = &mut *(session as *mut Session);
+            if count == 0 || count > s.max_ranges {
+                return Err(fail(
+                    INVALID_ARGUMENT,
+                    format!("{count} ranges: the levelzero session takes 1 to its max_ranges, {}", s.max_ranges),
+                ));
+            }
+            s.write(&*rows, std::slice::from_raw_parts(ranges, count as usize))
         })
     }
 }
