@@ -324,13 +324,13 @@ fn combining_mark(c: char) -> bool {
 /// The byte at `i`, or a space past the end: the Java's `charAt` sentinel
 /// for the ASCII comparisons.
 #[inline]
-fn byte_at(b: &[u8], i: usize) -> u8 {
+pub(crate) fn byte_at(b: &[u8], i: usize) -> u8 {
     b.get(i).copied().unwrap_or(b' ')
 }
 
 /// The character starting at byte `i`, or `None` past the end.
 #[inline]
-fn char_at(text: &str, i: usize) -> Option<char> {
+pub(crate) fn char_at(text: &str, i: usize) -> Option<char> {
     let &first = text.as_bytes().get(i)?;
     if first.is_ascii() {
         return Some(first as char);

@@ -1,25 +1,36 @@
-//! Money and its conversion between currencies, ported from the money
-//! package of the OpenNLP numeric add-on.
+//! Money in text and its conversion between currencies, ported from the
+//! money package of the OpenNLP numeric add-on.
 //!
+//! - [`MoneyExtractor`] finds amounts with a currency (`$1.2M`, `100 USD`,
+//!   `3 billion pounds`) and writes them as the `turbo:money` layer
+//!   ([`Money`]): `CursorMoneyExtractor` and `MoneyAnnotator`.
 //! - [`EcbRates`] reads the ECB's euro reference history and gives rates
 //!   and converted amounts as of a date: `EcbFxRates`.
+//! - [`MoneyConverter`] restates the money layer in one currency under
+//!   [`CONVERTED_MONEY`]: `MoneyConversionAnnotator`.
 //!
 //! Amounts are exact decimals throughout; the arithmetic follows Java's
 //! `BigDecimal` digit for digit. docs/money.md describes the rules.
 
+mod convert;
 mod csv;
 mod date;
 mod decimal;
 mod divide;
 mod ecb;
+mod extract;
 mod natural;
+mod tables;
 
 use std::fmt;
 
+pub use convert::MoneyConverter;
 pub use date::Date;
 pub use decimal::{Decimal, DecimalParseError, cmp_values};
 pub use ecb::{EcbError, EcbRates, MAX_STALENESS_DAYS};
-pub use turbo_analysis_layers::Currency;
+pub use extract::{MoneyExtractor, SymbolError};
+pub use tables::{DEFAULT_SYMBOLS, is_iso_currency};
+pub use turbo_analysis_layers::{CONVERTED_MONEY, Currency, Money, MoneyMention};
 
 use turbo_analysis_layers::DecimalRef;
 
