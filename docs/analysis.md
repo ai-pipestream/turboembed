@@ -631,7 +631,8 @@ zero costs, a target of zero and several weights and overheads.
 its size penalty and clamped to plus or minus 2^60 units, since the
 caller supplies it. It is how a signal over whole
 chunks, such as how tightly a chunk's sentences cluster, enters the
-optimizer; the chunker passes `no_term`.
+optimizer; `Chunker` passes `no_term`, and `CohesiveChunker` passes
+cohesion (see Drift and cohesion below).
 
 ### Boundary costs
 
@@ -675,7 +676,8 @@ Each gap takes its strongest break:
 
 A gap where a heading ends costs 4000 more, so a heading stays with what
 it heads. With no structure every gap is a sentence boundary. It writes
-the default instance, as the only signal.
+the default instance when it is the only signal, and the `structure`
+instance beside drift.
 
 ### Hard limits
 
@@ -717,6 +719,141 @@ not at a level above its child or does not hold the child's span.
 
 Not measured yet: the chunker against the stage 0 baselines on the
 evaluation harness, with significance, which is still being built.
+
+### Drift and cohesion
+
+Two signals come from the sentence vectors (`Vectors<Sentences>`, late
+pooled). Both scale each vector to length one (`Rows`, which reads the
+layer in place and keeps one over each row's length). A sentence with
+no vector (one the layer's `empty` column lists, or a row of zeros or of
+non-finite numbers) adds nothing and is not counted: it has no direction
+to compare. Floating point (f64, summed in a fixed order) computes two
+quantities only, drift's cosines and cohesion's spread; each is rounded
+once to an integer, and every cost after that is integer arithmetic, so
+the same vectors give the same costs.
+
+Costs below are in the units `Boundaries` is written in: a plain
+sentence boundary is `Boundaries::UNIT`, 1000, so one of these units is
+a thousandth of a sentence boundary.
+
+**Drift** (`DriftBoundaries`, the `drift` instance of the boundaries) is
+a cost per gap. For the gap after sentence g:
+
+1. The cosine between the sum of the `window` (3) sentences with a
+   vector before the gap and the sum of the `window` after it, in
+   millionths, summed directly: drift needs memory for a few vectors,
+   not for the document. Only a gap with a full window on both sides is
+   scored, as NLTK's TextTiling leaves the gaps at the ends unscored.
+   With a window cut short at an end, a single odd first or last
+   sentence was compared alone, its gap was a valley with a wall on one
+   side only, and the optimizer set it apart as a chunk of its own (a
+   cost of -2000 at the first gap, against about -420 for the same
+   sentence in the middle). The price is no drift within `window - 1`
+   sentences of either end, where a cut would leave a chunk of fewer
+   than `window` sentences anyway. A gap that is not scored costs zero,
+   and the rest are scored among themselves, in order, skipping it. The
+   two gaps around an empty sentence see the same windows, so they cost
+   the same. `window` is a `NonZeroU32`.
+2. A moving average over `smoothing` (1) cosines on each side, rounded
+   to an integer. Near an end it takes as many on each side as the
+   nearer end allows, so the average stays centred and a valley next to
+   an end stays where it is.
+3. The score, by default the TextTiling depth (Hearst 1997): the
+   highest smoothed cosine reached walking left while it does not fall,
+   plus the same to the right, less twice the gap's own. It takes
+   linear time, since a walk continues the walk from its neighbour. A
+   steady slow drift has no valleys and scores nothing.
+4. A score under `floor` (0.01) counts as zero; the gap then costs
+   `-score * scale / 10^6`, truncated toward zero, where `scale` (2000)
+   is what a score of one takes off the gap: a depth of 0.5 takes off
+   one sentence boundary. `scale` is unsigned, so drift never makes a
+   cut dearer.
+5. A gap at the bottom of a valley (lower than the gap before, not
+   higher than the one after, so a flat bottom marks its first gap)
+   whose score is at least `shift` (0.1) gives `Cut::TopicShift`. A
+   single outlier sentence in the middle of a stretch passes it (its
+   dip is about 0.21 deep), and so does the first or last scored gap
+   when the window there still holds an outlier at an end (about 0.11):
+   the reason is named, and the cost (about -420 and -210) decides
+   whether a cut is made there. The default is untuned; the tests pin
+   this behaviour so a change to it is deliberate.
+
+Comparing groups of sentences rather than single sentences keeps one
+odd sentence from looking like a topic of its own: with a window of one,
+both gaps around an outlier are full-depth valleys and the optimizer
+sets it apart; with a window of three its dip is spread over six gaps
+at about a tenth of that depth, and it stays in its chunk.
+
+**Weighing.** `WeighBoundaries` reads the `structure` and `drift`
+instances and writes the default one: `(structure * ws + drift * wd) /
+1000` per gap, with each `Weight` a factor in thousandths (1000, the
+costs as they are, for each by default), products in i64, their sum
+saturating in i64, rounded down and saturated to the i32 range. The
+reason is the structure's, unless the structure saw only a sentence
+boundary and the drift a topic shift (and the drift weight is not zero).
+A further signal is one more read and one more weight. In a pipeline
+from configuration the three steps are `structure-boundaries` (option
+`instance`: `default` or `structure`), `drift-boundaries` (options
+`window`, `smoothing`, `score`, `floor`, `scale`, `shift`) and
+`weigh-boundaries` (options `structure`, `drift`); an unknown option, a
+value that does not parse, a negative `scale` and a `window` of zero are
+refused.
+
+**Cohesion** (`Cohesion`) is a chunk term. A chunk pays, for each of its
+sentences with a vector, one less its cosine to the chunk's centroid.
+With unit vectors summing to S over m sentences that sum is `m - |S|`,
+so the term is `weight * (m - |S|)`, computed in f64 and rounded once to
+the nearest integer, with `weight` (unsigned, 1000 by default) what a
+sentence at right angles to its chunk costs: zero for a chunk whose
+sentences all point one way, up to `weight * m` when they cancel.
+Splitting a chunk never raises the total (`|A| + |B| >= |A + B|`) and
+lowers it by exactly how far the parts point apart, so the term pulls
+cuts toward where the vectors part, and the boundary costs and the size
+penalty decide how many cuts that is worth.
+
+S comes from running sums of the unit vectors (`Sums`), so each chunk
+the optimizer tries costs one pass over the dimensions, whatever its
+length, and the optimizer's time is multiplied by the dimension. The
+sums take `(n + 1) * dim` f64s, so they are built for one run of the
+optimizer (a top-level section) at a time and dropped after it: memory
+follows the largest section, not the document. A document with no
+structure is one run, so its sums cover all of it (about 820 MB at
+100,000 sentences of dimension 1024); such a document needs sections, or
+the plain `Chunker`.
+
+`CohesiveChunker` is `Chunker` with this term. It is a step of its own,
+not an option of `Chunker`, because it reads the sentence vectors: a
+chunker that only might read them would still be ordered after them,
+and a pipeline whose one vector step pools both sentence and chunk
+vectors (`SentenceChunkVectors`, which reads the chunks) would then be a
+cycle. It is not used unless chosen.
+
+Alternatives in the code and tests:
+
+- Score by distance (`Score::Distance`, one less the smoothed cosine),
+  the quantity common semantic splitters threshold. On a slow drift it
+  lowers every gap alike, so no gap stands out and every cut is cheaper,
+  which favours more, smaller chunks. Depth is the default.
+- A window of one sentence: it sets an outlier sentence apart (a test
+  shows it).
+- Windows cut short at the ends of the document: they set an outlier
+  first or last sentence apart (step 1).
+- Smoothing cut short on one side only at the ends: it moved a topic
+  shift two sentences from the start onto the first gap.
+
+Not tried: a percentile threshold over the document (it makes a gap's
+cost depend on the whole document, so an edit far away moves it, and
+the optimizer needs costs, not a yes or no), C99's rank matrix, lexical
+TextTiling over tokens, windows that stop at section edges, and
+pairwise cohesion (mean cosine between all pairs, which needs a banded
+table of dot products rather than running sums).
+
+The defaults are not tuned. Whether drift or cohesion helps, and at
+what weights, needs the evaluation harness: retrieval records for the
+stage 1 chunker on structure alone, structure with drift at a few
+weights, and the cohesive chunker, at matched mean chunk length, with
+significance, plus the boundary suite (Pk and WindowDiff) and the time
+per document. None of that exists yet, so no gain is claimed.
 
 ## Term statistics and BM25
 
@@ -1555,8 +1692,8 @@ runs them on any machine:
 ## Not built yet
 
 - The annotators themselves: normalizers, sentence detection,
-  tokenization, and the boundary signals besides structure, with the
-  step that weighs and sums them.
+  tokenization, and the boundary signals besides structure and drift
+  (lexical cohesion, coreference, discourse markers).
 - A comparison of the sentence vectors with OpenNLP's
   `SentenceVectorsDL` on golden inputs, which needs the JVM container,
   and a measurement of documents per second through the vector steps.
