@@ -88,5 +88,18 @@ Behaviour that comes from the Java and is kept:
 
 JVM goldens for this layer come from the goldens tool
 (`analysis/goldens-tool`), as for the other OpenNLP ports
-([analysis.md](analysis.md#golden-files)). Its `numbers` golden set is
-planned and not in the tree yet.
+([analysis.md](analysis.md#golden-files)). The `num` input set
+(`analysis/goldens/data/inputs/num/`) is scanned in both notations, and
+`analysis/goldens/data/numbers/<notation>/num/<id>.golden` holds a
+`turbo:numbers` block per text: `start`, `end` and `numeral_end` in
+UTF-8 bytes, `negative` (0 or 1), `coefficient` and `scale` (the
+`BigDecimal`'s unscaled value without sign and its scale) and `plain`
+(`toPlainString`, for a person reading the file).
+`analysis/numeric/tests/goldens.rs` runs `NumberScanner` over every text
+in both notations and compares each row exactly.
+
+The generator loads `NumberScan` from the opennlp-addons `numeric` jar.
+The pinned OpenNLP fork also carries an older `NumberScan` in
+`opennlp-runtime`, which accepts only an ASCII space before a scale
+word; the generator refuses to run when the older class is the one
+loaded (see `analysis/goldens-tool/README.md`).
