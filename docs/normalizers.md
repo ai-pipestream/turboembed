@@ -31,7 +31,7 @@ Character Database files in `analysis/unicode/ucd/` (their sources and
 digests are in `analysis/unicode/ucd/README.md` and `analysis/unicode/ucd/SHA256SUMS`) and writes one Rust
 file per table family into `analysis/unicode/src/tables/`: `category.rs`,
 `props.rs`, `script.rs`, `case.rs`, `normalize.rs`, `confusables.rs`,
-`emoji.rs` and `mod.rs`. Each file starts with a notice naming its input
+`emoji.rs`, `word_break.rs` and `mod.rs`. Each file starts with a notice naming its input
 files and the Unicode version. The generator parses the files by hand and
 stops with the file name and line number on any line it does not
 understand. Its output is deterministic and already in rustfmt layout, so
@@ -69,6 +69,11 @@ time and look characters up only outside them.
 | `props` | White_Space, Default_Ignorable_Code_Point, Dash, Quotation_Mark, Alphabetic, Lowercase, Uppercase, Cased, Case_Ignorable, Regional_Indicator, Variation_Selector and the emoji properties. |
 | `script` | `Script` (the Scripts.txt values; `OldItalic` for `Old_Italic`, which `java.lang.Character.UnicodeScript` calls `OLD_ITALIC`) and `script`. |
 | `java` | `java.lang.Character` methods (`isWhitespace`, `isLetter`, `digit`, simple case mappings) and `String.toLowerCase(Locale.ROOT)`, on Unicode 18.0 data. |
+| `java::code_point` | The `int` overloads of `java.lang.Character` the segmentation ports use (`getType` with Java's numbering, `isLetter`, `isDigit`, `isUpperCase`, `isAlphabetic`, `isWhitespace`, `isSpaceChar`, `toLowerCase`, `UnicodeScript.of`) on a code point given as `u32`, which may be a lone surrogate code unit. Read from the same tables as the rest of the crate. |
+| `whitespace` | `WhitespaceMode`: OpenNLP's legacy (`Character.isWhitespace` or `Zs`) and Unicode (`White_Space`) whitespace. |
+| `word_break` | `WordBreak` (UAX #29 Word_Break, from WordBreakProperty.txt, in the order of OpenNLP's enum), `word_break`, `is_extended_pictographic` and `is_regional_indicator`, on `u32` code points. OpenNLP 3.x bundles WordBreakProperty-17.0.0.txt; against these 18.0 tables 558 code points differ, all newly assigned in 18.0 and `Other` in 17.0 (515 `ALetter`, 37 `Extend`, 6 `Katakana` here), so golden mismatches on those characters are expected. |
+| `utf16` | `Utf16Cursor`, which steps over UTF-8 text one UTF-16 code unit at a time, and offset conversions between the two. |
+| `modified_utf8` | Java's modified UTF-8, the encoding of the strings in OpenNLP model files. |
 | `casefold` | Full and simple case folding and their Turkic variants (CaseFolding.txt). |
 | `normalize` | NFC, NFD, NFKC, NFKD, quick check, single-level decompositions, composition, and `for_each_run`, which reports the ranges a normalization form changes. |
 | `confusables` | UTS #39 prototypes and skeletons. |
@@ -101,6 +106,16 @@ that want only emoji-presentation characters check
 **Differences from the JDK.** The `java` functions follow the JDK's
 definitions but use Unicode 18.0 data; the JDK 21 tables are Unicode 15.0,
 so characters assigned since then get different answers from a JVM.
+Where both assign a code point, JDK 21 and these tables differ on 35
+code points (U+0295 is `Lo` here and `Ll` in JDK 21; 33 combining Latin
+small letters are `Alphabetic` here and not in JDK 21; U+1171E AHOM
+CONSONANT SIGN MEDIAL RA is `Mc` here and `Mn` in JDK 21, a Unicode 16.0
+change). `analysis/unicode/tests/jdk.rs` lists them and, with
+`TURBO_TEST_JDK` set, compares the general category, the six class tests,
+the simple lowercase mapping and the script from `java::code_point` with
+a running JDK 21 for every code point from U+0000 to U+10FFFF, skipping
+those the JDK reports as unassigned. It fails on any other difference, on
+a JDK other than 21, and when `java` or `javac` is missing.
 `java::digit` accepts decimal digits only (`Character.digit(c, 10)`
 without the fullwidth and ASCII letters of larger radixes).
 `java::to_lowercase` implements Final_Sigma as Unicode section 3.13

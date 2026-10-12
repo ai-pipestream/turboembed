@@ -72,7 +72,7 @@ pub enum GeneralCategory {
 use GeneralCategory::*;
 
 /// Every value, in the order of the numbers the generated table stores.
-const ALL: [GeneralCategory; 30] = [
+pub(crate) const ALL: [GeneralCategory; 30] = [
     Lu, Ll, Lt, Lm, Lo, Mn, Mc, Me, Nd, Nl, No, Pc, Pd, Ps, Pe, Pi, Pf, Po, Sm, Sc, Sk, So, Zs, Zl, Zp, Cc, Cf, Cs, Co,
     Cn,
 ];

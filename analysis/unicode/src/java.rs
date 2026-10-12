@@ -6,6 +6,13 @@
 //! letters, which spaces count as whitespace) but read the Unicode 18.0
 //! tables of this crate, so for characters assigned after the JDK's own
 //! Unicode version the answers can differ from a given JVM.
+//!
+//! The functions here take a `char`. [`code_point`] has the classes the
+//! segmentation ports need on a code point given as `u32`, which may be a
+//! lone surrogate code unit, with `getType`'s numbering and
+//! `UnicodeScript.of`.
+
+pub mod code_point;
 
 use crate::ascii::push_lowercase_run;
 use crate::category::{GeneralCategory, general_category};
