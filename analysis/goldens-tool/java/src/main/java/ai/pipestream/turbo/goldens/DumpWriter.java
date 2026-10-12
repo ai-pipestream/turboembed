@@ -5,7 +5,8 @@ import java.util.List;
 /**
  * Writes a decision point dump (docs/analysis.md, "Decision point dumps"): the first line
  * {@code dump 1}, the header records a golden has, then one block per decision point with its
- * contexts and its outcome probabilities. The cells use the golden format's forms ({@code u32},
+ * contexts, its outcome probabilities and, for a sentence detector's split, whether the break was
+ * acceptable. The cells use the golden format's forms ({@code u32},
  * {@code f64}, escaped {@code str}), so writing the same values twice gives the same bytes.
  */
 final class DumpWriter {
@@ -44,6 +45,9 @@ final class DumpWriter {
     }
     for (int o = 0; o < labels.length; o++) {
       GoldenWriter.line(out, "outcome", GoldenWriter.escape(labels[o]), GoldenWriter.f64(p.outcomes()[o]));
+    }
+    if (p.acceptable() != null) {
+      GoldenWriter.line(out, "acceptable", GoldenWriter.u32(p.acceptable() ? 1 : 0));
     }
     GoldenWriter.line(out, "end", GoldenWriter.u32(index));
   }

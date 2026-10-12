@@ -5,27 +5,23 @@ computes on the JVM for fixed inputs and models. This directory holds
 everything that makes them:
 
 - `java/`: the generator, a Maven project that depends only on the OpenNLP
-  runtime and the `numeric` module of the OpenNLP addons. It runs `SentenceDetectorME.sentPosDetect`,
-  `TokenizerME.tokenizePos` and `LanguageDetectorME.predictLanguages` over
-  every input of the `en` and `multi` sets and writes one golden per
-  annotator, model and input. For the `norm` set it runs each normalizer of
-  `opennlp.tools.util.normalizer` (see below) and writes one `turbo:view`
-  golden per normalizer and input. For the `num` set it runs `NumberScan`
-  of the addons module (see below) and writes one `turbo:numbers` golden
-  per notation and input. For the `money` set it runs `MoneyAnnotator` with
-  `CursorMoneyExtractor`, and `MoneyConversionAnnotator` with `EcbFxRates`
-  (see below), and writes `turbo:money` goldens for both
-  per notation and input. With `--dumps` it also writes a
-  decision point dump beside each sentence, token and language golden:
-  every context the annotator gave its maxent model and every outcome
-  probability `eval` returned.
+  runtime and the `numeric` module of the OpenNLP addons. It runs the
+  annotator runs listed below over their input sets and writes one golden
+  per run and input; for the `num` set it runs `NumberScan` of the addons
+  module, and for the `money` set `MoneyAnnotator` with
+  `CursorMoneyExtractor` and `MoneyConversionAnnotator` with `EcbFxRates`
+  (see below). With `--dumps` it also writes a decision point dump
+  beside each golden of a run that asks a maxent model (the sentence
+  detector, the tokenizer and the language detector): every context the
+  annotator gave the model and every outcome probability `eval` returned.
 - `container/Dockerfile`: the container the generator runs in. It starts
   from `eclipse-temurin:21-jdk` pinned by digest, clones the OpenNLP fork
   at a pinned commit, builds the runtime with the repository's `mvnw`,
   clones `opennlp-addons` at a pinned commit and installs its `numeric`
   module, and builds the generator.
 - `src/`: the driver, the `turbo-goldens` binary. `src/recipe.rs` holds the
-  base image digest, the OpenNLP and addons commits, the models with their URLs and
+  base image digest, the OpenNLP and addons commits, the published models
+  with their URLs and SHA-512 hashes, the checked in fixtures with their
   SHA-512 hashes, and the input sets.
 
 Both formats are described in `docs/analysis.md` ("Generating golden
@@ -44,25 +40,78 @@ cargo run -p turbo-goldens-tool -- verify [--models <dir>]
 
 - `image` builds the container image, tags it with the OpenNLP commit and
   prints its id.
-- `fetch-models <dir>` downloads the three models into `<dir>` with `curl`
+- `fetch-models <dir>` downloads the published models into `<dir>` with `curl`
   and checks each one's SHA-512 against the value published beside it on
   downloads.apache.org. A model already there with the right hash is kept.
 - `generate` fetches the models (into `target/turbo-goldens/models` unless
-  `--models` names a directory), runs the container with `--network none`,
-  the inputs and the models mounted read only, and replaces the annotator
-  directories in `analysis/goldens/data` (or `<dir>`) with what it wrote.
-  The generator is always given `--dumps` (`GENERATOR_ARGS` in
-  `src/recipe.rs`), so the goldens and their dumps are made and installed
-  together; before installing, every sentence, token and language golden
-  must have a dump beside it whose header parses, except a golden with an
-  error record (the annotator threw on that input), which must have none.
-  A normalizer, number or money golden has no dump.
+  `--models` names a directory), checks that `analysis/goldens/data/fixtures`
+  holds exactly the recipe's fixtures with their SHA-512, runs the container
+  with `--network none`, the inputs, the models, the fixtures and the rate
+  snapshot's directory (at `/rates`) mounted read only, and replaces the
+  annotator directories in `analysis/goldens/data` (or `<dir>`) with what
+  it wrote. The generator is always given `--dumps`
+  (`GENERATOR_ARGS` in `src/recipe.rs`), so the goldens and their dumps are
+  made and installed together; before installing, every sentence, token and
+  language golden whose header names a model must have a dump beside it
+  whose header parses, except a golden with an error record (the annotator
+  threw on that input), which must have none. A golden that names no model
+  (a tokenizer or sentence detector without one, a normalizer) has no dump,
+  and neither has a detokenizer, number or money golden.
 - `verify` generates into a scratch directory and compares every golden
   and dump byte for byte with the checked in ones. It lists each file that
   differs, is missing or is extra, and exits non zero if there is any. It
   also checks the checked in dumps by the same rule, and that each one's
   header names the golden's input and model; it does not read the
   decision points.
+
+## Runs
+
+The golden path is `<annotator>/<model>/<set>/<id>.golden`. `<model>` is
+the first model file's name without `.bin` (or `.xml` for a dictionary).
+A run with options has `+` and their names appended, so it does not share
+a directory with the same model run without them, and its options are
+`config` records. A run without a model names itself there instead.
+`Runs.java` lists every run:
+
+| Annotator | `<model>` | Input sets | `config` |
+|---|---|---|---|
+| `sentdetect` (`SentenceDetectorME`) | `opennlp-en-ud-ewt-sentence-1.3-2.5.4` | `en`, `multi`, `edge` | |
+| | `opennlp-de-ud-gsd-sentence-1.3-2.5.4`, `opennlp-pt-ud-gsd-sentence-1.3-2.5.4` | `edge` | |
+| | `en-abbrev`, `en-plain` (fixtures), each also `+legacy` | `sentence-fixture` | `whitespace legacy` |
+| `sentdetect` (`NewlineSentenceDetector`) | `newline`, `newline+legacy` | `edge` | `whitespace legacy` |
+| `tokenize` (`TokenizerME`) | `opennlp-en-ud-ewt-tokens-1.3-2.5.4` | `en`, `multi`, `edge`, `surrogate` | |
+| | the `de`, `es`, `fr` and `pt` tokenizer models | `edge`, `surrogate` | |
+| | `tokenizer-abbreviations` (fixture) | `abbreviations`, `edge` | |
+| | `opennlp-en-ud-ewt-tokens-1.3-2.5.4+english-dictionary` | `abbreviations`, `edge` | |
+| | each of the five models `+alphanumeric` | `edge`, `alphanumeric` | `useAlphaNumericOptimization true`, `alphaNumericPattern <pattern>` |
+| `tokenize` (`SimpleTokenizer`, `WhitespaceTokenizer`) | `simple`, `whitespace`, each also `+keep-new-lines`, `+legacy` and `+keep-new-lines+legacy` | `edge` | `keepNewLines true`, `whitespace legacy` |
+| `tokenize` (UAX #29 `WordTokenizer`) | `uax29` | `edge` | |
+| `detokenize` (`DictionaryDetokenizer`) | `en-detokenizer`, `fr-detokenizer`, `latin-detokenizer`, `pt-detokenizer`, `quotes-detokenizer` (fixtures) | `detokenizer`, the inputs whose id starts with the dictionary's name | `splitMarker <SPLIT>` |
+| `langdetect` (`LanguageDetectorME`) | `langdetect-183` | `en`, `multi` | |
+| `normalize` (each normalizer) | the normalizer's name | `norm` | see below |
+| `numbers` (`NumberScan` of the addons `numeric` module) | `latin-us`, `latin-eu` | `num` | `notation` |
+| `money`, `money-convert` (`MoneyAnnotator`, `MoneyConversionAnnotator`) | `latin-us`, `latin-eu` | `money` | `notation`; for conversions also `target`, `as_of`, `snapshot` |
+
+- `+english-dictionary` is the English model rebuilt through
+  `TokenizerModel(MaxentModel, Map, TokenizerFactory)` with the
+  abbreviation dictionary `english-dictionary.xml`, which is its second
+  `model` record. No published model has an abbreviation dictionary.
+- `+alphanumeric` is the model rebuilt the same way with the alphanumeric
+  optimization on and its own pattern; the `alphaNumericPattern` record is
+  the pattern the tokenizer uses (`Factory.DEFAULT_ALPHANUMERIC` when the
+  factory has none, which no published model lacks).
+- The legacy runs set OpenNLP's `WhitespaceMode` for the call and put it
+  back afterwards.
+- A detokenizer input holds one token per line, and its golden holds the
+  tokens, the operation `detokenize` gave each and the text it returned
+  with and without the split marker (`docs/analysis.md`).
+- The sentence detector's dumps also record, for each point whose best
+  outcome is a split, what `isAcceptableBreak` returned
+  (`docs/analysis.md`, "Decision point dumps").
+
+The fixtures (`analysis/goldens/data/fixtures`) are checked in, mounted at
+`/fixtures` and listed with their SHA-512 in `src/recipe.rs`; the data
+directory's README says where each comes from.
 
 ## Normalizer goldens
 
@@ -148,16 +197,22 @@ annotators run on them, and they have no dumps.
 
 ## How the checked in goldens and dumps were made
 
-The goldens and dumps checked in now were produced by running the generator
-directly, not in the container, on JDK 21 (the `jdk` line of each golden
-names it), with these commands. The OpenNLP fork is cloned at the commit
-pinned in `src/recipe.rs` (commit `cdf33c653d5d61d5af7d37ffee189a83bd8392ea`
-of the `kristian-3.x-features` branch, Maven version `3.0.0-SNAPSHOT`),
-because the commit pinned before it does not have `Dehyphenation`,
-`BoundedUrl`, `EnglishContraction` and `SymbolJoiner`. The `numeric` module of
-`opennlp-addons` is cloned at its pinned commit and installed after it (the
-`numbers` goldens do not record this commit in their header; it is the one in
-`src/recipe.rs`):
+The goldens and dumps checked in now were made in the container, with
+`turbo-goldens image` and then `turbo-goldens generate`, and `verify`
+reproduces every one of them byte for byte. The `jdk` line of each names
+the container's JDK, Eclipse Temurin 21.0.12.1.
+
+Before that, they were made by running the generator directly on Ubuntu's
+OpenJDK 21.0.12.1. The container run gave the same bytes except the `jdk`
+header line. The generator can still be run that way while working on it,
+with the OpenNLP fork built at the commit pinned in `src/recipe.rs`
+(commit `cdf33c653d5d61d5af7d37ffee189a83bd8392ea` of the
+`kristian-3.x-features` branch, Maven version `3.0.0-SNAPSHOT`; the commit
+pinned before it does not have `Dehyphenation`, `BoundedUrl`,
+`EnglishContraction` and `SymbolJoiner`), and the `numeric` module of
+`opennlp-addons` installed after it at its commit in `src/recipe.rs` (the
+`numbers` goldens do not record that commit in their header). Its output
+then differs from the checked in files in the `jdk` line:
 
 ```
 git init opennlp && cd opennlp
@@ -173,21 +228,14 @@ GIT_LFS_SKIP_SMUDGE=1 git checkout FETCH_HEAD
 ../opennlp/mvnw -q -DskipTests -pl numeric -am install
 cd <repository>/analysis/goldens-tool/java
 mvn -q package
-cargo run -p turbo-goldens-tool -- fetch-models <models dir>   # std only; or curl each URL in src/recipe.rs
-java -jar target/turbo-goldens-java.jar ../../goldens/data/inputs <models dir> <empty out dir> \
-    cdf33c653d5d61d5af7d37ffee189a83bd8392ea --dumps
+cargo run -p turbo-goldens-tool -- fetch-models <models dir>
+java -jar target/turbo-goldens-java.jar ../../goldens/data/inputs <models dir> ../../goldens/data/fixtures \
+    <empty out dir> cdf33c653d5d61d5af7d37ffee189a83bd8392ea --dumps
 ```
 
-The `money` and `money-convert` goldens come from the same run: the generator finds
-`rates/ecb-snapshot.csv` beside the inputs directory it is given.
-
-then `sentdetect`, `tokenize`, `langdetect`, `normalize`, `numbers`, `money`
-and `money-convert` of the output directory were copied over those of `analysis/goldens/data`. (The models were
-fetched with `curl` from the URLs in `src/recipe.rs` and their SHA-512
-compared, as `fetch-models` does.) The container recipe and the `image`,
-`generate` and `verify` commands have not been run: they are to be proven on
-a project machine with Docker, where `verify` shows whether the container's
-JDK gives the same bytes.
+The `money` and `money-convert` goldens come from the same run: the
+generator finds `rates/ecb-snapshot.csv` beside the inputs directory it is
+given.
 
 Moving the pin from `92d486d05151ef00b6d145c405046aa3a33b5a48` changed the
 `opennlp` header line of every golden and, in the `langdetect` goldens, the

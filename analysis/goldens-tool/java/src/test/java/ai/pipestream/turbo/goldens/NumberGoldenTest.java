@@ -7,6 +7,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Set;
 import org.junit.jupiter.api.Test;
 
 /** {@link NumberGolden}: the mentions of the scan loop and the columns written for them. */
@@ -41,9 +42,17 @@ class NumberGoldenTest {
     assertTrue(annotatorWithDefaults().accepts(input("en", "5")));
   }
 
-  /** An annotator that keeps the default {@code accepts}, as the sentence, token and language ones do. */
+  /**
+   * An annotator that keeps the default {@code accepts}, which takes the sets it names, as the
+   * sentence, token and language ones do.
+   */
   private static AnnotatorGolden annotatorWithDefaults() {
     return new AnnotatorGolden() {
+      @Override
+      public Set<String> inputSets() {
+        return Set.of("en");
+      }
+
       @Override
       public String annotator() {
         return "x";

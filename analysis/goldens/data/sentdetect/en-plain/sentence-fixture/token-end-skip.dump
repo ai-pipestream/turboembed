@@ -1,0 +1,46 @@
+dump 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	sentence-fixture/token-end-skip	33	33	ab1449f73600e4a652b99221a8be6d89f11a3a74c71dbdbe31849ae6796c0a9c
+model	en-plain.bin	8da69d821956999ff898cf23963145cc134beb2bb59aa1ccc5e93d90b04895057057d80baf0e8c726bf28dea47021e51eab43689c8dc5fb78c99f19949c93ad8
+annotator	opennlp.tools.sentdetect.SentenceDetectorME	sentPosDetect
+point	0	15	8	2	0	none
+context	eos=.
+context	x=hard
+context	4
+context	v=thought
+context	s=Bekannt
+context	scap
+context	n=Sie
+context	ncap
+outcome	n	3fb67fee08f64fd7 0.08788955420305854
+outcome	s	3fed30023ee13605 0.9121104457969414
+acceptable	1
+end	0
+point	1	23	8	2	0	none
+context	sn
+context	eos=.
+context	x=.Bekannt
+context	8
+context	v=hard
+context	s=
+context	n=Sie
+context	ncap
+outcome	n	3f8c2c4adc59962c 0.013756356095835441
+outcome	s	3fef8f4ed48e99a8 0.9862436439041646
+acceptable	1
+end	1
+point	2	32	7	2	0	none
+context	eos=.
+context	x=kam
+context	3
+context	v=Sie
+context	vcap
+context	s=
+context	n=
+outcome	n	3fdea3afe23b3efe 0.47874066441453056
+outcome	s	3fe0ae280ee26081 0.5212593355854694
+acceptable	1
+end	2

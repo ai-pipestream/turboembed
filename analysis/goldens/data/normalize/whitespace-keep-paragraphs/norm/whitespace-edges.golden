@@ -1,7 +1,7 @@
 golden 1
 generator	turbo-goldens-java	1
 opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
-jdk	21.0.12.1	21.0.12.1+1-1-24.04.4-Ubuntu	Ubuntu
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
 unicode	15.0
 input	norm/whitespace-edges	56	56	1331fed576c6f70ae7d893b438aa56c985516fd7f45761c2f68031357cf38abf
 annotator	opennlp.tools.util.normalizer.ParagraphPreservingWhitespaceCharSequenceNormalizer	normalizeAligned

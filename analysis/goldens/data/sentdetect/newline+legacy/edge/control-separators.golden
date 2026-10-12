@@ -1,0 +1,11 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	edge/control-separators	14	14	4b8b0f0cf5b626b1f4d744c04f4396cb1a1b1d6684f1a13c3cae82102d1b807a
+annotator	opennlp.tools.sentdetect.NewlineSentenceDetector	sentPosDetect
+config	whitespace	legacy
+layer	opennlp:sentences	text	1	start:u32	end:u32
+0	13
+end	opennlp:sentences

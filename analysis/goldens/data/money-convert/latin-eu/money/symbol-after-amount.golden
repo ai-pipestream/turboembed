@@ -1,7 +1,7 @@
 golden 1
 generator	turbo-goldens-java	1
 opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
-jdk	21.0.12.1	21.0.12.1+1-1-24.04.4-Ubuntu	Ubuntu
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
 unicode	15.0
 input	money/symbol-after-amount	51	47	36d3d1dce0526d519ac7f17dde6d8745850d4aff12065e7f3114eac516bd90be
 annotator	opennlp.tools.money.EcbFxRates	convert

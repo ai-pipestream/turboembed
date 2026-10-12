@@ -6,6 +6,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 import opennlp.tools.extraction.NumberNotation;
 import opennlp.tools.extraction.NumberScan;
 
@@ -98,8 +99,8 @@ final class NumberGolden implements AnnotatorGolden {
   }
 
   @Override
-  public boolean accepts(Input input) {
-    return input.set().equals(INPUT_SET);
+  public Set<String> inputSets() {
+    return Set.of(INPUT_SET);
   }
 
   @Override

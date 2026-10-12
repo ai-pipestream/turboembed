@@ -1,0 +1,87 @@
+dump 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	sentence-fixture/numbers	81	81	a9d0b521c996117773d4cf5805de5748b4e132a6a434307df50b13db90cbf659
+model	en-abbrev.bin	759ab1defc61351f53cdd82a26e708789a225feb6e1ec0cfd6e2e54f35f67c14511f44d0eb73216f9d4c89c0fb26ea28fd6931a7c4f851d09ca487d0a39700fd
+annotator	opennlp.tools.sentdetect.SentenceDetectorME	sentPosDetect
+point	0	7	6	2	0	none
+context	eos=.
+context	x=3
+context	1
+context	v=is
+context	s=14159
+context	n=and
+outcome	n	3fefd2f84946d5e9 0.994503157728727
+outcome	s	3f7683db5c950bb6 0.005496842271273053
+end	0
+point	1	29	6	2	0	none
+context	eos=.
+context	x=.5
+context	2
+context	v=2
+context	s=4
+context	n=shipped.
+outcome	n	3fedff8e4603197d 0.9374457709716776
+outcome	s	3fb0038dcfe73412 0.06255422902832233
+end	1
+point	2	39	8	2	0	none
+context	sn
+context	eos=.
+context	x=shipped
+context	7
+context	v=2.5.4
+context	s=
+context	n=Costs
+context	ncap
+outcome	n	3f859f4e2c390f4b 0.010557757114959229
+outcome	s	3fefa982c74f1bc3 0.9894422428850408
+acceptable	1
+end	2
+point	3	53	6	2	0	none
+context	eos=.
+context	x=4
+context	1
+context	v=rose
+context	s=5
+context	n=percent.
+outcome	n	3fef2ab3348b6547 0.9739624048481027
+outcome	s	3f9aa9996e935721 0.0260375951518973
+end	3
+point	4	63	8	2	0	none
+context	sn
+context	eos=.
+context	x=percent
+context	7
+context	v=4.5
+context	s=
+context	n=It
+context	ncap
+outcome	n	3f5d83928d9e6d9d 0.0018013888534146102
+outcome	s	3feff13e36b930c9 0.9981986111465854
+acceptable	1
+end	4
+point	5	72	8	2	0	none
+context	sn
+context	eos=.
+context	x=1
+context	1
+context	v=is
+context	s=
+context	n=Then
+context	ncap
+outcome	n	3fe3b821b832d71b 0.6162270162228397
+outcome	s	3fd88fbc8f9a51cc 0.3837729837771604
+end	5
+point	6	80	7	2	0	none
+context	eos=.
+context	x=2
+context	1
+context	v=Then
+context	vcap
+context	s=
+context	n=
+outcome	n	3fef47a6aa49b161 0.9774964643416234
+outcome	s	3f970b2ab6c9d3e4 0.02250353565837661
+end	6

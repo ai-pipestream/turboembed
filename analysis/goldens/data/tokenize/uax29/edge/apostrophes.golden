@@ -1,0 +1,49 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	edge/apostrophes	117	111	6b69b6f64d24416906fcab108088306ae2ac284629d75125905f2f4cb02bb05d
+annotator	opennlp.tools.tokenize.uax29.WordTokenizer	tokenizeTyped
+layer	opennlp:tokens	text	19	start:u32	end:u32
+0	5
+6	11
+12	18
+19	23
+25	26
+28	32
+33	36
+38	41
+42	47
+48	52
+53	58
+59	63
+65	70
+71	78
+79	84
+86	91
+93	100
+101	109
+113	116
+end	opennlp:tokens
+layer	turbo:word-types	aligned:opennlp:tokens	19	kind:str
+ALPHANUMERIC
+ALPHANUMERIC
+ALPHANUMERIC
+ALPHANUMERIC
+ALPHANUMERIC
+ALPHANUMERIC
+ALPHANUMERIC
+ALPHANUMERIC
+ALPHANUMERIC
+ALPHANUMERIC
+ALPHANUMERIC
+ALPHANUMERIC
+ALPHANUMERIC
+ALPHANUMERIC
+ALPHANUMERIC
+ALPHANUMERIC
+ALPHANUMERIC
+ALPHANUMERIC
+ALPHANUMERIC
+end	turbo:word-types

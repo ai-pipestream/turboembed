@@ -1,0 +1,84 @@
+dump 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	edge/french	164	149	6bab75cdbbd521fa95a0f838d9b38e836a5efc8c22c0cb655bc79bd66bdcc6eb
+model	opennlp-de-ud-gsd-sentence-1.3-2.5.4.bin	c811604c24cdbe490ab42dcffdbae63f9a74b39622f21b7b31f63eea566ffe35ef871f0da905e61180656b877cf0be4d626588c6312fcc18df5ab9a35b4183fa
+annotator	opennlp.tools.sentdetect.SentenceDetectorME	sentPosDetect
+point	0	20	7	2	0	none
+context	sp
+context	sn
+context	eos=?
+context	x=
+context	v=c'est
+context	s=
+context	n=«
+outcome	s	3fd8d28b7ce6949a 0.38785063931784125
+outcome	n	3fe396ba418cb5b3 0.6121493606821587
+end	0
+point	1	63	8	2	0	none
+context	sn
+context	eos=.
+context	x=dit-elle
+context	8
+context	v=»,
+context	s=
+context	n=M.
+context	ncap
+outcome	s	3feff28edc84e82d 0.9983591372504229
+outcome	n	3f5ae246f62fa5f5 0.0016408627495770854
+acceptable	1
+end	1
+point	2	66	9	2	0	none
+context	sn
+context	eos=.
+context	x=M
+context	1
+context	xcap
+context	v=dit-elle.
+context	s=
+context	n=Dupont
+context	ncap
+outcome	s	3fb7aea2529e807b 0.09250845448559801
+outcome	n	3fed0a2bb5ac2ff0 0.9074915455144019
+end	2
+point	3	128	8	2	0	none
+context	sn
+context	eos=.
+context	x=€)
+context	2
+context	v=(3,50
+context	s=
+context	n=Où
+context	ncap
+outcome	s	3febbc9ddb4c1414 0.866774490656669
+outcome	n	3fc10d8892cfafb2 0.13322550934333105
+acceptable	1
+end	3
+point	4	146	8	2	0	none
+context	sn
+context	eos=?
+context	x=cœur
+context	4
+context	v=le
+context	s=
+context	n=Naïve
+context	ncap
+outcome	s	3fee3d43d736bddf 0.9449786380191049
+outcome	n	3fac2bc28c942200 0.05502136198089502
+acceptable	1
+end	4
+point	5	162	8	2	0	none
+context	sn
+context	eos=.
+context	x=façade
+context	6
+context	v=Naïve
+context	vcap
+context	s=
+context	n=
+outcome	s	3fefff0058a15a34 0.999878094774266
+outcome	n	3f1ff4ebd4b99337 1.2190522573403145E-4
+acceptable	1
+end	5

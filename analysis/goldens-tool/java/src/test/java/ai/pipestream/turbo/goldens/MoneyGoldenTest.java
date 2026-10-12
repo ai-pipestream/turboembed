@@ -11,6 +11,7 @@ import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -70,6 +71,11 @@ class MoneyGoldenTest {
   @Test
   void otherAnnotatorsDoNotAcceptTheMoneySet() {
     AnnotatorGolden withDefaults = new AnnotatorGolden() {
+      @Override
+      public Set<String> inputSets() {
+        return Set.of("en");
+      }
+
       @Override
       public String annotator() {
         return "x";

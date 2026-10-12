@@ -315,7 +315,8 @@ mod tests {
 
     #[test]
     fn first_position() {
-        // The first context of the golden contexts file for English.
+        // The first decision point of the English model's dump of
+        // edge/french (analysis/goldens/data/tokenize).
         assert_eq!(
             context("Qu'est-ce", 1, false),
             [

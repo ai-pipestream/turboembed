@@ -1,0 +1,49 @@
+dump 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	surrogate/en-quote-emoji-dot	6	4	19ec016802b750e867f553e9ab922be995ba2b5d865ff2a8e8e4fa81f2a6a773
+model	opennlp-pt-ud-gsd-tokens-1.3-2.5.4.bin	6ff66aec4835e9d5caeeb50a2e70bd673840ef6219fe1dc4018c8f9999b21b959c52fdac68844a0934bbcd77346743627f728fb9c99b7ca468e795fc5291c3bb
+annotator	opennlp.tools.tokenize.TokenizerME	tokenizePos
+point	0	1	9	2	0	none
+context	p='
+context	s=😀.
+context	p1='
+context	p1_quote
+context	p2=bok
+context	p1f1='\ud83d
+context	f1=\ud83d
+context	f2=\ude00
+context	f12=😀
+outcome	F	3f26f324ece0d68d 1.7509294269906322E-4
+outcome	T	3feffe90cdb131f3 0.999824907057301
+end	0
+point	1	1	11	2	1	none
+context	p='\ud83d
+context	s=\ude00.
+context	p1=\ud83d
+context	p2='
+context	p2_quote
+context	p21='\ud83d
+context	p1f1=😀
+context	f1=\ude00
+context	f2=.
+context	f2_eos
+context	f12=\ude00.
+outcome	F	3fee67710b943ced 0.9501271463540469
+outcome	T	3fa988ef46bc312f 0.04987285364595306
+end	1
+point	2	5	9	2	0	none
+context	p='😀
+context	s=.
+context	p1=\ude00
+context	p2=\ud83d
+context	p21=😀
+context	p1f1=\ude00.
+context	f1=.
+context	f1_eos
+context	f2=bok
+outcome	F	3f623f6ba7b53f9c 0.0022275068892340776
+outcome	T	3fefedc094584ac0 0.9977724931107659
+end	2

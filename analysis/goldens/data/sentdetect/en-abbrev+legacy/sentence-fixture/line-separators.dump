@@ -1,0 +1,58 @@
+dump 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	sentence-fixture/line-separators	49	44	bdcc6bbad0e50e4e512ac0a189c196b9a83aeb011d7ad3db1856c56ba01e81fb
+model	en-abbrev.bin	759ab1defc61351f53cdd82a26e708789a225feb6e1ec0cfd6e2e54f35f67c14511f44d0eb73216f9d4c89c0fb26ea28fd6931a7c4f851d09ca487d0a39700fd
+annotator	opennlp.tools.sentdetect.SentenceDetectorME	sentPosDetect
+config	whitespace	legacy
+point	0	10	7	2	0	none
+context	eos=.
+context	x=line
+context	4
+context	v=First
+context	vcap
+context	s=Second
+context	n=line.
+outcome	n	3fdb26a100bc406f 0.424232722013591
+outcome	s	3fe26caf7fa1dfc9 0.575767277986409
+acceptable	1
+end	0
+point	1	24	8	2	0	none
+context	sn
+context	eos=.
+context	x=line
+context	4
+context	v=line.Second
+context	s=
+context	n=Third
+context	ncap
+outcome	n	3f85c88cc306ea60 0.010636424733879213
+outcome	s	3fefa8ddccf3e457 0.9893635752661208
+acceptable	1
+end	1
+point	2	38	8	2	0	none
+context	sn
+context	eos=.
+context	x=line
+context	4
+context	v= Third
+context	s=
+context	n=Fourth.
+context	ncap
+outcome	n	3f85c88cc306ea60 0.010636424733879213
+outcome	s	3fefa8ddccf3e457 0.9893635752661208
+acceptable	1
+end	2
+point	3	48	6	2	0	none
+context	eos=.
+context	x= Fourth
+context	7
+context	v=line.
+context	s=
+context	n=
+outcome	n	3fb90ee9454fcacf 0.09788377706699268
+outcome	s	3fecde22d75606a6 0.9021162229330073
+acceptable	1
+end	3

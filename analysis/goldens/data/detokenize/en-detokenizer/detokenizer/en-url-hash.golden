@@ -1,0 +1,38 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	detokenizer/en-url-hash	43	43	f9b5c47e05e0bf11b49d1bb9fb91a2df50454dd033b85ffccfa0547b6f7e93a6
+model	en-detokenizer.xml	d071b56f77ae5b6aff0a591c1cf7e601a4007b5fdbcc0bd3fc31e8c84e95ec232df9765a70bfef786f75dbefcc4cad7d053b34b00ecc805507192a5fddc81260
+annotator	opennlp.tools.tokenize.DictionaryDetokenizer	detokenize
+config	splitMarker	<SPLIT>
+layer	opennlp:tokens	text	11	start:u32	end:u32
+0	5
+6	13
+14	18
+19	21
+22	23
+24	27
+28	31
+32	34
+35	36
+37	40
+41	42
+end	opennlp:tokens
+layer	turbo:detokenization	aligned:opennlp:tokens	11	operation:str
+NO_OPERATION
+NO_OPERATION
+MERGE_TO_LEFT
+NO_OPERATION
+MERGE_TO_RIGHT
+NO_OPERATION
+NO_OPERATION
+NO_OPERATION
+MERGE_TO_LEFT
+NO_OPERATION
+MERGE_TO_LEFT
+end	turbo:detokenization
+layer	turbo:detokenized	document	1	text:str	marked:str
+Visit example.com or #tag for 50% off.	Visit example<SPLIT>.com or #<SPLIT>tag for 50<SPLIT>% off<SPLIT>.
+end	turbo:detokenized
