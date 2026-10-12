@@ -64,7 +64,7 @@ fn every_golden_input_for_every_model() {
         }
     }
     assert_eq!(files, 170);
-    assert_eq!(spans, 2283, "every span line of every file");
+    assert_eq!(spans, 2298, "every span line of every file");
 }
 
 #[test]
