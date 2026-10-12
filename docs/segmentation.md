@@ -313,6 +313,12 @@ reach the OpenNLP side:
 - `SimpleTokenizer` with `keepNewLines` reports a wrong span for a line
   break that follows a space: the start offset is left over from the
   previous token instead of being set to the line break's position.
+- `Dictionary(InputStream)` inserts the entries before its
+  `isCaseSensitive` field is assigned, so every entry is stored as if the
+  dictionary were case-insensitive. In a case-sensitive dictionary, entries
+  that differ only in case collapse to the first one: with `Dr.` and
+  `dr.` loaded, `contains("dr.")` is false. The Rust reader reproduces
+  this so lookups match; a test records it.
 - `DefaultSDContextGenerator` tests `Character.isUpperCase` on the
   first code unit of a word, so a word starting with an upper case
   letter outside the BMP (Deseret, Osage, mathematical letters) is
