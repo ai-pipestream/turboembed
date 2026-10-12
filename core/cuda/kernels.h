@@ -15,6 +15,13 @@
  * indices. Hidden states are [tokens, hidden] F32, row-major, over the
  * packed tokens.
  *
+ * A range write (embed_write_ranges) adds its ranges right after the
+ * rows' k planes, in the same array: ranges int32 triples of (row,
+ * start, end) as turbo_token_range lays them out, at
+ * rows + k * batch * seq. The rows and the ranges then travel to the
+ * device as one contiguous copy, and a kernel finds the ranges from the
+ * run's shape as it finds the mask.
+ *
  * Nothing about a run's shape is a launch argument. pack_rows writes the
  * packed token count and the run's options into an Info in device memory,
  * every later kernel reads them there, and each is launched for the
@@ -33,9 +40,11 @@
 
 namespace turbo_cuda {
 
-/* What a run's write sets: the rows' shape and the embed options. */
+/* What a run's write sets: the rows' shape, the embed options, and the
+ * ranges a range write holds (0 after embed_write, whose run pools one
+ * vector per row). */
 struct RunArgs {
-    int32_t batch, seq, pooling, l2, output_dim, has_types;
+    int32_t batch, seq, pooling, l2, output_dim, has_types, ranges;
 };
 
 /* What pack_rows finds, in device memory, for every later kernel. */
@@ -43,6 +52,7 @@ struct Info {
     int32_t tokens; /* packed tokens: the GEMMs' M */
     int32_t batch, seq, pooling, l2, output_dim, has_types;
     int32_t items; /* attention's work items, (row, head, query tile) */
+    int32_t ranges; /* the range write's ranges, whose vectors the pooling writes; 0 for a vector per row */
 };
 
 /* The packing, in device memory. start, len and holes (whether a masked
@@ -173,6 +183,7 @@ struct GemmChoice {
 /* A session's fixed shape, from which make_plan sizes every launch. */
 struct Shape {
     int batch_cap = 0, seq_cap = 0; /* max_batch, max_seq */
+    int ranges_cap = 0;             /* max_ranges: the most vectors a range run pools */
     int tcap = 0;                   /* batch_cap * seq_cap */
     int hidden = 0, heads = 0, inter = 0;
     bool half = false;         /* FASTEST: F16 GEMM operands and attention */
@@ -240,7 +251,7 @@ inline bool gemm_mma(const Shape &s, Gemm g) { return s.tensor_cores && (s.half 
 struct Plan {
     size_t pack_smem = 0;
     int rows_grid = 0; /* the warp-per-token kernels */
-    int pool_grid = 0;
+    int pool_grid = 0; /* a block per vector, up to max(max_batch, max_ranges) */
     int epi_grid = 0; /* the cuBLAS epilogues */
     int fetch_grid = 0;
     int gemm_grid[GEMM_COUNT] = {0, 0, 0, 0}; /* by Gemm */
@@ -285,7 +296,8 @@ const void *pack_rows_function();
 /* n int32 of the written rows from src, the page-locked staging as the
  * device addresses it, to dst in device memory: the run's first kernel,
  * so the rows reach the device inside the run's graph, with no copy
- * queued ahead of it. n is 0 when the rows were sent another way. */
+ * queued ahead of it. n counts a range write's ranges too, which follow
+ * the rows in both. n is 0 when the rows were sent another way. */
 struct FetchArgs {
     const int32_t *src;
     int32_t *dst;
@@ -318,8 +330,11 @@ cudaError_t add_layer_norm(cudaStream_t s, float *x, const float *y, const uint1
 
 /* out[b] = the row's pooled vector, cut to output_dim, L2-normalized when
  * the run asks: the pooling, output_dim and normalization are the Info's.
- * The hidden states are read from x16, F16, when it is not NULL, else
- * from x. */
+ * After a range write (Info.ranges above 0), out[i] is range i's vector
+ * in its place: the mean over the range's tokens whose mask is 1, with
+ * the same kernel and the same sums as a row's mean, so a range over a
+ * whole row gives that row's bits. The hidden states are read from x16,
+ * F16, when it is not NULL, else from x. */
 cudaError_t pool(cudaStream_t s, const float *x, const uint16_t *x16, const int32_t *rows, const Packing &p,
                  int hidden, float *out, const Plan &plan);
 

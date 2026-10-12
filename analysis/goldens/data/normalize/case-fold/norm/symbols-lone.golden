@@ -1,0 +1,20 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-1-24.04.4-Ubuntu	Ubuntu
+unicode	15.0
+input	norm/symbols-lone	248	237	1642ea92acd5f9e269cd93827da7737a011f45e08c10d8cacc2475241b0ebe64
+annotator	opennlp.tools.util.normalizer.CaseFoldCharSequenceNormalizer	normalize
+layer	turbo:view	text	11	start:u32	end:u32	with:str
+0	1	a
+1	2	t
+3	4	t
+9	10	r
+11	12	d
+17	18	q
+21	22	a
+83	84	e
+98	99	b
+131	132	t
+147	148	c
+end	turbo:view

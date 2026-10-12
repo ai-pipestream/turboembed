@@ -1,0 +1,15 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-1-24.04.4-Ubuntu	Ubuntu
+unicode	15.0
+input	norm/hangul	210	144	374fc29970ca537d1b6be7cc3ced25c69fa15526bd66cd136ef12dc9cc253465
+annotator	opennlp.tools.util.normalizer.NfkcCharSequenceNormalizer	normalize
+layer	turbo:view	text	6	start:u32	end:u32	with:str
+32	50	한글
+64	70	가
+75	84	각
+102	135	대한민국
+156	162	가
+177	183	가
+end	turbo:view

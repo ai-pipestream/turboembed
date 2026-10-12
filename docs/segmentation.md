@@ -16,6 +16,7 @@ where and why.
 | Crate | Path | Contents |
 |---|---|---|
 | `turbo-unicode` | `analysis/unicode/` | Character data: Java's character classes, the Unicode `White_Space` set, `Word_Break` and `Extended_Pictographic` properties, a UTF-16 code unit cursor over UTF-8 text |
+| `turbo-jvm` | `analysis/jvm/` | JDK routines ported bit for bit; `turbo-maxent` uses `strict_math::exp` and `strict_math::log`, the fdlibm functions behind `StrictMath.exp` and `StrictMath.log` |
 | `turbo-maxent` | `analysis/maxent/` | OpenNLP model files: the zip container, the manifest, maxent and perceptron models and their evaluation, the dictionary XML |
 | `turbo-sentdetect` | `analysis/sentdetect/` | The newline detector, the paragraph detector and the maxent sentence detector |
 | `turbo-tokenize` | `analysis/tokenize/` | The simple and whitespace tokenizers, the UAX #29 word tokenizer, the maxent tokenizer, the dictionary detokenizer |
@@ -24,8 +25,9 @@ where and why.
 They depend on the standard library, `turbo-analysis` and
 `turbo-analysis-layers`, and on each other in that order. Nothing here
 depends on the `turbo` core crate: the embedding model's subword
-tokenizer is a separate annotator (`turbo-subwords`), so a program that
-only segments text does not link the engine.
+tokenizer is a separate annotator (`SubwordAnnotator` in
+`turbo-analysis-embed`), so a program that only segments text does not
+link the engine.
 
 ## Character classes and Java parity
 
@@ -47,16 +49,12 @@ features and the same splits, the ports walk the text as code units too.
   simple one-to-one mapping). A surrogate half is in no class, as in
   Java. Rust's `char::is_numeric` and `char::is_alphabetic` are wider
   than Java's `isDigit` and `isLetter`, so they are not used.
-- The tables are generated from the Unicode 17.0 Character Database
-  files under `analysis/unicode/ucd/` by `turbo-unicode-gen`, with each
-  Java class derived the way the JDK defines it, and checked in as Rust
-  source, so a build needs no data files. The JDK the golden files are
-  made with (JDK 21) implements Unicode 15.0: a character added since is
-  unassigned to it and in no class, while here it is classified by the
-  17.0 data. For code points both assign, the answers differ for 34
-  (U+0295, and the combining Latin small letters U+0363..U+036F and
-  U+1DD3..U+1DE6), listed in the `java` module and checked by a test
-  against a running JDK.
+- The ports call these through `java::code_point`, which takes a `u32`
+  so that a lone surrogate code unit is classified the way Java
+  classifies a `char`. The Unicode version of the tables and the code
+  points on which they answer differently from JDK 21, the JDK the
+  golden files are made with, are in docs/normalizers.md ("Differences
+  from the JDK").
 
 ### Whitespace
 
@@ -89,9 +87,9 @@ continuation lines, `\uXXXX`), and the model:
 
 | Type string | Trainer | Evaluation |
 |---|---|---|
-| `GIS` | GIS maxent | sum the parameters of the context's predicates onto a uniform log prior, `exp`, normalize |
-| `QN` | L-BFGS maxent | sum the parameters, then `exp(x - logsumexp)` |
-| `Perceptron` | perceptron | sum the parameters, divide by the largest magnitude when it is above 1, `exp`, normalize |
+| `GIS` | GIS maxent | sum the parameters of the context's predicates onto a uniform prior (`StrictMath.log`), `StrictMath.exp`, normalize |
+| `QN` | L-BFGS maxent | sum the parameters, then `StrictMath.exp(x - logsumexp)` |
+| `Perceptron` | perceptron | sum the parameters, divide by the largest magnitude when it is above 1, `StrictMath.exp`, normalize |
 
 A model's parameters are stored by predicate as (outcome, weight)
 pairs. `MaxentModel::eval` takes the context's features and writes one
@@ -145,13 +143,20 @@ Reads a `View`, writes `Sentences` and `Confidence<Sentences>`. It is
 `SentenceDetectorME`:
 
 1. The end-of-sentence scanner lists every position holding one of the
-   model's end characters (`eosCharacters` in the manifest, else the
-   language default: `. ! ?`, Portuguese adds `; : ( ) « » ' "`).
+   model's end characters, the manifest's `eosCharacters`. A model
+   without the property (or with an empty one) gets `. ! ?` whatever its
+   language: `SentenceDetectorFactory` looks up the language default of
+   `lang/Factory` with a language code that is never set on a factory
+   loaded from a file, so the Portuguese default never applies to a
+   loaded model, and a Thai model gets the default context generator, not
+   the Thai one. Both were checked on the JVM with manifests stripped of
+   the property. Every model OpenNLP's factory writes has it; the
+   Portuguese UD model lists `. ? ! ; : ( ) « » ' "`.
 2. Leading parts of a run of end characters are skipped (`z.B.` is one
    candidate), unless the character after one is upper case.
 3. For each candidate, `DefaultSDContextGenerator` builds the features:
    `sp` and `sn` for whitespace on either side, `eos=` the character,
-   the prefix, previous, suffix and next words with their lengths,
+   the prefix, previous, suffix and next words with the prefix length,
    capitalization and abbreviation flags. Word boundaries here are
    whitespace in the configured mode, and `String.trim` semantics
    (every code unit at or below `U+0020`) apply to the words.
@@ -203,24 +208,29 @@ corrected positions and say so.
 ### `WhitespaceTokenizer`
 
 A token is a run of non-whitespace in the configured mode, with the same
-`keepNewLines` option. It runs at memory speed on ASCII text: a byte
-below 0x80 is whitespace only if it is one of the nine ASCII members.
+`keepNewLines` option. The scan steps over bytes through a 256-entry
+table built for the mode: an ASCII byte is answered by the table alone,
+and since every whitespace character above ASCII, in either mode,
+starts with the byte 0xC2, 0xE1, 0xE2 or 0xE3, only those four bytes
+make it decode a character and ask the mode.
 
 ### `WordTokenizer` (UAX #29)
 
-Word boundaries by UAX #29 rules WB1 to WB999 over the Unicode 17.0
-`Word_Break` property, with `Extended_Pictographic` for WB3c. The
-segmenter is a state machine over the last two significant classes, the
-current class and, where a rule needs it, the next significant class
-and the regional indicator parity, so a document is one pass with no
+Word boundaries by UAX #29 rules WB1 to WB999 over the `Word_Break`
+property, with `Extended_Pictographic` for WB3c. `turbo-unicode` has the
+Unicode 18.0 property and OpenNLP bundles 17.0; docs/normalizers.md
+says how many characters differ and how. The segmenter is a state
+machine over the last two significant classes, the current class and,
+where a rule needs it, the next significant class and the regional
+indicator parity, so a document is one pass with no
 backtracking. Segments that hold no letter, digit or script character
 (punctuation, spaces) are not tokens. Each token's type is one of
 alphanumeric, numeric, ideographic, hiragana, katakana, hangul,
 southeast asian or emoji, by the script and classes of its characters,
 and goes to the `WordTypes` layer. Tokens longer than `max_token_length`
 UTF-16 code units (255 by default) are cut into pieces of that length,
-never inside a character. The boundaries are checked against Unicode's
-`WordBreakTest.txt`, every case.
+never inside a character. The boundaries are checked against every case
+of `WordBreakTest.txt`, the 17.0 copy OpenNLP bundles.
 
 ### `TokenizerMe` (maxent)
 
@@ -237,8 +247,12 @@ decisions inside it. A split inside a unit that the abbreviation
 dictionary lists keeps the unit whole and skips as many positions as
 the unit has dots, as the Java does.
 
-The alphanumeric check is the manifest's `alphaNumericPattern`, or the
-language default when the manifest has none. Every pattern OpenNLP
+The alphanumeric check is the manifest's `alphaNumericPattern`, or
+`^[A-Za-z0-9]+$` when the manifest has none, whatever the model's
+language: OpenNLP's `lang.Factory` has per-language patterns, but the
+factory OpenNLP builds for a loaded model asks for them with a language
+it never set, so it always gets the default (checked on the JVM with a
+German model whose pattern was removed). Every pattern OpenNLP
 ships has the form `^[characters]+$`; the check reads that form (single
 characters and ranges) into a set and tests the unit by code point as
 `java.util.regex` would. A pattern of any other form is refused when
@@ -277,7 +291,8 @@ Four cases that none of the UD models reach have their own run
 `tokenize/tests/golden/detokenizer`): `TokenizerME` with an abbreviation
 dictionary, `TokenizerME` splitting between surrogate halves,
 `TokenizerME` with the alphanumeric optimization on, and the dictionary
-detokenizer on the English, French and Portuguese dictionaries.
+detokenizer on the English, French, Portuguese, Latin and quotes
+dictionaries.
 
 The JVM is used for golden files only. Nothing here calls into it at
 run time.

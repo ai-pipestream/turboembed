@@ -1,0 +1,2 @@
+Links (https://example.com/a), [https://example.org/b], {https://example.net/c} and <https://example.com/d> in brackets.
+A wiki-style (see https://example.com/wiki/Foo_(bar)) case and "https://example.com/quoted" in quotes.
