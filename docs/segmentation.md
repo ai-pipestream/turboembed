@@ -185,11 +185,18 @@ sentences, each sentence is tokenized on its own and the `Tokens` layer
 carries the sentence of every token; without, the whole view is one
 unit. All write `Tokens`; the maxent tokenizer also writes
 `Confidence<Tokens>`, and the UAX #29 tokenizer also writes `WordTypes`.
-One function, `tokenize_units`, turns the view and the optional
-sentences into units and collects the tokens, so every tokenizer
-handles sentences the same way. Each tokenizer is also a plain function
-over a `&str` that appends spans to a caller's buffer
-(`simple_spans`, `whitespace_spans`, `word_tokens`).
+One function, `tokenize_units_with`, turns the view and the optional
+sentences into units, collects the tokens and hands each token's value
+(the maxent tokenizer's probability) to the caller in token order, so
+every tokenizer handles sentences the same way. It is generic over what
+a tokenizer reports per token: a rule tokenizer reports a bare `Span`,
+whose value is `()`, and calls it through `tokenize_units`, so its loop
+moves nothing but spans. The simple, whitespace and maxent tokenizers
+take the same `TokenizerOptions` (the whitespace mode and
+`keepNewLines`), with one configuration hash. Each rule tokenizer is
+also a plain function over a `&str` that appends spans to a caller's
+buffer (`simple_spans`, `whitespace_spans`, `word_tokens`), and
+`TokenizerMe::tokenize` appends spans with their probabilities.
 
 ### `SimpleTokenizer`
 
@@ -266,25 +273,73 @@ strings, the two characters on each side with their classes (letter,
 caps, digit, whitespace, end of sentence, quote, brackets), the
 character pairs across the position, a flag for `&...;` entities and
 one for a known abbreviation. A token's confidence is the product of the
-decisions inside it. A split inside a unit that the abbreviation
-dictionary lists keeps the unit whole and skips as many positions as
-the unit has dots, as the Java does.
+decisions inside it. When the model splits a unit that the abbreviation
+dictionary lists, the unit from the current token start to its end is a
+token and the loop jumps ahead by as many positions as the unit has
+dots, as the Java does; the tokens after the jump can overlap that one
+(`(c)Co.ltd` listed gives `(c)Co.ltd`, `Co.ltd` and `.ltd`), and that is
+kept.
 
-The alphanumeric check is the manifest's `alphaNumericPattern`, or
-`^[A-Za-z0-9]+$` when the manifest has none, whatever the model's
-language: OpenNLP's `lang.Factory` has per-language patterns, but the
-factory OpenNLP builds for a loaded model asks for them with a language
-it never set, so it always gets the default (checked on the JVM with a
-German model whose pattern was removed). Every pattern OpenNLP
-ships has the form `^[characters]+$`; the check reads that form (single
-characters and ranges) into a set and tests the unit by code point as
-`java.util.regex` would. A pattern of any other form is refused when
-the model loads, with the pattern in the error, rather than approximated.
+The prefix and suffix features are the whole text before and after the
+position, so building them at every position of a unit with no
+whitespace is quadratic in the unit's length. A feature the model has
+no predicate for adds nothing to the sums, so when the model loads, the
+length of its longest `p=` and longest `s=` predicate is recorded, and a
+prefix or suffix whose text is longer than that already in UTF-8 is not
+built. The probabilities are bit for bit the same (a test compares them
+with every feature built, on a 6000-byte unit), and the bytes built per
+position are bounded by the model: 71 bytes for each of the two for the
+English UD model.
+
+The model file is checked as OpenNLP checks it: the component is
+`TokenizerME`, `useAlphaNumericOptimization` is present, and the
+classifier's outcomes are `T` and `F`. The alphanumeric optimization is
+on when that property is `true` in any case. Its pattern is the
+manifest's `alphaNumericPattern`, or `^[A-Za-z0-9]+$` when the manifest
+has none, whatever the model's language: OpenNLP's `lang.Factory` has
+per-language patterns, but the factory OpenNLP builds for a loaded model
+asks for them with a language it never set, so it always gets the
+default (checked on the JVM with a German model whose pattern was
+removed). The per-language patterns are ported too, for a caller that
+wants them. Every pattern OpenNLP ships has the form `^[characters]+$`;
+the check reads that form (single characters and ranges) into a set and
+tests the unit by code point as `java.util.regex` would. A pattern of
+any other form, or with `[`, `]`, `\`, `^` or `&` in the class, is
+refused when the model loads with the optimization on, with the pattern
+in the error, rather than approximated (OpenNLP hands such a pattern to
+`java.util.regex`). With the optimization off the pattern is never used
+and is not read.
+
+The whitespace units come from `TokenizerOptions`: the whitespace mode
+decides which characters separate units, and also the `_ws` feature,
+though a unit never holds whitespace; `keep_newlines` makes every line
+feed and carriage return a unit, and so a token of probability 1, of its
+own.
+
+The annotator reads `View` and `Option<Sentences>` and writes `Tokens`
+and `Confidence<Tokens>` (`f64`, the probabilities as computed). It goes
+through `tokenize_units_with` like every tokenizer, so each sentence is
+tokenized on its own, the tokens carry their sentence, and sentences in
+another view are refused. The confidence is aligned to the tokens the
+same step writes, which `Analyzer::build` accepts, so the annotator is
+added to a pipeline with `Builder::add` like any other.
 
 Deviation: Java indexes a unit by code unit, so a split can fall between
 the two halves of a character outside the BMP. Such a split is not a
 valid UTF-8 boundary and is not taken here; the model is still evaluated
-at that position so the probabilities stay identical.
+at that position and the token goes on, its probability multiplied by
+that decision's like any other. The two Java tokens that meet between
+the halves are therefore one token here, with the product of their
+probabilities, and each of them can hold more than half a character:
+for `'😀.` the English model gives (1,2) and (2,3) in Java (UTF-16
+offsets) and the one token (1,5) here (UTF-8 offsets). A token start
+that the abbreviation jump would put between two halves moves to the
+end of that character, so a half-character token Java emits after the
+jump has nothing in its place here: with `😀.😀` in the abbreviation
+dictionary of the English model Java gives (0,5) and (4,5), and this
+gives (0,9). The golden files agree with the port once the Java tokens
+that meet between two halves are joined this way; the variant runs
+include inputs on which every model splits inside U+1F600.
 
 ### `Detokenizer`
 
@@ -350,6 +405,14 @@ reach the OpenNLP side:
   coincidence.
 - `TokenizerME` can place a split between surrogate halves for the
   same reason.
+- `TokenizerFactory.getAlphaNumericPattern` passes its `languageCode`
+  field to `lang.Factory`, and a factory made for a loaded model leaves
+  that field null (only `getLanguageCode()` reads the language from the
+  model). A model without `alphaNumericPattern` therefore always gets the
+  default `^[A-Za-z0-9]+$`, never its language's pattern.
+- In `TokenizerME.tokenizePos`, a split inside a unit the abbreviation
+  dictionary lists emits the unit from the token start to its end, then
+  keeps splitting after the dot jump, so the tokens overlap.
 - `SimpleTokenizer` with `keepNewLines` throws an exception when the
   text starts with a line break (or any line break comes before the
   first token), because it tries to close a token that was never
