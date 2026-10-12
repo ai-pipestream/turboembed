@@ -27,15 +27,18 @@ pub fn image_id() -> Result<String, String> {
 }
 
 /// Runs the generator in the image without a network, with `inputs` at
-/// /inputs and `models` at /models read only and `out` at /out, as the
+/// /inputs, `rates` (the rate snapshot's directory) at /rates and `models` at
+/// /models read only and `out` at /out, as the
 /// calling user so the files written are theirs. The generator gets
 /// [`recipe::GENERATOR_ARGS`], so it writes the dumps beside the goldens.
-pub fn generate(inputs: &Path, models: &Path, out: &Path) -> Result<(), String> {
+pub fn generate(inputs: &Path, rates: &Path, models: &Path, out: &Path) -> Result<(), String> {
     image_id()?;
     let mut cmd = Command::new("docker");
     cmd.args(["run", "--rm", "--network", "none"])
         .arg("--mount")
         .arg(format!("type=bind,src={},dst=/inputs,readonly", canonical(inputs)?.display()))
+        .arg("--mount")
+        .arg(format!("type=bind,src={},dst=/rates,readonly", canonical(rates)?.display()))
         .arg("--mount")
         .arg(format!("type=bind,src={},dst=/models,readonly", canonical(models)?.display()))
         .arg("--mount")
