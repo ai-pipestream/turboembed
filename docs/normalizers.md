@@ -527,6 +527,48 @@ uppercase-aware cases, and 4000 generated texts compared with a
 per-character reference in both modes, each edit checked to be one
 character's expansion.
 
+### Confusable skeleton (`analysis/normalize/src/confusables.rs`)
+
+`ConfusableSkeleton` (id `turbo:normalize:confusable-skeleton`) writes
+the skeleton of UTS #39 section 4: NFD, each character replaced by its
+prototype from confusables.txt, NFD again. Text that looks alike has the
+same skeleton: "раураl" with Cyrillic а and "paypal" both become
+"paypal", "m" becomes "rn", 1 and I become "l", U+2026 becomes "...". The
+skeleton is for comparing and indexing.
+
+The alignment is recorded per source character with the run pass of
+accent folding. A boundary is a character whose decomposition starts
+with a character of combining class 0 that has no prototype, or whose
+prototype also decomposes to a class 0 character first; both NFD passes
+then split the text before it. A character in NFD with no prototype is
+kept without work, which covers all of ASCII except the eight characters
+confusables.txt maps (" % 0 1 I ` m |), the fast path of
+`Confusables.skeleton` done per character.
+
+OpenNLP counterpart: `ConfusableSkeletonCharSequenceNormalizer` and
+`Confusables.skeleton`.
+
+Differences from OpenNLP:
+
+- The data is confusables.txt 18.0.0 (through `turbo_unicode`); OpenNLP
+  bundles 17.0.0. A line diff of the two files has about 2850 changed
+  lines. For example 18.0.0 maps U+030B COMBINING DOUBLE ACUTE ACCENT
+  to two acute accents, so "ő" becomes "o" U+0301 U+0301 here and "o" U+030B in
+  OpenNLP.
+- OpenNLP's class has no aligned form; here every edit is aligned.
+
+Tests (`analysis/normalize/tests/confusables.rs`): every expectation of
+`ConfusableSkeletonTest`
+and `ConfusablesTest` that is about the skeleton (the null argument and
+`TermAnalyzer` tests have no counterpart), the edits of "com" and of the
+Cyrillic spoof, agreement with `turbo_unicode::confusables::skeleton`,
+the Unicode 18.0 mapping above, every source of confusables.txt alone
+and between marks compared with a reference written after
+`Confusables.skeleton` (including its fast path), and 4000 generated
+texts from confusables.txt sources, letters and marks of other
+scripts and frequent combining marks compared with the same reference,
+with every alignment checked.
+
 ### Alignment checks
 
 The tests of these normalizers run every input through
@@ -579,6 +621,8 @@ it overlaps.
   (Northern Sami), ƀ, Ɨ ɨ, Ĳ ĳ, Ŋ ŋ and the hooked letters of African
   orthographies (ɓ ɗ ƙ ƴ).
 - `GermanUmlautCharSequenceNormalizer` writes "ÜBER" as "UeBER".
+- `Confusables` bundles confusables.txt 17.0.0; 18.0.0 changes about
+  2850 of its lines.
 
 ## Tests
 
