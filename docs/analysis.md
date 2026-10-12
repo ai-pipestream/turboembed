@@ -203,6 +203,7 @@ fields mean bumps its `SCHEMA`.
 | `Chunks` | `turbo:chunks` | text | `turbo-analysis-layers` |
 | `Vectors<L>` | `opennlp:embeddings<L>` | `L` | `turbo-analysis-layers` |
 | `Confidence<L>` | `turbo:confidence<L>` | `L` | `turbo-analysis-layers` |
+| `Utf16Spans<L>` | `turbo:utf16<L>` | `L` | `turbo-analysis-layers` |
 | `Language` | `opennlp:language` | the document | `turbo-analysis-layers` |
 
 `Chunks` are retrieval chunks. The standard's `opennlp:chunks` are
