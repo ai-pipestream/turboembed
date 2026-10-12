@@ -524,6 +524,138 @@ closing brackets; and a pipeline that runs `BoundedUrls` and then
 `BoundedSocialMedia` through the analyzer and maps every placeholder
 back to the source.
 
+### Social media (`social/`)
+
+`SocialMedia` (id `turbo:normalize:social-media`) keeps the output of
+OpenNLP's `SocialMediaCharSequenceNormalizer`, which is also part of the
+language detector's preparation. OpenNLP runs four passes, each over the
+previous one's output:
+
+1. a hashtag or handle, `#` or `@` followed by a character that is not
+   ASCII whitespace, up to the next ASCII whitespace, becomes a space
+   (`#a#b` is one tag; `abc#def` becomes `"abc "`);
+2. a run of retweet units, `rt` and a space or colon, ASCII
+   case-insensitively, becomes a space when it starts on a word boundary
+   as the JDK regular expression engine decides `\b`: not after an ASCII
+   letter, digit or `_`, nor after a non-spacing mark that sits on a
+   letter or digit (the engine walks back over the marks one UTF-16 unit
+   at a time, so a supplementary-plane character in that walk never
+   blocks);
+3. an emoticon, eyes `: ; x X`, an optional `-` and a mouth
+   `( ) d D o O p P`, becomes a space, inside words too (`expo` becomes
+   `"e o"`);
+4. laughter, a run of `h`/`j`, a run of vowels and at least one more pair
+   of runs of the last consonant and the last vowel, shrinks to that
+   consonant and vowel twice as written (`hAHa` becomes `hAhA`).
+
+`SocialMedia` does all four in one pass and produces the same text. The
+four patterns start with disjoint characters and none can contain the
+first character of another, so they never compete for a position. The
+one interaction between the passes is that the space a hashtag or handle
+becomes can end a retweet unit: `rt#tag` is `"rt "` after the first pass
+and one space after the second. The scan accepts a tag in that place;
+the placeholders are a `RetweetMarker` for `rt` and a `Hashtag` or
+`Mention` for the tag, both mapped to the one space. Laughter is not a
+placeholder. A shrunk laugh keeps the part it shares with its source, so
+`hahaha` keeps `haha` (mapped to itself) and deletes `ha`.
+
+`BoundedSocialMedia` (id `turbo:normalize:bounded-social-media`) finds
+the same kinds of markup by Unicode properties and word boundaries,
+closer to how the platforms that define hashtags and mentions delimit
+them. A word character is a letter or digit, a combining mark, or `_`.
+
+- A hashtag is `#` or `＃` (U+FF03), not after a word character or `&`,
+  followed by a run of word characters, ZWNJ and ZWJ that contains a
+  letter or mark: `#café`, `#日本`, `#हिन्दी`, `#100DaysOfCode`. `#1` and
+  `#2024` are not hashtags, nor is the `#39` of `&#39;`.
+- A mention is `@` or `＠` (U+FF20), not after a word character or one
+  of `! @ # $ % & *`, followed by a run of word characters, optionally
+  continued by `@` and a domain of two or more labels (a fediverse
+  handle such as `@ana@social.example`). Any other `@` right after the
+  run means it is not a mention, so `a@b.com` and `@ana@x` are left
+  alone.
+- A retweet marker is a run of `rt` units not after a word character; a
+  last `rt` directly before a mention (`RT@ana`) also ends the marker.
+- An emoticon is the same eyes, nose and mouth, not followed by a word
+  character, and with `x`/`X` eyes not after one.
+- Laughter shrinks as in `SocialMedia`.
+
+Differences from OpenNLP (`BoundedSocialMedia` only; `SocialMedia`
+matches OpenNLP exactly because the language detector models were
+trained on its output):
+
+- A hashtag or mention ends where its word ends instead of at the next
+  ASCII whitespace, so punctuation after it stays in the text:
+  `#win!` becomes `" !"` (OpenNLP: `" "`), `RT @ana: hello` becomes
+  `"  : hello"` (OpenNLP: `"   hello"`). Tests:
+  `bounded::hashtags_end_at_the_word`,
+  `bounded::retweet_markers_need_a_word_boundary`.
+- Letters, digits and marks of every script count as word characters,
+  for the start of a tag and for the word boundary of retweet markers,
+  so `éRT x` keeps its `RT` (OpenNLP removes it, since `é` is not an
+  ASCII word character).
+- Number-only tags (`#1`, `#2024`), HTML entities (`&#39;`), tags inside
+  words (`abc#def`) and bare `#`/`##` are not replaced. OpenNLP replaces
+  `abc#def` with `"abc "` and `##` with a space.
+- Fullwidth `＃` and `＠` start tags, and fediverse handles are one
+  mention.
+- Emoticons do not match inside words: `expo`, `taxi`, `xoxo` and
+  `:people` are kept (OpenNLP: `"e o"`, `"taxi"`, two spaces, `" eople"`).
+  Test: `bounded::emoticons_stand_alone`.
+
+Tests (`analysis/normalize/tests/social_media.rs`): every expectation of OpenNLP's
+`SocialMediaCharSequenceNormalizerCharacterizationTest` (a supplementary
+non-spacing mark stands in for the lone surrogates); 50,000 generated
+inputs from OpenNLP's pool compared with a four-pass reference that
+follows OpenNLP's passes one to one; the tag that ends a retweet unit;
+the placeholder kinds and spans of both normalizers; and the
+`BoundedSocialMedia` rules above.
+
+### Numbers (`number.rs`)
+
+`Numbers` (id `turbo:normalize:numbers`) replaces each maximal run of
+ASCII digits with one space (`12.34` becomes `" . "`) and records a
+`Number` placeholder per run. Digits of other scripts are left alone, as
+in OpenNLP, whose `\d` class was ASCII only; `Digits` is the normalizer
+that folds them to ASCII.
+
+OpenNLP counterpart: `NumberCharSequenceNormalizer`. No differences.
+
+Tests (`analysis/normalize/tests/numbers_shrink.rs`): every expectation of
+`NumberCharSequenceNormalizerCharacterizationTest`, 5000 generated
+inputs from its pool against the digit-run rule, the placeholder spans,
+and that digit-free text comes back borrowed.
+
+### Shrink (`shrink.rs`)
+
+`Shrink` (id `turbo:normalize:shrink`) ports
+`ShrinkCharSequenceNormalizer`:
+
+1. a run of two or more ASCII whitespace characters (U+0009..U+000D,
+   U+0020) becomes one space; a single tab or newline is kept;
+2. a run of three or more of one character, compared ASCII
+   case-insensitively, becomes the run's first character twice (`aAAb`
+   becomes `aab`, not `aAb`); runs of LF, CR, U+0085, U+2028 and U+2029
+   are never shrunk, because Java's `.` does not match them;
+3. leading and trailing characters at or below U+0020 are deleted, as
+   `String.trim()` does, control characters included.
+
+OpenNLP runs the three steps as passes; `Shrink` runs one and produces
+the same text. After step 1 no two whitespace characters are adjacent,
+so step 2 only shrinks runs that are the same in the original text, and
+the characters step 3 deletes are exactly the images of the input's
+leading and trailing characters at or below U+0020 (a run never mixes
+those with other characters), which `Shrink` deletes directly. A shrunk
+run keeps its first character, mapped to itself, and writes the second
+copy over the rest of the run.
+
+OpenNLP counterpart: `ShrinkCharSequenceNormalizer`. No differences.
+
+Tests (`analysis/normalize/tests/numbers_shrink.rs`): every expectation of
+`ShrinkCharSequenceNormalizerCharacterizationTest` (without its lone
+surrogate cases), and 50,000 generated inputs from its pool compared with
+a three-pass reference that follows OpenNLP's passes one to one.
+
 ### Unicode normalization forms (`unicode_form.rs`)
 
 `UnicodeForm` (id `turbo:normalize:unicode-form`) puts the text in NFC
@@ -960,6 +1092,12 @@ it overlaps.
   removing part of an address and leaving the rest. Widening the
   local-part and domain sets to non-ASCII letters, digits and marks
   removes whole internationalized addresses.
+- `SocialMediaCharSequenceNormalizer` replaces emoticons inside words
+  (`expo` becomes `"e o"`, `xoxo` two spaces, `:people` `" eople"`), and
+  its hashtags swallow the punctuation after them (`#win!`). Its retweet
+  word boundary depends on how the JDK regular expression engine walks
+  back over UTF-16 units, so a supplementary-plane combining mark never
+  blocks it.
 - `NfcCharSequenceNormalizer`, `NfkcCharSequenceNormalizer` and
   `CaseFoldCharSequenceNormalizer` are not offset-aware, so
   `buildAligned()` rejects them. All three can record an exact alignment:
