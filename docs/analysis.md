@@ -272,6 +272,7 @@ fields mean bumps its `SCHEMA`.
 | `Entities` | `opennlp:entities` | text | `turbo-analysis-layers` |
 | `Boundaries` | `turbo:boundaries` | sentences | `turbo-analysis-layers` |
 | `Chunks` | `turbo:chunks` | text | `turbo-analysis-layers` |
+| `Levels` | `turbo:levels` | text | `turbo-analysis-layers` |
 | `Numbers` | `turbo:numbers` | text | `turbo-analysis-layers` |
 | `Money` | `turbo:money` (and the instance `converted`) | text | `turbo-analysis-layers` |
 | `Vectors<L>` | `opennlp:embeddings<L>` | `L` | `turbo-analysis-layers` |
@@ -347,8 +348,9 @@ reads: `SentenceVectors` reads the subwords and the sentences,
 all three and writes both from the same windows. They can share one
 loaded model (`Arc<VectorAnnotator>`). `VectorsProvider` offers them to
 a registry as `vectors`, the spec's location being the bundle directory
-and its options `layers` (`sentences`, `chunks`, `both`), `device`,
-`precision` and `prompt`.
+and its options `layers` (`sentences`, `chunks`, `both`, `levels`),
+`device`, `precision` and `prompt`. `LevelVectors`, for `levels`, is
+described under "Levels" below.
 
 The subwords must be the same bundle's pieces (the layer's model is
 compared) and every layer must be in the subwords' view; a document
@@ -472,7 +474,7 @@ device's name, and the precision as the dtype the session computes in
 and the tier asked for, such as `f32 (model)`. The configuration hash
 covers the row length, the prompt, and the layer that lays out the
 windows: the sentences for `SentenceVectors` and `SentenceChunkVectors`,
-the chunks for `ChunkVectors`.
+the chunks for `ChunkVectors`, the levels for `LevelVectors`.
 
 The annotator checks what it is given, since `VectorAnnotator::embed`
 takes its input from any caller: an id for every piece, the pieces'
@@ -754,7 +756,10 @@ units of one level, and writes `TermStats<L>`, aligned to the units:
 - `TermCounter<Structure>`: a row per structure block; the sections are
   the blocks of kind `Section`, and a nested section's terms count in it
   and in every section around it;
-- `TermCounter<View>`: one row for the whole document.
+- `TermCounter<View>`: one row for the whole document;
+- `TermCounter<Levels>`: a row per unit of the chunk, section and
+  document levels (see "Levels" below), so every level gets its counts
+  from the same code.
 
 A token is in the unit its start is in. Each row is sparse: the unit's
 term ids in ascending order with a count for each, by column, with
@@ -789,6 +794,103 @@ first, equal scores in unit order.
 The layers live in `turbo-chunker` beside the code that makes them while
 only it reads them; they move to a schema crate of their own once
 another crate does.
+
+## Levels
+
+`Levels` (`turbo:levels`, in `turbo-analysis-layers`) holds three levels
+of retrieval units over one view as a tree: the chunks, the sections
+they sit in, and the whole document. Each row has its exact span in the
+view, a `Unit` that names where it comes from (`Chunk` with its row of
+`Chunks`, `Section` with its block of `Structure`, or `Document`), and
+its parent. Row 0 is the document, over the whole view, leading and
+trailing whitespace included; the other rows follow in text order, a
+parent before its children: by start, then sections in structure order,
+then chunks. The layer refuses a second document, a unit with no parent
+or with a chunk as its parent, and a unit outside its parent's span.
+
+It is a layer of its own rather than more rows of `Chunks`. `Chunks` is
+the chunker's output and has one writer; its rows carry the optimizer's
+cost, the reason for the cut and a length in model tokens, which a
+section or the document does not have. A unit here points into
+`Chunks` or `Structure` instead, so nothing of those is copied but the
+spans that a positional layer needs.
+
+`LevelBuilder` in `turbo-chunker` reads the view, the sentences, the
+chunks and the structure when there is one, and writes the levels:
+
+- The chunks are the level 0 rows of `Chunks`. The rows the chunker
+  puts above them (one per top-level section run) are not repeated; the
+  sections come from the structure, nested ones included.
+- A section is every block of kind `Section`. Its parent is the nearest
+  section around it, or the document.
+- A chunk belongs to a section when every sentence of it starts in the
+  section, the rule the chunker splits its runs by. Its parent is the
+  innermost such section, or the document when there is none: text
+  before the first heading, after the last section, or a whole document
+  with no structure, whose levels are the document and its chunks.
+- The chunker never lets a chunk cross a top-level section, but the edge
+  of a nested section is only a cost, so a chunk can run across it.
+  Such a chunk belongs to the section around both, and shares bytes with
+  the nested section beside it: siblings may overlap, a unit never
+  leaves its parent.
+- A section's span is its block's, widened at the end to the end of the
+  last chunk that belongs to it when a sentence that starts in the
+  section ends after it. Its start never moves, so every offset is a
+  block's, a chunk's or the view's.
+- An empty block or an empty chunk keeps its row, with its empty span.
+
+The time is the number of sections times the chunks that start in each,
+after a binary search per section.
+
+Term statistics need no code of their own: `TermCounter<Levels>` counts
+the terms of every unit at every level (see "Term statistics and BM25"),
+and its df counts the units of all three levels that hold a term.
+
+### Local and contextual vectors
+
+`LevelVectors` in `turbo-analysis-embed` reads the subwords and the
+levels and writes two instances of `Vectors<Levels>`, both aligned to
+the levels, named by `VectorKind`: `local` and `contextual`
+(`VectorKind::key`). It is added to a pipeline with
+`LevelVectors::bound`, which gives each output its name; under the
+default name for both the pipeline is refused.
+
+- The local vector is pooled from rows that hold the unit's own pieces
+  and nothing else: the windows start at its first piece and stop at its
+  last.
+- The contextual vector is pooled from the rows of the unit's parent
+  (its section, a section around it, or the document), which stop at the
+  parent's last piece: the late chunking of Günther et al. (2024) within
+  the section or document. The document has no parent, so its
+  contextual vector is pooled from its own rows and equals its local
+  one. So does a unit whose parent holds no piece it does not, such as
+  a chunk that is its whole section.
+
+Both go through the window planner and the late pooling of the other
+vector steps, one unit at a time: the unit lays out windows over its
+own pieces, with the planner bounded by its last piece, its local vector
+is pooled from them, and each of its children is placed in them for its
+contextual vector. A unit that fits one window is one row. A longer one
+is cut into windows of the full width from its first piece, the last
+one shorter; its local vector is the mean of its parts weighted by
+pieces, and a child is pooled from the window that holds it whole, or
+in parts when it crosses from one window to the next. A child of a
+long parent therefore sees the context of its own window, not the
+whole parent. A child adds no window to its parent's, so each piece is
+encoded once for every unit that holds it: once per level, more where
+sections nest. A unit
+with no pieces has the zero vector in both and is listed in both
+layers' `empty`.
+
+The tests hold every vector of both kinds to the same unit pooled by
+hand, each range run alone in a session of its own, in rows of 64
+tokens (the whole text one window) and of 24 (the document and a
+section in parts), with and without structure, with empty units, and
+twice for the same bits.
+
+What each level and each kind of vector adds to retrieval is not
+measured yet: that needs the evaluation harness, which is still being
+built.
 
 ## Golden files
 
@@ -1314,6 +1416,16 @@ runs them on any machine:
   read the gaps a structure makes: each gap's strongest break, the
   units by their sentences, block edges inside sentences, which gaps
   units hold, and sections listed out of order.
+- `analysis/chunker/tests/levels.rs` builds the levels from Markdown
+  through the structure detector, the boundary costs and the chunker,
+  and from hand-made chunks and sections: every unit's span read back as
+  text, text before the first heading under the document, nested
+  sections three deep, a chunk across a nested section's edge under the
+  section around both, a section widened by a sentence past its end,
+  empty sections and chunks, a document with no structure and one with
+  no chunks, term counts at every level against the view's own,
+  determinism, and overlapping chunks refused. The layer's unit tests
+  hold its checks.
 - `analysis/chunker/tests/limits.rs` holds each hard limit over
   hand-made layers: a table row, a code block and a quote that fit are
   never cut even where the costs say to, each one over the budget is cut
@@ -1364,6 +1476,11 @@ runs them on any machine:
 - `analysis/structure/tests/pipeline.rs` runs the annotator ahead of the
   chunker, whose chunks then stay inside the sections it found, and
   builds it through the provider.
+- `analysis/embed/tests/levels.rs` holds every local and contextual
+  vector of the levels to the same unit pooled by hand on the small
+  BERT, in one window and in parts, with and without structure, with
+  empty units, and checks that the two kinds are named instances, that
+  both under one name are refused, determinism, and the provider.
 - `analysis/embed/tests/subwords.rs` runs the subwords annotator on the
   small BERT's WordPiece bundle, a byte-level BPE bundle and BGE-M3's
   Unigram, over the tokenizer test texts, and checks that the document
@@ -1460,5 +1577,6 @@ runs them on any machine:
   `tokenizers` for now.
 - The evaluation harness that every change to the chunker is measured
   with, and the chunker's records on it. It is also where the BM25 only
-  baseline is to be reported, from the term statistics above.
+  baseline is to be reported, from the term statistics above, and what
+  each level and each kind of level vector adds.
 - A gRPC surface, to be shared with the OpenNLP standard.

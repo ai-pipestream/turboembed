@@ -16,6 +16,7 @@ mod limits;
 
 pub use boundaries::{Costs, StructureBoundaries};
 
+pub mod levels;
 pub mod terms;
 
 use std::ops::Range;

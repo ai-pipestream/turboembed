@@ -9,15 +9,20 @@
 //!   (`Vectors<Sentences>`, `Vectors<Chunks>`), through the core's late
 //!   pooling. `SentenceVectors`, `ChunkVectors` and `SentenceChunkVectors`
 //!   are the steps that run it.
+//! - `LevelVectors` runs it over `Levels` (chunk, section, document) and
+//!   writes a local and a contextual vector per unit, as two named
+//!   instances of `Vectors<Levels>` (`VectorKind::key`).
 //!
 //! This is the one analysis crate that depends on the core crate, `turbo`.
 
 pub mod encoder;
+pub mod levels;
 pub mod subwords;
 pub mod vectors;
 pub mod window;
 
 pub use encoder::{Device, Encoder, EncoderInfo, EncoderOptions, Precision, Rows, normalize};
+pub use levels::LevelVectors;
 pub use subwords::{SubwordAnnotator, SubwordsProvider, align};
 pub use vectors::{
     ChunkVectors, Input, Output, SentenceChunkVectors, SentenceVectors, VectorAnnotator, VectorOptions, VectorsProvider,

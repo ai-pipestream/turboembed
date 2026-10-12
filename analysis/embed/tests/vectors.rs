@@ -612,12 +612,12 @@ fn malformed_input_fails_the_document() {
     let mut backwards_chunk = Spans::<Chunks>::new(sentences.view());
     backwards_chunk.push(Span { start: 9, end: 3 });
     let inputs = [
-        Input { subwords: &short, sentences: Some(sentences), chunks: None },
-        Input { subwords: &unordered, sentences: Some(sentences), chunks: None },
-        Input { subwords: &inverted, sentences: Some(sentences), chunks: None },
-        Input { subwords: sub, sentences: Some(&backwards), chunks: None },
-        Input { subwords: sub, sentences: None, chunks: Some(&backwards_chunk) },
-        Input { subwords: sub, sentences: Some(sentences), chunks: None },
+        Input { subwords: &short, sentences: Some(sentences), chunks: None, levels: None },
+        Input { subwords: &unordered, sentences: Some(sentences), chunks: None, levels: None },
+        Input { subwords: &inverted, sentences: Some(sentences), chunks: None, levels: None },
+        Input { subwords: sub, sentences: Some(&backwards), chunks: None, levels: None },
+        Input { subwords: sub, sentences: None, chunks: Some(&backwards_chunk), levels: None },
+        Input { subwords: sub, sentences: Some(sentences), chunks: None, levels: None },
     ];
     let mut out = a.embed("test", &inputs);
     for want in [
@@ -683,9 +683,9 @@ fn layers_that_do_not_fit_together_fail_the_document() {
     let mut elsewhere = Spans::<Sentences>::new(ViewId(1));
     elsewhere.push(Span::new(0, 3));
     let inputs = [
-        Input { subwords: &other, sentences: Some(sentences), chunks: None },
-        Input { subwords: sub, sentences: Some(&elsewhere), chunks: None },
-        Input { subwords: sub, sentences: Some(sentences), chunks: None },
+        Input { subwords: &other, sentences: Some(sentences), chunks: None, levels: None },
+        Input { subwords: sub, sentences: Some(&elsewhere), chunks: None, levels: None },
+        Input { subwords: sub, sentences: Some(sentences), chunks: None, levels: None },
     ];
     let mut out = a.embed("test", &inputs);
     let e = out.remove(0).err().unwrap().to_string();

@@ -16,6 +16,7 @@ use std::sync::Arc;
 
 use turbo_analysis::{Anchor, Ix, IxRange, Key, KeyId, Layer, ModelRef, Spans, ViewId};
 
+pub use levels::{Level, Levels, Unit, VectorKind};
 pub use money::{CONVERTED_MONEY, Currency, Money, MoneyMention};
 pub use numbers::{DecimalRef, Multiplier, NumberMention, NumberNotation, Numbers, ScaleMarker};
 
@@ -108,6 +109,7 @@ macro_rules! positional {
     };
 }
 
+mod levels;
 mod money;
 mod numbers;
 

@@ -1757,6 +1757,7 @@ dependencies = [
  "turbo",
  "turbo-analysis",
  "turbo-analysis-layers",
+ "turbo-chunker",
 ]
 
 [[package]]
@@ -1795,6 +1796,7 @@ dependencies = [
  "turbo-analysis",
  "turbo-analysis-layers",
  "turbo-normalize",
+ "turbo-structure",
 ]
 
 [[package]]
