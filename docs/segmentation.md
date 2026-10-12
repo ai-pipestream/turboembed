@@ -98,8 +98,9 @@ caller's `[f64]`; it allocates nothing. `MaxentModel::eval` takes `&str`
 features and encodes the few that differ in modified UTF-8.
 Probabilities are `f64` end to end, as they are in Java, and `exp` and
 `log` are `turbo-jvm`'s ports of fdlibm, which `StrictMath` specifies, so
-the fixture models' probabilities equal the JVM's bit for bit. `NaiveBayes` models are refused with an
-error that names the type; nothing here needs them.
+the fixture models' probabilities equal the JVM's bit for bit.
+`NaiveBayes` models are refused with an error that names the type;
+nothing here needs them.
 
 The dictionary XML (`<dictionary case_sensitive="..."> <entry
 attr="..."> <token>...</token> </entry>`) is read by a small reader
