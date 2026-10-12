@@ -4,11 +4,17 @@
 //! texts and model files.
 
 pub mod escape;
+pub mod format;
 pub mod hex;
 pub mod sha;
+pub mod write;
 
 use std::path::PathBuf;
 
+pub use format::{
+    AnnotatorRef, Column, ColumnData, ColumnSpec, ColumnType, Generator, Golden, GoldenAnchor, GoldenLayer, Header,
+    Input, Jdk, Model, OpenNlp, UnicodeVersion,
+};
 pub use sha::{Sha256, Sha512, sha256, sha512};
 
 /// The checked-in golden data, `analysis/goldens/data`: the input texts
