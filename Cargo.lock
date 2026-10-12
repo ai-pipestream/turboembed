@@ -1846,6 +1846,35 @@ dependencies = [
 ]
 
 [[package]]
+name = "turbo-normalize"
+version = "0.1.0"
+dependencies = [
+ "turbo-analysis",
+ "turbo-analysis-layers",
+ "turbo-normalize-layers",
+ "turbo-unicode",
+]
+
+[[package]]
+name = "turbo-normalize-layers"
+version = "0.1.0"
+dependencies = [
+ "turbo-analysis",
+ "turbo-analysis-layers",
+]
+
+[[package]]
+name = "turbo-unicode"
+version = "0.1.0"
+dependencies = [
+ "turbo-unicode-gen",
+]
+
+[[package]]
+name = "turbo-unicode-gen"
+version = "0.1.0"
+
+[[package]]
 name = "typenum"
 version = "1.20.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
