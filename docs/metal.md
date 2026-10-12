@@ -143,7 +143,25 @@ frameworks and libc++, which every macOS has.
   field 1. For a model whose heads run the narrow attention kernel, a
   `max_seq` whose scores do not fit the threadgroup memory the device
   gives (4 bytes per token; 32 KiB on Apple GPUs, so about 8000 tokens)
-  names field 2.
+  names field 2. The device is a GPU, so `cpu_threads` (field 6 of
+  `turbo_session_desc`) is 0 alone: any other value is
+  `TURBO_E_UNSUPPORTED_OPTION` naming field 6.
+- **Range pooling.** `turbo_embed_write_ranges` packs the rows as
+  `embed_write` does and copies the ranges, three `uint32` each as
+  `turbo_token_range` lays them out, into a region of the same shared
+  memory after the attention blocks, sized for the session's
+  `max_ranges` when the session is made. The GPU reads them there, so
+  nothing else is copied and nothing crosses. The run encodes every row
+  once, as for `embed_write`, and then a second pooling kernel, one SIMD
+  group per range, writes one vector per range in range order: the mean
+  of the final hidden states over the range's columns whose mask is 1,
+  cut to `output_dim`, then normalized when `normalize` says so. A range
+  stops at its row's last live token, since the columns after it are
+  padding that is never computed. The sum runs in position order with the
+  row pooling's arithmetic, so a range over a whole row gives that row's
+  vector bit for bit. The session's output buffer holds
+  max(`max_batch`, `max_ranges`) vectors of `hidden` F32, made with the
+  session, so a range run allocates nothing either.
 - **Numerics.** F32 throughout. Apple GPUs have no F64, so where the CPU
   encoder sums in F64 this backend sums in F32: LayerNorm takes the mean,
   then the variance around it, in two passes, and the L2 norm is summed

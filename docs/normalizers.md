@@ -796,6 +796,62 @@ loop); the alignment of every output; and a pipeline that runs
 `EmojiAnnotate` and `EmojiRemove`, reads both layers back and maps each
 emoji into the view.
 
+### Dehyphenation
+
+`Dehyphenate` (id `turbo:normalize:dehyphenate`) rejoins words split at a
+line end: "litiga-\ntion" becomes "litigation". A join needs a letter,
+optionally followed by combining marks (general category M), a hyphen (U+002D, U+00AD SOFT HYPHEN or U+2010 HYPHEN), exactly one line
+break from the `UnicodeWhitespace` line-break set (CR LF counts as one),
+any amount of non-breaking whitespace from the same table (the
+indentation of the next line, including U+00A0), and a letter. Letters
+are `Character.isLetter` letters (`turbo_unicode::java::is_letter`,
+general category L). The hyphen, the break and the indentation are
+deleted as one edit, so the joined word maps back to the whole source
+stretch.
+
+Nothing else joins: a hyphen without a line break after it, U+2011
+NON-BREAKING HYPHEN (the writer said the word must not break there), a
+second line break (a blank line, or a form feed page break), and a
+continuation that starts with a digit, punctuation or a combining mark.
+
+OpenNLP counterpart: `DehyphenationCharSequenceNormalizer`.
+
+Differences from OpenNLP: OpenNLP requires the character right before
+the hyphen to be a letter, so it leaves a word that ends in a combining
+mark split. That misses decomposed (NFD) text, which PDF extractors and
+macOS file systems produce ("cafe" U+0301 "-\nteria"), and Devanagari,
+Bengali and other Indic words, which often end in a vowel sign such as
+U+0940. Here the letter may be followed by any number of combining
+marks; both examples join. A mark with no letter before it, or a
+continuation that starts with a mark, still does not join. Apart from
+this the default mode (`Dehyphenate::new()`) matches OpenNLP.
+
+Without a dictionary the default mode cannot tell a word broken by the
+typesetter from a compound that was broken at its own hyphen:
+"well-\nknown" becomes "wellknown". `Dehyphenate::keep_compounds()` is an
+addition to OpenNLP that keeps the hyphen when it is U+002D and the
+letter after the break is uppercase (`turbo_unicode::props::uppercase`);
+only the break and the indentation are deleted. It keeps
+"Wi-\nFi" as "Wi-Fi" and "Müller-\nLüdenscheidt" as
+"Müller-Lüdenscheidt". This is a heuristic. It does not help
+with lowercase compounds ("well-\nknown" is still joined), it keeps a
+hyphen that the typesetter added before a capital inside a word
+("Mc-\nDonald" becomes "Mc-Donald"), and it never keeps a soft hyphen or
+U+2010, which mark typesetter breaks. Deciding from a lexicon whether the
+joined form is a word is not implemented.
+
+Tests (`analysis/normalize/tests/dehyphenate.rs`): every expectation of OpenNLP's
+`DehyphenationCharSequenceNormalizerTest` (each line-break form, the form
+feed page break, the three hyphens and the non-breaking one, indentation,
+several joins, the cases left alone, the alignment of the joined word,
+of the text around it, of CR LF with indentation, of a supplementary
+letter before the hyphen and of an emoji after the join, with UTF-16
+offsets rewritten as UTF-8 byte offsets); Cyrillic and German words;
+words ending in one or more combining marks, in Latin NFD and
+Devanagari, and marks without a letter; the compound mode, including the
+alignment of the kept hyphen; and 4000 generated texts in both modes
+compared with a reference written over a character vector.
+
 ### Alignment checks
 
 The tests of these normalizers run every input through
@@ -868,6 +924,10 @@ it overlaps.
   emoji-test.txt names every RGI emoji; the bundled names could be read
   from emoji-test.txt instead of copied, so they follow each Unicode
   version.
+- `DehyphenationCharSequenceNormalizer` checks only the code unit before
+  the hyphen with `Character.isLetter`, so a word that ends in a
+  combining mark (NFD text, Indic vowel signs) is never joined. Skipping
+  back over general category M before the letter test fixes this.
 
 ## Tests
 

@@ -33,6 +33,7 @@ use turbo_analysis::{Alignment, Annotator, Error, Refs, Span, View, ViewBuilder}
 pub mod bullets;
 pub mod chain;
 pub mod dashes;
+pub mod dehyphenate;
 pub mod digits;
 pub mod ellipsis;
 pub mod emoji;
@@ -50,6 +51,7 @@ pub mod whitespace;
 pub use bullets::Bullets;
 pub use chain::Chain;
 pub use dashes::Dashes;
+pub use dehyphenate::{Dehyphenate, DehyphenateMode};
 pub use digits::Digits;
 pub use ellipsis::Ellipsis;
 pub use emoji::{EmojiAnnotate, EmojiRemove, EmojiRemoveMode, EmojiToEmoticon, EmoticonToEmoji};
