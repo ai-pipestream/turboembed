@@ -1,0 +1,28 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-1-24.04.4-Ubuntu	Ubuntu
+unicode	15.0
+input	norm/turkish-dotted-i	199	179	45d1c7b73bc6d7d81f026ccc7e40b9f8a7dcb89879faafc6f1a20e6058b973d2
+annotator	opennlp.tools.util.normalizer.ConfusableSkeletonCharSequenceNormalizer	normalize
+layer	turbo:view	text	19	start:u32	end:u32	with:str
+0	2	l̇
+11	12	l
+20	26	iși
+29	35	l̇ZMl̇
+48	51	lzrn
+55	57	i
+68	69	l
+74	76	l̇
+92	93	rn
+114	124	l̇, ȘEHl̇
+127	129	C̦
+135	143	Ğ, ÖĞ
+147	149	l̇
+158	160	l̇
+170	171	l
+172	173	l
+176	179	lrrn
+183	187	irrn
+191	193	l̇
+end	turbo:view

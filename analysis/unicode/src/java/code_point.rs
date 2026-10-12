@@ -33,8 +33,13 @@
 //! crate, all from changes Unicode made after 15.0: U+0295 is `Lo` here
 //! and `Ll` in JDK 21 (a letter either way), and the combining Latin small
 //! letters U+0363..U+036F and U+1DD3..U+1DE6 are alphabetic here and not
-//! in JDK 21. That test compares every BMP code point and every 257th
-//! above with a running JDK and fails on any other difference.
+//! in JDK 21, and U+1171E AHOM CONSONANT SIGN MEDIAL RA is `Mc` here and
+//! `Mn` in JDK 21 (changed in Unicode 16.0; alphabetic either way): 35
+//! code points. With `TURBO_TEST_JDK` set, that test compares the general
+//! category, the six class tests, the simple lowercase mapping and the
+//! script of every code point from U+0000 to U+10FFFF with a running JDK
+//! 21, skipping the code points the JDK reports as unassigned, and fails
+//! on any other difference.
 
 use crate::category::{ALL as CATEGORIES, GeneralCategory};
 use crate::script::Script;

@@ -108,6 +108,8 @@ impl Model {
             precision: TURBO_PRECISION_EXACT,
             tuning: TURBO_AUTOTUNE_OFF,
             tuning_budget_ms: 0,
+            cpu_threads: 0,
+            max_ranges: 0,
         };
         let mut s = ptr::null_mut();
         check("turbo_session_create", |e| unsafe { turbo_session_create(self.0, &desc, &mut s, e) })?;

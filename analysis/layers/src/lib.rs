@@ -409,21 +409,35 @@ impl Layer for Chunks {
 
 /// One vector per item of layer `L`: per sentence, per chunk, per token.
 /// Stored as one block, `[len, dim]`, on the host.
+///
+/// An item the producer could make no vector for (one that covers none of
+/// the model's tokens, such as an empty span or whitespace alone) keeps
+/// its row, all zeros, so the layer stays aligned to its items, and is
+/// listed in `empty`. Cosine similarity is undefined for such a row: a
+/// reader skips the items `is_empty` names rather than comparing them.
 pub struct Vectors<L> {
     pub dim: u32,
     pub data: Vec<f32>,
+    /// The items with no vector, in order, each once; their rows are zeros.
+    pub empty: Vec<Ix<L>>,
     pub model: ModelRef,
     pub _of: PhantomData<fn() -> L>,
 }
 
 impl<L: Layer> Vectors<L> {
-    pub fn new(dim: u32, data: Vec<f32>, model: ModelRef) -> Vectors<L> {
-        Vectors { dim, data, model, _of: PhantomData }
+    pub fn new(dim: u32, data: Vec<f32>, empty: Vec<Ix<L>>, model: ModelRef) -> Vectors<L> {
+        Vectors { dim, data, empty, model, _of: PhantomData }
     }
 
     pub fn row(&self, i: Ix<L>) -> &[f32] {
         let d = self.dim as usize;
         &self.data[i.get() * d..(i.get() + 1) * d]
+    }
+
+    /// Whether item `i` has no vector: its row is zeros and not to be
+    /// compared. A binary search over `empty`.
+    pub fn is_empty(&self, i: Ix<L>) -> bool {
+        self.empty.binary_search(&i).is_ok()
     }
 }
 
@@ -439,6 +453,15 @@ impl<L: Layer> Layer for Vectors<L> {
     fn check(&self) -> Result<(), String> {
         if self.dim == 0 || !self.data.len().is_multiple_of(self.dim as usize) {
             return Err("a whole number of rows".into());
+        }
+        if !self.empty.windows(2).all(|w| w[0] < w[1]) {
+            return Err("the items with no vector in order, each once".into());
+        }
+        if self.empty.last().is_some_and(|i| i.get() >= self.len()) {
+            return Err("the items with no vector among the rows".into());
+        }
+        if self.empty.iter().any(|&i| self.row(i).iter().any(|&x| x != 0.0)) {
+            return Err("zeros for every item with no vector".into());
         }
         Ok(())
     }
@@ -565,5 +588,39 @@ mod tests {
         assert!(short.check().is_err());
         let backwards = Utf16Spans::<Tokens>::new(vec![0, 4], vec![1, 3], vec![false, false]);
         assert_eq!(backwards.check().unwrap_err(), "UTF-16 span 1 ends before it starts: 4..3");
+    }
+
+    fn toy() -> ModelRef {
+        ModelRef { id: "toy".into(), revision: "1".into(), sha256: "0".into() }
+    }
+
+    /// Three sentences of two values, the middle one with no vector.
+    fn three(empty: Vec<u32>) -> Vectors<Sentences> {
+        let data = vec![1.0, 0.0, 0.0, 0.0, 0.0, 1.0];
+        Vectors::new(2, data, empty.into_iter().map(Ix::new).collect(), toy())
+    }
+
+    #[test]
+    fn vectors_name_the_items_that_have_none() {
+        let v = three(vec![1]);
+        assert_eq!(v.check(), Ok(()));
+        assert_eq!(v.len(), 3);
+        let flags: Vec<bool> = (0..3).map(|i| v.is_empty(Ix::new(i))).collect();
+        assert_eq!(flags, [false, true, false]);
+        assert_eq!(three(Vec::new()).check(), Ok(()));
+        assert!(!three(Vec::new()).is_empty(Ix::new(1)));
+    }
+
+    #[test]
+    fn vectors_check_the_items_with_no_vector() {
+        assert!(three(vec![1, 1]).check().unwrap_err().contains("each once"));
+        let mut v = three(vec![1]);
+        v.data.extend([0.0, 0.0]);
+        v.empty = vec![Ix::new(3), Ix::new(1)];
+        assert!(v.check().unwrap_err().contains("in order"));
+        assert!(three(vec![1, 3]).check().unwrap_err().contains("among the rows"));
+        assert!(three(vec![0]).check().unwrap_err().contains("zeros for every item"));
+        let v = Vectors::<Sentences>::new(2, vec![0.0; 3], Vec::new(), toy());
+        assert!(v.check().unwrap_err().contains("whole number"));
     }
 }

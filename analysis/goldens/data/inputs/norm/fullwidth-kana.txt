@@ -1,0 +1,3 @@
+Fullwidth ＡＢＣ ａｂｃ ０１２ ！？ and ideographic comma、full stop。
+Halfwidth katakana ｶﾞｷﾞ ﾊﾟﾋﾟ ｱｲｳ and voiced mark sequences ガ パ.
+Square ㌀ ㌃ ㍿ and parenthesized ㈱, ㊤.

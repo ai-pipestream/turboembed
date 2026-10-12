@@ -6,6 +6,7 @@ import java.nio.charset.CodingErrorAction;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 
 /**
  * Writes a golden file byte for byte as the format says: UTF-8, LF line ends, one tab between
@@ -39,8 +40,30 @@ final class GoldenWriter {
   }
 
   /**
+   * Returns the whole file for a run where the annotator threw: the header records, ending with
+   * the {@code config} records, and {@code error <class> <message>} as the last line, with no
+   * layer blocks. The message is a {@code str} field.
+   */
+  static byte[] writeError(Header h, String exceptionClass, String message) {
+    if (exceptionClass.isEmpty()) {
+      throw new IllegalArgumentException("the error record needs the exception's class");
+    }
+    StringBuilder out = new StringBuilder();
+    out.append("golden ").append(FORMAT_VERSION).append('\n');
+    header(out, h);
+    line(out, "error", escape(exceptionClass), escape(message));
+    return utf8(out);
+  }
+
+  /** {@link #writeError(Header, String, String)} for the exception the annotator threw. */
+  static byte[] writeError(Header h, AnnotatorException e) {
+    return writeError(h, e.exceptionClass(), e.exceptionMessage());
+  }
+
+  /**
    * Appends the header records that follow the first line, from {@code generator} to
-   * {@code annotator}. A golden and a decision point dump (see {@link DumpWriter}) share them.
+   * {@code annotator} and its {@code config} records, one per option sorted by key. A golden and a
+   * decision point dump (see {@link DumpWriter}) share them.
    */
   static void header(StringBuilder out, Header h) {
     line(out, "generator", GENERATOR, Integer.toString(GENERATOR_VERSION));
@@ -52,6 +75,9 @@ final class GoldenWriter {
       line(out, "model", escape(m.fileName()), m.sha512());
     }
     line(out, "annotator", escape(h.annotatorClass()), escape(h.method()));
+    for (Map.Entry<String, String> e : h.config().entrySet()) {
+      line(out, "config", escape(e.getKey()), escape(e.getValue()));
+    }
   }
 
   private static void layer(StringBuilder out, Layer layer) {
