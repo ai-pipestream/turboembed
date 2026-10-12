@@ -20,7 +20,7 @@ nothing here is in the C header or the gRPC server.
 | `turbo-analysis-layers` | `analysis/layers/` | The layers add-ons share (below) |
 | `turbo-chunker` | `analysis/chunker/` | The chunker |
 | `turbo-jvm` | `analysis/jvm/` | JVM behaviour the OpenNLP ports must reproduce bit for bit |
-| `turbo-goldens` | `analysis/goldens/` | Golden layer files from the JVM: the reader, the writer, the comparison, SHA-256 and SHA-512 |
+| `turbo-goldens` | `analysis/goldens/` | Golden layer files from the JVM: the reader, the writer, the comparison, loading golden layers as test inputs, SHA-256 and SHA-512 |
 
 They need nothing beyond the standard library and each other. A shared
 layer lives in `turbo-analysis-layers`, so a consumer of a layer never
@@ -461,6 +461,71 @@ definition, which picks the nearest of the shortest decimals and breaks
 a tie to an even digit. SHA-256 and SHA-512 are written in the crate
 from FIPS 180-4.
 
+### Golden layers as test inputs
+
+A port is often written before the annotators in front of it: a POS
+tagger before the Rust tokenizer, a name finder before the tagger. To
+test it alone, `turbo-goldens` builds a document from the layers the JVM
+produced, and the port runs on the JVM's own input layers:
+
+```rust
+use turbo_goldens::{GOLDEN_KEY, Golden, Tolerance, data_dir, golden_key, load_document, matches_golden_key};
+
+let golden = Golden::read(path)?;
+let text = golden.input_text(data_dir())?;
+let mut doc = load_document(&golden, &text)?; // checks the length and SHA-256
+// The tagger reads the JVM's tokens and writes the default instance of the tags.
+let tagger = Bound::new(Tagger::new(model)).read(1, GOLDEN_KEY);
+Analyzer::builder().given(golden_key::<Tokens>()).step(tagger).build()?.run(slice::from_mut(&mut doc));
+assert_eq!(matches_golden_key(&doc, &Key::<PosTags>::DEFAULT, &golden, Tolerance::abs(1e-9)), Ok(()));
+```
+
+`load_document` adds every layer block of the golden, in file order,
+each under the key name `golden` (`GOLDEN_KEY`; `golden_key::<L>()` is
+`Key::<L>::named("golden")`). The JVM's instance of a layer is thus a
+named instance, and the default key stays free for what the Rust
+annotator writes, so the two are never confused and can be compared.
+`load_layer` adds one layer under a key the caller picks; loading the
+tokens under two names gives two separate instances.
+
+A layer aligned to another (tags, lemmas and confidences) is loaded
+onto the instance of its anchor with the same name, and the entities
+onto the tokens with the same name, since their `token_start` and
+`token_end` columns index those tokens. That instance must be loaded
+first; otherwise the load fails with `LoadError::MissingAnchor`. Spans
+are source bytes, values are the f64 values as the file holds them, and
+the labels of a tag or kind column become a tag set of the distinct
+labels in the order they first appear. Loaded tokens get their
+sentence column from the sentences loaded under the same name: each
+token's sentence is the one whose span contains it, and a token inside
+no sentence is refused (`LoadError::OutsideSentences`), since the JVM
+makes its tokens inside its sentences. The format writes sentences
+before tokens, so `load_document` finds them; without sentences under
+that name the column is `None`. `Language` holds the golden's first
+row, the best language, as the comparison reads it.
+
+A block is checked against its layer type's shape before it is loaded,
+the same check the comparison makes, and the document then checks the
+layer as it checks any other (spans in bounds and on character
+boundaries, an aligned layer as long as its anchor). Each refusal is a
+`LoadError`: the text is not the golden's input, the golden has no such
+block, the block has the wrong anchor or columns, the anchor is not
+loaded, an entity's token range is outside the tokens, a block of a type
+nothing loads, or the document refused the layer.
+
+A loaded layer's provenance names the annotator `golden:<class>`, after
+the Java class in the header, with the OpenNLP version as its version
+and the layers it is made on as its reads. Its configuration hash is
+taken from the SHA-256 of the annotator, the OpenNLP commit, each model's
+file name and SHA-512 and each option, so goldens made with different
+models or options have different hashes. It records no model:
+`ModelRef` holds one model by SHA-256, and a golden names any number by
+SHA-512.
+
+A `turbo:view` block is not loaded. A view golden is only compared with
+the view a Rust normalizer makes, so `load_document` on one gives the
+source text alone, for the normalizer to run on.
+
 ## Generating golden files
 
 The goldens in `analysis/goldens/data` are made by `turbo-goldens`
@@ -517,6 +582,15 @@ runs them on any machine:
   text and both values, and a malformed file of each kind is refused
   with its line. The unit tests hold the escapes, the FIPS 180-4
   test vectors and Java's `Double.toString`.
+- `analysis/goldens/tests/load.rs` loads the same fixture as test
+  inputs, runs a table lookup tagger on the golden tokens and compares
+  its tags with the golden's POS layer (and finds a changed entry). It
+  also checks that every loaded layer matches its own golden, that
+  golden tokens get the sentence they are in, that two
+  names give two instances, and that a missing anchor, a text that is
+  not the input, a token straddling two sentences, an entity token
+  range past the tokens and a block with
+  the wrong columns are each refused.
 - A doctest on `Ix` checks that an index into the wrong layer does not
   compile.
 
