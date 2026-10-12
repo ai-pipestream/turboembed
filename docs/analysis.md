@@ -668,8 +668,9 @@ by item, the span, then an entity's token range, then the label (a tag
 through its tag set, a lemma, a kind, a language code) must be equal,
 and a probability must be within the `Tolerance`: `Exact` compares the
 bits (so -0.0 and 0.0 differ), and `Abs(d)` takes two finite values at
-most `d` apart, or the same infinity, or two NaNs. `Language` holds the
-best language, so it is compared with row 0. POS tags without
+most `d` apart, or the same infinity, or two NaNs. `Language` holds
+every language the detector ranked, best first, and is compared row by
+row, so the ranking must match. POS tags without
 probabilities do not match a golden that has them.
 
 `Utf16Spans<L>` (`turbo:utf16<L>`) is compared exactly, row by row: the
@@ -752,8 +753,8 @@ token's sentence is the one whose span contains it, and a token inside
 no sentence is refused (`LoadError::OutsideSentences`), since the JVM
 makes its tokens inside its sentences. The format writes sentences
 before tokens, so `load_document` finds them; without sentences under
-that name the column is `None`. `Language` holds the golden's first
-row, the best language, as the comparison reads it.
+that name the column is `None`. `Language` holds every row of the
+golden, best first.
 
 A block is checked against its layer type's shape before it is loaded,
 the same check the comparison makes, and the document then checks the

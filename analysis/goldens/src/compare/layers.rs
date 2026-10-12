@@ -2,8 +2,6 @@
 //! its columns and the golden's side by side; the columns match the
 //! table in docs/analysis.md, "Golden files".
 
-use std::slice;
-
 use turbo_analysis::{Layer, ViewId};
 use turbo_analysis_layers::{Confidence, Entities, Language, Lemmas, PosTags, Sentences, Tokens, Utf16Spans};
 
@@ -242,22 +240,20 @@ impl GoldenCompare for Entities {
 impl GoldenCompare for Language {
     const COLUMNS: &'static [ColumnSpec] = &[ColumnSpec::new("code", Str), ColumnSpec::new("confidence", F64)];
 
-    /// The Rust layer holds the best language; the golden lists every
-    /// language the detector ranked, best first, so the Rust layer is
-    /// compared with row 0: the code, then the confidence (the Rust
-    /// layer's `score`).
+    /// Row by row, best first: the code, then the confidence (the Rust
+    /// layer's `score`), so the ranking must be the golden's.
     fn compare(&self, cx: &Cx<'_>, golden: &GoldenLayer, tol: Tolerance) -> Result<(), Mismatch> {
         let rust = Items {
-            len: 1,
+            len: self.code.len(),
             spans: None,
             context: None,
             tokens: None,
             units: None,
-            labels: Some(Labels::One(&self.code)),
-            values: Some(slice::from_ref(&self.score)),
+            labels: Some(Labels::Strs(&self.code)),
+            values: Some(&self.score),
         };
         let golden = Items {
-            len: golden.len().min(1),
+            len: golden.len(),
             spans: None,
             context: None,
             tokens: None,

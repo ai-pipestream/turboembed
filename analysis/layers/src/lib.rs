@@ -547,19 +547,43 @@ impl<L: Layer> Layer for Utf16Spans<L> {
     }
 }
 
-/// The document's language: a document-scoped layer.
+/// The document's language: a document-scoped layer holding every
+/// language the detector ranked, best first, each with its score (the
+/// detector's probability). Item 0 is the best language.
+///
+/// Schema 2: schema 1 held the best language alone.
 pub struct Language {
-    pub code: String,
-    pub score: f64,
+    pub code: Strs,
+    pub score: Vec<f64>,
+}
+
+impl Language {
+    /// The best language and its score: item 0, or `None` when the
+    /// layer is empty.
+    pub fn best(&self) -> Option<(&str, f64)> {
+        self.score.first().map(|&s| (self.code.get(0), s))
+    }
+
+    /// The languages with their scores, best first.
+    pub fn iter(&self) -> impl Iterator<Item = (&str, f64)> {
+        self.code.iter().zip(self.score.iter().copied())
+    }
 }
 
 impl Layer for Language {
     const ID: &'static str = "opennlp:language";
+    const SCHEMA: u16 = 2;
     fn anchor() -> Anchor {
         Anchor::Document
     }
     fn len(&self) -> usize {
-        1
+        self.code.len()
+    }
+    fn check(&self) -> Result<(), String> {
+        if self.code.len() != self.score.len() {
+            return Err(format!("{} codes and {} scores", self.code.len(), self.score.len()));
+        }
+        Ok(())
     }
 }
 
@@ -588,6 +612,29 @@ mod tests {
         assert!(short.check().is_err());
         let backwards = Utf16Spans::<Tokens>::new(vec![0, 4], vec![1, 3], vec![false, false]);
         assert_eq!(backwards.check().unwrap_err(), "UTF-16 span 1 ends before it starts: 4..3");
+    }
+
+    #[test]
+    fn language_holds_the_ranking_best_first() {
+        let mut code = Strs::default();
+        code.push("deu");
+        code.push("nld");
+        let language = Language { code, score: vec![0.75, 0.25] };
+        assert_eq!(language.len(), 2);
+        assert_eq!(language.best(), Some(("deu", 0.75)));
+        assert_eq!(language.iter().collect::<Vec<_>>(), [("deu", 0.75), ("nld", 0.25)]);
+        assert_eq!(language.check(), Ok(()));
+        assert_eq!(Language::anchor(), Anchor::Document);
+        assert_eq!(Language::SCHEMA, 2);
+
+        let empty = Language { code: Strs::default(), score: Vec::new() };
+        assert_eq!(empty.best(), None);
+        assert!(empty.is_empty());
+
+        let mut code = Strs::default();
+        code.push("deu");
+        let short = Language { code, score: vec![0.5, 0.5] };
+        assert_eq!(short.check().unwrap_err(), "1 codes and 2 scores");
     }
 
     fn toy() -> ModelRef {
