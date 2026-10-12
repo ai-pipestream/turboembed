@@ -183,28 +183,98 @@ fn selection_never_picks_a_cpu_and_says_why() {
 
 #[test]
 fn device_info_is_read_at_query_time() {
-    // The host's free memory is read on each call, not kept from the
-    // listing: with 64 MiB allocated it reads lower than released.
-    // Everything else is the same device.
+    // The CPU device reports the host's free memory. On Linux this checks
+    // that the figure is read from the host on each call rather than kept
+    // from the device listing; on every platform, that nothing else about
+    // the device changes between calls.
     let rt = Rt::new();
     let i = cpu(&rt);
     let (mut a, mut b) = (rt.info(i).unwrap(), rt.info(i).unwrap());
-    if cfg!(target_os = "linux") {
-        // Another process may move the figure between the two reads of
-        // one try, so the allocated read must be the lower one at least
-        // once.
-        let lower = (0..20).any(|_| {
-            let released = rt.info(i).unwrap().memory_free;
-            let block = std::hint::black_box(vec![1u8; 64 << 20]);
-            let allocated = rt.info(i).unwrap().memory_free;
-            drop(block);
-            allocated < released
-        });
-        assert!(lower, "memory_free is read again on each call");
-    }
+    #[cfg(target_os = "linux")]
+    memory_free_follows_meminfo(&rt, i);
     a.memory_free = 0;
     b.memory_free = 0;
     assert_eq!(format!("{a:?}"), format!("{b:?}"));
+}
+
+/// A figure from /proc/meminfo in bytes, parsed as the CPU backend parses
+/// it: the value of the line named `key`, in kB, times 1024.
+#[cfg(target_os = "linux")]
+fn meminfo(key: &str) -> Option<u64> {
+    let text = std::fs::read_to_string("/proc/meminfo").ok()?;
+    let value = text.lines().find_map(|l| l.split_once(':').filter(|(k, _)| k.trim() == key).map(|(_, v)| v))?;
+    value.trim().trim_end_matches("kB").trim().parse::<u64>().ok().map(|k| k * 1024)
+}
+
+/// One `memory_free` reading from the library, with MemAvailable read by
+/// the test immediately before and after it. A figure read at query time
+/// lies between the two host readings, give or take what other processes
+/// change in the moment between them.
+#[cfg(target_os = "linux")]
+struct Bracketed {
+    library: u64,
+    low: u64,
+    high: u64,
+}
+
+#[cfg(target_os = "linux")]
+fn bracketed(rt: &Rt, i: u32) -> Option<Bracketed> {
+    let before = meminfo("MemAvailable")?;
+    let library = rt.info(i).unwrap().memory_free;
+    let after = meminfo("MemAvailable")?;
+    Some(Bracketed { library, low: before.min(after), high: before.max(after) })
+}
+
+/// Checks `memory_free` against the host's own MemAvailable at two points,
+/// once plainly and once while a 256 MiB block is allocated and written,
+/// so that the host's free memory has a reason to differ between them.
+///
+/// Each library reading must lie between the test's readings taken around
+/// it, widened by a tolerance for what other processes and the page cache
+/// do in between: the larger of 64 MiB and 5 percent of MemTotal. A figure
+/// kept from the listing fails this as soon as the host has moved by more
+/// than the tolerance since the runtime was created.
+///
+/// When the host's readings at the two points are further apart than the
+/// tolerance, the two library readings must differ too, which catches a
+/// kept figure that the widened ranges alone would let through. When they
+/// are not, the host gave no movement to observe, so no test on this host
+/// can tell a kept figure from a fresh one at that step, and it is skipped
+/// with a note.
+#[cfg(target_os = "linux")]
+fn memory_free_follows_meminfo(rt: &Rt, i: u32) {
+    let Some(plain) = bracketed(rt, i) else {
+        eprintln!("note: /proc/meminfo has no MemAvailable, so memory_free is 0 and has nothing to be checked against");
+        assert_eq!(rt.info(i).unwrap().memory_free, 0, "memory_free is 0 when the host does not report it");
+        return;
+    };
+    let tolerance = (64u64 << 20).max(meminfo("MemTotal").unwrap_or(0) / 20);
+    let within = |r: &Bracketed, when: &str| {
+        assert!(
+            r.library >= r.low.saturating_sub(tolerance) && r.library <= r.high + tolerance,
+            "memory_free {} {when} is outside the host's MemAvailable {}..={} widened by {tolerance}: \
+             it is not read at query time",
+            r.library,
+            r.low,
+            r.high
+        );
+    };
+    within(&plain, "with nothing extra allocated");
+
+    let block = std::hint::black_box(vec![1u8; 256 << 20]);
+    let held = bracketed(rt, i).expect("MemAvailable is still reported");
+    drop(block);
+    within(&held, "while 256 MiB is held");
+
+    let gap = held.low.saturating_sub(plain.high).max(plain.low.saturating_sub(held.high));
+    if gap > tolerance {
+        assert_ne!(plain.library, held.library, "the host moved by {gap} bytes and memory_free did not");
+    } else {
+        eprintln!(
+            "note: the host's MemAvailable readings at the two points are {gap} bytes apart, within the \
+             tolerance of {tolerance}, so the check that the two memory_free readings differ is skipped"
+        );
+    }
 }
 
 #[test]
