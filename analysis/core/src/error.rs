@@ -1,6 +1,7 @@
 use std::fmt;
 
 use crate::layer::KeyId;
+use crate::offsets::{OffsetError, OffsetUnit};
 use crate::text::ViewId;
 
 /// Why a layer, a step or a pipeline was refused. Every refusal names what
@@ -36,6 +37,9 @@ pub enum Error {
     /// mistaken for "found nothing", and steps that need them are skipped
     /// in turn.
     Skipped(String),
+    /// A UTF-16 or code point offset from outside (Java, the wire) that
+    /// names no place in the view: `at`, in `unit`, and why.
+    Offset { unit: OffsetUnit, at: u32, reason: OffsetError },
 }
 
 impl fmt::Display for Error {
@@ -56,6 +60,12 @@ impl fmt::Display for Error {
             Error::Pipeline(d) => write!(f, "pipeline: {d}"),
             Error::Annotator { annotator, detail } => write!(f, "{annotator}: {detail}"),
             Error::Skipped(why) => write!(f, "skipped: {why}"),
+            Error::Offset { unit, at, reason: OffsetError::PastEnd { len } } => {
+                write!(f, "{unit} {at} is past the end of the view, which is {len} long")
+            }
+            Error::Offset { unit, at, reason: OffsetError::InsideCharacter } => {
+                write!(f, "{unit} {at} falls between the two halves of a surrogate pair")
+            }
         }
     }
 }

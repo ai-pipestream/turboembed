@@ -1,0 +1,71 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	0123456789abcdef0123456789abcdef01234567	3.0.0-PRE-SNAPSHOT
+jdk	21.0.5	21.0.5+11-LTS	Eclipse Adoptium
+unicode	15.0
+input	test/zurich	37	36	f03e4a09022fa42c68b4fbab2730c195ceb468707eb0b2598a7b1e91abc4918f
+model	fixture-sentence.bin	02fb446e9a9843fe8e782e540caa2d02cee3e6d6686d44e0c59824ce6a3ee96f41c72136897570558621f05270e452fdc0a4221893b5d44a1bcf2a746dcd44fe
+model	fixture-tokens.bin	cf83e1357eefb8bdf1542850d66d8007d620e4050b5715dc83f4a921d36ce9ce47d0d13c5d85f2b0ff8318d2877eec2f63b931bd47417a81a538327af927da3e
+annotator	opennlp.tools.tokenize.TokenizerME	tokenizePos
+layer	opennlp:sentences	text	2	start:u32	end:u32
+0	26
+27	37
+end	opennlp:sentences
+layer	turbo:confidence<opennlp:sentences>	aligned:opennlp:sentences	2	value:f64
+3fef9add3c1be9b8 0.9876543210987654
+3fee666666666666 0.95
+end	turbo:confidence<opennlp:sentences>
+layer	opennlp:tokens	text	9	start:u32	end:u32
+0	3
+4	9
+10	14
+15	17
+18	25
+25	26
+27	29
+30	36
+36	37
+end	opennlp:tokens
+layer	turbo:confidence<opennlp:tokens>	aligned:opennlp:tokens	9	value:f64
+3feff8a0902de00d 0.9991
+3feff30e7ff583a5 0.99842
+3fefff2e48e8a71e 0.9999
+3fef5c28f5c28f5c 0.98
+3fef24894c447c31 0.97321
+3fe5555555555555 0.6666666666666666
+3feff7ced916872b 0.999
+3fefcac083126e98 0.9935
+3ff0000000000000 1.0
+end	turbo:confidence<opennlp:tokens>
+layer	opennlp:pos	aligned:opennlp:tokens	9	tag:str	prob:f64
+PROPN	3fef141205bc01a3 0.9712
+PROPN	3fee92a305532618 0.9554
+VERB	3fef95810624dd2f 0.987
+ADP	3fefc91d14e3bcd3 0.9933
+PROPN	3fe9fe5c91d14e3c 0.8123
+PUNCT	3fefae147ae147ae 0.99
+PRON	3fefb645a1cac083 0.991
+VERB	3feeb923a29c779a 0.9601
+PUNCT	3fefae147ae147ae 0.99
+end	opennlp:pos
+layer	opennlp:lemmas	aligned:opennlp:tokens	9	lemma:str
+Dr.
+Smith
+go
+to
+Zürich
+.
+it
+rain
+!
+end	opennlp:lemmas
+layer	opennlp:entities	text	2	start:u32	end:u32	token_start:u32	token_end:u32	kind:str	prob:f64
+4	9	1	2	person	3fec0ca45330ff7c 0.8765432
+18	25	4	5	location	3fe6cb295e9e1b09 0.7123
+end	opennlp:entities
+layer	opennlp:language	document	4	code:str	confidence:f64
+eng	3fedccac6fbfc4c9 0.9312345678901234
+deu	3fa5182a9930be0e 0.0412
+nld	3f889374bc6a7efa 0.012
+fra	3ee4f8b588e368f1 1.0E-5
+end	opennlp:language
