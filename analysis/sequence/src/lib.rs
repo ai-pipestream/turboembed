@@ -16,6 +16,11 @@
 //! - [`postag`], [`chunker`], [`namefind`]: the context generators and
 //!   validators of the three taggers, and the choices their factories make
 //!   for a model.
+//! - [`postag::dictionary`]: the part-of-speech tag dictionary a model
+//!   stores as `tags.tagdict`, which only the sequence validator reads.
+//! - [`postag::format`]: `POSTagFormatMapper`, the Penn Treebank and
+//!   Universal Dependencies tag sets as enums, and the conversion
+//!   `POSTaggerME` applies to the tags it returns.
 //!
 //! Everything here reproduces the Java of OpenNLP 3.x at commit
 //! `cdf33c653d5d61d5af7d37ffee189a83bd8392ea` (of the OpenNLP fork), down
@@ -56,6 +61,15 @@
 //! - `getStr` reports a parameter of the wrong type as "must be double!".
 //! - `DefaultChunkerSequenceValidator` throws on a previous tag shorter
 //!   than two characters; here it rejects the outcome.
+//! - A case-insensitive tag dictionary is lowercased by walking a Java
+//!   `HashMap`, so when several words lowercase to the same one, Java's
+//!   hash order picks whose tags are kept ([`postag::TagDictionary::read`]).
+//! - `POSTaggerME` returns UD tags unless asked for another format, so it
+//!   converts the tags of a Penn model, such as the OpenNLP 1.5 English
+//!   ones, to UD. The Penn table has no opening quote, so `` `` `` becomes
+//!   `?`; so does every joined outcome of the UD English model (such as
+//!   `AUX+PART`) when Penn tags are asked for ([`postag::format`] lists
+//!   the rest).
 //!
 //! One is not reproduced yet: `QNModel.eval(context, probs)` adds its sums
 //! to what `probs` already holds, and `BeamSearch` passes the same array to
