@@ -27,8 +27,26 @@ jobs:
         run: cargo clippy --workspace --all-targets
       - name: clippy (npu)
         run: cargo clippy -p turbo --features npu --all-targets
+      # The OpenNLP models the JVM goldens were made with, downloaded from
+      # downloads.apache.org and checked against their published SHA-512
+      # (analysis/goldens-tool/src/recipe.rs). With them present and
+      # required, the language detector's probability and ranking parity
+      # tests compare instead of skipping.
+      - uses: actions/cache@v4
+        with:
+          path: .opennlp-models
+          key: opennlp-models-${{ hashFiles('analysis/goldens-tool/src/recipe.rs') }}
+      - name: fetch the OpenNLP models
+        run: cargo run -q -p turbo-goldens-tool -- fetch-models .opennlp-models
       - name: test
+        env:
+          TURBO_GOLDENS_MODELS: ${{ github.workspace }}/.opennlp-models
         run: cargo test --workspace
+      - name: language detector parity against the JVM, model required
+        env:
+          TURBO_GOLDENS_MODELS: ${{ github.workspace }}/.opennlp-models
+          TURBO_TEST_REQUIRE_OPENNLP_MODELS: "1"
+        run: cargo test -p turbo-langdetect
       # Host-only. This runner is ubuntu-24.04 and has no Intel NPU.
       # The job does not pass --include-ignored and does not set
       # TURBO_TEST_REQUIRE_NPU, so the device tests in core/tests/npu.rs
