@@ -1,37 +1,13 @@
 //! The maxent tokenizer: OpenNLP's `TokenizerME.tokenizePos`.
 
 use turbo_analysis::Span;
-use turbo_unicode::{Utf16Cursor, WhitespaceMode};
+use turbo_unicode::Utf16Cursor;
+
+use crate::TokenizerOptions;
 
 use super::context::{Features, UnitFacts, token_context};
 use super::model::TokenizerModel;
 use super::units::WhitespaceUnits;
-
-/// How the tokenizer splits the text into whitespace units before the
-/// model sees it: OpenNLP's `WhitespaceMode` and
-/// `AbstractTokenizer.setKeepNewLines`.
-#[derive(Copy, Clone, Debug, Default, PartialEq, Eq, Hash)]
-pub struct TokenizerMeOptions {
-    /// Which characters are whitespace. It also decides the `_ws`
-    /// feature, though a unit never holds whitespace.
-    pub whitespace: WhitespaceMode,
-    /// Every line feed and carriage return is a token of its own.
-    pub keep_newlines: bool,
-}
-
-impl TokenizerMeOptions {
-    /// The options as a configuration hash, for provenance: 64-bit FNV-1a
-    /// over one byte per option, the same on every platform.
-    pub fn config_hash(self) -> u64 {
-        let mode = match self.whitespace {
-            WhitespaceMode::Legacy => 0u8,
-            WhitespaceMode::Unicode => 1,
-        };
-        [mode, u8::from(self.keep_newlines)]
-            .iter()
-            .fold(0xCBF2_9CE4_8422_2325, |h, &b| (h ^ u64::from(b)).wrapping_mul(0x0100_0000_01B3))
-    }
-}
 
 /// The buffers one document's tokenization reuses: the features of the
 /// current position, the model's output and the dictionary probe. Make
@@ -53,11 +29,11 @@ impl Scratch {
 #[derive(Debug, Clone)]
 pub struct TokenizerMe {
     pub(crate) model: TokenizerModel,
-    pub(crate) options: TokenizerMeOptions,
+    pub(crate) options: TokenizerOptions,
 }
 
 impl TokenizerMe {
-    pub fn new(model: TokenizerModel, options: TokenizerMeOptions) -> TokenizerMe {
+    pub fn new(model: TokenizerModel, options: TokenizerOptions) -> TokenizerMe {
         TokenizerMe { model, options }
     }
 
@@ -66,7 +42,7 @@ impl TokenizerMe {
         &self.model
     }
 
-    pub fn options(&self) -> TokenizerMeOptions {
+    pub fn options(&self) -> TokenizerOptions {
         self.options
     }
 
@@ -181,10 +157,11 @@ fn span(start: usize, end: usize) -> Span {
 mod tests {
     use super::*;
     use std::path::Path;
+    use turbo_unicode::WhitespaceMode;
 
     fn english() -> TokenizerMe {
         let path = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/models/opennlp-en-ud-ewt-tokens-1.3-2.5.4.bin");
-        TokenizerMe::new(TokenizerModel::read(path).unwrap(), TokenizerMeOptions::default())
+        TokenizerMe::new(TokenizerModel::read(path).unwrap(), TokenizerOptions::default())
     }
 
     fn tokens(t: &TokenizerMe, text: &str) -> Vec<(String, f64)> {
@@ -220,15 +197,15 @@ mod tests {
         let model = english().model;
         let legacy = TokenizerMe::new(
             model.clone(),
-            TokenizerMeOptions { whitespace: WhitespaceMode::Legacy, ..Default::default() },
+            TokenizerOptions { whitespace: WhitespaceMode::Legacy, ..Default::default() },
         );
-        let unicode = TokenizerMe::new(model.clone(), TokenizerMeOptions::default());
+        let unicode = TokenizerMe::new(model.clone(), TokenizerOptions::default());
         // U+001F separates only in the legacy mode.
         assert_eq!(tokens(&legacy, "a\u{1f}b").len(), 2);
         assert_eq!(tokens(&unicode, "a\u{1f}b").len(), 1);
-        let keep = TokenizerMe::new(model, TokenizerMeOptions { keep_newlines: true, ..Default::default() });
+        let keep = TokenizerMe::new(model, TokenizerOptions { keep_newlines: true, ..Default::default() });
         assert_eq!(tokens(&keep, "a\nb"), [("a".into(), 1.0), ("\n".into(), 1.0), ("b".into(), 1.0)]);
-        assert_ne!(TokenizerMeOptions::default().config_hash(), keep.options().config_hash());
+        assert_ne!(TokenizerOptions::default().config_hash(), keep.options().config_hash());
     }
 
     #[test]
@@ -241,7 +218,7 @@ mod tests {
         assert!(off[0].1 < 1.0);
         let on = TokenizerMe::new(
             t.model.clone().with_alphanumeric_optimization(Some("^[a-z0-9]+$")).unwrap(),
-            TokenizerMeOptions::default(),
+            TokenizerOptions::default(),
         );
         assert_eq!(tokens(&on, "ab12"), [("ab12".into(), 1.0)]);
         // A unit outside the pattern still goes to the model, which splits

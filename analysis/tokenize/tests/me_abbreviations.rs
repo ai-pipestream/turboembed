@@ -7,7 +7,8 @@ mod me_common;
 
 use me_common::*;
 use turbo_maxent::Dictionary;
-use turbo_tokenize::me::{Features, TokenizerMe, TokenizerMeOptions, UnitFacts, token_context};
+use turbo_tokenize::TokenizerOptions;
+use turbo_tokenize::me::{Features, TokenizerMe, UnitFacts, token_context};
 use turbo_unicode::{Utf16Cursor, WhitespaceMode};
 
 fn tokens(t: &TokenizerMe, text: &str) -> Vec<(u32, u32, f64)> {
@@ -29,7 +30,7 @@ fn check(t: &TokenizerMe, text: &str, want: &[(u32, u32, f64)]) {
 fn the_dictionary_in_the_model_file() {
     // A model OpenNLP trained on six sentences, with the case-insensitive
     // dictionary Dr., U.S., e.g. (the turbo-maxent fixture tokenizer.bin).
-    let t = TokenizerMe::new(model("tokenizer-abbreviations.bin"), TokenizerMeOptions::default());
+    let t = TokenizerMe::new(model("tokenizer-abbreviations.bin"), TokenizerOptions::default());
     check(
         &t,
         "Dr. Smith went to the U.S. office, e.g. today. DR. e.g., (Dr.)",
@@ -70,7 +71,7 @@ const DICTIONARY: &str = r#"<?xml version="1.0" encoding="UTF-8"?>
 fn english_with_dictionary() -> TokenizerMe {
     let dictionary = Dictionary::read(DICTIONARY.as_bytes()).unwrap();
     let model = model("opennlp-en-ud-ewt-tokens-1.3-2.5.4.bin").with_abbreviations(Some(dictionary));
-    TokenizerMe::new(model, TokenizerMeOptions::default())
+    TokenizerMe::new(model, TokenizerOptions::default())
 }
 
 #[test]

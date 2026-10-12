@@ -8,7 +8,8 @@ mod me_common;
 use std::collections::BTreeMap;
 
 use me_common::*;
-use turbo_tokenize::me::{Features, Scratch, TokenizerMe, TokenizerMeOptions, UnitFacts, token_context};
+use turbo_tokenize::TokenizerOptions;
+use turbo_tokenize::me::{Features, Scratch, TokenizerMe, UnitFacts, token_context};
 use turbo_unicode::utf16::{byte_to_utf16, utf16_to_byte};
 use turbo_unicode::{Utf16Cursor, WhitespaceMode};
 
@@ -29,9 +30,9 @@ fn tokenizer_for(headers: &dyn Fn(&str) -> String, cache: &mut BTreeMap<String, 
             String::from_utf16(&unescape(&headers("alpha-numeric-pattern"))).unwrap()
         );
         assert_eq!(model.alphanumeric().is_some(), headers("use-alpha-numeric-optimization") == "true");
-        TokenizerMe::new(model, TokenizerMeOptions::default())
+        TokenizerMe::new(model, TokenizerOptions::default())
     });
-    TokenizerMe::new(t.tokenizer_model().clone(), TokenizerMeOptions { whitespace: mode, keep_newlines: false })
+    TokenizerMe::new(t.tokenizer_model().clone(), TokenizerOptions { whitespace: mode, keep_newlines: false })
 }
 
 /// Tokenizes `input` and compares with `expected`, on both offset kinds.
@@ -186,7 +187,7 @@ fn a_split_between_surrogate_halves_is_not_taken() {
                 .map(|e| e.unwrap().file_name().into_string().unwrap())
                 .find(|n| n.starts_with(&format!("opennlp-{language}-")))
                 .unwrap();
-            TokenizerMe::new(model(&name), TokenizerMeOptions::default())
+            TokenizerMe::new(model(&name), TokenizerOptions::default())
         });
         let expected = expected_spans(input, &java_spans);
         assert_eq!(expected.iter().map(|&(a, b, _)| (a, b)).collect::<Vec<_>>(), want, "{language} {input:?}");

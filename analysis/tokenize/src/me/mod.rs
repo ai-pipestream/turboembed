@@ -8,7 +8,9 @@
 //! `DefaultTokenContextGenerator` ([`context`]). A token's confidence is
 //! the product of the decisions inside it. [`TokenizerModel`] reads the
 //! model file; [`TokenizerMe`] tokenizes a `&str` and is the annotator
-//! that writes `Tokens` and `Confidence<Tokens>`.
+//! that writes `Tokens` and `Confidence<Tokens>`, with the crate's
+//! [`TokenizerOptions`](crate::TokenizerOptions) and its shared sentence
+//! handling ([`unit`](crate::unit)).
 //!
 //! The tokens and probabilities are those of the Java, checked against
 //! files the JVM wrote, with one difference: Java can split between the
@@ -25,5 +27,5 @@ pub mod units;
 pub use alnum::{AlphaNumeric, PatternError};
 pub use context::{Features, UnitFacts, token_context};
 pub use model::{ModelError, TokenizerModel};
-pub use tokenizer::{Scratch, TokenizerMe, TokenizerMeOptions};
+pub use tokenizer::{Scratch, TokenizerMe};
 pub use units::WhitespaceUnits;

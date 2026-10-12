@@ -10,34 +10,89 @@
 use turbo_analysis::{Error, Ix, Span, Spans, View};
 use turbo_analysis_layers::{Sentences, Tokens};
 
+/// One token as a unit tokenizer reports it: a span relative to the
+/// unit's text and the value that goes with it, if any.
+///
+/// A bare [`Span`] carries no value (`()`), so a rule tokenizer appends
+/// plain spans and [`tokenize_units_with`] has nothing extra to move per
+/// token. `(Span, V)` carries a `V`, such as the maxent tokenizer's
+/// probability.
+pub trait UnitToken: Copy {
+    /// The value that comes with each token.
+    type Value;
+    /// The token's span and its value.
+    fn into_parts(self) -> (Span, Self::Value);
+}
+
+impl UnitToken for Span {
+    type Value = ();
+    #[inline]
+    fn into_parts(self) -> (Span, ()) {
+        (self, ())
+    }
+}
+
+impl<V: Copy> UnitToken for (Span, V) {
+    type Value = V;
+    #[inline]
+    fn into_parts(self) -> (Span, V) {
+        self
+    }
+}
+
 /// Runs `tokenize` over each unit of `view` (each sentence, or the whole
 /// text) and collects the spans it reports into a `Tokens` layer.
 ///
-/// `tokenize` is handed the unit's text, the byte offset of the unit in
-/// the view, and a buffer to append spans to. The spans it appends are
-/// relative to the unit's text; they are moved to view offsets here. The
-/// buffer is cleared before each unit and reused, so nothing is allocated
-/// per unit. `annotator` names the caller in an error.
-///
-/// Sentences in another view than `view` are refused: their offsets do
-/// not index this text.
+/// This is [`tokenize_units_with`] for a tokenizer that reports plain
+/// spans and no value per token.
 pub fn tokenize_units<F>(
     annotator: &'static str,
     view: &View,
     sentences: Option<&Sentences>,
-    mut tokenize: F,
+    tokenize: F,
 ) -> Result<Tokens, Error>
 where
     F: FnMut(&str, u32, &mut Vec<Span>),
 {
+    tokenize_units_with(annotator, view, sentences, tokenize, |()| {})
+}
+
+/// Runs `tokenize` over each unit of `view` (each sentence, or the whole
+/// text), collects the spans it reports into a `Tokens` layer and hands
+/// each token's value to `value`, in token order.
+///
+/// `tokenize` is handed the unit's text, the byte offset of the unit in
+/// the view, and a buffer to append tokens to. The spans it appends are
+/// relative to the unit's text; they are moved to view offsets here. The
+/// buffer is cleared before each unit and reused, so nothing is allocated
+/// per unit. `value` is called once per token, after its span is pushed,
+/// so a caller can fill a column aligned to the tokens. `annotator` names
+/// the caller in an error.
+///
+/// Sentences in another view than `view` are refused: their offsets do
+/// not index this text.
+pub fn tokenize_units_with<T, F, G>(
+    annotator: &'static str,
+    view: &View,
+    sentences: Option<&Sentences>,
+    mut tokenize: F,
+    mut value: G,
+) -> Result<Tokens, Error>
+where
+    T: UnitToken,
+    F: FnMut(&str, u32, &mut Vec<T>),
+    G: FnMut(T::Value),
+{
     let text = view.text();
-    let mut scratch = Vec::new();
+    let mut scratch: Vec<T> = Vec::new();
     let mut spans = Spans::<Tokens>::with_capacity(view.id(), text.len() / 6);
     let Some(sentences) = sentences else {
         tokenize(text, 0, &mut scratch);
-        for &s in &scratch {
+        for &t in &scratch {
+            let (s, v) = t.into_parts();
             debug_assert!(s.end as usize <= text.len());
             spans.push(s);
+            value(v);
         }
         return Ok(Tokens { spans, sentence: None });
     };
@@ -55,10 +110,12 @@ where
     for (ix, unit) in sentences.spans.iter() {
         scratch.clear();
         tokenize(&text[unit.range()], unit.start, &mut scratch);
-        for &s in &scratch {
+        for &t in &scratch {
+            let (s, v) = t.into_parts();
             debug_assert!(s.end <= unit.len());
             spans.push(Span { start: s.start + unit.start, end: s.end + unit.start });
             column.push(ix);
+            value(v);
         }
     }
     Ok(Tokens { spans, sentence: Some(column) })
@@ -129,6 +186,35 @@ mod tests {
         s.push(Span::new(5, 7));
         let tokens = tokenize_units("test", view, Some(&Sentences { spans: s }), letters).unwrap();
         assert_eq!(spans(&tokens), [(5, 7)]);
+    }
+
+    #[test]
+    fn values_follow_their_tokens() {
+        // Each token's value is its length; the values come out in token
+        // order, across sentences, aligned to the spans.
+        let doc = Document::new("ab cde. f gh");
+        let view = doc.get::<View>().unwrap();
+        let mut s = Spans::new(view.id());
+        s.push(Span::new(0, 7));
+        s.push(Span::new(8, 12));
+        let sentences = Sentences { spans: s };
+        let mut values = Vec::new();
+        let tokens = tokenize_units_with(
+            "test",
+            view,
+            Some(&sentences),
+            |text, base, out: &mut Vec<(Span, f64)>| {
+                let mut found = Vec::new();
+                letters(text, base, &mut found);
+                out.extend(found.into_iter().map(|s| (s, f64::from(s.len()))));
+            },
+            |v| values.push(v),
+        )
+        .unwrap();
+        assert_eq!(spans(&tokens), [(0, 2), (3, 6), (8, 9), (10, 12)]);
+        assert_eq!(values, [2.0, 3.0, 1.0, 2.0]);
+        let column: Vec<usize> = tokens.sentence.as_ref().unwrap().iter().map(|i| i.get()).collect();
+        assert_eq!(column, [0, 0, 1, 1]);
     }
 
     #[test]

@@ -8,7 +8,8 @@ mod me_common;
 use me_common::model;
 use turbo_analysis::{Analyzer, Annotator, Document, Error, Key, Refs, Span, Spans, View};
 use turbo_analysis_layers::{Confidence, Sentences, Tokens};
-use turbo_tokenize::me::{TokenizerMe, TokenizerMeOptions};
+use turbo_tokenize::TokenizerOptions;
+use turbo_tokenize::me::TokenizerMe;
 
 /// Sentences end after ". "; a text of only whitespace has none.
 struct Sentencer;
@@ -34,7 +35,7 @@ impl Annotator for Sentencer {
 }
 
 fn english() -> TokenizerMe {
-    TokenizerMe::new(model("opennlp-en-ud-ewt-tokens-1.3-2.5.4.bin"), TokenizerMeOptions::default())
+    TokenizerMe::new(model("opennlp-en-ud-ewt-tokens-1.3-2.5.4.bin"), TokenizerOptions::default())
 }
 
 /// (token text, sentence, probability) of a document's layers.
@@ -111,7 +112,7 @@ fn tokens_with_sentences_and_confidence() {
     assert_eq!(m.revision, "2.5.4");
     assert_eq!(m.sha256, "95139111197ba9f1165fc12be8d4cbac05ea3912f995d167efa1a0e04e3e649a");
     assert_eq!(provenance.reads, [Key::<View>::DEFAULT.id(), Key::<Sentences>::DEFAULT.id()]);
-    assert_eq!(provenance.config, TokenizerMeOptions::default().config_hash());
+    assert_eq!(provenance.config, TokenizerOptions::default().config_hash());
     let confidence = docs[0].provenance(Key::<Confidence<Tokens>>::DEFAULT.id()).unwrap();
     assert_eq!(confidence.model, provenance.model);
 }

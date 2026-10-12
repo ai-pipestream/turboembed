@@ -4,11 +4,12 @@
 use std::any::Any;
 
 use turbo_analysis::annotate::{AnchorUse, Step};
-use turbo_analysis::{Annotator, Bound, Document, Error, Ix, KeyId, ModelRef, Refs, Span, Spans, View};
+use turbo_analysis::{Annotator, Bound, Document, Error, KeyId, ModelRef, Refs, View};
 use turbo_analysis_layers::{Confidence, Sentences, Tokens};
 
 use super::model::COMPONENT_NAME;
 use super::tokenizer::{Scratch, TokenizerMe};
+use crate::unit::tokenize_units_with;
 
 impl Annotator for TokenizerMe {
     const ID: &'static str = "turbo-tokenize:maxent";
@@ -16,7 +17,15 @@ impl Annotator for TokenizerMe {
     type Writes = (Tokens, Confidence<Tokens>);
 
     fn annotate(&self, (view, sentences): Refs<'_, Self>) -> Result<(Tokens, Confidence<Tokens>), Error> {
-        let (tokens, confidence) = tokenize_units(self, view, sentences)?;
+        let mut scratch = Scratch::new();
+        let mut confidence = Vec::with_capacity(view.text().len() / 6);
+        let tokens = tokenize_units_with(
+            Self::ID,
+            view,
+            sentences,
+            |text, _, out| self.tokenize_with(text, &mut scratch, out),
+            |p: f64| confidence.push(p as f32),
+        )?;
         Ok((tokens, Confidence::new(confidence)))
     }
 
@@ -88,57 +97,17 @@ impl Step for OwnTokens {
     }
 }
 
-/// Tokenizes each sentence on its own, or the whole view when there are
-/// no sentences, and fills the tokens with their sentence column and the
-/// confidences. To be replaced by the crate's shared sentence handling
-/// (`unit.rs`), which carries no per-token values yet.
-fn tokenize_units(t: &TokenizerMe, view: &View, sentences: Option<&Sentences>) -> Result<(Tokens, Vec<f32>), Error> {
-    let text = view.text();
-    let mut scratch = Scratch::new();
-    let mut found: Vec<(Span, f64)> = Vec::new();
-    let mut spans = Spans::<Tokens>::with_capacity(view.id(), text.len() / 5);
-    let mut confidence = Vec::with_capacity(text.len() / 5);
-    let Some(sentences) = sentences else {
-        t.tokenize_with(text, &mut scratch, &mut found);
-        for &(s, p) in &found {
-            spans.push(s);
-            confidence.push(p as f32);
-        }
-        return Ok((Tokens { spans, sentence: None }, confidence));
-    };
-    if sentences.spans.view() != view.id() {
-        return Err(Error::Annotator {
-            annotator: TokenizerMe::ID,
-            detail: format!(
-                "the sentences are in view {}, not in view {} that is tokenized",
-                sentences.spans.view().0,
-                view.id().0
-            ),
-        });
-    }
-    let mut column: Vec<Ix<Sentences>> = Vec::with_capacity(confidence.capacity());
-    for (ix, sentence) in sentences.spans.iter() {
-        found.clear();
-        t.tokenize_with(&text[sentence.range()], &mut scratch, &mut found);
-        for &(s, p) in &found {
-            spans.push(Span::new(s.start + sentence.start, s.end + sentence.start));
-            confidence.push(p as f32);
-            column.push(ix);
-        }
-    }
-    Ok((Tokens { spans, sentence: Some(column) }, confidence))
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::me::{TokenizerMeOptions, TokenizerModel};
-    use turbo_analysis::ViewId;
+    use crate::TokenizerOptions;
+    use crate::me::TokenizerModel;
+    use turbo_analysis::{Span, Spans, ViewId};
 
     fn english() -> TokenizerMe {
         let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
             .join("tests/models/opennlp-en-ud-ewt-tokens-1.3-2.5.4.bin");
-        TokenizerMe::new(TokenizerModel::read(path).unwrap(), TokenizerMeOptions::default())
+        TokenizerMe::new(TokenizerModel::read(path).unwrap(), TokenizerOptions::default())
     }
 
     #[test]

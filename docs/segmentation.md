@@ -18,7 +18,7 @@ where and why.
 | `turbo-unicode` | `analysis/unicode/` | Character data: Java's character classes, the Unicode `White_Space` set, `Word_Break` and `Extended_Pictographic` properties, a UTF-16 code unit cursor over UTF-8 text |
 | `turbo-maxent` | `analysis/maxent/` | OpenNLP model files: the zip container, the manifest, maxent and perceptron models and their evaluation, the dictionary XML |
 | `turbo-sentdetect` | `analysis/sentdetect/` | The newline detector, the paragraph detector and the maxent sentence detector |
-| `turbo-tokenize` | `analysis/tokenize/` | The simple and whitespace tokenizers and the UAX #29 word tokenizer; the maxent tokenizer and the dictionary detokenizer are to come |
+| `turbo-tokenize` | `analysis/tokenize/` | The simple, whitespace and UAX #29 tokenizers and the maxent tokenizer; the dictionary detokenizer comes in its own change |
 | `turbo-tokenize-layers` | `analysis/tokenize-layers/` | The tokenizers' own layer: the word type of each token |
 
 They depend on the standard library, `turbo-analysis` and
@@ -166,11 +166,18 @@ sentences, each sentence is tokenized on its own and the `Tokens` layer
 carries the sentence of every token; without, the whole view is one
 unit. All write `Tokens`; the maxent tokenizer also writes
 `Confidence<Tokens>`, and the UAX #29 tokenizer also writes `WordTypes`.
-One function, `tokenize_units`, turns the view and the optional
-sentences into units and collects the tokens, so every tokenizer
-handles sentences the same way. Each tokenizer is also a plain function
-over a `&str` that appends spans to a caller's buffer
-(`simple_spans`, `whitespace_spans`, `word_tokens`).
+One function, `tokenize_units_with`, turns the view and the optional
+sentences into units, collects the tokens and hands each token's value
+(the maxent tokenizer's probability) to the caller in token order, so
+every tokenizer handles sentences the same way. It is generic over what
+a tokenizer reports per token: a rule tokenizer reports a bare `Span`,
+whose value is `()`, and calls it through `tokenize_units`, so its loop
+moves nothing but spans. The simple, whitespace and maxent tokenizers
+take the same `TokenizerOptions` (the whitespace mode and
+`keepNewLines`), with one configuration hash. Each rule tokenizer is
+also a plain function over a `&str` that appends spans to a caller's
+buffer (`simple_spans`, `whitespace_spans`, `word_tokens`), and
+`TokenizerMe::tokenize` appends spans with their probabilities.
 
 ### `SimpleTokenizer`
 
@@ -275,9 +282,17 @@ model loads with the optimization on, with the pattern in the error,
 rather than approximated. With the optimization off the pattern is never
 used and is not read.
 
+The whitespace units come from `TokenizerOptions`: the whitespace mode
+decides which characters separate units, and also the `_ws` feature,
+though a unit never holds whitespace; `keep_newlines` makes every line
+feed and carriage return a unit, and so a token of probability 1, of its
+own.
+
 The annotator reads `View` and `Option<Sentences>` and writes `Tokens`
 and `Confidence<Tokens>` (`f32`, the layer's type; the computation is
-`f64`). `Analyzer::build` refuses a step that writes an aligned layer
+`f64`). It goes through `tokenize_units_with` like every tokenizer, so
+each sentence is tokenized on its own, the tokens carry their sentence,
+and sentences in another view are refused. `Analyzer::build` refuses a step that writes an aligned layer
 without reading its anchor, and the confidence is aligned to the tokens
 the same step writes, so `TokenizerMe::into_step` gives the step with
 that anchor named; added with `Builder::add` it is refused.
