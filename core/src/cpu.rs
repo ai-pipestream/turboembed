@@ -15,17 +15,20 @@ use std::sync::{Mutex, OnceLock};
 use crate::backend::{
     TURBO_BERT_EMBEDDING_TENSORS, TURBO_BERT_LAYER_TENSORS, TURBO_CAP_EXPERIMENTAL, TURBO_FAMILY_BERT,
     TURBO_FAMILY_ROBERTA, TURBO_FAMILY_STATIC, TURBO_FORMAT_SAFETENSORS, format_bit, refuse, refuse_field,
-    turbo_backend, turbo_backend_embed_rows, turbo_backend_model, turbo_backend_run, turbo_backend_tensor,
+    turbo_backend, turbo_backend_embed_rows, turbo_backend_model, turbo_backend_run, turbo_backend_session_desc,
+    turbo_backend_tensor, turbo_backend_tuning,
 };
 use crate::status::{
-    INVALID_ARGUMENT, INVALID_STATE, OUT_OF_MEMORY, UNSUPPORTED, UNSUPPORTED_OPTION, UNSUPPORTED_TASK,
+    INVALID_ARGUMENT, INVALID_STATE, INVALID_STRUCT_SIZE, OUT_OF_MEMORY, UNSUPPORTED, UNSUPPORTED_OPTION,
+    UNSUPPORTED_TASK,
 };
 use crate::{
     TURBO_DEVICE_CPU, TURBO_DTYPE_F16, TURBO_DTYPE_F32, TURBO_DTYPE_I8, TURBO_EMBED_STAGE_DOWNLOAD,
     TURBO_EMBED_STAGE_ENCODE, TURBO_EMBED_STAGE_LOOKUP, TURBO_EMBED_STAGE_NORMALIZE, TURBO_EMBED_STAGE_POOL,
     TURBO_EMBED_STAGE_UPLOAD, TURBO_HANDLE_HOST_PTR, TURBO_NORMALIZE_L2, TURBO_PLACE_DEVICE, TURBO_PLACE_HOST,
     TURBO_PRECISION_FASTEST, TURBO_PRECISION_MODEL, TURBO_STAGE_FUSED, TURBO_STAGE_HOST, TURBO_STAGE_UNUSED,
-    TURBO_TASK_EMBED, turbo_buffer_desc, turbo_device_info, turbo_error, turbo_log_fn, turbo_native_handle, write_str,
+    TURBO_TASK_EMBED, turbo_buffer_desc, turbo_device_info, turbo_error, turbo_log_fn, turbo_native_handle,
+    turbo_token_range, write_str,
 };
 
 pub static BACKEND: turbo_backend = turbo_backend {
@@ -53,8 +56,8 @@ pub static BACKEND: turbo_backend = turbo_backend {
     formats: format_bit(TURBO_FORMAT_SAFETENSORS),
     reserved2: 0,
     session_create_tuned: None,
-    session_open: None,
-    embed_write_ranges: None,
+    session_open: Some(session_open),
+    embed_write_ranges: Some(embed_write_ranges),
 };
 
 unsafe extern "C" fn device_count(out: *mut u32, _err: *mut turbo_error) -> i32 {
@@ -437,20 +440,37 @@ pub(crate) unsafe fn converted_data(model: *mut c_void) -> Option<Vec<*const c_v
 // A session is an encoder sized for its largest batch, the threads it runs
 // on, and the buffer its vectors are written to. Every byte they need is
 // allocated here, and every thread started; a run reads the rows
-// embed_write copied in, computes into that memory on those threads, and
-// allocates nothing. Releasing the session stops and joins its threads. The CPU's memory is the host's: the rows embed_write
-// copies into the session are its input, with no crossing to count, and
-// the vectors are where the caller reads them. So UPLOAD and DOWNLOAD do
-// not run here, and h2d_bytes and d2h_bytes are 0.
+// embed_write or embed_write_ranges copied in, computes into that memory
+// on those threads, and allocates nothing. Releasing the session stops
+// and joins its threads. The CPU's memory is the host's: the rows copied
+// into the session are its input, with no crossing to count, and the
+// vectors are where the caller reads them. So UPLOAD and DOWNLOAD do not
+// run here, and h2d_bytes and d2h_bytes are 0.
 
 struct Session {
     work: Work,
     /// The threads `threads` gives, the caller's among them; see pool.rs.
     pool: pool::Pool,
-    /// [max_batch, hidden] F32, the buffer handed out as the run's output.
+    /// [max(max_batch, max_ranges), hidden] F32, the buffer handed out as
+    /// the run's output: a row's vectors after embed_write, a range's
+    /// after embed_write_ranges, each output_dim values, packed.
     output: Box<Buffer>,
+    /// The most ranges one embed_write_ranges may hold.
+    max_ranges: usize,
     /// Rows are written and not yet run.
     written: bool,
+}
+
+/// What a session is made for: session_open's description, or
+/// session_create's arguments with no thread count and max_batch ranges.
+struct Shape {
+    task: u32,
+    max_batch: u32,
+    max_seq: u32,
+    precision: u32,
+    /// turbo_session_desc.cpu_threads: 0 leaves the count to `threads`.
+    cpu_threads: u32,
+    max_ranges: u32,
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -464,21 +484,68 @@ unsafe extern "C" fn session_create(
     out: *mut *mut c_void,
     err: *mut turbo_error,
 ) -> i32 {
+    let shape = Shape { task, max_batch, max_seq, precision, cpu_threads: 0, max_ranges: max_batch };
+    unsafe { open(model, &shape, compute_dtype, out, err) }
+}
+
+/// The session's whole description. The CPU has one path, so `tuning` is
+/// left as the core set it.
+unsafe extern "C" fn session_open(
+    model: *mut c_void,
+    desc: *const turbo_backend_session_desc,
+    _tuning: *mut turbo_backend_tuning,
+    compute_dtype: *mut u32,
+    out: *mut *mut c_void,
+    err: *mut turbo_error,
+) -> i32 {
+    let d = unsafe { &*desc };
+    let need = std::mem::offset_of!(turbo_backend_session_desc, max_ranges) + size_of::<u32>();
+    if (d.struct_size as usize) < need {
+        let msg = format!(
+            "turbo_backend_session_desc of {} bytes: the cpu reads it through max_ranges, {need} bytes",
+            d.struct_size
+        );
+        return unsafe { refuse(err, INVALID_STRUCT_SIZE, &msg) };
+    }
+    let shape = Shape {
+        task: d.task,
+        max_batch: d.max_batch,
+        max_seq: d.max_seq,
+        precision: d.precision,
+        cpu_threads: d.cpu_threads,
+        max_ranges: d.max_ranges,
+    };
+    unsafe { open(model, &shape, compute_dtype, out, err) }
+}
+
+/// A session of `shape` on `model`, for session_create and session_open.
+unsafe fn open(
+    model: *mut c_void,
+    shape: &Shape,
+    compute_dtype: *mut u32,
+    out: *mut *mut c_void,
+    err: *mut turbo_error,
+) -> i32 {
     let m = unsafe { &*(model as *const Model) };
+    let Shape { task, max_batch, max_seq, precision, cpu_threads, max_ranges } = *shape;
     if task != TURBO_TASK_EMBED {
         return unsafe { refuse(err, UNSUPPORTED_TASK, &format!("task {task}: the cpu runs embed")) };
     }
+    let threads = match threads(cpu_threads, std::env::var("TURBO_CPU_THREADS").ok().as_deref()) {
+        Ok(n) => n,
+        Err(refusal) => return unsafe { refusal.refuse(err) },
+    };
     let hidden = m.desc.hidden as usize;
-    let bytes = max_batch as usize * hidden * 4;
+    // The row path and the range path write their vectors to this one
+    // buffer, so it holds the larger of the two counts.
+    let vectors = max_batch.max(max_ranges) as usize;
+    let bytes = vectors.saturating_mul(hidden).saturating_mul(4);
     let output = Layout::from_size_align(bytes, ALIGN).ok().and_then(Buffer::alloc);
     let Some(output) = output else {
         return unsafe { refuse(err, OUT_OF_MEMORY, &format!("{bytes} bytes for the session's vectors")) };
     };
+    let max_ranges = max_ranges as usize;
     if m.desc.family == TURBO_FAMILY_STATIC {
-        let threads = match threads(std::env::var("TURBO_CPU_THREADS").ok().as_deref()) {
-            Ok(n) => n,
-            Err(msg) => return unsafe { refuse(err, INVALID_ARGUMENT, &msg) },
-        };
         let quantize = match static_table(precision, std::env::var("TURBO_CPU_STATIC_TABLE").ok().as_deref()) {
             Ok(q) => q,
             Err(msg) => return unsafe { refuse(err, INVALID_ARGUMENT, &msg) },
@@ -487,7 +554,7 @@ unsafe extern "C" fn session_create(
             Ok(h) => h,
             Err(msg) => return unsafe { refuse(err, INVALID_ARGUMENT, &msg) },
         };
-        let work = match static_session(m, quantize, huge, max_batch, max_seq, err) {
+        let work = match static_session(m, quantize, huge, shape, err) {
             Ok(w) => w,
             Err(rc) => return rc,
         };
@@ -495,6 +562,7 @@ unsafe extern "C" fn session_create(
             work,
             pool: pool::Pool::with_spin(threads, pool::SPIN_BATCH),
             output: Box::new(output),
+            max_ranges,
             written: false,
         };
         unsafe {
@@ -525,19 +593,17 @@ unsafe extern "C" fn session_create(
             return unsafe { refuse(err, OUT_OF_MEMORY, &format!("{bytes} bytes for the model's packed weights")) };
         }
     };
-    let threads = match threads(std::env::var("TURBO_CPU_THREADS").ok().as_deref()) {
-        Ok(n) => n,
-        Err(msg) => return unsafe { refuse(err, INVALID_ARGUMENT, &msg) },
-    };
     let pool = pool::Pool::new(threads);
-    let encoder =
-        match encoder::Encoder::new(&m.desc, tensors, packed, pool.threads(), max_batch as usize, max_seq as usize) {
-            Ok(e) => e,
-            Err(bytes) => {
-                return unsafe { refuse(err, OUT_OF_MEMORY, &format!("{bytes} bytes of scratch for the session")) };
-            }
-        };
-    let s = Session { work: Work::Encoder(Box::new(encoder)), pool, output: Box::new(output), written: false };
+    let size =
+        encoder::Size { threads: pool.threads(), max_batch: max_batch as usize, max_seq: max_seq as usize, max_ranges };
+    let encoder = match encoder::Encoder::new(&m.desc, tensors, packed, size) {
+        Ok(e) => e,
+        Err(bytes) => {
+            return unsafe { refuse(err, OUT_OF_MEMORY, &format!("{bytes} bytes of scratch for the session")) };
+        }
+    };
+    let s =
+        Session { work: Work::Encoder(Box::new(encoder)), pool, output: Box::new(output), max_ranges, written: false };
     unsafe {
         *compute_dtype = TURBO_DTYPE_F32;
         *out = Box::into_raw(Box::new(s)) as *mut c_void;
@@ -556,17 +622,12 @@ enum Work {
 /// precision.
 /// `huge`: the model's first session makes copies of its tables in huge
 /// pages, which every later session reads.
-fn static_session(
-    m: &Model,
-    quantize: bool,
-    huge: bool,
-    max_batch: u32,
-    max_seq: u32,
-    err: *mut turbo_error,
-) -> Result<Work, i32> {
+fn static_session(m: &Model, quantize: bool, huge: bool, shape: &Shape, err: *mut turbo_error) -> Result<Work, i32> {
     let t = m.table.get_or_init(|| std::sync::Arc::new(table::Table::new(&m.tensors, huge))).clone();
     let q = quantize.then(|| m.quantized.get_or_init(|| std::sync::Arc::new(table::Quantized::new(&t, huge))).clone());
-    table::Static::new(t, q, kernels::Isa::detect(), max_batch as usize, max_seq as usize)
+    let (max_batch, max_seq, max_ranges) =
+        (shape.max_batch as usize, shape.max_seq as usize, shape.max_ranges as usize);
+    table::Static::new(t, q, kernels::Isa::detect(), max_batch, max_seq, max_ranges)
         .map(Work::Static)
         .map_err(|bytes| unsafe { refuse(err, OUT_OF_MEMORY, &format!("{bytes} bytes for the session's rows")) })
 }
@@ -594,21 +655,52 @@ fn static_pages(var: Option<&str>) -> Result<bool, String> {
     }
 }
 
-/// The threads a session runs on: TURBO_CPU_THREADS when set (docs/cpu.md),
-/// else one per processor this process may run on, which
+/// The threads a session runs on (docs/cpu.md): `field`, the session's
+/// turbo_session_desc.cpu_threads, when it is not 0; else TURBO_CPU_THREADS,
+/// `var`, when set; else one per processor this process may run on, which
 /// available_parallelism reads from its affinity mask and cgroup quota.
-fn threads(var: Option<&str>) -> Result<usize, String> {
+fn threads(field: u32, var: Option<&str>) -> Result<usize, Refusal> {
+    if field != 0 {
+        return match field as usize {
+            n @ 1..=MAX_THREADS => Ok(n),
+            _ => Err(Refusal {
+                code: UNSUPPORTED_OPTION,
+                field: 6,
+                message: format!("cpu_threads {field}: the count must be 1 to {MAX_THREADS}"),
+            }),
+        };
+    }
     match var {
         None => Ok(std::thread::available_parallelism().map_or(1, std::num::NonZero::get)),
         Some(v) => match v.trim().parse::<usize>() {
             Ok(n @ 1..=MAX_THREADS) => Ok(n),
-            _ => Err(format!("TURBO_CPU_THREADS {v:?}: a count of threads from 1 to {MAX_THREADS}")),
+            _ => Err(Refusal {
+                code: INVALID_ARGUMENT,
+                field: 0,
+                message: format!("TURBO_CPU_THREADS {v:?}: a count of threads from 1 to {MAX_THREADS}"),
+            }),
         },
     }
 }
 
-/// The most threads TURBO_CPU_THREADS may ask for.
+/// The most threads a session may ask for, by either cpu_threads or
+/// TURBO_CPU_THREADS.
 const MAX_THREADS: usize = 1024;
+
+/// Why a session is refused: the status, the turbo_session_desc field it
+/// names (0 for none), and the message.
+#[derive(Debug, PartialEq)]
+struct Refusal {
+    code: i32,
+    field: u32,
+    message: String,
+}
+
+impl Refusal {
+    unsafe fn refuse(self, err: *mut turbo_error) -> i32 {
+        unsafe { refuse_field(err, self.code, self.field, &self.message) }
+    }
+}
 
 unsafe extern "C" fn session_release(session: *mut c_void) {
     drop(unsafe { Box::from_raw(session as *mut Session) });
@@ -621,9 +713,7 @@ unsafe extern "C" fn embed_write(
     _err: *mut turbo_error,
 ) -> i32 {
     let (s, r) = unsafe { (&mut *(session as *mut Session), &*rows) };
-    let span = (r.batch as usize - 1) * r.row_stride as usize + r.seq as usize;
-    let (ids, mask) = unsafe { (std::slice::from_raw_parts(r.ids, span), std::slice::from_raw_parts(r.mask, span)) };
-    let types = (!r.types.is_null()).then(|| unsafe { std::slice::from_raw_parts(r.types, span) });
+    let (ids, mask, types) = unsafe { arrays(r) };
     match &mut s.work {
         Work::Encoder(e) => e.write(r, ids, mask, types),
         // A static model has one token type, so the core passes only 0s.
@@ -631,6 +721,40 @@ unsafe extern "C" fn embed_write(
     }
     s.written = true;
     0
+}
+
+/// The rows and the ranges the run pools them by, copied into the
+/// session. The core has checked each range, and that there are at most
+/// the session's max_ranges.
+unsafe extern "C" fn embed_write_ranges(
+    session: *mut c_void,
+    rows: *const turbo_backend_embed_rows,
+    ranges: *const turbo_token_range,
+    count: u32,
+    _err: *mut turbo_error,
+) -> i32 {
+    let (s, r) = unsafe { (&mut *(session as *mut Session), &*rows) };
+    debug_assert!(count >= 1 && count as usize <= s.max_ranges);
+    let (ids, mask, types) = unsafe { arrays(r) };
+    let ranges = unsafe { std::slice::from_raw_parts(ranges, count as usize) };
+    match &mut s.work {
+        Work::Encoder(e) => e.write_ranges(r, ids, mask, types, ranges),
+        Work::Static(t) => t.write_ranges(r, ids, mask, ranges),
+    }
+    s.written = true;
+    0
+}
+
+/// The ids, mask and types `r` points to, through its last row's last
+/// column.
+///
+/// # Safety
+/// The arrays hold what `r` says, for as long as the slices are used.
+unsafe fn arrays<'a>(r: &turbo_backend_embed_rows) -> (&'a [i32], &'a [i32], Option<&'a [i32]>) {
+    let span = (r.batch as usize - 1) * r.row_stride as usize + r.seq as usize;
+    let (ids, mask) = unsafe { (std::slice::from_raw_parts(r.ids, span), std::slice::from_raw_parts(r.mask, span)) };
+    let types = (!r.types.is_null()).then(|| unsafe { std::slice::from_raw_parts(r.types, span) });
+    (ids, mask, types)
 }
 
 unsafe extern "C" fn session_run(session: *mut c_void, out: *mut turbo_backend_run, err: *mut turbo_error) -> i32 {
@@ -770,15 +894,32 @@ impl Host {
 #[cfg(test)]
 mod tests {
     use super::threads;
+    use crate::status::{INVALID_ARGUMENT, UNSUPPORTED_OPTION};
 
     #[test]
     fn turbo_cpu_threads_sets_the_count_or_is_refused() {
         let all = std::thread::available_parallelism().map_or(1, std::num::NonZero::get);
-        assert_eq!(threads(None), Ok(all));
-        assert_eq!(threads(Some("16")), Ok(16));
-        assert_eq!(threads(Some(" 3 ")), Ok(3));
+        assert_eq!(threads(0, None), Ok(all));
+        assert_eq!(threads(0, Some("16")), Ok(16));
+        assert_eq!(threads(0, Some(" 3 ")), Ok(3));
         for bad in ["0", "-1", "", "sixteen", "1025", "2.5"] {
-            assert!(threads(Some(bad)).unwrap_err().starts_with("TURBO_CPU_THREADS"), "{bad}");
+            let r = threads(0, Some(bad)).unwrap_err();
+            assert_eq!((r.code, r.field), (INVALID_ARGUMENT, 0), "{bad}");
+            assert!(r.message.starts_with("TURBO_CPU_THREADS"), "{bad}");
+        }
+    }
+
+    /// cpu_threads wins over the variable, which it does not read: a bad
+    /// value there does not refuse a session that names its count.
+    #[test]
+    fn cpu_threads_sets_the_count_or_is_refused_naming_field_6() {
+        for (n, var) in [(1, None), (5, Some("16")), (1024, Some("sixteen"))] {
+            assert_eq!(threads(n, var), Ok(n as usize));
+        }
+        for bad in [1025, 4096, u32::MAX] {
+            let r = threads(bad, Some("4")).unwrap_err();
+            assert_eq!((r.code, r.field), (UNSUPPORTED_OPTION, 6), "{bad}");
+            assert!(r.message.starts_with("cpu_threads"), "{bad}");
         }
     }
 }
