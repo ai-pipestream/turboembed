@@ -421,6 +421,39 @@ characters, whitespace and dashes from
 line-break and paragraph variants, and generated texts against a
 reference filter.
 
+### Symbols (`symbols/`)
+
+OpenNLP's `SymbolJoinerCharSequenceNormalizer` (in the runtime, and as an
+identical copy in the `symbol-joiner` add-on) maps an input that is
+exactly one of ten symbols to an English word: `&` and, `+` plus, `@`
+at, `%` percent, `§` section, `¶` paragraph, `°` degree, `©` copyright,
+`®` registered, `™` trademark. Every other input, including `R&D`,
+`"& "`, `©️` and currency symbols, is returned unchanged. It is
+meant to be called once per token. Despite its name, neither version
+joins symbol sequences (`C++`, `.NET`, `->`); that is not implemented
+here either.
+
+- `SymbolJoiner` (an `Annotator`, id `turbo:normalize:symbol-joiner`)
+  reads a `View` and the `Tokens` made on it and writes a `View` in which
+  each token that is exactly one mapped symbol is replaced by its word.
+  This is OpenNLP's per-token use. The new view's tokens are the old
+  ones mapped through its alignment.
+- `SymbolWords` (a `Normalizer`, id `turbo:normalize:symbol-words`)
+  replaces each mapped symbol in running text that has whitespace (the
+  OpenNLP whitespace table) or the edge of the text on both sides:
+  `Dungeons & Dragons` becomes `Dungeons and Dragons`.
+
+Differences from OpenNLP: `SymbolWords` finds the symbols in running text
+instead of requiring the whole input to be the symbol, so `"& "` becomes
+`"and "` and `" &"` becomes `" and"` (OpenNLP leaves both, as a
+whole input, unchanged; tokenized, each gives the token `&` and
+`and`). Test: `embedded_symbols_are_left_alone`.
+
+Tests (`analysis/normalize/tests/symbols.rs`): every mapping and every unchanged input of
+`SymbolJoinerCharSequenceNormalizerTest`, the `Dungeons & Dragons`
+example of `SymbolJoinerUsageExampleTest` through `SymbolJoiner` with
+its spans, and symbols in running text.
+
 ### Alignment checks
 
 The tests of these normalizers run every input through
@@ -461,6 +494,9 @@ it overlaps.
   it runs on (`Character.digit`), so the same input gives different
   output on JDK 21 (Unicode 15.0) and later JDKs. Its tests do not state
   which Unicode version they expect.
+- `SymbolJoinerCharSequenceNormalizer` and the `symbol-joiner` add-on are
+  the same class. It maps single symbols to words and joins nothing, so
+  its name does not describe what it does.
 
 ## Tests
 
