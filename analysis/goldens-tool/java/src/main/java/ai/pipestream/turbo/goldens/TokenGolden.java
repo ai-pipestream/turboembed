@@ -61,14 +61,14 @@ final class TokenGolden implements AnnotatorGolden {
   }
 
   @Override
-  public List<Layer> layers(Input input) {
+  public List<Layer> layers(Input input) throws AnnotatorException {
     return layers(tokenizer, input);
   }
 
   /** The layers {@code tokenizer} produces for the input; {@link TokenDump} runs it on its recording tokenizer. */
   @SuppressWarnings("removal")
-  static List<Layer> layers(TokenizerME tokenizer, Input input) {
-    Span[] spans = tokenizer.tokenizePos(input.text());
+  static List<Layer> layers(TokenizerME tokenizer, Input input) throws AnnotatorException {
+    Span[] spans = AnnotatorException.call(() -> tokenizer.tokenizePos(input.text()));
     double[] probs = tokenizer.getTokenProbabilities();
     if (probs.length != spans.length) {
       throw new IllegalStateException("input " + input.inputId() + ": getTokenProbabilities returned "

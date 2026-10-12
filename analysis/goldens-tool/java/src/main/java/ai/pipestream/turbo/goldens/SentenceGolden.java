@@ -62,14 +62,14 @@ final class SentenceGolden implements AnnotatorGolden {
   }
 
   @Override
-  public List<Layer> layers(Input input) {
+  public List<Layer> layers(Input input) throws AnnotatorException {
     return layers(detector, input);
   }
 
   /** The layers {@code detector} produces for the input; {@link SentenceDump} runs it on its recording detector. */
   @SuppressWarnings("removal")
-  static List<Layer> layers(SentenceDetectorME detector, Input input) {
-    Span[] spans = detector.sentPosDetect(input.text());
+  static List<Layer> layers(SentenceDetectorME detector, Input input) throws AnnotatorException {
+    Span[] spans = AnnotatorException.call(() -> detector.sentPosDetect(input.text()));
     double[] reported = detector.getSentenceProbabilities();
     double[] probs = new double[spans.length];
     for (int i = 0; i < spans.length; i++) {

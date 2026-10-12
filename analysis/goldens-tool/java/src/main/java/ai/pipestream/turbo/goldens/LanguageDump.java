@@ -49,8 +49,15 @@ final class LanguageDump implements AnnotatorDump {
   }
 
   @Override
-  public Run run(Input input) {
-    List<Layer> layers = LanguageGolden.layers(detector, input);
+  public Run run(Input input) throws AnnotatorException {
+    List<Layer> layers;
+    try {
+      layers = LanguageGolden.layers(detector, input);
+    } catch (AnnotatorException e) {
+      // What the model was asked before the annotator threw belongs to no dump.
+      recorder.discard();
+      throw e;
+    }
     List<Evaluation> evaluations = recorder.take();
     if (evaluations.size() != 1 || evaluations.get(0).request() != null) {
       throw new IllegalStateException("input " + input.inputId() + ": predictLanguages made "
