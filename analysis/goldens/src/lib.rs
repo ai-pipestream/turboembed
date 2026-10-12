@@ -6,13 +6,17 @@
 //! naming its line. `matches_golden` compares a layer on a `Document` with
 //! its golden layer and returns the first difference as a `Mismatch` a
 //! person can read; `assert_matches_golden` panics with it. SHA-256 and
-//! SHA-512 (`sha`) check input texts and model files. docs/analysis.md,
+//! SHA-512 (`sha`) check input texts and model files. `load_document` and
+//! `load_layer` (`load`) build a document from golden layers, under the
+//! key name `golden`, so one Rust annotator can run on the JVM's own
+//! input layers. docs/analysis.md,
 //! "Golden files", describes the format.
 
 pub mod compare;
 pub mod escape;
 pub mod format;
 pub mod hex;
+pub mod load;
 pub mod read;
 pub mod sha;
 pub mod write;
@@ -27,6 +31,7 @@ pub use format::{
     AnnotatorRef, Column, ColumnData, ColumnSpec, ColumnType, ConfigEntry, Generator, Golden, GoldenAnchor,
     GoldenLayer, Header, Input, Jdk, Model, OpenNlp, UnicodeVersion,
 };
+pub use load::{GOLDEN_KEY, GoldenLoad, LoadCx, LoadError, golden_key, load_document, load_layer};
 pub use read::GoldenError;
 pub use sha::{Sha256, Sha512, sha256, sha512};
 
