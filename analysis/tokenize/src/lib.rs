@@ -10,16 +10,18 @@
 //! - [`whitespace`]: `WhitespaceTokenizer`, runs of non-whitespace.
 //! - [`uax29`]: the UAX #29 word segmenter and `WordTokenizer`, which
 //!   also writes the word type of each token.
-//!
 //! - [`me`]: the maxent tokenizer, `TokenizerME`, which reads an OpenNLP
 //!   tokenizer model and writes a confidence per token; the model file's
 //!   SHA-256 from turbo-maxent identifies it in the provenance.
 //!
 //! Each rule tokenizer is also a plain function over a `&str` that appends
-//! spans to a caller's buffer, for use outside a pipeline. The dictionary
-//! detokenizer is a later addition to this crate. docs/segmentation.md
-//! describes the design and every place the ports differ from OpenNLP on
-//! purpose.
+//! spans to a caller's buffer, for use outside a pipeline.
+//!
+//! [`detok`] is OpenNLP's `DictionaryDetokenizer`, which rebuilds text
+//! from tokens with a detokenizer dictionary. It is not an annotator.
+//!
+//! docs/segmentation.md describes the design and every place the ports
+//! differ from OpenNLP on purpose.
 
 pub mod me;
 pub mod simple;

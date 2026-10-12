@@ -18,7 +18,7 @@ where and why.
 | `turbo-unicode` | `analysis/unicode/` | Character data: Java's character classes, the Unicode `White_Space` set, `Word_Break` and `Extended_Pictographic` properties, a UTF-16 code unit cursor over UTF-8 text |
 | `turbo-maxent` | `analysis/maxent/` | OpenNLP model files: the zip container, the manifest, maxent and perceptron models and their evaluation, the dictionary XML |
 | `turbo-sentdetect` | `analysis/sentdetect/` | The newline detector, the paragraph detector and the maxent sentence detector |
-| `turbo-tokenize` | `analysis/tokenize/` | The simple, whitespace and UAX #29 tokenizers and the maxent tokenizer; the dictionary detokenizer comes in its own change |
+| `turbo-tokenize` | `analysis/tokenize/` | The simple, whitespace and UAX #29 word tokenizers, the maxent tokenizer and the dictionary detokenizer |
 | `turbo-tokenize-layers` | `analysis/tokenize-layers/` | The tokenizers' own layer: the word type of each token |
 
 They depend on the standard library, `turbo-analysis` and
