@@ -316,6 +316,19 @@ fn a_model_whose_self_test_fails_is_refused() {
     }
 }
 
+/// A piece holding a NUL is refused, whatever its type, as the library
+/// refuses it ("piece must not include null character").
+#[test]
+fn a_piece_with_a_nul_is_refused() {
+    for kind in [1, 5] {
+        for model_type in [1, 2] {
+            let model = small_model(&[(b"<unk>", 2), (b"a", 1), (b"\0", kind)], model_type, &[]);
+            let e = SentencePiece::parse(&model).err().unwrap();
+            assert!(e.message.contains("NUL"), "{}", e.message);
+        }
+    }
+}
+
 /// Differences from the library, each on purpose:
 ///
 /// - A piece that is not UTF-8 is refused: the core's pieces are text.
@@ -324,6 +337,8 @@ fn a_model_whose_self_test_fails_is_refused() {
 ///   core encodes text. The library encodes the bytes.
 /// - Word and character models are refused: only unigram and BPE are
 ///   read.
+/// - A model whose denormalizer's character map is broken is refused.
+///   The library loads it and decodes every row to "".
 /// - A BPE model with a one-character CONTROL piece gives that piece's
 ///   id for the character, as the library's encode into ids does, and an
 ///   empty offset where it stands; the library's encode with offsets
@@ -341,6 +356,13 @@ fn the_differences_from_the_library() {
         let e = SentencePiece::parse(&small_model(&pieces, model_type, &[])).err().unwrap();
         assert!(e.message.contains("only unigram and BPE"), "{}", e.message);
     }
+
+    let mut model = small_model(&pieces, 1, &[]);
+    let mut denormalizer = Message::default();
+    denormalizer.bytes(2, b"junk");
+    model.extend_from_slice(&Message::default().bytes(5, &denormalizer.0).0);
+    let e = SentencePiece::parse(&model).err().unwrap();
+    assert!(e.message.contains("precompiled_charsmap"), "{}", e.message);
 
     let pieces: [(&[u8], u64); 4] = [(b"<unk>", 2), (b"x", 3), ("\u{2581}".as_bytes(), 1), (b"a", 1)];
     let sp = SentencePiece::parse(&small_model(&pieces, 2, &[])).unwrap();

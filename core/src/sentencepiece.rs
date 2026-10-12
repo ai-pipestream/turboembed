@@ -204,10 +204,6 @@ impl SentencePiece {
             if p.piece.is_empty() {
                 return Err(bad(format!("piece {i} is empty")));
             }
-            // The library leaves out an UNUSED piece that is one NUL.
-            if p.piece == b"\0" && p.kind == PieceType::Unused {
-                continue;
-            }
             if p.piece.contains(&0) {
                 return Err(bad(format!("piece {i} holds a NUL")));
             }

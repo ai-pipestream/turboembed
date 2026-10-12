@@ -64,6 +64,8 @@ These differ from the library, each tested there:
 - A piece that is not UTF-8 is refused on load; the library takes any
   bytes. A self-test sample whose input is not UTF-8 counts as failed.
 - Word and character models are refused: only unigram and BPE are read.
+- A model whose denormalizer has a broken character map is refused on
+  load; the library loads it and decodes every row to an empty text.
 - A BPE model whose CONTROL piece is one character gives that piece's
   id for the character, as the library's encode into ids does, with an
   empty offset; the library's encode with offsets fails on such a text.
