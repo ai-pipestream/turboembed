@@ -18,3 +18,46 @@ of its results depend on the platform rather than on OpenNLP:
   `Collections.shuffle(List, Random)`.
 
 The crate has no dependencies.
+
+## Test vectors
+
+`tests/jvm_vectors.rs` compares every function with values a JVM wrote,
+bit for bit (a NaN only as a NaN, since Java does not fix a NaN's bit
+pattern). The vectors are in `tests/vectors/`:
+
+| File | Contents |
+|---|---|
+| `strict_math_exp.tsv` | `StrictMath.exp` of about 7,600 inputs: both sides of every branch threshold in `e_exp.c`, the overflow and underflow thresholds, where results turn subnormal, a sweep over the finite range, tiny arguments, zeros, infinities, NaN and random bit patterns |
+| `strict_math_log.tsv` | `StrictMath.log` of about 11,500 inputs: values near 1, both sides of every threshold in `e_log.c` at several exponents, every power of two and its neighbours, subnormals, negative values, zeros, infinities, NaN, a logarithmic sweep and random bit patterns |
+| `random.tsv` | For nine seeds (0, 1, -1, 42, `Long.MIN_VALUE`, `Long.MAX_VALUE` and others): the first 64 values of each `java.util.Random` method from a fresh generator (`nextInt(bound)` for twelve bounds), a run mixing methods, and `Collections.shuffle` of the list 0..n for eight sizes |
+| `compare.tsv` | `String.compareTo` over pairs of strings with ASCII, Latin-1, BMP and supplementary characters |
+| `whitespace.tsv` | Every code point for which `Character.isWhitespace` is true |
+
+Each file's first line names the generator and the JVM that ran it
+(`java.version`, `java.vm.version`); the JDK does not expose its Unicode
+version at run time. Records are tab separated. A double is its 16 hex
+digit IEEE 754 bit pattern, a float is widened to a double (exactly) and
+written the same way, an integer is decimal, and a string has every
+character outside printable ASCII, and the backslash, written as `\u`
+and four hex digits.
+
+The files were made with the JDK named in their headers, by running this
+from the repository root:
+
+```sh
+java analysis/jvm/java/Vectors.java analysis/jvm/tests/vectors
+```
+
+`java/Vectors.java` is a single file for the JDK 21 source launcher and
+needs no build tool. The golden-file container (issue #152) will
+regenerate the files under its pinned JDK.
+
+## What is not here
+
+`Character.isLetter` and `Character.isDigit` are not provided. They are
+defined by the Unicode general categories (L* and Nd) of the JDK's
+Unicode version, which the standard library does not expose, and a
+correct version needs those category tables in the crate.
+`is_java_whitespace` is provided because the set it accepts is 25 code
+points, listed in its documentation and checked against the JVM for
+every code point.
