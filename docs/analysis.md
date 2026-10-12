@@ -803,6 +803,22 @@ The generator writes these layers, in this order within a golden:
 | `tokenize` (`TokenizerME.tokenizePos`) | `opennlp:tokens`, `turbo:utf16<opennlp:tokens>` when a token cuts a character, `turbo:confidence<opennlp:tokens>` |
 | `langdetect` (`LanguageDetectorME.predictLanguages`) | `opennlp:language` |
 | `normalize` (each normalizer) | `turbo:view` |
+| `numbers` (`NumberScan.parse`, per notation) | `turbo:numbers` |
+
+`numbers/<notation>/num/<id>.golden` (`latin-us`, `latin-eu`) holds
+`turbo:numbers`, anchored on the text, with one row per number mention:
+`start:u32` and `end:u32` (UTF-8 byte offsets, from an optional `-` to the
+end of a `k`, `m`, `b`, `bn` or `thousand` to `trillion` scale marker),
+`numeral_end:u32` (the end of the digits, before the scale marker),
+`negative:u32` (1 when the mention starts with `-`), `coefficient:str` (the
+unscaled value without sign), `scale:u32` (digits after the decimal point)
+and `plain:str` (`toPlainString()`, for a human reading the file). The value
+is `(-1)^negative * coefficient / 10^scale`. The `annotator` line names
+`opennlp.tools.extraction.NumberScan` and `parse`, and a `config notation`
+record gives `LATIN_US` or `LATIN_EU`. The scan is the mention loop of
+`CursorQuantityExtractor` of the `numeric` module of `opennlp-addons`
+(pinned in `analysis/goldens-tool/src/recipe.rs`) without the money
+exclusion and without units; there is no model and no dump.
 
 Other crates write goldens of their own layer types in the same format,
 which the generator does not make: a tokenizer crate's

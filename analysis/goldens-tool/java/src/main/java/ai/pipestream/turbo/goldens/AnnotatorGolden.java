@@ -26,9 +26,12 @@ interface AnnotatorGolden {
     return Map.of();
   }
 
-  /** Whether the golden is made for this input; the normalizers use the {@code norm} set, the rest do not. */
+  /**
+   * Whether the golden is made for this input; the normalizers use the {@code norm} set, the number
+   * scans the {@code num} set, and the rest use neither.
+   */
   default boolean accepts(Input input) {
-    return !input.set().equals(NormalizerGolden.INPUT_SET);
+    return !input.set().equals(NormalizerGolden.INPUT_SET) && !input.set().equals(NumberGolden.INPUT_SET);
   }
 
   /**
