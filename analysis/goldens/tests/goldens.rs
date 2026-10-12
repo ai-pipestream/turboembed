@@ -643,11 +643,11 @@ fn data_dir_is_beside_the_crate() {
 // ---------------------------------------------------------------------
 // Options and normalized views: `tests/fixtures/ligature.golden`, a
 // hand written `turbo:view` golden over `inputs/test/ligature.txt`. Its
-// edits expand a ligature, fold two spaces to one and fold two
-// full-width letters, written as two touching rows as the JVM writes
-// one-to-one replacements.
+// edits expand a ligature, delete the second of two spaces and fold two
+// full-width letters, one row each. No two rows touch, so the tests do
+// not depend on how a `ViewBuilder` records touching replacements.
 
-const LIGATURE: &str = "The \u{FB01}nal  report \u{FF21}\u{FF22}.";
+const LIGATURE: &str = "The \u{FB01}nal  report \u{FF21} \u{FF22}.";
 
 fn view_golden() -> Golden {
     Golden::read(fixtures().join("ligature.golden")).unwrap()
@@ -705,11 +705,9 @@ const NORM: Key<View> = Key::named("norm");
 #[test]
 fn a_normalized_view_matches_its_golden() {
     let g = view_golden();
-    // Rust merges the two touching letter edits into one, as the
-    // comparison merges the golden's rows.
-    let doc = normalized(&[(4, 7, "fi"), (11, 12, ""), (19, 22, "A"), (22, 25, "B")]);
-    assert_eq!(doc.get_key(&NORM).unwrap().alignment().edits().len(), 3);
-    assert_eq!(doc.get_key(&NORM).unwrap().text(), "The final report AB.");
+    let doc = normalized(&[(4, 7, "fi"), (11, 12, ""), (19, 22, "A"), (23, 26, "B")]);
+    assert_eq!(doc.get_key(&NORM).unwrap().alignment().edits().len(), 4);
+    assert_eq!(doc.get_key(&NORM).unwrap().text(), "The final report A B.");
     assert_matches_golden_key(&doc, &NORM, &g, Tolerance::exact());
 }
 
@@ -717,14 +715,14 @@ fn a_normalized_view_matches_its_golden() {
 fn a_view_with_other_text_or_other_edits() {
     let g = view_golden();
     // The spaces left alone: the text differs from byte 10 of the view.
-    let doc = normalized(&[(4, 7, "fi"), (19, 25, "AB")]);
+    let doc = normalized(&[(4, 7, "fi"), (19, 22, "A"), (23, 26, "B")]);
     let m = matches_golden_key(&doc, &NORM, &g, Tolerance::exact()).unwrap_err();
     assert!(matches!(m, Mismatch::Text { at: 10, .. }), "{m:?}");
-    has(&m.to_string(), &["turbo:view@norm: the normalized text differs from byte 10", "\"The final  report AB.\""]);
+    has(&m.to_string(), &["turbo:view@norm: the normalized text differs from byte 10", "\"The final  report A B.\""]);
 
     // The same text, but both spaces replaced by one instead of the second
-    // deleted: the edit lists differ at edit 1.
-    let doc = normalized(&[(4, 7, "fi"), (10, 12, " "), (19, 25, "AB")]);
+    // deleted: the edit lists differ at row 1, which is Rust edit 1.
+    let doc = normalized(&[(4, 7, "fi"), (10, 12, " "), (19, 22, "A"), (23, 26, "B")]);
     let m = matches_golden_key(&doc, &NORM, &g, Tolerance::exact()).unwrap_err();
     assert!(matches!(m, Mismatch::Item { index: 1, what: "span", .. }), "{m:?}");
     has(
@@ -745,9 +743,48 @@ fn a_view_with_other_text_or_other_edits() {
 fn a_view_golden_that_cannot_be_applied() {
     let mut g = view_golden();
     let v = g.layers.iter_mut().find(|l| l.id == "turbo:view").unwrap();
-    v.columns[1].data = ColumnData::U32(vec![7, 12, 21, 25]);
+    v.columns[1].data = ColumnData::U32(vec![7, 12, 21, 26]);
     let doc = normalized(&[(4, 7, "fi")]);
     let m = matches_golden_key(&doc, &NORM, &g, Tolerance::exact()).unwrap_err();
     assert!(matches!(m, Mismatch::BadGolden { .. }), "{m:?}");
     has(&m.to_string(), &["row 2, the edit 19..21, cuts a character"]);
+}
+
+/// Golden rows and alignment edits are compared one for one: two
+/// touching golden rows (one per character, as the JVM writes them) do
+/// not match one edit that replaces both characters in one call, and the
+/// first row is where they differ.
+#[test]
+fn touching_rows_do_not_match_one_edit_over_both() {
+    let text = "\u{FF21}\u{FF22}";
+    let mut g = view_golden();
+    g.header.input.utf8_len = text.len() as u32;
+    g.header.input.utf16_len = 2;
+    g.header.input.sha256 = sha256(text.as_bytes());
+    let v = g.layers.iter_mut().find(|l| l.id == "turbo:view").unwrap();
+    let mut with = Strs::default();
+    with.push("A");
+    with.push("B");
+    v.columns = vec![
+        Column { name: "start".into(), data: ColumnData::U32(vec![0, 3]) },
+        Column { name: "end".into(), data: ColumnData::U32(vec![3, 6]) },
+        Column { name: "with".into(), data: ColumnData::Str(with) },
+    ];
+    let mut doc = Document::new(text);
+    let mut b = ViewBuilder::new(text);
+    b.replace(6, "AB");
+    let (folded, alignment) = b.finish();
+    assert_eq!(alignment.edits().len(), 1);
+    let view = View::derived(doc.get::<View>().unwrap(), folded, alignment);
+    doc.add(&NORM, view, Provenance::by("test")).unwrap();
+    let m = matches_golden_key(&doc, &NORM, &g, Tolerance::exact()).unwrap_err();
+    assert!(matches!(m, Mismatch::Item { index: 0, what: "span", .. }), "{m:?}");
+    has(
+        &m.to_string(),
+        &[
+            "turbo:view@norm item 0",
+            "rust:   bytes 0..6 \"ＡＢ\", with \"AB\"",
+            "golden: bytes 0..3 \"Ａ\", with \"A\"",
+        ],
+    );
 }

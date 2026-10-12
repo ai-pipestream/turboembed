@@ -370,12 +370,13 @@ probabilities do not match a golden that has them.
 
 A normalized `View` is compared by its key (`Key::named("nfkc")`):
 the source with the golden's edits applied must be the view's text,
-byte for byte, and then the edits must be the view's alignment, edit by
-edit. A Rust alignment merges edits that touch, so the golden's touching
-rows are merged the same way first, and an item in a report is a merged
-edit. Only a view made from the source is compared: a view made from
-another view is reported as such, since composing a chain's edits into
-edits against the source is not built.
+byte for byte, and then the golden's rows must be the view's alignment
+edits, one for one and in order, so row i is edit i and a report names
+the first row that differs. The JVM writes one row per character for
+one-to-one replacements, so a normalizer matches it by making one edit
+per character too. Only a view made from the source is compared: a
+view made from another view is reported as such, since composing a
+chain's edits into edits against the source is not built.
 
 The first difference is reported for a person: the layer, the item, the
 spans on both sides with the text they cover (for an aligned layer, the

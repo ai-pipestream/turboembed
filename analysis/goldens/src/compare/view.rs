@@ -1,14 +1,11 @@
 //! `GoldenCompare` for a normalized `View`. Its golden is a `turbo:view`
 //! block: one row per edit, the source bytes `start..end` replaced by
 //! `with`. The source with every edit applied is the normalized text, and
-//! that is compared first, whole and exactly; then the edit lists.
-//!
-//! The JVM writes adjacent one-to-one replacements as separate rows, one
-//! per character, as OpenNLP's mapping gives them, while a Rust alignment
-//! merges edits that touch (`ViewBuilder::replace`). Both describe the
-//! same mapping, so the golden's touching rows are merged the same way
-//! before the lists are compared, and an item index in a report counts
-//! merged edits.
+//! that is compared first, whole and exactly; then the golden's rows are
+//! compared one for one, in order, with the view's alignment edits, so
+//! golden row i is Rust edit i. The JVM writes one row per character for
+//! one-to-one replacements, so a normalizer matches it by making one edit
+//! per character too.
 
 use turbo_analysis::{View, ViewId};
 use turbo_analysis_layers::Strs;
@@ -16,27 +13,6 @@ use turbo_analysis_layers::Strs;
 use super::{Cx, GoldenCompare, Items, Labels, Mismatch, Names, SpanCols, Tolerance, compare_items};
 use crate::format::ColumnType::{Str, U32};
 use crate::format::{ColumnSpec, GoldenAnchor, GoldenLayer};
-
-/// An edit list by column: source spans and replacement texts.
-#[derive(Default)]
-struct Edits {
-    start: Vec<u32>,
-    end: Vec<u32>,
-    with: Strs,
-}
-
-impl Edits {
-    fn items(&self) -> Items<'_> {
-        Items {
-            len: self.start.len(),
-            spans: Some(SpanCols { view: ViewId::SOURCE, start: &self.start, end: &self.end }),
-            context: None,
-            tokens: None,
-            labels: Some(Labels::Strs(&self.with)),
-            values: None,
-        }
-    }
-}
 
 impl GoldenCompare for View {
     const COLUMNS: &'static [ColumnSpec] =
@@ -57,7 +33,10 @@ impl GoldenCompare for View {
             None | Some(ViewId::SOURCE) => {}
             Some(_) => return Err(Mismatch::ChainedView { layer: cx.layer.clone() }),
         }
-        let (g, golden_text) = apply(cx, golden)?;
+        let start = golden.u32s("start").expect("a u32 column the shape checked");
+        let end = golden.u32s("end").expect("a u32 column the shape checked");
+        let with = golden.strs("with").expect("a str column the shape checked");
+        let golden_text = apply(cx, start, end, with)?;
         let rust_text = self.text();
         if rust_text != golden_text {
             let at = rust_text.bytes().zip(golden_text.bytes()).take_while(|(a, b)| a == b).count();
@@ -68,29 +47,45 @@ impl GoldenCompare for View {
                 golden: excerpt(&golden_text, at),
             });
         }
-        let mut r = Edits::default();
-        for e in self.alignment().edits() {
-            r.start.push(e.parent.start);
-            r.end.push(e.parent.end);
-            r.with.push(&rust_text[e.child.range()]);
+        // The alignment stores edits as structs; the comparison reads
+        // columns, so the Rust side is laid out once per layer.
+        let edits = self.alignment().edits();
+        let mut r_start = Vec::with_capacity(edits.len());
+        let mut r_end = Vec::with_capacity(edits.len());
+        let mut r_with = Strs::default();
+        for e in edits {
+            r_start.push(e.parent.start);
+            r_end.push(e.parent.end);
+            r_with.push(&rust_text[e.child.range()]);
         }
-        compare_items(cx, &r.items(), &g.items(), Names { label: Some("with"), value: None }, tol)
+        let rust = Items {
+            len: edits.len(),
+            spans: Some(SpanCols { view: ViewId::SOURCE, start: &r_start, end: &r_end }),
+            context: None,
+            tokens: None,
+            labels: Some(Labels::Strs(&r_with)),
+            values: None,
+        };
+        let golden = Items {
+            len: golden.len(),
+            spans: Some(SpanCols { view: ViewId::SOURCE, start, end }),
+            context: None,
+            tokens: None,
+            labels: Some(Labels::Strs(with)),
+            values: None,
+        };
+        compare_items(cx, &rust, &golden, Names { label: Some("with"), value: None }, tol)
     }
 }
 
-/// The golden's edits with touching rows merged, and the source text
-/// with them applied. Rows that overlap, or that cut a character, are a
-/// golden this crate cannot apply.
-fn apply(cx: &Cx<'_>, golden: &GoldenLayer) -> Result<(Edits, String), Mismatch> {
+/// The source text with the golden's edits applied. Rows that overlap, or
+/// that cut a character, are a golden this crate cannot apply.
+fn apply(cx: &Cx<'_>, start: &[u32], end: &[u32], with: &Strs) -> Result<String, Mismatch> {
     let source = cx.text();
-    let (start, end) = (golden.u32s("start").expect("checked"), golden.u32s("end").expect("checked"));
-    let with = golden.strs("with").expect("checked");
     let bad = |detail: String| Mismatch::BadGolden { layer: cx.layer.clone(), detail };
-    let mut edits = Edits::default();
     let mut text = String::with_capacity(source.len());
-    let mut merged = String::new();
     let mut at = 0usize;
-    for i in 0..golden.len() {
+    for i in 0..start.len() {
         let (s, e) = (start[i] as usize, end[i] as usize);
         if s < at || s > e || e > source.len() {
             return Err(bad(format!("row {i}, the edit {s}..{e}, overlaps the row before it or leaves the text")));
@@ -100,25 +95,10 @@ fn apply(cx: &Cx<'_>, golden: &GoldenLayer) -> Result<(Edits, String), Mismatch>
         }
         text.push_str(&source[at..s]);
         text.push_str(with.get(i));
-        if i > 0 && s == at {
-            // Touches the edit before it: one edit, as a Rust alignment has it.
-            *edits.end.last_mut().expect("an edit before") = e as u32;
-        } else {
-            if i > 0 {
-                edits.with.push(&merged);
-                merged.clear();
-            }
-            edits.start.push(s as u32);
-            edits.end.push(e as u32);
-        }
-        merged.push_str(with.get(i));
         at = e;
     }
-    if !edits.start.is_empty() {
-        edits.with.push(&merged);
-    }
     text.push_str(&source[at..]);
-    Ok((edits, text))
+    Ok(text)
 }
 
 /// Up to 24 bytes either side of byte `at`, widened to whole characters.
