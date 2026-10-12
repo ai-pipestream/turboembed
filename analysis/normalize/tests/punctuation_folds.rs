@@ -161,15 +161,15 @@ fn a_folded_quote_maps_back_to_the_curly_quote() {
 }
 
 #[test]
-fn neighbouring_folds_share_one_edit() {
-    // OpenNLP maps each output character to its own source character; the
-    // builder here merges touching edits, so "''" from two curly quotes is
-    // one edit and either output quote maps back to both.
+fn neighbouring_folds_keep_their_own_edits() {
+    // OpenNLP maps each output character to its own source character, and
+    // so does the builder here: "''" from two curly quotes is two edits.
     let src = "\u{2018}\u{2019}";
     let (out, a) = normalize(&Quotes, src);
     assert_eq!(out, "''");
-    assert_eq!(a.edits().len(), 1);
-    assert_eq!(covered(src, &a, 0, 1), src);
+    assert_eq!(a.edits().len(), 2);
+    assert_eq!(covered(src, &a, 0, 1), "\u{2018}");
+    assert_eq!(covered(src, &a, 1, 2), "\u{2019}");
 }
 
 // SetBasedNormalizerTest.testBulletsBecomeSeparatorSpaces and testBulletsLeaveMiddleDotAndTextAlone
@@ -254,9 +254,9 @@ fn a_deleted_character_is_not_covered_by_its_neighbour() {
     let (out, a) = normalize(&Invisible, src);
     assert_eq!(out, "ab");
     assert_eq!(covered(src, &a, 1, 2), "b");
-    // Neighbouring deletions are one edit.
+    // Neighbouring deletions are separate edits.
     let (_, a) = normalize(&Invisible, "a\u{200E}\u{200F}\u{FEFF}b");
-    assert_eq!(a.edits().len(), 1);
+    assert_eq!(a.edits().len(), 3);
 }
 
 #[test]
@@ -303,9 +303,9 @@ fn quotes_and_ellipsis_compose_in_a_chain() {
     let (out, a) = normalize(&chain, src);
     assert_eq!(out, "say \"hi\"...");
     assert_eq!(covered(src, &a, 5, 7), "hi");
-    // OpenNLP maps the "..." back to the ellipsis alone. The chain here
-    // merges changed stretches that touch, so the closing quote and the
-    // ellipsis next to it are one edit and the dots map back to both.
-    assert_eq!(covered(src, &a, 8, 11), "\u{201D}\u{2026}");
-    assert_eq!(covered(src, &a, 7, 8), "\u{201D}\u{2026}");
+    // As in OpenNLP, the "..." maps back to the ellipsis alone and the
+    // closing quote to the curly quote: the chain keeps touching stretches
+    // apart.
+    assert_eq!(covered(src, &a, 8, 11), "\u{2026}");
+    assert_eq!(covered(src, &a, 7, 8), "\u{201D}");
 }
