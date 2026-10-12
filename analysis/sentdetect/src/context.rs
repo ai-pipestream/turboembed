@@ -710,7 +710,7 @@ mod tests {
                         let (mut walks, mut ascii_walks) = (Walks::new(), Walks::new());
                         for &at in &positions {
                             let cursor = Utf16Cursor::at(&text, at.byte as usize, at.unit as usize);
-                            ctx.build(cursor.clone(), scanned, &mut Walks::plain(), &mut plain, &mut lookup);
+                            ctx.build(cursor, scanned, &mut Walks::plain(), &mut plain, &mut lookup);
                             ctx.build(cursor, scanned, &mut walks, &mut remembered, &mut lookup);
                             assert!(plain.iter().eq(remembered.iter()), "{mode:?} at {at:?} of {text:?}");
                             if scanned.is_ascii() {

@@ -89,13 +89,13 @@ impl AbbreviationIndex {
         // The window holds every position an entry can start at and the
         // longest entry after the candidate, widened to whole characters.
         let low = scan_start.max(candidate.unit.saturating_sub(self.max_len)) as usize;
-        let mut start = cand.clone();
+        let mut start = cand;
         while start.unit_index() > low && start.step_back() {}
         if !start.char_start() {
             start.step_back();
         }
         let high = len16.min(candidate.unit.saturating_add(self.max_len)) as usize;
-        let mut end = cand.clone();
+        let mut end = cand;
         while end.unit_index() < high && end.step_forward() {}
         if !end.char_start() {
             end.step_forward();
@@ -132,7 +132,7 @@ impl AbbreviationIndex {
 
 /// The code unit at index `unit`, at or before the cursor's position.
 fn unit_at(cursor: &Utf16Cursor<'_>, unit: u32) -> u16 {
-    let mut c = cursor.clone();
+    let mut c = *cursor;
     while c.unit_index() > unit as usize {
         c.step_back();
     }
