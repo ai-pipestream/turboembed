@@ -14,6 +14,9 @@
 //! `f64` throughout, and allocates nothing. docs/segmentation.md, section
 //! "Model files", describes where this fits.
 //!
+//! [`ModelFile::sha256`] identifies a model file the way `sha256sum` does,
+//! for the provenance of every layer a model produces.
+//!
 //! Nothing here calls into a JVM; the tests compare against values the
 //! JVM produced, kept as fixtures.
 
@@ -27,6 +30,7 @@ pub mod java_data;
 pub mod model;
 mod model_reader;
 pub mod properties;
+pub mod sha256;
 mod xml;
 pub mod zip;
 
@@ -36,4 +40,5 @@ pub use dictionary::{Dictionary, Entries, Entry};
 pub use error::{Error, Result};
 pub use model::{MaxentModel, ModelKind};
 pub use properties::Properties;
+pub use sha256::{Digest, sha256};
 pub use zip::{Method, Zip};
