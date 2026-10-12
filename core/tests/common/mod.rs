@@ -735,6 +735,8 @@ pub fn session_desc(max_batch: u32, max_seq: u32, precision: u32) -> turbo_sessi
         precision,
         tuning,
         tuning_budget_ms: 0,
+        cpu_threads: 0,
+        max_ranges: 0,
     }
 }
 

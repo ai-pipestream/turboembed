@@ -5,7 +5,8 @@ use std::ffi::{CStr, c_char, c_void};
 
 use crate::status::{Error, INTERNAL, Result, UNSUPPORTED};
 use crate::{
-    TURBO_STAGE_MAX, turbo_buffer_desc, turbo_device_info, turbo_error, turbo_log_fn, turbo_native_handle, write_str,
+    TURBO_STAGE_MAX, turbo_buffer_desc, turbo_device_info, turbo_error, turbo_log_fn, turbo_native_handle,
+    turbo_token_range, write_str,
 };
 
 pub const TURBO_CAP_UNSUPPORTED: u32 = 0;
@@ -100,6 +101,21 @@ pub struct turbo_backend_model {
     pub artifact_bytes: u64,
     pub artifact2: *const c_void,
     pub artifact2_bytes: u64,
+}
+
+/// A session as session_open receives it: turbo_session_desc's fields with
+/// every 0 resolved, and the task.
+#[repr(C)]
+#[derive(Clone, Copy, Debug)]
+pub struct turbo_backend_session_desc {
+    pub struct_size: u32,
+    pub task: u32,
+    pub max_batch: u32,
+    pub max_seq: u32,
+    pub precision: u32,
+    pub cpu_threads: u32,
+    pub max_ranges: u32,
+    pub reserved: u32,
 }
 
 #[repr(C)]
@@ -232,6 +248,25 @@ pub struct turbo_backend {
             err: *mut turbo_error,
         ) -> i32,
     >,
+    pub session_open: Option<
+        unsafe extern "C" fn(
+            model: *mut c_void,
+            desc: *const turbo_backend_session_desc,
+            tuning: *mut turbo_backend_tuning,
+            compute_dtype: *mut u32,
+            out: *mut *mut c_void,
+            err: *mut turbo_error,
+        ) -> i32,
+    >,
+    pub embed_write_ranges: Option<
+        unsafe extern "C" fn(
+            session: *mut c_void,
+            rows: *const turbo_backend_embed_rows,
+            ranges: *const turbo_token_range,
+            count: u32,
+            err: *mut turbo_error,
+        ) -> i32,
+    >,
 }
 
 // The table is immutable static data, read from any thread.
@@ -285,13 +320,14 @@ static LINKED: &[&turbo_backend] = &[
 ];
 
 /// The sizes the table has had, one per group of functions appended to it.
-const TABLE_SIZES: [usize; 7] = [
+const TABLE_SIZES: [usize; 8] = [
     std::mem::offset_of!(turbo_backend, context_create),
     std::mem::offset_of!(turbo_backend, model_load),
     std::mem::offset_of!(turbo_backend, session_create),
     std::mem::offset_of!(turbo_backend, buffer_read),
     std::mem::offset_of!(turbo_backend, formats),
     std::mem::offset_of!(turbo_backend, session_create_tuned),
+    std::mem::offset_of!(turbo_backend, session_open),
     size_of::<turbo_backend>(),
 ];
 
@@ -325,6 +361,9 @@ pub fn check_table(backend: &turbo_backend) -> Result<()> {
         ("session_create", has!(session_create), "session_run", has!(session_run)),
         ("session_create_tuned", has!(session_create_tuned), "session_release", has!(session_release)),
         ("session_create_tuned", has!(session_create_tuned), "session_run", has!(session_run)),
+        ("session_open", has!(session_open), "session_release", has!(session_release)),
+        ("session_open", has!(session_open), "session_run", has!(session_run)),
+        ("embed_write_ranges", has!(embed_write_ranges), "session_open", has!(session_open)),
     ];
     for (f, has, release, has_release) in pairs {
         if has && !has_release {

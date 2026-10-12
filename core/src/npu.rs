@@ -58,6 +58,8 @@ pub static BACKEND: turbo_backend = turbo_backend {
     // driver selected into choices (NGRAPH_LITE or NATIVE). It does not
     // measure kernels, and it does not read a cached choice.
     session_create_tuned: Some(graph::session_create_tuned),
+    session_open: None,
+    embed_write_ranges: None,
 };
 
 /// The backend's table, for the tests.

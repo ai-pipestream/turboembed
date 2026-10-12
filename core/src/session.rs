@@ -41,11 +41,26 @@ pub struct turbo_session_desc {
     pub precision: u32,
     pub tuning: u32,
     pub tuning_budget_ms: u32,
+    pub cpu_threads: u32,
+    pub max_ranges: u32,
 }
 
 /// The size of turbo_session_desc before tuning was appended, which
 /// turbo_session_create still accepts.
 pub const TURBO_SESSION_DESC_SIZE_V1: usize = std::mem::offset_of!(turbo_session_desc, tuning);
+
+/// The size of turbo_session_desc before cpu_threads was appended, which
+/// turbo_session_create still accepts.
+pub const TURBO_SESSION_DESC_SIZE_V2: usize = std::mem::offset_of!(turbo_session_desc, cpu_threads);
+
+/// A range of one row's tokens, for turbo_embed_write_ranges.
+#[repr(C)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct turbo_token_range {
+    pub row: u32,
+    pub start: u32,
+    pub end: u32,
+}
 
 /// The size of turbo_session_info before tuned was appended, which
 /// turbo_session_get_info still accepts.
@@ -263,10 +278,12 @@ pub unsafe extern "C" fn turbo_session_create(
                 precision: 0,
                 tuning: 0,
                 tuning_budget_ms: 0,
+                cpu_threads: 0,
+                max_ranges: 0,
             };
             if !desc.is_null() {
                 let size = (desc as *const u32).read();
-                if size as usize != TURBO_SESSION_DESC_SIZE_V1 {
+                if size as usize != TURBO_SESSION_DESC_SIZE_V1 && size as usize != TURBO_SESSION_DESC_SIZE_V2 {
                     sized(size, size_of::<turbo_session_desc>(), "turbo_session_desc")?;
                 }
                 std::ptr::copy_nonoverlapping(
