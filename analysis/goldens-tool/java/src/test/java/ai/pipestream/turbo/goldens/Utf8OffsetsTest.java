@@ -42,6 +42,23 @@ class Utf8OffsetsTest {
   }
 
   @Test
+  void anEnclosingSpanWidensAnEndInsideASurrogatePairToTheCharacter() {
+    // a (1 byte), the emoji (4 bytes, UTF-16 indices 1 and 2), b.
+    Utf8Offsets o = new Utf8Offsets("t/e", "a\ud83d\ude00b");
+    assertEquals(new Utf8Offsets.Enclosing(0, 1, false), o.enclosing(0, 1));
+    assertEquals(new Utf8Offsets.Enclosing(1, 5, false), o.enclosing(1, 3));
+    // The end between the halves rounds up to the byte after the emoji.
+    assertEquals(new Utf8Offsets.Enclosing(0, 5, true), o.enclosing(0, 2));
+    // The start between the halves rounds down to the emoji's first byte.
+    assertEquals(new Utf8Offsets.Enclosing(1, 6, true), o.enclosing(2, 4));
+    // Both ends between the halves: the empty span inside the pair is the whole character.
+    assertEquals(new Utf8Offsets.Enclosing(1, 5, true), o.enclosing(2, 2));
+    assertThrows(IllegalArgumentException.class, () -> o.enclosing(0, 5));
+    assertThrows(IllegalArgumentException.class, () -> o.enclosing(3, 2));
+    assertThrows(IllegalArgumentException.class, () -> o.enclosing(-1, 1));
+  }
+
+  @Test
   void aLoneSurrogateIsRefused() {
     assertThrows(IllegalArgumentException.class, () -> new Utf8Offsets("t/c", "a\ud83db"));
   }

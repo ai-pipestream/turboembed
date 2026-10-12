@@ -4,6 +4,7 @@ import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.List;
 import opennlp.tools.tokenize.TokenizerME;
 import opennlp.tools.tokenize.TokenizerModel;
@@ -11,7 +12,8 @@ import opennlp.tools.util.Span;
 
 /**
  * The tokenizer's golden: {@code opennlp:tokens} from {@link TokenizerME#tokenizePos(String)}
- * over the whole input, then its confidence layer from {@code getTokenProbabilities()}, which
+ * over the whole input, then {@code turbo:utf16<opennlp:tokens>} when a token starts or ends
+ * inside a surrogate pair ({@link SpanLayers}), then its confidence layer from {@code getTokenProbabilities()}, which
  * must hold one value per token.
  */
 final class TokenGolden implements AnnotatorGolden {
@@ -72,15 +74,8 @@ final class TokenGolden implements AnnotatorGolden {
       throw new IllegalStateException("input " + input.inputId() + ": getTokenProbabilities returned "
           + probs.length + " values for " + spans.length + " tokens");
     }
-    long[] starts = new long[spans.length];
-    long[] ends = new long[spans.length];
-    for (int i = 0; i < spans.length; i++) {
-      Utf8Offsets.ByteSpan b = input.offsets().span(spans[i].getStart(), spans[i].getEnd());
-      starts[i] = b.start();
-      ends[i] = b.end();
-    }
-    return List.of(
-        new Layer("opennlp:tokens", "text", new Column.U32("start", starts), new Column.U32("end", ends)),
-        new Layer("turbo:confidence<opennlp:tokens>", "aligned:opennlp:tokens", new Column.F64("value", probs)));
+    List<Layer> layers = new ArrayList<>(SpanLayers.of("opennlp:tokens", input.offsets(), spans));
+    layers.add(new Layer("turbo:confidence<opennlp:tokens>", "aligned:opennlp:tokens", new Column.F64("value", probs)));
+    return layers;
   }
 }
