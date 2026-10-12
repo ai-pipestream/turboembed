@@ -99,6 +99,8 @@ pub struct Tokenizer {
     pub unigram: Option<Unigram>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub bpe: Option<Bpe>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub sentencepiece: Option<SentencePiece>,
     pub special_tokens: Vec<SpecialToken>,
     pub template: Vec<String>,
     pub truncation: Truncation,
@@ -175,6 +177,26 @@ pub struct Bpe {
     pub add_prefix_space: bool,
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub ignore_merges: bool,
+}
+
+/// SentencePiece's own tokenizer, as Google's sentencepiece library runs
+/// it: `tokenizer.file` is the model's `.model` file, which holds the
+/// pieces, the normalizer and every switch (docs/tokenizer.md). The
+/// manifest says which algorithm the model must be. Special tokens are
+/// the model's pieces under their ids; none is matched in the text, as
+/// the library matches none.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct SentencePiece {
+    pub algorithm: SentencePieceAlgorithm,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum SentencePieceAlgorithm {
+    #[serde(rename = "unigram")]
+    Unigram,
+    #[serde(rename = "bpe")]
+    Bpe,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -645,15 +667,15 @@ impl Manifest {
         // tokenizer
         let t = &self.tokenizer;
         listed_path("tokenizer.file", &t.file)?;
-        match (&t.wordpiece, &t.unigram, &t.bpe) {
-            (Some(w), None, None) => {
+        match (&t.wordpiece, &t.unigram, &t.bpe, &t.sentencepiece) {
+            (Some(w), None, None, None) => {
                 required("tokenizer.wordpiece.continuing_prefix", &w.continuing_prefix)?;
                 positive("tokenizer.wordpiece.max_chars_per_word", w.max_chars_per_word)?;
                 if t.normalizer.is_none() {
                     return Err(invalid("manifest.json: tokenizer.normalizer: required with wordpiece"));
                 }
             }
-            (None, Some(u), None) => {
+            (None, Some(u), None, None) => {
                 if u.metaspace.chars().count() != 1 {
                     return Err(invalid(format!(
                         "manifest.json: tokenizer.unigram.metaspace: {:?} is not one character",
@@ -666,14 +688,26 @@ impl Manifest {
                     ));
                 }
             }
-            (None, None, Some(_)) => {
+            (None, None, Some(_), None) => {
                 if t.normalizer.is_some() {
                     return Err(invalid(
                         "manifest.json: tokenizer.normalizer: a bpe tokenizer reads the text as it is, not BertNormalizer",
                     ));
                 }
             }
-            _ => return Err(invalid("manifest.json: tokenizer: one of wordpiece, unigram and bpe")),
+            (None, None, None, Some(_)) => {
+                if t.normalizer.is_some() {
+                    return Err(invalid(
+                        "manifest.json: tokenizer.normalizer: a sentencepiece tokenizer normalizes as its model says, not BertNormalizer",
+                    ));
+                }
+                if let Some(i) = t.special_tokens.iter().position(|s| s.lstrip) {
+                    return Err(invalid(format!(
+                        "manifest.json: tokenizer.special_tokens[{i}].lstrip: a sentencepiece tokenizer matches no special token in the text"
+                    )));
+                }
+            }
+            _ => return Err(invalid("manifest.json: tokenizer: one of wordpiece, unigram, bpe and sentencepiece")),
         }
         let mut roles = HashSet::new();
         let mut contents = HashSet::new();

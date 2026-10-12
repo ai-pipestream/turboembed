@@ -402,7 +402,7 @@ typedef struct turbo_tokenizer_info {
     int32_t  bos_id;
     int32_t  eos_id;
     int32_t  unk_id;
-    char     kind[32];  /* wordpiece, bpe, unigram */
+    char     kind[32];  /* wordpiece, bpe, unigram, sentencepiece */
     char     sha256[72];            /* hex, of the tokenizer file */
     char     manifest_sha256[72];   /* hex, of manifest.json */
 } turbo_tokenizer_info;
