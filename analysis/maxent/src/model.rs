@@ -9,6 +9,9 @@
 
 use std::collections::HashMap;
 
+use turbo_jvm::strict_math;
+use turbo_unicode::modified_utf8::push_str_modified_utf8;
+
 use crate::hash::BuildFoldHasher;
 
 /// Which trainer made a model, which decides how its sums become
@@ -94,49 +97,100 @@ impl MaxentModel {
         self.pred_param.len()
     }
 
+    /// Whether the model has a predicate with this name.
+    pub fn has_predicate(&self, name: &str) -> bool {
+        match modified_utf8(name, &mut Vec::new()) {
+            Some(encoded) => self.predicates.contains_key(encoded),
+            None => self.predicates.contains_key(name.as_bytes()),
+        }
+    }
+
     /// Whether the model has a predicate with this name, given as Java
     /// modified UTF-8.
-    pub fn has_predicate(&self, name: &[u8]) -> bool {
+    pub fn has_predicate_modified_utf8(&self, name: &[u8]) -> bool {
         self.predicates.contains_key(name)
     }
 
     /// Writes the probability of each outcome given the context's features
-    /// into `out`, exactly as the Java model of this kind computes it.
-    /// Features are predicate names in Java modified UTF-8 (UTF-8 for text
-    /// without NUL or characters outside the Basic Multilingual Plane). A
-    /// feature the model does not know contributes nothing; a feature
-    /// given twice counts twice.
+    /// into `out`, computed as the Java model of this kind computes it,
+    /// with the same operations in the same order and `StrictMath`'s `exp`
+    /// and `log`. A feature the model does not know contributes nothing; a
+    /// feature given twice counts twice.
+    ///
+    /// Predicates are keyed by Java modified UTF-8. A feature holding no
+    /// U+0000 and no character outside the Basic Multilingual Plane is the
+    /// same bytes in UTF-8 and is looked up as it is; any other is encoded
+    /// into a buffer first. Callers that already build their features as
+    /// modified UTF-8 use [`eval_modified_utf8`](Self::eval_modified_utf8).
     ///
     /// # Panics
     ///
     /// If `out.len()` is not [`num_outcomes`](Self::num_outcomes).
-    pub fn eval(&self, context: &[&[u8]], out: &mut [f64]) {
+    pub fn eval(&self, context: &[&str], out: &mut [f64]) {
+        self.start_sums(out);
+        let mut buffer = Vec::new();
+        for feature in context {
+            match modified_utf8(feature, &mut buffer) {
+                Some(encoded) => self.add_feature(encoded, out),
+                None => self.add_feature(feature.as_bytes(), out),
+            }
+        }
+        self.finish(out);
+    }
+
+    /// [`eval`](Self::eval) with features given as Java modified UTF-8
+    /// bytes, looked up without copying. Plain UTF-8 holding U+0000 or a
+    /// character outside the Basic Multilingual Plane will not match the
+    /// predicate the JVM would have found.
+    ///
+    /// # Panics
+    ///
+    /// If `out.len()` is not [`num_outcomes`](Self::num_outcomes).
+    pub fn eval_modified_utf8(&self, context: &[&[u8]], out: &mut [f64]) {
         self.eval_features(context.iter().copied(), out);
     }
 
-    /// [`eval`](Self::eval) over features from an iterator, so a caller
-    /// holding its features in one buffer need not build a slice of them.
+    /// [`eval_modified_utf8`](Self::eval_modified_utf8) over features from
+    /// an iterator, so a caller holding its features in one buffer need not
+    /// build a slice of them.
     pub fn eval_features<'c, I>(&self, context: I, out: &mut [f64])
     where
         I: IntoIterator<Item = &'c [u8]>,
     {
+        self.start_sums(out);
+        for feature in context {
+            self.add_feature(feature, out);
+        }
+        self.finish(out);
+    }
+
+    /// Sets every sum to its starting value.
+    #[inline]
+    fn start_sums(&self, out: &mut [f64]) {
         assert_eq!(out.len(), self.outcomes.len(), "the output must hold one probability per outcome");
         out.fill(self.start);
-        for feature in context {
-            if let Some(&p) = self.predicates.get(feature) {
-                let p = p as usize;
-                let range = self.pred_start[p] as usize..self.pred_start[p + 1] as usize;
-                for (&o, &w) in self.pred_outcome[range.clone()].iter().zip(&self.pred_param[range]) {
-                    out[o as usize] += w;
-                }
+    }
+
+    /// Adds the parameters of one feature's predicate, if the model has it.
+    #[inline]
+    fn add_feature(&self, feature: &[u8], out: &mut [f64]) {
+        if let Some(&p) = self.predicates.get(feature) {
+            let p = p as usize;
+            let range = self.pred_start[p] as usize..self.pred_start[p + 1] as usize;
+            for (&o, &w) in self.pred_outcome[range.clone()].iter().zip(&self.pred_param[range]) {
+                out[o as usize] += w;
             }
         }
+    }
+
+    /// Turns the sums into probabilities as this kind of model does.
+    fn finish(&self, out: &mut [f64]) {
         match self.kind {
             ModelKind::Gis => exp_normalize(out, 1.0),
             ModelKind::Qn => {
                 let lse = log_sum_of_exps(out);
                 for x in out.iter_mut() {
-                    *x = (*x - lse).exp();
+                    *x = strict_math::exp(*x - lse);
                 }
             }
             ModelKind::Perceptron => {
@@ -150,16 +204,30 @@ impl MaxentModel {
             }
         }
     }
+}
 
-    /// The index of the most probable outcome: the first index holding the
-    /// maximum, as `ArrayMath.argmax` finds it.
-    ///
-    /// # Panics
-    ///
-    /// If `probabilities` is empty.
-    pub fn best_outcome(&self, probabilities: &[f64]) -> usize {
-        argmax(probabilities)
+/// `s` as Java modified UTF-8, written into `buffer`, or `None` when `s`
+/// holds no U+0000 and no four-byte sequence, so its UTF-8 bytes are
+/// already its modified UTF-8.
+#[inline]
+fn modified_utf8<'b>(s: &str, buffer: &'b mut Vec<u8>) -> Option<&'b [u8]> {
+    if !s.bytes().any(|b| b == 0 || b >= 0xF0) {
+        return None;
     }
+    buffer.clear();
+    push_str_modified_utf8(buffer, s);
+    Some(buffer)
+}
+
+/// The index of the most probable outcome in what
+/// [`MaxentModel::eval`] wrote: the first index holding the maximum, as
+/// `ArrayMath.argmax` finds it.
+///
+/// # Panics
+///
+/// If `probabilities` is empty.
+pub fn best_outcome(probabilities: &[f64]) -> usize {
+    argmax(probabilities)
 }
 
 /// `x = exp(x / divisor)` for every element, then each divided by their
@@ -167,7 +235,7 @@ impl MaxentModel {
 fn exp_normalize(out: &mut [f64], divisor: f64) {
     let mut sum = 0.0;
     for x in out.iter_mut() {
-        *x = if divisor == 1.0 { x.exp() } else { (*x / divisor).exp() };
+        *x = if divisor == 1.0 { strict_math::exp(*x) } else { strict_math::exp(*x / divisor) };
         sum += *x;
     }
     for x in out.iter_mut() {
@@ -182,10 +250,10 @@ fn log_sum_of_exps(x: &[f64]) -> f64 {
     let mut sum = 0.0;
     for &v in x {
         if v != f64::NEG_INFINITY {
-            sum += (v - max).exp();
+            sum += strict_math::exp(v - max);
         }
     }
-    max + sum.ln()
+    max + strict_math::log(sum)
 }
 
 /// `ArrayMath.argmax`: an element replaces the best so far only when the
@@ -204,56 +272,72 @@ fn argmax(x: &[f64]) -> usize {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use turbo_jvm::strict_math::{exp, log};
 
-    /// A model with outcomes a, b, c and predicates p (a: 1, b: 2) and
-    /// q (c: -0.5).
+    /// A model with outcomes a, b, c and predicates p (a: 1, b: 2),
+    /// q (c: -0.5), and two whose modified UTF-8 differs from UTF-8:
+    /// "n\0" (a: 3) and "e\u{1F600}" (b: 3).
     fn model(kind: ModelKind) -> MaxentModel {
         let mut predicates = HashMap::default();
         predicates.insert(Box::from(&b"p"[..]), 0);
         predicates.insert(Box::from(&b"q"[..]), 1);
+        predicates.insert(Box::from(&b"n\xC0\x80"[..]), 2);
+        predicates.insert(Box::from(&b"e\xED\xA0\xBD\xED\xB8\x80"[..]), 3);
         MaxentModel {
             kind,
             outcomes: vec!["a".into(), "b".into(), "c".into()],
             predicates,
-            pred_start: vec![0, 2, 3],
-            pred_outcome: vec![0, 1, 2],
-            pred_param: vec![1.0, 2.0, -0.5],
-            start: if kind == ModelKind::Gis { (1.0f64 / 3.0).ln() } else { 0.0 },
+            pred_start: vec![0, 2, 3, 4, 5],
+            pred_outcome: vec![0, 1, 2, 0, 1],
+            pred_param: vec![1.0, 2.0, -0.5, 3.0, 3.0],
+            start: if kind == ModelKind::Gis { log(1.0 / 3.0) } else { 0.0 },
         }
     }
 
-    fn eval(m: &MaxentModel, context: &[&[u8]]) -> Vec<f64> {
+    fn eval(m: &MaxentModel, context: &[&str]) -> Vec<f64> {
         let mut out = vec![f64::NAN; m.num_outcomes()];
         m.eval(context, &mut out);
+        let mut bytes = vec![f64::NAN; m.num_outcomes()];
+        let encoded: Vec<Vec<u8>> = context
+            .iter()
+            .map(|f| {
+                let mut v = Vec::new();
+                push_str_modified_utf8(&mut v, f);
+                v
+            })
+            .collect();
+        let encoded: Vec<&[u8]> = encoded.iter().map(Vec::as_slice).collect();
+        m.eval_modified_utf8(&encoded, &mut bytes);
+        assert_eq!(out, bytes, "eval and eval_modified_utf8 disagree on {context:?}");
         out
     }
 
     #[test]
     fn gis_adds_the_uniform_prior_then_normalizes() {
-        let got = eval(&model(ModelKind::Gis), &[b"p", b"q", b"unknown"]);
-        let r = (1.0f64 / 3.0).ln();
-        let e = [(r + 1.0).exp(), (r + 2.0).exp(), (r - 0.5).exp()];
+        let got = eval(&model(ModelKind::Gis), &["p", "q", "unknown"]);
+        let r = log(1.0 / 3.0);
+        let e = [exp(r + 1.0), exp(r + 2.0), exp(r - 0.5)];
         let s = e[0] + e[1] + e[2];
         assert_eq!(got, vec![e[0] / s, e[1] / s, e[2] / s]);
     }
 
     #[test]
     fn qn_subtracts_the_log_sum_of_exps() {
-        let got = eval(&model(ModelKind::Qn), &[b"p", b"p"]);
+        let got = eval(&model(ModelKind::Qn), &["p", "p"]);
         let x = [2.0f64, 4.0, 0.0];
-        let lse = 4.0 + ((2.0f64 - 4.0).exp() + 1.0 + (0.0f64 - 4.0).exp()).ln();
-        assert_eq!(got, x.iter().map(|v| (v - lse).exp()).collect::<Vec<_>>());
+        let lse = 4.0 + log(exp(2.0 - 4.0) + exp(0.0) + exp(0.0 - 4.0));
+        assert_eq!(got, x.iter().map(|v| exp(v - lse)).collect::<Vec<_>>());
     }
 
     #[test]
     fn perceptron_scales_by_the_largest_magnitude_above_one() {
-        let got = eval(&model(ModelKind::Perceptron), &[b"p", b"q"]);
-        let e = [(1.0f64 / 2.0).exp(), (2.0f64 / 2.0).exp(), (-0.5f64 / 2.0).exp()];
+        let got = eval(&model(ModelKind::Perceptron), &["p", "q"]);
+        let e = [exp(1.0 / 2.0), exp(2.0 / 2.0), exp(-0.5 / 2.0)];
         let s = e[0] + e[1] + e[2];
         assert_eq!(got, vec![e[0] / s, e[1] / s, e[2] / s]);
         // Sums all within [-1, 1] are not scaled.
-        let got = eval(&model(ModelKind::Perceptron), &[b"q"]);
-        let e = [1.0f64, 1.0, (-0.5f64).exp()];
+        let got = eval(&model(ModelKind::Perceptron), &["q"]);
+        let e = [exp(0.0), exp(0.0), exp(-0.5)];
         let s = e[0] + e[1] + e[2];
         assert_eq!(got, vec![e[0] / s, e[1] / s, e[2] / s]);
     }
@@ -267,11 +351,31 @@ mod tests {
     }
 
     #[test]
+    fn str_features_are_looked_up_as_modified_utf8() {
+        let m = model(ModelKind::Qn);
+        let x = [3.0f64, 3.0, 0.0];
+        let lse = 3.0 + log(exp(0.0) + exp(0.0) + exp(0.0 - 3.0));
+        let want: Vec<f64> = x.iter().map(|v| exp(v - lse)).collect();
+        assert_eq!(eval(&m, &["n\0", "e\u{1F600}"]), want);
+
+        // The same features given as plain UTF-8 bytes match nothing.
+        let mut out = [0.0; 3];
+        m.eval_modified_utf8(&[b"n\0", "e\u{1F600}".as_bytes()], &mut out);
+        let mut empty = [0.0; 3];
+        m.eval_modified_utf8(&[], &mut empty);
+        assert_eq!(out, empty);
+
+        assert!(m.has_predicate("n\0"));
+        assert!(m.has_predicate("e\u{1F600}"));
+        assert!(m.has_predicate_modified_utf8(b"n\xC0\x80"));
+        assert!(!m.has_predicate_modified_utf8(b"n\0"));
+    }
+
+    #[test]
     fn argmax_keeps_the_first_maximum() {
-        let m = model(ModelKind::Gis);
-        assert_eq!(m.best_outcome(&[0.2, 0.4, 0.4]), 1);
-        assert_eq!(m.best_outcome(&[0.5, 0.1, 0.4]), 0);
-        assert_eq!(m.best_outcome(&[f64::NAN, 0.1, 0.4]), 0);
+        assert_eq!(best_outcome(&[0.2, 0.4, 0.4]), 1);
+        assert_eq!(best_outcome(&[0.5, 0.1, 0.4]), 0);
+        assert_eq!(best_outcome(&[f64::NAN, 0.1, 0.4]), 0);
     }
 
     #[test]
@@ -280,14 +384,21 @@ mod tests {
         assert_eq!(m.outcome_index("b"), Some(1));
         assert_eq!(m.outcome_index("z"), None);
         assert_eq!(m.outcome(2), "c");
-        assert_eq!(m.num_predicates(), 2);
-        assert_eq!(m.num_parameters(), 3);
-        assert!(m.has_predicate(b"q"));
+        assert_eq!(m.num_predicates(), 4);
+        assert_eq!(m.num_parameters(), 5);
+        assert!(m.has_predicate("q"));
+        assert!(!m.has_predicate("r"));
     }
 
     #[test]
     #[should_panic(expected = "one probability per outcome")]
     fn a_wrong_output_length_panics() {
         model(ModelKind::Gis).eval(&[], &mut [0.0; 2]);
+    }
+
+    #[test]
+    #[should_panic(expected = "one probability per outcome")]
+    fn a_wrong_output_length_panics_for_bytes() {
+        model(ModelKind::Gis).eval_modified_utf8(&[], &mut [0.0; 2]);
     }
 }

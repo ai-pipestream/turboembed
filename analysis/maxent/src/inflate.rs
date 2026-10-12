@@ -6,8 +6,9 @@
 //! `TABLE_BITS` bits of input, which resolves every code of up to that
 //! length in one lookup. Longer codes, which are rare, fall back to the
 //! canonical decoding loop of RFC 1951 section 3.2.2, reading one bit at
-//! a time. Nothing is allocated per symbol: the output is allocated once
-//! at its stated size and the tables live in one struct per call.
+//! a time. Nothing is allocated per symbol: the output grows in a vector
+//! that starts with a capacity bounded by the input's length, and the
+//! tables live in one struct per call.
 
 use crate::error::{Error, Result};
 
@@ -23,6 +24,17 @@ const MAX_BITS: usize = 15;
 /// bytes and a distance code can be one bit each in a dynamic block, so
 /// two bits give 258 bytes.
 const MAX_RATIO: usize = 1032;
+
+/// The largest stated size `inflate` accepts, 1 GiB. The largest OpenNLP
+/// models are a few hundred megabytes uncompressed; a stated size above
+/// this is refused before anything is allocated.
+pub const MAX_SIZE: usize = 1 << 30;
+
+/// The output's initial capacity is at most this many times the input's
+/// length, so a stated size the stream does not back with data costs no
+/// more than this before decoding fails. Real model entries compress by
+/// less than this, so they are not reallocated.
+const INITIAL_RATIO: usize = 64;
 
 const LENGTH_BASE: [u16; 29] =
     [3, 4, 5, 6, 7, 8, 9, 10, 11, 13, 15, 17, 19, 23, 27, 31, 35, 43, 51, 59, 67, 83, 99, 115, 131, 163, 195, 227, 258];
@@ -41,13 +53,21 @@ const CODE_LENGTH_ORDER: [usize; 19] = [16, 17, 18, 0, 8, 7, 9, 6, 10, 5, 11, 4,
 /// Inflates a raw deflate stream (no zlib or gzip header) that must
 /// produce exactly `size` bytes. Bytes after the final block are ignored.
 pub fn inflate(input: &[u8], size: usize) -> Result<Vec<u8>> {
+    if size > MAX_SIZE {
+        return Err(Error::Inflate("the stated size is above the 1 GiB limit"));
+    }
     if size > input.len().saturating_mul(MAX_RATIO).saturating_add(MAX_RATIO) {
         return Err(Error::Inflate("the stated size is more than the input can produce"));
     }
+    let mut out = Vec::new();
+    let initial = size.min(input.len().saturating_mul(INITIAL_RATIO));
+    if out.try_reserve_exact(initial).is_err() {
+        return Err(Error::Inflate("the output buffer could not be allocated"));
+    }
     let mut inflater = Inflater {
         bits: Bits { data: input, pos: 0, buf: 0, count: 0 },
-        out: vec![0; size],
-        pos: 0,
+        out,
+        size,
         literals: Huffman::new(),
         distances: Huffman::new(),
     };
@@ -253,8 +273,10 @@ impl Huffman {
 
 struct Inflater<'a> {
     bits: Bits<'a>,
+    /// The bytes produced so far.
     out: Vec<u8>,
-    pos: usize,
+    /// The size the stream must produce.
+    size: usize,
     literals: Box<Huffman>,
     distances: Box<Huffman>,
 }
@@ -279,7 +301,7 @@ impl Inflater<'_> {
                 break;
             }
         }
-        if self.pos != self.out.len() {
+        if self.out.len() != self.size {
             return Err(Error::Inflate("the stream ends before the stated size"));
         }
         Ok(())
@@ -299,11 +321,10 @@ impl Inflater<'_> {
         let Some(bytes) = data.get(start + 4..start + 4 + len) else {
             return Err(Error::Inflate("the input ends inside a stored block"));
         };
-        let Some(dest) = self.out.get_mut(self.pos..self.pos + len) else {
+        if len > self.size - self.out.len() {
             return Err(Error::Inflate("the stream produces more than the stated size"));
-        };
-        dest.copy_from_slice(bytes);
-        self.pos += len;
+        }
+        self.out.extend_from_slice(bytes);
         self.bits.pos = start + 4 + len;
         Ok(())
     }
@@ -369,11 +390,10 @@ impl Inflater<'_> {
         loop {
             let symbol = self.literals.decode(&mut self.bits)?;
             if symbol < 256 {
-                let Some(slot) = self.out.get_mut(self.pos) else {
+                if self.out.len() == self.size {
                     return Err(Error::Inflate("the stream produces more than the stated size"));
-                };
-                *slot = symbol as u8;
-                self.pos += 1;
+                }
+                self.out.push(symbol as u8);
                 continue;
             }
             if symbol == 256 {
@@ -394,26 +414,28 @@ impl Inflater<'_> {
     }
 
     fn copy(&mut self, distance: usize, len: usize) -> Result<()> {
-        if distance > self.pos {
+        let pos = self.out.len();
+        if distance > pos {
             return Err(Error::Inflate("a distance reaches before the start of the output"));
         }
-        if len > self.out.len() - self.pos {
+        if len > self.size - pos {
             return Err(Error::Inflate("the stream produces more than the stated size"));
         }
-        let from = self.pos - distance;
+        let from = pos - distance;
         if distance >= len {
-            self.out.copy_within(from..from + len, self.pos);
+            self.out.extend_from_within(from..from + len);
         } else if distance == 1 {
             let byte = self.out[from];
-            self.out[self.pos..self.pos + len].fill(byte);
+            self.out.resize(pos + len, byte);
         } else {
             // The source overlaps the bytes being written: the copy repeats
             // the last `distance` bytes, so it goes one byte at a time.
+            self.out.reserve(len);
             for i in 0..len {
-                self.out[self.pos + i] = self.out[from + i];
+                let byte = self.out[from + i];
+                self.out.push(byte);
             }
         }
-        self.pos += len;
         Ok(())
     }
 }
@@ -467,6 +489,123 @@ mod tests {
                 256..=279 => self.code(symbol - 256, 7),
                 _ => self.code(0xC0 + symbol - 280, 8),
             }
+        }
+    }
+
+    /// Starts a final dynamic block declaring `257 + hlit` length codes
+    /// and `1 + hdist` distance codes, with a code length code over the
+    /// symbols 0 and 8 (two bits each), 16 (two bits), and 17 and 18
+    /// (three bits each). Write code lengths with [`code_length`].
+    fn dynamic_header(w: &mut BitWriter, hlit: u32, hdist: u32) {
+        w.put(1, 1);
+        w.put(2, 2);
+        w.put(hlit, 5);
+        w.put(hdist, 5);
+        w.put(1, 4); // five code length lengths: symbols 16, 17, 18, 0, 8
+        for len in [2, 3, 3, 2, 2] {
+            w.put(len, 3);
+        }
+    }
+
+    /// One code length symbol under the code `dynamic_header` declares,
+    /// with its extra bits.
+    fn code_length(w: &mut BitWriter, symbol: u32, extra: u32) {
+        match symbol {
+            0 => w.code(0b00, 2),
+            8 => w.code(0b01, 2),
+            16 => {
+                w.code(0b10, 2);
+                w.put(extra, 2);
+            }
+            17 => {
+                w.code(0b110, 3);
+                w.put(extra, 3);
+            }
+            18 => {
+                w.code(0b111, 3);
+                w.put(extra, 7);
+            }
+            _ => unreachable!("the code has no symbol {symbol}"),
+        }
+    }
+
+    #[test]
+    fn a_huge_stated_size_is_refused_before_allocating() {
+        // 0xFF is a final block of the reserved type, but the stated size
+        // is checked first: 4 GiB must not be allocated for it.
+        assert_eq!(message(inflate(&vec![0xFF; 4_200_000], 0xFFFF_FFFE)), "the stated size is above the 1 GiB limit");
+        assert_eq!(message(inflate(&[0xFF], MAX_SIZE + 1)), "the stated size is above the 1 GiB limit");
+    }
+
+    #[test]
+    fn a_stated_size_the_stream_does_not_produce_allocates_little() {
+        // The size is under the limit and the input ratio, so only the
+        // initial capacity, 64 bytes per input byte, is reserved before the
+        // reserved block type is found.
+        assert_eq!(message(inflate(&vec![0xFF; 1 << 20], 1 << 30)), "a block has the reserved type 3");
+    }
+
+    #[test]
+    fn a_dynamic_block_without_an_end_of_block_code() {
+        let mut w = BitWriter::new();
+        dynamic_header(&mut w, 0, 0);
+        code_length(&mut w, 18, 127); // 138 zeros
+        code_length(&mut w, 18, 109); // 120 zeros: 258 lengths, all zero
+        assert_eq!(message(inflate(&w.bytes, 0)), "a dynamic block has no end-of-block code");
+    }
+
+    #[test]
+    fn a_repeat_code_with_no_previous_length() {
+        let mut w = BitWriter::new();
+        dynamic_header(&mut w, 0, 0);
+        code_length(&mut w, 16, 0);
+        assert_eq!(message(inflate(&w.bytes, 0)), "a repeat code has no previous length");
+    }
+
+    #[test]
+    fn code_lengths_that_repeat_past_the_end() {
+        let mut w = BitWriter::new();
+        dynamic_header(&mut w, 0, 0);
+        code_length(&mut w, 8, 0);
+        code_length(&mut w, 18, 127); // 139 lengths
+        code_length(&mut w, 18, 127); // 277, past the 258 declared
+        assert_eq!(message(inflate(&w.bytes, 0)), "code lengths repeat past the end of the list");
+    }
+
+    #[test]
+    fn too_many_length_or_distance_codes() {
+        let mut w = BitWriter::new();
+        dynamic_header(&mut w, 30, 0); // 287 length codes
+        assert_eq!(message(inflate(&w.bytes, 0)), "a dynamic block declares more than 286 length or 30 distance codes");
+        let mut w = BitWriter::new();
+        dynamic_header(&mut w, 0, 30); // 31 distance codes
+        assert_eq!(message(inflate(&w.bytes, 0)), "a dynamic block declares more than 286 length or 30 distance codes");
+    }
+
+    #[test]
+    fn length_symbols_286_and_287() {
+        for symbol in [286, 287] {
+            let mut w = BitWriter::new();
+            w.put(1, 1);
+            w.put(1, 2);
+            w.fixed(u32::from(b'a'));
+            w.fixed(symbol);
+            w.fixed(256);
+            assert_eq!(message(inflate(&w.bytes, 10)), "a length symbol is 286 or 287", "symbol {symbol}");
+        }
+    }
+
+    #[test]
+    fn distance_symbols_30_and_31() {
+        for symbol in [30, 31] {
+            let mut w = BitWriter::new();
+            w.put(1, 1);
+            w.put(1, 2);
+            w.fixed(u32::from(b'a'));
+            w.fixed(257); // length 3
+            w.code(symbol, 5);
+            w.fixed(256);
+            assert_eq!(message(inflate(&w.bytes, 4)), "a distance symbol is 30 or 31", "symbol {symbol}");
         }
     }
 
