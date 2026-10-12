@@ -19,11 +19,34 @@ nothing here is in the C header or the gRPC server.
 | `turbo-analysis` | `analysis/core/` | The document, views, offset tables, layers, keys, provenance, annotators, the analyzer and the registry |
 | `turbo-analysis-layers` | `analysis/layers/` | The layers add-ons share (below) |
 | `turbo-chunker` | `analysis/chunker/` | The chunker |
+| `turbo-jvm` | `analysis/jvm/` | JVM behaviour the OpenNLP ports must reproduce bit for bit |
 
 They need nothing beyond the standard library and each other. A shared
 layer lives in `turbo-analysis-layers`, so a consumer of a layer never
 depends on the add-on that produces it; an add-on's own layers live in a
 small schema crate beside it, for the same reason.
+
+## JVM parity
+
+Some of OpenNLP's results depend on the Java platform rather than on
+OpenNLP, and `turbo-jvm` reproduces those parts exactly, so a port can
+match the JVM bit for bit:
+
+- `chars`: Java sees text as UTF-16 code units. `Utf16Units` yields the
+  units of a `&str` with the UTF-8 byte offset of each unit's character,
+  for context generators, `StringPattern` and character n-grams;
+  `utf16_len` is `String.length()`; `compare_to` is `String.compareTo`,
+  which orders by code unit and so differs from `str::cmp` for
+  characters outside the Basic Multilingual Plane; `is_java_whitespace`
+  is `Character.isWhitespace`.
+- `random`: `JavaRandom` is `java.util.Random` from a seed, and its
+  `shuffle` is `Collections.shuffle(List, Random)`, as OpenNLP's readers,
+  cross-validation and trainers use them.
+- `strict_math`: `exp` and `log` port fdlibm, which `StrictMath` computes
+  and which the maxent, perceptron and naive Bayes models call.
+
+It is checked against vectors a JDK 21 wrote; `analysis/jvm/README.md`
+says how to regenerate them.
 
 ## Offsets
 
@@ -287,7 +310,7 @@ model tokens.
 
 ## Tests
 
-`cargo test -p turbo-analysis -p turbo-analysis-layers -p turbo-chunker`
+`cargo test -p turbo-analysis -p turbo-analysis-layers -p turbo-chunker -p turbo-jvm`
 runs them on any machine:
 
 - `analysis/core/tests/pipeline.rs` runs a pipeline of toy annotators
@@ -311,6 +334,8 @@ runs them on any machine:
   characters, refuses offsets inside a surrogate pair and past the end,
   and checks a text of about ten thousand bytes against counts made
   with `encode_utf16` and `chars`, by point and by cursor.
+- `analysis/jvm/tests/jvm_vectors.rs` compares `turbo-jvm` with the
+  results a JVM wrote, bit for bit.
 - A doctest on `Ix` checks that an index into the wrong layer does not
   compile.
 
