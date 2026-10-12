@@ -29,7 +29,8 @@ use turbo_analysis::{Analyzer, Document};
 use turbo_analysis_embed::SubwordAnnotator;
 use turbo_analysis_layers::Subwords;
 use turbo_goldens::{Golden, Tolerance, assert_matches_golden, data_dir, matches_golden, sha512};
-use unicode_categories::UnicodeCategories;
+use turbo_unicode::GeneralCategory;
+use turbo_unicode::category::general_category;
 
 /// The run's directory: the vocabulary fixture's name without `.txt`.
 const VOCABULARY: &str = "all-minilm-l6-v2-vocab";
@@ -105,7 +106,7 @@ fn case(name: &str) -> Case {
 /// piece's span over the marks accent stripping removed after it.
 fn without_trailing_marks(text: &str, [start, end]: [u32; 2]) -> [u32; 2] {
     let piece = &text[start as usize..end as usize];
-    let kept = piece.trim_end_matches(|c: char| c.is_mark_nonspacing());
+    let kept = piece.trim_end_matches(|c: char| general_category(c) == GeneralCategory::Mn);
     if kept.is_empty() { [start, end] } else { [start, start + kept.len() as u32] }
 }
 

@@ -1758,7 +1758,7 @@ dependencies = [
  "turbo-analysis",
  "turbo-analysis-layers",
  "turbo-goldens",
- "unicode_categories",
+ "turbo-unicode",
 ]
 
 [[package]]
