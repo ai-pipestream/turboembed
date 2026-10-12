@@ -90,6 +90,37 @@ pub(crate) fn skip_whitespace(text: &str, start: usize, end: usize, mode: Whites
     end
 }
 
+/// The offset of the first character in `text[start..end]` that is
+/// whitespace in `mode`, or `end` when none is. `start` and `end` are
+/// character boundaries.
+#[inline]
+pub(crate) fn find_whitespace(text: &str, start: usize, end: usize, mode: WhitespaceMode) -> usize {
+    let bytes = text.as_bytes();
+    let mut i = start;
+    while i < end {
+        let b = bytes[i];
+        if b < 0x80 {
+            if mode.is_ascii_whitespace(b) {
+                return i;
+            }
+            i += 1;
+        } else {
+            let (cp, len) = decode_multibyte(bytes, i);
+            if mode.is_whitespace(cp) {
+                return i;
+            }
+            i += len;
+        }
+    }
+    end
+}
+
+/// Decodes the character at byte `i` of valid UTF-8, ASCII included.
+#[inline]
+pub(crate) fn decode(bytes: &[u8], i: usize) -> (u32, usize) {
+    if bytes[i] < 0x80 { (u32::from(bytes[i]), 1) } else { decode_multibyte(bytes, i) }
+}
+
 /// The offset just past the last character in `text[start..end]` that is
 /// not whitespace in `mode`, or `start` when every character is. `start`
 /// and `end` are character boundaries.
@@ -169,6 +200,19 @@ mod tests {
         let text = "\u{1F600}\u{0A0A}\u{2028}x\r";
         // U+0A0A is E0 A8 8A: no byte of it is a line feed.
         assert_eq!(next_break(text.as_bytes(), 0), text.len() - 1);
+    }
+
+    #[test]
+    fn finds_whitespace_by_mode() {
+        let text = "ab\u{85}c d\u{1F600}\u{3000}";
+        // U+0085 at byte 2 is White_Space but not legacy whitespace.
+        assert_eq!(find_whitespace(text, 0, text.len(), Unicode), 2);
+        assert_eq!(find_whitespace(text, 0, text.len(), Legacy), 5);
+        assert_eq!(find_whitespace(text, 6, text.len(), Unicode), 11);
+        assert_eq!(find_whitespace(text, 0, 2, Unicode), 2);
+        assert_eq!(find_whitespace("", 0, 0, Unicode), 0);
+        assert_eq!(decode(text.as_bytes(), 0), (u32::from(b'a'), 1));
+        assert_eq!(decode(text.as_bytes(), 7), (0x1F600, 4));
     }
 
     #[test]

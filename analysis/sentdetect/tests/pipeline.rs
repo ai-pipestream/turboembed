@@ -1,9 +1,10 @@
-//! Both detectors in one pipeline, followed by a step that reads what they
-//! wrote: the sentences inside each paragraph.
+//! The detectors in pipelines, each followed by a step that reads what
+//! they wrote: the sentences inside each paragraph, and the maxent
+//! detector's sentences with their probabilities.
 
 use turbo_analysis::{Analyzer, Anchor, Annotator, Document, Error, Key, Layer, Refs, Status, View};
-use turbo_analysis_layers::{Block, Sentences, Structure};
-use turbo_sentdetect::{NewlineDetector, ParagraphDetector, WhitespaceMode};
+use turbo_analysis_layers::{Block, Confidence, Sentences, Structure};
+use turbo_sentdetect::{NewlineDetector, ParagraphDetector, SentenceDetector, SentenceModel, WhitespaceMode};
 
 /// How many sentences each paragraph holds, aligned to the structure.
 struct PerParagraph {
@@ -88,4 +89,80 @@ fn newline_then_paragraph_then_reader() {
     let p = d.provenance(Key::<Sentences>::DEFAULT.id()).unwrap();
     assert_eq!(p.annotator, "turbo-sentdetect:newline");
     assert_eq!(p.config, NewlineDetector::new(WhitespaceMode::Unicode).config_hash());
+}
+
+/// The probability of each sentence, read back from the confidence layer,
+/// with the sentence text: what a step after the maxent detector sees.
+struct Scored {
+    text: Vec<String>,
+    confidence: Vec<f64>,
+}
+
+impl Layer for Scored {
+    const ID: &'static str = "test:scored";
+    fn anchor() -> Anchor {
+        Anchor::aligned::<Sentences>()
+    }
+    fn len(&self) -> usize {
+        self.text.len()
+    }
+}
+
+struct ReadScores;
+
+impl Annotator for ReadScores {
+    const ID: &'static str = "test:read-scores";
+    type Reads = (View, Sentences, Confidence<Sentences>);
+    type Writes = (Scored,);
+
+    fn annotate(&self, (view, sentences, confidence): Refs<'_, Self>) -> Result<(Scored,), Error> {
+        assert_eq!(sentences.spans.len(), confidence.value.len());
+        let text = sentences.spans.iter().map(|(_, s)| view.text()[s.range()].to_string()).collect();
+        Ok((Scored { text, confidence: confidence.value.clone() },))
+    }
+}
+
+#[test]
+fn maxent_then_reader() {
+    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/models/en-abbrev.bin");
+    let model = SentenceModel::open(turbo_maxent::ModelFile::read(&path).unwrap()).unwrap();
+    let detector = SentenceDetector::new(model, WhitespaceMode::Unicode);
+    let model_ref = detector.sentence_model().model_ref().clone();
+    // The detector aligns its confidence to the sentences it writes in the
+    // same step, so it is added as a plain annotator.
+    let analyzer = Analyzer::builder().add(ReadScores).add(detector).build().unwrap();
+    assert_eq!(analyzer.plan(), [vec!["turbo-sentdetect:maxent"], vec!["test:read-scores"]]);
+
+    // The first two texts are fixture inputs, so the values are those of
+    // the golden files.
+    let mut docs = vec![
+        Document::new("Mr. Smith met Dr. Brown at 5 p.m. on Main St. today. He left early."),
+        Document::new("It ended.\u{1F600} Next one starts.\u{10400}Deseret here. Last.\u{1F600}"),
+        Document::new(" \t\n  \u{3000} "),
+    ];
+    let results = analyzer.run(&mut docs);
+    assert!(results.iter().all(Result::is_ok), "{results:?}");
+
+    let scored = |d: &Document| {
+        let s = d.get::<Scored>().unwrap();
+        (s.text.clone(), s.confidence.clone())
+    };
+    let (text, confidence) = scored(&docs[0]);
+    assert_eq!(text, ["Mr. Smith met Dr. Brown at 5 p.m. on Main St. today.", "He left early."]);
+    assert_eq!(confidence, [0.9955300941022667, 0.9466056890177881]);
+    let (text, confidence) = scored(&docs[1]);
+    assert_eq!(text, ["It ended.\u{1F600}", "Next one starts.\u{10400}Deseret", "here.", "Last.\u{1F600}"]);
+    assert_eq!(confidence[3], 0.50730226664988);
+
+    // Whitespace only: no sentences, and both layers complete, not skipped.
+    let d = &docs[2];
+    for key in [Key::<Sentences>::DEFAULT.id(), Key::<Confidence<Sentences>>::DEFAULT.id(), Key::<Scored>::DEFAULT.id()]
+    {
+        assert_eq!(d.status(key), Some(&Status::Complete), "{key}");
+    }
+    assert_eq!(scored(d), (vec![], vec![]));
+
+    let p = docs[0].provenance(Key::<Sentences>::DEFAULT.id()).unwrap();
+    assert_eq!(p.annotator, "turbo-sentdetect:maxent");
+    assert_eq!(p.model.as_ref(), Some(&model_ref));
 }

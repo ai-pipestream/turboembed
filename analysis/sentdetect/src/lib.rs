@@ -5,20 +5,34 @@
 //!   OpenNLP's `NewlineSentenceDetector` does.
 //! - [`ParagraphDetector`] writes the paragraphs of a view, runs of
 //!   non-blank lines, as `turbo:structure` blocks.
+//! - [`SentenceDetector`] splits a view into sentences with an OpenNLP
+//!   maxent model ([`SentenceModel`]), as `SentenceDetectorME` does, and
+//!   writes a probability per sentence.
 //!
-//! Both are rule based and need no model. Each takes OpenNLP's whitespace
-//! mode as a parameter, never a global, and works on the bytes of the view
-//! it reads: every offset it writes is a UTF-8 byte offset into that view,
-//! on a character boundary. Each has a plain function underneath
-//! ([`newline_spans`], [`paragraph_spans`]) for callers outside a
-//! pipeline. The maxent sentence detector (`SentenceDetectorME`) will join
-//! them in this crate; docs/segmentation.md describes all three.
+//! The first two are rule based and need no model. Each detector takes
+//! OpenNLP's whitespace mode as a parameter, never a global, and works on
+//! the bytes of the view it reads: every offset it writes is a UTF-8 byte
+//! offset into that view, on a character boundary. Each has a plain
+//! function underneath ([`newline_spans`], [`paragraph_spans`],
+//! [`SentenceDetector::detect`]) for callers outside a pipeline.
+//! docs/segmentation.md describes all three.
 
+pub mod eos;
+pub mod error;
+pub mod features;
+pub mod me;
 pub mod newline;
 pub mod paragraph;
 
+mod abbreviation;
+mod context;
 mod scan;
+mod units;
 
+pub use eos::{EndOfSentence, Position, Scanned};
+pub use error::ModelError;
+pub use features::Features;
+pub use me::{Candidate, Decision, Scratch, SentenceDetector, SentenceModel};
 pub use newline::{NewlineDetector, newline_spans};
 pub use paragraph::{ParagraphDetector, paragraph_spans};
 pub use turbo_unicode::WhitespaceMode;

@@ -144,7 +144,9 @@ normalizer); this is the one `turbo:structure` uses.
 ### `SentenceDetector` (maxent)
 
 Reads a `View`, writes `Sentences` and `Confidence<Sentences>`. It is
-`SentenceDetectorME`:
+`SentenceDetectorME`, reading a `SentenceModel` (`SentenceModel::open`
+checks the component, the factory, the `useTokenEnd` property and the
+outcomes `s` and `n`, as OpenNLP does):
 
 1. The end-of-sentence scanner lists every position holding one of the
    model's end characters, the manifest's `eosCharacters`. A model
@@ -155,7 +157,8 @@ Reads a `View`, writes `Sentences` and `Confidence<Sentences>`. It is
    loaded model, and a Thai model gets the default context generator, not
    the Thai one. Both were checked on the JVM with manifests stripped of
    the property. Every model OpenNLP's factory writes has it; the
-   Portuguese UD model lists `. ? ! ; : ( ) « » ' "`.
+   Portuguese UD model lists `. ? ! ; : ( ) « » ' "`. A set with a
+   character outside the BMP is refused.
 2. Leading parts of a run of end characters are skipped (`z.B.` is one
    candidate), unless the character after one is upper case.
 3. For each candidate, `DefaultSDContextGenerator` builds the features:
@@ -163,20 +166,61 @@ Reads a `View`, writes `Sentences` and `Confidence<Sentences>`. It is
    the prefix, previous, suffix and next words with the prefix length,
    capitalization and abbreviation flags. Word boundaries here are
    whitespace in the configured mode, and `String.trim` semantics
-   (every code unit at or below `U+0020`) apply to the words.
-4. The model decides `s` or `n`. A split is refused when the candidate
-   ends an entry of the abbreviation dictionary that starts after
-   whitespace, an apostrophe or `(`.
+   (every code unit at or below `U+0020`) apply to the words. The words
+   are written per code unit as modified UTF-8, so a suffix that ends
+   between the halves of a character outside the BMP is looked up with
+   its lone surrogate, as the JVM looks it up. A text that is all ASCII
+   (its UTF-16 length equals its byte length, which the scanner counts
+   anyway) is walked by byte; any other text through `Utf16Cursor`.
+   The searches for the whitespace before and after a candidate remember
+   what earlier candidates of the same text found, and a word feature
+   longer than every predicate of the model is not built (it could not
+   change the probabilities), nor is a word longer than every dictionary
+   entry looked up. Without both, a text with no whitespace takes time
+   quadratic in its length, since every word reaches to an end of the
+   text. `detect_traced` builds every feature, as the Java does.
+4. The model decides `s` or `n`. A split is then checked against the
+   abbreviation dictionary (each entry's first token, lowercased per code
+   point unless the dictionary is case-sensitive). An entry counts when it
+   holds the candidate, ends on the code unit just before it, or starts
+   on it, and starts no earlier than the start of the current segment.
+   The split is refused when such an entry starts at the segment start
+   and ends exactly at the candidate, or starts right after whitespace
+   (`Character.isWhitespace`), an apostrophe or `(`; an entry starting at
+   the segment start but not ending at the candidate is judged by its own
+   first character instead. So with an entry `et al.`, indexed as `et`,
+   "We x et. Then" is not split at the `.`.
 5. Sentence starts are placed after the end character, or after the
    following whitespace run when `useTokenEnd` is set. Spans are
-   trimmed of Unicode `White_Space` (this step always uses the Unicode
-   set, as OpenNLP does since OPENNLP-205) and empty ones are dropped
-   with their probability. The last sentence has probability 1.
+   trimmed of Unicode `White_Space` (this step and the skip in step 2
+   always use the Unicode set, as OpenNLP does since OPENNLP-205) and
+   empty ones are dropped with their probability. The text after the last
+   start is a last sentence with probability 1.
 
 The sentence detector works on code units for the features and on code
 points for the spans, as the Java does. Its spans are UTF-8 byte
 offsets on character boundaries by construction: an end character is
-always a whole character.
+always a whole character. `SentenceDetector::detect` gives the spans and
+probabilities outside a pipeline, and `detect_traced` also hands every
+candidate's features, probabilities and decision to a callback. The
+probabilities are `f64`, and the `Confidence` layer stores them as they
+are.
+
+The annotator's confidence output is aligned to the sentences it writes
+in the same step, which the analyzer accepts, so the detector is added
+with a plain `Analyzer::builder().add(..)`.
+
+The model's `ModelRef` is `opennlp:SentenceDetectorME:<language>`, the
+OpenNLP version in the manifest as the revision, and the SHA-256 of the
+model file.
+
+The golden files are `sentdetect-me-de`, `sentdetect-me-en` and
+`sentdetect-me-pt`, made with the three published UD models checked in
+under `analysis/sentdetect/tests/models`. The published models have no
+abbreviation dictionary, so two small English models trained on the JVM
+(`analysis/sentdetect/tests/fixtures`, with the Java sources and the
+commands) cover the dictionary, `useTokenEnd=false` and both whitespace
+modes, with every context compared feature by feature.
 
 ## Tokenization
 
@@ -362,7 +406,9 @@ model and the whitespace mode, then the input text with `\n`, `\r`,
 `\\` and `\uXXXX` escapes, then one line per span with its UTF-8 byte
 offsets, its UTF-16 offsets and, when the component has one, its
 probability printed with Java's `Double.toString`. The tests compare
-spans exactly and probabilities within 1e-9.
+spans exactly; the sentence detector's tests compare probabilities
+exactly too, since `Double.toString` reads back to the same `f64` and the
+maxent arithmetic matches the JVM's.
 
 Four cases that none of the UD models reach have their own run
 (`Variants`, under `tokenize/tests/golden/variants` and
@@ -414,3 +460,23 @@ reach the OpenNLP side:
   first code unit of a word, so a word starting with an upper case
   letter outside the BMP (Deseret, Osage, mathematical letters) is
   never `xcap`.
+- `DefaultSDContextGenerator` stops its search for the end of the suffix
+  one code unit before the end of the text (`nextSpaceIndex` with
+  `lastIndex`), so when no whitespace follows a candidate the last
+  character of the text is in neither the suffix nor the next word, and
+  a text ending in a character outside the BMP gives a suffix holding only
+  its high surrogate.
+- `SentenceDetectorFactory.getEOSCharacters` and the scanner and context
+  generator built from it fall back to the language default through the
+  `languageCode` field, which is null on a factory loaded from a model
+  file. A model without `eosCharacters` therefore gets `. ! ?` in every
+  language, and the Thai context generator is never used for a loaded
+  model.
+- `Dictionary` lookups hash a probe by its lowercase form and confirm it
+  with `String.compareToIgnoreCase`. For 23 code points (such as U+00B5,
+  U+0131, U+017F and U+03C2) `compareToIgnoreCase` accepts another
+  character whose lowercase form differs, so the two hash apart and match
+  only on a 32-bit hash collision. Equal lowercase forms always pass
+  `compareToIgnoreCase` (checked over every code point on JDK 21), so
+  comparing lowercase forms, as the Rust dictionary does, agrees with the
+  JVM except on such a collision.

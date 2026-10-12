@@ -1,0 +1,10 @@
+component: sentdetect-me-fixture-en-abbrev
+opennlp: cdf33c653d5d61d5af7d37ffee189a83bd8392ea
+jdk: 21.0.12.1
+whitespace: legacy
+model: en-abbrev.bin
+model-sha256: 40a1d56b460d0c6b4f878c32858419136c89c75f40b84b0f9795a77a083cf2ec
+input: Dr. Who arrived. Mr. Bean too. Then et al. agreed.
+span: 0 16 0 16 0.9838291775293747
+span: 17 30 17 30 0.9311765961874963
+span: 31 50 31 50 0.9029472121443514

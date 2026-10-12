@@ -1,0 +1,9 @@
+component: sentdetect-me-fixture-en-abbrev
+opennlp: cdf33c653d5d61d5af7d37ffee189a83bd8392ea
+jdk: 21.0.12.1
+whitespace: unicode
+model: en-abbrev.bin
+model-sha256: 40a1d56b460d0c6b4f878c32858419136c89c75f40b84b0f9795a77a083cf2ec
+input:   Hello there.   General Kenobi.  \n
+span: 2 14 2 14 0.9785524362069767
+span: 17 32 17 32 0.7067970191740748

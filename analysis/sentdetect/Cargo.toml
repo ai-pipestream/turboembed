@@ -11,4 +11,5 @@ name = "turbo_sentdetect"
 [dependencies]
 turbo-analysis = { path = "../core" }
 turbo-analysis-layers = { path = "../layers" }
+turbo-maxent = { path = "../maxent" }
 turbo-unicode = { path = "../unicode" }
