@@ -1,0 +1,9 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-1-24.04.4-Ubuntu	Ubuntu
+unicode	15.0
+input	norm/whitespace-lineseps	93	88	f1eb8b7038cb7bcea62108d5ace611b5980cc1fb20e8d61f56860d1c01d0f611
+annotator	opennlp.tools.util.normalizer.EmoticonToEmojiCharSequenceNormalizer	normalizeAligned
+layer	turbo:view	text	0	start:u32	end:u32	with:str
+end	turbo:view

@@ -1,0 +1,24 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-1-24.04.4-Ubuntu	Ubuntu
+unicode	15.0
+input	norm/confusables-misc	210	148	a5ca2a2d3f94beee2a8b657bfe43a0ab8e923045cc3919e5ac00c8c5a89e349e
+annotator	opennlp.tools.util.normalizer.NfkcCharSequenceNormalizer	normalize
+layer	turbo:view	text	15	start:u32	end:u32	with:str
+0	25	IIIIII lc, l o
+48	51	p
+51	54	a
+54	57	y
+57	60	p
+60	63	a
+63	66	l
+74	78	A
+78	82	B
+82	86	C
+87	91	a
+91	95	b
+95	99	c
+104	108	A
+108	112	B
+end	turbo:view

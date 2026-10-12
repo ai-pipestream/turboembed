@@ -1,0 +1,31 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-1-24.04.4-Ubuntu	Ubuntu
+unicode	15.0
+input	norm/german-umlauts	239	212	522ffe23c5d33402d195eb47ac0872cf35164a39817427a1564df03fc1681614
+annotator	opennlp.tools.util.normalizer.GermanUmlautCharSequenceNormalizer	normalizeAligned
+layer	turbo:view	text	22	start:u32	end:u32	with:str
+1	3	ue
+10	12	oe
+18	20	ae
+29	31	Oe
+34	36	ue
+38	40	Ae
+50	52	ss
+58	60	ss
+65	67	ss
+72	74	ss
+76	79	SS
+86	88	Oe
+88	90	ss
+98	100	Ue
+100	103	SS
+110	112	ue
+118	120	ue
+125	127	Ue
+133	135	Ae
+135	137	ss
+142	144	ae
+149	151	oe
+end	turbo:view

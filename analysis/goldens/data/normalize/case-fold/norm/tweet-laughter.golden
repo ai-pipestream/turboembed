@@ -1,0 +1,16 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-1-24.04.4-Ubuntu	Ubuntu
+unicode	15.0
+input	norm/tweet-laughter	156	156	03e104be6fed25f2ea18d39725b07a2d8e82f63fce12e31045acbfa52bdf302d
+annotator	opennlp.tools.util.normalizer.CaseFoldCharSequenceNormalizer	normalize
+layer	turbo:view	text	7	start:u32	end:u32	with:str
+49	50	l
+50	51	m
+51	52	a
+52	53	o
+53	54	o
+54	55	o
+55	56	o
+end	turbo:view

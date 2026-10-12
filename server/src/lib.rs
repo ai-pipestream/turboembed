@@ -177,6 +177,8 @@ impl State {
                 precision: c.precision,
                 tuning: 0,
                 tuning_budget_ms: 0,
+                cpu_threads: 0,
+                max_ranges: 0,
             };
             let mut slots = Vec::new();
             for _ in 0..c.sessions {

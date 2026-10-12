@@ -56,7 +56,8 @@ public final class Main {
     SentenceGolden sentences = SentenceGolden.load(models.resolve(SENTENCE_MODEL));
     TokenGolden tokens = TokenGolden.load(models.resolve(TOKEN_MODEL));
     LanguageGolden languages = LanguageGolden.load(models.resolve(LANGUAGE_MODEL));
-    List<AnnotatorGolden> annotators = List.of(sentences, tokens, languages);
+    List<AnnotatorGolden> annotators = new ArrayList<>(List.of(sentences, tokens, languages));
+    annotators.addAll(NormalizerGolden.all());
     List<AnnotatorDump> recorders = dumps
         ? List.of(SentenceDump.of(sentences), TokenDump.of(tokens), LanguageDump.of(languages))
         : List.of();
@@ -64,10 +65,16 @@ public final class Main {
     Map<Path, byte[]> files = new TreeMap<>();
     for (Input input : readInputs(inputs)) {
       for (AnnotatorGolden a : annotators) {
+        if (!a.accepts(input)) {
+          continue;
+        }
         files.put(path(a, input, ".golden"), GoldenWriter.write(header(commit, version, jdk, input, a), a.layers(input)));
       }
       for (AnnotatorDump d : recorders) {
         AnnotatorGolden a = d.golden();
+        if (!a.accepts(input)) {
+          continue;
+        }
         Header h = header(commit, version, jdk, input, a);
         AnnotatorDump.Run run = d.run(input);
         Path golden = path(a, input, ".golden");
@@ -84,7 +91,7 @@ public final class Main {
 
   private static Header header(String commit, String version, Jdk jdk, Input input, AnnotatorGolden a) {
     return new Header(commit, version, jdk, input.inputId(), input.bytes().length, input.text().length(),
-        Sha.sha256(input.bytes()), a.models(), a.annotatorClass(), a.method());
+        Sha.sha256(input.bytes()), a.models(), a.annotatorClass(), a.method(), a.config());
   }
 
   /** {@code <annotator>/<model>/<set>/<id><extension>}. */
