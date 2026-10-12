@@ -37,8 +37,11 @@ RUN ./mvnw -q -DskipTests -DskipITs -Dforbiddenapis.skip=true -pl opennlp-core/o
 COPY . /generator
 RUN /opennlp/mvnw -q -f /generator/pom.xml package
 
+# The entrypoint passes any arguments given after the image name on to the
+# generator; the driver passes --dumps so the decision point dumps are written
+# beside the goldens.
 RUN printf '%s\n' '#!/bin/sh' \
-      'exec java -jar /generator/target/turbo-goldens-java.jar /inputs /models /out "$(cat /opennlp.commit)"' \
+      'exec java -jar /generator/target/turbo-goldens-java.jar /inputs /models /out "$(cat /opennlp.commit)" "$@"' \
       > /usr/local/bin/turbo-goldens-java \
  && chmod 0755 /usr/local/bin/turbo-goldens-java
 

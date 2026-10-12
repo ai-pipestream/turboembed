@@ -61,7 +61,7 @@ pub fn trees(expected: &Path, actual: &Path) -> io::Result<Differences> {
 
 /// Every file under `root`, relative to it. A symbolic link or other
 /// special file is an error: the trees hold regular files only.
-fn files(root: &Path) -> io::Result<BTreeSet<PathBuf>> {
+pub(crate) fn files(root: &Path) -> io::Result<BTreeSet<PathBuf>> {
     let mut out = BTreeSet::new();
     if root.exists() {
         walk(root, Path::new(""), &mut out)?;

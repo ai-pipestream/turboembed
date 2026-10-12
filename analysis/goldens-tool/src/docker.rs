@@ -28,7 +28,8 @@ pub fn image_id() -> Result<String, String> {
 
 /// Runs the generator in the image without a network, with `inputs` at
 /// /inputs and `models` at /models read only and `out` at /out, as the
-/// calling user so the files written are theirs.
+/// calling user so the files written are theirs. The generator gets
+/// [`recipe::GENERATOR_ARGS`], so it writes the dumps beside the goldens.
 pub fn generate(inputs: &Path, models: &Path, out: &Path) -> Result<(), String> {
     image_id()?;
     let mut cmd = Command::new("docker");
@@ -42,7 +43,7 @@ pub fn generate(inputs: &Path, models: &Path, out: &Path) -> Result<(), String> 
     if let Some(user) = current_user() {
         cmd.args(["--user", &user]);
     }
-    cmd.arg(recipe::IMAGE_TAG);
+    cmd.arg(recipe::IMAGE_TAG).args(recipe::GENERATOR_ARGS);
     let o = run(&mut cmd)?;
     print!("{}", String::from_utf8_lossy(&o.stdout));
     Ok(())
