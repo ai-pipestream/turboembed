@@ -110,7 +110,7 @@ fn generate(models_dir: &Path) -> Result<output::RunDir, String> {
     let scratch = paths::scratch_dir();
     fs::create_dir_all(&scratch).map_err(|e| format!("{}: {e}", scratch.display()))?;
     let run = output::RunDir::new(&scratch)?;
-    docker::generate(&paths::inputs_dir(), models_dir, &paths::fixtures_dir(), run.path())?;
+    docker::generate(&paths::inputs_dir(), &paths::rates_dir(), models_dir, &paths::fixtures_dir(), run.path())?;
     run.check_layout()?;
     output::check_dumps(run.path())?;
     Ok(run)

@@ -28,6 +28,11 @@ pub fn fixtures_dir() -> PathBuf {
     data_dir().join("fixtures")
 }
 
+/// `analysis/goldens/data/rates`: the rate snapshot the money conversion reads.
+pub fn rates_dir() -> PathBuf {
+    data_dir().join(crate::recipe::RATES_DIR)
+}
+
 /// The Maven project the container builds, which is the image's build context.
 pub fn java_dir() -> PathBuf {
     tool_dir().join("java")

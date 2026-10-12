@@ -1,0 +1,1 @@
+The ticket said -USD 5 was refunded, then -$0.00 was charged, and -5 USD was owed.

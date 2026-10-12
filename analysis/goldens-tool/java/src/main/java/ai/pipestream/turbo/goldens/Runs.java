@@ -54,7 +54,7 @@ final class Runs {
 
   private Runs() {}
 
-  static All load(Path models, Path fixtures) throws IOException {
+  static All load(Path models, Path fixtures, Path moneySnapshot) throws IOException {
     List<AnnotatorGolden> annotators = new ArrayList<>();
     List<AnnotatorDump> recorders = new ArrayList<>();
 
@@ -116,6 +116,7 @@ final class Runs {
 
     annotators.addAll(NormalizerGolden.all());
     annotators.addAll(NumberGolden.all());
+    annotators.addAll(MoneyGolden.all(moneySnapshot));
     return new All(annotators, recorders);
   }
 }

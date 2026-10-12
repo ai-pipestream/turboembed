@@ -56,7 +56,9 @@ public final class Main {
     }
     Jdk jdk = Jdk.current();
     String version = OpennlpVersion.read();
-    Runs.All runs = Runs.load(models, fixtures);
+    Path snapshot =
+        inputs.toAbsolutePath().resolveSibling(MoneyGolden.SNAPSHOT_DIR).resolve(MoneyGolden.SNAPSHOT_FILE);
+    Runs.All runs = Runs.load(models, fixtures, snapshot);
     List<AnnotatorDump> recorders = dumps ? runs.recorders() : List.of();
 
     Map<Path, byte[]> files = new TreeMap<>();

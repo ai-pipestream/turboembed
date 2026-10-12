@@ -8,7 +8,9 @@ everything that makes them:
   runtime and the `numeric` module of the OpenNLP addons. It runs the
   annotator runs listed below over their input sets and writes one golden
   per run and input; for the `num` set it runs `NumberScan` of the addons
-  module (see below). With `--dumps` it also writes a decision point dump
+  module, and for the `money` set `MoneyAnnotator` with
+  `CursorMoneyExtractor` and `MoneyConversionAnnotator` with `EcbFxRates`
+  (see below). With `--dumps` it also writes a decision point dump
   beside each golden of a run that asks a maxent model (the sentence
   detector, the tokenizer and the language detector): every context the
   annotator gave the model and every outcome probability `eval` returned.
@@ -44,16 +46,17 @@ cargo run -p turbo-goldens-tool -- verify [--models <dir>]
 - `generate` fetches the models (into `target/turbo-goldens/models` unless
   `--models` names a directory), checks that `analysis/goldens/data/fixtures`
   holds exactly the recipe's fixtures with their SHA-512, runs the container
-  with `--network none`, the inputs, the models and the fixtures mounted read
-  only, and replaces the annotator directories in `analysis/goldens/data`
-  (or `<dir>`) with what it wrote. The generator is always given `--dumps`
+  with `--network none`, the inputs, the models, the fixtures and the rate
+  snapshot's directory (at `/rates`) mounted read only, and replaces the
+  annotator directories in `analysis/goldens/data` (or `<dir>`) with what
+  it wrote. The generator is always given `--dumps`
   (`GENERATOR_ARGS` in `src/recipe.rs`), so the goldens and their dumps are
   made and installed together; before installing, every sentence, token and
   language golden whose header names a model must have a dump beside it
   whose header parses, except a golden with an error record (the annotator
   threw on that input), which must have none. A golden that names no model
   (a tokenizer or sentence detector without one, a normalizer) has no dump,
-  and neither has a detokenizer or number golden.
+  and neither has a detokenizer, number or money golden.
 - `verify` generates into a scratch directory and compares every golden
   and dump byte for byte with the checked in ones. It lists each file that
   differs, is missing or is extra, and exits non zero if there is any. It
@@ -87,6 +90,7 @@ a directory with the same model run without them, and its options are
 | `langdetect` (`LanguageDetectorME`) | `langdetect-183` | `en`, `multi` | |
 | `normalize` (each normalizer) | the normalizer's name | `norm` | see below |
 | `numbers` (`NumberScan` of the addons `numeric` module) | `latin-us`, `latin-eu` | `num` | `notation` |
+| `money`, `money-convert` (`MoneyAnnotator`, `MoneyConversionAnnotator`) | `latin-us`, `latin-eu` | `money` | `notation`; for conversions also `target`, `as_of`, `snapshot` |
 
 - `+english-dictionary` is the English model rebuilt through
   `TokenizerModel(MaxentModel, Map, TokenizerFactory)` with the
@@ -167,6 +171,30 @@ was not loaded from the module's jar.
 The `num` inputs are written for the project and use characters of the
 Unicode 15.0 repertoire only. Only `NumberGolden` runs on them.
 
+## Money goldens
+
+`money/<notation>/money/<id>.golden` is what `MoneyAnnotator` over
+`CursorMoneyExtractor` found in `inputs/money/<id>.txt`, in `latin-us` or
+`latin-eu`. `money-convert/<notation>/money/<id>.golden` is the same
+mentions restated in EUR by `MoneyConversionAnnotator` with `EcbFxRates`
+as of 2026-03-15. Both have one row per mention with `start`, `end`
+(UTF-8 byte offsets), `coefficient`, `negative`, `scale`, `plain` and
+`currency`, in the layer `turbo:money`. The
+`config` records are `notation`, and for the conversions `target`,
+`as_of` and `snapshot`. A mention without a usable rate has no row in the
+converted layer. An amount that comes out with a negative scale, such as
+`2E+1`, is written with scale 0.
+
+The rates are `analysis/goldens/data/rates/ecb-snapshot.csv`, a small
+hand made file in the format of the ECB's `eurofxref-hist.csv` with
+invented values. The generator reads `rates/ecb-snapshot.csv` beside its
+inputs directory; the driver mounts the data directory's `rates` at
+`/rates` in the container. 2026-03-15 is a Sunday, so the Friday row
+applies; the file has no CNY quote on that Friday and never one for RUB.
+
+The `money` inputs are written for the project. Only the two money
+annotators run on them, and they have no dumps.
+
 ## How the checked in goldens and dumps were made
 
 The goldens and dumps checked in now were made in the container, with
@@ -204,6 +232,10 @@ cargo run -p turbo-goldens-tool -- fetch-models <models dir>
 java -jar target/turbo-goldens-java.jar ../../goldens/data/inputs <models dir> ../../goldens/data/fixtures \
     <empty out dir> cdf33c653d5d61d5af7d37ffee189a83bd8392ea --dumps
 ```
+
+The `money` and `money-convert` goldens come from the same run: the
+generator finds `rates/ecb-snapshot.csv` beside the inputs directory it is
+given.
 
 Moving the pin from `92d486d05151ef00b6d145c405046aa3a33b5a48` changed the
 `opennlp` header line of every golden and, in the `langdetect` goldens, the
