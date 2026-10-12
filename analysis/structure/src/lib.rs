@@ -30,10 +30,14 @@ pub enum Syntax {
     /// CommonMark blocks and GFM pipe tables.
     #[default]
     Markdown,
-    /// Plain text: paragraphs between blank lines, list items, quotes
-    /// marked with `>`, headings underlined with `=` or `-` or written in
-    /// capitals on a line of their own. No `#` headings, no code, no
-    /// tables: an indented line is text, as in a letter or a contract.
+    /// Plain text: paragraphs between blank lines, list items (ordered
+    /// ones numbered with at most three digits), quotes marked with `>`,
+    /// and headings: a line underlined with three or more `=` or `-`, or
+    /// a short line in capitals at the top level, either on its own or
+    /// over a line with lower case letters, from which it is split off
+    /// ("INTRODUCTION", then "This report covers the year."). No `#`
+    /// headings, no code, no tables: an indented line is text, as in a
+    /// letter or a contract.
     Plain,
 }
 

@@ -35,32 +35,41 @@ pub(crate) fn closes_fence(b: &[u8], p: usize, e: usize, ch: u8, len: usize) -> 
 
 /// A thematic break: three or more of one of `-`, `*`, `_`, with only
 /// spaces and tabs between and after them.
-pub(crate) fn thematic(b: &[u8], p: usize, e: usize) -> bool {
+#[cfg(test)]
+fn thematic(b: &[u8], p: usize, e: usize) -> bool {
+    thematic_scan(b, p, e) == Ok(true)
+}
+
+/// Whether a thematic break is at `p`, or `Err` with the first byte that
+/// is not the break's character, a space or a tab, when one comes before
+/// `e`: a scan from any later byte of the same character stops there too.
+pub(crate) fn thematic_scan(b: &[u8], p: usize, e: usize) -> Result<bool, usize> {
     let ch = b[p];
     if ch != b'-' && ch != b'*' && ch != b'_' {
-        return false;
+        return Ok(false);
     }
     let mut n = 0;
-    for &x in &b[p..e] {
+    for (i, &x) in b[p..e].iter().enumerate() {
         if x == ch {
             n += 1;
         } else if x != b' ' && x != b'\t' {
-            return false;
+            return Err(p + i);
         }
     }
-    n >= 3
+    Ok(n >= 3)
 }
 
-/// A setext underline's heading level: a run of `=` (level 1) or `-`
-/// (level 2) and nothing after it but spaces and tabs.
-pub(crate) fn setext(b: &[u8], p: usize, e: usize) -> Option<u8> {
+/// A setext underline's heading level and the length of its run: a run of
+/// `=` (level 1) or `-` (level 2) and nothing after it but spaces and
+/// tabs.
+pub(crate) fn setext(b: &[u8], p: usize, e: usize) -> Option<(u8, usize)> {
     let level = match b[p] {
         b'=' => 1,
         b'-' => 2,
         _ => return None,
     };
     let n = b[p..e].iter().take_while(|&&x| x == b[p]).count();
-    b[p + n..e].iter().all(|&x| x == b' ' || x == b'\t').then_some(level)
+    b[p + n..e].iter().all(|&x| x == b' ' || x == b'\t').then_some((level, n))
 }
 
 /// A list item marker.
@@ -77,7 +86,9 @@ pub(crate) struct ListMarker {
 }
 
 /// A bullet (`-`, `+`, `*`, and `•` in plain text) or one to nine digits
-/// and `.` or `)`, followed by a space, a tab or the end of the line.
+/// (one to three in plain text, where a year starting a sentence is no
+/// item) and `.` or `)`, followed by a space, a tab or the end of the
+/// line.
 pub(crate) fn list_marker(text: &str, p: usize, e: usize, plain: bool) -> Option<ListMarker> {
     let b = text.as_bytes();
     let (kind, number, bytes, cols) = match b[p] {
@@ -85,7 +96,7 @@ pub(crate) fn list_marker(text: &str, p: usize, e: usize, plain: bool) -> Option
         b'0'..=b'9' => {
             let digits = b[p..e].iter().take_while(|x| x.is_ascii_digit()).count();
             let delim = *b.get(p + digits).filter(|_| p + digits < e)?;
-            if digits > 9 || (delim != b'.' && delim != b')') {
+            if digits > if plain { 3 } else { 9 } || (delim != b'.' && delim != b')') {
                 return None;
             }
             let number = text[p..p + digits].parse().ok()?;
@@ -99,8 +110,8 @@ pub(crate) fn list_marker(text: &str, p: usize, e: usize, plain: bool) -> Option
 }
 
 /// Whether a line of plain text is a heading by its look alone: short, in
-/// capitals (at least two letters, an upper case one among them, no lower
-/// case one), and not ending like a sentence or a label. Scripts without
+/// capitals (at least three letters, an upper case one among them, no
+/// lower case one, so "OK" is not one), and not ending like a sentence or a label. Scripts without
 /// case never qualify.
 pub(crate) fn caps_heading(line: &str) -> bool {
     if line.chars().count() > 80 || line.ends_with(['.', ',', ';', ':']) {
@@ -116,7 +127,7 @@ pub(crate) fn caps_heading(line: &str) -> bool {
             upper |= c.is_uppercase();
         }
     }
-    letters >= 2 && upper
+    letters >= 3 && upper
 }
 
 #[cfg(test)]
@@ -159,8 +170,8 @@ mod tests {
         assert!(!at("--", thematic));
         assert!(!at("--- a", thematic));
         assert!(!at("-*-", thematic));
-        assert_eq!(at("===", setext), Some(1));
-        assert_eq!(at("- ", setext), Some(2));
+        assert_eq!(at("===", setext), Some((1, 3)));
+        assert_eq!(at("- ", setext), Some((2, 1)));
         assert_eq!(at("= =", setext), None);
         assert_eq!(at("--- a", setext), None);
     }
@@ -174,6 +185,9 @@ mod tests {
         assert_eq!(m("1)\tb", false).map(|x| (x.kind, x.number)), Some((')', Some(1))));
         assert_eq!(m("123456789. a", false).map(|x| x.number), Some(Some(123_456_789)));
         assert_eq!(m("1234567890. a", false), None);
+        assert_eq!(m("123. a", true).map(|x| x.number), Some(Some(123)));
+        assert_eq!(m("2024. a", true), None);
+        assert_eq!(m("2024. a", false).map(|x| x.number), Some(Some(2024)));
         assert_eq!(m("-a", false), None);
         assert_eq!(m("1.5", false), None);
         assert_eq!(m("12", false), None);
@@ -190,6 +204,8 @@ mod tests {
         assert!(!caps_heading("THE END."));
         assert!(!caps_heading("Introduction"));
         assert!(!caps_heading("A"));
+        assert!(!caps_heading("OK"));
+        assert!(caps_heading("TAX"));
         assert!(!caps_heading("1999"));
         assert!(!caps_heading("東京"));
         assert!(!caps_heading(&"A".repeat(81)));

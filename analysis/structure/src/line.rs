@@ -17,6 +17,11 @@ impl<'a> Lines<'a> {
     pub(crate) fn new(bytes: &'a [u8], from: usize) -> Lines<'a> {
         Lines { bytes, at: from }
     }
+
+    /// Where the next line starts.
+    pub(crate) fn at(&self) -> usize {
+        self.at
+    }
 }
 
 impl Iterator for Lines<'_> {

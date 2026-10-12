@@ -534,16 +534,20 @@ item never does, and a list holds the items of one bullet character or
 one delimiter), and fenced and indented code. Tabs stop every four
 columns. A list item's indentation is measured from where its parent's
 content starts on each line, as CommonMark does, so `> > 1.  one` and
-`>>     two` continue one item. On the 515 examples of the CommonMark
-0.31.2 specification that have neither an HTML block nor a link
-reference definition, the kinds and nesting of the blocks were compared
-with pulldown-cmark's, once, outside the repository, and agree on all
-(paragraphs directly inside list items left out of the comparison, since
-pulldown-cmark omits them in tight lists); the comparison is not a test
-here, since the crate takes no dependency on a Markdown library.
+`>>     two` continue one item. The hand-labelled fixtures in
+`analysis/structure/tests/fixtures.rs` pin these rules down, including
+the cases of the CommonMark specification that are easy to get wrong;
+the crate is not tested against the specification's examples or against
+another Markdown parser, since it takes no dependency on one.
+Front matter is skipped: when the view starts (after a byte order mark,
+if any) with a line `---` and a later line is `---` or `...`, the lines
+up to and including that one are in no block, as static site generators
+read YAML metadata. CommonMark has no front matter and reads such a
+start as a thematic break and a setext heading. Without the closing
+line, or anywhere but the start, `---` is a thematic break as usual.
 What it does not do: HTML blocks and link reference definitions are
-paragraphs, footnote definitions and front matter are not recognized,
-and a list is not marked tight or loose.
+paragraphs, footnote definitions are not recognized, and a list is not
+marked tight or loose.
 
 GFM pipe tables are tables: a delimiter row (`|---|:-:|`, with at least
 one `|`) under a line with as many cells turns that line into the
@@ -560,14 +564,22 @@ gives a row more cells than its header. A body row keeps the cells it
 has; it is not padded or cut to the header's width.
 
 With `plain`, a text is read as a letter or a contract: paragraphs
-between blank lines, the same list items (and `•` as a bullet), quotes
-marked with `>`, and headings of two kinds, a line of its own underlined
-with `=` (level 1) or `-` (level 2), and a paragraph of one line at the
-top level that is in capitals (at least two letters, an upper case one
-among them, no lower case one), at most 80 characters long, and does
-not end with `.`, `,`, `;` or `:` (level 1). An underline under a
-paragraph of several lines ends the paragraph and is no heading. There
-are no `#` headings, no code and no tables, so an indented line is text.
+between blank lines, the same list items (and `•` as a bullet; an
+ordered item's number has at most three digits, so `2024. A great year`
+is text), quotes marked with `>`, and headings of two kinds. A line of
+its own underlined with three or more `=` (level 1) or `-` (level 2):
+an email's signature line `-- ` is no underline. And a line at the top
+level in capitals (at least three letters, an upper case one among
+them, no lower case one, so `OK` is not one), at most 80 characters
+long, not ending with `.`, `,`, `;` or `:` (level 1), when it is a
+paragraph of its own or the first line of a paragraph whose second line
+has lower case letters (`INTRODUCTION` over `This report covers the
+year.`), from which it is split off. Such headings in capitals with
+nothing after them but more of the same, like a name and a country
+under a letter's closing, are paragraphs, so they open no section. An
+underline under a paragraph of several lines ends the paragraph and is
+no heading. There are no `#` headings, no code, no tables and no front
+matter, so an indented line is text.
 Tables of aligned columns in plain text are not detected.
 
 ## The chunker
@@ -1202,13 +1214,17 @@ runs them on any machine:
   tabs and lazy lines, what may interrupt a paragraph, items that start
   blank, tables with escaped pipes and pipes in code, quotes, CR LF and
   lone CR breaks, Unicode text and whitespace, empty and whitespace-only
-  documents, and plain text.
+  documents, front matter, and plain text: headings in capitals over
+  their paragraphs, a letter's closing and signature, the `-- ` line and
+  a year that is no list item.
 - `analysis/structure/tests/exhaustive.rs` runs every document of up to
-  three lines from 29 tricky lines, in both syntaxes and with both line
-  breaks, and holds each layer to the document's checks, to trimmed
-  spans and to giving the same layer twice; it also runs ten thousand
-  nested quotes, a thousand nested list items, a table row of 400
-  unclosed backtick runs and a long document.
+  three lines from 32 tricky lines, in both syntaxes, with each of the
+  three line breaks and with and without a leading byte order mark, and
+  holds each layer to the document's checks, to trimmed spans and to
+  giving the same layer twice; it also runs ten thousand nested quotes,
+  a thousand nested list items, fifty thousand nested list items under
+  four hundred thousand blank lines (which must take linear time), a
+  table row of 400 unclosed backtick runs and a long document.
 - `analysis/structure/tests/pipeline.rs` runs the annotator ahead of the
   chunker, whose chunks then stay inside the sections it found, and
   builds it through the provider.

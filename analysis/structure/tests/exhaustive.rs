@@ -1,5 +1,5 @@
 //! Every document of up to three lines from a set of tricky lines, in both
-//! syntaxes and with both line breaks: the layer is always accepted by a
+//! syntaxes, with each line break and with and without a byte order mark: the layer is always accepted by a
 //! document (a tree in text order, spans in bounds and on character
 //! boundaries), every span is trimmed, every section starts with its
 //! heading, and the same text always gives the same layer. Then a few
@@ -39,6 +39,9 @@ const LINES: &[&str] = &[
     "\u{3000}",
     "INTRO",
     "    - deep",
+    "...",
+    "-- ",
+    "2024. y",
 ];
 
 fn holds(text: &str, syntax: Syntax) {
@@ -69,16 +72,18 @@ fn every_three_line_document() {
     for a in LINES {
         for b in LINES {
             for c in LINES {
-                for brk in ["\n", "\r\n"] {
-                    let text = [*a, *b, *c].join(brk);
-                    holds(&text, Syntax::Markdown);
-                    holds(&text, Syntax::Plain);
-                    n += 1;
+                for brk in ["\n", "\r\n", "\r"] {
+                    for bom in ["", "\u{FEFF}"] {
+                        let text = format!("{bom}{}", [*a, *b, *c].join(brk));
+                        holds(&text, Syntax::Markdown);
+                        holds(&text, Syntax::Plain);
+                        n += 1;
+                    }
                 }
             }
         }
     }
-    assert_eq!(n, LINES.len().pow(3) * 2);
+    assert_eq!(n, LINES.len().pow(3) * 6);
 }
 
 #[test]
@@ -99,6 +104,33 @@ fn deep_nesting_is_one_pass() {
     let s = detect(&text, Syntax::Markdown, ViewId::SOURCE);
     assert!(s.kind.iter().filter(|&&k| k == Block::ListItem).count() > 1);
     holds(&text, Syntax::Markdown);
+}
+
+#[test]
+fn blank_lines_under_deep_nesting_are_linear() {
+    // Fifty thousand nested list items, then four hundred thousand blank
+    // lines: each blank line continues every item, which visiting the
+    // items one by one would make 2e10 steps. Each "-" of the first line
+    // is also tested as a thematic break, which scanning to the "a" each
+    // time would make 1e9 more.
+    let start = std::time::Instant::now();
+    let text = format!("{}a\n{}", "- ".repeat(50_000), "\n".repeat(400_000));
+    let s = detect(&text, Syntax::Markdown, ViewId::SOURCE);
+    assert_eq!(s.kind.iter().filter(|&&k| k == Block::ListItem).count(), 50_000);
+    assert_eq!(s.kind.iter().filter(|&&k| k == Block::Paragraph).count(), 1);
+    holds(&text, Syntax::Markdown);
+
+    // The same with a quote halfway down, which the blank lines end, and
+    // with an innermost item that starts with a blank line, which the
+    // second blank line ends.
+    let text = format!("{}> {}a\n{}", "- ".repeat(25_000), "- ".repeat(25_000), "\n".repeat(400_000));
+    let s = detect(&text, Syntax::Markdown, ViewId::SOURCE);
+    assert_eq!(s.kind.iter().filter(|&&k| k == Block::Quote).count(), 1);
+    holds(&text, Syntax::Markdown);
+    let text = format!("{}-\n{}", "- ".repeat(50_000), "\n".repeat(400_000));
+    holds(&text, Syntax::Markdown);
+    holds(&text, Syntax::Plain);
+    assert!(start.elapsed().as_secs() < 60, "{:?}", start.elapsed());
 }
 
 #[test]

@@ -502,9 +502,9 @@ fn the_same_text_as_markdown_has_code_and_no_capital_heading() {
 #[test]
 fn plain_text_headings_are_conservative() {
     // An underline under a paragraph of several lines is a separator; a
-    // line in capitals inside a paragraph, or ending like a sentence, or
-    // inside a quote, is text.
-    let text = "Some text\nmore text\n=====\nNext\n\nTHE END.\n\nWARNING\nthe rest\n\n> QUOTED HEADING\n";
+    // line in capitals over another in capitals, or ending like a
+    // sentence, or inside a quote, is text.
+    let text = "Some text\nmore text\n=====\nNext\n\nTHE END.\n\nWARNING\nREAD THIS\n\n> QUOTED HEADING\n";
     check(
         text,
         PLAIN,
@@ -512,9 +512,147 @@ fn plain_text_headings_are_conservative() {
     Paragraph 0 "Some text\nmore text"
     Paragraph 0 "Next"
     Paragraph 0 "THE END."
-    Paragraph 0 "WARNING\nthe rest"
+    Paragraph 0 "WARNING\nREAD THIS"
     Quote 1 "> QUOTED HEADING"
       Paragraph 0 "QUOTED HEADING"
+    "########,
+    );
+}
+
+#[test]
+fn a_plain_heading_in_capitals_over_its_paragraph() {
+    let text =
+        "INTRODUCTION\nThis report covers the year.\nIt has two parts.\n\nTERMS AND CONDITIONS\n1. The first term.\n";
+    check(
+        text,
+        PLAIN,
+        r########"
+    Section 1 "INTRODUCTION\nThis report covers the year.\nIt has two parts."
+      Heading 1 "INTRODUCTION"
+      Paragraph 0 "This report covers the year.\nIt has two parts."
+    Section 1 "TERMS AND CONDITIONS\n1. The first term."
+      Heading 1 "TERMS AND CONDITIONS"
+      List 1 "1. The first term."
+        ListItem 1 "1. The first term."
+          Paragraph 0 "The first term."
+    "########,
+    );
+}
+
+#[test]
+fn a_letter_closing_opens_no_section() {
+    // "OK" has too few letters for a heading; a name and a country in
+    // capitals with nothing after them are a signature.
+    let text = "Dear Sam,\n\nThe plan is fine.\n\nOK\n\nSincerely,\nJOHN SMITH\n\nJANE DOE\n\nUSA\n";
+    check(
+        text,
+        PLAIN,
+        r########"
+    Paragraph 0 "Dear Sam,"
+    Paragraph 0 "The plan is fine."
+    Paragraph 0 "OK"
+    Paragraph 0 "Sincerely,\nJOHN SMITH"
+    Paragraph 0 "JANE DOE"
+    Paragraph 0 "USA"
+    "########,
+    );
+}
+
+#[test]
+fn a_signature_delimiter_is_no_underline() {
+    // "-- " is the line before an email signature, not a setext underline
+    // in plain text; "---" still is one.
+    let text = "Thanks\n-- \nJohn Smith\n\nNotes\n---\nmore\n";
+    check(
+        text,
+        PLAIN,
+        r########"
+    Paragraph 0 "Thanks\n-- \nJohn Smith"
+    Section 2 "Notes\n---\nmore"
+      Heading 2 "Notes\n---"
+      Paragraph 0 "more"
+    "########,
+    );
+}
+
+#[test]
+fn a_year_is_no_plain_list_item() {
+    // Right under an item, the year's line continues the item's text, as
+    // any unindented line does; after a blank line it is a paragraph. A
+    // number of up to three digits is still an item.
+    let text = "- first\n- second\n2024. A great year\n\n2025. Another\n\n100. The hundredth\n";
+    check(
+        text,
+        PLAIN,
+        r########"
+    List 1 "- first\n- second\n2024. A great year"
+      ListItem 1 "- first"
+        Paragraph 0 "first"
+      ListItem 1 "- second\n2024. A great year"
+        Paragraph 0 "second\n2024. A great year"
+    Paragraph 0 "2025. Another"
+    List 1 "100. The hundredth"
+      ListItem 1 "100. The hundredth"
+        Paragraph 0 "The hundredth"
+    "########,
+    );
+    check(
+        "1. a\n2024. b\n",
+        MD,
+        r########"
+    List 1 "1. a\n2024. b"
+      ListItem 1 "1. a"
+        Paragraph 0 "a"
+      ListItem 1 "2024. b"
+        Paragraph 0 "b"
+    "########,
+    );
+}
+
+#[test]
+fn markdown_front_matter_is_in_no_block() {
+    let text = "\u{FEFF}---\ntitle: A\ntags: [x]\n...  \n# Body\n\ntext\n";
+    check(
+        text,
+        MD,
+        r########"
+    Section 1 "# Body\n\ntext"
+      Heading 1 "# Body"
+      Paragraph 0 "text"
+    "########,
+    );
+    // Closed with "---" as well; without a closing line, or not at the
+    // start, it is no front matter. Plain text has none.
+    check(
+        "---\na: 1\n---\ntext\n",
+        MD,
+        r########"
+    Paragraph 0 "text"
+    "########,
+    );
+    check(
+        "---\na: 1\n",
+        MD,
+        r########"
+    Paragraph 0 "a: 1"
+    "########,
+    );
+    check(
+        "text\n\n---\na: 1\n---\n",
+        MD,
+        r########"
+    Paragraph 0 "text"
+    Section 2 "a: 1\n---"
+      Heading 2 "a: 1\n---"
+    "########,
+    );
+    check(
+        "---\na: 1\n---\ntext\n",
+        PLAIN,
+        r########"
+    Section 2 "a: 1\n---\ntext"
+      Heading 2 "a: 1\n---"
+      Paragraph 0 "text"
     "########,
     );
 }

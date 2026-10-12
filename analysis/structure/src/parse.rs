@@ -16,7 +16,7 @@ use turbo_analysis_layers::Block;
 
 use crate::Syntax;
 use crate::line::{Cursor, Lines};
-use crate::marker::{ListMarker, atx, caps_heading, closes_fence, fence, list_marker, setext, thematic};
+use crate::marker::{ListMarker, atx, caps_heading, closes_fence, fence, list_marker, setext, thematic_scan};
 use crate::table::{cells, delimiter_row};
 use crate::tree::Tree;
 
@@ -80,10 +80,18 @@ pub(crate) struct Parser<'a> {
     markdown: bool,
     tree: Tree,
     stack: Vec<Container>,
-    /// How many quotes and lists `stack` holds: a new one's depth.
-    quotes: usize,
+    /// Where in `stack` the quotes are, in order; how many there are is a
+    /// new quote's depth.
+    quote_at: Vec<usize>,
+    /// How many lists `stack` holds: a new one's depth.
     lists: usize,
     leaf: Leaf,
+    /// Plain text: the headings found by their capitals alone, which are
+    /// paragraphs again when nothing but such headings follows them.
+    caps: Vec<u32>,
+    /// The character and the stop of the last scan for a thematic break
+    /// that failed before its line's end.
+    not_thematic: Option<(u8, usize)>,
     runs: Vec<(usize, usize)>,
     cells: Vec<(usize, usize)>,
 }
@@ -91,6 +99,28 @@ pub(crate) struct Parser<'a> {
 /// A depth, at most 255.
 fn saturate(n: usize) -> u8 {
     u8::try_from(n).unwrap_or(u8::MAX)
+}
+
+/// Where a Markdown text's blocks start: after a front matter block (YAML
+/// metadata, as static site generators read it) when the text starts with
+/// one at `from`, else `from`. Front matter is a line `---` at the start,
+/// up to and including the next line `---` or `...`; without that closing
+/// line there is none. Spaces and tabs may end either line.
+fn front_matter(b: &[u8], from: usize) -> usize {
+    let is = |(s, e): (usize, usize), mark: &[u8]| {
+        let t = &b[s..e];
+        t.starts_with(mark) && t[mark.len()..].iter().all(|&x| x == b' ' || x == b'\t')
+    };
+    let mut lines = Lines::new(b, from);
+    if !lines.next().is_some_and(|l| is(l, b"---")) {
+        return from;
+    }
+    for l in lines.by_ref() {
+        if is(l, b"---") || is(l, b"...") {
+            return lines.at();
+        }
+    }
+    from
 }
 
 /// Consumes a quote marker and the space or tab it may have after it.
@@ -109,24 +139,49 @@ impl<'a> Parser<'a> {
             markdown: syntax == Syntax::Markdown,
             tree: Tree::default(),
             stack: Vec::new(),
-            quotes: 0,
+            quote_at: Vec::new(),
             lists: 0,
             leaf: Leaf::None,
+            caps: Vec::new(),
+            not_thematic: None,
             runs: Vec::new(),
             cells: Vec::new(),
         }
     }
 
     /// Every block of the text, closed. A byte order mark at the start is
-    /// in no block.
+    /// in no block, and neither is a Markdown text's front matter.
     pub(crate) fn run(mut self) -> Tree {
-        let from = if self.text.starts_with('\u{FEFF}') { '\u{FEFF}'.len_utf8() } else { 0 };
+        let mut from = if self.text.starts_with('\u{FEFF}') { '\u{FEFF}'.len_utf8() } else { 0 };
+        if self.markdown {
+            from = front_matter(self.bytes, from);
+        }
         for (start, end) in Lines::new(self.bytes, from) {
             self.line(start, end);
         }
         self.close_leaf();
         self.close_containers(0);
+        self.uncap_signature();
         self.tree
+    }
+
+    /// Plain text: headings in capitals with nothing after them but more
+    /// of the same (a name and a country under a letter's closing) open
+    /// no section; they are paragraphs.
+    fn uncap_signature(&mut self) {
+        let mut last = self.tree.nodes.len();
+        while let Some(&h) = self.caps.last() {
+            // The top-level block after the heading, if any.
+            let after = self.tree.nodes[h as usize + 1..last].iter().any(|n| n.parent.is_none());
+            if after {
+                return;
+            }
+            self.caps.pop();
+            let n = self.tree.node(h);
+            n.kind = Block::Paragraph;
+            n.depth = 0;
+            last = h as usize;
+        }
     }
 
     fn line(&mut self, ls: usize, le: usize) {
@@ -182,6 +237,10 @@ impl<'a> Parser<'a> {
     fn match_containers(&mut self, c: &mut Cursor<'_>, le: usize) -> usize {
         let mut matched = 0;
         while matched < self.stack.len() {
+            let (_, p) = c.indent();
+            if self.is_blank(p, le) {
+                return self.match_blank(matched);
+            }
             let ok = match self.stack[matched] {
                 Container::Quote { .. } => {
                     let (cols, p) = c.indent();
@@ -194,12 +253,9 @@ impl<'a> Parser<'a> {
                     }
                 }
                 Container::List { .. } => true,
-                Container::Item { node, indent, blank_start } => {
-                    let (cols, p) = c.indent();
-                    if self.is_blank(p, le) {
-                        // An item can start with at most one blank line.
-                        !(blank_start && !self.tree.has_child(node))
-                    } else if cols >= indent {
+                Container::Item { indent, .. } => {
+                    let (cols, _) = c.indent();
+                    if cols >= indent {
                         c.skip_cols(indent);
                         true
                     } else {
@@ -213,6 +269,27 @@ impl<'a> Parser<'a> {
             matched += 1;
         }
         matched
+    }
+
+    /// How many containers a line continues whose rest, from container
+    /// `from` on, is blank, found without visiting the containers one by
+    /// one, which would take time quadratic in the text for deep nesting
+    /// followed by many blank lines. A blank rest continues every list
+    /// and list item and no quote, except an item that started with a
+    /// blank line and holds nothing yet: an item starts with at most one
+    /// blank line. Such an item has no child, so it is the innermost
+    /// container.
+    fn match_blank(&self, from: usize) -> usize {
+        let k = self.quote_at.partition_point(|&q| q < from);
+        if let Some(&q) = self.quote_at.get(k) {
+            return q;
+        }
+        match self.stack.last() {
+            Some(&Container::Item { node, blank_start: true, .. }) if !self.tree.has_child(node) => {
+                self.stack.len() - 1
+            }
+            _ => self.stack.len(),
+        }
     }
 
     /// Opens the quotes and list items that start the rest of the line.
@@ -232,13 +309,13 @@ impl<'a> Parser<'a> {
                 }
                 c.skip_cols(cols);
                 self.close_lists();
-                let depth = saturate(self.quotes + 1);
+                let depth = saturate(self.quote_at.len() + 1);
                 let node = self.tree.open(Block::Quote, p, p + 1, self.parent(), depth);
                 self.push(Container::Quote { node });
                 after_quote_marker(c);
                 continue;
             }
-            if thematic(self.bytes, p, le) {
+            if self.thematic(p, le) {
                 return opened;
             }
             let Some(m) = list_marker(self.text, p, le, !self.markdown) else { return opened };
@@ -288,7 +365,7 @@ impl<'a> Parser<'a> {
         if cols < 4 && (self.markdown && (atx(self.bytes, p, le).is_some() || fence(self.bytes, p, le).is_some())) {
             return false;
         }
-        if cols < 4 && thematic(self.bytes, p, le) {
+        if cols < 4 && self.thematic(p, le) {
             return false;
         }
         self.paragraph_line(p, le);
@@ -328,7 +405,8 @@ impl<'a> Parser<'a> {
         }
         if let Leaf::Paragraph { node, lines, .. } = self.leaf
             && shallow
-            && let Some(level) = setext(b, p, le)
+            && let Some((level, run)) = setext(b, p, le)
+            && (self.markdown || run >= 3)
         {
             // Plain text underlines a heading of one line; under a longer
             // paragraph the line is a separator.
@@ -345,7 +423,7 @@ impl<'a> Parser<'a> {
             self.leaf = Leaf::None;
             return;
         }
-        if shallow && thematic(b, p, le) {
+        if shallow && self.thematic(p, le) {
             self.close_leaf();
             self.close_lists();
             return;
@@ -418,6 +496,17 @@ impl<'a> Parser<'a> {
         let Leaf::Paragraph { node, lines, .. } = self.leaf else { return };
         let start = self.first_char(p, le);
         let end = self.trim_end(start, le);
+        // Plain text: a first line in capitals over a second with lower
+        // case letters is a heading over its paragraph ("INTRODUCTION",
+        // then "This report covers the year.").
+        if lines == 1 && self.text[start..end].chars().any(char::is_lowercase) && self.is_caps_heading(node) {
+            self.cap(node);
+            self.tree.close(node);
+            let parent = self.tree.nodes[node as usize].parent;
+            let node = self.tree.open(Block::Paragraph, start, end, parent, 0);
+            self.leaf = Leaf::Paragraph { node, lines: 1, last_start: start, prev_end: start };
+            return;
+        }
         let prev_end = self.tree.nodes[node as usize].end as usize;
         self.tree.node(node).end = end as u32;
         self.leaf = Leaf::Paragraph { node, lines: lines + 1, last_start: start, prev_end };
@@ -439,20 +528,52 @@ impl<'a> Parser<'a> {
             Leaf::Paragraph { node, lines, .. } => {
                 // Plain text: a line on its own, at the top level, in
                 // capitals, is a heading.
-                let n = self.tree.nodes[node as usize];
-                if !self.markdown
-                    && lines == 1
-                    && n.parent.is_none()
-                    && caps_heading(&self.text[n.start as usize..n.end as usize])
-                {
-                    let n = self.tree.node(node);
-                    n.kind = Block::Heading;
-                    n.depth = 1;
+                if lines == 1 && self.is_caps_heading(node) {
+                    self.cap(node);
                 }
                 self.tree.close(node);
             }
             Leaf::Fenced { node, .. } | Leaf::Indented { node } | Leaf::Table { node } => self.tree.close(node),
         }
+    }
+
+    /// Whether a thematic break is at `p`. Every marker of a line like
+    /// "- - - … a" is tested as one, and each test from scratch would scan
+    /// to the `a`, time quadratic in the line; a test from inside a failed
+    /// scan's run of the same character fails where that scan did.
+    fn thematic(&mut self, p: usize, le: usize) -> bool {
+        let ch = self.bytes[p];
+        if let Some((c, stop)) = self.not_thematic
+            && c == ch
+            && p < stop
+        {
+            return false;
+        }
+        match thematic_scan(self.bytes, p, le) {
+            Ok(yes) => yes,
+            Err(stop) => {
+                self.not_thematic = Some((ch, stop));
+                false
+            }
+        }
+    }
+
+    /// Whether a paragraph's first line, in plain text at the top level, is
+    /// a heading by its capitals.
+    fn is_caps_heading(&self, node: u32) -> bool {
+        let n = self.tree.nodes[node as usize];
+        let first = &self.text[n.start as usize..n.end as usize];
+        let first = first.split(['\n', '\r']).next().unwrap_or(first);
+        !self.markdown && n.parent.is_none() && caps_heading(first)
+    }
+
+    /// Makes a one-line paragraph a heading of level 1, found by its
+    /// capitals.
+    fn cap(&mut self, node: u32) {
+        let n = self.tree.node(node);
+        n.kind = Block::Heading;
+        n.depth = 1;
+        self.caps.push(node);
     }
 
     /// Closes the containers from `from` on, innermost first, with the
@@ -486,7 +607,7 @@ impl<'a> Parser<'a> {
 
     fn push(&mut self, c: Container) {
         match c {
-            Container::Quote { .. } => self.quotes += 1,
+            Container::Quote { .. } => self.quote_at.push(self.stack.len()),
             Container::List { .. } => self.lists += 1,
             Container::Item { .. } => {}
         }
@@ -496,7 +617,9 @@ impl<'a> Parser<'a> {
     fn pop(&mut self) -> Container {
         let c = self.stack.pop().expect("an open container");
         match c {
-            Container::Quote { .. } => self.quotes -= 1,
+            Container::Quote { .. } => {
+                self.quote_at.pop();
+            }
             Container::List { .. } => self.lists -= 1,
             Container::Item { .. } => {}
         }
