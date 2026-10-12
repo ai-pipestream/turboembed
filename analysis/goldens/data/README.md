@@ -79,10 +79,7 @@ decisions are paired with positions. `generate` writes the dumps
 together with the goldens, and the same rule holds: do not edit them by
 hand.
 
-The dumps checked in now were made by running the Java generator
-directly with `--dumps` (see `analysis/goldens-tool/README.md`) under the
-JDK named in their headers, in the same run as the goldens, with the
-OpenNLP build and models named there. A normalizer asks no model, so the
-`normalize` goldens have no dumps. The run in the pinned container,
-through `turbo-goldens generate` and `verify`, is still to be done on a
-machine with Docker.
+The goldens and dumps checked in now were made in the pinned container by
+`turbo-goldens generate`, in one run, and `turbo-goldens verify`
+reproduces them byte for byte. A normalizer asks no model, so the
+`normalize` goldens have no dumps.

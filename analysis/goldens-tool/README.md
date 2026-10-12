@@ -85,13 +85,19 @@ Unicode 15.0 repertoire only, which is what JDK 21 implements.
 
 ## How the checked in goldens and dumps were made
 
-The goldens and dumps checked in now were produced by running the generator
-directly, not in the container, on JDK 21 (the `jdk` line of each golden
-names it), with these commands. The OpenNLP fork is cloned at the commit
-pinned in `src/recipe.rs` (commit `cdf33c653d5d61d5af7d37ffee189a83bd8392ea`
-of the `kristian-3.x-features` branch, Maven version `3.0.0-SNAPSHOT`),
-because the commit pinned before it does not have `Dehyphenation`,
-`BoundedUrl`, `EnglishContraction` and `SymbolJoiner`:
+The goldens and dumps checked in now were made in the container, with
+`turbo-goldens image` and then `turbo-goldens generate`, and `verify`
+reproduces every one of them byte for byte. The `jdk` line of each names
+the container's JDK, Eclipse Temurin 21.0.12.1.
+
+Before that, they were made by running the generator directly on Ubuntu's
+OpenJDK 21.0.12.1. The container run gave the same bytes except the `jdk`
+header line. The generator can still be run that way while working on it,
+with the OpenNLP fork built at the commit pinned in `src/recipe.rs`
+(commit `cdf33c653d5d61d5af7d37ffee189a83bd8392ea` of the
+`kristian-3.x-features` branch, Maven version `3.0.0-SNAPSHOT`; the commit
+pinned before it does not have `Dehyphenation`, `BoundedUrl`,
+`EnglishContraction` and `SymbolJoiner`); its output then differs from the checked in files in the `jdk` line:
 
 ```
 git init opennlp && cd opennlp
@@ -101,18 +107,10 @@ git checkout FETCH_HEAD
 ./mvnw -q -DskipTests -DskipITs -Dforbiddenapis.skip=true -pl opennlp-core/opennlp-runtime -am install
 cd <repository>/analysis/goldens-tool/java
 mvn -q package
-cargo run -p turbo-goldens-tool -- fetch-models <models dir>   # std only; or curl each URL in src/recipe.rs
+cargo run -p turbo-goldens-tool -- fetch-models <models dir>
 java -jar target/turbo-goldens-java.jar ../../goldens/data/inputs <models dir> <empty out dir> \
     cdf33c653d5d61d5af7d37ffee189a83bd8392ea --dumps
 ```
-
-then `sentdetect`, `tokenize`, `langdetect` and `normalize` of the output
-directory were copied over those of `analysis/goldens/data`. (The models were
-fetched with `curl` from the URLs in `src/recipe.rs` and their SHA-512
-compared, as `fetch-models` does.) The container recipe and the `image`,
-`generate` and `verify` commands have not been run: they are to be proven on
-a project machine with Docker, where `verify` shows whether the container's
-JDK gives the same bytes.
 
 Moving the pin from `92d486d05151ef00b6d145c405046aa3a33b5a48` changed the
 `opennlp` header line of every golden and, in the `langdetect` goldens, the

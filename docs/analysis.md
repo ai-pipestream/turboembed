@@ -787,10 +787,9 @@ without a network over the inputs and the models (each model checked
 against its published SHA-512), and writes
 `<annotator>/<model>/<set>/<id>.golden` for every annotator and input.
 `turbo-goldens verify` regenerates them into a scratch directory and
-fails on any file whose bytes differ. The first goldens (sentence
-detection, tokenization and language detection) were made by running
-the generator directly under the JDK named in their headers; the
-container run is to be proven on a machine with Docker.
+fails on any file whose bytes differ. The checked in goldens were made
+by `turbo-goldens generate` in that container, and `verify` reproduces
+them byte for byte.
 `analysis/goldens-tool/README.md` has the commands.
 
 The generator writes these layers, in this order within a golden:
@@ -968,9 +967,7 @@ dumps together, and `turbo-goldens verify` compares both byte for byte.
 golden of these three annotators has a dump beside it, except one with
 an error record, which has none, that every dump has a golden, and that
 each dump's header parses and names the input and model of its path. The
-checked in dumps were made by running the generator directly under the
-JDK named in their headers, as the goldens were; the container run is to
-be proven on a machine with Docker.
+checked in dumps were made in the same container run as the goldens.
 
 ## Tests
 

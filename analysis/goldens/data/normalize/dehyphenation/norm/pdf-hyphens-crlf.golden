@@ -1,7 +1,7 @@
 golden 1
 generator	turbo-goldens-java	1
 opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
-jdk	21.0.12.1	21.0.12.1+1-1-24.04.4-Ubuntu	Ubuntu
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
 unicode	15.0
 input	norm/pdf-hyphens-crlf	132	132	6e4950b0cecfbbe9f52ec6195fa19fd943f16c624aab4d02617df9dcdccd31e3
 annotator	opennlp.tools.util.normalizer.DehyphenationCharSequenceNormalizer	normalizeAligned
