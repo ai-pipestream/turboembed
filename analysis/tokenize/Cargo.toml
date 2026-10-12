@@ -11,5 +11,6 @@ name = "turbo_tokenize"
 [dependencies]
 turbo-analysis = { path = "../core" }
 turbo-analysis-layers = { path = "../layers" }
+turbo-maxent = { path = "../maxent" }
 turbo-tokenize-layers = { path = "../tokenize-layers" }
 turbo-unicode = { path = "../unicode" }

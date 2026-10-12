@@ -11,12 +11,15 @@
 //! - [`uax29`]: the UAX #29 word segmenter and `WordTokenizer`, which
 //!   also writes the word type of each token.
 //!
+//! - [`detok`]: `DictionaryDetokenizer`, which rebuilds text from
+//!   tokens with a detokenizer dictionary.
+//!
 //! Each tokenizer is also a plain function over a `&str` that appends
 //! spans to a caller's buffer, for use outside a pipeline. The maxent
-//! tokenizer and the dictionary detokenizer are later additions to this
-//! crate. docs/segmentation.md describes the design and every place the
+//! tokenizer is a later addition to this crate. docs/segmentation.md describes the design and every place the
 //! ports differ from OpenNLP on purpose.
 
+pub mod detok;
 pub mod simple;
 pub mod uax29;
 pub mod unit;
@@ -24,6 +27,7 @@ pub mod whitespace;
 
 mod utf8;
 
+pub use detok::{Detokenizer, DetokenizerDictionary, DictionaryError, Operation};
 pub use simple::{SimpleTokenizer, simple_spans};
 pub use turbo_tokenize_layers::{WordType, WordTypes};
 pub use turbo_unicode::WhitespaceMode;
