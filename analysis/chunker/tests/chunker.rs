@@ -32,7 +32,8 @@ fn sentences_and_subwords(text: &str) -> Document {
     }
     let ids = vec![0; pieces.len()];
     doc.add(&Key::DEFAULT, Sentences { spans: sentences }, Provenance::by("t")).unwrap();
-    doc.add(&Key::DEFAULT, Subwords { spans: pieces, ids, model: toy_model() }, Provenance::by("t")).unwrap();
+    doc.add(&Key::DEFAULT, Subwords { spans: pieces, ids, model: toy_model(), token: None }, Provenance::by("t"))
+        .unwrap();
     doc
 }
 
@@ -133,8 +134,12 @@ fn what_lies_between_sentences_counts_inside_a_chunk() {
         pieces.push(Span::new(a, b));
     }
     doc.add(&Key::DEFAULT, Sentences { spans: sentences }, Provenance::by("t")).unwrap();
-    doc.add(&Key::DEFAULT, Subwords { spans: pieces, ids: vec![0; 7], model: toy_model() }, Provenance::by("t"))
-        .unwrap();
+    doc.add(
+        &Key::DEFAULT,
+        Subwords { spans: pieces, ids: vec![0; 7], model: toy_model(), token: None },
+        Provenance::by("t"),
+    )
+    .unwrap();
     let bounds = Boundaries { cost: vec![1.0; 2], reason: vec![Cut::Paragraph, Cut::Sentence] };
     doc.add(&Key::DEFAULT, bounds, Provenance::by("t")).unwrap();
 
