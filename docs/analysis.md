@@ -495,8 +495,9 @@ closes it plus a size penalty: `Budget::size_weight` times the squared
 distance from the target size over the squared target, rounded down to
 an integer. The optimizer finds the cut of least total cost. No chunk
 is longer than the budget's maximum, unless one sentence alone is: that
-sentence is then a chunk of its own, marked `Cut::Budget`, for a clause
-splitter to cut further. Time is the number of sentences times the most
+sentence is then a chunk of its own, marked in `Chunks::over_budget`,
+for a clause splitter to cut further; its `cut` still says why it starts
+where it does (a section, say). Time is the number of sentences times the most
 that fit in one chunk.
 
 Every cost is an integer, so the same layers give the same cuts on
@@ -504,7 +505,18 @@ every machine and backend, with no float summed in a different order to
 tip a choice. Two cuts tie only when they cost exactly the same; then
 the one whose first boundary comes earliest wins, then its second, and
 so on. The table runs from the end of each run back, so each entry
-keeps the earliest end of equal least cost.
+keeps the earliest end of equal least cost. A chunk's size penalty is
+capped at 2^60 units, so a chunk's cost fits an i64 and a run's total,
+summed in i128, cannot overflow: no total saturates and makes two cuts
+look equal, and a chunk of more than one sentence is never let past the
+maximum to escape a huge penalty. A unit test checks the optimizer
+against trying every cut of up to eleven sentences, with negative and
+zero costs, a target of zero and several weights and overheads.
+
+`segment` also takes a chunk term: a cost of a whole chunk, added beside
+its size penalty and capped the same way. It is how a signal over whole
+chunks, such as how tightly a chunk's sentences cluster, enters the
+optimizer; the chunker passes `no_term` for now.
 
 ### Boundary costs
 
@@ -521,9 +533,10 @@ coreference, discourse markers) writes its own named instance of this
 same shape, and one step weighs them with integer weights and sums them
 into the default instance, since a layer has one writer; the chunker
 reads only that. A new signal is one more instance, never a new column.
-A term that belongs to a whole chunk rather than to a gap (how tightly
-its sentences cluster) is not a boundary cost; it goes into the
-optimizer's chunk cost beside the size penalty.
+The summing step computes in i64 and saturates to the i32 range when it
+writes. A term that belongs to a whole chunk rather than to a gap (how
+tightly its sentences cluster) is not a boundary cost; it is the
+optimizer's chunk term.
 
 `StructureBoundaries` writes the structural term from the sentences and
 `turbo:structure`. A block holds the sentences it has a byte of, found
@@ -549,23 +562,37 @@ A chunk boundary never falls inside a sentence: boundaries are only
 between sentences. Nor does it fall inside a table row, a code block or
 a quote, unless that unit alone is over the budget's maximum. These
 limits depend on the budget, so they are not costs: the chunker reads
-the structure itself and, for each gap, finds the smallest such unit
-that holds sentences on both sides. When that unit fits the budget the
-gap is no place to cut, and the sentences joined by such gaps are one
-unit to the optimizer. When it is over the budget, the gap may be cut,
-and the chunk that starts there is marked `Cut::Inside` with the unit's
-kind. Units nest: a code block that fits inside a quote that does not
-is held whole while the quote is cut around it. No boundary cost,
-however low, overrides a limit.
+the structure itself. A unit holds the sentences it has a byte of. A
+gap is held when any unit that holds sentences on both sides of it fits
+the budget, and the sentences joined by held gaps are one unit to the
+optimizer. When units are around a gap and none fits, the gap may be
+cut, and the chunk that starts there is marked `Cut::Inside` with the
+smallest such unit's kind. Units nest: a code block that fits inside a
+quote that does not is held whole while the quote is cut around it. No
+boundary cost, however low, overrides a limit.
+
+Two units whose bytes do not overlap can still share a sentence, when
+an edge falls inside it, and a chain of such units can join more
+sentences than the budget holds though each unit fits. That run must be
+cut somewhere, so every gap in it is freed and a chunk that starts at
+one is marked `Cut::Overlap` with the kind of the smallest unit that
+held it. A section's edge is always a cut: when a sentence that
+straddles a section's start belongs to the section before (by its
+start) and a unit in the new section holds it, the unit is cut at the
+section's edge and the chunk there says `Section`.
 
 ### Sections
 
-With structure, no chunk crosses a top-level section. Each section, and
+With structure, no chunk crosses a top-level section. The chunker sorts
+the top-level sections by start, so sections listed out of text order
+still make runs of their own. Each section, and
 each run of sentences outside every section, is its own run, so an edit
 re-chunks only its own section, and each run becomes a chunk one level
 up, the parent of the chunks cut from it. Every chunk records its level,
 its parent, its sentences, why it starts where it does, what it cost the
-optimizer (an integer, in units) and its length in model tokens.
+optimizer (an integer, in units), its length in model tokens and
+whether it is over the budget. The chunks layer refuses a parent that is
+not at a level above its child or does not hold the child's span.
 
 Not measured yet: the chunker against the stage 0 baselines on the
 evaluation harness, with significance, which is still being built.
@@ -1051,18 +1078,24 @@ runs them on any machine:
   where the topic shifts instead of where the budget fills, sections
   that are never crossed, and a paragraph break's token counted inside
   a chunk. The chunker's unit tests hold the optimizer against filling
-  each chunk to the budget, check the integer size penalty and that of
-  equal cuts the earliest wins, and read the gaps a structure makes:
-  each gap's strongest break, the smallest unit around it, and block
-  edges inside sentences.
+  each chunk to the budget and against trying every cut, check the
+  integer size penalty, the chunk term, that of equal cuts the earliest
+  wins and that a huge penalty never lets a chunk past the maximum, and
+  read the gaps a structure makes: each gap's strongest break, the
+  units by their sentences, block edges inside sentences, which gaps
+  units hold, and sections listed out of order.
 - `analysis/chunker/tests/limits.rs` holds each hard limit over
   hand-made layers: a table row, a code block and a quote that fit are
   never cut even where the costs say to, each one over the budget is cut
   and the chunk says why, a unit that fits inside one that does not is
-  held, and a sentence over the budget stands alone. It checks that
-  every chunk is the exact bytes of its sentences in text of one to four
-  byte characters and, through a normalized view, in the source, and
-  the costs `StructureBoundaries` writes.
+  held, units that share sentences and chain over the budget are cut,
+  a section's edge is a cut even inside a unit, and a sentence over the
+  budget stands alone and keeps its reason, at a section start too. It
+  refuses chunks outside their parents or not at a level above them. It
+  checks that every chunk is the exact bytes of its
+  sentences in text of one to four byte characters and, through a
+  normalized view, in the source, and the costs `StructureBoundaries`
+  writes.
 - `analysis/embed/tests/subwords.rs` runs the subwords annotator on the
   small BERT's WordPiece bundle, a byte-level BPE bundle and BGE-M3's
   Unigram, over the tokenizer test texts, and checks that the document
