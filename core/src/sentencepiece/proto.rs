@@ -257,8 +257,12 @@ impl<'a> Reader<'a> {
         if self.at == self.buf.len() {
             return Ok(None);
         }
+        // A key is 32 bits, as protobuf reads it: a longer one is not a
+        // field whose number is cut short.
         let key = self.varint()?;
-        let field = (key >> 3) as u32;
+        let key = u32::try_from(key)
+            .map_err(|_| invalid(format!("SentencePiece model: a field key past 32 bits at byte {}", self.at)))?;
+        let field = key >> 3;
         if field == 0 {
             return Err(invalid(format!("SentencePiece model: field number 0 at byte {}", self.at)));
         }
@@ -322,5 +326,67 @@ mod tests {
         assert!(ModelProto::parse(&[0x0a, 5, 1]).is_err());
         assert!(ModelProto::parse(&[0x0a]).is_err());
         assert!(ModelProto::parse(&[0x0b]).is_err());
+    }
+
+    #[test]
+    fn a_varint_that_does_not_end_is_refused() {
+        // trainer_spec's varint field cut short, at the end and inside.
+        assert!(ModelProto::parse(&[0x12, 2, 0x18, 0x80]).is_err());
+        assert!(ModelProto::parse(&[0x08, 0x80]).is_err());
+        // Eleven bytes of continuation.
+        let mut bytes = vec![0x08];
+        bytes.extend_from_slice(&[0xff; 10]);
+        bytes.push(0);
+        assert!(ModelProto::parse(&bytes).is_err());
+        // A key of ten bytes.
+        assert!(ModelProto::parse(&[0xff; 10]).is_err());
+    }
+
+    #[test]
+    fn a_length_past_the_message_is_refused_without_allocating_it() {
+        // pieces of 2^32 - 1 bytes, of 2^64 - 1 bytes, and one byte past.
+        assert!(ModelProto::parse(&[0x0a, 0xff, 0xff, 0xff, 0xff, 0x0f, 0]).is_err());
+        let mut bytes = vec![0x0a];
+        bytes.extend_from_slice(&[0xff; 9]);
+        bytes.push(0x01);
+        assert!(ModelProto::parse(&bytes).is_err());
+        assert!(ModelProto::parse(&[0x0a, 3, 0x0a, 1, b'a']).is_ok());
+        assert!(ModelProto::parse(&[0x0a, 3, 0x0a, 2, b'a']).is_err());
+        // Inside a nested message.
+        assert!(ModelProto::parse(&[0x1a, 2, 0x12, 9]).is_err());
+    }
+
+    #[test]
+    fn a_key_past_32_bits_is_refused() {
+        // Field 2^29 + 1 with wire type 2 would be field 1 cut to 32 bits.
+        let key = ((1u64 << 32) | 1) << 3 | 2;
+        let mut bytes = Vec::new();
+        let mut v = key;
+        while v >= 0x80 {
+            bytes.push(v as u8 | 0x80);
+            v >>= 7;
+        }
+        bytes.push(v as u8);
+        bytes.extend_from_slice(&[2, 0x0a, 0]);
+        assert!(ModelProto::parse(&bytes).is_err());
+    }
+
+    #[test]
+    fn a_field_of_another_wire_type_is_skipped_and_groups_are_refused() {
+        // pieces { piece: varint 7, score: varint 3, type: fixed32 } and
+        // trainer_spec { model_type: fixed64 }: each skipped, defaults kept.
+        let m =
+            ModelProto::parse(&[0x0a, 9, 0x08, 7, 0x10, 3, 0x1d, 4, 0, 0, 0, 0x12, 9, 0x19, 2, 0, 0, 0, 0, 0, 0, 0])
+                .unwrap();
+        assert!(m.pieces[0].piece.is_empty());
+        assert_eq!(m.pieces[0].score, 0.0);
+        assert_eq!(m.pieces[0].kind, PieceType::Normal);
+        assert_eq!(m.trainer.model_type, ModelType::Unigram);
+        // Start group, end group and the two wire types protobuf lacks.
+        for wire in [3, 4, 6, 7] {
+            assert!(ModelProto::parse(&[0x08 | wire, 0]).is_err(), "wire type {wire}");
+        }
+        // Field number 0.
+        assert!(ModelProto::parse(&[0x02, 0]).is_err());
     }
 }

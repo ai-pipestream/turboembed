@@ -389,3 +389,57 @@ fn a_grown_scratch_is_reused() {
     assert_eq!(out, first);
     assert_eq!(out.capacity(), cap);
 }
+
+/// A small xorshift, for the mutated models.
+fn next(state: &mut u64) -> u64 {
+    *state ^= *state << 13;
+    *state ^= *state >> 7;
+    *state ^= *state << 17;
+    *state
+}
+
+/// Model files with bytes changed at random, cut short, or with bytes
+/// put in are refused or load; one that loads encodes and decodes text.
+/// Nothing panics.
+#[test]
+fn a_mutated_model_is_refused_or_works() {
+    let texts = ["", " ", "Hello  world", "\u{fb01} \u{1f642}\u{3000}e\u{301}", "<mask>[URL] \u{2581}x </s>"];
+    let mut state = 193u64;
+    let (mut loaded, mut refused) = (0, 0);
+    for name in ["unigram-identity", "unigram-bytes", "unigram-rules", "bpe-identity", "bpe-bytes"] {
+        let original = std::fs::read(dir().join(format!("{name}.model"))).unwrap();
+        for round in 0..200 {
+            let mut bytes = original.clone();
+            match round % 3 {
+                0 => {
+                    for _ in 0..1 + next(&mut state) % 8 {
+                        let at = next(&mut state) as usize % bytes.len();
+                        bytes[at] = next(&mut state) as u8;
+                    }
+                }
+                1 => bytes.truncate(next(&mut state) as usize % bytes.len()),
+                _ => {
+                    let at = next(&mut state) as usize % bytes.len();
+                    let junk: Vec<u8> = (0..1 + next(&mut state) % 16).map(|_| next(&mut state) as u8).collect();
+                    bytes.splice(at..at, junk);
+                }
+            }
+            let Ok(sp) = SentencePiece::parse(&bytes) else {
+                refused += 1;
+                continue;
+            };
+            loaded += 1;
+            let (mut scratch, mut pieces, mut ids) = (Scratch::default(), Vec::new(), Vec::new());
+            for t in texts {
+                pieces.clear();
+                sp.encode(t, &mut scratch, &mut pieces);
+                ids.clear();
+                sp.encode_ids(t, &mut scratch, &mut ids);
+                assert_eq!(pieces.iter().map(|p| p.id).collect::<Vec<_>>(), ids, "{name} round {round}: {t:?}");
+                assert!(pieces.iter().all(|p| p.begin <= p.end && p.end as usize <= t.len()));
+                sp.decode(&ids).unwrap();
+            }
+        }
+    }
+    assert!(loaded > 0 && refused > 0, "{loaded} loaded, {refused} refused");
+}
