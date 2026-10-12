@@ -37,6 +37,7 @@ pub mod digits;
 pub mod ellipsis;
 pub mod emoji;
 pub mod invisible;
+pub mod language_detection;
 pub mod number;
 mod placeholder;
 pub mod quotes;

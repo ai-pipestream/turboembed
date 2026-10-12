@@ -798,6 +798,33 @@ loop); the alignment of every output; and a pipeline that runs
 `EmojiAnnotate` and `EmojiRemove`, reads both layers back and maps each
 emoji into the view.
 
+### Language detector preparation (`language_detection.rs`)
+
+`language_detection::prepare(text)` prepares a text as OpenNLP's
+`LanguageDetectorFactory.getContextGenerator()` does before counting
+character n-grams: the five normalizers it chains, in its order, as one
+`Chain` run through `apply`:
+
+1. `EmojiRemove::supplementary()` (OpenNLP's deprecated
+   `EmojiCharSequenceNormalizer`: every run of supplementary-plane code
+   points becomes one space);
+2. `Urls`;
+3. `SocialMedia`;
+4. `Numbers`;
+5. `Shrink`.
+
+The result is borrowed when nothing changed. `language_detection::chain()`
+returns the chain itself for a pipeline that wants the view and its
+alignment. The models OpenNLP distributes were trained on this
+preparation, so each step keeps OpenNLP's output text; the improved
+variants (`BoundedUrls`, `BoundedSocialMedia`, emoji sequences) are not
+used here.
+
+Tests (`analysis/normalize/tests/language_detection.rs`): the chain's ids in order, and
+texts mixing emoji, URLs, addresses, hashtags, digits and repeated
+characters compared with the five OpenNLP normalizers applied one after
+another.
+
 ### Alignment checks
 
 The tests of these normalizers run every input through
