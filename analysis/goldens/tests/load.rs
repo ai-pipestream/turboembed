@@ -8,7 +8,7 @@
 use std::path::PathBuf;
 use std::sync::Arc;
 
-use turbo_analysis::{Analyzer, Annotator, Bound, Document, Error, Key, Layer, Refs, View};
+use turbo_analysis::{Analyzer, Annotator, Bound, Document, Error, Ix, IxRange, Key, Layer, Refs, View};
 use turbo_analysis_layers::{Confidence, Entities, Language, Lemmas, PosTags, Sentences, Tag, TagSet, Tokens};
 use turbo_goldens::*;
 
@@ -154,7 +154,9 @@ fn provenance_names_the_golden_annotator_and_what_a_layer_is_made_on() {
     assert_eq!(p.reads, [golden_key::<Tokens>().id()]);
     assert_eq!(doc.made_on(golden_key::<Entities>().id()), [golden_key::<Tokens>().id()]);
     assert_eq!(doc.made_on(golden_key::<Confidence<Sentences>>().id()), [golden_key::<Sentences>().id()]);
-    assert!(doc.provenance(golden_key::<Tokens>().id()).unwrap().reads.is_empty());
+    assert_eq!(doc.provenance(golden_key::<Tokens>().id()).unwrap().reads, [golden_key::<Sentences>().id()]);
+    assert_eq!(doc.made_on(golden_key::<Tokens>().id()), [golden_key::<Sentences>().id()]);
+    assert!(doc.provenance(golden_key::<Sentences>().id()).unwrap().reads.is_empty());
 
     // Every layer of one golden has one configuration hash; another model
     // or another option gives another.
@@ -298,4 +300,48 @@ fn a_view_golden_gives_the_source_alone() {
     let doc = load_document(&g, &text(&g)).unwrap();
     assert_eq!(doc.layers().count(), 1);
     assert_eq!(doc.source(), "The \u{fb01}nal  report \u{ff21} \u{ff22}.");
+}
+
+#[test]
+fn golden_tokens_get_the_sentence_they_are_in() {
+    let g = golden();
+    let doc = load_document(&g, &text(&g)).unwrap();
+    let tokens = doc.get_key(&golden_key::<Tokens>()).unwrap();
+    let sentence: Vec<usize> = tokens.sentence.as_ref().unwrap().iter().map(|s| s.get()).collect();
+    assert_eq!(sentence, [0, 0, 0, 0, 0, 0, 1, 1, 1]);
+    assert_eq!(tokens.of(Ix::new(0)), IxRange::new(0, 6));
+    assert_eq!(tokens.of(Ix::new(1)), IxRange::new(6, 9));
+
+    // load_layer uses the sentences under the same name when they are
+    // there, and leaves the column empty when they are not.
+    let mut doc = Document::new(text(&g));
+    load_layer(&mut doc, &g, &Key::<Tokens>::named("alone")).unwrap();
+    assert!(doc.get_key(&Key::<Tokens>::named("alone")).unwrap().sentence.is_none());
+    load_layer(&mut doc, &g, &Key::<Sentences>::named("split")).unwrap();
+    load_layer(&mut doc, &g, &Key::<Tokens>::named("split")).unwrap();
+    let split = doc.get_key(&Key::<Tokens>::named("split")).unwrap();
+    assert_eq!(split.of(Ix::new(1)), IxRange::new(6, 9));
+    assert_eq!(doc.made_on(Key::<Tokens>::named("split").id()), [Key::<Sentences>::named("split").id()]);
+}
+
+#[test]
+fn a_token_outside_the_sentences_is_refused() {
+    // Hand made: the sentences split the text at byte 22, inside the
+    // token "Zürich" (bytes 18..25), which then straddles two sentences.
+    let g = golden();
+    let mut bad = g.clone();
+    let sentences = bad.layers.iter_mut().find(|l| l.id == "opennlp:sentences").unwrap();
+    sentences.columns[0].data = ColumnData::U32(vec![0, 22]);
+    sentences.columns[1].data = ColumnData::U32(vec![22, 37]);
+    let e = load_document(&bad, &text(&g)).err().unwrap();
+    assert_eq!(e, LoadError::OutsideSentences { layer: golden_key::<Tokens>().id(), token: 4, start: 18, end: 25 });
+    assert!(e.to_string().starts_with("opennlp:tokens@golden token 4: bytes 18..25 are not inside a sentence"), "{e}");
+
+    // A token after the last sentence.
+    let mut bad = g.clone();
+    let sentences = bad.layers.iter_mut().find(|l| l.id == "opennlp:sentences").unwrap();
+    sentences.columns[0].data = ColumnData::U32(vec![0, 27]);
+    sentences.columns[1].data = ColumnData::U32(vec![26, 36]);
+    let e = load_document(&bad, &text(&g)).err().unwrap();
+    assert_eq!(e, LoadError::OutsideSentences { layer: golden_key::<Tokens>().id(), token: 8, start: 36, end: 37 });
 }

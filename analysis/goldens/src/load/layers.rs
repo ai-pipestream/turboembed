@@ -5,7 +5,7 @@
 use std::collections::HashMap;
 use std::sync::Arc;
 
-use turbo_analysis::{IxRange, Key, KeyId, Layer, Span, Spans, ViewId};
+use turbo_analysis::{Ix, IxRange, Key, KeyId, Layer, Span, Spans, ViewId};
 use turbo_analysis_layers::{Confidence, Entities, Language, Lemmas, PosTags, Sentences, Tag, TagSet, Tokens};
 
 use super::{GoldenLoad, LoadCx, LoadError};
@@ -62,12 +62,54 @@ impl GoldenLoad for Sentences {
     }
 }
 
-/// The golden has no sentence column for tokens, so `sentence` is `None`:
-/// a token's sentence is not something the JVM wrote down.
+/// Tokens on the source text. When sentences are loaded under the same
+/// name, each token's `sentence` is the sentence whose span contains the
+/// token's span, and a token inside no sentence is refused: the JVM makes
+/// its tokens inside its sentences. `load_document` loads blocks in file
+/// order, and the format writes sentences before tokens, so a golden with
+/// both gets the column. Without sentences under that name, `sentence` is
+/// `None`, since the golden's token block has no sentence column of its
+/// own.
 impl GoldenLoad for Tokens {
-    fn load(g: &GoldenLayer, _: &LoadCx<'_>) -> Result<Tokens, LoadError> {
-        Ok(Tokens { spans: spans(g), sentence: None })
+    fn load(g: &GoldenLayer, cx: &LoadCx<'_>) -> Result<Tokens, LoadError> {
+        let spans = spans(g);
+        let sentence = match cx.doc.get_key(&Key::<Sentences>::named(cx.name)) {
+            Some(sentences) => Some(sentence_of_each(&spans, sentences, cx.key)?),
+            None => None,
+        };
+        Ok(Tokens { spans, sentence })
     }
+
+    /// The sentences, when the tokens were given a sentence column.
+    fn made_on(cx: &LoadCx<'_>) -> Vec<KeyId> {
+        let key = Key::<Sentences>::named(cx.name);
+        if cx.doc.get_key(&key).is_some() { vec![key.id()] } else { Vec::new() }
+    }
+}
+
+/// The sentence each token is in, in one forward pass over both: tokens
+/// are in text order and sentences do not overlap, so a token's sentence
+/// is never before the previous token's.
+fn sentence_of_each(
+    tokens: &Spans<Tokens>,
+    sentences: &Sentences,
+    key: KeyId,
+) -> Result<Vec<Ix<Sentences>>, LoadError> {
+    let (t_start, t_end) = tokens.columns();
+    let (s_start, s_end) = sentences.spans.columns();
+    let mut out = Vec::with_capacity(t_start.len());
+    let mut j = 0;
+    for (i, (&start, &end)) in t_start.iter().zip(t_end).enumerate() {
+        // Past every sentence that ends before this token does.
+        while j < s_end.len() && s_end[j] < end {
+            j += 1;
+        }
+        if j == s_end.len() || s_start[j] > start {
+            return Err(LoadError::OutsideSentences { layer: key, token: i, start, end });
+        }
+        out.push(Ix::new(j as u32));
+    }
+    Ok(out)
 }
 
 /// A confidence per item of `L`, loaded onto the `L` loaded under the same
@@ -117,8 +159,8 @@ impl GoldenLoad for Entities {
     }
 
     /// The tokens it indexes.
-    fn made_on(name: &'static str) -> Vec<KeyId> {
-        vec![Key::<Tokens>::named(name).id()]
+    fn made_on(cx: &LoadCx<'_>) -> Vec<KeyId> {
+        vec![Key::<Tokens>::named(cx.name).id()]
     }
 }
 

@@ -45,12 +45,13 @@ pub trait GoldenLoad: GoldenCompare {
     /// `ViewId::SOURCE`; values are the f64 values as read.
     fn load(golden: &GoldenLayer, cx: &LoadCx<'_>) -> Result<Self, LoadError>;
 
-    /// The instances under `name` that the layer is made on, which its
-    /// provenance lists as read so the document anchors it there: by
-    /// default an aligned layer's anchor, and nothing for any other.
-    fn made_on(name: &'static str) -> Vec<KeyId> {
+    /// The instances under the loaded layer's name that it is made on,
+    /// which its provenance lists as read so the document anchors it
+    /// there: by default an aligned layer's anchor, and nothing for any
+    /// other.
+    fn made_on(cx: &LoadCx<'_>) -> Vec<KeyId> {
         match Self::anchor() {
-            Anchor::Aligned { ty, layer } => vec![KeyId { ty, layer, name }],
+            Anchor::Aligned { ty, layer } => vec![KeyId { ty, layer, name: cx.name }],
             Anchor::Text | Anchor::Document => Vec::new(),
         }
     }
@@ -164,8 +165,10 @@ fn add<L: GoldenLoad>(
 ) -> Result<(), LoadError> {
     let key = Key::<L>::named(name);
     check_shape(&key.id().to_string(), &shape_of::<L>(), g).map_err(LoadError::Shape)?;
-    let layer = L::load(g, &LoadCx { doc, golden, name, key: key.id() })?;
-    doc.add(&key, layer, provenance(golden, L::made_on(name))).map_err(LoadError::Document)
+    let cx = LoadCx { doc, golden, name, key: key.id() };
+    let layer = L::load(g, &cx)?;
+    let reads = L::made_on(&cx);
+    doc.add(&key, layer, provenance(golden, reads)).map_err(LoadError::Document)
 }
 
 /// A loaded layer's provenance. The annotator is `golden:<class>`, the

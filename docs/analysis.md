@@ -430,8 +430,13 @@ onto the tokens with the same name, since their `token_start` and
 first; otherwise the load fails with `LoadError::MissingAnchor`. Spans
 are source bytes, values are the f64 values as the file holds them, and
 the labels of a tag or kind column become a tag set of the distinct
-labels in the order they first appear. Loaded tokens have no sentence
-column, since the golden has none. `Language` holds the golden's first
+labels in the order they first appear. Loaded tokens get their
+sentence column from the sentences loaded under the same name: each
+token's sentence is the one whose span contains it, and a token inside
+no sentence is refused (`LoadError::OutsideSentences`), since the JVM
+makes its tokens inside its sentences. The format writes sentences
+before tokens, so `load_document` finds them; without sentences under
+that name the column is `None`. `Language` holds the golden's first
 row, the best language, as the comparison reads it.
 
 A block is checked against its layer type's shape before it is loaded,
@@ -487,9 +492,11 @@ runs them on any machine:
 - `analysis/goldens/tests/load.rs` loads the same fixture as test
   inputs, runs a table lookup tagger on the golden tokens and compares
   its tags with the golden's POS layer (and finds a changed entry). It
-  also checks that every loaded layer matches its own golden, that two
+  also checks that every loaded layer matches its own golden, that
+  golden tokens get the sentence they are in, that two
   names give two instances, and that a missing anchor, a text that is
-  not the input, an entity token range past the tokens and a block with
+  not the input, a token straddling two sentences, an entity token
+  range past the tokens and a block with
   the wrong columns are each refused.
 - A doctest on `Ix` checks that an index into the wrong layer does not
   compile.

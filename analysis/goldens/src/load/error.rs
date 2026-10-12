@@ -23,6 +23,10 @@ pub enum LoadError {
     /// Row `row` has a token range that ends before it starts, or past the
     /// `tokens` tokens the anchor has.
     TokenRange { layer: KeyId, row: usize, start: u32, end: u32, tokens: usize },
+    /// Token `token`, with the source span `start..end`, is not inside a
+    /// sentence of the sentences loaded under the same name, taken in text
+    /// order.
+    OutsideSentences { layer: KeyId, token: usize, start: u32, end: u32 },
     /// A golden block with more distinct labels than a tag set holds.
     Labels { layer: KeyId, column: &'static str, count: usize },
     /// A document layer whose golden block has no row.
@@ -53,6 +57,11 @@ impl fmt::Display for LoadError {
             LoadError::TokenRange { layer, row, start, end, tokens } => write!(
                 f,
                 "{layer} row {row}: the token range {start}..{end} is not inside the {tokens} tokens it indexes"
+            ),
+            LoadError::OutsideSentences { layer, token, start, end } => write!(
+                f,
+                "{layer} token {token}: bytes {start}..{end} are not inside a sentence, in text order, of the \
+                 sentences loaded under the same name"
             ),
             LoadError::Labels { layer, column, count } => {
                 write!(f, "{layer}: {count} distinct values in {column}, more than a tag set holds")
