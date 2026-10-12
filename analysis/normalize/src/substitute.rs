@@ -16,9 +16,9 @@ use turbo_analysis::ViewBuilder;
 /// kept and `f` is never called for them, so `f` must not map an ASCII
 /// character: no table that uses this helper has one.
 ///
-/// Neighbouring replacements merge into one edit in the alignment (the
-/// builder joins touching edits), so a span inside a run of replaced
-/// characters maps back to the whole run.
+/// Each replaced character is its own edit in the alignment, so a span
+/// inside a run of replaced characters maps back to exactly the
+/// characters it covers.
 pub fn substitute(text: &str, out: &mut ViewBuilder<'_>, f: impl Fn(char) -> Option<&'static str>) {
     for_each_non_ascii(text, |at, c| {
         if let Some(with) = f(c) {
@@ -30,8 +30,8 @@ pub fn substitute(text: &str, out: &mut ViewBuilder<'_>, f: impl Fn(char) -> Opt
 
 /// Copies `text` into `out` without the non-ASCII characters for which
 /// `f` returns true. As with [`substitute`], ASCII is always kept and `f`
-/// is only asked about non-ASCII characters. Each deletion is an edit to
-/// the empty string; neighbouring deletions merge into one.
+/// is only asked about non-ASCII characters. Each deletion is its own
+/// edit to the empty string.
 pub fn remove(text: &str, out: &mut ViewBuilder<'_>, f: impl Fn(char) -> bool) {
     for_each_non_ascii(text, |at, c| {
         if f(c) {
@@ -120,10 +120,10 @@ mod tests {
     }
 
     #[test]
-    fn neighbouring_replacements_form_one_edit() {
+    fn neighbouring_replacements_stay_separate_edits() {
         let (out, edits) = run("\u{201C}\u{201D}x", |c| Some(if c == '\u{201C}' { "<" } else { ">" }));
         assert_eq!(out, "<>x");
-        assert_eq!(edits, [(0, 6, 0, 2)]);
+        assert_eq!(edits, [(0, 3, 0, 1), (3, 6, 1, 2)]);
     }
 
     #[test]
@@ -134,7 +134,7 @@ mod tests {
         let (out, a) = b.finish();
         assert_eq!(out, "abc\u{1F600}");
         let edits: Vec<_> = a.edits().iter().map(|e| (e.parent.start, e.parent.end, e.child.start)).collect();
-        assert_eq!(edits, [(1, 4, 1), (5, 11, 2)]);
+        assert_eq!(edits, [(1, 4, 1), (5, 8, 2), (8, 11, 2)]);
     }
 
     #[test]
