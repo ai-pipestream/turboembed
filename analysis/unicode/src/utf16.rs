@@ -88,6 +88,24 @@ impl<'a> Utf16Cursor<'a> {
         cursor
     }
 
+    /// A cursor on the first unit of the character at byte `byte` of
+    /// `text` (or at the end when `byte` is the text length), whose UTF-16
+    /// index the caller already knows to be `unit_index`. This places a
+    /// cursor at a position found by an earlier walk without counting the
+    /// units before it again. The index is taken on trust: one that does
+    /// not match `byte` gives a cursor whose [`unit_index`](Self::unit_index)
+    /// is off by the same amount.
+    ///
+    /// # Panics
+    ///
+    /// When `byte` is not a character boundary of `text`.
+    pub fn at(text: &'a str, byte: usize, unit_index: usize) -> Utf16Cursor<'a> {
+        assert!(text.is_char_boundary(byte), "byte {byte} is not a character boundary");
+        let mut cursor = Utf16Cursor { text, byte, cp: 0, low: false, unit: unit_index };
+        cursor.load();
+        cursor
+    }
+
     /// Decodes the character at `self.byte`.
     #[inline]
     fn load(&mut self) {
@@ -286,6 +304,29 @@ mod tests {
 
     fn state(cursor: &Utf16Cursor) -> (Option<u16>, usize, usize, bool) {
         (cursor.unit(), cursor.byte_offset(), cursor.unit_index(), cursor.char_start())
+    }
+
+    #[test]
+    fn placed_at_a_known_position() {
+        for &(_, byte, unit, start) in STEPS.iter().filter(|s| s.3) {
+            assert!(start);
+            let mut placed = Utf16Cursor::at(TEXT, byte, unit);
+            let mut walked = Utf16Cursor::new(TEXT);
+            walked.seek_byte(byte);
+            assert_eq!(state(&placed), state(&walked), "at byte {byte}");
+            // Stepping from a placed cursor agrees with the walk too.
+            while placed.step_back() {
+                walked.step_back();
+                assert_eq!(state(&placed), state(&walked));
+            }
+            assert_eq!(placed.unit_index(), 0);
+        }
+    }
+
+    #[test]
+    #[should_panic(expected = "not a character boundary")]
+    fn placed_inside_a_character() {
+        Utf16Cursor::at(TEXT, 2, 2);
     }
 
     #[test]
