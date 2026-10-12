@@ -414,25 +414,38 @@ detokenizer is for tokens that arrive without their text.
 
 ## Golden files
 
-Each port is checked against files the OpenNLP 3.x JVM wrote on the same
-input. The generator is a Java program under `analysis/golden/jvm/`,
-with the command that ran it in its README; the files it wrote live in
-each crate's `tests/golden/` directory. A file names the component, the
-model and the whitespace mode, then the input text with `\n`, `\r`,
-`\\` and `\uXXXX` escapes, then one line per span with its UTF-8 byte
-offsets, its UTF-16 offsets and, when the component has one, its
-probability printed with Java's `Double.toString`. The tests compare
-spans exactly; the sentence detector's tests compare probabilities
-exactly too, since `Double.toString` reads back to the same `f64` and the
-maxent arithmetic matches the JVM's.
+Each port is checked against what the OpenNLP 3.x JVM returned on the
+same input. The goldens are made by `turbo-goldens` (crate
+`turbo-goldens-tool`, `analysis/goldens-tool`), which runs a Java
+generator in a container built from a fixed JDK image and OpenNLP
+commit, and live in `analysis/goldens/data`:
+`tokenize/`, `sentdetect/` and `detokenize/` hold a directory per run,
+named after the model and any options (`+legacy` for OpenNLP's legacy
+whitespace mode, `+keep-new-lines`, `+alphanumeric`,
+`+english-dictionary`), or after the component when it has no model
+(`simple`, `whitespace`, `uax29`, `newline`). The format and the list of
+runs are in `docs/analysis.md` ("Golden files") and
+`analysis/goldens-tool/README.md` ("Runs"). A golden holds typed layers
+with UTF-8 byte offsets, the JVM's exact UTF-16 spans where a span cuts
+a character, and probabilities as the bits of Java's doubles; the tests
+read them with `turbo_goldens` and compare spans exactly and
+probabilities exactly (the sentence detector) or within 1e-9 (the
+tokenizer).
 
-Four cases that none of the UD models reach have their own run
-(`Variants`, under `tokenize/tests/golden/variants` and
-`tokenize/tests/golden/detokenizer`): `TokenizerME` with an abbreviation
-dictionary, `TokenizerME` splitting between surrogate halves,
-`TokenizerME` with the alphanumeric optimization on, and the dictionary
-detokenizer on the English, French, Portuguese, Latin and quotes
-dictionaries.
+Beside every maxent golden, a dump records each decision the model was
+asked for: the context strings and every outcome's probability, and for
+the sentence detector whether the abbreviation dictionary refused a
+split the model wanted. The tests check the Rust context generators
+feature by feature against it, and that the tokenizer was asked about
+exactly the positions its loop visits, the jump over an abbreviation's
+dots included.
+
+The runs cover cases none of the published models reach: `TokenizerME`
+with an abbreviation dictionary (a fixture model, and the English model
+with `english-dictionary.xml`), splitting between surrogate halves, the
+alphanumeric optimization, two fixture sentence models (one with an
+abbreviation dictionary), and the dictionary detokenizer on the
+English, French, Portuguese, Latin and quotes dictionaries.
 
 The JVM is used for golden files only. Nothing here calls into it at
 run time.

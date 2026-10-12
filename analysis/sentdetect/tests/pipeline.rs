@@ -124,7 +124,7 @@ impl Annotator for ReadScores {
 
 #[test]
 fn maxent_then_reader() {
-    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/models/en-abbrev.bin");
+    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../goldens/data/fixtures/en-abbrev.bin");
     let model = SentenceModel::open(turbo_maxent::ModelFile::read(&path).unwrap()).unwrap();
     let detector = SentenceDetector::new(model, WhitespaceMode::Unicode);
     let model_ref = detector.sentence_model().model_ref().clone();

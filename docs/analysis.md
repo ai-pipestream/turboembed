@@ -1113,6 +1113,16 @@ runs them on any machine:
 - `analysis/goldens/tests/shapes_from_other_crates.rs` defines a layer
   type in the test (`turbo:word-types`), reads a golden holding it with
   `read_with` (which `read` refuses), and compares a document with it.
+- `analysis/goldens/tests/checked_in.rs` reads every checked in
+  tokenizer, sentence detector and detokenizer golden with
+  `segmentation_shapes()`, checks its input and writes it back byte for
+  byte, and reads every dump, checking that its header is its golden's
+  and that the sentence detector's `acceptable` records are on exactly
+  the points whose best outcome is a split. `dump.rs`'s unit tests hold
+  the dump reader on hand written dumps, malformed ones included.
+- The tests of `turbo-tokenize` and `turbo-sentdetect` read their
+  goldens and dumps from `analysis/goldens/data` through
+  `turbo_goldens` (`docs/segmentation.md`, "Golden files").
 - A doctest on `Ix` checks that an index into the wrong layer does not
   compile.
 

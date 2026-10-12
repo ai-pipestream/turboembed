@@ -134,7 +134,7 @@ decisions are paired with positions. `generate` writes the dumps
 together with the goldens, and the same rule holds: do not edit them by
 hand.
 
-The goldens and dumps checked in now were made in the pinned container by
+The goldens and dumps checked in now were made in the generator container by
 `turbo-goldens generate`, in one run, and `turbo-goldens verify`
 reproduces them byte for byte. A normalizer asks no model, so the
 `normalize` goldens have no dumps.

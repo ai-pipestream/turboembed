@@ -1,18 +1,20 @@
-//! The tokenizers against the files the OpenNLP JVM wrote on the same
-//! inputs. Spans compare exactly, on UTF-8 and on UTF-16 offsets.
+//! The tokenizers against what OpenNLP's `SimpleTokenizer`,
+//! `WhitespaceTokenizer` and UAX #29 `WordTokenizer` returned on the JVM
+//! for the same inputs (analysis/goldens/data/tokenize). Spans compare
+//! exactly, on UTF-8 and on UTF-16 offsets.
 
 mod common;
 
 use std::num::NonZeroU32;
 
-use common::{Golden, GoldenSpan, read_dir, unescape};
+use common::{Case, JvmSpan, compare_layers, run};
 use turbo_analysis::Span;
 use turbo_tokenize::{
     TokenizerOptions, WhitespaceMode, WordTokenizer, WordType, simple_spans, whitespace_spans, word_tokens,
 };
 use turbo_unicode::utf16::{byte_to_utf16, utf16_to_byte};
 
-/// One span with both offsets and its type, if any: what a golden line
+/// One span with both offsets and its type, if any: what a golden row
 /// says and what the Rust side is compared on.
 #[derive(Clone, Debug, PartialEq)]
 struct Expect {
@@ -21,28 +23,32 @@ struct Expect {
     ty: Option<WordType>,
 }
 
-/// The spans a golden file expects. Two `span-invalid:` halves of one
+/// The spans a golden expects. Two rows holding the halves of one
 /// character outside the BMP become one span covering the character:
 /// the documented deviation of the simple tokenizer.
-fn expected(g: &Golden) -> Vec<Expect> {
-    let text = &g.input;
-    let ty = |extra: &[String]| extra.first().map(|t| WordType::from_java_name(t).expect("a word type name"));
+fn expected(case: &Case) -> Vec<Expect> {
+    let text = &case.text;
+    let ty = |s: &JvmSpan| s.kind.as_deref().map(|t| WordType::from_java_name(t).expect("a word type name"));
     let mut out = Vec::new();
-    let mut spans = g.spans.iter();
+    let jvm = case.jvm_spans();
+    let mut spans = jvm.iter();
     while let Some(span) = spans.next() {
-        match span {
-            GoldenSpan::Valid { utf8, utf16, extra } => out.push(Expect { utf8: *utf8, utf16: *utf16, ty: ty(extra) }),
-            GoldenSpan::Invalid { utf16: (high, mid), extra } => {
-                let Some(GoldenSpan::Invalid { utf16: (mid2, low), .. }) = spans.next() else {
-                    panic!("{}: a half span without its other half", g.path.display());
-                };
-                assert!(mid == mid2 && *mid == high + 1 && *low == mid + 1, "{}: halves of one character", g.name());
-                let start = utf16_to_byte(text, *high as usize).expect("the pair starts a character");
-                let end = utf16_to_byte(text, *low as usize).expect("the pair ends a character");
-                assert_eq!(text[start..end].chars().count(), 1, "{}: one character", g.name());
-                out.push(Expect { utf8: (start as u32, end as u32), utf16: (*high, *low), ty: ty(extra) });
-            }
+        if !span.cut {
+            out.push(Expect { utf8: span.utf8, utf16: span.utf16, ty: ty(span) });
+            continue;
         }
+        let (high, mid) = span.utf16;
+        let Some(other) = spans.next().filter(|s| s.cut) else {
+            panic!("{}: a half span without its other half", case.path.display());
+        };
+        let (mid2, low) = other.utf16;
+        assert!(mid == mid2 && mid == high + 1 && low == mid + 1, "{}: halves of one character", case.name());
+        let start = utf16_to_byte(text, high as usize).expect("the pair starts a character");
+        let end = utf16_to_byte(text, low as usize).expect("the pair ends a character");
+        assert_eq!(text[start..end].chars().count(), 1, "{}: one character", case.name());
+        // Both rows hold the whole character's bytes.
+        assert_eq!((span.utf8, other.utf8), ((start as u32, end as u32), (start as u32, end as u32)));
+        out.push(Expect { utf8: (start as u32, end as u32), utf16: (high, low), ty: ty(span) });
     }
     out
 }
@@ -57,78 +63,87 @@ fn actual(text: &str, spans: &[Span], types: Option<&[WordType]>) -> Vec<Expect>
         .collect()
 }
 
-fn mode(dir: &str) -> WhitespaceMode {
-    if dir.ends_with("-legacy") { WhitespaceMode::Legacy } else { WhitespaceMode::Unicode }
+/// The run's goldens, checked to be of `class` with `keepNewLines` as
+/// given and in `mode`.
+fn cases(name: &str, class: &str, keep_newlines: bool, mode: WhitespaceMode) -> Vec<Case> {
+    let cases = run("tokenize", name);
+    for c in &cases {
+        c.assert_annotator(class, if class.ends_with("WordTokenizer") { "tokenizeTyped" } else { "tokenizePos" });
+        assert!(c.golden.header.models.is_empty(), "{}", c.path.display());
+        assert_eq!(c.config("keepNewLines"), keep_newlines.then_some("true"), "{}", c.path.display());
+        assert_eq!(c.whitespace(), mode, "{}", c.path.display());
+        assert_eq!(c.golden.header.input.set, "edge");
+    }
+    assert_eq!(cases.len(), 34, "{name}");
+    cases
 }
 
-fn check_header(g: &Golden, dir: &str) {
-    assert_eq!(g.component, dir.trim_end_matches("-legacy"), "{}", g.path.display());
-    let ws = if mode(dir) == WhitespaceMode::Legacy { "legacy" } else { "unicode" };
-    assert_eq!(g.whitespace, ws, "{}", g.path.display());
-}
+const SIMPLE: &str = "opennlp.tools.tokenize.SimpleTokenizer";
+const WHITESPACE: &str = "opennlp.tools.tokenize.WhitespaceTokenizer";
 
-/// Compares a spans-only tokenizer with every file of `dir`.
-fn spans_match(dir: &str, run: fn(&str, TokenizerOptions, &mut Vec<Span>), keep_newlines: bool) {
-    let options = TokenizerOptions { whitespace: mode(dir), keep_newlines };
-    for g in read_dir(dir) {
-        check_header(&g, dir);
-        assert_eq!(g.error, None, "{}", g.path.display());
+/// Compares a spans-only tokenizer with every golden of `name`.
+fn spans_match(name: &str, class: &str, run: fn(&str, TokenizerOptions, &mut Vec<Span>), keep_newlines: bool) {
+    let mode = if name.ends_with("+legacy") { WhitespaceMode::Legacy } else { WhitespaceMode::Unicode };
+    let options = TokenizerOptions { whitespace: mode, keep_newlines };
+    for case in cases(name, class, keep_newlines, mode) {
+        assert_eq!(case.golden.header.error, None, "{}", case.path.display());
         let mut out = Vec::new();
-        run(&g.input, options, &mut out);
-        assert_eq!(actual(&g.input, &out, None), expected(&g), "{}", g.path.display());
+        run(&case.text, options, &mut out);
+        assert_eq!(actual(&case.text, &out, None), expected(&case), "{}", case.path.display());
+        let spans: Vec<(u32, u32)> = out.iter().map(|s| (s.start, s.end)).collect();
+        compare_layers(&case, &spans, None);
     }
 }
 
 #[test]
 fn simple() {
-    spans_match("simple", simple_spans, false);
+    spans_match("simple", SIMPLE, simple_spans, false);
 }
 
 #[test]
 fn simple_legacy() {
-    spans_match("simple-legacy", simple_spans, false);
+    spans_match("simple+legacy", SIMPLE, simple_spans, false);
 }
 
 #[test]
 fn whitespace() {
-    spans_match("whitespace", whitespace_spans, false);
+    spans_match("whitespace", WHITESPACE, whitespace_spans, false);
 }
 
 #[test]
 fn whitespace_legacy() {
-    spans_match("whitespace-legacy", whitespace_spans, false);
+    spans_match("whitespace+legacy", WHITESPACE, whitespace_spans, false);
 }
 
 #[test]
 fn whitespace_newlines() {
-    spans_match("whitespace-newlines", whitespace_spans, true);
+    spans_match("whitespace+keep-new-lines", WHITESPACE, whitespace_spans, true);
 }
 
 #[test]
 fn whitespace_newlines_legacy() {
-    spans_match("whitespace-newlines-legacy", whitespace_spans, true);
+    spans_match("whitespace+keep-new-lines+legacy", WHITESPACE, whitespace_spans, true);
 }
 
 /// The simple tokenizer with new lines kept. The Java has two defects in
 /// this mode (it throws when a line break comes before the first token,
 /// and gives a line break after whitespace the span of the whitespace),
 /// which the port fixes. So the expectation for each input is worked out
-/// independently: the plain simple tokens from the golden file without
-/// new lines (a line break is whitespace, so never inside a token), plus
-/// a one-byte token at every line feed and carriage return. Where the
-/// Java output equals that, the Rust output is compared with the Java
-/// output; where it does not, the Rust output is compared with the
-/// corrected expectation, and the inputs where that happened must be
-/// exactly the ones listed, so a new difference cannot pass unnoticed.
-fn simple_newlines(dir: &str, plain_dir: &str, affected: &[&str]) {
-    let options = TokenizerOptions { whitespace: mode(dir), keep_newlines: true };
-    let plain = read_dir(plain_dir);
+/// independently: the plain simple tokens from the golden without new
+/// lines (a line break is whitespace, so never inside a token), plus a
+/// one-byte token at every line feed and carriage return. Where the Java
+/// output equals that, the Rust output is compared with the Java output;
+/// where it does not, the Rust output is compared with the corrected
+/// expectation, and the inputs where that happened must be exactly the
+/// ones listed, so a new difference cannot pass unnoticed.
+fn simple_newlines(name: &str, plain_name: &str, affected: &[&str]) {
+    let mode = if name.ends_with("+legacy") { WhitespaceMode::Legacy } else { WhitespaceMode::Unicode };
+    let options = TokenizerOptions { whitespace: mode, keep_newlines: true };
+    let plain = cases(plain_name, SIMPLE, false, mode);
     let mut differs = Vec::new();
-    for g in read_dir(dir) {
-        check_header(&g, dir);
-        let p = plain.iter().find(|p| p.name() == g.name()).expect("the same input without new lines");
-        assert_eq!(p.input, g.input);
-        let text = &g.input;
+    for case in cases(name, SIMPLE, true, mode) {
+        let p = plain.iter().find(|p| p.name() == case.name()).expect("the same input without new lines");
+        let text = &case.text;
         let mut corrected = expected(p);
         for (i, b) in text.bytes().enumerate() {
             if b == b'\n' || b == b'\r' {
@@ -140,41 +155,40 @@ fn simple_newlines(dir: &str, plain_dir: &str, affected: &[&str]) {
         let mut out = Vec::new();
         simple_spans(text, options, &mut out);
         let rust = actual(text, &out, None);
-        if g.error.is_none() && expected(&g) == corrected {
-            assert_eq!(rust, expected(&g), "{}", g.path.display());
+        if case.golden.header.error.is_none() && expected(&case) == corrected {
+            assert_eq!(rust, expected(&case), "{}", case.path.display());
         } else {
-            differs.push(g.name().to_string());
-            assert_eq!(rust, corrected, "{} (corrected)", g.path.display());
+            differs.push(case.golden.header.input.id.clone());
+            assert_eq!(rust, corrected, "{} (corrected)", case.path.display());
         }
     }
-    assert_eq!(differs, affected, "{dir}: the inputs the Java defects affect");
+    assert_eq!(differs, affected, "{name}: the inputs the Java defects affect");
 }
 
 #[test]
 fn simple_newlines_unicode() {
-    simple_newlines("simple-newlines", "simple", &["leading-trailing", "whitespace-only"]);
+    simple_newlines("simple+keep-new-lines", "simple", &["leading-trailing", "whitespace-only"]);
 }
 
 #[test]
 fn simple_newlines_legacy() {
-    simple_newlines("simple-newlines-legacy", "simple-legacy", &["leading-trailing", "whitespace-only"]);
+    simple_newlines("simple+keep-new-lines+legacy", "simple+legacy", &["leading-trailing", "whitespace-only"]);
 }
 
 #[test]
 fn uax29() {
     let max = WordTokenizer::DEFAULT_MAX_TOKEN_LENGTH;
-    for g in read_dir("uax29") {
-        check_header(&g, "uax29");
-        assert_eq!(g.error, None, "{}", g.path.display());
+    let mut tokens = 0;
+    for case in cases("uax29", "opennlp.tools.tokenize.uax29.WordTokenizer", false, WhitespaceMode::Unicode) {
+        assert_eq!(case.golden.header.error, None, "{}", case.path.display());
+        assert!(case.golden.layer("turbo:word-types").is_some(), "{}", case.path.display());
         let (mut spans, mut types) = (Vec::new(), Vec::new());
-        word_tokens(&g.input, max, &mut spans, &mut types);
-        assert_eq!(actual(&g.input, &spans, Some(&types)), expected(&g), "{}", g.path.display());
+        word_tokens(&case.text, max, &mut spans, &mut types);
+        let want = expected(&case);
+        assert!(want.iter().all(|e| e.ty.is_some()), "{}", case.path.display());
+        assert_eq!(actual(&case.text, &spans, Some(&types)), want, "{}", case.path.display());
+        tokens += want.len();
     }
+    assert_eq!(tokens, 450);
     assert_eq!(max, NonZeroU32::new(255).unwrap());
-}
-
-#[test]
-fn unescapes_the_format() {
-    assert_eq!(unescape(r"a\\b\n\r\t 😀"), "a\\b\n\r\t\u{a0}\u{1f600}");
-    assert_eq!(unescape(""), "");
 }
