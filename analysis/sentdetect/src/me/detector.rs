@@ -1,5 +1,6 @@
 //! The maxent sentence detector: `SentenceDetectorME.sentPosDetect`.
 
+use std::cell::RefCell;
 use std::sync::Arc;
 
 use turbo_analysis::{Annotator, Error, ModelRef, Refs, Span, Spans, View};
@@ -7,7 +8,7 @@ use turbo_analysis_layers::{Confidence, Sentences};
 use turbo_maxent::best_outcome;
 use turbo_unicode::{WhitespaceMode, java::code_point as java};
 
-use crate::context::{Lookup, SdContext};
+use crate::context::{Limits, Lookup, SdContext, Walks};
 use crate::eos::Position;
 use crate::features::Features;
 use crate::me::model::SentenceModel;
@@ -91,28 +92,50 @@ impl SentenceDetector {
 
     /// [`detect`](Self::detect) with buffers kept by the caller.
     pub fn detect_with(&self, text: &str, scratch: &mut Scratch, out: &mut Vec<(Span, f64)>) {
-        self.detect_traced(text, scratch, out, |_| {});
+        self.run(text, scratch, out, self.model.limits(), |_| {});
     }
 
     /// [`detect_with`](Self::detect_with), calling `trace` with every
     /// candidate the model is asked about: its features, the model's
     /// probabilities and the decision.
+    ///
+    /// The features are all those the Java builds. `detect_with` leaves
+    /// out a word feature longer than every predicate of the model, which
+    /// cannot change the probabilities; this does not, so on a long text
+    /// without whitespace, where the words around each candidate reach to
+    /// the ends of the text, it takes time quadratic in the text length.
     pub fn detect_traced(
         &self,
         text: &str,
         scratch: &mut Scratch,
         out: &mut Vec<(Span, f64)>,
+        trace: impl FnMut(Candidate<'_>),
+    ) {
+        self.run(text, scratch, out, Limits::NONE, trace);
+    }
+
+    fn run(
+        &self,
+        text: &str,
+        scratch: &mut Scratch,
+        out: &mut Vec<(Span, f64)>,
+        limits: Limits,
         mut trace: impl FnMut(Candidate<'_>),
     ) {
         let model = &*self.model;
         let maxent = model.maxent();
-        let ctx = SdContext::new(model.eos(), model.abbreviations(), self.whitespace);
+        let ctx = SdContext::new(model.eos(), model.abbreviations(), self.whitespace, limits);
         let Scratch { enders, features, probs, lookup, window, starts, start_probs } = scratch;
-        let len16 = model.eos().positions(text, enders);
+        let scanned = model.eos().positions(text, enders);
+        let mut walks = Walks::new();
         probs.resize(maxent.num_outcomes(), 0.0);
         starts.clear();
         start_probs.clear();
         let bytes = text.as_bytes();
+        // The first whitespace at or after `ws_from` is at `ws_at` (the text
+        // length when there is none), kept so that a text without
+        // whitespace is not searched to its end at every split.
+        let (mut ws_from, mut ws_at) = (usize::MAX, 0);
 
         // The start of the current segment, just after the last split.
         let mut index = Position::default();
@@ -135,16 +158,20 @@ impl SentenceDetector {
                     }
                 }
             }
+            // A candidate before the last sentence start is not asked
+            // about: with `useTokenEnd`, a split puts the rest of its token
+            // in the sentence it ends ("hard.Bekannt." after a split at
+            // "hard."), and the end characters there are passed over.
             if starts.last().is_some_and(|&s| cint.byte < s) {
                 continue;
             }
 
-            ctx.context(text, len16, cint, features, lookup);
+            ctx.context(scanned, cint, &mut walks, features, lookup);
             maxent.eval_features(features.iter(), probs);
             let best = best_outcome(probs);
             let decision = if best != model.split_outcome() {
                 Decision::NoSplit
-            } else if model.abbreviation_index().is_some_and(|a| !a.allows_break(text, len16, index, cint, window)) {
+            } else if model.abbreviation_index().is_some_and(|a| !a.allows_break(scanned, index, cint, window)) {
                 Decision::Vetoed
             } else {
                 Decision::Split
@@ -155,7 +182,11 @@ impl SentenceDetector {
             }
             if index.unit != cint.unit {
                 let from = if model.use_token_end() {
-                    find_whitespace(text, after, text.len(), WhitespaceMode::Unicode)
+                    if !(ws_from <= after && after <= ws_at) {
+                        ws_from = after;
+                        ws_at = find_whitespace(text, after, text.len(), WhitespaceMode::Unicode);
+                    }
+                    ws_at
                 } else {
                     after
                 };
@@ -185,6 +216,12 @@ impl SentenceDetector {
     }
 }
 
+thread_local! {
+    /// The buffers of the annotator, one set per thread, so that a
+    /// pipeline running many documents allocates only while they grow.
+    static SCRATCH: RefCell<Scratch> = RefCell::new(Scratch::new());
+}
+
 impl Annotator for SentenceDetector {
     const ID: &'static str = "turbo-sentdetect:maxent";
     type Reads = (View,);
@@ -194,7 +231,7 @@ impl Annotator for SentenceDetector {
         let text = view.text();
         check_len(Self::ID, text)?;
         let mut found = Vec::new();
-        self.detect_with(text, &mut Scratch::new(), &mut found);
+        SCRATCH.with_borrow_mut(|scratch| self.detect_with(text, scratch, &mut found));
         let mut spans = Spans::with_capacity(view.id(), found.len());
         let confidence = found.iter().map(|&(s, p)| {
             spans.push(s);
@@ -264,6 +301,52 @@ mod tests {
             d.detect_with(text, &mut scratch, &mut reused);
             assert_eq!(fresh, reused, "{text:?}");
         }
+    }
+
+    #[test]
+    fn leaving_out_long_words_changes_nothing() {
+        // detect_with leaves out word features longer than every predicate
+        // and skips lookups of words longer than every dictionary entry;
+        // detect_traced builds every feature as the Java does. On texts
+        // without whitespace every word reaches to an end of the text.
+        let models = [
+            "tests/fixtures/models/en-abbrev.bin",
+            "tests/fixtures/models/en-plain.bin",
+            "tests/models/opennlp-en-ud-ewt-sentence-1.3-2.5.4.bin",
+            "tests/models/opennlp-pt-ud-gsd-sentence-1.3-2.5.4.bin",
+        ];
+        let texts = [
+            "A.".repeat(1500),
+            "x.Y".repeat(1000),
+            "Mr.Smith.went.Home!Then?Dr.Who.et.al.".repeat(80),
+            "He thought hard.Bekannt.Sie kam.".repeat(90),
+            format!("Start. {} End. Mr. Brown left.", "\u{E9}t\u{E9}.\u{1F600}".repeat(400)),
+        ];
+        let mut splits = 0;
+        for model in models {
+            let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join(model);
+            let model = Arc::new(SentenceModel::open(ModelFile::read(path).unwrap()).unwrap());
+            assert!(model.limits().feature < 1000, "{}", model.limits().feature);
+            for mode in [WhitespaceMode::Unicode, WhitespaceMode::Legacy] {
+                let d = SentenceDetector::new(model.clone(), mode);
+                for text in &texts {
+                    let (mut fast, mut full) = (Vec::new(), Vec::new());
+                    d.detect(text, &mut fast);
+                    d.detect_traced(text, &mut Scratch::new(), &mut full, |c| {
+                        splits += usize::from(c.decision == Decision::Split);
+                    });
+                    let bits = |v: &[(Span, f64)]| v.iter().map(|&(s, p)| (s, p.to_bits())).collect::<Vec<_>>();
+                    assert_eq!(
+                        bits(&fast),
+                        bits(&full),
+                        "{} {mode:?} on {:?}",
+                        model.language(),
+                        text.chars().take(30).collect::<String>()
+                    );
+                }
+            }
+        }
+        assert!(splits > 1000, "only {splits} splits");
     }
 
     #[test]

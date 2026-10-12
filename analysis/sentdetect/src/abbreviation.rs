@@ -1,27 +1,36 @@
 //! The abbreviation veto: `SentenceDetectorME.AbbreviationIndex`.
 //!
-//! When the model says a candidate ends a sentence, the split is refused
-//! if an entry of the abbreviation dictionary covers the candidate and
-//! starts at the start of the current segment, or right after whitespace
-//! (`Character.isWhitespace`, whatever the whitespace mode), an
-//! apostrophe (`'`, `` ` ``, U+00B4) or an opening round bracket. Only the
-//! first token of a multi-token entry counts, as in the Java.
+//! When the model says a candidate ends a sentence, the dictionary is
+//! searched for an entry that holds the candidate, ends on the code unit
+//! just before it, or starts on it, and that starts no earlier than the
+//! start of the current segment. The split is refused when such an entry:
+//!
+//! - starts at the segment start and ends exactly at the candidate, or
+//! - starts right after whitespace (`Character.isWhitespace`, whatever the
+//!   whitespace mode), an apostrophe (`'`, `` ` ``, U+00B4) or an opening
+//!   round bracket. An entry starting at the segment start is judged by
+//!   its own first character instead, as the Java does.
+//!
+//! Only the first token of a multi-token entry counts, as in the Java, so
+//! an entry `et al.` is indexed as `et`, and "We x et. Then" is not split
+//! at the `.`: `et` ends just before it and follows a space.
 //!
 //! The Java looks at a window of the text around the candidate, as wide
 //! as the longest entry on either side, lowercased per code point with
 //! `Character.toLowerCase` for a case-insensitive dictionary, and probes a
 //! hash set with every substring of an entry's length that starts at or
-//! before the candidate and reaches it. This port does the same over
-//! UTF-16 code units, so substrings that cut a character outside the BMP
-//! are probed as the Java probes them (and never match, as no entry holds
-//! a lone surrogate).
+//! after the segment start, no more than that length before the
+//! candidate, and no later than the candidate. This port does the same
+//! over UTF-16 code units, so substrings that cut a character outside the
+//! BMP are probed as the Java probes them (and never match, as no entry
+//! holds a lone surrogate).
 
 use std::collections::{BTreeSet, HashSet};
 
 use turbo_maxent::Dictionary;
 use turbo_unicode::{Utf16Cursor, java::code_point as java};
 
-use crate::eos::Position;
+use crate::eos::{Position, Scanned};
 
 /// The dictionary's first tokens as UTF-16, bucketed by length.
 #[derive(Clone, Debug)]
@@ -52,26 +61,25 @@ impl AbbreviationIndex {
         AbbreviationIndex { entries, lengths, max_len, case_sensitive }
     }
 
-    /// The number of distinct first tokens.
-    pub fn len(&self) -> usize {
-        self.entries.len()
-    }
-
-    pub fn is_empty(&self) -> bool {
-        self.entries.is_empty()
-    }
-
-    /// `allowsBreak`: whether a split at `candidate` is acceptable in the
-    /// segment that starts at `from`. `len16` is the text's length in code
-    /// units; `window` is a buffer reused across calls.
-    pub fn allows_break(
+    /// `allowsBreak`: whether a split at `candidate`, a position
+    /// [`EndOfSentence::positions`](crate::EndOfSentence::positions) listed
+    /// for this text, is acceptable in the segment that starts at `from`,
+    /// the position just after an earlier candidate (or the text start).
+    /// `window` is a buffer reused across calls.
+    pub(crate) fn allows_break(
         &self,
-        text: &str,
-        len16: u32,
+        scanned: Scanned<'_>,
         from: Position,
         candidate: Position,
         window: &mut Vec<u16>,
     ) -> bool {
+        let (text, len16) = (scanned.text(), scanned.len16());
+        scanned.debug_check(candidate);
+        debug_assert!(
+            from.byte as usize <= text.len() && text.is_char_boundary(from.byte as usize),
+            "{from:?} is not a character boundary"
+        );
+        debug_assert!(from.unit <= from.byte && from.unit <= len16, "{from:?}: byte and unit indexes disagree");
         if self.lengths.is_empty() || candidate.unit < from.unit || candidate.unit > len16 {
             return true;
         }
@@ -167,25 +175,25 @@ mod tests {
     /// `cand`, in the segment starting at UTF-16 index `from`.
     fn allows(idx: &AbbreviationIndex, text: &str, from: usize, cand: usize) -> bool {
         let mut positions = Vec::new();
-        let len16 = EndOfSentence::from_chars(".!?)").unwrap().positions(text, &mut positions);
+        let scanned = EndOfSentence::from_chars(".!?)").unwrap().positions(text, &mut positions);
         let candidate = *positions.iter().find(|p| p.unit as usize == cand).expect("a candidate");
         let from =
             Position { byte: turbo_unicode::utf16::utf16_to_byte(text, from).unwrap() as u32, unit: from as u32 };
-        idx.allows_break(text, len16, from, candidate, &mut Vec::new())
+        idx.allows_break(scanned, from, candidate, &mut Vec::new())
     }
 
     #[test]
     fn entries_and_lengths() {
         let idx = index(false, &[&["Mr."], &["U.S."], &["et", "al."], &["DR."]]);
-        assert_eq!(idx.len(), 4);
+        assert_eq!(idx.entries.len(), 4);
         assert_eq!(idx.lengths, [2, 3, 4]);
         assert!(idx.entries.contains(&[u16::from(b'd'), u16::from(b'r'), u16::from(b'.')][..]));
         // Only the first token of a multi-token entry is indexed.
         assert!(idx.entries.contains(&[u16::from(b'e'), u16::from(b't')][..]));
         // An empty dictionary allows every break.
         let empty = index(false, &[]);
-        assert!(empty.is_empty());
-        assert!(empty.allows_break("a. b", 4, Position::default(), Position { byte: 1, unit: 1 }, &mut Vec::new()));
+        assert!(empty.entries.is_empty());
+        assert!(allows(&empty, "a. b", 0, 1));
     }
 
     #[test]
@@ -194,6 +202,10 @@ mod tests {
         // From the fixture context file: "(Mr. Smith) came." and "'Dr. Jones'".
         assert!(!allows(&idx, "(Mr. Smith) came.", 0, 3));
         assert!(!allows(&idx, "x. 'Dr. Jones' left.", 2, 6));
+        assert!(!allows(&idx, "x. `Dr. Jones", 2, 6));
+        assert!(!allows(&idx, "x. \u{B4}Dr. Jones", 2, 6));
+        // Any other character before the entry, quotes included, allows it.
+        assert!(allows(&idx, "x. \"Dr. Jones", 2, 6));
         assert!(!allows(&idx, "Then mr. Smith", 0, 7));
         // At the start of the segment: the entry exactly fills it.
         assert!(!allows(&idx, "Dr. Who", 0, 2));
@@ -215,6 +227,22 @@ mod tests {
         // An entry starting at the segment start but not ending at the
         // candidate is judged by its own first character, which is "U".
         assert!(allows(&idx, "U.S.) x", 0, 4));
+    }
+
+    #[test]
+    fn an_entry_ending_just_before_the_candidate_vetoes() {
+        // Only "et" of "et al." is indexed. It ends one unit before the "."
+        // and follows a space, so the split is refused.
+        let idx = index(false, &[&["et", "al."]]);
+        assert!(!allows(&idx, "We x et. Then", 0, 7));
+        // Two units before is too far.
+        assert!(allows(&idx, "We x et.. Then", 0, 8));
+        // At the segment start it vetoes only when it ends at the
+        // candidate; otherwise its own first character is tested.
+        assert!(allows(&idx, "et. x", 0, 2));
+        assert!(!allows(&index(false, &[&["et."]]), "et. x", 0, 2));
+        // An entry starting on the candidate counts too.
+        assert!(!allows(&index(false, &[&[".net"]]), "use .NET now", 0, 4));
     }
 
     #[test]

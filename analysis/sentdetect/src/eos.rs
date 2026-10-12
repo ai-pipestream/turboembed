@@ -22,6 +22,50 @@ pub struct Position {
     pub unit: u32,
 }
 
+/// A text with its length in UTF-16 code units, as
+/// [`EndOfSentence::positions`] counted it while listing the candidates.
+/// The context generator and the abbreviation veto index the text by code
+/// unit and need that length; carrying it with the text keeps it from
+/// being paired with another text.
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+pub struct Scanned<'t> {
+    text: &'t str,
+    len16: u32,
+}
+
+impl<'t> Scanned<'t> {
+    /// The text.
+    pub fn text(&self) -> &'t str {
+        self.text
+    }
+
+    /// The text's length in UTF-16 code units.
+    pub fn len16(&self) -> u32 {
+        self.len16
+    }
+
+    /// Whether the text is all ASCII: one byte per code unit.
+    pub(crate) fn is_ascii(&self) -> bool {
+        self.len16 as usize == self.text.len()
+    }
+
+    /// Checks, in debug builds, what can be checked of a position without
+    /// walking the text: a character boundary inside the text, and byte
+    /// and unit indexes that agree in their bounds (each code unit before
+    /// it is one to three bytes, and so is each after it).
+    #[inline]
+    pub(crate) fn debug_check(&self, at: Position) {
+        let (byte, unit) = (at.byte as usize, at.unit as usize);
+        let (len, len16) = (self.text.len(), self.len16 as usize);
+        debug_assert!(byte < len && self.text.is_char_boundary(byte), "{at:?} is not a character of the text");
+        debug_assert!(unit <= byte && byte <= 3 * unit, "{at:?}: byte and unit indexes disagree");
+        debug_assert!(
+            len16 - unit <= len - byte && len - byte <= 3 * (len16 - unit),
+            "{at:?}: byte and unit indexes disagree with the text length"
+        );
+    }
+}
+
 /// A set of end-of-sentence characters held a surrogate code unit.
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub struct SurrogateInSet(pub u16);
@@ -90,8 +134,8 @@ impl EndOfSentence {
     }
 
     /// Replaces the contents of `out` with every position of `text` that
-    /// holds a member of the set, in text order, and returns the length of
-    /// `text` in UTF-16 code units. One pass over the bytes: the UTF-16
+    /// holds a member of the set, in text order, and returns the text with
+    /// its length in UTF-16 code units. One pass over the bytes: the UTF-16
     /// index is counted as it goes (one unit per character, two for a
     /// four-byte one), and a character is decoded only when the set has
     /// members outside ASCII and the byte starts a two- or three-byte
@@ -100,7 +144,12 @@ impl EndOfSentence {
     /// # Panics
     ///
     /// When `text` is longer than `u32::MAX` bytes.
-    pub fn positions(&self, text: &str, out: &mut Vec<Position>) -> u32 {
+    pub fn positions<'t>(&self, text: &'t str, out: &mut Vec<Position>) -> Scanned<'t> {
+        let len16 = self.scan(text, out);
+        Scanned { text, len16 }
+    }
+
+    fn scan(&self, text: &str, out: &mut Vec<Position>) -> u32 {
         assert!(u32::try_from(text.len()).is_ok(), "a text of at most u32::MAX bytes");
         out.clear();
         let bytes = text.as_bytes();
@@ -145,8 +194,9 @@ mod tests {
 
     fn scan(set: &EndOfSentence, text: &str) -> (Vec<(u32, u32)>, u32) {
         let mut out = vec![Position::default(); 3];
-        let len = set.positions(text, &mut out);
-        (out.iter().map(|p| (p.byte, p.unit)).collect(), len)
+        let scanned = set.positions(text, &mut out);
+        assert_eq!(scanned.text(), text);
+        (out.iter().map(|p| (p.byte, p.unit)).collect(), scanned.len16())
     }
 
     #[test]

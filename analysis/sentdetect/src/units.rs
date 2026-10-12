@@ -9,9 +9,14 @@
 
 use turbo_unicode::Utf16Cursor;
 
+use crate::eos::Position;
+
 /// The cursor operations the context generator uses; see [`Utf16Cursor`]
 /// for what each means.
 pub(crate) trait Units<'t>: Clone {
+    /// A cursor on the character at `at`, whose byte and unit indexes the
+    /// caller knows to agree (as [`Utf16Cursor::at`] takes them).
+    fn place(text: &'t str, at: Position) -> Self;
     fn text(&self) -> &'t str;
     fn unit(&self) -> Option<u16>;
     fn peek_prev_unit(&self) -> Option<u16>;
@@ -24,6 +29,10 @@ pub(crate) trait Units<'t>: Clone {
 }
 
 impl<'t> Units<'t> for Utf16Cursor<'t> {
+    #[inline]
+    fn place(text: &'t str, at: Position) -> Self {
+        Utf16Cursor::at(text, at.byte as usize, at.unit as usize)
+    }
     #[inline]
     fn text(&self) -> &'t str {
         Utf16Cursor::text(self)
@@ -80,6 +89,11 @@ impl<'t> AsciiCursor<'t> {
 }
 
 impl<'t> Units<'t> for AsciiCursor<'t> {
+    #[inline]
+    fn place(text: &'t str, at: Position) -> Self {
+        debug_assert_eq!(at.byte, at.unit, "one byte per unit in ASCII text");
+        AsciiCursor::at(text, at.byte as usize)
+    }
     #[inline]
     fn text(&self) -> &'t str {
         self.text

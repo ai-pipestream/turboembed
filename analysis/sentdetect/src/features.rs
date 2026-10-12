@@ -9,7 +9,7 @@
 #[derive(Clone, Debug, Default)]
 pub struct Features {
     bytes: Vec<u8>,
-    ends: Vec<u32>,
+    ends: Vec<usize>,
 }
 
 impl Features {
@@ -38,16 +38,16 @@ impl Features {
     ///
     /// When `i` is not below [`len`](Self::len).
     pub fn get(&self, i: usize) -> &[u8] {
-        let start = if i == 0 { 0 } else { self.ends[i - 1] as usize };
-        &self.bytes[start..self.ends[i] as usize]
+        let start = if i == 0 { 0 } else { self.ends[i - 1] };
+        &self.bytes[start..self.ends[i]]
     }
 
     /// Every feature in order, for `MaxentModel::eval_features`.
     pub fn iter(&self) -> impl Iterator<Item = &[u8]> + Clone + '_ {
         let mut start = 0;
         self.ends.iter().map(move |&end| {
-            let feature = &self.bytes[start..end as usize];
-            start = end as usize;
+            let feature = &self.bytes[start..end];
+            start = end;
             feature
         })
     }
@@ -62,7 +62,7 @@ impl Features {
     /// previous feature ended.
     #[inline]
     pub(crate) fn finish(&mut self) {
-        self.ends.push(self.bytes.len() as u32);
+        self.ends.push(self.bytes.len());
     }
 
     /// Adds a whole feature.

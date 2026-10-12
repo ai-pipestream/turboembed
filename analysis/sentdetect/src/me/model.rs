@@ -5,6 +5,7 @@ use turbo_analysis::ModelRef;
 use turbo_maxent::{Dictionary, MaxentModel, ModelFile};
 
 use crate::abbreviation::AbbreviationIndex;
+use crate::context::Limits;
 use crate::eos::EndOfSentence;
 use crate::error::ModelError;
 
@@ -34,6 +35,7 @@ pub struct SentenceModel {
     split: usize,
     abbreviations: Option<Dictionary>,
     index: Option<AbbreviationIndex>,
+    limits: Limits,
     model_ref: ModelRef,
 }
 
@@ -65,6 +67,18 @@ impl SentenceModel {
         };
         let abbreviations = file.dictionary(ABBREVIATIONS_ENTRY)?;
         let index = abbreviations.as_ref().map(AbbreviationIndex::new);
+        // Only a one-token entry can equal a word, which is one token.
+        let longest_entry = abbreviations.as_ref().map_or(0, |d| {
+            d.entries()
+                .filter_map(|mut tokens| match (tokens.next(), tokens.next()) {
+                    (Some(token), None) => Some(token.encode_utf16().count()),
+                    _ => None,
+                })
+                .max()
+                .unwrap_or(0)
+        });
+        let limits =
+            Limits { feature: maxent.predicates().map(<[u8]>::len).max().unwrap_or(0), abbreviation: longest_entry };
         let model_ref = ModelRef {
             id: format!("opennlp:SentenceDetectorME:{}", file.language()),
             revision: file.opennlp_version().into(),
@@ -78,6 +92,7 @@ impl SentenceModel {
             split,
             abbreviations,
             index,
+            limits,
             model_ref,
         })
     }
@@ -115,6 +130,12 @@ impl SentenceModel {
 
     pub(crate) fn abbreviation_index(&self) -> Option<&AbbreviationIndex> {
         self.index.as_ref()
+    }
+
+    /// The longest predicate and the longest one-token dictionary entry,
+    /// beyond which the context generator need not build a word.
+    pub(crate) fn limits(&self) -> Limits {
+        self.limits
     }
 
     /// What layers record as their model: `opennlp:SentenceDetectorME:`

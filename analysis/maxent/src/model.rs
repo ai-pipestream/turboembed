@@ -97,6 +97,12 @@ impl MaxentModel {
         self.pred_param.len()
     }
 
+    /// The distinct predicate names, as Java modified UTF-8, in no
+    /// particular order.
+    pub fn predicates(&self) -> impl Iterator<Item = &[u8]> {
+        self.predicates.keys().map(|k| &**k)
+    }
+
     /// Whether the model has a predicate with this name.
     pub fn has_predicate(&self, name: &str) -> bool {
         match modified_utf8(name, &mut Vec::new()) {
@@ -310,6 +316,15 @@ mod tests {
         m.eval_modified_utf8(&encoded, &mut bytes);
         assert_eq!(out, bytes, "eval and eval_modified_utf8 disagree on {context:?}");
         out
+    }
+
+    #[test]
+    fn predicates_are_listed_as_modified_utf8() {
+        let m = model(ModelKind::Gis);
+        let mut names: Vec<&[u8]> = m.predicates().collect();
+        names.sort();
+        assert_eq!(names, [&b"e\xED\xA0\xBD\xED\xB8\x80"[..], b"n\xC0\x80", b"p", b"q"]);
+        assert!(names.iter().all(|n| m.has_predicate_modified_utf8(n)));
     }
 
     #[test]

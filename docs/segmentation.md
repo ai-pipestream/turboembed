@@ -173,11 +173,24 @@ outcomes `s` and `n`, as OpenNLP does):
    its lone surrogate, as the JVM looks it up. A text that is all ASCII
    (its UTF-16 length equals its byte length, which the scanner counts
    anyway) is walked by byte; any other text through `Utf16Cursor`.
-4. The model decides `s` or `n`. A split is refused when an entry of the
-   abbreviation dictionary (its first token, lowercased per code point
-   unless the dictionary is case-sensitive) covers the candidate and
-   starts at the start of the current segment, or after whitespace
-   (`Character.isWhitespace`), an apostrophe or `(`.
+   The searches for the whitespace before and after a candidate remember
+   what earlier candidates of the same text found, and a word feature
+   longer than every predicate of the model is not built (it could not
+   change the probabilities), nor is a word longer than every dictionary
+   entry looked up. Without both, a text with no whitespace takes time
+   quadratic in its length, since every word reaches to an end of the
+   text. `detect_traced` builds every feature, as the Java does.
+4. The model decides `s` or `n`. A split is then checked against the
+   abbreviation dictionary (each entry's first token, lowercased per code
+   point unless the dictionary is case-sensitive). An entry counts when it
+   holds the candidate, ends on the code unit just before it, or starts
+   on it, and starts no earlier than the start of the current segment.
+   The split is refused when such an entry starts at the segment start
+   and ends exactly at the candidate, or starts right after whitespace
+   (`Character.isWhitespace`), an apostrophe or `(`; an entry starting at
+   the segment start but not ending at the candidate is judged by its own
+   first character instead. So with an entry `et al.`, indexed as `et`,
+   "We x et. Then" is not split at the `.`.
 5. Sentence starts are placed after the end character, or after the
    following whitespace run when `useTokenEnd` is set. Spans are
    trimmed of Unicode `White_Space` (this step and the skip in step 2
@@ -202,9 +215,9 @@ The model's `ModelRef` is `opennlp:SentenceDetectorME:<language>`, the
 OpenNLP version in the manifest as the revision, and the SHA-256 of the
 model file.
 
-The golden files are `sentdetect-me-en` and `sentdetect-me-pt`, made with
-the two published UD models checked in under
-`analysis/sentdetect/tests/models`. The published models have no
+The golden files are `sentdetect-me-de`, `sentdetect-me-en` and
+`sentdetect-me-pt`, made with the three published UD models checked in
+under `analysis/sentdetect/tests/models`. The published models have no
 abbreviation dictionary, so two small English models trained on the JVM
 (`analysis/sentdetect/tests/fixtures`, with the Java sources and the
 commands) cover the dictionary, `useTokenEnd=false` and both whitespace

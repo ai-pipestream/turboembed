@@ -17,8 +17,6 @@
 //! [`SentenceDetector::detect`]) for callers outside a pipeline.
 //! docs/segmentation.md describes all three.
 
-pub mod abbreviation;
-pub mod context;
 pub mod eos;
 pub mod error;
 pub mod features;
@@ -26,12 +24,12 @@ pub mod me;
 pub mod newline;
 pub mod paragraph;
 
+mod abbreviation;
+mod context;
 mod scan;
 mod units;
 
-pub use abbreviation::AbbreviationIndex;
-pub use context::SdContext;
-pub use eos::{EndOfSentence, Position};
+pub use eos::{EndOfSentence, Position, Scanned};
 pub use error::ModelError;
 pub use features::Features;
 pub use me::{Candidate, Decision, Scratch, SentenceDetector, SentenceModel};
