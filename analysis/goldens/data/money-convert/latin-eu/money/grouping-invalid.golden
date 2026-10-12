@@ -1,0 +1,15 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-1-24.04.4-Ubuntu	Ubuntu
+unicode	15.0
+input	money/grouping-invalid	49	47	433a2e8d3c17d7d7c9e64f9a728f60221be56e3887b6a499b8371a4721a97327
+annotator	opennlp.tools.money.EcbFxRates	convert
+config	as_of	2026-03-15
+config	notation	LATIN_EU
+config	snapshot	rates/ecb-snapshot.csv
+config	target	EUR
+layer	turbo:money-converted	text	2	start:u32	end:u32	coefficient:str	negative:u32	scale:u32	plain:str	currency:str
+0	5	1133536079623998	0	15	1.133536079623998	EUR
+41	48	1137683162842134	0	15	1.137683162842134	EUR
+end	turbo:money-converted

@@ -56,7 +56,7 @@ pub const MODELS: [Model; 3] = [
 ];
 
 /// The input sets under `analysis/goldens/data/inputs`.
-pub const INPUT_SETS: [&str; 4] = ["en", "multi", "norm", "num"];
+pub const INPUT_SETS: [&str; 5] = ["en", "multi", "norm", "num", "money"];
 
 /// The arguments the driver passes to the generator after the fixed ones
 /// (the inputs, models and output directories and the commit, which the
@@ -68,11 +68,12 @@ pub const GENERATOR_ARGS: [&str; 1] = ["--dumps"];
 /// The annotator directories the generator writes, which `generate`
 /// replaces and `verify` compares. The data directory holds other things
 /// (the inputs, a README) that neither touches.
-pub const ANNOTATORS: [&str; 5] = ["sentdetect", "tokenize", "langdetect", "normalize", "numbers"];
+pub const ANNOTATORS: [&str; 7] =
+    ["sentdetect", "tokenize", "langdetect", "normalize", "numbers", "money", "money-convert"];
 
 /// The annotators that ask a maxent model for their decisions and so have
-/// a decision point dump beside each golden. The normalizers and the number
-/// scan use no model and have none.
+/// a decision point dump beside each golden. The normalizers, the number
+/// scan and the money annotators use no model and have none.
 pub const DUMPED_ANNOTATORS: [&str; 3] = ["sentdetect", "tokenize", "langdetect"];
 
 /// The input set the normalizers run on. They run on no other set, and the
@@ -82,6 +83,16 @@ pub const NORMALIZER_INPUT_SET: &str = "norm";
 /// The input set the number scan runs on. It runs on no other set, and the
 /// other annotators do not run on this one.
 pub const NUMBER_INPUT_SET: &str = "num";
+
+/// The input set the money annotators run on. They run on no other set, and
+/// the other annotators do not run on this one.
+pub const MONEY_INPUT_SET: &str = "money";
+
+/// The rate snapshot the money conversion reads: a directory beside the
+/// inputs directory under `analysis/goldens/data`, which the container gets
+/// at `/rates`, and the file in it.
+pub const RATES_DIR: &str = "rates";
+pub const RATES_FILE: &str = "ecb-snapshot.csv";
 
 #[cfg(test)]
 mod tests {
@@ -158,6 +169,25 @@ mod tests {
         assert!(!DUMPED_ANNOTATORS.contains(&"numbers"));
         let numbers = include_str!("../java/src/main/java/ai/pipestream/turbo/goldens/NumberGolden.java");
         assert!(numbers.contains(&format!("INPUT_SET = \"{NUMBER_INPUT_SET}\"")));
+    }
+
+    #[test]
+    fn the_money_annotators_have_their_own_input_set_and_no_dumps() {
+        assert!(INPUT_SETS.contains(&MONEY_INPUT_SET));
+        assert!(ANNOTATORS.contains(&"money"));
+        assert!(ANNOTATORS.contains(&"money-convert"));
+        assert!(!DUMPED_ANNOTATORS.contains(&"money"));
+        assert!(!DUMPED_ANNOTATORS.contains(&"money-convert"));
+        let money = include_str!("../java/src/main/java/ai/pipestream/turbo/goldens/MoneyGolden.java");
+        assert!(money.contains(&format!("INPUT_SET = \"{MONEY_INPUT_SET}\"")));
+        assert!(money.contains(&format!("SNAPSHOT_DIR = \"{RATES_DIR}\"")));
+        assert!(money.contains(&format!("SNAPSHOT_FILE = \"{RATES_FILE}\"")));
+    }
+
+    #[test]
+    fn the_rate_snapshot_is_present() {
+        let data = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../goldens/data");
+        assert!(data.join(RATES_DIR).join(RATES_FILE).is_file());
     }
 
     #[test]

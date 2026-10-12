@@ -83,6 +83,33 @@ Unicode 15.0 repertoire. `numbers/<notation>/num/<id>.golden` holds the
 `latin-eu`; see `analysis/goldens-tool/README.md`. Only the `numbers`
 annotator runs on this set, and it has no dumps.
 
+## Money goldens
+
+`inputs/money/` holds 64 short texts written for money extraction:
+currency symbols before and after the amount, ISO codes and English
+currency words, `k`/`M`/`bn` suffixes and scale words, negative amounts
+and the places a minus sign does not count, US and European notation and
+amounts that read differently in each, invalid and Indian grouping,
+several amounts per text, near misses (percent, bare numbers, `HK$50`,
+letters running into the amount, dates and identifiers) and non-ASCII text
+around the amounts (German, French, Russian, Japanese and Chinese, Arabic,
+Hindi and Thai, emoji, combining marks, non-ASCII digits).
+`conversion-*.txt` hold mixes of currencies for the conversion goldens.
+
+`rates/ecb-snapshot.csv` is the rate table the conversions use: a small
+hand made file in the format of the ECB's `eurofxref-hist.csv` (newest
+row first, one column per currency, `N/A` for no quote) with columns USD,
+JPY, GBP, CHF, CNY, INR and RUB and 12 weekdays from 2026-03-02 to
+2026-03-17. The values are invented. The ECB publishes the real series
+at <https://www.ecb.europa.eu/stats/policy_and_exchange_rates/euro_reference_exchange_rates/html/index.en.html>;
+it may be reused with the source acknowledged.
+
+`money/<notation>/money/<id>.golden` and
+`money-convert/<notation>/money/<id>.golden` hold the layers
+`turbo:money` and `turbo:money-converted`; see
+`analysis/goldens-tool/README.md`. Only the two money annotators run on
+the set, and they have no dumps.
+
 ## Decision point dumps
 
 `<annotator>/<model>/<set>/<id>.dump`, beside each golden of
