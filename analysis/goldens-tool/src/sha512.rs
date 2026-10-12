@@ -135,11 +135,10 @@ impl Sha512 {
             compress(&mut self.state, &block);
             self.filled = 0;
         }
-        let mut chunks = data.chunks_exact(128);
-        for chunk in &mut chunks {
-            compress(&mut self.state, chunk.try_into().expect("a 128 byte chunk"));
+        let (chunks, rest) = data.as_chunks::<128>();
+        for chunk in chunks {
+            compress(&mut self.state, chunk);
         }
-        let rest = chunks.remainder();
         self.block[..rest.len()].copy_from_slice(rest);
         self.filled = rest.len();
     }
@@ -186,8 +185,8 @@ pub fn hex(bytes: &[u8]) -> String {
 /// The SHA-512 compression function on one 1024 bit block (section 6.4.2).
 fn compress(state: &mut [u64; 8], block: &[u8; 128]) {
     let mut w = [0u64; 80];
-    for (t, word) in block.chunks_exact(8).enumerate() {
-        w[t] = u64::from_be_bytes(word.try_into().expect("an 8 byte word"));
+    for (t, word) in block.as_chunks::<8>().0.iter().enumerate() {
+        w[t] = u64::from_be_bytes(*word);
     }
     for t in 16..80 {
         let s0 = w[t - 15].rotate_right(1) ^ w[t - 15].rotate_right(8) ^ (w[t - 15] >> 7);
