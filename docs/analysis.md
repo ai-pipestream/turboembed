@@ -113,8 +113,9 @@ pipelines built at run time; it prints as the layer's id and the name,
 `opennlp:tokens@gold`.
 
 A layer keeps the instances it was made on: an aligned layer's anchor,
-and the layers it indexes. They are the instances its step read (for a
-layer added by hand, those its provenance lists, or the default ones),
+and the layers it indexes. They are the instances its step wrote before
+it or read (for a layer added by hand, those its provenance lists, or
+the default ones),
 so tags made on the gold tokens say so (`Document::made_on`). A step
 that would read such a layer beside another instance of the one it was
 made on (those tags, with the predicted tokens) fails on that document
@@ -131,7 +132,9 @@ Every layer records where it came from: the annotator and its version,
 a hash of its configuration, the model (bundle id, revision and
 sha256), where the model ran (backend, device, precision), and the
 layers it read. An optional input is listed only when the document had
-it.
+it. A layer made on another output of its own step (a confidence column
+on the tokens written beside it) lists that output apart, under `on`,
+since the step did not read it.
 
 A layer's status is kept apart from its data. A layer never written has
 no status; one written with no items is `Complete` and empty; one its
@@ -163,14 +166,23 @@ document at a time to find the documents that cause it.
 `Bound` binds an annotator to the instances it reads and writes:
 the default ones, or named ones (`.read(0, "folded")`).
 
+An aligned output may hang on an earlier output of the same step: a
+tokenizer that writes `(Tokens, Confidence<Tokens>)` scores the tokens it
+wrote, without reading them. Outputs are added in the order of the
+`Writes` tuple, so the base must come before the layer aligned to it,
+and the aligned layer is made on the instance the step wrote under its
+own key (named or default). The same holds for an index into an earlier
+output: tokens written with their sentences point into those sentences.
+
 ## The analyzer
 
 `Analyzer::builder()` takes the steps in any order, and the layers the
 documents arrive with (`given`), such as structure from the parser
 upstream. `build` refuses a pipeline that cannot run, naming why: two
 layer types under one id, a layer two steps write, a required input
-nothing writes, an aligned output whose anchor the step does not read,
-or a cycle. It then orders the steps by what they read and write into
+nothing writes, an aligned output whose anchor the step neither reads
+nor writes before it, an aligned output written before its own base, or
+a cycle. It then orders the steps by what they read and write into
 stages.
 
 `run` takes a batch of documents. Each stage runs over the whole batch
