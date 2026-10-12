@@ -663,6 +663,10 @@ The layer types the reader knows are a parameter. `Golden::read`,
 golden shape (a tokenizer crate's `turbo:word-types`, a word type per
 token in one `kind:str` column) implements `GoldenCompare` for it and
 reads its goldens with `known_shapes()` plus `shape_of::<ItsLayer>()`.
+`segmentation_shapes()` is `known_shapes()` plus the three layers the
+generator writes whose types live in other crates (`turbo:word-types`,
+`turbo:detokenization`, `turbo:detokenized`), so the tokenizer goldens
+can be read without those crates depending on each other.
 
 ### Comparing a layer with its golden
 
@@ -867,7 +871,10 @@ each outcome that `eval` returned. A Rust context generator and the
 Rust maxent and perceptron evaluation can be checked against it one
 decision at a time, before a whole annotator's golden lines up. The
 generator writes them for `SentenceDetectorME`, `TokenizerME` and
-`LanguageDetectorME`.
+`LanguageDetectorME`. `turbo_goldens::Dump::read` parses one into its
+header (the golden's `Header` type) and a `Point` per decision, with the
+contexts as UTF-16 units, since a context can hold half of a surrogate
+pair.
 
 ### The format
 
