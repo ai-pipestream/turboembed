@@ -3,7 +3,8 @@
 //! left on the device, the bytes a run moves, and a warm run's allocation
 //! count. The encoder's vectors are held to the f64 arithmetic of
 //! tests/common, to the CPU backend's, and to the bundle's reference
-//! vectors (tests/common/conformance.rs).
+//! vectors (tests/common/conformance.rs), and late pooling's ranges to the
+//! row path's vectors, the f64 arithmetic and the CPU backend's ranges.
 //!
 //! Built with the `cuda` feature only. A test that needs a device says it
 //! was skipped, and passes, when the backend lists none; nothing is run
@@ -133,6 +134,7 @@ fn the_backend_is_linked_first_and_names_itself() {
     assert_eq!(b.struct_size as usize, size_of::<turbo::backend::turbo_backend>());
     turbo::backend::check_table(b).unwrap();
     assert!(b.buffer_read.is_some() && b.session_run.is_some());
+    assert!(b.session_open.is_some() && b.embed_write_ranges.is_some(), "it pools ranges");
     assert!(std::ptr::eq(turbo::backend::linked()[0], b), "its devices come before the cpu's");
     let v = unsafe { std::ffi::CStr::from_ptr(b.runtime_version) }.to_str().unwrap();
     assert!(v.split('.').count() == 2 && v.split('.').all(|p| p.parse::<u32>().is_ok()), "runtime version {v}");
@@ -639,14 +641,21 @@ fn a_warm_run_allocates_nothing() {
 
 fn warm_runs_allocate_nothing_at(precision: u32) {
     let l = on_cuda(&tiny_bundle());
-    let s = Session::create(l.m, Some(&session_desc(0, 0, precision))).unwrap();
+    let mut d = session_desc(0, 0, precision);
+    d.max_ranges = 128;
+    let s = Session::create(l.m, Some(&d)).unwrap();
     let tok = Tok::create(&tiny_bundle()).unwrap();
     let rows: Vec<Vec<i32>> = TEXTS.iter().map(|t| tok.row(t, None).unwrap()).collect();
     let small = Tokens::new(&rows, 0);
     let long = Tokens::new(&vec![(0..64).map(|i| 1000 + i).collect(); 64], 0);
-    let mut dst = vec![0f32; 64 * 32];
-    let mut run = |t: &Tokens| {
-        s.write_tokens(&t.batch(), None).unwrap();
+    // Two ranges on each of the 64 rows: more vectors than rows.
+    let halves: Vec<_> = (0..64).flat_map(|r| [range(r, 0, 32), range(r, 32, 64)]).collect();
+    let mut dst = vec![0f32; 128 * 32];
+    let mut run = |t: &Tokens, ranges: Option<&[turbo_token_range]>| {
+        match ranges {
+            Some(g) => s.write_ranges(&t.batch(), g, None).unwrap(),
+            None => s.write_tokens(&t.batch(), None).unwrap(),
+        }
         let r = s.run().unwrap();
         let i = r.info();
         let rc = unsafe {
@@ -655,9 +664,10 @@ fn warm_runs_allocate_nothing_at(precision: u32) {
         assert_eq!(rc, 0);
         (i.host_allocs, i.device_allocs)
     };
-    // Cold: the first runs of each shape.
-    run(&small);
-    run(&long);
+    // Cold: the first runs of each shape, and of ranges.
+    run(&small, None);
+    run(&long, None);
+    run(&long, Some(&halves));
     let free = || {
         assert_eq!(unsafe { cudaSetDevice(rt_ordinal(&l) as i32) }, 0);
         let (mut f, mut t) = (0usize, 0usize);
@@ -665,8 +675,9 @@ fn warm_runs_allocate_nothing_at(precision: u32) {
         f
     };
     let (before, free_before) = (turbo::cuda::allocations(), free());
-    for (i, t) in [&small, &long, &small, &long].into_iter().enumerate() {
-        assert_eq!(run(t), (0, 0), "precision {precision} warm run {i}: the result's count");
+    let warm = [(&small, None), (&long, None), (&long, Some(&halves[..])), (&small, None), (&long, Some(&halves[..]))];
+    for (i, (t, g)) in warm.into_iter().enumerate() {
+        assert_eq!(run(t, g), (0, 0), "precision {precision} warm run {i}: the result's count");
     }
     assert_eq!(turbo::cuda::allocations(), before, "precision {precision}: the backend allocated nothing in warm runs");
     // The count above is exact for the backend's own allocations. This
@@ -831,6 +842,200 @@ fn an_output_dim_is_cut_then_normalized_on_the_device() {
             assert!((*a as f64 - b).abs() < 1e-5, "{a} vs {b}");
         }
     }
+}
+
+// ---- Range pooling ---------------------------------------------------------------------
+
+/// A session on `m` of the model's size at `precision` that takes
+/// `max_ranges` ranges.
+fn ranged_session(m: *mut turbo_model, precision: u32, max_ranges: u32) -> Session {
+    let mut d = session_desc(0, 0, precision);
+    d.max_ranges = max_ranges;
+    Session::create(m, Some(&d)).unwrap_or_else(|e| panic!("{e:?}"))
+}
+
+fn bits(v: &[f32]) -> Vec<u32> {
+    v.iter().map(|x| x.to_bits()).collect()
+}
+
+/// A range over a whole row, padding and a masked token inside it
+/// included, is that row's MEAN vector from embed_write, bit for bit, at
+/// EXACT and FASTEST and with either pooling kernel (the default's groups
+/// of tokens and TURBO_CUDA_POOL=columns): a range is pooled by the row's
+/// own kernel over the same tokens in the same order.
+#[test]
+fn a_range_over_a_whole_row_is_the_rows_mean_vector_bit_for_bit() {
+    let _t = turn();
+    let Some(_) = cuda_device("a_range_over_a_whole_row_is_the_rows_mean_vector_bit_for_bit") else { return };
+    let l = on_cuda(&tiny_bundle());
+    let t = awkward_rows(&tiny_bundle());
+    let whole: Vec<_> = (0..t.batch).map(|r| range(r, 0, t.seq)).collect();
+    for precision in [TURBO_PRECISION_EXACT, TURBO_PRECISION_FASTEST] {
+        for columns in [false, true] {
+            let mut d = session_desc(0, 0, precision);
+            d.max_ranges = 8;
+            turbo::cuda::use_column_pool(Some(columns));
+            let s = Session::create(l.m, Some(&d));
+            turbo::cuda::use_column_pool(None);
+            let s = s.unwrap();
+            for normalize in [TURBO_NORMALIZE_NONE, TURBO_NORMALIZE_L2] {
+                let what = format!("precision {precision} columns {columns} normalize {normalize}");
+                let o = opts(|o| {
+                    o.pooling = TURBO_POOLING_MEAN;
+                    o.normalize = normalize;
+                });
+                s.write_tokens(&t.batch(), Some(&o)).unwrap();
+                let rows = s.run().unwrap().rows();
+                s.write_ranges(&t.batch(), &whole, Some(&o)).unwrap();
+                let got = s.run().unwrap().rows();
+                assert_eq!(got.len(), rows.len());
+                for (r, (g, w)) in got.iter().zip(&rows).enumerate() {
+                    assert_eq!(bits(g), bits(w), "{what} row {r}");
+                }
+                // In another order, and a row twice: each vector is its row's.
+                let shuffled = [whole[2], whole[0], whole[2], whole[1]];
+                s.write_ranges(&t.batch(), &shuffled, Some(&o)).unwrap();
+                let got = s.run().unwrap().rows();
+                assert_eq!(got.len(), shuffled.len());
+                for (g, r) in got.iter().zip([2, 0, 2, 1]) {
+                    assert_eq!(bits(g), bits(&rows[r]), "{what} row {r} out of order");
+                }
+            }
+        }
+    }
+}
+
+/// Ranges of every kind (one live token, a span over a masked token and
+/// padding, two on one row, a row left out, the same range twice), more
+/// ranges than rows and fewer, with and without L2: the result's shape,
+/// each vector against the f64 encoder of tests/common and against the
+/// CPU backend's range write on the same rows. A plain write after a
+/// range write pools rows again.
+#[test]
+fn ranges_match_the_arithmetic_and_the_cpu() {
+    let _t = turn();
+    let Some(_) = cuda_device("ranges_match_the_arithmetic_and_the_cpu") else { return };
+    let dir = tiny_bundle();
+    let plain = PlainBert::new(&dir);
+    let (g, c) = (on_cuda(&dir), Loaded::load(&dir).unwrap());
+    // EXACT: F32 FMAs throughout, which the f64 encoder's bound needs.
+    let (gs, cs) = (ranged_session(g.m, TURBO_PRECISION_EXACT, 16), ranged_session(c.m, TURBO_PRECISION_MODEL, 16));
+    let t = awkward_rows(&dir);
+    let seq = t.seq;
+    let types = t.types.clone().unwrap();
+    let live = |r: u32| -> Vec<u32> { (0..seq).filter(|&p| t.mask[(r * seq + p) as usize] == 1).collect() };
+    let (l0, l1, l2) = (live(0), live(1), live(2));
+    // Row 1 is padded on the left, row 2 has its second column masked.
+    assert!(l1[0] > 0 && l2[1] > 1, "awkward rows: {l1:?} {l2:?}");
+    let many = vec![
+        range(0, l0[1], l0[1] + 1),
+        range(2, 0, l2[1] + 1),
+        range(2, 1, seq),
+        range(1, 0, seq),
+        range(1, seq - 2, seq),
+        range(0, 0, 3),
+        range(0, 2, *l0.last().unwrap() + 1),
+        range(0, l0[1], l0[1] + 1),
+        range(1, l1[0], l1[0] + 1),
+    ];
+    let few = vec![range(1, seq - 1, seq)];
+    let (mut worst, mut lowest) = (0f64, 1f64);
+    for ranges in [&many, &few] {
+        for normalize in [TURBO_NORMALIZE_NONE, TURBO_NORMALIZE_L2] {
+            let o = opts(|o| o.normalize = normalize);
+            gs.write_ranges(&t.batch(), ranges, Some(&o)).unwrap();
+            let run = gs.run().unwrap();
+            let info = run.info();
+            assert_eq!(info.batch as usize, ranges.len(), "one vector per range");
+            assert_eq!(info.bytes, ranges.len() as u64 * info.dim as u64 * 4);
+            assert_eq!(info.h2d_bytes, 3 * t.ids.len() as u64 * 4 + ranges.len() as u64 * 12, "rows and ranges");
+            let got = run.rows();
+            drop(run);
+            cs.write_ranges(&t.batch(), ranges, Some(&o)).unwrap();
+            let cpu = cs.run().unwrap().rows();
+            assert_eq!(got.len(), cpu.len());
+            for (i, (v, g)) in got.iter().zip(ranges.iter()).enumerate() {
+                let at = (g.row * seq) as usize..((g.row + 1) * seq) as usize;
+                let want = plain.embed_range(
+                    &t.ids[at.clone()],
+                    &t.mask[at.clone()],
+                    &types[at],
+                    g.start as usize,
+                    g.end as usize,
+                    v.len(),
+                    normalize == TURBO_NORMALIZE_L2,
+                );
+                for (a, w) in v.iter().zip(&want) {
+                    let d = (*a as f64 - w).abs();
+                    worst = worst.max(d);
+                    assert!(d < 1e-5 * (1.0 + w.abs()), "normalize {normalize} ranges[{i}] {g:?}: {a} vs {w}");
+                }
+                let c = cosine(v, &cpu[i]);
+                lowest = lowest.min(c);
+                assert!(c >= 0.9999, "normalize {normalize} ranges[{i}] {g:?}: cosine {c} with the cpu");
+            }
+        }
+    }
+    println!(
+        "ranges: largest difference from the f64 encoder {worst:.3e}; 1 - lowest cosine with the cpu {:.3e}",
+        1.0 - lowest
+    );
+
+    // A plain write replaces the range write: the run pools rows.
+    gs.write_tokens(&t.batch(), None).unwrap();
+    let rows = gs.run().unwrap();
+    assert_eq!(rows.info().batch, t.batch, "a vector per row again");
+}
+
+/// Rows in page-locked memory go to the device from where they are, and
+/// the ranges, ordinary memory, from the session's staging after them:
+/// the same vectors as rows the staging carried.
+#[test]
+fn ranges_beside_rows_in_pinned_memory_give_the_same_vectors() {
+    let _t = turn();
+    let Some(_) = cuda_device("ranges_beside_rows_in_pinned_memory_give_the_same_vectors") else { return };
+    let l = on_cuda(&tiny_bundle());
+    let s = ranged_session(l.m, TURBO_PRECISION_EXACT, 8);
+    let t = awkward_rows(&tiny_bundle());
+    let ranges = [range(2, 0, t.seq), range(0, 1, 3), range(1, t.seq - 2, t.seq), range(0, 0, 1), range(2, 2, 4)];
+    s.write_ranges(&t.batch(), &ranges, None).unwrap();
+    let want = s.run().unwrap().rows();
+
+    let ctx = Ctx(l.ctx, false);
+    let n = t.ids.len() as u64;
+    let bufs: Vec<Buf> = (0..3).map(|_| ctx.alloc(TURBO_PLACE_PINNED, n).unwrap()).collect();
+    let at: Vec<*mut i32> = bufs.iter().map(|b| b.host().unwrap() as *mut i32).collect();
+    let types = t.types.as_ref().unwrap();
+    unsafe {
+        std::ptr::copy_nonoverlapping(t.ids.as_ptr(), at[0], t.ids.len());
+        std::ptr::copy_nonoverlapping(t.mask.as_ptr(), at[1], t.mask.len());
+        std::ptr::copy_nonoverlapping(types.as_ptr(), at[2], types.len());
+    }
+    let mut b = t.batch();
+    b.ids = at[0];
+    b.mask = at[1];
+    b.types = at[2];
+    s.write_ranges(&b, &ranges, None).unwrap();
+    let r = s.run().unwrap();
+    assert_eq!(bits(&r.rows().concat()), bits(&want.concat()));
+    assert_eq!(r.info().h2d_bytes, 3 * n * 4 + ranges.len() as u64 * 12);
+}
+
+/// The GPU takes no thread count: cpu_threads other than 0 is refused by
+/// field 6, and 0 makes the session.
+#[test]
+fn cpu_threads_is_refused_by_field_6() {
+    let _t = turn();
+    let Some(_) = cuda_device("cpu_threads_is_refused_by_field_6") else { return };
+    let l = on_cuda(&tiny_bundle());
+    for threads in [1, 4] {
+        let mut d = session_desc(0, 0, TURBO_PRECISION_MODEL);
+        d.cpu_threads = threads;
+        let e = Session::create(l.m, Some(&d)).err().unwrap();
+        assert_eq!((e.code, e.field), (UNSUPPORTED_OPTION, 6), "{e:?}");
+        assert!(e.message.contains("not a CPU"), "{e:?}");
+    }
+    Session::create(l.m, Some(&session_desc(0, 0, TURBO_PRECISION_MODEL))).unwrap();
 }
 
 // ---- Packed rows --------------------------------------------------------------------
