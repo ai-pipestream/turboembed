@@ -502,6 +502,158 @@ outputs), the source span `p` it maps back to maps forward to a span that
 covers `s`, and the source text of `p` normalizes to exactly the output
 text `p` maps forward to.
 
+### Accent folding (`analysis/normalize/src/accent_fold.rs`) and the run pass (`analysis/normalize/src/fold_runs.rs`)
+
+`AccentFold` (id `turbo:normalize:accent-fold`) removes accents. It does
+what `AccentFoldCharSequenceNormalizer` does to the whole text: NFD,
+then one pass over the decomposed characters that drops every
+non-spacing mark (general category Mn) whose base belongs to a fold
+script and maps the stroke letters and ligatures to ASCII, then NFC. The
+base of a mark is the last character before it that is not a
+non-spacing mark; a mapped stroke letter counts as Latin; a mark with no
+base before it is kept. "café" becomes "cafe", "Straße" "Strasse", Greek
+ά α, Cyrillic й и. Devanagari vowel signs and Arabic and Hebrew points
+are kept with the default scripts.
+
+Options: `AccentFold::new()` (Latin, Greek and Cyrillic, OpenNLP's 19
+stroke letters), `AccentFold::for_scripts(&[Script])`,
+`with_stroke_letters(StrokeLetters::Off | OpenNlp | Extended)` and
+`AccentFold::extended()` (the default scripts with the extended list).
+
+The alignment is recorded per source character. The text is cut into
+runs (`analysis/normalize/src/fold_runs.rs`, shared with the confusable
+skeleton). A run starts at a boundary character: one whose decomposition
+starts with a character that is not a non-spacing mark, has combining
+class 0 and has NFC_Quick_Check Yes. That character is never removed,
+so it is the base of the marks after it whatever came before, canonical
+ordering cannot move anything across it, and NFC cannot compose it with
+anything before it. The fold of the whole text is therefore the folds of
+the runs put together. Inside a run every character is also folded on its own; when
+those pieces put together equal the fold of the run, each character that
+changed is one edit ("café": é to e; "e" U+0301: a deletion of the
+U+0301), otherwise the run is one edit. The second case happens where
+normalization works across characters: marks out of canonical order on
+a base whose marks are kept (Hebrew alef, U+0301, U+0323 is written with
+U+0323 first) and two characters that compose once a removed mark
+between them is gone (with Hangul folded, U+1100 U+0301 U+1161 becomes
+U+AC00). A run of one character that neither decomposes nor maps (all
+of ASCII, Hangul syllables) is skipped without work.
+
+Differences from OpenNLP:
+
+- The output text is the same as OpenNLP's for every input on the same
+  Unicode data. OpenNLP's class has no aligned form; here every edit is
+  aligned.
+- The data is Unicode 18.0 (general category, scripts, normalization),
+  where OpenNLP uses the JVM's (Unicode 15.0 on JDK 21). Characters
+  assigned after 15.0 fold here and are left alone there.
+- `StrokeLetters::Extended`, off by default, adds 264 atomic Latin
+  letters that NFD does not decompose, so mark removal cannot reach them
+  and OpenNLP's list leaves them. `EXTENDED_MODIFIED` (244 letters) is
+  every letter named "LATIN CAPITAL LETTER x WITH ..." or "LATIN SMALL
+  LETTER x WITH ..." in UnicodeData.txt, x one of A to Z, with no
+  decomposition: the letters with a stroke, bar, hook, tail, curl, belt,
+  loop, descender or other modification of an ASCII letter (Ŧ, ƀ, Ɨ, ɓ,
+  ƈ, ɗ, ɠ, ɦ, ɫ, ɲ, ʂ, ȥ and so on), mapped to x in the case the name
+  gives. Lucene's ASCIIFoldingFilter folds letters of this kind as
+  well. `EXTENDED_OTHER` (20 letters) has the atomic letters the naming
+  rule does not cover: the ligature Ĳ ĳ (IJ ij) and the digraphs Ǆ ǅ ǆ
+  Ǉ ǈ ǉ Ǌ ǋ ǌ Ǳ ǲ ǳ (DZ Dz dz LJ Lj lj NJ Nj nj DZ Dz dz), which are
+  one letter in Unicode and two in ASCII; Ŀ ŀ (L l, the Catalan L with
+  middle dot); ſ (s, the long s); Ŋ ŋ (N n, eng, mapped to its base
+  letter as the hooked letters are); ĸ (q, kra, written q in the
+  Greenlandic orthography of 1973 that replaced it). The dental click
+  letter ǀ is not added: it is not a modified Latin letter. "Łódź"
+  becomes "Lodz" with either list; "Ŧ", "ƀ", "Ĳsselmeer" and "ǅ" change
+  only with the extended one.
+
+Tests (`analysis/normalize/tests/accent_folds.rs`): every expectation of
+`AccentFoldCharSequenceNormalizerTest` (Latin, Greek and Cyrillic
+accents, all 19 stroke letters, the leading mark kept, Devanagari,
+Arabic and Hebrew marks kept, script and stroke configuration; the case
+folding pipeline test with the case fold done by `to_lowercase`); the
+edits of single characters and of separate marks; the two run cases
+above; NFC applied to text of other scripts (Devanagari NA and NUKTA
+become U+0929) and Hangul left alone; `EXTENDED_MODIFIED` derived again
+from UnicodeData.txt by the naming rule and compared, and
+`EXTENDED_OTHER` checked to be Latin letters that NFD leaves alone; and
+generated texts (4000 each in four configurations, from a pool of
+precomposed letters, marks of several combining classes, Mn of class 0,
+Mc, Me, Greek, Cyrillic, Hebrew, Arabic, Devanagari, Tamil, Hangul
+syllables and jamo, Tibetan U+0F73, kana with the voicing mark) compared
+with a reference that runs the Java algorithm on the whole text, with
+every alignment checked.
+
+### German umlauts (`analysis/normalize/src/german.rs`)
+
+`GermanUmlauts` (id `turbo:normalize:german-umlauts`) writes the umlauts
+and sharp s as DIN 5007-2 spells them in ASCII: ä ö ü to ae oe ue, Ä Ö Ü
+to Ae Oe Ue, ß to ss, ẞ (U+1E9E) to SS. Each character is one edit;
+the output "SS" maps back to the one U+1E9E. A vowel followed by U+0308
+COMBINING DIAERESIS is not changed; composing first (NFC) makes it the
+precomposed letter.
+
+OpenNLP counterpart: `GermanUmlautCharSequenceNormalizer`. The default
+matches it.
+
+Differences from OpenNLP: `GermanUmlauts::uppercase_aware()` writes a
+capital umlaut with two capitals (AE, OE, UE) when it is part of an
+uppercase word: when the next letter is uppercase, or when no letter
+follows and the letter before is uppercase. Combining marks are passed
+over. "ÜBER" becomes "UEBER" instead of "UeBER", "MÜ" becomes "MUE",
+while "Öl" stays "Oel" and a lone "Ö" "Oe". In an all-capitals word the transliteration is written in
+capitals (the machine-readable zone of a passport writes MÜLLER as
+MUELLER); "UeBER" mixes the two spellings.
+
+Tests (`analysis/normalize/tests/accent_folds.rs`): every expectation of
+`GermanUmlautCharSequenceNormalizerTest` (with the U+1E9E offsets
+checked as UTF-8 bytes: output 1..3 maps to source 1..4), the
+uppercase-aware cases, and 4000 generated texts compared with a
+per-character reference in both modes, each edit checked to be one
+character's expansion.
+
+### Confusable skeleton (`analysis/normalize/src/confusables.rs`)
+
+`ConfusableSkeleton` (id `turbo:normalize:confusable-skeleton`) writes
+the skeleton of UTS #39 section 4: NFD, each character replaced by its
+prototype from confusables.txt, NFD again. Text that looks alike has the
+same skeleton: "раураl" with Cyrillic а and "paypal" both become
+"paypal", "m" becomes "rn", 1 and I become "l", U+2026 becomes "...". The
+skeleton is for comparing and indexing.
+
+The alignment is recorded per source character with the run pass of
+accent folding. A boundary is a character whose decomposition starts
+with a character of combining class 0 that has no prototype, or whose
+prototype also decomposes to a class 0 character first; both NFD passes
+then split the text before it. A character in NFD with no prototype is
+kept without work, which covers all of ASCII except the eight characters
+confusables.txt maps (" % 0 1 I ` m |), the fast path of
+`Confusables.skeleton` done per character.
+
+OpenNLP counterpart: `ConfusableSkeletonCharSequenceNormalizer` and
+`Confusables.skeleton`.
+
+Differences from OpenNLP:
+
+- The data is confusables.txt 18.0.0 (through `turbo_unicode`); OpenNLP
+  bundles 17.0.0. A line diff of the two files has about 2850 changed
+  lines. For example 18.0.0 maps U+030B COMBINING DOUBLE ACUTE ACCENT
+  to two acute accents, so "ő" becomes "o" U+0301 U+0301 here and "o" U+030B in
+  OpenNLP.
+- OpenNLP's class has no aligned form; here every edit is aligned.
+
+Tests (`analysis/normalize/tests/confusables.rs`): every expectation of
+`ConfusableSkeletonTest`
+and `ConfusablesTest` that is about the skeleton (the null argument and
+`TermAnalyzer` tests have no counterpart), the edits of "com" and of the
+Cyrillic spoof, agreement with `turbo_unicode::confusables::skeleton`,
+the Unicode 18.0 mapping above, every source of confusables.txt alone
+and between marks compared with a reference written after
+`Confusables.skeleton` (including its fast path), and 4000 generated
+texts from confusables.txt sources, letters and marks of other
+scripts and frequent combining marks compared with the same reference,
+with every alignment checked.
+
 ### Dehyphenation
 
 `Dehyphenate` (id `turbo:normalize:dehyphenate`) rejoins words split at a
@@ -605,6 +757,20 @@ it overlaps.
   whose quick check is Yes, and `Locale.ROOT` lowercasing maps each
   character on its own except U+03A3, whose context is only needed to
   choose between two characters of the same length.
+- `AccentFoldCharSequenceNormalizer` and
+  `ConfusableSkeletonCharSequenceNormalizer` have no aligned form. Both
+  can be aligned per character: cut the text before each character whose
+  decomposition starts with a starter that the fold cannot remove or
+  combine (for the skeleton: whose prototype also starts with a
+  starter), fold each piece, and attribute the result to single
+  characters when their separate folds add up to it.
+- `AccentFoldCharSequenceNormalizer`'s stroke list leaves the other
+  atomic Latin letters that NFD does not decompose, such as Ŧ ŧ
+  (Northern Sami), ƀ, Ɨ ɨ, Ĳ ĳ, Ŋ ŋ and the hooked letters of African
+  orthographies (ɓ ɗ ƙ ƴ).
+- `GermanUmlautCharSequenceNormalizer` writes "ÜBER" as "UeBER".
+- `Confusables` bundles confusables.txt 17.0.0; 18.0.0 changes about
+  2850 of its lines.
 - `DehyphenationCharSequenceNormalizer` checks only the code unit before
   the hyphen with `Character.isLetter`, so a word that ends in a
   combining mark (NFD text, Indic vowel signs) is never joined. Skipping
