@@ -750,8 +750,9 @@ by item, the span, then an entity's token range, then the label (a tag
 through its tag set, a lemma, a kind, a language code) must be equal,
 and a probability must be within the `Tolerance`: `Exact` compares the
 bits (so -0.0 and 0.0 differ), and `Abs(d)` takes two finite values at
-most `d` apart, or the same infinity, or two NaNs. `Language` holds the
-best language, so it is compared with row 0. POS tags without
+most `d` apart, or the same infinity, or two NaNs. `Language` holds
+every language the detector ranked, best first, and is compared row by
+row, so the ranking must match. POS tags without
 probabilities do not match a golden that has them.
 
 `Utf16Spans<L>` (`turbo:utf16<L>`) is compared exactly, row by row: the
@@ -834,8 +835,8 @@ token's sentence is the one whose span contains it, and a token inside
 no sentence is refused (`LoadError::OutsideSentences`), since the JVM
 makes its tokens inside its sentences. The format writes sentences
 before tokens, so `load_document` finds them; without sentences under
-that name the column is `None`. `Language` holds the golden's first
-row, the best language, as the comparison reads it.
+that name the column is `None`. `Language` holds every row of the
+golden, best first.
 
 A block is checked against its layer type's shape before it is loaded,
 the same check the comparison makes, and the document then checks the
@@ -1004,8 +1005,11 @@ The `str` escapes are the golden format's: `\t`, `\n`, `\r`, `\\`, and
 character below U+0020. A surrogate that is not half of a pair is
 written as `\uXXXX` as well, because it has no UTF-8 form. The language
 detector's n-grams and the tokenizer's contexts are cut at UTF-16 units
-and hold such halves (the language detector dump of `multi/mixed` and the
-tokenizer dumps of `en/emoji` and `multi/mixed` have them); a reader that
+and can hold such halves. The tokenizer dumps of `en/emoji`,
+`en/emoji-split` and `multi/mixed` have them. The language detector
+dumps have none, because its first normalizer replaces every character
+outside the Basic Multilingual Plane with a space before the n-grams
+are cut; a reader that
 decodes into Rust strings has to keep such a field as UTF-16 units or as
 its escaped text. The generator writes goldens through the same escape,
 and its UTF-8 encoder fails rather than writing a replacement character.

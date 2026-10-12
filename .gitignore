@@ -28,3 +28,4 @@ bundle/hailo/*.whl
 zig-pkg/
 .zig-cache/
 zig-out/
+/.opennlp-models

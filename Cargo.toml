@@ -22,6 +22,7 @@ members = [
     "analysis/sequence",
     "analysis/tokenize",
     "analysis/tokenize-layers",
+    "analysis/langdetect",
 ]
 resolver = "3"
 
