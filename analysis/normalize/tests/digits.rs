@@ -84,13 +84,13 @@ fn mixed_digits_map_one_for_one() {
 }
 
 #[test]
-fn neighbouring_digits_share_one_edit() {
-    // OpenNLP maps "2" in "123" back to U+0662 alone; the builder merges
-    // touching edits, so here it maps back to all three digits.
+fn neighbouring_digits_keep_their_own_edits() {
+    // As in OpenNLP, "2" in "123" maps back to U+0662 alone: each digit is
+    // its own edit.
     let src = "\u{661}\u{662}\u{663}";
     let (_, a) = normalize(&Digits, src);
-    assert_eq!(a.edits().len(), 1);
-    assert_eq!(covered(src, &a, 1, 2), src);
+    assert_eq!(a.edits().len(), 3);
+    assert_eq!(covered(src, &a, 1, 2), "\u{662}");
 }
 
 #[test]

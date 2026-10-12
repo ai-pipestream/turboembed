@@ -196,13 +196,12 @@ member (the hyphen-minus is in the dash table but maps to itself). Text
 that is all ASCII costs one byte scan and produces no edits.
 
 Every edit these normalizers make is written through `ViewBuilder`,
-which joins edits that touch. Two neighbouring replaced characters
-(two Arabic-Indic digits, a closing quote followed by an ellipsis in a
-chain) therefore form one edit, and a span inside it maps back to both
-source characters. OpenNLP's `Alignment` records a source range per
-output character, so there the second digit maps back to the second
-source digit alone. Output text is the same; the source spans of
-characters inside such a run are wider here.
+which records each `replace` call as its own edit (issue #265). Two
+neighbouring replaced characters (two Arabic-Indic digits, a closing
+quote followed by an ellipsis in a chain) are therefore two edits, and a
+span inside the run maps back to exactly the source characters it
+covers, as OpenNLP's `Alignment`, which records a source range per
+output character, maps it too.
 
 ### Whitespace
 
@@ -393,8 +392,7 @@ reference built from the zero of each digit block.
 WIDTH SPACE, U+200E and U+200F (the directional marks), U+202A to U+202E
 (embeddings, pop and overrides), U+2060 WORD JOINER, U+2061 to U+2064
 (invisible operators), U+2066 to U+2069 (isolates), U+206A to U+206F
-(deprecated format characters) and U+FEFF (byte order mark). Each deletion is an edit to the empty string, and neighbouring
-deletions are one edit. The zero width joiner and non-joiner and the
+(deprecated format characters) and U+FEFF (byte order mark). Each deletion is its own edit to the empty string. The zero width joiner and non-joiner and the
 variation selectors are kept: they change shaping and rendering, and the
 joiner holds emoji ZWJ sequences together. U+180E MONGOLIAN VOWEL
 SEPARATOR is kept for the same reason: it selects the form of the vowel
