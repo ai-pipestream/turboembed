@@ -714,6 +714,104 @@ Tests (`analysis/normalize/tests/numbers_shrink.rs`): every expectation of
 surrogate cases), and 50,000 generated inputs from its pool compared with
 a three-pass reference that follows OpenNLP's passes one to one.
 
+
+### English contractions (`contractions/`)
+
+`EnglishContractions` (id `turbo:normalize:english-contractions`) ports
+`EnglishContractionCharSequenceNormalizer`. A contraction is a run of
+ASCII letters, an apostrophe (U+0027, U+2019, U+02BC or U+FF07) and a
+run of ASCII letters. The forms and their expansions:
+
+| Form | Expansion |
+|---|---|
+| `can't` | `can not` (the stem is kept, `'t` becomes ` not`) |
+| `won't`, `shan't` | `will not`, `shall not` |
+| `<aux>n't` for are, could, dare, did, do, does, had, has, have, is, may, might, must, need, ought, should, was, were, would | `<aux> not` |
+| `let's` | `let us` |
+| `y'all` | `you all` |
+| `'re` after how, here, there, these, they, those, we, what, when, where, who, why, you | ` are` |
+| `'ve` after could, I, may, might, must, should, there, these, they, those, we, what, where, who, would, you | ` have` |
+| `'ll` after he, here, how, I, it, she, that, there, these, they, this, those, we, what, when, where, which, who, why, you | ` will` |
+| `I'm` | `I am` |
+
+Stems are compared ASCII case-insensitively and kept as written. An
+all-uppercase word gets an uppercase expansion (`CAN'T` becomes
+`CAN NOT`); the replaced stems of `won't`, `shan't` and `y'all` follow
+the case of what they replace (`Won't` becomes `Will not`). `'s`, `'d`
+and `ain't` have more than one reading and are left alone.
+
+A contraction is expanded only when it is a complete word under the
+UAX #29 word boundaries, as OpenNLP decides with
+`opennlp.tools.tokenize.uax29.WordSegmenter`: `_can't`, `can't1`,
+`écan't`, `écan't`, `I.don't`, `can't've` and `can't‍go` are
+left alone, while `'can't'`, `(don't)`, `x-can't` and `can't,` are
+expanded. The search follows OpenNLP: each apostrophe is tried as the
+middle of a contraction, and after a candidate the search continues at
+its end.
+
+The word boundaries are in `contractions/word_break/`. `table.rs` holds
+the Word_Break property of Unicode 18.0.0, generated from
+`WordBreakProperty-18.0.0.txt` (OpenNLP carries the 17.0.0 file); the
+file and `WordBreakTest-18.0.0.txt` are in `analysis/normalize/tests/data/` under the
+Unicode License (see `analysis/unicode/ucd/LICENSE`). `is_boundary`
+applies rules WB1 to WB999 at one position. OpenNLP computes all the
+boundaries of the text in a forward pass; the rules only read the
+characters around a position (the one before, the one at it, the last
+two before it that WB4 does not skip, the next one after it that WB4
+does not skip, and the length of the run of regional indicators before
+it), so `is_boundary` reads only those and gives the same answer. Word
+boundaries belong in turbo-unicode, next to the other property tables,
+once a tokenizer needs them too; the module has no dependency on the
+rest of the crate.
+
+`EnglishContractionsWithPos` (an `Annotator`, id
+`turbo:normalize:english-contractions-pos`) reads the `View`, and
+`Tokens` and `PosTags` when the document has them, and writes a `View`.
+Besides the forms above it expands `'s` and `'d` by the Penn Treebank
+tags (looked up by label in the tag set):
+
+- `'s` becomes ` has` when the token holding the apostrophe is `VBZ` and
+  the next token `VBN` (`he's gone`), and ` is` when the token is `VBZ`
+  and the next is anything else (`he's here`). A possessive (`POS`) is
+  left alone.
+- `'d` becomes ` would` before a `VB` token (`I'd go`) and ` had` before a
+  `VBN` token (`I'd gone`); anything else is left alone (`I'd rather`).
+
+The token holding the apostrophe is `'s` itself under Penn Treebank
+tokenization or the whole word under a tokenizer that keeps it whole.
+The tokens must be in the view the step reads; tokens of another view
+are refused with an error. Without tokens and tags the step writes what
+`EnglishContractions` writes.
+
+The alignment keeps the stem: in `can't` to `can not`, `can` maps to
+itself and ` not` to `'t`; in `won't` the whole expansion maps to the
+whole word; in `y'all`, `all` maps to itself.
+
+Differences from OpenNLP:
+
+- `y'all` is expanded to `you all`, and the subject lists are longer:
+  `here`, `these`, `those` for `'re`; `may`, `there`, `these`, `those`,
+  `what`, `where` for `'ve`; `here`, `this`, `these`, `those`, `which`
+  for `'ll`. Each of these forms has only one reading. OpenNLP leaves
+  them unchanged. Test: `additions_beyond_opennlp`.
+- `EnglishContractionsWithPos` resolves `'s` and `'d` from tags; OpenNLP
+  has no counterpart and leaves them alone. Tests:
+  `pos_tags_resolve_s_and_d`, `pos_step_without_tags_is_the_plain_normalizer`.
+- Word_Break data is Unicode 18.0.0 rather than OpenNLP's 17.0.0. With
+  the 18.0.0 data `is_boundary` also passes every line of the 17.0.0
+  conformance file OpenNLP runs (checked once by hand); the 18.0.0 file
+  is the one the tests run.
+
+Tests (`analysis/normalize/tests/contractions.rs`, unit tests in
+`analysis/normalize/src/contractions/word_break/mod.rs`): every expectation of
+`EnglishContractionCharSequenceNormalizerTest`,
+`EnglishContractionBoundaryTest` and `EnglishContractionContractTest`
+(UTF-16 offsets rewritten as UTF-8 byte offsets), each form in both
+cases, the additions, the POS resolution, concurrent use from several
+threads, the word-break table against every code point of the property
+file, and every line of `WordBreakTest-18.0.0.txt` (1944 lines, none with
+surrogates).
+
 ### Emoji (`analysis/normalize/src/emoji/mod.rs`)
 
 Four steps work on emoji. All of them take their sequences from
@@ -1271,6 +1369,13 @@ it overlaps.
   word boundary depends on how the JDK regular expression engine walks
   back over UTF-16 units, so a supplementary-plane combining mark never
   blocks it.
+- `EnglishContractionCharSequenceNormalizer` computes every word
+  boundary of the text (`WordSegmenter.boundaries`) when it finds one
+  candidate. The UAX #29 rules at one position read only a few
+  characters around it, so checking the two ends of each candidate costs
+  a constant amount of work instead of a pass over the whole text. It
+  also leaves unambiguous forms such as `y'all`, `this'll` and `may've`
+  unexpanded.
 - `AccentFoldCharSequenceNormalizer` and
   `ConfusableSkeletonCharSequenceNormalizer` have no aligned form. Both
   can be aligned per character: cut the text before each character whose
