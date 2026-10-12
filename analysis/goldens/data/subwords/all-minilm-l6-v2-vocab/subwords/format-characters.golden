@@ -1,0 +1,25 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	subwords/format-characters	50	41	ac8c691dc51890f67a501d8ed803d028f244212174d0c0d3303fc92536513b7c
+model	all-minilm-l6-v2-vocab.txt	f51f06aae7f580a88998f6f7f24b52495c8d3d289fdbdc21231c05f3a8965783074d95c17b819186f9a63b622280e8a051105a2161cd0d153fa57db7a0aba9f9
+annotator	opennlp.tools.tokenize.WordpieceEncoder	encode
+config	lowerCase	true
+config	maxWordCodePoints	100
+layer	opennlp:subwords	text	13	start:u32	end:u32	id:u32
+0	4	5717
+7	9	9148
+9	11	11927
+11	12	2232
+13	17	3730
+19	21	10536
+21	23	8458
+23	25	2368
+26	30	3693
+33	36	3678
+37	43	7226
+43	44	2072
+48	49	1060
+end	opennlp:subwords
