@@ -147,7 +147,9 @@ pub fn shape_of<L: GoldenCompare>() -> Shape {
 /// added.
 pub fn known_shapes() -> Vec<Shape> {
     use turbo_analysis::View;
-    use turbo_analysis_layers::{Confidence, Entities, Language, Lemmas, PosTags, Sentences, Tokens, Utf16Spans};
+    use turbo_analysis_layers::{
+        Confidence, Entities, Language, Lemmas, Numbers, PosTags, Sentences, Tokens, Utf16Spans,
+    };
     vec![
         shape_of::<Sentences>(),
         shape_of::<Confidence<Sentences>>(),
@@ -159,6 +161,7 @@ pub fn known_shapes() -> Vec<Shape> {
         shape_of::<Lemmas>(),
         shape_of::<Entities>(),
         shape_of::<Language>(),
+        shape_of::<Numbers>(),
         shape_of::<View>(),
     ]
 }
@@ -316,6 +319,7 @@ mod tests {
                 "opennlp:lemmas",
                 "opennlp:entities",
                 "opennlp:language",
+                "turbo:numbers",
                 "turbo:view"
             ]
         );

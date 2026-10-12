@@ -16,6 +16,8 @@ mod limits;
 
 pub use boundaries::{Costs, StructureBoundaries};
 
+pub mod terms;
+
 use std::ops::Range;
 
 use turbo_analysis::{Annotator, Error, Ix, IxRange, Refs, Span, Spans};

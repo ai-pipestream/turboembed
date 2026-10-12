@@ -1794,6 +1794,7 @@ version = "0.1.0"
 dependencies = [
  "turbo-analysis",
  "turbo-analysis-layers",
+ "turbo-normalize",
 ]
 
 [[package]]
@@ -1859,6 +1860,7 @@ version = "0.1.0"
 dependencies = [
  "turbo-analysis",
  "turbo-analysis-layers",
+ "turbo-goldens",
  "turbo-normalize-layers",
  "turbo-unicode",
 ]
@@ -1869,6 +1871,16 @@ version = "0.1.0"
 dependencies = [
  "turbo-analysis",
  "turbo-analysis-layers",
+]
+
+[[package]]
+name = "turbo-numeric"
+version = "0.1.0"
+dependencies = [
+ "turbo-analysis",
+ "turbo-analysis-layers",
+ "turbo-goldens",
+ "turbo-unicode",
 ]
 
 [[package]]

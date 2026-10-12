@@ -17,6 +17,7 @@ members = [
     "analysis/maxent",
     "analysis/normalize",
     "analysis/normalize-layers",
+    "analysis/numeric",
     "analysis/sentdetect",
     "analysis/tokenize",
     "analysis/tokenize-layers",
