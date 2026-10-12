@@ -137,10 +137,28 @@ impl Document {
         chain.iter().rev().fold(s, |s, view| view.alignment.span_to_child(s))
     }
 
-    /// A source offset in a view, for one side of a span.
+    /// A source offset in a view, for one side of a span: down the chain of
+    /// views, one `Alignment::to_child` per view. At inserted bytes a start
+    /// goes after them and an end before them, as for a single view.
     pub fn offset_from_source(&self, v: ViewId, x: u32, side: Side) -> u32 {
-        let s = self.from_source(v, Span::new(x, x));
-        if side == Side::Start { s.start } else { s.end }
+        let mut chain = Vec::new();
+        let mut at = &self.views[v.0 as usize];
+        while let Some(p) = at.parent {
+            chain.push(at);
+            at = &self.views[p.0 as usize];
+        }
+        chain.iter().rev().fold(x, |x, view| view.alignment.to_child(x, side))
+    }
+
+    /// An offset of a view in source bytes, for one side of a span: up the
+    /// chain of views, one `Alignment::to_parent` per view.
+    pub fn offset_to_source(&self, v: ViewId, mut x: u32, side: Side) -> u32 {
+        let mut at = &self.views[v.0 as usize];
+        while let Some(p) = at.parent {
+            x = at.alignment.to_parent(x, side);
+            at = &self.views[p.0 as usize];
+        }
+        x
     }
 
     /// The default instance of a layer.
