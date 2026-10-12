@@ -1,10 +1,11 @@
 //! The document: its text views and its layers.
 
 use std::any::{Any, TypeId};
-use std::sync::Arc;
+use std::sync::{Arc, OnceLock};
 
 use crate::error::Error;
 use crate::layer::{Anchor, Key, KeyId, Layer, Provenance, as_any_mut};
+use crate::offsets::OffsetTable;
 use crate::span::Span;
 use crate::text::{Alignment, Side, ViewId};
 
@@ -19,13 +20,15 @@ pub struct View {
     parent: Option<ViewId>,
     text: Arc<str>,
     alignment: Alignment,
+    /// UTF-16 and code point checkpoints, built on first use.
+    offsets: OnceLock<OffsetTable>,
 }
 
 impl View {
     /// A view made from `parent` (alignment from a `ViewBuilder`). Its id is
     /// given when the document takes it.
     pub fn derived(parent: &View, text: String, alignment: Alignment) -> View {
-        View { id: ViewId(u16::MAX), parent: Some(parent.id), text: text.into(), alignment }
+        View { id: ViewId(u16::MAX), parent: Some(parent.id), text: text.into(), alignment, offsets: OnceLock::new() }
     }
 
     pub fn id(&self) -> ViewId {
@@ -42,6 +45,13 @@ impl View {
 
     pub fn alignment(&self) -> &Alignment {
         &self.alignment
+    }
+
+    /// The table that converts this view's byte offsets to UTF-16 units
+    /// and code points and back, for Java and the wire. It is built the
+    /// first time it is asked for and kept.
+    pub fn offsets(&self) -> &OffsetTable {
+        self.offsets.get_or_init(|| OffsetTable::build(&self.text))
     }
 }
 
@@ -93,8 +103,13 @@ pub struct Document {
 
 impl Document {
     pub fn new(text: impl Into<Arc<str>>) -> Document {
-        let source =
-            Arc::new(View { id: ViewId::SOURCE, parent: None, text: text.into(), alignment: Alignment::identity() });
+        let source = Arc::new(View {
+            id: ViewId::SOURCE,
+            parent: None,
+            text: text.into(),
+            alignment: Alignment::identity(),
+            offsets: OnceLock::new(),
+        });
         let entry = Entry {
             key: Key::<View>::DEFAULT.id(),
             len: 1,
@@ -113,6 +128,11 @@ impl Document {
     /// The text of a view.
     pub fn text(&self, v: ViewId) -> &str {
         &self.views[v.0 as usize].text
+    }
+
+    /// The offset table of a view: see `View::offsets`.
+    pub fn offsets(&self, v: ViewId) -> &OffsetTable {
+        self.views[v.0 as usize].offsets()
     }
 
     /// A span of any view, in source bytes: up the chain of views, widening

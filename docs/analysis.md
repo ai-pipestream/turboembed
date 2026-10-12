@@ -16,7 +16,7 @@ nothing here is in the C header or the gRPC server.
 
 | Crate | Path | Contents |
 |---|---|---|
-| `turbo-analysis` | `analysis/core/` | The document, views, layers, keys, provenance, annotators, the analyzer and the registry |
+| `turbo-analysis` | `analysis/core/` | The document, views, offset tables, layers, keys, provenance, annotators, the analyzer and the registry |
 | `turbo-analysis-layers` | `analysis/layers/` | The layers add-ons share (below) |
 | `turbo-chunker` | `analysis/chunker/` | The chunker |
 
@@ -33,7 +33,21 @@ Both ends of a span must be on character boundaries: a layer with a
 span that cuts a character is refused when it is added, not found later
 by a panic.
 UTF-16 and code point offsets, for Java and the wire, are conversions
-at the edge and are not built yet.
+at the edge, never a second coordinate system inside. Each view has an
+`OffsetTable` (`View::offsets`, `Document::offsets`), built the first
+time it is asked for and kept: a checkpoint every 256 bytes, stored by
+column, that holds the byte, UTF-16 and code point offsets of the first
+character boundary there. A conversion is a binary search over the
+checkpoints and a forward count over at most one stride of the text; a
+view that is all ASCII keeps no checkpoints, since all three units
+agree. A UTF-16 offset between the two halves of a surrogate pair, or
+any offset past the end of the view, is refused with `Error::Offset`.
+
+`Utf16Offset` and `CodePointOffset` are their own types, so neither can
+be passed where a byte offset is expected. `OffsetCursor` converts a
+column of offsets in text order (a layer's starts, or its ends) in one
+forward pass over the text, and `OffsetTable::column_to_utf16` and
+`column_to_code_point` use it to fill a vector the caller provides.
 
 ## Views
 
@@ -259,6 +273,11 @@ runs them on any machine:
   that are never crossed, and a paragraph break's token counted inside
   a chunk. The chunker's unit tests hold the optimizer against filling
   each chunk to the budget.
+- `analysis/core/tests/offsets.rs` converts offsets in both directions
+  at every character boundary of text with one to four byte
+  characters, refuses offsets inside a surrogate pair and past the end,
+  and checks a text of about ten thousand bytes against counts made
+  with `encode_utf16` and `chars`, by point and by cursor.
 - A doctest on `Ix` checks that an index into the wrong layer does not
   compile.
 
@@ -268,7 +287,6 @@ runs them on any machine:
   tokenization, the subwords from turboembed's tokenizer, vectors
   through turboembed, and the boundary signals. The tests build their
   layers by hand or with toy annotators.
-- UTF-16 and code point offsets at the edge.
 - Golden layer files made on the JVM from a pinned OpenNLP 3.x commit,
   for the ports to be checked against.
 - The evaluation harness that every change to the chunker is measured
