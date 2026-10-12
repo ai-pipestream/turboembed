@@ -18,10 +18,12 @@ nothing here is in the C header or the gRPC server.
 |---|---|---|
 | `turbo-analysis` | `analysis/core/` | The document, views, offset tables, layers, keys, provenance, annotators, the analyzer and the registry |
 | `turbo-analysis-layers` | `analysis/layers/` | The layers add-ons share (below) |
-| `turbo-chunker` | `analysis/chunker/` | The chunker |
+| `turbo-chunker` | `analysis/chunker/` | The chunker, and term statistics and BM25 per chunk, section and document |
 | `turbo-analysis-embed` | `analysis/embed/` | The embedding model as analysis steps: the subwords of a text view from the bundle's tokenizer, and a vector per sentence and per chunk |
+| `turbo-numeric` | `analysis/numeric/` | The number scanner, which writes `turbo:numbers` ([numbers.md](numbers.md)) |
 | `turbo-jvm` | `analysis/jvm/` | JVM behaviour the OpenNLP ports must reproduce bit for bit |
 | `turbo-goldens` | `analysis/goldens/` | Golden layer files from the JVM: the reader, the writer, the comparison, loading golden layers as test inputs, SHA-256 and SHA-512 |
+| `turbo-sequence` | `analysis/sequence/` | OpenNLP's beam search, BIO and BILOU codecs and feature generation framework (generators, `StringPattern` and the XML descriptors), with the context generators and validators of the part-of-speech tagger, chunker and name finder. Its crate documentation lists the OpenNLP behaviour it reproduces that is surprising, and the one it does not yet (QN models in a beam search); `analysis/sequence/README.md` describes its JVM golden files |
 
 They need nothing beyond the standard library and each other, except
 `turbo-analysis-embed`, which runs the embedding model and so depends on
@@ -128,9 +130,9 @@ Model probabilities and scores (`PosTags.prob`, `Entities.score`,
 `Confidence<L>`, `Language.score`) are stored as f64. OpenNLP computes
 them as Java doubles, and the parity tests compare them with the JVM's
 output to within 1e-9, which f32 (about seven significant digits) cannot
-hold. Vectors (`Vectors<L>`) and the chunker's costs (`Boundaries.cost`,
-`Chunks.cost`) are f32: they are computed in Rust and never compared
-with OpenNLP.
+hold. Vectors (`Vectors<L>`) are f32: they are computed in Rust and
+never compared with OpenNLP. The chunker's costs (`Boundaries.cost`,
+`Chunks.cost`) are integers, so every backend picks the same cuts.
 
 A layer is added once and never changed. Before it is taken the
 document checks that the layer is not already there, that no other
@@ -269,10 +271,14 @@ fields mean bumps its `SCHEMA`.
 | `Entities` | `opennlp:entities` | text | `turbo-analysis-layers` |
 | `Boundaries` | `turbo:boundaries` | sentences | `turbo-analysis-layers` |
 | `Chunks` | `turbo:chunks` | text | `turbo-analysis-layers` |
+| `Numbers` | `turbo:numbers` | text | `turbo-analysis-layers` |
 | `Vectors<L>` | `opennlp:embeddings<L>` | `L` | `turbo-analysis-layers` |
 | `Confidence<L>` | `turbo:confidence<L>` | `L` | `turbo-analysis-layers` |
 | `Utf16Spans<L>` | `turbo:utf16<L>` | `L` | `turbo-analysis-layers` |
 | `Language` | `opennlp:language` | the document | `turbo-analysis-layers` |
+| `Vocabulary` | `turbo:vocabulary` | the document | `turbo-chunker` |
+| `Terms` | `turbo:terms` | tokens | `turbo-chunker` |
+| `TermStats<L>` | `turbo:term-stats<L>` | `L` | `turbo-chunker` |
 
 `Chunks` are retrieval chunks. The standard's `opennlp:chunks` are
 phrase chunks (noun and verb groups), a different layer, which a phrase
@@ -491,25 +497,196 @@ prompt prefix are the budget's overhead.
 It chooses every boundary of a run of sentences together, the way TeX
 breaks a paragraph into lines, rather than filling each chunk to the
 budget and cutting wherever it lands. A chunk costs the boundary that
-closes it plus its squared distance from the target size, relative to
-the target and weighted; the optimizer finds the cut of least total
-cost. No chunk is longer than the budget's maximum, unless one sentence
-alone is: that sentence is then a chunk of its own, marked as over the
-budget, for a clause splitter to cut further. Time is the number of
-sentences times the most that fit in one chunk.
+closes it plus a size penalty: `Budget::size_weight` times the squared
+distance from the target size over the squared target, rounded down to
+an integer. The optimizer finds the cut of least total cost. No chunk
+is longer than the budget's maximum, unless one sentence alone is: that
+sentence is then a chunk of its own, marked in `Chunks::over_budget`,
+for a clause splitter to cut further; its `cut` still says why it starts
+where it does (a section, say). Time is the number of sentences times the most
+that fit in one chunk.
 
-What a boundary costs is the `Boundaries` layer: a cost and a reason
-after each sentence. Each signal annotator (structure, topic shifts,
-coreference, discourse markers) writes its own named instance, and one
-step weighs and sums them into the default instance, since a layer has
-one writer; the chunker reads only that.
+Every cost is an integer, so the same layers give the same cuts on
+every machine and backend, with no float summed in a different order to
+tip a choice. Two cuts tie only when they cost exactly the same; then
+the one whose first boundary comes earliest wins, then its second, and
+so on. The table runs from the end of each run back, so each entry
+keeps the earliest end of equal least cost. A chunk's size penalty is
+exact, never capped: a size is at most 2^33 tokens and the weight under
+2^32, so a penalty is under 2^98 and fits an i128, and the optimizer
+sums chunk costs in i128. Two different cuts never look equal for a cap
+or an overflow, and a chunk of more than one sentence is never let past
+the maximum to escape a huge penalty. A total could saturate only past
+2^28 chunks each billions of tokens from the target. The `Chunks` layer
+stores each chunk's cost saturated to the i64 range. A unit test checks the optimizer
+against trying every cut of up to eleven sentences, with negative and
+zero costs, a target of zero and several weights and overheads.
 
-With structure, no chunk crosses a top-level section. Each section is
-its own run, so an edit re-chunks only its own section, and each
-section becomes a chunk one level up, the parent of the chunks cut
-from it. Every chunk records its level, its parent, its sentences, why
-it starts where it does, what it cost the optimizer and its length in
-model tokens.
+`segment` also takes a chunk term: a cost of a whole chunk, added beside
+its size penalty and clamped to plus or minus 2^60 units, since the
+caller supplies it. It is how a signal over whole
+chunks, such as how tightly a chunk's sentences cluster, enters the
+optimizer; the chunker passes `no_term`.
+
+### Boundary costs
+
+What a boundary costs is the `Boundaries` layer (`turbo:boundaries`),
+aligned to the sentences: entry i is the gap after sentence i, the last
+one the end of the text. Each entry is an `i32` cost and a `Cut`
+reason. Costs are in `Boundaries::UNIT`s (1000); a plain sentence
+boundary costs one unit, a stronger break less, and a signal that
+argues for a cut may write a negative cost. A signal computed in
+floating point is rounded to units once, when it is written.
+
+The chunker reads only the default instance, and a layer has one
+writer. With one boundary signal, that signal writes the default
+instance itself, as `StructureBoundaries` does. With several (structure,
+drift, topic shifts, coreference, discourse markers), each should write
+a named instance of this same shape, and a step that weighs them with
+integer weights and sums them should write the default instance,
+computing in i64 and saturating to the i32 range so no weight or sum
+wraps around. A new signal is one more instance, never a new column. A
+term that belongs to a whole chunk rather than to a gap (how
+tightly its sentences cluster) is not a boundary cost; it is the
+optimizer's chunk term.
+
+`StructureBoundaries` writes the structural term from the sentences and
+`turbo:structure`. A block holds the sentences it has a byte of, found
+with two binary searches; it starts at the gap before the first of them
+and ends at the gap after the last, so a block edge inside a sentence
+moves to the nearest gap. A section is the exception: it holds the
+sentences that start in it, the same rule (one shared function) the
+chunker splits its runs by, so a section start inside a sentence is the
+gap after that sentence, and every chunk marked `Section` starts a run.
+Each gap takes its strongest break:
+
+| Break at the gap | Reason | Default cost |
+| --- | --- | --- |
+| A section starts or ends | `Section` | 0 |
+| A heading starts | `Heading` | 100 |
+| A paragraph, list, table, code block, quote, caption, footnote or page header or footer starts or ends | `Paragraph` | 400 |
+| A list item or table row starts or ends | `Item` | 600 |
+| None of these | `Sentence` | 1000 |
+
+A gap where a heading ends costs 4000 more, so a heading stays with what
+it heads. With no structure every gap is a sentence boundary. It writes
+the default instance, as the only signal.
+
+### Hard limits
+
+A chunk boundary never falls inside a sentence: boundaries are only
+between sentences. Nor does it fall inside a table row, a code block or
+a quote, unless that unit alone is over the budget's maximum. These
+limits depend on the budget, so they are not costs: the chunker reads
+the structure itself. A unit holds the sentences it has a byte of. A
+gap is held when any unit that holds sentences on both sides of it fits
+the budget, and the sentences joined by held gaps are one unit to the
+optimizer. When units are around a gap and none fits, the gap may be
+cut, and the chunk that starts there is marked `Cut::Inside` with the
+smallest such unit's kind. Units nest: a code block that fits inside a
+quote that does not is held whole while the quote is cut around it. No
+boundary cost, however low, overrides a limit.
+
+Two units whose bytes do not overlap can still share a sentence, when
+an edge falls inside it, and a chain of such units can join more
+sentences than the budget holds though each unit fits. That run must be
+cut somewhere, so every gap in it is freed and a chunk that starts at
+one is marked `Cut::Overlap` with the kind of the smallest unit that
+held it. A section's edge is always a cut: when a sentence that
+straddles a section's start belongs to the section before (by its
+start) and a unit in the new section holds it, the unit is cut at the
+section's edge and the chunk there says `Section`.
+
+### Sections
+
+With structure, no chunk crosses a top-level section. The chunker sorts
+the top-level sections by start, so sections listed out of text order
+still make runs of their own. Each section, and
+each run of sentences outside every section, is its own run, so an edit
+re-chunks only its own section, and each run becomes a chunk one level
+up, the parent of the chunks cut from it. Every chunk records its level,
+its parent, its sentences, why it starts where it does, what it cost the
+optimizer (an integer, in units), its length in model tokens and
+whether it is over the budget. The chunks layer refuses a parent that is
+not at a level above its child or does not hold the child's span.
+
+Not measured yet: the chunker against the stage 0 baselines on the
+evaluation harness, with significance, which is still being built.
+
+## Term statistics and BM25
+
+`turbo_chunker::terms` counts terms per retrieval unit for lexical
+search, from the word tokens alone: no model and no vectors, so a BM25
+baseline can be measured before any vector exists.
+
+`TermIndexer` reads a text view and the tokens and writes the document's
+`Vocabulary` and a term for each token (`Terms`, aligned to the tokens).
+A term is the token's text in the view read, byte for byte: nothing is
+lowercased here. To match without case, read a case folded view
+(`NormalizeStep::new(CaseFold::full())` bound to write `folded`, and the
+indexer bound with `.read(0, "folded")`); the tokens can stay on the
+source, since a token's span is mapped through the folded view's
+alignment to its parent. A view further down a chain than that is
+refused. The view's edits must not cross a token edge: with one edit
+turning "don't" into "do not" over the tokens "do" and "n't", each
+token would map to the whole replacement, so a document with a token
+edge strictly inside an edit is refused. Case folding replaces one
+character per edit and never crosses one.
+
+A token is a term when it holds at least one character
+`char::is_alphanumeric` accepts (an alphabetic character, or a number
+of category Nd, Nl or No). A token of punctuation or symbols alone (a
+period) is not, and counts toward no length. This is close to Lucene's
+`StandardTokenizer`, which drops punctuation, but not the same: that
+tokenizer splits by UAX #29 word boundaries, keeps emoji as tokens
+(no terms here) and makes no token of a lone No character such as "½"
+(a term here), and its splits differ from the word tokenizer's. The vocabulary is in byte order, each term once, so a
+term's id depends only on which terms the document holds, and a lookup
+is a binary search.
+
+`TermCounter<L>` reads the tokens, their terms, the vocabulary and the
+units of one level, and writes `TermStats<L>`, aligned to the units:
+
+- `TermCounter<Chunks>`: a row per chunk, at every level of the chunk
+  hierarchy;
+- `TermCounter<Structure>`: a row per structure block; the sections are
+  the blocks of kind `Section`, and a nested section's terms count in it
+  and in every section around it;
+- `TermCounter<View>`: one row for the whole document.
+
+A token is in the unit its start is in. Each row is sparse: the unit's
+term ids in ascending order with a count for each, by column, with
+offsets per unit. The layer also holds each unit's length in terms and,
+per term, how many of the level's units hold it (`df`). That df is
+within one document; it is not the corpus document frequency BM25's idf
+is defined over.
+
+`Query` scores units with BM25 in Lucene's form (`BM25Similarity`,
+`Bm25::LUCENE`: k1 = 1.2, b = 0.75):
+
+```text
+score = sum over query terms t of idf(t) * tf / (tf + k1 * (1 - b + b * length / mean_length))
+idf(t) = ln(1 + (N - n(t) + 0.5) / (n(t) + 0.5))
+```
+
+The classic `(k1 + 1)` factor is left out, as Lucene has since version
+8; it scales every score alike and leaves the ranking unchanged. N, the
+mean length and n(t) are the collection's, and the caller supplies them
+through `Collection`: from an index over the corpus for corpus search.
+`LocalCollection` gives one document's own units as the collection (all
+of a level's units, or those a filter keeps, such as the sections or
+the chunks of one level), for ranking a document's chunks against each
+other. As in Lucene, a unit with no terms is not counted in N or the
+mean length. Lengths here are exact, where Lucene stores a length in
+one byte, exactly only for short units, so Lucene's scores for long
+units can differ slightly. Query terms are matched byte for byte and
+must be normalized as the document's terms were; a term given twice
+counts twice. `Query::rank` lists the units holding a query term, best
+first, equal scores in unit order.
+
+The layers live in `turbo-chunker` beside the code that makes them while
+only it reads them; they move to a schema crate of their own once
+another crate does.
 
 ### Comparing two runs
 
@@ -650,6 +827,7 @@ The layers and their columns, in order:
 | `opennlp:lemmas` | `aligned:opennlp:tokens` | `lemma:str` |
 | `opennlp:entities` | `text` | `start:u32`, `end:u32`, `token_start:u32`, `token_end:u32`, `kind:str`, `prob:f64` |
 | `opennlp:language` | `document` | `code:str`, `confidence:f64` |
+| `turbo:numbers` | `text` | `start:u32`, `end:u32`, `numeral_end:u32`, `negative:u32`, `coefficient:str`, `scale:u32`, `plain:str` |
 | `turbo:view` | `text` | `start:u32`, `end:u32`, `with:str` |
 
 `opennlp:language` has a row per language the detector ranked, best
@@ -701,8 +879,9 @@ by item, the span, then an entity's token range, then the label (a tag
 through its tag set, a lemma, a kind, a language code) must be equal,
 and a probability must be within the `Tolerance`: `Exact` compares the
 bits (so -0.0 and 0.0 differ), and `Abs(d)` takes two finite values at
-most `d` apart, or the same infinity, or two NaNs. `Language` holds the
-best language, so it is compared with row 0. POS tags without
+most `d` apart, or the same infinity, or two NaNs. `Language` holds
+every language the detector ranked, best first, and is compared row by
+row, so the ranking must match. POS tags without
 probabilities do not match a golden that has them.
 
 `Utf16Spans<L>` (`turbo:utf16<L>`) is compared exactly, row by row: the
@@ -785,8 +964,8 @@ token's sentence is the one whose span contains it, and a token inside
 no sentence is refused (`LoadError::OutsideSentences`), since the JVM
 makes its tokens inside its sentences. The format writes sentences
 before tokens, so `load_document` finds them; without sentences under
-that name the column is `None`. `Language` holds the golden's first
-row, the best language, as the comparison reads it.
+that name the column is `None`. `Language` holds every row of the
+golden, best first.
 
 A block is checked against its layer type's shape before it is loaded,
 the same check the comparison makes, and the document then checks the
@@ -834,6 +1013,22 @@ The generator writes these layers, in this order within a golden:
 | `tokenize` (`TokenizerME.tokenizePos`) | `opennlp:tokens`, `turbo:utf16<opennlp:tokens>` when a token cuts a character, `turbo:confidence<opennlp:tokens>` |
 | `langdetect` (`LanguageDetectorME.predictLanguages`) | `opennlp:language` |
 | `normalize` (each normalizer) | `turbo:view` |
+| `numbers` (`NumberScan.parse`, per notation) | `turbo:numbers` |
+
+`numbers/<notation>/num/<id>.golden` (`latin-us`, `latin-eu`) holds
+`turbo:numbers`, anchored on the text, with one row per number mention:
+`start:u32` and `end:u32` (UTF-8 byte offsets, from an optional `-` to the
+end of a `k`, `m`, `b`, `bn` or `thousand` to `trillion` scale marker),
+`numeral_end:u32` (the end of the digits, before the scale marker),
+`negative:u32` (1 when the mention starts with `-`), `coefficient:str` (the
+unscaled value without sign), `scale:u32` (digits after the decimal point)
+and `plain:str` (`toPlainString()`, for a human reading the file). The value
+is `(-1)^negative * coefficient / 10^scale`. The `annotator` line names
+`opennlp.tools.extraction.NumberScan` and `parse`, and a `config notation`
+record gives `LATIN_US` or `LATIN_EU`. The scan is the mention loop of
+`CursorQuantityExtractor` of the `numeric` module of `opennlp-addons`
+(pinned in `analysis/goldens-tool/src/recipe.rs`) without the money
+exclusion and without units; there is no model and no dump.
 
 Other crates write goldens of their own layer types in the same format,
 which the generator does not make: a tokenizer crate's
@@ -939,8 +1134,11 @@ The `str` escapes are the golden format's: `\t`, `\n`, `\r`, `\\`, and
 character below U+0020. A surrogate that is not half of a pair is
 written as `\uXXXX` as well, because it has no UTF-8 form. The language
 detector's n-grams and the tokenizer's contexts are cut at UTF-16 units
-and hold such halves (the language detector dump of `multi/mixed` and the
-tokenizer dumps of `en/emoji` and `multi/mixed` have them); a reader that
+and can hold such halves. The tokenizer dumps of `en/emoji`,
+`en/emoji-split` and `multi/mixed` have them. The language detector
+dumps have none, because its first normalizer replaces every character
+outside the Basic Multilingual Plane with a space before the n-grams
+are cut; a reader that
 decodes into Rust strings has to keep such a field as UTF-16 units or as
 its escaped text. The generator writes goldens through the same escape,
 and its UTF-8 encoder fails rather than writing a replacement character.
@@ -1025,7 +1223,39 @@ runs them on any machine:
   where the topic shifts instead of where the budget fills, sections
   that are never crossed, and a paragraph break's token counted inside
   a chunk. The chunker's unit tests hold the optimizer against filling
-  each chunk to the budget.
+  each chunk to the budget and against trying every cut, check the
+  integer size penalty, the chunk term, that of equal cuts the earliest
+  wins and that a huge penalty never lets a chunk past the maximum, and
+  read the gaps a structure makes: each gap's strongest break, the
+  units by their sentences, block edges inside sentences, which gaps
+  units hold, and sections listed out of order.
+- `analysis/chunker/tests/limits.rs` holds each hard limit over
+  hand-made layers: a table row, a code block and a quote that fit are
+  never cut even where the costs say to, each one over the budget is cut
+  and the chunk says why, a unit that fits inside one that does not is
+  held, units that share sentences and chain over the budget are cut,
+  a section's edge is a cut even inside a unit, and a sentence over the
+  budget stands alone and keeps its reason, at a section start too. It
+  refuses chunks outside their parents or not at a level above them. It
+  checks that every chunk is the exact bytes of its
+  sentences in text of one to four byte characters and, through a
+  normalized view, in the source, and the costs `StructureBoundaries`
+  writes.
+- `analysis/chunker/tests/terms.rs` runs the term steps on hand-made
+  tokens, structure and chunks, with the terms read from a case folded
+  view: the vocabulary, a row per chunk, block and document with its
+  lengths and df, BM25 scores against a plain textbook BM25 written in
+  the test for four settings of k1 and b, Lucene's idf, an idf from a
+  caller's corpus statistics against the document's own, ranking ties,
+  full case folding that changes bytes, a token a unit cuts, units in
+  another view and a view too far from the tokens. Two scores are
+  worked by hand from Lucene 9's formula in the test's comments. It
+  also holds a query term given twice, units with no terms left out of
+  the local N and mean, a mean length of zero, a view whose edit crosses
+  a token edge (refused) beside one whose edits do not, and the
+  counter's refusals: tokens out of order and a layer of several units
+  with no spans. The unit tests hold
+  the interning, the sparse rows and the layer's checks.
 - `analysis/embed/tests/subwords.rs` runs the subwords annotator on the
   small BERT's WordPiece bundle, a byte-level BPE bundle and BGE-M3's
   Unigram, over the tokenizer test texts, and checks that the document
@@ -1111,7 +1341,8 @@ runs them on any machine:
 ## Not built yet
 
 - The annotators themselves: normalizers, sentence detection,
-  tokenization, and the boundary signals.
+  tokenization, and the boundary signals besides structure, with the
+  step that weighs and sums them.
 - A comparison of the sentence vectors with OpenNLP's
   `SentenceVectorsDL` on golden inputs, which needs the JVM container,
   and a measurement of documents per second through the vector steps.
@@ -1120,5 +1351,6 @@ runs them on any machine:
   golden inputs; the WordPiece pieces are compared with upstream
   `tokenizers` for now.
 - The evaluation harness that every change to the chunker is measured
-  with.
+  with, and the chunker's records on it. It is also where the BM25 only
+  baseline is to be reported, from the term statistics above.
 - A gRPC surface, to be shared with the OpenNLP standard.

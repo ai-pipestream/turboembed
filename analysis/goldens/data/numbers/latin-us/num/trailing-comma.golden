@@ -1,0 +1,11 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-1-24.04.4-Ubuntu	Ubuntu
+unicode	15.0
+input	num/trailing-comma	13	13	9af8c3ff70313c727d9f2e3a1a9d8da405520f5de4e8bdd7e14a893b4df67b87
+annotator	opennlp.tools.extraction.NumberScan	parse
+config	notation	LATIN_US
+layer	turbo:numbers	text	1	start:u32	end:u32	numeral_end:u32	negative:u32	coefficient:str	scale:u32	plain:str
+7	12	12	0	1234	0	1234
+end	turbo:numbers

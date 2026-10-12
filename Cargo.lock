@@ -1794,6 +1794,7 @@ version = "0.1.0"
 dependencies = [
  "turbo-analysis",
  "turbo-analysis-layers",
+ "turbo-normalize",
 ]
 
 [[package]]
@@ -1846,6 +1847,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "turbo-langdetect"
+version = "0.1.0"
+dependencies = [
+ "turbo-analysis",
+ "turbo-analysis-layers",
+ "turbo-goldens",
+ "turbo-maxent",
+ "turbo-normalize",
+ "turbo-unicode",
+]
+
+[[package]]
 name = "turbo-maxent"
 version = "0.1.0"
 dependencies = [
@@ -1859,6 +1872,7 @@ version = "0.1.0"
 dependencies = [
  "turbo-analysis",
  "turbo-analysis-layers",
+ "turbo-goldens",
  "turbo-normalize-layers",
  "turbo-unicode",
 ]
@@ -1872,11 +1886,30 @@ dependencies = [
 ]
 
 [[package]]
+name = "turbo-numeric"
+version = "0.1.0"
+dependencies = [
+ "turbo-analysis",
+ "turbo-analysis-layers",
+ "turbo-goldens",
+ "turbo-unicode",
+]
+
+[[package]]
 name = "turbo-sentdetect"
 version = "0.1.0"
 dependencies = [
  "turbo-analysis",
  "turbo-analysis-layers",
+ "turbo-maxent",
+ "turbo-unicode",
+]
+
+[[package]]
+name = "turbo-sequence"
+version = "0.1.0"
+dependencies = [
+ "turbo-jvm",
  "turbo-maxent",
  "turbo-unicode",
 ]

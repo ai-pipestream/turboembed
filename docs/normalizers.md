@@ -2241,3 +2241,26 @@ it overlaps.
 ## Tests
 
 `cargo test -p turbo-unicode -p turbo-normalize -p turbo-normalize-layers`.
+
+### JVM golden tests
+
+`analysis/normalize/tests/goldens.rs` runs every normalizer that has an
+OpenNLP counterpart over the 61 texts of
+`analysis/goldens/data/inputs/norm/` and compares the result with the
+`turbo:view` layer in `analysis/goldens/data/normalize/<name>/norm/<id>.golden`
+using `turbo_goldens::matches_golden_key`: the rebuilt text first, then
+the edits one for one (Rust edit i against golden row i). Both sides keep
+one edit per replaced stretch, so a normalizer whose golden comes from
+OpenNLP's `normalizeAligned` must match exactly.
+
+The goldens of `emoji`, `nfc`, `nfkc`, `case-fold`, `case-fold-tr`,
+`accent-fold`, `confusable-skeleton`, `url`, `bounded-url`, `social-media`,
+`number`, `shrink`, `symbol-joiner` and the default chain come from
+OpenNLP methods without an alignment, so the generator rebuilt their edits
+by a diff on code points and an edit boundary is the diff's choice. For
+those the text must still be equal, and differing edit lists are accepted
+when each region of the source that either list changes comes out the
+same under both. The texts where an output differs on purpose are listed
+in the test with the section of this file that records the difference.
+`emoji` runs `EmojiRemove::supplementary()`, which is OpenNLP's output;
+the sequence mode is a documented difference.

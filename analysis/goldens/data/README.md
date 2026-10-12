@@ -67,6 +67,22 @@ repertoire, which JDK 21 implements. `normalize/<name>/norm/<id>.golden`
 holds a `turbo:view` layer with the edits OpenNLP's normalizer `<name>`
 made to `inputs/norm/<id>.txt`; see `analysis/goldens-tool/README.md`.
 
+## Number goldens
+
+`inputs/num/` holds 60 short texts written for number scanning: US and EU
+grouping and decimals, values that read differently in the two notations
+(`1.234`), invalid grouping, repeated separators, `k`/`m`/`bn` suffixes and
+`thousand` to `trillion` words with different spaces before them,
+exponents, negatives with and without a sign boundary, thin space,
+no-break space, apostrophe and Arabic separators between digits, numbers
+next to letters, underscores and combining marks, non-ASCII digits (which
+are not scanned), 40 digit numbers, zero with a fraction, texts that end
+in a separator, and prose in several languages. Every character is in the
+Unicode 15.0 repertoire. `numbers/<notation>/num/<id>.golden` holds the
+`turbo:numbers` layer for `inputs/num/<id>.txt` in `latin-us` or
+`latin-eu`; see `analysis/goldens-tool/README.md`. Only the `numbers`
+annotator runs on this set, and it has no dumps.
+
 ## Decision point dumps
 
 `<annotator>/<model>/<set>/<id>.dump`, beside each golden of
@@ -83,6 +99,6 @@ The dumps checked in now were made by running the Java generator
 directly with `--dumps` (see `analysis/goldens-tool/README.md`) under the
 JDK named in their headers, in the same run as the goldens, with the
 OpenNLP build and models named there. A normalizer asks no model, so the
-`normalize` goldens have no dumps. The run in the pinned container,
+`normalize` goldens have no dumps; neither do the `numbers` goldens. The run in the pinned container,
 through `turbo-goldens generate` and `verify`, is still to be done on a
 machine with Docker.

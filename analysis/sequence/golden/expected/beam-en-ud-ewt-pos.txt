@@ -1,0 +1,343 @@
+component: beam
+opennlp: cdf33c653d5d61d5af7d37ffee189a83bd8392ea
+jdk: 21.0.12.1
+model: opennlp-en-ud-ewt-pos-1.3-2.5.4.bin
+sha256: 510b89087e7ef7ffb8c50c63e3e999122404ac9fa64790dfa93b38d1938c52ce
+kind: pos
+beam: 3
+sentence: 0
+tokens: Pierre	Vinken	,	61	years	old	,	will	join	the	board	as	a	nonexecutive	director	Nov.	29	.
+call: 0
+features: def	suf=e	suf=re	suf=rre	suf=erre	pre=P	pre=Pi	pre=Pie	pre=Pier	w=pierre	n1w=vinken	n2w=,	S=begin	wc=ic	w&c=pierre,ic
+call: 1	PROPN
+features: def	suf=n	suf=en	suf=ken	suf=nken	pre=V	pre=Vi	pre=Vin	pre=Vink	w=vinken	p1w=pierre	n1w=,	n2w=61	p1S=begin	wc=ic	w&c=vinken,ic	t=PROPN
+call: 1	NOUN
+features: def	suf=n	suf=en	suf=ken	suf=nken	pre=V	pre=Vi	pre=Vin	pre=Vink	w=vinken	p1w=pierre	n1w=,	n2w=61	p1S=begin	wc=ic	w&c=vinken,ic	t=PROPN
+call: 1	ADJ
+features: def	suf=n	suf=en	suf=ken	suf=nken	pre=V	pre=Vi	pre=Vin	pre=Vink	w=vinken	p1w=pierre	n1w=,	n2w=61	p1S=begin	wc=ic	w&c=vinken,ic	t=PROPN
+call: 2	PROPN	PROPN
+features: def	suf=,	pre=,	w=,	p1w=vinken	p2w=pierre	n1w=61	n2w=years	p2S=begin	wc=other	w&c=,,other	t=PROPN	t2=PROPN,PROPN
+call: 2	NOUN	PROPN
+features: def	suf=,	pre=,	w=,	p1w=vinken	p2w=pierre	n1w=61	n2w=years	p2S=begin	wc=other	w&c=,,other	t=PROPN	t2=PROPN,PROPN
+call: 2	ADJ	PROPN
+features: def	suf=,	pre=,	w=,	p1w=vinken	p2w=pierre	n1w=61	n2w=years	p2S=begin	wc=other	w&c=,,other	t=PROPN	t2=PROPN,PROPN
+call: 3	PROPN	PROPN	PUNCT
+features: def	suf=1	suf=61	pre=6	pre=61	w=61	p1w=,	p2w=vinken	n1w=years	n2w=old	wc=2d	w&c=61,2d	t=PUNCT	t2=PROPN,PUNCT
+call: 3	NOUN	PROPN	PUNCT
+features: def	suf=1	suf=61	pre=6	pre=61	w=61	p1w=,	p2w=vinken	n1w=years	n2w=old	wc=2d	w&c=61,2d	t=PUNCT	t2=PROPN,PUNCT
+call: 3	ADJ	PROPN	PUNCT
+features: def	suf=1	suf=61	pre=6	pre=61	w=61	p1w=,	p2w=vinken	n1w=years	n2w=old	wc=2d	w&c=61,2d	t=PUNCT	t2=PROPN,PUNCT
+call: 4	PROPN	PROPN	PUNCT	NUM
+features: def	suf=s	suf=rs	suf=ars	suf=ears	pre=y	pre=ye	pre=yea	pre=year	w=years	p1w=61	p2w=,	n1w=old	n2w=,	wc=lc	w&c=years,lc	t=NUM	t2=PUNCT,NUM
+call: 4	NOUN	PROPN	PUNCT	NUM
+features: def	suf=s	suf=rs	suf=ars	suf=ears	pre=y	pre=ye	pre=yea	pre=year	w=years	p1w=61	p2w=,	n1w=old	n2w=,	wc=lc	w&c=years,lc	t=NUM	t2=PUNCT,NUM
+call: 4	ADJ	PROPN	PUNCT	NUM
+features: def	suf=s	suf=rs	suf=ars	suf=ears	pre=y	pre=ye	pre=yea	pre=year	w=years	p1w=61	p2w=,	n1w=old	n2w=,	wc=lc	w&c=years,lc	t=NUM	t2=PUNCT,NUM
+call: 5	PROPN	PROPN	PUNCT	NUM	NOUN
+features: def	suf=d	suf=ld	suf=old	pre=o	pre=ol	pre=old	w=old	p1w=years	p2w=61	n1w=,	n2w=will	wc=lc	w&c=old,lc	t=NOUN	t2=NUM,NOUN
+call: 5	NOUN	PROPN	PUNCT	NUM	NOUN
+features: def	suf=d	suf=ld	suf=old	pre=o	pre=ol	pre=old	w=old	p1w=years	p2w=61	n1w=,	n2w=will	wc=lc	w&c=old,lc	t=NOUN	t2=NUM,NOUN
+call: 5	ADJ	PROPN	PUNCT	NUM	NOUN
+features: def	suf=d	suf=ld	suf=old	pre=o	pre=ol	pre=old	w=old	p1w=years	p2w=61	n1w=,	n2w=will	wc=lc	w&c=old,lc	t=NOUN	t2=NUM,NOUN
+call: 6	PROPN	PROPN	PUNCT	NUM	NOUN	ADJ
+features: def	suf=,	pre=,	w=,	p1w=old	p2w=years	n1w=will	n2w=join	wc=other	w&c=,,other	t=ADJ	t2=NOUN,ADJ
+call: 6	NOUN	PROPN	PUNCT	NUM	NOUN	ADJ
+features: def	suf=,	pre=,	w=,	p1w=old	p2w=years	n1w=will	n2w=join	wc=other	w&c=,,other	t=ADJ	t2=NOUN,ADJ
+call: 6	ADJ	PROPN	PUNCT	NUM	NOUN	ADJ
+features: def	suf=,	pre=,	w=,	p1w=old	p2w=years	n1w=will	n2w=join	wc=other	w&c=,,other	t=ADJ	t2=NOUN,ADJ
+call: 7	PROPN	PROPN	PUNCT	NUM	NOUN	ADJ	PUNCT
+features: def	suf=l	suf=ll	suf=ill	suf=will	pre=w	pre=wi	pre=wil	pre=will	w=will	p1w=,	p2w=old	n1w=join	n2w=the	wc=lc	w&c=will,lc	t=PUNCT	t2=ADJ,PUNCT
+call: 7	NOUN	PROPN	PUNCT	NUM	NOUN	ADJ	PUNCT
+features: def	suf=l	suf=ll	suf=ill	suf=will	pre=w	pre=wi	pre=wil	pre=will	w=will	p1w=,	p2w=old	n1w=join	n2w=the	wc=lc	w&c=will,lc	t=PUNCT	t2=ADJ,PUNCT
+call: 7	ADJ	PROPN	PUNCT	NUM	NOUN	ADJ	PUNCT
+features: def	suf=l	suf=ll	suf=ill	suf=will	pre=w	pre=wi	pre=wil	pre=will	w=will	p1w=,	p2w=old	n1w=join	n2w=the	wc=lc	w&c=will,lc	t=PUNCT	t2=ADJ,PUNCT
+call: 8	PROPN	PROPN	PUNCT	NUM	NOUN	ADJ	PUNCT	AUX
+features: def	suf=n	suf=in	suf=oin	suf=join	pre=j	pre=jo	pre=joi	pre=join	w=join	p1w=will	p2w=,	n1w=the	n2w=board	wc=lc	w&c=join,lc	t=AUX	t2=PUNCT,AUX
+call: 8	NOUN	PROPN	PUNCT	NUM	NOUN	ADJ	PUNCT	AUX
+features: def	suf=n	suf=in	suf=oin	suf=join	pre=j	pre=jo	pre=joi	pre=join	w=join	p1w=will	p2w=,	n1w=the	n2w=board	wc=lc	w&c=join,lc	t=AUX	t2=PUNCT,AUX
+call: 8	ADJ	PROPN	PUNCT	NUM	NOUN	ADJ	PUNCT	AUX
+features: def	suf=n	suf=in	suf=oin	suf=join	pre=j	pre=jo	pre=joi	pre=join	w=join	p1w=will	p2w=,	n1w=the	n2w=board	wc=lc	w&c=join,lc	t=AUX	t2=PUNCT,AUX
+call: 9	PROPN	PROPN	PUNCT	NUM	NOUN	ADJ	PUNCT	AUX	VERB
+features: def	suf=e	suf=he	suf=the	pre=t	pre=th	pre=the	w=the	p1w=join	p2w=will	n1w=board	n2w=as	wc=lc	w&c=the,lc	t=VERB	t2=AUX,VERB
+call: 9	NOUN	PROPN	PUNCT	NUM	NOUN	ADJ	PUNCT	AUX	VERB
+features: def	suf=e	suf=he	suf=the	pre=t	pre=th	pre=the	w=the	p1w=join	p2w=will	n1w=board	n2w=as	wc=lc	w&c=the,lc	t=VERB	t2=AUX,VERB
+call: 9	ADJ	PROPN	PUNCT	NUM	NOUN	ADJ	PUNCT	AUX	VERB
+features: def	suf=e	suf=he	suf=the	pre=t	pre=th	pre=the	w=the	p1w=join	p2w=will	n1w=board	n2w=as	wc=lc	w&c=the,lc	t=VERB	t2=AUX,VERB
+call: 10	PROPN	PROPN	PUNCT	NUM	NOUN	ADJ	PUNCT	AUX	VERB	DET
+features: def	suf=d	suf=rd	suf=ard	suf=oard	pre=b	pre=bo	pre=boa	pre=boar	w=board	p1w=the	p2w=join	n1w=as	n2w=a	wc=lc	w&c=board,lc	t=DET	t2=VERB,DET
+call: 10	NOUN	PROPN	PUNCT	NUM	NOUN	ADJ	PUNCT	AUX	VERB	DET
+features: def	suf=d	suf=rd	suf=ard	suf=oard	pre=b	pre=bo	pre=boa	pre=boar	w=board	p1w=the	p2w=join	n1w=as	n2w=a	wc=lc	w&c=board,lc	t=DET	t2=VERB,DET
+call: 10	PROPN	PROPN	PUNCT	NUM	NOUN	ADJ	PUNCT	AUX	VERB	ADV
+features: def	suf=d	suf=rd	suf=ard	suf=oard	pre=b	pre=bo	pre=boa	pre=boar	w=board	p1w=the	p2w=join	n1w=as	n2w=a	wc=lc	w&c=board,lc	t=DET	t2=VERB,DET
+call: 11	PROPN	PROPN	PUNCT	NUM	NOUN	ADJ	PUNCT	AUX	VERB	DET	NOUN
+features: def	suf=s	suf=as	pre=a	pre=as	w=as	p1w=board	p2w=the	n1w=a	n2w=nonexecutive	wc=lc	w&c=as,lc	t=NOUN	t2=DET,NOUN
+call: 11	NOUN	PROPN	PUNCT	NUM	NOUN	ADJ	PUNCT	AUX	VERB	DET	NOUN
+features: def	suf=s	suf=as	pre=a	pre=as	w=as	p1w=board	p2w=the	n1w=a	n2w=nonexecutive	wc=lc	w&c=as,lc	t=NOUN	t2=DET,NOUN
+call: 11	PROPN	PROPN	PUNCT	NUM	NOUN	ADJ	PUNCT	AUX	VERB	ADV	NOUN
+features: def	suf=s	suf=as	pre=a	pre=as	w=as	p1w=board	p2w=the	n1w=a	n2w=nonexecutive	wc=lc	w&c=as,lc	t=NOUN	t2=DET,NOUN
+call: 12	PROPN	PROPN	PUNCT	NUM	NOUN	ADJ	PUNCT	AUX	VERB	DET	NOUN	ADP
+features: def	suf=a	pre=a	w=a	p1w=as	p2w=board	n1w=nonexecutive	n2w=director	wc=lc	w&c=a,lc	t=ADP	t2=NOUN,ADP
+call: 12	NOUN	PROPN	PUNCT	NUM	NOUN	ADJ	PUNCT	AUX	VERB	DET	NOUN	ADP
+features: def	suf=a	pre=a	w=a	p1w=as	p2w=board	n1w=nonexecutive	n2w=director	wc=lc	w&c=a,lc	t=ADP	t2=NOUN,ADP
+call: 12	PROPN	PROPN	PUNCT	NUM	NOUN	ADJ	PUNCT	AUX	VERB	ADV	NOUN	ADP
+features: def	suf=a	pre=a	w=a	p1w=as	p2w=board	n1w=nonexecutive	n2w=director	wc=lc	w&c=a,lc	t=ADP	t2=NOUN,ADP
+call: 13	PROPN	PROPN	PUNCT	NUM	NOUN	ADJ	PUNCT	AUX	VERB	DET	NOUN	ADP	DET
+features: def	suf=e	suf=ve	suf=ive	suf=tive	pre=n	pre=no	pre=non	pre=none	w=nonexecutive	p1w=a	p2w=as	n1w=director	n2w=nov.	wc=lc	w&c=nonexecutive,lc	t=DET	t2=ADP,DET
+call: 13	NOUN	PROPN	PUNCT	NUM	NOUN	ADJ	PUNCT	AUX	VERB	DET	NOUN	ADP	DET
+features: def	suf=e	suf=ve	suf=ive	suf=tive	pre=n	pre=no	pre=non	pre=none	w=nonexecutive	p1w=a	p2w=as	n1w=director	n2w=nov.	wc=lc	w&c=nonexecutive,lc	t=DET	t2=ADP,DET
+call: 13	PROPN	PROPN	PUNCT	NUM	NOUN	ADJ	PUNCT	AUX	VERB	ADV	NOUN	ADP	DET
+features: def	suf=e	suf=ve	suf=ive	suf=tive	pre=n	pre=no	pre=non	pre=none	w=nonexecutive	p1w=a	p2w=as	n1w=director	n2w=nov.	wc=lc	w&c=nonexecutive,lc	t=DET	t2=ADP,DET
+call: 14	PROPN	PROPN	PUNCT	NUM	NOUN	ADJ	PUNCT	AUX	VERB	DET	NOUN	ADP	DET	ADJ
+features: def	suf=r	suf=or	suf=tor	suf=ctor	pre=d	pre=di	pre=dir	pre=dire	w=director	p1w=nonexecutive	p2w=a	n1w=nov.	n2w=29	wc=lc	w&c=director,lc	t=ADJ	t2=DET,ADJ
+call: 14	NOUN	PROPN	PUNCT	NUM	NOUN	ADJ	PUNCT	AUX	VERB	DET	NOUN	ADP	DET	ADJ
+features: def	suf=r	suf=or	suf=tor	suf=ctor	pre=d	pre=di	pre=dir	pre=dire	w=director	p1w=nonexecutive	p2w=a	n1w=nov.	n2w=29	wc=lc	w&c=director,lc	t=ADJ	t2=DET,ADJ
+call: 14	PROPN	PROPN	PUNCT	NUM	NOUN	ADJ	PUNCT	AUX	VERB	ADV	NOUN	ADP	DET	ADJ
+features: def	suf=r	suf=or	suf=tor	suf=ctor	pre=d	pre=di	pre=dir	pre=dire	w=director	p1w=nonexecutive	p2w=a	n1w=nov.	n2w=29	wc=lc	w&c=director,lc	t=ADJ	t2=DET,ADJ
+call: 15	PROPN	PROPN	PUNCT	NUM	NOUN	ADJ	PUNCT	AUX	VERB	DET	NOUN	ADP	DET	ADJ	NOUN
+features: def	suf=.	suf=v.	suf=ov.	suf=Nov.	pre=N	pre=No	pre=Nov	pre=Nov.	w=nov.	p1w=director	p2w=nonexecutive	n1w=29	n2w=.	wc=ic	w&c=nov.,ic	t=NOUN	t2=ADJ,NOUN
+call: 15	NOUN	PROPN	PUNCT	NUM	NOUN	ADJ	PUNCT	AUX	VERB	DET	NOUN	ADP	DET	ADJ	NOUN
+features: def	suf=.	suf=v.	suf=ov.	suf=Nov.	pre=N	pre=No	pre=Nov	pre=Nov.	w=nov.	p1w=director	p2w=nonexecutive	n1w=29	n2w=.	wc=ic	w&c=nov.,ic	t=NOUN	t2=ADJ,NOUN
+call: 15	PROPN	PROPN	PUNCT	NUM	NOUN	ADJ	PUNCT	AUX	VERB	ADV	NOUN	ADP	DET	ADJ	NOUN
+features: def	suf=.	suf=v.	suf=ov.	suf=Nov.	pre=N	pre=No	pre=Nov	pre=Nov.	w=nov.	p1w=director	p2w=nonexecutive	n1w=29	n2w=.	wc=ic	w&c=nov.,ic	t=NOUN	t2=ADJ,NOUN
+call: 16	PROPN	PROPN	PUNCT	NUM	NOUN	ADJ	PUNCT	AUX	VERB	DET	NOUN	ADP	DET	ADJ	NOUN	PROPN
+features: def	suf=9	suf=29	pre=2	pre=29	w=29	p1w=nov.	p2w=director	n1w=.	wc=2d	w&c=29,2d	t=PROPN	t2=NOUN,PROPN
+call: 16	NOUN	PROPN	PUNCT	NUM	NOUN	ADJ	PUNCT	AUX	VERB	DET	NOUN	ADP	DET	ADJ	NOUN	PROPN
+features: def	suf=9	suf=29	pre=2	pre=29	w=29	p1w=nov.	p2w=director	n1w=.	wc=2d	w&c=29,2d	t=PROPN	t2=NOUN,PROPN
+call: 16	PROPN	PROPN	PUNCT	NUM	NOUN	ADJ	PUNCT	AUX	VERB	ADV	NOUN	ADP	DET	ADJ	NOUN	PROPN
+features: def	suf=9	suf=29	pre=2	pre=29	w=29	p1w=nov.	p2w=director	n1w=.	wc=2d	w&c=29,2d	t=PROPN	t2=NOUN,PROPN
+call: 17	PROPN	PROPN	PUNCT	NUM	NOUN	ADJ	PUNCT	AUX	VERB	DET	NOUN	ADP	DET	ADJ	NOUN	PROPN	NUM
+features: def	suf=.	pre=.	w=.	p1w=29	p2w=nov.	wc=other	w&c=.,other	t=NUM	t2=PROPN,NUM
+call: 17	NOUN	PROPN	PUNCT	NUM	NOUN	ADJ	PUNCT	AUX	VERB	DET	NOUN	ADP	DET	ADJ	NOUN	PROPN	NUM
+features: def	suf=.	pre=.	w=.	p1w=29	p2w=nov.	wc=other	w&c=.,other	t=NUM	t2=PROPN,NUM
+call: 17	PROPN	PROPN	PUNCT	NUM	NOUN	ADJ	PUNCT	AUX	VERB	ADV	NOUN	ADP	DET	ADJ	NOUN	PROPN	NUM
+features: def	suf=.	pre=.	w=.	p1w=29	p2w=nov.	wc=other	w&c=.,other	t=NUM	t2=PROPN,NUM
+sequence: bff0c9fe2029f94a
+outcomes: PROPN	PROPN	PUNCT	NUM	NOUN	ADJ	PUNCT	AUX	VERB	DET	NOUN	ADP	DET	ADJ	NOUN	PROPN	NUM	PUNCT
+probs: 3fe48da08be3c810	3fef16c070d163d8	3fef932c8aeae525	3fefcb9ffb1f3c01	3fefe7b4880e0709	3fef02c1c775aaaf	3fef84fca1806c88	3fedaeb2e91bce87	3fef230021948e57	3febbf07f96a93ea	3feff1b03db68d8d	3fedcaed7d060a37	3fefeff3eadc74ba	3fefabebccde999c	3fef77b522aec6c3	3fefce1b7dc11d65	3feb7fc4b09d36ef	3fefe51adc3e4262
+sequence: c0033ed7d2147392
+outcomes: NOUN	PROPN	PUNCT	NUM	NOUN	ADJ	PUNCT	AUX	VERB	DET	NOUN	ADP	DET	ADJ	NOUN	PROPN	NUM	PUNCT
+probs: 3fc52d74767d2088	3fef16c070d163d8	3fef932c8aeae525	3fefcb9ffb1f3c01	3fefe7b4880e0709	3fef02c1c775aaaf	3fef84fca1806c88	3fedaeb2e91bce87	3fef230021948e57	3febbf07f96a93ea	3feff1b03db68d8d	3fedcaed7d060a37	3fefeff3eadc74ba	3fefabebccde999c	3fef77b522aec6c3	3fefce1b7dc11d65	3feb7fc4b09d36ef	3fefe51adc3e4262
+sequence: c00797a72aa43801
+outcomes: PROPN	PROPN	PUNCT	NUM	NOUN	ADJ	PUNCT	AUX	VERB	ADV	NOUN	ADP	DET	ADJ	NOUN	PROPN	NUM	PUNCT
+probs: 3fe48da08be3c810	3fef16c070d163d8	3fef932c8aeae525	3fefcb9ffb1f3c01	3fefe7b4880e0709	3fef02c1c775aaaf	3fef84fca1806c88	3fedaeb2e91bce87	3fef230021948e57	3fc09ab0986279aa	3feff1b03db68d8d	3fedcaed7d060a37	3fefeff3eadc74ba	3fefabebccde999c	3fef77b522aec6c3	3fefce1b7dc11d65	3feb7fc4b09d36ef	3fefe51adc3e4262
+sentence: 1
+tokens: Mr.	Smith	went	to	Washington	,	D.C.	,	on	1999-04-12	with	$	1,000	.
+sequence: bfd11623a73c75a2
+outcomes: PROPN	PROPN	VERB	ADP	PROPN	PUNCT	PROPN	PUNCT	ADP	NUM	ADP	SYM	NUM	PUNCT
+probs: 3feff63848578c2a	3fefecfea3297dc9	3fefc5caede91cbc	3fef71273fa14b66	3feffe6951abd00e	3fefc8e8face48c0	3fef0f0557fb2245	3fefa119fd78469f	3fec884ec57bd826	3fef10e4fb52b855	3fef92222085f89d	3fef53e31dac1be5	3fefd1885adfe4fb	3fefd2b209d76caa
+sequence: c009c9eb803dece7
+outcomes: PROPN	PROPN	VERB	ADP	PROPN	PUNCT	PROPN	PUNCT	ADV	NUM	ADP	SYM	NUM	PUNCT
+probs: 3feff63848578c2a	3fefecfea3297dc9	3fefc5caede91cbc	3fef71273fa14b66	3feffe6951abd00e	3fefc8e8face48c0	3fef0f0557fb2245	3fefa119fd78469f	3fa7bc8a6444eda2	3fef10e4fb52b855	3fef92222085f89d	3fef53e31dac1be5	3fefd1885adfe4fb	3fefd2b209d76caa
+sequence: c00d94e0fee218ef
+outcomes: PROPN	PROPN	VERB	ADP	PROPN	PUNCT	PROPN	PUNCT	DET	NUM	ADP	SYM	NUM	PUNCT
+probs: 3feff63848578c2a	3fefecfea3297dc9	3fefc5caede91cbc	3fef71273fa14b66	3feffe6951abd00e	3fefc8e8face48c0	3fef0f0557fb2245	3fefa119fd78469f	3f9d8c9ddf2cd4f0	3fef10e4fb52b855	3fef92222085f89d	3fef53e31dac1be5	3fefd1885adfe4fb	3fefd2b209d76caa
+sentence: 2
+tokens: The	co-op	's	CEO	,	John	O'Neil	,	said	3.5	%	of	U.S.	sales	fell	.
+sequence: bff0e72f17762525
+outcomes: DET	NOUN	PUNCT	NOUN	PUNCT	PROPN	PROPN	PUNCT	VERB	NUM	SYM	ADP	PROPN	NOUN	NOUN	PUNCT
+probs: 3fefaba182346034	3fec7d454d525601	3fee5aa7798b4977	3fefdcb72a88fa12	3fefe741b3e9a80e	3fefe5422fc9f90a	3feff2e442c980d3	3fefe2598906ec29	3fef8e01ce2f0d07	3fee95260b3dae9e	3fef091c0cb13ece	3fed95478a614156	3fefcdfb7cc29d28	3fefd4ca01b01b66	3fe03726ed4b1c71	3feff2dcd85c8910
+sequence: bff6b147ed7ca6d0
+outcomes: DET	NOUN	PUNCT	NOUN	PUNCT	PROPN	PROPN	PUNCT	VERB	NUM	SYM	ADP	PROPN	NOUN	VERB	PUNCT
+probs: 3fefaba182346034	3fec7d454d525601	3fee5aa7798b4977	3fefdcb72a88fa12	3fefe741b3e9a80e	3fefe5422fc9f90a	3feff2e442c980d3	3fefe2598906ec29	3fef8e01ce2f0d07	3fee95260b3dae9e	3fef091c0cb13ece	3fed95478a614156	3fefcdfb7cc29d28	3fefd4ca01b01b66	3fd695ac2482f5a1	3feff2dcd85c8910
+sequence: c00677f02bf35ce7
+outcomes: DET	NOUN	PUNCT	NOUN	PUNCT	PROPN	PROPN	PUNCT	VERB	NUM	SYM	ADP	PROPN	NOUN	ADJ	PUNCT
+probs: 3fefaba182346034	3fec7d454d525601	3fee5aa7798b4977	3fefdcb72a88fa12	3fefe741b3e9a80e	3fefe5422fc9f90a	3feff2e442c980d3	3fefe2598906ec29	3fef8e01ce2f0d07	3fee95260b3dae9e	3fef091c0cb13ece	3fed95478a614156	3fefcdfb7cc29d28	3fefd4ca01b01b66	3fb67ea9a63fb24c	3feff2dcd85c8910
+sentence: 3
+tokens: She	paid	12/31/2020	invoices	at	4:30	p.m.	in	New	York	City	.
+sequence: bfc5535639da66c4
+outcomes: PRON	VERB	NUM	NOUN	ADP	NUM	NOUN	ADP	ADJ	PROPN	PROPN	PUNCT
+probs: 3fef63c14a0805a9	3fefc175d30d6842	3fedce93c0a18e00	3fefafe7d7c0155d	3fefadee8a2fc15a	3fefbdabe0789518	3fef687b1bd2df3b	3feff895c4a46346	3fefd9126cec5cbc	3feffa86cc8ac1e2	3fefa1485b8ea553	3fefdf0b5bb44385
+sequence: c00f5edd3079b6b4
+outcomes: PRON	VERB	ADJ	NOUN	ADP	NUM	NOUN	ADP	ADJ	PROPN	PROPN	PUNCT
+probs: 3fef63c14a0805a9	3fefc175d30d6842	3f9653846ba95d91	3fefafe7d7c0155d	3fefadee8a2fc15a	3fefbdabe0789518	3fef687b1bd2df3b	3feff895c4a46346	3fefd9126cec5cbc	3feffa86cc8ac1e2	3fefa1485b8ea553	3fefdf0b5bb44385
+sequence: c01135a6d3d80ebb
+outcomes: PRON	VERB	NUM	NOUN	ADP	NUM	PUNCT	ADP	ADJ	PROPN	PROPN	PUNCT
+probs: 3fef63c14a0805a9	3fefc175d30d6842	3fedce93c0a18e00	3fefafe7d7c0155d	3fefadee8a2fc15a	3fefbdabe0789518	3f90122ab0f13acc	3feff895c4a46346	3fefd9126cec5cbc	3feffa86cc8ac1e2	3fefa1485b8ea553	3fefdf0b5bb44385
+sentence: 4
+tokens: Angela	Merkel	met	Emmanuel	Macron	in	Berlin	and	Paris	last	week	.
+sequence: bfd70fd26c33b7dc
+outcomes: PROPN	PROPN	VERB	PROPN	PROPN	ADP	PROPN	CCONJ	PROPN	ADJ	NOUN	PUNCT
+probs: 3fef1a6deb9dc5ec	3fef0bb626c6f28f	3fec8cc3cc07ddab	3fef3b108a7062ec	3fee1a8008d9ac27	3fef165a3b5804f3	3feffa35cd2a4b82	3fef80dcafdea124	3feffdf3cf4929ec	3fee5073a5306018	3feff9de44ae75df	3feff1d5e342effa
+sequence: c007488e8dba696d
+outcomes: PROPN	PROPN	NOUN	PROPN	PROPN	ADP	PROPN	CCONJ	PROPN	ADJ	NOUN	PUNCT
+probs: 3fef1a6deb9dc5ec	3fef0bb626c6f28f	3fb1d50b870ee140	3fef3b108a7062ec	3fee1a8008d9ac27	3fef165a3b5804f3	3feffa35cd2a4b82	3fef80dcafdea124	3feffdf3cf4929ec	3fee5073a5306018	3feff9de44ae75df	3feff1d5e342effa
+sequence: c00b43c69d8cbd97
+outcomes: PROPN	PROPN	VERB	PROPN	ADP	ADP	PROPN	CCONJ	PROPN	ADJ	NOUN	PUNCT
+probs: 3fef1a6deb9dc5ec	3fef0bb626c6f28f	3fec8cc3cc07ddab	3fef3b108a7062ec	3fa6dcae673dc1f1	3fef165a3b5804f3	3feffa35cd2a4b82	3fef80dcafdea124	3feffdf3cf4929ec	3fee5073a5306018	3feff9de44ae75df	3feff1d5e342effa
+sentence: 5
+tokens: IBM	and	Microsoft	Corp.	reported	earnings	;	A.	B.	Smith	disagreed	.
+sequence: bfe9d0a91172eaba
+outcomes: PROPN	CCONJ	PROPN	PROPN	VERB	NOUN	PUNCT	PROPN	PROPN	PROPN	VERB	PUNCT
+probs: 3fe2f71a6bbe1a24	3fef44741b476987	3fef806bba1e1e80	3fece209bb403b58	3fefefd600f98ffd	3fef7b1d36127519	3fefb0217edfa3f5	3feed004bfab0610	3fef75ada5c04606	3fefe020a3259637	3fee55f6db56c08b	3fefefcf4215ebcb
+sequence: bffcebbddf57596e
+outcomes: NOUN	CCONJ	PROPN	PROPN	VERB	NOUN	PUNCT	PROPN	PROPN	PROPN	VERB	PUNCT
+probs: 3fcbe26c355b8e2b	3fef44741b476987	3fef806bba1e1e80	3fece209bb403b58	3fefefd600f98ffd	3fef7b1d36127519	3fefb0217edfa3f5	3feed004bfab0610	3fef75ada5c04606	3fefe020a3259637	3fee55f6db56c08b	3fefefcf4215ebcb
+sequence: c008a500d3b94c55
+outcomes: PROPN	CCONJ	PROPN	ADV	VERB	NOUN	PUNCT	PROPN	PROPN	PROPN	VERB	PUNCT
+probs: 3fe2f71a6bbe1a24	3fef44741b476987	3fef806bba1e1e80	3fb7c7b0ccfe37fb	3fefefd600f98ffd	3fef7b1d36127519	3fefb0217edfa3f5	3feed004bfab0610	3fef75ada5c04606	3fefe020a3259637	3fee55f6db56c08b	3fefefcf4215ebcb
+sentence: 6
+tokens: \u00DCnal	\u00D6zdemir	lives	in	K\u00F6ln	,	not	M\u00FCnchen	.
+sequence: c0006a2999988f96
+outcomes: ADJ	PROPN	NOUN	ADP	PROPN	PUNCT	PART	ADV	PUNCT
+probs: 3fdfe884b8cb2e10	3fe38efae8aa2226	3fe85a690b997443	3fefb2282a03e89c	3feef59a648241ed	3fefc4c95c9ed0b2	3fef6a598739e79e	3fe31f6fe71e60df	3fefc4aeef8324ee
+sequence: c009edcc0af9ef98
+outcomes: ADJ	PROPN	VERB	ADP	PROPN	PUNCT	PART	ADV	PUNCT
+probs: 3fdfe884b8cb2e10	3fe38efae8aa2226	3fcda810c1ce994b	3fefb2282a03e89c	3feef59a648241ed	3fefc4c95c9ed0b2	3fef6a598739e79e	3fe31f6fe71e60df	3fefc4aeef8324ee
+sequence: c009f95b117f51c1
+outcomes: DET	PROPN	NOUN	ADP	PROPN	PUNCT	PART	ADV	PUNCT
+probs: 3fc351b038c6d334	3fe38efae8aa2226	3fe85a690b997443	3fefb2282a03e89c	3feef59a648241ed	3fefc4c95c9ed0b2	3fef6a598739e79e	3fe31f6fe71e60df	3fefc4aeef8324ee
+sentence: 7
+tokens: \u6771\u4EAC	\u306F	\u3072\u3089\u304C\u306A	\u3068	\u30AB\u30BF\u30AB\u30CA	\u3092	\u4F7F\u3046	\u3002
+sequence: c0233b48a71a5388
+outcomes: PUNCT	NOUN	NOUN	NOUN	NOUN	NOUN	PUNCT	PUNCT
+probs: 3fdc7b44158ed009	3fc1a4a7b9c4650d	3fd2d80123b8d51d	3fc76fcba990ad11	3fc76fcba990ad11	3fc76fcba990ad11	3fed941c3736a9c1	3fe4d170fd37cfd9
+sequence: c0234740f80b796a
+outcomes: PUNCT	PROPN	NOUN	NOUN	NOUN	NOUN	PUNCT	PUNCT
+probs: 3fdc7b44158ed009	3fc13c491edd420a	3fd2d80123b8d51d	3fc76fcba990ad11	3fc76fcba990ad11	3fc76fcba990ad11	3fed941c3736a9c1	3fe4d170fd37cfd9
+sequence: c0235c29c40ea73d
+outcomes: PUNCT	NOUN	NOUN	NOUN	NOUN	ADP	PUNCT	PUNCT
+probs: 3fdc7b44158ed009	3fc1a4a7b9c4650d	3fd2d80123b8d51d	3fc76fcba990ad11	3fc76fcba990ad11	3fc5fa9d4bc36fbb	3fed941c3736a9c1	3fe4d170fd37cfd9
+sentence: 8
+tokens: The	\uD835\uDC00\uD835\uDC01\uD835\uDC02	index	rose	\uD83D\uDE00	while	caf\u00E9	prices	fell	.
+call: 0
+features: def	suf=e	suf=he	suf=The	pre=T	pre=Th	pre=The	w=the	n1w=\uD835\uDC00\uD835\uDC01\uD835\uDC02	n2w=index	S=begin	wc=ic	w&c=the,ic
+call: 1	DET
+features: def	suf=\uDC02	suf=\uD835\uDC02	suf=\uDC01\uD835\uDC02	suf=\uD835\uDC01\uD835\uDC02	pre=\uD835	pre=\uD835\uDC00	pre=\uD835\uDC00\uD835	pre=\uD835\uDC00\uD835\uDC01	w=\uD835\uDC00\uD835\uDC01\uD835\uDC02	p1w=the	n1w=index	n2w=rose	p1S=begin	wc=other	w&c=\uD835\uDC00\uD835\uDC01\uD835\uDC02,other	t=DET
+call: 1	PUNCT
+features: def	suf=\uDC02	suf=\uD835\uDC02	suf=\uDC01\uD835\uDC02	suf=\uD835\uDC01\uD835\uDC02	pre=\uD835	pre=\uD835\uDC00	pre=\uD835\uDC00\uD835	pre=\uD835\uDC00\uD835\uDC01	w=\uD835\uDC00\uD835\uDC01\uD835\uDC02	p1w=the	n1w=index	n2w=rose	p1S=begin	wc=other	w&c=\uD835\uDC00\uD835\uDC01\uD835\uDC02,other	t=DET
+call: 1	AUX
+features: def	suf=\uDC02	suf=\uD835\uDC02	suf=\uDC01\uD835\uDC02	suf=\uD835\uDC01\uD835\uDC02	pre=\uD835	pre=\uD835\uDC00	pre=\uD835\uDC00\uD835	pre=\uD835\uDC00\uD835\uDC01	w=\uD835\uDC00\uD835\uDC01\uD835\uDC02	p1w=the	n1w=index	n2w=rose	p1S=begin	wc=other	w&c=\uD835\uDC00\uD835\uDC01\uD835\uDC02,other	t=DET
+call: 2	DET	PUNCT
+features: def	suf=x	suf=ex	suf=dex	suf=ndex	pre=i	pre=in	pre=ind	pre=inde	w=index	p1w=\uD835\uDC00\uD835\uDC01\uD835\uDC02	p2w=the	n1w=rose	n2w=\uD83D\uDE00	p2S=begin	wc=lc	w&c=index,lc	t=PUNCT	t2=DET,PUNCT
+call: 2	DET	NUM
+features: def	suf=x	suf=ex	suf=dex	suf=ndex	pre=i	pre=in	pre=ind	pre=inde	w=index	p1w=\uD835\uDC00\uD835\uDC01\uD835\uDC02	p2w=the	n1w=rose	n2w=\uD83D\uDE00	p2S=begin	wc=lc	w&c=index,lc	t=PUNCT	t2=DET,PUNCT
+call: 2	DET	NOUN
+features: def	suf=x	suf=ex	suf=dex	suf=ndex	pre=i	pre=in	pre=ind	pre=inde	w=index	p1w=\uD835\uDC00\uD835\uDC01\uD835\uDC02	p2w=the	n1w=rose	n2w=\uD83D\uDE00	p2S=begin	wc=lc	w&c=index,lc	t=PUNCT	t2=DET,PUNCT
+call: 3	DET	PUNCT	NOUN
+features: def	suf=e	suf=se	suf=ose	suf=rose	pre=r	pre=ro	pre=ros	pre=rose	w=rose	p1w=index	p2w=\uD835\uDC00\uD835\uDC01\uD835\uDC02	n1w=\uD83D\uDE00	n2w=while	wc=lc	w&c=rose,lc	t=NOUN	t2=PUNCT,NOUN
+call: 3	DET	NUM	NOUN
+features: def	suf=e	suf=se	suf=ose	suf=rose	pre=r	pre=ro	pre=ros	pre=rose	w=rose	p1w=index	p2w=\uD835\uDC00\uD835\uDC01\uD835\uDC02	n1w=\uD83D\uDE00	n2w=while	wc=lc	w&c=rose,lc	t=NOUN	t2=PUNCT,NOUN
+call: 3	DET	PUNCT	ADJ
+features: def	suf=e	suf=se	suf=ose	suf=rose	pre=r	pre=ro	pre=ros	pre=rose	w=rose	p1w=index	p2w=\uD835\uDC00\uD835\uDC01\uD835\uDC02	n1w=\uD83D\uDE00	n2w=while	wc=lc	w&c=rose,lc	t=NOUN	t2=PUNCT,NOUN
+call: 4	DET	PUNCT	NOUN	NOUN
+features: def	suf=\uDE00	suf=\uD83D\uDE00	pre=\uD83D	pre=\uD83D\uDE00	w=\uD83D\uDE00	p1w=rose	p2w=index	n1w=while	n2w=caf\u00E9	wc=other	w&c=\uD83D\uDE00,other	t=NOUN	t2=NOUN,NOUN
+call: 4	DET	PUNCT	NOUN	VERB
+features: def	suf=\uDE00	suf=\uD83D\uDE00	pre=\uD83D	pre=\uD83D\uDE00	w=\uD83D\uDE00	p1w=rose	p2w=index	n1w=while	n2w=caf\u00E9	wc=other	w&c=\uD83D\uDE00,other	t=NOUN	t2=NOUN,NOUN
+call: 4	DET	NUM	NOUN	NOUN
+features: def	suf=\uDE00	suf=\uD83D\uDE00	pre=\uD83D	pre=\uD83D\uDE00	w=\uD83D\uDE00	p1w=rose	p2w=index	n1w=while	n2w=caf\u00E9	wc=other	w&c=\uD83D\uDE00,other	t=NOUN	t2=NOUN,NOUN
+call: 5	DET	PUNCT	NOUN	NOUN	PUNCT
+features: def	suf=e	suf=le	suf=ile	suf=hile	pre=w	pre=wh	pre=whi	pre=whil	w=while	p1w=\uD83D\uDE00	p2w=rose	n1w=caf\u00E9	n2w=prices	wc=lc	w&c=while,lc	t=PUNCT	t2=NOUN,PUNCT
+call: 5	DET	PUNCT	NOUN	VERB	PUNCT
+features: def	suf=e	suf=le	suf=ile	suf=hile	pre=w	pre=wh	pre=whi	pre=whil	w=while	p1w=\uD83D\uDE00	p2w=rose	n1w=caf\u00E9	n2w=prices	wc=lc	w&c=while,lc	t=PUNCT	t2=NOUN,PUNCT
+call: 5	DET	NUM	NOUN	NOUN	PUNCT
+features: def	suf=e	suf=le	suf=ile	suf=hile	pre=w	pre=wh	pre=whi	pre=whil	w=while	p1w=\uD83D\uDE00	p2w=rose	n1w=caf\u00E9	n2w=prices	wc=lc	w&c=while,lc	t=PUNCT	t2=NOUN,PUNCT
+call: 6	DET	PUNCT	NOUN	NOUN	PUNCT	SCONJ
+features: def	suf=\u00E9	suf=f\u00E9	suf=af\u00E9	suf=caf\u00E9	pre=c	pre=ca	pre=caf	pre=caf\u00E9	w=caf\u00E9	p1w=while	p2w=\uD83D\uDE00	n1w=prices	n2w=fell	wc=lc	w&c=caf\u00E9,lc	t=SCONJ	t2=PUNCT,SCONJ
+call: 6	DET	PUNCT	NOUN	VERB	PUNCT	SCONJ
+features: def	suf=\u00E9	suf=f\u00E9	suf=af\u00E9	suf=caf\u00E9	pre=c	pre=ca	pre=caf	pre=caf\u00E9	w=caf\u00E9	p1w=while	p2w=\uD83D\uDE00	n1w=prices	n2w=fell	wc=lc	w&c=caf\u00E9,lc	t=SCONJ	t2=PUNCT,SCONJ
+call: 6	DET	NUM	NOUN	NOUN	PUNCT	SCONJ
+features: def	suf=\u00E9	suf=f\u00E9	suf=af\u00E9	suf=caf\u00E9	pre=c	pre=ca	pre=caf	pre=caf\u00E9	w=caf\u00E9	p1w=while	p2w=\uD83D\uDE00	n1w=prices	n2w=fell	wc=lc	w&c=caf\u00E9,lc	t=SCONJ	t2=PUNCT,SCONJ
+call: 7	DET	PUNCT	NOUN	NOUN	PUNCT	SCONJ	VERB
+features: def	suf=s	suf=es	suf=ces	suf=ices	pre=p	pre=pr	pre=pri	pre=pric	w=prices	p1w=caf\u00E9	p2w=while	n1w=fell	n2w=.	wc=lc	w&c=prices,lc	t=VERB	t2=SCONJ,VERB
+call: 7	DET	PUNCT	NOUN	VERB	PUNCT	SCONJ	VERB
+features: def	suf=s	suf=es	suf=ces	suf=ices	pre=p	pre=pr	pre=pri	pre=pric	w=prices	p1w=caf\u00E9	p2w=while	n1w=fell	n2w=.	wc=lc	w&c=prices,lc	t=VERB	t2=SCONJ,VERB
+call: 7	DET	NUM	NOUN	NOUN	PUNCT	SCONJ	VERB
+features: def	suf=s	suf=es	suf=ces	suf=ices	pre=p	pre=pr	pre=pri	pre=pric	w=prices	p1w=caf\u00E9	p2w=while	n1w=fell	n2w=.	wc=lc	w&c=prices,lc	t=VERB	t2=SCONJ,VERB
+call: 8	DET	PUNCT	NOUN	NOUN	PUNCT	SCONJ	VERB	NOUN
+features: def	suf=l	suf=ll	suf=ell	suf=fell	pre=f	pre=fe	pre=fel	pre=fell	w=fell	p1w=prices	p2w=caf\u00E9	n1w=.	wc=lc	w&c=fell,lc	t=NOUN	t2=VERB,NOUN
+call: 8	DET	PUNCT	NOUN	VERB	PUNCT	SCONJ	VERB	NOUN
+features: def	suf=l	suf=ll	suf=ell	suf=fell	pre=f	pre=fe	pre=fel	pre=fell	w=fell	p1w=prices	p2w=caf\u00E9	n1w=.	wc=lc	w&c=fell,lc	t=NOUN	t2=VERB,NOUN
+call: 8	DET	NUM	NOUN	NOUN	PUNCT	SCONJ	VERB	NOUN
+features: def	suf=l	suf=ll	suf=ell	suf=fell	pre=f	pre=fe	pre=fel	pre=fell	w=fell	p1w=prices	p2w=caf\u00E9	n1w=.	wc=lc	w&c=fell,lc	t=NOUN	t2=VERB,NOUN
+call: 9	DET	PUNCT	NOUN	NOUN	PUNCT	SCONJ	VERB	NOUN	NOUN
+features: def	suf=.	pre=.	w=.	p1w=fell	p2w=prices	wc=other	w&c=.,other	t=NOUN	t2=NOUN,NOUN
+call: 9	DET	PUNCT	NOUN	NOUN	PUNCT	SCONJ	VERB	NOUN	ADJ
+features: def	suf=.	pre=.	w=.	p1w=fell	p2w=prices	wc=other	w&c=.,other	t=NOUN	t2=NOUN,NOUN
+call: 9	DET	PUNCT	NOUN	VERB	PUNCT	SCONJ	VERB	NOUN	NOUN
+features: def	suf=.	pre=.	w=.	p1w=fell	p2w=prices	wc=other	w&c=.,other	t=NOUN	t2=NOUN,NOUN
+sequence: c009f47cf51a1189
+outcomes: DET	PUNCT	NOUN	NOUN	PUNCT	SCONJ	VERB	NOUN	NOUN	PUNCT
+probs: 3fefaba182346034	3fe1263525740046	3fe73a637bcc9166	3fe2aa20dc4566cf	3fede9c19ab7a45f	3fef26a1f0b4ce7e	3fe20afd0e2e83d5	3fefa44f0b579e86	3fd5f03bcf2b3856	3feff353c4734de9
+sequence: c009f5f97f723ad9
+outcomes: DET	PUNCT	NOUN	NOUN	PUNCT	SCONJ	VERB	NOUN	ADJ	PUNCT
+probs: 3fefaba182346034	3fe1263525740046	3fe73a637bcc9166	3fe2aa20dc4566cf	3fede9c19ab7a45f	3fef26a1f0b4ce7e	3fe20afd0e2e83d5	3fefa44f0b579e86	3fd5ec28a19e3248	3feff353c4734de9
+sequence: c00e8cba021f3641
+outcomes: DET	PUNCT	NOUN	VERB	PUNCT	SCONJ	VERB	NOUN	NOUN	PUNCT
+probs: 3fefaba182346034	3fe1263525740046	3fe73a637bcc9166	3fd504eda2a1fed5	3fede9c19ab7a45f	3fef26a1f0b4ce7e	3fe20afd0e2e83d5	3fefa44f0b579e86	3fd5f03bcf2b3856	3feff353c4734de9
+sentence: 9
+tokens: e-mail	me	at	john@example.com	or	visit	www.example.com/a?b=1	!
+sequence: bfe8d6ab5783f48f
+outcomes: NOUN	PRON	ADP	PROPN	CCONJ	VERB	PROPN	PUNCT
+probs: 3fecd70623036648	3fed236db8e47a65	3fe952369bf7ff0b	3feba8263affe319	3fefea9b1efa8f2b	3feab5139199b075	3fefb92b18bf29c5	3fefcaf7b3756683
+sequence: c001f53b3af4e17d
+outcomes: NOUN	PRON	VERB	PROPN	CCONJ	VERB	PROPN	PUNCT
+probs: 3fecd70623036648	3fed236db8e47a65	3fc7526e870fca49	3feba8263affe319	3fefea9b1efa8f2b	3feab5139199b075	3fefb92b18bf29c5	3fefcaf7b3756683
+sequence: c004c1a6505f6e0f
+outcomes: NOUN	PRON	ADP	PROPN	CCONJ	NOUN	PROPN	PUNCT
+probs: 3fecd70623036648	3fed236db8e47a65	3fe952369bf7ff0b	3feba8263affe319	3fefea9b1efa8f2b	3fc156719fc75dae	3fefb92b18bf29c5	3fefcaf7b3756683
+sentence: 10
+tokens: Barack	Obama	was	born	in	Honolulu	,	Hawaii	.
+sequence: bfe40017ccfc8ac7
+outcomes: NOUN	PROPN	AUX	VERB	ADP	PROPN	PUNCT	PROPN	PUNCT
+probs: 3fe50601eb526dce	3fed2df36af9181e	3fefeec8cbe07652	3fefea325fc90404	3fee0193351c82b5	3fef5e94ea20cb3b	3fef78d91014f2f3	3fefdd1bbe6a6e7f	3fefe99a72b7fb9c
+sequence: bff98162bbbeb27c
+outcomes: PROPN	PROPN	AUX	VERB	ADP	PROPN	PUNCT	PROPN	PUNCT
+probs: 3fcfe872897b7d00	3fed2df36af9181e	3fefeec8cbe07652	3fefea325fc90404	3fee0193351c82b5	3fef5e94ea20cb3b	3fef78d91014f2f3	3fefdd1bbe6a6e7f	3fefe99a72b7fb9c
+sequence: c00844a265bf6fc1
+outcomes: NOUN	NOUN	AUX	VERB	ADP	PROPN	PUNCT	PROPN	PUNCT
+probs: 3fe50601eb526dce	3fb4ff6022722802	3fefeec8cbe07652	3fefea325fc90404	3fee0193351c82b5	3fef5e94ea20cb3b	3fef78d91014f2f3	3fefdd1bbe6a6e7f	3fefe99a72b7fb9c
+sentence: 11
+tokens: He	said	:	"	I	'm	not	going	to	London	.	"
+sequence: bff5cce9ad1f430c
+outcomes: PRON	VERB	PUNCT	PUNCT	PRON	AUX	PART	VERB	ADP	PROPN	PUNCT	PUNCT
+probs: 3fef2ae0e3f012b3	3feffc2f144b9671	3fefe26f2d0526c5	3feff0f8bd1a469f	3fefa7e7a810e26f	3fdcfe4062c2fa1b	3fefafd438e57c1b	3feffca3bc52e6b5	3fe3342e4aeec7b2	3feff830cd78a283	3fefe1dabc309983	3fefeec9d8175c96
+sequence: bffc9f92125d64ed
+outcomes: PRON	VERB	PUNCT	PUNCT	PRON	AUX	PART	VERB	PART	PROPN	PUNCT	PUNCT
+probs: 3fef2ae0e3f012b3	3feffc2f144b9671	3fefe26f2d0526c5	3feff0f8bd1a469f	3fefa7e7a810e26f	3fdcfe4062c2fa1b	3fefafd438e57c1b	3feffca3bc52e6b5	3fd912ea1fe23947	3feff830cd78a283	3fefe1dabc309983	3fefeec9d8175c96
+sequence: c0000b36666e0ceb
+outcomes: PRON	VERB	PUNCT	PUNCT	PRON	PRON+AUX	PART	VERB	ADP	PROPN	PUNCT	PUNCT
+probs: 3fef2ae0e3f012b3	3feffc2f144b9671	3fefe26f2d0526c5	3feff0f8bd1a469f	3fefa7e7a810e26f	3fce7c5baf5965cb	3fefafd438e57c1b	3feffca3bc52e6b5	3fe3342e4aeec7b2	3feff830cd78a283	3fefe1dabc309983	3fefeec9d8175c96
+sentence: 12
+tokens: \u0141\u00D3D\u0179	and	\u0391\u0398\u0397\u039D\u0391	are	cities	;	\u01C5	is	a	titlecase	letter	.
+sequence: c0041d8e27befc97
+outcomes: NOUN	CCONJ	NOUN	AUX	NOUN	PUNCT	PRON	AUX	DET	NOUN	NOUN	PUNCT
+probs: 3fd390509f588961	3fef72453d7525d6	3fe18deb8cec9417	3fee72a9fb65539b	3fef2e98cfaeee00	3fefca55ba83d095	3fe1f802c5d4fda2	3fef4707a447e6bc	3fef78a2be1c6247	3fefd0e9498d53c6	3fefd994d10148d0	3fefeee599fe185b
+sequence: c004f2de0073010a
+outcomes: PROPN	CCONJ	NOUN	AUX	NOUN	PUNCT	PRON	AUX	DET	NOUN	NOUN	PUNCT
+probs: 3fd1a0ea464bb678	3fef72453d7525d6	3fe18deb8cec9417	3fee72a9fb65539b	3fef2e98cfaeee00	3fefca55ba83d095	3fe1f802c5d4fda2	3fef4707a447e6bc	3fef78a2be1c6247	3fefd0e9498d53c6	3fefd994d10148d0	3fefeee599fe185b
+sequence: c00c10c44f8f1ec6
+outcomes: ADV	CCONJ	NOUN	AUX	NOUN	PUNCT	PRON	AUX	DET	NOUN	NOUN	PUNCT
+probs: 3fbcf7fcfcc31c18	3fef72453d7525d6	3fe18deb8cec9417	3fee72a9fb65539b	3fef2e98cfaeee00	3fefca55ba83d095	3fe1f802c5d4fda2	3fef4707a447e6bc	3fef78a2be1c6247	3fefd0e9498d53c6	3fefd994d10148d0	3fefeee599fe185b
+sentence: 13
+tokens: One	more	sentence	about	Dr.	Jane	Doe	of	Acme	Inc.	in	Chicago	.
+sequence: bff00c3c2f7045a6
+outcomes: NUM	ADJ	NOUN	ADP	PROPN	PROPN	PROPN	ADP	PROPN	PROPN	ADP	PROPN	PUNCT
+probs: 3feddb3ee659f494	3fe653f8f4f7a910	3fefe2f7edf12193	3fef2c26cc9b8e75	3fefdfd5cd4a218d	3feffd999d33438a	3fee52540c1d483b	3fefdc5dafb67194	3fe3eb68b0a1cafb	3fefeee2f2782195	3fefe441409d0aab	3feffe39138eac65	3feff12e90b8ad12
+sequence: bffe1028eee0249b
+outcomes: NUM	ADV	NOUN	ADP	PROPN	PROPN	PROPN	ADP	PROPN	PROPN	ADP	PROPN	PUNCT
+probs: 3feddb3ee659f494	3fd298fac0c9e11a	3fefe2f7edf12193	3fef2c26cc9b8e75	3fefdfd5cd4a218d	3feffd999d33438a	3fee52540c1d483b	3fefdc5dafb67194	3fe3eb68b0a1cafb	3fefeee2f2782195	3fefe441409d0aab	3feffe39138eac65	3feff12e90b8ad12
+sequence: bfff4188e9b0bd96
+outcomes: NUM	ADJ	NOUN	ADP	PROPN	PROPN	PROPN	ADP	DET	PROPN	ADP	PROPN	PUNCT
+probs: 3feddb3ee659f494	3fe653f8f4f7a910	3fefe2f7edf12193	3fef2c26cc9b8e75	3fefdfd5cd4a218d	3feffd999d33438a	3fee52540c1d483b	3fefdc5dafb67194	3fcecc8f4684a125	3fefeee2f2782195	3fefe441409d0aab	3feffe39138eac65	3feff12e90b8ad12
+sentence: 14
+tokens: Smith	said	Smith	would	visit	Paris	again	in	2024	.
+sequence: bfd232bda7a1e000
+outcomes: PROPN	VERB	PROPN	AUX	VERB	PROPN	ADV	ADP	NUM	PUNCT
+probs: 3fef77dac17b6518	3fefcaa9edad9cc8	3fefd5a6f6c20c1f	3feef9788fd7f17f	3fefec9dc6e17fc3	3feffa06b831804f	3fec455040ac6404	3fefadfb476e7171	3fed863c971280a7	3fefd156965f7803
+sequence: c00417b3ed6187d1
+outcomes: PROPN	VERB	PROPN	AUX	VERB	PROPN	ADP	ADP	NUM	PUNCT
+probs: 3fef77dac17b6518	3fefcaa9edad9cc8	3fefd5a6f6c20c1f	3feef9788fd7f17f	3fefec9dc6e17fc3	3feffa06b831804f	3fb863068d803211	3fefadfb476e7171	3fed863c971280a7	3fefd156965f7803
+sequence: c006c886b6238883
+outcomes: PROPN	VERB	PROPN	AUX	VERB	PROPN	ADV	ADP	PROPN	PUNCT
+probs: 3fef77dac17b6518	3fefcaa9edad9cc8	3fefd5a6f6c20c1f	3feef9788fd7f17f	3fefec9dc6e17fc3	3feffa06b831804f	3fec455040ac6404	3fefadfb476e7171	3fb231a90aaaca8b	3fefd156965f7803
+sentence: 15
+tokens: a
+sequence: bf9df77b6d42036f
+outcomes: DET
+probs: 3fef13bd73961855
+sequence: c011a816006dbe47
+outcomes: PUNCT
+probs: 3f88ca71c562d84c
+sequence: c0137b4df01c3d43
+outcomes: SCONJ
+probs: 3f7f6ac5b45aaa90

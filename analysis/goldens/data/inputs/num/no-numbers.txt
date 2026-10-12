@@ -1,0 +1,1 @@
+No number appears in this text, only words: one, two, three and a dash - or two --.
