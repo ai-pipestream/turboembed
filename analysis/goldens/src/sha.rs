@@ -160,11 +160,10 @@ impl Sha256 {
             compress256(&mut self.state, &block);
             self.filled = 0;
         }
-        let mut blocks = data.chunks_exact(64);
-        for b in &mut blocks {
-            compress256(&mut self.state, b.try_into().expect("a 64-byte block"));
+        let (blocks, rest) = data.as_chunks::<64>();
+        for b in blocks {
+            compress256(&mut self.state, b);
         }
-        let rest = blocks.remainder();
         self.block[..rest.len()].copy_from_slice(rest);
         self.filled = rest.len();
     }
@@ -182,8 +181,8 @@ impl Sha256 {
         self.update(&pad[..n + 8]);
         debug_assert_eq!(self.filled, 0);
         let mut out = [0u8; 32];
-        for (o, w) in out.chunks_exact_mut(4).zip(self.state) {
-            o.copy_from_slice(&w.to_be_bytes());
+        for (o, w) in out.as_chunks_mut::<4>().0.iter_mut().zip(self.state) {
+            *o = w.to_be_bytes();
         }
         out
     }
@@ -191,8 +190,8 @@ impl Sha256 {
 
 fn compress256(state: &mut [u32; 8], block: &[u8; 64]) {
     let mut w = [0u32; 64];
-    for (t, word) in block.chunks_exact(4).enumerate() {
-        w[t] = u32::from_be_bytes(word.try_into().expect("a 4-byte word"));
+    for (t, word) in block.as_chunks::<4>().0.iter().enumerate() {
+        w[t] = u32::from_be_bytes(*word);
     }
     for t in 16..64 {
         let s0 = w[t - 15].rotate_right(7) ^ w[t - 15].rotate_right(18) ^ (w[t - 15] >> 3);
@@ -257,11 +256,10 @@ impl Sha512 {
             compress512(&mut self.state, &block);
             self.filled = 0;
         }
-        let mut blocks = data.chunks_exact(128);
-        for b in &mut blocks {
-            compress512(&mut self.state, b.try_into().expect("a 128-byte block"));
+        let (blocks, rest) = data.as_chunks::<128>();
+        for b in blocks {
+            compress512(&mut self.state, b);
         }
-        let rest = blocks.remainder();
         self.block[..rest.len()].copy_from_slice(rest);
         self.filled = rest.len();
     }
@@ -278,8 +276,8 @@ impl Sha512 {
         self.update(&pad[..n + 16]);
         debug_assert_eq!(self.filled, 0);
         let mut out = [0u8; 64];
-        for (o, w) in out.chunks_exact_mut(8).zip(self.state) {
-            o.copy_from_slice(&w.to_be_bytes());
+        for (o, w) in out.as_chunks_mut::<8>().0.iter_mut().zip(self.state) {
+            *o = w.to_be_bytes();
         }
         out
     }
@@ -287,8 +285,8 @@ impl Sha512 {
 
 fn compress512(state: &mut [u64; 8], block: &[u8; 128]) {
     let mut w = [0u64; 80];
-    for (t, word) in block.chunks_exact(8).enumerate() {
-        w[t] = u64::from_be_bytes(word.try_into().expect("an 8-byte word"));
+    for (t, word) in block.as_chunks::<8>().0.iter().enumerate() {
+        w[t] = u64::from_be_bytes(*word);
     }
     for t in 16..80 {
         let s0 = w[t - 15].rotate_right(1) ^ w[t - 15].rotate_right(8) ^ (w[t - 15] >> 7);

@@ -343,6 +343,11 @@ fn read_header(lines: &mut Lines<'_>) -> Result<Header, GoldenError> {
     Ok(Header { generator, opennlp, jdk, unicode, input, models, annotator, config })
 }
 
+/// The most rows reserved for ahead of reading them. The declared count
+/// is only a claim until the rows are there, so a file declaring u32::MAX
+/// rows is refused when it runs out of lines, not by allocating for them.
+const RESERVE_CAP: usize = 4096;
+
 fn read_layer(
     lines: &mut Lines<'_>,
     head: &str,
@@ -422,8 +427,8 @@ fn read_layer(
         .map(|&(name, ty)| {
             let mut data = ColumnData::empty(ty);
             match &mut data {
-                ColumnData::U32(v) => v.reserve(rows),
-                ColumnData::F64(v) => v.reserve(rows),
+                ColumnData::U32(v) => v.reserve(rows.min(RESERVE_CAP)),
+                ColumnData::F64(v) => v.reserve(rows.min(RESERVE_CAP)),
                 ColumnData::Str(_) => {}
             }
             Column { name: name.into(), data }

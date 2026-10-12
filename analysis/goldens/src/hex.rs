@@ -22,7 +22,7 @@ pub fn parse_hex<const N: usize>(s: &str) -> Option<[u8; N]> {
         return None;
     }
     let mut out = [0u8; N];
-    for (o, pair) in out.iter_mut().zip(b.chunks_exact(2)) {
+    for (o, pair) in out.iter_mut().zip(b.as_chunks::<2>().0) {
         *o = (digit(pair[0])? << 4) | digit(pair[1])?;
     }
     Some(out)

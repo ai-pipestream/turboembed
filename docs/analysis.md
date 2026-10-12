@@ -16,15 +16,38 @@ nothing here is in the C header or the gRPC server.
 
 | Crate | Path | Contents |
 |---|---|---|
-| `turbo-analysis` | `analysis/core/` | The document, views, layers, keys, provenance, annotators, the analyzer and the registry |
+| `turbo-analysis` | `analysis/core/` | The document, views, offset tables, layers, keys, provenance, annotators, the analyzer and the registry |
 | `turbo-analysis-layers` | `analysis/layers/` | The layers add-ons share (below) |
 | `turbo-chunker` | `analysis/chunker/` | The chunker |
+| `turbo-jvm` | `analysis/jvm/` | JVM behaviour the OpenNLP ports must reproduce bit for bit |
 | `turbo-goldens` | `analysis/goldens/` | Golden layer files from the JVM: the reader, the writer, the comparison, loading golden layers as test inputs, SHA-256 and SHA-512 |
 
 They need nothing beyond the standard library and each other. A shared
 layer lives in `turbo-analysis-layers`, so a consumer of a layer never
 depends on the add-on that produces it; an add-on's own layers live in a
 small schema crate beside it, for the same reason.
+
+## JVM parity
+
+Some of OpenNLP's results depend on the Java platform rather than on
+OpenNLP, and `turbo-jvm` reproduces those parts exactly, so a port can
+match the JVM bit for bit:
+
+- `chars`: Java sees text as UTF-16 code units. `Utf16Units` yields the
+  units of a `&str` with the UTF-8 byte offset of each unit's character,
+  for context generators, `StringPattern` and character n-grams;
+  `utf16_len` is `String.length()`; `compare_to` is `String.compareTo`,
+  which orders by code unit and so differs from `str::cmp` for
+  characters outside the Basic Multilingual Plane; `is_java_whitespace`
+  is `Character.isWhitespace`.
+- `random`: `JavaRandom` is `java.util.Random` from a seed, and its
+  `shuffle` is `Collections.shuffle(List, Random)`, as OpenNLP's readers,
+  cross-validation and trainers use them.
+- `strict_math`: `exp` and `log` port fdlibm, which `StrictMath` computes
+  and which the maxent, perceptron and naive Bayes models call.
+
+It is checked against vectors a JDK 21 wrote; `analysis/jvm/README.md`
+says how to regenerate them.
 
 ## Offsets
 
@@ -34,7 +57,21 @@ Both ends of a span must be on character boundaries: a layer with a
 span that cuts a character is refused when it is added, not found later
 by a panic.
 UTF-16 and code point offsets, for Java and the wire, are conversions
-at the edge and are not built yet.
+at the edge, never a second coordinate system inside. Each view has an
+`OffsetTable` (`View::offsets`, `Document::offsets`), built the first
+time it is asked for and kept: a checkpoint every 256 bytes, stored by
+column, that holds the byte, UTF-16 and code point offsets of the first
+character boundary there. A conversion is a binary search over the
+checkpoints and a forward count over at most one stride of the text; a
+view that is all ASCII keeps no checkpoints, since all three units
+agree. A UTF-16 offset between the two halves of a surrogate pair, or
+any offset past the end of the view, is refused with `Error::Offset`.
+
+`Utf16Offset` and `CodePointOffset` are their own types, so neither can
+be passed where a byte offset is expected. `OffsetCursor` converts a
+column of offsets in text order (a layer's starts, or its ends) in one
+forward pass over the text, and `OffsetTable::column_to_utf16` and
+`column_to_code_point` use it to fill a vector the caller provides.
 
 ## Views
 
@@ -47,9 +84,25 @@ the whole edit (a start to its start, an end to its end), so a mapped
 span covers everything the original covered.
 
 A normalizer writes its text through a `ViewBuilder`, which records the
-alignment as it goes, so no view exists without one. A layer's spans
+alignment as it goes, so no view exists without one. Each `replace` call
+is one edit, never merged with the edit before it, so the caller chooses
+the granularity: three characters replaced one call each keep a
+one-to-one mapping per character, and a run replaced in one call is one
+edit over the whole run. A layer's spans
 name the view they are in, and `Document::to_source` maps them back
 through any chain of views to exact source bytes.
+
+Inserted or deleted bytes (an edit with one empty side) belong to
+neither neighbour: a start offset at them maps to after them and an end
+offset to before them. An empty span at them stays empty and lands
+before them, at the smaller of the two mapped offsets, so mapping any
+span either way never builds a span that ends before it starts. Deleting
+the whole text, for example, maps the empty view span at 0 to the empty
+source span at 0. An empty span strictly inside an edit widens to the
+whole edit like any other span. `Document::offset_from_source` and
+`Document::offset_to_source` map one offset through the chain of views
+for the side given, so a start at an insertion point goes after every
+byte inserted there and an end goes before them.
 
 ## Layers
 
@@ -96,8 +149,9 @@ pipelines built at run time; it prints as the layer's id and the name,
 `opennlp:tokens@gold`.
 
 A layer keeps the instances it was made on: an aligned layer's anchor,
-and the layers it indexes. They are the instances its step read (for a
-layer added by hand, those its provenance lists, or the default ones),
+and the layers it indexes. They are the instances its step wrote before
+it or read (for a layer added by hand, those its provenance lists, or
+the default ones),
 so tags made on the gold tokens say so (`Document::made_on`). A step
 that would read such a layer beside another instance of the one it was
 made on (those tags, with the predicted tokens) fails on that document
@@ -114,7 +168,9 @@ Every layer records where it came from: the annotator and its version,
 a hash of its configuration, the model (bundle id, revision and
 sha256), where the model ran (backend, device, precision), and the
 layers it read. An optional input is listed only when the document had
-it.
+it. A layer made on another output of its own step (a confidence column
+on the tokens written beside it) lists that output apart, under `on`,
+since the step did not read it.
 
 A layer's status is kept apart from its data. A layer never written has
 no status; one written with no items is `Complete` and empty; one its
@@ -146,14 +202,23 @@ document at a time to find the documents that cause it.
 `Bound` binds an annotator to the instances it reads and writes:
 the default ones, or named ones (`.read(0, "folded")`).
 
+An aligned output may hang on an earlier output of the same step: a
+tokenizer that writes `(Tokens, Confidence<Tokens>)` scores the tokens it
+wrote, without reading them. Outputs are added in the order of the
+`Writes` tuple, so the base must come before the layer aligned to it,
+and the aligned layer is made on the instance the step wrote under its
+own key (named or default). The same holds for an index into an earlier
+output: tokens written with their sentences point into those sentences.
+
 ## The analyzer
 
 `Analyzer::builder()` takes the steps in any order, and the layers the
 documents arrive with (`given`), such as structure from the parser
 upstream. `build` refuses a pipeline that cannot run, naming why: two
 layer types under one id, a layer two steps write, a required input
-nothing writes, an aligned output whose anchor the step does not read,
-or a cycle. It then orders the steps by what they read and write into
+nothing writes, an aligned output whose anchor the step neither reads
+nor writes before it, an aligned output written before its own base, or
+a cycle. It then orders the steps by what they read and write into
 stages.
 
 `run` takes a batch of documents. Each stage runs over the whole batch
@@ -461,9 +526,25 @@ A `turbo:view` block is not loaded. A view golden is only compared with
 the view a Rust normalizer makes, so `load_document` on one gives the
 source text alone, for the normalizer to run on.
 
+## Generating golden files
+
+The goldens in `analysis/goldens/data` are made by `turbo-goldens`
+(crate `turbo-goldens-tool` in `analysis/goldens-tool`). It builds a
+container from a pinned `eclipse-temurin:21-jdk` digest with OpenNLP
+built from a pinned commit of the fork, runs the Java generator in it
+without a network over the inputs and the models (each model checked
+against its published SHA-512), and writes
+`<annotator>/<model>/<set>/<id>.golden` for every annotator and input.
+`turbo-goldens verify` regenerates them into a scratch directory and
+fails on any file whose bytes differ. The first goldens (sentence
+detection, tokenization and language detection) were made by running
+the generator directly under the JDK named in their headers; the
+container run is to be proven on a machine with Docker.
+`analysis/goldens-tool/README.md` has the commands.
+
 ## Tests
 
-`cargo test -p turbo-analysis -p turbo-analysis-layers -p turbo-chunker -p turbo-goldens`
+`cargo test -p turbo-analysis -p turbo-analysis-layers -p turbo-chunker -p turbo-jvm -p turbo-goldens`
 runs them on any machine:
 
 - `analysis/core/tests/pipeline.rs` runs a pipeline of toy annotators
@@ -472,11 +553,23 @@ runs them on any machine:
   annotator in one call, failures, panics and skips per document, gold
   and predicted layers side by side and never read across, one type
   per id, and a pipeline from configuration.
+- `analysis/core/tests/empty_spans.rs` maps empty spans at insertions
+  and deletions, at both ends of the text and after the whole text is
+  deleted, single offsets through a chain of two views, and every span
+  of every alignment four `replace` calls can make over a three-byte
+  text, checking that none panics.
 - `analysis/chunker/tests/chunker.rs` chunks hand-made layers: a cut
   where the topic shifts instead of where the budget fills, sections
   that are never crossed, and a paragraph break's token counted inside
   a chunk. The chunker's unit tests hold the optimizer against filling
   each chunk to the budget.
+- `analysis/core/tests/offsets.rs` converts offsets in both directions
+  at every character boundary of text with one to four byte
+  characters, refuses offsets inside a surrogate pair and past the end,
+  and checks a text of about ten thousand bytes against counts made
+  with `encode_utf16` and `chars`, by point and by cursor.
+- `analysis/jvm/tests/jvm_vectors.rs` compares `turbo-jvm` with the
+  results a JVM wrote, bit for bit.
 - `analysis/goldens/tests/goldens.rs` reads a hand written golden file
   (`tests/fixtures/zurich.golden`, over a short input beside it) into
   typed fields, as it does a second with options and a normalized view
@@ -507,10 +600,6 @@ runs them on any machine:
   tokenization, the subwords from turboembed's tokenizer, vectors
   through turboembed, and the boundary signals. The tests build their
   layers by hand or with toy annotators.
-- UTF-16 and code point offsets at the edge.
-- The golden files themselves, made on the JVM from a pinned OpenNLP
-  3.x commit, for the ports to be checked against: the format and the
-  Rust reader and comparison are built (see Golden files).
 - The evaluation harness that every change to the chunker is measured
   with.
 - A gRPC surface, to be shared with the OpenNLP standard.

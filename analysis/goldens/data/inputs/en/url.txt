@@ -1,0 +1,1 @@
+The documentation is at https://example.org/docs/v1.2/index.html. You can also write to help@example.org for support. Visit www.example.com. before noon, or check the mirror at http://mirror.example.net/path?q=1&lang=en. Links break often.

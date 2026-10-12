@@ -198,11 +198,25 @@ pub struct Provenance {
     pub execution: Option<Execution>,
     /// The layers it read, optional ones only when they were there.
     pub reads: Vec<KeyId>,
+    /// The layers it was made on that its step wrote itself rather than
+    /// read: the tokens a tokenizer's own confidence column is aligned to,
+    /// or the sentences a sentence and token splitter's tokens index. Only
+    /// outputs the step wrote before this one are listed. Empty for a layer
+    /// made only on what its step read.
+    pub on: Vec<KeyId>,
 }
 
 impl Provenance {
     pub fn by(annotator: &'static str) -> Provenance {
-        Provenance { annotator, version: "0", config: 0, model: None, execution: None, reads: Vec::new() }
+        Provenance {
+            annotator,
+            version: "0",
+            config: 0,
+            model: None,
+            execution: None,
+            reads: Vec::new(),
+            on: Vec::new(),
+        }
     }
 }
 
