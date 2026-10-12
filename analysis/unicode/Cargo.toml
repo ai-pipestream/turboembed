@@ -7,3 +7,6 @@ publish = false
 
 [lib]
 name = "turbo_unicode"
+
+[dev-dependencies]
+turbo-unicode-gen = { path = "../unicode-gen" }

@@ -1,0 +1,29 @@
+component: tokenizer-me-abbreviations-fixture
+opennlp: cdf33c653d5d61d5af7d37ffee189a83bd8392ea
+jdk: 21.0.12.1
+whitespace: unicode
+model: tokenizer-abbreviations.bin
+model-sha256: bd5334327d3c4ffab19765bec7755b71a9eaea50e4c23ce10712f48bdb14c7e1
+alpha-numeric-pattern: ^[A-Za-z0-9]+$
+use-alpha-numeric-optimization: false
+abbreviations: in the model file
+input: emoji in word: ab\uD83D\uDE00cd, math \uD835\uDC00\uD835\uDC01\uD835\uDC02 \uD835\uDC1A\uD835\uDC1B\uD835\uDC1C deseret \uD801\uDC00\uD801\uDC28\uD801\uDC45 done. \uD840\uDC00 rare CJK.\n
+span: 0 5 0 5 0.7255828571001166
+span: 6 8 6 8 0.9422807379048291
+span: 9 13 9 13 0.644067932454017
+span: 13 14 13 14 1.0
+span: 15 23 15 21 0.2906654240117408
+span: 23 24 21 22 1.0
+span: 25 29 23 27 0.8936479642662918
+span-invalid: 28 33 0.04801970283311724
+span-invalid: 33 34 1.0
+span-invalid: 35 40 0.04801970283311724
+span-invalid: 40 41 1.0
+span: 56 63 42 49 0.5993790643547625
+span-invalid: 50 55 0.04801970283311724
+span-invalid: 55 56 1.0
+span: 77 81 57 61 0.6507739796908191
+span: 81 82 61 62 1.0
+span: 83 87 63 65 0.5860301681491412
+span: 88 92 66 70 0.9059701515016656
+span: 93 97 71 75 0.4778277620043053

@@ -14,6 +14,9 @@ members = [
     "analysis/tokenize",
     "analysis/normalize",
     "analysis/normalize-layers",
+    "analysis/goldens",
+    "analysis/goldens-tool",
+    "analysis/jvm",
     "analysis/tokenize",
     "analysis/tokenize-layers",
 ]

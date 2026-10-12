@@ -1,4 +1,4 @@
-//! UAX #29 word boundaries, rules WB1 to WB999, over the Unicode 17.0
+//! UAX #29 word boundaries, rules WB1 to WB999, over the Unicode 18.0
 //! `Word_Break` property. This is OpenNLP's `WordSegmenter`.
 //!
 //! The text is walked once, forward, decoding each character once. The

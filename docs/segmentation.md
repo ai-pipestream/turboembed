@@ -47,16 +47,16 @@ features and the same splits, the ports walk the text as code units too.
   simple one-to-one mapping). A surrogate half is in no class, as in
   Java. Rust's `char::is_numeric` and `char::is_alphabetic` are wider
   than Java's `isDigit` and `isLetter`, so they are not used.
-- The tables are generated from the Unicode 17.0 Character Database
+- The tables are generated from the Unicode 18.0 Character Database
   files under `analysis/unicode/ucd/` by `turbo-unicode-gen`, with each
   Java class derived the way the JDK defines it, and checked in as Rust
   source, so a build needs no data files. The JDK the golden files are
   made with (JDK 21) implements Unicode 15.0: a character added since is
   unassigned to it and in no class, while here it is classified by the
-  17.0 data. For code points both assign, the answers differ for 34
+  18.0 data. For code points both assign, the answers differ for 34
   (U+0295, and the combining Latin small letters U+0363..U+036F and
-  U+1DD3..U+1DE6), listed in the `java` module and checked by a test
-  against a running JDK.
+  U+1DD3..U+1DE6), listed in the `java::code_point` module and checked
+  by a test against a running JDK.
 
 ### Whitespace
 
@@ -216,35 +216,31 @@ make it decode a character and ask the mode.
 
 ### `WordTokenizer` (UAX #29)
 
-Word boundaries by UAX #29 rules WB1 to WB999 over the Unicode 17.0
+Word boundaries by UAX #29 rules WB1 to WB999 over the Unicode 18.0
 `Word_Break` property, with `Extended_Pictographic` for WB3c. The
 segmenter is a state machine over the last two significant classes, the
-current class and, where a rule needs it, the next significant class
-and the regional indicator parity, so a document is one pass with no
+current class and, where a rule needs it, the next significant class and
+the regional indicator parity, so a document is one pass with no
 backtracking. As in the Java, the decision for rules WB5 to WB999 comes
-from a table over (last, current) pairs derived at compile time from
-the rule cascade, and the cascade runs only for the pairs whose answer
-depends on the look-ahead or the parity; running the cascade with the
-look-ahead at every character instead was about a quarter slower. Segments that hold no letter, digit or script character
-(punctuation, spaces) are not tokens. Each token's type is one of
-alphanumeric, numeric, ideographic, hiragana, katakana, hangul,
-southeast asian or emoji, by the script and classes of its characters,
-and goes to the `WordTypes` layer. Tokens longer than `max_token_length`
-UTF-16 code units (255 by default) are cut into pieces of at most that
-length, each with the type of the whole word, never inside a character.
-The boundaries are checked against Unicode's `WordBreakTest.txt`, every
-case.
+from a table over (last, current) pairs derived at compile time from the
+rule cascade, and the cascade runs only for the pairs whose answer
+depends on the look-ahead or the parity. Segments that hold no letter,
+digit or script character (punctuation, spaces) are not tokens. Each
+token's type is one of alphanumeric, numeric, ideographic, hiragana,
+katakana, hangul, southeast asian or emoji, by the script and classes of
+its characters, and goes to the `WordTypes` layer. Tokens longer than
+`max_token_length` UTF-16 code units (255 by default) are cut into
+pieces of at most that length, each with the type of the whole word,
+never inside a character. The boundaries are checked against Unicode's
+`WordBreakTest.txt`, every case.
 
-The analyzer refuses, when it builds a pipeline, a step whose aligned
-output hangs on a layer the step does not read, and it does not yet
-accept the step's own output as that layer. `WordTokenizer` writes
-`WordTypes` aligned to the `Tokens` it writes itself, so it is refused
-there today; it runs through the `Step` interface directly, and the
-document checks the alignment when it takes the layers. Until the
-analyzer accepts an anchor among a step's own outputs,
-`UntypedWordTokenizer` writes the same tokens without the types and runs
-in any pipeline. The maxent tokenizer's `Confidence<Tokens>` and the
-sentence detector's `Confidence<Sentences>` meet the same rule.
+`WordTokenizer` writes the `Tokens` first and then the `WordTypes`
+aligned to them, and runs in a pipeline like any other step: the
+analyzer accepts an aligned output whose anchor is an output the same
+step writes before it, and the document checks that the types are as
+long as the tokens when it stores them. `UntypedWordTokenizer` writes
+the same tokens without the types, for a pipeline that has no use for
+them.
 
 ### `TokenizerMe` (maxent)
 
@@ -330,6 +326,13 @@ model and the whitespace mode, then the input text with `\n`, `\r`,
 offsets, its UTF-16 offsets and, when the component has one, its
 probability printed with Java's `Double.toString`. The tests compare
 spans exactly and probabilities within 1e-9.
+
+Four cases that none of the UD models reach have their own run
+(`Variants`, under `tokenize/tests/golden/variants` and
+`tokenize/tests/golden/detokenizer`): `TokenizerME` with an abbreviation
+dictionary, `TokenizerME` splitting between surrogate halves,
+`TokenizerME` with the alphanumeric optimization on, and the dictionary
+detokenizer on the English, French and Portuguese dictionaries.
 
 The JVM is used for golden files only. Nothing here calls into it at
 run time.

@@ -8,3 +8,7 @@ publish = false
 [[bin]]
 name = "turbo-unicode-gen"
 path = "src/main.rs"
+
+[lib]
+name = "turbo_unicode_gen"
+path = "src/lib.rs"
