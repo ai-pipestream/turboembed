@@ -36,6 +36,10 @@ fn models() -> Vec<ModelConfig> {
     static N: AtomicUsize = AtomicUsize::new(0);
     let n = N.fetch_add(1, Ordering::Relaxed);
     let dir = Path::new(env!("CARGO_TARGET_TMPDIR")).join(format!("demo-{}-{n}", std::process::id()));
+    // The name is unique within one process only. CI restores target/ from
+    // a cache and process ids repeat across runs, so an earlier run's links
+    // can already be here.
+    let _ = std::fs::remove_dir_all(&dir);
     std::fs::create_dir_all(&dir).unwrap();
     let bundle = tiny().canonicalize().unwrap();
     TIERS
@@ -266,8 +270,12 @@ async fn parameters_reach_the_server_and_its_refusals_come_back() {
 
 #[tokio::test]
 async fn a_server_that_is_not_there_is_reported() {
-    // A port nothing listens on: bind one, then let it go.
-    let addr = std::net::TcpListener::bind("127.0.0.1:0").unwrap().local_addr().unwrap();
+    // A port nothing listens on. The socket stays bound without listening for
+    // the whole test, so connections to it are refused and no server started
+    // by a test running alongside can be given the same port.
+    let reserved = tokio::net::TcpSocket::new_v4().unwrap();
+    reserved.bind("127.0.0.1:0".parse().unwrap()).unwrap();
+    let addr = reserved.local_addr().unwrap();
     let d = Demo::start("127.0.0.1:0".parse().unwrap(), &format!("http://{addr}"), vec![NAME.into()]).await.unwrap();
     let (status, v) = get_json(&d, "/api/status").await;
     assert_eq!(status, 200);
@@ -277,4 +285,5 @@ async fn a_server_that_is_not_there_is_reported() {
     assert_eq!(status, 502);
     assert_eq!(e["error"]["grpc"], "Unavailable");
     d.stop().await;
+    drop(reserved);
 }

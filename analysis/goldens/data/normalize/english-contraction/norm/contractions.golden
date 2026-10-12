@@ -1,0 +1,36 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-1-24.04.4-Ubuntu	Ubuntu
+unicode	15.0
+input	norm/contractions	336	336	ccf717db1a99abe899dbc19b16aae5988d964e06a6a7a4cfe4c4e6f2a03a190f
+annotator	opennlp.tools.util.normalizer.EnglishContractionCharSequenceNormalizer	normalizeAligned
+layer	turbo:view	text	27	start:u32	end:u32	with:str
+4	7	 not
+20	22	 not
+35	37	will
+37	40	 not
+48	50	 am
+59	62	 are
+98	101	 have
+110	113	 have
+120	123	 will
+132	135	 will
+159	162	Shall
+162	165	 not
+199	202	 NOT
+212	215	 not
+225	228	 not
+235	238	 not
+246	249	 not
+255	258	 not
+264	267	 not
+272	275	 not
+281	284	 not
+289	292	 not
+297	300	 not
+305	308	 not
+314	317	 not
+323	326	 not
+331	334	 not
+end	turbo:view

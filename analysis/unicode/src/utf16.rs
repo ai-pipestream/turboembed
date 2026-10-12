@@ -67,7 +67,7 @@ fn units_in(bytes: &[u8]) -> usize {
 /// code point of the character under it and whether it is on the second
 /// unit of that character, so stepping decodes one UTF-8 character and
 /// allocates nothing.
-#[derive(Clone, Debug)]
+#[derive(Copy, Clone, Debug)]
 pub struct Utf16Cursor<'a> {
     text: &'a str,
     /// The byte offset of the current character, or the text length at the end.
@@ -92,15 +92,23 @@ impl<'a> Utf16Cursor<'a> {
     /// `text` (or at the end when `byte` is the text length), whose UTF-16
     /// index the caller already knows to be `unit_index`. This places a
     /// cursor at a position found by an earlier walk without counting the
-    /// units before it again. The index is taken on trust: one that does
-    /// not match `byte` gives a cursor whose [`unit_index`](Self::unit_index)
-    /// is off by the same amount.
+    /// units before it again.
+    ///
+    /// `unit_index` must be the UTF-16 length of `text[..byte]`. Debug
+    /// builds check it. Release builds take it on trust: a wrong index
+    /// gives a cursor whose [`unit_index`](Self::unit_index) is off by the
+    /// same amount, and one that is too large or too small makes
+    /// [`step_back`](Self::step_back) and [`seek_byte`](Self::seek_byte)
+    /// compute indexes that are wrong too, wrapping below zero when the
+    /// index is too small.
     ///
     /// # Panics
     ///
-    /// When `byte` is not a character boundary of `text`.
+    /// When `byte` is not a character boundary of `text`, and in debug
+    /// builds when `unit_index` is not the UTF-16 length of `text[..byte]`.
     pub fn at(text: &'a str, byte: usize, unit_index: usize) -> Utf16Cursor<'a> {
         assert!(text.is_char_boundary(byte), "byte {byte} is not a character boundary");
+        debug_assert_eq!(unit_index, utf16_len(&text[..byte]), "unit_index is not the UTF-16 index of byte {byte}");
         let mut cursor = Utf16Cursor { text, byte, cp: 0, low: false, unit: unit_index };
         cursor.load();
         cursor
@@ -327,6 +335,13 @@ mod tests {
     #[should_panic(expected = "not a character boundary")]
     fn placed_inside_a_character() {
         Utf16Cursor::at(TEXT, 2, 2);
+    }
+
+    #[test]
+    #[cfg(debug_assertions)]
+    #[should_panic(expected = "unit_index is not the UTF-16 index")]
+    fn placed_with_a_wrong_index() {
+        Utf16Cursor::at(TEXT, 6, 2);
     }
 
     #[test]

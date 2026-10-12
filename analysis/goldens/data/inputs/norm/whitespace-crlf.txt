@@ -1,0 +1,6 @@
+First line  with   spaces
+Second	line	with	tabs
+   indented line   
+
+
+After two blank lines.

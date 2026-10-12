@@ -1,0 +1,3 @@
+no break space, ideographic　space, em space, thin space, narrow no-break, hair space.
+Figure space and en space and four-per-em six-per-em.
+  leading and trailing   
