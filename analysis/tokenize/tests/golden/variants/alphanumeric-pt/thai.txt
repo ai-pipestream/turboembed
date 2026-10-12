@@ -1,0 +1,13 @@
+component: tokenizer-me-pt
+opennlp: cdf33c653d5d61d5af7d37ffee189a83bd8392ea
+jdk: 21.0.12.1
+whitespace: unicode
+model: opennlp-pt-ud-gsd-tokens-1.3-2.5.4.bin
+model-sha256: b85f42a6a1dfe0728b7c7c9df1ca0c98de708c04be3df22da1917b8d8dc4b096
+alpha-numeric-pattern: ^[0-9a-z\u00E1\u00E3\u00E2\u00E0\u00E9\u00EA\u00ED\u00F3\u00F5\u00F4\u00FA\u00FC\u00E7A-Z\u00C1\u00C3\u00C2\u00C0\u00C9\u00CA\u00CD\u00D3\u00D5\u00D4\u00DA\u00DC\u00C7]+$
+use-alpha-numeric-optimization: true
+effective-alpha-numeric-pattern: ^[0-9a-z\u00E1\u00E3\u00E2\u00E0\u00E9\u00EA\u00ED\u00F3\u00F5\u00F4\u00FA\u00FC\u00E7A-Z\u00C1\u00C3\u00C2\u00C0\u00C9\u00CA\u00CD\u00D3\u00D5\u00D4\u00DA\u00DC\u00C7]+$
+input: \u0E2A\u0E27\u0E31\u0E2A\u0E14\u0E35\u0E04\u0E23\u0E31\u0E1A \u0E1C\u0E21\u0E0A\u0E37\u0E48\u0E2D\u0E2A\u0E21\u0E0A\u0E32\u0E22 \u0E22\u0E34\u0E19\u0E14\u0E35\u0E17\u0E35\u0E48\u0E44\u0E14\u0E49\u0E23\u0E39\u0E49\u0E08\u0E31\u0E01\n
+span: 0 30 0 10 0.48114628307594154
+span: 31 64 11 22 0.4423550721585742
+span: 65 116 23 40 0.08064506062405892

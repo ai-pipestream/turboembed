@@ -194,11 +194,11 @@ fn digit(c: char) -> Option<u32> {
     if c.is_ascii_digit() {
         return Some(cp - u32::from(b'0'));
     }
-    if cp > 0xFFFF || !turbo_unicode::java::is_digit(cp) {
+    if cp > 0xFFFF || !turbo_unicode::java::code_point::is_digit(cp) {
         return None;
     }
     let mut before = 0;
-    while before < cp && turbo_unicode::java::is_digit(cp - before - 1) {
+    while before < cp && turbo_unicode::java::code_point::is_digit(cp - before - 1) {
         before += 1;
     }
     Some(before % 10)

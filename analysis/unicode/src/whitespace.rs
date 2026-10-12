@@ -5,7 +5,7 @@
 //! The choice changes tokens, trimmed spans and model features, so here
 //! it is a value every annotator takes as a parameter, never a global.
 
-use crate::java;
+use crate::java::code_point;
 
 /// Which characters count as whitespace.
 #[derive(Copy, Clone, Debug, Default, PartialEq, Eq, Hash)]
@@ -84,7 +84,7 @@ impl WhitespaceMode {
             return self.is_ascii_whitespace(cp as u8);
         }
         match self {
-            WhitespaceMode::Legacy => java::is_whitespace(cp) || java::is_space_separator(cp),
+            WhitespaceMode::Legacy => code_point::is_whitespace(cp) || code_point::is_space_separator(cp),
             WhitespaceMode::Unicode => {
                 matches!(cp, 0x0085 | 0x00A0 | 0x1680 | 0x2000..=0x200A | 0x2028 | 0x2029 | 0x202F | 0x205F | 0x3000)
             }
@@ -168,7 +168,7 @@ mod tests {
     #[test]
     fn legacy_mode_is_java_whitespace_or_zs() {
         for cp in 0..=0x10_FFFF {
-            let expected = java::is_whitespace(cp) || java::is_space_separator(cp);
+            let expected = code_point::is_whitespace(cp) || code_point::is_space_separator(cp);
             assert_eq!(Legacy.is_whitespace(cp), expected, "U+{cp:04X}");
         }
         // The full legacy set, worked out from the Java definition.

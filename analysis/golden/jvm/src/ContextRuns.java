@@ -36,7 +36,15 @@ final class ContextRuns {
   }
 
   static void write(Path contextDir, RunInfo run, List<Inputs.Input> inputs, ModelFile model) throws IOException {
-    TokenizerModel tokenizerModel = new TokenizerModel(model.path().toFile());
+    write(contextDir, model.language(), run, inputs, INPUT_NAMES, model, new TokenizerModel(model.path().toFile()));
+  }
+
+  /**
+   * Writes the feature file {@code <name>.txt} for the inputs whose names are in {@code names}, using
+   * {@code tokenizerModel} (which can be a model built from {@code model} with other settings).
+   */
+  static void write(Path contextDir, String name, RunInfo run, List<Inputs.Input> inputs, Set<String> names,
+      ModelFile model, TokenizerModel tokenizerModel) throws IOException {
     TokenizerFactory factory = tokenizerModel.getFactory();
     MaxentModel maxent = tokenizerModel.getMaxentModel();
     TokenContextGenerator cg = factory.getContextGenerator();
@@ -46,12 +54,12 @@ final class ContextRuns {
     int noSplitIndex = maxent.getIndex(TokenizerME.NO_SPLIT);
     TokenizerME reference = new TokenizerME(tokenizerModel);
 
-    GoldenFile file = new GoldenFile("tokenizer-me-" + model.language() + "-contexts", run, "");
+    GoldenFile file = new GoldenFile("tokenizer-me-" + name + "-contexts", run, "");
     ModelHeader.write(file, model, tokenizerModel);
     file.line("outcomes: " + TokenizerME.SPLIT + " " + TokenizerME.NO_SPLIT);
 
     for (Inputs.Input in : inputs) {
-      if (!INPUT_NAMES.contains(in.name())) {
+      if (!names.contains(in.name())) {
         continue;
       }
       String text = in.text();
@@ -90,16 +98,22 @@ final class ContextRuns {
       }
       Span[] expected = reference.tokenizePos(text);
       if (!Arrays.equals(expected, rebuilt.toArray(new Span[0]))) {
-        Golden.problem("contexts/" + model.language() + "/" + in.name()
+        Golden.problem("contexts/" + name + "/" + in.name()
             + ": rebuilt spans differ from TokenizerME.tokenizePos");
       }
     }
-    file.write(contextDir.resolve("tokenizer-me-" + model.language() + ".txt"));
+    file.write(contextDir.resolve("tokenizer-me-" + name + ".txt"));
   }
 
-  private static Pattern effectivePattern(TokenizerFactory factory) {
+  /**
+   * The pattern {@code TokenizerME} uses when the optimization is on: the factory's pattern, and
+   * {@code Factory.DEFAULT_ALPHANUMERIC} if there is none. {@code TokenizerFactory.getAlphaNumericPattern}
+   * itself falls back to the pattern of the model's language, so the second case does not arise for a
+   * model.
+   */
+  static Pattern effectivePattern(TokenizerFactory factory) {
     Pattern p = factory.getAlphaNumericPattern();
-    return p == null ? new Factory().getAlphanumeric(factory.getLanguageCode()) : p;
+    return p == null ? Factory.DEFAULT_ALPHANUMERIC : p;
   }
 
   private static boolean isAbbreviation(Dictionary dictionary, String token) {

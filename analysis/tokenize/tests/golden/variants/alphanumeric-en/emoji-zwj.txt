@@ -1,0 +1,16 @@
+component: tokenizer-me-en
+opennlp: cdf33c653d5d61d5af7d37ffee189a83bd8392ea
+jdk: 21.0.12.1
+whitespace: unicode
+model: opennlp-en-ud-ewt-tokens-1.3-2.5.4.bin
+model-sha256: 95139111197ba9f1165fc12be8d4cbac05ea3912f995d167efa1a0e04e3e649a
+alpha-numeric-pattern: ^[A-Za-z0-9]+$
+use-alpha-numeric-optimization: true
+effective-alpha-numeric-pattern: ^[A-Za-z0-9]+$
+input: Family \uD83D\uDC68\u200D\uD83D\uDC69\u200D\uD83D\uDC67\u200D\uD83D\uDC66 here and \uD83C\uDFF3\uFE0F\u200D\uD83C\uDF08 too\n
+span: 0 6 0 6 1.0
+span: 7 32 7 18 0.0013866198769527161
+span: 33 37 19 23 1.0
+span: 38 41 24 27 1.0
+span: 42 56 28 34 0.044371836062486916
+span: 57 60 35 38 1.0

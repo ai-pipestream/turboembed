@@ -21,7 +21,7 @@
 
 use std::collections::HashSet;
 
-use turbo_unicode::java::to_lower_case;
+use turbo_unicode::java::code_point::to_lower_case;
 
 use crate::error::{Error, Result};
 use crate::hash::BuildFoldHasher;
