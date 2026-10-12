@@ -117,6 +117,31 @@ fn runs_of(dir: &std::path::Path) {
         let (_, releases) = counted(|| drop(r));
         assert_eq!(releases, 0);
     }
+    // A range write and its run allocate nothing either, on any thread.
+    let lens: Vec<u32> = rows.iter().map(|r| r.len() as u32).collect();
+    let ranges = [range(0, 0, lens[0]), range(0, 1, 4), range(1, 0, lens[1]), range(2, 0, 1)];
+    for i in 0..3 {
+        let b = small.batch();
+        let (rc, writes, anywhere) = counted_all(|| unsafe {
+            turbo_embed_write_ranges(
+                s.0,
+                &b,
+                ranges.as_ptr(),
+                ranges.len() as u32,
+                std::ptr::null(),
+                std::ptr::null_mut(),
+            )
+        });
+        assert_eq!(rc, 0);
+        assert_eq!((writes, anywhere), (0, 0), "{}: range write {i}", dir.display());
+        let mut r = std::ptr::null_mut();
+        let (rc, allocs, anywhere) = counted_all(|| unsafe { turbo_session_run(s.0, &mut r, std::ptr::null_mut()) });
+        assert_eq!(rc, 0);
+        assert_eq!((allocs, anywhere), (0, 0), "{}: range run {i}", dir.display());
+        let r = Outcome(r);
+        assert_eq!(r.info().batch, ranges.len() as u32);
+        assert_eq!(r.info().host_allocs, 0);
+    }
     // The count is the allocator's, not a constant: a write of text
     // tokenizes, and that allocates.
     let views = texts.map(text);

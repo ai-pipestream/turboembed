@@ -16,19 +16,25 @@ import opennlp.tools.langdetect.LanguageDetectorModel;
 final class LanguageGolden implements AnnotatorGolden {
 
   private final ModelRef model;
+  private final LanguageDetectorModel loaded;
   private final LanguageDetectorME detector;
 
-  private LanguageGolden(ModelRef model, LanguageDetectorME detector) {
+  private LanguageGolden(ModelRef model, LanguageDetectorModel loaded) {
     this.model = model;
-    this.detector = detector;
+    this.loaded = loaded;
+    this.detector = new LanguageDetectorME(loaded);
   }
 
   /** Loads the language detector model from {@code file}, hashing exactly the bytes loaded. */
   static LanguageGolden load(Path file) throws IOException {
     byte[] bytes = Files.readAllBytes(file);
     LanguageDetectorModel m = new LanguageDetectorModel(new ByteArrayInputStream(bytes));
-    return new LanguageGolden(new ModelRef(file.getFileName().toString(), Sha.sha512(bytes)),
-        new LanguageDetectorME(m));
+    return new LanguageGolden(new ModelRef(file.getFileName().toString(), Sha.sha512(bytes)), m);
+  }
+
+  /** The loaded model, which {@link LanguageDump} builds its recording model from. */
+  LanguageDetectorModel loaded() {
+    return loaded;
   }
 
   @Override
@@ -53,6 +59,11 @@ final class LanguageGolden implements AnnotatorGolden {
 
   @Override
   public List<Layer> layers(Input input) {
+    return layers(detector, input);
+  }
+
+  /** The layers {@code detector} produces for the input; {@link LanguageDump} runs it on its recording detector. */
+  static List<Layer> layers(LanguageDetectorME detector, Input input) {
     Language[] languages = detector.predictLanguages(input.text());
     String[] codes = new String[languages.length];
     double[] confidences = new double[languages.length];

@@ -18,19 +18,25 @@ import opennlp.tools.util.Span;
 final class SentenceGolden implements AnnotatorGolden {
 
   private final ModelRef model;
+  private final SentenceModel loaded;
   private final SentenceDetectorME detector;
 
-  private SentenceGolden(ModelRef model, SentenceDetectorME detector) {
+  private SentenceGolden(ModelRef model, SentenceModel loaded) {
     this.model = model;
-    this.detector = detector;
+    this.loaded = loaded;
+    this.detector = new SentenceDetectorME(loaded);
   }
 
   /** Loads the sentence model from {@code file}, hashing exactly the bytes loaded. */
   static SentenceGolden load(Path file) throws IOException {
     byte[] bytes = Files.readAllBytes(file);
     SentenceModel m = new SentenceModel(new ByteArrayInputStream(bytes));
-    return new SentenceGolden(new ModelRef(file.getFileName().toString(), Sha.sha512(bytes)),
-        new SentenceDetectorME(m));
+    return new SentenceGolden(new ModelRef(file.getFileName().toString(), Sha.sha512(bytes)), m);
+  }
+
+  /** The loaded model, which {@link SentenceDump} builds its recording model from. */
+  SentenceModel loaded() {
+    return loaded;
   }
 
   @Override
@@ -54,8 +60,13 @@ final class SentenceGolden implements AnnotatorGolden {
   }
 
   @Override
-  @SuppressWarnings("removal")
   public List<Layer> layers(Input input) {
+    return layers(detector, input);
+  }
+
+  /** The layers {@code detector} produces for the input; {@link SentenceDump} runs it on its recording detector. */
+  @SuppressWarnings("removal")
+  static List<Layer> layers(SentenceDetectorME detector, Input input) {
     Span[] spans = detector.sentPosDetect(input.text());
     double[] reported = detector.getSentenceProbabilities();
     long[] starts = new long[spans.length];

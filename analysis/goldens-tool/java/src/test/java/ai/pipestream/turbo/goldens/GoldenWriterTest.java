@@ -1,5 +1,6 @@
 package ai.pipestream.turbo.goldens;
 
+import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -88,5 +89,15 @@ class GoldenWriterTest {
     assertEquals("15.0", Jdk.unicodeVersion(21));
     assertEquals("16.0", Jdk.unicodeVersion(24));
     assertThrows(IllegalStateException.class, () -> Jdk.unicodeVersion(25));
+  }
+
+  @Test
+  void aLoneSurrogateIsEscapedAndAPairIsKept() {
+    assertEquals("a\\ud83d", GoldenWriter.escape("a\ud83d"));
+    assertEquals("\\ude00b", GoldenWriter.escape("\ude00b"));
+    assertEquals("\\ude00\\ud83d", GoldenWriter.escape("\ude00\ud83d"));
+    assertEquals("😀", GoldenWriter.escape("\ud83d\ude00"));
+    assertArrayEquals("a\\ud83d".getBytes(StandardCharsets.UTF_8), GoldenWriter.utf8(GoldenWriter.escape("a\ud83d")));
+    assertThrows(IllegalStateException.class, () -> GoldenWriter.utf8("a\ud83d"));
   }
 }

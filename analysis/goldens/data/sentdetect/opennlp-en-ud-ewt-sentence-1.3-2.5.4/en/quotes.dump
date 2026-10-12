@@ -1,0 +1,75 @@
+dump 1
+generator	turbo-goldens-java	1
+opennlp	92d486d05151ef00b6d145c405046aa3a33b5a48	3.0.0-PRE-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-1-24.04.4-Ubuntu	Ubuntu
+unicode	15.0
+input	en/quotes	240	228	8e587a2221022c9fa745822b626ba04b316b213fbffa68031c095a1670e808f8
+model	opennlp-en-ud-ewt-sentence-1.3-2.5.4.bin	fed5d53ea87bf66afeb08c084f89ca9b95a96de0920dca40487b2ab9972ee6b7ef211e477db480b7253431de079fd66dfd14329cd7d19ad1f565155eb0cf5191
+annotator	opennlp.tools.sentdetect.SentenceDetectorME	sentPosDetect
+point	0	23	6	2	0	none
+context	eos=?
+context	x=tonight
+context	7
+context	v=coming
+context	s="
+context	n=she
+outcome	s	3feb599a7ffbc42d 0.8546879291226382
+outcome	n	3fc299960010ef4c 0.14531207087736175
+end	0
+point	1	35	8	2	0	none
+context	sn
+context	eos=.
+context	x=asked
+context	5
+context	v=she
+context	s=
+context	n=He
+context	ncap
+outcome	s	3fefed3007a40e8d 0.9977035664782804
+outcome	n	3f62cff85bf17311 0.002296433521719606
+end	1
+point	2	84	7	2	0	none
+context	eos=.
+context	x=stops
+context	5
+context	v=rain
+context	s="
+context	n=The
+context	ncap
+outcome	s	3fef7ee8da28a800 0.9842418919481588
+outcome	n	3f9022e4baeb0006 0.01575810805184121
+end	2
+point	3	133	7	2	0	none
+context	sn
+context	eos=.
+context	x=repairs'
+context	8
+context	v=for
+context	s=
+context	n=“Curly
+outcome	s	3fef0b5275a1789b 0.9701320931888121
+outcome	n	3f9e95b14bd0ec95 0.029867906811187856
+end	3
+point	4	218	7	2	0	none
+context	eos=.
+context	x=ones
+context	4
+context	v=‘single’
+context	s=”
+context	n=Nobody
+context	ncap
+outcome	s	3fee90b78565fb5b 0.9551656346737717
+outcome	n	3fa6f487a9a04a5a 0.04483436532622838
+end	4
+point	5	238	8	2	0	none
+context	sn
+context	eos=.
+context	x=answered
+context	8
+context	v=Nobody
+context	vcap
+context	s=
+context	n=
+outcome	s	3fefff8448f3d2f6 0.9999410080768871
+outcome	n	3f0eedc30b425032 5.899192311278923E-5
+end	5
