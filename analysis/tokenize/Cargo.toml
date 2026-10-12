@@ -15,4 +15,5 @@ turbo-analysis-layers = { path = "../layers" }
 turbo-maxent = { path = "../maxent" }
 # Java's character classes, the whitespace modes, the UTF-16 cursor and
 # modified UTF-8.
+turbo-tokenize-layers = { path = "../tokenize-layers" }
 turbo-unicode = { path = "../unicode" }

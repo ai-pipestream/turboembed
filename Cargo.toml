@@ -14,6 +14,8 @@ members = [
     "analysis/tokenize",
     "analysis/normalize",
     "analysis/normalize-layers",
+    "analysis/tokenize",
+    "analysis/tokenize-layers",
 ]
 resolver = "3"
 
