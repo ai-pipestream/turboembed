@@ -511,17 +511,21 @@ tip a choice. Two cuts tie only when they cost exactly the same; then
 the one whose first boundary comes earliest wins, then its second, and
 so on. The table runs from the end of each run back, so each entry
 keeps the earliest end of equal least cost. A chunk's size penalty is
-capped at 2^60 units, so a chunk's cost fits an i64 and a run's total,
-summed in i128, cannot overflow: no total saturates and makes two cuts
-look equal, and a chunk of more than one sentence is never let past the
-maximum to escape a huge penalty. A unit test checks the optimizer
+exact, never capped: a size is at most 2^33 tokens and the weight under
+2^32, so a penalty is under 2^98 and fits an i128, and the optimizer
+sums chunk costs in i128. Two different cuts never look equal for a cap
+or an overflow, and a chunk of more than one sentence is never let past
+the maximum to escape a huge penalty. A total could saturate only past
+2^28 chunks each billions of tokens from the target. The `Chunks` layer
+stores each chunk's cost saturated to the i64 range. A unit test checks the optimizer
 against trying every cut of up to eleven sentences, with negative and
 zero costs, a target of zero and several weights and overheads.
 
 `segment` also takes a chunk term: a cost of a whole chunk, added beside
-its size penalty and capped the same way. It is how a signal over whole
+its size penalty and clamped to plus or minus 2^60 units, since the
+caller supplies it. It is how a signal over whole
 chunks, such as how tightly a chunk's sentences cluster, enters the
-optimizer; the chunker passes `no_term` for now.
+optimizer; the chunker passes `no_term`.
 
 ### Boundary costs
 
@@ -533,13 +537,15 @@ boundary costs one unit, a stronger break less, and a signal that
 argues for a cut may write a negative cost. A signal computed in
 floating point is rounded to units once, when it is written.
 
-Each signal annotator (structure, and later drift, topic shifts,
-coreference, discourse markers) writes its own named instance of this
-same shape, and one step weighs them with integer weights and sums them
-into the default instance, since a layer has one writer; the chunker
-reads only that. A new signal is one more instance, never a new column.
-The summing step computes in i64 and saturates to the i32 range when it
-writes. A term that belongs to a whole chunk rather than to a gap (how
+The chunker reads only the default instance, and a layer has one
+writer. With one boundary signal, that signal writes the default
+instance itself, as `StructureBoundaries` does. With several (structure,
+drift, topic shifts, coreference, discourse markers), each should write
+a named instance of this same shape, and a step that weighs them with
+integer weights and sums them should write the default instance,
+computing in i64 and saturating to the i32 range so no weight or sum
+wraps around. A new signal is one more instance, never a new column. A
+term that belongs to a whole chunk rather than to a gap (how
 tightly its sentences cluster) is not a boundary cost; it is the
 optimizer's chunk term.
 
@@ -547,7 +553,11 @@ optimizer's chunk term.
 `turbo:structure`. A block holds the sentences it has a byte of, found
 with two binary searches; it starts at the gap before the first of them
 and ends at the gap after the last, so a block edge inside a sentence
-moves to the nearest gap. Each gap takes its strongest break:
+moves to the nearest gap. A section is the exception: it holds the
+sentences that start in it, the same rule (one shared function) the
+chunker splits its runs by, so a section start inside a sentence is the
+gap after that sentence, and every chunk marked `Section` starts a run.
+Each gap takes its strongest break:
 
 | Break at the gap | Reason | Default cost |
 | --- | --- | --- |
@@ -559,7 +569,7 @@ moves to the nearest gap. Each gap takes its strongest break:
 
 A gap where a heading ends costs 4000 more, so a heading stays with what
 it heads. With no structure every gap is a sentence boundary. It writes
-the default instance while it is the only signal.
+the default instance, as the only signal.
 
 ### Hard limits
 
