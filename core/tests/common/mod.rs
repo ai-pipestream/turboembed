@@ -797,6 +797,22 @@ impl Session {
         Ok(())
     }
 
+    /// Late pooling: the rows `b` and the `ranges` of their tokens.
+    pub fn write_ranges(
+        &self,
+        b: &turbo_token_batch,
+        ranges: &[turbo_token_range],
+        opts: Option<&turbo_embed_options>,
+    ) -> Result<(), Failure> {
+        let mut err = new_error();
+        let o = opts.map_or(ptr::null(), |o| o as *const _);
+        let rc = unsafe { turbo_embed_write_ranges(self.0, b, ranges.as_ptr(), ranges.len() as u32, o, &mut err) };
+        if rc != 0 {
+            return Err(failure(rc, &err));
+        }
+        Ok(())
+    }
+
     pub fn run(&self) -> Result<Outcome, Failure> {
         let mut r = ptr::null_mut();
         let mut err = new_error();
@@ -819,6 +835,11 @@ impl Drop for Session {
     fn drop(&mut self) {
         unsafe { turbo_session_release(self.0) };
     }
+}
+
+/// The columns [start, end) of row `row`.
+pub fn range(row: u32, start: u32, end: u32) -> turbo_token_range {
+    turbo_token_range { row, start, end }
 }
 
 /// Rows the caller tokenized, [batch, seq] with a row stride, owning their
@@ -1117,6 +1138,33 @@ impl PlainBert {
                     .collect()
             }
         };
+        v.truncate(dim);
+        if l2 {
+            let n = v.iter().map(|a| a * a).sum::<f64>().sqrt().max(1e-12);
+            v.iter_mut().for_each(|a| *a /= n);
+        }
+        v
+    }
+
+    /// The mean of the hidden states over the positions in [start, end)
+    /// whose mask is 1, cut to `dim`, and normalized when `l2`: one range
+    /// pooled as late pooling pools it.
+    #[allow(clippy::too_many_arguments)]
+    pub fn embed_range(
+        &self,
+        ids: &[i32],
+        mask: &[i32],
+        types: &[i32],
+        start: usize,
+        end: usize,
+        dim: usize,
+        l2: bool,
+    ) -> Vec<f64> {
+        let x = self.hidden_states(ids, mask, types);
+        let live: Vec<usize> = (start..end).filter(|&p| mask[p] == 1).collect();
+        assert!(!live.is_empty(), "the range [{start}, {end}) holds no live token");
+        let n = live.len() as f64;
+        let mut v: Vec<f64> = (0..self.hidden).map(|i| live.iter().map(|&p| x[p][i]).sum::<f64>() / n).collect();
         v.truncate(dim);
         if l2 {
             let n = v.iter().map(|a| a * a).sum::<f64>().sqrt().max(1e-12);
