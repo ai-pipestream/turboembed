@@ -92,10 +92,13 @@ continuation lines, `\uXXXX`), and the model:
 | `Perceptron` | perceptron | sum the parameters, divide by the largest magnitude when it is above 1, `StrictMath.exp`, normalize |
 
 A model's parameters are stored by predicate as (outcome, weight)
-pairs. `MaxentModel::eval` takes the context's features and writes one
-probability per outcome into a caller's `[f64]`; it allocates nothing.
-Probabilities are `f64` end to end, as they are in Java, so a golden
-comparison at 1e-9 holds. `NaiveBayes` models are refused with an
+pairs. `MaxentModel::eval_modified_utf8` takes the context's features as
+modified UTF-8 bytes and writes one probability per outcome into a
+caller's `[f64]`; it allocates nothing. `MaxentModel::eval` takes `&str`
+features and encodes the few that differ in modified UTF-8.
+Probabilities are `f64` end to end, as they are in Java, and `exp` and
+`log` are `turbo-jvm`'s ports of fdlibm, which `StrictMath` specifies, so
+the fixture models' probabilities equal the JVM's bit for bit. `NaiveBayes` models are refused with an
 error that names the type; nothing here needs them.
 
 The dictionary XML (`<dictionary case_sensitive="..."> <entry
@@ -308,6 +311,12 @@ reach the OpenNLP side:
 - `SimpleTokenizer` with `keepNewLines` reports a wrong span for a line
   break that follows a space: the start offset is left over from the
   previous token instead of being set to the line break's position.
+- `Dictionary(InputStream)` inserts the entries before its
+  `isCaseSensitive` field is assigned, so every entry is stored as if the
+  dictionary were case-insensitive. In a case-sensitive dictionary, entries
+  that differ only in case collapse to the first one: with `Dr.` and
+  `dr.` loaded, `contains("dr.")` is false. The Rust reader reproduces
+  this so lookups match; a test records it.
 - `DefaultSDContextGenerator` tests `Character.isUpperCase` on the
   first code unit of a word, so a word starting with an upper case
   letter outside the BMP (Deseret, Osage, mathematical letters) is

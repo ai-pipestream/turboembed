@@ -1,0 +1,23 @@
+# key <TAB> value, sorted by key, \uXXXX escaped
+#notcomment	x
+both	=\u0020second\u0020separator\u0020is\u0020part\u0020of\u0020the\u0020value
+colon	value
+comment#	this\u0020is\u0020a\u0020continuation,\u0020not\u0020a\u0020comment
+continued	one\u0020two\u0020three
+cr	b
+crlf	a
+empty	
+equals	spaced\u0020value\u0020
+even\u005C	backslash\u005C
+formfeed	value
+key\u0020with=escapes:	value\u0009with\u0009tabs
+keyonly	
+last	
+latin1	caf\u00E9\u0020\u00FF
+lf	c
+odd	q"'
+plain	value
+repeated	second
+space	value
+tab	value
+unicode	\u00E9\u00C9\u20AC\uD83D\uDE00
