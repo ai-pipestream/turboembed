@@ -7,8 +7,9 @@
 
 use std::path::{Path, PathBuf};
 
-use turbo_tokenize::me::TokenizerModel;
-use turbo_unicode::utf16::utf16_to_byte;
+use turbo_tokenize::me::{Features, Scratch, TokenizerMe, TokenizerModel, UnitFacts, token_context};
+use turbo_unicode::utf16::{byte_to_utf16, utf16_to_byte};
+use turbo_unicode::{Utf16Cursor, WhitespaceMode};
 
 pub fn crate_dir() -> &'static Path {
     Path::new(env!("CARGO_MANIFEST_DIR"))
@@ -18,10 +19,34 @@ pub fn golden_dir() -> PathBuf {
     crate_dir().join("tests/golden")
 }
 
+/// The generator's committed data: inputs, dictionaries, fixture models.
+pub fn jvm_variants_dir() -> PathBuf {
+    crate_dir().join("../golden/jvm/variants")
+}
+
+/// The files of a golden directory, sorted by name.
+pub fn golden_files(dir: &Path) -> Vec<PathBuf> {
+    let mut paths: Vec<_> = std::fs::read_dir(dir)
+        .unwrap_or_else(|e| panic!("{}: {e}", dir.display()))
+        .map(|e| e.unwrap().path())
+        .collect();
+    paths.sort();
+    paths
+}
+
 /// The test model file of that name.
 pub fn model(name: &str) -> TokenizerModel {
     let path = crate_dir().join("tests/models").join(name);
     TokenizerModel::read(&path).unwrap_or_else(|e| panic!("{}: {e}", path.display()))
+}
+
+/// The file name of the UD model for `language`.
+pub fn ud_model_name(language: &str) -> String {
+    std::fs::read_dir(crate_dir().join("tests/models"))
+        .unwrap()
+        .map(|e| e.unwrap().file_name().into_string().unwrap())
+        .find(|n| n.starts_with(&format!("opennlp-{language}-")))
+        .unwrap_or_else(|| panic!("no UD model for {language}"))
 }
 
 /// Undoes the escaping of `input:` and `features:` values: `\\`, `\n`,
@@ -210,4 +235,72 @@ pub const LANGUAGES: [&str; 5] = ["en", "de", "es", "fr", "pt"];
 #[track_caller]
 pub fn assert_close(got: f64, want: f64, what: &dyn std::fmt::Display) {
     assert!((got - want).abs() <= 1e-9, "{what}: probability {got}, the JVM gave {want}");
+}
+
+/// Tokenizes `input` and compares with `expected`, on both offset kinds.
+pub fn check(t: &TokenizerMe, input: &str, expected: &[(u32, u32, f64)], what: &str) {
+    let mut got = Vec::new();
+    t.tokenize_with(input, &mut Scratch::new(), &mut got);
+    let got_spans: Vec<(u32, u32)> = got.iter().map(|(s, _)| (s.start, s.end)).collect();
+    let want_spans: Vec<(u32, u32)> = expected.iter().map(|&(a, b, _)| (a, b)).collect();
+    assert_eq!(got_spans, want_spans, "{what}");
+    for ((s, p), &(_, _, want)) in got.iter().zip(expected) {
+        assert_close(*p, want, &format_args!("{what} at {}..{}", s.start, s.end));
+        // UTF-16 offsets follow from the UTF-8 ones on character boundaries.
+        let a = byte_to_utf16(input, s.start as usize).expect("a character boundary");
+        let b = byte_to_utf16(input, s.end as usize).expect("a character boundary");
+        assert_eq!(utf16_to_byte(input, a), Some(s.start as usize));
+        assert_eq!(utf16_to_byte(input, b), Some(s.end as usize));
+    }
+}
+
+/// Checks that a golden file was made with `model`: its file, its
+/// alphanumeric pattern and whether the optimization is on.
+pub fn check_model_headers(headers: &dyn Fn(&str) -> String, model: &TokenizerModel) {
+    assert_eq!(model.sha256().to_hex(), headers("model-sha256"), "{}", headers("model"));
+    assert_eq!(model.alphanumeric().is_some(), headers("use-alpha-numeric-optimization") == "true");
+}
+
+/// Checks every position of a contexts file against `model`: the
+/// features the generator builds there and the probabilities the model
+/// gives. The abbreviation feature comes from the model's dictionary.
+/// Returns the number of positions.
+pub fn check_contexts(path: &Path, model: &TokenizerModel) -> usize {
+    let c = Contexts::read(path);
+    assert_eq!(c.header("whitespace"), "unicode");
+    check_model_headers(&|k| c.header(k).to_string(), model);
+    let maxent = model.maxent();
+    let order: Vec<usize> = c.outcomes.iter().map(|o| maxent.outcome_index(o).unwrap()).collect();
+    let mut features = Features::new();
+    let mut probs = vec![0.0; maxent.num_outcomes()];
+    let mut positions = 0;
+    for (input, units) in &c.inputs {
+        for unit in units {
+            let a = utf16_to_byte(input, unit.utf16.0).unwrap();
+            let b = utf16_to_byte(input, unit.utf16.1).unwrap();
+            let text = &input[a..b];
+            // A unit the alphanumeric check accepts is never consulted.
+            assert!(!model.alphanumeric().is_some_and(|al| al.test(text)), "{} unit {text:?}", path.display());
+            let abbreviation = model.abbreviations().is_some_and(|d| d.contains(text));
+            let facts = UnitFacts::of(text, abbreviation);
+            for (index, want, want_probs) in &unit.positions {
+                let what = format!("{} unit {text:?} at {index}", path.display());
+                let mut at = Utf16Cursor::new(text);
+                for _ in 0..*index {
+                    at.step_forward();
+                }
+                token_context(&at, facts, WhitespaceMode::Unicode, &mut features);
+                assert_eq!(features.len(), want.len(), "{what}");
+                for (i, w) in want.iter().enumerate() {
+                    assert_eq!(features.get(i), modified_utf8(w), "{what}, feature {i}");
+                }
+                maxent.eval_features(features.iter(), &mut probs);
+                for (k, &o) in order.iter().enumerate() {
+                    assert_close(probs[o], want_probs[k], &what);
+                }
+                positions += 1;
+            }
+        }
+    }
+    positions
 }

@@ -75,8 +75,10 @@ impl AlphaNumeric {
     /// most `y`; a `-` that cannot start a range is a literal, as in the
     /// Java. Refused: any other form, an empty class, the characters
     /// `[ ] \ ^ &` inside the class (escapes such as `\p{L}`, nested
-    /// classes, negation, intersection), `?` and `*` inside it, and a
-    /// character outside the Basic Multilingual Plane. A range that spans
+    /// classes, negation, intersection), and a character outside the Basic
+    /// Multilingual Plane. Every other character stands for itself, as in
+    /// `AlphaNumericCheck.isLiteral`: inside a class `?`, `*`, `+`, `.`,
+    /// `(`, `{`, `|` and `$` are plain characters. A range that spans
     /// the surrogates leaves them out, as OpenNLP 3 does.
     pub fn parse(pattern: &str) -> Result<AlphaNumeric, PatternError> {
         let fail = |reason| PatternError { pattern: pattern.to_string(), reason };
@@ -94,7 +96,6 @@ impl AlphaNumeric {
                 '[' | ']' | '\\' | '^' | '&' => {
                     Err(fail("the class holds [, ], \\, ^ or &, which are not plain characters"))
                 }
-                '?' | '*' => Err(fail("the class holds ? or *")),
                 c if c as u32 > 0xFFFF => Err(fail("the class holds a character outside the Basic Multilingual Plane")),
                 c => Ok(c as u32),
             }
@@ -269,6 +270,21 @@ mod tests {
     }
 
     #[test]
+    fn regex_metacharacters_are_plain_inside_the_class() {
+        let a = AlphaNumeric::parse("^[a-z.*+?(){}|$]+$").unwrap();
+        let mut members: Vec<u32> = ('a'..='z').map(|c| c as u32).collect();
+        members.extend(".*+?(){}|$".chars().map(|c| c as u32));
+        members.sort_unstable();
+        let all: Vec<u32> = (0..0x80).filter(|&cp| a.contains(cp)).collect();
+        assert_eq!(all, members);
+        assert!(a.ranges.is_empty());
+        assert!(a.test("a.b*c?"));
+        assert!(a.test("${x}|(y)+"));
+        assert!(!a.test("a-b"));
+        assert!(!a.test("A"));
+    }
+
+    #[test]
     fn unsupported_patterns_are_refused_with_the_pattern() {
         let refused = [
             ("[A-Za-z]+", "not of the form ^[characters]+$"),
@@ -279,8 +295,6 @@ mod tests {
             ("^[\\p{L}0-9]+$", "the class holds [, ], \\, ^ or &, which are not plain characters"),
             ("^[^a-z]+$", "the class holds [, ], \\, ^ or &, which are not plain characters"),
             ("^[a-z&&[^x]]+$", "the class holds [, ], \\, ^ or &, which are not plain characters"),
-            ("^[a-z?]+$", "the class holds ? or *"),
-            ("^[a*]+$", "the class holds ? or *"),
             ("^[z-a]+$", "a range ends before it starts"),
             ("^[a\u{1f600}]+$", "the class holds a character outside the Basic Multilingual Plane"),
         ];

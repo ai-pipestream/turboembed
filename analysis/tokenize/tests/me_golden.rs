@@ -9,9 +9,10 @@ use std::collections::BTreeMap;
 
 use me_common::*;
 use turbo_tokenize::TokenizerOptions;
-use turbo_tokenize::me::{Features, Scratch, TokenizerMe, UnitFacts, token_context};
-use turbo_unicode::utf16::{byte_to_utf16, utf16_to_byte};
-use turbo_unicode::{Utf16Cursor, WhitespaceMode};
+use turbo_tokenize::me::TokenizerMe;
+use turbo_tokenize::me::alnum::language_pattern;
+use turbo_unicode::WhitespaceMode;
+use turbo_unicode::utf16::byte_to_utf16;
 
 /// The tokenizer for a golden file's header, checking that the model is
 /// the one the file was made with.
@@ -33,23 +34,6 @@ fn tokenizer_for(headers: &dyn Fn(&str) -> String, cache: &mut BTreeMap<String, 
         TokenizerMe::new(model, TokenizerOptions::default())
     });
     TokenizerMe::new(t.tokenizer_model().clone(), TokenizerOptions { whitespace: mode, keep_newlines: false })
-}
-
-/// Tokenizes `input` and compares with `expected`, on both offset kinds.
-fn check(t: &TokenizerMe, input: &str, expected: &[(u32, u32, f64)], what: &str) {
-    let mut got = Vec::new();
-    t.tokenize_with(input, &mut Scratch::new(), &mut got);
-    let got_spans: Vec<(u32, u32)> = got.iter().map(|(s, _)| (s.start, s.end)).collect();
-    let want_spans: Vec<(u32, u32)> = expected.iter().map(|&(a, b, _)| (a, b)).collect();
-    assert_eq!(got_spans, want_spans, "{what}");
-    for ((s, p), &(_, _, want)) in got.iter().zip(expected) {
-        assert_close(*p, want, &format_args!("{what} at {}..{}", s.start, s.end));
-        // UTF-16 offsets follow from the UTF-8 ones on character boundaries.
-        let a = byte_to_utf16(input, s.start as usize).expect("a character boundary");
-        let b = byte_to_utf16(input, s.end as usize).expect("a character boundary");
-        assert_eq!(utf16_to_byte(input, a), Some(s.start as usize));
-        assert_eq!(utf16_to_byte(input, b), Some(s.end as usize));
-    }
 }
 
 #[test]
@@ -90,107 +74,89 @@ fn every_context_and_its_probabilities() {
         let path = golden_dir().join(format!("contexts/tokenizer-me-{language}.txt"));
         let c = Contexts::read(&path);
         assert_eq!(c.header("component"), format!("tokenizer-me-{language}-contexts"));
-        assert_eq!(c.header("whitespace"), "unicode");
-        let model = model(c.header("model"));
-        assert_eq!(model.sha256().to_hex(), c.header("model-sha256"));
-        let maxent = model.maxent();
-        let order: Vec<usize> = c.outcomes.iter().map(|o| maxent.outcome_index(o).unwrap()).collect();
-        let mut features = Features::new();
-        let mut probs = vec![0.0; maxent.num_outcomes()];
         assert_eq!(c.inputs.len(), 5);
-        for (input, units) in &c.inputs {
-            for unit in units {
-                let a = utf16_to_byte(input, unit.utf16.0).unwrap();
-                let b = utf16_to_byte(input, unit.utf16.1).unwrap();
-                let text = &input[a..b];
-                let facts = UnitFacts::of(text, false);
-                for (index, want, want_probs) in &unit.positions {
-                    let what = format!("{} unit {text:?} at {index}", path.display());
-                    let mut at = Utf16Cursor::new(text);
-                    for _ in 0..*index {
-                        at.step_forward();
-                    }
-                    token_context(&at, facts, WhitespaceMode::Unicode, &mut features);
-                    assert_eq!(features.len(), want.len(), "{what}");
-                    for (i, w) in want.iter().enumerate() {
-                        assert_eq!(features.get(i), modified_utf8(w), "{what}, feature {i}");
-                    }
-                    maxent.eval_features(features.iter(), &mut probs);
-                    for (k, &o) in order.iter().enumerate() {
-                        assert_close(probs[o], want_probs[k], &what);
-                    }
-                    positions += 1;
-                }
-            }
-        }
+        positions += check_contexts(&path, &model(c.header("model")));
     }
     assert_eq!(positions, 2445, "every position of every contexts file");
 }
 
-/// A golden span by its UTF-16 offsets, as a `span-invalid` line gives it.
-fn java(start: usize, end: usize, prob: f64) -> GoldenSpan {
-    GoldenSpan { utf8: None, utf16: (start, end), prob }
-}
-
-/// A language, an input, the spans Java returned and the UTF-8 spans the
-/// port gives.
-type Deviation = (&'static str, &'static str, Vec<GoldenSpan>, Vec<(u32, u32)>);
+/// A language, a file of its surrogate run and the UTF-8 spans the port
+/// gives for it.
+type OwnFile = (&'static str, &'static str, &'static [(u32, u32)]);
 
 #[test]
 fn a_split_between_surrogate_halves_is_not_taken() {
-    // What TokenizerME.tokenizePos and probs() returned on the JVM (the
-    // generator's program, run on these inputs): each model splits inside
-    // U+1F600. The port keeps the character whole and multiplies on.
-    let cases: [Deviation; 6] = [
-        (
-            "en",
-            "'\u{1f600}.",
-            vec![
-                java(0, 1, 0.9993166982223048),
-                java(1, 2, 0.509129942823796),
-                java(2, 3, 0.9862742638094529),
-                java(3, 4, 1.0),
-            ],
-            vec![(0, 1), (1, 5), (5, 6)],
-        ),
-        (
-            "en",
-            ".\u{1f600}\"",
-            vec![java(0, 2, 0.3908256036328703), java(2, 3, 0.9997042239666407), java(3, 4, 1.0)],
-            vec![(0, 5), (5, 6)],
-        ),
-        (
-            "de",
-            "a\u{1f600}'",
-            vec![java(0, 2, 0.7617282902778715), java(2, 3, 0.5961195915334687), java(3, 4, 1.0)],
-            vec![(0, 5), (5, 6)],
-        ),
-        (
-            "es",
-            ")\u{1f600}'",
-            vec![java(0, 2, 0.3177479026875649), java(2, 3, 0.9699473386493942), java(3, 4, 1.0)],
-            vec![(0, 5), (5, 6)],
-        ),
-        ("fr", ",\u{1f600}$", vec![java(0, 2, 0.40253130669461706), java(2, 4, 0.5390366580516481)], vec![(0, 6)]),
-        (
-            "pt",
-            "a\u{1f600}?",
-            vec![java(0, 2, 0.598725004631704), java(2, 3, 0.9992097649387779), java(3, 4, 1.0)],
-            vec![(0, 5), (5, 6)],
-        ),
+    // Every model runs every input of variants/surrogate; the file name
+    // starts with the language whose model splits inside U+1F600 there.
+    // The port keeps the character whole and multiplies on. The UTF-8
+    // spans it gives for the files of each model's own language:
+    let own: [OwnFile; 6] = [
+        ("en", "en-quote-emoji-dot.txt", &[(0, 1), (1, 5), (5, 6)]),
+        ("en", "en-dot-emoji-quote.txt", &[(0, 5), (5, 6)]),
+        ("de", "de-a-emoji-apostrophe.txt", &[(0, 5), (5, 6)]),
+        ("es", "es-paren-emoji-apostrophe.txt", &[(0, 5), (5, 6)]),
+        ("fr", "fr-comma-emoji-dollar.txt", &[(0, 6)]),
+        ("pt", "pt-a-emoji-question.txt", &[(0, 5), (5, 6)]),
     ];
-    let mut models = BTreeMap::new();
-    for (language, input, java_spans, want) in cases {
-        let t = models.entry(language).or_insert_with(|| {
-            let name = std::fs::read_dir(crate_dir().join("tests/models"))
-                .unwrap()
-                .map(|e| e.unwrap().file_name().into_string().unwrap())
-                .find(|n| n.starts_with(&format!("opennlp-{language}-")))
-                .unwrap();
-            TokenizerMe::new(model(&name), TokenizerOptions::default())
-        });
-        let expected = expected_spans(input, &java_spans);
-        assert_eq!(expected.iter().map(|&(a, b, _)| (a, b)).collect::<Vec<_>>(), want, "{language} {input:?}");
-        check(t, input, &expected, &format!("{language} {input:?}"));
+    let mut files = 0;
+    let mut joined = 0;
+    for language in LANGUAGES {
+        let t = TokenizerMe::new(model(&ud_model_name(language)), TokenizerOptions::default());
+        for path in golden_files(&golden_dir().join(format!("variants/surrogate-{language}"))) {
+            let g = Golden::read(&path);
+            assert_eq!(g.header("component"), format!("tokenizer-me-{language}"));
+            assert_eq!(g.header("whitespace"), "unicode");
+            check_model_headers(&|k| g.header(k).to_string(), t.tokenizer_model());
+            let name = path.file_name().unwrap().to_str().unwrap();
+            let expected = expected_spans(&g.input, &g.spans);
+            if let Some((_, _, want)) = own.iter().find(|(l, n, _)| *l == language && *n == name) {
+                assert!(g.spans.iter().any(|s| s.utf8.is_none()), "{name}: the JVM splits inside the pair");
+                assert_eq!(expected.iter().map(|&(a, b, _)| (a, b)).collect::<Vec<_>>(), *want, "{name}");
+            }
+            joined += g.spans.len() - expected.len();
+            check(&t, &g.input, &expected, &path.display().to_string());
+            files += 1;
+        }
     }
+    assert_eq!(files, 30);
+    // The halves the JVM split, over all thirty runs, that came out whole.
+    assert_eq!(joined, 8);
+}
+
+#[test]
+fn the_alphanumeric_optimization_with_each_language_pattern() {
+    // The UD models rebuilt with the optimization on and their language's
+    // pattern: a unit the pattern accepts is a token of probability 1, any
+    // other goes to the model as without it.
+    let mut files = 0;
+    let mut positions = 0;
+    for language in LANGUAGES {
+        let dir = golden_dir().join(format!("variants/alphanumeric-{language}"));
+        let mut tokenizer = None;
+        for path in golden_files(&dir) {
+            let g = Golden::read(&path);
+            assert_eq!(g.header("component"), format!("tokenizer-me-{language}"));
+            assert_eq!(g.header("whitespace"), "unicode");
+            let pattern = unescape_str(g.header("effective-alpha-numeric-pattern"));
+            assert_eq!(pattern, unescape_str(g.header("alpha-numeric-pattern")));
+            assert_eq!(pattern, language_pattern(language));
+            let t: &TokenizerMe = tokenizer.get_or_insert_with(|| {
+                let m = model(&ud_model_name(language)).with_alphanumeric_optimization(Some(&pattern)).unwrap();
+                TokenizerMe::new(m, TokenizerOptions::default())
+            });
+            assert_eq!(t.tokenizer_model().alphanumeric_pattern(), pattern);
+            check_model_headers(&|k| g.header(k).to_string(), t.tokenizer_model());
+            check(t, &g.input, &expected_spans(&g.input, &g.spans), &path.display().to_string());
+            files += 1;
+        }
+        let t = tokenizer.unwrap();
+        let path = golden_dir().join(format!("variants/contexts/tokenizer-me-alphanumeric-{language}.txt"));
+        positions += check_contexts(&path, t.tokenizer_model());
+        // French lists the accented letters, English does not.
+        let mut out = Vec::new();
+        t.tokenize("caf\u{e9}", &mut out);
+        assert_eq!(out.len() == 1 && out[0].1 == 1.0, matches!(language, "fr" | "es" | "pt" | "de"), "{language}");
+    }
+    assert_eq!(files, 5 * 35);
+    assert!(positions > 0);
 }

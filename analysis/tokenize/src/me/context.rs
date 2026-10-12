@@ -23,8 +23,18 @@
 //! surrogate. The features are written as Java modified UTF-8, the
 //! encoding of the model's predicate names, so such a feature matches
 //! what the JVM looked up.
+//!
+//! The prefix and the suffix grow with the unit, so building both at every
+//! position of a unit with no whitespace in it is quadratic in its length.
+//! A feature the model has no predicate for adds nothing to the sums, and a
+//! model's `p=` and `s=` predicates are only as long as the units it was
+//! trained on, so [`AffixLimits`] records the longest of each when the model
+//! is loaded and the prefix or suffix is not built when it is longer: the
+//! probabilities are the same, bit for bit, and the work per position is
+//! bounded by the model rather than by the unit.
 
-use turbo_unicode::java;
+use turbo_maxent::MaxentModel;
+use turbo_unicode::java::code_point as java;
 use turbo_unicode::modified_utf8::{push_modified_utf8, push_str_modified_utf8};
 use turbo_unicode::{Utf16Cursor, WhitespaceMode};
 
@@ -132,6 +142,37 @@ impl Features {
     }
 }
 
+/// The length in bytes of a model's longest `p=` predicate and of its
+/// longest `s=` predicate, `p=` and `s=` included, as modified UTF-8. A
+/// prefix or suffix feature longer than that cannot be one of the model's
+/// predicates. [`token_context`] leaves one out when its text is longer
+/// than that already in UTF-8, which it knows without encoding it.
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+pub struct AffixLimits {
+    pub prefix: usize,
+    pub suffix: usize,
+}
+
+impl AffixLimits {
+    /// No limit: every prefix and suffix is built, as the Java builds them.
+    pub const UNLIMITED: AffixLimits = AffixLimits { prefix: usize::MAX, suffix: usize::MAX };
+
+    /// The limits of `maxent`'s predicates. A model with no `p=` predicate
+    /// has a limit of 0, so no prefix feature is built (the shortest is
+    /// `p=` and one character).
+    pub fn of(maxent: &MaxentModel) -> AffixLimits {
+        let mut limits = AffixLimits { prefix: 0, suffix: 0 };
+        for name in maxent.predicates() {
+            if name.starts_with(b"p=") {
+                limits.prefix = limits.prefix.max(name.len());
+            } else if name.starts_with(b"s=") {
+                limits.suffix = limits.suffix.max(name.len());
+            }
+        }
+        limits
+    }
+}
+
 /// What the generator knows about a unit as a whole, worked out once per
 /// unit rather than at every position.
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
@@ -140,13 +181,26 @@ pub struct UnitFacts {
     pub entity: bool,
     /// The abbreviation dictionary lists the unit.
     pub abbreviation: bool,
+    /// Prefix and suffix features longer than these are not built.
+    pub affixes: AffixLimits,
 }
 
 impl UnitFacts {
-    /// The facts of `unit`, with `abbreviation` from a dictionary lookup.
+    /// The facts of `unit`, with `abbreviation` from a dictionary lookup
+    /// and no limit on the prefix and suffix, so [`token_context`] lists
+    /// every feature the Java lists.
     pub fn of(unit: &str, abbreviation: bool) -> UnitFacts {
         let b = unit.as_bytes();
-        UnitFacts { entity: b.first() == Some(&b'&') && b.last() == Some(&b';'), abbreviation }
+        UnitFacts {
+            entity: b.first() == Some(&b'&') && b.last() == Some(&b';'),
+            abbreviation,
+            affixes: AffixLimits::UNLIMITED,
+        }
+    }
+
+    /// The same facts with prefix and suffix features limited to `affixes`.
+    pub fn with_affix_limits(self, affixes: AffixLimits) -> UnitFacts {
+        UnitFacts { affixes, ..self }
     }
 }
 
@@ -155,6 +209,9 @@ impl UnitFacts {
 /// the index `getContext` is given, which must be at least 1 and before
 /// the unit's last code unit's end (the tokenizer never asks for index 0,
 /// where the Java would add `p1=bok`, nor for the end).
+///
+/// The `p=` and `s=` features are left out when they are longer than
+/// `facts.affixes` allows. The others are always listed.
 pub fn token_context(at: &Utf16Cursor<'_>, facts: UnitFacts, mode: WhitespaceMode, out: &mut Features) {
     let unit = at.text();
     let f1 = at.unit().expect("a position before the end of the unit");
@@ -162,23 +219,29 @@ pub fn token_context(at: &Utf16Cursor<'_>, facts: UnitFacts, mode: WhitespaceMod
     out.clear();
 
     // The prefix and the suffix. On the low half of a pair the prefix ends
-    // with the high half and the suffix starts with the low one.
+    // with the high half and the suffix starts with the low one, three
+    // bytes each. A text's modified UTF-8 is never shorter than its UTF-8,
+    // so the lengths compared are the shortest the features can be: one
+    // over the limit is never built, and one a few bytes over it may be,
+    // which costs a lookup that finds nothing.
     let byte = at.byte_offset();
-    out.bytes.extend_from_slice(b"p=");
-    push_str_modified_utf8(&mut out.bytes, &unit[..byte]);
-    let suffix_from = if at.char_start() {
-        byte
-    } else {
-        push_modified_utf8(&mut out.bytes, u32::from(p1));
-        byte + 4
-    };
-    out.end();
-    out.bytes.extend_from_slice(b"s=");
-    if !at.char_start() {
-        push_modified_utf8(&mut out.bytes, u32::from(f1));
+    let (half, suffix_from) = if at.char_start() { (0, byte) } else { (3, byte + 4) };
+    if 2 + byte + half <= facts.affixes.prefix {
+        out.bytes.extend_from_slice(b"p=");
+        push_str_modified_utf8(&mut out.bytes, &unit[..byte]);
+        if half != 0 {
+            push_modified_utf8(&mut out.bytes, u32::from(p1));
+        }
+        out.end();
     }
-    push_str_modified_utf8(&mut out.bytes, &unit[suffix_from..]);
-    out.end();
+    if 2 + half + (unit.len() - suffix_from) <= facts.affixes.suffix {
+        out.bytes.extend_from_slice(b"s=");
+        if half != 0 {
+            push_modified_utf8(&mut out.bytes, u32::from(f1));
+        }
+        push_str_modified_utf8(&mut out.bytes, &unit[suffix_from..]);
+        out.end();
+    }
 
     out.char_features(b"p1", p1, mode);
     let mut back = at.clone();
@@ -344,6 +407,42 @@ mod tests {
         // is the low half; at index 1 the next unit is the high half.
         assert_eq!(context(unit, 2, false).last().unwrap(), "f12=<D83D><DE00>");
         assert_eq!(context(unit, 1, false).last().unwrap(), "f12=b<D83D>");
+    }
+
+    /// The features at `index` of `unit` with the prefix and suffix limited.
+    fn limited(unit: &str, index: usize, prefix: usize, suffix: usize) -> Vec<String> {
+        let mut at = Utf16Cursor::new(unit);
+        for _ in 0..index {
+            at.step_forward();
+        }
+        let facts = UnitFacts::of(unit, false).with_affix_limits(AffixLimits { prefix, suffix });
+        let mut f = Features::new();
+        token_context(&at, facts, WhitespaceMode::Unicode, &mut f);
+        f.iter().map(show).collect()
+    }
+
+    #[test]
+    fn affixes_longer_than_the_limits_are_left_out() {
+        let full = context("abcdef", 2, false);
+        // "p=ab" and "s=cdef" are 4 and 6 bytes: kept at those limits.
+        assert_eq!(limited("abcdef", 2, 4, 6), full);
+        // One byte less and each goes, and nothing else changes.
+        assert_eq!(limited("abcdef", 2, 3, 6), full[1..]);
+        assert_eq!(limited("abcdef", 2, 4, 5), [&full[..1], &full[2..]].concat());
+        assert_eq!(limited("abcdef", 2, 0, 0), full[2..]);
+        // A two-byte character counts two bytes.
+        assert_eq!(limited("\u{e9}bc", 1, 4, 0)[0], "p=\u{e9}");
+        assert_eq!(limited("\u{e9}bc", 1, 3, 0)[0], "p1=\u{e9}");
+        // Between the halves of a pair each feature carries a three-byte
+        // half: "p=ab" + <D83D> is 7 bytes, <DE00> + "cd" + "s=" is 7.
+        let unit = "ab\u{1f600}cd";
+        assert_eq!(limited(unit, 3, 7, 7), context(unit, 3, false));
+        assert_eq!(limited(unit, 3, 6, 6)[0], "p1=<D83D>");
+        // After the pair the prefix is 10 bytes of modified UTF-8 but 8 of
+        // UTF-8, the length the check goes by: at a limit of 8 or 9 it is
+        // built (and cannot match), below 8 it is not.
+        assert_eq!(limited(unit, 4, 8, 4)[..2], ["p=ab<D83D><DE00>", "s=cd"]);
+        assert_eq!(limited(unit, 4, 7, 4)[0], "s=cd");
     }
 
     #[test]

@@ -1,10 +1,7 @@
 //! TokenizerME as an annotator: reads the view and, when the document has
 //! them, the sentences; writes the tokens and a confidence per token.
 
-use std::any::Any;
-
-use turbo_analysis::annotate::{AnchorUse, Step};
-use turbo_analysis::{Annotator, Bound, Document, Error, KeyId, ModelRef, Refs, View};
+use turbo_analysis::{Annotator, Error, ModelRef, Refs, View};
 use turbo_analysis_layers::{Confidence, Sentences, Tokens};
 
 use super::model::COMPONENT_NAME;
@@ -24,7 +21,7 @@ impl Annotator for TokenizerMe {
             view,
             sentences,
             |text, _, out| self.tokenize_with(text, &mut scratch, out),
-            |p: f64| confidence.push(p as f32),
+            |p: f64| confidence.push(p),
         )?;
         Ok((tokens, Confidence::new(confidence)))
     }
@@ -46,63 +43,12 @@ impl Annotator for TokenizerMe {
     }
 }
 
-impl TokenizerMe {
-    /// The tokenizer as a pipeline step, for `Analyzer::builder().boxed`.
-    ///
-    /// `Analyzer::build` refuses a step that writes an aligned layer whose
-    /// anchor it does not read, and the confidence is aligned to the
-    /// tokens this same step writes. The step returned here is the
-    /// annotator bound to the default instances, reporting the confidence
-    /// as aligned to its own tokens output, so the pipeline accepts it.
-    /// Everything else (reads, provenance, failures) is the bound
-    /// annotator's.
-    pub fn into_step(self) -> Box<dyn Step> {
-        Box::new(OwnTokens(Bound::new(self)))
-    }
-}
-
-/// A bound `TokenizerMe` whose confidence output is anchored to its own
-/// tokens output.
-struct OwnTokens(Bound<TokenizerMe>);
-
-impl Step for OwnTokens {
-    fn id(&self) -> &'static str {
-        self.0.id()
-    }
-    fn reads(&self) -> Vec<KeyId> {
-        self.0.reads()
-    }
-    fn required(&self) -> Vec<bool> {
-        self.0.required()
-    }
-    fn writes(&self) -> Vec<KeyId> {
-        self.0.writes()
-    }
-    fn anchors(&self) -> Vec<AnchorUse> {
-        let writes = self.0.writes();
-        self.0
-            .anchors()
-            .into_iter()
-            .map(|a| match a {
-                AnchorUse::Unread(base) => writes.iter().find(|w| w.layer == base).map_or(a, |&w| AnchorUse::To(w)),
-                other => other,
-            })
-            .collect()
-    }
-    fn compute(&self, docs: &[Document]) -> Box<dyn Any + Send> {
-        self.0.compute(docs)
-    }
-    fn store(&self, out: Box<dyn Any + Send>, docs: &mut [Document], status: &mut [Result<(), Error>]) {
-        self.0.store(out, docs, status)
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::TokenizerOptions;
     use crate::me::TokenizerModel;
-    use turbo_analysis::{Span, Spans, ViewId};
+    use turbo_analysis::{Document, Span, Spans, ViewId};
 
     fn english() -> TokenizerMe {
         let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))

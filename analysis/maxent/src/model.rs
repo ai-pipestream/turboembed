@@ -111,6 +111,12 @@ impl MaxentModel {
         self.predicates.contains_key(name)
     }
 
+    /// The distinct predicate names, as Java modified UTF-8, in no
+    /// particular order.
+    pub fn predicates(&self) -> impl Iterator<Item = &[u8]> {
+        self.predicates.keys().map(|k| &**k)
+    }
+
     /// Writes the probability of each outcome given the context's features
     /// into `out`, computed as the Java model of this kind computes it,
     /// with the same operations in the same order and `StrictMath`'s `exp`
@@ -388,6 +394,10 @@ mod tests {
         assert_eq!(m.num_parameters(), 5);
         assert!(m.has_predicate("q"));
         assert!(!m.has_predicate("r"));
+        let mut names: Vec<&[u8]> = m.predicates().collect();
+        names.sort();
+        let want: [&[u8]; 4] = [b"e\xED\xA0\xBD\xED\xB8\x80", b"n\xC0\x80", b"p", b"q"];
+        assert_eq!(names, want);
     }
 
     #[test]

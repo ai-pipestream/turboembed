@@ -25,7 +25,7 @@ pub mod tokenizer;
 pub mod units;
 
 pub use alnum::{AlphaNumeric, PatternError};
-pub use context::{Features, UnitFacts, token_context};
+pub use context::{AffixLimits, Features, UnitFacts, token_context};
 pub use model::{ModelError, TokenizerModel};
 pub use tokenizer::{Scratch, TokenizerMe};
 pub use units::WhitespaceUnits;

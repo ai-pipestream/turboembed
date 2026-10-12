@@ -39,7 +39,7 @@ fn english() -> TokenizerMe {
 }
 
 /// (token text, sentence, probability) of a document's layers.
-fn layers(doc: &Document) -> Vec<(&str, Option<usize>, f32)> {
+fn layers(doc: &Document) -> Vec<(&str, Option<usize>, f64)> {
     let tokens = doc.get::<Tokens>().unwrap();
     let confidence = doc.get::<Confidence<Tokens>>().unwrap();
     assert_eq!(confidence.value.len(), tokens.spans.len());
@@ -56,7 +56,7 @@ fn layers(doc: &Document) -> Vec<(&str, Option<usize>, f32)> {
 
 #[test]
 fn tokens_with_sentences_and_confidence() {
-    let analyzer = Analyzer::builder().add(Sentencer).boxed(english().into_step()).build().unwrap();
+    let analyzer = Analyzer::builder().add(Sentencer).add(english()).build().unwrap();
     let mut docs = vec![
         Document::new("The cat sat. It's 5 o'clock, isn't it?"),
         Document::new("  \n\t \u{3000} "),
@@ -65,7 +65,7 @@ fn tokens_with_sentences_and_confidence() {
     for r in analyzer.run(&mut docs) {
         r.unwrap();
     }
-    let p = |x: f64| x as f32;
+    let p = |x: f64| x;
     assert_eq!(
         layers(&docs[0]),
         [
@@ -119,7 +119,7 @@ fn tokens_with_sentences_and_confidence() {
 
 #[test]
 fn without_sentences_the_view_is_one_unit() {
-    let analyzer = Analyzer::builder().boxed(english().into_step()).build().unwrap();
+    let analyzer = Analyzer::builder().add(english()).build().unwrap();
     let mut docs = vec![Document::new("The cat sat. Who left.")];
     analyzer.run(&mut docs)[0].clone().unwrap();
     let got = layers(&docs[0]);
@@ -132,12 +132,26 @@ fn without_sentences_the_view_is_one_unit() {
 }
 
 #[test]
-fn the_plain_bound_annotator_is_refused_by_the_analyzer() {
-    // Why `into_step` exists: the confidence is aligned to the tokens the
-    // same step writes, which `Analyzer::build` takes for an unread anchor.
-    let e = Analyzer::builder().add(Sentencer).add(english()).build().err().unwrap();
-    assert_eq!(
-        e.to_string(),
-        "pipeline: turbo-tokenize:maxent writes turbo:confidence<opennlp:tokens>, aligned to opennlp:tokens, without reading opennlp:tokens"
-    );
+fn the_annotator_is_added_as_it_is() {
+    // The confidence is aligned to the tokens the same step writes, and
+    // `Analyzer::build` accepts that anchor, so no wrapper is needed: the
+    // analyzer writes both layers, with the values `tokenize` gives.
+    let text = "Mr. Smith's cat (aged 3) isn't here.";
+    let analyzer = Analyzer::builder().add(english()).build().unwrap();
+    let mut docs = vec![Document::new(text)];
+    analyzer.run(&mut docs)[0].clone().unwrap();
+    let mut want = Vec::new();
+    english().tokenize(text, &mut want);
+    let got = layers(&docs[0]);
+    assert_eq!(got.len(), want.len());
+    for ((word, sentence, p), (span, q)) in got.iter().zip(&want) {
+        assert_eq!(*word, &text[span.range()]);
+        assert_eq!(*sentence, None);
+        assert_eq!(*p, *q);
+    }
+    let tokens = docs[0].provenance(Key::<Tokens>::DEFAULT.id()).unwrap();
+    let confidence = docs[0].provenance(Key::<Confidence<Tokens>>::DEFAULT.id()).unwrap();
+    assert_eq!(tokens.annotator, confidence.annotator);
+    assert!(tokens.on.is_empty());
+    assert_eq!(confidence.on, [Key::<Tokens>::DEFAULT.id()]);
 }

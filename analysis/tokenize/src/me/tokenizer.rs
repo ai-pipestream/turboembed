@@ -1,6 +1,7 @@
 //! The maxent tokenizer: OpenNLP's `TokenizerME.tokenizePos`.
 
 use turbo_analysis::Span;
+use turbo_maxent::best_outcome;
 use turbo_unicode::Utf16Cursor;
 
 use crate::TokenizerOptions;
@@ -72,10 +73,12 @@ impl TokenizerMe {
     /// of a character outside the Basic Multilingual Plane is not a UTF-8
     /// boundary, so it is not taken. The model is still evaluated there,
     /// and the token simply goes on, its probability multiplied by that
-    /// decision's as at any other position: the token Java would have cut
-    /// in two comes out whole, with the product of the two halves'
-    /// probabilities. Likewise a token start that the abbreviation jump
-    /// would put between two halves moves to the end of the character.
+    /// decision's as at any other position: the two tokens Java returns on
+    /// either side of that split, each of which can hold more than half a
+    /// character, come out as one with the product of their probabilities.
+    /// Likewise a token start that the abbreviation jump would put between
+    /// two halves moves to the end of the character, so a half-character
+    /// token Java returns after the jump has no counterpart here.
     pub fn tokenize_with(&self, text: &str, scratch: &mut Scratch, out: &mut Vec<(Span, f64)>) {
         let maxent = self.model.maxent();
         scratch.probs.resize(maxent.num_outcomes(), 0.0);
@@ -96,7 +99,7 @@ impl TokenizerMe {
         let Scratch { features, probs, lowered } = scratch;
         // The dictionary is asked about the unit as a whole, so once.
         let abbreviation = self.model.abbreviations().is_some_and(|d| d.contains_with(unit, lowered));
-        let facts = UnitFacts::of(unit, abbreviation);
+        let facts = UnitFacts::of(unit, abbreviation).with_affix_limits(self.model.affix_limits());
         let end = unit.len();
         // The current token's start, a byte offset in the unit; `end` when
         // the abbreviation jump went past the unit's end.
@@ -107,7 +110,7 @@ impl TokenizerMe {
         while !at.at_end() {
             token_context(&at, facts, self.options.whitespace, features);
             maxent.eval_features(features.iter(), probs);
-            let outcome = self.model.outcome(maxent.best_outcome(probs));
+            let outcome = self.model.outcome(best_outcome(probs));
             prob *= probs[outcome.index];
             if outcome.split {
                 if abbreviation {
@@ -156,6 +159,7 @@ fn span(start: usize, end: usize) -> Span {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::me::context::AffixLimits;
     use std::path::Path;
     use turbo_unicode::WhitespaceMode;
 
@@ -182,14 +186,101 @@ mod tests {
 
     #[test]
     fn splits_and_probabilities() {
-        // Values from the golden file english-abbreviations for the
-        // English model are checked in tests/me_golden.rs; here a sentence
-        // checked against TokenizerME directly.
+        // What TokenizerME.tokenizePos and probs() returned on the JVM for
+        // this text with the English model (the same values
+        // tests/me_pipeline.rs checks per sentence).
         let t = english();
-        let got = tokens(&t, "Hello, world!");
-        let words: Vec<&str> = got.iter().map(|(w, _)| w.as_str()).collect();
-        assert_eq!(words, ["Hello", ",", "world", "!"]);
-        assert!(got.iter().all(|&(_, p)| p > 0.0 && p <= 1.0));
+        let text = "The cat sat. It's 5 o'clock, isn't it?";
+        let mut got = Vec::new();
+        t.tokenize(text, &mut got);
+        let got: Vec<((u32, u32), f64)> = got.iter().map(|(s, p)| ((s.start, s.end), *p)).collect();
+        assert_eq!(
+            got,
+            [
+                ((0, 3), 0.9999123302765786),
+                ((4, 7), 0.9998775446210091),
+                ((8, 11), 0.9764420535542908),
+                ((11, 12), 1.0),
+                ((13, 17), 0.998677134411433),
+                ((18, 19), 1.0),
+                ((20, 27), 0.9895741126332173),
+                ((27, 28), 1.0),
+                ((29, 34), 0.9964921186776551),
+                ((35, 37), 0.993784172275783),
+                ((37, 38), 1.0),
+            ]
+        );
+    }
+
+    #[test]
+    fn an_abbreviation_jump_does_not_start_a_token_inside_a_pair() {
+        // Java gives (0,5) and (4,5) in UTF-16 offsets: the unit, then the
+        // low half after the jump. Here the low half has no token.
+        let unit = "\u{1f600}.\u{1f600}";
+        let xml = format!(
+            "<?xml version=\"1.0\" encoding=\"UTF-8\"?><dictionary case_sensitive=\"false\"><entry><token>{unit}</token></entry></dictionary>"
+        );
+        let dictionary = turbo_maxent::Dictionary::read(xml.as_bytes()).unwrap();
+        let t = english();
+        // Without the dictionary the model splits the unit.
+        assert!(tokens(&t, unit).len() > 1);
+        let t = TokenizerMe::new(t.model.with_abbreviations(Some(dictionary)), TokenizerOptions::default());
+        let got = tokens(&t, unit);
+        assert_eq!(got.len(), 1);
+        assert_eq!(got[0].0, unit);
+    }
+
+    /// A unit with no whitespace in it, 6000 bytes long, that the model
+    /// splits in many places.
+    fn long_unit() -> String {
+        "Mr.Smith's(cat)\u{e9}t\u{e9},3.5%\u{1f600}isn't-it?\"x\"".repeat(150)
+    }
+
+    #[test]
+    fn affix_limits_change_no_token_and_no_probability() {
+        let t = english();
+        let unlimited =
+            TokenizerMe::new(t.model.clone().with_affix_limits(AffixLimits::UNLIMITED), TokenizerOptions::default());
+        let text = format!("{} and {}", long_unit(), long_unit());
+        let mut got = Vec::new();
+        t.tokenize(&text, &mut got);
+        let mut want = Vec::new();
+        unlimited.tokenize(&text, &mut want);
+        assert!(want.len() > 1000);
+        assert_eq!(got.len(), want.len());
+        for (&(s, p), &(w, q)) in got.iter().zip(&want) {
+            assert_eq!(s, w);
+            assert_eq!(p.to_bits(), q.to_bits(), "at {}..{}", s.start, s.end);
+        }
+    }
+
+    #[test]
+    fn a_long_unit_builds_features_in_linear_space() {
+        // The bytes of features built over every position of the unit:
+        // without limits the prefix and suffix make that the unit's length
+        // squared, with the model's limits a bounded amount per position.
+        let t = english();
+        let limits = t.model.affix_limits();
+        let unit = long_unit();
+        let built = |affixes: AffixLimits| {
+            let facts = UnitFacts::of(&unit, false).with_affix_limits(affixes);
+            let mut features = Features::new();
+            let mut at = Utf16Cursor::new(&unit);
+            at.step_forward();
+            let (mut positions, mut bytes) = (0, 0);
+            while !at.at_end() {
+                token_context(&at, facts, WhitespaceMode::Unicode, &mut features);
+                bytes += features.iter().map(<[u8]>::len).sum::<usize>();
+                positions += 1;
+                at.step_forward();
+            }
+            (positions, bytes)
+        };
+        let (positions, unlimited) = built(AffixLimits::UNLIMITED);
+        let (_, limited) = built(limits);
+        assert!(unlimited > positions * unit.len() / 2);
+        // Twelve other features of at most ten bytes each.
+        assert!(limited <= positions * (limits.prefix + limits.suffix + 120), "{limited} bytes");
     }
 
     #[test]

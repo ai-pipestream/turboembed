@@ -263,6 +263,17 @@ dots, as the Java does; the tokens after the jump can overlap that one
 (`(c)Co.ltd` listed gives `(c)Co.ltd`, `Co.ltd` and `.ltd`), and that is
 kept.
 
+The prefix and suffix features are the whole text before and after the
+position, so building them at every position of a unit with no
+whitespace is quadratic in the unit's length. A feature the model has
+no predicate for adds nothing to the sums, so when the model loads, the
+length of its longest `p=` and longest `s=` predicate is recorded, and a
+prefix or suffix whose text is longer than that already in UTF-8 is not
+built. The probabilities are bit for bit the same (a test compares them
+with every feature built, on a 6000-byte unit), and the bytes built per
+position are bounded by the model: 71 bytes for each of the two for the
+English UD model.
+
 The model file is checked as OpenNLP checks it: the component is
 `TokenizerME`, `useAlphaNumericOptimization` is present, and the
 classifier's outcomes are `T` and `F`. The alphanumeric optimization is
@@ -276,10 +287,11 @@ removed). The per-language patterns are ported too, for a caller that
 wants them. Every pattern OpenNLP ships has the form `^[characters]+$`;
 the check reads that form (single characters and ranges) into a set and
 tests the unit by code point as `java.util.regex` would. A pattern of
-any other form, or one with `?` or `*` in the class, is refused when the
-model loads with the optimization on, with the pattern in the error,
-rather than approximated. With the optimization off the pattern is never
-used and is not read.
+any other form, or with `[`, `]`, `\`, `^` or `&` in the class, is
+refused when the model loads with the optimization on, with the pattern
+in the error, rather than approximated (OpenNLP hands such a pattern to
+`java.util.regex`). With the optimization off the pattern is never used
+and is not read.
 
 The whitespace units come from `TokenizerOptions`: the whitespace mode
 decides which characters separate units, and also the `_ws` feature,
@@ -288,24 +300,28 @@ feed and carriage return a unit, and so a token of probability 1, of its
 own.
 
 The annotator reads `View` and `Option<Sentences>` and writes `Tokens`
-and `Confidence<Tokens>` (`f32`, the layer's type; the computation is
-`f64`). It goes through `tokenize_units_with` like every tokenizer, so
+and `Confidence<Tokens>` (`f64`, the probabilities as computed). It goes through `tokenize_units_with` like every tokenizer, so
 each sentence is tokenized on its own, the tokens carry their sentence,
-and sentences in another view are refused. `Analyzer::build` refuses a step that writes an aligned layer
-without reading its anchor, and the confidence is aligned to the tokens
-the same step writes, so `TokenizerMe::into_step` gives the step with
-that anchor named; added with `Builder::add` it is refused.
+and sentences in another view are refused. The confidence is aligned to
+the tokens the same step writes, which `Analyzer::build` accepts, so the
+annotator is added to a pipeline with `Builder::add` like any other.
 
 Deviation: Java indexes a unit by code unit, so a split can fall between
 the two halves of a character outside the BMP. Such a split is not a
 valid UTF-8 boundary and is not taken here; the model is still evaluated
 at that position and the token goes on, its probability multiplied by
-that decision's like any other, so where Java returns two half
-characters with probabilities `p` and `q` this returns the character
-whole with `p * q`. A token start that the abbreviation jump would put
-between two halves moves to the end of that character. Every model's
-golden files agree with this; the tests also check six inputs, one or
-two per model, on which the JVM did split inside U+1F600.
+that decision's like any other. The two Java tokens that meet between
+the halves are therefore one token here, with the product of their
+probabilities, and each of them can hold more than half a character:
+for `'😀.` the English model gives (1,2) and (2,3) in Java (UTF-16
+offsets) and the one token (1,5) here (UTF-8 offsets). A token start
+that the abbreviation jump would put between two halves moves to the
+end of that character, so a half-character token Java emits after the
+jump has nothing in its place here: with `😀.😀` in the abbreviation
+dictionary of the English model Java gives (0,5) and (4,5), and this
+gives (0,9). The golden files agree with the port once the Java tokens
+that meet between two halves are joined this way; the variant runs
+include inputs on which every model splits inside U+1F600.
 
 ### `Detokenizer`
 

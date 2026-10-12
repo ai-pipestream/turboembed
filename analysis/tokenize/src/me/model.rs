@@ -7,6 +7,7 @@ use std::path::Path;
 use turbo_maxent::{Dictionary, MaxentModel, ModelFile};
 
 use super::alnum::{AlphaNumeric, DEFAULT_PATTERN, PatternError};
+use super::context::AffixLimits;
 use turbo_maxent::Digest;
 
 /// The `Component-Name` of a tokenizer model.
@@ -77,6 +78,7 @@ pub struct TokenizerModel {
     language: String,
     opennlp_version: String,
     maxent: MaxentModel,
+    affixes: AffixLimits,
     outcomes: [Outcome; 2],
     abbreviations: Option<Dictionary>,
     pattern: String,
@@ -122,6 +124,7 @@ impl TokenizerModel {
         Ok(TokenizerModel {
             language: file.language().to_string(),
             opennlp_version: file.opennlp_version().to_string(),
+            affixes: AffixLimits::of(&maxent),
             maxent,
             outcomes,
             abbreviations,
@@ -168,6 +171,18 @@ impl TokenizerModel {
     /// The classifier.
     pub fn maxent(&self) -> &MaxentModel {
         &self.maxent
+    }
+
+    /// The length of the classifier's longest `p=` and `s=` predicates.
+    pub fn affix_limits(&self) -> AffixLimits {
+        self.affixes
+    }
+
+    /// The same model with other affix limits, to compare against.
+    #[cfg(test)]
+    pub(crate) fn with_affix_limits(mut self, affixes: AffixLimits) -> TokenizerModel {
+        self.affixes = affixes;
+        self
     }
 
     /// The abbreviation dictionary, when the model has one.
@@ -226,6 +241,11 @@ mod tests {
         assert!(m.alphanumeric().is_none());
         assert!(m.abbreviations().is_none());
         assert_eq!(m.sha256().to_hex(), "95139111197ba9f1165fc12be8d4cbac05ea3912f995d167efa1a0e04e3e649a");
+        let limits = m.affix_limits();
+        assert_eq!(limits, AffixLimits::of(m.maxent()));
+        assert!(m.maxent().predicates().filter(|p| p.starts_with(b"p=")).all(|p| p.len() <= limits.prefix));
+        assert!(m.maxent().predicates().any(|p| p.starts_with(b"p=") && p.len() == limits.prefix));
+        assert!(m.maxent().predicates().any(|p| p.starts_with(b"s=") && p.len() == limits.suffix));
         assert_eq!(m.maxent().outcomes().collect::<Vec<_>>(), ["F", "T"]);
         assert_eq!(m.outcome(0), Outcome { split: false, index: 0 });
         assert_eq!(m.outcome(1), Outcome { split: true, index: 1 });
