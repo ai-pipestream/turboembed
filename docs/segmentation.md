@@ -115,21 +115,31 @@ does, and `contains` lowercases the probe the same way.
 Reads a `View`, writes `Sentences`. A sentence is each run between `\n`
 or `\r` characters (not `U+2028`, `U+2029` or `U+0085`), trimmed of
 whitespace in the configured mode, dropped if nothing remains. This is
-`NewlineSentenceDetector` exactly; `str::lines` is not used because it
-does not split on a lone `\r`.
+`NewlineSentenceDetector` exactly, including `\r\n`, which it treats as
+two separators with an empty piece between them that is dropped;
+`str::lines` is not used because it does not split on a lone `\r`. The
+separators are ASCII, so the scan is over bytes, eight at a time, and
+whitespace is decoded only where a byte is not ASCII. The function
+`newline_spans` gives the same spans outside a pipeline. The golden
+files `newline` and `newline-legacy` are matched exactly, in UTF-8 and
+UTF-16 offsets.
 
 ### `ParagraphDetector`
 
-Reads a `View`, writes `Structure` blocks of kind `Paragraph`. A line is
-blank when it holds only Unicode `White_Space`. A paragraph is a maximal
-run of non-blank lines; its span starts at the first non-whitespace
-character of its first line and ends at the last non-whitespace
-character of its last line, so a paragraph holds its inner line breaks
-but no leading or trailing ones. OpenNLP has three slightly different
-paragraph definitions (an exactly empty line in `ParagraphStream`, a
-line that is empty after `String.trim` in `EmptyLinePreprocessorStream`,
-Unicode line breaks in the whitespace normalizer); this is the one
-`turbo:structure` uses.
+Reads a `View`, writes `Structure` blocks of kind `Paragraph`, each
+top level (no parent, depth 0). A line ends at `\n`, `\r\n` or a lone
+`\r`, the line breaks `NewlineDetector` sees, so the two detectors agree
+on where lines are and a CR LF file is not one paragraph per line. A
+line is blank when it holds only whitespace in the configured mode. A
+paragraph is a maximal run of non-blank lines; its span starts at the
+first non-whitespace character of its first line and ends at the last
+non-whitespace character of its last line, so a paragraph holds its
+inner line breaks but no leading or trailing ones. The function
+`paragraph_spans` gives the same spans outside a pipeline. OpenNLP has
+three slightly different paragraph definitions (an exactly empty line in
+`ParagraphStream`, a line that is empty after `String.trim` in
+`EmptyLinePreprocessorStream`, Unicode line breaks in the whitespace
+normalizer); this is the one `turbo:structure` uses.
 
 ### `SentenceDetector` (maxent)
 
