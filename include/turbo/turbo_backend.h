@@ -26,20 +26,22 @@
  *     first. It has no log function of its own: its warnings reach the
  *     caller through the log function the core hands it with a context.
  *   - The table grows only at the end, and struct_size says how much of it
- *     a backend fills. The core knows seven sizes: through capability,
+ *     a backend fills. The core knows eight sizes: through capability,
  *     through buffer_export, through model_release, through session_run,
- *     through buffer_read, through reserved2, and through
- *     session_create_tuned, which is sizeof(turbo_backend). It refuses
- *     any other. A function added after
+ *     through buffer_read, through reserved2, through
+ *     session_create_tuned, and through embed_write_ranges, which is
+ *     sizeof(turbo_backend). It refuses any other. A function added after
  *     the first three may be NULL, and the core calls it only when
  *     struct_size covers it; formats it reads only when struct_size
  *     covers it, and a table that ends before it loads FORMAT_SAFETENSORS
  *     alone.
  *   - A backend that offers context_create offers context_release, one
  *     that offers buffer_alloc or buffer_import offers buffer_release, one
- *     that offers model_load offers model_release, and one that offers
- *     session_create or session_create_tuned offers session_release and
- *     session_run. The core refuses a table that does not.
+ *     that offers model_load offers model_release, one that offers
+ *     session_create, session_create_tuned or session_open offers
+ *     session_release and session_run, and one that offers
+ *     embed_write_ranges offers session_open. The core refuses a table
+ *     that does not.
  *   - The core checks every struct's struct_size, every enumeration and
  *     every shape before it calls, and fills in turbo_buffer_desc.bytes.
  *     It releases every buffer and model before the context it was made
@@ -249,6 +251,25 @@ typedef struct turbo_backend_model {
     uint64_t    artifact2_bytes;
 } turbo_backend_model;
 
+/* A session as session_open receives it: turbo_session_desc's fields with
+ * every 0 resolved, and the task. Like the table, this struct grows only
+ * at its end under struct_size. */
+typedef struct turbo_backend_session_desc {
+    uint32_t struct_size;
+    uint32_t task;         /* TURBO_TASK_* */
+    uint32_t max_batch;    /* within the model's, never 0 */
+    uint32_t max_seq;      /* within the model's, never 0 */
+    uint32_t precision;    /* TURBO_PRECISION_* */
+    uint32_t cpu_threads;  /* turbo_session_desc.cpu_threads as given: 0 leaves the count
+                              to the backend (TURBO_CPU_THREADS, else one per processor).
+                              A backend whose device is not a CPU refuses any other value
+                              with TURBO_E_UNSUPPORTED_OPTION and turbo_error.field 6 */
+    uint32_t max_ranges;   /* the most ranges one embed_write_ranges holds, 1 to
+                              max_batch * max_seq: the session's output holds
+                              max(max_batch, max_ranges) rows of hidden F32 */
+    uint32_t reserved;
+} turbo_backend_session_desc;
+
 /* Rows for an embed run, as the core hands them to embed_write, [batch,
  * seq] int32 with row_stride elements between row starts. The core has
  * checked every value: each id is below vocab_size, each type below
@@ -408,6 +429,31 @@ typedef struct turbo_backend {
     int32_t (*session_create_tuned)(void *model, uint32_t task, uint32_t max_batch, uint32_t max_seq,
                                     uint32_t precision, turbo_backend_tuning *tuning,
                                     uint32_t *compute_dtype, void **out, turbo_error *err);
+
+    /* Sessions with every field of turbo_session_desc, and late pooling.
+     * NULL where the backend has neither. */
+
+    /* session_create_tuned with the session's whole description: a backend
+     * that offers it is called through it, and session_create and
+     * session_create_tuned are then never called. tuning is as for
+     * session_create_tuned, and comes in with its out fields set to the
+     * one-path values (TURBO_TUNED_DEFAULT, 0 and an empty choices), so a
+     * backend with one path leaves them alone. The session's output holds
+     * max(max_batch, max_ranges) rows, for the vectors of the one write
+     * or the other. desc is valid for the call. */
+    int32_t (*session_open)(void *model, const turbo_backend_session_desc *desc, turbo_backend_tuning *tuning,
+                            uint32_t *compute_dtype, void **out, turbo_error *err);
+    /* embed_write with count ranges of the rows' tokens, 1 to the
+     * session's max_ranges, each checked by the core as turbo.h says (row
+     * under batch, start < end <= seq, a live token inside), with pooling
+     * TURBO_POOLING_MEAN: the run then writes one vector per range, in
+     * range order, the mean over the range's live tokens' final hidden
+     * states, cut to output_dim and normalized as rows says, and its
+     * output is [count, output_dim]. ranges is valid for the call. NULL
+     * where the backend pools no ranges, and the core then refuses the
+     * write with TURBO_E_UNSUPPORTED naming the backend. */
+    int32_t (*embed_write_ranges)(void *session, const turbo_backend_embed_rows *rows,
+                                  const turbo_token_range *ranges, uint32_t count, turbo_error *err);
 } turbo_backend;
 
 #ifdef __cplusplus

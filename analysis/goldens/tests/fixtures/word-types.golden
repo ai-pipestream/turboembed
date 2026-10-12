@@ -1,0 +1,31 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	0123456789abcdef0123456789abcdef01234567	3.0.0-PRE-SNAPSHOT
+jdk	21.0.5	21.0.5+11-LTS	Eclipse Adoptium
+unicode	15.0
+input	test/zurich	37	36	f03e4a09022fa42c68b4fbab2730c195ceb468707eb0b2598a7b1e91abc4918f
+model	fixture-sentence.bin	02fb446e9a9843fe8e782e540caa2d02cee3e6d6686d44e0c59824ce6a3ee96f41c72136897570558621f05270e452fdc0a4221893b5d44a1bcf2a746dcd44fe
+model	fixture-tokens.bin	cf83e1357eefb8bdf1542850d66d8007d620e4050b5715dc83f4a921d36ce9ce47d0d13c5d85f2b0ff8318d2877eec2f63b931bd47417a81a538327af927da3e
+annotator	opennlp.tools.tokenize.TokenizerME	tokenizePos
+layer	opennlp:tokens	text	9	start:u32	end:u32
+0	3
+4	9
+10	14
+15	17
+18	25
+25	26
+27	29
+30	36
+36	37
+end	opennlp:tokens
+layer	turbo:word-types	aligned:opennlp:tokens	9	kind:str
+abbreviation
+word
+word
+word
+word
+punct
+word
+word
+punct
+end	turbo:word-types
