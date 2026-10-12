@@ -8,11 +8,12 @@ everything that makes them:
   runtime. It runs `SentenceDetectorME.sentPosDetect`,
   `TokenizerME.tokenizePos` and `LanguageDetectorME.predictLanguages` over
   every input of the `en` and `multi` sets and writes one golden per
-  annotator, model and input. With `--dumps` it also writes a decision
-  point dump beside each of those goldens: every context the annotator
-  gave its maxent model and every outcome probability `eval` returned. For
-  the `norm` set it runs each normalizer of `opennlp.tools.util.normalizer`
-  (see below) and writes one `turbo:view` golden per normalizer and input.
+  annotator, model and input. For the `norm` set it runs each normalizer of
+  `opennlp.tools.util.normalizer` (see below) and writes one `turbo:view`
+  golden per normalizer and input. With `--dumps` it also writes a
+  decision point dump beside each sentence, token and language golden:
+  every context the annotator gave its maxent model and every outcome
+  probability `eval` returned.
 - `container/Dockerfile`: the container the generator runs in. It starts
   from `eclipse-temurin:21-jdk` pinned by digest, clones the OpenNLP fork
   at a pinned commit, builds the runtime with the repository's `mvnw` and
@@ -46,10 +47,10 @@ cargo run -p turbo-goldens-tool -- verify [--models <dir>]
   directories in `analysis/goldens/data` (or `<dir>`) with what it wrote.
   The generator is always given `--dumps` (`GENERATOR_ARGS` in
   `src/recipe.rs`), so the goldens and their dumps are made and installed
-  together; before installing, every golden of `sentdetect`, `tokenize`
-  and `langdetect` must have a dump beside it whose header parses, except
-  a golden with an error record (the annotator threw on that input), which
-  must have none, and a normalizer golden must have none.
+  together; before installing, every sentence, token and language golden
+  must have a dump beside it whose header parses, except a golden with an
+  error record (the annotator threw on that input), which must have none.
+  A normalizer golden has no dump.
 - `verify` generates into a scratch directory and compares every golden
   and dump byte for byte with the checked in ones. It lists each file that
   differs, is missing or is extra, and exits non zero if there is any. It

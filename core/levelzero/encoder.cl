@@ -1260,6 +1260,51 @@ void pool(__global const float *x, __global const int *mask, __global const int 
     out[(size_t)b * output_dim + d] = v;
 }
 
+/* Each range's vector, cut to output_dim, for a run written with ranges:
+ * the mean over the tokens of row ranges[3r] from column ranges[3r + 1] up
+ * to ranges[3r + 2] whose mask is 1. The ranges are the host's staging,
+ * read over the bus. Columns past the row's last live token were never
+ * computed and are masked, so the range stops there. The arithmetic is
+ * pool's mean with the range's first column in place of the row's first:
+ * sub-group g sums every eighth column from the first plus g, the eight
+ * sums are added in order and scaled by 1 / count, so a range over a whole
+ * row gives that row's bits, and a range's bits do not depend on the
+ * other rows of the batch. normalize then takes each range's vector as a
+ * row. */
+__kernel __attribute__((intel_reqd_sub_group_size(16))) __attribute__((reqd_work_group_size(16 * POOL_SLICES, 1, 1)))
+void pool_ranges(__global const float *x, __global const int *mask, __global const int *rows,
+                 __global const int *ranges, int hidden, int output_dim, __global float *out) {
+    __local float part[POOL_SLICES][16];
+    __local uint count[POOL_SLICES];
+    const int r = get_group_id(0), lane = get_sub_group_local_id(), sg = get_sub_group_id();
+    const int d = get_group_id(1) * 16 + lane;
+    const int row = ranges[3 * r];
+    const int start = rows[2 * row], len = rows[2 * row + 1];
+    const int lo = ranges[3 * r + 1], hi = min(ranges[3 * r + 2], len);
+    __global const int *m = mask + start;
+    __global const float *tokens = x + (size_t)start * hidden;
+    const int dd = min(d, output_dim - 1);
+    float s = 0.0f;
+    uint n = 0;
+    for (int p = lo + sg; p < hi; p += POOL_SLICES) {
+        if (m[p] == 0) continue;
+        s += tokens[(size_t)p * hidden + dd];
+        n++;
+    }
+    part[sg][lane] = s;
+    if (lane == 0) count[sg] = n;
+    barrier(CLK_LOCAL_MEM_FENCE);
+    if (sg != 0 || d >= output_dim) return;
+    float v = part[0][lane];
+    uint total = count[0];
+    for (int g = 1; g < POOL_SLICES; g++) {
+        v += part[g][lane];
+        total += count[g];
+    }
+    v = v * (1.0f / (float)total);
+    out[(size_t)r * output_dim + d] = v;
+}
+
 __kernel __attribute__((reqd_work_group_size(BLOCK, 1, 1))) void normalize(__global float *out, int output_dim) {
     __global float *dst = out + (size_t)get_group_id(0) * output_dim;
     const int lid = get_local_id(0);

@@ -33,7 +33,6 @@ final class GoldenWriter {
     StringBuilder out = new StringBuilder();
     out.append("golden ").append(FORMAT_VERSION).append('\n');
     header(out, h);
-    config(out, h);
     for (Layer layer : layers) {
       layer(out, layer);
     }
@@ -41,9 +40,9 @@ final class GoldenWriter {
   }
 
   /**
-   * Returns the whole file for a run where the annotator threw: the header records, the
-   * {@code config} records, and {@code error <class> <message>} as the last line, with no layer
-   * blocks. The message is a {@code str} field.
+   * Returns the whole file for a run where the annotator threw: the header records, ending with
+   * the {@code config} records, and {@code error <class> <message>} as the last line, with no
+   * layer blocks. The message is a {@code str} field.
    */
   static byte[] writeError(Header h, String exceptionClass, String message) {
     if (exceptionClass.isEmpty()) {
@@ -52,7 +51,6 @@ final class GoldenWriter {
     StringBuilder out = new StringBuilder();
     out.append("golden ").append(FORMAT_VERSION).append('\n');
     header(out, h);
-    config(out, h);
     line(out, "error", escape(exceptionClass), escape(message));
     return utf8(out);
   }
@@ -64,7 +62,8 @@ final class GoldenWriter {
 
   /**
    * Appends the header records that follow the first line, from {@code generator} to
-   * {@code annotator}. A golden and a decision point dump (see {@link DumpWriter}) share them.
+   * {@code annotator} and its {@code config} records, one per option sorted by key. A golden and a
+   * decision point dump (see {@link DumpWriter}) share them.
    */
   static void header(StringBuilder out, Header h) {
     line(out, "generator", GENERATOR, Integer.toString(GENERATOR_VERSION));
@@ -76,13 +75,6 @@ final class GoldenWriter {
       line(out, "model", escape(m.fileName()), m.sha512());
     }
     line(out, "annotator", escape(h.annotatorClass()), escape(h.method()));
-  }
-
-  /**
-   * Appends the {@code config} records, one per option, sorted by key. They follow the
-   * {@code annotator} record in a golden; a dump has none.
-   */
-  static void config(StringBuilder out, Header h) {
     for (Map.Entry<String, String> e : h.config().entrySet()) {
       line(out, "config", escape(e.getKey()), escape(e.getValue()));
     }

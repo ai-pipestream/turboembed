@@ -1749,6 +1749,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "turbo-analysis-embed"
+version = "0.1.0"
+dependencies = [
+ "serde_json",
+ "tokenizers",
+ "turbo",
+ "turbo-analysis",
+ "turbo-analysis-layers",
+]
+
+[[package]]
 name = "turbo-analysis-layers"
 version = "0.1.0"
 dependencies = [
@@ -1786,7 +1797,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "turbo-goldens"
+version = "0.1.0"
+dependencies = [
+ "turbo-analysis",
+ "turbo-analysis-layers",
+]
+
+[[package]]
 name = "turbo-goldens-tool"
+version = "0.1.0"
+
+[[package]]
+name = "turbo-jvm"
 version = "0.1.0"
 
 [[package]]
@@ -1821,6 +1844,35 @@ dependencies = [
  "turbo",
  "turbo-kserve",
 ]
+
+[[package]]
+name = "turbo-normalize"
+version = "0.1.0"
+dependencies = [
+ "turbo-analysis",
+ "turbo-analysis-layers",
+ "turbo-normalize-layers",
+ "turbo-unicode",
+]
+
+[[package]]
+name = "turbo-normalize-layers"
+version = "0.1.0"
+dependencies = [
+ "turbo-analysis",
+ "turbo-analysis-layers",
+]
+
+[[package]]
+name = "turbo-unicode"
+version = "0.1.0"
+dependencies = [
+ "turbo-unicode-gen",
+]
+
+[[package]]
+name = "turbo-unicode-gen"
+version = "0.1.0"
 
 [[package]]
 name = "typenum"

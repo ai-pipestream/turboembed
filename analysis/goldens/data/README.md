@@ -55,6 +55,18 @@ inputs and models mounted read only, then replaces the annotator
 directories here with the new output. Adding or changing an input means
 running `generate` and checking in the inputs and the goldens together.
 
+## Normalizer goldens
+
+`inputs/norm/` holds 61 short texts written for the normalizers: curly
+quotes and dashes, line ends and Unicode spaces, hyphenated line breaks,
+URLs and e-mail addresses, tweets, numbers, ligatures and normalization
+forms, Hangul, German, Greek and Turkish letters, confusables, emoji,
+English contractions, lone symbols and a few texts for the differences
+recorded in `docs/normalizers.md`. Every character is in the Unicode 15.0
+repertoire, which JDK 21 implements. `normalize/<name>/norm/<id>.golden`
+holds a `turbo:view` layer with the edits OpenNLP's normalizer `<name>`
+made to `inputs/norm/<id>.txt`; see `analysis/goldens-tool/README.md`.
+
 ## Decision point dumps
 
 `<annotator>/<model>/<set>/<id>.dump`, beside each golden of
@@ -74,15 +86,3 @@ OpenNLP build and models named there. A normalizer asks no model, so the
 `normalize` goldens have no dumps. The run in the pinned container,
 through `turbo-goldens generate` and `verify`, is still to be done on a
 machine with Docker.
-
-## Normalizer goldens
-
-`inputs/norm/` holds 61 short texts written for the normalizers: curly
-quotes and dashes, line ends and Unicode spaces, hyphenated line breaks,
-URLs and e-mail addresses, tweets, numbers, ligatures and normalization
-forms, Hangul, German, Greek and Turkish letters, confusables, emoji,
-English contractions, lone symbols and a few texts for the differences
-recorded in `docs/normalizers.md`. Every character is in the Unicode 15.0
-repertoire, which JDK 21 implements. `normalize/<name>/norm/<id>.golden`
-holds a `turbo:view` layer with the edits OpenNLP's normalizer `<name>`
-made to `inputs/norm/<id>.txt`; see `analysis/goldens-tool/README.md`.

@@ -3,7 +3,7 @@
 use crate::compare::{self, Differences};
 use crate::dump::DumpHeader;
 use crate::paths::{DUMP_EXTENSION, GOLDEN_EXTENSION, dump_beside};
-use crate::recipe::{ANNOTATORS, has_dumps};
+use crate::recipe::{ANNOTATORS, DUMPED_ANNOTATORS};
 use std::fs;
 use std::path::{Path, PathBuf};
 
@@ -71,19 +71,23 @@ pub fn compare(expected: &Path, actual: &Path) -> Result<Differences, String> {
 }
 
 /// Checks the decision point dumps under `root`, at the header level only:
-/// every golden of an annotator that has dumps (`recipe::has_dumps`) has a
-/// dump beside it unless the golden has an error record (the annotator
-/// threw on that input, so there was nothing to record), a golden of any
-/// other annotator has none, every dump has a golden, each dump's header
-/// parses, and the header names the input and the model of the dump's path.
-/// Returns the number of dumps checked.
+/// every golden of a [`DUMPED_ANNOTATORS`] entry has a dump beside it
+/// unless the golden has an error record (the annotator threw on that
+/// input, so there was nothing to record), every dump has a golden, each
+/// dump's header parses, and the header names the input and the model of
+/// the dump's path. The other annotators must have no dumps. Returns the
+/// number of dumps checked.
 pub fn check_dumps(root: &Path) -> Result<usize, String> {
     let mut count = 0;
     for a in ANNOTATORS {
         let dir = root.join(a);
         let files = compare::files(&dir).map_err(|e| format!("{}: {e}", dir.display()))?;
+        let dumped = DUMPED_ANNOTATORS.contains(&a);
         for rel in &files {
             let ext = rel.extension().and_then(|e| e.to_str());
+            if ext == Some(DUMP_EXTENSION) && !dumped {
+                return Err(format!("{}: a dump for an annotator without a model", dir.join(rel).display()));
+            }
             if ext == Some(DUMP_EXTENSION) {
                 if !files.contains(&rel.with_extension(GOLDEN_EXTENSION)) {
                     return Err(format!("{}: a dump without a golden", dir.join(rel).display()));
@@ -93,16 +97,10 @@ pub fn check_dumps(root: &Path) -> Result<usize, String> {
             if ext != Some(GOLDEN_EXTENSION) {
                 return Err(format!("{}: neither a golden nor a dump", dir.join(rel).display()));
             }
-            let dump = dump_beside(rel).expect("a golden's path");
-            if !has_dumps(a) {
-                if files.contains(&dump) {
-                    return Err(format!(
-                        "{}: {a} asks no model, so its goldens have no dump",
-                        dir.join(&dump).display()
-                    ));
-                }
+            if !dumped {
                 continue;
             }
+            let dump = dump_beside(rel).expect("a golden's path");
             if golden_threw(&dir.join(rel))? {
                 if files.contains(&dump) {
                     return Err(format!(
@@ -242,6 +240,13 @@ mod tests {
         put("tokenize/m/en/b.dump", &dump_text("en/b"));
         let e = check_dumps(&root).unwrap_err();
         assert!(e.contains("without a golden"), "{e}");
+        fs::remove_file(root.join("tokenize/m/en/b.dump")).unwrap();
+
+        put("normalize/dash/norm/a.golden", "golden 1\n");
+        assert_eq!(check_dumps(&root).unwrap(), 1);
+        put("normalize/dash/norm/a.dump", &dump_text("norm/a"));
+        let e = check_dumps(&root).unwrap_err();
+        assert!(e.contains("without a model"), "{e}");
         fs::remove_dir_all(&root).unwrap();
     }
 
@@ -274,24 +279,6 @@ mod tests {
         put("tokenize/m/en/threw.dump", &dump_text("en/threw"));
         let e = check_dumps(&root).unwrap_err();
         assert!(e.contains("threw.dump: the golden has an error record"), "{e}");
-        fs::remove_dir_all(&root).unwrap();
-    }
-
-    #[test]
-    fn a_normalizer_golden_has_no_dump() {
-        let root = std::env::temp_dir().join(format!("turbo-goldens-normalize-{}", std::process::id()));
-        let _ = fs::remove_dir_all(&root);
-        let put = |rel: &str, text: &str| {
-            let p = root.join(rel);
-            fs::create_dir_all(p.parent().unwrap()).unwrap();
-            fs::write(p, text).unwrap();
-        };
-        put("normalize/nfkc/norm/a.golden", "golden 1\n");
-        assert_eq!(check_dumps(&root).unwrap(), 0);
-
-        put("normalize/nfkc/norm/a.dump", &dump_text("norm/a"));
-        let e = check_dumps(&root).unwrap_err();
-        assert!(e.contains("normalize asks no model"), "{e}");
         fs::remove_dir_all(&root).unwrap();
     }
 }

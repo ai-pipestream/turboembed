@@ -84,7 +84,8 @@ impl Builder {
 
     /// Checks the graph and orders it: one layer type per id, every read
     /// with exactly one producer (a step or a given layer), every aligned
-    /// output's anchor one of its step's reads, and no cycle.
+    /// output's anchor one of its step's reads or an output the step writes
+    /// before it, and no cycle.
     pub fn build(self) -> Result<Analyzer, Error> {
         let mut types: HashMap<(&str, &str), TypeId> = HashMap::new();
         let keys = self.steps.iter().flat_map(|s| s.reads().into_iter().chain(s.writes()));
@@ -109,11 +110,20 @@ impl Builder {
                 }
             }
             for (w, a) in s.writes().into_iter().zip(s.anchors()) {
-                if let AnchorUse::Unread(base) = a {
-                    return Err(Error::Pipeline(format!(
-                        "{} writes {w}, aligned to {base}, without reading {base}",
-                        s.id()
-                    )));
+                match a {
+                    AnchorUse::Unread(base) => {
+                        return Err(Error::Pipeline(format!(
+                            "{} writes {w}, aligned to {base}, without reading {base}",
+                            s.id()
+                        )));
+                    }
+                    AnchorUse::Later(base) => {
+                        return Err(Error::Pipeline(format!(
+                            "{} writes {w}, aligned to {base}, before {base}: the base must come first in its writes",
+                            s.id()
+                        )));
+                    }
+                    AnchorUse::None | AnchorUse::To(_) => {}
                 }
             }
         }
