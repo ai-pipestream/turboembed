@@ -303,7 +303,7 @@ fn a_range_over_a_whole_row_is_the_rows_vector() {
     let bits = |v: &[f32]| v.iter().map(|x| x.to_bits()).collect::<Vec<_>>();
     assert_eq!(by_range.len(), 3 * 32);
     assert_eq!(bits(&by_range), bits(&by_row));
-    for v in by_range.chunks_exact_mut(32) {
+    for v in by_range.as_chunks_mut::<32>().0 {
         normalize(v);
     }
     assert_eq!(bits(&by_range), bits(&by_row_l2));
