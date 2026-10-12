@@ -32,6 +32,7 @@ use turbo_analysis::{Alignment, Annotator, Error, Refs, Span, View, ViewBuilder}
 
 pub mod accent_fold;
 pub mod bullets;
+pub mod case_fold;
 pub mod chain;
 pub mod confusables;
 pub mod dashes;
@@ -49,6 +50,7 @@ pub mod whitespace;
 
 pub use accent_fold::{AccentFold, StrokeLetters};
 pub use bullets::Bullets;
+pub use case_fold::{CaseFold, CaseFoldMode};
 pub use chain::Chain;
 pub use confusables::ConfusableSkeleton;
 pub use dashes::Dashes;

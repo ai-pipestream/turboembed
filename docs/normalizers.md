@@ -502,6 +502,98 @@ outputs), the source span `p` it maps back to maps forward to a span that
 covers `s`, and the source text of `p` normalizes to exactly the output
 text `p` maps forward to.
 
+### Case folding (`case_fold.rs`)
+
+`CaseFold` (id `turbo:normalize:case-fold`) lowercases or case folds the
+text. The config hash is the hash of the mode (`CaseFoldMode`):
+
+| Constructor | Mapping |
+|---|---|
+| `CaseFold::lowercase()` | `String.toLowerCase(Locale.ROOT)`: the simple lowercase mapping, U+0130 to "i" U+0307, and U+03A3 to final sigma U+03C2 where the Final_Sigma condition holds (`turbo_unicode::java::lowercase_at`). |
+| `CaseFold::simple()` | Simple case folding, CaseFolding.txt status C and S: one character to one. |
+| `CaseFold::full()` | Full case folding, status C and F: "ß" to "ss", U+FB00 to "ff", U+0390 to three characters. |
+| `CaseFold::turkic_simple()`, `turkic_full()` | The same with the status T rows: "I" to dotless U+0131, U+0130 to "i". |
+
+Each character whose mapping differs from itself is its own `replace`, so
+an expansion maps back to exactly its source character. ASCII is tested
+eight bytes at a time; a stretch of ASCII without uppercase letters is
+skipped without decoding. Only U+03A3 under `lowercase` looks at its
+neighbours (through `turbo_unicode::java::lowercase_at`, which applies the
+Final_Sigma condition of Unicode section 3.13 to the whole text); the folds
+are context free.
+
+Folding does not keep a normalization form: the full fold of U+01F0 is
+"j" U+030C, which is not NFC, and the combining mark U+0345 (class 240)
+folds to the letter U+03B9 (class 0). Canonical caseless matching
+(Unicode section 3.13, D145) is NFD, fold, NFD:
+`Chain::new().then(UnicodeForm::nfd()).then(CaseFold::full()).then(UnicodeForm::nfd())`.
+
+OpenNLP counterparts: `CaseFoldCharSequenceNormalizer` with
+`Locale.ROOT` (`lowercase`) and `FullCaseFoldCharSequenceNormalizer`
+(`full`). Parity finding: OpenNLP's `CaseFoldCharSequenceNormalizer` does
+not case fold, it lowercases. Lowercasing and the simple fold of
+CaseFolding.txt differ on: U+00B5 MICRO SIGN (folds to Greek mu), final
+sigma U+03C2 (folds to sigma), U+0345 (folds to iota), U+03D0 and the
+other Greek letter-symbols, U+1E9B, the Cyrillic small letter variants
+U+1C80 to U+1C88, the Cherokee small letters (which fold to the capitals,
+U+13F8 to U+13F0 and U+AB70 to U+13A0), and U+0130, which lowercases to
+"i" U+0307 and has no simple fold. `CaseFold::simple()` is the simple
+fold; `CaseFold::lowercase()` keeps OpenNLP's output.
+
+Differences from OpenNLP:
+
+- Alignment. `CaseFoldCharSequenceNormalizer` is not offset-aware, so
+  OpenNLP's `buildAligned()` rejects it, although `Locale.ROOT`
+  lowercasing changes the length of the text (U+0130 becomes two
+  characters). Here it has an exact alignment.
+- Turkish. OpenNLP's `CaseFoldCharSequenceNormalizer` takes a `Locale`
+  and lowercases by its rules. `CaseFold` offers no locale-dependent
+  lowercasing; for Turkish and Azerbaijani it offers the Turkic folds of
+  CaseFolding.txt, which map "I" to "ı" and U+0130 to "i" as Turkish
+  lowercasing does. A decomposed "I" U+0307 folds to "ı" U+0307 (Turkish
+  lowercasing gives "i"); `UnicodeForm::nfc()` before the fold composes it
+  to U+0130 first, and the chain gives "i" for both spellings. The
+  Lithuanian rules of SpecialCasing.txt (adding U+0307 above "i" before
+  accents) are not applied.
+- The simple fold and the Turkic folds are additions.
+- Unicode version. CaseFolding.txt 18.0.0 has 1501 C rows and 105 F rows
+  (1606); OpenNLP bundles 17.0.0 (1585) for the full fold, and
+  `toLowerCase` uses the JVM's own Unicode version (15.0 for JDK 21).
+  Inside those repertoires the output is the same.
+- Neighbouring changes. Each character is its own `replace`, as OpenNLP
+  records each expansion on its own. `ViewBuilder` and `compose` currently
+  join touching edits, so in "ßß" each "ss" maps back to both characters
+  where OpenNLP's `consecutiveExpansionsEachMapToTheirOwnSource` maps it
+  to its own; the mapped span always covers the character's own source.
+
+Cost, measured by the ignored test `cost_per_megabyte` in
+`analysis/normalize/tests/case_fold.rs` (same conditions as for the
+normalization forms): lowercase 2 to 3 ms per MB and the full fold about
+2 ms per MB on ASCII text with capitals; about 1.5 ms per MB for both on
+mostly ASCII Latin text; on Greek, where nearly every character is
+looked up, 6 ms per MB for lowercase and 4 ms per
+MB for the full fold.
+
+Tests (`analysis/normalize/tests/case_fold.rs`): every row of CaseFolding.txt (parsed in
+the test) through `full`, `simple`, `turkic_full` and `turkic_simple`,
+alone and between other characters; every code point through `full`,
+`simple` and `turkic_full` against the rows (characters without a row are
+unchanged); every code point through `lowercase` against
+`java::to_lowercase` of the same text; Final_Sigma ("ΣΑΣ" to "σας", "Σ"
+alone, sigma before and after a combining mark, sigma after a digit or a
+space, two sigmas); U+0130, "I", "ß" and U+1E9E in every mode; the
+characters on which lowercasing and the simple fold differ; the
+NFD-fold-NFD chain and the facts behind it; the Turkic fold after NFC;
+every expectation of `CaseFoldCharSequenceNormalizerTest`,
+`FullCaseFoldCharSequenceNormalizerTest` (the alignment ones with UTF-8
+offsets) and the case fold cases of `UnicodeCharSequenceNormalizerTest`;
+the whitespace and full fold pipeline of `composesIntoTheOffsetAwarePipeline`
+and `identityPipelinePreservesEveryOffset`; 3000 generated texts that
+cross the eight-byte ASCII test at every offset, and 2000 generated texts
+in all five modes against a reference fold, each checked for the
+invariants of the previous section. A unit test in `analysis/normalize/src/case_fold.rs` checks
+the eight-byte ASCII test with each stop byte at each position.
+
 ### Accent folding (`analysis/normalize/src/accent_fold.rs`) and the run pass (`analysis/normalize/src/fold_runs.rs`)
 
 `AccentFold` (id `turbo:normalize:accent-fold`) removes accents. It does
@@ -757,6 +849,16 @@ it overlaps.
   whose quick check is Yes, and `Locale.ROOT` lowercasing maps each
   character on its own except U+03A3, whose context is only needed to
   choose between two characters of the same length.
+- `CaseFoldCharSequenceNormalizer` is named a case fold but lowercases
+  (`String.toLowerCase`). The two differ on U+00B5, final sigma, U+0345,
+  the Greek letter-symbols, the Cyrillic small letter variants U+1C80 to
+  U+1C88 and the Cherokee small letters. Either the name or the
+  documentation could say so, and a simple fold (CaseFolding.txt C and S)
+  could sit next to the full one.
+- `FullCaseFoldCharSequenceNormalizer` says its input is expected in NFC.
+  Canonical caseless matching (Unicode section 3.13, D145) needs NFD
+  before and after the fold: the fold of U+01F0 is "j" U+030C, which is
+  not NFC, and U+0345 folds from a combining mark to a letter.
 - `AccentFoldCharSequenceNormalizer` and
   `ConfusableSkeletonCharSequenceNormalizer` have no aligned form. Both
   can be aligned per character: cut the text before each character whose
