@@ -1,0 +1,22 @@
+component: tokenizer-me-abbreviations-fixture
+opennlp: cdf33c653d5d61d5af7d37ffee189a83bd8392ea
+jdk: 21.0.12.1
+whitespace: unicode
+model: tokenizer-abbreviations.bin
+model-sha256: bd5334327d3c4ffab19765bec7755b71a9eaea50e4c23ce10712f48bdb14c7e1
+alpha-numeric-pattern: ^[A-Za-z0-9]+$
+use-alpha-numeric-optimization: false
+abbreviations: in the model file
+input: before\u0085after next\u2028line then\u2029para end\nand\u000Bvertical tab\u000Cform feed\n
+span: 0 6 0 6 0.8056532320852793
+span: 8 13 7 12 0.8501072726854125
+span: 14 18 13 17 0.8450065290352573
+span: 21 25 18 22 0.7635026535820973
+span: 26 30 23 27 0.8674781960592939
+span: 33 37 28 32 0.9041983872596077
+span: 38 41 33 36 0.8714235860249557
+span: 42 45 37 40 0.8632321072892644
+span: 46 54 41 49 0.7302751524649291
+span: 55 58 50 53 0.878290112332727
+span: 59 63 54 58 0.8674865907562993
+span: 64 68 59 63 0.8572855293961938

@@ -1,0 +1,37 @@
+component: tokenizer-me-fr
+opennlp: cdf33c653d5d61d5af7d37ffee189a83bd8392ea
+jdk: 21.0.12.1
+whitespace: unicode
+model: opennlp-fr-ud-gsd-tokens-1.3-2.5.4.bin
+model-sha256: a06dbc9b72600ba0886f64a632636e136e5fc225955913c4c1a926a9333bc14a
+alpha-numeric-pattern: ^[a-zA-Z0-9\u00E0\u00E2\u00E4\u00E8\u00E9\u00EA\u00EB\u00EE\u00EF\u00F4\u0153\u00F9\u00FB\u00FC\u00FF\u00E7\u00C0\u00C2\u00C4\u00C8\u00C9\u00CA\u00CB\u00CE\u00CF\u00D4\u0152\u00D9\u00DB\u00DC\u0178\u00C7]+$
+use-alpha-numeric-optimization: true
+effective-alpha-numeric-pattern: ^[a-zA-Z0-9\u00E0\u00E2\u00E4\u00E8\u00E9\u00EA\u00EB\u00EE\u00EF\u00F4\u0153\u00F9\u00FB\u00FC\u00FF\u00E7\u00C0\u00C2\u00C4\u00C8\u00C9\u00CA\u00CB\u00CE\u00CF\u00D4\u0152\u00D9\u00DB\u00DC\u0178\u00C7]+$
+input: well-known state-of-the-art re-entry \u2013 en dash \u2012 figure dash \u2015 bar \u2E3A two-em \u2212minus -- double and a-b-c. 1990-2000, A--B, non\u2011breaking\u2010hyphen.\n
+span: 0 10 0 10 0.9932436816051227
+span: 11 19 11 19 0.8701528216093692
+span: 19 27 19 27 0.8444860979907182
+span: 28 36 28 36 0.9654250932517325
+span: 37 40 37 38 1.0
+span: 41 43 39 41 1.0
+span: 44 48 42 46 1.0
+span: 49 52 47 48 1.0
+span: 53 59 49 55 1.0
+span: 60 64 56 60 1.0
+span: 65 68 61 62 1.0
+span: 69 72 63 66 1.0
+span: 73 76 67 68 1.0
+span: 77 83 69 75 0.9624236348575574
+span: 84 92 76 82 0.9985514342399281
+span: 93 94 83 84 0.6043947528269918
+span: 94 95 84 85 1.0
+span: 96 102 86 92 1.0
+span: 103 106 93 96 1.0
+span: 107 112 97 102 0.4641030307483701
+span: 112 113 102 103 1.0
+span: 114 123 104 113 0.9379892450318695
+span: 123 124 113 114 1.0
+span: 125 129 115 119 0.6988669497980382
+span: 129 130 119 120 1.0
+span: 131 154 121 140 0.9683733307818746
+span: 154 155 140 141 1.0

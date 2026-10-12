@@ -1,0 +1,18 @@
+component: tokenizer-me-abbreviations-fixture
+opennlp: cdf33c653d5d61d5af7d37ffee189a83bd8392ea
+jdk: 21.0.12.1
+whitespace: unicode
+model: tokenizer-abbreviations.bin
+model-sha256: bd5334327d3c4ffab19765bec7755b71a9eaea50e4c23ce10712f48bdb14c7e1
+alpha-numeric-pattern: ^[A-Za-z0-9]+$
+use-alpha-numeric-optimization: false
+abbreviations: in the model file
+input: Family \uD83D\uDC68\u200D\uD83D\uDC69\u200D\uD83D\uDC67\u200D\uD83D\uDC66 here and \uD83C\uDFF3\uFE0F\u200D\uD83C\uDF08 too\n
+span: 0 6 0 6 0.6057896557068686
+span-invalid: 7 17 0.0015006157135349137
+span-invalid: 17 18 1.0
+span: 33 37 19 23 0.9507531341376069
+span: 38 41 24 27 0.8632321072892644
+span-invalid: 28 33 0.04801970283311724
+span-invalid: 33 34 1.0
+span: 57 60 35 38 0.8931114713882601
