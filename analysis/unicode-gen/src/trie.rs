@@ -50,8 +50,7 @@ pub struct ByteTrie {
 impl ByteTrie {
     pub fn build(values: &[u8]) -> ByteTrie {
         assert_eq!(values.len(), CODE_POINTS);
-        let Dedup { index, blocks } =
-            dedup(values.chunks_exact(BLOCK).map(|chunk| <[u8; BLOCK]>::try_from(chunk).expect("whole block")));
+        let Dedup { index, blocks } = dedup(values.as_chunks::<BLOCK>().0.iter().copied());
         let trie = ByteTrie { index, blocks };
         assert!((0..CODE_POINTS).all(|cp| trie.get(cp) == values[cp]), "the trie reproduces its input");
         trie
@@ -88,7 +87,7 @@ pub struct BitTrie {
 impl BitTrie {
     pub fn build(bits: &[bool]) -> BitTrie {
         assert_eq!(bits.len(), CODE_POINTS);
-        let Dedup { index, blocks } = dedup(bits.chunks_exact(BLOCK).map(|chunk| {
+        let Dedup { index, blocks } = dedup(bits.as_chunks::<BLOCK>().0.iter().map(|chunk| {
             let mut words = [0u64; 4];
             for (i, &bit) in chunk.iter().enumerate() {
                 words[i / 64] |= u64::from(bit) << (i % 64);
