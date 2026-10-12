@@ -5,6 +5,8 @@
 //! markers) weighed and summed into `Boundaries`; the optimizer only adds
 //! up costs.
 
+pub mod compare;
+
 use std::ops::Range;
 
 use turbo_analysis::{Annotator, Error, Ix, IxRange, Refs, Span, Spans};
