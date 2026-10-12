@@ -30,23 +30,27 @@ use std::hash::{DefaultHasher, Hash, Hasher};
 use turbo_analysis::text::Side;
 use turbo_analysis::{Alignment, Annotator, Error, Refs, Span, View, ViewBuilder};
 
+pub mod artifacts;
 pub mod bullets;
 pub mod chain;
 pub mod dashes;
 pub mod digits;
 pub mod ellipsis;
 pub mod invisible;
+pub mod noise;
 pub mod quotes;
 pub mod substitute;
 pub mod tables;
 pub mod whitespace;
 
+pub use artifacts::{Artifact, ArtifactDetector, ArtifactDetectorBuilder, KindSet, RepeatedLines};
 pub use bullets::Bullets;
 pub use chain::Chain;
 pub use dashes::Dashes;
 pub use digits::Digits;
 pub use ellipsis::Ellipsis;
 pub use invisible::Invisible;
+pub use noise::{Dictionary, NoiseFinding, NoiseScorer, NoiseStats};
 pub use quotes::Quotes;
 pub use whitespace::{Whitespace, WhitespaceMode};
 
