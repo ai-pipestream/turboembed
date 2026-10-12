@@ -26,7 +26,7 @@ fn every_checked_in_golden_has_a_dump_whose_header_parses() {
     }
     let inputs: usize = recipe::INPUT_SETS
         .iter()
-        .filter(|set| **set != recipe::NORMALIZER_INPUT_SET)
+        .filter(|set| **set != recipe::NORMALIZER_INPUT_SET && **set != recipe::NUMBER_INPUT_SET)
         .map(|set| std::fs::read_dir(paths::inputs_dir().join(set)).unwrap().count())
         .sum();
     assert_eq!(goldens, recipe::DUMPED_ANNOTATORS.len() * inputs);

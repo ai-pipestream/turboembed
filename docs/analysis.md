@@ -20,6 +20,7 @@ nothing here is in the C header or the gRPC server.
 | `turbo-analysis-layers` | `analysis/layers/` | The layers add-ons share (below) |
 | `turbo-chunker` | `analysis/chunker/` | The chunker |
 | `turbo-analysis-embed` | `analysis/embed/` | The embedding model as analysis steps: the subwords of a text view from the bundle's tokenizer, and a vector per sentence and per chunk |
+| `turbo-numeric` | `analysis/numeric/` | The number scanner, which writes `turbo:numbers` ([numbers.md](numbers.md)) |
 | `turbo-jvm` | `analysis/jvm/` | JVM behaviour the OpenNLP ports must reproduce bit for bit |
 | `turbo-goldens` | `analysis/goldens/` | Golden layer files from the JVM: the reader, the writer, the comparison, loading golden layers as test inputs, SHA-256 and SHA-512 |
 
@@ -618,6 +619,7 @@ The layers and their columns, in order:
 | `opennlp:lemmas` | `aligned:opennlp:tokens` | `lemma:str` |
 | `opennlp:entities` | `text` | `start:u32`, `end:u32`, `token_start:u32`, `token_end:u32`, `kind:str`, `prob:f64` |
 | `opennlp:language` | `document` | `code:str`, `confidence:f64` |
+| `turbo:numbers` | `text` | `start:u32`, `end:u32`, `numeral_end:u32`, `negative:u32`, `coefficient:str`, `scale:u32`, `plain:str` |
 | `turbo:view` | `text` | `start:u32`, `end:u32`, `with:str` |
 
 `opennlp:language` has a row per language the detector ranked, best
@@ -802,6 +804,22 @@ The generator writes these layers, in this order within a golden:
 | `tokenize` (`TokenizerME.tokenizePos`) | `opennlp:tokens`, `turbo:utf16<opennlp:tokens>` when a token cuts a character, `turbo:confidence<opennlp:tokens>` |
 | `langdetect` (`LanguageDetectorME.predictLanguages`) | `opennlp:language` |
 | `normalize` (each normalizer) | `turbo:view` |
+| `numbers` (`NumberScan.parse`, per notation) | `turbo:numbers` |
+
+`numbers/<notation>/num/<id>.golden` (`latin-us`, `latin-eu`) holds
+`turbo:numbers`, anchored on the text, with one row per number mention:
+`start:u32` and `end:u32` (UTF-8 byte offsets, from an optional `-` to the
+end of a `k`, `m`, `b`, `bn` or `thousand` to `trillion` scale marker),
+`numeral_end:u32` (the end of the digits, before the scale marker),
+`negative:u32` (1 when the mention starts with `-`), `coefficient:str` (the
+unscaled value without sign), `scale:u32` (digits after the decimal point)
+and `plain:str` (`toPlainString()`, for a human reading the file). The value
+is `(-1)^negative * coefficient / 10^scale`. The `annotator` line names
+`opennlp.tools.extraction.NumberScan` and `parse`, and a `config notation`
+record gives `LATIN_US` or `LATIN_EU`. The scan is the mention loop of
+`CursorQuantityExtractor` of the `numeric` module of `opennlp-addons`
+(pinned in `analysis/goldens-tool/src/recipe.rs`) without the money
+exclusion and without units; there is no model and no dump.
 
 Other crates write goldens of their own layer types in the same format,
 which the generator does not make: a tokenizer crate's

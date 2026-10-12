@@ -1,0 +1,29 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-1-24.04.4-Ubuntu	Ubuntu
+unicode	15.0
+input	num/sign-boundary	73	72	1dc275a972832070be3ad6ef910f9a7743454cfe545112bd0c73dc1cc83e7c58
+annotator	opennlp.tools.extraction.NumberScan	parse
+config	notation	LATIN_US
+layer	turbo:numbers	text	19	start:u32	end:u32	numeral_end:u32	negative:u32	coefficient:str	scale:u32	plain:str
+2	3	3	0	5	0	5
+6	8	8	1	5	0	-5
+10	12	12	1	5	0	-5
+15	17	17	1	5	0	-5
+19	20	20	0	5	0	5
+21	22	22	0	5	0	5
+25	27	27	1	5	0	-5
+30	31	31	0	5	0	5
+33	35	35	1	5	0	-5
+37	39	39	1	5	0	-5
+41	43	43	1	5	0	-5
+45	47	47	1	5	0	-5
+49	51	51	1	5	0	-5
+55	56	56	0	5	0	5
+57	58	58	0	1	0	1
+59	60	60	0	2	0	2
+61	62	62	0	3	0	3
+64	66	66	1	5	0	-5
+69	71	71	1	5	0	-5
+end	turbo:numbers
