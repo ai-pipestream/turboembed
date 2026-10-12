@@ -53,13 +53,18 @@ pub static BACKEND: turbo_backend = turbo_backend {
     buffer_read: None,
     formats: format_bit(TURBO_FORMAT_OPENVINO_IR),
     reserved2: 0,
-    // The slot the core calls when a backend has more than one path.
+    // The slot for a backend with more than one path, called when a table
+    // has no session_open.
     // Here it creates the same session and writes the graph format the
     // driver selected into choices (NGRAPH_LITE or NATIVE). It does not
     // measure kernels, and it does not read a cached choice.
     session_create_tuned: Some(graph::session_create_tuned),
-    session_open: None,
-    embed_write_ranges: None,
+    // session_create_tuned with the whole description: the same session,
+    // its vectors sized for max(max_batch, max_ranges) rows. It refuses a
+    // cpu_threads other than 0.
+    session_open: Some(graph::session_open),
+    // Ranges are pooled on the host from the hidden states, as rows are.
+    embed_write_ranges: Some(graph::embed_write_ranges),
 };
 
 /// The backend's table, for the tests.

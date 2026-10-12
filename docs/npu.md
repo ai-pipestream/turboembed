@@ -241,9 +241,10 @@ No build variables: there is nothing to point at.
   session tokens in the argument's own precision and leaves the rest of
   the compiled row zero. An embeddings graph writes the gathered word
   rows and the bias, and leaves unused rows zero. The execute is the
-  whole compiled frame, including those zeros. `session_create_tuned`
-  reports the format that frame was initialized as (`NGRAPH_LITE` or
-  `NATIVE`) in `turbo_session_info.choices`. It does not measure
+  whole compiled frame, including those zeros. `session_open` (and
+  `session_create_tuned`) reports the format that frame was
+  initialized as (`NGRAPH_LITE` or `NATIVE`) in
+  `turbo_session_info.choices`. It does not measure
   kernels, and it does not read a cached choice or an environment
   variable: the driver's bit selects the format. The run
   appends `pfnAppendGraphExecute` on the
@@ -251,6 +252,16 @@ No build variables: there is nothing to point at.
   states on the host (mean over the mask, the first token, or the last
   live one, summed in F64), cuts to `output_dim`, and normalizes when
   asked.
+- **Late pooling and `cpu_threads`.** The session is made through
+  `session_open`, and its vectors hold `max(max_batch, max_ranges)`
+  rows. After `turbo_embed_write_ranges` the run encodes every row as
+  usual, and as each frame comes back the host pools every range whose
+  row is in that frame: the mean of the hidden states of the range's
+  tokens whose mask is 1, summed in F64 in column order, cut to
+  `output_dim`, normalized when asked, and written at the range's index.
+  A range over a whole row gives that row's mean vector bit for bit.
+  The device is not a CPU, so `turbo_session_desc.cpu_threads` must be
+  0; any other value is `TURBO_E_UNSUPPORTED_OPTION` naming field 6.
 - **What a result reports.** Stages: upload, encode and download on
   the device, pooling and normalize on the host. Lookup is on the
   device for a token-id graph and on the host for an embeddings graph,
