@@ -38,9 +38,14 @@ pub mod digits;
 pub mod ellipsis;
 pub mod invisible;
 pub mod noise;
+pub mod number;
+mod placeholder;
 pub mod quotes;
+pub mod shrink;
+pub mod social;
 pub mod substitute;
 pub mod tables;
+pub mod url;
 pub mod whitespace;
 
 pub use artifacts::{Artifact, ArtifactDetector, ArtifactDetectorBuilder, KindSet, RepeatedLines};
@@ -51,7 +56,11 @@ pub use digits::Digits;
 pub use ellipsis::Ellipsis;
 pub use invisible::Invisible;
 pub use noise::{Dictionary, NoiseFinding, NoiseScorer, NoiseStats};
+pub use number::Numbers;
 pub use quotes::Quotes;
+pub use shrink::Shrink;
+pub use social::{BoundedSocialMedia, SocialMedia};
+pub use url::{BoundedUrls, Urls};
 pub use whitespace::{Whitespace, WhitespaceMode};
 
 /// One text normalizer. Its only job is to copy `text` into `out`,
