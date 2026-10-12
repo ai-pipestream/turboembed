@@ -115,6 +115,12 @@
     `core/tests/sentencepiece.rs`, which checks them when
     `TURBO_SENTENCEPIECE_MODELS` names a directory holding them as
     `mt5.model`, `umt5.model` and `llama2.model`.
+  - `variants.goldens.jsonl`: for each edit of `goldens.py`'s
+    `VARIANTS` to a committed model (its whitespace switches set
+    otherwise, or user-defined pieces appended), the SHA-256 of what
+    the library gives on every text, one line per text as the
+    docstring of `goldens.py` writes it. `core/tests/sentencepiece.rs`
+    makes the same edits.
 
 Everything here is about 9.8 MB, 4 MB of it the tiny
 BERT bundle's weights, 2 MB the SentencePiece models and goldens,

@@ -28,6 +28,14 @@ The last line is the long text: every text of the file joined by "\\n",
 repeated `repeat` times, with the number of pieces and the SHA-256 of
 "id begin end\\n" for each piece. It is long enough for the unigram
 search to rebase its scores.
+
+`goldens` also writes variants.goldens.jsonl: for each edit of VARIANTS
+to a committed model (the whitespace switches set otherwise, or
+user-defined pieces added that overlap the model's own), the number of
+texts and the SHA-256 of one line per text of texts() and VARIANT_TEXTS,
+"index TAB normalized TAB norm_to_orig TAB ids TAB offsets TAB decoded",
+the lists comma-separated and each offset "begin:end".
+core/tests/sentencepiece.rs makes the same edits and the same lines.
 """
 
 import hashlib
@@ -151,6 +159,43 @@ MODELS = {
                        byte_fallback=True, character_coverage=0.98, remove_extra_whitespaces=False,
                        split_digits=True), None),
 }
+
+# Edits of committed models for variants.goldens.jsonl: (name, model,
+# add_dummy_prefix, remove_extra_whitespaces, treat_whitespace_as_suffix,
+# user-defined pieces appended). None leaves a switch as the model has it.
+# The pieces are in none of the models and overlap their pieces and each
+# other ("wor" and "orl" in "world").
+USER_PIECES = ["hel", "llo", "a b", "xyz", "wor", "orl", "e\u0301", "\u2581\u2581"]
+VARIANTS = [
+    (f"{model}-adp{int(adp)}-rew{int(rew)}-suf{int(suf)}", model, adp, rew, suf, [])
+    for model in ["t5", "unigram-identity", "unigram-bytes", "bpe-identity", "bpe-bytes"]
+    for adp in (True, False)
+    for rew in (True, False)
+    for suf in (False, True)
+] + [
+    (f"{model}-user", model, None, None, None, USER_PIECES)
+    for model in ["t5", "unigram-identity", "unigram-bytes", "bpe-identity", "bpe-bytes"]
+] + [
+    (f"{model}-user-adp0-rew0", model, False, False, None, USER_PIECES)
+    for model in ["t5", "unigram-bytes", "bpe-bytes"]
+]
+
+# Texts beyond texts() for the variants: the user-defined pieces, and
+# whitespace at the ends and in runs.
+VARIANT_TEXTS = [
+    "hello world",
+    "  hello  world  ",
+    "Hello wor ld orl",
+    "a b a  b ab",
+    "xyz xyzxyz",
+    "\u2581\u2581 \u2581\u2581\u2581",
+    "e\u0301e\u0301 e\u0301",
+    "hel lo llo hello",
+    " \U0001f642",
+    "\U0001f642 ",
+    "\u6f22 \u6f22",
+    "\t \t",
+]
 
 # Published models, not committed: (file, where it is published).
 FETCHED = [
@@ -288,8 +333,51 @@ def golden(name, data, out_path):
     print(out_path)
 
 
+def variant_model(model, adp, rew, suf, user):
+    m = pb.ModelProto()
+    with open(os.path.join(HERE, model + ".model"), "rb") as f:
+        m.ParseFromString(f.read())
+    if adp is not None:
+        m.normalizer_spec.add_dummy_prefix = adp
+    if rew is not None:
+        m.normalizer_spec.remove_extra_whitespaces = rew
+    if suf is not None:
+        m.trainer_spec.treat_whitespace_as_suffix = suf
+    for piece in user:
+        p = m.pieces.add()
+        p.piece, p.score, p.type = piece, 0.0, pb.ModelProto.SentencePiece.USER_DEFINED
+    return m.SerializeToString(deterministic=True)
+
+
+def variant_goldens(out_path):
+    all_texts = texts() + VARIANT_TEXTS
+    with open(out_path, "w", encoding="utf-8") as out:
+        header = dict(sentencepiece=spm.__version__, protobuf=google.protobuf.__version__)
+        out.write(json.dumps(header) + "\n")
+        for name, model, adp, rew, suf, user in VARIANTS:
+            sp = spm.SentencePieceProcessor()
+            sp.LoadFromSerializedProto(variant_model(model, adp, rew, suf, user))
+            h = hashlib.sha256()
+            for i, text in enumerate(all_texts):
+                ids = sp.encode(text)
+                proto = sp.encode(text, return_type="proto")
+                assert [p.id for p in proto.pieces] == ids, (name, text)
+                normalized, char_offsets = sp.Normalize(text, with_offsets=True)
+                src = utf8_offsets(text)
+                norm_to_orig = []
+                for c, o in zip(normalized, char_offsets):
+                    norm_to_orig += [src[o]] * len(c.encode("utf-8"))
+                norm_to_orig.append(src[char_offsets[-1]] if char_offsets else 0)
+                fields = [str(i), normalized, ",".join(map(str, norm_to_orig)), ",".join(map(str, ids)),
+                          ",".join(f"{p.begin}:{p.end}" for p in proto.pieces), sp.decode(ids)]
+                h.update(("\t".join(fields) + "\n").encode("utf-8"))
+            out.write(json.dumps(dict(variant=name, texts=len(all_texts), sha256=h.hexdigest())) + "\n")
+    print(out_path)
+
+
 def goldens(models_dir):
     check_versions()
+    variant_goldens(os.path.join(HERE, "variants.goldens.jsonl"))
     for name in list(MODELS) + ["t5"]:
         with open(os.path.join(HERE, name + ".model"), "rb") as f:
             golden(name + ".model", f.read(), os.path.join(HERE, name + ".goldens.jsonl"))

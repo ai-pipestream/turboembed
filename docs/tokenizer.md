@@ -57,7 +57,11 @@ library's on 131 texts and a 60 KB text for each model of
 user-defined and UNUSED pieces, whitespace as a suffix, a custom
 character map and a denormalizer), and for mT5, umT5 and Llama 2 when
 `TURBO_SENTENCEPIECE_MODELS` names a directory holding them
-(testdata/README.md).
+(testdata/README.md). It checks the same on 143 texts for 48 edits of
+five of the committed models: the whitespace switches
+(`add_dummy_prefix`, `remove_extra_whitespaces`,
+`treat_whitespace_as_suffix`) in every combination, and user-defined
+pieces that overlap the model's own pieces and each other.
 
 These differ from the library, each tested there:
 
