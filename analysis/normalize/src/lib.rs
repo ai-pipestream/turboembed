@@ -31,6 +31,7 @@ use turbo_analysis::text::Side;
 use turbo_analysis::{Alignment, Annotator, Error, Refs, Span, View, ViewBuilder};
 
 pub mod bullets;
+pub mod case_fold;
 pub mod chain;
 pub mod dashes;
 pub mod digits;
@@ -43,6 +44,7 @@ pub mod unicode_form;
 pub mod whitespace;
 
 pub use bullets::Bullets;
+pub use case_fold::{CaseFold, CaseFoldMode};
 pub use chain::Chain;
 pub use dashes::Dashes;
 pub use digits::Digits;
