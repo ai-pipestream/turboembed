@@ -1,0 +1,29 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-1-24.04.4-Ubuntu	Ubuntu
+unicode	15.0
+input	norm/turkish-dotted-i	199	179	45d1c7b73bc6d7d81f026ccc7e40b9f8a7dcb89879faafc6f1a20e6058b973d2
+annotator	opennlp.tools.util.normalizer.AccentFoldCharSequenceNormalizer	normalize
+layer	turbo:view	text	20	start:u32	end:u32	with:str
+0	2	I
+20	22	i
+22	24	s
+24	26	i
+29	31	I
+33	35	I
+55	57	i
+74	76	I
+79	81	
+114	116	I
+118	120	S
+122	124	I
+127	129	C
+135	137	G
+139	141	O
+141	143	G
+147	149	I
+158	160	I
+183	185	i
+191	193	I
+end	turbo:view

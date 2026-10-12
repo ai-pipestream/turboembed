@@ -298,6 +298,25 @@ a layer: own <ms> ms, onednn <ms> ms)`.
   (4 bytes per token plus the head's width and the partial sums; 128 KiB
   less 4 KiB on a B70, so about 31500 tokens) is
   `TURBO_E_UNSUPPORTED_OPTION` naming field 2.
+- **Range pooling.** Sessions are made through `session_open`, which
+  takes the whole `turbo_session_desc`. The device is not a CPU, so a
+  `cpu_threads` other than 0 is refused with
+  `TURBO_E_UNSUPPORTED_OPTION` naming field 6. `turbo_embed_write_ranges`
+  packs the rows as `embed_write` does and copies the ranges, 12 bytes
+  each (row, start, end), into the staging after the row table; the
+  staging has room for `max_ranges` of them from the start. The run
+  encodes every row once, then one pooling kernel, in place of the row
+  pooling, reads the ranges over the bus as the lookup reads the rows and
+  writes one vector per range: the mean over the range's tokens whose
+  mask is 1, cut to `output_dim`, then normalized when asked by the same
+  kernel as a row. A range stops at its row's last live token, past which
+  nothing was computed and every position is masked. Its sums run as the
+  row pooling's do from the range's first column, so a range over a whole
+  row gives that row's vector bit for bit, and a range's vector does not
+  depend on the other rows of the batch. The output buffer holds
+  max(`max_batch`, `max_ranges`) vectors of `hidden` F32, allocated with
+  the session; a run allocates nothing. A plain write after a range
+  write, or the reverse, replaces it.
 - **Failures.** The driver's immediate list cannot finish or be destroyed
   after an append to it fails. Every append signals an event of the
   context's, so when one fails the call waits for the event of the last
@@ -328,7 +347,7 @@ a layer: own <ms> ms, onednn <ms> ms)`.
   and no download: the vectors stay where
   they are. `h2d_bytes` is what the lookup reads over the bus: 4 bytes per
   packed token for each of ids, positions, mask and (when given) types,
-  and 8 per row for the table. `d2h_bytes` is 0 after the run and grows by
+  8 per row for the table, and 12 per range after a range write. `d2h_bytes` is 0 after the run and grows by
   each read. `host_allocs` and `device_allocs` are what
   the backend allocated on the running thread during the run; a run
   allocates nothing, cold or warm, but for oneDNN's primitives the first

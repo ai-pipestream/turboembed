@@ -7,6 +7,7 @@ mod emoji;
 mod normalize;
 mod props;
 mod script;
+mod word_break;
 
 use std::fmt::Display;
 use std::path::{Path, PathBuf};
@@ -40,8 +41,14 @@ impl Inputs {
 
 pub fn render_all(dir: &Path) -> Vec<GeneratedFile> {
     let version = UcdFile::read(dir, "DerivedCoreProperties.txt").header_version();
-    for name in ["CaseFolding.txt", "SpecialCasing.txt", "Scripts.txt", "PropList.txt", "DerivedNormalizationProps.txt"]
-    {
+    for name in [
+        "CaseFolding.txt",
+        "SpecialCasing.txt",
+        "Scripts.txt",
+        "PropList.txt",
+        "DerivedNormalizationProps.txt",
+        "WordBreakProperty.txt",
+    ] {
         let file = UcdFile::read(dir, name);
         if file.header_version() != version {
             panic!("{name} is not from Unicode {version:?}");
@@ -63,6 +70,7 @@ pub fn render_all(dir: &Path) -> Vec<GeneratedFile> {
         GeneratedFile { name: "normalize.rs", contents: normalize::render(&inputs) },
         GeneratedFile { name: "confusables.rs", contents: confusables::render(&inputs) },
         GeneratedFile { name: "emoji.rs", contents: emoji::render(&inputs) },
+        GeneratedFile { name: "word_break.rs", contents: word_break::render(&inputs) },
     ]
 }
 
@@ -75,7 +83,7 @@ fn render_mod(version: (u8, u8, u8)) -> String {
         version,
     );
     file.blank();
-    for module in ["case", "category", "confusables", "emoji", "normalize", "props", "script"] {
+    for module in ["case", "category", "confusables", "emoji", "normalize", "props", "script", "word_break"] {
         file.line(&format!("pub(crate) mod {module};"));
     }
     file.blank();

@@ -489,6 +489,17 @@ typedef struct turbo_session_desc {
     uint32_t tuning_budget_ms;   /* 5: the time the backend may spend measuring; 0 = the
                                     TURBO_AUTOTUNE_BUDGET_MS variable, else 750 with a disk
                                     cache directory (TURBO_AUTOTUNE_CACHE), 150 without */
+    /* A struct_size of 24 ends here; the fields below are then 0. */
+    uint32_t cpu_threads;        /* 6: the threads a CPU session computes on, 1 to 1024; 0 =
+                                    the TURBO_CPU_THREADS variable, else one per processor
+                                    the process may run on (docs/cpu.md). A device other
+                                    than a CPU takes 0 alone: any other value is
+                                    TURBO_E_UNSUPPORTED_OPTION naming this field */
+    uint32_t max_ranges;         /* 7: the most ranges one turbo_embed_write_ranges may
+                                    write, 1 to max_batch * max_seq; the memory their
+                                    vectors are written to is made with the session. 0 =
+                                    max_batch, which costs nothing beyond the session's
+                                    own vectors */
 } turbo_session_desc;
 
 /* Fields are numbered from 1 for turbo_error.field and options_honored.
@@ -530,6 +541,18 @@ typedef struct turbo_token_batch {
     const int32_t *types;
 } turbo_token_batch;
 
+/* A range of one row's tokens, for turbo_embed_write_ranges: the columns
+ * [start, end) of row row of the batch written with it, with row under
+ * batch and start < end <= seq. The range's vector is pooled over the
+ * tokens in it whose mask is 1, so it may cover padding; it must hold at
+ * least one live token. Ranges may overlap, come in any order, and leave
+ * rows out, and the same range may appear twice. */
+typedef struct turbo_token_range {
+    uint32_t row;
+    uint32_t start;
+    uint32_t end;
+} turbo_token_range;
+
 typedef struct turbo_session_info {
     uint32_t struct_size;
     uint32_t max_batch;       /* in effect, after 0 was resolved */
@@ -555,6 +578,30 @@ int32_t turbo_embed_write_text(turbo_session *s, const turbo_text *texts, uint32
 
 /* Write rows the caller tokenized. opts may be NULL. */
 int32_t turbo_embed_write_tokens(turbo_session *s, const turbo_token_batch *batch,
+                                 const turbo_embed_options *opts, turbo_error *err);
+
+/* Late pooling: write rows the caller tokenized, as turbo_embed_write_tokens
+ * takes them, and count ranges of their tokens. The run encodes every row
+ * once, whether or not a range names it, and its result is one vector per
+ * range, in the order the ranges are given: [count, dim], with
+ * turbo_result_info.batch equal to count. A range's vector is the mean of
+ * the encoder's final hidden states over the range's tokens whose mask is
+ * 1, cut to output_dim and normalized as opts say, like a row's under
+ * TURBO_POOLING_MEAN. That is the one pooling here: opts->pooling may be
+ * 0 or TURBO_POOLING_MEAN, another TURBO_POOLING_* value is
+ * TURBO_E_UNSUPPORTED_OPTION naming field 5, and a value that is no
+ * TURBO_POOLING_* is TURBO_E_INVALID_ENUM, as everywhere. A bundle pooled another way (turbo_model_info.pooling)
+ * is still pooled by the mean here; whether that suits its model is the
+ * caller's to judge. Everything else in opts is as for
+ * turbo_embed_write_tokens, which checks the rows the same way. A
+ * special token is pooled when a range covers it, so a caller that wants
+ * the text alone leaves it out. count of 0 is TURBO_E_INVALID_ARGUMENT;
+ * count over the session's max_ranges is TURBO_E_CAPACITY; a range whose
+ * row is not under batch, whose start is not under its end, whose end is
+ * over seq, or that holds no token with mask 1 is TURBO_E_INVALID_ARGUMENT
+ * naming the range by its index. opts may be NULL. */
+int32_t turbo_embed_write_ranges(turbo_session *s, const turbo_token_batch *batch,
+                                 const turbo_token_range *ranges, uint32_t count,
                                  const turbo_embed_options *opts, turbo_error *err);
 
 /* Run what was written. A write replaces what an earlier write left, and
@@ -598,7 +645,9 @@ typedef struct turbo_result_info {
 int32_t turbo_result_get_info(turbo_result *r, turbo_result_info *out, turbo_error *err);
 
 /* The output of a run is one block, the vectors: [batch, dim] values of
- * turbo_result_info.dtype, packed row-major, turbo_result_info.bytes long. */
+ * turbo_result_info.dtype, packed row-major, turbo_result_info.bytes long.
+ * After turbo_embed_write_ranges, batch is the count of ranges written and
+ * a row is a range's vector. */
 
 /* Copy the vectors into dst (capacity bytes). Counted in d2h_bytes. */
 int32_t turbo_result_read(turbo_result *r, void *dst, uint64_t capacity, uint64_t *written, turbo_error *err);

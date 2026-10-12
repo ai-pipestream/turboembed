@@ -487,27 +487,56 @@ struct Session {
     uint32_t hidden;
 };
 
+/* A session with every buffer a run needs: the frames, and vectors for
+ * max(max_batch, max_ranges) rows, so one output serves a write of rows
+ * or of ranges. */
+int32_t open_session(void *model, uint32_t task, uint32_t max_batch, uint32_t max_seq, uint32_t precision,
+                     uint32_t max_ranges, uint32_t *compute_dtype, void **out, turbo_error *err) {
+    Model *m = static_cast<Model *>(model);
+    if (task != TURBO_TASK_EMBED)
+        return refuse(err, TURBO_E_UNSUPPORTED_TASK, "task %u: the hailo backend runs embed", task);
+    if (precision == TURBO_PRECISION_EXACT)
+        return refuse_field(err, TURBO_E_UNSUPPORTED_OPTION, 3,
+                            "precision: EXACT computes in F32, and this HEF computes in the I8 it was compiled in");
+    std::unique_ptr<turbo_hailo::Session> s;
+    const turbo_hailo::Failure f = turbo_hailo::Session::create(*m->hef, max_batch, max_seq, max_ranges, s);
+    if (f) return failed(err, f);
+    const uint32_t hidden = m->hef->desc().hidden;
+    const uint64_t bytes = (uint64_t)std::max(max_batch, max_ranges) * hidden * 4;
+    void *p = aligned(bytes);
+    if (!p)
+        return refuse(err, TURBO_E_OUT_OF_MEMORY, "%llu bytes for the session's vectors", (unsigned long long)bytes);
+    *out = new Session{std::move(s), Buffer{p}, hidden};
+    *compute_dtype = TURBO_DTYPE_I8;
+    return TURBO_OK;
+}
+
 int32_t session_create(void *model, uint32_t task, uint32_t max_batch, uint32_t max_seq, uint32_t precision,
                        uint32_t *compute_dtype, void **out, turbo_error *err) {
+    // Without session_open no ranges are written, and the vectors are the
+    // rows'.
     return guarded(err, [&]() -> int32_t {
-        Model *m = static_cast<Model *>(model);
-        if (task != TURBO_TASK_EMBED)
-            return refuse(err, TURBO_E_UNSUPPORTED_TASK, "task %u: the hailo backend runs embed", task);
-        if (precision == TURBO_PRECISION_EXACT)
-            return refuse_field(err, TURBO_E_UNSUPPORTED_OPTION, 3,
-                                "precision: EXACT computes in F32, and this HEF computes in the I8 it was compiled in");
-        std::unique_ptr<turbo_hailo::Session> s;
-        const turbo_hailo::Failure f = turbo_hailo::Session::create(*m->hef, max_batch, max_seq, s);
-        if (f) return failed(err, f);
-        const uint32_t hidden = m->hef->desc().hidden;
-        const uint64_t bytes = (uint64_t)max_batch * hidden * 4;
-        void *p = aligned(bytes);
-        if (!p)
-            return refuse(err, TURBO_E_OUT_OF_MEMORY, "%llu bytes for the session's vectors",
-                          (unsigned long long)bytes);
-        *out = new Session{std::move(s), Buffer{p}, hidden};
-        *compute_dtype = TURBO_DTYPE_I8;
-        return TURBO_OK;
+        return open_session(model, task, max_batch, max_seq, precision, max_batch, compute_dtype, out, err);
+    });
+}
+
+/* session_create with the whole description. The HEF has one path, so
+ * tuning keeps the one-path values it comes in with. A HEF runs on the
+ * device and has no CPU thread count: cpu_threads is 0 or refused. */
+int32_t session_open(void *model, const turbo_backend_session_desc *desc, turbo_backend_tuning *,
+                     uint32_t *compute_dtype, void **out, turbo_error *err) {
+    return guarded(err, [&]() -> int32_t {
+        const size_t needed = offsetof(turbo_backend_session_desc, max_ranges) + sizeof(uint32_t);
+        if (desc->struct_size < needed)
+            return refuse(err, TURBO_E_INVALID_STRUCT_SIZE,
+                          "turbo_backend_session_desc.struct_size is %u, and max_ranges ends at %zu",
+                          desc->struct_size, needed);
+        if (desc->cpu_threads != 0)
+            return refuse_field(err, TURBO_E_UNSUPPORTED_OPTION, 6,
+                                "cpu_threads %u: the hailo backend has no CPU thread count; 0 alone is taken",
+                                desc->cpu_threads);
+        return open_session(model, desc->task, desc->max_batch, desc->max_seq, desc->precision, desc->max_ranges,
+                            compute_dtype, out, err);
     });
 }
 
@@ -517,19 +546,34 @@ void session_release(void *session) {
     delete s;
 }
 
+turbo_hailo::Rows rows_of(const turbo_backend_embed_rows *rows) {
+    turbo_hailo::Rows r;
+    r.batch = rows->batch;
+    r.seq = rows->seq;
+    r.row_stride = rows->row_stride;
+    r.ids = rows->ids;
+    r.mask = rows->mask;
+    r.types = rows->types;
+    r.pooling = rows->pooling;
+    r.normalize = rows->normalize;
+    r.output_dim = rows->output_dim;
+    return r;
+}
+
 int32_t embed_write(void *session, const turbo_backend_embed_rows *rows, turbo_error *err) {
     return guarded(err, [&]() -> int32_t {
-        turbo_hailo::Rows r;
-        r.batch = rows->batch;
-        r.seq = rows->seq;
-        r.row_stride = rows->row_stride;
-        r.ids = rows->ids;
-        r.mask = rows->mask;
-        r.types = rows->types;
-        r.pooling = rows->pooling;
-        r.normalize = rows->normalize;
-        r.output_dim = rows->output_dim;
-        const turbo_hailo::Failure f = static_cast<Session *>(session)->run->write(r);
+        const turbo_hailo::Failure f = static_cast<Session *>(session)->run->write(rows_of(rows));
+        return f ? failed(err, f) : TURBO_OK;
+    });
+}
+
+/* The rows, and ranges pooled on the host from the frames' hidden states as
+ * they come back, one vector per range in the order given. */
+int32_t embed_write_ranges(void *session, const turbo_backend_embed_rows *rows, const turbo_token_range *ranges,
+                           uint32_t count, turbo_error *err) {
+    return guarded(err, [&]() -> int32_t {
+        const turbo_hailo::Failure f =
+            static_cast<Session *>(session)->run->write_ranges(rows_of(rows), ranges, count);
         return f ? failed(err, f) : TURBO_OK;
     });
 }
@@ -597,6 +641,8 @@ const turbo_backend turbo_hailo_backend = {
     TURBO_FORMAT_BIT(TURBO_FORMAT_HEF),
     0,
     nullptr,
+    session_open,
+    embed_write_ranges,
 };
 
 } // extern "C"
