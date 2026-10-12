@@ -1,0 +1,13 @@
+component: whitespace
+opennlp: cdf33c653d5d61d5af7d37ffee189a83bd8392ea
+jdk: 21.0.12.1
+whitespace: legacy
+input: Smile \uD83D\uDE00 ok \uD83D\uDC4D\uD83C\uDFFD done \u2764\uFE0F \u263A end\n
+span: 0 5 0 5
+span: 6 10 6 8
+span: 11 13 9 11
+span: 14 22 12 16
+span: 23 27 17 21
+span: 28 34 22 24
+span: 35 38 25 26
+span: 39 42 27 30

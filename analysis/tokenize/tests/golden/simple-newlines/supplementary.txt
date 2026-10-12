@@ -1,0 +1,42 @@
+component: simple-newlines
+opennlp: cdf33c653d5d61d5af7d37ffee189a83bd8392ea
+jdk: 21.0.12.1
+whitespace: unicode
+input: emoji in word: ab\uD83D\uDE00cd, math \uD835\uDC00\uD835\uDC01\uD835\uDC02 \uD835\uDC1A\uD835\uDC1B\uD835\uDC1C deseret \uD801\uDC00\uD801\uDC28\uD801\uDC45 done. \uD840\uDC00 rare CJK.\n
+span: 0 5 0 5
+span: 6 8 6 8
+span: 9 13 9 13
+span: 13 14 13 14
+span: 15 17 15 17
+span-invalid: 17 18
+span-invalid: 18 19
+span: 21 23 19 21
+span: 23 24 21 22
+span: 25 29 23 27
+span-invalid: 28 29
+span-invalid: 29 30
+span-invalid: 30 31
+span-invalid: 31 32
+span-invalid: 32 33
+span-invalid: 33 34
+span-invalid: 35 36
+span-invalid: 36 37
+span-invalid: 37 38
+span-invalid: 38 39
+span-invalid: 39 40
+span-invalid: 40 41
+span: 56 63 42 49
+span-invalid: 50 51
+span-invalid: 51 52
+span-invalid: 52 53
+span-invalid: 53 54
+span-invalid: 54 55
+span-invalid: 55 56
+span: 77 81 57 61
+span: 81 82 61 62
+span-invalid: 63 64
+span-invalid: 64 65
+span: 88 92 66 70
+span: 93 96 71 74
+span: 96 97 74 75
+span: 97 98 75 76

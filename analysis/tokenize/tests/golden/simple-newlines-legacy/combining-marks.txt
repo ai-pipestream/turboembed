@@ -1,0 +1,21 @@
+component: simple-newlines
+opennlp: cdf33c653d5d61d5af7d37ffee189a83bd8392ea
+jdk: 21.0.12.1
+whitespace: legacy
+input: e\u0301 caf\u00E9 cafe\u0301 a\u0308\u0323 n\u0303 \u0301start x\u0301\u0301y\n
+span: 0 1 0 1
+span: 1 3 1 2
+span: 4 9 3 7
+span: 10 14 8 12
+span: 14 16 12 13
+span: 17 18 14 15
+span: 18 20 15 16
+span: 20 22 16 17
+span: 23 24 18 19
+span: 24 26 19 20
+span: 27 29 21 22
+span: 29 34 22 27
+span: 35 36 28 29
+span: 36 40 29 31
+span: 40 41 31 32
+span: 41 42 32 33

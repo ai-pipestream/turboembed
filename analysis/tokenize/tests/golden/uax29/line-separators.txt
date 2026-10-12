@@ -1,0 +1,17 @@
+component: uax29
+opennlp: cdf33c653d5d61d5af7d37ffee189a83bd8392ea
+jdk: 21.0.12.1
+whitespace: unicode
+input: before\u0085after next\u2028line then\u2029para end\nand\u000Bvertical tab\u000Cform feed\n
+span: 0 6 0 6 ALPHANUMERIC
+span: 8 13 7 12 ALPHANUMERIC
+span: 14 18 13 17 ALPHANUMERIC
+span: 21 25 18 22 ALPHANUMERIC
+span: 26 30 23 27 ALPHANUMERIC
+span: 33 37 28 32 ALPHANUMERIC
+span: 38 41 33 36 ALPHANUMERIC
+span: 42 45 37 40 ALPHANUMERIC
+span: 46 54 41 49 ALPHANUMERIC
+span: 55 58 50 53 ALPHANUMERIC
+span: 59 63 54 58 ALPHANUMERIC
+span: 64 68 59 63 ALPHANUMERIC

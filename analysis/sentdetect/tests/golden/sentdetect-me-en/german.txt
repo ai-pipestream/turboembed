@@ -1,0 +1,11 @@
+component: sentdetect-me-en
+opennlp: cdf33c653d5d61d5af7d37ffee189a83bd8392ea
+jdk: 21.0.12.1
+whitespace: unicode
+model: opennlp-en-ud-ewt-sentence-1.3-2.5.4.bin
+model-sha256: 4de58d12b09421003c8b1ba13e8b58ec533b28e1f22a65272119dc0993d333e8
+input: Die Stra\u00DFe ist gro\u00DF; M\u00FCller a\u00DF \u00C4pfel, \u00D6l und \u00DCbung. z.B. hei\u00DFt \u201Ezum Beispiel\u201C. Dr. Wei\u00DF kam um 12.30 Uhr.\n
+span: 0 58 0 51 0.9696033827002756
+span: 59 63 52 56 0.835093853888857
+span: 64 90 57 78 0.9918864856880408
+span: 91 118 79 105 0.9995567596405406

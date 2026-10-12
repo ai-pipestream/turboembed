@@ -1,0 +1,17 @@
+component: whitespace
+opennlp: cdf33c653d5d61d5af7d37ffee189a83bd8392ea
+jdk: 21.0.12.1
+whitespace: unicode
+input: Visit https://www.example.com/path?q=1&r=2#frag or http://localhost:8080/a_b.html, mail john.doe+tag@example.co.uk or www.test.org. Also ftp://files.example.net/x.tar.gz (see foo@bar.com).\n
+span: 0 5 0 5
+span: 6 47 6 47
+span: 48 50 48 50
+span: 51 82 51 82
+span: 83 87 83 87
+span: 88 114 88 114
+span: 115 117 115 117
+span: 118 131 118 131
+span: 132 136 132 136
+span: 137 169 137 169
+span: 170 174 170 174
+span: 175 188 175 188

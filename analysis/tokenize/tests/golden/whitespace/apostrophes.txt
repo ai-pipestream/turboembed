@@ -1,0 +1,24 @@
+component: whitespace
+opennlp: cdf33c653d5d61d5af7d37ffee189a83bd8392ea
+jdk: 21.0.12.1
+whitespace: unicode
+input: don't can't O'Neil rock 'n' roll the '90s y'all it's Bob's dogs' bones l'homme ma'am; curly: don\u2019t O\u2019Neil \u201990s\n
+span: 0 5 0 5
+span: 6 11 6 11
+span: 12 18 12 18
+span: 19 23 19 23
+span: 24 27 24 27
+span: 28 32 28 32
+span: 33 36 33 36
+span: 37 41 37 41
+span: 42 47 42 47
+span: 48 52 48 52
+span: 53 58 53 58
+span: 59 64 59 64
+span: 65 70 65 70
+span: 71 78 71 78
+span: 79 85 79 85
+span: 86 92 86 92
+span: 93 100 93 98
+span: 101 109 99 105
+span: 110 116 106 110

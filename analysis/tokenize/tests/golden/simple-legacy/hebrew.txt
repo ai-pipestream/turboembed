@@ -1,0 +1,26 @@
+component: simple
+opennlp: cdf33c653d5d61d5af7d37ffee189a83bd8392ea
+jdk: 21.0.12.1
+whitespace: legacy
+input: \u05E9\u05DC\u05D5\u05DD \u05E2\u05D5\u05DC\u05DD. \u05D2\u05F3\u05D9\u05E8\u05E4\u05D4 \u05D5\u05BE\u05E6\u05D4\u05F4\u05DC \u05E0\u05E4\u05D2\u05E9\u05D5 \u05D1\u05EA\u05DC\u05BE\u05D0\u05D1\u05D9\u05D1. \u05D1\u05F4\u05D4 \u05E6\u05F3\n
+span: 0 8 0 4
+span: 9 17 5 9
+span: 17 18 9 10
+span: 19 21 11 12
+span: 21 23 12 13
+span: 23 31 13 17
+span: 32 34 18 19
+span: 34 36 19 20
+span: 36 40 20 22
+span: 40 42 22 23
+span: 42 44 23 24
+span: 45 55 25 30
+span: 56 62 31 34
+span: 62 64 34 35
+span: 64 72 35 39
+span: 72 73 39 40
+span: 74 76 41 42
+span: 76 78 42 43
+span: 78 80 43 44
+span: 81 83 45 46
+span: 83 85 46 47

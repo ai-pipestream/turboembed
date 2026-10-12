@@ -1,0 +1,34 @@
+component: tokenizer-me-de
+opennlp: cdf33c653d5d61d5af7d37ffee189a83bd8392ea
+jdk: 21.0.12.1
+whitespace: unicode
+model: opennlp-de-ud-gsd-tokens-1.3-2.5.4.bin
+model-sha256: 32d0a7ff84fdd50f9e454340bed782d7269845bfa656e0c988cbb823dd628d6e
+alpha-numeric-pattern: ^[A-Za-z0-9\u00E4\u00E9\u00F6\u00FC\u00C4\u00C9\u00D6\u00DC\u00DF]+$
+use-alpha-numeric-optimization: true
+effective-alpha-numeric-pattern: ^[A-Za-z0-9\u00E4\u00E9\u00F6\u00FC\u00C4\u00C9\u00D6\u00DC\u00DF]+$
+input: don't can't O'Neil rock 'n' roll the '90s y'all it's Bob's dogs' bones l'homme ma'am; curly: don\u2019t O\u2019Neil \u201990s\n
+span: 0 5 0 5 0.8792855218653598
+span: 6 11 6 11 0.9245320291492877
+span: 12 18 12 18 0.9911984113391461
+span: 19 23 19 23 1.0
+span: 24 26 24 26 0.6394661105422319
+span: 26 27 26 27 1.0
+span: 28 32 28 32 1.0
+span: 33 36 33 36 1.0
+span: 37 41 37 41 0.8909823433398292
+span: 42 47 42 47 0.5851045879061869
+span: 48 50 48 50 0.721579433408032
+span: 50 52 50 52 0.999962098143641
+span: 53 58 53 58 0.7919394075568543
+span: 59 63 59 63 0.7748279372792835
+span: 63 64 63 64 1.0
+span: 65 70 65 70 1.0
+span: 71 78 71 78 0.9696102660390782
+span: 79 84 79 84 0.824169581526204
+span: 84 85 84 85 1.0
+span: 86 91 86 91 0.9870933560967449
+span: 91 92 91 92 1.0
+span: 93 100 93 98 0.9797201060184778
+span: 101 109 99 105 0.936826227846665
+span: 110 116 106 110 0.9993186151675932

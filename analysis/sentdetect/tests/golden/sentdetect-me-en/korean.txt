@@ -1,0 +1,10 @@
+component: sentdetect-me-en
+opennlp: cdf33c653d5d61d5af7d37ffee189a83bd8392ea
+jdk: 21.0.12.1
+whitespace: unicode
+model: opennlp-en-ud-ewt-sentence-1.3-2.5.4.bin
+model-sha256: 4de58d12b09421003c8b1ba13e8b58ec533b28e1f22a65272119dc0993d333e8
+input: \uC548\uB155\uD558\uC138\uC694. \uC800\uB294 \uD55C\uAD6D\uC5B4\uB97C \uACF5\uBD80\uD569\uB2C8\uB2E4. \uAC10\uC0AC\uD569\uB2C8\uB2E4!\n
+span: 0 16 0 6 0.9457241513452155
+span: 17 53 7 21 0.9861859140553572
+span: 54 70 22 28 0.9998843514464023

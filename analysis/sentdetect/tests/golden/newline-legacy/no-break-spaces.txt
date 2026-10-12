@@ -1,0 +1,6 @@
+component: newline
+opennlp: cdf33c653d5d61d5af7d37ffee189a83bd8392ea
+jdk: 21.0.12.1
+whitespace: legacy
+input: no\u00A0break space and\u3000ideographic space\u2007figure\u202Fnarrow\u2002en\u2003em\u200Bzero width\u2009thin end\n
+span: 0 91 0 76

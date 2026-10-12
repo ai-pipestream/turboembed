@@ -1,0 +1,9 @@
+component: whitespace
+opennlp: cdf33c653d5d61d5af7d37ffee189a83bd8392ea
+jdk: 21.0.12.1
+whitespace: legacy
+input: one\rtwo\rthree\r\rfive
+span: 0 3 0 3
+span: 4 7 4 7
+span: 8 13 8 13
+span: 15 19 15 19

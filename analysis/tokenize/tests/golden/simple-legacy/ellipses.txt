@@ -1,0 +1,24 @@
+component: simple
+opennlp: cdf33c653d5d61d5af7d37ffee189a83bd8392ea
+jdk: 21.0.12.1
+whitespace: legacy
+input: Wait... what? Well\u2026 maybe. . . . or not.. Hmm...... ok\u2026\u2026 end\n
+span: 0 4 0 4
+span: 4 7 4 7
+span: 8 12 8 12
+span: 12 13 12 13
+span: 14 18 14 18
+span: 18 21 18 19
+span: 22 27 20 25
+span: 27 28 25 26
+span: 29 30 27 28
+span: 31 32 29 30
+span: 33 34 31 32
+span: 35 37 33 35
+span: 38 41 36 39
+span: 41 43 39 41
+span: 44 47 42 45
+span: 47 53 45 51
+span: 54 56 52 54
+span: 56 62 54 56
+span: 63 66 57 60

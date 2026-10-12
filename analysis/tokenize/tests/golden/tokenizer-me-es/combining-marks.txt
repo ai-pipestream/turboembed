@@ -1,0 +1,16 @@
+component: tokenizer-me-es
+opennlp: cdf33c653d5d61d5af7d37ffee189a83bd8392ea
+jdk: 21.0.12.1
+whitespace: unicode
+model: opennlp-es-ud-gsd-tokens-1.3-2.5.4.bin
+model-sha256: 309de611ff7a8c4227c57086838d4783bcede8520026d7ad416c85a513567ce7
+alpha-numeric-pattern: ^[0-9a-z\u00E1\u00E9\u00ED\u00F3\u00FA\u00FC\u00FD\u00F1A-Z\u00C1\u00C9\u00CD\u00D3\u00DA\u00DD\u00D1]+$
+use-alpha-numeric-optimization: false
+input: e\u0301 caf\u00E9 cafe\u0301 a\u0308\u0323 n\u0303 \u0301start x\u0301\u0301y\n
+span: 0 3 0 2 0.879884904847372
+span: 4 9 3 7 0.9995040225286329
+span: 10 16 8 13 0.9405910915719586
+span: 17 22 14 17 0.6523462428286062
+span: 23 26 18 20 0.8483356515257122
+span: 27 34 21 27 0.9990570793444776
+span: 35 41 28 32 0.8321665977174204

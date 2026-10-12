@@ -1,0 +1,7 @@
+component: whitespace-newlines
+opennlp: cdf33c653d5d61d5af7d37ffee189a83bd8392ea
+jdk: 21.0.12.1
+whitespace: legacy
+input: \u6211\u7231\u5317\u4EAC\u5929\u5B89\u95E8\u3002\u4ECA\u5929\u5929\u6C14\u5F88\u597D\uFF0C\u6211\u4EEC\u53BB\u516C\u56ED\u73A9\u5427\uFF01\n
+span: 0 69 0 23
+span: 69 70 23 24

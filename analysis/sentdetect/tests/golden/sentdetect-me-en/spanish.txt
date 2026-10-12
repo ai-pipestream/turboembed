@@ -1,0 +1,11 @@
+component: sentdetect-me-en
+opennlp: cdf33c653d5d61d5af7d37ffee189a83bd8392ea
+jdk: 21.0.12.1
+whitespace: unicode
+model: opennlp-en-ud-ewt-sentence-1.3-2.5.4.bin
+model-sha256: 4de58d12b09421003c8b1ba13e8b58ec533b28e1f22a65272119dc0993d333e8
+input: El Sr. Garc\u00EDa dijo: \u00AB\u00BFD\u00F3nde est\u00E1 la ni\u00F1a?\u00BB y se fue a la se\u00F1al de tr\u00E1fico. \u00A1Qu\u00E9 d\u00EDa! Hab\u00EDa 1.000 a\u00F1os\u2026 ping\u00FCino, canci\u00F3n.\n
+span: 0 6 0 6 0.8319842450354187
+span: 7 83 7 74 0.9874381833115079
+span: 84 96 75 84 0.9379488095373787
+span: 97 139 85 121 0.9999641487813193

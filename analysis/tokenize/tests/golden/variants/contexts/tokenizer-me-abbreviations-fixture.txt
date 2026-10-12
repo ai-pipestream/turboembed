@@ -1,0 +1,370 @@
+component: tokenizer-me-abbreviations-fixture-contexts
+opennlp: cdf33c653d5d61d5af7d37ffee189a83bd8392ea
+jdk: 21.0.12.1
+whitespace: unicode
+model: tokenizer-abbreviations.bin
+model-sha256: bd5334327d3c4ffab19765bec7755b71a9eaea50e4c23ce10712f48bdb14c7e1
+alpha-numeric-pattern: ^[A-Za-z0-9]+$
+use-alpha-numeric-optimization: false
+outcomes: T F
+input: Dr. A.M. (c)Co.ltd
+unit: 0 3
+at: 1
+features: p=D	s=r.	p1=D	p1_alpha	p1_caps	p2=bok	p1f1=Dr	f1=r	f1_alpha	f2=.	f2_eos	f12=r.
+probs: 0.008861531091298665 0.9911384689087014
+at: 2
+features: p=Dr	s=.	p1=r	p1_alpha	p2=D	p2_alpha	p2_caps	p21=Dr	p1f1=r.	f1=.	f1_eos	f2=bok	pabb
+probs: 0.05558088524337585 0.9444191147566241
+unit: 4 8
+at: 1
+features: p=A	s=.M.	p1=A	p1_alpha	p1_caps	p2=bok	p1f1=A.	f1=.	f1_eos	f2=M	f2_alpha	f2_caps	f12=.M
+probs: 0.10647503147924825 0.8935249685207518
+at: 2
+features: p=A.	s=M.	p1=.	p1_eos	p2=A	p2_alpha	p2_caps	p21=A.	p1f1=.M	f1=M	f1_alpha	f1_caps	f2=.	f2_eos	f12=M.
+probs: 0.09630201682460057 0.9036979831753994
+at: 3
+features: p=A.M	s=.	p1=M	p1_alpha	p1_caps	p2=.	p2_eos	p21=.M	p1f1=M.	f1=.	f1_eos	f2=bok
+probs: 0.30695925062668394 0.6930407493733161
+unit: 9 18
+at: 1
+features: p=(	s=c)Co.ltd	p1=(	p1_lp	p2=bok	p1f1=(c	f1=c	f1_alpha	f2=)	f2_rp	f12=c)
+probs: 0.3741068775133442 0.6258931224866557
+at: 2
+features: p=(c	s=)Co.ltd	p1=c	p1_alpha	p2=(	p2_lp	p21=(c	p1f1=c)	f1=)	f1_rp	f2=C	f2_alpha	f2_caps	f12=)C
+probs: 0.3634281747482536 0.6365718252517464
+at: 3
+features: p=(c)	s=Co.ltd	p1=)	p1_rp	p2=c	p2_alpha	p21=c)	p1f1=)C	f1=C	f1_alpha	f1_caps	f2=o	f2_alpha	f12=Co
+probs: 0.14808485109658426 0.8519151489034158
+at: 4
+features: p=(c)C	s=o.ltd	p1=C	p1_alpha	p1_caps	p2=)	p2_rp	p21=)C	p1f1=Co	f1=o	f1_alpha	f2=.	f2_eos	f12=o.
+probs: 0.03731633775418073 0.9626836622458192
+at: 5
+features: p=(c)Co	s=.ltd	p1=o	p1_alpha	p2=C	p2_alpha	p2_caps	p21=Co	p1f1=o.	f1=.	f1_eos	f2=l	f2_alpha	f12=.l
+probs: 0.14665500866297287 0.8533449913370271
+at: 6
+features: p=(c)Co.	s=ltd	p1=.	p1_eos	p2=o	p2_alpha	p21=o.	p1f1=.l	f1=l	f1_alpha	f2=t	f2_alpha	f12=lt
+probs: 0.05409444902800768 0.9459055509719922
+at: 7
+features: p=(c)Co.l	s=td	p1=l	p1_alpha	p2=.	p2_eos	p21=.l	p1f1=lt	f1=t	f1_alpha	f2=d	f2_alpha	f12=td
+probs: 0.010972120950209649 0.9890278790497904
+at: 8
+features: p=(c)Co.lt	s=d	p1=t	p1_alpha	p2=l	p2_alpha	p21=lt	p1f1=td	f1=d	f1_alpha	f2=bok
+probs: 0.08501735380296124 0.9149826461970387
+input: (c)Co.ltd xyz.,"abc A.M.
+unit: 0 9
+at: 1
+features: p=(	s=c)Co.ltd	p1=(	p1_lp	p2=bok	p1f1=(c	f1=c	f1_alpha	f2=)	f2_rp	f12=c)
+probs: 0.3741068775133442 0.6258931224866557
+at: 2
+features: p=(c	s=)Co.ltd	p1=c	p1_alpha	p2=(	p2_lp	p21=(c	p1f1=c)	f1=)	f1_rp	f2=C	f2_alpha	f2_caps	f12=)C
+probs: 0.3634281747482536 0.6365718252517464
+at: 3
+features: p=(c)	s=Co.ltd	p1=)	p1_rp	p2=c	p2_alpha	p21=c)	p1f1=)C	f1=C	f1_alpha	f1_caps	f2=o	f2_alpha	f12=Co
+probs: 0.14808485109658426 0.8519151489034158
+at: 4
+features: p=(c)C	s=o.ltd	p1=C	p1_alpha	p1_caps	p2=)	p2_rp	p21=)C	p1f1=Co	f1=o	f1_alpha	f2=.	f2_eos	f12=o.
+probs: 0.03731633775418073 0.9626836622458192
+at: 5
+features: p=(c)Co	s=.ltd	p1=o	p1_alpha	p2=C	p2_alpha	p2_caps	p21=Co	p1f1=o.	f1=.	f1_eos	f2=l	f2_alpha	f12=.l
+probs: 0.14665500866297287 0.8533449913370271
+at: 6
+features: p=(c)Co.	s=ltd	p1=.	p1_eos	p2=o	p2_alpha	p21=o.	p1f1=.l	f1=l	f1_alpha	f2=t	f2_alpha	f12=lt
+probs: 0.05409444902800768 0.9459055509719922
+at: 7
+features: p=(c)Co.l	s=td	p1=l	p1_alpha	p2=.	p2_eos	p21=.l	p1f1=lt	f1=t	f1_alpha	f2=d	f2_alpha	f12=td
+probs: 0.010972120950209649 0.9890278790497904
+at: 8
+features: p=(c)Co.lt	s=d	p1=t	p1_alpha	p2=l	p2_alpha	p21=lt	p1f1=td	f1=d	f1_alpha	f2=bok
+probs: 0.08501735380296124 0.9149826461970387
+unit: 10 19
+at: 1
+features: p=x	s=yz.,"abc	p1=x	p1_alpha	p2=bok	p1f1=xy	f1=y	f1_alpha	f2=z	f2_alpha	f12=yz
+probs: 0.060541543697713855 0.9394584563022861
+at: 2
+features: p=xy	s=z.,"abc	p1=y	p1_alpha	p2=x	p2_alpha	p21=xy	p1f1=yz	f1=z	f1_alpha	f2=.	f2_eos	f12=z.
+probs: 0.05267940603168934 0.9473205939683106
+at: 3
+features: p=xyz	s=.,"abc	p1=z	p1_alpha	p2=y	p2_alpha	p21=yz	p1f1=z.	f1=.	f1_eos	f2=,	f12=.,
+probs: 0.34202794588233726 0.6579720541176626
+at: 4
+features: p=xyz.	s=,"abc	p1=.	p1_eos	p2=z	p2_alpha	p21=z.	p1f1=.,	f1=,	f2="	f2_quote	f12=,"
+probs: 0.407993589788889 0.5920064102111109
+at: 5
+features: p=xyz.,	s="abc	p1=,	p2=.	p2_eos	p21=.,	p1f1=,"	f1="	f1_quote	f2=a	f2_alpha	f12="a
+probs: 0.3135355834994606 0.6864644165005396
+at: 6
+features: p=xyz.,"	s=abc	p1="	p1_quote	p2=,	p21=,"	p1f1="a	f1=a	f1_alpha	f2=b	f2_alpha	f12=ab
+probs: 0.1839946810303972 0.8160053189696027
+at: 7
+features: p=xyz.,"a	s=bc	p1=a	p1_alpha	p2="	p2_quote	p21="a	p1f1=ab	f1=b	f1_alpha	f2=c	f2_alpha	f12=bc
+probs: 0.029673094963301148 0.9703269050366989
+at: 8
+features: p=xyz.,"ab	s=c	p1=b	p1_alpha	p2=a	p2_alpha	p21=ab	p1f1=bc	f1=c	f1_alpha	f2=bok
+probs: 0.10088068747442526 0.8991193125255748
+unit: 20 24
+at: 1
+features: p=A	s=.M.	p1=A	p1_alpha	p1_caps	p2=bok	p1f1=A.	f1=.	f1_eos	f2=M	f2_alpha	f2_caps	f12=.M
+probs: 0.10647503147924825 0.8935249685207518
+at: 2
+features: p=A.	s=M.	p1=.	p1_eos	p2=A	p2_alpha	p2_caps	p21=A.	p1f1=.M	f1=M	f1_alpha	f1_caps	f2=.	f2_eos	f12=M.
+probs: 0.09630201682460057 0.9036979831753994
+at: 3
+features: p=A.M	s=.	p1=M	p1_alpha	p1_caps	p2=.	p2_eos	p21=.M	p1f1=M.	f1=.	f1_eos	f2=bok
+probs: 0.30695925062668394 0.6930407493733161
+input: Dr. Smith went to the U.S. office, e.g. today. DR. e.g., (Dr.)
+unit: 0 3
+at: 1
+features: p=D	s=r.	p1=D	p1_alpha	p1_caps	p2=bok	p1f1=Dr	f1=r	f1_alpha	f2=.	f2_eos	f12=r.
+probs: 0.008861531091298665 0.9911384689087014
+at: 2
+features: p=Dr	s=.	p1=r	p1_alpha	p2=D	p2_alpha	p2_caps	p21=Dr	p1f1=r.	f1=.	f1_eos	f2=bok	pabb
+probs: 0.05558088524337585 0.9444191147566241
+unit: 4 9
+at: 1
+features: p=S	s=mith	p1=S	p1_alpha	p1_caps	p2=bok	p1f1=Sm	f1=m	f1_alpha	f2=i	f2_alpha	f12=mi
+probs: 0.011063215275457866 0.9889367847245422
+at: 2
+features: p=Sm	s=ith	p1=m	p1_alpha	p2=S	p2_alpha	p2_caps	p21=Sm	p1f1=mi	f1=i	f1_alpha	f2=t	f2_alpha	f12=it
+probs: 0.010018788078920888 0.9899812119210791
+at: 3
+features: p=Smi	s=th	p1=i	p1_alpha	p2=m	p2_alpha	p21=mi	p1f1=it	f1=t	f1_alpha	f2=h	f2_alpha	f12=th
+probs: 0.021963211027463625 0.9780367889725364
+at: 4
+features: p=Smit	s=h	p1=t	p1_alpha	p2=i	p2_alpha	p21=it	p1f1=th	f1=h	f1_alpha	f2=bok
+probs: 0.07568993009016155 0.9243100699098384
+unit: 10 14
+at: 1
+features: p=w	s=ent	p1=w	p1_alpha	p2=bok	p1f1=we	f1=e	f1_alpha	f2=n	f2_alpha	f12=en
+probs: 0.01316165462569227 0.9868383453743077
+at: 2
+features: p=we	s=nt	p1=e	p1_alpha	p2=w	p2_alpha	p21=we	p1f1=en	f1=n	f1_alpha	f2=t	f2_alpha	f12=nt
+probs: 0.03314749509828443 0.9668525049017156
+at: 3
+features: p=wen	s=t	p1=n	p1_alpha	p2=e	p2_alpha	p21=en	p1f1=nt	f1=t	f1_alpha	f2=bok
+probs: 0.11849209380621094 0.8815079061937892
+unit: 15 17
+at: 1
+features: p=t	s=o	p1=t	p1_alpha	p2=bok	p1f1=to	f1=o	f1_alpha	f2=bok
+probs: 0.049716788101423944 0.9502832118985761
+unit: 18 21
+at: 1
+features: p=t	s=he	p1=t	p1_alpha	p2=bok	p1f1=th	f1=h	f1_alpha	f2=e	f2_alpha	f12=he
+probs: 0.00924628243118391 0.990753717568816
+at: 2
+features: p=th	s=e	p1=h	p1_alpha	p2=t	p2_alpha	p21=th	p1f1=he	f1=e	f1_alpha	f2=bok
+probs: 0.099890309584182 0.900109690415818
+unit: 22 26
+at: 1
+features: p=U	s=.S.	p1=U	p1_alpha	p1_caps	p2=bok	p1f1=U.	f1=.	f1_eos	f2=S	f2_alpha	f2_caps	f12=.S
+probs: 0.0223699108828416 0.9776300891171584
+at: 2
+features: p=U.	s=S.	p1=.	p1_eos	p2=U	p2_alpha	p2_caps	p21=U.	p1f1=.S	f1=S	f1_alpha	f1_caps	f2=.	f2_eos	f12=S.
+probs: 0.018462637943046797 0.9815373620569533
+at: 3
+features: p=U.S	s=.	p1=S	p1_alpha	p1_caps	p2=.	p2_eos	p21=.S	p1f1=S.	f1=.	f1_eos	f2=bok	pabb
+probs: 0.045550883203004516 0.9544491167969955
+unit: 27 34
+at: 1
+features: p=o	s=ffice,	p1=o	p1_alpha	p2=bok	p1f1=of	f1=f	f1_alpha	f2=f	f2_alpha	f12=ff
+probs: 0.018491644906825012 0.9815083550931749
+at: 2
+features: p=of	s=fice,	p1=f	p1_alpha	p2=o	p2_alpha	p21=of	p1f1=ff	f1=f	f1_alpha	f2=i	f2_alpha	f12=fi
+probs: 0.11663015891028913 0.8833698410897108
+at: 3
+features: p=off	s=ice,	p1=f	p1_alpha	p2=f	p2_alpha	p21=ff	p1f1=fi	f1=i	f1_alpha	f2=c	f2_alpha	f12=ic
+probs: 0.04322973943664425 0.9567702605633558
+at: 4
+features: p=offi	s=ce,	p1=i	p1_alpha	p2=f	p2_alpha	p21=fi	p1f1=ic	f1=c	f1_alpha	f2=e	f2_alpha	f12=ce
+probs: 0.049921771684073475 0.9500782283159265
+at: 5
+features: p=offic	s=e,	p1=c	p1_alpha	p2=i	p2_alpha	p21=ic	p1f1=ce	f1=e	f1_alpha	f2=,	f12=e,
+probs: 0.08185234249968229 0.9181476575003177
+at: 6
+features: p=office	s=,	p1=e	p1_alpha	p2=c	p2_alpha	p21=ce	p1f1=e,	f1=,	f2=bok
+probs: 0.82502628751317 0.1749737124868301
+unit: 35 39
+at: 1
+features: p=e	s=.g.	p1=e	p1_alpha	p2=bok	p1f1=e.	f1=.	f1_eos	f2=g	f2_alpha	f12=.g
+probs: 0.06117903048314074 0.9388209695168592
+at: 2
+features: p=e.	s=g.	p1=.	p1_eos	p2=e	p2_alpha	p21=e.	p1f1=.g	f1=g	f1_alpha	f2=.	f2_eos	f12=g.
+probs: 0.01273628451853137 0.9872637154814686
+at: 3
+features: p=e.g	s=.	p1=g	p1_alpha	p2=.	p2_eos	p21=.g	p1f1=g.	f1=.	f1_eos	f2=bok	pabb
+probs: 0.046056293656607086 0.9539437063433929
+unit: 40 46
+at: 1
+features: p=t	s=oday.	p1=t	p1_alpha	p2=bok	p1f1=to	f1=o	f1_alpha	f2=d	f2_alpha	f12=od
+probs: 0.01606404809753415 0.9839359519024659
+at: 2
+features: p=to	s=day.	p1=o	p1_alpha	p2=t	p2_alpha	p21=to	p1f1=od	f1=d	f1_alpha	f2=a	f2_alpha	f12=da
+probs: 0.028778088206192525 0.9712219117938075
+at: 3
+features: p=tod	s=ay.	p1=d	p1_alpha	p2=o	p2_alpha	p21=od	p1f1=da	f1=a	f1_alpha	f2=y	f2_alpha	f12=ay
+probs: 0.10877550795189828 0.8912244920481017
+at: 4
+features: p=toda	s=y.	p1=a	p1_alpha	p2=d	p2_alpha	p21=da	p1f1=ay	f1=y	f1_alpha	f2=.	f2_eos	f12=y.
+probs: 0.11082030540586048 0.8891796945941395
+at: 5
+features: p=today	s=.	p1=y	p1_alpha	p2=a	p2_alpha	p21=ay	p1f1=y.	f1=.	f1_eos	f2=bok
+probs: 0.47894381198211383 0.5210561880178863
+unit: 47 50
+at: 1
+features: p=D	s=R.	p1=D	p1_alpha	p1_caps	p2=bok	p1f1=DR	f1=R	f1_alpha	f1_caps	f2=.	f2_eos	f12=R.
+probs: 0.038995219420135854 0.9610047805798642
+at: 2
+features: p=DR	s=.	p1=R	p1_alpha	p1_caps	p2=D	p2_alpha	p2_caps	p21=DR	p1f1=R.	f1=.	f1_eos	f2=bok	pabb
+probs: 0.2444493279903097 0.7555506720096903
+unit: 51 56
+at: 1
+features: p=e	s=.g.,	p1=e	p1_alpha	p2=bok	p1f1=e.	f1=.	f1_eos	f2=g	f2_alpha	f12=.g
+probs: 0.0982312528041633 0.9017687471958368
+at: 2
+features: p=e.	s=g.,	p1=.	p1_eos	p2=e	p2_alpha	p21=e.	p1f1=.g	f1=g	f1_alpha	f2=.	f2_eos	f12=g.
+probs: 0.015757913983465044 0.984242086016535
+at: 3
+features: p=e.g	s=.,	p1=g	p1_alpha	p2=.	p2_eos	p21=.g	p1f1=g.	f1=.	f1_eos	f2=,	f12=.,
+probs: 0.035008869072849426 0.9649911309271506
+at: 4
+features: p=e.g.	s=,	p1=.	p1_eos	p2=g	p2_alpha	p21=g.	p1f1=.,	f1=,	f2=bok
+probs: 0.6967649612763015 0.30323503872369834
+unit: 57 62
+at: 1
+features: p=(	s=Dr.)	p1=(	p1_lp	p2=bok	p1f1=(D	f1=D	f1_alpha	f1_caps	f2=r	f2_alpha	f12=Dr
+probs: 0.47055352246894067 0.5294464775310593
+at: 2
+features: p=(D	s=r.)	p1=D	p1_alpha	p1_caps	p2=(	p2_lp	p21=(D	p1f1=Dr	f1=r	f1_alpha	f2=.	f2_eos	f12=r.
+probs: 0.01699607536002823 0.9830039246399717
+at: 3
+features: p=(Dr	s=.)	p1=r	p1_alpha	p2=D	p2_alpha	p2_caps	p21=Dr	p1f1=r.	f1=.	f1_eos	f2=)	f2_rp	f12=.)
+probs: 0.04941057286520078 0.9505894271347992
+at: 4
+features: p=(Dr.	s=)	p1=.	p1_eos	p2=r	p2_alpha	p21=r.	p1f1=.)	f1=)	f1_rp	f2=bok
+probs: 0.8927240545865518 0.10727594541344823
+input: Dr. Smith met e.g. U.S. officials at 9 a.m. etc. DR. dr.x e.g.,
+unit: 0 3
+at: 1
+features: p=D	s=r.	p1=D	p1_alpha	p1_caps	p2=bok	p1f1=Dr	f1=r	f1_alpha	f2=.	f2_eos	f12=r.
+probs: 0.008861531091298665 0.9911384689087014
+at: 2
+features: p=Dr	s=.	p1=r	p1_alpha	p2=D	p2_alpha	p2_caps	p21=Dr	p1f1=r.	f1=.	f1_eos	f2=bok	pabb
+probs: 0.05558088524337585 0.9444191147566241
+unit: 4 9
+at: 1
+features: p=S	s=mith	p1=S	p1_alpha	p1_caps	p2=bok	p1f1=Sm	f1=m	f1_alpha	f2=i	f2_alpha	f12=mi
+probs: 0.011063215275457866 0.9889367847245422
+at: 2
+features: p=Sm	s=ith	p1=m	p1_alpha	p2=S	p2_alpha	p2_caps	p21=Sm	p1f1=mi	f1=i	f1_alpha	f2=t	f2_alpha	f12=it
+probs: 0.010018788078920888 0.9899812119210791
+at: 3
+features: p=Smi	s=th	p1=i	p1_alpha	p2=m	p2_alpha	p21=mi	p1f1=it	f1=t	f1_alpha	f2=h	f2_alpha	f12=th
+probs: 0.021963211027463625 0.9780367889725364
+at: 4
+features: p=Smit	s=h	p1=t	p1_alpha	p2=i	p2_alpha	p21=it	p1f1=th	f1=h	f1_alpha	f2=bok
+probs: 0.07568993009016155 0.9243100699098384
+unit: 10 13
+at: 1
+features: p=m	s=et	p1=m	p1_alpha	p2=bok	p1f1=me	f1=e	f1_alpha	f2=t	f2_alpha	f12=et
+probs: 0.009887108900762049 0.9901128910992381
+at: 2
+features: p=me	s=t	p1=e	p1_alpha	p2=m	p2_alpha	p21=me	p1f1=et	f1=t	f1_alpha	f2=bok
+probs: 0.38143946356877656 0.6185605364312233
+unit: 14 18
+at: 1
+features: p=e	s=.g.	p1=e	p1_alpha	p2=bok	p1f1=e.	f1=.	f1_eos	f2=g	f2_alpha	f12=.g
+probs: 0.06117903048314074 0.9388209695168592
+at: 2
+features: p=e.	s=g.	p1=.	p1_eos	p2=e	p2_alpha	p21=e.	p1f1=.g	f1=g	f1_alpha	f2=.	f2_eos	f12=g.
+probs: 0.01273628451853137 0.9872637154814686
+at: 3
+features: p=e.g	s=.	p1=g	p1_alpha	p2=.	p2_eos	p21=.g	p1f1=g.	f1=.	f1_eos	f2=bok	pabb
+probs: 0.046056293656607086 0.9539437063433929
+unit: 19 23
+at: 1
+features: p=U	s=.S.	p1=U	p1_alpha	p1_caps	p2=bok	p1f1=U.	f1=.	f1_eos	f2=S	f2_alpha	f2_caps	f12=.S
+probs: 0.0223699108828416 0.9776300891171584
+at: 2
+features: p=U.	s=S.	p1=.	p1_eos	p2=U	p2_alpha	p2_caps	p21=U.	p1f1=.S	f1=S	f1_alpha	f1_caps	f2=.	f2_eos	f12=S.
+probs: 0.018462637943046797 0.9815373620569533
+at: 3
+features: p=U.S	s=.	p1=S	p1_alpha	p1_caps	p2=.	p2_eos	p21=.S	p1f1=S.	f1=.	f1_eos	f2=bok	pabb
+probs: 0.045550883203004516 0.9544491167969955
+unit: 24 33
+at: 1
+features: p=o	s=fficials	p1=o	p1_alpha	p2=bok	p1f1=of	f1=f	f1_alpha	f2=f	f2_alpha	f12=ff
+probs: 0.018491644906825012 0.9815083550931749
+at: 2
+features: p=of	s=ficials	p1=f	p1_alpha	p2=o	p2_alpha	p21=of	p1f1=ff	f1=f	f1_alpha	f2=i	f2_alpha	f12=fi
+probs: 0.11663015891028913 0.8833698410897108
+at: 3
+features: p=off	s=icials	p1=f	p1_alpha	p2=f	p2_alpha	p21=ff	p1f1=fi	f1=i	f1_alpha	f2=c	f2_alpha	f12=ic
+probs: 0.04322973943664425 0.9567702605633558
+at: 4
+features: p=offi	s=cials	p1=i	p1_alpha	p2=f	p2_alpha	p21=fi	p1f1=ic	f1=c	f1_alpha	f2=i	f2_alpha	f12=ci
+probs: 0.0761570693342725 0.9238429306657275
+at: 5
+features: p=offic	s=ials	p1=c	p1_alpha	p2=i	p2_alpha	p21=ic	p1f1=ci	f1=i	f1_alpha	f2=a	f2_alpha	f12=ia
+probs: 0.06472448508830161 0.9352755149116984
+at: 6
+features: p=offici	s=als	p1=i	p1_alpha	p2=c	p2_alpha	p21=ci	p1f1=ia	f1=a	f1_alpha	f2=l	f2_alpha	f12=al
+probs: 0.03150716235046823 0.9684928376495318
+at: 7
+features: p=officia	s=ls	p1=a	p1_alpha	p2=i	p2_alpha	p21=ia	p1f1=al	f1=l	f1_alpha	f2=s	f2_alpha	f12=ls
+probs: 0.0598810041469004 0.9401189958530995
+at: 8
+features: p=official	s=s	p1=l	p1_alpha	p2=a	p2_alpha	p21=al	p1f1=ls	f1=s	f1_alpha	f2=bok
+probs: 0.03218765751404455 0.9678123424859555
+unit: 34 36
+at: 1
+features: p=a	s=t	p1=a	p1_alpha	p2=bok	p1f1=at	f1=t	f1_alpha	f2=bok
+probs: 0.04648435036374033 0.9535156496362596
+unit: 39 43
+at: 1
+features: p=a	s=.m.	p1=a	p1_alpha	p2=bok	p1f1=a.	f1=.	f1_eos	f2=m	f2_alpha	f12=.m
+probs: 0.11422490153966794 0.8857750984603321
+at: 2
+features: p=a.	s=m.	p1=.	p1_eos	p2=a	p2_alpha	p21=a.	p1f1=.m	f1=m	f1_alpha	f2=.	f2_eos	f12=m.
+probs: 0.03814004561319362 0.9618599543868064
+at: 3
+features: p=a.m	s=.	p1=m	p1_alpha	p2=.	p2_eos	p21=.m	p1f1=m.	f1=.	f1_eos	f2=bok
+probs: 0.31260273408924466 0.6873972659107553
+unit: 44 48
+at: 1
+features: p=e	s=tc.	p1=e	p1_alpha	p2=bok	p1f1=et	f1=t	f1_alpha	f2=c	f2_alpha	f12=tc
+probs: 0.015470457728521804 0.9845295422714782
+at: 2
+features: p=et	s=c.	p1=t	p1_alpha	p2=e	p2_alpha	p21=et	p1f1=tc	f1=c	f1_alpha	f2=.	f2_eos	f12=c.
+probs: 0.04815614853789118 0.9518438514621089
+at: 3
+features: p=etc	s=.	p1=c	p1_alpha	p2=t	p2_alpha	p21=tc	p1f1=c.	f1=.	f1_eos	f2=bok
+probs: 0.5887536339060646 0.4112463660939354
+unit: 49 52
+at: 1
+features: p=D	s=R.	p1=D	p1_alpha	p1_caps	p2=bok	p1f1=DR	f1=R	f1_alpha	f1_caps	f2=.	f2_eos	f12=R.
+probs: 0.038995219420135854 0.9610047805798642
+at: 2
+features: p=DR	s=.	p1=R	p1_alpha	p1_caps	p2=D	p2_alpha	p2_caps	p21=DR	p1f1=R.	f1=.	f1_eos	f2=bok	pabb
+probs: 0.2444493279903097 0.7555506720096903
+unit: 53 57
+at: 1
+features: p=d	s=r.x	p1=d	p1_alpha	p2=bok	p1f1=dr	f1=r	f1_alpha	f2=.	f2_eos	f12=r.
+probs: 0.03835052366124462 0.9616494763387554
+at: 2
+features: p=dr	s=.x	p1=r	p1_alpha	p2=d	p2_alpha	p21=dr	p1f1=r.	f1=.	f1_eos	f2=x	f2_alpha	f12=.x
+probs: 0.13581797702065232 0.8641820229793478
+at: 3
+features: p=dr.	s=x	p1=.	p1_eos	p2=r	p2_alpha	p21=r.	p1f1=.x	f1=x	f1_alpha	f2=bok
+probs: 0.18998600970680518 0.8100139902931948
+unit: 58 63
+at: 1
+features: p=e	s=.g.,	p1=e	p1_alpha	p2=bok	p1f1=e.	f1=.	f1_eos	f2=g	f2_alpha	f12=.g
+probs: 0.0982312528041633 0.9017687471958368
+at: 2
+features: p=e.	s=g.,	p1=.	p1_eos	p2=e	p2_alpha	p21=e.	p1f1=.g	f1=g	f1_alpha	f2=.	f2_eos	f12=g.
+probs: 0.015757913983465044 0.984242086016535
+at: 3
+features: p=e.g	s=.,	p1=g	p1_alpha	p2=.	p2_eos	p21=.g	p1f1=g.	f1=.	f1_eos	f2=,	f12=.,
+probs: 0.035008869072849426 0.9649911309271506
+at: 4
+features: p=e.g.	s=,	p1=.	p1_eos	p2=g	p2_alpha	p21=g.	p1f1=.,	f1=,	f2=bok
+probs: 0.6967649612763015 0.30323503872369834

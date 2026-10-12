@@ -1,0 +1,12 @@
+component: sentdetect-me-en
+opennlp: cdf33c653d5d61d5af7d37ffee189a83bd8392ea
+jdk: 21.0.12.1
+whitespace: unicode
+model: opennlp-en-ud-ewt-sentence-1.3-2.5.4.bin
+model-sha256: 4de58d12b09421003c8b1ba13e8b58ec533b28e1f22a65272119dc0993d333e8
+input: Wait... what? Well\u2026 maybe. . . . or not.. Hmm...... ok\u2026\u2026 end\n
+span: 0 7 0 7 0.5545689891409119
+span: 8 13 8 13 0.9925253563995567
+span: 14 43 14 41 0.925271144688448
+span: 44 53 42 51 0.5545689891409119
+span: 54 66 52 60 1.0

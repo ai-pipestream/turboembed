@@ -1,0 +1,9 @@
+component: sentdetect-me-en
+opennlp: cdf33c653d5d61d5af7d37ffee189a83bd8392ea
+jdk: 21.0.12.1
+whitespace: unicode
+model: opennlp-en-ud-ewt-sentence-1.3-2.5.4.bin
+model-sha256: 4de58d12b09421003c8b1ba13e8b58ec533b28e1f22a65272119dc0993d333e8
+input: emoji in word: ab\uD83D\uDE00cd, math \uD835\uDC00\uD835\uDC01\uD835\uDC02 \uD835\uDC1A\uD835\uDC1B\uD835\uDC1C deseret \uD801\uDC00\uD801\uDC28\uD801\uDC45 done. \uD840\uDC00 rare CJK.\n
+span: 0 82 0 62 0.9142836995081822
+span: 83 97 63 75 0.9995567596405406

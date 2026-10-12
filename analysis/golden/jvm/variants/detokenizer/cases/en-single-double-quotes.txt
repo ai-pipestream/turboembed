@@ -1,0 +1,10 @@
+'
+Quoted
+'
+and
+"
+double
+"
+and
+"
+odd
