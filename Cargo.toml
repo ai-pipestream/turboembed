@@ -20,6 +20,7 @@ members = [
     "analysis/sentdetect",
     "analysis/tokenize",
     "analysis/tokenize-layers",
+    "analysis/langdetect",
 ]
 resolver = "3"
 

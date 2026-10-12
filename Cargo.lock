@@ -1846,6 +1846,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "turbo-langdetect"
+version = "0.1.0"
+dependencies = [
+ "turbo-analysis",
+ "turbo-analysis-layers",
+ "turbo-goldens",
+ "turbo-maxent",
+ "turbo-normalize",
+ "turbo-unicode",
+]
+
+[[package]]
 name = "turbo-maxent"
 version = "0.1.0"
 dependencies = [
