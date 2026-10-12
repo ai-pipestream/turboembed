@@ -66,8 +66,15 @@ final class TokenDump implements AnnotatorDump {
   }
 
   @Override
-  public Run run(Input input) {
-    List<Layer> layers = TokenGolden.layers(tokenizer, input);
+  public Run run(Input input) throws AnnotatorException {
+    List<Layer> layers;
+    try {
+      layers = TokenGolden.layers(tokenizer, input);
+    } catch (AnnotatorException e) {
+      // What the model was asked before the annotator threw belongs to no dump.
+      recorder.discard();
+      throw e;
+    }
     String text = input.text();
     Span[] spans = WHITESPACE.tokenizePos(text);
     Set<String> evaluated = new HashSet<>();

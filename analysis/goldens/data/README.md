@@ -16,7 +16,9 @@ are not taken from any corpus.
   and curly quotes, numbers with periods, ellipses, URLs and an email
   address, a numbered and a bulleted list, all caps sentences, emoji
   (characters outside the Basic Multilingual Plane, so surrogate pairs in
-  Java), lines holding only whitespace, and paragraphs.
+  Java), lines holding only whitespace, and paragraphs. `emoji-split.txt`
+  puts an emoji after a quote, a comma and an ampersand, where
+  `TokenizerME` splits it between its two UTF-16 units.
 - `inputs/multi/`: one text each in German, French, Spanish, Portuguese,
   Italian, Dutch, Russian, Japanese, Chinese and Arabic, and a mixed
   script text with emoji, CJK Extension B characters and mathematical
@@ -28,6 +30,16 @@ are not taken from any corpus.
 `<annotator>` produced with model `<model>` (the model file's name
 without `.bin`) on `inputs/<set>/<id>.txt`. Each file's header names the
 OpenNLP commit, the JDK, the input's hash and the model's hash.
+
+Where a token or sentence starts or ends between the two halves of a
+surrogate pair, its row holds the whole character's bytes and the golden
+also has `turbo:utf16<opennlp:tokens>` (or `<opennlp:sentences>`) with
+the JVM's exact UTF-16 spans; only
+`tokenize/opennlp-en-ud-ewt-tokens-1.3-2.5.4/en/emoji-split.golden` has
+one now. A golden whose annotator threw on its input has an `error`
+record and no layers; none of the checked in goldens has one, as none of
+the annotators throws on these inputs. `docs/analysis.md` ("Generating
+golden files") describes both.
 
 Do not edit the goldens by hand. They are regenerated with the driver in
 `analysis/goldens-tool` (see its README):
@@ -57,7 +69,8 @@ made to `inputs/norm/<id>.txt`; see `analysis/goldens-tool/README.md`.
 
 ## Decision point dumps
 
-`<annotator>/<model>/<set>/<id>.dump`, beside each golden, records every
+`<annotator>/<model>/<set>/<id>.dump`, beside each golden of
+`sentdetect`, `tokenize` and `langdetect`, records every
 decision the annotator asked its maxent model for on that input: the
 context strings, at the UTF-8 byte offset the decision is about, and the
 probability of each outcome the model returned. `docs/analysis.md`
@@ -68,7 +81,8 @@ hand.
 
 The dumps checked in now were made by running the Java generator
 directly with `--dumps` (see `analysis/goldens-tool/README.md`) under the
-JDK named in their headers, with the OpenNLP build and models the goldens
-were made with; the goldens of that run are byte for byte the checked in
-ones. The run in the pinned container, through `turbo-goldens generate`
-and `verify`, is still to be done on a machine with Docker.
+JDK named in their headers, in the same run as the goldens, with the
+OpenNLP build and models named there. A normalizer asks no model, so the
+`normalize` goldens have no dumps. The run in the pinned container,
+through `turbo-goldens generate` and `verify`, is still to be done on a
+machine with Docker.
