@@ -26,6 +26,8 @@ nothing here is in the C header or the gRPC server.
 | `turbo-goldens` | `analysis/goldens/` | Golden layer files from the JVM: the reader, the writer, the comparison, loading golden layers as test inputs, SHA-256 and SHA-512 |
 | `turbo-sequence` | `analysis/sequence/` | OpenNLP's beam search, BIO and BILOU codecs and feature generation framework (generators, `StringPattern` and the XML descriptors), with the context generators and validators of the part-of-speech tagger, chunker and name finder, the part-of-speech tag dictionary (`tags.tagdict`) and the Penn Treebank and Universal Dependencies tag mapping. Its crate documentation lists the OpenNLP behaviour it reproduces that is surprising, and the one it does not yet (QN models in a beam search); `analysis/sequence/README.md` describes its JVM golden files |
 | `turbo-namefind` | `analysis/namefind/` | OpenNLP's `DictionaryNameFinder`, `RegexNameFinder` and the patterns of `RegexNameFinderFactory`, which write `opennlp:entities` from `opennlp:tokens`, and the merge of several entity layers by `dropOverlappingSpans`. User patterns in Java syntax are translated to the `regex` crate or refused with a typed error; the crate documentation lists what is refused and the OpenNLP behaviour that is surprising, and `analysis/namefind/README.md` describes its JVM golden files |
+| `turbo-stem` | `analysis/stem/` | OpenNLP's stemmers: `PorterStemmer`, the 21 Snowball stemmers (generated from the Snowball sources OpenNLP's classes come from, over UTF-16 code units as in Java), the light and minimal stemmers, `CachingStemmer`, and `StemAnnotator` (OpenNLP's `StemmerAnnotator`), which writes `turbo:stems` from `opennlp:tokens`. Its crate documentation lists the OpenNLP behaviour that is surprising; `analysis/stem/README.md` describes its JVM golden files and how OpenNLP's Snowball stems differ from current Snowball's |
+| `turbo-stem-layers` | `analysis/stem-layers/` | The stemmers' layer, `turbo:stems` |
 | `turbo-stopword` | `analysis/stopword/` | OpenNLP's eleven bundled stopword lists (Bulgarian, Danish, German, English, Spanish, Finnish, French, Italian, Dutch, Portuguese, Russian) and `StopwordFilter.isStopword`, and the step that reads `opennlp:tokens` and, optionally, `opennlp:language` and writes `turbo:stopwords`, a flag per token; it flags and never removes. `analysis/stopword/data/README.md` gives each list's origin and license, the crate documentation lists the OpenNLP behaviour that is surprising, and `analysis/stopword/README.md` describes its JVM golden files |
 | `turbo-stopword-layers` | `analysis/stopword-layers/` | The `turbo:stopwords` layer and the languages that have a list (`StopwordLanguage`) |
 
@@ -272,6 +274,7 @@ fields mean bumps its `SCHEMA`.
 | `Subwords` | `opennlp:subwords` | text | `turbo-analysis-layers` |
 | `PosTags` | `opennlp:pos` | tokens | `turbo-analysis-layers` |
 | `Lemmas` | `opennlp:lemmas` | tokens | `turbo-analysis-layers` |
+| `Stems` | `turbo:stems` | tokens | `turbo-stem-layers` |
 | `Dependencies` | `opennlp:dependencies` | tokens | `turbo-analysis-layers` |
 | `Entities` | `opennlp:entities` | text | `turbo-analysis-layers` |
 | `Boundaries` | `turbo:boundaries` | sentences | `turbo-analysis-layers` |
