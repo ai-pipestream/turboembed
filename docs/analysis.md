@@ -16,15 +16,41 @@ nothing here is in the C header or the gRPC server.
 
 | Crate | Path | Contents |
 |---|---|---|
-| `turbo-analysis` | `analysis/core/` | The document, views, layers, keys, provenance, annotators, the analyzer and the registry |
+| `turbo-analysis` | `analysis/core/` | The document, views, offset tables, layers, keys, provenance, annotators, the analyzer and the registry |
 | `turbo-analysis-layers` | `analysis/layers/` | The layers add-ons share (below) |
 | `turbo-chunker` | `analysis/chunker/` | The chunker |
-| `turbo-goldens` | `analysis/goldens/` | Golden layer files from the JVM: the reader, the writer, the comparison, SHA-256 and SHA-512 |
+| `turbo-analysis-embed` | `analysis/embed/` | The embedding model as analysis steps: the subwords of a text view from the bundle's tokenizer |
+| `turbo-jvm` | `analysis/jvm/` | JVM behaviour the OpenNLP ports must reproduce bit for bit |
+| `turbo-goldens` | `analysis/goldens/` | Golden layer files from the JVM: the reader, the writer, the comparison, loading golden layers as test inputs, SHA-256 and SHA-512 |
 
-They need nothing beyond the standard library and each other. A shared
+They need nothing beyond the standard library and each other, except
+`turbo-analysis-embed`, which runs the embedding model and so depends on
+the core crate, `turbo`. A shared
 layer lives in `turbo-analysis-layers`, so a consumer of a layer never
 depends on the add-on that produces it; an add-on's own layers live in a
 small schema crate beside it, for the same reason.
+
+## JVM parity
+
+Some of OpenNLP's results depend on the Java platform rather than on
+OpenNLP, and `turbo-jvm` reproduces those parts exactly, so a port can
+match the JVM bit for bit:
+
+- `chars`: Java sees text as UTF-16 code units. `Utf16Units` yields the
+  units of a `&str` with the UTF-8 byte offset of each unit's character,
+  for context generators, `StringPattern` and character n-grams;
+  `utf16_len` is `String.length()`; `compare_to` is `String.compareTo`,
+  which orders by code unit and so differs from `str::cmp` for
+  characters outside the Basic Multilingual Plane; `is_java_whitespace`
+  is `Character.isWhitespace`.
+- `random`: `JavaRandom` is `java.util.Random` from a seed, and its
+  `shuffle` is `Collections.shuffle(List, Random)`, as OpenNLP's readers,
+  cross-validation and trainers use them.
+- `strict_math`: `exp` and `log` port fdlibm, which `StrictMath` computes
+  and which the maxent, perceptron and naive Bayes models call.
+
+It is checked against vectors a JDK 21 wrote; `analysis/jvm/README.md`
+says how to regenerate them.
 
 ## Offsets
 
@@ -34,7 +60,21 @@ Both ends of a span must be on character boundaries: a layer with a
 span that cuts a character is refused when it is added, not found later
 by a panic.
 UTF-16 and code point offsets, for Java and the wire, are conversions
-at the edge and are not built yet.
+at the edge, never a second coordinate system inside. Each view has an
+`OffsetTable` (`View::offsets`, `Document::offsets`), built the first
+time it is asked for and kept: a checkpoint every 256 bytes, stored by
+column, that holds the byte, UTF-16 and code point offsets of the first
+character boundary there. A conversion is a binary search over the
+checkpoints and a forward count over at most one stride of the text; a
+view that is all ASCII keeps no checkpoints, since all three units
+agree. A UTF-16 offset between the two halves of a surrogate pair, or
+any offset past the end of the view, is refused with `Error::Offset`.
+
+`Utf16Offset` and `CodePointOffset` are their own types, so neither can
+be passed where a byte offset is expected. `OffsetCursor` converts a
+column of offsets in text order (a layer's starts, or its ends) in one
+forward pass over the text, and `OffsetTable::column_to_utf16` and
+`column_to_code_point` use it to fill a vector the caller provides.
 
 ## Views
 
@@ -112,8 +152,9 @@ pipelines built at run time; it prints as the layer's id and the name,
 `opennlp:tokens@gold`.
 
 A layer keeps the instances it was made on: an aligned layer's anchor,
-and the layers it indexes. They are the instances its step read (for a
-layer added by hand, those its provenance lists, or the default ones),
+and the layers it indexes. They are the instances its step wrote before
+it or read (for a layer added by hand, those its provenance lists, or
+the default ones),
 so tags made on the gold tokens say so (`Document::made_on`). A step
 that would read such a layer beside another instance of the one it was
 made on (those tags, with the predicted tokens) fails on that document
@@ -130,7 +171,9 @@ Every layer records where it came from: the annotator and its version,
 a hash of its configuration, the model (bundle id, revision and
 sha256), where the model ran (backend, device, precision), and the
 layers it read. An optional input is listed only when the document had
-it.
+it. A layer made on another output of its own step (a confidence column
+on the tokens written beside it) lists that output apart, under `on`,
+since the step did not read it.
 
 A layer's status is kept apart from its data. A layer never written has
 no status; one written with no items is `Complete` and empty; one its
@@ -162,14 +205,23 @@ document at a time to find the documents that cause it.
 `Bound` binds an annotator to the instances it reads and writes:
 the default ones, or named ones (`.read(0, "folded")`).
 
+An aligned output may hang on an earlier output of the same step: a
+tokenizer that writes `(Tokens, Confidence<Tokens>)` scores the tokens it
+wrote, without reading them. Outputs are added in the order of the
+`Writes` tuple, so the base must come before the layer aligned to it,
+and the aligned layer is made on the instance the step wrote under its
+own key (named or default). The same holds for an index into an earlier
+output: tokens written with their sentences point into those sentences.
+
 ## The analyzer
 
 `Analyzer::builder()` takes the steps in any order, and the layers the
 documents arrive with (`given`), such as structure from the parser
 upstream. `build` refuses a pipeline that cannot run, naming why: two
 layer types under one id, a layer two steps write, a required input
-nothing writes, an aligned output whose anchor the step does not read,
-or a cycle. It then orders the steps by what they read and write into
+nothing writes, an aligned output whose anchor the step neither reads
+nor writes before it, an aligned output written before its own base, or
+a cycle. It then orders the steps by what they read and write into
 stages.
 
 `run` takes a batch of documents. Each stage runs over the whole batch
@@ -225,6 +277,48 @@ fields mean bumps its `SCHEMA`.
 `Chunks` are retrieval chunks. The standard's `opennlp:chunks` are
 phrase chunks (noun and verb groups), a different layer, which a phrase
 chunker will write under that id.
+
+## Subwords
+
+`SubwordAnnotator` in `turbo-analysis-embed` writes `opennlp:subwords`:
+it reads a text view (the source, or a named view through `Bound::read`)
+and, when the document has them, the word tokens, and runs the bundle's
+own tokenizer (`Tokenizer::encode_spans`, docs/tokenizer.md) over the
+view. `SubwordAnnotator::open` loads the bundle and checks its
+tokenizer against the reference ids as the core does; `SubwordsProvider`
+offers it to a registry as `subwords`, the spec's location being the
+bundle directory. The bundle's id and revision and the SHA-256 of its
+manifest are the layer's `model` and its provenance's.
+
+- The view is encoded as one row, with no truncation, so the layer
+  covers the whole view however long it is; a text past the model's
+  `max_seq` is split into chunks later, from these pieces.
+- The row has no special tokens from the template and no prompt prefix,
+  since neither is in the text. `SubwordAnnotator::overhead(role)` is
+  what they add to every row the model sees (the template's special
+  tokens and the prefix's tokens, counted on the prefix alone), for the
+  chunker's `Budget::overhead`. A byte-level BPE or Unigram prefix can
+  merge with the text's first piece, so a row can come out one token
+  shorter than the pieces and the overhead.
+- Each piece's span is the tokenizer's, a UTF-8 byte span of the view. A
+  byte-level piece holding part of a character spans the whole
+  character, so two pieces can share a span, and every span is on
+  character boundaries. A special token written in the text (`[SEP]`
+  typed by the author) is a piece of the text like any other.
+
+With word tokens in the same view and in text order, every piece gets
+the token it belongs to (`align`), in one pass over both span lists:
+
+- a piece inside a token belongs to it;
+- a piece over two or more tokens (a byte-level `'s` or `.)` across the
+  word tokenizer's split) belongs to the first of them;
+- a piece in no token (whitespace or punctuation the word tokenizer left
+  out) belongs to the token before it, or to the first token when none
+  comes before it.
+
+So the pieces of one token are a run, which `Subwords::of` finds by
+binary search. Tokens in another view, or out of order, fail the
+document. A document with pieces but no tokens gets no token column.
 
 ## The chunker
 
@@ -462,6 +556,71 @@ definition, which picks the nearest of the shortest decimals and breaks
 a tie to an even digit. SHA-256 and SHA-512 are written in the crate
 from FIPS 180-4.
 
+### Golden layers as test inputs
+
+A port is often written before the annotators in front of it: a POS
+tagger before the Rust tokenizer, a name finder before the tagger. To
+test it alone, `turbo-goldens` builds a document from the layers the JVM
+produced, and the port runs on the JVM's own input layers:
+
+```rust
+use turbo_goldens::{GOLDEN_KEY, Golden, Tolerance, data_dir, golden_key, load_document, matches_golden_key};
+
+let golden = Golden::read(path)?;
+let text = golden.input_text(data_dir())?;
+let mut doc = load_document(&golden, &text)?; // checks the length and SHA-256
+// The tagger reads the JVM's tokens and writes the default instance of the tags.
+let tagger = Bound::new(Tagger::new(model)).read(1, GOLDEN_KEY);
+Analyzer::builder().given(golden_key::<Tokens>()).step(tagger).build()?.run(slice::from_mut(&mut doc));
+assert_eq!(matches_golden_key(&doc, &Key::<PosTags>::DEFAULT, &golden, Tolerance::abs(1e-9)), Ok(()));
+```
+
+`load_document` adds every layer block of the golden, in file order,
+each under the key name `golden` (`GOLDEN_KEY`; `golden_key::<L>()` is
+`Key::<L>::named("golden")`). The JVM's instance of a layer is thus a
+named instance, and the default key stays free for what the Rust
+annotator writes, so the two are never confused and can be compared.
+`load_layer` adds one layer under a key the caller picks; loading the
+tokens under two names gives two separate instances.
+
+A layer aligned to another (tags, lemmas and confidences) is loaded
+onto the instance of its anchor with the same name, and the entities
+onto the tokens with the same name, since their `token_start` and
+`token_end` columns index those tokens. That instance must be loaded
+first; otherwise the load fails with `LoadError::MissingAnchor`. Spans
+are source bytes, values are the f64 values as the file holds them, and
+the labels of a tag or kind column become a tag set of the distinct
+labels in the order they first appear. Loaded tokens get their
+sentence column from the sentences loaded under the same name: each
+token's sentence is the one whose span contains it, and a token inside
+no sentence is refused (`LoadError::OutsideSentences`), since the JVM
+makes its tokens inside its sentences. The format writes sentences
+before tokens, so `load_document` finds them; without sentences under
+that name the column is `None`. `Language` holds the golden's first
+row, the best language, as the comparison reads it.
+
+A block is checked against its layer type's shape before it is loaded,
+the same check the comparison makes, and the document then checks the
+layer as it checks any other (spans in bounds and on character
+boundaries, an aligned layer as long as its anchor). Each refusal is a
+`LoadError`: the text is not the golden's input, the golden has no such
+block, the block has the wrong anchor or columns, the anchor is not
+loaded, an entity's token range is outside the tokens, a block of a type
+nothing loads, or the document refused the layer.
+
+A loaded layer's provenance names the annotator `golden:<class>`, after
+the Java class in the header, with the OpenNLP version as its version
+and the layers it is made on as its reads. Its configuration hash is
+taken from the SHA-256 of the annotator, the OpenNLP commit, each model's
+file name and SHA-512 and each option, so goldens made with different
+models or options have different hashes. It records no model:
+`ModelRef` holds one model by SHA-256, and a golden names any number by
+SHA-512.
+
+A `turbo:view` block is not loaded. A view golden is only compared with
+the view a Rust normalizer makes, so `load_document` on one gives the
+source text alone, for the normalizer to run on.
+
 ## Generating golden files
 
 The goldens in `analysis/goldens/data` are made by `turbo-goldens`
@@ -478,9 +637,146 @@ the generator directly under the JDK named in their headers; the
 container run is to be proven on a machine with Docker.
 `analysis/goldens-tool/README.md` has the commands.
 
+## Decision point dumps
+
+Beside each golden, `<annotator>/<model>/<set>/<id>.dump` records every
+decision the annotator asked its maxent model for on that input: the
+context strings the context generator produced and the probability of
+each outcome that `eval` returned. A Rust context generator and the
+Rust maxent and perceptron evaluation can be checked against it one
+decision at a time, before a whole annotator's golden lines up. The
+generator writes them for `SentenceDetectorME`, `TokenizerME` and
+`LanguageDetectorME`.
+
+### The format
+
+UTF-8 text, LF line ends, fields separated by one tab, and a line end at
+the end of the file, as in a golden. The cells have the golden format's
+types: `u32` (decimal, no sign, no leading zeros), `f64` (the 16
+lowercase hex digits of the raw IEEE 754 bits, a space, then
+`Double.toString`, for example `3fe0000000000000 0.5`) and `str`.
+
+```
+dump 1
+generator	turbo-goldens-java	1
+opennlp	<40 hex commit>	<maven version>
+jdk	<java.version>	<java.vm.version>	<java.vendor>
+unicode	<Unicode version>
+input	<set>/<id>	<length in UTF-8 bytes>	<length in UTF-16 units>	<sha256 hex>
+model	<file name>	<sha512 hex>
+annotator	<fully qualified Java class>	<method name>
+point	<index u32>	<position u32>	<contexts u32>	<outcomes u32>	<unit u32>	<values>
+context	<str>
+...
+outcome	<label str>	<f64>
+...
+end	<index u32>
+point	...
+```
+
+- The first line is exactly `dump 1`; the `1` is the format version.
+- The header records are the ones the golden at the same path has, with
+  the same values: the same `generator`, `opennlp`, `jdk`, `unicode` and
+  `input` lines, one `model` line per model loaded, and the same
+  `annotator` class and method.
+- Then one block per `eval` call, in the order the annotator made them,
+  numbered from 0. A dump with no decision points (a text without an
+  end of sentence character) is its header alone.
+- `position` is the UTF-8 byte offset into the input that the decision is
+  about, or 0 for a decision about the whole document. For the sentence
+  detector it is the offset of the end of sentence character the scanner
+  found (the `position` argument of `SDContextGenerator.getContext`); for
+  the tokenizer it is the offset of the character a split would go before,
+  inside a whitespace separated token; for the language detector it is 0.
+- `unit` is 0 when the UTF-16 index OpenNLP decided at starts a code
+  point, and 1 when it lies between the two halves of a surrogate pair.
+  The tokenizer walks UTF-16 units, so it asks about such positions inside
+  an emoji or any other character outside the Basic Multilingual Plane;
+  `position` is then the byte offset of that pair's code point. The two
+  fields together name every decision exactly without a UTF-16 offset in
+  the file.
+- `contexts` lines follow, `context	<str>`, in the order the model received
+  them. `values` is `none` when the annotator called `eval(String[])`, and
+  `given` when it called `eval(String[], float[])`; each context line then
+  has a third field, the context's feature value widened to `f64`.
+- `outcomes` lines follow, `outcome	<label>	<f64>`, one per outcome of the
+  model in its outcome index order (`getOutcome(0)`, `getOutcome(1)`,
+  ...), with the probability `eval` returned for it.
+- `end	<index>` closes the block; the index must match.
+
+The `str` escapes are the golden format's: `\t`, `\n`, `\r`, `\\`, and
+`\uXXXX` (four lowercase hex digits, one UTF-16 unit) for any other
+character below U+0020. A surrogate that is not half of a pair is
+written as `\uXXXX` as well, because it has no UTF-8 form. The language
+detector's n-grams and the tokenizer's contexts are cut at UTF-16 units
+and hold such halves (the language detector dump of `multi/mixed` and the
+tokenizer dumps of `en/emoji` and `multi/mixed` have them); a reader that
+decodes into Rust strings has to keep such a field as UTF-16 units or as
+its escaped text. The generator writes goldens through the same escape,
+and its UTF-8 encoder fails rather than writing a replacement character.
+
+### How the decisions are captured
+
+The generator builds a second instance of each annotator over a
+recording model. `MaxentRecorder` wraps the loaded maxent model, forwards
+every call to it and records each `eval` call: copies of the context
+array, of the feature values when there are any, and of the returned
+probabilities (the annotators and models reuse their buffers). It extends
+OpenNLP's `AbstractModel` rather than only implementing `MaxentModel`,
+because `TokenizerModel` and `LanguageDetectorModel` refuse a maxent model
+that is not an `AbstractModel`. It is built over the loaded model's own
+parameters, predicate map and outcome names, so the methods
+`AbstractModel` makes final (`getBestOutcome`, `getAllOutcomes`,
+`getOutcome`) answer exactly as the loaded model's would.
+
+The recording models are made with the constructors that take a maxent
+model: `SentenceModel(String, MaxentModel, Map, SentenceDetectorFactory)`,
+`TokenizerModel(MaxentModel, Map, TokenizerFactory)` and
+`LanguageDetectorModel(MaxentModel, Map, LanguageDetectorFactory)`. The
+map is every manifest entry of the loaded model except `factory`, so the
+language, versions, timestamp, training entries and factory settings are
+the loaded model's; the generator checks that the recording model's
+manifest equals the loaded one's in every entry but `factory`, and that
+the loaded model's factory is exactly OpenNLP's default factory class.
+A model constructor writes the factory's class name into the manifest
+and makes its own factory instance from it through OpenNLP's
+`ExtensionLoader`, so the recording factories are public classes in the
+generator's package, which the generator registers with
+`ExtensionLoader.registerAllowedPackage`.
+
+How a decision's position is found, per annotator:
+
+| Annotator | Approach | Why |
+|---|---|---|
+| `SentenceDetectorME.sentPosDetect` | The context generator is wrapped (`RecordingSentenceDetectorFactory`). Each `getContext(text, position)` call is reported to the recorder with the array it returned; the next `eval` must receive that very array, and the point takes its `position`. | The detector skips a candidate when it lies before the last accepted sentence start, which depends on earlier decisions, so the candidates cannot be listed from outside without re-implementing the loop. |
+| `TokenizerME.tokenizePos` | The context generator is wrapped (`RecordingTokenizerFactory`) as above. It sees only one whitespace token (a new substring per token) and a UTF-16 index into it, so the requests of one token are grouped by that substring's identity, and each group is paired with the next span of `WhitespaceTokenizer` (without kept line breaks, the tokenizer's default) whose text equals the token. The position is the span's start plus the index. | After an accepted split at an abbreviation the tokenizer jumps over the abbreviation's dots, which depends on the decision, so the candidates cannot be listed from outside. Whether a whitespace token is evaluated at all depends on its text alone (its length and the alphanumeric pattern), so a skipped span can never have the text of an evaluated one; the generator checks this and fails otherwise. |
+| `LanguageDetectorME.predictLanguages` | No context generator is wrapped. The detector makes exactly one `eval(String[], float[])` call per document (checked), and the point has position 0. | There is nothing to pair. The contexts are the distinct n-grams of the normalized text in the iteration order of the `HashMap` the detector counts them in (keyed by `CharBuffer`, whose hash depends only on the characters, so the order is the same on every run of one JDK), and every value is 1: the detector does not pass the counts (OPENNLP-1261 in its source). |
+
+Nothing in a dump is inferred: every context, value and probability is
+what `eval` received or returned, and every position is what the
+annotator passed to its context generator. The layers the recording
+annotator produces are written as a golden and compared byte for byte
+with the plain annotator's golden for the same input; the generator
+fails if they differ, so a dump is only written when recording changed
+nothing the annotator computed.
+
+### Making them
+
+`Main` writes the dumps when given `--dumps` after its four arguments.
+The driver always passes it (`GENERATOR_ARGS` in
+`analysis/goldens-tool/src/recipe.rs`, forwarded by the container's
+entrypoint), so `turbo-goldens generate` writes and installs goldens and
+dumps together, and `turbo-goldens verify` compares both byte for byte.
+`verify` and `generate` also check, at the header level only, that every
+golden has a dump beside it, that every dump has a golden, and that each
+dump's header parses and names the input and model of its path. The
+checked in dumps were made by running the generator directly under the
+JDK named in their headers, as the goldens were; the container run is to
+be proven on a machine with Docker.
+
 ## Tests
 
-`cargo test -p turbo-analysis -p turbo-analysis-layers -p turbo-chunker -p turbo-goldens`
+`cargo test -p turbo-analysis -p turbo-analysis-layers -p turbo-chunker -p turbo-analysis-embed -p turbo-jvm -p turbo-goldens`
 runs them on any machine:
 
 - `analysis/core/tests/pipeline.rs` runs a pipeline of toy annotators
@@ -499,6 +795,23 @@ runs them on any machine:
   that are never crossed, and a paragraph break's token counted inside
   a chunk. The chunker's unit tests hold the optimizer against filling
   each chunk to the budget.
+- `analysis/embed/tests/subwords.rs` runs the subwords annotator on the
+  small BERT's WordPiece bundle, a byte-level BPE bundle and BGE-M3's
+  Unigram, over the tokenizer test texts, and checks that the document
+  takes every layer and that the ids are the tokenizer's. The WordPiece
+  pieces are compared with upstream `tokenizers`, id for id and span for
+  span. It also covers pieces of one character sharing its span, a text
+  many times `max_seq` covered to its end, the overhead, pieces given
+  their word tokens (a BPE piece over two tokens, punctuation in no
+  token), tokens that cannot be aligned, and the provider. The crate's
+  unit tests hold `align` on hand-made spans.
+- `analysis/core/tests/offsets.rs` converts offsets in both directions
+  at every character boundary of text with one to four byte
+  characters, refuses offsets inside a surrogate pair and past the end,
+  and checks a text of about ten thousand bytes against counts made
+  with `encode_utf16` and `chars`, by point and by cursor.
+- `analysis/jvm/tests/jvm_vectors.rs` compares `turbo-jvm` with the
+  results a JVM wrote, bit for bit.
 - `analysis/goldens/tests/goldens.rs` reads a hand written golden file
   (`tests/fixtures/zurich.golden`, over a short input beside it) into
   typed fields, as it does a second with options and a normalized view
@@ -511,6 +824,15 @@ runs them on any machine:
   text and both values, and a malformed file of each kind is refused
   with its line. The unit tests hold the escapes, the FIPS 180-4
   test vectors and Java's `Double.toString`.
+- `analysis/goldens/tests/load.rs` loads the same fixture as test
+  inputs, runs a table lookup tagger on the golden tokens and compares
+  its tags with the golden's POS layer (and finds a changed entry). It
+  also checks that every loaded layer matches its own golden, that
+  golden tokens get the sentence they are in, that two
+  names give two instances, and that a missing anchor, a text that is
+  not the input, a token straddling two sentences, an entity token
+  range past the tokens and a block with
+  the wrong columns are each refused.
 - `analysis/goldens/tests/jvm_error.rs` reads, writes and compares a
   golden with an error record (`tests/fixtures/newline-first.golden`):
   the message's escapes, a layer block or any other line after the
@@ -531,13 +853,11 @@ runs them on any machine:
 ## Not built yet
 
 - The annotators themselves: normalizers, sentence detection,
-  tokenization, the subwords from turboembed's tokenizer, vectors
-  through turboembed, and the boundary signals. The tests build their
-  layers by hand or with toy annotators.
-- UTF-16 and code point offsets at the edge.
-- The golden files themselves, made on the JVM from a pinned OpenNLP
-  3.x commit, for the ports to be checked against: the format and the
-  Rust reader and comparison are built (see Golden files).
+  tokenization, vectors through turboembed, and the boundary signals.
+  The tests build their layers by hand or with toy annotators.
+- A parity check of the subwords against the JVM's WordPiece encoder on
+  golden inputs; the WordPiece pieces are compared with upstream
+  `tokenizers` for now.
 - The evaluation harness that every change to the chunker is measured
   with.
 - A gRPC surface, to be shared with the OpenNLP standard.

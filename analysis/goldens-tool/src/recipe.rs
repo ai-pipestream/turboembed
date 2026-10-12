@@ -51,10 +51,26 @@ pub const MODELS: [Model; 3] = [
 /// The input sets under `analysis/goldens/data/inputs`.
 pub const INPUT_SETS: [&str; 3] = ["en", "multi", "norm"];
 
+/// The arguments the driver passes to the generator after the fixed ones
+/// (the inputs, models and output directories and the commit, which the
+/// container's entrypoint supplies). `--dumps` makes it write a decision
+/// point dump beside every golden of the [`DUMPED_ANNOTATORS`], so every
+/// `generate` makes both.
+pub const GENERATOR_ARGS: [&str; 1] = ["--dumps"];
+
 /// The annotator directories the generator writes, which `generate`
 /// replaces and `verify` compares. The data directory holds other things
 /// (the inputs, a README) that neither touches.
 pub const ANNOTATORS: [&str; 4] = ["sentdetect", "tokenize", "langdetect", "normalize"];
+
+/// The annotators that ask a maxent model for their decisions and so have
+/// a decision point dump beside each golden. The normalizers use no model
+/// and have none.
+pub const DUMPED_ANNOTATORS: [&str; 3] = ["sentdetect", "tokenize", "langdetect"];
+
+/// The input set the normalizers run on. They run on no other set, and the
+/// other annotators do not run on this one.
+pub const NORMALIZER_INPUT_SET: &str = "norm";
 
 #[cfg(test)]
 mod tests {
@@ -100,6 +116,24 @@ mod tests {
         for m in MODELS {
             assert!(main.contains(&format!("\"{}\"", m.file)), "Main.java does not name {}", m.file);
         }
+    }
+
+    #[test]
+    fn the_generator_and_the_entrypoint_take_the_generator_args() {
+        let main = include_str!("../java/src/main/java/ai/pipestream/turbo/goldens/Main.java");
+        for arg in GENERATOR_ARGS {
+            assert!(main.contains(&format!("\"{arg}\"")), "Main.java does not take {arg}");
+        }
+        let dockerfile = include_str!("../container/Dockerfile");
+        assert!(dockerfile.contains("\"$(cat /opennlp.commit)\" \"$@\""), "the entrypoint drops its arguments");
+    }
+
+    #[test]
+    fn the_dumped_annotators_and_the_normalizer_set_are_in_the_recipe() {
+        assert!(DUMPED_ANNOTATORS.iter().all(|a| ANNOTATORS.contains(a)));
+        assert!(INPUT_SETS.contains(&NORMALIZER_INPUT_SET));
+        let normalizer = include_str!("../java/src/main/java/ai/pipestream/turbo/goldens/NormalizerGolden.java");
+        assert!(normalizer.contains(&format!("INPUT_SET = \"{NORMALIZER_INPUT_SET}\"")));
     }
 
     #[test]

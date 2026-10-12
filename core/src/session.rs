@@ -4,17 +4,23 @@
 //! backend keeps the rows it was written and computes.
 //!
 //! State. A write replaces what an earlier one left, and a run takes it,
-//! even when the run fails, so every run is of exactly one write. A write that fails leaves nothing
-//! written. While a result, or a buffer made from it, is held, the
-//! session's output is in use and a write or run is TURBO_E_BUSY; so is a
-//! call made while another is still inside the session.
+//! even when the run fails, so every run is of exactly one write. A write
+//! that fails leaves nothing written. While a result, or a buffer made
+//! from it, is held, the session's output is in use and a write or run is
+//! TURBO_E_BUSY; so is a call made while another is still inside the
+//! session.
+//!
+//! Ranges. turbo_embed_write_ranges writes rows as turbo_embed_write_tokens
+//! does, and the run that takes it returns one vector per range rather
+//! than per row, so the result's batch is the count of ranges written.
 //!
 //! The run path. turbo_session_run allocates nothing on the heap: the
 //! result handle is made with the session and handed out again by each
 //! run, which is possible because a session has at most one result held
-//! at a time. The backend's session was likewise sized for the session's
-//! largest batch when it was made. So host_allocs is the backend's count
-//! plus CORE_RUN_ALLOCS, which is 0; tests/allocations.rs checks the sum
+//! at a time. The backend's session was likewise sized when it was made
+//! for the session's largest batch, or for its max_ranges vectors when
+//! those are more. So host_allocs is the backend's count plus
+//! CORE_RUN_ALLOCS, which is 0; tests/allocations.rs checks the sum
 //! against a counting allocator. A released result's handle and the next
 //! run's are therefore the same address.
 
@@ -41,11 +47,26 @@ pub struct turbo_session_desc {
     pub precision: u32,
     pub tuning: u32,
     pub tuning_budget_ms: u32,
+    pub cpu_threads: u32,
+    pub max_ranges: u32,
 }
 
 /// The size of turbo_session_desc before tuning was appended, which
 /// turbo_session_create still accepts.
 pub const TURBO_SESSION_DESC_SIZE_V1: usize = std::mem::offset_of!(turbo_session_desc, tuning);
+
+/// The size of turbo_session_desc before cpu_threads was appended, which
+/// turbo_session_create still accepts.
+pub const TURBO_SESSION_DESC_SIZE_V2: usize = std::mem::offset_of!(turbo_session_desc, cpu_threads);
+
+/// A range of one row's tokens, for turbo_embed_write_ranges.
+#[repr(C)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct turbo_token_range {
+    pub row: u32,
+    pub start: u32,
+    pub end: u32,
+}
 
 /// The size of turbo_session_info before tuned was appended, which
 /// turbo_session_get_info still accepts.
@@ -139,6 +160,9 @@ pub(crate) struct SessionInner {
     info: turbo_session_info,
     /// options_honored of the device's cell at the session's precision.
     honored: u32,
+    /// The most ranges one turbo_embed_write_ranges may write: the
+    /// caller's max_ranges, or max_batch for 0.
+    max_ranges: u32,
     state: Mutex<State>,
     /// The result handle and the buffers made from it that are held: the
     /// session's output is theirs while this is not 0.
@@ -263,10 +287,12 @@ pub unsafe extern "C" fn turbo_session_create(
                 precision: 0,
                 tuning: 0,
                 tuning_budget_ms: 0,
+                cpu_threads: 0,
+                max_ranges: 0,
             };
             if !desc.is_null() {
                 let size = (desc as *const u32).read();
-                if size as usize != TURBO_SESSION_DESC_SIZE_V1 {
+                if size as usize != TURBO_SESSION_DESC_SIZE_V1 && size as usize != TURBO_SESSION_DESC_SIZE_V2 {
                     sized(size, size_of::<turbo_session_desc>(), "turbo_session_desc")?;
                 }
                 std::ptr::copy_nonoverlapping(
@@ -306,12 +332,17 @@ fn create_session(m: &Arc<Model>, d: turbo_session_desc) -> Result<SessionInner>
     let tuning_mode = tuning::mode(d.tuning)?;
     let c = &m.context;
     let b = c.backend;
-    // A backend with tuned sessions is made them through session_create_tuned.
-    let tuned = backend::offered!(b, session_create_tuned).ok();
-    let create = match tuned {
-        Some(_) => None,
-        None => Some(backend::offered!(b, session_create)?),
+    // A backend with session_open is made every session through it; else
+    // one with tuned sessions through session_create_tuned; else through
+    // session_create.
+    let open = backend::offered!(b, session_open).ok();
+    let tuned = if open.is_some() { None } else { backend::offered!(b, session_create_tuned).ok() };
+    let create = match (open, tuned) {
+        (None, None) => Some(backend::offered!(b, session_create)?),
+        _ => None,
     };
+    let ranges = backend::offered!(b, embed_write_ranges).is_ok();
+    let max_ranges = resolve_threads_and_ranges(b.name(), open.is_some(), ranges, &d, max_batch, max_seq)?;
     let release = backend::offered!(b, session_release)?;
     let run = backend::offered!(b, session_run)?;
     let cap = c.runtime.capability(c.device, mi.task, d.precision)?;
@@ -341,7 +372,7 @@ fn create_session(m: &Arc<Model>, d: turbo_session_desc) -> Result<SessionInner>
     // A tuned session's key, and the choice an earlier session with the
     // same key measured, which the backend takes as its incumbent.
     let rt = &c.runtime;
-    let key = (tuning_mode != TURBO_AUTOTUNE_OFF && tuned.is_some()).then(|| {
+    let key = (tuning_mode != TURBO_AUTOTUNE_OFF && (tuned.is_some() || open.is_some())).then(|| {
         let dev = &rt.devices[c.device as usize].info;
         tuning::TuneKey {
             backend: b.name().to_owned(),
@@ -369,17 +400,38 @@ fn create_session(m: &Arc<Model>, d: turbo_session_desc) -> Result<SessionInner>
         t.timings = timings.as_mut_ptr();
         t.timings_len = TIMINGS_LEN as u32;
     }
-    match (tuned, create) {
-        (Some(f), _) => backend::check(b, "session_create_tuned", |err| unsafe {
+    match (open, tuned, create) {
+        (Some(f), _, _) => {
+            let desc = backend::turbo_backend_session_desc {
+                struct_size: size_of::<backend::turbo_backend_session_desc>() as u32,
+                task: mi.task,
+                max_batch,
+                max_seq,
+                precision: d.precision,
+                cpu_threads: d.cpu_threads,
+                max_ranges,
+                reserved: 0,
+            };
+            // turbo_backend.h: the out fields come in with the one-path
+            // values, which a backend with one path leaves alone.
+            t.tuned = TURBO_TUNED_DEFAULT;
+            t.tune_ms = 0;
+            t.choices[0] = 0;
+            t.numerics_used = t.numerics_allowed;
+            backend::check(b, "session_open", |err| unsafe {
+                f(m.raw, &desc, &mut t, &mut compute_dtype, &mut raw, err)
+            })?
+        }
+        (None, Some(f), _) => backend::check(b, "session_create_tuned", |err| unsafe {
             f(m.raw, mi.task, max_batch, max_seq, d.precision, &mut t, &mut compute_dtype, &mut raw, err)
         })?,
-        (None, Some(f)) => backend::check(b, "session_create", |err| unsafe {
+        (None, None, Some(f)) => backend::check(b, "session_create", |err| unsafe {
             f(m.raw, mi.task, max_batch, max_seq, d.precision, &mut compute_dtype, &mut raw, err)
         })?,
-        (None, None) => unreachable!("offered above"),
+        (None, None, None) => unreachable!("offered above"),
     }
     // A table without tuned sessions made its choices itself, and has one path.
-    if tuned.is_none() {
+    if tuned.is_none() && open.is_none() {
         t.tuned = TURBO_TUNED_DEFAULT;
         t.tune_ms = 0;
         t.choices[0] = 0;
@@ -464,10 +516,55 @@ fn create_session(m: &Arc<Model>, d: turbo_session_desc) -> Result<SessionInner>
         run,
         info,
         honored: cap.options_honored,
+        max_ranges,
         state,
         holders: AtomicU32::new(0),
         result,
     })
+}
+
+/// turbo_session_desc.max_ranges with 0 resolved to max_batch and checked
+/// against the session's shape. A backend without session_open is never
+/// handed cpu_threads or max_ranges, so for it the core refuses a value of
+/// either other than the one that backend works to anyway: 0 threads, and
+/// max_batch ranges. A backend with session_open but no embed_write_ranges
+/// pools no ranges, so a max_ranges other than max_batch is refused for it
+/// too, rather than sizing an output no range write can fill. cpu_threads
+/// is passed on as given otherwise, for the backend to check.
+fn resolve_threads_and_ranges(
+    backend: &str,
+    open: bool,
+    ranges: bool,
+    d: &turbo_session_desc,
+    max_batch: u32,
+    max_seq: u32,
+) -> Result<u32> {
+    let limit = max_batch as u64 * max_seq as u64;
+    if d.max_ranges as u64 > limit {
+        return Err(Error::field(
+            UNSUPPORTED_OPTION,
+            7,
+            format!("max_ranges {} is over max_batch {max_batch} times max_seq {max_seq}, {limit}", d.max_ranges),
+        ));
+    }
+    if !open && d.cpu_threads != 0 {
+        return Err(Error::field(
+            UNSUPPORTED_OPTION,
+            6,
+            format!(
+                "cpu_threads {}: the {} backend takes its thread count from the environment alone",
+                d.cpu_threads, backend
+            ),
+        ));
+    }
+    if !(open && ranges) && d.max_ranges != 0 && d.max_ranges != max_batch {
+        return Err(Error::field(
+            UNSUPPORTED_OPTION,
+            7,
+            format!("max_ranges {}: the {backend} backend pools no ranges", d.max_ranges),
+        ));
+    }
+    Ok(if d.max_ranges == 0 { max_batch } else { d.max_ranges })
 }
 
 /// The fields of turbo_result_info that are the same for every run of the
@@ -549,6 +646,9 @@ struct EmbedOptions {
     /// refuse.
     truncate_given: bool,
     prompt_given: bool,
+    /// The caller's pooling, 0 when it gave none: a range write takes 0
+    /// or TURBO_POOLING_MEAN alone.
+    pooling_given: u32,
 }
 
 unsafe fn embed_options(s: &SessionInner, opts: *const turbo_embed_options) -> Result<EmbedOptions> {
@@ -622,6 +722,7 @@ unsafe fn embed_options(s: &SessionInner, opts: *const turbo_embed_options) -> R
         output_dim,
         truncate_given: o.truncate != 0,
         prompt_given: o.prompt_role != 0,
+        pooling_given: o.pooling,
     })
 }
 
@@ -903,28 +1004,127 @@ pub unsafe extern "C" fn turbo_embed_write_tokens(
         call(err, || {
             let s = &session(s)?.inner;
             let mut state = begin_write(s)?;
-            let tb = *batch.as_ref().ok_or_else(|| Error::new(INVALID_ARGUMENT, "batch is NULL"))?;
-            sized(tb.struct_size, size_of::<turbo_token_batch>(), "turbo_token_batch")?;
+            let tb = token_batch(batch)?;
             let o = embed_options(s, opts)?;
-            if o.truncate_given {
-                return Err(Error::field(INVALID_ARGUMENT, 1, "truncate: rows written as tokens are already cut"));
-            }
-            if o.prompt_given {
-                return Err(Error::field(
-                    INVALID_ARGUMENT,
-                    3,
-                    "prompt_role: rows written as tokens carry their prefix",
-                ));
-            }
+            no_text_options(&o)?;
             check_tokens(s, &tb, o.max_tokens)?;
-            let stride = if tb.row_stride == 0 { tb.seq } else { tb.row_stride };
-            let mut r = backend_rows(&o, tb.batch, tb.seq, stride);
-            r.ids = tb.ids;
-            r.mask = tb.mask;
-            r.types = tb.types;
-            write_rows(s, &mut state, r, &o, false)
+            write_rows(s, &mut state, caller_rows(&o, &tb), &o, false)
         })
     }
+}
+
+/// # Safety
+/// `batch` and the arrays it points to hold what turbo.h says, `ranges`
+/// holds `count` ranges; other pointers are NULL or valid for the call.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn turbo_embed_write_ranges(
+    s: *mut turbo_session,
+    batch: *const turbo_token_batch,
+    ranges: *const turbo_token_range,
+    count: u32,
+    opts: *const turbo_embed_options,
+    err: *mut turbo_error,
+) -> i32 {
+    unsafe {
+        call(err, || {
+            let s = &session(s)?.inner;
+            let mut state = begin_write(s)?;
+            let tb = token_batch(batch)?;
+            let o = embed_options(s, opts)?;
+            if o.pooling_given != TURBO_POOLING_MODEL && o.pooling_given != TURBO_POOLING_MEAN {
+                return Err(Error::field(
+                    UNSUPPORTED_OPTION,
+                    5,
+                    format!(
+                        "pooling {}: a range is pooled by the mean alone, so pooling is 0 or TURBO_POOLING_MEAN",
+                        o.pooling_given
+                    ),
+                ));
+            }
+            no_text_options(&o)?;
+            check_tokens(s, &tb, o.max_tokens)?;
+            if ranges.is_null() && count > 0 {
+                return Err(Error::new(INVALID_ARGUMENT, format!("ranges is NULL and count is {count}")));
+            }
+            if count == 0 {
+                return Err(Error::new(INVALID_ARGUMENT, "count is 0: a run needs at least one range"));
+            }
+            if count > s.max_ranges {
+                return Err(Error::new(
+                    CAPACITY,
+                    format!("{count} ranges is over the session's max_ranges {}", s.max_ranges),
+                ));
+            }
+            let ranges = std::slice::from_raw_parts(ranges, count as usize);
+            check_ranges(&tb, ranges)?;
+            // turbo.h: a range is pooled by the mean whatever the bundle says.
+            let rows = turbo_backend_embed_rows { pooling: TURBO_POOLING_MEAN, ..caller_rows(&o, &tb) };
+            let b = s.backend;
+            let write = backend::offered!(b, embed_write_ranges)?;
+            backend::check(b, "embed_write_ranges", |err| write(s.raw, &rows, ranges.as_ptr(), count, err))?;
+            state.written = Some(Written { batch: count, output_dim: o.output_dim, tokenized: false });
+            Ok(())
+        })
+    }
+}
+
+/// The caller's turbo_token_batch, read once and its struct_size checked.
+unsafe fn token_batch(batch: *const turbo_token_batch) -> Result<turbo_token_batch> {
+    let tb = *unsafe { batch.as_ref() }.ok_or_else(|| Error::new(INVALID_ARGUMENT, "batch is NULL"))?;
+    sized(tb.struct_size, size_of::<turbo_token_batch>(), "turbo_token_batch")?;
+    Ok(tb)
+}
+
+/// Rows written as tokens are already cut and carry their prefix, so the
+/// two options that act on text are refused when the caller gives them.
+fn no_text_options(o: &EmbedOptions) -> Result<()> {
+    if o.truncate_given {
+        return Err(Error::field(INVALID_ARGUMENT, 1, "truncate: rows written as tokens are already cut"));
+    }
+    if o.prompt_given {
+        return Err(Error::field(INVALID_ARGUMENT, 3, "prompt_role: rows written as tokens carry their prefix"));
+    }
+    Ok(())
+}
+
+/// The caller's checked rows as the backend receives them: the caller's
+/// arrays themselves, not a copy.
+fn caller_rows(o: &EmbedOptions, tb: &turbo_token_batch) -> turbo_backend_embed_rows {
+    let stride = if tb.row_stride == 0 { tb.seq } else { tb.row_stride };
+    let mut r = backend_rows(o, tb.batch, tb.seq, stride);
+    r.ids = tb.ids;
+    r.mask = tb.mask;
+    r.types = tb.types;
+    r
+}
+
+/// Every range names a row of the batch, a column span within seq that is
+/// not empty, and at least one token of that row whose mask is 1. The
+/// mask is read in place through the row stride; check_tokens has already
+/// checked the batch's shape and that mask is not NULL.
+unsafe fn check_ranges(tb: &turbo_token_batch, ranges: &[turbo_token_range]) -> Result<()> {
+    let stride = if tb.row_stride == 0 { tb.seq } else { tb.row_stride } as usize;
+    for (i, g) in ranges.iter().enumerate() {
+        let bad = |rule: String| Err(Error::new(INVALID_ARGUMENT, format!("ranges[{i}]: {rule}")));
+        if g.row >= tb.batch {
+            return bad(format!("row {} is not under batch {}", g.row, tb.batch));
+        }
+        if g.start >= g.end {
+            return bad(format!("start {} is not under end {}", g.start, g.end));
+        }
+        if g.end > tb.seq {
+            return bad(format!("end {} is over seq {}", g.end, tb.seq));
+        }
+        let at = g.row as usize * stride + g.start as usize;
+        let mask = unsafe { std::slice::from_raw_parts(tb.mask.add(at), (g.end - g.start) as usize) };
+        if !mask.contains(&1) {
+            return bad(format!(
+                "columns {} to {} of row {} hold no token whose mask is 1: a range needs a token",
+                g.start, g.end, g.row
+            ));
+        }
+    }
+    Ok(())
 }
 
 /// Every row the caller wrote, checked as turbo_backend.h promises the
@@ -1212,6 +1412,40 @@ mod tests {
             pooling: 0,
             output_dim: 0,
         }
+    }
+
+    fn desc(cpu_threads: u32, max_ranges: u32) -> turbo_session_desc {
+        turbo_session_desc {
+            struct_size: size_of::<turbo_session_desc>() as u32,
+            max_batch: 0,
+            max_seq: 0,
+            precision: 0,
+            tuning: 0,
+            tuning_budget_ms: 0,
+            cpu_threads,
+            max_ranges,
+        }
+    }
+
+    #[test]
+    fn max_ranges_is_refused_where_no_range_write_is_offered() {
+        let resolve = |open, ranges, d: &turbo_session_desc| resolve_threads_and_ranges("x", open, ranges, d, 4, 8);
+        // Both functions: 0 is max_batch, anything up to max_batch * max_seq is taken.
+        assert_eq!(resolve(true, true, &desc(0, 0)).unwrap(), 4);
+        assert_eq!(resolve(true, true, &desc(0, 32)).unwrap(), 32);
+        let e = resolve(true, true, &desc(0, 33)).unwrap_err();
+        assert_eq!((e.code, e.field), (UNSUPPORTED_OPTION, 7));
+        // session_open alone, or neither: max_batch, given or as 0, and nothing else.
+        for open in [true, false] {
+            assert_eq!(resolve(open, false, &desc(0, 0)).unwrap(), 4);
+            assert_eq!(resolve(open, false, &desc(0, 4)).unwrap(), 4);
+            let e = resolve(open, false, &desc(0, 32)).unwrap_err();
+            assert_eq!((e.code, e.field), (UNSUPPORTED_OPTION, 7), "open {open}");
+        }
+        // cpu_threads goes to a backend with session_open, to check.
+        assert_eq!(resolve(true, false, &desc(3, 0)).unwrap(), 4);
+        let e = resolve(false, false, &desc(3, 0)).unwrap_err();
+        assert_eq!((e.code, e.field), (UNSUPPORTED_OPTION, 6));
     }
 
     #[test]

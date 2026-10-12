@@ -54,3 +54,21 @@ recorded in `docs/normalizers.md`. Every character is in the Unicode 15.0
 repertoire, which JDK 21 implements. `normalize/<name>/norm/<id>.golden`
 holds a `turbo:view` layer with the edits OpenNLP's normalizer `<name>`
 made to `inputs/norm/<id>.txt`; see `analysis/goldens-tool/README.md`.
+
+## Decision point dumps
+
+`<annotator>/<model>/<set>/<id>.dump`, beside each golden, records every
+decision the annotator asked its maxent model for on that input: the
+context strings, at the UTF-8 byte offset the decision is about, and the
+probability of each outcome the model returned. `docs/analysis.md`
+("Decision point dumps") describes the format and how each annotator's
+decisions are paired with positions. `generate` writes the dumps
+together with the goldens, and the same rule holds: do not edit them by
+hand.
+
+The dumps checked in now were made by running the Java generator
+directly with `--dumps` (see `analysis/goldens-tool/README.md`) under the
+JDK named in their headers, with the OpenNLP build and models the goldens
+were made with; the goldens of that run are byte for byte the checked in
+ones. The run in the pinned container, through `turbo-goldens generate`
+and `verify`, is still to be done on a machine with Docker.

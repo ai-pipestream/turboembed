@@ -15,10 +15,18 @@
 //! row's first column and LAST its last live token instead of the mean;
 //! a row with no live token is the zero vector under every pooling.
 //!
+//! A range of a row's columns (`write_ranges`) is pooled the way a row is
+//! under mean pooling, over the live tokens in its columns alone: their
+//! table rows times their weights, summed in token order, divided by
+//! their count, then rounded, cut and normalized as a row's mean is. The
+//! core refuses a range with no live token, so none reaches here.
+//!
 //! `write` keeps only what the run reads: each row's live ids, in order,
-//! one after another. A run splits the rows over the session's threads;
-//! each row is summed by one task, token by token in the row's order, so
-//! a run gives the same bits for the same rows on any number of threads.
+//! one after another, and for ranges, the span of those ids each range
+//! covers. A run splits the rows, or the ranges, over the session's
+//! threads; each vector is summed by one task, token by token in the
+//! row's order, so a run gives the same bits for the same rows on any
+//! number of threads.
 //! The sum runs over the width in blocks of BLOCK values held in
 //! registers, every token's block before the next block, so the table is
 //! read once per token and each output is written once.
@@ -32,6 +40,7 @@ use crate::backend::{
     TURBO_STATIC_EMBEDDINGS, TURBO_STATIC_MAPPING, TURBO_STATIC_WEIGHTS, turbo_backend_embed_rows, turbo_backend_tensor,
 };
 use crate::bundle::AlignedBytes;
+use crate::turbo_token_range;
 use crate::{
     TURBO_DTYPE_BF16, TURBO_DTYPE_F16, TURBO_DTYPE_F64, TURBO_DTYPE_I8, TURBO_DTYPE_I32, TURBO_NORMALIZE_L2,
     TURBO_POOLING_CLS, TURBO_POOLING_LAST,
@@ -44,8 +53,9 @@ use super::pool::Pool;
 /// four AVX-512 ones.
 const BLOCK: usize = 64;
 
-/// Live tokens a task should sum, at least, before the run splits rows
-/// over threads: below it a task is shorter than handing it to a thread.
+/// Live tokens a task should sum, at least, before the run splits rows or
+/// ranges over threads: below it a task is shorter than handing it to a
+/// thread.
 const TOKENS_PER_TASK: usize = 2048;
 
 /// The table as the model holds it: the bytes the core verified, in their
@@ -226,6 +236,15 @@ pub(super) struct Static {
     starts: Vec<usize>,
     /// Each row's first column, live or not, for CLS pooling.
     first: Vec<u32>,
+    /// Written with ranges, [batch, seq] with no stride: for each column,
+    /// the place in ids of its row's first live id at that column or
+    /// after it. Not kept by `write`, which has no ranges to place.
+    live: Vec<u32>,
+    /// Each range's live ids, as ids[lo..hi], its capacity the session's
+    /// max_ranges. Empty after `write`: the run then pools each row.
+    spans: Vec<(usize, usize)>,
+    /// The live ids the spans cover, counted again where ranges overlap.
+    span_tokens: usize,
     batch: usize,
     pooling: u32,
     normalize: u32,
@@ -234,18 +253,26 @@ pub(super) struct Static {
 
 impl Static {
     /// A session's state for rows of up to `max_seq` tokens, `max_batch`
-    /// of them. Err is the bytes that could not be allocated.
+    /// of them, and up to `max_ranges` ranges. Err is the bytes that could
+    /// not be allocated.
     pub(super) fn new(
         table: Arc<Table>,
         quantized: Option<Arc<Quantized>>,
         isa: Isa,
         max_batch: usize,
         max_seq: usize,
+        max_ranges: usize,
     ) -> Result<Static, usize> {
         let tokens = max_batch.checked_mul(max_seq).ok_or(usize::MAX)?;
-        let mut ids = Vec::new();
-        ids.try_reserve_exact(tokens).map_err(|_| tokens.saturating_mul(4))?;
-        ids.resize(tokens, 0);
+        let zeroed = |n: usize| -> Result<Vec<u32>, usize> {
+            let mut v = Vec::new();
+            v.try_reserve_exact(n).map_err(|_| n.saturating_mul(4))?;
+            v.resize(n, 0);
+            Ok(v)
+        };
+        let (ids, live) = (zeroed(tokens)?, zeroed(tokens)?);
+        let mut spans = Vec::new();
+        spans.try_reserve_exact(max_ranges).map_err(|_| max_ranges.saturating_mul(size_of::<(usize, usize)>()))?;
         Ok(Static {
             table,
             quantized,
@@ -254,6 +281,9 @@ impl Static {
             ids,
             starts: vec![0; max_batch + 1],
             first: vec![0; max_batch],
+            live,
+            spans,
+            span_tokens: 0,
             batch: 0,
             pooling: 0,
             normalize: 0,
@@ -265,8 +295,43 @@ impl Static {
         self.normalize
     }
 
-    /// Keep each row's live ids, in order, dropping the rest.
+    /// Keep each row's live ids, in order, dropping the rest; the run
+    /// pools each row.
     pub(super) fn write(&mut self, r: &turbo_backend_embed_rows, ids: &[i32], mask: &[i32]) {
+        self.keep::<false>(r, ids, mask);
+        self.spans.clear();
+    }
+
+    /// Keep each row's live ids and the span of them each range covers;
+    /// the run pools each range. The core has checked every range, and
+    /// that there are at most the session's max_ranges, so the spans fit
+    /// in the memory `new` gave them.
+    pub(super) fn write_ranges(
+        &mut self,
+        r: &turbo_backend_embed_rows,
+        ids: &[i32],
+        mask: &[i32],
+        ranges: &[turbo_token_range],
+    ) {
+        debug_assert!(!ranges.is_empty() && ranges.len() <= self.spans.capacity());
+        self.keep::<true>(r, ids, mask);
+        let s = r.seq as usize;
+        self.spans.clear();
+        self.span_tokens = 0;
+        for range in ranges {
+            let (row, start, end) = (range.row as usize, range.start as usize, range.end as usize);
+            let lo = self.live[row * s + start] as usize;
+            // The column past the row's last is the next row's first.
+            let hi = if end == s { self.starts[row + 1] } else { self.live[row * s + end] as usize };
+            debug_assert!(lo < hi, "range ({row}, {start}, {end}) holds no live token");
+            self.spans.push((lo, hi));
+            self.span_tokens += hi - lo;
+        }
+    }
+
+    /// Each row's live ids, in order, and with `PLACES` each column's
+    /// place among them (`live`).
+    fn keep<const PLACES: bool>(&mut self, r: &turbo_backend_embed_rows, ids: &[i32], mask: &[i32]) {
         let (b, s, stride) = (r.batch as usize, r.seq as usize, r.row_stride as usize);
         let mut n = 0;
         for row in 0..b {
@@ -274,6 +339,9 @@ impl Static {
             self.starts[row] = n;
             self.first[row] = ids[at] as u32;
             for p in 0..s {
+                if PLACES {
+                    self.live[row * s + p] = n as u32;
+                }
                 if mask[at + p] != 0 {
                     self.ids[n] = ids[at + p] as u32;
                     n += 1;
@@ -287,41 +355,64 @@ impl Static {
         self.output_dim = r.output_dim as usize;
     }
 
-    /// Run the written rows into `out`, [batch, output_dim] packed, on
-    /// `pool`.
+    /// Run the written rows into `out`, [batch, output_dim] packed, or
+    /// [ranges, output_dim] after `write_ranges`, on `pool`.
     pub(super) fn run(&mut self, pool: &mut Pool, out: &mut [f32]) {
-        let tokens = self.starts[self.batch];
-        let rows_per_task = if pool.threads() == 1 || tokens < TOKENS_PER_TASK {
-            self.batch
-        } else {
-            // About four tasks a thread, each of at least one row.
-            self.batch.div_ceil(pool.threads() * 4).max(1)
+        let (count, tokens) = match self.spans.len() {
+            0 => (self.batch, self.starts[self.batch]),
+            n => (n, self.span_tokens),
         };
-        let tasks = self.batch.div_ceil(rows_per_task);
-        let job = Job { s: self, out: Out(out.as_mut_ptr()), rows_per_task };
+        debug_assert!(out.len() >= count * self.output_dim);
+        let per_task = if pool.threads() == 1 || tokens < TOKENS_PER_TASK {
+            count
+        } else {
+            // About four tasks a thread, each of at least one vector.
+            count.div_ceil(pool.threads() * 4).max(1)
+        };
+        let tasks = count.div_ceil(per_task);
+        let job = Job { s: self, out: Out(out.as_mut_ptr()), count, per_task };
         let entry = entry(self.isa);
         // SAFETY: entry is the kernel of an instruction set this processor
-        // has (Isa::detect); each task writes only its own rows of out,
-        // which holds batch x output_dim values.
+        // has (Isa::detect); each task writes only its own vectors of out,
+        // which holds count x output_dim values.
         pool.run(tasks, &|t, _| unsafe { entry(&job, t) });
+    }
+
+    /// Vector `i` of the run into `dst`, output_dim values: row i's, or
+    /// range i's after `write_ranges`.
+    #[inline(always)]
+    fn vector(&self, i: usize, dst: &mut [f32]) {
+        match self.spans.get(i) {
+            Some(&(lo, hi)) => self.pooled(&self.ids[lo..hi], dst),
+            None => self.row(i, dst),
+        }
     }
 
     /// Row `r` into `dst`, output_dim values.
     #[inline(always)]
     fn row(&self, r: usize, dst: &mut [f32]) {
         let ids = &self.ids[self.starts[r]..self.starts[r + 1]];
-        let t = &*self.table;
         if ids.is_empty() {
             dst.fill(0.0);
             return;
         }
+        let first = [self.first[r]];
+        let ids = match self.pooling {
+            TURBO_POOLING_CLS => &first[..],
+            TURBO_POOLING_LAST => &ids[ids.len() - 1..],
+            _ => ids,
+        };
+        self.pooled(ids, dst)
+    }
+
+    /// The mean of the table rows of `ids`, one or more, into `dst`,
+    /// output_dim values: rounded as the table's dtype says, and
+    /// normalized as the write asked. CLS and LAST pooling are the mean of
+    /// their one token.
+    #[inline(always)]
+    fn pooled(&self, ids: &[u32], dst: &mut [f32]) {
+        let t = &*self.table;
         if let Some(q) = &self.quantized {
-            let first = [self.first[r]];
-            let ids = match self.pooling {
-                TURBO_POOLING_CLS => &first[..],
-                TURBO_POOLING_LAST => &ids[ids.len() - 1..],
-                _ => ids,
-            };
             match self.isa {
                 #[cfg(target_arch = "x86_64")]
                 // SAFETY: Isa::Avx2 and Avx512 have avx2 and fma.
@@ -336,19 +427,16 @@ impl Static {
             }
             return;
         }
-        match self.pooling {
-            TURBO_POOLING_CLS => self.one(self.first[r] as usize, dst),
-            TURBO_POOLING_LAST => self.one(*ids.last().expect("not empty") as usize, dst),
-            _ => match t.dtype {
-                #[cfg(target_arch = "x86_64")]
-                // SAFETY: f16c and avx2 are present (Static::new).
-                TURBO_DTYPE_F16 if self.f16c && t.weights.is_none() => unsafe { mean_f16c(t, ids, dst) },
-                TURBO_DTYPE_F16 => mean::<F16>(t, ids, dst),
-                TURBO_DTYPE_BF16 => mean::<Bf16>(t, ids, dst),
-                TURBO_DTYPE_F64 => mean::<F64>(t, ids, dst),
-                TURBO_DTYPE_I8 => mean::<I8>(t, ids, dst),
-                _ => mean::<F32>(t, ids, dst),
-            },
+        match t.dtype {
+            #[cfg(target_arch = "x86_64")]
+            // SAFETY: f16c and avx2 are present (Static::new). The same
+            // bits as mean::<F16>.
+            TURBO_DTYPE_F16 if self.f16c && t.weights.is_none() => unsafe { mean_f16c(t, ids, dst) },
+            TURBO_DTYPE_F16 => mean::<F16>(t, ids, dst),
+            TURBO_DTYPE_BF16 => mean::<Bf16>(t, ids, dst),
+            TURBO_DTYPE_F64 => mean::<F64>(t, ids, dst),
+            TURBO_DTYPE_I8 => mean::<I8>(t, ids, dst),
+            _ => mean::<F32>(t, ids, dst),
         }
         // numpy stores an F16 table's mean as F16.
         let half = t.dtype == TURBO_DTYPE_F16;
@@ -378,18 +466,6 @@ impl Static {
             return unsafe { round_f16_f16c(x) };
         }
         round_f16(x)
-    }
-
-    /// One token's row times its weight, as one row's mean.
-    fn one(&self, id: usize, dst: &mut [f32]) {
-        let t = &*self.table;
-        match t.dtype {
-            TURBO_DTYPE_F16 => mean::<F16>(t, &[id as u32], dst),
-            TURBO_DTYPE_BF16 => mean::<Bf16>(t, &[id as u32], dst),
-            TURBO_DTYPE_F64 => mean::<F64>(t, &[id as u32], dst),
-            TURBO_DTYPE_I8 => mean::<I8>(t, &[id as u32], dst),
-            _ => mean::<F32>(t, &[id as u32], dst),
-        }
     }
 }
 
@@ -758,10 +834,12 @@ fn f32_to_f16(v: f32) -> u16 {
 struct Job<'a> {
     s: &'a Static,
     out: Out,
-    rows_per_task: usize,
+    /// The run's vectors: rows, or ranges.
+    count: usize,
+    per_task: usize,
 }
 
-/// The run's output; each task writes only its own rows.
+/// The run's output; each task writes only its own vectors.
 struct Out(*mut f32);
 unsafe impl Sync for Out {}
 
@@ -770,11 +848,10 @@ impl Job<'_> {
     fn task(&self, t: usize) {
         let s = self.s;
         let od = s.output_dim;
-        let rows = t * self.rows_per_task..((t + 1) * self.rows_per_task).min(s.batch);
-        for r in rows {
-            // SAFETY: row r is this task's alone, inside the output.
-            let dst = unsafe { std::slice::from_raw_parts_mut(self.out.0.add(r * od), od) };
-            s.row(r, dst);
+        for i in t * self.per_task..((t + 1) * self.per_task).min(self.count) {
+            // SAFETY: vector i is this task's alone, inside the output.
+            let dst = unsafe { std::slice::from_raw_parts_mut(self.out.0.add(i * od), od) };
+            s.vector(i, dst);
         }
     }
 }
@@ -966,6 +1043,228 @@ mod tests {
                 let (w, g): (Vec<u32>, Vec<u32>) =
                     (want.iter().map(|v| v.to_bits()).collect(), got.iter().map(|v| v.to_bits()).collect());
                 assert_eq!(w, g, "dim {dim}, {len} ids");
+            }
+        }
+    }
+}
+
+#[cfg(test)]
+mod range_tests {
+    use super::*;
+    use crate::{TURBO_DTYPE_F32, TURBO_NORMALIZE_NONE, TURBO_POOLING_MEAN};
+
+    const VOCAB: usize = 300;
+    const DIM: usize = 77;
+
+    /// A table's stored values, kept alive while the table reads them.
+    enum Values {
+        F32(Vec<f32>),
+        F16(Vec<u16>),
+        F64(Vec<f64>),
+    }
+
+    /// A synthetic table of `dtype` (F32, F16 or F64), with token weights
+    /// when asked, its values kept alongside.
+    fn table(dtype: u32, weighted: bool) -> (Arc<Table>, Values) {
+        let value = |i: usize| ((i * 7919 % 2003) as f32 - 1001.0) / 997.0;
+        let values = match dtype {
+            TURBO_DTYPE_F16 => Values::F16((0..VOCAB * DIM).map(|i| f32_to_f16(value(i))).collect()),
+            TURBO_DTYPE_F64 => Values::F64((0..VOCAB * DIM).map(|i| value(i) as f64 / 3.0).collect()),
+            _ => Values::F32((0..VOCAB * DIM).map(value).collect()),
+        };
+        let rows = match &values {
+            Values::F32(v) => v.as_ptr() as *const u8,
+            Values::F16(v) => v.as_ptr() as *const u8,
+            Values::F64(v) => v.as_ptr() as *const u8,
+        };
+        let weights = weighted.then(|| (0..VOCAB).map(|i| 0.5 + (i % 13) as f64 / 8.0).collect::<Box<[f64]>>());
+        let t = Table {
+            rows,
+            dtype,
+            dim: DIM,
+            height: VOCAB,
+            weights,
+            mapping: None,
+            wide: dtype == TURBO_DTYPE_F64,
+            _copy: None,
+        };
+        (Arc::new(t), values)
+    }
+
+    /// Every kind of table the sum has a path for: F32 with and without
+    /// weights, F16 (rounded to F16 as numpy stores it), F64 (summed in
+    /// F64), and the I8 copy.
+    fn sessions(max_batch: usize, max_seq: usize, max_ranges: usize) -> Vec<(String, Static, Values)> {
+        let mut all = Vec::new();
+        for (dtype, weighted, quantized) in [
+            (TURBO_DTYPE_F32, false, false),
+            (TURBO_DTYPE_F32, true, false),
+            (TURBO_DTYPE_F16, false, false),
+            (TURBO_DTYPE_F16, true, false),
+            (TURBO_DTYPE_F64, false, false),
+            (TURBO_DTYPE_F32, true, true),
+        ] {
+            let (t, values) = table(dtype, weighted);
+            let q = quantized.then(|| Arc::new(Quantized::new(&t, false)));
+            let s = Static::new(t, q, Isa::detect(), max_batch, max_seq, max_ranges).unwrap();
+            all.push((format!("dtype {dtype}, weights {weighted}, i8 {quantized}"), s, values));
+        }
+        all
+    }
+
+    fn rows(
+        ids: &[i32],
+        mask: &[i32],
+        batch: usize,
+        seq: usize,
+        normalize: u32,
+        od: usize,
+    ) -> turbo_backend_embed_rows {
+        turbo_backend_embed_rows {
+            struct_size: size_of::<turbo_backend_embed_rows>() as u32,
+            batch: batch as u32,
+            seq: seq as u32,
+            row_stride: seq as u32,
+            ids: ids.as_ptr(),
+            mask: mask.as_ptr(),
+            types: std::ptr::null(),
+            pooling: TURBO_POOLING_MEAN,
+            normalize,
+            output_dim: od as u32,
+            reserved: 0,
+        }
+    }
+
+    /// Rows of assorted lengths with padding, one with masked tokens
+    /// between live ones.
+    fn batch() -> (Vec<i32>, Vec<i32>, usize, usize) {
+        let (batch, seq) = (5, 40);
+        let lens = [40, 1, 23, 9, 31];
+        let (mut ids, mut mask) = (vec![0; batch * seq], vec![0; batch * seq]);
+        for (r, &n) in lens.iter().enumerate() {
+            for p in 0..n {
+                ids[r * seq + p] = ((r * 131 + p * 17) % VOCAB) as i32;
+                mask[r * seq + p] = 1;
+            }
+        }
+        for p in [0, 4, 5, 22] {
+            mask[2 * seq + p] = 0;
+        }
+        (ids, mask, batch, seq)
+    }
+
+    fn bits(v: &[f32]) -> Vec<u32> {
+        v.iter().map(|f| f.to_bits()).collect()
+    }
+
+    fn range(row: usize, start: usize, end: usize) -> turbo_token_range {
+        turbo_token_range { row: row as u32, start: start as u32, end: end as u32 }
+    }
+
+    /// Each range's vector is the vector of a row holding the range's
+    /// columns alone, bit for bit: the mean of the same live tokens in
+    /// the same order, rounded and normalized the same way. Ranges over
+    /// a whole row, single tokens, and ranges into padding or over masked
+    /// tokens, cut to the full width and to less.
+    #[test]
+    fn a_range_is_the_mean_of_its_live_tokens() {
+        let (ids, mask, b, s) = batch();
+        let ranges = [
+            range(0, 0, 40),
+            range(4, 0, 40),
+            range(1, 0, 40),
+            range(0, 39, 40),
+            range(0, 7, 8),
+            range(2, 0, 2),
+            range(2, 3, 7),
+            range(2, 20, 40),
+            range(3, 8, 9),
+            range(4, 10, 30),
+            range(0, 7, 8),
+        ];
+        // The rows each range alone would make, as a batch.
+        let n = ranges.len();
+        let (mut sub_ids, mut sub_mask) = (vec![0; n * s], vec![0; n * s]);
+        for (k, r) in ranges.iter().enumerate() {
+            for (j, p) in (r.start as usize..r.end as usize).enumerate() {
+                sub_ids[k * s + j] = ids[r.row as usize * s + p];
+                sub_mask[k * s + j] = mask[r.row as usize * s + p];
+            }
+        }
+        for (normalize, od) in [(TURBO_NORMALIZE_L2, DIM), (TURBO_NORMALIZE_NONE, DIM), (TURBO_NORMALIZE_L2, 64)] {
+            for (name, mut st, _values) in sessions(n, s, n) {
+                let mut pool = Pool::new(2);
+                let mut want = vec![f32::NAN; n * od];
+                st.write(&rows(&sub_ids, &sub_mask, n, s, normalize, od), &sub_ids, &sub_mask);
+                st.run(&mut pool, &mut want);
+                let mut got = vec![f32::NAN; n * od];
+                st.write_ranges(&rows(&ids, &mask, b, s, normalize, od), &ids, &mask, &ranges);
+                st.run(&mut pool, &mut got);
+                assert!(want.iter().all(|v| v.is_finite()), "{name}");
+                for k in 0..n {
+                    let (g, w) = (&got[k * od..][..od], &want[k * od..][..od]);
+                    assert!(bits(g) == bits(w), "{name}, {od} values: range {k} {:?}", ranges[k]);
+                }
+            }
+        }
+    }
+
+    /// A range over a whole row, padding included, is that row's mean.
+    #[test]
+    fn a_range_over_a_whole_row_is_the_row_s_mean() {
+        let (ids, mask, b, s) = batch();
+        let ranges: Vec<_> = (0..b).rev().map(|r| range(r, 0, s)).collect();
+        for (name, mut st, _values) in sessions(b, s, b) {
+            let mut pool = Pool::new(1);
+            let mut want = vec![f32::NAN; b * DIM];
+            st.write(&rows(&ids, &mask, b, s, TURBO_NORMALIZE_L2, DIM), &ids, &mask);
+            st.run(&mut pool, &mut want);
+            let mut got = vec![f32::NAN; b * DIM];
+            st.write_ranges(&rows(&ids, &mask, b, s, TURBO_NORMALIZE_L2, DIM), &ids, &mask, &ranges);
+            st.run(&mut pool, &mut got);
+            for (k, r) in ranges.iter().enumerate() {
+                let row = r.row as usize;
+                assert!(bits(&got[k * DIM..][..DIM]) == bits(&want[row * DIM..][..DIM]), "{name}: row {row}");
+            }
+        }
+    }
+
+    /// Enough ranges, and tokens in them, that the run splits them over
+    /// threads: the same bits on 1, 3 and every processor's thread.
+    #[test]
+    fn ranges_are_the_same_bits_on_any_number_of_threads() {
+        let (b, s) = (8, 300);
+        let mut ids = vec![0; b * s];
+        let mut mask = vec![1; b * s];
+        for (i, id) in ids.iter_mut().enumerate() {
+            *id = ((i * 37) % VOCAB) as i32;
+        }
+        // Masked columns are even, and every range starts on an odd one,
+        // so each holds a live token.
+        for p in (2..s).step_by(10) {
+            mask[3 * s + p] = 0;
+        }
+        let mut ranges = Vec::new();
+        for r in 0..b {
+            for start in (1..s).step_by(2) {
+                ranges.push(range(r, start, (start + 1 + start % 23).min(s)));
+            }
+        }
+        let tokens: usize = ranges.iter().map(|r| (r.end - r.start) as usize).sum();
+        assert!(tokens > 4 * TOKENS_PER_TASK);
+        let most = std::thread::available_parallelism().map_or(1, std::num::NonZero::get);
+        for (name, mut st, _values) in sessions(b, s, ranges.len()) {
+            let mut want = Vec::new();
+            for threads in [1, 3, most] {
+                let mut pool = Pool::with_spin(threads, super::super::pool::SPIN_BATCH);
+                let mut got = vec![f32::NAN; ranges.len() * DIM];
+                st.write_ranges(&rows(&ids, &mask, b, s, TURBO_NORMALIZE_L2, DIM), &ids, &mask, &ranges);
+                st.run(&mut pool, &mut got);
+                if want.is_empty() {
+                    want = got;
+                } else {
+                    assert!(bits(&got) == bits(&want), "{name}: {threads} threads differ from 1");
+                }
             }
         }
     }
