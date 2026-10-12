@@ -13,5 +13,8 @@ of its results depend on the platform rather than on OpenNLP:
 - `strict_math`: `exp` and `log` are ports of fdlibm (`e_exp.c`,
   `e_log.c`), which is what `StrictMath.exp` and `StrictMath.log` compute
   and what OpenNLP's maxent, perceptron and naive Bayes models call.
+- `random`: `JavaRandom` is `java.util.Random` from a seed (every method
+  OpenNLP uses, `nextGaussian` included) and its `shuffle` is
+  `Collections.shuffle(List, Random)`.
 
 The crate has no dependencies.
