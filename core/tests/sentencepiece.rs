@@ -382,8 +382,9 @@ fn the_differences_from_the_library() {
     );
 }
 
-/// Encoding into a scratch that has grown allocates nothing more: the
-/// buffers are kept between calls.
+/// Encoding a text again into a grown scratch and output gives the same
+/// pieces and keeps the output's room. sentencepiece_allocations.rs
+/// counts the allocations.
 #[test]
 fn a_grown_scratch_is_reused() {
     let sp = committed("t5");

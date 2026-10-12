@@ -1,6 +1,7 @@
 //! SentencePiece encoding allocates nothing once its scratch and output
-//! have grown: the normalizer, the unigram search and BPE work in
-//! buffers kept between calls. This binary counts every heap allocation
+//! have grown to what the texts need: the normalizer, the unigram search
+//! and BPE work in buffers kept between calls. After one encoding of the
+//! texts joined, each text and the join again allocate nothing. This binary counts every heap allocation
 //! made on the test's thread; it holds one test.
 
 use std::alloc::{GlobalAlloc, Layout, System};

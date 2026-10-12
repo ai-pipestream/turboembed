@@ -103,8 +103,11 @@ pub(crate) struct Segment {
     id: u32,
 }
 
-/// Room an encoding works in, kept between calls so that encoding
-/// allocates nothing once it has grown to the longest text.
+/// Room an encoding works in, kept between calls. What it needs depends
+/// on the text, not only its length (BPE's queue of pairs, its UNUSED
+/// splits), so encoding allocates nothing once the scratch has grown to
+/// what the texts it is given need: after one pass over them, a second
+/// allocates nothing.
 #[derive(Default)]
 pub struct Scratch {
     normalized: Normalized,
