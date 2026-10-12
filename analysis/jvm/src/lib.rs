@@ -9,8 +9,12 @@
 //!   `String.compareTo` orders strings by those units. [`chars`] gives the
 //!   UTF-16 units of a `&str` with the UTF-8 byte offset each belongs to,
 //!   and the JVM's string order.
+//! - Maxent, perceptron and naive Bayes models compute probabilities with
+//!   `StrictMath.exp` and `StrictMath.log`, which are fdlibm.
+//!   [`strict_math`] ports fdlibm's `exp` and `log` bit for bit.
 //!
 //! Every function here is checked against vectors written by a real JVM
 //! (`tests/vectors/`, made by `java/Vectors.java`).
 
 pub mod chars;
+pub mod strict_math;

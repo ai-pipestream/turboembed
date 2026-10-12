@@ -10,5 +10,8 @@ of its results depend on the platform rather than on OpenNLP:
   `Utf16Units` yields the UTF-16 units of a `&str` with the UTF-8 byte
   offset of each unit's character; `compare_to` and `compare` are
   `String.compareTo`; `is_java_whitespace` is `Character.isWhitespace`.
+- `strict_math`: `exp` and `log` are ports of fdlibm (`e_exp.c`,
+  `e_log.c`), which is what `StrictMath.exp` and `StrictMath.log` compute
+  and what OpenNLP's maxent, perceptron and naive Bayes models call.
 
 The crate has no dependencies.
