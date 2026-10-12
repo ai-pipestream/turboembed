@@ -9,8 +9,9 @@ everything that makes them:
   annotator runs listed below over their input sets and writes one golden
   per run and input; for the `num` set it runs `NumberScan` of the addons
   module, and for the `money` set `MoneyAnnotator` with
-  `CursorMoneyExtractor` and `MoneyConversionAnnotator` with `EcbFxRates`
-  (see below). With `--dumps` it also writes a decision point dump
+  `CursorMoneyExtractor` and `MoneyConversionAnnotator` with `EcbFxRates`,
+  and for the `quantity` set `QuantityAnnotator` with
+  `CursorQuantityExtractor` (see below). With `--dumps` it also writes a decision point dump
   beside each golden of a run that asks a maxent model (the sentence
   detector, the tokenizer and the language detector): every context the
   annotator gave the model and every outcome probability `eval` returned.
@@ -56,7 +57,7 @@ cargo run -p turbo-goldens-tool -- verify [--models <dir>]
   whose header parses, except a golden with an error record (the annotator
   threw on that input), which must have none. A golden that names no model
   (a tokenizer or sentence detector without one, a normalizer) has no dump,
-  and neither has a detokenizer, number or money golden.
+  and neither has a detokenizer, number, money or quantity golden.
 - `verify` generates into a scratch directory and compares every golden
   and dump byte for byte with the checked in ones. It lists each file that
   differs, is missing or is extra, and exits non zero if there is any. It
@@ -91,6 +92,7 @@ a directory with the same model run without them, and its options are
 | `normalize` (each normalizer) | the normalizer's name | `norm` | see below |
 | `numbers` (`NumberScan` of the addons `numeric` module) | `latin-us`, `latin-eu` | `num` | `notation` |
 | `money`, `money-convert` (`MoneyAnnotator`, `MoneyConversionAnnotator`) | `latin-us`, `latin-eu` | `money` | `notation`; for conversions also `target`, `as_of`, `snapshot` |
+| `quantity` (`QuantityAnnotator`) | `latin-us`, `latin-eu` | `quantity` | `notation` |
 
 - `+english-dictionary` is the English model rebuilt through
   `TokenizerModel(MaxentModel, Map, TokenizerFactory)` with the
@@ -194,6 +196,19 @@ applies; the file has no CNY quote on that Friday and never one for RUB.
 
 The `money` inputs are written for the project. Only the two money
 annotators run on them, and they have no dumps.
+
+## Quantity goldens
+
+`quantity/<notation>/quantity/<id>.golden` is what `QuantityAnnotator`
+over `CursorQuantityExtractor`, with its default units, found in
+`inputs/quantity/<id>.txt`, in `latin-us` or `latin-eu`. Each has one row
+per mention with `start`, `end` (UTF-8 byte offsets), `coefficient`,
+`negative`, `scale`, `plain` and `unit`, in the layer `turbo:quantities`,
+and a `config notation` record. `negative` follows the value's sign, and a
+value with a negative scale is written with scale 0, as for money.
+
+The `quantity` inputs are written for the project. Only the quantity
+annotator runs on them, and it has no dumps.
 
 ## How the checked in goldens and dumps were made
 

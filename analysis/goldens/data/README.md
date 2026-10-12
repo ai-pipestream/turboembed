@@ -164,6 +164,19 @@ layer `turbo:money`; see
 `analysis/goldens-tool/README.md`. Only the two money annotators run on
 the set, and they have no dumps.
 
+## Quantity goldens
+
+`inputs/quantity/` holds 61 short texts written for quantity extraction:
+the default units (length, mass, volume, time, speed, frequency, power,
+data) attached to the number or after one space, units that are case
+sensitive or read only by their first token, percentages and the word
+`percent`, negative values and the places a minus does not count, US and
+European notation and grouping, scale markers and exponents that are not
+read, amounts that money extraction takes first, and non-ASCII text around
+the values. `quantity/<notation>/quantity/<id>.golden` holds the layer
+`turbo:quantities`; see `analysis/goldens-tool/README.md`. Only the
+quantity annotator runs on the set, and it has no dumps.
+
 ## Decision point dumps
 
 `<annotator>/<model>/<set>/<id>.dump`, beside each golden of

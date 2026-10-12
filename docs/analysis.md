@@ -1172,6 +1172,7 @@ The generator writes these layers, in this order within a golden:
 | `numbers` (`NumberScan.parse`, per notation) | `turbo:numbers` |
 | `money` (`CursorMoneyExtractor.extract` in `MoneyAnnotator`, per notation) | `turbo:money` |
 | `money-convert` (`EcbFxRates.convert` in `MoneyConversionAnnotator`, per notation) | `turbo:money` |
+| `quantity` (`CursorQuantityExtractor.extract` in `QuantityAnnotator`, per notation) | `turbo:quantities` |
 
 `numbers/<notation>/num/<id>.golden` (`latin-us`, `latin-eu`) holds
 `turbo:numbers`, anchored on the text, with one row per number mention:
@@ -1200,6 +1201,13 @@ notation`; the conversion goldens also have `config target` (`EUR`),
 without a rate has no row in a conversion golden. The generator reads
 the snapshot from the `rates` directory beside the inputs; `turbo-goldens
 generate` mounts it at `/rates`. See [money.md](money.md#golden-files).
+
+`quantity/<notation>/quantity/<id>.golden` holds `turbo:quantities`, one
+row per mention, with the columns `start`, `end` (UTF-8 byte offsets, from
+the `-` or first digit to the end of the unit), `coefficient`, `negative`,
+`scale`, `plain` (as for `turbo:money`) and `unit` (the unit token, `%` for
+a percentage), and a `config notation` record. See
+[quantities.md](quantities.md#golden-files).
 
 When the OpenNLP annotator throws on an input, the golden holds the
 header records, the `config` records and then, as its last line,

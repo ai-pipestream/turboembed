@@ -1,0 +1,1 @@
+Arabic ٥ kg, fullwidth ５ kg and Devanagari ५ kg are not read; 5 kg is.
