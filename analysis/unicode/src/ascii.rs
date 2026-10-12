@@ -5,10 +5,10 @@
 #[inline]
 pub(crate) fn ascii_prefix_len(bytes: &[u8]) -> usize {
     const HIGH_BITS: u64 = 0x8080_8080_8080_8080;
-    let mut chunks = bytes.chunks_exact(8);
+    let (chunks, _) = bytes.as_chunks::<8>();
     let mut len = 0;
-    for chunk in &mut chunks {
-        let word = u64::from_le_bytes(chunk.try_into().expect("chunks of eight bytes"));
+    for chunk in chunks {
+        let word = u64::from_le_bytes(*chunk);
         if word & HIGH_BITS != 0 {
             break;
         }
