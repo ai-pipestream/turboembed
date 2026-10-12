@@ -1,0 +1,420 @@
+component: features
+opennlp: cdf33c653d5d61d5af7d37ffee189a83bd8392ea
+jdk: 21.0.12.1
+descriptor: nesting.xml
+sentence: 0
+tokens: Pierre	Vinken	,	61	years	old	,	will	join	the	board	as	a	nonexecutive	director	Nov.	29	.
+outcomes: other	person-start	person-cont	NN	t\u00E9	other	person-start	person-cont	NN	t\u00E9	other	person-start	person-cont	NN	t\u00E9	other	person-start	person-cont
+at: 0
+features: w=pierre	pre=P	pre=Pi	n1w=vinken	n1pre=V	n1pre=Vi	n2w=,	n2pre=,	n3w=61	n3pre=6	n3pre=61	w=Pierre	suf=e	def	suf=e	def	wc=ic	w&c=pierre,ic	n1wc=ic	n1w&c=vinken,ic	w,nw=Pierre,Vinken	wc,nc=ic,ic
+at: 1
+features: w=vinken	pre=V	pre=Vi	p1w=pierre	p1pre=P	p1pre=Pi	n1w=,	n1pre=,	n2w=61	n2pre=6	n2pre=61	n3w=years	n3pre=y	n3pre=ye	w=Vinken	suf=n	def	suf=n	def	wc=ic	w&c=vinken,ic	n1wc=other	n1w&c=,,other	t=other	pw,w=Pierre,Vinken	pwc,wc=ic,ic	w,nw=Vinken,,	wc,nc=ic,other
+at: 2
+features: w=,	pre=,	p1w=vinken	p1pre=V	p1pre=Vi	n1w=61	n1pre=6	n1pre=61	n2w=years	n2pre=y	n2pre=ye	n3w=old	n3pre=o	n3pre=ol	w=,	suf=,	def	suf=,	def	wc=other	w&c=,,other	n1wc=2d	n1w&c=61,2d	t=person-start	t2=other,person-start	p1t=other	pw,w=Vinken,,	pwc,wc=ic,other	w,nw=,,61	wc,nc=other,2d
+at: 3
+features: w=61	pre=6	pre=61	p1w=,	p1pre=,	n1w=years	n1pre=y	n1pre=ye	n2w=old	n2pre=o	n2pre=ol	n3w=,	n3pre=,	w=61	suf=1	def	suf=1	def	wc=2d	w&c=61,2d	n1wc=lc	n1w&c=years,lc	t=person-cont	t2=person-start,person-cont	p1t=person-start	p1t2=other,person-start	p2t=other	pw,w=,,61	pwc,wc=other,2d	w,nw=61,years	wc,nc=2d,lc
+at: 4
+features: w=years	pre=y	pre=ye	p1w=61	p1pre=6	p1pre=61	n1w=old	n1pre=o	n1pre=ol	n2w=,	n2pre=,	n3w=will	n3pre=w	n3pre=wi	w=years	suf=s	def	suf=s	def	wc=lc	w&c=years,lc	n1wc=lc	n1w&c=old,lc	t=NN	t2=person-cont,NN	p1t=person-cont	p1t2=person-start,person-cont	p2t=person-start	p2t2=other,person-start	pw,w=61,years	pwc,wc=2d,lc	w,nw=years,old	wc,nc=lc,lc
+at: 5
+features: w=old	pre=o	pre=ol	p1w=years	p1pre=y	p1pre=ye	n1w=,	n1pre=,	n2w=will	n2pre=w	n2pre=wi	n3w=join	n3pre=j	n3pre=jo	w=old	suf=d	def	suf=d	def	wc=lc	w&c=old,lc	n1wc=other	n1w&c=,,other	t=t\u00E9	t2=NN,t\u00E9	p1t=NN	p1t2=person-cont,NN	p2t=person-cont	p2t2=person-start,person-cont	pw,w=years,old	pwc,wc=lc,lc	w,nw=old,,	wc,nc=lc,other
+at: 6
+features: w=,	pre=,	p1w=old	p1pre=o	p1pre=ol	n1w=will	n1pre=w	n1pre=wi	n2w=join	n2pre=j	n2pre=jo	n3w=the	n3pre=t	n3pre=th	w=,	suf=,	def	suf=,	def	wc=other	w&c=,,other	n1wc=lc	n1w&c=will,lc	t=other	t2=t\u00E9,other	p1t=t\u00E9	p1t2=NN,t\u00E9	p2t=NN	p2t2=person-cont,NN	pw,w=old,,	pwc,wc=lc,other	w,nw=,,will	wc,nc=other,lc
+at: 7
+features: w=will	pre=w	pre=wi	p1w=,	p1pre=,	n1w=join	n1pre=j	n1pre=jo	n2w=the	n2pre=t	n2pre=th	n3w=board	n3pre=b	n3pre=bo	w=will	suf=l	def	suf=l	def	wc=lc	w&c=will,lc	n1wc=lc	n1w&c=join,lc	t=person-start	t2=other,person-start	p1t=other	p1t2=t\u00E9,other	p2t=t\u00E9	p2t2=NN,t\u00E9	pw,w=,,will	pwc,wc=other,lc	w,nw=will,join	wc,nc=lc,lc
+at: 8
+features: w=join	pre=j	pre=jo	p1w=will	p1pre=w	p1pre=wi	n1w=the	n1pre=t	n1pre=th	n2w=board	n2pre=b	n2pre=bo	n3w=as	n3pre=a	n3pre=as	w=join	suf=n	def	suf=n	def	wc=lc	w&c=join,lc	n1wc=lc	n1w&c=the,lc	t=person-cont	t2=person-start,person-cont	p1t=person-start	p1t2=other,person-start	p2t=other	p2t2=t\u00E9,other	pw,w=will,join	pwc,wc=lc,lc	w,nw=join,the	wc,nc=lc,lc
+at: 9
+features: w=the	pre=t	pre=th	p1w=join	p1pre=j	p1pre=jo	n1w=board	n1pre=b	n1pre=bo	n2w=as	n2pre=a	n2pre=as	n3w=a	n3pre=a	w=the	suf=e	def	suf=e	def	wc=lc	w&c=the,lc	n1wc=lc	n1w&c=board,lc	t=NN	t2=person-cont,NN	p1t=person-cont	p1t2=person-start,person-cont	p2t=person-start	p2t2=other,person-start	pw,w=join,the	pwc,wc=lc,lc	w,nw=the,board	wc,nc=lc,lc
+at: 10
+features: w=board	pre=b	pre=bo	p1w=the	p1pre=t	p1pre=th	n1w=as	n1pre=a	n1pre=as	n2w=a	n2pre=a	n3w=nonexecutive	n3pre=n	n3pre=no	w=board	suf=d	def	suf=d	def	wc=lc	w&c=board,lc	n1wc=lc	n1w&c=as,lc	t=t\u00E9	t2=NN,t\u00E9	p1t=NN	p1t2=person-cont,NN	p2t=person-cont	p2t2=person-start,person-cont	pw,w=the,board	pwc,wc=lc,lc	w,nw=board,as	wc,nc=lc,lc
+at: 11
+features: w=as	pre=a	pre=as	p1w=board	p1pre=b	p1pre=bo	n1w=a	n1pre=a	n2w=nonexecutive	n2pre=n	n2pre=no	n3w=director	n3pre=d	n3pre=di	w=as	suf=s	def	suf=s	def	wc=lc	w&c=as,lc	n1wc=lc	n1w&c=a,lc	t=other	t2=t\u00E9,other	p1t=t\u00E9	p1t2=NN,t\u00E9	p2t=NN	p2t2=person-cont,NN	pw,w=board,as	pwc,wc=lc,lc	w,nw=as,a	wc,nc=lc,lc
+at: 12
+features: w=a	pre=a	p1w=as	p1pre=a	p1pre=as	n1w=nonexecutive	n1pre=n	n1pre=no	n2w=director	n2pre=d	n2pre=di	n3w=nov.	n3pre=N	n3pre=No	w=a	suf=a	def	suf=a	def	wc=lc	w&c=a,lc	n1wc=lc	n1w&c=nonexecutive,lc	t=person-start	t2=other,person-start	p1t=other	p1t2=t\u00E9,other	p2t=t\u00E9	p2t2=NN,t\u00E9	pw,w=as,a	pwc,wc=lc,lc	w,nw=a,nonexecutive	wc,nc=lc,lc
+at: 13
+features: w=nonexecutive	pre=n	pre=no	p1w=a	p1pre=a	n1w=director	n1pre=d	n1pre=di	n2w=nov.	n2pre=N	n2pre=No	n3w=29	n3pre=2	n3pre=29	w=nonexecutive	suf=e	def	suf=e	def	wc=lc	w&c=nonexecutive,lc	n1wc=lc	n1w&c=director,lc	t=person-cont	t2=person-start,person-cont	p1t=person-start	p1t2=other,person-start	p2t=other	p2t2=t\u00E9,other	pw,w=a,nonexecutive	pwc,wc=lc,lc	w,nw=nonexecutive,director	wc,nc=lc,lc
+at: 14
+features: w=director	pre=d	pre=di	p1w=nonexecutive	p1pre=n	p1pre=no	n1w=nov.	n1pre=N	n1pre=No	n2w=29	n2pre=2	n2pre=29	n3w=.	n3pre=.	w=director	suf=r	def	suf=r	def	wc=lc	w&c=director,lc	n1wc=ic	n1w&c=nov.,ic	t=NN	t2=person-cont,NN	p1t=person-cont	p1t2=person-start,person-cont	p2t=person-start	p2t2=other,person-start	pw,w=nonexecutive,director	pwc,wc=lc,lc	w,nw=director,Nov.	wc,nc=lc,ic
+at: 15
+features: w=nov.	pre=N	pre=No	p1w=director	p1pre=d	p1pre=di	n1w=29	n1pre=2	n1pre=29	n2w=.	n2pre=.	w=Nov.	suf=.	def	suf=.	def	wc=ic	w&c=nov.,ic	n1wc=2d	n1w&c=29,2d	t=t\u00E9	t2=NN,t\u00E9	p1t=NN	p1t2=person-cont,NN	p2t=person-cont	p2t2=person-start,person-cont	pw,w=director,Nov.	pwc,wc=lc,ic	w,nw=Nov.,29	wc,nc=ic,2d
+at: 16
+features: w=29	pre=2	pre=29	p1w=nov.	p1pre=N	p1pre=No	n1w=.	n1pre=.	w=29	suf=9	def	suf=9	def	wc=2d	w&c=29,2d	n1wc=other	n1w&c=.,other	t=other	t2=t\u00E9,other	p1t=t\u00E9	p1t2=NN,t\u00E9	p2t=NN	p2t2=person-cont,NN	pw,w=Nov.,29	pwc,wc=ic,2d	w,nw=29,.	wc,nc=2d,other
+at: 17
+features: w=.	pre=.	p1w=29	p1pre=2	p1pre=29	w=.	suf=.	def	suf=.	def	wc=other	w&c=.,other	t=person-start	t2=other,person-start	p1t=other	p1t2=t\u00E9,other	p2t=t\u00E9	p2t2=NN,t\u00E9	pw,w=29,.	pwc,wc=2d,other
+update
+sentence: 1
+tokens: Mr.	Smith	went	to	Washington	,	D.C.	,	on	1999-04-12	with	$	1,000	.
+outcomes: person-start	person-cont	NN	t\u00E9	other	person-start	person-cont	NN	t\u00E9	other	person-start	person-cont	NN	t\u00E9
+at: 0
+features: w=mr.	pre=M	pre=Mr	n1w=smith	n1pre=S	n1pre=Sm	n2w=went	n2pre=w	n2pre=we	n3w=to	n3pre=t	n3pre=to	w=Mr.	suf=.	def	suf=.	def	wc=ic	w&c=mr.,ic	n1wc=ic	n1w&c=smith,ic	w,nw=Mr.,Smith	wc,nc=ic,ic
+at: 1
+features: w=smith	pre=S	pre=Sm	p1w=mr.	p1pre=M	p1pre=Mr	n1w=went	n1pre=w	n1pre=we	n2w=to	n2pre=t	n2pre=to	n3w=washington	n3pre=W	n3pre=Wa	w=Smith	suf=h	def	suf=h	def	wc=ic	w&c=smith,ic	n1wc=lc	n1w&c=went,lc	t=person-start	pw,w=Mr.,Smith	pwc,wc=ic,ic	w,nw=Smith,went	wc,nc=ic,lc
+at: 2
+features: w=went	pre=w	pre=we	p1w=smith	p1pre=S	p1pre=Sm	n1w=to	n1pre=t	n1pre=to	n2w=washington	n2pre=W	n2pre=Wa	n3w=,	n3pre=,	w=went	suf=t	def	suf=t	def	wc=lc	w&c=went,lc	n1wc=lc	n1w&c=to,lc	t=person-cont	t2=person-start,person-cont	p1t=person-start	pw,w=Smith,went	pwc,wc=ic,lc	w,nw=went,to	wc,nc=lc,lc
+at: 3
+features: w=to	pre=t	pre=to	p1w=went	p1pre=w	p1pre=we	n1w=washington	n1pre=W	n1pre=Wa	n2w=,	n2pre=,	n3w=d.c.	n3pre=D	n3pre=D.	w=to	suf=o	def	suf=o	def	wc=lc	w&c=to,lc	n1wc=ic	n1w&c=washington,ic	t=NN	t2=person-cont,NN	p1t=person-cont	p1t2=person-start,person-cont	p2t=person-start	pw,w=went,to	pwc,wc=lc,lc	w,nw=to,Washington	wc,nc=lc,ic
+at: 4
+features: w=washington	pre=W	pre=Wa	p1w=to	p1pre=t	p1pre=to	n1w=,	n1pre=,	n2w=d.c.	n2pre=D	n2pre=D.	n3w=,	n3pre=,	w=Washington	suf=n	def	suf=n	def	wc=ic	w&c=washington,ic	n1wc=other	n1w&c=,,other	t=t\u00E9	t2=NN,t\u00E9	p1t=NN	p1t2=person-cont,NN	p2t=person-cont	p2t2=person-start,person-cont	pw,w=to,Washington	pwc,wc=lc,ic	w,nw=Washington,,	wc,nc=ic,other
+at: 5
+features: w=,	pre=,	p1w=washington	p1pre=W	p1pre=Wa	n1w=d.c.	n1pre=D	n1pre=D.	n2w=,	n2pre=,	n3w=on	n3pre=o	n3pre=on	w=,	suf=,	def	suf=,	def	wc=other	w&c=,,other	n1wc=ic	n1w&c=d.c.,ic	t=other	t2=t\u00E9,other	p1t=t\u00E9	p1t2=NN,t\u00E9	p2t=NN	p2t2=person-cont,NN	pw,w=Washington,,	pwc,wc=ic,other	w,nw=,,D.C.	wc,nc=other,ic
+at: 6
+features: w=d.c.	pre=D	pre=D.	p1w=,	p1pre=,	n1w=,	n1pre=,	n2w=on	n2pre=o	n2pre=on	n3w=1999-04-12	n3pre=1	n3pre=19	w=D.C.	suf=.	def	suf=.	def	wc=ic	w&c=d.c.,ic	n1wc=other	n1w&c=,,other	t=person-start	t2=other,person-start	p1t=other	p1t2=t\u00E9,other	p2t=t\u00E9	p2t2=NN,t\u00E9	pw,w=,,D.C.	pwc,wc=other,ic	w,nw=D.C.,,	wc,nc=ic,other
+at: 7
+features: w=,	pre=,	p1w=d.c.	p1pre=D	p1pre=D.	n1w=on	n1pre=o	n1pre=on	n2w=1999-04-12	n2pre=1	n2pre=19	n3w=with	n3pre=w	n3pre=wi	w=,	suf=,	def	suf=,	def	wc=other	w&c=,,other	n1wc=lc	n1w&c=on,lc	t=person-cont	t2=person-start,person-cont	p1t=person-start	p1t2=other,person-start	p2t=other	p2t2=t\u00E9,other	pw,w=D.C.,,	pwc,wc=ic,other	w,nw=,,on	wc,nc=other,lc
+at: 8
+features: w=on	pre=o	pre=on	p1w=,	p1pre=,	n1w=1999-04-12	n1pre=1	n1pre=19	n2w=with	n2pre=w	n2pre=wi	n3w=$	n3pre=$	w=on	suf=n	def	suf=n	def	wc=lc	w&c=on,lc	n1wc=dd	n1w&c=1999-04-12,dd	t=NN	t2=person-cont,NN	p1t=person-cont	p1t2=person-start,person-cont	p2t=person-start	p2t2=other,person-start	pw,w=,,on	pwc,wc=other,lc	w,nw=on,1999-04-12	wc,nc=lc,dd
+at: 9
+features: w=1999-04-12	pre=1	pre=19	p1w=on	p1pre=o	p1pre=on	n1w=with	n1pre=w	n1pre=wi	n2w=$	n2pre=$	n3w=1,000	n3pre=1	n3pre=1,	w=1999-04-12	suf=2	def	suf=2	def	wc=dd	w&c=1999-04-12,dd	n1wc=lc	n1w&c=with,lc	t=t\u00E9	t2=NN,t\u00E9	p1t=NN	p1t2=person-cont,NN	p2t=person-cont	p2t2=person-start,person-cont	pw,w=on,1999-04-12	pwc,wc=lc,dd	w,nw=1999-04-12,with	wc,nc=dd,lc
+at: 10
+features: w=with	pre=w	pre=wi	p1w=1999-04-12	p1pre=1	p1pre=19	n1w=$	n1pre=$	n2w=1,000	n2pre=1	n2pre=1,	n3w=.	n3pre=.	w=with	suf=h	def	suf=h	def	wc=lc	w&c=with,lc	n1wc=other	n1w&c=$,other	t=other	t2=t\u00E9,other	p1t=t\u00E9	p1t2=NN,t\u00E9	p2t=NN	p2t2=person-cont,NN	pw,w=1999-04-12,with	pwc,wc=dd,lc	w,nw=with,$	wc,nc=lc,other
+at: 11
+features: w=$	pre=$	p1w=with	p1pre=w	p1pre=wi	n1w=1,000	n1pre=1	n1pre=1,	n2w=.	n2pre=.	w=$	suf=$	def	suf=$	def	wc=other	w&c=$,other	n1wc=4d	n1w&c=1,000,4d	t=person-start	t2=other,person-start	p1t=other	p1t2=t\u00E9,other	p2t=t\u00E9	p2t2=NN,t\u00E9	pw,w=with,$	pwc,wc=lc,other	w,nw=$,1,000	wc,nc=other,4d
+at: 12
+features: w=1,000	pre=1	pre=1,	p1w=$	p1pre=$	n1w=.	n1pre=.	w=1,000	suf=0	def	suf=0	def	wc=4d	w&c=1,000,4d	n1wc=other	n1w&c=.,other	t=person-cont	t2=person-start,person-cont	p1t=person-start	p1t2=other,person-start	p2t=other	p2t2=t\u00E9,other	pw,w=$,1,000	pwc,wc=other,4d	w,nw=1,000,.	wc,nc=4d,other
+at: 13
+features: w=.	pre=.	p1w=1,000	p1pre=1	p1pre=1,	w=.	suf=.	def	suf=.	def	wc=other	w&c=.,other	t=NN	t2=person-cont,NN	p1t=person-cont	p1t2=person-start,person-cont	p2t=person-start	p2t2=other,person-start	pw,w=1,000,.	pwc,wc=4d,other
+update
+sentence: 2
+tokens: The	co-op	's	CEO	,	John	O'Neil	,	said	3.5	%	of	U.S.	sales	fell	.
+outcomes: person-cont	NN	t\u00E9	other	person-start	person-cont	NN	t\u00E9	other	person-start	person-cont	NN	t\u00E9	other	person-start	person-cont
+at: 0
+features: w=the	pre=T	pre=Th	n1w=co-op	n1pre=c	n1pre=co	n2w='s	n2pre='	n2pre='s	n3w=ceo	n3pre=C	n3pre=CE	w=The	suf=e	def	suf=e	def	wc=ic	w&c=the,ic	n1wc=other	n1w&c=co-op,other	w,nw=The,co-op	wc,nc=ic,other
+at: 1
+features: w=co-op	pre=c	pre=co	p1w=the	p1pre=T	p1pre=Th	n1w='s	n1pre='	n1pre='s	n2w=ceo	n2pre=C	n2pre=CE	n3w=,	n3pre=,	w=co-op	suf=p	def	suf=p	def	wc=other	w&c=co-op,other	n1wc=other	n1w&c='s,other	t=person-cont	pw,w=The,co-op	pwc,wc=ic,other	w,nw=co-op,'s	wc,nc=other,other
+at: 2
+features: w='s	pre='	pre='s	p1w=co-op	p1pre=c	p1pre=co	n1w=ceo	n1pre=C	n1pre=CE	n2w=,	n2pre=,	n3w=john	n3pre=J	n3pre=Jo	w='s	suf=s	def	suf=s	def	wc=other	w&c='s,other	n1wc=ac	n1w&c=ceo,ac	t=NN	t2=person-cont,NN	p1t=person-cont	pw,w=co-op,'s	pwc,wc=other,other	w,nw='s,CEO	wc,nc=other,ac
+at: 3
+features: w=ceo	pre=C	pre=CE	p1w='s	p1pre='	p1pre='s	n1w=,	n1pre=,	n2w=john	n2pre=J	n2pre=Jo	n3w=o'neil	n3pre=O	n3pre=O'	w=CEO	suf=O	def	suf=O	def	wc=ac	w&c=ceo,ac	n1wc=other	n1w&c=,,other	t=t\u00E9	t2=NN,t\u00E9	p1t=NN	p1t2=person-cont,NN	p2t=person-cont	pw,w='s,CEO	pwc,wc=other,ac	w,nw=CEO,,	wc,nc=ac,other
+at: 4
+features: w=,	pre=,	p1w=ceo	p1pre=C	p1pre=CE	n1w=john	n1pre=J	n1pre=Jo	n2w=o'neil	n2pre=O	n2pre=O'	n3w=,	n3pre=,	w=,	suf=,	def	suf=,	def	wc=other	w&c=,,other	n1wc=ic	n1w&c=john,ic	t=other	t2=t\u00E9,other	p1t=t\u00E9	p1t2=NN,t\u00E9	p2t=NN	p2t2=person-cont,NN	pw,w=CEO,,	pwc,wc=ac,other	w,nw=,,John	wc,nc=other,ic
+at: 5
+features: w=john	pre=J	pre=Jo	p1w=,	p1pre=,	n1w=o'neil	n1pre=O	n1pre=O'	n2w=,	n2pre=,	n3w=said	n3pre=s	n3pre=sa	w=John	suf=n	def	suf=n	def	wc=ic	w&c=john,ic	n1wc=ic	n1w&c=o'neil,ic	t=person-start	t2=other,person-start	p1t=other	p1t2=t\u00E9,other	p2t=t\u00E9	p2t2=NN,t\u00E9	pw,w=,,John	pwc,wc=other,ic	w,nw=John,O'Neil	wc,nc=ic,ic
+at: 6
+features: w=o'neil	pre=O	pre=O'	p1w=john	p1pre=J	p1pre=Jo	n1w=,	n1pre=,	n2w=said	n2pre=s	n2pre=sa	n3w=3.5	n3pre=3	n3pre=3.	w=O'Neil	suf=l	def	suf=l	def	wc=ic	w&c=o'neil,ic	n1wc=other	n1w&c=,,other	t=person-cont	t2=person-start,person-cont	p1t=person-start	p1t2=other,person-start	p2t=other	p2t2=t\u00E9,other	pw,w=John,O'Neil	pwc,wc=ic,ic	w,nw=O'Neil,,	wc,nc=ic,other
+at: 7
+features: w=,	pre=,	p1w=o'neil	p1pre=O	p1pre=O'	n1w=said	n1pre=s	n1pre=sa	n2w=3.5	n2pre=3	n2pre=3.	n3w=%	n3pre=%	w=,	suf=,	def	suf=,	def	wc=other	w&c=,,other	n1wc=lc	n1w&c=said,lc	t=NN	t2=person-cont,NN	p1t=person-cont	p1t2=person-start,person-cont	p2t=person-start	p2t2=other,person-start	pw,w=O'Neil,,	pwc,wc=ic,other	w,nw=,,said	wc,nc=other,lc
+at: 8
+features: w=said	pre=s	pre=sa	p1w=,	p1pre=,	n1w=3.5	n1pre=3	n1pre=3.	n2w=%	n2pre=%	n3w=of	n3pre=o	n3pre=of	w=said	suf=d	def	suf=d	def	wc=lc	w&c=said,lc	n1wc=2d	n1w&c=3.5,2d	t=t\u00E9	t2=NN,t\u00E9	p1t=NN	p1t2=person-cont,NN	p2t=person-cont	p2t2=person-start,person-cont	pw,w=,,said	pwc,wc=other,lc	w,nw=said,3.5	wc,nc=lc,2d
+at: 9
+features: w=3.5	pre=3	pre=3.	p1w=said	p1pre=s	p1pre=sa	n1w=%	n1pre=%	n2w=of	n2pre=o	n2pre=of	n3w=u.s.	n3pre=U	n3pre=U.	w=3.5	suf=5	def	suf=5	def	wc=2d	w&c=3.5,2d	n1wc=other	n1w&c=%,other	t=other	t2=t\u00E9,other	p1t=t\u00E9	p1t2=NN,t\u00E9	p2t=NN	p2t2=person-cont,NN	pw,w=said,3.5	pwc,wc=lc,2d	w,nw=3.5,%	wc,nc=2d,other
+at: 10
+features: w=%	pre=%	p1w=3.5	p1pre=3	p1pre=3.	n1w=of	n1pre=o	n1pre=of	n2w=u.s.	n2pre=U	n2pre=U.	n3w=sales	n3pre=s	n3pre=sa	w=%	suf=%	def	suf=%	def	wc=other	w&c=%,other	n1wc=lc	n1w&c=of,lc	t=person-start	t2=other,person-start	p1t=other	p1t2=t\u00E9,other	p2t=t\u00E9	p2t2=NN,t\u00E9	pw,w=3.5,%	pwc,wc=2d,other	w,nw=%,of	wc,nc=other,lc
+at: 11
+features: w=of	pre=o	pre=of	p1w=%	p1pre=%	n1w=u.s.	n1pre=U	n1pre=U.	n2w=sales	n2pre=s	n2pre=sa	n3w=fell	n3pre=f	n3pre=fe	w=of	suf=f	def	suf=f	def	wc=lc	w&c=of,lc	n1wc=ic	n1w&c=u.s.,ic	t=person-cont	t2=person-start,person-cont	p1t=person-start	p1t2=other,person-start	p2t=other	p2t2=t\u00E9,other	pw,w=%,of	pwc,wc=other,lc	w,nw=of,U.S.	wc,nc=lc,ic
+at: 12
+features: w=u.s.	pre=U	pre=U.	p1w=of	p1pre=o	p1pre=of	n1w=sales	n1pre=s	n1pre=sa	n2w=fell	n2pre=f	n2pre=fe	n3w=.	n3pre=.	w=U.S.	suf=.	def	suf=.	def	wc=ic	w&c=u.s.,ic	n1wc=lc	n1w&c=sales,lc	t=NN	t2=person-cont,NN	p1t=person-cont	p1t2=person-start,person-cont	p2t=person-start	p2t2=other,person-start	pw,w=of,U.S.	pwc,wc=lc,ic	w,nw=U.S.,sales	wc,nc=ic,lc
+at: 13
+features: w=sales	pre=s	pre=sa	p1w=u.s.	p1pre=U	p1pre=U.	n1w=fell	n1pre=f	n1pre=fe	n2w=.	n2pre=.	w=sales	suf=s	def	suf=s	def	wc=lc	w&c=sales,lc	n1wc=lc	n1w&c=fell,lc	t=t\u00E9	t2=NN,t\u00E9	p1t=NN	p1t2=person-cont,NN	p2t=person-cont	p2t2=person-start,person-cont	pw,w=U.S.,sales	pwc,wc=ic,lc	w,nw=sales,fell	wc,nc=lc,lc
+at: 14
+features: w=fell	pre=f	pre=fe	p1w=sales	p1pre=s	p1pre=sa	n1w=.	n1pre=.	w=fell	suf=l	def	suf=l	def	wc=lc	w&c=fell,lc	n1wc=other	n1w&c=.,other	t=other	t2=t\u00E9,other	p1t=t\u00E9	p1t2=NN,t\u00E9	p2t=NN	p2t2=person-cont,NN	pw,w=sales,fell	pwc,wc=lc,lc	w,nw=fell,.	wc,nc=lc,other
+at: 15
+features: w=.	pre=.	p1w=fell	p1pre=f	p1pre=fe	w=.	suf=.	def	suf=.	def	wc=other	w&c=.,other	t=person-start	t2=other,person-start	p1t=other	p1t2=t\u00E9,other	p2t=t\u00E9	p2t2=NN,t\u00E9	pw,w=fell,.	pwc,wc=lc,other
+update
+sentence: 3
+tokens: She	paid	12/31/2020	invoices	at	4:30	p.m.	in	New	York	City	.
+outcomes: NN	t\u00E9	other	person-start	person-cont	NN	t\u00E9	other	person-start	person-cont	NN	t\u00E9
+at: 0
+features: w=she	pre=S	pre=Sh	n1w=paid	n1pre=p	n1pre=pa	n2w=12/31/2020	n2pre=1	n2pre=12	n3w=invoices	n3pre=i	n3pre=in	w=She	suf=e	def	suf=e	def	wc=ic	w&c=she,ic	n1wc=lc	n1w&c=paid,lc	w,nw=She,paid	wc,nc=ic,lc
+at: 1
+features: w=paid	pre=p	pre=pa	p1w=she	p1pre=S	p1pre=Sh	n1w=12/31/2020	n1pre=1	n1pre=12	n2w=invoices	n2pre=i	n2pre=in	n3w=at	n3pre=a	n3pre=at	w=paid	suf=d	def	suf=d	def	wc=lc	w&c=paid,lc	n1wc=ds	n1w&c=12/31/2020,ds	t=NN	pw,w=She,paid	pwc,wc=ic,lc	w,nw=paid,12/31/2020	wc,nc=lc,ds
+at: 2
+features: w=12/31/2020	pre=1	pre=12	p1w=paid	p1pre=p	p1pre=pa	n1w=invoices	n1pre=i	n1pre=in	n2w=at	n2pre=a	n2pre=at	n3w=4:30	n3pre=4	n3pre=4:	w=12/31/2020	suf=0	def	suf=0	def	wc=ds	w&c=12/31/2020,ds	n1wc=lc	n1w&c=invoices,lc	t=t\u00E9	t2=NN,t\u00E9	p1t=NN	pw,w=paid,12/31/2020	pwc,wc=lc,ds	w,nw=12/31/2020,invoices	wc,nc=ds,lc
+at: 3
+features: w=invoices	pre=i	pre=in	p1w=12/31/2020	p1pre=1	p1pre=12	n1w=at	n1pre=a	n1pre=at	n2w=4:30	n2pre=4	n2pre=4:	n3w=p.m.	n3pre=p	n3pre=p.	w=invoices	suf=s	def	suf=s	def	wc=lc	w&c=invoices,lc	n1wc=lc	n1w&c=at,lc	t=other	t2=t\u00E9,other	p1t=t\u00E9	p1t2=NN,t\u00E9	p2t=NN	pw,w=12/31/2020,invoices	pwc,wc=ds,lc	w,nw=invoices,at	wc,nc=lc,lc
+at: 4
+features: w=at	pre=a	pre=at	p1w=invoices	p1pre=i	p1pre=in	n1w=4:30	n1pre=4	n1pre=4:	n2w=p.m.	n2pre=p	n2pre=p.	n3w=in	n3pre=i	n3pre=in	w=at	suf=t	def	suf=t	def	wc=lc	w&c=at,lc	n1wc=num	n1w&c=4:30,num	t=person-start	t2=other,person-start	p1t=other	p1t2=t\u00E9,other	p2t=t\u00E9	p2t2=NN,t\u00E9	pw,w=invoices,at	pwc,wc=lc,lc	w,nw=at,4:30	wc,nc=lc,num
+at: 5
+features: w=4:30	pre=4	pre=4:	p1w=at	p1pre=a	p1pre=at	n1w=p.m.	n1pre=p	n1pre=p.	n2w=in	n2pre=i	n2pre=in	n3w=new	n3pre=N	n3pre=Ne	w=4:30	suf=0	def	suf=0	def	wc=num	w&c=4:30,num	n1wc=other	n1w&c=p.m.,other	t=person-cont	t2=person-start,person-cont	p1t=person-start	p1t2=other,person-start	p2t=other	p2t2=t\u00E9,other	pw,w=at,4:30	pwc,wc=lc,num	w,nw=4:30,p.m.	wc,nc=num,other
+at: 6
+features: w=p.m.	pre=p	pre=p.	p1w=4:30	p1pre=4	p1pre=4:	n1w=in	n1pre=i	n1pre=in	n2w=new	n2pre=N	n2pre=Ne	n3w=york	n3pre=Y	n3pre=Yo	w=p.m.	suf=.	def	suf=.	def	wc=other	w&c=p.m.,other	n1wc=lc	n1w&c=in,lc	t=NN	t2=person-cont,NN	p1t=person-cont	p1t2=person-start,person-cont	p2t=person-start	p2t2=other,person-start	pw,w=4:30,p.m.	pwc,wc=num,other	w,nw=p.m.,in	wc,nc=other,lc
+at: 7
+features: w=in	pre=i	pre=in	p1w=p.m.	p1pre=p	p1pre=p.	n1w=new	n1pre=N	n1pre=Ne	n2w=york	n2pre=Y	n2pre=Yo	n3w=city	n3pre=C	n3pre=Ci	w=in	suf=n	def	suf=n	def	wc=lc	w&c=in,lc	n1wc=ic	n1w&c=new,ic	t=t\u00E9	t2=NN,t\u00E9	p1t=NN	p1t2=person-cont,NN	p2t=person-cont	p2t2=person-start,person-cont	pw,w=p.m.,in	pwc,wc=other,lc	w,nw=in,New	wc,nc=lc,ic
+at: 8
+features: w=new	pre=N	pre=Ne	p1w=in	p1pre=i	p1pre=in	n1w=york	n1pre=Y	n1pre=Yo	n2w=city	n2pre=C	n2pre=Ci	n3w=.	n3pre=.	w=New	suf=w	def	suf=w	def	wc=ic	w&c=new,ic	n1wc=ic	n1w&c=york,ic	t=other	t2=t\u00E9,other	p1t=t\u00E9	p1t2=NN,t\u00E9	p2t=NN	p2t2=person-cont,NN	pw,w=in,New	pwc,wc=lc,ic	w,nw=New,York	wc,nc=ic,ic
+at: 9
+features: w=york	pre=Y	pre=Yo	p1w=new	p1pre=N	p1pre=Ne	n1w=city	n1pre=C	n1pre=Ci	n2w=.	n2pre=.	w=York	suf=k	def	suf=k	def	wc=ic	w&c=york,ic	n1wc=ic	n1w&c=city,ic	t=person-start	t2=other,person-start	p1t=other	p1t2=t\u00E9,other	p2t=t\u00E9	p2t2=NN,t\u00E9	pw,w=New,York	pwc,wc=ic,ic	w,nw=York,City	wc,nc=ic,ic
+at: 10
+features: w=city	pre=C	pre=Ci	p1w=york	p1pre=Y	p1pre=Yo	n1w=.	n1pre=.	w=City	suf=y	def	suf=y	def	wc=ic	w&c=city,ic	n1wc=other	n1w&c=.,other	t=person-cont	t2=person-start,person-cont	p1t=person-start	p1t2=other,person-start	p2t=other	p2t2=t\u00E9,other	pw,w=York,City	pwc,wc=ic,ic	w,nw=City,.	wc,nc=ic,other
+at: 11
+features: w=.	pre=.	p1w=city	p1pre=C	p1pre=Ci	w=.	suf=.	def	suf=.	def	wc=other	w&c=.,other	t=NN	t2=person-cont,NN	p1t=person-cont	p1t2=person-start,person-cont	p2t=person-start	p2t2=other,person-start	pw,w=City,.	pwc,wc=ic,other
+update
+sentence: 4
+tokens: Angela	Merkel	met	Emmanuel	Macron	in	Berlin	and	Paris	last	week	.
+outcomes: t\u00E9	other	person-start	person-cont	NN	t\u00E9	other	person-start	person-cont	NN	t\u00E9	other
+at: 0
+features: w=angela	pre=A	pre=An	n1w=merkel	n1pre=M	n1pre=Me	n2w=met	n2pre=m	n2pre=me	n3w=emmanuel	n3pre=E	n3pre=Em	w=Angela	suf=a	def	suf=a	def	wc=ic	w&c=angela,ic	n1wc=ic	n1w&c=merkel,ic	w,nw=Angela,Merkel	wc,nc=ic,ic
+at: 1
+features: w=merkel	pre=M	pre=Me	p1w=angela	p1pre=A	p1pre=An	n1w=met	n1pre=m	n1pre=me	n2w=emmanuel	n2pre=E	n2pre=Em	n3w=macron	n3pre=M	n3pre=Ma	w=Merkel	suf=l	def	suf=l	def	wc=ic	w&c=merkel,ic	n1wc=lc	n1w&c=met,lc	t=t\u00E9	pw,w=Angela,Merkel	pwc,wc=ic,ic	w,nw=Merkel,met	wc,nc=ic,lc
+at: 2
+features: w=met	pre=m	pre=me	p1w=merkel	p1pre=M	p1pre=Me	n1w=emmanuel	n1pre=E	n1pre=Em	n2w=macron	n2pre=M	n2pre=Ma	n3w=in	n3pre=i	n3pre=in	w=met	suf=t	def	suf=t	def	wc=lc	w&c=met,lc	n1wc=ic	n1w&c=emmanuel,ic	t=other	t2=t\u00E9,other	p1t=t\u00E9	pw,w=Merkel,met	pwc,wc=ic,lc	w,nw=met,Emmanuel	wc,nc=lc,ic
+at: 3
+features: w=emmanuel	pre=E	pre=Em	p1w=met	p1pre=m	p1pre=me	n1w=macron	n1pre=M	n1pre=Ma	n2w=in	n2pre=i	n2pre=in	n3w=berlin	n3pre=B	n3pre=Be	w=Emmanuel	suf=l	def	suf=l	def	wc=ic	w&c=emmanuel,ic	n1wc=ic	n1w&c=macron,ic	t=person-start	t2=other,person-start	p1t=other	p1t2=t\u00E9,other	p2t=t\u00E9	pw,w=met,Emmanuel	pwc,wc=lc,ic	w,nw=Emmanuel,Macron	wc,nc=ic,ic
+at: 4
+features: w=macron	pre=M	pre=Ma	p1w=emmanuel	p1pre=E	p1pre=Em	n1w=in	n1pre=i	n1pre=in	n2w=berlin	n2pre=B	n2pre=Be	n3w=and	n3pre=a	n3pre=an	w=Macron	suf=n	def	suf=n	def	wc=ic	w&c=macron,ic	n1wc=lc	n1w&c=in,lc	t=person-cont	t2=person-start,person-cont	p1t=person-start	p1t2=other,person-start	p2t=other	p2t2=t\u00E9,other	pw,w=Emmanuel,Macron	pwc,wc=ic,ic	w,nw=Macron,in	wc,nc=ic,lc
+at: 5
+features: w=in	pre=i	pre=in	p1w=macron	p1pre=M	p1pre=Ma	n1w=berlin	n1pre=B	n1pre=Be	n2w=and	n2pre=a	n2pre=an	n3w=paris	n3pre=P	n3pre=Pa	w=in	suf=n	def	suf=n	def	wc=lc	w&c=in,lc	n1wc=ic	n1w&c=berlin,ic	t=NN	t2=person-cont,NN	p1t=person-cont	p1t2=person-start,person-cont	p2t=person-start	p2t2=other,person-start	pw,w=Macron,in	pwc,wc=ic,lc	w,nw=in,Berlin	wc,nc=lc,ic
+at: 6
+features: w=berlin	pre=B	pre=Be	p1w=in	p1pre=i	p1pre=in	n1w=and	n1pre=a	n1pre=an	n2w=paris	n2pre=P	n2pre=Pa	n3w=last	n3pre=l	n3pre=la	w=Berlin	suf=n	def	suf=n	def	wc=ic	w&c=berlin,ic	n1wc=lc	n1w&c=and,lc	t=t\u00E9	t2=NN,t\u00E9	p1t=NN	p1t2=person-cont,NN	p2t=person-cont	p2t2=person-start,person-cont	pw,w=in,Berlin	pwc,wc=lc,ic	w,nw=Berlin,and	wc,nc=ic,lc
+at: 7
+features: w=and	pre=a	pre=an	p1w=berlin	p1pre=B	p1pre=Be	n1w=paris	n1pre=P	n1pre=Pa	n2w=last	n2pre=l	n2pre=la	n3w=week	n3pre=w	n3pre=we	w=and	suf=d	def	suf=d	def	wc=lc	w&c=and,lc	n1wc=ic	n1w&c=paris,ic	t=other	t2=t\u00E9,other	p1t=t\u00E9	p1t2=NN,t\u00E9	p2t=NN	p2t2=person-cont,NN	pw,w=Berlin,and	pwc,wc=ic,lc	w,nw=and,Paris	wc,nc=lc,ic
+at: 8
+features: w=paris	pre=P	pre=Pa	p1w=and	p1pre=a	p1pre=an	n1w=last	n1pre=l	n1pre=la	n2w=week	n2pre=w	n2pre=we	n3w=.	n3pre=.	w=Paris	suf=s	def	suf=s	def	wc=ic	w&c=paris,ic	n1wc=lc	n1w&c=last,lc	t=person-start	t2=other,person-start	p1t=other	p1t2=t\u00E9,other	p2t=t\u00E9	p2t2=NN,t\u00E9	pw,w=and,Paris	pwc,wc=lc,ic	w,nw=Paris,last	wc,nc=ic,lc
+at: 9
+features: w=last	pre=l	pre=la	p1w=paris	p1pre=P	p1pre=Pa	n1w=week	n1pre=w	n1pre=we	n2w=.	n2pre=.	w=last	suf=t	def	suf=t	def	wc=lc	w&c=last,lc	n1wc=lc	n1w&c=week,lc	t=person-cont	t2=person-start,person-cont	p1t=person-start	p1t2=other,person-start	p2t=other	p2t2=t\u00E9,other	pw,w=Paris,last	pwc,wc=ic,lc	w,nw=last,week	wc,nc=lc,lc
+at: 10
+features: w=week	pre=w	pre=we	p1w=last	p1pre=l	p1pre=la	n1w=.	n1pre=.	w=week	suf=k	def	suf=k	def	wc=lc	w&c=week,lc	n1wc=other	n1w&c=.,other	t=NN	t2=person-cont,NN	p1t=person-cont	p1t2=person-start,person-cont	p2t=person-start	p2t2=other,person-start	pw,w=last,week	pwc,wc=lc,lc	w,nw=week,.	wc,nc=lc,other
+at: 11
+features: w=.	pre=.	p1w=week	p1pre=w	p1pre=we	w=.	suf=.	def	suf=.	def	wc=other	w&c=.,other	t=t\u00E9	t2=NN,t\u00E9	p1t=NN	p1t2=person-cont,NN	p2t=person-cont	p2t2=person-start,person-cont	pw,w=week,.	pwc,wc=lc,other
+update
+sentence: 5
+tokens: IBM	and	Microsoft	Corp.	reported	earnings	;	A.	B.	Smith	disagreed	.
+outcomes: other	person-start	person-cont	NN	t\u00E9	other	person-start	person-cont	NN	t\u00E9	other	person-start
+at: 0
+features: w=ibm	pre=I	pre=IB	n1w=and	n1pre=a	n1pre=an	n2w=microsoft	n2pre=M	n2pre=Mi	n3w=corp.	n3pre=C	n3pre=Co	w=IBM	suf=M	def	suf=M	def	wc=ac	w&c=ibm,ac	n1wc=lc	n1w&c=and,lc	w,nw=IBM,and	wc,nc=ac,lc
+at: 1
+features: w=and	pre=a	pre=an	p1w=ibm	p1pre=I	p1pre=IB	n1w=microsoft	n1pre=M	n1pre=Mi	n2w=corp.	n2pre=C	n2pre=Co	n3w=reported	n3pre=r	n3pre=re	w=and	suf=d	def	suf=d	def	wc=lc	w&c=and,lc	n1wc=ic	n1w&c=microsoft,ic	t=other	pw,w=IBM,and	pwc,wc=ac,lc	w,nw=and,Microsoft	wc,nc=lc,ic
+at: 2
+features: w=microsoft	pre=M	pre=Mi	p1w=and	p1pre=a	p1pre=an	n1w=corp.	n1pre=C	n1pre=Co	n2w=reported	n2pre=r	n2pre=re	n3w=earnings	n3pre=e	n3pre=ea	w=Microsoft	suf=t	def	suf=t	def	wc=ic	w&c=microsoft,ic	n1wc=ic	n1w&c=corp.,ic	t=person-start	t2=other,person-start	p1t=other	pw,w=and,Microsoft	pwc,wc=lc,ic	w,nw=Microsoft,Corp.	wc,nc=ic,ic
+at: 3
+features: w=corp.	pre=C	pre=Co	p1w=microsoft	p1pre=M	p1pre=Mi	n1w=reported	n1pre=r	n1pre=re	n2w=earnings	n2pre=e	n2pre=ea	n3w=;	n3pre=;	w=Corp.	suf=.	def	suf=.	def	wc=ic	w&c=corp.,ic	n1wc=lc	n1w&c=reported,lc	t=person-cont	t2=person-start,person-cont	p1t=person-start	p1t2=other,person-start	p2t=other	pw,w=Microsoft,Corp.	pwc,wc=ic,ic	w,nw=Corp.,reported	wc,nc=ic,lc
+at: 4
+features: w=reported	pre=r	pre=re	p1w=corp.	p1pre=C	p1pre=Co	n1w=earnings	n1pre=e	n1pre=ea	n2w=;	n2pre=;	n3w=a.	n3pre=A	n3pre=A.	w=reported	suf=d	def	suf=d	def	wc=lc	w&c=reported,lc	n1wc=lc	n1w&c=earnings,lc	t=NN	t2=person-cont,NN	p1t=person-cont	p1t2=person-start,person-cont	p2t=person-start	p2t2=other,person-start	pw,w=Corp.,reported	pwc,wc=ic,lc	w,nw=reported,earnings	wc,nc=lc,lc
+at: 5
+features: w=earnings	pre=e	pre=ea	p1w=reported	p1pre=r	p1pre=re	n1w=;	n1pre=;	n2w=a.	n2pre=A	n2pre=A.	n3w=b.	n3pre=B	n3pre=B.	w=earnings	suf=s	def	suf=s	def	wc=lc	w&c=earnings,lc	n1wc=other	n1w&c=;,other	t=t\u00E9	t2=NN,t\u00E9	p1t=NN	p1t2=person-cont,NN	p2t=person-cont	p2t2=person-start,person-cont	pw,w=reported,earnings	pwc,wc=lc,lc	w,nw=earnings,;	wc,nc=lc,other
+at: 6
+features: w=;	pre=;	p1w=earnings	p1pre=e	p1pre=ea	n1w=a.	n1pre=A	n1pre=A.	n2w=b.	n2pre=B	n2pre=B.	n3w=smith	n3pre=S	n3pre=Sm	w=;	suf=;	def	suf=;	def	wc=other	w&c=;,other	n1wc=cp	n1w&c=a.,cp	t=other	t2=t\u00E9,other	p1t=t\u00E9	p1t2=NN,t\u00E9	p2t=NN	p2t2=person-cont,NN	pw,w=earnings,;	pwc,wc=lc,other	w,nw=;,A.	wc,nc=other,cp
+at: 7
+features: w=a.	pre=A	pre=A.	p1w=;	p1pre=;	n1w=b.	n1pre=B	n1pre=B.	n2w=smith	n2pre=S	n2pre=Sm	n3w=disagreed	n3pre=d	n3pre=di	w=A.	suf=.	def	suf=.	def	wc=cp	w&c=a.,cp	n1wc=cp	n1w&c=b.,cp	t=person-start	t2=other,person-start	p1t=other	p1t2=t\u00E9,other	p2t=t\u00E9	p2t2=NN,t\u00E9	pw,w=;,A.	pwc,wc=other,cp	w,nw=A.,B.	wc,nc=cp,cp
+at: 8
+features: w=b.	pre=B	pre=B.	p1w=a.	p1pre=A	p1pre=A.	n1w=smith	n1pre=S	n1pre=Sm	n2w=disagreed	n2pre=d	n2pre=di	n3w=.	n3pre=.	w=B.	suf=.	def	suf=.	def	wc=cp	w&c=b.,cp	n1wc=ic	n1w&c=smith,ic	t=person-cont	t2=person-start,person-cont	p1t=person-start	p1t2=other,person-start	p2t=other	p2t2=t\u00E9,other	pw,w=A.,B.	pwc,wc=cp,cp	w,nw=B.,Smith	wc,nc=cp,ic
+at: 9
+features: w=smith	pre=S	pre=Sm	p1w=b.	p1pre=B	p1pre=B.	n1w=disagreed	n1pre=d	n1pre=di	n2w=.	n2pre=.	w=Smith	suf=h	def	suf=h	def	wc=ic	w&c=smith,ic	n1wc=lc	n1w&c=disagreed,lc	t=NN	t2=person-cont,NN	p1t=person-cont	p1t2=person-start,person-cont	p2t=person-start	p2t2=other,person-start	pw,w=B.,Smith	pwc,wc=cp,ic	w,nw=Smith,disagreed	wc,nc=ic,lc
+at: 10
+features: w=disagreed	pre=d	pre=di	p1w=smith	p1pre=S	p1pre=Sm	n1w=.	n1pre=.	w=disagreed	suf=d	def	suf=d	def	wc=lc	w&c=disagreed,lc	n1wc=other	n1w&c=.,other	t=t\u00E9	t2=NN,t\u00E9	p1t=NN	p1t2=person-cont,NN	p2t=person-cont	p2t2=person-start,person-cont	pw,w=Smith,disagreed	pwc,wc=ic,lc	w,nw=disagreed,.	wc,nc=lc,other
+at: 11
+features: w=.	pre=.	p1w=disagreed	p1pre=d	p1pre=di	w=.	suf=.	def	suf=.	def	wc=other	w&c=.,other	t=other	t2=t\u00E9,other	p1t=t\u00E9	p1t2=NN,t\u00E9	p2t=NN	p2t2=person-cont,NN	pw,w=disagreed,.	pwc,wc=lc,other
+update
+sentence: 6
+tokens: \u00DCnal	\u00D6zdemir	lives	in	K\u00F6ln	,	not	M\u00FCnchen	.
+outcomes: person-start	person-cont	NN	t\u00E9	other	person-start	person-cont	NN	t\u00E9
+at: 0
+features: w=\u00FCnal	pre=\u00DC	pre=\u00DCn	n1w=\u00F6zdemir	n1pre=\u00D6	n1pre=\u00D6z	n2w=lives	n2pre=l	n2pre=li	n3w=in	n3pre=i	n3pre=in	w=\u00DCnal	suf=l	def	suf=l	def	wc=ic	w&c=\u00FCnal,ic	n1wc=ic	n1w&c=\u00F6zdemir,ic	w,nw=\u00DCnal,\u00D6zdemir	wc,nc=ic,ic
+at: 1
+features: w=\u00F6zdemir	pre=\u00D6	pre=\u00D6z	p1w=\u00FCnal	p1pre=\u00DC	p1pre=\u00DCn	n1w=lives	n1pre=l	n1pre=li	n2w=in	n2pre=i	n2pre=in	n3w=k\u00F6ln	n3pre=K	n3pre=K\u00F6	w=\u00D6zdemir	suf=r	def	suf=r	def	wc=ic	w&c=\u00F6zdemir,ic	n1wc=lc	n1w&c=lives,lc	t=person-start	pw,w=\u00DCnal,\u00D6zdemir	pwc,wc=ic,ic	w,nw=\u00D6zdemir,lives	wc,nc=ic,lc
+at: 2
+features: w=lives	pre=l	pre=li	p1w=\u00F6zdemir	p1pre=\u00D6	p1pre=\u00D6z	n1w=in	n1pre=i	n1pre=in	n2w=k\u00F6ln	n2pre=K	n2pre=K\u00F6	n3w=,	n3pre=,	w=lives	suf=s	def	suf=s	def	wc=lc	w&c=lives,lc	n1wc=lc	n1w&c=in,lc	t=person-cont	t2=person-start,person-cont	p1t=person-start	pw,w=\u00D6zdemir,lives	pwc,wc=ic,lc	w,nw=lives,in	wc,nc=lc,lc
+at: 3
+features: w=in	pre=i	pre=in	p1w=lives	p1pre=l	p1pre=li	n1w=k\u00F6ln	n1pre=K	n1pre=K\u00F6	n2w=,	n2pre=,	n3w=not	n3pre=n	n3pre=no	w=in	suf=n	def	suf=n	def	wc=lc	w&c=in,lc	n1wc=ic	n1w&c=k\u00F6ln,ic	t=NN	t2=person-cont,NN	p1t=person-cont	p1t2=person-start,person-cont	p2t=person-start	pw,w=lives,in	pwc,wc=lc,lc	w,nw=in,K\u00F6ln	wc,nc=lc,ic
+at: 4
+features: w=k\u00F6ln	pre=K	pre=K\u00F6	p1w=in	p1pre=i	p1pre=in	n1w=,	n1pre=,	n2w=not	n2pre=n	n2pre=no	n3w=m\u00FCnchen	n3pre=M	n3pre=M\u00FC	w=K\u00F6ln	suf=n	def	suf=n	def	wc=ic	w&c=k\u00F6ln,ic	n1wc=other	n1w&c=,,other	t=t\u00E9	t2=NN,t\u00E9	p1t=NN	p1t2=person-cont,NN	p2t=person-cont	p2t2=person-start,person-cont	pw,w=in,K\u00F6ln	pwc,wc=lc,ic	w,nw=K\u00F6ln,,	wc,nc=ic,other
+at: 5
+features: w=,	pre=,	p1w=k\u00F6ln	p1pre=K	p1pre=K\u00F6	n1w=not	n1pre=n	n1pre=no	n2w=m\u00FCnchen	n2pre=M	n2pre=M\u00FC	n3w=.	n3pre=.	w=,	suf=,	def	suf=,	def	wc=other	w&c=,,other	n1wc=lc	n1w&c=not,lc	t=other	t2=t\u00E9,other	p1t=t\u00E9	p1t2=NN,t\u00E9	p2t=NN	p2t2=person-cont,NN	pw,w=K\u00F6ln,,	pwc,wc=ic,other	w,nw=,,not	wc,nc=other,lc
+at: 6
+features: w=not	pre=n	pre=no	p1w=,	p1pre=,	n1w=m\u00FCnchen	n1pre=M	n1pre=M\u00FC	n2w=.	n2pre=.	w=not	suf=t	def	suf=t	def	wc=lc	w&c=not,lc	n1wc=ic	n1w&c=m\u00FCnchen,ic	t=person-start	t2=other,person-start	p1t=other	p1t2=t\u00E9,other	p2t=t\u00E9	p2t2=NN,t\u00E9	pw,w=,,not	pwc,wc=other,lc	w,nw=not,M\u00FCnchen	wc,nc=lc,ic
+at: 7
+features: w=m\u00FCnchen	pre=M	pre=M\u00FC	p1w=not	p1pre=n	p1pre=no	n1w=.	n1pre=.	w=M\u00FCnchen	suf=n	def	suf=n	def	wc=ic	w&c=m\u00FCnchen,ic	n1wc=other	n1w&c=.,other	t=person-cont	t2=person-start,person-cont	p1t=person-start	p1t2=other,person-start	p2t=other	p2t2=t\u00E9,other	pw,w=not,M\u00FCnchen	pwc,wc=lc,ic	w,nw=M\u00FCnchen,.	wc,nc=ic,other
+at: 8
+features: w=.	pre=.	p1w=m\u00FCnchen	p1pre=M	p1pre=M\u00FC	w=.	suf=.	def	suf=.	def	wc=other	w&c=.,other	t=NN	t2=person-cont,NN	p1t=person-cont	p1t2=person-start,person-cont	p2t=person-start	p2t2=other,person-start	pw,w=M\u00FCnchen,.	pwc,wc=ic,other
+update
+sentence: 7
+tokens: \u6771\u4EAC	\u306F	\u3072\u3089\u304C\u306A	\u3068	\u30AB\u30BF\u30AB\u30CA	\u3092	\u4F7F\u3046	\u3002
+outcomes: person-cont	NN	t\u00E9	other	person-start	person-cont	NN	t\u00E9
+at: 0
+features: w=\u6771\u4EAC	pre=\u6771	pre=\u6771\u4EAC	n1w=\u306F	n1pre=\u306F	n2w=\u3072\u3089\u304C\u306A	n2pre=\u3072	n2pre=\u3072\u3089	n3w=\u3068	n3pre=\u3068	w=\u6771\u4EAC	suf=\u4EAC	def	suf=\u4EAC	def	wc=other	w&c=\u6771\u4EAC,other	n1wc=jah	n1w&c=\u306F,jah	w,nw=\u6771\u4EAC,\u306F	wc,nc=other,jah
+at: 1
+features: w=\u306F	pre=\u306F	p1w=\u6771\u4EAC	p1pre=\u6771	p1pre=\u6771\u4EAC	n1w=\u3072\u3089\u304C\u306A	n1pre=\u3072	n1pre=\u3072\u3089	n2w=\u3068	n2pre=\u3068	n3w=\u30AB\u30BF\u30AB\u30CA	n3pre=\u30AB	n3pre=\u30AB\u30BF	w=\u306F	suf=\u306F	def	suf=\u306F	def	wc=jah	w&c=\u306F,jah	n1wc=jah	n1w&c=\u3072\u3089\u304C\u306A,jah	t=person-cont	pw,w=\u6771\u4EAC,\u306F	pwc,wc=other,jah	w,nw=\u306F,\u3072\u3089\u304C\u306A	wc,nc=jah,jah
+at: 2
+features: w=\u3072\u3089\u304C\u306A	pre=\u3072	pre=\u3072\u3089	p1w=\u306F	p1pre=\u306F	n1w=\u3068	n1pre=\u3068	n2w=\u30AB\u30BF\u30AB\u30CA	n2pre=\u30AB	n2pre=\u30AB\u30BF	n3w=\u3092	n3pre=\u3092	w=\u3072\u3089\u304C\u306A	suf=\u306A	def	suf=\u306A	def	wc=jah	w&c=\u3072\u3089\u304C\u306A,jah	n1wc=jah	n1w&c=\u3068,jah	t=NN	t2=person-cont,NN	p1t=person-cont	pw,w=\u306F,\u3072\u3089\u304C\u306A	pwc,wc=jah,jah	w,nw=\u3072\u3089\u304C\u306A,\u3068	wc,nc=jah,jah
+at: 3
+features: w=\u3068	pre=\u3068	p1w=\u3072\u3089\u304C\u306A	p1pre=\u3072	p1pre=\u3072\u3089	n1w=\u30AB\u30BF\u30AB\u30CA	n1pre=\u30AB	n1pre=\u30AB\u30BF	n2w=\u3092	n2pre=\u3092	n3w=\u4F7F\u3046	n3pre=\u4F7F	n3pre=\u4F7F\u3046	w=\u3068	suf=\u3068	def	suf=\u3068	def	wc=jah	w&c=\u3068,jah	n1wc=jak	n1w&c=\u30AB\u30BF\u30AB\u30CA,jak	t=t\u00E9	t2=NN,t\u00E9	p1t=NN	p1t2=person-cont,NN	p2t=person-cont	pw,w=\u3072\u3089\u304C\u306A,\u3068	pwc,wc=jah,jah	w,nw=\u3068,\u30AB\u30BF\u30AB\u30CA	wc,nc=jah,jak
+at: 4
+features: w=\u30AB\u30BF\u30AB\u30CA	pre=\u30AB	pre=\u30AB\u30BF	p1w=\u3068	p1pre=\u3068	n1w=\u3092	n1pre=\u3092	n2w=\u4F7F\u3046	n2pre=\u4F7F	n2pre=\u4F7F\u3046	n3w=\u3002	n3pre=\u3002	w=\u30AB\u30BF\u30AB\u30CA	suf=\u30CA	def	suf=\u30CA	def	wc=jak	w&c=\u30AB\u30BF\u30AB\u30CA,jak	n1wc=jah	n1w&c=\u3092,jah	t=other	t2=t\u00E9,other	p1t=t\u00E9	p1t2=NN,t\u00E9	p2t=NN	p2t2=person-cont,NN	pw,w=\u3068,\u30AB\u30BF\u30AB\u30CA	pwc,wc=jah,jak	w,nw=\u30AB\u30BF\u30AB\u30CA,\u3092	wc,nc=jak,jah
+at: 5
+features: w=\u3092	pre=\u3092	p1w=\u30AB\u30BF\u30AB\u30CA	p1pre=\u30AB	p1pre=\u30AB\u30BF	n1w=\u4F7F\u3046	n1pre=\u4F7F	n1pre=\u4F7F\u3046	n2w=\u3002	n2pre=\u3002	w=\u3092	suf=\u3092	def	suf=\u3092	def	wc=jah	w&c=\u3092,jah	n1wc=other	n1w&c=\u4F7F\u3046,other	t=person-start	t2=other,person-start	p1t=other	p1t2=t\u00E9,other	p2t=t\u00E9	p2t2=NN,t\u00E9	pw,w=\u30AB\u30BF\u30AB\u30CA,\u3092	pwc,wc=jak,jah	w,nw=\u3092,\u4F7F\u3046	wc,nc=jah,other
+at: 6
+features: w=\u4F7F\u3046	pre=\u4F7F	pre=\u4F7F\u3046	p1w=\u3092	p1pre=\u3092	n1w=\u3002	n1pre=\u3002	w=\u4F7F\u3046	suf=\u3046	def	suf=\u3046	def	wc=other	w&c=\u4F7F\u3046,other	n1wc=other	n1w&c=\u3002,other	t=person-cont	t2=person-start,person-cont	p1t=person-start	p1t2=other,person-start	p2t=other	p2t2=t\u00E9,other	pw,w=\u3092,\u4F7F\u3046	pwc,wc=jah,other	w,nw=\u4F7F\u3046,\u3002	wc,nc=other,other
+at: 7
+features: w=\u3002	pre=\u3002	p1w=\u4F7F\u3046	p1pre=\u4F7F	p1pre=\u4F7F\u3046	w=\u3002	suf=\u3002	def	suf=\u3002	def	wc=other	w&c=\u3002,other	t=NN	t2=person-cont,NN	p1t=person-cont	p1t2=person-start,person-cont	p2t=person-start	p2t2=other,person-start	pw,w=\u4F7F\u3046,\u3002	pwc,wc=other,other
+update
+sentence: 8
+tokens: The	\uD835\uDC00\uD835\uDC01\uD835\uDC02	index	rose	\uD83D\uDE00	while	caf\u00E9	prices	fell	.
+outcomes: NN	t\u00E9	other	person-start	person-cont	NN	t\u00E9	other	person-start	person-cont
+at: 0
+features: w=the	pre=T	pre=Th	n1w=\uD835\uDC00\uD835\uDC01\uD835\uDC02	n1pre=\uD835	n1pre=\uD835\uDC00	n2w=index	n2pre=i	n2pre=in	n3w=rose	n3pre=r	n3pre=ro	w=The	suf=e	def	suf=e	def	wc=ic	w&c=the,ic	n1wc=other	n1w&c=\uD835\uDC00\uD835\uDC01\uD835\uDC02,other	w,nw=The,\uD835\uDC00\uD835\uDC01\uD835\uDC02	wc,nc=ic,other
+at: 1
+features: w=\uD835\uDC00\uD835\uDC01\uD835\uDC02	pre=\uD835	pre=\uD835\uDC00	p1w=the	p1pre=T	p1pre=Th	n1w=index	n1pre=i	n1pre=in	n2w=rose	n2pre=r	n2pre=ro	n3w=\uD83D\uDE00	n3pre=\uD83D	n3pre=\uD83D\uDE00	w=\uD835\uDC00\uD835\uDC01\uD835\uDC02	suf=\uDC02	def	suf=\uDC02	def	wc=other	w&c=\uD835\uDC00\uD835\uDC01\uD835\uDC02,other	n1wc=lc	n1w&c=index,lc	t=NN	pw,w=The,\uD835\uDC00\uD835\uDC01\uD835\uDC02	pwc,wc=ic,other	w,nw=\uD835\uDC00\uD835\uDC01\uD835\uDC02,index	wc,nc=other,lc
+at: 2
+features: w=index	pre=i	pre=in	p1w=\uD835\uDC00\uD835\uDC01\uD835\uDC02	p1pre=\uD835	p1pre=\uD835\uDC00	n1w=rose	n1pre=r	n1pre=ro	n2w=\uD83D\uDE00	n2pre=\uD83D	n2pre=\uD83D\uDE00	n3w=while	n3pre=w	n3pre=wh	w=index	suf=x	def	suf=x	def	wc=lc	w&c=index,lc	n1wc=lc	n1w&c=rose,lc	t=t\u00E9	t2=NN,t\u00E9	p1t=NN	pw,w=\uD835\uDC00\uD835\uDC01\uD835\uDC02,index	pwc,wc=other,lc	w,nw=index,rose	wc,nc=lc,lc
+at: 3
+features: w=rose	pre=r	pre=ro	p1w=index	p1pre=i	p1pre=in	n1w=\uD83D\uDE00	n1pre=\uD83D	n1pre=\uD83D\uDE00	n2w=while	n2pre=w	n2pre=wh	n3w=caf\u00E9	n3pre=c	n3pre=ca	w=rose	suf=e	def	suf=e	def	wc=lc	w&c=rose,lc	n1wc=other	n1w&c=\uD83D\uDE00,other	t=other	t2=t\u00E9,other	p1t=t\u00E9	p1t2=NN,t\u00E9	p2t=NN	pw,w=index,rose	pwc,wc=lc,lc	w,nw=rose,\uD83D\uDE00	wc,nc=lc,other
+at: 4
+features: w=\uD83D\uDE00	pre=\uD83D	pre=\uD83D\uDE00	p1w=rose	p1pre=r	p1pre=ro	n1w=while	n1pre=w	n1pre=wh	n2w=caf\u00E9	n2pre=c	n2pre=ca	n3w=prices	n3pre=p	n3pre=pr	w=\uD83D\uDE00	suf=\uDE00	def	suf=\uDE00	def	wc=other	w&c=\uD83D\uDE00,other	n1wc=lc	n1w&c=while,lc	t=person-start	t2=other,person-start	p1t=other	p1t2=t\u00E9,other	p2t=t\u00E9	p2t2=NN,t\u00E9	pw,w=rose,\uD83D\uDE00	pwc,wc=lc,other	w,nw=\uD83D\uDE00,while	wc,nc=other,lc
+at: 5
+features: w=while	pre=w	pre=wh	p1w=\uD83D\uDE00	p1pre=\uD83D	p1pre=\uD83D\uDE00	n1w=caf\u00E9	n1pre=c	n1pre=ca	n2w=prices	n2pre=p	n2pre=pr	n3w=fell	n3pre=f	n3pre=fe	w=while	suf=e	def	suf=e	def	wc=lc	w&c=while,lc	n1wc=lc	n1w&c=caf\u00E9,lc	t=person-cont	t2=person-start,person-cont	p1t=person-start	p1t2=other,person-start	p2t=other	p2t2=t\u00E9,other	pw,w=\uD83D\uDE00,while	pwc,wc=other,lc	w,nw=while,caf\u00E9	wc,nc=lc,lc
+at: 6
+features: w=caf\u00E9	pre=c	pre=ca	p1w=while	p1pre=w	p1pre=wh	n1w=prices	n1pre=p	n1pre=pr	n2w=fell	n2pre=f	n2pre=fe	n3w=.	n3pre=.	w=caf\u00E9	suf=\u00E9	def	suf=\u00E9	def	wc=lc	w&c=caf\u00E9,lc	n1wc=lc	n1w&c=prices,lc	t=NN	t2=person-cont,NN	p1t=person-cont	p1t2=person-start,person-cont	p2t=person-start	p2t2=other,person-start	pw,w=while,caf\u00E9	pwc,wc=lc,lc	w,nw=caf\u00E9,prices	wc,nc=lc,lc
+at: 7
+features: w=prices	pre=p	pre=pr	p1w=caf\u00E9	p1pre=c	p1pre=ca	n1w=fell	n1pre=f	n1pre=fe	n2w=.	n2pre=.	w=prices	suf=s	def	suf=s	def	wc=lc	w&c=prices,lc	n1wc=lc	n1w&c=fell,lc	t=t\u00E9	t2=NN,t\u00E9	p1t=NN	p1t2=person-cont,NN	p2t=person-cont	p2t2=person-start,person-cont	pw,w=caf\u00E9,prices	pwc,wc=lc,lc	w,nw=prices,fell	wc,nc=lc,lc
+at: 8
+features: w=fell	pre=f	pre=fe	p1w=prices	p1pre=p	p1pre=pr	n1w=.	n1pre=.	w=fell	suf=l	def	suf=l	def	wc=lc	w&c=fell,lc	n1wc=other	n1w&c=.,other	t=other	t2=t\u00E9,other	p1t=t\u00E9	p1t2=NN,t\u00E9	p2t=NN	p2t2=person-cont,NN	pw,w=prices,fell	pwc,wc=lc,lc	w,nw=fell,.	wc,nc=lc,other
+at: 9
+features: w=.	pre=.	p1w=fell	p1pre=f	p1pre=fe	w=.	suf=.	def	suf=.	def	wc=other	w&c=.,other	t=person-start	t2=other,person-start	p1t=other	p1t2=t\u00E9,other	p2t=t\u00E9	p2t2=NN,t\u00E9	pw,w=fell,.	pwc,wc=lc,other
+update
+sentence: 9
+tokens: e-mail	me	at	john@example.com	or	visit	www.example.com/a?b=1	!
+outcomes: t\u00E9	other	person-start	person-cont	NN	t\u00E9	other	person-start
+at: 0
+features: w=e-mail	pre=e	pre=e-	n1w=me	n1pre=m	n1pre=me	n2w=at	n2pre=a	n2pre=at	n3w=john@example.com	n3pre=j	n3pre=jo	w=e-mail	suf=l	def	suf=l	def	wc=other	w&c=e-mail,other	n1wc=lc	n1w&c=me,lc	w,nw=e-mail,me	wc,nc=other,lc
+at: 1
+features: w=me	pre=m	pre=me	p1w=e-mail	p1pre=e	p1pre=e-	n1w=at	n1pre=a	n1pre=at	n2w=john@example.com	n2pre=j	n2pre=jo	n3w=or	n3pre=o	n3pre=or	w=me	suf=e	def	suf=e	def	wc=lc	w&c=me,lc	n1wc=lc	n1w&c=at,lc	t=t\u00E9	pw,w=e-mail,me	pwc,wc=other,lc	w,nw=me,at	wc,nc=lc,lc
+at: 2
+features: w=at	pre=a	pre=at	p1w=me	p1pre=m	p1pre=me	n1w=john@example.com	n1pre=j	n1pre=jo	n2w=or	n2pre=o	n2pre=or	n3w=visit	n3pre=v	n3pre=vi	w=at	suf=t	def	suf=t	def	wc=lc	w&c=at,lc	n1wc=other	n1w&c=john@example.com,other	t=other	t2=t\u00E9,other	p1t=t\u00E9	pw,w=me,at	pwc,wc=lc,lc	w,nw=at,john@example.com	wc,nc=lc,other
+at: 3
+features: w=john@example.com	pre=j	pre=jo	p1w=at	p1pre=a	p1pre=at	n1w=or	n1pre=o	n1pre=or	n2w=visit	n2pre=v	n2pre=vi	n3w=www.example.com/a?b=1	n3pre=w	n3pre=ww	w=john@example.com	suf=m	def	suf=m	def	wc=other	w&c=john@example.com,other	n1wc=lc	n1w&c=or,lc	t=person-start	t2=other,person-start	p1t=other	p1t2=t\u00E9,other	p2t=t\u00E9	pw,w=at,john@example.com	pwc,wc=lc,other	w,nw=john@example.com,or	wc,nc=other,lc
+at: 4
+features: w=or	pre=o	pre=or	p1w=john@example.com	p1pre=j	p1pre=jo	n1w=visit	n1pre=v	n1pre=vi	n2w=www.example.com/a?b=1	n2pre=w	n2pre=ww	n3w=!	n3pre=!	w=or	suf=r	def	suf=r	def	wc=lc	w&c=or,lc	n1wc=lc	n1w&c=visit,lc	t=person-cont	t2=person-start,person-cont	p1t=person-start	p1t2=other,person-start	p2t=other	p2t2=t\u00E9,other	pw,w=john@example.com,or	pwc,wc=other,lc	w,nw=or,visit	wc,nc=lc,lc
+at: 5
+features: w=visit	pre=v	pre=vi	p1w=or	p1pre=o	p1pre=or	n1w=www.example.com/a?b=1	n1pre=w	n1pre=ww	n2w=!	n2pre=!	w=visit	suf=t	def	suf=t	def	wc=lc	w&c=visit,lc	n1wc=an	n1w&c=www.example.com/a?b=1,an	t=NN	t2=person-cont,NN	p1t=person-cont	p1t2=person-start,person-cont	p2t=person-start	p2t2=other,person-start	pw,w=or,visit	pwc,wc=lc,lc	w,nw=visit,www.example.com/a?b=1	wc,nc=lc,an
+at: 6
+features: w=www.example.com/a?b=1	pre=w	pre=ww	p1w=visit	p1pre=v	p1pre=vi	n1w=!	n1pre=!	w=www.example.com/a?b=1	suf=1	def	suf=1	def	wc=an	w&c=www.example.com/a?b=1,an	n1wc=other	n1w&c=!,other	t=t\u00E9	t2=NN,t\u00E9	p1t=NN	p1t2=person-cont,NN	p2t=person-cont	p2t2=person-start,person-cont	pw,w=visit,www.example.com/a?b=1	pwc,wc=lc,an	w,nw=www.example.com/a?b=1,!	wc,nc=an,other
+at: 7
+features: w=!	pre=!	p1w=www.example.com/a?b=1	p1pre=w	p1pre=ww	w=!	suf=!	def	suf=!	def	wc=other	w&c=!,other	t=other	t2=t\u00E9,other	p1t=t\u00E9	p1t2=NN,t\u00E9	p2t=NN	p2t2=person-cont,NN	pw,w=www.example.com/a?b=1,!	pwc,wc=an,other
+update
+sentence: 10
+tokens: Barack	Obama	was	born	in	Honolulu	,	Hawaii	.
+outcomes: other	person-start	person-cont	NN	t\u00E9	other	person-start	person-cont	NN
+at: 0
+features: w=barack	pre=B	pre=Ba	n1w=obama	n1pre=O	n1pre=Ob	n2w=was	n2pre=w	n2pre=wa	n3w=born	n3pre=b	n3pre=bo	w=Barack	suf=k	def	suf=k	def	wc=ic	w&c=barack,ic	n1wc=ic	n1w&c=obama,ic	w,nw=Barack,Obama	wc,nc=ic,ic
+at: 1
+features: w=obama	pre=O	pre=Ob	p1w=barack	p1pre=B	p1pre=Ba	n1w=was	n1pre=w	n1pre=wa	n2w=born	n2pre=b	n2pre=bo	n3w=in	n3pre=i	n3pre=in	w=Obama	suf=a	def	suf=a	def	wc=ic	w&c=obama,ic	n1wc=lc	n1w&c=was,lc	t=other	pw,w=Barack,Obama	pwc,wc=ic,ic	w,nw=Obama,was	wc,nc=ic,lc
+at: 2
+features: w=was	pre=w	pre=wa	p1w=obama	p1pre=O	p1pre=Ob	n1w=born	n1pre=b	n1pre=bo	n2w=in	n2pre=i	n2pre=in	n3w=honolulu	n3pre=H	n3pre=Ho	w=was	suf=s	def	suf=s	def	wc=lc	w&c=was,lc	n1wc=lc	n1w&c=born,lc	t=person-start	t2=other,person-start	p1t=other	pw,w=Obama,was	pwc,wc=ic,lc	w,nw=was,born	wc,nc=lc,lc
+at: 3
+features: w=born	pre=b	pre=bo	p1w=was	p1pre=w	p1pre=wa	n1w=in	n1pre=i	n1pre=in	n2w=honolulu	n2pre=H	n2pre=Ho	n3w=,	n3pre=,	w=born	suf=n	def	suf=n	def	wc=lc	w&c=born,lc	n1wc=lc	n1w&c=in,lc	t=person-cont	t2=person-start,person-cont	p1t=person-start	p1t2=other,person-start	p2t=other	pw,w=was,born	pwc,wc=lc,lc	w,nw=born,in	wc,nc=lc,lc
+at: 4
+features: w=in	pre=i	pre=in	p1w=born	p1pre=b	p1pre=bo	n1w=honolulu	n1pre=H	n1pre=Ho	n2w=,	n2pre=,	n3w=hawaii	n3pre=H	n3pre=Ha	w=in	suf=n	def	suf=n	def	wc=lc	w&c=in,lc	n1wc=ic	n1w&c=honolulu,ic	t=NN	t2=person-cont,NN	p1t=person-cont	p1t2=person-start,person-cont	p2t=person-start	p2t2=other,person-start	pw,w=born,in	pwc,wc=lc,lc	w,nw=in,Honolulu	wc,nc=lc,ic
+at: 5
+features: w=honolulu	pre=H	pre=Ho	p1w=in	p1pre=i	p1pre=in	n1w=,	n1pre=,	n2w=hawaii	n2pre=H	n2pre=Ha	n3w=.	n3pre=.	w=Honolulu	suf=u	def	suf=u	def	wc=ic	w&c=honolulu,ic	n1wc=other	n1w&c=,,other	t=t\u00E9	t2=NN,t\u00E9	p1t=NN	p1t2=person-cont,NN	p2t=person-cont	p2t2=person-start,person-cont	pw,w=in,Honolulu	pwc,wc=lc,ic	w,nw=Honolulu,,	wc,nc=ic,other
+at: 6
+features: w=,	pre=,	p1w=honolulu	p1pre=H	p1pre=Ho	n1w=hawaii	n1pre=H	n1pre=Ha	n2w=.	n2pre=.	w=,	suf=,	def	suf=,	def	wc=other	w&c=,,other	n1wc=ic	n1w&c=hawaii,ic	t=other	t2=t\u00E9,other	p1t=t\u00E9	p1t2=NN,t\u00E9	p2t=NN	p2t2=person-cont,NN	pw,w=Honolulu,,	pwc,wc=ic,other	w,nw=,,Hawaii	wc,nc=other,ic
+at: 7
+features: w=hawaii	pre=H	pre=Ha	p1w=,	p1pre=,	n1w=.	n1pre=.	w=Hawaii	suf=i	def	suf=i	def	wc=ic	w&c=hawaii,ic	n1wc=other	n1w&c=.,other	t=person-start	t2=other,person-start	p1t=other	p1t2=t\u00E9,other	p2t=t\u00E9	p2t2=NN,t\u00E9	pw,w=,,Hawaii	pwc,wc=other,ic	w,nw=Hawaii,.	wc,nc=ic,other
+at: 8
+features: w=.	pre=.	p1w=hawaii	p1pre=H	p1pre=Ha	w=.	suf=.	def	suf=.	def	wc=other	w&c=.,other	t=person-cont	t2=person-start,person-cont	p1t=person-start	p1t2=other,person-start	p2t=other	p2t2=t\u00E9,other	pw,w=Hawaii,.	pwc,wc=ic,other
+update
+sentence: 11
+tokens: He	said	:	"	I	'm	not	going	to	London	.	"
+outcomes: person-start	person-cont	NN	t\u00E9	other	person-start	person-cont	NN	t\u00E9	other	person-start	person-cont
+at: 0
+features: w=he	pre=H	pre=He	n1w=said	n1pre=s	n1pre=sa	n2w=:	n2pre=:	n3w="	n3pre="	w=He	suf=e	def	suf=e	def	wc=ic	w&c=he,ic	n1wc=lc	n1w&c=said,lc	w,nw=He,said	wc,nc=ic,lc
+at: 1
+features: w=said	pre=s	pre=sa	p1w=he	p1pre=H	p1pre=He	n1w=:	n1pre=:	n2w="	n2pre="	n3w=i	n3pre=I	w=said	suf=d	def	suf=d	def	wc=lc	w&c=said,lc	n1wc=other	n1w&c=:,other	t=person-start	pw,w=He,said	pwc,wc=ic,lc	w,nw=said,:	wc,nc=lc,other
+at: 2
+features: w=:	pre=:	p1w=said	p1pre=s	p1pre=sa	n1w="	n1pre="	n2w=i	n2pre=I	n3w='m	n3pre='	n3pre='m	w=:	suf=:	def	suf=:	def	wc=other	w&c=:,other	n1wc=other	n1w&c=",other	t=person-cont	t2=person-start,person-cont	p1t=person-start	pw,w=said,:	pwc,wc=lc,other	w,nw=:,"	wc,nc=other,other
+at: 3
+features: w="	pre="	p1w=:	p1pre=:	n1w=i	n1pre=I	n2w='m	n2pre='	n2pre='m	n3w=not	n3pre=n	n3pre=no	w="	suf="	def	suf="	def	wc=other	w&c=",other	n1wc=sc	n1w&c=i,sc	t=NN	t2=person-cont,NN	p1t=person-cont	p1t2=person-start,person-cont	p2t=person-start	pw,w=:,"	pwc,wc=other,other	w,nw=",I	wc,nc=other,sc
+at: 4
+features: w=i	pre=I	p1w="	p1pre="	n1w='m	n1pre='	n1pre='m	n2w=not	n2pre=n	n2pre=no	n3w=going	n3pre=g	n3pre=go	w=I	suf=I	def	suf=I	def	wc=sc	w&c=i,sc	n1wc=other	n1w&c='m,other	t=t\u00E9	t2=NN,t\u00E9	p1t=NN	p1t2=person-cont,NN	p2t=person-cont	p2t2=person-start,person-cont	pw,w=",I	pwc,wc=other,sc	w,nw=I,'m	wc,nc=sc,other
+at: 5
+features: w='m	pre='	pre='m	p1w=i	p1pre=I	n1w=not	n1pre=n	n1pre=no	n2w=going	n2pre=g	n2pre=go	n3w=to	n3pre=t	n3pre=to	w='m	suf=m	def	suf=m	def	wc=other	w&c='m,other	n1wc=lc	n1w&c=not,lc	t=other	t2=t\u00E9,other	p1t=t\u00E9	p1t2=NN,t\u00E9	p2t=NN	p2t2=person-cont,NN	pw,w=I,'m	pwc,wc=sc,other	w,nw='m,not	wc,nc=other,lc
+at: 6
+features: w=not	pre=n	pre=no	p1w='m	p1pre='	p1pre='m	n1w=going	n1pre=g	n1pre=go	n2w=to	n2pre=t	n2pre=to	n3w=london	n3pre=L	n3pre=Lo	w=not	suf=t	def	suf=t	def	wc=lc	w&c=not,lc	n1wc=lc	n1w&c=going,lc	t=person-start	t2=other,person-start	p1t=other	p1t2=t\u00E9,other	p2t=t\u00E9	p2t2=NN,t\u00E9	pw,w='m,not	pwc,wc=other,lc	w,nw=not,going	wc,nc=lc,lc
+at: 7
+features: w=going	pre=g	pre=go	p1w=not	p1pre=n	p1pre=no	n1w=to	n1pre=t	n1pre=to	n2w=london	n2pre=L	n2pre=Lo	n3w=.	n3pre=.	w=going	suf=g	def	suf=g	def	wc=lc	w&c=going,lc	n1wc=lc	n1w&c=to,lc	t=person-cont	t2=person-start,person-cont	p1t=person-start	p1t2=other,person-start	p2t=other	p2t2=t\u00E9,other	pw,w=not,going	pwc,wc=lc,lc	w,nw=going,to	wc,nc=lc,lc
+at: 8
+features: w=to	pre=t	pre=to	p1w=going	p1pre=g	p1pre=go	n1w=london	n1pre=L	n1pre=Lo	n2w=.	n2pre=.	n3w="	n3pre="	w=to	suf=o	def	suf=o	def	wc=lc	w&c=to,lc	n1wc=ic	n1w&c=london,ic	t=NN	t2=person-cont,NN	p1t=person-cont	p1t2=person-start,person-cont	p2t=person-start	p2t2=other,person-start	pw,w=going,to	pwc,wc=lc,lc	w,nw=to,London	wc,nc=lc,ic
+at: 9
+features: w=london	pre=L	pre=Lo	p1w=to	p1pre=t	p1pre=to	n1w=.	n1pre=.	n2w="	n2pre="	w=London	suf=n	def	suf=n	def	wc=ic	w&c=london,ic	n1wc=other	n1w&c=.,other	t=t\u00E9	t2=NN,t\u00E9	p1t=NN	p1t2=person-cont,NN	p2t=person-cont	p2t2=person-start,person-cont	pw,w=to,London	pwc,wc=lc,ic	w,nw=London,.	wc,nc=ic,other
+at: 10
+features: w=.	pre=.	p1w=london	p1pre=L	p1pre=Lo	n1w="	n1pre="	w=.	suf=.	def	suf=.	def	wc=other	w&c=.,other	n1wc=other	n1w&c=",other	t=other	t2=t\u00E9,other	p1t=t\u00E9	p1t2=NN,t\u00E9	p2t=NN	p2t2=person-cont,NN	pw,w=London,.	pwc,wc=ic,other	w,nw=.,"	wc,nc=other,other
+at: 11
+features: w="	pre="	p1w=.	p1pre=.	w="	suf="	def	suf="	def	wc=other	w&c=",other	t=person-start	t2=other,person-start	p1t=other	p1t2=t\u00E9,other	p2t=t\u00E9	p2t2=NN,t\u00E9	pw,w=.,"	pwc,wc=other,other
+update
+sentence: 12
+tokens: \u0141\u00D3D\u0179	and	\u0391\u0398\u0397\u039D\u0391	are	cities	;	\u01C5	is	a	titlecase	letter	.
+outcomes: person-cont	NN	t\u00E9	other	person-start	person-cont	NN	t\u00E9	other	person-start	person-cont	NN
+at: 0
+features: w=\u0142\u00F3d\u017A	pre=\u0141	pre=\u0141\u00D3	n1w=and	n1pre=a	n1pre=an	n2w=\u03B1\u03B8\u03B7\u03BD\u03B1	n2pre=\u0391	n2pre=\u0391\u0398	n3w=are	n3pre=a	n3pre=ar	w=\u0141\u00D3D\u0179	suf=\u0179	def	suf=\u0179	def	wc=ac	w&c=\u0142\u00F3d\u017A,ac	n1wc=lc	n1w&c=and,lc	w,nw=\u0141\u00D3D\u0179,and	wc,nc=ac,lc
+at: 1
+features: w=and	pre=a	pre=an	p1w=\u0142\u00F3d\u017A	p1pre=\u0141	p1pre=\u0141\u00D3	n1w=\u03B1\u03B8\u03B7\u03BD\u03B1	n1pre=\u0391	n1pre=\u0391\u0398	n2w=are	n2pre=a	n2pre=ar	n3w=cities	n3pre=c	n3pre=ci	w=and	suf=d	def	suf=d	def	wc=lc	w&c=and,lc	n1wc=jah	n1w&c=\u03B1\u03B8\u03B7\u03BD\u03B1,jah	t=person-cont	pw,w=\u0141\u00D3D\u0179,and	pwc,wc=ac,lc	w,nw=and,\u0391\u0398\u0397\u039D\u0391	wc,nc=lc,jah
+at: 2
+features: w=\u03B1\u03B8\u03B7\u03BD\u03B1	pre=\u0391	pre=\u0391\u0398	p1w=and	p1pre=a	p1pre=an	n1w=are	n1pre=a	n1pre=ar	n2w=cities	n2pre=c	n2pre=ci	n3w=;	n3pre=;	w=\u0391\u0398\u0397\u039D\u0391	suf=\u0391	def	suf=\u0391	def	wc=jah	w&c=\u03B1\u03B8\u03B7\u03BD\u03B1,jah	n1wc=lc	n1w&c=are,lc	t=NN	t2=person-cont,NN	p1t=person-cont	pw,w=and,\u0391\u0398\u0397\u039D\u0391	pwc,wc=lc,jah	w,nw=\u0391\u0398\u0397\u039D\u0391,are	wc,nc=jah,lc
+at: 3
+features: w=are	pre=a	pre=ar	p1w=\u03B1\u03B8\u03B7\u03BD\u03B1	p1pre=\u0391	p1pre=\u0391\u0398	n1w=cities	n1pre=c	n1pre=ci	n2w=;	n2pre=;	n3w=\u01C6	n3pre=\u01C5	w=are	suf=e	def	suf=e	def	wc=lc	w&c=are,lc	n1wc=lc	n1w&c=cities,lc	t=t\u00E9	t2=NN,t\u00E9	p1t=NN	p1t2=person-cont,NN	p2t=person-cont	pw,w=\u0391\u0398\u0397\u039D\u0391,are	pwc,wc=jah,lc	w,nw=are,cities	wc,nc=lc,lc
+at: 4
+features: w=cities	pre=c	pre=ci	p1w=are	p1pre=a	p1pre=ar	n1w=;	n1pre=;	n2w=\u01C6	n2pre=\u01C5	n3w=is	n3pre=i	n3pre=is	w=cities	suf=s	def	suf=s	def	wc=lc	w&c=cities,lc	n1wc=other	n1w&c=;,other	t=other	t2=t\u00E9,other	p1t=t\u00E9	p1t2=NN,t\u00E9	p2t=NN	p2t2=person-cont,NN	pw,w=are,cities	pwc,wc=lc,lc	w,nw=cities,;	wc,nc=lc,other
+at: 5
+features: w=;	pre=;	p1w=cities	p1pre=c	p1pre=ci	n1w=\u01C6	n1pre=\u01C5	n2w=is	n2pre=i	n2pre=is	n3w=a	n3pre=a	w=;	suf=;	def	suf=;	def	wc=other	w&c=;,other	n1wc=lc	n1w&c=\u01C6,lc	t=person-start	t2=other,person-start	p1t=other	p1t2=t\u00E9,other	p2t=t\u00E9	p2t2=NN,t\u00E9	pw,w=cities,;	pwc,wc=lc,other	w,nw=;,\u01C5	wc,nc=other,lc
+at: 6
+features: w=\u01C6	pre=\u01C5	p1w=;	p1pre=;	n1w=is	n1pre=i	n1pre=is	n2w=a	n2pre=a	n3w=titlecase	n3pre=t	n3pre=ti	w=\u01C5	suf=\u01C5	def	suf=\u01C5	def	wc=lc	w&c=\u01C6,lc	n1wc=lc	n1w&c=is,lc	t=person-cont	t2=person-start,person-cont	p1t=person-start	p1t2=other,person-start	p2t=other	p2t2=t\u00E9,other	pw,w=;,\u01C5	pwc,wc=other,lc	w,nw=\u01C5,is	wc,nc=lc,lc
+at: 7
+features: w=is	pre=i	pre=is	p1w=\u01C6	p1pre=\u01C5	n1w=a	n1pre=a	n2w=titlecase	n2pre=t	n2pre=ti	n3w=letter	n3pre=l	n3pre=le	w=is	suf=s	def	suf=s	def	wc=lc	w&c=is,lc	n1wc=lc	n1w&c=a,lc	t=NN	t2=person-cont,NN	p1t=person-cont	p1t2=person-start,person-cont	p2t=person-start	p2t2=other,person-start	pw,w=\u01C5,is	pwc,wc=lc,lc	w,nw=is,a	wc,nc=lc,lc
+at: 8
+features: w=a	pre=a	p1w=is	p1pre=i	p1pre=is	n1w=titlecase	n1pre=t	n1pre=ti	n2w=letter	n2pre=l	n2pre=le	n3w=.	n3pre=.	w=a	suf=a	def	suf=a	def	wc=lc	w&c=a,lc	n1wc=lc	n1w&c=titlecase,lc	t=t\u00E9	t2=NN,t\u00E9	p1t=NN	p1t2=person-cont,NN	p2t=person-cont	p2t2=person-start,person-cont	pw,w=is,a	pwc,wc=lc,lc	w,nw=a,titlecase	wc,nc=lc,lc
+at: 9
+features: w=titlecase	pre=t	pre=ti	p1w=a	p1pre=a	n1w=letter	n1pre=l	n1pre=le	n2w=.	n2pre=.	w=titlecase	suf=e	def	suf=e	def	wc=lc	w&c=titlecase,lc	n1wc=lc	n1w&c=letter,lc	t=other	t2=t\u00E9,other	p1t=t\u00E9	p1t2=NN,t\u00E9	p2t=NN	p2t2=person-cont,NN	pw,w=a,titlecase	pwc,wc=lc,lc	w,nw=titlecase,letter	wc,nc=lc,lc
+at: 10
+features: w=letter	pre=l	pre=le	p1w=titlecase	p1pre=t	p1pre=ti	n1w=.	n1pre=.	w=letter	suf=r	def	suf=r	def	wc=lc	w&c=letter,lc	n1wc=other	n1w&c=.,other	t=person-start	t2=other,person-start	p1t=other	p1t2=t\u00E9,other	p2t=t\u00E9	p2t2=NN,t\u00E9	pw,w=titlecase,letter	pwc,wc=lc,lc	w,nw=letter,.	wc,nc=lc,other
+at: 11
+features: w=.	pre=.	p1w=letter	p1pre=l	p1pre=le	w=.	suf=.	def	suf=.	def	wc=other	w&c=.,other	t=person-cont	t2=person-start,person-cont	p1t=person-start	p1t2=other,person-start	p2t=other	p2t2=t\u00E9,other	pw,w=letter,.	pwc,wc=lc,other
+update
+sentence: 13
+tokens: One	more	sentence	about	Dr.	Jane	Doe	of	Acme	Inc.	in	Chicago	.
+outcomes: NN	t\u00E9	other	person-start	person-cont	NN	t\u00E9	other	person-start	person-cont	NN	t\u00E9	other
+at: 0
+features: w=one	pre=O	pre=On	n1w=more	n1pre=m	n1pre=mo	n2w=sentence	n2pre=s	n2pre=se	n3w=about	n3pre=a	n3pre=ab	w=One	suf=e	def	suf=e	def	wc=ic	w&c=one,ic	n1wc=lc	n1w&c=more,lc	w,nw=One,more	wc,nc=ic,lc
+at: 1
+features: w=more	pre=m	pre=mo	p1w=one	p1pre=O	p1pre=On	n1w=sentence	n1pre=s	n1pre=se	n2w=about	n2pre=a	n2pre=ab	n3w=dr.	n3pre=D	n3pre=Dr	w=more	suf=e	def	suf=e	def	wc=lc	w&c=more,lc	n1wc=lc	n1w&c=sentence,lc	t=NN	pw,w=One,more	pwc,wc=ic,lc	w,nw=more,sentence	wc,nc=lc,lc
+at: 2
+features: w=sentence	pre=s	pre=se	p1w=more	p1pre=m	p1pre=mo	n1w=about	n1pre=a	n1pre=ab	n2w=dr.	n2pre=D	n2pre=Dr	n3w=jane	n3pre=J	n3pre=Ja	w=sentence	suf=e	def	suf=e	def	wc=lc	w&c=sentence,lc	n1wc=lc	n1w&c=about,lc	t=t\u00E9	t2=NN,t\u00E9	p1t=NN	pw,w=more,sentence	pwc,wc=lc,lc	w,nw=sentence,about	wc,nc=lc,lc
+at: 3
+features: w=about	pre=a	pre=ab	p1w=sentence	p1pre=s	p1pre=se	n1w=dr.	n1pre=D	n1pre=Dr	n2w=jane	n2pre=J	n2pre=Ja	n3w=doe	n3pre=D	n3pre=Do	w=about	suf=t	def	suf=t	def	wc=lc	w&c=about,lc	n1wc=ic	n1w&c=dr.,ic	t=other	t2=t\u00E9,other	p1t=t\u00E9	p1t2=NN,t\u00E9	p2t=NN	pw,w=sentence,about	pwc,wc=lc,lc	w,nw=about,Dr.	wc,nc=lc,ic
+at: 4
+features: w=dr.	pre=D	pre=Dr	p1w=about	p1pre=a	p1pre=ab	n1w=jane	n1pre=J	n1pre=Ja	n2w=doe	n2pre=D	n2pre=Do	n3w=of	n3pre=o	n3pre=of	w=Dr.	suf=.	def	suf=.	def	wc=ic	w&c=dr.,ic	n1wc=ic	n1w&c=jane,ic	t=person-start	t2=other,person-start	p1t=other	p1t2=t\u00E9,other	p2t=t\u00E9	p2t2=NN,t\u00E9	pw,w=about,Dr.	pwc,wc=lc,ic	w,nw=Dr.,Jane	wc,nc=ic,ic
+at: 5
+features: w=jane	pre=J	pre=Ja	p1w=dr.	p1pre=D	p1pre=Dr	n1w=doe	n1pre=D	n1pre=Do	n2w=of	n2pre=o	n2pre=of	n3w=acme	n3pre=A	n3pre=Ac	w=Jane	suf=e	def	suf=e	def	wc=ic	w&c=jane,ic	n1wc=ic	n1w&c=doe,ic	t=person-cont	t2=person-start,person-cont	p1t=person-start	p1t2=other,person-start	p2t=other	p2t2=t\u00E9,other	pw,w=Dr.,Jane	pwc,wc=ic,ic	w,nw=Jane,Doe	wc,nc=ic,ic
+at: 6
+features: w=doe	pre=D	pre=Do	p1w=jane	p1pre=J	p1pre=Ja	n1w=of	n1pre=o	n1pre=of	n2w=acme	n2pre=A	n2pre=Ac	n3w=inc.	n3pre=I	n3pre=In	w=Doe	suf=e	def	suf=e	def	wc=ic	w&c=doe,ic	n1wc=lc	n1w&c=of,lc	t=NN	t2=person-cont,NN	p1t=person-cont	p1t2=person-start,person-cont	p2t=person-start	p2t2=other,person-start	pw,w=Jane,Doe	pwc,wc=ic,ic	w,nw=Doe,of	wc,nc=ic,lc
+at: 7
+features: w=of	pre=o	pre=of	p1w=doe	p1pre=D	p1pre=Do	n1w=acme	n1pre=A	n1pre=Ac	n2w=inc.	n2pre=I	n2pre=In	n3w=in	n3pre=i	n3pre=in	w=of	suf=f	def	suf=f	def	wc=lc	w&c=of,lc	n1wc=ic	n1w&c=acme,ic	t=t\u00E9	t2=NN,t\u00E9	p1t=NN	p1t2=person-cont,NN	p2t=person-cont	p2t2=person-start,person-cont	pw,w=Doe,of	pwc,wc=ic,lc	w,nw=of,Acme	wc,nc=lc,ic
+at: 8
+features: w=acme	pre=A	pre=Ac	p1w=of	p1pre=o	p1pre=of	n1w=inc.	n1pre=I	n1pre=In	n2w=in	n2pre=i	n2pre=in	n3w=chicago	n3pre=C	n3pre=Ch	w=Acme	suf=e	def	suf=e	def	wc=ic	w&c=acme,ic	n1wc=ic	n1w&c=inc.,ic	t=other	t2=t\u00E9,other	p1t=t\u00E9	p1t2=NN,t\u00E9	p2t=NN	p2t2=person-cont,NN	pw,w=of,Acme	pwc,wc=lc,ic	w,nw=Acme,Inc.	wc,nc=ic,ic
+at: 9
+features: w=inc.	pre=I	pre=In	p1w=acme	p1pre=A	p1pre=Ac	n1w=in	n1pre=i	n1pre=in	n2w=chicago	n2pre=C	n2pre=Ch	n3w=.	n3pre=.	w=Inc.	suf=.	def	suf=.	def	wc=ic	w&c=inc.,ic	n1wc=lc	n1w&c=in,lc	t=person-start	t2=other,person-start	p1t=other	p1t2=t\u00E9,other	p2t=t\u00E9	p2t2=NN,t\u00E9	pw,w=Acme,Inc.	pwc,wc=ic,ic	w,nw=Inc.,in	wc,nc=ic,lc
+at: 10
+features: w=in	pre=i	pre=in	p1w=inc.	p1pre=I	p1pre=In	n1w=chicago	n1pre=C	n1pre=Ch	n2w=.	n2pre=.	w=in	suf=n	def	suf=n	def	wc=lc	w&c=in,lc	n1wc=ic	n1w&c=chicago,ic	t=person-cont	t2=person-start,person-cont	p1t=person-start	p1t2=other,person-start	p2t=other	p2t2=t\u00E9,other	pw,w=Inc.,in	pwc,wc=ic,lc	w,nw=in,Chicago	wc,nc=lc,ic
+at: 11
+features: w=chicago	pre=C	pre=Ch	p1w=in	p1pre=i	p1pre=in	n1w=.	n1pre=.	w=Chicago	suf=o	def	suf=o	def	wc=ic	w&c=chicago,ic	n1wc=other	n1w&c=.,other	t=NN	t2=person-cont,NN	p1t=person-cont	p1t2=person-start,person-cont	p2t=person-start	p2t2=other,person-start	pw,w=in,Chicago	pwc,wc=lc,ic	w,nw=Chicago,.	wc,nc=ic,other
+at: 12
+features: w=.	pre=.	p1w=chicago	p1pre=C	p1pre=Ch	w=.	suf=.	def	suf=.	def	wc=other	w&c=.,other	t=t\u00E9	t2=NN,t\u00E9	p1t=NN	p1t2=person-cont,NN	p2t=person-cont	p2t2=person-start,person-cont	pw,w=Chicago,.	pwc,wc=ic,other
+update
+sentence: 14
+tokens: Smith	said	Smith	would	visit	Paris	again	in	2024	.
+outcomes: t\u00E9	other	person-start	person-cont	NN	t\u00E9	other	person-start	person-cont	NN
+at: 0
+features: w=smith	pre=S	pre=Sm	n1w=said	n1pre=s	n1pre=sa	n2w=smith	n2pre=S	n2pre=Sm	n3w=would	n3pre=w	n3pre=wo	w=Smith	suf=h	def	suf=h	def	wc=ic	w&c=smith,ic	n1wc=lc	n1w&c=said,lc	w,nw=Smith,said	wc,nc=ic,lc
+at: 1
+features: w=said	pre=s	pre=sa	p1w=smith	p1pre=S	p1pre=Sm	n1w=smith	n1pre=S	n1pre=Sm	n2w=would	n2pre=w	n2pre=wo	n3w=visit	n3pre=v	n3pre=vi	w=said	suf=d	def	suf=d	def	wc=lc	w&c=said,lc	n1wc=ic	n1w&c=smith,ic	t=t\u00E9	pw,w=Smith,said	pwc,wc=ic,lc	w,nw=said,Smith	wc,nc=lc,ic
+at: 2
+features: w=smith	pre=S	pre=Sm	p1w=said	p1pre=s	p1pre=sa	n1w=would	n1pre=w	n1pre=wo	n2w=visit	n2pre=v	n2pre=vi	n3w=paris	n3pre=P	n3pre=Pa	w=Smith	suf=h	def	suf=h	def	wc=ic	w&c=smith,ic	n1wc=lc	n1w&c=would,lc	t=other	t2=t\u00E9,other	p1t=t\u00E9	pw,w=said,Smith	pwc,wc=lc,ic	w,nw=Smith,would	wc,nc=ic,lc
+at: 3
+features: w=would	pre=w	pre=wo	p1w=smith	p1pre=S	p1pre=Sm	n1w=visit	n1pre=v	n1pre=vi	n2w=paris	n2pre=P	n2pre=Pa	n3w=again	n3pre=a	n3pre=ag	w=would	suf=d	def	suf=d	def	wc=lc	w&c=would,lc	n1wc=lc	n1w&c=visit,lc	t=person-start	t2=other,person-start	p1t=other	p1t2=t\u00E9,other	p2t=t\u00E9	pw,w=Smith,would	pwc,wc=ic,lc	w,nw=would,visit	wc,nc=lc,lc
+at: 4
+features: w=visit	pre=v	pre=vi	p1w=would	p1pre=w	p1pre=wo	n1w=paris	n1pre=P	n1pre=Pa	n2w=again	n2pre=a	n2pre=ag	n3w=in	n3pre=i	n3pre=in	w=visit	suf=t	def	suf=t	def	wc=lc	w&c=visit,lc	n1wc=ic	n1w&c=paris,ic	t=person-cont	t2=person-start,person-cont	p1t=person-start	p1t2=other,person-start	p2t=other	p2t2=t\u00E9,other	pw,w=would,visit	pwc,wc=lc,lc	w,nw=visit,Paris	wc,nc=lc,ic
+at: 5
+features: w=paris	pre=P	pre=Pa	p1w=visit	p1pre=v	p1pre=vi	n1w=again	n1pre=a	n1pre=ag	n2w=in	n2pre=i	n2pre=in	n3w=2024	n3pre=2	n3pre=20	w=Paris	suf=s	def	suf=s	def	wc=ic	w&c=paris,ic	n1wc=lc	n1w&c=again,lc	t=NN	t2=person-cont,NN	p1t=person-cont	p1t2=person-start,person-cont	p2t=person-start	p2t2=other,person-start	pw,w=visit,Paris	pwc,wc=lc,ic	w,nw=Paris,again	wc,nc=ic,lc
+at: 6
+features: w=again	pre=a	pre=ag	p1w=paris	p1pre=P	p1pre=Pa	n1w=in	n1pre=i	n1pre=in	n2w=2024	n2pre=2	n2pre=20	n3w=.	n3pre=.	w=again	suf=n	def	suf=n	def	wc=lc	w&c=again,lc	n1wc=lc	n1w&c=in,lc	t=t\u00E9	t2=NN,t\u00E9	p1t=NN	p1t2=person-cont,NN	p2t=person-cont	p2t2=person-start,person-cont	pw,w=Paris,again	pwc,wc=ic,lc	w,nw=again,in	wc,nc=lc,lc
+at: 7
+features: w=in	pre=i	pre=in	p1w=again	p1pre=a	p1pre=ag	n1w=2024	n1pre=2	n1pre=20	n2w=.	n2pre=.	w=in	suf=n	def	suf=n	def	wc=lc	w&c=in,lc	n1wc=4d	n1w&c=2024,4d	t=other	t2=t\u00E9,other	p1t=t\u00E9	p1t2=NN,t\u00E9	p2t=NN	p2t2=person-cont,NN	pw,w=again,in	pwc,wc=lc,lc	w,nw=in,2024	wc,nc=lc,4d
+at: 8
+features: w=2024	pre=2	pre=20	p1w=in	p1pre=i	p1pre=in	n1w=.	n1pre=.	w=2024	suf=4	def	suf=4	def	wc=4d	w&c=2024,4d	n1wc=other	n1w&c=.,other	t=person-start	t2=other,person-start	p1t=other	p1t2=t\u00E9,other	p2t=t\u00E9	p2t2=NN,t\u00E9	pw,w=in,2024	pwc,wc=lc,4d	w,nw=2024,.	wc,nc=4d,other
+at: 9
+features: w=.	pre=.	p1w=2024	p1pre=2	p1pre=20	w=.	suf=.	def	suf=.	def	wc=other	w&c=.,other	t=person-cont	t2=person-start,person-cont	p1t=person-start	p1t2=other,person-start	p2t=other	p2t2=t\u00E9,other	pw,w=2024,.	pwc,wc=4d,other
+update
+sentence: 15
+tokens: a
+outcomes: other
+at: 0
+features: w=a	pre=a	w=a	suf=a	def	suf=a	def	wc=lc	w&c=a,lc
+update

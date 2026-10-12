@@ -1,6 +1,7 @@
-//! The XML reader the dictionary format needs, in the style of a SAX
-//! parser: it walks the document once and calls a [`Handler`] for each
-//! element start, element end and run of character data.
+//! The XML reader the dictionary format and the feature generator
+//! descriptors (`turbo-sequence`) need, in the style of a SAX parser: it
+//! walks the document once and calls a [`Handler`] for each element
+//! start, element end and run of character data.
 //!
 //! It supports elements, attributes in single or double quotes, the five
 //! predefined entities, decimal and hexadecimal character references,
@@ -24,13 +25,13 @@ use crate::error::{Error, Result};
 /// One attribute of an element: its local name and its value with
 /// references resolved.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) struct Attribute<'a> {
+pub struct Attribute<'a> {
     pub name: &'a str,
     pub value: Cow<'a, str>,
 }
 
 /// Receives the document's content in order.
-pub(crate) trait Handler {
+pub trait Handler {
     /// An element starts. `name` is its local name.
     fn start_element(&mut self, name: &str, attributes: &[Attribute<'_>], offset: usize) -> Result<()>;
     /// An element ends (also called right after `start_element` for an
@@ -43,7 +44,7 @@ pub(crate) trait Handler {
 
 /// Decodes the document's bytes to text: UTF-8 (with or without a byte
 /// order mark) unless the XML declaration names US-ASCII or ISO-8859-1.
-pub(crate) fn decode(bytes: &[u8]) -> Result<Cow<'_, str>> {
+pub fn decode(bytes: &[u8]) -> Result<Cow<'_, str>> {
     if bytes.starts_with(&[0xFE, 0xFF]) || bytes.starts_with(&[0xFF, 0xFE]) {
         return Err(Error::XmlEncoding("UTF-16".into()));
     }
@@ -101,7 +102,7 @@ fn declared_encoding(bytes: &[u8]) -> Option<&[u8]> {
 }
 
 /// Parses a decoded document, calling `handler` for its content.
-pub(crate) fn parse(text: &str, handler: &mut impl Handler) -> Result<()> {
+pub fn parse(text: &str, handler: &mut impl Handler) -> Result<()> {
     if let Some((offset, _)) = text.char_indices().find(|&(_, c)| !is_xml_char(c)) {
         return Err(Error::Xml { offset, message: "a character XML does not allow" });
     }

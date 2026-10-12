@@ -1,0 +1,357 @@
+component: beam
+opennlp: cdf33c653d5d61d5af7d37ffee189a83bd8392ea
+jdk: 21.0.12.1
+model: ner-bilou-fixture.bin
+sha256: 8ebc2bc170c11cfa35eadbe89f35871ff6938ae29c08def57c3d47e95be27ae5
+kind: names
+beam: 3
+codec: opennlp.tools.namefind.BilouCodec
+sentence: 0
+tokens: Pierre	Vinken	,	61	years	old	,	will	join	the	board	as	a	nonexecutive	director	Nov.	29	.
+call: 0
+features: w=pierre	pre=P	pre=Pi	n1w=vinken	n1pre=V	n1pre=Vi	n2w=,	n2pre=,	n3w=61	n3pre=6	n3pre=61	w=Pierre	suf=e	def	suf=e	def	wc=ic	w&c=pierre,ic	n1wc=ic	n1w&c=vinken,ic	w,nw=Pierre,Vinken	wc,nc=ic,ic	po=other	pow=other,Pierre	powf=other,ic	ppo=other
+call: 1	person-start
+features: w=vinken	pre=V	pre=Vi	p1w=pierre	p1pre=P	p1pre=Pi	n1w=,	n1pre=,	n2w=61	n2pre=6	n2pre=61	n3w=years	n3pre=y	n3pre=ye	w=Vinken	suf=n	def	suf=n	def	wc=ic	w&c=vinken,ic	n1wc=other	n1w&c=,,other	t=person-start	pw,w=Pierre,Vinken	pwc,wc=ic,ic	w,nw=Vinken,,	wc,nc=ic,other	po=person-start	pow=person-start,Vinken	powf=person-start,ic	ppo=other
+call: 1	other
+features: w=vinken	pre=V	pre=Vi	p1w=pierre	p1pre=P	p1pre=Pi	n1w=,	n1pre=,	n2w=61	n2pre=6	n2pre=61	n3w=years	n3pre=y	n3pre=ye	w=Vinken	suf=n	def	suf=n	def	wc=ic	w&c=vinken,ic	n1wc=other	n1w&c=,,other	t=person-start	pw,w=Pierre,Vinken	pwc,wc=ic,ic	w,nw=Vinken,,	wc,nc=ic,other	po=other	pow=other,Vinken	powf=other,ic	ppo=other
+call: 1	location-unit
+features: w=vinken	pre=V	pre=Vi	p1w=pierre	p1pre=P	p1pre=Pi	n1w=,	n1pre=,	n2w=61	n2pre=6	n2pre=61	n3w=years	n3pre=y	n3pre=ye	w=Vinken	suf=n	def	suf=n	def	wc=ic	w&c=vinken,ic	n1wc=other	n1w&c=,,other	t=person-start	pw,w=Pierre,Vinken	pwc,wc=ic,ic	w,nw=Vinken,,	wc,nc=ic,other	po=location-unit	pow=location-unit,Vinken	powf=location-unit,ic	ppo=other
+call: 2	person-start	person-last
+features: w=,	pre=,	p1w=vinken	p1pre=V	p1pre=Vi	n1w=61	n1pre=6	n1pre=61	n2w=years	n2pre=y	n2pre=ye	n3w=old	n3pre=o	n3pre=ol	w=,	suf=,	def	suf=,	def	wc=other	w&c=,,other	n1wc=2d	n1w&c=61,2d	t=person-last	t2=person-start,person-last	p1t=person-start	pw,w=Vinken,,	pwc,wc=ic,other	w,nw=,,61	wc,nc=other,2d	po=person-last	pow=person-last,,	powf=person-last,other	ppo=person-start
+call: 2	other	location-unit
+features: w=,	pre=,	p1w=vinken	p1pre=V	p1pre=Vi	n1w=61	n1pre=6	n1pre=61	n2w=years	n2pre=y	n2pre=ye	n3w=old	n3pre=o	n3pre=ol	w=,	suf=,	def	suf=,	def	wc=other	w&c=,,other	n1wc=2d	n1w&c=61,2d	t=person-last	t2=person-start,person-last	p1t=person-start	pw,w=Vinken,,	pwc,wc=ic,other	w,nw=,,61	wc,nc=other,2d	po=location-unit	pow=location-unit,,	powf=location-unit,other	ppo=other
+call: 2	location-unit	location-unit
+features: w=,	pre=,	p1w=vinken	p1pre=V	p1pre=Vi	n1w=61	n1pre=6	n1pre=61	n2w=years	n2pre=y	n2pre=ye	n3w=old	n3pre=o	n3pre=ol	w=,	suf=,	def	suf=,	def	wc=other	w&c=,,other	n1wc=2d	n1w&c=61,2d	t=person-last	t2=person-start,person-last	p1t=person-start	pw,w=Vinken,,	pwc,wc=ic,other	w,nw=,,61	wc,nc=other,2d	po=location-unit	pow=location-unit,,	powf=location-unit,other	ppo=location-unit
+call: 3	person-start	person-last	other
+features: w=61	pre=6	pre=61	p1w=,	p1pre=,	n1w=years	n1pre=y	n1pre=ye	n2w=old	n2pre=o	n2pre=ol	n3w=,	n3pre=,	w=61	suf=1	def	suf=1	def	wc=2d	w&c=61,2d	n1wc=lc	n1w&c=years,lc	t=other	t2=person-last,other	p1t=person-last	p1t2=person-start,person-last	p2t=person-start	pw,w=,,61	pwc,wc=other,2d	w,nw=61,years	wc,nc=2d,lc	po=other	pow=other,61	powf=other,2d	ppo=person-last
+call: 3	person-start	person-last	person-start
+features: w=61	pre=6	pre=61	p1w=,	p1pre=,	n1w=years	n1pre=y	n1pre=ye	n2w=old	n2pre=o	n2pre=ol	n3w=,	n3pre=,	w=61	suf=1	def	suf=1	def	wc=2d	w&c=61,2d	n1wc=lc	n1w&c=years,lc	t=other	t2=person-last,other	p1t=person-last	p1t2=person-start,person-last	p2t=person-start	pw,w=,,61	pwc,wc=other,2d	w,nw=61,years	wc,nc=2d,lc	po=person-start	pow=person-start,61	powf=person-start,2d	ppo=person-last
+call: 3	other	location-unit	other
+features: w=61	pre=6	pre=61	p1w=,	p1pre=,	n1w=years	n1pre=y	n1pre=ye	n2w=old	n2pre=o	n2pre=ol	n3w=,	n3pre=,	w=61	suf=1	def	suf=1	def	wc=2d	w&c=61,2d	n1wc=lc	n1w&c=years,lc	t=other	t2=person-last,other	p1t=person-last	p1t2=person-start,person-last	p2t=person-start	pw,w=,,61	pwc,wc=other,2d	w,nw=61,years	wc,nc=2d,lc	po=other	pow=other,61	powf=other,2d	ppo=location-unit
+call: 4	person-start	person-last	other	other
+features: w=years	pre=y	pre=ye	p1w=61	p1pre=6	p1pre=61	n1w=old	n1pre=o	n1pre=ol	n2w=,	n2pre=,	n3w=will	n3pre=w	n3pre=wi	w=years	suf=s	def	suf=s	def	wc=lc	w&c=years,lc	n1wc=lc	n1w&c=old,lc	t=other	t2=other,other	p1t=other	p1t2=person-last,other	p2t=person-last	p2t2=person-start,person-last	pw,w=61,years	pwc,wc=2d,lc	w,nw=years,old	wc,nc=lc,lc	po=other	pow=other,years	powf=other,lc	ppo=other
+call: 4	person-start	person-last	other	location-unit
+features: w=years	pre=y	pre=ye	p1w=61	p1pre=6	p1pre=61	n1w=old	n1pre=o	n1pre=ol	n2w=,	n2pre=,	n3w=will	n3pre=w	n3pre=wi	w=years	suf=s	def	suf=s	def	wc=lc	w&c=years,lc	n1wc=lc	n1w&c=old,lc	t=other	t2=other,other	p1t=other	p1t2=person-last,other	p2t=person-last	p2t2=person-start,person-last	pw,w=61,years	pwc,wc=2d,lc	w,nw=years,old	wc,nc=lc,lc	po=location-unit	pow=location-unit,years	powf=location-unit,lc	ppo=other
+call: 4	other	location-unit	other	other
+features: w=years	pre=y	pre=ye	p1w=61	p1pre=6	p1pre=61	n1w=old	n1pre=o	n1pre=ol	n2w=,	n2pre=,	n3w=will	n3pre=w	n3pre=wi	w=years	suf=s	def	suf=s	def	wc=lc	w&c=years,lc	n1wc=lc	n1w&c=old,lc	t=other	t2=other,other	p1t=other	p1t2=person-last,other	p2t=person-last	p2t2=person-start,person-last	pw,w=61,years	pwc,wc=2d,lc	w,nw=years,old	wc,nc=lc,lc	po=other	pow=other,years	powf=other,lc	ppo=other
+call: 5	person-start	person-last	other	other	other
+features: w=old	pre=o	pre=ol	p1w=years	p1pre=y	p1pre=ye	n1w=,	n1pre=,	n2w=will	n2pre=w	n2pre=wi	n3w=join	n3pre=j	n3pre=jo	w=old	suf=d	def	suf=d	def	wc=lc	w&c=old,lc	n1wc=other	n1w&c=,,other	t=other	t2=other,other	p1t=other	p1t2=other,other	p2t=other	p2t2=person-last,other	pw,w=years,old	pwc,wc=lc,lc	w,nw=old,,	wc,nc=lc,other	po=other	pow=other,old	powf=other,lc	ppo=other
+call: 5	person-start	person-last	other	other	location-unit
+features: w=old	pre=o	pre=ol	p1w=years	p1pre=y	p1pre=ye	n1w=,	n1pre=,	n2w=will	n2pre=w	n2pre=wi	n3w=join	n3pre=j	n3pre=jo	w=old	suf=d	def	suf=d	def	wc=lc	w&c=old,lc	n1wc=other	n1w&c=,,other	t=other	t2=other,other	p1t=other	p1t2=other,other	p2t=other	p2t2=person-last,other	pw,w=years,old	pwc,wc=lc,lc	w,nw=old,,	wc,nc=lc,other	po=location-unit	pow=location-unit,old	powf=location-unit,lc	ppo=other
+call: 5	person-start	person-last	other	location-unit	other
+features: w=old	pre=o	pre=ol	p1w=years	p1pre=y	p1pre=ye	n1w=,	n1pre=,	n2w=will	n2pre=w	n2pre=wi	n3w=join	n3pre=j	n3pre=jo	w=old	suf=d	def	suf=d	def	wc=lc	w&c=old,lc	n1wc=other	n1w&c=,,other	t=other	t2=other,other	p1t=other	p1t2=other,other	p2t=other	p2t2=person-last,other	pw,w=years,old	pwc,wc=lc,lc	w,nw=old,,	wc,nc=lc,other	po=other	pow=other,old	powf=other,lc	ppo=location-unit
+call: 6	person-start	person-last	other	other	other	other
+features: w=,	pre=,	p1w=old	p1pre=o	p1pre=ol	n1w=will	n1pre=w	n1pre=wi	n2w=join	n2pre=j	n2pre=jo	n3w=the	n3pre=t	n3pre=th	w=,	suf=,	def	suf=,	def	wc=other	w&c=,,other	n1wc=lc	n1w&c=will,lc	t=other	t2=other,other	p1t=other	p1t2=other,other	p2t=other	p2t2=other,other	pw,w=old,,	pwc,wc=lc,other	w,nw=,,will	wc,nc=other,lc	po=other	pow=other,,	powf=other,other	ppo=other
+call: 6	person-start	person-last	other	other	other	location-unit
+features: w=,	pre=,	p1w=old	p1pre=o	p1pre=ol	n1w=will	n1pre=w	n1pre=wi	n2w=join	n2pre=j	n2pre=jo	n3w=the	n3pre=t	n3pre=th	w=,	suf=,	def	suf=,	def	wc=other	w&c=,,other	n1wc=lc	n1w&c=will,lc	t=other	t2=other,other	p1t=other	p1t2=other,other	p2t=other	p2t2=other,other	pw,w=old,,	pwc,wc=lc,other	w,nw=,,will	wc,nc=other,lc	po=location-unit	pow=location-unit,,	powf=location-unit,other	ppo=other
+call: 6	person-start	person-last	other	other	location-unit	other
+features: w=,	pre=,	p1w=old	p1pre=o	p1pre=ol	n1w=will	n1pre=w	n1pre=wi	n2w=join	n2pre=j	n2pre=jo	n3w=the	n3pre=t	n3pre=th	w=,	suf=,	def	suf=,	def	wc=other	w&c=,,other	n1wc=lc	n1w&c=will,lc	t=other	t2=other,other	p1t=other	p1t2=other,other	p2t=other	p2t2=other,other	pw,w=old,,	pwc,wc=lc,other	w,nw=,,will	wc,nc=other,lc	po=other	pow=other,,	powf=other,other	ppo=location-unit
+call: 7	person-start	person-last	other	other	other	other	other
+features: w=will	pre=w	pre=wi	p1w=,	p1pre=,	n1w=join	n1pre=j	n1pre=jo	n2w=the	n2pre=t	n2pre=th	n3w=board	n3pre=b	n3pre=bo	w=will	suf=l	def	suf=l	def	wc=lc	w&c=will,lc	n1wc=lc	n1w&c=join,lc	t=other	t2=other,other	p1t=other	p1t2=other,other	p2t=other	p2t2=other,other	pw,w=,,will	pwc,wc=other,lc	w,nw=will,join	wc,nc=lc,lc	po=other	pow=other,will	powf=other,lc	ppo=other
+call: 7	person-start	person-last	other	other	other	location-unit	other
+features: w=will	pre=w	pre=wi	p1w=,	p1pre=,	n1w=join	n1pre=j	n1pre=jo	n2w=the	n2pre=t	n2pre=th	n3w=board	n3pre=b	n3pre=bo	w=will	suf=l	def	suf=l	def	wc=lc	w&c=will,lc	n1wc=lc	n1w&c=join,lc	t=other	t2=other,other	p1t=other	p1t2=other,other	p2t=other	p2t2=other,other	pw,w=,,will	pwc,wc=other,lc	w,nw=will,join	wc,nc=lc,lc	po=other	pow=other,will	powf=other,lc	ppo=location-unit
+call: 7	person-start	person-last	other	other	location-unit	other	other
+features: w=will	pre=w	pre=wi	p1w=,	p1pre=,	n1w=join	n1pre=j	n1pre=jo	n2w=the	n2pre=t	n2pre=th	n3w=board	n3pre=b	n3pre=bo	w=will	suf=l	def	suf=l	def	wc=lc	w&c=will,lc	n1wc=lc	n1w&c=join,lc	t=other	t2=other,other	p1t=other	p1t2=other,other	p2t=other	p2t2=other,other	pw,w=,,will	pwc,wc=other,lc	w,nw=will,join	wc,nc=lc,lc	po=other	pow=other,will	powf=other,lc	ppo=other
+call: 8	person-start	person-last	other	other	other	other	other	other
+features: w=join	pre=j	pre=jo	p1w=will	p1pre=w	p1pre=wi	n1w=the	n1pre=t	n1pre=th	n2w=board	n2pre=b	n2pre=bo	n3w=as	n3pre=a	n3pre=as	w=join	suf=n	def	suf=n	def	wc=lc	w&c=join,lc	n1wc=lc	n1w&c=the,lc	t=other	t2=other,other	p1t=other	p1t2=other,other	p2t=other	p2t2=other,other	pw,w=will,join	pwc,wc=lc,lc	w,nw=join,the	wc,nc=lc,lc	po=other	pow=other,join	powf=other,lc	ppo=other
+call: 8	person-start	person-last	other	other	other	location-unit	other	other
+features: w=join	pre=j	pre=jo	p1w=will	p1pre=w	p1pre=wi	n1w=the	n1pre=t	n1pre=th	n2w=board	n2pre=b	n2pre=bo	n3w=as	n3pre=a	n3pre=as	w=join	suf=n	def	suf=n	def	wc=lc	w&c=join,lc	n1wc=lc	n1w&c=the,lc	t=other	t2=other,other	p1t=other	p1t2=other,other	p2t=other	p2t2=other,other	pw,w=will,join	pwc,wc=lc,lc	w,nw=join,the	wc,nc=lc,lc	po=other	pow=other,join	powf=other,lc	ppo=other
+call: 8	person-start	person-last	other	other	other	other	other	person-start
+features: w=join	pre=j	pre=jo	p1w=will	p1pre=w	p1pre=wi	n1w=the	n1pre=t	n1pre=th	n2w=board	n2pre=b	n2pre=bo	n3w=as	n3pre=a	n3pre=as	w=join	suf=n	def	suf=n	def	wc=lc	w&c=join,lc	n1wc=lc	n1w&c=the,lc	t=other	t2=other,other	p1t=other	p1t2=other,other	p2t=other	p2t2=other,other	pw,w=will,join	pwc,wc=lc,lc	w,nw=join,the	wc,nc=lc,lc	po=person-start	pow=person-start,join	powf=person-start,lc	ppo=other
+call: 9	person-start	person-last	other	other	other	other	other	other	other
+features: w=the	pre=t	pre=th	p1w=join	p1pre=j	p1pre=jo	n1w=board	n1pre=b	n1pre=bo	n2w=as	n2pre=a	n2pre=as	n3w=a	n3pre=a	w=the	suf=e	def	suf=e	def	wc=lc	w&c=the,lc	n1wc=lc	n1w&c=board,lc	t=other	t2=other,other	p1t=other	p1t2=other,other	p2t=other	p2t2=other,other	pw,w=join,the	pwc,wc=lc,lc	w,nw=the,board	wc,nc=lc,lc	po=other	pow=other,the	powf=other,lc	ppo=other
+call: 9	person-start	person-last	other	other	other	location-unit	other	other	other
+features: w=the	pre=t	pre=th	p1w=join	p1pre=j	p1pre=jo	n1w=board	n1pre=b	n1pre=bo	n2w=as	n2pre=a	n2pre=as	n3w=a	n3pre=a	w=the	suf=e	def	suf=e	def	wc=lc	w&c=the,lc	n1wc=lc	n1w&c=board,lc	t=other	t2=other,other	p1t=other	p1t2=other,other	p2t=other	p2t2=other,other	pw,w=join,the	pwc,wc=lc,lc	w,nw=the,board	wc,nc=lc,lc	po=other	pow=other,the	powf=other,lc	ppo=other
+call: 9	person-start	person-last	other	other	other	other	other	other	location-unit
+features: w=the	pre=t	pre=th	p1w=join	p1pre=j	p1pre=jo	n1w=board	n1pre=b	n1pre=bo	n2w=as	n2pre=a	n2pre=as	n3w=a	n3pre=a	w=the	suf=e	def	suf=e	def	wc=lc	w&c=the,lc	n1wc=lc	n1w&c=board,lc	t=other	t2=other,other	p1t=other	p1t2=other,other	p2t=other	p2t2=other,other	pw,w=join,the	pwc,wc=lc,lc	w,nw=the,board	wc,nc=lc,lc	po=location-unit	pow=location-unit,the	powf=location-unit,lc	ppo=other
+call: 10	person-start	person-last	other	other	other	other	other	other	other	other
+features: w=board	pre=b	pre=bo	p1w=the	p1pre=t	p1pre=th	n1w=as	n1pre=a	n1pre=as	n2w=a	n2pre=a	n3w=nonexecutive	n3pre=n	n3pre=no	w=board	suf=d	def	suf=d	def	wc=lc	w&c=board,lc	n1wc=lc	n1w&c=as,lc	t=other	t2=other,other	p1t=other	p1t2=other,other	p2t=other	p2t2=other,other	pw,w=the,board	pwc,wc=lc,lc	w,nw=board,as	wc,nc=lc,lc	po=other	pow=other,board	powf=other,lc	ppo=other
+call: 10	person-start	person-last	other	other	other	location-unit	other	other	other	other
+features: w=board	pre=b	pre=bo	p1w=the	p1pre=t	p1pre=th	n1w=as	n1pre=a	n1pre=as	n2w=a	n2pre=a	n3w=nonexecutive	n3pre=n	n3pre=no	w=board	suf=d	def	suf=d	def	wc=lc	w&c=board,lc	n1wc=lc	n1w&c=as,lc	t=other	t2=other,other	p1t=other	p1t2=other,other	p2t=other	p2t2=other,other	pw,w=the,board	pwc,wc=lc,lc	w,nw=board,as	wc,nc=lc,lc	po=other	pow=other,board	powf=other,lc	ppo=other
+call: 10	person-start	person-last	other	other	other	other	other	other	location-unit	other
+features: w=board	pre=b	pre=bo	p1w=the	p1pre=t	p1pre=th	n1w=as	n1pre=a	n1pre=as	n2w=a	n2pre=a	n3w=nonexecutive	n3pre=n	n3pre=no	w=board	suf=d	def	suf=d	def	wc=lc	w&c=board,lc	n1wc=lc	n1w&c=as,lc	t=other	t2=other,other	p1t=other	p1t2=other,other	p2t=other	p2t2=other,other	pw,w=the,board	pwc,wc=lc,lc	w,nw=board,as	wc,nc=lc,lc	po=other	pow=other,board	powf=other,lc	ppo=location-unit
+call: 11	person-start	person-last	other	other	other	other	other	other	other	other	other
+features: w=as	pre=a	pre=as	p1w=board	p1pre=b	p1pre=bo	n1w=a	n1pre=a	n2w=nonexecutive	n2pre=n	n2pre=no	n3w=director	n3pre=d	n3pre=di	w=as	suf=s	def	suf=s	def	wc=lc	w&c=as,lc	n1wc=lc	n1w&c=a,lc	t=other	t2=other,other	p1t=other	p1t2=other,other	p2t=other	p2t2=other,other	pw,w=board,as	pwc,wc=lc,lc	w,nw=as,a	wc,nc=lc,lc	po=other	pow=other,as	powf=other,lc	ppo=other
+call: 11	person-start	person-last	other	other	other	other	other	other	other	other	location-unit
+features: w=as	pre=a	pre=as	p1w=board	p1pre=b	p1pre=bo	n1w=a	n1pre=a	n2w=nonexecutive	n2pre=n	n2pre=no	n3w=director	n3pre=d	n3pre=di	w=as	suf=s	def	suf=s	def	wc=lc	w&c=as,lc	n1wc=lc	n1w&c=a,lc	t=other	t2=other,other	p1t=other	p1t2=other,other	p2t=other	p2t2=other,other	pw,w=board,as	pwc,wc=lc,lc	w,nw=as,a	wc,nc=lc,lc	po=location-unit	pow=location-unit,as	powf=location-unit,lc	ppo=other
+call: 11	person-start	person-last	other	other	other	other	other	other	other	other	person-unit
+features: w=as	pre=a	pre=as	p1w=board	p1pre=b	p1pre=bo	n1w=a	n1pre=a	n2w=nonexecutive	n2pre=n	n2pre=no	n3w=director	n3pre=d	n3pre=di	w=as	suf=s	def	suf=s	def	wc=lc	w&c=as,lc	n1wc=lc	n1w&c=a,lc	t=other	t2=other,other	p1t=other	p1t2=other,other	p2t=other	p2t2=other,other	pw,w=board,as	pwc,wc=lc,lc	w,nw=as,a	wc,nc=lc,lc	po=person-unit	pow=person-unit,as	powf=person-unit,lc	ppo=other
+call: 12	person-start	person-last	other	other	other	other	other	other	other	other	other	other
+features: w=a	pre=a	p1w=as	p1pre=a	p1pre=as	n1w=nonexecutive	n1pre=n	n1pre=no	n2w=director	n2pre=d	n2pre=di	n3w=nov.	n3pre=N	n3pre=No	w=a	suf=a	def	suf=a	def	wc=lc	w&c=a,lc	n1wc=lc	n1w&c=nonexecutive,lc	t=other	t2=other,other	p1t=other	p1t2=other,other	p2t=other	p2t2=other,other	pw,w=as,a	pwc,wc=lc,lc	w,nw=a,nonexecutive	wc,nc=lc,lc	po=other	pow=other,a	powf=other,lc	ppo=other
+call: 12	person-start	person-last	other	other	other	other	other	other	other	other	other	location-unit
+features: w=a	pre=a	p1w=as	p1pre=a	p1pre=as	n1w=nonexecutive	n1pre=n	n1pre=no	n2w=director	n2pre=d	n2pre=di	n3w=nov.	n3pre=N	n3pre=No	w=a	suf=a	def	suf=a	def	wc=lc	w&c=a,lc	n1wc=lc	n1w&c=nonexecutive,lc	t=other	t2=other,other	p1t=other	p1t2=other,other	p2t=other	p2t2=other,other	pw,w=as,a	pwc,wc=lc,lc	w,nw=a,nonexecutive	wc,nc=lc,lc	po=location-unit	pow=location-unit,a	powf=location-unit,lc	ppo=other
+call: 12	person-start	person-last	other	other	other	other	other	other	other	other	other	person-unit
+features: w=a	pre=a	p1w=as	p1pre=a	p1pre=as	n1w=nonexecutive	n1pre=n	n1pre=no	n2w=director	n2pre=d	n2pre=di	n3w=nov.	n3pre=N	n3pre=No	w=a	suf=a	def	suf=a	def	wc=lc	w&c=a,lc	n1wc=lc	n1w&c=nonexecutive,lc	t=other	t2=other,other	p1t=other	p1t2=other,other	p2t=other	p2t2=other,other	pw,w=as,a	pwc,wc=lc,lc	w,nw=a,nonexecutive	wc,nc=lc,lc	po=person-unit	pow=person-unit,a	powf=person-unit,lc	ppo=other
+call: 13	person-start	person-last	other	other	other	other	other	other	other	other	other	other	other
+features: w=nonexecutive	pre=n	pre=no	p1w=a	p1pre=a	n1w=director	n1pre=d	n1pre=di	n2w=nov.	n2pre=N	n2pre=No	n3w=29	n3pre=2	n3pre=29	w=nonexecutive	suf=e	def	suf=e	def	wc=lc	w&c=nonexecutive,lc	n1wc=lc	n1w&c=director,lc	t=other	t2=other,other	p1t=other	p1t2=other,other	p2t=other	p2t2=other,other	pw,w=a,nonexecutive	pwc,wc=lc,lc	w,nw=nonexecutive,director	wc,nc=lc,lc	po=other	pow=other,nonexecutive	powf=other,lc	ppo=other
+call: 13	person-start	person-last	other	other	other	other	other	other	other	other	other	other	person-start
+features: w=nonexecutive	pre=n	pre=no	p1w=a	p1pre=a	n1w=director	n1pre=d	n1pre=di	n2w=nov.	n2pre=N	n2pre=No	n3w=29	n3pre=2	n3pre=29	w=nonexecutive	suf=e	def	suf=e	def	wc=lc	w&c=nonexecutive,lc	n1wc=lc	n1w&c=director,lc	t=other	t2=other,other	p1t=other	p1t2=other,other	p2t=other	p2t2=other,other	pw,w=a,nonexecutive	pwc,wc=lc,lc	w,nw=nonexecutive,director	wc,nc=lc,lc	po=person-start	pow=person-start,nonexecutive	powf=person-start,lc	ppo=other
+call: 13	person-start	person-last	other	other	other	other	other	other	other	other	other	location-unit	other
+features: w=nonexecutive	pre=n	pre=no	p1w=a	p1pre=a	n1w=director	n1pre=d	n1pre=di	n2w=nov.	n2pre=N	n2pre=No	n3w=29	n3pre=2	n3pre=29	w=nonexecutive	suf=e	def	suf=e	def	wc=lc	w&c=nonexecutive,lc	n1wc=lc	n1w&c=director,lc	t=other	t2=other,other	p1t=other	p1t2=other,other	p2t=other	p2t2=other,other	pw,w=a,nonexecutive	pwc,wc=lc,lc	w,nw=nonexecutive,director	wc,nc=lc,lc	po=other	pow=other,nonexecutive	powf=other,lc	ppo=location-unit
+call: 14	person-start	person-last	other	other	other	other	other	other	other	other	other	other	other	other
+features: w=director	pre=d	pre=di	p1w=nonexecutive	p1pre=n	p1pre=no	n1w=nov.	n1pre=N	n1pre=No	n2w=29	n2pre=2	n2pre=29	n3w=.	n3pre=.	w=director	suf=r	def	suf=r	def	wc=lc	w&c=director,lc	n1wc=ic	n1w&c=nov.,ic	t=other	t2=other,other	p1t=other	p1t2=other,other	p2t=other	p2t2=other,other	pw,w=nonexecutive,director	pwc,wc=lc,lc	w,nw=director,Nov.	wc,nc=lc,ic	po=other	pow=other,director	powf=other,lc	ppo=other
+call: 14	person-start	person-last	other	other	other	other	other	other	other	other	other	other	other	person-unit
+features: w=director	pre=d	pre=di	p1w=nonexecutive	p1pre=n	p1pre=no	n1w=nov.	n1pre=N	n1pre=No	n2w=29	n2pre=2	n2pre=29	n3w=.	n3pre=.	w=director	suf=r	def	suf=r	def	wc=lc	w&c=director,lc	n1wc=ic	n1w&c=nov.,ic	t=other	t2=other,other	p1t=other	p1t2=other,other	p2t=other	p2t2=other,other	pw,w=nonexecutive,director	pwc,wc=lc,lc	w,nw=director,Nov.	wc,nc=lc,ic	po=person-unit	pow=person-unit,director	powf=person-unit,lc	ppo=other
+call: 14	person-start	person-last	other	other	other	other	other	other	other	other	other	other	other	location-unit
+features: w=director	pre=d	pre=di	p1w=nonexecutive	p1pre=n	p1pre=no	n1w=nov.	n1pre=N	n1pre=No	n2w=29	n2pre=2	n2pre=29	n3w=.	n3pre=.	w=director	suf=r	def	suf=r	def	wc=lc	w&c=director,lc	n1wc=ic	n1w&c=nov.,ic	t=other	t2=other,other	p1t=other	p1t2=other,other	p2t=other	p2t2=other,other	pw,w=nonexecutive,director	pwc,wc=lc,lc	w,nw=director,Nov.	wc,nc=lc,ic	po=location-unit	pow=location-unit,director	powf=location-unit,lc	ppo=other
+call: 15	person-start	person-last	other	other	other	other	other	other	other	other	other	other	other	other	other
+features: w=nov.	pre=N	pre=No	p1w=director	p1pre=d	p1pre=di	n1w=29	n1pre=2	n1pre=29	n2w=.	n2pre=.	w=Nov.	suf=.	def	suf=.	def	wc=ic	w&c=nov.,ic	n1wc=2d	n1w&c=29,2d	t=other	t2=other,other	p1t=other	p1t2=other,other	p2t=other	p2t2=other,other	pw,w=director,Nov.	pwc,wc=lc,ic	w,nw=Nov.,29	wc,nc=ic,2d	po=other	pow=other,Nov.	powf=other,ic	ppo=other
+call: 15	person-start	person-last	other	other	other	other	other	other	other	other	other	other	other	other	location-unit
+features: w=nov.	pre=N	pre=No	p1w=director	p1pre=d	p1pre=di	n1w=29	n1pre=2	n1pre=29	n2w=.	n2pre=.	w=Nov.	suf=.	def	suf=.	def	wc=ic	w&c=nov.,ic	n1wc=2d	n1w&c=29,2d	t=other	t2=other,other	p1t=other	p1t2=other,other	p2t=other	p2t2=other,other	pw,w=director,Nov.	pwc,wc=lc,ic	w,nw=Nov.,29	wc,nc=ic,2d	po=location-unit	pow=location-unit,Nov.	powf=location-unit,ic	ppo=other
+call: 15	person-start	person-last	other	other	other	other	other	other	other	other	other	other	other	person-unit	other
+features: w=nov.	pre=N	pre=No	p1w=director	p1pre=d	p1pre=di	n1w=29	n1pre=2	n1pre=29	n2w=.	n2pre=.	w=Nov.	suf=.	def	suf=.	def	wc=ic	w&c=nov.,ic	n1wc=2d	n1w&c=29,2d	t=other	t2=other,other	p1t=other	p1t2=other,other	p2t=other	p2t2=other,other	pw,w=director,Nov.	pwc,wc=lc,ic	w,nw=Nov.,29	wc,nc=ic,2d	po=other	pow=other,Nov.	powf=other,ic	ppo=person-unit
+call: 16	person-start	person-last	other	other	other	other	other	other	other	other	other	other	other	other	other	other
+features: w=29	pre=2	pre=29	p1w=nov.	p1pre=N	p1pre=No	n1w=.	n1pre=.	w=29	suf=9	def	suf=9	def	wc=2d	w&c=29,2d	n1wc=other	n1w&c=.,other	t=other	t2=other,other	p1t=other	p1t2=other,other	p2t=other	p2t2=other,other	pw,w=Nov.,29	pwc,wc=ic,2d	w,nw=29,.	wc,nc=2d,other	po=other	pow=other,29	powf=other,2d	ppo=other
+call: 16	person-start	person-last	other	other	other	other	other	other	other	other	other	other	other	other	other	location-unit
+features: w=29	pre=2	pre=29	p1w=nov.	p1pre=N	p1pre=No	n1w=.	n1pre=.	w=29	suf=9	def	suf=9	def	wc=2d	w&c=29,2d	n1wc=other	n1w&c=.,other	t=other	t2=other,other	p1t=other	p1t2=other,other	p2t=other	p2t2=other,other	pw,w=Nov.,29	pwc,wc=ic,2d	w,nw=29,.	wc,nc=2d,other	po=location-unit	pow=location-unit,29	powf=location-unit,2d	ppo=other
+call: 16	person-start	person-last	other	other	other	other	other	other	other	other	other	other	other	other	other	person-start
+features: w=29	pre=2	pre=29	p1w=nov.	p1pre=N	p1pre=No	n1w=.	n1pre=.	w=29	suf=9	def	suf=9	def	wc=2d	w&c=29,2d	n1wc=other	n1w&c=.,other	t=other	t2=other,other	p1t=other	p1t2=other,other	p2t=other	p2t2=other,other	pw,w=Nov.,29	pwc,wc=ic,2d	w,nw=29,.	wc,nc=2d,other	po=person-start	pow=person-start,29	powf=person-start,2d	ppo=other
+call: 17	person-start	person-last	other	other	other	other	other	other	other	other	other	other	other	other	other	other	other
+features: w=.	pre=.	p1w=29	p1pre=2	p1pre=29	w=.	suf=.	def	suf=.	def	wc=other	w&c=.,other	t=other	t2=other,other	p1t=other	p1t2=other,other	p2t=other	p2t2=other,other	pw,w=29,.	pwc,wc=2d,other	po=other	pow=other,.	powf=other,other	ppo=other
+call: 17	person-start	person-last	other	other	other	other	other	other	other	other	other	other	other	other	other	other	location-unit
+features: w=.	pre=.	p1w=29	p1pre=2	p1pre=29	w=.	suf=.	def	suf=.	def	wc=other	w&c=.,other	t=other	t2=other,other	p1t=other	p1t2=other,other	p2t=other	p2t2=other,other	pw,w=29,.	pwc,wc=2d,other	po=location-unit	pow=location-unit,.	powf=location-unit,other	ppo=other
+call: 17	person-start	person-last	other	other	other	other	other	other	other	other	other	other	other	other	other	location-unit	other
+features: w=.	pre=.	p1w=29	p1pre=2	p1pre=29	w=.	suf=.	def	suf=.	def	wc=other	w&c=.,other	t=other	t2=other,other	p1t=other	p1t2=other,other	p2t=other	p2t2=other,other	pw,w=29,.	pwc,wc=2d,other	po=other	pow=other,.	powf=other,other	ppo=location-unit
+sequence: bff9c27056d6b59c
+outcomes: person-start	person-last	other	other	other	other	other	other	other	other	other	other	other	other	other	other	other	other
+probs: 3fee9f443f841d00	3feee7f98c0348fa	3fef5d271972eaee	3fef5eb2e21a2a0e	3fef71489a4aedf7	3fef6722277697af	3fef9aa0319bbc39	3fef6d61ec9e18f8	3fef620d6ad4c503	3fef80f94d0c040f	3feec9d8e51e4f54	3fed92a1a5dd1de9	3fead090bfb6e29a	3fecd71b7282671a	3feb9d457d6a4699	3fe520c188fa80d7	3fe683b0605e53d8	3feda2106a5a743d
+sequence: c009247c82923873
+outcomes: person-start	person-last	other	other	other	other	other	other	other	other	other	other	other	other	other	other	location-unit	other
+probs: 3fee9f443f841d00	3feee7f98c0348fa	3fef5d271972eaee	3fef5eb2e21a2a0e	3fef71489a4aedf7	3fef6722277697af	3fef9aa0319bbc39	3fef6d61ec9e18f8	3fef620d6ad4c503	3fef80f94d0c040f	3feec9d8e51e4f54	3fed92a1a5dd1de9	3fead090bfb6e29a	3fecd71b7282671a	3feb9d457d6a4699	3fe520c188fa80d7	3fc35681f4e9ee23	3fedcc2ecd7a1d33
+sequence: c0099a00d85520e6
+outcomes: person-start	person-last	other	other	other	other	other	other	other	other	other	other	other	other	other	location-unit	other	other
+probs: 3fee9f443f841d00	3feee7f98c0348fa	3fef5d271972eaee	3fef5eb2e21a2a0e	3fef71489a4aedf7	3fef6722277697af	3fef9aa0319bbc39	3fef6d61ec9e18f8	3fef620d6ad4c503	3fef80f94d0c040f	3feec9d8e51e4f54	3fed92a1a5dd1de9	3fead090bfb6e29a	3fecd71b7282671a	3feb9d457d6a4699	3fc2170f84d6c652	3fe5defc34676577	3fed0e083543dd52
+spans: 0 2 person
+sentence: 1
+tokens: Mr.	Smith	went	to	Washington	,	D.C.	,	on	1999-04-12	with	$	1,000	.
+sequence: bffad4d460654990
+outcomes: person-start	person-last	other	other	location-unit	other	location-unit	other	other	other	other	other	other	other
+probs: 3fee661db09170cf	3fee794b6d01bd7d	3fef6f63f068e5d8	3fef1f4131ef16a9	3fedee40f35aa0a1	3feeb774c87c303c	3fdbe5a42cf83ece	3feeb3b4e4f86481	3fe8847e1a36e6b9	3feca346de886409	3fed2f7048a6725a	3fef457f06307584	3fef21794906da91	3fef014f1e1cb92f
+sequence: bffc08315eeaad7c
+outcomes: person-start	person-last	other	other	location-unit	other	other	other	other	other	other	other	other	other
+probs: 3fee661db09170cf	3fee794b6d01bd7d	3fef6f63f068e5d8	3fef1f4131ef16a9	3fedee40f35aa0a1	3feeb774c87c303c	3fd8ba8db6ca08ae	3fee939ceac426ec	3fe9c3b37691413a	3feca346de886409	3fed2f7048a6725a	3fef457f06307584	3fef21794906da91	3fef014f1e1cb92f
+sequence: c00c4ea6954872f6
+outcomes: person-start	person-last	other	other	location-unit	other	location-unit	other	location-unit	other	other	other	other	other
+probs: 3fee661db09170cf	3fee794b6d01bd7d	3fef6f63f068e5d8	3fef1f4131ef16a9	3fedee40f35aa0a1	3feeb774c87c303c	3fdbe5a42cf83ece	3feeb3b4e4f86481	3fbf09efff33ba10	3fecd150bb41c640	3fec7d725087c77a	3fef457f06307584	3fef21794906da91	3fef014f1e1cb92f
+spans: 0 2 person	4 5 location	6 7 location
+sentence: 2
+tokens: The	co-op	's	CEO	,	John	O'Neil	,	said	3.5	%	of	U.S.	sales	fell	.
+sequence: c00c710e23f0fe82
+outcomes: other	other	other	other	other	person-start	person-last	other	other	other	other	other	other	other	other	other
+probs: 3fe6a871527ccf8e	3fe7c2ef27d39417	3fe5937573ce8de3	3fe2d56040d2c687	3fee39d46f8d0b65	3fe23bfef46befc8	3fe67cbe419466f8	3fece59a4eb4c1eb	3febbb4e3dee555c	3fe7aead472a8c5c	3fecc9caa73872db	3fee4e3a89d90ff7	3fe9f487589a2346	3fef2578d73aa41c	3feedbdc9678805c	3feed86f5398efec
+sequence: c0132ebaf612adc8
+outcomes: other	other	other	location-unit	other	person-start	person-last	other	other	other	other	other	other	other	other	other
+probs: 3fe6a871527ccf8e	3fe7c2ef27d39417	3fe5937573ce8de3	3fc668f7b33bbe33	3fee642ea37a8610	3fe1a25a7b4c9ef8	3fe67cbe419466f8	3fece59a4eb4c1eb	3febbb4e3dee555c	3fe7aead472a8c5c	3fecc9caa73872db	3fee4e3a89d90ff7	3fe9f487589a2346	3fef2578d73aa41c	3feedbdc9678805c	3feed86f5398efec
+sequence: c0163438d6db3ac0
+outcomes: other	other	other	other	other	person-start	person-last	other	other	location-unit	other	other	other	other	other	other
+probs: 3fe6a871527ccf8e	3fe7c2ef27d39417	3fe5937573ce8de3	3fe2d56040d2c687	3fee39d46f8d0b65	3fe23bfef46befc8	3fe67cbe419466f8	3fece59a4eb4c1eb	3febbb4e3dee555c	3fb9d91d123f8822	3fed0477607147e9	3fedf348b4c30515	3fe9f487589a2346	3fef2578d73aa41c	3feedbdc9678805c	3feed86f5398efec
+spans: 5 7 person
+sentence: 3
+tokens: She	paid	12/31/2020	invoices	at	4:30	p.m.	in	New	York	City	.
+sequence: c002eed91f3cce49
+outcomes: other	other	other	other	other	other	other	other	location-start	location-cont	location-last	other
+probs: 3fdc3d49da68df49	3fe6f75835dda9c7	3fe7dba5675cdf24	3feaf35c35810ebb	3fe985f108e483c2	3feaccb9bcf8f6f3	3fec41202307c45e	3fef72bbbeff7f31	3fee4b1517fc1bb8	3fedb778e0a15242	3fee80ff8cb49757	3fef13621e6b9837
+sequence: c012d24daff47dfc
+outcomes: other	other	other	other	location-unit	other	other	other	location-start	location-cont	location-last	other
+probs: 3fdc3d49da68df49	3fe6f75835dda9c7	3fe7dba5675cdf24	3feaf35c35810ebb	3fb420f0933c1ab0	3feb134d5992601f	3feb5ca2304c4bd4	3fef72bbbeff7f31	3fee4b1517fc1bb8	3fedb778e0a15242	3fee80ff8cb49757	3fef13621e6b9837
+sequence: c01337fa308eb3cd
+outcomes: other	location-unit	other	other	other	other	other	other	location-start	location-cont	location-last	other
+probs: 3fdc3d49da68df49	3fb0706b8c00e84c	3fe83b3dda0d6eaa	3fe9e6593ff0d72f	3fe985f108e483c2	3feaccb9bcf8f6f3	3fec41202307c45e	3fef72bbbeff7f31	3fee4b1517fc1bb8	3fedb778e0a15242	3fee80ff8cb49757	3fef13621e6b9837
+spans: 8 11 location
+sentence: 4
+tokens: Angela	Merkel	met	Emmanuel	Macron	in	Berlin	and	Paris	last	week	.
+sequence: bfea6ad48fa02359
+outcomes: person-start	person-last	other	person-start	person-last	other	location-unit	other	location-unit	other	other	other
+probs: 3feebe2a10dfa74f	3fef0bd599a2d79f	3fef4c382e906279	3feebf0e1493cf11	3feeccffb46fa44f	3fef6e9770b29268	3fe50de6ea33d215	3fef88d44867dae6	3fecbccc63bc353b	3fef83e0ac51f524	3fee6c7a271b0173	3fef0b29ff5612ea
+sequence: c004973a60dbeca5
+outcomes: person-start	person-last	other	person-start	person-last	other	other	other	location-unit	other	other	other
+probs: 3feebe2a10dfa74f	3fef0bd599a2d79f	3fef4c382e906279	3feebf0e1493cf11	3feeccffb46fa44f	3fef6e9770b29268	3fbdb1851ec40594	3fef82074bcb4d24	3fec663963f43088	3fef83e0ac51f524	3fee6c7a271b0173	3fef0b29ff5612ea
+sequence: c0056a5e94d360c2
+outcomes: person-start	person-last	other	person-start	person-last	other	person-unit	other	location-unit	other	other	other
+probs: 3feebe2a10dfa74f	3fef0bd599a2d79f	3fef4c382e906279	3feebf0e1493cf11	3feeccffb46fa44f	3fef6e9770b29268	3fbaf7e8a5414919	3fef9e049967d509	3fec1bb9c11134f7	3fef83e0ac51f524	3fee6c7a271b0173	3fef0b29ff5612ea
+spans: 0 2 person	3 5 person	6 7 location	8 9 location
+sentence: 5
+tokens: IBM	and	Microsoft	Corp.	reported	earnings	;	A.	B.	Smith	disagreed	.
+sequence: c00ca8b27ad8c452
+outcomes: other	other	location-unit	other	other	other	other	other	other	other	other	other
+probs: 3fe9c5408a02b6d6	3fecdc3ae8d26cd3	3fd1480a1b449c82	3feb7470a06d6a11	3feec0c7076f51b4	3feea009124fc400	3fe99672d7852351	3fe7b849f146ee7d	3fe4bf9d5c3a71d8	3fe1972dc2985512	3fecd8f06d770455	3fee31ae09b4c828
+sequence: c00f7f57167aa596
+outcomes: other	other	person-unit	other	other	other	other	other	other	other	other	other
+probs: 3fe9c5408a02b6d6	3fecdc3ae8d26cd3	3fc866b1803e50c7	3feb5473c8ae4fc4	3feeb04a2428b016	3feea009124fc400	3fe99672d7852351	3fe7b849f146ee7d	3fe4bf9d5c3a71d8	3fe1972dc2985512	3fecd8f06d770455	3fee31ae09b4c828
+sequence: c00f899170b71f60
+outcomes: other	other	other	other	other	other	other	other	other	other	other	other
+probs: 3fe9c5408a02b6d6	3fecdc3ae8d26cd3	3fc8f8a85731c17b	3fea4cb1fb446153	3fef01e943cb5799	3feea009124fc400	3fe99672d7852351	3fe7b849f146ee7d	3fe4bf9d5c3a71d8	3fe1972dc2985512	3fecd8f06d770455	3fee31ae09b4c828
+spans: 2 3 location
+sentence: 6
+tokens: \u00DCnal	\u00D6zdemir	lives	in	K\u00F6ln	,	not	M\u00FCnchen	.
+sequence: bff2c1480ae1b5d0
+outcomes: person-start	person-last	other	other	location-unit	other	other	location-unit	other
+probs: 3feeaf3497bbb334	3fef1caed1bf2c3b	3fef51838805ac67	3fef14a6abcb2278	3feddc29c467d9fb	3fef1fc13234aae3	3fea1deda044397b	3fe0363840d2e89d	3fedcc83de9f5bb2
+sequence: bffa8c799dc9be73
+outcomes: person-start	person-last	other	other	location-unit	other	other	other	other
+probs: 3feeaf3497bbb334	3fef1caed1bf2c3b	3fef51838805ac67	3fef14a6abcb2278	3feddc29c467d9fb	3fef1fc13234aae3	3fea1deda044397b	3fd40848f811473c	3feda2232a9836cd
+sequence: c00d51e7b8ad8c66
+outcomes: person-start	person-last	other	other	location-unit	other	location-unit	location-unit	other
+probs: 3feeaf3497bbb334	3fef1caed1bf2c3b	3fef51838805ac67	3fef14a6abcb2278	3feddc29c467d9fb	3fef1fc13234aae3	3fb462b3584e36bd	3fdbf278d4c2f41b	3fed4ba83d4f1e97
+spans: 0 2 person	4 5 location	7 8 location
+sentence: 7
+tokens: \u6771\u4EAC	\u306F	\u3072\u3089\u304C\u306A	\u3068	\u30AB\u30BF\u30AB\u30CA	\u3092	\u4F7F\u3046	\u3002
+sequence: c01446a9441130ec
+outcomes: other	other	other	other	other	other	other	other
+probs: 3fd970aad756f95a	3fd77155bc00d5b4	3fdddac19e7c3c79	3fe1c688d2c473b0	3fe2dfab97be7b7e	3fe32a562d889482	3fe61caa1a4f0e01	3fe5da103622eeab
+sequence: c017f0be1b404644
+outcomes: other	location-unit	other	other	other	other	other	other
+probs: 3fd970aad756f95a	3fc452b464c00c7d	3fdee301987767b9	3fdfb76685f518ad	3fe2dfab97be7b7e	3fe32a562d889482	3fe61caa1a4f0e01	3fe5da103622eeab
+sequence: c0189ae82ecbd43e
+outcomes: other	other	location-unit	other	other	other	other	other
+probs: 3fd970aad756f95a	3fd77155bc00d5b4	3fc5d559cf28d2d9	3fe24beae8bbb2a7	3fe0fd8da370834d	3fe32a562d889482	3fe61caa1a4f0e01	3fe5da103622eeab
+spans: 
+sentence: 8
+tokens: The	\uD835\uDC00\uD835\uDC01\uD835\uDC02	index	rose	\uD83D\uDE00	while	caf\u00E9	prices	fell	.
+call: 0
+features: w=the	pre=T	pre=Th	n1w=\uD835\uDC00\uD835\uDC01\uD835\uDC02	n1pre=\uD835	n1pre=\uD835\uDC00	n2w=index	n2pre=i	n2pre=in	n3w=rose	n3pre=r	n3pre=ro	w=The	suf=e	def	suf=e	def	wc=ic	w&c=the,ic	n1wc=other	n1w&c=\uD835\uDC00\uD835\uDC01\uD835\uDC02,other	w,nw=The,\uD835\uDC00\uD835\uDC01\uD835\uDC02	wc,nc=ic,other	po=other	pow=other,The	powf=other,ic	ppo=other
+call: 1	other
+features: w=\uD835\uDC00\uD835\uDC01\uD835\uDC02	pre=\uD835	pre=\uD835\uDC00	p1w=the	p1pre=T	p1pre=Th	n1w=index	n1pre=i	n1pre=in	n2w=rose	n2pre=r	n2pre=ro	n3w=\uD83D\uDE00	n3pre=\uD83D	n3pre=\uD83D\uDE00	w=\uD835\uDC00\uD835\uDC01\uD835\uDC02	suf=\uDC02	def	suf=\uDC02	def	wc=other	w&c=\uD835\uDC00\uD835\uDC01\uD835\uDC02,other	n1wc=lc	n1w&c=index,lc	t=other	pw,w=The,\uD835\uDC00\uD835\uDC01\uD835\uDC02	pwc,wc=ic,other	w,nw=\uD835\uDC00\uD835\uDC01\uD835\uDC02,index	wc,nc=other,lc	po=other	pow=other,\uD835\uDC00\uD835\uDC01\uD835\uDC02	powf=other,other	ppo=other
+call: 1	location-unit
+features: w=\uD835\uDC00\uD835\uDC01\uD835\uDC02	pre=\uD835	pre=\uD835\uDC00	p1w=the	p1pre=T	p1pre=Th	n1w=index	n1pre=i	n1pre=in	n2w=rose	n2pre=r	n2pre=ro	n3w=\uD83D\uDE00	n3pre=\uD83D	n3pre=\uD83D\uDE00	w=\uD835\uDC00\uD835\uDC01\uD835\uDC02	suf=\uDC02	def	suf=\uDC02	def	wc=other	w&c=\uD835\uDC00\uD835\uDC01\uD835\uDC02,other	n1wc=lc	n1w&c=index,lc	t=other	pw,w=The,\uD835\uDC00\uD835\uDC01\uD835\uDC02	pwc,wc=ic,other	w,nw=\uD835\uDC00\uD835\uDC01\uD835\uDC02,index	wc,nc=other,lc	po=location-unit	pow=location-unit,\uD835\uDC00\uD835\uDC01\uD835\uDC02	powf=location-unit,other	ppo=other
+call: 1	person-start
+features: w=\uD835\uDC00\uD835\uDC01\uD835\uDC02	pre=\uD835	pre=\uD835\uDC00	p1w=the	p1pre=T	p1pre=Th	n1w=index	n1pre=i	n1pre=in	n2w=rose	n2pre=r	n2pre=ro	n3w=\uD83D\uDE00	n3pre=\uD83D	n3pre=\uD83D\uDE00	w=\uD835\uDC00\uD835\uDC01\uD835\uDC02	suf=\uDC02	def	suf=\uDC02	def	wc=other	w&c=\uD835\uDC00\uD835\uDC01\uD835\uDC02,other	n1wc=lc	n1w&c=index,lc	t=other	pw,w=The,\uD835\uDC00\uD835\uDC01\uD835\uDC02	pwc,wc=ic,other	w,nw=\uD835\uDC00\uD835\uDC01\uD835\uDC02,index	wc,nc=other,lc	po=person-start	pow=person-start,\uD835\uDC00\uD835\uDC01\uD835\uDC02	powf=person-start,other	ppo=other
+call: 2	other	other
+features: w=index	pre=i	pre=in	p1w=\uD835\uDC00\uD835\uDC01\uD835\uDC02	p1pre=\uD835	p1pre=\uD835\uDC00	n1w=rose	n1pre=r	n1pre=ro	n2w=\uD83D\uDE00	n2pre=\uD83D	n2pre=\uD83D\uDE00	n3w=while	n3pre=w	n3pre=wh	w=index	suf=x	def	suf=x	def	wc=lc	w&c=index,lc	n1wc=lc	n1w&c=rose,lc	t=other	t2=other,other	p1t=other	pw,w=\uD835\uDC00\uD835\uDC01\uD835\uDC02,index	pwc,wc=other,lc	w,nw=index,rose	wc,nc=lc,lc	po=other	pow=other,index	powf=other,lc	ppo=other
+call: 2	location-unit	other
+features: w=index	pre=i	pre=in	p1w=\uD835\uDC00\uD835\uDC01\uD835\uDC02	p1pre=\uD835	p1pre=\uD835\uDC00	n1w=rose	n1pre=r	n1pre=ro	n2w=\uD83D\uDE00	n2pre=\uD83D	n2pre=\uD83D\uDE00	n3w=while	n3pre=w	n3pre=wh	w=index	suf=x	def	suf=x	def	wc=lc	w&c=index,lc	n1wc=lc	n1w&c=rose,lc	t=other	t2=other,other	p1t=other	pw,w=\uD835\uDC00\uD835\uDC01\uD835\uDC02,index	pwc,wc=other,lc	w,nw=index,rose	wc,nc=lc,lc	po=other	pow=other,index	powf=other,lc	ppo=location-unit
+call: 2	other	location-unit
+features: w=index	pre=i	pre=in	p1w=\uD835\uDC00\uD835\uDC01\uD835\uDC02	p1pre=\uD835	p1pre=\uD835\uDC00	n1w=rose	n1pre=r	n1pre=ro	n2w=\uD83D\uDE00	n2pre=\uD83D	n2pre=\uD83D\uDE00	n3w=while	n3pre=w	n3pre=wh	w=index	suf=x	def	suf=x	def	wc=lc	w&c=index,lc	n1wc=lc	n1w&c=rose,lc	t=other	t2=other,other	p1t=other	pw,w=\uD835\uDC00\uD835\uDC01\uD835\uDC02,index	pwc,wc=other,lc	w,nw=index,rose	wc,nc=lc,lc	po=location-unit	pow=location-unit,index	powf=location-unit,lc	ppo=other
+call: 3	other	other	other
+features: w=rose	pre=r	pre=ro	p1w=index	p1pre=i	p1pre=in	n1w=\uD83D\uDE00	n1pre=\uD83D	n1pre=\uD83D\uDE00	n2w=while	n2pre=w	n2pre=wh	n3w=caf\u00E9	n3pre=c	n3pre=ca	w=rose	suf=e	def	suf=e	def	wc=lc	w&c=rose,lc	n1wc=other	n1w&c=\uD83D\uDE00,other	t=other	t2=other,other	p1t=other	p1t2=other,other	p2t=other	pw,w=index,rose	pwc,wc=lc,lc	w,nw=rose,\uD83D\uDE00	wc,nc=lc,other	po=other	pow=other,rose	powf=other,lc	ppo=other
+call: 3	location-unit	other	other
+features: w=rose	pre=r	pre=ro	p1w=index	p1pre=i	p1pre=in	n1w=\uD83D\uDE00	n1pre=\uD83D	n1pre=\uD83D\uDE00	n2w=while	n2pre=w	n2pre=wh	n3w=caf\u00E9	n3pre=c	n3pre=ca	w=rose	suf=e	def	suf=e	def	wc=lc	w&c=rose,lc	n1wc=other	n1w&c=\uD83D\uDE00,other	t=other	t2=other,other	p1t=other	p1t2=other,other	p2t=other	pw,w=index,rose	pwc,wc=lc,lc	w,nw=rose,\uD83D\uDE00	wc,nc=lc,other	po=other	pow=other,rose	powf=other,lc	ppo=other
+call: 3	other	location-unit	other
+features: w=rose	pre=r	pre=ro	p1w=index	p1pre=i	p1pre=in	n1w=\uD83D\uDE00	n1pre=\uD83D	n1pre=\uD83D\uDE00	n2w=while	n2pre=w	n2pre=wh	n3w=caf\u00E9	n3pre=c	n3pre=ca	w=rose	suf=e	def	suf=e	def	wc=lc	w&c=rose,lc	n1wc=other	n1w&c=\uD83D\uDE00,other	t=other	t2=other,other	p1t=other	p1t2=other,other	p2t=other	pw,w=index,rose	pwc,wc=lc,lc	w,nw=rose,\uD83D\uDE00	wc,nc=lc,other	po=other	pow=other,rose	powf=other,lc	ppo=location-unit
+call: 4	other	other	other	other
+features: w=\uD83D\uDE00	pre=\uD83D	pre=\uD83D\uDE00	p1w=rose	p1pre=r	p1pre=ro	n1w=while	n1pre=w	n1pre=wh	n2w=caf\u00E9	n2pre=c	n2pre=ca	n3w=prices	n3pre=p	n3pre=pr	w=\uD83D\uDE00	suf=\uDE00	def	suf=\uDE00	def	wc=other	w&c=\uD83D\uDE00,other	n1wc=lc	n1w&c=while,lc	t=other	t2=other,other	p1t=other	p1t2=other,other	p2t=other	p2t2=other,other	pw,w=rose,\uD83D\uDE00	pwc,wc=lc,other	w,nw=\uD83D\uDE00,while	wc,nc=other,lc	po=other	pow=other,\uD83D\uDE00	powf=other,other	ppo=other
+call: 4	location-unit	other	other	other
+features: w=\uD83D\uDE00	pre=\uD83D	pre=\uD83D\uDE00	p1w=rose	p1pre=r	p1pre=ro	n1w=while	n1pre=w	n1pre=wh	n2w=caf\u00E9	n2pre=c	n2pre=ca	n3w=prices	n3pre=p	n3pre=pr	w=\uD83D\uDE00	suf=\uDE00	def	suf=\uDE00	def	wc=other	w&c=\uD83D\uDE00,other	n1wc=lc	n1w&c=while,lc	t=other	t2=other,other	p1t=other	p1t2=other,other	p2t=other	p2t2=other,other	pw,w=rose,\uD83D\uDE00	pwc,wc=lc,other	w,nw=\uD83D\uDE00,while	wc,nc=other,lc	po=other	pow=other,\uD83D\uDE00	powf=other,other	ppo=other
+call: 4	other	location-unit	other	other
+features: w=\uD83D\uDE00	pre=\uD83D	pre=\uD83D\uDE00	p1w=rose	p1pre=r	p1pre=ro	n1w=while	n1pre=w	n1pre=wh	n2w=caf\u00E9	n2pre=c	n2pre=ca	n3w=prices	n3pre=p	n3pre=pr	w=\uD83D\uDE00	suf=\uDE00	def	suf=\uDE00	def	wc=other	w&c=\uD83D\uDE00,other	n1wc=lc	n1w&c=while,lc	t=other	t2=other,other	p1t=other	p1t2=other,other	p2t=other	p2t2=other,other	pw,w=rose,\uD83D\uDE00	pwc,wc=lc,other	w,nw=\uD83D\uDE00,while	wc,nc=other,lc	po=other	pow=other,\uD83D\uDE00	powf=other,other	ppo=other
+call: 5	other	other	other	other	other
+features: w=while	pre=w	pre=wh	p1w=\uD83D\uDE00	p1pre=\uD83D	p1pre=\uD83D\uDE00	n1w=caf\u00E9	n1pre=c	n1pre=ca	n2w=prices	n2pre=p	n2pre=pr	n3w=fell	n3pre=f	n3pre=fe	w=while	suf=e	def	suf=e	def	wc=lc	w&c=while,lc	n1wc=lc	n1w&c=caf\u00E9,lc	t=other	t2=other,other	p1t=other	p1t2=other,other	p2t=other	p2t2=other,other	pw,w=\uD83D\uDE00,while	pwc,wc=other,lc	w,nw=while,caf\u00E9	wc,nc=lc,lc	po=other	pow=other,while	powf=other,lc	ppo=other
+call: 5	location-unit	other	other	other	other
+features: w=while	pre=w	pre=wh	p1w=\uD83D\uDE00	p1pre=\uD83D	p1pre=\uD83D\uDE00	n1w=caf\u00E9	n1pre=c	n1pre=ca	n2w=prices	n2pre=p	n2pre=pr	n3w=fell	n3pre=f	n3pre=fe	w=while	suf=e	def	suf=e	def	wc=lc	w&c=while,lc	n1wc=lc	n1w&c=caf\u00E9,lc	t=other	t2=other,other	p1t=other	p1t2=other,other	p2t=other	p2t2=other,other	pw,w=\uD83D\uDE00,while	pwc,wc=other,lc	w,nw=while,caf\u00E9	wc,nc=lc,lc	po=other	pow=other,while	powf=other,lc	ppo=other
+call: 5	other	location-unit	other	other	other
+features: w=while	pre=w	pre=wh	p1w=\uD83D\uDE00	p1pre=\uD83D	p1pre=\uD83D\uDE00	n1w=caf\u00E9	n1pre=c	n1pre=ca	n2w=prices	n2pre=p	n2pre=pr	n3w=fell	n3pre=f	n3pre=fe	w=while	suf=e	def	suf=e	def	wc=lc	w&c=while,lc	n1wc=lc	n1w&c=caf\u00E9,lc	t=other	t2=other,other	p1t=other	p1t2=other,other	p2t=other	p2t2=other,other	pw,w=\uD83D\uDE00,while	pwc,wc=other,lc	w,nw=while,caf\u00E9	wc,nc=lc,lc	po=other	pow=other,while	powf=other,lc	ppo=other
+call: 6	other	other	other	other	other	other
+features: w=caf\u00E9	pre=c	pre=ca	p1w=while	p1pre=w	p1pre=wh	n1w=prices	n1pre=p	n1pre=pr	n2w=fell	n2pre=f	n2pre=fe	n3w=.	n3pre=.	w=caf\u00E9	suf=\u00E9	def	suf=\u00E9	def	wc=lc	w&c=caf\u00E9,lc	n1wc=lc	n1w&c=prices,lc	t=other	t2=other,other	p1t=other	p1t2=other,other	p2t=other	p2t2=other,other	pw,w=while,caf\u00E9	pwc,wc=lc,lc	w,nw=caf\u00E9,prices	wc,nc=lc,lc	po=other	pow=other,caf\u00E9	powf=other,lc	ppo=other
+call: 6	location-unit	other	other	other	other	other
+features: w=caf\u00E9	pre=c	pre=ca	p1w=while	p1pre=w	p1pre=wh	n1w=prices	n1pre=p	n1pre=pr	n2w=fell	n2pre=f	n2pre=fe	n3w=.	n3pre=.	w=caf\u00E9	suf=\u00E9	def	suf=\u00E9	def	wc=lc	w&c=caf\u00E9,lc	n1wc=lc	n1w&c=prices,lc	t=other	t2=other,other	p1t=other	p1t2=other,other	p2t=other	p2t2=other,other	pw,w=while,caf\u00E9	pwc,wc=lc,lc	w,nw=caf\u00E9,prices	wc,nc=lc,lc	po=other	pow=other,caf\u00E9	powf=other,lc	ppo=other
+call: 6	other	location-unit	other	other	other	other
+features: w=caf\u00E9	pre=c	pre=ca	p1w=while	p1pre=w	p1pre=wh	n1w=prices	n1pre=p	n1pre=pr	n2w=fell	n2pre=f	n2pre=fe	n3w=.	n3pre=.	w=caf\u00E9	suf=\u00E9	def	suf=\u00E9	def	wc=lc	w&c=caf\u00E9,lc	n1wc=lc	n1w&c=prices,lc	t=other	t2=other,other	p1t=other	p1t2=other,other	p2t=other	p2t2=other,other	pw,w=while,caf\u00E9	pwc,wc=lc,lc	w,nw=caf\u00E9,prices	wc,nc=lc,lc	po=other	pow=other,caf\u00E9	powf=other,lc	ppo=other
+call: 7	other	other	other	other	other	other	other
+features: w=prices	pre=p	pre=pr	p1w=caf\u00E9	p1pre=c	p1pre=ca	n1w=fell	n1pre=f	n1pre=fe	n2w=.	n2pre=.	w=prices	suf=s	def	suf=s	def	wc=lc	w&c=prices,lc	n1wc=lc	n1w&c=fell,lc	t=other	t2=other,other	p1t=other	p1t2=other,other	p2t=other	p2t2=other,other	pw,w=caf\u00E9,prices	pwc,wc=lc,lc	w,nw=prices,fell	wc,nc=lc,lc	po=other	pow=other,prices	powf=other,lc	ppo=other
+call: 7	location-unit	other	other	other	other	other	other
+features: w=prices	pre=p	pre=pr	p1w=caf\u00E9	p1pre=c	p1pre=ca	n1w=fell	n1pre=f	n1pre=fe	n2w=.	n2pre=.	w=prices	suf=s	def	suf=s	def	wc=lc	w&c=prices,lc	n1wc=lc	n1w&c=fell,lc	t=other	t2=other,other	p1t=other	p1t2=other,other	p2t=other	p2t2=other,other	pw,w=caf\u00E9,prices	pwc,wc=lc,lc	w,nw=prices,fell	wc,nc=lc,lc	po=other	pow=other,prices	powf=other,lc	ppo=other
+call: 7	other	location-unit	other	other	other	other	other
+features: w=prices	pre=p	pre=pr	p1w=caf\u00E9	p1pre=c	p1pre=ca	n1w=fell	n1pre=f	n1pre=fe	n2w=.	n2pre=.	w=prices	suf=s	def	suf=s	def	wc=lc	w&c=prices,lc	n1wc=lc	n1w&c=fell,lc	t=other	t2=other,other	p1t=other	p1t2=other,other	p2t=other	p2t2=other,other	pw,w=caf\u00E9,prices	pwc,wc=lc,lc	w,nw=prices,fell	wc,nc=lc,lc	po=other	pow=other,prices	powf=other,lc	ppo=other
+call: 8	other	other	other	other	other	other	other	other
+features: w=fell	pre=f	pre=fe	p1w=prices	p1pre=p	p1pre=pr	n1w=.	n1pre=.	w=fell	suf=l	def	suf=l	def	wc=lc	w&c=fell,lc	n1wc=other	n1w&c=.,other	t=other	t2=other,other	p1t=other	p1t2=other,other	p2t=other	p2t2=other,other	pw,w=prices,fell	pwc,wc=lc,lc	w,nw=fell,.	wc,nc=lc,other	po=other	pow=other,fell	powf=other,lc	ppo=other
+call: 8	location-unit	other	other	other	other	other	other	other
+features: w=fell	pre=f	pre=fe	p1w=prices	p1pre=p	p1pre=pr	n1w=.	n1pre=.	w=fell	suf=l	def	suf=l	def	wc=lc	w&c=fell,lc	n1wc=other	n1w&c=.,other	t=other	t2=other,other	p1t=other	p1t2=other,other	p2t=other	p2t2=other,other	pw,w=prices,fell	pwc,wc=lc,lc	w,nw=fell,.	wc,nc=lc,other	po=other	pow=other,fell	powf=other,lc	ppo=other
+call: 8	other	location-unit	other	other	other	other	other	other
+features: w=fell	pre=f	pre=fe	p1w=prices	p1pre=p	p1pre=pr	n1w=.	n1pre=.	w=fell	suf=l	def	suf=l	def	wc=lc	w&c=fell,lc	n1wc=other	n1w&c=.,other	t=other	t2=other,other	p1t=other	p1t2=other,other	p2t=other	p2t2=other,other	pw,w=prices,fell	pwc,wc=lc,lc	w,nw=fell,.	wc,nc=lc,other	po=other	pow=other,fell	powf=other,lc	ppo=other
+call: 9	other	other	other	other	other	other	other	other	other
+features: w=.	pre=.	p1w=fell	p1pre=f	p1pre=fe	w=.	suf=.	def	suf=.	def	wc=other	w&c=.,other	t=other	t2=other,other	p1t=other	p1t2=other,other	p2t=other	p2t2=other,other	pw,w=fell,.	pwc,wc=lc,other	po=other	pow=other,.	powf=other,other	ppo=other
+call: 9	location-unit	other	other	other	other	other	other	other	other
+features: w=.	pre=.	p1w=fell	p1pre=f	p1pre=fe	w=.	suf=.	def	suf=.	def	wc=other	w&c=.,other	t=other	t2=other,other	p1t=other	p1t2=other,other	p2t=other	p2t2=other,other	pw,w=fell,.	pwc,wc=lc,other	po=other	pow=other,.	powf=other,other	ppo=other
+call: 9	other	location-unit	other	other	other	other	other	other	other
+features: w=.	pre=.	p1w=fell	p1pre=f	p1pre=fe	w=.	suf=.	def	suf=.	def	wc=other	w&c=.,other	t=other	t2=other,other	p1t=other	p1t2=other,other	p2t=other	p2t2=other,other	pw,w=fell,.	pwc,wc=lc,other	po=other	pow=other,.	powf=other,other	ppo=other
+sequence: bff201a091b5ce97
+outcomes: other	other	other	other	other	other	other	other	other	other
+probs: 3fe683ba0cba94a2	3fe84b58d5ac0c91	3fecb2ff99810f0c	3fedbee9fbd20def	3fecd61f02e45b9a	3fedd4d5b4276a33	3fee97a6a4a9dcb9	3fef39cb4969fdd1	3feedef9818872d8	3feed86f5398efec
+sequence: c0099918c8d104ec
+outcomes: location-unit	other	other	other	other	other	other	other	other	other
+probs: 3fb6dca8c779d3d8	3fe8bd1e2cec1697	3febe5996d21043b	3fedbee9fbd20def	3fecd61f02e45b9a	3fedd4d5b4276a33	3fee97a6a4a9dcb9	3fef39cb4969fdd1	3feedef9818872d8	3feed86f5398efec
+sequence: c01097f959953ff4
+outcomes: other	location-unit	other	other	other	other	other	other	other	other
+probs: 3fe683ba0cba94a2	3fa33217d81ce3ef	3fecd81931aac727	3fed28d5a822f70b	3fecd61f02e45b9a	3fedd4d5b4276a33	3fee97a6a4a9dcb9	3fef39cb4969fdd1	3feedef9818872d8	3feed86f5398efec
+spans: 
+sentence: 9
+tokens: e-mail	me	at	john@example.com	or	visit	www.example.com/a?b=1	!
+sequence: bffef1e63d8fb1c2
+outcomes: other	other	other	other	other	other	other	other
+probs: 3fe4dfc073894bd6	3fea09a4b3f885dc	3fecdee9dae808ac	3fe945c94b25e628	3fec62fc3c044639	3fed7986b3be3a4b	3fe4cc0fa4cfe68b	3fe708a804cebbdb
+sequence: c009880f18657df3
+outcomes: other	other	other	other	other	other	location-unit	other
+probs: 3fe4dfc073894bd6	3fea09a4b3f885dc	3fecdee9dae808ac	3fe945c94b25e628	3fec62fc3c044639	3fed7986b3be3a4b	3fc720e5ec528d52	3fe78fd4871d39a4
+sequence: c00fe7eb53e21d1c
+outcomes: other	other	other	other	other	other	other	location-unit
+probs: 3fe4dfc073894bd6	3fea09a4b3f885dc	3fecdee9dae808ac	3fe945c94b25e628	3fec62fc3c044639	3fed7986b3be3a4b	3fe4cc0fa4cfe68b	3fb79f7c6bae2abd
+spans: 
+sentence: 10
+tokens: Barack	Obama	was	born	in	Honolulu	,	Hawaii	.
+sequence: bfd00d2c04db123e
+outcomes: person-start	person-last	other	other	other	location-unit	other	location-unit	other
+probs: 3feed79a24c548f9	3feefbefd6ddd17a	3fef5ce23a070ca4	3fef45d32e2042b5	3fef6dcfab644590	3feefc6715d5f6bc	3fef776de19c3060	3fee9d811dfcfc8b	3fef2321435b9eca
+sequence: c00eb0325b1c5cc0
+outcomes: person-start	person-last	other	other	other	location-unit	other	other	other
+probs: 3feed79a24c548f9	3feefbefd6ddd17a	3fef5ce23a070ca4	3fef45d32e2042b5	3fef6dcfab644590	3feefc6715d5f6bc	3fef776de19c3060	3f9b399e253472ef	3fef122409fe648f
+sequence: c011e98e999ead0c
+outcomes: person-start	person-last	other	other	other	other	other	location-unit	other
+probs: 3feed79a24c548f9	3feefbefd6ddd17a	3fef5ce23a070ca4	3fef45d32e2042b5	3fef6dcfab644590	3f8d2f7f78143ca1	3fef68e9a2fcf766	3fee68ebbf09fbdf	3fef2321435b9eca
+spans: 0 2 person	5 6 location	7 8 location
+sentence: 11
+tokens: He	said	:	"	I	'm	not	going	to	London	.	"
+sequence: c004ffde7ea81bc8
+outcomes: other	other	other	other	other	other	other	other	other	location-unit	other	other
+probs: 3fe1a8f397f0b9a8	3feba418d1abd3ca	3fe72ce263f5d8b0	3fe66406f7987c44	3fe95f7fa1600cc4	3fecd8a31feaf3af	3fec96137a95045e	3fee88e32bf09a09	3fef383b2af7590e	3fee0658c10b915b	3fef15eb26e795f7	3fe1b677ed05bb78
+sequence: c00eaf2b50fcd621
+outcomes: other	other	other	other	other	other	other	other	other	location-unit	other	location-unit
+probs: 3fe1a8f397f0b9a8	3feba418d1abd3ca	3fe72ce263f5d8b0	3fe66406f7987c44	3fe95f7fa1600cc4	3fecd8a31feaf3af	3fec96137a95045e	3fee88e32bf09a09	3fef383b2af7590e	3fee0658c10b915b	3fef15eb26e795f7	3fc51d71837bdf19
+sequence: c00f0f8194a24d66
+outcomes: person-unit	other	other	other	other	other	other	other	other	location-unit	other	other
+probs: 3fc57c87b4b49fb5	3fec604ee4a11f98	3fe51a265fe7f6ef	3fe66406f7987c44	3fe95f7fa1600cc4	3fecd8a31feaf3af	3fec96137a95045e	3fee88e32bf09a09	3fef383b2af7590e	3fee0658c10b915b	3fef15eb26e795f7	3fe1b677ed05bb78
+spans: 9 10 location
+sentence: 12
+tokens: \u0141\u00D3D\u0179	and	\u0391\u0398\u0397\u039D\u0391	are	cities	;	\u01C5	is	a	titlecase	letter	.
+sequence: c00cf51caa355813
+outcomes: other	other	other	other	other	other	other	other	other	other	other	other
+probs: 3fd9f4680804ed3b	3fe97af68fc9e670	3fdcfaf682ad5ceb	3fea4ad86e2a19ae	3fe9f70e4f2e5b8f	3fe9d646fe2efc22	3fea2b43ff56fdb4	3febd46178277d44	3fea4db5c819fad2	3fec034611a338a1	3fe6af50bac87a7d	3fee06132a46357d
+sequence: c011034210305b6a
+outcomes: person-unit	other	other	other	other	other	other	other	other	other	other	other
+probs: 3fd05640ed75e636	3feaae6cf34751a4	3fd755f2b50a2bfc	3fea4ad86e2a19ae	3fe9f70e4f2e5b8f	3fe9d646fe2efc22	3fea2b43ff56fdb4	3febd46178277d44	3fea4db5c819fad2	3fec034611a338a1	3fe6af50bac87a7d	3fee06132a46357d
+sequence: c011c2b08c95334b
+outcomes: other	other	person-unit	other	other	other	other	other	other	other	other	other
+probs: 3fd9f4680804ed3b	3fe97af68fc9e670	3fcae10e0042f045	3fea77600993e8c8	3fe87c9733e6cca0	3fe9d646fe2efc22	3fea2b43ff56fdb4	3febd46178277d44	3fea4db5c819fad2	3fec034611a338a1	3fe6af50bac87a7d	3fee06132a46357d
+spans: 
+sentence: 13
+tokens: One	more	sentence	about	Dr.	Jane	Doe	of	Acme	Inc.	in	Chicago	.
+sequence: c000861440aea3ea
+outcomes: other	other	other	other	person-start	person-cont	person-last	other	other	other	other	location-unit	other
+probs: 3fd91697c9ff63b6	3fe82d23e2ef5733	3fe9c56ec7a30ca4	3fea86d0e3d24ae7	3fed126ce7808ba6	3fee8ceb9c27bfde	3feec1eb009e005b	3fef5d0ec8895fba	3fee714ca9d01434	3fedd3da27314f63	3fef1233914aff62	3fee0db0cde734ba	3fef0ccf60109aaa
+sequence: c013d7fc42182c9f
+outcomes: other	other	other	location-unit	person-start	person-cont	person-last	other	other	other	other	location-unit	other
+probs: 3fd91697c9ff63b6	3fe82d23e2ef5733	3fe9c56ec7a30ca4	3fa8a46156937f24	3feb5a82cec326ca	3feee963bda8aca9	3feec1eb009e005b	3fef5d0ec8895fba	3fee714ca9d01434	3fedd3da27314f63	3fef1233914aff62	3fee0db0cde734ba	3fef0ccf60109aaa
+sequence: c013e4ae649be3b1
+outcomes: other	person-unit	other	other	person-start	person-cont	person-last	other	other	other	other	location-unit	other
+probs: 3fd91697c9ff63b6	3fa63d9c32967c79	3fe9f4fe692267c4	3fe901c6206d95fd	3fed126ce7808ba6	3fee8ceb9c27bfde	3feec1eb009e005b	3fef5d0ec8895fba	3fee714ca9d01434	3fedd3da27314f63	3fef1233914aff62	3fee0db0cde734ba	3fef0ccf60109aaa
+spans: 4 7 person	11 12 location
+sentence: 14
+tokens: Smith	said	Smith	would	visit	Paris	again	in	2024	.
+sequence: bfedabcb0009809f
+outcomes: person-unit	other	person-unit	other	other	location-unit	other	other	other	other
+probs: 3feb603e439501d7	3fedc118fd6f6159	3fec8ca1dd0df661	3fef170fdb1dcee9	3fef44d0d693371b	3fe769c42c99bad6	3fed6158c94086ca	3fee75e1bf874247	3fee831a33ef6cbf	3feed20e86a86202
+sequence: c0065f5b23312836
+outcomes: person-unit	other	person-unit	other	other	other	other	other	other	other
+probs: 3feb603e439501d7	3fedc118fd6f6159	3fec8ca1dd0df661	3fef170fdb1dcee9	3fef44d0d693371b	3fbcba21333ca5ed	3fed3e14e8c25f25	3feec64bba254daa	3fee831a33ef6cbf	3feed20e86a86202
+sequence: c00f1c6210bed9f9
+outcomes: person-unit	other	person-unit	other	other	person-unit	other	other	other	other
+probs: 3feb603e439501d7	3fedc118fd6f6159	3fec8ca1dd0df661	3fef170fdb1dcee9	3fef44d0d693371b	3fa36c6a92944420	3fed58e2b3176fbb	3fee6d3bbe0a7470	3fee831a33ef6cbf	3feed20e86a86202
+spans: 0 1 person	2 3 person	5 6 location
+sentence: 15
+tokens: a
+sequence: bfedf8927194ba1c
+outcomes: other
+probs: 3fd915e30ac82d93
+sequence: bffd016562499ba8
+outcomes: person-start
+probs: 3fc4e367f5eebab0
+spans: 

@@ -1894,6 +1894,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "turbo-sequence"
+version = "0.1.0"
+dependencies = [
+ "turbo-jvm",
+ "turbo-maxent",
+ "turbo-unicode",
+]
+
+[[package]]
 name = "turbo-tokenize"
 version = "0.1.0"
 dependencies = [
