@@ -18,7 +18,7 @@ implementation differs on purpose, the difference is listed under
 | `turbo-unicode` | `analysis/unicode/` | Unicode 18.0 character data: general category, properties, scripts, case mapping and folding, normalization forms, confusables, emoji sequences. Tables generated from the UCD files in `analysis/unicode/ucd/` by `turbo-unicode-gen`. |
 | `turbo-unicode-gen` | `analysis/unicode-gen/` | The table generator. |
 | `turbo-normalize` | `analysis/normalize/` | The normalizers, the `Normalizer` trait, the pipeline step adapter and the chain. |
-| `turbo-normalize-layers` | `analysis/normalize-layers/` | The layers normalizers write besides views: `Placeholders` (`turbo:placeholders`), `Emoji` (`turbo:emoji`). |
+| `turbo-normalize-layers` | `analysis/normalize-layers/` | The layers normalizers write besides views: `Placeholders` (`turbo:placeholders`), `Emoji` (`turbo:emoji`), `Assets` (`turbo:assets`). |
 
 ### turbo-unicode
 
@@ -538,6 +538,186 @@ placeholder spans for both normalizers; linear work on long runs of
 closing brackets; and a pipeline that runs `BoundedUrls` and then
 `BoundedSocialMedia` through the analyzer and maps every placeholder
 back to the source.
+
+### Embedded assets (`analysis/normalize/src/assets/mod.rs`)
+
+`AssetDetector` (an annotator, id `turbo:assets`) reads a `View` and
+writes an `Assets` layer (`turbo:assets`, in
+`analysis/normalize-layers/src/lib.rs`): one row per binary payload that
+survived text extraction, with its span, the span of its encoded bytes,
+an `AssetFormat` (`analysis/normalize-layers/src/asset_format.rs`, whose
+`name` and `media_type` are OpenNLP's strings), the media type a `data:`
+URI declared, the encoding, the decoded length and, for a PNG or GIF, the
+pixel size. The spans are UTF-8 byte offsets of the view read, in text
+order and never overlapping. `AssetDetector::detect` and `scan` give the
+same rows as `Asset` values, and `Asset::decode` decodes a payload from
+the text. Nothing allocates a whole decoded payload: a header is at most
+45 bytes, and the SVG and calendar checks read the payload through a
+streaming decoder (`analysis/normalize/src/assets/payload.rs`).
+
+The default detector finds what OpenNLP's finds, scanning each position
+for a `data:` URI, a PEM envelope, a JSON Web Token and a bare run, in
+that order:
+
+- `data:` URIs with a `;base64,` payload of any length, identified by
+  their header or by the media type they declare (a declared type with a
+  slash after its first character is reported in place of the sniffed
+  one; with nothing sniffed, the format name is its subtype);
+- RFC 7468 PEM envelopes with one of 18 labels, at a line start, with
+  body lines of 1 to 64 characters;
+- compact JWTs whose header and claims decode to JSON objects
+  (`analysis/normalize/src/assets/json.rs`, depth 64, duplicate members
+  refused), with a non-empty `alg` that is `none` exactly when the
+  signature is empty;
+- bare base64 runs of at least 32 characters, standard or URL-safe,
+  possibly wrapped at 64 or 76 columns, whose decoded header a check
+  recognizes. The checks are the signature table
+  (`analysis/normalize/src/assets/magic.rs`, 219 signatures from
+  OpenNLP's `KnownMagics`, longest first) and the structured checks of
+  `analysis/normalize/src/assets/sniff.rs` (AIFF, DEX, DWF, EMF, iCalendar
+  with folding, JPEG 2000 brands, pcapng, Excel BIFF, WebVTT, RIFF WebP,
+  WAVE and AVI, timestamped data, XML), with the header lengths OpenNLP
+  decodes (24 bytes, 45 for EMF, 36 for JPEG 2000 and PEM). An XML header
+  is SVG when its root element is `svg` in the SVG namespace, read by the
+  scanner of `analysis/normalize/src/assets/svg.rs`.
+
+Three additions are off by default, so the defaults give OpenNLP's
+output; each is a field of `AssetDetector`:
+
+- `hex_dumps` (`analysis/normalize/src/assets/hex.rs`): runs of 32 or more
+  hex byte pairs whose decoded header a check recognizes, written back to
+  back, separated by a space, colon, comma or comma and space, with `0x`
+  on every pair or none, and continued over lines (a CRLF or LF after the
+  separator or its trimmed form, then indentation). The first gap fixes
+  the separator. The run must not touch an ASCII letter, digit or `_`.
+  Encoding `Hex`. A hash, a UUID or `deadbeef` is never reported, since
+  none decodes to a signature.
+- `report_unknown_base64` (`analysis/normalize/src/assets/unknown.rs`): a
+  valid base64 run no check recognizes, as `AssetFormat::Unknown`
+  ("unknown", "application/octet-stream"), when it has at least 32
+  characters without padding, an upper case letter, a lower case letter
+  and a digit, and at least 45% of its adjacent characters change class
+  (upper, lower, digit, symbol). Random base64 changes class about 64% of
+  the time; words and identifiers change at word starts only, and hex
+  strings lack one case. `Attachments`, `deadbeef`,
+  `AlphanumericRunsLikeThisOne0123456789` and hashes are never reported.
+  The rule is tried only after a bare run fails, so it never hides an
+  asset the defaults report.
+- `soft_line_breaks`: a quoted-printable soft line break (`=` then CRLF or
+  LF, then a standard base64 character) inside a bare run or a `data:`
+  URI payload is part of the payload, for base64 that went through a
+  quoted-printable mail part. A URL-safe character makes such a payload
+  invalid, as MIME wrapping does. The cost is that a word on the line
+  after a payload that ends in `=` is read as more payload, which is why
+  it is off.
+
+`AssetFold` (id `turbo:normalize:asset-fold`,
+`analysis/normalize/src/assets/fold.rs`) is a normalizer that replaces
+each asset with a caption, by default OpenNLP's `AssetFolder.caption()`:
+`[png 640x480, 12345 bytes]`, `[pdf, 51200 bytes]` (`write_caption`).
+`AssetFold::with_caption(id, f)` takes a caption function instead, as
+`AssetFolder.fold(document, replacement)` does; `id` names it in the
+configuration hash. `AssetFold::with_detector` folds with the additions
+on. As an annotator it reads a `View` and writes the folded `View` and a
+`Placeholders` layer with one `Asset` row per asset, spanning the asset in
+the view read. Each asset is one `replace`, so a caption maps back to
+exactly its asset.
+
+OpenNLP counterpart: `CursorAssetDetector`, `KnownMagics`, `SvgHeader`,
+`JsonObjectParser`, `Base64PayloadInputStream`, `EmbeddedAsset`,
+`AssetAnnotator` and `AssetFolder` in the embedded-assets add-on. The
+constants keep OpenNLP's names (`MIN_BARE_PAYLOAD`,
+`MAX_JWT_SEGMENT_LENGTH`, `MAX_MEDIA_TYPE_OFFSET`, `PEM_TYPES`,
+`EMF_SIGNATURE_OFFSET`, `TIMESTAMPED_DATA_OID` and the others).
+
+Differences from OpenNLP:
+
+- An unknown dimension is `None`, not -1, and the layer accepts both
+  dimensions or neither. OpenNLP's record allows one without the other;
+  its detector never writes one.
+- The format is the `AssetFormat` enum. A `data:` URI whose format comes
+  from its declared type is `AssetFormat::Declared`, and
+  `Asset::format_name` and `Assets::format_name` give the subtype OpenNLP
+  reports. Null and blank strings and negative lengths cannot be written,
+  so `EmbeddedAsset`'s constructor checks become `Assets::check`. Decode
+  errors are `DecodeError` values with OpenNLP's messages.
+- The caption function takes the asset, the text it was found in and the
+  string to write to (`Fn(&Asset, &str, &mut String)`): it can decode the
+  payload, and no string is allocated per asset. An empty caption deletes
+  the asset.
+- `AssetFold` detects as it folds, so a missing layer and rows out of
+  order (OpenNLP's `IllegalArgumentException` cases) cannot occur.
+- Two assets that touch (two `data:` URIs back to back) keep their own
+  edits, so each caption maps back to its own asset, and the
+  `Placeholders` layer holds one row per asset
+  (`touching_assets_keep_their_own_edits`).
+- OpenNLP filters runs by base64 prefixes of the signatures before it
+  decodes a header; here the first decoded byte is looked up in
+  `FIRST_BYTES`. The results are the same: the checks after the filter
+  decide.
+- SVG is read by a hand-written scanner instead of the JDK's StAX parser.
+  It follows the parser with DTD support off, as `SvgHeader` configures
+  it, including its quirks: the internal subset is skipped unread up to
+  its first `]` (so `<!DOCTYPE svg [<!A<TLIST>]>` is accepted and a `]`
+  inside a comment there ends it), public identifiers hold PubidChar only,
+  a processing instruction target may hold a colon, a leading colon is
+  part of a name, and the JDK's encoding names and aliases are accepted
+  (`UTF8` and `ISO8859-1` are not). On 120000 generated SVG and XML
+  headers and 50000 other generated texts its answers equal OpenNLP's,
+  apart from the inputs where OpenNLP throws (below). Where it differs:
+  - only UTF-8, UTF-16, US-ASCII and ISO-8859-1 are read; a header that
+    declares another encoding (`windows-1252`, `Shift_JIS`) is XML but
+    not SVG here, while the JDK reads it
+    (`svg_other_declared_encodings_are_not_read`);
+  - names follow XML 1.0 fifth edition, which the current specification
+    is; the JDK applies the fourth edition's tables to XML 1.0 and
+    rejects names such as U+2C30 that the fifth edition allows
+    (`svg_names_follow_the_fifth_edition`);
+  - a character XML does not allow inside an internal subset makes the
+    JDK throw `MissingResourceException`, which `SvgHeader` does not
+    catch, so OpenNLP's `detect` throws; here the payload is not SVG
+    (`svg_prolog_follows_the_jdk_parser`);
+  - the scan stops at the end of the root start tag. The JDK decodes
+    ahead and fails on a four-byte UTF-8 sequence above U+10FFFF up to
+    about 8 KB after the tag, so OpenNLP's answer can depend on bytes
+    after the root element (`svg_bytes_after_the_root_tag_do_not_matter`).
+- In the JSON parser a lone surrogate escape in a captured member value
+  becomes U+FFFD, since a Rust string cannot hold it. Only `alg` is
+  captured and only its emptiness and `none` are tested, so detection is
+  the same.
+- The three additions above.
+
+Tests (`analysis/normalize/tests/assets.rs`, helpers in
+`analysis/normalize/tests/assets_support/mod.rs`): every expectation of
+OpenNLP's 28 embedded-assets test classes, class by class
+(`CursorAssetDetectorTest`, `EmbeddedAssetTest`, `AssetFolderTest`,
+`AssetAnnotatorTest`, `AssetFalsePositiveTest`, `AssetsManualExampleTest`,
+`AssetImageMetadataTest`, `AssetTransportValidationTest`, the signature
+tests for EMF, PEM, MPX, Excel, pcapng, iCalendar, DEX, the PNG family,
+AIFF, WebVTT, Android XML and GRIB, media types, timestamped data, format
+variants, DWF, JPEG 2000 and SVG, and `KnownMagicsTest`), in every
+transport they use, with fixtures written in the test (a stored zip for
+the DWF zip case and the AU header Java Sound writes for the A-law case);
+`Base64PayloadInputStreamTest` and `JsonObjectParserTest` are unit tests
+in `analysis/normalize/src/assets/payload.rs` and
+`analysis/normalize/src/assets/json.rs`. OpenNLP's null-argument cases
+have no counterpart. Then the SVG scanner against the JDK parser's
+answers for DOCTYPEs, processing instructions, encodings and qualified
+names; lookalikes (hashes, UUIDs, identifiers, `Attachments`, `deadbeef`,
+near-miss URIs, envelopes and tokens) with the defaults and every
+addition on; UTF-8 offsets after multibyte text and the media type limit
+counted in UTF-16 units; each addition's forms and edges and that it is
+off by default; the fold's captions, custom captions, touching assets and
+the annotator. Every detection builds the layer through a `Document`
+(`Layer::check` and the document's checks) and checks each row and
+decode, and every fold is checked both ways: the edits rebuild the
+output, each edit is one asset or a run of touching ones, each asset maps
+forward to its caption and the caption back to it, and kept text maps to
+itself. Property loops run 600 generated texts mixing assets in every
+transport, cut and corrupted payloads, hex dumps, soft breaks and prose
+through five configurations, checking those invariants, that the unknown
+addition only adds rows, and that each asset found is found the same in a
+text holding only it.
 
 ### Social media (`social/`)
 
@@ -1274,6 +1454,31 @@ it overlaps.
   removing part of an address and leaving the rest. Widening the
   local-part and domain sets to non-ASCII letters, digits and marks
   removes whole internationalized addresses.
+- `SvgHeader` catches `XMLStreamException` only. With DTD support off,
+  JDK 21's StAX parser throws `MissingResourceException`
+  ("InvalidCharInDTD") for a character XML does not allow inside an
+  internal subset, so `CursorAssetDetector.detect` throws on any text
+  holding such a header as a bare run or a `data:` URI, for example
+  `<!DOCTYPE svg [<!ENTITY a\0 'b'>]><svg .../>` encoded. Catching
+  `RuntimeException` around the parse, or rejecting the payload when the
+  parser fails in any way, keeps detection total.
+- With `SUPPORT_DTD` false the JDK skips the internal subset unread up to
+  its first `]`: `<!DOCTYPE svg [<!A<TLIST>]>` is accepted, while a `]`
+  inside a comment or literal there ends the subset and fails the
+  document. `SvgHeader`'s answer for a DOCTYPE thus follows the parser's
+  shortcuts rather than XML. The JDK also reads XML 1.0 names by the
+  fourth edition's tables.
+- `SvgHeader`'s answer can depend on bytes after the root start tag: the
+  JDK's UTF-8 reader decodes ahead and rejects a four-byte sequence above
+  U+10FFFF up to about 8 KB later (`<svg xmlns='...'/>` followed by
+  F4 90 80 80 is not SVG), while other malformed bytes there are ignored.
+  Bounding the stream at the end of the start tag, or decoding leniently
+  after it, would make the answer depend on the header alone.
+- `CursorAssetDetector` matches base64 prefixes of every signature before
+  decoding a header, and `KnownMagics.formatOf` then tests the decoded
+  header against the same signatures. Decoding the first base64 quantum
+  and looking its first byte up in a 256-entry table filters the same
+  runs with one lookup and no prefix strings.
 - `SocialMediaCharSequenceNormalizer` replaces emoticons inside words
   (`expo` becomes `"e o"`, `xoxo` two spaces, `:people` `" eople"`), and
   its hashtags swallow the punctuation after them (`#win!`). Its retweet
