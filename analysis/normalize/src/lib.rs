@@ -32,6 +32,7 @@ use turbo_analysis::{Alignment, Annotator, Error, Refs, Span, View, ViewBuilder}
 
 pub mod bullets;
 pub mod chain;
+pub mod contractions;
 pub mod dashes;
 pub mod digits;
 pub mod ellipsis;
@@ -43,6 +44,7 @@ pub mod whitespace;
 
 pub use bullets::Bullets;
 pub use chain::Chain;
+pub use contractions::{EnglishContractions, EnglishContractionsWithPos};
 pub use dashes::Dashes;
 pub use digits::Digits;
 pub use ellipsis::Ellipsis;
