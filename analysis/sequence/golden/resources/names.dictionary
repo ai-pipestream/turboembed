@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<dictionary case_sensitive="false">
+<entry><token>New</token><token>York</token><token>City</token></entry>
+<entry><token>New</token><token>York</token></entry>
+<entry><token>John</token></entry>
+<entry><token>Smith</token></entry>
+<entry><token>paris</token></entry>
+<entry><token>Washington</token><token>,</token><token>D.C.</token></entry>
+<entry><token>K&#xF6;ln</token></entry>
+</dictionary>

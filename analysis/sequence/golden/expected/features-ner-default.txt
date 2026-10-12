@@ -1,0 +1,420 @@
+component: features
+opennlp: cdf33c653d5d61d5af7d37ffee189a83bd8392ea
+jdk: 21.0.12.1
+descriptor: ner-default.xml
+sentence: 0
+tokens: Pierre	Vinken	,	61	years	old	,	will	join	the	board	as	a	nonexecutive	director	Nov.	29	.
+outcomes: other	person-start	person-cont	NN	t\u00E9	other	person-start	person-cont	NN	t\u00E9	other	person-start	person-cont	NN	t\u00E9	other	person-start	person-cont
+at: 0
+features: wc=ic	w&c=pierre,ic	n1wc=ic	n1w&c=vinken,ic	n2wc=other	n2w&c=,,other	w=pierre	n1w=vinken	n2w=,	def	pd=null	w,nw=Pierre,Vinken	wc,nc=ic,ic	S=begin
+at: 1
+features: wc=ic	w&c=vinken,ic	p1wc=ic	p1w&c=pierre,ic	n1wc=other	n1w&c=,,other	n2wc=2d	n2w&c=61,2d	w=vinken	p1w=pierre	n1w=,	n2w=61	def	pd=null	pw,w=Pierre,Vinken	pwc,wc=ic,ic	w,nw=Vinken,,	wc,nc=ic,other
+at: 2
+features: wc=other	w&c=,,other	p1wc=ic	p1w&c=vinken,ic	p2wc=ic	p2w&c=pierre,ic	n1wc=2d	n1w&c=61,2d	n2wc=lc	n2w&c=years,lc	w=,	p1w=vinken	p2w=pierre	n1w=61	n2w=years	def	pd=null	pw,w=Vinken,,	pwc,wc=ic,other	w,nw=,,61	wc,nc=other,2d
+at: 3
+features: wc=2d	w&c=61,2d	p1wc=other	p1w&c=,,other	p2wc=ic	p2w&c=vinken,ic	n1wc=lc	n1w&c=years,lc	n2wc=lc	n2w&c=old,lc	w=61	p1w=,	p2w=vinken	n1w=years	n2w=old	def	pd=null	pw,w=,,61	pwc,wc=other,2d	w,nw=61,years	wc,nc=2d,lc
+at: 4
+features: wc=lc	w&c=years,lc	p1wc=2d	p1w&c=61,2d	p2wc=other	p2w&c=,,other	n1wc=lc	n1w&c=old,lc	n2wc=other	n2w&c=,,other	w=years	p1w=61	p2w=,	n1w=old	n2w=,	def	pd=null	pw,w=61,years	pwc,wc=2d,lc	w,nw=years,old	wc,nc=lc,lc
+at: 5
+features: wc=lc	w&c=old,lc	p1wc=lc	p1w&c=years,lc	p2wc=2d	p2w&c=61,2d	n1wc=other	n1w&c=,,other	n2wc=lc	n2w&c=will,lc	w=old	p1w=years	p2w=61	n1w=,	n2w=will	def	pd=null	pw,w=years,old	pwc,wc=lc,lc	w,nw=old,,	wc,nc=lc,other
+at: 6
+features: wc=other	w&c=,,other	p1wc=lc	p1w&c=old,lc	p2wc=lc	p2w&c=years,lc	n1wc=lc	n1w&c=will,lc	n2wc=lc	n2w&c=join,lc	w=,	p1w=old	p2w=years	n1w=will	n2w=join	def	pd=null	pw,w=old,,	pwc,wc=lc,other	w,nw=,,will	wc,nc=other,lc
+at: 7
+features: wc=lc	w&c=will,lc	p1wc=other	p1w&c=,,other	p2wc=lc	p2w&c=old,lc	n1wc=lc	n1w&c=join,lc	n2wc=lc	n2w&c=the,lc	w=will	p1w=,	p2w=old	n1w=join	n2w=the	def	pd=null	pw,w=,,will	pwc,wc=other,lc	w,nw=will,join	wc,nc=lc,lc
+at: 8
+features: wc=lc	w&c=join,lc	p1wc=lc	p1w&c=will,lc	p2wc=other	p2w&c=,,other	n1wc=lc	n1w&c=the,lc	n2wc=lc	n2w&c=board,lc	w=join	p1w=will	p2w=,	n1w=the	n2w=board	def	pd=null	pw,w=will,join	pwc,wc=lc,lc	w,nw=join,the	wc,nc=lc,lc
+at: 9
+features: wc=lc	w&c=the,lc	p1wc=lc	p1w&c=join,lc	p2wc=lc	p2w&c=will,lc	n1wc=lc	n1w&c=board,lc	n2wc=lc	n2w&c=as,lc	w=the	p1w=join	p2w=will	n1w=board	n2w=as	def	pd=null	pw,w=join,the	pwc,wc=lc,lc	w,nw=the,board	wc,nc=lc,lc
+at: 10
+features: wc=lc	w&c=board,lc	p1wc=lc	p1w&c=the,lc	p2wc=lc	p2w&c=join,lc	n1wc=lc	n1w&c=as,lc	n2wc=lc	n2w&c=a,lc	w=board	p1w=the	p2w=join	n1w=as	n2w=a	def	pd=null	pw,w=the,board	pwc,wc=lc,lc	w,nw=board,as	wc,nc=lc,lc
+at: 11
+features: wc=lc	w&c=as,lc	p1wc=lc	p1w&c=board,lc	p2wc=lc	p2w&c=the,lc	n1wc=lc	n1w&c=a,lc	n2wc=lc	n2w&c=nonexecutive,lc	w=as	p1w=board	p2w=the	n1w=a	n2w=nonexecutive	def	pd=null	pw,w=board,as	pwc,wc=lc,lc	w,nw=as,a	wc,nc=lc,lc
+at: 12
+features: wc=lc	w&c=a,lc	p1wc=lc	p1w&c=as,lc	p2wc=lc	p2w&c=board,lc	n1wc=lc	n1w&c=nonexecutive,lc	n2wc=lc	n2w&c=director,lc	w=a	p1w=as	p2w=board	n1w=nonexecutive	n2w=director	def	pd=null	pw,w=as,a	pwc,wc=lc,lc	w,nw=a,nonexecutive	wc,nc=lc,lc
+at: 13
+features: wc=lc	w&c=nonexecutive,lc	p1wc=lc	p1w&c=a,lc	p2wc=lc	p2w&c=as,lc	n1wc=lc	n1w&c=director,lc	n2wc=ic	n2w&c=nov.,ic	w=nonexecutive	p1w=a	p2w=as	n1w=director	n2w=nov.	def	pd=null	pw,w=a,nonexecutive	pwc,wc=lc,lc	w,nw=nonexecutive,director	wc,nc=lc,lc
+at: 14
+features: wc=lc	w&c=director,lc	p1wc=lc	p1w&c=nonexecutive,lc	p2wc=lc	p2w&c=a,lc	n1wc=ic	n1w&c=nov.,ic	n2wc=2d	n2w&c=29,2d	w=director	p1w=nonexecutive	p2w=a	n1w=nov.	n2w=29	def	pd=null	pw,w=nonexecutive,director	pwc,wc=lc,lc	w,nw=director,Nov.	wc,nc=lc,ic
+at: 15
+features: wc=ic	w&c=nov.,ic	p1wc=lc	p1w&c=director,lc	p2wc=lc	p2w&c=nonexecutive,lc	n1wc=2d	n1w&c=29,2d	n2wc=other	n2w&c=.,other	w=nov.	p1w=director	p2w=nonexecutive	n1w=29	n2w=.	def	pd=null	pw,w=director,Nov.	pwc,wc=lc,ic	w,nw=Nov.,29	wc,nc=ic,2d
+at: 16
+features: wc=2d	w&c=29,2d	p1wc=ic	p1w&c=nov.,ic	p2wc=lc	p2w&c=director,lc	n1wc=other	n1w&c=.,other	w=29	p1w=nov.	p2w=director	n1w=.	def	pd=null	pw,w=Nov.,29	pwc,wc=ic,2d	w,nw=29,.	wc,nc=2d,other
+at: 17
+features: wc=other	w&c=.,other	p1wc=2d	p1w&c=29,2d	p2wc=ic	p2w&c=nov.,ic	w=.	p1w=29	p2w=nov.	def	pd=null	pw,w=29,.	pwc,wc=2d,other
+update
+sentence: 1
+tokens: Mr.	Smith	went	to	Washington	,	D.C.	,	on	1999-04-12	with	$	1,000	.
+outcomes: person-start	person-cont	NN	t\u00E9	other	person-start	person-cont	NN	t\u00E9	other	person-start	person-cont	NN	t\u00E9
+at: 0
+features: wc=ic	w&c=mr.,ic	n1wc=ic	n1w&c=smith,ic	n2wc=lc	n2w&c=went,lc	w=mr.	n1w=smith	n2w=went	def	pd=null	w,nw=Mr.,Smith	wc,nc=ic,ic	S=begin
+at: 1
+features: wc=ic	w&c=smith,ic	p1wc=ic	p1w&c=mr.,ic	n1wc=lc	n1w&c=went,lc	n2wc=lc	n2w&c=to,lc	w=smith	p1w=mr.	n1w=went	n2w=to	def	pd=null	pw,w=Mr.,Smith	pwc,wc=ic,ic	w,nw=Smith,went	wc,nc=ic,lc
+at: 2
+features: wc=lc	w&c=went,lc	p1wc=ic	p1w&c=smith,ic	p2wc=ic	p2w&c=mr.,ic	n1wc=lc	n1w&c=to,lc	n2wc=ic	n2w&c=washington,ic	w=went	p1w=smith	p2w=mr.	n1w=to	n2w=washington	def	pd=null	pw,w=Smith,went	pwc,wc=ic,lc	w,nw=went,to	wc,nc=lc,lc
+at: 3
+features: wc=lc	w&c=to,lc	p1wc=lc	p1w&c=went,lc	p2wc=ic	p2w&c=smith,ic	n1wc=ic	n1w&c=washington,ic	n2wc=other	n2w&c=,,other	w=to	p1w=went	p2w=smith	n1w=washington	n2w=,	def	pd=null	pw,w=went,to	pwc,wc=lc,lc	w,nw=to,Washington	wc,nc=lc,ic
+at: 4
+features: wc=ic	w&c=washington,ic	p1wc=lc	p1w&c=to,lc	p2wc=lc	p2w&c=went,lc	n1wc=other	n1w&c=,,other	n2wc=ic	n2w&c=d.c.,ic	w=washington	p1w=to	p2w=went	n1w=,	n2w=d.c.	def	pd=null	pw,w=to,Washington	pwc,wc=lc,ic	w,nw=Washington,,	wc,nc=ic,other
+at: 5
+features: wc=other	w&c=,,other	p1wc=ic	p1w&c=washington,ic	p2wc=lc	p2w&c=to,lc	n1wc=ic	n1w&c=d.c.,ic	n2wc=other	n2w&c=,,other	w=,	p1w=washington	p2w=to	n1w=d.c.	n2w=,	def	pd=person-start	pw,w=Washington,,	pwc,wc=ic,other	w,nw=,,D.C.	wc,nc=other,ic
+at: 6
+features: wc=ic	w&c=d.c.,ic	p1wc=other	p1w&c=,,other	p2wc=ic	p2w&c=washington,ic	n1wc=other	n1w&c=,,other	n2wc=lc	n2w&c=on,lc	w=d.c.	p1w=,	p2w=washington	n1w=,	n2w=on	def	pd=null	pw,w=,,D.C.	pwc,wc=other,ic	w,nw=D.C.,,	wc,nc=ic,other
+at: 7
+features: wc=other	w&c=,,other	p1wc=ic	p1w&c=d.c.,ic	p2wc=other	p2w&c=,,other	n1wc=lc	n1w&c=on,lc	n2wc=dd	n2w&c=1999-04-12,dd	w=,	p1w=d.c.	p2w=,	n1w=on	n2w=1999-04-12	def	pd=person-start	pw,w=D.C.,,	pwc,wc=ic,other	w,nw=,,on	wc,nc=other,lc
+at: 8
+features: wc=lc	w&c=on,lc	p1wc=other	p1w&c=,,other	p2wc=ic	p2w&c=d.c.,ic	n1wc=dd	n1w&c=1999-04-12,dd	n2wc=lc	n2w&c=with,lc	w=on	p1w=,	p2w=d.c.	n1w=1999-04-12	n2w=with	def	pd=null	pw,w=,,on	pwc,wc=other,lc	w,nw=on,1999-04-12	wc,nc=lc,dd
+at: 9
+features: wc=dd	w&c=1999-04-12,dd	p1wc=lc	p1w&c=on,lc	p2wc=other	p2w&c=,,other	n1wc=lc	n1w&c=with,lc	n2wc=other	n2w&c=$,other	w=1999-04-12	p1w=on	p2w=,	n1w=with	n2w=$	def	pd=null	pw,w=on,1999-04-12	pwc,wc=lc,dd	w,nw=1999-04-12,with	wc,nc=dd,lc
+at: 10
+features: wc=lc	w&c=with,lc	p1wc=dd	p1w&c=1999-04-12,dd	p2wc=lc	p2w&c=on,lc	n1wc=other	n1w&c=$,other	n2wc=4d	n2w&c=1,000,4d	w=with	p1w=1999-04-12	p2w=on	n1w=$	n2w=1,000	def	pd=null	pw,w=1999-04-12,with	pwc,wc=dd,lc	w,nw=with,$	wc,nc=lc,other
+at: 11
+features: wc=other	w&c=$,other	p1wc=lc	p1w&c=with,lc	p2wc=dd	p2w&c=1999-04-12,dd	n1wc=4d	n1w&c=1,000,4d	n2wc=other	n2w&c=.,other	w=$	p1w=with	p2w=1999-04-12	n1w=1,000	n2w=.	def	pd=null	pw,w=with,$	pwc,wc=lc,other	w,nw=$,1,000	wc,nc=other,4d
+at: 12
+features: wc=4d	w&c=1,000,4d	p1wc=other	p1w&c=$,other	p2wc=lc	p2w&c=with,lc	n1wc=other	n1w&c=.,other	w=1,000	p1w=$	p2w=with	n1w=.	def	pd=null	pw,w=$,1,000	pwc,wc=other,4d	w,nw=1,000,.	wc,nc=4d,other
+at: 13
+features: wc=other	w&c=.,other	p1wc=4d	p1w&c=1,000,4d	p2wc=other	p2w&c=$,other	w=.	p1w=1,000	p2w=$	def	pd=person-cont	pw,w=1,000,.	pwc,wc=4d,other
+update
+sentence: 2
+tokens: The	co-op	's	CEO	,	John	O'Neil	,	said	3.5	%	of	U.S.	sales	fell	.
+outcomes: person-cont	NN	t\u00E9	other	person-start	person-cont	NN	t\u00E9	other	person-start	person-cont	NN	t\u00E9	other	person-start	person-cont
+at: 0
+features: wc=ic	w&c=the,ic	n1wc=other	n1w&c=co-op,other	n2wc=other	n2w&c='s,other	w=the	n1w=co-op	n2w='s	def	pd=null	w,nw=The,co-op	wc,nc=ic,other	S=begin
+at: 1
+features: wc=other	w&c=co-op,other	p1wc=ic	p1w&c=the,ic	n1wc=other	n1w&c='s,other	n2wc=ac	n2w&c=ceo,ac	w=co-op	p1w=the	n1w='s	n2w=ceo	def	pd=null	pw,w=The,co-op	pwc,wc=ic,other	w,nw=co-op,'s	wc,nc=other,other
+at: 2
+features: wc=other	w&c='s,other	p1wc=other	p1w&c=co-op,other	p2wc=ic	p2w&c=the,ic	n1wc=ac	n1w&c=ceo,ac	n2wc=other	n2w&c=,,other	w='s	p1w=co-op	p2w=the	n1w=ceo	n2w=,	def	pd=null	pw,w=co-op,'s	pwc,wc=other,other	w,nw='s,CEO	wc,nc=other,ac
+at: 3
+features: wc=ac	w&c=ceo,ac	p1wc=other	p1w&c='s,other	p2wc=other	p2w&c=co-op,other	n1wc=other	n1w&c=,,other	n2wc=ic	n2w&c=john,ic	w=ceo	p1w='s	p2w=co-op	n1w=,	n2w=john	def	pd=null	pw,w='s,CEO	pwc,wc=other,ac	w,nw=CEO,,	wc,nc=ac,other
+at: 4
+features: wc=other	w&c=,,other	p1wc=ac	p1w&c=ceo,ac	p2wc=other	p2w&c='s,other	n1wc=ic	n1w&c=john,ic	n2wc=ic	n2w&c=o'neil,ic	w=,	p1w=ceo	p2w='s	n1w=john	n2w=o'neil	def	pd=NN	pw,w=CEO,,	pwc,wc=ac,other	w,nw=,,John	wc,nc=other,ic
+at: 5
+features: wc=ic	w&c=john,ic	p1wc=other	p1w&c=,,other	p2wc=ac	p2w&c=ceo,ac	n1wc=ic	n1w&c=o'neil,ic	n2wc=other	n2w&c=,,other	w=john	p1w=,	p2w=ceo	n1w=o'neil	n2w=,	def	pd=null	pw,w=,,John	pwc,wc=other,ic	w,nw=John,O'Neil	wc,nc=ic,ic
+at: 6
+features: wc=ic	w&c=o'neil,ic	p1wc=ic	p1w&c=john,ic	p2wc=other	p2w&c=,,other	n1wc=other	n1w&c=,,other	n2wc=lc	n2w&c=said,lc	w=o'neil	p1w=john	p2w=,	n1w=,	n2w=said	def	pd=null	pw,w=John,O'Neil	pwc,wc=ic,ic	w,nw=O'Neil,,	wc,nc=ic,other
+at: 7
+features: wc=other	w&c=,,other	p1wc=ic	p1w&c=o'neil,ic	p2wc=ic	p2w&c=john,ic	n1wc=lc	n1w&c=said,lc	n2wc=2d	n2w&c=3.5,2d	w=,	p1w=o'neil	p2w=john	n1w=said	n2w=3.5	def	pd=NN	pw,w=O'Neil,,	pwc,wc=ic,other	w,nw=,,said	wc,nc=other,lc
+at: 8
+features: wc=lc	w&c=said,lc	p1wc=other	p1w&c=,,other	p2wc=ic	p2w&c=o'neil,ic	n1wc=2d	n1w&c=3.5,2d	n2wc=other	n2w&c=%,other	w=said	p1w=,	p2w=o'neil	n1w=3.5	n2w=%	def	pd=null	pw,w=,,said	pwc,wc=other,lc	w,nw=said,3.5	wc,nc=lc,2d
+at: 9
+features: wc=2d	w&c=3.5,2d	p1wc=lc	p1w&c=said,lc	p2wc=other	p2w&c=,,other	n1wc=other	n1w&c=%,other	n2wc=lc	n2w&c=of,lc	w=3.5	p1w=said	p2w=,	n1w=%	n2w=of	def	pd=null	pw,w=said,3.5	pwc,wc=lc,2d	w,nw=3.5,%	wc,nc=2d,other
+at: 10
+features: wc=other	w&c=%,other	p1wc=2d	p1w&c=3.5,2d	p2wc=lc	p2w&c=said,lc	n1wc=lc	n1w&c=of,lc	n2wc=ic	n2w&c=u.s.,ic	w=%	p1w=3.5	p2w=said	n1w=of	n2w=u.s.	def	pd=null	pw,w=3.5,%	pwc,wc=2d,other	w,nw=%,of	wc,nc=other,lc
+at: 11
+features: wc=lc	w&c=of,lc	p1wc=other	p1w&c=%,other	p2wc=2d	p2w&c=3.5,2d	n1wc=ic	n1w&c=u.s.,ic	n2wc=lc	n2w&c=sales,lc	w=of	p1w=%	p2w=3.5	n1w=u.s.	n2w=sales	def	pd=null	pw,w=%,of	pwc,wc=other,lc	w,nw=of,U.S.	wc,nc=lc,ic
+at: 12
+features: wc=ic	w&c=u.s.,ic	p1wc=lc	p1w&c=of,lc	p2wc=other	p2w&c=%,other	n1wc=lc	n1w&c=sales,lc	n2wc=lc	n2w&c=fell,lc	w=u.s.	p1w=of	p2w=%	n1w=sales	n2w=fell	def	pd=null	pw,w=of,U.S.	pwc,wc=lc,ic	w,nw=U.S.,sales	wc,nc=ic,lc
+at: 13
+features: wc=lc	w&c=sales,lc	p1wc=ic	p1w&c=u.s.,ic	p2wc=lc	p2w&c=of,lc	n1wc=lc	n1w&c=fell,lc	n2wc=other	n2w&c=.,other	w=sales	p1w=u.s.	p2w=of	n1w=fell	n2w=.	def	pd=null	pw,w=U.S.,sales	pwc,wc=ic,lc	w,nw=sales,fell	wc,nc=lc,lc
+at: 14
+features: wc=lc	w&c=fell,lc	p1wc=lc	p1w&c=sales,lc	p2wc=ic	p2w&c=u.s.,ic	n1wc=other	n1w&c=.,other	w=fell	p1w=sales	p2w=u.s.	n1w=.	def	pd=null	pw,w=sales,fell	pwc,wc=lc,lc	w,nw=fell,.	wc,nc=lc,other
+at: 15
+features: wc=other	w&c=.,other	p1wc=lc	p1w&c=fell,lc	p2wc=lc	p2w&c=sales,lc	w=.	p1w=fell	p2w=sales	def	pd=t\u00E9	pw,w=fell,.	pwc,wc=lc,other
+update
+sentence: 3
+tokens: She	paid	12/31/2020	invoices	at	4:30	p.m.	in	New	York	City	.
+outcomes: NN	t\u00E9	other	person-start	person-cont	NN	t\u00E9	other	person-start	person-cont	NN	t\u00E9
+at: 0
+features: wc=ic	w&c=she,ic	n1wc=lc	n1w&c=paid,lc	n2wc=ds	n2w&c=12/31/2020,ds	w=she	n1w=paid	n2w=12/31/2020	def	pd=null	w,nw=She,paid	wc,nc=ic,lc	S=begin
+at: 1
+features: wc=lc	w&c=paid,lc	p1wc=ic	p1w&c=she,ic	n1wc=ds	n1w&c=12/31/2020,ds	n2wc=lc	n2w&c=invoices,lc	w=paid	p1w=she	n1w=12/31/2020	n2w=invoices	def	pd=null	pw,w=She,paid	pwc,wc=ic,lc	w,nw=paid,12/31/2020	wc,nc=lc,ds
+at: 2
+features: wc=ds	w&c=12/31/2020,ds	p1wc=lc	p1w&c=paid,lc	p2wc=ic	p2w&c=she,ic	n1wc=lc	n1w&c=invoices,lc	n2wc=lc	n2w&c=at,lc	w=12/31/2020	p1w=paid	p2w=she	n1w=invoices	n2w=at	def	pd=null	pw,w=paid,12/31/2020	pwc,wc=lc,ds	w,nw=12/31/2020,invoices	wc,nc=ds,lc
+at: 3
+features: wc=lc	w&c=invoices,lc	p1wc=ds	p1w&c=12/31/2020,ds	p2wc=lc	p2w&c=paid,lc	n1wc=lc	n1w&c=at,lc	n2wc=num	n2w&c=4:30,num	w=invoices	p1w=12/31/2020	p2w=paid	n1w=at	n2w=4:30	def	pd=null	pw,w=12/31/2020,invoices	pwc,wc=ds,lc	w,nw=invoices,at	wc,nc=lc,lc
+at: 4
+features: wc=lc	w&c=at,lc	p1wc=lc	p1w&c=invoices,lc	p2wc=ds	p2w&c=12/31/2020,ds	n1wc=num	n1w&c=4:30,num	n2wc=other	n2w&c=p.m.,other	w=at	p1w=invoices	p2w=12/31/2020	n1w=4:30	n2w=p.m.	def	pd=null	pw,w=invoices,at	pwc,wc=lc,lc	w,nw=at,4:30	wc,nc=lc,num
+at: 5
+features: wc=num	w&c=4:30,num	p1wc=lc	p1w&c=at,lc	p2wc=lc	p2w&c=invoices,lc	n1wc=other	n1w&c=p.m.,other	n2wc=lc	n2w&c=in,lc	w=4:30	p1w=at	p2w=invoices	n1w=p.m.	n2w=in	def	pd=null	pw,w=at,4:30	pwc,wc=lc,num	w,nw=4:30,p.m.	wc,nc=num,other
+at: 6
+features: wc=other	w&c=p.m.,other	p1wc=num	p1w&c=4:30,num	p2wc=lc	p2w&c=at,lc	n1wc=lc	n1w&c=in,lc	n2wc=ic	n2w&c=new,ic	w=p.m.	p1w=4:30	p2w=at	n1w=in	n2w=new	def	pd=null	pw,w=4:30,p.m.	pwc,wc=num,other	w,nw=p.m.,in	wc,nc=other,lc
+at: 7
+features: wc=lc	w&c=in,lc	p1wc=other	p1w&c=p.m.,other	p2wc=num	p2w&c=4:30,num	n1wc=ic	n1w&c=new,ic	n2wc=ic	n2w&c=york,ic	w=in	p1w=p.m.	p2w=4:30	n1w=new	n2w=york	def	pd=null	pw,w=p.m.,in	pwc,wc=other,lc	w,nw=in,New	wc,nc=lc,ic
+at: 8
+features: wc=ic	w&c=new,ic	p1wc=lc	p1w&c=in,lc	p2wc=other	p2w&c=p.m.,other	n1wc=ic	n1w&c=york,ic	n2wc=ic	n2w&c=city,ic	w=new	p1w=in	p2w=p.m.	n1w=york	n2w=city	def	pd=null	pw,w=in,New	pwc,wc=lc,ic	w,nw=New,York	wc,nc=ic,ic
+at: 9
+features: wc=ic	w&c=york,ic	p1wc=ic	p1w&c=new,ic	p2wc=lc	p2w&c=in,lc	n1wc=ic	n1w&c=city,ic	n2wc=other	n2w&c=.,other	w=york	p1w=new	p2w=in	n1w=city	n2w=.	def	pd=null	pw,w=New,York	pwc,wc=ic,ic	w,nw=York,City	wc,nc=ic,ic
+at: 10
+features: wc=ic	w&c=city,ic	p1wc=ic	p1w&c=york,ic	p2wc=ic	p2w&c=new,ic	n1wc=other	n1w&c=.,other	w=city	p1w=york	p2w=new	n1w=.	def	pd=null	pw,w=York,City	pwc,wc=ic,ic	w,nw=City,.	wc,nc=ic,other
+at: 11
+features: wc=other	w&c=.,other	p1wc=ic	p1w&c=city,ic	p2wc=ic	p2w&c=york,ic	w=.	p1w=city	p2w=york	def	pd=person-cont	pw,w=City,.	pwc,wc=ic,other
+update
+sentence: 4
+tokens: Angela	Merkel	met	Emmanuel	Macron	in	Berlin	and	Paris	last	week	.
+outcomes: t\u00E9	other	person-start	person-cont	NN	t\u00E9	other	person-start	person-cont	NN	t\u00E9	other
+at: 0
+features: wc=ic	w&c=angela,ic	n1wc=ic	n1w&c=merkel,ic	n2wc=lc	n2w&c=met,lc	w=angela	n1w=merkel	n2w=met	def	pd=null	w,nw=Angela,Merkel	wc,nc=ic,ic	S=begin
+at: 1
+features: wc=ic	w&c=merkel,ic	p1wc=ic	p1w&c=angela,ic	n1wc=lc	n1w&c=met,lc	n2wc=ic	n2w&c=emmanuel,ic	w=merkel	p1w=angela	n1w=met	n2w=emmanuel	def	pd=null	pw,w=Angela,Merkel	pwc,wc=ic,ic	w,nw=Merkel,met	wc,nc=ic,lc
+at: 2
+features: wc=lc	w&c=met,lc	p1wc=ic	p1w&c=merkel,ic	p2wc=ic	p2w&c=angela,ic	n1wc=ic	n1w&c=emmanuel,ic	n2wc=ic	n2w&c=macron,ic	w=met	p1w=merkel	p2w=angela	n1w=emmanuel	n2w=macron	def	pd=null	pw,w=Merkel,met	pwc,wc=ic,lc	w,nw=met,Emmanuel	wc,nc=lc,ic
+at: 3
+features: wc=ic	w&c=emmanuel,ic	p1wc=lc	p1w&c=met,lc	p2wc=ic	p2w&c=merkel,ic	n1wc=ic	n1w&c=macron,ic	n2wc=lc	n2w&c=in,lc	w=emmanuel	p1w=met	p2w=merkel	n1w=macron	n2w=in	def	pd=null	pw,w=met,Emmanuel	pwc,wc=lc,ic	w,nw=Emmanuel,Macron	wc,nc=ic,ic
+at: 4
+features: wc=ic	w&c=macron,ic	p1wc=ic	p1w&c=emmanuel,ic	p2wc=lc	p2w&c=met,lc	n1wc=lc	n1w&c=in,lc	n2wc=ic	n2w&c=berlin,ic	w=macron	p1w=emmanuel	p2w=met	n1w=in	n2w=berlin	def	pd=null	pw,w=Emmanuel,Macron	pwc,wc=ic,ic	w,nw=Macron,in	wc,nc=ic,lc
+at: 5
+features: wc=lc	w&c=in,lc	p1wc=ic	p1w&c=macron,ic	p2wc=ic	p2w&c=emmanuel,ic	n1wc=ic	n1w&c=berlin,ic	n2wc=lc	n2w&c=and,lc	w=in	p1w=macron	p2w=emmanuel	n1w=berlin	n2w=and	def	pd=other	pw,w=Macron,in	pwc,wc=ic,lc	w,nw=in,Berlin	wc,nc=lc,ic
+at: 6
+features: wc=ic	w&c=berlin,ic	p1wc=lc	p1w&c=in,lc	p2wc=ic	p2w&c=macron,ic	n1wc=lc	n1w&c=and,lc	n2wc=ic	n2w&c=paris,ic	w=berlin	p1w=in	p2w=macron	n1w=and	n2w=paris	def	pd=null	pw,w=in,Berlin	pwc,wc=lc,ic	w,nw=Berlin,and	wc,nc=ic,lc
+at: 7
+features: wc=lc	w&c=and,lc	p1wc=ic	p1w&c=berlin,ic	p2wc=lc	p2w&c=in,lc	n1wc=ic	n1w&c=paris,ic	n2wc=lc	n2w&c=last,lc	w=and	p1w=berlin	p2w=in	n1w=paris	n2w=last	def	pd=null	pw,w=Berlin,and	pwc,wc=ic,lc	w,nw=and,Paris	wc,nc=lc,ic
+at: 8
+features: wc=ic	w&c=paris,ic	p1wc=lc	p1w&c=and,lc	p2wc=ic	p2w&c=berlin,ic	n1wc=lc	n1w&c=last,lc	n2wc=lc	n2w&c=week,lc	w=paris	p1w=and	p2w=berlin	n1w=last	n2w=week	def	pd=null	pw,w=and,Paris	pwc,wc=lc,ic	w,nw=Paris,last	wc,nc=ic,lc
+at: 9
+features: wc=lc	w&c=last,lc	p1wc=ic	p1w&c=paris,ic	p2wc=lc	p2w&c=and,lc	n1wc=lc	n1w&c=week,lc	n2wc=other	n2w&c=.,other	w=last	p1w=paris	p2w=and	n1w=week	n2w=.	def	pd=null	pw,w=Paris,last	pwc,wc=ic,lc	w,nw=last,week	wc,nc=lc,lc
+at: 10
+features: wc=lc	w&c=week,lc	p1wc=lc	p1w&c=last,lc	p2wc=ic	p2w&c=paris,ic	n1wc=other	n1w&c=.,other	w=week	p1w=last	p2w=paris	n1w=.	def	pd=null	pw,w=last,week	pwc,wc=lc,lc	w,nw=week,.	wc,nc=lc,other
+at: 11
+features: wc=other	w&c=.,other	p1wc=lc	p1w&c=week,lc	p2wc=lc	p2w&c=last,lc	w=.	p1w=week	p2w=last	def	pd=t\u00E9	pw,w=week,.	pwc,wc=lc,other
+update
+sentence: 5
+tokens: IBM	and	Microsoft	Corp.	reported	earnings	;	A.	B.	Smith	disagreed	.
+outcomes: other	person-start	person-cont	NN	t\u00E9	other	person-start	person-cont	NN	t\u00E9	other	person-start
+at: 0
+features: wc=ac	w&c=ibm,ac	n1wc=lc	n1w&c=and,lc	n2wc=ic	n2w&c=microsoft,ic	w=ibm	n1w=and	n2w=microsoft	def	pd=null	w,nw=IBM,and	wc,nc=ac,lc	S=begin
+at: 1
+features: wc=lc	w&c=and,lc	p1wc=ac	p1w&c=ibm,ac	n1wc=ic	n1w&c=microsoft,ic	n2wc=ic	n2w&c=corp.,ic	w=and	p1w=ibm	n1w=microsoft	n2w=corp.	def	pd=person-start	pw,w=IBM,and	pwc,wc=ac,lc	w,nw=and,Microsoft	wc,nc=lc,ic
+at: 2
+features: wc=ic	w&c=microsoft,ic	p1wc=lc	p1w&c=and,lc	p2wc=ac	p2w&c=ibm,ac	n1wc=ic	n1w&c=corp.,ic	n2wc=lc	n2w&c=reported,lc	w=microsoft	p1w=and	p2w=ibm	n1w=corp.	n2w=reported	def	pd=null	pw,w=and,Microsoft	pwc,wc=lc,ic	w,nw=Microsoft,Corp.	wc,nc=ic,ic
+at: 3
+features: wc=ic	w&c=corp.,ic	p1wc=ic	p1w&c=microsoft,ic	p2wc=lc	p2w&c=and,lc	n1wc=lc	n1w&c=reported,lc	n2wc=lc	n2w&c=earnings,lc	w=corp.	p1w=microsoft	p2w=and	n1w=reported	n2w=earnings	def	pd=null	pw,w=Microsoft,Corp.	pwc,wc=ic,ic	w,nw=Corp.,reported	wc,nc=ic,lc
+at: 4
+features: wc=lc	w&c=reported,lc	p1wc=ic	p1w&c=corp.,ic	p2wc=ic	p2w&c=microsoft,ic	n1wc=lc	n1w&c=earnings,lc	n2wc=other	n2w&c=;,other	w=reported	p1w=corp.	p2w=microsoft	n1w=earnings	n2w=;	def	pd=null	pw,w=Corp.,reported	pwc,wc=ic,lc	w,nw=reported,earnings	wc,nc=lc,lc
+at: 5
+features: wc=lc	w&c=earnings,lc	p1wc=lc	p1w&c=reported,lc	p2wc=ic	p2w&c=corp.,ic	n1wc=other	n1w&c=;,other	n2wc=cp	n2w&c=a.,cp	w=earnings	p1w=reported	p2w=corp.	n1w=;	n2w=a.	def	pd=null	pw,w=reported,earnings	pwc,wc=lc,lc	w,nw=earnings,;	wc,nc=lc,other
+at: 6
+features: wc=other	w&c=;,other	p1wc=lc	p1w&c=earnings,lc	p2wc=lc	p2w&c=reported,lc	n1wc=cp	n1w&c=a.,cp	n2wc=cp	n2w&c=b.,cp	w=;	p1w=earnings	p2w=reported	n1w=a.	n2w=b.	def	pd=null	pw,w=earnings,;	pwc,wc=lc,other	w,nw=;,A.	wc,nc=other,cp
+at: 7
+features: wc=cp	w&c=a.,cp	p1wc=other	p1w&c=;,other	p2wc=lc	p2w&c=earnings,lc	n1wc=cp	n1w&c=b.,cp	n2wc=ic	n2w&c=smith,ic	w=a.	p1w=;	p2w=earnings	n1w=b.	n2w=smith	def	pd=null	pw,w=;,A.	pwc,wc=other,cp	w,nw=A.,B.	wc,nc=cp,cp
+at: 8
+features: wc=cp	w&c=b.,cp	p1wc=cp	p1w&c=a.,cp	p2wc=other	p2w&c=;,other	n1wc=ic	n1w&c=smith,ic	n2wc=lc	n2w&c=disagreed,lc	w=b.	p1w=a.	p2w=;	n1w=smith	n2w=disagreed	def	pd=null	pw,w=A.,B.	pwc,wc=cp,cp	w,nw=B.,Smith	wc,nc=cp,ic
+at: 9
+features: wc=ic	w&c=smith,ic	p1wc=cp	p1w&c=b.,cp	p2wc=cp	p2w&c=a.,cp	n1wc=lc	n1w&c=disagreed,lc	n2wc=other	n2w&c=.,other	w=smith	p1w=b.	p2w=a.	n1w=disagreed	n2w=.	def	pd=person-cont	pw,w=B.,Smith	pwc,wc=cp,ic	w,nw=Smith,disagreed	wc,nc=ic,lc
+at: 10
+features: wc=lc	w&c=disagreed,lc	p1wc=ic	p1w&c=smith,ic	p2wc=cp	p2w&c=b.,cp	n1wc=other	n1w&c=.,other	w=disagreed	p1w=smith	p2w=b.	n1w=.	def	pd=null	pw,w=Smith,disagreed	pwc,wc=ic,lc	w,nw=disagreed,.	wc,nc=lc,other
+at: 11
+features: wc=other	w&c=.,other	p1wc=lc	p1w&c=disagreed,lc	p2wc=ic	p2w&c=smith,ic	w=.	p1w=disagreed	p2w=smith	def	pd=other	pw,w=disagreed,.	pwc,wc=lc,other
+update
+sentence: 6
+tokens: \u00DCnal	\u00D6zdemir	lives	in	K\u00F6ln	,	not	M\u00FCnchen	.
+outcomes: person-start	person-cont	NN	t\u00E9	other	person-start	person-cont	NN	t\u00E9
+at: 0
+features: wc=ic	w&c=\u00FCnal,ic	n1wc=ic	n1w&c=\u00F6zdemir,ic	n2wc=lc	n2w&c=lives,lc	w=\u00FCnal	n1w=\u00F6zdemir	n2w=lives	def	pd=null	w,nw=\u00DCnal,\u00D6zdemir	wc,nc=ic,ic	S=begin
+at: 1
+features: wc=ic	w&c=\u00F6zdemir,ic	p1wc=ic	p1w&c=\u00FCnal,ic	n1wc=lc	n1w&c=lives,lc	n2wc=lc	n2w&c=in,lc	w=\u00F6zdemir	p1w=\u00FCnal	n1w=lives	n2w=in	def	pd=null	pw,w=\u00DCnal,\u00D6zdemir	pwc,wc=ic,ic	w,nw=\u00D6zdemir,lives	wc,nc=ic,lc
+at: 2
+features: wc=lc	w&c=lives,lc	p1wc=ic	p1w&c=\u00F6zdemir,ic	p2wc=ic	p2w&c=\u00FCnal,ic	n1wc=lc	n1w&c=in,lc	n2wc=ic	n2w&c=k\u00F6ln,ic	w=lives	p1w=\u00F6zdemir	p2w=\u00FCnal	n1w=in	n2w=k\u00F6ln	def	pd=null	pw,w=\u00D6zdemir,lives	pwc,wc=ic,lc	w,nw=lives,in	wc,nc=lc,lc
+at: 3
+features: wc=lc	w&c=in,lc	p1wc=lc	p1w&c=lives,lc	p2wc=ic	p2w&c=\u00F6zdemir,ic	n1wc=ic	n1w&c=k\u00F6ln,ic	n2wc=other	n2w&c=,,other	w=in	p1w=lives	p2w=\u00F6zdemir	n1w=k\u00F6ln	n2w=,	def	pd=t\u00E9	pw,w=lives,in	pwc,wc=lc,lc	w,nw=in,K\u00F6ln	wc,nc=lc,ic
+at: 4
+features: wc=ic	w&c=k\u00F6ln,ic	p1wc=lc	p1w&c=in,lc	p2wc=lc	p2w&c=lives,lc	n1wc=other	n1w&c=,,other	n2wc=lc	n2w&c=not,lc	w=k\u00F6ln	p1w=in	p2w=lives	n1w=,	n2w=not	def	pd=null	pw,w=in,K\u00F6ln	pwc,wc=lc,ic	w,nw=K\u00F6ln,,	wc,nc=ic,other
+at: 5
+features: wc=other	w&c=,,other	p1wc=ic	p1w&c=k\u00F6ln,ic	p2wc=lc	p2w&c=in,lc	n1wc=lc	n1w&c=not,lc	n2wc=ic	n2w&c=m\u00FCnchen,ic	w=,	p1w=k\u00F6ln	p2w=in	n1w=not	n2w=m\u00FCnchen	def	pd=t\u00E9	pw,w=K\u00F6ln,,	pwc,wc=ic,other	w,nw=,,not	wc,nc=other,lc
+at: 6
+features: wc=lc	w&c=not,lc	p1wc=other	p1w&c=,,other	p2wc=ic	p2w&c=k\u00F6ln,ic	n1wc=ic	n1w&c=m\u00FCnchen,ic	n2wc=other	n2w&c=.,other	w=not	p1w=,	p2w=k\u00F6ln	n1w=m\u00FCnchen	n2w=.	def	pd=null	pw,w=,,not	pwc,wc=other,lc	w,nw=not,M\u00FCnchen	wc,nc=lc,ic
+at: 7
+features: wc=ic	w&c=m\u00FCnchen,ic	p1wc=lc	p1w&c=not,lc	p2wc=other	p2w&c=,,other	n1wc=other	n1w&c=.,other	w=m\u00FCnchen	p1w=not	p2w=,	n1w=.	def	pd=null	pw,w=not,M\u00FCnchen	pwc,wc=lc,ic	w,nw=M\u00FCnchen,.	wc,nc=ic,other
+at: 8
+features: wc=other	w&c=.,other	p1wc=ic	p1w&c=m\u00FCnchen,ic	p2wc=lc	p2w&c=not,lc	w=.	p1w=m\u00FCnchen	p2w=not	def	pd=person-start	pw,w=M\u00FCnchen,.	pwc,wc=ic,other
+update
+sentence: 7
+tokens: \u6771\u4EAC	\u306F	\u3072\u3089\u304C\u306A	\u3068	\u30AB\u30BF\u30AB\u30CA	\u3092	\u4F7F\u3046	\u3002
+outcomes: person-cont	NN	t\u00E9	other	person-start	person-cont	NN	t\u00E9
+at: 0
+features: wc=other	w&c=\u6771\u4EAC,other	n1wc=jah	n1w&c=\u306F,jah	n2wc=jah	n2w&c=\u3072\u3089\u304C\u306A,jah	w=\u6771\u4EAC	n1w=\u306F	n2w=\u3072\u3089\u304C\u306A	def	pd=null	w,nw=\u6771\u4EAC,\u306F	wc,nc=other,jah	S=begin
+at: 1
+features: wc=jah	w&c=\u306F,jah	p1wc=other	p1w&c=\u6771\u4EAC,other	n1wc=jah	n1w&c=\u3072\u3089\u304C\u306A,jah	n2wc=jah	n2w&c=\u3068,jah	w=\u306F	p1w=\u6771\u4EAC	n1w=\u3072\u3089\u304C\u306A	n2w=\u3068	def	pd=null	pw,w=\u6771\u4EAC,\u306F	pwc,wc=other,jah	w,nw=\u306F,\u3072\u3089\u304C\u306A	wc,nc=jah,jah
+at: 2
+features: wc=jah	w&c=\u3072\u3089\u304C\u306A,jah	p1wc=jah	p1w&c=\u306F,jah	p2wc=other	p2w&c=\u6771\u4EAC,other	n1wc=jah	n1w&c=\u3068,jah	n2wc=jak	n2w&c=\u30AB\u30BF\u30AB\u30CA,jak	w=\u3072\u3089\u304C\u306A	p1w=\u306F	p2w=\u6771\u4EAC	n1w=\u3068	n2w=\u30AB\u30BF\u30AB\u30CA	def	pd=null	pw,w=\u306F,\u3072\u3089\u304C\u306A	pwc,wc=jah,jah	w,nw=\u3072\u3089\u304C\u306A,\u3068	wc,nc=jah,jah
+at: 3
+features: wc=jah	w&c=\u3068,jah	p1wc=jah	p1w&c=\u3072\u3089\u304C\u306A,jah	p2wc=jah	p2w&c=\u306F,jah	n1wc=jak	n1w&c=\u30AB\u30BF\u30AB\u30CA,jak	n2wc=jah	n2w&c=\u3092,jah	w=\u3068	p1w=\u3072\u3089\u304C\u306A	p2w=\u306F	n1w=\u30AB\u30BF\u30AB\u30CA	n2w=\u3092	def	pd=null	pw,w=\u3072\u3089\u304C\u306A,\u3068	pwc,wc=jah,jah	w,nw=\u3068,\u30AB\u30BF\u30AB\u30CA	wc,nc=jah,jak
+at: 4
+features: wc=jak	w&c=\u30AB\u30BF\u30AB\u30CA,jak	p1wc=jah	p1w&c=\u3068,jah	p2wc=jah	p2w&c=\u3072\u3089\u304C\u306A,jah	n1wc=jah	n1w&c=\u3092,jah	n2wc=other	n2w&c=\u4F7F\u3046,other	w=\u30AB\u30BF\u30AB\u30CA	p1w=\u3068	p2w=\u3072\u3089\u304C\u306A	n1w=\u3092	n2w=\u4F7F\u3046	def	pd=null	pw,w=\u3068,\u30AB\u30BF\u30AB\u30CA	pwc,wc=jah,jak	w,nw=\u30AB\u30BF\u30AB\u30CA,\u3092	wc,nc=jak,jah
+at: 5
+features: wc=jah	w&c=\u3092,jah	p1wc=jak	p1w&c=\u30AB\u30BF\u30AB\u30CA,jak	p2wc=jah	p2w&c=\u3068,jah	n1wc=other	n1w&c=\u4F7F\u3046,other	n2wc=other	n2w&c=\u3002,other	w=\u3092	p1w=\u30AB\u30BF\u30AB\u30CA	p2w=\u3068	n1w=\u4F7F\u3046	n2w=\u3002	def	pd=null	pw,w=\u30AB\u30BF\u30AB\u30CA,\u3092	pwc,wc=jak,jah	w,nw=\u3092,\u4F7F\u3046	wc,nc=jah,other
+at: 6
+features: wc=other	w&c=\u4F7F\u3046,other	p1wc=jah	p1w&c=\u3092,jah	p2wc=jak	p2w&c=\u30AB\u30BF\u30AB\u30CA,jak	n1wc=other	n1w&c=\u3002,other	w=\u4F7F\u3046	p1w=\u3092	p2w=\u30AB\u30BF\u30AB\u30CA	n1w=\u3002	def	pd=null	pw,w=\u3092,\u4F7F\u3046	pwc,wc=jah,other	w,nw=\u4F7F\u3046,\u3002	wc,nc=other,other
+at: 7
+features: wc=other	w&c=\u3002,other	p1wc=other	p1w&c=\u4F7F\u3046,other	p2wc=jah	p2w&c=\u3092,jah	w=\u3002	p1w=\u4F7F\u3046	p2w=\u3092	def	pd=null	pw,w=\u4F7F\u3046,\u3002	pwc,wc=other,other
+update
+sentence: 8
+tokens: The	\uD835\uDC00\uD835\uDC01\uD835\uDC02	index	rose	\uD83D\uDE00	while	caf\u00E9	prices	fell	.
+outcomes: NN	t\u00E9	other	person-start	person-cont	NN	t\u00E9	other	person-start	person-cont
+at: 0
+features: wc=ic	w&c=the,ic	n1wc=other	n1w&c=\uD835\uDC00\uD835\uDC01\uD835\uDC02,other	n2wc=lc	n2w&c=index,lc	w=the	n1w=\uD835\uDC00\uD835\uDC01\uD835\uDC02	n2w=index	def	pd=person-cont	w,nw=The,\uD835\uDC00\uD835\uDC01\uD835\uDC02	wc,nc=ic,other	S=begin
+at: 1
+features: wc=other	w&c=\uD835\uDC00\uD835\uDC01\uD835\uDC02,other	p1wc=ic	p1w&c=the,ic	n1wc=lc	n1w&c=index,lc	n2wc=lc	n2w&c=rose,lc	w=\uD835\uDC00\uD835\uDC01\uD835\uDC02	p1w=the	n1w=index	n2w=rose	def	pd=null	pw,w=The,\uD835\uDC00\uD835\uDC01\uD835\uDC02	pwc,wc=ic,other	w,nw=\uD835\uDC00\uD835\uDC01\uD835\uDC02,index	wc,nc=other,lc
+at: 2
+features: wc=lc	w&c=index,lc	p1wc=other	p1w&c=\uD835\uDC00\uD835\uDC01\uD835\uDC02,other	p2wc=ic	p2w&c=the,ic	n1wc=lc	n1w&c=rose,lc	n2wc=other	n2w&c=\uD83D\uDE00,other	w=index	p1w=\uD835\uDC00\uD835\uDC01\uD835\uDC02	p2w=the	n1w=rose	n2w=\uD83D\uDE00	def	pd=null	pw,w=\uD835\uDC00\uD835\uDC01\uD835\uDC02,index	pwc,wc=other,lc	w,nw=index,rose	wc,nc=lc,lc
+at: 3
+features: wc=lc	w&c=rose,lc	p1wc=lc	p1w&c=index,lc	p2wc=other	p2w&c=\uD835\uDC00\uD835\uDC01\uD835\uDC02,other	n1wc=other	n1w&c=\uD83D\uDE00,other	n2wc=lc	n2w&c=while,lc	w=rose	p1w=index	p2w=\uD835\uDC00\uD835\uDC01\uD835\uDC02	n1w=\uD83D\uDE00	n2w=while	def	pd=null	pw,w=index,rose	pwc,wc=lc,lc	w,nw=rose,\uD83D\uDE00	wc,nc=lc,other
+at: 4
+features: wc=other	w&c=\uD83D\uDE00,other	p1wc=lc	p1w&c=rose,lc	p2wc=lc	p2w&c=index,lc	n1wc=lc	n1w&c=while,lc	n2wc=lc	n2w&c=caf\u00E9,lc	w=\uD83D\uDE00	p1w=rose	p2w=index	n1w=while	n2w=caf\u00E9	def	pd=null	pw,w=rose,\uD83D\uDE00	pwc,wc=lc,other	w,nw=\uD83D\uDE00,while	wc,nc=other,lc
+at: 5
+features: wc=lc	w&c=while,lc	p1wc=other	p1w&c=\uD83D\uDE00,other	p2wc=lc	p2w&c=rose,lc	n1wc=lc	n1w&c=caf\u00E9,lc	n2wc=lc	n2w&c=prices,lc	w=while	p1w=\uD83D\uDE00	p2w=rose	n1w=caf\u00E9	n2w=prices	def	pd=null	pw,w=\uD83D\uDE00,while	pwc,wc=other,lc	w,nw=while,caf\u00E9	wc,nc=lc,lc
+at: 6
+features: wc=lc	w&c=caf\u00E9,lc	p1wc=lc	p1w&c=while,lc	p2wc=other	p2w&c=\uD83D\uDE00,other	n1wc=lc	n1w&c=prices,lc	n2wc=lc	n2w&c=fell,lc	w=caf\u00E9	p1w=while	p2w=\uD83D\uDE00	n1w=prices	n2w=fell	def	pd=null	pw,w=while,caf\u00E9	pwc,wc=lc,lc	w,nw=caf\u00E9,prices	wc,nc=lc,lc
+at: 7
+features: wc=lc	w&c=prices,lc	p1wc=lc	p1w&c=caf\u00E9,lc	p2wc=lc	p2w&c=while,lc	n1wc=lc	n1w&c=fell,lc	n2wc=other	n2w&c=.,other	w=prices	p1w=caf\u00E9	p2w=while	n1w=fell	n2w=.	def	pd=null	pw,w=caf\u00E9,prices	pwc,wc=lc,lc	w,nw=prices,fell	wc,nc=lc,lc
+at: 8
+features: wc=lc	w&c=fell,lc	p1wc=lc	p1w&c=prices,lc	p2wc=lc	p2w&c=caf\u00E9,lc	n1wc=other	n1w&c=.,other	w=fell	p1w=prices	p2w=caf\u00E9	n1w=.	def	pd=person-start	pw,w=prices,fell	pwc,wc=lc,lc	w,nw=fell,.	wc,nc=lc,other
+at: 9
+features: wc=other	w&c=.,other	p1wc=lc	p1w&c=fell,lc	p2wc=lc	p2w&c=prices,lc	w=.	p1w=fell	p2w=prices	def	pd=t\u00E9	pw,w=fell,.	pwc,wc=lc,other
+update
+sentence: 9
+tokens: e-mail	me	at	john@example.com	or	visit	www.example.com/a?b=1	!
+outcomes: t\u00E9	other	person-start	person-cont	NN	t\u00E9	other	person-start
+at: 0
+features: wc=other	w&c=e-mail,other	n1wc=lc	n1w&c=me,lc	n2wc=lc	n2w&c=at,lc	w=e-mail	n1w=me	n2w=at	def	pd=null	w,nw=e-mail,me	wc,nc=other,lc	S=begin
+at: 1
+features: wc=lc	w&c=me,lc	p1wc=other	p1w&c=e-mail,other	n1wc=lc	n1w&c=at,lc	n2wc=other	n2w&c=john@example.com,other	w=me	p1w=e-mail	n1w=at	n2w=john@example.com	def	pd=null	pw,w=e-mail,me	pwc,wc=other,lc	w,nw=me,at	wc,nc=lc,lc
+at: 2
+features: wc=lc	w&c=at,lc	p1wc=lc	p1w&c=me,lc	p2wc=other	p2w&c=e-mail,other	n1wc=other	n1w&c=john@example.com,other	n2wc=lc	n2w&c=or,lc	w=at	p1w=me	p2w=e-mail	n1w=john@example.com	n2w=or	def	pd=person-cont	pw,w=me,at	pwc,wc=lc,lc	w,nw=at,john@example.com	wc,nc=lc,other
+at: 3
+features: wc=other	w&c=john@example.com,other	p1wc=lc	p1w&c=at,lc	p2wc=lc	p2w&c=me,lc	n1wc=lc	n1w&c=or,lc	n2wc=lc	n2w&c=visit,lc	w=john@example.com	p1w=at	p2w=me	n1w=or	n2w=visit	def	pd=null	pw,w=at,john@example.com	pwc,wc=lc,other	w,nw=john@example.com,or	wc,nc=other,lc
+at: 4
+features: wc=lc	w&c=or,lc	p1wc=other	p1w&c=john@example.com,other	p2wc=lc	p2w&c=at,lc	n1wc=lc	n1w&c=visit,lc	n2wc=an	n2w&c=www.example.com/a?b=1,an	w=or	p1w=john@example.com	p2w=at	n1w=visit	n2w=www.example.com/a?b=1	def	pd=null	pw,w=john@example.com,or	pwc,wc=other,lc	w,nw=or,visit	wc,nc=lc,lc
+at: 5
+features: wc=lc	w&c=visit,lc	p1wc=lc	p1w&c=or,lc	p2wc=other	p2w&c=john@example.com,other	n1wc=an	n1w&c=www.example.com/a?b=1,an	n2wc=other	n2w&c=!,other	w=visit	p1w=or	p2w=john@example.com	n1w=www.example.com/a?b=1	n2w=!	def	pd=null	pw,w=or,visit	pwc,wc=lc,lc	w,nw=visit,www.example.com/a?b=1	wc,nc=lc,an
+at: 6
+features: wc=an	w&c=www.example.com/a?b=1,an	p1wc=lc	p1w&c=visit,lc	p2wc=lc	p2w&c=or,lc	n1wc=other	n1w&c=!,other	w=www.example.com/a?b=1	p1w=visit	p2w=or	n1w=!	def	pd=null	pw,w=visit,www.example.com/a?b=1	pwc,wc=lc,an	w,nw=www.example.com/a?b=1,!	wc,nc=an,other
+at: 7
+features: wc=other	w&c=!,other	p1wc=an	p1w&c=www.example.com/a?b=1,an	p2wc=lc	p2w&c=visit,lc	w=!	p1w=www.example.com/a?b=1	p2w=visit	def	pd=null	pw,w=www.example.com/a?b=1,!	pwc,wc=an,other
+update
+sentence: 10
+tokens: Barack	Obama	was	born	in	Honolulu	,	Hawaii	.
+outcomes: other	person-start	person-cont	NN	t\u00E9	other	person-start	person-cont	NN
+at: 0
+features: wc=ic	w&c=barack,ic	n1wc=ic	n1w&c=obama,ic	n2wc=lc	n2w&c=was,lc	w=barack	n1w=obama	n2w=was	def	pd=null	w,nw=Barack,Obama	wc,nc=ic,ic	S=begin
+at: 1
+features: wc=ic	w&c=obama,ic	p1wc=ic	p1w&c=barack,ic	n1wc=lc	n1w&c=was,lc	n2wc=lc	n2w&c=born,lc	w=obama	p1w=barack	n1w=was	n2w=born	def	pd=null	pw,w=Barack,Obama	pwc,wc=ic,ic	w,nw=Obama,was	wc,nc=ic,lc
+at: 2
+features: wc=lc	w&c=was,lc	p1wc=ic	p1w&c=obama,ic	p2wc=ic	p2w&c=barack,ic	n1wc=lc	n1w&c=born,lc	n2wc=lc	n2w&c=in,lc	w=was	p1w=obama	p2w=barack	n1w=born	n2w=in	def	pd=null	pw,w=Obama,was	pwc,wc=ic,lc	w,nw=was,born	wc,nc=lc,lc
+at: 3
+features: wc=lc	w&c=born,lc	p1wc=lc	p1w&c=was,lc	p2wc=ic	p2w&c=obama,ic	n1wc=lc	n1w&c=in,lc	n2wc=ic	n2w&c=honolulu,ic	w=born	p1w=was	p2w=obama	n1w=in	n2w=honolulu	def	pd=null	pw,w=was,born	pwc,wc=lc,lc	w,nw=born,in	wc,nc=lc,lc
+at: 4
+features: wc=lc	w&c=in,lc	p1wc=lc	p1w&c=born,lc	p2wc=lc	p2w&c=was,lc	n1wc=ic	n1w&c=honolulu,ic	n2wc=other	n2w&c=,,other	w=in	p1w=born	p2w=was	n1w=honolulu	n2w=,	def	pd=t\u00E9	pw,w=born,in	pwc,wc=lc,lc	w,nw=in,Honolulu	wc,nc=lc,ic
+at: 5
+features: wc=ic	w&c=honolulu,ic	p1wc=lc	p1w&c=in,lc	p2wc=lc	p2w&c=born,lc	n1wc=other	n1w&c=,,other	n2wc=ic	n2w&c=hawaii,ic	w=honolulu	p1w=in	p2w=born	n1w=,	n2w=hawaii	def	pd=null	pw,w=in,Honolulu	pwc,wc=lc,ic	w,nw=Honolulu,,	wc,nc=ic,other
+at: 6
+features: wc=other	w&c=,,other	p1wc=ic	p1w&c=honolulu,ic	p2wc=lc	p2w&c=in,lc	n1wc=ic	n1w&c=hawaii,ic	n2wc=other	n2w&c=.,other	w=,	p1w=honolulu	p2w=in	n1w=hawaii	n2w=.	def	pd=person-start	pw,w=Honolulu,,	pwc,wc=ic,other	w,nw=,,Hawaii	wc,nc=other,ic
+at: 7
+features: wc=ic	w&c=hawaii,ic	p1wc=other	p1w&c=,,other	p2wc=ic	p2w&c=honolulu,ic	n1wc=other	n1w&c=.,other	w=hawaii	p1w=,	p2w=honolulu	n1w=.	def	pd=null	pw,w=,,Hawaii	pwc,wc=other,ic	w,nw=Hawaii,.	wc,nc=ic,other
+at: 8
+features: wc=other	w&c=.,other	p1wc=ic	p1w&c=hawaii,ic	p2wc=other	p2w&c=,,other	w=.	p1w=hawaii	p2w=,	def	pd=person-cont	pw,w=Hawaii,.	pwc,wc=ic,other
+update
+sentence: 11
+tokens: He	said	:	"	I	'm	not	going	to	London	.	"
+outcomes: person-start	person-cont	NN	t\u00E9	other	person-start	person-cont	NN	t\u00E9	other	person-start	person-cont
+at: 0
+features: wc=ic	w&c=he,ic	n1wc=lc	n1w&c=said,lc	n2wc=other	n2w&c=:,other	w=he	n1w=said	n2w=:	def	pd=null	w,nw=He,said	wc,nc=ic,lc	S=begin
+at: 1
+features: wc=lc	w&c=said,lc	p1wc=ic	p1w&c=he,ic	n1wc=other	n1w&c=:,other	n2wc=other	n2w&c=",other	w=said	p1w=he	n1w=:	n2w="	def	pd=other	pw,w=He,said	pwc,wc=ic,lc	w,nw=said,:	wc,nc=lc,other
+at: 2
+features: wc=other	w&c=:,other	p1wc=lc	p1w&c=said,lc	p2wc=ic	p2w&c=he,ic	n1wc=other	n1w&c=",other	n2wc=sc	n2w&c=i,sc	w=:	p1w=said	p2w=he	n1w="	n2w=i	def	pd=null	pw,w=said,:	pwc,wc=lc,other	w,nw=:,"	wc,nc=other,other
+at: 3
+features: wc=other	w&c=",other	p1wc=other	p1w&c=:,other	p2wc=lc	p2w&c=said,lc	n1wc=sc	n1w&c=i,sc	n2wc=other	n2w&c='m,other	w="	p1w=:	p2w=said	n1w=i	n2w='m	def	pd=null	pw,w=:,"	pwc,wc=other,other	w,nw=",I	wc,nc=other,sc
+at: 4
+features: wc=sc	w&c=i,sc	p1wc=other	p1w&c=",other	p2wc=other	p2w&c=:,other	n1wc=other	n1w&c='m,other	n2wc=lc	n2w&c=not,lc	w=i	p1w="	p2w=:	n1w='m	n2w=not	def	pd=null	pw,w=",I	pwc,wc=other,sc	w,nw=I,'m	wc,nc=sc,other
+at: 5
+features: wc=other	w&c='m,other	p1wc=sc	p1w&c=i,sc	p2wc=other	p2w&c=",other	n1wc=lc	n1w&c=not,lc	n2wc=lc	n2w&c=going,lc	w='m	p1w=i	p2w="	n1w=not	n2w=going	def	pd=null	pw,w=I,'m	pwc,wc=sc,other	w,nw='m,not	wc,nc=other,lc
+at: 6
+features: wc=lc	w&c=not,lc	p1wc=other	p1w&c='m,other	p2wc=sc	p2w&c=i,sc	n1wc=lc	n1w&c=going,lc	n2wc=lc	n2w&c=to,lc	w=not	p1w='m	p2w=i	n1w=going	n2w=to	def	pd=person-cont	pw,w='m,not	pwc,wc=other,lc	w,nw=not,going	wc,nc=lc,lc
+at: 7
+features: wc=lc	w&c=going,lc	p1wc=lc	p1w&c=not,lc	p2wc=other	p2w&c='m,other	n1wc=lc	n1w&c=to,lc	n2wc=ic	n2w&c=london,ic	w=going	p1w=not	p2w='m	n1w=to	n2w=london	def	pd=null	pw,w=not,going	pwc,wc=lc,lc	w,nw=going,to	wc,nc=lc,lc
+at: 8
+features: wc=lc	w&c=to,lc	p1wc=lc	p1w&c=going,lc	p2wc=lc	p2w&c=not,lc	n1wc=ic	n1w&c=london,ic	n2wc=other	n2w&c=.,other	w=to	p1w=going	p2w=not	n1w=london	n2w=.	def	pd=t\u00E9	pw,w=going,to	pwc,wc=lc,lc	w,nw=to,London	wc,nc=lc,ic
+at: 9
+features: wc=ic	w&c=london,ic	p1wc=lc	p1w&c=to,lc	p2wc=lc	p2w&c=going,lc	n1wc=other	n1w&c=.,other	n2wc=other	n2w&c=",other	w=london	p1w=to	p2w=going	n1w=.	n2w="	def	pd=null	pw,w=to,London	pwc,wc=lc,ic	w,nw=London,.	wc,nc=ic,other
+at: 10
+features: wc=other	w&c=.,other	p1wc=ic	p1w&c=london,ic	p2wc=lc	p2w&c=to,lc	n1wc=other	n1w&c=",other	w=.	p1w=london	p2w=to	n1w="	def	pd=NN	pw,w=London,.	pwc,wc=ic,other	w,nw=.,"	wc,nc=other,other
+at: 11
+features: wc=other	w&c=",other	p1wc=other	p1w&c=.,other	p2wc=ic	p2w&c=london,ic	w="	p1w=.	p2w=london	def	pd=null	pw,w=.,"	pwc,wc=other,other
+update
+sentence: 12
+tokens: \u0141\u00D3D\u0179	and	\u0391\u0398\u0397\u039D\u0391	are	cities	;	\u01C5	is	a	titlecase	letter	.
+outcomes: person-cont	NN	t\u00E9	other	person-start	person-cont	NN	t\u00E9	other	person-start	person-cont	NN
+at: 0
+features: wc=ac	w&c=\u0142\u00F3d\u017A,ac	n1wc=lc	n1w&c=and,lc	n2wc=jah	n2w&c=\u03B1\u03B8\u03B7\u03BD\u03B1,jah	w=\u0142\u00F3d\u017A	n1w=and	n2w=\u03B1\u03B8\u03B7\u03BD\u03B1	def	pd=null	w,nw=\u0141\u00D3D\u0179,and	wc,nc=ac,lc	S=begin
+at: 1
+features: wc=lc	w&c=and,lc	p1wc=ac	p1w&c=\u0142\u00F3d\u017A,ac	n1wc=jah	n1w&c=\u03B1\u03B8\u03B7\u03BD\u03B1,jah	n2wc=lc	n2w&c=are,lc	w=and	p1w=\u0142\u00F3d\u017A	n1w=\u03B1\u03B8\u03B7\u03BD\u03B1	n2w=are	def	pd=person-start	pw,w=\u0141\u00D3D\u0179,and	pwc,wc=ac,lc	w,nw=and,\u0391\u0398\u0397\u039D\u0391	wc,nc=lc,jah
+at: 2
+features: wc=jah	w&c=\u03B1\u03B8\u03B7\u03BD\u03B1,jah	p1wc=lc	p1w&c=and,lc	p2wc=ac	p2w&c=\u0142\u00F3d\u017A,ac	n1wc=lc	n1w&c=are,lc	n2wc=lc	n2w&c=cities,lc	w=\u03B1\u03B8\u03B7\u03BD\u03B1	p1w=and	p2w=\u0142\u00F3d\u017A	n1w=are	n2w=cities	def	pd=null	pw,w=and,\u0391\u0398\u0397\u039D\u0391	pwc,wc=lc,jah	w,nw=\u0391\u0398\u0397\u039D\u0391,are	wc,nc=jah,lc
+at: 3
+features: wc=lc	w&c=are,lc	p1wc=jah	p1w&c=\u03B1\u03B8\u03B7\u03BD\u03B1,jah	p2wc=lc	p2w&c=and,lc	n1wc=lc	n1w&c=cities,lc	n2wc=other	n2w&c=;,other	w=are	p1w=\u03B1\u03B8\u03B7\u03BD\u03B1	p2w=and	n1w=cities	n2w=;	def	pd=null	pw,w=\u0391\u0398\u0397\u039D\u0391,are	pwc,wc=jah,lc	w,nw=are,cities	wc,nc=lc,lc
+at: 4
+features: wc=lc	w&c=cities,lc	p1wc=lc	p1w&c=are,lc	p2wc=jah	p2w&c=\u03B1\u03B8\u03B7\u03BD\u03B1,jah	n1wc=other	n1w&c=;,other	n2wc=lc	n2w&c=\u01C6,lc	w=cities	p1w=are	p2w=\u03B1\u03B8\u03B7\u03BD\u03B1	n1w=;	n2w=\u01C6	def	pd=null	pw,w=are,cities	pwc,wc=lc,lc	w,nw=cities,;	wc,nc=lc,other
+at: 5
+features: wc=other	w&c=;,other	p1wc=lc	p1w&c=cities,lc	p2wc=lc	p2w&c=are,lc	n1wc=lc	n1w&c=\u01C6,lc	n2wc=lc	n2w&c=is,lc	w=;	p1w=cities	p2w=are	n1w=\u01C6	n2w=is	def	pd=person-start	pw,w=cities,;	pwc,wc=lc,other	w,nw=;,\u01C5	wc,nc=other,lc
+at: 6
+features: wc=lc	w&c=\u01C6,lc	p1wc=other	p1w&c=;,other	p2wc=lc	p2w&c=cities,lc	n1wc=lc	n1w&c=is,lc	n2wc=lc	n2w&c=a,lc	w=\u01C6	p1w=;	p2w=cities	n1w=is	n2w=a	def	pd=null	pw,w=;,\u01C5	pwc,wc=other,lc	w,nw=\u01C5,is	wc,nc=lc,lc
+at: 7
+features: wc=lc	w&c=is,lc	p1wc=lc	p1w&c=\u01C6,lc	p2wc=other	p2w&c=;,other	n1wc=lc	n1w&c=a,lc	n2wc=lc	n2w&c=titlecase,lc	w=is	p1w=\u01C6	p2w=;	n1w=a	n2w=titlecase	def	pd=null	pw,w=\u01C5,is	pwc,wc=lc,lc	w,nw=is,a	wc,nc=lc,lc
+at: 8
+features: wc=lc	w&c=a,lc	p1wc=lc	p1w&c=is,lc	p2wc=lc	p2w&c=\u01C6,lc	n1wc=lc	n1w&c=titlecase,lc	n2wc=lc	n2w&c=letter,lc	w=a	p1w=is	p2w=\u01C6	n1w=titlecase	n2w=letter	def	pd=person-cont	pw,w=is,a	pwc,wc=lc,lc	w,nw=a,titlecase	wc,nc=lc,lc
+at: 9
+features: wc=lc	w&c=titlecase,lc	p1wc=lc	p1w&c=a,lc	p2wc=lc	p2w&c=is,lc	n1wc=lc	n1w&c=letter,lc	n2wc=other	n2w&c=.,other	w=titlecase	p1w=a	p2w=is	n1w=letter	n2w=.	def	pd=null	pw,w=a,titlecase	pwc,wc=lc,lc	w,nw=titlecase,letter	wc,nc=lc,lc
+at: 10
+features: wc=lc	w&c=letter,lc	p1wc=lc	p1w&c=titlecase,lc	p2wc=lc	p2w&c=a,lc	n1wc=other	n1w&c=.,other	w=letter	p1w=titlecase	p2w=a	n1w=.	def	pd=null	pw,w=titlecase,letter	pwc,wc=lc,lc	w,nw=letter,.	wc,nc=lc,other
+at: 11
+features: wc=other	w&c=.,other	p1wc=lc	p1w&c=letter,lc	p2wc=lc	p2w&c=titlecase,lc	w=.	p1w=letter	p2w=titlecase	def	pd=person-start	pw,w=letter,.	pwc,wc=lc,other
+update
+sentence: 13
+tokens: One	more	sentence	about	Dr.	Jane	Doe	of	Acme	Inc.	in	Chicago	.
+outcomes: NN	t\u00E9	other	person-start	person-cont	NN	t\u00E9	other	person-start	person-cont	NN	t\u00E9	other
+at: 0
+features: wc=ic	w&c=one,ic	n1wc=lc	n1w&c=more,lc	n2wc=lc	n2w&c=sentence,lc	w=one	n1w=more	n2w=sentence	def	pd=null	w,nw=One,more	wc,nc=ic,lc	S=begin
+at: 1
+features: wc=lc	w&c=more,lc	p1wc=ic	p1w&c=one,ic	n1wc=lc	n1w&c=sentence,lc	n2wc=lc	n2w&c=about,lc	w=more	p1w=one	n1w=sentence	n2w=about	def	pd=null	pw,w=One,more	pwc,wc=ic,lc	w,nw=more,sentence	wc,nc=lc,lc
+at: 2
+features: wc=lc	w&c=sentence,lc	p1wc=lc	p1w&c=more,lc	p2wc=ic	p2w&c=one,ic	n1wc=lc	n1w&c=about,lc	n2wc=ic	n2w&c=dr.,ic	w=sentence	p1w=more	p2w=one	n1w=about	n2w=dr.	def	pd=null	pw,w=more,sentence	pwc,wc=lc,lc	w,nw=sentence,about	wc,nc=lc,lc
+at: 3
+features: wc=lc	w&c=about,lc	p1wc=lc	p1w&c=sentence,lc	p2wc=lc	p2w&c=more,lc	n1wc=ic	n1w&c=dr.,ic	n2wc=ic	n2w&c=jane,ic	w=about	p1w=sentence	p2w=more	n1w=dr.	n2w=jane	def	pd=null	pw,w=sentence,about	pwc,wc=lc,lc	w,nw=about,Dr.	wc,nc=lc,ic
+at: 4
+features: wc=ic	w&c=dr.,ic	p1wc=lc	p1w&c=about,lc	p2wc=lc	p2w&c=sentence,lc	n1wc=ic	n1w&c=jane,ic	n2wc=ic	n2w&c=doe,ic	w=dr.	p1w=about	p2w=sentence	n1w=jane	n2w=doe	def	pd=null	pw,w=about,Dr.	pwc,wc=lc,ic	w,nw=Dr.,Jane	wc,nc=ic,ic
+at: 5
+features: wc=ic	w&c=jane,ic	p1wc=ic	p1w&c=dr.,ic	p2wc=lc	p2w&c=about,lc	n1wc=ic	n1w&c=doe,ic	n2wc=lc	n2w&c=of,lc	w=jane	p1w=dr.	p2w=about	n1w=doe	n2w=of	def	pd=null	pw,w=Dr.,Jane	pwc,wc=ic,ic	w,nw=Jane,Doe	wc,nc=ic,ic
+at: 6
+features: wc=ic	w&c=doe,ic	p1wc=ic	p1w&c=jane,ic	p2wc=ic	p2w&c=dr.,ic	n1wc=lc	n1w&c=of,lc	n2wc=ic	n2w&c=acme,ic	w=doe	p1w=jane	p2w=dr.	n1w=of	n2w=acme	def	pd=null	pw,w=Jane,Doe	pwc,wc=ic,ic	w,nw=Doe,of	wc,nc=ic,lc
+at: 7
+features: wc=lc	w&c=of,lc	p1wc=ic	p1w&c=doe,ic	p2wc=ic	p2w&c=jane,ic	n1wc=ic	n1w&c=acme,ic	n2wc=ic	n2w&c=inc.,ic	w=of	p1w=doe	p2w=jane	n1w=acme	n2w=inc.	def	pd=NN	pw,w=Doe,of	pwc,wc=ic,lc	w,nw=of,Acme	wc,nc=lc,ic
+at: 8
+features: wc=ic	w&c=acme,ic	p1wc=lc	p1w&c=of,lc	p2wc=ic	p2w&c=doe,ic	n1wc=ic	n1w&c=inc.,ic	n2wc=lc	n2w&c=in,lc	w=acme	p1w=of	p2w=doe	n1w=inc.	n2w=in	def	pd=null	pw,w=of,Acme	pwc,wc=lc,ic	w,nw=Acme,Inc.	wc,nc=ic,ic
+at: 9
+features: wc=ic	w&c=inc.,ic	p1wc=ic	p1w&c=acme,ic	p2wc=lc	p2w&c=of,lc	n1wc=lc	n1w&c=in,lc	n2wc=ic	n2w&c=chicago,ic	w=inc.	p1w=acme	p2w=of	n1w=in	n2w=chicago	def	pd=null	pw,w=Acme,Inc.	pwc,wc=ic,ic	w,nw=Inc.,in	wc,nc=ic,lc
+at: 10
+features: wc=lc	w&c=in,lc	p1wc=ic	p1w&c=inc.,ic	p2wc=ic	p2w&c=acme,ic	n1wc=ic	n1w&c=chicago,ic	n2wc=other	n2w&c=.,other	w=in	p1w=inc.	p2w=acme	n1w=chicago	n2w=.	def	pd=t\u00E9	pw,w=Inc.,in	pwc,wc=ic,lc	w,nw=in,Chicago	wc,nc=lc,ic
+at: 11
+features: wc=ic	w&c=chicago,ic	p1wc=lc	p1w&c=in,lc	p2wc=ic	p2w&c=inc.,ic	n1wc=other	n1w&c=.,other	w=chicago	p1w=in	p2w=inc.	n1w=.	def	pd=null	pw,w=in,Chicago	pwc,wc=lc,ic	w,nw=Chicago,.	wc,nc=ic,other
+at: 12
+features: wc=other	w&c=.,other	p1wc=ic	p1w&c=chicago,ic	p2wc=lc	p2w&c=in,lc	w=.	p1w=chicago	p2w=in	def	pd=NN	pw,w=Chicago,.	pwc,wc=ic,other
+update
+sentence: 14
+tokens: Smith	said	Smith	would	visit	Paris	again	in	2024	.
+outcomes: t\u00E9	other	person-start	person-cont	NN	t\u00E9	other	person-start	person-cont	NN
+at: 0
+features: wc=ic	w&c=smith,ic	n1wc=lc	n1w&c=said,lc	n2wc=ic	n2w&c=smith,ic	w=smith	n1w=said	n2w=smith	def	pd=t\u00E9	w,nw=Smith,said	wc,nc=ic,lc	S=begin
+at: 1
+features: wc=lc	w&c=said,lc	p1wc=ic	p1w&c=smith,ic	n1wc=ic	n1w&c=smith,ic	n2wc=lc	n2w&c=would,lc	w=said	p1w=smith	n1w=smith	n2w=would	def	pd=person-cont	pw,w=Smith,said	pwc,wc=ic,lc	w,nw=said,Smith	wc,nc=lc,ic
+at: 2
+features: wc=ic	w&c=smith,ic	p1wc=lc	p1w&c=said,lc	p2wc=ic	p2w&c=smith,ic	n1wc=lc	n1w&c=would,lc	n2wc=lc	n2w&c=visit,lc	w=smith	p1w=said	p2w=smith	n1w=would	n2w=visit	def	pd=t\u00E9	pw,w=said,Smith	pwc,wc=lc,ic	w,nw=Smith,would	wc,nc=ic,lc
+at: 3
+features: wc=lc	w&c=would,lc	p1wc=ic	p1w&c=smith,ic	p2wc=lc	p2w&c=said,lc	n1wc=lc	n1w&c=visit,lc	n2wc=ic	n2w&c=paris,ic	w=would	p1w=smith	p2w=said	n1w=visit	n2w=paris	def	pd=null	pw,w=Smith,would	pwc,wc=ic,lc	w,nw=would,visit	wc,nc=lc,lc
+at: 4
+features: wc=lc	w&c=visit,lc	p1wc=lc	p1w&c=would,lc	p2wc=ic	p2w&c=smith,ic	n1wc=ic	n1w&c=paris,ic	n2wc=lc	n2w&c=again,lc	w=visit	p1w=would	p2w=smith	n1w=paris	n2w=again	def	pd=t\u00E9	pw,w=would,visit	pwc,wc=lc,lc	w,nw=visit,Paris	wc,nc=lc,ic
+at: 5
+features: wc=ic	w&c=paris,ic	p1wc=lc	p1w&c=visit,lc	p2wc=lc	p2w&c=would,lc	n1wc=lc	n1w&c=again,lc	n2wc=lc	n2w&c=in,lc	w=paris	p1w=visit	p2w=would	n1w=again	n2w=in	def	pd=person-cont	pw,w=visit,Paris	pwc,wc=lc,ic	w,nw=Paris,again	wc,nc=ic,lc
+at: 6
+features: wc=lc	w&c=again,lc	p1wc=ic	p1w&c=paris,ic	p2wc=lc	p2w&c=visit,lc	n1wc=lc	n1w&c=in,lc	n2wc=4d	n2w&c=2024,4d	w=again	p1w=paris	p2w=visit	n1w=in	n2w=2024	def	pd=null	pw,w=Paris,again	pwc,wc=ic,lc	w,nw=again,in	wc,nc=lc,lc
+at: 7
+features: wc=lc	w&c=in,lc	p1wc=lc	p1w&c=again,lc	p2wc=ic	p2w&c=paris,ic	n1wc=4d	n1w&c=2024,4d	n2wc=other	n2w&c=.,other	w=in	p1w=again	p2w=paris	n1w=2024	n2w=.	def	pd=NN	pw,w=again,in	pwc,wc=lc,lc	w,nw=in,2024	wc,nc=lc,4d
+at: 8
+features: wc=4d	w&c=2024,4d	p1wc=lc	p1w&c=in,lc	p2wc=lc	p2w&c=again,lc	n1wc=other	n1w&c=.,other	w=2024	p1w=in	p2w=again	n1w=.	def	pd=null	pw,w=in,2024	pwc,wc=lc,4d	w,nw=2024,.	wc,nc=4d,other
+at: 9
+features: wc=other	w&c=.,other	p1wc=4d	p1w&c=2024,4d	p2wc=lc	p2w&c=in,lc	w=.	p1w=2024	p2w=in	def	pd=other	pw,w=2024,.	pwc,wc=4d,other
+update
+sentence: 15
+tokens: a
+outcomes: other
+at: 0
+features: wc=lc	w&c=a,lc	w=a	def	pd=other	S=begin
+update

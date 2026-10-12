@@ -1,0 +1,420 @@
+component: features
+opennlp: cdf33c653d5d61d5af7d37ffee189a83bd8392ea
+jdk: 21.0.12.1
+descriptor: pos-default.xml
+sentence: 0
+tokens: Pierre	Vinken	,	61	years	old	,	will	join	the	board	as	a	nonexecutive	director	Nov.	29	.
+outcomes: other	person-start	person-cont	NN	t\u00E9	other	person-start	person-cont	NN	t\u00E9	other	person-start	person-cont	NN	t\u00E9	other	person-start	person-cont
+at: 0
+features: def	suf=e	suf=re	suf=rre	suf=erre	pre=P	pre=Pi	pre=Pie	pre=Pier	w=pierre	n1w=vinken	n2w=,	S=begin	wc=ic	w&c=pierre,ic
+at: 1
+features: def	suf=n	suf=en	suf=ken	suf=nken	pre=V	pre=Vi	pre=Vin	pre=Vink	w=vinken	p1w=pierre	n1w=,	n2w=61	p1S=begin	wc=ic	w&c=vinken,ic	t=other
+at: 2
+features: def	suf=,	pre=,	w=,	p1w=vinken	p2w=pierre	n1w=61	n2w=years	p2S=begin	wc=other	w&c=,,other	t=person-start	t2=other,person-start
+at: 3
+features: def	suf=1	suf=61	pre=6	pre=61	w=61	p1w=,	p2w=vinken	n1w=years	n2w=old	wc=2d	w&c=61,2d	t=person-cont	t2=person-start,person-cont
+at: 4
+features: def	suf=s	suf=rs	suf=ars	suf=ears	pre=y	pre=ye	pre=yea	pre=year	w=years	p1w=61	p2w=,	n1w=old	n2w=,	wc=lc	w&c=years,lc	t=NN	t2=person-cont,NN
+at: 5
+features: def	suf=d	suf=ld	suf=old	pre=o	pre=ol	pre=old	w=old	p1w=years	p2w=61	n1w=,	n2w=will	wc=lc	w&c=old,lc	t=t\u00E9	t2=NN,t\u00E9
+at: 6
+features: def	suf=,	pre=,	w=,	p1w=old	p2w=years	n1w=will	n2w=join	wc=other	w&c=,,other	t=other	t2=t\u00E9,other
+at: 7
+features: def	suf=l	suf=ll	suf=ill	suf=will	pre=w	pre=wi	pre=wil	pre=will	w=will	p1w=,	p2w=old	n1w=join	n2w=the	wc=lc	w&c=will,lc	t=person-start	t2=other,person-start
+at: 8
+features: def	suf=n	suf=in	suf=oin	suf=join	pre=j	pre=jo	pre=joi	pre=join	w=join	p1w=will	p2w=,	n1w=the	n2w=board	wc=lc	w&c=join,lc	t=person-cont	t2=person-start,person-cont
+at: 9
+features: def	suf=e	suf=he	suf=the	pre=t	pre=th	pre=the	w=the	p1w=join	p2w=will	n1w=board	n2w=as	wc=lc	w&c=the,lc	t=NN	t2=person-cont,NN
+at: 10
+features: def	suf=d	suf=rd	suf=ard	suf=oard	pre=b	pre=bo	pre=boa	pre=boar	w=board	p1w=the	p2w=join	n1w=as	n2w=a	wc=lc	w&c=board,lc	t=t\u00E9	t2=NN,t\u00E9
+at: 11
+features: def	suf=s	suf=as	pre=a	pre=as	w=as	p1w=board	p2w=the	n1w=a	n2w=nonexecutive	wc=lc	w&c=as,lc	t=other	t2=t\u00E9,other
+at: 12
+features: def	suf=a	pre=a	w=a	p1w=as	p2w=board	n1w=nonexecutive	n2w=director	wc=lc	w&c=a,lc	t=person-start	t2=other,person-start
+at: 13
+features: def	suf=e	suf=ve	suf=ive	suf=tive	pre=n	pre=no	pre=non	pre=none	w=nonexecutive	p1w=a	p2w=as	n1w=director	n2w=nov.	wc=lc	w&c=nonexecutive,lc	t=person-cont	t2=person-start,person-cont
+at: 14
+features: def	suf=r	suf=or	suf=tor	suf=ctor	pre=d	pre=di	pre=dir	pre=dire	w=director	p1w=nonexecutive	p2w=a	n1w=nov.	n2w=29	wc=lc	w&c=director,lc	t=NN	t2=person-cont,NN
+at: 15
+features: def	suf=.	suf=v.	suf=ov.	suf=Nov.	pre=N	pre=No	pre=Nov	pre=Nov.	w=nov.	p1w=director	p2w=nonexecutive	n1w=29	n2w=.	wc=ic	w&c=nov.,ic	t=t\u00E9	t2=NN,t\u00E9
+at: 16
+features: def	suf=9	suf=29	pre=2	pre=29	w=29	p1w=nov.	p2w=director	n1w=.	wc=2d	w&c=29,2d	t=other	t2=t\u00E9,other
+at: 17
+features: def	suf=.	pre=.	w=.	p1w=29	p2w=nov.	wc=other	w&c=.,other	t=person-start	t2=other,person-start
+update
+sentence: 1
+tokens: Mr.	Smith	went	to	Washington	,	D.C.	,	on	1999-04-12	with	$	1,000	.
+outcomes: person-start	person-cont	NN	t\u00E9	other	person-start	person-cont	NN	t\u00E9	other	person-start	person-cont	NN	t\u00E9
+at: 0
+features: def	suf=.	suf=r.	suf=Mr.	pre=M	pre=Mr	pre=Mr.	w=mr.	n1w=smith	n2w=went	S=begin	wc=ic	w&c=mr.,ic
+at: 1
+features: def	suf=h	suf=th	suf=ith	suf=mith	pre=S	pre=Sm	pre=Smi	pre=Smit	w=smith	p1w=mr.	n1w=went	n2w=to	p1S=begin	wc=ic	w&c=smith,ic	t=person-start
+at: 2
+features: def	suf=t	suf=nt	suf=ent	suf=went	pre=w	pre=we	pre=wen	pre=went	w=went	p1w=smith	p2w=mr.	n1w=to	n2w=washington	p2S=begin	wc=lc	w&c=went,lc	t=person-cont	t2=person-start,person-cont
+at: 3
+features: def	suf=o	suf=to	pre=t	pre=to	w=to	p1w=went	p2w=smith	n1w=washington	n2w=,	wc=lc	w&c=to,lc	t=NN	t2=person-cont,NN
+at: 4
+features: def	suf=n	suf=on	suf=ton	suf=gton	pre=W	pre=Wa	pre=Was	pre=Wash	w=washington	p1w=to	p2w=went	n1w=,	n2w=d.c.	wc=ic	w&c=washington,ic	t=t\u00E9	t2=NN,t\u00E9
+at: 5
+features: def	suf=,	pre=,	w=,	p1w=washington	p2w=to	n1w=d.c.	n2w=,	wc=other	w&c=,,other	t=other	t2=t\u00E9,other
+at: 6
+features: def	suf=.	suf=C.	suf=.C.	suf=D.C.	pre=D	pre=D.	pre=D.C	pre=D.C.	w=d.c.	p1w=,	p2w=washington	n1w=,	n2w=on	wc=ic	w&c=d.c.,ic	t=person-start	t2=other,person-start
+at: 7
+features: def	suf=,	pre=,	w=,	p1w=d.c.	p2w=,	n1w=on	n2w=1999-04-12	wc=other	w&c=,,other	t=person-cont	t2=person-start,person-cont
+at: 8
+features: def	suf=n	suf=on	pre=o	pre=on	w=on	p1w=,	p2w=d.c.	n1w=1999-04-12	n2w=with	wc=lc	w&c=on,lc	t=NN	t2=person-cont,NN
+at: 9
+features: def	suf=2	suf=12	suf=-12	suf=4-12	pre=1	pre=19	pre=199	pre=1999	w=1999-04-12	p1w=on	p2w=,	n1w=with	n2w=$	wc=dd	w&c=1999-04-12,dd	t=t\u00E9	t2=NN,t\u00E9
+at: 10
+features: def	suf=h	suf=th	suf=ith	suf=with	pre=w	pre=wi	pre=wit	pre=with	w=with	p1w=1999-04-12	p2w=on	n1w=$	n2w=1,000	wc=lc	w&c=with,lc	t=other	t2=t\u00E9,other
+at: 11
+features: def	suf=$	pre=$	w=$	p1w=with	p2w=1999-04-12	n1w=1,000	n2w=.	wc=other	w&c=$,other	t=person-start	t2=other,person-start
+at: 12
+features: def	suf=0	suf=00	suf=000	suf=,000	pre=1	pre=1,	pre=1,0	pre=1,00	w=1,000	p1w=$	p2w=with	n1w=.	wc=4d	w&c=1,000,4d	t=person-cont	t2=person-start,person-cont
+at: 13
+features: def	suf=.	pre=.	w=.	p1w=1,000	p2w=$	wc=other	w&c=.,other	t=NN	t2=person-cont,NN
+update
+sentence: 2
+tokens: The	co-op	's	CEO	,	John	O'Neil	,	said	3.5	%	of	U.S.	sales	fell	.
+outcomes: person-cont	NN	t\u00E9	other	person-start	person-cont	NN	t\u00E9	other	person-start	person-cont	NN	t\u00E9	other	person-start	person-cont
+at: 0
+features: def	suf=e	suf=he	suf=The	pre=T	pre=Th	pre=The	w=the	n1w=co-op	n2w='s	S=begin	wc=ic	w&c=the,ic
+at: 1
+features: def	suf=p	suf=op	suf=-op	suf=o-op	pre=c	pre=co	pre=co-	pre=co-o	w=co-op	p1w=the	n1w='s	n2w=ceo	p1S=begin	wc=other	w&c=co-op,other	t=person-cont
+at: 2
+features: def	suf=s	suf='s	pre='	pre='s	w='s	p1w=co-op	p2w=the	n1w=ceo	n2w=,	p2S=begin	wc=other	w&c='s,other	t=NN	t2=person-cont,NN
+at: 3
+features: def	suf=O	suf=EO	suf=CEO	pre=C	pre=CE	pre=CEO	w=ceo	p1w='s	p2w=co-op	n1w=,	n2w=john	wc=ac	w&c=ceo,ac	t=t\u00E9	t2=NN,t\u00E9
+at: 4
+features: def	suf=,	pre=,	w=,	p1w=ceo	p2w='s	n1w=john	n2w=o'neil	wc=other	w&c=,,other	t=other	t2=t\u00E9,other
+at: 5
+features: def	suf=n	suf=hn	suf=ohn	suf=John	pre=J	pre=Jo	pre=Joh	pre=John	w=john	p1w=,	p2w=ceo	n1w=o'neil	n2w=,	wc=ic	w&c=john,ic	t=person-start	t2=other,person-start
+at: 6
+features: def	suf=l	suf=il	suf=eil	suf=Neil	pre=O	pre=O'	pre=O'N	pre=O'Ne	w=o'neil	p1w=john	p2w=,	n1w=,	n2w=said	wc=ic	w&c=o'neil,ic	t=person-cont	t2=person-start,person-cont
+at: 7
+features: def	suf=,	pre=,	w=,	p1w=o'neil	p2w=john	n1w=said	n2w=3.5	wc=other	w&c=,,other	t=NN	t2=person-cont,NN
+at: 8
+features: def	suf=d	suf=id	suf=aid	suf=said	pre=s	pre=sa	pre=sai	pre=said	w=said	p1w=,	p2w=o'neil	n1w=3.5	n2w=%	wc=lc	w&c=said,lc	t=t\u00E9	t2=NN,t\u00E9
+at: 9
+features: def	suf=5	suf=.5	suf=3.5	pre=3	pre=3.	pre=3.5	w=3.5	p1w=said	p2w=,	n1w=%	n2w=of	wc=2d	w&c=3.5,2d	t=other	t2=t\u00E9,other
+at: 10
+features: def	suf=%	pre=%	w=%	p1w=3.5	p2w=said	n1w=of	n2w=u.s.	wc=other	w&c=%,other	t=person-start	t2=other,person-start
+at: 11
+features: def	suf=f	suf=of	pre=o	pre=of	w=of	p1w=%	p2w=3.5	n1w=u.s.	n2w=sales	wc=lc	w&c=of,lc	t=person-cont	t2=person-start,person-cont
+at: 12
+features: def	suf=.	suf=S.	suf=.S.	suf=U.S.	pre=U	pre=U.	pre=U.S	pre=U.S.	w=u.s.	p1w=of	p2w=%	n1w=sales	n2w=fell	wc=ic	w&c=u.s.,ic	t=NN	t2=person-cont,NN
+at: 13
+features: def	suf=s	suf=es	suf=les	suf=ales	pre=s	pre=sa	pre=sal	pre=sale	w=sales	p1w=u.s.	p2w=of	n1w=fell	n2w=.	wc=lc	w&c=sales,lc	t=t\u00E9	t2=NN,t\u00E9
+at: 14
+features: def	suf=l	suf=ll	suf=ell	suf=fell	pre=f	pre=fe	pre=fel	pre=fell	w=fell	p1w=sales	p2w=u.s.	n1w=.	wc=lc	w&c=fell,lc	t=other	t2=t\u00E9,other
+at: 15
+features: def	suf=.	pre=.	w=.	p1w=fell	p2w=sales	wc=other	w&c=.,other	t=person-start	t2=other,person-start
+update
+sentence: 3
+tokens: She	paid	12/31/2020	invoices	at	4:30	p.m.	in	New	York	City	.
+outcomes: NN	t\u00E9	other	person-start	person-cont	NN	t\u00E9	other	person-start	person-cont	NN	t\u00E9
+at: 0
+features: def	suf=e	suf=he	suf=She	pre=S	pre=Sh	pre=She	w=she	n1w=paid	n2w=12/31/2020	S=begin	wc=ic	w&c=she,ic
+at: 1
+features: def	suf=d	suf=id	suf=aid	suf=paid	pre=p	pre=pa	pre=pai	pre=paid	w=paid	p1w=she	n1w=12/31/2020	n2w=invoices	p1S=begin	wc=lc	w&c=paid,lc	t=NN
+at: 2
+features: def	suf=0	suf=20	suf=020	suf=2020	pre=1	pre=12	pre=12/	pre=12/3	w=12/31/2020	p1w=paid	p2w=she	n1w=invoices	n2w=at	p2S=begin	wc=ds	w&c=12/31/2020,ds	t=t\u00E9	t2=NN,t\u00E9
+at: 3
+features: def	suf=s	suf=es	suf=ces	suf=ices	pre=i	pre=in	pre=inv	pre=invo	w=invoices	p1w=12/31/2020	p2w=paid	n1w=at	n2w=4:30	wc=lc	w&c=invoices,lc	t=other	t2=t\u00E9,other
+at: 4
+features: def	suf=t	suf=at	pre=a	pre=at	w=at	p1w=invoices	p2w=12/31/2020	n1w=4:30	n2w=p.m.	wc=lc	w&c=at,lc	t=person-start	t2=other,person-start
+at: 5
+features: def	suf=0	suf=30	suf=:30	suf=4:30	pre=4	pre=4:	pre=4:3	pre=4:30	w=4:30	p1w=at	p2w=invoices	n1w=p.m.	n2w=in	wc=num	w&c=4:30,num	t=person-cont	t2=person-start,person-cont
+at: 6
+features: def	suf=.	suf=m.	suf=.m.	suf=p.m.	pre=p	pre=p.	pre=p.m	pre=p.m.	w=p.m.	p1w=4:30	p2w=at	n1w=in	n2w=new	wc=other	w&c=p.m.,other	t=NN	t2=person-cont,NN
+at: 7
+features: def	suf=n	suf=in	pre=i	pre=in	w=in	p1w=p.m.	p2w=4:30	n1w=new	n2w=york	wc=lc	w&c=in,lc	t=t\u00E9	t2=NN,t\u00E9
+at: 8
+features: def	suf=w	suf=ew	suf=New	pre=N	pre=Ne	pre=New	w=new	p1w=in	p2w=p.m.	n1w=york	n2w=city	wc=ic	w&c=new,ic	t=other	t2=t\u00E9,other
+at: 9
+features: def	suf=k	suf=rk	suf=ork	suf=York	pre=Y	pre=Yo	pre=Yor	pre=York	w=york	p1w=new	p2w=in	n1w=city	n2w=.	wc=ic	w&c=york,ic	t=person-start	t2=other,person-start
+at: 10
+features: def	suf=y	suf=ty	suf=ity	suf=City	pre=C	pre=Ci	pre=Cit	pre=City	w=city	p1w=york	p2w=new	n1w=.	wc=ic	w&c=city,ic	t=person-cont	t2=person-start,person-cont
+at: 11
+features: def	suf=.	pre=.	w=.	p1w=city	p2w=york	wc=other	w&c=.,other	t=NN	t2=person-cont,NN
+update
+sentence: 4
+tokens: Angela	Merkel	met	Emmanuel	Macron	in	Berlin	and	Paris	last	week	.
+outcomes: t\u00E9	other	person-start	person-cont	NN	t\u00E9	other	person-start	person-cont	NN	t\u00E9	other
+at: 0
+features: def	suf=a	suf=la	suf=ela	suf=gela	pre=A	pre=An	pre=Ang	pre=Ange	w=angela	n1w=merkel	n2w=met	S=begin	wc=ic	w&c=angela,ic
+at: 1
+features: def	suf=l	suf=el	suf=kel	suf=rkel	pre=M	pre=Me	pre=Mer	pre=Merk	w=merkel	p1w=angela	n1w=met	n2w=emmanuel	p1S=begin	wc=ic	w&c=merkel,ic	t=t\u00E9
+at: 2
+features: def	suf=t	suf=et	suf=met	pre=m	pre=me	pre=met	w=met	p1w=merkel	p2w=angela	n1w=emmanuel	n2w=macron	p2S=begin	wc=lc	w&c=met,lc	t=other	t2=t\u00E9,other
+at: 3
+features: def	suf=l	suf=el	suf=uel	suf=nuel	pre=E	pre=Em	pre=Emm	pre=Emma	w=emmanuel	p1w=met	p2w=merkel	n1w=macron	n2w=in	wc=ic	w&c=emmanuel,ic	t=person-start	t2=other,person-start
+at: 4
+features: def	suf=n	suf=on	suf=ron	suf=cron	pre=M	pre=Ma	pre=Mac	pre=Macr	w=macron	p1w=emmanuel	p2w=met	n1w=in	n2w=berlin	wc=ic	w&c=macron,ic	t=person-cont	t2=person-start,person-cont
+at: 5
+features: def	suf=n	suf=in	pre=i	pre=in	w=in	p1w=macron	p2w=emmanuel	n1w=berlin	n2w=and	wc=lc	w&c=in,lc	t=NN	t2=person-cont,NN
+at: 6
+features: def	suf=n	suf=in	suf=lin	suf=rlin	pre=B	pre=Be	pre=Ber	pre=Berl	w=berlin	p1w=in	p2w=macron	n1w=and	n2w=paris	wc=ic	w&c=berlin,ic	t=t\u00E9	t2=NN,t\u00E9
+at: 7
+features: def	suf=d	suf=nd	suf=and	pre=a	pre=an	pre=and	w=and	p1w=berlin	p2w=in	n1w=paris	n2w=last	wc=lc	w&c=and,lc	t=other	t2=t\u00E9,other
+at: 8
+features: def	suf=s	suf=is	suf=ris	suf=aris	pre=P	pre=Pa	pre=Par	pre=Pari	w=paris	p1w=and	p2w=berlin	n1w=last	n2w=week	wc=ic	w&c=paris,ic	t=person-start	t2=other,person-start
+at: 9
+features: def	suf=t	suf=st	suf=ast	suf=last	pre=l	pre=la	pre=las	pre=last	w=last	p1w=paris	p2w=and	n1w=week	n2w=.	wc=lc	w&c=last,lc	t=person-cont	t2=person-start,person-cont
+at: 10
+features: def	suf=k	suf=ek	suf=eek	suf=week	pre=w	pre=we	pre=wee	pre=week	w=week	p1w=last	p2w=paris	n1w=.	wc=lc	w&c=week,lc	t=NN	t2=person-cont,NN
+at: 11
+features: def	suf=.	pre=.	w=.	p1w=week	p2w=last	wc=other	w&c=.,other	t=t\u00E9	t2=NN,t\u00E9
+update
+sentence: 5
+tokens: IBM	and	Microsoft	Corp.	reported	earnings	;	A.	B.	Smith	disagreed	.
+outcomes: other	person-start	person-cont	NN	t\u00E9	other	person-start	person-cont	NN	t\u00E9	other	person-start
+at: 0
+features: def	suf=M	suf=BM	suf=IBM	pre=I	pre=IB	pre=IBM	w=ibm	n1w=and	n2w=microsoft	S=begin	wc=ac	w&c=ibm,ac
+at: 1
+features: def	suf=d	suf=nd	suf=and	pre=a	pre=an	pre=and	w=and	p1w=ibm	n1w=microsoft	n2w=corp.	p1S=begin	wc=lc	w&c=and,lc	t=other
+at: 2
+features: def	suf=t	suf=ft	suf=oft	suf=soft	pre=M	pre=Mi	pre=Mic	pre=Micr	w=microsoft	p1w=and	p2w=ibm	n1w=corp.	n2w=reported	p2S=begin	wc=ic	w&c=microsoft,ic	t=person-start	t2=other,person-start
+at: 3
+features: def	suf=.	suf=p.	suf=rp.	suf=orp.	pre=C	pre=Co	pre=Cor	pre=Corp	w=corp.	p1w=microsoft	p2w=and	n1w=reported	n2w=earnings	wc=ic	w&c=corp.,ic	t=person-cont	t2=person-start,person-cont
+at: 4
+features: def	suf=d	suf=ed	suf=ted	suf=rted	pre=r	pre=re	pre=rep	pre=repo	w=reported	p1w=corp.	p2w=microsoft	n1w=earnings	n2w=;	wc=lc	w&c=reported,lc	t=NN	t2=person-cont,NN
+at: 5
+features: def	suf=s	suf=gs	suf=ngs	suf=ings	pre=e	pre=ea	pre=ear	pre=earn	w=earnings	p1w=reported	p2w=corp.	n1w=;	n2w=a.	wc=lc	w&c=earnings,lc	t=t\u00E9	t2=NN,t\u00E9
+at: 6
+features: def	suf=;	pre=;	w=;	p1w=earnings	p2w=reported	n1w=a.	n2w=b.	wc=other	w&c=;,other	t=other	t2=t\u00E9,other
+at: 7
+features: def	suf=.	suf=A.	pre=A	pre=A.	w=a.	p1w=;	p2w=earnings	n1w=b.	n2w=smith	wc=cp	w&c=a.,cp	t=person-start	t2=other,person-start
+at: 8
+features: def	suf=.	suf=B.	pre=B	pre=B.	w=b.	p1w=a.	p2w=;	n1w=smith	n2w=disagreed	wc=cp	w&c=b.,cp	t=person-cont	t2=person-start,person-cont
+at: 9
+features: def	suf=h	suf=th	suf=ith	suf=mith	pre=S	pre=Sm	pre=Smi	pre=Smit	w=smith	p1w=b.	p2w=a.	n1w=disagreed	n2w=.	wc=ic	w&c=smith,ic	t=NN	t2=person-cont,NN
+at: 10
+features: def	suf=d	suf=ed	suf=eed	suf=reed	pre=d	pre=di	pre=dis	pre=disa	w=disagreed	p1w=smith	p2w=b.	n1w=.	wc=lc	w&c=disagreed,lc	t=t\u00E9	t2=NN,t\u00E9
+at: 11
+features: def	suf=.	pre=.	w=.	p1w=disagreed	p2w=smith	wc=other	w&c=.,other	t=other	t2=t\u00E9,other
+update
+sentence: 6
+tokens: \u00DCnal	\u00D6zdemir	lives	in	K\u00F6ln	,	not	M\u00FCnchen	.
+outcomes: person-start	person-cont	NN	t\u00E9	other	person-start	person-cont	NN	t\u00E9
+at: 0
+features: def	suf=l	suf=al	suf=nal	suf=\u00DCnal	pre=\u00DC	pre=\u00DCn	pre=\u00DCna	pre=\u00DCnal	w=\u00FCnal	n1w=\u00F6zdemir	n2w=lives	S=begin	wc=ic	w&c=\u00FCnal,ic
+at: 1
+features: def	suf=r	suf=ir	suf=mir	suf=emir	pre=\u00D6	pre=\u00D6z	pre=\u00D6zd	pre=\u00D6zde	w=\u00F6zdemir	p1w=\u00FCnal	n1w=lives	n2w=in	p1S=begin	wc=ic	w&c=\u00F6zdemir,ic	t=person-start
+at: 2
+features: def	suf=s	suf=es	suf=ves	suf=ives	pre=l	pre=li	pre=liv	pre=live	w=lives	p1w=\u00F6zdemir	p2w=\u00FCnal	n1w=in	n2w=k\u00F6ln	p2S=begin	wc=lc	w&c=lives,lc	t=person-cont	t2=person-start,person-cont
+at: 3
+features: def	suf=n	suf=in	pre=i	pre=in	w=in	p1w=lives	p2w=\u00F6zdemir	n1w=k\u00F6ln	n2w=,	wc=lc	w&c=in,lc	t=NN	t2=person-cont,NN
+at: 4
+features: def	suf=n	suf=ln	suf=\u00F6ln	suf=K\u00F6ln	pre=K	pre=K\u00F6	pre=K\u00F6l	pre=K\u00F6ln	w=k\u00F6ln	p1w=in	p2w=lives	n1w=,	n2w=not	wc=ic	w&c=k\u00F6ln,ic	t=t\u00E9	t2=NN,t\u00E9
+at: 5
+features: def	suf=,	pre=,	w=,	p1w=k\u00F6ln	p2w=in	n1w=not	n2w=m\u00FCnchen	wc=other	w&c=,,other	t=other	t2=t\u00E9,other
+at: 6
+features: def	suf=t	suf=ot	suf=not	pre=n	pre=no	pre=not	w=not	p1w=,	p2w=k\u00F6ln	n1w=m\u00FCnchen	n2w=.	wc=lc	w&c=not,lc	t=person-start	t2=other,person-start
+at: 7
+features: def	suf=n	suf=en	suf=hen	suf=chen	pre=M	pre=M\u00FC	pre=M\u00FCn	pre=M\u00FCnc	w=m\u00FCnchen	p1w=not	p2w=,	n1w=.	wc=ic	w&c=m\u00FCnchen,ic	t=person-cont	t2=person-start,person-cont
+at: 8
+features: def	suf=.	pre=.	w=.	p1w=m\u00FCnchen	p2w=not	wc=other	w&c=.,other	t=NN	t2=person-cont,NN
+update
+sentence: 7
+tokens: \u6771\u4EAC	\u306F	\u3072\u3089\u304C\u306A	\u3068	\u30AB\u30BF\u30AB\u30CA	\u3092	\u4F7F\u3046	\u3002
+outcomes: person-cont	NN	t\u00E9	other	person-start	person-cont	NN	t\u00E9
+at: 0
+features: def	suf=\u4EAC	suf=\u6771\u4EAC	pre=\u6771	pre=\u6771\u4EAC	w=\u6771\u4EAC	n1w=\u306F	n2w=\u3072\u3089\u304C\u306A	S=begin	wc=other	w&c=\u6771\u4EAC,other
+at: 1
+features: def	suf=\u306F	pre=\u306F	w=\u306F	p1w=\u6771\u4EAC	n1w=\u3072\u3089\u304C\u306A	n2w=\u3068	p1S=begin	wc=jah	w&c=\u306F,jah	t=person-cont
+at: 2
+features: def	suf=\u306A	suf=\u304C\u306A	suf=\u3089\u304C\u306A	suf=\u3072\u3089\u304C\u306A	pre=\u3072	pre=\u3072\u3089	pre=\u3072\u3089\u304C	pre=\u3072\u3089\u304C\u306A	w=\u3072\u3089\u304C\u306A	p1w=\u306F	p2w=\u6771\u4EAC	n1w=\u3068	n2w=\u30AB\u30BF\u30AB\u30CA	p2S=begin	wc=jah	w&c=\u3072\u3089\u304C\u306A,jah	t=NN	t2=person-cont,NN
+at: 3
+features: def	suf=\u3068	pre=\u3068	w=\u3068	p1w=\u3072\u3089\u304C\u306A	p2w=\u306F	n1w=\u30AB\u30BF\u30AB\u30CA	n2w=\u3092	wc=jah	w&c=\u3068,jah	t=t\u00E9	t2=NN,t\u00E9
+at: 4
+features: def	suf=\u30CA	suf=\u30AB\u30CA	suf=\u30BF\u30AB\u30CA	suf=\u30AB\u30BF\u30AB\u30CA	pre=\u30AB	pre=\u30AB\u30BF	pre=\u30AB\u30BF\u30AB	pre=\u30AB\u30BF\u30AB\u30CA	w=\u30AB\u30BF\u30AB\u30CA	p1w=\u3068	p2w=\u3072\u3089\u304C\u306A	n1w=\u3092	n2w=\u4F7F\u3046	wc=jak	w&c=\u30AB\u30BF\u30AB\u30CA,jak	t=other	t2=t\u00E9,other
+at: 5
+features: def	suf=\u3092	pre=\u3092	w=\u3092	p1w=\u30AB\u30BF\u30AB\u30CA	p2w=\u3068	n1w=\u4F7F\u3046	n2w=\u3002	wc=jah	w&c=\u3092,jah	t=person-start	t2=other,person-start
+at: 6
+features: def	suf=\u3046	suf=\u4F7F\u3046	pre=\u4F7F	pre=\u4F7F\u3046	w=\u4F7F\u3046	p1w=\u3092	p2w=\u30AB\u30BF\u30AB\u30CA	n1w=\u3002	wc=other	w&c=\u4F7F\u3046,other	t=person-cont	t2=person-start,person-cont
+at: 7
+features: def	suf=\u3002	pre=\u3002	w=\u3002	p1w=\u4F7F\u3046	p2w=\u3092	wc=other	w&c=\u3002,other	t=NN	t2=person-cont,NN
+update
+sentence: 8
+tokens: The	\uD835\uDC00\uD835\uDC01\uD835\uDC02	index	rose	\uD83D\uDE00	while	caf\u00E9	prices	fell	.
+outcomes: NN	t\u00E9	other	person-start	person-cont	NN	t\u00E9	other	person-start	person-cont
+at: 0
+features: def	suf=e	suf=he	suf=The	pre=T	pre=Th	pre=The	w=the	n1w=\uD835\uDC00\uD835\uDC01\uD835\uDC02	n2w=index	S=begin	wc=ic	w&c=the,ic
+at: 1
+features: def	suf=\uDC02	suf=\uD835\uDC02	suf=\uDC01\uD835\uDC02	suf=\uD835\uDC01\uD835\uDC02	pre=\uD835	pre=\uD835\uDC00	pre=\uD835\uDC00\uD835	pre=\uD835\uDC00\uD835\uDC01	w=\uD835\uDC00\uD835\uDC01\uD835\uDC02	p1w=the	n1w=index	n2w=rose	p1S=begin	wc=other	w&c=\uD835\uDC00\uD835\uDC01\uD835\uDC02,other	t=NN
+at: 2
+features: def	suf=x	suf=ex	suf=dex	suf=ndex	pre=i	pre=in	pre=ind	pre=inde	w=index	p1w=\uD835\uDC00\uD835\uDC01\uD835\uDC02	p2w=the	n1w=rose	n2w=\uD83D\uDE00	p2S=begin	wc=lc	w&c=index,lc	t=t\u00E9	t2=NN,t\u00E9
+at: 3
+features: def	suf=e	suf=se	suf=ose	suf=rose	pre=r	pre=ro	pre=ros	pre=rose	w=rose	p1w=index	p2w=\uD835\uDC00\uD835\uDC01\uD835\uDC02	n1w=\uD83D\uDE00	n2w=while	wc=lc	w&c=rose,lc	t=other	t2=t\u00E9,other
+at: 4
+features: def	suf=\uDE00	suf=\uD83D\uDE00	pre=\uD83D	pre=\uD83D\uDE00	w=\uD83D\uDE00	p1w=rose	p2w=index	n1w=while	n2w=caf\u00E9	wc=other	w&c=\uD83D\uDE00,other	t=person-start	t2=other,person-start
+at: 5
+features: def	suf=e	suf=le	suf=ile	suf=hile	pre=w	pre=wh	pre=whi	pre=whil	w=while	p1w=\uD83D\uDE00	p2w=rose	n1w=caf\u00E9	n2w=prices	wc=lc	w&c=while,lc	t=person-cont	t2=person-start,person-cont
+at: 6
+features: def	suf=\u00E9	suf=f\u00E9	suf=af\u00E9	suf=caf\u00E9	pre=c	pre=ca	pre=caf	pre=caf\u00E9	w=caf\u00E9	p1w=while	p2w=\uD83D\uDE00	n1w=prices	n2w=fell	wc=lc	w&c=caf\u00E9,lc	t=NN	t2=person-cont,NN
+at: 7
+features: def	suf=s	suf=es	suf=ces	suf=ices	pre=p	pre=pr	pre=pri	pre=pric	w=prices	p1w=caf\u00E9	p2w=while	n1w=fell	n2w=.	wc=lc	w&c=prices,lc	t=t\u00E9	t2=NN,t\u00E9
+at: 8
+features: def	suf=l	suf=ll	suf=ell	suf=fell	pre=f	pre=fe	pre=fel	pre=fell	w=fell	p1w=prices	p2w=caf\u00E9	n1w=.	wc=lc	w&c=fell,lc	t=other	t2=t\u00E9,other
+at: 9
+features: def	suf=.	pre=.	w=.	p1w=fell	p2w=prices	wc=other	w&c=.,other	t=person-start	t2=other,person-start
+update
+sentence: 9
+tokens: e-mail	me	at	john@example.com	or	visit	www.example.com/a?b=1	!
+outcomes: t\u00E9	other	person-start	person-cont	NN	t\u00E9	other	person-start
+at: 0
+features: def	suf=l	suf=il	suf=ail	suf=mail	pre=e	pre=e-	pre=e-m	pre=e-ma	w=e-mail	n1w=me	n2w=at	S=begin	wc=other	w&c=e-mail,other
+at: 1
+features: def	suf=e	suf=me	pre=m	pre=me	w=me	p1w=e-mail	n1w=at	n2w=john@example.com	p1S=begin	wc=lc	w&c=me,lc	t=t\u00E9
+at: 2
+features: def	suf=t	suf=at	pre=a	pre=at	w=at	p1w=me	p2w=e-mail	n1w=john@example.com	n2w=or	p2S=begin	wc=lc	w&c=at,lc	t=other	t2=t\u00E9,other
+at: 3
+features: def	suf=m	suf=om	suf=com	suf=.com	pre=j	pre=jo	pre=joh	pre=john	w=john@example.com	p1w=at	p2w=me	n1w=or	n2w=visit	wc=other	w&c=john@example.com,other	t=person-start	t2=other,person-start
+at: 4
+features: def	suf=r	suf=or	pre=o	pre=or	w=or	p1w=john@example.com	p2w=at	n1w=visit	n2w=www.example.com/a?b=1	wc=lc	w&c=or,lc	t=person-cont	t2=person-start,person-cont
+at: 5
+features: def	suf=t	suf=it	suf=sit	suf=isit	pre=v	pre=vi	pre=vis	pre=visi	w=visit	p1w=or	p2w=john@example.com	n1w=www.example.com/a?b=1	n2w=!	wc=lc	w&c=visit,lc	t=NN	t2=person-cont,NN
+at: 6
+features: def	suf=1	suf==1	suf=b=1	suf=?b=1	pre=w	pre=ww	pre=www	pre=www.	w=www.example.com/a?b=1	p1w=visit	p2w=or	n1w=!	wc=an	w&c=www.example.com/a?b=1,an	t=t\u00E9	t2=NN,t\u00E9
+at: 7
+features: def	suf=!	pre=!	w=!	p1w=www.example.com/a?b=1	p2w=visit	wc=other	w&c=!,other	t=other	t2=t\u00E9,other
+update
+sentence: 10
+tokens: Barack	Obama	was	born	in	Honolulu	,	Hawaii	.
+outcomes: other	person-start	person-cont	NN	t\u00E9	other	person-start	person-cont	NN
+at: 0
+features: def	suf=k	suf=ck	suf=ack	suf=rack	pre=B	pre=Ba	pre=Bar	pre=Bara	w=barack	n1w=obama	n2w=was	S=begin	wc=ic	w&c=barack,ic
+at: 1
+features: def	suf=a	suf=ma	suf=ama	suf=bama	pre=O	pre=Ob	pre=Oba	pre=Obam	w=obama	p1w=barack	n1w=was	n2w=born	p1S=begin	wc=ic	w&c=obama,ic	t=other
+at: 2
+features: def	suf=s	suf=as	suf=was	pre=w	pre=wa	pre=was	w=was	p1w=obama	p2w=barack	n1w=born	n2w=in	p2S=begin	wc=lc	w&c=was,lc	t=person-start	t2=other,person-start
+at: 3
+features: def	suf=n	suf=rn	suf=orn	suf=born	pre=b	pre=bo	pre=bor	pre=born	w=born	p1w=was	p2w=obama	n1w=in	n2w=honolulu	wc=lc	w&c=born,lc	t=person-cont	t2=person-start,person-cont
+at: 4
+features: def	suf=n	suf=in	pre=i	pre=in	w=in	p1w=born	p2w=was	n1w=honolulu	n2w=,	wc=lc	w&c=in,lc	t=NN	t2=person-cont,NN
+at: 5
+features: def	suf=u	suf=lu	suf=ulu	suf=lulu	pre=H	pre=Ho	pre=Hon	pre=Hono	w=honolulu	p1w=in	p2w=born	n1w=,	n2w=hawaii	wc=ic	w&c=honolulu,ic	t=t\u00E9	t2=NN,t\u00E9
+at: 6
+features: def	suf=,	pre=,	w=,	p1w=honolulu	p2w=in	n1w=hawaii	n2w=.	wc=other	w&c=,,other	t=other	t2=t\u00E9,other
+at: 7
+features: def	suf=i	suf=ii	suf=aii	suf=waii	pre=H	pre=Ha	pre=Haw	pre=Hawa	w=hawaii	p1w=,	p2w=honolulu	n1w=.	wc=ic	w&c=hawaii,ic	t=person-start	t2=other,person-start
+at: 8
+features: def	suf=.	pre=.	w=.	p1w=hawaii	p2w=,	wc=other	w&c=.,other	t=person-cont	t2=person-start,person-cont
+update
+sentence: 11
+tokens: He	said	:	"	I	'm	not	going	to	London	.	"
+outcomes: person-start	person-cont	NN	t\u00E9	other	person-start	person-cont	NN	t\u00E9	other	person-start	person-cont
+at: 0
+features: def	suf=e	suf=He	pre=H	pre=He	w=he	n1w=said	n2w=:	S=begin	wc=ic	w&c=he,ic
+at: 1
+features: def	suf=d	suf=id	suf=aid	suf=said	pre=s	pre=sa	pre=sai	pre=said	w=said	p1w=he	n1w=:	n2w="	p1S=begin	wc=lc	w&c=said,lc	t=person-start
+at: 2
+features: def	suf=:	pre=:	w=:	p1w=said	p2w=he	n1w="	n2w=i	p2S=begin	wc=other	w&c=:,other	t=person-cont	t2=person-start,person-cont
+at: 3
+features: def	suf="	pre="	w="	p1w=:	p2w=said	n1w=i	n2w='m	wc=other	w&c=",other	t=NN	t2=person-cont,NN
+at: 4
+features: def	suf=I	pre=I	w=i	p1w="	p2w=:	n1w='m	n2w=not	wc=sc	w&c=i,sc	t=t\u00E9	t2=NN,t\u00E9
+at: 5
+features: def	suf=m	suf='m	pre='	pre='m	w='m	p1w=i	p2w="	n1w=not	n2w=going	wc=other	w&c='m,other	t=other	t2=t\u00E9,other
+at: 6
+features: def	suf=t	suf=ot	suf=not	pre=n	pre=no	pre=not	w=not	p1w='m	p2w=i	n1w=going	n2w=to	wc=lc	w&c=not,lc	t=person-start	t2=other,person-start
+at: 7
+features: def	suf=g	suf=ng	suf=ing	suf=oing	pre=g	pre=go	pre=goi	pre=goin	w=going	p1w=not	p2w='m	n1w=to	n2w=london	wc=lc	w&c=going,lc	t=person-cont	t2=person-start,person-cont
+at: 8
+features: def	suf=o	suf=to	pre=t	pre=to	w=to	p1w=going	p2w=not	n1w=london	n2w=.	wc=lc	w&c=to,lc	t=NN	t2=person-cont,NN
+at: 9
+features: def	suf=n	suf=on	suf=don	suf=ndon	pre=L	pre=Lo	pre=Lon	pre=Lond	w=london	p1w=to	p2w=going	n1w=.	n2w="	wc=ic	w&c=london,ic	t=t\u00E9	t2=NN,t\u00E9
+at: 10
+features: def	suf=.	pre=.	w=.	p1w=london	p2w=to	n1w="	wc=other	w&c=.,other	t=other	t2=t\u00E9,other
+at: 11
+features: def	suf="	pre="	w="	p1w=.	p2w=london	wc=other	w&c=",other	t=person-start	t2=other,person-start
+update
+sentence: 12
+tokens: \u0141\u00D3D\u0179	and	\u0391\u0398\u0397\u039D\u0391	are	cities	;	\u01C5	is	a	titlecase	letter	.
+outcomes: person-cont	NN	t\u00E9	other	person-start	person-cont	NN	t\u00E9	other	person-start	person-cont	NN
+at: 0
+features: def	suf=\u0179	suf=D\u0179	suf=\u00D3D\u0179	suf=\u0141\u00D3D\u0179	pre=\u0141	pre=\u0141\u00D3	pre=\u0141\u00D3D	pre=\u0141\u00D3D\u0179	w=\u0142\u00F3d\u017A	n1w=and	n2w=\u03B1\u03B8\u03B7\u03BD\u03B1	S=begin	wc=ac	w&c=\u0142\u00F3d\u017A,ac
+at: 1
+features: def	suf=d	suf=nd	suf=and	pre=a	pre=an	pre=and	w=and	p1w=\u0142\u00F3d\u017A	n1w=\u03B1\u03B8\u03B7\u03BD\u03B1	n2w=are	p1S=begin	wc=lc	w&c=and,lc	t=person-cont
+at: 2
+features: def	suf=\u0391	suf=\u039D\u0391	suf=\u0397\u039D\u0391	suf=\u0398\u0397\u039D\u0391	pre=\u0391	pre=\u0391\u0398	pre=\u0391\u0398\u0397	pre=\u0391\u0398\u0397\u039D	w=\u03B1\u03B8\u03B7\u03BD\u03B1	p1w=and	p2w=\u0142\u00F3d\u017A	n1w=are	n2w=cities	p2S=begin	wc=jah	w&c=\u03B1\u03B8\u03B7\u03BD\u03B1,jah	t=NN	t2=person-cont,NN
+at: 3
+features: def	suf=e	suf=re	suf=are	pre=a	pre=ar	pre=are	w=are	p1w=\u03B1\u03B8\u03B7\u03BD\u03B1	p2w=and	n1w=cities	n2w=;	wc=lc	w&c=are,lc	t=t\u00E9	t2=NN,t\u00E9
+at: 4
+features: def	suf=s	suf=es	suf=ies	suf=ties	pre=c	pre=ci	pre=cit	pre=citi	w=cities	p1w=are	p2w=\u03B1\u03B8\u03B7\u03BD\u03B1	n1w=;	n2w=\u01C6	wc=lc	w&c=cities,lc	t=other	t2=t\u00E9,other
+at: 5
+features: def	suf=;	pre=;	w=;	p1w=cities	p2w=are	n1w=\u01C6	n2w=is	wc=other	w&c=;,other	t=person-start	t2=other,person-start
+at: 6
+features: def	suf=\u01C5	pre=\u01C5	w=\u01C6	p1w=;	p2w=cities	n1w=is	n2w=a	wc=lc	w&c=\u01C6,lc	t=person-cont	t2=person-start,person-cont
+at: 7
+features: def	suf=s	suf=is	pre=i	pre=is	w=is	p1w=\u01C6	p2w=;	n1w=a	n2w=titlecase	wc=lc	w&c=is,lc	t=NN	t2=person-cont,NN
+at: 8
+features: def	suf=a	pre=a	w=a	p1w=is	p2w=\u01C6	n1w=titlecase	n2w=letter	wc=lc	w&c=a,lc	t=t\u00E9	t2=NN,t\u00E9
+at: 9
+features: def	suf=e	suf=se	suf=ase	suf=case	pre=t	pre=ti	pre=tit	pre=titl	w=titlecase	p1w=a	p2w=is	n1w=letter	n2w=.	wc=lc	w&c=titlecase,lc	t=other	t2=t\u00E9,other
+at: 10
+features: def	suf=r	suf=er	suf=ter	suf=tter	pre=l	pre=le	pre=let	pre=lett	w=letter	p1w=titlecase	p2w=a	n1w=.	wc=lc	w&c=letter,lc	t=person-start	t2=other,person-start
+at: 11
+features: def	suf=.	pre=.	w=.	p1w=letter	p2w=titlecase	wc=other	w&c=.,other	t=person-cont	t2=person-start,person-cont
+update
+sentence: 13
+tokens: One	more	sentence	about	Dr.	Jane	Doe	of	Acme	Inc.	in	Chicago	.
+outcomes: NN	t\u00E9	other	person-start	person-cont	NN	t\u00E9	other	person-start	person-cont	NN	t\u00E9	other
+at: 0
+features: def	suf=e	suf=ne	suf=One	pre=O	pre=On	pre=One	w=one	n1w=more	n2w=sentence	S=begin	wc=ic	w&c=one,ic
+at: 1
+features: def	suf=e	suf=re	suf=ore	suf=more	pre=m	pre=mo	pre=mor	pre=more	w=more	p1w=one	n1w=sentence	n2w=about	p1S=begin	wc=lc	w&c=more,lc	t=NN
+at: 2
+features: def	suf=e	suf=ce	suf=nce	suf=ence	pre=s	pre=se	pre=sen	pre=sent	w=sentence	p1w=more	p2w=one	n1w=about	n2w=dr.	p2S=begin	wc=lc	w&c=sentence,lc	t=t\u00E9	t2=NN,t\u00E9
+at: 3
+features: def	suf=t	suf=ut	suf=out	suf=bout	pre=a	pre=ab	pre=abo	pre=abou	w=about	p1w=sentence	p2w=more	n1w=dr.	n2w=jane	wc=lc	w&c=about,lc	t=other	t2=t\u00E9,other
+at: 4
+features: def	suf=.	suf=r.	suf=Dr.	pre=D	pre=Dr	pre=Dr.	w=dr.	p1w=about	p2w=sentence	n1w=jane	n2w=doe	wc=ic	w&c=dr.,ic	t=person-start	t2=other,person-start
+at: 5
+features: def	suf=e	suf=ne	suf=ane	suf=Jane	pre=J	pre=Ja	pre=Jan	pre=Jane	w=jane	p1w=dr.	p2w=about	n1w=doe	n2w=of	wc=ic	w&c=jane,ic	t=person-cont	t2=person-start,person-cont
+at: 6
+features: def	suf=e	suf=oe	suf=Doe	pre=D	pre=Do	pre=Doe	w=doe	p1w=jane	p2w=dr.	n1w=of	n2w=acme	wc=ic	w&c=doe,ic	t=NN	t2=person-cont,NN
+at: 7
+features: def	suf=f	suf=of	pre=o	pre=of	w=of	p1w=doe	p2w=jane	n1w=acme	n2w=inc.	wc=lc	w&c=of,lc	t=t\u00E9	t2=NN,t\u00E9
+at: 8
+features: def	suf=e	suf=me	suf=cme	suf=Acme	pre=A	pre=Ac	pre=Acm	pre=Acme	w=acme	p1w=of	p2w=doe	n1w=inc.	n2w=in	wc=ic	w&c=acme,ic	t=other	t2=t\u00E9,other
+at: 9
+features: def	suf=.	suf=c.	suf=nc.	suf=Inc.	pre=I	pre=In	pre=Inc	pre=Inc.	w=inc.	p1w=acme	p2w=of	n1w=in	n2w=chicago	wc=ic	w&c=inc.,ic	t=person-start	t2=other,person-start
+at: 10
+features: def	suf=n	suf=in	pre=i	pre=in	w=in	p1w=inc.	p2w=acme	n1w=chicago	n2w=.	wc=lc	w&c=in,lc	t=person-cont	t2=person-start,person-cont
+at: 11
+features: def	suf=o	suf=go	suf=ago	suf=cago	pre=C	pre=Ch	pre=Chi	pre=Chic	w=chicago	p1w=in	p2w=inc.	n1w=.	wc=ic	w&c=chicago,ic	t=NN	t2=person-cont,NN
+at: 12
+features: def	suf=.	pre=.	w=.	p1w=chicago	p2w=in	wc=other	w&c=.,other	t=t\u00E9	t2=NN,t\u00E9
+update
+sentence: 14
+tokens: Smith	said	Smith	would	visit	Paris	again	in	2024	.
+outcomes: t\u00E9	other	person-start	person-cont	NN	t\u00E9	other	person-start	person-cont	NN
+at: 0
+features: def	suf=h	suf=th	suf=ith	suf=mith	pre=S	pre=Sm	pre=Smi	pre=Smit	w=smith	n1w=said	n2w=smith	S=begin	wc=ic	w&c=smith,ic
+at: 1
+features: def	suf=d	suf=id	suf=aid	suf=said	pre=s	pre=sa	pre=sai	pre=said	w=said	p1w=smith	n1w=smith	n2w=would	p1S=begin	wc=lc	w&c=said,lc	t=t\u00E9
+at: 2
+features: def	suf=h	suf=th	suf=ith	suf=mith	pre=S	pre=Sm	pre=Smi	pre=Smit	w=smith	p1w=said	p2w=smith	n1w=would	n2w=visit	p2S=begin	wc=ic	w&c=smith,ic	t=other	t2=t\u00E9,other
+at: 3
+features: def	suf=d	suf=ld	suf=uld	suf=ould	pre=w	pre=wo	pre=wou	pre=woul	w=would	p1w=smith	p2w=said	n1w=visit	n2w=paris	wc=lc	w&c=would,lc	t=person-start	t2=other,person-start
+at: 4
+features: def	suf=t	suf=it	suf=sit	suf=isit	pre=v	pre=vi	pre=vis	pre=visi	w=visit	p1w=would	p2w=smith	n1w=paris	n2w=again	wc=lc	w&c=visit,lc	t=person-cont	t2=person-start,person-cont
+at: 5
+features: def	suf=s	suf=is	suf=ris	suf=aris	pre=P	pre=Pa	pre=Par	pre=Pari	w=paris	p1w=visit	p2w=would	n1w=again	n2w=in	wc=ic	w&c=paris,ic	t=NN	t2=person-cont,NN
+at: 6
+features: def	suf=n	suf=in	suf=ain	suf=gain	pre=a	pre=ag	pre=aga	pre=agai	w=again	p1w=paris	p2w=visit	n1w=in	n2w=2024	wc=lc	w&c=again,lc	t=t\u00E9	t2=NN,t\u00E9
+at: 7
+features: def	suf=n	suf=in	pre=i	pre=in	w=in	p1w=again	p2w=paris	n1w=2024	n2w=.	wc=lc	w&c=in,lc	t=other	t2=t\u00E9,other
+at: 8
+features: def	suf=4	suf=24	suf=024	suf=2024	pre=2	pre=20	pre=202	pre=2024	w=2024	p1w=in	p2w=again	n1w=.	wc=4d	w&c=2024,4d	t=person-start	t2=other,person-start
+at: 9
+features: def	suf=.	pre=.	w=.	p1w=2024	p2w=in	wc=other	w&c=.,other	t=person-cont	t2=person-start,person-cont
+update
+sentence: 15
+tokens: a
+outcomes: other
+at: 0
+features: def	suf=a	pre=a	w=a	S=begin	wc=lc	w&c=a,lc
+update

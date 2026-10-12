@@ -1,0 +1,15 @@
+The_DT cat_NN sat_VBD on_IN the_DT mat_NN ._.
+Pierre_NNP Vinken_NNP ,_, 61_CD years_NNS old_JJ ,_, will_MD join_VB the_DT board_NN ._.
+Mr._NNP Smith_NNP went_VBD to_TO Washington_NNP ._.
+She_PRP runs_VBZ a_DT small_JJ co-op_NN in_IN Paris_NNP ._.
+They_PRP run_VBP every_DT day_NN ._.
+The_DT run_NN was_VBD long_JJ ._.
+IBM_NNP reported_VBD earnings_NNS of_IN $_$ 1,000_CD ._.
+John_NNP said_VBD prices_NNS fell_VBD 3.5_CD %_NN ._.
+A_DT café_NN in_IN Köln_NNP opened_VBD on_IN 1999-04-12_CD ._.
+He_PRP did_VBD n't_RB go_VB to_TO London_NNP ._.
+Dr._NNP Doe_NNP visited_VBD Chicago_NNP and_CC Berlin_NNP last_JJ week_NN ._.
+Prices_NNS rose_VBD while_IN sales_NNS fell_VBD ._.
+The_DT board_NN will_MD meet_VB Nov._NNP 29_CD ._.
+Smith_NNP and_CC Jones_NNP are_VBP directors_NNS ._.
+Sales_NNS have_VBP fallen_VBN since_IN the_DT run_NN ._.
