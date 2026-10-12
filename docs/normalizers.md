@@ -15,7 +15,7 @@ implementation differs on purpose, the difference is listed under
 
 | Crate | Path | Contents |
 |---|---|---|
-| `turbo-unicode` | `analysis/unicode/` | Unicode 18.0 character data: general category, properties, scripts, case mapping and folding, normalization forms, confusables, emoji sequences. Tables generated from the UCD files in `ucd/` by `turbo-unicode-gen`. |
+| `turbo-unicode` | `analysis/unicode/` | Unicode 18.0 character data: general category, properties, scripts, case mapping and folding, normalization forms, confusables, emoji sequences. Tables generated from the UCD files in `analysis/unicode/ucd/` by `turbo-unicode-gen`. |
 | `turbo-unicode-gen` | `analysis/unicode-gen/` | The table generator. |
 | `turbo-normalize` | `analysis/normalize/` | The normalizers, the `Normalizer` trait, the pipeline step adapter and the chain. |
 | `turbo-normalize-layers` | `analysis/normalize-layers/` | The layers normalizers write besides views: `Placeholders` (`turbo:placeholders`), `Emoji` (`turbo:emoji`). |
@@ -28,16 +28,16 @@ reads nothing at run time.
 
 **How the tables are made.** `turbo-unicode-gen` reads the Unicode
 Character Database files in `analysis/unicode/ucd/` (their sources and
-digests are in `ucd/README.md` and `ucd/SHA256SUMS`) and writes one Rust
+digests are in `analysis/unicode/ucd/README.md` and `analysis/unicode/ucd/SHA256SUMS`) and writes one Rust
 file per table family into `analysis/unicode/src/tables/`: `category.rs`,
 `props.rs`, `script.rs`, `case.rs`, `normalize.rs`, `confusables.rs`,
 `emoji.rs` and `mod.rs`. Each file starts with a notice naming its input
 files and the Unicode version. The generator parses the files by hand and
 stops with the file name and line number on any line it does not
 understand. Its output is deterministic and already in rustfmt layout, so
-the test `tests/generated.rs` regenerates the tables into a temporary
+the test `analysis/unicode/tests/generated.rs` regenerates the tables into a temporary
 directory and fails when they differ from the committed ones by a single
-byte. To move to a newer Unicode release, replace the files in `ucd/`,
+byte. To move to a newer Unicode release, replace the files in `analysis/unicode/ucd/`,
 update `UNICODE_VERSION` in `analysis/unicode/src/lib.rs` and run:
 
 ```sh
@@ -104,20 +104,20 @@ so characters assigned since then get different answers from a JVM.
 `java::digit` accepts decimal digits only (`Character.digit(c, 10)`
 without the fullwidth and ASCII letters of larger radixes).
 `java::to_lowercase` implements Final_Sigma as Unicode section 3.13
-defines it; on the cases in `tests/java.rs` it gives the same output as
+defines it; on the cases in `analysis/unicode/tests/java.rs` it gives the same output as
 OpenJDK 21.
 
-**Tests.** `tests/normalization.rs` checks every line of
+**Tests.** `analysis/unicode/tests/normalization.rs` checks every line of
 NormalizationTest.txt (all five columns and the standard invariants), that
 every code point not listed in its part 1 is unchanged by every form, that
 `is_normalized` agrees with `normalize`, and that splitting into runs gives
-the same result as normalizing the whole text at once. `tests/ucd_data.rs`
+the same result as normalizing the whole text at once. `analysis/unicode/tests/ucd_data.rs`
 parses UnicodeData.txt, CaseFolding.txt, the property files, Scripts.txt
-and confusables.txt again and compares every code point. `tests/emoji.rs`
+and confusables.txt again and compares every code point. `analysis/unicode/tests/emoji.rs`
 checks every row of emoji-test.txt and every RGI sequence, the scanning
 rules above, and region decoding with the cases of OpenNLP's
-`EmojiFlagsTest`. `tests/java.rs` checks whitespace, letters, digits and
-lowercasing against OpenJDK 21 output. `tests/bench.rs` (ignored by
+`EmojiFlagsTest`. `analysis/unicode/tests/java.rs` checks whitespace, letters, digits and
+lowercasing against OpenJDK 21 output. `analysis/unicode/tests/bench.rs` (ignored by
 default) measures normalization throughput:
 
 ```sh
@@ -159,7 +159,7 @@ each sorted by code point, with a predicate or fold function for each
 `QuoteCharSequenceNormalizer`, `BulletCharSequenceNormalizer`,
 `EllipsisCharSequenceNormalizer` and `InvisibleCharSequenceNormalizer`)
 and are checked against the Unicode 18.0 data in `analysis/unicode/ucd/`
-by `tests/unicode_tables.rs`:
+by `analysis/normalize/tests/unicode_tables.rs`:
 
 - `WHITESPACE` (25 code points) is exactly the `White_Space` property.
   `LINE_BREAKS` (LF, VT, FF, CR, NEL, U+2028, U+2029) is the set UAX #14
@@ -248,7 +248,7 @@ Differences from OpenNLP:
   second run sees one line break and turns it into a space. The tests
   record this.
 
-Tests (`tests/whitespace.rs`, `tests/folds_properties.rs`, unit tests in
+Tests (`analysis/normalize/tests/whitespace.rs`, `analysis/normalize/tests/folds_properties.rs`, unit tests in
 `whitespace.rs` and `tables.rs`): every expectation of OpenNLP's
 `LineBreakPreservingWhitespaceCharSequenceNormalizerTest`,
 `ParagraphPreservingWhitespaceCharSequenceNormalizerTest`, the whitespace
@@ -277,7 +277,7 @@ is an operator.
 OpenNLP counterpart: `DashCharSequenceNormalizer` (`CharClass.dashes()`).
 The default matches it. `with_math_minus` is an addition.
 
-Tests (`tests/punctuation_folds.rs`, `tests/folds_properties.rs`): the
+Tests (`analysis/normalize/tests/punctuation_folds.rs`, `analysis/normalize/tests/folds_properties.rs`): the
 dash cases of `UnicodeCharSequenceNormalizerTest` and
 `AlignedNormalizerPipelineTest` (a four-byte supplementary dash maps back
 to its four bytes), every table entry in both configurations, characters
@@ -376,7 +376,7 @@ digits of the Unicode version it ships (15.0 for JDK 21), so digits added
 in Unicode 16.0 and later are folded here and are not folded by OpenNLP
 on JDK 21. For characters inside the 15.0 repertoire the output is the same.
 
-Tests (`tests/digits.rs`): the digit cases of `SetBasedNormalizerTest` and
+Tests (`analysis/normalize/tests/digits.rs`): the digit cases of `SetBasedNormalizerTest` and
 `AlignedNormalizerPipelineTest`, fullwidth letters left alone, every code
 point checked against the Nd rows and decimal values of UnicodeData.txt,
 the shared edit of neighbouring digits, and generated texts against a
