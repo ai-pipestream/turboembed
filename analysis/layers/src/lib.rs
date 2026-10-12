@@ -198,11 +198,29 @@ pub struct Subwords {
     pub spans: Spans<Subwords>,
     pub ids: Vec<i32>,
     pub model: ModelRef,
+    /// The word token each piece belongs to, when the pieces were made
+    /// from word tokens (a WordPiece or Unigram tokenizer splitting each
+    /// word), so a token's pieces are a range found by binary search.
+    pub token: Option<Vec<Ix<Tokens>>>,
+}
+
+impl Subwords {
+    /// The pieces of one word token: a binary search, no scan.
+    pub fn of(&self, t: Ix<Tokens>) -> IxRange<Subwords> {
+        let col = self.token.as_deref().expect("subwords made per token");
+        let a = col.partition_point(|&x| x < t);
+        let b = a + col[a..].partition_point(|&x| x == t);
+        IxRange::new(a as u32, b as u32)
+    }
 }
 
 impl Layer for Subwords {
     const ID: &'static str = "opennlp:subwords";
     positional!(Subwords);
+    fn indexes(&self) -> Vec<(KeyId, usize)> {
+        let Some(t) = &self.token else { return Vec::new() };
+        vec![(Key::<Tokens>::DEFAULT.id(), t.last().map_or(0, |i| i.get() + 1))]
+    }
     fn check(&self) -> Result<(), String> {
         let (start, end) = self.spans.columns();
         if self.ids.len() != start.len() {
@@ -211,7 +229,11 @@ impl Layer for Subwords {
         if !start.windows(2).all(|w| w[0] <= w[1]) || !end.windows(2).all(|w| w[0] <= w[1]) {
             return Err("subwords in text order".into());
         }
-        Ok(())
+        match &self.token {
+            Some(t) if t.len() != start.len() => Err("a token for every subword".into()),
+            Some(t) if !t.windows(2).all(|w| w[0] <= w[1]) => Err("subwords in token order".into()),
+            _ => Ok(()),
+        }
     }
 }
 

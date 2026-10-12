@@ -1,5 +1,17 @@
 [workspace]
-members = ["core", "bundle", "bench", "server", "demo", "analysis/core", "analysis/layers", "analysis/chunker", "analysis/goldens"]
+members = [
+    "core",
+    "bundle",
+    "bench",
+    "server",
+    "demo",
+    "analysis/core",
+    "analysis/layers",
+    "analysis/chunker",
+    "analysis/goldens",
+    "analysis/goldens-tool",
+    "analysis/jvm",
+]
 resolver = "3"
 
 [workspace.package]
