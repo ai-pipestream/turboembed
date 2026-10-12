@@ -31,6 +31,18 @@ final class GoldenWriter {
     }
     StringBuilder out = new StringBuilder();
     out.append("golden ").append(FORMAT_VERSION).append('\n');
+    header(out, h);
+    for (Layer layer : layers) {
+      layer(out, layer);
+    }
+    return utf8(out);
+  }
+
+  /**
+   * Appends the header records that follow the first line, from {@code generator} to
+   * {@code annotator}. A golden and a decision point dump (see {@link DumpWriter}) share them.
+   */
+  static void header(StringBuilder out, Header h) {
     line(out, "generator", GENERATOR, Integer.toString(GENERATOR_VERSION));
     line(out, "opennlp", h.opennlpCommit(), escape(h.opennlpVersion()));
     line(out, "jdk", escape(h.jdk().javaVersion()), escape(h.jdk().vmVersion()), escape(h.jdk().vendor()));
@@ -40,10 +52,6 @@ final class GoldenWriter {
       line(out, "model", escape(m.fileName()), m.sha512());
     }
     line(out, "annotator", escape(h.annotatorClass()), escape(h.method()));
-    for (Layer layer : layers) {
-      layer(out, layer);
-    }
-    return utf8(out);
   }
 
   private static void layer(StringBuilder out, Layer layer) {
@@ -73,7 +81,7 @@ final class GoldenWriter {
     };
   }
 
-  private static void line(StringBuilder out, String... fields) {
+  static void line(StringBuilder out, String... fields) {
     out.append(String.join("\t", fields)).append('\n');
   }
 

@@ -77,6 +77,29 @@ final class Utf8Offsets {
     return new ByteSpan(s, e);
   }
 
+  /**
+   * Converts one UTF-16 index, a position OpenNLP decided at rather than a span end, to a byte
+   * offset. An index between the two halves of a surrogate pair is a real decision point for
+   * an annotator that walks UTF-16 units, so it is not refused: it gives the byte offset of the
+   * pair's code point with unit 1, where an index that starts a code point gives unit 0.
+   */
+  Position position(int index) {
+    if (index < 0 || index > byteAt.length - 1) {
+      throw new IllegalArgumentException("input " + inputId + ": index " + index
+          + " is not inside the text of " + (byteAt.length - 1) + " UTF-16 units");
+    }
+    if (byteAt[index] == INSIDE_PAIR) {
+      return new Position(byteAt[index - 1], 1);
+    }
+    return new Position(byteAt[index], 0);
+  }
+
   /** A half open span of UTF-8 byte offsets. */
   record ByteSpan(int start, int end) {}
+
+  /**
+   * A UTF-8 byte offset and the UTF-16 unit within the code point there: 0 at its start, 1
+   * between the halves of a surrogate pair.
+   */
+  record Position(int offset, int unit) {}
 }
