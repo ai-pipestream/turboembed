@@ -16,6 +16,11 @@ turbo-analysis-layers = { path = "../layers" }
 turbo = { path = "../../core" }
 
 [dev-dependencies]
+# The JVM's WordPiece goldens, which the pieces are compared with.
+turbo-goldens = { path = "../goldens" }
+# Unicode's nonspacing marks, which the JVM's spans run over and ours
+# do not (tests/goldens.rs).
+unicode_categories = "0.1.1"
 # The tests write a byte-level BPE bundle from a typed manifest.
 serde_json = "1"
 # The upstream tokenizer, which the WordPiece pieces and spans are
