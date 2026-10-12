@@ -33,6 +33,7 @@ use turbo_analysis::{Alignment, Annotator, Error, Refs, Span, View, ViewBuilder}
 pub mod accent_fold;
 pub mod bullets;
 pub mod chain;
+pub mod confusables;
 pub mod dashes;
 pub mod dehyphenate;
 pub mod digits;
@@ -48,6 +49,7 @@ pub mod whitespace;
 pub use accent_fold::{AccentFold, StrokeLetters};
 pub use bullets::Bullets;
 pub use chain::Chain;
+pub use confusables::ConfusableSkeleton;
 pub use dashes::Dashes;
 pub use dehyphenate::{Dehyphenate, DehyphenateMode};
 pub use digits::Digits;
