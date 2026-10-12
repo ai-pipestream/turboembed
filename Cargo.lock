@@ -1844,6 +1844,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "turbo-tokenize"
+version = "0.1.0"
+dependencies = [
+ "turbo-analysis",
+ "turbo-analysis-layers",
+ "turbo-maxent",
+ "turbo-unicode",
+]
+
+[[package]]
 name = "turbo-unicode"
 version = "0.1.0"
 

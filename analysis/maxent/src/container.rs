@@ -83,6 +83,12 @@ impl ModelFile {
         self.manifest.get("OpenNLP-Version").expect("checked when the file was opened")
     }
 
+    /// The model file's bytes, exactly as read: what a model's SHA-256 is
+    /// computed over.
+    pub fn bytes(&self) -> &[u8] {
+        self.archive.bytes()
+    }
+
     /// The zip archive, for listing its entries.
     pub fn archive(&self) -> &Zip<Vec<u8>> {
         &self.archive

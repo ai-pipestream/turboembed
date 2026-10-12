@@ -55,6 +55,12 @@ impl<B: AsRef<[u8]>> Zip<B> {
         Ok(Zip { bytes, records })
     }
 
+    /// The whole archive's bytes, as given to [`Zip::new`]: what a caller
+    /// hashes to identify the file.
+    pub fn bytes(&self) -> &[u8] {
+        self.bytes.as_ref()
+    }
+
     /// The number of entries.
     pub fn len(&self) -> usize {
         self.records.len()

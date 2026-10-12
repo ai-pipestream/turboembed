@@ -223,21 +223,48 @@ strings, the two characters on each side with their classes (letter,
 caps, digit, whitespace, end of sentence, quote, brackets), the
 character pairs across the position, a flag for `&...;` entities and
 one for a known abbreviation. A token's confidence is the product of the
-decisions inside it. A split inside a unit that the abbreviation
-dictionary lists keeps the unit whole and skips as many positions as
-the unit has dots, as the Java does.
+decisions inside it. When the model splits a unit that the abbreviation
+dictionary lists, the unit from the current token start to its end is a
+token and the loop jumps ahead by as many positions as the unit has
+dots, as the Java does; the tokens after the jump can overlap that one
+(`(c)Co.ltd` listed gives `(c)Co.ltd`, `Co.ltd` and `.ltd`), and that is
+kept.
 
-The alphanumeric check is the manifest's `alphaNumericPattern`, or the
-language default when the manifest has none. Every pattern OpenNLP
-ships has the form `^[characters]+$`; the check reads that form (single
-characters and ranges) into a set and tests the unit by code point as
-`java.util.regex` would. A pattern of any other form is refused when
-the model loads, with the pattern in the error, rather than approximated.
+The model file is checked as OpenNLP checks it: the component is
+`TokenizerME`, `useAlphaNumericOptimization` is present, and the
+classifier's outcomes are `T` and `F`. The alphanumeric optimization is
+on when that property is `true` in any case. Its pattern is the
+manifest's `alphaNumericPattern`, or `^[A-Za-z0-9]+$` when the manifest
+has none, whatever the model's language: OpenNLP's `lang.Factory` has
+per-language patterns, but the factory OpenNLP builds for a loaded model
+asks for them with a language it never set, so it always gets the
+default (checked on the JVM with a German model whose pattern was
+removed). The per-language patterns are ported too, for a caller that
+wants them. Every pattern OpenNLP ships has the form `^[characters]+$`;
+the check reads that form (single characters and ranges) into a set and
+tests the unit by code point as `java.util.regex` would. A pattern of
+any other form, or one with `?` or `*` in the class, is refused when the
+model loads with the optimization on, with the pattern in the error,
+rather than approximated. With the optimization off the pattern is never
+used and is not read.
+
+The annotator reads `View` and `Option<Sentences>` and writes `Tokens`
+and `Confidence<Tokens>` (`f32`, the layer's type; the computation is
+`f64`). `Analyzer::build` refuses a step that writes an aligned layer
+without reading its anchor, and the confidence is aligned to the tokens
+the same step writes, so `TokenizerMe::into_step` gives the step with
+that anchor named; added with `Builder::add` it is refused.
 
 Deviation: Java indexes a unit by code unit, so a split can fall between
 the two halves of a character outside the BMP. Such a split is not a
 valid UTF-8 boundary and is not taken here; the model is still evaluated
-at that position so the probabilities stay identical.
+at that position and the token goes on, its probability multiplied by
+that decision's like any other, so where Java returns two half
+characters with probabilities `p` and `q` this returns the character
+whole with `p * q`. A token start that the abbreviation jump would put
+between two halves moves to the end of that character. Every model's
+golden files agree with this; the tests also check six inputs, one or
+two per model, on which the JVM did split inside U+1F600.
 
 ### `Detokenizer`
 
@@ -279,6 +306,14 @@ reach the OpenNLP side:
   coincidence.
 - `TokenizerME` can place a split between surrogate halves for the
   same reason.
+- `TokenizerFactory.getAlphaNumericPattern` passes its `languageCode`
+  field to `lang.Factory`, and a factory made for a loaded model leaves
+  that field null (only `getLanguageCode()` reads the language from the
+  model). A model without `alphaNumericPattern` therefore always gets the
+  default `^[A-Za-z0-9]+$`, never its language's pattern.
+- In `TokenizerME.tokenizePos`, a split inside a unit the abbreviation
+  dictionary lists emits the unit from the token start to its end, then
+  keeps splitting after the dot jump, so the tokens overlap.
 - `SimpleTokenizer` with `keepNewLines` throws an exception when the
   text starts with a line break (or any line break comes before the
   first token), because it tries to close a token that was never

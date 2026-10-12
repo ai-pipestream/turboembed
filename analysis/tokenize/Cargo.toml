@@ -1,0 +1,18 @@
+[package]
+name = "turbo-tokenize"
+version = "0.1.0"
+edition.workspace = true
+license.workspace = true
+publish = false
+
+[lib]
+name = "turbo_tokenize"
+
+[dependencies]
+turbo-analysis = { path = "../core" }
+turbo-analysis-layers = { path = "../layers" }
+# The model file, the classifier and the abbreviation dictionary.
+turbo-maxent = { path = "../maxent" }
+# Java's character classes, the whitespace modes, the UTF-16 cursor and
+# modified UTF-8.
+turbo-unicode = { path = "../unicode" }
