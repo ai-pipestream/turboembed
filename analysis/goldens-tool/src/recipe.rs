@@ -54,13 +54,24 @@ pub const INPUT_SETS: [&str; 3] = ["en", "multi", "norm"];
 /// The arguments the driver passes to the generator after the fixed ones
 /// (the inputs, models and output directories and the commit, which the
 /// container's entrypoint supplies). `--dumps` makes it write a decision
-/// point dump beside every golden, so every `generate` makes both.
+/// point dump beside every golden of `DUMPED_ANNOTATORS`, so every
+/// `generate` makes both.
 pub const GENERATOR_ARGS: [&str; 1] = ["--dumps"];
 
 /// The annotator directories the generator writes, which `generate`
 /// replaces and `verify` compares. The data directory holds other things
 /// (the inputs, a README) that neither touches.
 pub const ANNOTATORS: [&str; 4] = ["sentdetect", "tokenize", "langdetect", "normalize"];
+
+/// The annotators whose goldens have a decision point dump beside them:
+/// the ones that ask a maxent model. A normalizer has no model, so its
+/// goldens have none.
+pub const DUMPED_ANNOTATORS: [&str; 3] = ["sentdetect", "tokenize", "langdetect"];
+
+/// Whether the goldens of `annotator` have a decision point dump beside them.
+pub fn has_dumps(annotator: &str) -> bool {
+    DUMPED_ANNOTATORS.contains(&annotator)
+}
 
 #[cfg(test)]
 mod tests {
