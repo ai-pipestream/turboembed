@@ -44,6 +44,7 @@ pub mod invisible;
 pub mod quotes;
 pub mod substitute;
 pub mod tables;
+pub mod unicode_form;
 pub mod whitespace;
 
 pub use accent_fold::{AccentFold, StrokeLetters};
@@ -57,6 +58,7 @@ pub use ellipsis::Ellipsis;
 pub use german::GermanUmlauts;
 pub use invisible::Invisible;
 pub use quotes::Quotes;
+pub use unicode_form::UnicodeForm;
 pub use whitespace::{Whitespace, WhitespaceMode};
 
 /// One text normalizer. Its only job is to copy `text` into `out`,

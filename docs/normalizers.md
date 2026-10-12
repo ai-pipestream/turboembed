@@ -419,6 +419,89 @@ characters, whitespace and dashes from
 line-break and paragraph variants, and generated texts against a
 reference filter.
 
+### Unicode normalization forms (`unicode_form.rs`)
+
+`UnicodeForm` (id `turbo:normalize:unicode-form`) puts the text in NFC
+(`UnicodeForm::nfc()`), NFKC (`nfkc()`), NFD (`nfd()`) or NFKD
+(`nfkd()`), as UAX #15 defines them, on the Unicode 18.0 data of
+`turbo-unicode`. The config hash is the hash of the form.
+
+It runs `turbo_unicode::normalize::for_each_run` over the text, which
+splits it before each character with combining class 0 whose quick check
+value for the form is Yes. Nothing before such a point reorders or
+composes with anything after it, so each run normalizes on its own. A run
+the form leaves alone is kept; a run it changes is one `replace` with its
+normalized text. One refinement: a run starts at the starter before the
+characters that fail the quick check, since they may compose with it, and
+when the normalized run begins with that same starter (nothing composed
+with it, as with "x" before a Hangul syllable under NFD, or before U+2126
+OHM SIGN under NFC) the starter is kept and only the rest of the run is
+replaced. The starter has combining class 0, so no mark moves across it
+and the rest of the run normalizes on its own to the rest of the output.
+
+The alignment is therefore one edit per changed run, and a run cannot be
+split further: "e" U+0301 becomes U+00E9, and no part of U+00E9 comes from
+only one of the two source characters. Text already in the form (all
+ASCII text, in every form) gives no edit and `apply` returns it borrowed.
+
+OpenNLP counterparts: `NfcCharSequenceNormalizer` and
+`NfkcCharSequenceNormalizer`. NFD and NFKD have no OpenNLP normalizer.
+
+Differences from OpenNLP:
+
+- Alignment. OpenNLP's two normalizers call `java.text.Normalizer` on the
+  whole text and are not `OffsetAwareNormalizer`s, so
+  `TextNormalizer.buildAligned()` rejects a pipeline that contains them
+  (`AlignedNormalizerPipelineTest`). Here every form records an exact
+  alignment and can sit anywhere in a `Chain`.
+- Unicode version. The data is Unicode 18.0; a JVM normalizes with the
+  data of its own Unicode version (15.0 for JDK 21), so characters
+  assigned after that version can normalize differently. Inside the 15.0
+  repertoire the output text is the same.
+
+Cost, measured by the ignored test `cost_per_megabyte` in
+`analysis/normalize/tests/unicode_form.rs` (release build, a 4-core container shared with
+other builds; repeated runs vary by up to half):
+
+| Text (1 MB) | NFC | NFD | NFKC | NFKD | NFC without the view |
+|---|---|---|---|---|---|
+| ASCII | 0.1 ms | 0.1 ms | 0.1 ms | 0.1 ms | 0.2 ms |
+| mostly NFC (English with accented words, German, Greek, CJK) | 0.8 ms | 2.8 ms | 0.7 ms | 2.8 ms | 0.9 ms |
+| the same text in NFD | 2.2 ms | 0.7 ms | 2.3 ms | 0.7 ms | 2.0 ms |
+
+"NFC without the view" is `turbo_unicode::normalize::normalize` writing
+the whole output as one replace. Writing the view per run costs about
+the same as normalizing alone: the alignment adds one edit per changed
+run and nothing per unchanged byte.
+
+```sh
+cargo test --release -p turbo-normalize --test unicode_form cost_per_megabyte -- --ignored --nocapture
+```
+
+Tests (`analysis/normalize/tests/unicode_form.rs`): every column of every line of
+NormalizationTest.txt in all four forms, compared with
+`turbo_unicode::normalize::normalize` and with the expected columns
+(c2 = NFC(c1..c3), c3 = NFD(c1..c3), c4 = NFC(c4, c5) = NFKC(c1..c5),
+c5 = NFD(c4, c5) = NFKD(c1..c5)); 300 texts joined from random
+NormalizationTest columns; 3000 generated texts of combining marks,
+Hangul jamo and syllables, compatibility characters and singletons. Each
+output is checked for the invariants below (`check_view`). Also:
+Hangul composition and decomposition, the kept starter before a Hangul
+syllable, combining marks out of order, ligatures, fullwidth letters,
+superscripts and circled digits (changed by NFKC and NFKD only), one edit
+per changed run, no edits and a borrowed result for text already in the
+form, the expectations of OpenNLP's `UnicodeCharSequenceNormalizerTest`,
+and distinct config hashes.
+
+The invariants every output of these views is checked for: the edits are
+on character boundaries, in order, and rebuild the output; every edit is
+the form of its own source text; every source span maps forward and back
+to a span that covers it (`folds_support::check_alignment`); and for every
+output span `s` (all spans of short outputs, 300 random ones of long
+outputs), the source span `p` it maps back to maps forward to a span that
+covers `s`, and the source text of `p` normalizes to exactly the output
+text `p` maps forward to.
+
 ### Accent folding (`analysis/normalize/src/accent_fold.rs`) and the run pass (`analysis/normalize/src/fold_runs.rs`)
 
 `AccentFold` (id `turbo:normalize:accent-fold`) removes accents. It does
@@ -667,6 +750,13 @@ it overlaps.
   it runs on (`Character.digit`), so the same input gives different
   output on JDK 21 (Unicode 15.0) and later JDKs. Its tests do not state
   which Unicode version they expect.
+- `NfcCharSequenceNormalizer`, `NfkcCharSequenceNormalizer` and
+  `CaseFoldCharSequenceNormalizer` are not offset-aware, so
+  `buildAligned()` rejects them. All three can record an exact alignment:
+  normalization changes text only inside runs that start at a starter
+  whose quick check is Yes, and `Locale.ROOT` lowercasing maps each
+  character on its own except U+03A3, whose context is only needed to
+  choose between two characters of the same length.
 - `AccentFoldCharSequenceNormalizer` and
   `ConfusableSkeletonCharSequenceNormalizer` have no aligned form. Both
   can be aligned per character: cut the text before each character whose
