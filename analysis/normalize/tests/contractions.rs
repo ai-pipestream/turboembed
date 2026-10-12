@@ -218,8 +218,8 @@ fn additions_beyond_opennlp() {
         assert_eq!(expand(input), expansion, "{input:?}");
     }
     let (_, a) = normalize(&EnglishContractions, "y'all");
-    // "you" stands for "y" and the space for the apostrophe, two edits that
-    // touch; "all" is kept and maps to itself.
+    // "you" stands for "y" and the space for the apostrophe, each its own
+    // edit; "all" is kept and maps to itself.
     assert_eq!(a.span_to_parent(span(0, 3)), span(0, 1));
     assert_eq!(a.span_to_parent(span(3, 4)), span(1, 2));
     assert_eq!(a.span_to_parent(span(4, 7)), span(2, 5));
