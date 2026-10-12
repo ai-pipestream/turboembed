@@ -1,6 +1,6 @@
 //! Annotators: typed steps that read layers and write layers.
 
-use std::any::Any;
+use std::any::{Any, TypeId};
 use std::panic::{AssertUnwindSafe, catch_unwind};
 
 use crate::doc::{Document, Status};
@@ -50,7 +50,10 @@ pub trait Reads: 'static {
     fn fetch<'d>(doc: &'d Document, names: &[&'static str]) -> Result<Self::Refs<'d>, Error>;
 }
 
-/// The layers an annotator writes, as a tuple of owned layers.
+/// The layers an annotator writes, as a tuple of owned layers. They are
+/// added to the document in tuple order, so an output aligned to another
+/// output of the same step (tokens, then a confidence for each) follows
+/// it, and is made on the instance the step wrote.
 pub trait Writes: Send + 'static {
     const N: usize;
     fn ids(names: &[&'static str]) -> Vec<KeyId>;
@@ -96,12 +99,29 @@ macro_rules! tuples {
                 vec![$($L::anchor()),+]
             }
             fn store(self, doc: &mut Document, names: &[&'static str], p: &Provenance) -> Result<(), Error> {
-                $(doc.add(&Key::<$L>::named(names[$i]), self.$i, p.clone())?;)+
+                let ids = <Self as Writes>::ids(names);
+                $({
+                    let p = made_on_own(&self.$i, &ids[..$i], p);
+                    doc.add(&Key::<$L>::named(names[$i]), self.$i, p)?;
+                })+
                 Ok(())
             }
         }
     };
 }
+/// The provenance of one output: its step's, with `on` listing the outputs
+/// the step wrote before it (`earlier`) that this one is aligned to or
+/// indexes, so the document checks it against those instances.
+fn made_on_own<L: Layer>(layer: &L, earlier: &[KeyId], p: &Provenance) -> Provenance {
+    let mut types: Vec<TypeId> = layer.indexes().into_iter().map(|(k, _)| k.ty).collect();
+    if let Anchor::Aligned { ty, .. } = L::anchor() {
+        types.push(ty);
+    }
+    let mut p = p.clone();
+    p.on = earlier.iter().copied().filter(|k| types.contains(&k.ty)).collect();
+    p
+}
+
 tuples!(A 0);
 tuples!(A 0, B 1);
 tuples!(A 0, B 1, C 2);
@@ -191,10 +211,13 @@ impl<A: Annotator> Bound<A> {
             model: self.annotator.model(),
             execution: self.annotator.execution(),
             reads,
+            on: Vec::new(),
         }
     }
 
-    /// Each aligned output hangs on the required input of its anchor's type.
+    /// Each aligned output hangs on an output of its anchor's type that the
+    /// step writes before it, or else on the required input of that type.
+    /// The document resolves the anchor in the same order.
     fn anchors(&self) -> Vec<AnchorUse> {
         let reads: Vec<KeyId> = A::Reads::ids(&self.reads)
             .into_iter()
@@ -202,11 +225,20 @@ impl<A: Annotator> Bound<A> {
             .filter(|&(_, r)| r)
             .map(|(k, _)| k)
             .collect();
+        let writes = A::Writes::ids(&self.writes);
         A::Writes::anchors()
             .into_iter()
-            .map(|a| match a {
+            .enumerate()
+            .map(|(i, a)| match a {
                 Anchor::Aligned { ty, layer } => {
-                    reads.iter().copied().find(|k| k.ty == ty).map_or(AnchorUse::Unread(layer), AnchorUse::To)
+                    let of_type = |keys: &[KeyId]| keys.iter().copied().find(|k| k.ty == ty);
+                    if let Some(k) = of_type(&writes[..i]).or_else(|| of_type(&reads)) {
+                        AnchorUse::To(k)
+                    } else if let Some(k) = of_type(&writes[i + 1..]) {
+                        AnchorUse::Later(k)
+                    } else {
+                        AnchorUse::Unread(layer)
+                    }
                 }
                 _ => AnchorUse::None,
             })
@@ -273,8 +305,13 @@ fn panicked(annotator: &'static str, panic: Box<dyn Any + Send>) -> Error {
 pub enum AnchorUse {
     /// Not an aligned layer.
     None,
-    /// Aligned to this input.
+    /// Aligned to this input, or to this output of the same step, written
+    /// before the aligned one.
     To(KeyId),
+    /// Aligned to an output the step writes after the aligned one: the
+    /// document could not measure it yet, so it is refused when the
+    /// pipeline is built.
+    Later(KeyId),
     /// Aligned to a layer the step does not read: refused when the
     /// pipeline is built.
     Unread(&'static LayerName),
