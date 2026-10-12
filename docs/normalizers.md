@@ -812,6 +812,39 @@ threads, the word-break table against every code point of the property
 file, and every line of `WordBreakTest-18.0.0.txt` (1944 lines, none with
 surrogates).
 
+### Symbols (`symbols/`)
+
+OpenNLP's `SymbolJoinerCharSequenceNormalizer` (in the runtime, and as an
+identical copy in the `symbol-joiner` add-on) maps an input that is
+exactly one of ten symbols to an English word: `&` and, `+` plus, `@`
+at, `%` percent, `§` section, `¶` paragraph, `°` degree, `©` copyright,
+`®` registered, `™` trademark. Every other input, including `R&D`,
+`"& "`, `©️` and currency symbols, is returned unchanged. It is
+meant to be called once per token. Despite its name, neither version
+joins symbol sequences (`C++`, `.NET`, `->`); that is not implemented
+here either.
+
+- `SymbolJoiner` (an `Annotator`, id `turbo:normalize:symbol-joiner`)
+  reads a `View` and the `Tokens` made on it and writes a `View` in which
+  each token that is exactly one mapped symbol is replaced by its word.
+  This is OpenNLP's per-token use. The new view's tokens are the old
+  ones mapped through its alignment.
+- `SymbolWords` (a `Normalizer`, id `turbo:normalize:symbol-words`)
+  replaces each mapped symbol in running text that has whitespace (the
+  OpenNLP whitespace table) or the edge of the text on both sides:
+  `Dungeons & Dragons` becomes `Dungeons and Dragons`.
+
+Differences from OpenNLP: `SymbolWords` finds the symbols in running text
+instead of requiring the whole input to be the symbol, so `"& "` becomes
+`"and "` and `" &"` becomes `" and"` (OpenNLP leaves both, as a
+whole input, unchanged; tokenized, each gives the token `&` and
+`and`). Test: `embedded_symbols_are_left_alone`.
+
+Tests (`analysis/normalize/tests/symbols.rs`): every mapping and every unchanged input of
+`SymbolJoinerCharSequenceNormalizerTest`, the `Dungeons & Dragons`
+example of `SymbolJoinerUsageExampleTest` through `SymbolJoiner` with
+its spans, and symbols in running text.
+
 ### Emoji (`analysis/normalize/src/emoji/mod.rs`)
 
 Four steps work on emoji. All of them take their sequences from
@@ -1304,7 +1337,6 @@ and `identityPipelinePreservesEveryOffset`; 3000 generated texts that
 cross the eight-byte ASCII test at every offset, and 2000 generated texts
 in all five modes against a reference fold, each checked for the
 invariants of the previous section. A unit test in `analysis/normalize/src/case_fold.rs` checks
-the eight-byte ASCII test with each stop byte at each position.
 
 ### Alignment checks
 
@@ -1376,6 +1408,9 @@ it overlaps.
   a constant amount of work instead of a pass over the whole text. It
   also leaves unambiguous forms such as `y'all`, `this'll` and `may've`
   unexpanded.
+- `SymbolJoinerCharSequenceNormalizer` and the `symbol-joiner` add-on are
+  the same class. It maps single symbols to words and joins nothing, so
+  its name does not describe what it does.
 - `AccentFoldCharSequenceNormalizer` and
   `ConfusableSkeletonCharSequenceNormalizer` have no aligned form. Both
   can be aligned per character: cut the text before each character whose
