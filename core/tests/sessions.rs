@@ -104,6 +104,61 @@ fn a_session_of_one_path_reports_no_choices_and_old_sizes_are_known() {
     assert_eq!(u32::from_ne_bytes(buf[4..8].try_into().unwrap()), 8);
     assert_eq!(u32::from_ne_bytes(buf[8..12].try_into().unwrap()), 16);
     assert!(buf[24..].iter().all(|&b| b == 0xa5), "past struct_size is the caller's");
+
+    // turbo_session_desc of 24 bytes: cpu_threads and max_ranges are 0.
+    // The words after it hold values either field would refuse, so a read
+    // past struct_size fails the create.
+    assert_eq!(TURBO_SESSION_DESC_SIZE_V2, 24);
+    let mid: [u32; 8] = [TURBO_SESSION_DESC_SIZE_V2 as u32, 8, 16, 0, TURBO_AUTOTUNE_OFF, 0, u32::MAX, u32::MAX];
+    let mut out = ptr::null_mut();
+    let mut err = new_error();
+    let rc = unsafe { turbo_session_create(l.m, mid.as_ptr().cast(), &mut out, &mut err) };
+    assert_eq!(rc, 0, "{:?}", failure(rc, &err));
+    let s = Session(out);
+    assert_eq!((s.info().max_batch, s.info().max_seq), (8, 16));
+    // max_ranges of 0 is max_batch: nine ranges are one too many.
+    let t = Tokens::new(&[vec![101, 7592, 102]], 0);
+    let e = s.write_ranges(&t.batch(), &[range(0, 0, 3); 9], None).err().unwrap();
+    assert!(e.is(CAPACITY, "9 ranges is over the session's max_ranges 8"), "{e:?}");
+}
+
+/// max_ranges is 1 to max_batch * max_seq, counted after 0 in either is
+/// resolved to the model's; 0 is max_batch.
+#[test]
+fn max_ranges_over_the_sessions_tokens_is_refused_by_field() {
+    let l = tiny();
+    let ranges = |max_batch, max_seq, max_ranges| {
+        let mut d = session_desc(max_batch, max_seq, 0);
+        d.max_ranges = max_ranges;
+        Session::create(l.m, Some(&d))
+    };
+    let e = ranges(2, 8, 17).err().unwrap();
+    assert_eq!((e.code, e.field), (UNSUPPORTED_OPTION, 7), "{e:?}");
+    assert!(e.message.contains("max_ranges 17 is over max_batch 2 times max_seq 8, 16"), "{e:?}");
+    ranges(2, 8, 16).unwrap();
+    // The model's 64 by 64.
+    let e = ranges(0, 0, 64 * 64 + 1).err().unwrap();
+    assert_eq!((e.code, e.field), (UNSUPPORTED_OPTION, 7), "{e:?}");
+    ranges(0, 0, 64 * 64).unwrap();
+    ranges(0, 0, u32::MAX).err().unwrap();
+}
+
+/// cpu_threads is 1 to 1024 on the CPU, and 0 leaves the count to the
+/// environment.
+#[test]
+fn cpu_threads_out_of_range_is_refused_by_field() {
+    let l = tiny();
+    let threads = |n| {
+        let mut d = session_desc(2, 32, 0);
+        d.cpu_threads = n;
+        Session::create(l.m, Some(&d))
+    };
+    let e = threads(1025).err().unwrap();
+    assert_eq!((e.code, e.field), (UNSUPPORTED_OPTION, 6), "{e:?}");
+    assert!(e.message.contains("cpu_threads 1025"), "{e:?}");
+    let one = threads(1).unwrap().embed(&TEXTS[..2], None).unwrap();
+    let three = threads(3).unwrap().embed(&TEXTS[..2], None).unwrap();
+    assert_eq!(one, three, "the thread count does not change the bits");
 }
 
 #[test]
@@ -622,6 +677,128 @@ fn tokens_and_text_give_the_same_vectors() {
     wide.types = Some(vec![0; wide.ids.len()]);
     s.write_tokens(&wide.batch(), None).unwrap();
     assert_eq!(s.run().unwrap().rows(), from_text, "the stride's gap is never read");
+}
+
+// ---- Ranges ---------------------------------------------------------------------
+
+/// A session of 2 rows by 8 tokens that takes 4 ranges, and two rows of 3
+/// columns: row 0 of three tokens, row 1 of two and a padding column.
+fn ranges_session(l: &Loaded) -> (Session, Tokens) {
+    let mut d = session_desc(2, 8, 0);
+    d.max_ranges = 4;
+    let s = Session::create(l.m, Some(&d)).unwrap_or_else(|e| panic!("{e:?}"));
+    (s, Tokens::new(&[vec![101, 7592, 102], vec![101, 102]], 0))
+}
+
+#[test]
+fn write_ranges_refuses_what_it_cannot_take() {
+    let l = tiny();
+    let (s, t) = ranges_session(&l);
+    let ok = [range(0, 0, 3), range(1, 0, 2)];
+    s.write_ranges(&t.batch(), &ok, None).unwrap();
+    let fails = |ranges: &[turbo_token_range], o: Option<&turbo_embed_options>| {
+        s.write_ranges(&t.batch(), ranges, o).err().unwrap()
+    };
+
+    let mut err = new_error();
+    let rc = unsafe { turbo_embed_write_ranges(s.0, &t.batch(), ptr::null(), 2, ptr::null(), &mut err) };
+    assert!(failure(rc, &err).is(INVALID_ARGUMENT, "ranges is NULL and count is 2"), "{:?}", failure(rc, &err));
+    let rc = unsafe { turbo_embed_write_ranges(s.0, &t.batch(), ptr::null(), 0, ptr::null(), &mut err) };
+    assert!(failure(rc, &err).is(INVALID_ARGUMENT, "count is 0"), "{:?}", failure(rc, &err));
+    let e = fails(&[], None);
+    assert!(e.is(INVALID_ARGUMENT, "count is 0: a run needs at least one range"), "{e:?}");
+    let e = fails(&[range(0, 0, 3); 5], None);
+    assert!(e.is(CAPACITY, "5 ranges is over the session's max_ranges 4"), "{e:?}");
+    s.write_ranges(&t.batch(), &[range(0, 0, 3); 4], None).unwrap();
+
+    for pooling in [TURBO_POOLING_CLS, TURBO_POOLING_LAST] {
+        let e = fails(&ok, Some(&opts(|o| o.pooling = pooling)));
+        assert_eq!((e.code, e.field), (UNSUPPORTED_OPTION, 5), "{e:?}");
+        assert!(e.message.contains("a range is pooled by the mean alone"), "{e:?}");
+    }
+    s.write_ranges(&t.batch(), &ok, Some(&opts(|o| o.pooling = TURBO_POOLING_MEAN))).unwrap();
+    let e = fails(&ok, Some(&opts(|o| o.truncate = TURBO_TRUNCATE_RIGHT)));
+    assert_eq!((e.code, e.field), (INVALID_ARGUMENT, 1), "{e:?}");
+    let e = fails(&ok, Some(&opts(|o| o.prompt_role = TURBO_PROMPT_QUERY)));
+    assert_eq!((e.code, e.field), (INVALID_ARGUMENT, 3), "{e:?}");
+    // The rows are checked as turbo_embed_write_tokens checks them.
+    let mut bad = Tokens::new(&[vec![101, 7592, 102], vec![101, 102]], 0);
+    bad.ids[1] = 30522;
+    let e = s.write_ranges(&bad.batch(), &ok, None).err().unwrap();
+    assert!(e.is(INVALID_ARGUMENT, "ids[0][1] is 30522"), "{e:?}");
+
+    // Each range is named by its index, after a good one.
+    for (r, what) in [
+        (range(2, 0, 1), "ranges[1]: row 2 is not under batch 2"),
+        (range(0, 1, 1), "ranges[1]: start 1 is not under end 1"),
+        (range(0, 2, 1), "ranges[1]: start 2 is not under end 1"),
+        (range(0, 2, 4), "ranges[1]: end 4 is over seq 3"),
+        (range(1, 2, 3), "ranges[1]: columns 2 to 3 of row 1 hold no token whose mask is 1"),
+    ] {
+        let e = fails(&[range(0, 0, 3), r], None);
+        assert!(e.is(INVALID_ARGUMENT, what), "{what}: {e:?}");
+    }
+}
+
+/// A range's live tokens are read through the row stride: a gap column of
+/// the row before, with mask 1, does not count for the next row.
+#[test]
+fn a_ranges_mask_is_read_through_the_row_stride() {
+    let l = tiny();
+    let (s, _) = ranges_session(&l);
+    let mut t = Tokens::new(&[vec![101, 7592, 102], vec![101, 102, 0]], 0);
+    t.stride = 5;
+    t.ids = vec![101, 7592, 102, 0, 0, 0, 101, 102, 0, 0];
+    t.mask = vec![1, 1, 1, 1, 1, 0, 1, 1, 0, 0];
+    s.write_ranges(&t.batch(), &[range(1, 1, 3)], None).unwrap();
+    let e = s.write_ranges(&t.batch(), &[range(1, 0, 1)], None).err().unwrap();
+    assert!(e.is(INVALID_ARGUMENT, "ranges[0]: columns 0 to 1 of row 1 hold no token whose mask is 1"), "{e:?}");
+}
+
+#[test]
+fn a_failed_range_write_leaves_nothing_written() {
+    let l = tiny();
+    let (s, t) = ranges_session(&l);
+    s.write_tokens(&t.batch(), None).unwrap();
+    let e = s.write_ranges(&t.batch(), &[range(0, 0, 4)], None).err().unwrap();
+    assert_eq!(e.code, INVALID_ARGUMENT, "{e:?}");
+    assert_eq!(s.run().err().unwrap().code, INVALID_STATE);
+    s.write_ranges(&t.batch(), &[range(0, 0, 3)], None).unwrap();
+    let e = s.write_ranges(&t.batch(), &[range(0, 0, 3)], Some(&opts(|o| o.pooling = TURBO_POOLING_CLS)));
+    assert_eq!(e.err().unwrap().code, UNSUPPORTED_OPTION);
+    assert_eq!(s.run().err().unwrap().code, INVALID_STATE);
+}
+
+/// A range over a whole row is that row's vector under mean pooling, to
+/// the bit, since it is the same sum over the same tokens in the same
+/// order. The ranges come back in the order given, repeats and all, and
+/// the result counts ranges, not rows. A range write replaces a token
+/// write before it, and a token write replaces a range write.
+#[test]
+fn a_range_over_a_whole_row_is_the_rows_mean_vector() {
+    let l = tiny();
+    let (s, t) = ranges_session(&l);
+    let mean = opts(|o| o.pooling = TURBO_POOLING_MEAN);
+    s.write_tokens(&t.batch(), Some(&mean)).unwrap();
+    let rows = s.run().unwrap().rows();
+    let dim = rows[0].len();
+
+    s.write_tokens(&t.batch(), Some(&mean)).unwrap();
+    // Row 1's padding column is inside the range and pooled as nothing.
+    s.write_ranges(&t.batch(), &[range(1, 0, 3), range(0, 0, 3), range(1, 0, 2)], None).unwrap();
+    let r = s.run().unwrap();
+    let info = r.info();
+    assert_eq!((info.batch, info.dim), (3, dim as u32));
+    assert_eq!(info.bytes, 3 * dim as u64 * 4);
+    let got = r.rows();
+    drop(r);
+    assert_eq!(got, [rows[1].clone(), rows[0].clone(), rows[1].clone()]);
+
+    s.write_ranges(&t.batch(), &[range(0, 0, 3)], None).unwrap();
+    s.write_tokens(&t.batch(), Some(&mean)).unwrap();
+    let r = s.run().unwrap();
+    assert_eq!(r.info().batch, 2, "the token write replaced the range write");
+    assert_eq!(r.rows(), rows);
 }
 
 // ---- The encoder against plain arithmetic -----------------------------------------

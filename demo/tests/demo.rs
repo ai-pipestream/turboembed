@@ -36,6 +36,10 @@ fn models() -> Vec<ModelConfig> {
     static N: AtomicUsize = AtomicUsize::new(0);
     let n = N.fetch_add(1, Ordering::Relaxed);
     let dir = Path::new(env!("CARGO_TARGET_TMPDIR")).join(format!("demo-{}-{n}", std::process::id()));
+    // The name is unique within one process only. CI restores target/ from
+    // a cache and process ids repeat across runs, so an earlier run's links
+    // can already be here.
+    let _ = std::fs::remove_dir_all(&dir);
     std::fs::create_dir_all(&dir).unwrap();
     let bundle = tiny().canonicalize().unwrap();
     TIERS

@@ -97,6 +97,18 @@ device.
   does not return. A token type other
   than 0 is `TURBO_E_UNSUPPORTED_OPTION`, naming the row: the HEF
   computes type 0 only.
+- **Late pooling and `cpu_threads`.** The session is made through
+  `session_open`, and its vectors hold `max(max_batch, max_ranges)`
+  rows. After `turbo_embed_write_ranges` the run sends every row as
+  usual, and as each frame comes back the host pools every range of
+  that frame's row: the mean of the dequantized hidden states of the
+  range's tokens whose mask is 1, summed in double in column order, cut
+  to `output_dim`, normalized when asked, and written at the range's
+  index. Frames come back in any order, so a vector's place is always
+  the range's index in the list, never its row. A range over a whole
+  row gives that row's mean vector bit for bit. The device is not a
+  CPU, so `turbo_session_desc.cpu_threads` must be 0; any other value
+  is `TURBO_E_UNSUPPORTED_OPTION` naming field 6.
 - **What a result reports.** Stages: upload and encode on the device,
   lookup, pooling and normalize on the host, and the hidden states
   downloaded; the vectors are `TURBO_PLACE_HOST`. `h2d_bytes` is each

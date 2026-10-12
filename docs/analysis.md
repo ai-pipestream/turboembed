@@ -19,10 +19,13 @@ nothing here is in the C header or the gRPC server.
 | `turbo-analysis` | `analysis/core/` | The document, views, offset tables, layers, keys, provenance, annotators, the analyzer and the registry |
 | `turbo-analysis-layers` | `analysis/layers/` | The layers add-ons share (below) |
 | `turbo-chunker` | `analysis/chunker/` | The chunker |
+| `turbo-analysis-embed` | `analysis/embed/` | The embedding model as analysis steps: the subwords of a text view from the bundle's tokenizer |
 | `turbo-jvm` | `analysis/jvm/` | JVM behaviour the OpenNLP ports must reproduce bit for bit |
 | `turbo-goldens` | `analysis/goldens/` | Golden layer files from the JVM: the reader, the writer, the comparison, loading golden layers as test inputs, SHA-256 and SHA-512 |
 
-They need nothing beyond the standard library and each other. A shared
+They need nothing beyond the standard library and each other, except
+`turbo-analysis-embed`, which runs the embedding model and so depends on
+the core crate, `turbo`. A shared
 layer lives in `turbo-analysis-layers`, so a consumer of a layer never
 depends on the add-on that produces it; an add-on's own layers live in a
 small schema crate beside it, for the same reason.
@@ -268,11 +271,54 @@ fields mean bumps its `SCHEMA`.
 | `Chunks` | `turbo:chunks` | text | `turbo-analysis-layers` |
 | `Vectors<L>` | `opennlp:embeddings<L>` | `L` | `turbo-analysis-layers` |
 | `Confidence<L>` | `turbo:confidence<L>` | `L` | `turbo-analysis-layers` |
+| `Utf16Spans<L>` | `turbo:utf16<L>` | `L` | `turbo-analysis-layers` |
 | `Language` | `opennlp:language` | the document | `turbo-analysis-layers` |
 
 `Chunks` are retrieval chunks. The standard's `opennlp:chunks` are
 phrase chunks (noun and verb groups), a different layer, which a phrase
 chunker will write under that id.
+
+## Subwords
+
+`SubwordAnnotator` in `turbo-analysis-embed` writes `opennlp:subwords`:
+it reads a text view (the source, or a named view through `Bound::read`)
+and, when the document has them, the word tokens, and runs the bundle's
+own tokenizer (`Tokenizer::encode_spans`, docs/tokenizer.md) over the
+view. `SubwordAnnotator::open` loads the bundle and checks its
+tokenizer against the reference ids as the core does; `SubwordsProvider`
+offers it to a registry as `subwords`, the spec's location being the
+bundle directory. The bundle's id and revision and the SHA-256 of its
+manifest are the layer's `model` and its provenance's.
+
+- The view is encoded as one row, with no truncation, so the layer
+  covers the whole view however long it is; a text past the model's
+  `max_seq` is split into chunks later, from these pieces.
+- The row has no special tokens from the template and no prompt prefix,
+  since neither is in the text. `SubwordAnnotator::overhead(role)` is
+  what they add to every row the model sees (the template's special
+  tokens and the prefix's tokens, counted on the prefix alone), for the
+  chunker's `Budget::overhead`. A byte-level BPE or Unigram prefix can
+  merge with the text's first piece, so a row can come out one token
+  shorter than the pieces and the overhead.
+- Each piece's span is the tokenizer's, a UTF-8 byte span of the view. A
+  byte-level piece holding part of a character spans the whole
+  character, so two pieces can share a span, and every span is on
+  character boundaries. A special token written in the text (`[SEP]`
+  typed by the author) is a piece of the text like any other.
+
+With word tokens in the same view and in text order, every piece gets
+the token it belongs to (`align`), in one pass over both span lists:
+
+- a piece inside a token belongs to it;
+- a piece over two or more tokens (a byte-level `'s` or `.)` across the
+  word tokenizer's split) belongs to the first of them;
+- a piece in no token (whitespace or punctuation the word tokenizer left
+  out) belongs to the token before it, or to the first token when none
+  comes before it.
+
+So the pieces of one token are a run, which `Subwords::of` finds by
+binary search. Tokens in another view, or out of order, fail the
+document. A document with pieces but no tokens gets no token column.
 
 ## The chunker
 
@@ -351,10 +397,18 @@ other. Then one header record per line, a keyword and its fields:
   was run with, sorted by key, each key once, so two goldens of one class
   run with different options are told apart. Key and value are `str`
   fields, escaped as below.
+- `error <class> <message>`: only for a run where the annotator threw
+  on the JVM, after the config records and the last line of the file.
+  The class is the exception's, such as
+  `java.lang.IllegalArgumentException`, and the message is a `str`
+  field, what `getMessage()` returned (empty for null). OpenNLP's
+  `SimpleTokenizer` with `keepNewLines`, for one, throws on a text that
+  starts with a line break, where the Rust port tokenizes it.
 
 The other header fields are written as they are; none holds a tab or a
 line end.
-One or more layer blocks follow. Each starts with
+A file with an error record has no layer blocks, and the reader refuses
+any line after that record. Otherwise one or more layer blocks follow. Each starts with
 `layer <id> <anchor> <rows> <name:type>...`, where the anchor is `text`,
 `aligned:<layer id>` or `document` and the list names every column with
 its type. Then come the rows, one per line, a field per column, and
@@ -376,8 +430,22 @@ surrogate pair), and refuses a lone surrogate.
 
 Every `start` and `end` is a UTF-8 byte offset into the input text,
 half open, the unit the Rust layers use. The generator computes it from
-OpenNLP's UTF-16 span and fails rather than round an offset that falls
-inside a character.
+OpenNLP's UTF-16 span. OpenNLP's `SimpleTokenizer` and `TokenizerME`
+classify UTF-16 units, so they can split a character outside the Basic
+Multilingual Plane, a surrogate pair, between two tokens, and a byte
+offset cannot fall between its halves. For such a row the generator
+widens the byte span to the enclosing character (the start rounds down,
+the end rounds up), so the two halves of one character are two rows
+over the same bytes, and it writes the aligned layer
+`turbo:utf16<opennlp:tokens>` (or `turbo:utf16<opennlp:sentences>`)
+whenever at least one row cuts a character. That layer has, for every
+row of the layer it is aligned to, the JVM's exact span in UTF-16 units
+(`start16`, `end16`, half open) and `cut`, 1 when the row starts or ends
+inside a surrogate pair and 0 otherwise. Overlapping rows on the text
+are allowed as they are for nested entities (a row may not start before
+the row before it), so the widened rows need no rule of their own. The
+reader checks that a UTF-16 span does not end before it starts or past
+the input's length in UTF-16 units.
 
 The layers and their columns, in order:
 
@@ -385,8 +453,10 @@ The layers and their columns, in order:
 |---|---|---|
 | `opennlp:sentences` | `text` | `start:u32`, `end:u32` |
 | `turbo:confidence<opennlp:sentences>` | `aligned:opennlp:sentences` | `value:f64` |
+| `turbo:utf16<opennlp:sentences>` | `aligned:opennlp:sentences` | `start16:u32`, `end16:u32`, `cut:u32` |
 | `opennlp:tokens` | `text` | `start:u32`, `end:u32` |
 | `turbo:confidence<opennlp:tokens>` | `aligned:opennlp:tokens` | `value:f64` |
+| `turbo:utf16<opennlp:tokens>` | `aligned:opennlp:tokens` | `start16:u32`, `end16:u32`, `cut:u32` |
 | `opennlp:pos` | `aligned:opennlp:tokens` | `tag:str`, `prob:f64` |
 | `opennlp:lemmas` | `aligned:opennlp:tokens` | `lemma:str` |
 | `opennlp:entities` | `text` | `start:u32`, `end:u32`, `token_start:u32`, `token_end:u32`, `kind:str`, `prob:f64` |
@@ -406,6 +476,15 @@ the reader refuses an id no layer type has, a second block for one id,
 and a block whose anchor or columns, by name and type, are not its
 type's. Every error names the line and what was expected there.
 
+The layer types the reader knows are a parameter. `Golden::read`,
+`Golden::parse` and `Golden::parse_bytes` check blocks against
+`known_shapes()`, the types of `turbo-analysis` and
+`turbo-analysis-layers`; `read_with`, `parse_with` and
+`parse_bytes_with` take the set. A crate that owns a layer type with a
+golden shape (a tokenizer crate's `turbo:word-types`, a word type per
+token in one `kind:str` column) implements `GoldenCompare` for it and
+reads its goldens with `known_shapes()` plus `shape_of::<ItsLayer>()`.
+
 ### Comparing a layer with its golden
 
 ```rust
@@ -423,7 +502,11 @@ The default instance of the layer is compared; `matches_golden_key`
 and `assert_matches_golden_key` take a `Key` for a named one, and
 `matches_golden` returns the difference as a `Mismatch` instead of
 panicking. The document's text must be the golden's input, by length
-and SHA-256. Spans are compared in source bytes, so a layer on a
+and SHA-256. When the golden has an error record, the comparison
+reports it as `Mismatch::JvmError` with the class and the message
+instead of comparing anything, so a test for an input the JVM could not
+handle asserts that error on purpose and then checks the Rust output
+itself. Spans are compared in source bytes, so a layer on a
 normalized view is mapped back through the view's alignment first. Item
 by item, the span, then an entity's token range, then the label (a tag
 through its tag set, a lemma, a kind, a language code) must be equal,
@@ -432,6 +515,18 @@ bits (so -0.0 and 0.0 differ), and `Abs(d)` takes two finite values at
 most `d` apart, or the same infinity, or two NaNs. `Language` holds the
 best language, so it is compared with row 0. POS tags without
 probabilities do not match a golden that has them.
+
+`Utf16Spans<L>` (`turbo:utf16<L>`) is compared exactly, row by row: the
+UTF-16 span, then the cut flag, the Rust layer's `bool` against the
+golden's 0 or 1 (a golden with any other value is reported as one that
+cannot be applied). Where the JVM split a character the Rust tokenizer
+keeps whole, the byte comparison of the tokens shows that as an
+expected deviation the test asserts on purpose: the golden has two rows
+over the character's bytes where Rust has one token, so the report is
+a count mismatch when the character ends the text (`Smile 😀`: 2 items
+in Rust, 3 in the golden) and otherwise the first token after it, which
+the golden still has over the character. The UTF-16 layer keeps the
+JVM's own answer, the two halves with `cut` 1.
 
 A normalized `View` is compared by its key (`Key::named("nfkc")`):
 the source with the golden's edits applied must be the view's text,
@@ -681,7 +776,7 @@ be proven on a machine with Docker.
 
 ## Tests
 
-`cargo test -p turbo-analysis -p turbo-analysis-layers -p turbo-chunker -p turbo-jvm -p turbo-goldens`
+`cargo test -p turbo-analysis -p turbo-analysis-layers -p turbo-chunker -p turbo-analysis-embed -p turbo-jvm -p turbo-goldens`
 runs them on any machine:
 
 - `analysis/core/tests/pipeline.rs` runs a pipeline of toy annotators
@@ -700,6 +795,16 @@ runs them on any machine:
   that are never crossed, and a paragraph break's token counted inside
   a chunk. The chunker's unit tests hold the optimizer against filling
   each chunk to the budget.
+- `analysis/embed/tests/subwords.rs` runs the subwords annotator on the
+  small BERT's WordPiece bundle, a byte-level BPE bundle and BGE-M3's
+  Unigram, over the tokenizer test texts, and checks that the document
+  takes every layer and that the ids are the tokenizer's. The WordPiece
+  pieces are compared with upstream `tokenizers`, id for id and span for
+  span. It also covers pieces of one character sharing its span, a text
+  many times `max_seq` covered to its end, the overhead, pieces given
+  their word tokens (a BPE piece over two tokens, punctuation in no
+  token), tokens that cannot be aligned, and the provider. The crate's
+  unit tests hold `align` on hand-made spans.
 - `analysis/core/tests/offsets.rs` converts offsets in both directions
   at every character boundary of text with one to four byte
   characters, refuses offsets inside a surrogate pair and past the end,
@@ -728,15 +833,31 @@ runs them on any machine:
   not the input, a token straddling two sentences, an entity token
   range past the tokens and a block with
   the wrong columns are each refused.
+- `analysis/goldens/tests/jvm_error.rs` reads, writes and compares a
+  golden with an error record (`tests/fixtures/newline-first.golden`):
+  the message's escapes, a layer block or any other line after the
+  record refused with its line, layers beside it refused by the writer,
+  and `Mismatch::JvmError` from a comparison.
+- `analysis/goldens/tests/utf16_spans.rs` reads and writes a golden
+  whose tokens cut a surrogate pair (`tests/fixtures/smile.golden`),
+  checks the UTF-16 layer's shape and spans, shows one Rust token over
+  the character as a count mismatch against the golden's two rows, and
+  compares `Utf16Spans` for tokens and sentences, a span and a cut flag
+  that differ each reported with the token's text.
+- `analysis/goldens/tests/shapes_from_other_crates.rs` defines a layer
+  type in the test (`turbo:word-types`), reads a golden holding it with
+  `read_with` (which `read` refuses), and compares a document with it.
 - A doctest on `Ix` checks that an index into the wrong layer does not
   compile.
 
 ## Not built yet
 
 - The annotators themselves: normalizers, sentence detection,
-  tokenization, the subwords from turboembed's tokenizer, vectors
-  through turboembed, and the boundary signals. The tests build their
-  layers by hand or with toy annotators.
+  tokenization, vectors through turboembed, and the boundary signals.
+  The tests build their layers by hand or with toy annotators.
+- A parity check of the subwords against the JVM's WordPiece encoder on
+  golden inputs; the WordPiece pieces are compared with upstream
+  `tokenizers` for now.
 - The evaluation harness that every change to the chunker is measured
   with.
 - A gRPC surface, to be shared with the OpenNLP standard.
