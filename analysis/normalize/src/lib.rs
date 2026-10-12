@@ -20,13 +20,14 @@
 //! - inside a [`Chain`], which runs several normalizers in order and
 //!   composes their alignments into one.
 //!
-//! The crate depends on `turbo-unicode` for Unicode 17.0 character data
+//! The crate depends on `turbo-unicode` for Unicode 18.0 character data
 //! and on nothing else. docs/normalizers.md describes every normalizer,
 //! its OpenNLP counterpart and the tests that hold them together.
 
 use std::borrow::Cow;
 use std::hash::{DefaultHasher, Hash, Hasher};
 
+use turbo_analysis::text::Side;
 use turbo_analysis::{Alignment, Annotator, Error, Refs, Span, View, ViewBuilder};
 
 pub mod chain;
@@ -145,14 +146,15 @@ pub fn hash_config<T: Hash>(options: &T) -> u64 {
 /// Every stretch of the parent that either stage touched becomes one
 /// edit. The stretches are the parent spans of the first stage's edits
 /// and the parent spans the second stage's edits map to through the
-/// first; overlapping stretches merge. The edges of a merged stretch lie
+/// first; overlapping stretches merge, touching ones stay separate
+/// edits. The edges of a merged stretch lie
 /// outside every edit of both stages, so mapping an edge through both
 /// alignments is exact, and the child text between two edges is what the
 /// stretch became.
 pub fn compose(parent: &str, first: &Alignment, child: &str, second: &Alignment, out: &mut ViewBuilder<'_>) {
     let mut stretches: Vec<Span> = Vec::with_capacity(first.edits().len() + second.edits().len());
     let mut a = first.edits().iter().map(|e| e.parent).peekable();
-    let mut b = second.edits().iter().map(|e| first.span_to_parent(e.parent)).peekable();
+    let mut b = second.edits().iter().map(|e| edit_to_parent(first, e.parent)).peekable();
     // Merge the two sorted lists of parent spans into one sorted list.
     loop {
         let next = match (a.peek(), b.peek()) {
@@ -169,17 +171,59 @@ pub fn compose(parent: &str, first: &Alignment, child: &str, second: &Alignment,
         };
         let Some(s) = next else { break };
         match stretches.last_mut() {
-            // Overlapping stretches merge. Touching ones merge too: an
-            // insertion at the edge of an edit belongs with that edit.
-            Some(last) if s.start <= last.end => last.end = last.end.max(s.end),
+            // Overlapping stretches merge. Touching ones stay apart, as
+            // every edit is recorded on its own (issue #265), except an
+            // insertion sitting on the edge of a stretch, which has no
+            // text of its own to stand between them.
+            Some(last) if s.start < last.end || (s.start == last.end && (s.is_empty() || last.is_empty())) => {
+                last.end = last.end.max(s.end)
+            }
             _ => stretches.push(s),
         }
     }
+    // Two touching stretches map to touching ranges of the middle text and
+    // of the child, except that an insertion sitting exactly on their
+    // shared edge is inside both ranges, since a start maps to after an
+    // insertion and an end to before it. The inserted text belongs to the
+    // earlier stretch, so each range starts no earlier than the one
+    // before it ends.
+    let (mut mid_end, mut child_end) = (0, 0);
     for s in stretches {
-        let mid = first.span_to_child(s);
-        let c = second.span_to_child(mid);
+        let mid = clamp_after(stretch_to_child(first, s), mid_end);
+        let c = clamp_after(stretch_to_child(second, mid), child_end);
         out.keep(s.start as usize);
         out.replace(s.end as usize, &child[c.range()]);
+        (mid_end, child_end) = (mid.end, c.end);
     }
     debug_assert!(out.position() <= parent.len());
+}
+
+/// `s` with its start moved up to `floor` when it begins before it.
+fn clamp_after(s: Span, floor: u32) -> Span {
+    Span::new(s.start.max(floor).min(s.end), s.end.max(floor))
+}
+
+/// Maps a stretch of the parent to the child text. The edges of a stretch
+/// lie outside every non-empty edit, but an insertion (an edit with an
+/// empty parent side) can sit exactly on an edge, and the stretch has to
+/// contain it. `Alignment::span_to_child` maps a start to just after an
+/// insertion at that offset and an end to just before one, which would
+/// leave the insertion out, so the start is mapped as an end offset and
+/// the end as a start offset.
+fn stretch_to_child(alignment: &Alignment, s: Span) -> Span {
+    Span::new(alignment.to_child(s.start, Side::End), alignment.to_child(s.end, Side::Start))
+}
+
+/// Maps the parent span of a second-stage edit to the text before the
+/// first stage. A non-empty span maps with `span_to_parent`. An empty one
+/// (the second stage inserted text there) can sit on a deletion or an
+/// insertion of the first stage, where `span_to_parent` would return a
+/// start after its end, so it maps to the span between the two ends of
+/// whatever the first stage did at that offset.
+fn edit_to_parent(first: &Alignment, s: Span) -> Span {
+    if !s.is_empty() {
+        return first.span_to_parent(s);
+    }
+    let (a, b) = (first.to_parent(s.start, Side::Start), first.to_parent(s.start, Side::End));
+    Span::new(a.min(b), a.max(b))
 }

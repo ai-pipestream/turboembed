@@ -1839,6 +1839,9 @@ dependencies = [
 [[package]]
 name = "turbo-unicode"
 version = "0.1.0"
+dependencies = [
+ "turbo-unicode-gen",
+]
 
 [[package]]
 name = "turbo-unicode-gen"

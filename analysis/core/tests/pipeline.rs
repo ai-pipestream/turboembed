@@ -313,6 +313,40 @@ fn tokens_of_a_normalized_view_land_on_exact_source_bytes() {
 }
 
 #[test]
+fn a_token_inside_a_run_of_replaced_characters_lands_on_its_own_source_bytes() {
+    // Arabic-Indic digits (2 bytes each) folded to ASCII one character at a
+    // time, so each digit is its own edit.
+    let mut doc = Document::new("Room \u{661}\u{662}\u{663} is free");
+    let src = doc.get::<View>().unwrap().clone();
+    let mut b = ViewBuilder::new(src.text());
+    for (i, c) in src.text().char_indices() {
+        if let Some(d) = ('\u{660}'..='\u{669}').contains(&c).then(|| c as u32 - 0x660) {
+            b.keep(i);
+            b.replace(i + c.len_utf8(), &d.to_string());
+        }
+    }
+    let (text, alignment) = b.finish();
+    assert_eq!(text, "Room 123 is free");
+    let digits = Key::named("digits");
+    doc.add(&digits, View::derived(&src, text, alignment), Provenance::by("test:digits")).unwrap();
+    let view = doc.get_key(&digits).unwrap().id();
+
+    // One token per digit, as a digit splitter would make them.
+    let mut spans = Spans::new(view);
+    for at in 5..8 {
+        spans.push(Span::new(at, at + 1));
+    }
+    doc.add(&Key::DEFAULT, Tokens { spans, sentence: None }, Provenance::by("test:digit-tokens")).unwrap();
+
+    let tokens = doc.get::<Tokens>().unwrap();
+    let source: Vec<Span> = tokens.spans.iter().map(|(_, s)| doc.to_source(view, s)).collect();
+    assert_eq!(source, [Span::new(5, 7), Span::new(7, 9), Span::new(9, 11)]);
+    assert_eq!(&doc.source()[source[1].range()], "\u{662}");
+    // And back: the middle source digit is the middle view digit alone.
+    assert_eq!(doc.from_source(view, Span::new(7, 9)), Span::new(6, 7));
+}
+
+#[test]
 fn a_batch_reaches_a_batching_annotator_in_one_call() {
     let calls = Arc::new(AtomicUsize::new(0));
     let mut docs: Vec<Document> = (0..64).map(|i| Document::new(format!("Doc {i} starts. It ends here."))).collect();
