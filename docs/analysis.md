@@ -18,9 +18,10 @@ nothing here is in the C header or the gRPC server.
 |---|---|---|
 | `turbo-analysis` | `analysis/core/` | The document, views, offset tables, layers, keys, provenance, annotators, the analyzer and the registry |
 | `turbo-analysis-layers` | `analysis/layers/` | The layers add-ons share (below) |
-| `turbo-chunker` | `analysis/chunker/` | The chunker |
+| `turbo-chunker` | `analysis/chunker/` | The chunker, and term statistics and BM25 per chunk, section and document |
 | `turbo-structure` | `analysis/structure/` | Document structure (`turbo:structure`) from plain text and Markdown |
 | `turbo-analysis-embed` | `analysis/embed/` | The embedding model as analysis steps: the subwords of a text view from the bundle's tokenizer, and a vector per sentence and per chunk |
+| `turbo-numeric` | `analysis/numeric/` | The number scanner, which writes `turbo:numbers` ([numbers.md](numbers.md)) |
 | `turbo-jvm` | `analysis/jvm/` | JVM behaviour the OpenNLP ports must reproduce bit for bit |
 | `turbo-goldens` | `analysis/goldens/` | Golden layer files from the JVM: the reader, the writer, the comparison, loading golden layers as test inputs, SHA-256 and SHA-512 |
 
@@ -270,10 +271,14 @@ fields mean bumps its `SCHEMA`.
 | `Entities` | `opennlp:entities` | text | `turbo-analysis-layers` |
 | `Boundaries` | `turbo:boundaries` | sentences | `turbo-analysis-layers` |
 | `Chunks` | `turbo:chunks` | text | `turbo-analysis-layers` |
+| `Numbers` | `turbo:numbers` | text | `turbo-analysis-layers` |
 | `Vectors<L>` | `opennlp:embeddings<L>` | `L` | `turbo-analysis-layers` |
 | `Confidence<L>` | `turbo:confidence<L>` | `L` | `turbo-analysis-layers` |
 | `Utf16Spans<L>` | `turbo:utf16<L>` | `L` | `turbo-analysis-layers` |
 | `Language` | `opennlp:language` | the document | `turbo-analysis-layers` |
+| `Vocabulary` | `turbo:vocabulary` | the document | `turbo-chunker` |
+| `Terms` | `turbo:terms` | tokens | `turbo-chunker` |
+| `TermStats<L>` | `turbo:term-stats<L>` | `L` | `turbo-chunker` |
 
 `Chunks` are retrieval chunks. The standard's `opennlp:chunks` are
 phrase chunks (noun and verb groups), a different layer, which a phrase
@@ -600,6 +605,81 @@ from it. Every chunk records its level, its parent, its sentences, why
 it starts where it does, what it cost the optimizer and its length in
 model tokens.
 
+## Term statistics and BM25
+
+`turbo_chunker::terms` counts terms per retrieval unit for lexical
+search, from the word tokens alone: no model and no vectors, so a BM25
+baseline can be measured before any vector exists.
+
+`TermIndexer` reads a text view and the tokens and writes the document's
+`Vocabulary` and a term for each token (`Terms`, aligned to the tokens).
+A term is the token's text in the view read, byte for byte: nothing is
+lowercased here. To match without case, read a case folded view
+(`NormalizeStep::new(CaseFold::full())` bound to write `folded`, and the
+indexer bound with `.read(0, "folded")`); the tokens can stay on the
+source, since a token's span is mapped through the folded view's
+alignment to its parent. A view further down a chain than that is
+refused. The view's edits must not cross a token edge: with one edit
+turning "don't" into "do not" over the tokens "do" and "n't", each
+token would map to the whole replacement, so a document with a token
+edge strictly inside an edit is refused. Case folding replaces one
+character per edit and never crosses one.
+
+A token is a term when it holds at least one character
+`char::is_alphanumeric` accepts (an alphabetic character, or a number
+of category Nd, Nl or No). A token of punctuation or symbols alone (a
+period) is not, and counts toward no length. This is close to Lucene's
+`StandardTokenizer`, which drops punctuation, but not the same: that
+tokenizer splits by UAX #29 word boundaries, keeps emoji as tokens
+(no terms here) and makes no token of a lone No character such as "½"
+(a term here), and its splits differ from the word tokenizer's. The vocabulary is in byte order, each term once, so a
+term's id depends only on which terms the document holds, and a lookup
+is a binary search.
+
+`TermCounter<L>` reads the tokens, their terms, the vocabulary and the
+units of one level, and writes `TermStats<L>`, aligned to the units:
+
+- `TermCounter<Chunks>`: a row per chunk, at every level of the chunk
+  hierarchy;
+- `TermCounter<Structure>`: a row per structure block; the sections are
+  the blocks of kind `Section`, and a nested section's terms count in it
+  and in every section around it;
+- `TermCounter<View>`: one row for the whole document.
+
+A token is in the unit its start is in. Each row is sparse: the unit's
+term ids in ascending order with a count for each, by column, with
+offsets per unit. The layer also holds each unit's length in terms and,
+per term, how many of the level's units hold it (`df`). That df is
+within one document; it is not the corpus document frequency BM25's idf
+is defined over.
+
+`Query` scores units with BM25 in Lucene's form (`BM25Similarity`,
+`Bm25::LUCENE`: k1 = 1.2, b = 0.75):
+
+```text
+score = sum over query terms t of idf(t) * tf / (tf + k1 * (1 - b + b * length / mean_length))
+idf(t) = ln(1 + (N - n(t) + 0.5) / (n(t) + 0.5))
+```
+
+The classic `(k1 + 1)` factor is left out, as Lucene has since version
+8; it scales every score alike and leaves the ranking unchanged. N, the
+mean length and n(t) are the collection's, and the caller supplies them
+through `Collection`: from an index over the corpus for corpus search.
+`LocalCollection` gives one document's own units as the collection (all
+of a level's units, or those a filter keeps, such as the sections or
+the chunks of one level), for ranking a document's chunks against each
+other. As in Lucene, a unit with no terms is not counted in N or the
+mean length. Lengths here are exact, where Lucene stores a length in
+one byte, exactly only for short units, so Lucene's scores for long
+units can differ slightly. Query terms are matched byte for byte and
+must be normalized as the document's terms were; a term given twice
+counts twice. `Query::rank` lists the units holding a query term, best
+first, equal scores in unit order.
+
+The layers live in `turbo-chunker` beside the code that makes them while
+only it reads them; they move to a schema crate of their own once
+another crate does.
+
 ## Golden files
 
 An annotator that ports an OpenNLP component is checked against what
@@ -706,6 +786,7 @@ The layers and their columns, in order:
 | `opennlp:lemmas` | `aligned:opennlp:tokens` | `lemma:str` |
 | `opennlp:entities` | `text` | `start:u32`, `end:u32`, `token_start:u32`, `token_end:u32`, `kind:str`, `prob:f64` |
 | `opennlp:language` | `document` | `code:str`, `confidence:f64` |
+| `turbo:numbers` | `text` | `start:u32`, `end:u32`, `numeral_end:u32`, `negative:u32`, `coefficient:str`, `scale:u32`, `plain:str` |
 | `turbo:view` | `text` | `start:u32`, `end:u32`, `with:str` |
 
 `opennlp:language` has a row per language the detector ranked, best
@@ -890,6 +971,22 @@ The generator writes these layers, in this order within a golden:
 | `tokenize` (`TokenizerME.tokenizePos`) | `opennlp:tokens`, `turbo:utf16<opennlp:tokens>` when a token cuts a character, `turbo:confidence<opennlp:tokens>` |
 | `langdetect` (`LanguageDetectorME.predictLanguages`) | `opennlp:language` |
 | `normalize` (each normalizer) | `turbo:view` |
+| `numbers` (`NumberScan.parse`, per notation) | `turbo:numbers` |
+
+`numbers/<notation>/num/<id>.golden` (`latin-us`, `latin-eu`) holds
+`turbo:numbers`, anchored on the text, with one row per number mention:
+`start:u32` and `end:u32` (UTF-8 byte offsets, from an optional `-` to the
+end of a `k`, `m`, `b`, `bn` or `thousand` to `trillion` scale marker),
+`numeral_end:u32` (the end of the digits, before the scale marker),
+`negative:u32` (1 when the mention starts with `-`), `coefficient:str` (the
+unscaled value without sign), `scale:u32` (digits after the decimal point)
+and `plain:str` (`toPlainString()`, for a human reading the file). The value
+is `(-1)^negative * coefficient / 10^scale`. The `annotator` line names
+`opennlp.tools.extraction.NumberScan` and `parse`, and a `config notation`
+record gives `LATIN_US` or `LATIN_EU`. The scan is the mention loop of
+`CursorQuantityExtractor` of the `numeric` module of `opennlp-addons`
+(pinned in `analysis/goldens-tool/src/recipe.rs`) without the money
+exclusion and without units; there is no model and no dump.
 
 Other crates write goldens of their own layer types in the same format,
 which the generator does not make: a tokenizer crate's
@@ -1082,6 +1179,21 @@ runs them on any machine:
   that are never crossed, and a paragraph break's token counted inside
   a chunk. The chunker's unit tests hold the optimizer against filling
   each chunk to the budget.
+- `analysis/chunker/tests/terms.rs` runs the term steps on hand-made
+  tokens, structure and chunks, with the terms read from a case folded
+  view: the vocabulary, a row per chunk, block and document with its
+  lengths and df, BM25 scores against a plain textbook BM25 written in
+  the test for four settings of k1 and b, Lucene's idf, an idf from a
+  caller's corpus statistics against the document's own, ranking ties,
+  full case folding that changes bytes, a token a unit cuts, units in
+  another view and a view too far from the tokens. Two scores are
+  worked by hand from Lucene 9's formula in the test's comments. It
+  also holds a query term given twice, units with no terms left out of
+  the local N and mean, a mean length of zero, a view whose edit crosses
+  a token edge (refused) beside one whose edits do not, and the
+  counter's refusals: tokens out of order and a layer of several units
+  with no spans. The unit tests hold
+  the interning, the sparse rows and the layer's checks.
 - `analysis/structure/tests/fixtures.rs` holds hand-labelled documents,
   each one's whole structure written out block by block with the text
   each span covers: Markdown with nested sections, setext and ATX
@@ -1194,5 +1306,6 @@ runs them on any machine:
   golden inputs; the WordPiece pieces are compared with upstream
   `tokenizers` for now.
 - The evaluation harness that every change to the chunker is measured
-  with.
+  with. It is also where the BM25 only baseline is to be reported,
+  from the term statistics above.
 - A gRPC surface, to be shared with the OpenNLP standard.

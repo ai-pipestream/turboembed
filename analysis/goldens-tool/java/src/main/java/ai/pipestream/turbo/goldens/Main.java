@@ -63,6 +63,7 @@ public final class Main {
     LanguageGolden languages = LanguageGolden.load(models.resolve(LANGUAGE_MODEL));
     List<AnnotatorGolden> annotators = new ArrayList<>(List.of(sentences, tokens, languages));
     annotators.addAll(NormalizerGolden.all());
+    annotators.addAll(NumberGolden.all());
     List<AnnotatorDump> recorders = dumps
         ? List.of(SentenceDump.of(sentences), TokenDump.of(tokens), LanguageDump.of(languages))
         : List.of();
