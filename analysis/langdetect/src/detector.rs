@@ -14,7 +14,9 @@ use crate::model::LanguageModel;
 pub const NO_EVIDENCE: &str = "no language evidence";
 
 /// Buffers for one detection, kept between calls so a detector run on
-/// many texts allocates only while they grow.
+/// many texts allocates for the n-grams and the probabilities only while
+/// they grow. The normalizers allocate a new string for a text they
+/// change.
 #[derive(Debug, Default)]
 pub struct Scratch {
     context: ContextGenerator,

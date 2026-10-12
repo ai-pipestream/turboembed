@@ -44,8 +44,9 @@ struct Gram {
 }
 
 /// Builds the context of a text and keeps its buffers for the next one,
-/// so a generator reused across documents allocates only while its
-/// buffers grow.
+/// so a generator reused across documents allocates for the n-grams only
+/// while its buffers grow. [`generate`](Self::generate) also allocates a
+/// new string whenever the normalizers change the text.
 #[derive(Debug)]
 pub struct ContextGenerator {
     min: usize,

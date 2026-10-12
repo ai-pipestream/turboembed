@@ -13,8 +13,9 @@
 //!
 //! The model is evaluated with `turbo-maxent`, whose arithmetic matches
 //! the JVM's, over the n-grams in the JVM's order, so the probabilities
-//! are the JVM's bit for bit. docs/langdetect.md describes the port, its
-//! parity tests and, under "Differences from OpenNLP", where it differs.
+//! of the 22 golden texts are the JVM's bit for bit. docs/langdetect.md
+//! describes the port, its parity tests and, under "Differences from
+//! OpenNLP", where it differs.
 
 pub mod context;
 pub mod detector;

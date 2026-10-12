@@ -71,8 +71,11 @@ every probability is the model's prior and the ranking is the outcome
 order.
 
 The buffers live in a `Scratch` the caller keeps, so a detector run over
-many texts allocates only while they grow. The annotator keeps one per
-thread.
+many texts allocates for the n-grams and the probabilities only while
+they grow. The normalizers return a new string for a text they change
+(`prepare` borrows the text only when it is left as it is), and the
+annotator allocates the layer it writes. The annotator keeps one
+`Scratch` per thread.
 
 ## The annotator
 
