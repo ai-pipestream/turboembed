@@ -907,8 +907,11 @@ The `str` escapes are the golden format's: `\t`, `\n`, `\r`, `\\`, and
 character below U+0020. A surrogate that is not half of a pair is
 written as `\uXXXX` as well, because it has no UTF-8 form. The language
 detector's n-grams and the tokenizer's contexts are cut at UTF-16 units
-and hold such halves (the language detector dump of `multi/mixed` and the
-tokenizer dumps of `en/emoji` and `multi/mixed` have them); a reader that
+and can hold such halves. The tokenizer dumps of `en/emoji`,
+`en/emoji-split` and `multi/mixed` have them. The language detector
+dumps have none, because its first normalizer replaces every character
+outside the Basic Multilingual Plane with a space before the n-grams
+are cut; a reader that
 decodes into Rust strings has to keep such a field as UTF-16 units or as
 its escaped text. The generator writes goldens through the same escape,
 and its UTF-8 encoder fails rather than writing a replacement character.
