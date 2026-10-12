@@ -790,6 +790,57 @@ The layers live in `turbo-chunker` beside the code that makes them while
 only it reads them; they move to a schema crate of their own once
 another crate does.
 
+### Comparing two runs
+
+`turbo_chunker::compare` checks whether two runs of the chunker over one
+document cut it in the same places: two backends, or two precision tiers
+on one backend. It takes each run's `Chunks`, where the model behind its
+costs ran (the `Execution`: backend, device and precision tier, which the
+caller takes from the layer the costs came from, since the chunker runs
+no model) and, when the caller has them, the sentences, boundary costs
+and budget the run was cut with. Runs whose chunks are in different
+views are refused, as is a run with two rows at one place or with level
+0 rows that overlap under one parent, and a run whose costs do not fit
+it: sentences in another view or out of text order, a boundary cost
+missing, or a chunk that does not start and end where a sentence does.
+
+A cut is a chunk's start, as an exact byte offset, at its level, under
+its parent (named by the parent's span). Cuts both runs make are
+counted; the rest are reported in stretches between two shared cuts, in
+order of level, parent and offset. A chunk's cost depends only on its
+own sentences and the boundary that closes it, so the optimizer's
+choices on either side of a shared cut are independent, and each
+stretch is one choice: a moved cut is a stretch with a cut on each side,
+an added cut one with a cut on one side only. Every cut in a stretch
+carries why its chunk starts there, whether it is over the budget,
+what the chunk cost its run (from the layer) and what each run's
+boundary costs charge at that offset.
+
+The layer records no runner-up, so each stretch's margin is computed:
+how much more a run's own costs charge for the other run's cuts there
+than for its own, in units. Each chunk from the shared cut on is priced
+with the optimizer's own cost of one chunk (the boundary that closes it,
+none at the end of its parent, plus its integer size penalty), so the
+margin is exact and is what the run's whole cut would cost more had it
+cut the stretch as the other did: at least the gap between its best and
+second best choice, and zero for a tie. A test checks this against
+changes of one to three gaps of the optimizer's cut on generated runs
+of one and two sections. As a rule of thumb, a margin smaller than what
+the precision tiers move a boundary cost by points at precision as the
+cause.
+
+A margin is computed only at level 0 (the level the optimizer cuts),
+only after a shared cut, only where the other run's cuts are sentence
+starts of this run's, and only where both choices end at the same byte.
+Children of parents whose spans differ are never in one stretch, so
+they share no cut and have no margin. It adds no chunk term, since the
+layer records none, and it prices as if allowed a cut the run's own
+limits would forbid (inside a unit it keeps whole) and a chunk over the
+run's maximum. Each choice is priced with the pricing run's budget but
+sized by its own run's token counts, which agree when the runs share a
+tokenizer; runs with different tokenizers mix two counts. There is no
+command for it: no record format holds chunks yet.
+
 ## Golden files
 
 An annotator that ports an OpenNLP component is checked against what
