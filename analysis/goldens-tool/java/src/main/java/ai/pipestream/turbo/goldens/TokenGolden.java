@@ -17,18 +17,25 @@ import opennlp.tools.util.Span;
 final class TokenGolden implements AnnotatorGolden {
 
   private final ModelRef model;
+  private final TokenizerModel loaded;
   private final TokenizerME tokenizer;
 
-  private TokenGolden(ModelRef model, TokenizerME tokenizer) {
+  private TokenGolden(ModelRef model, TokenizerModel loaded) {
     this.model = model;
-    this.tokenizer = tokenizer;
+    this.loaded = loaded;
+    this.tokenizer = new TokenizerME(loaded);
   }
 
   /** Loads the tokenizer model from {@code file}, hashing exactly the bytes loaded. */
   static TokenGolden load(Path file) throws IOException {
     byte[] bytes = Files.readAllBytes(file);
     TokenizerModel m = new TokenizerModel(new ByteArrayInputStream(bytes));
-    return new TokenGolden(new ModelRef(file.getFileName().toString(), Sha.sha512(bytes)), new TokenizerME(m));
+    return new TokenGolden(new ModelRef(file.getFileName().toString(), Sha.sha512(bytes)), m);
+  }
+
+  /** The loaded model, which {@link TokenDump} builds its recording model from. */
+  TokenizerModel loaded() {
+    return loaded;
   }
 
   @Override
@@ -52,8 +59,13 @@ final class TokenGolden implements AnnotatorGolden {
   }
 
   @Override
-  @SuppressWarnings("removal")
   public List<Layer> layers(Input input) {
+    return layers(tokenizer, input);
+  }
+
+  /** The layers {@code tokenizer} produces for the input; {@link TokenDump} runs it on its recording tokenizer. */
+  @SuppressWarnings("removal")
+  static List<Layer> layers(TokenizerME tokenizer, Input input) {
     Span[] spans = tokenizer.tokenizePos(input.text());
     double[] probs = tokenizer.getTokenProbabilities();
     if (probs.length != spans.length) {

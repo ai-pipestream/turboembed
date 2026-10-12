@@ -4,20 +4,26 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
 import java.util.stream.Stream;
 
 /**
- * Writes every golden for every input.
+ * Writes every golden for every input, and with {@code --dumps} every decision point dump too.
  *
- * <p>Usage: {@code <inputs dir> <models dir> <out dir> <opennlp commit>}. The inputs directory
- * holds one directory per input set, each holding {@code <id>.txt} files. The models directory
- * holds the model files named below. The output directory must be empty or absent; it receives
- * {@code <annotator>/<model>/<set>/<id>.golden} for each annotator and input, written in sorted
- * order of their paths. The commit is the 40 hex digit commit the OpenNLP runtime was built from,
- * which the jar does not record itself.</p>
+ * <p>Usage: {@code <inputs dir> <models dir> <out dir> <opennlp commit> [--dumps]}. The inputs
+ * directory holds one directory per input set, each holding {@code <id>.txt} files. The models
+ * directory holds the model files named below. The output directory must be empty or absent; it
+ * receives {@code <annotator>/<model>/<set>/<id>.golden} for each annotator and input, and with
+ * {@code --dumps} {@code <annotator>/<model>/<set>/<id>.dump} beside it, written in sorted order
+ * of their paths. The commit is the 40 hex digit commit the OpenNLP runtime was built from, which
+ * the jar does not record itself.</p>
+ *
+ * <p>A dump comes from a second instance of the annotator built over a recording model
+ * ({@link AnnotatorDump}). The layers that instance produces must equal the golden byte for byte,
+ * so a dump is only written when recording changed nothing the annotator computed.</p>
  */
 public final class Main {
 
@@ -26,11 +32,16 @@ public final class Main {
   static final String TOKEN_MODEL = "opennlp-en-ud-ewt-tokens-1.3-2.5.4.bin";
   static final String LANGUAGE_MODEL = "langdetect-183.bin";
 
+  /** The option that adds the decision point dumps. */
+  static final String DUMPS_OPTION = "--dumps";
+
   private Main() {}
 
   public static void main(String[] args) throws IOException {
-    if (args.length != 4) {
-      System.err.println("usage: turbo-goldens-java <inputs dir> <models dir> <out dir> <opennlp commit>");
+    boolean dumps = args.length == 5 && args[4].equals(DUMPS_OPTION);
+    if (args.length != 4 && !dumps) {
+      System.err.println("usage: turbo-goldens-java <inputs dir> <models dir> <out dir> <opennlp commit> ["
+          + DUMPS_OPTION + "]");
       System.exit(2);
     }
     Path inputs = Path.of(args[0]);
@@ -42,22 +53,43 @@ public final class Main {
     }
     Jdk jdk = Jdk.current();
     String version = OpennlpVersion.read();
-    List<AnnotatorGolden> annotators = List.of(
-        SentenceGolden.load(models.resolve(SENTENCE_MODEL)),
-        TokenGolden.load(models.resolve(TOKEN_MODEL)),
-        LanguageGolden.load(models.resolve(LANGUAGE_MODEL)));
+    SentenceGolden sentences = SentenceGolden.load(models.resolve(SENTENCE_MODEL));
+    TokenGolden tokens = TokenGolden.load(models.resolve(TOKEN_MODEL));
+    LanguageGolden languages = LanguageGolden.load(models.resolve(LANGUAGE_MODEL));
+    List<AnnotatorGolden> annotators = List.of(sentences, tokens, languages);
+    List<AnnotatorDump> recorders = dumps
+        ? List.of(SentenceDump.of(sentences), TokenDump.of(tokens), LanguageDump.of(languages))
+        : List.of();
 
     Map<Path, byte[]> files = new TreeMap<>();
     for (Input input : readInputs(inputs)) {
       for (AnnotatorGolden a : annotators) {
-        Header h = new Header(commit, version, jdk, input.inputId(), input.bytes().length,
-            input.text().length(), Sha.sha256(input.bytes()), a.models(), a.annotatorClass(), a.method());
-        Path rel = Path.of(a.annotator(), a.modelDir(), input.set(), input.id() + ".golden");
-        files.put(rel, GoldenWriter.write(h, a.layers(input)));
+        files.put(path(a, input, ".golden"), GoldenWriter.write(header(commit, version, jdk, input, a), a.layers(input)));
+      }
+      for (AnnotatorDump d : recorders) {
+        AnnotatorGolden a = d.golden();
+        Header h = header(commit, version, jdk, input, a);
+        AnnotatorDump.Run run = d.run(input);
+        Path golden = path(a, input, ".golden");
+        if (!Arrays.equals(files.get(golden), GoldenWriter.write(h, run.layers()))) {
+          throw new IllegalStateException(golden + ": the annotator over the recording model produced other layers"
+              + " than the plain one");
+        }
+        files.put(path(a, input, ".dump"), DumpWriter.write(h, run.outcomeLabels(), run.points()));
       }
     }
     write(out, files);
-    System.out.println("wrote " + files.size() + " goldens to " + out);
+    System.out.println("wrote " + files.size() + " files to " + out);
+  }
+
+  private static Header header(String commit, String version, Jdk jdk, Input input, AnnotatorGolden a) {
+    return new Header(commit, version, jdk, input.inputId(), input.bytes().length, input.text().length(),
+        Sha.sha256(input.bytes()), a.models(), a.annotatorClass(), a.method());
+  }
+
+  /** {@code <annotator>/<model>/<set>/<id><extension>}. */
+  static Path path(AnnotatorGolden a, Input input, String extension) {
+    return Path.of(a.annotator(), a.modelDir(), input.set(), input.id() + extension);
   }
 
   /** Every {@code <set>/<id>.txt} under {@code dir}, sets and ids in sorted order. */

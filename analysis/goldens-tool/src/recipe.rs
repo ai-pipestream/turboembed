@@ -51,6 +51,12 @@ pub const MODELS: [Model; 3] = [
 /// The input sets under `analysis/goldens/data/inputs`.
 pub const INPUT_SETS: [&str; 2] = ["en", "multi"];
 
+/// The arguments the driver passes to the generator after the fixed ones
+/// (the inputs, models and output directories and the commit, which the
+/// container's entrypoint supplies). `--dumps` makes it write a decision
+/// point dump beside every golden, so every `generate` makes both.
+pub const GENERATOR_ARGS: [&str; 1] = ["--dumps"];
+
 /// The annotator directories the generator writes, which `generate`
 /// replaces and `verify` compares. The data directory holds other things
 /// (the inputs, a README) that neither touches.
@@ -100,6 +106,16 @@ mod tests {
         for m in MODELS {
             assert!(main.contains(&format!("\"{}\"", m.file)), "Main.java does not name {}", m.file);
         }
+    }
+
+    #[test]
+    fn the_generator_and_the_entrypoint_take_the_generator_args() {
+        let main = include_str!("../java/src/main/java/ai/pipestream/turbo/goldens/Main.java");
+        for arg in GENERATOR_ARGS {
+            assert!(main.contains(&format!("\"{arg}\"")), "Main.java does not take {arg}");
+        }
+        let dockerfile = include_str!("../container/Dockerfile");
+        assert!(dockerfile.contains("\"$(cat /opennlp.commit)\" \"$@\""), "the entrypoint drops its arguments");
     }
 
     #[test]

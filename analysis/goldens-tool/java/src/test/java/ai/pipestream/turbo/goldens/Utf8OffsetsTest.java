@@ -52,4 +52,18 @@ class Utf8OffsetsTest {
     assertThrows(IllegalArgumentException.class, () -> o.span(1, 4));
     assertThrows(IllegalArgumentException.class, () -> o.span(2, 1));
   }
+
+  @Test
+  void aPositionBetweenTheHalvesOfAPairIsItsCodePointWithUnitOne() {
+    // a (1 byte), e acute (2 bytes), the emoji (4 bytes, UTF-16 indices 2 and 3), b.
+    Utf8Offsets o = new Utf8Offsets("t/p", "aé😀b");
+    assertEquals(new Utf8Offsets.Position(0, 0), o.position(0));
+    assertEquals(new Utf8Offsets.Position(1, 0), o.position(1));
+    assertEquals(new Utf8Offsets.Position(3, 0), o.position(2));
+    assertEquals(new Utf8Offsets.Position(3, 1), o.position(3));
+    assertEquals(new Utf8Offsets.Position(7, 0), o.position(4));
+    assertEquals(new Utf8Offsets.Position(8, 0), o.position(5));
+    assertThrows(IllegalArgumentException.class, () -> o.position(6));
+    assertThrows(IllegalArgumentException.class, () -> o.position(-1));
+  }
 }

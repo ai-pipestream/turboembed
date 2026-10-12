@@ -1,5 +1,8 @@
 package ai.pipestream.turbo.goldens;
 
+import java.nio.CharBuffer;
+import java.nio.charset.CharacterCodingException;
+import java.nio.charset.CodingErrorAction;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Locale;
@@ -28,6 +31,18 @@ final class GoldenWriter {
     }
     StringBuilder out = new StringBuilder();
     out.append("golden ").append(FORMAT_VERSION).append('\n');
+    header(out, h);
+    for (Layer layer : layers) {
+      layer(out, layer);
+    }
+    return utf8(out);
+  }
+
+  /**
+   * Appends the header records that follow the first line, from {@code generator} to
+   * {@code annotator}. A golden and a decision point dump (see {@link DumpWriter}) share them.
+   */
+  static void header(StringBuilder out, Header h) {
     line(out, "generator", GENERATOR, Integer.toString(GENERATOR_VERSION));
     line(out, "opennlp", h.opennlpCommit(), escape(h.opennlpVersion()));
     line(out, "jdk", escape(h.jdk().javaVersion()), escape(h.jdk().vmVersion()), escape(h.jdk().vendor()));
@@ -37,10 +52,6 @@ final class GoldenWriter {
       line(out, "model", escape(m.fileName()), m.sha512());
     }
     line(out, "annotator", escape(h.annotatorClass()), escape(h.method()));
-    for (Layer layer : layers) {
-      layer(out, layer);
-    }
-    return out.toString().getBytes(StandardCharsets.UTF_8);
   }
 
   private static void layer(StringBuilder out, Layer layer) {
@@ -70,8 +81,24 @@ final class GoldenWriter {
     };
   }
 
-  private static void line(StringBuilder out, String... fields) {
+  static void line(StringBuilder out, String... fields) {
     out.append(String.join("\t", fields)).append('\n');
+  }
+
+  /**
+   * Encodes the text as UTF-8, failing on anything without a UTF-8 form instead of writing a
+   * replacement character. After {@link #escape} nothing such is left, so a failure is a bug.
+   */
+  static byte[] utf8(CharSequence text) {
+    try {
+      var bytes = StandardCharsets.UTF_8.newEncoder().onMalformedInput(CodingErrorAction.REPORT)
+          .onUnmappableCharacter(CodingErrorAction.REPORT).encode(CharBuffer.wrap(text));
+      byte[] out = new byte[bytes.remaining()];
+      bytes.get(out);
+      return out;
+    } catch (CharacterCodingException e) {
+      throw new IllegalStateException("text without a UTF-8 form", e);
+    }
   }
 
   /** A {@code u32} cell: decimal, no sign, no leading zeros. */
@@ -94,7 +121,10 @@ final class GoldenWriter {
   /**
    * A {@code str} cell: {@code \t}, {@code \n}, {@code \r} and {@code \\} as those two
    * characters, any other character below U+0020 as {@code \}{@code uXXXX} with four lowercase
-   * hex digits, and everything else as it is.
+   * hex digits, and everything else as it is. A surrogate that is not half of a pair has no UTF-8
+   * form, so it is written as {@code \}{@code uXXXX} too rather than being replaced on encoding;
+   * the n-grams of the language detector and the contexts of the tokenizer are cut at UTF-16
+   * units and hold such halves.
    */
   static String escape(String s) {
     StringBuilder b = null;
@@ -105,7 +135,7 @@ final class GoldenWriter {
         case '\n' -> "\\n";
         case '\r' -> "\\r";
         case '\\' -> "\\\\";
-        default -> c < 0x20 ? String.format(Locale.ROOT, "\\u%04x", (int) c) : null;
+        default -> c < 0x20 || isLoneSurrogate(s, i) ? String.format(Locale.ROOT, "\\u%04x", (int) c) : null;
       };
       if (rep != null && b == null) {
         b = new StringBuilder(s.length() + 8).append(s, 0, i);
@@ -119,5 +149,17 @@ final class GoldenWriter {
       }
     }
     return b == null ? s : b.toString();
+  }
+
+  /** Whether the unit at {@code i} is a surrogate that does not form a pair with its neighbour. */
+  private static boolean isLoneSurrogate(String s, int i) {
+    char c = s.charAt(i);
+    if (Character.isHighSurrogate(c)) {
+      return i + 1 >= s.length() || !Character.isLowSurrogate(s.charAt(i + 1));
+    }
+    if (Character.isLowSurrogate(c)) {
+      return i == 0 || !Character.isHighSurrogate(s.charAt(i - 1));
+    }
+    return false;
   }
 }

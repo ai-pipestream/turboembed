@@ -3,9 +3,10 @@
 //! Each shared layer type with a golden shape implements `GoldenCompare`:
 //! it names the columns its golden has and lays its own columns and the
 //! golden's side by side as `Items`, which one loop compares item by item
-//! (span first, then token range, label and value), stopping at the first
-//! difference. The layer's id and anchor come from its `Layer` impl, so a
-//! golden is matched to a type by the same id the document uses.
+//! (span first, then token range, UTF-16 span and cut, label and value),
+//! stopping at the first difference. The layer's id and anchor come from
+//! its `Layer` impl, so a golden is matched to a type by the same id the
+//! document uses.
 
 mod items;
 mod layers;
@@ -16,7 +17,7 @@ use std::fmt;
 
 use turbo_analysis::{Anchor, Document, Key, KeyId, Layer, Status};
 
-pub use items::{Items, Labels, Names, SpanCols, TokenCols, compare_items};
+pub use items::{CutCol, Items, Labels, Names, SpanCols, TokenCols, UnitCols, compare_items};
 pub use mismatch::{Item, Mismatch};
 
 use crate::format::{ColumnSpec, Golden, GoldenAnchor, GoldenLayer};
@@ -138,16 +139,22 @@ pub fn shape_of<L: GoldenCompare>() -> Shape {
     Shape { id: L::NAME.to_string(), anchor: L::golden_anchor(), columns: L::COLUMNS }
 }
 
-/// The shapes of every layer type a golden file may hold, which the reader
-/// checks each layer block against.
+/// The shapes of the layer types of turbo-analysis and
+/// turbo-analysis-layers that have one: what `Golden::read` checks each
+/// layer block against. A layer type from another crate is not here; that
+/// crate implements `GoldenCompare` for it and reads its goldens with
+/// `Golden::read_with`, passing this set with `shape_of::<ItsLayer>()`
+/// added.
 pub fn known_shapes() -> Vec<Shape> {
     use turbo_analysis::View;
-    use turbo_analysis_layers::{Confidence, Entities, Language, Lemmas, PosTags, Sentences, Tokens};
+    use turbo_analysis_layers::{Confidence, Entities, Language, Lemmas, PosTags, Sentences, Tokens, Utf16Spans};
     vec![
         shape_of::<Sentences>(),
         shape_of::<Confidence<Sentences>>(),
+        shape_of::<Utf16Spans<Sentences>>(),
         shape_of::<Tokens>(),
         shape_of::<Confidence<Tokens>>(),
+        shape_of::<Utf16Spans<Tokens>>(),
         shape_of::<PosTags>(),
         shape_of::<Lemmas>(),
         shape_of::<Entities>(),
@@ -157,7 +164,8 @@ pub fn known_shapes() -> Vec<Shape> {
 }
 
 /// Compares the default instance of layer `L` on `doc` with its layer in
-/// `golden`: the first difference, or `Ok`.
+/// `golden`: the first difference, or `Ok`. A golden for a run that threw
+/// on the JVM has no layers and gives `Mismatch::JvmError`.
 pub fn matches_golden<L: GoldenCompare>(doc: &Document, golden: &Golden, tol: Tolerance) -> Result<(), Mismatch> {
     matches_golden_key(doc, &Key::<L>::DEFAULT, golden, tol)
 }
@@ -171,17 +179,18 @@ pub fn matches_golden_key<L: GoldenCompare>(
 ) -> Result<(), Mismatch> {
     let shape = shape_of::<L>();
     let layer = key.id().to_string();
-    let input = &golden.header.input;
-    let text = doc.source().as_bytes();
-    let digest = sha256(text);
-    if text.len() != input.utf8_len as usize || digest != input.sha256 {
+    if let Err(found) = check_input(golden, doc.source()) {
+        let input = &golden.header.input;
         return Err(Mismatch::Input {
             layer,
             expected_len: input.utf8_len,
-            found_len: text.len(),
+            found_len: found.len,
             expected_sha256: input.sha256,
-            found_sha256: digest,
+            found_sha256: found.sha256,
         });
+    }
+    if let Some(e) = &golden.header.error {
+        return Err(Mismatch::JvmError { layer, class: e.class.clone(), message: e.message.clone() });
     }
     let Some(g) = golden.layer(&shape.id) else {
         return Err(Mismatch::MissingGolden { layer, available: golden.layers.iter().map(|l| l.id.clone()).collect() });
@@ -197,6 +206,25 @@ pub fn matches_golden_key<L: GoldenCompare>(
     };
     let cx = Cx { doc, key: key.id(), golden, layer };
     rust.compare(&cx, g, tol)
+}
+
+/// A text's length in UTF-8 bytes and its SHA-256: what `check_input`
+/// found when the text is not the golden's input.
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+pub struct InputFound {
+    pub len: usize,
+    pub sha256: [u8; 32],
+}
+
+/// Checks that `text` is the golden's input, by its length in UTF-8 bytes
+/// and its SHA-256, and returns what the text has when it is not.
+pub fn check_input(golden: &Golden, text: &str) -> Result<(), InputFound> {
+    let input = &golden.header.input;
+    let digest = sha256(text.as_bytes());
+    if text.len() != input.utf8_len as usize || digest != input.sha256 {
+        return Err(InputFound { len: text.len(), sha256: digest });
+    }
+    Ok(())
 }
 
 /// Checks a golden layer's anchor and columns against the type's.
@@ -280,8 +308,10 @@ mod tests {
             [
                 "opennlp:sentences",
                 "turbo:confidence<opennlp:sentences>",
+                "turbo:utf16<opennlp:sentences>",
                 "opennlp:tokens",
                 "turbo:confidence<opennlp:tokens>",
+                "turbo:utf16<opennlp:tokens>",
                 "opennlp:pos",
                 "opennlp:lemmas",
                 "opennlp:entities",
