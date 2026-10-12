@@ -207,6 +207,48 @@ fn digit(c: char) -> Option<u32> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::zip::stored_archive;
+
+    /// The error opening a model file whose only entry is a manifest with
+    /// this text gives, as a string.
+    fn manifest_error(manifest: &str) -> String {
+        let z = stored_archive(MANIFEST_ENTRY, manifest.as_bytes(), b"", b"");
+        ModelFile::open(z).unwrap_err().to_string()
+    }
+
+    #[test]
+    fn a_complete_manifest_opens() {
+        let z = stored_archive(MANIFEST_ENTRY, b"OpenNLP-Version=+3.0.0\nComponent-Name=X\nLanguage=en\n", b"", b"");
+        let file = ModelFile::open(z).unwrap();
+        assert_eq!(file.opennlp_version(), "+3.0.0");
+        assert_eq!(file.component_name(), "X");
+        assert_eq!(file.language(), "en");
+    }
+
+    #[test]
+    fn manifest_errors() {
+        let z = stored_archive("token.model", b"", b"", b"");
+        assert_eq!(ModelFile::open(z).unwrap_err().to_string(), "the archive has no entry \"manifest.properties\"");
+        assert_eq!(manifest_error("Component-Name=X\nLanguage=en\n"), "manifest property OpenNLP-Version: missing");
+        assert_eq!(manifest_error("OpenNLP-Version=2.5.4\nLanguage=en\n"), "manifest property Component-Name: missing");
+        assert_eq!(manifest_error("OpenNLP-Version=2.5.4\nComponent-Name=X\n"), "manifest property Language: missing");
+        assert_eq!(
+            manifest_error("OpenNLP-Version=2.5\nComponent-Name=X\nLanguage=en\n"),
+            "manifest property OpenNLP-Version: not a version of the form major.minor.patch"
+        );
+        assert_eq!(
+            manifest_error("OpenNLP-Version=1.2.3-rc.1\nComponent-Name=X\nLanguage=en\n"),
+            "manifest property OpenNLP-Version: not a version of the form major.minor.patch"
+        );
+        assert_eq!(
+            manifest_error("OpenNLP-Version=4.0.0\nComponent-Name=X\nLanguage=en\n"),
+            "manifest property OpenNLP-Version: only models of major version 0 to 3 are supported"
+        );
+        assert_eq!(
+            manifest_error("OpenNLP-Version=-1.0.0.0\nComponent-Name=X\nLanguage=en\n"),
+            "manifest property OpenNLP-Version: only models of major version 0 to 3 are supported"
+        );
+    }
 
     #[test]
     fn versions() {
