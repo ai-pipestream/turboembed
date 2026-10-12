@@ -268,7 +268,8 @@ mod tests {
     #[test]
     fn the_generator_names_the_same_input_sets() {
         let runs = include_str!("../java/src/main/java/ai/pipestream/turbo/goldens/Runs.java");
-        for set in INPUT_SETS.iter().filter(|s| ![NORMALIZER_INPUT_SET, NUMBER_INPUT_SET, MONEY_INPUT_SET].contains(s)) {
+        for set in INPUT_SETS.iter().filter(|s| ![NORMALIZER_INPUT_SET, NUMBER_INPUT_SET, MONEY_INPUT_SET].contains(s))
+        {
             assert!(runs.contains(&format!("= \"{set}\";")), "Runs.java does not name the input set {set}");
         }
     }
