@@ -341,7 +341,8 @@ fn create_session(m: &Arc<Model>, d: turbo_session_desc) -> Result<SessionInner>
         (None, None) => Some(backend::offered!(b, session_create)?),
         _ => None,
     };
-    let max_ranges = resolve_threads_and_ranges(b, open.is_some(), &d, max_batch, max_seq)?;
+    let ranges = backend::offered!(b, embed_write_ranges).is_ok();
+    let max_ranges = resolve_threads_and_ranges(b.name(), open.is_some(), ranges, &d, max_batch, max_seq)?;
     let release = backend::offered!(b, session_release)?;
     let run = backend::offered!(b, session_run)?;
     let cap = c.runtime.capability(c.device, mi.task, d.precision)?;
@@ -526,11 +527,14 @@ fn create_session(m: &Arc<Model>, d: turbo_session_desc) -> Result<SessionInner>
 /// against the session's shape. A backend without session_open is never
 /// handed cpu_threads or max_ranges, so for it the core refuses a value of
 /// either other than the one that backend works to anyway: 0 threads, and
-/// max_batch ranges. cpu_threads is passed on as given otherwise, for the
-/// backend to check.
+/// max_batch ranges. A backend with session_open but no embed_write_ranges
+/// pools no ranges, so a max_ranges other than max_batch is refused for it
+/// too, rather than sizing an output no range write can fill. cpu_threads
+/// is passed on as given otherwise, for the backend to check.
 fn resolve_threads_and_ranges(
-    b: &turbo_backend,
+    backend: &str,
     open: bool,
+    ranges: bool,
     d: &turbo_session_desc,
     max_batch: u32,
     max_seq: u32,
@@ -549,16 +553,15 @@ fn resolve_threads_and_ranges(
             6,
             format!(
                 "cpu_threads {}: the {} backend takes its thread count from the environment alone",
-                d.cpu_threads,
-                b.name()
+                d.cpu_threads, backend
             ),
         ));
     }
-    if !open && d.max_ranges != 0 && d.max_ranges != max_batch {
+    if !(open && ranges) && d.max_ranges != 0 && d.max_ranges != max_batch {
         return Err(Error::field(
             UNSUPPORTED_OPTION,
             7,
-            format!("max_ranges {}: the {} backend pools no ranges", d.max_ranges, b.name()),
+            format!("max_ranges {}: the {backend} backend pools no ranges", d.max_ranges),
         ));
     }
     Ok(if d.max_ranges == 0 { max_batch } else { d.max_ranges })
@@ -1409,6 +1412,40 @@ mod tests {
             pooling: 0,
             output_dim: 0,
         }
+    }
+
+    fn desc(cpu_threads: u32, max_ranges: u32) -> turbo_session_desc {
+        turbo_session_desc {
+            struct_size: size_of::<turbo_session_desc>() as u32,
+            max_batch: 0,
+            max_seq: 0,
+            precision: 0,
+            tuning: 0,
+            tuning_budget_ms: 0,
+            cpu_threads,
+            max_ranges,
+        }
+    }
+
+    #[test]
+    fn max_ranges_is_refused_where_no_range_write_is_offered() {
+        let resolve = |open, ranges, d: &turbo_session_desc| resolve_threads_and_ranges("x", open, ranges, d, 4, 8);
+        // Both functions: 0 is max_batch, anything up to max_batch * max_seq is taken.
+        assert_eq!(resolve(true, true, &desc(0, 0)).unwrap(), 4);
+        assert_eq!(resolve(true, true, &desc(0, 32)).unwrap(), 32);
+        let e = resolve(true, true, &desc(0, 33)).unwrap_err();
+        assert_eq!((e.code, e.field), (UNSUPPORTED_OPTION, 7));
+        // session_open alone, or neither: max_batch, given or as 0, and nothing else.
+        for open in [true, false] {
+            assert_eq!(resolve(open, false, &desc(0, 0)).unwrap(), 4);
+            assert_eq!(resolve(open, false, &desc(0, 4)).unwrap(), 4);
+            let e = resolve(open, false, &desc(0, 32)).unwrap_err();
+            assert_eq!((e.code, e.field), (UNSUPPORTED_OPTION, 7), "open {open}");
+        }
+        // cpu_threads goes to a backend with session_open, to check.
+        assert_eq!(resolve(true, false, &desc(3, 0)).unwrap(), 4);
+        let e = resolve(false, false, &desc(3, 0)).unwrap_err();
+        assert_eq!((e.code, e.field), (UNSUPPORTED_OPTION, 6));
     }
 
     #[test]

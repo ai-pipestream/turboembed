@@ -588,8 +588,9 @@ int32_t turbo_embed_write_tokens(turbo_session *s, const turbo_token_batch *batc
  * the encoder's final hidden states over the range's tokens whose mask is
  * 1, cut to output_dim and normalized as opts say, like a row's under
  * TURBO_POOLING_MEAN. That is the one pooling here: opts->pooling may be
- * 0 or TURBO_POOLING_MEAN, and any other value is TURBO_E_UNSUPPORTED_OPTION
- * naming field 5. A bundle pooled another way (turbo_model_info.pooling)
+ * 0 or TURBO_POOLING_MEAN, another TURBO_POOLING_* value is
+ * TURBO_E_UNSUPPORTED_OPTION naming field 5, and a value that is no
+ * TURBO_POOLING_* is TURBO_E_INVALID_ENUM, as everywhere. A bundle pooled another way (turbo_model_info.pooling)
  * is still pooled by the mean here; whether that suits its model is the
  * caller's to judge. Everything else in opts is as for
  * turbo_embed_write_tokens, which checks the rows the same way. A
