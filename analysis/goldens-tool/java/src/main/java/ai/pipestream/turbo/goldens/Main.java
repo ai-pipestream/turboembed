@@ -42,16 +42,21 @@ public final class Main {
     }
     Jdk jdk = Jdk.current();
     String version = OpennlpVersion.read();
-    List<AnnotatorGolden> annotators = List.of(
+    List<AnnotatorGolden> annotators = new ArrayList<>(List.of(
         SentenceGolden.load(models.resolve(SENTENCE_MODEL)),
         TokenGolden.load(models.resolve(TOKEN_MODEL)),
-        LanguageGolden.load(models.resolve(LANGUAGE_MODEL)));
+        LanguageGolden.load(models.resolve(LANGUAGE_MODEL))));
+    annotators.addAll(NormalizerGolden.all());
 
     Map<Path, byte[]> files = new TreeMap<>();
     for (Input input : readInputs(inputs)) {
       for (AnnotatorGolden a : annotators) {
+        if (!a.accepts(input)) {
+          continue;
+        }
         Header h = new Header(commit, version, jdk, input.inputId(), input.bytes().length,
-            input.text().length(), Sha.sha256(input.bytes()), a.models(), a.annotatorClass(), a.method());
+            input.text().length(), Sha.sha256(input.bytes()), a.models(), a.annotatorClass(), a.method(),
+            a.config());
         Path rel = Path.of(a.annotator(), a.modelDir(), input.set(), input.id() + ".golden");
         files.put(rel, GoldenWriter.write(h, a.layers(input)));
       }

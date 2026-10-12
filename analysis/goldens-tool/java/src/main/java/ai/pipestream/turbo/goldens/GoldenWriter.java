@@ -3,6 +3,7 @@ package ai.pipestream.turbo.goldens;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 
 /**
  * Writes a golden file byte for byte as the format says: UTF-8, LF line ends, one tab between
@@ -37,6 +38,9 @@ final class GoldenWriter {
       line(out, "model", escape(m.fileName()), m.sha512());
     }
     line(out, "annotator", escape(h.annotatorClass()), escape(h.method()));
+    for (Map.Entry<String, String> e : h.config().entrySet()) {
+      line(out, "config", escape(e.getKey()), escape(e.getValue()));
+    }
     for (Layer layer : layers) {
       layer(out, layer);
     }
