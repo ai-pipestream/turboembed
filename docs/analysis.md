@@ -259,6 +259,143 @@ the generator directly under the JDK named in their headers; the
 container run is to be proven on a machine with Docker.
 `analysis/goldens-tool/README.md` has the commands.
 
+## Decision point dumps
+
+Beside each golden, `<annotator>/<model>/<set>/<id>.dump` records every
+decision the annotator asked its maxent model for on that input: the
+context strings the context generator produced and the probability of
+each outcome that `eval` returned. A Rust context generator and the
+Rust maxent and perceptron evaluation can be checked against it one
+decision at a time, before a whole annotator's golden lines up. The
+generator writes them for `SentenceDetectorME`, `TokenizerME` and
+`LanguageDetectorME`.
+
+### The format
+
+UTF-8 text, LF line ends, fields separated by one tab, and a line end at
+the end of the file, as in a golden. The cells have the golden format's
+types: `u32` (decimal, no sign, no leading zeros), `f64` (the 16
+lowercase hex digits of the raw IEEE 754 bits, a space, then
+`Double.toString`, for example `3fe0000000000000 0.5`) and `str`.
+
+```
+dump 1
+generator	turbo-goldens-java	1
+opennlp	<40 hex commit>	<maven version>
+jdk	<java.version>	<java.vm.version>	<java.vendor>
+unicode	<Unicode version>
+input	<set>/<id>	<length in UTF-8 bytes>	<length in UTF-16 units>	<sha256 hex>
+model	<file name>	<sha512 hex>
+annotator	<fully qualified Java class>	<method name>
+point	<index u32>	<position u32>	<contexts u32>	<outcomes u32>	<unit u32>	<values>
+context	<str>
+...
+outcome	<label str>	<f64>
+...
+end	<index u32>
+point	...
+```
+
+- The first line is exactly `dump 1`; the `1` is the format version.
+- The header records are the ones the golden at the same path has, with
+  the same values: the same `generator`, `opennlp`, `jdk`, `unicode` and
+  `input` lines, one `model` line per model loaded, and the same
+  `annotator` class and method.
+- Then one block per `eval` call, in the order the annotator made them,
+  numbered from 0. A dump with no decision points (a text without an
+  end of sentence character) is its header alone.
+- `position` is the UTF-8 byte offset into the input that the decision is
+  about, or 0 for a decision about the whole document. For the sentence
+  detector it is the offset of the end of sentence character the scanner
+  found (the `position` argument of `SDContextGenerator.getContext`); for
+  the tokenizer it is the offset of the character a split would go before,
+  inside a whitespace separated token; for the language detector it is 0.
+- `unit` is 0 when the UTF-16 index OpenNLP decided at starts a code
+  point, and 1 when it lies between the two halves of a surrogate pair.
+  The tokenizer walks UTF-16 units, so it asks about such positions inside
+  an emoji or any other character outside the Basic Multilingual Plane;
+  `position` is then the byte offset of that pair's code point. The two
+  fields together name every decision exactly without a UTF-16 offset in
+  the file.
+- `contexts` lines follow, `context	<str>`, in the order the model received
+  them. `values` is `none` when the annotator called `eval(String[])`, and
+  `given` when it called `eval(String[], float[])`; each context line then
+  has a third field, the context's feature value widened to `f64`.
+- `outcomes` lines follow, `outcome	<label>	<f64>`, one per outcome of the
+  model in its outcome index order (`getOutcome(0)`, `getOutcome(1)`,
+  ...), with the probability `eval` returned for it.
+- `end	<index>` closes the block; the index must match.
+
+The `str` escapes are the golden format's: `\t`, `\n`, `\r`, `\\`, and
+`\uXXXX` (four lowercase hex digits, one UTF-16 unit) for any other
+character below U+0020. A surrogate that is not half of a pair is
+written as `\uXXXX` as well, because it has no UTF-8 form. The language
+detector's n-grams and the tokenizer's contexts are cut at UTF-16 units
+and hold such halves (the language detector dump of `multi/mixed` and the
+tokenizer dumps of `en/emoji` and `multi/mixed` have them); a reader that
+decodes into Rust strings has to keep such a field as UTF-16 units or as
+its escaped text. The generator writes goldens through the same escape,
+and its UTF-8 encoder fails rather than writing a replacement character.
+
+### How the decisions are captured
+
+The generator builds a second instance of each annotator over a
+recording model. `MaxentRecorder` wraps the loaded maxent model, forwards
+every call to it and records each `eval` call: copies of the context
+array, of the feature values when there are any, and of the returned
+probabilities (the annotators and models reuse their buffers). It extends
+OpenNLP's `AbstractModel` rather than only implementing `MaxentModel`,
+because `TokenizerModel` and `LanguageDetectorModel` refuse a maxent model
+that is not an `AbstractModel`. It is built over the loaded model's own
+parameters, predicate map and outcome names, so the methods
+`AbstractModel` makes final (`getBestOutcome`, `getAllOutcomes`,
+`getOutcome`) answer exactly as the loaded model's would.
+
+The recording models are made with the constructors that take a maxent
+model: `SentenceModel(String, MaxentModel, Map, SentenceDetectorFactory)`,
+`TokenizerModel(MaxentModel, Map, TokenizerFactory)` and
+`LanguageDetectorModel(MaxentModel, Map, LanguageDetectorFactory)`. The
+map is every manifest entry of the loaded model except `factory`, so the
+language, versions, timestamp, training entries and factory settings are
+the loaded model's; the generator checks that the recording model's
+manifest equals the loaded one's in every entry but `factory`, and that
+the loaded model's factory is exactly OpenNLP's default factory class.
+A model constructor writes the factory's class name into the manifest
+and makes its own factory instance from it through OpenNLP's
+`ExtensionLoader`, so the recording factories are public classes in the
+generator's package, which the generator registers with
+`ExtensionLoader.registerAllowedPackage`.
+
+How a decision's position is found, per annotator:
+
+| Annotator | Approach | Why |
+|---|---|---|
+| `SentenceDetectorME.sentPosDetect` | The context generator is wrapped (`RecordingSentenceDetectorFactory`). Each `getContext(text, position)` call is reported to the recorder with the array it returned; the next `eval` must receive that very array, and the point takes its `position`. | The detector skips a candidate when it lies before the last accepted sentence start, which depends on earlier decisions, so the candidates cannot be listed from outside without re-implementing the loop. |
+| `TokenizerME.tokenizePos` | The context generator is wrapped (`RecordingTokenizerFactory`) as above. It sees only one whitespace token (a new substring per token) and a UTF-16 index into it, so the requests of one token are grouped by that substring's identity, and each group is paired with the next span of `WhitespaceTokenizer` (without kept line breaks, the tokenizer's default) whose text equals the token. The position is the span's start plus the index. | After an accepted split at an abbreviation the tokenizer jumps over the abbreviation's dots, which depends on the decision, so the candidates cannot be listed from outside. Whether a whitespace token is evaluated at all depends on its text alone (its length and the alphanumeric pattern), so a skipped span can never have the text of an evaluated one; the generator checks this and fails otherwise. |
+| `LanguageDetectorME.predictLanguages` | No context generator is wrapped. The detector makes exactly one `eval(String[], float[])` call per document (checked), and the point has position 0. | There is nothing to pair. The contexts are the distinct n-grams of the normalized text in the iteration order of the `HashMap` the detector counts them in (keyed by `CharBuffer`, whose hash depends only on the characters, so the order is the same on every run of one JDK), and every value is 1: the detector does not pass the counts (OPENNLP-1261 in its source). |
+
+Nothing in a dump is inferred: every context, value and probability is
+what `eval` received or returned, and every position is what the
+annotator passed to its context generator. The layers the recording
+annotator produces are written as a golden and compared byte for byte
+with the plain annotator's golden for the same input; the generator
+fails if they differ, so a dump is only written when recording changed
+nothing the annotator computed.
+
+### Making them
+
+`Main` writes the dumps when given `--dumps` after its four arguments.
+The driver always passes it (`GENERATOR_ARGS` in
+`analysis/goldens-tool/src/recipe.rs`, forwarded by the container's
+entrypoint), so `turbo-goldens generate` writes and installs goldens and
+dumps together, and `turbo-goldens verify` compares both byte for byte.
+`verify` and `generate` also check, at the header level only, that every
+golden has a dump beside it, that every dump has a golden, and that each
+dump's header parses and names the input and model of its path. The
+checked in dumps were made by running the generator directly under the
+JDK named in their headers, as the goldens were; the container run is to
+be proven on a machine with Docker.
+
 ## Tests
 
 `cargo test -p turbo-analysis -p turbo-analysis-layers -p turbo-chunker`
