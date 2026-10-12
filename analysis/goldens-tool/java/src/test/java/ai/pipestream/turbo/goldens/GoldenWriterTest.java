@@ -3,6 +3,7 @@ package ai.pipestream.turbo.goldens;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.nio.charset.StandardCharsets;
 import java.util.List;
@@ -64,6 +65,17 @@ class GoldenWriterTest {
         end\topennlp:language
         """;
     assertEquals(expected, new String(GoldenWriter.write(h, layers), StandardCharsets.UTF_8));
+  }
+
+  @Test
+  void configRecordsAreWrittenSortedByKeyAfterTheAnnotator() {
+    Header h = new Header("92d486d05151ef00b6d145c405046aa3a33b5a48", "3.0.0-SNAPSHOT",
+        new Jdk("21.0.1", "21.0.1+12", "Vendor", "15.0"), "norm/x", 1, 1, "ab", List.of(), "a.B", "run",
+        java.util.Map.of("z", "1", "a", "t\tab"));
+    String file = new String(GoldenWriter.write(h, List.of(new Layer("turbo:view", "text",
+        new Column.U32("start", new long[0]), new Column.U32("end", new long[0]), new Column.Str("with", new String[0])))),
+        StandardCharsets.UTF_8);
+    assertTrue(file.contains("annotator\ta.B\trun\nconfig\ta\tt\\tab\nconfig\tz\t1\nlayer\t"), file);
   }
 
   @Test
