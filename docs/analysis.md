@@ -18,7 +18,7 @@ nothing here is in the C header or the gRPC server.
 |---|---|---|
 | `turbo-analysis` | `analysis/core/` | The document, views, offset tables, layers, keys, provenance, annotators, the analyzer and the registry |
 | `turbo-analysis-layers` | `analysis/layers/` | The layers add-ons share (below) |
-| `turbo-chunker` | `analysis/chunker/` | The chunker |
+| `turbo-chunker` | `analysis/chunker/` | The chunker, and term statistics and BM25 per chunk, section and document |
 | `turbo-analysis-embed` | `analysis/embed/` | The embedding model as analysis steps: the subwords of a text view from the bundle's tokenizer, and a vector per sentence and per chunk |
 | `turbo-jvm` | `analysis/jvm/` | JVM behaviour the OpenNLP ports must reproduce bit for bit |
 | `turbo-goldens` | `analysis/goldens/` | Golden layer files from the JVM: the reader, the writer, the comparison, loading golden layers as test inputs, SHA-256 and SHA-512 |
@@ -273,6 +273,9 @@ fields mean bumps its `SCHEMA`.
 | `Confidence<L>` | `turbo:confidence<L>` | `L` | `turbo-analysis-layers` |
 | `Utf16Spans<L>` | `turbo:utf16<L>` | `L` | `turbo-analysis-layers` |
 | `Language` | `opennlp:language` | the document | `turbo-analysis-layers` |
+| `Vocabulary` | `turbo:vocabulary` | the document | `turbo-chunker` |
+| `Terms` | `turbo:terms` | tokens | `turbo-chunker` |
+| `TermStats<L>` | `turbo:term-stats<L>` | `L` | `turbo-chunker` |
 
 `Chunks` are retrieval chunks. The standard's `opennlp:chunks` are
 phrase chunks (noun and verb groups), a different layer, which a phrase
@@ -510,6 +513,70 @@ section becomes a chunk one level up, the parent of the chunks cut
 from it. Every chunk records its level, its parent, its sentences, why
 it starts where it does, what it cost the optimizer and its length in
 model tokens.
+
+## Term statistics and BM25
+
+`turbo_chunker::terms` counts terms per retrieval unit for lexical
+search, from the word tokens alone: no model and no vectors, so a BM25
+baseline can be measured before any vector exists.
+
+`TermIndexer` reads a text view and the tokens and writes the document's
+`Vocabulary` and a term for each token (`Terms`, aligned to the tokens).
+A term is the token's text in the view read, byte for byte: nothing is
+lowercased here. To match without case, read a case folded view
+(`NormalizeStep::new(CaseFold::full())` bound to write `folded`, and the
+indexer bound with `.read(0, "folded")`); the tokens can stay on the
+source, since a token's span is mapped through the folded view's
+alignment to its parent. A view further down a chain than that is
+refused. A token with no letter or digit (a period) is not a term and
+counts toward no length, as Lucene's standard tokenizer drops
+punctuation. The vocabulary is in byte order, each term once, so a
+term's id depends only on which terms the document holds, and a lookup
+is a binary search.
+
+`TermCounter<L>` reads the tokens, their terms, the vocabulary and the
+units of one level, and writes `TermStats<L>`, aligned to the units:
+
+- `TermCounter<Chunks>`: a row per chunk, at every level of the chunk
+  hierarchy;
+- `TermCounter<Structure>`: a row per structure block; the sections are
+  the blocks of kind `Section`, and a nested section's terms count in it
+  and in every section around it;
+- `TermCounter<View>`: one row for the whole document.
+
+A token is in the unit its start is in. Each row is sparse: the unit's
+term ids in ascending order with a count for each, by column, with
+offsets per unit. The layer also holds each unit's length in terms and,
+per term, how many of the level's units hold it (`df`). That df is
+within one document; it is not the corpus document frequency BM25's idf
+is defined over.
+
+`Query` scores units with BM25 in Lucene's form (`BM25Similarity`,
+`Bm25::LUCENE`: k1 = 1.2, b = 0.75):
+
+```text
+score = sum over query terms t of idf(t) * tf / (tf + k1 * (1 - b + b * length / mean_length))
+idf(t) = ln(1 + (N - n(t) + 0.5) / (n(t) + 0.5))
+```
+
+The classic `(k1 + 1)` factor is left out, as Lucene has since version
+8; it scales every score alike and leaves the ranking unchanged. N, the
+mean length and n(t) are the collection's, and the caller supplies them
+through `Collection`: from an index over the corpus for corpus search.
+`LocalCollection` gives one document's own units as the collection (all
+of a level's units, or those a filter keeps, such as the sections or
+the chunks of one level), for ranking a document's chunks against each
+other. As in Lucene, a unit with no terms is not counted in N or the
+mean length. Lengths here are exact, where Lucene stores a length in
+one byte, exactly only for short units, so Lucene's scores for long
+units can differ slightly. Query terms are matched byte for byte and
+must be normalized as the document's terms were; a term given twice
+counts twice. `Query::rank` lists the units holding a query term, best
+first, equal scores in unit order.
+
+The layers live in `turbo-chunker` beside the code that makes them while
+only it reads them; they move to a schema crate of their own once
+another crate does.
 
 ## Golden files
 
@@ -993,6 +1060,15 @@ runs them on any machine:
   that are never crossed, and a paragraph break's token counted inside
   a chunk. The chunker's unit tests hold the optimizer against filling
   each chunk to the budget.
+- `analysis/chunker/tests/terms.rs` runs the term steps on hand-made
+  tokens, structure and chunks, with the terms read from a case folded
+  view: the vocabulary, a row per chunk, block and document with its
+  lengths and df, BM25 scores against a plain textbook BM25 written in
+  the test for four settings of k1 and b, Lucene's idf, an idf from a
+  caller's corpus statistics against the document's own, ranking ties,
+  full case folding that changes bytes, a token a unit cuts, units in
+  another view and a view too far from the tokens. The unit tests hold
+  the interning, the sparse rows and the layer's checks.
 - `analysis/embed/tests/subwords.rs` runs the subwords annotator on the
   small BERT's WordPiece bundle, a byte-level BPE bundle and BGE-M3's
   Unigram, over the tokenizer test texts, and checks that the document
@@ -1087,5 +1163,6 @@ runs them on any machine:
   golden inputs; the WordPiece pieces are compared with upstream
   `tokenizers` for now.
 - The evaluation harness that every change to the chunker is measured
-  with.
+  with. It is also where the BM25 only baseline is to be reported,
+  from the term statistics above.
 - A gRPC surface, to be shared with the OpenNLP standard.
