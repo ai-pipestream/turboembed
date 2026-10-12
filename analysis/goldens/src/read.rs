@@ -33,6 +33,8 @@ pub enum GoldenError {
     NoFinalLineEnd { line: usize },
     /// The first line is not `golden 1`.
     Version { line: usize, found: String },
+    /// The first line of a decision point dump is not `dump 1`.
+    DumpVersion { line: usize, found: String },
     /// The file ends where a line was expected.
     Eof { line: usize, expected: String },
     /// A line that is not the record expected there.
@@ -84,6 +86,9 @@ impl fmt::Display for GoldenError {
             }
             NoFinalLineEnd { line } => write!(f, "line {line}: expected a line end after the last line"),
             Version { line, found } => write!(f, "line {line}: expected \"golden {VERSION}\", found {found:?}"),
+            DumpVersion { line, found } => {
+                write!(f, "line {line}: expected \"dump {}\", found {found:?}", crate::dump::DUMP_VERSION)
+            }
             Eof { line, expected } => write!(f, "line {line}: the file ends, expected {expected}"),
             Record { line, expected, found } => write!(f, "line {line}: expected {expected}, found {found:?}"),
             Fields { line, expected, found } => {
@@ -181,7 +186,7 @@ impl Golden {
         let Some(body) = text.strip_suffix('\n') else {
             return Err(GoldenError::NoFinalLineEnd { line: 1 + text.matches('\n').count() });
         };
-        let mut lines = Lines { iter: body.split('\n').peekable(), line: 0 };
+        let mut lines = Lines::new(body);
         let header = read_header(&mut lines)?;
         if header.error.is_some() {
             if let Some(found) = lines.next() {
@@ -228,31 +233,36 @@ impl Golden {
 }
 
 /// The lines of the file, counting as it goes.
-struct Lines<'a> {
+pub(crate) struct Lines<'a> {
     iter: std::iter::Peekable<std::str::Split<'a, char>>,
     /// The number of the line last returned.
-    line: usize,
+    pub(crate) line: usize,
 }
 
 impl<'a> Lines<'a> {
-    fn next(&mut self) -> Option<&'a str> {
+    /// The lines of `body`, a file's text without its final line end.
+    pub(crate) fn new(body: &'a str) -> Lines<'a> {
+        Lines { iter: body.split('\n').peekable(), line: 0 }
+    }
+
+    pub(crate) fn next(&mut self) -> Option<&'a str> {
         let l = self.iter.next()?;
         self.line += 1;
         Some(l)
     }
 
     /// The next line, without taking it.
-    fn peek(&mut self) -> Option<&'a str> {
+    pub(crate) fn peek(&mut self) -> Option<&'a str> {
         self.iter.peek().copied()
     }
 
-    fn expect(&mut self, expected: &str) -> Result<&'a str, GoldenError> {
+    pub(crate) fn expect(&mut self, expected: &str) -> Result<&'a str, GoldenError> {
         self.next().ok_or_else(|| GoldenError::Eof { line: self.line + 1, expected: expected.into() })
     }
 }
 
 /// A header record: the keyword, then exactly the named fields.
-fn record<'a, const N: usize>(
+pub(crate) fn record<'a, const N: usize>(
     line: usize,
     text: &'a str,
     keyword: &str,
@@ -282,7 +292,12 @@ fn read_header(lines: &mut Lines<'_>) -> Result<Header, GoldenError> {
     if first != format!("golden {VERSION}") {
         return Err(GoldenError::Version { line: lines.line, found: first.into() });
     }
+    read_header_records(lines)
+}
 
+/// The header records after the first line, which a golden and a decision
+/// point dump share.
+pub(crate) fn read_header_records(lines: &mut Lines<'_>) -> Result<Header, GoldenError> {
     let l = lines.expect("the generator record")?;
     let [name, version] = record(lines.line, l, "generator", ["name", "version"])?;
     let generator = Generator {
@@ -601,7 +616,7 @@ fn push_str(line: usize, name: &str, field: &str, out: &mut Strs, buf: &mut Stri
 }
 
 /// Decimal, no sign, no leading zero except `0` itself, at most u32::MAX.
-fn parse_u32(s: &str) -> Option<u32> {
+pub(crate) fn parse_u32(s: &str) -> Option<u32> {
     let b = s.as_bytes();
     if b.is_empty() || !b.iter().all(u8::is_ascii_digit) || (b.len() > 1 && b[0] == b'0') {
         return None;
@@ -611,7 +626,7 @@ fn parse_u32(s: &str) -> Option<u32> {
 
 /// 16 lowercase hex digits of the raw bits, then a space. What follows the
 /// space is the decimal for a person, and is not read.
-fn parse_f64(s: &str) -> Option<f64> {
+pub(crate) fn parse_f64(s: &str) -> Option<f64> {
     let b = s.as_bytes();
     if b.len() < 17 || b[16] != b' ' {
         return None;
@@ -620,7 +635,7 @@ fn parse_f64(s: &str) -> Option<f64> {
     Some(f64::from_bits(bits))
 }
 
-fn u32_field(line: usize, field: &str, s: &str) -> Result<u32, GoldenError> {
+pub(crate) fn u32_field(line: usize, field: &str, s: &str) -> Result<u32, GoldenError> {
     parse_u32(s).ok_or_else(|| field_error(line, field, "a u32 in decimal, no sign or leading zero", s))
 }
 
@@ -641,6 +656,6 @@ fn text_field(line: usize, field: &str, s: &str) -> Result<String, GoldenError> 
     Ok(s.into())
 }
 
-fn field_error(line: usize, field: &str, expected: &'static str, found: &str) -> GoldenError {
+pub(crate) fn field_error(line: usize, field: &str, expected: &'static str, found: &str) -> GoldenError {
     GoldenError::Field { line, field: field.into(), expected, found: found.into() }
 }

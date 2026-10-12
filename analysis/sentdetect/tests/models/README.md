@@ -16,6 +16,6 @@ with `useTokenEnd=true` and no abbreviation dictionary. The German and
 English models' end-of-sentence characters are `. ! ?`; the Portuguese
 model has the extended set `. ? ! ; : ( ) « » ' "`.
 
-The golden files in `../golden/sentdetect-me-de`,
-`../golden/sentdetect-me-en` and `../golden/sentdetect-me-pt` were made
-with these files (each golden file records the model's SHA-256).
+The goldens in `analysis/goldens/data/sentdetect/<model>/` were made with
+these files (each golden records the model's SHA-512, which the tests
+check).

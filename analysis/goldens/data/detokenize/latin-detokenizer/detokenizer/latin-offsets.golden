@@ -1,0 +1,36 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	detokenizer/latin-offsets	29	27	f9616e7dd2c33ccc789ad272fe0848525b4df5c3a135fd892c4175f3329182b3
+model	latin-detokenizer.xml	8de094b90fd1856620ddb7c0d361833055c58d945b13f8263d027797de9510f6e1cd4b73fffaa6693dab807a11b618ffe8d6ec060d2d4fc40cdc83a91afaa32f
+annotator	opennlp.tools.tokenize.DictionaryDetokenizer	detokenize
+config	splitMarker	<SPLIT>
+layer	opennlp:tokens	text	10	start:u32	end:u32
+0	2
+3	7
+8	9
+10	14
+15	16
+17	18
+19	21
+22	23
+24	26
+27	28
+end	opennlp:tokens
+layer	turbo:detokenization	aligned:opennlp:tokens	10	operation:str
+NO_OPERATION
+NO_OPERATION
+MERGE_TO_RIGHT
+NO_OPERATION
+MERGE_TO_LEFT
+MERGE_TO_LEFT
+NO_OPERATION
+MERGE_BOTH
+NO_OPERATION
+MERGE_TO_LEFT
+end	turbo:detokenization
+layer	turbo:detokenized	document	1	text:str	marked:str
+He said (😀), co-op.	He said (<SPLIT>😀<SPLIT>)<SPLIT>, co<SPLIT>-<SPLIT>op<SPLIT>.
+end	turbo:detokenized

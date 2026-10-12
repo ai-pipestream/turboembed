@@ -3,9 +3,9 @@
 //! the model recorded in the provenance. The token values are what
 //! TokenizerME returned on the JVM for each sentence.
 
-mod me_common;
+mod common;
 
-use me_common::model;
+use common::model;
 use turbo_analysis::{Analyzer, Annotator, Document, Error, Key, Refs, Span, Spans, View};
 use turbo_analysis_layers::{Confidence, Sentences, Tokens};
 use turbo_tokenize::TokenizerOptions;

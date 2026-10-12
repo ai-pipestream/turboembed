@@ -1,0 +1,104 @@
+dump 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	edge/no-break-spaces	92	77	28744c64ca548f1b96f0de0d90ef4a9ce78d2992e8d9f219426ef9e46f1e06fe
+model	opennlp-de-ud-gsd-tokens-1.3-2.5.4.bin	343c9fe93ff301b736f30fa2e0d954b270994a1535ec2bd424553cbd82b13eb0d86aa2042946db62322430a8b5a8f29a8a2d882f107cb26c6d4f6d494d97debf
+annotator	opennlp.tools.tokenize.TokenizerME	tokenizePos
+config	alphaNumericPattern	^[A-Za-z0-9äéöüÄÉÖÜß]+$
+config	useAlphaNumericOptimization	true
+point	0	66	10	2	0	none
+context	p=e
+context	s=m​zero
+context	p1=e
+context	p1_alpha
+context	p2=bok
+context	p1f1=em
+context	f1=m
+context	f1_alpha
+context	f2=​
+context	f12=m​
+outcome	F	3feff823221ddf89 0.9990401903478282
+outcome	T	3f4f73778881dc3a 9.59809652171801E-4
+end	0
+point	1	67	12	2	0	none
+context	p=em
+context	s=​zero
+context	p1=m
+context	p1_alpha
+context	p2=e
+context	p2_alpha
+context	p21=em
+context	p1f1=m​
+context	f1=​
+context	f2=z
+context	f2_alpha
+context	f12=​z
+outcome	F	3fef9ba93f5d8a42 0.9877516019444743
+outcome	T	3f8915b0289d6f45 0.012248398055525586
+end	1
+point	2	70	12	2	0	none
+context	p=em​
+context	s=zero
+context	p1=​
+context	p2=m
+context	p2_alpha
+context	p21=m​
+context	p1f1=​z
+context	f1=z
+context	f1_alpha
+context	f2=e
+context	f2_alpha
+context	f12=ze
+outcome	F	3feffb942791bb1e 0.9994602940404069
+outcome	T	3f41af61b9138660 5.39705959593028E-4
+end	2
+point	3	71	12	2	0	none
+context	p=em​z
+context	s=ero
+context	p1=z
+context	p1_alpha
+context	p2=​
+context	p21=​z
+context	p1f1=ze
+context	f1=e
+context	f1_alpha
+context	f2=r
+context	f2_alpha
+context	f12=er
+outcome	F	3fefffcf1a271f1a 0.9999766836926682
+outcome	T	3ef872ec7073355d 2.331630733181288E-5
+end	3
+point	4	72	13	2	0	none
+context	p=em​ze
+context	s=ro
+context	p1=e
+context	p1_alpha
+context	p2=z
+context	p2_alpha
+context	p21=ze
+context	p1f1=er
+context	f1=r
+context	f1_alpha
+context	f2=o
+context	f2_alpha
+context	f12=ro
+outcome	F	3feffff8602e3d4a 0.9999963644531047
+outcome	T	3ece7f470ad9032a 3.6355468953367487E-6
+end	4
+point	5	73	11	2	0	none
+context	p=em​zer
+context	s=o
+context	p1=r
+context	p1_alpha
+context	p2=e
+context	p2_alpha
+context	p21=er
+context	p1f1=ro
+context	f1=o
+context	f1_alpha
+context	f2=bok
+outcome	F	3feffb3de69b565d 0.9994191650427627
+outcome	T	3f43086592a6888f 5.808349572371685E-4
+end	5

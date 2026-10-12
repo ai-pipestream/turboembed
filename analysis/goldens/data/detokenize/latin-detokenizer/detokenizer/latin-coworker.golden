@@ -1,0 +1,28 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	detokenizer/latin-coworker	23	23	ba9a9744b43832434d176904953bcd000712382ae1d3708c644b5bcba84a03ff
+model	latin-detokenizer.xml	8de094b90fd1856620ddb7c0d361833055c58d945b13f8263d027797de9510f6e1cd4b73fffaa6693dab807a11b618ffe8d6ec060d2d4fc40cdc83a91afaa32f
+annotator	opennlp.tools.tokenize.DictionaryDetokenizer	detokenize
+config	splitMarker	<SPLIT>
+layer	opennlp:tokens	text	6	start:u32	end:u32
+0	1
+2	4
+5	6
+7	13
+14	20
+21	22
+end	opennlp:tokens
+layer	turbo:detokenization	aligned:opennlp:tokens	6	operation:str
+NO_OPERATION
+NO_OPERATION
+MERGE_BOTH
+NO_OPERATION
+NO_OPERATION
+MERGE_TO_LEFT
+end	turbo:detokenization
+layer	turbo:detokenized	document	1	text:str	marked:str
+A co-worker helped.	A co<SPLIT>-<SPLIT>worker helped<SPLIT>.
+end	turbo:detokenized

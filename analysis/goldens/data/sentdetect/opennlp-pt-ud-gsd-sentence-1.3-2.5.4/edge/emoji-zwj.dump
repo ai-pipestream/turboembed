@@ -1,0 +1,8 @@
+dump 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	edge/emoji-zwj	61	39	cd1ccf3a0d51f34eaf3c645ac6ee1921a3aa17f6264b9803534a6da35a9e4e45
+model	opennlp-pt-ud-gsd-sentence-1.3-2.5.4.bin	0c0390b36530ce9807e9f3d69cfd09524d965506dbb6e2aab2f34556c8858903d538433b828e1f6ed7eaca92f336a04be83461a45b28b177d01ba372fafa35f8
+annotator	opennlp.tools.sentdetect.SentenceDetectorME	sentPosDetect

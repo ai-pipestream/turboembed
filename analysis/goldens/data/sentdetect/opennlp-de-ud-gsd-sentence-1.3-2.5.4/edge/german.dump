@@ -1,0 +1,96 @@
+dump 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	edge/german	119	106	d48ae253086e3984a56fc973a73652963f5c48c360ab2859b8e383a73af3c063
+model	opennlp-de-ud-gsd-sentence-1.3-2.5.4.bin	c811604c24cdbe490ab42dcffdbae63f9a74b39622f21b7b31f63eea566ffe35ef871f0da905e61180656b877cf0be4d626588c6312fcc18df5ab9a35b4183fa
+annotator	opennlp.tools.sentdetect.SentenceDetectorME	sentPosDetect
+point	0	57	8	2	0	none
+context	sn
+context	eos=.
+context	x=Übung
+context	5
+context	xcap
+context	v=und
+context	s=
+context	n=z.B.
+outcome	s	3fee9e4dee6d079d 0.9568242699390229
+outcome	n	3fa61b21192f8639 0.04317573006097714
+acceptable	1
+end	0
+point	1	60	8	2	0	none
+context	eos=.
+context	x=z
+context	1
+context	v=Übung.
+context	vcap
+context	s=B
+context	scap
+context	n=heißt
+outcome	s	3f606a6152963b06 0.0020038510162473403
+outcome	n	3fefef959ead69c5 0.9979961489837527
+end	1
+point	2	62	7	2	0	none
+context	sn
+context	eos=.
+context	x=.B
+context	2
+context	v=z
+context	s=
+context	n=heißt
+outcome	s	3fa4f112751a6947 0.040901734156437324
+outcome	n	3feeb0eed8ae596b 0.9590982658435626
+end	2
+point	3	89	9	2	0	none
+context	sn
+context	eos=.
+context	x=Beispiel“
+context	9
+context	xcap
+context	v=„zum
+context	s=
+context	n=Dr.
+context	ncap
+outcome	s	3feffaa7f2766352 0.9993476615519319
+outcome	n	3f4560362672b88f 6.523384480681282E-4
+acceptable	1
+end	3
+point	4	93	10	2	0	none
+context	sn
+context	eos=.
+context	x=Dr
+context	2
+context	xcap
+context	v=Beispiel“.
+context	vcap
+context	s=
+context	n=Weiß
+context	ncap
+outcome	s	3f822553bcbe4094 0.00886025829075291
+outcome	n	3fefb76ab10d06fe 0.9911397417092471
+end	4
+point	5	110	7	2	0	none
+context	eos=.
+context	x=12
+context	2
+context	v=um
+context	s=30
+context	n=Uhr.
+context	ncap
+outcome	s	3fa3e51cb80ac9f5 0.03885736223800854
+outcome	n	3feec1ae347f5361 0.9611426377619915
+end	5
+point	6	117	8	2	0	none
+context	sn
+context	eos=.
+context	x=Uhr
+context	3
+context	xcap
+context	v=12.30
+context	s=
+context	n=
+outcome	s	3feffd5656fda1dd 0.999674959091006
+outcome	n	3f354d4812f11346 3.2504090899392426E-4
+acceptable	1
+end	6

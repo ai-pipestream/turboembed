@@ -1,10 +1,9 @@
 package ai.pipestream.turbo.goldens;
 
-import java.io.ByteArrayInputStream;
 import java.io.IOException;
-import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
+import java.util.Set;
 import opennlp.tools.langdetect.Language;
 import opennlp.tools.langdetect.LanguageDetectorME;
 import opennlp.tools.langdetect.LanguageDetectorModel;
@@ -18,18 +17,19 @@ final class LanguageGolden implements AnnotatorGolden {
   private final ModelRef model;
   private final LanguageDetectorModel loaded;
   private final LanguageDetectorME detector;
+  private final Set<String> inputSets;
 
-  private LanguageGolden(ModelRef model, LanguageDetectorModel loaded) {
+  private LanguageGolden(ModelRef model, LanguageDetectorModel loaded, Set<String> inputSets) {
     this.model = model;
     this.loaded = loaded;
     this.detector = new LanguageDetectorME(loaded);
+    this.inputSets = Set.copyOf(inputSets);
   }
 
   /** Loads the language detector model from {@code file}, hashing exactly the bytes loaded. */
-  static LanguageGolden load(Path file) throws IOException {
-    byte[] bytes = Files.readAllBytes(file);
-    LanguageDetectorModel m = new LanguageDetectorModel(new ByteArrayInputStream(bytes));
-    return new LanguageGolden(new ModelRef(file.getFileName().toString(), Sha.sha512(bytes)), m);
+  static LanguageGolden load(Path file, Set<String> inputSets) throws IOException {
+    ModelFile f = ModelFile.read(file);
+    return new LanguageGolden(f.ref(), new LanguageDetectorModel(f.stream()), inputSets);
   }
 
   /** The loaded model, which {@link LanguageDump} builds its recording model from. */
@@ -55,6 +55,11 @@ final class LanguageGolden implements AnnotatorGolden {
   @Override
   public String method() {
     return "predictLanguages";
+  }
+
+  @Override
+  public Set<String> inputSets() {
+    return inputSets;
   }
 
   @Override

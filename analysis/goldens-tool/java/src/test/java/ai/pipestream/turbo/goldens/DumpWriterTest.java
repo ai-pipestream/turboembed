@@ -16,7 +16,7 @@ class DumpWriterTest {
   @Test
   void writesTheWholeFileByteForByte() {
     List<DecisionPoint> points = List.of(
-        new DecisionPoint(2, 0, new String[] {"eos=.", "x=a\tb"}, null, new double[] {0.25, 0.75}),
+        new DecisionPoint(2, 0, new String[] {"eos=.", "x=a\tb"}, null, new double[] {0.75, 0.25}).withAcceptable(false),
         new DecisionPoint(5, 1, new String[] {"p=\ud83d", "n"}, new float[] {1f, 0.5f}, new double[] {0.5, 0.5}));
     String expected = """
         dump 1
@@ -30,8 +30,9 @@ class DumpWriterTest {
         point\t0\t2\t2\t2\t0\tnone
         context\teos=.
         context\tx=a\\tb
-        outcome\ts\t3fd0000000000000 0.25
-        outcome\tn\t3fe8000000000000 0.75
+        outcome\ts\t3fe8000000000000 0.75
+        outcome\tn\t3fd0000000000000 0.25
+        acceptable\t0
         end\t0
         point\t1\t5\t2\t2\t1\tgiven
         context\tp=\\ud83d\t3ff0000000000000 1.0

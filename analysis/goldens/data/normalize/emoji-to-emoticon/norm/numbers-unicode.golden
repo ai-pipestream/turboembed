@@ -1,7 +1,7 @@
 golden 1
 generator	turbo-goldens-java	1
 opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
-jdk	21.0.12.1	21.0.12.1+1-1-24.04.4-Ubuntu	Ubuntu
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
 unicode	15.0
 input	norm/numbers-unicode	251	196	6f173134352a64f94f58397bb63fff2eb639877a34c8e507322bc520e766eb8f
 annotator	opennlp.tools.util.normalizer.EmojiToEmoticonCharSequenceNormalizer	normalizeAligned

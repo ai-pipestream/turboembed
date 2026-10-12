@@ -1,0 +1,107 @@
+dump 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	edge/ellipses	67	61	ebe802ab1de2ac8701cb588a1dd9bfecb7930f7cb6f4b10b3aedcbc6ea3d88d9
+model	opennlp-pt-ud-gsd-sentence-1.3-2.5.4.bin	0c0390b36530ce9807e9f3d69cfd09524d965506dbb6e2aab2f34556c8858903d538433b828e1f6ed7eaca92f336a04be83461a45b28b177d01ba372fafa35f8
+annotator	opennlp.tools.sentdetect.SentenceDetectorME	sentPosDetect
+point	0	6	8	2	0	none
+context	sn
+context	eos=.
+context	x=.
+context	1
+context	v=Wait.
+context	vcap
+context	s=
+context	n=what?
+outcome	s	3fefdf3a4cb8e90b 0.9959994791491068
+outcome	n	3f7062d9a38b7a60 0.004000520850893169
+acceptable	1
+end	0
+point	1	12	9	2	0	none
+context	sn
+context	eos=?
+context	x=what
+context	4
+context	v=Wait...
+context	vcap
+context	s=
+context	n=Well…
+context	ncap
+outcome	s	3feef895716a0e92 0.9678446974871397
+outcome	n	3fa076a8e95f16e5 0.032155302512860286
+acceptable	1
+end	1
+point	2	27	8	2	0	none
+context	sn
+context	eos=.
+context	x=maybe
+context	5
+context	v=Well…
+context	vcap
+context	s=
+context	n=.
+outcome	s	3fee9d0ee3ac1cd6 0.956672138855448
+outcome	n	3fa62f11c53e329d 0.043327861144551984
+acceptable	1
+end	2
+point	3	29	7	2	0	none
+context	sp
+context	sn
+context	eos=.
+context	x=
+context	v=maybe.
+context	s=
+context	n=.
+outcome	s	3fc688913290cbc1 0.17604269951843146
+outcome	n	3fea5ddbb35bcd10 0.8239573004815686
+end	3
+point	4	31	7	2	0	none
+context	sp
+context	sn
+context	eos=.
+context	x=
+context	v=.
+context	s=
+context	n=.
+outcome	s	3f3aecd028077429 4.108436769721413E-4
+outcome	n	3feffca265faff12 0.9995891563230279
+end	4
+point	5	33	7	2	0	none
+context	sp
+context	sn
+context	eos=.
+context	x=
+context	v=.
+context	s=
+context	n=or
+outcome	s	3f48df95206fbdb2 7.590749891032615E-4
+outcome	n	3feff9c81ab7e410 0.9992409250108967
+end	5
+point	6	42	8	2	0	none
+context	sn
+context	eos=.
+context	x=.
+context	1
+context	v=not
+context	s=
+context	n=Hmm......
+context	ncap
+outcome	s	3feff701e75acc07 0.9989022749563227
+outcome	n	3f51fc314a67f25e 0.0010977250436773538
+acceptable	1
+end	6
+point	7	52	8	2	0	none
+context	sn
+context	eos=.
+context	x=.
+context	1
+context	v=Hmm....
+context	vcap
+context	s=
+context	n=ok……
+outcome	s	3fefdf3a4cb8e90b 0.9959994791491068
+outcome	n	3f7062d9a38b7a60 0.004000520850893169
+acceptable	1
+end	7

@@ -1,0 +1,544 @@
+dump 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	edge/thai	117	41	c4dc880f98c87743656fa5c51e8e0cd42432ddf69ecef26e2cef994df33e8366
+model	opennlp-pt-ud-gsd-tokens-1.3-2.5.4.bin	6ff66aec4835e9d5caeeb50a2e70bd673840ef6219fe1dc4018c8f9999b21b959c52fdac68844a0934bbcd77346743627f728fb9c99b7ca468e795fc5291c3bb
+annotator	opennlp.tools.tokenize.TokenizerME	tokenizePos
+config	alphaNumericPattern	^[0-9a-záãâàéêíóõôúüçA-ZÁÃÂÀÉÊÍÓÕÔÚÜÇ]+$
+config	useAlphaNumericOptimization	true
+point	0	3	10	2	0	none
+context	p=ส
+context	s=วัสดีครับ
+context	p1=ส
+context	p1_alpha
+context	p2=bok
+context	p1f1=สว
+context	f1=ว
+context	f1_alpha
+context	f2=ั
+context	f12=วั
+outcome	F	3fee53c435c09a87 0.9477253961420765
+outcome	T	3faac3bca3f6578f 0.05227460385792348
+end	0
+point	1	6	12	2	0	none
+context	p=สว
+context	s=ัสดีครับ
+context	p1=ว
+context	p1_alpha
+context	p2=ส
+context	p2_alpha
+context	p21=สว
+context	p1f1=วั
+context	f1=ั
+context	f2=ส
+context	f2_alpha
+context	f12=ัส
+outcome	F	3fec6d3d6c555005 0.8883349529155572
+outcome	T	3fbc96149d557fd7 0.11166504708444279
+end	1
+point	2	9	12	2	0	none
+context	p=สวั
+context	s=สดีครับ
+context	p1=ั
+context	p2=ว
+context	p2_alpha
+context	p21=วั
+context	p1f1=ัส
+context	f1=ส
+context	f1_alpha
+context	f2=ด
+context	f2_alpha
+context	f12=สด
+outcome	F	3fef21a625199aaf 0.9728575443849276
+outcome	T	3f9bcb3b5cccaa0a 0.02714245561507237
+end	2
+point	3	12	11	2	0	none
+context	p=สวัส
+context	s=ดีครับ
+context	p1=ส
+context	p1_alpha
+context	p2=ั
+context	p21=ัส
+context	p1f1=สด
+context	f1=ด
+context	f1_alpha
+context	f2=ี
+context	f12=ดี
+outcome	F	3fed3ed4c17529ce 0.9139198091955281
+outcome	T	3fb60959f456b192 0.08608019080447196
+end	3
+point	4	15	12	2	0	none
+context	p=สวัสด
+context	s=ีครับ
+context	p1=ด
+context	p1_alpha
+context	p2=ส
+context	p2_alpha
+context	p21=สด
+context	p1f1=ดี
+context	f1=ี
+context	f2=ค
+context	f2_alpha
+context	f12=ีค
+outcome	F	3fec6d3d6c555005 0.8883349529155572
+outcome	T	3fbc96149d557fd7 0.11166504708444279
+end	4
+point	5	18	12	2	0	none
+context	p=สวัสดี
+context	s=ครับ
+context	p1=ี
+context	p2=ด
+context	p2_alpha
+context	p21=ดี
+context	p1f1=ีค
+context	f1=ค
+context	f1_alpha
+context	f2=ร
+context	f2_alpha
+context	f12=คร
+outcome	F	3fef21a625199aaf 0.9728575443849276
+outcome	T	3f9bcb3b5cccaa0a 0.02714245561507237
+end	5
+point	6	21	11	2	0	none
+context	p=สวัสดีค
+context	s=รับ
+context	p1=ค
+context	p1_alpha
+context	p2=ี
+context	p21=ีค
+context	p1f1=คร
+context	f1=ร
+context	f1_alpha
+context	f2=ั
+context	f12=รั
+outcome	F	3fed3ed4c17529ce 0.9139198091955281
+outcome	T	3fb60959f456b192 0.08608019080447196
+end	6
+point	7	24	12	2	0	none
+context	p=สวัสดีคร
+context	s=ับ
+context	p1=ร
+context	p1_alpha
+context	p2=ค
+context	p2_alpha
+context	p21=คร
+context	p1f1=รั
+context	f1=ั
+context	f2=บ
+context	f2_alpha
+context	f12=ับ
+outcome	F	3fec6d3d6c555005 0.8883349529155572
+outcome	T	3fbc96149d557fd7 0.11166504708444279
+end	7
+point	8	27	10	2	0	none
+context	p=สวัสดีครั
+context	s=บ
+context	p1=ั
+context	p2=ร
+context	p2_alpha
+context	p21=รั
+context	p1f1=ับ
+context	f1=บ
+context	f1_alpha
+context	f2=bok
+outcome	F	3fed50cf0585baca 0.916114340577985
+outcome	T	3fb57987d3d229ac 0.08388565942201492
+end	8
+point	9	34	11	2	0	none
+context	p=ผ
+context	s=มชื่อสมชาย
+context	p1=ผ
+context	p1_alpha
+context	p2=bok
+context	p1f1=ผม
+context	f1=ม
+context	f1_alpha
+context	f2=ช
+context	f2_alpha
+context	f12=มช
+outcome	F	3fef886e8448b5f3 0.9854042609856023
+outcome	T	3f8de45eedd28317 0.01459573901439763
+end	9
+point	10	37	12	2	0	none
+context	p=ผม
+context	s=ชื่อสมชาย
+context	p1=ม
+context	p1_alpha
+context	p2=ผ
+context	p2_alpha
+context	p21=ผม
+context	p1f1=มช
+context	f1=ช
+context	f1_alpha
+context	f2=ื
+context	f12=ชื
+outcome	F	3fedf8b4da7b1611 0.936609675140689
+outcome	T	3fb03a592c274f76 0.06339032485931093
+end	10
+point	11	40	11	2	0	none
+context	p=ผมช
+context	s=ื่อสมชาย
+context	p1=ช
+context	p1_alpha
+context	p2=ม
+context	p2_alpha
+context	p21=มช
+context	p1f1=ชื
+context	f1=ื
+context	f2=่
+context	f12=ื่
+outcome	F	3fe5cc01fc030c86 0.6811532899959196
+outcome	T	3fd467fc07f9e6f4 0.3188467100040804
+end	11
+point	12	43	11	2	0	none
+context	p=ผมชื
+context	s=่อสมชาย
+context	p1=ื
+context	p2=ช
+context	p2_alpha
+context	p21=ชื
+context	p1f1=ื่
+context	f1=่
+context	f2=อ
+context	f2_alpha
+context	f12=่อ
+outcome	F	3fead2f06b3c3e28 0.8382494062843238
+outcome	T	3fc4b43e530f075e 0.16175059371567618
+end	12
+point	13	46	11	2	0	none
+context	p=ผมชื่
+context	s=อสมชาย
+context	p1=่
+context	p2=ื
+context	p21=ื่
+context	p1f1=่อ
+context	f1=อ
+context	f1_alpha
+context	f2=ส
+context	f2_alpha
+context	f12=อส
+outcome	F	3feecdd1cb8df8ca 0.9626244521785108
+outcome	T	3fa322e347207358 0.03737554782148916
+end	13
+point	14	49	12	2	0	none
+context	p=ผมชื่อ
+context	s=สมชาย
+context	p1=อ
+context	p1_alpha
+context	p2=่
+context	p21=่อ
+context	p1f1=อส
+context	f1=ส
+context	f1_alpha
+context	f2=ม
+context	f2_alpha
+context	f12=สม
+outcome	F	3fef35e9782e2da6 0.9753310534737707
+outcome	T	3f9942d0fa3a4b45 0.024668946526229325
+end	14
+point	15	52	13	2	0	none
+context	p=ผมชื่อส
+context	s=มชาย
+context	p1=ส
+context	p1_alpha
+context	p2=อ
+context	p2_alpha
+context	p21=อส
+context	p1f1=สม
+context	f1=ม
+context	f1_alpha
+context	f2=ช
+context	f2_alpha
+context	f12=มช
+outcome	F	3fef6dc536b80fa1 0.9821497029047245
+outcome	T	3f92475928fe0bd0 0.01785029709527547
+end	15
+point	16	55	13	2	0	none
+context	p=ผมชื่อสม
+context	s=ชาย
+context	p1=ม
+context	p1_alpha
+context	p2=ส
+context	p2_alpha
+context	p21=สม
+context	p1f1=มช
+context	f1=ช
+context	f1_alpha
+context	f2=า
+context	f2_alpha
+context	f12=ชา
+outcome	F	3fef6dc536b80fa1 0.9821497029047245
+outcome	T	3f92475928fe0bd0 0.01785029709527547
+end	16
+point	17	58	13	2	0	none
+context	p=ผมชื่อสมช
+context	s=าย
+context	p1=ช
+context	p1_alpha
+context	p2=ม
+context	p2_alpha
+context	p21=มช
+context	p1f1=ชา
+context	f1=า
+context	f1_alpha
+context	f2=ย
+context	f2_alpha
+context	f12=าย
+outcome	F	3fef6dc536b80fa1 0.9821497029047245
+outcome	T	3f92475928fe0bd0 0.01785029709527547
+end	17
+point	18	61	11	2	0	none
+context	p=ผมชื่อสมชา
+context	s=ย
+context	p1=า
+context	p1_alpha
+context	p2=ช
+context	p2_alpha
+context	p21=ชา
+context	p1f1=าย
+context	f1=ย
+context	f1_alpha
+context	f2=bok
+outcome	F	3fee32dbebf8bb78 0.9437083824940222
+outcome	T	3facd2414074487f 0.05629161750597777
+end	18
+point	19	68	10	2	0	none
+context	p=ย
+context	s=ินดีที่ได้รู้จัก
+context	p1=ย
+context	p1_alpha
+context	p2=bok
+context	p1f1=ยิ
+context	f1=ิ
+context	f2=น
+context	f2_alpha
+context	f12=ิน
+outcome	F	3fed06c42ce951ee 0.9070759656120211
+outcome	T	3fb7c9de98b57088 0.0929240343879788
+end	19
+point	20	71	12	2	0	none
+context	p=ยิ
+context	s=นดีที่ได้รู้จัก
+context	p1=ิ
+context	p2=ย
+context	p2_alpha
+context	p21=ยิ
+context	p1f1=ิน
+context	f1=น
+context	f1_alpha
+context	f2=ด
+context	f2_alpha
+context	f12=นด
+outcome	F	3fef21a625199aaf 0.9728575443849276
+outcome	T	3f9bcb3b5cccaa0a 0.02714245561507237
+end	20
+point	21	74	11	2	0	none
+context	p=ยิน
+context	s=ดีที่ได้รู้จัก
+context	p1=น
+context	p1_alpha
+context	p2=ิ
+context	p21=ิน
+context	p1f1=นด
+context	f1=ด
+context	f1_alpha
+context	f2=ี
+context	f12=ดี
+outcome	F	3fed3ed4c17529ce 0.9139198091955281
+outcome	T	3fb60959f456b192 0.08608019080447196
+end	21
+point	22	77	12	2	0	none
+context	p=ยินด
+context	s=ีที่ได้รู้จัก
+context	p1=ด
+context	p1_alpha
+context	p2=น
+context	p2_alpha
+context	p21=นด
+context	p1f1=ดี
+context	f1=ี
+context	f2=ท
+context	f2_alpha
+context	f12=ีท
+outcome	F	3fec6d3d6c555005 0.8883349529155572
+outcome	T	3fbc96149d557fd7 0.11166504708444279
+end	22
+point	23	80	11	2	0	none
+context	p=ยินดี
+context	s=ที่ได้รู้จัก
+context	p1=ี
+context	p2=ด
+context	p2_alpha
+context	p21=ดี
+context	p1f1=ีท
+context	f1=ท
+context	f1_alpha
+context	f2=ี
+context	f12=ที
+outcome	F	3fecfcfe23e653af 0.9058829022566125
+outcome	T	3fb8180ee0cd6286 0.09411709774338747
+end	23
+point	24	83	10	2	0	none
+context	p=ยินดีท
+context	s=ี่ได้รู้จัก
+context	p1=ท
+context	p1_alpha
+context	p2=ี
+context	p21=ีท
+context	p1f1=ที
+context	f1=ี
+context	f2=่
+context	f12=ี่
+outcome	F	3fe3608c7e8f1dec 0.6055357429367496
+outcome	T	3fd93ee702e1c429 0.39446425706325045
+end	24
+point	25	86	11	2	0	none
+context	p=ยินดีที
+context	s=่ได้รู้จัก
+context	p1=ี
+context	p2=ท
+context	p2_alpha
+context	p21=ที
+context	p1f1=ี่
+context	f1=่
+context	f2=ไ
+context	f2_alpha
+context	f12=่ไ
+outcome	F	3fead2f06b3c3e28 0.8382494062843238
+outcome	T	3fc4b43e530f075e 0.16175059371567618
+end	25
+point	26	89	11	2	0	none
+context	p=ยินดีที่
+context	s=ได้รู้จัก
+context	p1=่
+context	p2=ี
+context	p21=ี่
+context	p1f1=่ไ
+context	f1=ไ
+context	f1_alpha
+context	f2=ด
+context	f2_alpha
+context	f12=ได
+outcome	F	3feecdd1cb8df8ca 0.9626244521785108
+outcome	T	3fa322e347207358 0.03737554782148916
+end	26
+point	27	92	11	2	0	none
+context	p=ยินดีที่ไ
+context	s=ด้รู้จัก
+context	p1=ไ
+context	p1_alpha
+context	p2=่
+context	p21=่ไ
+context	p1f1=ได
+context	f1=ด
+context	f1_alpha
+context	f2=้
+context	f12=ด้
+outcome	F	3fed3ed4c17529ce 0.9139198091955281
+outcome	T	3fb60959f456b192 0.08608019080447196
+end	27
+point	28	95	12	2	0	none
+context	p=ยินดีที่ได
+context	s=้รู้จัก
+context	p1=ด
+context	p1_alpha
+context	p2=ไ
+context	p2_alpha
+context	p21=ได
+context	p1f1=ด้
+context	f1=้
+context	f2=ร
+context	f2_alpha
+context	f12=้ร
+outcome	F	3fec6d3d6c555005 0.8883349529155572
+outcome	T	3fbc96149d557fd7 0.11166504708444279
+end	28
+point	29	98	11	2	0	none
+context	p=ยินดีที่ได้
+context	s=รู้จัก
+context	p1=้
+context	p2=ด
+context	p2_alpha
+context	p21=ด้
+context	p1f1=้ร
+context	f1=ร
+context	f1_alpha
+context	f2=ู
+context	f12=รู
+outcome	F	3fecfcfe23e653af 0.9058829022566125
+outcome	T	3fb8180ee0cd6286 0.09411709774338747
+end	29
+point	30	101	10	2	0	none
+context	p=ยินดีที่ได้ร
+context	s=ู้จัก
+context	p1=ร
+context	p1_alpha
+context	p2=้
+context	p21=้ร
+context	p1f1=รู
+context	f1=ู
+context	f2=้
+context	f12=ู้
+outcome	F	3fe3608c7e8f1dec 0.6055357429367496
+outcome	T	3fd93ee702e1c429 0.39446425706325045
+end	30
+point	31	104	11	2	0	none
+context	p=ยินดีที่ได้รู
+context	s=้จัก
+context	p1=ู
+context	p2=ร
+context	p2_alpha
+context	p21=รู
+context	p1f1=ู้
+context	f1=้
+context	f2=จ
+context	f2_alpha
+context	f12=้จ
+outcome	F	3fead2f06b3c3e28 0.8382494062843238
+outcome	T	3fc4b43e530f075e 0.16175059371567618
+end	31
+point	32	107	10	2	0	none
+context	p=ยินดีที่ได้รู้
+context	s=จัก
+context	p1=้
+context	p2=ู
+context	p21=ู้
+context	p1f1=้จ
+context	f1=จ
+context	f1_alpha
+context	f2=ั
+context	f12=จั
+outcome	F	3febf52bbe9e5212 0.873678085614815
+outcome	T	3fc02b510586b7b4 0.12632191438518492
+end	32
+point	33	110	11	2	0	none
+context	p=ยินดีที่ได้รู้จ
+context	s=ัก
+context	p1=จ
+context	p1_alpha
+context	p2=้
+context	p21=้จ
+context	p1f1=จั
+context	f1=ั
+context	f2=ก
+context	f2_alpha
+context	f12=ัก
+outcome	F	3feb3c5043e7f5bb 0.8511124922076115
+outcome	T	3fc30ebef0602911 0.14888750779238838
+end	33
+point	34	113	10	2	0	none
+context	p=ยินดีที่ได้รู้จั
+context	s=ก
+context	p1=ั
+context	p2=จ
+context	p2_alpha
+context	p21=จั
+context	p1f1=ัก
+context	f1=ก
+context	f1_alpha
+context	f2=bok
+outcome	F	3fed50cf0585baca 0.916114340577985
+outcome	T	3fb57987d3d229ac 0.08388565942201492
+end	34

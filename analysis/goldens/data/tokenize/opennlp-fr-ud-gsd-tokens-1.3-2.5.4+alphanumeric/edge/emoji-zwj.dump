@@ -1,0 +1,201 @@
+dump 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	edge/emoji-zwj	61	39	cd1ccf3a0d51f34eaf3c645ac6ee1921a3aa17f6264b9803534a6da35a9e4e45
+model	opennlp-fr-ud-gsd-tokens-1.3-2.5.4.bin	18e56e96eae9741935c5f54f16d3c6933e151ec550b882d2e5e1194ac02c6b1e56063843ff3805a35cf44810091674ef6bf2f080d1bc761770d8b09ee9a01277
+annotator	opennlp.tools.tokenize.TokenizerME	tokenizePos
+config	alphaNumericPattern	^[a-zA-Z0-9àâäèéêëîïôœùûüÿçÀÂÄÈÉÊËÎÏÔŒÙÛÜŸÇ]+$
+config	useAlphaNumericOptimization	true
+point	0	7	8	2	1	none
+context	p=\ud83d
+context	s=\udc68‍👩‍👧‍👦
+context	p1=\ud83d
+context	p2=bok
+context	p1f1=👨
+context	f1=\udc68
+context	f2=‍
+context	f12=\udc68‍
+outcome	F	3fe8d048d8ac7926 0.7754253608616508
+outcome	T	3fccbedc9d4e1b65 0.2245746391383491
+end	0
+point	1	11	9	2	0	none
+context	p=👨
+context	s=‍👩‍👧‍👦
+context	p1=\udc68
+context	p2=\ud83d
+context	p21=👨
+context	p1f1=\udc68‍
+context	f1=‍
+context	f2=\ud83d
+context	f12=‍\ud83d
+outcome	F	3fe0000000000000 0.5
+outcome	T	3fe0000000000000 0.5
+end	1
+point	2	14	9	2	0	none
+context	p=👨‍
+context	s=👩‍👧‍👦
+context	p1=‍
+context	p2=\udc68
+context	p21=\udc68‍
+context	p1f1=‍\ud83d
+context	f1=\ud83d
+context	f2=\udc69
+context	f12=👩
+outcome	F	3fe0000000000000 0.5
+outcome	T	3fe0000000000000 0.5
+end	2
+point	3	14	9	2	1	none
+context	p=👨‍\ud83d
+context	s=\udc69‍👧‍👦
+context	p1=\ud83d
+context	p2=‍
+context	p21=‍\ud83d
+context	p1f1=👩
+context	f1=\udc69
+context	f2=‍
+context	f12=\udc69‍
+outcome	F	3fe0000000000000 0.5
+outcome	T	3fe0000000000000 0.5
+end	3
+point	4	18	9	2	0	none
+context	p=👨‍👩
+context	s=‍👧‍👦
+context	p1=\udc69
+context	p2=\ud83d
+context	p21=👩
+context	p1f1=\udc69‍
+context	f1=‍
+context	f2=\ud83d
+context	f12=‍\ud83d
+outcome	F	3fe0000000000000 0.5
+outcome	T	3fe0000000000000 0.5
+end	4
+point	5	21	9	2	0	none
+context	p=👨‍👩‍
+context	s=👧‍👦
+context	p1=‍
+context	p2=\udc69
+context	p21=\udc69‍
+context	p1f1=‍\ud83d
+context	f1=\ud83d
+context	f2=\udc67
+context	f12=👧
+outcome	F	3fe0000000000000 0.5
+outcome	T	3fe0000000000000 0.5
+end	5
+point	6	21	9	2	1	none
+context	p=👨‍👩‍\ud83d
+context	s=\udc67‍👦
+context	p1=\ud83d
+context	p2=‍
+context	p21=‍\ud83d
+context	p1f1=👧
+context	f1=\udc67
+context	f2=‍
+context	f12=\udc67‍
+outcome	F	3fe0000000000000 0.5
+outcome	T	3fe0000000000000 0.5
+end	6
+point	7	25	9	2	0	none
+context	p=👨‍👩‍👧
+context	s=‍👦
+context	p1=\udc67
+context	p2=\ud83d
+context	p21=👧
+context	p1f1=\udc67‍
+context	f1=‍
+context	f2=\ud83d
+context	f12=‍\ud83d
+outcome	F	3fe0000000000000 0.5
+outcome	T	3fe0000000000000 0.5
+end	7
+point	8	28	9	2	0	none
+context	p=👨‍👩‍👧‍
+context	s=👦
+context	p1=‍
+context	p2=\udc67
+context	p21=\udc67‍
+context	p1f1=‍\ud83d
+context	f1=\ud83d
+context	f2=\udc66
+context	f12=👦
+outcome	F	3fe0000000000000 0.5
+outcome	T	3fe0000000000000 0.5
+end	8
+point	9	28	8	2	1	none
+context	p=👨‍👩‍👧‍\ud83d
+context	s=\udc66
+context	p1=\ud83d
+context	p2=‍
+context	p21=‍\ud83d
+context	p1f1=👦
+context	f1=\udc66
+context	f2=bok
+outcome	F	3fe13fc9ce35a9b0 0.5390366580516481
+outcome	T	3fdd806c6394aca0 0.46096334194835187
+end	9
+point	10	42	8	2	1	none
+context	p=\ud83c
+context	s=\udff3️‍🌈
+context	p1=\ud83c
+context	p2=bok
+context	p1f1=🏳
+context	f1=\udff3
+context	f2=️
+context	f12=\udff3️
+outcome	F	3fe8d048d8ac7926 0.7754253608616508
+outcome	T	3fccbedc9d4e1b65 0.2245746391383491
+end	10
+point	11	46	9	2	0	none
+context	p=🏳
+context	s=️‍🌈
+context	p1=\udff3
+context	p2=\ud83c
+context	p21=🏳
+context	p1f1=\udff3️
+context	f1=️
+context	f2=‍
+context	f12=️‍
+outcome	F	3fe0000000000000 0.5
+outcome	T	3fe0000000000000 0.5
+end	11
+point	12	49	9	2	0	none
+context	p=🏳️
+context	s=‍🌈
+context	p1=️
+context	p2=\udff3
+context	p21=\udff3️
+context	p1f1=️‍
+context	f1=‍
+context	f2=\ud83c
+context	f12=‍\ud83c
+outcome	F	3fe0000000000000 0.5
+outcome	T	3fe0000000000000 0.5
+end	12
+point	13	52	9	2	0	none
+context	p=🏳️‍
+context	s=🌈
+context	p1=‍
+context	p2=️
+context	p21=️‍
+context	p1f1=‍\ud83c
+context	f1=\ud83c
+context	f2=\udf08
+context	f12=🌈
+outcome	F	3fe0000000000000 0.5
+outcome	T	3fe0000000000000 0.5
+end	13
+point	14	52	8	2	1	none
+context	p=🏳️‍\ud83c
+context	s=\udf08
+context	p1=\ud83c
+context	p2=‍
+context	p21=‍\ud83c
+context	p1f1=🌈
+context	f1=\udf08
+context	f2=bok
+outcome	F	3fe13fc9ce35a9b0 0.5390366580516481
+outcome	T	3fdd806c6394aca0 0.46096334194835187
+end	14

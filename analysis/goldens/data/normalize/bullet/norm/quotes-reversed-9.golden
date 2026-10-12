@@ -1,7 +1,7 @@
 golden 1
 generator	turbo-goldens-java	1
 opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
-jdk	21.0.12.1	21.0.12.1+1-1-24.04.4-Ubuntu	Ubuntu
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
 unicode	15.0
 input	norm/quotes-reversed-9	57	49	9734781f109dc989433a4c4ba02222f8afe8b9d59cc8d4ff0c0901bdaa0f23b4
 annotator	opennlp.tools.util.normalizer.BulletCharSequenceNormalizer	normalizeAligned

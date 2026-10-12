@@ -1,7 +1,7 @@
 golden 1
 generator	turbo-goldens-java	1
 opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
-jdk	21.0.12.1	21.0.12.1+1-1-24.04.4-Ubuntu	Ubuntu
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
 unicode	15.0
 input	money/text-arabic	70	44	a5b1c04a3a7b3a4c7687f9113b53be43c24c5e87d2262f39f0b6228ee2056415
 annotator	opennlp.tools.money.CursorMoneyExtractor	extract

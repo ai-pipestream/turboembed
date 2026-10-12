@@ -1,0 +1,26 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	detokenizer/quotes-flags	10	10	56353a71739448d4ff324ebb88514ddbdfe837a06820bfbf82895f650d5f8695
+model	quotes-detokenizer.xml	d8444302db26d336e30283fa9caf62250b55c671e775629137499b16615e0d2b6686379cff4d1baa34157deebe61170ebbf9a28d9e0f09622f1aefd7bcf285f0
+annotator	opennlp.tools.tokenize.DictionaryDetokenizer	detokenize
+config	splitMarker	<SPLIT>
+layer	opennlp:tokens	text	5	start:u32	end:u32
+0	1
+2	3
+4	5
+6	7
+8	9
+end	opennlp:tokens
+layer	turbo:detokenization	aligned:opennlp:tokens	5	operation:str
+MERGE_TO_RIGHT
+MERGE_TO_RIGHT
+NO_OPERATION
+MERGE_TO_LEFT
+MERGE_TO_LEFT
+end	turbo:detokenization
+layer	turbo:detokenized	document	1	text:str	marked:str
+"'a"'	"<SPLIT>'<SPLIT>a<SPLIT>"<SPLIT>'
+end	turbo:detokenized
