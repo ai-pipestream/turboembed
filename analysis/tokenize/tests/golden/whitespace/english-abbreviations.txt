@@ -1,0 +1,24 @@
+component: whitespace
+opennlp: cdf33c653d5d61d5af7d37ffee189a83bd8392ea
+jdk: 21.0.12.1
+whitespace: unicode
+input: Mr. Smith met Dr. Jones in the U.S. last week, e.g. on Monday. They agreed. Prof. Lee wasn't there.\n
+span: 0 3 0 3
+span: 4 9 4 9
+span: 10 13 10 13
+span: 14 17 14 17
+span: 18 23 18 23
+span: 24 26 24 26
+span: 27 30 27 30
+span: 31 35 31 35
+span: 36 40 36 40
+span: 41 46 41 46
+span: 47 51 47 51
+span: 52 54 52 54
+span: 55 62 55 62
+span: 63 67 63 67
+span: 68 75 68 75
+span: 76 81 76 81
+span: 82 85 82 85
+span: 86 92 86 92
+span: 93 99 93 99

@@ -1,0 +1,21 @@
+component: tokenizer-me-en
+opennlp: cdf33c653d5d61d5af7d37ffee189a83bd8392ea
+jdk: 21.0.12.1
+whitespace: unicode
+model: opennlp-en-ud-ewt-tokens-1.3-2.5.4.bin
+model-sha256: 95139111197ba9f1165fc12be8d4cbac05ea3912f995d167efa1a0e04e3e649a
+alpha-numeric-pattern: ^[A-Za-z0-9]+$
+use-alpha-numeric-optimization: false
+input: before\u0085after next\u2028line then\u2029para end\nand\u000Bvertical tab\u000Cform feed\n
+span: 0 6 0 6 0.9986502654849381
+span: 8 13 7 12 0.9992049231643564
+span: 14 18 13 17 0.9983662123531165
+span: 21 25 18 22 0.9999216632890024
+span: 26 30 23 27 0.9997353722368545
+span: 33 37 28 32 0.9998474078749816
+span: 38 41 33 36 0.9996587599387958
+span: 42 45 37 40 0.9997588023367469
+span: 46 54 41 49 0.9985958562554776
+span: 55 58 50 53 0.9932712001596672
+span: 59 63 54 58 0.9860236473383536
+span: 64 68 59 63 0.9998147354289061

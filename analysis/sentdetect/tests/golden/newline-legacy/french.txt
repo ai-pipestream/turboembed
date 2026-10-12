@@ -1,0 +1,6 @@
+component: newline
+opennlp: cdf33c653d5d61d5af7d37ffee189a83bd8392ea
+jdk: 21.0.12.1
+whitespace: legacy
+input: Qu'est-ce que c'est ? \u00AB Bonjour, l'\u00E9t\u00E9 \u00E0 Paris \u00BB, dit-elle. M. Dupont est arriv\u00E9 \u00E0 12h30 ; c'\u00E9tait tr\u00E8s cher (3,50 \u20AC). O\u00F9 est le c\u0153ur? Na\u00EFve fa\u00E7ade.\n
+span: 0 163 0 148

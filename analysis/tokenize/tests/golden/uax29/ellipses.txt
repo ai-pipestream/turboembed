@@ -1,0 +1,14 @@
+component: uax29
+opennlp: cdf33c653d5d61d5af7d37ffee189a83bd8392ea
+jdk: 21.0.12.1
+whitespace: unicode
+input: Wait... what? Well\u2026 maybe. . . . or not.. Hmm...... ok\u2026\u2026 end\n
+span: 0 4 0 4 ALPHANUMERIC
+span: 8 12 8 12 ALPHANUMERIC
+span: 14 18 14 18 ALPHANUMERIC
+span: 22 27 20 25 ALPHANUMERIC
+span: 35 37 33 35 ALPHANUMERIC
+span: 38 41 36 39 ALPHANUMERIC
+span: 44 47 42 45 ALPHANUMERIC
+span: 54 56 52 54 ALPHANUMERIC
+span: 63 66 57 60 ALPHANUMERIC

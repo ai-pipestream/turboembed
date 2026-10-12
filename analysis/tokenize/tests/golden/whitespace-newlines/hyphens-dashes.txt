@@ -1,0 +1,27 @@
+component: whitespace-newlines
+opennlp: cdf33c653d5d61d5af7d37ffee189a83bd8392ea
+jdk: 21.0.12.1
+whitespace: unicode
+input: well-known state-of-the-art re-entry \u2013 en dash \u2012 figure dash \u2015 bar \u2E3A two-em \u2212minus -- double and a-b-c. 1990-2000, A--B, non\u2011breaking\u2010hyphen.\n
+span: 0 10 0 10
+span: 11 27 11 27
+span: 28 36 28 36
+span: 37 40 37 38
+span: 41 43 39 41
+span: 44 48 42 46
+span: 49 52 47 48
+span: 53 59 49 55
+span: 60 64 56 60
+span: 65 68 61 62
+span: 69 72 63 66
+span: 73 76 67 68
+span: 77 83 69 75
+span: 84 92 76 82
+span: 93 95 83 85
+span: 96 102 86 92
+span: 103 106 93 96
+span: 107 113 97 103
+span: 114 124 104 114
+span: 125 130 115 120
+span: 131 155 121 141
+span: 155 156 141 142

@@ -1,0 +1,10 @@
+component: sentdetect-me-en
+opennlp: cdf33c653d5d61d5af7d37ffee189a83bd8392ea
+jdk: 21.0.12.1
+whitespace: unicode
+model: opennlp-en-ud-ewt-sentence-1.3-2.5.4.bin
+model-sha256: 4de58d12b09421003c8b1ba13e8b58ec533b28e1f22a65272119dc0993d333e8
+input: Pi is 3.14 and the fee is 1,000 dollars at 12:30; growth was 2.5% (up from 1.2%). Call 555-1234 or +1 (800) 555-0199. Version 2.0.1-beta, $4.99, 10/12/2026, 3e10.\n
+span: 0 81 0 81 0.9791328043644432
+span: 82 117 82 117 0.9952967749628535
+span: 118 162 118 162 0.9999321566033677

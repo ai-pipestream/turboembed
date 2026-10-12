@@ -1,0 +1,18 @@
+component: whitespace-newlines
+opennlp: cdf33c653d5d61d5af7d37ffee189a83bd8392ea
+jdk: 21.0.12.1
+whitespace: unicode
+input: Wait... what? Well\u2026 maybe. . . . or not.. Hmm...... ok\u2026\u2026 end\n
+span: 0 7 0 7
+span: 8 13 8 13
+span: 14 21 14 19
+span: 22 28 20 26
+span: 29 30 27 28
+span: 31 32 29 30
+span: 33 34 31 32
+span: 35 37 33 35
+span: 38 43 36 41
+span: 44 53 42 51
+span: 54 62 52 56
+span: 63 66 57 60
+span: 66 67 60 61

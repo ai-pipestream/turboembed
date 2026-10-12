@@ -1,0 +1,8 @@
+component: whitespace-newlines
+opennlp: cdf33c653d5d61d5af7d37ffee189a83bd8392ea
+jdk: 21.0.12.1
+whitespace: unicode
+input:   \t\n \r\n\u00A0\u3000 
+span: 3 4 3 4
+span: 5 6 5 6
+span: 6 7 6 7

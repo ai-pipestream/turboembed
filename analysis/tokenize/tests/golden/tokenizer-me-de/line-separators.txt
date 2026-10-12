@@ -1,0 +1,21 @@
+component: tokenizer-me-de
+opennlp: cdf33c653d5d61d5af7d37ffee189a83bd8392ea
+jdk: 21.0.12.1
+whitespace: unicode
+model: opennlp-de-ud-gsd-tokens-1.3-2.5.4.bin
+model-sha256: 32d0a7ff84fdd50f9e454340bed782d7269845bfa656e0c988cbb823dd628d6e
+alpha-numeric-pattern: ^[A-Za-z0-9\u00E4\u00E9\u00F6\u00FC\u00C4\u00C9\u00D6\u00DC\u00DF]+$
+use-alpha-numeric-optimization: false
+input: before\u0085after next\u2028line then\u2029para end\nand\u000Bvertical tab\u000Cform feed\n
+span: 0 6 0 6 0.999669910525473
+span: 8 13 7 12 0.9999052675340401
+span: 14 18 13 17 0.9999252453567101
+span: 21 25 18 22 0.9998505578079494
+span: 26 30 23 27 0.9999103724775494
+span: 33 37 28 32 0.9987867753920294
+span: 38 41 33 36 0.9980803814376814
+span: 42 45 37 40 0.999211895406334
+span: 46 54 41 49 0.9994711593225969
+span: 55 58 50 53 0.9988724477381423
+span: 59 63 54 58 0.9995581465442613
+span: 64 68 59 63 0.9988234197691801

@@ -1,0 +1,9 @@
+component: uax29
+opennlp: cdf33c653d5d61d5af7d37ffee189a83bd8392ea
+jdk: 21.0.12.1
+whitespace: unicode
+input: one\rtwo\rthree\r\rfive
+span: 0 3 0 3 ALPHANUMERIC
+span: 4 7 4 7 ALPHANUMERIC
+span: 8 13 8 13 ALPHANUMERIC
+span: 15 19 15 19 ALPHANUMERIC

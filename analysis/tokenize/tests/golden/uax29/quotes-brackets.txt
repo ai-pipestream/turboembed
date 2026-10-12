@@ -1,0 +1,25 @@
+component: uax29
+opennlp: cdf33c653d5d61d5af7d37ffee189a83bd8392ea
+jdk: 21.0.12.1
+whitespace: unicode
+input: He said, "Stop!" and she replied 'No.' [See note (a)] {x: 1} <tag> \u201Ccurly\u201D \u2018single\u2019 \u201Elow\u201C `code` ((nested [mixed {brackets}]))\n
+span: 0 2 0 2 ALPHANUMERIC
+span: 3 7 3 7 ALPHANUMERIC
+span: 10 14 10 14 ALPHANUMERIC
+span: 17 20 17 20 ALPHANUMERIC
+span: 21 24 21 24 ALPHANUMERIC
+span: 25 32 25 32 ALPHANUMERIC
+span: 34 36 34 36 ALPHANUMERIC
+span: 40 43 40 43 ALPHANUMERIC
+span: 44 48 44 48 ALPHANUMERIC
+span: 50 51 50 51 ALPHANUMERIC
+span: 55 56 55 56 ALPHANUMERIC
+span: 58 59 58 59 NUMERIC
+span: 62 65 62 65 ALPHANUMERIC
+span: 70 75 68 73 ALPHANUMERIC
+span: 82 88 76 82 ALPHANUMERIC
+span: 95 98 85 88 ALPHANUMERIC
+span: 103 107 91 95 ALPHANUMERIC
+span: 111 117 99 105 ALPHANUMERIC
+span: 119 124 107 112 ALPHANUMERIC
+span: 126 134 114 122 ALPHANUMERIC

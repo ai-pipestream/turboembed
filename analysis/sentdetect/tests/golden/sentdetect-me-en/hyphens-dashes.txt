@@ -1,0 +1,9 @@
+component: sentdetect-me-en
+opennlp: cdf33c653d5d61d5af7d37ffee189a83bd8392ea
+jdk: 21.0.12.1
+whitespace: unicode
+model: opennlp-en-ud-ewt-sentence-1.3-2.5.4.bin
+model-sha256: 4de58d12b09421003c8b1ba13e8b58ec533b28e1f22a65272119dc0993d333e8
+input: well-known state-of-the-art re-entry \u2013 en dash \u2012 figure dash \u2015 bar \u2E3A two-em \u2212minus -- double and a-b-c. 1990-2000, A--B, non\u2011breaking\u2010hyphen.\n
+span: 0 113 0 103 0.978803780025534
+span: 114 155 104 141 0.9999657621405155

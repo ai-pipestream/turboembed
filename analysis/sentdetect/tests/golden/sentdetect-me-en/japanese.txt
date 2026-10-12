@@ -1,0 +1,8 @@
+component: sentdetect-me-en
+opennlp: cdf33c653d5d61d5af7d37ffee189a83bd8392ea
+jdk: 21.0.12.1
+whitespace: unicode
+model: opennlp-en-ud-ewt-sentence-1.3-2.5.4.bin
+model-sha256: 4de58d12b09421003c8b1ba13e8b58ec533b28e1f22a65272119dc0993d333e8
+input: \u79C1\u306F\u6771\u4EAC\u306B\u4F4F\u3093\u3067\u3044\u307E\u3059\u3002\u3072\u3089\u304C\u306A\u3068\u30AB\u30BF\u30AB\u30CA\u3068\u6F22\u5B57\u3092\u4F7F\u3044\u307E\u3059\u3002\u30C6\u30B9\u30C8\u3067\u3059\uFF01\n
+span: 0 108 0 36 1.0

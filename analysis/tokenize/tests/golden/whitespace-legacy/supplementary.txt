@@ -1,0 +1,18 @@
+component: whitespace
+opennlp: cdf33c653d5d61d5af7d37ffee189a83bd8392ea
+jdk: 21.0.12.1
+whitespace: legacy
+input: emoji in word: ab\uD83D\uDE00cd, math \uD835\uDC00\uD835\uDC01\uD835\uDC02 \uD835\uDC1A\uD835\uDC1B\uD835\uDC1C deseret \uD801\uDC00\uD801\uDC28\uD801\uDC45 done. \uD840\uDC00 rare CJK.\n
+span: 0 5 0 5
+span: 6 8 6 8
+span: 9 14 9 14
+span: 15 24 15 22
+span: 25 29 23 27
+span: 30 42 28 34
+span: 43 55 35 41
+span: 56 63 42 49
+span: 64 76 50 56
+span: 77 82 57 62
+span: 83 87 63 65
+span: 88 92 66 70
+span: 93 97 71 75

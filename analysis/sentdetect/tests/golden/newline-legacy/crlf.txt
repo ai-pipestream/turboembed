@@ -1,0 +1,8 @@
+component: newline
+opennlp: cdf33c653d5d61d5af7d37ffee189a83bd8392ea
+jdk: 21.0.12.1
+whitespace: legacy
+input: First line\r\nSecond line\r\n\r\nFourth after blank\r\n
+span: 0 10 0 10
+span: 12 23 12 23
+span: 27 45 27 45

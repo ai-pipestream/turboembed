@@ -1,0 +1,6 @@
+component: newline
+opennlp: cdf33c653d5d61d5af7d37ffee189a83bd8392ea
+jdk: 21.0.12.1
+whitespace: unicode
+input: Flags \uD83C\uDDE9\uD83C\uDDEA\uD83C\uDDEB\uD83C\uDDF7\uD83C\uDDFA\uD83C\uDDF8 and \uD83C\uDDEF\uD83C\uDDF5x \uD83C\uDDE9\n
+span: 0 49 0 31
