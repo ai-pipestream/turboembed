@@ -71,6 +71,16 @@ public final class Golden {
     return run.whitespace().equals("legacy") ? component + "-legacy" : component;
   }
 
+  static int problemCount() {
+    return PROBLEMS.size();
+  }
+
+  static void printProblems() {
+    for (String p : PROBLEMS) {
+      System.out.println("problem: " + p);
+    }
+  }
+
   /** Records something that looked wrong; printed at the end. */
   static void problem(String text) {
     PROBLEMS.add(text);
