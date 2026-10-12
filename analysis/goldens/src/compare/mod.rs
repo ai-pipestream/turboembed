@@ -179,16 +179,14 @@ pub fn matches_golden_key<L: GoldenCompare>(
 ) -> Result<(), Mismatch> {
     let shape = shape_of::<L>();
     let layer = key.id().to_string();
-    let input = &golden.header.input;
-    let text = doc.source().as_bytes();
-    let digest = sha256(text);
-    if text.len() != input.utf8_len as usize || digest != input.sha256 {
+    if let Err(found) = check_input(golden, doc.source()) {
+        let input = &golden.header.input;
         return Err(Mismatch::Input {
             layer,
             expected_len: input.utf8_len,
-            found_len: text.len(),
+            found_len: found.len,
             expected_sha256: input.sha256,
-            found_sha256: digest,
+            found_sha256: found.sha256,
         });
     }
     if let Some(e) = &golden.header.error {
@@ -208,6 +206,25 @@ pub fn matches_golden_key<L: GoldenCompare>(
     };
     let cx = Cx { doc, key: key.id(), golden, layer };
     rust.compare(&cx, g, tol)
+}
+
+/// A text's length in UTF-8 bytes and its SHA-256: what `check_input`
+/// found when the text is not the golden's input.
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+pub struct InputFound {
+    pub len: usize,
+    pub sha256: [u8; 32],
+}
+
+/// Checks that `text` is the golden's input, by its length in UTF-8 bytes
+/// and its SHA-256, and returns what the text has when it is not.
+pub fn check_input(golden: &Golden, text: &str) -> Result<(), InputFound> {
+    let input = &golden.header.input;
+    let digest = sha256(text.as_bytes());
+    if text.len() != input.utf8_len as usize || digest != input.sha256 {
+        return Err(InputFound { len: text.len(), sha256: digest });
+    }
+    Ok(())
 }
 
 /// Checks a golden layer's anchor and columns against the type's.
