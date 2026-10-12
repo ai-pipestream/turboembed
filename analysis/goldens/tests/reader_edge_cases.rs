@@ -1085,6 +1085,7 @@ fn full_golden() -> Golden {
                 ConfigEntry { key: "é".into(), value: "\u{1}\u{1f}".into() },
                 ConfigEntry { key: "😀".into(), value: "😀\t😀".into() },
             ],
+            error: None,
         },
         layers,
     }

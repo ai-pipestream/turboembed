@@ -63,6 +63,7 @@ impl GoldenCompare for View {
             spans: Some(SpanCols { view: ViewId::SOURCE, start: &r_start, end: &r_end }),
             context: None,
             tokens: None,
+            units: None,
             labels: Some(Labels::Strs(&r_with)),
             values: None,
         };
@@ -71,6 +72,7 @@ impl GoldenCompare for View {
             spans: Some(SpanCols { view: ViewId::SOURCE, start, end }),
             context: None,
             tokens: None,
+            units: None,
             labels: Some(Labels::Strs(with)),
             values: None,
         };
