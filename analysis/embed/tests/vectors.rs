@@ -324,7 +324,7 @@ fn sentence_vectors_are_each_sentences_range() {
     assert_eq!(plan.windows.len(), 1, "four sentences fit one row");
     let worst = close("sentences", &v.data, &want);
     println!("largest difference from each range alone: {worst:e}");
-    assert!(v.data.chunks_exact(32).all(is_unit));
+    assert!(v.data.as_chunks::<32>().0.iter().all(|r| is_unit(r)));
 }
 
 #[test]
@@ -429,7 +429,7 @@ fn an_item_longer_than_a_window_is_the_weighted_mean_of_its_parts() {
     let vc = chunk_vectors(&docs[0]);
     close("chunks", &vc.data, &wc);
     close("sentences", &sentence_vectors(&docs[0]).data, &ws);
-    assert!(vc.data.chunks_exact(32).all(is_unit));
+    assert!(vc.data.as_chunks::<32>().0.iter().all(|r| is_unit(r)));
     // Not just the first part's vector.
     let first = plan.placed.iter().find(|x| x.target == plan.split[0].target).unwrap();
     let w = plan.windows[first.window as usize];
@@ -833,7 +833,8 @@ fn on_the_device_turbo_test_device_names() {
     ];
     let mut worst = 1f64;
     for (got, want) in pairs {
-        for (g, w) in got.chunks_exact(32).zip(want.chunks_exact(32)) {
+        for (g, w) in got.as_chunks::<32>().0.iter().zip(want.as_chunks::<32>().0) {
+            let (g, w) = (&g[..], &w[..]);
             let dot: f64 = g.iter().zip(w).map(|(a, b)| *a as f64 * *b as f64).sum();
             let n = |v: &[f32]| v.iter().map(|&x| x as f64 * x as f64).sum::<f64>().sqrt();
             let c = dot / (n(g) * n(w));
