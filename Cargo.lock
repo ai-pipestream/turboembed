@@ -1749,6 +1749,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "turbo-analysis-embed"
+version = "0.1.0"
+dependencies = [
+ "serde_json",
+ "tokenizers",
+ "turbo",
+ "turbo-analysis",
+ "turbo-analysis-layers",
+]
+
+[[package]]
 name = "turbo-analysis-layers"
 version = "0.1.0"
 dependencies = [
