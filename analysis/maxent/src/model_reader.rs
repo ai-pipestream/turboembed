@@ -19,6 +19,8 @@
 
 use std::collections::HashMap;
 
+use turbo_jvm::strict_math;
+
 use crate::error::{Error, Result};
 use crate::java_data::{JavaData, canonical_modified_utf8, decode_modified_utf8};
 use crate::model::{MaxentModel, ModelKind};
@@ -101,7 +103,7 @@ impl MaxentModel {
 
         let start = match kind {
             // UniformPrior.setLabels: StrictMath.log(1.0 / numOutcomes).
-            ModelKind::Gis => (1.0 / f64::from(outcome_count)).ln(),
+            ModelKind::Gis => strict_math::log(1.0 / f64::from(outcome_count)),
             ModelKind::Qn | ModelKind::Perceptron => 0.0,
         };
         Ok(MaxentModel { kind, outcomes, predicates, pred_start, pred_outcome, pred_param, start })

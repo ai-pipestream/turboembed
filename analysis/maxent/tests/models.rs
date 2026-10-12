@@ -13,8 +13,7 @@ mod common;
 
 use std::path::PathBuf;
 
-use common::modified_utf8;
-use turbo_maxent::{ModelFile, ModelKind};
+use turbo_maxent::{ModelFile, ModelKind, best_outcome};
 
 type Case = (&'static [&'static str], [f64; 2]);
 
@@ -47,20 +46,13 @@ fn check(file: &ModelFile, language: &str, pattern: &str, predicates: usize, cas
     assert_eq!(model.num_predicates(), predicates);
 
     let mut out = [0.0; 2];
-    let mut exact = 0;
     for (context, want) in cases {
-        let features: Vec<Vec<u8>> = context.iter().map(|f| modified_utf8(f)).collect();
-        let features: Vec<&[u8]> = features.iter().map(Vec::as_slice).collect();
-        model.eval(&features, &mut out);
-        for (got, want) in out.iter().zip(want) {
-            assert!((got - want).abs() <= 1e-9, "{language} {context:?}: {got} vs {want}");
-            exact += usize::from(got == want);
-        }
+        model.eval(context, &mut out);
+        assert_eq!(&out, want, "{language} {context:?}");
         let best = if want[0] < want[1] { 1 } else { 0 };
-        assert_eq!(model.best_outcome(&out), best, "{language} {context:?}");
+        assert_eq!(best_outcome(&out), best, "{language} {context:?}");
     }
     assert_eq!(cases.len(), 10);
-    println!("{language}: {exact} of 20 probabilities are bit-identical to the JVM's");
 }
 
 const ES_CASES: [Case; 10] = [
