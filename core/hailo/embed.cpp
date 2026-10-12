@@ -157,7 +157,8 @@ bool Session::Frame::resize(size_t bytes) {
     return true;
 }
 
-Failure Session::create(Model &model, uint32_t max_batch, uint32_t max_seq, std::unique_ptr<Session> &out) {
+Failure Session::create(Model &model, uint32_t max_batch, uint32_t max_seq, uint32_t max_ranges,
+                        std::unique_ptr<Session> &out) {
     if (max_seq > model.desc().seq)
         return fail(TURBO_E_UNSUPPORTED_OPTION,
                     "max_seq " + std::to_string(max_seq) + " is over the hef's " + std::to_string(model.desc().seq),
@@ -166,6 +167,8 @@ Failure Session::create(Model &model, uint32_t max_batch, uint32_t max_seq, std:
     s->model_ = &model;
     s->max_batch_ = max_batch;
     s->max_seq_ = max_seq;
+    s->max_ranges_ = max_ranges;
+    s->ranges_.reserve(max_ranges);
     s->ids_.resize((size_t)max_batch * max_seq);
     s->mask_.resize((size_t)max_batch * max_seq);
     s->sum_.resize(model.desc().hidden);
@@ -197,6 +200,9 @@ Failure Session::create(Model &model, uint32_t max_batch, uint32_t max_seq, std:
 
 Failure Session::write(const Rows &r) {
     if (!broken_.empty()) return fail(TURBO_E_INVALID_STATE, broken_);
+    written_ = false;
+    by_ranges_ = false;
+    ranges_.clear();
     if (r.types) {
         for (uint32_t b = 0; b < r.batch; b++)
             for (uint32_t t = 0; t < r.seq; t++)
@@ -211,6 +217,39 @@ Failure Session::write(const Rows &r) {
         std::memcpy(&mask_[(size_t)b * max_seq_], r.mask + (size_t)b * r.row_stride, (size_t)r.seq * 4);
     }
     rows_.ids = rows_.mask = rows_.types = nullptr;   // the copies are read from here on
+    written_ = true;
+    return {};
+}
+
+Failure Session::write_ranges(const Rows &r, const turbo_token_range *ranges, uint32_t count) {
+    Failure f = write(r);
+    if (f) return f;
+    // The rows are kept; the write stands only once the ranges are.
+    written_ = false;
+    if (r.pooling != TURBO_POOLING_MEAN)
+        return fail(TURBO_E_UNSUPPORTED_OPTION,
+                    "pooling " + std::to_string(r.pooling) + ": a range is pooled by the mean alone", 5);
+    if (count == 0) return fail(TURBO_E_INVALID_ARGUMENT, "a write of ranges holds at least one");
+    if (count > max_ranges_)
+        return fail(TURBO_E_CAPACITY, std::to_string(count) + " ranges are over the session's max_ranges " +
+                                          std::to_string(max_ranges_));
+    // The core checks each range as turbo.h says. They are checked again
+    // here because pooling indexes the session's rows by them, and a range
+    // without a live token would be a mean over nothing.
+    for (uint32_t i = 0; i < count; i++) {
+        const turbo_token_range &g = ranges[i];
+        if (g.row >= r.batch || g.start >= g.end || g.end > r.seq)
+            return fail(TURBO_E_INVALID_ARGUMENT, "range " + std::to_string(i) + " is row " + std::to_string(g.row) +
+                                                      " columns [" + std::to_string(g.start) + ", " +
+                                                      std::to_string(g.end) + "), outside " +
+                                                      std::to_string(r.batch) + " rows of " + std::to_string(r.seq) +
+                                                      " tokens");
+        const int32_t *mask = &mask_[(size_t)g.row * max_seq_];
+        if (std::find(mask + g.start, mask + g.end, 1) == mask + g.end)
+            return fail(TURBO_E_INVALID_ARGUMENT, "range " + std::to_string(i) + " has no token with mask 1");
+    }
+    ranges_.assign(ranges, ranges + count);
+    by_ranges_ = true;
     written_ = true;
     return {};
 }
@@ -239,21 +278,28 @@ void Session::fill(Slot &slot, uint32_t row) {
     slot.row = row;
 }
 
-/* The frame's hidden states pooled over the row's mask, cut to output_dim,
- * and normalized, into out. */
+/* The vectors the slot's frame holds, pooled from its hidden states, cut to
+ * output_dim, and normalized, into out. After write, the frame's row's
+ * vector at the row's index. After write_ranges, the vector of every range
+ * of the frame's row at the range's index: frames come back in any order,
+ * so a range's place in the output is its place in the list, never its
+ * row. */
 void Session::pool(const Slot &slot, float *out) {
     const ModelDesc &d = model_->desc();
     const Stream &hs = model_->hidden();
     const int32_t *mask = &mask_[(size_t)slot.row * max_seq_];
-    std::fill(sum_.begin(), sum_.end(), 0.0);
-    if (rows_.pooling == TURBO_POOLING_MEAN) {
-        uint32_t live = 0;
-        for (uint32_t t = 0; t < rows_.seq; t++) {
-            if (!mask[t]) continue;
-            live++;
-            for (uint32_t h = 0; h < d.hidden; h++) sum_[h] += get(hs, slot.hidden.data(), (size_t)t * d.hidden + h);
+    const uint32_t dim = rows_.output_dim;
+    if (by_ranges_) {
+        for (size_t i = 0; i < ranges_.size(); i++) {
+            const turbo_token_range &g = ranges_[i];
+            if (g.row != slot.row) continue;
+            mean(slot, mask, g.start, g.end);
+            put_vector(out + i * dim);
         }
-        for (double &v : sum_) v /= live;
+        return;
+    }
+    if (rows_.pooling == TURBO_POOLING_MEAN) {
+        mean(slot, mask, 0, rows_.seq);
     } else {
         uint32_t t = 0;
         if (rows_.pooling == TURBO_POOLING_LAST)
@@ -261,6 +307,27 @@ void Session::pool(const Slot &slot, float *out) {
                 if (mask[i]) t = i;
         for (uint32_t h = 0; h < d.hidden; h++) sum_[h] = get(hs, slot.hidden.data(), (size_t)t * d.hidden + h);
     }
+    put_vector(out + (size_t)slot.row * dim);
+}
+
+/* The mean of the frame's hidden states over the columns [start, end) whose
+ * mask is 1, into sum_. The tokens are summed in column order, so a row and
+ * a range over the same columns give the same bits. */
+void Session::mean(const Slot &slot, const int32_t *mask, uint32_t start, uint32_t end) {
+    const ModelDesc &d = model_->desc();
+    const Stream &hs = model_->hidden();
+    std::fill(sum_.begin(), sum_.end(), 0.0);
+    uint32_t live = 0;
+    for (uint32_t t = start; t < end; t++) {
+        if (!mask[t]) continue;
+        live++;
+        for (uint32_t h = 0; h < d.hidden; h++) sum_[h] += get(hs, slot.hidden.data(), (size_t)t * d.hidden + h);
+    }
+    for (double &v : sum_) v /= live;
+}
+
+/* sum_ cut to output_dim and normalized as the rows say, into dst as F32. */
+void Session::put_vector(float *dst) {
     const uint32_t dim = rows_.output_dim;
     double scale = 1.0;
     if (rows_.normalize == TURBO_NORMALIZE_L2) {
@@ -268,7 +335,7 @@ void Session::pool(const Slot &slot, float *out) {
         for (uint32_t h = 0; h < dim; h++) n += sum_[h] * sum_[h];
         scale = 1.0 / std::fmax(std::sqrt(n), 1e-12);
     }
-    for (uint32_t h = 0; h < dim; h++) out[(size_t)slot.row * dim + h] = (float)(sum_[h] * scale);
+    for (uint32_t h = 0; h < dim; h++) dst[h] = (float)(sum_[h] * scale);
 }
 
 Failure Session::run(float *out, uint64_t &h2d, uint64_t &d2h) {

@@ -14,8 +14,8 @@ impl Golden {
     /// Writes the file. Refuses (as `InvalidInput`) what the reader would
     /// refuse or the format cannot carry: an empty header field, aligned
     /// anchor or column name, one holding a tab or a line end, unsorted
-    /// config keys, and a layer with no columns or with columns of
-    /// different lengths.
+    /// config keys, a layer with no columns or with columns of different
+    /// lengths, and layers beside an error record.
     pub fn write(&self, w: &mut impl Write) -> io::Result<()> {
         let mut out = String::new();
         self.write_to_string(&mut out)?;
@@ -30,6 +30,11 @@ impl Golden {
     }
 
     fn write_to_string(&self, out: &mut String) -> io::Result<()> {
+        if let Some(e) = &self.header.error
+            && !self.layers.is_empty()
+        {
+            return Err(invalid(format!("a run that threw {} has layers; such a file has none", e.class)));
+        }
         write_header(&self.header, out)?;
         for layer in &self.layers {
             write_layer(layer, out)?;
@@ -78,6 +83,14 @@ fn write_header(h: &Header, out: &mut String) -> io::Result<()> {
         escape_into(&c.key, out);
         out.push('\t');
         escape_into(&c.value, out);
+        out.push('\n');
+    }
+    if let Some(e) = &h.error {
+        field("the error record's class", &e.class)?;
+        out.push_str("error\t");
+        out.push_str(&e.class);
+        out.push('\t');
+        escape_into(&e.message, out);
         out.push('\n');
     }
     Ok(())

@@ -88,7 +88,7 @@ class Model {
     std::mutex runs_;
 };
 
-/* The rows of one run, as embed_write passes them. */
+/* The rows of one run, as embed_write and embed_write_ranges pass them. */
 struct Rows {
     uint32_t batch = 0, seq = 0, row_stride = 0;
     const int32_t *ids = nullptr;
@@ -100,18 +100,29 @@ struct Rows {
 class Session {
   public:
     /* Frames for max_batch rows of up to max_seq tokens: up to two of the
-     * model's bursts in flight, and the session's copy of the rows.
-     * Everything a run touches is allocated here. */
-    static Failure create(Model &model, uint32_t max_batch, uint32_t max_seq, std::unique_ptr<Session> &out);
+     * model's bursts in flight, the session's copy of the rows, and room
+     * for max_ranges ranges. Everything a run touches is allocated here. */
+    static Failure create(Model &model, uint32_t max_batch, uint32_t max_seq, uint32_t max_ranges,
+                          std::unique_ptr<Session> &out);
 
     /* The rows and options of the next run, copied. A token type other
      * than 0 is refused: the HEF folds type 0 in as a constant. After a
      * run that failed on the device, write and run are TURBO_E_INVALID_STATE
-     * until the session is released. */
+     * until the session is released. A refused write leaves nothing
+     * written. */
     Failure write(const Rows &rows);
 
-    /* Runs every row, pooling and normalizing each into out, [batch,
-     * output_dim] F32 packed. h2d and d2h count the frames' bytes. */
+    /* The rows as write takes them, and count ranges of their tokens, copied
+     * into memory made with the session. The run then gives one vector per
+     * range, in the order written: the mean over the range's tokens whose
+     * mask is 1, cut and normalized as the rows say. pooling must be
+     * TURBO_POOLING_MEAN. A refused write leaves nothing written. */
+    Failure write_ranges(const Rows &rows, const turbo_token_range *ranges, uint32_t count);
+
+    /* Runs every row, pooling and normalizing into out, packed F32: after
+     * write, [batch, output_dim], a row's vector at the row's index;
+     * after write_ranges, [count, output_dim], a range's vector at the
+     * range's index. h2d and d2h count the frames' bytes. */
     Failure run(float *out, uint64_t &h2d, uint64_t &d2h);
 
     uint32_t normalize() const { return rows_.normalize; }
@@ -138,10 +149,17 @@ class Session {
 
     void fill(Slot &slot, uint32_t row);
     void pool(const Slot &slot, float *out);
+    void mean(const Slot &slot, const int32_t *mask, uint32_t start, uint32_t end);
+    void put_vector(float *dst);
 
     Model *model_ = nullptr;
-    uint32_t max_batch_ = 0, max_seq_ = 0;
+    uint32_t max_batch_ = 0, max_seq_ = 0, max_ranges_ = 0;
     Rows rows_;
+    /* The ranges write_ranges kept, in the order written, and whether the
+     * next run pools them instead of the rows. Reserved for max_ranges at
+     * create, so a write copies into it without allocating. */
+    std::vector<turbo_token_range> ranges_;
+    bool by_ranges_ = false;
     std::vector<int32_t> ids_, mask_;
     std::vector<double> sum_;   // one row's pooled values, before the cut and the norm
     std::vector<std::unique_ptr<Slot>> slots_;

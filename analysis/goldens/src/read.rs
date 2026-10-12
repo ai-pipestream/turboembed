@@ -13,7 +13,7 @@ use crate::compare::{Shape, known_shapes};
 use crate::escape::{EscapeError, unescape_into};
 use crate::format::{
     AnnotatorRef, Column, ColumnData, ColumnType, ConfigEntry, Generator, Golden, GoldenAnchor, GoldenLayer, Header,
-    Input, Jdk, Model, OpenNlp, UnicodeVersion, VERSION,
+    Input, Jdk, JvmError, Model, OpenNlp, UnicodeVersion, VERSION,
 };
 use crate::hex::{digit, parse_hex, to_hex};
 use crate::sha::sha256;
@@ -61,10 +61,13 @@ pub enum GoldenError {
     /// The `end` line came before the declared number of rows.
     Rows { line: usize, layer: String, declared: usize, found: usize },
     /// A span that ends before it starts, ends past the input, or starts
-    /// before the row before it.
+    /// before the row before it; or a UTF-16 span that ends before it
+    /// starts or past the input.
     Span { line: usize, layer: String, detail: String },
-    /// A file with a header and no layer.
+    /// A file with a header and no layer, and no error record.
     NoLayers { line: usize },
+    /// A line after the error record: a run that threw has no layers.
+    AfterError { line: usize, found: String },
     /// The input text does not match the header.
     Input { path: PathBuf, what: &'static str, expected: String, found: String },
 }
@@ -118,6 +121,11 @@ impl fmt::Display for GoldenError {
             }
             Span { line, layer, detail } => write!(f, "line {line}: {layer}: {detail}"),
             NoLayers { line } => write!(f, "line {line}: the file ends, expected at least one layer block"),
+            AfterError { line, found } => write!(
+                f,
+                "line {line}: expected the end of the file after the error record (a run that threw has no layers), \
+                 found {found:?}"
+            ),
             Input { path, what, expected, found } => {
                 write!(f, "{}: the input's {what} is {found}, expected {expected} as the header says", path.display())
             }
@@ -128,23 +136,45 @@ impl fmt::Display for GoldenError {
 impl std::error::Error for GoldenError {}
 
 impl Golden {
-    /// Reads and parses a golden file.
+    /// Reads and parses a golden file, checking its layer blocks against
+    /// `known_shapes()`, the layer types of turbo-analysis and
+    /// turbo-analysis-layers.
     pub fn read(path: impl AsRef<Path>) -> Result<Golden, GoldenError> {
-        let path = path.as_ref();
-        let bytes = std::fs::read(path).map_err(|error| GoldenError::Io { path: path.into(), error })?;
-        Golden::parse_bytes(&bytes).map_err(|e| GoldenError::File { path: path.into(), error: Box::new(e) })
+        Golden::read_with(path, &known_shapes())
     }
 
-    /// Parses a golden file's bytes.
+    /// Reads and parses a golden file, checking its layer blocks against
+    /// `shapes`. A crate that owns a layer type with a golden shape passes
+    /// `known_shapes()` with `shape_of::<ItsLayer>()` added.
+    pub fn read_with(path: impl AsRef<Path>, shapes: &[Shape]) -> Result<Golden, GoldenError> {
+        let path = path.as_ref();
+        let bytes = std::fs::read(path).map_err(|error| GoldenError::Io { path: path.into(), error })?;
+        Golden::parse_bytes_with(&bytes, shapes)
+            .map_err(|e| GoldenError::File { path: path.into(), error: Box::new(e) })
+    }
+
+    /// Parses a golden file's bytes, against `known_shapes()`.
     pub fn parse_bytes(bytes: &[u8]) -> Result<Golden, GoldenError> {
+        Golden::parse_bytes_with(bytes, &known_shapes())
+    }
+
+    /// Parses a golden file's bytes, against `shapes`.
+    pub fn parse_bytes_with(bytes: &[u8], shapes: &[Shape]) -> Result<Golden, GoldenError> {
         let text = std::str::from_utf8(bytes).map_err(|e| GoldenError::NotUtf8 {
             line: 1 + bytes[..e.valid_up_to()].iter().filter(|&&b| b == b'\n').count(),
         })?;
-        Golden::parse(text)
+        Golden::parse_with(text, shapes)
     }
 
-    /// Parses a golden file's text.
+    /// Parses a golden file's text, against `known_shapes()`.
     pub fn parse(text: &str) -> Result<Golden, GoldenError> {
+        Golden::parse_with(text, &known_shapes())
+    }
+
+    /// Parses a golden file's text, checking each layer block's id, anchor
+    /// and columns against `shapes`: a block whose id none of them has is
+    /// refused.
+    pub fn parse_with(text: &str, shapes: &[Shape]) -> Result<Golden, GoldenError> {
         if let Some(at) = text.find('\r') {
             return Err(GoldenError::CarriageReturn { line: 1 + text[..at].matches('\n').count() });
         }
@@ -153,10 +183,15 @@ impl Golden {
         };
         let mut lines = Lines { iter: body.split('\n').peekable(), line: 0 };
         let header = read_header(&mut lines)?;
-        let shapes = known_shapes();
+        if header.error.is_some() {
+            if let Some(found) = lines.next() {
+                return Err(GoldenError::AfterError { line: lines.line, found: found.into() });
+            }
+            return Ok(Golden { header, layers: Vec::new() });
+        }
         let mut layers: Vec<GoldenLayer> = Vec::new();
         while let Some(line) = lines.next() {
-            let layer = read_layer(&mut lines, line, &header, &shapes, &layers)?;
+            let layer = read_layer(&mut lines, line, &header, shapes, &layers)?;
             layers.push(layer);
         }
         if layers.is_empty() {
@@ -340,7 +375,23 @@ fn read_header(lines: &mut Lines<'_>) -> Result<Header, GoldenError> {
         }
         config.push(ConfigEntry { key, value: buf });
     }
-    Ok(Header { generator, opennlp, jdk, unicode, input, models, annotator, config })
+    // The exception the annotator threw, if it threw: after the options,
+    // and the last line of the file.
+    let mut error = None;
+    if let Some(l) = lines.peek().filter(|l| l.split('\t').next() == Some("error")) {
+        lines.next();
+        let line = lines.line;
+        let [class, message] = record(line, l, "error", ["class", "message"])?;
+        let class = text_field(line, "error class", class)?;
+        let mut buf = String::new();
+        unescape_into(message, &mut buf).map_err(|error| GoldenError::Escape {
+            line,
+            field: "error message".into(),
+            error,
+        })?;
+        error = Some(JvmError { class, message: buf });
+    }
+    Ok(Header { generator, opennlp, jdk, unicode, input, models, annotator, config, error })
 }
 
 /// The most rows reserved for ahead of reading them. The declared count
@@ -443,6 +494,13 @@ fn read_layer(
         }
         _ => None,
     };
+    // A layer of UTF-16 spans (`turbo:utf16<L>`) has its spans in UTF-16
+    // units of the input, in the order of the layer it is aligned to.
+    let unit_cols = {
+        let start = specs.iter().position(|s| s == &("start16", ColumnType::U32));
+        let end = specs.iter().position(|s| s == &("end16", ColumnType::U32));
+        start.zip(end)
+    };
     let end_line = format!("end\t{id}");
     let mut buf = String::new();
     let mut last_start = 0;
@@ -477,6 +535,25 @@ fn read_layer(
                 return Err(GoldenError::Span { line, layer: id.into(), detail });
             }
             last_start = start;
+        }
+        if let Some((s, e)) = unit_cols {
+            let (ColumnData::U32(starts), ColumnData::U32(ends)) = (&columns[s].data, &columns[e].data) else {
+                unreachable!("start16 and end16 are u32 columns, as found");
+            };
+            let (start, end) = (starts[r], ends[r]);
+            let detail = if start > end {
+                Some(format!("the UTF-16 span {start}..{end} ends before it starts"))
+            } else if end > header.input.utf16_len {
+                Some(format!(
+                    "the UTF-16 span {start}..{end} ends past the input's {} UTF-16 units",
+                    header.input.utf16_len
+                ))
+            } else {
+                None
+            };
+            if let Some(detail) = detail {
+                return Err(GoldenError::Span { line, layer: id.into(), detail });
+            }
         }
     }
     let l = lines.expect(&format!("\"end\t{id}\""))?;
