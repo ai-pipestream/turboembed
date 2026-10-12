@@ -84,12 +84,9 @@ fn all_whitespace_becomes_empty() {
 }
 
 // The second half of the OpenNLP test above: the empty match at the start
-// of the empty output maps back to a valid empty span. The alignment in
-// turbo-analysis maps an empty span that sits on a deletion with its start
-// after its end (the start moves past the deletion, the end does not), and
-// `Span::new` panics, so this fails until `Alignment` handles that case.
+// of the empty output maps back to a valid empty span, the one just before
+// the deletion.
 #[test]
-#[ignore = "turbo-analysis Alignment maps an empty span on a deletion to start > end"]
 fn empty_output_span_at_a_deletion() {
     let (_, a) = normalize(&Whitespace::collapse(), "   ");
     let (s, e) = back(&a, 0, 0);
