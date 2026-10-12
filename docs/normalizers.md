@@ -18,7 +18,7 @@ implementation differs on purpose, the difference is listed under
 | `turbo-unicode` | `analysis/unicode/` | Unicode 18.0 character data: general category, properties, scripts, case mapping and folding, normalization forms, confusables, emoji sequences. Tables generated from the UCD files in `analysis/unicode/ucd/` by `turbo-unicode-gen`. |
 | `turbo-unicode-gen` | `analysis/unicode-gen/` | The table generator. |
 | `turbo-normalize` | `analysis/normalize/` | The normalizers, the `Normalizer` trait, the pipeline step adapter and the chain. |
-| `turbo-normalize-layers` | `analysis/normalize-layers/` | The layers normalizers write besides views: `Placeholders` (`turbo:placeholders`), `Emoji` (`turbo:emoji`), `Artifacts` (`turbo:artifacts`), `Noise` (`turbo:noise`). |
+| `turbo-normalize-layers` | `analysis/normalize-layers/` | The layers normalizers write besides views: `Placeholders` (`turbo:placeholders`), `Emoji` (`turbo:emoji`), `Artifacts` (`turbo:artifacts`), `Noise` (`turbo:noise`), `Corrections` (`turbo:corrections`). |
 
 ### turbo-unicode
 
@@ -834,6 +834,144 @@ clear of exclusions and accepted by `Document::add`, and each token scored
 alone is noise exactly when its core lies inside a finding of the whole
 text.
 
+### Spelling correction (`analysis/normalize/src/spellcheck/mod.rs`)
+
+`SymSpell` is a symmetric delete spelling corrector over a frequency
+dictionary. Each indexed word is reduced to the strings its first
+`prefix_length` code points become when up to
+`max_dictionary_edit_distance` of them are deleted; a query is reduced
+the same way, and the words found under its deletes are verified with
+the configured `Metric` (optimal string alignment by default, or
+Levenshtein). `SymSpellConfig` holds OpenNLP's defaults (distance 2,
+prefix 7, count threshold 1, corpus size derived from the counts) and
+`build()` refuses inconsistent values. The engine offers:
+
+- `add` (a word becomes visible once its count reaches the threshold;
+  counts saturate at `Long.MAX_VALUE`, as OpenNLP's do), `add_bigram`,
+  `count`, `contains`, `bigram`;
+- `lookup(term, verbosity, max)` with `Top`, `Closest` and `All`, the
+  suggestions ordered by distance, then count (larger first), then term
+  in UTF-16 order, as OpenNLP's `SuggestItem` compares them;
+- `lookup_compound(text, max)`, which corrects a phrase and also splits
+  words run together and merges words split apart, scored with the
+  bigram counts or the naive Bayes estimate. Besides the corrected
+  phrase it returns `parts`: for each output word, the byte range of the
+  input it came from and its range in the output;
+- `crate::noise::Dictionary`, so the noise scorer can use the engine as
+  its word list.
+
+`FrequencyDictionary` reads OpenNLP's plain-text unigram and bigram
+files (`word count`, `w1 w2 count`; `#` comments and blank lines
+skipped; a malformed line gives a `MalformedLine` with OpenNLP's message
+and line number). `SymSpellModel` reads and writes the binary models of
+OpenNLP's `SymSpellModelSerializer` (magic `SYMS`, format version 1,
+modified UTF-8 strings, variable-length counts) and builds an engine. No
+dictionary or model ships with the crate.
+
+Memory layout: the words are one `Vec<String>` in the order they were
+first added, with their counts (`u64`) and code point lengths (`u32`) in
+two vectors beside it; a word's position is its id, and an
+open-addressing table of ids keyed by the word's hash finds it, so no
+word is stored twice. The deletes index maps the 64-bit hash of a delete
+string to its words: one id held inline when a single word produces the
+delete (most deletes), otherwise the position of a list of ids. The
+delete strings themselves are not kept. Because two deletes can share a
+hash, every candidate is checked to really have the probed string as a
+delete (a subsequence test on at most `prefix_length` code points), so
+the candidates and their order are exactly OpenNLP's. A lookup allocates
+only the arena of its own deletes and the code points of the query.
+
+`SpellCorrect` (id `turbo:normalize:spell-correct`) is the normalizer.
+Per token (the default), the text is split at `White_Space`; a token
+loses its leading and trailing code points that are not letters or
+numbers, and the core left is looked up lowercased when it is at least
+`min_token_length` (4) code points long, not number-like
+(`skip_numbers`), not URL- or e-mail-like (`skip_urls`) and has a
+letter. A known core stays; a correction takes the core's casing (all
+uppercase, or a capital first letter) and replaces the core alone, so
+the punctuation and whitespace around it keep their offsets. In
+compound mode (`SpellCorrectMode::Compound`) the text goes to
+`lookup_compound`; each output word that differs from its input is one
+replacement of that input (a merge covers both tokens and the
+whitespace between them), whitespace at the ends is deleted, and a
+whitespace run between words keeps one existing space and loses the
+rest, or becomes a space when it has none. Keeping a space keeps the
+edits of neighbouring words apart; a run with no space (`"teh\u{A0}wrold"`)
+joins them into one edit, because the `ViewBuilder` merges edits that
+touch. The engine is shared through an `Arc`.
+
+OpenNLP counterparts: `SymSpell`, `SymSpellConfig`, `SuggestItem`,
+`Verbosity`, `DamerauOSADistance` and `LevenshteinDistance`,
+`FrequencyDictionaryLoader`, `SymSpellModel` and
+`SymSpellModelSerializer`, and `SpellCheckingCharSequenceNormalizer`, all
+in the spellcheck add-on.
+
+Differences from OpenNLP:
+
+- The minimum token length counts code points; OpenNLP counts UTF-16
+  units, so it corrects "\u{10428}wr" (three code points) at the default
+  minimum of 4. Test `token_length_counts_code_points`.
+- `lookup_compound` splits a token only between code points and treats
+  a supplementary character as one character. OpenNLP splits at every
+  UTF-16 index, which looks up the halves of a surrogate pair, and tries
+  to split "😀" because its `length()` is 2. Test
+  `compound_splits_only_between_code_points`.
+- `lookup_compound` checks the requested distance against the index
+  before anything else; OpenNLP checks it only when it looks a token up,
+  so a blank input with too large a distance returns a result there and
+  `LookupError` here. Test `a_distance_above_the_index_is_refused`.
+- The metric is the enum `Metric` of the two metrics the model format
+  names; OpenNLP accepts any `EditDistance`, but its serializer writes
+  only these two. `EditDistance` is still a trait for other uses.
+- The model reader refuses bytes after the last bigram
+  (`ModelError::TrailingBytes`), a count above `Long.MAX_VALUE` (which
+  Java reads as a negative count and refuses later, with an
+  `IllegalArgumentException`) and a string holding an unpaired surrogate,
+  which a Rust string cannot hold. Test `corrupt_streams_are_refused`,
+  `modified_utf8_and_vlong_rows`.
+- `entry_count` is the number of distinct delete hashes, which equals
+  OpenNLP's number of distinct delete strings unless two of them share a
+  64-bit hash.
+- There is no Java serialization of the normalizer and no
+  `withSpellChecker`: the engine is held by `Arc` and the normalizer is
+  `Clone`.
+- Added, all off by default:
+  - `keep_unknown_proper_nouns`: in per-token mode a core that starts
+    with an uppercase letter is corrected only at edit distance 1, so
+    names the dictionary does not know are not turned into common words
+    two edits away ("Quinn" stays; OpenNLP writes "Quick"). Test
+    `proper_nouns_two_edits_from_a_word_can_be_kept`.
+  - `use_placeholders`: as an annotator, tokens that overlap a span of
+    the `Placeholders` layer of the view read are skipped, in place of
+    OpenNLP's URL and e-mail guess; in compound mode they are kept and
+    the phrases between them are corrected apart. A layer of another
+    view is refused with an error. Tests
+    `placeholders_replace_the_url_guess`,
+    `placeholders_split_compound_phrases`,
+    `placeholders_of_another_view_are_refused`.
+  - A `Corrections` layer (`turbo:corrections`, in
+    `analysis/normalize-layers/src/lib.rs`): one row per replaced
+    stretch of the source, with the replacement and its edit distance.
+    Test `the_corrections_layer_records_each_change`.
+  - `Compound::parts`, the provenance of each output word, which the
+    alignment and the layer are built from. Test
+    `compound_parts_say_where_each_word_came_from`.
+
+Tests: `analysis/normalize/tests/spellcheck.rs` ports `SymSpellTest`,
+`LookupTest`, the distance, configuration, loader and serializer tests,
+and checks the engine against OpenNLP's output over the fixtures in
+`analysis/normalize/tests/data/spellcheck/` (see
+`analysis/normalize/tests/data/spellcheck/README.md`): 2511 lookups at
+every verbosity and distance and 2015 compound lookups give the same
+suggestions, distances and counts, and the two models OpenNLP wrote read
+and write back byte for byte. `analysis/normalize/tests/spell_correct.rs`
+ports the normalizer's tests, runs 4218 inputs in six configurations
+against OpenNLP's output, checks the alignment of both modes with
+`check_alignment`, and holds each difference above to its inputs. Unit
+tests check the bounded distances against the full table over 20000
+random pairs, the uppercase table against `SpecialCasing.txt`, and the
+number and URL guards against matchers written from OpenNLP's patterns.
+
 ### Alignment checks
 
 The tests of these normalizers run every input through
@@ -910,6 +1048,39 @@ it overlaps.
 - `StructuralNoiseScorer.overlapsAny` tests every exclusion for every
   token and every gap. Sorting and joining the exclusions once makes each
   test a binary search.
+- `SpellCheckingCharSequenceNormalizer` compares `minTokenLength` with
+  `String.length()`, UTF-16 units, so a token with a supplementary
+  character is corrected one code point earlier than the documentation
+  suggests. `SymSpell.lookupCompound` likewise splits a token at every
+  UTF-16 index (looking up halves of surrogate pairs) and its
+  `length() == 1` test treats one supplementary character as two.
+  `codePointCount` and code point split points fix both.
+- In compound mode `SpellCheckingCharSequenceNormalizer` applies none of
+  the guards its documentation lists and does not lowercase: with the
+  tiny test dictionary, "HER, user@example.com yt http://example.com/teh
+  calendar" becomes "of of user@example.com it http://example.com/teh
+  calendar", and "Hich user@example.com With to Mof" becomes "with
+  user@example.com with to of". The documentation could say so, or the
+  guarded tokens could be kept as fixed words between the phrases that
+  are corrected.
+- With `maxDictionaryEditDistance` 0, `editsPrefix` still indexes every
+  one-deletion string of each word (the recursion adds a level before it
+  tests the distance), which no lookup can use.
+- `SymSpell` keeps every delete as a `String` key. Keying the deletes by
+  a 64-bit hash and checking each candidate with a subsequence test
+  gives the same candidates in the same order with a fraction of the
+  memory.
+- `SymSpellModelSerializer.create` ignores bytes after the last bigram,
+  and a count above `Long.MAX_VALUE` (read as negative) fails with an
+  `IllegalArgumentException` from `SymSpellModel` rather than the
+  `IOException` the other corrupt fields give.
+- `SymSpellModel` keys bigrams as `w1 + " " + w2`, which is ambiguous
+  when a word contains a space (a word read from the model format can).
+- The add-on at the commit the test data was made from does not compile
+  against OpenNLP's `kristian-3.x-features` branch: it calls
+  `ArgumentChecks`, `ResourceLimits.requireWithinMaxEntries`,
+  `MailAddressScan.isAddress`, `StringUtil.stripByteOrderMark` and
+  `StringUtil.splitNonEmpty`, which that branch does not have.
 
 ## Tests
 

@@ -43,6 +43,7 @@ mod placeholder;
 pub mod quotes;
 pub mod shrink;
 pub mod social;
+pub mod spellcheck;
 pub mod substitute;
 pub mod tables;
 pub mod url;
@@ -60,6 +61,7 @@ pub use number::Numbers;
 pub use quotes::Quotes;
 pub use shrink::Shrink;
 pub use social::{BoundedSocialMedia, SocialMedia};
+pub use spellcheck::{SpellCorrect, SpellCorrectMode, SymSpell};
 pub use url::{BoundedUrls, Urls};
 pub use whitespace::{Whitespace, WhitespaceMode};
 
