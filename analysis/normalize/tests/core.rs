@@ -346,9 +346,9 @@ fn clear_of(edits: impl Iterator<Item = Span>, s: Span) -> bool {
 }
 
 /// What a composed alignment must satisfy against the same steps run in
-/// sequence. `Chain` merges edits that touch into one stretch, so a span
-/// next to an edit can map to a wider source span than it does step by
-/// step. Therefore:
+/// sequence. `Chain` merges stretches that overlap into one edit, so a
+/// span inside an edit can map to a wider source span than it does step
+/// by step. Therefore:
 ///
 /// - the composed span covers the one found step by step, in both
 ///   directions, so nothing a step-by-step mapping covers is lost;
