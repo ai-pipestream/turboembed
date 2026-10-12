@@ -1,5 +1,11 @@
-//! The part-of-speech tagger's context generators, tag dictionary and
-//! sequence validator (`opennlp.tools.postag`).
+//! The part-of-speech tagger's context generators, tag dictionary,
+//! sequence validator and tag format conversion (`opennlp.tools.postag`).
+//!
+//! - this module: the context generators and the choice between them;
+//! - [`dictionary`]: the tag dictionary (`tags.tagdict`) and the sequence
+//!   validator that reads it;
+//! - [`format`]: guessing whether a model's tags are Penn Treebank or
+//!   Universal Dependencies tags, and converting between the two.
 //!
 //! `POSTaggerFactory` picks the context generator by the version of
 //! OpenNLP that trained the model: models from before 1.8 use the fixed
@@ -8,18 +14,24 @@
 //! when the model has none) behind a [`ConfigurablePosContext`].
 //! [`PosContext::for_model`] makes the same choice.
 
-use std::collections::{HashMap, VecDeque};
+use std::collections::VecDeque;
 use std::sync::Arc;
 
 use turbo_jvm::chars::utf16_len;
-use turbo_maxent::{Dictionary, Entries, ModelFile};
+use turbo_maxent::{Dictionary, ModelFile};
 
-use crate::beam::{ContextGenerator, SequenceValidator};
+use crate::beam::ContextGenerator;
 use crate::error::{Error, Result};
 use crate::featuregen::{BoxedGenerator, descriptor};
 use crate::features::Features;
-use crate::java::{lowercase_into, parse_int, split_trimmed};
+use crate::java::parse_int;
 use crate::pattern::PatternMode;
+
+pub mod dictionary;
+pub mod format;
+
+pub use dictionary::{PosValidator, TagDictionary};
+pub use format::{DEFAULT_TAG_FORMAT, PennTag, PosTagFormat, TagFormatMapper, UdTag};
 
 /// The model entry of the classifier.
 pub const MODEL_ENTRY_NAME: &str = "pos.model";
@@ -33,7 +45,7 @@ pub const DEFAULT_BEAM_SIZE: usize = 3;
 /// OpenNLP's default part-of-speech descriptor
 /// (`opennlp/tools/postag/pos-default-features.xml`), for models from 1.8
 /// on that carry none.
-pub const DEFAULT_DESCRIPTOR: &str = include_str!("descriptors/pos-default-features.xml");
+pub const DEFAULT_DESCRIPTOR: &str = include_str!("../descriptors/pos-default-features.xml");
 
 /// `DefaultPOSContextGenerator`: the word, its first and last four UTF-16
 /// code units (unless the word is in the dictionary), whether it holds a
@@ -220,101 +232,6 @@ fn is_before_1_8(version: &str) -> Result<bool> {
     Ok(major == 1 && minor < 8)
 }
 
-/// `POSDictionary`: the tags each word may have.
-#[derive(Debug, Clone, Default)]
-pub struct TagDictionary {
-    case_sensitive: bool,
-    tags: HashMap<String, Vec<String>>,
-}
-
-impl TagDictionary {
-    /// Reads the dictionary XML (`POSDictionary.create`): one token per
-    /// entry, its tags in the `tags` attribute separated by spaces. In a
-    /// case-insensitive dictionary the words are lowercased
-    /// (`StringUtil.toLowerCase`). A word listed twice keeps its last
-    /// tags.
-    ///
-    /// Java lowercases a case-insensitive dictionary by walking a
-    /// `HashMap`, so when two entries lowercase to the same word, which
-    /// one wins depends on Java's hash order; here the later entry in the
-    /// file wins.
-    pub fn read(xml: &[u8]) -> Result<TagDictionary> {
-        let entries = Entries::read(xml)?;
-        let case_sensitive = entries.is_case_sensitive();
-        let mut tags = HashMap::new();
-        for entry in entries.iter() {
-            if entry.tokens.len() != 1 {
-                return Err(Error::TagDictionary(format!(
-                    "Each entry must have exactly one token! {:?}",
-                    entry.tokens
-                )));
-            }
-            let Some(list) = entry.attribute("tags") else {
-                return Err(Error::TagDictionary(format!("the entry {:?} has no tags", entry.tokens[0])));
-            };
-            let list: Vec<String> = split_trimmed(list, ' ').into_iter().map(str::to_owned).collect();
-            let mut word = String::new();
-            if case_sensitive {
-                word.push_str(&entry.tokens[0]);
-            } else {
-                lowercase_into(&mut word, &entry.tokens[0]);
-            }
-            tags.insert(word, list);
-        }
-        Ok(TagDictionary { case_sensitive, tags })
-    }
-
-    /// The model's tag dictionary, if it has one.
-    pub fn for_model(model: &ModelFile) -> Result<Option<TagDictionary>> {
-        match model.entry(TAG_DICTIONARY_ENTRY_NAME) {
-            Ok(bytes) => TagDictionary::read(&bytes).map(Some),
-            Err(turbo_maxent::Error::MissingEntry(_)) => Ok(None),
-            Err(e) => Err(e.into()),
-        }
-    }
-
-    pub fn is_case_sensitive(&self) -> bool {
-        self.case_sensitive
-    }
-
-    /// `getTags`: the tags a word may have, or `None` when the dictionary
-    /// does not list it.
-    pub fn tags(&self, word: &str) -> Option<&[String]> {
-        if self.case_sensitive {
-            return self.tags.get(word).map(Vec::as_slice);
-        }
-        let mut lower = String::with_capacity(word.len());
-        lowercase_into(&mut lower, word);
-        self.tags.get(&lower).map(Vec::as_slice)
-    }
-}
-
-/// `DefaultPOSSequenceValidator`: a word the tag dictionary lists may
-/// only take one of its tags; any other word, or any word without a
-/// dictionary, any tag.
-#[derive(Debug, Clone, Default)]
-pub struct PosValidator {
-    dictionary: Option<Arc<TagDictionary>>,
-}
-
-impl PosValidator {
-    pub fn new(dictionary: Option<Arc<TagDictionary>>) -> PosValidator {
-        PosValidator { dictionary }
-    }
-}
-
-impl<'a> SequenceValidator<&'a str> for PosValidator {
-    fn valid_sequence(&self, index: usize, sequence: &[&'a str], _prior: &[&str], outcome: &str) -> bool {
-        match &self.dictionary {
-            None => true,
-            Some(d) => match d.tags(sequence[index]) {
-                None => true,
-                Some(tags) => tags.iter().any(|t| t == outcome),
-            },
-        }
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -341,18 +258,5 @@ mod tests {
                 "pre=co-o", "h", "p=The", "t=DT", "pp=*SB*", "n=won", "nn=*SE*",
             ]
         );
-    }
-
-    #[test]
-    fn tag_dictionaries_restrict_listed_words() {
-        let d = TagDictionary::read(
-            b"<dictionary case_sensitive=\"false\"><entry tags=\"NN VB\"><token>Run</token></entry></dictionary>",
-        )
-        .unwrap();
-        assert_eq!(d.tags("RUN").unwrap(), ["NN", "VB"]);
-        let v = PosValidator::new(Some(Arc::new(d)));
-        assert!(v.valid_sequence(0, &["run"], &[], "VB"));
-        assert!(!v.valid_sequence(0, &["run"], &[], "JJ"));
-        assert!(v.valid_sequence(0, &["walk"], &[], "JJ"));
     }
 }

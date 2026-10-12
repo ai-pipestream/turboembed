@@ -24,7 +24,7 @@ lands, it moves onto `analysis/goldens-tool` with the other OpenNLP goldens.
 | `inputs/sentences.txt` | by hand | all | 16 tokenized sentences, one per line, tokens separated by single spaces: abbreviations, numbers, dates, URLs, accented, Greek, Cyrillic, CJK and kana text, letters and an emoji outside the Basic Multilingual Plane, a titlecase letter, a one-token sentence |
 | `inputs/tokens.txt` | by hand | `PatternGolden` | Tokens for `StringPattern`, escaped, lone surrogates included; the empty last line is the empty token |
 | `inputs/train-*.txt` | by hand | `FixtureModels` | Training data of the fixture models: 15 tagged sentences, the chunks of 8, names in 14 |
-| `resources/` | by hand | descriptors, `FixtureModels` | A Brown cluster file, a word cluster file, a case-insensitive names dictionary with multi-token entries and a tag dictionary |
+| `resources/` | by hand | descriptors, `FixtureModels`, `PosGolden` | A Brown cluster file, a word cluster file, a case-insensitive names dictionary with multi-token entries and three tag dictionaries: `tags.tagdict` (in `pos-fixture.bin`), and `tags-cases.tagdict` and `tags-exact.tagdict`, the same 40 entries case-insensitive and case sensitive, with words that lowercase to the same word, a word listed twice, and tags separated by two spaces or ending in one |
 | `descriptors/pos-default.xml`, `ner-default.xml` | copied from OpenNLP | `FeatureGolden`, `tests/features.rs` | OpenNLP's default part-of-speech and name finder descriptors (the same files as `src/descriptors/`) |
 | `descriptors/everything.xml` | by hand | `FeatureGolden`, `FixtureModels` | Every factory except the window, aggregated and cached ones (those are in `nesting.xml`), with the three resources |
 | `descriptors/nesting.xml` | by hand | `FeatureGolden`, `FixtureModels` | `cache="TRUE"` on the root, windows and aggregates inside each other, a cache inside the tree, an aggregate of one, a negative window length |
@@ -35,6 +35,9 @@ lands, it moves onto `analysis/goldens-tool` with the other OpenNLP goldens.
 | `expected/features-default-pos*.txt` | `FeatureGolden.java` | `tests/features.rs` | `DefaultPOSContextGenerator`, without and with the names dictionary as its n-gram dictionary |
 | `expected/descriptor-errors.txt` | `FeatureGolden.java` | `tests/features.rs` | 16 malformed descriptors and the exception `GeneratorFactory.create` throws for each |
 | `expected/beam-<model>.txt` | `BeamGolden.java` | `tests/beam.rs` | Every sequence of the final beam for each sentence (outcomes, probabilities and score as raw double bits), every context the search asked for in sentences 0 and 8, and the name finder's spans |
+| `expected/tagdict-<name>.txt` | `PosGolden.java` | `tests/postag.rs` | A tag dictionary as `POSDictionary` reads it, from a file under `resources/` or a model: whether it is case sensitive, its number of words, the SHA-256 of its words and tags sorted by word, every word and its tags when the dictionary is small, and `getTags` for every token of the sentences and every word of the file, each as written, lowercased and uppercased |
+| `expected/tagformat-<model>.txt` | `PosGolden.java` | `tests/postag.rs` | `POSTagFormatMapper` for a model's outcomes: the guessed format, `convertTag` of every outcome, every key of both tables and a few other strings, and the tags `POSTaggerME` returns for each sentence when asked for each of the four formats, next to the outcomes it returns unchanged with `CUSTOM` |
+| `expected/tagformat-guess.txt` | `PosGolden.java` | `tests/postag.rs` | The format guessed for ten lists of outcomes, ties and the empty list among them |
 | `expected/codec-bio.txt`, `codec-bilou.txt` | `CodecGolden.java` | `tests/codec.rs` | Decoding every outcome sequence of up to three labels from an alphabet of 10 (BIO) or 12 (BILOU), the validator on every prior sequence of up to two labels and every label, encoding 7 span lists, and `areOutcomesCompatible` on every subset of 6 or 7 outcomes |
 
 `BeamGolden` wires each search as `POSTaggerME`, `ChunkerME` and
@@ -100,6 +103,11 @@ holding them; without it they say they were skipped and pass, unless
 | `en-ner-location.bin` | OpenNLP 1.5 models | `8fe39e48633f4a86c4132d9c54b396a2d8e0460c1d71e3562dacf976984f447b` |
 
 `en-chunker.bin` runs on the tags of `en-pos-maxent.bin`.
+
+`PosGolden` writes `tagdict-` and `tagformat-` files for the first three. The
+UD model has no tag dictionary. The two 1.5 models have the same one, case
+sensitive with 16,204 words; its golden files hold its hash and lookups rather
+than every entry.
 
 ### Regenerating
 
