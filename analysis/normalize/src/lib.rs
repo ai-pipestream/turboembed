@@ -42,10 +42,12 @@ pub mod ellipsis;
 mod fold_runs;
 pub mod german;
 pub mod invisible;
+mod placeholder;
 pub mod quotes;
 pub mod substitute;
 pub mod tables;
 pub mod unicode_form;
+pub mod url;
 pub mod whitespace;
 
 pub use accent_fold::{AccentFold, StrokeLetters};
@@ -61,6 +63,7 @@ pub use german::GermanUmlauts;
 pub use invisible::Invisible;
 pub use quotes::Quotes;
 pub use unicode_form::UnicodeForm;
+pub use url::{BoundedUrls, Urls};
 pub use whitespace::{Whitespace, WhitespaceMode};
 
 /// One text normalizer. Its only job is to copy `text` into `out`,
