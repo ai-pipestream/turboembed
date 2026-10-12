@@ -1,0 +1,6 @@
+component: newline
+opennlp: cdf33c653d5d61d5af7d37ffee189a83bd8392ea
+jdk: 21.0.12.1
+whitespace: unicode
+input:   \t leading and trailing spaces \t  \n \n
+span: 4 31 4 31

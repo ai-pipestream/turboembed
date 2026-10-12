@@ -1,0 +1,9 @@
+component: sentdetect-me-en
+opennlp: cdf33c653d5d61d5af7d37ffee189a83bd8392ea
+jdk: 21.0.12.1
+whitespace: unicode
+model: opennlp-en-ud-ewt-sentence-1.3-2.5.4.bin
+model-sha256: 4de58d12b09421003c8b1ba13e8b58ec533b28e1f22a65272119dc0993d333e8
+input: He said, "Stop!" and she replied 'No.' [See note (a)] {x: 1} <tag> \u201Ccurly\u201D \u2018single\u2019 \u201Elow\u201C `code` ((nested [mixed {brackets}]))\n
+span: 0 38 0 38 0.595684804259039
+span: 39 138 39 126 1.0

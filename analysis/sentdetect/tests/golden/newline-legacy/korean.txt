@@ -1,0 +1,6 @@
+component: newline
+opennlp: cdf33c653d5d61d5af7d37ffee189a83bd8392ea
+jdk: 21.0.12.1
+whitespace: legacy
+input: \uC548\uB155\uD558\uC138\uC694. \uC800\uB294 \uD55C\uAD6D\uC5B4\uB97C \uACF5\uBD80\uD569\uB2C8\uB2E4. \uAC10\uC0AC\uD569\uB2C8\uB2E4!\n
+span: 0 70 0 28

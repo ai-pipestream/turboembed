@@ -1,0 +1,8 @@
+component: sentdetect-me-en
+opennlp: cdf33c653d5d61d5af7d37ffee189a83bd8392ea
+jdk: 21.0.12.1
+whitespace: unicode
+model: opennlp-en-ud-ewt-sentence-1.3-2.5.4.bin
+model-sha256: 4de58d12b09421003c8b1ba13e8b58ec533b28e1f22a65272119dc0993d333e8
+input: no\u00A0break space and\u3000ideographic space\u2007figure\u202Fnarrow\u2002en\u2003em\u200Bzero width\u2009thin end\n
+span: 0 91 0 76 1.0

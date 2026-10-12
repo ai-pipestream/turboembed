@@ -1,0 +1,6 @@
+component: newline
+opennlp: cdf33c653d5d61d5af7d37ffee189a83bd8392ea
+jdk: 21.0.12.1
+whitespace: legacy
+input: Smile \uD83D\uDE00 ok \uD83D\uDC4D\uD83C\uDFFD done \u2764\uFE0F \u263A end\n
+span: 0 42 0 30

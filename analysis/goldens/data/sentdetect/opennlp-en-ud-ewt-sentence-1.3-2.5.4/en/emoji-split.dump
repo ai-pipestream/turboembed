@@ -1,0 +1,43 @@
+dump 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-1-24.04.4-Ubuntu	Ubuntu
+unicode	15.0
+input	en/emoji-split	97	91	fc5450b3462719d3f81b1d8d6349827be412f1e513725a6316d8d10b2ccb0fe2
+model	opennlp-en-ud-ewt-sentence-1.3-2.5.4.bin	fed5d53ea87bf66afeb08c084f89ca9b95a96de0920dca40487b2ab9972ee6b7ef211e477db480b7253431de079fd66dfd14329cd7d19ad1f565155eb0cf5191
+annotator	opennlp.tools.sentdetect.SentenceDetectorME	sentPosDetect
+point	0	30	8	2	0	none
+context	sn
+context	eos=.
+context	x='😀
+context	3
+context	v=single
+context	s=
+context	n=Then
+context	ncap
+outcome	s	3fefbe2ca91fa36d 0.9919646552271907
+outcome	n	3f8074d5b817248a 0.008035344772809223
+end	0
+point	1	69	8	2	0	none
+context	sn
+context	eos=.
+context	x=left
+context	4
+context	v=and
+context	s=
+context	n=Fish
+context	ncap
+outcome	s	3fefa496896130b3 0.9888413127132679
+outcome	n	3f86da5da7b3d349 0.011158687286732099
+end	1
+point	2	95	7	2	0	none
+context	sn
+context	eos=?
+context	x=tonight
+context	7
+context	v=chips
+context	s=
+context	n=
+outcome	s	3fefffcc8771947a 0.9999754567512718
+outcome	n	3ef9bc4735c30d10 2.454324872825953E-5
+end	2

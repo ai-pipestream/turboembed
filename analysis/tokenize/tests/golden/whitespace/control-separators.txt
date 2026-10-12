@@ -1,0 +1,8 @@
+component: whitespace
+opennlp: cdf33c653d5d61d5af7d37ffee189a83bd8392ea
+jdk: 21.0.12.1
+whitespace: unicode
+input: a\u001Cb\u001Dc\u001Ed\u001Fe f\tg\n
+span: 0 9 0 9
+span: 10 11 10 11
+span: 12 13 12 13

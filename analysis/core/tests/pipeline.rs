@@ -143,7 +143,7 @@ impl Annotator for Embedder {
                 let n = s.spans.len();
                 let data = vectors[at..at + n].iter().flatten().copied().collect();
                 at += n;
-                Ok((Vectors::new(2, data, toy_model()),))
+                Ok((Vectors::new(2, data, Vec::new(), toy_model()),))
             })
             .collect()
     }

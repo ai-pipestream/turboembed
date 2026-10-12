@@ -1,0 +1,18 @@
+component: uax29
+opennlp: cdf33c653d5d61d5af7d37ffee189a83bd8392ea
+jdk: 21.0.12.1
+whitespace: unicode
+input: no\u00A0break space and\u3000ideographic space\u2007figure\u202Fnarrow\u2002en\u2003em\u200Bzero width\u2009thin end\n
+span: 0 2 0 2 ALPHANUMERIC
+span: 4 9 3 8 ALPHANUMERIC
+span: 10 15 9 14 ALPHANUMERIC
+span: 16 19 15 18 ALPHANUMERIC
+span: 22 33 19 30 ALPHANUMERIC
+span: 34 39 31 36 ALPHANUMERIC
+span: 42 57 37 50 ALPHANUMERIC
+span: 60 62 51 53 ALPHANUMERIC
+span: 65 67 54 56 ALPHANUMERIC
+span: 70 74 57 61 ALPHANUMERIC
+span: 75 80 62 67 ALPHANUMERIC
+span: 83 87 68 72 ALPHANUMERIC
+span: 88 91 73 76 ALPHANUMERIC

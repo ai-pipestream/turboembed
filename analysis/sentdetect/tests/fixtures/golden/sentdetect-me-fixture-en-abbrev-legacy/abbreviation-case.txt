@@ -1,0 +1,10 @@
+component: sentdetect-me-fixture-en-abbrev
+opennlp: cdf33c653d5d61d5af7d37ffee189a83bd8392ea
+jdk: 21.0.12.1
+whitespace: legacy
+model: en-abbrev.bin
+model-sha256: 40a1d56b460d0c6b4f878c32858419136c89c75f40b84b0f9795a77a083cf2ec
+input: MR. SMITH and mr. jones met. PROF. X spoke at 9 A.M. sharp. Fine.
+span: 0 28 0 28 0.9641886977002593
+span: 29 59 29 59 0.970191651231395
+span: 60 65 60 65 0.7239683255227658

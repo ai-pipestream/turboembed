@@ -1,0 +1,43 @@
+component: simple-newlines
+opennlp: cdf33c653d5d61d5af7d37ffee189a83bd8392ea
+jdk: 21.0.12.1
+whitespace: legacy
+input: El Sr. Garc\u00EDa dijo: \u00AB\u00BFD\u00F3nde est\u00E1 la ni\u00F1a?\u00BB y se fue a la se\u00F1al de tr\u00E1fico. \u00A1Qu\u00E9 d\u00EDa! Hab\u00EDa 1.000 a\u00F1os\u2026 ping\u00FCino, canci\u00F3n.\n
+span: 0 2 0 2
+span: 3 5 3 5
+span: 5 6 5 6
+span: 7 14 7 13
+span: 15 19 14 18
+span: 19 20 18 19
+span: 21 23 20 21
+span: 23 25 21 22
+span: 25 31 22 27
+span: 32 37 28 32
+span: 38 40 33 35
+span: 41 46 36 40
+span: 46 47 40 41
+span: 47 49 41 42
+span: 50 51 43 44
+span: 52 54 45 47
+span: 55 58 48 51
+span: 59 60 52 53
+span: 61 63 54 56
+span: 64 70 57 62
+span: 71 73 63 65
+span: 74 82 66 73
+span: 82 83 73 74
+span: 84 86 75 76
+span: 86 90 76 79
+span: 91 95 80 83
+span: 95 96 83 84
+span: 97 103 85 90
+span: 104 105 91 92
+span: 105 106 92 93
+span: 106 109 93 96
+span: 110 115 97 101
+span: 115 118 101 102
+span: 119 128 103 111
+span: 128 129 111 112
+span: 130 138 113 120
+span: 138 139 120 121
+span: 139 140 121 122

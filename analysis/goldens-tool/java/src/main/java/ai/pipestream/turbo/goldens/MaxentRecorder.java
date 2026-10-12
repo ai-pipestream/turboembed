@@ -120,6 +120,16 @@ final class MaxentRecorder extends AbstractModel {
     return out;
   }
 
+  /**
+   * Forgets every call recorded since the last {@link #take}, and a context requested but not
+   * evaluated: the annotator threw, so the run has no dump.
+   */
+  void discard() {
+    evaluations.clear();
+    pendingRequest = null;
+    pendingContext = null;
+  }
+
   // Identity, as two recorders are never interchangeable; the model classes use these for their own
   // equality only.
   @Override

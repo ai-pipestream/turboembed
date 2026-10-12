@@ -1,0 +1,7 @@
+component: sentdetect-me-pt
+opennlp: cdf33c653d5d61d5af7d37ffee189a83bd8392ea
+jdk: 21.0.12.1
+whitespace: unicode
+model: opennlp-pt-ud-gsd-sentence-1.3-2.5.4.bin
+model-sha256: a711463f146555de26d69d806a9f1a88a66ed0c02f3fe2020b4a475ccea047ff
+input: 

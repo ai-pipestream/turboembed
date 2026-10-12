@@ -1,0 +1,6 @@
+component: newline
+opennlp: cdf33c653d5d61d5af7d37ffee189a83bd8392ea
+jdk: 21.0.12.1
+whitespace: unicode
+input: well-known state-of-the-art re-entry \u2014 em dash \u2013 en dash \u2012 figure dash \u2015 bar \u2E3A two-em \u2212minus -- double and a-b-c. 1990-2000, A--B, non\u2011breaking\u2010hyphen.\n
+span: 0 167 0 151

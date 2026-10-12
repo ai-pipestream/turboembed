@@ -1,0 +1,13 @@
+component: uax29
+opennlp: cdf33c653d5d61d5af7d37ffee189a83bd8392ea
+jdk: 21.0.12.1
+whitespace: unicode
+input: Flags \uD83C\uDDE9\uD83C\uDDEA\uD83C\uDDEB\uD83C\uDDF7\uD83C\uDDFA\uD83C\uDDF8 and \uD83C\uDDEF\uD83C\uDDF5x \uD83C\uDDE9\n
+span: 0 5 0 5 ALPHANUMERIC
+span: 6 14 6 10 EMOJI
+span: 14 22 10 14 EMOJI
+span: 22 30 14 18 EMOJI
+span: 31 34 19 22 ALPHANUMERIC
+span: 35 43 23 27 EMOJI
+span: 43 44 27 28 ALPHANUMERIC
+span: 45 49 29 31 EMOJI

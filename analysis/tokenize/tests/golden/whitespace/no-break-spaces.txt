@@ -1,0 +1,18 @@
+component: whitespace
+opennlp: cdf33c653d5d61d5af7d37ffee189a83bd8392ea
+jdk: 21.0.12.1
+whitespace: unicode
+input: no\u00A0break space and\u3000ideographic space\u2007figure\u202Fnarrow\u2002en\u2003em\u200Bzero width\u2009thin end\n
+span: 0 2 0 2
+span: 4 9 3 8
+span: 10 15 9 14
+span: 16 19 15 18
+span: 22 33 19 30
+span: 34 39 31 36
+span: 42 48 37 43
+span: 51 57 44 50
+span: 60 62 51 53
+span: 65 74 54 61
+span: 75 80 62 67
+span: 83 87 68 72
+span: 88 91 73 76

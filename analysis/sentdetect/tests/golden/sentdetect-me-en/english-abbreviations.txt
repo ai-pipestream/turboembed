@@ -1,0 +1,12 @@
+component: sentdetect-me-en
+opennlp: cdf33c653d5d61d5af7d37ffee189a83bd8392ea
+jdk: 21.0.12.1
+whitespace: unicode
+model: opennlp-en-ud-ewt-sentence-1.3-2.5.4.bin
+model-sha256: 4de58d12b09421003c8b1ba13e8b58ec533b28e1f22a65272119dc0993d333e8
+input: Mr. Smith met Dr. Jones in the U.S. last week, e.g. on Monday. They agreed. Prof. Lee wasn't there.\n
+span: 0 51 0 51 0.8798565851877802
+span: 52 62 52 62 0.9961722996558708
+span: 63 75 63 75 0.9938431902003774
+span: 76 81 76 81 0.9829897531537463
+span: 82 99 82 99 0.9999976774111864

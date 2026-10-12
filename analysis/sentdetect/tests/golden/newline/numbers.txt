@@ -1,0 +1,6 @@
+component: newline
+opennlp: cdf33c653d5d61d5af7d37ffee189a83bd8392ea
+jdk: 21.0.12.1
+whitespace: unicode
+input: Pi is 3.14 and the fee is 1,000 dollars at 12:30; growth was 2.5% (up from 1.2%). Call 555-1234 or +1 (800) 555-0199. Version 2.0.1-beta, $4.99, 10/12/2026, 3e10.\n
+span: 0 162 0 162

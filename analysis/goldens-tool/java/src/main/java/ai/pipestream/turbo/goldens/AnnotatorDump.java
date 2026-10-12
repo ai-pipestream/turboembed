@@ -12,8 +12,11 @@ interface AnnotatorDump {
   /** The plain annotator this one records, which names the annotator, its models and its method. */
   AnnotatorGolden golden();
 
-  /** Runs the recording annotator on the input. */
-  Run run(Input input);
+  /**
+   * Runs the recording annotator on the input. Throws {@link AnnotatorException} when the OpenNLP
+   * annotator threw on the input, which has no dump then.
+   */
+  Run run(Input input) throws AnnotatorException;
 
   /**
    * What one run recorded.

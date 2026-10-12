@@ -1,0 +1,7 @@
+component: newline
+opennlp: cdf33c653d5d61d5af7d37ffee189a83bd8392ea
+jdk: 21.0.12.1
+whitespace: unicode
+input: before\u0085after next\u2028line then\u2029para end\nand\u000Bvertical tab\u000Cform feed\n
+span: 0 41 0 36
+span: 42 68 37 63

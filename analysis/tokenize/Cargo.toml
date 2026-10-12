@@ -1,0 +1,18 @@
+[package]
+name = "turbo-tokenize"
+version = "0.1.0"
+edition.workspace = true
+license.workspace = true
+publish = false
+
+[lib]
+name = "turbo_tokenize"
+
+[dependencies]
+turbo-analysis = { path = "../core" }
+turbo-analysis-layers = { path = "../layers" }
+# OpenNLP model files and dictionary XML: the maxent tokenizer's model
+# and abbreviations, and the detokenizer dictionary.
+turbo-maxent = { path = "../maxent" }
+turbo-tokenize-layers = { path = "../tokenize-layers" }
+turbo-unicode = { path = "../unicode" }

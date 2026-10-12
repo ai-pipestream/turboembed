@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- A dictionary that exercises the XML reader and OpenNLP's entry handler. -->
+<?some-processing instruction?>
+<dictionary case_sensitive="false" xmlns:x="urn:example">
+  <entry operation="MOVE_RIGHT" x:note='single "quoted"'>
+    <token>  Mr.  </token>
+  </entry>
+  <entry><token>New</token><token>York</token></entry>
+  <entry><token>New York</token></entry>
+  <entry><token>a&amp;b</token></entry>
+  <entry><token>&lt;tag&gt;</token></entry>
+  <entry><token>caf&#233;</token></entry>
+  <entry><token>CAF&#xC9;</token></entry>
+  <entry><token><![CDATA[line one]]>
+line two</token></entry>
+  <entry note="line
+break&#10;kept"><token>spaced</token></entry>
+  <entry><token>e.g<!-- a comment inside a token -->.</token></entry>
+  <entry><token>&#x10400;</token></entry>
+  <ignored>text outside a token is ignored</ignored>
+  <entry><token>x</token><other>inside a token's sibling</other></entry>
+  <token>leading</token>
+  <entry><token>&#xDF;</token></entry>
+</dictionary>
