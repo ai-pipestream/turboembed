@@ -14,6 +14,7 @@ pub(crate) mod emoji;
 pub(crate) mod normalize;
 pub(crate) mod props;
 pub(crate) mod script;
+pub(crate) mod word_break;
 
 /// The Unicode version of the files the tables were generated from.
 pub(crate) const UNICODE_VERSION: (u8, u8, u8) = (18, 0, 0);

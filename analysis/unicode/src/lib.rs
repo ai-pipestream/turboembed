@@ -16,7 +16,20 @@
 //!
 //! [`java`] reproduces the `java.lang.Character` and `String.toLowerCase`
 //! behaviour the OpenNLP normalizers rely on, on this crate's Unicode data
-//! rather than the JDK's.
+//! rather than the JDK's. [`java::code_point`] has the same classes on a
+//! code point given as `u32`, for the segmentation ports, which walk text
+//! in UTF-16 code units as OpenNLP does and so meet lone surrogates.
+//!
+//! The modules the segmentation ports use besides [`java`]:
+//!
+//! - [`whitespace`]: OpenNLP's two whitespace definitions, chosen by a
+//!   [`WhitespaceMode`] value.
+//! - [`word_break`]: the UAX #29 `Word_Break` and `Extended_Pictographic`
+//!   properties.
+//! - [`utf16`]: a cursor that steps over UTF-8 text one UTF-16 code unit
+//!   at a time, the unit Java's algorithms work in.
+//! - [`modified_utf8`]: Java's modified UTF-8, the encoding OpenNLP model
+//!   files store their feature strings in.
 
 pub mod casefold;
 pub mod category;
@@ -24,13 +37,23 @@ pub mod chars;
 pub mod confusables;
 pub mod emoji;
 pub mod java;
+pub mod modified_utf8;
 pub mod normalize;
 pub mod props;
 pub mod script;
+pub mod utf16;
+pub mod whitespace;
+pub mod word_break;
 
 mod ascii;
 mod tables;
 mod trie;
+
+pub use category::GeneralCategory;
+pub use script::Script;
+pub use utf16::Utf16Cursor;
+pub use whitespace::WhitespaceMode;
+pub use word_break::WordBreak;
 
 /// The Unicode version the tables were generated from.
 pub const UNICODE_VERSION: (u8, u8, u8) = (18, 0, 0);
