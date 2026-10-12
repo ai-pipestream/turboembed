@@ -1915,6 +1915,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "turbo-structure"
+version = "0.1.0"
+dependencies = [
+ "turbo-analysis",
+ "turbo-analysis-layers",
+ "turbo-chunker",
+]
+
+[[package]]
 name = "turbo-tokenize"
 version = "0.1.0"
 dependencies = [

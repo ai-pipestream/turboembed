@@ -165,7 +165,7 @@ impl Numbers {
     /// The value of mention `i`.
     pub fn value(&self, i: Ix<Numbers>) -> DecimalRef<'_> {
         let digits = self.coefficient.get(i.get());
-        DecimalRef { negative: self.negative[i.get()] && digits != "0", digits, scale: self.scale[i.get()] }
+        DecimalRef { negative: self.negative[i.get()] && digits != "0", digits, scale: self.scale[i.get()].into() }
     }
 }
 
@@ -224,14 +224,32 @@ pub struct DecimalRef<'a> {
     pub negative: bool,
     /// ASCII digits without leading zeros, `0` for zero.
     pub digits: &'a str,
-    /// How many of the digits are the fraction.
-    pub scale: u32,
+    /// How many of the digits are the fraction, as `BigDecimal.scale()`
+    /// counts: below zero the value is the digits followed by that many
+    /// zeros. A number read from text has a scale of zero or more; a
+    /// computed amount (a currency conversion) can have one below zero.
+    /// `i64` holds both the `u32` of a text's fraction and Java's `int`.
+    pub scale: i64,
 }
 
 impl DecimalRef<'_> {
     /// Appends the value written out without an exponent, as
-    /// `BigDecimal.toPlainString` writes it: `-1500.0`, `0.05`, `0.00`.
+    /// `BigDecimal.toPlainString` writes it: `-1500.0`, `0.05`, `0.00`,
+    /// and `1000` for the digits `1` at the scale -3. A zero with a scale
+    /// below zero is `0`.
     pub fn write_plain(&self, out: &mut String) {
+        if self.scale < 0 {
+            if self.digits == "0" {
+                out.push('0');
+                return;
+            }
+            if self.negative {
+                out.push('-');
+            }
+            out.push_str(self.digits);
+            out.extend(std::iter::repeat_n('0', self.scale.unsigned_abs() as usize));
+            return;
+        }
         if self.negative {
             out.push('-');
         }
@@ -261,9 +279,16 @@ impl DecimalRef<'_> {
     /// beyond the `f64` range is infinite, as `BigDecimal.doubleValue`
     /// gives.
     pub fn to_f64(&self) -> f64 {
-        let mut s = String::with_capacity(self.digits.len() + 3);
-        self.write_plain(&mut s);
-        s.parse().expect("a plain decimal parses as f64")
+        // The digits with an exponent, so a scale far from zero does not
+        // write out its zeros.
+        let mut s = String::with_capacity(self.digits.len() + 24);
+        if self.negative {
+            s.push('-');
+        }
+        s.push_str(self.digits);
+        s.push('e');
+        s.push_str(&(-self.scale).to_string());
+        s.parse().expect("digits with an exponent parse as f64")
     }
 }
 
@@ -292,7 +317,7 @@ mod tests {
         }
     }
 
-    fn plain(negative: bool, digits: &str, scale: u32) -> String {
+    fn plain(negative: bool, digits: &str, scale: i64) -> String {
         DecimalRef { negative, digits, scale }.to_plain_string()
     }
 
@@ -327,6 +352,10 @@ mod tests {
         assert_eq!(plain(false, "0", 2), "0.00");
         assert_eq!(plain(false, "0", 1), "0.0");
         assert_eq!(DecimalRef { negative: false, digits: "120", scale: 1 }.to_string(), "12.0");
+        // A scale below zero appends zeros; a zero stays `0`.
+        assert_eq!(plain(false, "12", -3), "12000");
+        assert_eq!(plain(true, "12", -1), "-120");
+        assert_eq!(plain(false, "0", -5), "0");
     }
 
     #[test]
@@ -340,6 +369,9 @@ mod tests {
         let huge = "9".repeat(400);
         assert_eq!(DecimalRef { negative: false, digits: &huge, scale: 0 }.to_f64(), f64::INFINITY);
         assert_eq!(DecimalRef { negative: false, digits: "1", scale: 400 }.to_f64(), 0.0);
+        assert_eq!(DecimalRef { negative: true, digits: "15", scale: -2 }.to_f64(), -1500.0);
+        let far = DecimalRef { negative: false, digits: "1", scale: i64::from(i32::MIN) };
+        assert_eq!(far.to_f64(), f64::INFINITY);
     }
 
     #[test]

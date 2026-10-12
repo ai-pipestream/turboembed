@@ -28,10 +28,11 @@ interface AnnotatorGolden {
 
   /**
    * Whether the golden is made for this input; the normalizers use the {@code norm} set, the number
-   * scans the {@code num} set, and the rest use neither.
+   * scans the {@code num} set, the money annotators the {@code money} set, and the rest use none of them.
    */
   default boolean accepts(Input input) {
-    return !input.set().equals(NormalizerGolden.INPUT_SET) && !input.set().equals(NumberGolden.INPUT_SET);
+    return !input.set().equals(NormalizerGolden.INPUT_SET) && !input.set().equals(NumberGolden.INPUT_SET)
+        && !input.set().equals(MoneyGolden.INPUT_SET);
   }
 
   /**

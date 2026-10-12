@@ -64,6 +64,8 @@ public final class Main {
     List<AnnotatorGolden> annotators = new ArrayList<>(List.of(sentences, tokens, languages));
     annotators.addAll(NormalizerGolden.all());
     annotators.addAll(NumberGolden.all());
+    annotators.addAll(MoneyGolden.all(
+        inputs.toAbsolutePath().resolveSibling(MoneyGolden.SNAPSHOT_DIR).resolve(MoneyGolden.SNAPSHOT_FILE)));
     List<AnnotatorDump> recorders = dumps
         ? List.of(SentenceDump.of(sentences), TokenDump.of(tokens), LanguageDump.of(languages))
         : List.of();
