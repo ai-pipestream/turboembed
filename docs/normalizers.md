@@ -15,7 +15,7 @@ implementation differs on purpose, the difference is listed under
 
 | Crate | Path | Contents |
 |---|---|---|
-| `turbo-unicode` | `analysis/unicode/` | Unicode 17.0 character data: general category, properties, scripts, case mapping and folding, normalization forms, confusables, emoji sequences. Tables generated from the UCD files in `ucd/` by `turbo-unicode-gen`. |
+| `turbo-unicode` | `analysis/unicode/` | Unicode 18.0 character data: general category, properties, scripts, case mapping and folding, normalization forms, confusables, emoji sequences. Tables generated from the UCD files in `ucd/` by `turbo-unicode-gen`. |
 | `turbo-unicode-gen` | `analysis/unicode-gen/` | The table generator. |
 | `turbo-normalize` | `analysis/normalize/` | The normalizers, the `Normalizer` trait, the pipeline step adapter and the chain. |
 | `turbo-normalize-layers` | `analysis/normalize-layers/` | The layers normalizers write besides views: `Placeholders` (`turbo:placeholders`), `Emoji` (`turbo:emoji`). |
