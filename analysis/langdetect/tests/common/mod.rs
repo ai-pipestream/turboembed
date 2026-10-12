@@ -37,7 +37,9 @@ pub fn goldens() -> Vec<(String, String, PathBuf)> {
 /// `langdetect-183.bin`, where `turbo-goldens fetch-models` puts it: the
 /// directory in `TURBO_GOLDENS_MODELS`, or `target/turbo-goldens/models`
 /// under the repository root. The model is not checked in, so the tests
-/// that need it say so and pass without it when it is missing.
+/// that need it say so and pass without it when it is missing, unless
+/// `TURBO_TEST_REQUIRE_OPENNLP_MODELS=1`, which makes a missing model fail
+/// them, as it does for `turbo-maxent`'s model tests.
 pub fn model_path() -> Option<PathBuf> {
     let dir = match std::env::var_os("TURBO_GOLDENS_MODELS") {
         Some(d) => PathBuf::from(d),
@@ -46,6 +48,8 @@ pub fn model_path() -> Option<PathBuf> {
     let path = dir.join(MODEL_FILE);
     if path.is_file() {
         Some(path)
+    } else if std::env::var("TURBO_TEST_REQUIRE_OPENNLP_MODELS").is_ok_and(|v| v == "1") {
+        panic!("{} not found and TURBO_TEST_REQUIRE_OPENNLP_MODELS=1", path.display());
     } else {
         eprintln!("{} not found: skipping the comparison that needs it", path.display());
         None

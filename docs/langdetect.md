@@ -109,8 +109,10 @@ The model is not checked in: `langdetect-183.bin` is fetched with
 `cargo run -p turbo-goldens-tool -- fetch-models target/turbo-goldens/models`,
 which checks its published SHA-512. The tests look for it there, or in
 the directory named by `TURBO_GOLDENS_MODELS`. Without it, the tests
-that need it print where they looked and pass without comparing; the
-n-gram comparison runs either way.
+that need it print where they looked and pass without comparing, unless
+`TURBO_TEST_REQUIRE_OPENNLP_MODELS=1` makes them fail; the n-gram
+comparison runs either way. CI does not fetch the model, so CI runs
+the n-gram comparison and none of the probability comparisons.
 
 `analysis/langdetect/tests/context.rs` checks the generator on texts
 worked out by hand (the hash map order of `abab`, lowercasing, n-grams
