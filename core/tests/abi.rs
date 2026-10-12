@@ -139,7 +139,9 @@ fn struct_layouts_match_the_header() {
         ("turbo_backend", "formats", offset_of!(turbo_backend, formats)),
         ("turbo_backend", "reserved2", offset_of!(turbo_backend, reserved2)),
     ];
-    use turbo::backend::{turbo_backend_embed_rows, turbo_backend_run, turbo_backend_tuning};
+    use turbo::backend::{
+        turbo_backend_embed_rows, turbo_backend_run, turbo_backend_session_desc, turbo_backend_tuning,
+    };
     let session_fields: &[(&str, &str, usize)] = &[
         ("turbo_session_desc", "max_batch", offset_of!(turbo_session_desc, max_batch)),
         ("turbo_session_desc", "max_seq", offset_of!(turbo_session_desc, max_seq)),
@@ -166,6 +168,11 @@ fn struct_layouts_match_the_header() {
         ("turbo_session_info", "choices", offset_of!(turbo_session_info, choices)),
         ("turbo_session_desc", "tuning", offset_of!(turbo_session_desc, tuning)),
         ("turbo_session_desc", "tuning_budget_ms", offset_of!(turbo_session_desc, tuning_budget_ms)),
+        ("turbo_session_desc", "cpu_threads", offset_of!(turbo_session_desc, cpu_threads)),
+        ("turbo_session_desc", "max_ranges", offset_of!(turbo_session_desc, max_ranges)),
+        ("turbo_token_range", "row", offset_of!(turbo_token_range, row)),
+        ("turbo_token_range", "start", offset_of!(turbo_token_range, start)),
+        ("turbo_token_range", "end", offset_of!(turbo_token_range, end)),
         ("turbo_backend", "session_create_tuned", offset_of!(turbo_backend, session_create_tuned)),
         ("turbo_backend_tuning", "mode", offset_of!(turbo_backend_tuning, mode)),
         ("turbo_backend_tuning", "budget_ms", offset_of!(turbo_backend_tuning, budget_ms)),
@@ -221,6 +228,15 @@ fn struct_layouts_match_the_header() {
         ("turbo_backend_run", "host_allocs", offset_of!(turbo_backend_run, host_allocs)),
         ("turbo_backend_run", "device_allocs", offset_of!(turbo_backend_run, device_allocs)),
         ("turbo_backend_run", "stage", offset_of!(turbo_backend_run, stage)),
+        ("turbo_backend", "session_open", offset_of!(turbo_backend, session_open)),
+        ("turbo_backend", "embed_write_ranges", offset_of!(turbo_backend, embed_write_ranges)),
+        ("turbo_backend_session_desc", "task", offset_of!(turbo_backend_session_desc, task)),
+        ("turbo_backend_session_desc", "max_batch", offset_of!(turbo_backend_session_desc, max_batch)),
+        ("turbo_backend_session_desc", "max_seq", offset_of!(turbo_backend_session_desc, max_seq)),
+        ("turbo_backend_session_desc", "precision", offset_of!(turbo_backend_session_desc, precision)),
+        ("turbo_backend_session_desc", "cpu_threads", offset_of!(turbo_backend_session_desc, cpu_threads)),
+        ("turbo_backend_session_desc", "max_ranges", offset_of!(turbo_backend_session_desc, max_ranges)),
+        ("turbo_backend_session_desc", "reserved", offset_of!(turbo_backend_session_desc, reserved)),
     ];
     use turbo::backend::turbo_backend;
     let fields = [
@@ -291,6 +307,8 @@ fn struct_layouts_match_the_header() {
         ("turbo_backend_embed_rows", size_of::<turbo_backend_embed_rows>()),
         ("turbo_backend_run", size_of::<turbo_backend_run>()),
         ("turbo_backend_tuning", size_of::<turbo_backend_tuning>()),
+        ("turbo_token_range", size_of::<turbo_token_range>()),
+        ("turbo_backend_session_desc", size_of::<turbo_backend_session_desc>()),
     ];
     let mut src = String::from(
         "#include <stddef.h>\n#include <stdio.h>\n#include <turbo/turbo.h>\n#include <turbo/turbo_backend.h>\nint main(void) {\n",
@@ -328,8 +346,10 @@ fn struct_layouts_match_the_header() {
 fn the_tuning_layout_is_the_one_proposed() {
     use turbo::backend::{turbo_backend, turbo_backend_tuning};
     assert_eq!(offset_of!(turbo_backend, session_create_tuned), 160);
-    assert_eq!(size_of::<turbo_backend>(), 168);
-    assert_eq!(size_of::<turbo_session_desc>(), 24);
+    // The table and the session description have grown since: what they
+    // were then is the size before the next group of fields.
+    assert_eq!(offset_of!(turbo_backend, session_open), 168);
+    assert_eq!(TURBO_SESSION_DESC_SIZE_V2, 24);
     assert_eq!(size_of::<turbo_session_info>(), 1056);
     assert_eq!(offset_of!(turbo_session_info, choices), 32);
     assert_eq!(offset_of!(turbo_backend_tuning, cached), 16);
@@ -338,6 +358,24 @@ fn the_tuning_layout_is_the_one_proposed() {
     assert_eq!(offset_of!(turbo_backend_tuning, numerics_used), 1068);
     assert_eq!(size_of::<turbo_backend_tuning>(), 1072);
     assert_eq!((TURBO_SESSION_DESC_SIZE_V1, TURBO_SESSION_INFO_SIZE_V1), (16, 24));
+}
+
+/// The layout late pooling and the session thread count were added with:
+/// the table's two functions after session_create_tuned, the session
+/// description's two fields after tuning_budget_ms, and the older sizes
+/// still accepted.
+#[test]
+fn the_late_pooling_layout_is_the_one_proposed() {
+    use turbo::backend::{turbo_backend, turbo_backend_session_desc};
+    assert_eq!(offset_of!(turbo_backend, session_open), 168);
+    assert_eq!(offset_of!(turbo_backend, embed_write_ranges), 176);
+    assert_eq!(size_of::<turbo_backend>(), 184);
+    assert_eq!(offset_of!(turbo_session_desc, cpu_threads), 24);
+    assert_eq!(offset_of!(turbo_session_desc, max_ranges), 28);
+    assert_eq!(size_of::<turbo_session_desc>(), 32);
+    assert_eq!(size_of::<turbo_token_range>(), 12);
+    assert_eq!(size_of::<turbo_backend_session_desc>(), 32);
+    assert_eq!((TURBO_SESSION_DESC_SIZE_V1, TURBO_SESSION_DESC_SIZE_V2), (16, 24));
 }
 
 #[test]

@@ -29,7 +29,7 @@ pub use compare::{
 };
 pub use format::{
     AnnotatorRef, Column, ColumnData, ColumnSpec, ColumnType, ConfigEntry, Generator, Golden, GoldenAnchor,
-    GoldenLayer, Header, Input, Jdk, Model, OpenNlp, UnicodeVersion,
+    GoldenLayer, Header, Input, Jdk, JvmError, Model, OpenNlp, UnicodeVersion,
 };
 pub use load::{GOLDEN_KEY, GoldenLoad, LoadCx, LoadError, golden_key, load_document, load_layer};
 pub use read::GoldenError;
