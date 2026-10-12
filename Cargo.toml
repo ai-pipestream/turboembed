@@ -12,6 +12,7 @@ members = [
     "analysis/unicode-gen",
     "analysis/normalize",
     "analysis/normalize-layers",
+    "analysis/goldens",
     "analysis/goldens-tool",
 ]
 resolver = "3"
