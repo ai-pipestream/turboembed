@@ -311,6 +311,31 @@ impl Noise {
 
 impl Layer for Noise {
     const ID: &'static str = "turbo:noise";
+
+    fn len(&self) -> usize {
+        self.spans.len()
+    }
+
+    fn text_spans(&self) -> Option<(ViewId, &[u32], &[u32])> {
+        let (start, end) = self.spans.columns();
+        Some((self.spans.view(), start, end))
+    }
+
+    fn check(&self) -> Result<(), String> {
+        let n = self.spans.len();
+        if self.severity.len() != n || self.score.len() != n {
+            return Err("a severity and a score for every noise span".into());
+        }
+        if !self.spans.is_ordered() {
+            return Err("noise spans in text order, not overlapping".into());
+        }
+        if let Some(bad) = self.score.iter().find(|&&s| !(s > 0.0 && s <= 1.0)) {
+            return Err(format!("noise scores in (0, 1], got {bad}"));
+        }
+        Ok(())
+    }
+}
+
 /// Binary payloads embedded in a text: base64 runs, `data:` URIs, PEM
 /// envelopes, JSON Web Tokens and, when the detector is configured for
 /// them, hex dumps. Each row is one asset:
@@ -390,14 +415,6 @@ impl Layer for Assets {
 
     fn check(&self) -> Result<(), String> {
         let n = self.spans.len();
-        if self.severity.len() != n || self.score.len() != n {
-            return Err("a severity and a score for every noise span".into());
-        }
-        if !self.spans.is_ordered() {
-            return Err("noise spans in text order, not overlapping".into());
-        }
-        if let Some(bad) = self.score.iter().find(|&&s| !(s > 0.0 && s <= 1.0)) {
-            return Err(format!("noise scores in (0, 1], got {bad}"));
         let columns = [
             self.payload.len(),
             self.format.len(),
