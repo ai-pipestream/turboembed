@@ -474,6 +474,56 @@ impl<L: Layer> Layer for Confidence<L> {
     }
 }
 
+/// The UTF-16 span of every item of layer `L`, as a Java component
+/// computed it, for a layer whose producer counts UTF-16 units: OpenNLP's
+/// `SimpleTokenizer` and `TokenizerME` classify UTF-16 units, so a
+/// character outside the Basic Multilingual Plane can be split between two
+/// items. A UTF-8 byte span cannot say where inside the character the cut
+/// is; `L`'s own span widens to the whole character (start rounded down,
+/// end rounded up), and this layer keeps the exact span in UTF-16 units,
+/// half open, and whether the item cuts a character.
+///
+/// `cut` is a `bool` per item, one byte each: the layer is written only
+/// for texts that have a cut character, and a bit set would save little
+/// beside the two `u32` columns.
+pub struct Utf16Spans<L> {
+    pub start16: Vec<u32>,
+    pub end16: Vec<u32>,
+    /// Whether the item's span starts or ends inside a surrogate pair.
+    pub cut: Vec<bool>,
+    pub _of: PhantomData<fn() -> L>,
+}
+
+impl<L: Layer> Utf16Spans<L> {
+    pub fn new(start16: Vec<u32>, end16: Vec<u32>, cut: Vec<bool>) -> Utf16Spans<L> {
+        Utf16Spans { start16, end16, cut, _of: PhantomData }
+    }
+}
+
+impl<L: Layer> Layer for Utf16Spans<L> {
+    const ID: &'static str = "turbo:utf16";
+    const OF: &'static str = L::ID;
+    fn anchor() -> Anchor {
+        Anchor::aligned::<L>()
+    }
+    fn len(&self) -> usize {
+        self.start16.len()
+    }
+    /// The columns are of one length and no span ends before it starts.
+    /// Whether a span ends inside the view's UTF-16 length needs the text,
+    /// which a layer does not see, so it is not checked here.
+    fn check(&self) -> Result<(), String> {
+        let n = self.start16.len();
+        if self.end16.len() != n || self.cut.len() != n {
+            return Err("an end and a cut flag for every UTF-16 start".into());
+        }
+        if let Some(i) = (0..n).find(|&i| self.start16[i] > self.end16[i]) {
+            return Err(format!("UTF-16 span {i} ends before it starts: {}..{}", self.start16[i], self.end16[i]));
+        }
+        Ok(())
+    }
+}
+
 /// The document's language: a document-scoped layer.
 pub struct Language {
     pub code: String,
@@ -487,5 +537,33 @@ impl Layer for Language {
     }
     fn len(&self) -> usize {
         1
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn utf16_spans_are_named_after_their_layer_and_aligned_to_it() {
+        assert_eq!(Utf16Spans::<Tokens>::NAME.to_string(), "turbo:utf16<opennlp:tokens>");
+        assert_eq!(Utf16Spans::<Sentences>::NAME.to_string(), "turbo:utf16<opennlp:sentences>");
+        assert_eq!(Utf16Spans::<Tokens>::anchor(), Anchor::aligned::<Tokens>());
+    }
+
+    #[test]
+    fn utf16_spans_check_their_columns() {
+        // Two halves of one character outside the BMP, then a whole word.
+        let ok = Utf16Spans::<Tokens>::new(vec![0, 1, 3], vec![1, 2, 6], vec![true, true, false]);
+        assert_eq!(ok.len(), 3);
+        assert_eq!(ok.check(), Ok(()));
+        let empty = Utf16Spans::<Tokens>::new(Vec::new(), Vec::new(), Vec::new());
+        assert_eq!(empty.check(), Ok(()));
+        let short = Utf16Spans::<Tokens>::new(vec![0, 1], vec![1, 2], vec![true]);
+        assert!(short.check().unwrap_err().contains("a cut flag for every"));
+        let short = Utf16Spans::<Tokens>::new(vec![0, 1], vec![1], vec![true, true]);
+        assert!(short.check().is_err());
+        let backwards = Utf16Spans::<Tokens>::new(vec![0, 4], vec![1, 3], vec![false, false]);
+        assert_eq!(backwards.check().unwrap_err(), "UTF-16 span 1 ends before it starts: 4..3");
     }
 }
