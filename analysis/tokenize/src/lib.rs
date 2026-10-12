@@ -23,6 +23,7 @@
 //! docs/segmentation.md describes the design and every place the ports
 //! differ from OpenNLP on purpose.
 
+pub mod detok;
 pub mod me;
 pub mod simple;
 pub mod uax29;
@@ -31,6 +32,7 @@ pub mod whitespace;
 
 mod utf8;
 
+pub use detok::{Detokenizer, DetokenizerDictionary, DictionaryError, DictionaryOperation, Operation};
 pub use simple::{SimpleTokenizer, simple_spans};
 pub use turbo_tokenize_layers::{WordType, WordTypes};
 pub use turbo_unicode::WhitespaceMode;

@@ -387,14 +387,30 @@ include inputs on which every model splits inside U+1F600.
 
 ### `Detokenizer`
 
-`DictionaryDetokenizer`: the detokenizer dictionary (the same XML, with
-an `operation` attribute per entry: `MOVE_LEFT`, `MOVE_RIGHT`,
-`MOVE_BOTH`, `RIGHT_LEFT_MATCHING`) decides how each token attaches to
-its neighbours; matching tokens (quotes) alternate right and left. The
-detokenizer takes tokens as strings and gives the operations, or the
-rebuilt text with an optional split marker. It is not an annotator: a
-`Tokens` layer keeps its spans, so the text between tokens is never
-lost and nothing needs rebuilding.
+`DictionaryDetokenizer` (`turbo_tokenize::detok`): the detokenizer
+dictionary (the same XML, with an `operation` attribute per entry:
+`MOVE_LEFT`, `MOVE_RIGHT`, `MOVE_BOTH`, `RIGHT_LEFT_MATCHING`) decides
+how each token attaches to its neighbours; a matching token (a straight
+quote) attaches to the right on its first occurrence and to the left on
+the next, with one flag per distinct token. `DetokenizerDictionary`
+reads the XML through `turbo-maxent`'s `Entries` and refuses, as the
+Java does, an entry without exactly one token or with an unknown or
+missing operation. The dictionary holds a `DictionaryOperation` (the
+four in the XML) per token; `Detokenizer` gives the resolved
+`Operation` of each token (merge left, right or both, or none, never
+the matching one), or the rebuilt text with an optional split marker
+wherever two tokens were joined without a space. Its offset form,
+`detokenize_spans`, also records the byte offset where each token
+starts in the rebuilt text, which OpenNLP does not provide. The
+operations are resolved one token ahead while the text is written. A
+call reserves the output once, for the tokens and a space or the
+marker in every gap, and allocates one other thing: when the dictionary
+has more than 64 matching tokens, a vector of one `u64` flag word per
+64 matching tokens past the first 64.
+
+It is not an annotator: a `Tokens` layer keeps its spans, so the text
+between tokens is never lost and nothing needs rebuilding. The
+detokenizer is for tokens that arrive without their text.
 
 ## Golden files
 
