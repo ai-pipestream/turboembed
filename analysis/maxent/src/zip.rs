@@ -55,6 +55,12 @@ impl<B: AsRef<[u8]>> Zip<B> {
         Ok(Zip { bytes, records })
     }
 
+    /// The archive's bytes, exactly as given to [`Zip::new`], for hashing
+    /// or storing the file as a whole.
+    pub fn bytes(&self) -> &[u8] {
+        self.bytes.as_ref()
+    }
+
     /// The number of entries.
     pub fn len(&self) -> usize {
         self.records.len()
@@ -278,6 +284,13 @@ mod tests {
         let zip = Zip::new(&z[..]).unwrap();
         assert_eq!(&*zip.entry("a.txt").unwrap(), b"hello");
         assert!(matches!(zip.entry("a.txt").unwrap(), Cow::Borrowed(_)));
+    }
+
+    #[test]
+    fn the_bytes_are_the_archive_as_given() {
+        let z = stored_archive("a", b"x", b"", b"");
+        let zip = Zip::new(z.clone()).unwrap();
+        assert_eq!(zip.bytes(), &z[..]);
     }
 
     #[test]
