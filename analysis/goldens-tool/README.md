@@ -5,20 +5,22 @@ computes on the JVM for fixed inputs and models. This directory holds
 everything that makes them:
 
 - `java/`: the generator, a Maven project that depends only on the OpenNLP
-  runtime. It runs the annotator runs listed below over their input sets
-  and writes one golden per run and input. With `--dumps` it also writes a
-  decision point dump beside each golden of a run that asks a maxent model
-  (the sentence detector, the tokenizer and the language detector): every
-  context the annotator gave the model and every outcome probability
-  `eval` returned.
+  runtime and the `numeric` module of the OpenNLP addons. It runs the
+  annotator runs listed below over their input sets and writes one golden
+  per run and input; for the `num` set it runs `NumberScan` of the addons
+  module (see below). With `--dumps` it also writes a decision point dump
+  beside each golden of a run that asks a maxent model (the sentence
+  detector, the tokenizer and the language detector): every context the
+  annotator gave the model and every outcome probability `eval` returned.
 - `container/Dockerfile`: the container the generator runs in. It starts
   from `eclipse-temurin:21-jdk` pinned by digest, clones the OpenNLP fork
-  at a pinned commit, builds the runtime with the repository's `mvnw` and
-  builds the generator.
+  at a pinned commit, builds the runtime with the repository's `mvnw`,
+  clones `opennlp-addons` at a pinned commit and installs its `numeric`
+  module, and builds the generator.
 - `src/`: the driver, the `turbo-goldens` binary. `src/recipe.rs` holds the
-  base image digest, the OpenNLP commit, the published models with their
-  URLs and SHA-512 hashes, the checked in fixtures with their SHA-512
-  hashes, and the input sets.
+  base image digest, the OpenNLP and addons commits, the published models
+  with their URLs and SHA-512 hashes, the checked in fixtures with their
+  SHA-512 hashes, and the input sets.
 
 Both formats are described in `docs/analysis.md` ("Generating golden
 files" and "Decision point dumps").
@@ -51,7 +53,7 @@ cargo run -p turbo-goldens-tool -- verify [--models <dir>]
   whose header parses, except a golden with an error record (the annotator
   threw on that input), which must have none. A golden that names no model
   (a tokenizer or sentence detector without one, a normalizer) has no dump,
-  and neither has a detokenizer golden.
+  and neither has a detokenizer or number golden.
 - `verify` generates into a scratch directory and compares every golden
   and dump byte for byte with the checked in ones. It lists each file that
   differs, is missing or is extra, and exits non zero if there is any. It
@@ -84,6 +86,7 @@ a directory with the same model run without them, and its options are
 | `detokenize` (`DictionaryDetokenizer`) | `en-detokenizer`, `fr-detokenizer`, `latin-detokenizer`, `pt-detokenizer`, `quotes-detokenizer` (fixtures) | `detokenizer`, the inputs whose id starts with the dictionary's name | `splitMarker <SPLIT>` |
 | `langdetect` (`LanguageDetectorME`) | `langdetect-183` | `en`, `multi` | |
 | `normalize` (each normalizer) | the normalizer's name | `norm` | see below |
+| `numbers` (`NumberScan` of the addons `numeric` module) | `latin-us`, `latin-eu` | `num` | `notation` |
 
 - `+english-dictionary` is the English model rebuilt through
   `TokenizerModel(MaxentModel, Map, TokenizerFactory)` with the
@@ -131,6 +134,39 @@ space), which makes it join changes that lie one or two characters apart.
 The `norm` inputs are written for the project and use characters of the
 Unicode 15.0 repertoire only, which is what JDK 21 implements.
 
+## Number goldens
+
+`numbers/<notation>/num/<id>.golden` is what number scanning did to
+`inputs/num/<id>.txt`, with `<notation>` `latin-us` (`,` groups, `.` is the
+decimal mark) or `latin-eu` (the reverse). It has a `turbo:numbers` layer
+with one row per number mention: `start` and `end` (UTF-8 byte offsets of
+the mention, from the sign to the end of the scale marker), `numeral_end`
+(where the digits stop and a `k` or `million` begins; equal to `end` when
+there is none), `negative`, and the value as `coefficient` (the unscaled
+value without sign), `scale` (digits after the decimal point) and `plain`
+(`toPlainString()`, for a reader of the file). The golden has a
+`config notation` record. As with the normalizers, there is no model, so
+the notation takes the model's place in the path.
+
+The scan is `NumberScan.parse` in the `numeric` module of
+`ai-pipestream/opennlp-addons` (branch `ready/numeric`, commit
+`33e95a4956f1535cdc074056b29246fe88b3c81a`, pinned in `src/recipe.rs`). `NumberGolden` runs the
+loop of that module's `CursorQuantityExtractor.extract` and `matchAt`
+without the exclusion of money spans and without units, using only public
+`NumberScan` methods: at each offset an optional `-`, an ASCII digit that
+does not continue an earlier number, a boundary before the mention (the
+sign boundary after a `-`), then `parse` with scale markers.
+
+The OpenNLP fork at the pinned commit also contains
+`opennlp.tools.extraction.NumberScan` and `NumberNotation`, older than the
+module's (the fork's `NumberScan` allows only an ASCII space before a scale
+word). The generator's pom lists the module before the runtime so that its
+classes come first on the class path, and the generator stops if `NumberScan`
+was not loaded from the module's jar.
+
+The `num` inputs are written for the project and use characters of the
+Unicode 15.0 repertoire only. Only `NumberGolden` runs on them.
+
 ## How the checked in goldens and dumps were made
 
 The goldens and dumps checked in now were made in the container, with
@@ -145,8 +181,10 @@ with the OpenNLP fork built at the commit pinned in `src/recipe.rs`
 (commit `cdf33c653d5d61d5af7d37ffee189a83bd8392ea` of the
 `kristian-3.x-features` branch, Maven version `3.0.0-SNAPSHOT`; the commit
 pinned before it does not have `Dehyphenation`, `BoundedUrl`,
-`EnglishContraction` and `SymbolJoiner`). Its output then differs from the
-checked in files in the `jdk` line:
+`EnglishContraction` and `SymbolJoiner`), and the `numeric` module of
+`opennlp-addons` installed after it at its commit in `src/recipe.rs` (the
+`numbers` goldens do not record that commit in their header). Its output
+then differs from the checked in files in the `jdk` line:
 
 ```
 git init opennlp && cd opennlp
@@ -154,6 +192,12 @@ git remote add origin https://github.com/ai-pipestream/opennlp.git
 git fetch --depth 1 origin cdf33c653d5d61d5af7d37ffee189a83bd8392ea
 git checkout FETCH_HEAD
 ./mvnw -q -DskipTests -DskipITs -Dforbiddenapis.skip=true -pl opennlp-core/opennlp-runtime -am install
+cd ..
+git init opennlp-addons && cd opennlp-addons
+git remote add origin https://github.com/ai-pipestream/opennlp-addons.git
+GIT_LFS_SKIP_SMUDGE=1 git fetch --depth 1 origin 33e95a4956f1535cdc074056b29246fe88b3c81a
+GIT_LFS_SKIP_SMUDGE=1 git checkout FETCH_HEAD
+../opennlp/mvnw -q -DskipTests -pl numeric -am install
 cd <repository>/analysis/goldens-tool/java
 mvn -q package
 cargo run -p turbo-goldens-tool -- fetch-models <models dir>

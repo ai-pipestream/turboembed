@@ -1,8 +1,9 @@
 # The container that makes the golden layer files: a pinned JDK, OpenNLP built
-# from a pinned commit of the fork, and the generator in ../java.
+# from a pinned commit of the fork, the numeric module of the OpenNLP addons
+# built from a pinned commit, and the generator in ../java.
 #
 # Build it with `turbo-goldens image` (analysis/goldens-tool/README.md), which
-# passes ../java as the build context. The base image digest and the commit
+# passes ../java as the build context. The base image digest and the commits
 # are also Rust constants in ../src/recipe.rs; a test checks they agree.
 # Models are not in the image: `turbo-goldens generate` mounts them, with the
 # inputs and the checked in fixtures, read only, and runs the container without
@@ -12,6 +13,8 @@ FROM eclipse-temurin:21-jdk@sha256:3e3c176ffed168beb42c607be9bc1639b466cf00261a0
 
 ARG OPENNLP_REPO=https://github.com/ai-pipestream/opennlp
 ARG OPENNLP_COMMIT=cdf33c653d5d61d5af7d37ffee189a83bd8392ea
+ARG ADDONS_REPO=https://github.com/ai-pipestream/opennlp-addons
+ARG ADDONS_COMMIT=33e95a4956f1535cdc074056b29246fe88b3c81a
 
 RUN apt-get update \
  && apt-get install -y --no-install-recommends git \
@@ -33,6 +36,17 @@ RUN git init -q . \
 # opennlp-api use java.util.regex); it only reads the compiled classes.
 # -DskipITs is needed as well: the integration tests download models.
 RUN ./mvnw -q -DskipTests -DskipITs -Dforbiddenapis.skip=true -pl opennlp-core/opennlp-runtime -am install
+
+# The numeric module of the OpenNLP addons (NumberScan), built against the
+# runtime installed above. -am installs the addons' parent pom with it. Its
+# tests are skipped; they are the addons' own. Git LFS files are not needed.
+WORKDIR /addons
+RUN git init -q . \
+ && git remote add origin "$ADDONS_REPO" \
+ && GIT_LFS_SKIP_SMUDGE=1 git fetch -q --depth 1 origin "$ADDONS_COMMIT" \
+ && GIT_LFS_SKIP_SMUDGE=1 git checkout -q --detach FETCH_HEAD \
+ && test "$(git rev-parse HEAD)" = "$ADDONS_COMMIT"
+RUN /opennlp/mvnw -q -DskipTests -f /addons/pom.xml -pl numeric -am install
 
 # The generator, built with the same Maven as OpenNLP. Its tests run here.
 COPY . /generator

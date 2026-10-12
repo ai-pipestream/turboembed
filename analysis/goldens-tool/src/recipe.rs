@@ -1,8 +1,8 @@
 //! What the goldens are made from, as constants: the container's base
-//! image, the OpenNLP commit, the models, the checked in fixtures and the
-//! input sets. The container
-//! recipe (`container/Dockerfile`) repeats the base image and the commit;
-//! a test checks that both say the same.
+//! image, the OpenNLP and OpenNLP addons commits, the models, the checked
+//! in fixtures and the input sets. The container recipe
+//! (`container/Dockerfile`) repeats the base image and the commits; a test
+//! checks that both say the same.
 
 /// The base image, pinned by the digest of its multi-platform index.
 pub const BASE_IMAGE: &str = "eclipse-temurin:21-jdk";
@@ -13,9 +13,16 @@ pub const BASE_IMAGE_DIGEST: &str = "sha256:3e3c176ffed168beb42c607be9bc1639b466
 pub const OPENNLP_REPO: &str = "https://github.com/ai-pipestream/opennlp";
 pub const OPENNLP_COMMIT: &str = "cdf33c653d5d61d5af7d37ffee189a83bd8392ea";
 
+/// The OpenNLP addons repository and the commit on its `ready/numeric`
+/// branch whose `numeric` module the generator runs (`NumberScan`). The
+/// module is built against the OpenNLP fork above.
+pub const ADDONS_REPO: &str = "https://github.com/ai-pipestream/opennlp-addons";
+pub const ADDONS_COMMIT: &str = "33e95a4956f1535cdc074056b29246fe88b3c81a";
+
 /// The tag `turbo-goldens image` gives the image it builds. It names the
-/// OpenNLP commit, so an image built from another commit has another tag.
-pub const IMAGE_TAG: &str = "turbo-goldens-java:opennlp-cdf33c653d5d";
+/// OpenNLP and addons commits, so an image built from other commits has
+/// another tag.
+pub const IMAGE_TAG: &str = "turbo-goldens-java:opennlp-cdf33c653d5d-addons-33e95a4956f1";
 
 /// A model file the generator loads, where it is published and the SHA-512
 /// published beside it.
@@ -146,8 +153,18 @@ pub const FIXTURES: [Fixture; 9] = [
 ];
 
 /// The input sets under `analysis/goldens/data/inputs`.
-pub const INPUT_SETS: [&str; 9] =
-    ["en", "multi", "norm", "edge", "surrogate", "abbreviations", "alphanumeric", "sentence-fixture", "detokenizer"];
+pub const INPUT_SETS: [&str; 10] = [
+    "en",
+    "multi",
+    "norm",
+    "num",
+    "edge",
+    "surrogate",
+    "abbreviations",
+    "alphanumeric",
+    "sentence-fixture",
+    "detokenizer",
+];
 
 /// The arguments the driver passes to the generator after the fixed ones
 /// (the inputs, models and output directories and the commit, which the
@@ -159,18 +176,22 @@ pub const GENERATOR_ARGS: [&str; 1] = ["--dumps"];
 /// The annotator directories the generator writes, which `generate`
 /// replaces and `verify` compares. The data directory holds other things
 /// (the inputs, the fixtures, a README) that neither touches.
-pub const ANNOTATORS: [&str; 5] = ["sentdetect", "tokenize", "langdetect", "normalize", "detokenize"];
+pub const ANNOTATORS: [&str; 6] = ["sentdetect", "tokenize", "langdetect", "normalize", "numbers", "detokenize"];
 
 /// The annotators with runs that ask a maxent model for their decisions:
 /// each golden of theirs whose header names a model has a decision point
 /// dump beside it. Their runs without a model (the simple, whitespace and
 /// UAX #29 tokenizers and the newline detector) have none, nor do the
-/// normalizers and the detokenizer, which ask no model.
+/// normalizers, the number scan and the detokenizer, which ask no model.
 pub const DUMPED_ANNOTATORS: [&str; 3] = ["sentdetect", "tokenize", "langdetect"];
 
 /// The input set the normalizers run on. They run on no other set, and the
 /// other annotators do not run on this one.
 pub const NORMALIZER_INPUT_SET: &str = "norm";
+
+/// The input set the number scan runs on. It runs on no other set, and the
+/// other annotators do not run on this one.
+pub const NUMBER_INPUT_SET: &str = "num";
 
 #[cfg(test)]
 mod tests {
@@ -183,7 +204,9 @@ mod tests {
     #[test]
     fn the_commit_is_forty_hex_digits() {
         assert!(is_lower_hex(OPENNLP_COMMIT, 40), "{OPENNLP_COMMIT}");
-        assert!(IMAGE_TAG.ends_with(&OPENNLP_COMMIT[..12]));
+        assert!(is_lower_hex(ADDONS_COMMIT, 40), "{ADDONS_COMMIT}");
+        assert!(IMAGE_TAG.contains(&format!("opennlp-{}", &OPENNLP_COMMIT[..12])));
+        assert!(IMAGE_TAG.ends_with(&format!("addons-{}", &ADDONS_COMMIT[..12])));
     }
 
     #[test]
@@ -208,6 +231,8 @@ mod tests {
         assert!(dockerfile.contains(&format!("\nFROM {BASE_IMAGE}@{BASE_IMAGE_DIGEST}\n")));
         assert!(dockerfile.contains(&format!("\nARG OPENNLP_COMMIT={OPENNLP_COMMIT}\n")));
         assert!(dockerfile.contains(&format!("\nARG OPENNLP_REPO={OPENNLP_REPO}\n")));
+        assert!(dockerfile.contains(&format!("\nARG ADDONS_COMMIT={ADDONS_COMMIT}\n")));
+        assert!(dockerfile.contains(&format!("\nARG ADDONS_REPO={ADDONS_REPO}\n")));
     }
 
     #[test]
@@ -229,7 +254,7 @@ mod tests {
     #[test]
     fn the_generator_names_the_same_input_sets() {
         let runs = include_str!("../java/src/main/java/ai/pipestream/turbo/goldens/Runs.java");
-        for set in INPUT_SETS.iter().filter(|s| **s != NORMALIZER_INPUT_SET) {
+        for set in INPUT_SETS.iter().filter(|s| **s != NORMALIZER_INPUT_SET && **s != NUMBER_INPUT_SET) {
             assert!(runs.contains(&format!("= \"{set}\";")), "Runs.java does not name the input set {set}");
         }
     }
@@ -253,6 +278,15 @@ mod tests {
         assert!(INPUT_SETS.contains(&NORMALIZER_INPUT_SET));
         let normalizer = include_str!("../java/src/main/java/ai/pipestream/turbo/goldens/NormalizerGolden.java");
         assert!(normalizer.contains(&format!("INPUT_SET = \"{NORMALIZER_INPUT_SET}\"")));
+    }
+
+    #[test]
+    fn the_number_scan_has_its_own_input_set_and_no_dumps() {
+        assert!(INPUT_SETS.contains(&NUMBER_INPUT_SET));
+        assert!(ANNOTATORS.contains(&"numbers"));
+        assert!(!DUMPED_ANNOTATORS.contains(&"numbers"));
+        let numbers = include_str!("../java/src/main/java/ai/pipestream/turbo/goldens/NumberGolden.java");
+        assert!(numbers.contains(&format!("INPUT_SET = \"{NUMBER_INPUT_SET}\"")));
     }
 
     #[test]

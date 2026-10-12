@@ -3,7 +3,7 @@
 //! within 1e-9, which a 32-bit float (about 1e-7 relative error) cannot meet.
 
 use turbo_analysis::*;
-use turbo_analysis_layers::{Confidence, Entities, Language, PosTags, Tag, TagSet, Tokens};
+use turbo_analysis_layers::{Confidence, Entities, Language, PosTags, Strs, Tag, TagSet, Tokens};
 
 /// A value f64 holds to the last digit and f32 rounds visibly.
 const PRECISE: f64 = 0.123456789012345;
@@ -75,9 +75,12 @@ fn entity_scores_round_trip_exactly() {
 #[test]
 fn language_scores_round_trip_exactly() {
     let mut doc = Document::new("Dogs bark");
-    doc.add(&Key::DEFAULT, Language { code: "en".into(), score: PRECISE }, Provenance::by("test")).unwrap();
+    let mut code = Strs::default();
+    code.push("en");
+    code.push("de");
+    doc.add(&Key::DEFAULT, Language { code, score: vec![PRECISE, 1.0 - PRECISE] }, Provenance::by("test")).unwrap();
 
-    let score = doc.get::<Language>().unwrap().score;
+    let score = doc.get::<Language>().unwrap().score[0];
     assert_eq!(score, PRECISE);
     assert_ne!(score, as_f32(PRECISE));
 }

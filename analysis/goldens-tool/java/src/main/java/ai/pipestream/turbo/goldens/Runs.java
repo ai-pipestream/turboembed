@@ -115,6 +115,7 @@ final class Runs {
     recorders.add(LanguageDump.of(languages));
 
     annotators.addAll(NormalizerGolden.all());
+    annotators.addAll(NumberGolden.all());
     return new All(annotators, recorders);
   }
 }

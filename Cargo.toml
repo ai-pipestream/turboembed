@@ -17,9 +17,12 @@ members = [
     "analysis/maxent",
     "analysis/normalize",
     "analysis/normalize-layers",
+    "analysis/numeric",
     "analysis/sentdetect",
+    "analysis/sequence",
     "analysis/tokenize",
     "analysis/tokenize-layers",
+    "analysis/langdetect",
 ]
 resolver = "3"
 
