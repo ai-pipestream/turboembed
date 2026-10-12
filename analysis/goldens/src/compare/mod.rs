@@ -138,8 +138,12 @@ pub fn shape_of<L: GoldenCompare>() -> Shape {
     Shape { id: L::NAME.to_string(), anchor: L::golden_anchor(), columns: L::COLUMNS }
 }
 
-/// The shapes of every layer type a golden file may hold, which the reader
-/// checks each layer block against.
+/// The shapes of the layer types of turbo-analysis and
+/// turbo-analysis-layers that have one: what `Golden::read` checks each
+/// layer block against. A layer type from another crate is not here; that
+/// crate implements `GoldenCompare` for it and reads its goldens with
+/// `Golden::read_with`, passing this set with `shape_of::<ItsLayer>()`
+/// added.
 pub fn known_shapes() -> Vec<Shape> {
     use turbo_analysis::View;
     use turbo_analysis_layers::{Confidence, Entities, Language, Lemmas, PosTags, Sentences, Tokens};

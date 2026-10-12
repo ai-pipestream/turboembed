@@ -128,23 +128,45 @@ impl fmt::Display for GoldenError {
 impl std::error::Error for GoldenError {}
 
 impl Golden {
-    /// Reads and parses a golden file.
+    /// Reads and parses a golden file, checking its layer blocks against
+    /// `known_shapes()`, the layer types of turbo-analysis and
+    /// turbo-analysis-layers.
     pub fn read(path: impl AsRef<Path>) -> Result<Golden, GoldenError> {
-        let path = path.as_ref();
-        let bytes = std::fs::read(path).map_err(|error| GoldenError::Io { path: path.into(), error })?;
-        Golden::parse_bytes(&bytes).map_err(|e| GoldenError::File { path: path.into(), error: Box::new(e) })
+        Golden::read_with(path, &known_shapes())
     }
 
-    /// Parses a golden file's bytes.
+    /// Reads and parses a golden file, checking its layer blocks against
+    /// `shapes`. A crate that owns a layer type with a golden shape passes
+    /// `known_shapes()` with `shape_of::<ItsLayer>()` added.
+    pub fn read_with(path: impl AsRef<Path>, shapes: &[Shape]) -> Result<Golden, GoldenError> {
+        let path = path.as_ref();
+        let bytes = std::fs::read(path).map_err(|error| GoldenError::Io { path: path.into(), error })?;
+        Golden::parse_bytes_with(&bytes, shapes)
+            .map_err(|e| GoldenError::File { path: path.into(), error: Box::new(e) })
+    }
+
+    /// Parses a golden file's bytes, against `known_shapes()`.
     pub fn parse_bytes(bytes: &[u8]) -> Result<Golden, GoldenError> {
+        Golden::parse_bytes_with(bytes, &known_shapes())
+    }
+
+    /// Parses a golden file's bytes, against `shapes`.
+    pub fn parse_bytes_with(bytes: &[u8], shapes: &[Shape]) -> Result<Golden, GoldenError> {
         let text = std::str::from_utf8(bytes).map_err(|e| GoldenError::NotUtf8 {
             line: 1 + bytes[..e.valid_up_to()].iter().filter(|&&b| b == b'\n').count(),
         })?;
-        Golden::parse(text)
+        Golden::parse_with(text, shapes)
     }
 
-    /// Parses a golden file's text.
+    /// Parses a golden file's text, against `known_shapes()`.
     pub fn parse(text: &str) -> Result<Golden, GoldenError> {
+        Golden::parse_with(text, &known_shapes())
+    }
+
+    /// Parses a golden file's text, checking each layer block's id, anchor
+    /// and columns against `shapes`: a block whose id none of them has is
+    /// refused.
+    pub fn parse_with(text: &str, shapes: &[Shape]) -> Result<Golden, GoldenError> {
         if let Some(at) = text.find('\r') {
             return Err(GoldenError::CarriageReturn { line: 1 + text[..at].matches('\n').count() });
         }
@@ -153,10 +175,9 @@ impl Golden {
         };
         let mut lines = Lines { iter: body.split('\n').peekable(), line: 0 };
         let header = read_header(&mut lines)?;
-        let shapes = known_shapes();
         let mut layers: Vec<GoldenLayer> = Vec::new();
         while let Some(line) = lines.next() {
-            let layer = read_layer(&mut lines, line, &header, &shapes, &layers)?;
+            let layer = read_layer(&mut lines, line, &header, shapes, &layers)?;
             layers.push(layer);
         }
         if layers.is_empty() {

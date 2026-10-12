@@ -342,6 +342,15 @@ the reader refuses an id no layer type has, a second block for one id,
 and a block whose anchor or columns, by name and type, are not its
 type's. Every error names the line and what was expected there.
 
+The layer types the reader knows are a parameter. `Golden::read`,
+`Golden::parse` and `Golden::parse_bytes` check blocks against
+`known_shapes()`, the types of `turbo-analysis` and
+`turbo-analysis-layers`; `read_with`, `parse_with` and
+`parse_bytes_with` take the set. A crate that owns a layer type with a
+golden shape (a tokenizer crate's `turbo:word-types`, a word type per
+token in one `kind:str` column) implements `GoldenCompare` for it and
+reads its goldens with `known_shapes()` plus `shape_of::<ItsLayer>()`.
+
 ### Comparing a layer with its golden
 
 ```rust
@@ -425,6 +434,9 @@ runs them on any machine:
   text and both values, and a malformed file of each kind is refused
   with its line. The unit tests hold the escapes, the FIPS 180-4
   test vectors and Java's `Double.toString`.
+- `analysis/goldens/tests/shapes_from_other_crates.rs` defines a layer
+  type in the test (`turbo:word-types`), reads a golden holding it with
+  `read_with` (which `read` refuses), and compares a document with it.
 - A doctest on `Ix` checks that an index into the wrong layer does not
   compile.
 
