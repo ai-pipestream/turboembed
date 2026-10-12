@@ -102,10 +102,15 @@ pub fn check_alignment(src: &str, out: &str, a: &Alignment, edit_ok: impl Fn(&st
 /// comes back without that part.
 fn without_edge_deletions(a: &Alignment, s: Span) -> Span {
     let (mut start, mut end) = (s.start, s.end);
-    for e in a.edits().iter().filter(|e| e.child.is_empty()) {
+    let deletions: Vec<_> = a.edits().iter().filter(|e| e.child.is_empty()).collect();
+    // Each deletion is its own edit, so a span edge inside a run of
+    // deleted characters moves past one deletion at a time.
+    for e in &deletions {
         if e.parent.start <= start && start < e.parent.end {
             start = e.parent.end;
         }
+    }
+    for e in deletions.iter().rev() {
         if e.parent.start < end && end <= e.parent.end {
             end = e.parent.start;
         }
@@ -126,8 +131,8 @@ fn widened(a: &Alignment, s: Span) -> Span {
 }
 
 /// An edit that replaces each source character by `fold(c)`, where `fold`
-/// returns `None` for a character the normalizer keeps. Neighbouring
-/// replacements merge into one edit, so the check maps every character.
+/// returns `None` for a character the normalizer keeps. Each replaced
+/// character is its own edit, so the check maps every character.
 pub fn per_char_edit(fold: impl Fn(char) -> Option<&'static str>) -> impl Fn(&str, &str) -> bool {
     move |parent, child| {
         let mut expected = String::new();
