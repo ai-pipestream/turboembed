@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Decisions already made
+    url: https://github.com/ai-pipestream/turboembed/blob/main/docs/decisions.md
+    about: Read the decision log before proposing a design change.
+  - name: Working rules for agents
+    url: https://github.com/ai-pipestream/turboembed/blob/main/AGENTS.md
+    about: How assignments, branches, labels, proof and merges work.
