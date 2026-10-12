@@ -704,6 +704,632 @@ through five configurations, checking those invariants, that the unknown
 addition only adds rows, and that each asset found is found the same in a
 text holding only it.
 
+### Social media (`social/`)
+
+`SocialMedia` (id `turbo:normalize:social-media`) keeps the output of
+OpenNLP's `SocialMediaCharSequenceNormalizer`, which is also part of the
+language detector's preparation. OpenNLP runs four passes, each over the
+previous one's output:
+
+1. a hashtag or handle, `#` or `@` followed by a character that is not
+   ASCII whitespace, up to the next ASCII whitespace, becomes a space
+   (`#a#b` is one tag; `abc#def` becomes `"abc "`);
+2. a run of retweet units, `rt` and a space or colon, ASCII
+   case-insensitively, becomes a space when it starts on a word boundary
+   as the JDK regular expression engine decides `\b`: not after an ASCII
+   letter, digit or `_`, nor after a non-spacing mark that sits on a
+   letter or digit (the engine walks back over the marks one UTF-16 unit
+   at a time, so a supplementary-plane character in that walk never
+   blocks);
+3. an emoticon, eyes `: ; x X`, an optional `-` and a mouth
+   `( ) d D o O p P`, becomes a space, inside words too (`expo` becomes
+   `"e o"`);
+4. laughter, a run of `h`/`j`, a run of vowels and at least one more pair
+   of runs of the last consonant and the last vowel, shrinks to that
+   consonant and vowel twice as written (`hAHa` becomes `hAhA`).
+
+`SocialMedia` does all four in one pass and produces the same text. The
+four patterns start with disjoint characters and none can contain the
+first character of another, so they never compete for a position. The
+one interaction between the passes is that the space a hashtag or handle
+becomes can end a retweet unit: `rt#tag` is `"rt "` after the first pass
+and one space after the second. The scan accepts a tag in that place;
+the placeholders are a `RetweetMarker` for `rt` and a `Hashtag` or
+`Mention` for the tag, both mapped to the one space. Laughter is not a
+placeholder. A shrunk laugh keeps the part it shares with its source, so
+`hahaha` keeps `haha` (mapped to itself) and deletes `ha`.
+
+`BoundedSocialMedia` (id `turbo:normalize:bounded-social-media`) finds
+the same kinds of markup by Unicode properties and word boundaries,
+closer to how the platforms that define hashtags and mentions delimit
+them. A word character is a letter or digit, a combining mark, or `_`.
+
+- A hashtag is `#` or `＃` (U+FF03), not after a word character or `&`,
+  followed by a run of word characters, ZWNJ and ZWJ that contains a
+  letter or mark: `#café`, `#日本`, `#हिन्दी`, `#100DaysOfCode`. `#1` and
+  `#2024` are not hashtags, nor is the `#39` of `&#39;`.
+- A mention is `@` or `＠` (U+FF20), not after a word character or one
+  of `! @ # $ % & *`, followed by a run of word characters, optionally
+  continued by `@` and a domain of two or more labels (a fediverse
+  handle such as `@ana@social.example`). Any other `@` right after the
+  run means it is not a mention, so `a@b.com` and `@ana@x` are left
+  alone.
+- A retweet marker is a run of `rt` units not after a word character; a
+  last `rt` directly before a mention (`RT@ana`) also ends the marker.
+- An emoticon is the same eyes, nose and mouth, not followed by a word
+  character, and with `x`/`X` eyes not after one.
+- Laughter shrinks as in `SocialMedia`.
+
+Differences from OpenNLP (`BoundedSocialMedia` only; `SocialMedia`
+matches OpenNLP exactly because the language detector models were
+trained on its output):
+
+- A hashtag or mention ends where its word ends instead of at the next
+  ASCII whitespace, so punctuation after it stays in the text:
+  `#win!` becomes `" !"` (OpenNLP: `" "`), `RT @ana: hello` becomes
+  `"  : hello"` (OpenNLP: `"   hello"`). Tests:
+  `bounded::hashtags_end_at_the_word`,
+  `bounded::retweet_markers_need_a_word_boundary`.
+- Letters, digits and marks of every script count as word characters,
+  for the start of a tag and for the word boundary of retweet markers,
+  so `éRT x` keeps its `RT` (OpenNLP removes it, since `é` is not an
+  ASCII word character).
+- Number-only tags (`#1`, `#2024`), HTML entities (`&#39;`), tags inside
+  words (`abc#def`) and bare `#`/`##` are not replaced. OpenNLP replaces
+  `abc#def` with `"abc "` and `##` with a space.
+- Fullwidth `＃` and `＠` start tags, and fediverse handles are one
+  mention.
+- Emoticons do not match inside words: `expo`, `taxi`, `xoxo` and
+  `:people` are kept (OpenNLP: `"e o"`, `"taxi"`, two spaces, `" eople"`).
+  Test: `bounded::emoticons_stand_alone`.
+
+Tests (`analysis/normalize/tests/social_media.rs`): every expectation of OpenNLP's
+`SocialMediaCharSequenceNormalizerCharacterizationTest` (a supplementary
+non-spacing mark stands in for the lone surrogates); 50,000 generated
+inputs from OpenNLP's pool compared with a four-pass reference that
+follows OpenNLP's passes one to one; the tag that ends a retweet unit;
+the placeholder kinds and spans of both normalizers; and the
+`BoundedSocialMedia` rules above.
+
+### Numbers (`number.rs`)
+
+`Numbers` (id `turbo:normalize:numbers`) replaces each maximal run of
+ASCII digits with one space (`12.34` becomes `" . "`) and records a
+`Number` placeholder per run. Digits of other scripts are left alone, as
+in OpenNLP, whose `\d` class was ASCII only; `Digits` is the normalizer
+that folds them to ASCII.
+
+OpenNLP counterpart: `NumberCharSequenceNormalizer`. No differences.
+
+Tests (`analysis/normalize/tests/numbers_shrink.rs`): every expectation of
+`NumberCharSequenceNormalizerCharacterizationTest`, 5000 generated
+inputs from its pool against the digit-run rule, the placeholder spans,
+and that digit-free text comes back borrowed.
+
+### Shrink (`shrink.rs`)
+
+`Shrink` (id `turbo:normalize:shrink`) ports
+`ShrinkCharSequenceNormalizer`:
+
+1. a run of two or more ASCII whitespace characters (U+0009..U+000D,
+   U+0020) becomes one space; a single tab or newline is kept;
+2. a run of three or more of one character, compared ASCII
+   case-insensitively, becomes the run's first character twice (`aAAb`
+   becomes `aab`, not `aAb`); runs of LF, CR, U+0085, U+2028 and U+2029
+   are never shrunk, because Java's `.` does not match them;
+3. leading and trailing characters at or below U+0020 are deleted, as
+   `String.trim()` does, control characters included.
+
+OpenNLP runs the three steps as passes; `Shrink` runs one and produces
+the same text. After step 1 no two whitespace characters are adjacent,
+so step 2 only shrinks runs that are the same in the original text, and
+the characters step 3 deletes are exactly the images of the input's
+leading and trailing characters at or below U+0020 (a run never mixes
+those with other characters), which `Shrink` deletes directly. A shrunk
+run keeps its first character, mapped to itself, and writes the second
+copy over the rest of the run.
+
+OpenNLP counterpart: `ShrinkCharSequenceNormalizer`. No differences.
+
+Tests (`analysis/normalize/tests/numbers_shrink.rs`): every expectation of
+`ShrinkCharSequenceNormalizerCharacterizationTest` (without its lone
+surrogate cases), and 50,000 generated inputs from its pool compared with
+a three-pass reference that follows OpenNLP's passes one to one.
+
+### Emoji (`analysis/normalize/src/emoji/mod.rs`)
+
+Four steps work on emoji. All of them take their sequences from
+`turbo_unicode::emoji::scan` (UTS #51 possible emoji on Unicode 18.0) or
+their table from OpenNLP's data, and all of them write each replaced
+stretch with its own replacement.
+
+**Which sequences are emoji.** The scanner reports every character with
+the Emoji property, so `©`, `®`, `™`, `↔`, `☹` and a bare `❤` come out
+as `Basic` sequences: no character property separates them from emoji
+shown as pictures. `emoji::is_emoji_presentation` applies the
+presentation rule of UTS #51: keycap, flag, modifier, tag and ZWJ
+sequences are emoji; a single character is an emoji when it has
+Emoji_Presentation or U+FE0F follows it. That leaves out the 207
+text-default characters of Unicode 18.0 (the keycap bases aside) when
+they are written without U+FE0F, which in running text are symbols
+(`© 2026`, `A ↔ B`). `EmojiRemove::sequences()` and `EmojiAnnotate` both
+use this rule; `EmojiAnnotate::with_text_default()` turns it off.
+
+**`EmojiRemove`** (id `turbo:normalize:emoji-remove`) replaces emoji with
+U+0020. It is a `Normalizer` and, like the other placeholder normalizers,
+an `Annotator` that also writes a `Placeholders` layer with kind `Emoji`.
+
+- `EmojiRemove::sequences()` (the default): every emoji sequence becomes
+  one space: a ZWJ family, a flag, a subdivision flag, a keycap, a
+  skin-toned hand, a character with its U+FE0F. Sequences with no text
+  between them become one space together; each is its own replacement
+  (the first writes the space, the others write nothing) and its own
+  placeholder, so a placeholder's span is exactly one sequence. A
+  character followed by U+FE0E stays, as does a U+200D or U+FE0F that is
+  not part of a sequence.
+- `EmojiRemove::supplementary()`: every run of supplementary-plane code
+  points becomes one space, with one placeholder per run. This is
+  OpenNLP's `EmojiCharSequenceNormalizer` in its default mode, which the
+  language detector models were trained with, so the language detector
+  preparation uses this mode.
+
+OpenNLP's `EmojiCharSequenceNormalizer` also has a legacy mode, selected
+by `CompatibilityMode.LEGACY`, which reproduces the 1.x and 2.x releases:
+it replaces `-` (U+002D) and every code point from U+D83C to U+10FC00.
+The range was meant to catch the UTF-16 high surrogates that start most
+emoji, but read as code points it also takes the low surrogates, every
+character from U+E000 to U+FFFF (the private use area, the CJK
+compatibility ideographs, the presentation forms, the variation
+selectors, the halfwidth and fullwidth forms among them) and every
+supplementary code point up to U+10FC00, and it removes every
+hyphen-minus. It is not ported: it reproduces UTF-16 surrogate handling
+that 3.0 corrected, and a Rust string has no surrogates. Models trained
+with OpenNLP 1.x or 2.x saw that output; OpenNLP 3.x defaults to the
+corrected mode, which `EmojiRemove::supplementary()` matches.
+
+**`EmojiToEmoticon`** (id `turbo:normalize:emoji-to-emoticon`) and
+**`EmoticonToEmoji`** (id `turbo:normalize:emoticon-to-emoji`) port
+OpenNLP's `EmojiEmoticons` over emoji-emoticons.txt, which
+`analysis/normalize/src/emoji/data.rs` holds as Rust constants with all six columns of the file
+(source, target, fold type, standard, Unicode version, note) in the
+file's order. At each position the longest source wins (candidates are
+ordered longest first in UTF-16 units, as OpenNLP orders them; for this
+table UTF-8 length gives the same order).
+
+- Pictographs to emoticons (35 rows, many to one: `🙂` and `😊` to `:)`,
+  every heart to `<3`): no fold after U+200D; one U+FE0F after the
+  source is replaced with it; no fold when U+200D or U+FE0E follows, so
+  `❤️‍🔥` and `☺︎` stay. Pictographs glued to words fold.
+- Emoticons to pictographs (26 rows: `:-)` and `:)` to `🙂`, `<3` to
+  `❤️`): only when the text edge or a `White_Space` character
+  (`tables::WHITESPACE`, the no-break spaces included) is on both sides,
+  so `1:3`, `https://` and `nice:)` stay.
+
+OpenNLP counterparts: `EmojiToEmoticonCharSequenceNormalizer`,
+`EmoticonToEmojiCharSequenceNormalizer`. No differences in the output.
+
+**`EmojiAnnotate`** (id `turbo:normalize:emoji-annotate`) reads a `View`
+and writes the `Emoji` layer (`turbo:emoji`): one row per emoji sequence
+with its span, its kind (`Basic`, `Keycap`, `Flag`, `Modifier`, `Tag`,
+`Zwj`), its CLDR short name from the Unicode 18.0 emoji-test.txt
+(U+FE0F ignored, so a minimally-qualified form has the name of its
+fully-qualified form; empty for a sequence Unicode does not list) and
+the region of a flag (`DE`) or subdivision flag (`GB-ENG`), empty
+otherwise.
+
+OpenNLP's bundled annotations, emoji-annotations.txt (40 pictographs,
+each with a name, a sentiment from -2 to 2, an entity type and a
+category), are in `analysis/normalize/src/emoji/data.rs` as well, one entry per pictograph. The
+sources and the notes of the name rows are the same on every row, so
+they are constants next to the table. `emoji::opennlp_annotation`
+looks a sequence up as `EmojiAnnotations.lookup` does, ignoring every
+U+FE0F. `emoji::features` gives the feature strings of
+`EmojiAnnotator.collectFeatures` in its order (`emojiSentiment=2`,
+`emojiType=HEART`, `emojiCategory=SMILEYS_AND_EMOTION`,
+`emojiRegion=DE`); a flag has no bundled row and gives `FLAG`, `FLAGS`
+and its region, and a token that starts with an ASCII character gives
+nothing.
+
+Differences from OpenNLP:
+
+- `EmojiRemove::sequences()` has no OpenNLP counterpart. OpenNLP's
+  emoji remover replaces supplementary-plane code points, which removes
+  text that is not emoji (`𝐀` U+1D400, `𠀀` U+20000, Gothic and other
+  historic scripts), leaves the emoji of the Basic Multilingual Plane
+  (`☺`, `❤`, `⌚`, `✈`) and breaks sequences into pieces: a ZWJ family
+  becomes `" ‍ ‍ "` and `❤️` keeps its U+FE0F. The sequence mode
+  removes exactly the emoji, each whole. Tests:
+  `every_fully_qualified_emoji_becomes_one_space`,
+  `zwj_families_skin_tones_keycaps_and_flags_are_one_space_each`,
+  `text_default_symbols_with_and_without_the_selector`,
+  `supplementary_mode_matches_opennlp`.
+- `EmojiAnnotate` finds the sequences in the text. OpenNLP's
+  `EmojiAnnotator` annotates one token at a time and depends on the
+  tokenizer to hand it a whole sequence. It names every emoji Unicode
+  lists, from emoji-test.txt, where OpenNLP names only its 40 bundled
+  pictographs. Test: `annotator_reports_kind_name_and_region`.
+- OpenNLP's `EmojiAnnotationJoin` (a caller's function that adds
+  attributes per symbol and region) is not ported; a caller joins its
+  own data on the layer's `name` and `region` columns.
+- The data files are Rust constants, so OpenNLP's tests of the file
+  parsers (wrong field counts, bad hexadecimal, unknown attributes) have
+  no counterpart; the audits of the data (row counts, the two fold
+  directions closing over each other, every fold source annotated,
+  sentiment in -2..2, the attribute sources) are ported, and every name,
+  group and subgroup of the bundled annotations is checked against the
+  Unicode 18.0 emoji-test.txt.
+
+Tests (`analysis/normalize/tests/emoji.rs`): the expectations of
+`EmojiToEmoticonCharSequenceNormalizerTest`,
+`EmoticonToEmojiCharSequenceNormalizerTest` (without the case that runs
+OpenNLP's word tokenizer), `EmojiEmoticonsTest`, `EmojiAnnotationsTest`,
+`EmojiAnnotatorTest`, the malformed flags of `EmojiFlagsTest` (through
+`features`) and `EmojiAnnotatorUsageExampleTest`; every fully-qualified,
+minimally-qualified and component row of emoji-test.txt removed as one
+space with a placeholder covering the row, alone and between letters;
+ZWJ families, skin tones, keycaps with and without U+FE0F, flags,
+subdivision flags, text-default symbols with and without U+FE0F and
+U+FE0E; 20,000 generated inputs for each mode (the sequence mode is
+idempotent and its placeholders are the scanner's emoji sequences; the
+supplementary mode equals a code-point-at-a-time reference of OpenNLP's
+loop); the alignment of every output; and a pipeline that runs
+`EmojiAnnotate` and `EmojiRemove`, reads both layers back and maps each
+emoji into the view.
+
+### Language detector preparation (`language_detection.rs`)
+
+`language_detection::prepare(text)` prepares a text as OpenNLP's
+`LanguageDetectorFactory.getContextGenerator()` does before counting
+character n-grams: the five normalizers it chains, in its order, as one
+`Chain` run through `apply`:
+
+1. `EmojiRemove::supplementary()` (OpenNLP's deprecated
+   `EmojiCharSequenceNormalizer`: every run of supplementary-plane code
+   points becomes one space);
+2. `Urls`;
+3. `SocialMedia`;
+4. `Numbers`;
+5. `Shrink`.
+
+The result is borrowed when nothing changed. `language_detection::chain()`
+returns the chain itself for a pipeline that wants the view and its
+alignment. The models OpenNLP distributes were trained on this
+preparation, so each step keeps OpenNLP's output text; the improved
+variants (`BoundedUrls`, `BoundedSocialMedia`, emoji sequences) are not
+used here.
+
+Tests (`analysis/normalize/tests/language_detection.rs`): the chain's ids in order, and
+texts mixing emoji, URLs, addresses, hashtags, digits and repeated
+characters compared with the five OpenNLP normalizers applied one after
+another.
+
+### Unicode normalization forms (`unicode_form.rs`)
+
+`UnicodeForm` (id `turbo:normalize:unicode-form`) puts the text in NFC
+(`UnicodeForm::nfc()`), NFKC (`nfkc()`), NFD (`nfd()`) or NFKD
+(`nfkd()`), as UAX #15 defines them, on the Unicode 18.0 data of
+`turbo-unicode`. The config hash is the hash of the form.
+
+It runs `turbo_unicode::normalize::for_each_run` over the text, which
+splits it before each character with combining class 0 whose quick check
+value for the form is Yes. Nothing before such a point reorders or
+composes with anything after it, so each run normalizes on its own. A run
+the form leaves alone is kept; a run it changes is one `replace` with its
+normalized text. One refinement: a run starts at the starter before the
+characters that fail the quick check, since they may compose with it, and
+when the normalized run begins with that same starter (nothing composed
+with it, as with "x" before a Hangul syllable under NFD, or before U+2126
+OHM SIGN under NFC) the starter is kept and only the rest of the run is
+replaced. The starter has combining class 0, so no mark moves across it
+and the rest of the run normalizes on its own to the rest of the output.
+
+The alignment is therefore one edit per changed run, and a run cannot be
+split further: "e" U+0301 becomes U+00E9, and no part of U+00E9 comes from
+only one of the two source characters. Text already in the form (all
+ASCII text, in every form) gives no edit and `apply` returns it borrowed.
+
+OpenNLP counterparts: `NfcCharSequenceNormalizer` and
+`NfkcCharSequenceNormalizer`. NFD and NFKD have no OpenNLP normalizer.
+
+Differences from OpenNLP:
+
+- Alignment. OpenNLP's two normalizers call `java.text.Normalizer` on the
+  whole text and are not `OffsetAwareNormalizer`s, so
+  `TextNormalizer.buildAligned()` rejects a pipeline that contains them
+  (`AlignedNormalizerPipelineTest`). Here every form records an exact
+  alignment and can sit anywhere in a `Chain`.
+- Unicode version. The data is Unicode 18.0; a JVM normalizes with the
+  data of its own Unicode version (15.0 for JDK 21), so characters
+  assigned after that version can normalize differently. Inside the 15.0
+  repertoire the output text is the same.
+
+Cost, measured by the ignored test `cost_per_megabyte` in
+`analysis/normalize/tests/unicode_form.rs` (release build, a 4-core container shared with
+other builds; repeated runs vary by up to half):
+
+| Text (1 MB) | NFC | NFD | NFKC | NFKD | NFC without the view |
+|---|---|---|---|---|---|
+| ASCII | 0.1 ms | 0.1 ms | 0.1 ms | 0.1 ms | 0.2 ms |
+| mostly NFC (English with accented words, German, Greek, CJK) | 0.8 ms | 2.8 ms | 0.7 ms | 2.8 ms | 0.9 ms |
+| the same text in NFD | 2.2 ms | 0.7 ms | 2.3 ms | 0.7 ms | 2.0 ms |
+
+"NFC without the view" is `turbo_unicode::normalize::normalize` writing
+the whole output as one replace. Writing the view per run costs about
+the same as normalizing alone: the alignment adds one edit per changed
+run and nothing per unchanged byte.
+
+```sh
+cargo test --release -p turbo-normalize --test unicode_form cost_per_megabyte -- --ignored --nocapture
+```
+
+Tests (`analysis/normalize/tests/unicode_form.rs`): every column of every line of
+NormalizationTest.txt in all four forms, compared with
+`turbo_unicode::normalize::normalize` and with the expected columns
+(c2 = NFC(c1..c3), c3 = NFD(c1..c3), c4 = NFC(c4, c5) = NFKC(c1..c5),
+c5 = NFD(c4, c5) = NFKD(c1..c5)); 300 texts joined from random
+NormalizationTest columns; 3000 generated texts of combining marks,
+Hangul jamo and syllables, compatibility characters and singletons. Each
+output is checked for the invariants below (`check_view`). Also:
+Hangul composition and decomposition, the kept starter before a Hangul
+syllable, combining marks out of order, ligatures, fullwidth letters,
+superscripts and circled digits (changed by NFKC and NFKD only), one edit
+per changed run, no edits and a borrowed result for text already in the
+form, the expectations of OpenNLP's `UnicodeCharSequenceNormalizerTest`,
+and distinct config hashes.
+
+The invariants every output of these views is checked for: the edits are
+on character boundaries, in order, and rebuild the output; every edit is
+the form of its own source text; every source span maps forward and back
+to a span that covers it (`folds_support::check_alignment`); and for every
+output span `s` (all spans of short outputs, 300 random ones of long
+outputs), the source span `p` it maps back to maps forward to a span that
+covers `s`, and the source text of `p` normalizes to exactly the output
+text `p` maps forward to.
+
+### Case folding (`case_fold.rs`)
+
+`CaseFold` (id `turbo:normalize:case-fold`) lowercases or case folds the
+text. The config hash is the hash of the mode (`CaseFoldMode`):
+
+| Constructor | Mapping |
+|---|---|
+| `CaseFold::lowercase()` | `String.toLowerCase(Locale.ROOT)`: the simple lowercase mapping, U+0130 to "i" U+0307, and U+03A3 to final sigma U+03C2 where the Final_Sigma condition holds (`turbo_unicode::java::lowercase_at`). |
+| `CaseFold::simple()` | Simple case folding, CaseFolding.txt status C and S: one character to one. |
+| `CaseFold::full()` | Full case folding, status C and F: "ß" to "ss", U+FB00 to "ff", U+0390 to three characters. |
+| `CaseFold::turkic_simple()`, `turkic_full()` | The same with the status T rows: "I" to dotless U+0131, U+0130 to "i". |
+
+Each character whose mapping differs from itself is its own `replace`, so
+an expansion maps back to exactly its source character. ASCII is tested
+eight bytes at a time; a stretch of ASCII without uppercase letters is
+skipped without decoding. Only U+03A3 under `lowercase` looks at its
+neighbours (through `turbo_unicode::java::lowercase_at`, which applies the
+Final_Sigma condition of Unicode section 3.13 to the whole text); the folds
+are context free.
+
+Folding does not keep a normalization form: the full fold of U+01F0 is
+"j" U+030C, which is not NFC, and the combining mark U+0345 (class 240)
+folds to the letter U+03B9 (class 0). Canonical caseless matching
+(Unicode section 3.13, D145) is NFD, fold, NFD:
+`Chain::new().then(UnicodeForm::nfd()).then(CaseFold::full()).then(UnicodeForm::nfd())`.
+
+OpenNLP counterparts: `CaseFoldCharSequenceNormalizer` with
+`Locale.ROOT` (`lowercase`) and `FullCaseFoldCharSequenceNormalizer`
+(`full`). Parity finding: OpenNLP's `CaseFoldCharSequenceNormalizer` does
+not case fold, it lowercases. Lowercasing and the simple fold of
+CaseFolding.txt differ on: U+00B5 MICRO SIGN (folds to Greek mu), final
+sigma U+03C2 (folds to sigma), U+0345 (folds to iota), U+03D0 and the
+other Greek letter-symbols, U+1E9B, the Cyrillic small letter variants
+U+1C80 to U+1C88, the Cherokee small letters (which fold to the capitals,
+U+13F8 to U+13F0 and U+AB70 to U+13A0), and U+0130, which lowercases to
+"i" U+0307 and has no simple fold. `CaseFold::simple()` is the simple
+fold; `CaseFold::lowercase()` keeps OpenNLP's output.
+
+Differences from OpenNLP:
+
+- Alignment. `CaseFoldCharSequenceNormalizer` is not offset-aware, so
+  OpenNLP's `buildAligned()` rejects it, although `Locale.ROOT`
+  lowercasing changes the length of the text (U+0130 becomes two
+  characters). Here it has an exact alignment.
+- Turkish. OpenNLP's `CaseFoldCharSequenceNormalizer` takes a `Locale`
+  and lowercases by its rules. `CaseFold` offers no locale-dependent
+  lowercasing; for Turkish and Azerbaijani it offers the Turkic folds of
+  CaseFolding.txt, which map "I" to "ı" and U+0130 to "i" as Turkish
+  lowercasing does. A decomposed "I" U+0307 folds to "ı" U+0307 (Turkish
+  lowercasing gives "i"); `UnicodeForm::nfc()` before the fold composes it
+  to U+0130 first, and the chain gives "i" for both spellings. The
+  Lithuanian rules of SpecialCasing.txt (adding U+0307 above "i" before
+  accents) are not applied.
+- The simple fold and the Turkic folds are additions.
+- Unicode version. CaseFolding.txt 18.0.0 has 1501 C rows and 105 F rows
+  (1606); OpenNLP bundles 17.0.0 (1585) for the full fold, and
+  `toLowerCase` uses the JVM's own Unicode version (15.0 for JDK 21).
+  Inside those repertoires the output is the same.
+- Neighbouring changes. Each character is its own `replace`, as OpenNLP
+  records each expansion on its own. `ViewBuilder` and `compose` currently
+  join touching edits, so in "ßß" each "ss" maps back to both characters
+  where OpenNLP's `consecutiveExpansionsEachMapToTheirOwnSource` maps it
+  to its own; the mapped span always covers the character's own source.
+
+Cost, measured by the ignored test `cost_per_megabyte` in
+`analysis/normalize/tests/case_fold.rs` (same conditions as for the
+normalization forms): lowercase 2 to 3 ms per MB and the full fold about
+2 ms per MB on ASCII text with capitals; about 1.5 ms per MB for both on
+mostly ASCII Latin text; on Greek, where nearly every character is
+looked up, 6 ms per MB for lowercase and 4 ms per
+MB for the full fold.
+
+Tests (`analysis/normalize/tests/case_fold.rs`): every row of CaseFolding.txt (parsed in
+the test) through `full`, `simple`, `turkic_full` and `turkic_simple`,
+alone and between other characters; every code point through `full`,
+`simple` and `turkic_full` against the rows (characters without a row are
+unchanged); every code point through `lowercase` against
+`java::to_lowercase` of the same text; Final_Sigma ("ΣΑΣ" to "σας", "Σ"
+alone, sigma before and after a combining mark, sigma after a digit or a
+space, two sigmas); U+0130, "I", "ß" and U+1E9E in every mode; the
+characters on which lowercasing and the simple fold differ; the
+NFD-fold-NFD chain and the facts behind it; the Turkic fold after NFC;
+every expectation of `CaseFoldCharSequenceNormalizerTest`,
+`FullCaseFoldCharSequenceNormalizerTest` (the alignment ones with UTF-8
+offsets) and the case fold cases of `UnicodeCharSequenceNormalizerTest`;
+the whitespace and full fold pipeline of `composesIntoTheOffsetAwarePipeline`
+and `identityPipelinePreservesEveryOffset`; 3000 generated texts that
+cross the eight-byte ASCII test at every offset, and 2000 generated texts
+in all five modes against a reference fold, each checked for the
+invariants of the previous section. A unit test in `analysis/normalize/src/case_fold.rs` checks
+the eight-byte ASCII test with each stop byte at each position.
+
+### Accent folding (`analysis/normalize/src/accent_fold.rs`) and the run pass (`analysis/normalize/src/fold_runs.rs`)
+
+`AccentFold` (id `turbo:normalize:accent-fold`) removes accents. It does
+what `AccentFoldCharSequenceNormalizer` does to the whole text: NFD,
+then one pass over the decomposed characters that drops every
+non-spacing mark (general category Mn) whose base belongs to a fold
+script and maps the stroke letters and ligatures to ASCII, then NFC. The
+base of a mark is the last character before it that is not a
+non-spacing mark; a mapped stroke letter counts as Latin; a mark with no
+base before it is kept. "café" becomes "cafe", "Straße" "Strasse", Greek
+ά α, Cyrillic й и. Devanagari vowel signs and Arabic and Hebrew points
+are kept with the default scripts.
+
+Options: `AccentFold::new()` (Latin, Greek and Cyrillic, OpenNLP's 19
+stroke letters), `AccentFold::for_scripts(&[Script])`,
+`with_stroke_letters(StrokeLetters::Off | OpenNlp | Extended)` and
+`AccentFold::extended()` (the default scripts with the extended list).
+
+The alignment is recorded per source character. The text is cut into
+runs (`analysis/normalize/src/fold_runs.rs`, shared with the confusable
+skeleton). A run starts at a boundary character: one whose decomposition
+starts with a character that is not a non-spacing mark, has combining
+class 0 and has NFC_Quick_Check Yes. That character is never removed,
+so it is the base of the marks after it whatever came before, canonical
+ordering cannot move anything across it, and NFC cannot compose it with
+anything before it. The fold of the whole text is therefore the folds of
+the runs put together. Inside a run every character is also folded on its own; when
+those pieces put together equal the fold of the run, each character that
+changed is one edit ("café": é to e; "e" U+0301: a deletion of the
+U+0301), otherwise the run is one edit. The second case happens where
+normalization works across characters: marks out of canonical order on
+a base whose marks are kept (Hebrew alef, U+0301, U+0323 is written with
+U+0323 first) and two characters that compose once a removed mark
+between them is gone (with Hangul folded, U+1100 U+0301 U+1161 becomes
+U+AC00). A run of one character that neither decomposes nor maps (all
+of ASCII, Hangul syllables) is skipped without work.
+
+Differences from OpenNLP:
+
+- The output text is the same as OpenNLP's for every input on the same
+  Unicode data. OpenNLP's class has no aligned form; here every edit is
+  aligned.
+- The data is Unicode 18.0 (general category, scripts, normalization),
+  where OpenNLP uses the JVM's (Unicode 15.0 on JDK 21). Characters
+  assigned after 15.0 fold here and are left alone there.
+- `StrokeLetters::Extended`, off by default, adds 264 atomic Latin
+  letters that NFD does not decompose, so mark removal cannot reach them
+  and OpenNLP's list leaves them. `EXTENDED_MODIFIED` (244 letters) is
+  every letter named "LATIN CAPITAL LETTER x WITH ..." or "LATIN SMALL
+  LETTER x WITH ..." in UnicodeData.txt, x one of A to Z, with no
+  decomposition: the letters with a stroke, bar, hook, tail, curl, belt,
+  loop, descender or other modification of an ASCII letter (Ŧ, ƀ, Ɨ, ɓ,
+  ƈ, ɗ, ɠ, ɦ, ɫ, ɲ, ʂ, ȥ and so on), mapped to x in the case the name
+  gives. Lucene's ASCIIFoldingFilter folds letters of this kind as
+  well. `EXTENDED_OTHER` (20 letters) has the atomic letters the naming
+  rule does not cover: the ligature Ĳ ĳ (IJ ij) and the digraphs Ǆ ǅ ǆ
+  Ǉ ǈ ǉ Ǌ ǋ ǌ Ǳ ǲ ǳ (DZ Dz dz LJ Lj lj NJ Nj nj DZ Dz dz), which are
+  one letter in Unicode and two in ASCII; Ŀ ŀ (L l, the Catalan L with
+  middle dot); ſ (s, the long s); Ŋ ŋ (N n, eng, mapped to its base
+  letter as the hooked letters are); ĸ (q, kra, written q in the
+  Greenlandic orthography of 1973 that replaced it). The dental click
+  letter ǀ is not added: it is not a modified Latin letter. "Łódź"
+  becomes "Lodz" with either list; "Ŧ", "ƀ", "Ĳsselmeer" and "ǅ" change
+  only with the extended one.
+
+Tests (`analysis/normalize/tests/accent_folds.rs`): every expectation of
+`AccentFoldCharSequenceNormalizerTest` (Latin, Greek and Cyrillic
+accents, all 19 stroke letters, the leading mark kept, Devanagari,
+Arabic and Hebrew marks kept, script and stroke configuration; the case
+folding pipeline test with the case fold done by `to_lowercase`); the
+edits of single characters and of separate marks; the two run cases
+above; NFC applied to text of other scripts (Devanagari NA and NUKTA
+become U+0929) and Hangul left alone; `EXTENDED_MODIFIED` derived again
+from UnicodeData.txt by the naming rule and compared, and
+`EXTENDED_OTHER` checked to be Latin letters that NFD leaves alone; and
+generated texts (4000 each in four configurations, from a pool of
+precomposed letters, marks of several combining classes, Mn of class 0,
+Mc, Me, Greek, Cyrillic, Hebrew, Arabic, Devanagari, Tamil, Hangul
+syllables and jamo, Tibetan U+0F73, kana with the voicing mark) compared
+with a reference that runs the Java algorithm on the whole text, with
+every alignment checked.
+
+### German umlauts (`analysis/normalize/src/german.rs`)
+
+`GermanUmlauts` (id `turbo:normalize:german-umlauts`) writes the umlauts
+and sharp s as DIN 5007-2 spells them in ASCII: ä ö ü to ae oe ue, Ä Ö Ü
+to Ae Oe Ue, ß to ss, ẞ (U+1E9E) to SS. Each character is one edit;
+the output "SS" maps back to the one U+1E9E. A vowel followed by U+0308
+COMBINING DIAERESIS is not changed; composing first (NFC) makes it the
+precomposed letter.
+
+OpenNLP counterpart: `GermanUmlautCharSequenceNormalizer`. The default
+matches it.
+
+Differences from OpenNLP: `GermanUmlauts::uppercase_aware()` writes a
+capital umlaut with two capitals (AE, OE, UE) when it is part of an
+uppercase word: when the next letter is uppercase, or when no letter
+follows and the letter before is uppercase. Combining marks are passed
+over. "ÜBER" becomes "UEBER" instead of "UeBER", "MÜ" becomes "MUE",
+while "Öl" stays "Oel" and a lone "Ö" "Oe". In an all-capitals word the transliteration is written in
+capitals (the machine-readable zone of a passport writes MÜLLER as
+MUELLER); "UeBER" mixes the two spellings.
+
+Tests (`analysis/normalize/tests/accent_folds.rs`): every expectation of
+`GermanUmlautCharSequenceNormalizerTest` (with the U+1E9E offsets
+checked as UTF-8 bytes: output 1..3 maps to source 1..4), the
+uppercase-aware cases, and 4000 generated texts compared with a
+per-character reference in both modes, each edit checked to be one
+character's expansion.
+
+### Confusable skeleton (`analysis/normalize/src/confusables.rs`)
+
+`ConfusableSkeleton` (id `turbo:normalize:confusable-skeleton`) writes
+the skeleton of UTS #39 section 4: NFD, each character replaced by its
+prototype from confusables.txt, NFD again. Text that looks alike has the
+same skeleton: "раураl" with Cyrillic а and "paypal" both become
+"paypal", "m" becomes "rn", 1 and I become "l", U+2026 becomes "...". The
+skeleton is for comparing and indexing.
+
+The alignment is recorded per source character with the run pass of
+accent folding. A boundary is a character whose decomposition starts
+with a character of combining class 0 that has no prototype, or whose
+prototype also decomposes to a class 0 character first; both NFD passes
+then split the text before it. A character in NFD with no prototype is
+kept without work, which covers all of ASCII except the eight characters
+confusables.txt maps (" % 0 1 I ` m |), the fast path of
+`Confusables.skeleton` done per character.
+
+OpenNLP counterpart: `ConfusableSkeletonCharSequenceNormalizer` and
+`Confusables.skeleton`.
+
+Differences from OpenNLP:
+
+- The data is confusables.txt 18.0.0 (through `turbo_unicode`); OpenNLP
+  bundles 17.0.0. A line diff of the two files has about 2850 changed
+  lines. For example 18.0.0 maps U+030B COMBINING DOUBLE ACUTE ACCENT
+  to two acute accents, so "ő" becomes "o" U+0301 U+0301 here and "o" U+030B in
+  OpenNLP.
+- OpenNLP's class has no aligned form; here every edit is aligned.
+
+Tests (`analysis/normalize/tests/confusables.rs`): every expectation of
+`ConfusableSkeletonTest`
+and `ConfusablesTest` that is about the skeleton (the null argument and
+`TermAnalyzer` tests have no counterpart), the edits of "com" and of the
+Cyrillic spoof, agreement with `turbo_unicode::confusables::skeleton`,
+the Unicode 18.0 mapping above, every source of confusables.txt alone
+and between marks compared with a reference written after
+`Confusables.skeleton` (including its fast path), and 4000 generated
+texts from confusables.txt sources, letters and marks of other
+scripts and frequent combining marks compared with the same reference,
+with every alignment checked.
+
 ### Dehyphenation
 
 `Dehyphenate` (id `turbo:normalize:dehyphenate`) rejoins words split at a
@@ -838,6 +1464,56 @@ it overlaps.
   header against the same signatures. Decoding the first base64 quantum
   and looking its first byte up in a 256-entry table filters the same
   runs with one lookup and no prefix strings.
+- `SocialMediaCharSequenceNormalizer` replaces emoticons inside words
+  (`expo` becomes `"e o"`, `xoxo` two spaces, `:people` `" eople"`), and
+  its hashtags swallow the punctuation after them (`#win!`). Its retweet
+  word boundary depends on how the JDK regular expression engine walks
+  back over UTF-16 units, so a supplementary-plane combining mark never
+  blocks it.
+- `EmojiCharSequenceNormalizer` replaces supplementary-plane code points,
+  not emoji: it removes mathematical alphanumerics, CJK Extension B to
+  J ideographs and historic scripts, keeps every emoji of the Basic
+  Multilingual Plane (`☺`, `❤`, `⌚`), and turns a ZWJ family into spaces
+  around its joiners and `❤️` into a space and U+FE0F. A UTS #51 sequence
+  scan with the Emoji_Presentation rule removes whole emoji and nothing
+  else. Its legacy mode also removes every `-`.
+- `EmojiAnnotator` annotates tokens, so a token that holds an emoji and
+  other text, or a tokenizer that splits a ZWJ sequence, loses the
+  emoji. Its names cover only the 40 bundled pictographs, while
+  emoji-test.txt names every RGI emoji; the bundled names could be read
+  from emoji-test.txt instead of copied, so they follow each Unicode
+  version.
+- `NfcCharSequenceNormalizer`, `NfkcCharSequenceNormalizer` and
+  `CaseFoldCharSequenceNormalizer` are not offset-aware, so
+  `buildAligned()` rejects them. All three can record an exact alignment:
+  normalization changes text only inside runs that start at a starter
+  whose quick check is Yes, and `Locale.ROOT` lowercasing maps each
+  character on its own except U+03A3, whose context is only needed to
+  choose between two characters of the same length.
+- `CaseFoldCharSequenceNormalizer` is named a case fold but lowercases
+  (`String.toLowerCase`). The two differ on U+00B5, final sigma, U+0345,
+  the Greek letter-symbols, the Cyrillic small letter variants U+1C80 to
+  U+1C88 and the Cherokee small letters. Either the name or the
+  documentation could say so, and a simple fold (CaseFolding.txt C and S)
+  could sit next to the full one.
+- `FullCaseFoldCharSequenceNormalizer` says its input is expected in NFC.
+  Canonical caseless matching (Unicode section 3.13, D145) needs NFD
+  before and after the fold: the fold of U+01F0 is "j" U+030C, which is
+  not NFC, and U+0345 folds from a combining mark to a letter.
+- `AccentFoldCharSequenceNormalizer` and
+  `ConfusableSkeletonCharSequenceNormalizer` have no aligned form. Both
+  can be aligned per character: cut the text before each character whose
+  decomposition starts with a starter that the fold cannot remove or
+  combine (for the skeleton: whose prototype also starts with a
+  starter), fold each piece, and attribute the result to single
+  characters when their separate folds add up to it.
+- `AccentFoldCharSequenceNormalizer`'s stroke list leaves the other
+  atomic Latin letters that NFD does not decompose, such as Ŧ ŧ
+  (Northern Sami), ƀ, Ɨ ɨ, Ĳ ĳ, Ŋ ŋ and the hooked letters of African
+  orthographies (ɓ ɗ ƙ ƴ).
+- `GermanUmlautCharSequenceNormalizer` writes "ÜBER" as "UeBER".
+- `Confusables` bundles confusables.txt 17.0.0; 18.0.0 changes about
+  2850 of its lines.
 - `DehyphenationCharSequenceNormalizer` checks only the code unit before
   the hyphen with `Character.isLetter`, so a word that ends in a
   combining mark (NFD text, Indic vowel signs) is never joined. Skipping
