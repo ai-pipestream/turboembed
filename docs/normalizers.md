@@ -656,6 +656,146 @@ Tests (`analysis/normalize/tests/numbers_shrink.rs`): every expectation of
 surrogate cases), and 50,000 generated inputs from its pool compared with
 a three-pass reference that follows OpenNLP's passes one to one.
 
+### Emoji (`analysis/normalize/src/emoji/mod.rs`)
+
+Four steps work on emoji. All of them take their sequences from
+`turbo_unicode::emoji::scan` (UTS #51 possible emoji on Unicode 18.0) or
+their table from OpenNLP's data, and all of them write each replaced
+stretch with its own replacement.
+
+**Which sequences are emoji.** The scanner reports every character with
+the Emoji property, so `©`, `®`, `™`, `↔`, `☹` and a bare `❤` come out
+as `Basic` sequences: no character property separates them from emoji
+shown as pictures. `emoji::is_emoji_presentation` applies the
+presentation rule of UTS #51: keycap, flag, modifier, tag and ZWJ
+sequences are emoji; a single character is an emoji when it has
+Emoji_Presentation or U+FE0F follows it. That leaves out the 207
+text-default characters of Unicode 18.0 (the keycap bases aside) when
+they are written without U+FE0F, which in running text are symbols
+(`© 2026`, `A ↔ B`). `EmojiRemove::sequences()` and `EmojiAnnotate` both
+use this rule; `EmojiAnnotate::with_text_default()` turns it off.
+
+**`EmojiRemove`** (id `turbo:normalize:emoji-remove`) replaces emoji with
+U+0020. It is a `Normalizer` and, like the other placeholder normalizers,
+an `Annotator` that also writes a `Placeholders` layer with kind `Emoji`.
+
+- `EmojiRemove::sequences()` (the default): every emoji sequence becomes
+  one space: a ZWJ family, a flag, a subdivision flag, a keycap, a
+  skin-toned hand, a character with its U+FE0F. Sequences with no text
+  between them become one space together; each is its own replacement
+  (the first writes the space, the others write nothing) and its own
+  placeholder, so a placeholder's span is exactly one sequence. A
+  character followed by U+FE0E stays, as does a U+200D or U+FE0F that is
+  not part of a sequence.
+- `EmojiRemove::supplementary()`: every run of supplementary-plane code
+  points becomes one space, with one placeholder per run. This is
+  OpenNLP's `EmojiCharSequenceNormalizer` in its default mode, which the
+  language detector models were trained with, so the language detector
+  preparation uses this mode.
+
+OpenNLP's `EmojiCharSequenceNormalizer` also has a legacy mode, selected
+by `CompatibilityMode.LEGACY`, which reproduces the 1.x and 2.x releases:
+it replaces `-` (U+002D) and every code point from U+D83C to U+10FC00.
+The range was meant to catch the UTF-16 high surrogates that start most
+emoji, but read as code points it also takes the low surrogates, every
+character from U+E000 to U+FFFF (the private use area, the CJK
+compatibility ideographs, the presentation forms, the variation
+selectors, the halfwidth and fullwidth forms among them) and every
+supplementary code point up to U+10FC00, and it removes every
+hyphen-minus. It is not ported: it reproduces UTF-16 surrogate handling
+that 3.0 corrected, and a Rust string has no surrogates. Models trained
+with OpenNLP 1.x or 2.x saw that output; OpenNLP 3.x defaults to the
+corrected mode, which `EmojiRemove::supplementary()` matches.
+
+**`EmojiToEmoticon`** (id `turbo:normalize:emoji-to-emoticon`) and
+**`EmoticonToEmoji`** (id `turbo:normalize:emoticon-to-emoji`) port
+OpenNLP's `EmojiEmoticons` over emoji-emoticons.txt, which
+`analysis/normalize/src/emoji/data.rs` holds as Rust constants with all six columns of the file
+(source, target, fold type, standard, Unicode version, note) in the
+file's order. At each position the longest source wins (candidates are
+ordered longest first in UTF-16 units, as OpenNLP orders them; for this
+table UTF-8 length gives the same order).
+
+- Pictographs to emoticons (35 rows, many to one: `🙂` and `😊` to `:)`,
+  every heart to `<3`): no fold after U+200D; one U+FE0F after the
+  source is replaced with it; no fold when U+200D or U+FE0E follows, so
+  `❤️‍🔥` and `☺︎` stay. Pictographs glued to words fold.
+- Emoticons to pictographs (26 rows: `:-)` and `:)` to `🙂`, `<3` to
+  `❤️`): only when the text edge or a `White_Space` character
+  (`tables::WHITESPACE`, the no-break spaces included) is on both sides,
+  so `1:3`, `https://` and `nice:)` stay.
+
+OpenNLP counterparts: `EmojiToEmoticonCharSequenceNormalizer`,
+`EmoticonToEmojiCharSequenceNormalizer`. No differences in the output.
+
+**`EmojiAnnotate`** (id `turbo:normalize:emoji-annotate`) reads a `View`
+and writes the `Emoji` layer (`turbo:emoji`): one row per emoji sequence
+with its span, its kind (`Basic`, `Keycap`, `Flag`, `Modifier`, `Tag`,
+`Zwj`), its CLDR short name from the Unicode 18.0 emoji-test.txt
+(U+FE0F ignored, so a minimally-qualified form has the name of its
+fully-qualified form; empty for a sequence Unicode does not list) and
+the region of a flag (`DE`) or subdivision flag (`GB-ENG`), empty
+otherwise.
+
+OpenNLP's bundled annotations, emoji-annotations.txt (40 pictographs,
+each with a name, a sentiment from -2 to 2, an entity type and a
+category), are in `analysis/normalize/src/emoji/data.rs` as well, one entry per pictograph. The
+sources and the notes of the name rows are the same on every row, so
+they are constants next to the table. `emoji::opennlp_annotation`
+looks a sequence up as `EmojiAnnotations.lookup` does, ignoring every
+U+FE0F. `emoji::features` gives the feature strings of
+`EmojiAnnotator.collectFeatures` in its order (`emojiSentiment=2`,
+`emojiType=HEART`, `emojiCategory=SMILEYS_AND_EMOTION`,
+`emojiRegion=DE`); a flag has no bundled row and gives `FLAG`, `FLAGS`
+and its region, and a token that starts with an ASCII character gives
+nothing.
+
+Differences from OpenNLP:
+
+- `EmojiRemove::sequences()` has no OpenNLP counterpart. OpenNLP's
+  emoji remover replaces supplementary-plane code points, which removes
+  text that is not emoji (`𝐀` U+1D400, `𠀀` U+20000, Gothic and other
+  historic scripts), leaves the emoji of the Basic Multilingual Plane
+  (`☺`, `❤`, `⌚`, `✈`) and breaks sequences into pieces: a ZWJ family
+  becomes `" ‍ ‍ "` and `❤️` keeps its U+FE0F. The sequence mode
+  removes exactly the emoji, each whole. Tests:
+  `every_fully_qualified_emoji_becomes_one_space`,
+  `zwj_families_skin_tones_keycaps_and_flags_are_one_space_each`,
+  `text_default_symbols_with_and_without_the_selector`,
+  `supplementary_mode_matches_opennlp`.
+- `EmojiAnnotate` finds the sequences in the text. OpenNLP's
+  `EmojiAnnotator` annotates one token at a time and depends on the
+  tokenizer to hand it a whole sequence. It names every emoji Unicode
+  lists, from emoji-test.txt, where OpenNLP names only its 40 bundled
+  pictographs. Test: `annotator_reports_kind_name_and_region`.
+- OpenNLP's `EmojiAnnotationJoin` (a caller's function that adds
+  attributes per symbol and region) is not ported; a caller joins its
+  own data on the layer's `name` and `region` columns.
+- The data files are Rust constants, so OpenNLP's tests of the file
+  parsers (wrong field counts, bad hexadecimal, unknown attributes) have
+  no counterpart; the audits of the data (row counts, the two fold
+  directions closing over each other, every fold source annotated,
+  sentiment in -2..2, the attribute sources) are ported, and every name,
+  group and subgroup of the bundled annotations is checked against the
+  Unicode 18.0 emoji-test.txt.
+
+Tests (`analysis/normalize/tests/emoji.rs`): the expectations of
+`EmojiToEmoticonCharSequenceNormalizerTest`,
+`EmoticonToEmojiCharSequenceNormalizerTest` (without the case that runs
+OpenNLP's word tokenizer), `EmojiEmoticonsTest`, `EmojiAnnotationsTest`,
+`EmojiAnnotatorTest`, the malformed flags of `EmojiFlagsTest` (through
+`features`) and `EmojiAnnotatorUsageExampleTest`; every fully-qualified,
+minimally-qualified and component row of emoji-test.txt removed as one
+space with a placeholder covering the row, alone and between letters;
+ZWJ families, skin tones, keycaps with and without U+FE0F, flags,
+subdivision flags, text-default symbols with and without U+FE0F and
+U+FE0E; 20,000 generated inputs for each mode (the sequence mode is
+idempotent and its placeholders are the scanner's emoji sequences; the
+supplementary mode equals a code-point-at-a-time reference of OpenNLP's
+loop); the alignment of every output; and a pipeline that runs
+`EmojiAnnotate` and `EmojiRemove`, reads both layers back and maps each
+emoji into the view.
+
 ### Unicode normalization forms (`unicode_form.rs`)
 
 `UnicodeForm` (id `turbo:normalize:unicode-form`) puts the text in NFC
@@ -1098,6 +1238,19 @@ it overlaps.
   word boundary depends on how the JDK regular expression engine walks
   back over UTF-16 units, so a supplementary-plane combining mark never
   blocks it.
+- `EmojiCharSequenceNormalizer` replaces supplementary-plane code points,
+  not emoji: it removes mathematical alphanumerics, CJK Extension B to
+  J ideographs and historic scripts, keeps every emoji of the Basic
+  Multilingual Plane (`☺`, `❤`, `⌚`), and turns a ZWJ family into spaces
+  around its joiners and `❤️` into a space and U+FE0F. A UTS #51 sequence
+  scan with the Emoji_Presentation rule removes whole emoji and nothing
+  else. Its legacy mode also removes every `-`.
+- `EmojiAnnotator` annotates tokens, so a token that holds an emoji and
+  other text, or a tokenizer that splits a ZWJ sequence, loses the
+  emoji. Its names cover only the 40 bundled pictographs, while
+  emoji-test.txt names every RGI emoji; the bundled names could be read
+  from emoji-test.txt instead of copied, so they follow each Unicode
+  version.
 - `NfcCharSequenceNormalizer`, `NfkcCharSequenceNormalizer` and
   `CaseFoldCharSequenceNormalizer` are not offset-aware, so
   `buildAligned()` rejects them. All three can record an exact alignment:
