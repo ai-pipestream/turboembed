@@ -30,9 +30,25 @@ use std::hash::{DefaultHasher, Hash, Hasher};
 use turbo_analysis::text::Side;
 use turbo_analysis::{Alignment, Annotator, Error, Refs, Span, View, ViewBuilder};
 
+pub mod bullets;
 pub mod chain;
+pub mod dashes;
+pub mod digits;
+pub mod ellipsis;
+pub mod invisible;
+pub mod quotes;
+pub mod substitute;
+pub mod tables;
+pub mod whitespace;
 
+pub use bullets::Bullets;
 pub use chain::Chain;
+pub use dashes::Dashes;
+pub use digits::Digits;
+pub use ellipsis::Ellipsis;
+pub use invisible::Invisible;
+pub use quotes::Quotes;
+pub use whitespace::{Whitespace, WhitespaceMode};
 
 /// One text normalizer. Its only job is to copy `text` into `out`,
 /// keeping what it leaves alone and replacing what it changes, so the
