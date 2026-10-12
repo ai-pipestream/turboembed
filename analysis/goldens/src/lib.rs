@@ -3,6 +3,7 @@
 //! Rust layers against them. SHA-256 and SHA-512 (`sha`) check input
 //! texts and model files.
 
+pub mod escape;
 pub mod hex;
 pub mod sha;
 
