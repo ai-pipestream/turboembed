@@ -67,6 +67,14 @@ as an index into sentences does not compile. It is stored as i + 1 in a
 `NonZeroU32`, so an index that may be absent (a dependency head that may
 be the root) is still four bytes.
 
+Model probabilities and scores (`PosTags.prob`, `Entities.score`,
+`Confidence<L>`, `Language.score`) are stored as f64. OpenNLP computes
+them as Java doubles, and the parity tests compare them with the JVM's
+output to within 1e-9, which f32 (about seven significant digits) cannot
+hold. Vectors (`Vectors<L>`) and the chunker's costs (`Boundaries.cost`,
+`Chunks.cost`) are f32: they are computed in Rust and never compared
+with OpenNLP.
+
 A layer is added once and never changed. Before it is taken the
 document checks that the layer is not already there, that no other
 layer type has its id, the layer's own invariants, that its spans are
