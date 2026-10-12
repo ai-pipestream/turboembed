@@ -72,6 +72,14 @@ pub fn penalty(size: u64, b: Budget) -> i128 {
     i128::from(b.size_weight) * d * d / (t * t)
 }
 
+/// What one chunk costs the optimizer: the boundary that closes it (none
+/// at the end of its run), its size penalty and its chunk term, clamped to
+/// `TERM_MAX`. `segment` minimizes the sum of these, and `compare` prices
+/// two runs' cuts with it.
+pub(crate) fn chunk_cost(closing: i32, size: u64, b: Budget, term: i64) -> i128 {
+    i128::from(closing) + penalty(size, b) + i128::from(term.clamp(-TERM_MAX, TERM_MAX))
+}
+
 /// How many of the embedder's tokens each run of sentences holds: the
 /// subwords that overlap the run's whole span. What lies between two
 /// sentences of one chunk is in the chunk too (a paragraph break, which
@@ -147,7 +155,7 @@ pub fn segment(
     let size = |i: usize, j: usize| u64::from(tokens(i, j)) + u64::from(b.overhead);
     let cost = |i: usize, j: usize| {
         let boundary = if j < n { cut[j - 1] } else { 0 };
-        i128::from(boundary) + penalty(size(i, j), b) + i128::from(term(i, j).clamp(-TERM_MAX, TERM_MAX))
+        chunk_cost(boundary, size(i, j), b, term(i, j))
     };
     // best[i]: the least cost of cutting units [i, n); next[i]: where the
     // first chunk of that cut ends. The first end tried, one unit, is

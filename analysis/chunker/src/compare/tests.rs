@@ -1,9 +1,9 @@
 use turbo_analysis::{IxRange, Span, Spans};
 
 use super::*;
-use crate::segment;
+use crate::{Lengths, no_term, penalty, segment};
 
-const B: Budget = Budget { max: 400, target: 300, size_weight: 1.0, overhead: 0 };
+const B: Budget = Budget { max: 400, target: 300, size_weight: 1000, overhead: 0 };
 
 /// Sentences of ten bytes each, back to back.
 fn sentences(n: u32) -> Sentences {
@@ -20,12 +20,12 @@ struct Row {
     e: u32,
     level: u8,
     parent: Option<u32>,
-    cost: f32,
+    cost: i64,
     tokens: u32,
 }
 
 fn row(s: u32, e: u32) -> Row {
-    Row { s, e, level: 0, parent: None, cost: 0.0, tokens: 0 }
+    Row { s, e, level: 0, parent: None, cost: 0, tokens: 0 }
 }
 
 fn chunks(view: ViewId, rows: &[Row]) -> Chunks {
@@ -37,6 +37,7 @@ fn chunks(view: ViewId, rows: &[Row]) -> Chunks {
         cut: Vec::new(),
         cost: Vec::new(),
         model_tokens: Vec::new(),
+        over_budget: Vec::new(),
     };
     for r in rows {
         c.spans.push(Span::new(10 * r.s, 10 * r.e));
@@ -46,31 +47,28 @@ fn chunks(view: ViewId, rows: &[Row]) -> Chunks {
         c.cut.push(if r.s == 0 { Cut::DocumentStart } else { Cut::Sentence });
         c.cost.push(r.cost);
         c.model_tokens.push(r.tokens);
+        c.over_budget.push(false);
     }
     c
 }
 
 /// What the chunker writes for a run with no structure.
-fn cut(costs: &[f32], tokens: &[u32]) -> Chunks {
-    let l = crate::Lengths::of(tokens);
-    let rows: Vec<Row> = segment(costs, |i, j| l.run(i, j), B)
+fn cut(costs: &[i32], tokens: &[u32]) -> Chunks {
+    let l = Lengths::of(tokens).unwrap();
+    let rows: Vec<Row> = segment(costs, |i, j| l.run(i, j), B, no_term)
         .iter()
-        .map(|s| Row { cost: s.cost, tokens: s.tokens, ..row(s.start as u32, s.end as u32) })
+        .map(|s| Row { cost: s.cost as i64, tokens: s.tokens as u32, ..row(s.start as u32, s.end as u32) })
         .collect();
     chunks(ViewId::SOURCE, &rows)
 }
 
 fn run(chunks: &Chunks) -> Run<'_> {
-    Run { chunks, execution: None, costs: None }
-}
-
-fn close(x: Option<f64>, want: f64) -> bool {
-    x.is_some_and(|x| (x - want).abs() < 1e-5)
+    Run { chunks, execution: None, pricing: None }
 }
 
 #[test]
 fn identical_runs_report_nothing() {
-    let c = cut(&[1.0, 1.0, 0.1, 1.0, 1.0, 1.0], &[100; 6]);
+    let c = cut(&[1000, 1000, 100, 1000, 1000, 1000], &[100; 6]);
     let r = compare(run(&c), run(&c)).unwrap();
     assert!(r.is_identical());
     assert_eq!(r.matched, 2);
@@ -81,7 +79,7 @@ fn a_moved_cut_is_reported_with_both_margins_and_both_tiers() {
     // The topic shift after the third sentence is cheap in A; in B, whose
     // vectors were computed at a lower precision, the cheap boundary is
     // after the fourth.
-    let (ca, cb) = ([1.0, 1.0, 0.1, 1.0, 1.0, 1.0], [1.0, 1.0, 1.0, 0.1, 1.0, 1.0]);
+    let (ca, cb) = ([1000, 1000, 100, 1000, 1000, 1000], [1000, 1000, 1000, 100, 1000, 1000]);
     let (a, b) = (cut(&ca, &[100; 6]), cut(&cb, &[100; 6]));
     let s = sentences(6);
     let (ba, bb) = (
@@ -90,10 +88,16 @@ fn a_moved_cut_is_reported_with_both_margins_and_both_tiers() {
     );
     let fp32 = Execution { backend: "cpu".into(), device: "toy".into(), precision: "f32 (model)".into() };
     let fp16 = Execution { backend: "gpu".into(), device: "toy".into(), precision: "f16 (fastest)".into() };
-    let ra =
-        Run { chunks: &a, execution: Some(&fp32), costs: Some(Costs { sentences: &s, boundaries: &ba, budget: B }) };
-    let rb =
-        Run { chunks: &b, execution: Some(&fp16), costs: Some(Costs { sentences: &s, boundaries: &bb, budget: B }) };
+    let ra = Run {
+        chunks: &a,
+        execution: Some(&fp32),
+        pricing: Some(Pricing { sentences: &s, boundaries: &ba, budget: B }),
+    };
+    let rb = Run {
+        chunks: &b,
+        execution: Some(&fp16),
+        pricing: Some(Pricing { sentences: &s, boundaries: &bb, budget: B }),
+    };
     let r = compare(ra, rb).unwrap();
     assert_eq!(r.a.map(|e| e.precision.as_str()), Some("f32 (model)"));
     assert_eq!(r.b.map(|e| e.precision.as_str()), Some("f16 (fastest)"));
@@ -101,20 +105,24 @@ fn a_moved_cut_is_reported_with_both_margins_and_both_tiers() {
     let [d] = &r.disagreements[..] else { panic!("one disagreement, not {:?}", r.disagreements) };
     assert_eq!((d.level, d.parent, d.after, d.before), (0, None, Some(0), None));
     // Each is its run's last chunk, so its cost is its size alone: none
-    // for A's 300 tokens, a ninth for B's 200.
-    let ninth = (-100.0f32 / 300.0) * (-100.0 / 300.0);
-    let want_a = CutAt { start: 30, reason: Cut::Sentence, cost: 0.0, boundary_a: Some(0.1), boundary_b: Some(1.0) };
-    let want_b = CutAt { start: 40, reason: Cut::Sentence, cost: ninth, boundary_a: Some(1.0), boundary_b: Some(0.1) };
-    assert_eq!((&d.a[..], &d.b[..]), (&[want_a][..], &[want_b][..]));
-    // A's own choice costs 0.1 (two chunks at the target); B's under A's
-    // costs pays 1.0 at the fourth boundary and a ninth for each chunk a
-    // third off the target. Under B's costs, A's choice pays 1.0 and B's
-    // own 0.1 plus the two ninths.
-    let ninth = f64::from(ninth);
-    assert!(close(d.margin_a, 1.0 + 2.0 * ninth - 0.1), "{:?}", d.margin_a);
-    assert!(close(d.margin_b, 1.0 - (0.1 + 2.0 * ninth)), "{:?}", d.margin_b);
-    // The prices are the optimizer's: A's chunks cost 0.1 in the layer.
-    assert!((a.cost.iter().sum::<f32>() - 0.1).abs() < 1e-6);
+    // for A's 300 tokens, a ninth of the weight, rounded down, for B's 200.
+    let at = |start, cost, boundary_a, boundary_b| CutAt {
+        start,
+        reason: Cut::Sentence,
+        cost,
+        over_budget: false,
+        boundary_a: Some(boundary_a),
+        boundary_b: Some(boundary_b),
+    };
+    assert_eq!((&d.a[..], &d.b[..]), (&[at(30, 0, 100, 1000)][..], &[at(40, 111, 1000, 100)][..]));
+    // A's own choice costs 100 (two chunks at the target); B's under A's
+    // costs pays 1000 at the fourth boundary and 111 for each chunk a
+    // third off the target. Under B's costs, A's choice pays 1000 and B's
+    // own 100 plus the two 111s.
+    assert_eq!(d.margin_a, Some(1000 + 2 * 111 - 100));
+    assert_eq!(d.margin_b, Some(1000 - (100 + 2 * 111)));
+    // The prices are the optimizer's: A's chunks cost 100 in the layer.
+    assert_eq!(a.cost.iter().sum::<i64>(), 100);
 }
 
 #[test]
@@ -149,9 +157,9 @@ fn levels_are_compared_apart_and_children_follow_their_parent() {
     let a = chunks(ViewId::SOURCE, &[section(0, 5), child(0, 5, 0), section(5, 8), child(5, 6, 2), child(6, 8, 2)]);
     let b = chunks(ViewId::SOURCE, &[section(0, 4), child(0, 4, 0), section(4, 8), child(4, 6, 2), child(6, 8, 2)]);
     let s = sentences(8);
-    let costs = Boundaries { cost: vec![1.0; 8], reason: vec![Cut::Sentence; 8] };
+    let costs = Boundaries { cost: vec![1000; 8], reason: vec![Cut::Sentence; 8] };
     let with =
-        |c| Run { chunks: c, execution: None, costs: Some(Costs { sentences: &s, boundaries: &costs, budget: B }) };
+        |c| Run { chunks: c, execution: None, pricing: Some(Pricing { sentences: &s, boundaries: &costs, budget: B }) };
     let r = compare(with(&a), with(&b)).unwrap();
     let got: Vec<_> = r
         .disagreements
@@ -180,8 +188,9 @@ fn runs_in_different_views_are_refused() {
 fn costs_that_do_not_fit_the_chunks_are_refused() {
     let a = chunks(ViewId::SOURCE, &[row(0, 2)]);
     let s = sentences(2);
-    let short = Boundaries { cost: vec![1.0], reason: vec![Cut::Sentence] };
-    let b = Run { chunks: &a, execution: None, costs: Some(Costs { sentences: &s, boundaries: &short, budget: B }) };
+    let short = Boundaries { cost: vec![1000], reason: vec![Cut::Sentence] };
+    let b =
+        Run { chunks: &a, execution: None, pricing: Some(Pricing { sentences: &s, boundaries: &short, budget: B }) };
     let Err(Refused::Invalid { run: Side::B, .. }) = compare(run(&a), b) else { panic!("refused") };
 }
 
@@ -200,14 +209,95 @@ fn a_cut_at_no_sentence_start_of_the_other_run_has_no_margin() {
     for (x, y) in [(0, 10), (10, 25), (25, 30), (30, 40), (40, 50), (50, 60)] {
         sb.spans.push(Span::new(x, y));
     }
-    let costs = Boundaries { cost: vec![1.0; 6], reason: vec![Cut::Sentence; 6] };
-    let ra = Run { chunks: &a, execution: None, costs: Some(Costs { sentences: &s, boundaries: &costs, budget: B }) };
-    let rb = Run { chunks: &b, execution: None, costs: Some(Costs { sentences: &sb, boundaries: &costs, budget: B }) };
+    let costs = Boundaries { cost: vec![1000; 6], reason: vec![Cut::Sentence; 6] };
+    let ra =
+        Run { chunks: &a, execution: None, pricing: Some(Pricing { sentences: &s, boundaries: &costs, budget: B }) };
+    let rb =
+        Run { chunks: &b, execution: None, pricing: Some(Pricing { sentences: &sb, boundaries: &costs, budget: B }) };
     let r = compare(ra, rb).unwrap();
     let [d] = &r.disagreements[..] else { panic!("one disagreement") };
     assert_eq!((d.a[0].start, d.b[0].start), (30, 25));
-    assert_eq!((d.a[0].boundary_a, d.a[0].boundary_b), (Some(1.0), Some(1.0)));
-    assert_eq!((d.b[0].boundary_a, d.b[0].boundary_b), (None, Some(1.0)));
+    assert_eq!((d.a[0].boundary_a, d.a[0].boundary_b), (Some(1000), Some(1000)));
+    assert_eq!((d.b[0].boundary_a, d.b[0].boundary_b), (None, Some(1000)));
     assert_eq!(d.margin_a, None);
-    assert!(close(d.margin_b, 0.0), "{:?}", d.margin_b);
+    assert_eq!(d.margin_b, Some(0));
+}
+
+#[test]
+fn the_margin_is_what_the_optimizer_minimizes() {
+    // On generated runs, every change of one gap to the optimizer's own
+    // cut (a cut added or removed) costs at least as much, and the margin
+    // is exactly the difference of the two totals, each summed here from
+    // the boundary costs and `penalty` as the optimizer defines a chunk.
+    let mut state: u64 = 0x9e37_79b9_7f4a_7c15;
+    let mut rand = |m: u64| {
+        state = state.wrapping_mul(6_364_136_223_846_793_005).wrapping_add(1_442_695_040_888_963_407);
+        (state >> 33) % m
+    };
+    let mut checked = 0;
+    for case in 0..2000 {
+        let n = 2 + rand(9) as usize;
+        let tokens: Vec<u32> = (0..n).map(|_| rand(80) as u32).collect();
+        let cost: Vec<i32> = (0..n).map(|_| rand(4001) as i32 - 1500).collect();
+        let b = Budget {
+            max: 20 + rand(200) as u32,
+            target: rand(150) as u32,
+            size_weight: [0, 1000, 1_000_000][rand(3) as usize],
+            overhead: rand(4) as u32,
+        };
+        let l = Lengths::of(&tokens).unwrap();
+        let size = |i: usize, j: usize| u64::from(l.run(i, j)) + u64::from(b.overhead);
+        let total = |ends: &[usize]| {
+            let mut i = 0;
+            let mut t = 0i128;
+            for &j in ends {
+                t += i128::from(if j < n { cost[j - 1] } else { 0 }) + penalty(size(i, j), b);
+                i = j;
+            }
+            t
+        };
+        let layer = |ends: &[usize]| {
+            let mut i = 0;
+            let rows: Vec<Row> = ends
+                .iter()
+                .map(|&j| {
+                    let r = Row { tokens: size(i, j) as u32, ..row(i as u32, j as u32) };
+                    i = j;
+                    r
+                })
+                .collect();
+            chunks(ViewId::SOURCE, &rows)
+        };
+        let segments = segment(&cost, |i, j| l.run(i, j), b, no_term);
+        let best: Vec<usize> = segments.iter().map(|s| s.end).collect();
+        assert_eq!(total(&best), segments.iter().map(|s| s.cost).sum::<i128>(), "case {case}");
+        let (s, bounds) = (sentences(n as u32), Boundaries { cost: cost.clone(), reason: vec![Cut::Sentence; n] });
+        let a = layer(&best);
+        let pricing = Some(Pricing { sentences: &s, boundaries: &bounds, budget: b });
+        for g in 1..n {
+            let mut other: Vec<usize> = best.iter().copied().filter(|&e| e != g).collect();
+            if other.len() == best.len() {
+                other.push(g);
+                other.sort_unstable();
+            }
+            let mut i = 0;
+            let fits = other.iter().all(|&j| {
+                let ok = j - i == 1 || size(i, j) <= u64::from(b.max);
+                i = j;
+                ok
+            });
+            if !fits {
+                continue;
+            }
+            let o = layer(&other);
+            let r = compare(Run { chunks: &a, execution: None, pricing }, Run { chunks: &o, execution: None, pricing })
+                .unwrap();
+            let [d] = &r.disagreements[..] else { panic!("case {case}, gap {g}: {:?}", r.disagreements) };
+            let want = total(&other) - total(&best);
+            assert!(want >= 0, "case {case}, gap {g}: the optimizer's cut is not the least");
+            assert_eq!((d.margin_a, d.margin_b), (Some(want), Some(-want)), "case {case}, gap {g}");
+            checked += 1;
+        }
+    }
+    assert!(checked > 1000, "{checked}");
 }

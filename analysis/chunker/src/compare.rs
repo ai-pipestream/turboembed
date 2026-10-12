@@ -24,20 +24,20 @@ pub struct Run<'a> {
     pub execution: Option<&'a Execution>,
     /// The costs the run was cut with. They price the other run's cuts;
     /// without them a disagreement has no margin.
-    pub costs: Option<Costs<'a>>,
+    pub pricing: Option<Pricing<'a>>,
 }
 
 /// What the optimizer read to cut a run: the boundary cost after each
 /// sentence and the budget that prices a chunk's size.
 #[derive(Copy, Clone)]
-pub struct Costs<'a> {
+pub struct Pricing<'a> {
     pub sentences: &'a Sentences,
     pub boundaries: &'a Boundaries,
     pub budget: Budget,
 }
 
 /// What two runs cut differently. Empty when they cut alike.
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Report<'a> {
     /// Where run A's model ran, as the run was given.
     pub a: Option<&'a Execution>,
@@ -60,7 +60,7 @@ impl Report<'_> {
 /// closes it, so the optimizer's choices on either side of a shared cut
 /// are independent: each disagreement is a choice of its own, and a moved
 /// cut is one with a cut on each side.
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Disagreement {
     pub level: u8,
     /// The start of the parent chunk, the same in both runs; `None` for
@@ -74,31 +74,34 @@ pub struct Disagreement {
     pub a: Vec<CutAt>,
     pub b: Vec<CutAt>,
     /// How much more run A's own costs charge for cutting this stretch as
-    /// B did than as A did: zero is a tie, and a margin smaller than what
+    /// B did than as A did, in `Boundaries::UNIT`s, exactly as the
+    /// optimizer adds them: zero is a tie, and a margin smaller than what
     /// the precision tier moves a cost by explains the difference. It is
     /// what A would pay to switch to B's choice, so it is at least the gap
     /// between A's best and second best cut. `None` without A's costs,
     /// above level 0 (the levels the optimizer does not cut), from the
     /// first chunk on (where no shared cut fixes the opening chunk), or
     /// where B cuts at a place that is no sentence start of A's.
-    pub margin_a: Option<f64>,
-    pub margin_b: Option<f64>,
+    pub margin_a: Option<i128>,
+    pub margin_b: Option<i128>,
 }
 
 /// One run's cut that the other run did not make.
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct CutAt {
     /// The byte offset the chunk starts at, in the chunks' view.
     pub start: u32,
     pub reason: Cut,
     /// What the chunk starting here cost the run's optimizer, from the
-    /// layer: the boundary that closes it plus its size.
-    pub cost: f32,
+    /// layer: the boundary that closes it plus its size penalty.
+    pub cost: i64,
+    /// Whether the chunk is over the budget's maximum: one sentence alone.
+    pub over_budget: bool,
     /// What each run's boundary costs charge for a cut at this offset,
     /// when the run has costs and the offset is one of its sentence starts:
     /// the number a precision tier moves.
-    pub boundary_a: Option<f32>,
-    pub boundary_b: Option<f32>,
+    pub boundary_a: Option<i32>,
+    pub boundary_b: Option<i32>,
 }
 
 /// Which of the two runs.
@@ -223,15 +226,16 @@ impl Open {
                 start,
                 reason: run.chunks.cut[row],
                 cost: run.chunks.cost[row],
-                boundary_a: a.costs.and_then(|c| margin::boundary(&c, start)),
-                boundary_b: b.costs.and_then(|c| margin::boundary(&c, start)),
+                over_budget: run.chunks.over_budget[row],
+                boundary_a: a.pricing.and_then(|p| margin::boundary(&p, start)),
+                boundary_b: b.pricing.and_then(|p| margin::boundary(&p, start)),
             }
         };
         let priced = level == 0;
         let (margin_a, margin_b) = match self.after {
             Some((_, ra, rb)) if priced => (
-                margin::margin(a.costs, (a.chunks, ra, &self.a[..]), (b.chunks, rb, &self.b[..])),
-                margin::margin(b.costs, (b.chunks, rb, &self.b[..]), (a.chunks, ra, &self.a[..])),
+                margin::margin(a.pricing, before, (a.chunks, ra, &self.a[..]), (b.chunks, rb, &self.b[..])),
+                margin::margin(b.pricing, before, (b.chunks, rb, &self.b[..]), (a.chunks, ra, &self.a[..])),
             ),
             _ => (None, None),
         };
@@ -253,7 +257,7 @@ impl Open {
 fn check(run: Run<'_>, side: Side) -> Result<(), Refused> {
     let invalid = |detail: String| Refused::Invalid { run: side, detail };
     run.chunks.check().map_err(|d| invalid(format!("its chunks need {d}")))?;
-    if let Some(c) = run.costs {
+    if let Some(c) = run.pricing {
         if c.sentences.spans.view() != run.chunks.spans.view() {
             return Err(invalid("its sentences and chunks are in different views".into()));
         }
@@ -262,9 +266,6 @@ fn check(run: Run<'_>, side: Side) -> Result<(), Refused> {
         }
         if !c.sentences.spans.is_ordered() {
             return Err(invalid("its sentences in text order".into()));
-        }
-        if c.budget.target == 0 {
-            return Err(invalid("a budget with a target above zero".into()));
         }
     }
     Ok(())

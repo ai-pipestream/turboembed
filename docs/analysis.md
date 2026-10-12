@@ -707,19 +707,27 @@ own sentences and the boundary that closes it, so the optimizer's
 choices on either side of a shared cut are independent, and each
 stretch is one choice: a moved cut is a stretch with a cut on each side,
 an added cut one with a cut on one side only. Every cut in a stretch
-carries why its chunk starts there, what the chunk cost its run (from
-the layer) and what each run's boundary costs charge at that offset.
+carries why its chunk starts there, whether it is over the budget,
+what the chunk cost its run (from the layer) and what each run's
+boundary costs charge at that offset.
 
 The layer records no runner-up, so each stretch's margin is computed:
 how much more a run's own costs charge for the other run's cuts there
-than for its own, the boundaries at the cuts plus the size of every
-chunk from the shared cut on, summed in f64. It is what the run would
-pay to cut as the other did, at least the gap between its best and
-second best choice; zero is a tie. It is computed only at level 0 (the
-level the optimizer cuts), only after a shared cut, and only where the
-other run's cuts are sentence starts of this run's; it assumes both runs
-count the same tokens, which holds when they share a tokenizer. There is
-no command for it: no record format holds chunks yet.
+than for its own, in units. Each chunk from the shared cut on is priced
+with the optimizer's own cost of one chunk (the boundary that closes it,
+none at the end of its parent, plus its integer size penalty), so the
+margin is exact and is what the run's whole cut would cost more had it
+cut the stretch as the other did: at least the gap between its best and
+second best choice, and zero for a tie. A test checks this against
+every one-gap change of the optimizer's cut on generated runs.
+
+A margin is computed only at level 0 (the level the optimizer cuts),
+only after a shared cut, and only where the other run's cuts are
+sentence starts of this run's. It adds no chunk term, since the layer
+records none, and it prices a cut the run's own limits would forbid
+(inside a unit it keeps whole) as if it were allowed. It assumes both
+runs count the same tokens, which holds when they share a tokenizer.
+There is no command for it: no record format holds chunks yet.
 
 ## Golden files
 
