@@ -3,7 +3,18 @@
 //! to the budget and cutting wherever it lands. What a boundary costs comes
 //! from the signal layers (structure, topic shifts, coreference, discourse
 //! markers) weighed and summed into `Boundaries`; the optimizer only adds
-//! up costs.
+//! up costs. Every cost is an integer, so the same layers give the same
+//! cuts on every machine.
+//!
+//! `boundaries` writes the structural costs, `gaps` reads what the
+//! structure says about each gap between sentences, and `limits` turns
+//! that into the places a chunk may not end.
+
+mod boundaries;
+mod gaps;
+mod limits;
+
+pub use boundaries::{Costs, StructureBoundaries};
 
 use std::ops::Range;
 
@@ -11,7 +22,7 @@ use turbo_analysis::{Annotator, Error, Ix, IxRange, Refs, Span, Spans};
 use turbo_analysis_layers::{Block, Boundaries, Chunks, Cut, Sentences, Structure, Subwords};
 
 /// The token budget of a chunk, in the embedder's own tokens.
-#[derive(Copy, Clone, Debug, PartialEq)]
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub struct Budget {
     /// Never more than this, unless one sentence alone is longer: it then
     /// becomes a chunk of its own, marked `Cut::Budget`, for a clause
@@ -20,22 +31,35 @@ pub struct Budget {
     /// The size retrieval works best at; a chunk pays for its distance
     /// from it.
     pub target: u32,
-    /// How much that distance weighs against boundary costs.
-    pub size_weight: f32,
+    /// What a chunk pays, in `Boundaries::UNIT`s, for being a whole target
+    /// away from the target: twice the target's size or empty. The penalty
+    /// grows with the square of the distance.
+    pub size_weight: u32,
     /// Tokens every chunk carries besides its text: the model's special
     /// tokens and the prompt prefix.
     pub overhead: u32,
 }
 
-/// Sentences `[start, end)` as one chunk.
-#[derive(Clone, Debug, PartialEq)]
+/// Units `[start, end)` as one chunk.
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Segment {
     pub start: usize,
     pub end: usize,
     /// Its length in the embedder's tokens, overhead included.
     pub tokens: u32,
-    /// What its closing boundary and its size cost.
-    pub cost: f32,
+    /// What its closing boundary and its size cost, in `Boundaries::UNIT`s.
+    pub cost: i64,
+}
+
+/// What a chunk of `size` tokens pays for its distance from the target:
+/// `size_weight` times the squared distance over the squared target,
+/// rounded down, so it is an integer like the boundary costs. A target of
+/// zero is taken as one.
+pub fn penalty(size: u64, b: Budget) -> i64 {
+    let t = i128::from(b.target.max(1));
+    let d = i128::from(size) - t;
+    let p = i128::from(b.size_weight) * d * d / (t * t);
+    p.min(i128::from(i64::MAX)) as i64
 }
 
 /// How many of the embedder's tokens each run of sentences holds: the
@@ -82,44 +106,48 @@ impl Lengths {
     }
 }
 
-/// The least-cost way to cut a run of sentences into chunks. `tokens(i, j)`
-/// is how many tokens sentences `[i, j)` hold; `cut[i]` is the cost of a
-/// boundary after sentence i (the last one is unused: the end of the run is
-/// free). Time is the number of sentences times the most that fit in one
-/// chunk.
-pub fn segment(cut: &[f32], tokens: impl Fn(usize, usize) -> u32, b: Budget) -> Vec<Segment> {
+/// The least-cost way to cut a run of units (sentences, or atoms no chunk
+/// splits) into chunks. `tokens(i, j)` is how many tokens units `[i, j)`
+/// hold; `cut[i]` is the cost of a boundary after unit i (the last one is
+/// unused: the end of the run is free). No chunk of more than one unit is
+/// over the budget's maximum. Time is the number of units times the most
+/// that fit in one chunk.
+///
+/// Costs are integers, so two cuts tie only when they cost exactly the
+/// same; of those, the one whose first boundary comes earliest wins, then
+/// its second, and so on. The table runs from the end of the run back, so
+/// each entry keeps the earliest end of equal least cost.
+pub fn segment(cut: &[i32], tokens: impl Fn(usize, usize) -> u32, b: Budget) -> Vec<Segment> {
     let n = cut.len();
     let size = |i: usize, j: usize| u64::from(tokens(i, j)) + u64::from(b.overhead);
     let cost = |i: usize, j: usize| {
-        let boundary = if j < n { cut[j - 1] } else { 0.0 };
-        let d = (size(i, j) as f32 - b.target as f32) / b.target as f32;
-        boundary + b.size_weight * d * d
+        let boundary = if j < n { i64::from(cut[j - 1]) } else { 0 };
+        boundary.saturating_add(penalty(size(i, j), b))
     };
-    // best[j]: the least cost of cutting sentences [0, j); from[j]: where
-    // the last chunk of that cut starts.
-    let mut best = vec![f32::INFINITY; n + 1];
-    let mut from = vec![0; n + 1];
-    best[0] = 0.0;
-    for j in 1..=n {
-        for i in (0..j).rev() {
-            if size(i, j) > u64::from(b.max) && j - i > 1 {
+    // best[i]: the least cost of cutting units [i, n); next[i]: where the
+    // first chunk of that cut ends.
+    let mut best = vec![i64::MAX; n + 1];
+    let mut next = vec![n; n + 1];
+    best[n] = 0;
+    for i in (0..n).rev() {
+        for j in i + 1..=n {
+            if j - i > 1 && size(i, j) > u64::from(b.max) {
                 break;
             }
-            let c = best[i] + cost(i, j);
-            if c < best[j] {
-                best[j] = c;
-                from[j] = i;
+            let c = cost(i, j).saturating_add(best[j]);
+            if c < best[i] {
+                best[i] = c;
+                next[i] = j;
             }
         }
     }
     let mut out = Vec::new();
-    let mut j = n;
-    while j > 0 {
-        let i = from[j];
+    let mut i = 0;
+    while i < n {
+        let j = next[i];
         out.push(Segment { start: i, end: j, tokens: size(i, j) as u32, cost: cost(i, j) });
-        j = i;
+        i = j;
     }
-    out.reverse();
     out
 }
 
@@ -133,6 +161,13 @@ pub fn segment(cut: &[f32], tokens: impl Fn(usize, usize) -> u32, b: Budget) -> 
 /// re-chunks only its own section), and each becomes a chunk one level up,
 /// the parent of the chunks cut from it. Parents come before their
 /// children, so the chunks stay in text order.
+///
+/// The structure also sets the hard limits. A table row, code block or
+/// quote that fits the budget is never cut: its sentences are one unit to
+/// the optimizer. One that is over the budget is cut between its
+/// sentences, and each chunk that starts inside it says so with
+/// `Cut::Inside`. A sentence is never cut; one over the budget alone is a
+/// chunk of its own, marked `Cut::Budget`.
 pub struct Chunker {
     pub budget: Budget,
 }
@@ -148,6 +183,7 @@ impl Annotator for Chunker {
             return Err(Error::Annotator { annotator: Self::ID, detail: "its inputs are in different views".into() });
         }
         let lengths = Lengths::new(&sentences.spans, &subwords.spans);
+        let gaps = gaps::gaps(&sentences.spans, structure);
         let runs = match structure {
             Some(st) => sections(sentences, st),
             None if sentences.spans.is_empty() => Vec::new(),
@@ -167,19 +203,26 @@ impl Annotator for Chunker {
                 (sentences.spans.get(Ix::new(r.start as u32)), sentences.spans.get(Ix::new(r.end as u32 - 1)));
             Span::new(first.start, last.end)
         };
+        let b = self.budget;
+        let fits =
+            |u: &Range<usize>| u64::from(lengths.run(u.start, u.end)) + u64::from(b.overhead) <= u64::from(b.max);
         for run in runs {
             let opening = if run.start == 0 { Cut::DocumentStart } else { Cut::Section };
             let parent = structure.map(|_| {
-                let size = lengths.run(run.start, run.end) + self.budget.overhead;
-                push(&mut chunks, span(&run), 1, None, run.clone(), opening, 0.0, size)
+                let size = lengths.run(run.start, run.end) + b.overhead;
+                push(&mut chunks, span(&run), 1, None, run.clone(), opening, 0, size)
             });
-            let tokens = |i: usize, j: usize| lengths.run(run.start + i, run.start + j);
-            for s in segment(&bounds.cost[run.clone()], tokens, self.budget) {
-                let r = run.start + s.start..run.start + s.end;
+            // The optimizer's units are the atoms: sentence `at[k]` up to
+            // `at[k + 1]`.
+            let at = limits::atoms(&gaps, run.clone(), fits);
+            let cut: Vec<i32> = at[1..].iter().map(|&e| bounds.cost[e - 1]).collect();
+            let tokens = |i: usize, j: usize| lengths.run(at[i], at[j]);
+            for s in segment(&cut, tokens, b) {
+                let r = at[s.start]..at[s.end];
                 let cut = match r.start {
-                    _ if s.tokens > self.budget.max => Cut::Budget,
+                    _ if s.tokens > b.max => Cut::Budget,
                     i if i == run.start => opening,
-                    i => bounds.reason[i - 1],
+                    i => gaps[i - 1].inside.as_ref().map_or(bounds.reason[i - 1], |u| Cut::Inside(u.kind)),
                 };
                 push(&mut chunks, span(&r), 0, parent, r, cut, s.cost, s.tokens);
             }
@@ -189,7 +232,7 @@ impl Annotator for Chunker {
 
     fn config_hash(&self) -> u64 {
         let b = self.budget;
-        [u64::from(b.max), u64::from(b.target), u64::from(b.size_weight.to_bits()), u64::from(b.overhead)]
+        [u64::from(b.max), u64::from(b.target), u64::from(b.size_weight), u64::from(b.overhead)]
             .iter()
             .fold(0xcbf2_9ce4_8422_2325, |h, &x| (h ^ x).wrapping_mul(0x0100_0000_01b3))
     }
@@ -203,7 +246,7 @@ fn push(
     parent: Option<Ix<Chunks>>,
     r: Range<usize>,
     cut: Cut,
-    cost: f32,
+    cost: i64,
     tokens: u32,
 ) -> Ix<Chunks> {
     c.level.push(level);
@@ -260,7 +303,7 @@ mod tests {
         ends
     }
 
-    const B: Budget = Budget { max: 400, target: 300, size_weight: 1.0, overhead: 0 };
+    const B: Budget = Budget { max: 400, target: 300, size_weight: 1000, overhead: 0 };
 
     /// Sentences of these lengths with nothing between them.
     fn of(tokens: &[u32]) -> impl Fn(usize, usize) -> u32 {
@@ -273,7 +316,7 @@ mod tests {
         // Six sentences of 100 tokens; the topic shifts after the third, so
         // a cut there is cheap and a cut anywhere else is not.
         let tokens = [100; 6];
-        let cut = [1.0, 1.0, 0.1, 1.0, 1.0, 1.0];
+        let cut = [1000, 1000, 100, 1000, 1000, 1000];
         let ends: Vec<usize> = segment(&cut, of(&tokens), B).iter().map(|s| s.end).collect();
         assert_eq!(ends, [3, 6]);
         // Filling to the budget cuts after the fourth sentence, mid-topic.
@@ -282,7 +325,7 @@ mod tests {
 
     #[test]
     fn a_sentence_over_the_budget_is_a_chunk_of_its_own() {
-        let segments = segment(&[1.0, 1.0, 1.0], of(&[50, 900, 50]), B);
+        let segments = segment(&[1000; 3], of(&[50, 900, 50]), B);
         let spans: Vec<(usize, usize)> = segments.iter().map(|s| (s.start, s.end)).collect();
         assert_eq!(spans, [(0, 1), (1, 2), (2, 3)]);
         assert_eq!(segments[1].tokens, 900);
@@ -307,7 +350,54 @@ mod tests {
     fn the_overhead_counts_against_the_budget() {
         // Four sentences of 100 fit 400 alone, not with 2 special tokens.
         let b = Budget { overhead: 2, ..B };
-        assert!(segment(&[1.0; 4], of(&[100; 4]), b).iter().all(|s| s.tokens <= 400));
-        assert_eq!(segment(&[1.0; 4], of(&[100; 4]), B).len(), 1);
+        assert!(segment(&[1000; 4], of(&[100; 4]), b).iter().all(|s| s.tokens <= 400));
+        assert_eq!(segment(&[1000; 4], of(&[100; 4]), B).len(), 1);
+    }
+
+    #[test]
+    fn the_size_penalty_is_an_integer_rounded_down() {
+        // A whole target away costs the weight; a third of one, a ninth.
+        assert_eq!(penalty(300, B), 0);
+        assert_eq!(penalty(600, B), 1000);
+        assert_eq!(penalty(0, B), 1000);
+        assert_eq!(penalty(400, B), 111);
+        assert_eq!(penalty(200, B), 111);
+        // One token off is under a unit, and rounds to nothing.
+        assert_eq!(penalty(301, B), 0);
+        // A target of zero is taken as one, not divided by.
+        assert_eq!(penalty(3, Budget { target: 0, ..B }), 4000);
+        // A huge chunk saturates instead of overflowing.
+        let heavy = Budget { size_weight: u32::MAX, target: 1, ..B };
+        assert_eq!(penalty(u64::from(u32::MAX) * 2, heavy), i64::MAX);
+    }
+
+    #[test]
+    fn of_equal_cuts_the_earliest_wins() {
+        // Three sentences of 100 and a target of 150: a chunk of 100 then
+        // 200, or of 200 then 100, cost exactly the same.
+        let b = Budget { max: 200, target: 150, size_weight: 900, overhead: 0 };
+        let segments = segment(&[1000; 3], of(&[100; 3]), b);
+        assert_eq!(segments[0].cost + segments[1].cost, 1000 + 100 + 100);
+        let ends: Vec<usize> = segments.iter().map(|s| s.end).collect();
+        assert_eq!(ends, [1, 3]);
+        // Five equal sentences into three chunks: the cut that ends every
+        // chunk soonest, chunk by chunk.
+        let ends: Vec<usize> = segment(&[1000; 5], of(&[100; 5]), b).iter().map(|s| s.end).collect();
+        assert_eq!(ends, [1, 3, 5]);
+    }
+
+    #[test]
+    fn the_same_inputs_give_the_same_cuts_and_costs() {
+        let tokens: Vec<u32> = (0..200).map(|i| 37 + (i * 7919 % 113)).collect();
+        let cut: Vec<i32> = (0..200).map(|i| (i * 104_729 % 2000) - 300).collect();
+        let first = segment(&cut, of(&tokens), B);
+        assert_eq!(first, segment(&cut, of(&tokens), B));
+        assert!(first.windows(2).all(|w| w[0].end == w[1].start));
+        assert!(first.iter().all(|s| s.tokens <= B.max));
+    }
+
+    #[test]
+    fn an_empty_run_has_no_chunks() {
+        assert!(segment(&[], of(&[]), B).is_empty());
     }
 }

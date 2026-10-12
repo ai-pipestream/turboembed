@@ -128,9 +128,9 @@ Model probabilities and scores (`PosTags.prob`, `Entities.score`,
 `Confidence<L>`, `Language.score`) are stored as f64. OpenNLP computes
 them as Java doubles, and the parity tests compare them with the JVM's
 output to within 1e-9, which f32 (about seven significant digits) cannot
-hold. Vectors (`Vectors<L>`) and the chunker's costs (`Boundaries.cost`,
-`Chunks.cost`) are f32: they are computed in Rust and never compared
-with OpenNLP.
+hold. Vectors (`Vectors<L>`) are f32: they are computed in Rust and
+never compared with OpenNLP. The chunker's costs (`Boundaries.cost`,
+`Chunks.cost`) are integers, so every backend picks the same cuts.
 
 A layer is added once and never changed. Before it is taken the
 document checks that the layer is not already there, that no other
@@ -491,25 +491,84 @@ prompt prefix are the budget's overhead.
 It chooses every boundary of a run of sentences together, the way TeX
 breaks a paragraph into lines, rather than filling each chunk to the
 budget and cutting wherever it lands. A chunk costs the boundary that
-closes it plus its squared distance from the target size, relative to
-the target and weighted; the optimizer finds the cut of least total
-cost. No chunk is longer than the budget's maximum, unless one sentence
-alone is: that sentence is then a chunk of its own, marked as over the
-budget, for a clause splitter to cut further. Time is the number of
-sentences times the most that fit in one chunk.
+closes it plus a size penalty: `Budget::size_weight` times the squared
+distance from the target size over the squared target, rounded down to
+an integer. The optimizer finds the cut of least total cost. No chunk
+is longer than the budget's maximum, unless one sentence alone is: that
+sentence is then a chunk of its own, marked `Cut::Budget`, for a clause
+splitter to cut further. Time is the number of sentences times the most
+that fit in one chunk.
 
-What a boundary costs is the `Boundaries` layer: a cost and a reason
-after each sentence. Each signal annotator (structure, topic shifts,
-coreference, discourse markers) writes its own named instance, and one
-step weighs and sums them into the default instance, since a layer has
-one writer; the chunker reads only that.
+Every cost is an integer, so the same layers give the same cuts on
+every machine and backend, with no float summed in a different order to
+tip a choice. Two cuts tie only when they cost exactly the same; then
+the one whose first boundary comes earliest wins, then its second, and
+so on. The table runs from the end of each run back, so each entry
+keeps the earliest end of equal least cost.
 
-With structure, no chunk crosses a top-level section. Each section is
-its own run, so an edit re-chunks only its own section, and each
-section becomes a chunk one level up, the parent of the chunks cut
-from it. Every chunk records its level, its parent, its sentences, why
-it starts where it does, what it cost the optimizer and its length in
-model tokens.
+### Boundary costs
+
+What a boundary costs is the `Boundaries` layer (`turbo:boundaries`),
+aligned to the sentences: entry i is the gap after sentence i, the last
+one the end of the text. Each entry is an `i32` cost and a `Cut`
+reason. Costs are in `Boundaries::UNIT`s (1000); a plain sentence
+boundary costs one unit, a stronger break less, and a signal that
+argues for a cut may write a negative cost. A signal computed in
+floating point is rounded to units once, when it is written.
+
+Each signal annotator (structure, and later drift, topic shifts,
+coreference, discourse markers) writes its own named instance of this
+same shape, and one step weighs them with integer weights and sums them
+into the default instance, since a layer has one writer; the chunker
+reads only that. A new signal is one more instance, never a new column.
+A term that belongs to a whole chunk rather than to a gap (how tightly
+its sentences cluster) is not a boundary cost; it goes into the
+optimizer's chunk cost beside the size penalty.
+
+`StructureBoundaries` writes the structural term from the sentences and
+`turbo:structure`. A block holds the sentences it has a byte of, found
+with two binary searches; it starts at the gap before the first of them
+and ends at the gap after the last, so a block edge inside a sentence
+moves to the nearest gap. Each gap takes its strongest break:
+
+| Break at the gap | Reason | Default cost |
+| --- | --- | --- |
+| A section starts or ends | `Section` | 0 |
+| A heading starts | `Heading` | 100 |
+| A paragraph, list, table, code block, quote, caption, footnote or page header or footer starts or ends | `Paragraph` | 400 |
+| A list item or table row starts or ends | `Item` | 600 |
+| None of these | `Sentence` | 1000 |
+
+A gap where a heading ends costs 4000 more, so a heading stays with what
+it heads. With no structure every gap is a sentence boundary. It writes
+the default instance while it is the only signal.
+
+### Hard limits
+
+A chunk boundary never falls inside a sentence: boundaries are only
+between sentences. Nor does it fall inside a table row, a code block or
+a quote, unless that unit alone is over the budget's maximum. These
+limits depend on the budget, so they are not costs: the chunker reads
+the structure itself and, for each gap, finds the smallest such unit
+that holds sentences on both sides. When that unit fits the budget the
+gap is no place to cut, and the sentences joined by such gaps are one
+unit to the optimizer. When it is over the budget, the gap may be cut,
+and the chunk that starts there is marked `Cut::Inside` with the unit's
+kind. Units nest: a code block that fits inside a quote that does not
+is held whole while the quote is cut around it. No boundary cost,
+however low, overrides a limit.
+
+### Sections
+
+With structure, no chunk crosses a top-level section. Each section, and
+each run of sentences outside every section, is its own run, so an edit
+re-chunks only its own section, and each run becomes a chunk one level
+up, the parent of the chunks cut from it. Every chunk records its level,
+its parent, its sentences, why it starts where it does, what it cost the
+optimizer (an integer, in units) and its length in model tokens.
+
+Not measured yet: the chunker against the stage 0 baselines on the
+evaluation harness, with significance, which is still being built.
 
 ## Golden files
 
@@ -992,7 +1051,18 @@ runs them on any machine:
   where the topic shifts instead of where the budget fills, sections
   that are never crossed, and a paragraph break's token counted inside
   a chunk. The chunker's unit tests hold the optimizer against filling
-  each chunk to the budget.
+  each chunk to the budget, check the integer size penalty and that of
+  equal cuts the earliest wins, and read the gaps a structure makes:
+  each gap's strongest break, the smallest unit around it, and block
+  edges inside sentences.
+- `analysis/chunker/tests/limits.rs` holds each hard limit over
+  hand-made layers: a table row, a code block and a quote that fit are
+  never cut even where the costs say to, each one over the budget is cut
+  and the chunk says why, a unit that fits inside one that does not is
+  held, and a sentence over the budget stands alone. It checks that
+  every chunk is the exact bytes of its sentences in text of one to four
+  byte characters and, through a normalized view, in the source, and
+  the costs `StructureBoundaries` writes.
 - `analysis/embed/tests/subwords.rs` runs the subwords annotator on the
   small BERT's WordPiece bundle, a byte-level BPE bundle and BGE-M3's
   Unigram, over the tokenizer test texts, and checks that the document
@@ -1078,7 +1148,8 @@ runs them on any machine:
 ## Not built yet
 
 - The annotators themselves: normalizers, sentence detection,
-  tokenization, and the boundary signals.
+  tokenization, and the boundary signals besides structure, with the
+  step that weighs and sums them.
 - A comparison of the sentence vectors with OpenNLP's
   `SentenceVectorsDL` on golden inputs, which needs the JVM container,
   and a measurement of documents per second through the vector steps.
@@ -1087,5 +1158,5 @@ runs them on any machine:
   golden inputs; the WordPiece pieces are compared with upstream
   `tokenizers` for now.
 - The evaluation harness that every change to the chunker is measured
-  with.
+  with, and the chunker's records on it.
 - A gRPC surface, to be shared with the OpenNLP standard.

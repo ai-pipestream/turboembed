@@ -334,22 +334,37 @@ pub enum Cut {
     TopicShift,
     Budget,
     Clause,
+    /// Between two list items or two table rows.
+    Item,
+    /// Inside a unit no cut may fall in (a table row, a code block, a
+    /// quote), allowed only because that unit alone is over the budget.
+    Inside(Block),
 }
 
 /// What a chunk boundary after each sentence would cost, and the strongest
 /// reason at it. Each signal annotator (structure, topic shifts,
 /// coreference, discourse markers) writes its own named instance, and one
 /// step weighs and sums them into the default instance, since a layer has
-/// one writer; the chunker reads only that.
+/// one writer; the chunker reads only that. A new signal is one more
+/// instance of this shape, never a new column.
+///
+/// Costs are integers, in `UNIT`s, so every backend sums them to the same
+/// totals and picks the same cuts; a signal computed in floating point is
+/// rounded once, when it is written. A plain sentence boundary costs one
+/// unit; a cost can be negative, for a signal that argues for a cut.
 pub struct Boundaries {
-    /// f32, unlike the model probabilities in other layers: costs are
-    /// computed here in Rust and never compared against OpenNLP's output.
-    pub cost: Vec<f32>,
+    pub cost: Vec<i32>,
     pub reason: Vec<Cut>,
+}
+
+impl Boundaries {
+    /// The cost of a plain sentence boundary.
+    pub const UNIT: i32 = 1000;
 }
 
 impl Layer for Boundaries {
     const ID: &'static str = "turbo:boundaries";
+    const SCHEMA: u16 = 2;
     fn anchor() -> Anchor {
         Anchor::aligned::<Sentences>()
     }
@@ -359,9 +374,6 @@ impl Layer for Boundaries {
     fn check(&self) -> Result<(), String> {
         if self.reason.len() != self.cost.len() {
             return Err("a reason for every boundary".into());
-        }
-        if self.cost.iter().any(|c| !c.is_finite()) {
-            return Err("a finite cost for every boundary".into());
         }
         Ok(())
     }
@@ -375,8 +387,10 @@ pub struct Chunks {
     pub parent: Vec<Option<Ix<Chunks>>>,
     pub sentences: Vec<IxRange<Sentences>>,
     pub cut: Vec<Cut>,
-    /// What choosing this boundary cost the optimizer.
-    pub cost: Vec<f32>,
+    /// What choosing this boundary cost the optimizer, in
+    /// `Boundaries::UNIT`s: the cost of the cut that closes it plus its
+    /// size penalty.
+    pub cost: Vec<i64>,
     /// Its row's length in the embedder's tokens: counted over its whole
     /// span, with the overhead every row carries.
     pub model_tokens: Vec<u32>,
@@ -384,6 +398,7 @@ pub struct Chunks {
 
 impl Layer for Chunks {
     const ID: &'static str = "turbo:chunks";
+    const SCHEMA: u16 = 2;
     positional!(Chunks);
     fn indexes(&self) -> Vec<(KeyId, usize)> {
         vec![(Key::<Sentences>::DEFAULT.id(), self.sentences.iter().map(|r| r.end.get()).max().unwrap_or(0))]

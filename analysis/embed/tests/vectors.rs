@@ -106,7 +106,7 @@ fn document(text: &str, sentences: &[(u32, u32)], chunks: &[(u32, u32, u8, Optio
         c.parent.push(parent.map(Ix::new));
         c.sentences.push(IxRange::new(i, j));
         c.cut.push(Cut::Sentence);
-        c.cost.push(0.0);
+        c.cost.push(0);
         c.model_tokens.push(0);
     }
     d.add(&Key::DEFAULT, c, Provenance::by("test")).unwrap();
