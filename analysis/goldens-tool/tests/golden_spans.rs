@@ -52,7 +52,7 @@ fn goldens(annotator: &str) -> Vec<PathBuf> {
             let p = e.unwrap().path();
             if p.is_dir() {
                 stack.push(p);
-            } else {
+            } else if p.extension().is_some_and(|e| e == paths::GOLDEN_EXTENSION) {
                 out.push(p);
             }
         }

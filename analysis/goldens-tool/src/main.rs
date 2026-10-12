@@ -12,8 +12,10 @@ usage: turbo-goldens <command>
   image                          build the generator's container image and print its id
   fetch-models <dir>             download the models into <dir> and check their SHA-512
   generate [--out <dir>] [--models <dir>]
-                                 run the generator in the container; write into analysis/goldens/data or <dir>
-  verify [--models <dir>]        generate into a scratch directory and compare with the checked in goldens
+                                 run the generator in the container; write the goldens and their decision
+                                 point dumps into analysis/goldens/data or <dir>
+  verify [--models <dir>]        generate into a scratch directory and compare with the checked in files;
+                                 check that every checked in golden has a dump whose header parses
 
 --models defaults to target/turbo-goldens/models, fetched as by fetch-models.";
 
@@ -46,15 +48,17 @@ fn run(args: &[String]) -> Result<ExitCode, String> {
             let run = generate(&opts.models)?;
             let target = opts.out.unwrap_or_else(paths::data_dir);
             let n = output::install(run.path(), &target)?;
-            println!("installed {n} goldens in {}", target.display());
+            println!("installed {n} goldens and dumps in {}", target.display());
             Ok(ExitCode::SUCCESS)
         }
         "verify" => {
             let opts = Options::parse(rest, false)?;
             let run = generate(&opts.models)?;
+            let dumps = output::check_dumps(&paths::data_dir())?;
+            println!("{dumps} checked in dumps have a golden and a header that parses");
             let d = output::compare(&paths::data_dir(), run.path())?;
             if d.is_empty() {
-                println!("every golden matches");
+                println!("every golden and dump matches");
                 Ok(ExitCode::SUCCESS)
             } else {
                 print!("{}", d.report());
@@ -106,6 +110,7 @@ fn generate(models_dir: &Path) -> Result<output::RunDir, String> {
     let run = output::RunDir::new(&scratch)?;
     docker::generate(&paths::inputs_dir(), models_dir, run.path())?;
     run.check_layout()?;
+    output::check_dumps(run.path())?;
     Ok(run)
 }
 
