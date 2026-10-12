@@ -70,7 +70,7 @@ fn every_dump_reads_and_has_its_goldens_header() {
     }
     // 473 tokenize, 192 sentdetect and 22 langdetect dumps.
     assert_eq!(dumps, 687);
-    assert!(points > 10_000, "{points} points");
+    assert_eq!(points, 24623, "every point of every dump");
 }
 
 #[test]
