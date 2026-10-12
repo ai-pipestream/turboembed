@@ -129,15 +129,22 @@ impl<B: AsRef<[u8]>> Zip<B> {
     fn raw_data(&self, record: &Record) -> Result<&[u8]> {
         let bytes = self.bytes.as_ref();
         let at = record.local_header;
-        let header =
-            bytes.get(at..at + LOCAL_LEN).ok_or(Error::Zip { offset: at, message: "a local header is cut off" })?;
+        // The offsets and sizes come from the archive and can be near
+        // u32::MAX, so the sums are checked: on a 32-bit target they could
+        // wrap.
+        let header = at
+            .checked_add(LOCAL_LEN)
+            .and_then(|header_end| bytes.get(at..header_end))
+            .ok_or(Error::Zip { offset: at, message: "a local header is cut off" })?;
         if u32_at(header, 0) != LOCAL_SIGNATURE {
             return Err(Error::Zip { offset: at, message: "no local header signature where the directory points" });
         }
-        let start = at + LOCAL_LEN + usize::from(u16_at(header, 26)) + usize::from(u16_at(header, 28));
-        bytes
-            .get(start..start + record.compressed)
-            .ok_or(Error::Zip { offset: start, message: "an entry's data runs past the end of the archive" })
+        let past_end = |offset| Error::Zip { offset, message: "an entry's data runs past the end of the archive" };
+        let start = (at + LOCAL_LEN)
+            .checked_add(usize::from(u16_at(header, 26)) + usize::from(u16_at(header, 28)))
+            .ok_or(past_end(at))?;
+        let end = start.checked_add(record.compressed).ok_or(past_end(start))?;
+        bytes.get(start..end).ok_or(past_end(start))
     }
 }
 
@@ -241,41 +248,188 @@ fn read_directory(bytes: &[u8]) -> Result<Vec<Record>> {
     Ok(records)
 }
 
+/// Builds a one-entry stored archive by hand, for tests here and in the
+/// modules that read archives.
+#[cfg(test)]
+pub(crate) fn stored_archive(name: &str, data: &[u8], local_extra: &[u8], comment: &[u8]) -> Vec<u8> {
+    let mut z = Vec::new();
+    z.extend_from_slice(&LOCAL_SIGNATURE.to_le_bytes());
+    z.extend_from_slice(&[20, 0, 0, 0, 0, 0, 0, 0, 0, 0]);
+    z.extend_from_slice(&crc32(data).to_le_bytes());
+    z.extend_from_slice(&(data.len() as u32).to_le_bytes());
+    z.extend_from_slice(&(data.len() as u32).to_le_bytes());
+    z.extend_from_slice(&(name.len() as u16).to_le_bytes());
+    z.extend_from_slice(&(local_extra.len() as u16).to_le_bytes());
+    z.extend_from_slice(name.as_bytes());
+    z.extend_from_slice(local_extra);
+    z.extend_from_slice(data);
+    let dir = z.len();
+    z.extend_from_slice(&CENTRAL_SIGNATURE.to_le_bytes());
+    z.extend_from_slice(&[20, 0, 20, 0, 0, 0, 0, 0, 0, 0, 0, 0]);
+    z.extend_from_slice(&crc32(data).to_le_bytes());
+    z.extend_from_slice(&(data.len() as u32).to_le_bytes());
+    z.extend_from_slice(&(data.len() as u32).to_le_bytes());
+    z.extend_from_slice(&(name.len() as u16).to_le_bytes());
+    z.extend_from_slice(&[0; 12]);
+    z.extend_from_slice(&0u32.to_le_bytes());
+    z.extend_from_slice(name.as_bytes());
+    let dir_len = z.len() - dir;
+    z.extend_from_slice(&END_SIGNATURE.to_le_bytes());
+    z.extend_from_slice(&[0, 0, 0, 0, 1, 0, 1, 0]);
+    z.extend_from_slice(&(dir_len as u32).to_le_bytes());
+    z.extend_from_slice(&(dir as u32).to_le_bytes());
+    z.extend_from_slice(&(comment.len() as u16).to_le_bytes());
+    z.extend_from_slice(comment);
+    z
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
 
-    /// Builds a one-entry stored archive by hand.
-    fn stored_archive(name: &str, data: &[u8], local_extra: &[u8], comment: &[u8]) -> Vec<u8> {
-        let mut z = Vec::new();
-        z.extend_from_slice(&LOCAL_SIGNATURE.to_le_bytes());
-        z.extend_from_slice(&[20, 0, 0, 0, 0, 0, 0, 0, 0, 0]);
-        z.extend_from_slice(&crc32(data).to_le_bytes());
-        z.extend_from_slice(&(data.len() as u32).to_le_bytes());
-        z.extend_from_slice(&(data.len() as u32).to_le_bytes());
-        z.extend_from_slice(&(name.len() as u16).to_le_bytes());
-        z.extend_from_slice(&(local_extra.len() as u16).to_le_bytes());
-        z.extend_from_slice(name.as_bytes());
-        z.extend_from_slice(local_extra);
-        z.extend_from_slice(data);
-        let dir = z.len();
-        z.extend_from_slice(&CENTRAL_SIGNATURE.to_le_bytes());
-        z.extend_from_slice(&[20, 0, 20, 0, 0, 0, 0, 0, 0, 0, 0, 0]);
-        z.extend_from_slice(&crc32(data).to_le_bytes());
-        z.extend_from_slice(&(data.len() as u32).to_le_bytes());
-        z.extend_from_slice(&(data.len() as u32).to_le_bytes());
-        z.extend_from_slice(&(name.len() as u16).to_le_bytes());
-        z.extend_from_slice(&[0; 12]);
-        z.extend_from_slice(&0u32.to_le_bytes());
-        z.extend_from_slice(name.as_bytes());
-        let dir_len = z.len() - dir;
-        z.extend_from_slice(&END_SIGNATURE.to_le_bytes());
-        z.extend_from_slice(&[0, 0, 0, 0, 1, 0, 1, 0]);
-        z.extend_from_slice(&(dir_len as u32).to_le_bytes());
-        z.extend_from_slice(&(dir as u32).to_le_bytes());
-        z.extend_from_slice(&(comment.len() as u16).to_le_bytes());
-        z.extend_from_slice(comment);
-        z
+    /// The offsets of the central record and the end record in an archive
+    /// `stored_archive` built without a comment.
+    fn offsets(z: &[u8]) -> (usize, usize) {
+        let end = z.len() - END_LEN;
+        (u32_at(z, end + 16) as usize, end)
+    }
+
+    fn put_u16(z: &mut [u8], at: usize, v: u16) {
+        z[at..at + 2].copy_from_slice(&v.to_le_bytes());
+    }
+
+    fn put_u32(z: &mut [u8], at: usize, v: u32) {
+        z[at..at + 4].copy_from_slice(&v.to_le_bytes());
+    }
+
+    /// The message of the zip error opening `z` gives.
+    fn open_error(z: Vec<u8>) -> &'static str {
+        match Zip::new(z) {
+            Err(Error::Zip { message, .. }) => message,
+            other => panic!("expected a zip error, got {other:?}"),
+        }
+    }
+
+    /// The message of the zip error reading entry "a" of `z` gives.
+    fn entry_error(z: Vec<u8>) -> &'static str {
+        match Zip::new(z).unwrap().entry("a") {
+            Err(Error::Entry { entry, error }) => match *error {
+                Error::Zip { message, .. } if &*entry == "a" => message,
+                other => panic!("expected a zip error, got {other:?}"),
+            },
+            other => panic!("expected an entry error, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn two_entries_with_the_same_name() {
+        let mut z = stored_archive("a", b"x", b"", b"");
+        let (central, end) = offsets(&z);
+        let record = z[central..end].to_vec();
+        z.splice(end..end, record.iter().copied());
+        let end = end + record.len();
+        put_u16(&mut z, end + 8, 2);
+        put_u16(&mut z, end + 10, 2);
+        put_u32(&mut z, end + 12, 2 * record.len() as u32);
+        assert_eq!(open_error(z), "two entries have the same name");
+    }
+
+    #[test]
+    fn split_archives() {
+        for (field, value) in [(4, 1), (6, 1), (8, 0)] {
+            let mut z = stored_archive("a", b"x", b"", b"");
+            let (_, end) = offsets(&z);
+            put_u16(&mut z, end + field, value);
+            assert_eq!(open_error(z), "archives split over several disks are not supported", "field {field}");
+        }
+    }
+
+    #[test]
+    fn encrypted_entries() {
+        let mut z = stored_archive("a", b"x", b"", b"");
+        let (central, _) = offsets(&z);
+        put_u16(&mut z, central + 8, 1);
+        assert_eq!(open_error(z), "encrypted entries are not supported");
+    }
+
+    #[test]
+    fn unsupported_compression_methods() {
+        let mut z = stored_archive("a", b"x", b"", b"");
+        let (central, _) = offsets(&z);
+        put_u16(&mut z, central + 10, 12); // bzip2
+        assert_eq!(open_error(z), "compression methods other than stored and deflated are not supported");
+    }
+
+    #[test]
+    fn a_central_directory_outside_the_archive() {
+        let mut z = stored_archive("a", b"x", b"", b"");
+        let (_, end) = offsets(&z);
+        put_u32(&mut z, end + 16, end as u32 + 1);
+        assert_eq!(open_error(z), "the central directory lies outside the archive");
+        let mut z = stored_archive("a", b"x", b"", b"");
+        let (_, end) = offsets(&z);
+        put_u32(&mut z, end + 12, 0xFFFF_FFF0);
+        assert_eq!(open_error(z), "the central directory lies outside the archive");
+    }
+
+    #[test]
+    fn a_central_record_cut_off_by_the_end_record() {
+        // A second record is counted but the directory ends after the
+        // first: its fixed part would overlap the end record.
+        let mut z = stored_archive("a", b"x", b"", b"");
+        let (_, end) = offsets(&z);
+        put_u16(&mut z, end + 8, 2);
+        put_u16(&mut z, end + 10, 2);
+        assert_eq!(open_error(z), "a central directory record is cut off");
+    }
+
+    #[test]
+    fn a_central_record_whose_name_runs_into_the_end_record() {
+        let mut z = stored_archive("a", b"x", b"", b"");
+        let (central, _) = offsets(&z);
+        put_u16(&mut z, central + 28, 200);
+        assert_eq!(open_error(z), "a central directory record is cut off");
+    }
+
+    #[test]
+    fn a_local_header_cut_off() {
+        let mut z = stored_archive("a", b"x", b"", b"");
+        let (central, _) = offsets(&z);
+        let at = z.len() as u32 - 10;
+        put_u32(&mut z, central + 42, at);
+        assert_eq!(entry_error(z), "a local header is cut off");
+        // An offset near u32::MAX, where the header's end would wrap on a
+        // 32-bit target.
+        let mut z = stored_archive("a", b"x", b"", b"");
+        put_u32(&mut z, central + 42, 0xFFFF_FFF0);
+        assert_eq!(entry_error(z), "a local header is cut off");
+    }
+
+    #[test]
+    fn no_local_header_signature() {
+        let mut z = stored_archive("a", b"x", b"", b"");
+        let (central, _) = offsets(&z);
+        put_u32(&mut z, central + 42, 1);
+        assert_eq!(entry_error(z), "no local header signature where the directory points");
+    }
+
+    #[test]
+    fn data_past_the_end_of_the_archive() {
+        let mut z = stored_archive("a", b"x", b"", b"");
+        let (central, _) = offsets(&z);
+        put_u32(&mut z, central + 20, 1000);
+        assert_eq!(entry_error(z), "an entry's data runs past the end of the archive");
+        let mut z = stored_archive("a", b"x", b"", b"");
+        put_u32(&mut z, central + 20, 0xFFFF_FFF0);
+        assert_eq!(entry_error(z), "an entry's data runs past the end of the archive");
+    }
+
+    #[test]
+    fn a_stored_entry_whose_sizes_differ() {
+        let mut z = stored_archive("a", b"xy", b"", b"");
+        let (central, _) = offsets(&z);
+        put_u32(&mut z, central + 20, 1);
+        assert_eq!(entry_error(z), "a stored entry's compressed and uncompressed sizes differ");
     }
 
     #[test]

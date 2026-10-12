@@ -104,7 +104,7 @@ fn the_dictionary_set_matches_opennlp() {
     // insensitive, so the set here holds them lowercased with Java's
     // per character mapping.
     let lower = |s: &str| -> String {
-        s.chars().map(|c| char::from_u32(turbo_unicode::java::to_lower_case(c as u32)).unwrap()).collect()
+        s.chars().map(|c| char::from_u32(turbo_unicode::java::code_point::to_lower_case(c as u32)).unwrap()).collect()
     };
     let mut got: Vec<Vec<String>> = d.entries().map(|e| e.map(str::to_string).collect()).collect();
     got.sort();
