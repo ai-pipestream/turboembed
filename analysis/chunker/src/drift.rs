@@ -12,11 +12,21 @@
 //! smoothed cosine climbs on each side before it falls again, so a valley
 //! between two coherent stretches scores high and a steady slow drift
 //! scores nothing.
+//!
+//! Only gaps with a full window of sentences with a vector on both sides
+//! are scored, as NLTK's TextTiling leaves the gaps at the ends unscored.
+//! With a window cut short at an end, a single odd first or last sentence
+//! is compared alone, its gap is a valley with a wall on one side only,
+//! and the optimizer sets it apart as a chunk of its own. The price is no
+//! drift within `window - 1` sentences of either end, where a cut would
+//! leave a chunk of fewer than `window` sentences anyway.
+
+use std::num::NonZeroU32;
 
 use turbo_analysis::{Annotator, Bound, Error, Layer, Refs};
 use turbo_analysis_layers::{Boundaries, Cut, Sentences, Vectors};
 
-use crate::sums::Sums;
+use crate::sums::Rows;
 use crate::weigh::DRIFT;
 
 /// A cosine of one, in the integer units the drift is computed in.
@@ -38,53 +48,54 @@ pub enum Score {
 /// How the drift is computed and what it costs.
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub struct Drift {
-    /// Sentences with a vector on each side of a gap; fewer near the ends
-    /// of the document. At least one.
-    pub window: u32,
+    /// Sentences with a vector on each side of a gap. A gap with fewer
+    /// on either side is not scored.
+    pub window: NonZeroU32,
     /// The moving average takes this many cosines on each side of a gap.
     pub smoothing: u32,
     pub score: Score,
     /// Scores under this, in millionths, count as zero, so rounding noise
     /// on a steady stretch is not a signal.
     pub floor: u32,
-    /// What a score of one costs, in `Boundaries::UNIT`s, taken off the
-    /// gap: a gap costs `-score * scale / MICRO`, never more than zero.
-    pub scale: i32,
+    /// What a score of one takes off the gap, in thousandths of a
+    /// `Boundaries::UNIT` (the units costs are written in): a gap costs
+    /// `-score * scale / MICRO`, truncated toward zero, never more than
+    /// zero.
+    pub scale: u32,
     /// A gap at the bottom of a valley that scores at least this, in
     /// millionths, gives `Cut::TopicShift` as its reason.
     pub shift: u32,
 }
 
 impl Default for Drift {
-    /// Untuned: these wait on the evaluation harness. A full depth of 0.5
-    /// takes a plain sentence boundary's unit off the gap.
+    /// Untuned: these wait on the evaluation harness. A scale of 2000
+    /// makes a depth of 0.5 take a plain sentence boundary's
+    /// `Boundaries::UNIT` (1000) off the gap.
     fn default() -> Drift {
         Drift {
-            window: 3,
+            window: NonZeroU32::new(3).expect("not zero"),
             smoothing: 1,
             score: Score::Depth,
             floor: 10_000,
-            scale: 2 * Boundaries::UNIT,
+            scale: 2 * Boundaries::UNIT as u32,
             shift: 100_000,
         }
     }
 }
 
 /// The cosine across each gap, in millionths, from the `window` sentences
-/// with a vector on each side; `None` where either side has none, and for
-/// the gap after the last sentence.
-pub fn cosines(sums: &Sums, window: u32) -> Vec<Option<i64>> {
-    let w = window.max(1) as usize;
-    let present = sums.present();
-    (0..sums.len())
+/// with a vector on each side; `None` where either side has fewer, which
+/// includes the gap after the last sentence.
+pub fn cosines(rows: &Rows<'_>, window: NonZeroU32) -> Vec<Option<i64>> {
+    let w = window.get() as usize;
+    let present = rows.present();
+    (0..rows.len())
         .map(|g| {
             let at = present.partition_point(|&p| p as usize <= g);
-            if at == 0 || at == present.len() {
+            if at < w || present.len() - at < w {
                 return None;
             }
-            let left = (present[at.saturating_sub(w)] as usize, g + 1);
-            let right = (g + 1, present[(at + w).min(present.len()) - 1] as usize + 1);
-            let c = sums.cosine(left, right)?;
+            let c = rows.cosine(&present[at - w..at], &present[at..at + w])?;
             Some((c * MICRO as f64).round() as i64)
         })
         .collect()
@@ -131,12 +142,12 @@ fn depths(xs: &[i64]) -> Vec<i64> {
     (0..n).map(|i| left[i] + right[i] - 2 * xs[i]).collect()
 }
 
-/// The drift cost and reason of every gap. A gap with no cosine (no
-/// sentence with a vector on one side, or the end of the text) costs zero
-/// and is a plain `Sentence`; the others are smoothed and scored among
-/// themselves, in order, skipping it.
-pub fn drift(sums: &Sums, d: &Drift) -> (Vec<i32>, Vec<Cut>) {
-    let cos = cosines(sums, d.window);
+/// The drift cost and reason of every gap. A gap with no cosine (fewer
+/// than `window` sentences with a vector on one side) costs zero and is a
+/// plain `Sentence`; the others are smoothed and scored among themselves,
+/// in order, skipping it.
+pub fn drift(rows: &Rows<'_>, d: &Drift) -> (Vec<i32>, Vec<Cut>) {
+    let cos = cosines(rows, d.window);
     let at: Vec<usize> = (0..cos.len()).filter(|&g| cos[g].is_some()).collect();
     let raw: Vec<i64> = at.iter().filter_map(|&g| cos[g]).collect();
     let sm = smooth(&raw, d.smoothing as usize);
@@ -185,7 +196,7 @@ impl Annotator for DriftBoundaries {
                 detail: format!("{} vectors for {} sentences", vectors.len(), sentences.spans.len()),
             });
         }
-        let (cost, reason) = drift(&Sums::of(vectors), &self.drift);
+        let (cost, reason) = drift(&Rows::of(vectors), &self.drift);
         Ok((Boundaries { cost, reason },))
     }
 
@@ -196,11 +207,11 @@ impl Annotator for DriftBoundaries {
             Score::Distance => 2,
         };
         [
-            u64::from(d.window),
+            u64::from(d.window.get()),
             u64::from(d.smoothing),
             score,
             u64::from(d.floor),
-            d.scale as u32 as u64,
+            u64::from(d.scale),
             u64::from(d.shift),
         ]
         .iter()
@@ -218,7 +229,7 @@ mod tests {
     }
 
     fn run(data: &[f32], dim: usize, empty: &[usize], d: &Drift) -> (Vec<i32>, Vec<Cut>) {
-        drift(&Sums::new(dim, data, |i| empty.contains(&i)), d)
+        drift(&Rows::new(dim, data, |i| empty.contains(&i)), d)
     }
 
     /// The gap of least cost, the earliest of equals.
@@ -252,6 +263,8 @@ mod tests {
         let distance = Drift { score: Score::Distance, floor: 0, ..Drift::default() };
         let (cost, _) = run(&angles(&deg), 2, &[], &distance);
         assert!(cost[3..26].iter().all(|&c| c < 0 && c == cost[10]), "{cost:?}");
+        // Only gaps with three sentences on each side are scored.
+        assert!(cost[..2].iter().chain(&cost[27..]).all(|&c| c == 0), "{cost:?}");
     }
 
     #[test]
@@ -259,13 +272,19 @@ mod tests {
         // One sentence at 90 degrees among sentences at 0.
         let mut deg = vec![0.0; 15];
         deg[7] = 90.0;
-        let (cost, _) = run(&angles(&deg), 2, &[], &Drift::default());
-        // The cheapest gaps cost under a unit, so with structure's unit
-        // per sentence gap, two cuts to set it apart are never free.
+        let (cost, reason) = run(&angles(&deg), 2, &[], &Drift::default());
+        // The cheapest gaps cost under half a unit, so with structure's
+        // unit per sentence gap, two cuts to set it apart are never free.
         assert!(cost.iter().all(|&c| c > -Boundaries::UNIT / 2), "{cost:?}");
+        // Its dip still passes the default `shift`, so the first gap of
+        // the flat bottom is named a topic shift; the cost decides.
+        let shifts: Vec<usize> = (0..15).filter(|&g| reason[g] == Cut::TopicShift).collect();
+        assert_eq!(shifts, [5]);
+        let least = *cost.iter().min().unwrap();
+        assert!((-450..=-400).contains(&least), "{least}");
         // Comparing single sentences, as a window of one does, makes both
         // sides of the outlier a full-depth valley.
-        let single = Drift { window: 1, smoothing: 0, ..Drift::default() };
+        let single = Drift { window: NonZeroU32::MIN, smoothing: 0, ..Drift::default() };
         let (cost, reason) = run(&angles(&deg), 2, &[], &single);
         assert!(cost[6] <= -Boundaries::UNIT && cost[7] <= -Boundaries::UNIT, "{cost:?}");
         assert_eq!(reason[6], Cut::TopicShift);
@@ -287,7 +306,31 @@ mod tests {
         };
         assert!(!alone(&Drift::default()));
         // Single-sentence windows make both of its gaps cheap enough.
-        assert!(alone(&Drift { window: 1, smoothing: 0, ..Drift::default() }));
+        assert!(alone(&Drift { window: NonZeroU32::MIN, smoothing: 0, ..Drift::default() }));
+    }
+
+    #[test]
+    fn an_outlier_at_either_end_is_not_set_apart() {
+        use crate::weigh::{Weight, weigh};
+        use crate::{Budget, Lengths, segment};
+        let l = Lengths::of(&[100; 15]).unwrap();
+        let b = Budget { max: 600, target: 500, size_weight: 1000, overhead: 0 };
+        let structure = Boundaries { cost: vec![Boundaries::UNIT; 15], reason: vec![Cut::Sentence; 15] };
+        for odd in [0, 14] {
+            let mut deg = vec![0.0; 15];
+            deg[odd] = 90.0;
+            let (cost, reason) = run(&angles(&deg), 2, &[], &Drift::default());
+            // No deeper than a middle outlier's dip. The first or last
+            // scored gap, whose window still holds the outlier, has a
+            // shallow dip, which passes the default `shift`.
+            assert!(cost.iter().all(|&c| c > -Boundaries::UNIT / 2), "{odd}: {cost:?}");
+            assert!(cost[..2].iter().chain(&cost[12..]).all(|&c| c == 0), "{odd}: {cost:?}");
+            let least = *cost.iter().min().unwrap();
+            assert!((-250..=-180).contains(&least), "{odd}: {least}");
+            let w = weigh(&structure, &Boundaries { cost, reason }, (Weight::ONE, Weight::ONE)).unwrap();
+            let segments = segment(&w.cost, |i, j| l.run(i, j), b, crate::no_term);
+            assert!(segments.iter().all(|s| s.end - s.start > 1), "{odd}: {segments:?}");
+        }
     }
 
     #[test]

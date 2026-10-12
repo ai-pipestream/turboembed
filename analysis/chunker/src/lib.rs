@@ -23,7 +23,7 @@ pub use boundaries::{Costs, StructureBoundaries};
 pub use cohesion::{Cohesion, CohesiveChunker};
 pub use drift::{Drift, DriftBoundaries, Score, drift};
 pub use providers::{DriftProvider, StructureBoundariesProvider, WeighProvider};
-pub use sums::Sums;
+pub use sums::{Rows, Sums};
 pub use weigh::{DRIFT, STRUCTURE, WeighBoundaries, Weight, weigh};
 
 pub mod terms;
@@ -229,7 +229,7 @@ impl Annotator for Chunker {
     type Writes = (Chunks,);
 
     fn annotate(&self, (sentences, subwords, bounds, structure): Refs<'_, Self>) -> Result<(Chunks,), Error> {
-        Ok((self.chunk(Self::ID, sentences, subwords, bounds, structure, &no_term)?,))
+        Ok((self.chunk(Self::ID, sentences, subwords, bounds, structure, |_| no_term)?,))
     }
 
     fn config_hash(&self) -> u64 {
@@ -241,16 +241,18 @@ impl Annotator for Chunker {
 }
 
 impl Chunker {
-    /// The chunks, with `term(i, j)` the chunk term of sentences `[i, j)`;
-    /// `id` names the step in errors.
-    pub(crate) fn chunk(
+    /// The chunks. `term(run)` makes the chunk term of each run the
+    /// optimizer cuts on its own (a top-level section), so what it needs
+    /// is built for one run at a time; it is called with the sentences
+    /// `[i, j)` of a chunk. `id` names the step in errors.
+    pub(crate) fn chunk<T: Fn(usize, usize) -> i64>(
         &self,
         id: &'static str,
         sentences: &Sentences,
         subwords: &Subwords,
         bounds: &Boundaries,
         structure: Option<&Structure>,
-        term: &dyn Fn(usize, usize) -> i64,
+        term: impl Fn(Range<usize>) -> T,
     ) -> Result<Chunks, Error> {
         let view = sentences.spans.view();
         if subwords.spans.view() != view || structure.is_some_and(|s| s.spans.view() != view) {
@@ -302,6 +304,7 @@ impl Chunker {
             // The optimizer's units are the atoms: sentence `at[k].0` up
             // to `at[k + 1].0`.
             let at = limits::atoms(&limits, run.clone(), |r| size(r) > u64::from(b.max));
+            let term = term(run.clone());
             let cut: Vec<i32> = at[1..].iter().map(|&(e, _)| bounds.cost[e - 1]).collect();
             for s in segment(&cut, |i, j| lengths.run(at[i].0, at[j].0), b, |i, j| term(at[i].0, at[j].0)) {
                 let r = at[s.start].0..at[s.end].0;

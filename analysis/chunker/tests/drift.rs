@@ -4,7 +4,7 @@
 use turbo_analysis::annotate::Step;
 use turbo_analysis::registry::{Registry, Spec};
 use turbo_analysis::*;
-use turbo_analysis_layers::{Boundaries, Chunks, Cut, Sentences, Subwords, Vectors};
+use turbo_analysis_layers::{Block, Boundaries, Chunks, Cut, Sentences, Structure, Subwords, Vectors};
 use turbo_chunker::{
     Budget, Chunker, Cohesion, CohesiveChunker, DriftProvider, StructureBoundariesProvider, WeighProvider,
 };
@@ -74,7 +74,8 @@ fn drift_weighed_with_structure_moves_the_cut_to_the_topic_shift() {
 
     let steps = [
         ("structure-boundaries", Spec::default().with("instance", "structure")),
-        ("drift-boundaries", Spec::default()),
+        // Two sentences on each side: the shift is after the second.
+        ("drift-boundaries", Spec::default().with("window", "2")),
         ("weigh-boundaries", Spec::default().with("drift", "1000")),
     ];
     let weighed = registry().pipeline(&steps, |b| given(b).add(Chunker { budget: BUDGET })).unwrap();
@@ -98,7 +99,11 @@ fn the_providers_refuse_what_they_do_not_know() {
     assert!(r.select("drift-boundaries", &Spec::default().with("windwo", "3")).is_err());
     assert!(r.create("drift-boundaries", &Spec::default().with("window", "three")).is_err());
     assert!(r.create("drift-boundaries", &Spec::default().with("score", "percentile")).is_err());
-    assert!(r.create("drift-boundaries", &Spec::default().with("score", "distance").with("scale", "-5")).is_ok());
+    assert!(r.create("drift-boundaries", &Spec::default().with("score", "distance").with("scale", "5")).is_ok());
+    // Drift only ever lowers a cost, and a window holds a sentence.
+    assert!(r.create("drift-boundaries", &Spec::default().with("scale", "-5")).is_err());
+    assert!(r.create("drift-boundaries", &Spec::default().with("window", "0")).is_err());
+    assert!(r.create("drift-boundaries", &Spec::default().with("window", "1")).is_ok());
     assert!(r.create("weigh-boundaries", &Spec::default().with("drift", "1.5")).is_err());
     assert!(r.select("structure-boundaries", &Spec::default().with("instance", "drift")).is_err());
 }
@@ -122,4 +127,50 @@ fn the_cohesive_chunker_cuts_where_the_vectors_part() {
     assert_eq!(texts(&docs[0]), ["Cats purr. Cats nap.", "Rust compiles. Rust checks. Rust ships. Rust runs."]);
     // The term is in the chunk's cost: none, for chunks that do not spread.
     assert_eq!(docs[0].get::<Chunks>().unwrap().cost, [1000 + 111, 111]);
+}
+
+#[test]
+fn cohesion_is_summed_within_each_section() {
+    // Two sections; in the second, two sentences point one way and two
+    // the other. Flat boundaries keep its 12 tokens one chunk; cohesion
+    // splits it where the vectors turn.
+    let mut doc = document();
+    let n = 6;
+    let flat = Boundaries { cost: vec![Boundaries::UNIT; n], reason: vec![Cut::Sentence; n] };
+    doc.add(&Key::DEFAULT, flat, Provenance::by("t")).unwrap();
+    let data = vec![1.0, 0.0, 1.0, 0.0, 0.0, 1.0, 0.0, 1.0, 1.0, 0.0, 1.0, 0.0];
+    doc.add(&Key::named("turned"), Vectors::<Sentences>::new(2, data, Vec::new(), toy_model()), Provenance::by("t"))
+        .unwrap();
+    let mut spans = Spans::new(ViewId::SOURCE);
+    spans.push(Span::new(0, 20));
+    spans.push(Span::new(21, 71));
+    let st = Structure { spans, kind: vec![Block::Section; 2], parent: vec![None; 2], depth: vec![1; 2] };
+    doc.add(&Key::DEFAULT, st, Provenance::by("parser")).unwrap();
+    let level0 = |cohesion: Option<Cohesion>| {
+        let b = Analyzer::builder()
+            .given(Key::<Sentences>::DEFAULT)
+            .given(Key::<Subwords>::DEFAULT)
+            .given(Key::<Vectors<Sentences>>::named("turned"))
+            .given(Key::<Boundaries>::DEFAULT)
+            .given(Key::<Structure>::DEFAULT);
+        let a = match cohesion {
+            Some(cohesion) => {
+                b.step(Bound::new(CohesiveChunker { chunker: Chunker { budget: BUDGET }, cohesion }).read(4, "turned"))
+            }
+            None => b.add(Chunker { budget: BUDGET }),
+        };
+        let mut docs = vec![doc.clone()];
+        assert!(a.build().unwrap().run(&mut docs)[0].is_ok());
+        let c = docs[0].get::<Chunks>().unwrap();
+        c.spans
+            .iter()
+            .filter(|(i, _)| c.level[i.get()] == 0)
+            .map(|(_, s)| TEXT[s.range()].to_owned())
+            .collect::<Vec<_>>()
+    };
+    assert_eq!(level0(None), ["Cats purr. Cats nap.", "Rust compiles. Rust checks. Rust ships. Rust runs."]);
+    assert_eq!(
+        level0(Some(Cohesion::default())),
+        ["Cats purr. Cats nap.", "Rust compiles. Rust checks.", "Rust ships. Rust runs."]
+    );
 }

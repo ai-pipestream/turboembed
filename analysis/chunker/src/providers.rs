@@ -55,9 +55,12 @@ impl Provider<dyn Step> for StructureBoundariesProvider {
 }
 
 /// Offers `DriftBoundaries` as "drift-boundaries", writing the `drift`
-/// instance. Options, each defaulting to `Drift::default()`: `window`,
-/// `smoothing`, `floor` and `shift` (whole numbers), `scale` (an integer
-/// number of units) and `score` (`depth` or `distance`).
+/// instance. Options, each defaulting to `Drift::default()`: `window` (a
+/// whole number of sentences, at least one), `smoothing` (a whole number
+/// of gaps), `floor` and `shift` (whole millionths of a cosine), `scale`
+/// (whole thousandths of a `Boundaries::UNIT`, what a score of one takes
+/// off a gap) and `score` (`depth` or `distance`). A negative number is
+/// refused, as is a window of zero.
 pub struct DriftProvider;
 
 impl Provider<dyn Step> for DriftProvider {

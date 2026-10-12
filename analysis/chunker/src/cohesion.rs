@@ -8,7 +8,8 @@
 //! `m - |S|`: zero when all its sentences point the same way, up to m when
 //! they cancel. The running sums of `Sums` give S for any chunk in one
 //! pass over the dimensions, whatever its length, so the optimizer's time
-//! is its usual count of chunks tried times the dimension.
+//! is its usual count of chunks tried times the dimension. They are built
+//! for one run (a top-level section) at a time.
 //!
 //! Splitting a chunk never raises the total (|A| + |B| >= |A + B|), and
 //! lowers it by exactly how much the two parts point apart. So the term
@@ -18,28 +19,30 @@
 use turbo_analysis::{Annotator, Error, Layer, Refs};
 use turbo_analysis_layers::{Boundaries, Chunks, Sentences, Structure, Subwords, Vectors};
 
-use crate::sums::Sums;
+use crate::sums::{Rows, Sums};
 use crate::{Chunker, TERM_MAX};
 
 /// What a chunk pays for its spread.
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub struct Cohesion {
     /// What a sentence at right angles to its chunk's centroid costs, in
-    /// `Boundaries::UNIT`s; a sentence at the centroid costs nothing.
-    pub weight: i32,
+    /// thousandths of a `Boundaries::UNIT` (the units costs are written
+    /// in); a sentence at the centroid costs nothing.
+    pub weight: u32,
 }
 
 impl Default for Cohesion {
     /// Untuned: a sentence at right angles to its chunk costs as much as
-    /// a plain sentence boundary.
+    /// a plain sentence boundary, 1000.
     fn default() -> Cohesion {
-        Cohesion { weight: Boundaries::UNIT }
+        Cohesion { weight: Boundaries::UNIT as u32 }
     }
 }
 
 impl Cohesion {
-    /// The term of sentences `[i, j)`: `weight * (m - |S|)`, rounded to
-    /// the nearest unit, halves away from zero, and clamped to `TERM_MAX`.
+    /// The term of sentences `[i, j)`: `weight * (m - |S|)`, computed in
+    /// f64, rounded once to the nearest integer, halves away from zero,
+    /// and clamped to `TERM_MAX`.
     pub fn term(&self, sums: &Sums, i: usize, j: usize) -> i64 {
         let spread = (f64::from(sums.count(i, j)) - sums.norm(i, j)).max(0.0);
         let t = (spread * f64::from(self.weight)).round();
@@ -72,14 +75,18 @@ impl Annotator for CohesiveChunker {
                 detail: format!("{} vectors for {} sentences", vectors.len(), sentences.spans.len()),
             });
         }
-        let sums = Sums::of(vectors);
-        let term = |i: usize, j: usize| self.cohesion.term(&sums, i, j);
-        Ok((self.chunker.chunk(Self::ID, sentences, subwords, bounds, structure, &term)?,))
+        let rows = Rows::of(vectors);
+        let c = self.cohesion;
+        let term = |run: std::ops::Range<usize>| {
+            let sums = Sums::new(&rows, run.clone());
+            move |i: usize, j: usize| c.term(&sums, i - run.start, j - run.start)
+        };
+        Ok((self.chunker.chunk(Self::ID, sentences, subwords, bounds, structure, term)?,))
     }
 
     fn config_hash(&self) -> u64 {
         let h = self.chunker.config_hash();
-        (h ^ u64::from(self.cohesion.weight as u32)).wrapping_mul(0x0100_0000_01b3)
+        (h ^ u64::from(self.cohesion.weight)).wrapping_mul(0x0100_0000_01b3)
     }
 }
 
@@ -139,7 +146,7 @@ mod tests {
         for case in 0..300 {
             let (n, dim) = (1 + rng.next(12) as usize, 1 + rng.next(9) as usize);
             let (data, empty) = rng.vectors(n, dim);
-            let sums = Sums::new(dim, &data, |k| empty.contains(&k));
+            let sums = Sums::new(&Rows::new(dim, &data, |k| empty.contains(&k)), 0..n);
             for i in 0..n {
                 for j in i + 1..=n {
                     let want = direct(&data, dim, &empty, i, j);
@@ -157,7 +164,7 @@ mod tests {
     fn a_tight_chunk_costs_nothing_and_two_clusters_cost_their_angle() {
         // Three vectors one way, three at right angles, and an empty row.
         let data = [1.0, 0.0, 2.0, 0.0, 0.5, 0.0, 0.0, 0.0, 0.0, 3.0, 0.0, 1.0, 0.0, 1.0];
-        let sums = Sums::new(2, &data, |k| k == 3);
+        let sums = Sums::new(&Rows::new(2, &data, |k| k == 3), 0..7);
         let c = Cohesion::default();
         assert_eq!((c.term(&sums, 0, 3), c.term(&sums, 4, 7), c.term(&sums, 0, 4)), (0, 0, 0));
         // Six sentences, the sum of length sqrt(18): 6 - 4.243 units.
@@ -173,8 +180,8 @@ mod tests {
             let n = 1 + rng.next(10) as usize;
             let dim = 1 + rng.next(4) as usize;
             let (data, empty) = rng.vectors(n, dim);
-            let sums = Sums::new(dim, &data, |k| empty.contains(&k));
-            let c = Cohesion { weight: rng.next(3000) as i32 };
+            let sums = Sums::new(&Rows::new(dim, &data, |k| empty.contains(&k)), 0..n);
+            let c = Cohesion { weight: rng.next(3000) as u32 };
             let tokens: Vec<u32> = (0..n).map(|_| rng.next(60) as u32).collect();
             let cut: Vec<i32> = (0..n).map(|_| rng.next(3001) as i32 - 1000).collect();
             let b = Budget {
@@ -204,7 +211,7 @@ mod tests {
         };
         assert_eq!(ends(&crate::no_term), [3, 6]);
         let data = [1.0, 0.0, 1.0, 0.0, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0];
-        let sums = Sums::new(2, &data, |_| false);
+        let sums = Sums::new(&Rows::new(2, &data, |_| false), 0..6);
         let c = Cohesion::default();
         assert_eq!(ends(&|i, j| c.term(&sums, i, j)), [2, 6]);
     }
