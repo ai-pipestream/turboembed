@@ -4,7 +4,8 @@
 
 use turbo_analysis::{Layer, ViewId};
 use turbo_analysis_layers::{
-    Confidence, Entities, Language, Lemmas, Money, Numbers, PosTags, Quantities, Sentences, Strs, Tokens, Utf16Spans,
+    Confidence, Entities, Language, Lemmas, Money, Numbers, PosTags, Quantities, Sentences, Strs, Subwords, Tokens,
+    Utf16Spans,
 };
 
 use super::{CutCol, Items, Labels, Names, SpanCols, TokenCols, UnitCols, compare_items};
@@ -264,6 +265,29 @@ impl GoldenCompare for Language {
             values: Some(f64s(golden, "confidence")),
         };
         compare_items(cx, &rust, &golden, Names { label: Some("code"), value: Some("confidence") }, tol)
+    }
+}
+
+impl GoldenCompare for Subwords {
+    const COLUMNS: &'static [ColumnSpec] = &[SPAN[0], SPAN[1], ColumnSpec::new("id", U32)];
+
+    /// The span, then the vocabulary id, compared as decimal text so a
+    /// report shows both. The golden has no token column: the pieces'
+    /// word tokens are this crate's own alignment, not the JVM's.
+    fn compare(&self, cx: &Cx<'_>, golden: &GoldenLayer, tol: Tolerance) -> Result<(), Mismatch> {
+        let mut ours = Strs::default();
+        for id in &self.ids {
+            ours.push(&id.to_string());
+        }
+        let mut theirs = Strs::default();
+        for id in u32s(golden, "id") {
+            theirs.push(&id.to_string());
+        }
+        let mut rust = spans_only(self);
+        rust.labels = Some(Labels::Strs(&ours));
+        let mut golden = golden_spans_only(golden);
+        golden.labels = Some(Labels::Strs(&theirs));
+        compare_items(cx, &rust, &golden, Names { label: Some("id"), value: None }, tol)
     }
 }
 
