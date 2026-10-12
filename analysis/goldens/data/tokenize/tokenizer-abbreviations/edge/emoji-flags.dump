@@ -1,0 +1,308 @@
+dump 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	edge/emoji-flags	50	32	b322415aacd6335bcb52b5f337296ec760bd4f0369a6af7b30317f0340b8a015
+model	tokenizer-abbreviations.bin	361484f0a67e129fe6f19908704d23e83c8a2bf4551a5f7eec3b40b9082a66b7026d429233c11639b35bccf042d347d79222cfed62685563f2a926cb8a2460d4
+annotator	opennlp.tools.tokenize.TokenizerME	tokenizePos
+point	0	1	12	2	0	none
+context	p=F
+context	s=lags
+context	p1=F
+context	p1_alpha
+context	p1_caps
+context	p2=bok
+context	p1f1=Fl
+context	f1=l
+context	f1_alpha
+context	f2=a
+context	f2_alpha
+context	f12=la
+outcome	F	3fef857c17d93f24 0.985044523791633
+outcome	T	3f8ea0fa09b036d0 0.01495547620836693
+end	0
+point	1	2	14	2	0	none
+context	p=Fl
+context	s=ags
+context	p1=l
+context	p1_alpha
+context	p2=F
+context	p2_alpha
+context	p2_caps
+context	p21=Fl
+context	p1f1=la
+context	f1=a
+context	f1_alpha
+context	f2=g
+context	f2_alpha
+context	f12=ag
+outcome	F	3fef7a189cb0df8c 0.9836543140763623
+outcome	T	3f90bcec69e40e80 0.01634568592363772
+end	1
+point	2	3	13	2	0	none
+context	p=Fla
+context	s=gs
+context	p1=a
+context	p1_alpha
+context	p2=l
+context	p2_alpha
+context	p21=la
+context	p1f1=ag
+context	f1=g
+context	f1_alpha
+context	f2=s
+context	f2_alpha
+context	f12=gs
+outcome	F	3feefb6040a8985d 0.9681855452406684
+outcome	T	3fa049fbf5767a29 0.0318144547593316
+end	2
+point	3	4	11	2	0	none
+context	p=Flag
+context	s=s
+context	p1=g
+context	p1_alpha
+context	p2=a
+context	p2_alpha
+context	p21=ag
+context	p1f1=gs
+context	f1=s
+context	f1_alpha
+context	f2=bok
+outcome	F	3feeedb312b69253 0.9665160527698141
+outcome	T	3fa124ced496dad9 0.03348394723018595
+end	3
+point	4	6	8	2	1	none
+context	p=\ud83c
+context	s=\udde9🇪🇫🇷🇺🇸
+context	p1=\ud83c
+context	p2=bok
+context	p1f1=🇩
+context	f1=\udde9
+context	f2=\ud83c
+context	f12=\udde9\ud83c
+outcome	F	3fe52e739fe7838f 0.6619203684932574
+outcome	T	3fd5a318c030f8e2 0.3380796315067426
+end	4
+point	5	10	9	2	0	none
+context	p=🇩
+context	s=🇪🇫🇷🇺🇸
+context	p1=\udde9
+context	p2=\ud83c
+context	p21=🇩
+context	p1f1=\udde9\ud83c
+context	f1=\ud83c
+context	f2=\uddea
+context	f12=🇪
+outcome	F	3fe0000000000000 0.5
+outcome	T	3fe0000000000000 0.5
+end	5
+point	6	10	9	2	1	none
+context	p=🇩\ud83c
+context	s=\uddea🇫🇷🇺🇸
+context	p1=\ud83c
+context	p2=\udde9
+context	p21=\udde9\ud83c
+context	p1f1=🇪
+context	f1=\uddea
+context	f2=\ud83c
+context	f12=\uddea\ud83c
+outcome	F	3fe0000000000000 0.5
+outcome	T	3fe0000000000000 0.5
+end	6
+point	7	14	9	2	0	none
+context	p=🇩🇪
+context	s=🇫🇷🇺🇸
+context	p1=\uddea
+context	p2=\ud83c
+context	p21=🇪
+context	p1f1=\uddea\ud83c
+context	f1=\ud83c
+context	f2=\uddeb
+context	f12=🇫
+outcome	F	3fe0000000000000 0.5
+outcome	T	3fe0000000000000 0.5
+end	7
+point	8	14	9	2	1	none
+context	p=🇩🇪\ud83c
+context	s=\uddeb🇷🇺🇸
+context	p1=\ud83c
+context	p2=\uddea
+context	p21=\uddea\ud83c
+context	p1f1=🇫
+context	f1=\uddeb
+context	f2=\ud83c
+context	f12=\uddeb\ud83c
+outcome	F	3fe0000000000000 0.5
+outcome	T	3fe0000000000000 0.5
+end	8
+point	9	18	9	2	0	none
+context	p=🇩🇪🇫
+context	s=🇷🇺🇸
+context	p1=\uddeb
+context	p2=\ud83c
+context	p21=🇫
+context	p1f1=\uddeb\ud83c
+context	f1=\ud83c
+context	f2=\uddf7
+context	f12=🇷
+outcome	F	3fe0000000000000 0.5
+outcome	T	3fe0000000000000 0.5
+end	9
+point	10	18	9	2	1	none
+context	p=🇩🇪🇫\ud83c
+context	s=\uddf7🇺🇸
+context	p1=\ud83c
+context	p2=\uddeb
+context	p21=\uddeb\ud83c
+context	p1f1=🇷
+context	f1=\uddf7
+context	f2=\ud83c
+context	f12=\uddf7\ud83c
+outcome	F	3fe0000000000000 0.5
+outcome	T	3fe0000000000000 0.5
+end	10
+point	11	22	9	2	0	none
+context	p=🇩🇪🇫🇷
+context	s=🇺🇸
+context	p1=\uddf7
+context	p2=\ud83c
+context	p21=🇷
+context	p1f1=\uddf7\ud83c
+context	f1=\ud83c
+context	f2=\uddfa
+context	f12=🇺
+outcome	F	3fe0000000000000 0.5
+outcome	T	3fe0000000000000 0.5
+end	11
+point	12	22	9	2	1	none
+context	p=🇩🇪🇫🇷\ud83c
+context	s=\uddfa🇸
+context	p1=\ud83c
+context	p2=\uddf7
+context	p21=\uddf7\ud83c
+context	p1f1=🇺
+context	f1=\uddfa
+context	f2=\ud83c
+context	f12=\uddfa\ud83c
+outcome	F	3fe0000000000000 0.5
+outcome	T	3fe0000000000000 0.5
+end	12
+point	13	26	9	2	0	none
+context	p=🇩🇪🇫🇷🇺
+context	s=🇸
+context	p1=\uddfa
+context	p2=\ud83c
+context	p21=🇺
+context	p1f1=\uddfa\ud83c
+context	f1=\ud83c
+context	f2=\uddf8
+context	f12=🇸
+outcome	F	3fe0000000000000 0.5
+outcome	T	3fe0000000000000 0.5
+end	13
+point	14	26	8	2	1	none
+context	p=🇩🇪🇫🇷🇺\ud83c
+context	s=\uddf8
+context	p1=\ud83c
+context	p2=\uddfa
+context	p21=\uddfa\ud83c
+context	p1f1=🇸
+context	f1=\uddf8
+context	f2=bok
+outcome	F	3fdadb3ec49305c2 0.41963166424474363
+outcome	T	3fe292609db67d20 0.5803683357552565
+end	14
+point	15	32	11	2	0	none
+context	p=a
+context	s=nd
+context	p1=a
+context	p1_alpha
+context	p2=bok
+context	p1f1=an
+context	f1=n
+context	f1_alpha
+context	f2=d
+context	f2_alpha
+context	f12=nd
+outcome	F	3fef8542717ec630 0.9850170342162468
+outcome	T	3f8eaf63a04e73d4 0.014982965783753167
+end	15
+point	16	33	11	2	0	none
+context	p=an
+context	s=d
+context	p1=n
+context	p1_alpha
+context	p2=a
+context	p2_alpha
+context	p21=an
+context	p1f1=nd
+context	f1=d
+context	f1_alpha
+context	f2=bok
+outcome	F	3fec0b299e30f556 0.8763626184151387
+outcome	T	3fbfa6b30e78554b 0.12363738158486119
+end	16
+point	17	35	8	2	1	none
+context	p=\ud83c
+context	s=\uddef🇵x
+context	p1=\ud83c
+context	p2=bok
+context	p1f1=🇯
+context	f1=\uddef
+context	f2=\ud83c
+context	f12=\uddef\ud83c
+outcome	F	3fe52e739fe7838f 0.6619203684932574
+outcome	T	3fd5a318c030f8e2 0.3380796315067426
+end	17
+point	18	39	9	2	0	none
+context	p=🇯
+context	s=🇵x
+context	p1=\uddef
+context	p2=\ud83c
+context	p21=🇯
+context	p1f1=\uddef\ud83c
+context	f1=\ud83c
+context	f2=\uddf5
+context	f12=🇵
+outcome	F	3fe0000000000000 0.5
+outcome	T	3fe0000000000000 0.5
+end	18
+point	19	39	10	2	1	none
+context	p=🇯\ud83c
+context	s=\uddf5x
+context	p1=\ud83c
+context	p2=\uddef
+context	p21=\uddef\ud83c
+context	p1f1=🇵
+context	f1=\uddf5
+context	f2=x
+context	f2_alpha
+context	f12=\uddf5x
+outcome	F	3fe4f046b962d01f 0.6543305989093858
+outcome	T	3fd61f728d3a5fc2 0.34566940109061417
+end	19
+point	20	43	9	2	0	none
+context	p=🇯🇵
+context	s=x
+context	p1=\uddf5
+context	p2=\ud83c
+context	p21=🇵
+context	p1f1=\uddf5x
+context	f1=x
+context	f1_alpha
+context	f2=bok
+outcome	F	3fea440220e2acc9 0.8208017961782385
+outcome	T	3fc6eff77c754cdc 0.17919820382176155
+end	20
+point	21	45	7	2	1	none
+context	p=\ud83c
+context	s=\udde9
+context	p1=\ud83c
+context	p2=bok
+context	p1f1=🇩
+context	f1=\udde9
+context	f2=bok
+outcome	F	3fe2c0c256d5702b 0.5860301681491412
+outcome	T	3fda7e7b52551fab 0.41396983185085884
+end	21

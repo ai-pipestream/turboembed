@@ -1,0 +1,96 @@
+dump 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	edge/quotes-brackets	139	127	0ddef673358aac174b9cf1cbd5157e01eb8bc8e78395b51f7a218e42c177ed7b
+model	opennlp-pt-ud-gsd-sentence-1.3-2.5.4.bin	0c0390b36530ce9807e9f3d69cfd09524d965506dbb6e2aab2f34556c8858903d538433b828e1f6ed7eaca92f336a04be83461a45b28b177d01ba372fafa35f8
+annotator	opennlp.tools.sentdetect.SentenceDetectorME	sentPosDetect
+point	0	9	7	2	0	none
+context	sp
+context	eos="
+context	x=
+context	v=said,
+context	s=Stop
+context	scap
+context	n="
+outcome	s	3eea994f5f4aaf3b 1.2683328330119147E-5
+outcome	n	3fefffe566b0a0b6 0.99998731667167
+end	0
+point	1	15	7	2	0	none
+context	sn
+context	eos="
+context	x=!
+context	1
+context	v="Stop
+context	s=
+context	n=and
+outcome	s	3feacd9068e3b79a 0.8375932739852374
+outcome	n	3fc4c9be5c712197 0.16240672601476255
+acceptable	1
+end	1
+point	2	33	7	2	0	none
+context	sp
+context	eos='
+context	x=
+context	v=replied
+context	s=No
+context	scap
+context	n='
+outcome	s	3edea5eab435abc2 7.307079445832472E-6
+outcome	n	3feffff0ad0aa5e5 0.9999926929205541
+end	2
+point	3	37	7	2	0	none
+context	sn
+context	eos='
+context	x=.
+context	1
+context	v='No
+context	s=
+context	n=[See
+outcome	s	3fdbaa399c59030c 0.43226471203165384
+outcome	n	3fe22ae331d37e7a 0.5677352879683462
+end	3
+point	4	51	6	2	0	none
+context	eos=)
+context	x=(a
+context	2
+context	v=
+context	s=]
+context	n={x:
+outcome	s	3eb328cdd407534e 1.1419886761694005E-6
+outcome	n	3feffffd9ae6457f 0.9999988580113238
+end	4
+point	5	56	7	2	0	none
+context	sn
+context	eos=:
+context	x={x
+context	2
+context	v=(a)]
+context	s=
+context	n=1}
+outcome	s	3f7677e3b209e613 0.005485429225353683
+outcome	n	3fefd310389bec34 0.9945145707746463
+end	5
+point	6	110	6	2	0	none
+context	eos=(
+context	x=(
+context	1
+context	v=
+context	s=nested
+context	n=[mixed
+outcome	s	3f4feecab2a0166c 9.745111212857266E-4
+outcome	n	3feff8044d5357fb 0.9990254888787143
+end	6
+point	7	137	7	2	0	none
+context	sn
+context	eos=)
+context	x=)
+context	1
+context	v={brackets}]
+context	s=
+context	n=
+outcome	s	3fea186ca8aaa5c0 0.8154815000790947
+outcome	n	3fc79e4d5d5568ff 0.18451849992090527
+acceptable	1
+end	7

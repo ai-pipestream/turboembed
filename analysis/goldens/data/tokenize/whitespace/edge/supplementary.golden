@@ -1,0 +1,22 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	edge/supplementary	98	76	ccf9ecafa95f1e9d3891e47badd0ef6b83a8a2b02d79d24db46daf0bfa5b387e
+annotator	opennlp.tools.tokenize.WhitespaceTokenizer	tokenizePos
+layer	opennlp:tokens	text	13	start:u32	end:u32
+0	5
+6	8
+9	14
+15	24
+25	29
+30	42
+43	55
+56	63
+64	76
+77	82
+83	87
+88	92
+93	97
+end	opennlp:tokens

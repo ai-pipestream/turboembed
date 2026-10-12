@@ -22,6 +22,12 @@ pub fn inputs_dir() -> PathBuf {
     data_dir().join("inputs")
 }
 
+/// `analysis/goldens/data/fixtures`: the checked in models and dictionaries
+/// the generator loads besides the published models.
+pub fn fixtures_dir() -> PathBuf {
+    data_dir().join("fixtures")
+}
+
 /// `analysis/goldens/data/rates`: the rate snapshot the money conversion reads.
 pub fn rates_dir() -> PathBuf {
     data_dir().join(crate::recipe::RATES_DIR)

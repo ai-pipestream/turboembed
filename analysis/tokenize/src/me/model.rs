@@ -253,7 +253,10 @@ mod tests {
 
     #[test]
     fn reads_the_abbreviation_dictionary() {
-        let m = TokenizerModel::read(models().join("tokenizer-abbreviations.bin")).unwrap();
+        // The generator's fixture model, a copy of turbo-maxent's
+        // tests/fixtures/models/tokenizer.bin.
+        let path = Path::new(env!("CARGO_MANIFEST_DIR")).join("../goldens/data/fixtures/tokenizer-abbreviations.bin");
+        let m = TokenizerModel::read(path).unwrap();
         let d = m.abbreviations().unwrap();
         assert_eq!(d.len(), 3);
         assert!(d.contains("dr."));

@@ -1,0 +1,86 @@
+dump 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	edge/numbers	163	163	ac397ed9e560b6c7ea24fb2ad41c9c951a27fd6316ba8de71531a337aca4ae68
+model	opennlp-de-ud-gsd-sentence-1.3-2.5.4.bin	c811604c24cdbe490ab42dcffdbae63f9a74b39622f21b7b31f63eea566ffe35ef871f0da905e61180656b877cf0be4d626588c6312fcc18df5ab9a35b4183fa
+annotator	opennlp.tools.sentdetect.SentenceDetectorME	sentPosDetect
+point	0	7	6	2	0	none
+context	eos=.
+context	x=3
+context	1
+context	v=is
+context	s=14
+context	n=and
+outcome	s	3f730caf3c6a1c58 0.0046507687717457155
+outcome	n	3fefd9e6a1872bc8 0.9953492312282544
+end	0
+point	1	62	6	2	0	none
+context	eos=.
+context	x=2
+context	1
+context	v=was
+context	s=5%
+context	n=(up
+outcome	s	3f89f0bfa6aac440 0.012666222833418783
+outcome	n	3fef983d016554f0 0.9873337771665813
+end	1
+point	2	80	8	2	0	none
+context	sn
+context	eos=.
+context	x=.2%)
+context	4
+context	v=1
+context	s=
+context	n=Call
+context	ncap
+outcome	s	3fe33cbc094f04ad 0.6011638814744821
+outcome	n	3fd98687ed61f6a5 0.39883611852551787
+acceptable	1
+end	2
+point	3	116	8	2	0	none
+context	sn
+context	eos=.
+context	x=555-0199
+context	8
+context	v=(800)
+context	s=
+context	n=Version
+context	ncap
+outcome	s	3feff28edc84e82d 0.9983591372504229
+outcome	n	3f5ae246f62fa5f5 0.0016408627495770854
+acceptable	1
+end	3
+point	4	129	6	2	0	none
+context	eos=.
+context	x=.0
+context	2
+context	v=2
+context	s=1-beta,
+context	n=$4.99,
+outcome	s	3fa7b56e71324e77 0.04630608684342701
+outcome	n	3fee84a918ecdb19 0.953693913156573
+end	4
+point	5	140	6	2	0	none
+context	eos=.
+context	x=$4
+context	2
+context	v=2.0.1-beta,
+context	s=99,
+context	n=10/12/2026,
+outcome	s	3fa7b56e71324e77 0.04630608684342701
+outcome	n	3fee84a918ecdb19 0.953693913156573
+end	5
+point	6	161	7	2	0	none
+context	sn
+context	eos=.
+context	x=3e10
+context	4
+context	v=10/12/2026,
+context	s=
+context	n=
+outcome	s	3feffd4fe3b0143d 0.9996718832995907
+outcome	n	3f3580e27f5e1b86 3.2811670040937995E-4
+acceptable	1
+end	6

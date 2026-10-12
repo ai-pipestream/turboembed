@@ -1,0 +1,45 @@
+dump 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	surrogate/fr-comma-emoji-dollar	6	4	3e8ac095e4265bc9fd3967757b0189e2205f714218a1748741c051a0a4d75a9f
+model	opennlp-en-ud-ewt-tokens-1.3-2.5.4.bin	147d1cdcb89ca5d9bd0ead8fddf2cc14ae543a9151803fe56b3c1fa152b986605e34fb6dda4819c68aa22fc9bffa6bfab14f916b7d0bf4892d452686af34778a
+annotator	opennlp.tools.tokenize.TokenizerME	tokenizePos
+point	0	1	8	2	0	none
+context	p=,
+context	s=😀$
+context	p1=,
+context	p2=bok
+context	p1f1=,\ud83d
+context	f1=\ud83d
+context	f2=\ude00
+context	f12=😀
+outcome	F	3f405072aca5c970 4.978713925949795E-4
+outcome	T	3feffbebe354d68d 0.999502128607405
+end	0
+point	1	1	9	2	1	none
+context	p=,\ud83d
+context	s=\ude00$
+context	p1=\ud83d
+context	p2=,
+context	p21=,\ud83d
+context	p1f1=😀
+context	f1=\ude00
+context	f2=$
+context	f12=\ude00$
+outcome	F	3fe9d97d8aeb3f3a 0.807799121213953
+outcome	T	3fc89a09d453031a 0.19220087878604702
+end	1
+point	2	5	8	2	0	none
+context	p=,😀
+context	s=$
+context	p1=\ude00
+context	p2=\ud83d
+context	p21=😀
+context	p1f1=\ude00$
+context	f1=$
+context	f2=bok
+outcome	F	3fefceb02976ee6b 0.9939804849486341
+outcome	T	3f78a7eb4488ca51 0.006019515051365846
+end	2

@@ -13,6 +13,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.TreeMap;
 import opennlp.tools.ml.maxent.GISModel;
 import opennlp.tools.ml.model.Context;
@@ -49,6 +50,11 @@ class GeneratorTest {
     @Override
     public String method() {
       return "tokenizePos";
+    }
+
+    @Override
+    public Set<String> inputSets() {
+      return Set.of("test");
     }
 
     @Override
@@ -168,7 +174,7 @@ class GeneratorTest {
     try (OutputStream out = Files.newOutputStream(file)) {
       model.serialize(out);
     }
-    TokenGolden tokens = TokenGolden.load(file);
+    TokenGolden tokens = TokenGolden.load(file, Set.of("test"));
     Input in = input("test", "smile", "x \ud83d\ude00!");
     Map<Path, byte[]> files = generate(in, List.of(tokens), List.of(TokenDump.of(tokens)));
     assertEquals(List.of(Path.of("tokenize/t/test/smile.dump"), Path.of("tokenize/t/test/smile.golden")),

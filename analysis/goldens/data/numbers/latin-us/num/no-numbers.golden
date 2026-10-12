@@ -1,7 +1,7 @@
 golden 1
 generator	turbo-goldens-java	1
 opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
-jdk	21.0.12.1	21.0.12.1+1-1-24.04.4-Ubuntu	Ubuntu
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
 unicode	15.0
 input	num/no-numbers	84	84	ee4bb2b92a4ae0b2de743d8efe5b41fe602e431b3a2083ace391109a7daf2369
 annotator	opennlp.tools.extraction.NumberScan	parse

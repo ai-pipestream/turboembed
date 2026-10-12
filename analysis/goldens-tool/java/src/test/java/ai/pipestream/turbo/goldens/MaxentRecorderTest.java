@@ -13,12 +13,16 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import opennlp.tools.dictionary.Dictionary;
 import opennlp.tools.ml.maxent.GISModel;
 import opennlp.tools.ml.model.Context;
 import opennlp.tools.sentdetect.SentenceDetectorFactory;
 import opennlp.tools.sentdetect.SentenceModel;
 import opennlp.tools.tokenize.TokenizerFactory;
 import opennlp.tools.tokenize.TokenizerModel;
+import opennlp.tools.util.StringList;
+import opennlp.tools.util.WhitespaceMode;
 import opennlp.tools.util.model.BaseModel;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -127,7 +131,7 @@ class MaxentRecorderTest {
     char[] eos = {'.'};
     SentenceModel model = new SentenceModel("en", sentenceWeights(), Map.of(),
         new SentenceDetectorFactory("en", true, null, eos));
-    SentenceGolden golden = SentenceGolden.load(save(model, dir.resolve("s.bin")));
+    SentenceGolden golden = SentenceGolden.load(save(model, dir.resolve("s.bin")), WhitespaceMode.UNICODE, Set.of("t"));
     // The full stops are at UTF-16 indices 6 and 14 and at UTF-8 byte offsets 8 and 18.
     Input in = input("Ünï ok. 😀 Yes.");
     AnnotatorDump.Run run = SentenceDump.of(golden).run(in);
@@ -146,7 +150,24 @@ class MaxentRecorderTest {
       assertArrayEquals(plain.getContext(in.text(), utf16[i]), p.contexts());
       assertEquals(0.75, p.outcomes()[0], 1e-15);
       assertEquals(0.25, p.outcomes()[1], 1e-15);
+      // The best outcome is a split, and without a dictionary every break is acceptable.
+      assertEquals(Boolean.TRUE, p.acceptable());
     }
+  }
+
+  @Test
+  void theSentenceDumpRecordsABreakTheAbbreviationDictionaryRefuses(@TempDir Path dir)
+      throws IOException, AnnotatorException {
+    char[] eos = {'.'};
+    Dictionary abbreviations = new Dictionary(false);
+    abbreviations.put(new StringList("ok."));
+    SentenceModel model = new SentenceModel("en", sentenceWeights(), Map.of(),
+        new SentenceDetectorFactory("en", true, abbreviations, eos));
+    SentenceGolden golden = SentenceGolden.load(save(model, dir.resolve("s.bin")), WhitespaceMode.UNICODE, Set.of("t"));
+    AnnotatorDump.Run run = SentenceDump.of(golden).run(input("Ünï ok. 😀 Yes."));
+    assertEquals(2, run.points().size());
+    assertEquals(Boolean.FALSE, run.points().get(0).acceptable());
+    assertEquals(Boolean.TRUE, run.points().get(1).acceptable());
   }
 
   @Test
@@ -157,7 +178,7 @@ class MaxentRecorderTest {
     GISModel weights = new GISModel(new Context[] {new Context(new int[] {0, 1}, new double[] {0.0, 0.0})},
         new String[] {"never"}, new String[] {"F", "T"});
     TokenizerModel model = new TokenizerModel(weights, Map.of(), new TokenizerFactory("en", null, false, null));
-    TokenGolden golden = TokenGolden.load(save(model, dir.resolve("t.bin")));
+    TokenGolden golden = TokenGolden.load(save(model, dir.resolve("t.bin")), Set.of("t"));
     // "x" is too short to be split. The two tokens "a😀" have the same text; each is asked about
     // index 1 (before the emoji) and index 2 (between its halves). "b." is asked about index 1.
     Input in = input("x a😀 b. a😀");

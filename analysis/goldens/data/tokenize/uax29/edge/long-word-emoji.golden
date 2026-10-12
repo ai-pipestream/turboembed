@@ -1,0 +1,17 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	edge/long-word-emoji	299	297	5dbd5bc952a059e356487829312c19b1326aefb63f1d30ac6deff30397496ebb
+annotator	opennlp.tools.tokenize.uax29.WordTokenizer	tokenizeTyped
+layer	opennlp:tokens	text	3	start:u32	end:u32
+0	254
+254	258
+258	298
+end	opennlp:tokens
+layer	turbo:word-types	aligned:opennlp:tokens	3	kind:str
+ALPHANUMERIC
+EMOJI
+ALPHANUMERIC
+end	turbo:word-types

@@ -9,10 +9,13 @@
 //! SHA-512 (`sha`) check input texts and model files. `load_document` and
 //! `load_layer` (`load`) build a document from golden layers, under the
 //! key name `golden`, so one Rust annotator can run on the JVM's own
-//! input layers. docs/analysis.md,
-//! "Golden files", describes the format.
+//! input layers. `Dump::read` (`dump`) parses a decision point dump, the
+//! contexts and probabilities of every maxent decision beside a golden.
+//! docs/analysis.md, "Golden files" and "Decision point dumps", describes
+//! the formats.
 
 pub mod compare;
+pub mod dump;
 pub mod escape;
 pub mod format;
 pub mod hex;
@@ -25,8 +28,9 @@ use std::path::PathBuf;
 
 pub use compare::{
     Cx, GoldenCompare, InputFound, Item, Mismatch, Shape, Tolerance, assert_matches_golden, assert_matches_golden_key,
-    check_input, check_shape, known_shapes, matches_golden, matches_golden_key, shape_of,
+    check_input, check_shape, known_shapes, matches_golden, matches_golden_key, segmentation_shapes, shape_of,
 };
+pub use dump::{Dump, Outcome, Point, Unit};
 pub use format::{
     AnnotatorRef, Column, ColumnData, ColumnSpec, ColumnType, ConfigEntry, Generator, Golden, GoldenAnchor,
     GoldenLayer, Header, Input, Jdk, JvmError, Model, OpenNlp, UnicodeVersion,

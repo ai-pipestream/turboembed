@@ -1,7 +1,8 @@
-//! Fetching the models into a directory and checking their SHA-512.
+//! Fetching the models into a directory and checking their SHA-512, and
+//! checking the SHA-512 of the checked in fixtures.
 
 use crate::command::run;
-use crate::recipe::{MODELS, Model};
+use crate::recipe::{FIXTURES, MODELS, Model};
 use crate::sha512::{Sha512, hex};
 use std::fs::{self, File};
 use std::io::Read;
@@ -40,6 +41,31 @@ pub fn fetch(dir: &Path) -> Result<(), String> {
 /// Checks that every model in the recipe is in `dir` with its published SHA-512.
 pub fn check_all(dir: &Path) -> Result<(), String> {
     MODELS.iter().try_for_each(|m| check(&dir.join(m.file), m))
+}
+
+/// Fails unless `dir` holds exactly the recipe's fixtures, each with its
+/// SHA-512: a fixture changed without the recipe, or a file the recipe does
+/// not list, would make goldens the recipe does not describe.
+pub fn check_fixtures(dir: &Path) -> Result<(), String> {
+    let mut found: Vec<String> = fs::read_dir(dir)
+        .map_err(|e| format!("{}: {e}", dir.display()))?
+        .map(|e| e.map(|e| e.file_name().to_string_lossy().into_owned()))
+        .collect::<Result<_, _>>()
+        .map_err(|e| format!("{}: {e}", dir.display()))?;
+    found.sort();
+    let mut expected: Vec<&str> = FIXTURES.iter().map(|f| f.file).collect();
+    expected.sort();
+    if found != expected {
+        return Err(format!("{} holds {found:?}; the recipe's fixtures are {expected:?}", dir.display()));
+    }
+    for f in FIXTURES {
+        let path = dir.join(f.file);
+        let actual = sha512_file(&path)?;
+        if actual != f.sha512 {
+            return Err(format!("{}: SHA-512 is {actual}, the recipe has {}", path.display(), f.sha512));
+        }
+    }
+    Ok(())
 }
 
 /// Fails unless the file's SHA-512 is the model's.
@@ -84,6 +110,17 @@ mod tests {
             ..m
         };
         check(&path, &ok).unwrap();
+        fs::remove_dir_all(&dir).unwrap();
+    }
+
+    #[test]
+    fn the_checked_in_fixtures_are_the_recipes() {
+        check_fixtures(&crate::paths::fixtures_dir()).unwrap();
+        let dir = std::env::temp_dir().join(format!("turbo-goldens-fixtures-{}", std::process::id()));
+        fs::create_dir_all(&dir).unwrap();
+        fs::write(dir.join("extra.bin"), b"x").unwrap();
+        let err = check_fixtures(&dir).unwrap_err();
+        assert!(err.contains("extra.bin"), "{err}");
         fs::remove_dir_all(&dir).unwrap();
     }
 }

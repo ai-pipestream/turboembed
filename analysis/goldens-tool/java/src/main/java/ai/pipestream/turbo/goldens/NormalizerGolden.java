@@ -3,6 +3,7 @@ package ai.pipestream.turbo.goldens;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Supplier;
 import opennlp.tools.util.normalizer.AccentFoldCharSequenceNormalizer;
 import opennlp.tools.util.normalizer.AlignedText;
@@ -151,8 +152,8 @@ final class NormalizerGolden implements AnnotatorGolden {
   }
 
   @Override
-  public boolean accepts(Input input) {
-    return input.set().equals(INPUT_SET);
+  public Set<String> inputSets() {
+    return Set.of(INPUT_SET);
   }
 
   @Override

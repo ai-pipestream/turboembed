@@ -2,9 +2,10 @@
 //! `DictionaryDetokenizerTest` and `DetokenizationDictionaryTest`, the
 //! dictionary checks, and the English, French and Portuguese dictionaries
 //! against what OpenNLP's `DictionaryDetokenizer` printed for the same
-//! tokens (tests/dictionaries/README.md). Every golden file the JVM wrote
-//! under tests/golden/detokenizer is also run, which holds the cases
-//! written out here to the same values where they overlap.
+//! tokens (analysis/goldens/data/README.md, "Fixtures"). Every golden the
+//! generator wrote under analysis/goldens/data/detokenize is also run,
+//! which holds the cases written out here to the same values where they
+//! overlap.
 
 mod common;
 
@@ -25,7 +26,7 @@ const MATCHING: DictionaryOperation = DictionaryOperation::RightLeftMatching;
 const MARKER: &str = "<SPLIT>";
 
 fn latin() -> DetokenizerDictionary {
-    DetokenizerDictionary::read(include_bytes!("dictionaries/latin-detokenizer.xml")).unwrap()
+    DetokenizerDictionary::read(include_bytes!("../../goldens/data/fixtures/latin-detokenizer.xml")).unwrap()
 }
 
 /// Checks the operations, the text with and without the split marker, and
@@ -241,7 +242,7 @@ fn tokens_compare_exactly() {
 
 #[test]
 fn from_entries_matches_read() {
-    let xml = include_bytes!("dictionaries/en-detokenizer.xml");
+    let xml = include_bytes!("../../goldens/data/fixtures/en-detokenizer.xml");
     let entries = Entries::read(xml).unwrap();
     let a = DetokenizerDictionary::from_entries(&entries).unwrap();
     let b = DetokenizerDictionary::read(xml).unwrap();
@@ -299,7 +300,7 @@ fn malformed_xml_is_an_error() {
 
 #[test]
 fn english() {
-    let d = DetokenizerDictionary::read(include_bytes!("dictionaries/en-detokenizer.xml")).unwrap();
+    let d = DetokenizerDictionary::read(include_bytes!("../../goldens/data/fixtures/en-detokenizer.xml")).unwrap();
     assert_eq!(d.len(), 28);
     check(
         &d,
@@ -333,7 +334,7 @@ fn english() {
 
 #[test]
 fn french() {
-    let d = DetokenizerDictionary::read(include_bytes!("dictionaries/fr-detokenizer.xml")).unwrap();
+    let d = DetokenizerDictionary::read(include_bytes!("../../goldens/data/fixtures/fr-detokenizer.xml")).unwrap();
     assert_eq!(d.len(), 62);
     check(
         &d,
@@ -360,7 +361,7 @@ fn french() {
 
 #[test]
 fn portuguese() {
-    let d = DetokenizerDictionary::read(include_bytes!("dictionaries/pt-detokenizer.xml")).unwrap();
+    let d = DetokenizerDictionary::read(include_bytes!("../../goldens/data/fixtures/pt-detokenizer.xml")).unwrap();
     assert_eq!(d.len(), 24);
     check(
         &d,
@@ -385,7 +386,7 @@ fn portuguese() {
     );
 }
 
-// The golden files of the generator's detokenizer run.
+// The goldens of the generator's detokenizer runs.
 
 /// Converts an OpenNLP `DetokenizationOperation` name.
 fn operation(name: &str) -> Operation {
@@ -398,47 +399,41 @@ fn operation(name: &str) -> Operation {
     }
 }
 
-/// The value of a `key: value` line of a golden file.
-fn value<'a>(lines: &[(&str, &'a str)], key: &str) -> &'a str {
-    lines.iter().find(|(k, _)| *k == key).unwrap_or_else(|| panic!("no {key}")).1
-}
-
 #[test]
-fn every_jvm_golden_file() {
-    let generator = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../golden/jvm/variants/detokenizer");
-    let dir = common::golden_dir().join("detokenizer");
-    let mut paths: Vec<_> = std::fs::read_dir(&dir).unwrap().map(|e| e.unwrap().path()).collect();
-    paths.sort();
+fn every_jvm_golden() {
+    let dictionaries = ["en", "fr", "latin", "pt", "quotes"];
+    let mut files = 0;
     let mut tokens_seen = 0;
-    for path in &paths {
-        let text = std::fs::read_to_string(path).unwrap();
-        let lines: Vec<(&str, &str)> =
-            text.lines().map(|l| l.split_once(": ").unwrap_or_else(|| (l.trim_end_matches(':'), ""))).collect();
-        assert_eq!(value(&lines, "component"), "detokenizer");
-        assert_eq!(value(&lines, "split-marker"), MARKER);
-        let name = value(&lines, "dictionary");
-        let xml = std::fs::read(generator.join("dictionaries").join(name)).unwrap();
-        assert_eq!(turbo_maxent::sha256(&xml).to_hex(), value(&lines, "dictionary-sha256"), "{name}");
-        let dictionary = DetokenizerDictionary::read(&xml).unwrap();
+    for name in dictionaries {
+        let xml_path = common::fixtures_dir().join(format!("{name}-detokenizer.xml"));
+        let dictionary = DetokenizerDictionary::read(&std::fs::read(&xml_path).unwrap()).unwrap();
+        for case in common::run("detokenize", &format!("{name}-detokenizer")) {
+            let what = case.path.display().to_string();
+            case.assert_annotator("opennlp.tools.tokenize.DictionaryDetokenizer", "detokenize");
+            case.assert_models(std::slice::from_ref(&xml_path));
+            assert_eq!(case.config("splitMarker"), Some(MARKER), "{what}");
+            assert_eq!(case.golden.header.input.set, "detokenizer");
+            assert!(case.golden.header.input.id.starts_with(&format!("{name}-")), "{what}");
 
-        let mut tokens = Vec::new();
-        let mut operations = Vec::new();
-        for (_, line) in lines.iter().filter(|(k, _)| *k == "token") {
-            let (token, op) = line.rsplit_once(' ').unwrap();
-            tokens.push(common::unescape(token));
-            operations.push(operation(op));
+            // The tokens are the input's lines, each ending with a line feed.
+            let tokens: Vec<&str> = case.text.split_terminator('\n').collect();
+            assert!(case.text.is_empty() || case.text.ends_with('\n'), "{what}");
+            let spans: Vec<(u32, u32)> = case.jvm_spans().iter().map(|s| s.utf8).collect();
+            let lines: Vec<&str> = spans.iter().map(|&(a, b)| &case.text[a as usize..b as usize]).collect();
+            assert_eq!(lines, tokens, "{what}");
+
+            let g = &case.golden;
+            let ops = g.layer("turbo:detokenization").unwrap().strs("operation").unwrap();
+            let operations: Vec<Operation> = (0..ops.len()).map(|i| operation(ops.get(i))).collect();
+            let text = g.layer("turbo:detokenized").unwrap();
+            assert_eq!(text.len(), 1, "{what}");
+            let plain = text.strs("text").unwrap().get(0);
+            let marked = text.strs("marked").unwrap().get(0);
+            check(&dictionary, &tokens, &operations, plain, marked);
+            files += 1;
+            tokens_seen += tokens.len();
         }
-        assert_eq!(tokens.len(), value(&lines, "tokens").parse::<usize>().unwrap());
-        // The case file the JVM read has the same tokens, one per line.
-        let case = std::fs::read_to_string(generator.join("cases").join(path.file_name().unwrap())).unwrap();
-        assert_eq!(case.lines().collect::<Vec<_>>(), tokens, "{}", path.display());
-
-        let tokens: Vec<&str> = tokens.iter().map(String::as_str).collect();
-        let plain = common::unescape(value(&lines, "text"));
-        let marked = common::unescape(value(&lines, "text-marked"));
-        check(&dictionary, &tokens, &operations, &plain, &marked);
-        tokens_seen += tokens.len();
     }
-    assert_eq!(paths.len(), 19);
+    assert_eq!(files, 19);
     assert_eq!(tokens_seen, 144);
 }

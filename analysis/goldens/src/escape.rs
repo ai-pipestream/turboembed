@@ -12,6 +12,9 @@
 //! the BMP written as two of them (a high surrogate, then a low one) is
 //! that one character. A lone surrogate is refused, as is a raw character
 //! below U+0020, which a conforming writer never leaves unescaped.
+//! `unescape_utf16` is the one exception: it decodes to UTF-16 units and
+//! takes a lone surrogate, which a decision point dump's contexts can
+//! hold.
 
 use std::fmt;
 
@@ -78,6 +81,44 @@ pub fn unescape_into(field: &str, out: &mut String) -> Result<(), EscapeError> {
 pub fn unescape(field: &str) -> Result<String, EscapeError> {
     let mut out = String::with_capacity(field.len());
     unescape_into(field, &mut out)?;
+    Ok(out)
+}
+
+/// The UTF-16 units `field` stands for. Unlike `unescape`, it takes a
+/// lone surrogate written as `\uXXXX`: a decision point dump's contexts
+/// are cut at UTF-16 units and can hold half of a pair.
+pub fn unescape_utf16(field: &str) -> Result<Vec<u16>, EscapeError> {
+    let b = field.as_bytes();
+    let mut out = Vec::with_capacity(field.len());
+    let mut run = 0;
+    let mut i = 0;
+    while i < b.len() {
+        let c = b[i];
+        if c >= 0x20 && c != b'\\' {
+            i += 1;
+            continue;
+        }
+        if c != b'\\' {
+            return Err(EscapeError { at: i, kind: EscapeErrorKind::Raw(c as char) });
+        }
+        out.extend(field[run..i].encode_utf16());
+        let unit = match b.get(i + 1) {
+            None => return Err(EscapeError { at: i, kind: EscapeErrorKind::Trailing }),
+            Some(b't') => u16::from(b'\t'),
+            Some(b'n') => u16::from(b'\n'),
+            Some(b'r') => u16::from(b'\r'),
+            Some(b'\\') => u16::from(b'\\'),
+            Some(b'u') => unit_at(b, i).ok_or(EscapeError { at: i, kind: EscapeErrorKind::Unit })?,
+            Some(_) => {
+                let c = field[i + 1..].chars().next().expect("a character after the backslash");
+                return Err(EscapeError { at: i, kind: EscapeErrorKind::Unknown(c) });
+            }
+        };
+        out.push(unit);
+        i += if b[i + 1] == b'u' { 6 } else { 2 };
+        run = i;
+    }
+    out.extend(field[run..].encode_utf16());
     Ok(out)
 }
 
@@ -212,6 +253,25 @@ mod tests {
         assert_eq!(unescape("\\udbff\\udfff").unwrap(), "\u{10FFFF}");
         // A BMP unit written as an escape is that character.
         assert_eq!(unescape("\\u00e9").unwrap(), "é");
+    }
+
+    #[test]
+    fn utf16_units_keep_a_lone_surrogate() {
+        let units = |s: &str| unescape_utf16(s).unwrap();
+        assert_eq!(units("a\\ud83d"), vec![0x61, 0xd83d]);
+        assert_eq!(units("\\ude00b"), vec![0xde00, 0x62]);
+        assert_eq!(units("a\\ud83d\\ude00"), "a😀".encode_utf16().collect::<Vec<_>>());
+        assert_eq!(units("😀\\t\\\\\\n\\r\\u001f"), "😀\t\\\n\r\u{1f}".encode_utf16().collect::<Vec<_>>());
+        assert_eq!(units(""), Vec::<u16>::new());
+        // What `unescape` takes, this gives as UTF-16.
+        for s in ["Zürich \\u0000 東京", "a\\ud83d\\ude00b"] {
+            assert_eq!(units(s), unescape(s).unwrap().encode_utf16().collect::<Vec<_>>(), "{s:?}");
+        }
+        let err = |s: &str| unescape_utf16(s).unwrap_err();
+        assert_eq!(err("ab\\"), EscapeError { at: 2, kind: EscapeErrorKind::Trailing });
+        assert_eq!(err("a\\x"), EscapeError { at: 1, kind: EscapeErrorKind::Unknown('x') });
+        assert_eq!(err("\\uD83D"), EscapeError { at: 0, kind: EscapeErrorKind::Unit });
+        assert_eq!(err("a\tb"), EscapeError { at: 1, kind: EscapeErrorKind::Raw('\t') });
     }
 
     #[test]
