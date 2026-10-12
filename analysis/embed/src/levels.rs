@@ -28,7 +28,7 @@ use turbo_analysis::{Annotator, Bound, Error, Execution, Ix, Layer, ModelRef, Re
 use turbo_analysis_layers::{Levels, Subwords, VectorKind, Vectors};
 
 use crate::vectors::{Input, VectorAnnotator};
-use crate::window::{PastTheText, Plan, Target, Which, pieces_of};
+use crate::window::{Plan, Target, Which, pieces_of};
 
 /// The vectors of one kind in an output's pair.
 pub(crate) fn of_kind(pair: &mut [Vectors<Levels>; 2], kind: VectorKind) -> &mut Vectors<Levels> {
@@ -40,7 +40,8 @@ pub(crate) fn of_kind(pair: &mut [Vectors<Levels>; 2], kind: VectorKind) -> &mut
 
 /// Places every unit of one document's levels: one call to the planner
 /// per unit with children or none, each bounded by that unit's last
-/// piece. A unit with no pieces is listed in both layers' `empty`.
+/// piece. A unit with no pieces is listed in both layers' `empty`. The
+/// levels must pass their own check (`VectorAnnotator::embed` runs it).
 pub(crate) fn plan(
     plan: &mut Plan,
     doc: u32,
@@ -48,7 +49,7 @@ pub(crate) fn plan(
     starts: &[u32],
     ends: &[u32],
     out: &mut [Vectors<Levels>; 2],
-) -> Result<(), PastTheText> {
+) -> Result<(), String> {
     let n = levels.len();
     let pieces: Vec<Range<u32>> = levels.spans.iter().map(|(_, s)| pieces_of(starts, ends, s.start, s.end)).collect();
     for (i, r) in pieces.iter().enumerate() {
@@ -85,7 +86,14 @@ pub(crate) fn plan(
         for &c in &children[first[u] as usize..first[u + 1] as usize] {
             plan.item(target(VectorKind::Contextual, c), pieces[c as usize].clone());
         }
-        plan.place(doc, own.end)?;
+        // Unreachable for levels that pass their check, where every child
+        // is inside its parent and so are its pieces.
+        plan.place(doc, own.end).map_err(|e| {
+            format!(
+                "unit {} ends at piece {}, past the end of unit {u} it is placed in, at piece {}",
+                e.target.item, e.end, e.pieces
+            )
+        })?;
     }
     Ok(())
 }

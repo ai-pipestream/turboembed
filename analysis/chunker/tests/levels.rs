@@ -400,3 +400,23 @@ fn malformed_chunks_fail_the_document() {
     let l = d.get::<Levels>().unwrap();
     assert_eq!(l.unit, [Unit::Document, Unit::Chunk(Ix::new(1)), Unit::Chunk(Ix::new(2))]);
 }
+
+#[test]
+fn a_nested_sections_span_does_not_depend_on_the_chunking() {
+    // N ends inside "B one.", which starts in it: N runs to that
+    // sentence's end whether or not a chunk of N's own holds it.
+    let text = "A one. B one. C one.";
+    let doc = document(text, &["A one.", "B one.", "C one."]);
+    let st = || sections(&[(0, 20, None), (0, 10, Some(0))]);
+    let section_texts = |ranges: &[(u32, u32)]| {
+        let d = levels_of(doc.clone(), chunks(&doc, ranges), Some(st())).unwrap();
+        let l = d.get::<Levels>().unwrap();
+        assert_eq!(l.check(), Ok(()));
+        let texts: Vec<String> = l.of(Level::Section).map(|i| text[l.spans.get(i).range()].to_owned()).collect();
+        texts
+    };
+    let one = section_texts(&[(0, 3)]);
+    assert_eq!(one, [text, "A one. B one."]);
+    assert_eq!(section_texts(&[(0, 2), (2, 3)]), one);
+    assert_eq!(section_texts(&[(0, 1), (1, 2), (2, 3)]), one);
+}

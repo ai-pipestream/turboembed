@@ -334,6 +334,11 @@ impl VectorAnnotator {
         if let Some(k) = starts.iter().zip(ends).position(|(s, e)| s > e) {
             return fail(format!("subword {k} ends before it starts: {}..{}", starts[k], ends[k]));
         }
+        // The levels' own check: a parent for every unit, before it and
+        // around it, which placing each unit in its parent relies on.
+        if let Some(Err(e)) = i.levels.map(|l| l.check()) {
+            return fail(format!("the levels: {e}"));
+        }
         let items = [
             i.sentences.map(|s| ("sentence", s.columns())),
             i.chunks.map(|c| ("chunk", c.columns())),

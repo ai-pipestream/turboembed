@@ -23,15 +23,18 @@ use turbo_analysis_layers::{Block, Chunks, Levels, Sentences, Structure, Unit};
 ///   cross the edge of a nested one; such a chunk belongs to the section
 ///   around both, and shares bytes with the nested section beside it.
 /// - A section's span is its block's, widened at the end to the end of
-///   the last chunk that belongs to it when that runs past the block (a
-///   sentence that starts in the section and ends after it). Its start is
-///   never moved, so every offset is either a block's or a chunk's.
+///   the last sentence that starts in it when that sentence runs past
+///   the block (`gaps::in_section`, the rule above). It depends on the
+///   sentences alone, not on how they were chunked, never ends inside a
+///   sentence, and holds every chunk that belongs to the section and
+///   every section nested in it. Its start is never moved, so every
+///   offset is a block's, a sentence's or the view's.
 ///
 /// Rows are in text order, a parent before its children: by start, then
 /// the document, then sections in structure order, then chunks. With no
 /// structure there are no sections, and every chunk is the document's.
 /// Time is the number of sections times the chunks that start in each,
-/// after a binary search per section.
+/// after three binary searches per section.
 pub struct LevelBuilder;
 
 impl Annotator for LevelBuilder {
@@ -50,7 +53,7 @@ impl Annotator for LevelBuilder {
         let leaves = leaves(sentences, chunks).map_err(fail)?;
         let mut holder = vec![None; leaves.len()];
         let sections = match structure {
-            Some(st) => sections(st, &leaves, &mut holder),
+            Some(st) => sections(st, sentences, &leaves, &mut holder),
             None => Vec::new(),
         };
         Ok((assemble(view.text().len() as u32, &leaves, &holder, &sections, id),))
@@ -94,7 +97,8 @@ struct Section {
 /// innermost section it belongs to: sections come in structure order, an
 /// outer one before those inside it, and the sections a leaf belongs to
 /// are nested (they share its first byte), so the last one wins.
-fn sections(st: &Structure, leaves: &[Leaf], holder: &mut [Option<usize>]) -> Vec<Section> {
+fn sections(st: &Structure, sentences: &Sentences, leaves: &[Leaf], holder: &mut [Option<usize>]) -> Vec<Section> {
+    let (starts, ends) = sentences.spans.columns();
     // The section each block is, by block.
     let mut ordinal: Vec<Option<usize>> = vec![None; st.kind.len()];
     let mut out = Vec::new();
@@ -112,13 +116,15 @@ fn sections(st: &Structure, leaves: &[Leaf], holder: &mut [Option<usize>]) -> Ve
         // The leaves that start in the block, of which those whose last
         // sentence starts in it too belong to it.
         let first = leaves.partition_point(|l| l.span.start < block.start);
-        let mut end = block.end;
         for (l, h) in leaves[first..].iter().zip(&mut holder[first..]).take_while(|(l, _)| l.span.start < block.end) {
             if l.last_start < block.end {
-                end = end.max(l.span.end);
                 *h = Some(k);
             }
         }
+        // The end of the last sentence that starts in the block, when that
+        // is past the block's end.
+        let held = crate::gaps::in_section(starts, block);
+        let end = if held.is_empty() { block.end } else { block.end.max(ends[held.end - 1]) };
         ordinal[b.get()] = Some(k);
         out.push(Section { block: b, parent, span: Span::new(block.start, end) });
     }

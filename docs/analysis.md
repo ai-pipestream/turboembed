@@ -481,13 +481,14 @@ the chunks for `ChunkVectors`, the levels for `LevelVectors`.
 
 The annotator checks what it is given, since `VectorAnnotator::embed`
 takes its input from any caller: an id for every piece, the pieces'
-starts and ends in text order, and no span that ends before it starts;
-a document that fails any of these fails alone. A backend that pools no
-ranges (one without `embed_write_ranges`) is refused when the session
-is made or at the first write, with an error naming the backend and the
-range write the vector steps need. A result of another shape than the
-run was written for, or a read of fewer bytes, is an error, never a
-shorter set of vectors.
+starts and ends in text order, no span that ends before it starts, and
+levels that pass their own check (a parent for every unit, before it
+and around it); a document that fails any of these fails alone. A
+backend that pools no ranges (one without `embed_write_ranges`) is
+refused when the session is made or at the first write, with an error
+naming the backend and the range write the vector steps need. A result
+of another shape than the run was written for, or a read of fewer
+bytes, is an error, never a shorter set of vectors.
 
 ## Structure
 
@@ -888,13 +889,16 @@ chunks and the structure when there is one, and writes the levels:
   the nested section beside it: siblings may overlap, a unit never
   leaves its parent.
 - A section's span is its block's, widened at the end to the end of the
-  last chunk that belongs to it when a sentence that starts in the
-  section ends after it. Its start never moves, so every offset is a
-  block's, a chunk's or the view's.
+  last sentence that starts in it, when that sentence runs past the
+  block. The span depends on the sentences alone, not on how they were
+  chunked, never ends inside a sentence, and holds every chunk that
+  belongs to the section and every section nested in it. Its start
+  never moves, so every offset is a block's, a sentence's or the
+  view's.
 - An empty block or an empty chunk keeps its row, with its empty span.
 
 The time is the number of sections times the chunks that start in each,
-after a binary search per section.
+after three binary searches per section.
 
 Term statistics need no code of their own: `TermCounter<Levels>` counts
 the terms of every unit at every level (see "Term statistics and BM25"),
@@ -932,9 +936,8 @@ in parts when it crosses from one window to the next. A child of a
 long parent therefore sees the context of its own window, not the
 whole parent. A child adds no window to its parent's, so each piece is
 encoded once for every unit that holds it: once per level, more where
-sections nest. A unit
-with no pieces has the zero vector in both and is listed in both
-layers' `empty`.
+sections nest. A unit with no pieces has the zero vector in both and is
+listed in both layers' `empty`.
 
 The tests hold every vector of both kinds to the same unit pooled by
 hand, each range run alone in a session of its own, in rows of 64
@@ -1476,11 +1479,11 @@ runs them on any machine:
   and from hand-made chunks and sections: every unit's span read back as
   text, text before the first heading under the document, nested
   sections three deep, a chunk across a nested section's edge under the
-  section around both, a section widened by a sentence past its end,
-  empty sections and chunks, a document with no structure and one with
-  no chunks, term counts at every level against the view's own,
-  determinism, and overlapping chunks refused. The layer's unit tests
-  hold its checks.
+  section around both, a section widened by a sentence past its end (a
+  nested one the same however its text is chunked), empty sections and
+  chunks, a document with no structure and one with no chunks, term
+  counts at every level against the view's own, determinism, and
+  overlapping chunks refused. The layer's unit tests hold its checks.
 - `analysis/chunker/tests/limits.rs` holds each hard limit over
   hand-made layers: a table row, a code block and a quote that fit are
   never cut even where the costs say to, each one over the budget is cut
