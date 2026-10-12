@@ -53,9 +53,13 @@ impl DoubleArray {
         ((u >> 10) << ((u & (1 << 9)) >> 6)) as usize
     }
 
-    /// darts-clone's `validate`: every unit's children and leaf lie inside
-    /// the array, and every value is under `max_value`. After it, a search
-    /// reads no unit outside the array.
+    /// darts-clone's `validate`, no stricter, so that a map the library
+    /// takes is taken: every unit's children and leaf lie inside the
+    /// array, and every value of a unit with no label is under
+    /// `max_value`. After it, a search reads no unit outside the array.
+    /// The unit a leaf flag points at may still be one with a label,
+    /// whose value is unchecked; `Normalizer::prefix` passes over a value
+    /// past the replacement strings, as the library does.
     fn validate(&self, max_value: usize) -> bool {
         let n = self.units.len();
         let Some(&root) = self.units.first() else { return false };
@@ -66,9 +70,6 @@ impl DoubleArray {
         for (i, &u) in self.units.iter().enumerate().skip(1) {
             if Self::label(u) <= 0xff {
                 if ((i ^ Self::offset(u)) | 0xff) >= n {
-                    return false;
-                }
-                if Self::has_leaf(u) && Self::label(self.units[i ^ Self::offset(u)]) <= 0xff {
                     return false;
                 }
             } else if Self::value(u) as usize >= max_value {
@@ -318,5 +319,91 @@ mod tests {
         }
         blob.extend_from_slice(b"x\0");
         assert!(charsmap(&blob).is_err());
+    }
+
+    /// A map of one block that rewrites "a" as "x", its leaf unit `leaf`.
+    fn a_to_x(leaf: u32) -> Vec<u8> {
+        let mut units = vec![0u32; 256];
+        // The root's children start at 1; "a" lands on 1 ^ 0x61 = 0x60.
+        units[0] = 1 << 10;
+        // Label "a", a leaf, children at 0x60 ^ 0x70 = 0x10.
+        units[0x60] = 0x61 | (1 << 8) | (0x70 << 10);
+        units[0x10] = leaf;
+        let mut blob = 1024u32.to_le_bytes().to_vec();
+        for u in units {
+            blob.extend_from_slice(&u.to_le_bytes());
+        }
+        blob.extend_from_slice(b"x\0");
+        blob
+    }
+
+    fn normalized(blob: Vec<u8>, text: &str) -> String {
+        let spec = NormalizerSpec { precompiled_charsmap: blob, ..NormalizerSpec::default() };
+        let n = Normalizer::new(&spec, false, &[]).unwrap();
+        let (mut out, mut n2o) = (Vec::new(), Vec::new());
+        n.normalize(text, &mut out, Some(&mut n2o));
+        assert_eq!(n2o.len(), out.len() + 1);
+        String::from_utf8(out).unwrap()
+    }
+
+    /// darts-clone's validate does not check what a leaf flag points at,
+    /// and the library takes such a map: here the unit holds a label and
+    /// value 0, which the library reads as the first replacement.
+    /// sentencepiece 0.2.2 normalizes "abc a" to "▁xbc▁x" with either
+    /// map, and to "▁abc▁a" when that unit holds value 2.
+    #[test]
+    fn a_map_the_library_takes_is_taken() {
+        assert_eq!(normalized(a_to_x(1 << 31), "abc a"), "\u{2581}xbc\u{2581}x");
+        assert_eq!(normalized(a_to_x(0), "abc a"), "\u{2581}xbc\u{2581}x");
+        // There a value past the replacement strings is no rule.
+        assert_eq!(normalized(a_to_x(2), "abc a"), "\u{2581}abc\u{2581}a");
+    }
+
+    /// A small xorshift, for the mutated maps.
+    fn next(state: &mut u64) -> u64 {
+        *state ^= *state << 13;
+        *state ^= *state >> 7;
+        *state ^= *state << 17;
+        *state
+    }
+
+    /// Maps with bytes changed at random, cut short or with a length that
+    /// lies are refused or normalize text, and never read outside the map.
+    #[test]
+    fn a_mutated_map_never_panics() {
+        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../testdata/sentencepiece/t5.model");
+        let model = super::super::proto::ModelProto::parse(&std::fs::read(path).unwrap()).unwrap();
+        let original = model.normalizer.precompiled_charsmap;
+        let texts = ["", " ", "abc ABC", "\u{fb01}x \u{2460}\u{ff76}\u{ff9e}", "e\u{301} \u{3000}\u{200b}\u{1f642}"];
+        let mut state = 193u64;
+        let (mut taken, mut refused) = (0, 0);
+        for round in 0..300 {
+            let mut blob = original.clone();
+            match round % 3 {
+                0 => {
+                    for _ in 0..1 + next(&mut state) % 64 {
+                        let at = next(&mut state) as usize % blob.len();
+                        blob[at] = next(&mut state) as u8;
+                    }
+                }
+                1 => blob.truncate(next(&mut state) as usize % blob.len()),
+                _ => {
+                    let len = (next(&mut state) as u32) & !0x3ff;
+                    blob[..4].copy_from_slice(&len.to_le_bytes());
+                }
+            }
+            let spec = NormalizerSpec { precompiled_charsmap: blob, ..NormalizerSpec::default() };
+            let Ok(n) = Normalizer::new(&spec, false, &[]) else {
+                refused += 1;
+                continue;
+            };
+            taken += 1;
+            let (mut out, mut n2o) = (Vec::new(), Vec::new());
+            for t in texts {
+                n.normalize(t, &mut out, Some(&mut n2o));
+                assert!(n2o.windows(2).all(|w| w[0] <= w[1]), "{t:?}");
+            }
+        }
+        assert!(taken > 0 && refused > 0, "{taken} taken, {refused} refused");
     }
 }
