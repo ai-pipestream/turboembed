@@ -12,8 +12,8 @@
 //!   also writes the word type of each token.
 //!
 //! - [`me`]: the maxent tokenizer, `TokenizerME`, which reads an OpenNLP
-//!   tokenizer model and writes a confidence per token; [`sha256`]
-//!   identifies the model file in the provenance.
+//!   tokenizer model and writes a confidence per token; the model file's
+//!   SHA-256 from turbo-maxent identifies it in the provenance.
 //!
 //! Each rule tokenizer is also a plain function over a `&str` that appends
 //! spans to a caller's buffer, for use outside a pipeline. The dictionary
@@ -22,7 +22,6 @@
 //! purpose.
 
 pub mod me;
-pub mod sha256;
 pub mod simple;
 pub mod uax29;
 pub mod unit;

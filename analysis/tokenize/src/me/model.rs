@@ -7,7 +7,7 @@ use std::path::Path;
 use turbo_maxent::{Dictionary, MaxentModel, ModelFile};
 
 use super::alnum::{AlphaNumeric, DEFAULT_PATTERN, PatternError};
-use crate::sha256::{Digest, sha256};
+use turbo_maxent::Digest;
 
 /// The `Component-Name` of a tokenizer model.
 pub const COMPONENT_NAME: &str = "TokenizerME";
@@ -127,7 +127,7 @@ impl TokenizerModel {
             abbreviations,
             pattern,
             alphanumeric,
-            sha256: sha256(file.bytes()),
+            sha256: file.sha256(),
         })
     }
 
@@ -286,7 +286,7 @@ mod tests {
         let bytes = stored_zip(&[("manifest.properties", manifest.as_bytes()), (MODEL_ENTRY, classifier)]);
         let model = TokenizerModel::open(ModelFile::open(bytes.clone()).unwrap());
         if let Ok(m) = &model {
-            assert_eq!(m.sha256(), sha256(&bytes));
+            assert_eq!(m.sha256(), turbo_maxent::sha256(&bytes));
         }
         model
     }

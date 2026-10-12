@@ -8,6 +8,7 @@
 //! component a model is for, and what its other properties mean, is for
 //! the component reading it to check.
 
+use crate::sha256::{Digest, sha256};
 use std::borrow::Cow;
 use std::path::Path;
 
@@ -83,10 +84,16 @@ impl ModelFile {
         self.manifest.get("OpenNLP-Version").expect("checked when the file was opened")
     }
 
-    /// The model file's bytes, exactly as read: what a model's SHA-256 is
-    /// computed over.
+    /// The model file's bytes, exactly as they were read: what a SHA-256
+    /// of the file, recorded as a layer's provenance, is computed over.
     pub fn bytes(&self) -> &[u8] {
         self.archive.bytes()
+    }
+
+    /// The SHA-256 of the model file, the value `sha256sum` prints for it
+    /// and the one a layer's provenance records.
+    pub fn sha256(&self) -> Digest {
+        sha256(self.bytes())
     }
 
     /// The zip archive, for listing its entries.

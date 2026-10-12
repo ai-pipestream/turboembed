@@ -107,8 +107,7 @@ fn predicates_are_keyed_by_modified_utf8() {
 fn the_tokenizer_model_file_opennlp_wrote() {
     let path = common::fixtures().join("models/tokenizer.bin");
     let file = ModelFile::read(&path).unwrap();
-    assert_eq!(file.bytes(), std::fs::read(&path).unwrap().as_slice());
-    assert_eq!(file.archive().bytes(), file.bytes());
+    assert_eq!(file.bytes(), &std::fs::read(&path).unwrap()[..]);
     assert_eq!(file.component_name(), "TokenizerME");
     assert_eq!(file.language(), "en");
     assert_eq!(file.opennlp_version(), "3.0.0-SNAPSHOT");
