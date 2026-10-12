@@ -12,6 +12,8 @@ members = [
     "analysis/unicode-gen",
     "analysis/normalize",
     "analysis/normalize-layers",
+    "analysis/tokenize",
+    "analysis/tokenize-layers",
 ]
 resolver = "3"
 
