@@ -32,17 +32,23 @@ use turbo_analysis::{Alignment, Annotator, Error, Refs, Span, View, ViewBuilder}
 
 pub mod artifacts;
 pub mod accent_fold;
+pub mod accent_fold;
+pub mod artifacts;
+pub mod assets;
 pub mod bullets;
 pub mod case_fold;
 pub mod chain;
 pub mod confusables;
+pub mod contractions;
 pub mod dashes;
 pub mod dehyphenate;
 pub mod digits;
 pub mod ellipsis;
+pub mod emoji;
 mod fold_runs;
 pub mod german;
 pub mod invisible;
+pub mod language_detection;
 pub mod noise;
 pub mod number;
 mod placeholder;
@@ -51,6 +57,7 @@ pub mod shrink;
 pub mod social;
 pub mod spellcheck;
 pub mod substitute;
+pub mod symbols;
 pub mod tables;
 pub mod url;
 pub mod whitespace;
@@ -60,14 +67,23 @@ pub mod unicode_form;
 pub mod whitespace;
 
 pub use accent_fold::{AccentFold, StrokeLetters};
+pub mod unicode_form;
+pub mod url;
+pub mod whitespace;
+
+pub use accent_fold::{AccentFold, StrokeLetters};
+pub use artifacts::{Artifact, ArtifactDetector, ArtifactDetectorBuilder, KindSet, RepeatedLines};
+pub use assets::{Asset, AssetDetector, AssetFold};
 pub use bullets::Bullets;
 pub use case_fold::{CaseFold, CaseFoldMode};
 pub use chain::Chain;
 pub use confusables::ConfusableSkeleton;
+pub use contractions::{EnglishContractions, EnglishContractionsWithPos};
 pub use dashes::Dashes;
 pub use dehyphenate::{Dehyphenate, DehyphenateMode};
 pub use digits::Digits;
 pub use ellipsis::Ellipsis;
+pub use emoji::{EmojiAnnotate, EmojiRemove, EmojiRemoveMode, EmojiToEmoticon, EmoticonToEmoji};
 pub use german::GermanUmlauts;
 pub use invisible::Invisible;
 pub use noise::{Dictionary, NoiseFinding, NoiseScorer, NoiseStats};
@@ -78,6 +94,9 @@ pub use social::{BoundedSocialMedia, SocialMedia};
 pub use spellcheck::{SpellCorrect, SpellCorrectMode, SymSpell};
 pub use url::{BoundedUrls, Urls};
 pub use unicode_form::UnicodeForm;
+pub use symbols::{SymbolJoiner, SymbolWords};
+pub use unicode_form::UnicodeForm;
+pub use url::{BoundedUrls, Urls};
 pub use whitespace::{Whitespace, WhitespaceMode};
 
 /// One text normalizer. Its only job is to copy `text` into `out`,

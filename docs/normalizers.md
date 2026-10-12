@@ -19,6 +19,8 @@ implementation differs on purpose, the difference is listed under
 | `turbo-unicode-gen` | `analysis/unicode-gen/` | The table generator. |
 | `turbo-normalize` | `analysis/normalize/` | The normalizers, the `Normalizer` trait, the pipeline step adapter and the chain. |
 | `turbo-normalize-layers` | `analysis/normalize-layers/` | The layers normalizers write besides views: `Placeholders` (`turbo:placeholders`), `Emoji` (`turbo:emoji`), `Artifacts` (`turbo:artifacts`), `Noise` (`turbo:noise`), `Corrections` (`turbo:corrections`). |
+| `turbo-normalize-layers` | `analysis/normalize-layers/` | The layers normalizers write besides views: `Placeholders` (`turbo:placeholders`), `Emoji` (`turbo:emoji`), `Artifacts` (`turbo:artifacts`), `Noise` (`turbo:noise`). |
+| `turbo-normalize-layers` | `analysis/normalize-layers/` | The layers normalizers write besides views: `Placeholders` (`turbo:placeholders`), `Emoji` (`turbo:emoji`), `Assets` (`turbo:assets`). |
 
 ### turbo-unicode
 
@@ -419,6 +421,315 @@ characters, whitespace and dashes from
 line-break and paragraph variants, and generated texts against a
 reference filter.
 
+### Text artifacts (`analysis/normalize/src/artifacts/mod.rs`)
+
+`ArtifactDetector` (an annotator, id `turbo:artifacts`) reads a `View` and
+writes an `Artifacts` layer (`turbo:artifacts`): a span and an
+`ArtifactKind` for every damaged or hidden character sequence. It does not
+write a view; the spans are UTF-8 byte offsets of the view it read, in text
+order and never overlapping (the layer's `check` refuses overlaps, empty
+spans and a missing kind). `ArtifactKind::name` gives OpenNLP's type
+string ("replacement", "mojibake", ...), which the golden files use.
+
+The default detector reports OpenNLP's nine kinds, by OpenNLP's rules, on
+code points:
+
+- maximal runs of one class: U+FFFD (`ReplacementChar`); C0 and C1
+  controls that are not `White_Space` (`Control`, so tab, line feed and
+  U+0085 are not reported); noncharacters (`Noncharacter`); private-use
+  code points (`PrivateUse`); U+202A..U+202E, U+2066..U+2069, U+200E,
+  U+200F and U+061C (`BidiControl`);
+- zero-width characters (U+200B, U+200C, U+200D, U+2060, U+FEFF): a run of
+  two or more is reported; a single one is left alone between letters, with
+  combining marks passed over on both sides (ZWNJ in Persian and
+  Malayalam, ZWJ in Sinhala, ZWSP in Thai), and a single ZWJ is left alone
+  next to an `Extended_Pictographic` character or U+FE0F (emoji ZWJ
+  sequences);
+- runs from the Tags block (`UnicodeTag`), except a run after U+1F3F4 that
+  spells a region or subdivision code and ends with CANCEL TAG (the
+  England, Scotland and Wales flags), by the syntax of UTS #51 and UTS #35;
+- `Mojibake`: a maximal run of non-ASCII characters that Windows-1252 can
+  encode (ISO-8859-1 for the C1 controls) whose bytes are strictly
+  well-formed UTF-8 with at least one multi-byte sequence (RFC 3629: no
+  overlong form, no surrogate, nothing past U+10FFFF, nothing cut off).
+  A mojibake finding wins over the class findings it overlaps; the parts
+  of a class run outside it are still reported.
+
+`ArtifactDetector::builder()` selects kinds (`only`, `with`, `without`),
+as OpenNLP's `CursorArtifactDetector(Set)` does.
+
+OpenNLP counterpart: `CursorArtifactDetector`, `ArtifactAnnotator` and
+`TextArtifact` in the text-artifacts add-on.
+
+Differences from OpenNLP:
+
+- Character data is Unicode 18.0 (`turbo_unicode`): `White_Space`,
+  `Extended_Pictographic`, the letter test (`Character.isLetter`) and the
+  combining-mark test. OpenNLP reads the JDK's tables (Unicode 15.0 in JDK
+  21) and its own `ExtendedPictographic`. The answers differ only for
+  characters assigned after Unicode 15.0.
+- `UnpairedSurrogate` is never reported: a Rust `str` cannot hold an
+  unpaired surrogate. The kind exists so a layer read from OpenNLP output
+  can carry it.
+- An empty kind set is a detector that reports nothing; OpenNLP refuses
+  it with an exception. Unknown kinds cannot be written.
+- Two kinds are added, both off by default so the defaults match OpenNLP:
+  - `MojibakeSequence` (`analysis/normalize/src/artifacts/sequences.rs`,
+    `ArtifactDetector::builder().with(ArtifactKind::MojibakeSequence)`):
+    the character classes of ftfy's `badness.py` as tables of three code
+    pages (`analysis/normalize/src/artifacts/codepage.rs`: Windows-1252
+    from CP1252.TXT, ISO-8859-1 for its undefined bytes, MacRoman from
+    ROMAN.TXT). Each character that is the image of a UTF-8 lead byte is
+    tried with the images of the continuation bytes it needs, one sequence
+    at a time, so mojibake is found where the round trip of a whole run
+    fails: next to a genuine character ("cafÃ©…" with a typed ellipsis,
+    "naÃ¯" before a typed dash), with a byte Windows-1252 leaves undefined replaced by
+    U+FFFD ("Ã�LVAREZ" for "ÁLVAREZ", and Japanese, whose kana have 0x81
+    in their UTF-8), and in UTF-8 read as MacRoman ("caf√©", "don‚Äôt"). To
+    keep genuine text out, a sequence counts only when it decodes to what
+    mojibake is made of: under Windows-1252 a two-byte sequence must
+    decode to U+00A0..U+017F, Greek or Cyrillic, under MacRoman to
+    U+00A0..U+00FF, and a MacRoman three-byte sequence must start with
+    "‚" and decode to U+2000..U+214F. "“élan”", "«été»", U+2014 before "à", "CAFÉ–BAR"
+    and the multilingual texts of OpenNLP's false-positive test report
+    nothing. Round-trip mojibake keeps precedence: a sequence inside a
+    `Mojibake` finding is not reported. A sequence wins over the class
+    findings it overlaps (a U+FFFD or C1 control inside it).
+  - `RepeatedLine` (`analysis/normalize/src/artifacts/repeated.rs`,
+    `ArtifactDetector::builder().repeated_lines(RepeatedLines::default())`):
+    every occurrence of a line that occurs three or more times
+    (`min_occurrences`) in the view, the running headers, footers and page
+    labels of extracted documents. This is the duplicate-line rule of the
+    Gopher quality filters turned into spans. Lines end at the mandatory
+    breaks of UAX #14; they are compared with `White_Space` trimmed, inner
+    whitespace runs read as one space and digit runs (Nd) read as one
+    digit, so "Page 3 of 12" and "Page 4 of  12" match. Lines without an
+    alphabetic character are not compared: with digits folded every table
+    cell and bare page number would match. A character finding inside a
+    repeated line keeps its span and the line is reported around it. A
+    multi-line block that repeats is reported line by line, since each of
+    its lines repeats.
+- Not done: the precision and recall of these rules on extracted
+  documents. There is no labelled sample of extracted PDFs here; the
+  evaluation needs one (documents from the target corpus with the damaged
+  spans marked by hand), and the issue keeps its evaluation item open.
+
+Tests (`analysis/normalize/tests/artifacts.rs`): every expectation of
+`CursorArtifactDetectorTest`, `ArtifactBoundaryTest`,
+`ArtifactEncodingTest` (with an independent Windows-1252 decoder),
+`ArtifactFalsePositiveTest`, `ArtifactUnicodeContextTest`,
+`ArtifactsManualExampleTest` and `ArtifactAnnotatorTest`, offsets written
+as UTF-8 bytes (the unpaired-surrogate cases are recorded as unable to
+occur, the null-argument and custom-detector cases have no counterpart);
+the layer added to a document and run through an `Analyzer`; the cases of
+both added kinds above, their precedence and that they are off by default;
+and property loops over 10000 generated texts mixing every class, the
+contexts the rules read and mojibake images, checking order, bounds and
+character boundaries through `Layer::check` and `Document::add`, that each
+class span holds only its class (against a classifier written in the
+test), that every classified character is reported, that each kind alone
+equals the full detector filtered to it, and that the added kinds leave
+every default finding covered. Unit tests check the merge, the kind sets,
+the MacRoman and Windows-1252 tables and the UTF-8 validation against the
+standard library on every two-byte pair.
+
+### Noise scoring (`analysis/normalize/src/noise/mod.rs`)
+
+`NoiseScorer` (an annotator, id `turbo:noise`) reads a `View`, and the
+`Placeholders` layer when the document has one, and writes a `Noise` layer
+(`turbo:noise`): spans with a `NoiseSeverity` and a score in (0, 1] within
+that severity. It splits the view at `White_Space`, trims surrounding
+punctuation (ASCII sentence marks, quotes and brackets; outside ASCII every
+Ps, Pe, Pi, Pf and Po character) and scores cores of three or more ASCII
+characters:
+
+- `Binaryish`: 24 or more characters of the base64 alphabet with a `+`,
+  `/` or `=`, twelve case changes, or digits and eight case changes; the
+  score is the length over 48, at most 1;
+- `Gibberish` (two or more signals, score signals over 4, at most 1) and
+  `Damaged` (one signal, 0.5), the signals being: five or more letters and
+  no vowel (a e i o u y); eight or more letters and a vowel share of at
+  most 0.10; seven consonants in a row; four equal characters in a row;
+  four letter-digit transitions in eight or more characters;
+- `Misspelled` (0.9), only with a `Dictionary`: a core with no other
+  finding that one OCR confusion (rn/m, vv/w, cl/d, 1/l, 0/o, 5/s) turns
+  into a dictionary word. A dictionary word is never reported. No
+  dictionary ships here.
+
+Findings separated only by whitespace that no exclusion covers are joined,
+keeping the worse severity and its score (the larger score when both have
+the same severity). Tokens that overlap a placeholder span are not scored.
+`NoiseScorer::score(text, exclude)` does the same for a string and a list
+of exclusions.
+
+OpenNLP counterpart: `StructuralNoiseScorer`, `NoiseAnnotator` and
+`NoiseSpan` in the noise add-on. The rules and constants are the same.
+
+Differences from OpenNLP:
+
+- Surrounding punctuation is tested per code point, so punctuation outside
+  the Basic Multilingual Plane is trimmed: "\u{1E95E}bcdfg\u{1E95F}"
+  (Adlam exclamation marks) is damaged here; OpenNLP tests UTF-16 code
+  units, a surrogate is not punctuation, the core keeps its non-ASCII
+  ends and is skipped. The general categories are Unicode 18.0.
+- The exclusions are the `Placeholders` layer (URLs, e-mail addresses,
+  hashtags, numbers, encoded assets a normalizer replaced), an optional
+  input: without it the whole view is scored. OpenNLP's default
+  `NoiseAnnotator` requires its asset layer and refuses a document
+  without one. Placeholders in a view other than the one read are refused
+  with an error.
+- Exclusions are sorted and joined once, so each test is a binary search;
+  OpenNLP tests every exclusion for every token.
+- `config_hash` records whether a dictionary is set, not its contents.
+- Added: `NoiseStats` (`analysis/normalize/src/noise/stats.rs`), document
+  statistics in the manner of Gopher (Rae et al. 2021) and C4 (Raffel et
+  al. 2020): words, lines, the ratio of `#` and ellipses to words, the
+  mean word length, the share of lines ending in terminal punctuation,
+  and the share of lines (and of characters) in lines that repeat an
+  earlier line exactly. They are measurements: no threshold is applied;
+  the chunker decides. `NoiseScorer::stats` returns them.
+
+Tests (`analysis/normalize/tests/noise.rs`): every expectation of
+`StructuralNoiseScorerTest`, `NoiseScorerBoundaryTest`,
+`NoiseManualExampleTest`, `NoiseAnnotatorTest` and `NoiseConcurrencyTest`
+(the asset layer replaced by placeholders, UTF-16 offsets written as UTF-8
+bytes), the score bounds of `NoiseSpanTest` as the layer's check, the
+supplementary punctuation case, the statistics, and a property loop over
+4000 generated texts with random exclusions: findings in order, trimmed,
+clear of exclusions and accepted by `Document::add`, and each token scored
+alone is noise exactly when its core lies inside a finding of the whole
+text.
+
+### Symbols (`symbols/`)
+
+OpenNLP's `SymbolJoinerCharSequenceNormalizer` (in the runtime, and as an
+identical copy in the `symbol-joiner` add-on) maps an input that is
+exactly one of ten symbols to an English word: `&` and, `+` plus, `@`
+at, `%` percent, `§` section, `¶` paragraph, `°` degree, `©` copyright,
+`®` registered, `™` trademark. Every other input, including `R&D`,
+`"& "`, `©️` and currency symbols, is returned unchanged. It is
+meant to be called once per token. Despite its name, neither version
+joins symbol sequences (`C++`, `.NET`, `->`); that is not implemented
+here either.
+
+- `SymbolJoiner` (an `Annotator`, id `turbo:normalize:symbol-joiner`)
+  reads a `View` and the `Tokens` made on it and writes a `View` in which
+  each token that is exactly one mapped symbol is replaced by its word.
+  This is OpenNLP's per-token use. The new view's tokens are the old
+  ones mapped through its alignment.
+- `SymbolWords` (a `Normalizer`, id `turbo:normalize:symbol-words`)
+  replaces each mapped symbol in running text that has whitespace (the
+  OpenNLP whitespace table) or the edge of the text on both sides:
+  `Dungeons & Dragons` becomes `Dungeons and Dragons`.
+
+Differences from OpenNLP: `SymbolWords` finds the symbols in running text
+instead of requiring the whole input to be the symbol, so `"& "` becomes
+`"and "` and `" &"` becomes `" and"` (OpenNLP leaves both, as a
+whole input, unchanged; tokenized, each gives the token `&` and
+`and`). Test: `embedded_symbols_are_left_alone`.
+
+Tests (`analysis/normalize/tests/symbols.rs`): every mapping and every unchanged input of
+`SymbolJoinerCharSequenceNormalizerTest`, the `Dungeons & Dragons`
+example of `SymbolJoinerUsageExampleTest` through `SymbolJoiner` with
+its spans, and symbols in running text.
+
+### English contractions (`contractions/`)
+
+`EnglishContractions` (id `turbo:normalize:english-contractions`) ports
+`EnglishContractionCharSequenceNormalizer`. A contraction is a run of
+ASCII letters, an apostrophe (U+0027, U+2019, U+02BC or U+FF07) and a
+run of ASCII letters. The forms and their expansions:
+
+| Form | Expansion |
+|---|---|
+| `can't` | `can not` (the stem is kept, `'t` becomes ` not`) |
+| `won't`, `shan't` | `will not`, `shall not` |
+| `<aux>n't` for are, could, dare, did, do, does, had, has, have, is, may, might, must, need, ought, should, was, were, would | `<aux> not` |
+| `let's` | `let us` |
+| `y'all` | `you all` |
+| `'re` after how, here, there, these, they, those, we, what, when, where, who, why, you | ` are` |
+| `'ve` after could, I, may, might, must, should, there, these, they, those, we, what, where, who, would, you | ` have` |
+| `'ll` after he, here, how, I, it, she, that, there, these, they, this, those, we, what, when, where, which, who, why, you | ` will` |
+| `I'm` | `I am` |
+
+Stems are compared ASCII case-insensitively and kept as written. An
+all-uppercase word gets an uppercase expansion (`CAN'T` becomes
+`CAN NOT`); the replaced stems of `won't`, `shan't` and `y'all` follow
+the case of what they replace (`Won't` becomes `Will not`). `'s`, `'d`
+and `ain't` have more than one reading and are left alone.
+
+A contraction is expanded only when it is a complete word under the
+UAX #29 word boundaries, as OpenNLP decides with
+`opennlp.tools.tokenize.uax29.WordSegmenter`: `_can't`, `can't1`,
+`écan't`, `écan't`, `I.don't`, `can't've` and `can't‍go` are
+left alone, while `'can't'`, `(don't)`, `x-can't` and `can't,` are
+expanded. The search follows OpenNLP: each apostrophe is tried as the
+middle of a contraction, and after a candidate the search continues at
+its end.
+
+The word boundaries are in `contractions/word_break/`. `table.rs` holds
+the Word_Break property of Unicode 18.0.0, generated from
+`WordBreakProperty-18.0.0.txt` (OpenNLP carries the 17.0.0 file); the
+file and `WordBreakTest-18.0.0.txt` are in `analysis/normalize/tests/data/` under the
+Unicode License (see `analysis/unicode/ucd/LICENSE`). `is_boundary`
+applies rules WB1 to WB999 at one position. OpenNLP computes all the
+boundaries of the text in a forward pass; the rules only read the
+characters around a position (the one before, the one at it, the last
+two before it that WB4 does not skip, the next one after it that WB4
+does not skip, and the length of the run of regional indicators before
+it), so `is_boundary` reads only those and gives the same answer. Word
+boundaries belong in turbo-unicode, next to the other property tables,
+once a tokenizer needs them too; the module has no dependency on the
+rest of the crate.
+
+`EnglishContractionsWithPos` (an `Annotator`, id
+`turbo:normalize:english-contractions-pos`) reads the `View`, and
+`Tokens` and `PosTags` when the document has them, and writes a `View`.
+Besides the forms above it expands `'s` and `'d` by the Penn Treebank
+tags (looked up by label in the tag set):
+
+- `'s` becomes ` has` when the token holding the apostrophe is `VBZ` and
+  the next token `VBN` (`he's gone`), and ` is` when the token is `VBZ`
+  and the next is anything else (`he's here`). A possessive (`POS`) is
+  left alone.
+- `'d` becomes ` would` before a `VB` token (`I'd go`) and ` had` before a
+  `VBN` token (`I'd gone`); anything else is left alone (`I'd rather`).
+
+The token holding the apostrophe is `'s` itself under Penn Treebank
+tokenization or the whole word under a tokenizer that keeps it whole.
+The tokens must be in the view the step reads; tokens of another view
+are refused with an error. Without tokens and tags the step writes what
+`EnglishContractions` writes.
+
+The alignment keeps the stem: in `can't` to `can not`, `can` maps to
+itself and ` not` to `'t`; in `won't` the whole expansion maps to the
+whole word; in `y'all`, `all` maps to itself.
+
+Differences from OpenNLP:
+
+- `y'all` is expanded to `you all`, and the subject lists are longer:
+  `here`, `these`, `those` for `'re`; `may`, `there`, `these`, `those`,
+  `what`, `where` for `'ve`; `here`, `this`, `these`, `those`, `which`
+  for `'ll`. Each of these forms has only one reading. OpenNLP leaves
+  them unchanged. Test: `additions_beyond_opennlp`.
+- `EnglishContractionsWithPos` resolves `'s` and `'d` from tags; OpenNLP
+  has no counterpart and leaves them alone. Tests:
+  `pos_tags_resolve_s_and_d`, `pos_step_without_tags_is_the_plain_normalizer`.
+- Word_Break data is Unicode 18.0.0 rather than OpenNLP's 17.0.0. With
+  the 18.0.0 data `is_boundary` also passes every line of the 17.0.0
+  conformance file OpenNLP runs (checked once by hand); the 18.0.0 file
+  is the one the tests run.
+
+Tests (`analysis/normalize/tests/contractions.rs`, unit tests in
+`analysis/normalize/src/contractions/word_break/mod.rs`): every expectation of
+`EnglishContractionCharSequenceNormalizerTest`,
+`EnglishContractionBoundaryTest` and `EnglishContractionContractTest`
+(UTF-16 offsets rewritten as UTF-8 byte offsets), each form in both
+cases, the additions, the POS resolution, concurrent use from several
+threads, the word-break table against every code point of the property
+file, and every line of `WordBreakTest-18.0.0.txt` (1944 lines, none with
+surrogates).
+
 ### Placeholder normalizers and the shared scan (`placeholder.rs`)
 
 `Urls`, `BoundedUrls`, `SocialMedia`, `BoundedSocialMedia` and `Numbers`
@@ -523,6 +834,186 @@ placeholder spans for both normalizers; linear work on long runs of
 closing brackets; and a pipeline that runs `BoundedUrls` and then
 `BoundedSocialMedia` through the analyzer and maps every placeholder
 back to the source.
+
+### Embedded assets (`analysis/normalize/src/assets/mod.rs`)
+
+`AssetDetector` (an annotator, id `turbo:assets`) reads a `View` and
+writes an `Assets` layer (`turbo:assets`, in
+`analysis/normalize-layers/src/lib.rs`): one row per binary payload that
+survived text extraction, with its span, the span of its encoded bytes,
+an `AssetFormat` (`analysis/normalize-layers/src/asset_format.rs`, whose
+`name` and `media_type` are OpenNLP's strings), the media type a `data:`
+URI declared, the encoding, the decoded length and, for a PNG or GIF, the
+pixel size. The spans are UTF-8 byte offsets of the view read, in text
+order and never overlapping. `AssetDetector::detect` and `scan` give the
+same rows as `Asset` values, and `Asset::decode` decodes a payload from
+the text. Nothing allocates a whole decoded payload: a header is at most
+45 bytes, and the SVG and calendar checks read the payload through a
+streaming decoder (`analysis/normalize/src/assets/payload.rs`).
+
+The default detector finds what OpenNLP's finds, scanning each position
+for a `data:` URI, a PEM envelope, a JSON Web Token and a bare run, in
+that order:
+
+- `data:` URIs with a `;base64,` payload of any length, identified by
+  their header or by the media type they declare (a declared type with a
+  slash after its first character is reported in place of the sniffed
+  one; with nothing sniffed, the format name is its subtype);
+- RFC 7468 PEM envelopes with one of 18 labels, at a line start, with
+  body lines of 1 to 64 characters;
+- compact JWTs whose header and claims decode to JSON objects
+  (`analysis/normalize/src/assets/json.rs`, depth 64, duplicate members
+  refused), with a non-empty `alg` that is `none` exactly when the
+  signature is empty;
+- bare base64 runs of at least 32 characters, standard or URL-safe,
+  possibly wrapped at 64 or 76 columns, whose decoded header a check
+  recognizes. The checks are the signature table
+  (`analysis/normalize/src/assets/magic.rs`, 219 signatures from
+  OpenNLP's `KnownMagics`, longest first) and the structured checks of
+  `analysis/normalize/src/assets/sniff.rs` (AIFF, DEX, DWF, EMF, iCalendar
+  with folding, JPEG 2000 brands, pcapng, Excel BIFF, WebVTT, RIFF WebP,
+  WAVE and AVI, timestamped data, XML), with the header lengths OpenNLP
+  decodes (24 bytes, 45 for EMF, 36 for JPEG 2000 and PEM). An XML header
+  is SVG when its root element is `svg` in the SVG namespace, read by the
+  scanner of `analysis/normalize/src/assets/svg.rs`.
+
+Three additions are off by default, so the defaults give OpenNLP's
+output; each is a field of `AssetDetector`:
+
+- `hex_dumps` (`analysis/normalize/src/assets/hex.rs`): runs of 32 or more
+  hex byte pairs whose decoded header a check recognizes, written back to
+  back, separated by a space, colon, comma or comma and space, with `0x`
+  on every pair or none, and continued over lines (a CRLF or LF after the
+  separator or its trimmed form, then indentation). The first gap fixes
+  the separator. The run must not touch an ASCII letter, digit or `_`.
+  Encoding `Hex`. A hash, a UUID or `deadbeef` is never reported, since
+  none decodes to a signature.
+- `report_unknown_base64` (`analysis/normalize/src/assets/unknown.rs`): a
+  valid base64 run no check recognizes, as `AssetFormat::Unknown`
+  ("unknown", "application/octet-stream"), when it has at least 32
+  characters without padding, an upper case letter, a lower case letter
+  and a digit, and at least 45% of its adjacent characters change class
+  (upper, lower, digit, symbol). Random base64 changes class about 64% of
+  the time; words and identifiers change at word starts only, and hex
+  strings lack one case. `Attachments`, `deadbeef`,
+  `AlphanumericRunsLikeThisOne0123456789` and hashes are never reported.
+  The rule is tried only after a bare run fails, so it never hides an
+  asset the defaults report.
+- `soft_line_breaks`: a quoted-printable soft line break (`=` then CRLF or
+  LF, then a standard base64 character) inside a bare run or a `data:`
+  URI payload is part of the payload, for base64 that went through a
+  quoted-printable mail part. A URL-safe character makes such a payload
+  invalid, as MIME wrapping does. The cost is that a word on the line
+  after a payload that ends in `=` is read as more payload, which is why
+  it is off.
+
+`AssetFold` (id `turbo:normalize:asset-fold`,
+`analysis/normalize/src/assets/fold.rs`) is a normalizer that replaces
+each asset with a caption, by default OpenNLP's `AssetFolder.caption()`:
+`[png 640x480, 12345 bytes]`, `[pdf, 51200 bytes]` (`write_caption`).
+`AssetFold::with_caption(id, f)` takes a caption function instead, as
+`AssetFolder.fold(document, replacement)` does; `id` names it in the
+configuration hash. `AssetFold::with_detector` folds with the additions
+on. As an annotator it reads a `View` and writes the folded `View` and a
+`Placeholders` layer with one `Asset` row per asset, spanning the asset in
+the view read. Each asset is one `replace`, so a caption maps back to
+exactly its asset.
+
+OpenNLP counterpart: `CursorAssetDetector`, `KnownMagics`, `SvgHeader`,
+`JsonObjectParser`, `Base64PayloadInputStream`, `EmbeddedAsset`,
+`AssetAnnotator` and `AssetFolder` in the embedded-assets add-on. The
+constants keep OpenNLP's names (`MIN_BARE_PAYLOAD`,
+`MAX_JWT_SEGMENT_LENGTH`, `MAX_MEDIA_TYPE_OFFSET`, `PEM_TYPES`,
+`EMF_SIGNATURE_OFFSET`, `TIMESTAMPED_DATA_OID` and the others).
+
+Differences from OpenNLP:
+
+- An unknown dimension is `None`, not -1, and the layer accepts both
+  dimensions or neither. OpenNLP's record allows one without the other;
+  its detector never writes one.
+- The format is the `AssetFormat` enum. A `data:` URI whose format comes
+  from its declared type is `AssetFormat::Declared`, and
+  `Asset::format_name` and `Assets::format_name` give the subtype OpenNLP
+  reports. Null and blank strings and negative lengths cannot be written,
+  so `EmbeddedAsset`'s constructor checks become `Assets::check`. Decode
+  errors are `DecodeError` values with OpenNLP's messages.
+- The caption function takes the asset, the text it was found in and the
+  string to write to (`Fn(&Asset, &str, &mut String)`): it can decode the
+  payload, and no string is allocated per asset. An empty caption deletes
+  the asset.
+- `AssetFold` detects as it folds, so a missing layer and rows out of
+  order (OpenNLP's `IllegalArgumentException` cases) cannot occur.
+- Two assets that touch (two `data:` URIs back to back) keep their own
+  edits, so each caption maps back to its own asset, and the
+  `Placeholders` layer holds one row per asset
+  (`touching_assets_keep_their_own_edits`).
+- OpenNLP filters runs by base64 prefixes of the signatures before it
+  decodes a header; here the first decoded byte is looked up in
+  `FIRST_BYTES`. The results are the same: the checks after the filter
+  decide.
+- SVG is read by a hand-written scanner instead of the JDK's StAX parser.
+  It follows the parser with DTD support off, as `SvgHeader` configures
+  it, including its quirks: the internal subset is skipped unread up to
+  its first `]` (so `<!DOCTYPE svg [<!A<TLIST>]>` is accepted and a `]`
+  inside a comment there ends it), public identifiers hold PubidChar only,
+  a processing instruction target may hold a colon, a leading colon is
+  part of a name, and the JDK's encoding names and aliases are accepted
+  (`UTF8` and `ISO8859-1` are not). On 120000 generated SVG and XML
+  headers and 50000 other generated texts its answers equal OpenNLP's,
+  apart from the inputs where OpenNLP throws (below). Where it differs:
+  - only UTF-8, UTF-16, US-ASCII and ISO-8859-1 are read; a header that
+    declares another encoding (`windows-1252`, `Shift_JIS`) is XML but
+    not SVG here, while the JDK reads it
+    (`svg_other_declared_encodings_are_not_read`);
+  - names follow XML 1.0 fifth edition, which the current specification
+    is; the JDK applies the fourth edition's tables to XML 1.0 and
+    rejects names such as U+2C30 that the fifth edition allows
+    (`svg_names_follow_the_fifth_edition`);
+  - a character XML does not allow inside an internal subset makes the
+    JDK throw `MissingResourceException`, which `SvgHeader` does not
+    catch, so OpenNLP's `detect` throws; here the payload is not SVG
+    (`svg_prolog_follows_the_jdk_parser`);
+  - the scan stops at the end of the root start tag. The JDK decodes
+    ahead and fails on a four-byte UTF-8 sequence above U+10FFFF up to
+    about 8 KB after the tag, so OpenNLP's answer can depend on bytes
+    after the root element (`svg_bytes_after_the_root_tag_do_not_matter`).
+- In the JSON parser a lone surrogate escape in a captured member value
+  becomes U+FFFD, since a Rust string cannot hold it. Only `alg` is
+  captured and only its emptiness and `none` are tested, so detection is
+  the same.
+- The three additions above.
+
+Tests (`analysis/normalize/tests/assets.rs`, helpers in
+`analysis/normalize/tests/assets_support/mod.rs`): every expectation of
+OpenNLP's 28 embedded-assets test classes, class by class
+(`CursorAssetDetectorTest`, `EmbeddedAssetTest`, `AssetFolderTest`,
+`AssetAnnotatorTest`, `AssetFalsePositiveTest`, `AssetsManualExampleTest`,
+`AssetImageMetadataTest`, `AssetTransportValidationTest`, the signature
+tests for EMF, PEM, MPX, Excel, pcapng, iCalendar, DEX, the PNG family,
+AIFF, WebVTT, Android XML and GRIB, media types, timestamped data, format
+variants, DWF, JPEG 2000 and SVG, and `KnownMagicsTest`), in every
+transport they use, with fixtures written in the test (a stored zip for
+the DWF zip case and the AU header Java Sound writes for the A-law case);
+`Base64PayloadInputStreamTest` and `JsonObjectParserTest` are unit tests
+in `analysis/normalize/src/assets/payload.rs` and
+`analysis/normalize/src/assets/json.rs`. OpenNLP's null-argument cases
+have no counterpart. Then the SVG scanner against the JDK parser's
+answers for DOCTYPEs, processing instructions, encodings and qualified
+names; lookalikes (hashes, UUIDs, identifiers, `Attachments`, `deadbeef`,
+near-miss URIs, envelopes and tokens) with the defaults and every
+addition on; UTF-8 offsets after multibyte text and the media type limit
+counted in UTF-16 units; each addition's forms and edges and that it is
+off by default; the fold's captions, custom captions, touching assets and
+the annotator. Every detection builds the layer through a `Document`
+(`Layer::check` and the document's checks) and checks each row and
+decode, and every fold is checked both ways: the edits rebuild the
+output, each edit is one asset or a run of touching ones, each asset maps
+forward to its caption and the caption back to it, and kept text maps to
+itself. Property loops run 600 generated texts mixing assets in every
+transport, cut and corrupted payloads, hex dumps, soft breaks and prose
+through five configurations, checking those invariants, that the unknown
+addition only adds rows, and that each asset found is found the same in a
+text holding only it.
 
 ### Social media (`social/`)
 
@@ -972,6 +1463,173 @@ tests check the bounded distances against the full table over 20000
 random pairs, the uppercase table against `SpecialCasing.txt`, and the
 number and URL guards against matchers written from OpenNLP's patterns.
 
+### Emoji (`analysis/normalize/src/emoji/mod.rs`)
+
+Four steps work on emoji. All of them take their sequences from
+`turbo_unicode::emoji::scan` (UTS #51 possible emoji on Unicode 18.0) or
+their table from OpenNLP's data, and all of them write each replaced
+stretch with its own replacement.
+
+**Which sequences are emoji.** The scanner reports every character with
+the Emoji property, so `©`, `®`, `™`, `↔`, `☹` and a bare `❤` come out
+as `Basic` sequences: no character property separates them from emoji
+shown as pictures. `emoji::is_emoji_presentation` applies the
+presentation rule of UTS #51: keycap, flag, modifier, tag and ZWJ
+sequences are emoji; a single character is an emoji when it has
+Emoji_Presentation or U+FE0F follows it. That leaves out the 207
+text-default characters of Unicode 18.0 (the keycap bases aside) when
+they are written without U+FE0F, which in running text are symbols
+(`© 2026`, `A ↔ B`). `EmojiRemove::sequences()` and `EmojiAnnotate` both
+use this rule; `EmojiAnnotate::with_text_default()` turns it off.
+
+**`EmojiRemove`** (id `turbo:normalize:emoji-remove`) replaces emoji with
+U+0020. It is a `Normalizer` and, like the other placeholder normalizers,
+an `Annotator` that also writes a `Placeholders` layer with kind `Emoji`.
+
+- `EmojiRemove::sequences()` (the default): every emoji sequence becomes
+  one space: a ZWJ family, a flag, a subdivision flag, a keycap, a
+  skin-toned hand, a character with its U+FE0F. Sequences with no text
+  between them become one space together; each is its own replacement
+  (the first writes the space, the others write nothing) and its own
+  placeholder, so a placeholder's span is exactly one sequence. A
+  character followed by U+FE0E stays, as does a U+200D or U+FE0F that is
+  not part of a sequence.
+- `EmojiRemove::supplementary()`: every run of supplementary-plane code
+  points becomes one space, with one placeholder per run. This is
+  OpenNLP's `EmojiCharSequenceNormalizer` in its default mode, which the
+  language detector models were trained with, so the language detector
+  preparation uses this mode.
+
+OpenNLP's `EmojiCharSequenceNormalizer` also has a legacy mode, selected
+by `CompatibilityMode.LEGACY`, which reproduces the 1.x and 2.x releases:
+it replaces `-` (U+002D) and every code point from U+D83C to U+10FC00.
+The range was meant to catch the UTF-16 high surrogates that start most
+emoji, but read as code points it also takes the low surrogates, every
+character from U+E000 to U+FFFF (the private use area, the CJK
+compatibility ideographs, the presentation forms, the variation
+selectors, the halfwidth and fullwidth forms among them) and every
+supplementary code point up to U+10FC00, and it removes every
+hyphen-minus. It is not ported: it reproduces UTF-16 surrogate handling
+that 3.0 corrected, and a Rust string has no surrogates. Models trained
+with OpenNLP 1.x or 2.x saw that output; OpenNLP 3.x defaults to the
+corrected mode, which `EmojiRemove::supplementary()` matches.
+
+**`EmojiToEmoticon`** (id `turbo:normalize:emoji-to-emoticon`) and
+**`EmoticonToEmoji`** (id `turbo:normalize:emoticon-to-emoji`) port
+OpenNLP's `EmojiEmoticons` over emoji-emoticons.txt, which
+`analysis/normalize/src/emoji/data.rs` holds as Rust constants with all six columns of the file
+(source, target, fold type, standard, Unicode version, note) in the
+file's order. At each position the longest source wins (candidates are
+ordered longest first in UTF-16 units, as OpenNLP orders them; for this
+table UTF-8 length gives the same order).
+
+- Pictographs to emoticons (35 rows, many to one: `🙂` and `😊` to `:)`,
+  every heart to `<3`): no fold after U+200D; one U+FE0F after the
+  source is replaced with it; no fold when U+200D or U+FE0E follows, so
+  `❤️‍🔥` and `☺︎` stay. Pictographs glued to words fold.
+- Emoticons to pictographs (26 rows: `:-)` and `:)` to `🙂`, `<3` to
+  `❤️`): only when the text edge or a `White_Space` character
+  (`tables::WHITESPACE`, the no-break spaces included) is on both sides,
+  so `1:3`, `https://` and `nice:)` stay.
+
+OpenNLP counterparts: `EmojiToEmoticonCharSequenceNormalizer`,
+`EmoticonToEmojiCharSequenceNormalizer`. No differences in the output.
+
+**`EmojiAnnotate`** (id `turbo:normalize:emoji-annotate`) reads a `View`
+and writes the `Emoji` layer (`turbo:emoji`): one row per emoji sequence
+with its span, its kind (`Basic`, `Keycap`, `Flag`, `Modifier`, `Tag`,
+`Zwj`), its CLDR short name from the Unicode 18.0 emoji-test.txt
+(U+FE0F ignored, so a minimally-qualified form has the name of its
+fully-qualified form; empty for a sequence Unicode does not list) and
+the region of a flag (`DE`) or subdivision flag (`GB-ENG`), empty
+otherwise.
+
+OpenNLP's bundled annotations, emoji-annotations.txt (40 pictographs,
+each with a name, a sentiment from -2 to 2, an entity type and a
+category), are in `analysis/normalize/src/emoji/data.rs` as well, one entry per pictograph. The
+sources and the notes of the name rows are the same on every row, so
+they are constants next to the table. `emoji::opennlp_annotation`
+looks a sequence up as `EmojiAnnotations.lookup` does, ignoring every
+U+FE0F. `emoji::features` gives the feature strings of
+`EmojiAnnotator.collectFeatures` in its order (`emojiSentiment=2`,
+`emojiType=HEART`, `emojiCategory=SMILEYS_AND_EMOTION`,
+`emojiRegion=DE`); a flag has no bundled row and gives `FLAG`, `FLAGS`
+and its region, and a token that starts with an ASCII character gives
+nothing.
+
+Differences from OpenNLP:
+
+- `EmojiRemove::sequences()` has no OpenNLP counterpart. OpenNLP's
+  emoji remover replaces supplementary-plane code points, which removes
+  text that is not emoji (`𝐀` U+1D400, `𠀀` U+20000, Gothic and other
+  historic scripts), leaves the emoji of the Basic Multilingual Plane
+  (`☺`, `❤`, `⌚`, `✈`) and breaks sequences into pieces: a ZWJ family
+  becomes `" ‍ ‍ "` and `❤️` keeps its U+FE0F. The sequence mode
+  removes exactly the emoji, each whole. Tests:
+  `every_fully_qualified_emoji_becomes_one_space`,
+  `zwj_families_skin_tones_keycaps_and_flags_are_one_space_each`,
+  `text_default_symbols_with_and_without_the_selector`,
+  `supplementary_mode_matches_opennlp`.
+- `EmojiAnnotate` finds the sequences in the text. OpenNLP's
+  `EmojiAnnotator` annotates one token at a time and depends on the
+  tokenizer to hand it a whole sequence. It names every emoji Unicode
+  lists, from emoji-test.txt, where OpenNLP names only its 40 bundled
+  pictographs. Test: `annotator_reports_kind_name_and_region`.
+- OpenNLP's `EmojiAnnotationJoin` (a caller's function that adds
+  attributes per symbol and region) is not ported; a caller joins its
+  own data on the layer's `name` and `region` columns.
+- The data files are Rust constants, so OpenNLP's tests of the file
+  parsers (wrong field counts, bad hexadecimal, unknown attributes) have
+  no counterpart; the audits of the data (row counts, the two fold
+  directions closing over each other, every fold source annotated,
+  sentiment in -2..2, the attribute sources) are ported, and every name,
+  group and subgroup of the bundled annotations is checked against the
+  Unicode 18.0 emoji-test.txt.
+
+Tests (`analysis/normalize/tests/emoji.rs`): the expectations of
+`EmojiToEmoticonCharSequenceNormalizerTest`,
+`EmoticonToEmojiCharSequenceNormalizerTest` (without the case that runs
+OpenNLP's word tokenizer), `EmojiEmoticonsTest`, `EmojiAnnotationsTest`,
+`EmojiAnnotatorTest`, the malformed flags of `EmojiFlagsTest` (through
+`features`) and `EmojiAnnotatorUsageExampleTest`; every fully-qualified,
+minimally-qualified and component row of emoji-test.txt removed as one
+space with a placeholder covering the row, alone and between letters;
+ZWJ families, skin tones, keycaps with and without U+FE0F, flags,
+subdivision flags, text-default symbols with and without U+FE0F and
+U+FE0E; 20,000 generated inputs for each mode (the sequence mode is
+idempotent and its placeholders are the scanner's emoji sequences; the
+supplementary mode equals a code-point-at-a-time reference of OpenNLP's
+loop); the alignment of every output; and a pipeline that runs
+`EmojiAnnotate` and `EmojiRemove`, reads both layers back and maps each
+emoji into the view.
+
+### Language detector preparation (`language_detection.rs`)
+
+`language_detection::prepare(text)` prepares a text as OpenNLP's
+`LanguageDetectorFactory.getContextGenerator()` does before counting
+character n-grams: the five normalizers it chains, in its order, as one
+`Chain` run through `apply`:
+
+1. `EmojiRemove::supplementary()` (OpenNLP's deprecated
+   `EmojiCharSequenceNormalizer`: every run of supplementary-plane code
+   points becomes one space);
+2. `Urls`;
+3. `SocialMedia`;
+4. `Numbers`;
+5. `Shrink`.
+
+The result is borrowed when nothing changed. `language_detection::chain()`
+returns the chain itself for a pipeline that wants the view and its
+alignment. The models OpenNLP distributes were trained on this
+preparation, so each step keeps OpenNLP's output text; the improved
+variants (`BoundedUrls`, `BoundedSocialMedia`, emoji sequences) are not
+used here.
+
+Tests (`analysis/normalize/tests/language_detection.rs`): the chain's ids in order, and
+texts mixing emoji, URLs, addresses, hashtags, digits and repeated
+characters compared with the five OpenNLP normalizers applied one after
+another.
+
 ### Unicode normalization forms (`unicode_form.rs`)
 
 `UnicodeForm` (id `turbo:normalize:unicode-form`) puts the text in NFC
@@ -1395,6 +2053,33 @@ it overlaps.
   it runs on (`Character.digit`), so the same input gives different
   output on JDK 21 (Unicode 15.0) and later JDKs. Its tests do not state
   which Unicode version they expect.
+- `CursorArtifactDetector` reports two characters of genuine text as
+  mojibake when an accented capital stands before a typographic dash,
+  quote or ellipsis whose Windows-1252 byte is a continuation byte:
+  "CAFÉ–BAR" (C9 96, the UTF-8 of U+0256), "Ä…" (C4 85). Requiring a
+  two-byte image to decode to the ranges mojibake comes from (Latin-1
+  Supplement, Latin Extended-A, Greek, Cyrillic) removes these.
+- `CursorArtifactDetector` needs a whole run of non-ASCII characters to
+  decode, so one genuine character next to the image ("cafÃ©…") or one
+  byte replaced by U+FFFD hides the mojibake; decoding one sequence at a
+  time finds it.
+- `StructuralNoiseScorer.isSurroundingPunctuation` takes a `char`, so
+  supplementary-plane punctuation is never trimmed and the token is
+  skipped as non-ASCII. Testing code points with
+  `Character.getType(int)` fixes this.
+- `StructuralNoiseScorer.overlapsAny` tests every exclusion for every
+  token and every gap. Sorting and joining the exclusions once makes each
+  test a binary search.
+- `SymbolJoinerCharSequenceNormalizer` and the `symbol-joiner` add-on are
+  the same class. It maps single symbols to words and joins nothing, so
+  its name does not describe what it does.
+- `EnglishContractionCharSequenceNormalizer` computes every word
+  boundary of the text (`WordSegmenter.boundaries`) when it finds one
+  candidate. The UAX #29 rules at one position read only a few
+  characters around it, so checking the two ends of each candidate costs
+  a constant amount of work instead of a pass over the whole text. It
+  also leaves unambiguous forms such as `y'all`, `this'll` and `may've`
+  unexpanded.
 - `UrlCharSequenceNormalizer` and `SocialMediaCharSequenceNormalizer`
   run two and four passes, each copying the text. Each can be one pass
   with the same output. For URLs, the only care needed is to cut an
@@ -1408,6 +2093,31 @@ it overlaps.
   removing part of an address and leaving the rest. Widening the
   local-part and domain sets to non-ASCII letters, digits and marks
   removes whole internationalized addresses.
+- `SvgHeader` catches `XMLStreamException` only. With DTD support off,
+  JDK 21's StAX parser throws `MissingResourceException`
+  ("InvalidCharInDTD") for a character XML does not allow inside an
+  internal subset, so `CursorAssetDetector.detect` throws on any text
+  holding such a header as a bare run or a `data:` URI, for example
+  `<!DOCTYPE svg [<!ENTITY a\0 'b'>]><svg .../>` encoded. Catching
+  `RuntimeException` around the parse, or rejecting the payload when the
+  parser fails in any way, keeps detection total.
+- With `SUPPORT_DTD` false the JDK skips the internal subset unread up to
+  its first `]`: `<!DOCTYPE svg [<!A<TLIST>]>` is accepted, while a `]`
+  inside a comment or literal there ends the subset and fails the
+  document. `SvgHeader`'s answer for a DOCTYPE thus follows the parser's
+  shortcuts rather than XML. The JDK also reads XML 1.0 names by the
+  fourth edition's tables.
+- `SvgHeader`'s answer can depend on bytes after the root start tag: the
+  JDK's UTF-8 reader decodes ahead and rejects a four-byte sequence above
+  U+10FFFF up to about 8 KB later (`<svg xmlns='...'/>` followed by
+  F4 90 80 80 is not SVG), while other malformed bytes there are ignored.
+  Bounding the stream at the end of the start tag, or decoding leniently
+  after it, would make the answer depend on the header alone.
+- `CursorAssetDetector` matches base64 prefixes of every signature before
+  decoding a header, and `KnownMagics.formatOf` then tests the decoded
+  header against the same signatures. Decoding the first base64 quantum
+  and looking its first byte up in a 256-entry table filters the same
+  runs with one lookup and no prefix strings.
 - `SocialMediaCharSequenceNormalizer` replaces emoticons inside words
   (`expo` becomes `"e o"`, `xoxo` two spaces, `:people` `" eople"`), and
   its hashtags swallow the punctuation after them (`#win!`). Its retweet
@@ -1464,6 +2174,19 @@ it overlaps.
   `ArgumentChecks`, `ResourceLimits.requireWithinMaxEntries`,
   `MailAddressScan.isAddress`, `StringUtil.stripByteOrderMark` and
   `StringUtil.splitNonEmpty`, which that branch does not have.
+- `EmojiCharSequenceNormalizer` replaces supplementary-plane code points,
+  not emoji: it removes mathematical alphanumerics, CJK Extension B to
+  J ideographs and historic scripts, keeps every emoji of the Basic
+  Multilingual Plane (`☺`, `❤`, `⌚`), and turns a ZWJ family into spaces
+  around its joiners and `❤️` into a space and U+FE0F. A UTS #51 sequence
+  scan with the Emoji_Presentation rule removes whole emoji and nothing
+  else. Its legacy mode also removes every `-`.
+- `EmojiAnnotator` annotates tokens, so a token that holds an emoji and
+  other text, or a tokenizer that splits a ZWJ sequence, loses the
+  emoji. Its names cover only the 40 bundled pictographs, while
+  emoji-test.txt names every RGI emoji; the bundled names could be read
+  from emoji-test.txt instead of copied, so they follow each Unicode
+  version.
 - `NfcCharSequenceNormalizer`, `NfkcCharSequenceNormalizer` and
   `CaseFoldCharSequenceNormalizer` are not offset-aware, so
   `buildAligned()` rejects them. All three can record an exact alignment:
