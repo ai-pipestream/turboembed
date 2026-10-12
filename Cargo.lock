@@ -1786,6 +1786,22 @@ dependencies = [
 ]
 
 [[package]]
+name = "turbo-goldens"
+version = "0.1.0"
+dependencies = [
+ "turbo-analysis",
+ "turbo-analysis-layers",
+]
+
+[[package]]
+name = "turbo-goldens-tool"
+version = "0.1.0"
+
+[[package]]
+name = "turbo-jvm"
+version = "0.1.0"
+
+[[package]]
 name = "turbo-kserve"
 version = "0.1.0"
 dependencies = [
@@ -1855,6 +1871,9 @@ dependencies = [
 [[package]]
 name = "turbo-unicode"
 version = "0.1.0"
+dependencies = [
+ "turbo-unicode-gen",
+]
 
 [[package]]
 name = "turbo-unicode-gen"

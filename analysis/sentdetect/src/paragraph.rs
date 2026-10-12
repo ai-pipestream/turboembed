@@ -7,7 +7,11 @@
 //! where lines are; counting it as two would put a blank line inside
 //! every CR LF break and make each line of a Windows file a paragraph.
 //! `U+2028`, `U+2029` and `U+0085` do not end a line, again as in the
-//! newline detector; they are whitespace inside a line.
+//! newline detector; they are whitespace inside a line. That holds for
+//! `U+2029 PARAGRAPH SEPARATOR` too, despite its name: OpenNLP's
+//! `NewlineSentenceDetector` splits only at `\n` and `\r`, so ending a
+//! paragraph at `U+2029` would put a paragraph boundary inside what
+//! `NewlineDetector` reports as one line.
 //!
 //! A line is blank when every character on it is whitespace in the
 //! configured mode (an empty line is blank). A paragraph's span starts at

@@ -13,6 +13,9 @@ members = [
     "analysis/maxent",
     "analysis/normalize",
     "analysis/normalize-layers",
+    "analysis/goldens",
+    "analysis/goldens-tool",
+    "analysis/jvm",
     "analysis/sentdetect",
 ]
 resolver = "3"

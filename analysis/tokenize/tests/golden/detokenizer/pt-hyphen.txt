@@ -1,0 +1,17 @@
+component: detokenizer
+opennlp: cdf33c653d5d61d5af7d37ffee189a83bd8392ea
+jdk: 21.0.12.1
+whitespace: unicode
+dictionary: pt-detokenizer.xml
+dictionary-sha256: 22f60f1ac36f856361c4d062e49e897604aae97fecf5082169607bf91223c60f
+split-marker: <SPLIT>
+tokens: 7
+token: O NO_OPERATION
+token: guarda NO_OPERATION
+token: - MERGE_BOTH
+token: chuva NO_OPERATION
+token: est\u00E1 NO_OPERATION
+token: aqui NO_OPERATION
+token: . MERGE_TO_LEFT
+text: O guarda-chuva est\u00E1 aqui.
+text-marked: O guarda<SPLIT>-<SPLIT>chuva est\u00E1 aqui<SPLIT>.

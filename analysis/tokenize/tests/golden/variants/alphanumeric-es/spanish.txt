@@ -1,0 +1,43 @@
+component: tokenizer-me-es
+opennlp: cdf33c653d5d61d5af7d37ffee189a83bd8392ea
+jdk: 21.0.12.1
+whitespace: unicode
+model: opennlp-es-ud-gsd-tokens-1.3-2.5.4.bin
+model-sha256: 309de611ff7a8c4227c57086838d4783bcede8520026d7ad416c85a513567ce7
+alpha-numeric-pattern: ^[0-9a-z\u00E1\u00E9\u00ED\u00F3\u00FA\u00FC\u00FD\u00F1A-Z\u00C1\u00C9\u00CD\u00D3\u00DA\u00DD\u00D1]+$
+use-alpha-numeric-optimization: true
+effective-alpha-numeric-pattern: ^[0-9a-z\u00E1\u00E9\u00ED\u00F3\u00FA\u00FC\u00FD\u00F1A-Z\u00C1\u00C9\u00CD\u00D3\u00DA\u00DD\u00D1]+$
+input: El Sr. Garc\u00EDa dijo: \u00AB\u00BFD\u00F3nde est\u00E1 la ni\u00F1a?\u00BB y se fue a la se\u00F1al de tr\u00E1fico. \u00A1Qu\u00E9 d\u00EDa! Hab\u00EDa 1.000 a\u00F1os\u2026 ping\u00FCino, canci\u00F3n.\n
+span: 0 2 0 2 1.0
+span: 3 6 3 6 0.9405081835006199
+span: 7 14 7 13 1.0
+span: 15 19 14 18 0.9978479382841062
+span: 19 20 18 19 1.0
+span: 21 23 20 21 0.9999975615197536
+span: 23 25 21 22 0.5358883735010056
+span: 25 31 22 27 0.9987186622559057
+span: 32 37 28 32 1.0
+span: 38 40 33 35 1.0
+span: 41 46 36 40 0.8583734951670855
+span: 46 47 40 41 0.935058059919074
+span: 47 49 41 42 1.0
+span: 50 51 43 44 1.0
+span: 52 54 45 47 1.0
+span: 55 58 48 51 1.0
+span: 59 60 52 53 1.0
+span: 61 63 54 56 1.0
+span: 64 70 57 62 1.0
+span: 71 73 63 65 1.0
+span: 74 82 66 73 0.999277849070341
+span: 82 83 73 74 1.0
+span: 84 86 75 76 0.9996191090447327
+span: 86 90 76 79 0.9980483614468855
+span: 91 95 80 83 0.9994371590831244
+span: 95 96 83 84 1.0
+span: 97 103 85 90 1.0
+span: 104 109 91 96 0.9975194286226408
+span: 110 118 97 102 0.6978447881464304
+span: 119 128 103 111 0.9985815910179091
+span: 128 129 111 112 1.0
+span: 130 138 113 120 0.9985545010626741
+span: 138 139 120 121 1.0

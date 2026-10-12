@@ -1,28 +1,111 @@
-//! The UAX #29 word boundary properties: `Word_Break` from the Unicode
-//! 17.0 `WordBreakProperty.txt`, and `Extended_Pictographic` from the
-//! Unicode 17.0 `emoji-data.txt`, which rule WB3c uses. These are the
-//! same files OpenNLP's UAX #29 tokenizer bundles, so its boundaries and
-//! the ones built on these tables come from the same data.
+//! The UAX #29 word boundary properties: `Word_Break` from
+//! `WordBreakProperty.txt`, and `Extended_Pictographic` from
+//! `emoji-data.txt`, which rule WB3c uses.
 //!
-//! Unlike the Java character classes, these properties do not depend on
-//! the JDK: OpenNLP reads them from its own copy of the files.
+//! OpenNLP's UAX #29 tokenizer bundles its own copy of these files, from
+//! the Unicode version of the OpenNLP release; the tables here are built
+//! from the Unicode 18.0 files in `ucd/`. Unlike the Java character
+//! classes, these properties do not depend on the JDK.
 
-use crate::tables::word_break as table;
+use crate::tables::props::{self, EXTENDED_PICTOGRAPHIC};
+use crate::tables::word_break::{BLOCKS, INDEX, NAMES};
+use crate::trie::lookup_code_point;
 
-pub use crate::tables::word_break::WordBreak;
+/// A UAX #29 `Word_Break` property value, in the order of OpenNLP's
+/// `WordBreak` enum.
+#[derive(Copy, Clone, Debug, Default, PartialEq, Eq, Hash)]
+#[repr(u8)]
+pub enum WordBreak {
+    /// No `Word_Break` value: every code point the property file does not list.
+    #[default]
+    Other = 0,
+    /// Carriage return (U+000D).
+    Cr = 1,
+    /// Line feed (U+000A).
+    Lf = 2,
+    /// The other mandatory breaks: U+000B, U+000C, U+0085, U+2028, U+2029.
+    Newline = 3,
+    /// Combining marks and other characters that extend the one before.
+    Extend = 4,
+    /// Zero width joiner (U+200D).
+    Zwj = 5,
+    /// Regional indicator symbols, used in pairs for flags.
+    RegionalIndicator = 6,
+    /// Format characters.
+    Format = 7,
+    /// Katakana.
+    Katakana = 8,
+    /// Hebrew letters.
+    HebrewLetter = 9,
+    /// Alphabetic letters.
+    ALetter = 10,
+    /// The apostrophe (U+0027).
+    SingleQuote = 11,
+    /// The quotation mark (U+0022).
+    DoubleQuote = 12,
+    /// Characters that join letters or numbers, such as the full stop.
+    MidNumLet = 13,
+    /// Characters that join letters, such as the middle dot.
+    MidLetter = 14,
+    /// Characters that join numbers, such as the comma.
+    MidNum = 15,
+    /// Digits.
+    Numeric = 16,
+    /// Characters that extend letters or numbers, such as the low line.
+    ExtendNumLet = 17,
+    /// Spaces that separate words.
+    WSegSpace = 18,
+}
+
+impl WordBreak {
+    /// Every value, in discriminant order, which is also the order of the
+    /// numbers the generated table stores.
+    pub const ALL: [WordBreak; 19] = [
+        WordBreak::Other,
+        WordBreak::Cr,
+        WordBreak::Lf,
+        WordBreak::Newline,
+        WordBreak::Extend,
+        WordBreak::Zwj,
+        WordBreak::RegionalIndicator,
+        WordBreak::Format,
+        WordBreak::Katakana,
+        WordBreak::HebrewLetter,
+        WordBreak::ALetter,
+        WordBreak::SingleQuote,
+        WordBreak::DoubleQuote,
+        WordBreak::MidNumLet,
+        WordBreak::MidLetter,
+        WordBreak::MidNum,
+        WordBreak::Numeric,
+        WordBreak::ExtendNumLet,
+        WordBreak::WSegSpace,
+    ];
+
+    /// The value name as `WordBreakProperty.txt` writes it, such as `ALetter`.
+    pub const fn property_name(self) -> &'static str {
+        NAMES[self as usize]
+    }
+
+    /// The value with this `WordBreakProperty.txt` name.
+    pub fn from_property_name(name: &str) -> Option<WordBreak> {
+        NAMES.iter().position(|&n| n == name).map(|i| WordBreak::ALL[i])
+    }
+}
 
 /// The `Word_Break` value of a code point; [`WordBreak::Other`] for every
 /// code point the property file does not list, surrogates and values
 /// above U+10FFFF included.
 #[inline]
 pub fn word_break(cp: u32) -> WordBreak {
-    table::word_break(cp)
+    WordBreak::ALL[lookup_code_point(&INDEX, &BLOCKS, cp) as usize]
 }
 
-/// Whether a code point has the `Extended_Pictographic` property.
+/// Whether a code point has the `Extended_Pictographic` property; false
+/// for surrogates and values above U+10FFFF.
 #[inline]
 pub fn is_extended_pictographic(cp: u32) -> bool {
-    table::is_extended_pictographic(cp)
+    lookup_code_point(&props::INDEX, &props::BLOCKS, cp) & EXTENDED_PICTOGRAPHIC != 0
 }
 
 /// Whether a code point is a regional indicator symbol (U+1F1E6 to
@@ -60,6 +143,7 @@ mod tests {
     #[test]
     fn values_follow_opennlp_order() {
         assert_eq!(WordBreak::ALL.len(), 19);
+        assert_eq!(WordBreak::ALL.len(), NAMES.len());
         assert_eq!(WordBreak::Other as u8, 0);
         assert_eq!(WordBreak::ALetter as u8, 10);
         assert_eq!(WordBreak::WSegSpace as u8, 18);
