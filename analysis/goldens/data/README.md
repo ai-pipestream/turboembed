@@ -45,7 +45,8 @@ running `generate` and checking in the inputs and the goldens together.
 
 ## Decision point dumps
 
-`<annotator>/<model>/<set>/<id>.dump`, beside each golden, records every
+`<annotator>/<model>/<set>/<id>.dump`, beside each golden of
+`sentdetect`, `tokenize` and `langdetect`, records every
 decision the annotator asked its maxent model for on that input: the
 context strings, at the UTF-8 byte offset the decision is about, and the
 probability of each outcome the model returned. `docs/analysis.md`
@@ -56,10 +57,11 @@ hand.
 
 The dumps checked in now were made by running the Java generator
 directly with `--dumps` (see `analysis/goldens-tool/README.md`) under the
-JDK named in their headers, with the OpenNLP build and models the goldens
-were made with; the goldens of that run are byte for byte the checked in
-ones. The run in the pinned container, through `turbo-goldens generate`
-and `verify`, is still to be done on a machine with Docker.
+JDK named in their headers, in the same run as the goldens, with the
+OpenNLP build and models named there. A normalizer asks no model, so the
+`normalize` goldens have no dumps. The run in the pinned container,
+through `turbo-goldens generate` and `verify`, is still to be done on a
+machine with Docker.
 
 ## Normalizer goldens
 

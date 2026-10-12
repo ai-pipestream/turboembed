@@ -114,7 +114,11 @@ JDK gives the same bytes.
 Moving the pin from `92d486d05151ef00b6d145c405046aa3a33b5a48` changed the
 `opennlp` header line of every golden and, in the `langdetect` goldens, the
 lower ranked languages' confidences and in places their order; the sentence
-and token goldens are otherwise identical.
+and token goldens are otherwise identical. In the dumps it changed the
+`opennlp` header line of every one and, in three `langdetect` dumps
+(`en/emoji`, `en/url` and `multi/mixed`), the n-gram contexts and with them
+every outcome probability; the sentence and token dumps are otherwise
+identical.
 
 ## Why the OpenNLP build skips two checks
 
