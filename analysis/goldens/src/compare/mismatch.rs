@@ -46,8 +46,8 @@ pub enum Mismatch {
     /// One side has more items. `extra` is the first item past the
     /// shorter side, from the longer one.
     Count { layer: String, rust: usize, golden: usize, extra: Box<Item> },
-    /// Item `index` differs in `what`: `span`, `tokens`, or the name of a
-    /// label or value column. Both items are reported whole.
+    /// Item `index` differs in `what`: `span`, `tokens`, `UTF-16 span`,
+    /// `cut`, or the name of a label or value column. Both items are reported whole.
     Item { layer: String, index: usize, what: &'static str, tolerance: Tolerance, rust: Box<Item>, golden: Box<Item> },
 }
 
@@ -63,6 +63,9 @@ pub struct Item {
     pub text: Option<String>,
     /// For an entity, its tokens `[start, end)`.
     pub tokens: Option<(u32, u32)>,
+    /// For a `turbo:utf16<L>` row, its span in UTF-16 units `[start, end)`
+    /// and whether it cuts a character.
+    pub units: Option<(u32, u32, bool)>,
     /// The label column's name and value: a tag, a lemma, a kind, a code.
     pub label: Option<(&'static str, String)>,
     /// The value column's name and value: a probability or confidence.
@@ -165,6 +168,10 @@ impl fmt::Display for Item {
         }
         if let Some((a, b)) = self.tokens {
             write!(f, "{sep}tokens {a}..{b}")?;
+            sep = ", ";
+        }
+        if let Some((a, b, cut)) = self.units {
+            write!(f, "{sep}UTF-16 units {a}..{b}{}", if cut { ", cut" } else { ", not cut" })?;
             sep = ", ";
         }
         if let Some((name, l)) = &self.label {

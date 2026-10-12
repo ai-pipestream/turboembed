@@ -42,6 +42,7 @@ impl GoldenCompare for WordTypes {
             spans: None,
             context: cx.rust_anchor::<Tokens>(),
             tokens: None,
+            units: None,
             labels: Some(Labels::Strs(&self.kind)),
             values: None,
         };
@@ -50,6 +51,7 @@ impl GoldenCompare for WordTypes {
             spans: None,
             context: cx.golden_spans("opennlp:tokens"),
             tokens: None,
+            units: None,
             labels: Some(Labels::Strs(golden.strs("kind").expect("a str column the shape checked"))),
             values: None,
         };

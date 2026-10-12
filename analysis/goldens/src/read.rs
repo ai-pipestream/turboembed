@@ -61,7 +61,8 @@ pub enum GoldenError {
     /// The `end` line came before the declared number of rows.
     Rows { line: usize, layer: String, declared: usize, found: usize },
     /// A span that ends before it starts, ends past the input, or starts
-    /// before the row before it.
+    /// before the row before it; or a UTF-16 span that ends before it
+    /// starts or past the input.
     Span { line: usize, layer: String, detail: String },
     /// A file with a header and no layer, and no error record.
     NoLayers { line: usize },
@@ -493,6 +494,13 @@ fn read_layer(
         }
         _ => None,
     };
+    // A layer of UTF-16 spans (`turbo:utf16<L>`) has its spans in UTF-16
+    // units of the input, in the order of the layer it is aligned to.
+    let unit_cols = {
+        let start = specs.iter().position(|s| s == &("start16", ColumnType::U32));
+        let end = specs.iter().position(|s| s == &("end16", ColumnType::U32));
+        start.zip(end)
+    };
     let end_line = format!("end\t{id}");
     let mut buf = String::new();
     let mut last_start = 0;
@@ -527,6 +535,25 @@ fn read_layer(
                 return Err(GoldenError::Span { line, layer: id.into(), detail });
             }
             last_start = start;
+        }
+        if let Some((s, e)) = unit_cols {
+            let (ColumnData::U32(starts), ColumnData::U32(ends)) = (&columns[s].data, &columns[e].data) else {
+                unreachable!("start16 and end16 are u32 columns, as found");
+            };
+            let (start, end) = (starts[r], ends[r]);
+            let detail = if start > end {
+                Some(format!("the UTF-16 span {start}..{end} ends before it starts"))
+            } else if end > header.input.utf16_len {
+                Some(format!(
+                    "the UTF-16 span {start}..{end} ends past the input's {} UTF-16 units",
+                    header.input.utf16_len
+                ))
+            } else {
+                None
+            };
+            if let Some(detail) = detail {
+                return Err(GoldenError::Span { line, layer: id.into(), detail });
+            }
         }
     }
     let l = lines.expect(&format!("\"end\t{id}\""))?;

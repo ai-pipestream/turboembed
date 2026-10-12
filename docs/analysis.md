@@ -320,8 +320,22 @@ surrogate pair), and refuses a lone surrogate.
 
 Every `start` and `end` is a UTF-8 byte offset into the input text,
 half open, the unit the Rust layers use. The generator computes it from
-OpenNLP's UTF-16 span and fails rather than round an offset that falls
-inside a character.
+OpenNLP's UTF-16 span. OpenNLP's `SimpleTokenizer` and `TokenizerME`
+classify UTF-16 units, so they can split a character outside the Basic
+Multilingual Plane, a surrogate pair, between two tokens, and a byte
+offset cannot fall between its halves. For such a row the generator
+widens the byte span to the enclosing character (the start rounds down,
+the end rounds up), so the two halves of one character are two rows
+over the same bytes, and it writes the aligned layer
+`turbo:utf16<opennlp:tokens>` (or `turbo:utf16<opennlp:sentences>`)
+whenever at least one row cuts a character. That layer has, for every
+row of the layer it is aligned to, the JVM's exact span in UTF-16 units
+(`start16`, `end16`, half open) and `cut`, 1 when the row starts or ends
+inside a surrogate pair and 0 otherwise. Overlapping rows on the text
+are allowed as they are for nested entities (a row may not start before
+the row before it), so the widened rows need no rule of their own. The
+reader checks that a UTF-16 span does not end before it starts or past
+the input's length in UTF-16 units.
 
 The layers and their columns, in order:
 
@@ -329,8 +343,10 @@ The layers and their columns, in order:
 |---|---|---|
 | `opennlp:sentences` | `text` | `start:u32`, `end:u32` |
 | `turbo:confidence<opennlp:sentences>` | `aligned:opennlp:sentences` | `value:f64` |
+| `turbo:utf16<opennlp:sentences>` | `aligned:opennlp:sentences` | `start16:u32`, `end16:u32`, `cut:u32` |
 | `opennlp:tokens` | `text` | `start:u32`, `end:u32` |
 | `turbo:confidence<opennlp:tokens>` | `aligned:opennlp:tokens` | `value:f64` |
+| `turbo:utf16<opennlp:tokens>` | `aligned:opennlp:tokens` | `start16:u32`, `end16:u32`, `cut:u32` |
 | `opennlp:pos` | `aligned:opennlp:tokens` | `tag:str`, `prob:f64` |
 | `opennlp:lemmas` | `aligned:opennlp:tokens` | `lemma:str` |
 | `opennlp:entities` | `text` | `start:u32`, `end:u32`, `token_start:u32`, `token_end:u32`, `kind:str`, `prob:f64` |
@@ -389,6 +405,18 @@ bits (so -0.0 and 0.0 differ), and `Abs(d)` takes two finite values at
 most `d` apart, or the same infinity, or two NaNs. `Language` holds the
 best language, so it is compared with row 0. POS tags without
 probabilities do not match a golden that has them.
+
+`Utf16Spans<L>` (`turbo:utf16<L>`) is compared exactly, row by row: the
+UTF-16 span, then the cut flag, the Rust layer's `bool` against the
+golden's 0 or 1 (a golden with any other value is reported as one that
+cannot be applied). Where the JVM split a character the Rust tokenizer
+keeps whole, the byte comparison of the tokens shows that as an
+expected deviation the test asserts on purpose: the golden has two rows
+over the character's bytes where Rust has one token, so the report is
+a count mismatch when the character ends the text (`Smile 😀`: 2 items
+in Rust, 3 in the golden) and otherwise the first token after it, which
+the golden still has over the character. The UTF-16 layer keeps the
+JVM's own answer, the two halves with `cut` 1.
 
 A normalized `View` is compared by its key (`Key::named("nfkc")`):
 the source with the golden's edits applied must be the view's text,
@@ -451,6 +479,12 @@ runs them on any machine:
   the message's escapes, a layer block or any other line after the
   record refused with its line, layers beside it refused by the writer,
   and `Mismatch::JvmError` from a comparison.
+- `analysis/goldens/tests/utf16_spans.rs` reads and writes a golden
+  whose tokens cut a surrogate pair (`tests/fixtures/smile.golden`),
+  checks the UTF-16 layer's shape and spans, shows one Rust token over
+  the character as a count mismatch against the golden's two rows, and
+  compares `Utf16Spans` for tokens and sentences, a span and a cut flag
+  that differ each reported with the token's text.
 - `analysis/goldens/tests/shapes_from_other_crates.rs` defines a layer
   type in the test (`turbo:word-types`), reads a golden holding it with
   `read_with` (which `read` refuses), and compares a document with it.

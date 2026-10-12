@@ -3,9 +3,10 @@
 //! Each shared layer type with a golden shape implements `GoldenCompare`:
 //! it names the columns its golden has and lays its own columns and the
 //! golden's side by side as `Items`, which one loop compares item by item
-//! (span first, then token range, label and value), stopping at the first
-//! difference. The layer's id and anchor come from its `Layer` impl, so a
-//! golden is matched to a type by the same id the document uses.
+//! (span first, then token range, UTF-16 span and cut, label and value),
+//! stopping at the first difference. The layer's id and anchor come from
+//! its `Layer` impl, so a golden is matched to a type by the same id the
+//! document uses.
 
 mod items;
 mod layers;
@@ -16,7 +17,7 @@ use std::fmt;
 
 use turbo_analysis::{Anchor, Document, Key, KeyId, Layer, Status};
 
-pub use items::{Items, Labels, Names, SpanCols, TokenCols, compare_items};
+pub use items::{CutCol, Items, Labels, Names, SpanCols, TokenCols, UnitCols, compare_items};
 pub use mismatch::{Item, Mismatch};
 
 use crate::format::{ColumnSpec, Golden, GoldenAnchor, GoldenLayer};
@@ -146,12 +147,14 @@ pub fn shape_of<L: GoldenCompare>() -> Shape {
 /// added.
 pub fn known_shapes() -> Vec<Shape> {
     use turbo_analysis::View;
-    use turbo_analysis_layers::{Confidence, Entities, Language, Lemmas, PosTags, Sentences, Tokens};
+    use turbo_analysis_layers::{Confidence, Entities, Language, Lemmas, PosTags, Sentences, Tokens, Utf16Spans};
     vec![
         shape_of::<Sentences>(),
         shape_of::<Confidence<Sentences>>(),
+        shape_of::<Utf16Spans<Sentences>>(),
         shape_of::<Tokens>(),
         shape_of::<Confidence<Tokens>>(),
+        shape_of::<Utf16Spans<Tokens>>(),
         shape_of::<PosTags>(),
         shape_of::<Lemmas>(),
         shape_of::<Entities>(),
@@ -288,8 +291,10 @@ mod tests {
             [
                 "opennlp:sentences",
                 "turbo:confidence<opennlp:sentences>",
+                "turbo:utf16<opennlp:sentences>",
                 "opennlp:tokens",
                 "turbo:confidence<opennlp:tokens>",
+                "turbo:utf16<opennlp:tokens>",
                 "opennlp:pos",
                 "opennlp:lemmas",
                 "opennlp:entities",
