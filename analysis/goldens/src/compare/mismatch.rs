@@ -15,6 +15,10 @@ use crate::hex::to_hex;
 pub enum Mismatch {
     /// The document's text is not the golden's input.
     Input { layer: String, expected_len: u32, found_len: usize, expected_sha256: [u8; 32], found_sha256: [u8; 32] },
+    /// The annotator threw on the JVM, so the golden has no layers. A test
+    /// of an input where the Rust port corrects the defect asserts this
+    /// and then the Rust output itself.
+    JvmError { layer: String, class: String, message: String },
     /// The golden file has no layer with this id.
     MissingGolden { layer: String, available: Vec<String> },
     /// The document has no data for the layer; `status` says why when it
@@ -72,6 +76,7 @@ impl Mismatch {
         use Mismatch::*;
         match self {
             Input { layer, .. }
+            | JvmError { layer, .. }
             | MissingGolden { layer, .. }
             | MissingLayer { layer, .. }
             | Anchor { layer, .. }
@@ -97,6 +102,9 @@ impl fmt::Display for Mismatch {
                 to_hex(found_sha256),
                 to_hex(expected_sha256)
             ),
+            JvmError { layer, class, message } => {
+                write!(f, "{layer}: the annotator threw on the JVM, so the golden has no layers: {class}: {message:?}")
+            }
             MissingGolden { layer, available } => {
                 write!(f, "{layer}: the golden has no such layer; it has [{}]", available.join(", "))
             }

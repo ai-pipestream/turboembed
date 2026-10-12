@@ -287,10 +287,18 @@ other. Then one header record per line, a keyword and its fields:
   was run with, sorted by key, each key once, so two goldens of one class
   run with different options are told apart. Key and value are `str`
   fields, escaped as below.
+- `error <class> <message>`: only for a run where the annotator threw
+  on the JVM, after the config records and the last line of the file.
+  The class is the exception's, such as
+  `java.lang.IllegalArgumentException`, and the message is a `str`
+  field, what `getMessage()` returned (empty for null). OpenNLP's
+  `SimpleTokenizer` with `keepNewLines`, for one, throws on a text that
+  starts with a line break, where the Rust port tokenizes it.
 
 The other header fields are written as they are; none holds a tab or a
 line end.
-One or more layer blocks follow. Each starts with
+A file with an error record has no layer blocks, and the reader refuses
+any line after that record. Otherwise one or more layer blocks follow. Each starts with
 `layer <id> <anchor> <rows> <name:type>...`, where the anchor is `text`,
 `aligned:<layer id>` or `document` and the list names every column with
 its type. Then come the rows, one per line, a field per column, and
@@ -368,7 +376,11 @@ The default instance of the layer is compared; `matches_golden_key`
 and `assert_matches_golden_key` take a `Key` for a named one, and
 `matches_golden` returns the difference as a `Mismatch` instead of
 panicking. The document's text must be the golden's input, by length
-and SHA-256. Spans are compared in source bytes, so a layer on a
+and SHA-256. When the golden has an error record, the comparison
+reports it as `Mismatch::JvmError` with the class and the message
+instead of comparing anything, so a test for an input the JVM could not
+handle asserts that error on purpose and then checks the Rust output
+itself. Spans are compared in source bytes, so a layer on a
 normalized view is mapped back through the view's alignment first. Item
 by item, the span, then an entity's token range, then the label (a tag
 through its tag set, a lemma, a kind, a language code) must be equal,
@@ -434,6 +446,11 @@ runs them on any machine:
   text and both values, and a malformed file of each kind is refused
   with its line. The unit tests hold the escapes, the FIPS 180-4
   test vectors and Java's `Double.toString`.
+- `analysis/goldens/tests/jvm_error.rs` reads, writes and compares a
+  golden with an error record (`tests/fixtures/newline-first.golden`):
+  the message's escapes, a layer block or any other line after the
+  record refused with its line, layers beside it refused by the writer,
+  and `Mismatch::JvmError` from a comparison.
 - `analysis/goldens/tests/shapes_from_other_crates.rs` defines a layer
   type in the test (`turbo:word-types`), reads a golden holding it with
   `read_with` (which `read` refuses), and compares a document with it.

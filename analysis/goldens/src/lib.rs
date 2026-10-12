@@ -25,7 +25,7 @@ pub use compare::{
 };
 pub use format::{
     AnnotatorRef, Column, ColumnData, ColumnSpec, ColumnType, ConfigEntry, Generator, Golden, GoldenAnchor,
-    GoldenLayer, Header, Input, Jdk, Model, OpenNlp, UnicodeVersion,
+    GoldenLayer, Header, Input, Jdk, JvmError, Model, OpenNlp, UnicodeVersion,
 };
 pub use read::GoldenError;
 pub use sha::{Sha256, Sha512, sha256, sha512};

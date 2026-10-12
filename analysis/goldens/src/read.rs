@@ -13,7 +13,7 @@ use crate::compare::{Shape, known_shapes};
 use crate::escape::{EscapeError, unescape_into};
 use crate::format::{
     AnnotatorRef, Column, ColumnData, ColumnType, ConfigEntry, Generator, Golden, GoldenAnchor, GoldenLayer, Header,
-    Input, Jdk, Model, OpenNlp, UnicodeVersion, VERSION,
+    Input, Jdk, JvmError, Model, OpenNlp, UnicodeVersion, VERSION,
 };
 use crate::hex::{digit, parse_hex, to_hex};
 use crate::sha::sha256;
@@ -63,8 +63,10 @@ pub enum GoldenError {
     /// A span that ends before it starts, ends past the input, or starts
     /// before the row before it.
     Span { line: usize, layer: String, detail: String },
-    /// A file with a header and no layer.
+    /// A file with a header and no layer, and no error record.
     NoLayers { line: usize },
+    /// A line after the error record: a run that threw has no layers.
+    AfterError { line: usize, found: String },
     /// The input text does not match the header.
     Input { path: PathBuf, what: &'static str, expected: String, found: String },
 }
@@ -118,6 +120,11 @@ impl fmt::Display for GoldenError {
             }
             Span { line, layer, detail } => write!(f, "line {line}: {layer}: {detail}"),
             NoLayers { line } => write!(f, "line {line}: the file ends, expected at least one layer block"),
+            AfterError { line, found } => write!(
+                f,
+                "line {line}: expected the end of the file after the error record (a run that threw has no layers), \
+                 found {found:?}"
+            ),
             Input { path, what, expected, found } => {
                 write!(f, "{}: the input's {what} is {found}, expected {expected} as the header says", path.display())
             }
@@ -175,6 +182,12 @@ impl Golden {
         };
         let mut lines = Lines { iter: body.split('\n').peekable(), line: 0 };
         let header = read_header(&mut lines)?;
+        if header.error.is_some() {
+            if let Some(found) = lines.next() {
+                return Err(GoldenError::AfterError { line: lines.line, found: found.into() });
+            }
+            return Ok(Golden { header, layers: Vec::new() });
+        }
         let mut layers: Vec<GoldenLayer> = Vec::new();
         while let Some(line) = lines.next() {
             let layer = read_layer(&mut lines, line, &header, shapes, &layers)?;
@@ -361,7 +374,23 @@ fn read_header(lines: &mut Lines<'_>) -> Result<Header, GoldenError> {
         }
         config.push(ConfigEntry { key, value: buf });
     }
-    Ok(Header { generator, opennlp, jdk, unicode, input, models, annotator, config })
+    // The exception the annotator threw, if it threw: after the options,
+    // and the last line of the file.
+    let mut error = None;
+    if let Some(l) = lines.peek().filter(|l| l.split('\t').next() == Some("error")) {
+        lines.next();
+        let line = lines.line;
+        let [class, message] = record(line, l, "error", ["class", "message"])?;
+        let class = text_field(line, "error class", class)?;
+        let mut buf = String::new();
+        unescape_into(message, &mut buf).map_err(|error| GoldenError::Escape {
+            line,
+            field: "error message".into(),
+            error,
+        })?;
+        error = Some(JvmError { class, message: buf });
+    }
+    Ok(Header { generator, opennlp, jdk, unicode, input, models, annotator, config, error })
 }
 
 /// The most rows reserved for ahead of reading them. The declared count

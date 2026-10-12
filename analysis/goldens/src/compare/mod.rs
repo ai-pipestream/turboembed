@@ -161,7 +161,8 @@ pub fn known_shapes() -> Vec<Shape> {
 }
 
 /// Compares the default instance of layer `L` on `doc` with its layer in
-/// `golden`: the first difference, or `Ok`.
+/// `golden`: the first difference, or `Ok`. A golden for a run that threw
+/// on the JVM has no layers and gives `Mismatch::JvmError`.
 pub fn matches_golden<L: GoldenCompare>(doc: &Document, golden: &Golden, tol: Tolerance) -> Result<(), Mismatch> {
     matches_golden_key(doc, &Key::<L>::DEFAULT, golden, tol)
 }
@@ -186,6 +187,9 @@ pub fn matches_golden_key<L: GoldenCompare>(
             expected_sha256: input.sha256,
             found_sha256: digest,
         });
+    }
+    if let Some(e) = &golden.header.error {
+        return Err(Mismatch::JvmError { layer, class: e.class.clone(), message: e.message.clone() });
     }
     let Some(g) = golden.layer(&shape.id) else {
         return Err(Mismatch::MissingGolden { layer, available: golden.layers.iter().map(|l| l.id.clone()).collect() });
