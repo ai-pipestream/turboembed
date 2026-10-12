@@ -831,8 +831,6 @@ fn good_escapes_and_characters_that_are_not_escaped() {
 /// A file that declares 4294967295 rows and has none must be refused with
 /// an error, not by trying to allocate room for them.
 #[test]
-#[ignore = "BUG: read_layer reserves capacity for the declared row count before reading any row, so a \
-            file declaring u32::MAX rows asks for 16 GB (u32 columns) before the Eof error"]
 fn a_huge_declared_row_count_is_refused_without_allocating_for_it() {
     let text = file("layer\topennlp:tokens\ttext\t4294967295\tstart:u32\tend:u32\n");
     let e = Golden::parse(&text).unwrap_err();
