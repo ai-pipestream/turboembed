@@ -162,7 +162,8 @@ pub fn hash_config<T: Hash>(options: &T) -> u64 {
 /// Every stretch of the parent that either stage touched becomes one
 /// edit. The stretches are the parent spans of the first stage's edits
 /// and the parent spans the second stage's edits map to through the
-/// first; overlapping stretches merge. The edges of a merged stretch lie
+/// first; overlapping stretches merge, touching ones stay separate
+/// edits. The edges of a merged stretch lie
 /// outside every edit of both stages, so mapping an edge through both
 /// alignments is exact, and the child text between two edges is what the
 /// stretch became.
@@ -186,19 +187,36 @@ pub fn compose(parent: &str, first: &Alignment, child: &str, second: &Alignment,
         };
         let Some(s) = next else { break };
         match stretches.last_mut() {
-            // Overlapping stretches merge. Touching ones merge too: an
-            // insertion at the edge of an edit belongs with that edit.
-            Some(last) if s.start <= last.end => last.end = last.end.max(s.end),
+            // Overlapping stretches merge. Touching ones stay apart, as
+            // every edit is recorded on its own (issue #265), except an
+            // insertion sitting on the edge of a stretch, which has no
+            // text of its own to stand between them.
+            Some(last) if s.start < last.end || (s.start == last.end && (s.is_empty() || last.is_empty())) => {
+                last.end = last.end.max(s.end)
+            }
             _ => stretches.push(s),
         }
     }
+    // Two touching stretches map to touching ranges of the middle text and
+    // of the child, except that an insertion sitting exactly on their
+    // shared edge is inside both ranges, since a start maps to after an
+    // insertion and an end to before it. The inserted text belongs to the
+    // earlier stretch, so each range starts no earlier than the one
+    // before it ends.
+    let (mut mid_end, mut child_end) = (0, 0);
     for s in stretches {
-        let mid = stretch_to_child(first, s);
-        let c = stretch_to_child(second, mid);
+        let mid = clamp_after(stretch_to_child(first, s), mid_end);
+        let c = clamp_after(stretch_to_child(second, mid), child_end);
         out.keep(s.start as usize);
         out.replace(s.end as usize, &child[c.range()]);
+        (mid_end, child_end) = (mid.end, c.end);
     }
     debug_assert!(out.position() <= parent.len());
+}
+
+/// `s` with its start moved up to `floor` when it begins before it.
+fn clamp_after(s: Span, floor: u32) -> Span {
+    Span::new(s.start.max(floor).min(s.end), s.end.max(floor))
 }
 
 /// Maps a stretch of the parent to the child text. The edges of a stretch

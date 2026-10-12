@@ -404,7 +404,7 @@ fn assert_edits_are_kept(case: &str, seq: &Sequence, alignment: &Alignment) {
     }
 }
 
-/// The edits are in text order on both sides, do not touch or overlap,
+/// The edits are in text order on both sides, do not overlap,
 /// the text between them is the same on both sides, and every offset is
 /// on a character boundary.
 fn assert_well_formed(case: &str, text: &str, out: &str, alignment: &Alignment) {
@@ -413,7 +413,6 @@ fn assert_well_formed(case: &str, text: &str, out: &str, alignment: &Alignment) 
         let (ps, pe, cs, ce) =
             (e.parent.start as usize, e.parent.end as usize, e.child.start as usize, e.child.end as usize);
         assert!(ps >= p && cs >= c, "edit {n} out of order for {case}");
-        assert!(n == 0 || ps > p || cs > c, "edit {n} touches the one before it for {case}");
         assert_eq!(text[p..ps], out[c..cs], "unedited text before edit {n} for {case}");
         assert!(text.is_char_boundary(ps) && text.is_char_boundary(pe), "edit {n} cuts the input for {case}");
         assert!(out.is_char_boundary(cs) && out.is_char_boundary(ce), "edit {n} cuts the output for {case}");
@@ -538,9 +537,8 @@ fn every_triple_of_steps_composes() {
 
 #[test]
 fn compose_function_joins_two_alignments() {
-    // "a  \u{AD}  b": the space run, the soft hyphen and the second space
-    // run become one stretch, because the second stage's edit lies inside
-    // the first stage's output of that stretch.
+    // "a  \u{AD}  b": the first stage collapses both space runs, the
+    // second deletes the soft hyphen between them.
     let src = "a  \u{AD}  b";
     let (mid, first) = normalize(&Spaces, src);
     assert_eq!(mid, "a \u{AD} b");
@@ -551,11 +549,14 @@ fn compose_function_joins_two_alignments() {
     let (text, alignment) = out.finish();
     assert_eq!(text, "a  b");
     assert_eq!(text, normalize(&chain_of(&[Kind::Spaces, Kind::SoftHyphen]), src).0);
-    // The three edits touch, so they are one edit: bytes 1..7 of the input
-    // ("  ", the soft hyphen, "  ") became the two spaces at 1..3.
-    assert_eq!(alignment.edits().len(), 1);
-    assert_eq!(alignment.edits()[0].parent, Span::new(1, 7));
-    assert_eq!(alignment.edits()[0].child, Span::new(1, 3));
+    // The three edits touch but do not overlap, so each stays its own
+    // edit: the first space run became one space, the soft hyphen went
+    // away, the second space run became one space.
+    let edits: Vec<(Span, Span)> = alignment.edits().iter().map(|e| (e.parent, e.child)).collect();
+    assert_eq!(
+        edits,
+        [(Span::new(1, 3), Span::new(1, 2)), (Span::new(3, 5), Span::new(2, 2)), (Span::new(5, 7), Span::new(2, 3)),]
+    );
     for s in non_empty_spans_of(&text) {
         assert!(covers(alignment.span_to_parent(s), first.span_to_parent(second.span_to_parent(s))), "{s:?}");
     }
@@ -1044,7 +1045,6 @@ fn a_chain_can_be_reused_on_many_texts() {
 // Known problem in turbo-analysis, outside this crate
 
 #[test]
-#[ignore = "Alignment::span_to_child panics on an empty span at an insertion point"]
 fn alignment_maps_an_empty_source_span_at_an_insertion() {
     let (_, a) = normalize(&AfterPeriod::default(), "a.b");
     // The empty span at byte 2 sits where "|" was inserted. Its start maps
@@ -1055,7 +1055,6 @@ fn alignment_maps_an_empty_source_span_at_an_insertion() {
 }
 
 #[test]
-#[ignore = "Alignment::span_to_parent panics on an empty span at a deletion point"]
 fn alignment_maps_an_empty_view_span_at_a_deletion() {
     let (_, a) = normalize(&SoftHyphen, "a\u{AD}b");
     // The empty span at byte 1 of "ab" sits where the soft hyphen was.
