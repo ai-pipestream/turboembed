@@ -308,6 +308,22 @@ from it. Every chunk records its level, its parent, its sentences, why
 it starts where it does, what it cost the optimizer and its length in
 model tokens.
 
+## Generating golden files
+
+The goldens in `analysis/goldens/data` are made by `turbo-goldens`
+(crate `turbo-goldens-tool` in `analysis/goldens-tool`). It builds a
+container from a pinned `eclipse-temurin:21-jdk` digest with OpenNLP
+built from a pinned commit of the fork, runs the Java generator in it
+without a network over the inputs and the models (each model checked
+against its published SHA-512), and writes
+`<annotator>/<model>/<set>/<id>.golden` for every annotator and input.
+`turbo-goldens verify` regenerates them into a scratch directory and
+fails on any file whose bytes differ. The first goldens (sentence
+detection, tokenization and language detection) were made by running
+the generator directly under the JDK named in their headers; the
+container run is to be proven on a machine with Docker.
+`analysis/goldens-tool/README.md` has the commands.
+
 ## Tests
 
 `cargo test -p turbo-analysis -p turbo-analysis-layers -p turbo-chunker -p turbo-jvm`
