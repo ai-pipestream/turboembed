@@ -10,6 +10,8 @@
 //! - [`whitespace`]: `WhitespaceTokenizer`, runs of non-whitespace.
 //! - [`uax29`]: the UAX #29 word segmenter and `WordTokenizer`, which
 //!   also writes the word type of each token.
+//! - [`unigram`]: `UnigramSegmenter`, the frequency lexicon segmenter
+//!   for Chinese and other text written without spaces.
 //! - [`me`]: the maxent tokenizer, `TokenizerME`, which reads an OpenNLP
 //!   tokenizer model and writes a confidence per token; the model file's
 //!   SHA-256 from turbo-maxent identifies it in the provenance.
@@ -27,6 +29,7 @@ pub mod detok;
 pub mod me;
 pub mod simple;
 pub mod uax29;
+pub mod unigram;
 pub mod unit;
 pub mod whitespace;
 
@@ -37,6 +40,7 @@ pub use simple::{SimpleTokenizer, simple_spans};
 pub use turbo_tokenize_layers::{WordType, WordTypes};
 pub use turbo_unicode::WhitespaceMode;
 pub use uax29::{UntypedWordTokenizer, WordTokenizer, word_boundaries, word_tokens};
+pub use unigram::{LexiconError, UnigramLexicon, UnigramSegmenter};
 pub use unit::{UnitToken, tokenize_units, tokenize_units_with};
 pub use whitespace::{WhitespaceTokenizer, whitespace_spans};
 
