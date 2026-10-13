@@ -11,12 +11,14 @@
 //!   permutation p value, drawn from `java.util.Random` with a fixed seed.
 //! - [`cost`]: the chunk length distribution.
 //! - [`record`]: one evaluation record per set and pipeline, as JSON.
+//! - [`set`]: an evaluation set once it is read.
 //! - [`gate`]: candidate records against baseline records.
 
 pub mod cost;
 pub mod gate;
 pub mod metrics;
 pub mod record;
+pub mod set;
 pub mod significance;
 pub mod spans;
 
