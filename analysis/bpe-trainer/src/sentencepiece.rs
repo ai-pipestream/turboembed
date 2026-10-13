@@ -6,8 +6,8 @@
 //! Each line is a sentence. A line that is empty, longer than 4192 bytes
 //! or holds U+2047 is left out, as the library leaves it out. A sentence
 //! is normalized as the identity rule does: spaces at its ends dropped,
-//! each run of spaces one space, each space U+2581 (`▁`), and a `▁` put in
-//! front. The meta pieces (`<unk>`, `<s>`, `</s>`) written in it become a
+//! each run of spaces one space, each space U+2581 (`▁`), a `▁` put in
+//! front, and every `▁` at the end taken off. The meta pieces (`<unk>`, `<s>`, `</s>`) written in it become a
 //! boundary no piece crosses, as does a tab. The characters are counted;
 //! the most frequent are kept until `character_coverage` of all
 //! characters is covered, and the rest are unknown. The sentence is cut
@@ -21,24 +21,29 @@
 //! Katakana count as Han, a combining mark as the script before it, and
 //! a character outside every script as Common), or be longer than 16
 //! characters. A pair whose piece an earlier merge already made is set
-//! aside, not merged. The model's pieces are `<unk>`, `<s>` and `</s>`,
+//! aside, not merged. When no pair occurs any more and the vocabulary is
+//! not yet full, the library goes on with the pairs that occurred at some
+//! point and no longer do, in the same order at count 0, each a piece no
+//! word holds; so does this. The model's pieces are `<unk>`, `<s>` and `</s>`,
 //! then each merged piece with the score minus its rank, then the kept
 //! characters, most frequent first, with the scores that follow.
 //!
-//! Where this differs from the library, each tested in
-//! `tests/sentencepiece.rs`:
+//! Where this differs from the library:
 //!
 //! - Only the identity normalization is run: no character map
 //!   (`nmt_nfkc`, the library's default, or a rule file). A corpus to be
 //!   normalized otherwise must be normalized first.
 //! - The other trainer options are the library's defaults and cannot be
 //!   set: no user-defined or control symbols, no byte fallback, no digit
-//!   splitting, whitespace as a prefix.
+//!   splitting, whitespace as a prefix, no sentence sampling.
 //! - Scripts are Unicode's current ones (`turbo-unicode`); the library's
-//!   table is older, so a character assigned since then is Common there.
+//!   table is of Unicode 9, so a character assigned since then is Common
+//!   there (`scripts_are_current_unicodes` in `tests/sentencepiece.rs`).
 //! - Two different pairs that make the same piece with the same count are
-//!   the one tie the library leaves to its heap; here the pair whose left
-//!   piece was made first merges.
+//!   the one tie the library leaves to the layout of its heap; here the
+//!   pair with the smaller ids merges, and the other is set aside as
+//!   above. On the corpora of `tests/sentencepiece.rs` the pieces are the
+//!   library's.
 
 use turbo_unicode::Script;
 
@@ -93,8 +98,9 @@ pub struct SentencePieceBpe {
     pieces: Vec<TrainedPiece>,
 }
 
-/// A sentence as the identity rule normalizes it, with spaces escaped and
-/// a `▁` in front; empty when it holds nothing but spaces.
+/// A sentence as the identity rule normalizes it, with spaces escaped,
+/// a `▁` in front and none at the end; empty when it holds nothing but
+/// spaces and `▁`.
 pub fn normalize(sentence: &str) -> String {
     let mut out = String::with_capacity(sentence.len() + 3);
     let mut space = true;
@@ -108,6 +114,11 @@ pub fn normalize(sentence: &str) -> String {
             space = false;
         }
         out.push(c);
+    }
+    // The library takes off every `▁` at the end, one written in the
+    // text included.
+    while out.ends_with(SPACE) {
+        out.pop();
     }
     out
 }
@@ -312,6 +323,20 @@ impl SentencePieceBpe {
             made.push(piece);
             m.merge(c.pair);
         }
+        // No pair occurs any more. The library goes on: every pair it
+        // has seen stays in its queue at its last count, so the pairs that
+        // occurred once and no longer do come out at count 0, in its
+        // order, each a piece no word holds.
+        for pair in m.spent() {
+            if made.len() == merges {
+                break;
+            }
+            let p = m.pieces();
+            let piece = format!("{}{}", p.text(pair.left), p.text(pair.right));
+            if seen.insert(piece.clone(), ()).is_none() {
+                made.push(piece);
+            }
+        }
         if made.len() < merges {
             return Err(TrainError::VocabTooLarge { asked: config.vocab_size, most: fixed + made.len() });
         }
@@ -373,6 +398,9 @@ mod tests {
         assert_eq!(normalize("   "), "");
         // Only U+0020 is a space to the identity rule.
         assert_eq!(normalize("a\u{3000}b\tc"), "▁a\u{3000}b\tc");
+        // A `▁` in the text is kept, but not at the end.
+        assert_eq!(normalize("a ▁b▁ ▁"), "▁a▁▁b");
+        assert_eq!(normalize("▁"), "");
     }
 
     #[test]
@@ -417,6 +445,20 @@ mod tests {
         let c = SentencePieceConfig { vocab_size: 5, character_coverage: 1.0 };
         assert!(matches!(SentencePieceBpe::train(["abc"], c), Err(TrainError::VocabTooSmall { asked: 5, least: 7 })));
         let c = SentencePieceConfig { vocab_size: 100, character_coverage: 1.0 };
-        assert!(matches!(SentencePieceBpe::train(["abc"], c), Err(TrainError::VocabTooLarge { asked: 100, most: 10 })));
+        assert!(matches!(SentencePieceBpe::train(["abc"], c), Err(TrainError::VocabTooLarge { asked: 100, most: 13 })));
+    }
+
+    /// After the three merges "▁abc" has, the pairs it had on the way
+    /// come out at count 0, shortest and then first in code point order:
+    /// the pieces the library 0.2.2 gives for this corpus and size.
+    #[test]
+    fn pairs_that_occur_no_longer_follow_the_merges() {
+        let c = SentencePieceConfig { vocab_size: 13, character_coverage: 1.0 };
+        let m = SentencePieceBpe::train(["abc"], c).unwrap();
+        let pieces: Vec<&str> = m.pieces().iter().map(|p| p.piece.as_str()).collect();
+        let want = ["<unk>", "<s>", "</s>", "ab", "abc", "▁abc", "bc", "▁a", "▁ab", "a", "b", "c", "▁"];
+        assert_eq!(pieces, want);
+        let scores: Vec<f32> = m.pieces().iter().skip(3).map(|p| p.score).collect();
+        assert_eq!(scores, (0..10).map(|i| -(i as f32)).collect::<Vec<_>>());
     }
 }

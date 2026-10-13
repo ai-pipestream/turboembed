@@ -161,6 +161,22 @@ impl<O: Order> Merger<O> {
         self.pairs.iter().filter(|(_, s)| s.count > 0).map(|(&p, s)| (p, s.count))
     }
 
+    /// The pairs that occurred and occur no longer, that the order allows
+    /// and that were neither merged nor set aside, smallest key first,
+    /// then smallest pair. A pair a merge made in a word and took away
+    /// again further on in the same word (`ab a`, while `a b` is merged
+    /// in `x a b a b`) is one of them, as it is to SentencePiece.
+    pub fn spent(&self) -> Vec<Pair> {
+        let mut v: Vec<(&O::Key, Pair)> = self
+            .pairs
+            .iter()
+            .filter(|(_, s)| s.count == 0)
+            .filter_map(|(&p, s)| s.key.as_ref().map(|k| (k, p)))
+            .collect();
+        v.sort_unstable();
+        v.into_iter().map(|(_, p)| p).collect()
+    }
+
     /// Every piece made, by id.
     pub fn into_pieces(self) -> Pieces {
         self.pieces
