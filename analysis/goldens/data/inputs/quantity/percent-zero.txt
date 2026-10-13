@@ -1,0 +1,1 @@
+It ran at 0% for a week, then -0% by a rounding quirk, then 0.00%.

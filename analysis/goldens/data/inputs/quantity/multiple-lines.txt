@@ -1,0 +1,3 @@
+Line one: 5 kg.
+Line two: 10%.
+Line three: 3 GHz.

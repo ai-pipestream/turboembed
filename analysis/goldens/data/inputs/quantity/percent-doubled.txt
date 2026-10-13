@@ -1,0 +1,1 @@
+The sign doubled: 50%% and a stray %50 before a number.

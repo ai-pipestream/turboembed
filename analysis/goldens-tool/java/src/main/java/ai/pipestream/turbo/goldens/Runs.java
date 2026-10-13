@@ -122,6 +122,7 @@ final class Runs {
     annotators.addAll(NormalizerGolden.all());
     annotators.addAll(NumberGolden.all());
     annotators.addAll(MoneyGolden.all(moneySnapshot));
+    annotators.addAll(QuantityGolden.all());
     return new All(annotators, recorders);
   }
 }

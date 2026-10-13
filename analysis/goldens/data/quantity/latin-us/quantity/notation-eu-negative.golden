@@ -1,0 +1,10 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	quantity/notation-eu-negative	47	47	c9b6815a456e597bd750857e5f34114cb842da8e85c24f7220a86327b3cbb4c8
+annotator	opennlp.tools.quantity.CursorQuantityExtractor	extract
+config	notation	LATIN_US
+layer	turbo:quantities	text	0	start:u32	end:u32	coefficient:str	negative:u32	scale:u32	plain:str	unit:str
+end	turbo:quantities
