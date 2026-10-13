@@ -30,6 +30,7 @@ members = [
     "analysis/stem-layers",
     "analysis/stopword",
     "analysis/stopword-layers",
+    "analysis/eval",
 ]
 resolver = "3"
 

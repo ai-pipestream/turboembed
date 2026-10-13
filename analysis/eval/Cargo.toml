@@ -1,0 +1,19 @@
+[package]
+name = "turbo-eval"
+version = "0.1.0"
+edition.workspace = true
+license.workspace = true
+publish = false
+
+[lib]
+name = "turbo_eval"
+
+[dependencies]
+# The record's provenance block reuses turbo-bench's types, which live in
+# the core's record module.
+turbo = { path = "../../core" }
+# The resamples of the bootstrap and the permutation test are drawn from
+# java.util.Random, so a JVM baseline can reproduce them.
+turbo-jvm = { path = "../jvm" }
+serde = { version = "1", features = ["derive"] }
+serde_json = { version = "1", features = ["float_roundtrip"] }

@@ -31,11 +31,13 @@ nothing here is in the C header or the gRPC server.
 | `turbo-stopword` | `analysis/stopword/` | OpenNLP's eleven bundled stopword lists (Bulgarian, Danish, German, English, Spanish, Finnish, French, Italian, Dutch, Portuguese, Russian) and `StopwordFilter.isStopword`, and the step that reads `opennlp:tokens` and, optionally, `opennlp:language` and writes `turbo:stopwords`, a flag per token; it flags and never removes. `analysis/stopword/data/README.md` gives each list's origin and license, the crate documentation lists the OpenNLP behaviour that is surprising, and `analysis/stopword/README.md` describes its JVM golden files |
 | `turbo-stopword-layers` | `analysis/stopword-layers/` | The `turbo:stopwords` layer and the languages that have a list (`StopwordLanguage`) |
 | `turbo-bpe-trainer` | `analysis/bpe-trainer/` | BPE trainers, a tool and not an annotator: byte-level BPE as upstream `tokenizers` trains it, SentencePiece BPE as the sentencepiece library trains it, and OpenNLP's `BPETokenizerTrainer` with its `BPETokenizer` ([bpe-trainer.md](bpe-trainer.md)) |
+| `turbo-eval` | `analysis/eval/` | The evaluation harness: measures, significance tests, records and the gate (Evaluation, below) |
 
 They need nothing beyond the standard library and each other, except
 `turbo-analysis-embed`, which runs the embedding model and so depends on
-the core crate, `turbo`, and `turbo-namefind`, which matches its patterns
-with the `regex` crate. A shared
+the core crate, `turbo`; `turbo-namefind`, which matches its patterns
+with the `regex` crate; and `turbo-eval`, which uses serde for its
+records and the core for turbo-bench's provenance types. A shared
 layer lives in `turbo-analysis-layers`, so a consumer of a layer never
 depends on the add-on that produces it; an add-on's own layers live in a
 small schema crate beside it, for the same reason.
@@ -1708,6 +1710,49 @@ without a model has none), that every dump has a golden, and that
 each dump's header parses and names the input and model of its path. The
 checked in dumps were made in the same container run as the goldens.
 
+## Evaluation
+
+`turbo-eval` (`analysis/eval/`) is the harness every change to the
+chunker is to be measured with (#154). Step 1 is in: a library with the
+measures, the significance tests, the record and the gate. Reading the
+evaluation sets, running a pipeline over them, the named baselines, the
+records under `analysis/eval/records` and the `turbo-eval` binary are
+later steps.
+
+- `metrics`: nDCG@10 with linear graded gain and a `log2(rank + 1)`
+  discount, and recall at 1, 5, 10 and 100, at document level. Hits
+  with the same score are ordered by document id, descending, as
+  `trec_eval` orders them. Queries without a relevant document are left
+  out of the mean, as `trec_eval` leaves them out; a query with relevant
+  documents and no ranking scores 0 and counts.
+- `spans`: for the top k chunks of a query, as UTF-8 byte ranges of
+  their documents, the precision and recall of relevant bytes covered,
+  and the fraction of relevant spans that lie wholly inside one chunk.
+- `significance`: a paired bootstrap of the mean per query difference
+  (10,000 resamples, 95 percent percentile interval) and a paired sign
+  flip permutation p value, both drawn from turbo-jvm's `JavaRandom`
+  with a fixed seed, so the same records give the same bits.
+- `cost`: wall time per stage (analysis, chunking, embedding,
+  retrieval), tokens embedded, chunk count and the chunk length
+  distribution (min, p50, p90, max) in bytes and tokens.
+- `record`: one JSON record per set and pipeline, written with the
+  pretty printer turbo-bench uses. Its provenance block (commit,
+  `pushed_to`, machine, device, bundle) reuses the core's
+  `turbo::record` types. Every field is required, an unknown field is
+  an error, and the record carries each query's nDCG@10 so two records
+  can be compared query by query.
+- `gate`: candidate records against baseline records, one per set. It
+  passes when at least two sets gain 2.0 nDCG@10 points or more with
+  the low end of the 95 percent bootstrap interval above zero, and no
+  set's mean difference is below -0.5 points. It reports each
+  difference with its interval and p value beside it.
+
+`cargo test -p turbo-eval` checks the measures against values worked
+out by hand in the tests, the tie and empty query rules, the
+reproducibility of both tests, the permutation p value where the exact
+answer is known, and the record's round trip and its refusal of unknown
+and missing fields.
+
 ## Tests
 
 `cargo test -p turbo-analysis -p turbo-analysis-layers -p turbo-chunker -p turbo-structure -p turbo-analysis-embed -p turbo-jvm -p turbo-goldens`
@@ -1905,8 +1950,9 @@ runs them on any machine:
   `SentenceVectorsDL` on golden inputs, which needs the JVM container,
   and a measurement of documents per second through the vector steps.
   The tests build their layers by hand or with toy annotators.
-- The evaluation harness that every change to the chunker is measured
-  with, and the chunker's records on it. It is also where the BM25 only
-  baseline is to be reported, from the term statistics above, and what
-  each level and each kind of level vector adds.
+- The rest of the evaluation harness: the set readers, the pipeline,
+  the baselines, the committed records and the `turbo-eval` binary, and
+  the chunker's records on it. It is also where the BM25 only baseline
+  is to be reported, from the term statistics above, and what each
+  level and each kind of level vector adds.
 - A gRPC surface, to be shared with the OpenNLP standard.
