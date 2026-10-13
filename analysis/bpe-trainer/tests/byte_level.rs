@@ -238,7 +238,8 @@ fn the_trained_file_loads_in_the_core_and_round_trips() {
         let pieces: Vec<&str> = m.vocab().iter().map(String::as_str).collect();
         let mut checked = 0;
         for (word, _) in turbo_bpe_trainer::byte_level::words(texts.iter().map(String::as_str), add_prefix_space) {
-            let bytes: Vec<u8> = word.chars().map(|c| turbo::bpe::char_byte(c).unwrap()).collect();
+            let byte = |c: char| turbo::bpe::byte_chars().iter().position(|&b| b == c).unwrap() as u8;
+            let bytes: Vec<u8> = word.chars().map(byte).collect();
             let text = String::from_utf8(bytes).expect("a word is whole characters");
             if add_prefix_space && !text.starts_with(' ') {
                 // Alone, it would get a space in front.

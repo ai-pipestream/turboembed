@@ -239,7 +239,7 @@ pub fn byte_chars() -> &'static [char; 256] {
 }
 
 /// The byte a GPT-2 character stands for, if it is one.
-pub fn char_byte(c: char) -> Option<u8> {
+pub(crate) fn char_byte(c: char) -> Option<u8> {
     let u = c as u32;
     match u {
         0x21..=0x7e | 0xa1..=0xac | 0xae..=0xff => Some(u as u8),
