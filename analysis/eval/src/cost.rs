@@ -54,7 +54,8 @@ impl Distribution {
 #[serde(deny_unknown_fields)]
 pub struct Cost {
     pub wall: StageTimes,
-    /// Tokens the embedder was given, queries and chunks together.
+    /// Tokens the embedder was given: chunks, queries and any sentences a
+    /// chunker embedded to decide its cuts, counted on the rows as run.
     pub tokens_embedded: u64,
     /// Chunks the chunker made over the set's documents.
     pub chunks: u64,

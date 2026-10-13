@@ -31,15 +31,16 @@ nothing here is in the C header or the gRPC server.
 | `turbo-stopword` | `analysis/stopword/` | OpenNLP's eleven bundled stopword lists (Bulgarian, Danish, German, English, Spanish, Finnish, French, Italian, Dutch, Portuguese, Russian) and `StopwordFilter.isStopword`, and the step that reads `opennlp:tokens` and, optionally, `opennlp:language` and writes `turbo:stopwords`, a flag per token; it flags and never removes. `analysis/stopword/data/README.md` gives each list's origin and license, the crate documentation lists the OpenNLP behaviour that is surprising, and `analysis/stopword/README.md` describes its JVM golden files |
 | `turbo-stopword-layers` | `analysis/stopword-layers/` | The `turbo:stopwords` layer and the languages that have a list (`StopwordLanguage`) |
 | `turbo-bpe-trainer` | `analysis/bpe-trainer/` | BPE trainers, a tool and not an annotator: byte-level BPE as upstream `tokenizers` trains it, SentencePiece BPE as the sentencepiece library trains it, and OpenNLP's `BPETokenizerTrainer` with its `BPETokenizer` ([bpe-trainer.md](bpe-trainer.md)) |
-| `turbo-eval` | `analysis/eval/` | The evaluation harness: measures, significance tests, records, the gate, and the evaluation sets with their fetch by checksum and typed readers (Evaluation, below) |
+| `turbo-eval` | `analysis/eval/` | The evaluation harness: the evaluation sets with their fetch by checksum and typed readers, the pipeline, the baseline chunkers, measures, significance tests, records, the gate and the `turbo-eval` binary (Evaluation, below) |
 
 They need nothing beyond the standard library and each other, except
 `turbo-analysis-embed`, which runs the embedding model and so depends on
 the core crate, `turbo`; `turbo-namefind`, which matches its patterns
 with the `regex` crate; and `turbo-eval`, which uses serde for its
 records and set files, the core for turbo-bench's provenance types,
-`ureq` to fetch the sets, and `flate2` (already in the build through
-`ureq`) for the one set published as a gzip tar. A shared
+`turbo-analysis-embed` for the embedder, `ureq` to fetch the sets, and
+`flate2` (already in the build through `ureq`) for the one set published
+as a gzip tar. A shared
 layer lives in `turbo-analysis-layers`, so a consumer of a layer never
 depends on the add-on that produces it; an add-on's own layers live in a
 small schema crate beside it, for the same reason.
@@ -772,7 +773,8 @@ whether it is over the budget. The chunks layer refuses a parent that is
 not at a level above its child or does not hold the child's span.
 
 Not measured yet: the chunker against the stage 0 baselines on the
-evaluation harness, with significance, which is still being built.
+evaluation harness, with significance: the harness runs it (Evaluation,
+below), and no record of it is committed yet.
 
 ### Drift and cohesion
 
@@ -1134,8 +1136,8 @@ section in parts), with and without structure, with empty units, and
 twice for the same bits.
 
 What each level and each kind of vector adds to retrieval is not
-measured yet: that needs the evaluation harness, which is still being
-built.
+measured yet: the evaluation harness retrieves with one vector per
+chunk, and has no pipeline for levels yet.
 
 ## Golden files
 
@@ -1715,11 +1717,73 @@ checked in dumps were made in the same container run as the goldens.
 ## Evaluation
 
 `turbo-eval` (`analysis/eval/`) is the harness every change to the
-chunker is to be measured with (#154). Steps 1 and 2 are in: a
-library with the measures, the significance tests, the record, the gate,
-and the evaluation sets. Running a pipeline over the sets, the named
-baselines, the records under `analysis/eval/records` and the
-`turbo-eval` binary are later steps.
+chunker is to be measured with (#154). It holds the evaluation sets, the
+pipeline, the baseline chunkers, the measures, the significance tests,
+the record, the gate and the `turbo-eval` binary. The baseline records
+under `analysis/eval/records` come next.
+
+### The pipeline
+
+`Pipeline` runs over one set (`set::LoadedSet`) in four timed stages:
+
+1. Analysis: each document's text as a document in the source view,
+   with `opennlp:sentences` (an OpenNLP maxent model, by default the
+   English UD EWT model checked in under
+   `analysis/sentdetect/tests/models`, or one sentence per line),
+   `turbo:structure` (plain text by default, Markdown, or none) and the
+   embedder's `opennlp:subwords`. Every chunk span is a byte range of
+   the set's own text, the offsets span judgements use.
+2. Chunking: the chunker under test writes byte spans; a span given
+   twice or past the text fails the run.
+3. Embedding: one vector per chunk, from the chunk's text alone (with
+   the document's title in front when `--titles prefix` is given), in
+   the bundle's document role, and one per query, in the query role,
+   with no chunking. The embedder (`embedder::TurboEmbedder`) tokenizes
+   with the bundle's tokenizer, cuts a row as the bundle cuts it, runs
+   the rows through a turbo session on the device named, mean pools,
+   and scales each vector to unit length. A bundle that does not mean
+   pool is refused. The reference embedder is all-MiniLM-L6-v2, the
+   model turbo-bench measures; the bundle is a command line argument.
+4. Retrieval: every query against every chunk vector, exact cosine with
+   no index, summed in f32 in a fixed order so the scores are the same
+   on every machine. A document scores its best chunk. The top 100
+   documents and the top 100 chunks of each query are kept, ordered by
+   the tie rules of `metrics` and `spans`.
+
+The record's cost is the wall time of each stage, the tokens the
+embedder was given (chunks, queries and any sentences a chunker
+embedded, counted on the rows as run, after any cut), the chunk count,
+and the chunk lengths in bytes of the source and in the embedder's
+tokens, overhead included and before any cut. The record's analyzer
+list names the sentence model by file name and SHA-256.
+
+### Chunkers
+
+Each chunker records every setting it ran with, defaults included.
+
+- `fixed-tokens`: windows of N of the model's subword pieces, each
+  starting N minus the overlap after the one before; the last ends at
+  the last piece. N counts the text's pieces, so the binary refuses an N
+  that with the template's special tokens is over the model's row.
+- `sentence-windows`: consecutive windows of N sentences, no overlap.
+- `opennlp-sandbox-semantic`: a port of the decision rule of the
+  OpenNLP sandbox's `SemanticChunker` (the ai-pipestream/opennlp-sandbox
+  fork, branch OPENNLP-1833-grpc-expansion). Each sentence is embedded
+  alone; a chunk starts after each pair of neighbouring sentences whose
+  cosine is below the threshold (a percentile of the document's own
+  cosines when given, else a fixed cosine, 0.5 by default); chunks under
+  the minimum sentences are merged into a neighbour, then chunks over
+  the maximum are split. The cosine and the nearest rank percentile are
+  computed as the Java computes them. Its parity with the JVM on golden
+  inputs is not checked yet.
+- `turbo-chunker`: turbo-chunker's `Chunker` over `StructureBoundaries`,
+  optionally with `DriftBoundaries` weighed in (`--drift`) and the
+  cohesion term (`CohesiveChunker`, `--cohesion`); the level 0 chunks
+  are retrieved. Drift and cohesion read sentence vectors, which here
+  are each sentence embedded alone rather than late pooled as
+  `SentenceVectors` pools them; the record says so.
+
+### Measures and the gate
 
 - `metrics`: nDCG@10 with linear graded gain and a `log2(rank + 1)`
   discount, and recall at 1, 5, 10 and 100, at document level. Hits
@@ -1734,9 +1798,6 @@ baselines, the records under `analysis/eval/records` and the
   (10,000 resamples, 95 percent percentile interval) and a paired sign
   flip permutation p value, both drawn from turbo-jvm's `JavaRandom`
   with a fixed seed, so the same records give the same bits.
-- `cost`: wall time per stage (analysis, chunking, embedding,
-  retrieval), tokens embedded, chunk count and the chunk length
-  distribution (min, p50, p90, max) in bytes and tokens.
 - `record`: one JSON record per set and pipeline, written with the
   pretty printer turbo-bench uses. Its provenance block (commit,
   `pushed_to`, machine, device, bundle) reuses the core's
@@ -1748,6 +1809,8 @@ baselines, the records under `analysis/eval/records` and the
   the low end of the 95 percent bootstrap interval above zero, and no
   set's mean difference is below -0.5 points. It reports each
   difference with its interval and p value beside it.
+
+### The sets
 
 The sets (decision 10) are described one file each under
 `analysis/eval/src/sets/`: name, published files with their URL and
@@ -1779,13 +1842,41 @@ documents with a line break between chunks. Evidence a reader cannot
 place in its document is listed in `LoadedSet.unplaced` rather than
 dropped silently.
 
+### The binary
+
+```bash
+cargo run --release -p turbo-eval -- fetch --sets scifact,qasper --cache <set-cache-dir>
+cargo run --release -p turbo-eval -- run --bundle <bundle-dir> --sets scifact,qasper \
+    --cache <set-cache-dir> --out <record-dir> --chunker sentence-windows --window 5
+cargo run --release -p turbo-eval -- gate <candidate-dir> <baseline-dir>
+```
+
+`fetch` downloads each named set into the cache and checks it; `run`
+reads them from there. Both take the cache root from `--cache`, or from
+`$TURBO_EVAL_CACHE` when it is not given.
+
+`run` writes `<record-dir>/<set>.json` for each set, so one directory
+holds one pipeline's records, and never replaces a record. As
+turbo-bench does, it refuses a working tree with changes (new files
+under `analysis/eval/records/` aside), a commit on no branch of origin,
+and a binary built from another commit, and checks the tree again after
+the run. `gate` prints one line per set and the verdict, and exits with
+status 1 when the gate fails and 2 on an error. `turbo-eval` with no
+arguments prints every option.
+
 `cargo test -p turbo-eval` checks the measures against values worked
 out by hand in the tests, the tie and empty query rules, the
 reproducibility of both tests, the permutation p value where the exact
 answer is known, the record's round trip and its refusal of unknown
-and missing fields, and each reader on a small sample made for the
-tests (`analysis/eval/tests/data/`): typed values, offset conversion on
-non-ASCII text, and errors with file and line. They need no network.
+and missing fields, each chunker's cuts on small texts worked out by
+hand, and whole runs over a hand made set with a stub embedder behind
+the same trait (rankings, document scores from the best chunk, span
+hits, cost, and the records `run` writes). One test runs the real
+session path on the small BERT bundle in `testdata/tiny-bert-bundle`;
+no test runs all-MiniLM-L6-v2, which is not in the tree. Each reader
+is checked on a small sample made for the tests
+(`analysis/eval/tests/data/`): typed values, offset conversion on
+non-ASCII text, and errors with file and line. None needs the network.
 
 ## Tests
 
@@ -1984,11 +2075,10 @@ runs them on any machine:
   `SentenceVectorsDL` on golden inputs, which needs the JVM container,
   and a measurement of documents per second through the vector steps.
   The tests build their layers by hand or with toy annotators.
-- The rest of the evaluation harness: the pipeline, the baselines, the
-  committed records and the `turbo-eval` binary, the digests of the
-  sets not fetched yet, a Parquet reader or a fetched JSON copy for
-  ConTEB and GutenQA, and a published copy and licence for HiCBench, and
-  the chunker's records on it. It is also where the BM25 only baseline
+- The rest of the evaluation harness: the committed baseline records,
+  the digests of the sets not fetched yet, a Parquet reader or a fetched
+  JSON copy for ConTEB and GutenQA, a published copy and licence for
+  HiCBench, and the chunker's records on it. It is also where the BM25 only baseline
   is to be reported, from the term statistics above, and what each
   level and each kind of level vector adds.
 - A gRPC surface, to be shared with the OpenNLP standard.

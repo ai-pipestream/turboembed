@@ -7,6 +7,16 @@ publish = false
 
 [lib]
 name = "turbo_eval"
+# The crate has no documentation tests. In `cargo test --workspace` the
+# core is built twice (the core's own tests turn on its `internals`
+# feature) and, being a cdylib as well, both builds write the one
+# unhashed libturbo.rlib, so rustdoc can be handed a turbo-analysis-embed
+# built against the other core and fail to load it.
+doctest = false
+
+[[bin]]
+name = "turbo-eval"
+path = "src/main.rs"
 
 [dependencies]
 # The record's provenance block reuses turbo-bench's types, which live in
@@ -15,6 +25,16 @@ turbo = { path = "../../core" }
 # The resamples of the bootstrap and the permutation test are drawn from
 # java.util.Random, so a JVM baseline can reproduce them.
 turbo-jvm = { path = "../jvm" }
+# The pipeline: the document and its layers, sentences, structure, the
+# embedder's subwords and vectors, and the chunker under test.
+turbo-analysis = { path = "../core" }
+turbo-analysis-layers = { path = "../layers" }
+turbo-analysis-embed = { path = "../embed" }
+turbo-chunker = { path = "../chunker" }
+turbo-sentdetect = { path = "../sentdetect" }
+turbo-structure = { path = "../structure" }
+# The sentence model file and its SHA-256.
+turbo-maxent = { path = "../maxent" }
 serde = { version = "1", features = ["derive"] }
 serde_json = { version = "1", features = ["float_roundtrip"] }
 # SHA-256 of the set files, and lower case hex.

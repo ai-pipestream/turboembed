@@ -1822,8 +1822,15 @@ dependencies = [
  "serde",
  "serde_json",
  "turbo",
+ "turbo-analysis",
+ "turbo-analysis-embed",
+ "turbo-analysis-layers",
+ "turbo-chunker",
  "turbo-goldens",
  "turbo-jvm",
+ "turbo-maxent",
+ "turbo-sentdetect",
+ "turbo-structure",
  "ureq",
 ]
 
