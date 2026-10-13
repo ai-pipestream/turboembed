@@ -95,7 +95,8 @@ pub const MODELS: [Model; 9] = [
 
 /// A checked in file the generator loads from the fixtures directory,
 /// `analysis/goldens/data/fixtures`: a model trained for the tests, a
-/// dictionary or a WordPiece vocabulary, and the SHA-512 of its bytes.
+/// dictionary, a WordPiece vocabulary or a frequency lexicon, and the
+/// SHA-512 of its bytes.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Fixture {
     pub file: &'static str,
@@ -104,7 +105,7 @@ pub struct Fixture {
 
 /// The fixtures, which are all the files of the fixtures directory. The
 /// file names are the ones the generator's `Runs` class opens there.
-pub const FIXTURES: [Fixture; 10] = [
+pub const FIXTURES: [Fixture; 13] = [
     Fixture {
         file: "en-abbrev.bin",
         sha512: "759ab1defc61351f53cdd82a26e708789a225feb6e1ec0cfd6e2e54f35f67c14\
@@ -155,10 +156,25 @@ pub const FIXTURES: [Fixture; 10] = [
         sha512: "f51f06aae7f580a88998f6f7f24b52495c8d3d289fdbdc21231c05f3a8965783\
                  074d95c17b819186f9a63b622280e8a051105a2161cd0d153fa57db7a0aba9f9",
     },
+    Fixture {
+        file: "zh-unigram-fixture.txt",
+        sha512: "75fe2ae460f0a048e0978dfcf54474752aad6ecde6b64ad86bd59729f3dbce82\
+                 9043469e17ad929fed559bccdc1db72a358e706527316e8faf733c63ff144011",
+    },
+    Fixture {
+        file: "jieba-dict-subset.txt",
+        sha512: "365d5a67c098b362ec12c166a9b438031fd9ffa5947113bc04e2fad1d623918a\
+                 4303cb0f9657e28f4e619fae502f3bf4c412285cfe5d6a128439a614ea60e80c",
+    },
+    Fixture {
+        file: "zh-unigram-modes.txt",
+        sha512: "d07069e2b828406873f37f056ca71e2175d8ecbd922d2a34c356f6695c0975e0\
+                 3830b7fa8000ba8476312514dca8992b24d848a82abd3c4ce677b0fdf1fe6f9a",
+    },
 ];
 
 /// The input sets under `analysis/goldens/data/inputs`.
-pub const INPUT_SETS: [&str; 14] = [
+pub const INPUT_SETS: [&str; 15] = [
     "en",
     "multi",
     "norm",
@@ -172,6 +188,7 @@ pub const INPUT_SETS: [&str; 14] = [
     "sentence-fixture",
     "detokenizer",
     "subwords",
+    "zh",
     "bpe",
 ];
 
@@ -186,7 +203,7 @@ pub const GENERATOR_ARGS: [&str; 1] = ["--dumps"];
 /// replaces and `verify` compares. The data directory holds other things
 /// (the inputs, the fixtures, the rate snapshot, a README) that neither
 /// touches.
-pub const ANNOTATORS: [&str; 11] = [
+pub const ANNOTATORS: [&str; 12] = [
     "sentdetect",
     "tokenize",
     "langdetect",
@@ -197,6 +214,7 @@ pub const ANNOTATORS: [&str; 11] = [
     "quantity",
     "detokenize",
     "subwords",
+    "unigram",
     "bpe",
 ];
 
@@ -205,8 +223,8 @@ pub const ANNOTATORS: [&str; 11] = [
 /// dump beside it. Their runs without a model (the simple, whitespace and
 /// UAX #29 tokenizers and the newline detector) have none, nor do the
 /// normalizers, the number scan, the money and quantity annotators,
-/// the detokenizer, the WordPiece encoder and the BPE trainer, which ask
-/// no model.
+/// the detokenizer, the WordPiece encoder, the unigram segmenter and the
+/// BPE trainer, which ask no model.
 pub const DUMPED_ANNOTATORS: [&str; 3] = ["sentdetect", "tokenize", "langdetect"];
 
 /// The input set the normalizers run on. They run on no other set, and the

@@ -96,6 +96,9 @@ a directory with the same model run without them, and its options are
 | `quantity` (`QuantityAnnotator`) | `latin-us`, `latin-eu` | `quantity` | `notation` |
 | `subwords` (`WordpieceEncoder`) | `all-minilm-l6-v2-vocab` (fixture) | `en`, `multi`, `edge`, `surrogate`, `subwords` | `lowerCase true`, `maxWordCodePoints 100` |
 | `bpe` (`BPETokenizerTrainer`, `BPETokenizer`) | `merges-40`, `merges-400` | `bpe` | `languageCode en`, `numMerges` |
+| `unigram` (`UnigramSegmenter`) | `zh-unigram-fixture` (fixture), also `+legacy` | `zh`, `multi`, `edge`, `surrogate` | `whitespace legacy` |
+| | `jieba-dict-subset` (fixture), also `+legacy` | `zh`, `multi`, `edge` | `whitespace legacy` |
+| | `zh-unigram-modes` (fixture), also `+legacy` | `zh` | `whitespace legacy` |
 
 - `+english-dictionary` is the English model rebuilt through
   `TokenizerModel(MaxentModel, Map, TokenizerFactory)` with the
@@ -148,6 +151,22 @@ canonical order, final sigma, the dotted capital I, Hangul, kana and CJK
 upstream `tokenizers` disagree), format characters, punctuation, spacing
 marks, pieces with no entry, special token strings, compatibility
 characters and words at the 100 code point limit.
+
+## Unigram goldens
+
+`unigram/<lexicon>/<set>/<id>.golden` is what OpenNLP's
+`opennlp.tools.tokenize.lattice.UnigramSegmenter` returned from
+`tokenizePos` for the input, with the frequency lexicon `<lexicon>.txt`
+of the fixtures (one word, its count and an optional tag per line, read
+as UTF-8). The layer is `opennlp:tokens`, one row per word with its UTF-8
+byte span; a word is always whole code points, so there is never a
+`turbo:utf16<opennlp:tokens>` layer, and the generator stops if one
+would be needed. `StringUtil.isWhitespace` decides both where a lexicon
+line's word ends and where the text is split, so a `+legacy` run loads
+its lexicon and segments with the legacy mode active. The segmenter asks
+no model, so there are no dumps; its goldens are under their own
+annotator directory so that the rule that every `tokenize` golden naming
+a model has a dump still holds.
 
 ## Normalizer goldens
 

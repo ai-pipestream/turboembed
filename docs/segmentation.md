@@ -16,10 +16,10 @@ where and why.
 | Crate | Path | Contents |
 |---|---|---|
 | `turbo-unicode` | `analysis/unicode/` | Character data: Java's character classes, the Unicode `White_Space` set, `Word_Break` and `Extended_Pictographic` properties, a UTF-16 code unit cursor over UTF-8 text |
-| `turbo-jvm` | `analysis/jvm/` | JDK routines ported bit for bit; `turbo-maxent` uses `strict_math::exp` and `strict_math::log`, the fdlibm functions behind `StrictMath.exp` and `StrictMath.log` |
+| `turbo-jvm` | `analysis/jvm/` | JDK routines ported bit for bit; `turbo-maxent` uses `strict_math::exp` and `strict_math::log`, the fdlibm functions behind `StrictMath.exp` and `StrictMath.log`; `math::log` is a correctly rounded logarithm, which matched `Math.log` of the JVM the goldens are made with on the integers compared (its documentation says which) |
 | `turbo-maxent` | `analysis/maxent/` | OpenNLP model files: the zip container, the manifest, maxent and perceptron models and their evaluation, the dictionary XML |
 | `turbo-sentdetect` | `analysis/sentdetect/` | The newline detector, the paragraph detector and the maxent sentence detector |
-| `turbo-tokenize` | `analysis/tokenize/` | The simple, whitespace and UAX #29 word tokenizers, the maxent tokenizer and the dictionary detokenizer |
+| `turbo-tokenize` | `analysis/tokenize/` | The simple, whitespace and UAX #29 word tokenizers, the maxent tokenizer, the unigram frequency segmenter for Chinese and the dictionary detokenizer |
 | `turbo-tokenize-layers` | `analysis/tokenize-layers/` | The tokenizers' own layer: the word type of each token |
 
 They depend on the standard library, `turbo-analysis` and
@@ -387,6 +387,134 @@ gives (0,9). The golden files agree with the port once the Java tokens
 that meet between two halves are joined this way; the variant runs
 include inputs on which every model splits inside U+1F600.
 
+### `UnigramSegmenter` (Chinese)
+
+`opennlp.tools.tokenize.lattice.UnigramSegmenter`
+(`turbo_tokenize::unigram`): dictionary and frequency segmentation for
+Chinese and other text written without spaces. It reads a `View` and an
+optional `Sentences` layer and writes `Tokens`, through
+`tokenize_units` like the other tokenizers. `UnigramSegmenter::segment`
+appends byte spans for a `&str`, and `segment_with` reuses a `Scratch`
+so repeated calls allocate nothing once its buffers have grown.
+
+The lexicon (`UnigramLexicon`) is a UTF-8 file with one word, its count
+and an optional tag per line, which is the format of jieba's `dict.txt`.
+It is read as `UnigramSegmenter.load` reads it: lines end at `\n`, `\r`
+or `\r\n`; a line is trimmed of Unicode `White_Space` in both whitespace
+modes; the word ends at the first whitespace character in the configured
+mode; the count is read as `Long.parseLong` reads it (an optional sign,
+then decimal digits of any script in the Basic Multilingual Plane, such
+as fullwidth digits) and must be positive; a word listed twice gets the
+sum of its counts; the total must fit in a Java `long`; at most ten
+million distinct words (`ResourceLimits.MAX_ENTRIES`) unless the caller
+sets another limit. The errors carry the Java's messages and line
+numbers. A word's score is `log(count) - log(total)`, and an unlisted
+character scores `log(0.5) - log(total)`, below every listed word. The
+file's SHA-256 is the model's hash in the provenance.
+
+The text is split at whitespace in the configured mode, and each
+whitespace-free stretch is cut by dynamic programming: from each
+character in order, the character alone is tried at the unknown score,
+then every lexicon word that starts there, shortest first, and a
+position takes a new best path only when its sum is strictly higher. So
+of two paths with equal sums, the one whose last word starts first is
+kept, as in the Java. This is jieba's `get_DAG` and `calc` without its
+hidden Markov model for unlisted words.
+
+The trie is laid out for that walk rather than copied from the Java,
+whose nodes keep sorted child arrays searched by binary search: the
+root's edges on characters of the Basic Multilingual Plane are a table
+indexed by the character, every other edge is a slot of one open
+addressing hash table keyed by (parent, character), and each step
+carries a 32-bit filter of the characters the child's own edges are on,
+so a walk usually ends without a probe. The Java's trie has an edge per
+UTF-16 code unit and this one an edge per character; both find the same
+words, since a word is whole characters and the walk starts on a
+character boundary.
+
+The scores need the logarithm the JVM computes. OpenNLP calls
+`Math.log`, not `StrictMath.log`, and on the JVM the goldens are made
+with (Temurin 21.0.12, x86-64) `Math.log` differs from fdlibm on 112599
+of the integers 1 to 2^24. The segmenter uses `turbo_jvm::math::log`, a
+correctly rounded logarithm in double-double arithmetic that uses no
+platform function: it equals that JVM's `Math.log` on every integer from
+1 to 2^24 but one (14237211, where the true value lies within 1e-22 of a
+midpoint and the JVM returns the farther double) and on 4 million
+random integers up to 2^63. The segmenter takes logarithms only of
+integers (the counts and their total) and of 0.5. The parity is with
+that JVM build: `Math.log` is the JVM's own routine, which differs
+between ports and turns back into fdlibm with `-XX:-UseLibmIntrinsic`.
+A lexicon with a count or a total of 14237211 gets a score one unit in
+the last place from the JVM's. The choice matters only where two paths have
+equal exact sums, such as counts with equal products: the fixture
+lexicon has such a pair (`人民` 1 `大会` 148 against `人民大` 2 `会` 74)
+that the JVM and the port both cut `人民大|会`, and that fdlibm's
+logarithm would cut `人民|大会`.
+
+Deviation: none in the tokens. The Java iterates over code unit
+positions and the port over character boundaries; the positions inside a
+surrogate pair are never reached in the Java (the step over an unlisted
+character takes the whole pair), so skipping them changes nothing. The
+lexicon file must be UTF-8 (the Java takes any charset), and the entry
+limit is a parameter rather than the `OPENNLP_MAX_ENTRIES` system
+property. A line that starts with a character that is whitespace in the
+legacy mode but not Unicode `White_Space` (`U+001C` to `U+001F`) lists the
+empty word in legacy mode; the Java keeps it on the trie's root, where
+nothing scores it, but counts it in the total and the entries, and so
+does the port.
+
+The goldens are the runs of three lexicons, each in both whitespace
+modes: `zh-unigram-fixture.txt` (OpenNLP's test lexicon, words with
+equal count products, CR LF and lone CR line ends, fullwidth digits and
+a `+` sign in counts, no-break and ideographic spaces between word and
+count, a word outside the Basic Multilingual Plane, a word listed twice)
+on the `zh`, `multi`, `edge` and `surrogate` inputs;
+`jieba-dict-subset.txt` (the lines of jieba's `dict.txt` whose word
+occurs in the `zh`, `multi` or `edge` inputs) on those sets; and
+`zh-unigram-modes.txt`, whose words differ between the modes, on the
+`zh` inputs. Every token matches, on 264 goldens. In a run outside the
+repository at commit `0260665`, with the whole of jieba's `dict.txt`
+(fxsjy/jieba commit `67fa2e36e72f69d9134b8a1037b83fbb070b9775`, 349046
+lines), the port's tokens equalled the JVM's on every line of the PKU
+and MSR test sets of the SIGHAN 2005 bakeoff (1945 and 3985 lines,
+102198 and 108642 tokens). That comparison is not committed and cannot
+be repeated from the repository, since neither the dictionary nor the
+bakeoff data is in it.
+
+Against the bakeoff's gold segmentation, scored like its `score` script
+(`analysis/tokenize/tests/unigram_sighan.rs`, ignored by default, with the dictionary and
+the data supplied by the caller; neither is in the repository, and the
+bakeoff data is for research use only):
+
+| Test set | Segmenter | P | R | F1 | OOV recall |
+|---|---|---|---|---|---|
+| PKU | this port (equal to OpenNLP) | 0.824 | 0.807 | 0.816 | 0.419 |
+| PKU | jieba-rs 0.11.0, no HMM | 0.859 | 0.814 | 0.836 | 0.543 |
+| PKU | jieba-rs 0.11.0, HMM | 0.853 | 0.787 | 0.818 | 0.583 |
+| MSR | this port (equal to OpenNLP) | 0.820 | 0.834 | 0.827 | 0.338 |
+| MSR | jieba-rs 0.11.0, no HMM | 0.820 | 0.834 | 0.827 | 0.338 |
+| MSR | jieba-rs 0.11.0, HMM | 0.816 | 0.810 | 0.813 | 0.449 |
+
+All use the same `dict.txt`. The rows for this port are what
+`unigram_sighan.rs` asserts; the jieba-rs rows were made at commit
+`0260665` by a program outside the repository (jieba-rs is not a
+dependency of the workspace). On MSR the port's output and jieba-rs's
+without its HMM are the same file. On PKU, of the 1851 tokens jieba-rs
+without its HMM finds and the port does not, 1849 are runs of ASCII
+digits or letters (`12`, `2000`, `1999`): jieba keeps a run of unlisted
+ASCII alphanumerics together, and OpenNLP's segmenter makes each
+unlisted character a word of its own. The PKU text writes numbers in
+ASCII digits and the MSR text in fullwidth ones, which jieba does not
+group. The other two are one tie broken the other way: `手牵着` 3 `手`
+28466 and `手` 28466 `牵着手` 3 have equal sums, OpenNLP keeps
+`手|牵着手`, whose last word starts first, and jieba, whose route is
+computed from the end of the sentence, keeps `手牵着|手`. The port keeps
+OpenNLP's behaviour in both; grouping such runs would be a change to
+OpenNLP.
+
+Speed is not measured here: no matched benchmark against jieba-rs is
+committed, so this section makes no speed claim (AGENTS.md, rule 7).
+
 ### `Detokenizer`
 
 `DictionaryDetokenizer` (`turbo_tokenize::detok`): the detokenizer
@@ -441,6 +569,10 @@ split the model wanted. The tests check the Rust context generators
 feature by feature against it, and that the tokenizer was asked about
 exactly the positions its loop visits, the jump over an abbreviation's
 dots included.
+
+The unigram segmenter's goldens are under `unigram/`, one directory
+per lexicon and mode (`analysis/goldens-tool/README.md`, "Unigram
+goldens").
 
 The runs cover cases none of the published models reach: `TokenizerME`
 with an abbreviation dictionary (a fixture model, and the English model
@@ -511,3 +643,17 @@ reach the OpenNLP side:
   `compareToIgnoreCase` (checked over every code point on JDK 21), so
   comparing lowercase forms, as the Rust dictionary does, agrees with the
   JVM except on such a collision.
+- `UnigramSegmenter` computes its scores with `Math.log`, whose result
+  the JDK allows to differ by one unit in the last place between
+  platforms, so two paths whose exact sums are equal can be cut
+  differently on different JVMs. `StrictMath.log` would make the
+  segmentation the same everywhere.
+- `UnigramSegmenter` makes each character the lexicon does not list a
+  word of its own, so an unlisted number such as `2000` is four words;
+  jieba keeps runs of unlisted ASCII letters and digits together, which
+  is most of what separates the two on the PKU test set.
+- `UnigramSegmenter.load` accepts a line whose word is empty in the
+  legacy whitespace mode (one starting with `U+001C` to `U+001F`, which
+  `trimUnicodeWhitespace` keeps and `isWhitespace` splits on); the empty
+  word goes on the trie's root and is never used, but its count is in
+  the total.

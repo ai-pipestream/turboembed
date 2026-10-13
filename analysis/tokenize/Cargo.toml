@@ -14,6 +14,8 @@ turbo-analysis-layers = { path = "../layers" }
 # OpenNLP model files and dictionary XML: the maxent tokenizer's model
 # and abbreviations, and the detokenizer dictionary.
 turbo-maxent = { path = "../maxent" }
+# Math.log, for the unigram segmenter's word scores.
+turbo-jvm = { path = "../jvm" }
 turbo-tokenize-layers = { path = "../tokenize-layers" }
 turbo-unicode = { path = "../unicode" }
 

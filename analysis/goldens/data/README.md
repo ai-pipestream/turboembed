@@ -50,6 +50,19 @@ are not taken from any corpus.
   spacing marks and a virama, emoji and symbols with no piece, special
   token strings, fullwidth letters and ligatures, and words of 100 and
   101 letters.
+- `inputs/zh/`: 12 Chinese texts for the unigram segmenter: sentences
+  whose segmentation is ambiguous, a news paragraph, Chinese mixed with
+  Latin words, digits, a URL path and an e-mail address, Chinese and
+  Western punctuation, traditional characters, characters outside the
+  Basic Multilingual Plane and emoji, whitespace of every kind (CR LF,
+  tab, ideographic, no-break, `U+0085`, `U+001C`, `U+2028`, `U+2029`), a
+  long run without punctuation, classical text, Chinese, fullwidth and
+  Roman numerals, the fixture lexicon's words (`fixture-words.txt`) and
+  the words of the whitespace mode lexicon (`modes.txt`). Two files are
+  not new text: `classical.txt` quotes Li Bai's poem 静夜思 and the
+  opening of the Analects, both in the public domain, and the sentences
+  of `ambiguity.txt` are the stock examples of segmentation ambiguity
+  that Chinese word segmentation papers and textbooks repeat.
 - `inputs/detokenizer/`: one token per line, each line ending with a line
   feed (an empty file is an empty token list). The part of the name before
   the first `-` names the dictionary, `fixtures/<name>-detokenizer.xml`.
@@ -86,7 +99,45 @@ that differs.
 | `latin-detokenizer.xml` | Apache OpenNLP's test resource of `DictionaryDetokenizerTest`, unchanged (license header kept) |
 | `en-detokenizer.xml`, `fr-detokenizer.xml`, `pt-detokenizer.xml` | Apache OpenNLP's English, French and Portuguese detokenizer dictionaries, `opennlp-tools/lang/{en,fr,pt}/tokenizer/`, unchanged (license header kept) |
 | `quotes-detokenizer.xml` | two `RIGHT_LEFT_MATCHING` entries, written for this project |
+| `zh-unigram-fixture.txt` | a frequency lexicon written for this project: the eight words of OpenNLP's `UnigramSegmenterTest`, pairs of words whose counts have equal products (`研究` 6 `生命` 4 and `研究生` 8 `命` 3, `研究` 6 `生物` 12 and `研究生` 8 `物` 9, `人民` 1 `大会` 148 and `人民大` 2 `会` 74, `a` 3 `bc` 2 and `ab` 2 `c` 3), CR LF and lone CR line ends, an empty and a blank line, a tab, a no-break space and an ideographic space before the count, fullwidth digits and a `+` sign in a count, a leading ideographic space, a word outside the Basic Multilingual Plane, Latin words and a word listed twice |
+| `zh-unigram-modes.txt` | a frequency lexicon written for this project whose words depend on the whitespace mode: `U+001C` ends a word in the legacy mode only and `U+0085` in the Unicode mode only |
+| `jieba-dict-subset.txt` | the lines of jieba's `jieba/dict.txt` (github.com/fxsjy/jieba, commit `67fa2e36e72f69d9134b8a1037b83fbb070b9775`, MIT license, see below) whose word occurs in an input of the `zh`, `multi` or `edge` set, unchanged and in the order of `dict.txt`; made with the command below |
 | `all-minilm-l6-v2-vocab.txt` | the WordPiece vocabulary of `testdata/all-minilm-l6-v2/tokenizer.json` (sentence-transformers/all-MiniLM-L6-v2, Apache-2.0), one piece per line in id order with a line feed after each, written with `jq -r '.model.vocab \| to_entries \| sort_by(.value) \| .[].key'`; 30522 pieces, the uncased BERT vocabulary |
+
+`jieba-dict-subset.txt` was written from the repository root with
+
+```
+for f in analysis/goldens/data/inputs/{zh,multi,edge}/*.txt; do cat "$f"; echo; done > /tmp/inputs.txt
+ALL=/tmp/inputs.txt perl -CSD -ne 'BEGIN { local $/; open my $f, "<:encoding(UTF-8)", $ENV{ALL} or die; $t = <$f> }
+  ($w) = /^(\S+)/; print if index($t, $w) >= 0' <jieba>/jieba/dict.txt \
+  > analysis/goldens/data/fixtures/jieba-dict-subset.txt
+```
+
+and has to be written again, with the goldens, when an input of those
+sets changes. jieba's license:
+
+```
+The MIT License (MIT)
+
+Copyright (c) 2013 Sun Junyi
+
+Permission is hereby granted, free of charge, to any person obtaining a copy of
+this software and associated documentation files (the "Software"), to deal in
+the Software without restriction, including without limitation the rights to
+use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of
+the Software, and to permit persons to whom the Software is furnished to do so,
+subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS
+FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR
+COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER
+IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
+CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+```
 
 ## Goldens
 
