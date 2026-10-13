@@ -28,18 +28,20 @@ text, which gives other words.
 
 ## The merge loop
 
-The three trainers share one loop (`merger.rs`). The words of the corpus
-are kept once each, with how often they occur, and the count of every
-pair of adjacent pieces is kept up to date as merges are made, never
-counted again: a merge visits only the words that hold its pair, and in
-each only the pieces on either side of each place it is merged. The next
-pair comes from a binary heap whose entries may be out of date; an entry
-is pushed when a pair's count goes up, and one whose count went down is
+The three trainers share one loop
+(`analysis/bpe-trainer/src/merger.rs`). The words of the corpus are kept
+once each, with how often they occur, and the count of every pair of
+adjacent pieces is kept up to date as merges are made, never counted
+again: a merge visits only the words that hold its pair, and in each
+only the pieces on either side of each place it is merged. The next pair
+comes from a binary heap whose entries may be out of date; an entry is
+pushed when a pair's count goes up, and one whose count went down is
 pushed again at its current count when it reaches the top. A test
-(`tests/merger.rs`) runs the loop against a trainer written plainly,
-which recounts every pair before each merge, on 400 random corpora under
-two orders, with pairs the order refuses and pairs set aside, and checks
-that both make the same merges with the same counts.
+(`analysis/bpe-trainer/tests/merger.rs`) runs the loop against a trainer
+written plainly, which recounts every pair before each merge, on 400
+random corpora under two orders, with pairs the order refuses and pairs
+set aside, and checks that both make the same merges with the same
+counts.
 
 Of pairs with the same count, each trainer gives an order, so the same
 corpus and settings always give the same model, whatever the order of
@@ -68,7 +70,7 @@ pair is left, or when the most frequent pair occurs fewer than
 `--min-frequency` times. The file is written in upstream's layout, with
 RoBERTa's post-processor when `--roberta` is given.
 
-Compared with upstream (`tests/byte_level.rs`):
+Compared with upstream (`analysis/bpe-trainer/tests/byte_level.rs`):
 
 - `testdata/tiny-bpe/tokenizer.json`, which upstream trained, is written
   again byte for byte (939 merges, 28901 bytes) from its corpus,
@@ -116,7 +118,7 @@ rank, then the kept characters, most frequent first. A size the corpus
 cannot fill, or too small for the meta pieces and the characters, is an
 error that names the largest or least size, as the library's does.
 
-Compared with the library (`tests/sentencepiece.rs`):
+Compared with the library (`analysis/bpe-trainer/tests/sentencepiece.rs`):
 
 - `analysis/bpe-trainer/testdata/sentencepiece.py` ran the library
   (Python package 0.2.2) offline and wrote `sentencepiece.jsonl`: 60 runs
@@ -159,7 +161,7 @@ The JVM goldens are the `bpe` annotator of the goldens generator
 on each of the six texts of `inputs/bpe/` with 40 and 400 merges, its
 merges in order (`turbo:bpe-merges`) and the tokens `BPETokenizer` gave
 for the same text (`opennlp:tokens`). Compared with them
-(`tests/opennlp.rs`):
+(`analysis/bpe-trainer/tests/opennlp.rs`):
 
 - Every merge the JVM made, made in turn here, is a pair of the highest
   count at its step, and the JVM stops where no pair is left: 686 merges
