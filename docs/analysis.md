@@ -31,13 +31,15 @@ nothing here is in the C header or the gRPC server.
 | `turbo-stopword` | `analysis/stopword/` | OpenNLP's eleven bundled stopword lists (Bulgarian, Danish, German, English, Spanish, Finnish, French, Italian, Dutch, Portuguese, Russian) and `StopwordFilter.isStopword`, and the step that reads `opennlp:tokens` and, optionally, `opennlp:language` and writes `turbo:stopwords`, a flag per token; it flags and never removes. `analysis/stopword/data/README.md` gives each list's origin and license, the crate documentation lists the OpenNLP behaviour that is surprising, and `analysis/stopword/README.md` describes its JVM golden files |
 | `turbo-stopword-layers` | `analysis/stopword-layers/` | The `turbo:stopwords` layer and the languages that have a list (`StopwordLanguage`) |
 | `turbo-bpe-trainer` | `analysis/bpe-trainer/` | BPE trainers, a tool and not an annotator: byte-level BPE as upstream `tokenizers` trains it, SentencePiece BPE as the sentencepiece library trains it, and OpenNLP's `BPETokenizerTrainer` with its `BPETokenizer` ([bpe-trainer.md](bpe-trainer.md)) |
-| `turbo-eval` | `analysis/eval/` | The evaluation harness: measures, significance tests, records and the gate (Evaluation, below) |
+| `turbo-eval` | `analysis/eval/` | The evaluation harness: measures, significance tests, records, the gate, and the evaluation sets with their fetch by checksum and typed readers (Evaluation, below) |
 
 They need nothing beyond the standard library and each other, except
 `turbo-analysis-embed`, which runs the embedding model and so depends on
 the core crate, `turbo`; `turbo-namefind`, which matches its patterns
 with the `regex` crate; and `turbo-eval`, which uses serde for its
-records and the core for turbo-bench's provenance types. A shared
+records and set files, the core for turbo-bench's provenance types,
+`ureq` to fetch the sets, and `flate2` (already in the build through
+`ureq`) for the one set published as a gzip tar. A shared
 layer lives in `turbo-analysis-layers`, so a consumer of a layer never
 depends on the add-on that produces it; an add-on's own layers live in a
 small schema crate beside it, for the same reason.
@@ -1713,11 +1715,11 @@ checked in dumps were made in the same container run as the goldens.
 ## Evaluation
 
 `turbo-eval` (`analysis/eval/`) is the harness every change to the
-chunker is to be measured with (#154). Step 1 is in: a library with the
-measures, the significance tests, the record and the gate. Reading the
-evaluation sets, running a pipeline over them, the named baselines, the
-records under `analysis/eval/records` and the `turbo-eval` binary are
-later steps.
+chunker is to be measured with (#154). Steps 1 and 2 are in: a
+library with the measures, the significance tests, the record, the gate,
+and the evaluation sets. Running a pipeline over the sets, the named
+baselines, the records under `analysis/eval/records` and the
+`turbo-eval` binary are later steps.
 
 - `metrics`: nDCG@10 with linear graded gain and a `log2(rank + 1)`
   discount, and recall at 1, 5, 10 and 100, at document level. Hits
@@ -1747,11 +1749,43 @@ later steps.
   set's mean difference is below -0.5 points. It reports each
   difference with its interval and p value beside it.
 
+The sets (decision 10) are described one file each under
+`analysis/eval/src/sets/`: name, published files with their URL and
+SHA-256, licence, and the unit of the set's span judgements. A set is
+fetched into `<cache>/<name>/`, where the cache root is the `--cache`
+path or `$TURBO_EVAL_CACHE` (no default); each file is written to a
+temporary name and renamed only when its SHA-256 matches the recorded
+one. A set with an empty licence is neither fetched nor loaded, and a
+file with no recorded digest is downloaded, its digest printed, and
+refused. The readers under `analysis/eval/src/read/`, one per format,
+give the typed `LoadedSet` (documents, queries, document judgements,
+span judgements as UTF-8 byte offsets into the text as loaded), with
+errors that name the file and line. `LoadedSet.sha256` is the SHA-256 of
+a `sha256sum` style manifest of the files read, sorted by path.
+
+| Set | Source | Licence | Spans | Digests |
+|---|---|---|---|---|
+| `scifact`, `nfcorpus`, `arguana` | BEIR layout, from MTEB's plain copies at a pinned revision | CC BY-SA 4.0 (BEIR dataset cards) | none | not recorded yet |
+| `legalbench-rag-mini` | a shared folder, placed by hand | MIT for the benchmark; the documents under their sources' terms | code points, converted after Python's newline translation; the mini subset is chosen with a port of CPython's `random` | none (no stable file URLs) |
+| `conteb-covid-qa` | Parquet, read as JSON Lines rows | none stated, so refused | the judged chunk | not recorded yet |
+| `gutenqa` | Parquet, read as JSON Lines rows | MIT (dataset card) | the quoted passage, located in its chunk | not recorded yet |
+| `hicbench` | no published copy found | none stated, so refused | quoted sentences, located in the document | none |
+| `qasper` | gzip tar, test split | CC BY 4.0 | quoted evidence, located by paragraph or text | recorded |
+
+The workspace has no Parquet reader, so ConTEB's and GutenQA's tables
+have to be converted to JSON Lines (one object per row, the column
+names as keys) outside the crate. Chunked sets are joined into
+documents with a line break between chunks. Evidence a reader cannot
+place in its document is listed in `LoadedSet.unplaced` rather than
+dropped silently.
+
 `cargo test -p turbo-eval` checks the measures against values worked
 out by hand in the tests, the tie and empty query rules, the
 reproducibility of both tests, the permutation p value where the exact
-answer is known, and the record's round trip and its refusal of unknown
-and missing fields.
+answer is known, the record's round trip and its refusal of unknown
+and missing fields, and each reader on a small sample made for the
+tests (`analysis/eval/tests/data/`): typed values, offset conversion on
+non-ASCII text, and errors with file and line. They need no network.
 
 ## Tests
 
@@ -1950,8 +1984,10 @@ runs them on any machine:
   `SentenceVectorsDL` on golden inputs, which needs the JVM container,
   and a measurement of documents per second through the vector steps.
   The tests build their layers by hand or with toy annotators.
-- The rest of the evaluation harness: the set readers, the pipeline,
-  the baselines, the committed records and the `turbo-eval` binary, and
+- The rest of the evaluation harness: the pipeline, the baselines, the
+  committed records and the `turbo-eval` binary, the digests of the
+  sets not fetched yet, a Parquet reader or a fetched JSON copy for
+  ConTEB and GutenQA, and a published copy and licence for HiCBench, and
   the chunker's records on it. It is also where the BM25 only baseline
   is to be reported, from the term statistics above, and what each
   level and each kind of level vector adds.

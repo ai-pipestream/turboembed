@@ -90,6 +90,12 @@ impl SpanRels {
         }
         Ok(SpanRels { by_query })
     }
+
+    /// The relevant spans of `doc` for `query`, in the order they were
+    /// given; empty when there are none.
+    pub fn spans(&self, query: &str, doc: &str) -> &[Span] {
+        self.by_query.get(query).and_then(|d| d.get(doc)).map_or(&[], Vec::as_slice)
+    }
 }
 
 /// One retrieved chunk: a span of a document, and its score.

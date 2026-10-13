@@ -36,12 +36,21 @@ pub struct LoadedSet {
     /// The set's name, as records name it.
     pub name: String,
     /// SHA-256 of the files read, 64 lower case hex, as records carry it.
+    /// It is the SHA-256 of a manifest with one line per file read,
+    /// `<SHA-256 of the file>  <path>\n` as `sha256sum` prints it, with
+    /// paths relative to the set's directory, `/` separated, in byte
+    /// order. `sha256sum` over the same files, sorted with `LC_ALL=C`,
+    /// gives the same manifest.
     pub sha256: String,
     pub docs: Vec<Doc>,
     pub queries: Vec<Query>,
     pub qrels: Qrels,
     /// `None` for sets without span judgements.
     pub spans: Option<SpanRels>,
+    /// Judgements the reader could not place in a document and left out,
+    /// one line each naming the query and the text, so a run can say how
+    /// many there were. Only sets that quote their judged text have them.
+    pub unplaced: Vec<String>,
 }
 
 impl LoadedSet {
