@@ -112,6 +112,8 @@ pub struct Encoder {
     model: *mut turbo_model,
     session: *mut turbo_session,
     info: EncoderInfo,
+    device: turbo_device_info,
+    model_info: turbo_model_info,
 }
 
 // SAFETY: the runtime, context and model may be used from any thread, and
@@ -178,10 +180,13 @@ impl Encoder {
                 compute_dtype: 0,
                 execution: Execution { backend: String::new(), device: String::new(), precision: String::new() },
             },
+            // SAFETY: both are plain C data, for which all zeros is a value.
+            device: unsafe { std::mem::zeroed() },
+            model_info: unsafe { std::mem::zeroed() },
         };
         check(unsafe { turbo_runtime_create(ptr::null(), &mut e.rt, &mut err) }, &err)?;
         let index = e.device_index(&o.device)?;
-        let device = e.device_info(index)?;
+        let device = e.device_info_at(index)?;
         check(unsafe { turbo_context_create(e.rt, index, &mut e.ctx, &mut err) }, &err)?;
         let text = turbo_text { ptr: path.as_ptr().cast(), len: path.len() as u64 };
         check(unsafe { turbo_model_load(e.ctx, text, &mut e.model, &mut err) }, &err)?;
@@ -227,11 +232,36 @@ impl Encoder {
                 precision: format!("{} ({})", dtype_name(s.compute_dtype), o.precision.name()),
             },
         };
+        e.device = device;
+        e.model_info = m;
         Ok(e)
     }
 
     pub fn info(&self) -> &EncoderInfo {
         &self.info
+    }
+
+    /// The device the session runs on, as the runtime lists it.
+    pub fn device_info(&self) -> &turbo_device_info {
+        &self.device
+    }
+
+    /// The loaded model as `turbo_model_get_info` reports it: its id,
+    /// revision and hashes among the rest.
+    pub fn model_info(&self) -> &turbo_model_info {
+        &self.model_info
+    }
+
+    /// The first CPU device the runtime lists, which names the host
+    /// processor; None when this build lists none.
+    pub fn host_cpu(&self) -> Result<Option<turbo_device_info>, Error> {
+        for i in 0..self.device_count()? {
+            let d = self.device_info_at(i)?;
+            if d.kind == TURBO_DEVICE_CPU {
+                return Ok(Some(d));
+            }
+        }
+        Ok(None)
     }
 
     fn device_count(&self) -> Result<u32, Error> {
@@ -240,7 +270,7 @@ impl Encoder {
         Ok(n)
     }
 
-    fn device_info(&self, index: u32) -> Result<turbo_device_info, Error> {
+    fn device_info_at(&self, index: u32) -> Result<turbo_device_info, Error> {
         let mut info: turbo_device_info = unsafe { std::mem::zeroed() };
         info.struct_size = size_of::<turbo_device_info>() as u32;
         let mut err = new_error();
@@ -253,7 +283,7 @@ impl Encoder {
         let n = self.device_count()?;
         let find = |what: &str, f: &dyn Fn(&turbo_device_info) -> bool| -> Result<u32, Error> {
             for i in 0..n {
-                if f(&self.device_info(i)?) {
+                if f(&self.device_info_at(i)?) {
                     return Ok(i);
                 }
             }

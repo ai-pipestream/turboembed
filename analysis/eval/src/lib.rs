@@ -1,10 +1,25 @@
 //! The evaluation harness for retrieval pipelines (issue #154).
 //!
-//! This is step 1: the measures, the significance tests, the record a run
-//! is written as, and the gate that compares two sets of records. Reading
-//! the evaluation sets, running a pipeline over them and the `turbo-eval`
-//! binary come in later steps.
+//! A [`pipeline::Pipeline`] runs over one evaluation set: it analyzes
+//! each document (sentences, structure, the embedder's subwords), chunks
+//! it, embeds each chunk once and each query the same way, and ranks
+//! every query against every chunk by exact cosine. The run is scored at
+//! document and span level, its cost measured stage by stage, and the
+//! result written as a record; the gate compares two sets of records.
+//! The `turbo-eval` binary runs both. Reading the evaluation sets is
+//! step 2 of the issue, and plugs in at [`run::SetLoader`].
 //!
+//! - [`analysis`]: the layers each document is given before chunking.
+//! - [`chunkers`]: the chunkers behind one trait: fixed token windows,
+//!   sentence windows, the OpenNLP sandbox's semantic chunker, and
+//!   turbo-chunker's optimizer.
+//! - [`embedder`]: the embedder behind one trait, and the one that runs
+//!   a bundle through a turbo session.
+//! - [`retrieve`]: exact cosine over all chunk vectors; a document
+//!   scores its best chunk.
+//! - [`pipeline`]: the stages together, with their cost, and the record.
+//! - [`run`]: the `run` and `gate` commands as functions.
+//! - [`source`]: the commit a record names, and when it was made.
 //! - [`metrics`]: nDCG@10 and recall@k at document level.
 //! - [`spans`]: how well the top k chunks cover the relevant byte spans.
 //! - [`significance`]: a paired bootstrap interval and a paired
@@ -14,12 +29,19 @@
 //! - [`set`]: an evaluation set once it is read.
 //! - [`gate`]: candidate records against baseline records.
 
+pub mod analysis;
+pub mod chunkers;
 pub mod cost;
+pub mod embedder;
 pub mod gate;
 pub mod metrics;
+pub mod pipeline;
 pub mod record;
+pub mod retrieve;
+pub mod run;
 pub mod set;
 pub mod significance;
+pub mod source;
 pub mod spans;
 
 /// Errors are messages, as in the rest of the workspace.
