@@ -25,6 +25,9 @@ use turbo_bpe_trainer::opennlp::{END_OF_WORD, symbols, words};
 use turbo_bpe_trainer::pieces::{Pair, Pieces, SymbolId};
 use turbo_goldens::escape::unescape_utf16;
 
+/// A merge as the JVM holds it: two strings of UTF-16 units.
+type Utf16Pair = (Vec<u16>, Vec<u16>);
+
 /// One golden of the `bpe` annotator.
 struct BpeGolden {
     run: String,
@@ -32,7 +35,7 @@ struct BpeGolden {
     text: String,
     /// The merges, each side as UTF-16 units: a side can be half of a
     /// surrogate pair.
-    merges: Vec<(Vec<u16>, Vec<u16>)>,
+    merges: Vec<Utf16Pair>,
     /// The tokens' UTF-8 byte spans.
     tokens: Vec<(u32, u32)>,
 }
@@ -248,7 +251,7 @@ fn list_hash(l: &[Vec<u16>]) -> i32 {
 }
 
 /// The hash code of the record `SymbolPair(left, right)`.
-fn pair_hash(p: &(Vec<u16>, Vec<u16>)) -> i32 {
+fn pair_hash(p: &Utf16Pair) -> i32 {
     string_hash(&p.0).wrapping_mul(31).wrapping_add(string_hash(&p.1))
 }
 
@@ -365,7 +368,7 @@ impl<K: PartialEq + Clone> JavaHashMap<K> {
 
 /// `BPETokenizerTrainer.learnMerges` over `text` as one corpus element,
 /// with Java's HashMap.
-fn jvm_merges(text: &str, num_merges: usize) -> Vec<(Vec<u16>, Vec<u16>)> {
+fn jvm_merges(text: &str, num_merges: usize) -> Vec<Utf16Pair> {
     let utf16 = |s: &str| s.encode_utf16().collect::<Vec<u16>>();
     let end: Vec<u16> = utf16(END_OF_WORD);
     let mut word_freqs = JavaHashMap::new();
@@ -400,7 +403,7 @@ fn jvm_merges(text: &str, num_merges: usize) -> Vec<(Vec<u16>, Vec<u16>)> {
         if pair_counts.size == 0 {
             break;
         }
-        let mut best: Option<(&(Vec<u16>, Vec<u16>), u64)> = None;
+        let mut best: Option<(&Utf16Pair, u64)> = None;
         for (p, _, n) in pair_counts.iter() {
             if n > best.map_or(0, |b| b.1) {
                 best = Some((p, n));

@@ -182,7 +182,8 @@ fn characters_the_coverage_leaves_out_are_unknown() {
         .pieces()
         .iter()
         .skip(3)
-        .filter_map(|p| p.piece.chars().nth(1).is_none().then(|| p.piece.chars().next().unwrap()))
+        .filter(|p| p.piece.chars().nth(1).is_none())
+        .map(|p| p.piece.chars().next().unwrap())
         .collect();
     let mut left_out = 0;
     for line in &lines {
