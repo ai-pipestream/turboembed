@@ -1780,6 +1780,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "turbo-bpe-trainer"
+version = "0.1.0"
+dependencies = [
+ "serde_json",
+ "tokenizers",
+ "turbo",
+ "turbo-goldens",
+ "turbo-jvm",
+ "turbo-tokenize",
+ "turbo-unicode",
+]
+
+[[package]]
 name = "turbo-bundle"
 version = "0.1.0"
 dependencies = [

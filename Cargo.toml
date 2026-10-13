@@ -6,6 +6,7 @@ members = [
     "server",
     "demo",
     "analysis/core",
+    "analysis/bpe-trainer",
     "analysis/layers",
     "analysis/chunker",
     "analysis/embed",
