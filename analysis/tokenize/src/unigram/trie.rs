@@ -208,8 +208,8 @@ impl TrieBuilder {
     }
 
     /// Adds `count`, which is positive, to the word at `node`. The caller
-    /// keeps the total of all counts, which bounds every word's sum, from
-    /// overflowing.
+    /// first checks that the total of all counts, which bounds every
+    /// word's sum, still fits, so the sum cannot overflow.
     pub(crate) fn add(&mut self, node: NodeId, count: i64) {
         debug_assert!(count > 0);
         let c = &mut self.counts[node as usize];

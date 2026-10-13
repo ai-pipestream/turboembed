@@ -150,10 +150,12 @@ impl UnigramLexicon {
             if builder.count(node) == 0 && builder.words() >= max_entries {
                 return Err(LexiconError::TooManyEntries { limit: max_entries });
             }
-            // The merged count of one word never passes the total, which is
-            // checked next, so the sum cannot overflow before it does.
-            builder.add(node, count);
+            // The total is checked before the word's count is added to: the
+            // merged count of one word never passes the total, so once the
+            // total fits, the sum cannot overflow. Java merges first, with a
+            // sum that wraps, and then fails on the total at the same line.
             total = total.checked_add(count).ok_or(LexiconError::TotalOverflow { line: line_number })?;
+            builder.add(node, count);
         }
         if builder.words() == 0 {
             return Err(LexiconError::Empty);
@@ -430,6 +432,65 @@ mod tests {
     fn the_tag_and_anything_after_the_count_are_ignored() {
         let lexicon = parse("a 3 n extra words\nb\t\t4\u{3000}x\n").unwrap();
         assert_eq!(lexicon.total(), 7);
+    }
+
+    #[test]
+    fn hostile_counts() {
+        let max = i64::MAX;
+        // The largest count alone loads; its logarithm is that of 2^63.
+        let lexicon = parse(&format!("a {max}\n")).unwrap();
+        assert_eq!(lexicon.total(), max);
+        assert_eq!(lexicon.log_probability("a"), Some(0.0));
+        // A word listed twice whose sum passes Long.MAX_VALUE: the total
+        // overflows at the same line, which is the error, as in Java.
+        assert_eq!(message(&format!("a {max}\na 1\n")), "lexicon count total overflows at line 2");
+        assert_eq!(message(&format!("a 1\nb {max}\n")), "lexicon count total overflows at line 2");
+        // Twenty digits, and Long.MIN_VALUE, which parses and is refused
+        // as not positive.
+        assert_eq!(message("a 99999999999999999999\n"), "malformed count at lexicon line 1");
+        assert_eq!(message("a -9223372036854775808\n"), "count must be positive at lexicon line 1");
+        assert_eq!(message("a -0\n"), "count must be positive at lexicon line 1");
+        assert_eq!(message("a 0007x\n"), "malformed count at lexicon line 1");
+        assert_eq!(parse("a +0007\n").unwrap().total(), 7);
+        // A count in fullwidth digits, and a sign and digits of two
+        // scripts mixed, are one long to Java.
+        assert_eq!(parse("a +\u{ff11}2\u{663}\n").unwrap().total(), 123);
+    }
+
+    #[test]
+    fn hostile_line_ends() {
+        // CR LF, lone CR, a final line without an end, and blank lines of
+        // each kind, the line numbers counted as readLine counts them.
+        let lexicon = parse("a 1\r\nb 2\rc 3\n\r\n\r\rd 4").unwrap();
+        assert_eq!((lexicon.len(), lexicon.total()), (4, 10));
+        assert_eq!(message("a 1\r\n\r\rb x\n"), "malformed count at lexicon line 4");
+        assert_eq!(message("a 1\rb\r\n"), "lexicon line 2 has no count");
+        // A CR inside what looks like one line ends it: the count of "b"
+        // is on the next line, so "b" has none.
+        assert_eq!(message("b\r5\n"), "lexicon line 1 has no count");
+        // U+2028 does not end a line but is whitespace, so it separates.
+        assert_eq!(parse("a\u{2028}5\n").unwrap().total(), 5);
+    }
+
+    #[test]
+    fn hostile_bytes() {
+        let utf8 = |bytes: &[u8]| match UnigramLexicon::parse(bytes, WhitespaceMode::Unicode) {
+            Err(LexiconError::Utf8 { offset }) => offset,
+            other => panic!("{other:?}"),
+        };
+        // A surrogate encoded in UTF-8, an overlong NUL, a lone
+        // continuation byte, a sequence cut at the end, and a byte that is
+        // never UTF-8. Java's decoder, told to report, refuses each.
+        assert_eq!(utf8(b"a 1\n\xED\xA0\x80 1\n"), 4);
+        assert_eq!(utf8(b"\xC0\x80 1\n"), 0);
+        assert_eq!(utf8(b"a\x80 1\n"), 1);
+        assert_eq!(utf8(b"a 1\n\xE4\xB8"), 4);
+        assert_eq!(utf8(b"a \xFF1\n"), 2);
+        // A byte order mark alone on a line is a word without a count:
+        // U+FEFF is not whitespace, so nothing trims it.
+        assert_eq!(message("\u{feff}\na 1\n"), "lexicon line 1 has no count");
+        // A NUL is an ordinary character of a word.
+        assert!(parse("a\u{0}b 1\n").unwrap().log_probability("a\u{0}b").is_some());
     }
 
     #[test]
