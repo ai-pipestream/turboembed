@@ -418,7 +418,7 @@ mod tests {
         let counted: u64 = texts.iter().map(|t| e.count(t, Role::Document)).sum();
         assert_eq!(tokens, counted);
         assert_eq!(out.len(), 3 * 32);
-        for v in out.chunks_exact(32) {
+        for v in out.as_chunks::<32>().0 {
             let norm: f64 = v.iter().map(|&x| f64::from(x) * f64::from(x)).sum();
             assert!((norm - 1.0).abs() < 1e-5, "{norm}");
         }
