@@ -1,28 +1,32 @@
 //! The OpenNLP trainer and tokenizer against the JVM's goldens
 //! (analysis/goldens/data/bpe): `BPETokenizerTrainer` trained on each
 //! input of the `bpe` set with 40 and with 400 merges, and the
-//! `BPETokenizer` it made run over the same text.
+//! `BPETokenizer` it made run over the same text; and against the JVM's
+//! trainer on random corpora (testdata/opennlp-random.jsonl).
 //!
 //! The JVM takes, of pairs with the same count, the first in the
 //! iteration order of a `HashMap`. So the checks are:
 //!
 //! - every merge the JVM made is a pair of the highest count at its step,
 //!   counted here: the counting is the same;
-//! - up to the first step where the JVM chose among tied pairs, the
-//!   trainer makes the JVM's merges;
-//! - a model of the JVM's loop with Java's `HashMap` (insertion, `merge`
-//!   at the head of a bin, resizing, iteration) makes every one of the
-//!   JVM's merges, which shows the tie order is the map's;
+//! - with the JVM's tie order, the trainer makes every one of the JVM's
+//!   merges, on the goldens and on the random corpora;
+//! - with the made-first order, it makes the JVM's merges up to the first
+//!   step where the JVM chose among tied pairs;
+//! - a model of the JVM's loop with explicit `HashMap` bins (insertion,
+//!   `merge` at the head of a bin, resizing, iteration), written here
+//!   apart from the trainer, makes every one of the JVM's merges, the
+//!   emoji golden's surrogate merges among them;
 //! - the tokenizer, given the JVM's merges, gives the JVM's tokens.
 
 mod common;
 
 use common::*;
 
-use turbo_bpe_trainer::OpenNlpBpe;
 use turbo_bpe_trainer::merger::{Merger, Order};
 use turbo_bpe_trainer::opennlp::{END_OF_WORD, symbols, words};
 use turbo_bpe_trainer::pieces::{Pair, Pieces, SymbolId};
+use turbo_bpe_trainer::{OpenNlpBpe, TieOrder};
 use turbo_goldens::escape::unescape_utf16;
 
 /// A merge as the JVM holds it: two strings of UTF-16 units.
@@ -152,15 +156,69 @@ fn every_jvm_merge_is_a_pair_of_the_highest_count() {
     assert!(steps > 600 && tied > 500, "{steps} steps, {tied} tied");
 }
 
-/// The trainer makes the JVM's merges up to the first step at which the
-/// JVM chose among pairs of equal count; there, its own merge is one of
-/// them.
+/// The trainer, with the JVM's tie order, makes every merge the JVM made
+/// on every golden whose symbols are whole characters, and says so.
 #[test]
-fn the_trainer_makes_the_jvms_merges_until_the_first_tie() {
-    let mut same_before_tie = 0;
+fn the_trainer_makes_every_jvm_merge() {
+    let mut merges = 0;
     for (g, jvm) in whole_character_goldens() {
         let limit: usize = g.run.trim_start_matches("merges-").parse().unwrap();
         let ours = OpenNlpBpe::train([g.text.as_str()], limit).unwrap();
+        let ours: Vec<(String, String)> = ours.merges().iter().map(|m| (m.left.clone(), m.right.clone())).collect();
+        assert_eq!(ours, jvm, "{} {}", g.run, g.input);
+        assert!(OpenNlpBpe::train([g.text.as_str()], limit).unwrap().is_jvm_exact());
+        merges += ours.len();
+    }
+    assert_eq!(merges, 686);
+}
+
+/// The JVM's `BPETokenizerTrainer` on 160 random corpora
+/// (`testdata/opennlp-random.jsonl`, written by `OpenNlpRandom.java`):
+/// small alphabets, so most steps tie, and corpora of up to 3000 words,
+/// so the maps grow past 64 bins. The trainer makes the same 9907
+/// merges.
+#[test]
+fn the_trainer_makes_the_jvms_merges_on_random_corpora() {
+    let file = std::fs::read_to_string(repo().join("analysis/bpe-trainer/testdata/opennlp-random.jsonl")).unwrap();
+    let (mut runs, mut merges) = (0, 0);
+    let mut inexact = Vec::new();
+    for (i, line) in file.lines().enumerate() {
+        let v: serde_json::Value = serde_json::from_str(line).unwrap();
+        let text = v["text"].as_str().unwrap();
+        let limit = v["num_merges"].as_u64().unwrap() as usize;
+        let jvm: Vec<(String, String)> = v["merges"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|m| (m[0].as_str().unwrap().to_owned(), m[1].as_str().unwrap().to_owned()))
+            .collect();
+        let ours = OpenNlpBpe::train([text], limit).unwrap();
+        if !ours.is_jvm_exact() {
+            inexact.push(i);
+        }
+        let ours: Vec<(String, String)> = ours.merges().iter().map(|m| (m.left.clone(), m.right.clone())).collect();
+        assert_eq!(ours, jvm, "run {i}");
+        runs += 1;
+        merges += jvm.len();
+    }
+    assert_eq!(runs, 160);
+    assert_eq!(merges, 9907);
+    // These reach a bin of eight pairs or more in a table of 64 or more,
+    // which the JVM makes a tree; the trainer says it cannot rule out a
+    // difference there, and here there is none.
+    assert_eq!(inexact, [19, 35, 39, 87, 135, 155]);
+}
+
+/// With the other tie order the trainer makes the JVM's merges up to the
+/// first step at which the JVM chose among pairs of equal count; there,
+/// its own merge is one of them.
+#[test]
+fn made_first_makes_the_jvms_merges_until_the_first_tie() {
+    let mut same_before_tie = 0;
+    for (g, jvm) in whole_character_goldens() {
+        let limit: usize = g.run.trim_start_matches("merges-").parse().unwrap();
+        let ours = OpenNlpBpe::train_with([g.text.as_str()], limit, TieOrder::MadeFirst).unwrap();
+        assert!(!ours.is_jvm_exact());
         let ours: Vec<(&str, &str)> = ours.merges().iter().map(|m| (m.left.as_str(), m.right.as_str())).collect();
         let mut m = merger(&g.text);
         for (i, (l, r)) in jvm.iter().enumerate() {
@@ -183,8 +241,7 @@ fn the_trainer_makes_the_jvms_merges_until_the_first_tie() {
         }
     }
     // Small texts tie early: only prose's first 7 merges and ties' first
-    // have no tie, in both runs. The replay above and the model below
-    // cover the rest.
+    // have no tie, in both runs.
     assert_eq!(same_before_tie, 16);
 }
 
@@ -229,6 +286,7 @@ fn the_jvm_splits_a_character_outside_the_bmp_and_the_trainer_does_not() {
     assert_eq!(first.1, [&emoji[1..], &END_OF_WORD.encode_utf16().collect::<Vec<_>>()[..]].concat());
     let ours = OpenNlpBpe::train([g.text.as_str()], 40).unwrap();
     assert!(ours.merges().iter().all(|m| !m.left.is_empty() && !m.right.is_empty()));
+    assert!(!ours.is_jvm_exact(), "a character outside the BMP is reported");
     assert_eq!(symbols("smile😀"), ["s", "m", "i", "l", "e", "😀</w>"]);
     // Both run out of pairs before 40 merges; the JVM spends its extra
     // merges joining surrogates.
@@ -459,16 +517,17 @@ fn hash_codes_are_javas() {
     assert_eq!(list_hash(&[u("a"), u("b")]), 31 * (31 + 97) + 98);
 }
 
-/// Training twice gives the same merges, and so does the corpus in
-/// another order: ties are broken by the symbols, not by the order the
-/// words were seen in.
+/// With [`TieOrder::MadeFirst`], training twice gives the same merges,
+/// and so does the corpus in another order: ties are broken by the
+/// symbols, not by the order the words were seen in.
 #[test]
-fn training_is_deterministic_and_ignores_the_order_of_the_texts() {
+fn made_first_is_deterministic_and_ignores_the_order_of_the_texts() {
     let mut texts: Vec<String> = bpe_inputs().into_iter().map(|(_, t)| t).collect();
     texts.extend(tokenizer_texts());
-    let a = OpenNlpBpe::train(texts.iter().map(String::as_str), 1500).unwrap();
-    let b = OpenNlpBpe::train(texts.iter().map(String::as_str), 1500).unwrap();
-    let c = OpenNlpBpe::train(texts.iter().rev().map(String::as_str), 1500).unwrap();
+    let train = |t: Vec<&str>| OpenNlpBpe::train_with(t, 1500, TieOrder::MadeFirst).unwrap();
+    let a = train(texts.iter().map(String::as_str).collect());
+    let b = train(texts.iter().map(String::as_str).collect());
+    let c = train(texts.iter().rev().map(String::as_str).collect());
     assert_eq!(a.merges().len(), 1500);
     assert_eq!(a, b);
     assert_eq!(a, c);

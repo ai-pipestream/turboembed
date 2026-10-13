@@ -13,12 +13,15 @@
 //! - [`OpenNlpBpe`]: OpenNLP's `BPETokenizerTrainer`, whose merges
 //!   OpenNLP's `BPETokenizer` ([`OpenNlpTokenizer`]) applies.
 //!
-//! All three share one merge loop ([`merger`]), which keeps every pair's
+//! The three share one merge loop ([`merger`]), which keeps every pair's
 //! count as merges are made rather than counting again, and orders ties
 //! by a key each trainer gives, so the same corpus and settings always
-//! give the same model.
+//! give the same model. OpenNLP's default tie order, the JVM's, instead
+//! counts every pair again before each merge as the JVM does
+//! ([`TieOrder`]).
 
 pub mod byte_level;
+mod java_map;
 pub mod merger;
 pub mod opennlp;
 pub mod pieces;
@@ -28,7 +31,7 @@ pub mod sentencepiece;
 use std::fmt;
 
 pub use byte_level::{ByteLevelBpe, ByteLevelConfig, PostProcessor, SpecialToken};
-pub use opennlp::{OpenNlpBpe, OpenNlpTokenizer};
+pub use opennlp::{OpenNlpBpe, OpenNlpTokenizer, TieOrder};
 pub use sentencepiece::{PieceKind, SentencePieceBpe, SentencePieceConfig, TrainedPiece};
 
 /// One merge: the two pieces joined, and how often the pair occurred in
