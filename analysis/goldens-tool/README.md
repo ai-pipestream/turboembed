@@ -216,7 +216,9 @@ The fixture dictionaries are small and written for this project
 `COPYING` file (the NAIST notice and the ICOT terms, which allow
 redistribution with the notice) and mecab-ko-dic under the Apache
 License 2.0; neither is checked in, and only the goldens made with them
-are.
+are. Those goldens hold the feature columns of the entries chosen, so
+`analysis/goldens/data/README.md` carries IPADIC's notice and names
+mecab-ko-dic's license.
 
 ## Normalizer goldens
 
