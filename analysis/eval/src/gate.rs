@@ -1,12 +1,13 @@
 //! The gate a chunker change passes: candidate records against baseline
 //! records, one of each per set.
 //!
-//! The candidate passes when its nDCG@10 is at least [`GAIN_POINTS`]
-//! points above the baseline's on at least [`GAINS_NEEDED`] sets, and no
-//! set is more than [`FLOOR_POINTS`] below. A point is 0.01 of nDCG@10.
-//! Both rules look at the observed mean difference; the bootstrap
-//! interval and the permutation p value are reported beside each
-//! difference, not used to decide.
+//! The candidate passes when, on at least [`GAINS_NEEDED`] sets, its
+//! nDCG@10 is at least [`GAIN_POINTS`] points above the baseline's and the
+//! low end of the difference's 95 percent bootstrap interval is above
+//! zero, and no set's mean difference is below [`FLOOR_POINTS`]. A point
+//! is 0.01 of nDCG@10. A +2.0 mean whose interval reaches zero or below
+//! does not count as a gain. The permutation p value is reported beside
+//! each difference, not used to decide.
 //!
 //! The two sides must cover the same sets, each with the same SHA-256 and
 //! the same scored queries, so each difference is paired query by query.
@@ -37,7 +38,8 @@ pub struct SetComparison {
     pub difference: Bootstrap,
     /// The paired permutation test's two sided p value.
     pub p_value: f64,
-    /// The difference is at least GAIN_POINTS.
+    /// The difference is at least GAIN_POINTS and its interval's low end
+    /// is above zero.
     pub gained: bool,
     /// The difference is below FLOOR_POINTS.
     pub below_floor: bool,
@@ -47,7 +49,7 @@ pub struct SetComparison {
 pub struct GateReport {
     /// One comparison per set, in set name order.
     pub sets: Vec<SetComparison>,
-    /// Sets that gained at least GAIN_POINTS.
+    /// Sets that gained: at least GAIN_POINTS, with an interval above zero.
     pub gains: usize,
     pub pass: bool,
 }
@@ -109,7 +111,7 @@ pub fn gate(candidate: &[EvalRecord], baseline: &[EvalRecord]) -> Result<GateRep
             candidate: 100.0 * c.metrics.ndcg_at_10,
             difference,
             p_value,
-            gained: difference.mean >= GAIN_POINTS,
+            gained: difference.mean >= GAIN_POINTS && difference.low > 0.0,
             below_floor: difference.mean < FLOOR_POINTS,
         });
     }
@@ -146,7 +148,7 @@ impl fmt::Display for GateReport {
         let verdict = if self.pass { "PASS" } else { "FAIL" };
         write!(
             f,
-            "{verdict}: {} of {} sets gained at least {GAIN_POINTS} points ({GAINS_NEEDED} needed), floor {FLOOR_POINTS}",
+            "{verdict}: {} of {} sets gained at least {GAIN_POINTS} points with an interval above zero ({GAINS_NEEDED} needed), floor {FLOOR_POINTS}",
             self.gains,
             self.sets.len()
         )
@@ -228,5 +230,27 @@ mod tests {
         assert!((d.mean - 2.0).abs() < 1e-9);
         assert!(d.low < d.mean && d.mean < d.high, "{d:?}");
         assert!(r.sets[0].p_value < 0.1, "{}", r.sets[0].p_value);
+        assert!(d.low > 0.0, "{d:?}");
+        assert!(r.sets[0].gained);
+    }
+
+    #[test]
+    fn a_gain_whose_interval_reaches_zero_does_not_count() {
+        // Differences alternate +12 and -8 points: mean +2, but spread
+        // wide enough that the interval's low end is below zero.
+        let base: Vec<f64> = (0..20).map(|i| 0.3 + 0.01 * i as f64).collect();
+        let cand: Vec<f64> =
+            base.iter().enumerate().map(|(i, b)| b + if i.is_multiple_of(2) { 0.12 } else { -0.08 }).collect();
+        let wide = gate(&[sample("a", &cand)], &[sample("a", &base)]).unwrap();
+        let d = wide.sets[0].difference;
+        assert!((d.mean - 2.0).abs() < 1e-9);
+        assert!(d.low <= 0.0, "{d:?}");
+        assert!(!wide.sets[0].gained);
+
+        // The same wide set beside one clear gain: one gain, so it fails.
+        let (c, b) = pair("b", 3.0);
+        let r = gate(&[sample("a", &cand), c], &[sample("a", &base), b]).unwrap();
+        assert_eq!(r.gains, 1);
+        assert!(!r.pass, "{r}");
     }
 }

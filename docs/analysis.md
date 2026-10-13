@@ -764,9 +764,10 @@ later steps.
   an error, and the record carries each query's nDCG@10 so two records
   can be compared query by query.
 - `gate`: candidate records against baseline records, one per set. It
-  passes when at least two sets gain 2.0 nDCG@10 points or more and no
-  set loses more than 0.5, and reports each difference with its
-  bootstrap interval and p value beside it.
+  passes when at least two sets gain 2.0 nDCG@10 points or more with
+  the low end of the 95 percent bootstrap interval above zero, and no
+  set's mean difference is below -0.5 points. It reports each
+  difference with its interval and p value beside it.
 
 `cargo test -p turbo-eval` checks the measures against values worked
 out by hand in the tests, the tie and empty query rules, the
