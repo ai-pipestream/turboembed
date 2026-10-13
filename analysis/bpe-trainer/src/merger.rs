@@ -242,29 +242,35 @@ impl<O: Order> Merger<O> {
     }
 
     /// Merges `pair` into `merged` in word `w`, moving the counts of the
-    /// pairs on either side of each place it is merged.
+    /// pairs on either side of each place it is merged. One pass: the
+    /// word is written back over itself, so a long word that holds the
+    /// pair many times costs its length, not its length squared.
     fn merge_word(&mut self, w: u32, pair: Pair, merged: SymbolId) {
         let count = self.counts[w as usize];
         let mut symbols = std::mem::take(&mut self.words[w as usize]);
-        let mut i = 0;
-        while i + 1 < symbols.len() {
-            if symbols[i] != pair.left || symbols[i + 1] != pair.right {
-                i += 1;
-                continue;
+        let n = symbols.len();
+        let mut read = 0;
+        let mut write = 0;
+        while read < n {
+            if read + 1 < n && symbols[read] == pair.left && symbols[read + 1] == pair.right {
+                if write > 0 {
+                    let before = symbols[write - 1];
+                    self.remove(Pair { left: before, right: pair.left }, pair, count);
+                    self.add(Pair { left: before, right: merged }, w, count);
+                }
+                if let Some(&after) = symbols.get(read + 2) {
+                    self.remove(Pair { left: pair.right, right: after }, pair, count);
+                    self.add(Pair { left: merged, right: after }, w, count);
+                }
+                symbols[write] = merged;
+                read += 2;
+            } else {
+                symbols[write] = symbols[read];
+                read += 1;
             }
-            if i > 0 {
-                let before = symbols[i - 1];
-                self.remove(Pair { left: before, right: pair.left }, pair, count);
-                self.add(Pair { left: before, right: merged }, w, count);
-            }
-            if let Some(&after) = symbols.get(i + 2) {
-                self.remove(Pair { left: pair.right, right: after }, pair, count);
-                self.add(Pair { left: merged, right: after }, w, count);
-            }
-            symbols[i] = merged;
-            symbols.remove(i + 1);
-            i += 1;
+            write += 1;
         }
+        symbols.truncate(write);
         self.words[w as usize] = symbols;
     }
 
@@ -358,6 +364,19 @@ mod tests {
         let best = m.best().unwrap();
         m.merge(best.pair);
         assert_eq!(counts(&m), recount(&m));
+    }
+
+    #[test]
+    fn a_long_run_of_one_letter_merges_in_one_pass() {
+        let run = "a".repeat(100_001);
+        let mut m = merger(&[(run.as_str(), 2), ("ba", 1)]);
+        for _ in 0..4 {
+            let best = m.best().unwrap();
+            m.merge(best.pair);
+            assert_eq!(counts(&m), recount(&m));
+        }
+        // 100001 letters: 6250 pieces of 16 and one a.
+        assert_eq!(m.words[0].len(), 6251);
     }
 
     #[test]
