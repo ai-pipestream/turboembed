@@ -512,18 +512,8 @@ computed from the end of the sentence, keeps `手牵着|手`. The port keeps
 OpenNLP's behaviour in both; grouping such runs would be a change to
 OpenNLP.
 
-Speed has no receipt: no matched benchmark against jieba-rs is
-committed, so nothing here claims the port is faster (AGENTS.md, rule
-7). One informal run, at commit `0260665` in an x86-64 build container
-with 4 cores and no architecture label, release build, by the same
-program outside the repository, the best of 40 passes over the test
-file's lines (segmentation only, the dictionary loaded once), gave: PKU
-(509588 bytes) 16.1 ms for the port, 20.5 ms for jieba-rs without its
-HMM and 20.1 ms with it; MSR (560226 bytes) 17.7 ms, 22.0 ms and 21.7
-ms. Loading the 5 MB `dict.txt` took about 240 ms, against about 180 ms
-for jieba-rs; the port's load includes the file's SHA-256 for the
-provenance, about 30 ms. The JVM took about 80 ms a pass over either
-file (Temurin 21, 20 passes, the joining of the tokens included).
+Speed is not measured here: no matched benchmark against jieba-rs is
+committed, so this section makes no speed claim (AGENTS.md, rule 7).
 
 ### `Detokenizer`
 
