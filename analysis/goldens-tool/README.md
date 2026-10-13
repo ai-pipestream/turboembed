@@ -95,6 +95,7 @@ a directory with the same model run without them, and its options are
 | `money`, `money-convert` (`MoneyAnnotator`, `MoneyConversionAnnotator`) | `latin-us`, `latin-eu` | `money` | `notation`; for conversions also `target`, `as_of`, `snapshot` |
 | `quantity` (`QuantityAnnotator`) | `latin-us`, `latin-eu` | `quantity` | `notation` |
 | `subwords` (`WordpieceEncoder`) | `all-minilm-l6-v2-vocab` (fixture) | `en`, `multi`, `edge`, `surrogate`, `subwords` | `lowerCase true`, `maxWordCodePoints 100` |
+| `bpe` (`BPETokenizerTrainer`, `BPETokenizer`) | `merges-40`, `merges-400` | `bpe` | `languageCode en`, `numMerges` |
 | `unigram` (`UnigramSegmenter`) | `zh-unigram-fixture` (fixture), also `+legacy` | `zh`, `multi`, `edge`, `surrogate` | `whitespace legacy` |
 | | `jieba-dict-subset` (fixture), also `+legacy` | `zh`, `multi`, `edge` | `whitespace legacy` |
 | | `zh-unigram-modes` (fixture), also `+legacy` | `zh` | `whitespace legacy` |
@@ -112,6 +113,10 @@ a directory with the same model run without them, and its options are
 - A detokenizer input holds one token per line, and its golden holds the
   tokens, the operation `detokenize` gave each and the text it returned
   with and without the split marker (`docs/analysis.md`).
+- A `bpe` run trains `BPETokenizerTrainer` on the input alone with
+  `numMerges` merges and writes the merges (`turbo:bpe-merges`) and the
+  tokens `BPETokenizer` gives for the same text with them
+  (`docs/analysis.md`, docs/bpe-trainer.md).
 - The sentence detector's dumps also record, for each point whose best
   outcome is a split, what `isAcceptableBreak` returned
   (`docs/analysis.md`, "Decision point dumps").

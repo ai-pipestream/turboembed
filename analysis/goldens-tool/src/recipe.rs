@@ -174,7 +174,7 @@ pub const FIXTURES: [Fixture; 13] = [
 ];
 
 /// The input sets under `analysis/goldens/data/inputs`.
-pub const INPUT_SETS: [&str; 14] = [
+pub const INPUT_SETS: [&str; 15] = [
     "en",
     "multi",
     "norm",
@@ -189,6 +189,7 @@ pub const INPUT_SETS: [&str; 14] = [
     "detokenizer",
     "subwords",
     "zh",
+    "bpe",
 ];
 
 /// The arguments the driver passes to the generator after the fixed ones
@@ -202,7 +203,7 @@ pub const GENERATOR_ARGS: [&str; 1] = ["--dumps"];
 /// replaces and `verify` compares. The data directory holds other things
 /// (the inputs, the fixtures, the rate snapshot, a README) that neither
 /// touches.
-pub const ANNOTATORS: [&str; 11] = [
+pub const ANNOTATORS: [&str; 12] = [
     "sentdetect",
     "tokenize",
     "langdetect",
@@ -214,6 +215,7 @@ pub const ANNOTATORS: [&str; 11] = [
     "detokenize",
     "subwords",
     "unigram",
+    "bpe",
 ];
 
 /// The annotators with runs that ask a maxent model for their decisions:
@@ -221,8 +223,8 @@ pub const ANNOTATORS: [&str; 11] = [
 /// dump beside it. Their runs without a model (the simple, whitespace and
 /// UAX #29 tokenizers and the newline detector) have none, nor do the
 /// normalizers, the number scan, the money and quantity annotators,
-/// the detokenizer, the WordPiece encoder and the unigram segmenter,
-/// which ask no model.
+/// the detokenizer, the WordPiece encoder, the unigram segmenter and the
+/// BPE trainer, which ask no model.
 pub const DUMPED_ANNOTATORS: [&str; 3] = ["sentdetect", "tokenize", "langdetect"];
 
 /// The input set the normalizers run on. They run on no other set, and the

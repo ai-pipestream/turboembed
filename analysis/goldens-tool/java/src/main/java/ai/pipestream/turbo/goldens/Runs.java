@@ -49,7 +49,11 @@ final class Runs {
   static final String SENTENCE_FIXTURE = "sentence-fixture";
   static final String DETOKENIZER = "detokenizer";
   static final String SUBWORDS = "subwords";
+  static final String BPE = "bpe";
   static final String ZH = "zh";
+
+  /** The numbers of merges the BPE trainer runs with: few, so the tokens are pieces of words, and many. */
+  static final List<Integer> BPE_MERGES = List.of(40, 400);
 
   private static final List<String> TOKEN_MODELS = List.of(TOKEN_MODEL_EN, TOKEN_MODEL_DE, TOKEN_MODEL_ES,
       TOKEN_MODEL_FR, TOKEN_MODEL_PT);
@@ -118,6 +122,10 @@ final class Runs {
 
     annotators.add(WordpieceGolden.load(fixtures.resolve(WORDPIECE_VOCABULARY),
         Set.of(EN, MULTI, EDGE, SURROGATE, SUBWORDS)));
+
+    for (int merges : BPE_MERGES) {
+      annotators.add(new BpeGolden(merges, Set.of(BPE)));
+    }
 
     // The unigram segmenter: the fixture lexicon, the jieba subset and a lexicon whose words
     // depend on the whitespace mode, each in both modes.

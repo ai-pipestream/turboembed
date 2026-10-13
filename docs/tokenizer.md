@@ -18,6 +18,9 @@ compare it with. The same text gives the same ids on every machine.
 `docs/bundle.md` lists each kind's manifest fields and what the tokenizer
 file must hold for it.
 
+A `bpe` tokenizer file, or a SentencePiece BPE `.model`, can be trained
+from a corpus with `turbo-bpe-trainer` ([bpe-trainer.md](bpe-trainer.md)).
+
 ## SentencePiece models
 
 The `sentencepiece` kind reads a SentencePiece `.model` file, the

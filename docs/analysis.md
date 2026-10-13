@@ -30,6 +30,7 @@ nothing here is in the C header or the gRPC server.
 | `turbo-stem-layers` | `analysis/stem-layers/` | The stemmers' layer, `turbo:stems` |
 | `turbo-stopword` | `analysis/stopword/` | OpenNLP's eleven bundled stopword lists (Bulgarian, Danish, German, English, Spanish, Finnish, French, Italian, Dutch, Portuguese, Russian) and `StopwordFilter.isStopword`, and the step that reads `opennlp:tokens` and, optionally, `opennlp:language` and writes `turbo:stopwords`, a flag per token; it flags and never removes. `analysis/stopword/data/README.md` gives each list's origin and license, the crate documentation lists the OpenNLP behaviour that is surprising, and `analysis/stopword/README.md` describes its JVM golden files |
 | `turbo-stopword-layers` | `analysis/stopword-layers/` | The `turbo:stopwords` layer and the languages that have a list (`StopwordLanguage`) |
+| `turbo-bpe-trainer` | `analysis/bpe-trainer/` | BPE trainers, a tool and not an annotator: byte-level BPE as upstream `tokenizers` trains it, SentencePiece BPE as the sentencepiece library trains it, and OpenNLP's `BPETokenizerTrainer` with its `BPETokenizer` ([bpe-trainer.md](bpe-trainer.md)) |
 
 They need nothing beyond the standard library and each other, except
 `turbo-analysis-embed`, which runs the embedding model and so depends on
@@ -1256,6 +1257,7 @@ The layers and their columns, in order:
 | `turbo:word-types` | `aligned:opennlp:tokens` | `kind:str` |
 | `turbo:detokenization` | `aligned:opennlp:tokens` | `operation:str` |
 | `turbo:detokenized` | `document` | `text:str`, `marked:str` |
+| `turbo:bpe-merges` | `document` | `left:str`, `right:str` |
 
 `opennlp:language` has a row per language the detector ranked, best
 first. A `turbo:view` block is what a normalizer produced: a row per
@@ -1269,6 +1271,13 @@ returned: a row per piece of the text, in order, with its byte span and
 its id in the vocabulary. The `[CLS]` and `[SEP]` that `encode` puts
 around the pieces, with empty spans at the two ends of the text, are
 not written, as the Rust layer has no special tokens.
+
+A `turbo:bpe-merges` block is the merges OpenNLP's
+`BPETokenizerTrainer` learned from the input, a row per merge in the
+order made, each side as a string in which a lone surrogate is written
+`\uXXXX`; the `opennlp:tokens` block beside it is what `BPETokenizer`
+with those merges gave for the same text. No layer type has the id, so
+`analysis/bpe-trainer/tests/opennlp.rs` reads these goldens itself.
 
 `turbo:word-types` holds the UAX #29 word type of each token, the
 `WordType` name OpenNLP gives it (`ALPHANUMERIC`, `NUMERIC`, `EMOJI`, ...). A

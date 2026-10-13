@@ -34,6 +34,12 @@
   core's byte-level BPE is compared with upstream on it, on those texts
   and on texts drawn at random from their characters, so that merges
   stop part way.
+- `tiny-bpe/corpus.jsonl`: the 232 texts that tokenizer was trained on
+  (`bpe::corpus` in `core/tests/tokenizer.rs`, the texts the tests
+  encode, twice over), one JSON string per line, written by
+  `bpe::write_corpus_file`; `bpe::the_corpus_file_is_the_corpus` checks
+  it. `analysis/bpe-trainer` trains on it and writes the tokenizer file
+  again byte for byte (docs/bpe-trainer.md).
 - `tokenizer-texts.jsonl`: texts the core's tokenizer is compared with
   upstream `tokenizers` on: scripts, spacing, control characters, emoji,
   special-token strings. Taken from the previous attempt's
