@@ -1,23 +1,34 @@
-//! `Math.log`, as a correctly rounded natural logarithm.
+//! A correctly rounded natural logarithm, for code that ports OpenNLP's
+//! calls to `Math.log`.
 //!
 //! `Math.log` is allowed to differ from `StrictMath.log` (fdlibm) by one
-//! unit in the last place, and on HotSpot it does: on x86-64 it is
-//! computed by HotSpot's own routine, not by fdlibm, and that routine
-//! returns the correctly rounded logarithm almost everywhere.
-//! On JDK 21.0.12 (Temurin, amd64) its result was compared with this
-//! function for every integer from 1 to 2^24 and for 4 million random
-//! integers up to 2^63: they differ on one argument, 14237211, where the
-//! true logarithm lies within 1e-22 of the midpoint between two doubles
-//! and the JVM returns the upper one, which is not the nearest. fdlibm
-//! differs from the JVM on 112599 of the 2^24 integers, the platform's
-//! `f64::ln` (glibc) on 414.
+//! unit in the last place, and what it returns depends on the JVM build,
+//! the platform and the flags: HotSpot on x86-64 computes it with its own
+//! stub routine, not fdlibm; other ports have other routines, and with
+//! the stub turned off (`-XX:-UseLibmIntrinsic`) it is fdlibm again.
+//! Parity with the JVM is therefore parity with one build. The build
+//! compared is the one the goldens are generated with, Temurin 21.0.12
+//! on x86-64 (the recipe container of `analysis/goldens-tool`): its
+//! `Math.log` was compared with this function for every integer from 1
+//! to 2^24 and for 4 million random integers up to 2^63, and they differ
+//! on one argument, 14237211, where the true logarithm lies within 1e-22
+//! of the midpoint between two doubles and the JVM returns the upper one,
+//! which is not the nearest. Only integers were compared, which are the
+//! arguments OpenNLP's unigram segmenter passes (counts and their total)
+//! besides 0.5; how often that JVM is not correctly rounded on other
+//! doubles was not measured. On the same integers fdlibm differs from the
+//! JVM on 112599 of the 2^24, the platform's `f64::ln` (glibc) on 414.
 //!
 //! The logarithm is computed in double-double arithmetic (about 104 bits)
-//! and rounded once, so the result is the double nearest the true value
-//! unless the true value lies within about 2^-100 of a midpoint between
-//! two doubles, where it may round either way. It takes no platform
-//! function (no `ln`, no `mul_add`), so the result is the same on every
-//! platform.
+//! and rounded once. No error bound is proven; it agreed with a 70 digit
+//! decimal logarithm on 250,000 positive normal doubles (uniform over the
+//! bit patterns, near 1, and integers up to 2^63). It may round the wrong
+//! way where the true value lies within about 2^-100 of a midpoint
+//! between two doubles. It takes no platform function (no `ln`, no
+//! `mul_add`), so the result is the same on every platform. It costs
+//! about 0.8 microseconds a call, some 60 times `strict_math::log`, so it
+//! suits code that takes a logarithm while loading a model, not per
+//! token.
 
 /// A double-double: the unevaluated sum `hi + lo` with `|lo| <= ulp(hi) / 2`.
 #[derive(Copy, Clone, Debug)]
@@ -28,7 +39,7 @@ struct Dd {
 
 /// `a + b` exactly, as a rounded sum and its error (Knuth).
 #[inline]
-fn two_sum(a: f64, b: f64) -> Dd {
+const fn two_sum(a: f64, b: f64) -> Dd {
     let s = a + b;
     let bb = s - a;
     Dd { hi: s, lo: (a - (s - bb)) + (b - bb) }
@@ -36,14 +47,14 @@ fn two_sum(a: f64, b: f64) -> Dd {
 
 /// `a + b` exactly, for `|a| >= |b|` (Dekker).
 #[inline]
-fn quick_two_sum(a: f64, b: f64) -> Dd {
+const fn quick_two_sum(a: f64, b: f64) -> Dd {
     let s = a + b;
     Dd { hi: s, lo: b - (s - a) }
 }
 
 /// `a` as two halves of 26 bits each, whose sum is `a` (Dekker).
 #[inline]
-fn split(a: f64) -> (f64, f64) {
+const fn split(a: f64) -> (f64, f64) {
     let t = 134_217_729.0 * a;
     let hi = t - (t - a);
     (hi, a - hi)
@@ -51,7 +62,7 @@ fn split(a: f64) -> (f64, f64) {
 
 /// `a * b` exactly, as a rounded product and its error (Dekker).
 #[inline]
-fn two_prod(a: f64, b: f64) -> Dd {
+const fn two_prod(a: f64, b: f64) -> Dd {
     let p = a * b;
     let (ah, al) = split(a);
     let (bh, bl) = split(b);
@@ -59,7 +70,7 @@ fn two_prod(a: f64, b: f64) -> Dd {
 }
 
 #[inline]
-fn add(a: Dd, b: Dd) -> Dd {
+const fn add(a: Dd, b: Dd) -> Dd {
     let s = two_sum(a.hi, b.hi);
     let t = two_sum(a.lo, b.lo);
     let s = quick_two_sum(s.hi, s.lo + t.hi);
@@ -73,13 +84,13 @@ fn mul(a: Dd, b: Dd) -> Dd {
 }
 
 #[inline]
-fn mul_f64(a: Dd, b: f64) -> Dd {
+const fn mul_f64(a: Dd, b: f64) -> Dd {
     let p = two_prod(a.hi, b);
     quick_two_sum(p.hi, p.lo + a.lo * b)
 }
 
 /// `a / b`, by three rounds of long division.
-fn div(a: Dd, b: Dd) -> Dd {
+const fn div(a: Dd, b: Dd) -> Dd {
     let q1 = a.hi / b.hi;
     let r = add(a, neg(mul_f64(b, q1)));
     let q2 = r.hi / b.hi;
@@ -89,7 +100,7 @@ fn div(a: Dd, b: Dd) -> Dd {
 }
 
 #[inline]
-fn neg(a: Dd) -> Dd {
+const fn neg(a: Dd) -> Dd {
     Dd { hi: -a.hi, lo: -a.lo }
 }
 
@@ -98,14 +109,27 @@ const LN2: Dd = Dd { hi: f64::from_bits(0x3FE6_2E42_FEFA_39EF), lo: f64::from_bi
 
 /// The terms of the series past the first. With `|s| <= 0.1716` each term
 /// is at most 0.0295 times the one before, and 0.0295^24 < 2^-121.
-const TERMS: u32 = 24;
+const TERMS: usize = 24;
 
-/// The natural logarithm of `x`, correctly rounded (see the module
-/// documentation for the one limit). A positive normal `x` takes the
+/// `1 / (2j + 1)` for `j` from 0 to [`TERMS`], the series' coefficients,
+/// worked out once when the crate is compiled rather than on every call.
+const RECIPROCALS: [Dd; TERMS + 1] = {
+    let mut table = [Dd { hi: 0.0, lo: 0.0 }; TERMS + 1];
+    let mut j = 0;
+    while j <= TERMS {
+        table[j] = div(Dd { hi: 1.0, lo: 0.0 }, Dd { hi: (2 * j + 1) as f64, lo: 0.0 });
+        j += 1;
+    }
+    table
+};
+
+/// The natural logarithm of `x`, correctly rounded but for the limit
+/// the module documentation states. A positive normal `x` takes the
 /// double-double path; every other argument (NaN, a negative number,
 /// zero, a subnormal, infinity) gets `StrictMath.log`'s answer, which for
-/// those is what `Math.log` returns too, apart from a subnormal, where it
-/// is within one unit in the last place.
+/// all of those but a subnormal is the value the IEEE special cases fix,
+/// and for a subnormal may differ from `Math.log` by a unit in the last
+/// place.
 pub fn log(x: f64) -> f64 {
     if !(f64::MIN_POSITIVE..f64::INFINITY).contains(&x) {
         return crate::strict_math::log(x);
@@ -122,10 +146,9 @@ pub fn log(x: f64) -> f64 {
     // m - 1 is exact (Sterbenz), m + 1 is kept exactly as a double-double.
     let s = div(Dd { hi: m - 1.0, lo: 0.0 }, two_sum(m, 1.0));
     let s2 = mul(s, s);
-    let one = Dd { hi: 1.0, lo: 0.0 };
-    let mut sum = div(one, Dd { hi: f64::from(2 * TERMS + 1), lo: 0.0 });
-    for j in (0..TERMS).rev() {
-        sum = add(mul(sum, s2), div(one, Dd { hi: f64::from(2 * j + 1), lo: 0.0 }));
+    let mut sum = RECIPROCALS[TERMS];
+    for &r in RECIPROCALS[..TERMS].iter().rev() {
+        sum = add(mul(sum, s2), r);
     }
     let ln_m = mul_f64(mul(s, sum), 2.0);
     let r = add(mul_f64(LN2, f64::from(k)), ln_m);
