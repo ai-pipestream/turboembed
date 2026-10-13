@@ -1,0 +1,5 @@
+# A fixture whose unk.def has no DEFAULT template: a character with
+# neither a lexicon entry nor a template of its own stops segmentation.
+DEFAULT 0 1 0
+KANJI   0 0 2
+0x4E00..0x9FFF KANJI

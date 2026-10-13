@@ -170,12 +170,14 @@ pub fn known_shapes() -> Vec<Shape> {
     ]
 }
 
-/// `known_shapes()` and the three layers the golden generator writes whose
-/// types live in other crates: a UAX #29 tokenizer's `turbo:word-types`
-/// (a word type name per token) and the detokenizer's
-/// `turbo:detokenization` (an operation name per token) and
+/// `known_shapes()` and the four layers the golden generator writes whose
+/// types live in other crates or are the generator's own: a UAX #29
+/// tokenizer's `turbo:word-types` (a word type name per token), the
+/// detokenizer's `turbo:detokenization` (an operation name per token) and
 /// `turbo:detokenized` (the text it returned, without and with a split
-/// marker). The shapes are written out here, so a test reads those goldens
+/// marker), and the lattice tokenizer's `turbo:morphemes` (per token,
+/// whether unknown word handling made it and its entry's features joined
+/// with commas). The shapes are written out here, so a test reads those goldens
 /// with `Golden::read_with` without the crates that own the types
 /// depending on this one.
 pub fn segmentation_shapes() -> Vec<Shape> {
@@ -184,9 +186,12 @@ pub fn segmentation_shapes() -> Vec<Shape> {
     const OPERATION: &[ColumnSpec] = &[ColumnSpec::new("operation", ColumnType::Str)];
     const DETOKENIZED: &[ColumnSpec] =
         &[ColumnSpec::new("text", ColumnType::Str), ColumnSpec::new("marked", ColumnType::Str)];
+    const MORPHEMES: &[ColumnSpec] =
+        &[ColumnSpec::new("unknown", ColumnType::U32), ColumnSpec::new("features", ColumnType::Str)];
     let tokens = GoldenAnchor::Aligned(<Tokens as Layer>::ID.to_string());
     let mut shapes = known_shapes();
     shapes.push(Shape { id: "turbo:word-types".into(), anchor: tokens.clone(), columns: KIND });
+    shapes.push(Shape { id: "turbo:morphemes".into(), anchor: tokens.clone(), columns: MORPHEMES });
     shapes.push(Shape { id: "turbo:detokenization".into(), anchor: tokens, columns: OPERATION });
     shapes.push(Shape { id: "turbo:detokenized".into(), anchor: GoldenAnchor::Document, columns: DETOKENIZED });
     shapes

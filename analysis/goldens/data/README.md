@@ -63,6 +63,22 @@ are not taken from any corpus.
   opening of the Analects, both in the public domain, and the sentences
   of `ambiguity.txt` are the stock examples of segmentation ambiguity
   that Chinese word segmentation papers and textbooks repeat.
+- `inputs/ja/`: 14 Japanese texts for the lattice tokenizer, written for
+  this project: plain sentences, segmentation ambiguity (`東京都`,
+  `今日本日`), kanji the lexicons do not list, katakana with the long
+  vowel mark, hiragana runs, halfwidth katakana, Japanese mixed with
+  Latin, fullwidth, Greek and Cyrillic letters, kanji and Arabic
+  numerals, Japanese punctuation and brackets, characters outside the
+  Basic Multilingual Plane and emoji, whitespace of every kind (tab,
+  ideographic, no-break, `U+0085`, `U+001C`, CR, `U+2028`, `U+2029`), a
+  long run without spaces, the fixture dictionary's tied words
+  (`ties.txt`) and its surface with a comma (`quoted-surface.txt`).
+- `inputs/ko/`: 10 Korean texts for the lattice tokenizer, written for
+  this project: sentences with and without spaces between words, words
+  the lexicons do not list, Hanja, Korean mixed with Latin words and
+  numbers, compatibility and conjoining jamo, punctuation, whitespace of
+  every kind, characters outside the Basic Multilingual Plane and a long
+  run without spaces.
 - `inputs/detokenizer/`: one token per line, each line ending with a line
   feed (an empty file is an empty token list). The part of the name before
   the first `-` names the dictionary, `fixtures/<name>-detokenizer.xml`.
@@ -102,6 +118,9 @@ that differs.
 | `zh-unigram-fixture.txt` | a frequency lexicon written for this project: the eight words of OpenNLP's `UnigramSegmenterTest`, pairs of words whose counts have equal products (`研究` 6 `生命` 4 and `研究生` 8 `命` 3, `研究` 6 `生物` 12 and `研究生` 8 `物` 9, `人民` 1 `大会` 148 and `人民大` 2 `会` 74, `a` 3 `bc` 2 and `ab` 2 `c` 3), CR LF and lone CR line ends, an empty and a blank line, a tab, a no-break space and an ideographic space before the count, fullwidth digits and a `+` sign in a count, a leading ideographic space, a word outside the Basic Multilingual Plane, Latin words and a word listed twice |
 | `zh-unigram-modes.txt` | a frequency lexicon written for this project whose words depend on the whitespace mode: `U+001C` ends a word in the legacy mode only and `U+0085` in the Unicode mode only |
 | `jieba-dict-subset.txt` | the lines of jieba's `jieba/dict.txt` (github.com/fxsjy/jieba, commit `67fa2e36e72f69d9134b8a1037b83fbb070b9775`, MIT license, see below) whose word occurs in an input of the `zh`, `multi` or `edge` set, unchanged and in the order of `dict.txt`; made with the command below |
+| `mecab-fixture-ja/` | a MeCab dictionary directory written for this project: two lexicon files (`A-nouns.csv`, `b-others.csv`) of 37 entries with IPADIC-style part-of-speech features, a 5 by 5 `matrix.def`, a `char.def` with overlapping categories, a category without grouping and supplementary ranges, and an `unk.def`. Its costs make ties of each kind the lattice tokenizer breaks, and one surface has a comma in it (quoted, as MeCab quotes it) |
+| `mecab-fixture-ko/` | a MeCab dictionary directory written for this project: one lexicon file of 23 entries with mecab-ko-dic-style features, a 4 by 4 `matrix.def`, and a `char.def` and `unk.def` with Hangul, jamo and Hanja categories |
+| `mecab-fixture-partial/` | a MeCab dictionary directory written for this project whose `unk.def` has no `DEFAULT` template, so a character that starts no lexicon word and is outside its `KANJI` category has no candidate |
 | `all-minilm-l6-v2-vocab.txt` | the WordPiece vocabulary of `testdata/all-minilm-l6-v2/tokenizer.json` (sentence-transformers/all-MiniLM-L6-v2, Apache-2.0), one piece per line in id order with a line feed after each, written with `jq -r '.model.vocab \| to_entries \| sort_by(.value) \| .[].key'`; 30522 pieces, the uncased BERT vocabulary |
 
 `jieba-dict-subset.txt` was written from the repository root with

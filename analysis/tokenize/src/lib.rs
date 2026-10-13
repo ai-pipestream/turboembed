@@ -12,6 +12,9 @@
 //!   also writes the word type of each token.
 //! - [`unigram`]: `UnigramSegmenter`, the frequency lexicon segmenter
 //!   for Chinese and other text written without spaces.
+//! - [`lattice`]: `LatticeTokenizer`, the Viterbi segmenter over a MeCab
+//!   dictionary for Japanese and Korean, which also writes the part of
+//!   speech of each token.
 //! - [`me`]: the maxent tokenizer, `TokenizerME`, which reads an OpenNLP
 //!   tokenizer model and writes a confidence per token; the model file's
 //!   SHA-256 from turbo-maxent identifies it in the provenance.
@@ -26,6 +29,7 @@
 //! differ from OpenNLP on purpose.
 
 pub mod detok;
+pub mod lattice;
 pub mod me;
 pub mod simple;
 pub mod uax29;
@@ -33,9 +37,11 @@ pub mod unigram;
 pub mod unit;
 pub mod whitespace;
 
+mod lines;
 mod utf8;
 
 pub use detok::{Detokenizer, DetokenizerDictionary, DictionaryError, DictionaryOperation, Operation};
+pub use lattice::{LatticeTokenizer, MecabDictionary};
 pub use simple::{SimpleTokenizer, simple_spans};
 pub use turbo_tokenize_layers::{WordType, WordTypes};
 pub use turbo_unicode::WhitespaceMode;
