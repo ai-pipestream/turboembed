@@ -8,6 +8,8 @@
 //! mecab-ko-dic are fetched by `turbo-goldens fetch-models` (IPADIC with
 //! its UTF-8 copy); those tests are ignored by default and read the
 //! directory in `TURBO_MECAB_DICTIONARIES`, or target/turbo-goldens/models.
+//! CI runs them with `--ignored` after `fetch-models`, so there a missing
+//! dictionary fails them.
 
 mod common;
 

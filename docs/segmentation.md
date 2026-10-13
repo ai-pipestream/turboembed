@@ -649,7 +649,8 @@ the port fails at the same character:
 fixture runs always run. The IPADIC and mecab-ko-dic tests are ignored
 by default and read the dictionaries `turbo-goldens fetch-models`
 fetched, from `TURBO_MECAB_DICTIONARIES` or
-`target/turbo-goldens/models`. UniDic is not in the goldens: the
+`target/turbo-goldens/models`. CI runs them after `fetch-models`, with
+the dictionaries required. UniDic is not in the goldens: the
 package checked (unidic-lite 1.0.8) holds only a compiled dictionary,
 which neither reader reads.
 
