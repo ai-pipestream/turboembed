@@ -197,14 +197,19 @@ fn characters_the_coverage_leaves_out_are_unknown() {
     assert!(left_out > 10, "{left_out}");
 }
 
-/// Training twice gives the same file.
+/// Training twice gives the same file, and so does the corpus in another
+/// order: ties are broken by the pieces, not by the order the words were
+/// seen in.
 #[test]
-fn training_is_deterministic() {
-    let lines = corpus("tokenizer-texts");
-    let config = SentencePieceConfig { vocab_size: 2000, character_coverage: 0.9995 };
+fn training_is_deterministic_and_ignores_the_order_of_the_texts() {
+    let mut lines = corpus("tokenizer-texts");
+    lines.extend(corpus("tiny-bpe"));
+    let config = SentencePieceConfig { vocab_size: 4000, character_coverage: 0.9995 };
     let a = SentencePieceBpe::train(lines.iter().map(String::as_str), config.clone()).unwrap();
-    let b = SentencePieceBpe::train(lines.iter().map(String::as_str), config).unwrap();
+    let b = SentencePieceBpe::train(lines.iter().map(String::as_str), config.clone()).unwrap();
+    let c = SentencePieceBpe::train(lines.iter().rev().map(String::as_str), config).unwrap();
     assert_eq!(a.to_model_proto(), b.to_model_proto());
+    assert_eq!(a.to_model_proto(), c.to_model_proto());
 }
 
 /// Small random corpora at the largest size the library allows for each

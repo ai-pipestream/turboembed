@@ -455,3 +455,18 @@ fn hash_codes_are_javas() {
     assert_eq!(pair_hash(&(u("ab"), u("c"))), 96354);
     assert_eq!(list_hash(&[u("a"), u("b")]), 31 * (31 + 97) + 98);
 }
+
+/// Training twice gives the same merges, and so does the corpus in
+/// another order: ties are broken by the symbols, not by the order the
+/// words were seen in.
+#[test]
+fn training_is_deterministic_and_ignores_the_order_of_the_texts() {
+    let mut texts: Vec<String> = bpe_inputs().into_iter().map(|(_, t)| t).collect();
+    texts.extend(tokenizer_texts());
+    let a = OpenNlpBpe::train(texts.iter().map(String::as_str), 1500).unwrap();
+    let b = OpenNlpBpe::train(texts.iter().map(String::as_str), 1500).unwrap();
+    let c = OpenNlpBpe::train(texts.iter().rev().map(String::as_str), 1500).unwrap();
+    assert_eq!(a.merges().len(), 1500);
+    assert_eq!(a, b);
+    assert_eq!(a, c);
+}

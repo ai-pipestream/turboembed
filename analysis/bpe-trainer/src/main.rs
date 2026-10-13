@@ -76,7 +76,10 @@ fn run(args: &[String]) -> Result<(), String> {
     let [command, corpus, out, rest @ ..] = args else { return Err(USAGE.into()) };
     let o = Options { rest };
     let text = std::fs::read_to_string(corpus).map_err(|e| format!("{corpus}: {e}"))?;
-    let lines = text.lines();
+    // Split at line feeds only, as the sentencepiece library reads a
+    // file: a carriage return stays in the text. An empty line adds
+    // nothing.
+    let lines = text.split('\n');
     let bytes = match command.as_str() {
         "byte-level" => {
             let lstrip = o.values("--lstrip");

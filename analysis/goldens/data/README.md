@@ -63,6 +63,12 @@ are not taken from any corpus.
   inside a sentence; a character outside the Basic Multilingual Plane
   right after a period, also at the very end.
 
+- `inputs/bpe/`: six texts written for OpenNLP's BPE trainer: prose
+  (`prose`), words whose pairs tie (`ties`), runs of one letter whose
+  pairs overlap (`overlap`), several scripts (`multilingual`), characters
+  outside the Basic Multilingual Plane (`emoji`) and words holding `</w>`
+  as text (`end-marker`).
+
 `analysis/goldens-tool/README.md` ("Runs") lists which run reads which set.
 
 ## Fixtures
@@ -117,6 +123,18 @@ cargo run -p turbo-goldens-tool -- verify
 inputs and models mounted read only, then replaces the annotator
 directories here with the new output. Adding or changing an input means
 running `generate` and checking in the inputs and the goldens together.
+
+## BPE goldens
+
+`bpe/merges-<n>/bpe/<id>.golden` is what OpenNLP's `BPETokenizerTrainer`
+learned from `inputs/bpe/<id>.txt` alone with `numMerges` `<n>` (40 and
+400), and what `BPETokenizer` with those merges gave for the same text:
+the merges in order (`turbo:bpe-merges`, each side a string, a lone
+surrogate written `\uXXXX`) and the tokens (`opennlp:tokens`). The run
+has no model file; `merges-<n>` names it. The trainer counts symbols in
+UTF-16 units, so on `emoji` its merges hold halves of surrogate pairs;
+its tokens are whole characters. `analysis/bpe-trainer/tests/opennlp.rs`
+compares the Rust trainer and tokenizer with them (docs/bpe-trainer.md).
 
 ## Normalizer goldens
 
