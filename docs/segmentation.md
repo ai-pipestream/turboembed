@@ -527,7 +527,9 @@ first feature column of its dictionary entry, in a tag set named
 `Morpheme`s for a `&str` (a byte span, the dictionary entry and whether
 unknown word handling made it), `MecabDictionary::features` gives an
 entry's feature columns, and `analyze_with` reuses a `Scratch` so
-repeated calls allocate nothing once its buffers have grown. The model
+repeated calls allocate nothing once its buffers and the output have
+grown (`analysis/tokenize/tests/lattice_allocations.rs` counts the
+allocations). The annotator makes a new `Scratch` per call. The model
 in the provenance is `opennlp:MecabDictionary` with the SHA-256 of a
 manifest of the files read: for each, in the order read, its name, a
 tab, the SHA-256 of its bytes in hex and a line feed.
