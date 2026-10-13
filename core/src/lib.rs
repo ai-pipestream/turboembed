@@ -32,6 +32,7 @@ pub mod model;
 pub mod npu;
 pub mod record;
 pub mod safetensors;
+pub mod sentencepiece;
 mod session;
 pub mod status;
 pub mod tokenizer;

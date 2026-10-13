@@ -321,8 +321,14 @@ manifest are the layer's `model` and its provenance's.
 - Each piece's span is the tokenizer's, a UTF-8 byte span of the view. A
   byte-level piece holding part of a character spans the whole
   character, so two pieces can share a span, and every span is on
-  character boundaries. A special token written in the text (`[SEP]`
-  typed by the author) is a piece of the text like any other.
+  character boundaries; so does a SentencePiece byte-fallback piece. A
+  special token written in the text (`[SEP]` typed by the author) is a
+  piece of the text like any other.
+- A bundle whose tokenizer is a SentencePiece `.model` (the
+  `sentencepiece` kind, docs/tokenizer.md) gives the ids Google's
+  sentencepiece library gives, and its offsets under the same span
+  rules: whitespace at a piece's ends left out, a piece made for part
+  of one character spanning that character.
 
 With word tokens in the same view and in text order, every piece gets
 the token it belongs to (`align`), in one pass over both span lists:

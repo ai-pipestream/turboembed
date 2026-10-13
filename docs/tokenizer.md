@@ -13,9 +13,74 @@ compare it with. The same text gives the same ids on every machine.
 | `wordpiece` | BERT, MiniLM, BGE (English) | BertNormalizer (clean, split CJK, strip accents, lowercase), BertPreTokenizer, greedy longest-match WordPiece. |
 | `unigram` | XLM-RoBERTa, BGE-M3, Model2Vec's multilingual models | SentencePiece's precompiled character map, Metaspace, the segmentation of highest total score. |
 | `bpe` | GPT-2, RoBERTa | GPT-2's pattern, byte-level characters, merges by rank. |
+| `sentencepiece` | T5, mT5, XLM-RoBERTa, Llama 2, any SentencePiece `.model` | Google's sentencepiece library itself: the model's normalizer, then its unigram search or its BPE, with byte fallback. |
 
 `docs/bundle.md` lists each kind's manifest fields and what the tokenizer
 file must hold for it.
+
+## SentencePiece models
+
+The `sentencepiece` kind reads a SentencePiece `.model` file, the
+`ModelProto` the library writes, with a protobuf reader of its own for
+the fields it needs, and runs it as the library (version 0.2.2) does
+(`core/src/sentencepiece.rs`):
+
+- The normalizer: the user-defined pieces kept as they are, else the
+  longest rule of the precompiled character map (a darts-clone double
+  array and its replacement strings), else the character as it is;
+  then the whitespace switches of the model's `NormalizerSpec`: extra
+  whitespace removed, a space in front (or behind, for a model that
+  treats whitespace as a suffix), each space written as U+2581. It
+  records the input byte each normalized byte came from, the library's
+  `norm_to_orig`; `Normalized::orig_to_norm` gives the other way.
+- A unigram model: the best path, scores added in f32 and rebased past
+  100000 as the library rebases them; a user-defined piece scores
+  0.1 per byte after the first; a character no piece starts is the
+  unknown piece, scored 10 under the lowest score.
+- A BPE model: the adjacent pair whose join is the piece of highest
+  score merged first, the leftmost of equal scores, a merged UNUSED
+  piece split back into its two parts. When no piece holds a space
+  except in the run it starts with, the text is merged word by word,
+  which gives the same pieces with a heap the size of a word.
+- A run of unknown pieces is one piece; with byte fallback each unknown
+  character is instead its UTF-8 bytes' pieces (`<0xE2>`).
+- Control pieces are never matched in the text: `</s>` written there
+  is its characters. The model's self-test samples are run on load,
+  and a model that fails them is refused, as the library refuses it.
+
+`SentencePiece::encode` gives the library's ids and offsets exactly.
+`core/tests/sentencepiece.rs` compares the normalized text, its
+`norm_to_orig`, the ids, the offsets and the decoded text with the
+library's on 131 texts and a 60 KB text for each model of
+`testdata/sentencepiece` (T5, XLM-RoBERTa's model rebuilt from
+`testdata/bge-m3`, and six small models trained to cover byte fallback,
+user-defined and UNUSED pieces, whitespace as a suffix, a custom
+character map and a denormalizer), and for mT5, umT5 and Llama 2 when
+`TURBO_SENTENCEPIECE_MODELS` names a directory holding them
+(testdata/README.md). It checks the same on 143 texts for 48 edits of
+five of the committed models: the whitespace switches
+(`add_dummy_prefix`, `remove_extra_whitespaces`,
+`treat_whitespace_as_suffix`) in every combination, and user-defined
+pieces that overlap the model's own pieces and each other.
+
+These differ from the library, each tested there:
+
+- A piece that is not UTF-8 is refused on load; the library takes any
+  bytes. A self-test sample whose input is not UTF-8 counts as failed.
+- Word and character models are refused: only unigram and BPE are read.
+- A model whose denormalizer has a broken character map is refused on
+  load; the library loads it and decodes every row to an empty text.
+- A BPE model whose CONTROL piece is one character gives that piece's
+  id for the character, as the library's encode into ids does, with an
+  empty offset; the library's encode with offsets fails on such a text.
+- Through the `Tokenizer`, spans follow the rules below rather than the
+  library's offsets: the library gives `▁world` the space before it,
+  and a byte piece other than the last of its character, or a piece
+  made for part of one input character (the `f` of the `fi` a ligature
+  becomes), an empty offset at the character's start. Here whitespace
+  at the ends is left out and such a piece spans the whole character.
+  `analysis/embed/tests/subwords.rs` checks every span against the
+  library's offsets under exactly these rules.
 
 ## Encoding
 
@@ -50,7 +115,9 @@ from, however the text was normalized on the way.
 - Spans are on character boundaries, inside the text, and the spans of
   the text's tokens start in order.
 
-They are upstream's offsets except where those are wrong: where the
+For the `sentencepiece` kind they are the library's offsets under these
+rules (above). For the others they are upstream's offsets except where
+those are wrong: where the
 character map composes a grapheme cluster whole (`e` and a combining
 accent into `é`) the span covers the cluster, not the `e` alone; a
 byte-level token of whitespace alone spans that whitespace rather than
@@ -71,6 +138,9 @@ tokenizer file's decoder does, the special tokens left out if asked:
   others follow a space, and the space before `.` `?` `!` `,` and English
   contractions is taken out.
 - Metaspace: each metaspace is a space, less the one put in front.
+- SentencePiece: the library's `Decode`: control pieces left out, the
+  unknown piece as the model's unknown surface (` ⁇ `), byte pieces
+  read as UTF-8, each U+2581 a space, the model's denormalizer last.
 - ByteLevel: each character is its byte; bytes that are not UTF-8 are
   U+FFFD.
 

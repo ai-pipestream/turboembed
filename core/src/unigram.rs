@@ -453,8 +453,9 @@ struct Best {
 
 /// The pieces as a trie over their bytes: each node's children are one
 /// run of `nodes`, in byte order; a walk scans a node's few children, or
-/// reads a table of its many.
-struct Trie {
+/// reads a table of its many. SentencePiece's `.model` tokenizer
+/// (sentencepiece.rs) walks the same trie.
+pub(crate) struct Trie {
     nodes: Vec<Node>,
     /// Each node's `byte`, apart, so a search through a node's children
     /// reads one byte each.
@@ -486,8 +487,12 @@ impl Trie {
     /// The trie of `pieces`, each the id of its place; Err is a piece
     /// listed twice.
     fn new(pieces: &[Box<str>]) -> std::result::Result<Trie, String> {
-        let mut pieces: Vec<(&[u8], u32)> =
-            pieces.iter().enumerate().map(|(id, p)| (p.as_bytes(), id as u32)).collect();
+        Self::of(pieces.iter().enumerate().map(|(id, p)| (p.as_bytes(), id as u32)).collect())
+    }
+
+    /// The trie of (piece, id) pairs, none of them empty; Err is a piece
+    /// listed twice.
+    pub(crate) fn of(mut pieces: Vec<(&[u8], u32)>) -> std::result::Result<Trie, String> {
         pieces.sort_unstable();
         if let Some(w) = pieces.windows(2).find(|w| w[0].0 == w[1].0) {
             return Err(String::from_utf8_lossy(w[0].0).into_owned());
@@ -537,7 +542,7 @@ impl Trie {
     }
 
     /// The id of the piece that is exactly `piece`.
-    fn get(&self, piece: &[u8]) -> Option<u32> {
+    pub(crate) fn get(&self, piece: &[u8]) -> Option<u32> {
         let (&b0, rest) = piece.split_first()?;
         let mut node = *self.nodes.get(self.root[b0 as usize] as usize)?;
         for &b in rest {
@@ -549,7 +554,7 @@ impl Trie {
     /// `found(len, id)` for every piece that `text` starts with, shortest
     /// first.
     #[inline]
-    fn prefixes(&self, text: &[u8], mut found: impl FnMut(usize, u32)) {
+    pub(crate) fn prefixes(&self, text: &[u8], mut found: impl FnMut(usize, u32)) {
         let Some(&b0) = text.first() else { return };
         let Some(&first) = self.nodes.get(self.root[b0 as usize] as usize) else { return };
         if first.id != Self::NONE {
