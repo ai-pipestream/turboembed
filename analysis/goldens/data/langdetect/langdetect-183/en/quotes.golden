@@ -1,7 +1,7 @@
 golden 1
 generator	turbo-goldens-java	1
-opennlp	92d486d05151ef00b6d145c405046aa3a33b5a48	3.0.0-PRE-SNAPSHOT
-jdk	21.0.12.1	21.0.12.1+1-1-24.04.4-Ubuntu	Ubuntu
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
 unicode	15.0
 input	en/quotes	240	228	8e587a2221022c9fa745822b626ba04b316b213fbffa68031c095a1670e808f8
 model	langdetect-183.bin	9dc847055e622d9de503a5bf444ccf1428c3578c9698a73b736d8f8e337db0188ade90ac8cc9196d1d472f58589d578785085b554b1bde856afc5762e9396285

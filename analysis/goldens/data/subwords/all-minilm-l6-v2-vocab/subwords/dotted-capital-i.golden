@@ -1,0 +1,19 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	subwords/dotted-capital-i	29	25	9f1c0efacf10fe27039efbbc6469215738825b8f0654a86e1542103d5666b9d0
+model	all-minilm-l6-v2-vocab.txt	f51f06aae7f580a88998f6f7f24b52495c8d3d289fdbdc21231c05f3a8965783074d95c17b819186f9a63b622280e8a051105a2161cd0d153fa57db7a0aba9f9
+annotator	opennlp.tools.tokenize.WordpieceEncoder	encode
+config	lowerCase	true
+config	maxWordCodePoints	100
+layer	opennlp:subwords	text	7	start:u32	end:u32	id:u32
+0	9	9960
+10	13	4487
+13	16	13380
+16	18	3676
+18	21	23630
+22	24	1045
+25	28	2462
+end	opennlp:subwords

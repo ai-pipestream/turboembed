@@ -1,0 +1,97 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	edge/greek-cyrillic	191	110	79aa0a28a938d78b6093561b7b74ca326c3b23be13e3028964a50fd8c7128d8a
+model	mecab-fixture-ja	a8bffe24e9415d6dc5a776ce62077641f72653c99e032a6a53c1ee6fcb5f5cba28b0b5d5c79ea25f7eac1727f9243fccb47eb053180438daef072ac6bafac3bb
+annotator	opennlp.tools.tokenize.lattice.LatticeTokenizer	analyze
+config	whitespace	legacy
+layer	opennlp:tokens	text	42	start:u32	end:u32
+0	6
+6	12
+12	16
+17	19
+19	21
+21	27
+27	28
+29	31
+32	38
+38	44
+44	48
+49	55
+55	57
+57	58
+59	61
+61	65
+66	72
+72	74
+75	77
+77	81
+82	88
+88	92
+93	99
+99	101
+101	103
+103	104
+105	117
+117	118
+119	125
+125	126
+127	133
+134	142
+142	143
+144	150
+151	159
+159	160
+160	176
+177	178
+178	179
+179	180
+181	189
+189	190
+end	opennlp:tokens
+layer	turbo:morphemes	aligned:opennlp:tokens	42	unknown:u32	features:str
+1	名詞,一般,*,*
+1	名詞,一般,*,*
+1	名詞,一般,*,*
+1	名詞,一般,*,*
+1	記号,一般,*,*
+1	名詞,一般,*,*
+1	記号,一般,*,*
+1	名詞,一般,*,*
+1	名詞,一般,*,*
+1	名詞,一般,*,*
+1	名詞,一般,*,*
+1	名詞,一般,*,*
+1	名詞,一般,*,*
+1	記号,一般,*,*
+1	記号,一般,*,*
+1	名詞,一般,*,*
+1	名詞,一般,*,*
+1	名詞,一般,*,*
+1	記号,一般,*,*
+1	名詞,一般,*,*
+1	名詞,一般,*,*
+1	名詞,一般,*,*
+1	名詞,一般,*,*
+1	名詞,一般,*,*
+1	記号,一般,*,*
+1	記号,一般,*,*
+1	記号,一般,*,*
+1	記号,一般,*,*
+1	記号,一般,*,*
+1	記号,一般,*,*
+1	記号,一般,*,*
+1	記号,一般,*,*
+1	記号,一般,*,*
+1	記号,一般,*,*
+1	記号,一般,*,*
+1	記号,一般,*,*
+1	記号,一般,*,*
+1	名詞,数,*,*
+1	記号,一般,*,*
+1	名詞,数,*,*
+1	記号,一般,*,*
+1	記号,一般,*,*
+end	turbo:morphemes

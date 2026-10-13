@@ -1,0 +1,20 @@
+[package]
+name = "turbo-namefind"
+version = "0.1.0"
+edition.workspace = true
+license.workspace = true
+publish = false
+
+[lib]
+name = "turbo_namefind"
+
+[dependencies]
+turbo-analysis = { path = "../core" }
+turbo-analysis-layers = { path = "../layers" }
+# The dictionary XML reader and OpenNLP's dictionary lookups.
+turbo-maxent = { path = "../maxent" }
+# Java's general categories, for the word boundary of java.util.regex.
+turbo-unicode = { path = "../unicode" }
+# String.compareTo, which orders entity types when names are merged.
+turbo-jvm = { path = "../jvm" }
+regex = "1"

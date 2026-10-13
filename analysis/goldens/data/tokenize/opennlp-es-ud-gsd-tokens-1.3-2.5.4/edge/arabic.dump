@@ -1,0 +1,482 @@
+dump 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	edge/arabic	82	48	5aeeaa567149bf3362840f0155ba9116a1a099afc184f13bb0255bee8c6e8879
+model	opennlp-es-ud-gsd-tokens-1.3-2.5.4.bin	ba5280ca74b190515f630ed2b2257a758e8baa876a8da3c02735f81a5543c37f7bc57614fd1ecb2850b4a2df98b2d2e452718de43f676f9b63b064206f86c467
+annotator	opennlp.tools.tokenize.TokenizerME	tokenizePos
+point	0	2	11	2	0	none
+context	p=م
+context	s=رحبا
+context	p1=م
+context	p1_alpha
+context	p2=bok
+context	p1f1=مر
+context	f1=ر
+context	f1_alpha
+context	f2=ح
+context	f2_alpha
+context	f12=رح
+outcome	F	3fef9cf2fcfcd4fb 0.9879088345684574
+outcome	T	3f88c340c0cac140 0.01209116543154265
+end	0
+point	1	4	13	2	0	none
+context	p=مر
+context	s=حبا
+context	p1=ر
+context	p1_alpha
+context	p2=م
+context	p2_alpha
+context	p21=مر
+context	p1f1=رح
+context	f1=ح
+context	f1_alpha
+context	f2=ب
+context	f2_alpha
+context	f12=حب
+outcome	F	3fef7148f64cebc1 0.9825787363582706
+outcome	T	3f91d6e1366287cc 0.017421263641729287
+end	1
+point	2	6	13	2	0	none
+context	p=مرح
+context	s=با
+context	p1=ح
+context	p1_alpha
+context	p2=ر
+context	p2_alpha
+context	p21=رح
+context	p1f1=حب
+context	f1=ب
+context	f1_alpha
+context	f2=ا
+context	f2_alpha
+context	f12=با
+outcome	F	3fef7148f64cebc1 0.9825787363582706
+outcome	T	3f91d6e1366287cc 0.017421263641729287
+end	2
+point	3	8	11	2	0	none
+context	p=مرحب
+context	s=ا
+context	p1=ب
+context	p1_alpha
+context	p2=ح
+context	p2_alpha
+context	p21=حب
+context	p1f1=با
+context	f1=ا
+context	f1_alpha
+context	f2=bok
+outcome	F	3feef50b779b0ae7 0.9674126945540963
+outcome	T	3fa0af48864f5195 0.03258730544590375
+end	3
+point	4	13	11	2	0	none
+context	p=ب
+context	s=العالم!
+context	p1=ب
+context	p1_alpha
+context	p2=bok
+context	p1f1=با
+context	f1=ا
+context	f1_alpha
+context	f2=ل
+context	f2_alpha
+context	f12=ال
+outcome	F	3fefc0a1519bd2ac 0.9922644227904889
+outcome	T	3f7faf573216aa1a 0.007735577209511147
+end	4
+point	5	15	13	2	0	none
+context	p=با
+context	s=لعالم!
+context	p1=ا
+context	p1_alpha
+context	p2=ب
+context	p2_alpha
+context	p21=با
+context	p1f1=ال
+context	f1=ل
+context	f1_alpha
+context	f2=ع
+context	f2_alpha
+context	f12=لع
+outcome	F	3fefae78ea6d84a3 0.9900478914897984
+outcome	T	3f8461c5649ed74c 0.009952108510201584
+end	5
+point	6	17	13	2	0	none
+context	p=بال
+context	s=عالم!
+context	p1=ل
+context	p1_alpha
+context	p2=ا
+context	p2_alpha
+context	p21=ال
+context	p1f1=لع
+context	f1=ع
+context	f1_alpha
+context	f2=ا
+context	f2_alpha
+context	f12=عا
+outcome	F	3fefd7094dbdd19b 0.9949995535267137
+outcome	T	3f747b59211732c1 0.005000446473286403
+end	6
+point	7	19	13	2	0	none
+context	p=بالع
+context	s=الم!
+context	p1=ع
+context	p1_alpha
+context	p2=ل
+context	p2_alpha
+context	p21=لع
+context	p1f1=عا
+context	f1=ا
+context	f1_alpha
+context	f2=ل
+context	f2_alpha
+context	f12=ال
+outcome	F	3fefa4846ca4cf6f 0.9888326761197116
+outcome	T	3f86dee4d6cc2404 0.0111673238802883
+end	7
+point	8	21	13	2	0	none
+context	p=بالعا
+context	s=لم!
+context	p1=ا
+context	p1_alpha
+context	p2=ع
+context	p2_alpha
+context	p21=عا
+context	p1f1=ال
+context	f1=ل
+context	f1_alpha
+context	f2=م
+context	f2_alpha
+context	f12=لم
+outcome	F	3fefae78ea6d84a3 0.9900478914897984
+outcome	T	3f8461c5649ed74c 0.009952108510201584
+end	8
+point	9	23	13	2	0	none
+context	p=بالعال
+context	s=م!
+context	p1=ل
+context	p1_alpha
+context	p2=ا
+context	p2_alpha
+context	p21=ال
+context	p1f1=لم
+context	f1=م
+context	f1_alpha
+context	f2=!
+context	f2_eos
+context	f12=م!
+outcome	F	3fefa10395865eb9 0.9884050293357723
+outcome	T	3f87bf1a9e6851a9 0.011594970664227615
+end	9
+point	10	25	11	2	0	none
+context	p=بالعالم
+context	s=!
+context	p1=م
+context	p1_alpha
+context	p2=ل
+context	p2_alpha
+context	p21=لم
+context	p1f1=م!
+context	f1=!
+context	f1_eos
+context	f2=bok
+outcome	F	3f35578b6cbbf447 3.2565263676060215E-4
+outcome	T	3feffd550e926882 0.9996743473632395
+end	10
+point	11	29	11	2	0	none
+context	p=ه
+context	s=ذا
+context	p1=ه
+context	p1_alpha
+context	p2=bok
+context	p1f1=هذ
+context	f1=ذ
+context	f1_alpha
+context	f2=ا
+context	f2_alpha
+context	f12=ذا
+outcome	F	3fef9cf2fcfcd4fb 0.9879088345684574
+outcome	T	3f88c340c0cac140 0.01209116543154265
+end	11
+point	12	31	11	2	0	none
+context	p=هذ
+context	s=ا
+context	p1=ذ
+context	p1_alpha
+context	p2=ه
+context	p2_alpha
+context	p21=هذ
+context	p1f1=ذا
+context	f1=ا
+context	f1_alpha
+context	f2=bok
+outcome	F	3feef50b779b0ae7 0.9674126945540963
+outcome	T	3fa0af48864f5195 0.03258730544590375
+end	12
+point	13	36	11	2	0	none
+context	p=ا
+context	s=ختبار،
+context	p1=ا
+context	p1_alpha
+context	p2=bok
+context	p1f1=اخ
+context	f1=خ
+context	f1_alpha
+context	f2=ت
+context	f2_alpha
+context	f12=خت
+outcome	F	3fefc78c1c34f775 0.9931088019290956
+outcome	T	3f7c39f1e58444e3 0.0068911980709043
+end	13
+point	14	38	13	2	0	none
+context	p=اخ
+context	s=تبار،
+context	p1=خ
+context	p1_alpha
+context	p2=ا
+context	p2_alpha
+context	p21=اخ
+context	p1f1=خت
+context	f1=ت
+context	f1_alpha
+context	f2=ب
+context	f2_alpha
+context	f12=تب
+outcome	F	3fefd7094dbdd19b 0.9949995535267137
+outcome	T	3f747b59211732c1 0.005000446473286403
+end	14
+point	15	40	13	2	0	none
+context	p=اخت
+context	s=بار،
+context	p1=ت
+context	p1_alpha
+context	p2=خ
+context	p2_alpha
+context	p21=خت
+context	p1f1=تب
+context	f1=ب
+context	f1_alpha
+context	f2=ا
+context	f2_alpha
+context	f12=با
+outcome	F	3fef7148f64cebc1 0.9825787363582706
+outcome	T	3f91d6e1366287cc 0.017421263641729287
+end	15
+point	16	42	13	2	0	none
+context	p=اختب
+context	s=ار،
+context	p1=ب
+context	p1_alpha
+context	p2=ت
+context	p2_alpha
+context	p21=تب
+context	p1f1=با
+context	f1=ا
+context	f1_alpha
+context	f2=ر
+context	f2_alpha
+context	f12=ار
+outcome	F	3fefa4846ca4cf6f 0.9888326761197116
+outcome	T	3f86dee4d6cc2404 0.0111673238802883
+end	16
+point	17	44	12	2	0	none
+context	p=اختبا
+context	s=ر،
+context	p1=ا
+context	p1_alpha
+context	p2=ب
+context	p2_alpha
+context	p21=با
+context	p1f1=ار
+context	f1=ر
+context	f1_alpha
+context	f2=،
+context	f12=ر،
+outcome	F	3feeef13961aae81 0.9666841441844128
+outcome	T	3fa10ec69e5517e8 0.0333158558155871
+end	17
+point	18	46	10	2	0	none
+context	p=اختبار
+context	s=،
+context	p1=ر
+context	p1_alpha
+context	p2=ا
+context	p2_alpha
+context	p21=ار
+context	p1f1=ر،
+context	f1=،
+context	f2=bok
+outcome	F	3feca3ee818d219c 0.8950111894892419
+outcome	T	3fbae08bf396f31d 0.1049888105107581
+end	18
+point	19	51	11	2	0	none
+context	p=١
+context	s=٢٣
+context	p1=١
+context	p1_num
+context	p2=bok
+context	p1f1=١٢
+context	f1=٢
+context	f1_num
+context	f2=٣
+context	f2_num
+context	f12=٢٣
+outcome	F	3fef914e1b151c8d 0.9864874390558654
+outcome	T	3f8bac793ab8dc89 0.01351256094413446
+end	19
+point	20	53	11	2	0	none
+context	p=١٢
+context	s=٣
+context	p1=٢
+context	p1_num
+context	p2=١
+context	p2_num
+context	p21=١٢
+context	p1f1=٢٣
+context	f1=٣
+context	f1_num
+context	f2=bok
+outcome	F	3fec34ce5a69f3e5 0.8814460531135607
+outcome	T	3fbe598d2cb060de 0.11855394688643936
+end	20
+point	21	60	11	2	0	none
+context	p=4
+context	s=56.
+context	p1=4
+context	p1_num
+context	p2=bok
+context	p1f1=45
+context	f1=5
+context	f1_num
+context	f2=6
+context	f2_num
+context	f12=56
+outcome	F	3feffff1ec5dda4e 0.9999932877097508
+outcome	T	3edc27444b6491f3 6.712290249209502E-6
+end	21
+point	22	61	13	2	0	none
+context	p=45
+context	s=6.
+context	p1=5
+context	p1_num
+context	p2=4
+context	p2_num
+context	p21=45
+context	p1f1=56
+context	f1=6
+context	f1_num
+context	f2=.
+context	f2_eos
+context	f12=6.
+outcome	F	3feffeee9fe6d633 0.9998696444587892
+outcome	T	3f211601929ccf09 1.3035554121076262E-4
+end	22
+point	23	62	11	2	0	none
+context	p=456
+context	s=.
+context	p1=6
+context	p1_num
+context	p2=5
+context	p2_num
+context	p21=56
+context	p1f1=6.
+context	f1=.
+context	f1_eos
+context	f2=bok
+outcome	F	3f7e01533864041e 0.0073254824440036875
+outcome	T	3fefc3fd598f37f8 0.9926745175559963
+end	23
+point	24	66	11	2	0	none
+context	p=ك
+context	s=يف
+context	p1=ك
+context	p1_alpha
+context	p2=bok
+context	p1f1=كي
+context	f1=ي
+context	f1_alpha
+context	f2=ف
+context	f2_alpha
+context	f12=يف
+outcome	F	3fef9cf2fcfcd4fb 0.9879088345684574
+outcome	T	3f88c340c0cac140 0.01209116543154265
+end	24
+point	25	68	11	2	0	none
+context	p=كي
+context	s=ف
+context	p1=ي
+context	p1_alpha
+context	p2=ك
+context	p2_alpha
+context	p21=كي
+context	p1f1=يف
+context	f1=ف
+context	f1_alpha
+context	f2=bok
+outcome	F	3fee648923c4659d 0.9497724245622298
+outcome	T	3fa9b76dc3b9a63a 0.0502275754377703
+end	25
+point	26	73	11	2	0	none
+context	p=ح
+context	s=الك؟
+context	p1=ح
+context	p1_alpha
+context	p2=bok
+context	p1f1=حا
+context	f1=ا
+context	f1_alpha
+context	f2=ل
+context	f2_alpha
+context	f12=ال
+outcome	F	3fefc0a1519bd2ac 0.9922644227904889
+outcome	T	3f7faf573216aa1a 0.007735577209511147
+end	26
+point	27	75	13	2	0	none
+context	p=حا
+context	s=لك؟
+context	p1=ا
+context	p1_alpha
+context	p2=ح
+context	p2_alpha
+context	p21=حا
+context	p1f1=ال
+context	f1=ل
+context	f1_alpha
+context	f2=ك
+context	f2_alpha
+context	f12=لك
+outcome	F	3fefae78ea6d84a3 0.9900478914897984
+outcome	T	3f8461c5649ed74c 0.009952108510201584
+end	27
+point	28	77	12	2	0	none
+context	p=حال
+context	s=ك؟
+context	p1=ل
+context	p1_alpha
+context	p2=ا
+context	p2_alpha
+context	p21=ال
+context	p1f1=لك
+context	f1=ك
+context	f1_alpha
+context	f2=؟
+context	f12=ك؟
+outcome	F	3fef753d76429b87 0.9830615339059116
+outcome	T	3f91585137ac8f3d 0.016938466094088545
+end	28
+point	29	79	10	2	0	none
+context	p=حالك
+context	s=؟
+context	p1=ك
+context	p1_alpha
+context	p2=ل
+context	p2_alpha
+context	p21=لك
+context	p1f1=ك؟
+context	f1=؟
+context	f2=bok
+outcome	F	3fe6a21dbc2b962f 0.7072895693970106
+outcome	T	3fd2bbc487a8d3a1 0.29271043060298935
+end	29

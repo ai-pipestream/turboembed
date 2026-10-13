@@ -143,7 +143,7 @@ impl Annotator for Embedder {
                 let n = s.spans.len();
                 let data = vectors[at..at + n].iter().flatten().copied().collect();
                 at += n;
-                Ok((Vectors::new(2, data, toy_model()),))
+                Ok((Vectors::new(2, data, Vec::new(), toy_model()),))
             })
             .collect()
     }
@@ -161,6 +161,13 @@ fn toy_model() -> ModelRef {
     ModelRef { id: "toy".into(), revision: "1".into(), sha256: "0".into() }
 }
 
+/// A language layer naming English alone.
+fn english(score: f64) -> Language {
+    let mut code = Strs::default();
+    code.push("en");
+    Language { code, score: vec![score] }
+}
+
 /// Declines a document it finds no language evidence in, rather than
 /// guessing a language.
 struct Detect;
@@ -174,7 +181,7 @@ impl Annotator for Detect {
         if !view.text().chars().any(char::is_alphabetic) {
             return Err(Error::Skipped("no language evidence".into()));
         }
-        Ok((Language { code: "en".into(), score: 0.9 },))
+        Ok((english(0.9),))
     }
 }
 
@@ -192,7 +199,11 @@ impl Annotator for Stemmer {
         let mut lemma = Strs::default();
         for (_, s) in tokens.spans.iter() {
             let word = &text[s.range()];
-            lemma.push(if language.code == "en" { word.strip_suffix('s').unwrap_or(word) } else { word });
+            lemma.push(if language.best().is_some_and(|(code, _)| code == "en") {
+                word.strip_suffix('s').unwrap_or(word)
+            } else {
+                word
+            });
         }
         Ok((Lemmas { lemma },))
     }
@@ -259,7 +270,7 @@ impl Annotator for Fragile {
 
     fn annotate(&self, (view,): Refs<'_, Self>) -> Result<(Language,), Error> {
         assert!(!view.text().contains("PANIC"), "cannot handle this one");
-        Ok((Language { code: "en".into(), score: 1.0 },))
+        Ok((english(1.0),))
     }
 }
 

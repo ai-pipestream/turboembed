@@ -164,15 +164,15 @@ impl GoldenLoad for Entities {
     }
 }
 
-/// The best language: the golden's first row, as the comparison reads it.
-/// The rows after it (the other languages the detector ranked) have no
-/// place in the Rust layer.
+/// Every language the detector ranked, best first, as the golden lists
+/// them; the golden's `confidence` is the Rust layer's `score`. A golden
+/// with no rows names no language and is refused.
 impl GoldenLoad for Language {
     fn load(g: &GoldenLayer, cx: &LoadCx<'_>) -> Result<Language, LoadError> {
         if g.is_empty() {
             return Err(LoadError::Empty { layer: cx.key });
         }
-        let code = g.strs("code").expect("a str column the shape checked").get(0);
-        Ok(Language { code: code.to_string(), score: f64s(g, "confidence")[0] })
+        let code = g.strs("code").expect("a str column the shape checked").clone();
+        Ok(Language { code, score: f64s(g, "confidence").to_vec() })
     }
 }

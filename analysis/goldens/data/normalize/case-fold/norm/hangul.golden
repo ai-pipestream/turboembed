@@ -1,0 +1,14 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	norm/hangul	210	144	374fc29970ca537d1b6be7cc3ced25c69fa15526bd66cd136ef12dc9cc253465
+annotator	opennlp.tools.util.normalizer.CaseFoldCharSequenceNormalizer	normalize
+layer	turbo:view	text	5	start:u32	end:u32	with:str
+57	58	m
+137	138	c
+205	206	n
+206	207	f
+207	208	c
+end	turbo:view

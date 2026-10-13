@@ -1,0 +1,313 @@
+dump 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	edge/korean	71	29	60ba1fd14bb56d1bbd0a9ccc6162453017a491f787a98c5a8f0cd592411f196e
+model	opennlp-de-ud-gsd-tokens-1.3-2.5.4.bin	343c9fe93ff301b736f30fa2e0d954b270994a1535ec2bd424553cbd82b13eb0d86aa2042946db62322430a8b5a8f29a8a2d882f107cb26c6d4f6d494d97debf
+annotator	opennlp.tools.tokenize.TokenizerME	tokenizePos
+config	alphaNumericPattern	^[A-Za-z0-9äéöüÄÉÖÜß]+$
+config	useAlphaNumericOptimization	true
+point	0	3	11	2	0	none
+context	p=안
+context	s=녕하세요.
+context	p1=안
+context	p1_alpha
+context	p2=bok
+context	p1f1=안녕
+context	f1=녕
+context	f1_alpha
+context	f2=하
+context	f2_alpha
+context	f12=녕하
+outcome	F	3feeed89434b186b 0.9664961160967896
+outcome	T	3fa1276bcb4e794d 0.03350388390321033
+end	0
+point	1	6	13	2	0	none
+context	p=안녕
+context	s=하세요.
+context	p1=녕
+context	p1_alpha
+context	p2=안
+context	p2_alpha
+context	p21=안녕
+context	p1f1=녕하
+context	f1=하
+context	f1_alpha
+context	f2=세
+context	f2_alpha
+context	f12=하세
+outcome	F	3fef13ddbe6b1be0 0.971175071631361
+outcome	T	3f9d8448329c841c 0.028824928368639133
+end	1
+point	2	9	13	2	0	none
+context	p=안녕하
+context	s=세요.
+context	p1=하
+context	p1_alpha
+context	p2=녕
+context	p2_alpha
+context	p21=녕하
+context	p1f1=하세
+context	f1=세
+context	f1_alpha
+context	f2=요
+context	f2_alpha
+context	f12=세요
+outcome	F	3fef13ddbe6b1be0 0.971175071631361
+outcome	T	3f9d8448329c841c 0.028824928368639133
+end	2
+point	3	12	13	2	0	none
+context	p=안녕하세
+context	s=요.
+context	p1=세
+context	p1_alpha
+context	p2=하
+context	p2_alpha
+context	p21=하세
+context	p1f1=세요
+context	f1=요
+context	f1_alpha
+context	f2=.
+context	f2_eos
+context	f12=요.
+outcome	F	3feedb78a0796107 0.9642909178028568
+outcome	T	3fa24875f869ef8d 0.03570908219714317
+end	3
+point	4	15	11	2	0	none
+context	p=안녕하세요
+context	s=.
+context	p1=요
+context	p1_alpha
+context	p2=세
+context	p2_alpha
+context	p21=세요
+context	p1f1=요.
+context	f1=.
+context	f1_eos
+context	f2=bok
+outcome	F	3f9191ccd7ecc35b 0.017157746008879964
+outcome	T	3fef7371994099e4 0.9828422539911199
+end	4
+point	5	20	9	2	0	none
+context	p=저
+context	s=는
+context	p1=저
+context	p1_alpha
+context	p2=bok
+context	p1f1=저는
+context	f1=는
+context	f1_alpha
+context	f2=bok
+outcome	F	3fed7e8c5ae163b0 0.9216977858551356
+outcome	T	3fb40b9d28f4e27d 0.07830221414486434
+end	5
+point	6	27	11	2	0	none
+context	p=한
+context	s=국어를
+context	p1=한
+context	p1_alpha
+context	p2=bok
+context	p1f1=한국
+context	f1=국
+context	f1_alpha
+context	f2=어
+context	f2_alpha
+context	f12=국어
+outcome	F	3feeed89434b186b 0.9664961160967896
+outcome	T	3fa1276bcb4e794d 0.03350388390321033
+end	6
+point	7	30	13	2	0	none
+context	p=한국
+context	s=어를
+context	p1=국
+context	p1_alpha
+context	p2=한
+context	p2_alpha
+context	p21=한국
+context	p1f1=국어
+context	f1=어
+context	f1_alpha
+context	f2=를
+context	f2_alpha
+context	f12=어를
+outcome	F	3fef13ddbe6b1be0 0.971175071631361
+outcome	T	3f9d8448329c841c 0.028824928368639133
+end	7
+point	8	33	11	2	0	none
+context	p=한국어
+context	s=를
+context	p1=어
+context	p1_alpha
+context	p2=국
+context	p2_alpha
+context	p21=국어
+context	p1f1=어를
+context	f1=를
+context	f1_alpha
+context	f2=bok
+outcome	F	3fedd488b61f03bd 0.9321940953305937
+outcome	T	3fb15bba4f07e21a 0.06780590466940631
+end	8
+point	9	40	11	2	0	none
+context	p=공
+context	s=부합니다.
+context	p1=공
+context	p1_alpha
+context	p2=bok
+context	p1f1=공부
+context	f1=부
+context	f1_alpha
+context	f2=합
+context	f2_alpha
+context	f12=부합
+outcome	F	3feeed89434b186b 0.9664961160967896
+outcome	T	3fa1276bcb4e794d 0.03350388390321033
+end	9
+point	10	43	13	2	0	none
+context	p=공부
+context	s=합니다.
+context	p1=부
+context	p1_alpha
+context	p2=공
+context	p2_alpha
+context	p21=공부
+context	p1f1=부합
+context	f1=합
+context	f1_alpha
+context	f2=니
+context	f2_alpha
+context	f12=합니
+outcome	F	3fef13ddbe6b1be0 0.971175071631361
+outcome	T	3f9d8448329c841c 0.028824928368639133
+end	10
+point	11	46	13	2	0	none
+context	p=공부합
+context	s=니다.
+context	p1=합
+context	p1_alpha
+context	p2=부
+context	p2_alpha
+context	p21=부합
+context	p1f1=합니
+context	f1=니
+context	f1_alpha
+context	f2=다
+context	f2_alpha
+context	f12=니다
+outcome	F	3fef13ddbe6b1be0 0.971175071631361
+outcome	T	3f9d8448329c841c 0.028824928368639133
+end	11
+point	12	49	13	2	0	none
+context	p=공부합니
+context	s=다.
+context	p1=니
+context	p1_alpha
+context	p2=합
+context	p2_alpha
+context	p21=합니
+context	p1f1=니다
+context	f1=다
+context	f1_alpha
+context	f2=.
+context	f2_eos
+context	f12=다.
+outcome	F	3feedb78a0796107 0.9642909178028568
+outcome	T	3fa24875f869ef8d 0.03570908219714317
+end	12
+point	13	52	11	2	0	none
+context	p=공부합니다
+context	s=.
+context	p1=다
+context	p1_alpha
+context	p2=니
+context	p2_alpha
+context	p21=니다
+context	p1f1=다.
+context	f1=.
+context	f1_eos
+context	f2=bok
+outcome	F	3f9191ccd7ecc35b 0.017157746008879964
+outcome	T	3fef7371994099e4 0.9828422539911199
+end	13
+point	14	57	11	2	0	none
+context	p=감
+context	s=사합니다!
+context	p1=감
+context	p1_alpha
+context	p2=bok
+context	p1f1=감사
+context	f1=사
+context	f1_alpha
+context	f2=합
+context	f2_alpha
+context	f12=사합
+outcome	F	3feeed89434b186b 0.9664961160967896
+outcome	T	3fa1276bcb4e794d 0.03350388390321033
+end	14
+point	15	60	13	2	0	none
+context	p=감사
+context	s=합니다!
+context	p1=사
+context	p1_alpha
+context	p2=감
+context	p2_alpha
+context	p21=감사
+context	p1f1=사합
+context	f1=합
+context	f1_alpha
+context	f2=니
+context	f2_alpha
+context	f12=합니
+outcome	F	3fef13ddbe6b1be0 0.971175071631361
+outcome	T	3f9d8448329c841c 0.028824928368639133
+end	15
+point	16	63	13	2	0	none
+context	p=감사합
+context	s=니다!
+context	p1=합
+context	p1_alpha
+context	p2=사
+context	p2_alpha
+context	p21=사합
+context	p1f1=합니
+context	f1=니
+context	f1_alpha
+context	f2=다
+context	f2_alpha
+context	f12=니다
+outcome	F	3fef13ddbe6b1be0 0.971175071631361
+outcome	T	3f9d8448329c841c 0.028824928368639133
+end	16
+point	17	66	13	2	0	none
+context	p=감사합니
+context	s=다!
+context	p1=니
+context	p1_alpha
+context	p2=합
+context	p2_alpha
+context	p21=합니
+context	p1f1=니다
+context	f1=다
+context	f1_alpha
+context	f2=!
+context	f2_eos
+context	f12=다!
+outcome	F	3fee4dd66bc5689c 0.9470016579537233
+outcome	T	3fab229943a9763b 0.0529983420462767
+end	17
+point	18	69	11	2	0	none
+context	p=감사합니다
+context	s=!
+context	p1=다
+context	p1_alpha
+context	p2=니
+context	p2_alpha
+context	p21=니다
+context	p1f1=다!
+context	f1=!
+context	f1_eos
+context	f2=bok
+outcome	F	3f2616fa11c47ec7 1.6853144269023663E-4
+outcome	T	3feffe9e905ee3b8 0.9998314685573098
+end	18

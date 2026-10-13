@@ -1,0 +1,15 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	money/multiple-in-sentence	59	56	9e39de1561608dfbfc19b37f9fb95281fbabe281d8f67e00c674083fc41006a4
+annotator	opennlp.tools.money.CursorMoneyExtractor	extract
+config	notation	LATIN_US
+layer	turbo:money	text	5	start:u32	end:u32	coefficient:str	negative:u32	scale:u32	plain:str	currency:str
+5	7	5	0	0	5	USD
+12	16	3	0	0	3	EUR
+29	32	2	0	0	2	GBP
+37	43	10	0	0	10	JPY
+48	57	4	0	0	4	USD
+end	turbo:money

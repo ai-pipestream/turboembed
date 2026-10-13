@@ -1,0 +1,46 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	norm/accents-scripts	278	215	a994f66491e6e4111d9900da10d00c8e3fe8f6bb336717383004f6bae2fd8189
+annotator	opennlp.tools.util.normalizer.TextNormalizer	defaultChain().normalize
+layer	turbo:view	text	37	start:u32	end:u32	with:str
+0	1	c
+3	5	e
+9	11	i
+15	17	a
+22	24	o
+27	28	g
+30	32	c
+38	40	n
+44	46	l
+46	48	o
+49	51	z
+53	55	o
+59	61	ae
+66	80	d, th, d, oe
+85	86	 
+86	87	v
+100	103	e
+106	107	v
+108	111	e
+114	116	d
+116	118	u
+118	121	o
+125	126	g
+131	133	α
+133	135	ε
+135	137	η
+139	140	c
+148	150	и
+150	152	е
+153	155	и
+155	157	е
+158	159	 
+159	160	t
+191	192	d
+226	227	a
+253	254	h
+277	278	
+end	turbo:view

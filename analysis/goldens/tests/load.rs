@@ -132,7 +132,9 @@ fn every_loaded_layer_matches_its_golden() {
         ]
     );
     let language = doc.get_key(&golden_key::<Language>()).unwrap();
-    assert_eq!((language.code.as_str(), language.score), ("eng", 0.9312345678901234));
+    assert_eq!(language.best(), Some(("eng", 0.9312345678901234)));
+    assert_eq!(language.code.iter().collect::<Vec<_>>(), ["eng", "deu", "nld", "fra"]);
+    assert_eq!(language.score, [0.9312345678901234, 0.0412, 0.012, 1.0e-5]);
     let entities = doc.get_key(&golden_key::<Entities>()).unwrap();
     assert_eq!(entities.tokens[1].start.get()..entities.tokens[1].end.get(), 4..5);
     assert_eq!(entities.kinds.label(entities.kind[1]), "location");

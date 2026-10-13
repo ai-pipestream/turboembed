@@ -1,0 +1,45 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	ja/katakana	97	33	01246770f162d2d6495d5418fba144e360be4b927d4937336549fa431dc5f301
+model	mecab-ipadic-2.7.0-20070801	0bd4d8717d4fd657ceadec1b0860f1fa17133cd3786e083fe164800e6415b62a5937184dad262ef13df49edae7ddcee5aaefc01297f4ea9c051520f551d606e4
+model	mecab-ipadic-2.7.0-20070801.utf8	52afb518f4a9e347196ef3c2a5f6792e92dc4c67b1bd990e32a82815cd574bcc415f0925178658c855a47725f915bdac49730cfb8e837a7cb1bce2bd91ec77da
+annotator	opennlp.tools.tokenize.lattice.LatticeTokenizer	analyze
+layer	opennlp:tokens	text	16	start:u32	end:u32
+0	12
+12	15
+15	27
+27	30
+30	39
+39	42
+42	54
+54	57
+57	66
+66	69
+69	72
+72	75
+75	81
+81	84
+84	93
+93	96
+end	opennlp:tokens
+layer	turbo:morphemes	aligned:opennlp:tokens	16	unknown:u32	features:str
+0	名詞,一般,*,*,*,*,コーヒー,コーヒー,コーヒー
+0	助詞,並立助詞,*,*,*,*,と,ト,ト
+0	名詞,一般,*,*,*,*,カタカナ,カタカナ,カタカナ
+0	助詞,格助詞,一般,*,*,*,と,ト,ト
+0	名詞,サ変接続,*,*,*,*,テスト,テスト,テスト
+0	記号,句点,*,*,*,*,。,。,。
+0	名詞,一般,*,*,*,*,ラーメン,ラーメン,ラーメン
+0	記号,読点,*,*,*,*,、,、,、
+0	名詞,一般,*,*,*,*,ビール,ビール,ビール
+0	記号,読点,*,*,*,*,、,、,、
+1	名詞,一般,*,*,*,*,*
+0	記号,読点,*,*,*,*,、,、,、
+1	名詞,一般,*,*,*,*,*
+0	記号,読点,*,*,*,*,、,、,、
+1	名詞,一般,*,*,*,*,*
+0	記号,句点,*,*,*,*,。,。,。
+end	turbo:morphemes

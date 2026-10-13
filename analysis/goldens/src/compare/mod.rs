@@ -20,7 +20,7 @@ use turbo_analysis::{Anchor, Document, Key, KeyId, Layer, Status};
 pub use items::{CutCol, Items, Labels, Names, SpanCols, TokenCols, UnitCols, compare_items};
 pub use mismatch::{Item, Mismatch};
 
-use crate::format::{ColumnSpec, Golden, GoldenAnchor, GoldenLayer};
+use crate::format::{ColumnSpec, ColumnType, Golden, GoldenAnchor, GoldenLayer};
 use crate::sha::sha256;
 
 /// How close a value must be to the golden's.
@@ -147,7 +147,10 @@ pub fn shape_of<L: GoldenCompare>() -> Shape {
 /// added.
 pub fn known_shapes() -> Vec<Shape> {
     use turbo_analysis::View;
-    use turbo_analysis_layers::{Confidence, Entities, Language, Lemmas, PosTags, Sentences, Tokens, Utf16Spans};
+    use turbo_analysis_layers::{
+        Confidence, Entities, Language, Lemmas, Money, Numbers, PosTags, Quantities, Sentences, Subwords, Tokens,
+        Utf16Spans,
+    };
     vec![
         shape_of::<Sentences>(),
         shape_of::<Confidence<Sentences>>(),
@@ -159,8 +162,39 @@ pub fn known_shapes() -> Vec<Shape> {
         shape_of::<Lemmas>(),
         shape_of::<Entities>(),
         shape_of::<Language>(),
+        shape_of::<Numbers>(),
+        shape_of::<Money>(),
+        shape_of::<Quantities>(),
+        shape_of::<Subwords>(),
         shape_of::<View>(),
     ]
+}
+
+/// `known_shapes()` and the four layers the golden generator writes whose
+/// types live in other crates or are the generator's own: a UAX #29
+/// tokenizer's `turbo:word-types` (a word type name per token), the
+/// detokenizer's `turbo:detokenization` (an operation name per token) and
+/// `turbo:detokenized` (the text it returned, without and with a split
+/// marker), and the lattice tokenizer's `turbo:morphemes` (per token,
+/// whether unknown word handling made it and its entry's features joined
+/// with commas). The shapes are written out here, so a test reads those goldens
+/// with `Golden::read_with` without the crates that own the types
+/// depending on this one.
+pub fn segmentation_shapes() -> Vec<Shape> {
+    use turbo_analysis_layers::Tokens;
+    const KIND: &[ColumnSpec] = &[ColumnSpec::new("kind", ColumnType::Str)];
+    const OPERATION: &[ColumnSpec] = &[ColumnSpec::new("operation", ColumnType::Str)];
+    const DETOKENIZED: &[ColumnSpec] =
+        &[ColumnSpec::new("text", ColumnType::Str), ColumnSpec::new("marked", ColumnType::Str)];
+    const MORPHEMES: &[ColumnSpec] =
+        &[ColumnSpec::new("unknown", ColumnType::U32), ColumnSpec::new("features", ColumnType::Str)];
+    let tokens = GoldenAnchor::Aligned(<Tokens as Layer>::ID.to_string());
+    let mut shapes = known_shapes();
+    shapes.push(Shape { id: "turbo:word-types".into(), anchor: tokens.clone(), columns: KIND });
+    shapes.push(Shape { id: "turbo:morphemes".into(), anchor: tokens.clone(), columns: MORPHEMES });
+    shapes.push(Shape { id: "turbo:detokenization".into(), anchor: tokens, columns: OPERATION });
+    shapes.push(Shape { id: "turbo:detokenized".into(), anchor: GoldenAnchor::Document, columns: DETOKENIZED });
+    shapes
 }
 
 /// Compares the default instance of layer `L` on `doc` with its layer in
@@ -316,6 +350,10 @@ mod tests {
                 "opennlp:lemmas",
                 "opennlp:entities",
                 "opennlp:language",
+                "turbo:numbers",
+                "turbo:money",
+                "turbo:quantities",
+                "opennlp:subwords",
                 "turbo:view"
             ]
         );

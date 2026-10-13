@@ -1,0 +1,19 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	norm/bullets	138	123	63f628640ed50bb0b544711b4658ed63d001bbbdd77c189926a8a0bd48e28f0d
+annotator	opennlp.tools.util.normalizer.WhitespaceCharSequenceNormalizer	normalizeAligned
+layer	turbo:view	text	10	start:u32	end:u32	with:str
+14	15	 
+30	31	 
+45	46	 
+61	62	 
+76	77	 
+90	91	 
+102	103	 
+113	114	 
+125	126	 
+137	138	
+end	turbo:view

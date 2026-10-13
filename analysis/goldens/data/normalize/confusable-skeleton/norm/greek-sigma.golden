@@ -1,0 +1,37 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	norm/greek-sigma	194	129	ded35ad8a18de1c8eebf36fe129ff97bcce3b148db42ed20c84b4ec5b88689cd
+annotator	opennlp.tools.util.normalizer.ConfusableSkeletonCharSequenceNormalizer	normalize
+layer	turbo:view	text	28	start:u32	end:u32	with:str
+0	2	O
+4	6	Y
+6	8	Ʃ
+8	10	Ʃ
+10	12	E
+12	14	Y
+14	16	Ʃ
+21	23	Ʃ
+23	25	A
+25	27	Ʃ
+32	58	ƩΠlTl, avO̵pωπo
+71	72	rn
+81	83	A
+83	85	B
+85	87	Ʃ
+88	90	A
+90	92	Ʃ
+93	95	Ʃ
+96	98	Ʃ
+100	102	Ʃ
+102	104	Ʃ
+106	108	A
+108	110	Ʃ
+112	114	A
+114	116	Ʃ
+116	118	A
+123	129	AḯƩ
+138	192	áꞓ́ń̩íóúώ, ÁÉH́ĺÓÝΏ, ḯ ǘ, a̓ A̓ ą Ą
+end	turbo:view

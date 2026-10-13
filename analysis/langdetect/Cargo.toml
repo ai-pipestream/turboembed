@@ -1,0 +1,22 @@
+[package]
+name = "turbo-langdetect"
+version = "0.1.0"
+edition.workspace = true
+license.workspace = true
+publish = false
+
+[lib]
+name = "turbo_langdetect"
+
+[dependencies]
+turbo-analysis = { path = "../core" }
+turbo-analysis-layers = { path = "../layers" }
+# The model file and its GIS classifier.
+turbo-maxent = { path = "../maxent" }
+# The five normalizers the detector runs before counting n-grams.
+turbo-normalize = { path = "../normalize" }
+# Java's per code point lowercase mapping and modified UTF-8.
+turbo-unicode = { path = "../unicode" }
+
+[dev-dependencies]
+turbo-goldens = { path = "../goldens" }

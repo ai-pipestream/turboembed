@@ -1,0 +1,4 @@
+iPhone 15发布会于2023年9月12日举行，起售价为5999元。
+我用Python写了一个HTTP服务器，跑在Linux上，CPU占用不到3%。
+API文档在docs/目录下，版本号v2.1.0，联系邮箱是dev@example.com。
+T恤和B超都是常见的词，卡拉OK也是。

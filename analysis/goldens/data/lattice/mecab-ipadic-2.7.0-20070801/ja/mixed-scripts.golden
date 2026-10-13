@@ -1,0 +1,45 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	ja/mixed-scripts	69	38	16f1bcddb1236c1131f05b89d79e66f23960d1d0df431e3859fac6b449956407
+model	mecab-ipadic-2.7.0-20070801	0bd4d8717d4fd657ceadec1b0860f1fa17133cd3786e083fe164800e6415b62a5937184dad262ef13df49edae7ddcee5aaefc01297f4ea9c051520f551d606e4
+model	mecab-ipadic-2.7.0-20070801.utf8	52afb518f4a9e347196ef3c2a5f6792e92dc4c67b1bd990e32a82815cd574bcc415f0925178658c855a47725f915bdac49730cfb8e837a7cb1bce2bd91ec77da
+annotator	opennlp.tools.tokenize.lattice.LatticeTokenizer	analyze
+layer	opennlp:tokens	text	16	start:u32	end:u32
+0	3
+3	6
+6	12
+12	15
+15	21
+21	24
+24	27
+27	30
+30	33
+33	36
+36	45
+45	48
+48	58
+59	61
+61	65
+66	68
+end	opennlp:tokens
+layer	turbo:morphemes	aligned:opennlp:tokens	16	unknown:u32	features:str
+1	名詞,一般,*,*,*,*,*
+0	助詞,格助詞,一般,*,*,*,に,ニ,ニ
+0	動詞,自立,*,*,五段・カ行促音便,基本形,行く,イク,イク
+0	記号,句点,*,*,*,*,。,。,。
+1	名詞,一般,*,*,*,*,*
+1	名詞,数,*,*,*,*,*
+0	記号,読点,*,*,*,*,、,、,、
+0	名詞,数,*,*,*,*,１,イチ,イチ
+0	名詞,数,*,*,*,*,２,ニ,ニ
+0	名詞,数,*,*,*,*,３,サン,サン
+0	名詞,固有名詞,組織,*,*,*,ＡＢＣ,エイビーシー,エイビーシー
+0	記号,句点,*,*,*,*,。,。,。
+1	名詞,固有名詞,組織,*,*,*,*
+0	記号,アルファベット,*,*,*,*,Ω,オメガ,オメガ
+1	感動詞,*,*,*,*,*,*
+1	名詞,固有名詞,組織,*,*,*,*
+end	turbo:morphemes

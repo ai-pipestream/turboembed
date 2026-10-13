@@ -1,0 +1,14 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	edge/long-word-emoji	299	297	5dbd5bc952a059e356487829312c19b1326aefb63f1d30ac6deff30397496ebb
+model	tokenizer-abbreviations.bin	361484f0a67e129fe6f19908704d23e83c8a2bf4551a5f7eec3b40b9082a66b7026d429233c11639b35bccf042d347d79222cfed62685563f2a926cb8a2460d4
+annotator	opennlp.tools.tokenize.TokenizerME	tokenizePos
+layer	opennlp:tokens	text	1	start:u32	end:u32
+0	298
+end	opennlp:tokens
+layer	turbo:confidence<opennlp:tokens>	aligned:opennlp:tokens	1	value:f64
+3f22c353242793ae 1.431502333410195E-4
+end	turbo:confidence<opennlp:tokens>

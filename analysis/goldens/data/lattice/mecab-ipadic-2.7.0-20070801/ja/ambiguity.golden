@@ -1,0 +1,41 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	ja/ambiguity	72	28	c8df24334fa28729d0ff8b964b54517c8b011a5d98a1ed76fb03824dda85f706
+model	mecab-ipadic-2.7.0-20070801	0bd4d8717d4fd657ceadec1b0860f1fa17133cd3786e083fe164800e6415b62a5937184dad262ef13df49edae7ddcee5aaefc01297f4ea9c051520f551d606e4
+model	mecab-ipadic-2.7.0-20070801.utf8	52afb518f4a9e347196ef3c2a5f6792e92dc4c67b1bd990e32a82815cd574bcc415f0925178658c855a47725f915bdac49730cfb8e837a7cb1bce2bd91ec77da
+annotator	opennlp.tools.tokenize.lattice.LatticeTokenizer	analyze
+layer	opennlp:tokens	text	14	start:u32	end:u32
+0	6
+6	9
+10	16
+17	23
+24	27
+28	34
+34	37
+37	43
+43	49
+49	52
+53	56
+56	62
+62	65
+65	71
+end	opennlp:tokens
+layer	turbo:morphemes	aligned:opennlp:tokens	14	unknown:u32	features:str
+0	名詞,固有名詞,地域,一般,*,*,東京,トウキョウ,トーキョー
+0	名詞,接尾,地域,*,*,*,都,ト,ト
+0	名詞,固有名詞,地域,一般,*,*,京都,キョウト,キョート
+0	名詞,固有名詞,地域,一般,*,*,東京,トウキョウ,トーキョー
+0	名詞,一般,*,*,*,*,都,ト,ト
+0	名詞,固有名詞,地域,一般,*,*,東京,トウキョウ,トーキョー
+0	名詞,接尾,地域,*,*,*,都,ト,ト
+0	名詞,固有名詞,地域,一般,*,*,京都,キョウト,キョート
+0	名詞,固有名詞,地域,一般,*,*,東京,トウキョウ,トーキョー
+0	名詞,接尾,地域,*,*,*,都,ト,ト
+0	接頭詞,名詞接続,*,*,*,*,今,コン,コン
+0	名詞,固有名詞,地域,国,*,*,日本,ニッポン,ニッポン
+0	名詞,接尾,一般,*,*,*,日,ビ,ビ
+0	名詞,副詞可能,*,*,*,*,今日,キョウ,キョー
+end	turbo:morphemes

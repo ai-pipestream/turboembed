@@ -1,0 +1,1 @@
+Two spaces break it: 80  kg, and 80  kg, and 80​kg.

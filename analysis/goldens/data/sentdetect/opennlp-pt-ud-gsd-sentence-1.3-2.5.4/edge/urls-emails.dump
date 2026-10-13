@@ -1,0 +1,85 @@
+dump 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	edge/urls-emails	189	189	24a6e1968bc86b5976b4eee7e2ef6acb6bd2372d9afa4be8b45f4ad9af261501
+model	opennlp-pt-ud-gsd-sentence-1.3-2.5.4.bin	0c0390b36530ce9807e9f3d69cfd09524d965506dbb6e2aab2f34556c8858903d538433b828e1f6ed7eaca92f336a04be83461a45b28b177d01ba372fafa35f8
+annotator	opennlp.tools.sentdetect.SentenceDetectorME	sentPosDetect
+point	0	34	6	2	0	none
+context	eos=?
+context	x=.com/path
+context	9
+context	v=https://www.example
+context	s=q=1&r=2#frag
+context	n=or
+outcome	s	3fe23c247a578339 0.5698416127671414
+outcome	n	3fdb87b70b50f98f 0.43015838723285865
+acceptable	1
+end	0
+point	1	76	6	2	0	none
+context	eos=.
+context	x=:8080/a_b
+context	9
+context	v=http://localhost
+context	s=html,
+context	n=mail
+outcome	s	3fe5359c45c4e8ed 0.6627942431144028
+outcome	n	3fd594c774762e27 0.33720575688559723
+acceptable	1
+end	1
+point	2	111	6	2	0	none
+context	eos=.
+context	x=.co
+context	3
+context	v=john.doe+tag@example
+context	s=uk
+context	n=or
+outcome	s	3fdbc8d25fb847a5 0.43413218829766215
+outcome	n	3fe21b96d023dc2d 0.5658678117023378
+end	2
+point	3	130	8	2	0	none
+context	sn
+context	eos=.
+context	x=.org
+context	4
+context	v=www.test
+context	s=
+context	n=Also
+context	ncap
+outcome	s	3fef85a9abef2910 0.9850662572946778
+outcome	n	3f8e95950435bc1a 0.014933742705322262
+acceptable	1
+end	3
+point	4	166	6	2	0	none
+context	eos=.
+context	x=.tar
+context	4
+context	v=ftp://files.example.net/x
+context	s=gz
+context	n=(see
+outcome	s	3fdf97025ceff04d 0.4935918719854769
+outcome	n	3fe0347ed18807da 0.5064081280145232
+end	4
+point	5	170	6	2	0	none
+context	sp
+context	eos=(
+context	x=
+context	v=ftp://files.example.net/x.tar.gz
+context	s=see
+context	n=foo@bar.com).
+outcome	s	3f7e7b5ade04bb07 0.007441859197838913
+outcome	n	3fefc3094a43f68a 0.9925581408021611
+end	5
+point	6	187	7	2	0	none
+context	sn
+context	eos=.
+context	x=)
+context	1
+context	v=foo@bar.com
+context	s=
+context	n=
+outcome	s	3feffd34f79c4a3a 0.9996590458052375
+outcome	n	3f3658431dae377d 3.4095419476264777E-4
+acceptable	1
+end	6

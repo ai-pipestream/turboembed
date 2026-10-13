@@ -50,13 +50,13 @@ fn chunker(budget: Budget) -> Analyzer {
 #[test]
 fn the_chunker_cuts_where_the_topic_shifts() {
     let mut doc = sentences_and_subwords("Cats purr. Cats nap. Cats hunt. Rust compiles. Rust checks. Rust ships.");
-    // A plain sentence boundary costs 1; the topic shift after the third, 0.1.
+    // A plain sentence boundary costs a unit; the topic shift after the third, a tenth.
     let mut reason = vec![Cut::Sentence; 6];
     reason[2] = Cut::TopicShift;
-    let cost = vec![1.0, 1.0, 0.1, 1.0, 1.0, 1.0];
+    let cost = vec![1000, 1000, 100, 1000, 1000, 1000];
     doc.add(&Key::DEFAULT, Boundaries { cost, reason }, Provenance::by("t")).unwrap();
 
-    let budget = Budget { max: 12, target: 9, size_weight: 1.0, overhead: 0 };
+    let budget = Budget { max: 12, target: 9, size_weight: 1000, overhead: 0 };
     let mut docs = vec![doc];
     assert!(chunker(budget).run(&mut docs)[0].is_ok());
     let chunks = docs[0].get::<Chunks>().unwrap();
@@ -74,7 +74,7 @@ fn sections_are_never_crossed_and_become_the_level_above() {
     // Every sentence is 3 tokens and a chunk holds 2. Cutting after "nap."
     // or "ships." is cheaper than elsewhere; nothing in the costs marks the
     // section break after "hunt.".
-    let cost = vec![1.0, 0.5, 1.0, 1.0, 0.5, 1.0];
+    let cost = vec![1000, 500, 1000, 1000, 500, 1000];
     plain.add(&Key::DEFAULT, Boundaries { cost, reason: vec![Cut::Sentence; 6] }, Provenance::by("t")).unwrap();
     let mut sectioned = plain.clone();
     let mut spans = Spans::new(ViewId::SOURCE);
@@ -83,7 +83,7 @@ fn sections_are_never_crossed_and_become_the_level_above() {
     let structure = Structure { spans, kind: vec![Block::Section; 2], parent: vec![None; 2], depth: vec![0; 2] };
     sectioned.add(&Key::DEFAULT, structure, Provenance::by("parser")).unwrap();
 
-    let budget = Budget { max: 7, target: 6, size_weight: 1.0, overhead: 0 };
+    let budget = Budget { max: 7, target: 6, size_weight: 1000, overhead: 0 };
     let mut docs = vec![plain, sectioned];
     assert!(chunker(budget).run(&mut docs).iter().all(|s| s.is_ok()));
     let texts = |d: &Document| {
@@ -140,12 +140,12 @@ fn what_lies_between_sentences_counts_inside_a_chunk() {
         Provenance::by("t"),
     )
     .unwrap();
-    let bounds = Boundaries { cost: vec![1.0; 2], reason: vec![Cut::Paragraph, Cut::Sentence] };
+    let bounds = Boundaries { cost: vec![1000; 2], reason: vec![Cut::Paragraph, Cut::Sentence] };
     doc.add(&Key::DEFAULT, bounds, Provenance::by("t")).unwrap();
 
     let lengths = |max| {
         let mut docs = vec![doc.clone()];
-        assert!(chunker(Budget { max, target: max, size_weight: 1.0, overhead: 0 }).run(&mut docs)[0].is_ok());
+        assert!(chunker(Budget { max, target: max, size_weight: 1000, overhead: 0 }).run(&mut docs)[0].is_ok());
         docs[0].get::<Chunks>().unwrap().model_tokens.clone()
     };
     assert_eq!(lengths(7), [7]);

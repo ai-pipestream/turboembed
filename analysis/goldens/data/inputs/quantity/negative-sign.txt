@@ -1,0 +1,1 @@
+Temperatures of -5 kg are odd but -5 kg is read, and -2.5 km too.

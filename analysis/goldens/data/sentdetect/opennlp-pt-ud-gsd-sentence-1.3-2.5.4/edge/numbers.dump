@@ -1,0 +1,119 @@
+dump 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	edge/numbers	163	163	ac397ed9e560b6c7ea24fb2ad41c9c951a27fd6316ba8de71531a337aca4ae68
+model	opennlp-pt-ud-gsd-sentence-1.3-2.5.4.bin	0c0390b36530ce9807e9f3d69cfd09524d965506dbb6e2aab2f34556c8858903d538433b828e1f6ed7eaca92f336a04be83461a45b28b177d01ba372fafa35f8
+annotator	opennlp.tools.sentdetect.SentenceDetectorME	sentPosDetect
+point	0	7	6	2	0	none
+context	eos=.
+context	x=3
+context	1
+context	v=is
+context	s=14
+context	n=and
+outcome	s	3f94376ddff0e9da 0.019742695611265272
+outcome	n	3fef5e44910078b1 0.9802573043887347
+end	0
+point	1	48	7	2	0	none
+context	sn
+context	eos=;
+context	x=:30
+context	3
+context	v=12
+context	s=
+context	n=growth
+outcome	s	3fef74853d4ef703 0.9829736897879403
+outcome	n	3f916f5856211f90 0.017026310212059637
+acceptable	1
+end	1
+point	2	62	6	2	0	none
+context	eos=.
+context	x=2
+context	1
+context	v=was
+context	s=5%
+context	n=(up
+outcome	s	3fc0e380df0fddf8 0.1319428528947666
+outcome	n	3febc71fc83c0882 0.8680571471052334
+end	2
+point	3	66	6	2	0	none
+context	sp
+context	eos=(
+context	x=
+context	v=2.5%
+context	s=up
+context	n=from
+outcome	s	3f7e7b5ade04bb07 0.007441859197838913
+outcome	n	3fefc3094a43f68a 0.9925581408021611
+end	3
+point	4	80	8	2	0	none
+context	sn
+context	eos=.
+context	x=)
+context	1
+context	v=1.2%
+context	s=
+context	n=Call
+context	ncap
+outcome	s	3fefccb21ecf63e2 0.9937372781524767
+outcome	n	3f79a6f0984e0f14 0.006262721847523318
+acceptable	1
+end	4
+point	5	106	7	2	0	none
+context	sn
+context	eos=)
+context	x=(800
+context	4
+context	v=
+context	s=
+context	n=555-0199.
+outcome	s	3f24183569890c9d 1.5330936436628177E-4
+outcome	n	3feffebe7ca9676f 0.9998466906356337
+end	5
+point	6	116	8	2	0	none
+context	sn
+context	eos=.
+context	x=555-0199
+context	8
+context	v=(800)
+context	s=
+context	n=Version
+context	ncap
+outcome	s	3fef925b4e2c9813 0.9866158034171825
+outcome	n	3f8b692c74d9fb4f 0.013384196582817557
+acceptable	1
+end	6
+point	7	129	6	2	0	none
+context	eos=.
+context	x=.0
+context	2
+context	v=2
+context	s=1-beta,
+context	n=$4.99,
+outcome	s	3fc533ce2e30b7f6 0.1656434751070603
+outcome	n	3feab30c7473d202 0.8343565248929397
+end	7
+point	8	140	6	2	0	none
+context	eos=.
+context	x=$4
+context	2
+context	v=2.0.1-beta,
+context	s=99,
+context	n=10/12/2026,
+outcome	s	3fc533ce2e30b7f6 0.1656434751070603
+outcome	n	3feab30c7473d202 0.8343565248929397
+end	8
+point	9	161	7	2	0	none
+context	sn
+context	eos=.
+context	x=3e10
+context	4
+context	v=10/12/2026,
+context	s=
+context	n=
+outcome	s	3feff948c99b7798 0.9991802156107381
+outcome	n	3f4adcd99221a2af 8.19784389261965E-4
+acceptable	1
+end	9

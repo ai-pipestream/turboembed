@@ -1,0 +1,78 @@
+dump 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	sentence-fixture/quotes	76	76	d2e44c2337da38e5f22633470c99628538eeaeae4c192abbef59ceb34a61acbd
+model	en-plain.bin	8da69d821956999ff898cf23963145cc134beb2bb59aa1ccc5e93d90b04895057057d80baf0e8c726bf28dea47021e51eab43689c8dc5fb78c99f19949c93ad8
+annotator	opennlp.tools.sentdetect.SentenceDetectorME	sentPosDetect
+point	0	13	7	2	0	none
+context	eos=.
+context	x="Stop
+context	5
+context	v=said
+context	s="
+context	n=Then
+context	ncap
+outcome	n	3fb09edff1a0c537 0.06492423676606483
+outcome	s	3fedec2401cbe759 0.9350757632339352
+acceptable	1
+end	0
+point	1	28	8	2	0	none
+context	sn
+context	eos=.
+context	x=left
+context	4
+context	v=he
+context	s=
+context	n=She
+context	ncap
+outcome	n	3f8061a107616273 0.007998712575657074
+outcome	s	3fefbe797be27a77 0.992001287424343
+acceptable	1
+end	1
+point	2	44	6	2	0	none
+context	eos=?
+context	x='Why
+context	4
+context	v=asked
+context	s='
+context	n=and
+outcome	n	3fd96fadde425c07 0.3974413557529605
+outcome	s	3fe3482910ded1fd 0.6025586442470395
+acceptable	1
+end	2
+point	3	57	7	2	0	none
+context	sn
+context	eos=.
+context	x=smiled
+context	6
+context	v=and
+context	s=
+context	n="Done!"
+outcome	n	3fd268ad4eb21285 0.2876389759551688
+outcome	s	3fe6cba958a6f6bd 0.7123610240448311
+acceptable	1
+end	3
+point	4	64	6	2	0	none
+context	eos=!
+context	x="Done
+context	5
+context	v=smiled.
+context	s="
+context	n=he
+outcome	n	3fd039203ac98ef8 0.253486688050756
+outcome	s	3fe7e36fe29b3884 0.746513311949244
+acceptable	1
+end	4
+point	5	75	6	2	0	none
+context	eos=.
+context	x=cried
+context	5
+context	v=he
+context	s=
+context	n=
+outcome	n	3fb872b367a26353 0.0955001953137871
+outcome	s	3fecf1a9930bb396 0.9044998046862129
+acceptable	1
+end	5

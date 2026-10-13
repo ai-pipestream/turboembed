@@ -1,0 +1,14 @@
+<START:person> Pierre Vinken <END> , 61 years old , will join the board .
+<START:person> Mr. Smith <END> went to <START:location> Washington <END> .
+<START:person> John O'Neil <END> said prices fell in <START:location> New York City <END> .
+<START:person> Angela Merkel <END> met <START:person> Emmanuel Macron <END> in <START:location> Berlin <END> .
+The board met in <START:location> Paris <END> last week .
+<START:person> Barack Obama <END> was born in <START:location> Honolulu <END> , <START:location> Hawaii <END> .
+<START:person> Dr. Jane Doe <END> of Acme Inc. moved to <START:location> Chicago <END> .
+<START:person> Smith <END> said <START:person> Jones <END> would visit <START:location> London <END> .
+Prices rose while sales fell .
+<START:person> Ünal Özdemir <END> lives in <START:location> Köln <END> .
+IBM reported earnings of $ 1,000 .
+<START:person> John <END> and <START:person> Mary <END> went to <START:location> Rome <END> .
+He did n't go to <START:location> Madrid <END> .
+<START:person> Jane <END> visited <START:location> New York <END> in 2024 .

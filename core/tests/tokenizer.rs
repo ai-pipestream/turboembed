@@ -804,6 +804,28 @@ mod bpe {
         t
     }
 
+    /// testdata/tiny-bpe/corpus.jsonl: corpus(), one JSON string per line,
+    /// so that a trainer outside these tests can train on what upstream
+    /// trained on.
+    fn corpus_file() -> PathBuf {
+        testdata().join("tiny-bpe/corpus.jsonl")
+    }
+
+    #[test]
+    fn the_corpus_file_is_the_corpus() {
+        let file = std::fs::read_to_string(corpus_file()).unwrap();
+        let read: Vec<String> = file.lines().map(|l| serde_json::from_str(l).unwrap()).collect();
+        assert_eq!(read, corpus());
+    }
+
+    /// Writes testdata/tiny-bpe/corpus.jsonl.
+    #[test]
+    #[ignore = "writes the test data; run by hand"]
+    fn write_corpus_file() {
+        let lines: Vec<String> = corpus().iter().map(|t| serde_json::to_string(t).unwrap() + "\n").collect();
+        std::fs::write(corpus_file(), lines.concat()).unwrap();
+    }
+
     /// Writes testdata/tiny-bpe/tokenizer.json: upstream's BPE trainer on
     /// corpus() with GPT-2's byte-level alphabet, 1200 pieces, RoBERTa's
     /// special tokens, pre-tokenizer, post-processor and decoder.

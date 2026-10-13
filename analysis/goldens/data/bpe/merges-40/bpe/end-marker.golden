@@ -1,0 +1,34 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	bpe/end-marker	48	48	31d78c497366c9cc67dc2f6499f208ec33b8ca5141bdbc59a2ffc3d1a3fe3629
+annotator	opennlp.tools.tokenize.BPETokenizerTrainer	train
+config	languageCode	en
+config	numMerges	40
+layer	turbo:bpe-merges	document	13	left:str	right:str
+<	/
+</	w
+</w	></w>
+</w	>
+w	></w>
+x	</w></w>
+</w>	y</w>
+a	</w>
+>	w></w>
+w	>w></w>
+x	</w>y</w>
+a</w>	b</w>
+</w>	</w></w>
+end	turbo:bpe-merges
+layer	opennlp:tokens	text	8	start:u32	end:u32
+0	5
+6	11
+12	18
+19	25
+26	30
+31	39
+40	42
+43	47
+end	opennlp:tokens

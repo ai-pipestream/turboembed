@@ -1,0 +1,9 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	ja/punctuation	64	22	5b7ae985b55419f6ac83560a4fc13f58584bd6e862e4ae0a2455b3cb4663be01
+model	mecab-fixture-partial	5f3dbe9d846404c97bcac5edaca3219560aafd805847ced9b4a020f886f6f2666f450d81acbbfe51614e037c1feb9daae56fbd4d7de429251004d5d38325ff32
+annotator	opennlp.tools.tokenize.lattice.LatticeTokenizer	analyze
+error	java.lang.IllegalStateException	dictionary provides no candidate at position 0; unk.def lacks a DEFAULT template

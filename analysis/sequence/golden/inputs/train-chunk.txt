@@ -1,0 +1,67 @@
+The DT B-NP
+cat NN I-NP
+sat VBD B-VP
+on IN B-PP
+the DT B-NP
+mat NN I-NP
+. . O
+
+Pierre NNP B-NP
+Vinken NNP I-NP
+, , O
+61 CD B-NP
+years NNS I-NP
+old JJ B-ADJP
+, , O
+will MD B-VP
+join VB I-VP
+the DT B-NP
+board NN I-NP
+. . O
+
+Mr. NNP B-NP
+Smith NNP I-NP
+went VBD B-VP
+to TO B-PP
+Washington NNP B-NP
+. . O
+
+She PRP B-NP
+runs VBZ B-VP
+a DT B-NP
+small JJ I-NP
+co-op NN I-NP
+in IN B-PP
+Paris NNP B-NP
+. . O
+
+IBM NNP B-NP
+reported VBD B-VP
+earnings NNS B-NP
+of IN B-PP
+$ $ B-NP
+1,000 CD I-NP
+. . O
+
+John NNP B-NP
+said VBD B-VP
+prices NNS B-NP
+fell VBD B-VP
+3.5 CD B-NP
+% NN I-NP
+. . O
+
+Prices NNS B-NP
+rose VBD B-VP
+while IN B-SBAR
+sales NNS B-NP
+fell VBD B-VP
+. . O
+
+The DT B-NP
+board NN I-NP
+will MD B-VP
+meet VB I-VP
+Nov. NNP B-NP
+29 CD I-NP
+. . O

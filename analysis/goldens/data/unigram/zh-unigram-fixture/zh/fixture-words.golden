@@ -1,0 +1,36 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	zh/fixture-words	157	65	145b79ca361f5108ffaa2c1a61d2d6a755a2ff624f7e32ff27a4047102ca6d48
+model	zh-unigram-fixture.txt	75fe2ae460f0a048e0978dfcf54474752aad6ecde6b64ad86bd59729f3dbce829043469e17ad929fed559bccdc1db72a358e706527316e8faf733c63ff144011
+annotator	opennlp.tools.tokenize.lattice.UnigramSegmenter	tokenizePos
+layer	opennlp:tokens	text	26	start:u32	end:u32
+0	3
+3	9
+9	15
+15	27
+28	31
+31	34
+34	40
+41	47
+47	53
+54	63
+63	66
+67	73
+73	79
+80	86
+86	92
+93	94
+94	96
+97	101
+102	114
+114	117
+117	123
+124	127
+128	134
+137	143
+144	153
+153	156
+end	opennlp:tokens

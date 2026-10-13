@@ -1,0 +1,10 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	edge/hyphens-dashes	168	152	526fcc38bf7570639c441e13ec8c185653b19dbfd9a5747df5b9408625d4b323
+annotator	opennlp.tools.sentdetect.NewlineSentenceDetector	sentPosDetect
+layer	opennlp:sentences	text	1	start:u32	end:u32
+0	167
+end	opennlp:sentences

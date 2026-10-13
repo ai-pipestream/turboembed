@@ -1,0 +1,43 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	subwords/hangul-kana-cjk	68	26	95e7d2bc09ce9d19710a54a0211922845e0b65ffbd435ffbf3382a903550df92
+model	all-minilm-l6-v2-vocab.txt	f51f06aae7f580a88998f6f7f24b52495c8d3d289fdbdc21231c05f3a8965783074d95c17b819186f9a63b622280e8a051105a2161cd0d153fa57db7a0aba9f9
+annotator	opennlp.tools.tokenize.WordpieceEncoder	encode
+config	lowerCase	true
+config	maxWordCodePoints	100
+layer	opennlp:subwords	text	31	start:u32	end:u32	id:u32
+0	3	1461
+0	3	30008
+3	6	29999
+3	6	30014
+3	6	30022
+6	9	30003
+6	9	30017
+6	9	30020
+9	12	29996
+9	12	30010
+9	12	30022
+12	15	29997
+12	15	30019
+16	19	1469
+16	19	30006
+16	19	30021
+19	22	29991
+19	22	30014
+19	22	30020
+22	25	29999
+22	25	30008
+26	29	1879
+29	32	1755
+32	35	1709
+35	38	30262
+38	41	30265
+42	45	1746
+45	48	1861
+48	51	100
+51	54	100
+55	67	100
+end	opennlp:subwords

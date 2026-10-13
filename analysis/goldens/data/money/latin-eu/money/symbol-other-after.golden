@@ -1,0 +1,16 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	money/symbol-other-after	44	32	e30d102eac72bfc6c559386c5d965cb400d67f32c488cf87515adbd8e8fb3c6f
+annotator	opennlp.tools.money.CursorMoneyExtractor	extract
+config	notation	LATIN_EU
+layer	turbo:money	text	6	start:u32	end:u32	coefficient:str	negative:u32	scale:u32	plain:str	currency:str
+0	8	15000	0	0	15000	KRW
+9	15	250	0	0	250	TRY
+16	22	300	0	0	300	THB
+23	28	40	0	0	40	ILS
+29	37	20000	0	0	20000	VND
+38	43	99	0	0	99	RUB
+end	turbo:money

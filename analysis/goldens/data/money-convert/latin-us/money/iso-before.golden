@@ -1,0 +1,15 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	money/iso-before	42	42	ed3a950e4e1b49df9a9f3d27301c029afe9fe5fb7ba19aa2360de9adc1342667
+annotator	opennlp.tools.money.EcbFxRates	convert
+config	as_of	2026-03-15
+config	notation	LATIN_US
+config	snapshot	rates/ecb-snapshot.csv
+config	target	EUR
+layer	turbo:money	text	2	start:u32	end:u32	coefficient:str	negative:u32	scale:u32	plain:str	currency:str
+0	7	9215740484747949	0	14	92.15740484747949	EUR
+22	34	1137683162842134	0	12	1137.683162842134	EUR
+end	turbo:money

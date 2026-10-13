@@ -1,0 +1,589 @@
+dump 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	edge/japanese	109	37	5ff7aca5a1372196b3373c1d868979d96627cdbc50cf30fbb78d4255f8e52a6a
+model	opennlp-fr-ud-gsd-tokens-1.3-2.5.4.bin	18e56e96eae9741935c5f54f16d3c6933e151ec550b882d2e5e1194ac02c6b1e56063843ff3805a35cf44810091674ef6bf2f080d1bc761770d8b09ee9a01277
+annotator	opennlp.tools.tokenize.TokenizerME	tokenizePos
+point	0	3	11	2	0	none
+context	p=私
+context	s=は東京に住んでいます。ひらがなとカタカナと漢字を使います。テストです！
+context	p1=私
+context	p1_alpha
+context	p2=bok
+context	p1f1=私は
+context	f1=は
+context	f1_alpha
+context	f2=東
+context	f2_alpha
+context	f12=は東
+outcome	F	3fef6adee70f6c16 0.9817957413573619
+outcome	T	3f92a4231e127d4d 0.018204258642638128
+end	0
+point	1	6	13	2	0	none
+context	p=私は
+context	s=東京に住んでいます。ひらがなとカタカナと漢字を使います。テストです！
+context	p1=は
+context	p1_alpha
+context	p2=私
+context	p2_alpha
+context	p21=私は
+context	p1f1=は東
+context	f1=東
+context	f1_alpha
+context	f2=京
+context	f2_alpha
+context	f12=東京
+outcome	F	3feea774257dcbb7 0.9579411251310067
+outcome	T	3fa588bda823448a 0.04205887486899325
+end	1
+point	2	9	13	2	0	none
+context	p=私は東
+context	s=京に住んでいます。ひらがなとカタカナと漢字を使います。テストです！
+context	p1=東
+context	p1_alpha
+context	p2=は
+context	p2_alpha
+context	p21=は東
+context	p1f1=東京
+context	f1=京
+context	f1_alpha
+context	f2=に
+context	f2_alpha
+context	f12=京に
+outcome	F	3feea774257dcbb7 0.9579411251310067
+outcome	T	3fa588bda823448a 0.04205887486899325
+end	2
+point	3	12	13	2	0	none
+context	p=私は東京
+context	s=に住んでいます。ひらがなとカタカナと漢字を使います。テストです！
+context	p1=京
+context	p1_alpha
+context	p2=東
+context	p2_alpha
+context	p21=東京
+context	p1f1=京に
+context	f1=に
+context	f1_alpha
+context	f2=住
+context	f2_alpha
+context	f12=に住
+outcome	F	3feea774257dcbb7 0.9579411251310067
+outcome	T	3fa588bda823448a 0.04205887486899325
+end	3
+point	4	15	13	2	0	none
+context	p=私は東京に
+context	s=住んでいます。ひらがなとカタカナと漢字を使います。テストです！
+context	p1=に
+context	p1_alpha
+context	p2=京
+context	p2_alpha
+context	p21=京に
+context	p1f1=に住
+context	f1=住
+context	f1_alpha
+context	f2=ん
+context	f2_alpha
+context	f12=住ん
+outcome	F	3feea774257dcbb7 0.9579411251310067
+outcome	T	3fa588bda823448a 0.04205887486899325
+end	4
+point	5	18	13	2	0	none
+context	p=私は東京に住
+context	s=んでいます。ひらがなとカタカナと漢字を使います。テストです！
+context	p1=住
+context	p1_alpha
+context	p2=に
+context	p2_alpha
+context	p21=に住
+context	p1f1=住ん
+context	f1=ん
+context	f1_alpha
+context	f2=で
+context	f2_alpha
+context	f12=んで
+outcome	F	3feea774257dcbb7 0.9579411251310067
+outcome	T	3fa588bda823448a 0.04205887486899325
+end	5
+point	6	21	13	2	0	none
+context	p=私は東京に住ん
+context	s=でいます。ひらがなとカタカナと漢字を使います。テストです！
+context	p1=ん
+context	p1_alpha
+context	p2=住
+context	p2_alpha
+context	p21=住ん
+context	p1f1=んで
+context	f1=で
+context	f1_alpha
+context	f2=い
+context	f2_alpha
+context	f12=でい
+outcome	F	3feea774257dcbb7 0.9579411251310067
+outcome	T	3fa588bda823448a 0.04205887486899325
+end	6
+point	7	24	13	2	0	none
+context	p=私は東京に住んで
+context	s=います。ひらがなとカタカナと漢字を使います。テストです！
+context	p1=で
+context	p1_alpha
+context	p2=ん
+context	p2_alpha
+context	p21=んで
+context	p1f1=でい
+context	f1=い
+context	f1_alpha
+context	f2=ま
+context	f2_alpha
+context	f12=いま
+outcome	F	3feea774257dcbb7 0.9579411251310067
+outcome	T	3fa588bda823448a 0.04205887486899325
+end	7
+point	8	27	13	2	0	none
+context	p=私は東京に住んでい
+context	s=ます。ひらがなとカタカナと漢字を使います。テストです！
+context	p1=い
+context	p1_alpha
+context	p2=で
+context	p2_alpha
+context	p21=でい
+context	p1f1=いま
+context	f1=ま
+context	f1_alpha
+context	f2=す
+context	f2_alpha
+context	f12=ます
+outcome	F	3feea774257dcbb7 0.9579411251310067
+outcome	T	3fa588bda823448a 0.04205887486899325
+end	8
+point	9	30	12	2	0	none
+context	p=私は東京に住んでいま
+context	s=す。ひらがなとカタカナと漢字を使います。テストです！
+context	p1=ま
+context	p1_alpha
+context	p2=い
+context	p2_alpha
+context	p21=いま
+context	p1f1=ます
+context	f1=す
+context	f1_alpha
+context	f2=。
+context	f12=す。
+outcome	F	3fed28cf582055a1 0.9112316819397855
+outcome	T	3fb6b9853efd52f7 0.08876831806021444
+end	9
+point	10	33	12	2	0	none
+context	p=私は東京に住んでいます
+context	s=。ひらがなとカタカナと漢字を使います。テストです！
+context	p1=す
+context	p1_alpha
+context	p2=ま
+context	p2_alpha
+context	p21=ます
+context	p1f1=す。
+context	f1=。
+context	f2=ひ
+context	f2_alpha
+context	f12=。ひ
+outcome	F	3febb91771faccaf 0.8663441873708474
+outcome	T	3fc11ba23814cd49 0.13365581262915274
+end	10
+point	11	36	12	2	0	none
+context	p=私は東京に住んでいます。
+context	s=ひらがなとカタカナと漢字を使います。テストです！
+context	p1=。
+context	p2=す
+context	p2_alpha
+context	p21=す。
+context	p1f1=。ひ
+context	f1=ひ
+context	f1_alpha
+context	f2=ら
+context	f2_alpha
+context	f12=ひら
+outcome	F	3fed69ab69251251 0.9191491178140244
+outcome	T	3fb4b2a4b6d76d7a 0.08085088218597561
+end	11
+point	12	39	12	2	0	none
+context	p=私は東京に住んでいます。ひ
+context	s=らがなとカタカナと漢字を使います。テストです！
+context	p1=ひ
+context	p1_alpha
+context	p2=。
+context	p21=。ひ
+context	p1f1=ひら
+context	f1=ら
+context	f1_alpha
+context	f2=が
+context	f2_alpha
+context	f12=らが
+outcome	F	3fee13163ebf0e1b 0.9398299432290885
+outcome	T	3faece9c140f1e4a 0.06017005677091143
+end	12
+point	13	42	13	2	0	none
+context	p=私は東京に住んでいます。ひら
+context	s=がなとカタカナと漢字を使います。テストです！
+context	p1=ら
+context	p1_alpha
+context	p2=ひ
+context	p2_alpha
+context	p21=ひら
+context	p1f1=らが
+context	f1=が
+context	f1_alpha
+context	f2=な
+context	f2_alpha
+context	f12=がな
+outcome	F	3feea774257dcbb7 0.9579411251310067
+outcome	T	3fa588bda823448a 0.04205887486899325
+end	13
+point	14	45	13	2	0	none
+context	p=私は東京に住んでいます。ひらが
+context	s=なとカタカナと漢字を使います。テストです！
+context	p1=が
+context	p1_alpha
+context	p2=ら
+context	p2_alpha
+context	p21=らが
+context	p1f1=がな
+context	f1=な
+context	f1_alpha
+context	f2=と
+context	f2_alpha
+context	f12=なと
+outcome	F	3feea774257dcbb7 0.9579411251310067
+outcome	T	3fa588bda823448a 0.04205887486899325
+end	14
+point	15	48	13	2	0	none
+context	p=私は東京に住んでいます。ひらがな
+context	s=とカタカナと漢字を使います。テストです！
+context	p1=な
+context	p1_alpha
+context	p2=が
+context	p2_alpha
+context	p21=がな
+context	p1f1=なと
+context	f1=と
+context	f1_alpha
+context	f2=カ
+context	f2_alpha
+context	f12=とカ
+outcome	F	3feea774257dcbb7 0.9579411251310067
+outcome	T	3fa588bda823448a 0.04205887486899325
+end	15
+point	16	51	13	2	0	none
+context	p=私は東京に住んでいます。ひらがなと
+context	s=カタカナと漢字を使います。テストです！
+context	p1=と
+context	p1_alpha
+context	p2=な
+context	p2_alpha
+context	p21=なと
+context	p1f1=とカ
+context	f1=カ
+context	f1_alpha
+context	f2=タ
+context	f2_alpha
+context	f12=カタ
+outcome	F	3feea774257dcbb7 0.9579411251310067
+outcome	T	3fa588bda823448a 0.04205887486899325
+end	16
+point	17	54	13	2	0	none
+context	p=私は東京に住んでいます。ひらがなとカ
+context	s=タカナと漢字を使います。テストです！
+context	p1=カ
+context	p1_alpha
+context	p2=と
+context	p2_alpha
+context	p21=とカ
+context	p1f1=カタ
+context	f1=タ
+context	f1_alpha
+context	f2=カ
+context	f2_alpha
+context	f12=タカ
+outcome	F	3feea774257dcbb7 0.9579411251310067
+outcome	T	3fa588bda823448a 0.04205887486899325
+end	17
+point	18	57	13	2	0	none
+context	p=私は東京に住んでいます。ひらがなとカタ
+context	s=カナと漢字を使います。テストです！
+context	p1=タ
+context	p1_alpha
+context	p2=カ
+context	p2_alpha
+context	p21=カタ
+context	p1f1=タカ
+context	f1=カ
+context	f1_alpha
+context	f2=ナ
+context	f2_alpha
+context	f12=カナ
+outcome	F	3feea774257dcbb7 0.9579411251310067
+outcome	T	3fa588bda823448a 0.04205887486899325
+end	18
+point	19	60	13	2	0	none
+context	p=私は東京に住んでいます。ひらがなとカタカ
+context	s=ナと漢字を使います。テストです！
+context	p1=カ
+context	p1_alpha
+context	p2=タ
+context	p2_alpha
+context	p21=タカ
+context	p1f1=カナ
+context	f1=ナ
+context	f1_alpha
+context	f2=と
+context	f2_alpha
+context	f12=ナと
+outcome	F	3feea774257dcbb7 0.9579411251310067
+outcome	T	3fa588bda823448a 0.04205887486899325
+end	19
+point	20	63	13	2	0	none
+context	p=私は東京に住んでいます。ひらがなとカタカナ
+context	s=と漢字を使います。テストです！
+context	p1=ナ
+context	p1_alpha
+context	p2=カ
+context	p2_alpha
+context	p21=カナ
+context	p1f1=ナと
+context	f1=と
+context	f1_alpha
+context	f2=漢
+context	f2_alpha
+context	f12=と漢
+outcome	F	3feea774257dcbb7 0.9579411251310067
+outcome	T	3fa588bda823448a 0.04205887486899325
+end	20
+point	21	66	13	2	0	none
+context	p=私は東京に住んでいます。ひらがなとカタカナと
+context	s=漢字を使います。テストです！
+context	p1=と
+context	p1_alpha
+context	p2=ナ
+context	p2_alpha
+context	p21=ナと
+context	p1f1=と漢
+context	f1=漢
+context	f1_alpha
+context	f2=字
+context	f2_alpha
+context	f12=漢字
+outcome	F	3feea774257dcbb7 0.9579411251310067
+outcome	T	3fa588bda823448a 0.04205887486899325
+end	21
+point	22	69	13	2	0	none
+context	p=私は東京に住んでいます。ひらがなとカタカナと漢
+context	s=字を使います。テストです！
+context	p1=漢
+context	p1_alpha
+context	p2=と
+context	p2_alpha
+context	p21=と漢
+context	p1f1=漢字
+context	f1=字
+context	f1_alpha
+context	f2=を
+context	f2_alpha
+context	f12=字を
+outcome	F	3feea774257dcbb7 0.9579411251310067
+outcome	T	3fa588bda823448a 0.04205887486899325
+end	22
+point	23	72	13	2	0	none
+context	p=私は東京に住んでいます。ひらがなとカタカナと漢字
+context	s=を使います。テストです！
+context	p1=字
+context	p1_alpha
+context	p2=漢
+context	p2_alpha
+context	p21=漢字
+context	p1f1=字を
+context	f1=を
+context	f1_alpha
+context	f2=使
+context	f2_alpha
+context	f12=を使
+outcome	F	3feea774257dcbb7 0.9579411251310067
+outcome	T	3fa588bda823448a 0.04205887486899325
+end	23
+point	24	75	13	2	0	none
+context	p=私は東京に住んでいます。ひらがなとカタカナと漢字を
+context	s=使います。テストです！
+context	p1=を
+context	p1_alpha
+context	p2=字
+context	p2_alpha
+context	p21=字を
+context	p1f1=を使
+context	f1=使
+context	f1_alpha
+context	f2=い
+context	f2_alpha
+context	f12=使い
+outcome	F	3feea774257dcbb7 0.9579411251310067
+outcome	T	3fa588bda823448a 0.04205887486899325
+end	24
+point	25	78	13	2	0	none
+context	p=私は東京に住んでいます。ひらがなとカタカナと漢字を使
+context	s=います。テストです！
+context	p1=使
+context	p1_alpha
+context	p2=を
+context	p2_alpha
+context	p21=を使
+context	p1f1=使い
+context	f1=い
+context	f1_alpha
+context	f2=ま
+context	f2_alpha
+context	f12=いま
+outcome	F	3feea774257dcbb7 0.9579411251310067
+outcome	T	3fa588bda823448a 0.04205887486899325
+end	25
+point	26	81	13	2	0	none
+context	p=私は東京に住んでいます。ひらがなとカタカナと漢字を使い
+context	s=ます。テストです！
+context	p1=い
+context	p1_alpha
+context	p2=使
+context	p2_alpha
+context	p21=使い
+context	p1f1=いま
+context	f1=ま
+context	f1_alpha
+context	f2=す
+context	f2_alpha
+context	f12=ます
+outcome	F	3feea774257dcbb7 0.9579411251310067
+outcome	T	3fa588bda823448a 0.04205887486899325
+end	26
+point	27	84	12	2	0	none
+context	p=私は東京に住んでいます。ひらがなとカタカナと漢字を使いま
+context	s=す。テストです！
+context	p1=ま
+context	p1_alpha
+context	p2=い
+context	p2_alpha
+context	p21=いま
+context	p1f1=ます
+context	f1=す
+context	f1_alpha
+context	f2=。
+context	f12=す。
+outcome	F	3fed28cf582055a1 0.9112316819397855
+outcome	T	3fb6b9853efd52f7 0.08876831806021444
+end	27
+point	28	87	12	2	0	none
+context	p=私は東京に住んでいます。ひらがなとカタカナと漢字を使います
+context	s=。テストです！
+context	p1=す
+context	p1_alpha
+context	p2=ま
+context	p2_alpha
+context	p21=ます
+context	p1f1=す。
+context	f1=。
+context	f2=テ
+context	f2_alpha
+context	f12=。テ
+outcome	F	3febb91771faccaf 0.8663441873708474
+outcome	T	3fc11ba23814cd49 0.13365581262915274
+end	28
+point	29	90	12	2	0	none
+context	p=私は東京に住んでいます。ひらがなとカタカナと漢字を使います。
+context	s=テストです！
+context	p1=。
+context	p2=す
+context	p2_alpha
+context	p21=す。
+context	p1f1=。テ
+context	f1=テ
+context	f1_alpha
+context	f2=ス
+context	f2_alpha
+context	f12=テス
+outcome	F	3fed69ab69251251 0.9191491178140244
+outcome	T	3fb4b2a4b6d76d7a 0.08085088218597561
+end	29
+point	30	93	12	2	0	none
+context	p=私は東京に住んでいます。ひらがなとカタカナと漢字を使います。テ
+context	s=ストです！
+context	p1=テ
+context	p1_alpha
+context	p2=。
+context	p21=。テ
+context	p1f1=テス
+context	f1=ス
+context	f1_alpha
+context	f2=ト
+context	f2_alpha
+context	f12=スト
+outcome	F	3fee13163ebf0e1b 0.9398299432290885
+outcome	T	3faece9c140f1e4a 0.06017005677091143
+end	30
+point	31	96	13	2	0	none
+context	p=私は東京に住んでいます。ひらがなとカタカナと漢字を使います。テス
+context	s=トです！
+context	p1=ス
+context	p1_alpha
+context	p2=テ
+context	p2_alpha
+context	p21=テス
+context	p1f1=スト
+context	f1=ト
+context	f1_alpha
+context	f2=で
+context	f2_alpha
+context	f12=トで
+outcome	F	3feea774257dcbb7 0.9579411251310067
+outcome	T	3fa588bda823448a 0.04205887486899325
+end	31
+point	32	99	13	2	0	none
+context	p=私は東京に住んでいます。ひらがなとカタカナと漢字を使います。テスト
+context	s=です！
+context	p1=ト
+context	p1_alpha
+context	p2=ス
+context	p2_alpha
+context	p21=スト
+context	p1f1=トで
+context	f1=で
+context	f1_alpha
+context	f2=す
+context	f2_alpha
+context	f12=です
+outcome	F	3feea774257dcbb7 0.9579411251310067
+outcome	T	3fa588bda823448a 0.04205887486899325
+end	32
+point	33	102	12	2	0	none
+context	p=私は東京に住んでいます。ひらがなとカタカナと漢字を使います。テストで
+context	s=す！
+context	p1=で
+context	p1_alpha
+context	p2=ト
+context	p2_alpha
+context	p21=トで
+context	p1f1=です
+context	f1=す
+context	f1_alpha
+context	f2=！
+context	f12=す！
+outcome	F	3fed28cf582055a1 0.9112316819397855
+outcome	T	3fb6b9853efd52f7 0.08876831806021444
+end	33
+point	34	105	10	2	0	none
+context	p=私は東京に住んでいます。ひらがなとカタカナと漢字を使います。テストです
+context	s=！
+context	p1=す
+context	p1_alpha
+context	p2=で
+context	p2_alpha
+context	p21=です
+context	p1f1=す！
+context	f1=！
+context	f2=bok
+outcome	F	3fe8c103b5a6dbea 0.7735613391768059
+outcome	T	3fccfbf12964905b 0.22643866082319417
+end	34

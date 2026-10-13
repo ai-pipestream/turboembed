@@ -1,0 +1,11 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	money/text-russian	93	61	492d06455786827bca5ae59dd5618ec99e622f5b585ee74cc2dd3b73b67afdae
+annotator	opennlp.tools.money.CursorMoneyExtractor	extract
+config	notation	LATIN_EU
+layer	turbo:money	text	1	start:u32	end:u32	coefficient:str	negative:u32	scale:u32	plain:str	currency:str
+83	91	1200	0	0	1200	RUB
+end	turbo:money

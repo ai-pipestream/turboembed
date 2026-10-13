@@ -1,10 +1,9 @@
 package ai.pipestream.turbo.goldens;
 
-import java.io.ByteArrayInputStream;
 import java.io.IOException;
-import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
+import java.util.Set;
 import opennlp.tools.langdetect.Language;
 import opennlp.tools.langdetect.LanguageDetectorME;
 import opennlp.tools.langdetect.LanguageDetectorModel;
@@ -18,18 +17,19 @@ final class LanguageGolden implements AnnotatorGolden {
   private final ModelRef model;
   private final LanguageDetectorModel loaded;
   private final LanguageDetectorME detector;
+  private final Set<String> inputSets;
 
-  private LanguageGolden(ModelRef model, LanguageDetectorModel loaded) {
+  private LanguageGolden(ModelRef model, LanguageDetectorModel loaded, Set<String> inputSets) {
     this.model = model;
     this.loaded = loaded;
     this.detector = new LanguageDetectorME(loaded);
+    this.inputSets = Set.copyOf(inputSets);
   }
 
   /** Loads the language detector model from {@code file}, hashing exactly the bytes loaded. */
-  static LanguageGolden load(Path file) throws IOException {
-    byte[] bytes = Files.readAllBytes(file);
-    LanguageDetectorModel m = new LanguageDetectorModel(new ByteArrayInputStream(bytes));
-    return new LanguageGolden(new ModelRef(file.getFileName().toString(), Sha.sha512(bytes)), m);
+  static LanguageGolden load(Path file, Set<String> inputSets) throws IOException {
+    ModelFile f = ModelFile.read(file);
+    return new LanguageGolden(f.ref(), new LanguageDetectorModel(f.stream()), inputSets);
   }
 
   /** The loaded model, which {@link LanguageDump} builds its recording model from. */
@@ -58,13 +58,18 @@ final class LanguageGolden implements AnnotatorGolden {
   }
 
   @Override
-  public List<Layer> layers(Input input) {
+  public Set<String> inputSets() {
+    return inputSets;
+  }
+
+  @Override
+  public List<Layer> layers(Input input) throws AnnotatorException {
     return layers(detector, input);
   }
 
   /** The layers {@code detector} produces for the input; {@link LanguageDump} runs it on its recording detector. */
-  static List<Layer> layers(LanguageDetectorME detector, Input input) {
-    Language[] languages = detector.predictLanguages(input.text());
+  static List<Layer> layers(LanguageDetectorME detector, Input input) throws AnnotatorException {
+    Language[] languages = AnnotatorException.call(() -> detector.predictLanguages(input.text()));
     String[] codes = new String[languages.length];
     double[] confidences = new double[languages.length];
     for (int i = 0; i < languages.length; i++) {

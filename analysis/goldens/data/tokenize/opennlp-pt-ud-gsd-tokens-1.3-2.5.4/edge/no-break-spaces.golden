@@ -1,0 +1,38 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	edge/no-break-spaces	92	77	28744c64ca548f1b96f0de0d90ef4a9ce78d2992e8d9f219426ef9e46f1e06fe
+model	opennlp-pt-ud-gsd-tokens-1.3-2.5.4.bin	6ff66aec4835e9d5caeeb50a2e70bd673840ef6219fe1dc4018c8f9999b21b959c52fdac68844a0934bbcd77346743627f728fb9c99b7ca468e795fc5291c3bb
+annotator	opennlp.tools.tokenize.TokenizerME	tokenizePos
+layer	opennlp:tokens	text	13	start:u32	end:u32
+0	2
+4	9
+10	15
+16	19
+22	33
+34	39
+42	48
+51	57
+60	62
+65	74
+75	80
+83	87
+88	91
+end	opennlp:tokens
+layer	turbo:confidence<opennlp:tokens>	aligned:opennlp:tokens	13	value:f64
+3fefffff0ec77594 0.9999995506911312
+3fefdc8f52fefb97 0.9956738110557691
+3fefffa675416786 0.9999573030611237
+3feff977f5499a1b 0.9992027083179126
+3feff1525120e7a2 0.9982081970731438
+3fefffa675416786 0.9999573030611237
+3fefffb8ee70c720 0.9999661118547216
+3feff165576f7aaa 0.9982172687267241
+3feffe68d58afae9 0.9998058481940834
+3feffc004449598c 0.9995118459435601
+3feff715088a0e09 0.9989113966734645
+3feffdc6a5608868 0.9997285108586427
+3feff6e29a822244 0.9988873498669553
+end	turbo:confidence<opennlp:tokens>

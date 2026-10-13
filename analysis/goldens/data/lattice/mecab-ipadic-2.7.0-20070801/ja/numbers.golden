@@ -1,0 +1,61 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	ja/numbers	75	39	a2e8020cbab4617aef9d557995b90a86870e7c9758368314122ba56228ea47b7
+model	mecab-ipadic-2.7.0-20070801	0bd4d8717d4fd657ceadec1b0860f1fa17133cd3786e083fe164800e6415b62a5937184dad262ef13df49edae7ddcee5aaefc01297f4ea9c051520f551d606e4
+model	mecab-ipadic-2.7.0-20070801.utf8	52afb518f4a9e347196ef3c2a5f6792e92dc4c67b1bd990e32a82815cd574bcc415f0925178658c855a47725f915bdac49730cfb8e837a7cb1bce2bd91ec77da
+annotator	opennlp.tools.tokenize.lattice.LatticeTokenizer	analyze
+layer	opennlp:tokens	text	24	start:u32	end:u32
+0	3
+3	6
+6	9
+9	12
+13	16
+16	19
+19	22
+22	25
+25	28
+29	33
+33	36
+36	38
+38	41
+41	43
+43	46
+47	50
+50	53
+54	63
+64	65
+65	66
+66	69
+69	70
+70	71
+71	74
+end	opennlp:tokens
+layer	turbo:morphemes	aligned:opennlp:tokens	24	unknown:u32	features:str
+0	名詞,数,*,*,*,*,一,イチ,イチ
+0	名詞,数,*,*,*,*,二,ニ,ニ
+0	名詞,数,*,*,*,*,三,サン,サン
+0	名詞,数,*,*,*,*,十,ジュウ,ジュー
+0	名詞,数,*,*,*,*,二,ニ,ニ
+0	名詞,数,*,*,*,*,〇,レイ,レイ
+0	名詞,数,*,*,*,*,二,ニ,ニ
+0	名詞,数,*,*,*,*,六,ロク,ロク
+0	名詞,接尾,助数詞,*,*,*,年,ネン,ネン
+1	名詞,数,*,*,*,*,*
+0	名詞,接尾,助数詞,*,*,*,年,ネン,ネン
+1	名詞,数,*,*,*,*,*
+0	名詞,一般,*,*,*,*,月,ツキ,ツキ
+1	名詞,数,*,*,*,*,*
+0	名詞,接尾,助数詞,*,*,*,日,ニチ,ニチ
+0	名詞,数,*,*,*,*,３,サン,サン
+0	名詞,接尾,助数詞,*,*,*,時,ジ,ジ
+0	名詞,副詞可能,*,*,*,*,十二月,ジュウニガツ,ジューニガツ
+1	名詞,数,*,*,*,*,*
+1	名詞,サ変接続,*,*,*,*,*
+1	名詞,数,*,*,*,*,*
+1	名詞,サ変接続,*,*,*,*,*
+1	名詞,数,*,*,*,*,*
+0	名詞,接尾,助数詞,*,*,*,円,エン,エン
+end	turbo:morphemes

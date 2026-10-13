@@ -8,18 +8,25 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
+import java.util.function.Function;
 import java.util.stream.Stream;
 
 /**
  * Writes every golden for every input, and with {@code --dumps} every decision point dump too.
  *
- * <p>Usage: {@code <inputs dir> <models dir> <out dir> <opennlp commit> [--dumps]}. The inputs
- * directory holds one directory per input set, each holding {@code <id>.txt} files. The models
- * directory holds the model files named below. The output directory must be empty or absent; it
- * receives {@code <annotator>/<model>/<set>/<id>.golden} for each annotator and input, and with
- * {@code --dumps} {@code <annotator>/<model>/<set>/<id>.dump} beside it, written in sorted order
- * of their paths. The commit is the 40 hex digit commit the OpenNLP runtime was built from, which
- * the jar does not record itself.</p>
+ * <p>Usage: {@code <inputs dir> <models dir> <fixtures dir> <out dir> <opennlp commit> [--dumps]}.
+ * The inputs directory holds one directory per input set, each holding {@code <id>.txt} files.
+ * The models directory holds the published model files and the fixtures directory the checked in
+ * ones, named in {@link Runs}. The output directory must be empty or absent; it receives
+ * {@code <annotator>/<model>/<set>/<id>.golden} for each annotator run and input it runs on, and
+ * with {@code --dumps} {@code <annotator>/<model>/<set>/<id>.dump} beside the golden of each run
+ * that asks a maxent model, written in sorted order of their paths. The commit is the 40 hex
+ * digit commit the OpenNLP runtime was built from, which the jar does not record itself. Every
+ * input must be one that at least one run takes.</p>
+ *
+ * <p>When the OpenNLP annotator throws on an input, its golden holds the header, the
+ * {@code config} records and an {@code error} record with the exception's class and message, and
+ * no layers; that input has no dump. Any other exception stops the generator.</p>
  *
  * <p>A dump comes from a second instance of the annotator built over a recording model
  * ({@link AnnotatorDump}). The layers that instance produces must equal the golden byte for byte,
@@ -27,64 +34,94 @@ import java.util.stream.Stream;
  */
 public final class Main {
 
-  /** The model files the generator loads from the models directory. */
-  static final String SENTENCE_MODEL = "opennlp-en-ud-ewt-sentence-1.3-2.5.4.bin";
-  static final String TOKEN_MODEL = "opennlp-en-ud-ewt-tokens-1.3-2.5.4.bin";
-  static final String LANGUAGE_MODEL = "langdetect-183.bin";
-
   /** The option that adds the decision point dumps. */
   static final String DUMPS_OPTION = "--dumps";
 
   private Main() {}
 
   public static void main(String[] args) throws IOException {
-    boolean dumps = args.length == 5 && args[4].equals(DUMPS_OPTION);
-    if (args.length != 4 && !dumps) {
-      System.err.println("usage: turbo-goldens-java <inputs dir> <models dir> <out dir> <opennlp commit> ["
+    boolean dumps = args.length == 6 && args[5].equals(DUMPS_OPTION);
+    if (args.length != 5 && !dumps) {
+      System.err.println("usage: turbo-goldens-java <inputs dir> <models dir> <fixtures dir> <out dir> <opennlp commit> ["
           + DUMPS_OPTION + "]");
       System.exit(2);
     }
     Path inputs = Path.of(args[0]);
     Path models = Path.of(args[1]);
-    Path out = Path.of(args[2]);
-    String commit = args[3];
+    Path fixtures = Path.of(args[2]);
+    Path out = Path.of(args[3]);
+    String commit = args[4];
     if (!commit.matches("[0-9a-f]{40}")) {
       throw new IllegalArgumentException("the OpenNLP commit must be 40 lowercase hex digits: " + commit);
     }
     Jdk jdk = Jdk.current();
     String version = OpennlpVersion.read();
-    SentenceGolden sentences = SentenceGolden.load(models.resolve(SENTENCE_MODEL));
-    TokenGolden tokens = TokenGolden.load(models.resolve(TOKEN_MODEL));
-    LanguageGolden languages = LanguageGolden.load(models.resolve(LANGUAGE_MODEL));
-    List<AnnotatorGolden> annotators = List.of(sentences, tokens, languages);
-    List<AnnotatorDump> recorders = dumps
-        ? List.of(SentenceDump.of(sentences), TokenDump.of(tokens), LanguageDump.of(languages))
-        : List.of();
+    Path snapshot =
+        inputs.toAbsolutePath().resolveSibling(MoneyGolden.SNAPSHOT_DIR).resolve(MoneyGolden.SNAPSHOT_FILE);
+    Runs.All runs = Runs.load(models, fixtures, snapshot);
+    List<AnnotatorDump> recorders = dumps ? runs.recorders() : List.of();
 
     Map<Path, byte[]> files = new TreeMap<>();
     for (Input input : readInputs(inputs)) {
-      for (AnnotatorGolden a : annotators) {
-        files.put(path(a, input, ".golden"), GoldenWriter.write(header(commit, version, jdk, input, a), a.layers(input)));
+      if (runs.annotators().stream().noneMatch(a -> a.accepts(input))) {
+        throw new IllegalStateException("no annotator runs on the input " + input.inputId());
       }
-      for (AnnotatorDump d : recorders) {
-        AnnotatorGolden a = d.golden();
-        Header h = header(commit, version, jdk, input, a);
-        AnnotatorDump.Run run = d.run(input);
-        Path golden = path(a, input, ".golden");
-        if (!Arrays.equals(files.get(golden), GoldenWriter.write(h, run.layers()))) {
-          throw new IllegalStateException(golden + ": the annotator over the recording model produced other layers"
-              + " than the plain one");
-        }
-        files.put(path(a, input, ".dump"), DumpWriter.write(h, run.outcomeLabels(), run.points()));
-      }
+      generate(input, runs.annotators(), recorders, a -> header(commit, version, jdk, input, a), files);
     }
     write(out, files);
     System.out.println("wrote " + files.size() + " files to " + out);
   }
 
+  /**
+   * Adds to {@code files} the golden of every annotator that accepts the input and the dump of
+   * every recorder whose annotator does. An annotator that throws on the input gets a golden with
+   * an {@code error} record and no dump; the recording annotator must throw the same exception.
+   * Any exception other than the annotator's own ({@link AnnotatorException}) is not caught.
+   */
+  static void generate(Input input, List<AnnotatorGolden> annotators, List<AnnotatorDump> recorders,
+      Function<AnnotatorGolden, Header> headers, Map<Path, byte[]> files) {
+    for (AnnotatorGolden a : annotators) {
+      if (a.accepts(input)) {
+        files.put(path(a, input, ".golden"), golden(headers.apply(a), a, input));
+      }
+    }
+    for (AnnotatorDump d : recorders) {
+      AnnotatorGolden a = d.golden();
+      if (!a.accepts(input)) {
+        continue;
+      }
+      Header h = headers.apply(a);
+      Path golden = path(a, input, ".golden");
+      AnnotatorDump.Run run;
+      try {
+        run = d.run(input);
+      } catch (AnnotatorException e) {
+        if (!Arrays.equals(files.get(golden), GoldenWriter.writeError(h, e))) {
+          throw new IllegalStateException(golden + ": the annotator over the recording model threw "
+              + e.exceptionClass() + " where the plain one did not throw the same", e);
+        }
+        continue;
+      }
+      if (!Arrays.equals(files.get(golden), GoldenWriter.write(h, run.layers()))) {
+        throw new IllegalStateException(golden + ": the annotator over the recording model produced other layers"
+            + " than the plain one");
+      }
+      files.put(path(a, input, ".dump"), DumpWriter.write(h, run.outcomeLabels(), run.points()));
+    }
+  }
+
+  /** The golden of one annotator on one input: its layers, or the error record when it threw. */
+  static byte[] golden(Header h, AnnotatorGolden a, Input input) {
+    try {
+      return GoldenWriter.write(h, a.layers(input));
+    } catch (AnnotatorException e) {
+      return GoldenWriter.writeError(h, e);
+    }
+  }
+
   private static Header header(String commit, String version, Jdk jdk, Input input, AnnotatorGolden a) {
     return new Header(commit, version, jdk, input.inputId(), input.bytes().length, input.text().length(),
-        Sha.sha256(input.bytes()), a.models(), a.annotatorClass(), a.method());
+        Sha.sha256(input.bytes()), a.models(), a.annotatorClass(), a.method(), a.config());
   }
 
   /** {@code <annotator>/<model>/<set>/<id><extension>}. */

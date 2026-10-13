@@ -1,0 +1,34 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	edge/control-separators	14	14	4b8b0f0cf5b626b1f4d744c04f4396cb1a1b1d6684f1a13c3cae82102d1b807a
+model	mecab-fixture-ja	a8bffe24e9415d6dc5a776ce62077641f72653c99e032a6a53c1ee6fcb5f5cba28b0b5d5c79ea25f7eac1727f9243fccb47eb053180438daef072ac6bafac3bb
+annotator	opennlp.tools.tokenize.lattice.LatticeTokenizer	analyze
+layer	opennlp:tokens	text	11	start:u32	end:u32
+0	1
+1	2
+2	3
+3	4
+4	5
+5	6
+6	7
+7	8
+8	9
+10	11
+12	13
+end	opennlp:tokens
+layer	turbo:morphemes	aligned:opennlp:tokens	11	unknown:u32	features:str
+1	名詞,固有名詞,*,*
+1	記号,一般,*,*
+1	名詞,固有名詞,*,*
+1	記号,一般,*,*
+1	名詞,固有名詞,*,*
+1	記号,一般,*,*
+1	名詞,固有名詞,*,*
+1	記号,一般,*,*
+1	名詞,固有名詞,*,*
+1	名詞,固有名詞,*,*
+1	名詞,固有名詞,*,*
+end	turbo:morphemes

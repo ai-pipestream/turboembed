@@ -2,10 +2,11 @@
 //! its columns and the golden's side by side; the columns match the
 //! table in docs/analysis.md, "Golden files".
 
-use std::slice;
-
 use turbo_analysis::{Layer, ViewId};
-use turbo_analysis_layers::{Confidence, Entities, Language, Lemmas, PosTags, Sentences, Tokens, Utf16Spans};
+use turbo_analysis_layers::{
+    Confidence, Entities, Language, Lemmas, Money, Numbers, PosTags, Quantities, Sentences, Strs, Subwords, Tokens,
+    Utf16Spans,
+};
 
 use super::{CutCol, Items, Labels, Names, SpanCols, TokenCols, UnitCols, compare_items};
 use super::{Cx, GoldenCompare, Mismatch, Tolerance};
@@ -242,22 +243,20 @@ impl GoldenCompare for Entities {
 impl GoldenCompare for Language {
     const COLUMNS: &'static [ColumnSpec] = &[ColumnSpec::new("code", Str), ColumnSpec::new("confidence", F64)];
 
-    /// The Rust layer holds the best language; the golden lists every
-    /// language the detector ranked, best first, so the Rust layer is
-    /// compared with row 0: the code, then the confidence (the Rust
-    /// layer's `score`).
+    /// Row by row, best first: the code, then the confidence (the Rust
+    /// layer's `score`), so the ranking must be the golden's.
     fn compare(&self, cx: &Cx<'_>, golden: &GoldenLayer, tol: Tolerance) -> Result<(), Mismatch> {
         let rust = Items {
-            len: 1,
+            len: self.code.len(),
             spans: None,
             context: None,
             tokens: None,
             units: None,
-            labels: Some(Labels::One(&self.code)),
-            values: Some(slice::from_ref(&self.score)),
+            labels: Some(Labels::Strs(&self.code)),
+            values: Some(&self.score),
         };
         let golden = Items {
-            len: golden.len().min(1),
+            len: golden.len(),
             spans: None,
             context: None,
             tokens: None,
@@ -266,5 +265,228 @@ impl GoldenCompare for Language {
             values: Some(f64s(golden, "confidence")),
         };
         compare_items(cx, &rust, &golden, Names { label: Some("code"), value: Some("confidence") }, tol)
+    }
+}
+
+impl GoldenCompare for Subwords {
+    const COLUMNS: &'static [ColumnSpec] = &[SPAN[0], SPAN[1], ColumnSpec::new("id", U32)];
+
+    /// The span, then the vocabulary id, compared as decimal text so a
+    /// report shows both. The golden has no token column: the pieces'
+    /// word tokens are this crate's own alignment, not the JVM's.
+    fn compare(&self, cx: &Cx<'_>, golden: &GoldenLayer, tol: Tolerance) -> Result<(), Mismatch> {
+        let mut ours = Strs::default();
+        for id in &self.ids {
+            ours.push(&id.to_string());
+        }
+        let mut theirs = Strs::default();
+        for id in u32s(golden, "id") {
+            theirs.push(&id.to_string());
+        }
+        let mut rust = spans_only(self);
+        rust.labels = Some(Labels::Strs(&ours));
+        let mut golden = golden_spans_only(golden);
+        golden.labels = Some(Labels::Strs(&theirs));
+        compare_items(cx, &rust, &golden, Names { label: Some("id"), value: None }, tol)
+    }
+}
+
+impl GoldenCompare for Numbers {
+    const COLUMNS: &'static [ColumnSpec] = &[
+        SPAN[0],
+        SPAN[1],
+        ColumnSpec::new("numeral_end", U32),
+        ColumnSpec::new("negative", U32),
+        ColumnSpec::new("coefficient", Str),
+        ColumnSpec::new("scale", U32),
+        ColumnSpec::new("plain", Str),
+    ];
+
+    /// The span first, then the rest of each row as one label: the value as
+    /// `BigDecimal.toPlainString` writes it, where the numeral ends, the sign
+    /// and the coefficient and scale. A report shows both rows whole.
+    fn compare(&self, cx: &Cx<'_>, golden: &GoldenLayer, tol: Tolerance) -> Result<(), Mismatch> {
+        let mut ours = Strs::default();
+        let mut line = String::new();
+        for i in 0..self.len() {
+            let ix = turbo_analysis::Ix::new(i as u32);
+            line.clear();
+            self.value(ix).write_plain(&mut line);
+            let rest = format!(
+                " numeral_end {} negative {} coefficient {} scale {}",
+                self.numeral_end[i],
+                u32::from(self.negative[i]),
+                self.coefficient.get(i),
+                self.scale[i]
+            );
+            line.push_str(&rest);
+            ours.push(&line);
+        }
+        let (numeral_end, negative, scale) =
+            (u32s(golden, "numeral_end"), u32s(golden, "negative"), u32s(golden, "scale"));
+        let (coefficient, plain) = (golden.strs("coefficient"), golden.strs("plain"));
+        let (coefficient, plain) = (coefficient.expect("a str column"), plain.expect("a str column"));
+        let mut theirs = Strs::default();
+        for i in 0..golden.len() {
+            theirs.push(&format!(
+                "{} numeral_end {} negative {} coefficient {} scale {}",
+                plain.get(i),
+                numeral_end[i],
+                negative[i],
+                coefficient.get(i),
+                scale[i]
+            ));
+        }
+        let mut rust = spans_only(self);
+        rust.labels = Some(Labels::Strs(&ours));
+        let golden = Items {
+            len: golden.len(),
+            spans: Some(golden_spans(golden)),
+            context: None,
+            tokens: None,
+            units: None,
+            labels: Some(Labels::Strs(&theirs)),
+            values: None,
+        };
+        compare_items(cx, &rust, &golden, Names { label: Some("value"), value: None }, tol)
+    }
+}
+
+impl GoldenCompare for Money {
+    const COLUMNS: &'static [ColumnSpec] = &[
+        SPAN[0],
+        SPAN[1],
+        ColumnSpec::new("coefficient", Str),
+        ColumnSpec::new("negative", U32),
+        ColumnSpec::new("scale", U32),
+        ColumnSpec::new("plain", Str),
+        ColumnSpec::new("currency", Str),
+    ];
+
+    /// The span first, then the rest of each row as one label: the amount
+    /// as `BigDecimal.toPlainString` writes it, the sign, the coefficient
+    /// and scale, and the currency. The goldens write an amount with a
+    /// scale below zero (`2E+1`) with scale 0, so ours is written the same
+    /// way: the coefficient followed by that many zeros.
+    fn compare(&self, cx: &Cx<'_>, golden: &GoldenLayer, tol: Tolerance) -> Result<(), Mismatch> {
+        let mut ours = Strs::default();
+        let mut line = String::new();
+        for i in 0..self.len() {
+            let ix = turbo_analysis::Ix::new(i as u32);
+            let amount = self.amount(ix);
+            line.clear();
+            amount.write_plain(&mut line);
+            line.push_str(" negative ");
+            line.push_str(if amount.negative { "1" } else { "0" });
+            line.push_str(" coefficient ");
+            line.push_str(amount.digits);
+            let scale = if amount.scale < 0 {
+                if amount.digits != "0" {
+                    line.extend(std::iter::repeat_n('0', amount.scale.unsigned_abs() as usize));
+                }
+                0
+            } else {
+                amount.scale
+            };
+            line.push_str(&format!(" scale {scale} currency {}", self.currency[i]));
+            ours.push(&line);
+        }
+        let (negative, scale) = (u32s(golden, "negative"), u32s(golden, "scale"));
+        let (coefficient, plain, currency) =
+            (golden.strs("coefficient"), golden.strs("plain"), golden.strs("currency"));
+        let (coefficient, plain, currency) =
+            (coefficient.expect("a str column"), plain.expect("a str column"), currency.expect("a str column"));
+        let mut theirs = Strs::default();
+        for i in 0..golden.len() {
+            theirs.push(&format!(
+                "{} negative {} coefficient {} scale {} currency {}",
+                plain.get(i),
+                negative[i],
+                coefficient.get(i),
+                scale[i],
+                currency.get(i)
+            ));
+        }
+        let mut rust = spans_only(self);
+        rust.labels = Some(Labels::Strs(&ours));
+        let golden = Items {
+            len: golden.len(),
+            spans: Some(golden_spans(golden)),
+            context: None,
+            tokens: None,
+            units: None,
+            labels: Some(Labels::Strs(&theirs)),
+            values: None,
+        };
+        compare_items(cx, &rust, &golden, Names { label: Some("value"), value: None }, tol)
+    }
+}
+
+impl GoldenCompare for Quantities {
+    const COLUMNS: &'static [ColumnSpec] = &[
+        SPAN[0],
+        SPAN[1],
+        ColumnSpec::new("coefficient", Str),
+        ColumnSpec::new("negative", U32),
+        ColumnSpec::new("scale", U32),
+        ColumnSpec::new("plain", Str),
+        ColumnSpec::new("unit", Str),
+    ];
+
+    /// The span first, then the rest of each row as one label: the value
+    /// as `BigDecimal.toPlainString` writes it, the sign, the coefficient
+    /// and scale, and the unit. As for money, a value with a scale below
+    /// zero is written with scale 0, the coefficient followed by that many
+    /// zeros; a value read from text has none.
+    fn compare(&self, cx: &Cx<'_>, golden: &GoldenLayer, tol: Tolerance) -> Result<(), Mismatch> {
+        let mut ours = Strs::default();
+        let mut line = String::new();
+        for i in 0..self.len() {
+            let ix = turbo_analysis::Ix::new(i as u32);
+            let value = self.value(ix);
+            line.clear();
+            value.write_plain(&mut line);
+            line.push_str(" negative ");
+            line.push_str(if value.negative { "1" } else { "0" });
+            line.push_str(" coefficient ");
+            line.push_str(value.digits);
+            let scale = if value.scale < 0 {
+                if value.digits != "0" {
+                    line.extend(std::iter::repeat_n('0', value.scale.unsigned_abs() as usize));
+                }
+                0
+            } else {
+                value.scale
+            };
+            line.push_str(&format!(" scale {scale} unit {}", self.unit(ix)));
+            ours.push(&line);
+        }
+        let (negative, scale) = (u32s(golden, "negative"), u32s(golden, "scale"));
+        let (coefficient, plain, unit) = (golden.strs("coefficient"), golden.strs("plain"), golden.strs("unit"));
+        let (coefficient, plain, unit) =
+            (coefficient.expect("a str column"), plain.expect("a str column"), unit.expect("a str column"));
+        let mut theirs = Strs::default();
+        for i in 0..golden.len() {
+            theirs.push(&format!(
+                "{} negative {} coefficient {} scale {} unit {}",
+                plain.get(i),
+                negative[i],
+                coefficient.get(i),
+                scale[i],
+                unit.get(i)
+            ));
+        }
+        let mut rust = spans_only(self);
+        rust.labels = Some(Labels::Strs(&ours));
+        let golden = Items {
+            len: golden.len(),
+            spans: Some(golden_spans(golden)),
+            context: None,
+            tokens: None,
+            units: None,
+            labels: Some(Labels::Strs(&theirs)),
+            values: None,
+        };
+        compare_items(cx, &rust, &golden, Names { label: Some("value"), value: None }, tol)
     }
 }
