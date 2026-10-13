@@ -27,7 +27,7 @@ fn annotator_files(annotator: &str, ext: &str) -> Vec<PathBuf> {
     out
 }
 
-const SEGMENTATION: [&str; 3] = ["tokenize", "sentdetect", "detokenize"];
+const SEGMENTATION: [&str; 4] = ["tokenize", "sentdetect", "detokenize", "unigram"];
 
 #[test]
 fn every_segmentation_golden_reads_and_writes_back_its_bytes() {
@@ -42,8 +42,8 @@ fn every_segmentation_golden_reads_and_writes_back_its_bytes() {
             n += 1;
         }
     }
-    // 779 tokenize, 260 sentdetect and 19 detokenize goldens.
-    assert_eq!(n, 1058);
+    // 779 tokenize, 260 sentdetect, 19 detokenize and 264 unigram goldens.
+    assert_eq!(n, 1322);
 }
 
 #[test]
