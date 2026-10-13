@@ -17,3 +17,11 @@ turbo = { path = "../../core" }
 turbo-jvm = { path = "../jvm" }
 serde = { version = "1", features = ["derive"] }
 serde_json = { version = "1", features = ["float_roundtrip"] }
+# SHA-256 of the set files, and lower case hex.
+turbo-goldens = { path = "../goldens" }
+# Fetching the set files. The same version turbo-bundle and turbo-bench
+# use; it reads HTTPS_PROXY from the environment.
+ureq = "3"
+# Qasper is published as a gzip tar. flate2 is already in the build
+# through ureq's gzip support, so this adds no crate.
+flate2 = "1"

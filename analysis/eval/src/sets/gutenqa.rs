@@ -1,0 +1,30 @@
+//! GutenQA: questions over 100 Project Gutenberg books cut into chunks by
+//! LumberChunker, each with the passage its answer is in.
+//!
+//! The tables are published as Parquet, which nothing in the workspace
+//! reads. Fetching gets the Parquet files (once their digests are
+//! recorded); the reader reads each one's rows as JSON Lines beside it,
+//! with the same name and `.jsonl`, which have to be written from the
+//! Parquet outside this crate.
+
+use super::{Digest, RemoteFile, Set, Source, SpanUnit};
+use crate::read::gutenqa;
+
+pub const SET: Set = Set {
+    name: "gutenqa",
+    license: "MIT, as the dataset card states it; the books are public domain texts from Project Gutenberg",
+    source: Source::Files(&[
+        RemoteFile {
+            path: "gutenqa_chunks.parquet",
+            url: "https://huggingface.co/datasets/LumberChunker/GutenQA/resolve/5f0f6f10d92a819f8efac7c10c0c983033bbe430/gutenqa_chunks.parquet",
+            sha256: Digest::NotRecorded,
+        },
+        RemoteFile {
+            path: "questions.parquet",
+            url: "https://huggingface.co/datasets/LumberChunker/GutenQA/resolve/5f0f6f10d92a819f8efac7c10c0c983033bbe430/questions.parquet",
+            sha256: Digest::NotRecorded,
+        },
+    ]),
+    span_unit: Some(SpanUnit::QuotedText),
+    read: gutenqa::read,
+};

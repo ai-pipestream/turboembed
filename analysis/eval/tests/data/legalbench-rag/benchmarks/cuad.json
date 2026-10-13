@@ -1,0 +1,30 @@
+{
+  "tests": [
+    {
+      "query": "What royalties does the Licensee pay?",
+      "snippets": [
+        {
+          "file_path": "cuad/Café contract.txt",
+          "span": [
+            43,
+            71
+          ],
+          "answer": "shall pay 😀 royalties of 5%."
+        }
+      ],
+      "tags": []
+    },
+    {
+      "query": "How can the agreement be terminated?",
+      "snippets": [
+        {
+          "file_path": "cuad/Café contract.txt",
+          "span": [
+            85,
+            139
+          ]
+        }
+      ]
+    }
+  ]
+}

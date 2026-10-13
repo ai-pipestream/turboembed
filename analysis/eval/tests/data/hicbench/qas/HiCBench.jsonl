@@ -1,0 +1,2 @@
+{"input": "How long are records kept?", "answers": ["7 years"], "facts": ["Records are kept for 7 years."], "evidences": ["Records are kept for 7 years.", "This policy covers naïve users."], "all_classes": null, "_id": "policy"}
+{"input": "How much did revenue grow?", "answers": ["12%"], "facts": [], "evidences": ["Revenue grew by 12% in 2024.", "A sentence that is not in the report."], "all_classes": null, "_id": "report"}

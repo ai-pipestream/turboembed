@@ -1818,10 +1818,13 @@ dependencies = [
 name = "turbo-eval"
 version = "0.1.0"
 dependencies = [
+ "flate2",
  "serde",
  "serde_json",
  "turbo",
+ "turbo-goldens",
  "turbo-jvm",
+ "ureq",
 ]
 
 [[package]]

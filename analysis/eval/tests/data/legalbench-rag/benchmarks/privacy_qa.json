@@ -1,0 +1,23 @@
+{
+  "tests": [
+    {
+      "query": "Does the app sell my data?",
+      "snippets": [
+        {
+          "file_path": "privacy_qa/app.txt",
+          "span": [
+            32,
+            77
+          ]
+        },
+        {
+          "file_path": "cuad/Café contract.txt",
+          "span": [
+            0,
+            16
+          ]
+        }
+      ]
+    }
+  ]
+}
