@@ -215,6 +215,26 @@ mod tests {
     }
 
     #[test]
+    fn words_outside_the_basic_multilingual_plane() {
+        // U+20BB7 and U+20BBE are CJK Extension B, four bytes each; the
+        // Java walks them as two code units each.
+        let lexicon = UnigramLexicon::parse(
+            "\u{20bb7}\u{20bbe} 5\n\u{20bb7} 1\n\u{20bbe}\u{91ce} 3\n".as_bytes(),
+            WhitespaceMode::Unicode,
+        )
+        .unwrap();
+        let s = UnigramSegmenter::new(lexicon, WhitespaceMode::Unicode);
+        // [U+20BB7][U+20BBE U+91CE] sums log 1 + log 3 - 2 log 9, above
+        // [U+20BB7 U+20BBE][U+91CE] at log 5 + log 0.5 - 2 log 9.
+        let text = "\u{20bb7}\u{20bbe}\u{91ce}\u{20bb7}";
+        assert_eq!(spans(&s, text), [(0, 4), (4, 11), (11, 15)]);
+        // An unlisted Extension B character beside listed ones is one word,
+        // and a listed word is found after it.
+        let text = "\u{20000}\u{20bb7}\u{20bbe}\u{2a6d6}";
+        assert_eq!(spans(&s, text), [(0, 4), (4, 12), (12, 16)]);
+    }
+
+    #[test]
     fn a_long_lexicon_word_is_one_token() {
         // OpenNLP's test uses 20000 letters; the walk from every position
         // runs to the end of this text, so it is quadratic, in Java too.
