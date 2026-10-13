@@ -12,12 +12,18 @@
 //! - Maxent, perceptron and naive Bayes models compute probabilities with
 //!   `StrictMath.exp` and `StrictMath.log`, which are fdlibm.
 //!   [`strict_math`] ports fdlibm's `exp` and `log` bit for bit.
+//! - Code outside the models calls `Math.log`, which HotSpot on x86-64
+//!   computes with its own routine rather than fdlibm. [`math::log`] is a
+//!   correctly rounded logarithm; its documentation says which JVM build
+//!   it was compared with, on which arguments, and where they differ.
 //! - Readers, cross-validation and trainers shuffle with a seeded
 //!   `java.util.Random`. [`random::JavaRandom`] is that generator.
 //!
 //! Every function here is checked against vectors written by a real JVM
-//! (`tests/vectors/`, made by `java/Vectors.java`).
+//! (`tests/vectors/`, made by `java/Vectors.java`), except [`math::log`],
+//! whose JVM values are constants in its tests.
 
 pub mod chars;
+pub mod math;
 pub mod random;
 pub mod strict_math;

@@ -35,6 +35,9 @@ final class Runs {
   static final List<String> DETOKENIZER_DICTIONARIES = List.of("en-detokenizer.xml", "fr-detokenizer.xml",
       "latin-detokenizer.xml", "pt-detokenizer.xml", "quotes-detokenizer.xml");
   static final String WORDPIECE_VOCABULARY = "all-minilm-l6-v2-vocab.txt";
+  static final String UNIGRAM_FIXTURE = "zh-unigram-fixture.txt";
+  static final String UNIGRAM_JIEBA = "jieba-dict-subset.txt";
+  static final String UNIGRAM_MODES = "zh-unigram-modes.txt";
 
   /** The input sets, the directories of the inputs directory. */
   static final String EN = "en";
@@ -46,6 +49,7 @@ final class Runs {
   static final String SENTENCE_FIXTURE = "sentence-fixture";
   static final String DETOKENIZER = "detokenizer";
   static final String SUBWORDS = "subwords";
+  static final String ZH = "zh";
 
   private static final List<String> TOKEN_MODELS = List.of(TOKEN_MODEL_EN, TOKEN_MODEL_DE, TOKEN_MODEL_ES,
       TOKEN_MODEL_FR, TOKEN_MODEL_PT);
@@ -114,6 +118,14 @@ final class Runs {
 
     annotators.add(WordpieceGolden.load(fixtures.resolve(WORDPIECE_VOCABULARY),
         Set.of(EN, MULTI, EDGE, SURROGATE, SUBWORDS)));
+
+    // The unigram segmenter: the fixture lexicon, the jieba subset and a lexicon whose words
+    // depend on the whitespace mode, each in both modes.
+    for (WhitespaceMode mode : MODES) {
+      annotators.add(UnigramGolden.load(fixtures.resolve(UNIGRAM_FIXTURE), mode, Set.of(ZH, MULTI, EDGE, SURROGATE)));
+      annotators.add(UnigramGolden.load(fixtures.resolve(UNIGRAM_JIEBA), mode, Set.of(ZH, MULTI, EDGE)));
+      annotators.add(UnigramGolden.load(fixtures.resolve(UNIGRAM_MODES), mode, Set.of(ZH)));
+    }
 
     LanguageGolden languages = LanguageGolden.load(models.resolve(LANGUAGE_MODEL), Set.of(EN, MULTI));
     annotators.add(languages);
