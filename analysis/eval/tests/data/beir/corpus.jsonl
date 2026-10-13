@@ -1,0 +1,4 @@
+{"_id": "d1", "title": "Café culture", "text": "Coffee houses in Vienna date from the 1680s.", "metadata": {}}
+{"_id": "d2", "title": "", "text": "Tea is grown on hillsides in Darjeeling."}
+
+{"_id": "d3", "title": "Naïve Bayes", "text": "A classifier that assumes features are independent.", "metadata": {"source": "made up"}}

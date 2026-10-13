@@ -13,9 +13,8 @@ use crate::record::EvalRecord;
 use crate::set::LoadedSet;
 use crate::source::utc;
 
-/// Reads the set of this name from under the cache root. The set readers
-/// (issue #154, step 2) provide one; until they do, the binary's loader
-/// refuses every name.
+/// Reads the set of this name from under the cache root; the binary's
+/// loader is `sets::find(name)?.load(cache)`.
 pub type SetLoader = fn(&str, &Path) -> Result<LoadedSet>;
 
 /// The file a set's record is written to: one directory holds one
@@ -45,6 +44,12 @@ pub fn run_sets(
         let set = load(name, cache).map_err(|e| format!("set {name}: {e}"))?;
         if set.name != *name {
             return Err(format!("set {name}: the reader returned set {}", set.name));
+        }
+        if !set.unplaced.is_empty() {
+            eprintln!(
+                "set {name}: {} judgements could not be placed in their document and are left out",
+                set.unplaced.len()
+            );
         }
         let record = pipeline.record(&set, source, utc(SystemTime::now())).map_err(|e| format!("set {name}: {e}"))?;
         record.write(&path)?;

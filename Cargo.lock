@@ -1818,6 +1818,7 @@ dependencies = [
 name = "turbo-eval"
 version = "0.1.0"
 dependencies = [
+ "flate2",
  "serde",
  "serde_json",
  "turbo",
@@ -1825,10 +1826,12 @@ dependencies = [
  "turbo-analysis-embed",
  "turbo-analysis-layers",
  "turbo-chunker",
+ "turbo-goldens",
  "turbo-jvm",
  "turbo-maxent",
  "turbo-sentdetect",
  "turbo-structure",
+ "ureq",
 ]
 
 [[package]]

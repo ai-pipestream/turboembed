@@ -241,6 +241,7 @@ mod tests {
                 }])
                 .unwrap(),
             ),
+            unplaced: Vec::new(),
         }
     }
 

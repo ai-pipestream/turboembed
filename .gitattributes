@@ -11,3 +11,7 @@ testdata/** -text
 # Without this, core.autocrlf rewrites it and make refuses the file
 # (local sha256 9e6ac4eb099b4934d86adb2af92fdc3d5817b84ecd9d7bf1445d1b832d37d940).
 bundle/recipes/*.jsonl -text
+
+# The evaluation readers' samples are read byte for byte: one has CRLF
+# line endings on purpose, and the Qasper sample is a gzip archive.
+analysis/eval/tests/data/** -text

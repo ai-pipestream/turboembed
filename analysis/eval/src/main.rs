@@ -12,20 +12,28 @@ use turbo_eval::Result;
 use turbo_eval::analysis::{Analysis, Sentencer};
 use turbo_eval::chunkers::{Chunker, FixedTokens, Semantic, SentenceWindows, Signals, TurboChunker};
 use turbo_eval::embedder::{Embedder, Role, TurboEmbedder};
+use turbo_eval::fetch::{cache_root, fetch};
 use turbo_eval::pipeline::{Pipeline, Titles};
 use turbo_eval::run::{gate_dirs, run_sets};
 use turbo_eval::set::LoadedSet;
+use turbo_eval::sets;
 use turbo_structure::Syntax;
 
 const USAGE: &str = "\
 usage:
-  turbo-eval run --bundle <dir> --sets <name,...> --cache <dir> --out <dir>
+  turbo-eval fetch --sets <name,...> [--cache <dir>]
+      download each named set into the cache and check its SHA-256s
+  turbo-eval run --bundle <dir> --sets <name,...> [--cache <dir>] --out <dir>
                  --chunker <name> [options]
       run one pipeline over each named set and write <out>/<set>.json;
       an existing record is never replaced
   turbo-eval gate <candidate-dir> <baseline-dir>
       compare two directories of records, one per set; exit status 1
       when the gate fails, 2 on an error
+
+The cache root is --cache, or $TURBO_EVAL_CACHE when it is not given.
+Sets: scifact, nfcorpus, arguana, legalbench-rag-mini, conteb-covid-qa,
+gutenqa, hicbench, qasper (docs/analysis.md, \"The sets\").
 
 run options:
   --bundle <dir>          the embedder's bundle; the reference embedder is
@@ -68,6 +76,7 @@ fn main() -> ExitCode {
 
 fn run(args: &[String]) -> Result<ExitCode> {
     match args.first().map(String::as_str) {
+        Some("fetch") => fetch_cmd(&args[1..]).map(|()| ExitCode::SUCCESS),
         Some("run") => run_cmd(&args[1..]).map(|()| ExitCode::SUCCESS),
         Some("gate") if args.len() == 3 => {
             let report = gate_dirs(Path::new(&args[1]), Path::new(&args[2]))?;
@@ -78,11 +87,26 @@ fn run(args: &[String]) -> Result<ExitCode> {
     }
 }
 
-/// The seam the set readers fill (issue #154, step 2): the reader for
-/// each set name, reading from under the cache root. None is built in
-/// yet, so every name is refused.
-fn load_set(name: &str, _cache: &Path) -> Result<LoadedSet> {
-    Err(format!("no reader for set {name} is built in yet (issue #154, step 2)"))
+/// Reads the named set from under the cache root, after its licence and
+/// recorded digests are checked.
+fn load_set(name: &str, cache: &Path) -> Result<LoadedSet> {
+    sets::find(name)?.load(cache)
+}
+
+/// The comma separated `--sets` list.
+fn set_names(o: &mut Opts) -> Result<Vec<String>> {
+    Ok(o.need("--sets")?.split(',').filter(|s| !s.is_empty()).map(str::to_owned).collect())
+}
+
+fn fetch_cmd(args: &[String]) -> Result<()> {
+    let mut o = Opts::parse(args)?;
+    let names = set_names(&mut o)?;
+    let cache = cache_root(o.take("--cache").as_deref().map(Path::new))?;
+    for name in &names {
+        fetch(sets::find(name)?, &cache)?;
+        println!("{name}: fetched and checked in {}", cache.join(name).display());
+    }
+    Ok(())
 }
 
 /// `--name value` pairs and bare `--flag`s.
@@ -190,8 +214,8 @@ fn chunker(o: &mut Opts, embedder: &dyn Embedder) -> Result<Box<dyn Chunker>> {
 fn run_cmd(args: &[String]) -> Result<()> {
     let mut o = Opts::parse(args)?;
     let bundle = PathBuf::from(o.need("--bundle")?);
-    let sets: Vec<String> = o.need("--sets")?.split(',').filter(|s| !s.is_empty()).map(str::to_owned).collect();
-    let cache = PathBuf::from(o.need("--cache")?);
+    let sets = set_names(&mut o)?;
+    let cache = cache_root(o.take("--cache").as_deref().map(Path::new))?;
     let out = PathBuf::from(o.need("--out")?);
     let device = device(&o.take("--device").unwrap_or_else(|| "cpu".into()));
     let precision = match o.take("--precision").as_deref().unwrap_or("model") {
@@ -241,4 +265,22 @@ fn run_cmd(args: &[String]) -> Result<()> {
         println!("{}", p.display());
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn the_usage_names_every_set() {
+        for s in sets::ALL {
+            assert!(USAGE.contains(s.name), "{} is missing from the usage", s.name);
+        }
+    }
+
+    #[test]
+    fn an_unknown_set_is_refused_by_name() {
+        let e = load_set("no-such-set", Path::new("/nonexistent")).unwrap_err();
+        assert!(e.contains("no-such-set"), "{e}");
+    }
 }

@@ -7,7 +7,8 @@
 //! document and span level, its cost measured stage by stage, and the
 //! result written as a record; the gate compares two sets of records.
 //! The `turbo-eval` binary runs both. Reading the evaluation sets is
-//! step 2 of the issue, and plugs in at [`run::SetLoader`].
+//! The sets are fetched by checksum and read into typed values, and
+//! plug into a run at [`run::SetLoader`].
 //!
 //! - [`analysis`]: the layers each document is given before chunking.
 //! - [`chunkers`]: the chunkers behind one trait: fixed token windows,
@@ -27,19 +28,28 @@
 //! - [`cost`]: the chunk length distribution.
 //! - [`record`]: one evaluation record per set and pipeline, as JSON.
 //! - [`set`]: an evaluation set once it is read.
+//! - [`sets`]: each set's published files, licence and span unit, one
+//!   file per set, and the licence and digest checks before a load.
+//! - [`read`]: the readers of the sets' own formats, one per format,
+//!   which convert span judgements to UTF-8 byte offsets.
+//! - [`fetch`]: downloading a set into the cache root and checking each
+//!   file's SHA-256.
 //! - [`gate`]: candidate records against baseline records.
 
 pub mod analysis;
 pub mod chunkers;
 pub mod cost;
 pub mod embedder;
+pub mod fetch;
 pub mod gate;
 pub mod metrics;
 pub mod pipeline;
+pub mod read;
 pub mod record;
 pub mod retrieve;
 pub mod run;
 pub mod set;
+pub mod sets;
 pub mod significance;
 pub mod source;
 pub mod spans;
