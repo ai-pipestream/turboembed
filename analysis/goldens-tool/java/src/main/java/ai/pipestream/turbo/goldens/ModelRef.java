@@ -6,10 +6,10 @@ package ai.pipestream.turbo.goldens;
  */
 record ModelRef(String fileName, String sha512) {
 
-  /** The file name extensions {@link #baseName()} removes: a model's and a dictionary's. */
-  private static final String[] EXTENSIONS = {".bin", ".xml"};
+  /** The file name extensions {@link #baseName()} removes: a model's, a dictionary's and a vocabulary's. */
+  private static final String[] EXTENSIONS = {".bin", ".xml", ".txt"};
 
-  /** The file's name in a golden's path: the file name without {@code .bin} or {@code .xml}. */
+  /** The file's name in a golden's path: the file name without {@code .bin}, {@code .xml} or {@code .txt}. */
   String baseName() {
     for (String e : EXTENSIONS) {
       if (fileName.endsWith(e)) {

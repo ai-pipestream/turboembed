@@ -42,6 +42,14 @@ are not taken from any corpus.
   dictionary check jumps over.
 - `inputs/alphanumeric/mixed.txt`: letters, digits and accented letters
   for the alphanumeric optimization.
+- `inputs/subwords/`: 14 texts for the WordPiece encoder's BERT
+  normalization: precomposed accents, the same accents as combining
+  marks, marks out of canonical order, capital sigma at the end of a
+  word, the dotted capital I, Hangul, kana and CJK, CJK Extension E
+  ideographs on both sides of U+2B920, format characters, punctuation,
+  spacing marks and a virama, emoji and symbols with no piece, special
+  token strings, fullwidth letters and ligatures, and words of 100 and
+  101 letters.
 - `inputs/detokenizer/`: one token per line, each line ending with a line
   feed (an empty file is an empty token list). The part of the name before
   the first `-` names the dictionary, `fixtures/<name>-detokenizer.xml`.
@@ -72,12 +80,13 @@ that differs.
 | `latin-detokenizer.xml` | Apache OpenNLP's test resource of `DictionaryDetokenizerTest`, unchanged (license header kept) |
 | `en-detokenizer.xml`, `fr-detokenizer.xml`, `pt-detokenizer.xml` | Apache OpenNLP's English, French and Portuguese detokenizer dictionaries, `opennlp-tools/lang/{en,fr,pt}/tokenizer/`, unchanged (license header kept) |
 | `quotes-detokenizer.xml` | two `RIGHT_LEFT_MATCHING` entries, written for this project |
+| `all-minilm-l6-v2-vocab.txt` | the WordPiece vocabulary of `testdata/all-minilm-l6-v2/tokenizer.json` (sentence-transformers/all-MiniLM-L6-v2, Apache-2.0), one piece per line in id order with a line feed after each, written with `jq -r '.model.vocab \| to_entries \| sort_by(.value) \| .[].key'`; 30522 pieces, the uncased BERT vocabulary |
 
 ## Goldens
 
 `<annotator>/<model>/<set>/<id>.golden` is what the OpenNLP annotator
 `<annotator>` produced with model `<model>` (the model file's name
-without `.bin` or `.xml`) on `inputs/<set>/<id>.txt`. A run with options
+without `.bin`, `.xml` or `.txt`) on `inputs/<set>/<id>.txt`. A run with options
 has `+` and their names after the model (`+legacy`, `+keep-new-lines`,
 `+alphanumeric`, `+english-dictionary`), and a run without a model names
 itself there (`simple`, `whitespace`, `uax29`, `newline`). Each file's

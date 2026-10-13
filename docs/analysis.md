@@ -344,6 +344,40 @@ So the pieces of one token are a run, which `Subwords::of` finds by
 binary search. Tokens in another view, or out of order, fail the
 document. A document with pieces but no tokens gets no token column.
 
+### Against OpenNLP's WordPiece encoder
+
+The WordPiece pieces are compared with OpenNLP's `WordpieceEncoder`
+on the JVM (`analysis/embed/tests/goldens.rs`), from the `subwords`
+goldens: the small BERT's bundle and the encoder read the same
+vocabulary, `analysis/goldens/data/fixtures/all-minilm-l6-v2-vocab.txt`, uncased, with words
+of up to 100 code points. On the 76 golden inputs, 65 give the same ids
+and spans. The core's tokenizer follows upstream `tokenizers`, not the
+JVM: the pieces feed embedding models that were trained on upstream's
+tokenization, so matching upstream is what keeps the vectors right, and
+the WordPiece pieces are also compared with upstream directly. The
+other 11 inputs differ from the JVM where upstream does:
+
+- A nonspacing mark that accent stripping removes (a combining acute,
+  a variation selector U+FE0F, a virama, an Arabic vowel sign) is in
+  the JVM's span of the piece before it, and not in ours; the ids are
+  the same. Seven inputs.
+- A capital sigma at the end of a word, after a cased letter, is
+  lowercased to final sigma on the JVM, as the reference BERT's Python
+  `lower()` does, and to sigma here, since upstream lowercases one
+  character at a time. Final sigma has pieces of its own, so such words
+  segment differently.
+- Combining marks out of canonical order: the JVM gives every piece of
+  the whitespace-delimited run the whole run's span, punctuation
+  included. The ids are the same and our spans lie inside the JVM's.
+- The ideographs U+2B820 to U+2B91F are CJK for the JVM, which uses the
+  reference BERT's ranges, so each is a word of its own; upstream's
+  range starts at U+2B920, so here they join the word around them.
+- A special token's string in the text, such as `[CLS]`, is that special
+  token here, because upstream matches its added tokens before it
+  normalizes, and ordinary text on the JVM (`[`, `cl`, `##s`, `]`).
+
+The test lists the inputs each difference touches, so a new one fails.
+
 ## Vectors
 
 `VectorAnnotator` in `turbo-analysis-embed` writes a vector per sentence
@@ -1218,6 +1252,7 @@ The layers and their columns, in order:
 | `turbo:money` | `text` | `start:u32`, `end:u32`, `coefficient:str`, `negative:u32`, `scale:u32`, `plain:str`, `currency:str` |
 | `turbo:quantities` | `text` | `start:u32`, `end:u32`, `coefficient:str`, `negative:u32`, `scale:u32`, `plain:str`, `unit:str` |
 | `turbo:view` | `text` | `start:u32`, `end:u32`, `with:str` |
+| `opennlp:subwords` | `text` | `start:u32`, `end:u32`, `id:u32` |
 | `turbo:word-types` | `aligned:opennlp:tokens` | `kind:str` |
 | `turbo:detokenization` | `aligned:opennlp:tokens` | `operation:str` |
 | `turbo:detokenized` | `document` | `text:str`, `marked:str` |
@@ -1228,6 +1263,12 @@ edit, in text order, where `start..end` is the span of the source text
 the edit replaces (empty for an insertion) and `with` is the
 replacement (empty for a deletion). The JVM writes adjacent one-to-one
 replacements as separate rows, one per character.
+
+An `opennlp:subwords` block is what OpenNLP's `WordpieceEncoder`
+returned: a row per piece of the text, in order, with its byte span and
+its id in the vocabulary. The `[CLS]` and `[SEP]` that `encode` puts
+around the pieces, with empty spans at the two ends of the text, are
+not written, as the Rust layer has no special tokens.
 
 `turbo:word-types` holds the UAX #29 word type of each token, the
 `WordType` name OpenNLP gives it (`ALPHANUMERIC`, `NUMERIC`, `EMOJI`, ...). A
@@ -1427,6 +1468,7 @@ The generator writes these layers, in this order within a golden:
 | `money` (`CursorMoneyExtractor.extract` in `MoneyAnnotator`, per notation) | `turbo:money` |
 | `money-convert` (`EcbFxRates.convert` in `MoneyConversionAnnotator`, per notation) | `turbo:money` |
 | `quantity` (`CursorQuantityExtractor.extract` in `QuantityAnnotator`, per notation) | `turbo:quantities` |
+| `subwords` (`WordpieceEncoder.encode`) | `opennlp:subwords` |
 
 `numbers/<notation>/num/<id>.golden` (`latin-us`, `latin-eu`) holds
 `turbo:numbers`, anchored on the text, with one row per number mention:
@@ -1747,6 +1789,11 @@ runs them on any machine:
   their word tokens (a BPE piece over two tokens, punctuation in no
   token), tokens that cannot be aligned, and the provider. The crate's
   unit tests hold `align` on hand-made spans.
+- `analysis/embed/tests/goldens.rs` compares the small BERT's WordPiece
+  pieces with the `subwords` goldens of OpenNLP's `WordpieceEncoder`
+  (["Against OpenNLP's WordPiece encoder"](#against-opennlps-wordpiece-encoder)):
+  it checks that the vocabulary fixture is the bundle's, compares every
+  golden through `matches_golden`, and has a test for each difference.
 - `analysis/embed/tests/vectors.rs` runs the vector steps on the small
   BERT on the CPU. The row is the tokenizer's own row for each prompt
   role, and its overhead the subwords annotator's; a static model's has
@@ -1838,9 +1885,6 @@ runs them on any machine:
   `SentenceVectorsDL` on golden inputs, which needs the JVM container,
   and a measurement of documents per second through the vector steps.
   The tests build their layers by hand or with toy annotators.
-- A parity check of the subwords against the JVM's WordPiece encoder on
-  golden inputs; the WordPiece pieces are compared with upstream
-  `tokenizers` for now.
 - The evaluation harness that every change to the chunker is measured
   with, and the chunker's records on it. It is also where the BM25 only
   baseline is to be reported, from the term statistics above, and what
