@@ -1,0 +1,36 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	ja/punctuation	64	22	5b7ae985b55419f6ac83560a4fc13f58584bd6e862e4ae0a2455b3cb4663be01
+model	mecab-fixture-ja	a8bffe24e9415d6dc5a776ce62077641f72653c99e032a6a53c1ee6fcb5f5cba28b0b5d5c79ea25f7eac1727f9243fccb47eb053180438daef072ac6bafac3bb
+annotator	opennlp.tools.tokenize.lattice.LatticeTokenizer	analyze
+layer	opennlp:tokens	text	12	start:u32	end:u32
+0	3
+3	9
+9	12
+12	15
+15	18
+18	24
+24	36
+36	39
+39	42
+42	48
+48	60
+60	63
+end	opennlp:tokens
+layer	turbo:morphemes	aligned:opennlp:tokens	12	unknown:u32	features:str
+1	記号,一般,*,*
+0	名詞,固有名詞,組織,トウキョウ
+1	記号,一般,*,*
+0	記号,読点,*,、
+1	記号,一般,*,*
+0	名詞,固有名詞,地域,キョウト
+1	記号,一般,*,*
+1	名詞,一般,*,*
+1	記号,一般,*,*
+0	名詞,副詞可能,*,キョウ
+1	記号,一般,*,*
+0	記号,句点,*,。
+end	turbo:morphemes

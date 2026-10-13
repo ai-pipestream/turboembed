@@ -1,0 +1,34 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	edge/control-separators	14	14	4b8b0f0cf5b626b1f4d744c04f4396cb1a1b1d6684f1a13c3cae82102d1b807a
+model	mecab-ko-dic-2.1.1-20180720	2af39983547b6f54f5709733850dbbf14eadeec55bfdf795272fa707c8c86c36c9b43e3aaebc8531c784da00a2d974e6819c8d8c08a31f251d85f1a4476d8053
+annotator	opennlp.tools.tokenize.lattice.LatticeTokenizer	analyze
+layer	opennlp:tokens	text	11	start:u32	end:u32
+0	1
+1	2
+2	3
+3	4
+4	5
+5	6
+6	7
+7	8
+8	9
+10	11
+12	13
+end	opennlp:tokens
+layer	turbo:morphemes	aligned:opennlp:tokens	11	unknown:u32	features:str
+1	SL,*,*,*,*,*,*,*
+1	SY,*,*,*,*,*,*,*
+1	SL,*,*,*,*,*,*,*
+1	SY,*,*,*,*,*,*,*
+1	SL,*,*,*,*,*,*,*
+1	SY,*,*,*,*,*,*,*
+1	SL,*,*,*,*,*,*,*
+1	SY,*,*,*,*,*,*,*
+1	SL,*,*,*,*,*,*,*
+1	SL,*,*,*,*,*,*,*
+1	SL,*,*,*,*,*,*,*
+end	turbo:morphemes

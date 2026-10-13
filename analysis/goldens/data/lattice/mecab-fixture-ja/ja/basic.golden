@@ -1,0 +1,46 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	ja/basic	86	30	4a7338584cf0f898f2ec8847e6cbdcd4786c838e09c801fcd8b27af87fe32929
+model	mecab-fixture-ja	a8bffe24e9415d6dc5a776ce62077641f72653c99e032a6a53c1ee6fcb5f5cba28b0b5d5c79ea25f7eac1727f9243fccb47eb053180438daef072ac6bafac3bb
+annotator	opennlp.tools.tokenize.lattice.LatticeTokenizer	analyze
+layer	opennlp:tokens	text	17	start:u32	end:u32
+0	9
+9	12
+12	18
+18	21
+21	27
+27	30
+30	36
+36	42
+42	48
+48	51
+52	58
+58	61
+61	67
+67	70
+70	73
+73	82
+82	85
+end	opennlp:tokens
+layer	turbo:morphemes	aligned:opennlp:tokens	17	unknown:u32	features:str
+0	名詞,固有名詞,地域,トウキョウト
+0	助詞,格助詞,*,ニ
+0	動詞,自立,*,イク
+0	記号,句点,*,。
+0	名詞,副詞可能,*,キョウ
+0	助詞,係助詞,*,ハ
+0	形容詞,自立,*,イイ
+0	名詞,一般,*,テンキ
+0	助動詞,*,*,デス
+0	記号,句点,*,。
+1	名詞,固有名詞,*,*
+0	助詞,係助詞,*,ハ
+0	名詞,固有名詞,地域,キョウト
+0	助詞,格助詞,*,ニ
+0	名詞,一般,*,ギョウ
+1	名詞,一般,*,*
+0	記号,句点,*,。
+end	turbo:morphemes

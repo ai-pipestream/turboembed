@@ -1,0 +1,54 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	edge/chinese	70	24	6a87cfac7eeb0aa8e368eca93b72edde8c893c5dc4c4d1a1379f9d00c9e0f3cd
+model	mecab-ko-dic-2.1.1-20180720	2af39983547b6f54f5709733850dbbf14eadeec55bfdf795272fa707c8c86c36c9b43e3aaebc8531c784da00a2d974e6819c8d8c08a31f251d85f1a4476d8053
+annotator	opennlp.tools.tokenize.lattice.LatticeTokenizer	analyze
+layer	opennlp:tokens	text	21	start:u32	end:u32
+0	3
+3	6
+6	12
+12	18
+18	21
+21	24
+24	27
+27	30
+30	33
+33	36
+36	39
+39	42
+42	45
+45	48
+48	51
+51	54
+54	57
+57	60
+60	63
+63	66
+66	69
+end	opennlp:tokens
+layer	turbo:morphemes	aligned:opennlp:tokens	21	unknown:u32	features:str
+0	NNG,*,F,아,*,*,*,*
+1	SH,*,*,*,*,*,*,*
+0	NNG,*,T,북경,*,*,*,*
+0	NNG,*,T,천안,*,*,*,*
+1	SH,*,*,*,*,*,*,*
+1	SY,*,*,*,*,*,*,*
+1	SH,*,*,*,*,*,*,*
+0	NNG,*,T,천,*,*,*,*
+0	NNG,*,T,천,*,*,*,*
+1	SH,*,*,*,*,*,*,*
+1	SH,*,*,*,*,*,*,*
+0	XPN,*,F,호,*,*,*,*
+1	SY,*,*,*,*,*,*,*
+0	NNG,*,F,아,*,*,*,*
+1	SH,*,*,*,*,*,*,*
+1	SH,*,*,*,*,*,*,*
+0	NNG,*,T,공,*,*,*,*
+1	SH,*,*,*,*,*,*,*
+1	SH,*,*,*,*,*,*,*
+1	SH,*,*,*,*,*,*,*
+1	SY,*,*,*,*,*,*,*
+end	turbo:morphemes
