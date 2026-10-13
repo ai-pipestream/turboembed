@@ -86,9 +86,9 @@ Compared with upstream (`analysis/bpe-trainer/tests/byte_level.rs`):
   which is the text itself unless a space was put in front or `<mask>`
   took the whitespace before it; each word of the corpus encodes to the
   pieces training left it as.
-- On a 15.3 MB corpus (the repository's `.rs`, `.md` and `.java` files,
-  364648 lines) at 32000 pieces, the file was upstream's byte for byte
-  (not a committed test).
+- Informal, not a committed test and not reproducible from the
+  repository: on a 15.3 MB corpus of source and text files at 32000
+  pieces, the file was upstream's byte for byte.
 
 Where it differs: there is no `limit_alphabet`, `initial_alphabet`,
 `continuing_subword_prefix`, `end_of_word_suffix` or
@@ -133,9 +133,9 @@ Compared with the library (`analysis/bpe-trainer/tests/sentencepiece.rs`):
   is the core's, every line of the corpus that holds no boundary
   decodes from its ids to its normalized text, and characters the
   coverage leaves out encode to `<unk>`.
-- On the 15.3 MB corpus above, at 16000 pieces with coverage 0.9995,
-  8000 with 1.0 and 30000 with 0.98, the pieces, scores and types were
-  the library's (not a committed test).
+- Informal, not a committed test: on the 15.3 MB corpus above, at 16000
+  pieces with coverage 0.9995, 8000 with 1.0 and 30000 with 0.98, the
+  pieces, scores and types were the library's.
 
 Where it differs: only the identity normalization is run (a corpus to
 be normalized otherwise, such as with `nmt_nfkc`, must be normalized
@@ -185,16 +185,3 @@ character where the JVM's is a UTF-16 unit, so the JVM splits a
 character outside the Basic Multilingual Plane into its surrogates and
 spends merges joining them, which the trainer does not
 (`the_jvm_splits_a_character_outside_the_bmp_and_the_trainer_does_not`).
-
-## Speed
-
-On the 15.3 MB corpus above, release builds on four cores:
-
-| Run | Trainer | Reference |
-|---|---|---|
-| byte-level, 32000 pieces | 1.0 s | 4.7 s (upstream in process, `train` over the lines) |
-| sentencepiece, 16000 pieces | 3.7 s | 5.8 s (the Python package, lines from an iterator) |
-| opennlp, 5000 merges | 5.6 s | not measured (the JVM counts every pair again after each merge) |
-
-The trainer runs on one thread; upstream counts words on several. The
-times are of one run each, not a benchmark.
