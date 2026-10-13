@@ -19,7 +19,7 @@ where and why.
 | `turbo-jvm` | `analysis/jvm/` | JDK routines ported bit for bit; `turbo-maxent` uses `strict_math::exp` and `strict_math::log`, the fdlibm functions behind `StrictMath.exp` and `StrictMath.log`; `math::log` is a correctly rounded logarithm, which matched `Math.log` of the JVM the goldens are made with on the integers compared (its documentation says which) |
 | `turbo-maxent` | `analysis/maxent/` | OpenNLP model files: the zip container, the manifest, maxent and perceptron models and their evaluation, the dictionary XML |
 | `turbo-sentdetect` | `analysis/sentdetect/` | The newline detector, the paragraph detector and the maxent sentence detector |
-| `turbo-tokenize` | `analysis/tokenize/` | The simple, whitespace and UAX #29 word tokenizers, the maxent tokenizer, the unigram frequency segmenter for Chinese and the dictionary detokenizer |
+| `turbo-tokenize` | `analysis/tokenize/` | The simple, whitespace and UAX #29 word tokenizers, the maxent tokenizer, the unigram frequency segmenter for Chinese, the MeCab dictionary lattice tokenizer for Japanese and Korean, and the dictionary detokenizer |
 | `turbo-tokenize-layers` | `analysis/tokenize-layers/` | The tokenizers' own layer: the word type of each token |
 
 They depend on the standard library, `turbo-analysis` and
@@ -515,6 +515,147 @@ OpenNLP.
 Speed is not measured here: no matched benchmark against jieba-rs is
 committed, so this section makes no speed claim (AGENTS.md, rule 7).
 
+### `LatticeTokenizer` (Japanese, Korean)
+
+`opennlp.tools.tokenize.lattice.LatticeTokenizer` and its dictionary
+reader `MecabDictionary` (`turbo_tokenize::lattice`): morphological
+segmentation with a MeCab dictionary. It reads a `View` and an optional
+`Sentences` layer and writes `Tokens` and `PosTags`, through
+`tokenize_units` like the other tokenizers. The tag of a token is the
+first feature column of its dictionary entry, in a tag set named
+`mecab` built from the dictionary. `LatticeTokenizer::analyze` appends
+`Morpheme`s for a `&str` (a byte span, the dictionary entry and whether
+unknown word handling made it), `MecabDictionary::features` gives an
+entry's feature columns, and `analyze_with` reuses a `Scratch` so
+repeated calls allocate nothing once its buffers and the output have
+grown (`analysis/tokenize/tests/lattice_allocations.rs` counts the
+allocations). The annotator makes a new `Scratch` per call. The model
+in the provenance is `opennlp:MecabDictionary` with the SHA-256 of a
+manifest of the files read: for each, in the order read, its name, a
+tab, the SHA-256 of its bytes in hex and a line feed.
+
+The dictionary is a MeCab source directory, read as
+`MecabDictionary.load` reads it; the compiled `sys.dic` is not read,
+by OpenNLP or here. The files are read in this order:
+
+- `matrix.def`, first, because its dimensions bound every context id.
+  The header holds two positive numbers, each at most the entry limit
+  (ten million by default), whose product is at most 134217728 cells.
+  Each line after it is a right id, a left id and a cost, which must fit
+  in 16 bits. Every pair must be listed exactly once.
+- Every `*.csv` file, sorted by name. Each line is `surface,left
+  id,right id,cost,features...`, split with MeCab's quoting (a field in
+  double quotes may hold commas, and `""` is a quote). The left id must
+  be below the matrix's second dimension and the right id below its
+  first. At most the entry limit of entries across the files.
+- `char.def`. Category lines are `NAME INVOKE GROUP LENGTH`, with at
+  most 17 categories and a `LENGTH` from 0 to 15; `DEFAULT` must be
+  defined. Mapping lines are `0xXXXX` or `0xXXXX..0xYYYY` followed by
+  one or more category names, and a later mapping wins where two
+  overlap. Text after `#` is a comment.
+- `unk.def`, in the lexicon format. Its surfaces are category names,
+  which `char.def` must define.
+
+Lines end at `\n`, `\r` or `\r\n`, are trimmed of Unicode `White_Space`
+in both whitespace modes, and are split into fields at whitespace in the
+configured mode. Numbers are read as `Integer.parseInt` reads them:
+decimal digits of any script in the Basic Multilingual Plane, and
+`char.def`'s hexadecimal also accepts fullwidth letters. The checks and
+their order are the Java's, and a malformed file is an error that names
+the file, the line and the problem (`DictionaryError`), never a panic.
+The entry and cell limits are a parameter (`DictionaryLimits`) rather
+than the `opennlp.max.entries` and `opennlp.max.matrix.cells` system
+properties. The surfaces go in a double-array trie with one transition
+per UTF-8 byte, and each surface's entries stay in file order. The
+Java's trie has one transition per UTF-16 code unit. Both find the same
+surfaces, since a surface is whole characters and a walk starts on a
+character boundary.
+
+The text is split at whitespace in the configured mode. Each
+whitespace-free stretch is cut on the path through the word lattice
+with the lowest sum of word costs and connection costs, the start and
+end of the stretch taking context id 0. The candidates are visited from
+each character boundary that a node ends at, in order:
+
+1. The lexicon entries of every surface that starts there, shortest
+   surface first and each surface's entries in file order.
+2. Unknown word candidates, when nothing matched or the character's
+   first category has `INVOKE` set. The candidates use that category's
+   `unk.def` templates. The run of characters is extended while each
+   character shares a category with the next, as MeCab's
+   `seekToOtherType` does. `GROUP` offers the whole run, and `LENGTH`
+   offers its first 1 to `LENGTH` characters, without repeating the
+   whole run.
+3. When neither offered anything, one character with the category's
+   templates, or with `DEFAULT`'s where the category has none.
+
+Each candidate takes the predecessor whose total is strictly lowest,
+looking at the nodes that end at its start, latest added first. At the
+end of the stretch, the first node with the strictly lowest total wins.
+These rules decide ties, and the port keeps them; the fixture
+dictionaries have ties of each kind. A dictionary whose `unk.def` has no
+`DEFAULT` template can leave a character without a candidate. Then the
+Java throws, naming the UTF-16 position, and the port returns
+`NoCandidate` with the byte offset.
+
+Deviations, each with a test in `analysis/tokenize/src/lattice`:
+
+- The files must be UTF-8. The Java takes any charset. IPADIC, which is
+  EUC-JP, is read from a UTF-8 copy that `turbo-goldens fetch-models`
+  writes so that it is the text Java's decoder reads (see the last of
+  the OpenNLP findings).
+- The port checks that a whole file is UTF-8 before reading its lines.
+  The Java decodes as it reads, so where a malformed line comes before
+  bad bytes, the two report different errors.
+- A `matrix.def` that declares more than 65536 cells but has fewer bytes
+  after its header than its lines need (six per cell, less one) is
+  refused before its table is allocated. The Java allocates the table from the header
+  first, then finds that pairs are missing.
+- In the legacy whitespace mode, a `char.def` line made only of
+  characters that are whitespace in that mode but not Unicode
+  `White_Space` (`U+001C` to `U+001F`) is a malformed category. In the
+  Java it throws an `ArrayIndexOutOfBoundsException`.
+- Where `unk.def` names several undefined categories, the port reports
+  the first in file order, and the Java the first in its `HashMap`'s
+  order.
+- More than 65536 distinct first feature columns are refused, since a
+  `Tag` numbers at most that many. The Java has no tags.
+
+The goldens are the runs of five dictionaries
+(`analysis/goldens-tool/README.md`, "Lattice goldens"). Three are
+fixtures written for this project. `mecab-fixture-ja`, run in both
+whitespace modes on the `ja`, `multi`, `edge` and `surrogate` inputs,
+has costs that make ties, a quoted surface with a comma, overlapping
+categories and supplementary characters. `mecab-fixture-ko` runs on the
+`ko`, `multi` and `edge` inputs. `mecab-fixture-partial`, whose
+`unk.def` has no `DEFAULT` template, runs on `ja` and `edge`, and throws
+on most of them. The other two are published dictionaries:
+`mecab-ipadic-2.7.0-20070801` on `ja`, `multi`, `edge` and `surrogate`,
+and `mecab-ko-dic-2.1.1-20180720` on `ko`, `multi`, `edge` and
+`surrogate`. For every golden, the port's spans, feature columns and
+unknown flags equal the JVM's, and on every golden where the JVM threw,
+the port fails at the same character:
+
+| Dictionary | Goldens | Morphemes | Unknown | JVM errors |
+|---|---|---|---|---|
+| `mecab-fixture-ja` | 65 | 1497 | 1244 | 0 |
+| `mecab-fixture-ja+legacy` | 65 | 1494 | 1241 | 0 |
+| `mecab-fixture-ko` | 55 | 1310 | 1155 | 0 |
+| `mecab-fixture-partial` | 48 | 17 | 11 | 44 |
+| `mecab-ipadic-2.7.0-20070801` | 65 | 1512 | 1068 | 0 |
+| `mecab-ko-dic-2.1.1-20180720` | 61 | 1360 | 971 | 0 |
+
+`analysis/tokenize/tests/lattice_golden.rs` asserts these numbers. The
+fixture runs always run. The IPADIC and mecab-ko-dic tests are ignored
+by default and read the dictionaries `turbo-goldens fetch-models`
+fetched, from `TURBO_MECAB_DICTIONARIES` or
+`target/turbo-goldens/models`. CI runs them after `fetch-models`, with
+the dictionaries required. UniDic is not in the goldens: the
+package checked (unidic-lite 1.0.8) holds only a compiled dictionary,
+which neither reader reads.
+
+Speed is not measured here, so this section makes no speed claim.
+
 ### `Detokenizer`
 
 `DictionaryDetokenizer` (`turbo_tokenize::detok`): the detokenizer
@@ -572,7 +713,8 @@ dots included.
 
 The unigram segmenter's goldens are under `unigram/`, one directory
 per lexicon and mode (`analysis/goldens-tool/README.md`, "Unigram
-goldens").
+goldens"), and the lattice tokenizer's under `lattice/`, one directory
+per dictionary and mode ("Lattice goldens").
 
 The runs cover cases none of the published models reach: `TokenizerME`
 with an abbreviation dictionary (a fixture model, and the English model
@@ -657,3 +799,23 @@ reach the OpenNLP side:
   `trimUnicodeWhitespace` keeps and `isWhitespace` splits on); the empty
   word goes on the trie's root and is never used, but its count is in
   the total.
+- `MecabDictionary.load` reads `char.def` with `trimUnicodeWhitespace`
+  and then splits it with `isWhitespace`. In the legacy whitespace mode,
+  a line made only of `U+001C` to `U+001F` therefore has no fields, and
+  it throws an `ArrayIndexOutOfBoundsException` instead of an
+  `IOException`.
+- `MecabDictionary.load` checks the categories `unk.def` names by
+  iterating over a `HashMap`. Where several are undefined, which one the
+  message names depends on hash order, not on the file.
+- `MecabDictionary.load` allocates the connection matrix from the
+  `matrix.def` header before reading a line. A header declaring the
+  largest allowed matrix makes it allocate 256 MiB for the costs, even
+  when the file is a few bytes.
+- Java's `EUC-JP` decoder reads 0xA1BD as `U+2014` EM DASH, and glibc's
+  `iconv` reads it as `U+2015` HORIZONTAL BAR. IPADIC has that code in
+  four lexicon files, `Symbol.csv` among them. So IPADIC loaded by
+  OpenNLP in EUC-JP and a UTF-8 copy made with `iconv` have different
+  surfaces for that symbol: text with `U+2015` matches the entry in the
+  copy but not in OpenNLP. `turbo-goldens fetch-models` writes its copy
+  with `U+2014`, as Java reads it, and the generator checks that every
+  file of the copy is the text Java decodes from the original.

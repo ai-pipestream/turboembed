@@ -1,0 +1,25 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	ja/ties	34	14	7c2be847c66d1c0e41be942a566ff530fb0545229d69172f094dc99bb68cf061
+model	mecab-ipadic-2.7.0-20070801	0bd4d8717d4fd657ceadec1b0860f1fa17133cd3786e083fe164800e6415b62a5937184dad262ef13df49edae7ddcee5aaefc01297f4ea9c051520f551d606e4
+model	mecab-ipadic-2.7.0-20070801.utf8	52afb518f4a9e347196ef3c2a5f6792e92dc4c67b1bd990e32a82815cd574bcc415f0925178658c855a47725f915bdac49730cfb8e837a7cb1bce2bd91ec77da
+annotator	opennlp.tools.tokenize.lattice.LatticeTokenizer	analyze
+layer	opennlp:tokens	text	6	start:u32	end:u32
+0	6
+7	13
+14	20
+20	26
+27	30
+30	33
+end	opennlp:tokens
+layer	turbo:morphemes	aligned:opennlp:tokens	6	unknown:u32	features:str
+0	名詞,固有名詞,地域,一般,*,*,東京,トウキョウ,トーキョー
+0	名詞,一般,*,*,*,*,漢字,カンジ,カンジ
+0	名詞,固有名詞,地域,一般,*,*,東京,トウキョウ,トーキョー
+0	名詞,固有名詞,地域,一般,*,*,東京,トウキョウ,トーキョー
+0	名詞,一般,*,*,*,*,峠,トウゲ,トーゲ
+0	名詞,接尾,一般,*,*,*,峠,トウゲ,トーゲ
+end	turbo:morphemes

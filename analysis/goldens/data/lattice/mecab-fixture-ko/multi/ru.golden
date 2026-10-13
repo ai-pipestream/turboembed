@@ -1,0 +1,78 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	multi/ru	307	170	0694c88d949a90a29192dbe856add99bbd2f60b9be7448fa0d53b04407bfbbbf
+model	mecab-fixture-ko	527e0f80d5ed85fbda9aedadfedc64ab4f17bc4a9d4869cdf4b1cb274e34e5742211e7e91124dbb80a5fea50839546073e0f1cbd0695a15fb81fd0f5abbea44e
+annotator	opennlp.tools.tokenize.lattice.LatticeTokenizer	analyze
+layer	opennlp:tokens	text	33	start:u32	end:u32
+0	8
+9	11
+12	20
+21	29
+30	42
+43	51
+51	52
+53	59
+60	62
+63	77
+78	88
+89	101
+102	110
+110	111
+112	114
+115	123
+124	140
+141	157
+158	162
+163	175
+175	176
+177	179
+180	192
+193	205
+206	226
+227	239
+239	240
+241	253
+254	266
+267	275
+276	292
+293	305
+305	306
+end	opennlp:tokens
+layer	turbo:morphemes	aligned:opennlp:tokens	33	unknown:u32	features:str
+1	SY,*,*,*,*,*,*,*
+1	SY,*,*,*,*,*,*,*
+1	SY,*,*,*,*,*,*,*
+1	SY,*,*,*,*,*,*,*
+1	SY,*,*,*,*,*,*,*
+1	SY,*,*,*,*,*,*,*
+0	SF,*,*,*,*,*,*,*
+1	SY,*,*,*,*,*,*,*
+1	SY,*,*,*,*,*,*,*
+1	SY,*,*,*,*,*,*,*
+1	SY,*,*,*,*,*,*,*
+1	SY,*,*,*,*,*,*,*
+1	SY,*,*,*,*,*,*,*
+1	SY,*,*,*,*,*,*,*
+1	SY,*,*,*,*,*,*,*
+1	SY,*,*,*,*,*,*,*
+1	SY,*,*,*,*,*,*,*
+1	SY,*,*,*,*,*,*,*
+1	SY,*,*,*,*,*,*,*
+1	SY,*,*,*,*,*,*,*
+0	SF,*,*,*,*,*,*,*
+1	SY,*,*,*,*,*,*,*
+1	SY,*,*,*,*,*,*,*
+1	SY,*,*,*,*,*,*,*
+1	SY,*,*,*,*,*,*,*
+1	SY,*,*,*,*,*,*,*
+0	SF,*,*,*,*,*,*,*
+1	SY,*,*,*,*,*,*,*
+1	SY,*,*,*,*,*,*,*
+1	SY,*,*,*,*,*,*,*
+1	SY,*,*,*,*,*,*,*
+1	SY,*,*,*,*,*,*,*
+0	SF,*,*,*,*,*,*,*
+end	turbo:morphemes

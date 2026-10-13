@@ -1,0 +1,31 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	edge/emoji-single	43	31	0f0e6ac72c443230d882bc1f0284daf265454349b1625c3151cf8b971e92cee6
+model	mecab-ipadic-2.7.0-20070801	0bd4d8717d4fd657ceadec1b0860f1fa17133cd3786e083fe164800e6415b62a5937184dad262ef13df49edae7ddcee5aaefc01297f4ea9c051520f551d606e4
+model	mecab-ipadic-2.7.0-20070801.utf8	52afb518f4a9e347196ef3c2a5f6792e92dc4c67b1bd990e32a82815cd574bcc415f0925178658c855a47725f915bdac49730cfb8e837a7cb1bce2bd91ec77da
+annotator	opennlp.tools.tokenize.lattice.LatticeTokenizer	analyze
+layer	opennlp:tokens	text	9	start:u32	end:u32
+0	5
+6	10
+11	13
+14	22
+23	27
+28	31
+31	34
+35	38
+39	42
+end	opennlp:tokens
+layer	turbo:morphemes	aligned:opennlp:tokens	9	unknown:u32	features:str
+1	名詞,固有名詞,組織,*,*,*,*
+1	記号,一般,*,*,*,*,*
+1	名詞,固有名詞,組織,*,*,*,*
+1	記号,一般,*,*,*,*,*
+1	名詞,固有名詞,組織,*,*,*,*
+1	名詞,サ変接続,*,*,*,*,*
+1	記号,一般,*,*,*,*,*
+1	名詞,サ変接続,*,*,*,*,*
+1	名詞,固有名詞,組織,*,*,*,*
+end	turbo:morphemes

@@ -44,6 +44,17 @@ cargo run -p turbo-goldens-tool -- verify [--models <dir>]
 - `fetch-models <dir>` downloads the published models into `<dir>` with `curl`
   and checks each one's SHA-512 against the value published beside it on
   downloads.apache.org. A model already there with the right hash is kept.
+  It also fetches the MeCab dictionaries (`DICTIONARIES` in `src/recipe.rs`)
+  as archives, checks each archive's SHA-512 (neither project publishes
+  one; these are the hashes OpenNLP's dictionary catalog test resource
+  lists), and unpacks it with `tar` into a directory of the archive's
+  name. For IPADIC, which is EUC-JP, it also writes a UTF-8 copy of the
+  files a dictionary reader reads into `<dir>.utf8` with `iconv`, then
+  replaces `U+2015` with `U+2014`, because Java's `EUC-JP` decoder reads
+  0xA1BD as `U+2014` where `iconv` reads `U+2015`. The generator checks
+  that each file of the copy is the text Java decodes from the original.
+  Unpacking and the copy go through a `.part` directory renamed when
+  complete; a directory already there is kept.
 - `generate` fetches the models (into `target/turbo-goldens/models` unless
   `--models` names a directory), checks that `analysis/goldens/data/fixtures`
   holds exactly the recipe's fixtures with their SHA-512, runs the container
@@ -57,7 +68,8 @@ cargo run -p turbo-goldens-tool -- verify [--models <dir>]
   whose header parses, except a golden with an error record (the annotator
   threw on that input), which must have none. A golden that names no model
   (a tokenizer or sentence detector without one, a normalizer) has no dump,
-  and neither has a detokenizer, number, money or quantity golden.
+  and neither has a detokenizer, number, money, quantity, unigram or
+  lattice golden.
 - `verify` generates into a scratch directory and compares every golden
   and dump byte for byte with the checked in ones. It lists each file that
   differs, is missing or is extra, and exits non zero if there is any. It
@@ -99,6 +111,11 @@ a directory with the same model run without them, and its options are
 | `unigram` (`UnigramSegmenter`) | `zh-unigram-fixture` (fixture), also `+legacy` | `zh`, `multi`, `edge`, `surrogate` | `whitespace legacy` |
 | | `jieba-dict-subset` (fixture), also `+legacy` | `zh`, `multi`, `edge` | `whitespace legacy` |
 | | `zh-unigram-modes` (fixture), also `+legacy` | `zh` | `whitespace legacy` |
+| `lattice` (`LatticeTokenizer`) | `mecab-fixture-ja` (fixture), also `+legacy` | `ja`, `multi`, `edge`, `surrogate` | `whitespace legacy` |
+| | `mecab-fixture-ko` (fixture) | `ko`, `multi`, `edge` | |
+| | `mecab-fixture-partial` (fixture) | `ja`, `edge` | |
+| | `mecab-ipadic-2.7.0-20070801` | `ja`, `multi`, `edge`, `surrogate` | |
+| | `mecab-ko-dic-2.1.1-20180720` | `ko`, `multi`, `edge`, `surrogate` | |
 
 - `+english-dictionary` is the English model rebuilt through
   `TokenizerModel(MaxentModel, Map, TokenizerFactory)` with the
@@ -167,6 +184,41 @@ its lexicon and segments with the legacy mode active. The segmenter asks
 no model, so there are no dumps; its goldens are under their own
 annotator directory so that the rule that every `tokenize` golden naming
 a model has a dump still holds.
+
+## Lattice goldens
+
+`lattice/<dictionary>/<set>/<id>.golden` is what OpenNLP's
+`opennlp.tools.tokenize.lattice.LatticeTokenizer` returned from `analyze`
+for the input, with the MeCab dictionary directory `<dictionary>` (a
+fixture directory, or a dictionary `fetch-models` unpacked). The layers
+are `opennlp:tokens`, one row per morpheme with its UTF-8 byte span, and
+`turbo:morphemes`, aligned to it: `unknown` (1 for a morpheme that
+unknown word handling made) and `features`, the entry's feature columns
+joined with commas. A morpheme is always whole code points, so there is
+never a `turbo:utf16<opennlp:tokens>` layer, and the generator stops if
+one would be needed. Where `analyze` threw (a dictionary whose `unk.def`
+has no `DEFAULT` template), the golden has the error record and no
+layers.
+
+A dictionary is a directory, so its `model` record is the directory's
+name and the SHA-512 of a manifest of the files `MecabDictionary.load`
+reads, in the order it reads them (`matrix.def`, the `*.csv` files
+sorted by name, `char.def`, `unk.def`): for each, its name, a tab, the
+SHA-512 of its bytes in lowercase hex and a line feed. IPADIC is loaded
+in EUC-JP, as OpenNLP users load it, and its goldens have a second
+`model` record for the UTF-8 copy, which the Rust port reads.
+`StringUtil.isWhitespace` splits both the dictionary's lines and the
+text, so a `+legacy` run loads the dictionary and segments with the
+legacy mode active. There are no dumps.
+
+The fixture dictionaries are small and written for this project
+(`analysis/goldens/data/README.md`). IPADIC is under the license in its
+`COPYING` file (the NAIST notice and the ICOT terms, which allow
+redistribution with the notice) and mecab-ko-dic under the Apache
+License 2.0; neither is checked in, and only the goldens made with them
+are. Those goldens hold the feature columns of the entries chosen, so
+`analysis/goldens/data/README.md` carries IPADIC's notice and names
+mecab-ko-dic's license.
 
 ## Normalizer goldens
 

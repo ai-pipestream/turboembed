@@ -1258,6 +1258,7 @@ The layers and their columns, in order:
 | `turbo:detokenization` | `aligned:opennlp:tokens` | `operation:str` |
 | `turbo:detokenized` | `document` | `text:str`, `marked:str` |
 | `turbo:bpe-merges` | `document` | `left:str`, `right:str` |
+| `turbo:morphemes` | `aligned:opennlp:tokens` | `unknown:u32`, `features:str` |
 
 `opennlp:language` has a row per language the detector ranked, best
 first. A `turbo:view` block is what a normalizer produced: a row per
@@ -1303,10 +1304,18 @@ The layer types the reader knows are a parameter. `Golden::read`,
 golden shape (a tokenizer crate's `turbo:word-types`, a word type per
 token in one `kind:str` column) implements `GoldenCompare` for it and
 reads its goldens with `known_shapes()` plus `shape_of::<ItsLayer>()`.
-`segmentation_shapes()` is `known_shapes()` plus the three layers the
-generator writes whose types live in other crates (`turbo:word-types`,
-`turbo:detokenization`, `turbo:detokenized`), so the tokenizer goldens
-can be read without those crates depending on each other.
+`segmentation_shapes()` is `known_shapes()` plus the layers the
+generator writes whose types live in other crates or in no crate
+(`turbo:word-types`, `turbo:detokenization`, `turbo:detokenized`,
+`turbo:morphemes`), so the tokenizer goldens can be read without those
+crates depending on each other.
+
+A `turbo:morphemes` block is what OpenNLP's `LatticeTokenizer` gave each
+morpheme of the `opennlp:tokens` block beside it: `unknown` is 1 for a
+morpheme that unknown word handling made, and `features` is its
+dictionary entry's feature columns joined with commas. No layer type has
+the id; `analysis/tokenize/tests/lattice_golden.rs` compares the rows
+with the dictionary.
 
 ### Comparing a layer with its golden
 
@@ -1478,6 +1487,8 @@ The generator writes these layers, in this order within a golden:
 | `money-convert` (`EcbFxRates.convert` in `MoneyConversionAnnotator`, per notation) | `turbo:money` |
 | `quantity` (`CursorQuantityExtractor.extract` in `QuantityAnnotator`, per notation) | `turbo:quantities` |
 | `subwords` (`WordpieceEncoder.encode`) | `opennlp:subwords` |
+| `unigram` (`UnigramSegmenter.tokenizePos`) | `opennlp:tokens` |
+| `lattice` (`LatticeTokenizer.analyze`) | `opennlp:tokens`, `turbo:morphemes` |
 
 `numbers/<notation>/num/<id>.golden` (`latin-us`, `latin-eu`) holds
 `turbo:numbers`, anchored on the text, with one row per number mention:

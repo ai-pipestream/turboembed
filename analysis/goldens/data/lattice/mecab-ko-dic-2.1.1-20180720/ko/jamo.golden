@@ -1,0 +1,26 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	ko/jamo	53	21	2f60a8744426016108eb8a344466a0079dae28127f6746837d84f05f1820f626
+model	mecab-ko-dic-2.1.1-20180720	2af39983547b6f54f5709733850dbbf14eadeec55bfdf795272fa707c8c86c36c9b43e3aaebc8531c784da00a2d974e6819c8d8c08a31f251d85f1a4476d8053
+annotator	opennlp.tools.tokenize.lattice.LatticeTokenizer	analyze
+layer	opennlp:tokens	text	7	start:u32	end:u32
+0	9
+10	16
+17	20
+20	23
+23	26
+27	45
+46	52
+end	opennlp:tokens
+layer	turbo:morphemes	aligned:opennlp:tokens	7	unknown:u32	features:str
+0	IC,*,F,크크크,*,*,*,*
+0	IC,*,F,흐흐,*,*,*,*
+0	NNG,*,F,ㄱ,*,*,*,*
+0	NNG,*,F,ㄴ,*,*,*,*
+0	NNG,*,F,ㄷ,*,*,*,*
+1	UNKNOWN,*,*,*,*,*,*,*
+0	NNG,*,T,한글,*,*,*,*
+end	turbo:morphemes

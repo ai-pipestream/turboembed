@@ -1,0 +1,38 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	ko/basic	74	30	3f650c34dae13da481a29fff4a5453b6c2d27dee59df138adb5ac4c55237dab3
+model	mecab-fixture-ko	527e0f80d5ed85fbda9aedadfedc64ab4f17bc4a9d4869cdf4b1cb274e34e5742211e7e91124dbb80a5fea50839546073e0f1cbd0695a15fb81fd0f5abbea44e
+annotator	opennlp.tools.tokenize.lattice.LatticeTokenizer	analyze
+layer	opennlp:tokens	text	13	start:u32	end:u32
+0	6
+6	9
+10	19
+19	20
+21	27
+27	30
+31	37
+37	43
+44	53
+53	56
+57	63
+63	72
+72	73
+end	opennlp:tokens
+layer	turbo:morphemes	aligned:opennlp:tokens	13	unknown:u32	features:str
+0	NNG,장소,F,학교,*,*,*,*
+0	JKB,*,F,에,*,*,*,*
+0	VV+EF,*,F,갑니다,Inflect,VV,EF,가/VV/*+ㅂ니다/EF/*
+0	SF,*,*,*,*,*,*,*
+0	NNG,*,T,학생,*,*,*,*
+0	JX,*,T,은,*,*,*,*
+0	NNP,지명,T,서울,*,*,*,*
+0	JKB,*,F,에서,*,*,*,*
+0	NNP,*,F,한국어,Compound,*,*,한국/NNP/*+어/NNG/*
+0	JKO,*,T,를,*,*,*,*
+0	NNG,행위,F,공부,*,*,*,*
+0	XSV+EF,*,F,합니다,Inflect,XSV,EF,하/XSV/*+ㅂ니다/EF/*
+0	SF,*,*,*,*,*,*,*
+end	turbo:morphemes

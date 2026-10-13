@@ -1,0 +1,50 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	ko/mixed	64	42	d849fe42904e1e1859b5a8a6b48d7b6ddb0d7db7786e6cbb77d0d91b80df61ff
+model	mecab-ko-dic-2.1.1-20180720	2af39983547b6f54f5709733850dbbf14eadeec55bfdf795272fa707c8c86c36c9b43e3aaebc8531c784da00a2d974e6819c8d8c08a31f251d85f1a4476d8053
+annotator	opennlp.tools.tokenize.lattice.LatticeTokenizer	analyze
+layer	opennlp:tokens	text	19	start:u32	end:u32
+0	4
+4	7
+8	12
+12	15
+16	20
+20	23
+23	26
+27	33
+33	42
+42	43
+44	50
+51	52
+52	53
+53	54
+54	55
+55	56
+56	57
+58	61
+61	63
+end	opennlp:tokens
+layer	turbo:morphemes	aligned:opennlp:tokens	19	unknown:u32	features:str
+1	SL,*,*,*,*,*,*,*
+0	JC,*,F,와,*,*,*,*
+1	SL,*,*,*,*,*,*,*
+0	JKB,*,F,로,*,*,*,*
+1	SN,*,*,*,*,*,*,*
+0	NNBC,*,T,년,*,*,*,*
+0	JKB,*,F,에,*,*,*,*
+0	NNG,행위,T,개발,*,*,*,*
+0	XSV+EF,*,F,합니다,Inflect,XSV,EF,하/XSV/*+ᄇ니다/EF/*
+0	SF,*,*,*,*,*,*,*
+0	NNG,*,T,버전,*,*,*,*
+1	SN,*,*,*,*,*,*,*
+1	SY,*,*,*,*,*,*,*
+1	SN,*,*,*,*,*,*,*
+1	SY,*,*,*,*,*,*,*
+1	SN,*,*,*,*,*,*,*
+0	SC,*,*,*,*,*,*,*
+1	SN,*,*,*,*,*,*,*
+1	SY,*,*,*,*,*,*,*
+end	turbo:morphemes

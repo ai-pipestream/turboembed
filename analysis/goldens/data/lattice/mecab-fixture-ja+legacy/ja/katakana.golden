@@ -1,0 +1,45 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	ja/katakana	97	33	01246770f162d2d6495d5418fba144e360be4b927d4937336549fa431dc5f301
+model	mecab-fixture-ja	a8bffe24e9415d6dc5a776ce62077641f72653c99e032a6a53c1ee6fcb5f5cba28b0b5d5c79ea25f7eac1727f9243fccb47eb053180438daef072ac6bafac3bb
+annotator	opennlp.tools.tokenize.lattice.LatticeTokenizer	analyze
+config	whitespace	legacy
+layer	opennlp:tokens	text	16	start:u32	end:u32
+0	12
+12	15
+15	27
+27	30
+30	39
+39	42
+42	54
+54	57
+57	66
+66	69
+69	72
+72	75
+75	81
+81	84
+84	93
+93	96
+end	opennlp:tokens
+layer	turbo:morphemes	aligned:opennlp:tokens	16	unknown:u32	features:str
+0	名詞,一般,*,コーヒー
+0	助詞,並立助詞,*,ト
+0	名詞,一般,*,カタカナ
+0	助詞,並立助詞,*,ト
+1	名詞,一般,*,*
+0	記号,句点,*,。
+1	名詞,一般,*,*
+0	記号,読点,*,、
+1	名詞,一般,*,*
+0	記号,読点,*,、
+1	名詞,一般,*,*
+0	記号,読点,*,、
+1	名詞,一般,*,*
+0	記号,読点,*,、
+1	名詞,一般,*,*
+0	記号,句点,*,。
+end	turbo:morphemes

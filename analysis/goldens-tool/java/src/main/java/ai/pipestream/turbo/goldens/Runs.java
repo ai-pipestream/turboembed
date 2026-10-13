@@ -1,6 +1,7 @@
 package ai.pipestream.turbo.goldens;
 
 import java.io.IOException;
+import java.nio.charset.Charset;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
@@ -25,6 +26,15 @@ final class Runs {
   static final String LANGUAGE_MODEL = "langdetect-183.bin";
 
   /**
+   * The MeCab dictionaries the generator loads from the models directory, each unpacked from its
+   * published archive, and the UTF-8 copy of the one that is not UTF-8.
+   */
+  static final String IPADIC = "mecab-ipadic-2.7.0-20070801";
+  static final String IPADIC_UTF8 = "mecab-ipadic-2.7.0-20070801.utf8";
+  static final String IPADIC_CHARSET = "EUC-JP";
+  static final String KO_DIC = "mecab-ko-dic-2.1.1-20180720";
+
+  /**
    * The files the generator loads from the fixtures directory: models and dictionaries made for
    * the tests or copied from OpenNLP, which are checked in (analysis/goldens/data/fixtures).
    */
@@ -38,6 +48,9 @@ final class Runs {
   static final String UNIGRAM_FIXTURE = "zh-unigram-fixture.txt";
   static final String UNIGRAM_JIEBA = "jieba-dict-subset.txt";
   static final String UNIGRAM_MODES = "zh-unigram-modes.txt";
+  static final String LATTICE_JA = "mecab-fixture-ja";
+  static final String LATTICE_KO = "mecab-fixture-ko";
+  static final String LATTICE_PARTIAL = "mecab-fixture-partial";
 
   /** The input sets, the directories of the inputs directory. */
   static final String EN = "en";
@@ -51,6 +64,8 @@ final class Runs {
   static final String SUBWORDS = "subwords";
   static final String BPE = "bpe";
   static final String ZH = "zh";
+  static final String JA = "ja";
+  static final String KO = "ko";
 
   /** The numbers of merges the BPE trainer runs with: few, so the tokens are pieces of words, and many. */
   static final List<Integer> BPE_MERGES = List.of(40, 400);
@@ -134,6 +149,19 @@ final class Runs {
       annotators.add(UnigramGolden.load(fixtures.resolve(UNIGRAM_JIEBA), mode, Set.of(ZH, MULTI, EDGE)));
       annotators.add(UnigramGolden.load(fixtures.resolve(UNIGRAM_MODES), mode, Set.of(ZH)));
     }
+
+    // The lattice tokenizer: the fixture dictionaries (the Japanese one in both modes, and one
+    // whose unk.def has no DEFAULT template, which throws on some inputs), IPADIC loaded in its
+    // own encoding beside its UTF-8 copy, and mecab-ko-dic.
+    for (WhitespaceMode mode : MODES) {
+      annotators.add(LatticeGolden.load(fixtures.resolve(LATTICE_JA), mode, Set.of(JA, MULTI, EDGE, SURROGATE)));
+    }
+    annotators.add(LatticeGolden.load(fixtures.resolve(LATTICE_KO), WhitespaceMode.UNICODE, Set.of(KO, MULTI, EDGE)));
+    annotators.add(LatticeGolden.load(fixtures.resolve(LATTICE_PARTIAL), WhitespaceMode.UNICODE, Set.of(JA, EDGE)));
+    annotators.add(LatticeGolden.loadRecoded(models.resolve(IPADIC), Charset.forName(IPADIC_CHARSET),
+        models.resolve(IPADIC_UTF8), WhitespaceMode.UNICODE, Set.of(JA, MULTI, EDGE, SURROGATE)));
+    annotators.add(LatticeGolden.load(models.resolve(KO_DIC), WhitespaceMode.UNICODE,
+        Set.of(KO, MULTI, EDGE, SURROGATE)));
 
     LanguageGolden languages = LanguageGolden.load(models.resolve(LANGUAGE_MODEL), Set.of(EN, MULTI));
     annotators.add(languages);

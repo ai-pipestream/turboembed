@@ -93,10 +93,66 @@ pub const MODELS: [Model; 9] = [
     },
 ];
 
+/// A MeCab dictionary the generator loads from the models directory: the
+/// archive it is published in, the SHA-512 of the archive, the directory
+/// the archive unpacks to (where the dictionary's files are) and the
+/// encoding of those files.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Dictionary {
+    pub archive: &'static str,
+    pub url: &'static str,
+    pub sha512: &'static str,
+    pub dir: &'static str,
+    pub encoding: DictionaryEncoding,
+}
+
+/// The encoding of a dictionary's files.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum DictionaryEncoding {
+    Utf8,
+    /// EUC-JP: `fetch-models` also writes a UTF-8 copy of the files the
+    /// dictionary reader reads into `<dir>.utf8`, with `iconv`. The
+    /// generator loads the original in EUC-JP and checks that the copy is
+    /// the same text; the Rust port reads the copy. Where iconv and Java
+    /// decode a code differently (0xA1BD), the copy has what Java decodes.
+    EucJp,
+}
+
+/// The published MeCab dictionaries, with the SHA-512 of each archive.
+/// Neither project publishes a hash beside the archive; these are the
+/// hashes OpenNLP's dictionary catalog test resource lists
+/// (`dictionary-catalog.properties` at the OpenNLP commit), which the
+/// downloads were checked against. IPADIC is under the NAIST and ICOT
+/// notice in its `COPYING`, mecab-ko-dic under the Apache License 2.0; the
+/// archives are fetched, never checked in.
+pub const DICTIONARIES: [Dictionary; 2] = [
+    Dictionary {
+        archive: "mecab-ipadic-2.7.0-20070801.tar.gz",
+        url: "https://downloads.sourceforge.net/project/mecab/mecab-ipadic/2.7.0-20070801/mecab-ipadic-2.7.0-20070801.tar.gz",
+        sha512: "35ea662cb62f1967849f7ed5781bd6dafef0fe20d63e88d9a0057666e57ed23d\
+                 5a0e6fb8d0701a0cc4da43a1050c1b02463bb862decc71c36b7fc2acdc158d86",
+        dir: "mecab-ipadic-2.7.0-20070801",
+        encoding: DictionaryEncoding::EucJp,
+    },
+    Dictionary {
+        archive: "mecab-ko-dic-2.1.1-20180720.tar.gz",
+        url: "https://bitbucket.org/eunjeon/mecab-ko-dic/downloads/mecab-ko-dic-2.1.1-20180720.tar.gz",
+        sha512: "986f8f9c66c53accd296756bf632c979d2d44b695ada33f36c662f210dba34cd\
+                 95d67b61dd8c84a1f7d59f80ee6bc22eb1e9afb5dc6a7f9b6b75b4fbf2f8164f",
+        dir: "mecab-ko-dic-2.1.1-20180720",
+        encoding: DictionaryEncoding::Utf8,
+    },
+];
+
+/// The suffix of the directory holding the UTF-8 copy of a dictionary
+/// that is not UTF-8.
+pub const UTF8_COPY_SUFFIX: &str = ".utf8";
+
 /// A checked in file the generator loads from the fixtures directory,
 /// `analysis/goldens/data/fixtures`: a model trained for the tests, a
-/// dictionary, a WordPiece vocabulary or a frequency lexicon, and the
-/// SHA-512 of its bytes.
+/// dictionary, a WordPiece vocabulary, a frequency lexicon or a file of a
+/// MeCab dictionary directory, and the SHA-512 of its bytes. `file` is the
+/// path below the fixtures directory, with `/` between directory and file.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Fixture {
     pub file: &'static str,
@@ -104,8 +160,10 @@ pub struct Fixture {
 }
 
 /// The fixtures, which are all the files of the fixtures directory. The
-/// file names are the ones the generator's `Runs` class opens there.
-pub const FIXTURES: [Fixture; 13] = [
+/// file names are the ones the generator's `Runs` class opens there; a
+/// fixture in a subdirectory is a file of a dictionary directory, and
+/// `Runs` opens the directory.
+pub const FIXTURES: [Fixture; 26] = [
     Fixture {
         file: "en-abbrev.bin",
         sha512: "759ab1defc61351f53cdd82a26e708789a225feb6e1ec0cfd6e2e54f35f67c14\
@@ -171,10 +229,75 @@ pub const FIXTURES: [Fixture; 13] = [
         sha512: "d07069e2b828406873f37f056ca71e2175d8ecbd922d2a34c356f6695c0975e0\
                  3830b7fa8000ba8476312514dca8992b24d848a82abd3c4ce677b0fdf1fe6f9a",
     },
+    Fixture {
+        file: "mecab-fixture-ja/A-nouns.csv",
+        sha512: "3514d1ce9d28d24eafd14406987352f004a85a5980e86971475401e2c87610fb\
+                 f383e207498a9067bb37f260dffb3fb03abbedd353dbc08b50d60d24a0aa8847",
+    },
+    Fixture {
+        file: "mecab-fixture-ja/b-others.csv",
+        sha512: "1ee8fee5fbed1177dfea712201212a0b6732220f9047a537f8536f31906af2d7\
+                 5591b5d4533f21112999142230a44594654eedc85071418dca1df2d1cd777b21",
+    },
+    Fixture {
+        file: "mecab-fixture-ja/char.def",
+        sha512: "a1827cdf76d1ad05a1a82d4960a37c5bb2251ac7fadad8b20627fac45de2d758\
+                 b4d6ecb2a3cc6313e73df4c929ff9d09a35d1617346a0fcfc438d95d620089c4",
+    },
+    Fixture {
+        file: "mecab-fixture-ja/matrix.def",
+        sha512: "5561b2fa77b12841439fa9f81f247749ebe21634e7bc17ed47c1f94698b4b15e\
+                 0b9ee433a276edbef3cdf3fd7b19b84f74f478728f8e69551ceb2a93ab4b6286",
+    },
+    Fixture {
+        file: "mecab-fixture-ja/unk.def",
+        sha512: "b480bc0b9a28f0876ea756bacecf4f9970d72c33f170fd09279d3f9c92c43b83\
+                 1686d01ed98bd541fb84266f752776cba30061607497e59b27d23884efa49832",
+    },
+    Fixture {
+        file: "mecab-fixture-ko/char.def",
+        sha512: "771c2403dfb33b08d5f2494463bad93465585d254b532ffadde7515703d01ea4\
+                 44deb05a57371dd459d8d4e9eef25b050e2be8a6c7470c052b86e8f1d7b09900",
+    },
+    Fixture {
+        file: "mecab-fixture-ko/matrix.def",
+        sha512: "c11d28694008c74e84f9fe2f3c42d25106fb496851bbe92b166af575922ff422\
+                 3456cfe2ca3692fee1863a8a3539859ab772e9b9868bea04df41e43cc1ca2575",
+    },
+    Fixture {
+        file: "mecab-fixture-ko/unk.def",
+        sha512: "260314c1de3d187ac3fa8ef5a35e354d318af678de099f7a54d3021694cc374b\
+                 336e1f223bfbde0dd2969aba9ea2445fc5f549c265c394977aad942cec396374",
+    },
+    Fixture {
+        file: "mecab-fixture-ko/words.csv",
+        sha512: "969a6bcd215a61dd8bc7799f69a7b1a6aeb5975d8202bba4c982e39271e208df\
+                 8fe1b893dac9c73f5d508901ad8959c66e3c874abc8219db2afa21dc6d0471ce",
+    },
+    Fixture {
+        file: "mecab-fixture-partial/char.def",
+        sha512: "45ae8dfcf2398f038d40f0910410dccdb74a2a1ba969bc718c976e675371c72b\
+                 d0efb3666b041b201c3a38a27855cbd50a7bfd16685b0764ea87e2104c7b0db4",
+    },
+    Fixture {
+        file: "mecab-fixture-partial/matrix.def",
+        sha512: "d7d297def9b3076ff213fba877138bef306126f77e2a3d962ab3be0625e1b4bb\
+                 d018207610edde710251e1e86e0d6aae5fd21d1b844edcaa509a809b7c957832",
+    },
+    Fixture {
+        file: "mecab-fixture-partial/unk.def",
+        sha512: "677ede432bd5d3d939221a8cc56f36a0dcbad64705b9b02661ef57d10c7ec668\
+                 6e44201dc34f5cd028b87e9ae1c1a50ec6e552d0461f13df8ec35adcd609e013",
+    },
+    Fixture {
+        file: "mecab-fixture-partial/words.csv",
+        sha512: "7a0d6be9beaf23fec933e7142dc79c20508e9ef7414181996203be9f3ab5b1cd\
+                 5cca26be772b523e0ff4d0bf0e895f2c33ec9c615957b9d85cfd271257614d20",
+    },
 ];
 
 /// The input sets under `analysis/goldens/data/inputs`.
-pub const INPUT_SETS: [&str; 15] = [
+pub const INPUT_SETS: [&str; 17] = [
     "en",
     "multi",
     "norm",
@@ -190,6 +313,8 @@ pub const INPUT_SETS: [&str; 15] = [
     "subwords",
     "zh",
     "bpe",
+    "ja",
+    "ko",
 ];
 
 /// The arguments the driver passes to the generator after the fixed ones
@@ -203,7 +328,7 @@ pub const GENERATOR_ARGS: [&str; 1] = ["--dumps"];
 /// replaces and `verify` compares. The data directory holds other things
 /// (the inputs, the fixtures, the rate snapshot, a README) that neither
 /// touches.
-pub const ANNOTATORS: [&str; 12] = [
+pub const ANNOTATORS: [&str; 13] = [
     "sentdetect",
     "tokenize",
     "langdetect",
@@ -216,6 +341,7 @@ pub const ANNOTATORS: [&str; 12] = [
     "subwords",
     "unigram",
     "bpe",
+    "lattice",
 ];
 
 /// The annotators with runs that ask a maxent model for their decisions:
@@ -223,8 +349,8 @@ pub const ANNOTATORS: [&str; 12] = [
 /// dump beside it. Their runs without a model (the simple, whitespace and
 /// UAX #29 tokenizers and the newline detector) have none, nor do the
 /// normalizers, the number scan, the money and quantity annotators,
-/// the detokenizer, the WordPiece encoder, the unigram segmenter and the
-/// BPE trainer, which ask no model.
+/// the detokenizer, the WordPiece encoder, the unigram segmenter, the
+/// BPE trainer and the lattice tokenizer, which ask no model.
 pub const DUMPED_ANNOTATORS: [&str; 3] = ["sentdetect", "tokenize", "langdetect"];
 
 /// The input set the normalizers run on. They run on no other set, and the
@@ -295,14 +421,52 @@ mod tests {
     fn every_fixture_has_a_file_and_a_sha512() {
         for f in FIXTURES {
             assert!(is_lower_hex(f.sha512, 128), "{}: {}", f.file, f.sha512);
-            assert!(f.file.ends_with(".bin") || f.file.ends_with(".xml") || f.file.ends_with(".txt"), "{}", f.file);
+            match f.file.split_once('/') {
+                None => assert!(
+                    f.file.ends_with(".bin") || f.file.ends_with(".xml") || f.file.ends_with(".txt"),
+                    "{}",
+                    f.file
+                ),
+                Some((dir, file)) => {
+                    assert!(dir.starts_with("mecab-") && !file.contains('/'), "{}", f.file);
+                    assert!(file.ends_with(".csv") || file.ends_with(".def"), "{}", f.file);
+                }
+            }
         }
+    }
+
+    #[test]
+    fn every_dictionary_has_an_https_url_and_a_sha512() {
+        for d in DICTIONARIES {
+            assert!(is_lower_hex(d.sha512, 128), "{}: {}", d.archive, d.sha512);
+            assert!(d.url.starts_with("https://"), "{}", d.url);
+            assert!(d.url.ends_with(&format!("/{}", d.archive)), "{} does not end in {}", d.url, d.archive);
+            assert_eq!(d.archive, format!("{}.tar.gz", d.dir));
+        }
+    }
+
+    /// The name of a fixture as `Runs` opens it: the directory of a
+    /// dictionary's file, the file itself otherwise.
+    fn opened(file: &str) -> &str {
+        file.split_once('/').map_or(file, |(dir, _)| dir)
     }
 
     #[test]
     fn the_generator_opens_the_same_model_and_fixture_files() {
         let runs = include_str!("../java/src/main/java/ai/pipestream/turbo/goldens/Runs.java");
-        for file in MODELS.iter().map(|m| m.file).chain(FIXTURES.iter().map(|f| f.file)) {
+        let dictionaries = DICTIONARIES.iter().map(|d| d.dir);
+        let copies: Vec<String> = DICTIONARIES
+            .iter()
+            .filter(|d| d.encoding == DictionaryEncoding::EucJp)
+            .map(|d| format!("{}{UTF8_COPY_SUFFIX}", d.dir))
+            .collect();
+        for file in MODELS
+            .iter()
+            .map(|m| m.file)
+            .chain(FIXTURES.iter().map(|f| opened(f.file)))
+            .chain(dictionaries)
+            .chain(copies.iter().map(String::as_str))
+        {
             assert!(runs.contains(&format!("\"{file}\"")), "Runs.java does not name {file}");
         }
     }

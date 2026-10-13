@@ -63,6 +63,22 @@ are not taken from any corpus.
   opening of the Analects, both in the public domain, and the sentences
   of `ambiguity.txt` are the stock examples of segmentation ambiguity
   that Chinese word segmentation papers and textbooks repeat.
+- `inputs/ja/`: 14 Japanese texts for the lattice tokenizer, written for
+  this project: plain sentences, segmentation ambiguity (`東京都`,
+  `今日本日`), kanji the lexicons do not list, katakana with the long
+  vowel mark, hiragana runs, halfwidth katakana, Japanese mixed with
+  Latin, fullwidth, Greek and Cyrillic letters, kanji and Arabic
+  numerals, Japanese punctuation and brackets, characters outside the
+  Basic Multilingual Plane and emoji, whitespace of every kind (tab,
+  ideographic, no-break, `U+0085`, `U+001C`, CR, `U+2028`, `U+2029`), a
+  long run without spaces, the fixture dictionary's tied words
+  (`ties.txt`) and its surface with a comma (`quoted-surface.txt`).
+- `inputs/ko/`: 10 Korean texts for the lattice tokenizer, written for
+  this project: sentences with and without spaces between words, words
+  the lexicons do not list, Hanja, Korean mixed with Latin words and
+  numbers, compatibility and conjoining jamo, punctuation, whitespace of
+  every kind, characters outside the Basic Multilingual Plane and a long
+  run without spaces.
 - `inputs/detokenizer/`: one token per line, each line ending with a line
   feed (an empty file is an empty token list). The part of the name before
   the first `-` names the dictionary, `fixtures/<name>-detokenizer.xml`.
@@ -102,6 +118,9 @@ that differs.
 | `zh-unigram-fixture.txt` | a frequency lexicon written for this project: the eight words of OpenNLP's `UnigramSegmenterTest`, pairs of words whose counts have equal products (`研究` 6 `生命` 4 and `研究生` 8 `命` 3, `研究` 6 `生物` 12 and `研究生` 8 `物` 9, `人民` 1 `大会` 148 and `人民大` 2 `会` 74, `a` 3 `bc` 2 and `ab` 2 `c` 3), CR LF and lone CR line ends, an empty and a blank line, a tab, a no-break space and an ideographic space before the count, fullwidth digits and a `+` sign in a count, a leading ideographic space, a word outside the Basic Multilingual Plane, Latin words and a word listed twice |
 | `zh-unigram-modes.txt` | a frequency lexicon written for this project whose words depend on the whitespace mode: `U+001C` ends a word in the legacy mode only and `U+0085` in the Unicode mode only |
 | `jieba-dict-subset.txt` | the lines of jieba's `jieba/dict.txt` (github.com/fxsjy/jieba, commit `67fa2e36e72f69d9134b8a1037b83fbb070b9775`, MIT license, see below) whose word occurs in an input of the `zh`, `multi` or `edge` set, unchanged and in the order of `dict.txt`; made with the command below |
+| `mecab-fixture-ja/` | a MeCab dictionary directory written for this project: two lexicon files (`A-nouns.csv`, `b-others.csv`) of 37 entries with IPADIC-style part-of-speech features, a 5 by 5 `matrix.def`, a `char.def` with overlapping categories, a category without grouping and supplementary ranges, and an `unk.def`. Its costs make ties of each kind the lattice tokenizer breaks, and one surface has a comma in it (quoted, as MeCab quotes it) |
+| `mecab-fixture-ko/` | a MeCab dictionary directory written for this project: one lexicon file of 23 entries with mecab-ko-dic-style features, a 4 by 4 `matrix.def`, and a `char.def` and `unk.def` with Hangul, jamo and Hanja categories |
+| `mecab-fixture-partial/` | a MeCab dictionary directory written for this project whose `unk.def` has no `DEFAULT` template, so a character that starts no lexicon word and is outside its `KANJI` category has no candidate |
 | `all-minilm-l6-v2-vocab.txt` | the WordPiece vocabulary of `testdata/all-minilm-l6-v2/tokenizer.json` (sentence-transformers/all-MiniLM-L6-v2, Apache-2.0), one piece per line in id order with a line feed after each, written with `jq -r '.model.vocab \| to_entries \| sort_by(.value) \| .[].key'`; 30522 pieces, the uncased BERT vocabulary |
 
 `jieba-dict-subset.txt` was written from the repository root with
@@ -138,6 +157,93 @@ COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER
 IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
 CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 ```
+
+## Dictionary notices
+
+The goldens under `lattice/mecab-ipadic-2.7.0-20070801/` hold the
+feature columns (part of speech and reading) of the IPADIC entries the
+JVM chose for each input, and the dictionary itself is not checked in.
+IPADIC's `COPYING` asks that any copy, whole or modified, carry its
+notice, which follows as it is in `mecab-ipadic-2.7.0-20070801.tar.gz`:
+
+```
+Copyright 2000, 2001, 2002, 2003 Nara Institute of Science
+and Technology.  All Rights Reserved.
+
+Use, reproduction, and distribution of this software is permitted.
+Any copy of this software, whether in its original form or modified,
+must include both the above copyright notice and the following
+paragraphs.
+
+Nara Institute of Science and Technology (NAIST),
+the copyright holders, disclaims all warranties with regard to this
+software, including all implied warranties of merchantability and
+fitness, in no event shall NAIST be liable for
+any special, indirect or consequential damages or any damages
+whatsoever resulting from loss of use, data or profits, whether in an
+action of contract, negligence or other tortuous action, arising out
+of or in connection with the use or performance of this software.
+
+A large portion of the dictionary entries
+originate from ICOT Free Software.  The following conditions for ICOT
+Free Software applies to the current dictionary as well.
+
+Each User may also freely distribute the Program, whether in its
+original form or modified, to any third party or parties, PROVIDED
+that the provisions of Section 3 ("NO WARRANTY") will ALWAYS appear
+on, or be attached to, the Program, which is distributed substantially
+in the same form as set out herein and that such intended
+distribution, if actually made, will neither violate or otherwise
+contravene any of the laws and regulations of the countries having
+jurisdiction over the User or the intended distribution itself.
+
+NO WARRANTY
+
+The program was produced on an experimental basis in the course of the
+research and development conducted during the project and is provided
+to users as so produced on an experimental basis.  Accordingly, the
+program is provided without any warranty whatsoever, whether express,
+implied, statutory or otherwise.  The term "warranty" used herein
+includes, but is not limited to, any warranty of the quality,
+performance, merchantability and fitness for a particular purpose of
+the program and the nonexistence of any infringement or violation of
+any right of any third party.
+
+Each user of the program will agree and understand, and be deemed to
+have agreed and understood, that there is no warranty whatsoever for
+the program and, accordingly, the entire risk arising from or
+otherwise connected with the program is assumed by the user.
+
+Therefore, neither ICOT, the copyright holder, or any other
+organization that participated in or was otherwise related to the
+development of the program and their respective officials, directors,
+officers and other employees shall be held liable for any and all
+damages, including, without limitation, general, special, incidental
+and consequential damages, arising out of or otherwise in connection
+with the use or inability to use the program or any product, material
+or result produced or otherwise obtained by using the program,
+regardless of whether they have been advised of, or otherwise had
+knowledge of, the possibility of such damages at any time during the
+project or thereafter.  Each user will be deemed to have agreed to the
+foregoing by his or her commencement of use of the program.  The term
+"use" as used herein includes, but is not limited to, the use,
+modification, copying and distribution of the program and the
+production of secondary products from the program.
+
+In the case where the program, whether in its original form or
+modified, was distributed or delivered to or received by a user from
+any person, organization or entity other than ICOT, unless it makes or
+grants independently of ICOT any specific warranty to the user in
+writing, such person, organization or entity, will also be exempted
+from and not be held liable to the user for any such damages as noted
+above as far as the program is concerned.
+```
+
+The goldens under `lattice/mecab-ko-dic-2.1.1-20180720/` hold the
+feature columns of the mecab-ko-dic entries the JVM chose. mecab-ko-dic
+is under the Apache License 2.0 (its `COPYING`,
+https://www.apache.org/licenses/LICENSE-2.0); its archive has no
+`NOTICE` file. The dictionary itself is not checked in.
 
 ## Goldens
 

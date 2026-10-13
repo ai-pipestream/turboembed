@@ -39,6 +39,7 @@ use turbo_unicode::java;
 
 use super::trie::{TrieBuilder, WordTrie};
 use crate::detok::dictionary::Fnv;
+use crate::lines::{Lines, trim_unicode_whitespace};
 
 /// The most distinct words a lexicon may hold unless the caller sets
 /// another limit: OpenNLP's `ResourceLimits.MAX_ENTRIES` default.
@@ -219,45 +220,6 @@ pub(crate) fn java_log(x: f64) -> f64 {
     turbo_jvm::math::log(x)
 }
 
-/// The lines of `text` as `BufferedReader.readLine` returns them: ended by
-/// `\n`, `\r` or `\r\n`, the end itself left out, and no empty last line
-/// after a final line end.
-struct Lines<'a> {
-    rest: &'a str,
-}
-
-impl<'a> Lines<'a> {
-    fn new(text: &'a str) -> Lines<'a> {
-        Lines { rest: text }
-    }
-}
-
-impl<'a> Iterator for Lines<'a> {
-    type Item = &'a str;
-
-    fn next(&mut self) -> Option<&'a str> {
-        if self.rest.is_empty() {
-            return None;
-        }
-        let bytes = self.rest.as_bytes();
-        let Some(end) = bytes.iter().position(|&b| b == b'\n' || b == b'\r') else {
-            let line = self.rest;
-            self.rest = "";
-            return Some(line);
-        };
-        let line = &self.rest[..end];
-        let skip = if bytes[end] == b'\r' && bytes.get(end + 1) == Some(&b'\n') { 2 } else { 1 };
-        self.rest = &self.rest[end + skip..];
-        Some(line)
-    }
-}
-
-/// `StringUtil.trimUnicodeWhitespace`: the Unicode `White_Space` set at
-/// both ends, in every whitespace mode.
-fn trim_unicode_whitespace(line: &str) -> &str {
-    line.trim_matches(|c: char| WhitespaceMode::Unicode.is_whitespace(c as u32))
-}
-
 /// `Long.parseLong(s)`: an optional sign (not alone), then one or more
 /// characters `Character.digit(c, 10)` accepts, within the range of a
 /// Java `long`. `Character.digit` sees UTF-16 code units, so a digit
@@ -295,17 +257,6 @@ mod tests {
 
     fn message(text: &str) -> String {
         parse(text).expect_err("an error").to_string()
-    }
-
-    #[test]
-    fn lines_split_as_read_line_splits_them() {
-        let lines: Vec<&str> = Lines::new("a\nb\r\nc\rd\n\ne").collect();
-        assert_eq!(lines, ["a", "b", "c", "d", "", "e"]);
-        assert_eq!(Lines::new("a\n").collect::<Vec<_>>(), ["a"]);
-        assert_eq!(Lines::new("\r\r\n").collect::<Vec<_>>(), ["", ""]);
-        assert_eq!(Lines::new("").count(), 0);
-        // U+2028 and U+0085 do not end a line.
-        assert_eq!(Lines::new("a\u{2028}b\u{85}c").count(), 1);
     }
 
     #[test]
