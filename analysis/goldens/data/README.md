@@ -56,9 +56,13 @@ are not taken from any corpus.
   Western punctuation, traditional characters, characters outside the
   Basic Multilingual Plane and emoji, whitespace of every kind (CR LF,
   tab, ideographic, no-break, `U+0085`, `U+001C`, `U+2028`, `U+2029`), a
-  long run without punctuation, classical verse, Chinese, fullwidth and
+  long run without punctuation, classical text, Chinese, fullwidth and
   Roman numerals, the fixture lexicon's words (`fixture-words.txt`) and
-  the words of the whitespace mode lexicon (`modes.txt`).
+  the words of the whitespace mode lexicon (`modes.txt`). Two files are
+  not new text: `classical.txt` quotes Li Bai's poem 静夜思 and the
+  opening of the Analects, both in the public domain, and the sentences
+  of `ambiguity.txt` are the stock examples of segmentation ambiguity
+  that Chinese word segmentation papers and textbooks repeat.
 - `inputs/detokenizer/`: one token per line, each line ending with a line
   feed (an empty file is an empty token list). The part of the name before
   the first `-` names the dictionary, `fixtures/<name>-detokenizer.xml`.
