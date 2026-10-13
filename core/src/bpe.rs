@@ -218,8 +218,9 @@ fn key(l: u32, r: u32) -> u64 {
 }
 
 /// GPT-2's characters for bytes: the printable bytes as themselves, the
-/// others as the characters from U+0100 on, in byte order.
-pub(crate) fn byte_chars() -> &'static [char; 256] {
+/// others as the characters from U+0100 on, in byte order. Public so
+/// that a trainer writes the alphabet this encoder reads.
+pub fn byte_chars() -> &'static [char; 256] {
     static CHARS: std::sync::OnceLock<[char; 256]> = std::sync::OnceLock::new();
     CHARS.get_or_init(|| {
         let mut chars = ['\0'; 256];
@@ -238,7 +239,7 @@ pub(crate) fn byte_chars() -> &'static [char; 256] {
 }
 
 /// The byte a GPT-2 character stands for, if it is one.
-pub(crate) fn char_byte(c: char) -> Option<u8> {
+pub fn char_byte(c: char) -> Option<u8> {
     let u = c as u32;
     match u {
         0x21..=0x7e | 0xa1..=0xac | 0xae..=0xff => Some(u as u8),
@@ -410,8 +411,9 @@ fn class(c: char) -> Class {
 
 /// GPT-2's pattern, `'s|'t|'re|'ve|'m|'ll|'d| ?\p{L}+| ?\p{N}+|
 /// ?[^\s\p{L}\p{N}]+|\s+(?!\S)|\s+`, as upstream matches it: `word(start,
-/// end)` for each match, which together cover the text.
-pub(crate) fn split(s: &str, mut word: impl FnMut(usize, usize)) {
+/// end)` for each match, which together cover the text. Public so that a
+/// trainer cuts its corpus into the words this encoder merges.
+pub fn split(s: &str, mut word: impl FnMut(usize, usize)) {
     let b = s.as_bytes();
     let at = |i: usize| s[i..].chars().next().expect("inside the text");
     // The end of the run of `class` from i.
