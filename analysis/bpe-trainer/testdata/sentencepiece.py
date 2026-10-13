@@ -19,6 +19,10 @@ in a text made spaces; tests/sentencepiece.rs reads them the same way:
   tiny-bpe          testdata/tiny-bpe/corpus.jsonl, one string per line
   bpe-inputs        the lines of analysis/goldens/data/inputs/bpe/*.txt,
                     the files in name order
+  edge              edge.jsonl beside this script, one string per line:
+                    the corners of the library's reading of a corpus (⁇
+                    and ▅, U+2581 in the text, meta pieces, tabs, NUL,
+                    lines of 4192 and 4193 bytes, scripts, long words)
 
 sentencepiece-random.jsonl has RANDOM_RUNS small corpora of the letters
 "ab" or "abc", drawn with random.Random(RANDOM_SEED): on each line the
@@ -58,7 +62,9 @@ def corpora():
     for p in sorted(glob.glob(os.path.join(REPO, "analysis/goldens/data/inputs/bpe/*.txt"))):
         with open(p, encoding="utf-8") as f:
             inputs.extend(f.read().split("\n"))
-    return [("tokenizer-texts", texts), ("tiny-bpe", tiny), ("bpe-inputs", inputs)]
+    with open(os.path.join(HERE, "edge.jsonl"), encoding="utf-8") as f:
+        edge = [json.loads(l) for l in f]
+    return [("tokenizer-texts", texts), ("tiny-bpe", tiny), ("bpe-inputs", inputs), ("edge", edge)]
 
 
 def train(lines, size, coverage):
@@ -90,8 +96,12 @@ def fixed_runs():
     for name, lines in corpora():
         for coverage in COVERAGES:
             sizes = list(VOCAB_SIZES)
+            done = set()
             while sizes:
                 size = sizes.pop(0)
+                if size in done:
+                    continue
+                done.add(size)
                 run = {"corpus": name, "vocab_size": size, "character_coverage": coverage}
                 try:
                     run["pieces"] = train(lines, size, coverage)

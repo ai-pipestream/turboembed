@@ -4,14 +4,15 @@
 //! SentencePiece BPE (`turbo::sentencepiece`) and the library both load.
 //!
 //! Each line is a sentence. A line that is empty, longer than 4192 bytes
-//! or holds U+2047 is left out, as the library leaves it out. A sentence
-//! is normalized as the identity rule does: spaces at its ends dropped,
-//! each run of spaces one space, each space U+2581 (`▁`), a `▁` put in
-//! front, and every `▁` at the end taken off. The meta pieces (`<unk>`, `<s>`, `</s>`) written in it become a
-//! boundary no piece crosses, as does a tab. The characters are counted;
-//! the most frequent are kept until `character_coverage` of all
-//! characters is covered, and the rest are unknown. The sentence is cut
-//! into words, each starting at a `▁`.
+//! or holds U+2585 (`▅`, the library's mark for an unknown character) is
+//! left out, as the library leaves it out. A sentence is normalized as
+//! the identity rule does: spaces at its ends dropped, each run of spaces
+//! one space, each space U+2581 (`▁`), a `▁` put in front, and every `▁`
+//! at the end taken off. The meta pieces (`<unk>`, `<s>`, `</s>`) written
+//! in it become a boundary no piece crosses, as does a tab. The
+//! characters are counted; the most frequent are kept until
+//! `character_coverage` of all characters is covered, and the rest are
+//! unknown. The sentence is cut into words, each starting at a `▁`.
 //!
 //! The most frequent pair of adjacent pieces is merged until the
 //! vocabulary is full: of equal counts the one whose piece is shorter in
@@ -55,7 +56,7 @@ use crate::proto::Message;
 /// `▁`, which stands for a space.
 pub const SPACE: char = '\u{2581}';
 /// What an unknown character becomes in the corpus (`kUNKChar`).
-const UNKNOWN: char = '\u{2047}';
+const UNKNOWN: char = '\u{2585}';
 /// A boundary no piece crosses (`kUPPBoundaryChar`).
 const BOUNDARY: char = '\t';
 /// The library's `max_sentence_length`, in bytes.
@@ -239,8 +240,9 @@ fn kept_chars(sentences: &[String], coverage: f32) -> Vec<(char, u64)> {
     let mut kept = Vec::new();
     let mut covered = 0u64;
     for (c, n) in sorted {
-        // The library compares a double with the float option.
-        if covered as f64 / all as f64 >= coverage as f64 {
+        // The library works the share out as a double, keeps it as a
+        // float and compares it with the float option.
+        if (covered as f64 / all as f64) as f32 >= coverage {
             break;
         }
         covered += n;
@@ -403,6 +405,16 @@ mod tests {
         assert_eq!(normalize("▁"), "");
     }
 
+    /// The library leaves out a line holding `▅`, its mark for an unknown
+    /// character, and keeps one holding `⁇`, the surface it decodes the
+    /// unknown piece to.
+    #[test]
+    fn lines_left_out() {
+        let long = "a".repeat(MAX_SENTENCE_BYTES + 1);
+        let lines = ["a ▅ b", "", "   ", "a ⁇ b", &long, &long[1..]];
+        assert_eq!(sentences(lines), ["▁a▁⁇▁b".to_owned(), format!("▁{}", &long[1..])]);
+    }
+
     #[test]
     fn a_meta_piece_in_the_text_is_a_boundary() {
         assert_eq!(mark_meta("▁a<s>b</s><unk>"), "▁a\tb\t\t");
@@ -424,7 +436,8 @@ mod tests {
         // A combining mark takes the script before it.
         assert!(is_valid_piece("e\u{301}t"));
         assert!(!is_valid_piece("1\u{301}a"));
-        assert!(!is_valid_piece("a\u{2047}"));
+        assert!(!is_valid_piece("a\u{2585}"));
+        assert!(is_valid_piece("\u{2047}\u{2047}"));
         assert!(!is_valid_piece(&"a".repeat(17)));
         assert!(is_valid_piece(&"a".repeat(16)));
         assert!(!is_valid_piece(""));

@@ -20,6 +20,7 @@ fn corpus(name: &str) -> Vec<String> {
     match name {
         "tokenizer-texts" => tokenizer_texts().iter().map(|t| flat(t)).collect(),
         "tiny-bpe" => jsonl_strings(&testdata().join("tiny-bpe/corpus.jsonl")).iter().map(|t| flat(t)).collect(),
+        "edge" => jsonl_strings(&repo().join("analysis/bpe-trainer/testdata/edge.jsonl")),
         "bpe-inputs" => {
             bpe_inputs().iter().flat_map(|(_, t)| t.split('\n').map(str::to_owned).collect::<Vec<_>>()).collect()
         }
@@ -114,7 +115,7 @@ fn every_run_gives_the_librarys_pieces() {
             ),
         }
     }
-    assert_eq!(runs.len(), 45);
+    assert_eq!(runs.len(), 60);
     assert!(models >= 25 && pieces > 40_000, "{models} models, {pieces} pieces");
 }
 
@@ -147,10 +148,10 @@ fn the_trained_model_loads_in_the_core_and_round_trips() {
         let mut ids = Vec::new();
         let mut checked = 0;
         for line in &lines {
-            // U+2047 and the meta pieces leave a line out of training, a
+            // U+2585 and the meta pieces leave a line out of training, a
             // tab or a meta piece is a boundary, and NUL is never a piece.
             if line.is_empty()
-                || line.contains(['\u{2047}', '\t', '\0'])
+                || line.contains(['\u{2585}', '\t', '\0'])
                 || ["<unk>", "<s>", "</s>"].iter().any(|m| line.contains(m))
             {
                 continue;
