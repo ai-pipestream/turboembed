@@ -1,0 +1,60 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	zh/numerals	231	79	77e051c447555049b6baada535c281db3af656e9792da6805bb89c062d62c60e
+model	jieba-dict-subset.txt	365d5a67c098b362ec12c166a9b438031fd9ffa5947113bc04e2fad1d623918a4303cb0f9657e28f4e619fae502f3bf4c412285cfe5d6a128439a614ea60e80c
+annotator	opennlp.tools.tokenize.lattice.UnigramSegmenter	tokenizePos
+config	whitespace	legacy
+layer	opennlp:tokens	text	49	start:u32	end:u32
+0	3
+3	6
+6	9
+9	15
+15	21
+21	30
+30	33
+33	39
+39	45
+45	48
+48	51
+51	57
+57	63
+63	78
+78	81
+82	85
+85	97
+97	103
+103	109
+109	115
+115	121
+121	127
+127	133
+133	142
+142	145
+145	148
+148	151
+152	155
+155	158
+158	161
+161	164
+164	167
+167	170
+170	173
+173	176
+176	179
+179	182
+182	185
+185	188
+188	191
+191	194
+194	200
+200	203
+203	206
+206	209
+209	212
+212	215
+215	227
+227	230
+end	opennlp:tokens
