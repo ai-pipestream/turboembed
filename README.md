@@ -207,6 +207,7 @@ TURBO_TEST_BUNDLE=<bundle-dir> TURBO_TEST_DEVICE=<backend> TURBO_TEST_PRECISION=
 | Topic | Page |
 |---|---|
 | Bundle format and `turbo-bundle` | [docs/bundle.md](docs/bundle.md) |
+| Model zoo, `turbo-zoo`, and the licences of datasets and checkpoints | [docs/zoo.md](docs/zoo.md), [docs/licences.md](docs/licences.md) |
 | Tokenizers | [docs/tokenizer.md](docs/tokenizer.md) |
 | Conformance testing | [docs/conformance.md](docs/conformance.md) |
 | Benchmark records and `turbo-bench` | [docs/benchmarks.md](docs/benchmarks.md) |
