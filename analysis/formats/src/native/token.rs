@@ -22,7 +22,7 @@ use turbo_unicode::WhitespaceMode;
 
 use crate::error::FormatError;
 use crate::sample::token::{SplitMarker, TokenSample};
-use crate::source::{Line, Lines, whitespace_tokens};
+use crate::source::{Line, Lines, Piece, whitespace_tokens};
 
 /// Reads token samples from the token format.
 #[derive(Clone, Debug)]
@@ -66,24 +66,37 @@ pub fn parse_line<'a>(
     mode: WhitespaceMode,
     marker: SplitMarker<'_>,
 ) -> Result<TokenSample<'a>, FormatError> {
-    // Each piece is followed by one space where the line has at least one
-    // whitespace character or its end, so no token ends past the line's
+    parse_text(line.piece, mode, marker, |span| span, line.span())
+}
+
+/// `TokenSample.parse` of `text`, a piece of a source or a text made from
+/// one. `to_source` maps the span of each token in `text` (offset by the
+/// piece's span) to its bytes in the source.
+pub(crate) fn parse_text<'a>(
+    text: Piece<'_>,
+    mode: WhitespaceMode,
+    marker: SplitMarker<'_>,
+    to_source: impl Fn(Span) -> Span,
+    source: Span,
+) -> Result<TokenSample<'a>, FormatError> {
+    // Each piece is followed by one space where the text has at least one
+    // whitespace character or its end, so no token ends past the text's
     // length and the `u32` offsets below cannot overflow.
-    let mut text = String::with_capacity(line.text().len() + 1);
+    let mut out = String::with_capacity(text.text.len() + 1);
     let mut tokens = Vec::new();
     let mut sources = Vec::new();
-    for piece in whitespace_tokens(line.piece, mode) {
+    for piece in whitespace_tokens(text, mode) {
         let mut at = 0;
         for part in piece.text.split(marker.as_str()) {
-            let start = text.len() as u32;
-            text.push_str(part);
-            tokens.push(Span::new(start, text.len() as u32));
-            sources.push(piece.slice(at, at + part.len()).span);
+            let start = out.len() as u32;
+            out.push_str(part);
+            tokens.push(Span::new(start, out.len() as u32));
+            sources.push(to_source(piece.slice(at, at + part.len()).span));
             at += part.len() + marker.as_str().len();
         }
-        text.push(' ');
+        out.push(' ');
     }
-    TokenSample::new(Cow::Owned(text), tokens, sources, line.span())
+    TokenSample::new(Cow::Owned(out), tokens, sources, source)
 }
 
 #[cfg(test)]

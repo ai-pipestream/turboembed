@@ -6,13 +6,18 @@
 //!   lemmatizer, chunker, tokenizer, sentence detector, document
 //!   categorizer and language detector. Every token, tag and lemma is a
 //!   [`Field`] of the source text, with its byte span, so a sample maps
-//!   back to the bytes it was read from. `Display` writes a sample as
+//!   back to the bytes it was read from; the one value that is not the
+//!   source's bytes, a CoNLL-U multiword token's joined lemma or tag,
+//!   holds its own text and the span of the values it joins. `Display` writes a sample as
 //!   OpenNLP's `toString` does, which is its form in the native format.
 //! - [`native`]: a reader per native format, an iterator of samples
 //!   that reproduces OpenNLP's stream over the same text, including what
 //!   it refuses, skips and quietly gets wrong.
 //! - [`convert`]: token and sentence samples made from name and
 //!   part-of-speech samples with a detokenizer.
+//! - [`conllu`]: the CoNLL-U format, `ConlluStream`, and the
+//!   part-of-speech, lemma, sentence and token samples OpenNLP reads
+//!   from it.
 //! - [`registry`]: the formats of each sample kind by name, OpenNLP's
 //!   `StreamFactoryRegistry`.
 //! - [`encoding`]: decoding a corpus file; [`Lines`] splits the text into
@@ -51,6 +56,14 @@
 //! - Sentence conversion: the sample after each full chunk is read and
 //!   dropped, and the detokenized sentences are joined with nothing
 //!   between them.
+//! - CoNLL-U: the words of multiword tokens are removed by their places
+//!   before any removal, so ranges out of order remove other lines and
+//!   ranges that repeat or overlap remove too many or throw
+//!   `IndexOutOfBoundsException`; empty nodes are tokens of
+//!   part-of-speech and lemma samples; a sentence without a `text`
+//!   comment is `null` in a sentence sample; the token stream searches
+//!   each form in the text with the `<SPLIT>` markers it has inserted, so
+//!   a form can match inside a marker.
 //!
 //! Where this port differs, deliberately:
 //!
@@ -64,8 +77,9 @@
 //! - `NameSample` and `POSSample` can carry additional context and
 //!   `DocumentSample` extra information; no native format writes them,
 //!   and the samples here do not hold them. The parse samples of the
-//!   parser are not here yet.
+//!   parser are not ported.
 
+pub mod conllu;
 pub mod convert;
 pub mod encoding;
 pub mod error;

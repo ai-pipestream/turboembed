@@ -13,8 +13,10 @@
 //! [`Registry::with_native`] holds OpenNLP's own format of the kind under
 //! [`OPENNLP_FORMAT`]. The conversion formats need a detokenizer
 //! dictionary, so they are registered by whoever has one (OpenNLP names
-//! them `namefinder` and `pos`, after the samples they read). Readers of
-//! other corpora (CoNLL, CoNLL-U, OntoNotes) register the same way.
+//! them `namefinder` and `pos`, after the samples they read). The CoNLL-U
+//! formats ([`ConlluPos`], [`ConlluLemmas`], [`ConlluSentences`] and
+//! [`ConlluTokens`]) are named [`CONLLU_FORMAT`]; readers of other corpora
+//! register the same way.
 //!
 //! A duplicate name is refused and the first format kept, as
 //! `StreamFactoryRegistry.registerFactory` keeps it.
@@ -25,6 +27,7 @@ use std::sync::Arc;
 use turbo_tokenize::detok::{Detokenizer, DetokenizerDictionary};
 use turbo_unicode::WhitespaceMode;
 
+use crate::conllu::{ConlluLemmaReader, ConlluPosReader, ConlluSentenceReader, ConlluTokenReader, Tagset};
 use crate::convert::{ChunkSize, ToSentenceSamples, ToTokenSamples};
 use crate::error::FormatError;
 use crate::native::{
@@ -37,6 +40,9 @@ use crate::sample::{
 /// The name of OpenNLP's own format of every kind
 /// (`StreamFactoryRegistry.DEFAULT_FORMAT`).
 pub const OPENNLP_FORMAT: &str = "opennlp";
+
+/// The name of the CoNLL-U formats (`ConlluPOSSampleStreamFactory.CONLLU_FORMAT`).
+pub const CONLLU_FORMAT: &str = "conllu";
 
 /// A kind of sample: the type that names one sample type for the
 /// registry.
@@ -310,6 +316,70 @@ impl Format<SentenceSamples> for ConvertedSentences {
     }
 }
 
+/// Part-of-speech samples from CoNLL-U (`ConlluPOSSampleStreamFactory`,
+/// whose tag set defaults to [`Tagset::U`]).
+#[derive(Copy, Clone, Debug, Default, PartialEq, Eq, Hash)]
+pub struct ConlluPos {
+    pub tagset: Tagset,
+}
+
+impl Format<PosSamples> for ConlluPos {
+    fn name(&self) -> &str {
+        CONLLU_FORMAT
+    }
+
+    fn open<'a>(&'a self, source: &'a str, _options: ReadOptions) -> Result<Samples<'a, PosSamples>, FormatError> {
+        Ok(Box::new(ConlluPosReader::new(source, self.tagset)?))
+    }
+}
+
+/// Lemma samples from CoNLL-U (`ConlluLemmaSampleStreamFactory`).
+#[derive(Copy, Clone, Debug, Default, PartialEq, Eq, Hash)]
+pub struct ConlluLemmas {
+    pub tagset: Tagset,
+}
+
+impl Format<LemmaSamples> for ConlluLemmas {
+    fn name(&self) -> &str {
+        CONLLU_FORMAT
+    }
+
+    fn open<'a>(&'a self, source: &'a str, _options: ReadOptions) -> Result<Samples<'a, LemmaSamples>, FormatError> {
+        Ok(Box::new(ConlluLemmaReader::new(source, self.tagset)?))
+    }
+}
+
+/// Sentence samples from CoNLL-U (`ConlluSentenceSampleStreamFactory`,
+/// whose `sentencesPerSample` has no default).
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
+pub struct ConlluSentences {
+    pub per_sample: usize,
+}
+
+impl Format<SentenceSamples> for ConlluSentences {
+    fn name(&self) -> &str {
+        CONLLU_FORMAT
+    }
+
+    fn open<'a>(&'a self, source: &'a str, _options: ReadOptions) -> Result<Samples<'a, SentenceSamples>, FormatError> {
+        Ok(Box::new(ConlluSentenceReader::new(source, self.per_sample)?))
+    }
+}
+
+/// Token samples from CoNLL-U (`ConlluTokenSampleStreamFactory`).
+#[derive(Copy, Clone, Debug, Default, PartialEq, Eq, Hash)]
+pub struct ConlluTokens;
+
+impl Format<TokenSamples> for ConlluTokens {
+    fn name(&self) -> &str {
+        CONLLU_FORMAT
+    }
+
+    fn open<'a>(&'a self, source: &'a str, options: ReadOptions) -> Result<Samples<'a, TokenSamples>, FormatError> {
+        Ok(Box::new(ConlluTokenReader::new(source, options.whitespace)?))
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -321,6 +391,15 @@ mod tests {
         let samples: Vec<_> = r.open("opennlp", "a_X b_Y\nc_Z", ReadOptions::default()).unwrap().collect();
         assert_eq!(samples.len(), 2);
         assert!(matches!(r.open("conllu", "", ReadOptions::default()), Err(OpenError::Unknown { .. })));
+    }
+
+    #[test]
+    fn conllu_formats_register_by_name() {
+        let mut r = Registry::<LemmaSamples>::with_native();
+        r.register(ConlluLemmas { tagset: Tagset::X }).unwrap();
+        let src = "1\ta\tla\tX\tx\t_\t_\t_\t_\t_\n";
+        let samples: Vec<_> = r.open(CONLLU_FORMAT, src, ReadOptions::default()).unwrap().map(Result::unwrap).collect();
+        assert_eq!(samples[0].tags()[0].as_str(), "x");
     }
 
     #[test]

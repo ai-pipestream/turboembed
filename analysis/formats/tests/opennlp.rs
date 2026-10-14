@@ -16,6 +16,7 @@ use std::fmt::Display;
 use std::path::{Path, PathBuf};
 
 use turbo_analysis::Span;
+use turbo_formats::conllu::{ConlluLemmaReader, ConlluPosReader, ConlluSentenceReader, ConlluTokenReader, Tagset};
 use turbo_formats::convert::{ChunkSize, ToSentenceSamples, ToTokenSamples};
 use turbo_formats::native::{
     ChunkReader, DocumentReader, LanguageReader, LemmaReader, NameReader, SentenceReader, TokenReader, WordTagReader,
@@ -121,6 +122,22 @@ fn written<S: Display>(samples: &[S], out: &mut Rebuilt) {
     out.layer("turbo:samples");
     for s in samples {
         out.row("turbo:samples", vec![s.to_string()]);
+    }
+}
+
+/// A CoNLL-U column: each value is a field of the input, or the values
+/// of a multiword token's words joined with `+`, each of them inside the
+/// joined field's span.
+fn check_joined(input: &str, fields: &[Field<'_>]) {
+    for f in fields {
+        let bytes = &input[f.span.range()];
+        if f.is_borrowed() {
+            assert_eq!(bytes, f.as_str(), "a field's span names other bytes");
+        } else if f.as_str().is_empty() {
+            assert!(f.span.is_empty());
+        } else {
+            assert!(f.as_str().split('+').all(|part| bytes.contains(part)), "{f:?} is not joined from {bytes:?}");
+        }
     }
 }
 
@@ -359,6 +376,54 @@ fn rebuild(run: &str, input: &str, dictionary: &DetokenizerDictionary) -> Rebuil
                 sentence_texts(&samples, &mut out);
             }
         }
+        "conllu-pos-u" | "conllu-pos-x" => {
+            let tagset = if kind.ends_with('u') { Tagset::U } else { Tagset::X };
+            let samples = drain(ConlluPosReader::new(input, tagset).unwrap(), &mut out);
+            written(&samples, &mut out);
+            tokens(samples.iter().map(|s| s.tokens()), &mut out);
+            column("turbo:sample-tags", samples.iter().map(|s| s.tags()), &mut out);
+            for s in &samples {
+                check_fields(input, s.tokens());
+                check_joined(input, s.tags());
+            }
+        }
+        "conllu-lemma-u" | "conllu-lemma-x" => {
+            let tagset = if kind.ends_with('u') { Tagset::U } else { Tagset::X };
+            let samples = drain(ConlluLemmaReader::new(input, tagset).unwrap(), &mut out);
+            written(&samples, &mut out);
+            tokens(samples.iter().map(|s| s.tokens()), &mut out);
+            column("turbo:sample-tags", samples.iter().map(|s| s.tags()), &mut out);
+            column("turbo:sample-lemmas", samples.iter().map(|s| s.lemmas()), &mut out);
+            for s in &samples {
+                check_fields(input, s.tokens());
+                check_joined(input, s.tags());
+                check_joined(input, s.lemmas());
+            }
+        }
+        "conllu-sentence" => {
+            let samples = drain(ConlluSentenceReader::new(input, 2).unwrap(), &mut out);
+            written(&samples, &mut out);
+            sentence_texts(&samples, &mut out);
+            for s in &samples {
+                for (i, src) in s.sources().iter().enumerate() {
+                    // A sentence without a text comment is `null`, with the
+                    // sentence's lines as its source.
+                    assert!(s.sentence(i) == "null" || input[src.range()] == *s.sentence(i));
+                }
+            }
+        }
+        "conllu-token" => {
+            let samples = drain(ConlluTokenReader::new(input, mode).unwrap(), &mut out);
+            written(&samples, &mut out);
+            token_texts(&samples, &mut out);
+            for s in &samples {
+                for (i, src) in s.sources().iter().enumerate() {
+                    let token = s.token(i);
+                    let bytes = &input[src.range()];
+                    assert!(token.contains(bytes), "{token:?} does not hold its source {bytes:?}");
+                }
+            }
+        }
         other => panic!("no reader for the run {other}"),
     }
     out
@@ -388,7 +453,7 @@ fn every_format_golden_matches() {
     let dictionary = dictionary(&data);
     let shapes = shapes();
     let all = goldens();
-    assert!(all.len() >= 32, "only {} formats goldens", all.len());
+    assert!(all.len() >= 53, "only {} formats goldens", all.len());
     for (run, path) in all {
         let golden = Golden::read_with(&path, &shapes).unwrap();
         let input = golden.input_text(&data).unwrap();

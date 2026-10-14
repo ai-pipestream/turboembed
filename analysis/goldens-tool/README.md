@@ -119,6 +119,7 @@ a directory with the same model run without them, and its options are
 | | `mecab-ko-dic-2.1.1-20180720` | `ko`, `multi`, `edge`, `surrogate` | |
 | `formats` (the native sample streams) | `name`, `wordtag`, `token`, `doccat`, each also `+legacy`; `lemma`, `chunk`, `sentence`, `language` | `formats`, the inputs whose id starts with the format | `whitespace legacy` |
 | `formats` (the conversion streams) | `name-to-token`, `name-to-sentence`, `pos-to-token`, `pos-to-sentence`, with `en-detokenizer` (fixture) | `formats`, the `name` and `wordtag` inputs | `chunkSize 2` for the sentence conversions |
+| `formats` (the CoNLL-U streams) | `conllu-pos-u`, `conllu-pos-x`, `conllu-lemma-u`, `conllu-lemma-x`, `conllu-sentence`, `conllu-token` (also `+legacy`) | `formats`, the `conllu` inputs | `tagset u` or `x`; `sentencesPerSample 2`; `whitespace legacy` |
 
 - `+english-dictionary` is the English model rebuilt through
   `TokenizerModel(MaxentModel, Map, TokenizerFactory)` with the
@@ -238,7 +239,10 @@ conversion streams `NameToTokenSampleStream`, `POSToTokenSampleStream`,
 `NameToSentenceSampleStream` and `POSToSentenceSampleStream` with the
 fixture `en-detokenizer.xml` (the `model` record). The sentence
 conversions run with a chunk size of 2, so the inputs show the sample a
-full chunk drops.
+full chunk drops. The CoNLL-U streams `ConlluPOSSampleStream` and
+`ConlluLemmaSampleStream` (with each tag set), `ConlluSentenceSampleStream`
+(two sentences a sample) and `ConlluTokenSampleStream` (in both
+whitespace modes) read the `conllu` inputs through a `ConlluStream`.
 
 The stream is read until it returns null; an exception from `read` is
 recorded and reading goes on. Every layer is anchored to the document:

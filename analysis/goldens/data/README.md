@@ -98,10 +98,10 @@ are not taken from any corpus.
   outside the Basic Multilingual Plane (`emoji`) and words holding `</w>`
   as text (`end-marker`).
 
-- `inputs/formats/`: 15 small files in OpenNLP's native sample formats,
-  written for this project; the part of the id before the first hyphen
-  names the format (`name`, `wordtag`, `lemma`, `chunk`, `token`,
-  `sentence`, `doccat`, `language`). They hold ordinary samples and the
+- `inputs/formats/`: 18 small files in OpenNLP's native sample formats
+  and in CoNLL-U, written for this project; the part of the id before
+  the first hyphen names the format (`name`, `wordtag`, `lemma`,
+  `chunk`, `token`, `sentence`, `doccat`, `language`, `conllu`). They hold ordinary samples and the
   lines the streams treat unusually: untyped and nested start tags, an
   empty type, stray and missing end tags, empty names, tags that are not
   whole tokens, one-token samples, empty and whitespace-only lines, CR LF
@@ -111,7 +111,16 @@ are not taken from any corpus.
   token and twice in a row, `<LF>` and `<CR>` escapes, a category with no
   text, lines without a language, tabs, no-break spaces, `U+0085`,
   `U+001C`, emoji and accented letters, and a last line without a line
-  feed.
+  feed. The CoNLL-U files (Spanish, Portuguese and English sentences
+  written for this project) hold multiword tokens with `_` among their
+  words' values, an empty node, every comment `ConlluStream` reads, a
+  sentence without a `text` comment and one of comments only, and the
+  sentences it refuses or reads unusually: nine columns, an empty last
+  column, a line of spaces, multiword ids with a leading zero, running
+  backwards, past the words, past Java's `int`, out of order, repeated
+  and overlapping, a bad `text_` language, forms missing from the text,
+  a form found inside an inserted `<SPLIT>`, empty forms, CR LF and lone
+  CR, and whitespace that only one whitespace mode splits on.
 
 `analysis/goldens-tool/README.md` ("Runs") lists which run reads which set.
 

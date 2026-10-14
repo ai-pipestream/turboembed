@@ -6,12 +6,19 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import opennlp.tools.chunker.ChunkSample;
 import opennlp.tools.chunker.ChunkSampleStream;
 import opennlp.tools.doccat.DocumentSample;
 import opennlp.tools.doccat.DocumentSampleStream;
+import opennlp.tools.formats.conllu.ConlluLemmaSampleStream;
+import opennlp.tools.formats.conllu.ConlluPOSSampleStream;
+import opennlp.tools.formats.conllu.ConlluSentenceSampleStream;
+import opennlp.tools.formats.conllu.ConlluStream;
+import opennlp.tools.formats.conllu.ConlluTagset;
+import opennlp.tools.formats.conllu.ConlluTokenSampleStream;
 import opennlp.tools.formats.convert.NameToSentenceSampleStream;
 import opennlp.tools.formats.convert.NameToTokenSampleStream;
 import opennlp.tools.formats.convert.POSToSentenceSampleStream;
@@ -31,6 +38,7 @@ import opennlp.tools.tokenize.Detokenizer;
 import opennlp.tools.tokenize.DictionaryDetokenizer;
 import opennlp.tools.tokenize.TokenSample;
 import opennlp.tools.tokenize.TokenSampleStream;
+import opennlp.tools.util.InputStreamFactory;
 import opennlp.tools.util.ObjectStream;
 import opennlp.tools.util.PlainTextByLineStream;
 import opennlp.tools.util.Span;
@@ -41,7 +49,8 @@ import opennlp.tools.util.WhitespaceMode;
  * stream returned and every exception it threw, read as the command line tools read a file
  * ({@code PlainTextByLineStream} over UTF-8). Its inputs are the {@code formats} set's files
  * whose id starts with the format's name and a hyphen ({@code name-edge.txt} for the name
- * format); a conversion stream reads the files of the format it converts from.
+ * format); a conversion stream reads the files of the format it converts from, and the CoNLL-U
+ * streams read the files whose id starts with {@code conllu-}, each through a {@code ConlluStream}.
  *
  * <p>The stream is read until it returns null. An exception from {@code read} is recorded in
  * {@code turbo:read-errors} with the number of samples read before it, and reading goes on, as a
@@ -71,6 +80,9 @@ final class FormatGolden implements AnnotatorGolden {
   /** The chunk size of the sentence conversions; small, so that the inputs show what a full chunk does. */
   static final int CHUNK_SIZE = 2;
 
+  /** The sentences per sample of the CoNLL-U sentence stream, small for the same reason. */
+  static final int SENTENCES_PER_SAMPLE = 2;
+
   /** The stopping point for a stream that throws without moving on, which would otherwise loop. */
   private static final int MAX_READS = 100_000;
 
@@ -87,7 +99,13 @@ final class FormatGolden implements AnnotatorGolden {
     NAME_TO_TOKEN("name-to-token", "name", NameToTokenSampleStream.class, false),
     POS_TO_TOKEN("pos-to-token", "wordtag", POSToTokenSampleStream.class, false),
     NAME_TO_SENTENCE("name-to-sentence", "name", NameToSentenceSampleStream.class, false),
-    POS_TO_SENTENCE("pos-to-sentence", "wordtag", POSToSentenceSampleStream.class, false);
+    POS_TO_SENTENCE("pos-to-sentence", "wordtag", POSToSentenceSampleStream.class, false),
+    CONLLU_POS_U("conllu-pos-u", "conllu", ConlluPOSSampleStream.class, false),
+    CONLLU_POS_X("conllu-pos-x", "conllu", ConlluPOSSampleStream.class, false),
+    CONLLU_LEMMA_U("conllu-lemma-u", "conllu", ConlluLemmaSampleStream.class, false),
+    CONLLU_LEMMA_X("conllu-lemma-x", "conllu", ConlluLemmaSampleStream.class, false),
+    CONLLU_SENTENCE("conllu-sentence", "conllu", ConlluSentenceSampleStream.class, false),
+    CONLLU_TOKEN("conllu-token", "conllu", ConlluTokenSampleStream.class, true);
 
     final String dir;
     final String inputPrefix;
@@ -108,6 +126,15 @@ final class FormatGolden implements AnnotatorGolden {
 
     boolean chunks() {
       return this == NAME_TO_SENTENCE || this == POS_TO_SENTENCE;
+    }
+
+    /** The tag set of a CoNLL-U part-of-speech or lemma stream, null for the others. */
+    ConlluTagset tagset() {
+      return switch (this) {
+        case CONLLU_POS_U, CONLLU_LEMMA_U -> ConlluTagset.U;
+        case CONLLU_POS_X, CONLLU_LEMMA_X -> ConlluTagset.X;
+        default -> null;
+      };
     }
   }
 
@@ -166,7 +193,16 @@ final class FormatGolden implements AnnotatorGolden {
 
   @Override
   public Map<String, String> config() {
-    return kind.chunks() ? Map.of("chunkSize", Integer.toString(CHUNK_SIZE)) : Whitespace.config(whitespace);
+    if (kind.chunks()) {
+      return Map.of("chunkSize", Integer.toString(CHUNK_SIZE));
+    }
+    if (kind == Kind.CONLLU_SENTENCE) {
+      return Map.of("sentencesPerSample", Integer.toString(SENTENCES_PER_SAMPLE));
+    }
+    if (kind.tagset() != null) {
+      return Map.of("tagset", kind.tagset().name().toLowerCase(Locale.ROOT));
+    }
+    return Whitespace.config(whitespace);
   }
 
   @Override
@@ -190,8 +226,20 @@ final class FormatGolden implements AnnotatorGolden {
   }
 
   private ObjectStream<?> open(Input input) throws IOException {
-    ObjectStream<String> lines =
-        new PlainTextByLineStream(() -> new ByteArrayInputStream(input.bytes()), StandardCharsets.UTF_8);
+    InputStreamFactory in = () -> new ByteArrayInputStream(input.bytes());
+    switch (kind) {
+      case CONLLU_POS_U, CONLLU_POS_X:
+        return new ConlluPOSSampleStream(new ConlluStream(in), kind.tagset());
+      case CONLLU_LEMMA_U, CONLLU_LEMMA_X:
+        return new ConlluLemmaSampleStream(new ConlluStream(in), kind.tagset());
+      case CONLLU_SENTENCE:
+        return new ConlluSentenceSampleStream(new ConlluStream(in), SENTENCES_PER_SAMPLE);
+      case CONLLU_TOKEN:
+        return new ConlluTokenSampleStream(new ConlluStream(in));
+      default:
+        break;
+    }
+    ObjectStream<String> lines = new PlainTextByLineStream(in, StandardCharsets.UTF_8);
     return switch (kind) {
       case NAME -> new NameSampleDataStream(lines);
       case WORDTAG -> new WordTagSampleStream(lines);
@@ -206,6 +254,8 @@ final class FormatGolden implements AnnotatorGolden {
       case NAME_TO_SENTENCE ->
           new NameToSentenceSampleStream(detokenizer, new NameSampleDataStream(lines), CHUNK_SIZE);
       case POS_TO_SENTENCE -> new POSToSentenceSampleStream(detokenizer, new WordTagSampleStream(lines), CHUNK_SIZE);
+      case CONLLU_POS_U, CONLLU_POS_X, CONLLU_LEMMA_U, CONLLU_LEMMA_X, CONLLU_SENTENCE, CONLLU_TOKEN ->
+          throw new IllegalStateException("opened above");
     };
   }
 
@@ -242,11 +292,11 @@ final class FormatGolden implements AnnotatorGolden {
     layers.add(errors.layer("turbo:read-errors", "document", "after", "class", "message"));
     switch (kind) {
       case NAME -> names(samples, layers);
-      case WORDTAG -> tagged(samples, layers);
-      case LEMMA -> lemmas(samples, layers);
+      case WORDTAG, CONLLU_POS_U, CONLLU_POS_X -> tagged(samples, layers);
+      case LEMMA, CONLLU_LEMMA_U, CONLLU_LEMMA_X -> lemmas(samples, layers);
       case CHUNK -> chunks(samples, layers);
-      case TOKEN, NAME_TO_TOKEN, POS_TO_TOKEN -> tokenSamples(input, samples, layers);
-      case SENTENCE, NAME_TO_SENTENCE, POS_TO_SENTENCE -> sentenceSamples(input, samples, layers);
+      case TOKEN, NAME_TO_TOKEN, POS_TO_TOKEN, CONLLU_TOKEN -> tokenSamples(input, samples, layers);
+      case SENTENCE, NAME_TO_SENTENCE, POS_TO_SENTENCE, CONLLU_SENTENCE -> sentenceSamples(input, samples, layers);
       case DOCCAT -> documents(samples, layers);
       case LANGUAGE -> languages(samples, layers);
     }
