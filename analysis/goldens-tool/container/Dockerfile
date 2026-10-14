@@ -30,12 +30,13 @@ RUN git init -q . \
  && test "$(git rev-parse HEAD)" = "$OPENNLP_COMMIT" \
  && git rev-parse HEAD > /opennlp.commit
 
-# The runtime and the modules it depends on, installed into the local Maven
-# repository. The forbidden API check is skipped because it fails on classes
-# of this commit that the generator does not use (NameSample and Parse in
-# opennlp-api use java.util.regex); it only reads the compiled classes.
+# The runtime, the formats module (the sample conversion streams) and the
+# modules they depend on, installed into the local Maven repository. The
+# forbidden API check is skipped because it fails on classes of this commit
+# (NameSample and Parse in opennlp-api use java.util.regex); it only reads the
+# compiled classes and changes nothing in them.
 # -DskipITs is needed as well: the integration tests download models.
-RUN ./mvnw -q -DskipTests -DskipITs -Dforbiddenapis.skip=true -pl opennlp-core/opennlp-runtime -am install
+RUN ./mvnw -q -DskipTests -DskipITs -Dforbiddenapis.skip=true -pl opennlp-core/opennlp-runtime,opennlp-core/opennlp-formats -am install
 
 # The numeric module of the OpenNLP addons (NumberScan), built against the
 # runtime installed above. -am installs the addons' parent pom with it. Its

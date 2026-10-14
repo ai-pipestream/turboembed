@@ -1,0 +1,80 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	formats/name-basic	422	422	694e2045c62b46e5c02f94f64318a251c77da0c7cc4c74064d138dde455d714a
+annotator	opennlp.tools.namefind.NameSampleDataStream	read
+layer	turbo:samples	document	5	written:str
+<START:person> Pierre Vinken <END> , 61 years old , will join the board as a nonexecutive director Nov. 29 .
+Mr . <START:person> Vinken <END> is chairman of <START:organization> Elsevier N.V. <END> , the Dutch publishing group .
+\n<START:location> Paris <END> is in <START:location> France <END> .
+<START:default> Untyped <END> names get the default type .
+<START:city> Berlin <END> and <START:city> Potsdam <END> share the last type .
+end	turbo:samples
+layer	turbo:read-errors	document	0	after:u32	class:str	message:str
+end	turbo:read-errors
+layer	turbo:sample-tokens	document	52	sample:u32	text:str
+0	Pierre
+0	Vinken
+0	,
+0	61
+0	years
+0	old
+0	,
+0	will
+0	join
+0	the
+0	board
+0	as
+0	a
+0	nonexecutive
+0	director
+0	Nov.
+0	29
+0	.
+1	Mr
+1	.
+1	Vinken
+1	is
+1	chairman
+1	of
+1	Elsevier
+1	N.V.
+1	,
+1	the
+1	Dutch
+1	publishing
+1	group
+1	.
+2	Paris
+2	is
+2	in
+2	France
+2	.
+3	Untyped
+3	names
+3	get
+3	the
+3	default
+3	type
+3	.
+4	Berlin
+4	and
+4	Potsdam
+4	share
+4	the
+4	last
+4	type
+4	.
+end	turbo:sample-tokens
+layer	turbo:names	document	8	sample:u32	start:u32	end:u32	type:str
+0	0	2	person
+1	2	3	person
+1	6	8	organization
+2	0	1	location
+2	3	4	location
+3	0	1	default
+4	0	1	city
+4	2	3	city
+end	turbo:names

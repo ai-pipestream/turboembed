@@ -1,0 +1,41 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	formats/conllu-errors	1474	1474	42b7f753628a5492507589493a66fb4426f1d7b8baf5936632829acb1a3bb77f
+annotator	opennlp.tools.formats.conllu.ConlluSentenceSampleStream	read
+config	sentencesPerSample	2
+layer	turbo:samples	document	4	written:str
+cd ab c d e f\nab cd\n
+Hello world\nHello world\n
+ab\na<b\n
+last\n
+end	turbo:samples
+layer	turbo:read-errors	document	10	after:u32	class:str	message:str
+0	opennlp.tools.util.InvalidFormatException	Line [1\tnine\tnine\tNUM\t_\t_\t_\t_\t_] must have exactly 10 fields
+0	opennlp.tools.util.InvalidFormatException	Line [1\tempty\t_\t_\t_\t_\t_\t_\t_\t] must have exactly 10 fields
+0	opennlp.tools.util.InvalidFormatException	Line [   ] must have exactly 10 fields
+0	opennlp.tools.util.InvalidFormatException	Invalid multiword token id: 01-2
+0	opennlp.tools.util.InvalidFormatException	Multiword token id runs backwards: 2-1
+0	opennlp.tools.util.InvalidFormatException	Multiword token 1-3 has no word line for id 3
+0	opennlp.tools.util.InvalidFormatException	Locale language code is invalid: text_X
+0	java.lang.IndexOutOfBoundsException	Index 3 out of bounds for length 2
+3	opennlp.tools.util.InvalidFormatException	Invalid multiword token id: 2147483647-2147483648
+3	opennlp.tools.util.InvalidFormatException	Multiword token 2147483646-2147483647 has no word line for id 2147483646
+end	turbo:read-errors
+layer	turbo:sample-texts	document	4	text:str
+cd ab c d e f ab cd
+Hello world Hello world
+ab a<b
+last
+end	turbo:sample-texts
+layer	turbo:sample-spans	document	7	sample:u32	start:u32	end:u32
+0	0	13
+0	14	19
+1	0	11
+1	12	23
+2	0	2
+2	3	6
+3	0	4
+end	turbo:sample-spans

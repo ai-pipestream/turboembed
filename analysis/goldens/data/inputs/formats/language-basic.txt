@@ -1,0 +1,9 @@
+eng	The quick brown fox.
+deu	Der schnelle	braune Fuchs.
+	no language
+no tab here
+fra	
+por	É isso aí 😀
+
+ spa 	  espacios  
+last	line

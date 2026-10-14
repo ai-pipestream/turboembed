@@ -51,6 +51,7 @@ final class Runs {
   static final String LATTICE_JA = "mecab-fixture-ja";
   static final String LATTICE_KO = "mecab-fixture-ko";
   static final String LATTICE_PARTIAL = "mecab-fixture-partial";
+  static final String FORMAT_DETOKENIZER = "en-detokenizer.xml";
 
   /** The input sets, the directories of the inputs directory. */
   static final String EN = "en";
@@ -68,6 +69,7 @@ final class Runs {
   static final String KO = "ko";
   /** The sentences the fixture model en-plain.bin was trained on, one per line, for the training goldens. */
   static final String TRAIN = "train";
+  static final String FORMATS = "formats";
 
   /** The numbers of merges the BPE trainer runs with: few, so the tokens are pieces of words, and many. */
   static final List<Integer> BPE_MERGES = List.of(40, 400);
@@ -178,6 +180,11 @@ final class Runs {
     // source on the texts, indexed and trained; the sentence detector runs on the fixture
     // sentences too.
     annotators.addAll(TrainGolden.all(Set.of(EN, MULTI, EDGE), Set.of(TRAIN)));
+    // The sample streams of OpenNLP's native formats, and the conversion streams, which
+    // detokenize with the English dictionary.
+    annotators.addAll(FormatGolden.all(fixtures.resolve(FORMAT_DETOKENIZER)));
+    // The evaluators, over pairs of a reference sample and a prediction in a native format.
+    annotators.addAll(EvalGolden.all());
     return new All(annotators, recorders);
   }
 }

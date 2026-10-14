@@ -1,0 +1,16 @@
+The_DT dog_NN barks_VBZ ._.
+The_DT dog_NN barks_NNS ._.
+a_X b_Y
+a_X b_Y
+a_X b_Y c_Z
+a_X b_Q
+a_X
+a_X b_Y
+
+
+x_A
+y_B
+x_A
+y_A
+é_E 😀_SYM
+é_E 😀_SYM
