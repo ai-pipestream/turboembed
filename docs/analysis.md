@@ -2062,8 +2062,8 @@ against the OpenNLP model for the same task (#401). The first recipes
 are the English sentence detector, tokenizer and part-of-speech tagger
 trained on MASC 3.0.0 (CC BY 3.0 US), gated against
 `opennlp-en-ud-ewt-sentence-1.3-2.5.4`,
-`opennlp-en-ud-ewt-tokens-1.3-2.5.4` and
-`opennlp-en-ud-ewt-pos-1.3-2.5.4`:
+`opennlp-en-ud-ewt-tokens-1.3-2.5.4` and OpenNLP 1.5's
+`en-pos-maxent.bin`:
 
 - The data: MASC is fetched through the zoo by digest as a permissive
   dataset and read from its extracted directory with the MASC reader of
@@ -2087,14 +2087,14 @@ trained on MASC 3.0.0 (CC BY 3.0 US), gated against
   a run gives the same bytes.
 - The gate: both models scored with OpenNLP's `SentenceDetectorEvaluator`,
   `TokenizerEvaluator` and `POSEvaluator` on the same held-out samples,
-  gated by `turbo_eval::model_gate`. MASC's tags are Penn tags and the
-  English UD tagger's are not, so the reference tagger is scored asked
-  for Penn tags (`PosTagFormat::Penn`), as `POSTaggerME` converts them:
-  one Penn tag per UD tag, so it can never give `VBD`, `NNS` or `,`, and
-  its gate is lenient. It shows that the trained tagger is not worse
-  than what OpenNLP gives a user who asks its English model for Penn
-  tags, not that it is as good in the UD tag set; the crate's README
-  says why no other reference fits better.
+  gated by `turbo_eval::model_gate`. MASC's tags are Penn tags, so the
+  tagger's reference is OpenNLP's English maxent tagger trained on Penn
+  tags, `en-pos-maxent.bin` of the 1.5 models, scored in its own
+  outcomes. Its training data is described only as "(private) English
+  data" and the zoo does not list it; the recipe records its size and
+  SHA-256, reads it only to score it, and never ships or bundles it. The
+  English UD tagger asked for Penn tags would be no reference: it gives
+  one Penn tag per UD tag, never `VBD`, `NNS` or `,`.
 - The output: `<out>/<model id>/` with the model, `card.json` (the
   data, its licence and attribution, the split, the parameters, the
   training counts, the tag formats a tagger was scored in and the
@@ -2105,7 +2105,8 @@ trained on MASC 3.0.0 (CC BY 3.0 US), gated against
 
 ```
 cargo run --release -p turbo-train-recipes -- masc --corpus <masc-dir> \
-    --references <dir with the OpenNLP models> --out <dir> [--unrecorded-corpus]
+    --references <dir with the OpenNLP models> --out <dir> [--unrecorded-corpus] \
+    [--recipe <model id>]...
 ```
 
 None of the recipes has been run on MASC itself yet. The crate's README

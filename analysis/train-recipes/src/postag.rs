@@ -1,13 +1,12 @@
 //! The English part-of-speech tagger trained on MASC's Penn tags, and its
-//! gate against the OpenNLP English UD tagger asked for Penn tags.
+//! gate against OpenNLP's English Penn tagger, `en-pos-maxent.bin`.
 //!
 //! The recipe trains on the training documents of [`crate::masc::SPLIT`]
 //! with the factory defaults (the default feature generator descriptor,
 //! no tag dictionary) and the parameters the published UD 1.3 models were
 //! trained with ([`turbo_train_components::ud`]: GIS, 300 iterations,
-//! cutoff 5, 4 threads), so the trained model and the reference differ in
-//! their data and tag set, not their settings. Training uses no
-//! randomness, so the recipe has no seed.
+//! cutoff 5, 4 threads). Training uses no randomness, so the recipe has
+//! no seed.
 //!
 //! The samples are what OpenNLP's `MascPOSSampleStream` reads, one per
 //! sentence, its Penn tokens and their `msd` tags, with one change: a
@@ -18,21 +17,24 @@
 //! too: it gives no event, and as a held-out unit it would count nothing.
 //! The card records how many were skipped.
 //!
-//! The reference, `opennlp-en-ud-ewt-pos-1.3-2.5.4`, was trained on the
-//! universal tags of English EWT. It is scored as `POSTaggerME` returns
-//! Penn tags when asked for them ([`REFERENCE_FORMAT`]): its outcomes
-//! converted by `POSTagFormatMapper`, which picks one Penn tag per UD tag
-//! (`VERB` is `VB`, `NOUN` is `NN`, `AUX` is `MD`, `PUNCT` is `.`). The
-//! reference can therefore never give `VBD`, `NNS`, `,`, `TO` and the
-//! other Penn tags outside that image, and every held-out token with one
-//! counts against it. The gate is then a lenient one: it shows that the
-//! trained model is not worse than what OpenNLP 2.5.4 offers a user who
-//! wants Penn tags for English, not that it tags as well as the reference
-//! does in its own tag set. OpenNLP publishes no English tagger trained
-//! on Penn tags except the 1.5 models, trained on unreleased data (the
-//! 1.5.1 test plan calls it private English data), which the zoo does not
-//! list. The trained model is scored with its outcomes unchanged
-//! ([`CANDIDATE_FORMAT`]).
+//! The reference is OpenNLP's English maxent tagger from the 1.5 models
+//! ([`EN_POS_MAXENT`]). OpenNLP's only English taggers trained on Penn
+//! tags are that one and the 1.5 perceptron tagger, and the maxent one is
+//! trained with the algorithm the recipe uses. Both models are scored in
+//! the same tag set: the reference asked for Penn tags, which are its own
+//! outcomes and come out unconverted, and the trained model with its
+//! outcomes as they are ([`CANDIDATE_FORMAT`]). OpenNLP describes the
+//! reference's training data only as "(private) English data" (the 1.5.1
+//! test plan) and the zoo does not list it: a run reads it from its
+//! references directory, checks it against the recorded size and SHA-256,
+//! and only scores it. It is never shipped or bundled, and the trained
+//! model is trained on MASC alone.
+//!
+//! The English UD tagger, `opennlp-en-ud-ewt-pos-1.3-2.5.4`, is not the
+//! reference: it was trained on UD tags, and asked for Penn tags
+//! `POSTagFormatMapper` converts each of its outcomes to one Penn tag
+//! (`VERB` to `VB`, `NOUN` to `NN`, `PUNCT` to `.`), so it can never give
+//! `VBD`, `NNS`, `,` or `TO`, and a gate against it would pass any tagger.
 //!
 //! Both models are scored on the same held-out samples with OpenNLP's
 //! `POSEvaluator`, one unit per sentence, and gated by
@@ -48,31 +50,38 @@ use turbo_train::TrainingConfiguration;
 use turbo_train_components::{PosTaggerFactory, Stamp, postag, ud};
 use turbo_zoo::Sha256;
 
-use crate::Trained;
 use crate::error::{Error, Result};
 use crate::segmentation::{LANGUAGE, TIMESTAMP_MS};
+use crate::{RecordedReference, Reference, Trained};
 
-/// The format the reference's tags are asked for: Penn, MASC's tag set.
-pub const REFERENCE_FORMAT: PosTagFormat = PosTagFormat::Penn;
 /// The format the trained model's tags are scored in: its outcomes as
 /// they are, MASC's Penn tags.
 pub const CANDIDATE_FORMAT: PosTagFormat = PosTagFormat::Custom;
+
+/// OpenNLP's English maxent tagger of the 1.5 models, trained on Penn
+/// tags, as published.
+pub const EN_POS_MAXENT: RecordedReference = RecordedReference {
+    id: "opennlp-en-pos-maxent-1.5",
+    file: "en-pos-maxent.bin",
+    url: "https://opennlp.sourceforge.net/models-1.5/en-pos-maxent.bin",
+    size: 5_696_197,
+    sha256: "645a094f45a866687a617385233fd23ae8b0f5fa8b1b76996781a50c17bdcf3d",
+};
 
 /// The tagger a recipe trains and the OpenNLP model it is gated against.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct PosRecipe {
     /// The trained model's zoo id, also its file name without `.bin`.
     pub model_id: &'static str,
-    /// The reference model's id in the zoo's built-in index.
-    pub reference_id: &'static str,
+    pub reference: Reference,
     /// The format the reference's tags are asked for.
     pub reference_format: PosTagFormat,
 }
 
 pub const POS: PosRecipe = PosRecipe {
     model_id: "turbo-en-masc-3.0.0-pos-1",
-    reference_id: "opennlp-en-ud-ewt-pos-1.3-2.5.4",
-    reference_format: REFERENCE_FORMAT,
+    reference: Reference::Recorded(EN_POS_MAXENT),
+    reference_format: PosTagFormat::Penn,
 };
 
 /// Reads the part-of-speech samples of `corpus` as `MascPOSSampleStream`
@@ -242,7 +251,8 @@ impl PosRecipe {
     /// Scores the trained model (in [`CANDIDATE_FORMAT`]) and the reference
     /// (in the recipe's reference format) on the same held-out samples and
     /// runs the gate. `reference_id` names the reference in the record
-    /// ([`PosRecipe::reference_id`] for the published model), and
+    /// ([`Reference::id`] of [`PosRecipe::reference`] for the published
+    /// model), and
     /// `set_name` and `corpus_sha256` the held-out set.
     ///
     /// # Errors
@@ -309,10 +319,12 @@ mod tests {
     }
 
     #[test]
-    fn the_recipe_gates_a_penn_reference_and_scores_its_own_outcomes_unchanged() {
+    fn the_recipe_gates_against_the_penn_tagger_and_scores_its_own_outcomes_unchanged() {
+        assert_eq!(POS.reference, Reference::Recorded(EN_POS_MAXENT));
         assert_eq!(POS.reference_format, PosTagFormat::Penn);
         assert_eq!(CANDIDATE_FORMAT, PosTagFormat::Custom);
         assert_eq!(POS.task(), Task::PartOfSpeechTagger);
-        assert_eq!(POS.reference_id, "opennlp-en-ud-ewt-pos-1.3-2.5.4");
+        assert_eq!(POS.reference.file().unwrap(), "en-pos-maxent.bin");
+        assert!(matches!(POS.reference.check(b"not the model"), Err(Error::ReferenceDigest { .. })));
     }
 }

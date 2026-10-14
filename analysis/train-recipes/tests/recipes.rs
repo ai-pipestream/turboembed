@@ -14,11 +14,12 @@ use std::path::PathBuf;
 use common::{GATED_DOCUMENTS, SENTENCES, temp_dir, write_corpus};
 use turbo_eval::model_gate::{Measure, ModelGateRecord, Task};
 use turbo_formats::masc::MascCorpus;
+use turbo_postag::PosTagFormat;
 use turbo_train_recipes::card::{CARD_FILE, GATE_FILE, ModelCard, TagFormat, write_model_dir};
 use turbo_train_recipes::masc::{self, RELEASE, SPLIT, SplitCorpus};
-use turbo_train_recipes::postag::{self, CANDIDATE_FORMAT, POS};
+use turbo_train_recipes::postag::{self, CANDIDATE_FORMAT, POS, PosRecipe};
 use turbo_train_recipes::segmentation::{SENTENCE, TOKENS};
-use turbo_train_recipes::{Error, RECIPES, Recipe, held_out_name, run};
+use turbo_train_recipes::{Error, RECIPES, Recipe, Reference, held_out_name, run};
 use turbo_zoo::{Index, LicenceClass};
 
 /// The pool without abbreviations, attached punctuation or contractions:
@@ -261,61 +262,107 @@ fn the_tagger_recipe_reads_the_jvm_s_samples_from_the_checked_in_masc_corpora() 
     assert_eq!(checked, 7);
 }
 
-/// The published English tagger asked for Penn tags returns its UD
-/// outcomes converted, one Penn tag per UD tag: it never gives an
-/// inflected verb, a plural noun or a comma, which is why its Penn score
-/// on MASC is low and the gate lenient (`postag`'s documentation).
+/// Where a recipe's reference is, or `None` when it is not there and the
+/// test may skip. The OpenNLP UD models come from `TURBO_GOLDENS_MODELS`
+/// (`cargo run -p turbo-goldens-tool -- fetch-models <dir>` writes them),
+/// and are required when `TURBO_TEST_REQUIRE_OPENNLP_MODELS=1`, as CI sets
+/// it. The OpenNLP 1.5 tagger comes from `TURBO_TEST_OPENNLP_MODELS` and
+/// is local-only, as in turbo-sequence's tests (its training data is not
+/// documented, so CI does not fetch it): without that variable it is
+/// skipped even when the models are required, and with it a missing file
+/// fails.
+fn reference_path(recipe: &Recipe) -> Option<PathBuf> {
+    let file = recipe.reference_file().unwrap();
+    match recipe.reference() {
+        Reference::Zoo(_) => {
+            let Some(dir) = std::env::var_os("TURBO_GOLDENS_MODELS").map(PathBuf::from) else {
+                assert!(!models_required(), "TURBO_GOLDENS_MODELS is not set and TURBO_TEST_REQUIRE_OPENNLP_MODELS=1");
+                eprintln!("TURBO_GOLDENS_MODELS is not set: skipping {file}");
+                return None;
+            };
+            let path = dir.join(&file);
+            if path.is_file() {
+                return Some(path);
+            }
+            assert!(!models_required(), "{} not found and TURBO_TEST_REQUIRE_OPENNLP_MODELS=1", path.display());
+            eprintln!("{} not found: skipping", path.display());
+            None
+        }
+        Reference::Recorded(_) => {
+            let Some(dir) = std::env::var_os("TURBO_TEST_OPENNLP_MODELS").map(PathBuf::from) else {
+                eprintln!("TURBO_TEST_OPENNLP_MODELS is not set: skipping {file}");
+                return None;
+            };
+            let path = dir.join(&file);
+            assert!(path.is_file(), "TURBO_TEST_OPENNLP_MODELS is set and {} is not there", path.display());
+            Some(path)
+        }
+    }
+}
+
+/// The English UD tagger asked for Penn tags returns its UD outcomes
+/// converted, one Penn tag per UD tag: it never gives an inflected verb, a
+/// plural noun or a comma, which is why it is not the tagger recipe's
+/// reference (`postag`'s documentation).
 #[test]
-fn the_published_tagger_asked_for_penn_tags_gives_one_penn_tag_per_ud_tag() {
-    let Some(dir) = std::env::var_os("TURBO_GOLDENS_MODELS").map(PathBuf::from) else {
-        assert!(!models_required(), "TURBO_GOLDENS_MODELS is not set and TURBO_TEST_REQUIRE_OPENNLP_MODELS=1");
-        return;
-    };
-    let path = dir.join(turbo_train_recipes::reference_file(POS.reference_id).unwrap());
-    let Ok(bytes) = std::fs::read(&path) else {
-        assert!(!models_required(), "{} not found and TURBO_TEST_REQUIRE_OPENNLP_MODELS=1", path.display());
-        return;
-    };
-    turbo_train_recipes::check_reference(POS.reference_id, &bytes).unwrap();
+fn the_ud_tagger_asked_for_penn_tags_gives_one_penn_tag_per_ud_tag() {
+    let ewt = Recipe::Pos(PosRecipe { reference: Reference::Zoo("opennlp-en-ud-ewt-pos-1.3-2.5.4"), ..POS });
+    let Some(path) = reference_path(&ewt) else { return };
+    let bytes = std::fs::read(&path).unwrap();
+    ewt.check_reference(&bytes).unwrap();
     let file = turbo_maxent::ModelFile::open(bytes).unwrap();
-    let model = turbo_postag::PosModel::open_with_format(file, POS.reference_format).unwrap();
-    let tagset = model.tagset();
-    let mut labels: Vec<&str> = (0..tagset.len()).map(|i| tagset.label(turbo_analysis::Tag(i as u16))).collect();
-    labels.sort_unstable();
+    let model = turbo_postag::PosModel::open_with_format(file, PosTagFormat::Penn).unwrap();
+    assert!(model.converts_tags());
     assert_eq!(
-        labels,
+        labels(model.tagset()),
         [".", "?", "CC", "CD", "DT", "FW", "IN", "JJ", "MD", "NN", "NNP", "PRP", "RB", "RP", "SYM", "UH", "VB"]
     );
 }
 
-/// The gate against the published OpenNLP English UD models. It needs
-/// `TURBO_GOLDENS_MODELS` naming a directory that has them (`cargo run -p
-/// turbo-goldens-tool -- fetch-models <dir>`); without them it skips, or
-/// fails when `TURBO_TEST_REQUIRE_OPENNLP_MODELS=1`, as CI sets it. The
-/// corpus is the test corpus, not MASC, and the candidate has seen its
-/// held-out sentences, so the scores say nothing about the recipes; the
-/// test checks that the published models load, match the zoo's digests
-/// and are scored on the same samples.
+/// The tagger recipe's reference, asked for Penn tags, returns its own
+/// outcomes: Penn tags, unconverted, among them the inflected verbs,
+/// plural nouns and punctuation the UD tagger cannot give.
+#[test]
+fn the_penn_reference_returns_its_own_outcomes() {
+    let Some(path) = reference_path(&Recipe::Pos(POS)) else { return };
+    let bytes = std::fs::read(&path).unwrap();
+    POS.reference.check(&bytes).unwrap();
+    let file = turbo_maxent::ModelFile::open(bytes).unwrap();
+    let model = turbo_postag::PosModel::open_with_format(file, POS.reference_format).unwrap();
+    assert!(!model.converts_tags());
+    assert_eq!(model.tag_format(), PosTagFormat::Penn);
+    let tags = labels(model.tagset());
+    let outcomes: Vec<&str> = (0..model.maxent().num_outcomes()).map(|o| model.maxent().outcome(o)).collect();
+    assert_eq!(tags.len(), outcomes.len());
+    for tag in ["VBD", "VBZ", "NNS", ",", "TO", "POS", "PRP$"] {
+        assert!(tags.contains(&tag), "{tag} is not an outcome: {tags:?}");
+    }
+    println!("{} Penn outcomes: {tags:?}", tags.len());
+}
+
+fn labels(tagset: &turbo_analysis::TagSet) -> Vec<&str> {
+    let mut labels: Vec<&str> = (0..tagset.len()).map(|i| tagset.label(turbo_analysis::Tag(i as u16))).collect();
+    labels.sort_unstable();
+    labels
+}
+
+/// The gate against the published OpenNLP models, those present (see
+/// [`reference_path`]). The corpus is the test corpus, not MASC, and the
+/// candidate has seen its held-out sentences, so the scores say nothing
+/// about the recipes; the test checks that the published models load,
+/// match their recorded digests and are scored on the same samples.
 #[test]
 fn the_published_references_are_checked_and_scored_when_present() {
-    let Some(dir) = std::env::var_os("TURBO_GOLDENS_MODELS").map(PathBuf::from) else {
-        assert!(!models_required(), "TURBO_GOLDENS_MODELS is not set and TURBO_TEST_REQUIRE_OPENNLP_MODELS=1");
-        eprintln!("TURBO_GOLDENS_MODELS is not set: skipping");
-        return;
-    };
     let root = temp_dir("published");
     write_corpus(&root, GATED_DOCUMENTS, SENTENCES);
     let (split, digest) = split_of(&root);
     for recipe in RECIPES {
-        let path = dir.join(recipe.reference_file().unwrap());
-        let Ok(reference) = std::fs::read(&path) else {
-            assert!(!models_required(), "{} not found and TURBO_TEST_REQUIRE_OPENNLP_MODELS=1", path.display());
-            eprintln!("{} not found: skipping", path.display());
-            continue;
-        };
+        let Some(path) = reference_path(&recipe) else { continue };
+        let reference = std::fs::read(&path).unwrap();
         recipe.check_reference(&reference).unwrap();
         let outcome = run(&recipe, &split, &digest, false, recipe.reference_id(), &reference).unwrap();
         outcome.gate.check().unwrap();
+        assert_eq!(outcome.gate.reference.id, recipe.reference_id());
         println!("{}", outcome.gate);
     }
     std::fs::remove_dir_all(&root).unwrap();
@@ -326,8 +373,18 @@ fn the_binary_refuses_an_unrecorded_corpus_and_writes_each_model_s_directory() {
     let root = temp_dir("binary");
     write_corpus(&root, GATED_DOCUMENTS, SENTENCES);
     let out = temp_dir("binary-out");
+    // The references present, copied into one directory under the file
+    // names the binary looks for.
+    let refs = out.join("references");
+    std::fs::create_dir_all(&refs).unwrap();
+    let mut present = Vec::new();
+    for r in RECIPES {
+        if let Some(path) = reference_path(&r) {
+            std::fs::copy(&path, refs.join(r.reference_file().unwrap())).unwrap();
+            present.push(r);
+        }
+    }
     let bin = env!("CARGO_BIN_EXE_turbo-train-recipes");
-    let refs = std::env::var_os("TURBO_GOLDENS_MODELS").map(PathBuf::from).unwrap_or_else(|| out.join("none"));
     let args = |extra: &[&str]| {
         let mut c = std::process::Command::new(bin);
         c.arg("masc").arg("--corpus").arg(&root).arg("--references").arg(&refs).arg("--out").arg(out.join("models"));
@@ -338,25 +395,40 @@ fn the_binary_refuses_an_unrecorded_corpus_and_writes_each_model_s_directory() {
     assert_eq!(refused.status.code(), Some(2));
     assert!(String::from_utf8_lossy(&refused.stderr).contains("no recorded digest"), "{refused:?}");
     assert!(!out.join("models").exists());
+    let unknown = args(&["--unrecorded-corpus", "--recipe", "turbo-en-masc-3.0.0-chunks-1"]);
+    assert_eq!(unknown.status.code(), Some(2));
+    assert!(String::from_utf8_lossy(&unknown.stderr).contains("no recipe trains"), "{unknown:?}");
 
-    let all_present = RECIPES.iter().all(|r| refs.join(r.reference_file().unwrap()).is_file());
-    let ran = args(&["--unrecorded-corpus"]);
-    if all_present {
+    if present.len() < RECIPES.len() {
+        // Without every reference, a run of every recipe fails on the
+        // first one missing, before it writes anything for that recipe.
+        let all = args(&["--unrecorded-corpus"]);
+        assert_eq!(all.status.code(), Some(2), "{all:?}");
+        std::fs::remove_dir_all(out.join("models")).ok();
+    }
+    if present.is_empty() {
+        eprintln!("no published model is present: only the refusals were checked");
+    } else {
         // The models trained on the test corpus have seen its held-out
         // sentences and beat the published models on it, so the gates
         // pass; that says nothing about the recipes on MASC.
+        let mut extra = vec!["--unrecorded-corpus"];
+        for r in &present {
+            extra.extend(["--recipe", r.model_id()]);
+        }
+        let ran = args(&extra);
         assert_eq!(ran.status.code(), Some(0), "{ran:?}");
         for r in RECIPES {
             let dir = out.join("models").join(r.model_id());
+            if !present.contains(&r) {
+                assert!(!dir.exists(), "{} ran without --recipe", r.model_id());
+                continue;
+            }
             let card = ModelCard::read(&dir.join(CARD_FILE)).unwrap();
             assert!(!card.corpus.release_recorded);
             assert_eq!(card.gate.reference, r.reference_id());
             ModelGateRecord::read(&dir.join(GATE_FILE)).unwrap();
         }
-    } else {
-        assert!(!models_required(), "the published models are not under {}", refs.display());
-        eprintln!("the published models are not under {}: only the refusal was checked", refs.display());
-        assert_eq!(ran.status.code(), Some(2));
     }
     for dir in [root, out] {
         std::fs::remove_dir_all(dir).unwrap();

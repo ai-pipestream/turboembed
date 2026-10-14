@@ -52,6 +52,75 @@ pub struct Trained {
     pub event_hash: u32,
 }
 
+/// The OpenNLP model a recipe's model is gated against.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Reference {
+    /// A model of the zoo's built-in index, by its id.
+    Zoo(&'static str),
+    /// A model the zoo does not list, recorded by the recipe.
+    Recorded(RecordedReference),
+}
+
+/// A reference model the zoo does not list: its file as published, which
+/// a run reads from its references directory and checks against the
+/// recorded digest. Such a model is only read to score it; it is never
+/// shipped or bundled.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct RecordedReference {
+    /// The id the gate record names it by.
+    pub id: &'static str,
+    /// The file name as published.
+    pub file: &'static str,
+    /// Where it is published.
+    pub url: &'static str,
+    pub size: u64,
+    pub sha256: &'static str,
+}
+
+impl Reference {
+    /// The id the gate record names the model by: its zoo id, or the
+    /// recorded one.
+    pub fn id(&self) -> &'static str {
+        match self {
+            Reference::Zoo(id) => id,
+            Reference::Recorded(r) => r.id,
+        }
+    }
+
+    /// The model's file name: the one the zoo's built-in index gives it,
+    /// or the recorded one.
+    ///
+    /// # Errors
+    ///
+    /// A zoo id the index does not list.
+    pub fn file(&self) -> Result<String> {
+        match self {
+            Reference::Zoo(id) => Ok(Index::builtin().get(id)?.files[0].path.to_string()),
+            Reference::Recorded(r) => Ok(r.file.to_owned()),
+        }
+    }
+
+    /// Checks that `bytes` are the model: the SHA-256 the zoo's built-in
+    /// index lists, or the recorded size and SHA-256.
+    ///
+    /// # Errors
+    ///
+    /// [`Error::ReferenceDigest`] for other bytes, or a zoo id the index
+    /// does not list.
+    pub fn check(&self, bytes: &[u8]) -> Result<()> {
+        let (expected, size) = match self {
+            Reference::Zoo(id) => (Index::builtin().get(id)?.files[0].sha256.to_string(), None),
+            Reference::Recorded(r) => (r.sha256.to_owned(), Some(r.size)),
+        };
+        let found = Sha256::of(bytes).to_string();
+        if found == expected && size.is_none_or(|n| n == bytes.len() as u64) {
+            Ok(())
+        } else {
+            Err(Error::ReferenceDigest { id: self.id().to_owned(), expected, found })
+        }
+    }
+}
+
 /// One recipe: a model trained on MASC and the OpenNLP model it is gated
 /// against.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -77,12 +146,17 @@ impl Recipe {
         }
     }
 
-    /// The reference model's id in the zoo's built-in index.
-    pub fn reference_id(&self) -> &'static str {
+    /// The model the recipe's model is gated against.
+    pub fn reference(&self) -> Reference {
         match self {
-            Recipe::Segmentation(r) => r.reference_id,
-            Recipe::Pos(r) => r.reference_id,
+            Recipe::Segmentation(r) => Reference::Zoo(r.reference_id),
+            Recipe::Pos(r) => r.reference,
         }
+    }
+
+    /// The id the gate record names the reference by.
+    pub fn reference_id(&self) -> &'static str {
+        self.reference().id()
     }
 
     /// The gate's task.
@@ -141,45 +215,23 @@ impl Recipe {
         }
     }
 
-    /// The reference model's file name in the zoo's built-in index.
+    /// The reference model's file name ([`Reference::file`]).
     ///
     /// # Errors
     ///
-    /// A reference the index does not list.
+    /// A zoo id the index does not list.
     pub fn reference_file(&self) -> Result<String> {
-        reference_file(self.reference_id())
+        self.reference().file()
     }
 
-    /// Checks that `bytes` are the reference model the zoo's built-in
-    /// index lists.
+    /// Checks that `bytes` are the reference model ([`Reference::check`]).
     ///
     /// # Errors
     ///
     /// [`Error::ReferenceDigest`] for other bytes.
     pub fn check_reference(&self, bytes: &[u8]) -> Result<()> {
-        check_reference(self.reference_id(), bytes)
+        self.reference().check(bytes)
     }
-}
-
-/// The file name of the model `id` in the zoo's built-in index.
-///
-/// # Errors
-///
-/// A model the index does not list.
-pub fn reference_file(id: &str) -> Result<String> {
-    Ok(Index::builtin().get(id)?.files[0].path.to_string())
-}
-
-/// Checks that `bytes` are the model `id` of the zoo's built-in index.
-///
-/// # Errors
-///
-/// [`Error::ReferenceDigest`] for other bytes, or a model the index does
-/// not list.
-pub fn check_reference(id: &str, bytes: &[u8]) -> Result<()> {
-    let expected = Index::builtin().get(id)?.files[0].sha256.to_string();
-    let found = Sha256::of(bytes).to_string();
-    if expected == found { Ok(()) } else { Err(Error::ReferenceDigest { id: id.to_owned(), expected, found }) }
 }
 
 /// What one recipe made.
@@ -233,22 +285,49 @@ mod tests {
     use super::*;
 
     #[test]
-    fn every_recipe_names_a_reference_the_zoo_lists_and_a_valid_model_id() {
+    fn every_recipe_names_a_reference_and_a_valid_model_id() {
         let ids: Vec<&str> = RECIPES.iter().map(Recipe::model_id).collect();
         assert_eq!(
             ids,
             ["turbo-en-masc-3.0.0-sentence-1", "turbo-en-masc-3.0.0-tokens-1", "turbo-en-masc-3.0.0-pos-1"]
         );
         for r in RECIPES {
-            assert_eq!(r.reference_file().unwrap(), format!("{}.bin", r.reference_id()));
             assert!(matches!(r.check_reference(b"not the model"), Err(Error::ReferenceDigest { .. })));
             let id: turbo_zoo::ArtifactId = r.model_id().parse().unwrap();
             assert_eq!(id.as_str(), r.model_id());
-            // The reference is a model of the component the trained one is.
-            assert_eq!(Index::builtin().get(r.reference_id()).unwrap().component, Some(r.component()));
+            match r.reference() {
+                // The reference is a model of the component the trained
+                // one is, under its zoo file name.
+                Reference::Zoo(id) => {
+                    assert_eq!(r.reference_file().unwrap(), format!("{id}.bin"));
+                    assert_eq!(Index::builtin().get(id).unwrap().component, Some(r.component()));
+                }
+                // A recorded reference is one the zoo does not list, so it
+                // can never be fetched or shipped through it.
+                Reference::Recorded(rec) => {
+                    assert_eq!(r.reference_file().unwrap(), rec.file);
+                    assert!(Index::builtin().get(rec.id).is_err());
+                }
+            }
         }
         assert_eq!(RECIPES[2].task(), Task::PartOfSpeechTagger);
         assert_eq!(RECIPES[2].component(), turbo_zoo::Component::Pos);
-        assert!(reference_file("not-in-the-zoo").is_err());
+        assert_eq!(RECIPES[2].reference_id(), "opennlp-en-pos-maxent-1.5");
+        assert!(Reference::Zoo("not-in-the-zoo").file().is_err());
+    }
+
+    #[test]
+    fn a_recorded_reference_is_checked_by_size_and_digest() {
+        let bytes = b"abc";
+        let rec = RecordedReference {
+            id: "x",
+            file: "x.bin",
+            url: "https://example.org/x.bin",
+            size: 3,
+            sha256: "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad",
+        };
+        Reference::Recorded(rec).check(bytes).unwrap();
+        assert!(Reference::Recorded(RecordedReference { size: 4, ..rec }).check(bytes).is_err());
+        assert!(Reference::Recorded(rec).check(b"abd").is_err());
     }
 }

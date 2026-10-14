@@ -321,12 +321,12 @@ impl SegmentationRecipe {
     ///
     /// [`Error::ReferenceDigest`] for other bytes.
     pub fn check_reference(&self, bytes: &[u8]) -> Result<()> {
-        crate::check_reference(self.reference_id, bytes)
+        crate::Reference::Zoo(self.reference_id).check(bytes)
     }
 
     /// The reference model's file name in the zoo's built-in index.
     pub fn reference_file(&self) -> Result<String> {
-        crate::reference_file(self.reference_id)
+        crate::Reference::Zoo(self.reference_id).file()
     }
 }
 
