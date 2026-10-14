@@ -326,7 +326,10 @@ fn models_15(test: &str) -> Option<PathBuf> {
 
 #[test]
 fn en_ud_ewt_pos() {
-    if let Some(path) = turbo_goldens::published_model("opennlp-en-ud-ewt-pos-1.3-2.5.4.bin") {
+    // The file name comes from the golden, so the lookup and `open` read
+    // the same file.
+    let golden = read_golden("en-ud-ewt-pos");
+    if let Some(path) = turbo_goldens::published_model(&golden.model) {
         check_pos(path.parent().unwrap(), "en-ud-ewt-pos");
     }
 }
