@@ -1957,6 +1957,7 @@ dependencies = [
 name = "turbo-namefind"
 version = "0.1.0"
 dependencies = [
+ "regex",
  "turbo-analysis",
  "turbo-analysis-layers",
  "turbo-jvm",
