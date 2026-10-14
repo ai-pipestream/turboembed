@@ -1659,8 +1659,9 @@ every iteration of a longer run were compared with the file; 300 agrees,
 299 and 301 do not), so the recipes use 300. And with 300 iterations the
 events, manifests, predicates and patterns of all eighteen models come out
 exactly while the parameters differ in their last bits, by 2.2e-15 to
-9.8e-15 at most for the sentence and token models and by 1.6e-14 to
-6.9e-14 for the taggers and lemmatizers, depending on the model. The JVM of the goldens
+9.8e-15 at most for the sentence and token models, by 1.6e-14 to 1.4e-13
+for the taggers and by 8.0e-15 to 1.8e-14 for the lemmatizers, depending
+on the model. The JVM of the goldens
 container, running the fork's trainer on the same events, writes the
 parameters this port writes and shows the same residual against the
 published file, so the residual is not between the port and the fork's

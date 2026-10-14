@@ -169,9 +169,9 @@ last place, 299 and 301 do not). With 300 iterations the events, the
 manifest, the predicates and the outcome patterns of a published model
 come out exactly for all eighteen models, and the parameters to within
 2.2e-15 (German sentences) to 9.8e-15 (French tokens) for the sentence
-and token models and to within 1.6e-14 (English tags) to 6.9e-14 (German
-tags) for the taggers and lemmatizers, with 60 to 95 percent of them
-differing in their last bits. The JVM of the goldens
+and token models, 1.6e-14 (English) to 1.4e-13 (Spanish) for the taggers
+and 8.0e-15 (English) to 1.8e-14 (Portuguese) for the lemmatizers, with
+60 to 97 percent of them differing in their last bits. The JVM of the goldens
 container, running the fork's trainer on the same events, writes exactly
 the parameters this crate writes and shows the same residual against the
 published file, so the residual is not between this port and the fork's
