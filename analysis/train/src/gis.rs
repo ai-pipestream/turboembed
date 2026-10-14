@@ -105,7 +105,7 @@ impl GisParams {
 /// `parameters`.
 #[derive(Debug, Clone, PartialEq)]
 pub struct GisModel {
-    outcome_labels: Vec<String>,
+    outcome_labels: Vec<JavaString>,
     pred_labels: Vec<JavaString>,
     pattern_starts: Vec<u32>,
     outcomes: Vec<u32>,
@@ -113,7 +113,7 @@ pub struct GisModel {
 }
 
 impl GisModel {
-    pub fn outcome_labels(&self) -> &[String] {
+    pub fn outcome_labels(&self) -> &[JavaString] {
         &self.outcome_labels
     }
 

@@ -1610,8 +1610,8 @@ first one's order and `serialize` writes that order, so a trained model's
 before the manifest among the zip entries; `POSModel` refuses a
 dictionary tag the model has no outcome for; and a lemma class is an edit
 script over UTF-16 units, which can hold half of a surrogate pair for a
-token or lemma outside the Basic Multilingual Plane, a class the JVM
-trains on and the crate refuses.
+token or lemma outside the Basic Multilingual Plane, so an outcome label
+is a `JavaString` from the event to the model file, as it is on the JVM.
 
 `analysis/train-components/tests/goldens.rs` compares the events with
 every `train` and `train-events` golden, and the stream errors, the
@@ -1791,7 +1791,7 @@ generator writes them for `SentenceDetectorME`, `TokenizerME`,
 `POSTaggerME`, `LemmatizerME`, `ChunkerME` and `LanguageDetectorME`. `turbo_goldens::Dump::read` parses one into its
 header (the golden's `Header` type) and a `Point` per decision, with the
 contexts as UTF-16 units, since a context can hold half of a surrogate
-pair.
+pair, and the outcome labels as `JavaString`s, since a lemma class can.
 
 ### The format
 

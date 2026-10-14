@@ -51,7 +51,7 @@ pub fn write_gis(model: &GisModel) -> Result<Vec<u8>> {
     out.write_double(1.0);
     out.write_int(to_java_int(model.outcome_labels().len()));
     for label in model.outcome_labels() {
-        out.write_utf(&JavaString::new(label))?;
+        out.write_utf(label)?;
     }
     let sorted = sort_by_pattern(model);
     let groups = pattern_groups(model, &sorted);
@@ -226,7 +226,7 @@ mod tests {
         let model = trained();
         let bytes = write_gis(&model).unwrap();
         let read = MaxentModel::read(&bytes).unwrap();
-        assert_eq!(read.outcomes().collect::<Vec<_>>(), model.outcome_labels());
+        assert_eq!(read.outcomes().cloned().collect::<Vec<_>>(), model.outcome_labels());
         assert_eq!(read.num_predicates(), model.num_predicates());
         for p in ["a", "b", "c", "d"] {
             assert!(read.has_predicate(p), "{p}");
@@ -234,8 +234,33 @@ mod tests {
         // The written parameters evaluate as the trained ones.
         let mut out = vec![0.0; 3];
         read.eval(&["a", "b"], &mut out);
-        let yes = model.outcome_labels().iter().position(|o| o == "yes").unwrap();
+        let yes = model.outcome_labels().iter().position(|o| *o == "yes").unwrap();
         assert!(out[yes] > 0.5, "{out:?}");
+    }
+
+    #[test]
+    fn an_outcome_with_a_lone_surrogate_is_written_as_write_utf_writes_it() {
+        // The class of "😀" with the lemma "_": R1<low>_D0<high>.
+        let class = JavaString::from_utf16(&[0x52, 0x31, 0xDE00, 0x5F, 0x44, 0x30, 0xD83D]);
+        let events = [
+            Event::new(class.clone(), vec![JavaString::new("w0=😀"), JavaString::new("t0=_")]),
+            Event::from_strs("O", &["w0=x", "t0=_"]),
+            Event::from_strs("O", &["w0=y", "t0=_"]),
+        ];
+        let index = DataIndex::index(&events, &IndexParams::new(IndexerKind::TwoPass, 0, true)).unwrap();
+        let mut params = TrainingParameters::new();
+        params.put(Key::ITERATIONS, 5);
+        let model = crate::gis::train(&index, &params, &mut TrainingConfiguration::default()).unwrap();
+        let bytes = write_gis(&model).unwrap();
+        // After "GIS", the int, the double and the outcome count: the class
+        // as writeUTF writes it, each surrogate as three bytes.
+        let at = 5 + 4 + 8 + 4;
+        assert_eq!(&bytes[at..at + 2], &[0, 11]);
+        assert_eq!(&bytes[at + 2..at + 13], b"R1\xED\xB8\x80_D0\xED\xA0\xBD");
+        let read = MaxentModel::read(&bytes).unwrap();
+        assert_eq!(read.outcome(0), &class);
+        assert_eq!(read.outcome_index(&class), Some(0));
+        assert_eq!(read.outcome_texts(), Err(&class));
     }
 
     #[test]

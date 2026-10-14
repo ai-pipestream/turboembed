@@ -10,7 +10,7 @@ starts at events.
 | Module | OpenNLP |
 |---|---|
 | `event` | `Event`, `FileEventStream`, `RealValueFileEventStream` (`parseEvent`, `parseContexts`), `ChecksumEventStream` |
-| `java_string` | A Java string that may hold a lone surrogate, in modified UTF-8 |
+| `java_string` | `JavaString` (from `turbo-maxent`): a Java string that may hold a lone surrogate, in modified UTF-8 |
 | `index` | `OnePassDataIndexer`, `TwoPassDataIndexer`, `OnePassRealValueDataIndexer`, `ComparableEvent`, `DataIndexerFactory` |
 | `params` | `TrainingParameters`, `Parameters`, `AlgorithmType`, `TrainerFactory.TrainerType`, `getTrainerType`, `isValid` |
 | `monitor` | `TrainingProgressMonitor`, `DefaultTrainingProgressMonitor`, `TrainingMeasure`, `StopCriteria`, `LogLikelihoodThresholdBreached`, `IterDeltaAccuracyUnderTolerance`, `TrainingConfiguration` |
@@ -24,14 +24,21 @@ Numbers are formatted and parsed as Java does (`turbo_jvm::text`),
 predicate labels sort by `String.compareTo`, `float` stays `f32`, and
 parameters keep Java's case-insensitive keys and typed values.
 
-## Predicates are Java strings
+## Predicates and outcomes are Java strings
 
 The tokenizer's context generator names the character before and after
 a candidate split as one `char`, so for an emoji the predicate holds half
 a surrogate pair, which no Rust `String` can. A predicate is therefore a
 `JavaString`: modified UTF-8, the encoding model files store predicates
-in and `turbo-maxent` keys them by. Outcomes are `String`s, as they are
-labels from the samples.
+in and `turbo-maxent` keys them by. An outcome is a `JavaString` too: a
+lemma class is an edit script over the UTF-16 units of a word, so a
+token or lemma with a character outside the Basic Multilingual Plane
+gives a class holding half of its surrogate pair, and the JVM trains on
+it, numbers it by its units and writes it with `writeUTF`. The indexers
+and the GIS model hold outcome labels as `JavaString`s and the writer
+writes them as the bytes they are; `Event::java_string` and the event
+checksum write the class as `Event.toString` and `getBytes(UTF_8)` do
+(a lone surrogate becomes `?`).
 
 ## JVM reference
 

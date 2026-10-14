@@ -57,12 +57,6 @@ pub enum Error {
     /// wrapping the `InvalidFormatException` of `validatePOSDictionary`,
     /// and writes no model.
     UnknownDictionaryTags(Vec<String>),
-    /// A lemma sample whose token and lemma give a class holding half of a
-    /// surrogate pair (a character outside the Basic Multilingual Plane
-    /// replaced or deleted), which the JVM trains on and a Rust string
-    /// cannot hold. Issue #404 tracks holding the outcome as a
-    /// `JavaString` so that such a sample can be trained on.
-    LemmaClassSurrogate { token: String },
     /// The treebank or a published model could not be fetched or verified.
     Zoo(turbo_zoo::ZooError),
     /// A published model file could not be read.
@@ -101,9 +95,6 @@ impl fmt::Display for Error {
                     write!(f, "{t} ")?;
                 }
                 Ok(())
-            }
-            Error::LemmaClassSurrogate { token } => {
-                write!(f, "the lemma class of {token:?} holds half of a surrogate pair")
             }
             Error::Zoo(e) => write!(f, "zoo: {e}"),
             Error::Model(e) => write!(f, "model file: {e}"),

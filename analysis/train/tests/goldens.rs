@@ -345,6 +345,6 @@ fn the_sentence_fixture_run_has_the_fixture_models_event_hash() {
     assert_eq!(model.manifest().get("Training-Eventhash"), Some(crc.to_string().as_str()));
     let index = DataIndex::index(&events, &params(&g)).unwrap();
     let maxent = model.maxent("sent.model").unwrap();
-    assert_eq!(index.outcome_labels(), maxent.outcomes().collect::<Vec<_>>());
+    assert_eq!(index.outcome_labels(), maxent.outcomes().cloned().collect::<Vec<_>>());
     assert_eq!(index.pred_labels().len(), maxent.num_predicates());
 }

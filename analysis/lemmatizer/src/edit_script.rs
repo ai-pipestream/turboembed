@@ -7,7 +7,9 @@
 //! word and the lemma are lowercased with `String.toLowerCase(Locale.ROOT)`
 //! and reversed with `StringBuffer.reverse` (which keeps a surrogate pair
 //! in order), the edit distance is between code units, and an operation
-//! names a unit index and units. A script is a sequence of operations
+//! names a unit index and units. A class is therefore a [`JavaString`]:
+//! when a word or lemma holds a character outside the BMP, an operation
+//! can name one of its two surrogates alone. A script is a sequence of operations
 //! without separators: `R<index><unit><unit>` replaces the unit at the
 //! index when it is the first unit, `I<index><unit>` inserts the unit at
 //! the index, and `D<index><unit>` deletes the unit at the index. A word
@@ -19,6 +21,7 @@
 //! something else, and the published models' classes have them: this is
 //! OpenNLP's behaviour and is reproduced, not fixed.
 
+use turbo_maxent::JavaString;
 use turbo_unicode::java::{digit, to_lowercase};
 
 use crate::error::EditScriptError;
@@ -69,11 +72,10 @@ pub fn encode_units(word: &str, lemma: &str) -> Vec<u16> {
     script
 }
 
-/// [`encode_units`] as a string, or `None` when the class holds half of a
-/// surrogate pair, which only a word or lemma with a character outside
-/// the Basic Multilingual Plane can give.
-pub fn encode(word: &str, lemma: &str) -> Option<String> {
-    String::from_utf16(&encode_units(word, lemma)).ok()
+/// [`encode_units`] as the Java string `LemmatizerME.encodeLemmas` trains
+/// on.
+pub fn encode(word: &str, lemma: &str) -> JavaString {
+    JavaString::from_utf16(&encode_units(word, lemma))
 }
 
 /// `levenshteinDistance`: the matrix of edit distances between the
@@ -211,8 +213,8 @@ pub fn decode_units(word: &[u16], script: &[u16]) -> Result<Vec<u16>, EditScript
 /// surrogate pair, which only a class that edits inside a character
 /// outside the Basic Multilingual Plane can give, has that half replaced
 /// by U+FFFD, since a lemma is a string here.
-pub fn decode_lemma(word: &str, class: &str) -> Result<String, EditScriptError> {
-    let script: Vec<u16> = class.encode_utf16().collect();
+pub fn decode_lemma(word: &str, class: &JavaString) -> Result<String, EditScriptError> {
+    let script: Vec<u16> = class.utf16_units().collect();
     let units = decode_units(&lowercase_units(word), &script)?;
     if units.is_empty() {
         return Ok("_".to_string());
@@ -225,11 +227,11 @@ mod tests {
     use super::*;
 
     fn enc(word: &str, lemma: &str) -> String {
-        encode(word, lemma).unwrap()
+        encode(word, lemma).to_str().unwrap().into_owned()
     }
 
     fn dec(word: &str, class: &str) -> String {
-        decode_lemma(word, class).unwrap()
+        decode_lemma(word, &JavaString::new(class)).unwrap()
     }
 
     #[test]
@@ -314,10 +316,11 @@ mod tests {
 
     #[test]
     fn malformed_classes_are_errors() {
-        assert_eq!(decode_lemma("dogs", "Dx"), Err(EditScriptError::NotADigit { unit: u16::from(b'x') }));
-        assert_eq!(decode_lemma("dogs", "D"), Err(EditScriptError::Truncated));
-        assert_eq!(decode_lemma("dogs", "R0s"), Err(EditScriptError::Truncated));
-        assert_eq!(decode_lemma("dogs", "I0"), Err(EditScriptError::Truncated));
+        let class = |s: &str| JavaString::new(s);
+        assert_eq!(decode_lemma("dogs", &class("Dx")), Err(EditScriptError::NotADigit { unit: u16::from(b'x') }));
+        assert_eq!(decode_lemma("dogs", &class("D")), Err(EditScriptError::Truncated));
+        assert_eq!(decode_lemma("dogs", &class("R0s")), Err(EditScriptError::Truncated));
+        assert_eq!(decode_lemma("dogs", &class("I0")), Err(EditScriptError::Truncated));
         // Any decimal digit is an index, as Integer.parseInt reads it.
         assert_eq!(dec("dogs", "D\u{0660}s"), "dog");
     }
@@ -337,14 +340,30 @@ mod tests {
     fn characters_outside_the_bmp_are_two_units() {
         assert_eq!(enc("\u{1F600}s", "\u{1F600}"), "D0s");
         assert_eq!(dec("\u{1F600}s", "D0s"), "\u{1F600}");
-        // Deleting one half leaves a lone surrogate, replaced in the string.
-        assert_eq!(encode_units("\u{1F600}", "a").len(), 7);
+        // Replacing the character by a letter writes its two units into
+        // the class: the low half replaced, the high half deleted. The
+        // class is a Java string holding both halves alone.
+        let class = encode("\u{1F600}", "a");
+        assert_eq!(class.utf16_len(), 7);
+        assert_eq!(class.utf16_units().collect::<Vec<_>>(), [0x52, 0x31, 0xDE00, 0x61, 0x44, 0x30, 0xD83D]);
+        assert_eq!(class.to_str(), None);
+        assert_eq!(decode_lemma("\u{1F600}", &class).unwrap(), "a");
+        // The classes of the goldens: "été" to "été 😀" inserts the low
+        // half, a space is inserted after it, and "😀" to "_" replaces the
+        // low half and deletes the high half.
+        let class = encode("été", "été \u{1F600}");
+        assert_eq!(class.utf16_units().collect::<Vec<_>>(), [0x49, 0x30, 0x20, 0x49, 0x30, 0xDE00, 0x49, 0x30, 0xD83D]);
+        assert_eq!(decode_lemma("été", &class).unwrap(), "été \u{1F600}");
+        let class = encode("\u{1F600}", "_");
+        assert_eq!(class.utf16_units().collect::<Vec<_>>(), [0x52, 0x31, 0xDE00, 0x5F, 0x44, 0x30, 0xD83D]);
+        assert_eq!(decode_lemma("\u{1F600}", &class).unwrap(), "_");
         // The pair is kept in order by the reverse, so index 0 is its
-        // high half; deleting it leaves the low half alone.
+        // high half; deleting it leaves the low half alone, which the
+        // lemma string replaces.
         let script = [0x44, 0x30, 0xD83D];
         let out = decode_units(&"\u{1F600}".encode_utf16().collect::<Vec<_>>(), &script).unwrap();
         assert_eq!(out, [0xDE00]);
-        assert_eq!(dec("\u{1F600}", &String::from_utf16_lossy(&script)), "\u{FFFD}");
+        assert_eq!(decode_lemma("\u{1F600}", &JavaString::from_utf16(&script)).unwrap(), "\u{FFFD}");
     }
 
     #[test]

@@ -3,13 +3,13 @@ generator	turbo-goldens-java	1
 opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
 jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
 unicode	15.0
-input	tagged/lemmas	1919	1919	c16baf0901c3e67e2b8b9251d2ffc85c11307a607f2d17f358da2a214082b337
+input	tagged/lemmas	1970	1966	74b8417d710f46af435fafff00fa0d0fd176f9c8cc8e9524f362f7f4c290a8d8
 annotator	opennlp.tools.lemmatizer.LemmaSampleEventStream	read
 config	format	text
 config	language	en
 config	run	lemma-text
 config	source	lemmatize
-layer	turbo:events	document	154	outcome:str	context:str	values:str
+layer	turbo:events	document	158	outcome:str	context:str	values:str
 O	w0=The t0=DT p_1=bos p_1=bost0=DT p_1=bosw0=The suf=null suf=he suf=The suf=The suf=The suf=The suf=The pre=null pre=Th pre=The pre=The pre=The c	
 O	w0=driver t0=NN p_1=O p_1=Ot0=NN p_1=Ow0=driver suf=null suf=er suf=ver suf=iver suf=river suf=driver suf=driver pre=null pre=dr pre=dri pre=driv pre=drive	
 D3pD1eD0d	w0=stopped t0=VBD p_1=O p_1=Ot0=VBD p_1=Ow0=stopped suf=null suf=ed suf=ped suf=pped suf=opped suf=topped suf=stopped pre=null pre=st pre=sto pre=stop pre=stopp	
@@ -164,11 +164,15 @@ O	w0=. t0=. p_1=O p_1=Ot0=. p_1=Ow0=. suf=null suf=. suf=. suf=. suf=. suf=. suf
 O	w0=The t0=DT p_1=bos p_1=bost0=DT p_1=bosw0=The suf=null suf=he suf=The suf=The suf=The suf=The suf=The pre=null pre=Th pre=The pre=The pre=The c	
 O	w0=end t0=NN p_1=O p_1=Ot0=NN p_1=Ow0=end suf=null suf=nd suf=end suf=end suf=end suf=end suf=end pre=null pre=en pre=end pre=end pre=end	
 O	w0=. t0=. p_1=O p_1=Ot0=. p_1=Ow0=. suf=null suf=. suf=. suf=. suf=. suf=. suf=. pre=null pre=. pre=. pre=. pre=.	
+D1\\ude00D0\\ud83d	w0=Smile😀 t0=NN p_1=bos p_1=bost0=NN p_1=bosw0=Smile😀 suf=null suf=😀 suf=e😀 suf=le😀 suf=ile😀 suf=mile😀 suf=Smile😀 pre=null pre=Sm pre=Smi pre=Smil pre=Smile c	
+D1\\udc4dD0\\ud83d	w0=ok👍 t0=UH p_1=D1\\ude00D0\\ud83d p_1=D1\\ude00D0\\ud83dt0=UH p_1=D1\\ude00D0\\ud83dw0=ok👍 suf=null suf=👍 suf=k👍 suf=ok👍 suf=ok👍 suf=ok👍 suf=ok👍 pre=null pre=ok pre=ok\\ud83d pre=ok👍 pre=ok👍	
+D1nD0e	w0=done t0=VBN p_1=D1\\udc4dD0\\ud83d p_1=D1\\udc4dD0\\ud83dt0=VBN p_1=D1\\udc4dD0\\ud83dw0=done suf=null suf=ne suf=one suf=done suf=done suf=done suf=done pre=null pre=do pre=don pre=done pre=done	
+O	w0=. t0=. p_1=D1nD0e p_1=D1nD0et0=. p_1=D1nD0ew0=. suf=null suf=. suf=. suf=. suf=. suf=. suf=. pre=null pre=. pre=. pre=. pre=.	
 end	turbo:events
 layer	turbo:stream-errors	document	0	after:u32	class:str	message:str
 end	turbo:stream-errors
 layer	turbo:event-checksum	document	1	crc32c:u32
-2647236414
+1662216566
 end	turbo:event-checksum
 layer	turbo:manifest	document	8	key:str	value:str
 BeamSize	3

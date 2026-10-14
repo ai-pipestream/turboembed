@@ -2,7 +2,7 @@
 //! `SentenceDetectorFactory` reads from it.
 
 use turbo_analysis::ModelRef;
-use turbo_maxent::{Dictionary, MaxentModel, ModelFile};
+use turbo_maxent::{Dictionary, JavaString, MaxentModel, ModelFile};
 
 use crate::abbreviation::AbbreviationIndex;
 use crate::context::Limits;
@@ -63,7 +63,7 @@ impl SentenceModel {
         let maxent = file.maxent(MODEL_ENTRY)?;
         let split = maxent.outcome_index("s");
         let (Some(split), Some(_), 2) = (split, maxent.outcome_index("n"), maxent.num_outcomes()) else {
-            return Err(ModelError::Outcomes(maxent.outcomes().map(String::from).collect()));
+            return Err(ModelError::Outcomes(maxent.outcomes().map(JavaString::to_string_lossy).collect()));
         };
         let abbreviations = file.dictionary(ABBREVIATIONS_ENTRY)?;
         let index = abbreviations.as_ref().map(AbbreviationIndex::new);

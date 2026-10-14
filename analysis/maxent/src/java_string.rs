@@ -3,19 +3,30 @@
 //! OpenNLP's context generators cut text at UTF-16 code units: the
 //! tokenizer's features name the character before and after a candidate
 //! split as one `char`, which for a character outside the BMP is half a
-//! surrogate pair. Such a predicate is a Java string no Rust `String` can
-//! hold. [`JavaString`] holds any Java string as Java's modified UTF-8,
-//! the encoding model files store predicates in and the one `turbo-maxent`
-//! keys a model's predicates by, so a label travels from events to the
-//! index to a written model without re-encoding. Two Java strings are
-//! equal when their bytes are, and a `JavaString` orders as
+//! surrogate pair, and the lemmatizer's classes are edit scripts over the
+//! units of a word, so a class can insert or delete half a pair. Such a
+//! predicate or outcome is a Java string no Rust `String` can hold.
+//! [`JavaString`] holds any Java string as Java's modified UTF-8, the
+//! encoding model files store their labels in and the one a
+//! [`MaxentModel`](crate::MaxentModel) keys its predicates by, so a label
+//! travels from training events to a written model, and from a model file
+//! to the features looked up in it, without re-encoding. Two Java strings
+//! are equal when their bytes are, and a `JavaString` orders as
 //! `String.compareTo` does (by UTF-16 code units).
+//!
+//! Comparing with a `str` ([`JavaString::eq_str`], [`JavaString::starts_with`],
+//! [`JavaString::ends_with`]) compares bytes when the `str`'s UTF-8 is its
+//! modified UTF-8 (no U+0000 and nothing outside the BMP), which every
+//! label a validator compares against is, and compares UTF-16 units
+//! otherwise; neither allocates.
 
+use std::borrow::Cow;
 use std::cmp::Ordering;
 use std::fmt;
 
-use turbo_maxent::java_data::{canonical_modified_utf8, check_modified_utf8};
 use turbo_unicode::modified_utf8::{push_modified_utf8, push_str_modified_utf8};
+
+use crate::java_data::{canonical_modified_utf8, check_modified_utf8};
 
 /// A Java string, in modified UTF-8 as `DataOutputStream.writeUTF` writes
 /// it (U+0000 as `C0 80`, every UTF-16 unit above U+07FF as three bytes,
@@ -23,6 +34,13 @@ use turbo_unicode::modified_utf8::{push_modified_utf8, push_str_modified_utf8};
 #[derive(Clone, PartialEq, Eq, Hash, Default)]
 pub struct JavaString {
     bytes: Vec<u8>,
+}
+
+/// Whether the UTF-8 of `s` is also its modified UTF-8: no U+0000 (two
+/// bytes there) and no character outside the BMP (two surrogates there).
+#[inline]
+pub(crate) fn utf8_is_modified_utf8(s: &str) -> bool {
+    !s.bytes().any(|b| b == 0 || b >= 0xF0)
 }
 
 impl JavaString {
@@ -49,7 +67,14 @@ impl JavaString {
     /// so equal strings have equal bytes.
     pub fn from_modified_utf8(bytes: &[u8]) -> Option<JavaString> {
         check_modified_utf8(bytes).ok()?;
-        Some(JavaString { bytes: canonical_modified_utf8(bytes).into_owned() })
+        Some(JavaString::from_checked(bytes))
+    }
+
+    /// A Java string from modified UTF-8 already checked to be well formed
+    /// (what [`JavaData::read_utf`](crate::java_data::JavaData::read_utf)
+    /// returns), made canonical.
+    pub(crate) fn from_checked(bytes: &[u8]) -> JavaString {
+        JavaString { bytes: canonical_modified_utf8(bytes).into_owned() }
     }
 
     /// The modified UTF-8 bytes: what `writeUTF` writes after the length.
@@ -90,17 +115,45 @@ impl JavaString {
         self.utf16_units().count()
     }
 
+    /// `equals(s)`.
+    pub fn eq_str(&self, s: &str) -> bool {
+        if utf8_is_modified_utf8(s) {
+            return self.bytes == s.as_bytes();
+        }
+        self.utf16_units().eq(s.encode_utf16())
+    }
+
+    /// `startsWith(prefix)`.
+    pub fn starts_with(&self, prefix: &str) -> bool {
+        if utf8_is_modified_utf8(prefix) {
+            return self.bytes.starts_with(prefix.as_bytes());
+        }
+        let mut units = self.utf16_units();
+        prefix.encode_utf16().all(|p| units.next() == Some(p))
+    }
+
+    /// `endsWith(suffix)`.
+    pub fn ends_with(&self, suffix: &str) -> bool {
+        if utf8_is_modified_utf8(suffix) {
+            return self.bytes.ends_with(suffix.as_bytes());
+        }
+        let suffix: Vec<u16> = suffix.encode_utf16().collect();
+        let units: Vec<u16> = self.utf16_units().collect();
+        units.ends_with(&suffix)
+    }
+
     /// The string as `&str` when it holds no lone surrogate; modified
-    /// UTF-8 is then UTF-8, except for U+0000, which is re-encoded.
-    pub fn to_str(&self) -> Option<std::borrow::Cow<'_, str>> {
+    /// UTF-8 is then UTF-8, except for U+0000 and characters outside the
+    /// BMP, which are re-encoded.
+    pub fn to_str(&self) -> Option<Cow<'_, str>> {
         if let Ok(s) = std::str::from_utf8(&self.bytes) {
-            return Some(std::borrow::Cow::Borrowed(s));
+            return Some(Cow::Borrowed(s));
         }
         let mut s = String::with_capacity(self.bytes.len());
         for c in char::decode_utf16(self.utf16_units()) {
             s.push(c.ok()?);
         }
-        Some(std::borrow::Cow::Owned(s))
+        Some(Cow::Owned(s))
     }
 
     /// The string with every lone surrogate replaced by U+FFFD.
@@ -164,15 +217,45 @@ impl From<String> for JavaString {
     }
 }
 
+impl From<&String> for JavaString {
+    fn from(s: &String) -> JavaString {
+        JavaString::new(s)
+    }
+}
+
 impl PartialEq<str> for JavaString {
     fn eq(&self, other: &str) -> bool {
-        *self == JavaString::new(other)
+        self.eq_str(other)
     }
 }
 
 impl PartialEq<&str> for JavaString {
     fn eq(&self, other: &&str) -> bool {
-        *self == JavaString::new(other)
+        self.eq_str(other)
+    }
+}
+
+impl PartialEq<String> for JavaString {
+    fn eq(&self, other: &String) -> bool {
+        self.eq_str(other)
+    }
+}
+
+impl PartialEq<JavaString> for str {
+    fn eq(&self, other: &JavaString) -> bool {
+        other.eq_str(self)
+    }
+}
+
+impl PartialEq<JavaString> for &str {
+    fn eq(&self, other: &JavaString) -> bool {
+        other.eq_str(self)
+    }
+}
+
+impl PartialEq<JavaString> for String {
+    fn eq(&self, other: &JavaString) -> bool {
+        other.eq_str(self)
     }
 }
 
@@ -218,7 +301,8 @@ mod tests {
     fn converts_back_to_text() {
         let s = JavaString::new("a\0😀");
         assert_eq!(s.to_str().unwrap(), "a\0😀");
-        assert_eq!(JavaString::new("plain").to_str().unwrap(), "plain");
+        assert!(matches!(s.to_str(), Some(Cow::Owned(_))));
+        assert!(matches!(JavaString::new("plain").to_str(), Some(Cow::Borrowed("plain"))));
         let lone = JavaString::from_utf16(&[0x61, 0xD83C, 0x62]);
         assert_eq!(lone.to_str(), None);
         assert_eq!(lone.to_string_lossy(), "a\u{FFFD}b");
@@ -228,6 +312,26 @@ mod tests {
         assert_eq!(format!("{lone:?}"), "\"a\\u{d83c}b\"");
         assert_eq!(lone.to_string(), "a\u{FFFD}b");
         assert!(JavaString::new("x") == "x");
+    }
+
+    #[test]
+    fn compares_with_text_without_encoding_it() {
+        let plain = JavaString::new("B-per");
+        let owned = String::from("B-per");
+        assert!(plain == "B-per" && "B-per" == plain && plain == owned);
+        assert!(plain != "B-pe" && plain != "b-per");
+        assert!(plain.starts_with("B-") && plain.starts_with("") && !plain.starts_with("B-x"));
+        assert!(plain.ends_with("per") && !plain.ends_with("B-per-"));
+        // Text whose UTF-8 is not its modified UTF-8 is compared by units.
+        let astral = JavaString::new("a\0😀b");
+        assert!(astral == "a\0😀b" && astral != "a\0😀" && !astral.eq_str("a"));
+        assert!(astral.starts_with("a\0😀") && !astral.starts_with("a\0😁"));
+        assert!(astral.ends_with("😀b") && !astral.ends_with("\0b"));
+        assert!(!JavaString::new("a").starts_with("a\0") && !JavaString::new("b").ends_with("😀b"));
+        // A lone surrogate equals no text, but its prefix and suffix can.
+        let lone = JavaString::from_utf16(&[0x42, 0x2D, 0xD83D]);
+        assert!(lone != "B-" && !lone.eq_str("B-\u{FFFD}"));
+        assert!(lone.starts_with("B-") && !lone.ends_with("-"));
     }
 
     #[test]

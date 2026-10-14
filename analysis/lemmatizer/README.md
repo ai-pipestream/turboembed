@@ -65,6 +65,12 @@ test runs the search with a recording context generator and checks the
 contexts feature by feature, in the JVM's order, and the probabilities bit for
 bit.
 
+The `lemma-fixture-rust` model has two classes that delete the two units of
+an emoji at the end of a token (`Smile😀` to `smile`, `ok👍` to `ok`), so each
+holds half of a surrogate pair; the model's outcomes are `JavaString`s, the
+dumps list those classes with every other, and the JVM chose one for the
+emoji of `edge/emoji-single` and `en/emoji`, whose lemma is then `_`.
+
 `en/emoji-split` has a token that is half of a surrogate pair. The JVM
 lemmatizes that token into the same half, so the maxent golden's lemma column
 holds a lone surrogate, which the golden reader refuses (a lemma is a string

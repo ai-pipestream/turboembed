@@ -86,9 +86,9 @@
 //!   and `pre=null`, Java's string of a null reference.
 //! - A lemma class is the shortest edit script over UTF-16 units; a token
 //!   or lemma outside the Basic Multilingual Plane can give a class that
-//!   holds half of a surrogate pair, which the JVM trains on and a Rust
-//!   string cannot hold ([`Error::LemmaClassSurrogate`]; issue #404 tracks
-//!   holding the outcome as a `JavaString`).
+//!   holds half of a surrogate pair. Outcomes are `JavaString`s, so such a
+//!   class is trained on and written as the JVM does it, and the features
+//!   that name the previous class hold it as the JVM's modified UTF-8.
 //! - The published UD 1.3 models were trained with 300 iterations, not
 //!   the 150 their training configuration file says ([`ud`][]).
 

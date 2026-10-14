@@ -63,7 +63,7 @@ impl ChunkerModel {
         if beam_size == 0 {
             return Err(ModelError::ZeroBeam);
         }
-        let outcomes: Vec<&str> = maxent.outcomes().collect();
+        let outcomes = maxent.outcome_texts().map_err(|o| ModelError::OutcomeNotText(o.clone()))?;
         let tagset = TagSet::new("chunk", &outcomes);
         // The kinds the outcomes can start a phrase with, in outcome
         // order; an outcome without a kind is left out and refused when
@@ -183,7 +183,7 @@ mod tests {
         assert_eq!(m.model_ref().revision, "3.0.0-SNAPSHOT");
         assert_eq!(m.tagset().name, "chunk");
         assert_eq!(m.tagset().len(), m.maxent().num_outcomes());
-        for (i, outcome) in m.maxent().outcomes().enumerate() {
+        for (i, outcome) in m.maxent().outcome_texts().unwrap().into_iter().enumerate() {
             assert_eq!(m.tagset().label(m.tag_of_outcome(i)), outcome);
             assert_eq!(m.tag_of(outcome), Some(m.tag_of_outcome(i)));
             assert!(outcome == "O" || outcome.starts_with("B-") || outcome.starts_with("I-"), "{outcome}");

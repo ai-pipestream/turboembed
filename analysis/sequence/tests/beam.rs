@@ -153,7 +153,8 @@ fn run<'g, T, C, V>(
     for (k, s) in golden.sentences.iter().enumerate() {
         let items = items(s);
         let mut recorder = Recorder { inner: context, calls: (!s.calls.is_empty()).then(Vec::new) };
-        let found = search.best_sequences(golden.beam, &items, BeamSearch::DEFAULT_MIN_SCORE, &mut recorder, validator);
+        let found =
+            search.best_sequences(golden.beam, &items, BeamSearch::<str>::DEFAULT_MIN_SCORE, &mut recorder, validator);
         let calls = recorder.calls.take().unwrap_or_default();
         if calls != s.calls {
             let at = calls.iter().zip(&s.calls).position(|(a, b)| a != b).unwrap_or(calls.len().min(s.calls.len()));
@@ -205,7 +206,7 @@ fn check_pos(dir: &Path, name: &str) {
     let model = file.maxent(postag::MODEL_ENTRY_NAME).unwrap();
     let beam = manifest_beam_size(&file, postag::DEFAULT_BEAM_SIZE).unwrap();
     assert_eq!(beam, golden.beam);
-    let search = BeamSearch::new(beam, &model);
+    let search = BeamSearch::new(beam, &model).unwrap();
     let mut context = PosContext::for_model(&file, beam, PatternMode::Utf16Units).unwrap();
     let validator = PosValidator::new(TagDictionary::for_model(&file).unwrap().map(Arc::new));
     run(&golden, &search, tokens, &mut context, &validator, |_, _, _| None);
@@ -218,7 +219,7 @@ fn check_chunker(dir: &Path, name: &str) {
     let model = file.maxent(chunker::MODEL_ENTRY_NAME).unwrap();
     let beam = manifest_beam_size(&file, chunker::DEFAULT_BEAM_SIZE).unwrap();
     assert_eq!(beam, golden.beam);
-    let search = BeamSearch::new(beam, &model);
+    let search = BeamSearch::new(beam, &model).unwrap();
     run(&golden, &search, token_tags, &mut DefaultChunkerContext, &ChunkerValidator, |_, _, _| None);
 }
 
@@ -233,7 +234,7 @@ fn check_names_kind(dir: &Path, name: &str, kind: &str) {
     let model = file.maxent(namefind::MODEL_ENTRY_NAME).unwrap();
     let beam = manifest_beam_size(&file, namefind::DEFAULT_BEAM_SIZE).unwrap();
     assert_eq!(beam, golden.beam);
-    let search = BeamSearch::new(beam, &model);
+    let search = BeamSearch::new(beam, &model).unwrap();
     let codec = NameCodec::for_model(&file);
     let expected_codec = match codec {
         NameCodec::Bio => "opennlp.tools.namefind.BioCodec",
@@ -270,7 +271,7 @@ fn pos_fixture_default_context() {
     assert_eq!(golden.kind, "pos-default-context");
     let file = open(&fixtures(), &golden);
     let model = file.maxent(postag::MODEL_ENTRY_NAME).unwrap();
-    let search = BeamSearch::new(golden.beam, &model);
+    let search = BeamSearch::new(golden.beam, &model).unwrap();
     let xml = std::fs::read(common::golden().join("resources/names.dictionary")).unwrap();
     let mut context = DefaultPosContext::new(Some(Arc::new(Dictionary::read(&xml).unwrap())));
     let validator = PosValidator::new(TagDictionary::for_model(&file).unwrap().map(Arc::new));

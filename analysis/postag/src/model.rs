@@ -85,6 +85,9 @@ impl PosModel {
         if maxent.num_outcomes() == 0 {
             return Err(ModelError::NoOutcomes);
         }
+        if let Err(outcome) = maxent.outcome_texts() {
+            return Err(ModelError::OutcomeNotText(outcome.clone()));
+        }
         let beam_size = manifest_beam_size(&file, DEFAULT_BEAM_SIZE)?;
         if beam_size == 0 {
             return Err(ModelError::ZeroBeam);
@@ -145,24 +148,34 @@ impl PosModel {
     /// when a mapper is made, and the outcomes themselves otherwise.
     fn set_format(&mut self, format: PosTagFormat) {
         self.requested = format;
-        self.guessed = TagFormatMapper::guess(self.maxent.outcomes()).guessed_format();
-        self.mapper = TagFormatMapper::for_tagger(format, self.maxent.outcomes());
-        let mut labels: Vec<&str> = Vec::with_capacity(self.maxent.num_outcomes());
-        for outcome in self.maxent.outcomes() {
+        let outcomes = Self::texts(&self.maxent);
+        self.guessed = TagFormatMapper::guess(outcomes.iter().copied()).guessed_format();
+        self.mapper = TagFormatMapper::for_tagger(format, outcomes.iter().copied());
+        let mut labels: Vec<&str> = Vec::with_capacity(outcomes.len());
+        for &outcome in &outcomes {
             let label = self.mapper.map_or(outcome, |m| m.convert_tag(outcome));
             if !labels.contains(&label) {
                 labels.push(label);
             }
         }
         self.tagset = TagSet::new(self.tag_format().as_str().to_ascii_lowercase().as_str(), &labels);
-        self.outcome_tags = self
-            .maxent
-            .outcomes()
-            .map(|outcome| {
+        self.outcome_tags = outcomes
+            .iter()
+            .map(|&outcome| {
                 let label = self.mapper.map_or(outcome, |m| m.convert_tag(outcome));
                 self.tagset.tag(label).expect("every converted outcome is in the tag set")
             })
             .collect();
+    }
+
+    /// The classifier's outcomes as text, in outcome order; `open` refused
+    /// any model whose outcomes are not text.
+    pub fn outcomes(&self) -> Vec<&str> {
+        Self::texts(&self.maxent)
+    }
+
+    fn texts(maxent: &MaxentModel) -> Vec<&str> {
+        maxent.outcome_texts().expect("the outcomes were checked to be text when the model was opened")
     }
 
     /// The manifest's `Language`.
@@ -308,7 +321,7 @@ mod tests {
         assert!(!m.converts_tags());
         assert_eq!(m.tagset().name, "ud");
         assert_eq!(m.tagset().len(), m.maxent().num_outcomes());
-        for (i, outcome) in m.maxent().outcomes().enumerate() {
+        for (i, outcome) in m.outcomes().into_iter().enumerate() {
             assert_eq!(m.tagset().label(m.tag_of_outcome(i)), outcome);
             assert_eq!(m.tag_of(outcome), Some(m.tag_of_outcome(i)));
             assert_eq!(m.label_of(outcome), outcome);

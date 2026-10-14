@@ -17,11 +17,10 @@
 //! `LemmaSampleEventStream`, over word and tag lines, word, tag and lemma
 //! lines and CoNLL-U in both tag sets; their model files, the
 //! `tags.tagdict` entry and `POSDictionary.serialize` of the dictionaries
-//! the generator builds are compared the same way. A lemma sample whose
-//! class would hold half of a surrogate pair is refused here
-//! ([`turbo_train_components::Error::LemmaClassSurrogate`]) where the JVM
-//! makes events with such a class; the test checks that the events this
-//! crate does not make are exactly those.
+//! the generator builds are compared the same way. Two lemma samples
+//! (`lemma-basic` and `conllu-whitespace`) have classes holding half of a
+//! surrogate pair, which the generator writes as `\u` escapes; they are
+//! read back as the `JavaString` outcomes this crate makes.
 
 mod common;
 
@@ -43,7 +42,7 @@ use turbo_train_components::postag::{self, PosEventStream, PosTaggerFactory, pac
 use turbo_train_components::sentdetect::package_sentence_model;
 use turbo_train_components::tokenize::package_tokenizer_model;
 use turbo_train_components::{
-    AbbreviationDictionary, Error, PosDictionary, SdEventStream, SentenceDetectorFactory, Stamp, TokSpanEventStream,
+    AbbreviationDictionary, PosDictionary, SdEventStream, SentenceDetectorFactory, Stamp, TokSpanEventStream,
     TokenizerFactory, sd_events, tok_events,
 };
 use turbo_unicode::WhitespaceMode;
@@ -60,30 +59,9 @@ fn token_samples(text: &str) -> Vec<TokenSample<'_>> {
 }
 
 fn check(path: &Path, g: &Golden, events: &[Event]) {
-    check_skipping(path, g, events, &[]);
-}
-
-/// [`check`] where the samples at `skipped` (the index of their first
-/// event among the JVM's, and how many events each made) were refused
-/// here: the JVM's events there must each have a class holding a lone
-/// surrogate, written by the generator as a `\u` escape, and the rest must
-/// be this crate's. The checksum is over the JVM's events, so it is not
-/// compared when a sample was skipped.
-fn check_skipping(path: &Path, g: &Golden, events: &[Event], skipped: &[(usize, usize)]) {
-    let mut expected = common::events(g);
-    for &(start, count) in skipped.iter().rev() {
-        let removed: Vec<Event> = expected.drain(start..start + count).collect();
-        assert!(
-            removed.iter().any(|e| e.outcome().contains("\\u")),
-            "{}: the skipped sample's classes {:?} hold no lone surrogate",
-            path.display(),
-            removed.iter().map(Event::outcome).collect::<Vec<_>>()
-        );
-    }
+    let expected = common::events(g);
     assert_eq!(expected, events, "{}: {}", path.display(), common::describe_difference(&expected, events));
-    if let Some(l) = common::layer_opt(g, "turbo:event-checksum")
-        && skipped.is_empty()
-    {
+    if let Some(l) = common::layer_opt(g, "turbo:event-checksum") {
         assert_eq!(l.u32s("crc32c").unwrap()[0], checksum(events), "{}: checksum", path.display());
     }
 }
@@ -201,12 +179,11 @@ fn collect<'a, S>(
 }
 
 /// The events of a `train-events` golden from its config records, with
-/// the stream errors and the samples refused here (see [`check_skipping`]).
-fn event_golden_events(g: &Golden, text: &str) -> (Vec<Event>, Vec<StreamError>, Vec<(usize, usize)>) {
+/// the stream errors.
+fn event_golden_events(g: &Golden, text: &str) -> (Vec<Event>, Vec<StreamError>) {
     let language = common::config(g, "language").unwrap();
     let conllu = common::config(g, "format") == Some("conllu");
     let mut errors: Vec<(usize, FormatError)> = Vec::new();
-    let mut skipped: Vec<(usize, usize)> = Vec::new();
     // The events each sample made, so that an error after sample `i` is
     // after `counts[i]` events.
     let mut counts: Vec<usize> = vec![0];
@@ -274,24 +251,8 @@ fn event_golden_events(g: &Golden, text: &str) -> (Vec<Event>, Vec<StreamError>,
             }
             let mut stream = LemmaEventStream::new(&f);
             let mut out = Vec::new();
-            // The JVM's event index of the next sample's first event: this
-            // crate's, plus the events of the samples refused so far.
-            let mut jvm_index = 0;
             for s in &samples {
-                let before = out.len();
-                match stream.events(s, &mut out) {
-                    Ok(()) => {}
-                    Err(Error::LemmaClassSurrogate { token }) => {
-                        assert!(s.tokens().iter().any(|t| t.as_str() == token), "{token:?} is not in the sample");
-                        // No event of the sample is kept, and the JVM made
-                        // one per token.
-                        out.truncate(before);
-                        skipped.push((jvm_index, s.tokens().len()));
-                        jvm_index += s.tokens().len();
-                    }
-                    Err(e) => panic!("{e}"),
-                }
-                jvm_index += out.len() - before;
+                stream.events(s, &mut out);
                 counts.push(out.len());
             }
             out
@@ -299,7 +260,7 @@ fn event_golden_events(g: &Golden, text: &str) -> (Vec<Event>, Vec<StreamError>,
         other => panic!("{other}"),
     };
     let errors = errors.iter().map(|(i, e)| StreamError::of(counts[*i], e)).collect();
-    (events, errors, skipped)
+    (events, errors)
 }
 
 fn stream_errors(g: &Golden) -> Vec<StreamError> {
@@ -509,15 +470,15 @@ fn events_with_every_factory_option_are_the_jvms_over_every_train_events_golden(
     let files = common::golden_files(&dir);
     assert!(files.len() >= 100, "{} goldens under {}", files.len(), dir.display());
     let mut runs = std::collections::BTreeSet::new();
-    let (mut with_errors, mut cases, mut tagdict_cases, mut skipped_samples) = (0, 0, 0, 0);
+    let (mut with_errors, mut cases, mut tagdict_cases, mut lone_surrogates) = (0, 0, 0, 0);
     for path in &files {
         let g = common::read(path);
         runs.insert(common::config(&g, "run").unwrap().to_owned());
         assert!(g.header.error.is_none(), "{}: the generator failed", path.display());
         let text = g.input_text(data_dir()).unwrap();
-        let (events, errors, skipped) = event_golden_events(&g, &text);
-        check_skipping(path, &g, &events, &skipped);
-        skipped_samples += skipped.len();
+        let (events, errors) = event_golden_events(&g, &text);
+        check(path, &g, &events);
+        lone_surrogates += events.iter().filter(|e| e.outcome().to_str().is_none()).count();
         let expected = stream_errors(&g);
         assert_eq!(expected, errors, "{}: stream errors", path.display());
         with_errors += usize::from(!errors.is_empty());
@@ -548,8 +509,10 @@ fn events_with_every_factory_option_are_the_jvms_over_every_train_events_golden(
     assert_eq!(with_errors, 6, "goldens with stream errors");
     assert_eq!(cases, 7, "dictionary cases");
     assert_eq!(tagdict_cases, 7, "tag dictionary cases");
-    // The lemma samples whose class holds half of a surrogate pair:
-    // `lemma-basic` (a lemma with an astral character added) and
-    // `conllu-whitespace` (an astral token with the lemma `_`).
-    assert_eq!(skipped_samples, 2, "lemma samples refused here");
+    // The lemma classes holding half of a surrogate pair, which the JVM
+    // trains on: one in `lemma-basic` (a lemma with an astral character
+    // added), one in `conllu-whitespace` (an astral token with the lemma
+    // `_`) and two in `tagged/lemmas` (tokens ending in an emoji their
+    // lemmas drop).
+    assert_eq!(lone_surrogates, 4, "lemma classes with half of a surrogate pair");
 }

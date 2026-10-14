@@ -36,6 +36,9 @@ impl LanguageModel {
             return Err(ModelError::Factory(factory.into()));
         }
         let maxent = file.maxent(MODEL_ENTRY)?;
+        if let Err(outcome) = maxent.outcome_texts() {
+            return Err(ModelError::OutcomeNotText(outcome.clone()));
+        }
         let model_ref = ModelRef {
             id: format!("opennlp:{COMPONENT}:{}", file.language()),
             revision: file.opennlp_version().into(),
@@ -52,7 +55,13 @@ impl LanguageModel {
     /// The language codes the model can answer, in outcome order
     /// (`getSupportedLanguages`).
     pub fn supported_languages(&self) -> impl Iterator<Item = &str> {
-        self.maxent.outcomes()
+        (0..self.maxent.num_outcomes()).map(|i| self.code(i))
+    }
+
+    /// The language code of outcome `i`; `open` refused any model whose
+    /// outcomes are not text.
+    pub fn code(&self, i: usize) -> &str {
+        self.maxent.outcome_str(i).expect("the outcomes were checked to be text when the model was opened")
     }
 
     /// What layers record as their model: `opennlp:LanguageDetectorME:`
