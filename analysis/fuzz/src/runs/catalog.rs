@@ -76,6 +76,8 @@ pub const RUNS: &[(&str, &str)] = &[
     ("postag", "opennlp-en-ud-ewt-pos-1.3-2.5.4+beam10"),
     ("postag", "opennlp-en-ud-ewt-pos-1.3-2.5.4+penn"),
     ("postag", "pos-fixture"),
+    ("postag", "pos-fixture-rust"),
+    ("lemmatize", "lemma-fixture-rust"),
     ("lemmatize", "opennlp-de-ud-gsd-lemmas-1.3-2.5.4"),
     ("lemmatize", "opennlp-en-ud-ewt-lemmas-1.3-2.5.4"),
     ("lemmatize-dictionary", "lemmatizer-dictionary"),
