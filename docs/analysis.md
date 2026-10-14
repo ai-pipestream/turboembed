@@ -35,7 +35,7 @@ nothing here is in the C header or the gRPC server.
 | `turbo-stopword-layers` | `analysis/stopword-layers/` | The `turbo:stopwords` layer and the languages that have a list (`StopwordLanguage`) |
 | `turbo-bpe-trainer` | `analysis/bpe-trainer/` | BPE trainers, a tool and not an annotator: byte-level BPE as upstream `tokenizers` trains it, SentencePiece BPE as the sentencepiece library trains it, and OpenNLP's `BPETokenizerTrainer` with its `BPETokenizer` ([bpe-trainer.md](bpe-trainer.md)) |
 | `turbo-train` | `analysis/train/` | Training OpenNLP maxent models, the event side: `Event`, the `FileEventStream` and `RealValueFileEventStream` formats, the CRC-32C event checksum, the three data indexers with their cutoffs, sorting and merging, `TrainingParameters` with typed values and OpenNLP's parameters file, `AlgorithmType` and the trainer types, the progress monitors and stop criteria, the GIS trainer (`GISTrainer`, parameters bit for bit the JVM's after every iteration), the binary model writer (`GenericModelWriter`, bytes the JVM's) and the `.bin` packaging with its manifest (`BaseModel.serialize`; the entries are the JVM's bytes, the archive around them is written here and loads in both). Sample types belong to the formats crate; this one starts at events. Its crate documentation lists the OpenNLP behaviour that is surprising, and "Training goldens" below describes its JVM reference |
-| `turbo-train-segmentation` | `analysis/train-segmentation/` | Training the sentence detector and the tokenizer: `SDEventStream` and `TokSpanEventStream` with their factories (end characters, alphanumeric pattern, abbreviation dictionary), the `SentenceModel` and `TokenizerModel` files with every manifest entry and artifact the JVM writes (the dictionary as `Dictionary.serialize` writes it, zip entries in the JVM's order), and the recipes that train the published UD 1.3 sentence and token models again from their treebanks and compare them with the published files. Its own crate because `turbo-formats` depends on `turbo-tokenize`; "Training the sentence detector and tokenizer" below |
+| `turbo-train-components` | `analysis/train-components/` | Training the sentence detector and the tokenizer: `SDEventStream` and `TokSpanEventStream` with their factories (end characters, alphanumeric pattern, abbreviation dictionary), the `SentenceModel` and `TokenizerModel` files with every manifest entry and artifact the JVM writes (the dictionary as `Dictionary.serialize` writes it, zip entries in the JVM's order), and the recipes that train the published UD 1.3 sentence and token models again from their treebanks and compare them with the published files. Its own crate because `turbo-formats` depends on `turbo-tokenize`; "Training the sentence detector and tokenizer" below |
 | `turbo-formats` | `analysis/formats/` | OpenNLP's training samples (name, part-of-speech, lemma, chunk, token, sentence, document category and language samples), a reader per native format that reproduces OpenNLP's sample stream over the same text, the conversion of name and part-of-speech samples into token and sentence samples, the CoNLL-U readers of part-of-speech, lemma, sentence and token samples, the CoNLL-2002 and CoNLL-2003 name readers and the CoNLL-X part-of-speech reader, the MASC corpus reader and its part-of-speech, token, sentence and name samples, the named entity corpus readers (GermEval 2014, BioNLP 2004, Evalita, the 1990 census names, MUC-6 and brat), the format registry, and the evaluators and cross-validation folds (`FMeasure`, `Mean`, an evaluator per component). Every token and tag keeps its byte span in the source; the crate documentation lists the OpenNLP behaviour that is surprising, and its tests compare with the `formats`, `masc`, `ner` and `evaluate` goldens |
 | `turbo-eval` | `analysis/eval/` | The evaluation harness: the evaluation sets with their fetch by checksum and typed readers, the pipeline, the baseline chunkers, measures, significance tests, records, the gate and the `turbo-eval` binary (Evaluation, below) |
 
@@ -1530,7 +1530,7 @@ exception's class and message. No layer type has these ids, so
 
 `analysis/goldens/data/train-events/<run>/<set>/<id>.golden` (`EventGolden`)
 extends the event side to the factory options `TrainGolden` leaves at
-their defaults, for `analysis/train-segmentation` to be compared with.
+their defaults, for `analysis/train-components` to be compared with.
 Its five runs are the sentence detector with the English abbreviation
 dictionary and the Portuguese end characters the language supplies
 (`sentdetect-dictionary-pt`), with Thai's space and line feed
@@ -1556,7 +1556,7 @@ tokens, entries that differ only in case).
 
 ## Training the sentence detector and tokenizer
 
-`analysis/train-segmentation` is `SentenceDetectorME.train` and
+`analysis/train-components` is `SentenceDetectorME.train` and
 `TokenizerME.train`: it takes the samples `analysis/formats` reads
 (native one-per-line files or CoNLL-U), makes the events `SDEventStream`
 and `TokSpanEventStream` make, with the factory options a training tool
@@ -1579,10 +1579,10 @@ Basic Multilingual Plane, U+007F and the C1 controls as decimal character
 references and refuses the other C0 controls; and an empty training token asks the tokenizer's
 context generator for index 0.
 
-`analysis/train-segmentation/tests/goldens.rs` compares the events with
+`analysis/train-components/tests/goldens.rs` compares the events with
 every `train` and `train-events` golden, and the stream errors, the
 manifest, the zip entries and the dictionaries with the `train-events`
-goldens. `analysis/train-segmentation/tests/fixtures.rs` trains the
+goldens. `analysis/train-components/tests/fixtures.rs` trains the
 fixture models `en-plain.bin`,
 `en-abbrev.bin` and `tokenizer-abbreviations.bin` again from their
 training texts and checks the manifest, the dictionary and the model
@@ -1598,13 +1598,13 @@ cutoff 5, four threads) with OpenNLP 2.5.4's whitespace definition and
 the publisher's time zone. The treebanks are CC BY-SA, so the recipes
 fetch them through `turbo-zoo` by digest after the licence is accepted
 and never check them in; `ud::datasets()` is their zoo index. The
-reproduction is `analysis/train-segmentation/tests/reproduce.rs`, ignored
+reproduction is `analysis/train-components/tests/reproduce.rs`, ignored
 by default:
 
 ```text
 cargo run -p turbo-zoo -- accept CC-BY-SA-4.0 --yes
 cargo run -p turbo-goldens-tool -- fetch-models <dir>
-TURBO_GOLDENS_MODELS=<dir> cargo test -p turbo-train-segmentation --release --test reproduce -- --ignored --nocapture
+TURBO_GOLDENS_MODELS=<dir> cargo test -p turbo-train-components --release --test reproduce -- --ignored --nocapture
 ```
 
 It reports per model whether the event checksum, the manifest and the

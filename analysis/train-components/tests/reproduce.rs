@@ -7,7 +7,7 @@
 //! models takes some minutes each.
 //!
 //! ```text
-//! TURBO_GOLDENS_MODELS=<dir> cargo test -p turbo-train-segmentation --test reproduce -- --ignored --nocapture
+//! TURBO_GOLDENS_MODELS=<dir> cargo test -p turbo-train-components --test reproduce -- --ignored --nocapture
 //! ```
 //!
 //! `TURBO_REPRODUCE_MODELS` limits the run to the models whose ids hold
@@ -20,14 +20,14 @@
 //! [`TOLERANCE`]: the published files' parameters differ from this
 //! port's in their last bits for a reason not yet known; the fork's
 //! trainer in the goldens container writes this port's parameters bit for
-//! bit (`turbo_train_segmentation::ud` says what was checked).
+//! bit (`turbo_train_components::ud` says what was checked).
 //! The report printed with `--nocapture` says which models match byte for
 //! byte and how far the others are.
 
 use std::path::PathBuf;
 
 use turbo_train::TrainingConfiguration;
-use turbo_train_segmentation::ud::{self, RECIPES};
+use turbo_train_components::ud::{self, RECIPES};
 use turbo_zoo::UserId;
 
 /// The largest difference a parameter may show from the published value.

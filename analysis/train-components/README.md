@@ -1,4 +1,4 @@
-# turbo-train-segmentation
+# turbo-train-components
 
 Training OpenNLP's sentence detector and tokenizer in Rust: the event
 streams `SDEventStream` and `TokSpanEventStream`, the factories that set
@@ -105,7 +105,7 @@ the zoo index of the five.
 ```text
 cargo run -p turbo-zoo -- accept CC-BY-SA-4.0 --yes
 cargo run -p turbo-goldens-tool -- fetch-models <dir>
-TURBO_GOLDENS_MODELS=<dir> cargo test -p turbo-train-segmentation --release --test reproduce -- --ignored --nocapture
+TURBO_GOLDENS_MODELS=<dir> cargo test -p turbo-train-components --release --test reproduce -- --ignored --nocapture
 ```
 
 The test is ignored by default and prints a report per model: the event

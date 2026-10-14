@@ -26,9 +26,9 @@ use turbo_train::event::checksum;
 use turbo_train::gis::TrainingReport;
 use turbo_train::package::MANIFEST_ENTRY;
 use turbo_train::params::TrainerType;
-use turbo_train_segmentation::sentdetect::package_sentence_model;
-use turbo_train_segmentation::tokenize::package_tokenizer_model;
-use turbo_train_segmentation::{
+use turbo_train_components::sentdetect::package_sentence_model;
+use turbo_train_components::tokenize::package_tokenizer_model;
+use turbo_train_components::{
     AbbreviationDictionary, SdEventStream, SentenceDetectorFactory, Stamp, TokSpanEventStream, TokenizerFactory,
     sd_events, tok_events,
 };

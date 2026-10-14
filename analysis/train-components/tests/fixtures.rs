@@ -6,9 +6,9 @@ use turbo_goldens::data_dir;
 use turbo_maxent::ModelFile;
 use turbo_train::package::MANIFEST_ENTRY;
 use turbo_train::{Key, TrainingConfiguration, TrainingParameters};
-use turbo_train_segmentation::sentdetect::{self, SentenceDetectorFactory, train_sentence_model};
-use turbo_train_segmentation::tokenize::{self, TokenizerFactory, train_tokenizer_model};
-use turbo_train_segmentation::{AbbreviationDictionary, Stamp};
+use turbo_train_components::sentdetect::{self, SentenceDetectorFactory, train_sentence_model};
+use turbo_train_components::tokenize::{self, TokenizerFactory, train_tokenizer_model};
+use turbo_train_components::{AbbreviationDictionary, Stamp};
 use turbo_unicode::WhitespaceMode;
 
 fn fixture(name: &str) -> ModelFile {

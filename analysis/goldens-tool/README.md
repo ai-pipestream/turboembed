@@ -205,7 +205,7 @@ a directory with the same model run without them, and its options are
   `train` input of the dictionary run, `turbo:dictionary-cases`
   (`Dictionary.serialize` of dictionaries built in the generator;
   `docs/analysis.md`, "Training goldens").
-  `analysis/train-segmentation/tests/goldens.rs` compares with them.
+  `analysis/train-components/tests/goldens.rs` compares with them.
 - `en-plain-rust.bin` is the `.bin` the Rust trainer writes when it trains
   `en-plain.bin`'s events again (`analysis/train/tests/roundtrip.rs`). The
   JVM loads it with `SentenceModel` like the other fixtures, so its goldens

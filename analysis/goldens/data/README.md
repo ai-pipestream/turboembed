@@ -409,7 +409,7 @@ on, CoNLL-U input) on `inputs/<set>/<id>.txt`: the events, the
 checksum, the exceptions the sample stream threw, and the manifest, zip
 entries and dictionary entry of a model file built from the factory
 (docs/analysis.md, "Training goldens").
-`analysis/train-segmentation/tests/goldens.rs` compares with them.
+`analysis/train-components/tests/goldens.rs` compares with them.
 
 ## Normalizer goldens
 

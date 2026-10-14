@@ -2090,7 +2090,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "turbo-train-segmentation"
+name = "turbo-train-components"
 version = "0.1.0"
 dependencies = [
  "turbo-analysis",
