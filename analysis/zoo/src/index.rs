@@ -12,8 +12,10 @@ use crate::digest::{Sha256, Sha512};
 use crate::error::ZooError;
 use crate::licence::{Licence, LicenceClass, Requirement};
 
-/// The index this crate carries: the OpenNLP 1.3 UD models the zoo may
-/// fetch (docs/licences.md lists them, and the ones it refuses).
+/// The index this crate carries: the OpenNLP 1.3 UD models trained on
+/// permissive and share-alike treebanks. docs/licences.md lists them, and
+/// the published models the index leaves out: the refused ones, and the
+/// local-only ones trained on non-commercial treebanks.
 pub const BUILTIN: &str = include_str!("../index/zoo.json");
 
 /// The only `zoo_version` this build reads.
@@ -290,10 +292,19 @@ pub struct Artifact {
     /// a licence still sees the class; checked against the computed one.
     pub class: LicenceClass,
     /// For a `CLASS_LOCAL_ONLY` artifact, and only for one: the original
-    /// publisher's site (the data's host for a dataset, the model's
-    /// publisher for a model). Every file's `url` must be on its host, so
-    /// the zoo fetches such an artifact from nowhere else, never from a
-    /// copy.
+    /// publisher's own location, which every file's `url` must lie under.
+    /// For a dataset it is the data's own place on its host, such as a
+    /// treebank's repository path on `raw.githubusercontent.com`, not the
+    /// whole host; for a model, the model publisher's. The host is compared
+    /// without regard to case. A file's path must be the origin's path or
+    /// continue it after a `/`, so `.../UD_English-GUM` holds
+    /// `.../UD_English-GUM/r2.16/...` but not `.../UD_English-GUM-copy/...`;
+    /// a trailing `/` on the origin makes no difference. The origin has no
+    /// user information, query or fragment, and neither its path nor a
+    /// file's holds a `.` or `..` segment (plain or percent-encoded), a
+    /// backslash or an encoded `/` or `\`. So the zoo fetches such an
+    /// artifact from its publisher only, never from a copy, whether on
+    /// another host or the same one.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub origin: Option<Url>,
     pub files: Vec<File>,
@@ -332,12 +343,49 @@ impl Artifact {
     }
 }
 
-/// The host of an `https://` address: what follows the scheme up to the
-/// first `/`, `?` or `#`, lowercased.
-fn host(url: &Url) -> String {
+/// An `https://` address split after its host: the host, lowercased, and
+/// the rest, from the first `/`, `?` or `#` on (empty for a bare host).
+/// The scheme is always `https`, which [`Url`] checks.
+fn split_host(url: &Url) -> (String, &str) {
     let rest = &url.as_str()["https://".len()..];
     let end = rest.find(['/', '?', '#']).unwrap_or(rest.len());
-    rest[..end].to_ascii_lowercase()
+    (rest[..end].to_ascii_lowercase(), &rest[end..])
+}
+
+/// Whether the path of `rest` (what [`split_host`] leaves, up to a `?` or
+/// `#`) has no step a server could take out of the directory it names: no
+/// `.` or `..` segment, plain or with its dots percent-encoded, no
+/// backslash, and no percent-encoded `/` or `\`.
+fn plain_path(rest: &str) -> bool {
+    let path = rest[..rest.find(['?', '#']).unwrap_or(rest.len())].to_ascii_lowercase();
+    if path.contains('\\') || path.contains("%2f") || path.contains("%5c") {
+        return false;
+    }
+    path.split('/').all(|segment| {
+        let dots = segment.replace("%2e", ".");
+        dots != "." && dots != ".."
+    })
+}
+
+/// Whether `origin` names a location a file can lie under: no user
+/// information before its host (`https://a.org@b.net/` is on `b.net`), no
+/// query or fragment, and a plain path ([`plain_path`]).
+fn origin_is_a_location(origin: &Url) -> bool {
+    let (host, rest) = split_host(origin);
+    !host.contains('@') && !rest.contains(['?', '#']) && plain_path(rest)
+}
+
+/// Whether `file` lies under `origin` ([`Artifact::origin`]): the same
+/// host, compared without regard to case, a plain path ([`plain_path`]),
+/// and a path that is the origin's, without any trailing `/`, or continues
+/// it after a `/`. Paths are compared byte for byte.
+fn under_origin(origin: &Url, file: &Url) -> bool {
+    let (origin_host, origin_rest) = split_host(origin);
+    let (file_host, file_rest) = split_host(file);
+    let prefix = origin_rest.trim_end_matches('/');
+    origin_host == file_host
+        && plain_path(file_rest)
+        && file_rest.strip_prefix(prefix).is_some_and(|after| after.is_empty() || after.starts_with('/'))
 }
 
 #[derive(Serialize, Deserialize)]
@@ -396,19 +444,26 @@ impl Index {
             }
             match (&a.origin, computed == LicenceClass::LocalOnly) {
                 (None, true) => {
-                    return Err(ZooError::Index(format!("{}: {computed} needs origin, its publisher's site", a.id)));
+                    return Err(ZooError::Index(format!(
+                        "{}: {computed} needs origin, its publisher's own location",
+                        a.id
+                    )));
                 }
                 (Some(_), false) => {
                     return Err(ZooError::Index(format!("{}: origin is only for {}", a.id, LicenceClass::LocalOnly)));
                 }
                 (Some(origin), true) => {
-                    let want = host(origin);
-                    if let Some(f) = a.files.iter().find(|f| host(&f.url) != want) {
+                    if !origin_is_a_location(origin) {
                         return Err(ZooError::Index(format!(
-                            "{}: {} is fetched from {}, not from its origin {want}",
-                            a.id,
-                            f.path,
-                            host(&f.url)
+                            "{}: origin {origin} is not a location: it has user information, a query or \
+                             fragment, a `.` or `..` segment, a backslash or an encoded separator",
+                            a.id
+                        )));
+                    }
+                    if let Some(f) = a.files.iter().find(|f| !under_origin(origin, &f.url)) {
+                        return Err(ZooError::Index(format!(
+                            "{}: {} is fetched from {}, which is not under its origin {origin}",
+                            a.id, f.path, f.url
                         )));
                     }
                 }

@@ -449,9 +449,99 @@ fn local_only_artifacts_are_fetched_from_their_origin_only() {
         let text = index_of(&[b]);
         assert!(matches!(Index::parse(text.as_bytes()), Err(ZooError::Index(_))), "{text}");
     }
-    // The host is compared without regard to case or path.
-    let upper = with_origin(restricted).replace("\"https://example.org/\"", "\"https://EXAMPLE.org/terms\"");
+    // The host is compared without regard to case, but the path is not
+    // ignored: a file must lie under the origin's path.
+    let upper = with_origin(restricted.clone()).replace("\"https://example.org/\"", "\"https://EXAMPLE.org/\"");
     assert!(Index::parse(index_of(&[upper]).as_bytes()).is_ok());
+    let elsewhere = with_origin(restricted).replace("\"https://example.org/\"", "\"https://example.org/terms\"");
+    assert!(matches!(Index::parse(index_of(&[elsewhere]).as_bytes()), Err(ZooError::Index(_))));
+}
+
+/// A non-commercial entry for UD English GUM whose origin is `origin` and
+/// whose only file is fetched from `url`.
+fn gum(origin: &str, url: &str) -> String {
+    entry("gum", Licence::CcByNcSa40, &[], LicenceClass::LocalOnly, BYTES)
+        .replace("https://example.org/gum.bin", url)
+        .replace("\"files\": [", &format!("\"origin\": \"{origin}\",\n      \"files\": ["))
+}
+
+/// The origin is the publisher's own location, not its whole host: a copy
+/// on the same host, or at a path that only shares a string prefix with
+/// the origin's, is not the original.
+#[test]
+fn an_origin_is_a_location_not_a_host() {
+    const REPO: &str = "https://raw.githubusercontent.com/UniversalDependencies/UD_English-GUM";
+    let file = format!("{REPO}/r2.16/en_gum-ud-train.conllu");
+    let parses = |origin: &str, url: &str| Index::parse(index_of(&[gum(origin, url)]).as_bytes());
+    let with_slash = format!("{REPO}/");
+    for origin in [REPO, with_slash.as_str()] {
+        // Under the origin's path, with or without its trailing `/`.
+        for ok in [file.clone(), format!("{REPO}/en_gum-ud-train.conllu"), format!("{file}?raw=true"), REPO.to_owned()]
+        {
+            assert!(parses(origin, &ok).is_ok(), "{origin} {ok}");
+        }
+        for bad in [
+            // A mirror on the same host.
+            "https://raw.githubusercontent.com/someone/UD_English-GUM/r2.16/en_gum-ud-train.conllu".to_owned(),
+            // A sibling path that shares a string prefix with the origin's.
+            format!("{REPO}-copy/r2.16/en_gum-ud-train.conllu"),
+            format!("{REPO}2/en_gum-ud-train.conllu"),
+            // Paths compare case for case.
+            "https://raw.githubusercontent.com/universaldependencies/UD_English-GUM/r2.16/x.conllu".to_owned(),
+            // Another host, and one written to look like the origin's.
+            "https://github.com/UniversalDependencies/UD_English-GUM/raw/r2.16/en_gum-ud-train.conllu".to_owned(),
+            "https://raw.githubusercontent.com@mirror.example.net/UniversalDependencies/UD_English-GUM/x".to_owned(),
+            "https://raw.githubusercontent.com:8443/UniversalDependencies/UD_English-GUM/x".to_owned(),
+            // Steps out of the origin's path, plain or encoded.
+            format!("{REPO}/../UD_English-GUM-copy/en_gum-ud-train.conllu"),
+            format!("{REPO}/%2e%2e/UD_English-GUM-copy/en_gum-ud-train.conllu"),
+            format!("{REPO}/%2E./UD_English-GUM-copy/en_gum-ud-train.conllu"),
+            format!("{REPO}/./en_gum-ud-train.conllu"),
+            format!("{REPO}/..%2fUD_English-GUM-copy/en_gum-ud-train.conllu"),
+            format!("{REPO}/..%5CUD_English-GUM-copy/en_gum-ud-train.conllu"),
+            // A backslash, escaped once for Rust and once for JSON.
+            format!("{REPO}/..\\\\UD_English-GUM-copy/en_gum-ud-train.conllu"),
+            // A query on the origin's path is not a path under it.
+            format!("{REPO}?file=en_gum-ud-train.conllu"),
+        ] {
+            match parses(origin, &bad) {
+                Err(ZooError::Index(m)) => assert!(m.contains("not under its origin"), "{origin} {bad}: {m}"),
+                other => panic!("{origin} {bad}: {other:?}"),
+            }
+        }
+    }
+    // The host of the origin is compared without regard to case.
+    let upper = "https://RAW.GitHubUserContent.com/UniversalDependencies/UD_English-GUM/";
+    assert!(parses(upper, &file).is_ok());
+    // An origin is a location: no user information, query, fragment or
+    // step out of its path.
+    for origin in [
+        format!("{REPO}?ref=r2.16"),
+        format!("{REPO}#readme"),
+        format!("{REPO}/r2.16/.."),
+        format!("{REPO}/%2E%2E/"),
+        // On `mirror.example.net`, though it reads as GitHub's host.
+        "https://raw.githubusercontent.com@mirror.example.net/UniversalDependencies/UD_English-GUM/".to_owned(),
+    ] {
+        match parses(&origin, &file) {
+            Err(ZooError::Index(m)) => assert!(m.contains("is not a location"), "{origin}: {m}"),
+            other => panic!("{origin}: {other:?}"),
+        }
+    }
+    // Every file must lie under it, not one of them.
+    let two = gum(&with_slash, &file).replace(
+        "\"files\": [{",
+        &format!(
+            "\"files\": [{{\"path\": \"copy.conllu\", \"url\": \"{REPO}-copy/x.conllu\", \"size\": {}, \"sha256\": \"{}\", \"sha512\": \"{}\"}}, {{",
+            BYTES.len(),
+            Sha256::of(BYTES),
+            Sha512::of(BYTES)
+        ),
+    );
+    match Index::parse(index_of(&[two]).as_bytes()) {
+        Err(ZooError::Index(m)) => assert!(m.contains("copy.conllu") && m.contains("not under its origin"), "{m}"),
+        other => panic!("{other:?}"),
+    }
 }
 
 #[test]
