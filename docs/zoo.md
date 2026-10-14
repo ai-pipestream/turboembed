@@ -28,8 +28,8 @@ Apache-2.0 but trained on a CC BY-SA treebank is `CLASS_SHARE_ALIKE`.
 | `CLASS_LGPL` | LGPL-2.1-only, LGPL-2.1-or-later, LGPL-3.0-only, LGPL-3.0-or-later | no, and not attributed to this project | after the user accepts the licence |
 | `CLASS_SHARE_ALIKE` | CC-BY-SA-3.0, CC-BY-SA-4.0, ODbL-1.0 | no | after the user accepts the licence (decided 2026-10-14) |
 | `CLASS_GPL` | GPL-2.0-only, GPL-2.0-or-later, GPL-3.0-only, GPL-3.0-or-later | no | yes; by default after the user accepts the licence |
-| `CLASS_LOCAL_ONLY` | LicenseRef-RestrictedPublic | no, and no model trained on it is either | only from its original host (`origin`), after the user accepts that host's terms; for local training and evaluation only |
-| `CLASS_REFUSED` | CC-BY-NC-4.0, CC-BY-NC-SA-3.0, CC-BY-NC-SA-4.0, CC-BY-ND-4.0, CC-BY-NC-ND-4.0, LicenseRef-ResearchOnly, LicenseRef-PlatformTerms, LicenseRef-NoLicence, LicenseRef-Proprietary, LicenseRef-Unconfirmed | no | never; not listed |
+| `CLASS_LOCAL_ONLY` | LicenseRef-RestrictedPublic, CC-BY-NC-4.0, CC-BY-NC-SA-3.0, CC-BY-NC-SA-4.0 | no, and no model trained on it is either | only from its original host (`origin`), after the user accepts the host's terms (restricted data) or the licence (non-commercial data), under every policy; the data and every model trained on it stay on the user's machine |
+| `CLASS_REFUSED` | CC-BY-ND-4.0, CC-BY-NC-ND-4.0, LicenseRef-ResearchOnly, LicenseRef-PlatformTerms, LicenseRef-NoLicence, LicenseRef-Proprietary, LicenseRef-Unconfirmed | no | never; not listed |
 
 The order, least to most restrictive, is permissive, LGPL, share-alike,
 GPL, local-only, refused. LGPL sits below CC BY-SA because its copyleft
@@ -37,11 +37,14 @@ is weaker; GPL sits above it as the strongest copyleft the zoo fetches.
 Under the default policy those three classes behave the same, so the
 order between them only decides which class an artifact reports.
 Local-only sits above them because nothing in it ever leaves the user's
-machine, and a refused licence anywhere still wins over everything.
+machine, which also covers what the share-alike term of CC BY-NC-SA
+asks, and a refused licence anywhere still wins over everything.
 
 ### Restricted but public data
 
-`CLASS_LOCAL_ONLY` is for data that anyone can download from its
+`CLASS_LOCAL_ONLY` holds two kinds of data: restricted but public data,
+described here, and non-commercial data, described in the next section.
+Restricted but public data is data anyone can download from its
 publisher but that carries terms of its own: IMDB (no stated licence),
 Sentiment140 and the SemEval Twitter sets (Twitter's terms). The rule is
 Kristian's, from his 2026-10-12 comment on #326:
@@ -66,11 +69,43 @@ not one text, so its `license_terms` in the index is the host's terms
 page, and the user accepts that page, not the licence as a whole:
 accepting IMDB's terms never covers Sentiment140's.
 
-Research-only and non-commercial data stay `CLASS_REFUSED`. An entry
-moves such data into `CLASS_LOCAL_ONLY` only by naming
-`LicenseRef-RestrictedPublic` for it, which is a decision recorded with
-the entry in docs/licences.md. Refused data mixed into a restricted
-artifact keeps it refused.
+Research-only data stays `CLASS_REFUSED`. An entry moves such data into
+`CLASS_LOCAL_ONLY` only by naming `LicenseRef-RestrictedPublic` for it,
+which is a decision recorded with the entry in docs/licences.md. Refused
+data mixed into a local-only artifact keeps it refused.
+
+### Non-commercial data
+
+Data under CC BY-NC or CC BY-NC-SA, such as English GUM in Universal
+Dependencies (CC BY-NC-SA 4.0), is `CLASS_LOCAL_ONLY` as well. The rule
+is Kristian's, from 2026-10-14, and follows what OpenNLP does with data
+it cannot distribute:
+
+- Our code reads such data when the user supplies the files. A format
+  reader needs no acceptance, as OpenNLP's need none.
+- The zoo fetches it only from its original host (`origin`, checked as
+  for restricted data), after the user accepts the licence, under every
+  policy.
+- The project never ships, bundles, mirrors or checks in the data, or
+  any model trained on it. A model a user trains on it is in the class
+  by the class rule (`turbo_zoo::class_of`), is non-commercial, and
+  stays on that user's machine; a recipe's model card makes no zoo entry
+  for it (`turbo_train_recipes::card::publishable_class`).
+
+What the user accepts is the licence's legal code (its `legal_url`, at
+creativecommons.org), once per licence, as for CC BY-SA. That differs
+from restricted data on purpose: a CC licence is one published text,
+the same at every host, while `LicenseRef-RestrictedPublic` names a kind
+of terms whose text is different at each host. The entry's
+`license_terms` still records where the publisher states the licence
+(for a UD treebank, its README at the release). Beside the address of
+the text, `turbo-zoo accept` and `turbo-zoo show` print that the data
+and every model trained on it are for non-commercial use only and stay
+on the user's machine (`LocalOnlyReason::notice`).
+
+Non-commercial terms with no-derivatives (CC BY-NC-ND) stay
+`CLASS_REFUSED`, as CC BY-ND does: a model trained on such data is a
+derivative of it.
 
 Licences are named by their SPDX identifiers, case and all. Terms SPDX
 has no identifier for use `LicenseRef-`: `LicenseRef-Unconfirmed` is for
@@ -192,10 +227,11 @@ once. An absent file means nothing has been accepted. The zoo never
 writes the file on its own: only the user's explicit action adds an
 entry. `turbo-zoo accept <licence>` (or `turbo-zoo accept
 LicenseRef-RestrictedPublic <terms>`, with the address `turbo-zoo show`
-prints) prints the address of the text, and for restricted data what
-its terms allow, and records nothing; the same command with `--yes`,
-run after reading it, records the acceptance. `turbo-zoo revoke`
-removes one.
+prints) prints the address of the text, and for local-only terms,
+restricted or non-commercial, what they allow, and records nothing; the
+same command with `--yes`, run after reading it, records the
+acceptance. A permissive or refused licence is not offered: the command
+says why and records nothing. `turbo-zoo revoke` removes one.
 
 ## Fetch rules
 
@@ -276,6 +312,11 @@ The index is meant to replace that page for OpenNLP 3.1 too:
   refused data), but nothing made from it may leave the user's machine
   (unlike share-alike data, whose derived models may be shared under
   the same licence).
+- Non-commercial data shares that class rather than having one of its
+  own because the same rules hold for it: fetched from its origin after
+  acceptance, and nothing made from it leaves the user's machine.
+  `LocalOnlyReason` says which kind of terms put a licence there, which
+  decides what the user accepts and is told.
 - Both digests are required. SHA-256 is what the bundle tool and the
   repository's model READMEs use; SHA-512 is what OpenNLP and the Apache
   distribution publish.

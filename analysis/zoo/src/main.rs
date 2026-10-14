@@ -4,14 +4,18 @@ use std::path::PathBuf;
 use std::process::ExitCode;
 use std::time::{SystemTime, UNIX_EPOCH};
 
-use turbo_zoo::{Acceptances, Http, Index, Licence, Policy, Requirement, Sha256, Sha512, UserId, Zoo, ZooError};
+use turbo_zoo::{
+    Acceptances, Http, Index, Licence, LicenceClass, LocalOnlyReason, Policy, Requirement, Sha256, Sha512, UserId, Zoo,
+    ZooError,
+};
 
 const USAGE: &str = "usage: turbo-zoo [--index <zoo.json>] <command>
   list                 the artifacts the zoo may fetch, with class and licences
   show <id>            one artifact: licences, training data, files
   accept <licence> [<terms>] [--yes]
-                       show the text of a licence (SPDX id, as `show` prints it) and,
-                       with --yes after you have read it, record that you accept it;
+                       show the text of a licence (SPDX id, as `show` prints it), and
+                       for local-only terms what they allow, and, with --yes after you
+                       have read it, record that you accept it;
                        LicenseRef-RestrictedPublic also takes the host's terms address
   revoke <licence> [<terms>]
                        withdraw an acceptance
@@ -103,7 +107,14 @@ fn run(mut args: Vec<String>) -> Result<(), String> {
                 println!("accept first: {} {}", r.licence, r.text);
             }
             if let Some(o) = &a.origin {
-                println!("origin: {o} (fetched from there only; for local training and evaluation only)");
+                println!("origin: {o} (fetched from there only)");
+            }
+            let mut reasons: Vec<LocalOnlyReason> = Vec::new();
+            for reason in a.licences().filter_map(Licence::local_only) {
+                if !reasons.contains(&reason) {
+                    println!("local only: {}", reason.notice());
+                    reasons.push(reason);
+                }
             }
             for f in &a.files {
                 println!("file: {} {} bytes sha256 {} from {}", f.path, f.size, f.sha256, f.url);
@@ -117,12 +128,15 @@ fn run(mut args: Vec<String>) -> Result<(), String> {
                 return Err(USAGE.into());
             }
             let r = requirement(licence, terms.first().copied())?;
+            if let Some(reason) = r.licence.refusal() {
+                return Err(format!("{}: refused ({reason}); the zoo fetches nothing under it", r.licence));
+            }
+            if r.licence.class() == LicenceClass::Permissive {
+                return Err(format!("{} is {}: there is nothing to accept", r.licence, LicenceClass::Permissive));
+            }
             println!("{}: read the text at {}", r.licence, r.text);
-            if r.licence.class() == turbo_zoo::LicenceClass::LocalOnly {
-                println!(
-                    "These are the host's own terms. Data under them is fetched only from its host, used only for \
-                     local training and evaluation, and nothing made from it may be shared or shipped."
-                );
+            if let Some(reason) = r.licence.local_only() {
+                println!("{}", reason.notice());
             }
             if !yes {
                 return Err("nothing recorded: once you have read the text and accept it, run the same command \

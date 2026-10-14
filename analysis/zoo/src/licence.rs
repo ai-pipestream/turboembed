@@ -22,7 +22,7 @@ use serde::{Deserialize, Deserializer, Serialize, Serializer};
 /// | `Lgpl` | no | after the user accepts the licence |
 /// | `ShareAlike` | no | after the user accepts the licence |
 /// | `Gpl` | no | yes; by default only after the user accepts the licence ([`GplAcceptance`]) |
-/// | `LocalOnly` | no, nor any model trained on it | only from its original host, after the user accepts that host's terms; for local training and evaluation only |
+/// | `LocalOnly` | no, nor any model trained on it | only from its original host, after the user accepts its terms (the host's own, or the non-commercial licence), under every policy; it and every model trained on it stay on the user's machine |
 /// | `Refused` | no | never; the zoo does not list it either |
 ///
 /// LGPL sits below CC BY-SA because its copyleft is weaker; GPL sits
@@ -30,7 +30,8 @@ use serde::{Deserialize, Deserializer, Serialize, Serializer};
 /// Under the default policy those three classes behave the same, so the
 /// order between them only decides which class an artifact reports.
 /// `LocalOnly` sits above them: nothing in it, and nothing trained on it,
-/// leaves the user's machine. A refused licence anywhere still wins.
+/// leaves the user's machine, which also covers what CC BY-NC-SA's
+/// share-alike term asks. A refused licence anywhere still wins.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum LicenceClass {
     /// MIT, BSD, Apache-2.0, CC0, CC BY, ODC-By, public domain.
@@ -44,16 +45,30 @@ pub enum LicenceClass {
     ShareAlike,
     /// GPL: fetched on demand, never bundled or checked in.
     Gpl,
-    /// Restricted but public data (IMDB, Sentiment140, the SemEval Twitter
-    /// sets; Kristian, 2026-10-12, on #326): fetched only from its original
-    /// host, after the user accepts that host's terms, and used for local
-    /// training and evaluation only. A model trained on it is in this class
+    /// Data the zoo may fetch but that never leaves the user's machine, nor
+    /// does any model trained on it. Two kinds of terms put data here
+    /// ([`LocalOnlyReason`]):
+    ///
+    /// - restricted but public data (IMDB, Sentiment140, the SemEval
+    ///   Twitter sets; Kristian, 2026-10-12, on #326), under its host's own
+    ///   terms, `LicenseRef-RestrictedPublic`;
+    /// - non-commercial data under CC BY-NC or CC BY-NC-SA, such as English
+    ///   GUM in Universal Dependencies (Kristian, 2026-10-14). As OpenNLP
+    ///   does with data it cannot distribute, code reads such data from
+    ///   files the user supplies with nothing to accept; only a fetch
+    ///   through the zoo needs the acceptance.
+    ///
+    /// Either way the zoo fetches the data only from its original host
+    /// ([`crate::Artifact::origin`]), and only after the user accepts its
+    /// terms, under every policy. A model trained on it is in this class
     /// too, so it is never bundled, checked in, shipped or listed as a
-    /// shipped model; evaluation numbers on it may be recorded, its files
-    /// not.
+    /// shipped model, and one trained on non-commercial data is for
+    /// non-commercial use only; evaluation numbers on it may be recorded,
+    /// its files not.
     LocalOnly,
-    /// Non-commercial, no-derivatives, research-only, platform terms, no
-    /// licence, proprietary, or unconfirmed terms, unless an entry places
+    /// No-derivatives terms (CC BY-ND, CC BY-NC-ND: a model trained on such
+    /// data is a derivative), research-only terms, platform terms, no
+    /// licence, proprietary or unconfirmed terms, unless an entry places
     /// the data in `LocalOnly` by naming `LicenseRef-RestrictedPublic`.
     Refused,
 }
@@ -140,10 +155,51 @@ pub struct Policy {
     pub gpl: GplAcceptance,
 }
 
+/// Why a licence is in [`LicenceClass::LocalOnly`]. Both kinds keep the
+/// data, and every model trained on it, on the user's machine; they differ
+/// in what the user accepts and in what the terms allow there.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum LocalOnlyReason {
+    /// `LicenseRef-RestrictedPublic`: public data under its host's own
+    /// terms. The user accepts each host's terms page on its own.
+    HostTerms,
+    /// CC BY-NC and CC BY-NC-SA. The user accepts the licence's legal code,
+    /// once per licence, as for CC BY-SA.
+    NonCommercial,
+}
+
+impl LocalOnlyReason {
+    /// What the user is told about such terms before accepting them, with
+    /// the address of the text to read.
+    pub const fn notice(self) -> &'static str {
+        match self {
+            LocalOnlyReason::HostTerms => {
+                "These are the host's own terms. Data under them is fetched only from its host, used only for \
+                 local training and evaluation, and nothing made from it may be shared or shipped."
+            }
+            LocalOnlyReason::NonCommercial => {
+                "This licence allows non-commercial use only. Data under it is fetched only from its original \
+                 host. The data, and any model you train on it, are for non-commercial use only and stay on your \
+                 machine: neither may be shared, shipped or bundled."
+            }
+        }
+    }
+}
+
+impl fmt::Display for LocalOnlyReason {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(match self {
+            LocalOnlyReason::HostTerms => "a host's own terms",
+            LocalOnlyReason::NonCommercial => "non-commercial terms",
+        })
+    }
+}
+
 /// Why a licence is in [`LicenceClass::Refused`].
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum RefusalReason {
-    NonCommercial,
+    /// CC BY-ND and CC BY-NC-ND: a model trained on the data is a
+    /// derivative of it.
     NoDerivatives,
     ResearchOnly,
     PlatformTerms,
@@ -157,7 +213,6 @@ pub enum RefusalReason {
 impl fmt::Display for RefusalReason {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.write_str(match self {
-            RefusalReason::NonCommercial => "non-commercial terms",
             RefusalReason::NoDerivatives => "no-derivatives terms",
             RefusalReason::ResearchOnly => "research-only terms",
             RefusalReason::PlatformTerms => "a platform's terms of service",
@@ -239,9 +294,9 @@ licences! {
     Gpl30Only => "GPL-3.0-only", Gpl, Some("https://www.gnu.org/licenses/gpl-3.0.html");
     Gpl30OrLater => "GPL-3.0-or-later", Gpl, Some("https://www.gnu.org/licenses/gpl-3.0.html");
     RestrictedPublic => "LicenseRef-RestrictedPublic", LocalOnly, None;
-    CcByNc40 => "CC-BY-NC-4.0", Refused, Some("https://creativecommons.org/licenses/by-nc/4.0/legalcode");
-    CcByNcSa30 => "CC-BY-NC-SA-3.0", Refused, Some("https://creativecommons.org/licenses/by-nc-sa/3.0/legalcode");
-    CcByNcSa40 => "CC-BY-NC-SA-4.0", Refused, Some("https://creativecommons.org/licenses/by-nc-sa/4.0/legalcode");
+    CcByNc40 => "CC-BY-NC-4.0", LocalOnly, Some("https://creativecommons.org/licenses/by-nc/4.0/legalcode");
+    CcByNcSa30 => "CC-BY-NC-SA-3.0", LocalOnly, Some("https://creativecommons.org/licenses/by-nc-sa/3.0/legalcode");
+    CcByNcSa40 => "CC-BY-NC-SA-4.0", LocalOnly, Some("https://creativecommons.org/licenses/by-nc-sa/4.0/legalcode");
     CcByNd40 => "CC-BY-ND-4.0", Refused, Some("https://creativecommons.org/licenses/by-nd/4.0/legalcode");
     CcByNcNd40 => "CC-BY-NC-ND-4.0", Refused, Some("https://creativecommons.org/licenses/by-nc-nd/4.0/legalcode");
     ResearchOnly => "LicenseRef-ResearchOnly", Refused, None;
@@ -256,10 +311,7 @@ impl Licence {
     /// it.
     pub const fn refusal(self) -> Option<RefusalReason> {
         match self {
-            Licence::CcByNc40 | Licence::CcByNcSa30 | Licence::CcByNcSa40 | Licence::CcByNcNd40 => {
-                Some(RefusalReason::NonCommercial)
-            }
-            Licence::CcByNd40 => Some(RefusalReason::NoDerivatives),
+            Licence::CcByNd40 | Licence::CcByNcNd40 => Some(RefusalReason::NoDerivatives),
             Licence::ResearchOnly => Some(RefusalReason::ResearchOnly),
             Licence::PlatformTerms => Some(RefusalReason::PlatformTerms),
             Licence::NoLicence => Some(RefusalReason::NoLicence),
@@ -268,12 +320,23 @@ impl Licence {
             _ => None,
         }
     }
+
+    /// Why the licence is local-only, or `None` when it is in another
+    /// class.
+    pub const fn local_only(self) -> Option<LocalOnlyReason> {
+        match self {
+            Licence::RestrictedPublic => Some(LocalOnlyReason::HostTerms),
+            Licence::CcByNc40 | Licence::CcByNcSa30 | Licence::CcByNcSa40 => Some(LocalOnlyReason::NonCommercial),
+            _ => None,
+        }
+    }
 }
 
 /// The class of an artifact under `licences`: its own licence and those of
 /// everything it was trained on. The most restrictive wins; no licences at
 /// all is `Permissive`. Use it for a model trained locally too: a model
-/// trained on `LocalOnly` data is `LocalOnly` whatever its own licence.
+/// trained on `LocalOnly` data, restricted or non-commercial, is
+/// `LocalOnly` whatever its own licence.
 pub fn class_of(licences: impl IntoIterator<Item = Licence>) -> LicenceClass {
     licences.into_iter().map(Licence::class).max().unwrap_or(LicenceClass::Permissive)
 }
@@ -377,7 +440,12 @@ mod tests {
         assert_eq!(Licence::CcBySa30.class(), ShareAlike);
         assert_eq!(Licence::Lgpl21Only.class(), Lgpl);
         assert_eq!(Licence::Gpl30Only.class(), Gpl);
-        assert_eq!(Licence::CcByNcSa40.class(), Refused);
+        // Non-commercial data is local-only (Kristian, 2026-10-14), unless
+        // it is also no-derivatives.
+        assert_eq!(Licence::CcByNc40.class(), LocalOnly);
+        assert_eq!(Licence::CcByNcSa30.class(), LocalOnly);
+        assert_eq!(Licence::CcByNcSa40.class(), LocalOnly);
+        assert_eq!(Licence::CcByNcNd40.class(), Refused);
         assert_eq!(Licence::CcByNd40.class(), Refused);
         assert_eq!(Licence::Unconfirmed.class(), Refused);
         assert_eq!(Licence::PlatformTerms.class(), Refused);
@@ -386,6 +454,55 @@ mod tests {
         assert_eq!(Licence::RestrictedPublic.class(), LocalOnly);
         for l in Licence::ALL {
             assert_eq!(l.class() == Refused, l.refusal().is_some(), "{l}");
+            assert_eq!(l.class() == LocalOnly, l.local_only().is_some(), "{l}");
+        }
+    }
+
+    #[test]
+    fn reasons_name_the_terms() {
+        assert_eq!(Licence::CcByNcNd40.refusal(), Some(RefusalReason::NoDerivatives));
+        assert_eq!(Licence::CcByNd40.refusal(), Some(RefusalReason::NoDerivatives));
+        for l in [Licence::CcByNc40, Licence::CcByNcSa30, Licence::CcByNcSa40] {
+            assert_eq!(l.local_only(), Some(LocalOnlyReason::NonCommercial), "{l}");
+            assert_eq!(l.refusal(), None, "{l}");
+        }
+        assert_eq!(Licence::RestrictedPublic.local_only(), Some(LocalOnlyReason::HostTerms));
+        assert_eq!(Licence::CcBySa40.local_only(), None);
+        assert_eq!(Licence::CcByNcNd40.local_only(), None);
+        // What the user reads before accepting non-commercial terms says
+        // the data and every model trained on it are non-commercial and
+        // stay local; the host's own terms say the same of local use.
+        let nc = LocalOnlyReason::NonCommercial.notice();
+        assert!(nc.contains("non-commercial use only") && nc.contains("any model you train on it"), "{nc}");
+        assert!(nc.contains("stay on your machine") && nc.contains("original host"), "{nc}");
+        let host = LocalOnlyReason::HostTerms.notice();
+        assert!(host.contains("host's own terms") && host.contains("local training and evaluation"), "{host}");
+    }
+
+    /// Non-commercial terms are accepted like CC BY-SA: one text, the
+    /// licence's legal code, rather than a host's terms page.
+    #[test]
+    fn non_commercial_licences_have_one_text() {
+        for l in [Licence::CcByNc40, Licence::CcByNcSa30, Licence::CcByNcSa40] {
+            let r = Requirement::of(l).unwrap();
+            assert!(r.text.starts_with("https://creativecommons.org/licenses/by-nc"), "{r}");
+            assert!(r.text.ends_with("/legalcode"), "{r}");
+        }
+        assert_eq!(Requirement::of(Licence::RestrictedPublic), None);
+    }
+
+    #[test]
+    fn non_commercial_data_needs_acceptance_and_never_leaves_the_machine() {
+        let default = Policy::default();
+        let lax = Policy { gpl: GplAcceptance::NotRequired };
+        for l in [Licence::CcByNc40, Licence::CcByNcSa30, Licence::CcByNcSa40] {
+            let c = l.class();
+            assert!(c.may_fetch(), "{l}");
+            assert!(c.needs_acceptance(default) && c.needs_acceptance(lax), "{l}");
+            assert!(!c.may_bundle() && !c.may_redistribute(), "{l}");
+        }
+        for l in [Licence::CcByNcNd40, Licence::CcByNd40] {
+            assert!(!l.class().may_fetch() && !l.class().may_bundle(), "{l}");
         }
     }
 
@@ -435,9 +552,20 @@ mod tests {
         assert_eq!(class_of([Apache2, RestrictedPublic]), LocalOnly);
         assert_eq!(class_of([Apache2, CcBy40, RestrictedPublic]), LocalOnly);
         assert_eq!(class_of([Gpl30Only, RestrictedPublic, CcBySa40]), LocalOnly);
-        assert_eq!(class_of([RestrictedPublic, CcByNcSa40]), Refused);
         assert_eq!(class_of([RestrictedPublic, ResearchOnly]), Refused);
+        // A model trained on non-commercial data is local-only as well,
+        // also beside share-alike or restricted data, and refused with
+        // no-derivatives data.
+        assert_eq!(class_of([Apache2, CcByNcSa40]), LocalOnly);
+        assert_eq!(class_of([Apache2, CcByNc40]), LocalOnly);
+        assert_eq!(class_of([Mit, CcBy40, CcByNcSa30]), LocalOnly);
+        assert_eq!(class_of([Apache2, CcBySa40, CcByNcSa40]), LocalOnly);
+        assert_eq!(class_of([RestrictedPublic, CcByNcSa40]), LocalOnly);
+        assert_eq!(class_of([Apache2, CcByNcNd40]), Refused);
+        assert_eq!(class_of([CcByNcSa40, CcByNd40]), Refused);
+        assert_eq!(class_of([CcByNcSa40]), LocalOnly);
         // Order of the licences never matters.
         assert_eq!(class_of([RestrictedPublic, Apache2]), class_of([Apache2, RestrictedPublic]));
+        assert_eq!(class_of([CcByNcSa40, Apache2]), class_of([Apache2, CcByNcSa40]));
     }
 }

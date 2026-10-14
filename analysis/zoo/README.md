@@ -34,15 +34,23 @@ fetches every entry again and checks it.
 ## Tests
 
 - `tests/zoo.rs`: one artifact per class, served from memory. Refused
-  artifacts are neither listed nor fetched; share-alike, LGPL and GPL
-  artifacts are refused until the user accepts each licence they need,
-  per user, rechecked on every call; restricted but public data, and
-  any model trained on it, needs its host's own terms accepted, is
-  fetched from its origin only and is never shippable; the most
-  restrictive licence decides the class; GPL acceptance can be turned off;
+  artifacts, no-derivatives ones among them, are neither listed nor
+  fetched; share-alike, LGPL and GPL artifacts are refused until the
+  user accepts each licence they need, per user, rechecked on every
+  call; restricted but public data needs its host's own terms accepted,
+  and non-commercial data its licence, under either GPL policy; both,
+  and any model trained on them, are fetched from their origin only and
+  are never shippable; the most restrictive licence decides the class;
+  GPL acceptance can be turned off;
   a size, SHA-256 or SHA-512 mismatch fails and writes nothing; a corrupt
   cached file is fetched again; a symlink in the cache is refused; the
   index parser rejects every malformed field.
+- `tests/cli.rs`: before recording an acceptance, `turbo-zoo accept`
+  shows the text's address and, for local-only terms, that the data and
+  anything trained on it stay on the user's machine (and, for
+  non-commercial terms, are for non-commercial use only); it does not
+  offer permissive or refused licences; `turbo-zoo show` says the same
+  of a local-only artifact.
 - `tests/builtin.rs`: the built-in index is canonical, holds nothing
   refused, gives each UD model its treebank's licence and class, and
   matches the model files the repository checks in.
