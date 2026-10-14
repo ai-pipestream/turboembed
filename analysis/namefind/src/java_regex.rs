@@ -77,6 +77,18 @@ pub(crate) struct Limits {
     pub mid_pair: bool,
 }
 
+/// Maximum nesting depth of groups. The parser, the compiler and the
+/// syntax tree's drop all recurse once per level, so a deeper pattern is
+/// refused with [`Error::Compile`] rather than overflowing the stack.
+const MAX_DEPTH: usize = 200;
+
+/// Largest `(pc, pos)` table, in bits (32 MiB), that a backtracking search
+/// may use. A search whose table would be larger runs on [`Pike`] instead.
+const MAX_MEMO_BITS: usize = 1 << 28;
+
+/// Backtracks at one start position before failed states are recorded.
+const MEMO_AFTER_BACKTRACKS: usize = 64;
+
 /// Reusable scratch buffers for [`JavaRegex`] matching.
 #[derive(Default)]
 pub(crate) struct Scratch {
@@ -86,8 +98,24 @@ pub(crate) struct Scratch {
     /// state fails whatever start reached it, so the set is kept across the
     /// start positions of one search.
     visited: Vec<u64>,
+    /// The words of `visited` that hold a bit, so that the next search
+    /// clears only what was set rather than the whole table.
+    touched: Vec<usize>,
     /// Whether `visited` is in use for the current search.
     memo: bool,
+    pike: Pike,
+}
+
+/// Which matcher [`JavaRegex::find_at_with`] runs. Only the tests choose
+/// one; the finders use `Auto`.
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+#[cfg_attr(not(test), allow(dead_code))]
+pub(crate) enum Engine {
+    /// Backtracking while the `(pc, pos)` table fits [`MAX_MEMO_BITS`],
+    /// the Pike VM otherwise.
+    Auto,
+    Backtrack,
+    Pike,
 }
 
 /// A Java regular expression, compiled to a direct bytecode program.
@@ -142,58 +170,90 @@ impl JavaRegex {
     }
 
     /// Finds the leftmost match in `text` starting at or after byte offset
-    /// `from`, using reusable `scratch` buffers.
+    /// `from`, using reusable `scratch` buffers. The match is the one
+    /// `Matcher.find` reports: the first start where the pattern matches,
+    /// and there the first match in Java's backtracking order.
+    ///
+    /// A search takes time and memory linear in the pattern's instructions
+    /// times the length of `text` after `from`, never exponential.
     pub(crate) fn find_at(&self, text: &str, from: usize, scratch: &mut Scratch) -> Option<(usize, usize)> {
-        let bytes = text.as_bytes();
-        if from > bytes.len() {
+        self.find_at_with(text, from, scratch, Engine::Auto)
+    }
+
+    /// [`JavaRegex::find_at`] on the given matcher. Both find the same
+    /// match; the choice only trades speed for memory.
+    pub(crate) fn find_at_with(
+        &self,
+        text: &str,
+        from: usize,
+        scratch: &mut Scratch,
+        engine: Engine,
+    ) -> Option<(usize, usize)> {
+        if from > text.len() {
             return None;
         }
-        scratch.memo = false;
-        if matches!(self.insts.first(), Some(Inst::Assert(Assertion::StartText))) {
-            if from > 0 {
-                return None;
-            }
-            return self.match_at(text, 0, 0, scratch).map(|end| (0, end));
+        let anchored = matches!(self.insts.first(), Some(Inst::Assert(Assertion::StartText)));
+        if anchored && from > 0 {
+            return None;
         }
+        let pike = match engine {
+            Engine::Auto => !self.table_fits(text.len() - from),
+            Engine::Backtrack => false,
+            Engine::Pike => true,
+        };
+        if pike {
+            return scratch.pike.find(self, text, from, anchored);
+        }
+        scratch.memo = false;
         let mut start = from;
-        while start <= bytes.len() {
+        loop {
             if let Some(end) = self.match_at(text, from, start, scratch) {
                 return Some((start, end));
             }
-            if start == bytes.len() {
-                break;
+            if anchored {
+                return None;
             }
-            let b = bytes[start];
-            start += if b < 0x80 { 1 } else { utf8_char_width(b) };
+            start = next_char(text, start)?.1;
         }
-        None
     }
 
-    /// The end of the match at `start_pos`, part of a search from `from`.
+    /// Whether a backtracking search over `len` bytes may use its full
+    /// `(pc, pos)` table.
+    fn table_fits(&self, len: usize) -> bool {
+        self.insts.len().saturating_mul(len + 1) <= MAX_MEMO_BITS
+    }
+
+    /// The end of the match at `start_pos`, part of a search from `from`:
+    /// a backtracking walk that, once it has backtracked
+    /// [`MEMO_AFTER_BACKTRACKS`] times, records each `(pc, pos)` it enters
+    /// and never enters one twice. Patterns have no captures and no loop
+    /// that can repeat without consuming, so a state entered before has
+    /// either failed or is still being explored above, and either way
+    /// cannot lead to an earlier match.
     fn match_at(&self, text: &str, from: usize, start_pos: usize, scratch: &mut Scratch) -> Option<usize> {
-        let bytes = text.as_bytes();
         let insts = &self.insts;
-        let stride = bytes.len() - from + 1;
+        let stride = text.len() - from + 1;
         scratch.stack.clear();
-        let mut visited_active = scratch.memo;
         let mut backtracks = 0usize;
         let mut pc = 0usize;
         let mut pos = start_pos;
 
         loop {
-            if visited_active {
+            if scratch.memo {
                 let idx = pc * stride + (pos - from);
                 let word = idx >> 6;
                 let mask = 1u64 << (idx & 63);
-                if (scratch.visited[word] & mask) != 0 {
-                    if let Some((next_pc, next_pos)) = scratch.stack.pop() {
-                        pc = next_pc as usize;
-                        pos = next_pos;
-                        continue;
-                    }
-                    return None;
+                let bits = scratch.visited[word];
+                if bits & mask != 0 {
+                    let (next_pc, next_pos) = scratch.stack.pop()?;
+                    pc = next_pc as usize;
+                    pos = next_pos;
+                    continue;
                 }
-                scratch.visited[word] |= mask;
+                if bits == 0 {
+                    scratch.touched.push(word);
+                }
+                scratch.visited[word] = bits | mask;
             }
 
             let ok = match insts[pc] {
@@ -208,108 +268,184 @@ impl JavaRegex {
                     continue;
                 }
                 Inst::Assert(assertion) => {
-                    let pass = match assertion {
-                        Assertion::StartText => pos == 0,
-                        Assertion::EndText => pos == bytes.len(),
-                        Assertion::AsciiWordBoundary => {
-                            let prev = pos > 0 && is_ascii_word(bytes[pos - 1]);
-                            let next = pos < bytes.len() && is_ascii_word(bytes[pos]);
-                            prev != next
-                        }
-                        Assertion::AsciiNonWordBoundary => {
-                            let prev = pos > 0 && is_ascii_word(bytes[pos - 1]);
-                            let next = pos < bytes.len() && is_ascii_word(bytes[pos]);
-                            prev == next
-                        }
-                    };
+                    let pass = assertion.holds(text.as_bytes(), pos);
                     if pass {
                         pc += 1;
                     }
                     pass
                 }
-                Inst::Literal(want) => {
-                    if let Some((c, next_pos)) = next_char(text, pos)
-                        && c == want
-                    {
+                inst => match next_char(text, pos) {
+                    Some((c, next_pos)) if self.consumes(inst, c) => {
                         pos = next_pos;
                         pc += 1;
                         true
-                    } else {
-                        false
                     }
-                }
-                Inst::AsciiCase(upper) => {
-                    if let Some(&b) = bytes.get(pos)
-                        && (b & !0x20) == upper
-                    {
-                        pos += 1;
-                        pc += 1;
-                        true
-                    } else {
-                        false
-                    }
-                }
-                Inst::AnyChar => {
-                    if let Some((_, next_pos)) = next_char(text, pos) {
-                        pos = next_pos;
-                        pc += 1;
-                        true
-                    } else {
-                        false
-                    }
-                }
-                Inst::NotLineTerminator => {
-                    if let Some((c, next_pos)) = next_char(text, pos)
-                        && !is_line_terminator(c)
-                    {
-                        pos = next_pos;
-                        pc += 1;
-                        true
-                    } else {
-                        false
-                    }
-                }
-                Inst::Class(cls_idx) => {
-                    if let Some((c, next_pos)) = next_char(text, pos)
-                        && self.classes[cls_idx as usize].matches(c)
-                    {
-                        pos = next_pos;
-                        pc += 1;
-                        true
-                    } else {
-                        false
-                    }
-                }
+                    _ => false,
+                },
             };
 
             if !ok {
-                if let Some((next_pc, next_pos)) = scratch.stack.pop() {
-                    backtracks += 1;
-                    if !visited_active && backtracks >= 64 {
-                        let words = (insts.len() * stride).div_ceil(64);
-                        scratch.visited.clear();
-                        scratch.visited.resize(words, 0);
-                        scratch.memo = true;
-                        visited_active = true;
+                let (next_pc, next_pos) = scratch.stack.pop()?;
+                backtracks += 1;
+                if !scratch.memo && backtracks >= MEMO_AFTER_BACKTRACKS {
+                    scratch.start_memo((insts.len() * stride).div_ceil(64));
+                }
+                pc = next_pc as usize;
+                pos = next_pos;
+            }
+        }
+    }
+
+    /// Whether the character-consuming `inst` accepts `c`.
+    #[inline]
+    fn consumes(&self, inst: Inst, c: char) -> bool {
+        match inst {
+            Inst::Literal(want) => c == want,
+            Inst::AsciiCase(upper) => c.is_ascii() && (c as u8 & !0x20) == upper,
+            Inst::AnyChar => true,
+            Inst::NotLineTerminator => !is_line_terminator(c),
+            Inst::Class(idx) => self.classes[idx as usize].matches(c),
+            Inst::Match | Inst::Jump(_) | Inst::Split(..) | Inst::Assert(_) => false,
+        }
+    }
+}
+
+impl Scratch {
+    /// Turns on the `(pc, pos)` table for the rest of the current search,
+    /// with `words` words, all clear.
+    fn start_memo(&mut self, words: usize) {
+        for w in self.touched.drain(..) {
+            self.visited[w] = 0;
+        }
+        if self.visited.len() < words {
+            self.visited.resize(words, 0);
+        }
+        self.memo = true;
+    }
+}
+
+/// A Pike VM over the same program: every thread advances one character
+/// at a time, at most one thread per instruction, kept in priority order,
+/// so the first thread to reach [`Inst::Match`] is the match Java's
+/// backtracking finds. It needs memory linear in the pattern only, for
+/// searches whose `(pc, pos)` table would be too large.
+#[derive(Default)]
+struct Pike {
+    current: Threads,
+    next: Threads,
+    stack: Vec<u32>,
+}
+
+/// A sparse set of instructions, each with the start of its thread, in
+/// the order they were added.
+#[derive(Default)]
+struct Threads {
+    dense: Vec<(u32, usize)>,
+    sparse: Vec<u32>,
+}
+
+impl Threads {
+    fn reset(&mut self, insts: usize) {
+        self.dense.clear();
+        if self.sparse.len() < insts {
+            self.sparse.resize(insts, 0);
+        }
+    }
+
+    #[inline]
+    fn contains(&self, pc: u32) -> bool {
+        let i = self.sparse[pc as usize] as usize;
+        i < self.dense.len() && self.dense[i].0 == pc
+    }
+
+    #[inline]
+    fn insert(&mut self, pc: u32, start: usize) {
+        self.sparse[pc as usize] = self.dense.len() as u32;
+        self.dense.push((pc, start));
+    }
+}
+
+impl Pike {
+    fn find(&mut self, re: &JavaRegex, text: &str, from: usize, anchored: bool) -> Option<(usize, usize)> {
+        let insts = &re.insts;
+        self.current.reset(insts.len());
+        self.next.reset(insts.len());
+        let mut matched = None;
+        let mut pos = from;
+        loop {
+            // A new start has a lower priority than every thread already
+            // running, and none is needed once a match is known.
+            if matched.is_none() && !(anchored && pos > 0) {
+                Pike::add(insts, &mut self.current, &mut self.stack, 0, pos, text.as_bytes(), pos);
+            }
+            if self.current.dense.is_empty() && (matched.is_some() || anchored) {
+                break;
+            }
+            let step = next_char(text, pos);
+            for i in 0..self.current.dense.len() {
+                let (pc, start) = self.current.dense[i];
+                match insts[pc as usize] {
+                    // Threads after this one have a lower priority.
+                    Inst::Match => {
+                        matched = Some((start, pos));
+                        break;
                     }
-                    pc = next_pc as usize;
-                    pos = next_pos;
-                } else {
-                    return None;
+                    inst => {
+                        if let Some((c, next_pos)) = step
+                            && re.consumes(inst, c)
+                        {
+                            Pike::add(insts, &mut self.next, &mut self.stack, pc + 1, start, text.as_bytes(), next_pos);
+                        }
+                    }
+                }
+            }
+            let Some((_, next_pos)) = step else { break };
+            std::mem::swap(&mut self.current, &mut self.next);
+            self.next.dense.clear();
+            pos = next_pos;
+        }
+        matched
+    }
+
+    /// Adds the thread at `pc` and everything it reaches without consuming
+    /// a character at `pos`, in priority order.
+    fn add(insts: &[Inst], list: &mut Threads, stack: &mut Vec<u32>, pc: u32, start: usize, bytes: &[u8], pos: usize) {
+        stack.clear();
+        stack.push(pc);
+        while let Some(mut pc) = stack.pop() {
+            loop {
+                if list.contains(pc) {
+                    break;
+                }
+                list.insert(pc, start);
+                match insts[pc as usize] {
+                    Inst::Jump(target) => pc = target,
+                    Inst::Split(prefer, fallback) => {
+                        stack.push(fallback);
+                        pc = prefer;
+                    }
+                    Inst::Assert(a) if a.holds(bytes, pos) => pc += 1,
+                    _ => break,
                 }
             }
         }
     }
 }
 
-#[inline]
-fn utf8_char_width(first_byte: u8) -> usize {
-    if first_byte < 0xE0 {
-        2
-    } else if first_byte < 0xF0 {
-        3
-    } else {
-        4
+impl Assertion {
+    #[inline]
+    fn holds(self, bytes: &[u8], pos: usize) -> bool {
+        let boundary = || {
+            let prev = pos > 0 && is_ascii_word(bytes[pos - 1]);
+            let next = pos < bytes.len() && is_ascii_word(bytes[pos]);
+            prev != next
+        };
+        match self {
+            Assertion::StartText => pos == 0,
+            Assertion::EndText => pos == bytes.len(),
+            Assertion::AsciiWordBoundary => boundary(),
+            Assertion::AsciiNonWordBoundary => !boundary(),
+        }
     }
 }
 
@@ -631,12 +767,7 @@ impl<'s> Compiler<'s> {
                 Ok(())
             }
             Node::Alt(branches) => {
-                if branches.is_empty() {
-                    return Ok(());
-                }
-                if branches.len() == 1 {
-                    return self.emit(&branches[0]);
-                }
+                // `Translator::expr` makes an `Alt` of two or more branches.
                 let mut end_jumps = Vec::with_capacity(branches.len() - 1);
                 for branch in &branches[..branches.len() - 1] {
                     let split_pc = self.push(Inst::Split(0, 0))?;
@@ -734,6 +865,7 @@ fn parse(pattern: &str, flags: Flags) -> Result<(Node, Vec<CharClass>, Limits), 
         limits: Limits::default(),
         names: Vec::new(),
         anchored_empty: false,
+        depth: 0,
     };
     let (node, piece) = t.expr()?;
     if t.at < t.p.len() {
@@ -820,6 +952,8 @@ struct Translator<'s> {
     /// Uses `\b`, `^` or `\A`, which hold at the start of a character
     /// outside the BMP but not between its halves.
     anchored_empty: bool,
+    /// Groups open at `at`.
+    depth: usize,
 }
 
 impl Translator<'_> {
@@ -1015,6 +1149,12 @@ impl Translator<'_> {
 
     /// `group0`, at the `(`. `None` for an inline flag group.
     fn group(&mut self) -> Result<Option<(Node, Piece)>, Error> {
+        if self.depth == MAX_DEPTH {
+            return Err(Error::Compile {
+                pattern: self.source.into(),
+                message: format!("groups nested deeper than {MAX_DEPTH}"),
+            });
+        }
         self.at += 1;
         let (ci, dotall) = (self.ci, self.dotall);
         if self.peek_is('?') {
@@ -1042,7 +1182,9 @@ impl Translator<'_> {
                 }
             }
         }
+        self.depth += 1;
         let (inner_node, inner) = self.expr()?;
+        self.depth -= 1;
         if !self.peek_is(')') {
             return Err(self.syntax("unclosed group"));
         }
@@ -1492,5 +1634,50 @@ mod tests {
         assert_eq!(find("(a|aa)*c", &long), None);
         assert_eq!(find(".*x", &long), None);
         assert_eq!(find("(a|aa)*c|a$", &long), Some((19_999, 20_000)));
+        let mut scratch = Scratch::default();
+        for (p, want) in [("(a|aa)*c", None), (".*x", None), ("(a|aa)*c|a$", Some((19_999, 20_000)))] {
+            let r = JavaRegex::compile(p).unwrap();
+            assert_eq!(r.find_at_with(&long, 0, &mut scratch, Engine::Pike), want, "{p}");
+        }
+    }
+
+    #[test]
+    fn large_tables_run_on_the_pike_vm() {
+        // 200,001 instructions over 2,001 positions is past the table's
+        // limit, so the search keeps no table at all.
+        let r = JavaRegex::compile("a{0,100000}!").unwrap();
+        assert!(r.table_fits(1_000) && !r.table_fits(2_000));
+        let text = "x".repeat(2_000);
+        let mut scratch = Scratch::default();
+        assert_eq!(r.find_at(&text, 0, &mut scratch), None);
+        assert!(scratch.visited.is_empty());
+        let text = format!("{}aa!", "x".repeat(2_000));
+        assert_eq!(r.find_at(&text, 0, &mut scratch), Some((2_000, 2_003)));
+        assert_eq!(r.find_at(&text, 2_001, &mut scratch), Some((2_001, 2_003)));
+    }
+
+    #[test]
+    fn the_table_is_cleared_between_searches() {
+        // Each search turns the table on; a state left from the one before
+        // would hide the later matches.
+        let r = JavaRegex::compile("(a|a)+b").unwrap();
+        let text = format!("{}c aab ", "a".repeat(30)).repeat(3);
+        let mut scratch = Scratch::default();
+        let mut from = 0;
+        let mut found = Vec::new();
+        while let Some((s, e)) = r.find_at(&text, from, &mut scratch) {
+            found.push(s);
+            from = e;
+        }
+        assert_eq!(found, [32, 68, 104]);
+        assert!(!scratch.touched.is_empty());
+    }
+
+    #[test]
+    fn nesting_is_limited() {
+        let nested = |n: usize| format!("{}a{}", "(".repeat(n), ")".repeat(n));
+        assert_eq!(find(&nested(MAX_DEPTH), "a"), Some((0, 1)));
+        assert!(matches!(JavaRegex::compile(&nested(MAX_DEPTH + 1)), Err(Error::Compile { .. })));
+        assert!(matches!(JavaRegex::compile(&"(".repeat(100_000)), Err(Error::Compile { .. })));
     }
 }

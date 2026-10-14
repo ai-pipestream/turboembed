@@ -97,7 +97,8 @@ pub enum Error {
     /// A pattern Java accepts that uses a feature this port does not
     /// translate.
     Unsupported { pattern: Box<str>, at: usize, feature: Feature },
-    /// A pattern whose compiled bytecode exceeds the instruction limit.
+    /// A pattern too large for this port: its compiled program exceeds the
+    /// instruction limit, or its groups nest too deeply.
     Compile { pattern: Box<str>, message: String },
     /// A text this pattern cannot match as Java would.
     Text { pattern: Box<str>, limit: TextLimit },

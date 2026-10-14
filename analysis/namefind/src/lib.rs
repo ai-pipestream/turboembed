@@ -95,6 +95,8 @@ pub mod error;
 pub mod java_regex;
 pub mod merge;
 pub mod name;
+#[cfg(test)]
+mod parity;
 pub mod regex_finder;
 
 pub use builtin::BuiltIn;
