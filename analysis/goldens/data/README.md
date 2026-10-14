@@ -125,7 +125,9 @@ are not taken from any corpus.
   `pairs-` files hold a reference sample and then a prediction for it,
   pair after pair: predictions that are right, wrong, shorter and
   longer than the reference, chunk tags with no phrase, token and
-  sentence spans past the reference's text, a name predicted twice,
+  sentence spans past the reference's text (also after accented
+  letters and emoji, whose UTF-16 offsets differ from their byte
+  offsets), a name predicted twice,
   pairs with nothing to find, and sentence ends that only one
   whitespace mode trims.
 

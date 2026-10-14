@@ -45,9 +45,10 @@ impl Verdict {
     }
 }
 
-/// A prediction Java's evaluator throws on. The offsets of the span
-/// errors are bytes where Java's are UTF-16 code units, so their
-/// messages are Java's for ASCII text.
+/// A prediction Java's evaluator throws on. The span errors keep the
+/// byte offsets of the text and the same offsets in UTF-16 code units,
+/// which their messages give, as Java counts them. An offset past the
+/// end of the text counts one unit for each byte past it.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum EvalError {
     /// Fewer predicted tags or lemmas than reference tokens: the
@@ -64,13 +65,13 @@ pub enum EvalError {
     OverlappingNames { first: String, second: String, sentence: String },
     /// A predicted token span past the end of the text, which
     /// `TokenSample` refuses.
-    TokenOutOfText { span: Span, len: usize },
+    TokenOutOfText { span: Span, len: usize, units: Span, len_units: usize },
     /// A predicted sentence span past the end of the document, which
     /// `SentenceSample` refuses.
-    SentenceOutOfText { span: Span, len: usize },
+    SentenceOutOfText { span: Span, len: usize, units: Span, len_units: usize },
     /// `Span.trim` reading past the end of the document: the
     /// `StringIndexOutOfBoundsException` of `charAt(index)`.
-    TrimOutOfText { index: usize, len: usize },
+    TrimOutOfText { index: usize, len: usize, index_units: usize, len_units: usize },
     /// The reference or predicted chunk tags have no phrases
     /// (`getPhrasesAsSpanList` throws).
     Phrases(FormatError),
@@ -99,7 +100,8 @@ fn span_string(span: Span) -> String {
 impl fmt::Display for EvalError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            EvalError::IndexOutOfBounds { index, len } | EvalError::TrimOutOfText { index, len } => {
+            EvalError::IndexOutOfBounds { index, len }
+            | EvalError::TrimOutOfText { index_units: index, len_units: len, .. } => {
                 write!(f, "Index {index} out of bounds for length {len}")
             }
             EvalError::TagCount { tokens, tags } => {
@@ -112,11 +114,15 @@ impl fmt::Display for EvalError {
             EvalError::OverlappingNames { first, second, sentence } => {
                 write!(f, "name spans {first} and {second} are overlapped in file: null, sentence: {sentence}")
             }
-            EvalError::TokenOutOfText { span, len } => {
-                write!(f, "Span {} is out of bounds, text length: {len}!", span_string(*span))
+            EvalError::TokenOutOfText { units, len_units, .. } => {
+                write!(f, "Span {} is out of bounds, text length: {len_units}!", span_string(*units))
             }
-            EvalError::SentenceOutOfText { span, len } => {
-                write!(f, "Sentence span is outside of document text [len {len}] and span {}", span_string(*span))
+            EvalError::SentenceOutOfText { units, len_units, .. } => {
+                write!(
+                    f,
+                    "Sentence span is outside of document text [len {len_units}] and span {}",
+                    span_string(*units)
+                )
             }
             EvalError::Phrases(e) => e.fmt(f),
         }
@@ -314,7 +320,7 @@ impl TokenizerEvaluator {
     /// the scores are counted.
     pub fn evaluate(&mut self, reference: &TokenSample<'_>, predicted: &[Span]) -> Result<Verdict, EvalError> {
         self.fmeasure.update(&untyped(reference.tokens()), &untyped(predicted));
-        check_in_text(predicted, reference.text().len())?;
+        check_in_text(predicted, reference.text())?;
         Ok(Verdict::of(reference.tokens() == predicted))
     }
 
@@ -323,9 +329,26 @@ impl TokenizerEvaluator {
     }
 }
 
-fn check_in_text(spans: &[Span], len: usize) -> Result<(), EvalError> {
+/// The number of UTF-16 code units of `text` before byte `at`: those of
+/// the characters that start before it, and one for each byte past the
+/// end.
+fn units(text: &str, at: usize) -> usize {
+    if at > text.len() {
+        return text.encode_utf16().count() + (at - text.len());
+    }
+    text.char_indices().take_while(|&(i, _)| i < at).map(|(_, c)| c.len_utf16()).sum()
+}
+
+fn span_units(text: &str, span: Span) -> Span {
+    Span::new(units(text, span.start as usize) as u32, units(text, span.end as usize) as u32)
+}
+
+fn check_in_text(spans: &[Span], text: &str) -> Result<(), EvalError> {
+    let len = text.len();
     match spans.iter().find(|s| s.start as usize > len || s.end as usize > len) {
-        Some(&span) => Err(EvalError::TokenOutOfText { span, len }),
+        Some(&span) => {
+            Err(EvalError::TokenOutOfText { span, len, units: span_units(text, span), len_units: units(text, len) })
+        }
         None => Ok(()),
     }
 }
@@ -358,7 +381,7 @@ impl DetokenizerEvaluator {
         let mut text = String::new();
         detokenizer.detokenize(&tokens, None, &mut text);
         self.fmeasure.update(&[reference.text()], &[text.as_str()]);
-        check_in_text(reference.tokens(), text.len())?;
+        check_in_text(reference.tokens(), &text)?;
         Ok(Verdict::of(reference.text() == text))
     }
 
@@ -399,7 +422,12 @@ impl SentenceDetectorEvaluator {
         let references = trim(reference.sentences())?;
         self.fmeasure.update(&untyped(&references), &untyped(&predictions));
         if let Some(&span) = predictions.iter().find(|s| s.end as usize > document.len()) {
-            return Err(EvalError::SentenceOutOfText { span, len: document.len() });
+            return Err(EvalError::SentenceOutOfText {
+                span,
+                len: document.len(),
+                units: span_units(document, span),
+                len_units: units(document, document.len()),
+            });
         }
         Ok(Verdict::of(reference.sentences() == predictions.as_slice()))
     }
@@ -415,16 +443,22 @@ impl SentenceDetectorEvaluator {
 fn trim(text: &str, span: Span, mode: WhitespaceMode) -> Result<Span, EvalError> {
     let len = text.len();
     let (start, end) = (span.start as usize, span.end as usize);
+    let past_end = |index: usize| EvalError::TrimOutOfText {
+        index,
+        len,
+        index_units: units(text, index),
+        len_units: units(text, len),
+    };
     let space_at = |i: usize| -> Result<Option<usize>, EvalError> {
         if i >= len {
-            return Err(EvalError::TrimOutOfText { index: i, len });
+            return Err(past_end(i));
         }
         let c = text.get(i..).and_then(|t| t.chars().next());
         Ok(c.filter(|&c| mode.is_whitespace(c as u32)).map(char::len_utf8))
     };
     let space_before = |i: usize| -> Result<Option<usize>, EvalError> {
         if i > len {
-            return Err(EvalError::TrimOutOfText { index: i - 1, len });
+            return Err(past_end(i - 1));
         }
         let c = text.get(..i).and_then(|t| t.chars().next_back());
         Ok(c.filter(|&c| mode.is_whitespace(c as u32)).map(char::len_utf8))
@@ -571,11 +605,31 @@ mod tests {
         let mut e = SentenceDetectorEvaluator::new(WhitespaceMode::Unicode);
         assert_eq!(e.evaluate(&s, &[Span::new(0, 5), Span::new(4, 10)]), Ok(Verdict::Correct));
         assert_eq!(e.fmeasure().true_positives(), 2);
-        assert_eq!(e.evaluate(&s, &[Span::new(8, 12)]), Err(EvalError::TrimOutOfText { index: 11, len: 10 }));
+        assert_eq!(
+            e.evaluate(&s, &[Span::new(8, 12)]),
+            Err(EvalError::TrimOutOfText { index: 11, len: 10, index_units: 11, len_units: 10 })
+        );
         assert_eq!(
             e.evaluate(&s, &[Span::new(12, 12)]).unwrap_err().to_string(),
             "Sentence span is outside of document text [len 10] and span [12..12)"
         );
         assert_eq!(trim(" \u{a0} ", Span::new(0, 4), WhitespaceMode::Unicode), Ok(Span::new(0, 0)));
+    }
+
+    #[test]
+    fn span_errors_count_utf16_units() {
+        // "\u{c9}t\u{1F600}." is 8 bytes and 5 units; with its space, 9 and 6.
+        let src = "\u{c9}t\u{1F600}.\n";
+        let s = SentenceReader::new(src).unwrap().next().unwrap().unwrap();
+        let mut e = SentenceDetectorEvaluator::new(WhitespaceMode::Unicode);
+        let err = e.evaluate(&s, &[Span::new(9, 11)]).unwrap_err();
+        assert_eq!(err, EvalError::TrimOutOfText { index: 9, len: 9, index_units: 6, len_units: 6 });
+        assert_eq!(err.to_string(), "Index 6 out of bounds for length 6");
+        let err = e.evaluate(&s, &[Span::new(13, 13)]).unwrap_err();
+        assert_eq!(err.to_string(), "Sentence span is outside of document text [len 6] and span [10..10)");
+        let src = "\u{c9}<SPLIT>\u{1F600}";
+        let s = TokenReader::new(src, WhitespaceMode::Unicode).unwrap().next().unwrap().unwrap();
+        let err = TokenizerEvaluator::default().evaluate(&s, &[Span::new(2, 6), Span::new(7, 9)]).unwrap_err();
+        assert_eq!(err.to_string(), "Span [4..6) is out of bounds, text length: 4!");
     }
 }

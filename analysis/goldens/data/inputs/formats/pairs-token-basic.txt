@@ -10,3 +10,7 @@ ab cdef
 éx 😀
 a<SPLIT>b
 a<SPLIT><SPLIT>b
+é
+é abcd
+😀<SPLIT>x
+😀x yz
