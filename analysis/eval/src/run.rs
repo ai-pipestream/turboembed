@@ -45,6 +45,12 @@ pub fn run_sets(
         if set.name != *name {
             return Err(format!("set {name}: the reader returned set {}", set.name));
         }
+        if !set.absent.is_empty() {
+            eprintln!(
+                "set {name}: {} judgements name a document the set does not have and are kept, never retrieved",
+                set.absent.len()
+            );
+        }
         if !set.unplaced.is_empty() {
             eprintln!(
                 "set {name}: {} judgements could not be placed in their document and are left out",

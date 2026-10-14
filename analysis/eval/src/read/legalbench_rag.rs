@@ -130,6 +130,7 @@ pub fn read(name: &str, dir: &Path) -> Result<LoadedSet> {
         qrels: Qrels::new(qrels.into_iter().map(|(query, doc)| Qrel { query, doc, grade: 1 }))?,
         spans: Some(SpanRels::new(spans)?),
         unplaced: Vec::new(),
+        absent: Vec::new(),
     };
     set.check()?;
     Ok(set)

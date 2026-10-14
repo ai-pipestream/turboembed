@@ -120,6 +120,7 @@ pub fn read_json(name: &str, file: &str, text: &str, sha256: String) -> Result<L
         qrels: Qrels::new(qrels)?,
         spans: Some(SpanRels::new(spans)?),
         unplaced,
+        absent: Vec::new(),
     };
     set.check()?;
     Ok(set)

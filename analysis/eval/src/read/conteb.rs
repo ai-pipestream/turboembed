@@ -90,6 +90,7 @@ pub fn read(name: &str, dir: &Path, documents: &str, queries: &str) -> Result<Lo
         qrels: Qrels::new(qrels)?,
         spans: Some(SpanRels::new(spans)?),
         unplaced: Vec::new(),
+        absent: Vec::new(),
     };
     set.check()?;
     Ok(set)

@@ -1840,7 +1840,10 @@ have to be converted to JSON Lines (one object per row, the column
 names as keys) outside the crate. Chunked sets are joined into
 documents with a line break between chunks. Evidence a reader cannot
 place in its document is listed in `LoadedSet.unplaced` rather than
-dropped silently.
+dropped silently. A BEIR judgement naming a document the corpus does
+not have (ArguAna's test split has 5) is kept and listed in
+`LoadedSet.absent`: it counts as relevant and is never retrieved, as
+`trec_eval` scores it, and `run` prints how many there were.
 
 ### The binary
 

@@ -8,9 +8,12 @@
 //!   then one judgement per line with an integer grade.
 //!
 //! Only the queries the test judgements name are kept, in the order of
-//! `queries.jsonl`. A judgement naming a query or document the other
-//! files do not have is an error. Document level judgements only; BEIR
-//! has no spans.
+//! `queries.jsonl`. A judgement naming a query the other files do not
+//! have is an error. One naming a document `corpus.jsonl` does not have
+//! is kept and listed in `LoadedSet.absent`: it counts as relevant and is
+//! never retrieved, as BEIR scores it with `trec_eval` (ArguAna's test
+//! judgements name 5 such documents). Document level judgements only;
+//! BEIR has no spans.
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::path::Path;
@@ -65,7 +68,7 @@ pub fn read(name: &str, dir: &Path) -> Result<LoadedSet> {
         }
     }
 
-    let qrels = read_qrels(&files.text(QRELS)?, &all_queries, &doc_ids)?;
+    let (qrels, absent) = read_qrels(&files.text(QRELS)?, &all_queries, &doc_ids)?;
     let judged: BTreeSet<&str> = qrels.iter().map(|q| q.query.as_str()).collect();
     let mut queries: Vec<(usize, Query)> = all_queries
         .iter()
@@ -82,18 +85,26 @@ pub fn read(name: &str, dir: &Path) -> Result<LoadedSet> {
         qrels: Qrels::new(qrels)?,
         spans: None,
         unplaced: Vec::new(),
+        absent,
     };
     set.check()?;
     Ok(set)
 }
 
-fn read_qrels(text: &str, queries: &BTreeMap<String, (usize, String)>, docs: &BTreeSet<&str>) -> Result<Vec<Qrel>> {
+/// The judgements, and a line for each one naming a document not in the
+/// corpus.
+fn read_qrels(
+    text: &str,
+    queries: &BTreeMap<String, (usize, String)>,
+    docs: &BTreeSet<&str>,
+) -> Result<(Vec<Qrel>, Vec<String>)> {
     let mut lines = text.lines().enumerate();
     match lines.next() {
         Some((_, h)) if h.trim_end() == "query-id\tcorpus-id\tscore" => {}
         _ => return Err(format!("{QRELS}:1: expected the header query-id<TAB>corpus-id<TAB>score")),
     }
     let mut rows = Vec::new();
+    let mut absent = Vec::new();
     for (i, line) in lines {
         let n = i + 1;
         if line.trim().is_empty() {
@@ -108,9 +119,9 @@ fn read_qrels(text: &str, queries: &BTreeMap<String, (usize, String)>, docs: &BT
             return Err(format!("{QRELS}:{n}: query {query} is not in {QUERIES}"));
         }
         if !docs.contains(doc) {
-            return Err(format!("{QRELS}:{n}: document {doc} is not in {CORPUS}"));
+            absent.push(format!("{QRELS}:{n}: query {query} document {doc}"));
         }
         rows.push(Qrel { query: query.to_owned(), doc: doc.to_owned(), grade });
     }
-    Ok(rows)
+    Ok((rows, absent))
 }

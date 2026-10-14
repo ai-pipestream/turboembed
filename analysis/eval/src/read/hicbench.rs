@@ -75,6 +75,7 @@ pub fn read(name: &str, dir: &Path) -> Result<LoadedSet> {
         qrels: Qrels::new(qrels)?,
         spans: Some(SpanRels::new(spans)?),
         unplaced,
+        absent: Vec::new(),
     };
     set.check()?;
     Ok(set)
