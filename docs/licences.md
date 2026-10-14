@@ -1,0 +1,156 @@
+# Licences of datasets and checkpoints
+
+The datasets and published checkpoints the analysis add-ons may use, with
+their licences, their class under the policy on #326 and where the terms
+are stated. The classes and what the zoo does with each are in
+docs/zoo.md. The zoo's built-in index (`analysis/zoo/index/zoo.json`)
+lists the fetchable checkpoints below; refused ones are only here.
+
+A checkpoint's class is the most restrictive of its own licence and the
+licences of the data it was trained on. The OpenNLP UD models are
+published under Apache-2.0, but each is trained on one Universal
+Dependencies treebank, and the treebank decides the class.
+
+"Checked" says how the row was verified:
+
+- **here**: the licence was read at the source linked, on 2026-10-14,
+  for this table. For a UD treebank that is the `License:` line of its
+  README at the release tag the models were trained on (r2.16).
+- **plan**: the licence was verified on 2026-10-14 for the retraining
+  plan (its section 6, "Candidate corpora per model") against the
+  dataset's own site, licence file or card. The link is the dataset's
+  home page as this table names it; it could not be opened from the
+  machine this table was written on, and should be opened before the
+  dataset is used.
+
+## OpenNLP UD models 1.3 (fetchable)
+
+Published at <https://archive.apache.org/dist/opennlp/models/ud-models-1.3/>
+under Apache-2.0 (its README), trained by OpenNLP 2.5.4 on UD 2.16.
+Each treebank has four models: `sentence`, `tokens`, `pos` and `lemmas`,
+named `opennlp-<lang>-ud-<treebank>-<model>-1.3-2.5.4.bin`; that name
+without `.bin` is the zoo id. Every file's size, SHA-256 and SHA-512 in
+the index were computed from the file fetched on 2026-10-14 and matched
+against the `.sha256` and `.sha512` files published beside it.
+
+| Language | Treebank | Treebank licence | Class | Checked |
+|---|---|---|---|---|
+| Catalan (`ca`) | [AnCora](https://github.com/UniversalDependencies/UD_Catalan-AnCora/blob/r2.16/README.md) | CC BY 4.0 | permissive | here |
+| Afrikaans (`af`) | [AfriBooms](https://github.com/UniversalDependencies/UD_Afrikaans-AfriBooms/blob/r2.16/README.txt) | CC BY-SA 4.0 | share-alike | here |
+| Armenian (`hy`) | [BSUT](https://github.com/UniversalDependencies/UD_Armenian-BSUT/blob/r2.16/README.md) | CC BY-SA 4.0 | share-alike | here |
+| Croatian (`hr`) | [SET](https://github.com/UniversalDependencies/UD_Croatian-SET/blob/r2.16/README.md) | CC BY-SA 4.0 | share-alike | here |
+| Danish (`da`) | [DDT](https://github.com/UniversalDependencies/UD_Danish-DDT/blob/r2.16/README.md) | CC BY-SA 4.0 | share-alike | here |
+| Dutch (`nl`) | [Alpino](https://github.com/UniversalDependencies/UD_Dutch-Alpino/blob/r2.16/README.txt) | CC BY-SA 4.0 | share-alike | here |
+| English (`en`) | [EWT](https://github.com/UniversalDependencies/UD_English-EWT/blob/r2.16/README.md) | CC BY-SA 4.0 | share-alike | here |
+| Finnish (`fi`) | [TDT](https://github.com/UniversalDependencies/UD_Finnish-TDT/blob/r2.16/README.txt) | CC BY-SA 4.0 | share-alike | here |
+| French (`fr`) | [GSD](https://github.com/UniversalDependencies/UD_French-GSD/blob/r2.16/README.md) | CC BY-SA 4.0 | share-alike | here |
+| Georgian (`ka`) | [GLC](https://github.com/UniversalDependencies/UD_Georgian-GLC/blob/r2.16/README.md) | CC BY-SA 4.0 | share-alike | here |
+| German (`de`) | [GSD](https://github.com/UniversalDependencies/UD_German-GSD/blob/r2.16/README.md) | CC BY-SA 4.0 | share-alike | here |
+| Icelandic (`is`) | [IcePaHC](https://github.com/UniversalDependencies/UD_Icelandic-IcePaHC/blob/r2.16/README.md) | CC BY-SA 4.0 | share-alike | here |
+| Indonesian (`id`) | [GSD](https://github.com/UniversalDependencies/UD_Indonesian-GSD/blob/r2.16/README.md) | CC BY-SA 4.0 | share-alike | here |
+| Irish (`ga`) | [IDT](https://github.com/UniversalDependencies/UD_Irish-IDT/blob/r2.16/README.txt) | CC BY-SA 3.0 | share-alike | here |
+| Kazakh (`kk`) | [KTB](https://github.com/UniversalDependencies/UD_Kazakh-KTB/blob/r2.16/README.md) | CC BY-SA 4.0 | share-alike | here |
+| Korean (`ko`) | [Kaist](https://github.com/UniversalDependencies/UD_Korean-Kaist/blob/r2.16/README.md) | CC BY-SA 4.0 | share-alike | here |
+| Latvian (`lv`) | [LVTB](https://github.com/UniversalDependencies/UD_Latvian-LVTB/blob/r2.16/README.md) | CC BY-SA 4.0 | share-alike | here |
+| Norwegian Bokmål (`no`) | [Bokmaal](https://github.com/UniversalDependencies/UD_Norwegian-Bokmaal/blob/r2.16/README.md) | CC BY-SA 4.0 | share-alike | here |
+| Persian (`fa`) | [PerDT](https://github.com/UniversalDependencies/UD_Persian-PerDT/blob/r2.16/README.md) | CC BY-SA 4.0 | share-alike | here |
+| Portuguese (`pt`) | [GSD](https://github.com/UniversalDependencies/UD_Portuguese-GSD/blob/r2.16/README.md) | CC BY-SA 4.0 | share-alike | here |
+| Romanian (`ro`) | [RRT](https://github.com/UniversalDependencies/UD_Romanian-RRT/blob/r2.16/README.md) | CC BY-SA 4.0 | share-alike | here |
+| Russian (`ru`) | [GSD](https://github.com/UniversalDependencies/UD_Russian-GSD/blob/r2.16/README.md) | CC BY-SA 4.0 | share-alike | here |
+| Serbian (`sr`) | [SET](https://github.com/UniversalDependencies/UD_Serbian-SET/blob/r2.16/README.md) | CC BY-SA 4.0 | share-alike | here |
+| Slovak (`sk`) | [SNK](https://github.com/UniversalDependencies/UD_Slovak-SNK/blob/r2.16/README.md) | CC BY-SA 4.0 | share-alike | here |
+| Slovenian (`sl`) | [SSJ](https://github.com/UniversalDependencies/UD_Slovenian-SSJ/blob/r2.16/README.md) | CC BY-SA 4.0 | share-alike | here |
+| Spanish (`es`) | [GSD](https://github.com/UniversalDependencies/UD_Spanish-GSD/blob/r2.16/README.md) | CC BY-SA 4.0 | share-alike | here |
+| Swedish (`sv`) | [Talbanken](https://github.com/UniversalDependencies/UD_Swedish-Talbanken/blob/r2.16/README.md) | CC BY-SA 4.0 | share-alike | here |
+| Turkish (`tr`) | [BOUN](https://github.com/UniversalDependencies/UD_Turkish-BOUN/blob/r2.16/README.md) | CC BY-SA 4.0 | share-alike | here |
+
+The Spanish and Portuguese models are trained on GSD, not on the CC BY
+AnCora and Porttinari treebanks, so they are share-alike; only Catalan
+uses AnCora.
+
+The repository checks in eight of these share-alike models as test
+fixtures: the English, German and Portuguese sentence models
+(`analysis/sentdetect/tests/models/`) and the English, German, Spanish,
+French and Portuguese tokenizer models (`analysis/tokenize/tests/models/`).
+Under the 2026-10-14 decision share-alike files are not checked in; this
+is open.
+
+## OpenNLP models (refused)
+
+| Model | Trained on | Licence of the data | Reason | Checked |
+|---|---|---|---|---|
+| UD 1.3 `bg-ud-btb-*` | [UD_Bulgarian-BTB r2.16](https://github.com/UniversalDependencies/UD_Bulgarian-BTB/blob/r2.16/README.txt) | CC BY-NC-SA 3.0 | non-commercial | here |
+| UD 1.3 `cs-ud-pdtc-*` | [UD_Czech-PDTC r2.16](https://github.com/UniversalDependencies/UD_Czech-PDTC/blob/r2.16/README.md) | CC BY-NC-SA 4.0 | non-commercial | here |
+| UD 1.3 `el-ud-gdt-*` | [UD_Greek-GDT r2.16](https://github.com/UniversalDependencies/UD_Greek-GDT/blob/r2.16/README.md) | CC BY-NC-SA 3.0 | non-commercial | here |
+| UD 1.3 `et-ud-edt-*` | [UD_Estonian-EDT r2.16](https://github.com/UniversalDependencies/UD_Estonian-EDT/blob/r2.16/README.md) | CC BY-NC-SA 4.0 | non-commercial | here |
+| UD 1.3 `eu-ud-bdt-*` | [UD_Basque-BDT r2.16](https://github.com/UniversalDependencies/UD_Basque-BDT/blob/r2.16/README.md) | CC BY-NC-SA 3.0 | non-commercial | here |
+| UD 1.3 `it-ud-vit-*` | [UD_Italian-VIT r2.16](https://github.com/UniversalDependencies/UD_Italian-VIT/blob/r2.16/README.md) | CC BY-NC-SA 3.0 | non-commercial | here |
+| UD 1.3 `pl-ud-pdb-*` | [UD_Polish-PDB r2.16](https://github.com/UniversalDependencies/UD_Polish-PDB/blob/r2.16/README.md) | CC BY-NC-SA 4.0 | non-commercial | here |
+| UD 1.3 `uk-ud-iu-*` | [UD_Ukrainian-IU r2.16](https://github.com/UniversalDependencies/UD_Ukrainian-IU/blob/r2.16/README.md) | CC BY-NC-SA 4.0 | non-commercial | here |
+| `langdetect-183.bin` | Leipzig corpora ([model README](https://archive.apache.org/dist/opennlp/models/langdetect/1.8.3/README.txt), [corpora](https://wortschatz.uni-leipzig.de/en/download)) | conflicting: one source says CC BY, another CC BY-NC | terms not confirmed (`LicenseRef-Unconfirmed`) | plan; README here |
+| 1.5 `en-chunker` | CoNLL-2000 (Wall Street Journal, LDC) ([1.5 models](http://opennlp.sourceforge.net/models-1.5/)) | LDC | proprietary | plan |
+| 1.5 `en-pos-maxent`, `en-pos-perceptron` | "(private) English data" | none stated | proprietary | plan |
+| 1.5 English NER, sentence and token models | no corpus named | none stated | no licence | plan |
+
+The goldens tool fetches `langdetect-183.bin` to make the language
+detector's goldens (`analysis/goldens-tool/src/recipe.rs`); the zoo does
+not list it.
+
+## Datasets
+
+| Dataset | Use | Licence | Class | Notes | Checked |
+|---|---|---|---|---|---|
+| [UD_Spanish-AnCora r2.16](https://github.com/UniversalDependencies/UD_Spanish-AnCora/blob/r2.16/README.md) | sentence, token, POS, lemma | CC BY 4.0 | permissive | | here |
+| [UD_Catalan-AnCora r2.16](https://github.com/UniversalDependencies/UD_Catalan-AnCora/blob/r2.16/README.md) | sentence, token, POS, lemma | CC BY 4.0 | permissive | | here |
+| [UD_Portuguese-Porttinari r2.16](https://github.com/UniversalDependencies/UD_Portuguese-Porttinari/blob/r2.16/README.md) | sentence, token, POS, lemma | CC BY 4.0 | permissive | | here |
+| [UD_Portuguese-DanteStocks r2.16](https://github.com/UniversalDependencies/UD_Portuguese-DanteStocks/blob/r2.16/README.md) | sentence, token, POS, lemma | CC BY 4.0 | permissive | | here |
+| [UD_Finnish-FTB r2.16](https://github.com/UniversalDependencies/UD_Finnish-FTB/blob/r2.16/README.md) | sentence, token, POS, lemma | CC BY 4.0 | permissive | | here |
+| [UD_Italian-MarkIT r2.16](https://github.com/UniversalDependencies/UD_Italian-MarkIT/blob/r2.16/README.md) | sentence, token, POS, lemma | CC BY 4.0 | permissive | | here |
+| [MASC](https://anc.org/data/masc/) | English sentences, tokens, Penn POS, noun and verb chunks, named entities | CC BY 3.0 US | permissive | 500K words, manually validated | plan |
+| [Open English WordNet](https://github.com/globalwordnet/english-wordnet/blob/main/LICENSE.md) | English lemmas | CC BY 4.0 | permissive | derived from Princeton WordNet; attribute both | here |
+| [Princeton WordNet](https://wordnet.princeton.edu/license-and-commercial-use) | English lemmas | WordNet licence (BSD-like) | permissive | | plan |
+| [PoliMorf / Morfologik](https://github.com/morfologik/polimorf) | Polish lemmas | BSD-2-Clause | permissive | | plan |
+| [GermEval 2014](https://sites.google.com/site/germeval2014ner/) | German NER | CC BY 4.0 | permissive | | plan |
+| [MultiCoNER v2](https://registry.opendata.aws/multiconer/) | NER, 12 languages | CC BY 4.0 | permissive | | plan |
+| [FineWeb-2](https://huggingface.co/datasets/HuggingFaceFW/fineweb-2) | language detection | ODC-By 1.0 | permissive | also subject to Common Crawl's terms of use | plan |
+| [Tatoeba](https://tatoeba.org/en/downloads) | language detection | CC BY 2.0 FR | permissive | by default; some sentences carry other licences, check per item | plan |
+| [WNUT-17](https://noisy-text.github.io/2017/emerging-rare-entities.html) | NER | CC BY 4.0 | permissive, pending | its text comes from Twitter, Reddit and YouTube; platform terms need a look before it is used | plan |
+| Other UD treebanks (280 of 359 in UD 2.18), including English EWT, German GSD and HDT, French GSD, Dutch Alpino | sentence, token, POS, lemma | CC BY-SA (3.0 or 4.0) | share-alike | check each treebank's README at the release used | plan; the ones above here |
+| [UniMorph](https://unimorph.github.io/) | lemmas | mostly CC BY-SA 3.0, some LGPL-LR | share-alike | check per language | plan |
+| [Few-NERD](https://huggingface.co/datasets/DFKI-SLT/few-nerd) | NER | CC BY-SA 4.0 | share-alike | | plan |
+| [Universal NER](https://www.universalner.org/) | NER | CC BY-SA 4.0 | share-alike | except its Tagalog-Ugnayan subset, which is non-commercial (refused) | plan |
+| [DaNE](https://github.com/alexandrainst/danlp) | Danish NER | CC BY-SA 4.0 | share-alike | | plan |
+| [Wikipedia](https://dumps.wikimedia.org/) | language detection | CC BY-SA 4.0 | share-alike | | plan |
+| [DBpedia-14](https://huggingface.co/datasets/fancyzhx/dbpedia_14) | document categorizer | CC BY-SA 3.0 and GFDL | share-alike | | plan |
+| [UD_English-GUM r2.16](https://github.com/UniversalDependencies/UD_English-GUM/blob/r2.16/README.md) | | CC BY-NC-SA 4.0 | refused | non-commercial | here |
+| [UD_English-LinES r2.16](https://github.com/UniversalDependencies/UD_English-LinES/blob/r2.16/README.txt) | | CC BY-NC-SA 4.0 | refused | non-commercial | here |
+| [UD_Swedish-LinES r2.16](https://github.com/UniversalDependencies/UD_Swedish-LinES/blob/r2.16/README.txt) | | CC BY-NC-SA 4.0 | refused | non-commercial | here |
+| [UD_Italian-ISDT r2.16](https://github.com/UniversalDependencies/UD_Italian-ISDT/blob/r2.16/README.md) | | CC BY-NC-SA 3.0 | refused | non-commercial | here |
+| [UD_Italian-ParTUT r2.16](https://github.com/UniversalDependencies/UD_Italian-ParTUT/blob/r2.16/README.md) | | CC BY-NC-SA 4.0 | refused | non-commercial | here |
+| [UD_Czech-PDT r2.16](https://github.com/UniversalDependencies/UD_Czech-PDT/blob/r2.16/README.md) | | CC BY-NC-SA 4.0 | refused | non-commercial; about 62 UD treebanks are | here |
+| [UD_English-GUMReddit r2.16](https://github.com/UniversalDependencies/UD_English-GUMReddit/blob/r2.16/README.md) | | CC BY 4.0 annotations | refused | the text is rebuilt from Reddit, under Reddit's terms | here (annotations); plan (text) |
+| [CoNLL-2003](https://www.clips.uantwerpen.be/conll2003/ner/) | NER | Reuters RCV1, research only | refused | | plan |
+| [OntoNotes 5.0](https://catalog.ldc.upenn.edu/LDC2013T19) | NER | LDC, non-commercial | refused | | plan |
+| [MultiNERD](https://github.com/Babelscape/multinerd) | NER | CC BY-NC-SA 4.0 | refused | | plan |
+| [WikiNEuRal](https://github.com/Babelscape/wikineural) | NER | CC BY-NC-SA 4.0 | refused | | plan |
+| [CoNLL-2002](https://www.clips.uantwerpen.be/conll2002/ner/) | NER | none stated | refused | no licence | plan |
+| [NorNE](https://github.com/ltgoslo/norne) | NER | annotations CC0, text restricted | refused | | plan |
+| [OpenLID, GlotLID corpora](https://github.com/cisnlp/GlotLID) | language detection | mixed, parts non-commercial | refused | as a whole | plan |
+| [FLORES+](https://huggingface.co/datasets/openlanguagedata/flores_plus) | language detection | its card allows evaluation only | refused for training | evaluation runs may use it; numbers recorded, files not kept | plan |
+| [Leipzig corpora](https://wortschatz.uni-leipzig.de/en/download) | language detection | conflicting (CC BY or CC BY-NC) | refused | until the terms are confirmed | plan |
+| [AG News](http://groups.di.unipi.it/~gulli/AG_corpus_of_news_articles.html) | document categorizer | non-commercial | refused | | plan |
+| [20 Newsgroups](http://qwone.com/~jason/20Newsgroups/) | document categorizer | none stated | refused | no licence | plan |
+| [Europarl](https://www.statmt.org/europarl/) | | none stated; its makers know of no restrictions | refused | no licence, unless decided otherwise | plan |
+
+## Unverified
+
+Not classified until someone reads their terms at the source; nothing
+here is used.
+
+- GMB: texts are public domain; the annotation licence is unverified.
+- WikiANN: listed as ODC-By by one source and "unknown" on its card.
+- Sentiment (#326, #318): SST, SemEval 2014 to 2016 ABSA and the ASTE
+  derivatives, Jigsaw Toxic Comment, Civil Comments, iSarcasm, SARC,
+  GoEmotions, and public sentiment and toxicity checkpoints. IMDB states
+  no licence and Sentiment140 and the SemEval Twitter sets carry Twitter's
+  terms, so as they stand they are refused.

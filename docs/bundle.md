@@ -372,7 +372,10 @@ manifest is complete, including the sizes and hashes the files must
 have, and the files are absent. Opening it is `BUNDLE_NOT_FOUND` naming
 the first absent file and the bundle tool. The tool fetches the source
 at the recorded commit, runs each `produced_by` in its container, and
-refuses to finish unless every hash matches.
+refuses to finish unless every hash matches. The model zoo
+(docs/zoo.md) fetches the analysis add-ons' models, heads, lexicons
+and datasets the same way, and adds a licence class per artifact and
+the user's acceptance of the licences that need it.
 
 ## Decisions taken with the design
 
