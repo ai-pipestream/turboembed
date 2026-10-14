@@ -121,6 +121,7 @@ a directory with the same model run without them, and its options are
 | `formats` (the conversion streams) | `name-to-token`, `name-to-sentence`, `pos-to-token`, `pos-to-sentence`, with `en-detokenizer` (fixture) | `formats`, the `name` and `wordtag` inputs | `chunkSize 2` for the sentence conversions |
 | `evaluate` (the evaluators) | `pos`, `lemma`, `name`, `chunk`, `token`, `sentence` (also `+legacy`), `doccat`, `language`, `cross-validation` | `formats`, the `pairs-` inputs of the evaluator's format | `whitespace legacy` |
 | `formats` (the CoNLL-U streams) | `conllu-pos-u`, `conllu-pos-x`, `conllu-lemma-u`, `conllu-lemma-x`, `conllu-sentence`, `conllu-token` (also `+legacy`) | `formats`, the `conllu` inputs | `tagset u` or `x`; `sentencesPerSample 2`; `whitespace legacy` |
+| `formats` (the CoNLL streams) | `conll02-nld`, `conll02-spa`, `conll02-spa-per-loc`, `conll03-eng`, `conll03-deu`, `conll03-eng-org-misc`, `conllx-pos`, `conllx-token` and `conllx-sentence` (with `en-detokenizer`, fixture) | `formats`, the `conll02`, `conll03` and `conllx` inputs | `lang`, `types`; `chunkSize 2` for `conllx-sentence` |
 | `masc` (the MASC readers) | `documents` (`MascDocument.parseDocument`), `pos`, `token`, `sentence`, `name` (the sample streams) | `formats`, the `masc-` inputs | `sentencesPerSample 2` for `sentence` |
 
 - `+english-dictionary` is the English model rebuilt through
@@ -244,7 +245,16 @@ conversions run with a chunk size of 2, so the inputs show the sample a
 full chunk drops. The CoNLL-U streams `ConlluPOSSampleStream` and
 `ConlluLemmaSampleStream` (with each tag set), `ConlluSentenceSampleStream`
 (two sentences a sample) and `ConlluTokenSampleStream` (in both
-whitespace modes) read the `conllu` inputs through a `ConlluStream`.
+whitespace modes) read the `conllu` inputs through a `ConlluStream`. `ConllGolden` runs `Conll02NameSampleStream` (Dutch and
+Spanish) and `Conll03NameSampleStream` (English and German), each with
+every name type and one run of each with some left out, over the
+`conll02` and `conll03` inputs of both languages, and
+`ConllXPOSSampleStream` over the `conllx` inputs, also through
+`POSToTokenSampleStream` and `POSToSentenceSampleStream` (chunk size 2)
+as `ConllXTokenSampleStreamFactory` and
+`ConllXSentenceSampleStreamFactory` use them. Every stream reads lines of
+UTF-8 text. CoNLL-2000 is the chunker's native format, read by
+`ChunkSampleStream` (the `chunk` inputs).
 
 The stream is read until it returns null; an exception from `read` is
 recorded and reading goes on. Every layer is anchored to the document:

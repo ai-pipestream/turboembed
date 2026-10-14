@@ -181,6 +181,8 @@ final class Runs {
     annotators.addAll(EvalGolden.all());
     // The MASC readers, over small corpora bundled in the formats set.
     annotators.addAll(MascGolden.all());
+    // The CoNLL-2002, CoNLL-2003 and CoNLL-X streams.
+    annotators.addAll(ConllGolden.all(fixtures.resolve(FORMAT_DETOKENIZER)));
     return new All(annotators, recorders);
   }
 }

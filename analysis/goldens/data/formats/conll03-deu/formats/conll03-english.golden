@@ -1,0 +1,62 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	formats/conll03-english	817	817	ef77db52cccdec1bde6bdabd384b7520f7ca667749b0093131cbf96aaa50c59a
+annotator	opennlp.tools.formats.Conll03NameSampleStream	read
+config	lang	deu
+config	types	per,org,loc,misc
+layer	turbo:samples	document	0	written:str
+end	turbo:samples
+layer	turbo:read-errors	document	45	after:u32	class:str	message:str
+0	java.io.IOException	Incorrect number of fields per line for language: 'Acme NNP I-NP I-ORG'!
+0	java.io.IOException	Incorrect number of fields per line for language: 'hires VBZ I-VP O'!
+0	java.io.IOException	Incorrect number of fields per line for language: 'Dutch JJ I-NP I-MISC'!
+0	java.io.IOException	Incorrect number of fields per line for language: 'bakers NNS I-NP O'!
+0	java.io.IOException	Incorrect number of fields per line for language: 'for IN I-PP O'!
+0	java.io.IOException	Incorrect number of fields per line for language: 'its PRP$ I-NP O'!
+0	java.io.IOException	Incorrect number of fields per line for language: 'Welsh JJ I-NP I-MISC'!
+0	java.io.IOException	Incorrect number of fields per line for language: 'shop NN I-NP O'!
+0	java.io.IOException	Incorrect number of fields per line for language: '. . O O'!
+0	java.io.IOException	Incorrect number of fields per line for language: 'Mary NNP I-NP I-PER'!
+0	java.io.IOException	Incorrect number of fields per line for language: 'Okafor NNP I-NP I-PER'!
+0	java.io.IOException	Incorrect number of fields per line for language: 'LISBON NNP I-NP I-LOC'!
+0	java.io.IOException	Incorrect number of fields per line for language: '2031-04-09 CD I-NP O'!
+0	java.io.IOException	Incorrect number of fields per line for language: 'The DT I-NP O'!
+0	java.io.IOException	Incorrect number of fields per line for language: 'River NNP I-NP I-ORG'!
+0	java.io.IOException	Incorrect number of fields per line for language: 'Trust NNP I-NP I-ORG'!
+0	java.io.IOException	Incorrect number of fields per line for language: 'said VBD I-VP O'!
+0	java.io.IOException	Incorrect number of fields per line for language: 'on IN I-PP O'!
+0	java.io.IOException	Incorrect number of fields per line for language: 'Monday NNP I-NP O'!
+0	java.io.IOException	Incorrect number of fields per line for language: 'it PRP B-NP O'!
+0	java.io.IOException	Incorrect number of fields per line for language: 'liked VBD I-VP O'!
+0	java.io.IOException	Incorrect number of fields per line for language: 'the DT I-NP O'!
+0	java.io.IOException	Incorrect number of fields per line for language: 'Swiss JJ I-NP I-MISC'!
+0	java.io.IOException	Incorrect number of fields per line for language: 'plan NN I-NP O'!
+0	java.io.IOException	Incorrect number of fields per line for language: '. . O O'!
+0	java.io.IOException	Incorrect number of fields per line for language: 'Oslo NNP I-NP I-LOC'!
+0	java.io.IOException	Incorrect number of fields per line for language: 'Lima NNP I-NP B-LOC'!
+0	java.io.IOException	Incorrect number of fields per line for language: 'New NNP I-NP I-LOC'!
+0	java.io.IOException	Incorrect number of fields per line for language: 'Delhi NNP I-NP I-LOC'!
+0	java.io.IOException	Incorrect number of fields per line for language: 'Post NNP I-NP I-ORG'!
+0	java.io.IOException	Incorrect number of fields per line for language: 'and CC O O'!
+0	java.io.IOException	Incorrect number of fields per line for language: 'Ito NNP I-NP B-PER'!
+0	java.io.IOException	Incorrect number of fields per line for language: '. . O O'!
+0	java.io.IOException	Empty line after -DOCSTART- not empty: 'Kenya NNP I-NP I-LOC'!
+0	java.io.IOException	Incorrect number of fields per line for language: 'Peru NNP I-NP I-LOC'!
+0	java.io.IOException	Incorrect number of fields per line for language: ''S POS B-NP O'!
+0	java.io.IOException	Incorrect number of fields per line for language: 'Short NN I-NP'!
+0	java.io.IOException	Incorrect number of fields per line for language: 'line NN I-NP O'!
+0	java.io.IOException	Incorrect number of fields per line for language: 'Odd NN I-NP I-XYZ'!
+0	java.io.IOException	Incorrect number of fields per line for language: 'tag NN I-NP Z-LOC'!
+0	java.io.IOException	Incorrect number of fields per line for language: 'Odd NN I-NP I-XYZ'!
+0	java.io.IOException	Incorrect number of fields per line for language: 'type NN I-NP O'!
+0	java.io.IOException	Incorrect number of fields per line for language: '. . O O'!
+0	java.io.IOException	Incorrect number of fields per line for language: 'Last NN I-NP O'!
+0	java.lang.NullPointerException	Cannot invoke "java.lang.CharSequence.length()" because "theString" is null
+end	turbo:read-errors
+layer	turbo:sample-tokens	document	0	sample:u32	text:str
+end	turbo:sample-tokens
+layer	turbo:names	document	0	sample:u32	start:u32	end:u32	type:str
+end	turbo:names

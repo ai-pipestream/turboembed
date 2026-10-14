@@ -1,0 +1,71 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	formats/conll03-english	817	817	ef77db52cccdec1bde6bdabd384b7520f7ca667749b0093131cbf96aaa50c59a
+annotator	opennlp.tools.formats.Conll03NameSampleStream	read
+config	lang	eng
+config	types	org,misc
+layer	turbo:samples	document	7	written:str
+\n<START:organization> Acme <END> hires <START:misc> Dutch <END> bakers for its <START:misc> Welsh <END> shop .
+Mary Okafor
+LISBON 2031-04-09
+The <START:organization> River Trust <END> said on Monday it liked the <START:misc> Swiss <END> plan .
+Oslo Lima New Delhi <START:organization> Post <END> and Ito .
+Peru 'S
+line 
+end	turbo:samples
+layer	turbo:read-errors	document	5	after:u32	class:str	message:str
+5	java.io.IOException	Empty line after -DOCSTART- not empty: 'Kenya NNP I-NP I-LOC'!
+6	java.io.IOException	Incorrect number of fields per line for language: 'Short NN I-NP'!
+7	opennlp.tools.util.InvalidFormatException	Unknown type: XYZ
+7	opennlp.tools.util.InvalidFormatException	Unknown type: XYZ
+7	java.lang.NullPointerException	Cannot invoke "java.lang.CharSequence.length()" because "theString" is null
+end	turbo:read-errors
+layer	turbo:sample-tokens	document	36	sample:u32	text:str
+0	Acme
+0	hires
+0	Dutch
+0	bakers
+0	for
+0	its
+0	Welsh
+0	shop
+0	.
+1	Mary
+1	Okafor
+2	LISBON
+2	2031-04-09
+3	The
+3	River
+3	Trust
+3	said
+3	on
+3	Monday
+3	it
+3	liked
+3	the
+3	Swiss
+3	plan
+3	.
+4	Oslo
+4	Lima
+4	New
+4	Delhi
+4	Post
+4	and
+4	Ito
+4	.
+5	Peru
+5	'S
+6	line
+end	turbo:sample-tokens
+layer	turbo:names	document	6	sample:u32	start:u32	end:u32	type:str
+0	0	1	organization
+0	2	3	misc
+0	6	7	misc
+3	1	3	organization
+3	9	10	misc
+4	4	5	organization
+end	turbo:names
