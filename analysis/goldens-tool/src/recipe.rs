@@ -231,8 +231,8 @@ pub const FIXTURES: [Fixture; 35] = [
     },
     Fixture {
         file: "lemma-fixture-rust.bin",
-        sha512: "daf10241ffbb3231a9ffe6eac838168caca0ab58b25f71dacc91842ad34cb166\
-                 2ab5fbefd99d735108953777a889c4935bdf027a2ca92fe2488045e8c1e630bf",
+        sha512: "4fa4c03da55e729af919a2d76a67db49ac0269d073ac05a5af3da9fd8d67ea82\
+                 61765d97a3c5e4ca0d22b251e4dc01401f432d6a394d6a6d3fd4b06fecb41402",
     },
     Fixture {
         file: "tags.tagdict",

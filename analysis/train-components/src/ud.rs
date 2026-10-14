@@ -61,7 +61,7 @@
 use std::path::{Path, PathBuf};
 
 use turbo_formats::conllu::{ConlluLemmaReader, ConlluPosReader, ConlluSentenceReader, ConlluTokenReader, Tagset};
-use turbo_maxent::{MaxentModel, ModelFile, sha256};
+use turbo_maxent::{JavaString, MaxentModel, ModelFile, sha256};
 use turbo_train::package::MANIFEST_ENTRY;
 use turbo_train::{GisModel, Key, TimeZone, TrainingConfiguration, TrainingParameters};
 use turbo_unicode::WhitespaceMode;
@@ -343,7 +343,7 @@ impl Recipe {
                 let mut stream = lemmatize::LemmaEventStream::new(&factory);
                 let mut events = Vec::new();
                 for sample in ConlluLemmaReader::new(conllu, TAGSET)? {
-                    stream.events(&sample?, &mut events)?;
+                    stream.events(&sample?, &mut events);
                 }
                 let t = lemmatize::train_lemmatizer_model_from_events(&events, &factory, &params, config, stamp)?;
                 Ok(Trained { events: events.len(), model: t.model, report: t.report, package: t.package })
@@ -602,8 +602,8 @@ impl Comparison {
 fn parameter_distance(ours: &GisModel, theirs: &MaxentModel) -> std::result::Result<ParameterDistance, String> {
     // The outcomes first, in order: a pattern is indices into them, and an
     // outcome no pattern names would not be seen below.
-    let our_labels: Vec<&str> = ours.outcome_labels().iter().map(String::as_str).collect();
-    let their_labels: Vec<&str> = (0..theirs.num_outcomes()).map(|o| theirs.outcome(o)).collect();
+    let our_labels: Vec<&JavaString> = ours.outcome_labels().iter().collect();
+    let their_labels: Vec<&JavaString> = theirs.outcomes().collect();
     if our_labels != their_labels {
         return Err(format!("the outcomes are {our_labels:?} trained and {their_labels:?} published"));
     }
@@ -615,9 +615,9 @@ fn parameter_distance(ours: &GisModel, theirs: &MaxentModel) -> std::result::Res
         let Some(q) = theirs.predicate_index(label.as_bytes()) else {
             return Err(format!("the published model lacks the predicate {}", label.to_string_lossy()));
         };
-        let our_outcomes: Vec<&str> =
-            ours.pattern(p).iter().map(|&o| ours.outcome_labels()[o as usize].as_str()).collect();
-        let their_outcomes: Vec<&str> = theirs.pattern(q).iter().map(|&o| theirs.outcome(o as usize)).collect();
+        let our_outcomes: Vec<&JavaString> =
+            ours.pattern(p).iter().map(|&o| &ours.outcome_labels()[o as usize]).collect();
+        let their_outcomes: Vec<&JavaString> = theirs.pattern(q).iter().map(|&o| theirs.outcome(o as usize)).collect();
         if our_outcomes != their_outcomes {
             return Err(format!(
                 "the predicate {} has the pattern {our_outcomes:?} trained and {their_outcomes:?} published",
@@ -788,9 +788,9 @@ mod tests {
         let theirs = published.maxent(sentdetect::MODEL_ENTRY).unwrap();
         for (p, label) in ten.model.pred_labels().iter().enumerate() {
             let q = theirs.predicate_index(label.as_bytes()).unwrap();
-            let ours: Vec<&str> =
-                ten.model.pattern(p).iter().map(|&o| ten.model.outcome_labels()[o as usize].as_str()).collect();
-            let published: Vec<&str> = theirs.pattern(q).iter().map(|&o| theirs.outcome(o as usize)).collect();
+            let ours: Vec<&JavaString> =
+                ten.model.pattern(p).iter().map(|&o| &ten.model.outcome_labels()[o as usize]).collect();
+            let published: Vec<&JavaString> = theirs.pattern(q).iter().map(|&o| theirs.outcome(o as usize)).collect();
             assert_eq!(ours, published);
             assert_eq!(ten.model.parameters(p), theirs.parameters(q));
         }
@@ -883,8 +883,7 @@ mod tests {
         let mut config = TrainingConfiguration::default();
         let pos = RECIPES[2].train(&conllu, 1_749_698_398_335, &mut config).unwrap();
         assert_eq!(pos.events, 35);
-        let outcomes: Vec<&str> = pos.model.outcome_labels().iter().map(String::as_str).collect();
-        assert_eq!(outcomes, ["NOUN", "VERB", "PUNCT", "DET"]);
+        assert_eq!(pos.model.outcome_labels(), ["NOUN", "VERB", "PUNCT", "DET"].map(JavaString::new));
         assert_eq!(pos.package.entry_names(), ["manifest.properties", "generator.featuregen", "pos.model"]);
         let manifest = pos.package.manifest().to_properties();
         assert!(manifest.contains("Component-Name=POSTaggerME\n"), "{manifest}");
@@ -895,8 +894,7 @@ mod tests {
 
         let lemmas = RECIPES[3].train(&conllu, 1_749_698_430_433, &mut config).unwrap();
         assert_eq!(lemmas.events, 35);
-        let outcomes: Vec<&str> = lemmas.model.outcome_labels().iter().map(String::as_str).collect();
-        assert_eq!(outcomes, ["D0s", "R1au", "O"]);
+        assert_eq!(lemmas.model.outcome_labels(), ["D0s", "R1au", "O"].map(JavaString::new));
         assert_eq!(lemmas.package.entry_names(), ["manifest.properties", "lemmatizer.model"]);
         assert_eq!(lemmas.package.manifest().component_name(), "StatisticalLemmatizer");
         let published = ModelFile::open(lemmas.package.to_bytes()).unwrap();

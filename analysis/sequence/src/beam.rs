@@ -25,12 +25,21 @@
 //! Java keeps the candidates in a `PriorityQueue`; here they are sorted,
 //! which removes them in the same order. OpenNLP's optional cache of
 //! evaluations is left out: it returns what evaluating again would.
+//!
+//! The outcomes a search hands its context generator and validator, and
+//! returns in a [`Sequence`], are labels of type `L`, an [`OutcomeLabel`]:
+//! `str` for the taggers whose outcomes are text (tags, chunk tags, name
+//! codes), and [`JavaString`] for the lemmatizer, whose classes are edit
+//! scripts over UTF-16 units and can hold half of a surrogate pair. A
+//! search over `str` refuses a model with such an outcome
+//! ([`Error::OutcomeNotText`]).
 
 use std::cmp::Ordering;
+use std::convert::Infallible;
 
 use turbo_jvm::chars::compare as compare_java_strings;
 use turbo_jvm::strict_math;
-use turbo_maxent::{MaxentModel, ModelFile};
+use turbo_maxent::{JavaString, MaxentModel, ModelFile};
 
 use crate::error::{Error, Result};
 use crate::features::Features;
@@ -51,9 +60,49 @@ pub fn manifest_beam_size(model: &ModelFile, default: usize) -> Result<usize> {
     }
 }
 
+/// The type a search hands a model's outcomes out as: `str` when every
+/// outcome is text, or [`JavaString`] for any outcome.
+pub trait OutcomeLabel {
+    /// Why a model's outcomes cannot be labels of this type; `Infallible`
+    /// for [`JavaString`].
+    type Unfit;
+
+    /// The model's outcomes in index order as this type.
+    fn labels(model: &MaxentModel) -> std::result::Result<Vec<&Self>, Self::Unfit>;
+
+    /// `String.compareTo`.
+    fn compare(a: &Self, b: &Self) -> Ordering;
+}
+
+impl OutcomeLabel for str {
+    type Unfit = Error;
+
+    /// The outcomes as text; [`Error::OutcomeNotText`] names the first
+    /// that holds half of a surrogate pair.
+    fn labels(model: &MaxentModel) -> Result<Vec<&str>> {
+        model.outcome_texts().map_err(|o| Error::OutcomeNotText(o.clone()))
+    }
+
+    fn compare(a: &str, b: &str) -> Ordering {
+        compare_java_strings(a, b)
+    }
+}
+
+impl OutcomeLabel for JavaString {
+    type Unfit = Infallible;
+
+    fn labels(model: &MaxentModel) -> std::result::Result<Vec<&JavaString>, Infallible> {
+        Ok(model.outcomes().collect())
+    }
+
+    fn compare(a: &JavaString, b: &JavaString) -> Ordering {
+        a.cmp(b)
+    }
+}
+
 /// Builds the context (the features) of one item, given the outcomes
 /// decided for the items before it: `BeamSearchContextGenerator`.
-pub trait ContextGenerator<T> {
+pub trait ContextGenerator<T, L: OutcomeLabel + ?Sized = str> {
     /// Called once at the start of each search, before any
     /// [`context`](Self::context) for its sequence. Generators that keep
     /// per-sentence state reset it here (see the
@@ -62,23 +111,23 @@ pub trait ContextGenerator<T> {
 
     /// Appends the features of `sequence[index]` to `out`. `prior` holds
     /// the outcomes of `sequence[..index]`.
-    fn context(&mut self, index: usize, sequence: &[T], prior: &[&str], out: &mut Features);
+    fn context(&mut self, index: usize, sequence: &[T], prior: &[&L], out: &mut Features);
 }
 
 /// Decides whether an outcome may follow the outcomes before it:
 /// `SequenceValidator`.
-pub trait SequenceValidator<T> {
+pub trait SequenceValidator<T, L: OutcomeLabel + ?Sized = str> {
     /// Whether `outcome` is allowed for `sequence[index]` after `prior`,
     /// the outcomes of `sequence[..index]`.
-    fn valid_sequence(&self, index: usize, sequence: &[T], prior: &[&str], outcome: &str) -> bool;
+    fn valid_sequence(&self, index: usize, sequence: &[T], prior: &[&L], outcome: &L) -> bool;
 }
 
 /// A validator that accepts every outcome.
 #[derive(Copy, Clone, Debug, Default)]
 pub struct AcceptAll;
 
-impl<T> SequenceValidator<T> for AcceptAll {
-    fn valid_sequence(&self, _index: usize, _sequence: &[T], _prior: &[&str], _outcome: &str) -> bool {
+impl<T, L: OutcomeLabel + ?Sized> SequenceValidator<T, L> for AcceptAll {
+    fn valid_sequence(&self, _index: usize, _sequence: &[T], _prior: &[&L], _outcome: &L) -> bool {
         true
     }
 }
@@ -86,15 +135,15 @@ impl<T> SequenceValidator<T> for AcceptAll {
 /// An outcome sequence with the probability of each outcome and the
 /// sequence's score: `opennlp.tools.util.Sequence`.
 #[derive(Debug, Clone, PartialEq)]
-pub struct Sequence<'m> {
-    outcomes: Vec<&'m str>,
+pub struct Sequence<'m, L: ?Sized = str> {
+    outcomes: Vec<&'m L>,
     probs: Vec<f64>,
     score: f64,
 }
 
-impl<'m> Sequence<'m> {
+impl<'m, L: ?Sized> Sequence<'m, L> {
     /// The outcomes, one per item.
-    pub fn outcomes(&self) -> &[&'m str] {
+    pub fn outcomes(&self) -> &[&'m L] {
         &self.outcomes
     }
 
@@ -130,21 +179,25 @@ struct Node {
 
 const ROOT: u32 = u32::MAX;
 
-/// The beam search over one model.
-pub struct BeamSearch<'m> {
+/// The beam search over one model, handing outcomes out as `L`.
+pub struct BeamSearch<'m, L: OutcomeLabel + ?Sized = str> {
     size: usize,
     model: &'m MaxentModel,
+    /// The model's outcomes as labels, by outcome index.
+    outcomes: Vec<&'m L>,
 }
 
-impl<'m> BeamSearch<'m> {
+impl<'m, L: OutcomeLabel + ?Sized> BeamSearch<'m, L> {
     /// The minimum score of `bestSequences` without one (`ZERO_LOG`).
     pub const DEFAULT_MIN_SCORE: f64 = -100000.0;
 
     /// A search keeping `size` partial sequences (`BeamSize` in a model's
     /// manifest; the taggers' defaults are 3 for part of speech and names
-    /// and 10 for chunks).
-    pub fn new(size: usize, model: &'m MaxentModel) -> BeamSearch<'m> {
-        BeamSearch { size, model }
+    /// and 10 for chunks). Over `str`, a model with an outcome that is not
+    /// text is refused; over [`JavaString`] the error is `Infallible`, so
+    /// `let Ok(search) = BeamSearch::new(..)` opens it.
+    pub fn new(size: usize, model: &'m MaxentModel) -> std::result::Result<BeamSearch<'m, L>, L::Unfit> {
+        Ok(BeamSearch { size, model, outcomes: L::labels(model)? })
     }
 
     pub fn size(&self) -> usize {
@@ -160,9 +213,9 @@ impl<'m> BeamSearch<'m> {
     pub fn best_sequence<T>(
         &self,
         sequence: &[T],
-        context: &mut (impl ContextGenerator<T> + ?Sized),
-        validator: &(impl SequenceValidator<T> + ?Sized),
-    ) -> Option<Sequence<'m>> {
+        context: &mut (impl ContextGenerator<T, L> + ?Sized),
+        validator: &(impl SequenceValidator<T, L> + ?Sized),
+    ) -> Option<Sequence<'m, L>> {
         self.best_sequences(1, sequence, Self::DEFAULT_MIN_SCORE, context, validator).pop()
     }
 
@@ -174,16 +227,16 @@ impl<'m> BeamSearch<'m> {
         count: usize,
         sequence: &[T],
         min_score: f64,
-        context: &mut (impl ContextGenerator<T> + ?Sized),
-        validator: &(impl SequenceValidator<T> + ?Sized),
-    ) -> Vec<Sequence<'m>> {
+        context: &mut (impl ContextGenerator<T, L> + ?Sized),
+        validator: &(impl SequenceValidator<T, L> + ?Sized),
+    ) -> Vec<Sequence<'m, L>> {
         let model = self.model;
-        let outcomes: Vec<&'m str> = model.outcomes().collect();
+        let outcomes = &self.outcomes;
         let n = outcomes.len();
         let mut probs = vec![0.0; n];
         let mut sorted = vec![0.0; n];
         let mut features = Features::new();
-        let mut prior: Vec<&'m str> = Vec::with_capacity(sequence.len());
+        let mut prior: Vec<&'m L> = Vec::with_capacity(sequence.len());
 
         let mut nodes: Vec<Node> = Vec::new();
         // The partial sequences of the last step, best first. The empty
@@ -195,7 +248,7 @@ impl<'m> BeamSearch<'m> {
         for i in 0..sequence.len() {
             let width = self.size.min(prev.len());
             for &top in &prev[..width] {
-                path(&nodes, top, &outcomes, &mut prior);
+                path(&nodes, top, outcomes, &mut prior);
                 features.clear();
                 context.context(i, sequence, &prior, &mut features);
                 model.eval_features(features.iter(), &mut probs);
@@ -235,7 +288,7 @@ impl<'m> BeamSearch<'m> {
                     }
                 }
             }
-            next.sort_by(|&a, &b| compare_nodes(&nodes, &outcomes, a, b));
+            next.sort_by(|&a, &b| compare_nodes(&nodes, outcomes, a, b));
             std::mem::swap(&mut prev, &mut next);
             next.clear();
         }
@@ -248,17 +301,19 @@ impl<'m> BeamSearch<'m> {
             }
             let node = nodes[id as usize];
             let mut seq = Sequence {
-                outcomes: vec![""; node.len as usize],
-                probs: vec![0.0; node.len as usize],
+                outcomes: Vec::with_capacity(node.len as usize),
+                probs: Vec::with_capacity(node.len as usize),
                 score: node.score,
             };
             let mut at = id;
-            for j in (0..node.len as usize).rev() {
+            while at != ROOT {
                 let n = nodes[at as usize];
-                seq.outcomes[j] = outcomes[n.outcome as usize];
-                seq.probs[j] = n.prob;
+                seq.outcomes.push(outcomes[n.outcome as usize]);
+                seq.probs.push(n.prob);
                 at = n.parent;
             }
+            seq.outcomes.reverse();
+            seq.probs.reverse();
             result.push(seq);
         }
         result
@@ -267,7 +322,7 @@ impl<'m> BeamSearch<'m> {
 
 /// Fills `out` with the outcomes of the partial sequence ending at `id`,
 /// first to last.
-fn path<'m>(nodes: &[Node], id: u32, outcomes: &[&'m str], out: &mut Vec<&'m str>) {
+fn path<'m, L: ?Sized>(nodes: &[Node], id: u32, outcomes: &[&'m L], out: &mut Vec<&'m L>) {
     out.clear();
     let mut at = id;
     while at != ROOT {
@@ -280,7 +335,7 @@ fn path<'m>(nodes: &[Node], id: u32, outcomes: &[&'m str], out: &mut Vec<&'m str
 
 /// `SearchNode.compareTo`: higher scores first, then by outcomes in
 /// `String.compareTo` order, then shorter first.
-fn compare_nodes(nodes: &[Node], outcomes: &[&str], a: u32, b: u32) -> Ordering {
+fn compare_nodes<L: OutcomeLabel + ?Sized>(nodes: &[Node], outcomes: &[&L], a: u32, b: u32) -> Ordering {
     let (x, y) = (nodes[a as usize], nodes[b as usize]);
     let by_score = compare_doubles(y.score, x.score);
     if by_score != Ordering::Equal {
@@ -290,7 +345,7 @@ fn compare_nodes(nodes: &[Node], outcomes: &[&str], a: u32, b: u32) -> Ordering 
     path(nodes, a, outcomes, &mut pa);
     path(nodes, b, outcomes, &mut pb);
     for (s, t) in pa.iter().zip(&pb) {
-        let by_outcome = compare_java_strings(s, t);
+        let by_outcome = L::compare(s, t);
         if by_outcome != Ordering::Equal {
             return by_outcome;
         }

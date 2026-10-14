@@ -1872,6 +1872,7 @@ version = "0.1.0"
 dependencies = [
  "turbo-analysis",
  "turbo-analysis-layers",
+ "turbo-maxent",
  "turbo-unicode",
 ]
 
@@ -2013,6 +2014,7 @@ dependencies = [
  "turbo-goldens",
  "turbo-maxent",
  "turbo-sequence",
+ "turbo-train",
  "turbo-unicode",
 ]
 
@@ -2025,6 +2027,7 @@ dependencies = [
  "turbo-goldens",
  "turbo-maxent",
  "turbo-sequence",
+ "turbo-train",
  "turbo-unicode",
 ]
 
@@ -2046,6 +2049,7 @@ dependencies = [
  "turbo-goldens",
  "turbo-jvm",
  "turbo-maxent",
+ "turbo-train",
  "turbo-unicode",
 ]
 

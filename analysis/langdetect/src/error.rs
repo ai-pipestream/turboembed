@@ -14,6 +14,9 @@ pub enum ModelError {
     /// A subclass can change the context generator, which this port does
     /// not reproduce.
     Factory(String),
+    /// A classifier outcome holds half of a surrogate pair, which no
+    /// language code can hold.
+    OutcomeNotText(turbo_maxent::JavaString),
 }
 
 impl fmt::Display for ModelError {
@@ -27,6 +30,9 @@ impl fmt::Display for ModelError {
                 f,
                 "language detector model: factory {c:?} is not opennlp.tools.langdetect.LanguageDetectorFactory"
             ),
+            ModelError::OutcomeNotText(o) => {
+                write!(f, "language detector model: the outcome {o:?} holds half of a surrogate pair")
+            }
         }
     }
 }
