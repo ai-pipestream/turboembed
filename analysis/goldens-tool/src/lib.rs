@@ -10,6 +10,7 @@ pub mod command;
 pub mod compare;
 pub mod docker;
 pub mod dump;
+#[cfg(feature = "fuzz")]
 pub mod fuzz;
 pub mod models;
 pub mod output;

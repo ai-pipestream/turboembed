@@ -4,7 +4,7 @@
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::ExitCode;
-use turbo_goldens_tool::{docker, fuzz, models, output, paths, recipe};
+use turbo_goldens_tool::{docker, models, output, paths, recipe};
 
 const USAGE: &str = "\
 usage: turbo-goldens <command>
@@ -22,7 +22,8 @@ usage: turbo-goldens <command>
                                  container, compare every golden with the Rust annotators and check the
                                  offset invariants; reduce up to <reduce> diverging texts (10) to minimal
                                  inputs under <out>/candidates; --reuse compares an earlier run's output
-                                 again without the container (see this crate's README)
+                                 again without the container (see this crate's README); the command
+                                 is behind the crate's fuzz feature (--features fuzz)
 
 --models defaults to target/turbo-goldens/models, fetched as by fetch-models.";
 
@@ -72,19 +73,7 @@ fn run(args: &[String]) -> Result<ExitCode, String> {
                 Ok(ExitCode::FAILURE)
             }
         }
-        "fuzz" => {
-            let opts = fuzz::Options::parse(rest).map_err(|e| format!("{e}\n{USAGE}"))?;
-            let summary = fuzz::run(&opts)?;
-            println!(
-                "fuzz: {} inputs, {} goldens compared, {} problems, {} candidates written under {}",
-                summary.inputs,
-                summary.goldens,
-                summary.problems,
-                summary.candidates.len(),
-                summary.out.display()
-            );
-            Ok(if summary.problems == 0 { ExitCode::SUCCESS } else { ExitCode::FAILURE })
-        }
+        "fuzz" => fuzz_command(rest),
         "help" | "--help" | "-h" => {
             println!("{USAGE}");
             Ok(ExitCode::SUCCESS)
@@ -150,4 +139,27 @@ fn check_input_sets(inputs: &Path) -> Result<(), String> {
         return Err(format!("{} holds {found:?}; the recipe's input sets are {expected:?}", inputs.display()));
     }
     Ok(())
+}
+
+/// The `fuzz` command, with the feature that brings its crates in.
+#[cfg(feature = "fuzz")]
+fn fuzz_command(rest: &[String]) -> Result<ExitCode, String> {
+    use turbo_goldens_tool::fuzz;
+    let opts = fuzz::Options::parse(rest).map_err(|e| format!("{e}\n{USAGE}"))?;
+    let summary = fuzz::run(&opts)?;
+    println!(
+        "fuzz: {} inputs, {} goldens compared, {} problems, {} candidates written under {}",
+        summary.inputs,
+        summary.goldens,
+        summary.problems,
+        summary.candidates.len(),
+        summary.out.display()
+    );
+    Ok(if summary.problems == 0 { ExitCode::SUCCESS } else { ExitCode::FAILURE })
+}
+
+#[cfg(not(feature = "fuzz"))]
+fn fuzz_command(_rest: &[String]) -> Result<ExitCode, String> {
+    Err("the fuzz command is behind the fuzz feature: cargo run -p turbo-goldens-tool --features fuzz -- fuzz ..."
+        .into())
 }
