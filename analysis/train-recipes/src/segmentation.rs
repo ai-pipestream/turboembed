@@ -269,7 +269,17 @@ impl SegmentationRecipe {
                     out.push(counts(evaluator.fmeasure()));
                 }
             }
-            _ => return Err(Error::Gate("held-out samples of another component".into())),
+            (component, samples) => {
+                let name = |c: Component| match c {
+                    Component::Sentence => "sentence detector",
+                    Component::Tokens => "tokenizer",
+                };
+                let samples = match samples {
+                    HeldOut::Sentences(_) => "sentence",
+                    HeldOut::Tokens(_) => "token",
+                };
+                return Err(Error::ComponentMismatch { recipe: name(component), samples });
+            }
         }
         Ok(out)
     }

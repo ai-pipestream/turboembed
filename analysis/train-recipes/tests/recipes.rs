@@ -6,7 +6,7 @@ mod common;
 
 use std::path::PathBuf;
 
-use common::{SENTENCES, temp_dir, write_corpus};
+use common::{GATED_DOCUMENTS, SENTENCES, temp_dir, write_corpus};
 use turbo_eval::model_gate::{Measure, ModelGateRecord, Task};
 use turbo_formats::masc::MascCorpus;
 use turbo_train_recipes::card::{CARD_FILE, GATE_FILE, ModelCard, write_model_dir};
@@ -18,6 +18,11 @@ use turbo_zoo::{Index, LicenceClass};
 /// The pool without abbreviations, attached punctuation or contractions:
 /// a model trained on it has not seen what the held-out text holds.
 const PLAIN: &[&str] = &["Who called ~? Nobody did ~!", "Mr. Jones left early ~.", "It rained all day ~."];
+
+/// Whether CI asks for the published models to be present.
+fn models_required() -> bool {
+    std::env::var("TURBO_TEST_REQUIRE_OPENNLP_MODELS").is_ok_and(|v| v == "1")
+}
 
 fn split_of(root: &std::path::Path) -> (SplitCorpus, masc::CorpusDigest) {
     let digest = masc::check_corpus(root, RELEASE, true).unwrap();
@@ -47,11 +52,16 @@ fn the_split_holds_out_every_tenth_document_in_read_order() {
 #[test]
 fn the_recipes_train_score_gate_and_write_their_cards() {
     let root = temp_dir("recipes");
-    write_corpus(&root, 30, SENTENCES);
+    write_corpus(&root, GATED_DOCUMENTS, SENTENCES);
     let (split, digest) = split_of(&root);
 
-    // The reference: the same recipe trained on a corpus without
-    // abbreviations, contractions or attached punctuation.
+    // The candidate is trained on documents made of the same eight
+    // sentences as the held-out documents, so it has seen every held-out
+    // sentence and its score here is not a measure of anything. The
+    // reference is the same recipe trained on a corpus without
+    // abbreviations, contractions or attached punctuation. The check that
+    // tells the gate's rule apart from one that passes everything is the
+    // swapped one below, where the weaker model is the candidate.
     let plain_root = temp_dir("plain");
     write_corpus(&plain_root, 30, PLAIN);
     let (plain, _) = split_of(&plain_root);
@@ -69,15 +79,16 @@ fn the_recipes_train_score_gate_and_write_their_cards() {
         assert_eq!(gate.set.corpus_sha256, digest.sha256);
         assert_eq!(gate.candidate.id, recipe.model_id);
         assert_eq!(gate.reference.id, "plain");
-        // The model trained on the corpus is at least as good as the one
-        // that never saw its abbreviations and contractions, and passes.
+        // The model that has seen the held-out sentences beats the one
+        // that never saw their abbreviations and contractions, and passes.
         assert!(gate.result.difference.mean > 0.0, "{gate}");
         assert!(gate.result.pass);
         assert!(outcome.trained.samples > 0 && outcome.trained.events > 0);
         assert_eq!(outcome.trained.skipped_sentences, 0);
 
         // The same models with their places swapped: the weak model as
-        // the candidate is below the reference on every draw and fails.
+        // the candidate loses far more than the margin, and fails. This is
+        // the check that discriminates.
         let held_out = recipe.held_out(&split.held_out).unwrap();
         let swapped = recipe
             .gate(&weak.bytes, recipe.model_id, &outcome.trained.bytes, &held_out, &held_out_name(), &digest.sha256)
@@ -149,23 +160,28 @@ fn a_held_out_set_of_another_component_is_refused() {
     std::fs::remove_dir_all(&root).unwrap();
 }
 
-/// The gate against the published OpenNLP English UD models, when
-/// `TURBO_GOLDENS_MODELS` names a directory that has them. The corpus is
-/// the test corpus, not MASC, so the scores say nothing about the
-/// recipes; the test checks that the published models load, match the
-/// zoo's digests and are scored on the same samples.
+/// The gate against the published OpenNLP English UD models. It needs
+/// `TURBO_GOLDENS_MODELS` naming a directory that has them (`cargo run -p
+/// turbo-goldens-tool -- fetch-models <dir>`); without them it skips, or
+/// fails when `TURBO_TEST_REQUIRE_OPENNLP_MODELS=1`, as CI sets it. The
+/// corpus is the test corpus, not MASC, and the candidate has seen its
+/// held-out sentences, so the scores say nothing about the recipes; the
+/// test checks that the published models load, match the zoo's digests
+/// and are scored on the same samples.
 #[test]
 fn the_published_references_are_checked_and_scored_when_present() {
     let Some(dir) = std::env::var_os("TURBO_GOLDENS_MODELS").map(PathBuf::from) else {
+        assert!(!models_required(), "TURBO_GOLDENS_MODELS is not set and TURBO_TEST_REQUIRE_OPENNLP_MODELS=1");
         eprintln!("TURBO_GOLDENS_MODELS is not set: skipping");
         return;
     };
     let root = temp_dir("published");
-    write_corpus(&root, 20, SENTENCES);
+    write_corpus(&root, GATED_DOCUMENTS, SENTENCES);
     let (split, digest) = split_of(&root);
     for recipe in RECIPES {
         let path = dir.join(recipe.reference_file().unwrap());
         let Ok(reference) = std::fs::read(&path) else {
+            assert!(!models_required(), "{} not found and TURBO_TEST_REQUIRE_OPENNLP_MODELS=1", path.display());
             eprintln!("{} not found: skipping", path.display());
             continue;
         };
@@ -180,7 +196,7 @@ fn the_published_references_are_checked_and_scored_when_present() {
 #[test]
 fn the_binary_refuses_an_unrecorded_corpus_and_writes_each_model_s_directory() {
     let root = temp_dir("binary");
-    write_corpus(&root, 20, SENTENCES);
+    write_corpus(&root, GATED_DOCUMENTS, SENTENCES);
     let out = temp_dir("binary-out");
     let bin = env!("CARGO_BIN_EXE_turbo-train-recipes");
     let refs = std::env::var_os("TURBO_GOLDENS_MODELS").map(PathBuf::from).unwrap_or_else(|| out.join("none"));
@@ -198,8 +214,9 @@ fn the_binary_refuses_an_unrecorded_corpus_and_writes_each_model_s_directory() {
     let all_present = RECIPES.iter().all(|r| refs.join(r.reference_file().unwrap()).is_file());
     let ran = args(&["--unrecorded-corpus"]);
     if all_present {
-        // Every model trained on the test corpus beats the published
-        // models on it, so the gates pass.
+        // The models trained on the test corpus have seen its held-out
+        // sentences and beat the published models on it, so the gates
+        // pass; that says nothing about the recipes on MASC.
         assert_eq!(ran.status.code(), Some(0), "{ran:?}");
         for r in RECIPES {
             let dir = out.join("models").join(r.model_id);
@@ -209,6 +226,7 @@ fn the_binary_refuses_an_unrecorded_corpus_and_writes_each_model_s_directory() {
             ModelGateRecord::read(&dir.join(GATE_FILE)).unwrap();
         }
     } else {
+        assert!(!models_required(), "the published models are not under {}", refs.display());
         eprintln!("the published models are not under {}: only the refusal was checked", refs.display());
         assert_eq!(ran.status.code(), Some(2));
     }

@@ -105,12 +105,21 @@ pub fn temp_dir(name: &str) -> PathBuf {
     dir
 }
 
+/// Documents enough for the gate: with [`SENTENCES_PER_DOCUMENT`] each,
+/// eight are held out, 320 sentences, 32 sentence detector samples, more
+/// than `turbo_eval::model_gate::MIN_UNITS`.
+pub const GATED_DOCUMENTS: usize = 80;
+
+/// The sentences of each document [`write_corpus`] writes.
+pub const SENTENCES_PER_DOCUMENT: usize = 40;
+
 /// A corpus of `documents` documents in two genre directories, each of
-/// twelve sentences of `pool`, in an order that shifts by document.
+/// [`SENTENCES_PER_DOCUMENT`] sentences of `pool`, in an order that shifts
+/// by document.
 pub fn write_corpus(root: &Path, documents: usize, pool: &[&str]) {
     for d in 0..documents {
         let genre = if d % 2 == 0 { "written/news" } else { "spoken/talk" };
-        let sentences: Vec<usize> = (0..12).map(|k| (d * 3 + k * 5) % pool.len()).collect();
+        let sentences: Vec<usize> = (0..SENTENCES_PER_DOCUMENT).map(|k| (d * 3 + k * 5) % pool.len()).collect();
         write_document(&root.join(genre), &format!("doc{d:02}"), pool, &sentences);
     }
 }

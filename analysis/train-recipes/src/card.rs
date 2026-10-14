@@ -188,7 +188,7 @@ impl ModelCard {
     ///
     /// An address or field the index refuses.
     pub fn artifact(&self, url: &str) -> Result<Artifact> {
-        let bad = |what: &str, e: String| Error::Gate(format!("the card's {what}: {e}"));
+        let bad = |field: &'static str, message: String| Error::InvalidCard { field, message };
         Ok(Artifact {
             id: self.id.parse().map_err(|e| bad("id", e))?,
             kind: Kind::Model,
@@ -239,5 +239,5 @@ pub fn write_model_dir(dir: &Path, card: &ModelCard, model: &[u8], gate: &ModelG
     std::fs::write(&model_path, model).map_err(io(&model_path))?;
     let card_path = out.join(CARD_FILE);
     std::fs::write(&card_path, card.to_json()).map_err(io(&card_path))?;
-    gate.write(&out.join(GATE_FILE)).map_err(Error::Gate)
+    Ok(gate.write(&out.join(GATE_FILE))?)
 }

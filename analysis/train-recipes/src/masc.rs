@@ -34,9 +34,19 @@ pub const LICENCE: Licence = Licence::CcBy30Us;
 pub const TERMS: &str = "https://anc.org/data/masc/";
 /// The zoo id of the release.
 pub const DATASET_ID: &str = "masc-3.0.0";
-/// What a model trained on MASC credits, as CC BY asks.
+/// Who made and publishes MASC, whom CC BY asks a model trained on it to
+/// credit.
+pub const AUTHOR: &str = "the American National Corpus project";
+/// The author's site.
+pub const AUTHOR_URL: &str = "https://anc.org/";
+/// What a model trained on MASC credits, as CC BY asks: the work, its
+/// author and publisher, where it is, and its licence. Whether the ANC
+/// asks for a particular citation beyond this is not confirmed: their
+/// site, where it would say so, could not be reached when this was
+/// written, and the text is to be checked against it.
 pub const ATTRIBUTION: &str = "Trained on MASC 3.0.0, the Manually Annotated Sub-Corpus of the American National \
-     Corpus (https://anc.org/data/masc/), licensed under the Creative Commons Attribution 3.0 United States licence \
+     Corpus, by the American National Corpus project (https://anc.org/), published at https://anc.org/data/masc/ \
+     under the Creative Commons Attribution 3.0 United States licence \
      (https://creativecommons.org/licenses/by/3.0/us/).";
 
 /// The release archive as published, and the digest of the corpus it
@@ -83,25 +93,27 @@ pub fn dataset(release: Release) -> Result<Artifact> {
     let Release::Recorded(r) = release else {
         return Err(Error::NotRecorded);
     };
-    let parse = |what: &str, s: &str| Error::Gate(format!("the recorded release's {what} {s:?} is not valid"));
+    let parse = |field: &'static str, value: &'static str| {
+        move |message: String| Error::InvalidRelease { field, value: value.to_owned(), message }
+    };
     Ok(Artifact {
-        id: DATASET_ID.parse().map_err(|_| parse("id", DATASET_ID))?,
+        id: DATASET_ID.parse().map_err(parse("id", DATASET_ID))?,
         kind: Kind::Dataset,
         component: None,
-        language: Some("en".parse().map_err(|_| parse("language", "en"))?),
+        language: Some("en".parse().map_err(parse("language", "en"))?),
         format: r.format,
         version: VERSION.to_owned(),
         license: LICENCE,
-        license_terms: TERMS.parse().map_err(|_| parse("terms", TERMS))?,
+        license_terms: TERMS.parse().map_err(parse("terms", TERMS))?,
         trained_on: Vec::new(),
         class: LicenceClass::Permissive,
         origin: None,
         files: vec![File {
-            path: r.file.parse().map_err(|_| parse("file", r.file))?,
-            url: r.url.parse().map_err(|_| parse("url", r.url))?,
+            path: r.file.parse().map_err(parse("file", r.file))?,
+            url: r.url.parse().map_err(parse("url", r.url))?,
             size: r.size,
-            sha256: r.sha256.parse().map_err(|_| parse("sha256", r.sha256))?,
-            sha512: r.sha512.parse().map_err(|_| parse("sha512", r.sha512))?,
+            sha256: r.sha256.parse().map_err(parse("sha256", r.sha256))?,
+            sha512: r.sha512.parse().map_err(parse("sha512", r.sha512))?,
         }],
     })
 }

@@ -17,7 +17,13 @@ pub enum Error {
     /// The zoo refused or failed.
     Zoo(turbo_zoo::ZooError),
     /// The gate or its record failed.
-    Gate(String),
+    Gate(turbo_eval::model_gate::ModelGateError),
+    /// A field of the recorded release that the zoo index refuses.
+    InvalidRelease { field: &'static str, value: String, message: String },
+    /// A field of a model card that the zoo index refuses.
+    InvalidCard { field: &'static str, message: String },
+    /// Held-out samples of one component given to a recipe of another.
+    ComponentMismatch { recipe: &'static str, samples: &'static str },
     /// The release has no digest recorded yet, so it cannot be fetched
     /// or checked ([`crate::masc::RELEASE`]).
     NotRecorded,
@@ -41,6 +47,13 @@ impl fmt::Display for Error {
             Error::Model(e) => write!(f, "model: {e}"),
             Error::Zoo(e) => write!(f, "zoo: {e}"),
             Error::Gate(e) => write!(f, "gate: {e}"),
+            Error::InvalidRelease { field, value, message } => {
+                write!(f, "the recorded release's {field} {value:?}: {message}")
+            }
+            Error::InvalidCard { field, message } => write!(f, "the model card's {field}: {message}"),
+            Error::ComponentMismatch { recipe, samples } => {
+                write!(f, "{samples} samples given to the {recipe} recipe")
+            }
             Error::NotRecorded => {
                 f.write_str("the MASC release has no recorded digest yet; see turbo_train_recipes::masc::RELEASE")
             }
@@ -72,6 +85,12 @@ impl From<turbo_formats::evaluate::EvalError> for Error {
 impl From<turbo_train_segmentation::Error> for Error {
     fn from(e: turbo_train_segmentation::Error) -> Error {
         Error::Train(e)
+    }
+}
+
+impl From<turbo_eval::model_gate::ModelGateError> for Error {
+    fn from(e: turbo_eval::model_gate::ModelGateError) -> Error {
+        Error::Gate(e)
     }
 }
 

@@ -43,7 +43,10 @@ on an error.
   records how many were skipped.
 - Licence: the models are Apache-2.0, trained on CC BY 3.0 US data, so
   their zoo class is permissive; the card carries the attribution CC BY
-  asks for, which ships with the model.
+  asks for, which ships with the model: MASC 3.0.0, by the American
+  National Corpus project (anc.org), its address and its licence.
+  Whether the ANC asks for a particular citation is to be confirmed on
+  their site, which could not be reached when the recipes were written.
 
 ## The release record
 
@@ -79,11 +82,21 @@ published as a gzip tar needs one before it can be listed.
 
 `tests/recipes.rs` writes corpora in MASC's layout (`tests/common`, no
 MASC text) and runs everything on them: the split in the reader's
-order; both recipes trained, scored and gated against a model trained on
-plainer text, which passes, and with the places swapped, which fails; a
-model against itself, which passes with no difference; the same bytes
-from a second training; the card, the model's directory and its zoo
-entry; and the binary's refusal of an unrecorded corpus and its output.
-With `TURBO_GOLDENS_MODELS` naming a directory that holds the OpenNLP
-models, the published references are checked against the zoo and
-scored on the test corpus, and the binary runs end to end.
+order; both recipes trained, scored and gated; the same bytes from a
+second training; the card, the model's directory and its zoo entry; and
+the binary's refusal of an unrecorded corpus and its output. The test
+corpora are made of eight sentences, so a model trained on one has seen
+every held-out sentence and its score there measures nothing. The gate
+is checked against a model trained on plainer text: as the reference it
+loses and the trained model passes, and as the candidate it loses far
+more than the margin and fails, which is the check that tells the gate
+from one that passes everything. A model against itself passes with no
+difference.
+
+The published references need `TURBO_GOLDENS_MODELS` naming a directory
+that holds them (`cargo run -p turbo-goldens-tool -- fetch-models
+<dir>`). With it, they are checked against the zoo's digests and scored
+on the test corpus, and the binary runs end to end; without it those
+parts skip, unless `TURBO_TEST_REQUIRE_OPENNLP_MODELS=1`, which makes
+them fail. CI runs the test with both set, in the step that requires
+the published models.

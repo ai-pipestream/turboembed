@@ -1152,7 +1152,7 @@ chunk, and has no pipeline for levels yet.
 ## Golden files
 
 An annotator that ports an OpenNLP component is checked against what
-OpenNLP 3.x computes on the JVM. The JVM runs once, from a recorded
+OpenNLP 3.x computes on the JVM. The JVM runs once, from a pinned
 OpenNLP commit with fixed models, over fixed input texts, and writes
 what each annotator produced as a golden file: typed layers, the same
 ones the Rust annotator writes. Rust tests read the files and never
@@ -1635,8 +1635,8 @@ byte (none does); a model that did not come out this close would fail it.
 
 The goldens in `analysis/goldens/data` are made by `turbo-goldens`
 (crate `turbo-goldens-tool` in `analysis/goldens-tool`). It builds a
-container from a recorded `eclipse-temurin:21-jdk` digest with OpenNLP
-built from a recorded commit of the fork, runs the Java generator in it
+container from a pinned `eclipse-temurin:21-jdk` digest with OpenNLP
+built from a pinned commit of the fork, runs the Java generator in it
 without a network over the inputs the models (each model checked
 against its published SHA-512) and the fixtures (checked against the
 SHA-512 `recipe.rs` lists), and writes
@@ -1683,7 +1683,7 @@ is `(-1)^negative * coefficient / 10^scale`. The `annotator` line names
 `opennlp.tools.extraction.NumberScan` and `parse`, and a `config notation`
 record gives `LATIN_US` or `LATIN_EU`. The scan is the mention loop of
 `CursorQuantityExtractor` of the `numeric` module of `opennlp-addons`
-(recorded in `analysis/goldens-tool/src/recipe.rs`) without the money
+(pinned in `analysis/goldens-tool/src/recipe.rs`) without the money
 exclusion and without units; there is no model and no dump.
 
 `money/<notation>/money/<id>.golden` and
@@ -2051,10 +2051,15 @@ total tokens for an accuracy), and a set's score is that of its summed
 counts, as OpenNLP's `FMeasure` and `Mean` add them up. A paired
 bootstrap draws the samples with replacement, 10,000 times from
 `JavaRandom` seeded with 154 (the draws of `significance::bootstrap`),
-and scores both models on each draw. The model passes when the 95
-percent interval of the difference, model minus reference, reaches zero
-or above: a model below the reference on nearly every draw fails, one
-whose interval spans zero passes. Each model's own interval is reported
+and scores both models on each draw. The gate is a non-inferiority
+test: the model passes when the low end of the 95 percent interval of
+the difference, model minus reference, is at least -0.5 points
+(`MARGIN_POINTS`, the chunker gate's floor), so a loss of more than half
+a point is ruled out at that confidence. A small held-out set, whose
+interval is wide, fails rather than passing for lack of evidence, and a
+set of fewer than 30 units (`MIN_UNITS`) is refused. The difference is
+that of the two pooled scores, each from the set's summed counts, not a
+mean of per sample differences. Each model's own interval is reported
 beside the difference. The F-measure is 0 where precision and recall are
 both 0 (OpenNLP's is -1).
 
@@ -2083,7 +2088,7 @@ a `sha256sum` style manifest of the files read, sorted by path.
 
 | Set | Source | Licence | Spans | Digests |
 |---|---|---|---|---|
-| `scifact`, `nfcorpus`, `arguana` | BEIR layout, from MTEB's plain copies at a recorded revision | CC BY-SA 4.0 (BEIR dataset cards) | none | recorded |
+| `scifact`, `nfcorpus`, `arguana` | BEIR layout, from MTEB's plain copies at a pinned revision | CC BY-SA 4.0 (BEIR dataset cards) | none | recorded |
 | `legalbench-rag-mini` | a shared folder, placed by hand | MIT for the benchmark; the documents under their sources' terms | code points, converted after Python's newline translation; the mini subset is chosen with a port of CPython's `random` | none (no stable file URLs) |
 | `conteb-covid-qa` | Parquet, read as JSON Lines rows | none stated, so refused | the judged chunk | not recorded yet |
 | `gutenqa` | Parquet, read as JSON Lines rows | MIT (dataset card) | the quoted passage, located in its chunk | recorded |
