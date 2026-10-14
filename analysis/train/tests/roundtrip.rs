@@ -12,9 +12,14 @@
 //!   packaged as a `.bin` with the fixture's manifest entries and instant,
 //!   opened with `turbo-maxent` and `turbo-sentdetect`, and must split the
 //!   training text exactly as the fixture does, probabilities included.
+//!   It is also the checked in fixture
+//!   `analysis/goldens/data/fixtures/en-plain-rust.bin`, byte for byte,
+//!   which the golden generator loads in the JVM with `SentenceModel` and
+//!   runs beside `en-plain.bin` (`analysis/goldens/data/sentdetect/en-plain-rust`,
+//!   checked by `analysis/sentdetect/tests/golden.rs`).
 //!
 //! With `TURBO_TRAIN_OUT` set to a directory, the `.bin` written here is
-//! saved there as `en-plain-rust.bin`, for loading in the JVM.
+//! saved there as `en-plain-rust.bin`, which is how the fixture was made.
 
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
@@ -114,6 +119,8 @@ fn the_sentence_fixture_model_is_trained_written_loaded_and_scores_the_same() {
     if let Ok(dir) = std::env::var("TURBO_TRAIN_OUT") {
         std::fs::write(Path::new(&dir).join("en-plain-rust.bin"), &bin).unwrap();
     }
+    let committed = std::fs::read(data_dir().join("fixtures/en-plain-rust.bin")).unwrap();
+    assert_eq!(bin, committed, "analysis/goldens/data/fixtures/en-plain-rust.bin is not the .bin written here");
     let ours = ModelFile::open(bin).unwrap();
     assert_eq!(&*ours.entry(MANIFEST_ENTRY).unwrap(), &*fixture.entry(MANIFEST_ENTRY).unwrap());
     assert_eq!(ours.manifest().iter().collect::<Vec<_>>(), fixture.manifest().iter().collect::<Vec<_>>());

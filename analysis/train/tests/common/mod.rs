@@ -69,7 +69,12 @@ pub fn train_shapes() -> Vec<Shape> {
 }
 
 pub fn config<'g>(g: &'g Golden, key: &str) -> &'g str {
-    &g.header.config.iter().find(|c| c.key == key).unwrap_or_else(|| panic!("no config {key}")).value
+    config_opt(g, key).unwrap_or_else(|| panic!("no config {key}"))
+}
+
+/// A config record the run may not have.
+pub fn config_opt<'g>(g: &'g Golden, key: &str) -> Option<&'g str> {
+    g.header.config.iter().find(|c| c.key == key).map(|c| c.value.as_str())
 }
 
 pub fn layer<'g>(g: &'g Golden, id: &str) -> &'g GoldenLayer {
