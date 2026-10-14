@@ -63,6 +63,8 @@ jobs:
       # The published UD sentence detector, tokenizer, part-of-speech and
       # lemmatizer models are trained on CC BY-SA treebanks and not checked
       # in either; the tests over them skip without them and fail here.
+      # turbo-maxent evaluates the es and fr token models, and
+      # turbo-sequence's beam and tag-format tests the en pos model.
       # turbo-zoo checks their bytes against its index, and turbo-eval's
       # default sentence model is the English one.
       - name: parity against the JVM with the published models, models required
