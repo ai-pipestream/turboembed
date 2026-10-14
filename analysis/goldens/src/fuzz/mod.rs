@@ -91,11 +91,13 @@ mod tests {
     }
 
     #[test]
-    fn every_text_is_in_the_unicode_15_repertoire_and_has_no_noncharacter() {
+    fn no_text_has_a_noncharacter_or_one_of_the_sampled_newer_code_points() {
         // The generator's character lists are fixed, so this checks them
-        // once: nothing from a block assigned after Unicode 15.0, and no
-        // noncharacter, which the Java side would decode but a reader
-        // should never see in an input.
+        // once: no noncharacter, which the Java side would decode but a
+        // reader should never see in an input, and none of a few code
+        // points assigned after Unicode 15.0, the container's JDK's
+        // version. It is a sample of the newer assignments, not a check
+        // against the whole 15.0 repertoire.
         for t in corpus(3, 300) {
             for c in t.text.chars() {
                 let u = c as u32;

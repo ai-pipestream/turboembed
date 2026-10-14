@@ -152,6 +152,17 @@ fn fresh_dir(path: &Path) -> Result<(), String> {
     fs::create_dir_all(path).map_err(|e| format!("{}: {e}", path.display()))
 }
 
+/// How many inputs an earlier run wrote: the texts of its first set
+/// (every set holds the same texts).
+fn count_inputs(inputs: &Path) -> Result<usize, String> {
+    let read = |dir: &Path| fs::read_dir(dir).map_err(|e| format!("{}: {e}", dir.display()));
+    let mut sets: Vec<PathBuf> =
+        read(inputs)?.filter_map(|e| e.ok()).map(|e| e.path()).filter(|p| p.is_dir()).collect();
+    sets.sort();
+    let Some(set) = sets.first() else { return Err(format!("--reuse: {} holds no input set", inputs.display())) };
+    Ok(read(set)?.filter_map(|e| e.ok()).filter(|e| e.path().extension().is_some_and(|x| x == "txt")).count())
+}
+
 /// Runs the whole command.
 pub fn run(opts: &Options) -> Result<Summary, String> {
     let out = opts.out_dir();
@@ -161,7 +172,7 @@ pub fn run(opts: &Options) -> Result<Summary, String> {
         if !jvm.is_dir() || !inputs.is_dir() {
             return Err(format!("--reuse: {} holds no inputs and jvm directories of an earlier run", out.display()));
         }
-        opts.count as usize
+        count_inputs(&inputs)?
     } else {
         fresh_dir(&out)?;
         let n = write_inputs(&inputs, opts.seed, opts.count, &opts.sets)?;

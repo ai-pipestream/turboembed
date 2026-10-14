@@ -44,7 +44,7 @@ cargo run -p turbo-goldens-tool -- image
 cargo run -p turbo-goldens-tool -- fetch-models <dir>
 cargo run -p turbo-goldens-tool -- generate [--out <dir>] [--models <dir>]
 cargo run -p turbo-goldens-tool -- verify [--models <dir>]
-cargo run -p turbo-goldens-tool -- fuzz [--seed <n>] [--count <n>] [--sets <a,b>] [--out <dir>] [--models <dir>] [--image <tag>] [--reduce <n>] [--no-reduce] [--reduce-documented] [--rounds <n>] [--reuse]
+cargo run -p turbo-goldens-tool --features fuzz -- fuzz [--seed <n>] [--count <n>] [--sets <a,b>] [--out <dir>] [--models <dir>] [--image <tag>] [--reduce <n>] [--no-reduce] [--reduce-documented] [--rounds <n>] [--reuse]
 ```
 
 - `image` builds the container image, tags it with the OpenNLP commit and
@@ -565,7 +565,7 @@ section is about running it.
 ```
 cargo run -p turbo-goldens-tool -- fetch-models target/turbo-goldens/models
 cargo run -p turbo-goldens-tool -- image
-cargo run -p turbo-goldens-tool -- fuzz --seed 1 --count 1000
+cargo run -p turbo-goldens-tool --features fuzz -- fuzz --seed 1 --count 1000
 ```
 
 The command:
@@ -599,8 +599,20 @@ The command:
 
 It exits non zero when the report has a problem. `--reuse` compares and
 reduces what an earlier run left under `<out>` without writing the
-inputs or running the generator again; it is how a classification rule
-in `analysis/fuzz/src/runs` is worked on against a fixed tree.
+inputs or running the generator again (the input count is what the
+directory holds, whatever `--count` says); it is how a classification
+rule in `analysis/fuzz/src/runs` is worked on against a fixed tree.
+
+Delta debugging keeps any candidate on which the run still has a
+problem, not necessarily the problem the input started with, so the
+minimal text can show another divergence than the input it came from;
+the `.report` names the mismatch of the minimal text. When a fix for
+that one lands, reduce the original input again.
+
+The command is behind the crate's `fuzz` feature: `image`,
+`fetch-models`, `generate` and `verify` use the standard library alone,
+and the feature brings in `turbo-goldens` and `turbo-fuzz`, with every
+analysis crate behind them.
 
 To make one input again, `turbo_goldens::fuzz::input(seed, index)` gives
 the text of `s<seed>-<index>`, and
