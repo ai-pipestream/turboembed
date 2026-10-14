@@ -120,9 +120,10 @@ a directory with the same model run without them, and its options are
 | | `opennlp-en-ud-ewt-pos-1.3-2.5.4+penn` | `en` | `format PENN` |
 | | `opennlp-en-ud-ewt-pos-1.3-2.5.4+beam1`, `+beam10` | `en` | `beamSize` |
 | | `opennlp-de-ud-gsd-pos-1.3-2.5.4` | `edge` | |
-| | `pos-fixture` (fixture) | `en`, `edge` | |
+| | `pos-fixture`, `pos-fixture-rust` (fixtures) | `en`, `edge` | |
 | `lemmatize` (`LemmatizerME`) | `opennlp-en-ud-ewt-lemmas-1.3-2.5.4` | `en`, `multi`, `edge` | |
 | | `opennlp-de-ud-gsd-lemmas-1.3-2.5.4` | `edge` | |
+| | `lemma-fixture-rust` (fixture) | `en`, `edge` | |
 | `lemmatize-dictionary` (`DictionaryLemmatizer`) | `lemmatizer-dictionary` (fixture) | `en`, `multi`, `edge` | |
 | `chunk` (`ChunkerME`) | `chunker-fixture` (fixture) | `en`, `multi`, `edge` | |
 | | `chunker-fixture+beam1` | `en` | `beamSize 1` |
@@ -138,6 +139,7 @@ a directory with the same model run without them, and its options are
 | `train` (`PerceptronTrainer`) | the same, with `-perceptron` appended, then `-raw` without averaging, `-skipped` with `UseSkippedAveraging`, `-decrease` with a `StepSizeDecrease`: five runs over `sentdetect`, `realvalue` and `postag` | `en`, `multi`, `edge`; one `sentdetect` run also `train`, one only `train` | `source`, `DataIndexer`, `Cutoff`, `sort`, `Algorithm`, `Iterations`, `UseAverage`, `UseSkippedAveraging`, `StepSizeDecrease`, `Tolerance` |
 | `train` (`SimplePerceptronSequenceTrainer`) | the same, with `-perceptron-sequence` appended, then `-raw` without averaging: three runs over sequences of five events of `sentdetect` and `postag` | `en`, `multi`, `edge`; one `sentdetect` run also `train` | `source`, `DataIndexer`, `Cutoff`, `sort`, `Algorithm`, `Iterations`, `UseAverage` |
 | `train-events` (`SDEventStream`, `TokSpanEventStream` with factory options) | `sentdetect-dictionary-pt`, `sentdetect-th`, `sentdetect-conllu`, `tokenize-dictionary-alnum-de`, `tokenize-conllu` | `en`, `multi`, `edge`, `train`, `abbreviations`, `alphanumeric`, `formats` by run | `run`, `source`, `language`, `format`, and when given `abbreviations`, `useTokenEnd`, `eosCharacters`, `useAlphaNumericOptimization`, `alphaNumericPattern`, `sentencesPerSample` |
+| `train-events` (`POSSampleEventStream`, `LemmaSampleEventStream`) | `postag-wordtag`, `postag-wordtag-tagdict`, `postag-conllu-u`, `postag-conllu-x`, `lemma-text`, `lemma-conllu-u` | `tagged`, `formats` by run; the `wordtag`, `lemma` or `conllu` inputs by source and format | `run`, `source`, `language`, `format`, and when given `tagset`, `tagDictionary` |
 | `unigram` (`UnigramSegmenter`) | `zh-unigram-fixture` (fixture), also `+legacy` | `zh`, `multi`, `edge`, `surrogate` | `whitespace legacy` |
 | | `jieba-dict-subset` (fixture), also `+legacy` | `zh`, `multi`, `edge` | `whitespace legacy` |
 | | `zh-unigram-modes` (fixture), also `+legacy` | `zh` | `whitespace legacy` |
@@ -219,7 +221,22 @@ a directory with the same model run without them, and its options are
   `train` input of the dictionary run, `turbo:dictionary-cases`
   (`Dictionary.serialize` of dictionaries built in the generator;
   `docs/analysis.md`, "Training goldens").
-  `analysis/train-segmentation/tests/goldens.rs` compares with them.
+  `analysis/train-components/tests/goldens.rs` compares with them.
+- A `train-events` run of `TaggerEventGolden` makes the events of
+  `POSSampleEventStream` over the context generator a `POSTaggerFactory`
+  with no descriptor makes (the default feature generators), without and
+  with the tag dictionary fixture `tags.tagdict`, and of
+  `LemmaSampleEventStream`, over the input read with
+  `WordTagSampleStream`, `LemmaSampleStream`, `ConlluPOSSampleStream` or
+  `ConlluLemmaSampleStream` in a tag set. It records the same layers,
+  the model file being a `POSModel` or `LemmatizerModel` around a
+  placeholder model whose outcomes are the dictionary's tags,
+  `turbo:tagdict` (the file's `tags.tagdict` entry) and, on the `tagged`
+  inputs of the dictionary run, `turbo:tagdict-cases`
+  (`POSDictionary.serialize` of dictionaries built in the generator).
+  A predicate of these sources holds a token, which the sample streams
+  never let hold a space; the generator stops if one does, so the space
+  separated `context` field is never ambiguous.
 - `en-plain-rust.bin` is the `.bin` the Rust trainer writes when it trains
   `en-plain.bin`'s events again (`analysis/train/tests/roundtrip.rs`), and
   `en-plain-qn-rust.bin` and `en-plain-perceptron-rust.bin` the ones it
@@ -229,6 +246,11 @@ a directory with the same model run without them, and its options are
   of the same). The JVM loads all three with `SentenceModel` like the other
   fixtures, so their goldens show what the JVM makes of a model file
   written here.
+  `pos-fixture-rust.bin` and `lemma-fixture-rust.bin` are the `.bin` files
+  the Rust trainer writes from `inputs/tagged/wordtag.txt` (with
+  `tags.tagdict`) and `inputs/tagged/lemmas.txt`
+  (`analysis/train-components/tests/fixtures.rs`); the JVM loads them with
+  `POSModel` and `LemmatizerModel` and tags with them.
 - A `postag` run cuts the input with the English (or, for the German
   model, German) sentence and tokenizer models, which are its second and
   third `model` records, and tags each sentence with `tag`; its golden has

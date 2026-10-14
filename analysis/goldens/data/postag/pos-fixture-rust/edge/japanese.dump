@@ -1,0 +1,47 @@
+dump 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	edge/japanese	109	37	5ff7aca5a1372196b3373c1d868979d96627cdbc50cf30fbb78d4255f8e52a6a
+model	pos-fixture-rust.bin	7ce6a0d76f18242966640050d44a94f0f8ff496b2a518a72c0e191a964d321588bda11782be6ae3d09f62fec387f01db32bdeb87eb64a741f07bb10359e57328
+model	opennlp-en-ud-ewt-sentence-1.3-2.5.4.bin	fed5d53ea87bf66afeb08c084f89ca9b95a96de0920dca40487b2ab9972ee6b7ef211e477db480b7253431de079fd66dfd14329cd7d19ad1f565155eb0cf5191
+model	opennlp-en-ud-ewt-tokens-1.3-2.5.4.bin	147d1cdcb89ca5d9bd0ead8fddf2cc14ae543a9151803fe56b3c1fa152b986605e34fb6dda4819c68aa22fc9bffa6bfab14f916b7d0bf4892d452686af34778a
+annotator	opennlp.tools.postag.POSTaggerME	tag
+point	0	0	13	22	0	none
+context	def
+context	suf=！
+context	suf=す！
+context	suf=です！
+context	suf=トです！
+context	pre=私
+context	pre=私は
+context	pre=私は東
+context	pre=私は東京
+context	w=私は東京に住んでいます。ひらがなとカタカナと漢字を使います。テストです！
+context	S=begin
+context	wc=other
+context	w&c=私は東京に住んでいます。ひらがなとカタカナと漢字を使います。テストです！,other
+outcome	DT	3fb4f0c1720b93ca 0.08179863962466452
+outcome	NN	3fadb4977216b2f4 0.05801842944797456
+outcome	VBD	3fabbe6653282a07 0.054187009478557306
+outcome	IN	3faca2d2c3e30877 0.05592974320599436
+outcome	.	3fc204cec53df355 0.1407717192741084
+outcome	NNP	3fad1326424bc229 0.05678672370220667
+outcome	PRP	3fb654b448711324 0.08722998398395682
+outcome	VBZ	3f943c8a83a7545f 0.01976219585943217
+outcome	VBP	3fa23366fb67f2fd 0.035548418225493685
+outcome	JJ	3faeba7a9e6d0b58 0.06001647170935226
+outcome	CC	3f945794c1fcc1b3 0.019865345325514826
+outcome	PRP$	3fa240093e4c0091 0.03564480672321325
+outcome	NNS	3fa552aec968c77f 0.04164644440278575
+outcome	VBN	3f9bcd65ee3cb8f0 0.02715071932396368
+outcome	CD	3fa2aad04e829fd9 0.036459455093165345
+outcome	MD	3f943913de10177a 0.01974898379196286
+outcome	VB	3fa29a742fc36ddf 0.0363346393876005
+outcome	RB	3fa09f929ece4d76 0.032467443356973755
+outcome	,	3fa4c134253d30bf 0.0405365272004885
+outcome	VBG	3f944d01bdcae64c 0.01982500763799626
+outcome	NNPS	3f923930c940cf1c 0.01779628971435364
+outcome	UH	3f9703aff48f39f3 0.022475003530240966
+end	0

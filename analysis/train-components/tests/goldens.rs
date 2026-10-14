@@ -1,0 +1,555 @@
+//! The events this crate makes from the golden inputs are the JVM's: the
+//! `sentdetect` and `tokenize` runs of `analysis/goldens/data/train/`
+//! (`TrainGolden`: a `SentenceDetectorFactory("en", false, null, null)`
+//! and a `TokenizerFactory("en", null, false, null)` over the input read
+//! as sentence or token samples) and every run of
+//! `analysis/goldens/data/train-events/` (`EventGolden`: the factories
+//! with a dictionary, Portuguese and Thai end characters, the German
+//! alphanumeric pattern with the optimization on, and CoNLL-U input).
+//! The `train-events` goldens also hold what the sample stream threw,
+//! the manifest and the zip entries of a model file built from the
+//! factory, and `Dictionary.serialize` of the dictionaries the generator
+//! builds; those are compared with this crate's packaging.
+//!
+//! The `postag-` and `lemma-` runs of `train-events` (`TaggerEventGolden`)
+//! are `POSSampleEventStream` over `POSTaggerFactory`'s default context
+//! generator, with and without a tag dictionary, and
+//! `LemmaSampleEventStream`, over word and tag lines, word, tag and lemma
+//! lines and CoNLL-U in both tag sets; their model files, the
+//! `tags.tagdict` entry and `POSDictionary.serialize` of the dictionaries
+//! the generator builds are compared the same way. A lemma sample whose
+//! class would hold half of a surrogate pair is refused here
+//! ([`turbo_train_components::Error::LemmaClassSurrogate`]) where the JVM
+//! makes events with such a class; the test checks that the events this
+//! crate does not make are exactly those.
+
+mod common;
+
+use std::path::Path;
+
+use turbo_formats::FormatError;
+use turbo_formats::conllu::{ConlluLemmaReader, ConlluPosReader, ConlluSentenceReader, ConlluTokenReader, Tagset};
+use turbo_formats::native::{LemmaReader, SentenceReader, TokenReader, WordTagReader};
+use turbo_formats::{LemmaSample, PosSample, SentenceSample, TokenSample};
+use turbo_goldens::{Golden, data_dir};
+use turbo_maxent::Properties;
+use turbo_train::Event;
+use turbo_train::event::checksum;
+use turbo_train::gis::TrainingReport;
+use turbo_train::package::MANIFEST_ENTRY;
+use turbo_train::params::TrainerType;
+use turbo_train_components::lemmatize::{self, LemmaEventStream, LemmatizerFactory, package_lemmatizer_model};
+use turbo_train_components::postag::{self, PosEventStream, PosTaggerFactory, package_pos_model};
+use turbo_train_components::sentdetect::package_sentence_model;
+use turbo_train_components::tokenize::package_tokenizer_model;
+use turbo_train_components::{
+    AbbreviationDictionary, Error, PosDictionary, SdEventStream, SentenceDetectorFactory, Stamp, TokSpanEventStream,
+    TokenizerFactory, sd_events, tok_events,
+};
+use turbo_unicode::WhitespaceMode;
+
+/// The whitespace definition of the OpenNLP the goldens were made with.
+const MODE: WhitespaceMode = WhitespaceMode::Unicode;
+
+fn sentence_samples(text: &str) -> Vec<SentenceSample<'_>> {
+    SentenceReader::new(text).unwrap().map(|s| s.unwrap()).collect()
+}
+
+fn token_samples(text: &str) -> Vec<TokenSample<'_>> {
+    TokenReader::new(text, MODE).unwrap().map(|s| s.unwrap()).collect()
+}
+
+fn check(path: &Path, g: &Golden, events: &[Event]) {
+    check_skipping(path, g, events, &[]);
+}
+
+/// [`check`] where the samples at `skipped` (the index of their first
+/// event among the JVM's, and how many events each made) were refused
+/// here: the JVM's events there must each have a class holding a lone
+/// surrogate, written by the generator as a `\u` escape, and the rest must
+/// be this crate's. The checksum is over the JVM's events, so it is not
+/// compared when a sample was skipped.
+fn check_skipping(path: &Path, g: &Golden, events: &[Event], skipped: &[(usize, usize)]) {
+    let mut expected = common::events(g);
+    for &(start, count) in skipped.iter().rev() {
+        let removed: Vec<Event> = expected.drain(start..start + count).collect();
+        assert!(
+            removed.iter().any(|e| e.outcome().contains("\\u")),
+            "{}: the skipped sample's classes {:?} hold no lone surrogate",
+            path.display(),
+            removed.iter().map(Event::outcome).collect::<Vec<_>>()
+        );
+    }
+    assert_eq!(expected, events, "{}: {}", path.display(), common::describe_difference(&expected, events));
+    if let Some(l) = common::layer_opt(g, "turbo:event-checksum")
+        && skipped.is_empty()
+    {
+        assert_eq!(l.u32s("crc32c").unwrap()[0], checksum(events), "{}: checksum", path.display());
+    }
+}
+
+/// One golden of a `train` run: its source decides the stream.
+fn check_train_golden(path: &Path, source: &str) {
+    let g = common::read(path);
+    assert_eq!(common::config(&g, "source"), Some(source));
+    let text = g.input_text(data_dir()).unwrap();
+    let events = match source {
+        "sentdetect" => {
+            let f = SentenceDetectorFactory::new("en", false, None, None).unwrap();
+            sd_events(&sentence_samples(&text), &f, MODE)
+        }
+        "tokenize" => {
+            let f = TokenizerFactory::new("en", None, false, None).unwrap();
+            tok_events(&token_samples(&text), &f, MODE).unwrap()
+        }
+        other => panic!("{other}"),
+    };
+    check(path, &g, &events);
+}
+
+#[test]
+fn sentence_detector_events_are_the_jvms_over_every_train_golden() {
+    let mut n = 0;
+    for run in std::fs::read_dir(data_dir().join("train")).unwrap() {
+        let run = run.unwrap().path();
+        if !run.file_name().unwrap().to_str().unwrap().starts_with("sentdetect-") {
+            continue;
+        }
+        for path in common::golden_files(&run) {
+            check_train_golden(&path, "sentdetect");
+            n += 1;
+        }
+    }
+    assert!(n >= 100, "{n} goldens");
+}
+
+#[test]
+fn tokenizer_events_are_the_jvms_over_every_train_golden() {
+    let mut n = 0;
+    for run in std::fs::read_dir(data_dir().join("train")).unwrap() {
+        let run = run.unwrap().path();
+        if !run.file_name().unwrap().to_str().unwrap().starts_with("tokenize-") {
+            continue;
+        }
+        for path in common::golden_files(&run) {
+            check_train_golden(&path, "tokenize");
+            n += 1;
+        }
+    }
+    assert!(n >= 50, "{n} goldens");
+}
+
+/// The dictionary a `train-events` run names, from the fixtures.
+fn dictionary(g: &Golden) -> Option<AbbreviationDictionary> {
+    common::config(g, "abbreviations").map(|file| {
+        let xml = std::fs::read(data_dir().join("fixtures").join(file)).unwrap();
+        AbbreviationDictionary::read(&xml).unwrap()
+    })
+}
+
+/// The tag dictionary a `train-events` run names, from the fixtures.
+fn tag_dictionary(g: &Golden) -> Option<PosDictionary> {
+    common::config(g, "tagDictionary").map(|file| {
+        let xml = std::fs::read(data_dir().join("fixtures").join(file)).unwrap();
+        PosDictionary::read(&xml).unwrap()
+    })
+}
+
+/// The CoNLL-U tag set of a `conllu` run.
+fn tagset(g: &Golden) -> Tagset {
+    match common::config(g, "tagset").unwrap() {
+        "u" => Tagset::U,
+        "x" => Tagset::X,
+        other => panic!("{other}"),
+    }
+}
+
+/// What the JVM's sample stream threw while the events were read: the
+/// events made before the exception, its class and its message.
+#[derive(Debug, PartialEq, Eq)]
+struct StreamError {
+    after: u32,
+    class: String,
+    message: String,
+}
+
+impl StreamError {
+    fn of(after: usize, e: &FormatError) -> StreamError {
+        let class = e.java_class().unwrap_or_else(|| panic!("{e} has no Java class")).to_owned();
+        StreamError { after: u32::try_from(after).unwrap(), class, message: e.to_string() }
+    }
+}
+
+/// The samples a reader gives, and the errors it gives in their place.
+/// The generator reads on after an exception, so this collects the error
+/// and goes on to the next sample. The events made before the error are
+/// counted by the caller, which knows how many events each sample makes,
+/// so the errors here carry the sample index and are fixed up after.
+fn collect<'a, S>(
+    reader: impl Iterator<Item = Result<S, FormatError>>,
+    samples: &mut Vec<S>,
+    errors: &mut Vec<(usize, FormatError)>,
+) where
+    S: 'a,
+{
+    for item in reader {
+        match item {
+            Ok(s) => samples.push(s),
+            Err(e) => errors.push((samples.len(), e)),
+        }
+    }
+}
+
+/// The events of a `train-events` golden from its config records, with
+/// the stream errors and the samples refused here (see [`check_skipping`]).
+fn event_golden_events(g: &Golden, text: &str) -> (Vec<Event>, Vec<StreamError>, Vec<(usize, usize)>) {
+    let language = common::config(g, "language").unwrap();
+    let conllu = common::config(g, "format") == Some("conllu");
+    let mut errors: Vec<(usize, FormatError)> = Vec::new();
+    let mut skipped: Vec<(usize, usize)> = Vec::new();
+    // The events each sample made, so that an error after sample `i` is
+    // after `counts[i]` events.
+    let mut counts: Vec<usize> = vec![0];
+    let events = match common::config(g, "source").unwrap() {
+        "sentdetect" => {
+            let use_token_end: bool = common::config(g, "useTokenEnd").unwrap().parse().unwrap();
+            let eos = common::config(g, "eosCharacters").map(common::lossless_text);
+            let f = SentenceDetectorFactory::new(language, use_token_end, dictionary(g), eos.as_deref()).unwrap();
+            let mut samples: Vec<SentenceSample<'_>> = Vec::new();
+            if conllu {
+                let per_sample: usize = common::config(g, "sentencesPerSample").unwrap().parse().unwrap();
+                collect(ConlluSentenceReader::new(text, per_sample).unwrap(), &mut samples, &mut errors);
+            } else {
+                collect(SentenceReader::new(text).unwrap(), &mut samples, &mut errors);
+            }
+            let mut stream = SdEventStream::new(&f, MODE);
+            let mut out = Vec::new();
+            for s in &samples {
+                stream.events(s, &mut out);
+                counts.push(out.len());
+            }
+            out
+        }
+        "tokenize" => {
+            let optimization: bool = common::config(g, "useAlphaNumericOptimization").unwrap().parse().unwrap();
+            let pattern = common::config(g, "alphaNumericPattern");
+            let f = TokenizerFactory::new(language, dictionary(g), optimization, pattern).unwrap();
+            let mut samples: Vec<TokenSample<'_>> = Vec::new();
+            if conllu {
+                collect(ConlluTokenReader::new(text, MODE).unwrap(), &mut samples, &mut errors);
+            } else {
+                collect(TokenReader::new(text, MODE).unwrap(), &mut samples, &mut errors);
+            }
+            let mut stream = TokSpanEventStream::new(&f, MODE);
+            let mut out = Vec::new();
+            for s in &samples {
+                stream.events(s, &mut out).unwrap();
+                counts.push(out.len());
+            }
+            out
+        }
+        "postag" => {
+            let f = PosTaggerFactory::new(language, None, tag_dictionary(g)).unwrap();
+            let mut samples: Vec<PosSample<'_>> = Vec::new();
+            if conllu {
+                collect(ConlluPosReader::new(text, tagset(g)).unwrap(), &mut samples, &mut errors);
+            } else {
+                collect(WordTagReader::new(text, MODE).unwrap(), &mut samples, &mut errors);
+            }
+            let mut stream = PosEventStream::new(&f).unwrap();
+            let mut out = Vec::new();
+            for s in &samples {
+                stream.events(s, &mut out);
+                counts.push(out.len());
+            }
+            out
+        }
+        "lemmatize" => {
+            let f = LemmatizerFactory::new(language);
+            let mut samples: Vec<LemmaSample<'_>> = Vec::new();
+            if conllu {
+                collect(ConlluLemmaReader::new(text, tagset(g)).unwrap(), &mut samples, &mut errors);
+            } else {
+                collect(LemmaReader::new(text).unwrap(), &mut samples, &mut errors);
+            }
+            let mut stream = LemmaEventStream::new(&f);
+            let mut out = Vec::new();
+            // The JVM's event index of the next sample's first event: this
+            // crate's, plus the events of the samples refused so far.
+            let mut jvm_index = 0;
+            for s in &samples {
+                let before = out.len();
+                match stream.events(s, &mut out) {
+                    Ok(()) => {}
+                    Err(Error::LemmaClassSurrogate { token }) => {
+                        assert!(s.tokens().iter().any(|t| t.as_str() == token), "{token:?} is not in the sample");
+                        // No event of the sample is kept, and the JVM made
+                        // one per token.
+                        out.truncate(before);
+                        skipped.push((jvm_index, s.tokens().len()));
+                        jvm_index += s.tokens().len();
+                    }
+                    Err(e) => panic!("{e}"),
+                }
+                jvm_index += out.len() - before;
+                counts.push(out.len());
+            }
+            out
+        }
+        other => panic!("{other}"),
+    };
+    let errors = errors.iter().map(|(i, e)| StreamError::of(counts[*i], e)).collect();
+    (events, errors, skipped)
+}
+
+fn stream_errors(g: &Golden) -> Vec<StreamError> {
+    let l = common::layer(g, "turbo:stream-errors");
+    let (after, class, message) = (l.u32s("after").unwrap(), l.strs("class").unwrap(), l.strs("message").unwrap());
+    (0..l.len())
+        .map(|i| StreamError {
+            after: after[i],
+            class: class.get(i).to_owned(),
+            message: common::lossless_text(message.get(i)),
+        })
+        .collect()
+}
+
+/// The report the generator's placeholder model file carries.
+const PLACEHOLDER_REPORT: TrainingReport = TrainingReport { event_hash: Some(1), trainer_type: TrainerType::Event };
+
+/// The model file this crate packages for the golden's factory, with no
+/// model bytes: the manifest, the entry order and the dictionary entry
+/// are the factory's, not the model's.
+fn package(g: &Golden) -> turbo_train::ModelPackage {
+    let language = common::config(g, "language").unwrap();
+    let stamp = Stamp::at(1_700_000_000_000);
+    match common::config(g, "source").unwrap() {
+        "sentdetect" => {
+            let use_token_end: bool = common::config(g, "useTokenEnd").unwrap().parse().unwrap();
+            let eos = common::config(g, "eosCharacters").map(common::lossless_text);
+            let f = SentenceDetectorFactory::new(language, use_token_end, dictionary(g), eos.as_deref()).unwrap();
+            package_sentence_model(&f, &PLACEHOLDER_REPORT, Vec::new(), stamp).unwrap()
+        }
+        "tokenize" => {
+            let optimization: bool = common::config(g, "useAlphaNumericOptimization").unwrap().parse().unwrap();
+            let pattern = common::config(g, "alphaNumericPattern");
+            let f = TokenizerFactory::new(language, dictionary(g), optimization, pattern).unwrap();
+            package_tokenizer_model(&f, &PLACEHOLDER_REPORT, Vec::new(), stamp).unwrap()
+        }
+        "postag" => {
+            let f = PosTaggerFactory::new(language, None, tag_dictionary(g)).unwrap();
+            package_pos_model(&f, &PLACEHOLDER_REPORT, Vec::new(), postag::DEFAULT_BEAM_SIZE, stamp).unwrap()
+        }
+        "lemmatize" => {
+            let f = LemmatizerFactory::new(language);
+            package_lemmatizer_model(&f, &PLACEHOLDER_REPORT, Vec::new(), lemmatize::DEFAULT_BEAM_SIZE, stamp).unwrap()
+        }
+        other => panic!("{other}"),
+    }
+}
+
+/// The manifest entries of the package, sorted by key, without
+/// `Timestamp`, as the golden lists them.
+fn manifest_entries(package: &turbo_train::ModelPackage) -> Vec<(String, String)> {
+    let text = package.manifest().to_properties();
+    let properties = Properties::load(text.as_bytes()).unwrap();
+    let mut entries: Vec<(String, String)> =
+        properties.iter().filter(|(k, _)| *k != "Timestamp").map(|(k, v)| (k.to_owned(), v.to_owned())).collect();
+    entries.sort();
+    entries
+}
+
+fn check_package(path: &Path, g: &Golden) {
+    let package = package(g);
+    let l = common::layer(g, "turbo:manifest");
+    let (keys, values) = (l.strs("key").unwrap(), l.strs("value").unwrap());
+    let expected: Vec<(String, String)> =
+        (0..l.len()).map(|i| (keys.get(i).to_owned(), common::lossless_text(values.get(i)))).collect();
+    assert_eq!(expected, manifest_entries(&package), "{}: manifest", path.display());
+
+    // The entry names in order, and the lengths of the manifest (the
+    // generator's JVM dates in UTC, as `Stamp::at` does, and both
+    // timestamps have thirteen digits), the dictionaries and the
+    // descriptor. The model entry's length is the placeholder model's.
+    let l = common::layer(g, "turbo:package-entries");
+    let (names, lengths) = (l.strs("name").unwrap(), l.u32s("length").unwrap());
+    let expected_names: Vec<&str> = (0..l.len()).map(|i| names.get(i)).collect();
+    assert_eq!(expected_names, package.entry_names(), "{}: entry order", path.display());
+    for (i, name) in expected_names.iter().enumerate() {
+        let len = if *name == MANIFEST_ENTRY {
+            package.manifest().to_properties().len()
+        } else if [postag::MODEL_ENTRY, lemmatize::MODEL_ENTRY].contains(name) || name.ends_with(".model") {
+            continue;
+        } else {
+            package.entries().find(|(n, _)| n == name).unwrap().1.len()
+        };
+        assert_eq!(lengths[i] as usize, len, "{}: the length of {name}", path.display());
+    }
+
+    for (layer, entry) in [("turbo:dictionary", "abbreviations.dictionary"), ("turbo:tagdict", "tags.tagdict")] {
+        let dictionary = common::layer_opt(g, layer);
+        let found = package.entries().find(|(n, _)| *n == entry);
+        match (dictionary, found) {
+            (None, None) => {}
+            (Some(l), Some((_, bytes))) => {
+                let expected = common::lossless_text(l.strs("xml").unwrap().get(0));
+                assert_eq!(expected, String::from_utf8(bytes.to_vec()).unwrap(), "{}: {entry}", path.display());
+            }
+            (l, e) => panic!("{}: {layer} layer {} and entry {}", path.display(), l.is_some(), e.is_some()),
+        }
+    }
+}
+
+fn single(tokens: &[&str]) -> Vec<Vec<String>> {
+    tokens.iter().map(|t| vec![t.to_string()]).collect()
+}
+
+/// The dictionaries `EventGolden.dictionaryCases` builds, by name, built
+/// here the same way.
+fn dictionary_case(name: &str, g: &Golden) -> AbbreviationDictionary {
+    match name {
+        "english" => dictionary(g).unwrap(),
+        "special-characters" => {
+            AbbreviationDictionary::new(false, single(&["a&b<c>d\"e'f", "cr\rhere", "tab\there", "\u{1F600}."]))
+                .unwrap()
+        }
+        "empty" => AbbreviationDictionary::new(false, Vec::new()).unwrap(),
+        "case-sensitive" => AbbreviationDictionary::new(true, single(&["Dr.", "MR.", "u.s."])).unwrap(),
+        "forty" => {
+            AbbreviationDictionary::new(false, (1..=40).map(|i| vec![format!("w{i}.")]).collect::<Vec<_>>()).unwrap()
+        }
+        "multi-token" => AbbreviationDictionary::new(
+            false,
+            vec![
+                vec!["et".to_string(), "al.".to_string()],
+                vec!["e.".to_string(), "g.".to_string()],
+                vec!["a".to_string(), "b".to_string(), "c".to_string()],
+                vec!["Dr.".to_string()],
+            ],
+        )
+        .unwrap(),
+        "collapsed" => AbbreviationDictionary::new(false, single(&["Dr.", "DR.", "dr.", "Mr."])).unwrap(),
+        other => panic!("{other}"),
+    }
+}
+
+fn check_dictionary_cases(path: &Path, g: &Golden) -> usize {
+    let Some(l) = common::layer_opt(g, "turbo:dictionary-cases") else {
+        return 0;
+    };
+    let (names, xmls) = (l.strs("name").unwrap(), l.strs("xml").unwrap());
+    for i in 0..l.len() {
+        let name = names.get(i);
+        let expected = common::lossless_text(xmls.get(i));
+        let actual = String::from_utf8(dictionary_case(name, g).serialize().unwrap()).unwrap();
+        assert_eq!(expected, actual, "{}: dictionary case {name}", path.display());
+    }
+    l.len()
+}
+
+fn tagged(entries: &[(&str, &[&str])]) -> Vec<(String, Vec<String>)> {
+    entries.iter().map(|(w, tags)| (w.to_string(), tags.iter().map(|t| t.to_string()).collect())).collect()
+}
+
+/// The tag dictionaries `TaggerEventGolden.dictionaryCases` builds, by
+/// name, built here the same way (`put` after `put`).
+fn tagdict_case(name: &str, g: &Golden) -> PosDictionary {
+    match name {
+        "fixture" => tag_dictionary(g).unwrap(),
+        "case-sensitive" => {
+            PosDictionary::new(true, tagged(&[("Run", &["NN", "VB"]), ("run", &["VBP"]), ("RUN", &["NNP"])]))
+        }
+        "collapsed" => PosDictionary::new(
+            false,
+            tagged(&[("Run", &["NN", "VB"]), ("run", &["VBP"]), ("RUN", &["NNP"]), ("Paris", &["NNP"])]),
+        ),
+        "special-characters" => PosDictionary::new(
+            true,
+            tagged(&[
+                ("a&b<c>d\"e'f", &["X"]),
+                ("tab\there", &["Y"]),
+                ("cr\rhere", &["Z"]),
+                ("\u{1F600}.", &["SYM"]),
+                ("q", &["A\"B", "C<D&E"]),
+                ("none", &[]),
+            ]),
+        ),
+        "empty" => PosDictionary::new(false, Vec::new()),
+        "forty" => PosDictionary::new(false, (1..=40).map(|i| (format!("w{i}"), vec!["T".to_string()]))),
+        "unicode-case" => PosDictionary::new(
+            false,
+            tagged(&[
+                ("\u{130}stanbul", &["NNP"]),
+                ("\u{3A3}\u{39F}\u{3A6}\u{39F}\u{3A3}", &["NNP"]),
+                ("Stra\u{DF}e", &["NN"]),
+                ("\u{1C5}emal", &["NNP"]),
+            ]),
+        ),
+        other => panic!("{other}"),
+    }
+}
+
+fn check_tagdict_cases(path: &Path, g: &Golden) -> usize {
+    let Some(l) = common::layer_opt(g, "turbo:tagdict-cases") else {
+        return 0;
+    };
+    let (names, xmls) = (l.strs("name").unwrap(), l.strs("xml").unwrap());
+    for i in 0..l.len() {
+        let name = names.get(i);
+        let expected = common::lossless_text(xmls.get(i));
+        let actual = String::from_utf8(tagdict_case(name, g).serialize().unwrap()).unwrap();
+        assert_eq!(expected, actual, "{}: tag dictionary case {name}", path.display());
+    }
+    l.len()
+}
+
+#[test]
+fn events_with_every_factory_option_are_the_jvms_over_every_train_events_golden() {
+    let dir = data_dir().join("train-events");
+    let files = common::golden_files(&dir);
+    assert!(files.len() >= 100, "{} goldens under {}", files.len(), dir.display());
+    let mut runs = std::collections::BTreeSet::new();
+    let (mut with_errors, mut cases, mut tagdict_cases, mut skipped_samples) = (0, 0, 0, 0);
+    for path in &files {
+        let g = common::read(path);
+        runs.insert(common::config(&g, "run").unwrap().to_owned());
+        assert!(g.header.error.is_none(), "{}: the generator failed", path.display());
+        let text = g.input_text(data_dir()).unwrap();
+        let (events, errors, skipped) = event_golden_events(&g, &text);
+        check_skipping(path, &g, &events, &skipped);
+        skipped_samples += skipped.len();
+        let expected = stream_errors(&g);
+        assert_eq!(expected, errors, "{}: stream errors", path.display());
+        with_errors += usize::from(!errors.is_empty());
+        check_package(path, &g);
+        cases += check_dictionary_cases(path, &g);
+        tagdict_cases += check_tagdict_cases(path, &g);
+    }
+    let expected: std::collections::BTreeSet<String> = [
+        "sentdetect-dictionary-pt",
+        "sentdetect-th",
+        "sentdetect-conllu",
+        "tokenize-dictionary-alnum-de",
+        "tokenize-conllu",
+        "postag-wordtag",
+        "postag-wordtag-tagdict",
+        "postag-conllu-u",
+        "postag-conllu-x",
+        "lemma-text",
+        "lemma-conllu-u",
+    ]
+    .into_iter()
+    .map(String::from)
+    .collect();
+    assert_eq!(runs, expected);
+    // The CoNLL-U runs over `conllu-errors` (the sentence detector, the
+    // tokenizer, the tagger in both tag sets and the lemmatizer) and the
+    // tokenizer over `conllu-basic`.
+    assert_eq!(with_errors, 6, "goldens with stream errors");
+    assert_eq!(cases, 7, "dictionary cases");
+    assert_eq!(tagdict_cases, 7, "tag dictionary cases");
+    // The lemma samples whose class holds half of a surrogate pair:
+    // `lemma-basic` (a lemma with an astral character added) and
+    // `conllu-whitespace` (an astral token with the lemma `_`).
+    assert_eq!(skipped_samples, 2, "lemma samples refused here");
+}
