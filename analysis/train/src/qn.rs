@@ -198,7 +198,7 @@ pub struct QnIteration {
 /// parameter for every outcome, in outcome order.
 #[derive(Debug, Clone, PartialEq)]
 pub struct QnModel {
-    outcome_labels: Vec<String>,
+    outcome_labels: Vec<JavaString>,
     pred_labels: Vec<JavaString>,
     /// `0..num_outcomes`, the pattern of every predicate.
     pattern: Vec<u32>,
@@ -208,7 +208,7 @@ pub struct QnModel {
 }
 
 impl QnModel {
-    pub fn outcome_labels(&self) -> &[String] {
+    pub fn outcome_labels(&self) -> &[JavaString] {
         &self.outcome_labels
     }
 

@@ -188,7 +188,7 @@ pub struct Fixture {
 /// file names are the ones the generator's `Runs` class opens there; a
 /// fixture in a subdirectory is a file of a dictionary directory, and
 /// `Runs` opens the directory.
-pub const FIXTURES: [Fixture; 35] = [
+pub const FIXTURES: [Fixture; 38] = [
     Fixture {
         file: "en-abbrev.bin",
         sha512: "759ab1defc61351f53cdd82a26e708789a225feb6e1ec0cfd6e2e54f35f67c14\
@@ -231,8 +231,8 @@ pub const FIXTURES: [Fixture; 35] = [
     },
     Fixture {
         file: "lemma-fixture-rust.bin",
-        sha512: "daf10241ffbb3231a9ffe6eac838168caca0ab58b25f71dacc91842ad34cb166\
-                 2ab5fbefd99d735108953777a889c4935bdf027a2ca92fe2488045e8c1e630bf",
+        sha512: "4fa4c03da55e729af919a2d76a67db49ac0269d073ac05a5af3da9fd8d67ea82\
+                 61765d97a3c5e4ca0d22b251e4dc01401f432d6a394d6a6d3fd4b06fecb41402",
     },
     Fixture {
         file: "tags.tagdict",
@@ -253,6 +253,21 @@ pub const FIXTURES: [Fixture; 35] = [
         file: "english-dictionary.xml",
         sha512: "e824b14f66036b2703cbbd3af6a893f7f07cf282c9e8021ae7be38f10da305a8\
                  7aef48b129923f3973c78f495c2ed073adcad68c90c2f7d94bc6d32870839164",
+    },
+    Fixture {
+        file: "en-head-rules.txt",
+        sha512: "4924379ef7ca9376c6953e166512a556006e069e9ba319dc941a74342e3b46aa\
+                 64313014d5a801030d5867dc6ea4be9208b75706579840bbcc12fa00aab0cca4",
+    },
+    Fixture {
+        file: "es-head-rules.txt",
+        sha512: "b01d1e26e3a298064a86d0222459e1b00fcd5ba4e1bb3859245d86ecd458feb7\
+                 93bc208505100e8150f5d1f317762dfe0b01842a7d718245463e77a6a310e900",
+    },
+    Fixture {
+        file: "es-regex-head-rules.txt",
+        sha512: "d75363b131a71c1b6fd243e9f339ee97393fe36a9ed89d857c49d89da793dc9b\
+                 1e48b92ca0e67fb65c04305fba81d17754b896b2cba90a166348c00feff19a6b",
     },
     Fixture {
         file: "en-detokenizer.xml",
@@ -367,7 +382,7 @@ pub const FIXTURES: [Fixture; 35] = [
 ];
 
 /// The input sets under `analysis/goldens/data/inputs`.
-pub const INPUT_SETS: [&str; 21] = [
+pub const INPUT_SETS: [&str; 23] = [
     "en",
     "multi",
     "norm",
@@ -389,6 +404,8 @@ pub const INPUT_SETS: [&str; 21] = [
     "tagged",
     "formats",
     "ner",
+    "parse",
+    "head-rules",
 ];
 
 /// The arguments the driver passes to the generator after the fixed ones
@@ -402,7 +419,7 @@ pub const GENERATOR_ARGS: [&str; 1] = ["--dumps"];
 /// replaces and `verify` compares. The data directory holds other things
 /// (the inputs, the fixtures, the rate snapshot, a README) that neither
 /// touches.
-pub const ANNOTATORS: [&str; 23] = [
+pub const ANNOTATORS: [&str; 25] = [
     "sentdetect",
     "tokenize",
     "postag",
@@ -426,6 +443,8 @@ pub const ANNOTATORS: [&str; 23] = [
     "evaluate",
     "masc",
     "ner",
+    "parse",
+    "head-rules",
 ];
 
 /// The annotators with runs that ask a maxent model for their decisions:

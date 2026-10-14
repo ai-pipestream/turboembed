@@ -4,7 +4,7 @@
 use std::fmt;
 use std::path::Path;
 
-use turbo_maxent::{Dictionary, MaxentModel, ModelFile};
+use turbo_maxent::{Dictionary, JavaString, MaxentModel, ModelFile};
 
 use super::alnum::{AlphaNumeric, DEFAULT_PATTERN, PatternError};
 use super::context::AffixLimits;
@@ -213,12 +213,12 @@ impl TokenizerModel {
 /// `ModelUtil.validateOutcomes(model, "T", "F")`: exactly two outcomes,
 /// each `T` or `F`.
 fn outcomes(maxent: &MaxentModel) -> Result<[Outcome; 2], ModelError> {
-    let names: Vec<&str> = maxent.outcomes().collect();
-    if names.len() != 2 || names.iter().any(|&n| n != "T" && n != "F") {
-        return Err(ModelError::Outcomes(names.iter().map(|n| n.to_string()).collect()));
+    let names: Vec<&JavaString> = maxent.outcomes().collect();
+    if names.len() != 2 || names.iter().any(|&n| *n != "T" && *n != "F") {
+        return Err(ModelError::Outcomes(names.iter().map(|n| n.to_string_lossy()).collect()));
     }
     let outcome = |i: usize| Outcome {
-        split: names[i] == "T",
+        split: *names[i] == "T",
         index: maxent.outcome_index(names[i]).expect("the outcome's own name"),
     };
     Ok([outcome(0), outcome(1)])

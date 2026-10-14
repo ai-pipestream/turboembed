@@ -1,0 +1,12 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	head-rules/too-many	14	14	5485e59d7c0c04e3c3466d4bef51d383acba76797c8016ec5b2fec055ecc8cd4
+annotator	opennlp.tools.parser.lang.en.HeadRules	serialize
+layer	turbo:head-rules	document	0	line:str
+end	turbo:head-rules
+layer	turbo:rules-errors	document	1	class:str	message:str
+java.lang.ArrayIndexOutOfBoundsException	Index 1 out of bounds for length 1
+end	turbo:rules-errors

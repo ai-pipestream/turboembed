@@ -13,6 +13,7 @@ use turbo_jvm::strict_math;
 use turbo_unicode::modified_utf8::push_str_modified_utf8;
 
 use crate::hash::BuildFoldHasher;
+use crate::java_string::{JavaString, utf8_is_modified_utf8};
 
 /// Which trainer made a model, which decides how its sums become
 /// probabilities. The names are the type strings at the start of the
@@ -46,7 +47,13 @@ impl ModelKind {
 #[derive(Debug, Clone)]
 pub struct MaxentModel {
     pub(crate) kind: ModelKind,
-    pub(crate) outcomes: Vec<Box<str>>,
+    /// The outcome labels in index order, as the JVM holds them: a label
+    /// can hold half of a surrogate pair.
+    pub(crate) outcomes: Vec<JavaString>,
+    /// Each outcome label as text, `None` where it holds half of a
+    /// surrogate pair, so that a component whose labels are text reads
+    /// them without decoding.
+    pub(crate) outcome_texts: Vec<Option<Box<str>>>,
     /// Predicate name, as Java modified UTF-8, to predicate index. A name
     /// listed twice maps to its last listing, as OpenNLP's `LinkedHashMap`
     /// does.
@@ -72,19 +79,36 @@ impl MaxentModel {
     }
 
     /// The name of outcome `i`.
-    pub fn outcome(&self, i: usize) -> &str {
+    pub fn outcome(&self, i: usize) -> &JavaString {
         &self.outcomes[i]
     }
 
     /// The outcome names in index order.
-    pub fn outcomes(&self) -> impl Iterator<Item = &str> {
-        self.outcomes.iter().map(|o| &**o)
+    pub fn outcomes(&self) -> impl ExactSizeIterator<Item = &JavaString> + Clone {
+        self.outcomes.iter()
+    }
+
+    /// The name of outcome `i` as text, or `None` when it holds half of a
+    /// surrogate pair.
+    pub fn outcome_str(&self, i: usize) -> Option<&str> {
+        self.outcome_texts[i].as_deref()
+    }
+
+    /// The outcome names as text, in index order, or the first outcome
+    /// that is not text (one holding half of a surrogate pair), for a
+    /// component whose outcomes are labels it reads as text.
+    pub fn outcome_texts(&self) -> Result<Vec<&str>, &JavaString> {
+        self.outcomes.iter().zip(&self.outcome_texts).map(|(o, t)| t.as_deref().ok_or(o)).collect()
     }
 
     /// The index of the first outcome with this name, as
-    /// `AbstractModel.getIndex` finds it.
-    pub fn outcome_index(&self, name: &str) -> Option<usize> {
-        self.outcomes.iter().position(|o| &**o == name)
+    /// `AbstractModel.getIndex` finds it. The name can be text or a
+    /// [`JavaString`].
+    pub fn outcome_index<N: ?Sized>(&self, name: &N) -> Option<usize>
+    where
+        JavaString: PartialEq<N>,
+    {
+        self.outcomes.iter().position(|o| o == name)
     }
 
     /// The number of distinct predicate names.
@@ -231,12 +255,17 @@ impl MaxentModel {
     }
 }
 
+/// Each label as text, `None` where it holds half of a surrogate pair.
+pub(crate) fn outcome_texts(outcomes: &[JavaString]) -> Vec<Option<Box<str>>> {
+    outcomes.iter().map(|o| o.to_str().map(Box::from)).collect()
+}
+
 /// `s` as Java modified UTF-8, written into `buffer`, or `None` when `s`
 /// holds no U+0000 and no four-byte sequence, so its UTF-8 bytes are
 /// already its modified UTF-8.
 #[inline]
 fn modified_utf8<'b>(s: &str, buffer: &'b mut Vec<u8>) -> Option<&'b [u8]> {
-    if !s.bytes().any(|b| b == 0 || b >= 0xF0) {
+    if utf8_is_modified_utf8(s) {
         return None;
     }
     buffer.clear();
@@ -308,9 +337,11 @@ mod tests {
         predicates.insert(Box::from(&b"q"[..]), 1);
         predicates.insert(Box::from(&b"n\xC0\x80"[..]), 2);
         predicates.insert(Box::from(&b"e\xED\xA0\xBD\xED\xB8\x80"[..]), 3);
+        let outcomes = vec![JavaString::new("a"), JavaString::new("b"), JavaString::new("c")];
         MaxentModel {
             kind,
-            outcomes: vec!["a".into(), "b".into(), "c".into()],
+            outcome_texts: outcome_texts(&outcomes),
+            outcomes,
             predicates,
             pred_start: vec![0, 2, 3, 4, 5],
             pred_outcome: vec![0, 1, 2, 0, 1],
@@ -414,10 +445,26 @@ mod tests {
 
     #[test]
     fn outcome_lookups() {
-        let m = model(ModelKind::Qn);
+        let mut m = model(ModelKind::Qn);
         assert_eq!(m.outcome_index("b"), Some(1));
+        assert_eq!(m.outcome_index(&JavaString::new("b")), Some(1));
         assert_eq!(m.outcome_index("z"), None);
-        assert_eq!(m.outcome(2), "c");
+        assert_eq!(*m.outcome(2), "c");
+        assert_eq!(m.outcomes().len(), 3);
+        assert_eq!(m.outcome_texts().unwrap(), ["a", "b", "c"]);
+        assert_eq!(m.outcome_str(1), Some("b"));
+        // An outcome holding half of a surrogate pair is not text; one
+        // holding a whole character outside the BMP is.
+        let half = JavaString::from_utf16(&[0x44, 0x30, 0xD83D]);
+        m.outcomes[1] = half.clone();
+        m.outcomes[2] = JavaString::new("😀");
+        m.outcome_texts = outcome_texts(&m.outcomes);
+        assert_eq!(m.outcome_texts(), Err(&half));
+        assert_eq!(m.outcome_str(1), None);
+        assert_eq!(m.outcome_str(2), Some("😀"));
+        assert_eq!(m.outcome_index("😀"), Some(2));
+        assert_eq!(m.outcome_index(&half), Some(1));
+        assert_eq!(m.outcome_index("D0\u{FFFD}"), None);
         assert_eq!(m.num_predicates(), 4);
         assert_eq!(m.num_parameters(), 5);
         assert!(m.has_predicate("q"));

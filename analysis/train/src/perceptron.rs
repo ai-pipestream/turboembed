@@ -124,7 +124,7 @@ impl PerceptronParams {
 /// writer drops the zero ones.
 #[derive(Debug, Clone, PartialEq)]
 pub struct PerceptronModel {
-    outcome_labels: Vec<String>,
+    outcome_labels: Vec<JavaString>,
     pred_labels: Vec<JavaString>,
     /// `pmap`: predicate label to index.
     pmap: HashMap<JavaString, u32>,
@@ -136,14 +136,14 @@ pub struct PerceptronModel {
 }
 
 impl PerceptronModel {
-    fn zeros(outcome_labels: Vec<String>, pred_labels: Vec<JavaString>) -> PerceptronModel {
+    fn zeros(outcome_labels: Vec<JavaString>, pred_labels: Vec<JavaString>) -> PerceptronModel {
         let pmap = pred_labels.iter().enumerate().map(|(i, l)| (l.clone(), i as u32)).collect();
         let parameters = vec![0.0; outcome_labels.len() * pred_labels.len()];
         let pattern = (0..outcome_labels.len() as u32).collect();
         PerceptronModel { outcome_labels, pred_labels, pmap, pattern, parameters }
     }
 
-    pub fn outcome_labels(&self) -> &[String] {
+    pub fn outcome_labels(&self) -> &[JavaString] {
         &self.outcome_labels
     }
 
@@ -482,7 +482,8 @@ pub fn train_sequence_model(
     let total = index.num_events() as i32;
     let mut model = PerceptronModel::zeros(index.outcome_labels().to_vec(), index.pred_labels().to_vec());
     let num_outcomes = model.num_outcomes();
-    let omap: HashMap<String, usize> = index.outcome_labels().iter().enumerate().map(|(i, o)| (o.clone(), i)).collect();
+    let omap: HashMap<JavaString, usize> =
+        index.outcome_labels().iter().enumerate().map(|(i, o)| (o.clone(), i)).collect();
     let mut average = vec![0.0; model.parameters.len()];
     let mut changes = vec![LastChange::default(); model.parameters.len()];
     // `featureCounts`: one map per outcome, cleared for each sequence that
@@ -679,7 +680,7 @@ mod tests {
         let mut out = vec![0.0; 3];
         for e in events() {
             model.eval(e.context(), None, &mut out);
-            let best = model.outcome_labels()[argmax(&out)].as_str();
+            let best = &model.outcome_labels()[argmax(&out)];
             assert_eq!(best, e.outcome(), "{e:?}: {out:?}");
         }
         assert!(config.monitor.unwrap().is_training_finished());
@@ -810,7 +811,7 @@ mod tests {
                 .map(|e| {
                     model.eval(e.context(), e.values(), &mut out);
                     Event::with_values(
-                        &model.outcome_labels()[argmax(&out)],
+                        model.outcome_labels()[argmax(&out)].clone(),
                         e.context().to_vec(),
                         e.values().map(<[f32]>::to_vec),
                     )

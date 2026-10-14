@@ -56,8 +56,8 @@ impl Run for Detector {
             return Outcome::Match;
         }
         // The n-grams go to the model in the iteration order of the JVM's
-        // hash maps, which the port reproduces except where a bucket held
-        // nine or more n-grams and the JDK turned it into a tree, whose
+        // hash maps, which the port reproduces except where a bucket the
+        // JDK turned into a tree held n-grams with equal hash codes, whose
         // order depends on identity hash codes (analysis/langdetect/src/context.rs,
         // `exact_order`). Then the same n-grams are summed in another order
         // and the probabilities differ in their last bits.
@@ -65,7 +65,7 @@ impl Run for Detector {
         generator.generate(doc.source());
         if !generator.exact_order() && matches_golden::<Language>(doc, golden, Tolerance::abs(1e-12)).is_ok() {
             return Outcome::Documented(
-                "a bucket of the JVM's n-gram map was turned into a tree, whose order the port does not reproduce; the probabilities differ in the last bits (analysis/langdetect/src/context.rs, exact_order)".into(),
+                "a tree bucket of the JVM's n-gram map held n-grams with equal hash codes, which the JDK orders by identity hash code; the probabilities differ in the last bits (analysis/langdetect/src/context.rs, exact_order)".into(),
             );
         }
         outcome(exact)

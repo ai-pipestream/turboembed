@@ -1,0 +1,2 @@
+(TOP (S (NP (NN café) (NN 日本)) (VP (VB 😀) (NN a b) (NN 🐱é)) (. .)))
+(TOP (NP (NNP Ångström) (POS 's)) (NN नमस्ते))(TOP (X (Y  ) (Z 　)))

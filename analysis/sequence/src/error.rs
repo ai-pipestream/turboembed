@@ -24,6 +24,9 @@ pub enum Error {
     TagDictionary(String),
     /// A manifest property holds a value OpenNLP cannot parse.
     Manifest { property: Box<str>, value: String },
+    /// A classifier outcome holds half of a surrogate pair, where the
+    /// tagger reads its outcomes as text (a beam search over `str`).
+    OutcomeNotText(turbo_maxent::JavaString),
 }
 
 impl fmt::Display for Error {
@@ -37,6 +40,7 @@ impl fmt::Display for Error {
             Error::Resource { name, message } => write!(f, "resource {name:?}: {message}"),
             Error::TagDictionary(message) => write!(f, "tag dictionary: {message}"),
             Error::Manifest { property, value } => write!(f, "manifest property {property}: invalid value {value:?}"),
+            Error::OutcomeNotText(outcome) => write!(f, "the outcome {outcome:?} holds half of a surrogate pair"),
         }
     }
 }

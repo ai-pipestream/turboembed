@@ -19,6 +19,9 @@ pub enum ModelError {
     Factory(String),
     /// The classifier has no outcome, so nothing could be chunked.
     NoOutcomes,
+    /// A classifier outcome holds half of a surrogate pair, which no chunk
+    /// tag can hold.
+    OutcomeNotText(turbo_maxent::JavaString),
     /// A beam size of zero: `BeamSearch` keeps no sequence then and
     /// `ChunkerME.chunk` returns no tags, which no caller can use.
     ZeroBeam,
@@ -34,6 +37,9 @@ impl fmt::Display for ModelError {
                 write!(f, "chunker model: factory {c:?} is not opennlp.tools.chunker.ChunkerFactory")
             }
             ModelError::NoOutcomes => write!(f, "chunker model: the classifier has no outcome"),
+            ModelError::OutcomeNotText(o) => {
+                write!(f, "chunker model: the outcome {o:?} holds half of a surrogate pair")
+            }
             ModelError::ZeroBeam => write!(f, "chunker model: a beam size of zero chunks nothing"),
         }
     }

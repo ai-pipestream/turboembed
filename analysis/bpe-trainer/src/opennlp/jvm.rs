@@ -9,7 +9,8 @@
 //! then merges the pair in each word of `vocab`, in order, into a new map
 //! (`merge`), clears `vocab` and puts that map back into it (`putAll`).
 //! Each map's order is its keys' bins and, within a bin, the order they
-//! were put ([`turbo_jvm::hash_map`]), so the order of `vocab` and of
+//! were put or, in a bin the JDK made a red-black tree, the tree's order
+//! ([`turbo_jvm::hash_map`]), so the order of `vocab` and of
 //! `pairCounts` is worked out here from the hash codes of the words, the
 //! symbol lists and the pairs, without building the maps. `merge`
 //! resizes a full table even for a key already in it, so whether such a
@@ -25,8 +26,10 @@ use super::symbols;
 
 /// The merges, and whether they are certainly the JVM's: false when the
 /// corpus holds a character outside the Basic Multilingual Plane, which
-/// the JVM splits into surrogates, or when a bin of one of the maps
-/// would have become a tree, whose order is not reproduced. `again` says
+/// the JVM splits into surrogates, or when a tree bin of one of the maps
+/// held keys with equal hash codes, which the JVM orders by identity hash
+/// code (pairs and symbol lists are not `Comparable`, and the words are
+/// handled the same way since only their hashes are seen here). `again` says
 /// whether a word occurs again after the last new word was first seen.
 pub(super) fn learn_merges(words: &[(&str, u64)], again: bool, num_merges: usize) -> (Vec<Merge>, bool) {
     let mut exact = words.iter().all(|(w, _)| w.chars().all(|c| (c as u32) < 0x1_0000));
@@ -44,7 +47,9 @@ pub(super) fn learn_merges(words: &[(&str, u64)], again: bool, num_merges: usize
         *s = spread(table.list_hash(l));
     }
 
-    // `vocab`: put in `wordFreqs`' order. Its table is kept from now on.
+    // `vocab`: put in `wordFreqs`' order. Its table is kept from now on,
+    // and already holds every word, so `putAll` into it does not pre-size
+    // it and is a run of `put`s.
     let mut vocab = HashMapOrder::new();
     let mut scratch = Vec::new();
     exact &= reorder(&mut vocab, &mut order, &spreads, Insert::Put, &mut scratch);

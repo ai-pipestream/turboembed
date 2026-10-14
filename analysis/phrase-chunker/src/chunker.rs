@@ -42,7 +42,8 @@ impl PhraseChunker {
     /// nothing and returns false when no sequence scored above the
     /// search's minimum (where `chunk` returns an array of nulls).
     pub fn outcomes<'m>(&'m self, words: &[TokenTag<'_>], outcomes: &mut Vec<&'m str>, probs: &mut Vec<f64>) -> bool {
-        let search = BeamSearch::new(self.model.beam_size(), self.model.maxent());
+        let search = BeamSearch::new(self.model.beam_size(), self.model.maxent())
+            .expect("the outcomes were checked to be text when the model was opened");
         let Some(best) = search.best_sequence(words, &mut self.model.context(), &self.model.validator()) else {
             return false;
         };
