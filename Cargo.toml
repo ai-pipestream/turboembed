@@ -31,6 +31,7 @@ members = [
     "analysis/stopword",
     "analysis/stopword-layers",
     "analysis/eval",
+    "analysis/train",
 ]
 resolver = "3"
 
