@@ -220,11 +220,13 @@ pub fn apply_view_edits(text: &str, edits: &[ViewEdit]) -> Result<String, String
 /// This is the check for goldens whose edits were reconstructed by a
 /// diff: the diff may cut one change into several rows or join two
 /// changes that are a character apart, and the Rust edits may span an
-/// unchanged character that the diff kept. Where a region's results
-/// differ, the region is widened over the following ones until they
-/// agree: a diff over repeated characters ("xxxẍ", "6/98/2635 4") may
-/// delete one occurrence in one region and keep another in the next, so
-/// the two lists agree only over both regions together.
+/// unchanged character that the diff kept. Equality of the whole output
+/// is not enough: an edit the golden attributes to another place is a
+/// divergence. One case is let through: a diff over a run of one
+/// repeated character ("xxxẍ", "6/98/2635 4") may delete an occurrence
+/// at one end of the run where the other list deletes one at the other
+/// end. Two regions whose results differ only in trailing copies of the
+/// character that fills the source between them are checked together.
 pub fn view_edits_equivalent(text: &str, rust: &[ViewEdit], golden: &[ViewEdit]) -> bool {
     let mut all: Vec<(usize, usize)> = rust.iter().chain(golden).map(|r| (r.start, r.end)).collect();
     all.sort_unstable();
@@ -235,29 +237,53 @@ pub fn view_edits_equivalent(text: &str, rust: &[ViewEdit], golden: &[ViewEdit])
             _ => regions.push((s, e)),
         }
     }
-    let agree = |s: usize, e: usize| {
+    let results = |s: usize, e: usize| {
         let inside = |rows: &[ViewEdit]| -> Vec<ViewEdit> {
             rows.iter()
                 .filter(|r| r.start >= s && r.end <= e)
                 .map(|r| ViewEdit { start: r.start - s, end: r.end - s, with: r.with.clone() })
                 .collect()
         };
-        apply_view_edits(&text[s..e], &inside(rust)) == apply_view_edits(&text[s..e], &inside(golden))
+        (apply_view_edits(&text[s..e], &inside(rust)), apply_view_edits(&text[s..e], &inside(golden)))
     };
     let mut i = 0;
     while i < regions.len() {
         let start = regions[i].0;
         let mut end = regions[i].1;
-        while !agree(start, end) {
-            i += 1;
-            match regions.get(i) {
-                Some(&(_, next_end)) => end = next_end,
-                None => return false,
+        loop {
+            let (a, b) = results(start, end);
+            if a == b {
+                break;
             }
+            let Some(&(next_start, next_end)) = regions.get(i + 1) else {
+                return false;
+            };
+            if !differ_in_a_repeated_character(&text[end..next_start], a.as_deref(), b.as_deref()) {
+                return false;
+            }
+            i += 1;
+            end = next_end;
         }
         i += 1;
     }
     true
+}
+
+/// Whether `gap` is a run of one character and `a` and `b` differ only
+/// in trailing copies of it: the mark of a diff that deleted a different
+/// occurrence of the run than the other list did.
+fn differ_in_a_repeated_character(gap: &str, a: Result<&str, &String>, b: Result<&str, &String>) -> bool {
+    let (Ok(a), Ok(b)) = (a, b) else {
+        return false;
+    };
+    let Some(c) = gap.chars().next() else {
+        return false;
+    };
+    if gap.chars().any(|g| g != c) {
+        return false;
+    }
+    let (short, long) = if a.len() <= b.len() { (a, b) } else { (b, a) };
+    long.starts_with(short) && long[short.len()..].chars().all(|x| x == c)
 }
 
 #[cfg(test)]
@@ -322,5 +348,38 @@ mod tests {
         assert_eq!(apply_view_edits(text, &rust), apply_view_edits(text, &golden));
         // Not when the texts differ after all.
         assert!(!view_edits_equivalent(text, &rust, &[e(0, 5, "\u{323}\u{301}"), e(8, 10, "\u{1e8d}")]));
+    }
+
+    #[test]
+    fn an_edit_attributed_to_another_place_is_not_equivalent() {
+        let e = |start, end, with: &str| ViewEdit { start, end, with: with.into() };
+        // Both delete one "ab" of three, so the outputs agree, but the
+        // regions do not and the source between them is not one
+        // repeated character.
+        let text = "ababab";
+        let rust = [e(0, 2, "")];
+        let golden = [e(4, 6, "")];
+        assert_eq!(apply_view_edits(text, &rust), apply_view_edits(text, &golden));
+        assert!(!view_edits_equivalent(text, &rust, &golden));
+        // A change in one region and the same change elsewhere.
+        let text = "aXbYc";
+        assert!(!view_edits_equivalent(text, &[e(1, 2, "x")], &[e(3, 4, "x")]));
+        // The same two regions, equivalent within each.
+        assert!(view_edits_equivalent(text, &[e(1, 2, "x"), e(3, 4, "y")], &[e(1, 2, "x"), e(3, 4, "y")]));
+    }
+
+    #[test]
+    fn a_deletion_at_either_end_of_a_repeated_run_is_equivalent() {
+        let e = |start, end, with: &str| ViewEdit { start, end, with: with.into() };
+        // "6/98/2635 4" with the two spaces of a date collapsed: the diff
+        // may drop the first or the last of three.
+        let text = "a   b";
+        let rust = [e(1, 2, ""), e(4, 5, "B")];
+        let golden = [e(3, 4, ""), e(4, 5, "B")];
+        assert_eq!(apply_view_edits(text, &rust), apply_view_edits(text, &golden));
+        assert!(view_edits_equivalent(text, &rust, &golden));
+        // Not over a run of two different characters.
+        let text = "a xx b";
+        assert!(!view_edits_equivalent(text, &[e(1, 2, "")], &[e(4, 5, "")]));
     }
 }
