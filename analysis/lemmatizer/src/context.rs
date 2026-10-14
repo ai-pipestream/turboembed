@@ -143,7 +143,12 @@ mod tests {
         assert_eq!(out.to_string_lossy(4), "p_1=R1\u{FFFD}_D0\u{FFFD}w0=x");
         let mut context = LemmaContext;
         let mut by_search = Features::new();
-        context.context(1, &[TokenTag { token: "\u{1F600}", tag: "_" }, TokenTag { token: "x", tag: "_" }], &[&class], &mut by_search);
+        context.context(
+            1,
+            &[TokenTag { token: "\u{1F600}", tag: "_" }, TokenTag { token: "x", tag: "_" }],
+            &[&class],
+            &mut by_search,
+        );
         assert_eq!(by_search, out);
     }
 

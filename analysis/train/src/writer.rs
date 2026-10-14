@@ -438,6 +438,37 @@ mod tests {
     }
 
     #[test]
+    fn the_qn_and_perceptron_writers_write_a_lone_surrogate_outcome_as_write_utf_does() {
+        use crate::params::Algorithm;
+        let class = JavaString::from_utf16(&[0x52, 0x31, 0xDE00, 0x5F, 0x44, 0x30, 0xD83D]);
+        let events = [
+            Event::new(class.clone(), vec![JavaString::new("w0=😀"), JavaString::new("t0=_")]),
+            Event::from_strs("O", &["w0=x", "t0=_"]),
+            Event::from_strs("O", &["w0=y", "t0=_"]),
+        ];
+        for (algorithm, kind) in [(Algorithm::MaxentQn, &b"\0\x02QN"[..]), (Algorithm::Perceptron, b"\0\x0aPerceptron")]
+        {
+            let mut params = TrainingParameters::new();
+            params.put(Key::ALGORITHM, algorithm.name());
+            params.put(Key::ITERATIONS, 5);
+            params.put(Key::CUTOFF, 0);
+            let (model, _) =
+                crate::trainer::train_events(&events, &params, &mut TrainingConfiguration::default()).unwrap();
+            let bytes = model.write().unwrap();
+            assert!(bytes.starts_with(kind), "{algorithm:?}");
+            // The outcome count, then the class as writeUTF writes it, each
+            // surrogate as three bytes.
+            let at = kind.len();
+            assert_eq!(&bytes[at..at + 4], &[0, 0, 0, 2], "{algorithm:?}");
+            assert_eq!(&bytes[at + 4..at + 6], &[0, 11], "{algorithm:?}");
+            assert_eq!(&bytes[at + 6..at + 17], b"R1\xED\xB8\x80_D0\xED\xA0\xBD", "{algorithm:?}");
+            let read = MaxentModel::read(&bytes).unwrap();
+            assert_eq!(read.outcome(0), &class, "{algorithm:?}");
+            assert_eq!(read.outcome_index(&class), Some(0), "{algorithm:?}");
+        }
+    }
+
+    #[test]
     fn the_layout_is_persist_byte_for_byte() {
         let model = trained();
         let bytes = write_gis(&model).unwrap();

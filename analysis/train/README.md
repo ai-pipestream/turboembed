@@ -38,8 +38,8 @@ lemma class is an edit script over the UTF-16 units of a word, so a
 token or lemma with a character outside the Basic Multilingual Plane
 gives a class holding half of its surrogate pair, and the JVM trains on
 it, numbers it by its units and writes it with `writeUTF`. The indexers
-and the GIS model hold outcome labels as `JavaString`s and the writer
-writes them as the bytes they are; `Event::java_string` and the event
+and the GIS, quasi-Newton and perceptron models hold outcome labels as
+`JavaString`s and the writer writes them as the bytes they are; `Event::java_string` and the event
 checksum write the class as `Event.toString` and `getBytes(UTF_8)` do
 (a lone surrogate becomes `?`).
 

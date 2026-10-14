@@ -482,7 +482,8 @@ pub fn train_sequence_model(
     let total = index.num_events() as i32;
     let mut model = PerceptronModel::zeros(index.outcome_labels().to_vec(), index.pred_labels().to_vec());
     let num_outcomes = model.num_outcomes();
-    let omap: HashMap<JavaString, usize> = index.outcome_labels().iter().enumerate().map(|(i, o)| (o.clone(), i)).collect();
+    let omap: HashMap<JavaString, usize> =
+        index.outcome_labels().iter().enumerate().map(|(i, o)| (o.clone(), i)).collect();
     let mut average = vec![0.0; model.parameters.len()];
     let mut changes = vec![LastChange::default(); model.parameters.len()];
     // `featureCounts`: one map per outcome, cleared for each sequence that
