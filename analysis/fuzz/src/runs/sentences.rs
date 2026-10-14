@@ -15,10 +15,10 @@ use crate::resources::{Resources, Unavailable};
 /// The models that are checked in fixtures rather than downloads.
 const FIXTURE_MODELS: [&str; 3] = ["en-abbrev", "en-plain", "en-plain-rust"];
 
-/// The probabilities the golden tests accept: `assert_close` in
-/// `analysis/sentdetect/tests/golden.rs` allows 1e-9.
+/// The probabilities are compared bit for bit, as
+/// `analysis/sentdetect/tests/golden.rs` compares them with `to_bits`.
 fn confidence_tolerance() -> Tolerance {
-    Tolerance::abs(1e-9)
+    Tolerance::exact()
 }
 
 /// Whitespace mode `legacy` when the run's options name it.
