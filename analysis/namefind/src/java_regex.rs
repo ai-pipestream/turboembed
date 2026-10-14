@@ -1,23 +1,22 @@
-//! `java.util.regex.Pattern` syntax, translated to the `regex` crate.
+//! `java.util.regex.Pattern` syntax, compiled to a direct bytecode matcher.
 //!
 //! A user's pattern is written for Java, and [`JavaRegex::compile`] gives
 //! it Java's meaning or refuses it. The parse follows `Pattern`'s own
 //! (`RemoveQEQuoting`, `sequence`, `closure`, `clazz`, `range`, `escape`
-//! and `addFlag` in JDK 21), and the output is a `regex` pattern whose
-//! every construct means what the Java one does on any text:
+//! and `addFlag` in JDK 21), and the output is a compact bytecode program
+//! whose every construct means what the Java one does on any text:
 //!
-//! - `\d`, `\w`, `\s`, `\h`, `\v` and their negations are written out as
-//!   the classes Java gives them by default: `\d` is `[0-9]`, `\w` is
-//!   `[a-zA-Z_0-9]` and `\s` is `[ \t\n\x0B\f\r]`, ASCII only, where the
-//!   `regex` crate's are Unicode.
+//! - `\d`, `\w`, `\s`, `\h`, `\v` and their negations use the classes Java
+//!   gives them by default: `\d` is `[0-9]`, `\w` is `[a-zA-Z_0-9]` and
+//!   `\s` is `[ \t\n\x0B\f\r]`, ASCII only.
 //! - `.` excludes `\n`, `\r`, U+0085, U+2028 and U+2029, as Java's does,
 //!   unless `DOTALL` (`(?s)`) is on.
 //! - `CASE_INSENSITIVE` (`(?i)`) folds ASCII letters only, as Java does
 //!   without `UNICODE_CASE`; each letter and range is expanded to the
-//!   characters Java accepts, and no `regex` flag is used.
+//!   characters Java accepts.
 //! - `^` is `\A` and `$` is `\z` (see the limits below); `\b` and `\B` are
 //!   ASCII word boundaries.
-//! - Every group becomes `(?:..)`; captures are not reported.
+//! - Groups do not report sub-captures.
 //!
 //! Refused when compiled, with [`Error::Unsupported`]: lookahead,
 //! lookbehind, atomic groups, backreferences, possessive quantifiers,
@@ -44,12 +43,13 @@
 //!   a pattern on a text with a character outside the Basic Multilingual
 //!   Plane is refused.
 
-use std::fmt::Write;
-
 use turbo_unicode::GeneralCategory;
 use turbo_unicode::java::code_point::{general_category, is_letter_or_digit};
 
 use crate::error::{Error, Feature, TextLimit};
+
+/// Maximum number of bytecode instructions a compiled pattern may emit.
+const MAX_INSTS: usize = 1 << 20;
 
 /// The `Pattern.compile` flags this port supports.
 #[derive(Copy, Clone, Debug, Default, PartialEq, Eq)]
@@ -77,12 +77,26 @@ pub(crate) struct Limits {
     pub mid_pair: bool,
 }
 
-/// A Java regular expression, compiled to the `regex` crate.
+/// Reusable scratch buffers for [`JavaRegex`] matching.
+#[derive(Default)]
+pub(crate) struct Scratch {
+    stack: Vec<(u32, usize)>,
+    /// The `(pc, pos)` states known to fail, for positions at or after the
+    /// `from` of the current [`JavaRegex::find_at`]. Without captures a
+    /// state fails whatever start reached it, so the set is kept across the
+    /// start positions of one search.
+    visited: Vec<u64>,
+    /// Whether `visited` is in use for the current search.
+    memo: bool,
+}
+
+/// A Java regular expression, compiled to a direct bytecode program.
 #[derive(Clone, Debug)]
 pub struct JavaRegex {
     source: Box<str>,
     flags: Flags,
-    regex: regex::Regex,
+    insts: Box<[Inst]>,
+    classes: Box<[CharClass]>,
     limits: Limits,
 }
 
@@ -94,12 +108,9 @@ impl JavaRegex {
 
     /// `Pattern.compile(pattern, flags)`.
     pub fn compile_with(pattern: &str, flags: Flags) -> Result<JavaRegex, Error> {
-        let (translated, limits) = translate(pattern, flags)?;
-        let regex = regex::RegexBuilder::new(&translated)
-            .size_limit(1 << 28)
-            .build()
-            .map_err(|e| Error::Compile { pattern: pattern.into(), message: e.to_string() })?;
-        Ok(JavaRegex { source: pattern.into(), flags, regex, limits })
+        let (node, classes, limits) = parse(pattern, flags)?;
+        let insts = Compiler::compile(pattern, &node)?;
+        Ok(JavaRegex { source: pattern.into(), flags, insts, classes: classes.into_boxed_slice(), limits })
     }
 
     /// The Java pattern, as given.
@@ -109,15 +120,6 @@ impl JavaRegex {
 
     pub fn flags(&self) -> Flags {
         self.flags
-    }
-
-    /// The `regex` crate pattern it was translated to.
-    pub fn translated(&self) -> &str {
-        self.regex.as_str()
-    }
-
-    pub(crate) fn regex(&self) -> &regex::Regex {
-        &self.regex
     }
 
     #[cfg(test)]
@@ -138,6 +140,198 @@ impl JavaRegex {
         };
         Err(Error::Text { pattern: self.source.clone(), limit })
     }
+
+    /// Finds the leftmost match in `text` starting at or after byte offset
+    /// `from`, using reusable `scratch` buffers.
+    pub(crate) fn find_at(&self, text: &str, from: usize, scratch: &mut Scratch) -> Option<(usize, usize)> {
+        let bytes = text.as_bytes();
+        if from > bytes.len() {
+            return None;
+        }
+        scratch.memo = false;
+        if matches!(self.insts.first(), Some(Inst::Assert(Assertion::StartText))) {
+            if from > 0 {
+                return None;
+            }
+            return self.match_at(text, 0, 0, scratch).map(|end| (0, end));
+        }
+        let mut start = from;
+        while start <= bytes.len() {
+            if let Some(end) = self.match_at(text, from, start, scratch) {
+                return Some((start, end));
+            }
+            if start == bytes.len() {
+                break;
+            }
+            let b = bytes[start];
+            start += if b < 0x80 { 1 } else { utf8_char_width(b) };
+        }
+        None
+    }
+
+    /// The end of the match at `start_pos`, part of a search from `from`.
+    fn match_at(&self, text: &str, from: usize, start_pos: usize, scratch: &mut Scratch) -> Option<usize> {
+        let bytes = text.as_bytes();
+        let insts = &self.insts;
+        let stride = bytes.len() - from + 1;
+        scratch.stack.clear();
+        let mut visited_active = scratch.memo;
+        let mut backtracks = 0usize;
+        let mut pc = 0usize;
+        let mut pos = start_pos;
+
+        loop {
+            if visited_active {
+                let idx = pc * stride + (pos - from);
+                let word = idx >> 6;
+                let mask = 1u64 << (idx & 63);
+                if (scratch.visited[word] & mask) != 0 {
+                    if let Some((next_pc, next_pos)) = scratch.stack.pop() {
+                        pc = next_pc as usize;
+                        pos = next_pos;
+                        continue;
+                    }
+                    return None;
+                }
+                scratch.visited[word] |= mask;
+            }
+
+            let ok = match insts[pc] {
+                Inst::Match => return Some(pos),
+                Inst::Jump(target) => {
+                    pc = target as usize;
+                    continue;
+                }
+                Inst::Split(prefer, fallback) => {
+                    scratch.stack.push((fallback, pos));
+                    pc = prefer as usize;
+                    continue;
+                }
+                Inst::Assert(assertion) => {
+                    let pass = match assertion {
+                        Assertion::StartText => pos == 0,
+                        Assertion::EndText => pos == bytes.len(),
+                        Assertion::AsciiWordBoundary => {
+                            let prev = pos > 0 && is_ascii_word(bytes[pos - 1]);
+                            let next = pos < bytes.len() && is_ascii_word(bytes[pos]);
+                            prev != next
+                        }
+                        Assertion::AsciiNonWordBoundary => {
+                            let prev = pos > 0 && is_ascii_word(bytes[pos - 1]);
+                            let next = pos < bytes.len() && is_ascii_word(bytes[pos]);
+                            prev == next
+                        }
+                    };
+                    if pass {
+                        pc += 1;
+                    }
+                    pass
+                }
+                Inst::Literal(want) => {
+                    if let Some((c, next_pos)) = next_char(text, pos)
+                        && c == want
+                    {
+                        pos = next_pos;
+                        pc += 1;
+                        true
+                    } else {
+                        false
+                    }
+                }
+                Inst::AsciiCase(upper) => {
+                    if let Some(&b) = bytes.get(pos)
+                        && (b & !0x20) == upper
+                    {
+                        pos += 1;
+                        pc += 1;
+                        true
+                    } else {
+                        false
+                    }
+                }
+                Inst::AnyChar => {
+                    if let Some((_, next_pos)) = next_char(text, pos) {
+                        pos = next_pos;
+                        pc += 1;
+                        true
+                    } else {
+                        false
+                    }
+                }
+                Inst::NotLineTerminator => {
+                    if let Some((c, next_pos)) = next_char(text, pos)
+                        && !is_line_terminator(c)
+                    {
+                        pos = next_pos;
+                        pc += 1;
+                        true
+                    } else {
+                        false
+                    }
+                }
+                Inst::Class(cls_idx) => {
+                    if let Some((c, next_pos)) = next_char(text, pos)
+                        && self.classes[cls_idx as usize].matches(c)
+                    {
+                        pos = next_pos;
+                        pc += 1;
+                        true
+                    } else {
+                        false
+                    }
+                }
+            };
+
+            if !ok {
+                if let Some((next_pc, next_pos)) = scratch.stack.pop() {
+                    backtracks += 1;
+                    if !visited_active && backtracks >= 64 {
+                        let words = (insts.len() * stride).div_ceil(64);
+                        scratch.visited.clear();
+                        scratch.visited.resize(words, 0);
+                        scratch.memo = true;
+                        visited_active = true;
+                    }
+                    pc = next_pc as usize;
+                    pos = next_pos;
+                } else {
+                    return None;
+                }
+            }
+        }
+    }
+}
+
+#[inline]
+fn utf8_char_width(first_byte: u8) -> usize {
+    if first_byte < 0xE0 {
+        2
+    } else if first_byte < 0xF0 {
+        3
+    } else {
+        4
+    }
+}
+
+#[inline]
+fn next_char(text: &str, pos: usize) -> Option<(char, usize)> {
+    let b = *text.as_bytes().get(pos)?;
+    if b < 0x80 {
+        Some((b as char, pos + 1))
+    } else {
+        let c = text[pos..].chars().next()?;
+        Some((c, pos + c.len_utf8()))
+    }
+}
+
+#[inline]
+fn is_ascii_word(b: u8) -> bool {
+    b.is_ascii_alphanumeric() || b == b'_'
+}
+
+#[inline]
+fn is_line_terminator(c: char) -> bool {
+    matches!(c, '\n' | '\r' | '\u{85}' | '\u{2028}' | '\u{2029}')
 }
 
 /// What the limits ask of a text, found in one pass. A nonspacing mark
@@ -190,6 +384,36 @@ fn is_nonspacing_mark(cp: u32) -> bool {
 
 /// The largest code point.
 const MAX: u32 = 0x10FFFF;
+
+/// A compiled character class with an O(1) ASCII bitmap and sorted
+/// disjoint non-ASCII code point ranges.
+#[derive(Clone, Debug)]
+struct CharClass {
+    ascii: u128,
+    ranges: Box<[(u32, u32)]>,
+}
+
+impl CharClass {
+    #[inline]
+    fn matches(&self, c: char) -> bool {
+        let cp = c as u32;
+        if cp < 0x80 {
+            (self.ascii & (1u128 << cp)) != 0
+        } else {
+            self.ranges
+                .binary_search_by(|&(lo, hi)| {
+                    if cp < lo {
+                        std::cmp::Ordering::Greater
+                    } else if cp > hi {
+                        std::cmp::Ordering::Less
+                    } else {
+                        std::cmp::Ordering::Equal
+                    }
+                })
+                .is_ok()
+        }
+    }
+}
 
 /// A set of code points as sorted, disjoint, inclusive ranges.
 #[derive(Clone, Debug, Default)]
@@ -257,28 +481,26 @@ impl Set {
         self.0.iter().any(|&(a, b)| a <= lo && hi <= b)
     }
 
-    /// Writes the set as a `regex` class. Surrogates are left out: no
-    /// `&str` holds one.
-    fn write(&self, out: &mut String) {
-        let mut any = false;
-        out.push('[');
-        for &(lo, hi) in &self.0 {
-            for (lo, hi) in [(lo, hi.min(0xD7FF)), (lo.max(0xE000), hi)] {
-                if lo <= hi {
-                    any = true;
-                    if lo == hi {
-                        let _ = write!(out, "\\x{{{lo:X}}}");
-                    } else {
-                        let _ = write!(out, "\\x{{{lo:X}}}-\\x{{{hi:X}}}");
-                    }
+    /// Converts the normalized set into a [`CharClass`]. Surrogates are
+    /// excluded because no `&str` holds one.
+    fn into_char_class(mut self) -> CharClass {
+        self.normalize();
+        let mut ascii = 0u128;
+        let mut ranges = Vec::new();
+        for (lo, hi) in self.0 {
+            if lo < 0x80 {
+                let ascii_hi = hi.min(0x7F);
+                for cp in lo..=ascii_hi {
+                    ascii |= 1u128 << cp;
+                }
+            }
+            for (r_lo, r_hi) in [(lo.max(0x80), hi.min(0xD7FF)), (lo.max(0xE000), hi)] {
+                if r_lo <= r_hi {
+                    ranges.push((r_lo, r_hi));
                 }
             }
         }
-        if !any {
-            // A class that matches nothing.
-            out.push_str("^\\x{0}-\\x{10FFFF}");
-        }
-        out.push(']');
+        CharClass { ascii, ranges: ranges.into_boxed_slice() }
     }
 }
 
@@ -311,6 +533,183 @@ fn predefined(letter: u32) -> Option<(&'static [(u32, u32)], bool)> {
     Some((class, (letter as u8).is_ascii_uppercase()))
 }
 
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+enum Assertion {
+    StartText,
+    EndText,
+    AsciiWordBoundary,
+    AsciiNonWordBoundary,
+}
+
+#[derive(Copy, Clone, Debug)]
+enum Inst {
+    Match,
+    Jump(u32),
+    Split(u32, u32),
+    Assert(Assertion),
+    Literal(char),
+    AsciiCase(u8),
+    AnyChar,
+    NotLineTerminator,
+    Class(u32),
+}
+
+#[derive(Clone, Debug)]
+enum Node {
+    Empty,
+    Assert(Assertion),
+    Literal(char),
+    AsciiCase(u8),
+    AnyChar,
+    NotLineTerminator,
+    Class(u32),
+    Seq(Vec<Node>),
+    Alt(Vec<Node>),
+    Rep { body: Box<Node>, min: u32, max: Option<u32>, greedy: bool },
+}
+
+struct Compiler<'s> {
+    pattern: &'s str,
+    insts: Vec<Inst>,
+}
+
+impl<'s> Compiler<'s> {
+    fn compile(pattern: &'s str, root: &Node) -> Result<Box<[Inst]>, Error> {
+        let mut c = Compiler { pattern, insts: Vec::new() };
+        c.emit(root)?;
+        c.push(Inst::Match)?;
+        Ok(c.insts.into_boxed_slice())
+    }
+
+    fn pc(&self) -> u32 {
+        self.insts.len() as u32
+    }
+
+    fn push(&mut self, inst: Inst) -> Result<u32, Error> {
+        if self.insts.len() >= MAX_INSTS {
+            return Err(Error::Compile {
+                pattern: self.pattern.into(),
+                message: format!("compiled pattern exceeds {MAX_INSTS} instructions"),
+            });
+        }
+        let pc = self.insts.len() as u32;
+        self.insts.push(inst);
+        Ok(pc)
+    }
+
+    fn emit(&mut self, node: &Node) -> Result<(), Error> {
+        match node {
+            Node::Empty => Ok(()),
+            Node::Assert(a) => {
+                self.push(Inst::Assert(*a))?;
+                Ok(())
+            }
+            Node::Literal(c) => {
+                self.push(Inst::Literal(*c))?;
+                Ok(())
+            }
+            Node::AsciiCase(u) => {
+                self.push(Inst::AsciiCase(*u))?;
+                Ok(())
+            }
+            Node::AnyChar => {
+                self.push(Inst::AnyChar)?;
+                Ok(())
+            }
+            Node::NotLineTerminator => {
+                self.push(Inst::NotLineTerminator)?;
+                Ok(())
+            }
+            Node::Class(idx) => {
+                self.push(Inst::Class(*idx))?;
+                Ok(())
+            }
+            Node::Seq(items) => {
+                for item in items {
+                    self.emit(item)?;
+                }
+                Ok(())
+            }
+            Node::Alt(branches) => {
+                if branches.is_empty() {
+                    return Ok(());
+                }
+                if branches.len() == 1 {
+                    return self.emit(&branches[0]);
+                }
+                let mut end_jumps = Vec::with_capacity(branches.len() - 1);
+                for branch in &branches[..branches.len() - 1] {
+                    let split_pc = self.push(Inst::Split(0, 0))?;
+                    let branch_start = self.pc();
+                    self.emit(branch)?;
+                    let jump_pc = self.push(Inst::Jump(0))?;
+                    end_jumps.push(jump_pc);
+                    let next_pc = self.pc();
+                    self.insts[split_pc as usize] = Inst::Split(branch_start, next_pc);
+                }
+                self.emit(&branches[branches.len() - 1])?;
+                let end_pc = self.pc();
+                for jp in end_jumps {
+                    self.insts[jp as usize] = Inst::Jump(end_pc);
+                }
+                Ok(())
+            }
+            Node::Rep { body, min, max, greedy } => match *max {
+                Some(0) => Ok(()),
+                Some(m) => {
+                    for _ in 0..*min {
+                        self.emit(body)?;
+                    }
+                    if m > *min {
+                        let count = (m - *min) as usize;
+                        if count > MAX_INSTS {
+                            return Err(Error::Compile {
+                                pattern: self.pattern.into(),
+                                message: format!("repetition count {m} exceeds limit"),
+                            });
+                        }
+                        let mut splits = Vec::with_capacity(count);
+                        for _ in *min..m {
+                            let split_pc = self.push(Inst::Split(0, 0))?;
+                            let body_start = self.pc();
+                            self.emit(body)?;
+                            splits.push((split_pc, body_start));
+                        }
+                        let end_pc = self.pc();
+                        for (split_pc, body_start) in splits {
+                            self.insts[split_pc as usize] =
+                                if *greedy { Inst::Split(body_start, end_pc) } else { Inst::Split(end_pc, body_start) };
+                        }
+                    }
+                    Ok(())
+                }
+                None => {
+                    if *min == 0 {
+                        let split_pc = self.push(Inst::Split(0, 0))?;
+                        let body_start = self.pc();
+                        self.emit(body)?;
+                        self.push(Inst::Jump(split_pc))?;
+                        let end_pc = self.pc();
+                        self.insts[split_pc as usize] =
+                            if *greedy { Inst::Split(body_start, end_pc) } else { Inst::Split(end_pc, body_start) };
+                    } else {
+                        for _ in 0..(*min - 1) {
+                            self.emit(body)?;
+                        }
+                        let body_start = self.pc();
+                        self.emit(body)?;
+                        let split_pc = self.push(Inst::Split(0, 0))?;
+                        let end_pc = self.pc();
+                        self.insts[split_pc as usize] =
+                            if *greedy { Inst::Split(body_start, end_pc) } else { Inst::Split(end_pc, body_start) };
+                    }
+                    Ok(())
+                }
+            },
+        }
+    }
+}
+
 /// What a parsed piece of pattern can do, for the checks on quantifiers.
 #[derive(Copy, Clone, Debug)]
 struct Piece {
@@ -323,26 +722,26 @@ struct Piece {
 const CHAR: Piece = Piece { nullable: false, assertion: false };
 const ASSERTION: Piece = Piece { nullable: true, assertion: true };
 
-/// Translates a Java pattern, returning the `regex` pattern and its limits.
-fn translate(pattern: &str, flags: Flags) -> Result<(String, Limits), Error> {
+/// Parses a Java pattern into an AST node, character classes, and text limits.
+fn parse(pattern: &str, flags: Flags) -> Result<(Node, Vec<CharClass>, Limits), Error> {
     let mut t = Translator {
         source: pattern,
         p: remove_qe_quoting(pattern.chars().map(|c| c as u32).collect()),
         at: 0,
-        out: String::with_capacity(pattern.len() * 2),
+        classes: Vec::new(),
         ci: flags.case_insensitive,
         dotall: flags.dotall,
         limits: Limits::default(),
         names: Vec::new(),
         anchored_empty: false,
     };
-    let piece = t.expr()?;
+    let (node, piece) = t.expr()?;
     if t.at < t.p.len() {
         // Only an unbalanced ')' stops the top-level expression early.
         return Err(t.syntax("unmatched closing ')'"));
     }
     t.limits.mid_pair |= piece.nullable && t.anchored_empty;
-    Ok((t.out, t.limits))
+    Ok((node, t.classes, t.limits))
 }
 
 /// `Pattern.RemoveQEQuoting`: rewrites `\Q..\E` as escaped characters.
@@ -412,7 +811,7 @@ struct Translator<'s> {
     /// The pattern as code points, after `\Q..\E` is rewritten.
     p: Vec<u32>,
     at: usize,
-    out: String,
+    classes: Vec<CharClass>,
     ci: bool,
     dotall: bool,
     limits: Limits,
@@ -452,26 +851,38 @@ impl Translator<'_> {
         c
     }
 
+    fn add_class(&mut self, set: Set) -> Node {
+        let idx = self.classes.len() as u32;
+        self.classes.push(set.into_char_class());
+        Node::Class(idx)
+    }
+
     /// An alternation: `sequence ('|' sequence)*`.
-    fn expr(&mut self) -> Result<Piece, Error> {
-        let mut nullable = self.sequence()?.nullable;
+    fn expr(&mut self) -> Result<(Node, Piece), Error> {
+        let (first, first_piece) = self.sequence()?;
+        if !self.peek_is('|') {
+            return Ok((first, first_piece));
+        }
+        let mut branches = vec![first];
+        let mut nullable = first_piece.nullable;
         while self.peek_is('|') {
             self.at += 1;
-            self.out.push('|');
-            nullable |= self.sequence()?.nullable;
+            let (seq, piece) = self.sequence()?;
+            branches.push(seq);
+            nullable |= piece.nullable;
         }
-        Ok(Piece { nullable, assertion: false })
+        Ok((Node::Alt(branches), Piece { nullable, assertion: false }))
     }
 
     /// Atoms and their quantifiers, up to `|`, `)` or the end.
-    fn sequence(&mut self) -> Result<Piece, Error> {
+    fn sequence(&mut self) -> Result<(Node, Piece), Error> {
         let mut nullable = true;
+        let mut items = Vec::new();
         while let Some(c) = self.peek() {
-            let start = self.out.len();
-            let piece = match char::from_u32(c).unwrap_or('\0') {
+            let (node, piece) = match char::from_u32(c).unwrap_or('\0') {
                 '|' | ')' => break,
                 '(' => match self.group()? {
-                    Some(piece) => piece,
+                    Some(res) => res,
                     // An inline flag group takes no quantifier.
                     None => continue,
                 },
@@ -483,54 +894,53 @@ impl Translator<'_> {
                 '^' => {
                     self.at += 1;
                     self.anchored_empty = true;
-                    self.out.push_str("\\A");
-                    ASSERTION
+                    (Node::Assert(Assertion::StartText), ASSERTION)
                 }
                 '$' => {
                     self.at += 1;
                     self.limits.dollar = true;
-                    self.out.push_str("\\z");
-                    ASSERTION
+                    (Node::Assert(Assertion::EndText), ASSERTION)
                 }
                 '.' => {
                     self.at += 1;
-                    if self.dotall {
-                        self.out.push_str("(?s:.)");
-                    } else {
-                        self.out.push_str("[^\\n\\r\\x{85}\\x{2028}\\x{2029}]");
-                    }
-                    CHAR
+                    let node = if self.dotall { Node::AnyChar } else { Node::NotLineTerminator };
+                    (node, CHAR)
                 }
                 '?' | '*' | '+' => return Err(self.syntax("dangling meta character")),
                 // Java's atom is empty here, and the quantifier that must
                 // follow repeats the empty string.
-                '{' => Piece { nullable: true, assertion: false },
+                '{' => (Node::Empty, Piece { nullable: true, assertion: false }),
                 _ => {
                     self.at += 1;
-                    self.literal(c);
-                    CHAR
+                    (self.literal(c), CHAR)
                 }
             };
-            let piece = self.quantifier(piece, start)?;
+            let (node, piece) = self.quantifier(node, piece)?;
+            if !matches!(node, Node::Empty) {
+                items.push(node);
+            }
             nullable &= piece.nullable;
         }
-        Ok(Piece { nullable, assertion: false })
+        let node = match items.len() {
+            0 => Node::Empty,
+            1 => items.pop().unwrap(),
+            _ => Node::Seq(items),
+        };
+        Ok((node, Piece { nullable, assertion: false }))
     }
 
     /// A literal character, folded as Java folds it.
-    fn literal(&mut self, c: u32) {
+    fn literal(&self, c: u32) -> Node {
         let ascii = c < 0x80 && (c as u8).is_ascii_alphabetic();
         if self.ci && ascii {
-            let _ = write!(self.out, "[{}{}]", (c as u8 & !0x20) as char, (c as u8 | 0x20) as char);
-        } else if c < 0x80 && (c as u8).is_ascii_alphanumeric() {
-            self.out.push(c as u8 as char);
+            Node::AsciiCase((c as u8) & !0x20)
         } else {
-            let _ = write!(self.out, "\\x{{{c:X}}}");
+            Node::Literal(char::from_u32(c).expect("surrogates are refused"))
         }
     }
 
-    /// `closure`: a quantifier after the piece written from `start`.
-    fn quantifier(&mut self, piece: Piece, start: usize) -> Result<Piece, Error> {
+    /// `closure`: an optional quantifier after `node`.
+    fn quantifier(&mut self, node: Node, piece: Piece) -> Result<(Node, Piece), Error> {
         let (min, max) = match self.peek().and_then(char::from_u32) {
             Some('?') => {
                 self.at += 1;
@@ -545,7 +955,7 @@ impl Translator<'_> {
                 (1, None)
             }
             Some('{') => self.counted()?,
-            _ => return Ok(piece),
+            _ => return Ok((node, piece)),
         };
         if piece.assertion {
             return Err(self.unsupported(Feature::QuantifiedAssertion));
@@ -553,30 +963,18 @@ impl Translator<'_> {
         if piece.nullable && max.is_none_or(|m| m > 1) {
             return Err(self.unsupported(Feature::EmptyLoop));
         }
-        if self.out.len() == start {
-            // The empty atom before a counted quantifier.
-            self.out.push_str("(?:)");
-        }
-        match (min, max) {
-            (0, Some(1)) => self.out.push('?'),
-            (0, None) => self.out.push('*'),
-            (1, None) => self.out.push('+'),
-            (min, None) => {
-                let _ = write!(self.out, "{{{min},}}");
-            }
-            (min, Some(max)) => {
-                let _ = write!(self.out, "{{{min},{max}}}");
-            }
-        }
-        match self.peek().and_then(char::from_u32) {
+        let greedy = match self.peek().and_then(char::from_u32) {
             Some('?') => {
                 self.at += 1;
-                self.out.push('?');
+                false
             }
             Some('+') => return Err(self.unsupported(Feature::PossessiveQuantifier)),
-            _ => {}
-        }
-        Ok(Piece { nullable: piece.nullable || min == 0, assertion: false })
+            _ => true,
+        };
+        Ok((
+            Node::Rep { body: Box::new(node), min, max, greedy },
+            Piece { nullable: piece.nullable || min == 0, assertion: false },
+        ))
     }
 
     /// `{n}`, `{n,}` or `{n,m}`, at the `{`.
@@ -616,7 +1014,7 @@ impl Translator<'_> {
     }
 
     /// `group0`, at the `(`. `None` for an inline flag group.
-    fn group(&mut self) -> Result<Option<Piece>, Error> {
+    fn group(&mut self) -> Result<Option<(Node, Piece)>, Error> {
         self.at += 1;
         let (ci, dotall) = (self.ci, self.dotall);
         if self.peek_is('?') {
@@ -644,16 +1042,14 @@ impl Translator<'_> {
                 }
             }
         }
-        self.out.push_str("(?:");
-        let inner = self.expr()?;
+        let (inner_node, inner) = self.expr()?;
         if !self.peek_is(')') {
             return Err(self.syntax("unclosed group"));
         }
         self.at += 1;
-        self.out.push(')');
         self.ci = ci;
         self.dotall = dotall;
-        Ok(Some(Piece { nullable: inner.nullable, assertion: false }))
+        Ok(Some((inner_node, Piece { nullable: inner.nullable, assertion: false })))
     }
 
     /// `groupname`: a Latin letter, then letters and digits, then `>`.
@@ -694,27 +1090,23 @@ impl Translator<'_> {
     }
 
     /// An escape outside a class, at the backslash.
-    fn escape(&mut self) -> Result<Piece, Error> {
+    fn escape(&mut self) -> Result<(Node, Piece), Error> {
         self.at += 1;
         let Some(c) = self.read() else {
             return Err(self.syntax("unexpected internal error"));
         };
         let letter = char::from_u32(c).unwrap_or('\0');
-        let assertion = |t: &mut Self, text: &str| {
-            t.out.push_str(text);
-            Ok(ASSERTION)
-        };
         match letter {
             '1'..='9' | 'k' => Err(self.unsupported(Feature::Backreference)),
             'p' | 'P' => Err(self.unsupported(Feature::Property)),
             'A' => {
                 self.anchored_empty = true;
-                assertion(self, "\\A")
+                Ok((Node::Assert(Assertion::StartText), ASSERTION))
             }
-            'z' => assertion(self, "\\z"),
+            'z' => Ok((Node::Assert(Assertion::EndText), ASSERTION)),
             'Z' => {
                 self.limits.dollar = true;
-                assertion(self, "\\z")
+                Ok((Node::Assert(Assertion::EndText), ASSERTION))
             }
             'b' => {
                 if self.peek_is('{') {
@@ -722,12 +1114,12 @@ impl Translator<'_> {
                 }
                 self.limits.word_boundary = true;
                 self.anchored_empty = true;
-                assertion(self, "(?-u:\\b)")
+                Ok((Node::Assert(Assertion::AsciiWordBoundary), ASSERTION))
             }
             'B' => {
                 self.limits.word_boundary = true;
                 self.limits.mid_pair = true;
-                assertion(self, "(?-u:\\B)")
+                Ok((Node::Assert(Assertion::AsciiNonWordBoundary), ASSERTION))
             }
             'G' | 'R' | 'X' | 'N' => Err(self.unsupported(Feature::Escape(letter))),
             _ => {
@@ -738,13 +1130,12 @@ impl Translator<'_> {
                     } else {
                         set.add_all(class);
                     }
-                    set.write(&mut self.out);
-                    return Ok(CHAR);
+                    let node = self.add_class(set);
+                    return Ok((node, CHAR));
                 }
                 self.at -= 1;
                 let c = self.escaped_char()?;
-                self.literal(c);
-                Ok(CHAR)
+                Ok((self.literal(c), CHAR))
             }
         }
     }
@@ -857,7 +1248,7 @@ impl Translator<'_> {
     }
 
     /// `clazz`, after the `[`.
-    fn class(&mut self) -> Result<Piece, Error> {
+    fn class(&mut self) -> Result<(Node, Piece), Error> {
         let mut set = Set::default();
         let negated = self.peek_is('^');
         if negated {
@@ -888,12 +1279,12 @@ impl Translator<'_> {
         }
         // Java's matcher can try the second half of a surrogate pair; a
         // class that matches it there but not the whole character at the
-        // first half matches where the `regex` crate cannot.
+        // first half matches where UTF-8 character scanning cannot.
         if set.intersects(0xDC00, 0xDFFF) && !set.covers(0x10000, MAX) {
             self.limits.mid_pair = true;
         }
-        set.write(&mut self.out);
-        Ok(CHAR)
+        let node = self.add_class(set);
+        Ok((node, CHAR))
     }
 
     /// `range`: one character, range or predefined class of a class.
@@ -1003,8 +1394,10 @@ fn is_digit(c: u32) -> bool {
 mod tests {
     use super::*;
 
-    fn tr(p: &str) -> String {
-        translate(p, Flags::NONE).unwrap().0
+    fn find(p: &str, text: &str) -> Option<(usize, usize)> {
+        let r = JavaRegex::compile(p).unwrap();
+        let mut scratch = Scratch::default();
+        r.find_at(text, 0, &mut scratch)
     }
 
     fn feature(p: &str) -> Feature {
@@ -1020,33 +1413,36 @@ mod tests {
 
     #[test]
     fn classes_are_ascii() {
-        assert_eq!(tr(r"\d"), r"[\x{30}-\x{39}]");
-        assert_eq!(tr(r"[\w-]"), r"[\x{2D}\x{30}-\x{39}\x{41}-\x{5A}\x{5F}\x{61}-\x{7A}]");
-        assert_eq!(tr("a.b"), r"a[^\n\r\x{85}\x{2028}\x{2029}]b");
-        assert_eq!(tr("(?s)."), "(?s:.)");
+        assert_eq!(find(r"\d", "٠7"), Some(("٠".len(), "٠7".len())));
+        assert_eq!(find(r"[\w-]", "é-"), Some(("é".len(), "é-".len())));
+        assert_eq!(find("a.b", "a\nb a\u{85}b axb"), Some((9, 12)));
+        assert_eq!(find("(?s).", "\n"), Some((0, 1)));
     }
 
     #[test]
     fn case_folds_ascii_letters_only() {
-        let (t, _) = translate("(?i)aé[x-z]", Flags::NONE).unwrap();
-        assert_eq!(t, r"[Aa]\x{E9}[\x{58}-\x{5A}\x{78}-\x{7A}]");
+        assert_eq!(find("(?i)aé[x-z]", "AéZ"), Some((0, 4)));
+        assert_eq!(find("(?i)aé[x-z]", "AÉZ"), None);
         let r = JavaRegex::compile_with("[k]", Flags::CASE_INSENSITIVE).unwrap();
-        assert!(r.regex().is_match("K"));
-        assert!(!r.regex().is_match("\u{212A}"));
+        let mut scratch = Scratch::default();
+        assert_eq!(r.find_at("K", 0, &mut scratch), Some((0, 1)));
+        assert_eq!(r.find_at("\u{212A}", 0, &mut scratch), None);
         // Flags end with their group.
-        assert_eq!(tr("((?i)a)a"), "(?:[Aa])a");
+        assert_eq!(find("((?i)a)a", "Aa"), Some((0, 2)));
+        assert_eq!(find("((?i)a)a", "AA"), None);
     }
 
     #[test]
     fn quoting_and_escapes() {
-        assert_eq!(tr(r"\Qa.b\E*"), r"a\x{2E}b*");
-        assert_eq!(tr(r"[\Q]\E]"), r"[\x{5D}]");
-        assert_eq!(tr(r"\0101\x41\u0041\cA"), "AAA\\x{1}");
-        assert_eq!(tr(r"\0400"), r"\x{20}0");
-        assert_eq!(tr(r"\uD83D\uDE00"), r"\x{1F600}");
-        assert_eq!(tr(r"[\v-]"), r"[\x{B}\x{2D}]");
-        assert_eq!(tr("[]a]"), r"[\x{5D}\x{61}]");
-        assert_eq!(tr("{1}"), "(?:){1,1}");
+        assert_eq!(find(r"\Qa.b\E*", "a.bb"), Some((0, 4)));
+        assert_eq!(find(r"\Qa.b\E*", "axb"), None);
+        assert_eq!(find(r"[\Q]\E]", "]"), Some((0, 1)));
+        assert_eq!(find(r"\0101\x41\u0041\cA", "AAA\x01"), Some((0, 4)));
+        assert_eq!(find(r"\0400", " 0"), Some((0, 2)));
+        assert_eq!(find(r"\uD83D\uDE00", "😀"), Some((0, 4)));
+        assert_eq!(find(r"[\v-]", "\x0B-"), Some((0, 1)));
+        assert_eq!(find("[]a]", "]"), Some((0, 1)));
+        assert_eq!(find("{1}", "abc"), Some((0, 0)));
     }
 
     #[test]
@@ -1082,5 +1478,19 @@ mod tests {
         assert!(JavaRegex::compile(r"[\x00-\uFFFF]").unwrap().limits().mid_pair);
         assert!(!JavaRegex::compile(r"[^a]").unwrap().limits().mid_pair);
         assert!(JavaRegex::compile(r"[^\x{10000}-\x{10FFFF}]").unwrap().limits().mid_pair);
+    }
+
+    #[test]
+    fn compile_limit_and_backtracking_memoization() {
+        assert!(matches!(JavaRegex::compile("a{2000000}"), Err(Error::Compile { .. })));
+        // Triggers the visited bitset (> 64 backtracks at a single start position) without exponential blowup.
+        assert_eq!(find("(a|a)+b", "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaac"), None);
+        assert_eq!(find("(a|a)+b", "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaab"), Some((0, 31)));
+        // The failed states are kept across start positions, so a search
+        // that fails at every start is linear, not quadratic, in the text.
+        let long = "a".repeat(20_000);
+        assert_eq!(find("(a|aa)*c", &long), None);
+        assert_eq!(find(".*x", &long), None);
+        assert_eq!(find("(a|aa)*c|a$", &long), Some((19_999, 20_000)));
     }
 }
