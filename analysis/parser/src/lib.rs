@@ -6,7 +6,7 @@
 //! - [`Parse`] (`opennlp.tools.parser.Parse`): constituency tree node with shared sentence text,
 //!   UTF-8 byte [`Span`](turbo_analysis::Span) offsets, head constituent tracking, derivation
 //!   tracking, single-pass cursor bracket parsing (`Parse::parse`, `Parse::parse_with_options`),
-//!   and bracket rendering (`Parse::show`, `Parse::show_code_bank`).
+//!   and bracket rendering (`Parse::show`, `Parse::to_string_penn_treebank`).
 //! - [`ParseSampleStream`] (`opennlp.tools.parser.ParseSampleStream`): line-by-line Penn Treebank
 //!   parse stream, plus [`ParserPosSample`] (`PosSampleStream`) and [`ParserChunkSample`]
 //!   (`ChunkSampleStream`) conversions.

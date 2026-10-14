@@ -5,7 +5,7 @@ Constituency parse trees, Penn Treebank bracket I/O, and language head rules (`o
 ## Components
 
 - `parse`:
-  - `Parse` (`opennlp.tools.parser.Parse`): constituency tree node with shared `Arc<str>` sentence text, UTF-8 byte `Span` offsets, head constituent tracking, derivation tracking, tree mutation (`insert`, `add`, `adjoin`, `adjoin_root`, `expand_top_node`, `prune_parse`, `fix_possessives`, `add_names`), and node queries (`tag_nodes`, `token_nodes`, `initial_chunks`, `common_parent`, `tag_sequence_prob`).
+  - `Parse` (`opennlp.tools.parser.Parse`): constituency tree node with shared `Arc<str>` sentence text, UTF-8 byte `Span` offsets, head constituent tracking, derivation tracking, tree mutation (`insert`, `add`, `adjoin`, `adjoin_root`, `expand_top_node`, `prune_parse`, `fix_possessives`, `add_names`), and node queries (`tag_nodes`, `token_nodes`, `initial_chunks`, `tag_sequence_prob`).
   - `Parse::parse` and `Parse::parse_with_options`: single-pass cursor scanner for Penn Treebank bracketed trees (`OPENNLP-XXXX-treebank-scanner`), with malformed tree validation (reporting UTF-16 input offsets), outer `((S ...))` file wrapper support, optional non-numeric function tag retention, and `-NONE-` trace handling via `GapLabeler`.
   - `Parse::show` and `Parse::to_string_penn_treebank`: Penn Treebank bracket serialization with bracket token escaping (`encode_token`, `decode_token`).
   - `space_untokenized_parens` (`ParserTool.spaceUntokenizedParens`, `OPENNLP-XXXX-parser-brackets`): single-pass forward scanner separating round and curly brackets from adjacent non-whitespace characters without regular expressions.
