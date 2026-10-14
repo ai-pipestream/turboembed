@@ -98,9 +98,10 @@ are not taken from any corpus.
   outside the Basic Multilingual Plane (`emoji`) and words holding `</w>`
   as text (`end-marker`).
 
-- `inputs/formats/`: 18 small files in OpenNLP's native sample formats
+- `inputs/formats/`: 26 small files in OpenNLP's native sample formats
   and in CoNLL-U, written for this project; the part of the id before
-  the first hyphen names the format (`name`, `wordtag`, `lemma`,
+  the first hyphen names the format, or for the evaluator inputs the
+  part after `pairs-` (`name`, `wordtag`, `lemma`,
   `chunk`, `token`, `sentence`, `doccat`, `language`, `conllu`). They hold ordinary samples and the
   lines the streams treat unusually: untyped and nested start tags, an
   empty type, stray and missing end tags, empty names, tags that are not
@@ -120,7 +121,13 @@ are not taken from any corpus.
   backwards, past the words, past Java's `int`, out of order, repeated
   and overlapping, a bad `text_` language, forms missing from the text,
   a form found inside an inserted `<SPLIT>`, empty forms, CR LF and lone
-  CR, and whitespace that only one whitespace mode splits on.
+  CR, and whitespace that only one whitespace mode splits on. The
+  `pairs-` files hold a reference sample and then a prediction for it,
+  pair after pair: predictions that are right, wrong, shorter and
+  longer than the reference, chunk tags with no phrase, token and
+  sentence spans past the reference's text, a name predicted twice,
+  pairs with nothing to find, and sentence ends that only one
+  whitespace mode trims.
 
 `analysis/goldens-tool/README.md` ("Runs") lists which run reads which set.
 

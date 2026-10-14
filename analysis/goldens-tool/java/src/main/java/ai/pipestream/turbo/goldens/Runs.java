@@ -177,6 +177,8 @@ final class Runs {
     // The sample streams of OpenNLP's native formats, and the conversion streams, which
     // detokenize with the English dictionary.
     annotators.addAll(FormatGolden.all(fixtures.resolve(FORMAT_DETOKENIZER)));
+    // The evaluators, over pairs of a reference sample and a prediction in a native format.
+    annotators.addAll(EvalGolden.all());
     return new All(annotators, recorders);
   }
 }

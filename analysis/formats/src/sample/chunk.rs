@@ -93,34 +93,51 @@ impl<'a> ChunkSample<'a> {
     /// and [`FormatError::SplitsSurrogatePair`] for one whose second code
     /// unit is the first half of a surrogate pair.
     pub fn phrases(&self) -> Result<Vec<Phrase<'a>>, FormatError> {
-        let mut phrases = Vec::new();
-        let mut open: Option<(u32, Field<'a>)> = None;
-        for (i, chunk) in self.chunks.iter().enumerate() {
-            let tag = chunk.as_str();
-            let i = i as u32;
-            let continues = |kind: &str| tag.strip_prefix("I-") == Some(kind);
-            let open_kind = open.as_ref().map_or("", |(_, k)| k.as_str());
-            if tag.starts_with("B-") || (!continues(open_kind) && tag != "O") {
-                if let Some((start, kind)) = open.take() {
-                    phrases.push(Phrase { start, end: i, kind });
-                }
-                let cut = match utf16_cut(tag, 2) {
-                    Ok(Some(cut)) => cut,
-                    Ok(None) => return Err(FormatError::SplitsSurrogatePair { token: i as usize }),
-                    Err(len) => return Err(FormatError::ShortChunkTag { token: i as usize, len }),
-                };
-                open = Some((i, chunk.slice(cut, tag.len())));
-            } else if continues(open_kind) {
-                // Inside the phrase.
-            } else if let Some((start, kind)) = open.take() {
-                phrases.push(Phrase { start, end: i, kind });
-            }
-        }
-        if let Some((start, kind)) = open {
-            phrases.push(Phrase { start, end: self.chunks.len() as u32, kind });
-        }
-        Ok(phrases)
+        let tags: Vec<&str> = self.chunks.iter().map(Field::as_str).collect();
+        Ok(phrase_spans(&tags)?
+            .into_iter()
+            .map(|(start, end, cut)| {
+                let chunk = &self.chunks[start as usize];
+                Phrase { start, end, kind: chunk.slice(cut, chunk.as_str().len()) }
+            })
+            .collect())
     }
+}
+
+/// The phrases chunk tags mark, as [`ChunkSample::phrases`] finds them:
+/// for each its first token, the token after its last, and the byte
+/// where the type starts in the first token's tag.
+///
+/// # Errors
+///
+/// As [`ChunkSample::phrases`].
+pub fn phrase_spans(tags: &[&str]) -> Result<Vec<(u32, u32, usize)>, FormatError> {
+    let mut phrases = Vec::new();
+    let mut open: Option<(u32, &str, usize)> = None;
+    for (i, &tag) in tags.iter().enumerate() {
+        let i = i as u32;
+        let continues = |kind: &str| tag.strip_prefix("I-") == Some(kind);
+        let open_kind = open.map_or("", |(_, kind, _)| kind);
+        if tag.starts_with("B-") || (!continues(open_kind) && tag != "O") {
+            if let Some((start, _, cut)) = open.take() {
+                phrases.push((start, i, cut));
+            }
+            let cut = match utf16_cut(tag, 2) {
+                Ok(Some(cut)) => cut,
+                Ok(None) => return Err(FormatError::SplitsSurrogatePair { token: i as usize }),
+                Err(len) => return Err(FormatError::ShortChunkTag { token: i as usize, len }),
+            };
+            open = Some((i, &tag[cut..], cut));
+        } else if continues(open_kind) {
+            // Inside the phrase.
+        } else if let Some((start, _, cut)) = open.take() {
+            phrases.push((start, i, cut));
+        }
+    }
+    if let Some((start, _, cut)) = open {
+        phrases.push((start, tags.len() as u32, cut));
+    }
+    Ok(phrases)
 }
 
 /// `ChunkSample.toString`: a `token tag chunk` line per token, separated

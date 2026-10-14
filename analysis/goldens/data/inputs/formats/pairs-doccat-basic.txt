@@ -1,0 +1,6 @@
+sports The match was great
+politics The match was great
+news a b
+news c d
+Sports x
+sports x

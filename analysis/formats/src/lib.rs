@@ -20,6 +20,8 @@
 //!   from it.
 //! - [`registry`]: the formats of each sample kind by name, OpenNLP's
 //!   `StreamFactoryRegistry`.
+//! - [`evaluate`]: OpenNLP's scores, an evaluator per component and the
+//!   folds of cross-validation, with their own list of surprises.
 //! - [`encoding`]: decoding a corpus file; [`Lines`] splits the text into
 //!   lines as `BufferedReader.readLine` does.
 //!
@@ -83,6 +85,7 @@ pub mod conllu;
 pub mod convert;
 pub mod encoding;
 pub mod error;
+pub mod evaluate;
 pub mod native;
 pub mod registry;
 pub mod sample;
