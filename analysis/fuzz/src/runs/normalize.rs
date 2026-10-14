@@ -336,11 +336,12 @@ fn symbol_rule(text: &str, d: &Disagreement) -> bool {
 
 /// The region holds an e-mail address with a non-ASCII letter, digit or
 /// mark, which `BoundedUrls` takes as part of the address and OpenNLP's
-/// ASCII scan does not. Where the two results differ, the JVM kept a
-/// stretch of the address (the whole address, or what is left of it
-/// around the ASCII part it replaced) and the port wrote nothing or one
-/// space in its place: that stretch has no whitespace and holds a
-/// non-ASCII letter, digit or mark.
+/// ASCII scan does not. Where the two results differ, the JVM kept the
+/// address (whole, or what is left of it on either side of the ASCII
+/// part it replaced by a space) and the port wrote nothing or one space
+/// in its place: what the JVM kept is one or two stretches without
+/// whitespace, around at most one space, holding a non-ASCII letter,
+/// digit or mark.
 fn bounded_url_rule(text: &str, d: &Disagreement) -> bool {
     let Some((rust, golden)) = d.results() else { return false };
     if !d.source(text).contains('@') {
@@ -353,9 +354,10 @@ fn bounded_url_rule(text: &str, d: &Disagreement) -> bool {
         r_rest.chars().rev().zip(g_rest.chars().rev()).take_while(|(a, b)| a == b).map(|(a, _)| a.len_utf8()).sum();
     let (removed, kept) = (&r_rest[..r_rest.len() - suffix], &g_rest[..g_rest.len() - suffix]);
     let international = |c: char| !c.is_ascii() && (c.is_alphanumeric() || general_category(c).is_mark());
+    let parts: Vec<&str> = kept.split(' ').collect();
     (removed.is_empty() || removed == " ")
-        && !kept.is_empty()
-        && !kept.chars().any(char::is_whitespace)
+        && parts.len() <= 2
+        && parts.iter().all(|part| !part.is_empty() && !part.chars().any(char::is_whitespace))
         && kept.chars().any(international)
 }
 
@@ -601,6 +603,11 @@ mod tests {
         let text = "a https://h.example/ x.y@sub.d\u{338}omain.example b";
         documented("bounded-url", text, &[e(2, 20, " "), e(21, 30, " ")]);
         divergence("bounded-url", text, &[e(2, 20, " "), e(21, 30, "  ")]);
+        // Marks on both sides of the ASCII part: the JVM keeps both ends.
+        let text = "see first\u{5B8}+tag@a.b.c\u{20DD} now";
+        documented("bounded-url", text, &[e(11, 20, " ")]);
+        divergence("bounded-url", text, &[e(11, 20, "  ")]);
+        divergence("bounded-url", text, &[e(11, 23, " ")]);
     }
 
     #[test]
