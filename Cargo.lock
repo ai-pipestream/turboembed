@@ -1959,6 +1959,7 @@ dependencies = [
 name = "turbo-namefind"
 version = "0.1.0"
 dependencies = [
+ "regex",
  "turbo-analysis",
  "turbo-analysis-layers",
  "turbo-jvm",
@@ -2141,6 +2142,23 @@ dependencies = [
  "turbo-tokenize",
  "turbo-train",
  "turbo-unicode",
+ "turbo-zoo",
+]
+
+[[package]]
+name = "turbo-train-recipes"
+version = "0.1.0"
+dependencies = [
+ "serde",
+ "serde_json",
+ "turbo-analysis",
+ "turbo-eval",
+ "turbo-formats",
+ "turbo-maxent",
+ "turbo-sentdetect",
+ "turbo-tokenize",
+ "turbo-train",
+ "turbo-train-components",
  "turbo-zoo",
 ]
 

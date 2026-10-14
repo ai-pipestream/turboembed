@@ -65,8 +65,9 @@ jobs:
       # in either; the tests over them skip without them and fail here.
       # turbo-maxent evaluates the es and fr token models, and
       # turbo-sequence's beam and tag-format tests the en pos model.
-      # turbo-zoo checks their bytes against its index, and turbo-eval's
-      # default sentence model is the English one.
+      # turbo-zoo checks their bytes against its index, turbo-eval's
+      # default sentence model is the English one, and turbo-train-recipes
+      # gates its models against the English sentence and token models.
       - name: parity against the JVM with the published models, models required
         env:
           TURBO_GOLDENS_MODELS: ${{ github.workspace }}/.opennlp-models
@@ -75,6 +76,7 @@ jobs:
           cargo test -p turbo-maxent -p turbo-sequence -p turbo-langdetect -p turbo-sentdetect -p turbo-tokenize -p turbo-postag -p turbo-lemmatizer
           cargo test -p turbo-zoo --test builtin
           cargo test -p turbo-eval --lib
+          cargo test -p turbo-train-recipes --test recipes
       # fetch-models also unpacks the MeCab dictionaries into the same
       # directory (IPADIC with its UTF-8 copy). The lattice tokenizer's
       # IPADIC and mecab-ko-dic golden tests are ignored by default; here
