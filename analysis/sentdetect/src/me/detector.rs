@@ -316,7 +316,7 @@ mod tests {
         models.extend(
             ["opennlp-en-ud-ewt-sentence-1.3-2.5.4.bin", "opennlp-pt-ud-gsd-sentence-1.3-2.5.4.bin"]
                 .into_iter()
-                .filter_map(crate::test_models::published),
+                .filter_map(turbo_goldens::published_model),
         );
         let texts = [
             "A.".repeat(1500),

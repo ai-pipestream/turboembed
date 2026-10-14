@@ -316,7 +316,7 @@ final class TrainGolden implements AnnotatorGolden {
   public List<Layer> layers(Input input) throws AnnotatorException {
     List<Event> events;
     try {
-      events = events(input);
+      events = events(source, input);
     } catch (IOException e) {
       throw new IllegalStateException(input.inputId() + ": the event stream failed", e);
     }
@@ -351,7 +351,7 @@ final class TrainGolden implements AnnotatorGolden {
   }
 
   /** The events of the source for the input, in stream order. */
-  private List<Event> events(Input input) throws IOException {
+  static List<Event> events(Source source, Input input) throws IOException {
     ObjectStream<String> lines = new PlainTextByLineStream(() -> new ByteArrayInputStream(input.bytes()),
         StandardCharsets.UTF_8);
     ObjectStream<Event> stream = switch (source) {
@@ -420,7 +420,7 @@ final class TrainGolden implements AnnotatorGolden {
     return ObjectStreamUtils.createObjectStream(events);
   }
 
-  private static Layer eventsLayer(List<Event> events) {
+  static Layer eventsLayer(List<Event> events) {
     String[] outcomes = new String[events.size()];
     String[] contexts = new String[events.size()];
     String[] values = new String[events.size()];
@@ -613,7 +613,7 @@ final class TrainGolden implements AnnotatorGolden {
     layers.add(new Layer("turbo:gis-iterations", "document", new Column.U32("iteration", iteration),
         new Column.F64("likelihood", likelihood), new Column.U32("correct", correct),
         new Column.U32("events", events), new Column.Str("parameters", digests)));
-    layers.add(parameters(after, ran));
+    layers.add(parameters("turbo:gis-parameters", after, ran));
 
     byte[] bytes = modelBytes(model);
     layers.add(new Layer("turbo:gis-model", "document", new Column.Str("sha256", new String[] {Sha.sha256(bytes)}),
@@ -637,12 +637,12 @@ final class TrainGolden implements AnnotatorGolden {
   }
 
   /** The model's parameters by predicate id. */
-  private static Context[] contexts(AbstractModel model) {
+  static Context[] contexts(AbstractModel model) {
     return (Context[]) model.getDataStructures()[0];
   }
 
   /** The SHA-256 over every parameter's bits, predicates in order. */
-  private static String digest(Context[] contexts) {
+  static String digest(Context[] contexts) {
     MessageDigest md;
     try {
       md = MessageDigest.getInstance("SHA-256");
@@ -660,8 +660,8 @@ final class TrainGolden implements AnnotatorGolden {
     return Sha.hex(md.digest());
   }
 
-  /** {@code turbo:gis-parameters}: the parameters after the first and after the last iteration. */
-  private static Layer parameters(Context[][] after, int ran) {
+  /** The {@code id} layer: every parameter after the first and after the last iteration. */
+  static Layer parameters(String id, Context[][] after, int ran) {
     int[] iterations = ran > 1 ? new int[] {1, ran} : new int[] {1};
     int rows = 0;
     for (int it : iterations) {
@@ -688,12 +688,12 @@ final class TrainGolden implements AnnotatorGolden {
         }
       }
     }
-    return new Layer("turbo:gis-parameters", "document", new Column.U32("iteration", iteration),
+    return new Layer(id, "document", new Column.U32("iteration", iteration),
         new Column.U32("predicate", predicate), new Column.U32("outcome", outcome), new Column.F64("value", value));
   }
 
   /** What {@link GenericModelWriter} writes for the model. */
-  private static byte[] modelBytes(AbstractModel model) {
+  static byte[] modelBytes(AbstractModel model) {
     ByteArrayOutputStream out = new ByteArrayOutputStream();
     try (DataOutputStream dos = new DataOutputStream(out)) {
       new GenericModelWriter(model, dos).persist();

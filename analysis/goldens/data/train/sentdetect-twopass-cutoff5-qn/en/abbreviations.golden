@@ -1,0 +1,83 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	en/abbreviations	323	323	daae94d6ca8153be16e834da072d9f05a8437508fe55f4102378d0cfaae36036
+annotator	opennlp.tools.ml.maxent.quasinewton.QNTrainer	train
+config	Algorithm	MAXENT_QN
+config	Cutoff	5
+config	DataIndexer	TwoPass
+config	Iterations	100
+config	L1Cost	0.1
+config	L2Cost	0.1
+config	MaxFctEval	30000
+config	NumOfUpdates	15
+config	Threads	1
+config	sort	true
+config	source	sentdetect
+layer	turbo:events	document	17	outcome:str	context:str	values:str
+n	sn eos=. x=Dr 2 xcap v= s= n=Alvarez ncap	
+n	eos=. x=U 1 xcap v=the s=S scap n=in	
+n	sn eos=. x=.S 2 v=U vcap s= n=in	
+n	sn eos=. x=St 2 xcap v=on s= n=Mark's ncap	
+n	sn eos=. x=Place 5 xcap v=Mark's vcap s= n=She ncap	
+n	sn eos=. x=Mr 2 xcap v=with s= n=Chen ncap	
+n	sn eos=. x=Jan 3 xcap v=until s= n=2004,	
+n	sn eos=. x=closed 6 v=clinic s= n=Prof. ncap	
+n	sn eos=. x=Prof 4 xcap v=closed. s= n=Okafor, ncap	
+n	eos=. x=Ph 2 xcap v=Okafor, vcap s=D scap n=,	
+n	eos=. x=.D 2 v=Ph vcap s=, n=later	
+n	eos=. x=U 1 xcap v=the s=S scap n=health	
+n	sn eos=. x=.S 2 v=U vcap s= n=health	
+n	eos=. x=ideas 5 v=her s=" n=It ncap	
+n	eos=. x=i 1 v=nonprofit, s=e n=a	
+n	sn eos=. x=.e 2 v=i s= n=a	
+s	sn eos=. x=day 3 v=a s= n=	
+end	turbo:events
+layer	turbo:qn-training	document	1	iterations:u32	stop:str	message:str
+8	change-rate	
+end	turbo:qn-training
+layer	turbo:qn-iterations	document	8	iteration:u32	value:f64	rate:f64	accuracy:f64	parameters:str
+1	4011d7379e140b36 4.46017310139978	3fe3e33f0b42be62 0.6214900226531876	3fee1e1e1e1e1e1e 0.9411764705882353	705b6c26db1a81e102ec7e04b74d88cfaabeb07fff020856eecb3aaaff6a652e
+2	400bc9cf697d68f3 3.473540138377865	3fcc509859200b36 0.2212095675641536	3fee1e1e1e1e1e1e 0.9411764705882353	93d17da9828f56c6687f82cf442f4ea148a21f8f3dc622f3e041e8dd72a2a502
+3	400a19e5b64d9803 3.2626451723508594	3faf15ff73bd2ab3 0.06071470535115022	3fee1e1e1e1e1e1e 0.9411764705882353	ad52bf2862d2f78b72a95fba6306b9252ead8e34f3a35ede0454812ef02c2841
+4	4009a984acc94fb7 3.2077725886283264	3f9138da06747d22 0.01681843437574771	3fee1e1e1e1e1e1e 0.9411764705882353	628133a6de344e2c57fdcca96942e0e220168b34d09d387801470d6987de5a4e
+5	4009818cad69cbfc 3.1882566020881296	3f78eb80c9b6acf1 0.006083968236832536	3fee1e1e1e1e1e1e 0.9411764705882353	595c9e062a3f2bfdc0e14c957c53bc9ce8793da772d9240ed2f4efee5d49fbc0
+6	40097e577db4a16f 3.1866903134106717	3f40190e275d54ba 4.91268073100535E-4	3fee1e1e1e1e1e1e 0.9411764705882353	9b7507e662639d8c6d487235e85b78ac91901dd8f329182efffbb9f2b2cfbfe5
+7	40097ccb37b7aaae 3.1859344818997988	3f2f1691d929fe5f 2.3718386053771503E-4	3fee1e1e1e1e1e1e 0.9411764705882353	49bb4116379616efaa11f588c613f4bb897b47511c0eec1eaf3ea65c1cf666cc
+8	40097c96c18eba56 3.185834419410905	3f0077743263943c 3.140757898893078E-5	3fee1e1e1e1e1e1e 0.9411764705882353	85b227f5b2f116e3799332f30ab97d98d183c7924775cac70db8490db14a0b09
+end	turbo:qn-iterations
+layer	turbo:qn-parameters	document	28	iteration:u32	predicate:u32	outcome:u32	value:f64
+1	0	0	3fceb4a68c624524 0.2398880181758979
+1	0	1	bfceb4a68c624524 -0.2398880181758979
+1	1	0	3fdd218a50abfff5 0.45517213705170373
+1	1	1	bfdd218a50abfff5 -0.45517213705170373
+1	2	0	3fcac4dff71a982c 0.20913314405078276
+1	2	1	bfcac4dff71a982c -0.20913314405078276
+1	3	0	3fd1523690d4f90e 0.270642892301013
+1	3	1	bfd1523690d4f90e -0.270642892301013
+1	4	0	3fd1523690d4f90e 0.270642892301013
+1	4	1	bfd1523690d4f90e -0.270642892301013
+1	5	0	3fc2e552cc8b3e3e 0.14762339580055256
+1	5	1	bfc2e552cc8b3e3e -0.14762339580055256
+1	6	0	3fd1523690d4f90e 0.270642892301013
+1	6	1	bfd1523690d4f90e -0.270642892301013
+8	0	0	3feb3afd122f2392 0.850950751796619
+8	0	1	bfeb3afd122f237f -0.8509507517966169
+8	1	0	3fe777502ded42a9 0.7333145997054845
+8	1	1	bfe777502ded4290 -0.7333145997054817
+8	2	0	3fe776b13149d040 0.733238788858678
+8	2	1	bfe776b13149d02c -0.7332387888586758
+8	3	0	bfcbcf1d5e011fcc -0.2172581395154779
+8	3	1	3fcbcf1d5e011fd7 0.2172581395154782
+8	4	0	bfcbcf1d5e011fcc -0.2172581395154779
+8	4	1	3fcbcf1d5e011fd7 0.2172581395154782
+8	5	0	3fd4704362554131 0.31935200312456674
+8	5	1	bfd4704362554120 -0.3193520031245658
+8	6	0	3feafce3627f15b7 0.8433701442488005
+8	6	1	bfeafce3627f15b7 -0.8433701442488005
+end	turbo:qn-parameters
+layer	turbo:qn-model	document	1	sha256:str	length:u32
+561015881fb49f0e78edaaff12c478331966928843231a209210908e716540d7	177
+end	turbo:qn-model

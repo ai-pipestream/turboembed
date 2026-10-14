@@ -1,0 +1,55 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	en/list	231	231	374002664b56c2b3d6cce83151f15ed288f1a976eb26ceb4019d9afdf2442431
+annotator	opennlp.tools.ml.maxent.quasinewton.QNTrainer	train
+config	Algorithm	MAXENT_QN
+config	Cutoff	5
+config	DataIndexer	TwoPass
+config	Iterations	100
+config	L1Cost	0.1
+config	L2Cost	0.1
+config	MaxFctEval	30000
+config	NumOfUpdates	15
+config	Threads	1
+config	sort	true
+config	source	sentdetect
+layer	turbo:events	document	9	outcome:str	context:str	values:str
+n	sn eos=. x=1 1 v=things: s= n=The ncap	
+s	sn eos=. x=in 2 v=plugged s= n=2.	
+n	sn eos=. x=2 1 v=in. s= n=The ncap	
+s	sn eos=. x=on 2 v=is s= n=3.	
+n	sn eos=. x=3 1 v=on. s= n=The ncap	
+s	sn eos=. x=green 5 v=is s= n=-	
+s	sn eos=. x=case 4 v=the s= n=-	
+s	sn eos=. x=clear 5 v=vents s= n=If ncap	
+s	sn eos=. x=button 6 v=the s= n=	
+end	turbo:events
+layer	turbo:qn-training	document	1	iterations:u32	stop:str	message:str
+4	change-rate	
+end	turbo:qn-training
+layer	turbo:qn-iterations	document	4	iteration:u32	value:f64	rate:f64	accuracy:f64	parameters:str
+1	40188f8daca8dd46 6.140188882643377	3f901bd09d716eff 0.01573110543209477	3fe5555555555555 0.6666666666666666	9d571f4a97273cfefc734f7e012f9852dd7ef5aa81d4ac48e1c6302b1aa019b0
+2	4017388628d57ef9 5.8051992779071435	3fabeee16e0c910e 0.05455688923237477	3fe5555555555555 0.6666666666666666	02fd347a8d0fd598f33192473ae60ebcb72770f17afa9322a74fe0121695febf
+3	4017358b8bb89823 5.802290137426129	3f406bc17090cc90 5.011267213660565E-4	3fe5555555555555 0.6666666666666666	5dfb1e300507c4edc8a1768117de4721b30fc03287dba079abfce193c392ee49
+4	401735804515201c 5.802247123159784	3edf17ff70aa0d55 7.413325657015917E-6	3fe5555555555555 0.6666666666666666	866d863efd870b29cfd4ef2f40b4d56f2dc35a7a027c7a8269d110a075fe4f11
+end	turbo:qn-iterations
+layer	turbo:qn-parameters	document	12	iteration:u32	predicate:u32	outcome:u32	value:f64
+1	0	0	bfcb6735adf5140f -0.21408720964441882
+1	0	1	3fcb6735adf5140f 0.21408720964441882
+1	1	0	bfcb6735adf5140f -0.21408720964441882
+1	1	1	3fcb6735adf5140f 0.21408720964441882
+1	2	0	bfcb6735adf5140f -0.21408720964441882
+1	2	1	3fcb6735adf5140f 0.21408720964441882
+4	0	0	bfbc56337dcb3fd8 -0.11069032498494324
+4	0	1	3fbc56337dcb3f7e 0.110690324984942
+4	1	0	bfbc56337dcb3fd8 -0.11069032498494324
+4	1	1	3fbc56337dcb3f7e 0.110690324984942
+4	2	0	bfbc56337dcb3fd8 -0.11069032498494324
+4	2	1	3fbc56337dcb3f7e 0.110690324984942
+end	turbo:qn-parameters
+layer	turbo:qn-model	document	1	sha256:str	length:u32
+0369c1dda123c6982c4c62de6afb4ccf84fe74f83bff2f5e8c3ff69edbcbad0e	92
+end	turbo:qn-model

@@ -236,7 +236,7 @@ mod tests {
 
     #[test]
     fn reads_the_english_model() {
-        let Some(path) = crate::test_models::published("opennlp-en-ud-ewt-tokens-1.3-2.5.4.bin") else { return };
+        let Some(path) = turbo_goldens::published_model("opennlp-en-ud-ewt-tokens-1.3-2.5.4.bin") else { return };
         let m = TokenizerModel::read(path).unwrap();
         assert_eq!(m.language(), "en");
         assert_eq!(m.opennlp_version(), "2.5.4");

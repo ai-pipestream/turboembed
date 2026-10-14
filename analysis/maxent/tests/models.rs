@@ -1,32 +1,21 @@
 //! Opens the Spanish and French TokenizerME models of the OpenNLP UD 1.3
 //! release and compares their evaluation with the JVM's.
 //!
-//! The models are about 540 KB each and are not checked in. Set
-//! TURBO_TEST_OPENNLP_MODELS to a directory holding
-//! opennlp-es-ud-gsd-tokens-1.3-2.5.4.bin and
-//! opennlp-fr-ud-gsd-tokens-1.3-2.5.4.bin to run these tests; without it
-//! they say they were skipped and pass, unless
-//! TURBO_TEST_REQUIRE_OPENNLP_MODELS=1. The expected values were printed
+//! The models are about 540 KB each and are not checked in: `turbo-goldens
+//! fetch-models` downloads them (`turbo_goldens::published_model`). Without
+//! them these tests say so and pass, unless
+//! `TURBO_TEST_REQUIRE_OPENNLP_MODELS=1`. The expected values were printed
 //! by fixtures/src/RealModelValues.java (see fixtures/README.md).
 
 mod common;
-
-use std::path::PathBuf;
 
 use turbo_maxent::{ModelFile, ModelKind, best_outcome};
 
 type Case = (&'static [&'static str], [f64; 2]);
 
 /// The model file, or None after saying the test is skipped.
-fn model(name: &str, test: &str) -> Option<ModelFile> {
-    let Some(dir) = std::env::var_os("TURBO_TEST_OPENNLP_MODELS") else {
-        if std::env::var("TURBO_TEST_REQUIRE_OPENNLP_MODELS").is_ok_and(|v| v == "1") {
-            panic!("{test}: TURBO_TEST_OPENNLP_MODELS is not set");
-        }
-        println!("{test}: skipped: TURBO_TEST_OPENNLP_MODELS is not set");
-        return None;
-    };
-    let path = PathBuf::from(dir).join(name);
+fn model(name: &str) -> Option<ModelFile> {
+    let path = turbo_goldens::published_model(name)?;
     Some(ModelFile::read(&path).unwrap_or_else(|e| panic!("{}: {e}", path.display())))
 }
 
@@ -215,7 +204,7 @@ const FR_CASES: [Case; 10] = [
 
 #[test]
 fn spanish_tokenizer_model() {
-    let Some(file) = model("opennlp-es-ud-gsd-tokens-1.3-2.5.4.bin", "spanish_tokenizer_model") else { return };
+    let Some(file) = model("opennlp-es-ud-gsd-tokens-1.3-2.5.4.bin") else { return };
     let pattern =
         "^[0-9a-z\u{E1}\u{E9}\u{ED}\u{F3}\u{FA}\u{FC}\u{FD}\u{F1}A-Z\u{C1}\u{C9}\u{CD}\u{D3}\u{DA}\u{DD}\u{D1}]+$";
     check(&file, "es", pattern, 49355, &ES_CASES);
@@ -223,7 +212,7 @@ fn spanish_tokenizer_model() {
 
 #[test]
 fn french_tokenizer_model() {
-    let Some(file) = model("opennlp-fr-ud-gsd-tokens-1.3-2.5.4.bin", "french_tokenizer_model") else { return };
+    let Some(file) = model("opennlp-fr-ud-gsd-tokens-1.3-2.5.4.bin") else { return };
     let pattern = "^[a-zA-Z0-9\u{E0}\u{E2}\u{E4}\u{E8}\u{E9}\u{EA}\u{EB}\u{EE}\u{EF}\u{F4}\u{153}\u{F9}\u{FB}\u{FC}\u{FF}\u{E7}\u{C0}\u{C2}\u{C4}\u{C8}\u{C9}\u{CA}\u{CB}\u{CE}\u{CF}\u{D4}\u{152}\u{D9}\u{DB}\u{DC}\u{178}\u{C7}]+$";
     check(&file, "fr", pattern, 48440, &FR_CASES);
 }
