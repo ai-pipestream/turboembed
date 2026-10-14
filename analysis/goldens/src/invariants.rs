@@ -61,7 +61,9 @@ pub fn check_spans(doc: &Document, layer: &str, view: ViewId, starts: &[u32], en
     let text = doc.text(view);
     let offsets = doc.offsets(view);
     let source = doc.source();
-    let edits = view_edits(doc, view);
+    // The view's own alignment, against its parent, when it is reachable.
+    let own = own_view(doc, view);
+    let edits: Option<Vec<Span>> = own.map(|v| v.alignment().edits().iter().map(|e| e.child).collect());
     if starts.len() != ends.len() {
         out.push(Violation {
             layer: layer.into(),
@@ -134,29 +136,36 @@ pub fn check_spans(doc: &Document, layer: &str, view: ViewId, starts: &[u32], en
                 back.start, back.end, forward.start, forward.end, again.start, again.end
             ));
         }
-        if let Some(edits) = &edits
+        // A span touching no edit of the view's own alignment has the same
+        // bytes in the parent view, whatever earlier links of the chain
+        // changed.
+        if let (Some(v), Some(edits)) = (own, &edits)
+            && let Some(parent) = v.parent()
             && !touches_an_edit(edits, span)
-            && source[back.range()] != text[span.range()]
         {
-            fail(format!(
-                "touches no edit, yet maps to source {}..{} {:?}, not its own text {:?}",
-                back.start,
-                back.end,
-                &source[back.range()],
-                &text[span.range()]
-            ));
+            let up = v.alignment().span_to_parent(span);
+            let parent_text = doc.text(parent);
+            if parent_text.get(up.range()) != Some(&text[span.range()]) {
+                fail(format!(
+                    "touches no edit, yet maps to {}..{} {:?} of its parent view, not its own text {:?}",
+                    up.start,
+                    up.end,
+                    parent_text.get(up.range()),
+                    &text[span.range()]
+                ));
+            }
         }
     }
     out
 }
 
-/// The edits of the view's own alignment (against its parent), when the
-/// view is a layer of the document; the source view has none. None for a
-/// view the document holds only in its chain, whose alignment is not
-/// reachable, so the text check is skipped for it.
-fn view_edits(doc: &Document, view: ViewId) -> Option<Vec<Span>> {
+/// The view itself, with its alignment against its parent, when it is a
+/// layer of the document. None for the source view, which has no parent,
+/// and for a view the document holds only in its chain, whose alignment
+/// is not reachable, so the text check is skipped for it.
+fn own_view(doc: &Document, view: ViewId) -> Option<&View> {
     if view == ViewId::SOURCE {
-        return Some(Vec::new());
+        return None;
     }
     let target = Key::<View>::DEFAULT.id().ty;
     for k in doc.layers() {
@@ -164,7 +173,7 @@ fn view_edits(doc: &Document, view: ViewId) -> Option<Vec<Span>> {
             && let Some(v) = doc.get_key(&Key::<View>::named(k.name))
             && v.id() == view
         {
-            return Some(v.alignment().edits().iter().map(|e| e.child).collect());
+            return Some(v);
         }
     }
     None
@@ -371,6 +380,48 @@ mod tests {
         assert_eq!(checked, 1);
         assert_eq!(v.len(), 1);
         assert!(v[0].what.contains("touches no edit"), "{}", v[0]);
+    }
+
+    /// A view derived from a normalized view, not from the source: spans
+    /// outside its own edits are checked against its parent's text, which
+    /// the earlier link changed, and a lying second link is still caught.
+    #[test]
+    fn a_view_derived_from_another_view_is_checked_against_its_parent() {
+        let source = "Hello  WORLD!";
+        let mut doc = Document::new(source);
+        let mut b = ViewBuilder::new(source);
+        b.keep(5);
+        b.replace(7, " ");
+        b.replace(12, "world");
+        let (text, alignment) = b.finish();
+        let first = View::derived(doc.get::<View>().unwrap(), text, alignment);
+        doc.add(&Key::<View>::named("norm"), first, Provenance::by("test")).unwrap();
+        // The second link drops the exclamation mark; "world" touches none
+        // of its edits and reads "world" in its parent, "WORLD" in the source.
+        let mut b = ViewBuilder::new("Hello world!");
+        b.keep(11);
+        b.replace(12, "");
+        let (text, alignment) = b.finish();
+        assert_eq!(text, "Hello world");
+        let second = View::derived(doc.get_key(&Key::<View>::named("norm")).unwrap(), text, alignment);
+        doc.add(&Key::<View>::named("trimmed"), second, Provenance::by("test")).unwrap();
+        let second_id = doc.get_key(&Key::<View>::named("trimmed")).unwrap().id();
+        doc.add(&Key::DEFAULT, tokens(second_id, &[(0, 5), (6, 11)]), Provenance::by("test")).unwrap();
+        assert_eq!(check_document(&doc), (1, Vec::new()));
+        assert_eq!(doc.to_source(second_id, Span::new(6, 11)), Span::new(7, 12));
+        // The same chain with a second link whose text lies about its parent.
+        let lie = View::derived(
+            doc.get_key(&Key::<View>::named("norm")).unwrap(),
+            "Hello wurld".to_string(),
+            Alignment::identity(),
+        );
+        doc.add(&Key::<View>::named("lie"), lie, Provenance::by("test")).unwrap();
+        let lie_id = doc.get_key(&Key::<View>::named("lie")).unwrap().id();
+        doc.add(&Key::<Tokens>::named("lied"), tokens(lie_id, &[(6, 11)]), Provenance::by("test")).unwrap();
+        let (checked, v) = check_document(&doc);
+        assert_eq!(checked, 2);
+        assert_eq!(v.len(), 1);
+        assert!(v[0].what.contains("of its parent view"), "{}", v[0]);
     }
 
     #[test]
