@@ -13,8 +13,11 @@ everything that makes them:
   and for the `quantity` set `QuantityAnnotator` with
   `CursorQuantityExtractor` (see below). With `--dumps` it also writes a decision point dump
   beside each golden of a run that asks a maxent model (the sentence
-  detector, the tokenizer and the language detector): every context the
-  annotator gave the model and every outcome probability `eval` returned.
+  detector, the tokenizer, the part-of-speech tagger and the language
+  detector): every context the annotator gave the model and every outcome
+  probability `eval` returned. `PosAccuracy` is a second main class, run by
+  hand, that scores a part-of-speech model on a CoNLL-U file
+  (`analysis/postag/README.md`).
 - `container/Dockerfile`: the container the generator runs in. It starts
   from `eclipse-temurin:21-jdk` pinned by digest, clones the OpenNLP fork
   at a pinned commit, builds the runtime and the formats module with the
@@ -64,8 +67,8 @@ cargo run -p turbo-goldens-tool -- verify [--models <dir>]
   annotator directories in `analysis/goldens/data` (or `<dir>`) with what
   it wrote. The generator is always given `--dumps`
   (`GENERATOR_ARGS` in `src/recipe.rs`), so the goldens and their dumps are
-  made and installed together; before installing, every sentence, token and
-  language golden whose header names a model must have a dump beside it
+  made and installed together; before installing, every sentence, token,
+  part-of-speech and language golden whose header names a model must have a dump beside it
   whose header parses, except a golden with an error record (the annotator
   threw on that input), which must have none. A golden that names no model
   (a tokenizer or sentence detector without one, a normalizer) has no dump,
@@ -102,6 +105,11 @@ a directory with the same model run without them, and its options are
 | `tokenize` (`SimpleTokenizer`, `WhitespaceTokenizer`) | `simple`, `whitespace`, each also `+keep-new-lines`, `+legacy` and `+keep-new-lines+legacy` | `edge` | `keepNewLines true`, `whitespace legacy` |
 | `tokenize` (UAX #29 `WordTokenizer`) | `uax29` | `edge` | |
 | `detokenize` (`DictionaryDetokenizer`) | `en-detokenizer`, `fr-detokenizer`, `latin-detokenizer`, `pt-detokenizer`, `quotes-detokenizer` (fixtures) | `detokenizer`, the inputs whose id starts with the dictionary's name | `splitMarker <SPLIT>` |
+| `postag` (`POSTaggerME`) | `opennlp-en-ud-ewt-pos-1.3-2.5.4` | `en`, `multi`, `edge` | |
+| | `opennlp-en-ud-ewt-pos-1.3-2.5.4+penn` | `en` | `format PENN` |
+| | `opennlp-en-ud-ewt-pos-1.3-2.5.4+beam1`, `+beam10` | `en` | `beamSize` |
+| | `opennlp-de-ud-gsd-pos-1.3-2.5.4` | `edge` | |
+| | `pos-fixture` (fixture) | `en`, `edge` | |
 | `langdetect` (`LanguageDetectorME`) | `langdetect-183` | `en`, `multi` | |
 | `normalize` (each normalizer) | the normalizer's name | `norm` | see below |
 | `numbers` (`NumberScan` of the addons `numeric` module) | `latin-us`, `latin-eu` | `num` | `notation` |
@@ -142,6 +150,17 @@ a directory with the same model run without them, and its options are
 - The sentence detector's dumps also record, for each point whose best
   outcome is a split, what `isAcceptableBreak` returned
   (`docs/analysis.md`, "Decision point dumps").
+- A `postag` run cuts the input with the English (or, for the German
+  model, German) sentence and tokenizer models, which are its second and
+  third `model` records, and tags each sentence with `tag`; its golden has
+  the sentences, the tokens and `opennlp:pos` aligned to the tokens, with
+  `probs()` as the probability column. `+penn` asks the tagger for
+  `POSTagFormat.PENN`; `+beam<n>` rebuilds the model through
+  `POSModel(String, MaxentModel, int, Map, POSTaggerFactory)` with that
+  beam size and the model's own descriptor and tag dictionary. The dumps
+  record every context the beam search asked for, by wrapping the context
+  generator (`RecordingPOSTaggerFactory`), at the start of the token it is
+  about.
 
 The fixtures (`analysis/goldens/data/fixtures`) are checked in, mounted at
 `/fixtures` and listed with their SHA-512 in `src/recipe.rs`; the data

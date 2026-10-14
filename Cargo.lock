@@ -1956,6 +1956,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "turbo-postag"
+version = "0.1.0"
+dependencies = [
+ "turbo-analysis",
+ "turbo-analysis-layers",
+ "turbo-goldens",
+ "turbo-maxent",
+ "turbo-sequence",
+ "turbo-unicode",
+]
+
+[[package]]
 name = "turbo-sentdetect"
 version = "0.1.0"
 dependencies = [
