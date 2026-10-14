@@ -1999,6 +1999,7 @@ name = "turbo-parser"
 version = "0.1.0"
 dependencies = [
  "turbo-analysis",
+ "turbo-goldens",
  "turbo-jvm",
  "turbo-unicode",
 ]
