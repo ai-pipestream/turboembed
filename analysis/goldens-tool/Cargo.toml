@@ -11,3 +11,10 @@ name = "turbo_goldens_tool"
 [[bin]]
 name = "turbo-goldens"
 path = "src/main.rs"
+
+[dependencies]
+# The `fuzz` command: the generated corpus (turbo-goldens) and the Rust
+# side of every run with the comparison and the reducer (turbo-fuzz).
+# Everything else in the tool uses the standard library alone.
+turbo-goldens = { path = "../goldens" }
+turbo-fuzz = { path = "../fuzz" }

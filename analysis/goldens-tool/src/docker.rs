@@ -21,8 +21,13 @@ pub fn build_image() -> Result<String, String> {
 
 /// The id of the image tagged [`recipe::IMAGE_TAG`]; fails when there is none.
 pub fn image_id() -> Result<String, String> {
-    let out = run(Command::new("docker").args(["image", "inspect", "--format", "{{.Id}}", recipe::IMAGE_TAG]))
-        .map_err(|e| format!("{e}\nthe image {} is not present; run `turbo-goldens image` first", recipe::IMAGE_TAG))?;
+    image_id_of(recipe::IMAGE_TAG)
+}
+
+/// The id of the image tagged `tag`; fails when there is none.
+pub fn image_id_of(tag: &str) -> Result<String, String> {
+    let out = run(Command::new("docker").args(["image", "inspect", "--format", "{{.Id}}", tag]))
+        .map_err(|e| format!("{e}\nthe image {tag} is not present; run `turbo-goldens image` first"))?;
     Ok(String::from_utf8_lossy(&out.stdout).trim().to_owned())
 }
 
@@ -32,7 +37,22 @@ pub fn image_id() -> Result<String, String> {
 /// calling user so the files written are theirs. The generator gets
 /// [`recipe::GENERATOR_ARGS`], so it writes the dumps beside the goldens.
 pub fn generate(inputs: &Path, rates: &Path, models: &Path, fixtures: &Path, out: &Path) -> Result<(), String> {
-    image_id()?;
+    generate_with(recipe::IMAGE_TAG, &recipe::GENERATOR_ARGS, inputs, rates, models, fixtures, out)
+}
+
+/// As `generate`, in the image tagged `image` and with `args` as the
+/// generator's options after the fixed arguments (`--dumps`,
+/// `--skip-annotators`, `--only-runs`).
+pub fn generate_with(
+    image: &str,
+    args: &[&str],
+    inputs: &Path,
+    rates: &Path,
+    models: &Path,
+    fixtures: &Path,
+    out: &Path,
+) -> Result<(), String> {
+    image_id_of(image)?;
     let mut cmd = Command::new("docker");
     cmd.args(["run", "--rm", "--network", "none"])
         .arg("--mount")
@@ -48,7 +68,7 @@ pub fn generate(inputs: &Path, rates: &Path, models: &Path, fixtures: &Path, out
     if let Some(user) = current_user() {
         cmd.args(["--user", &user]);
     }
-    cmd.arg(recipe::IMAGE_TAG).args(recipe::GENERATOR_ARGS);
+    cmd.arg(image).args(args);
     let o = run(&mut cmd)?;
     print!("{}", String::from_utf8_lossy(&o.stdout));
     Ok(())
