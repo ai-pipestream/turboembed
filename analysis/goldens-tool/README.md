@@ -662,7 +662,7 @@ The command:
 2. runs the generator in the container (`--image`, the recipe's tag by
    default) over that inputs directory with the models, the fixtures and
    the rate snapshot mounted as `generate` mounts them, and with
-   `--skip-annotators train,formats,evaluate,detokenize,bpe,masc,ner`,
+   `--skip-annotators train,train-events,formats,evaluate,detokenize,bpe,masc,ner,parse,head-rules`,
    the annotators the differential does not cover; the goldens go under
    `<out>/jvm/`;
 3. compares every golden with the Rust side (`turbo_fuzz::compare_tree`),
