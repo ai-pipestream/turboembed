@@ -128,10 +128,7 @@ file is reproducible.
   `3.0.0-SNAPSHOT` for the fork this crate ports; `package::OPENNLP_VERSION`
   holds it.
 
-Not ported: `Float.parseFloat` and `Double.parseDouble` read hexadecimal
-literals (`0x1p3`), which `turbo_jvm::text` refuses; a real valued feature
-written that way is counted as 1 here where OpenNLP would read it. The
-abbreviation dictionary entry of a sentence or tokenizer model
+Not ported: the abbreviation dictionary entry of a sentence or tokenizer model
 (`abbreviations.dictionary`, `DictionarySerializer`) has no writer here
 yet; `ModelPackage::add_entry` takes its bytes. Nor are the QN, perceptron
 and naive Bayes trainers.

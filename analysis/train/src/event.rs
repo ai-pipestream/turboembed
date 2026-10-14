@@ -191,15 +191,12 @@ pub fn split_on_unicode_whitespace(line: &str) -> impl Iterator<Item = &str> {
 
 /// `RealValueFileEventStream.parseContexts`: for each context whose last
 /// `=` is neither its first character nor its last, the text after it is
-/// read with `Float.parseFloat`; when that succeeds the context is cut
-/// before the `=` and the value kept (a negative value is an error), and
-/// when it fails the context is left whole and its value is 1 (OpenNLP
-/// logs an error and goes on). Returns `None` when no context had a
-/// value, as OpenNLP returns a null array.
-///
-/// `Float.parseFloat` reads hexadecimal literals (`0x1p3`), which
-/// `turbo_jvm::text::parse_float` refuses; such a value is treated as
-/// unreadable here, where OpenNLP would read it.
+/// read with `Float.parseFloat`, which trims the characters up to U+0020
+/// at both ends and reads a decimal or hexadecimal literal; when that
+/// succeeds the context is cut before the `=` and the value kept (a
+/// negative value is an error), and when it fails the context is left
+/// whole and its value is 1 (OpenNLP logs an error and goes on). Returns
+/// `None` when no context had a value, as OpenNLP returns a null array.
 pub fn parse_contexts(contexts: &mut [JavaString], line_number: usize) -> Result<Option<Vec<f32>>> {
     let mut values = vec![1.0f32; contexts.len()];
     let mut has_real_value = false;
@@ -211,9 +208,11 @@ pub fn parse_contexts(contexts: &mut [JavaString], line_number: usize) -> Result
         if eq == 0 || eq + 1 >= bytes.len() {
             continue;
         }
-        // Text that is not UTF-8 (a lone surrogate, U+0000) is not a number.
+        // The trimmed text may hold a lone surrogate, which is not a
+        // number (`String::from_utf16` refuses it).
+        let units: Vec<u16> = context.utf16_units_from(eq + 1).collect();
         let Ok(v) =
-            std::str::from_utf8(&bytes[eq + 1..]).map_err(|_| ()).and_then(|t| text::parse_float(t).map_err(|_| ()))
+            String::from_utf16(java_trim(&units)).map_err(|_| ()).and_then(|t| text::parse_float(&t).map_err(|_| ()))
         else {
             continue;
         };
@@ -225,6 +224,13 @@ pub fn parse_contexts(contexts: &mut [JavaString], line_number: usize) -> Result
         has_real_value = true;
     }
     Ok(has_real_value.then_some(values))
+}
+
+/// `String.trim`: the units up to U+0020 taken off both ends.
+fn java_trim(units: &[u16]) -> &[u16] {
+    let start = units.iter().position(|&u| u > 0x20).unwrap_or(units.len());
+    let end = units.iter().rposition(|&u| u > 0x20).map_or(start, |i| i + 1);
+    &units[start..end]
 }
 
 /// Parses one line as `RealValueFileEventStream.parseEvent` does: fields
@@ -405,6 +411,27 @@ mod tests {
         let values = parse_contexts(&mut c, 1).unwrap().unwrap();
         assert_eq!(c, strs(&["a=b", "x=", "=3", "y", "z", "w=abc", "k=", "é=\0"]));
         assert_eq!(values, [2.0, 1.0, 1.0, 1.0, 100.0, 1.0, 4.0, 1.0]);
+    }
+
+    #[test]
+    fn a_value_is_trimmed_as_parse_float_trims_it() {
+        // U+0000 is not Unicode whitespace, so a field may hold it; parseFloat
+        // trims it with every other character up to U+0020. "x=1\0" is 1 and
+        // "x=\0" is the empty string, which is not a number.
+        let mut c = strs(&["x=1\0", "x=\0", "y=\t2 ", "z=1\0 2", "w=\u{1}3\u{1f}", "v=\u{A0}4", "u=0x1p3"]);
+        let values = parse_contexts(&mut c, 1).unwrap().unwrap();
+        assert_eq!(c, strs(&["x", "x=\0", "y", "z=1\0 2", "w", "v=\u{A0}4", "u"]));
+        assert_eq!(values, [1.0, 1.0, 2.0, 1.0, 3.0, 1.0, 8.0]);
+        // A lone surrogate after the `=` is not a number, trimmed or not.
+        let mut c = vec![
+            JavaString::from_utf16(&[0x61, 0x3D, 0x31, 0xD83D]),
+            JavaString::from_utf16(&[0x61, 0x3D, 0xD83D, 0x20]),
+        ];
+        assert_eq!(parse_contexts(&mut c, 1).unwrap(), None);
+        assert_eq!(c[0].utf16_len(), 4);
+        assert_eq!(java_trim(&[0x20, 0x61, 0x00]), [0x61]);
+        assert_eq!(java_trim(&[0x20, 0x00]), [] as [u16; 0]);
+        assert_eq!(java_trim(&[]), [] as [u16; 0]);
     }
 
     #[test]

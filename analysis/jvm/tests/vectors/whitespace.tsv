@@ -1,4 +1,4 @@
-# generator=Vectors.java	java.version=21.0.12.1	java.vm.version=21.0.12.1+1-1-24.04.4-Ubuntu	java.vm.name=OpenJDK 64-Bit Server VM	unicode=not exposed at run time	columns=code point (hex) for which Character.isWhitespace is true
+# generator=Vectors.java	java.version=21.0.12.1	java.vm.version=21.0.12.1+1-LTS	java.vm.name=OpenJDK 64-Bit Server VM	unicode=not exposed at run time	columns=code point (hex) for which Character.isWhitespace is true
 9
 a
 b
