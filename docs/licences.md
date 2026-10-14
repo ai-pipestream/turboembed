@@ -96,8 +96,22 @@ stay checked in.
 | UD 1.3 `uk-ud-iu-*` | [UD_Ukrainian-IU r2.16](https://github.com/UniversalDependencies/UD_Ukrainian-IU/blob/r2.16/README.md) | CC BY-NC-SA 4.0 | non-commercial | here |
 | `langdetect-183.bin` | Leipzig corpora ([model README](https://archive.apache.org/dist/opennlp/models/langdetect/1.8.3/README.txt), [corpora](https://wortschatz.uni-leipzig.de/en/download)) | conflicting: one source says CC BY, another CC BY-NC | terms not confirmed (`LicenseRef-Unconfirmed`) | plan; README here |
 | 1.5 `en-chunker` | CoNLL-2000 (Wall Street Journal, LDC) ([1.5 models](http://opennlp.sourceforge.net/models-1.5/)) | LDC | proprietary | plan |
-| 1.5 `en-pos-maxent`, `en-pos-perceptron` | not published (the OpenNLP 1.5.1 test plan heads its regression-training section "(private) English data", which may not describe these models) | none stated | proprietary | plan |
+| 1.5 `en-pos-maxent` | not published (the OpenNLP 1.5.1 test plan heads its regression-training section "(private) English data", which may not describe these models) | none stated | proprietary: refused for shipping, bundling and training; allowed only as a reference that is scored (below) | plan |
+| 1.5 `en-pos-perceptron` | not published (as `en-pos-maxent`) | none stated | proprietary | plan |
 | 1.5 English NER, sentence and token models | no corpus named | none stated | no licence | plan |
+
+`en-pos-maxent.bin` is used only as a reference whose output is scored
+or compared. Nothing ships, bundles, mirrors or trains on it, the zoo
+does not list it, and CI does not fetch it. It is downloaded by hand
+from <https://opennlp.sourceforge.net/models-1.5/en-pos-maxent.bin> into
+a directory the user names. Its SHA-256 is
+`645a094f45a866687a617385233fd23ae8b0f5fa8b1b76996781a50c17bdcf3d`. The
+JVM goldens (`PosGolden`, `BeamGolden`) record its tags for the test
+sentences and that digest; turbo-sequence's tests check the digest and
+compare what turbo-sequence makes of the model with the goldens; and the
+turbo-train-recipes tagger gate checks its size and SHA-256 (5,696,197
+bytes, `postag::EN_POS_MAXENT`), scores it on MASC's held-out documents
+and compares that score with the trained model's.
 
 The goldens tool fetches `langdetect-183.bin` to make the language
 detector's goldens (`analysis/goldens-tool/src/recipe.rs`); the zoo does
