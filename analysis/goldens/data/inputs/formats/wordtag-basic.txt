@@ -1,0 +1,9 @@
+The_DT driver_NN stopped_VBD ._.
+a_b_C d_ _x
+New_York_NNP is_VBZ big_JJ
+
+no tag_T
+tab	sep_X nbsp x_Y nely_Z fsq_W
+é_A 😀_SYM
+_ __ ___
+last_JJ

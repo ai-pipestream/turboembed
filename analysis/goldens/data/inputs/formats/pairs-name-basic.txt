@@ -1,0 +1,15 @@
+<START:person> John <END> lives in <START:location> Paris <END> .
+<START:person> John <END> lives in <START:organization> Paris <END> .
+a <START:x> b <END> c
+a <START:x> b <END> c
+<START:p> <END> x
+<START:p> <END> <START:p> <END> x
+x y
+<START:q> x <END> y
+no names here
+no names here
+
+<START:a> x <END> <START:b> y <END>
+<START:a> x y <END>
+<START:a> x <END> <START:a> y <END> z
+<START:a> x <END> z <START:a> y <END>

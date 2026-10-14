@@ -1,0 +1,33 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	formats/language-basic	136	132	dae62e87cf76bfa1f42acaa16e22e6771d3ef49179f16e13290421e7c25da0a1
+annotator	opennlp.tools.langdetect.LanguageDetectorSampleStream	read
+layer	turbo:samples	document	6	written:str
+eng\tThe quick brown fox.
+deu\tDer schnelle\tbraune Fuchs.
+fra\t
+por\tÉ isso aí 😀
+ spa \t  espacios  
+last\tline
+end	turbo:samples
+layer	turbo:read-errors	document	0	after:u32	class:str	message:str
+end	turbo:read-errors
+layer	turbo:sample-labels	document	6	label:str
+eng
+deu
+fra
+por
+ spa 
+last
+end	turbo:sample-labels
+layer	turbo:sample-texts	document	6	text:str
+The quick brown fox.
+Der schnelle\tbraune Fuchs.
+
+É isso aí 😀
+  espacios  
+line
+end	turbo:sample-texts
