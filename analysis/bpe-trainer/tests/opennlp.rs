@@ -203,10 +203,12 @@ fn the_trainer_makes_the_jvms_merges_on_random_corpora() {
     }
     assert_eq!(runs, 160);
     assert_eq!(merges, 9907);
-    // These reach a bin of eight pairs or more in a table of 64 or more,
-    // which the JVM makes a tree; the trainer says it cannot rule out a
-    // difference there, and here there is none.
-    assert_eq!(inexact, [19, 35, 39, 87, 135, 155]);
+    // These reach a tree bin (eight keys or more in a bin of a table of 64
+    // or more) holding keys with equal hash codes, which the JVM orders by
+    // identity hash code; the trainer says it cannot rule out a difference
+    // there, and here there is none. Run 87 also reaches a tree bin, with
+    // distinct hash codes, whose order is reproduced.
+    assert_eq!(inexact, [19, 35, 39, 135, 155]);
 }
 
 /// With the other tie order the trainer makes the JVM's merges up to the

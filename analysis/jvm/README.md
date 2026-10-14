@@ -27,9 +27,14 @@ of its results depend on the platform rather than on OpenNLP:
 - `hash_map`: `JavaHash` (`String.hashCode`, `CharBuffer.hashCode`,
   record/pair and `List.hashCode`), `spread` (`HashMap.hash`),
   `HashMapOrder` (allocation-free bucket-sort model of `HashMap`
-  iteration order for `put`, `merge` and `clear`), `put_order` and
-  `JavaHashMap` (full `HashMap` container for `put`, `merge`, `putAll`
-  and `clear` with the default load factor `0.75f`).
+  iteration order for `put`, `merge` and `clear`, which hands a map with
+  a tree bin to `JavaHashMap`), `put_order` and `JavaHashMap` (full
+  `HashMap` container for `new HashMap<>()`, `new HashMap<>(n)`, `put`,
+  `merge`, `putAll` and `clear` with the default load factor `0.75f`,
+  red-black tree bins included). The one order no model can match is
+  that of keys with equal hash codes in a tree bin whose class `HashMap`
+  cannot compare, which the JVM orders by `System.identityHashCode`;
+  `is_jvm_exact` says when that happened.
 
 The crate has no dependencies.
 
@@ -69,6 +74,16 @@ docker run --rm --entrypoint java --user "$(id -u):$(id -g)" \
 `java/Vectors.java` is a single file for the source launcher and needs no
 build tool; any JDK 21 gives the same records, and only the header line
 names the JDK that ran it.
+
+`tests/jdk_hash_map.rs` compares `JavaHashMap` and `HashMapOrder` with
+`java.util.HashMap` on a running JDK 21 (`tests/jdk/HashMapProbe.java`)
+over 4000 random scenarios of `String`, `CharBuffer`, `Integer` and
+non-`Comparable` keys, `null` included, and of `put`, `merge`, `putAll`,
+`clear` and initial capacities, most of them with keys drawn to collide
+so that bins become red-black trees and split back into lists. It runs
+only with `TURBO_TEST_JDK` set (`java` and `javac` on the PATH);
+`TURBO_TEST_JDK_SEED` and `TURBO_TEST_JDK_COUNT` pick the seed and the
+number of scenarios.
 
 ## What is not here
 
