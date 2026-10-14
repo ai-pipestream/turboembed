@@ -20,7 +20,9 @@
 //!   into the same text are equivalent (`view_edits_equivalent`).
 
 use turbo_unicode::GeneralCategory;
+use turbo_unicode::WhitespaceMode;
 use turbo_unicode::category::general_category;
+use turbo_unicode::java::code_point::{is_alphabetic, is_digit};
 use turbo_unicode::utf16::{byte_to_utf16, utf16_to_byte};
 
 use crate::format::Golden;
@@ -159,10 +161,9 @@ pub fn whole_character_spans(text: &str, spans: &[JvmSpan]) -> Result<Vec<JvmSpa
 /// from the plain simple tokens of the same text (a line break is
 /// whitespace, so never inside a token): those spans plus a one byte span
 /// at every line feed and carriage return, in text order. The Java has
-/// two defects in this mode (it throws when a line break comes before the
-/// first token, and gives a line break after whitespace the span of the
-/// whitespace), which the port fixes; where the Java output equals this
-/// expectation, the two agree.
+/// two defects in this mode, which [`jvm_simple_newline_spans`] models
+/// and the port fixes; where the Java output equals this expectation, the
+/// two agree.
 pub fn simple_newline_spans(text: &str, plain: &[(u32, u32)]) -> Vec<(u32, u32)> {
     let mut out: Vec<(u32, u32)> = plain.to_vec();
     for (i, b) in text.bytes().enumerate() {
@@ -174,13 +175,96 @@ pub fn simple_newline_spans(text: &str, plain: &[(u32, u32)]) -> Vec<(u32, u32)>
     out
 }
 
-/// `span` with the nonspacing marks at its end left out: `WordpieceEncoder`
-/// runs a piece's span over the marks accent stripping removed after it,
-/// and the port does not. A span of marks alone is kept.
+/// What `SimpleTokenizer.tokenizePos` with `keepNewLines` returns, as
+/// UTF-16 unit spans, defects included. The Java walks the UTF-16 units
+/// (each half of a surrogate pair is "other" and differs from the other
+/// half, so a character outside the BMP is two tokens), keeps a token
+/// start `start` that begins at -1 and moves only when a token starts or
+/// ends, and at every line feed and carriage return adds the span
+/// `start..start + 1` and then adds one to `start`. So a line break right
+/// after a token gets its own span; a line break after whitespace gets
+/// the span that starts where the last token or line break ended, which
+/// is not the line break's; and a line break before the first token asks
+/// for a span from -1, which `Span` refuses: the result is
+/// `Err("java.lang.IllegalArgumentException")`. `mode` is the whitespace
+/// table of `StringUtil.isWhitespace`.
+pub fn jvm_simple_newline_spans(text: &str, mode: WhitespaceMode) -> Result<Vec<(u32, u32)>, String> {
+    #[derive(Clone, Copy, PartialEq, Eq)]
+    enum Class {
+        Whitespace,
+        Alphabetic,
+        Numeric,
+        Other,
+    }
+    let mut tokens = Vec::new();
+    let mut class = Class::Whitespace;
+    let mut state = class;
+    let mut start: i64 = -1;
+    let mut pc: u16 = 0;
+    let mut length = 0u32;
+    for (ci, c) in text.encode_utf16().enumerate() {
+        let (ci, cp) = (ci as u32, u32::from(c));
+        length = ci + 1;
+        class = if mode.is_whitespace(cp) {
+            Class::Whitespace
+        } else if is_alphabetic(cp) {
+            Class::Alphabetic
+        } else if is_digit(cp) {
+            Class::Numeric
+        } else {
+            Class::Other
+        };
+        if state == Class::Whitespace {
+            if class != Class::Whitespace {
+                start = i64::from(ci);
+            }
+        } else if class != state || (class == Class::Other && c != pc) {
+            tokens.push((start as u32, ci));
+            start = i64::from(ci);
+        }
+        if c == 0x000A || c == 0x000D {
+            if start < 0 {
+                return Err("java.lang.IllegalArgumentException".into());
+            }
+            tokens.push((start as u32, start as u32 + 1));
+            start += 1;
+        }
+        state = class;
+        pc = c;
+    }
+    if class != Class::Whitespace {
+        tokens.push((start as u32, length));
+    }
+    Ok(tokens)
+}
+
+/// `span` with the nonspacing marks at its end left out, and with them
+/// the control and format characters `WordpieceEncoder` dropped before
+/// them: the encoder runs a piece's span over the marks accent stripping
+/// removed after it, giving the mark's end to the character before it,
+/// and a dropped control between the two is covered along. The port drops
+/// the same characters and ends the piece before them. A span of marks
+/// and controls alone is kept.
 pub fn without_trailing_marks(text: &str, [start, end]: [u32; 2]) -> [u32; 2] {
     let piece = &text[start as usize..end as usize];
-    let kept = piece.trim_end_matches(|c: char| general_category(c) == GeneralCategory::Mn);
+    let kept = piece.trim_end_matches(|c: char| general_category(c) == GeneralCategory::Mn || bert_drops(c));
     if kept.is_empty() { [start, end] } else { [start, start + kept.len() as u32] }
+}
+
+/// `BertNormalization.cleanText`: U+0000, U+FFFD and the control, format,
+/// surrogate, private use and unassigned characters, but for tab, line
+/// feed and carriage return, are dropped.
+fn bert_drops(c: char) -> bool {
+    c == '\u{FFFD}'
+        || (!matches!(c, '\t' | '\n' | '\r')
+            && matches!(
+                general_category(c),
+                GeneralCategory::Cc
+                    | GeneralCategory::Cf
+                    | GeneralCategory::Cs
+                    | GeneralCategory::Co
+                    | GeneralCategory::Cn
+            ))
 }
 
 /// One edit of a normalized view as a golden row holds it: the source byte
@@ -213,21 +297,48 @@ pub fn apply_view_edits(text: &str, edits: &[ViewEdit]) -> Result<String, String
 }
 
 /// Whether two edit lists change the same stretches of the source into
-/// the same text, whatever their granularity. Edits of either list that
-/// overlap or touch, directly or through edits of the other list, form a
-/// region; the lists are equivalent when, for every region, the source
-/// with the one list's edits applied equals the source with the other's.
-/// This is the check for goldens whose edits were reconstructed by a
-/// diff: the diff may cut one change into several rows or join two
-/// changes that are a character apart, and the Rust edits may span an
-/// unchanged character that the diff kept. Equality of the whole output
-/// is not enough: an edit the golden attributes to another place is a
-/// divergence. One case is let through: a diff over a run of one
+/// the same text, whatever their granularity: no [`view_edit_disagreements`].
+pub fn view_edits_equivalent(text: &str, rust: &[ViewEdit], golden: &[ViewEdit]) -> bool {
+    view_edit_disagreements(text, rust, golden).is_empty()
+}
+
+/// A region of the source the two edit lists change differently, with
+/// what each makes of it (or why its edits do not apply).
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Disagreement {
+    pub start: usize,
+    pub end: usize,
+    pub rust: Result<String, String>,
+    pub golden: Result<String, String>,
+}
+
+impl Disagreement {
+    /// The source text of the region.
+    pub fn source<'t>(&self, text: &'t str) -> &'t str {
+        &text[self.start..self.end]
+    }
+
+    /// The two results, when both lists' edits apply.
+    pub fn results(&self) -> Option<(&str, &str)> {
+        Some((self.rust.as_deref().ok()?, self.golden.as_deref().ok()?))
+    }
+}
+
+/// Where two edit lists change the source differently. Edits of either
+/// list that overlap or touch, directly or through edits of the other
+/// list, form a region; the lists agree on a region when the source with
+/// the one list's edits applied equals the source with the other's. This
+/// is the check for goldens whose edits were reconstructed by a diff: the
+/// diff may cut one change into several rows or join two changes that
+/// are a character apart, and the Rust edits may span an unchanged
+/// character that the diff kept. Equality of the whole output is not
+/// enough: an edit the golden attributes to another place is a
+/// disagreement. One case is let through: a diff over a run of one
 /// repeated character ("xxxẍ", "6/98/2635 4") may delete an occurrence
 /// at one end of the run where the other list deletes one at the other
 /// end. Two regions whose results differ only in trailing copies of the
 /// character that fills the source between them are checked together.
-pub fn view_edits_equivalent(text: &str, rust: &[ViewEdit], golden: &[ViewEdit]) -> bool {
+pub fn view_edit_disagreements(text: &str, rust: &[ViewEdit], golden: &[ViewEdit]) -> Vec<Disagreement> {
     let mut all: Vec<(usize, usize)> = rust.iter().chain(golden).map(|r| (r.start, r.end)).collect();
     all.sort_unstable();
     let mut regions: Vec<(usize, usize)> = Vec::new();
@@ -246,6 +357,7 @@ pub fn view_edits_equivalent(text: &str, rust: &[ViewEdit], golden: &[ViewEdit])
         };
         (apply_view_edits(&text[s..e], &inside(rust)), apply_view_edits(&text[s..e], &inside(golden)))
     };
+    let mut out = Vec::new();
     let mut i = 0;
     while i < regions.len() {
         let start = regions[i].0;
@@ -255,18 +367,19 @@ pub fn view_edits_equivalent(text: &str, rust: &[ViewEdit], golden: &[ViewEdit])
             if a == b {
                 break;
             }
-            let Some(&(next_start, next_end)) = regions.get(i + 1) else {
-                return false;
+            let widen = regions.get(i + 1).filter(|&&(next_start, _)| {
+                differ_in_a_repeated_character(&text[end..next_start], a.as_deref(), b.as_deref())
+            });
+            let Some(&(_, next_end)) = widen else {
+                out.push(Disagreement { start, end, rust: a, golden: b });
+                break;
             };
-            if !differ_in_a_repeated_character(&text[end..next_start], a.as_deref(), b.as_deref()) {
-                return false;
-            }
             i += 1;
             end = next_end;
         }
         i += 1;
     }
-    true
+    out
 }
 
 /// Whether `gap` is a run of one character and `a` and `b` differ only
@@ -320,11 +433,40 @@ mod tests {
     }
 
     #[test]
+    fn the_jvms_keep_new_lines_spans_are_modelled_with_their_stale_start() {
+        let jvm = |t: &str| jvm_simple_newline_spans(t, WhitespaceMode::Unicode);
+        // A line break right after a token: its own span. After a space:
+        // the span starting at the last token's end, which is the space,
+        // and the next break one further on.
+        assert_eq!(jvm("ab\ncd"), Ok(vec![(0, 2), (2, 3), (3, 5)]));
+        assert_eq!(jvm("ab \n\ncd"), Ok(vec![(0, 2), (2, 3), (3, 4), (5, 7)]));
+        // A break before any token: a span from -1, refused.
+        assert_eq!(jvm("\nab"), Err("java.lang.IllegalArgumentException".into()));
+        assert_eq!(jvm(" \n"), Err("java.lang.IllegalArgumentException".into()));
+        // CR LF: two breaks, the second's span stale by one.
+        assert_eq!(jvm("a\r\nb"), Ok(vec![(0, 1), (1, 2), (2, 3), (3, 4)]));
+        // A character outside the BMP is two units of class other that
+        // differ, so two tokens, in UTF-16 units.
+        assert_eq!(jvm("\u{1F600}\n"), Ok(vec![(0, 1), (1, 2), (2, 3)]));
+        // Where the port's expectation and the JVM agree.
+        let text = "ab\ncd";
+        assert_eq!(simple_newline_spans(text, &[(0, 2), (3, 5)]), [(0, 2), (2, 3), (3, 5)]);
+        assert_eq!(jvm("x1,,.").unwrap(), [(0, 1), (1, 2), (2, 4), (4, 5)]);
+    }
+
+    #[test]
     fn trailing_marks_leave_a_piece() {
         let text = "Cafe\u{301} x\u{301}\u{301}";
         assert_eq!(without_trailing_marks(text, [0, 6]), [0, 4]);
         assert_eq!(without_trailing_marks(text, [7, 12]), [7, 8]);
         assert_eq!(without_trailing_marks(text, [8, 12]), [8, 12]);
+        // A dropped control between the letter and the mark is covered by
+        // the JVM's span and left out with the mark; alone it is kept.
+        let text = "x\u{FEFF}\u{5B8}y\0 z\u{1B}";
+        assert_eq!(without_trailing_marks(text, [0, 6]), [0, 1]);
+        assert_eq!(without_trailing_marks(text, [6, 8]), [6, 7]);
+        assert_eq!(without_trailing_marks(text, [1, 6]), [1, 6]);
+        assert_eq!(without_trailing_marks(text, [9, 11]), [9, 10]);
     }
 
     #[test]
@@ -363,7 +505,10 @@ mod tests {
         assert!(!view_edits_equivalent(text, &rust, &golden));
         // A change in one region and the same change elsewhere.
         let text = "aXbYc";
-        assert!(!view_edits_equivalent(text, &[e(1, 2, "x")], &[e(3, 4, "x")]));
+        let d = view_edit_disagreements(text, &[e(1, 2, "x")], &[e(3, 4, "x")]);
+        assert_eq!(d.len(), 2);
+        assert_eq!((d[0].start, d[0].end, d[0].results()), (1, 2, Some(("x", "X"))));
+        assert_eq!((d[1].start, d[1].end, d[1].source(text)), (3, 4, "Y"));
         // The same two regions, equivalent within each.
         assert!(view_edits_equivalent(text, &[e(1, 2, "x"), e(3, 4, "y")], &[e(1, 2, "x"), e(3, 4, "y")]));
     }
