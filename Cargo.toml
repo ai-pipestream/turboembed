@@ -20,6 +20,7 @@ members = [
     "analysis/normalize",
     "analysis/normalize-layers",
     "analysis/numeric",
+    "analysis/postag",
     "analysis/sentdetect",
     "analysis/sequence",
     "analysis/structure",
