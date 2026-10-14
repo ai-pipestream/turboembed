@@ -1152,7 +1152,7 @@ chunk, and has no pipeline for levels yet.
 ## Golden files
 
 An annotator that ports an OpenNLP component is checked against what
-OpenNLP 3.x computes on the JVM. The JVM runs once, from a pinned
+OpenNLP 3.x computes on the JVM. The JVM runs once, from a recorded
 OpenNLP commit with fixed models, over fixed input texts, and writes
 what each annotator produced as a golden file: typed layers, the same
 ones the Rust annotator writes. Rust tests read the files and never
@@ -1635,8 +1635,8 @@ byte (none does); a model that did not come out this close would fail it.
 
 The goldens in `analysis/goldens/data` are made by `turbo-goldens`
 (crate `turbo-goldens-tool` in `analysis/goldens-tool`). It builds a
-container from a pinned `eclipse-temurin:21-jdk` digest with OpenNLP
-built from a pinned commit of the fork, runs the Java generator in it
+container from a recorded `eclipse-temurin:21-jdk` digest with OpenNLP
+built from a recorded commit of the fork, runs the Java generator in it
 without a network over the inputs the models (each model checked
 against its published SHA-512) and the fixtures (checked against the
 SHA-512 `recipe.rs` lists), and writes
@@ -1683,7 +1683,7 @@ is `(-1)^negative * coefficient / 10^scale`. The `annotator` line names
 `opennlp.tools.extraction.NumberScan` and `parse`, and a `config notation`
 record gives `LATIN_US` or `LATIN_EU`. The scan is the mention loop of
 `CursorQuantityExtractor` of the `numeric` module of `opennlp-addons`
-(pinned in `analysis/goldens-tool/src/recipe.rs`) without the money
+(recorded in `analysis/goldens-tool/src/recipe.rs`) without the money
 exclusion and without units; there is no model and no dump.
 
 `money/<notation>/money/<id>.golden` and
@@ -2088,7 +2088,7 @@ a `sha256sum` style manifest of the files read, sorted by path.
 
 | Set | Source | Licence | Spans | Digests |
 |---|---|---|---|---|
-| `scifact`, `nfcorpus`, `arguana` | BEIR layout, from MTEB's plain copies at a pinned revision | CC BY-SA 4.0 (BEIR dataset cards) | none | recorded |
+| `scifact`, `nfcorpus`, `arguana` | BEIR layout, from MTEB's plain copies at a recorded revision | CC BY-SA 4.0 (BEIR dataset cards) | none | recorded |
 | `legalbench-rag-mini` | a shared folder, placed by hand | MIT for the benchmark; the documents under their sources' terms | code points, converted after Python's newline translation; the mini subset is chosen with a port of CPython's `random` | none (no stable file URLs) |
 | `conteb-covid-qa` | Parquet, read as JSON Lines rows | none stated, so refused | the judged chunk | not recorded yet |
 | `gutenqa` | Parquet, read as JSON Lines rows | MIT (dataset card) | the quoted passage, located in its chunk | recorded |
