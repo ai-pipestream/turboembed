@@ -1,0 +1,22 @@
+[package]
+name = "turbo-postag"
+version = "0.1.0"
+edition.workspace = true
+license.workspace = true
+publish = false
+
+[lib]
+name = "turbo_postag"
+
+[dependencies]
+turbo-analysis = { path = "../core" }
+turbo-analysis-layers = { path = "../layers" }
+# The model archive and the classifier.
+turbo-maxent = { path = "../maxent" }
+# The beam search, the part-of-speech context generators, the tag
+# dictionary and the tag format conversion.
+turbo-sequence = { path = "../sequence" }
+
+[dev-dependencies]
+turbo-goldens = { path = "../goldens" }
+turbo-unicode = { path = "../unicode" }

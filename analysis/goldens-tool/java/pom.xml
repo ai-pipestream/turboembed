@@ -39,8 +39,11 @@
       <artifactId>opennlp-runtime</artifactId>
       <version>${opennlp.version}</version>
     </dependency>
-    <!-- The perceptron trainers (PerceptronTrainGolden). The runtime lists this
-         module as optional, so the generator names it itself. -->
+    <!--
+      The runtime lists the perceptron module as optional, so it is not pulled in by itself; the
+      chunker fixture is a perceptron model and needs its model reader, and PerceptronTrainGolden
+      its trainers.
+    -->
     <dependency>
       <groupId>org.apache.opennlp</groupId>
       <artifactId>opennlp-ml-perceptron</artifactId>

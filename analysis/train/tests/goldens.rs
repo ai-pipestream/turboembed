@@ -1,18 +1,20 @@
 //! The indexers against the JVM: `analysis/goldens/data/train/` holds, for
-//! events the JVM's sentence detector, tokenizer and a real valued source
-//! made from the input texts, what `OnePassDataIndexer`,
-//! `TwoPassDataIndexer` and `OnePassRealValueDataIndexer` produced with
-//! each run's cutoff and sorting (`analysis/goldens-tool`, `TrainGolden`).
-//! This test reads the events back through the event stream parsers,
-//! indexes them, and compares every label, count, context and seen count,
-//! and the event checksum, with the golden's. It then trains the GIS model
-//! the run trained and compares the log likelihood, the counts and every
-//! parameter after every iteration, the end of training, and the bytes of
-//! the written model. The goldens of the QN runs (`QnTrainGolden`) hold
-//! the events and the trainer's layers only; for them the index is built
-//! from the events and the QN trainer is compared the same way, with the
-//! objective value, change rate and training accuracy per iteration and
-//! the reason it stopped.
+//! events the JVM's sentence detector, tokenizer, a real valued source and
+//! a part-of-speech shaped source with many outcomes made from the input
+//! texts, what `OnePassDataIndexer`, `TwoPassDataIndexer` and
+//! `OnePassRealValueDataIndexer` produced with each run's cutoff and
+//! sorting (`analysis/goldens-tool`, `TrainGolden`). This test reads the
+//! events back through the event stream parsers, indexes them, and
+//! compares every label, count, context and seen count, and the event
+//! checksum, with the golden's. It then trains the GIS model the run
+//! trained, with the run's `Threads` and smoothing settings, and compares
+//! the log likelihood, the counts and every parameter after every
+//! iteration, the end of training, and the bytes of the written model.
+//! The goldens of the QN runs (`QnTrainGolden`) hold the events and the
+//! trainer's layers only; for them the index is built from the events and
+//! the QN trainer is compared the same way, with the objective value,
+//! change rate and training accuracy per iteration and the reason it
+//! stopped.
 
 use std::cell::RefCell;
 use std::path::{Path, PathBuf};
@@ -27,16 +29,16 @@ use turbo_train::error::ONE_OUTCOME;
 use turbo_train::monitor::finished_message;
 use turbo_train::{perceptron, qn};
 use turbo_train::{
-    DataIndex, Error, Event, GisModel, GisParams, IndexParams, IndexerKind, IterDeltaAccuracyUnderTolerance, JavaString, Key,
-    LogLikelihoodThresholdBreached, PerceptronModel, PerceptronParams, ProgressMonitor, QnStop, Sequence,
-    SequenceSource, StopCriteria, TrainingConfiguration, TrainingMeasure, TrainingParameters, write_gis,
+    DataIndex, Error, Event, GisModel, GisParams, IndexParams, IndexerKind, IterDeltaAccuracyUnderTolerance, JavaString,
+    Key, LogLikelihoodThresholdBreached, PerceptronModel, PerceptronParams, ProgressMonitor, QnStop, Sequence,
+    SequenceSource, Smoothing, StopCriteria, TrainingConfiguration, TrainingMeasure, TrainingParameters, write_gis,
     write_perceptron, write_qn,
 };
 
 mod common;
 use common::{
-    PERCEPTRON_TRAINER, QN_TRAINER, SEQUENCE_PERCEPTRON_TRAINER, config, events, java_string, layer, params,
-    perceptron_params, qn_params, train_shapes,
+    PERCEPTRON_TRAINER, QN_TRAINER, SEQUENCE_PERCEPTRON_TRAINER, config, config_opt, events, java_string, layer,
+    params, perceptron_params, qn_params, train_shapes,
 };
 
 fn golden_files(dir: &Path, out: &mut Vec<PathBuf>) {
@@ -68,6 +70,12 @@ struct Coverage {
     trained: usize,
     stopped_early: usize,
     kinds: [usize; 3],
+    /// Trained runs with two threads, with `Smoothing`, with
+    /// `GaussianSmoothing`, and with more than two outcomes.
+    threads: usize,
+    smoothing: usize,
+    gaussian: usize,
+    many_outcomes: usize,
     qn: usize,
     qn_stops: [usize; 5],
     qn_threads: usize,
@@ -221,11 +229,42 @@ fn pattern_start(model: &GisModel, p: usize) -> usize {
 /// The GIS training of the run against its `turbo:gis-*` layers: the
 /// parameters after every iteration (bit for bit after the first and the
 /// last, by digest in between), the log likelihood and the counts reported
-/// after every iteration, the end of training, and the written model.
+/// after every iteration, the end of training, and the written model. The
+/// trainer's settings are the run's config records: `Iterations` always,
+/// and `Threads`, `Smoothing`, `SmoothingObservation`, `GaussianSmoothing`
+/// and `GaussianSmoothingSigma` when the run set them, as strings, as a
+/// parameters file gives them.
 fn check_gis(at: &str, g: &Golden, index: &DataIndex, ran: usize, cov: &mut Coverage) {
     let mut params = TrainingParameters::new();
     params.put(Key::ITERATIONS, config(g, "Iterations").parse::<i32>().unwrap());
+    for key in [
+        Key::THREADS,
+        Key::SMOOTHING,
+        Key::SMOOTHING_OBSERVATION,
+        Key::GAUSSIAN_SMOOTHING,
+        Key::GAUSSIAN_SMOOTHING_SIGMA,
+    ] {
+        if let Some(value) = config_opt(g, key) {
+            params.put(key, value);
+        }
+    }
     let gis = GisParams::from_training_parameters(&params).unwrap();
+    // The JVM adds the chunks' log likelihoods in the order its threads
+    // finish. Two chunks give the same sum either way, so the goldens of a
+    // two thread run are reproducible and compared bit for bit like the
+    // others; a run with more threads would not be (TrainGolden).
+    assert!(gis.threads <= 2, "{at}: a golden with {} threads is not reproducible", gis.threads);
+    if gis.threads == 2 {
+        cov.threads += 1;
+    }
+    match gis.smoothing {
+        Smoothing::None => {}
+        Smoothing::Simple { .. } => cov.smoothing += 1,
+        Smoothing::Gaussian { .. } => cov.gaussian += 1,
+    }
+    if index.outcome_labels().len() > 2 {
+        cov.many_outcomes += 1;
+    }
     let stop = LogLikelihoodThresholdBreached::from_parameters(&params).unwrap();
 
     let iterations = layer(g, "turbo:gis-iterations");
@@ -242,7 +281,8 @@ fn check_gis(at: &str, g: &Golden, index: &DataIndex, ran: usize, cov: &mut Cove
         if i == 1 {
             first = parameters.to_vec();
         }
-    });
+    })
+    .unwrap_or_else(|e| panic!("{at}: {e}"));
     assert_eq!(seen, ran, "{at}: iterations run");
 
     let recorded = recorded.borrow();
@@ -321,12 +361,13 @@ fn indexers_match_the_jvm_on_every_training_golden() {
         }
     }
     eprintln!("{cov:?}");
-    assert!(cov.goldens >= 100, "{cov:?}");
+    assert!(cov.goldens >= 1000, "{cov:?}");
     assert!(cov.errors > 0 && cov.one_outcome > 0 && cov.unsorted > 0, "{cov:?}");
     assert!(cov.merged > 0 && cov.with_values > 0 && cov.dropped_events > 0, "{cov:?}");
     assert!(cov.lone_surrogates > 0, "{cov:?}");
     assert!(cov.trained > 0 && cov.stopped_early > 0, "{cov:?}");
     assert!(cov.kinds.iter().all(|&n| n > 0), "{cov:?}");
+    assert!(cov.threads > 0 && cov.smoothing > 0 && cov.gaussian > 0 && cov.many_outcomes > 0, "{cov:?}");
     assert!(cov.qn >= 100 && cov.qn_threads > 0 && cov.qn_l1 > 0 && cov.qn_discarding > 0, "{cov:?}");
     // The change rate and the evaluation limit stop runs here; the
     // iteration limit is tested in qn.rs. No run reaches the gradient norm

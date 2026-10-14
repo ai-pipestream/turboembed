@@ -213,9 +213,6 @@ fn text_conversions_match_the_jvm() {
                     Ok(h) if bits(&h).is_nan() => assert!(bits(expected).is_nan(), "{at}"),
                     Ok(h) => assert_eq!(&h, expected, "{at}"),
                     Err(text::ParseError::NotANumber(_)) => assert_eq!(expected, "NumberFormatException", "{at}"),
-                    // Java reads hexadecimal literals, and throws on a malformed one;
-                    // this port refuses every text that starts like one and says so.
-                    Err(text::ParseError::HexFloat(_)) => assert!(input.contains("0x") || input.contains("0X"), "{at}"),
                 }
             }
             "Integer.parseInt" => {

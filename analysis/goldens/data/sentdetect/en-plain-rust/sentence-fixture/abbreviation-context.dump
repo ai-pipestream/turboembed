@@ -1,0 +1,121 @@
+dump 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	sentence-fixture/abbreviation-context	93	93	819b95da534f534e92d0749a3b2de34eb2c7a897fda5c5579670ef1d2d24977f
+model	en-plain-rust.bin	ef8684db6573d7096b72db1d520fe7181c8ee058d2c9c1abe140556d36da18d1693e63c2f84faf8f427fdd80b0e0f4bd47ce6a92a7aa53233b0b74c403cff736
+annotator	opennlp.tools.sentdetect.SentenceDetectorME	sentPosDetect
+point	0	3	8	2	0	none
+context	sn
+context	eos=.
+context	x=(Mr
+context	3
+context	v=
+context	s=
+context	n=Smith)
+context	ncap
+outcome	n	3fc4d919b7677e48 0.16287538008963254
+outcome	s	3feac9b99226206d 0.8371246199103674
+acceptable	1
+end	0
+point	1	16	8	2	0	none
+context	sn
+context	eos=.
+context	x=came
+context	4
+context	v=Smith)
+context	vcap
+context	s=
+context	n='Dr.
+outcome	n	3fb5dfc577b91ae0 0.08544572995115685
+outcome	s	3fed44075108dca3 0.914554270048843
+acceptable	1
+end	1
+point	2	21	8	2	0	none
+context	sn
+context	eos=.
+context	x='Dr
+context	3
+context	v=came.
+context	s=
+context	n=Jones'
+context	ncap
+outcome	n	3facf6cc6f959696 0.05657042371858016
+outcome	s	3fee30933906a697 0.9434295762814199
+acceptable	1
+end	2
+point	3	34	9	2	0	none
+context	sn
+context	eos=.
+context	x=left
+context	4
+context	v=Jones'
+context	vcap
+context	s=
+context	n=It
+context	ncap
+outcome	n	3f70508f31447430 0.0039830773787601775
+outcome	s	3fefdf5ee19d7717 0.9960169226212398
+acceptable	1
+end	3
+point	4	57	7	2	0	none
+context	sn
+context	eos=.
+context	x=etc
+context	3
+context	v=cake,
+context	s=
+context	n=and
+outcome	n	3fe9a6fadc0a63f9 0.8016332910220846
+outcome	s	3fc964148fd6701c 0.19836670897791542
+end	4
+point	5	67	8	2	0	none
+context	sn
+context	eos=.
+context	x=more
+context	4
+context	v=and
+context	s=
+context	n=We
+context	ncap
+outcome	n	3fa44d72a50276e0 0.03965338005330721
+outcome	s	3feebb28d5afd892 0.9603466199466928
+acceptable	1
+end	5
+point	6	82	8	2	0	none
+context	eos=.
+context	x=U
+context	1
+context	xcap
+context	v=the
+context	s=S
+context	scap
+context	n=report.
+outcome	n	3fefe8cf718ed65a 0.9971692293099281
+outcome	s	3f67308e7129a5f3 0.0028307706900718653
+end	6
+point	7	84	8	2	0	none
+context	sn
+context	eos=.
+context	x=.S
+context	2
+context	v=U
+context	vcap
+context	s=
+context	n=report.
+outcome	n	3feec85cd9862a5c 0.9619583366887343
+outcome	s	3fa37a32679d5a4a 0.03804166331126575
+end	7
+point	8	92	7	2	0	none
+context	eos=.
+context	x=report
+context	6
+context	v=U.S.
+context	vcap
+context	s=
+context	n=
+outcome	n	3fc6a5cdff504f5b 0.17693495718469418
+outcome	s	3fea568c802bec29 0.8230650428153058
+acceptable	1
+end	8

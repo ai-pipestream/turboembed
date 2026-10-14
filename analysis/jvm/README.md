@@ -21,9 +21,9 @@ of its results depend on the platform rather than on OpenNLP:
   reports hold numbers in that form); `parse_double`, `parse_float`,
   `parse_int` and `parse_boolean` read numbers as `Double.parseDouble`,
   `Float.parseFloat`, `Integer.parseInt` and `Boolean.parseBoolean` do
-  (training parameters, real valued features), except that hexadecimal
-  floating point literals and the decimal digits of other scripts are
-  refused rather than read.
+  (training parameters, real valued features), hexadecimal floating
+  point literals included, except that `parse_int` refuses the decimal
+  digits of other scripts, which Java reads.
 
 The crate has no dependencies.
 
@@ -50,16 +50,18 @@ written the same way, an integer is decimal, and a string has every
 character outside printable ASCII, and the backslash, written as `\u`
 and four hex digits.
 
-The files were made with the JDK named in their headers, by running this
-from the repository root:
+The files were made with the JDK named in their headers, the one in the
+golden generator's container (`analysis/goldens-tool`), by running the
+JDK 21 source launcher in it from the repository root:
 
 ```sh
-java analysis/jvm/java/Vectors.java analysis/jvm/tests/vectors
+docker run --rm --entrypoint java --user "$(id -u):$(id -g)" \
+    -v "$PWD/analysis/jvm:/jvm" <image> /jvm/java/Vectors.java /jvm/tests/vectors
 ```
 
-`java/Vectors.java` is a single file for the JDK 21 source launcher and
-needs no build tool. The golden-file container (issue #152) will
-regenerate the files under its pinned JDK.
+`java/Vectors.java` is a single file for the source launcher and needs no
+build tool; any JDK 21 gives the same records, and only the header line
+names the JDK that ran it.
 
 ## What is not here
 

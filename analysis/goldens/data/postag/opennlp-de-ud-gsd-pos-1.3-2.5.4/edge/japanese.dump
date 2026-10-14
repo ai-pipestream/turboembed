@@ -1,0 +1,45 @@
+dump 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	edge/japanese	109	37	5ff7aca5a1372196b3373c1d868979d96627cdbc50cf30fbb78d4255f8e52a6a
+model	opennlp-de-ud-gsd-pos-1.3-2.5.4.bin	9e44d582874464924a8baf8fbfed7500e15112c3dc446bfc5be281bff4dbbf195eda0a16ca7e78fde7a64a684c0f780b5987723db800ce88465b9894ef0ba17b
+model	opennlp-de-ud-gsd-sentence-1.3-2.5.4.bin	c811604c24cdbe490ab42dcffdbae63f9a74b39622f21b7b31f63eea566ffe35ef871f0da905e61180656b877cf0be4d626588c6312fcc18df5ab9a35b4183fa
+model	opennlp-de-ud-gsd-tokens-1.3-2.5.4.bin	343c9fe93ff301b736f30fa2e0d954b270994a1535ec2bd424553cbd82b13eb0d86aa2042946db62322430a8b5a8f29a8a2d882f107cb26c6d4f6d494d97debf
+annotator	opennlp.tools.postag.POSTaggerME	tag
+point	0	0	13	20	0	none
+context	def
+context	suf=！
+context	suf=す！
+context	suf=です！
+context	suf=トです！
+context	pre=私
+context	pre=私は
+context	pre=私は東
+context	pre=私は東京
+context	w=私は東京に住んでいます。ひらがなとカタカナと漢字を使います。テストです！
+context	S=begin
+context	wc=other
+context	w&c=私は東京に住んでいます。ひらがなとカタカナと漢字を使います。テストです！,other
+outcome	ADV	3f8240e16eafeacf 0.00891281241455513
+outcome	ADJ	3f8f515f09c79f42 0.0152919220790434
+outcome	NOUN	3f6f3382e75b2275 0.0038087422097741693
+outcome	PUNCT	3fd1321f722e7c3d 0.2686842551283382
+outcome	DET	3f19a57319403409 9.783282285998075E-5
+outcome	VERB	3f280677fcc5cae9 1.8329825105530627E-4
+outcome	PRON	3f424bbf2af07a59 5.583461223784377E-4
+outcome	ADP	3f65d93dc86395da 0.00266706530520609
+outcome	ADP+DET	3fd99fe745c0de06 0.4003847294984272
+outcome	PROPN	3f6146cbe4e0d8e4 0.0021089536958483913
+outcome	CCONJ	3f15c13312406962 8.298753942917938E-5
+outcome	AUX	3f26d61c0f7d6358 1.7422764335142216E-4
+outcome	PART	3f11bd24fa7254e2 6.766832540202079E-5
+outcome	SCONJ	3fd1fcc0ee214dc2 0.28105185751811856
+outcome	NUM	3f78170e1b95d6f5 0.005881362064760633
+outcome	X	3f7de08e9e9f3288 0.0072942324713493115
+outcome	SYM	3f6397687ca6c3f7 0.0023915329704426963
+outcome	INTJ	3f2efba950f787cd 2.363819298656908E-4
+outcome	PROPN+DET	3efd78e7bafd3de6 2.8106962133121314E-5
+outcome	ADP+PRON	3f188f18dd021233 9.368504766100391E-5
+end	0

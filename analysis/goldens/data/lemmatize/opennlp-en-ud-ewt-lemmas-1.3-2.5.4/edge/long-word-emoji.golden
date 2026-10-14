@@ -1,0 +1,26 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	edge/long-word-emoji	299	297	5dbd5bc952a059e356487829312c19b1326aefb63f1d30ac6deff30397496ebb
+model	opennlp-en-ud-ewt-lemmas-1.3-2.5.4.bin	ee81553985908ac25c50fbd8f2ca4222cb42a18845f063c792a1b43639181b70ce20d57b8736a1604367f5e8c59aef55f8463e04004840cbc88abb7123fd9e7f
+model	opennlp-en-ud-ewt-sentence-1.3-2.5.4.bin	fed5d53ea87bf66afeb08c084f89ca9b95a96de0920dca40487b2ab9972ee6b7ef211e477db480b7253431de079fd66dfd14329cd7d19ad1f565155eb0cf5191
+model	opennlp-en-ud-ewt-tokens-1.3-2.5.4.bin	147d1cdcb89ca5d9bd0ead8fddf2cc14ae543a9151803fe56b3c1fa152b986605e34fb6dda4819c68aa22fc9bffa6bfab14f916b7d0bf4892d452686af34778a
+model	opennlp-en-ud-ewt-pos-1.3-2.5.4.bin	fca85b38d996b7c422401054feedeb0f748cbc03856893cb27670da5d207315ec9af0c0f818c3107a741a2effca2499b5097ac0b46edf4a5ac10bf77a351ac3e
+annotator	opennlp.tools.lemmatizer.LemmatizerME	lemmatize
+layer	opennlp:sentences	text	1	start:u32	end:u32
+0	298
+end	opennlp:sentences
+layer	opennlp:tokens	text	1	start:u32	end:u32
+0	298
+end	opennlp:tokens
+layer	opennlp:pos	aligned:opennlp:tokens	1	tag:str	prob:f64
+PUNCT	3fe581a1e3b70c5c 0.6720742652472711
+end	opennlp:pos
+layer	opennlp:lemmas	aligned:opennlp:tokens	1	lemma:str
+aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa😀bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+end	opennlp:lemmas
+layer	turbo:confidence<opennlp:lemmas>	aligned:opennlp:lemmas	1	value:f64
+3fe1093946835b12 0.5323759438714168
+end	turbo:confidence<opennlp:lemmas>

@@ -54,7 +54,7 @@ import opennlp.tools.util.TrainingParameters;
  * index after every iteration. The Rust port of the indexers and of the trainer is compared with
  * these; the event streams themselves are not ported here, so their events are recorded in full.
  *
- * <p>The events come from one of three sources ({@link Source}):</p>
+ * <p>The events come from one of four sources ({@link Source}):</p>
  * <ul>
  *   <li>{@code sentdetect}: {@link SDEventStream} over the input read as sentence samples, one
  *   sentence per line ({@link SentenceSampleStream} over {@link PlainTextByLineStream}), with the
@@ -69,6 +69,12 @@ import opennlp.tools.util.TrainingParameters;
  *   occurrences as its value. The line is written as {@code outcome field=count ...} and read
  *   back with {@link RealValueFileEventStream#parseEvent}, so the recorded event is what that
  *   parser produced.</li>
+ *   <li>{@code postag}: one event per whitespace separated field ({@link StringUtil#splitOnUnicodeWhitespace})
+ *   of each line, shaped like a part-of-speech tagger's events so that a text has many outcomes:
+ *   the outcome is {@code L} and the field's length in UTF-16 units, and the context is
+ *   {@code bias}, {@code w=} the field, {@code p=} and {@code n=} its neighbours ({@code *SB*} and
+ *   {@code *SE*} at the ends of the line), and {@code pre=} and {@code suf=} its first and last
+ *   two UTF-16 units, which may be half a surrogate pair.</li>
  * </ul>
  *
  * <p>The layers, all anchored on the document:</p>
@@ -115,8 +121,17 @@ import opennlp.tools.util.TrainingParameters;
  * no event left after the cutoff makes the indexer throw
  * {@link InsufficientTrainingDataException}; the golden then has the events and, in place of the
  * indexer's layers, one {@code turbo:indexer-error} row with the exception's class and message,
- * so the events the Rust indexer must refuse are on record. The trainer runs with one thread and
- * otherwise OpenNLP's defaults.</p>
+ * so the events the Rust indexer must refuse are on record.</p>
+ *
+ * <p>The trainer runs with OpenNLP's defaults unless the run sets {@code Threads} or a smoothing
+ * ({@link Smoothing}); what it sets is a {@code config} record too ({@code Threads},
+ * {@code Smoothing} with {@code SmoothingObservation}, {@code GaussianSmoothing} with
+ * {@code GaussianSmoothingSigma}, each only when set) and a suffix of the directory
+ * ({@code -threads2}, {@code -smoothing}, {@code -smoothing0.5}, {@code -gaussian},
+ * {@code -gaussian0.5}). With more than one thread the JVM adds the chunks' log likelihoods in
+ * the order the threads finish, which is not fixed; with two chunks the sum is the same either
+ * way (the sum of two doubles does not depend on their order), so a two thread run is still
+ * reproducible, and no run here uses more.</p>
  */
 final class TrainGolden implements AnnotatorGolden {
 
@@ -124,7 +139,8 @@ final class TrainGolden implements AnnotatorGolden {
   enum Source {
     SENTDETECT("sentdetect"),
     TOKENIZE("tokenize"),
-    REALVALUE("realvalue");
+    REALVALUE("realvalue"),
+    POSTAG("postag");
 
     final String name;
 
@@ -132,6 +148,89 @@ final class TrainGolden implements AnnotatorGolden {
       this.name = name;
     }
   }
+
+  /**
+   * The smoothing the trainer runs with: none, {@code Smoothing} with {@code SmoothingObservation},
+   * or {@code GaussianSmoothing} with {@code GaussianSmoothingSigma}. A null {@code value} leaves
+   * the trainer's default (0.1 and 2.0).
+   */
+  record Smoothing(Kind kind, Double value) {
+    enum Kind {
+      NONE,
+      SIMPLE,
+      GAUSSIAN
+    }
+
+    static final Smoothing NONE = new Smoothing(Kind.NONE, null);
+
+    Smoothing {
+      if (kind == Kind.NONE && value != null) {
+        throw new IllegalArgumentException("no smoothing has no value");
+      }
+    }
+
+    static Smoothing simple(Double observation) {
+      return new Smoothing(Kind.SIMPLE, observation);
+    }
+
+    static Smoothing gaussian(Double sigma) {
+      return new Smoothing(Kind.GAUSSIAN, sigma);
+    }
+
+    /** The directory suffix: the kind and the value when it is set. */
+    String dirSuffix() {
+      String name = switch (kind) {
+        case NONE -> "";
+        case SIMPLE -> "-smoothing";
+        case GAUSSIAN -> "-gaussian";
+      };
+      return value == null ? name : name + value;
+    }
+
+    /** The parameters it sets. */
+    void put(TrainingParameters params) {
+      switch (kind) {
+        case NONE -> {}
+        case SIMPLE -> {
+          params.put(SMOOTHING_PARAM, true);
+          if (value != null) {
+            params.put(SMOOTHING_OBSERVATION_PARAM, value);
+          }
+        }
+        case GAUSSIAN -> {
+          params.put(GAUSSIAN_SMOOTHING_PARAM, true);
+          if (value != null) {
+            params.put(GAUSSIAN_SMOOTHING_SIGMA_PARAM, value);
+          }
+        }
+      }
+    }
+
+    /** The same settings as {@code config} records. */
+    void config(Map<String, String> c) {
+      switch (kind) {
+        case NONE -> {}
+        case SIMPLE -> {
+          c.put(SMOOTHING_PARAM, "true");
+          if (value != null) {
+            c.put(SMOOTHING_OBSERVATION_PARAM, Double.toString(value));
+          }
+        }
+        case GAUSSIAN -> {
+          c.put(GAUSSIAN_SMOOTHING_PARAM, "true");
+          if (value != null) {
+            c.put(GAUSSIAN_SMOOTHING_SIGMA_PARAM, Double.toString(value));
+          }
+        }
+      }
+    }
+  }
+
+  /** {@code GISTrainer}'s parameter names, which it keeps private. */
+  static final String SMOOTHING_PARAM = "Smoothing";
+  static final String SMOOTHING_OBSERVATION_PARAM = "SmoothingObservation";
+  static final String GAUSSIAN_SMOOTHING_PARAM = "GaussianSmoothing";
+  static final String GAUSSIAN_SMOOTHING_SIGMA_PARAM = "GaussianSmoothingSigma";
 
   /** The language the factories are made for; it only names the model. */
   private static final String LANGUAGE = "en";
@@ -144,14 +243,26 @@ final class TrainGolden implements AnnotatorGolden {
   private final int cutoff;
   private final boolean sort;
   private final int iterations;
+  private final int threads;
+  private final Smoothing smoothing;
   private final Set<String> inputSets;
 
   TrainGolden(Source source, String indexer, int cutoff, boolean sort, int iterations, Set<String> inputSets) {
+    this(source, indexer, cutoff, sort, iterations, 1, Smoothing.NONE, inputSets);
+  }
+
+  TrainGolden(Source source, String indexer, int cutoff, boolean sort, int iterations, int threads,
+      Smoothing smoothing, Set<String> inputSets) {
+    if (threads < 1 || threads > 2) {
+      throw new IllegalArgumentException("a run has one or two threads, not " + threads + " (see the class comment)");
+    }
     this.source = source;
     this.indexer = indexer;
     this.cutoff = cutoff;
     this.sort = sort;
     this.iterations = iterations;
+    this.threads = threads;
+    this.smoothing = smoothing;
     this.inputSets = Set.copyOf(inputSets);
   }
 
@@ -167,7 +278,8 @@ final class TrainGolden implements AnnotatorGolden {
 
   @Override
   public String modelDir() {
-    return source.name + "-" + indexer.toLowerCase(Locale.ROOT) + "-cutoff" + cutoff + (sort ? "" : "-unsorted");
+    return source.name + "-" + indexer.toLowerCase(Locale.ROOT) + "-cutoff" + cutoff + (sort ? "" : "-unsorted")
+        + (threads == 1 ? "" : "-threads" + threads) + smoothing.dirSuffix();
   }
 
   @Override
@@ -188,6 +300,10 @@ final class TrainGolden implements AnnotatorGolden {
     c.put(Parameters.CUTOFF_PARAM, Integer.toString(cutoff));
     c.put(AbstractDataIndexer.SORT_PARAM, Boolean.toString(sort));
     c.put(Parameters.ITERATIONS_PARAM, Integer.toString(iterations));
+    if (threads != 1) {
+      c.put(Parameters.THREADS_PARAM, Integer.toString(threads));
+    }
+    smoothing.config(c);
     return c;
   }
 
@@ -250,6 +366,7 @@ final class TrainGolden implements AnnotatorGolden {
             f.getAlphaNumericPattern(), f.getContextGenerator());
       }
       case REALVALUE -> realValueEvents(lines);
+      case POSTAG -> posTagEvents(lines);
     };
     List<Event> events = new ArrayList<>();
     Event e;
@@ -277,6 +394,28 @@ final class TrainGolden implements AnnotatorGolden {
         b.append(' ').append(c.getKey()).append('=').append(Float.toString(c.getValue()));
       }
       events.add(RealValueFileEventStream.parseEvent(b.toString()));
+    }
+    return ObjectStreamUtils.createObjectStream(events);
+  }
+
+  /** The {@code postag} events: see the class comment. */
+  private static ObjectStream<Event> posTagEvents(ObjectStream<String> lines) throws IOException {
+    List<Event> events = new ArrayList<>();
+    String line;
+    while ((line = lines.read()) != null) {
+      String[] fields = StringUtil.splitOnUnicodeWhitespace(line);
+      for (int i = 0; i < fields.length; i++) {
+        String f = fields[i];
+        String[] context = {
+            "bias",
+            "w=" + f,
+            "p=" + (i > 0 ? fields[i - 1] : "*SB*"),
+            "n=" + (i + 1 < fields.length ? fields[i + 1] : "*SE*"),
+            "pre=" + f.substring(0, Math.min(2, f.length())),
+            "suf=" + f.substring(Math.max(0, f.length() - 2)),
+        };
+        events.add(new Event("L" + f.length(), context));
+      }
     }
     return ObjectStreamUtils.createObjectStream(events);
   }
@@ -385,6 +524,10 @@ final class TrainGolden implements AnnotatorGolden {
     params.put(Parameters.CUTOFF_PARAM, cutoff);
     params.put(AbstractEventTrainer.DATA_INDEXER_PARAM, indexer);
     params.put(AbstractDataIndexer.SORT_PARAM, sort);
+    if (threads != 1) {
+      params.put(Parameters.THREADS_PARAM, threads);
+    }
+    smoothing.put(params);
     return params;
   }
 
@@ -581,6 +724,19 @@ final class TrainGolden implements AnnotatorGolden {
     runs.add(new TrainGolden(Source.REALVALUE, "OnePassRealValue", 3, false, 100, texts));
     runs.add(new TrainGolden(Source.REALVALUE, "TwoPass", 1, true, 100, texts));
     runs.add(new TrainGolden(Source.REALVALUE, "OnePass", 2, true, 100, texts));
+    // A source with many outcomes, so predicates have many different outcome
+    // patterns and some have every outcome.
+    runs.add(new TrainGolden(Source.POSTAG, "TwoPass", 1, true, 100, both));
+    runs.add(new TrainGolden(Source.POSTAG, "OnePass", 0, false, 100, texts));
+    // Two threads: the events in two chunks, each chunk's sums added across.
+    runs.add(new TrainGolden(Source.SENTDETECT, "TwoPass", 1, true, 100, 2, Smoothing.NONE, both));
+    runs.add(new TrainGolden(Source.POSTAG, "TwoPass", 1, true, 100, 2, Smoothing.NONE, texts));
+    // The two smoothings, each with its default and with its own value.
+    runs.add(new TrainGolden(Source.POSTAG, "TwoPass", 1, true, 100, 1, Smoothing.simple(null), both));
+    runs.add(new TrainGolden(Source.SENTDETECT, "TwoPass", 1, true, 100, 1, Smoothing.simple(0.5), texts));
+    runs.add(new TrainGolden(Source.POSTAG, "TwoPass", 1, true, 100, 1, Smoothing.gaussian(null), both));
+    runs.add(new TrainGolden(Source.SENTDETECT, "TwoPass", 1, true, 100, 1, Smoothing.gaussian(0.5), texts));
+    runs.add(new TrainGolden(Source.REALVALUE, "OnePassRealValue", 1, true, 100, 1, Smoothing.gaussian(null), texts));
     return runs;
   }
 }

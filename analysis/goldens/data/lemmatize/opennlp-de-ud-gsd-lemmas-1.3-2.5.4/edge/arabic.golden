@@ -1,0 +1,68 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	edge/arabic	82	48	5aeeaa567149bf3362840f0155ba9116a1a099afc184f13bb0255bee8c6e8879
+model	opennlp-de-ud-gsd-lemmas-1.3-2.5.4.bin	616c83327e1af12c8952f362fd99be6efcdc4e28526bee1debf27d3446110ded9beef7e0e2acc9b3094039683c9b4b2b2b0ba32dbf194278d5017e2b21e66371
+model	opennlp-de-ud-gsd-sentence-1.3-2.5.4.bin	c811604c24cdbe490ab42dcffdbae63f9a74b39622f21b7b31f63eea566ffe35ef871f0da905e61180656b877cf0be4d626588c6312fcc18df5ab9a35b4183fa
+model	opennlp-de-ud-gsd-tokens-1.3-2.5.4.bin	343c9fe93ff301b736f30fa2e0d954b270994a1535ec2bd424553cbd82b13eb0d86aa2042946db62322430a8b5a8f29a8a2d882f107cb26c6d4f6d494d97debf
+model	opennlp-de-ud-gsd-pos-1.3-2.5.4.bin	9e44d582874464924a8baf8fbfed7500e15112c3dc446bfc5be281bff4dbbf195eda0a16ca7e78fde7a64a684c0f780b5987723db800ce88465b9894ef0ba17b
+annotator	opennlp.tools.lemmatizer.LemmatizerME	lemmatize
+layer	opennlp:sentences	text	3	start:u32	end:u32
+0	26
+27	63
+64	81
+end	opennlp:sentences
+layer	opennlp:tokens	text	11	start:u32	end:u32
+0	10
+11	25
+25	26
+27	33
+34	48
+49	55
+56	58
+59	62
+62	63
+64	70
+71	81
+end	opennlp:tokens
+layer	opennlp:pos	aligned:opennlp:tokens	11	tag:str	prob:f64
+ADJ	3fde757eab897333 0.47592131377841723
+NOUN	3fdd8f88fe6ec98b 0.46188568922948353
+PUNCT	3fefd9159d72d85f 0.9952495646637195
+ADJ	3fe31a770a366808 0.5969805907691361
+PUNCT	3fec495d2bf7a1bb 0.8839555605637125
+NUM	3fd4eb1a1ba5200d 0.3268494863482381
+NOUN	3fe18536eb32d4b0 0.5475115388604959
+NUM	3fecd03078541456 0.9004137373127701
+PUNCT	3fefda22a9798f2c 0.9953778562598692
+ADJ	3fe31a770a366808 0.5969805907691361
+PUNCT	3fec495d2bf7a1bb 0.8839555605637125
+end	opennlp:pos
+layer	opennlp:lemmas	aligned:opennlp:tokens	11	lemma:str
+مرحب
+بالعالم
+!
+هذ
+اختبار،
+١٢٣
+و
+456
+.
+كي
+حالك؟
+end	opennlp:lemmas
+layer	turbo:confidence<opennlp:lemmas>	aligned:opennlp:lemmas	11	value:f64
+3fd03e2b9f670a12 0.25379458014154566
+3fe0d0d8ad0d3530 0.5254939441598818
+3feff141fa55163e 0.9982004060081591
+3fd03e2b9f670a12 0.25379458014154566
+3fdb5e11bb6f5e47 0.4276165323658216
+3fe0473b4feb42b2 0.5086952744405464
+3fe02e1a688de84a 0.5056278268887209
+3fec37db0a672413 0.8818183139020469
+3feff0e2b2c3b3cd 0.9981549731725124
+3fd03e2b9f670a12 0.25379458014154566
+3fdb5e11bb6f5e47 0.4276165323658216
+end	turbo:confidence<opennlp:lemmas>

@@ -1,0 +1,71 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	edge/tabs-spaces	20	20	3b5bbb6da02856fe989d454a7c27dfb71dd7d0382625f327eb7eaa6945dadb84
+annotator	opennlp.tools.ml.maxent.GISTrainer	train
+config	Cutoff	1
+config	DataIndexer	TwoPass
+config	Iterations	100
+config	Threads	2
+config	sort	true
+config	source	postag
+layer	turbo:events	document	6	outcome:str	context:str	values:str
+L1	bias w=a p=*SB* n=b pre=a suf=a	
+L1	bias w=b p=a n=c pre=b suf=b	
+L1	bias w=c p=b n=d pre=c suf=c	
+L1	bias w=d p=c n=e pre=d suf=d	
+L1	bias w=e p=d n=f pre=e suf=e	
+L1	bias w=f p=e n=*SE* pre=f suf=f	
+end	turbo:events
+layer	turbo:event-checksum	document	1	crc32c:u32
+3791713260
+end	turbo:event-checksum
+layer	turbo:indexer-outcomes	document	1	label:str
+L1
+end	turbo:indexer-outcomes
+layer	turbo:indexer-predicates	document	31	label:str	count:u32
+bias	6
+n=*SE*	1
+n=b	1
+n=c	1
+n=d	1
+n=e	1
+n=f	1
+p=*SB*	1
+p=a	1
+p=b	1
+p=c	1
+p=d	1
+p=e	1
+pre=a	1
+pre=b	1
+pre=c	1
+pre=d	1
+pre=e	1
+pre=f	1
+suf=a	1
+suf=b	1
+suf=c	1
+suf=d	1
+suf=e	1
+suf=f	1
+w=a	1
+w=b	1
+w=c	1
+w=d	1
+w=e	1
+w=f	1
+end	turbo:indexer-predicates
+layer	turbo:indexer-events	document	6	outcome:u32	context:str	values:str	seen:u32
+0	0 25 7 2 13 19		1
+0	0 26 8 3 14 20		1
+0	0 27 9 4 15 21		1
+0	0 28 10 5 16 22		1
+0	0 29 11 6 17 23		1
+0	0 30 12 1 18 24		1
+end	turbo:indexer-events
+layer	turbo:gis-training	document	1	iterations:u32	message:str
+0	opennlp.tools.util.InsufficientTrainingDataException: Training data must contain more than one outcome
+end	turbo:gis-training

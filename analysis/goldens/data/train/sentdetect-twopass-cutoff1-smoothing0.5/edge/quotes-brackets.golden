@@ -1,0 +1,104 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	edge/quotes-brackets	139	127	0ddef673358aac174b9cf1cbd5157e01eb8bc8e78395b51f7a218e42c177ed7b
+annotator	opennlp.tools.ml.maxent.GISTrainer	train
+config	Cutoff	1
+config	DataIndexer	TwoPass
+config	Iterations	100
+config	Smoothing	true
+config	SmoothingObservation	0.5
+config	sort	true
+config	source	sentdetect
+layer	turbo:events	document	2	outcome:str	context:str	values:str
+n	eos=! x="Stop 5 v=said, s=" n=and	
+s	eos=. x='No 3 v=replied s=' n=[See	
+end	turbo:events
+layer	turbo:event-checksum	document	1	crc32c:u32
+1198412240
+end	turbo:event-checksum
+layer	turbo:indexer-outcomes	document	2	label:str
+n
+s
+end	turbo:indexer-outcomes
+layer	turbo:indexer-predicates	document	12	label:str	count:u32
+3	1
+5	1
+eos=!	1
+eos=.	1
+n=[See	1
+n=and	1
+s="	1
+s='	1
+v=replied	1
+v=said,	1
+x="Stop	1
+x='No	1
+end	turbo:indexer-predicates
+layer	turbo:indexer-events	document	2	outcome:u32	context:str	values:str	seen:u32
+0	2 10 1 9 6 5		1
+1	3 11 0 8 7 4		1
+end	turbo:indexer-events
+layer	turbo:gis-training	document	1	iterations:u32	message:str
+3	Stopping: Difference between log likelihood of current and previous iteration is less than threshold 1.0E-4 .
+end	turbo:gis-training
+layer	turbo:gis-iterations	document	3	iteration:u32	likelihood:f64	correct:u32	events:u32	parameters:str
+1	bff62e42fefa39ef -1.3862943611198906	1	2	83d18b09f96d4111738c2dfb67109d541bb3c2b51157e4fa67572e68d3c699ce
+2	bfe9f323ecbf984d -0.8109302162163289	2	2	f7105a0109682b7063e1fdcf3978b2009b0b0500f1cd4afb7fe8501f00997e3f
+3	bfe9f323ecbf984d -0.8109302162163289	2	2	e3c0ecb21eb18a199d153101f15ef86417d57847760ddb7fe9797af67cb5f2a9
+end	turbo:gis-iterations
+layer	turbo:gis-parameters	document	48	iteration:u32	predicate:u32	outcome:u32	value:f64
+1	0	0	0000000000000000 0.0
+1	0	1	3fbd9303fea2f7e9 0.11552453009332421
+1	1	0	3fbd9303fea2f7e9 0.11552453009332421
+1	1	1	0000000000000000 0.0
+1	2	0	3fbd9303fea2f7e9 0.11552453009332421
+1	2	1	0000000000000000 0.0
+1	3	0	0000000000000000 0.0
+1	3	1	3fbd9303fea2f7e9 0.11552453009332421
+1	4	0	0000000000000000 0.0
+1	4	1	3fbd9303fea2f7e9 0.11552453009332421
+1	5	0	3fbd9303fea2f7e9 0.11552453009332421
+1	5	1	0000000000000000 0.0
+1	6	0	3fbd9303fea2f7e9 0.11552453009332421
+1	6	1	0000000000000000 0.0
+1	7	0	0000000000000000 0.0
+1	7	1	3fbd9303fea2f7e9 0.11552453009332421
+1	8	0	0000000000000000 0.0
+1	8	1	3fbd9303fea2f7e9 0.11552453009332421
+1	9	0	3fbd9303fea2f7e9 0.11552453009332421
+1	9	1	0000000000000000 0.0
+1	10	0	3fbd9303fea2f7e9 0.11552453009332421
+1	10	1	0000000000000000 0.0
+1	11	0	0000000000000000 0.0
+1	11	1	3fbd9303fea2f7e9 0.11552453009332421
+3	0	0	3fc14cc29dd51032 0.13515503603605478
+3	0	1	3fd00b224e934614 0.25067956612937903
+3	1	0	3fd00b224e934614 0.25067956612937903
+3	1	1	3fc14cc29dd51032 0.13515503603605478
+3	2	0	3fd00b224e934614 0.25067956612937903
+3	2	1	3fc14cc29dd51032 0.13515503603605478
+3	3	0	3fc14cc29dd51032 0.13515503603605478
+3	3	1	3fd00b224e934614 0.25067956612937903
+3	4	0	3fc14cc29dd51032 0.13515503603605478
+3	4	1	3fd00b224e934614 0.25067956612937903
+3	5	0	3fd00b224e934614 0.25067956612937903
+3	5	1	3fc14cc29dd51032 0.13515503603605478
+3	6	0	3fd00b224e934614 0.25067956612937903
+3	6	1	3fc14cc29dd51032 0.13515503603605478
+3	7	0	3fc14cc29dd51032 0.13515503603605478
+3	7	1	3fd00b224e934614 0.25067956612937903
+3	8	0	3fc14cc29dd51032 0.13515503603605478
+3	8	1	3fd00b224e934614 0.25067956612937903
+3	9	0	3fd00b224e934614 0.25067956612937903
+3	9	1	3fc14cc29dd51032 0.13515503603605478
+3	10	0	3fd00b224e934614 0.25067956612937903
+3	10	1	3fc14cc29dd51032 0.13515503603605478
+3	11	0	3fc14cc29dd51032 0.13515503603605478
+3	11	1	3fd00b224e934614 0.25067956612937903
+end	turbo:gis-parameters
+layer	turbo:gis-model	document	1	sha256:str	length:u32
+82c9ff81e033f29a61769e9620683b5e6c75e0b1757837232c20fec462b21ed7	316
+end	turbo:gis-model

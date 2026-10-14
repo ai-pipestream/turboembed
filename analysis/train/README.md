@@ -38,11 +38,13 @@ labels from the samples.
 ## JVM reference
 
 `analysis/goldens/data/train/` holds, for events the JVM made from the
-golden input texts with `SDEventStream`, `TokSpanEventStream` and a real
-valued source, what each indexer produced with each cutoff and sorting,
-the event checksum, and the GIS trainer's log likelihood and parameters
-after every iteration (docs/analysis.md, "Training goldens";
-`analysis/goldens-tool`, `TrainGolden.java`). `tests/goldens.rs` reads
+golden input texts with `SDEventStream`, `TokSpanEventStream`, a real
+valued source and a part-of-speech shaped source with many outcomes, what
+each indexer produced with each cutoff and sorting, the event checksum,
+and the GIS trainer's log likelihood and parameters after every iteration,
+with one or two threads, without smoothing and with each smoothing
+(docs/analysis.md, "Training goldens"; `analysis/goldens-tool`,
+`TrainGolden.java`). `tests/goldens.rs` reads
 the events back and compares the indexers with them; the run
 `sentdetect-twopass-cutoff1/train/sentences` is the training of the
 fixture model `en-plain.bin`, whose manifest's `Training-Eventhash` is
@@ -61,20 +63,26 @@ produces the `.model` bytes, `package::ModelPackage` the `.bin` around
 them, and `package::sentence_model_package` the sentence detector's
 manifest entries.
 
-Parity: `tests/goldens.rs` trains every training golden's index and
-compares the log likelihood, the correct and total counts, and the SHA-256
-of every parameter after every iteration, every parameter after the first
-and the last iteration bit for bit, the end of training message, and the
-SHA-256 and length of the written model with the JVM's. `tests/roundtrip.rs`
-trains the two fixture models again from their events and parameters:
+Parity: `tests/goldens.rs` trains every training golden's index with the
+run's `Threads` and smoothing settings and compares the log likelihood,
+the correct and total counts, and the SHA-256 of every parameter after
+every iteration, every parameter after the first and the last iteration
+bit for bit, the end of training message, and the SHA-256 and length of
+the written model with the JVM's. `tests/roundtrip.rs` trains the two
+fixture models again from their events and parameters:
 `analysis/maxent/tests/fixtures/models/gis.model` is reproduced byte for
-byte, and so is the `sent.model` entry and the manifest of
-`analysis/goldens/data/fixtures/en-plain.bin`; the `.bin` written here
-opens with `turbo-maxent` and `turbo-sentdetect` and splits the training
-text as the fixture does, probabilities included. The same file was
-loaded in the JVM (`SentenceModel`, `SentenceDetectorME`) beside the
-fixture: same spans, bit-equal probabilities, and `GenericModelWriter`
-writes the loaded model back to the same bytes.
+byte, and so are the `sent.model` entry and the manifest of
+`analysis/goldens/data/fixtures/en-plain.bin`; the `.bin` written around
+them is the checked in fixture `analysis/goldens/data/fixtures/en-plain-rust.bin`,
+byte for byte, and it opens with `turbo-maxent` and `turbo-sentdetect` and
+splits the training text as the fixture does, probabilities included. The
+golden generator loads that fixture in the JVM (`SentenceModel`,
+`SentenceDetectorME`) and runs it beside `en-plain.bin` on the sentence
+fixture inputs (`analysis/goldens/data/sentdetect/en-plain-rust`);
+`analysis/sentdetect/tests/golden.rs` checks that the Rust detector gives
+the spans and probabilities the JVM recorded with it, and that those are
+the ones recorded with `en-plain.bin`. The archive around the entries is
+not the JVM's bytes:
 
 The `.bin` written here stores its entries uncompressed, the manifest
 first, with the time of the manifest's `Timestamp` in UTC; the JVM
@@ -155,7 +163,11 @@ probabilities.
   expectations per chunk and then across chunks, so a model trained with
   two threads differs in the last bits from one trained with one. The
   chunking (`n / threads` events per chunk, the first `n % threads`
-  chunks one longer) and the merge order are ported.
+  chunks one longer) and the merge order are ported. The JVM adds the
+  chunks' log likelihoods in the order its threads finish; with two
+  chunks the sum is the same either way, so the two thread goldens are
+  reproducible, and with more it may differ in the last bits from run to
+  run in the JVM itself.
 - `GISTrainer` stops when the log likelihood falls ("Model Diverging")
   without telling the monitor, so `finishedTraining` then reports the
   requested iteration count with no stop criterion.
@@ -195,10 +207,7 @@ probabilities.
   the objective is NaN it never does and the JVM loops without end; here
   the loop stops with `Error::LineSearch` once the step has reached zero.
 
-Not ported: `Float.parseFloat` and `Double.parseDouble` read hexadecimal
-literals (`0x1p3`), which `turbo_jvm::text` refuses; a real valued feature
-written that way is counted as 1 here where OpenNLP would read it. The
-abbreviation dictionary entry of a sentence or tokenizer model
+Not ported: the abbreviation dictionary entry of a sentence or tokenizer model
 (`abbreviations.dictionary`, `DictionarySerializer`) has no writer here
 yet; `ModelPackage::add_entry` takes its bytes. Nor are the perceptron and
 naive Bayes trainers (`Error::NotPorted`).
