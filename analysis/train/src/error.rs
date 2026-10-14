@@ -43,6 +43,8 @@ pub enum Error {
     /// The algorithm named by the `Algorithm` parameter is none OpenNLP has
     /// built in (`IllegalArgumentException("Unknown algorithm type: ...")`).
     UnknownAlgorithm(String),
+    /// The algorithm is one OpenNLP has but this crate has no trainer for.
+    NotPorted(crate::params::Algorithm),
     /// The `DataIndexer` parameter names none of the three built in
     /// indexers. OpenNLP would load it as an extension class by that name.
     UnknownIndexer(String),
@@ -55,6 +57,23 @@ pub enum Error {
     /// `GISTrainer` refuses a `Threads` value below one
     /// (`IllegalArgumentException`).
     Threads(i32),
+    /// `QNTrainer` and `QNMinimizer` refuse a count that is not positive:
+    /// `NumOfUpdates`, `MaxFctEval`, `Threads` or `Iterations`
+    /// (`IllegalArgumentException`).
+    NotPositive { key: &'static str, value: i32 },
+    /// `QNTrainer` refuses a negative `L1Cost` or `L2Cost`
+    /// (`IllegalArgumentException`).
+    NegativeCost { key: &'static str, value: f64 },
+    /// The QN line search found no step that satisfies the sufficient
+    /// decrease condition before the step reached zero, which happens when
+    /// the objective is NaN. The JVM's loop does not terminate then.
+    LineSearch,
+    /// An `OnePassRealValue` index keeps the events' values, and unique
+    /// event `event` has none (`Event::with_values(.., None)`). The
+    /// trainers read `values[ei][ci]` for every event when the index has
+    /// values, so the JVM throws `NullPointerException` in `GISTrainer`,
+    /// `NegLogLikelihood.valueAt` and `PerceptronTrainer`.
+    MissingValues { event: usize },
 }
 
 pub type Result<T> = std::result::Result<T, Error>;
@@ -93,12 +112,24 @@ impl fmt::Display for Error {
                 write!(f, "parameter {key:?} is a {found}, which Properties.store cannot write (ClassCastException)")
             }
             Error::UnknownAlgorithm(name) => write!(f, "Unknown algorithm type: {name}"),
+            Error::NotPorted(algorithm) => write!(f, "no trainer for {} here yet", algorithm.name()),
             Error::UnknownIndexer(name) => {
                 write!(f, "DataIndexer {name:?} is not OnePass, TwoPass or OnePassRealValue")
             }
             Error::Properties(e) => write!(f, "parameters file: {e}"),
             Error::BothSmoothings => f.write_str("Cannot set both Gaussian smoothing and Simple smoothing"),
             Error::Threads(n) => write!(f, "threads must be at least one or greater but is {n}!"),
+            Error::NotPositive { key, value } => {
+                write!(f, "parameter {key} must be positive but is {value} (IllegalArgumentException)")
+            }
+            Error::NegativeCost { key, value } => {
+                write!(f, "parameter {key} must not be negative but is {value} (IllegalArgumentException)")
+            }
+            Error::LineSearch => f.write_str("the line search found no acceptable step (the JVM would not terminate)"),
+            Error::MissingValues { event } => write!(
+                f,
+                "event {event} of a real value index has no values, which the JVM trainers read (NullPointerException)"
+            ),
         }
     }
 }

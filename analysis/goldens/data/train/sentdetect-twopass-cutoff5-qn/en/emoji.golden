@@ -1,0 +1,48 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	en/emoji	194	176	988126c5cc162c43b57be5509c7c49796549ca909ed887ec66f50edf7e54b441
+annotator	opennlp.tools.ml.maxent.quasinewton.QNTrainer	train
+config	Algorithm	MAXENT_QN
+config	Cutoff	5
+config	DataIndexer	TwoPass
+config	Iterations	100
+config	L1Cost	0.1
+config	L2Cost	0.1
+config	MaxFctEval	30000
+config	NumOfUpdates	15
+config	Threads	1
+config	sort	true
+config	source	sentdetect
+layer	turbo:events	document	5	outcome:str	context:str	values:str
+n	sn eos=! x=match 5 v=the s= n=🎉	
+n	sn eos=. x=afterwards 10 v=🍕 s= n=My ncap	
+n	sn eos=. x=❤️ 2 v=heart s= n=The ncap	
+n	sn eos=. x=stadium 7 v=the s= n=What ncap	
+s	sn eos=. x=😀 2 v=day s= n=	
+end	turbo:events
+layer	turbo:qn-training	document	1	iterations:u32	stop:str	message:str
+5	change-rate	
+end	turbo:qn-training
+layer	turbo:qn-iterations	document	5	iteration:u32	value:f64	rate:f64	accuracy:f64	parameters:str
+1	40077a2490b56f90 2.9346400552148637	3fc39d6df81a0035 0.15324186910948048	3fe999999999999a 0.8	dfb408877c88699f44073e8bc49a3ea8b3bd633d79b85101bd7221a80823ca76
+2	4005865244701b7d 2.6905865999901253	3fb54a2b86474e04 0.08316299465450788	3fe999999999999a 0.8	d2648795599806e93fbae3f560803e5ee27f6f6c9680050a4f861e0cb0ea1bf7
+3	400563d31f5ba7f6 2.6737425279470655	3f79a479b735d5b8 0.006260371639077382	3fe999999999999a 0.8	130c65b1699f8c856cb44482416b284cb2ba14900ad2747f6213effab57951e7
+4	40056119bd1970ac 2.672412373865958	3f404d3abfd98001 4.974877226224806E-4	3fe999999999999a 0.8	91c10531925f8d17212a47bf4dfb8af6741d7184d215cf0218418f8357ace509
+5	40056117cc9ee757 2.672408674811702	3eb738ef488fcf0d 1.3841629729034576E-6	3fe999999999999a 0.8	3e10144bfb04746c6b1e3bdf386710bedd5aaf19ba1a09c790597107a982e4f2
+end	turbo:qn-iterations
+layer	turbo:qn-parameters	document	8	iteration:u32	predicate:u32	outcome:u32	value:f64
+1	0	0	3fe0c7ebc96a56f6 0.5244044240850758
+1	0	1	bfe0c7ebc96a56f6 -0.5244044240850758
+1	1	0	3fe0c7ebc96a56f6 0.5244044240850758
+1	1	1	bfe0c7ebc96a56f6 -0.5244044240850758
+5	0	0	3fd417466c07ea41 0.31392059850591997
+5	0	1	bfd417466c07ea3a -0.3139205985059196
+5	1	0	3fd417466c07ea41 0.31392059850591997
+5	1	1	bfd417466c07ea3a -0.3139205985059196
+end	turbo:qn-parameters
+layer	turbo:qn-model	document	1	sha256:str	length:u32
+5b650d6626f27a8bfcf00838923a38af13fb43b48ff6635bb89953ac0bc8f310	69
+end	turbo:qn-model

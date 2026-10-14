@@ -59,7 +59,29 @@ const TRAIN_LAYERS: &[(&str, &[ColumnSpec])] = &[
     ),
     ("turbo:gis-parameters", &[col("iteration", U32), col("predicate", U32), col("outcome", U32), col("value", F64)]),
     ("turbo:gis-model", &[col("sha256", STR), col("length", U32)]),
+    ("turbo:qn-training", &[col("iterations", U32), col("stop", STR), col("message", STR)]),
+    (
+        "turbo:qn-iterations",
+        &[col("iteration", U32), col("value", F64), col("rate", F64), col("accuracy", F64), col("parameters", STR)],
+    ),
+    ("turbo:qn-parameters", &[col("iteration", U32), col("predicate", U32), col("outcome", U32), col("value", F64)]),
+    ("turbo:qn-model", &[col("sha256", STR), col("length", U32)]),
 ];
+
+/// `QNTrainer`'s class name: the annotator of the QN training goldens.
+pub const QN_TRAINER: &str = "opennlp.tools.ml.maxent.quasinewton.QNTrainer";
+
+/// The run's QN settings from the config records.
+pub fn qn_params(g: &Golden) -> turbo_train::QnParams {
+    turbo_train::QnParams {
+        iterations: config(g, "Iterations").parse().unwrap(),
+        threads: config(g, "Threads").parse().unwrap(),
+        l1_cost: turbo_jvm::text::parse_double(config(g, "L1Cost")).unwrap(),
+        l2_cost: turbo_jvm::text::parse_double(config(g, "L2Cost")).unwrap(),
+        updates: config(g, "NumOfUpdates").parse().unwrap(),
+        max_fct_eval: config(g, "MaxFctEval").parse().unwrap(),
+    }
+}
 
 pub fn train_shapes() -> Vec<Shape> {
     TRAIN_LAYERS

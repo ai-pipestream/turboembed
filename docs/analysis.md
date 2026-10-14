@@ -1527,6 +1527,23 @@ in place of the indexer's layers, one `turbo:indexer-error` row with the
 exception's class and message. No layer type has these ids, so
 `analysis/train/tests/goldens.rs` reads these goldens itself, and compares the Rust indexers, trainer and writer with every one of them. With two threads the JVM adds the two chunks' log likelihoods in the order the threads finish, which gives the same sum either way, so those goldens are reproducible and compared like the others; no run uses more threads. `analysis/train/tests/roundtrip.rs` trains the fixture models `analysis/maxent/tests/fixtures/models/gis.model` and `en-plain.bin` again and checks that `gis.model`, and the `sent.model` entry and the manifest of `en-plain.bin`, come out byte for byte, and that the `.bin` it writes around them is the fixture `en-plain-rust.bin`, which the generator loads in the JVM as a sentence model (`sentdetect/en-plain-rust`) so that `analysis/sentdetect/tests/golden.rs` can compare the JVM's spans and probabilities with it against the Rust detector's.
 
+The runs of the L-BFGS trainer (`QNTrainer`, `Algorithm=MAXENT_QN`;
+directories with `-qn` appended, then `-l1`, `-l2` or `-plain` when only
+one cost, or neither, is on) hold the events and the trainer's layers, the
+index being that of the GIS run with the same source and indexer settings.
+`QNTrainer` reports nothing to a progress monitor; `QNMinimizer` logs one
+debug line per iteration and one naming the test that stopped it, which
+the generator captures with its own SLF4J provider. `turbo:qn-training`
+says how many iterations ran and which test stopped them (`change-rate`,
+`gradient-norm`, `step-size`, `fct-eval`, or `iterations` for the limit;
+`refused` with the exception for one outcome); `turbo:qn-iterations` has,
+per iteration, the objective value at the new point, the function change
+rate, the training accuracy and the parameter digest, where the parameters
+after iteration k are again those of a run of k iterations (so after the
+rescaling the minimizer applies at the end); `turbo:qn-parameters` and
+`turbo:qn-model` are as for GIS. The `config` records add `Algorithm`,
+`L1Cost`, `L2Cost`, `NumOfUpdates`, `MaxFctEval` and `Threads`. The runs cover one cost, both and neither, several threads, and the `postag` source with many outcomes; `analysis/train/tests/goldens.rs` compares the QN trainer with every one of them the same way. The run `sentdetect-twopass-cutoff1-qn` on `analysis/goldens/data/inputs/train/sentences.txt` is the JVM's training of the fixture `analysis/goldens/data/fixtures/en-plain-qn-rust.bin`, the `.bin` the Rust QN trainer writes for those events: `analysis/train/tests/roundtrip.rs` checks the model bytes against that golden and the `.bin` against the fixture, and the generator loads the fixture in the JVM as a sentence model (`sentdetect/en-plain-qn-rust`) for `analysis/sentdetect/tests/golden.rs` to compare with the Rust detector.
+
 ## Generating golden files
 
 The goldens in `analysis/goldens/data` are made by `turbo-goldens`

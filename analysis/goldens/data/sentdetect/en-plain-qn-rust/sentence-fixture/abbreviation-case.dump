@@ -1,0 +1,108 @@
+dump 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	sentence-fixture/abbreviation-case	65	65	95c61f63b63b2875db3b1321e4a91f3a020e7a4776ed70d54c405bcea8b2fe2b
+model	en-plain-qn-rust.bin	23f36eea3d663b3791fd6ee4c5f90e51f7298f4488c815f27b440a2edcac760cdcb6fbe4da87e1762c09c7f6f5db981cfb4657d0f0a6171a4f6cfaebdb9eda0f
+annotator	opennlp.tools.sentdetect.SentenceDetectorME	sentPosDetect
+point	0	2	9	2	0	none
+context	sn
+context	eos=.
+context	x=MR
+context	2
+context	xcap
+context	v=
+context	s=
+context	n=SMITH
+context	ncap
+outcome	n	3feebfe1170e38f7 0.9609227609924166
+outcome	s	3fa401ee8f1c7099 0.03907723900758348
+end	0
+point	1	16	7	2	0	none
+context	sn
+context	eos=.
+context	x=mr
+context	2
+context	v=and
+context	s=
+context	n=jones
+outcome	n	3feea310407ecf01 0.9574052104639749
+outcome	s	3fa5cefbf8130ffd 0.042594789536025225
+end	1
+point	2	27	8	2	0	none
+context	sn
+context	eos=.
+context	x=met
+context	3
+context	v=jones
+context	s=
+context	n=PROF.
+context	ncap
+outcome	n	3f9e47d6791d0ec4 0.02957091440408878
+outcome	s	3fef0dc14c37178a 0.9704290855959112
+acceptable	1
+end	2
+point	3	33	9	2	0	none
+context	sn
+context	eos=.
+context	x=PROF
+context	4
+context	xcap
+context	v=met.
+context	s=
+context	n=X
+context	ncap
+outcome	n	3fcad5c8be7e7aac 0.20964917470424405
+outcome	s	3fe94a8dd0606155 0.790350825295756
+acceptable	1
+end	3
+point	4	49	8	2	0	none
+context	eos=.
+context	x=A
+context	1
+context	xcap
+context	v=9
+context	s=M
+context	scap
+context	n=sharp.
+outcome	n	3feffe8a991dd98f 0.999821948104726
+outcome	s	3f27566e2266f83a 1.780518952738135E-4
+end	4
+point	5	51	8	2	0	none
+context	sn
+context	eos=.
+context	x=.M
+context	2
+context	v=A
+context	vcap
+context	s=
+context	n=sharp.
+outcome	n	3fef140055999f00 0.9711915656925783
+outcome	s	3f9d7ff54ccc2036 0.028808434307421936
+end	5
+point	6	58	9	2	0	none
+context	sn
+context	eos=.
+context	x=sharp
+context	5
+context	v=A.M.
+context	vcap
+context	s=
+context	n=Fine.
+context	ncap
+outcome	n	3f7ca0d28c0be176 0.006989309739531149
+outcome	s	3fefc6be5ae7e840 0.9930106902604692
+acceptable	1
+end	6
+point	7	64	7	2	0	none
+context	eos=.
+context	x=Fine
+context	4
+context	xcap
+context	v=sharp.
+context	s=
+context	n=
+outcome	n	3fe90fccadca19b0 0.7831786531758578
+outcome	s	3fcbc0cd48d79940 0.21682134682414222
+end	7

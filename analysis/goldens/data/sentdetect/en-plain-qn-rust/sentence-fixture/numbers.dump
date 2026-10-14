@@ -1,0 +1,88 @@
+dump 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	sentence-fixture/numbers	81	81	a9d0b521c996117773d4cf5805de5748b4e132a6a434307df50b13db90cbf659
+model	en-plain-qn-rust.bin	23f36eea3d663b3791fd6ee4c5f90e51f7298f4488c815f27b440a2edcac760cdcb6fbe4da87e1762c09c7f6f5db981cfb4657d0f0a6171a4f6cfaebdb9eda0f
+annotator	opennlp.tools.sentdetect.SentenceDetectorME	sentPosDetect
+point	0	7	6	2	0	none
+context	eos=.
+context	x=3
+context	1
+context	v=is
+context	s=14159
+context	n=and
+outcome	n	3fefd0a8a9bff4c7 0.9942210498262732
+outcome	s	3f77abab20059b68 0.005778950173726517
+end	0
+point	1	29	6	2	0	none
+context	eos=.
+context	x=.5
+context	2
+context	v=2
+context	s=4
+context	n=shipped.
+outcome	n	3fefef8934157183 0.9979902283917429
+outcome	s	3f6076cbea8e7c5d 0.002009771608257034
+end	1
+point	2	39	8	2	0	none
+context	sn
+context	eos=.
+context	x=shipped
+context	7
+context	v=2.5.4
+context	s=
+context	n=Costs
+context	ncap
+outcome	n	3f662fdc8f7f59fc 0.002708369047449864
+outcome	s	3fefe9d0237080a6 0.9972916309525501
+acceptable	1
+end	2
+point	3	53	6	2	0	none
+context	eos=.
+context	x=4
+context	1
+context	v=rose
+context	s=5
+context	n=percent.
+outcome	n	3fefb86808f33323 0.9912605452351254
+outcome	s	3f81e5fdc3333804 0.008739454764874928
+end	3
+point	4	63	8	2	0	none
+context	sn
+context	eos=.
+context	x=percent
+context	7
+context	v=4.5
+context	s=
+context	n=It
+context	ncap
+outcome	n	3f6137cc817bb72a 0.0021018022779263528
+outcome	s	3fefeec8337e8447 0.9978981977220734
+acceptable	1
+end	4
+point	5	72	8	2	0	none
+context	sn
+context	eos=.
+context	x=1
+context	1
+context	v=is
+context	s=
+context	n=Then
+context	ncap
+outcome	n	3fabde3e9a2ac718 0.05442996627733815
+outcome	s	3fee421c165d538e 0.9455700337226618
+acceptable	1
+end	5
+point	6	80	7	2	0	none
+context	eos=.
+context	x=2
+context	1
+context	v=Then
+context	vcap
+context	s=
+context	n=
+outcome	n	3fe4609d5c701cf0 0.6367937856129213
+outcome	s	3fd73ec5471fc622 0.3632062143870788
+end	6
