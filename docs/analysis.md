@@ -2019,10 +2019,11 @@ against the JVM's), 2,381 simple tokenizer goldens with `keepNewLines`
 (443 of them the exception), 303 bounded URL goldens (internationalized
 e-mail addresses), 224 symbol word goldens (symbols in running text), 148
 WordPiece goldens with final sigma, 100 language goldens. For the
-normalizers with a "Differences from OpenNLP" section, the run classes
-every mismatch as documented and does not check which difference it is;
-a rule per normalizer, as the WordPiece run has, is the next step there.
-No OpenNLP bug was found that the crate docs did not already record.
+normalizers with a "Differences from OpenNLP" section, the rule per
+normalizer in `analysis/fuzz/src/runs/normalize.rs` (listed above) names
+the difference each mismatch is, and a region no rule recognizes is a
+divergence. No OpenNLP bug was found that the crate docs did not already
+record.
 
 ## Evaluation
 
