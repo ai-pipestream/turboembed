@@ -1,0 +1,138 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	edge/japanese	109	37	5ff7aca5a1372196b3373c1d868979d96627cdbc50cf30fbb78d4255f8e52a6a
+annotator	opennlp.tools.ml.maxent.GISTrainer	train
+config	Cutoff	2
+config	DataIndexer	OnePass
+config	Iterations	100
+config	sort	false
+config	source	tokenize
+layer	turbo:events	document	35	outcome:str	context:str	values:str
+F	p=私 s=は東京に住んでいます。ひらがなとカタカナと漢字を使います。テストです！ p1=私 p1_alpha p2=bok p1f1=私は f1=は f1_alpha f2=東 f2_alpha f12=は東	
+F	p=私は s=東京に住んでいます。ひらがなとカタカナと漢字を使います。テストです！ p1=は p1_alpha p2=私 p2_alpha p21=私は p1f1=は東 f1=東 f1_alpha f2=京 f2_alpha f12=東京	
+F	p=私は東 s=京に住んでいます。ひらがなとカタカナと漢字を使います。テストです！ p1=東 p1_alpha p2=は p2_alpha p21=は東 p1f1=東京 f1=京 f1_alpha f2=に f2_alpha f12=京に	
+F	p=私は東京 s=に住んでいます。ひらがなとカタカナと漢字を使います。テストです！ p1=京 p1_alpha p2=東 p2_alpha p21=東京 p1f1=京に f1=に f1_alpha f2=住 f2_alpha f12=に住	
+F	p=私は東京に s=住んでいます。ひらがなとカタカナと漢字を使います。テストです！ p1=に p1_alpha p2=京 p2_alpha p21=京に p1f1=に住 f1=住 f1_alpha f2=ん f2_alpha f12=住ん	
+F	p=私は東京に住 s=んでいます。ひらがなとカタカナと漢字を使います。テストです！ p1=住 p1_alpha p2=に p2_alpha p21=に住 p1f1=住ん f1=ん f1_alpha f2=で f2_alpha f12=んで	
+F	p=私は東京に住ん s=でいます。ひらがなとカタカナと漢字を使います。テストです！ p1=ん p1_alpha p2=住 p2_alpha p21=住ん p1f1=んで f1=で f1_alpha f2=い f2_alpha f12=でい	
+F	p=私は東京に住んで s=います。ひらがなとカタカナと漢字を使います。テストです！ p1=で p1_alpha p2=ん p2_alpha p21=んで p1f1=でい f1=い f1_alpha f2=ま f2_alpha f12=いま	
+F	p=私は東京に住んでい s=ます。ひらがなとカタカナと漢字を使います。テストです！ p1=い p1_alpha p2=で p2_alpha p21=でい p1f1=いま f1=ま f1_alpha f2=す f2_alpha f12=ます	
+F	p=私は東京に住んでいま s=す。ひらがなとカタカナと漢字を使います。テストです！ p1=ま p1_alpha p2=い p2_alpha p21=いま p1f1=ます f1=す f1_alpha f2=。 f12=す。	
+F	p=私は東京に住んでいます s=。ひらがなとカタカナと漢字を使います。テストです！ p1=す p1_alpha p2=ま p2_alpha p21=ます p1f1=す。 f1=。 f2=ひ f2_alpha f12=。ひ	
+F	p=私は東京に住んでいます。 s=ひらがなとカタカナと漢字を使います。テストです！ p1=。 p2=す p2_alpha p21=す。 p1f1=。ひ f1=ひ f1_alpha f2=ら f2_alpha f12=ひら	
+F	p=私は東京に住んでいます。ひ s=らがなとカタカナと漢字を使います。テストです！ p1=ひ p1_alpha p2=。 p21=。ひ p1f1=ひら f1=ら f1_alpha f2=が f2_alpha f12=らが	
+F	p=私は東京に住んでいます。ひら s=がなとカタカナと漢字を使います。テストです！ p1=ら p1_alpha p2=ひ p2_alpha p21=ひら p1f1=らが f1=が f1_alpha f2=な f2_alpha f12=がな	
+F	p=私は東京に住んでいます。ひらが s=なとカタカナと漢字を使います。テストです！ p1=が p1_alpha p2=ら p2_alpha p21=らが p1f1=がな f1=な f1_alpha f2=と f2_alpha f12=なと	
+F	p=私は東京に住んでいます。ひらがな s=とカタカナと漢字を使います。テストです！ p1=な p1_alpha p2=が p2_alpha p21=がな p1f1=なと f1=と f1_alpha f2=カ f2_alpha f12=とカ	
+F	p=私は東京に住んでいます。ひらがなと s=カタカナと漢字を使います。テストです！ p1=と p1_alpha p2=な p2_alpha p21=なと p1f1=とカ f1=カ f1_alpha f2=タ f2_alpha f12=カタ	
+F	p=私は東京に住んでいます。ひらがなとカ s=タカナと漢字を使います。テストです！ p1=カ p1_alpha p2=と p2_alpha p21=とカ p1f1=カタ f1=タ f1_alpha f2=カ f2_alpha f12=タカ	
+F	p=私は東京に住んでいます。ひらがなとカタ s=カナと漢字を使います。テストです！ p1=タ p1_alpha p2=カ p2_alpha p21=カタ p1f1=タカ f1=カ f1_alpha f2=ナ f2_alpha f12=カナ	
+F	p=私は東京に住んでいます。ひらがなとカタカ s=ナと漢字を使います。テストです！ p1=カ p1_alpha p2=タ p2_alpha p21=タカ p1f1=カナ f1=ナ f1_alpha f2=と f2_alpha f12=ナと	
+F	p=私は東京に住んでいます。ひらがなとカタカナ s=と漢字を使います。テストです！ p1=ナ p1_alpha p2=カ p2_alpha p21=カナ p1f1=ナと f1=と f1_alpha f2=漢 f2_alpha f12=と漢	
+F	p=私は東京に住んでいます。ひらがなとカタカナと s=漢字を使います。テストです！ p1=と p1_alpha p2=ナ p2_alpha p21=ナと p1f1=と漢 f1=漢 f1_alpha f2=字 f2_alpha f12=漢字	
+F	p=私は東京に住んでいます。ひらがなとカタカナと漢 s=字を使います。テストです！ p1=漢 p1_alpha p2=と p2_alpha p21=と漢 p1f1=漢字 f1=字 f1_alpha f2=を f2_alpha f12=字を	
+F	p=私は東京に住んでいます。ひらがなとカタカナと漢字 s=を使います。テストです！ p1=字 p1_alpha p2=漢 p2_alpha p21=漢字 p1f1=字を f1=を f1_alpha f2=使 f2_alpha f12=を使	
+F	p=私は東京に住んでいます。ひらがなとカタカナと漢字を s=使います。テストです！ p1=を p1_alpha p2=字 p2_alpha p21=字を p1f1=を使 f1=使 f1_alpha f2=い f2_alpha f12=使い	
+F	p=私は東京に住んでいます。ひらがなとカタカナと漢字を使 s=います。テストです！ p1=使 p1_alpha p2=を p2_alpha p21=を使 p1f1=使い f1=い f1_alpha f2=ま f2_alpha f12=いま	
+F	p=私は東京に住んでいます。ひらがなとカタカナと漢字を使い s=ます。テストです！ p1=い p1_alpha p2=使 p2_alpha p21=使い p1f1=いま f1=ま f1_alpha f2=す f2_alpha f12=ます	
+F	p=私は東京に住んでいます。ひらがなとカタカナと漢字を使いま s=す。テストです！ p1=ま p1_alpha p2=い p2_alpha p21=いま p1f1=ます f1=す f1_alpha f2=。 f12=す。	
+F	p=私は東京に住んでいます。ひらがなとカタカナと漢字を使います s=。テストです！ p1=す p1_alpha p2=ま p2_alpha p21=ます p1f1=す。 f1=。 f2=テ f2_alpha f12=。テ	
+F	p=私は東京に住んでいます。ひらがなとカタカナと漢字を使います。 s=テストです！ p1=。 p2=す p2_alpha p21=す。 p1f1=。テ f1=テ f1_alpha f2=ス f2_alpha f12=テス	
+F	p=私は東京に住んでいます。ひらがなとカタカナと漢字を使います。テ s=ストです！ p1=テ p1_alpha p2=。 p21=。テ p1f1=テス f1=ス f1_alpha f2=ト f2_alpha f12=スト	
+F	p=私は東京に住んでいます。ひらがなとカタカナと漢字を使います。テス s=トです！ p1=ス p1_alpha p2=テ p2_alpha p21=テス p1f1=スト f1=ト f1_alpha f2=で f2_alpha f12=トで	
+F	p=私は東京に住んでいます。ひらがなとカタカナと漢字を使います。テスト s=です！ p1=ト p1_alpha p2=ス p2_alpha p21=スト p1f1=トで f1=で f1_alpha f2=す f2_alpha f12=です	
+F	p=私は東京に住んでいます。ひらがなとカタカナと漢字を使います。テストで s=す！ p1=で p1_alpha p2=ト p2_alpha p21=トで p1f1=です f1=す f1_alpha f2=！ f12=す！	
+F	p=私は東京に住んでいます。ひらがなとカタカナと漢字を使います。テストです s=！ p1=す p1_alpha p2=で p2_alpha p21=です p1f1=す！ f1=！ f2=bok	
+end	turbo:events
+layer	turbo:event-checksum	document	1	crc32c:u32
+3134334237
+end	turbo:event-checksum
+layer	turbo:indexer-outcomes	document	1	label:str
+F
+end	turbo:indexer-outcomes
+layer	turbo:indexer-predicates	document	41	label:str	count:u32
+f12=いま	2
+f12=す。	2
+f12=ます	2
+f1=。	2
+f1=い	2
+f1=す	3
+f1=で	2
+f1=と	2
+f1=ま	2
+f1=カ	2
+f1_alpha	32
+f2=。	2
+f2=い	2
+f2=す	3
+f2=で	2
+f2=と	2
+f2=ま	2
+f2=カ	2
+f2_alpha	31
+p1=。	2
+p1=い	2
+p1=す	3
+p1=で	2
+p1=と	2
+p1=ま	2
+p1=カ	2
+p1_alpha	33
+p1f1=いま	2
+p1f1=す。	2
+p1f1=ます	2
+p21=いま	2
+p21=す。	2
+p21=ます	2
+p2=。	2
+p2=い	2
+p2=す	2
+p2=で	2
+p2=と	2
+p2=ま	2
+p2=カ	2
+p2_alpha	32
+end	turbo:indexer-predicates
+layer	turbo:indexer-events	document	35	outcome:u32	context:str	values:str	seen:u32
+0	26 10 18		1
+0	26 40 10 18		1
+0	26 40 10 18		1
+0	26 40 10 18		1
+0	26 40 10 18		1
+0	26 40 10 14 18		1
+0	26 40 6 10 12 18		1
+0	22 26 40 4 10 16 18 0		1
+0	20 26 36 40 27 8 10 13 18 2		1
+0	24 26 34 40 30 29 5 10 11 1		1
+0	21 26 38 40 32 28 3 18		1
+0	19 35 40 31 10 18		1
+0	26 33 10 18		1
+0	26 40 10 18		1
+0	26 40 10 15 18		1
+0	26 40 7 10 17 18		1
+0	23 26 40 9 10 18		1
+0	25 26 37 40 10 17 18		1
+0	26 39 40 9 10 18		1
+0	25 26 40 10 15 18		1
+0	26 39 40 7 10 18		1
+0	23 26 40 10 18		1
+0	26 37 40 10 18		1
+0	26 40 10 18		1
+0	26 40 10 12 18		1
+0	26 40 4 10 16 18 0		1
+0	20 26 40 27 8 10 13 18 2		1
+0	24 26 34 40 30 29 5 10 11 1		1
+0	21 26 38 40 32 28 3 18		1
+0	19 35 40 31 10 18		1
+0	26 33 10 18		1
+0	26 40 10 14 18		1
+0	26 40 6 10 13 18		1
+0	22 26 40 5 10		1
+0	21 26 36 40		1
+end	turbo:indexer-events
+layer	turbo:gis-training	document	1	iterations:u32	message:str
+0	opennlp.tools.util.InsufficientTrainingDataException: Training data must contain more than one outcome
+end	turbo:gis-training

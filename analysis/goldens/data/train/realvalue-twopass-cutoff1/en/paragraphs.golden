@@ -1,0 +1,92 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	en/paragraphs	356	356	eaca16d3efa3ea3ed6853381c5ad6ccb382a2096f35004fa4557113f9454a1a0
+annotator	opennlp.tools.ml.maxent.GISTrainer	train
+config	Cutoff	1
+config	DataIndexer	TwoPass
+config	Iterations	100
+config	sort	true
+config	source	realvalue
+layer	turbo:events	document	3	outcome:str	context:str	values:str
+long	Rivers shape the land around them. Over thousands of years, they carve valleys and build up plains.	1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0
+long	When a river floods, it leaves behind fine silt. Farmers have relied on that silt for as long there been farms. The Nile is the best known example.	1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 2.0 1.0 1.0 1.0 1.0 1.0 2.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0
+long	Today many rivers are held back by dams. That brings power and water, but it also stops the silt.	1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0
+end	turbo:events
+layer	turbo:event-checksum	document	1	crc32c:u32
+2387557090
+end	turbo:event-checksum
+layer	turbo:indexer-outcomes	document	1	label:str
+long
+end	turbo:indexer-outcomes
+layer	turbo:indexer-predicates	document	59	label:str	count:u32
+Farmers	1
+Nile	1
+Over	1
+Rivers	1
+That	1
+The	1
+Today	1
+When	1
+a	1
+also	1
+and	2
+are	1
+around	1
+as	1
+back	1
+been	1
+behind	1
+best	1
+brings	1
+build	1
+but	1
+by	1
+carve	1
+dams.	1
+example.	1
+farms.	1
+fine	1
+floods,	1
+for	1
+have	1
+held	1
+is	1
+it	2
+known	1
+land	1
+leaves	1
+long	1
+many	1
+of	1
+on	1
+plains.	1
+power	1
+relied	1
+river	1
+rivers	1
+shape	1
+silt	1
+silt.	2
+stops	1
+that	1
+the	3
+them.	1
+there	1
+they	1
+thousands	1
+up	1
+valleys	1
+water,	1
+years,	1
+end	turbo:indexer-predicates
+layer	turbo:indexer-events	document	3	outcome:u32	context:str	values:str	seen:u32
+0	3 45 50 34 12 51 2 54 38 58 53 22 56 10 19 55 40		1
+0	6 37 44 11 30 14 21 23 4 18 41 10 57 20 32 9 48 50 47		1
+0	7 8 43 27 32 35 16 26 47 0 29 42 39 49 46 28 13 36 52 15 25 5 1 31 50 17 33 24		1
+end	turbo:indexer-events
+layer	turbo:gis-training	document	1	iterations:u32	message:str
+0	opennlp.tools.util.InsufficientTrainingDataException: Training data must contain more than one outcome
+end	turbo:gis-training

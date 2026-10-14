@@ -1,0 +1,54 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	edge/numbers	163	163	ac397ed9e560b6c7ea24fb2ad41c9c951a27fd6316ba8de71531a337aca4ae68
+annotator	opennlp.tools.ml.maxent.GISTrainer	train
+config	Cutoff	5
+config	DataIndexer	TwoPass
+config	Iterations	100
+config	sort	true
+config	source	sentdetect
+layer	turbo:events	document	9	outcome:str	context:str	values:str
+n	eos=. x=3 1 v=is s=14 n=and	
+n	eos=. x=2 1 v=was s=5% n=(up	
+n	eos=. x=1 1 v=from s=2%) n=Call ncap	
+n	sn eos=. x=.2%) 4 v=1 s= n=Call ncap	
+n	sn eos=. x=555-0199 8 v=(800) s= n=Version ncap	
+n	eos=. x=2 1 v=Version vcap s=0 n=1-beta,	
+n	eos=. x=.0 2 v=2 s=1-beta, n=$4.99,	
+n	eos=. x=$4 2 v=2.0.1-beta, s=99, n=10/12/2026,	
+s	sn eos=. x=3e10 4 v=10/12/2026, s= n=	
+end	turbo:events
+layer	turbo:event-checksum	document	1	crc32c:u32
+2875361472
+end	turbo:event-checksum
+layer	turbo:indexer-outcomes	document	2	label:str
+n
+s
+end	turbo:indexer-outcomes
+layer	turbo:indexer-predicates	document	1	label:str	count:u32
+eos=.	9
+end	turbo:indexer-predicates
+layer	turbo:indexer-events	document	2	outcome:u32	context:str	values:str	seen:u32
+0	0		8
+1	0		1
+end	turbo:indexer-events
+layer	turbo:gis-training	document	1	iterations:u32	message:str
+3	Stopping: Difference between log likelihood of current and previous iteration is less than threshold 1.0E-4 .
+end	turbo:gis-training
+layer	turbo:gis-iterations	document	3	iteration:u32	likelihood:f64	correct:u32	events:u32	parameters:str
+1	c018f40b5ed9812d -6.238324625039508	8	9	83ce7cd5fdb521fa22068fad15bc1e87711df540e094f31f5331856a8a64f34d
+2	c0091dac5637bfc2 -3.139488862587286	8	9	71de4c4ce2a66ecab761e05545978f8b51087851ab0310c186f1b1b9ecf4ba76
+3	c0091dac5637bfc2 -3.139488862587286	8	9	bfe4e464fe14ec3d9c5e6a960cbd264c7ab67d465b0be19a54beda36bfee2645
+end	turbo:gis-iterations
+layer	turbo:gis-parameters	document	4	iteration:u32	predicate:u32	outcome:u32	value:f64
+1	0	0	3fe269621134db90 0.5753641449035616
+1	0	1	bff810b375dce91e -1.5040773967762742
+3	0	0	3fe269621134db90 0.5753641449035616
+3	0	1	bff810b375dce920 -1.5040773967762746
+end	turbo:gis-parameters
+layer	turbo:gis-model	document	1	sha256:str	length:u32
+a0d81cef10824c7783d9525ee29c2cd9d5c7b07fb1e8a0568155b70fbde0d059	65
+end	turbo:gis-model

@@ -1,0 +1,20 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	edge/crlf	47	47	47ea4b61f07bdb626b89e6517289425d31986a7b0043eaf68ddffde787b7c615
+annotator	opennlp.tools.ml.maxent.GISTrainer	train
+config	Cutoff	3
+config	DataIndexer	OnePassRealValue
+config	Iterations	100
+config	sort	false
+config	source	realvalue
+layer	turbo:events	document	3	outcome:str	context:str	values:str
+short	First line	1.0 1.0
+short	Second line	1.0 1.0
+short	Fourth after blank	1.0 1.0 1.0
+end	turbo:events
+layer	turbo:indexer-error	document	1	class:str	message:str
+opennlp.tools.util.InsufficientTrainingDataException	Insufficient training data to create model.
+end	turbo:indexer-error

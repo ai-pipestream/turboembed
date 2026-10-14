@@ -1,0 +1,18 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	en/abbreviations	323	323	daae94d6ca8153be16e834da072d9f05a8437508fe55f4102378d0cfaae36036
+annotator	opennlp.tools.ml.maxent.GISTrainer	train
+config	Cutoff	3
+config	DataIndexer	OnePassRealValue
+config	Iterations	100
+config	sort	false
+config	source	realvalue
+layer	turbo:events	document	1	outcome:str	context:str	values:str
+long	Dr. Alvarez moved to the U.S. in 1998 and opened a clinic on St. Mark's Place. She worked there with Mr. Chen until Jan. 2004, when closed. Prof. Okafor, Ph.D., later wrote that health system "was not ready for her ideas." It is now run by nonprofit, i.e. charity, sees about 40 patients day.	1.0 1.0 1.0 1.0 3.0 2.0 1.0 1.0 2.0 1.0 4.0 2.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0
+end	turbo:events
+layer	turbo:indexer-error	document	1	class:str	message:str
+opennlp.tools.util.InsufficientTrainingDataException	Insufficient training data to create model.
+end	turbo:indexer-error

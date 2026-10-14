@@ -1,0 +1,83 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	edge/arabic	82	48	5aeeaa567149bf3362840f0155ba9116a1a099afc184f13bb0255bee8c6e8879
+annotator	opennlp.tools.ml.maxent.GISTrainer	train
+config	Cutoff	5
+config	DataIndexer	TwoPass
+config	Iterations	100
+config	sort	true
+config	source	tokenize
+layer	turbo:events	document	30	outcome:str	context:str	values:str
+F	p=م s=رحبا p1=م p1_alpha p2=bok p1f1=مر f1=ر f1_alpha f2=ح f2_alpha f12=رح	
+F	p=مر s=حبا p1=ر p1_alpha p2=م p2_alpha p21=مر p1f1=رح f1=ح f1_alpha f2=ب f2_alpha f12=حب	
+F	p=مرح s=با p1=ح p1_alpha p2=ر p2_alpha p21=رح p1f1=حب f1=ب f1_alpha f2=ا f2_alpha f12=با	
+F	p=مرحب s=ا p1=ب p1_alpha p2=ح p2_alpha p21=حب p1f1=با f1=ا f1_alpha f2=bok	
+F	p=ب s=العالم! p1=ب p1_alpha p2=bok p1f1=با f1=ا f1_alpha f2=ل f2_alpha f12=ال	
+F	p=با s=لعالم! p1=ا p1_alpha p2=ب p2_alpha p21=با p1f1=ال f1=ل f1_alpha f2=ع f2_alpha f12=لع	
+F	p=بال s=عالم! p1=ل p1_alpha p2=ا p2_alpha p21=ال p1f1=لع f1=ع f1_alpha f2=ا f2_alpha f12=عا	
+F	p=بالع s=الم! p1=ع p1_alpha p2=ل p2_alpha p21=لع p1f1=عا f1=ا f1_alpha f2=ل f2_alpha f12=ال	
+F	p=بالعا s=لم! p1=ا p1_alpha p2=ع p2_alpha p21=عا p1f1=ال f1=ل f1_alpha f2=م f2_alpha f12=لم	
+F	p=بالعال s=م! p1=ل p1_alpha p2=ا p2_alpha p21=ال p1f1=لم f1=م f1_alpha f2=! f2_eos f12=م!	
+F	p=بالعالم s=! p1=م p1_alpha p2=ل p2_alpha p21=لم p1f1=م! f1=! f1_eos f2=bok	
+F	p=ه s=ذا p1=ه p1_alpha p2=bok p1f1=هذ f1=ذ f1_alpha f2=ا f2_alpha f12=ذا	
+F	p=هذ s=ا p1=ذ p1_alpha p2=ه p2_alpha p21=هذ p1f1=ذا f1=ا f1_alpha f2=bok	
+F	p=ا s=ختبار، p1=ا p1_alpha p2=bok p1f1=اخ f1=خ f1_alpha f2=ت f2_alpha f12=خت	
+F	p=اخ s=تبار، p1=خ p1_alpha p2=ا p2_alpha p21=اخ p1f1=خت f1=ت f1_alpha f2=ب f2_alpha f12=تب	
+F	p=اخت s=بار، p1=ت p1_alpha p2=خ p2_alpha p21=خت p1f1=تب f1=ب f1_alpha f2=ا f2_alpha f12=با	
+F	p=اختب s=ار، p1=ب p1_alpha p2=ت p2_alpha p21=تب p1f1=با f1=ا f1_alpha f2=ر f2_alpha f12=ار	
+F	p=اختبا s=ر، p1=ا p1_alpha p2=ب p2_alpha p21=با p1f1=ار f1=ر f1_alpha f2=، f12=ر،	
+F	p=اختبار s=، p1=ر p1_alpha p2=ا p2_alpha p21=ار p1f1=ر، f1=، f2=bok	
+F	p=١ s=٢٣ p1=١ p1_num p2=bok p1f1=١٢ f1=٢ f1_num f2=٣ f2_num f12=٢٣	
+F	p=١٢ s=٣ p1=٢ p1_num p2=١ p2_num p21=١٢ p1f1=٢٣ f1=٣ f1_num f2=bok	
+F	p=4 s=56. p1=4 p1_num p2=bok p1f1=45 f1=5 f1_num f2=6 f2_num f12=56	
+F	p=45 s=6. p1=5 p1_num p2=4 p2_num p21=45 p1f1=56 f1=6 f1_num f2=. f2_eos f12=6.	
+F	p=456 s=. p1=6 p1_num p2=5 p2_num p21=56 p1f1=6. f1=. f1_eos f2=bok	
+F	p=ك s=يف p1=ك p1_alpha p2=bok p1f1=كي f1=ي f1_alpha f2=ف f2_alpha f12=يف	
+F	p=كي s=ف p1=ي p1_alpha p2=ك p2_alpha p21=كي p1f1=يف f1=ف f1_alpha f2=bok	
+F	p=ح s=الك؟ p1=ح p1_alpha p2=bok p1f1=حا f1=ا f1_alpha f2=ل f2_alpha f12=ال	
+F	p=حا s=لك؟ p1=ا p1_alpha p2=ح p2_alpha p21=حا p1f1=ال f1=ل f1_alpha f2=ك f2_alpha f12=لك	
+F	p=حال s=ك؟ p1=ل p1_alpha p2=ا p2_alpha p21=ال p1f1=لك f1=ك f1_alpha f2=؟ f12=ك؟	
+F	p=حالك s=؟ p1=ك p1_alpha p2=ل p2_alpha p21=لك p1f1=ك؟ f1=؟ f2=bok	
+end	turbo:events
+layer	turbo:event-checksum	document	1	crc32c:u32
+580193090
+end	turbo:event-checksum
+layer	turbo:indexer-outcomes	document	1	label:str
+F
+end	turbo:indexer-outcomes
+layer	turbo:indexer-predicates	document	10	label:str	count:u32
+f1=ا	6
+f1_alpha	22
+f2=bok	8
+f2_alpha	16
+p1=ا	5
+p1_alpha	25
+p1_num	5
+p2=bok	8
+p2=ا	5
+p2_alpha	19
+end	turbo:indexer-predicates
+layer	turbo:indexer-events	document	16	outcome:u32	context:str	values:str	seen:u32
+0	4 5 7 1 3		1
+0	4 5 9 1		1
+0	4 5 9 1 3		3
+0	5 7 0 1 3		2
+0	5 7 1 3		3
+0	5 8 9 1		2
+0	5 8 9 1 3		2
+0	5 8 9 2		1
+0	5 9 0 1 2		2
+0	5 9 0 1 3		2
+0	5 9 1 2		1
+0	5 9 1 3		3
+0	5 9 2		2
+0	6		1
+0	6 2		2
+0	6 7		2
+end	turbo:indexer-events
+layer	turbo:gis-training	document	1	iterations:u32	message:str
+0	opennlp.tools.util.InsufficientTrainingDataException: Training data must contain more than one outcome
+end	turbo:gis-training

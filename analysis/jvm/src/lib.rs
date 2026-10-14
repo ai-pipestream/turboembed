@@ -18,6 +18,11 @@
 //!   it was compared with, on which arguments, and where they differ.
 //! - Readers, cross-validation and trainers shuffle with a seeded
 //!   `java.util.Random`. [`random::JavaRandom`] is that generator.
+//! - Event files, model manifests and training reports hold numbers as
+//!   `Double.toString` and `Float.toString` write them, and training
+//!   parameters and real valued features are read with `parseDouble`,
+//!   `parseFloat`, `parseInt` and `parseBoolean`. [`text`] is those
+//!   conversions.
 //!
 //! Every function here is checked against vectors written by a real JVM
 //! (`tests/vectors/`, made by `java/Vectors.java`), except [`math::log`],
@@ -27,3 +32,4 @@ pub mod chars;
 pub mod math;
 pub mod random;
 pub mod strict_math;
+pub mod text;

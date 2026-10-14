@@ -1,0 +1,467 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	multi/nl	199	199	3f17963ed7870277a2a9e701567e7a4d5f9adcc7d2880300e666acf388ac7a57
+annotator	opennlp.tools.ml.maxent.GISTrainer	train
+config	Cutoff	2
+config	DataIndexer	OnePass
+config	Iterations	100
+config	sort	false
+config	source	tokenize
+layer	turbo:events	document	137	outcome:str	context:str	values:str
+F	p=I s=n p1=I p1_alpha p1_caps p2=bok p1f1=In f1=n f1_alpha f2=bok	
+F	p=A s=msterdam p1=A p1_alpha p1_caps p2=bok p1f1=Am f1=m f1_alpha f2=s f2_alpha f12=ms	
+F	p=Am s=sterdam p1=m p1_alpha p2=A p2_alpha p2_caps p21=Am p1f1=ms f1=s f1_alpha f2=t f2_alpha f12=st	
+F	p=Ams s=terdam p1=s p1_alpha p2=m p2_alpha p21=ms p1f1=st f1=t f1_alpha f2=e f2_alpha f12=te	
+F	p=Amst s=erdam p1=t p1_alpha p2=s p2_alpha p21=st p1f1=te f1=e f1_alpha f2=r f2_alpha f12=er	
+F	p=Amste s=rdam p1=e p1_alpha p2=t p2_alpha p21=te p1f1=er f1=r f1_alpha f2=d f2_alpha f12=rd	
+F	p=Amster s=dam p1=r p1_alpha p2=e p2_alpha p21=er p1f1=rd f1=d f1_alpha f2=a f2_alpha f12=da	
+F	p=Amsterd s=am p1=d p1_alpha p2=r p2_alpha p21=rd p1f1=da f1=a f1_alpha f2=m f2_alpha f12=am	
+F	p=Amsterda s=m p1=a p1_alpha p2=d p2_alpha p21=da p1f1=am f1=m f1_alpha f2=bok	
+F	p=f s=ietsen p1=f p1_alpha p2=bok p1f1=fi f1=i f1_alpha f2=e f2_alpha f12=ie	
+F	p=fi s=etsen p1=i p1_alpha p2=f p2_alpha p21=fi p1f1=ie f1=e f1_alpha f2=t f2_alpha f12=et	
+F	p=fie s=tsen p1=e p1_alpha p2=i p2_alpha p21=ie p1f1=et f1=t f1_alpha f2=s f2_alpha f12=ts	
+F	p=fiet s=sen p1=t p1_alpha p2=e p2_alpha p21=et p1f1=ts f1=s f1_alpha f2=e f2_alpha f12=se	
+F	p=fiets s=en p1=s p1_alpha p2=t p2_alpha p21=ts p1f1=se f1=e f1_alpha f2=n f2_alpha f12=en	
+F	p=fietse s=n p1=e p1_alpha p2=s p2_alpha p21=se p1f1=en f1=n f1_alpha f2=bok	
+F	p=b s=ijna p1=b p1_alpha p2=bok p1f1=bi f1=i f1_alpha f2=j f2_alpha f12=ij	
+F	p=bi s=jna p1=i p1_alpha p2=b p2_alpha p21=bi p1f1=ij f1=j f1_alpha f2=n f2_alpha f12=jn	
+F	p=bij s=na p1=j p1_alpha p2=i p2_alpha p21=ij p1f1=jn f1=n f1_alpha f2=a f2_alpha f12=na	
+F	p=bijn s=a p1=n p1_alpha p2=j p2_alpha p21=jn p1f1=na f1=a f1_alpha f2=bok	
+F	p=a s=lle p1=a p1_alpha p2=bok p1f1=al f1=l f1_alpha f2=l f2_alpha f12=ll	
+F	p=al s=le p1=l p1_alpha p2=a p2_alpha p21=al p1f1=ll f1=l f1_alpha f2=e f2_alpha f12=le	
+F	p=all s=e p1=l p1_alpha p2=l p2_alpha p21=ll p1f1=le f1=e f1_alpha f2=bok	
+F	p=i s=nwoners p1=i p1_alpha p2=bok p1f1=in f1=n f1_alpha f2=w f2_alpha f12=nw	
+F	p=in s=woners p1=n p1_alpha p2=i p2_alpha p21=in p1f1=nw f1=w f1_alpha f2=o f2_alpha f12=wo	
+F	p=inw s=oners p1=w p1_alpha p2=n p2_alpha p21=nw p1f1=wo f1=o f1_alpha f2=n f2_alpha f12=on	
+F	p=inwo s=ners p1=o p1_alpha p2=w p2_alpha p21=wo p1f1=on f1=n f1_alpha f2=e f2_alpha f12=ne	
+F	p=inwon s=ers p1=n p1_alpha p2=o p2_alpha p21=on p1f1=ne f1=e f1_alpha f2=r f2_alpha f12=er	
+F	p=inwone s=rs p1=e p1_alpha p2=n p2_alpha p21=ne p1f1=er f1=r f1_alpha f2=s f2_alpha f12=rs	
+F	p=inwoner s=s p1=r p1_alpha p2=e p2_alpha p21=er p1f1=rs f1=s f1_alpha f2=bok	
+F	p=n s=aar p1=n p1_alpha p2=bok p1f1=na f1=a f1_alpha f2=a f2_alpha f12=aa	
+F	p=na s=ar p1=a p1_alpha p2=n p2_alpha p21=na p1f1=aa f1=a f1_alpha f2=r f2_alpha f12=ar	
+F	p=naa s=r p1=a p1_alpha p2=a p2_alpha p21=aa p1f1=ar f1=r f1_alpha f2=bok	
+F	p=h s=un p1=h p1_alpha p2=bok p1f1=hu f1=u f1_alpha f2=n f2_alpha f12=un	
+F	p=hu s=n p1=u p1_alpha p2=h p2_alpha p21=hu p1f1=un f1=n f1_alpha f2=bok	
+F	p=w s=erk. p1=w p1_alpha p2=bok p1f1=we f1=e f1_alpha f2=r f2_alpha f12=er	
+F	p=we s=rk. p1=e p1_alpha p2=w p2_alpha p21=we p1f1=er f1=r f1_alpha f2=k f2_alpha f12=rk	
+F	p=wer s=k. p1=r p1_alpha p2=e p2_alpha p21=er p1f1=rk f1=k f1_alpha f2=. f2_eos f12=k.	
+F	p=werk s=. p1=k p1_alpha p2=r p2_alpha p21=rk p1f1=k. f1=. f1_eos f2=bok	
+F	p=D s=e p1=D p1_alpha p1_caps p2=bok p1f1=De f1=e f1_alpha f2=bok	
+F	p=s s=tad p1=s p1_alpha p2=bok p1f1=st f1=t f1_alpha f2=a f2_alpha f12=ta	
+F	p=st s=ad p1=t p1_alpha p2=s p2_alpha p21=st p1f1=ta f1=a f1_alpha f2=d f2_alpha f12=ad	
+F	p=sta s=d p1=a p1_alpha p2=t p2_alpha p21=ta p1f1=ad f1=d f1_alpha f2=bok	
+F	p=h s=eeft p1=h p1_alpha p2=bok p1f1=he f1=e f1_alpha f2=e f2_alpha f12=ee	
+F	p=he s=eft p1=e p1_alpha p2=h p2_alpha p21=he p1f1=ee f1=e f1_alpha f2=f f2_alpha f12=ef	
+F	p=hee s=ft p1=e p1_alpha p2=e p2_alpha p21=ee p1f1=ef f1=f f1_alpha f2=t f2_alpha f12=ft	
+F	p=heef s=t p1=f p1_alpha p2=e p2_alpha p21=ef p1f1=ft f1=t f1_alpha f2=bok	
+F	p=h s=onderden p1=h p1_alpha p2=bok p1f1=ho f1=o f1_alpha f2=n f2_alpha f12=on	
+F	p=ho s=nderden p1=o p1_alpha p2=h p2_alpha p21=ho p1f1=on f1=n f1_alpha f2=d f2_alpha f12=nd	
+F	p=hon s=derden p1=n p1_alpha p2=o p2_alpha p21=on p1f1=nd f1=d f1_alpha f2=e f2_alpha f12=de	
+F	p=hond s=erden p1=d p1_alpha p2=n p2_alpha p21=nd p1f1=de f1=e f1_alpha f2=r f2_alpha f12=er	
+F	p=honde s=rden p1=e p1_alpha p2=d p2_alpha p21=de p1f1=er f1=r f1_alpha f2=d f2_alpha f12=rd	
+F	p=honder s=den p1=r p1_alpha p2=e p2_alpha p21=er p1f1=rd f1=d f1_alpha f2=e f2_alpha f12=de	
+F	p=honderd s=en p1=d p1_alpha p2=r p2_alpha p21=rd p1f1=de f1=e f1_alpha f2=n f2_alpha f12=en	
+F	p=honderde s=n p1=e p1_alpha p2=d p2_alpha p21=de p1f1=en f1=n f1_alpha f2=bok	
+F	p=k s=ilometers p1=k p1_alpha p2=bok p1f1=ki f1=i f1_alpha f2=l f2_alpha f12=il	
+F	p=ki s=lometers p1=i p1_alpha p2=k p2_alpha p21=ki p1f1=il f1=l f1_alpha f2=o f2_alpha f12=lo	
+F	p=kil s=ometers p1=l p1_alpha p2=i p2_alpha p21=il p1f1=lo f1=o f1_alpha f2=m f2_alpha f12=om	
+F	p=kilo s=meters p1=o p1_alpha p2=l p2_alpha p21=lo p1f1=om f1=m f1_alpha f2=e f2_alpha f12=me	
+F	p=kilom s=eters p1=m p1_alpha p2=o p2_alpha p21=om p1f1=me f1=e f1_alpha f2=t f2_alpha f12=et	
+F	p=kilome s=ters p1=e p1_alpha p2=m p2_alpha p21=me p1f1=et f1=t f1_alpha f2=e f2_alpha f12=te	
+F	p=kilomet s=ers p1=t p1_alpha p2=e p2_alpha p21=et p1f1=te f1=e f1_alpha f2=r f2_alpha f12=er	
+F	p=kilomete s=rs p1=e p1_alpha p2=t p2_alpha p21=te p1f1=er f1=r f1_alpha f2=s f2_alpha f12=rs	
+F	p=kilometer s=s p1=r p1_alpha p2=e p2_alpha p21=er p1f1=rs f1=s f1_alpha f2=bok	
+F	p=f s=ietspad. p1=f p1_alpha p2=bok p1f1=fi f1=i f1_alpha f2=e f2_alpha f12=ie	
+F	p=fi s=etspad. p1=i p1_alpha p2=f p2_alpha p21=fi p1f1=ie f1=e f1_alpha f2=t f2_alpha f12=et	
+F	p=fie s=tspad. p1=e p1_alpha p2=i p2_alpha p21=ie p1f1=et f1=t f1_alpha f2=s f2_alpha f12=ts	
+F	p=fiet s=spad. p1=t p1_alpha p2=e p2_alpha p21=et p1f1=ts f1=s f1_alpha f2=p f2_alpha f12=sp	
+F	p=fiets s=pad. p1=s p1_alpha p2=t p2_alpha p21=ts p1f1=sp f1=p f1_alpha f2=a f2_alpha f12=pa	
+F	p=fietsp s=ad. p1=p p1_alpha p2=s p2_alpha p21=sp p1f1=pa f1=a f1_alpha f2=d f2_alpha f12=ad	
+F	p=fietspa s=d. p1=a p1_alpha p2=p p2_alpha p21=pa p1f1=ad f1=d f1_alpha f2=. f2_eos f12=d.	
+F	p=fietspad s=. p1=d p1_alpha p2=a p2_alpha p21=ad p1f1=d. f1=. f1_eos f2=bok	
+F	p=O s=p p1=O p1_alpha p1_caps p2=bok p1f1=Op f1=p f1_alpha f2=bok	
+F	p=z s=ondag p1=z p1_alpha p2=bok p1f1=zo f1=o f1_alpha f2=n f2_alpha f12=on	
+F	p=zo s=ndag p1=o p1_alpha p2=z p2_alpha p21=zo p1f1=on f1=n f1_alpha f2=d f2_alpha f12=nd	
+F	p=zon s=dag p1=n p1_alpha p2=o p2_alpha p21=on p1f1=nd f1=d f1_alpha f2=a f2_alpha f12=da	
+F	p=zond s=ag p1=d p1_alpha p2=n p2_alpha p21=nd p1f1=da f1=a f1_alpha f2=g f2_alpha f12=ag	
+F	p=zonda s=g p1=a p1_alpha p2=d p2_alpha p21=da p1f1=ag f1=g f1_alpha f2=bok	
+F	p=i s=s p1=i p1_alpha p2=bok p1f1=is f1=s f1_alpha f2=bok	
+F	p=h s=et p1=h p1_alpha p2=bok p1f1=he f1=e f1_alpha f2=t f2_alpha f12=et	
+F	p=he s=t p1=e p1_alpha p2=h p2_alpha p21=he p1f1=et f1=t f1_alpha f2=bok	
+F	p=r s=ustig p1=r p1_alpha p2=bok p1f1=ru f1=u f1_alpha f2=s f2_alpha f12=us	
+F	p=ru s=stig p1=u p1_alpha p2=r p2_alpha p21=ru p1f1=us f1=s f1_alpha f2=t f2_alpha f12=st	
+F	p=rus s=tig p1=s p1_alpha p2=u p2_alpha p21=us p1f1=st f1=t f1_alpha f2=i f2_alpha f12=ti	
+F	p=rust s=ig p1=t p1_alpha p2=s p2_alpha p21=st p1f1=ti f1=i f1_alpha f2=g f2_alpha f12=ig	
+F	p=rusti s=g p1=i p1_alpha p2=t p2_alpha p21=ti p1f1=ig f1=g f1_alpha f2=bok	
+F	p=l s=angs p1=l p1_alpha p2=bok p1f1=la f1=a f1_alpha f2=n f2_alpha f12=an	
+F	p=la s=ngs p1=a p1_alpha p2=l p2_alpha p21=la p1f1=an f1=n f1_alpha f2=g f2_alpha f12=ng	
+F	p=lan s=gs p1=n p1_alpha p2=a p2_alpha p21=an p1f1=ng f1=g f1_alpha f2=s f2_alpha f12=gs	
+F	p=lang s=s p1=g p1_alpha p2=n p2_alpha p21=ng p1f1=gs f1=s f1_alpha f2=bok	
+F	p=d s=e p1=d p1_alpha p2=bok p1f1=de f1=e f1_alpha f2=bok	
+F	p=g s=rachten. p1=g p1_alpha p2=bok p1f1=gr f1=r f1_alpha f2=a f2_alpha f12=ra	
+F	p=gr s=achten. p1=r p1_alpha p2=g p2_alpha p21=gr p1f1=ra f1=a f1_alpha f2=c f2_alpha f12=ac	
+F	p=gra s=chten. p1=a p1_alpha p2=r p2_alpha p21=ra p1f1=ac f1=c f1_alpha f2=h f2_alpha f12=ch	
+F	p=grac s=hten. p1=c p1_alpha p2=a p2_alpha p21=ac p1f1=ch f1=h f1_alpha f2=t f2_alpha f12=ht	
+F	p=grach s=ten. p1=h p1_alpha p2=c p2_alpha p21=ch p1f1=ht f1=t f1_alpha f2=e f2_alpha f12=te	
+F	p=gracht s=en. p1=t p1_alpha p2=h p2_alpha p21=ht p1f1=te f1=e f1_alpha f2=n f2_alpha f12=en	
+F	p=grachte s=n. p1=e p1_alpha p2=t p2_alpha p21=te p1f1=en f1=n f1_alpha f2=. f2_eos f12=n.	
+F	p=grachten s=. p1=n p1_alpha p2=e p2_alpha p21=en p1f1=n. f1=. f1_eos f2=bok	
+F	p=T s=oeristen p1=T p1_alpha p1_caps p2=bok p1f1=To f1=o f1_alpha f2=e f2_alpha f12=oe	
+F	p=To s=eristen p1=o p1_alpha p2=T p2_alpha p2_caps p21=To p1f1=oe f1=e f1_alpha f2=r f2_alpha f12=er	
+F	p=Toe s=risten p1=e p1_alpha p2=o p2_alpha p21=oe p1f1=er f1=r f1_alpha f2=i f2_alpha f12=ri	
+F	p=Toer s=isten p1=r p1_alpha p2=e p2_alpha p21=er p1f1=ri f1=i f1_alpha f2=s f2_alpha f12=is	
+F	p=Toeri s=sten p1=i p1_alpha p2=r p2_alpha p21=ri p1f1=is f1=s f1_alpha f2=t f2_alpha f12=st	
+F	p=Toeris s=ten p1=s p1_alpha p2=i p2_alpha p21=is p1f1=st f1=t f1_alpha f2=e f2_alpha f12=te	
+F	p=Toerist s=en p1=t p1_alpha p2=s p2_alpha p21=st p1f1=te f1=e f1_alpha f2=n f2_alpha f12=en	
+F	p=Toeriste s=n p1=e p1_alpha p2=t p2_alpha p21=te p1f1=en f1=n f1_alpha f2=bok	
+F	p=m s=oeten p1=m p1_alpha p2=bok p1f1=mo f1=o f1_alpha f2=e f2_alpha f12=oe	
+F	p=mo s=eten p1=o p1_alpha p2=m p2_alpha p21=mo p1f1=oe f1=e f1_alpha f2=t f2_alpha f12=et	
+F	p=moe s=ten p1=e p1_alpha p2=o p2_alpha p21=oe p1f1=et f1=t f1_alpha f2=e f2_alpha f12=te	
+F	p=moet s=en p1=t p1_alpha p2=e p2_alpha p21=et p1f1=te f1=e f1_alpha f2=n f2_alpha f12=en	
+F	p=moete s=n p1=e p1_alpha p2=t p2_alpha p21=te p1f1=en f1=n f1_alpha f2=bok	
+F	p=w s=el p1=w p1_alpha p2=bok p1f1=we f1=e f1_alpha f2=l f2_alpha f12=el	
+F	p=we s=l p1=e p1_alpha p2=w p2_alpha p21=we p1f1=el f1=l f1_alpha f2=bok	
+F	p=g s=oed p1=g p1_alpha p2=bok p1f1=go f1=o f1_alpha f2=e f2_alpha f12=oe	
+F	p=go s=ed p1=o p1_alpha p2=g p2_alpha p21=go p1f1=oe f1=e f1_alpha f2=d f2_alpha f12=ed	
+F	p=goe s=d p1=e p1_alpha p2=o p2_alpha p21=oe p1f1=ed f1=d f1_alpha f2=bok	
+F	p=o s=pletten p1=o p1_alpha p2=bok p1f1=op f1=p f1_alpha f2=l f2_alpha f12=pl	
+F	p=op s=letten p1=p p1_alpha p2=o p2_alpha p21=op p1f1=pl f1=l f1_alpha f2=e f2_alpha f12=le	
+F	p=opl s=etten p1=l p1_alpha p2=p p2_alpha p21=pl p1f1=le f1=e f1_alpha f2=t f2_alpha f12=et	
+F	p=ople s=tten p1=e p1_alpha p2=l p2_alpha p21=le p1f1=et f1=t f1_alpha f2=t f2_alpha f12=tt	
+F	p=oplet s=ten p1=t p1_alpha p2=e p2_alpha p21=et p1f1=tt f1=t f1_alpha f2=e f2_alpha f12=te	
+F	p=oplett s=en p1=t p1_alpha p2=t p2_alpha p21=tt p1f1=te f1=e f1_alpha f2=n f2_alpha f12=en	
+F	p=oplette s=n p1=e p1_alpha p2=t p2_alpha p21=te p1f1=en f1=n f1_alpha f2=bok	
+F	p=b s=ij p1=b p1_alpha p2=bok p1f1=bi f1=i f1_alpha f2=j f2_alpha f12=ij	
+F	p=bi s=j p1=i p1_alpha p2=b p2_alpha p21=bi p1f1=ij f1=j f1_alpha f2=bok	
+F	p=h s=et p1=h p1_alpha p2=bok p1f1=he f1=e f1_alpha f2=t f2_alpha f12=et	
+F	p=he s=t p1=e p1_alpha p2=h p2_alpha p21=he p1f1=et f1=t f1_alpha f2=bok	
+F	p=o s=versteken. p1=o p1_alpha p2=bok p1f1=ov f1=v f1_alpha f2=e f2_alpha f12=ve	
+F	p=ov s=ersteken. p1=v p1_alpha p2=o p2_alpha p21=ov p1f1=ve f1=e f1_alpha f2=r f2_alpha f12=er	
+F	p=ove s=rsteken. p1=e p1_alpha p2=v p2_alpha p21=ve p1f1=er f1=r f1_alpha f2=s f2_alpha f12=rs	
+F	p=over s=steken. p1=r p1_alpha p2=e p2_alpha p21=er p1f1=rs f1=s f1_alpha f2=t f2_alpha f12=st	
+F	p=overs s=teken. p1=s p1_alpha p2=r p2_alpha p21=rs p1f1=st f1=t f1_alpha f2=e f2_alpha f12=te	
+F	p=overst s=eken. p1=t p1_alpha p2=s p2_alpha p21=st p1f1=te f1=e f1_alpha f2=k f2_alpha f12=ek	
+F	p=overste s=ken. p1=e p1_alpha p2=t p2_alpha p21=te p1f1=ek f1=k f1_alpha f2=e f2_alpha f12=ke	
+F	p=overstek s=en. p1=k p1_alpha p2=e p2_alpha p21=ek p1f1=ke f1=e f1_alpha f2=n f2_alpha f12=en	
+F	p=oversteke s=n. p1=e p1_alpha p2=k p2_alpha p21=ke p1f1=en f1=n f1_alpha f2=. f2_eos f12=n.	
+F	p=oversteken s=. p1=n p1_alpha p2=e p2_alpha p21=en p1f1=n. f1=. f1_eos f2=bok	
+end	turbo:events
+layer	turbo:event-checksum	document	1	crc32c:u32
+221392092
+end	turbo:event-checksum
+layer	turbo:indexer-outcomes	document	1	label:str
+F
+end	turbo:indexer-outcomes
+layer	turbo:indexer-predicates	document	166	label:str	count:u32
+f12=ad	2
+f12=da	2
+f12=de	2
+f12=en	7
+f12=er	7
+f12=et	7
+f12=ie	2
+f12=ij	2
+f12=le	2
+f12=n.	2
+f12=nd	2
+f12=oe	3
+f12=on	3
+f12=rd	2
+f12=rs	3
+f12=st	4
+f12=te	7
+f12=ts	2
+f1=.	4
+f1=a	9
+f1=d	7
+f1=e	29
+f1=g	3
+f1=i	7
+f1=j	2
+f1=k	2
+f1=l	5
+f1=m	3
+f1=n	15
+f1=o	7
+f1=p	3
+f1=r	9
+f1=s	10
+f1=t	15
+f1=u	2
+f1_alpha	133
+f1_eos	4
+f2=.	4
+f2=a	7
+f2=bok	31
+f2=d	7
+f2=e	22
+f2=g	3
+f2=i	2
+f2=j	2
+f2=k	2
+f2=l	4
+f2=m	2
+f2=n	13
+f2=o	2
+f2=r	8
+f2=s	9
+f2=t	14
+f2_alpha	102
+f2_eos	4
+p1=a	9
+p1=b	2
+p1=d	6
+p1=e	26
+p1=f	3
+p1=g	3
+p1=h	6
+p1=i	9
+p1=k	3
+p1=l	5
+p1=m	3
+p1=n	9
+p1=o	9
+p1=p	2
+p1=r	9
+p1=s	7
+p1=t	12
+p1=u	2
+p1=w	3
+p1_alpha	137
+p1_caps	5
+p1f1=ad	2
+p1f1=bi	2
+p1f1=da	2
+p1f1=de	3
+p1f1=en	7
+p1f1=er	7
+p1f1=et	7
+p1f1=fi	2
+p1f1=he	3
+p1f1=ie	2
+p1f1=ij	2
+p1f1=is	2
+p1f1=le	2
+p1f1=n.	2
+p1f1=na	2
+p1f1=nd	2
+p1f1=oe	3
+p1f1=on	3
+p1f1=rd	2
+p1f1=rs	3
+p1f1=st	5
+p1f1=te	7
+p1f1=ts	2
+p1f1=we	2
+p21=bi	2
+p21=da	2
+p21=de	2
+p21=en	2
+p21=er	7
+p21=et	5
+p21=fi	2
+p21=he	3
+p21=ie	2
+p21=nd	2
+p21=oe	3
+p21=on	3
+p21=rd	2
+p21=st	5
+p21=te	7
+p21=ts	2
+p21=we	2
+p2=a	5
+p2=b	2
+p2=bok	31
+p2=d	4
+p2=e	17
+p2=f	2
+p2=g	2
+p2=h	6
+p2=i	6
+p2=k	2
+p2=l	4
+p2=m	3
+p2=n	6
+p2=o	9
+p2=p	2
+p2=r	7
+p2=s	7
+p2=t	12
+p2=w	3
+p2_alpha	106
+p2_caps	2
+p=b	2
+p=bi	2
+p=f	2
+p=fi	2
+p=fie	2
+p=fiet	2
+p=fiets	2
+p=g	2
+p=h	5
+p=he	3
+p=i	2
+p=o	2
+p=w	2
+p=we	2
+s=.	4
+s=d	2
+s=e	3
+s=en	5
+s=en.	2
+s=ers	2
+s=et	2
+s=g	2
+s=n	7
+s=n.	2
+s=rs	2
+s=s	4
+s=t	3
+s=ten	3
+end	turbo:indexer-predicates
+layer	turbo:indexer-events	document	137	outcome:u32	context:str	values:str	seen:u32
+0	160 74 75 119 28 35 39		1
+0	74 75 119 27 35 51 53		1
+0	65 74 136 137 32 35 52 53 15		1
+0	70 74 128 136 96 33 35 41 53 16		1
+0	71 74 133 136 113 97 21 35 50 53 4		1
+0	58 74 134 136 114 81 31 35 40 53 13		1
+0	69 74 121 136 104 94 20 35 38 53 1		1
+0	57 74 132 136 112 78 19 35 47 53		1
+0	55 74 120 136 101 27 35 39		1
+0	140 59 74 119 83 23 35 41 53 6		1
+0	141 62 74 122 136 106 85 21 35 52 53 5		1
+0	142 58 74 125 136 108 82 33 35 51 53 17		1
+0	143 71 74 121 136 105 98 32 35 41 53		1
+0	144 155 70 74 134 136 115 21 35 48 53 3		1
+0	160 58 74 133 136 80 28 35 39		1
+0	138 56 74 119 77 23 35 44 53 7		1
+0	139 62 74 118 136 100 86 24 35 48 53		1
+0	74 125 136 28 35 38 53		1
+0	66 74 136 90 19 35 39		1
+0	55 74 119 26 35 46 53		1
+0	64 74 117 136 26 35 41 53 8		1
+0	154 64 74 127 136 88 21 35 39		1
+0	148 62 74 119 28 35 53		1
+0	66 74 125 136 35 49 53		1
+0	73 74 129 136 29 35 48 53 12		1
+0	67 74 135 136 93 28 35 41 53		1
+0	157 66 74 130 136 111 21 35 50 53 4		1
+0	162 58 74 129 136 81 31 35 51 53 14		1
+0	163 69 74 121 136 104 95 32 35 39		1
+0	66 74 119 90 19 35 38 53		1
+0	55 74 129 136 19 35 50 53		1
+0	55 74 117 136 31 35 39		1
+0	146 61 74 119 34 35 48 53		1
+0	160 72 74 124 136 28 35 39		1
+0	150 73 74 119 99 21 35 50 53 4		1
+0	151 58 74 135 136 116 81 31 35 45 53		1
+0	69 74 121 136 104 25 35 37 54		1
+0	152 63 74 132 136 18 36 39		1
+0	154 74 75 119 21 35 39		1
+0	70 74 119 96 33 35 38 53		1
+0	71 74 133 136 113 19 35 40 53 0		1
+0	153 55 74 134 136 76 20 35 39		1
+0	146 61 74 119 84 21 35 41 53		1
+0	147 58 74 124 136 107 21 35 53		1
+0	58 74 121 136 35 52 53		1
+0	164 59 74 121 136 33 35 39		1
+0	146 61 74 119 29 35 48 53 12		1
+0	67 74 124 136 93 28 35 40 53 10		1
+0	66 74 130 136 111 91 20 35 41 53 2		1
+0	57 74 129 136 109 79 21 35 50 53 4		1
+0	58 74 120 136 102 81 31 35 40 53 13		1
+0	69 74 121 136 104 94 20 35 41 53 2		1
+0	155 57 74 132 136 112 79 21 35 48 53 3		1
+0	160 58 74 120 136 102 80 28 35 39		1
+0	63 74 119 23 35 46 53		1
+0	62 74 126 136 26 35 49 53		1
+0	64 74 125 136 29 35 47 53		1
+0	67 74 127 136 27 35 41 53		1
+0	65 74 130 136 21 35 52 53 5		1
+0	58 74 128 136 82 33 35 41 53 16		1
+0	157 71 74 121 136 105 97 21 35 50 53 4		1
+0	162 58 74 134 136 114 81 31 35 51 53 14		1
+0	163 69 74 121 136 104 95 32 35 39		1
+0	140 59 74 119 83 23 35 41 53 6		1
+0	141 62 74 122 136 106 85 21 35 52 53 5		1
+0	142 58 74 125 136 108 82 33 35 51 53 17		1
+0	143 71 74 121 136 105 98 32 35 53		1
+0	144 70 74 134 136 115 30 35 38 53		1
+0	68 74 133 136 19 35 40 53 0		1
+0	55 74 131 136 76 20 35 37 54		1
+0	152 57 74 117 136 18 36 39		1
+0	74 75 119 30 35 39		1
+0	74 119 29 35 48 53 12		1
+0	67 74 136 93 28 35 40 53 10		1
+0	66 74 130 136 111 91 20 35 38 53 1		1
+0	57 74 129 136 109 78 19 35 42 53		1
+0	159 55 74 120 136 101 22 35 39		1
+0	148 163 62 74 119 87 32 35 39		1
+0	146 158 61 74 119 84 21 35 52 53 5		1
+0	147 164 58 74 124 136 107 82 33 35 39		1
+0	69 74 119 34 35 51 53		1
+0	72 74 132 136 32 35 52 53 15		1
+0	70 74 136 96 33 35 43 53		1
+0	71 74 133 136 113 23 35 42 53		1
+0	159 62 74 134 136 22 35 39		1
+0	64 74 119 19 35 48 53		1
+0	55 74 127 136 28 35 42 53		1
+0	66 74 117 136 22 35 51 53		1
+0	163 60 74 129 136 32 35 39		1
+0	154 57 74 119 79 21 35 39		1
+0	145 60 74 119 31 35 38 53		1
+0	69 74 123 136 19 35 53		1
+0	55 74 132 136 35 53		1
+0	74 117 136 35 52 53		1
+0	61 74 136 33 35 41 53 16		1
+0	156 71 74 124 136 97 21 35 48 53 3		1
+0	161 58 74 134 136 114 80 28 35 37 54 9		1
+0	152 66 74 121 136 103 89 18 36 39		1
+0	74 75 119 29 35 41 53 11		1
+0	67 74 136 137 92 21 35 50 53 4		1
+0	58 74 130 136 110 81 31 35 43 53		1
+0	69 74 121 136 104 23 35 51 53		1
+0	62 74 132 136 87 32 35 52 53 15		1
+0	165 70 74 125 136 96 33 35 41 53 16		1
+0	155 71 74 133 136 113 97 21 35 48 53 3		1
+0	160 58 74 134 136 114 80 28 35 39		1
+0	65 74 119 29 35 41 53 11		1
+0	67 74 128 136 92 21 35 52 53 5		1
+0	165 58 74 130 136 110 82 33 35 41 53 16		1
+0	155 71 74 121 136 105 97 21 35 48 53 3		1
+0	160 58 74 134 136 114 80 28 35 39		1
+0	150 73 74 119 99 21 35 46 53		1
+0	151 58 74 135 136 116 26 35 39		1
+0	145 60 74 119 29 35 41 53 11		1
+0	67 74 123 136 92 21 35 40 53		1
+0	153 58 74 130 136 110 20 35 39		1
+0	149 67 74 119 30 35 46 53		1
+0	68 74 130 136 26 35 41 53 8		1
+0	64 74 131 136 88 21 35 52 53 5		1
+0	58 74 127 136 82 33 35 52 53		1
+0	165 71 74 121 136 105 33 35 41 53 16		1
+0	155 71 74 134 136 97 21 35 48 53 3		1
+0	160 58 74 134 136 114 80 28 35 39		1
+0	138 56 74 119 77 23 35 44 53 7		1
+0	139 62 74 118 136 100 86 24 35 39		1
+0	146 158 61 74 119 84 21 35 52 53 5		1
+0	147 164 58 74 124 136 107 82 33 35 39		1
+0	149 67 74 119 35 41 53		1
+0	74 130 136 21 35 50 53 4		1
+0	58 74 136 81 31 35 51 53 14		1
+0	69 74 121 136 104 95 32 35 52 53 15		1
+0	70 74 132 136 96 33 35 41 53 16		1
+0	71 74 133 136 113 97 21 35 45 53		1
+0	58 74 134 136 114 25 35 41 53		1
+0	156 63 74 121 136 21 35 48 53 3		1
+0	161 58 74 126 136 80 28 35 37 54 9		1
+0	152 66 74 121 136 103 89 18 36 39		1
+end	turbo:indexer-events
+layer	turbo:gis-training	document	1	iterations:u32	message:str
+0	opennlp.tools.util.InsufficientTrainingDataException: Training data must contain more than one outcome
+end	turbo:gis-training
