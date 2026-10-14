@@ -1,0 +1,34 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	edge/long-word-emoji	299	297	5dbd5bc952a059e356487829312c19b1326aefb63f1d30ac6deff30397496ebb
+annotator	opennlp.tools.sentdetect.SDEventStream	read
+config	format	text
+config	language	th
+config	run	sentdetect-th
+config	source	sentdetect
+config	useTokenEnd	false
+layer	turbo:events	document	0	outcome:str	context:str	values:str
+end	turbo:events
+layer	turbo:stream-errors	document	0	after:u32	class:str	message:str
+end	turbo:stream-errors
+layer	turbo:event-checksum	document	1	crc32c:u32
+0
+end	turbo:event-checksum
+layer	turbo:manifest	document	9	key:str	value:str
+Component-Name	SentenceDetectorME
+Language	th
+Manifest-Version	1.0
+OpenNLP-Version	3.0.0-SNAPSHOT
+TrainerType	Event
+Training-Eventhash	1
+eosCharacters	 \n
+factory	opennlp.tools.sentdetect.SentenceDetectorFactory
+useTokenEnd	false
+end	turbo:manifest
+layer	turbo:package-entries	document	2	name:str	length:u32
+manifest.properties	287
+sent.model	61
+end	turbo:package-entries

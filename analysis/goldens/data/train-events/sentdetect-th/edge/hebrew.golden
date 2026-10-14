@@ -1,0 +1,41 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	edge/hebrew	86	48	fdec23581c55cd33b0c462c0d0922b3d8ef84447e18d5e7eb5c7cdb595d6159d
+annotator	opennlp.tools.sentdetect.SDEventStream	read
+config	format	text
+config	language	th
+config	run	sentdetect-th
+config	source	sentdetect
+config	useTokenEnd	false
+layer	turbo:events	document	7	outcome:str	context:str	values:str
+n	eos=  x=שלום 4 v= s=עולם. n=ג׳ירפה	
+n	eos=  x=עולם. 5 v=שלום s=ג׳ירפה n=ו־צה״ל	
+n	eos=  x=ג׳ירפה 6 v=עולם. s=ו־צה״ל n=נפגשו	
+n	eos=  x=ו־צה״ל 6 v=ג׳ירפה s=נפגשו n=בתל־אביב.	
+n	eos=  x=נפגשו 5 v=ו־צה״ל s=בתל־אביב. n=ב״ה	
+n	eos=  x=בתל־אביב. 9 v=נפגשו s=ב״ה n=צ׳	
+s	eos=  x=ב״ה 3 v=בתל־אביב. s=צ׳ n=	
+end	turbo:events
+layer	turbo:stream-errors	document	0	after:u32	class:str	message:str
+end	turbo:stream-errors
+layer	turbo:event-checksum	document	1	crc32c:u32
+2722360414
+end	turbo:event-checksum
+layer	turbo:manifest	document	9	key:str	value:str
+Component-Name	SentenceDetectorME
+Language	th
+Manifest-Version	1.0
+OpenNLP-Version	3.0.0-SNAPSHOT
+TrainerType	Event
+Training-Eventhash	1
+eosCharacters	 \n
+factory	opennlp.tools.sentdetect.SentenceDetectorFactory
+useTokenEnd	false
+end	turbo:manifest
+layer	turbo:package-entries	document	2	name:str	length:u32
+manifest.properties	287
+sent.model	61
+end	turbo:package-entries

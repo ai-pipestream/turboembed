@@ -1,0 +1,39 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	formats/conllu-basic	1620	1618	3997cb00603cdc6d6e9b5bea88a4291b2e44ceceec24a04d93df40e673f5828c
+annotator	opennlp.tools.sentdetect.SDEventStream	read
+config	eosCharacters	.!?
+config	format	conllu
+config	language	en
+config	run	sentdetect-conllu
+config	sentencesPerSample	10
+config	source	sentdetect
+config	useTokenEnd	true
+layer	turbo:events	document	3	outcome:str	context:str	values:str
+s	sn eos=. x=norte 5 v=del s= n=Ele ncap	
+s	sn eos=. x=10h 3 v=às s= n=Sue ncap	
+s	sn eos=. x=comments 8 v=but s= n=Kept ncap	
+end	turbo:events
+layer	turbo:stream-errors	document	0	after:u32	class:str	message:str
+end	turbo:stream-errors
+layer	turbo:event-checksum	document	1	crc32c:u32
+2038252717
+end	turbo:event-checksum
+layer	turbo:manifest	document	9	key:str	value:str
+Component-Name	SentenceDetectorME
+Language	en
+Manifest-Version	1.0
+OpenNLP-Version	3.0.0-SNAPSHOT
+TrainerType	Event
+Training-Eventhash	1
+eosCharacters	.!?
+factory	opennlp.tools.sentdetect.SentenceDetectorFactory
+useTokenEnd	true
+end	turbo:manifest
+layer	turbo:package-entries	document	2	name:str	length:u32
+manifest.properties	286
+sent.model	61
+end	turbo:package-entries

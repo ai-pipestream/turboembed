@@ -1,0 +1,64 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	multi/nl	199	199	3f17963ed7870277a2a9e701567e7a4d5f9adcc7d2880300e666acf388ac7a57
+annotator	opennlp.tools.sentdetect.SDEventStream	read
+config	format	text
+config	language	th
+config	run	sentdetect-th
+config	source	sentdetect
+config	useTokenEnd	false
+layer	turbo:events	document	30	outcome:str	context:str	values:str
+n	eos=  x=In 2 xcap v= s=Amsterdam scap n=fietsen	
+n	eos=  x=Amsterdam 9 xcap v=In vcap s=fietsen n=bijna	
+n	eos=  x=fietsen 7 v=Amsterdam vcap s=bijna n=alle	
+n	eos=  x=bijna 5 v=fietsen s=alle n=inwoners	
+n	eos=  x=alle 4 v=bijna s=inwoners n=naar	
+n	eos=  x=inwoners 8 v=alle s=naar n=hun	
+n	eos=  x=naar 4 v=inwoners s=hun n=werk.	
+n	eos=  x=hun 3 v=naar s=werk. n=De ncap	
+n	eos=  x=werk. 5 v=hun s=De scap n=stad	
+n	eos=  x=De 2 xcap v=werk. s=stad n=heeft	
+n	eos=  x=stad 4 v=De vcap s=heeft n=honderden	
+n	eos=  x=heeft 5 v=stad s=honderden n=kilometers	
+n	eos=  x=honderden 9 v=heeft s=kilometers n=fietspad.	
+n	eos=  x=kilometers 10 v=honderden s=fietspad. n=Op ncap	
+n	eos=  x=fietspad. 9 v=kilometers s=Op scap n=zondag	
+n	eos=  x=Op 2 xcap v=fietspad. s=zondag n=is	
+n	eos=  x=zondag 6 v=Op vcap s=is n=het	
+n	eos=  x=is 2 v=zondag s=het n=rustig	
+n	eos=  x=het 3 v=is s=rustig n=langs	
+n	eos=  x=rustig 6 v=het s=langs n=de	
+n	eos=  x=langs 5 v=rustig s=de n=grachten.	
+n	eos=  x=de 2 v=langs s=grachten. n=Toeristen ncap	
+n	eos=  x=grachten. 9 v=de s=Toeristen scap n=moeten	
+n	eos=  x=Toeristen 9 xcap v=grachten. s=moeten n=wel	
+n	eos=  x=moeten 6 v=Toeristen vcap s=wel n=goed	
+n	eos=  x=wel 3 v=moeten s=goed n=opletten	
+n	eos=  x=goed 4 v=wel s=opletten n=bij	
+n	eos=  x=opletten 8 v=goed s=bij n=het	
+n	eos=  x=bij 3 v=opletten s=het n=oversteken.	
+s	eos=  x=het 3 v=bij s=oversteken. n=	
+end	turbo:events
+layer	turbo:stream-errors	document	0	after:u32	class:str	message:str
+end	turbo:stream-errors
+layer	turbo:event-checksum	document	1	crc32c:u32
+1884518853
+end	turbo:event-checksum
+layer	turbo:manifest	document	9	key:str	value:str
+Component-Name	SentenceDetectorME
+Language	th
+Manifest-Version	1.0
+OpenNLP-Version	3.0.0-SNAPSHOT
+TrainerType	Event
+Training-Eventhash	1
+eosCharacters	 \n
+factory	opennlp.tools.sentdetect.SentenceDetectorFactory
+useTokenEnd	false
+end	turbo:manifest
+layer	turbo:package-entries	document	2	name:str	length:u32
+manifest.properties	287
+sent.model	61
+end	turbo:package-entries

@@ -2126,6 +2126,22 @@ dependencies = [
 ]
 
 [[package]]
+name = "turbo-train-segmentation"
+version = "0.1.0"
+dependencies = [
+ "turbo-analysis",
+ "turbo-formats",
+ "turbo-goldens",
+ "turbo-jvm",
+ "turbo-maxent",
+ "turbo-sentdetect",
+ "turbo-tokenize",
+ "turbo-train",
+ "turbo-unicode",
+ "turbo-zoo",
+]
+
+[[package]]
 name = "turbo-unicode"
 version = "0.1.0"
 dependencies = [

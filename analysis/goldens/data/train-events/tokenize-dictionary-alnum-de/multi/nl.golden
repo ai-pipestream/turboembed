@@ -1,0 +1,70 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	multi/nl	199	199	3f17963ed7870277a2a9e701567e7a4d5f9adcc7d2880300e666acf388ac7a57
+annotator	opennlp.tools.tokenize.TokSpanEventStream	read
+config	abbreviations	english-dictionary.xml
+config	format	text
+config	language	de
+config	run	tokenize-dictionary-alnum-de
+config	source	tokenize
+config	useAlphaNumericOptimization	true
+layer	turbo:events	document	30	outcome:str	context:str	values:str
+F	p=w s=erk. p1=w p1_alpha p2=bok p1f1=we f1=e f1_alpha f2=r f2_alpha f12=er	
+F	p=we s=rk. p1=e p1_alpha p2=w p2_alpha p21=we p1f1=er f1=r f1_alpha f2=k f2_alpha f12=rk	
+F	p=wer s=k. p1=r p1_alpha p2=e p2_alpha p21=er p1f1=rk f1=k f1_alpha f2=. f2_eos f12=k.	
+F	p=werk s=. p1=k p1_alpha p2=r p2_alpha p21=rk p1f1=k. f1=. f1_eos f2=bok	
+F	p=f s=ietspad. p1=f p1_alpha p2=bok p1f1=fi f1=i f1_alpha f2=e f2_alpha f12=ie	
+F	p=fi s=etspad. p1=i p1_alpha p2=f p2_alpha p21=fi p1f1=ie f1=e f1_alpha f2=t f2_alpha f12=et	
+F	p=fie s=tspad. p1=e p1_alpha p2=i p2_alpha p21=ie p1f1=et f1=t f1_alpha f2=s f2_alpha f12=ts	
+F	p=fiet s=spad. p1=t p1_alpha p2=e p2_alpha p21=et p1f1=ts f1=s f1_alpha f2=p f2_alpha f12=sp	
+F	p=fiets s=pad. p1=s p1_alpha p2=t p2_alpha p21=ts p1f1=sp f1=p f1_alpha f2=a f2_alpha f12=pa	
+F	p=fietsp s=ad. p1=p p1_alpha p2=s p2_alpha p21=sp p1f1=pa f1=a f1_alpha f2=d f2_alpha f12=ad	
+F	p=fietspa s=d. p1=a p1_alpha p2=p p2_alpha p21=pa p1f1=ad f1=d f1_alpha f2=. f2_eos f12=d.	
+F	p=fietspad s=. p1=d p1_alpha p2=a p2_alpha p21=ad p1f1=d. f1=. f1_eos f2=bok	
+F	p=g s=rachten. p1=g p1_alpha p2=bok p1f1=gr f1=r f1_alpha f2=a f2_alpha f12=ra	
+F	p=gr s=achten. p1=r p1_alpha p2=g p2_alpha p21=gr p1f1=ra f1=a f1_alpha f2=c f2_alpha f12=ac	
+F	p=gra s=chten. p1=a p1_alpha p2=r p2_alpha p21=ra p1f1=ac f1=c f1_alpha f2=h f2_alpha f12=ch	
+F	p=grac s=hten. p1=c p1_alpha p2=a p2_alpha p21=ac p1f1=ch f1=h f1_alpha f2=t f2_alpha f12=ht	
+F	p=grach s=ten. p1=h p1_alpha p2=c p2_alpha p21=ch p1f1=ht f1=t f1_alpha f2=e f2_alpha f12=te	
+F	p=gracht s=en. p1=t p1_alpha p2=h p2_alpha p21=ht p1f1=te f1=e f1_alpha f2=n f2_alpha f12=en	
+F	p=grachte s=n. p1=e p1_alpha p2=t p2_alpha p21=te p1f1=en f1=n f1_alpha f2=. f2_eos f12=n.	
+F	p=grachten s=. p1=n p1_alpha p2=e p2_alpha p21=en p1f1=n. f1=. f1_eos f2=bok	
+F	p=o s=versteken. p1=o p1_alpha p2=bok p1f1=ov f1=v f1_alpha f2=e f2_alpha f12=ve	
+F	p=ov s=ersteken. p1=v p1_alpha p2=o p2_alpha p21=ov p1f1=ve f1=e f1_alpha f2=r f2_alpha f12=er	
+F	p=ove s=rsteken. p1=e p1_alpha p2=v p2_alpha p21=ve p1f1=er f1=r f1_alpha f2=s f2_alpha f12=rs	
+F	p=over s=steken. p1=r p1_alpha p2=e p2_alpha p21=er p1f1=rs f1=s f1_alpha f2=t f2_alpha f12=st	
+F	p=overs s=teken. p1=s p1_alpha p2=r p2_alpha p21=rs p1f1=st f1=t f1_alpha f2=e f2_alpha f12=te	
+F	p=overst s=eken. p1=t p1_alpha p2=s p2_alpha p21=st p1f1=te f1=e f1_alpha f2=k f2_alpha f12=ek	
+F	p=overste s=ken. p1=e p1_alpha p2=t p2_alpha p21=te p1f1=ek f1=k f1_alpha f2=e f2_alpha f12=ke	
+F	p=overstek s=en. p1=k p1_alpha p2=e p2_alpha p21=ek p1f1=ke f1=e f1_alpha f2=n f2_alpha f12=en	
+F	p=oversteke s=n. p1=e p1_alpha p2=k p2_alpha p21=ke p1f1=en f1=n f1_alpha f2=. f2_eos f12=n.	
+F	p=oversteken s=. p1=n p1_alpha p2=e p2_alpha p21=en p1f1=n. f1=. f1_eos f2=bok	
+end	turbo:events
+layer	turbo:stream-errors	document	0	after:u32	class:str	message:str
+end	turbo:stream-errors
+layer	turbo:event-checksum	document	1	crc32c:u32
+2307078724
+end	turbo:event-checksum
+layer	turbo:manifest	document	10	key:str	value:str
+Component-Name	TokenizerME
+Language	de
+Manifest-Version	1.0
+OpenNLP-Version	3.0.0-SNAPSHOT
+TrainerType	Event
+Training-Eventhash	1
+alphaNumericPattern	^[A-Za-z0-9äéöüÄÉÖÜß]+$
+factory	opennlp.tools.tokenize.TokenizerFactory
+serializer-class-abbreviations.dictionary	opennlp.tools.util.model.DictionarySerializer
+useAlphaNumericOptimization	true
+end	turbo:manifest
+layer	turbo:package-entries	document	3	name:str	length:u32
+manifest.properties	444
+abbreviations.dictionary	468
+token.model	61
+end	turbo:package-entries
+layer	turbo:dictionary	document	1	xml:str
+<?xml version="1.0" encoding="UTF-8"?><dictionary case_sensitive="false">\n    <entry>\n        <token>Dr.</token>\n    </entry>\n    <entry>\n        <token>U.S.</token>\n    </entry>\n    <entry>\n        <token>xyz.,"abc</token>\n    </entry>\n    <entry>\n        <token>a.m.</token>\n    </entry>\n    <entry>\n        <token>etc.</token>\n    </entry>\n    <entry>\n        <token>e.g.</token>\n    </entry>\n    <entry>\n        <token>(c)Co.ltd</token>\n    </entry>\n</dictionary>\n
+end	turbo:dictionary

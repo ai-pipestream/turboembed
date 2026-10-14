@@ -1,0 +1,46 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	formats/conllu-errors	1474	1474	42b7f753628a5492507589493a66fb4426f1d7b8baf5936632829acb1a3bb77f
+annotator	opennlp.tools.sentdetect.SDEventStream	read
+config	eosCharacters	.!?
+config	format	conllu
+config	language	en
+config	run	sentdetect-conllu
+config	sentencesPerSample	10
+config	source	sentdetect
+config	useTokenEnd	true
+layer	turbo:events	document	0	outcome:str	context:str	values:str
+end	turbo:events
+layer	turbo:stream-errors	document	10	after:u32	class:str	message:str
+0	opennlp.tools.util.InvalidFormatException	Line [1\tnine\tnine\tNUM\t_\t_\t_\t_\t_] must have exactly 10 fields
+0	opennlp.tools.util.InvalidFormatException	Line [1\tempty\t_\t_\t_\t_\t_\t_\t_\t] must have exactly 10 fields
+0	opennlp.tools.util.InvalidFormatException	Line [   ] must have exactly 10 fields
+0	opennlp.tools.util.InvalidFormatException	Invalid multiword token id: 01-2
+0	opennlp.tools.util.InvalidFormatException	Multiword token id runs backwards: 2-1
+0	opennlp.tools.util.InvalidFormatException	Multiword token 1-3 has no word line for id 3
+0	opennlp.tools.util.InvalidFormatException	Locale language code is invalid: text_X
+0	java.lang.IndexOutOfBoundsException	Index 3 out of bounds for length 2
+0	opennlp.tools.util.InvalidFormatException	Invalid multiword token id: 2147483647-2147483648
+0	opennlp.tools.util.InvalidFormatException	Multiword token 2147483646-2147483647 has no word line for id 2147483646
+end	turbo:stream-errors
+layer	turbo:event-checksum	document	1	crc32c:u32
+0
+end	turbo:event-checksum
+layer	turbo:manifest	document	9	key:str	value:str
+Component-Name	SentenceDetectorME
+Language	en
+Manifest-Version	1.0
+OpenNLP-Version	3.0.0-SNAPSHOT
+TrainerType	Event
+Training-Eventhash	1
+eosCharacters	.!?
+factory	opennlp.tools.sentdetect.SentenceDetectorFactory
+useTokenEnd	true
+end	turbo:manifest
+layer	turbo:package-entries	document	2	name:str	length:u32
+manifest.properties	286
+sent.model	61
+end	turbo:package-entries

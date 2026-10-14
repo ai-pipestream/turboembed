@@ -25,7 +25,7 @@ pub mod newline;
 pub mod paragraph;
 
 mod abbreviation;
-mod context;
+pub mod context;
 mod scan;
 mod units;
 

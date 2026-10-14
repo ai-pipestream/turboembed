@@ -1,0 +1,53 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	edge/quotes-brackets	139	127	0ddef673358aac174b9cf1cbd5157e01eb8bc8e78395b51f7a218e42c177ed7b
+annotator	opennlp.tools.sentdetect.SDEventStream	read
+config	format	text
+config	language	th
+config	run	sentdetect-th
+config	source	sentdetect
+config	useTokenEnd	false
+layer	turbo:events	document	19	outcome:str	context:str	values:str
+n	eos=  x=He 2 xcap v= s=said, n="Stop!"	
+n	eos=  x=said, 5 v=He vcap s="Stop!" n=and	
+n	eos=  x="Stop!" 7 v=said, s=and n=she	
+n	eos=  x=and 3 v="Stop!" s=she n=replied	
+n	eos=  x=she 3 v=and s=replied n='No.'	
+n	eos=  x=replied 7 v=she s='No.' n=[See	
+n	eos=  x='No.' 5 v=replied s=[See n=note	
+n	eos=  x=[See 4 v='No.' s=note n=(a)]	
+n	eos=  x=note 4 v=[See s=(a)] n={x:	
+n	eos=  x=(a)] 4 v=note s={x: n=1}	
+n	eos=  x={x: 3 v=(a)] s=1} n=<tag>	
+n	eos=  x=1} 2 v={x: s=<tag> n=“curly”	
+n	eos=  x=<tag> 5 v=1} s=“curly” n=‘single’	
+n	eos=  x=“curly” 7 v=<tag> s=‘single’ n=„low“	
+n	eos=  x=‘single’ 8 v=“curly” s=„low“ n=`code`	
+n	eos=  x=„low“ 5 v=‘single’ s=`code` n=((nested	
+n	eos=  x=`code` 6 v=„low“ s=((nested n=[mixed	
+n	eos=  x=((nested 8 v=`code` s=[mixed n={brackets}]))	
+s	eos=  x=[mixed 6 v=((nested s={brackets}])) n=	
+end	turbo:events
+layer	turbo:stream-errors	document	0	after:u32	class:str	message:str
+end	turbo:stream-errors
+layer	turbo:event-checksum	document	1	crc32c:u32
+2242077884
+end	turbo:event-checksum
+layer	turbo:manifest	document	9	key:str	value:str
+Component-Name	SentenceDetectorME
+Language	th
+Manifest-Version	1.0
+OpenNLP-Version	3.0.0-SNAPSHOT
+TrainerType	Event
+Training-Eventhash	1
+eosCharacters	 \n
+factory	opennlp.tools.sentdetect.SentenceDetectorFactory
+useTokenEnd	false
+end	turbo:manifest
+layer	turbo:package-entries	document	2	name:str	length:u32
+manifest.properties	287
+sent.model	61
+end	turbo:package-entries
