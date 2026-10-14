@@ -16,8 +16,9 @@ starts at events.
 | `monitor` | `TrainingProgressMonitor`, `DefaultTrainingProgressMonitor`, `TrainingMeasure`, `StopCriteria`, `LogLikelihoodThresholdBreached`, `IterDeltaAccuracyUnderTolerance`, `TrainingConfiguration` |
 | `gis` | `GISTrainer`, `GISModel`'s data structures, `UniformPrior`, `AbstractEventTrainer.train` |
 | `qn` | `QNTrainer`, `QNMinimizer`, `LineSearch`, `NegLogLikelihood`, `ParallelNegLogLikelihood`, `QNModel`'s data structures |
-| `trainer` | `TrainerFactory.getEventTrainer`: the trainer `Algorithm` names |
-| `writer` | `GenericModelWriter`, `BinaryGISModelWriter`, `BinaryQNModelWriter`, `GISModelWriter.persist`, `QNModelWriter.persist`, `ComparablePredicate`, `ModelParameterChunker` |
+| `perceptron` | `PerceptronTrainer`, `SimplePerceptronSequenceTrainer`, `SequenceStream.updateContext`, `PerceptronModel`'s data structures and `eval` |
+| `trainer` | `TrainerFactory.getEventTrainer` and `getEventModelSequenceTrainer`: the trainer `Algorithm` names |
+| `writer` | `GenericModelWriter`, `BinaryGISModelWriter`, `BinaryQNModelWriter`, `BinaryPerceptronModelWriter`, `GISModelWriter.persist`, `QNModelWriter.persist`, `PerceptronModelWriter.persist`, `ComparablePredicate`, `ModelParameterChunker` |
 | `package` | `BaseModel.serialize`, the manifest `BaseModel` builds and `PropertiesSerializer` writes, `SentenceModel`'s entries |
 | `context` | `BasicContextGenerator` |
 | `crc32c` | `java.util.zip.CRC32C` |
@@ -135,6 +136,59 @@ sentence fixture inputs (`analysis/goldens/data/sentdetect/en-plain-qn-rust`);
 `analysis/sentdetect/tests/golden.rs` checks that the Rust detector gives
 the spans and probabilities the JVM recorded with it.
 
+## Perceptron trainers
+
+`perceptron::train_events` and `perceptron::train` are
+`TrainerFactory.getEventTrainer` for `Algorithm=PERCEPTRON`, and
+`perceptron::train_sequences` is `getEventModelSequenceTrainer` for
+`PERCEPTRON_SEQUENCE`; `trainer::train_events` and
+`trainer::train_sequences` dispatch on the parameter and return a
+`TrainedModel`. `PerceptronParams` reads `Iterations`, `UseAverage`,
+`UseSkippedAveraging`, `StepSizeDecrease` and `Tolerance` with the
+trainer's checks (`Error::Tolerance`, `Error::StepSizeDecrease`).
+`perceptron::train_model` runs `PerceptronTrainer.trainModel` with an
+observer called after every iteration with the correct and total counts,
+and the parameters a run stopping there would return (the mean so far with
+averaging); the progress monitor of the `TrainingConfiguration` hears what
+the JVM's hears, and the stop criterion is `IterDeltaAccuracyUnderTolerance`
+unless the configuration has one. The sequence trainer takes a
+`SequenceSource`, the `SequenceStream` of the JVM: its sequences, and
+`update_context`, which tags a sequence's events with the current model;
+`perceptron::train_sequence_model` has the same observer. A
+`PerceptronModel` keeps a parameter for every predicate and outcome;
+`PerceptronModel::eval` is `PerceptronModel.eval` with its normalization
+(sums divided by the largest absolute sum, then exponentiated with
+`StrictMath.exp` and normalized). `writer::write_perceptron` produces the
+`.model` bytes (`PerceptronModelWriter.persist`: the type `Perceptron`,
+then the body of a QN model without the zero parameters and without the
+predicates that have none left).
+
+Parity: the goldens of the perceptron runs (`PerceptronTrainGolden`,
+directories ending in `-perceptron`, `-perceptron-raw-decrease`,
+`-perceptron-skipped`, `-perceptron-sequence` and
+`-perceptron-sequence-raw`) record what the monitor heard (iterations 1 to
+9 and every tenth, then the end of training), the parameter digest after
+every iteration from a run of that many iterations, every parameter after
+the first and the last, and the written model or the writer's failure.
+The sequence runs cut the source's events into sequences of five and tag
+each event by its own context; the test implements the same stream.
+`tests/goldens.rs` compares all of it, as for GIS and QN.
+The runs cover averaging, none and skipped averaging, a step decrease,
+the tolerance stop, real valued events, and the part-of-speech shaped
+source with many outcomes for both trainers.
+`tests/roundtrip.rs` reproduces `analysis/maxent/tests/fixtures/models/perceptron.model`
+byte for byte and trains the perceptron sentence model of `en-plain.bin`'s
+events (`PERCEPTRON`, cutoff 1, the defaults): its `sent.model` bytes are
+the ones the JVM's `PerceptronTrainer` wrote for the same events and
+parameters (the golden `sentdetect-twopass-cutoff1-unsorted-perceptron/train/sentences`
+records their SHA-256), the `.bin` written around them is the checked in
+fixture `analysis/goldens/data/fixtures/en-plain-perceptron-rust.bin` byte
+for byte, and it splits the training text into 212 sentences. The golden
+generator loads that fixture in the JVM with `SentenceModel` and runs it
+on the sentence fixture inputs (`analysis/goldens/data/sentdetect/en-plain-perceptron-rust`);
+`analysis/sentdetect/tests/golden.rs` checks that the Rust detector gives
+the spans and probabilities the JVM recorded with it.
+
 ## OpenNLP behaviour worth knowing
 
 - `FileEventStream` throws `NoSuchElementException` on an empty line, so
@@ -226,8 +280,46 @@ the spans and probabilities the JVM recorded with it.
   then too, so a bad parameter is reported whatever the events are.
   `GISTrainer` reads `Threads` and `PerceptronTrainer` its tolerance and
   step decrease in `doTrain`, after the outcome check.
+- `PerceptronTrainer` tells its progress monitor about iterations 1 to 9
+  and every tenth only; the observer of `perceptron::train_model` hears
+  every iteration. With `Iterations` at zero or below no iteration runs,
+  and with averaging the parameters are the sums divided by the number of
+  times they were summed, `0.0 / 0`: a model of NaN parameters, kept as
+  the JVM has it, and written as it is, since NaN is not zero to the
+  writer. Its stop test compares the accuracy with each of the
+  three before it, so it needs three iterations at least; the tolerance
+  is the default `0.00001` and an iteration counts an event once per time
+  it was seen.
+- `UseSkippedAveraging` only forces `UseAverage` on: the test that would
+  skip an iteration's sum (`useSkippedAveraging && ... || useAverage`) is
+  true whenever averaging is on, so every iteration is summed. The result
+  is the mean of the parameters after each iteration.
+- `StepSizeDecrease` is documented as a percent and checked against 0 to
+  100, but applied as a fraction (`stepsize *= 1 - decrease`); a value
+  above 1 makes the step negative. It is applied before the first
+  iteration too, so no iteration uses a step of 1.
+- `PerceptronModelWriter` drops every zero parameter and every predicate
+  without one left, and then fails on no predicates
+  (`computeOutcomePatterns` reads the first; `ArrayIndexOutOfBoundsException`):
+  a model whose parameters are all zero cannot be written
+  (`Error::NoParameters`). The sequence trainer leaves one when the zero
+  model, which tags every event with the first outcome, is right about
+  every event, as it is for an input whose events all have one outcome
+  (golden `sentdetect-onepass-cutoff1-unsorted-perceptron-sequence-raw/en/whitespace`,
+  three events with outcome `s`).
+- `SimplePerceptronSequenceTrainer` does not check for one outcome, indexes
+  with `OnePassDataIndexer` unsorted (so no merging) and tells no monitor
+  anything. Its averaging is lazy: a parameter's weight is its value
+  truncated to an `int` times the sequences it held, in `int` arithmetic,
+  and the final division is by `iterations * sequences` as a `double`.
+  After the iterations `trainingStats` counts the events tagged right with
+  the index's outcome list at each event's position in the stream, which
+  reads past the list when the cutoff dropped an event, so training then
+  throws and returns no model (`Error::SequenceEventsDropped`).
+- The tokenizer's event stream over the golden inputs has one outcome (no
+  text carries a split mark), so no trainer golden trains on it.
 
 Not ported: the abbreviation dictionary entry of a sentence or tokenizer model
 (`abbreviations.dictionary`, `DictionarySerializer`) has no writer here
-yet; `ModelPackage::add_entry` takes its bytes. Nor are the perceptron and
-naive Bayes trainers (`Error::NotPorted`).
+yet; `ModelPackage::add_entry` takes its bytes. Nor is the naive Bayes
+trainer (`Error::NotPorted`).

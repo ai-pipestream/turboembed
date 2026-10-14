@@ -30,9 +30,16 @@
 //!   checked by `analysis/sentdetect/tests/golden.rs`). It splits the
 //!   training text into 210 sentences, as `SentenceDetectorME` does with it.
 //!
+//! - The same events trained with `PERCEPTRON` (the defaults, cutoff 1),
+//!   checked the same way against the training golden
+//!   `sentdetect-twopass-cutoff1-unsorted-perceptron/train/sentences` and
+//!   the fixture `analysis/goldens/data/fixtures/en-plain-perceptron-rust.bin`
+//!   (`analysis/goldens/data/sentdetect/en-plain-perceptron-rust`). It splits
+//!   the training text into 212 sentences, as `SentenceDetectorME` does.
+//!
 //! With `TURBO_TRAIN_OUT` set to a directory, the `.bin` files written here
-//! are saved there as `en-plain-rust.bin` and `en-plain-qn-rust.bin`, which
-//! is how the fixtures were made.
+//! are saved there as `en-plain-rust.bin`, `en-plain-qn-rust.bin` and
+//! `en-plain-perceptron-rust.bin`, which is how the fixtures were made.
 
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
@@ -107,6 +114,11 @@ fn the_gis_fixture_model_is_trained_byte_for_byte() {
 #[test]
 fn the_qn_fixture_model_is_trained_byte_for_byte() {
     check_fixture_model(Algorithm::MaxentQn, "qn.model");
+}
+
+#[test]
+fn the_perceptron_fixture_model_is_trained_byte_for_byte() {
+    check_fixture_model(Algorithm::Perceptron, "perceptron.model");
 }
 
 /// `expected.txt` escapes a feature's non-ASCII characters as `\uXXXX`.
@@ -227,4 +239,60 @@ fn the_qn_sentence_model_is_the_jvms_and_its_bin_is_the_fixture() {
     let mut spans = Vec::new();
     SentenceDetector::new(ours, WhitespaceMode::Unicode).detect(&text, &mut spans);
     assert_eq!(spans.len(), 210);
+}
+
+#[test]
+fn the_perceptron_sentence_model_is_the_jvms_and_its_bin_is_the_fixture() {
+    let path = data_dir().join("train/sentdetect-twopass-cutoff1/train/sentences.golden");
+    let g = Golden::read_with(&path, &common::train_shapes()).unwrap_or_else(|e| panic!("{e}"));
+    let events = common::events(&g);
+    let text = g.input_text(data_dir()).unwrap();
+
+    let mut params = TrainingParameters::new();
+    params.put(Key::ALGORITHM, Algorithm::Perceptron.name());
+    params.put(Key::ITERATIONS, 100);
+    params.put(Key::CUTOFF, 1);
+    let (model, report) = train_events(&events, &params, &mut TrainingConfiguration::default()).unwrap();
+    assert_eq!(model.algorithm(), Algorithm::Perceptron);
+    let bytes = model.write().unwrap();
+    assert_eq!(&bytes[..12], b"\0\x0aPerceptron");
+    let model_bytes = bytes.clone();
+
+    // The fixture's instant, so the manifest differs from en-plain.bin's
+    // only where the model does.
+    let fixture = ModelFile::read(data_dir().join("fixtures/en-plain.bin")).unwrap();
+    assert_eq!(fixture.manifest().get("Training-Eventhash"), Some(report.event_hash.unwrap().to_string().as_str()));
+    let timestamp: i64 = fixture.manifest().get("Timestamp").unwrap().parse().unwrap();
+    let bin = sentence_model_package("en", timestamp, &report, false, Some(".!?"), bytes).to_bytes();
+    if let Ok(dir) = std::env::var("TURBO_TRAIN_OUT") {
+        std::fs::write(Path::new(&dir).join("en-plain-perceptron-rust.bin"), &bin).unwrap();
+    }
+    // The bytes PerceptronTrainer and GenericModelWriter produced on the
+    // JVM for the same events and parameters.
+    let (sha, length) = golden_model("sentdetect-twopass-cutoff1-unsorted-perceptron", "turbo:perceptron-model");
+    assert_eq!(
+        (turbo_maxent::sha256(&model_bytes).to_hex(), model_bytes.len()),
+        (sha, length),
+        "the JVM's model bytes"
+    );
+    let committed = std::fs::read(data_dir().join("fixtures/en-plain-perceptron-rust.bin")).unwrap();
+    assert_eq!(
+        bin, committed,
+        "analysis/goldens/data/fixtures/en-plain-perceptron-rust.bin is not the .bin written here"
+    );
+    let ours = ModelFile::open(bin).unwrap();
+    assert_eq!(ours.manifest().iter().collect::<Vec<_>>(), fixture.manifest().iter().collect::<Vec<_>>());
+    // The writer drops the predicates whose parameters are all zero.
+    let maxent = ours.maxent(SENTENCE_MODEL_ENTRY).unwrap();
+    let writable = model.as_writable();
+    let kept = (0..writable.num_predicates()).filter(|&p| writable.parameters(p).iter().any(|&x| x != 0.0)).count();
+    assert!(kept > 0 && kept < writable.num_predicates());
+    assert_eq!(maxent.num_predicates(), kept);
+
+    // It splits the training text into 212 sentences, as SentenceDetectorME
+    // does with the same file.
+    let ours = Arc::new(SentenceModel::open(ours).unwrap());
+    let mut spans = Vec::new();
+    SentenceDetector::new(ours, WhitespaceMode::Unicode).detect(&text, &mut spans);
+    assert_eq!(spans.len(), 212);
 }

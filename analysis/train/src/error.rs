@@ -45,6 +45,39 @@ pub enum Error {
     UnknownAlgorithm(String),
     /// The algorithm is one OpenNLP has but this crate has no trainer for.
     NotPorted(crate::params::Algorithm),
+    /// The algorithm names a trainer of another kind than the one asked
+    /// for: `TrainerFactory.getEventTrainer` cannot return the sequence
+    /// perceptron, nor `getEventModelSequenceTrainer` an event trainer
+    /// (`ClassCastException`).
+    WrongTrainerType { algorithm: crate::params::Algorithm, wanted: crate::params::TrainerType },
+    /// `TrainerFactory.getEventModelSequenceTrainer` without an `Algorithm`
+    /// (`IllegalArgumentException("Trainer type couldn't be determined!")`).
+    NoAlgorithm,
+    /// `PerceptronTrainer.setTolerance` refuses a negative tolerance
+    /// (`IllegalArgumentException`).
+    Tolerance(f64),
+    /// `PerceptronTrainer.setStepSizeDecrease` refuses a decrease over 100
+    /// (`IllegalArgumentException`).
+    StepSizeDecrease(f64),
+    /// `PerceptronModelWriter` drops every zero parameter, and when none is
+    /// left `computeOutcomePatterns` reads the first of no predicates
+    /// (`ArrayIndexOutOfBoundsException`): a perceptron model whose
+    /// parameters are all zero cannot be written.
+    NoParameters,
+    /// `SimplePerceptronSequenceTrainer` after its iterations: it counts
+    /// the events it tagged right with the index's outcome list at each
+    /// event's position in the stream, which is past the list's end when
+    /// the cutoff dropped an event. The JVM throws
+    /// `ArrayIndexOutOfBoundsException` and returns no model.
+    SequenceEventsDropped { indexed: u32, streamed: usize },
+    /// A `SequenceSource::update_context` returned `got` events for a
+    /// sequence of `expected`. The JVM reads the tagged events by the
+    /// sequence's positions and fails out of bounds.
+    SequenceLength { expected: usize, got: usize },
+    /// A `SequenceSource::update_context` tagged an event with an outcome
+    /// the index does not have. The JVM unboxes `omap.get(outcome)`, null,
+    /// and throws `NullPointerException`.
+    UnknownOutcome(String),
     /// The `DataIndexer` parameter names none of the three built in
     /// indexers. OpenNLP would load it as an extension class by that name.
     UnknownIndexer(String),
@@ -113,6 +146,26 @@ impl fmt::Display for Error {
             }
             Error::UnknownAlgorithm(name) => write!(f, "Unknown algorithm type: {name}"),
             Error::NotPorted(algorithm) => write!(f, "no trainer for {} here yet", algorithm.name()),
+            Error::WrongTrainerType { algorithm, wanted } => {
+                write!(f, "{} is not a {} trainer (ClassCastException)", algorithm.name(), wanted.value())
+            }
+            Error::NoAlgorithm => f.write_str("Trainer type couldn't be determined!"),
+            Error::Tolerance(t) => {
+                write!(f, "tolerance must be a positive number but is {}!", turbo_jvm::text::double_to_string(*t))
+            }
+            Error::StepSizeDecrease(d) => {
+                write!(f, "decrease must be between 0 and 100 but is {}!", turbo_jvm::text::double_to_string(*d))
+            }
+            Error::NoParameters => f.write_str("every parameter is zero, which PerceptronModelWriter cannot write"),
+            Error::SequenceLength { expected, got } => {
+                write!(f, "updateContext returned {got} events for a sequence of {expected}")
+            }
+            Error::UnknownOutcome(outcome) => write!(f, "updateContext tagged an event {outcome:?}, not an outcome"),
+            Error::SequenceEventsDropped { indexed, streamed } => write!(
+                f,
+                "the cutoff dropped {} of the {streamed} events, after which SimplePerceptronSequenceTrainer fails (ArrayIndexOutOfBoundsException)",
+                streamed - *indexed as usize
+            ),
             Error::UnknownIndexer(name) => {
                 write!(f, "DataIndexer {name:?} is not OnePass, TwoPass or OnePassRealValue")
             }

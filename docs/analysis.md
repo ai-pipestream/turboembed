@@ -1597,6 +1597,31 @@ rescaling the minimizer applies at the end); `turbo:qn-parameters` and
 `turbo:qn-model` are as for GIS. The `config` records add `Algorithm`,
 `L1Cost`, `L2Cost`, `NumOfUpdates`, `MaxFctEval` and `Threads`. The runs cover one cost, both and neither, several threads, and the `postag` source with many outcomes; `analysis/train/tests/goldens.rs` compares the QN trainer with every one of them the same way. The run `sentdetect-twopass-cutoff1-qn` on `analysis/goldens/data/inputs/train/sentences.txt` is the JVM's training of the fixture `analysis/goldens/data/fixtures/en-plain-qn-rust.bin`, the `.bin` the Rust QN trainer writes for those events: `analysis/train/tests/roundtrip.rs` checks the model bytes against that golden and the `.bin` against the fixture, and the generator loads the fixture in the JVM as a sentence model (`sentdetect/en-plain-qn-rust`) for `analysis/sentdetect/tests/golden.rs` to compare with the Rust detector.
 
+The runs of the perceptron trainers (`PerceptronTrainGolden`;
+`Algorithm=PERCEPTRON`, directories with `-perceptron` appended, then
+`-raw`, `-skipped` and `-decrease` for no averaging, skipped averaging and
+a step size decrease; `Algorithm=PERCEPTRON_SEQUENCE`, directories with
+`-perceptron-sequence` appended, then `-raw`) hold the events and the
+trainer's layers as well. `turbo:perceptron-training` says how many
+iterations ran and what the monitor recorded last (empty for the sequence
+trainer, which has no monitor; with one outcome the event trainer refuses
+the index, and the sequence trainer fails after its iterations when the
+cutoff dropped an event: zero iterations and the exception, and the rest
+left out); `turbo:perceptron-monitor` has, per iteration the monitor heard
+of (1 to 9 and every tenth), the correct and total events and the
+accuracy; `turbo:perceptron-iterations` has the parameter digest after
+every iteration, from a run of that many iterations; `turbo:perceptron-parameters`
+is as for GIS; and `turbo:perceptron-model` is the written model's SHA-256
+and length, or an empty digest, zero length and the exception's class in
+`error` when `PerceptronModelWriter` fails on a model without a parameter
+left. The sequence runs cut the source's events into sequences of five
+consecutive events and tag each event by its own context. The `config`
+records add `Algorithm`, `Iterations`, `UseAverage` and, for the event
+trainer, `UseSkippedAveraging`, `StepSizeDecrease` and `Tolerance`.
+Both trainers also run on the `postag` source with its many outcomes.
+`analysis/train/tests/goldens.rs` compares both trainers with every one of them, and
+`analysis/train/tests/roundtrip.rs` trains `analysis/maxent/tests/fixtures/models/qn.model` and `analysis/maxent/tests/fixtures/models/perceptron.model` again byte for byte. As for QN, the run `sentdetect-twopass-cutoff1-unsorted-perceptron` on `analysis/goldens/data/inputs/train/sentences.txt` is the JVM's training of the fixture `analysis/goldens/data/fixtures/en-plain-perceptron-rust.bin`, which `analysis/train/tests/roundtrip.rs` writes and checks and the generator loads as a sentence model (`sentdetect/en-plain-perceptron-rust`) for `analysis/sentdetect/tests/golden.rs`.
+
 ## Generating golden files
 
 The goldens in `analysis/goldens/data` are made by `turbo-goldens`

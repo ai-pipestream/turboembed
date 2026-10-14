@@ -49,6 +49,8 @@ final class Runs {
   static final String SENTENCE_FIXTURE_RUST = "en-plain-rust.bin";
   /** The same events trained by the Rust QN trainer (MAXENT_QN, the defaults, cutoff 1). */
   static final String SENTENCE_FIXTURE_QN_RUST = "en-plain-qn-rust.bin";
+  /** The same events trained by the Rust perceptron trainer (PERCEPTRON, the defaults, cutoff 1). */
+  static final String SENTENCE_FIXTURE_PERCEPTRON_RUST = "en-plain-perceptron-rust.bin";
   static final String TOKEN_FIXTURE = "tokenizer-abbreviations.bin";
   static final String POS_FIXTURE = "pos-fixture.bin";
   static final String CHUNKER_FIXTURE = "chunker-fixture.bin";
@@ -103,8 +105,8 @@ final class Runs {
     List<AnnotatorGolden> annotators = new ArrayList<>();
     List<AnnotatorDump> recorders = new ArrayList<>();
 
-    // Sentence detection: the published models, the two fixture models and the two models the Rust
-    // trainers wrote in both whitespace modes, and the newline detector in both.
+    // Sentence detection: the published models, the two fixture models and the three models the
+    // Rust trainers wrote in both whitespace modes, and the newline detector in both.
     List<SentenceGolden> sentences = new ArrayList<>();
     sentences.add(SentenceGolden.load(models.resolve(SENTENCE_MODEL_EN), WhitespaceMode.UNICODE,
         Set.of(EN, MULTI, EDGE)));
@@ -112,7 +114,7 @@ final class Runs {
       sentences.add(SentenceGolden.load(models.resolve(m), WhitespaceMode.UNICODE, Set.of(EDGE)));
     }
     for (String m : List.of(SENTENCE_FIXTURE_ABBREVIATIONS, SENTENCE_FIXTURE_PLAIN, SENTENCE_FIXTURE_RUST,
-        SENTENCE_FIXTURE_QN_RUST)) {
+        SENTENCE_FIXTURE_QN_RUST, SENTENCE_FIXTURE_PERCEPTRON_RUST)) {
       for (WhitespaceMode mode : MODES) {
         sentences.add(SentenceGolden.load(fixtures.resolve(m), mode, Set.of(SENTENCE_FIXTURE)));
       }
@@ -243,6 +245,8 @@ final class Runs {
     annotators.addAll(TrainGolden.all(Set.of(EN, MULTI, EDGE), Set.of(TRAIN)));
     // The L-BFGS trainer on the same events, with the costs, update counts and thread counts it takes.
     annotators.addAll(QnTrainGolden.all(Set.of(EN, MULTI, EDGE), Set.of(TRAIN)));
+    // The perceptron and the sequence perceptron trainers on the same events.
+    annotators.addAll(PerceptronTrainGolden.all(Set.of(EN, MULTI, EDGE), Set.of(TRAIN)));
     // The sample streams of OpenNLP's native formats, and the conversion streams, which
     // detokenize with the English dictionary.
     annotators.addAll(FormatGolden.all(fixtures.resolve(FORMAT_DETOKENIZER)));
