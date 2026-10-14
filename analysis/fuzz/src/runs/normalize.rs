@@ -336,30 +336,27 @@ fn symbol_rule(text: &str, d: &Disagreement) -> bool {
 
 /// The region holds an e-mail address with a non-ASCII letter, digit or
 /// mark, which `BoundedUrls` takes as part of the address and OpenNLP's
-/// ASCII scan does not: one space here; on the JVM the source, or the
-/// source with one ASCII stretch holding the `@` replaced by a space.
+/// ASCII scan does not. Where the two results differ, the JVM kept a
+/// stretch of the address (the whole address, or what is left of it
+/// around the ASCII part it replaced) and the port wrote nothing or one
+/// space in its place: that stretch has no whitespace and holds a
+/// non-ASCII letter, digit or mark.
 fn bounded_url_rule(text: &str, d: &Disagreement) -> bool {
     let Some((rust, golden)) = d.results() else { return false };
-    let source = d.source(text);
-    let international = source.chars().any(|c| !c.is_ascii() && (c.is_alphanumeric() || general_category(c).is_mark()));
-    if !source.contains('@') || !international || rust != " " {
+    if !d.source(text).contains('@') {
         return false;
     }
-    if golden == source {
-        return true;
-    }
-    let prefix = source.char_indices().zip(golden.chars()).take_while(|((_, a), b)| a == b).count();
-    let prefix = source.char_indices().nth(prefix).map_or(source.len(), |(i, _)| i);
-    let (s_rest, g_rest) = (&source[prefix..], &golden[prefix..]);
-    let suffix = s_rest
-        .chars()
-        .rev()
-        .zip(g_rest.chars().rev())
-        .take_while(|(a, b)| a == b)
-        .map(|(a, _)| a.len_utf8())
-        .sum::<usize>();
-    let middle = &s_rest[..s_rest.len() - suffix];
-    g_rest[..g_rest.len() - suffix] == *" " && middle.is_ascii() && middle.contains('@')
+    let prefix = rust.char_indices().zip(golden.chars()).take_while(|((_, a), b)| a == b).count();
+    let prefix = rust.char_indices().nth(prefix).map_or(rust.len(), |(i, _)| i);
+    let (r_rest, g_rest) = (&rust[prefix..], &golden[prefix..]);
+    let suffix: usize =
+        r_rest.chars().rev().zip(g_rest.chars().rev()).take_while(|(a, b)| a == b).map(|(a, _)| a.len_utf8()).sum();
+    let (removed, kept) = (&r_rest[..r_rest.len() - suffix], &g_rest[..g_rest.len() - suffix]);
+    let international = |c: char| !c.is_ascii() && (c.is_alphanumeric() || general_category(c).is_mark());
+    (removed.is_empty() || removed == " ")
+        && !kept.is_empty()
+        && !kept.chars().any(char::is_whitespace)
+        && kept.chars().any(international)
 }
 
 /// The skeleton of `text` by confusables.txt 17.0.0, the data OpenNLP
@@ -599,6 +596,11 @@ mod tests {
         let text = "x brien@example.com...\u{3AC}\u{3BD} y";
         documented("bounded-url", text, &[e(2, 22, " ")]);
         divergence("bounded-url", text, &[e(2, 22, "  ")]);
+        // A URL both replace, then an address the JVM's scan leaves at a
+        // combining mark inside the domain.
+        let text = "a https://h.example/ x.y@sub.d\u{338}omain.example b";
+        documented("bounded-url", text, &[e(2, 20, " "), e(21, 30, " ")]);
+        divergence("bounded-url", text, &[e(2, 20, " "), e(21, 30, "  ")]);
     }
 
     #[test]
