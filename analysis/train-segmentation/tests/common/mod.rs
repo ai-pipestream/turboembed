@@ -45,8 +45,9 @@ const F64: ColumnType = ColumnType::F64;
 
 /// The layers of the `train` and `train-events` goldens. Only the events,
 /// the checksum and the `train-events` layers are read here; the
-/// indexer's and the trainer's layers are listed so that the reader
-/// accepts the `train` files (`analysis/train/tests` compares those).
+/// indexer's and the trainers' (GIS, QN, perceptron) layers are listed
+/// so that the reader accepts the `train` files (`analysis/train/tests`
+/// compares those).
 const LAYERS: &[(&str, &[ColumnSpec])] = &[
     ("turbo:events", &[col("outcome", STR), col("context", STR), col("values", STR)]),
     ("turbo:stream-errors", &[col("after", U32), col("class", STR), col("message", STR)]),
@@ -68,6 +69,24 @@ const LAYERS: &[(&str, &[ColumnSpec])] = &[
     ),
     ("turbo:gis-parameters", &[col("iteration", U32), col("predicate", U32), col("outcome", U32), col("value", F64)]),
     ("turbo:gis-model", &[col("sha256", STR), col("length", U32)]),
+    ("turbo:qn-training", &[col("iterations", U32), col("stop", STR), col("message", STR)]),
+    (
+        "turbo:qn-iterations",
+        &[col("iteration", U32), col("value", F64), col("rate", F64), col("accuracy", F64), col("parameters", STR)],
+    ),
+    ("turbo:qn-parameters", &[col("iteration", U32), col("predicate", U32), col("outcome", U32), col("value", F64)]),
+    ("turbo:qn-model", &[col("sha256", STR), col("length", U32)]),
+    ("turbo:perceptron-training", &[col("iterations", U32), col("message", STR)]),
+    (
+        "turbo:perceptron-monitor",
+        &[col("iteration", U32), col("correct", U32), col("events", U32), col("accuracy", F64)],
+    ),
+    ("turbo:perceptron-iterations", &[col("iteration", U32), col("parameters", STR)]),
+    (
+        "turbo:perceptron-parameters",
+        &[col("iteration", U32), col("predicate", U32), col("outcome", U32), col("value", F64)],
+    ),
+    ("turbo:perceptron-model", &[col("sha256", STR), col("length", U32), col("error", STR)]),
     ("turbo:manifest", &[col("key", STR), col("value", STR)]),
     ("turbo:package-entries", &[col("name", STR), col("length", U32)]),
     ("turbo:dictionary", &[col("xml", STR)]),
