@@ -1,5 +1,8 @@
-//! The hash codes and iteration order of `java.util.HashMap` (JDK 8 and
-//! later, as in JDK 21) with the default load factor (`0.75f`).
+//! The hash codes and iteration order of `java.util.HashMap` (JDK 19 and
+//! later, checked against JDK 21) with the default load factor (`0.75f`).
+//! JDK 8 to 18 pre-size `putAll` and `new HashMap(Map)` to
+//! `tableSizeFor(s / 0.75f + 1)`, which differs from JDK 19+ (JDK-8281631)
+//! when `s / 0.75` is a power of two.
 //!
 //! Several OpenNLP components depend on the order a `HashMap` visits its
 //! entries:
