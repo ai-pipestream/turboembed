@@ -1,18 +1,20 @@
 //! `turbo-train-recipes`: runs the MASC recipes.
 //!
 //! ```text
-//! turbo-train-recipes masc --corpus <dir> --references <dir> --out <dir> [--unrecorded-corpus]
+//! turbo-train-recipes masc --corpus <dir> --references <dir> --out <dir> [--unrecorded-corpus] [--recipe <model id>]...
 //! turbo-train-recipes fetch-masc --home <dir>
 //! ```
 //!
 //! `masc` checks the extracted corpus against the recorded release, splits
 //! it, trains each model, gates it against the OpenNLP model of the same
-//! task (read from `--references`, by the file name the zoo gives it, and
-//! checked against the zoo's digest), and writes `<out>/<model id>/` with
-//! the model, `card.json` and `gate.json`. `--unrecorded-corpus` runs on a
-//! copy whose digest is not recorded yet, prints that digest, and marks
-//! the cards `release_recorded: false`. The exit status is 1 when a gate
-//! fails and 2 on an error.
+//! task (read from `--references` by its file name, the zoo's or the
+//! recorded one, and checked against its digest), and writes
+//! `<out>/<model id>/` with the model, `card.json` and `gate.json`.
+//! `--unrecorded-corpus` runs on a copy whose digest is not recorded yet,
+//! prints that digest, and marks the cards `release_recorded: false`.
+//! `--recipe` runs only the recipes named, by the trained model's id;
+//! without it every recipe runs. The exit status is 1 when a gate fails
+//! and 2 on an error.
 //!
 //! `fetch-masc` fetches the release archive through the zoo into
 //! `<home>/artifacts/`, once its digests are recorded.
@@ -23,11 +25,10 @@ use std::process::ExitCode;
 use turbo_formats::masc::MascCorpus;
 use turbo_train_recipes::card::write_model_dir;
 use turbo_train_recipes::masc::{self, RELEASE, Release};
-use turbo_train_recipes::segmentation::RECIPES;
-use turbo_train_recipes::{Error, run};
+use turbo_train_recipes::{Error, RECIPES, Recipe, run};
 
 const USAGE: &str = "usage:
-  turbo-train-recipes masc --corpus <dir> --references <dir> --out <dir> [--unrecorded-corpus]
+  turbo-train-recipes masc --corpus <dir> --references <dir> --out <dir> [--unrecorded-corpus] [--recipe <model id>]...
   turbo-train-recipes fetch-masc --home <dir>";
 
 struct Args {
@@ -37,20 +38,32 @@ struct Args {
     out: Option<PathBuf>,
     home: Option<PathBuf>,
     unrecorded: bool,
+    recipes: Vec<Recipe>,
 }
 
 fn parse() -> Result<Args, String> {
     let mut it = std::env::args().skip(1);
     let command = it.next().ok_or(USAGE)?;
-    let mut a = Args { command, corpus: None, references: None, out: None, home: None, unrecorded: false };
+    let mut a =
+        Args { command, corpus: None, references: None, out: None, home: None, unrecorded: false, recipes: Vec::new() };
     while let Some(flag) = it.next() {
-        let mut value = || it.next().map(PathBuf::from).ok_or(format!("{flag} needs a value"));
+        let mut value = || it.next().ok_or(format!("{flag} needs a value"));
         match flag.as_str() {
-            "--corpus" => a.corpus = Some(value()?),
-            "--references" => a.references = Some(value()?),
-            "--out" => a.out = Some(value()?),
-            "--home" => a.home = Some(value()?),
+            "--corpus" => a.corpus = Some(value()?.into()),
+            "--references" => a.references = Some(value()?.into()),
+            "--out" => a.out = Some(value()?.into()),
+            "--home" => a.home = Some(value()?.into()),
             "--unrecorded-corpus" => a.unrecorded = true,
+            "--recipe" => {
+                let id = value()?;
+                let recipe = RECIPES.into_iter().find(|r| r.model_id() == id).ok_or_else(|| {
+                    let ids: Vec<&str> = RECIPES.iter().map(Recipe::model_id).collect();
+                    format!("no recipe trains {id}; the recipes train {}", ids.join(", "))
+                })?;
+                if !a.recipes.contains(&recipe) {
+                    a.recipes.push(recipe);
+                }
+            }
             _ => return Err(format!("unknown argument {flag}\n{USAGE}")),
         }
     }
@@ -79,18 +92,22 @@ fn masc_command(a: Args) -> Result<bool, String> {
         split.held_out.documents().len(),
         split.skipped_paths.len()
     );
+    let recipes = if a.recipes.is_empty() { RECIPES.to_vec() } else { a.recipes };
     let mut all_pass = true;
-    for recipe in &RECIPES {
+    for recipe in &recipes {
         let file = recipe.reference_file().map_err(|e| e.to_string())?;
         let path = references.join(&file);
         let reference = std::fs::read(&path).map_err(|e| format!("{}: {e}", path.display()))?;
         recipe.check_reference(&reference).map_err(|e| e.to_string())?;
         let outcome =
-            run(recipe, &split, &digest, recorded, recipe.reference_id, &reference).map_err(|e| e.to_string())?;
+            run(recipe, &split, &digest, recorded, recipe.reference_id(), &reference).map_err(|e| e.to_string())?;
         write_model_dir(&out, &outcome.card, &outcome.trained.bytes, &outcome.gate).map_err(|e| e.to_string())?;
         println!(
             "{}: {} samples, {} sentences skipped, {} events",
-            recipe.model_id, outcome.trained.samples, outcome.trained.skipped_sentences, outcome.trained.events
+            recipe.model_id(),
+            outcome.trained.samples,
+            outcome.trained.skipped_sentences,
+            outcome.trained.events
         );
         println!("{}", outcome.gate);
         all_pass &= outcome.gate.result.pass;
