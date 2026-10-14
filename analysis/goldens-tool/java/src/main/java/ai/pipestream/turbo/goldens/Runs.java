@@ -47,6 +47,7 @@ final class Runs {
   static final String SENTENCE_FIXTURE_PLAIN = "en-plain.bin";
   static final String TOKEN_FIXTURE = "tokenizer-abbreviations.bin";
   static final String POS_FIXTURE = "pos-fixture.bin";
+  static final String CHUNKER_FIXTURE = "chunker-fixture.bin";
   static final String LEMMA_DICTIONARY = "lemmatizer-dictionary.txt";
   static final String ENGLISH_ABBREVIATIONS = "english-dictionary.xml";
   static final List<String> DETOKENIZER_DICTIONARIES = List.of("en-detokenizer.xml", "fr-detokenizer.xml",
@@ -207,6 +208,17 @@ final class Runs {
       recorders.add(LemmaDump.of(l));
     }
     annotators.add(DictionaryLemmaGolden.load(fixtures.resolve(LEMMA_DICTIONARY), taggedEnglish, Set.of(EN, MULTI, EDGE)));
+
+    // Phrase chunking, on the sentences and tokens of the English models and the Penn Treebank
+    // tags the English part-of-speech model is asked for, since the fixture chunker was trained
+    // on Penn Treebank tags: the fixture model as it is, and rebuilt with a beam of one.
+    ChunkGolden.Pipeline pennEnglish = ChunkGolden.Pipeline.load(models.resolve(SENTENCE_MODEL_EN),
+        models.resolve(TOKEN_MODEL_EN), models.resolve(POS_MODEL_EN), POSTagFormat.PENN);
+    for (ChunkGolden c : List.of(ChunkGolden.load(fixtures.resolve(CHUNKER_FIXTURE), pennEnglish, Set.of(EN, MULTI, EDGE)),
+        ChunkGolden.withBeamSize(fixtures.resolve(CHUNKER_FIXTURE), pennEnglish, 1, Set.of(EN)))) {
+      annotators.add(c);
+      recorders.add(ChunkDump.of(c));
+    }
 
     LanguageGolden languages = LanguageGolden.load(models.resolve(LANGUAGE_MODEL), Set.of(EN, MULTI));
     annotators.add(languages);

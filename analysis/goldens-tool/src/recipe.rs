@@ -187,7 +187,7 @@ pub struct Fixture {
 /// file names are the ones the generator's `Runs` class opens there; a
 /// fixture in a subdirectory is a file of a dictionary directory, and
 /// `Runs` opens the directory.
-pub const FIXTURES: [Fixture; 28] = [
+pub const FIXTURES: [Fixture; 29] = [
     Fixture {
         file: "en-abbrev.bin",
         sha512: "759ab1defc61351f53cdd82a26e708789a225feb6e1ec0cfd6e2e54f35f67c14\
@@ -212,6 +212,11 @@ pub const FIXTURES: [Fixture; 28] = [
         file: "lemmatizer-dictionary.txt",
         sha512: "e642dfeb8d0b9f45b1853808878afa8a0a3cbe9f738a0646b9e4cafdaf8bb8c9\
                  15aa548d72833274e877a2b57118906557512d9e6fe22b320c7be87fc964e707",
+    },
+    Fixture {
+        file: "chunker-fixture.bin",
+        sha512: "be8e0bfd341644705a652b85b978e4138056922ddb9caea1ac9a2395f0648e55\
+                 ad1f1b035d90f6febc0f057f832cecac377f397552fdbdfefadaa27cfa232d6a",
     },
     Fixture {
         file: "english-dictionary.xml",
@@ -363,12 +368,13 @@ pub const GENERATOR_ARGS: [&str; 1] = ["--dumps"];
 /// replaces and `verify` compares. The data directory holds other things
 /// (the inputs, the fixtures, the rate snapshot, a README) that neither
 /// touches.
-pub const ANNOTATORS: [&str; 18] = [
+pub const ANNOTATORS: [&str; 19] = [
     "sentdetect",
     "tokenize",
     "postag",
     "lemmatize",
     "lemmatize-dictionary",
+    "chunk",
     "langdetect",
     "normalize",
     "numbers",
@@ -391,7 +397,7 @@ pub const ANNOTATORS: [&str; 18] = [
 /// normalizers, the number scan, the money and quantity annotators,
 /// the detokenizer, the WordPiece encoder, the unigram segmenter, the
 /// BPE trainer and the lattice tokenizer, which ask no model.
-pub const DUMPED_ANNOTATORS: [&str; 5] = ["sentdetect", "tokenize", "postag", "lemmatize", "langdetect"];
+pub const DUMPED_ANNOTATORS: [&str; 6] = ["sentdetect", "tokenize", "postag", "lemmatize", "chunk", "langdetect"];
 
 /// The input set the normalizers run on. They run on no other set, and the
 /// other annotators do not run on this one.
