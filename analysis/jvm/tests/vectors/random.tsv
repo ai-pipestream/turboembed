@@ -1,4 +1,4 @@
-# generator=Vectors.java	java.version=21.0.12.1	java.vm.version=21.0.12.1+1-1-24.04.4-Ubuntu	java.vm.name=OpenJDK 64-Bit Server VM	unicode=not exposed at run time	columns=seed,method,argument,index,value
+# generator=Vectors.java	java.version=21.0.12.1	java.vm.version=21.0.12.1+1-LTS	java.vm.name=OpenJDK 64-Bit Server VM	unicode=not exposed at run time	columns=seed,method,argument,index,value
 0	nextInt	-	0	-1155484576
 0	nextInt	-	1	-723955400
 0	nextInt	-	2	1033096058

@@ -72,7 +72,3 @@ that run's checksum.
 - `String.CASE_INSENSITIVE_ORDER` is computed as JDK 21 does, by code
   points; JDK 17 and earlier compared UTF-16 units, which differs only for
   keys with characters outside the BMP.
-
-Not ported: `Float.parseFloat` and `Double.parseDouble` read hexadecimal
-literals (`0x1p3`), which `turbo_jvm::text` refuses; a real valued feature
-written that way is counted as 1 here where OpenNLP would read it.

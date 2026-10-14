@@ -371,7 +371,20 @@ public class Vectors {
             "1.7976931348623159e308", "4.9e-324", "2.4e-324", "2.5e-324", "123456789012345678901234567890",
             "0.30000000000000004", "Infinity", "-Infinity", "+Infinity", "infinity", "Inf", "NaN", "-NaN", "nan",
             "NaNf", "Infinityd", "1,5", "1_000", "1e5f", "1x", "", " ", "0x1p3", "0X1.8p1", "0x10", "1f5", "1.5.2",
-            "1e5.0", "00012", "-0", "-0.0", "0e0", "1E", "e5", "9007199254740993", "1.5\u0000", "1.5 f"};
+            "1e5.0", "00012", "-0", "-0.0", "0e0", "1E", "e5", "9007199254740993", "1.5\u0000", "1.5 f",
+            // Hexadecimal literals: the grammar, rounding to a double and to a float (ties, carries, the
+            // ends of both ranges, more digits than either holds), zero significands and exponents over an int.
+            "0x.8p1", "0x1.p0", "0xp1", "0x.p1", "0x1p", "0x1p+", "0x1", "0x1.8", "-0x1p-2", "+0x1P+2", "0x1p3f",
+            "0x1p3D", "0x1p3x", "0x1p3 f", "0x1e5", "0x1p3.5", "0x1p0x3", "0x+1p3", "0x1p-0", "0x1p+0", "0x1p00003",
+            " 0x1p3 ", "0x1p3\u0000", "0X1P3", "0x0001.0000p0", "0x.0001p16", "0xABCDEFp0", "0xabcdefp0",
+            "0x1.1234567890abcdef1234567890p0", "0x1.00000000000008p0", "0x1.00000000000008000000000000000001p0",
+            "0x1.00000000000018p0", "0x1.000001p0", "0x1.000003p0", "0x1.0000010000001p0", "0x1.fffffffp0",
+            "0x1.fffffffffffffp1023", "0x1.fffffffffffff8p1023", "0x1p1024", "-0x1p1024", "0x1p-1022",
+            "0x1.fffffffffffffp-1023", "0x1.fffffffffffff8p-1023", "0x1p-1074", "0x1p-1075", "0x1.8p-1075",
+            "0x1.0000000000000000000000000001p-1075", "0x1p-1076", "-0x1p-1076", "0x1.fffffep127", "0x1.ffffffp127",
+            "0x1p-126", "0x1.ffffffp-127", "0x1p-149", "0x1p-150", "0x1.8p-150", "0x1p-151", "0x0p99999999999",
+            "-0x0.000p-99999999999", "0x1p2147483647", "0x1p2147483648", "0x1p-2147483648", "0x1p-2147483647",
+            "0x1p99999999999", "0x1p\u0663", "0xg1p0", "0x1,8p1", "0x.000000000000000000001p0"};
         for (String s : numbers) {
             String d;
             try {
