@@ -11,7 +11,7 @@ pub enum Error {
     /// A held-out prediction OpenNLP's evaluator throws on.
     Eval(turbo_formats::evaluate::EvalError),
     /// Training failed.
-    Train(turbo_train_segmentation::Error),
+    Train(turbo_train_components::Error),
     /// A model file could not be read.
     Model(String),
     /// The zoo refused or failed.
@@ -97,8 +97,8 @@ impl From<turbo_formats::evaluate::EvalError> for Error {
     }
 }
 
-impl From<turbo_train_segmentation::Error> for Error {
-    fn from(e: turbo_train_segmentation::Error) -> Error {
+impl From<turbo_train_components::Error> for Error {
+    fn from(e: turbo_train_components::Error) -> Error {
         Error::Train(e)
     }
 }

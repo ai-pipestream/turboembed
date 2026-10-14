@@ -18,7 +18,7 @@ turbo-formats = { path = "../formats" }
 # Training the sentence detector and the tokenizer, with the parameters
 # the published UD models were trained with.
 turbo-train = { path = "../train" }
-turbo-train-segmentation = { path = "../train-segmentation" }
+turbo-train-components = { path = "../train-components" }
 # Running a trained model and the reference model over held-out text.
 turbo-sentdetect = { path = "../sentdetect" }
 turbo-tokenize = { path = "../tokenize" }

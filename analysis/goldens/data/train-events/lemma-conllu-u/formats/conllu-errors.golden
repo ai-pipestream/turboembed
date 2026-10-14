@@ -1,0 +1,65 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	formats/conllu-errors	1474	1474	42b7f753628a5492507589493a66fb4426f1d7b8baf5936632829acb1a3bb77f
+annotator	opennlp.tools.lemmatizer.LemmaSampleEventStream	read
+config	format	conllu
+config	language	es
+config	run	lemma-conllu-u
+config	source	lemmatize
+config	tagset	u
+layer	turbo:events	document	22	outcome:str	context:str	values:str
+R3g_D2oD1oD0d	w0=good t0=_ p_1=bos p_1=bost0=_ p_1=bosw0=good suf=null suf=od suf=ood suf=good suf=good suf=good suf=good pre=null pre=go pre=goo pre=good pre=good	
+R2o_D1nD0e	w0=one t0=_ p_1=R3g_D2oD1oD0d p_1=R3g_D2oD1oD0dt0=_ p_1=R3g_D2oD1oD0dw0=one suf=null suf=ne suf=one suf=one suf=one suf=one suf=one pre=null pre=on pre=one pre=one pre=one	
+I1+	w0=cd t0=Y+Y p_1=bos p_1=bost0=Y+Y p_1=bosw0=cd suf=null suf=cd suf=cd suf=cd suf=cd suf=cd suf=cd pre=null pre=cd pre=cd pre=cd pre=cd	
+I1+	w0=ab t0=X+X p_1=I1+ p_1=I1+t0=X+X p_1=I1+w0=ab suf=null suf=ab suf=ab suf=ab suf=ab suf=ab suf=ab pre=null pre=ab pre=ab pre=ab pre=ab	
+O	w0=c t0=Y p_1=I1+ p_1=I1+t0=Y p_1=I1+w0=c suf=null suf=c suf=c suf=c suf=c suf=c suf=c pre=null pre=c pre=c pre=c pre=c	
+O	w0=d t0=Y p_1=O p_1=Ot0=Y p_1=Ow0=d suf=null suf=d suf=d suf=d suf=d suf=d suf=d pre=null pre=d pre=d pre=d pre=d	
+I2lI1+I1l	w0=ab t0=X+Y p_1=bos p_1=bost0=X+Y p_1=bosw0=ab suf=null suf=ab suf=ab suf=ab suf=ab suf=ab suf=ab pre=null pre=ab pre=ab pre=ab pre=ab	
+_	w0=cd t0= p_1=I2lI1+I1l p_1=I2lI1+I1lt0= p_1=I2lI1+I1lw0=cd suf=null suf=cd suf=cd suf=cd suf=cd suf=cd suf=cd pre=null pre=cd pre=cd pre=cd pre=cd	
+R4h_D3eD2lD1lD0o	w0=Hello t0=_ p_1=bos p_1=bost0=_ p_1=bosw0=Hello suf=null suf=lo suf=llo suf=ello suf=Hello suf=Hello suf=Hello pre=null pre=He pre=Hel pre=Hell pre=Hello c	
+R4t_D3hD2eD1rD0e	w0=there t0=_ p_1=R4h_D3eD2lD1lD0o p_1=R4h_D3eD2lD1lD0ot0=_ p_1=R4h_D3eD2lD1lD0ow0=there suf=null suf=re suf=ere suf=here suf=there suf=there suf=there pre=null pre=th pre=the pre=ther pre=there	
+R4h_D3eD2lD1lD0o	w0=Hello t0=_ p_1=bos p_1=bost0=_ p_1=bosw0=Hello suf=null suf=lo suf=llo suf=ello suf=Hello suf=Hello suf=Hello pre=null pre=He pre=Hel pre=Hell pre=Hello c	
+R4w_D3oD2rD1lD0d	w0=World t0=_ p_1=R4h_D3eD2lD1lD0o p_1=R4h_D3eD2lD1lD0ot0=_ p_1=R4h_D3eD2lD1lD0ow0=World suf=null suf=ld suf=rld suf=orld suf=World suf=World suf=World pre=null pre=Wo pre=Wor pre=Worl pre=World c	
+R0a_	w0=a t0=_ p_1=bos p_1=bost0=_ p_1=bosw0=a suf=null suf=a suf=a suf=a suf=a suf=a suf=a pre=null pre=a pre=a pre=a pre=a	
+R4s_D3pD2lD1iD0t	w0=SPLIT t0=_ p_1=R0a_ p_1=R0a_t0=_ p_1=R0a_w0=SPLIT suf=null suf=IT suf=LIT suf=PLIT suf=SPLIT suf=SPLIT suf=SPLIT pre=null pre=SP pre=SPL pre=SPLI pre=SPLIT c	
+R0b_	w0=b t0=_ p_1=R4s_D3pD2lD1iD0t p_1=R4s_D3pD2lD1iD0tt0=_ p_1=R4s_D3pD2lD1iD0tw0=b suf=null suf=b suf=b suf=b suf=b suf=b suf=b pre=null pre=b pre=b pre=b pre=b	
+R0a_	w0=a t0=_ p_1=bos p_1=bost0=_ p_1=bosw0=a suf=null suf=a suf=a suf=a suf=a suf=a suf=a pre=null pre=a pre=a pre=a pre=a	
+R0<_	w0=< t0=_ p_1=R0a_ p_1=R0a_t0=_ p_1=R0a_w0=< suf=null suf=< suf=< suf=< suf=< suf=< suf=< pre=null pre=< pre=< pre=< pre=<	
+R0b_	w0=b t0=_ p_1=R0<_ p_1=R0<_t0=_ p_1=R0<_w0=b suf=null suf=b suf=b suf=b suf=b suf=b suf=b pre=null pre=b pre=b pre=b pre=b	
+_	w0= t0=_ p_1=bos p_1=bost0=_ p_1=bosw0= suf=null suf= suf= suf= suf= suf= suf= pre=null pre= pre= pre= pre=	
+R0y_	w0=y t0=_ p_1=_ p_1=_t0=_ p_1=_w0=y suf=null suf=y suf=y suf=y suf=y suf=y suf=y pre=null pre=y pre=y pre=y pre=y	
+_	w0= t0=_ p_1=R0y_ p_1=R0y_t0=_ p_1=R0y_w0= suf=null suf= suf= suf= suf= suf= suf= pre=null pre= pre= pre= pre=	
+R3l_D2aD1sD0t	w0=last t0=_ p_1=bos p_1=bost0=_ p_1=bosw0=last suf=null suf=st suf=ast suf=last suf=last suf=last suf=last pre=null pre=la pre=las pre=last pre=last	
+end	turbo:events
+layer	turbo:stream-errors	document	10	after:u32	class:str	message:str
+0	opennlp.tools.util.InvalidFormatException	Line [1\tnine\tnine\tNUM\t_\t_\t_\t_\t_] must have exactly 10 fields
+0	opennlp.tools.util.InvalidFormatException	Line [1\tempty\t_\t_\t_\t_\t_\t_\t_\t] must have exactly 10 fields
+2	opennlp.tools.util.InvalidFormatException	Line [   ] must have exactly 10 fields
+2	opennlp.tools.util.InvalidFormatException	Invalid multiword token id: 01-2
+2	opennlp.tools.util.InvalidFormatException	Multiword token id runs backwards: 2-1
+2	opennlp.tools.util.InvalidFormatException	Multiword token 1-3 has no word line for id 3
+2	opennlp.tools.util.InvalidFormatException	Locale language code is invalid: text_X
+2	java.lang.IndexOutOfBoundsException	Index 3 out of bounds for length 2
+21	opennlp.tools.util.InvalidFormatException	Invalid multiword token id: 2147483647-2147483648
+21	opennlp.tools.util.InvalidFormatException	Multiword token 2147483646-2147483647 has no word line for id 2147483646
+end	turbo:stream-errors
+layer	turbo:event-checksum	document	1	crc32c:u32
+3089130382
+end	turbo:event-checksum
+layer	turbo:manifest	document	8	key:str	value:str
+BeamSize	3
+Component-Name	StatisticalLemmatizer
+Language	es
+Manifest-Version	1.0
+OpenNLP-Version	3.0.0-SNAPSHOT
+TrainerType	Event
+Training-Eventhash	1
+factory	opennlp.tools.lemmatizer.LemmatizerFactory
+end	turbo:manifest
+layer	turbo:package-entries	document	2	name:str	length:u32
+manifest.properties	258
+lemmatizer.model	67
+end	turbo:package-entries

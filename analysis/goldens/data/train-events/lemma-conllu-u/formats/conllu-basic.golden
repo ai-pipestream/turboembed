@@ -1,0 +1,60 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	formats/conllu-basic	1620	1618	3997cb00603cdc6d6e9b5bea88a4291b2e44ceceec24a04d93df40e673f5828c
+annotator	opennlp.tools.lemmatizer.LemmaSampleEventStream	read
+config	format	conllu
+config	language	es
+config	run	lemma-conllu-u
+config	source	lemmatize
+config	tagset	u
+layer	turbo:events	document	27	outcome:str	context:str	values:str
+R4viR3arD2mD1oD0s	w0=Vamos t0=VERB p_1=bos p_1=bost0=VERB p_1=bosw0=Vamos suf=null suf=os suf=mos suf=amos suf=Vamos suf=Vamos suf=Vamos pre=null pre=Va pre=Vam pre=Vamo pre=Vamos c	
+I1+I1e	w0=al t0=ADP+DET p_1=R4viR3arD2mD1oD0s p_1=R4viR3arD2mD1oD0st0=ADP+DET p_1=R4viR3arD2mD1oD0sw0=al suf=null suf=al suf=al suf=al suf=al suf=al suf=al pre=null pre=al pre=al pre=al pre=al	
+O	w0=mar t0=NOUN p_1=I1+I1e p_1=I1+I1et0=NOUN p_1=I1+I1ew0=mar suf=null suf=ar suf=mar suf=mar suf=mar suf=mar suf=mar pre=null pre=ma pre=mar pre=mar pre=mar	
+D0l	w0=del t0=ADP+DET p_1=O p_1=Ot0=ADP+DET p_1=Ow0=del suf=null suf=el suf=del suf=del suf=del suf=del suf=del pre=null pre=de pre=del pre=del pre=del	
+O	w0=norte t0=NOUN p_1=D0l p_1=D0lt0=NOUN p_1=D0lw0=norte suf=null suf=te suf=rte suf=orte suf=norte suf=norte suf=norte pre=null pre=no pre=nor pre=nort pre=norte	
+O	w0=. t0=PUNCT p_1=O p_1=Ot0=PUNCT p_1=Ow0=. suf=null suf=. suf=. suf=. suf=. suf=. suf=. pre=null pre=. pre=. pre=. pre=.	
+O	w0=Ele t0=PRON p_1=bos p_1=bost0=PRON p_1=bosw0=Ele suf=null suf=le suf=Ele suf=Ele suf=Ele suf=Ele suf=Ele pre=null pre=El pre=Ele pre=Ele pre=Ele c	
+R0ur	w0=saiu t0=VERB p_1=O p_1=Ot0=VERB p_1=Ow0=saiu suf=null suf=iu suf=aiu suf=saiu suf=saiu suf=saiu suf=saiu pre=null pre=sa pre=sai pre=saiu pre=saiu	
+R0aeI0+I0o	w0=da t0=ADP+DET p_1=R0ur p_1=R0urt0=ADP+DET p_1=R0urw0=da suf=null suf=da suf=da suf=da suf=da suf=da suf=da pre=null pre=da pre=da pre=da pre=da	
+O	w0=casa t0=NOUN p_1=R0aeI0+I0o p_1=R0aeI0+I0ot0=NOUN p_1=R0aeI0+I0ow0=casa suf=null suf=sa suf=asa suf=casa suf=casa suf=casa suf=casa pre=null pre=ca pre=cas pre=casa pre=casa	
+_	w0=às t0=ADP+DET p_1=O p_1=Ot0=ADP+DET p_1=Ow0=às suf=null suf=às suf=às suf=às suf=às suf=às suf=às pre=null pre=às pre=às pre=às pre=às	
+O	w0=10 t0=NUM p_1=_ p_1=_t0=NUM p_1=_w0=10 suf=null suf=10 suf=10 suf=10 suf=10 suf=10 suf=10 pre=null pre=10 pre=10 pre=10 pre=10 d	
+I0oI0rI0a	w0=h t0=NOUN p_1=O p_1=Ot0=NOUN p_1=Ow0=h suf=null suf=h suf=h suf=h suf=h suf=h suf=h pre=null pre=h pre=h pre=h pre=h	
+O	w0=. t0=PUNCT p_1=I0oI0rI0a p_1=I0oI0rI0at0=PUNCT p_1=I0oI0rI0aw0=. suf=null suf=. suf=. suf=. suf=. suf=. suf=. pre=null pre=. pre=. pre=. pre=.	
+O	w0=Sue t0=PROPN p_1=bos p_1=bost0=PROPN p_1=bosw0=Sue suf=null suf=ue suf=Sue suf=Sue suf=Sue suf=Sue suf=Sue pre=null pre=Su pre=Sue pre=Sue pre=Sue c	
+D0s	w0=likes t0=VERB p_1=O p_1=Ot0=VERB p_1=Ow0=likes suf=null suf=es suf=kes suf=ikes suf=likes suf=likes suf=likes pre=null pre=li pre=lik pre=like pre=likes	
+O	w0=coffee t0=NOUN p_1=D0s p_1=D0st0=NOUN p_1=D0sw0=coffee suf=null suf=ee suf=fee suf=ffee suf=offee suf=coffee suf=coffee pre=null pre=co pre=cof pre=coff pre=coffe	
+O	w0=and t0=CCONJ p_1=O p_1=Ot0=CCONJ p_1=Ow0=and suf=null suf=nd suf=and suf=and suf=and suf=and suf=and pre=null pre=an pre=and pre=and pre=and	
+O	w0=Bill t0=PROPN p_1=O p_1=Ot0=PROPN p_1=Ow0=Bill suf=null suf=ll suf=ill suf=Bill suf=Bill suf=Bill suf=Bill pre=null pre=Bi pre=Bil pre=Bill pre=Bill c	
+D0s	w0=likes t0=VERB p_1=O p_1=Ot0=VERB p_1=Ow0=likes suf=null suf=es suf=kes suf=ikes suf=likes suf=likes suf=likes pre=null pre=li pre=lik pre=like pre=likes	
+O	w0=tea t0=NOUN p_1=D0s p_1=D0st0=NOUN p_1=D0sw0=tea suf=null suf=ea suf=tea suf=tea suf=tea suf=tea suf=tea pre=null pre=te pre=tea pre=tea pre=tea	
+O	w0=Sin t0=ADP p_1=bos p_1=bost0=ADP p_1=bosw0=Sin suf=null suf=in suf=Sin suf=Sin suf=Sin suf=Sin suf=Sin pre=null pre=Si pre=Sin pre=Sin pre=Sin c	
+O	w0=texto t0=NOUN p_1=O p_1=Ot0=NOUN p_1=Ow0=texto suf=null suf=to suf=xto suf=exto suf=texto suf=texto suf=texto pre=null pre=te pre=tex pre=text pre=texto	
+R3k_D2eD1pD0t	w0=Kept t0=_ p_1=bos p_1=bost0=_ p_1=bosw0=Kept suf=null suf=pt suf=ept suf=Kept suf=Kept suf=Kept suf=Kept pre=null pre=Ke pre=Kep pre=Kept pre=Kept c	
+R4i_D3nD2nD1eD0r	w0=inner t0=_ p_1=R3k_D2eD1pD0t p_1=R3k_D2eD1pD0tt0=_ p_1=R3k_D2eD1pD0tw0=inner suf=null suf=er suf=ner suf=nner suf=inner suf=inner suf=inner pre=null pre=in pre=inn pre=inne pre=inner	
+R5s_D4pD3aD2cD1eD0s	w0=spaces t0=_ p_1=R4i_D3nD2nD1eD0r p_1=R4i_D3nD2nD1eD0rt0=_ p_1=R4i_D3nD2nD1eD0rw0=spaces suf=null suf=es suf=ces suf=aces suf=paces suf=spaces suf=spaces pre=null pre=sp pre=spa pre=spac pre=space	
+R0,_	w0=, t0=_ p_1=R5s_D4pD3aD2cD1eD0s p_1=R5s_D4pD3aD2cD1eD0st0=_ p_1=R5s_D4pD3aD2cD1eD0sw0=, suf=null suf=, suf=, suf=, suf=, suf=, suf=, pre=null pre=, pre=, pre=, pre=,	
+end	turbo:events
+layer	turbo:stream-errors	document	0	after:u32	class:str	message:str
+end	turbo:stream-errors
+layer	turbo:event-checksum	document	1	crc32c:u32
+802023919
+end	turbo:event-checksum
+layer	turbo:manifest	document	8	key:str	value:str
+BeamSize	3
+Component-Name	StatisticalLemmatizer
+Language	es
+Manifest-Version	1.0
+OpenNLP-Version	3.0.0-SNAPSHOT
+TrainerType	Event
+Training-Eventhash	1
+factory	opennlp.tools.lemmatizer.LemmatizerFactory
+end	turbo:manifest
+layer	turbo:package-entries	document	2	name:str	length:u32
+manifest.properties	258
+lemmatizer.model	67
+end	turbo:package-entries

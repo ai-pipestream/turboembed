@@ -12,12 +12,12 @@ use std::path::Path;
 
 use serde::{Deserialize, Serialize};
 use turbo_eval::model_gate::ModelGateRecord;
-use turbo_train_segmentation::ud::{self, Component};
+use turbo_train_components::ud;
 use turbo_zoo::{Artifact, File, Kind, Licence, LicenceClass, Sha256, Sha512, TrainingData, class_of, index::Format};
 
 use crate::error::{Error, Result, io};
 use crate::masc::{self, Split};
-use crate::segmentation::{LANGUAGE, SENTENCES_PER_SAMPLE, SegmentationRecipe, TIMESTAMP_MS, Trained};
+use crate::segmentation::{Component, LANGUAGE, SENTENCES_PER_SAMPLE, SegmentationRecipe, TIMESTAMP_MS, Trained};
 
 /// The card's schema version.
 pub const CARD_VERSION: u32 = 1;

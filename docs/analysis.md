@@ -35,7 +35,7 @@ nothing here is in the C header or the gRPC server.
 | `turbo-stopword-layers` | `analysis/stopword-layers/` | The `turbo:stopwords` layer and the languages that have a list (`StopwordLanguage`) |
 | `turbo-bpe-trainer` | `analysis/bpe-trainer/` | BPE trainers, a tool and not an annotator: byte-level BPE as upstream `tokenizers` trains it, SentencePiece BPE as the sentencepiece library trains it, and OpenNLP's `BPETokenizerTrainer` with its `BPETokenizer` ([bpe-trainer.md](bpe-trainer.md)) |
 | `turbo-train` | `analysis/train/` | Training OpenNLP maxent models, the event side: `Event`, the `FileEventStream` and `RealValueFileEventStream` formats, the CRC-32C event checksum, the three data indexers with their cutoffs, sorting and merging, `TrainingParameters` with typed values and OpenNLP's parameters file, `AlgorithmType` and the trainer types, the progress monitors and stop criteria, the GIS trainer (`GISTrainer`, parameters bit for bit the JVM's after every iteration), the binary model writer (`GenericModelWriter`, bytes the JVM's) and the `.bin` packaging with its manifest (`BaseModel.serialize`; the entries are the JVM's bytes, the archive around them is written here and loads in both). Sample types belong to the formats crate; this one starts at events. Its crate documentation lists the OpenNLP behaviour that is surprising, and "Training goldens" below describes its JVM reference |
-| `turbo-train-segmentation` | `analysis/train-segmentation/` | Training the sentence detector and the tokenizer: `SDEventStream` and `TokSpanEventStream` with their factories (end characters, alphanumeric pattern, abbreviation dictionary), the `SentenceModel` and `TokenizerModel` files with every manifest entry and artifact the JVM writes (the dictionary as `Dictionary.serialize` writes it, zip entries in the JVM's order), and the recipes that train the published UD 1.3 sentence and token models again from their treebanks and compare them with the published files. Its own crate because `turbo-formats` depends on `turbo-tokenize`; "Training the sentence detector and tokenizer" below |
+| `turbo-train-components` | `analysis/train-components/` | Training the sentence detector, the tokenizer, the part-of-speech tagger and the lemmatizer: `SDEventStream`, `TokSpanEventStream`, `POSSampleEventStream` and `LemmaSampleEventStream` with their factories (end characters, alphanumeric pattern, abbreviation dictionary, feature generator descriptor, tag dictionary), the `SentenceModel`, `TokenizerModel`, `POSModel` and `LemmatizerModel` files with every manifest entry and artifact the JVM writes (the dictionaries as `Dictionary.serialize` and `POSDictionary.serialize` write them, zip entries in the JVM's order), and the recipes that train the eighteen published UD 1.3 models again from their treebanks and compare them with the published files. Its own crate because `turbo-formats` depends on `turbo-tokenize`; "Training the components" below |
 | `turbo-train-recipes` | `analysis/train-recipes/` | Recipes that train models on permissive data and gate them: MASC 3.0.0 (CC BY 3.0 US) with the record of its release and fixed split, the English sentence detector and tokenizer trained on it, their gate against the OpenNLP English UD models, the model card and the permissive zoo entry, and the `turbo-train-recipes` binary ("Models trained on permissive data", below) |
 | `turbo-formats` | `analysis/formats/` | OpenNLP's training samples (name, part-of-speech, lemma, chunk, token, sentence, document category and language samples), a reader per native format that reproduces OpenNLP's sample stream over the same text, the conversion of name and part-of-speech samples into token and sentence samples, the CoNLL-U readers of part-of-speech, lemma, sentence and token samples, the CoNLL-2002 and CoNLL-2003 name readers and the CoNLL-X part-of-speech reader, the MASC corpus reader and its part-of-speech, token, sentence and name samples, the named entity corpus readers (GermEval 2014, BioNLP 2004, Evalita, the 1990 census names, MUC-6 and brat), the format registry, and the evaluators and cross-validation folds (`FMeasure`, `Mean`, an evaluator per component). Every token and tag keeps its byte span in the source; the crate documentation lists the OpenNLP behaviour that is surprising, and its tests compare with the `formats`, `masc`, `ner` and `evaluate` goldens |
 | `turbo-parser` | `analysis/parser/` | OpenNLP's constituency `Parse` tree and Penn Treebank bracket I/O (`Parse::parse`, `Parse::show`, `ParseSampleStream`, `ParserPosSample`, `ParserChunkSample`, `space_untokenized_parens`), `HeadRules` and `GapLabeler` traits, `EnglishHeadRules` (`opennlp.tools.parser.lang.en.HeadRules`), and `AncoraSpanishHeadRules` (`opennlp.tools.parser.lang.es.AncoraSpanishHeadRules`) with a 62-state `u64` bitmask tag matcher (`TagPattern`). `analysis/parser/README.md` describes its JVM reference vectors |
@@ -1643,10 +1643,12 @@ Both trainers also run on the `postag` source with its many outcomes.
 `analysis/train/tests/goldens.rs` compares both trainers with every one of them, and
 `analysis/train/tests/roundtrip.rs` trains `analysis/maxent/tests/fixtures/models/qn.model` and `analysis/maxent/tests/fixtures/models/perceptron.model` again byte for byte. As for QN, the run `sentdetect-twopass-cutoff1-unsorted-perceptron` on `analysis/goldens/data/inputs/train/sentences.txt` is the JVM's training of the fixture `analysis/goldens/data/fixtures/en-plain-perceptron-rust.bin`, which `analysis/train/tests/roundtrip.rs` writes and checks and the generator loads as a sentence model (`sentdetect/en-plain-perceptron-rust`) for `analysis/sentdetect/tests/golden.rs`.
 
-`analysis/goldens/data/train-events/<run>/<set>/<id>.golden` (`EventGolden`)
+`analysis/goldens/data/train-events/<run>/<set>/<id>.golden` (`EventGolden`
+and `TaggerEventGolden`)
 extends the event side to the factory options `TrainGolden` leaves at
-their defaults, for `analysis/train-segmentation` to be compared with.
-Its five runs are the sentence detector with the English abbreviation
+their defaults and to the tagger and the lemmatizer, for
+`analysis/train-components` to be compared with.
+`EventGolden`'s five runs are the sentence detector with the English abbreviation
 dictionary and the Portuguese end characters the language supplies
 (`sentdetect-dictionary-pt`), with Thai's space and line feed
 (`sentdetect-th`), and over CoNLL-U input with ten sentences a sample
@@ -1667,16 +1669,38 @@ on the `train` input of the dictionary run `turbo:dictionary-cases`:
 `Dictionary.serialize` of dictionaries built in the generator (the
 English fixture, tokens with the characters the serializer escapes, an
 empty one, a case-sensitive one, forty entries, entries of several
-tokens, entries that differ only in case).
+tokens, entries that differ only in case). `TaggerEventGolden`'s six runs
+are `POSSampleEventStream` over the context generator a
+`POSTaggerFactory` with no descriptor makes (the default feature
+generators), over word and tag lines without and with the tag dictionary
+fixture `tags.tagdict` (`postag-wordtag`, `postag-wordtag-tagdict`) and
+over CoNLL-U in the universal and the language tag set
+(`postag-conllu-u`, `postag-conllu-x`), and `LemmaSampleEventStream` over
+word, tag and lemma lines and over CoNLL-U (`lemma-text`,
+`lemma-conllu-u`), on the `formats` inputs and the `tagged` inputs the
+Rust fixtures were trained from. Their goldens have the same layers, the
+model file being a `POSModel` or `LemmatizerModel` around a placeholder
+model whose outcomes are the dictionary's tags, with `turbo:tagdict`
+(the `tags.tagdict` entry) in place of `turbo:dictionary`, and on the
+`tagged` inputs of the dictionary run `turbo:tagdict-cases`:
+`POSDictionary.serialize` of dictionaries built in the generator (the
+fixture as read, the same word in three cases in a case-sensitive and a
+case-insensitive dictionary, words and tags with the characters the
+serializer escapes and an entry with no tags, an empty one, forty
+entries, words whose lowercase is not ASCII).
 
-## Training the sentence detector and tokenizer
+## Training the components
 
-`analysis/train-segmentation` is `SentenceDetectorME.train` and
-`TokenizerME.train`: it takes the samples `analysis/formats` reads
-(native one-per-line files or CoNLL-U), makes the events `SDEventStream`
-and `TokSpanEventStream` make, with the factory options a training tool
-can set (`useTokenEnd`, end characters, abbreviation dictionary;
-alphanumeric optimization and pattern), trains them with
+`analysis/train-components` is `SentenceDetectorME.train`,
+`TokenizerME.train`, `POSTaggerME.train` and `LemmatizerME.train`: it
+takes the samples `analysis/formats` reads (native one-per-line files or
+CoNLL-U), makes the events `SDEventStream`, `TokSpanEventStream`,
+`POSSampleEventStream` and `LemmaSampleEventStream` make, with the
+factory options a training tool can set (`useTokenEnd`, end characters,
+abbreviation dictionary; alphanumeric optimization and pattern; feature
+generator descriptor and tag dictionary), using the context generators
+the annotators infer with (`turbo-sentdetect`, `turbo-tokenize`,
+`turbo-sequence`, `turbo-lemmatizer`), trains them with
 `analysis/train`'s GIS trainer and writes the `.bin` file the JVM would
 write. It is a crate of its own because `turbo-formats` depends on
 `turbo-tokenize`, so a training module inside the annotator crates would
@@ -1691,35 +1715,53 @@ order and the zip entries in a Java `HashMap`'s order, both simulated;
 `new Dictionary(InputStream)` collapses case variants before it reads
 `case_sensitive`; the JDK's XML serializer writes characters outside the
 Basic Multilingual Plane, U+007F and the C1 controls as decimal character
-references and refuses the other C0 controls; and an empty training token asks the tokenizer's
-context generator for index 0.
+references and refuses the other C0 controls; an empty training token asks the tokenizer's
+context generator for index 0; a `POSTaggerFactory` with no descriptor
+loads the default one when its context generator is first made, so every
+trained tagger model carries `generator.featuregen`; `POSDictionary`
+lowercases a case-insensitive dictionary into a second `HashMap` in the
+first one's order and `serialize` writes that order, so a trained model's
+`tags.tagdict` is not the file it was read from, and the dictionary comes
+before the manifest among the zip entries; `POSModel` refuses a
+dictionary tag the model has no outcome for; and a lemma class is an edit
+script over UTF-16 units, which can hold half of a surrogate pair for a
+token or lemma outside the Basic Multilingual Plane, a class the JVM
+trains on and the crate refuses.
 
-`analysis/train-segmentation/tests/goldens.rs` compares the events with
+`analysis/train-components/tests/goldens.rs` compares the events with
 every `train` and `train-events` golden, and the stream errors, the
 manifest, the zip entries and the dictionaries with the `train-events`
-goldens. `analysis/train-segmentation/tests/fixtures.rs` trains the
-fixture models `en-plain.bin`,
-`en-abbrev.bin` and `tokenizer-abbreviations.bin` again from their
-training texts and checks the manifest, the dictionary and the model
-entries byte for byte.
+goldens. `analysis/train-components/tests/fixtures.rs` trains the
+fixture models `en-plain.bin`, `en-abbrev.bin`,
+`tokenizer-abbreviations.bin` and `pos-fixture.bin` again from their
+training texts and checks the manifest, the dictionaries, the descriptor
+and the model entries byte for byte, and trains the fixtures the Rust
+trainer wrote, `pos-fixture-rust.bin` (with the tag dictionary) and
+`lemma-fixture-rust.bin`, from `analysis/goldens/data/inputs/tagged/`,
+checking they are the checked in files; the generator loads those two in
+the JVM (`postag/pos-fixture-rust`, `lemmatize/lemma-fixture-rust`) so
+that `analysis/postag/tests/golden.rs` and
+`analysis/lemmatizer/tests/golden.rs` compare the JVM's tags, lemmas and
+probabilities with them against the Rust annotators'.
 
-The `ud` module holds the recipes of the eight published
-`opennlp-{en,de,es,fr,pt}-ud-{ewt,gsd}-{sentence,tokens}-1.3-2.5.4.bin`
+The `ud` module holds the recipes of the eighteen published
+`opennlp-{en,de,es,fr,pt}-ud-{ewt,gsd}-{sentence,tokens,pos,lemmas}-1.3-2.5.4.bin`
 models as typed data: the treebank (`UniversalDependencies/UD_*` at
 release 2.16, its `train` file, size and digests, CC BY-SA 4.0), the
 component, the factory the 2.5.4 trainer tool builds and the training
 parameters of `ud-train.conf` in `apache/opennlp-models` (`MAXENT`,
-cutoff 5, four threads) with OpenNLP 2.5.4's whitespace definition and
-the publisher's time zone. The treebanks are CC BY-SA, so the recipes
-fetch them through `turbo-zoo` by digest after the licence is accepted
-and never check them in; `ud::datasets()` is their zoo index. The
-reproduction is `analysis/train-segmentation/tests/reproduce.rs`, ignored
-by default:
+cutoff 5, four threads) with OpenNLP 2.5.4's whitespace definition, the
+universal tag set and the publisher's time zone. The treebanks are CC
+BY-SA, so the recipes fetch them through `turbo-zoo` by digest after the
+licence is accepted and never check them in; `ud::datasets()` is their
+zoo index, and a published model not under `TURBO_GOLDENS_MODELS` is
+fetched through the zoo's built-in index. The reproduction is
+`analysis/train-components/tests/reproduce.rs`, ignored by default:
 
 ```text
 cargo run -p turbo-zoo -- accept CC-BY-SA-4.0 --yes
 cargo run -p turbo-goldens-tool -- fetch-models <dir>
-TURBO_GOLDENS_MODELS=<dir> cargo test -p turbo-train-segmentation --release --test reproduce -- --ignored --nocapture
+TURBO_GOLDENS_MODELS=<dir> cargo test -p turbo-train-components --release --test reproduce -- --ignored --nocapture
 ```
 
 It reports per model whether the event checksum, the manifest and the
@@ -1730,13 +1772,17 @@ were trained with 300 iterations, not the 150 the committed
 `ud-train.conf` says (the English sentence model's parameters after
 every iteration of a longer run were compared with the file; 300 agrees,
 299 and 301 do not), so the recipes use 300. And with 300 iterations the
-events, manifests, predicates and patterns of all eight models come out
+events, manifests, predicates and patterns of all eighteen models come out
 exactly while the parameters differ in their last bits, by 2.2e-15 to
-9.8e-15 at most depending on the model. The JVM of the goldens
-container, running the fork's trainer on the same events, writes the
-parameters this port writes and shows the same residual against the
-published file, so the residual is not between the port and the fork's
-trainer; its cause is not known (`GISTrainer` uses `StrictMath` and
+9.8e-15 at most for the sentence and token models, by 1.6e-14 to 1.4e-13
+for the taggers and by 8.0e-15 to 1.8e-14 for the lemmatizers, depending
+on the model. For the eight sentence and token models the JVM of the
+goldens container, running the fork's trainer on the same events, writes
+the parameters this port writes and shows the same residual against the
+published file (checked in #394), so for them the residual is not between
+the port and the fork's trainer; the taggers and lemmatizers were not run
+through the fork's trainer in the container, only compared with the
+published files. Its cause is not known (`GISTrainer` uses `StrictMath` and
 merges its threads' sums in a fixed order, so platform `Math` intrinsics
 and thread timing do not explain it), and the next experiment is to run
 the OpenNLP 2.5.4 command line itself in the container on the same

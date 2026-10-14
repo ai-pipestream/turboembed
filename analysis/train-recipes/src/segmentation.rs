@@ -3,7 +3,7 @@
 //!
 //! Each recipe trains on the training documents of [`crate::masc::SPLIT`]
 //! with the factory defaults and the parameters the published UD 1.3
-//! models were trained with ([`turbo_train_segmentation::ud`]: GIS,
+//! models were trained with ([`turbo_train_components::ud`]: GIS,
 //! 300 iterations, cutoff 5, 4 threads, OpenNLP 2.5.4's whitespace), so
 //! the trained model and the reference differ in their data, not their
 //! settings. Training uses no randomness, so the recipe has no seed.
@@ -32,11 +32,18 @@ use turbo_sentdetect::{SentenceDetector, SentenceModel};
 use turbo_tokenize::TokenizerOptions;
 use turbo_tokenize::me::{TokenizerMe, TokenizerModel};
 use turbo_train::TrainingConfiguration;
-use turbo_train_segmentation::ud::{self, Component};
-use turbo_train_segmentation::{SentenceDetectorFactory, Stamp, TokenizerFactory, sentdetect, tokenize};
+use turbo_train_components::ud;
+use turbo_train_components::{SentenceDetectorFactory, Stamp, TokenizerFactory, sentdetect, tokenize};
 use turbo_zoo::{Index, Sha256};
 
 use crate::error::{Error, Result};
+
+/// The segmentation component a recipe trains.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Component {
+    Sentence,
+    Tokens,
+}
 
 /// The language of the models.
 pub const LANGUAGE: &str = "en";
