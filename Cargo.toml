@@ -36,6 +36,7 @@ members = [
     "analysis/eval",
     "analysis/train",
     "analysis/formats",
+    "analysis/fuzz",
     "analysis/zoo",
 ]
 resolver = "3"
