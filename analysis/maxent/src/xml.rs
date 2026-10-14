@@ -10,7 +10,10 @@
 //! `\n` and attribute values have their whitespace normalized, as XML 1.0
 //! requires. A namespace prefix is dropped from element and attribute
 //! names, and `xmlns` attributes are not reported, which is what a
-//! namespace-aware SAX parser hands OpenNLP's dictionary reader.
+//! namespace-aware SAX parser hands OpenNLP's dictionary reader as local
+//! names. [`parse_with`] can report the qualified names instead, which is
+//! what a handler that reads SAX's `qName` sees (OpenNLP's MASC readers,
+//! in `turbo-formats`).
 //!
 //! A document type declaration is an error, as it is for OpenNLP, which
 //! sets `disallow-doctype-decl`. Other well-formedness errors (mismatched
@@ -101,13 +104,36 @@ fn declared_encoding(bytes: &[u8]) -> Option<&[u8]> {
     Some(&value[..close])
 }
 
-/// Parses a decoded document, calling `handler` for its content.
+/// The names a [`Handler`] is given for elements and attributes.
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+pub enum Names {
+    /// The local name, without a namespace prefix: SAX's `localName`.
+    Local,
+    /// The name as written, prefix and all: SAX's `qName`.
+    Qualified,
+}
+
+/// Parses a decoded document, calling `handler` for its content with
+/// local names.
 pub fn parse(text: &str, handler: &mut impl Handler) -> Result<()> {
+    parse_with(text, Names::Local, handler)
+}
+
+/// Parses a decoded document, calling `handler` for its content with the
+/// `names` asked for. `xmlns` attributes are not reported either way.
+pub fn parse_with(text: &str, names: Names, handler: &mut impl Handler) -> Result<()> {
     if let Some((offset, _)) = text.char_indices().find(|&(_, c)| !is_xml_char(c)) {
         return Err(Error::Xml { offset, message: "a character XML does not allow" });
     }
-    let mut p =
-        Parser { text, pos: 0, stack: Vec::new(), attributes: Vec::new(), qualified: Vec::new(), root_seen: false };
+    let mut p = Parser {
+        text,
+        pos: 0,
+        stack: Vec::new(),
+        attributes: Vec::new(),
+        qualified: Vec::new(),
+        root_seen: false,
+        names,
+    };
     p.document(handler)
 }
 
@@ -150,9 +176,18 @@ struct Parser<'a> {
     /// for refusing one given twice.
     qualified: Vec<&'a str>,
     root_seen: bool,
+    names: Names,
 }
 
 impl<'a> Parser<'a> {
+    /// The name the handler is given for `name` as written.
+    fn reported(&self, name: &'a str) -> &'a str {
+        match self.names {
+            Names::Local => local(name),
+            Names::Qualified => name,
+        }
+    }
+
     fn err<T>(&self, offset: usize, message: &'static str) -> Result<T> {
         Err(Error::Xml { offset, message })
     }
@@ -282,7 +317,7 @@ impl<'a> Parser<'a> {
                     if self.stack.is_empty() {
                         self.root_seen = true;
                     }
-                    return handler.end_element(local(name), start);
+                    return handler.end_element(self.reported(name), start);
                 }
                 Some(_) if spaced => self.attribute()?,
                 Some(_) => return self.err(self.pos, "a start tag needs a space before each attribute"),
@@ -294,7 +329,7 @@ impl<'a> Parser<'a> {
     fn open(&mut self, name: &'a str, start: usize, handler: &mut impl Handler) -> Result<()> {
         self.stack.push(name);
         self.root_seen = true;
-        handler.start_element(local(name), &self.attributes, start)
+        handler.start_element(self.reported(name), &self.attributes, start)
     }
 
     fn attribute(&mut self) -> Result<()> {
@@ -326,7 +361,7 @@ impl<'a> Parser<'a> {
         let value = attribute_value(raw, value_start)?;
         self.qualified.push(qualified);
         if qualified != "xmlns" && !qualified.starts_with("xmlns:") {
-            self.attributes.push(Attribute { name: local(qualified), value });
+            self.attributes.push(Attribute { name: self.reported(qualified), value });
         }
         Ok(())
     }
@@ -341,7 +376,7 @@ impl<'a> Parser<'a> {
         }
         self.pos += 1;
         match self.stack.pop() {
-            Some(open) if open == name => handler.end_element(local(name), start),
+            Some(open) if open == name => handler.end_element(self.reported(name), start),
             Some(_) => self.err(start, "an end tag does not match its start tag"),
             None => self.err(start, "an end tag with no open element"),
         }
@@ -527,6 +562,13 @@ mod tests {
     #[test]
     fn prefixes_are_dropped_and_xmlns_is_not_reported() {
         assert_eq!(log("<n:d xmlns:n=\"urn:x\" n:a=\"1\"></n:d>"), "<d a=1></d>");
+    }
+
+    #[test]
+    fn qualified_names_keep_their_prefixes() {
+        let mut l = Log::default();
+        parse_with("<n:d xmlns:n=\"urn:x\" xml:id=\"1\"><e/></n:d>", Names::Qualified, &mut l).unwrap();
+        assert_eq!(l.0, "<n:d xml:id=1><e></e></n:d>");
     }
 
     #[test]
