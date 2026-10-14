@@ -103,8 +103,8 @@ are not taken from any corpus.
   (`analysis/sentdetect/tests/fixtures/sentences.txt`), for the training
   goldens.
 
-- `inputs/formats/`: 35 small files in OpenNLP's native sample formats,
-  in CoNLL-U and in MASC's layout, written for this project except as
+- `inputs/formats/`: 41 small files in OpenNLP's native sample formats,
+  in CoNLL-U, CoNLL-2002, CoNLL-2003, CoNLL-X and in MASC's layout, written for this project except as
   noted below; the part of the id before
   the first hyphen names the format, or for the evaluator inputs the
   part after `pairs-` (`name`, `wordtag`, `lemma`,
@@ -136,6 +136,17 @@ are not taken from any corpus.
   offsets), a name predicted twice,
   pairs with nothing to find, and sentence ends that only one
   whitespace mode trims.
+
+  The `conll02`, `conll03` and `conllx` files, and `chunk-conll2000.txt`,
+  are sentences written for this project in the layouts of the CoNLL
+  shared tasks (no text of the CoNLL corpora): document starts that
+  clear adaptive data, one followed by an empty line and one by a
+  sentence, one at the end of the file, a line that starts with
+  `-DOCSTART-` and goes on, IOB1 and IOB2 name tags, `I-` tags that open
+  a name or change its type, adjacent `B-` names, unknown types, invalid
+  tags, lines with too few and too many fields, a line of spaces, CR LF,
+  accented letters, ten and fewer columns, empty columns, and a last line
+  without a line feed.
 
   The `masc-` files are corpus directories bundled into one text (see
   "MASC goldens" in `analysis/goldens-tool/README.md`), with text and

@@ -303,7 +303,7 @@ final class FormatGolden implements AnnotatorGolden {
     return layers;
   }
 
-  private static String message(Exception e) {
+  static String message(Exception e) {
     return e.getMessage() == null ? "" : e.getMessage();
   }
 
@@ -337,7 +337,7 @@ final class FormatGolden implements AnnotatorGolden {
     return c.layer(id, "document", "sample", "start", "end", "type");
   }
 
-  private static void names(List<Object> samples, List<Layer> layers) {
+  static void names(List<Object> samples, List<Layer> layers) {
     List<String[]> toks = new ArrayList<>();
     List<Span[]> names = new ArrayList<>();
     for (Object o : samples) {
@@ -349,7 +349,7 @@ final class FormatGolden implements AnnotatorGolden {
     layers.add(spans("turbo:names", names));
   }
 
-  private static void tagged(List<Object> samples, List<Layer> layers) {
+  static void tagged(List<Object> samples, List<Layer> layers) {
     List<String[]> toks = new ArrayList<>();
     List<String[]> tags = new ArrayList<>();
     for (Object o : samples) {
@@ -417,7 +417,7 @@ final class FormatGolden implements AnnotatorGolden {
     layers.add(c.layer("turbo:sample-spans", "document", "sample", "start", "end"));
   }
 
-  private static void tokenSamples(Input input, List<Object> samples, List<Layer> layers) {
+  static void tokenSamples(Input input, List<Object> samples, List<Layer> layers) {
     List<String> texts = new ArrayList<>();
     List<Span[]> spans = new ArrayList<>();
     for (Object o : samples) {
@@ -428,7 +428,7 @@ final class FormatGolden implements AnnotatorGolden {
     texts(texts, spans, input, layers);
   }
 
-  private static void sentenceSamples(Input input, List<Object> samples, List<Layer> layers) {
+  static void sentenceSamples(Input input, List<Object> samples, List<Layer> layers) {
     List<String> texts = new ArrayList<>();
     List<Span[]> spans = new ArrayList<>();
     for (Object o : samples) {

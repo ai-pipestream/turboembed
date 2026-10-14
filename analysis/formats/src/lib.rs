@@ -18,6 +18,9 @@
 //! - [`conllu`]: the CoNLL-U format, `ConlluStream`, and the
 //!   part-of-speech, lemma, sentence and token samples OpenNLP reads
 //!   from it.
+//! - [`conll`]: the CoNLL-2002 and CoNLL-2003 name formats and the
+//!   CoNLL-X part-of-speech format (CoNLL-2000 chunks are the native chunk
+//!   format).
 //! - [`masc`]: the MASC corpus (GrAF stand-off XML), `MascDocumentStream`
 //!   and the part-of-speech, token, sentence and name samples OpenNLP
 //!   reads from it. A corpus is a directory of files, so it is not in the
@@ -87,6 +90,7 @@
 //!   and the samples here do not hold them. The parse samples of the
 //!   parser are not ported.
 
+pub mod conll;
 pub mod conllu;
 pub mod convert;
 pub mod encoding;

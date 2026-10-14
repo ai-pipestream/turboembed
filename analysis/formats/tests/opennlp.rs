@@ -16,6 +16,9 @@ use std::fmt::Display;
 use std::path::{Path, PathBuf};
 
 use turbo_analysis::Span;
+use turbo_formats::conll::{
+    Conll02Language, Conll02Reader, Conll03Language, Conll03Reader, ConllXPosReader, EntityTypes,
+};
 use turbo_formats::conllu::{ConlluLemmaReader, ConlluPosReader, ConlluSentenceReader, ConlluTokenReader, Tagset};
 use turbo_formats::convert::{ChunkSize, ToSentenceSamples, ToTokenSamples};
 use turbo_formats::native::{
@@ -376,6 +379,68 @@ fn rebuild(run: &str, input: &str, dictionary: &DetokenizerDictionary) -> Rebuil
                 sentence_texts(&samples, &mut out);
             }
         }
+        "conll02-nld"
+        | "conll02-spa"
+        | "conll02-spa-per-loc"
+        | "conll03-eng"
+        | "conll03-deu"
+        | "conll03-eng-org-misc" => {
+            // the factories' `types` parameter of each run
+            let types = match kind {
+                "conll02-spa-per-loc" => "per,loc",
+                "conll03-eng-org-misc" => "org,misc",
+                _ => "per,org,loc,misc",
+            };
+            let types = EntityTypes::from_param(types);
+            let samples = if kind.starts_with("conll02") {
+                let language = Conll02Language::from_code(&kind[8..11]).unwrap();
+                drain(Conll02Reader::new(input, language, types).unwrap(), &mut out)
+            } else {
+                let language = Conll03Language::from_code(&kind[8..11]).unwrap();
+                drain(Conll03Reader::new(input, language, types).unwrap(), &mut out)
+            };
+            written(&samples, &mut out);
+            tokens(samples.iter().map(|s| s.tokens()), &mut out);
+            out.layer("turbo:names");
+            for (i, s) in samples.iter().enumerate() {
+                check_fields(input, s.tokens());
+                for n in s.names() {
+                    spans("turbo:names", i, n.start, n.end, n.kind.unwrap(), &mut out);
+                }
+                let lines = &input[s.source().range()];
+                assert!(s.tokens().iter().all(|t| lines.contains(t.as_str())));
+            }
+        }
+        "conllx-pos" => {
+            let samples = drain(ConllXPosReader::new(input).unwrap(), &mut out);
+            written(&samples, &mut out);
+            tokens(samples.iter().map(|s| s.tokens()), &mut out);
+            column("turbo:sample-tags", samples.iter().map(|s| s.tags()), &mut out);
+            for s in &samples {
+                check_fields(input, s.tokens());
+                check_fields(input, s.tags());
+            }
+        }
+        "conllx-token" => {
+            let samples = drain(
+                ToTokenSamples::new(ConllXPosReader::new(input).unwrap(), Detokenizer::new(dictionary)),
+                &mut out,
+            );
+            written(&samples, &mut out);
+            token_texts(&samples, &mut out);
+            for s in &samples {
+                for (i, src) in s.sources().iter().enumerate() {
+                    assert_eq!(&input[src.range()], s.token(i));
+                }
+            }
+        }
+        "conllx-sentence" => {
+            let chunk = ChunkSize::Samples(std::num::NonZeroUsize::new(2).unwrap());
+            let reader = ConllXPosReader::new(input).unwrap();
+            let samples = drain(ToSentenceSamples::new(reader, Detokenizer::new(dictionary), chunk), &mut out);
+            written(&samples, &mut out);
+            sentence_texts(&samples, &mut out);
+        }
         "conllu-pos-u" | "conllu-pos-x" => {
             let tagset = if kind.ends_with('u') { Tagset::U } else { Tagset::X };
             let samples = drain(ConlluPosReader::new(input, tagset).unwrap(), &mut out);
@@ -453,7 +518,7 @@ fn every_format_golden_matches() {
     let dictionary = dictionary(&data);
     let shapes = shapes();
     let all = goldens();
-    assert!(all.len() >= 53, "only {} formats goldens", all.len());
+    assert!(all.len() >= 69, "only {} formats goldens", all.len());
     for (run, path) in all {
         let golden = Golden::read_with(&path, &shapes).unwrap();
         let input = golden.input_text(&data).unwrap();

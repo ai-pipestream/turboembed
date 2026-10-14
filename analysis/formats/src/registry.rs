@@ -15,8 +15,10 @@
 //! dictionary, so they are registered by whoever has one (OpenNLP names
 //! them `namefinder` and `pos`, after the samples they read). The CoNLL-U
 //! formats ([`ConlluPos`], [`ConlluLemmas`], [`ConlluSentences`] and
-//! [`ConlluTokens`]) are named [`CONLLU_FORMAT`]; readers of other corpora
-//! register the same way.
+//! [`ConlluTokens`]) are named [`CONLLU_FORMAT`], and the CoNLL formats
+//! [`Conll02Names`], [`Conll03Names`], [`ConllXPos`], [`ConllXTokens`] and
+//! [`ConllXSentences`] `conll02`, `conll03` and `conllx`; readers of other
+//! corpora register the same way.
 //!
 //! A duplicate name is refused and the first format kept, as
 //! `StreamFactoryRegistry.registerFactory` keeps it.
@@ -27,6 +29,10 @@ use std::sync::Arc;
 use turbo_tokenize::detok::{Detokenizer, DetokenizerDictionary};
 use turbo_unicode::WhitespaceMode;
 
+use crate::conll::{
+    CONLL02_FORMAT, CONLL03_FORMAT, CONLLX_FORMAT, Conll02Language, Conll02Reader, Conll03Language, Conll03Reader,
+    ConllXPosReader, EntityTypes,
+};
 use crate::conllu::{ConlluLemmaReader, ConlluPosReader, ConlluSentenceReader, ConlluTokenReader, Tagset};
 use crate::convert::{ChunkSize, ToSentenceSamples, ToTokenSamples};
 use crate::error::FormatError;
@@ -380,6 +386,93 @@ impl Format<TokenSamples> for ConlluTokens {
     }
 }
 
+/// Name samples from CoNLL-2002 (`Conll02NameSampleStreamFactory`, whose
+/// `lang` and `types` parameters have no default).
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
+pub struct Conll02Names {
+    pub language: Conll02Language,
+    pub types: EntityTypes,
+}
+
+impl Format<NameSamples> for Conll02Names {
+    fn name(&self) -> &str {
+        CONLL02_FORMAT
+    }
+
+    fn open<'a>(&'a self, source: &'a str, _options: ReadOptions) -> Result<Samples<'a, NameSamples>, FormatError> {
+        Ok(Box::new(Conll02Reader::new(source, self.language, self.types)?))
+    }
+}
+
+/// Name samples from CoNLL-2003 (`Conll03NameSampleStreamFactory`, whose
+/// `lang` and `types` parameters have no default).
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
+pub struct Conll03Names {
+    pub language: Conll03Language,
+    pub types: EntityTypes,
+}
+
+impl Format<NameSamples> for Conll03Names {
+    fn name(&self) -> &str {
+        CONLL03_FORMAT
+    }
+
+    fn open<'a>(&'a self, source: &'a str, _options: ReadOptions) -> Result<Samples<'a, NameSamples>, FormatError> {
+        Ok(Box::new(Conll03Reader::new(source, self.language, self.types)?))
+    }
+}
+
+/// Part-of-speech samples from CoNLL-X (`ConllXPOSSampleStreamFactory`).
+#[derive(Copy, Clone, Debug, Default, PartialEq, Eq, Hash)]
+pub struct ConllXPos;
+
+impl Format<PosSamples> for ConllXPos {
+    fn name(&self) -> &str {
+        CONLLX_FORMAT
+    }
+
+    fn open<'a>(&'a self, source: &'a str, _options: ReadOptions) -> Result<Samples<'a, PosSamples>, FormatError> {
+        Ok(Box::new(ConllXPosReader::new(source)?))
+    }
+}
+
+/// Token samples converted from CoNLL-X part-of-speech samples with a
+/// detokenizer dictionary (`ConllXTokenSampleStreamFactory`).
+#[derive(Clone, Debug)]
+pub struct ConllXTokens {
+    pub dictionary: Arc<DetokenizerDictionary>,
+}
+
+impl Format<TokenSamples> for ConllXTokens {
+    fn name(&self) -> &str {
+        CONLLX_FORMAT
+    }
+
+    fn open<'a>(&'a self, source: &'a str, _options: ReadOptions) -> Result<Samples<'a, TokenSamples>, FormatError> {
+        Ok(Box::new(ToTokenSamples::new(ConllXPosReader::new(source)?, Detokenizer::new(&self.dictionary))))
+    }
+}
+
+/// Sentence samples converted from CoNLL-X part-of-speech samples with a
+/// detokenizer dictionary (`ConllXSentenceSampleStreamFactory`, which
+/// uses a chunk size of 30, [`ChunkSize::COMMAND_LINE`]).
+#[derive(Clone, Debug)]
+pub struct ConllXSentences {
+    pub dictionary: Arc<DetokenizerDictionary>,
+    pub chunk: ChunkSize,
+}
+
+impl Format<SentenceSamples> for ConllXSentences {
+    fn name(&self) -> &str {
+        CONLLX_FORMAT
+    }
+
+    fn open<'a>(&'a self, source: &'a str, _options: ReadOptions) -> Result<Samples<'a, SentenceSamples>, FormatError> {
+        let detokenizer = Detokenizer::new(&self.dictionary);
+        Ok(Box::new(ToSentenceSamples::new(ConllXPosReader::new(source)?, detokenizer, self.chunk)))
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -414,5 +507,25 @@ mod tests {
         let samples: Vec<_> =
             r.open("namefinder", "<START:x> a <END> b", ReadOptions::default()).unwrap().map(Result::unwrap).collect();
         assert_eq!(samples[0].text(), "a b");
+    }
+
+    #[test]
+    fn conll_formats_register_by_name() {
+        let mut names = Registry::<NameSamples>::with_native();
+        names.register(Conll02Names { language: Conll02Language::Dutch, types: EntityTypes::ALL }).unwrap();
+        names.register(Conll03Names { language: Conll03Language::English, types: EntityTypes::ALL }).unwrap();
+        assert_eq!(names.names().collect::<Vec<_>>(), [OPENNLP_FORMAT, CONLL02_FORMAT, CONLL03_FORMAT]);
+        let read = |format: &str, src: &str| -> Vec<String> {
+            names.open(format, src, ReadOptions::default()).unwrap().map(|s| s.unwrap().to_string()).collect()
+        };
+        assert_eq!(read(CONLL02_FORMAT, "Gent N B-LOC\nis V O\n"), ["<START:location> Gent <END> is"]);
+        assert_eq!(read(CONLL03_FORMAT, "Gent NNP I-NP I-LOC\nis VBZ I-VP O\n"), ["<START:location> Gent <END> is"]);
+
+        let mut tokens = Registry::<TokenSamples>::with_native();
+        tokens.register(ConllXTokens { dictionary: Arc::new(DetokenizerDictionary::new()) }).unwrap();
+        let src = "1\tHet\thet\tArt\tDT\n2\tregent\tregenen\tV\tVBZ\n";
+        let samples: Vec<_> =
+            tokens.open(CONLLX_FORMAT, src, ReadOptions::default()).unwrap().map(Result::unwrap).collect();
+        assert_eq!(samples[0].text(), "Het regent");
     }
 }

@@ -1,0 +1,214 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	formats/chunk-conll2000	677	677	a2280719788685ab8c46745bf0e4aeceaa27ee37c10dce85a50710536b60af03
+annotator	opennlp.tools.chunker.ChunkSampleStream	read
+layer	turbo:samples	document	3	written:str
+The DT B-NP\nsmall JJ I-NP\nbakery NN I-NP\non IN B-PP\nElm NNP B-NP\nStreet NNP I-NP\nhas VBZ B-VP\nquietly RB I-VP\nstarted VBN I-VP\nto TO I-VP\nsell VB I-VP\nrye NN B-NP\nbread NN I-NP\nbecause IN B-SBAR\nits PRP$ B-NP\nowners NNS I-NP\n, , O\ntired JJ B-ADJP\nof IN B-PP\nwaiting VBG B-VP\n, , O\nwanted VBD B-VP\nto TO I-VP\ntry VB I-VP\na DT B-NP\nnew JJ I-NP\nrecipe NN I-NP\nfrom IN B-PP\nAna NNP B-NP\nand CC I-NP\nLee NNP I-NP\n's POS B-NP\nold JJ I-NP\nnotebook NN I-NP\n. . O\n
+`` `` O\nWe PRP B-NP\nthink VBP B-VP\nit PRP B-NP\n's VBZ B-VP\nfine JJ B-ADJP\n'' '' O\n, , O\nshe PRP B-NP\nsaid VBD B-VP\n. . O\n
+Kim NNP I-NP\nsaid VBD I-VP\nthe DT I-NP\nplan NN I-NP\ncalls VBZ I-VP\nfor IN I-SBAR\nit PRP I-NP\n. . O\n
+end	turbo:samples
+layer	turbo:read-errors	document	0	after:u32	class:str	message:str
+end	turbo:read-errors
+layer	turbo:sample-tokens	document	54	sample:u32	text:str
+0	The
+0	small
+0	bakery
+0	on
+0	Elm
+0	Street
+0	has
+0	quietly
+0	started
+0	to
+0	sell
+0	rye
+0	bread
+0	because
+0	its
+0	owners
+0	,
+0	tired
+0	of
+0	waiting
+0	,
+0	wanted
+0	to
+0	try
+0	a
+0	new
+0	recipe
+0	from
+0	Ana
+0	and
+0	Lee
+0	's
+0	old
+0	notebook
+0	.
+1	``
+1	We
+1	think
+1	it
+1	's
+1	fine
+1	''
+1	,
+1	she
+1	said
+1	.
+2	Kim
+2	said
+2	the
+2	plan
+2	calls
+2	for
+2	it
+2	.
+end	turbo:sample-tokens
+layer	turbo:sample-tags	aligned:turbo:sample-tokens	54	tag:str
+DT
+JJ
+NN
+IN
+NNP
+NNP
+VBZ
+RB
+VBN
+TO
+VB
+NN
+NN
+IN
+PRP$
+NNS
+,
+JJ
+IN
+VBG
+,
+VBD
+TO
+VB
+DT
+JJ
+NN
+IN
+NNP
+CC
+NNP
+POS
+JJ
+NN
+.
+``
+PRP
+VBP
+PRP
+VBZ
+JJ
+''
+,
+PRP
+VBD
+.
+NNP
+VBD
+DT
+NN
+VBZ
+IN
+PRP
+.
+end	turbo:sample-tags
+layer	turbo:sample-chunks	aligned:turbo:sample-tokens	54	chunk:str
+B-NP
+I-NP
+I-NP
+B-PP
+B-NP
+I-NP
+B-VP
+I-VP
+I-VP
+I-VP
+I-VP
+B-NP
+I-NP
+B-SBAR
+B-NP
+I-NP
+O
+B-ADJP
+B-PP
+B-VP
+O
+B-VP
+I-VP
+I-VP
+B-NP
+I-NP
+I-NP
+B-PP
+B-NP
+I-NP
+I-NP
+B-NP
+I-NP
+I-NP
+O
+O
+B-NP
+B-VP
+B-NP
+B-VP
+B-ADJP
+O
+O
+B-NP
+B-VP
+O
+I-NP
+I-VP
+I-NP
+I-NP
+I-VP
+I-SBAR
+I-NP
+O
+end	turbo:sample-chunks
+layer	turbo:phrases	document	28	sample:u32	start:u32	end:u32	type:str
+0	0	3	NP
+0	3	4	PP
+0	4	6	NP
+0	6	11	VP
+0	11	13	NP
+0	13	14	SBAR
+0	14	16	NP
+0	17	18	ADJP
+0	18	19	PP
+0	19	20	VP
+0	21	24	VP
+0	24	27	NP
+0	27	28	PP
+0	28	31	NP
+0	31	34	NP
+1	1	2	NP
+1	2	3	VP
+1	3	4	NP
+1	4	5	VP
+1	5	6	ADJP
+1	8	9	NP
+1	9	10	VP
+2	0	1	NP
+2	1	2	VP
+2	2	4	NP
+2	4	5	VP
+2	5	6	SBAR
+2	6	7	NP
+end	turbo:phrases
+layer	turbo:phrase-errors	document	0	sample:u32	class:str	message:str
+end	turbo:phrase-errors
