@@ -13,7 +13,7 @@
 use std::marker::PhantomData;
 use std::sync::Arc;
 
-use turbo_analysis::{Anchor, Ix, IxRange, Key, KeyId, Layer, ModelRef, Spans, ViewId};
+use turbo_analysis::{Anchor, Ix, IxRange, Key, KeyId, Layer, LayerName, ModelRef, Spans, ViewId};
 pub use turbo_analysis::{Edge, Edges, Groups, Tag, TagSet};
 
 pub use levels::{Level, Levels, Unit, VectorKind};
@@ -542,7 +542,7 @@ impl<L: Layer> Vectors<L> {
 
 impl<L: Layer> Layer for Vectors<L> {
     const ID: &'static str = "opennlp:embeddings";
-    const OF: &'static str = L::ID;
+    const OF: Option<&'static LayerName> = Some(L::NAME);
     fn anchor() -> Anchor {
         Anchor::aligned::<L>()
     }
@@ -581,7 +581,7 @@ impl<L: Layer> Confidence<L> {
 
 impl<L: Layer> Layer for Confidence<L> {
     const ID: &'static str = "turbo:confidence";
-    const OF: &'static str = L::ID;
+    const OF: Option<&'static LayerName> = Some(L::NAME);
     fn anchor() -> Anchor {
         Anchor::aligned::<L>()
     }
@@ -624,7 +624,7 @@ impl<L: Layer> Utf16Spans<L> {
 
 impl<L: Layer> Layer for Utf16Spans<L> {
     const ID: &'static str = "turbo:utf16";
-    const OF: &'static str = L::ID;
+    const OF: Option<&'static LayerName> = Some(L::NAME);
     fn anchor() -> Anchor {
         Anchor::aligned::<L>()
     }

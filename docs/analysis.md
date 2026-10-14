@@ -183,28 +183,38 @@ layers on the document:
   (interned against `kinds: Arc<TagSet>`), and `score: Vec<f64>`, alongside
   a secondary row-index column `by_to: Vec<Ix<Edges<From, To>>>`.
   - **Sort order**: the primary columns (`from`, `to`, `kind`, `score`) are
-    stored in non-decreasing `(from, to, kind)` order (`Edges::new` and
-    `Edges::between` sort stably by `(from, to, kind)`). The secondary
+    stored in strictly increasing `(from, to, kind)` order (`Edges::new` and
+    `Edges::between` sort by `(from, to, kind)`), so a triple appears at
+    most once; two rows for one triple would be one relation with two
+    scores, and a layer holding them is refused when it is added. The secondary
     index `by_to` holds a permutation of `0..len` in strictly increasing
     `(to[r], r)` order. Lookups by source (`from_source`, `outgoing`) are
     two binary searches over `from` returning a contiguous `IxRange`, and
     lookups by target (`to_target`, `incoming`) are two binary searches
     over `by_to` returning a contiguous slice of row indices in `(from,
     kind)` order. `Layer::check` verifies column lengths, tag bounds,
-    non-decreasing `(from, to, kind)` order, and strictly increasing
-    `(to[r], r)` order across `by_to`.
+    strictly increasing `(from, to, kind)` order, and strictly increasing
+    `(to[r], r)` order across `by_to` (which, with every entry below the
+    row count, makes it a permutation).
   - **Naming the two layer instances**: `Edges<From, To>` carries
     `from_key: Key<From>` and `to_key: Key<To>`. `Edges::new` sets both to
     `Key::DEFAULT`, so when the layer is added to a document each endpoint
     resolves through provenance (`on`, then `reads`, then the default
-    instance) just like any other cross-layer index. `Edges::between` takes
-    explicit `Key<From>` and `Key<To>` (including `Key::named`), so an edge
-    layer can link two named instances (`opennlp:entities@gold` to
+    instance) just like any other cross-layer index; when `From` and `To`
+    are one type, both ends resolve to the same instance. `Edges::between`
+    takes explicit `Key<From>` and `Key<To>` (including `Key::named`), so an
+    edge layer can link two named instances (`opennlp:entities@gold` to
     `opennlp:tokens@predicted`, or two named instances of the same layer
-    type such as `opennlp:tokens@a` to `opennlp:tokens@b`). `Layer::indexes`
-    reports both keys with one past the largest source and target index, so
-    `Document::add` checks both bounds against their respective instances
-    and records both in `Document::made_on`.
+    type such as `opennlp:tokens@a` to `opennlp:tokens@b`). A named
+    instance must be one the producing step read or wrote, listed in its
+    provenance's `reads` or `on`; `Document::add` refuses any other, so the
+    analyzer orders the step after that instance and the provenance names
+    every instance the edges point into. `Layer::indexes` reports both keys
+    with one past the largest source and target index, so `Document::add`
+    checks both bounds against their respective instances and records each
+    instance once in `Document::made_on`. A step that reads the edges
+    beside a different instance of an endpoint layer fails with
+    `Error::Unaligned`, as for any other layer made on an instance.
 - `Groups<L>` (`turbo:groups<L>`) holds sets of `Ix<L>` (coreference
   chains, multi-argument clusters, duplicate groups) in two flat columns:
   `members: Vec<Ix<L>>` and `end: Vec<u32>`, with `of_key: Key<L>` naming
@@ -212,7 +222,15 @@ layers on the document:
   named key). Group `g` is the slice `members[start..end[g]]`, kept in
   strictly increasing `Ix<L>` order with no duplicates, so membership
   (`Groups::contains`) is a binary search over the group's slice and no
-  group allocates its own `Vec`.
+  group allocates its own `Vec`. Every group has at least one member
+  (a singleton is a valid chain); a layer with an empty group is refused.
+  A named `of_key` follows the same rule as an edge endpoint.
+
+A generic layer's name holds the full names of the layers it is over,
+so nested generic layers stay distinct:
+`Groups<Edges<Entities, Tokens>>` is
+`turbo:groups<turbo:edges<opennlp:entities, opennlp:tokens>>`, not the
+same name as `Groups<Edges<Tokens, Tokens>>`.
 
 ## Keys
 
