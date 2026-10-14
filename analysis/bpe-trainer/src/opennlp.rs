@@ -141,11 +141,11 @@ impl OpenNlpBpe {
 
     /// Whether the merges are certainly the JVM's for the same corpus:
     /// trained in [`TieOrder::Jvm`], on a corpus with no character
-    /// outside the Basic Multilingual Plane, and with no bin of the JVM's
-    /// maps that became a tree (eight or more keys in one bin of a table
-    /// of 64 or more), whose order is not reproduced. A bin becomes a
-    /// tree in the JVM only when that many hash codes collide, and its
-    /// order changes the merges only when two pairs in it tie for the
+    /// outside the Basic Multilingual Plane, and with no tree bin of the
+    /// JVM's maps (eight or more keys in one bin of a table of 64 or more)
+    /// that held keys with equal hash codes, which the JVM orders by
+    /// identity hash code and so differently from run to run. That order
+    /// changes the merges only when two pairs in that bin tie for the
     /// highest count; false is not a difference found, only one not ruled
     /// out.
     pub fn is_jvm_exact(&self) -> bool {

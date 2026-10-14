@@ -27,8 +27,9 @@
 //! ## Table model
 //!
 //! The table is an array of bins whose length (`capacity`) is a power of two,
-//! `16` when first allocated by `put` or `merge`, or `tableSizeFor(ceil(s /
-//! 0.75f))` when pre-sized by `putAll` on an empty map. A key with Java
+//! `16` when first allocated by `put` or `merge`, `tableSizeFor(n)` for
+//! `new HashMap<>(n)`, or `tableSizeFor(ceil(s / 0.75f))` (when larger) for
+//! `putAll` of `s` entries into a map with no table yet. A key with Java
 //! `hashCode` `h` lands in bin `spread(h) & (capacity - 1)`, where
 //! `spread(h) = (h as u32) ^ ((h as u32) >> 16)`.
 //!
@@ -47,16 +48,34 @@
 //! - Iteration walks bins `0..capacity` in index order, and each bin front to
 //!   back.
 //!
-//! ## Treeified bins
+//! ## Tree bins
 //!
-//! When a bin reaches the treeify threshold at `capacity >= 64`, the JDK
-//! turns that bin into a red-black tree whose order for non-`Comparable` keys
-//! with equal hashes depends on `System.identityHashCode` and varies between
-//! JVM runs. That order is not modelled: the bin stays in list order and
-//! [`JavaHashMap::is_jvm_exact`] / [`HashMapOrder::order`] returns `false`.
+//! When a list bin reaches the treeify threshold at `capacity >= 64`, the
+//! JDK turns it into a red-black tree (`treeifyBin`), and iteration still
+//! follows the nodes' `next` links, which the tree code reorders:
+//!
+//! - `treeify` inserts the bin's nodes in list order into a red-black tree
+//!   ordered by hash (as a signed `int`), then by `compareTo` when the class
+//!   is comparable, then by `tieBreakOrder`, and moves the root to the
+//!   front of the list.
+//! - `putTreeVal` links a new key into the list right after its tree
+//!   parent, rebalances, and moves the root to the front again.
+//! - `resize` splits a tree bin into two lists in order; a half of at most
+//!   6 nodes (`UNTREEIFY_THRESHOLD`) becomes a plain list, and a longer half
+//!   is treeified again when the other half is not empty.
+//!
+//! All of this is reproduced, red-black rotations included. The one thing
+//! that is not is `tieBreakOrder` between two keys with equal hash codes
+//! whose class `HashMap` cannot compare (`CharBuffer`, `List`, records):
+//! the JVM orders them by `System.identityHashCode`, which varies between
+//! runs, so no model can match it. [`JavaHashMap::is_jvm_exact`] and
+//! [`HashMapOrder::order`] return `false` when that happened.
 
 use std::borrow::Borrow;
 use std::borrow::Cow;
+use std::cmp::Ordering;
+
+use crate::chars::compare;
 
 /// `DEFAULT_INITIAL_CAPACITY`.
 const DEFAULT_CAPACITY: usize = 16;
@@ -73,6 +92,17 @@ const MIN_TREEIFY_CAPACITY: usize = 64;
 /// A key whose Java `Object.hashCode()` is reproduced bit for bit.
 pub trait JavaHash {
     fn java_hash(&self) -> i32;
+
+    /// How a `HashMap` tree bin orders this key against `other`, a different
+    /// key with the same hash code: `compareTo` when `HashMap` can compare
+    /// the key's class (`comparableClassFor` accepts `String` and classes
+    /// such as `Integer` that implement `Comparable` of themselves), and
+    /// `None` otherwise (`CharBuffer`, `List`, records), where the JVM
+    /// breaks the tie by `System.identityHashCode`.
+    fn tree_order(&self, other: &Self) -> Option<Ordering> {
+        let _ = other;
+        None
+    }
 }
 
 /// `String.hashCode`: `s[0]*31^(n-1) + ... + s[n-1]` over UTF-16 code units,
@@ -99,11 +129,9 @@ pub fn char_buffer_hash(units: &[u16]) -> i32 {
 /// code and the length of `b` in UTF-16 code units.
 #[inline]
 pub fn concat_hash(a: i32, b: i32, b_units: usize) -> i32 {
-    let mut h = a;
-    for _ in 0..b_units {
-        h = h.wrapping_mul(31);
-    }
-    h.wrapping_add(b)
+    // 31 is odd, so its powers modulo 2^32 repeat with a period dividing
+    // 2^30, and truncating the length to 32 bits keeps the power.
+    a.wrapping_mul(31i32.wrapping_pow(b_units as u32)).wrapping_add(b)
 }
 
 /// The hash code of a two-component Java record such as
@@ -131,12 +159,20 @@ impl JavaHash for str {
     fn java_hash(&self) -> i32 {
         string_hash(self)
     }
+
+    fn tree_order(&self, other: &Self) -> Option<Ordering> {
+        Some(compare(self, other))
+    }
 }
 
 impl JavaHash for String {
     #[inline]
     fn java_hash(&self) -> i32 {
         string_hash(self)
+    }
+
+    fn tree_order(&self, other: &Self) -> Option<Ordering> {
+        Some(compare(self, other))
     }
 }
 
@@ -145,12 +181,20 @@ impl JavaHash for Box<str> {
     fn java_hash(&self) -> i32 {
         string_hash(self)
     }
+
+    fn tree_order(&self, other: &Self) -> Option<Ordering> {
+        Some(compare(self, other))
+    }
 }
 
 impl JavaHash for Cow<'_, str> {
     #[inline]
     fn java_hash(&self) -> i32 {
         string_hash(self)
+    }
+
+    fn tree_order(&self, other: &Self) -> Option<Ordering> {
+        Some(compare(self, other))
     }
 }
 
@@ -159,6 +203,10 @@ impl JavaHash for i32 {
     fn java_hash(&self) -> i32 {
         *self
     }
+
+    fn tree_order(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
+    }
 }
 
 impl<T: JavaHash + ?Sized> JavaHash for &T {
@@ -166,12 +214,25 @@ impl<T: JavaHash + ?Sized> JavaHash for &T {
     fn java_hash(&self) -> i32 {
         (**self).java_hash()
     }
+
+    fn tree_order(&self, other: &Self) -> Option<Ordering> {
+        (**self).tree_order(*other)
+    }
 }
 
 impl<T: JavaHash> JavaHash for Option<T> {
     #[inline]
     fn java_hash(&self) -> i32 {
         self.as_ref().map_or(0, JavaHash::java_hash)
+    }
+
+    /// `null` sorts before every key with its hash code (0): `tieBreakOrder`
+    /// gives `null` the identity hash code 0, below any object's.
+    fn tree_order(&self, other: &Self) -> Option<Ordering> {
+        match (self, other) {
+            (Some(a), Some(b)) => a.tree_order(b),
+            (a, b) => Some(a.is_some().cmp(&b.is_some())),
+        }
     }
 }
 
@@ -216,6 +277,10 @@ impl JavaHash for Utf16Str<'_> {
     fn java_hash(&self) -> i32 {
         utf16_string_hash(self.0)
     }
+
+    fn tree_order(&self, other: &Self) -> Option<Ordering> {
+        Some(self.0.cmp(other.0))
+    }
 }
 
 /// An owned vector of UTF-16 code units hashed as `java.lang.String`.
@@ -227,23 +292,34 @@ impl JavaHash for Utf16String {
     fn java_hash(&self) -> i32 {
         utf16_string_hash(&self.0)
     }
+
+    fn tree_order(&self, other: &Self) -> Option<Ordering> {
+        Some(self.0.cmp(&other.0))
+    }
 }
 
 /// How distinct keys are inserted into a `HashMapOrder`.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Insert {
-    /// `put` and `putAll`: appends each new key to the tail of its bin.
+    /// `put`: appends each new key to the tail of its bin. This is also
+    /// `putAll` into a map whose table already holds the new size, which
+    /// does not pre-size it; [`JavaHashMap::put_all`] pre-sizes an empty or
+    /// smaller table as the JDK does.
     Put,
     /// `merge`: inserts each new key at the head of its bin. Because `merge`
     /// checks `size > threshold` before looking up the key, a call for an
     /// existing key after the `threshold + 1`-th new key also resizes the
     /// table; `again` records whether any duplicate `merge` call occurred
-    /// after the last new key was first seen.
+    /// after the last new key was first seen. Duplicate calls between new
+    /// keys need no record: such a resize happens with no insertion
+    /// between it and the next new key's call, which would make the same
+    /// resize itself.
     Merge { again: bool },
 }
 
 /// Computes the iteration order of a `java.util.HashMap` over pre-spread key
-/// hashes without allocating map nodes, keeping its table capacity across
+/// hashes without allocating map nodes (unless a bin becomes a tree, which
+/// it hands to a [`JavaHashMap`]), keeping its table capacity across
 /// [`order`](Self::order) / [`order_keys`](Self::order_keys) calls (as
 /// `HashMap.clear()` keeps the table) unless [`reset`](Self::reset) is
 /// called.
@@ -278,8 +354,10 @@ impl HashMapOrder {
     /// `spread` into the empty map (new or cleared), and writes their indices
     /// into `out` in `HashMap` iteration order.
     ///
-    /// Returns `false` if any bin reached the treeify threshold at
-    /// `capacity >= 64` (that bin is left in list order).
+    /// Returns `false` if the order may not be the JVM's: a tree bin had to
+    /// order keys with equal hash codes. This model sees only the hashes,
+    /// so it treats every key as one the JVM orders by
+    /// `System.identityHashCode` there (see [`JavaHash::tree_order`]).
     pub fn order(&mut self, spread: &[u32], insert: Insert, out: &mut Vec<u32>) -> bool {
         self.order_with(spread, spread.len(), insert, |i| i as u32, out)
     }
@@ -288,8 +366,7 @@ impl HashMapOrder {
     /// insertion order) into the empty map (new or cleared), and writes those
     /// key indices into `out` in `HashMap` iteration order.
     ///
-    /// Returns `false` if any bin reached the treeify threshold at
-    /// `capacity >= 64`.
+    /// Returns `false` as [`order`](Self::order) does.
     pub fn order_keys(&mut self, spread: &[u32], keys: &[u32], insert: Insert, out: &mut Vec<u32>) -> bool {
         self.order_with(spread, keys.len(), insert, |i| keys[i], out)
     }
@@ -306,14 +383,13 @@ impl HashMapOrder {
         if n == 0 {
             return true;
         }
+        let start = self.capacity;
         self.counts.clear();
         self.counts.resize(self.capacity, 0);
-        let mut exact = true;
         for i in 0..n {
-            if matches!(insert, Insert::Merge { .. }) && (self.capacity == 0 || i > self.threshold()) {
-                self.grow(spread, i, &at);
-            }
-            if self.capacity == 0 {
+            // `merge` resizes a full table before it looks up its key; both
+            // allocate the table on the first key.
+            if self.capacity == 0 || (matches!(insert, Insert::Merge { .. }) && i > self.threshold()) {
                 self.grow(spread, i, &at);
             }
             let bin = spread[at(i) as usize] as usize & (self.capacity - 1);
@@ -327,7 +403,9 @@ impl HashMapOrder {
                 if self.capacity < MIN_TREEIFY_CAPACITY {
                     self.grow(spread, i + 1, &at);
                 } else {
-                    exact = false;
+                    // The bin becomes a tree: run the full model instead.
+                    self.capacity = start;
+                    return self.order_by_map(spread, n, insert, &at, out);
                 }
             }
             if insert == Insert::Put && i + 1 > self.threshold() {
@@ -359,7 +437,35 @@ impl HashMapOrder {
             Insert::Put => (0..n).for_each(&mut place),
             Insert::Merge { .. } => (0..n).rev().for_each(&mut place),
         }
-        exact
+        true
+    }
+
+    /// The order [`order_with`](Self::order_with) computes, from a
+    /// [`JavaHashMap`] holding the keys, for maps with a tree bin.
+    fn order_by_map(
+        &mut self,
+        spread: &[u32],
+        n: usize,
+        insert: Insert,
+        at: &impl Fn(usize) -> u32,
+        out: &mut Vec<u32>,
+    ) -> bool {
+        let mut map = JavaHashMap::with_table(self.capacity);
+        for i in 0..n {
+            let index = at(i);
+            // `spread` is its own inverse.
+            let key = Slot { index, hash: self::spread(spread[index as usize] as i32) as i32 };
+            match insert {
+                Insert::Put => map.put(key, ()),
+                Insert::Merge { .. } => map.merge(key, (), |_, _| {}),
+            }
+        }
+        if insert == (Insert::Merge { again: true }) {
+            map.resize_before_merge();
+        }
+        self.capacity = map.capacity();
+        out.extend(map.keys().map(|k| k.index));
+        map.is_jvm_exact()
     }
 
     fn threshold(&self) -> usize {
@@ -380,7 +486,7 @@ impl HashMapOrder {
 
 /// Returns the indices `0..keys.len()` in the order a fresh `new HashMap<>()`
 /// iterates them after each distinct key is inserted with `put`, together
-/// with whether the order is JVM-exact (no treeified bin).
+/// with whether the order is the JVM's (see [`JavaHashMap::is_jvm_exact`]).
 pub fn put_order<I, K>(keys: I) -> (Vec<usize>, bool)
 where
     I: IntoIterator<Item = K>,
@@ -393,21 +499,68 @@ where
 }
 
 /// A `java.util.HashMap<K, V>` with the default load factor (`0.75f`),
-/// reproducing JDK 21's table sizing, bin splitting, and iteration order for
+/// reproducing JDK 21's table sizing, bin splitting, tree bins and
+/// iteration order for `new HashMap<>()`, `new HashMap<>(initialCapacity)`,
 /// `put`, `merge`, `putAll`, and `clear`.
+///
+/// A `HashSet` is a `HashMap` of its elements: `add` is [`put`](Self::put),
+/// `new HashSet<>(n)` is [`with_capacity(n)`](Self::with_capacity), and
+/// `new HashSet<>(c)` is `with_capacity(max((int) (c.size() / .75f) + 1,
+/// 16))` followed by a `put` of each element of `c`.
 #[derive(Clone, Debug)]
 pub struct JavaHashMap<K, V> {
+    /// The table length; `0` before the table is allocated.
     capacity: usize,
+    /// `threshold`: the size above which the table doubles, or before the
+    /// table is allocated, the length to allocate (`0` for the default).
     threshold: usize,
     size: usize,
     exact: bool,
+    /// Entries in first insertion order: key, spread hash, value.
     entries: Vec<Option<(K, u32, V)>>,
-    bins: Vec<Vec<u32>>,
+    /// The red-black tree links of each entry, by entry index; used only
+    /// while the entry is in a tree bin.
+    links: Vec<Links>,
+    bins: Vec<Bin>,
 }
+
+/// One bin of the table: its entries in `next` order (the order the map
+/// iterates them), and whether it is a tree bin. In a tree bin the first
+/// entry is always the root, as `moveRootToFront` keeps it.
+#[derive(Clone, Debug, Default)]
+struct Bin {
+    nodes: Vec<u32>,
+    tree: bool,
+}
+
+/// `TreeNode`'s `parent`, `left`, `right`, and `red` fields.
+#[derive(Clone, Copy, Debug)]
+struct Links {
+    parent: u32,
+    left: u32,
+    right: u32,
+    red: bool,
+}
+
+/// No node (`null`).
+const NIL: u32 = u32::MAX;
+
+/// `UNTREEIFY_THRESHOLD`.
+const UNTREEIFY_THRESHOLD: usize = 6;
+
+const NO_LINKS: Links = Links { parent: NIL, left: NIL, right: NIL, red: false };
 
 impl<K, V> Default for JavaHashMap<K, V> {
     fn default() -> Self {
-        JavaHashMap { capacity: 0, threshold: 0, size: 0, exact: true, entries: Vec::new(), bins: Vec::new() }
+        JavaHashMap {
+            capacity: 0,
+            threshold: 0,
+            size: 0,
+            exact: true,
+            entries: Vec::new(),
+            links: Vec::new(),
+            bins: Vec::new(),
+        }
     }
 }
 
@@ -415,6 +568,26 @@ impl<K, V> JavaHashMap<K, V> {
     /// Creates an empty map (`new HashMap<>()`).
     pub fn new() -> JavaHashMap<K, V> {
         JavaHashMap::default()
+    }
+
+    /// Creates an empty map with an initial capacity (`new
+    /// HashMap<>(initialCapacity)`): the first insertion allocates a table
+    /// of `tableSizeFor(initial_capacity)` bins.
+    pub fn with_capacity(initial_capacity: usize) -> JavaHashMap<K, V> {
+        JavaHashMap { threshold: table_size_for(initial_capacity.min(MAXIMUM_CAPACITY)), ..JavaHashMap::default() }
+    }
+
+    /// An empty map whose table of `capacity` bins is allocated, as a map
+    /// grown from the default capacity and then cleared. `capacity` is `0`
+    /// or a power of two of at least `16`.
+    fn with_table(capacity: usize) -> JavaHashMap<K, V> {
+        let mut map = JavaHashMap::new();
+        if capacity > 0 {
+            map.capacity = capacity;
+            map.threshold = capacity / 4 * 3;
+            map.bins.resize_with(capacity, Bin::default);
+        }
+        map
     }
 
     /// Number of key-value mappings in the map.
@@ -436,18 +609,27 @@ impl<K, V> JavaHashMap<K, V> {
         self.threshold
     }
 
-    /// Whether no bin has reached the treeify threshold (`8` keys) at a
-    /// table capacity of `64` or more.
+    /// Whether the iteration order is the JVM's. It is not when a tree bin
+    /// had to order two keys with equal hash codes that `HashMap` cannot
+    /// compare (see [`JavaHash::tree_order`]): the JVM then breaks the tie
+    /// by `System.identityHashCode`, which differs from run to run.
     pub fn is_jvm_exact(&self) -> bool {
         self.exact
+    }
+
+    /// The number of bins that are red-black trees.
+    pub fn tree_bins(&self) -> usize {
+        self.bins.iter().filter(|b| b.tree).count()
     }
 
     /// `HashMap.clear()`: removes all entries while keeping the allocated
     /// table capacity and threshold.
     pub fn clear(&mut self) {
         self.entries.clear();
+        self.links.clear();
         for bin in &mut self.bins {
-            bin.clear();
+            bin.nodes.clear();
+            bin.tree = false;
         }
         self.size = 0;
         self.exact = true;
@@ -455,7 +637,7 @@ impl<K, V> JavaHashMap<K, V> {
 
     /// Iterates `(key, value)` pairs in the map's bucket and bin order.
     pub fn iter(&self) -> impl ExactSizeIterator<Item = (&K, &V)> + '_ {
-        Iter { entries: &self.entries, inner: self.bins.iter().flatten(), remaining: self.size }
+        Iter { entries: &self.entries, inner: self.bins.iter().flat_map(|b| &b.nodes), remaining: self.size }
     }
 
     /// Iterates keys in the map's bucket and bin order.
@@ -473,7 +655,7 @@ impl<K, V> JavaHashMap<K, V> {
     pub fn into_ordered(mut self) -> Vec<(K, V)> {
         let mut out = Vec::with_capacity(self.size);
         for bin in self.bins {
-            for idx in bin {
+            for idx in bin.nodes {
                 if let Some((k, _, v)) = self.entries[idx as usize].take() {
                     out.push((k, v));
                 }
@@ -507,6 +689,18 @@ impl<'a, K, V, I: Iterator<Item = &'a u32>> Iterator for Iter<'a, K, V, I> {
 impl<'a, K, V, I: Iterator<Item = &'a u32>> ExactSizeIterator for Iter<'a, K, V, I> {}
 
 impl<K: JavaHash + Eq, V> JavaHashMap<K, V> {
+    /// The entry index of `key` (whose spread hash is `h`) in bin `bin`.
+    fn find<Q>(&self, bin: usize, h: u32, key: &Q) -> Option<u32>
+    where
+        K: Borrow<Q>,
+        Q: Eq + ?Sized,
+    {
+        self.bins[bin].nodes.iter().copied().find(|&idx| {
+            let (k, s, _) = self.entries[idx as usize].as_ref().expect("live entry");
+            *s == h && k.borrow() == key
+        })
+    }
+
     /// Looks up the value for `key`.
     pub fn get<Q>(&self, key: &Q) -> Option<&V>
     where
@@ -517,14 +711,8 @@ impl<K: JavaHash + Eq, V> JavaHashMap<K, V> {
             return None;
         }
         let h = spread(key.java_hash());
-        let bin = h as usize & (self.capacity - 1);
-        for &idx in &self.bins[bin] {
-            let (k, s, v) = self.entries[idx as usize].as_ref().expect("live entry");
-            if *s == h && k.borrow() == key {
-                return Some(v);
-            }
-        }
-        None
+        let idx = self.find(h as usize & (self.capacity - 1), h, key)?;
+        self.entries[idx as usize].as_ref().map(|(_, _, v)| v)
     }
 
     /// Looks up a mutable reference to the value for `key`.
@@ -537,14 +725,8 @@ impl<K: JavaHash + Eq, V> JavaHashMap<K, V> {
             return None;
         }
         let h = spread(key.java_hash());
-        let bin = h as usize & (self.capacity - 1);
-        for &idx in &self.bins[bin] {
-            let (k, s, _) = self.entries[idx as usize].as_ref().expect("live entry");
-            if *s == h && k.borrow() == key {
-                return self.entries[idx as usize].as_mut().map(|(_, _, v)| v);
-            }
-        }
-        None
+        let idx = self.find(h as usize & (self.capacity - 1), h, key)?;
+        self.entries[idx as usize].as_mut().map(|(_, _, v)| v)
     }
 
     /// Whether the map contains `key`.
@@ -557,27 +739,29 @@ impl<K: JavaHash + Eq, V> JavaHashMap<K, V> {
     }
 
     /// `HashMap.put(key, value)`: replaces the value in place if `key` is
-    /// present, or appends `(key, value)` to the end of its bin and resizes
-    /// if needed.
+    /// present; otherwise appends `(key, value)` to the end of its list bin
+    /// (making the bin a tree, or doubling a table of fewer than 64 bins,
+    /// when it already held 8 entries) or adds it to its tree bin, then
+    /// doubles the table if the size passes the threshold.
     pub fn put(&mut self, key: K, value: V) {
         if self.capacity == 0 {
             self.resize();
         }
         let h = spread(key.java_hash());
         let bin = h as usize & (self.capacity - 1);
-        for &idx in &self.bins[bin] {
-            let (k, s, v) = self.entries[idx as usize].as_mut().expect("live entry");
-            if *s == h && *k == key {
-                *v = value;
-                return;
-            }
+        if let Some(idx) = self.find(bin, h, &key) {
+            self.entries[idx as usize].as_mut().expect("live entry").2 = value;
+            return;
         }
-        let before = self.bins[bin].len();
-        let idx = self.entries.len() as u32;
-        self.entries.push(Some((key, h, value)));
-        self.bins[bin].push(idx);
-        if before >= TREEIFY_THRESHOLD {
-            self.treeify_bin();
+        let idx = self.push(key, h, value);
+        if self.bins[bin].tree {
+            self.put_tree_val(bin, idx);
+        } else {
+            let before = self.bins[bin].nodes.len();
+            self.bins[bin].nodes.push(idx);
+            if before >= TREEIFY_THRESHOLD {
+                self.treeify_bin(bin);
+            }
         }
         self.size += 1;
         if self.size > self.threshold {
@@ -588,26 +772,25 @@ impl<K: JavaHash + Eq, V> JavaHashMap<K, V> {
     /// `HashMap.merge(key, value, remappingFunction)` for a non-null
     /// remapping result: resizes first when `size > threshold || capacity == 0`,
     /// updates an existing entry in place, or inserts a new entry at the head
-    /// of its bin.
+    /// of its list bin (making the bin a tree, or doubling a table of fewer
+    /// than 64 bins, when it already held 7 entries) or into its tree bin.
     pub fn merge(&mut self, key: K, value: V, combine: impl FnOnce(&mut V, V)) {
-        if self.size > self.threshold || self.capacity == 0 {
-            self.resize();
-        }
+        self.resize_before_merge();
         let h = spread(key.java_hash());
         let bin = h as usize & (self.capacity - 1);
-        for &idx in &self.bins[bin] {
-            let (k, s, v) = self.entries[idx as usize].as_mut().expect("live entry");
-            if *s == h && *k == key {
-                combine(v, value);
-                return;
-            }
+        if let Some(idx) = self.find(bin, h, &key) {
+            combine(&mut self.entries[idx as usize].as_mut().expect("live entry").2, value);
+            return;
         }
-        let before = self.bins[bin].len();
-        let idx = self.entries.len() as u32;
-        self.entries.push(Some((key, h, value)));
-        self.bins[bin].insert(0, idx);
-        if before + 1 >= TREEIFY_THRESHOLD {
-            self.treeify_bin();
+        let idx = self.push(key, h, value);
+        if self.bins[bin].tree {
+            self.put_tree_val(bin, idx);
+        } else {
+            let before = self.bins[bin].nodes.len();
+            self.bins[bin].nodes.insert(0, idx);
+            if before + 1 >= TREEIFY_THRESHOLD {
+                self.treeify_bin(bin);
+            }
         }
         self.size += 1;
     }
@@ -635,14 +818,116 @@ impl<K: JavaHash + Eq, V> JavaHashMap<K, V> {
         }
     }
 
-    fn treeify_bin(&mut self) {
-        if self.capacity < MIN_TREEIFY_CAPACITY {
-            self.resize();
-        } else {
-            self.exact = false;
+    fn push(&mut self, key: K, h: u32, value: V) -> u32 {
+        let idx = self.entries.len() as u32;
+        self.entries.push(Some((key, h, value)));
+        self.links.push(NO_LINKS);
+        idx
+    }
+
+    fn key(&self, idx: u32) -> (&K, u32) {
+        let (k, h, _) = self.entries[idx as usize].as_ref().expect("live entry");
+        (k, *h)
+    }
+
+    /// The side of tree node `p` that the new node `x` goes to: `-1` (left)
+    /// or `1` (right). Nodes are ordered by their hash as a signed `int`,
+    /// then by [`JavaHash::tree_order`], and the rest by `tieBreakOrder`,
+    /// whose `System.identityHashCode` comparison is not reproducible
+    /// (`-1` is used and the map is marked not exact).
+    fn dir(&mut self, x: u32, p: u32) -> i32 {
+        let (xk, xh) = self.key(x);
+        let (pk, ph) = self.key(p);
+        let (xh, ph) = (xh as i32, ph as i32);
+        if ph > xh {
+            return -1;
+        }
+        if ph < xh {
+            return 1;
+        }
+        match xk.tree_order(pk) {
+            Some(std::cmp::Ordering::Less) => -1,
+            Some(std::cmp::Ordering::Greater) => 1,
+            _ => {
+                self.exact = false;
+                -1
+            }
         }
     }
 
+    /// `treeifyBin`: doubles a table of fewer than `MIN_TREEIFY_CAPACITY`
+    /// bins, or turns the bin into a tree.
+    fn treeify_bin(&mut self, bin: usize) {
+        if self.capacity < MIN_TREEIFY_CAPACITY {
+            self.resize();
+        } else {
+            self.bins[bin].tree = true;
+            self.treeify(bin);
+        }
+    }
+
+    /// `TreeNode.treeify`: builds a red-black tree by inserting the bin's
+    /// nodes in `next` order, then moves the root to the front.
+    fn treeify(&mut self, bin: usize) {
+        let mut root = NIL;
+        for i in 0..self.bins[bin].nodes.len() {
+            let x = self.bins[bin].nodes[i];
+            self.links[x as usize].left = NIL;
+            self.links[x as usize].right = NIL;
+            if root == NIL {
+                self.links[x as usize].parent = NIL;
+                self.links[x as usize].red = false;
+                root = x;
+                continue;
+            }
+            let mut p = root;
+            loop {
+                let dir = self.dir(x, p);
+                let xp = p;
+                p = if dir <= 0 { self.links[xp as usize].left } else { self.links[xp as usize].right };
+                if p == NIL {
+                    self.links[x as usize].parent = xp;
+                    if dir <= 0 {
+                        self.links[xp as usize].left = x;
+                    } else {
+                        self.links[xp as usize].right = x;
+                    }
+                    root = self.balance_insertion(root, x);
+                    break;
+                }
+            }
+        }
+        self.move_root_to_front(bin, root);
+    }
+
+    /// `TreeNode.putTreeVal` for a key not in the tree: links `x` under the
+    /// leaf it sorts to and right after that leaf in `next` order, then
+    /// rebalances and moves the root to the front.
+    fn put_tree_val(&mut self, bin: usize, x: u32) {
+        let root = self.bins[bin].nodes[0];
+        let mut p = root;
+        loop {
+            let dir = self.dir(x, p);
+            let xp = p;
+            p = if dir <= 0 { self.links[xp as usize].left } else { self.links[xp as usize].right };
+            if p == NIL {
+                let at = self.bins[bin].nodes.iter().position(|&n| n == xp).expect("parent in its bin");
+                self.bins[bin].nodes.insert(at + 1, x);
+                self.links[x as usize] = Links { parent: xp, ..NO_LINKS };
+                if dir <= 0 {
+                    self.links[xp as usize].left = x;
+                } else {
+                    self.links[xp as usize].right = x;
+                }
+                let root = self.balance_insertion(root, x);
+                self.move_root_to_front(bin, root);
+                return;
+            }
+        }
+    }
+
+    /// `HashMap.resize` for the call sites that can double a table:
+    /// `put`, `merge`, `putAll` and `treeifyBin`.
     fn resize(&mut self) {
         let (old_cap, old_thr) = (self.capacity, self.threshold);
         let mut new_thr = 0;
@@ -672,28 +957,166 @@ impl<K: JavaHash + Eq, V> JavaHashMap<K, V> {
         }
         self.capacity = new_cap;
         self.threshold = new_thr;
-
+        self.bins.resize_with(new_cap, Bin::default);
         if old_cap == 0 {
-            self.bins.resize_with(new_cap, Vec::new);
             return;
         }
-        self.bins.resize_with(new_cap, Vec::new);
         let bit = old_cap as u32;
         for j in 0..old_cap {
-            let mut hi = Vec::new();
-            let mut write = 0;
-            for read in 0..self.bins[j].len() {
-                let idx = self.bins[j][read];
-                let h = self.entries[idx as usize].as_ref().expect("live entry").1;
-                if h & bit == 0 {
-                    self.bins[j][write] = idx;
-                    write += 1;
-                } else {
-                    hi.push(idx);
+            let Bin { nodes, tree } = std::mem::take(&mut self.bins[j]);
+            if nodes.is_empty() {
+                continue;
+            }
+            let (lo, hi): (Vec<u32>, Vec<u32>) = nodes.into_iter().partition(|&idx| self.key(idx).1 & bit == 0);
+            let (lo_empty, hi_empty) = (lo.is_empty(), hi.is_empty());
+            if !tree {
+                self.bins[j].nodes = lo;
+                self.bins[j + old_cap].nodes = hi;
+                continue;
+            }
+            // `TreeNode.split`: a half of at most `UNTREEIFY_THRESHOLD`
+            // nodes becomes a list again; a longer one stays a tree, rebuilt
+            // when the other half took some of its nodes.
+            for (at, half, other_empty) in [(j, lo, hi_empty), (j + old_cap, hi, lo_empty)] {
+                if half.is_empty() {
+                    continue;
+                }
+                let tree = half.len() > UNTREEIFY_THRESHOLD;
+                self.bins[at] = Bin { nodes: half, tree };
+                if tree && !other_empty {
+                    self.treeify(at);
                 }
             }
-            self.bins[j].truncate(write);
-            self.bins[j + old_cap] = hi;
+        }
+    }
+
+    /// The resize check `merge` makes before it looks up its key, which
+    /// doubles a full table even when the key is already present.
+    fn resize_before_merge(&mut self) {
+        if self.size > self.threshold || self.capacity == 0 {
+            self.resize();
+        }
+    }
+
+    /// `moveRootToFront`: makes `root` the first node of its bin.
+    fn move_root_to_front(&mut self, bin: usize, root: u32) {
+        let nodes = &mut self.bins[bin].nodes;
+        if nodes[0] != root {
+            let at = nodes.iter().position(|&n| n == root).expect("root in its bin");
+            nodes.remove(at);
+            nodes.insert(0, root);
+        }
+    }
+
+    /// `TreeNode.rotateLeft`.
+    fn rotate_left(&mut self, mut root: u32, p: u32) -> u32 {
+        let l = &mut self.links;
+        let r = if p == NIL { NIL } else { l[p as usize].right };
+        if r != NIL {
+            let rl = l[r as usize].left;
+            l[p as usize].right = rl;
+            if rl != NIL {
+                l[rl as usize].parent = p;
+            }
+            let pp = l[p as usize].parent;
+            l[r as usize].parent = pp;
+            if pp == NIL {
+                root = r;
+                l[r as usize].red = false;
+            } else if l[pp as usize].left == p {
+                l[pp as usize].left = r;
+            } else {
+                l[pp as usize].right = r;
+            }
+            l[r as usize].left = p;
+            l[p as usize].parent = r;
+        }
+        root
+    }
+
+    /// `TreeNode.rotateRight`.
+    fn rotate_right(&mut self, mut root: u32, p: u32) -> u32 {
+        let l = &mut self.links;
+        let left = if p == NIL { NIL } else { l[p as usize].left };
+        if left != NIL {
+            let lr = l[left as usize].right;
+            l[p as usize].left = lr;
+            if lr != NIL {
+                l[lr as usize].parent = p;
+            }
+            let pp = l[p as usize].parent;
+            l[left as usize].parent = pp;
+            if pp == NIL {
+                root = left;
+                l[left as usize].red = false;
+            } else if l[pp as usize].right == p {
+                l[pp as usize].right = left;
+            } else {
+                l[pp as usize].left = left;
+            }
+            l[left as usize].right = p;
+            l[p as usize].parent = left;
+        }
+        root
+    }
+
+    /// `TreeNode.balanceInsertion`: restores the red-black properties after
+    /// `x` was linked as a leaf, and returns the root.
+    fn balance_insertion(&mut self, mut root: u32, mut x: u32) -> u32 {
+        self.links[x as usize].red = true;
+        loop {
+            let mut xp = self.links[x as usize].parent;
+            if xp == NIL {
+                self.links[x as usize].red = false;
+                return x;
+            }
+            let mut xpp = self.links[xp as usize].parent;
+            if !self.links[xp as usize].red || xpp == NIL {
+                return root;
+            }
+            let xppl = self.links[xpp as usize].left;
+            if xp == xppl {
+                let xppr = self.links[xpp as usize].right;
+                if xppr != NIL && self.links[xppr as usize].red {
+                    self.links[xppr as usize].red = false;
+                    self.links[xp as usize].red = false;
+                    self.links[xpp as usize].red = true;
+                    x = xpp;
+                } else {
+                    if x == self.links[xp as usize].right {
+                        x = xp;
+                        root = self.rotate_left(root, x);
+                        xp = self.links[x as usize].parent;
+                        xpp = if xp == NIL { NIL } else { self.links[xp as usize].parent };
+                    }
+                    if xp != NIL {
+                        self.links[xp as usize].red = false;
+                        if xpp != NIL {
+                            self.links[xpp as usize].red = true;
+                            root = self.rotate_right(root, xpp);
+                        }
+                    }
+                }
+            } else if xppl != NIL && self.links[xppl as usize].red {
+                self.links[xppl as usize].red = false;
+                self.links[xp as usize].red = false;
+                self.links[xpp as usize].red = true;
+                x = xpp;
+            } else {
+                if x == self.links[xp as usize].left {
+                    x = xp;
+                    root = self.rotate_right(root, x);
+                    xp = self.links[x as usize].parent;
+                    xpp = if xp == NIL { NIL } else { self.links[xp as usize].parent };
+                }
+                if xp != NIL {
+                    self.links[xp as usize].red = false;
+                    if xpp != NIL {
+                        self.links[xpp as usize].red = true;
+                        root = self.rotate_left(root, xpp);
+                    }
+                }
+            }
         }
     }
 }
@@ -701,6 +1124,21 @@ impl<K: JavaHash + Eq, V> JavaHashMap<K, V> {
 /// `HashMap.tableSizeFor`: the least power of two at or above `cap`.
 fn table_size_for(cap: usize) -> usize {
     cap.max(1).next_power_of_two().min(MAXIMUM_CAPACITY)
+}
+
+/// A key of [`HashMapOrder`]'s full model: an index with the hash code it
+/// stands for, equal only to itself and not comparable, as a key whose
+/// class `HashMap` cannot compare.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+struct Slot {
+    index: u32,
+    hash: i32,
+}
+
+impl JavaHash for Slot {
+    fn java_hash(&self) -> i32 {
+        self.hash
+    }
 }
 
 #[cfg(test)]
@@ -752,15 +1190,45 @@ mod tests {
     }
 
     #[test]
-    fn a_long_bin_grows_a_small_table_and_is_reported_in_a_large_one() {
+    fn a_long_bin_grows_a_small_table_and_becomes_a_tree_in_a_large_one() {
         let hashes: Vec<i32> = (0..8).map(|i| i * 64).collect();
         assert_eq!(order(&hashes, Insert::Merge { again: false }).2, 32);
         assert_eq!(order(&hashes, Insert::Put).2, 16);
         let hashes: Vec<i32> = (0..9).map(|i| i * 64).collect();
         assert_eq!(order(&hashes, Insert::Put).2, 32);
+        // The orders JDK 21 gives: the tree's root first, then the rest in
+        // list order.
         let hashes: Vec<i32> = (0..10).map(|i| i * 64).collect();
-        let (out, exact, capacity) = order(&hashes, Insert::Merge { again: false });
+        assert_eq!(order(&hashes, Insert::Merge { again: false }), (vec![6, 9, 8, 7, 5, 4, 3, 2, 1, 0], true, 64));
+        let hashes: Vec<i32> = (0..12).map(|i| i * 64).collect();
+        assert_eq!(order(&hashes, Insert::Put), (vec![3, 0, 1, 2, 4, 5, 6, 7, 8, 9, 10, 11], true, 64));
+        // Equal hash codes in a tree are ordered by identity on the JVM.
+        let (out, exact, capacity) = order(&[64; 10], Insert::Merge { again: false });
         assert_eq!((exact, capacity, out.len()), (false, 64, 10));
+    }
+
+    #[test]
+    fn strings_with_one_hash_code_in_a_tree_are_ordered_by_compare_to() {
+        // "Aa" and "BB" share a hash code, so these ten strings all have
+        // one. The ninth turns their bin of a table of 64 into a tree.
+        let keys = [
+            "BBAaAaBB", "BBAaAaAa", "AaBBBBBB", "AaBBBBAa", "AaBBAaBB", "AaBBAaAa", "AaAaBBBB", "AaAaBBAa", "AaAaAaBB",
+            "AaAaAaAa",
+        ];
+        let mut map = JavaHashMap::with_capacity(64);
+        for k in keys {
+            map.put(k, ());
+        }
+        assert_eq!((map.tree_bins(), map.is_jvm_exact()), (1, true));
+        // The order JDK 21 gives.
+        let order: Vec<&str> = map.keys().copied().collect();
+        assert_eq!(
+            order,
+            [
+                "AaBBBBAa", "BBAaAaBB", "BBAaAaAa", "AaBBBBBB", "AaBBAaBB", "AaBBAaAa", "AaAaBBBB", "AaAaBBAa",
+                "AaAaAaBB", "AaAaAaAa"
+            ]
+        );
     }
 
     #[test]

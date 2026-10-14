@@ -85,8 +85,6 @@
 //!   letter or a nonspacing mark here and not there, which matters for
 //!   `\b` only. U+1171E, a spacing mark since Unicode 16.0, is treated as
 //!   the nonspacing mark JDK 21 knows.
-//! - The order of a `HashMap` bucket holding nine or more types, which
-//!   Java turns into a tree.
 
 pub mod annotate;
 pub mod builtin;
