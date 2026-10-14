@@ -5,7 +5,9 @@
 
 use turbo_analysis::{Analyzer, Annotator, Document, Key, Provenance, View};
 use turbo_analysis_layers::{Confidence, Tokens};
-use turbo_goldens::expect::{JvmSpan, joined_me_spans, jvm_token_spans, simple_newline_spans, whole_character_spans};
+use turbo_goldens::expect::{
+    JvmSpan, joined_me_spans, jvm_simple_newline_spans, jvm_token_spans, simple_newline_spans, whole_character_spans,
+};
 use turbo_goldens::{Golden, Tolerance, matches_golden};
 use turbo_maxent::Dictionary;
 use turbo_tokenize::lattice::Scratch as LatticeScratch;
@@ -162,10 +164,12 @@ impl Run for Plain {
 
     /// `SimpleTokenizer` with `keepNewLines` has two defects the port
     /// fixes (it throws when a line break comes before the first token,
-    /// and gives a line break after whitespace the span of the
-    /// whitespace), so the port's spans are checked against the plain
-    /// spans plus a span per line break, as the golden test does, and a
-    /// JVM result other than that is a documented difference.
+    /// and gives a line break after whitespace a stale span), so the
+    /// port's spans are checked against the plain spans plus a span per
+    /// line break, as the golden test does, and the JVM's against the
+    /// model of its loop, `jvm_simple_newline_spans`, exactly: a JVM result
+    /// the model gives is a documented difference where it is not the
+    /// port's, and anything else is a divergence.
     fn check(&self, text: &str, golden: &Golden) -> Checked {
         let doc = match self.annotate(text, Some(golden)) {
             Ok(doc) => doc,
@@ -183,18 +187,45 @@ impl Run for Plain {
             );
             return Checked { doc: Some(doc), outcome: Outcome::Divergence(what) };
         }
-        let outcome = if let Some(e) = &golden.header.error {
-            Outcome::Documented(format!(
-                "SimpleTokenizer with keepNewLines threw {}: {}; the port gives the plain spans plus the line breaks (analysis/tokenize/tests/golden.rs, simple_newlines)",
+        let model = jvm_simple_newline_spans(text, self.options.whitespace);
+        let outcome = match (&golden.header.error, model) {
+            (Some(e), Err(class)) if e.class.ends_with("IllegalArgumentException") && class == e.class => {
+                Outcome::Documented(format!(
+                    "SimpleTokenizer with keepNewLines threw {}: {}, as modelled (a line break before the first token asks for a span from -1); the port gives the plain spans plus the line breaks (analysis/tokenize/tests/golden.rs, simple_newlines)",
+                    e.class, e.message
+                ))
+            }
+            (Some(e), _) => Outcome::Divergence(format!(
+                "the JVM threw {}: {}, which the model of SimpleTokenizer with keepNewLines does not",
                 e.class, e.message
-            ))
-        } else {
-            match self.compare(&doc, golden) {
-                Outcome::Match => Outcome::Match,
-                Outcome::Divergence(what) => Outcome::Documented(format!(
-                    "SimpleTokenizer with keepNewLines gives a line break after whitespace the span of the whitespace; the port gives the plain spans plus the line breaks ({what})"
-                )),
-                other => other,
+            )),
+            (None, Err(class)) => Outcome::Divergence(format!(
+                "the model of SimpleTokenizer with keepNewLines throws {class} where the JVM gave spans"
+            )),
+            (None, Ok(model)) => {
+                let jvm = match jvm_spans(golden, text) {
+                    Ok(j) => j,
+                    Err(o) => return Checked { doc: Some(doc), outcome: o },
+                };
+                let jvm16: Vec<(u32, u32)> = jvm.iter().map(|s| s.utf16).collect();
+                if jvm16 != model {
+                    let i = (0..jvm16.len().max(model.len())).find(|&i| jvm16.get(i) != model.get(i)).unwrap_or(0);
+                    Outcome::Divergence(format!(
+                        "the JVM's spans with keepNewLines are not the modelled stale start spans: token {i} is {:?} on the JVM and {:?} in the model, in UTF-16 units ({} and {} tokens)",
+                        jvm16.get(i),
+                        model.get(i),
+                        jvm16.len(),
+                        model.len()
+                    ))
+                } else {
+                    match self.compare(&doc, golden) {
+                        Outcome::Match => Outcome::Match,
+                        Outcome::Divergence(what) => Outcome::Documented(format!(
+                            "SimpleTokenizer with keepNewLines gives a line break after whitespace the span starting where the last token or line break ended, as modelled; the port gives the plain spans plus the line breaks ({what})"
+                        )),
+                        other => other,
+                    }
+                }
             }
         };
         Checked { doc: Some(doc), outcome }
