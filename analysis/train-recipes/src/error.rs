@@ -27,7 +27,8 @@ pub enum Error {
     InvalidCard { field: &'static str, message: String },
     /// A document whose path is not under the corpus directory.
     OutsideCorpus { path: PathBuf },
-    /// A card that may not become a zoo entry: its gate failed or its
+    /// A card that may not become a zoo entry: no recipe trains it, it was
+    /// not gated against its recipe's reference, its gate failed, or its
     /// corpus is not the recorded release.
     NotShippable { id: String, reason: &'static str },
     /// A card file that is not a card.

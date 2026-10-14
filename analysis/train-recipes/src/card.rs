@@ -178,7 +178,10 @@ impl TagFormat {
 #[serde(deny_unknown_fields)]
 pub struct GateCard {
     pub record: String,
+    /// The reference's id and the SHA-256 of its file, as the record
+    /// names them.
     pub reference: String,
+    pub reference_sha256: String,
     /// For a tagger, the tags the trained model was scored in; `null`
     /// for the other components.
     pub candidate_tag_format: Option<TagFormat>,
@@ -273,6 +276,7 @@ impl ModelCard {
             gate: GateCard {
                 record: GATE_FILE.to_owned(),
                 reference: gate.reference.id.clone(),
+                reference_sha256: gate.reference.sha256.clone(),
                 candidate_tag_format,
                 reference_tag_format,
                 candidate_score: r.candidate.score,
@@ -288,11 +292,19 @@ impl ModelCard {
     ///
     /// # Errors
     ///
-    /// [`Error::NotShippable`] when the gate failed or the corpus is not
-    /// the recorded release, or an address or field the index refuses.
+    /// [`Error::NotShippable`] when no recipe trains the model, the gate
+    /// was not run against the recipe's reference (its id and SHA-256),
+    /// the gate failed, or the corpus is not the recorded release; or an
+    /// address or field the index refuses.
     pub fn artifact(&self, url: &str) -> Result<Artifact> {
+        let not = |reason| Error::NotShippable { id: self.id.clone(), reason };
+        let recipe = Recipe::trains(&self.id).ok_or(not("no recipe trains it"))?;
+        let reference = recipe.reference();
+        if self.gate.reference != reference.id() || self.gate.reference_sha256 != reference.sha256()? {
+            return Err(not("it was not gated against its recipe's reference"));
+        }
         if !self.gate.pass {
-            return Err(Error::NotShippable { id: self.id.clone(), reason: "it failed its gate" });
+            return Err(not("it failed its gate"));
         }
         if !self.corpus.release_recorded {
             return Err(Error::NotShippable {

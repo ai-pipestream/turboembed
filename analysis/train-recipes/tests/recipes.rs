@@ -198,18 +198,35 @@ fn the_recipes_train_score_gate_and_write_their_cards() {
         assert_eq!(std::fs::read(dir.join(&card.file.name)).unwrap(), outcome.trained.bytes);
         assert!(write_model_dir(&out, card, &outcome.trained.bytes, gate).is_err(), "nothing is replaced");
 
-        // A card trained on a corpus that is not the recorded release, as
-        // every card here is, or whose gate failed, makes no zoo entry.
+        // A card gated against another model than the recipe's reference,
+        // as every card here is, makes no zoo entry, even with its gate
+        // passed and the release recorded; nor does a card no recipe makes.
         let url = format!("https://example.org/models/{}", card.file.name);
-        assert!(matches!(card.artifact(&url), Err(Error::NotShippable { .. })));
-        let mut failed = card.clone();
-        failed.corpus.release_recorded = true;
+        let refused = |card: &ModelCard| match card.artifact(&url) {
+            Err(Error::NotShippable { reason, .. }) => reason,
+            other => panic!("{other:?}"),
+        };
+        let mut weak = card.clone();
+        weak.corpus.release_recorded = true;
+        assert_eq!(refused(&weak), "it was not gated against its recipe's reference");
+        let mut named_only = weak.clone();
+        named_only.gate.reference = recipe.reference_id().to_owned();
+        assert_eq!(refused(&named_only), "it was not gated against its recipe's reference");
+        let mut released = named_only.clone();
+        released.gate.reference_sha256 = recipe.reference().sha256().unwrap();
+        let mut unknown = released.clone();
+        unknown.id = "turbo-en-masc-3.0.0-chunks-1".to_owned();
+        assert_eq!(refused(&unknown), "no recipe trains it");
+        // Against the reference, one whose gate failed, or trained on a
+        // corpus that is not the recorded release, makes none either.
+        let mut failed = released.clone();
         failed.gate.pass = false;
-        assert!(matches!(failed.artifact(&url), Err(Error::NotShippable { .. })));
-        // With the release recorded and the gate passed, the entry is
-        // permissive, shippable and names MASC.
-        let mut released = card.clone();
-        released.corpus.release_recorded = true;
+        assert_eq!(refused(&failed), "it failed its gate");
+        let mut unrecorded = released.clone();
+        unrecorded.corpus.release_recorded = false;
+        assert_eq!(refused(&unrecorded), "it was trained on a corpus that is not the recorded release");
+        // With the reference's id and digest, the release recorded and the
+        // gate passed, the entry is permissive, shippable and names MASC.
         let artifact = released.artifact(&url).unwrap();
         let index = Index::parse(Index::to_canonical_json(&[artifact]).as_bytes()).unwrap();
         let entry = index.get(recipe.model_id()).unwrap();
@@ -655,6 +672,7 @@ fn the_binary_refuses_an_unrecorded_corpus_and_writes_each_model_s_directory() {
             let card = ModelCard::read(&dir.join(CARD_FILE)).unwrap();
             assert!(!card.corpus.release_recorded);
             assert_eq!(card.gate.reference, r.reference_id());
+            assert_eq!(card.gate.reference_sha256, r.reference().sha256().unwrap());
             ModelGateRecord::read(&dir.join(GATE_FILE)).unwrap();
         }
     }

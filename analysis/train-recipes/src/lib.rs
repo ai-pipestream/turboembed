@@ -155,6 +155,19 @@ impl Reference {
         }
     }
 
+    /// The model file's SHA-256: the one the zoo's built-in index lists, or
+    /// the recorded one.
+    ///
+    /// # Errors
+    ///
+    /// A zoo id the index does not list.
+    pub fn sha256(&self) -> Result<String> {
+        match self {
+            Reference::Zoo(id) => Ok(Index::builtin().get(id)?.files[0].sha256.to_string()),
+            Reference::Recorded(r) => Ok(r.sha256.to_owned()),
+        }
+    }
+
     /// Checks that `bytes` are the model: the SHA-256 the zoo's built-in
     /// index lists, or the recorded size and SHA-256.
     ///
@@ -163,9 +176,10 @@ impl Reference {
     /// [`Error::ReferenceDigest`] for other bytes, or a zoo id the index
     /// does not list.
     pub fn check(&self, bytes: &[u8]) -> Result<()> {
-        let (expected, size) = match self {
-            Reference::Zoo(id) => (Index::builtin().get(id)?.files[0].sha256.to_string(), None),
-            Reference::Recorded(r) => (r.sha256.to_owned(), Some(r.size)),
+        let expected = self.sha256()?;
+        let size = match self {
+            Reference::Zoo(_) => None,
+            Reference::Recorded(r) => Some(r.size),
         };
         let found = Sha256::of(bytes).to_string();
         if found == expected && size.is_none_or(|n| n == bytes.len() as u64) {
@@ -193,6 +207,11 @@ pub const RECIPES: [Recipe; 3] = [
 ];
 
 impl Recipe {
+    /// The recipe of [`RECIPES`] that trains the model `id`.
+    pub fn trains(id: &str) -> Option<Recipe> {
+        RECIPES.into_iter().find(|r| r.model_id() == id)
+    }
+
     /// The trained model's zoo id, also its file name without `.bin`.
     pub fn model_id(&self) -> &'static str {
         match self {
@@ -377,6 +396,11 @@ mod tests {
         assert_eq!(RECIPES[2].task(), Task::PartOfSpeechTagger);
         assert_eq!(RECIPES[2].component(), turbo_zoo::Component::Pos);
         assert_eq!(RECIPES[2].reference_id(), "opennlp-en-pos-maxent-1.5");
+        assert_eq!(RECIPES[2].reference().sha256().unwrap(), postag::EN_POS_MAXENT.sha256);
+        for r in RECIPES {
+            assert_eq!(Recipe::trains(r.model_id()), Some(r));
+        }
+        assert_eq!(Recipe::trains("turbo-en-masc-3.0.0-chunks-1"), None);
         assert!(Reference::Zoo("not-in-the-zoo").file().is_err());
     }
 
@@ -391,7 +415,13 @@ mod tests {
             sha256: "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad",
         };
         Reference::Recorded(rec).check(bytes).unwrap();
+        assert_eq!(Reference::Recorded(rec).sha256().unwrap(), rec.sha256);
         assert!(Reference::Recorded(RecordedReference { size: 4, ..rec }).check(bytes).is_err());
-        assert!(Reference::Recorded(rec).check(b"abd").is_err());
+        let other = Reference::Recorded(rec).check(b"abd").unwrap_err();
+        // The message says what was recorded, not where.
+        assert_eq!(
+            other.to_string(),
+            format!("reference model x: SHA-256 {}, expected {}", Sha256::of(b"abd"), rec.sha256)
+        );
     }
 }

@@ -2101,7 +2101,8 @@ trained on MASC 3.0.0 (CC BY 3.0 US), gated against
   training counts, the tag formats a tagger was scored in and the
   gate's outcome) and `gate.json` (the gate record). `ModelCard::artifact`
   is the model's permissive zoo entry once the file is published; it
-  refuses a card whose gate failed or whose corpus is not the recorded
+  refuses a card not gated against its recipe's reference (its id and
+  SHA-256), whose gate failed, or whose corpus is not the recorded
   release.
 
 ```
