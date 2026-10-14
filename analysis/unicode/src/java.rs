@@ -21,7 +21,7 @@ use crate::tables::case::{
     LOWER_KEYS, LOWER_VALUES, SPECIAL_LOWER_KEYS, SPECIAL_LOWER_VALUES, UPPER_KEYS, UPPER_VALUES,
 };
 use crate::tables::category::DECIMAL_ZEROS;
-use crate::tables::props::{CASE_IGNORABLE, CASED, HAS_LOWER, HAS_SPECIAL_LOWER, HAS_UPPER};
+use crate::tables::props::{HAS_LOWER, HAS_SPECIAL_LOWER, HAS_UPPER};
 use crate::trie::find;
 
 const CAPITAL_SIGMA: char = '\u{3A3}';
@@ -129,8 +129,9 @@ pub fn to_upper_char(c: char) -> char {
 /// `String.toLowerCase(Locale.ROOT)`, appended to `out`: the simple
 /// lowercase mapping of each character, except that the unconditional
 /// lowercase mappings of SpecialCasing.txt apply (U+0130 becomes
-/// `i\u{307}`) and U+03A3 becomes final sigma U+03C2 where the Final_Sigma
-/// condition holds. The language-specific mappings of SpecialCasing.txt
+/// `i\u{307}`) and U+03A3 becomes final sigma U+03C2 where the JDK's final
+/// sigma condition holds ([`is_final_sigma`] says how that differs from
+/// Unicode's Final_Sigma). The language-specific mappings of SpecialCasing.txt
 /// (Turkish, Azeri, Lithuanian) are not applied.
 pub fn to_lowercase(text: &str, out: &mut String) {
     out.reserve(text.len());
@@ -160,7 +161,7 @@ pub enum Lowercase {
 /// The lowercase mapping [`to_lowercase`] applies to the character `c`
 /// that starts at byte `at` of `text`. The text is needed only for U+03A3
 /// GREEK CAPITAL LETTER SIGMA, whose mapping depends on the characters
-/// around it (the Final_Sigma condition); every other character maps the
+/// around it (the JDK's final sigma condition); every other character maps the
 /// same wherever it stands. Calling this for each character of a text and
 /// writing the results gives the same string as [`to_lowercase`], so a
 /// caller can lowercase character by character and see which ones change.
@@ -184,27 +185,141 @@ fn push_lower(text: &str, at: usize, c: char, out: &mut String) {
     }
 }
 
-/// The Final_Sigma condition of Unicode section 3.13 for the sigma at
-/// byte `at`: a cased character comes before it with only case-ignorable
-/// characters between, and no cased character follows it with only
-/// case-ignorable characters between. A character that is both cased and
-/// case-ignorable counts as cased, as the definition's regular expressions
-/// allow.
+/// Whether `String.toLowerCase(Locale.ROOT)` writes the sigma at byte
+/// `at` as final sigma. The JDK's condition is not Unicode's Final_Sigma:
+/// it walks the word the sigma is in, as the root locale's word
+/// `BreakIterator` delimits it, backwards until a cased character (every
+/// other character is passed over, not only the case-ignorable ones), and
+/// then forwards, where any cased character before the word's end makes
+/// the sigma non-final. So "ΑΣ1" and "Α1Σ" end in final sigma, "ΑΣ1a" and
+/// "ΑΣ.a" do not, and a space, a comma or an ideograph after the sigma
+/// ends the word where Unicode would look on.
 fn is_final_sigma(text: &str, at: usize) -> bool {
     let after = at + CAPITAL_SIGMA.len_utf8();
-    cased_beyond_ignorables(text[..at].chars().rev()) && !cased_beyond_ignorables(text[after..].chars())
+    cased_before_in_word(&text[..at]) && !cased_after_in_word(&text[after..])
 }
 
-/// The first character of `chars` that is not case-ignorable is cased.
-fn cased_beyond_ignorables(chars: impl Iterator<Item = char>) -> bool {
-    for c in chars {
-        let bits = bits(c);
-        if bits & CASED != 0 {
-            return true;
+/// `isCased` of the JDK's conditional casing: the three cased letter
+/// categories and a fixed list of other characters (modifier letters,
+/// U+0345, the Roman numerals, the circled letters), which is an older
+/// Unicode's Other_Uppercase and Other_Lowercase, not the current ones.
+fn java_cased(c: char) -> bool {
+    matches!(general_category(c), GeneralCategory::Lu | GeneralCategory::Ll | GeneralCategory::Lt)
+        || matches!(
+            c as u32,
+            0x02B0..=0x02B8 | 0x02C0..=0x02C1 | 0x02E0..=0x02E4 | 0x0345 | 0x037A | 0x1D2C..=0x1D61 | 0x2160..=0x217F | 0x24B6..=0x24E9
+        )
+}
+
+/// What a character is to the root locale's word `BreakIterator`, as far
+/// as the sigma condition needs: the iterator's rules predate UAX #29.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum WordClass {
+    /// Nonspacing and enclosing marks and format characters attach to the
+    /// character before them.
+    Ignorable,
+    /// Letters and spacing marks, except the kanji, hiragana and katakana
+    /// ranges, which make words of their own.
+    Letter,
+    /// Every numeric category.
+    Digit,
+    /// Everything else ends a word, unless it is one of the characters
+    /// allowed between two letters (`.`, `'`, `"`, the dashes, the
+    /// connectors, the soft hyphen and U+2027) or between two digits
+    /// (`.`, `'`, `"`, `,` and U+066B), which [`mid_word`] and [`mid_num`]
+    /// tell apart.
+    Other,
+}
+
+fn word_class(c: char) -> WordClass {
+    if matches!(c as u32, 0x3005 | 0x4E00..=0x9FA5 | 0xF900..=0xFA2D | 0x3099..=0x309C | 0x30A1..=0x30FE | 0x3041..=0x309E | 0x30FC)
+    {
+        return WordClass::Other;
+    }
+    use GeneralCategory::*;
+    match general_category(c) {
+        Mn | Me | Cf => WordClass::Ignorable,
+        Lu | Ll | Lt | Lm | Lo | Mc => WordClass::Letter,
+        Nd | Nl | No => WordClass::Digit,
+        _ => WordClass::Other,
+    }
+}
+
+fn mid_word(c: char) -> bool {
+    matches!(c, '.' | '\'' | '"' | '\u{AD}' | '\u{2027}')
+        || matches!(general_category(c), GeneralCategory::Pd | GeneralCategory::Pc)
+}
+
+fn mid_num(c: char) -> bool {
+    matches!(c, '.' | '\'' | '"' | ',' | '\u{66B}')
+}
+
+/// Walks `before` backwards from the sigma: true when a cased character
+/// comes before the start of the sigma's word. A cased character that is
+/// a mark or format character counts only when a letter or digit stands
+/// before it in the word, as the iterator makes a lone mark a word of its
+/// own.
+fn cased_before_in_word(before: &str) -> bool {
+    let mut chars = before.chars().rev().peekable();
+    let mut last = WordClass::Letter;
+    let mut pending = false;
+    while let Some(c) = chars.next() {
+        let class = word_class(c);
+        match class {
+            WordClass::Ignorable => {
+                pending |= java_cased(c);
+                continue;
+            }
+            WordClass::Letter | WordClass::Digit => {
+                if pending || java_cased(c) {
+                    return true;
+                }
+            }
+            WordClass::Other => {
+                // Allowed between two characters of the class on this side.
+                let beyond = chars.peek().map(|&b| word_class(b));
+                let joins = (last == WordClass::Letter && mid_word(c) && beyond == Some(WordClass::Letter))
+                    || (last == WordClass::Digit && mid_num(c) && beyond == Some(WordClass::Digit));
+                if !joins {
+                    return false;
+                }
+            }
         }
-        if bits & CASE_IGNORABLE == 0 {
-            return false;
+        last = class;
+    }
+    false
+}
+
+/// Walks `after` forwards from the sigma: true when a cased character
+/// comes before the end of the sigma's word.
+fn cased_after_in_word(after: &str) -> bool {
+    let mut chars = after.chars().peekable();
+    let mut last = WordClass::Letter;
+    while let Some(c) = chars.next() {
+        let class = word_class(c);
+        match class {
+            WordClass::Ignorable | WordClass::Letter | WordClass::Digit => {
+                if java_cased(c) {
+                    return true;
+                }
+                if class == WordClass::Ignorable {
+                    continue;
+                }
+            }
+            // A word boundary comes before the cased check: a circled
+            // letter is on the JDK's cased list and ends the word.
+            WordClass::Other => {
+                // The character after the joiner must follow it directly:
+                // a mark between them ends the word.
+                let beyond = chars.peek().map(|&b| word_class(b));
+                let joins = (last == WordClass::Letter && mid_word(c) && beyond == Some(WordClass::Letter))
+                    || (last == WordClass::Digit && mid_num(c) && beyond == Some(WordClass::Digit));
+                if !joins {
+                    return false;
+                }
+            }
         }
+        last = class;
     }
     false
 }

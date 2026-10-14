@@ -120,9 +120,21 @@ those the JDK reports as unassigned. It fails on any other difference, on
 a JDK other than 21, and when `java` or `javac` is missing.
 `java::digit` accepts decimal digits only (`Character.digit(c, 10)`
 without the fullwidth and ASCII letters of larger radixes).
-`java::to_lowercase` implements Final_Sigma as Unicode section 3.13
-defines it; on the cases in `analysis/unicode/tests/java.rs` it gives the same output as
-OpenJDK 21.
+`java::to_lowercase` writes final sigma under the JDK's own condition, not
+Unicode's Final_Sigma: the JDK walks the word the sigma is in (as its word
+break iterator for the root locale delimits it: letters, digits and the
+marks on them, with `.`, `'`, `"`, a dash or a connector allowed between
+two letters and `.`, `'`, `"`, `,` or U+066B between two digits) backwards
+to the first cased character and forwards to the word's end, passing over
+every other character, where Unicode skips only case-ignorable ones; and
+its cased characters are the three cased letter categories plus a fixed
+list (U+02B0 to U+02B8, U+02C0 to U+02C1, U+02E0 to U+02E4, U+0345, U+037A,
+U+1D2C to U+1D61, the Roman numerals and the circled letters), not the
+current Other_Uppercase and Other_Lowercase. So "ΑΣ1" and "Α1Σ" end in
+final sigma and "ΑΣ1a", "ΑΣ.a" and "ΑΣ\u0e02a" (Thai letters, then a cased
+one, all one word) do not; the differential fuzzing found the last on the
+lemmatizer (`docs/analysis.md`, "Differential fuzzing"). On the cases in
+`analysis/unicode/tests/java.rs` it gives the same output as OpenJDK 21.
 `java::lowercase_at` gives the mapping `to_lowercase` applies to one
 character, with U+03A3 decided from the text around it, so a normalizer
 can lowercase character by character and replace only the characters
@@ -1745,8 +1757,8 @@ an expansion maps back to exactly its source character. ASCII is tested
 eight bytes at a time; a stretch of ASCII without uppercase letters is
 skipped without decoding. Only U+03A3 under `lowercase` looks at its
 neighbours (through `turbo_unicode::java::lowercase_at`, which applies the
-Final_Sigma condition of Unicode section 3.13 to the whole text); the folds
-are context free.
+JDK's final sigma condition to the whole text); the folds are context
+free.
 
 Folding does not keep a normalization form: the full fold of U+01F0 is
 "j" U+030C, which is not NFC, and the combining mark U+0345 (class 240)

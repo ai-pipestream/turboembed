@@ -94,6 +94,119 @@ fn to_lowercase_applies_final_sigma() {
     }
 }
 
+/// The JDK's condition walks the sigma's word, as its word break iterator
+/// for the root locale delimits it, passing over every character that is
+/// not cased; Unicode's Final_Sigma skips only case-ignorable ones. These
+/// are the cases where the two differ, each checked on OpenJDK 21.
+#[test]
+fn to_lowercase_applies_the_jdks_final_sigma_condition_not_unicodes() {
+    // Final: the sigma's word ends, or a digit, mark or uncased letter is
+    // passed over on the way to a cased letter.
+    for text in [
+        "\u{391}\u{3A3}1",
+        "\u{391}1\u{3A3}",
+        "\u{391}\u{3A3}123",
+        "\u{391}\u{3A3},a",
+        "\u{391}\u{3A3})a",
+        "\u{391}\u{3A3}\u{A0}a",
+        "\u{391}\u{3A3}\u{751F}a",
+        "\u{391}\u{3A3}\u{3042}a",
+        "\u{391}\u{3A3}\u{30A2}a",
+        "\u{391}\u{3A3}\u{4E00}a",
+        "\u{391}\u{3A3}\u{FA2D}a",
+        "\u{391}\u{3A3}\u{3005}a",
+        "\u{391}\u{3A3}\u{964}a",
+        "\u{391}\u{3A3}\u{1F600}a",
+        "\u{391}\u{3A3}%a",
+        "\u{391}\u{3A3}\u{20AC}a",
+        "\u{391}\u{3A3}\u{B7}a",
+        "\u{391}\u{3A3}\u{387}a",
+        "\u{391}\u{3A3}\u{2019}a",
+        "\u{391}\u{3A3}\u{66B}a",
+        "\u{391}\u{3A3}.1a",
+        "\u{391}\u{3A3}1.a",
+        "\u{391}\u{3A3}'1a",
+        "\u{391}\u{3A3}1'a",
+        "\u{391}\u{3A3}1-1a",
+        "\u{391}\u{3A3}--a",
+        "\u{391}\u{3A3}__a",
+        "\u{391}\u{3A3}_1",
+        "\u{391}_\u{3A3}",
+        "\u{391}-\u{3A3}",
+        "\u{391}\u{3A3}.\u{301}a",
+        "\u{391}\u{3A3}\u{E02} a",
+        "\u{391}\u{3A3}\u{E01}\u{E02}\u{E03}\u{E04} a",
+        "\u{391}\u{3A3}\u{F7E}",
+        "\u{391}\u{3A3}\u{300}",
+        "\u{391}\u{300}\u{3A3}",
+        "1\u{345}\u{3A3}",
+        // Other_Lowercase characters the JDK does not count as cased.
+        "\u{391}\u{3A3}\u{AA}",
+        "\u{391}\u{3A3}\u{1D62}",
+        "\u{391}\u{3A3}\u{1D78}",
+        "\u{391}\u{3A3}\u{2071}",
+        "\u{391}\u{3A3}\u{A770}",
+        "\u{391}\u{3A3}\u{2180}",
+        "\u{391}\u{3A3}\u{2B9}",
+        "\u{391}\u{3A3}\u{24B6}",
+    ] {
+        let at = text.find('\u{3A3}').unwrap();
+        assert_eq!(lower(text)[at..].chars().next(), Some('\u{3C2}'), "{text:?} should end in final sigma");
+    }
+    // Not final: a cased character is reached within the word.
+    for text in [
+        "\u{391}\u{3A3}1a",
+        "\u{391}\u{3A3}12a",
+        "\u{391}\u{3A3}.a",
+        "\u{391}\u{3A3}-a",
+        "\u{391}\u{3A3}_a",
+        "\u{391}\u{3A3}'a",
+        "\u{391}\u{3A3}\"a",
+        "\u{391}\u{3A3}\u{2013}a",
+        "\u{391}\u{3A3}\u{2014}a",
+        "\u{391}\u{3A3}\u{203F}a",
+        "\u{391}\u{3A3}\u{FF3F}a",
+        "\u{391}\u{3A3}\u{2027}a",
+        "\u{391}\u{3A3}\u{AD}a",
+        "\u{391}\u{3A3}1,1a",
+        "\u{391}\u{3A3}1.1a",
+        "\u{391}\u{3A3}1'1a",
+        "\u{391}\u{3A3}\u{E02}a",
+        "\u{391}\u{3A3}\u{E02}\u{E48}a",
+        "\u{391}\u{3A3}\u{E02}.a",
+        "\u{391}\u{3A3}a\u{E02}",
+        "\u{391}\u{3A3}\u{9FFF}a",
+        "\u{391}\u{3A3}\u{3400}a",
+        "\u{391}\u{3A3}\u{FA2E}a",
+        "\u{391}\u{3A3}\u{AC00}a",
+        "\u{391}\u{3A3}\u{903}a",
+        "\u{391}\u{3A3}\u{B2}a",
+        "\u{391}\u{3A3}\u{2460}a",
+        "\u{391}\u{3A3}\u{301}.a",
+        "\u{391}\u{3A3}\u{200D}\u{301}a",
+        "\u{391}\u{3A3}\u{200B}a",
+        "\u{391}\u{3A3}\u{3A3}",
+        "\u{AA}\u{3A3}",
+        "\u{345}\u{3A3}",
+        "\u{391},\u{3A3}",
+        // The JDK's own list of cased characters.
+        "\u{391}\u{3A3}\u{2160}",
+        "\u{391}\u{3A3}\u{217F}",
+        "\u{391}\u{3A3}\u{2B0}",
+        "\u{391}\u{3A3}\u{2C0}",
+        "\u{391}\u{3A3}\u{37A}",
+        "\u{391}\u{3A3}\u{1D2C}",
+        "\u{391}\u{3A3}\u{1D61}",
+        "\u{391}\u{3A3}\u{10400}",
+        "\u{391}\u{3A3}\u{10428}",
+        "\u{391}\u{3A3}\u{1E9E}",
+        "\u{391}\u{3A3}\u{1C5}",
+    ] {
+        let at = text.find('\u{3A3}').unwrap();
+        assert_eq!(lower(text)[at..].chars().next(), Some('\u{3C3}'), "{text:?} should end in sigma");
+    }
+}
+
 #[test]
 fn to_lowercase_applies_unconditional_special_casing_only() {
     assert_eq!(lower("\u{130}STANBUL"), "i\u{307}stanbul");
