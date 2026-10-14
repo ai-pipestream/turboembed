@@ -81,7 +81,13 @@ pub(crate) struct Limits {
 #[derive(Default)]
 pub(crate) struct Scratch {
     stack: Vec<(u32, usize)>,
+    /// The `(pc, pos)` states known to fail, for positions at or after the
+    /// `from` of the current [`JavaRegex::find_at`]. Without captures a
+    /// state fails whatever start reached it, so the set is kept across the
+    /// start positions of one search.
     visited: Vec<u64>,
+    /// Whether `visited` is in use for the current search.
+    memo: bool,
 }
 
 /// A Java regular expression, compiled to a direct bytecode program.
@@ -142,15 +148,16 @@ impl JavaRegex {
         if from > bytes.len() {
             return None;
         }
+        scratch.memo = false;
         if matches!(self.insts.first(), Some(Inst::Assert(Assertion::StartText))) {
             if from > 0 {
                 return None;
             }
-            return self.match_at(text, 0, scratch).map(|end| (0, end));
+            return self.match_at(text, 0, 0, scratch).map(|end| (0, end));
         }
         let mut start = from;
         while start <= bytes.len() {
-            if let Some(end) = self.match_at(text, start, scratch) {
+            if let Some(end) = self.match_at(text, from, start, scratch) {
                 return Some((start, end));
             }
             if start == bytes.len() {
@@ -162,19 +169,20 @@ impl JavaRegex {
         None
     }
 
-    fn match_at(&self, text: &str, start_pos: usize, scratch: &mut Scratch) -> Option<usize> {
+    /// The end of the match at `start_pos`, part of a search from `from`.
+    fn match_at(&self, text: &str, from: usize, start_pos: usize, scratch: &mut Scratch) -> Option<usize> {
         let bytes = text.as_bytes();
         let insts = &self.insts;
-        let stride = bytes.len() + 1;
+        let stride = bytes.len() - from + 1;
         scratch.stack.clear();
-        let mut visited_active = false;
+        let mut visited_active = scratch.memo;
         let mut backtracks = 0usize;
         let mut pc = 0usize;
         let mut pos = start_pos;
 
         loop {
             if visited_active {
-                let idx = pc * stride + pos;
+                let idx = pc * stride + (pos - from);
                 let word = idx >> 6;
                 let mask = 1u64 << (idx & 63);
                 if (scratch.visited[word] & mask) != 0 {
@@ -281,6 +289,7 @@ impl JavaRegex {
                         let words = (insts.len() * stride).div_ceil(64);
                         scratch.visited.clear();
                         scratch.visited.resize(words, 0);
+                        scratch.memo = true;
                         visited_active = true;
                     }
                     pc = next_pc as usize;
@@ -1477,5 +1486,11 @@ mod tests {
         // Triggers the visited bitset (> 64 backtracks at a single start position) without exponential blowup.
         assert_eq!(find("(a|a)+b", "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaac"), None);
         assert_eq!(find("(a|a)+b", "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaab"), Some((0, 31)));
+        // The failed states are kept across start positions, so a search
+        // that fails at every start is linear, not quadratic, in the text.
+        let long = "a".repeat(20_000);
+        assert_eq!(find("(a|aa)*c", &long), None);
+        assert_eq!(find(".*x", &long), None);
+        assert_eq!(find("(a|aa)*c|a$", &long), Some((19_999, 20_000)));
     }
 }
