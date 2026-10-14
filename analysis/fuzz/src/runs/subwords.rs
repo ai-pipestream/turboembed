@@ -578,13 +578,40 @@ fn expected_port_spans(text: &str, mapped: &Mapped, jvm: &[Piece]) -> Vec<PortSp
         .collect()
 }
 
-/// Whether the port's pieces have the expected spans, one for one.
+/// Whether the port's pieces have the expected spans, one for one. The
+/// pieces of a reordered run must lie inside it, follow each other
+/// without a gap, and together cover the run.
 fn port_spans_fit(expected: &[PortSpan], rust: &[Piece]) -> bool {
-    expected.len() == rust.len()
-        && expected.iter().zip(rust).all(|(e, &(_, [a, b]))| match *e {
-            PortSpan::Exact(span) => span == [a, b],
-            PortSpan::Within([s, e]) => a >= s && b <= e && a < b,
-        })
+    if expected.len() != rust.len() {
+        return false;
+    }
+    let mut run_end: Option<u32> = None;
+    for (i, (e, &(_, [a, b]))) in expected.iter().zip(rust).enumerate() {
+        match *e {
+            PortSpan::Exact(span) => {
+                if span != [a, b] || run_end.is_some() {
+                    return false;
+                }
+            }
+            PortSpan::Within([s, end]) => {
+                let first = i == 0 || expected[i - 1] != *e;
+                let follows = match (first, run_end) {
+                    (true, None) => a == s,
+                    (false, Some(previous)) => a == previous,
+                    _ => false,
+                };
+                if !follows || b > end || a >= b {
+                    return false;
+                }
+                let last = expected.get(i + 1) != Some(e);
+                if last && b != end {
+                    return false;
+                }
+                run_end = if last { None } else { Some(b) };
+            }
+        }
+    }
+    run_end.is_none()
 }
 
 impl Run for WordPiece {
@@ -685,6 +712,18 @@ mod tests {
         assert!(port_spans_fit(&expected, &[(1, [0, 2]), (2, [2, 8]), (3, [9, 10])]));
         assert!(!port_spans_fit(&expected, &[(1, [0, 2]), (2, [2, 9]), (3, [9, 10])]));
         assert!(!port_spans_fit(&expected, &[(1, [0, 0]), (2, [2, 8]), (3, [9, 10])]));
+        // Inside the run but with a gap, not from its start, or not to its
+        // end: the pieces must be contiguous and cover the run.
+        assert!(!port_spans_fit(&expected, &[(1, [0, 2]), (2, [3, 8]), (3, [9, 10])]));
+        assert!(!port_spans_fit(&expected, &[(1, [1, 2]), (2, [2, 8]), (3, [9, 10])]));
+        assert!(!port_spans_fit(&expected, &[(1, [0, 2]), (2, [2, 7]), (3, [9, 10])]));
+        // Two reordered runs in a row, each covered.
+        let text = "Vie\u{302}\u{323}t Vie\u{302}\u{323}t";
+        let m = map(text);
+        let jvm = [(1, [0, 8]), (2, [0, 8]), (1, [9, 17]), (2, [9, 17])];
+        let expected = expected_port_spans(text, &m, &jvm);
+        assert!(port_spans_fit(&expected, &[(1, [0, 3]), (2, [3, 8]), (1, [9, 12]), (2, [12, 17])]));
+        assert!(!port_spans_fit(&expected, &[(1, [0, 3]), (2, [3, 7]), (1, [9, 12]), (2, [12, 17])]));
         // A final sigma leaves the spans alone.
         let text = "ΟΔΥΣΣΕΥΣ";
         let m = map(text);
