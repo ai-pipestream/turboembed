@@ -1542,7 +1542,7 @@ rate, the training accuracy and the parameter digest, where the parameters
 after iteration k are again those of a run of k iterations (so after the
 rescaling the minimizer applies at the end); `turbo:qn-parameters` and
 `turbo:qn-model` are as for GIS. The `config` records add `Algorithm`,
-`L1Cost`, `L2Cost`, `NumOfUpdates`, `MaxFctEval` and `Threads`. `analysis/train/tests/goldens.rs` compares the QN trainer with every one of them the same way.
+`L1Cost`, `L2Cost`, `NumOfUpdates`, `MaxFctEval` and `Threads`. The runs cover one cost, both and neither, several threads, and the `postag` source with many outcomes; `analysis/train/tests/goldens.rs` compares the QN trainer with every one of them the same way. The run `sentdetect-twopass-cutoff1-qn` on `analysis/goldens/data/inputs/train/sentences.txt` is the JVM's training of the fixture `analysis/goldens/data/fixtures/en-plain-qn-rust.bin`, the `.bin` the Rust QN trainer writes for those events: `analysis/train/tests/roundtrip.rs` checks the model bytes against that golden and the `.bin` against the fixture, and the generator loads the fixture in the JVM as a sentence model (`sentdetect/en-plain-qn-rust`) for `analysis/sentdetect/tests/golden.rs` to compare with the Rust detector.
 
 ## Generating golden files
 

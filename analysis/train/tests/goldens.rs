@@ -75,6 +75,10 @@ struct Coverage {
     qn_stops: [usize; 5],
     qn_threads: usize,
     qn_l1: usize,
+    qn_l2: usize,
+    qn_plain: usize,
+    qn_elastic: usize,
+    qn_many_outcomes: usize,
     qn_discarding: usize,
 }
 
@@ -346,7 +350,9 @@ fn indexers_match_the_jvm_on_every_training_golden() {
     assert!(cov.trained > 0 && cov.stopped_early > 0, "{cov:?}");
     assert!(cov.kinds.iter().all(|&n| n > 0), "{cov:?}");
     assert!(cov.threads > 0 && cov.smoothing > 0 && cov.gaussian > 0 && cov.many_outcomes > 0, "{cov:?}");
-    assert!(cov.qn >= 100 && cov.qn_threads > 0 && cov.qn_l1 > 0 && cov.qn_discarding > 0, "{cov:?}");
+    assert!(cov.qn >= 100 && cov.qn_threads > 0 && cov.qn_discarding > 0, "{cov:?}");
+    assert!(cov.qn_l1 > 0 && cov.qn_l2 > 0 && cov.qn_elastic > 0 && cov.qn_plain > 0, "{cov:?}");
+    assert!(cov.qn_many_outcomes > 0, "{cov:?}");
     // The change rate and the evaluation limit stop runs here; the
     // iteration limit is tested in qn.rs. No run reaches the gradient norm
     // or the minimum step before the change rate does.
@@ -391,8 +397,14 @@ fn check_qn(path: &Path, g: &Golden, cov: &mut Coverage) {
     if qn.threads > 1 {
         cov.qn_threads += 1;
     }
-    if qn.l1_cost > 0.0 {
-        cov.qn_l1 += 1;
+    match (qn.l1_cost > 0.0, qn.l2_cost > 0.0) {
+        (true, false) => cov.qn_l1 += 1,
+        (false, true) => cov.qn_l2 += 1,
+        (true, true) => cov.qn_elastic += 1,
+        (false, false) => cov.qn_plain += 1,
+    }
+    if index.outcome_labels().len() > 2 {
+        cov.qn_many_outcomes += 1;
     }
 
     let training = layer(g, "turbo:qn-training");

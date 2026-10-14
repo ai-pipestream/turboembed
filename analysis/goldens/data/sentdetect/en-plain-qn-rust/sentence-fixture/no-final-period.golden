@@ -1,0 +1,16 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	sentence-fixture/no-final-period	42	42	7da8ec7ab2c7f62ccd766534256710e6f4ebc86ca964447b3726e30870f6c6c0
+model	en-plain-qn-rust.bin	23f36eea3d663b3791fd6ee4c5f90e51f7298f4488c815f27b440a2edcac760cdcb6fbe4da87e1762c09c7f6f5db981cfb4657d0f0a6171a4f6cfaebdb9eda0f
+annotator	opennlp.tools.sentdetect.SentenceDetectorME	sentPosDetect
+layer	opennlp:sentences	text	2	start:u32	end:u32
+0	24
+25	42
+end	opennlp:sentences
+layer	turbo:confidence<opennlp:sentences>	aligned:opennlp:sentences	2	value:f64
+3fefd457658136c8 0.9946705801500793
+3ff0000000000000 1.0
+end	turbo:confidence<opennlp:sentences>

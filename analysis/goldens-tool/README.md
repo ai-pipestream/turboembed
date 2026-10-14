@@ -98,7 +98,7 @@ a directory with the same model run without them, and its options are
 |---|---|---|---|
 | `sentdetect` (`SentenceDetectorME`) | `opennlp-en-ud-ewt-sentence-1.3-2.5.4` | `en`, `multi`, `edge` | |
 | | `opennlp-de-ud-gsd-sentence-1.3-2.5.4`, `opennlp-pt-ud-gsd-sentence-1.3-2.5.4` | `edge` | |
-| | `en-abbrev`, `en-plain`, `en-plain-rust` (fixtures), each also `+legacy` | `sentence-fixture` | `whitespace legacy` |
+| | `en-abbrev`, `en-plain`, `en-plain-rust`, `en-plain-qn-rust` (fixtures), each also `+legacy` | `sentence-fixture` | `whitespace legacy` |
 | `sentdetect` (`NewlineSentenceDetector`) | `newline`, `newline+legacy` | `edge` | `whitespace legacy` |
 | `tokenize` (`TokenizerME`) | `opennlp-en-ud-ewt-tokens-1.3-2.5.4` | `en`, `multi`, `edge`, `surrogate` | |
 | | the `de`, `es`, `fr` and `pt` tokenizer models | `edge`, `surrogate` | |
@@ -126,7 +126,7 @@ a directory with the same model run without them, and its options are
 | `subwords` (`WordpieceEncoder`) | `all-minilm-l6-v2-vocab` (fixture) | `en`, `multi`, `edge`, `surrogate`, `subwords` | `lowerCase true`, `maxWordCodePoints 100` |
 | `bpe` (`BPETokenizerTrainer`, `BPETokenizer`) | `merges-40`, `merges-400` | `bpe` | `languageCode en`, `numMerges` |
 | `train` (the data indexers and `GISTrainer`) | `<source>-<indexer>-cutoff<n>`, with `-unsorted` when sorting is off, then `-threads2`, `-smoothing`, `-smoothing0.5`, `-gaussian` or `-gaussian0.5` when the trainer is given that: nineteen runs over the sources `sentdetect`, `tokenize`, `realvalue` and `postag` | `en`, `multi`, `edge`; `sentdetect` and `postag` also `train` | `source`, `DataIndexer`, `Cutoff`, `sort`, `Iterations`, and when set `Threads`, `Smoothing`, `SmoothingObservation`, `GaussianSmoothing`, `GaussianSmoothingSigma` |
-| `train` (`QNTrainer`) | the same, with `-qn` appended, then `-l1`, `-l2` or `-plain` when only one cost, or neither, is on: six runs | `en`, `multi`, `edge`; one `sentdetect` run also `train` | the same with `Algorithm`, `L1Cost`, `L2Cost`, `NumOfUpdates`, `MaxFctEval`, `Threads` |
+| `train` (`QNTrainer`) | the same, with `-qn` appended, then `-l1`, `-l2` or `-plain` when only one cost, or neither, is on: eight runs over `sentdetect`, `realvalue` and `postag` | `en`, `multi`, `edge`; one `sentdetect` run also `train`, one only `train` | the same with `Algorithm`, `L1Cost`, `L2Cost`, `NumOfUpdates`, `MaxFctEval`, `Threads` |
 | `unigram` (`UnigramSegmenter`) | `zh-unigram-fixture` (fixture), also `+legacy` | `zh`, `multi`, `edge`, `surrogate` | `whitespace legacy` |
 | | `jieba-dict-subset` (fixture), also `+legacy` | `zh`, `multi`, `edge` | `whitespace legacy` |
 | | `zh-unigram-modes` (fixture), also `+legacy` | `zh` | `whitespace legacy` |
@@ -190,9 +190,12 @@ a directory with the same model run without them, and its options are
   give the same sum either way, so a two thread run is reproducible, and
   no run uses more.
 - `en-plain-rust.bin` is the `.bin` the Rust trainer writes when it trains
-  `en-plain.bin`'s events again (`analysis/train/tests/roundtrip.rs`). The
-  JVM loads it with `SentenceModel` like the other fixtures, so its goldens
-  show what the JVM makes of a model file written here.
+  `en-plain.bin`'s events again (`analysis/train/tests/roundtrip.rs`), and
+  `en-plain-qn-rust.bin` the one it writes when it trains them with
+  `MAXENT_QN` (cutoff 1, the defaults; the `train` golden
+  `sentdetect-twopass-cutoff1-qn` is the JVM's training of the same). The
+  JVM loads both with `SentenceModel` like the other fixtures, so their
+  goldens show what the JVM makes of a model file written here.
 - A `postag` run cuts the input with the English (or, for the German
   model, German) sentence and tokenizer models, which are its second and
   third `model` records, and tags each sentence with `tag`; its golden has

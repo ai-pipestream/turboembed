@@ -42,8 +42,8 @@ fn every_segmentation_golden_reads_and_writes_back_its_bytes() {
             n += 1;
         }
     }
-    // 779 tokenize, 294 sentdetect, 19 detokenize and 264 unigram goldens.
-    assert_eq!(n, 1356);
+    // 779 tokenize, 328 sentdetect, 19 detokenize and 264 unigram goldens.
+    assert_eq!(n, 1390);
 }
 
 #[test]
@@ -68,9 +68,9 @@ fn every_dump_reads_and_has_its_goldens_header() {
             points += d.points.len();
         }
     }
-    // 473 tokenize, 226 sentdetect and 22 langdetect dumps.
-    assert_eq!(dumps, 721);
-    assert_eq!(points, 24777, "every point of every dump");
+    // 473 tokenize, 260 sentdetect and 22 langdetect dumps.
+    assert_eq!(dumps, 755);
+    assert_eq!(points, 24931, "every point of every dump");
 }
 
 #[test]
