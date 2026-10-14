@@ -73,6 +73,6 @@ pub use monitor::{
     DefaultProgressMonitor, IterDeltaAccuracyUnderTolerance, LogLikelihoodThresholdBreached, ProgressMonitor,
     StopCriteria, TrainingConfiguration, TrainingMeasure,
 };
-pub use package::{Manifest, ModelPackage, sentence_model_package};
+pub use package::{Manifest, ModelPackage, TimeZone, sentence_model_package};
 pub use params::{Algorithm, Key, TrainerType, TrainingParameters, Value};
 pub use writer::write_gis;
