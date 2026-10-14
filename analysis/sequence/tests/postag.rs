@@ -91,7 +91,7 @@ fn check_model(path: &Path, name: &str) {
     let mut lines = body(&text, "POSTagFormatMapper");
     assert_eq!(field(lines.next().unwrap(), "model"), file.sha256().to_hex(), "{name}: model file");
     let model = file.maxent(postag::MODEL_ENTRY_NAME).unwrap();
-    let outcomes: Vec<&str> = model.outcomes().collect();
+    let outcomes: Vec<&str> = model.outcome_texts().unwrap();
     assert_eq!(outcomes, unescape_list(field(lines.next().unwrap(), "outcomes")), "{name}: outcomes");
     let mapper = TagFormatMapper::guess(outcomes.iter().copied());
     assert_eq!(mapper.guessed_format().as_str(), field(lines.next().unwrap(), "guessed"), "{name}");

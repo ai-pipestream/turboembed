@@ -86,9 +86,6 @@
 //! - Annotation files are decoded as UTF-8, US-ASCII or ISO-8859-1, as
 //!   `turbo_maxent::xml::decode` does; Xerces also reads UTF-16 and other
 //!   encodings. A namespace prefix with no declaration is not refused.
-//! - The iteration order of a Java `HashMap` is reproduced
-//!   (`java::HashOrder`) except in a bucket of nine keys or more in a
-//!   table of 64 buckets or more, which Java makes a tree.
 
 mod corpus;
 mod document;

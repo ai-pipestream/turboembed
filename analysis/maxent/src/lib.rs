@@ -13,8 +13,11 @@
 //! [`MaxentModel::eval_modified_utf8`] takes them as Java modified UTF-8
 //! bytes, the form the model keys its predicates by, and allocates
 //! nothing. Both compute as the Java model of the same type does, in `f64`
-//! throughout with `StrictMath`'s `exp` and `log` (from `turbo-jvm`).
-//! docs/segmentation.md, section "Model files", describes where this fits.
+//! throughout with `StrictMath`'s `exp` and `log` (from `turbo-jvm`). A
+//! model's outcome labels are [`JavaString`]s, since a label the JVM
+//! trained on can hold half of a surrogate pair (a lemmatizer's edit
+//! script over a character outside the BMP); predicates are keyed by the
+//! same encoding. docs/segmentation.md, section "Model files", describes where this fits.
 //!
 //! [`ModelFile::sha256`] identifies a model file the way `sha256sum` does,
 //! for the provenance of every layer a model produces.
@@ -29,6 +32,7 @@ pub mod error;
 mod hash;
 pub mod inflate;
 pub mod java_data;
+pub mod java_string;
 pub mod model;
 mod model_reader;
 pub mod properties;
@@ -40,6 +44,7 @@ pub use container::ModelFile;
 pub use crc32::crc32;
 pub use dictionary::{Dictionary, Entries, Entry};
 pub use error::{Error, Result};
+pub use java_string::JavaString;
 pub use model::{MaxentModel, ModelKind, best_outcome};
 pub use properties::Properties;
 pub use sha256::{Digest, sha256};

@@ -71,7 +71,11 @@ impl PosModel {
     /// the default factory, as `BaseModel` reads it), the classifier is
     /// there with at least one outcome, the manifest's `BeamSize` is a
     /// non-negative integer and not zero, the tag dictionary reads, and
-    /// the descriptor builds its generators.
+    /// the descriptor builds its generators. It also refuses a model with
+    /// an outcome that is not text (one holding half of a surrogate pair,
+    /// [`ModelError::OutcomeNotText`]), which the JVM loads and runs: the
+    /// tagger hands tags out as `&str`, so this is a limit of the port,
+    /// not a check OpenNLP makes.
     pub fn open_with_format(file: ModelFile, format: PosTagFormat) -> Result<PosModel, ModelError> {
         if file.component_name() != COMPONENT_NAME {
             return Err(ModelError::Component(file.component_name().into()));
@@ -84,6 +88,9 @@ impl PosModel {
         let maxent = file.maxent(MODEL_ENTRY_NAME)?;
         if maxent.num_outcomes() == 0 {
             return Err(ModelError::NoOutcomes);
+        }
+        if let Err(outcome) = maxent.outcome_texts() {
+            return Err(ModelError::OutcomeNotText(outcome.clone()));
         }
         let beam_size = manifest_beam_size(&file, DEFAULT_BEAM_SIZE)?;
         if beam_size == 0 {
@@ -145,24 +152,34 @@ impl PosModel {
     /// when a mapper is made, and the outcomes themselves otherwise.
     fn set_format(&mut self, format: PosTagFormat) {
         self.requested = format;
-        self.guessed = TagFormatMapper::guess(self.maxent.outcomes()).guessed_format();
-        self.mapper = TagFormatMapper::for_tagger(format, self.maxent.outcomes());
-        let mut labels: Vec<&str> = Vec::with_capacity(self.maxent.num_outcomes());
-        for outcome in self.maxent.outcomes() {
+        let outcomes = Self::texts(&self.maxent);
+        self.guessed = TagFormatMapper::guess(outcomes.iter().copied()).guessed_format();
+        self.mapper = TagFormatMapper::for_tagger(format, outcomes.iter().copied());
+        let mut labels: Vec<&str> = Vec::with_capacity(outcomes.len());
+        for &outcome in &outcomes {
             let label = self.mapper.map_or(outcome, |m| m.convert_tag(outcome));
             if !labels.contains(&label) {
                 labels.push(label);
             }
         }
         self.tagset = TagSet::new(self.tag_format().as_str().to_ascii_lowercase().as_str(), &labels);
-        self.outcome_tags = self
-            .maxent
-            .outcomes()
-            .map(|outcome| {
+        self.outcome_tags = outcomes
+            .iter()
+            .map(|&outcome| {
                 let label = self.mapper.map_or(outcome, |m| m.convert_tag(outcome));
                 self.tagset.tag(label).expect("every converted outcome is in the tag set")
             })
             .collect();
+    }
+
+    /// The classifier's outcomes as text, in outcome order; `open` refused
+    /// any model whose outcomes are not text.
+    pub fn outcomes(&self) -> Vec<&str> {
+        Self::texts(&self.maxent)
+    }
+
+    fn texts(maxent: &MaxentModel) -> Vec<&str> {
+        maxent.outcome_texts().expect("the outcomes were checked to be text when the model was opened")
     }
 
     /// The manifest's `Language`.
@@ -285,6 +302,37 @@ impl PosModel {
 mod tests {
     use super::*;
 
+    /// A part-of-speech model file whose classifier, a GIS model the turbo-train
+    /// writer wrote, has the outcomes `outcome` and `X`.
+    fn model_with_outcome(outcome: turbo_train::JavaString) -> ModelFile {
+        use turbo_train::{Event, Key, Manifest, ModelPackage, TrainingConfiguration, TrainingParameters};
+        let events = [Event::from_strs(outcome, &["w=a"]), Event::from_strs("X", &["w=b"])];
+        let mut params = TrainingParameters::new();
+        params.put(Key::ITERATIONS, 1);
+        params.put(Key::CUTOFF, 0);
+        let (model, _) =
+            turbo_train::gis::train_events(&events, &params, &mut TrainingConfiguration::default()).unwrap();
+        let mut package = ModelPackage::new(Manifest::new(COMPONENT_NAME, "en", 0));
+        package.add_entry(MODEL_ENTRY_NAME, turbo_train::write_gis(&model).unwrap());
+        ModelFile::open(package.to_bytes()).unwrap()
+    }
+
+    #[test]
+    fn a_model_with_an_outcome_holding_half_a_surrogate_pair_is_refused() {
+        // "N" and a lone high surrogate, written as writeUTF writes
+        // it: 4E ED A0 BD.
+        let lone = turbo_train::JavaString::from_utf16(&[0x4E, 0xD83D]);
+        let file = model_with_outcome(lone.clone());
+        let classifier = file.entry(MODEL_ENTRY_NAME).unwrap();
+        assert!(classifier.windows(4).any(|w| w == b"N\xED\xA0\xBD"));
+        let e = PosModel::open(file).unwrap_err();
+        assert!(matches!(&e, ModelError::OutcomeNotText(o) if *o == lone), "{e:?}");
+        assert!(e.to_string().contains("holds half of a surrogate pair"), "{e}");
+        // The same model with a text outcome opens.
+        let text = model_with_outcome(turbo_train::JavaString::new("N"));
+        assert!(PosModel::open(text).is_ok());
+    }
+
     /// The English model, or `None` when it is not downloaded.
     fn english() -> Option<PosModel> {
         Some(PosModel::read(turbo_goldens::published_model("opennlp-en-ud-ewt-pos-1.3-2.5.4.bin")?).unwrap())
@@ -308,7 +356,7 @@ mod tests {
         assert!(!m.converts_tags());
         assert_eq!(m.tagset().name, "ud");
         assert_eq!(m.tagset().len(), m.maxent().num_outcomes());
-        for (i, outcome) in m.maxent().outcomes().enumerate() {
+        for (i, outcome) in m.outcomes().into_iter().enumerate() {
             assert_eq!(m.tagset().label(m.tag_of_outcome(i)), outcome);
             assert_eq!(m.tag_of(outcome), Some(m.tag_of_outcome(i)));
             assert_eq!(m.label_of(outcome), outcome);

@@ -46,6 +46,10 @@ impl ChunkerModel {
     /// manifest without one means the default factory, as `BaseModel`
     /// reads it), the classifier is there with at least one outcome, and
     /// the manifest's `BeamSize` is a non-negative integer and not zero.
+    /// It also refuses a model with an outcome that is not text (one
+    /// holding half of a surrogate pair, [`ModelError::OutcomeNotText`]),
+    /// which the JVM loads and runs: the chunker hands tags out as
+    /// `&str`, so this is a limit of the port, not a check OpenNLP makes.
     pub fn open(file: ModelFile) -> Result<ChunkerModel, ModelError> {
         if file.component_name() != COMPONENT_NAME {
             return Err(ModelError::Component(file.component_name().into()));
@@ -63,7 +67,7 @@ impl ChunkerModel {
         if beam_size == 0 {
             return Err(ModelError::ZeroBeam);
         }
-        let outcomes: Vec<&str> = maxent.outcomes().collect();
+        let outcomes = maxent.outcome_texts().map_err(|o| ModelError::OutcomeNotText(o.clone()))?;
         let tagset = TagSet::new("chunk", &outcomes);
         // The kinds the outcomes can start a phrase with, in outcome
         // order; an outcome without a kind is left out and refused when
@@ -168,6 +172,37 @@ impl ChunkerModel {
 mod tests {
     use super::*;
 
+    /// A chunker model file whose classifier, a GIS model the turbo-train
+    /// writer wrote, has the outcomes `outcome` and `O`.
+    fn model_with_outcome(outcome: turbo_train::JavaString) -> ModelFile {
+        use turbo_train::{Event, Key, Manifest, ModelPackage, TrainingConfiguration, TrainingParameters};
+        let events = [Event::from_strs(outcome, &["w=a"]), Event::from_strs("O", &["w=b"])];
+        let mut params = TrainingParameters::new();
+        params.put(Key::ITERATIONS, 1);
+        params.put(Key::CUTOFF, 0);
+        let (model, _) =
+            turbo_train::gis::train_events(&events, &params, &mut TrainingConfiguration::default()).unwrap();
+        let mut package = ModelPackage::new(Manifest::new(COMPONENT_NAME, "en", 0));
+        package.add_entry(MODEL_ENTRY_NAME, turbo_train::write_gis(&model).unwrap());
+        ModelFile::open(package.to_bytes()).unwrap()
+    }
+
+    #[test]
+    fn a_model_with_an_outcome_holding_half_a_surrogate_pair_is_refused() {
+        // "B" and a lone high surrogate, written as writeUTF writes
+        // it: 42 ED A0 BD.
+        let lone = turbo_train::JavaString::from_utf16(&[0x42, 0xD83D]);
+        let file = model_with_outcome(lone.clone());
+        let classifier = file.entry(MODEL_ENTRY_NAME).unwrap();
+        assert!(classifier.windows(4).any(|w| w == b"B\xED\xA0\xBD"));
+        let e = ChunkerModel::open(file).unwrap_err();
+        assert!(matches!(&e, ModelError::OutcomeNotText(o) if *o == lone), "{e:?}");
+        assert!(e.to_string().contains("holds half of a surrogate pair"), "{e}");
+        // The same model with a text outcome opens.
+        let text = model_with_outcome(turbo_train::JavaString::new("B"));
+        assert!(ChunkerModel::open(text).is_ok());
+    }
+
     fn fixtures() -> std::path::PathBuf {
         Path::new(env!("CARGO_MANIFEST_DIR")).join("../goldens/data/fixtures")
     }
@@ -183,7 +218,7 @@ mod tests {
         assert_eq!(m.model_ref().revision, "3.0.0-SNAPSHOT");
         assert_eq!(m.tagset().name, "chunk");
         assert_eq!(m.tagset().len(), m.maxent().num_outcomes());
-        for (i, outcome) in m.maxent().outcomes().enumerate() {
+        for (i, outcome) in m.maxent().outcome_texts().unwrap().into_iter().enumerate() {
             assert_eq!(m.tagset().label(m.tag_of_outcome(i)), outcome);
             assert_eq!(m.tag_of(outcome), Some(m.tag_of_outcome(i)));
             assert!(outcome == "O" || outcome.starts_with("B-") || outcome.starts_with("I-"), "{outcome}");

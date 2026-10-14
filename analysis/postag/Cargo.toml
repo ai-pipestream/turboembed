@@ -20,3 +20,5 @@ turbo-sequence = { path = "../sequence" }
 [dev-dependencies]
 turbo-goldens = { path = "../goldens" }
 turbo-unicode = { path = "../unicode" }
+# Writes a small model whose outcome holds half of a surrogate pair.
+turbo-train = { path = "../train" }

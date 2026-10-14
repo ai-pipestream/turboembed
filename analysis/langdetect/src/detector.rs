@@ -137,7 +137,7 @@ impl LanguageDetector {
         }
         Prediction {
             outcome: best as u32,
-            code: self.model.maxent().outcome(best),
+            code: self.model.code(best),
             probability: p[best],
             evidence: self.has_evidence(&scratch.context),
         }
@@ -198,10 +198,9 @@ impl Annotator for LanguageDetector {
             if !ranking.has_evidence() {
                 return Err(Error::Skipped(NO_EVIDENCE.into()));
             }
-            let maxent = self.model.maxent();
             let mut code = Strs::default();
             for &o in ranking.outcomes() {
-                code.push(maxent.outcome(o as usize));
+                code.push(self.model.code(o as usize));
             }
             Ok((Language { code, score: ranking.probabilities().to_vec() },))
         })

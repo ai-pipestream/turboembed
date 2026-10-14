@@ -28,6 +28,7 @@ use turbo_analysis::{Analyzer, Bound, Document, Key};
 use turbo_analysis_layers::{Confidence, Lemmas, PosTags, Tokens};
 use turbo_goldens::{GOLDEN_KEY, Tolerance, Unit, golden_key, load_document, matches_golden_key};
 use turbo_lemmatizer::{DictionaryLemmatizer, LemmaContext, LemmatizerModel, MaxentLemmatizer, TokenTag};
+use turbo_maxent::JavaString;
 use turbo_sequence::{AcceptAll, BeamSearch, ContextGenerator, Features};
 use turbo_unicode::modified_utf8::push_modified_utf8;
 
@@ -50,6 +51,10 @@ struct Counts {
     /// Tokens whose lemma differs from the lowercased token (a class
     /// other than `O`), or, for the dictionary, tokens it listed.
     changed: usize,
+    /// Tokens whose class holds half of a surrogate pair: a class that
+    /// edits the units of a character outside the Basic Multilingual
+    /// Plane, which no Rust string can hold.
+    halved: usize,
 }
 
 /// Passes contexts through to the generator and keeps each with the
@@ -59,12 +64,12 @@ struct Recorder<C> {
     calls: Vec<(usize, Vec<Vec<u8>>)>,
 }
 
-impl<T, C: ContextGenerator<T>> ContextGenerator<T> for Recorder<C> {
+impl<T, C: ContextGenerator<T, JavaString>> ContextGenerator<T, JavaString> for Recorder<C> {
     fn start_sequence(&mut self) {
         self.inner.start_sequence();
     }
 
-    fn context(&mut self, index: usize, sequence: &[T], prior: &[&str], out: &mut Features) {
+    fn context(&mut self, index: usize, sequence: &[T], prior: &[&JavaString], out: &mut Features) {
         self.inner.context(index, sequence, prior, out);
         self.calls.push((index, out.iter().map(<[u8]>::to_vec).collect()));
     }
@@ -137,9 +142,10 @@ fn check_maxent_run(name: &str, model: &Arc<LemmatizerModel>, model_file: &Path)
         let doc = lemmatize(&case, MaxentLemmatizer::new(model.clone()), true);
         let lemmas = doc.get_key(&Key::<Lemmas>::DEFAULT).unwrap();
         counts.tokens += lemmas.lemma.len();
-        let (points, changed) = check_dump(&case, &doc, model);
+        let (points, changed, halved) = check_dump(&case, &doc, model);
         counts.points += points;
         counts.changed += changed;
+        counts.halved += halved;
         count(&mut counts, &case);
     }
     eprintln!("lemmatize/{name}: {counts:?}");
@@ -147,21 +153,22 @@ fn check_maxent_run(name: &str, model: &Arc<LemmatizerModel>, model_file: &Path)
 }
 
 /// Every point of the dump against the contexts the search asked for
-/// here; returns their number and how many tokens got a class other than
-/// `O`.
-fn check_dump(case: &Case, doc: &Document, model: &LemmatizerModel) -> (usize, usize) {
+/// here; returns their number, how many tokens got a class other than
+/// `O` and how many got a class holding half of a surrogate pair.
+fn check_dump(case: &Case, doc: &Document, model: &LemmatizerModel) -> (usize, usize, usize) {
     let dump = case.dump();
     let what = case.path.display().to_string();
     let maxent = model.maxent();
-    let labels: Vec<&str> = (0..maxent.num_outcomes()).map(|i| maxent.outcome(i)).collect();
+    let labels: Vec<&JavaString> = maxent.outcomes().collect();
     let mut recorder = Recorder { inner: LemmaContext, calls: Vec::new() };
     let mut seen: Vec<(u32, Vec<Vec<u8>>)> = Vec::new();
-    let mut changed = 0;
+    let (mut changed, mut halved) = (0, 0);
     for sentence in sentences(doc) {
         let words: Vec<TokenTag<'_>> = sentence.iter().map(|&(w, _)| w).collect();
-        let search = BeamSearch::new(model.beam_size(), maxent);
+        let Ok(search) = BeamSearch::<JavaString>::new(model.beam_size(), maxent);
         let best = search.best_sequence(&words, &mut recorder, &AcceptAll).unwrap_or_else(|| panic!("{what}"));
-        changed += best.outcomes().iter().filter(|&&o| o != "O").count();
+        changed += best.outcomes().iter().filter(|&&o| *o != "O").count();
+        halved += best.outcomes().iter().filter(|o| o.to_str().is_none()).count();
         for (index, features) in recorder.calls.drain(..) {
             seen.push((sentence[index].1, features));
         }
@@ -184,14 +191,14 @@ fn check_dump(case: &Case, doc: &Document, model: &LemmatizerModel) -> (usize, u
         let show = |f: &[Vec<u8>]| f.iter().map(|x| String::from_utf8_lossy(x).into_owned()).collect::<Vec<_>>();
         assert_eq!(features, &want, "{what} at {start}: {:?} against {:?}", show(features), show(&want));
         assert!(p.values.is_none() && p.acceptable.is_none(), "{what} at {start}");
-        let got: Vec<&str> = p.outcomes.iter().map(|o| o.label.as_str()).collect();
+        let got: Vec<&JavaString> = p.outcomes.iter().map(|o| &o.label).collect();
         assert_eq!(got, labels, "{what} at {start}: outcomes");
         maxent.eval_features(features.iter().map(Vec::as_slice), &mut probs);
         for (o, &got) in p.outcomes.iter().zip(&probs) {
             assert_eq!(got.to_bits(), o.prob.to_bits(), "{what} at {start}: P({}) {got} against {}", o.label, o.prob);
         }
     }
-    (seen.len(), changed)
+    (seen.len(), changed, halved)
 }
 
 #[test]
@@ -204,21 +211,38 @@ fn english() {
     assert_eq!(counts.skipped, 1);
     // The same searches as the tagger's over these tokens: one per path
     // of a beam of three.
-    assert_eq!((counts.tokens, counts.points, counts.changed), (1304, 3584, 181), "{counts:?}");
+    assert_eq!((counts.tokens, counts.points, counts.changed, counts.halved), (1304, 3584, 181, 0), "{counts:?}");
 }
 
 /// The model the Rust trainer wrote from `inputs/tagged/lemmas.txt`
 /// (`analysis/train-components/tests/fixtures.rs`), which the JVM loaded
-/// and lemmatized with over the English pipeline's tags.
+/// and lemmatized with over the English pipeline's tags. Two of its
+/// classes delete the two units of an emoji and so hold each half of a
+/// surrogate pair on its own; the JVM read them from the model, listed
+/// them in every dump and chose one for the emoji of `edge/emoji-single`
+/// and of `en/emoji`, whose lemma is then `_`.
 #[test]
 fn rust_fixture() {
     let path = common::fixtures_dir().join("lemma-fixture-rust.bin");
     let model = Arc::new(LemmatizerModel::read(&path).unwrap());
     assert_eq!(model.language(), "en");
+    let halves: Vec<&JavaString> = model.maxent().outcomes().filter(|o| o.to_str().is_none()).collect();
+    assert_eq!(
+        halves,
+        [
+            &JavaString::from_utf16(&[0x44, 0x31, 0xDE00, 0x44, 0x30, 0xD83D]),
+            &JavaString::from_utf16(&[0x44, 0x31, 0xDC4D, 0x44, 0x30, 0xD83D])
+        ]
+    );
     let counts = check_maxent_run("lemma-fixture-rust", &model, &path);
     assert_eq!(counts.files, [("edge".into(), 34), ("en".into(), 10)]);
     assert_eq!(counts.skipped, 1);
-    assert_eq!((counts.tokens, counts.points, counts.changed), (972, 2672, 7), "{counts:?}");
+    assert_eq!((counts.tokens, counts.points, counts.changed, counts.halved), (972, 2672, 11, 2), "{counts:?}");
+    let (cases, _) = common::run("lemmatize", "lemma-fixture-rust");
+    let emoji = cases.iter().find(|c| (c.set(), c.id()) == ("edge", "emoji-single")).unwrap();
+    let doc = lemmatize(emoji, MaxentLemmatizer::new(model.clone()), true);
+    let lemmas = doc.get_key(&Key::<Lemmas>::DEFAULT).unwrap();
+    assert_eq!(lemmas.lemma.get(1), "_", "{:?}", lemmas.lemma.iter().collect::<Vec<_>>());
 }
 
 #[test]
@@ -229,7 +253,7 @@ fn german() {
     let counts = check_maxent_run("opennlp-de-ud-gsd-lemmas-1.3-2.5.4", &model, &path);
     assert_eq!(counts.files, [("edge".into(), 34)]);
     assert_eq!(counts.skipped, 0);
-    assert_eq!((counts.tokens, counts.points, counts.changed), (465, 1271, 45), "{counts:?}");
+    assert_eq!((counts.tokens, counts.points, counts.changed, counts.halved), (465, 1271, 45, 0), "{counts:?}");
 }
 
 #[test]

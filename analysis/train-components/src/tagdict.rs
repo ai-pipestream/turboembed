@@ -19,12 +19,12 @@
 //! The lookup side (`getTags`) that the tagger's sequence validator uses
 //! is `turbo_sequence::postag::TagDictionary`, which reads the same XML.
 
-use turbo_maxent::Entries;
+use turbo_maxent::{Entries, JavaString};
 use turbo_unicode::java::to_lower_char;
 
 use crate::dictionary::{XmlEntry, write_entries_xml};
 use crate::error::{Error, Result};
-use crate::java_hash::{hash_map_order, str_hash_code};
+use crate::java_hash::string_order;
 
 /// A tag dictionary: the words in the order the JVM's map first saw them
 /// (lowercased when the dictionary is not case sensitive), each with the
@@ -135,8 +135,7 @@ impl PosDictionary {
                 }
             }
         }
-        let hashes: Vec<i32> = seen.iter().map(|t| str_hash_code(t)).collect();
-        Ok(hash_map_order(&hashes)?.into_iter().map(|i| seen[i]).collect())
+        Ok(string_order(seen.iter().copied()).into_iter().map(|i| seen[i]).collect())
     }
 
     /// `validatePOSDictionary`: the tags the model has no outcome for, in
@@ -144,15 +143,14 @@ impl PosDictionary {
     /// message lists them in. `POSModel`'s constructor refuses a dictionary
     /// with any: an `InvalidFormatException` that `BaseModel.checkArtifactMap`
     /// wraps in an `IllegalArgumentException`.
-    pub fn tags_unknown_to(&self, outcomes: &[String]) -> Result<Vec<String>> {
+    pub fn tags_unknown_to(&self, outcomes: &[JavaString]) -> Result<Vec<String>> {
         Ok(self.all_tags()?.into_iter().filter(|t| !outcomes.iter().any(|o| o == t)).map(str::to_owned).collect())
     }
 
     /// The entries in the order `iterator()` and `serialize` give them:
     /// the map's, by `String.hashCode` of the words.
     pub fn java_order(&self) -> Result<Vec<usize>> {
-        let hashes: Vec<i32> = self.words.iter().map(|(w, _)| str_hash_code(w)).collect();
-        hash_map_order(&hashes)
+        Ok(string_order(self.words.iter().map(|(w, _)| w.as_str())))
     }
 
     /// `POSDictionary.serialize`: the bytes of the `tags.tagdict` entry.
@@ -194,6 +192,10 @@ mod tests {
         list.iter().map(|t| t.to_string()).collect()
     }
 
+    fn outcomes(list: &[&str]) -> Vec<JavaString> {
+        list.iter().map(|t| JavaString::new(t)).collect()
+    }
+
     /// The fixture `analysis/sequence/golden/resources/tags.tagdict`.
     const FIXTURE: &[u8] = b"<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<dictionary case_sensitive=\"false\">\n\
         <entry tags=\"DT\"><token>the</token></entry>\n<entry tags=\"NN VB VBP\"><token>Run</token></entry>\n\
@@ -212,8 +214,8 @@ mod tests {
         // The order of a `HashSet` of the tags: buckets 0 (DT, then NN), 1
         // (NNP), 3 (VBN), 5 (VBP), 9 (VBD) and 12 (VB) of a table of 16.
         assert_eq!(d.all_tags().unwrap(), ["DT", "NN", "NNP", "VBN", "VBP", "VBD", "VB"]);
-        assert_eq!(d.tags_unknown_to(&tags(&["DT", "NN", "VB", "VBP", "VBD", "VBN"])).unwrap(), ["NNP"]);
-        assert_eq!(d.tags_unknown_to(&tags(&["DT", "NNP"])).unwrap(), ["NN", "VBN", "VBP", "VBD", "VB"]);
+        assert_eq!(d.tags_unknown_to(&outcomes(&["DT", "NN", "VB", "VBP", "VBD", "VBN"])).unwrap(), ["NNP"]);
+        assert_eq!(d.tags_unknown_to(&outcomes(&["DT", "NNP"])).unwrap(), ["NN", "VBN", "VBP", "VBD", "VB"]);
         // What the JVM wrote into pos-fixture.bin from this file.
         let xml = String::from_utf8(d.serialize().unwrap()).unwrap();
         assert_eq!(

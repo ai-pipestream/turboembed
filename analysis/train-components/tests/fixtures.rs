@@ -13,7 +13,7 @@ use std::path::{Path, PathBuf};
 
 use turbo_formats::native::{LemmaReader, WordTagReader};
 use turbo_goldens::data_dir;
-use turbo_maxent::ModelFile;
+use turbo_maxent::{JavaString, ModelFile};
 use turbo_train::package::MANIFEST_ENTRY;
 use turbo_train::{Key, TimeZone, TrainingConfiguration, TrainingParameters};
 use turbo_train_components::lemmatize::{self, LemmatizerFactory, train_lemmatizer_model};
@@ -240,7 +240,7 @@ fn the_rust_pos_fixture_is_the_bin_written_here() {
     );
     // The dictionary's tags are all outcomes, so the JVM's check passes.
     let model = file.maxent(postag::MODEL_ENTRY).unwrap();
-    let outcomes: Vec<&str> = (0..model.num_outcomes()).map(|i| model.outcome(i)).collect();
+    let outcomes: Vec<&str> = model.outcome_texts().unwrap();
     for tag in ["DT", "NN", "VB", "VBP", "VBD", "VBN", "NNP"] {
         assert!(outcomes.contains(&tag), "{tag} is not an outcome of {outcomes:?}");
     }
@@ -252,7 +252,7 @@ fn the_rust_pos_fixture_is_the_bin_written_here() {
 fn the_rust_lemma_fixture_is_the_bin_written_here() {
     let text = tagged("lemmas.txt");
     let samples: Vec<_> = LemmaReader::new(&text).unwrap().map(|s| s.unwrap()).collect();
-    assert_eq!(samples.len(), 19);
+    assert_eq!(samples.len(), 20);
     let factory = LemmatizerFactory::new("en");
     let ours = train_lemmatizer_model(
         &samples,
@@ -269,7 +269,16 @@ fn the_rust_lemma_fixture_is_the_bin_written_here() {
     assert_eq!(file.manifest().get("Component-Name"), Some("StatisticalLemmatizer"));
     assert_eq!(file.manifest().get("factory"), Some("opennlp.tools.lemmatizer.LemmatizerFactory"));
     let model = file.maxent(lemmatize::MODEL_ENTRY).unwrap();
-    let outcomes: Vec<&str> = (0..model.num_outcomes()).map(|i| model.outcome(i)).collect();
-    // The identity class, and the class of a plural noun losing its s.
-    assert!(outcomes.contains(&"O") && outcomes.contains(&"D0s"), "{outcomes:?}");
+    let outcomes: Vec<&JavaString> = model.outcomes().collect();
+    // The identity class, the class of a plural noun losing its s, and the
+    // classes of `Smile\u{1F600}` to `smile` and `ok\u{1F44D}` to `ok`,
+    // which delete the two units of the emoji and so hold each half of its
+    // surrogate pair on its own.
+    for class in ["O", "D0s"] {
+        assert!(outcomes.iter().any(|o| *o == class), "{class} is not an outcome of {outcomes:?}");
+    }
+    let smile = JavaString::from_utf16(&[0x44, 0x31, 0xDE00, 0x44, 0x30, 0xD83D]);
+    let ok = JavaString::from_utf16(&[0x44, 0x31, 0xDC4D, 0x44, 0x30, 0xD83D]);
+    assert!(outcomes.contains(&&smile) && outcomes.contains(&&ok), "{outcomes:?}");
+    assert_eq!(model.outcome_texts(), Err(&smile));
 }

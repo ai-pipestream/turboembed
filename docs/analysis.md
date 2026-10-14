@@ -75,7 +75,8 @@ match the JVM bit for bit:
 - `hash_map`: `JavaHash` (`String.hashCode`, `CharBuffer.hashCode`,
   record/pair and `List.hashCode`), `spread` (`HashMap.hash`),
   `HashMapOrder`, `put_order` and `JavaHashMap` reproduce JDK 21's
-  `HashMap` table sizing, bin splitting and iteration order for `put`,
+  `HashMap` table sizing, bin splitting, red-black tree bins and
+  iteration order for `new HashMap<>()`, `new HashMap<>(n)`, `put`,
   `merge`, `putAll` and `clear`, used by `turbo-langdetect`,
   `turbo-namefind`, `turbo-sequence`, `turbo-bpe-trainer` and
   `turbo-formats`.
@@ -1725,8 +1726,8 @@ first one's order and `serialize` writes that order, so a trained model's
 before the manifest among the zip entries; `POSModel` refuses a
 dictionary tag the model has no outcome for; and a lemma class is an edit
 script over UTF-16 units, which can hold half of a surrogate pair for a
-token or lemma outside the Basic Multilingual Plane, a class the JVM
-trains on and the crate refuses.
+token or lemma outside the Basic Multilingual Plane, so an outcome label
+is a `JavaString` from the event to the model file, as it is on the JVM.
 
 `analysis/train-components/tests/goldens.rs` compares the events with
 every `train` and `train-events` golden, and the stream errors, the
@@ -1906,7 +1907,7 @@ generator writes them for `SentenceDetectorME`, `TokenizerME`,
 `POSTaggerME`, `LemmatizerME`, `ChunkerME` and `LanguageDetectorME`. `turbo_goldens::Dump::read` parses one into its
 header (the golden's `Header` type) and a `Point` per decision, with the
 contexts as UTF-16 units, since a context can hold half of a surrogate
-pair.
+pair, and the outcome labels as `JavaString`s, since a lemma class can.
 
 ### The format
 
@@ -2164,9 +2165,10 @@ exactly the ones the golden tests list:
 - `langdetect`: the port declines a text with no evidence for any
   language, where the JVM ranks every language at the prior
   (`analysis/langdetect/tests/goldens.rs`); and where a bucket of the
-  JVM's n-gram map held nine or more n-grams and the JDK turned it into
-  a tree, the n-grams reached the model in an order the port does not
-  reproduce and the probabilities differ in their last bits, within
+  JVM's n-gram map that the JDK turned into a tree held n-grams with
+  equal hash codes, which the JDK orders by identity hash code, the
+  n-grams reached the model in an order the port cannot reproduce and
+  the probabilities differ in their last bits, within
   1e-12 (`ContextGenerator::exact_order` in
   `analysis/langdetect/src/context.rs` says when).
 - `tokenize/simple+keep-new-lines`: the two defects of `SimpleTokenizer`

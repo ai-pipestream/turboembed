@@ -326,7 +326,7 @@ mod tests {
     }
 
     fn outcomes(events: &[Event]) -> String {
-        events.iter().map(Event::outcome).collect()
+        events.iter().map(|e| e.outcome().to_string()).collect()
     }
 
     #[test]
