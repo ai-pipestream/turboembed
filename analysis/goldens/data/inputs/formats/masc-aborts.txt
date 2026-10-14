@@ -1,0 +1,215 @@
+# A MASC-format corpus written for the turbo-formats tests: hand-written text
+# and stand-off annotation in the layout of MASC 3.0 (GrAF). Not MASC data.
+# Documents that end MascDocumentStream's constructor: the first of them aborts the stream.
+
+@@ file first.hdr
+<?xml version="1.0" encoding="UTF-8"?>
+<documentHeader xmlns="http://www.xces.org/ns/GrAF/1.0/" docId="TEST" version="1.0.4">
+  <profileDesc>
+    <primaryData f.id="f.text" loc="first.txt"/>
+    <annotations>
+      <annotation loc="first-s.xml" f.id="f.s">annotation</annotation>
+      <annotation loc="first-seg.xml" f.id="f.seg">annotation</annotation>
+    </annotations>
+  </profileDesc>
+</documentHeader>
+
+@@ end
+
+@@ file first.txt
+Ok.
+@@ end
+
+@@ file first-seg.xml
+<?xml version="1.0" encoding="UTF-8"?>
+<graph xmlns="http://www.xces.org/ns/GrAF/1.0/">
+  <graphHeader><labelsDecl/></graphHeader>
+  <region xml:id="seg-r0" anchors="0 2"/>
+  <region xml:id="seg-r1" anchors="2 3"/>
+</graph>
+
+@@ end
+
+@@ file first-s.xml
+<graph xmlns="http://www.xces.org/ns/GrAF/1.0/">
+  <graphHeader><labelsDecl><labelUsage label="s" occurs="1"/></labelsDecl></graphHeader>
+  <region xml:id="s-r0" anchors="0 3"/>
+  <node xml:id="s-n0"><link targets="s-r0"/></node>
+  <a xml:id="s-N0" label="s" ref="s-n0" as="anc"><fs><f name="id" value="s0"/></fs></a>
+</graph>
+
+@@ end
+
+@@ file a/nos.hdr
+<?xml version="1.0" encoding="UTF-8"?>
+<documentHeader xmlns="http://www.xces.org/ns/GrAF/1.0/" docId="TEST" version="1.0.4">
+  <profileDesc>
+    <primaryData f.id="f.text" loc="nos.txt"/>
+    <annotations>
+      <annotation loc="nos-s.xml" f.id="f.s">annotation</annotation>
+      <annotation loc="nos-seg.xml" f.id="f.seg">annotation</annotation>
+    </annotations>
+  </profileDesc>
+</documentHeader>
+
+@@ end
+
+@@ file a/nos.txt
+Ok.
+@@ end
+
+@@ file a/nos-seg.xml
+<?xml version="1.0" encoding="UTF-8"?>
+<graph xmlns="http://www.xces.org/ns/GrAF/1.0/">
+  <graphHeader><labelsDecl/></graphHeader>
+  <region xml:id="seg-r0" anchors="0 2"/>
+  <region xml:id="seg-r1" anchors="2 3"/>
+</graph>
+
+@@ end
+
+@@ file a/nos-s.xml
+<graph xmlns="http://www.xces.org/ns/GrAF/1.0/">
+  <graphHeader><labelsDecl><labelUsage label="s" occurs="0"/></labelsDecl></graphHeader>
+</graph>
+
+@@ end
+
+@@ file a/b/noq.hdr
+<?xml version="1.0" encoding="UTF-8"?>
+<documentHeader xmlns="http://www.xces.org/ns/GrAF/1.0/" docId="TEST" version="1.0.4">
+  <profileDesc>
+    <primaryData f.id="f.text" loc="noq.txt"/>
+    <annotations>
+      <annotation loc="noq-s.xml" f.id="f.s">annotation</annotation>
+      <annotation loc="noq-seg.xml" f.id="f.seg">annotation</annotation>
+    </annotations>
+  </profileDesc>
+</documentHeader>
+
+@@ end
+
+@@ file a/b/noq.txt
+Ok.
+@@ end
+
+@@ file a/b/noq-seg.xml
+<?xml version="1.0" encoding="UTF-8"?>
+<graph xmlns="http://www.xces.org/ns/GrAF/1.0/">
+  <graphHeader><labelsDecl/></graphHeader>
+</graph>
+
+@@ end
+
+@@ file a/b/noq-s.xml
+<graph xmlns="http://www.xces.org/ns/GrAF/1.0/">
+  <graphHeader><labelsDecl><labelUsage label="s" occurs="1"/></labelsDecl></graphHeader>
+  <region xml:id="s-r0" anchors="0 3"/>
+  <node xml:id="s-n0"><link targets="s-r0"/></node>
+  <a xml:id="s-N0" label="s" ref="s-n0" as="anc"><fs><f name="id" value="s0"/></fs></a>
+</graph>
+
+@@ end
+
+@@ file a/b/c/after.hdr
+<?xml version="1.0" encoding="UTF-8"?>
+<documentHeader xmlns="http://www.xces.org/ns/GrAF/1.0/" docId="TEST" version="1.0.4">
+  <profileDesc>
+    <primaryData f.id="f.text" loc="after.txt"/>
+    <annotations>
+      <annotation loc="after-s.xml" f.id="f.s">annotation</annotation>
+      <annotation loc="after-seg.xml" f.id="f.seg">annotation</annotation>
+    </annotations>
+  </profileDesc>
+</documentHeader>
+
+@@ end
+
+@@ file a/b/c/after.txt
+Ok. More.
+@@ end
+
+@@ file a/b/c/after-seg.xml
+<?xml version="1.0" encoding="UTF-8"?>
+<graph xmlns="http://www.xces.org/ns/GrAF/1.0/">
+  <graphHeader><labelsDecl/></graphHeader>
+  <region xml:id="seg-r0" anchors="0 2"/>
+  <region xml:id="seg-r1" anchors="2 3"/>
+</graph>
+
+@@ end
+
+@@ file a/b/c/after-s.xml
+<graph xmlns="http://www.xces.org/ns/GrAF/1.0/">
+  <graphHeader><labelsDecl><labelUsage label="s" occurs="2"/></labelsDecl></graphHeader>
+  <region xml:id="s-r0" anchors="0 3"/>
+  <node xml:id="s-n0"><link targets="s-r0"/></node>
+  <a xml:id="s-N0" label="s" ref="s-n0" as="anc"><fs><f name="id" value="s0"/></fs></a>
+  <region xml:id="s-r1" anchors="4 9"/>
+  <node xml:id="s-n1"><link targets="s-r1"/></node>
+  <a xml:id="s-N1" label="s" ref="s-n1" as="anc"><fs><f name="id" value="s1"/></fs></a>
+</graph>
+
+@@ end
+
+@@ file a/b/c/d/notext.hdr
+<?xml version="1.0" encoding="UTF-8"?>
+<documentHeader xmlns="http://www.xces.org/ns/GrAF/1.0/" docId="TEST" version="1.0.4">
+  <profileDesc>
+    <annotations>
+      <annotation loc="notext-s.xml" f.id="f.s">annotation</annotation>
+    </annotations>
+  </profileDesc>
+</documentHeader>
+
+@@ end
+
+@@ file a/b/c/d/notext-s.xml
+<graph xmlns="http://www.xces.org/ns/GrAF/1.0/">
+  <graphHeader><labelsDecl><labelUsage label="s" occurs="1"/></labelsDecl></graphHeader>
+  <region xml:id="s-r0" anchors="0 3"/>
+  <node xml:id="s-n0"><link targets="s-r0"/></node>
+  <a xml:id="s-N0" label="s" ref="s-n0" as="anc"><fs><f name="id" value="s0"/></fs></a>
+</graph>
+
+@@ end
+
+@@ file a/b/c/d/e/empty.hdr
+<documentHeader xmlns="http://www.xces.org/ns/GrAF/1.0/"/>
+
+@@ end
+
+@@ file a/b/c/d/e/f/noloc.hdr
+<?xml version="1.0" encoding="UTF-8"?>
+<documentHeader xmlns="http://www.xces.org/ns/GrAF/1.0/" docId="TEST" version="1.0.4">
+  <profileDesc>
+    <primaryData f.id="f.text"/>
+    <annotations>
+    </annotations>
+  </profileDesc>
+</documentHeader>
+
+@@ end
+
+@@ file a/b/c/d/e/f/g/gone.hdr
+<?xml version="1.0" encoding="UTF-8"?>
+<documentHeader xmlns="http://www.xces.org/ns/GrAF/1.0/" docId="TEST" version="1.0.4">
+  <profileDesc>
+    <primaryData f.id="f.text" loc="gone.txt"/>
+    <annotations>
+      <annotation loc="gone-s.xml" f.id="f.s">annotation</annotation>
+      <annotation loc="gone-seg.xml" f.id="f.seg">annotation</annotation>
+    </annotations>
+  </profileDesc>
+</documentHeader>
+
+@@ end
+
+@@ file a/b/c/d/e/f/g/gone.txt
+Ok.
+@@ end
+
+@@ file a/b/c/d/e/f/g/h/broken.hdr
+<documentHeader>
+
+@@ end

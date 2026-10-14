@@ -329,7 +329,7 @@ pub const GENERATOR_ARGS: [&str; 1] = ["--dumps"];
 /// replaces and `verify` compares. The data directory holds other things
 /// (the inputs, the fixtures, the rate snapshot, a README) that neither
 /// touches.
-pub const ANNOTATORS: [&str; 15] = [
+pub const ANNOTATORS: [&str; 16] = [
     "sentdetect",
     "tokenize",
     "langdetect",
@@ -345,6 +345,7 @@ pub const ANNOTATORS: [&str; 15] = [
     "lattice",
     "formats",
     "evaluate",
+    "masc",
 ];
 
 /// The annotators with runs that ask a maxent model for their decisions:

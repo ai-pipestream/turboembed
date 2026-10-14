@@ -1,0 +1,42 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	formats/masc-unicode	11458	11444	bbfdbde1d423774008548d2c1eee3eadb806d41799402f3bf7ff8cabf1ec9774
+annotator	opennlp.tools.formats.masc.MascSentenceSampleStream	read
+config	sentencesPerSample	2
+layer	turbo:samples	document	6	pass:u32	written:str
+0	Café 😀 ok.\nNaïve résumés.\n
+0	Bad �� bytes � here.\nA� B�b C�� D��� E���� F���� G���� H����� I�(� J�j K�� L.\n
+0	M�\n
+1	Café 😀 ok.\nNaïve résumés.\n
+1	Bad �� bytes � here.\nA� B�b C�� D��� E���� F���� G���� H����� I�(� J�j K�� L.\n
+1	M�\n
+end	turbo:samples
+layer	turbo:read-errors	document	2	pass:u32	after:u32	class:str	message:str
+0	3	java.lang.NullPointerException	Cannot invoke "opennlp.tools.formats.masc.MascDocument.read()" because "this.buffer" is null
+1	6	java.lang.NullPointerException	Cannot invoke "opennlp.tools.formats.masc.MascDocument.read()" because "this.buffer" is null
+end	turbo:read-errors
+layer	turbo:open-errors	document	0	class:str	message:str
+end	turbo:open-errors
+layer	turbo:sample-texts	document	6	text:str
+Café 😀 ok. Naïve résumés.
+\nBad �� bytes � here. \nA� B�b C�� D��� E���� F���� G���� H����� I�(� J�j K�� L.
+M�
+Café 😀 ok. Naïve résumés.
+\nBad �� bytes � here. \nA� B�b C�� D��� E���� F���� G���� H����� I�(� J�j K�� L.
+M�
+end	turbo:sample-texts
+layer	turbo:sample-spans	document	10	sample:u32	start:u32	end:u32
+0	0	14
+0	15	32
+1	1	27
+1	29	143
+2	0	4
+3	0	14
+3	15	32
+4	1	27
+4	29	143
+5	0	4
+end	turbo:sample-spans

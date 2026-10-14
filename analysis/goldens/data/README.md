@@ -98,8 +98,9 @@ are not taken from any corpus.
   outside the Basic Multilingual Plane (`emoji`) and words holding `</w>`
   as text (`end-marker`).
 
-- `inputs/formats/`: 26 small files in OpenNLP's native sample formats
-  and in CoNLL-U, written for this project; the part of the id before
+- `inputs/formats/`: 35 small files in OpenNLP's native sample formats,
+  in CoNLL-U and in MASC's layout, written for this project except as
+  noted below; the part of the id before
   the first hyphen names the format, or for the evaluator inputs the
   part after `pairs-` (`name`, `wordtag`, `lemma`,
   `chunk`, `token`, `sentence`, `doccat`, `language`, `conllu`). They hold ordinary samples and the
@@ -130,6 +131,26 @@ are not taken from any corpus.
   offsets), a name predicted twice,
   pairs with nothing to find, and sentence ends that only one
   whitespace mode trims.
+
+  The `masc-` files are corpus directories bundled into one text (see
+  "MASC goldens" in `analysis/goldens-tool/README.md`), with text and
+  stand-off annotation written for this project in the layout of MASC
+  3.0 (GrAF); they hold no MASC text. They hold documents with and
+  without Penn tokens and named entities, the documents
+  `MascDocumentStream` skips (each annotation file that does not parse,
+  bad ids and anchors, a missing segmentation file, a document type
+  declaration) and those that end it (a header that does not parse, has
+  no annotation, no `loc`, no primary data or a missing file, no sentence
+  regions, no quarks), overlapping, touching and empty sentence regions,
+  quarks shared by Penn tokens, tokens across sentences, missing tags,
+  empty tokens, named entities over one and several tokens, overlapping
+  and untyped names, character references, element names in other cases
+  and with prefixes, digits of other scripts in anchors, accented letters,
+  a character outside the Basic Multilingual Plane, a byte order mark and
+  malformed UTF-8 that the JDK's decoder replaces otherwise than the
+  Unicode recommendation. `masc-opennlp.txt` is Apache OpenNLP's MASC
+  test corpus (`opennlp-core/opennlp-formats/src/test/resources/opennlp/tools/formats/masc/`
+  at the goldens' OpenNLP commit, Apache License 2.0), unchanged.
 
 `analysis/goldens-tool/README.md` ("Runs") lists which run reads which set.
 

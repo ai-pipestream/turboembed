@@ -18,6 +18,10 @@
 //! - [`conllu`]: the CoNLL-U format, `ConlluStream`, and the
 //!   part-of-speech, lemma, sentence and token samples OpenNLP reads
 //!   from it.
+//! - [`masc`]: the MASC corpus (GrAF stand-off XML), `MascDocumentStream`
+//!   and the part-of-speech, token, sentence and name samples OpenNLP
+//!   reads from it. A corpus is a directory of files, so it is not in the
+//!   registry, which reads one text.
 //! - [`registry`]: the formats of each sample kind by name, OpenNLP's
 //!   `StreamFactoryRegistry`.
 //! - [`evaluate`]: OpenNLP's scores, an evaluator per component and the
@@ -88,6 +92,7 @@ pub mod convert;
 pub mod encoding;
 pub mod error;
 pub mod evaluate;
+pub mod masc;
 pub mod native;
 pub mod registry;
 pub mod sample;

@@ -467,13 +467,25 @@ final class FormatGolden implements AnnotatorGolden {
    * Builds the columns of a layer row by row: each call appends one value to the named column,
    * and {@link #layer} writes the columns in the order given, typed by what was appended. A
    * column given to {@code layer} with no values (a layer without rows) is a {@code str} column
-   * unless it is named in {@link #U32_COLUMNS}.
+   * unless it is named in {@link #U32_COLUMNS} or in the names given to the constructor.
    */
   static final class Columns {
     private static final Set<String> U32_COLUMNS = Set.of("after", "sample", "start", "end", "partitions", "fold");
 
+    private final Set<String> u32Names;
     private final Map<String, List<Long>> u32 = new java.util.HashMap<>();
     private final Map<String, List<String>> str = new java.util.HashMap<>();
+
+    Columns() {
+      this(Set.of());
+    }
+
+    /** Columns where each of {@code u32Names} is also a {@code u32} column when it has no values. */
+    Columns(Set<String> u32Names) {
+      Set<String> all = new java.util.HashSet<>(U32_COLUMNS);
+      all.addAll(u32Names);
+      this.u32Names = Set.copyOf(all);
+    }
 
     Columns u32(String name, long value) {
       u32.computeIfAbsent(name, k -> new ArrayList<>()).add(value);
@@ -488,7 +500,7 @@ final class FormatGolden implements AnnotatorGolden {
     Layer layer(String id, String anchor, String... names) {
       List<Column> columns = new ArrayList<>();
       for (String n : names) {
-        if (U32_COLUMNS.contains(n)) {
+        if (u32Names.contains(n)) {
           List<Long> v = u32.getOrDefault(n, List.of());
           columns.add(new Column.U32(n, v.stream().mapToLong(Long::longValue).toArray()));
         } else {

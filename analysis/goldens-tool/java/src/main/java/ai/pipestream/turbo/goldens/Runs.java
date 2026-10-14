@@ -179,6 +179,8 @@ final class Runs {
     annotators.addAll(FormatGolden.all(fixtures.resolve(FORMAT_DETOKENIZER)));
     // The evaluators, over pairs of a reference sample and a prediction in a native format.
     annotators.addAll(EvalGolden.all());
+    // The MASC readers, over small corpora bundled in the formats set.
+    annotators.addAll(MascGolden.all());
     return new All(annotators, recorders);
   }
 }
