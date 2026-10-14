@@ -1492,7 +1492,7 @@ with single spaces, the values the indexer kept, and how often the event
 was seen). The sources are the sentence detector's `SDEventStream`, the
 tokenizer's `TokSpanEventStream` and a real valued source made from the
 lines of the input (`analysis/goldens-tool/README.md`, "Runs"); the
-`sentdetect` runs on `inputs/train/sentences.txt` with `TwoPass` and cutoff
+`sentdetect` runs on `analysis/goldens/data/inputs/train/sentences.txt` with `TwoPass` and cutoff
 1 is the training of the fixture model `en-plain.bin`, and its checksum is
 that model's `Training-Eventhash`.
 
