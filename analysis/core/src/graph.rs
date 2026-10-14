@@ -4,7 +4,7 @@
 use std::fmt;
 use std::sync::Arc;
 
-use crate::layer::{Anchor, Key, KeyId, Layer, Tag, TagSet};
+use crate::layer::{Anchor, Key, KeyId, Layer, LayerName, Tag, TagSet};
 use crate::span::{Ix, IxRange};
 
 /// One directed, labeled, scored edge from an item of `From` to an item of
@@ -47,7 +47,9 @@ impl<From, To> fmt::Debug for Edge<From, To> {
 /// Directed, labeled, scored edges from items of `From` to items of `To`,
 /// stored by column in `(from, to, kind)` order with a secondary index
 /// (`by_to`) ordered by `(to, row)` so lookups in both directions are binary
-/// searches.
+/// searches. A `(from, to, kind)` triple appears at most once: a layer that
+/// repeats one is refused when it is added to a document, since the two
+/// rows would be one relation with two scores.
 ///
 /// `From` and `To` may be the same layer type (for example coreference links
 /// between mentions or discourse relations between clauses) or two distinct
@@ -125,14 +127,18 @@ impl<From, To> fmt::Debug for Edges<From, To> {
 impl<From: Layer, To: Layer> Edges<From, To> {
     /// Builds an edge layer between the default instances of `From` and `To`
     /// (or the instances the producing step wrote or read), sorting the rows
-    /// by `(from, to, kind)` and building the target index.
+    /// by `(from, to, kind)` and building the target index. When `From` and
+    /// `To` are one layer type, both ends resolve to the same instance; use
+    /// `between` to link two instances of it.
     pub fn new(kinds: Arc<TagSet>, rows: impl IntoIterator<Item = Edge<From, To>>) -> Edges<From, To> {
         Self::between(Key::DEFAULT, Key::DEFAULT, kinds, rows)
     }
 
     /// Builds an edge layer between the named instances `from_key` and
     /// `to_key`, sorting the rows by `(from, to, kind)` and building the
-    /// target index.
+    /// target index. A named instance must be one the producing step read or
+    /// wrote (its provenance's `reads` or `on`); `Document::add` refuses an
+    /// edge layer into any other.
     pub fn between(
         from_key: Key<From>,
         to_key: Key<To>,
@@ -153,7 +159,7 @@ impl<From: Layer, To: Layer> Edges<From, To> {
             score.push(e.score);
         }
         let mut by_to: Vec<Ix<Edges<From, To>>> = (0..n as u32).map(Ix::new).collect();
-        by_to.sort_by_key(|&r| to[r.get()]);
+        by_to.sort_unstable_by_key(|&r| (to[r.get()], r));
         Edges { from_key, to_key, from, to, kind, kinds, score, by_to }
     }
 
@@ -200,8 +206,8 @@ impl<From: Layer, To: Layer> Edges<From, To> {
 
 impl<From: Layer, To: Layer> Layer for Edges<From, To> {
     const ID: &'static str = "turbo:edges";
-    const OF: &'static str = From::ID;
-    const TO: &'static str = To::ID;
+    const OF: Option<&'static LayerName> = Some(From::NAME);
+    const TO: Option<&'static LayerName> = Some(To::NAME);
 
     fn anchor() -> Anchor {
         Anchor::Document
@@ -226,9 +232,9 @@ impl<From: Layer, To: Layer> Layer for Edges<From, To> {
             return Err(format!("a kind outside {}", self.kinds.name));
         }
         if !(1..n)
-            .all(|i| (self.from[i - 1], self.to[i - 1], self.kind[i - 1]) <= (self.from[i], self.to[i], self.kind[i]))
+            .all(|i| (self.from[i - 1], self.to[i - 1], self.kind[i - 1]) < (self.from[i], self.to[i], self.kind[i]))
         {
-            return Err("edges in (from, to, kind) order".into());
+            return Err("edges in (from, to, kind) order, each once".into());
         }
         if self.by_to.iter().any(|r| r.get() >= n) {
             return Err("a target index outside the edges".into());
@@ -243,7 +249,8 @@ impl<From: Layer, To: Layer> Layer for Edges<From, To> {
 /// Clusters or sets of items from layer `L` (coreference chains, duplicate
 /// groups, multi-argument sets), stored flat in one `members` column and one
 /// `end` offset column. Each group's members are kept in strictly increasing
-/// `Ix<L>` order.
+/// `Ix<L>` order, and every group has at least one member: a layer with an
+/// empty group is refused when it is added to a document.
 pub struct Groups<L> {
     pub of_key: Key<L>,
     pub members: Vec<Ix<L>>,
@@ -281,7 +288,8 @@ impl<L: Layer> Groups<L> {
     }
 
     /// Builds groups over the named instance `of_key`, sorting and
-    /// deduplicating each group's members.
+    /// deduplicating each group's members. As with `Edges::between`, the
+    /// producing step must have read or written that instance.
     pub fn of(of_key: Key<L>, groups: impl IntoIterator<Item = impl IntoIterator<Item = Ix<L>>>) -> Groups<L> {
         let mut out = Groups { of_key, members: Vec::new(), end: Vec::new() };
         for g in groups {
@@ -291,7 +299,8 @@ impl<L: Layer> Groups<L> {
     }
 
     /// Appends one group, sorting and deduplicating its members into strictly
-    /// increasing `Ix<L>` order.
+    /// increasing `Ix<L>` order. An empty group is kept here and refused by
+    /// `Layer::check`.
     pub fn push(&mut self, group: impl IntoIterator<Item = Ix<L>>) -> Ix<Self> {
         let start = self.members.len();
         self.members.extend(group);
@@ -333,7 +342,7 @@ impl<L: Layer> Groups<L> {
 
 impl<L: Layer> Layer for Groups<L> {
     const ID: &'static str = "turbo:groups";
-    const OF: &'static str = L::ID;
+    const OF: Option<&'static LayerName> = Some(L::NAME);
 
     fn anchor() -> Anchor {
         Anchor::Document
@@ -344,7 +353,8 @@ impl<L: Layer> Layer for Groups<L> {
     }
 
     fn indexes(&self) -> Vec<(KeyId, usize)> {
-        let bound = self.members.iter().map(|i| i.get() + 1).max().unwrap_or(0);
+        // Each group is sorted, so its last member is its largest.
+        let bound = self.iter().filter_map(|(_, g)| g.last()).map(|i| i.get() + 1).max().unwrap_or(0);
         vec![(self.of_key.id(), bound)]
     }
 
@@ -358,8 +368,8 @@ impl<L: Layer> Layer for Groups<L> {
         if *self.end.last().unwrap() as usize != self.members.len() {
             return Err("group ends do not match members".into());
         }
-        if !self.end.windows(2).all(|w| w[0] <= w[1]) {
-            return Err("group ends in order".into());
+        if self.end[0] == 0 || !self.end.windows(2).all(|w| w[0] < w[1]) {
+            return Err("group ends in order, every group with a member".into());
         }
         for g in 0..self.end.len() {
             if !self.get(Ix::new(g as u32)).windows(2).all(|w| w[0] < w[1]) {
