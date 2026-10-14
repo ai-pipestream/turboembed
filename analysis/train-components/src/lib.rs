@@ -87,7 +87,8 @@
 //! - A lemma class is the shortest edit script over UTF-16 units; a token
 //!   or lemma outside the Basic Multilingual Plane can give a class that
 //!   holds half of a surrogate pair, which the JVM trains on and a Rust
-//!   string cannot hold ([`Error::LemmaClassSurrogate`]).
+//!   string cannot hold ([`Error::LemmaClassSurrogate`]; issue #404 tracks
+//!   holding the outcome as a `JavaString`).
 //! - The published UD 1.3 models were trained with 300 iterations, not
 //!   the 150 their training configuration file says ([`ud`][]).
 

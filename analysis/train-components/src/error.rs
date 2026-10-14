@@ -53,13 +53,15 @@ pub enum Error {
     /// token, or no `tags` attribute.
     TagDictionaryEntry(String),
     /// A tag dictionary lists tags the trained model has no outcome for;
-    /// `POSModel`'s constructor throws `InvalidFormatException` and writes
-    /// no model.
+    /// `POSModel`'s constructor throws an `IllegalArgumentException`
+    /// wrapping the `InvalidFormatException` of `validatePOSDictionary`,
+    /// and writes no model.
     UnknownDictionaryTags(Vec<String>),
     /// A lemma sample whose token and lemma give a class holding half of a
     /// surrogate pair (a character outside the Basic Multilingual Plane
     /// replaced or deleted), which the JVM trains on and a Rust string
-    /// cannot hold.
+    /// cannot hold. Issue #404 tracks holding the outcome as a
+    /// `JavaString` so that such a sample can be trained on.
     LemmaClassSurrogate { token: String },
     /// The treebank or a published model could not be fetched or verified.
     Zoo(turbo_zoo::ZooError),

@@ -104,9 +104,9 @@ All of these are kept and tested (`src/`, `tests/goldens.rs`,
   or lemma with a character outside the Basic Multilingual Plane can give
   a class that holds half of a surrogate pair; the JVM trains on it, a
   Rust string cannot hold it, and this crate refuses the sample
-  (`Error::LemmaClassSurrogate`). The `train-events` goldens have two
-  such samples, which `tests/goldens.rs` checks are the only events this
-  crate does not make.
+  (`Error::LemmaClassSurrogate`; issue #404 tracks holding the outcome as
+  a `JavaString`). The `train-events` goldens have two such samples, which
+  `tests/goldens.rs` checks are the only events this crate does not make.
 - The published UD 1.3 models were trained with 300 iterations, not the
   150 that `ud-train.conf` in `apache/opennlp-models` says (below).
 
@@ -171,11 +171,14 @@ come out exactly for all eighteen models, and the parameters to within
 2.2e-15 (German sentences) to 9.8e-15 (French tokens) for the sentence
 and token models, 1.6e-14 (English) to 1.4e-13 (Spanish) for the taggers
 and 8.0e-15 (English) to 1.8e-14 (Portuguese) for the lemmatizers, with
-60 to 97 percent of them differing in their last bits. The JVM of the goldens
-container, running the fork's trainer on the same events, writes exactly
-the parameters this crate writes and shows the same residual against the
-published file, so the residual is not between this port and the fork's
-trainer. Its cause is not known: `GISTrainer` uses `StrictMath`
+60 to 97 percent of them differing in their last bits. For the eight
+sentence and token models, the JVM of the goldens container, running the
+fork's trainer on the same events, writes exactly the parameters this
+crate writes and shows the same residual against the published file
+(checked in #394), so for them the residual is not between this port and
+the fork's trainer; the taggers and lemmatizers have not been run through
+the fork's trainer in the container, and their residual is only known to
+be of the same size. Its cause is not known: `GISTrainer` uses `StrictMath`
 throughout and merges its threads' sums in a fixed order, so neither
 platform `Math` intrinsics nor thread timing explain it. The next
 experiment is to run the OpenNLP 2.5.4 command line itself in the

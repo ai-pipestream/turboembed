@@ -34,13 +34,19 @@
 //! With those settings the event checksum (`Training-Eventhash`) and the
 //! manifest of a published model come out exactly, and the model entry's
 //! labels and outcome patterns too. The parameters differ from the
-//! published ones in their last bits: for the eight models, between 2.2e-15
-//! (German sentences) and 9.8e-15 (French tokens) in absolute value at
-//! most, with 60 to 85 percent of the parameters differing. The JVM of the goldens
-//! container (Temurin 21 on x86-64), running the same training with the
-//! fork's trainer, writes exactly the parameters this crate writes and
-//! shows the same residual against the published file, so the residual
-//! is not between this port and the fork's trainer. Its cause is not
+//! published ones in their last bits: for the eighteen models, between
+//! 2.2e-15 (German sentences) and 9.8e-15 (French tokens) for the sentence
+//! and token models, 1.6e-14 (English) and 1.4e-13 (Spanish) for the
+//! taggers, and 8.0e-15 (English) and 1.8e-14 (Portuguese) for the
+//! lemmatizers, in absolute value at most, with 60 to 97 percent of the
+//! parameters differing; the widest, 1.37e-13, is about seven times under
+//! the 1e-12 the reproduction test allows. For the eight sentence and
+//! token models, the JVM of the goldens container (Temurin 21 on x86-64),
+//! running the same training with the fork's trainer, writes exactly the
+//! parameters this crate writes and shows the same residual against the
+//! published file, so for them the residual is not between this port and
+//! the fork's trainer; the taggers and lemmatizers have not been run
+//! through the fork's trainer in the container. Its cause is not
 //! known: `GISTrainer` uses `StrictMath` throughout and merges its
 //! threads' sums in a fixed order, so neither platform `Math` intrinsics
 //! nor thread timing explain it. The next experiment is to run the OpenNLP

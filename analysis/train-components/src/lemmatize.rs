@@ -15,7 +15,8 @@
 //! character outside the Basic Multilingual Plane can give a class that
 //! holds half of a surrogate pair. The JVM trains on such a class; a Rust
 //! string cannot hold it, so a sample that makes one is refused
-//! ([`Error::LemmaClassSurrogate`]).
+//! ([`Error::LemmaClassSurrogate`]; issue #404 tracks holding the outcome
+//! as a `JavaString`).
 
 use turbo_formats::LemmaSample;
 use turbo_lemmatizer::LemmaContext;

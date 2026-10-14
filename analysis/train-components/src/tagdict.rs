@@ -142,7 +142,8 @@ impl PosDictionary {
     /// `validatePOSDictionary`: the tags the model has no outcome for, in
     /// [`all_tags`](Self::all_tags) order, which is the order the JVM's
     /// message lists them in. `POSModel`'s constructor refuses a dictionary
-    /// with any (`InvalidFormatException`).
+    /// with any: an `InvalidFormatException` that `BaseModel.checkArtifactMap`
+    /// wraps in an `IllegalArgumentException`.
     pub fn tags_unknown_to(&self, outcomes: &[String]) -> Result<Vec<String>> {
         Ok(self.all_tags()?.into_iter().filter(|t| !outcomes.iter().any(|o| o == t)).map(str::to_owned).collect())
     }

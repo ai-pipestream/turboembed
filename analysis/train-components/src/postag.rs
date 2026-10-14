@@ -13,9 +13,10 @@
 //! model file then carries as `generator.featuregen`.
 //!
 //! `POSModel`'s constructor checks a tag dictionary against the trained
-//! model: every tag the dictionary lists must be an outcome, or the
-//! constructor throws `InvalidFormatException` and no model is written
-//! ([`Error::UnknownDictionaryTags`]).
+//! model: every tag the dictionary lists must be an outcome, or
+//! `validateArtifactMap` throws `InvalidFormatException`, which
+//! `BaseModel.checkArtifactMap` wraps in an `IllegalArgumentException`,
+//! and no model is written ([`Error::UnknownDictionaryTags`]).
 
 use turbo_formats::PosSample;
 use turbo_sequence::featuregen::descriptor;

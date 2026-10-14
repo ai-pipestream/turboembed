@@ -33,8 +33,11 @@ use turbo_train_components::ud::{self, RECIPES};
 use turbo_zoo::UserId;
 
 /// The largest difference a parameter may show from the published value.
-/// The eight models differ by 2.2e-15 to 9.8e-15 at most, and a wrong
-/// iteration count or event stream moves parameters by far more.
+/// The eighteen models differ by 2.2e-15 to 9.8e-15 (sentences and
+/// tokens), 1.6e-14 to 1.4e-13 (taggers) and 8.0e-15 to 1.8e-14
+/// (lemmatizers) at most, so the widest is about seven times under this,
+/// and a wrong iteration count or event stream moves parameters by far
+/// more.
 const TOLERANCE: f64 = 1e-12;
 
 #[test]
