@@ -1949,6 +1949,7 @@ dependencies = [
 name = "turbo-maxent"
 version = "0.1.0"
 dependencies = [
+ "turbo-goldens",
  "turbo-jvm",
  "turbo-unicode",
 ]
@@ -2041,6 +2042,7 @@ dependencies = [
 name = "turbo-sequence"
 version = "0.1.0"
 dependencies = [
+ "turbo-goldens",
  "turbo-jvm",
  "turbo-maxent",
  "turbo-unicode",
@@ -2141,6 +2143,7 @@ dependencies = [
  "serde",
  "serde_json",
  "sha2",
+ "turbo-goldens",
  "ureq",
 ]
 

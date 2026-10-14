@@ -6,31 +6,9 @@
 
 use std::path::{Path, PathBuf};
 
+pub use turbo_goldens::published_model;
 use turbo_goldens::{Dump, Golden, data_dir, sha512};
 use turbo_postag::PosTagFormat;
-
-/// A published part-of-speech model, where `turbo-goldens fetch-models`
-/// puts it: the directory in `TURBO_GOLDENS_MODELS`, or
-/// `target/turbo-goldens/models` under the repository root. The models
-/// are trained on CC BY-SA treebanks and are not checked in, so a test
-/// that needs one says so and passes without it when it is missing,
-/// unless `TURBO_TEST_REQUIRE_OPENNLP_MODELS=1`, which makes a missing
-/// model fail it, as CI sets it.
-pub fn published_model(file: &str) -> Option<PathBuf> {
-    let dir = match std::env::var_os("TURBO_GOLDENS_MODELS") {
-        Some(d) => PathBuf::from(d),
-        None => Path::new(env!("CARGO_MANIFEST_DIR")).join("../../target/turbo-goldens/models"),
-    };
-    let path = dir.join(file);
-    if path.is_file() {
-        Some(path)
-    } else if std::env::var("TURBO_TEST_REQUIRE_OPENNLP_MODELS").is_ok_and(|v| v == "1") {
-        panic!("{} not found and TURBO_TEST_REQUIRE_OPENNLP_MODELS=1", path.display());
-    } else {
-        eprintln!("{} not found: skipping the test that needs it", path.display());
-        None
-    }
-}
 
 /// The generator's fixture models, `pos-fixture.bin` among them.
 pub fn fixtures_dir() -> PathBuf {

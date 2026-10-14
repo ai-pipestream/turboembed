@@ -70,7 +70,7 @@ jobs:
           TURBO_GOLDENS_MODELS: ${{ github.workspace }}/.opennlp-models
           TURBO_TEST_REQUIRE_OPENNLP_MODELS: "1"
         run: |
-          cargo test -p turbo-langdetect -p turbo-sentdetect -p turbo-tokenize -p turbo-postag -p turbo-lemmatizer
+          cargo test -p turbo-maxent -p turbo-sequence -p turbo-langdetect -p turbo-sentdetect -p turbo-tokenize -p turbo-postag -p turbo-lemmatizer
           cargo test -p turbo-zoo --test builtin
           cargo test -p turbo-eval --lib
       # fetch-models also unpacks the MeCab dictionaries into the same
