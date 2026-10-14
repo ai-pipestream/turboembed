@@ -19,7 +19,7 @@ pub struct ChunkSample<'a> {
 }
 
 /// One phrase of a [`ChunkSample`]: tokens `start..end` and its type.
-#[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct Phrase<'a> {
     pub start: u32,
     pub end: u32,
@@ -96,12 +96,12 @@ impl<'a> ChunkSample<'a> {
         let mut phrases = Vec::new();
         let mut open: Option<(u32, Field<'a>)> = None;
         for (i, chunk) in self.chunks.iter().enumerate() {
-            let tag = chunk.text;
+            let tag = chunk.as_str();
             let i = i as u32;
             let continues = |kind: &str| tag.strip_prefix("I-") == Some(kind);
-            let open_kind = open.map_or("", |(_, k)| k.text);
+            let open_kind = open.as_ref().map_or("", |(_, k)| k.as_str());
             if tag.starts_with("B-") || (!continues(open_kind) && tag != "O") {
-                if let Some((start, kind)) = open {
+                if let Some((start, kind)) = open.take() {
                     phrases.push(Phrase { start, end: i, kind });
                 }
                 let cut = match utf16_cut(tag, 2) {

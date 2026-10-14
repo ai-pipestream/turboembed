@@ -59,12 +59,12 @@ impl<'a> Iterator for WordTagReader<'a> {
 pub fn parse_line(line: Line<'_>, mode: WhitespaceMode) -> Result<PosSample<'_>, Warning> {
     let mut tokens = Vec::new();
     let mut tags = Vec::new();
-    for part in whitespace_tokens(line.field, mode) {
+    for part in whitespace_tokens(line.piece, mode) {
         let Some(split) = part.text.rfind('_') else {
             return Err(Warning::NoTagSeparator { line: line.number, token: part.span });
         };
-        tokens.push(part.slice(0, split));
-        tags.push(part.slice(split + 1, part.text.len()));
+        tokens.push(part.slice(0, split).field());
+        tags.push(part.slice(split + 1, part.text.len()).field());
     }
     Ok(PosSample::new(tokens, tags, line.span()).expect("one tag per token"))
 }
@@ -80,7 +80,7 @@ mod tests {
         let samples: Vec<PosSample<'_>> = r.by_ref().map(Result::unwrap).collect();
         assert_eq!(samples.len(), 3);
         let pairs: Vec<(&str, &str)> =
-            samples[0].tokens().iter().zip(samples[0].tags()).map(|(w, t)| (w.text, t.text)).collect();
+            samples[0].tokens().iter().zip(samples[0].tags()).map(|(w, t)| (w.as_str(), t.as_str())).collect();
         assert_eq!(pairs, [("a_b", "C"), ("d", ""), ("", "x")]);
         assert_eq!(samples[0].to_string(), "a_b_C d_ _x");
         assert!(samples[1].is_empty());
@@ -88,7 +88,7 @@ mod tests {
         assert_eq!(samples[2].source(), turbo_analysis::Span::new(13, 21));
         assert_eq!(r.warnings(), [Warning::NoTagSeparator { line: 3, token: turbo_analysis::Span::new(13, 15) }]);
         for t in samples[0].tokens().iter().chain(samples[0].tags()) {
-            assert_eq!(&src[t.span.range()], t.text);
+            assert_eq!(&src[t.span.range()], t.as_str());
         }
     }
 }

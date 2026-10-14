@@ -40,7 +40,7 @@ pub fn to_token_sample<'a, S: TokenizedSample<'a>>(
     sample: &S,
 ) -> Result<TokenSample<'a>, FormatError> {
     let fields = sample.tokens();
-    let texts: Vec<&str> = fields.iter().map(|f| f.text).collect();
+    let texts: Vec<&str> = fields.iter().map(|f| f.as_str()).collect();
     let mut ops = Vec::with_capacity(texts.len());
     detokenizer.operations(&texts, &mut ops);
     let mut text = String::new();
@@ -140,7 +140,6 @@ where
         let mut document = String::new();
         let mut sentences = Vec::new();
         let mut sources = Vec::new();
-        let mut texts: Vec<&str> = Vec::new();
         loop {
             let sample = match self.inner.next() {
                 None => break,
@@ -151,8 +150,7 @@ where
                 // Read past the full chunk and dropped.
                 break;
             }
-            texts.clear();
-            texts.extend(sample.tokens().iter().map(|f| f.text));
+            let texts: Vec<&str> = sample.tokens().iter().map(|f| f.as_str()).collect();
             let start = match offset(&document) {
                 Ok(o) => o,
                 Err(e) => return Some(Err(e)),

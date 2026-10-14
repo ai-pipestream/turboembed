@@ -33,7 +33,7 @@ use turbo_unicode::WhitespaceMode;
 
 use crate::error::FormatError;
 use crate::sample::name::{DEFAULT_NAME_TYPE, Name, NameSample};
-use crate::source::{Field, Line, Lines, java_trim, whitespace_tokens};
+use crate::source::{Line, Lines, Piece, java_trim, whitespace_tokens};
 
 const END_TAG: &str = "<END>";
 
@@ -66,7 +66,7 @@ impl<'a> Iterator for NameReader<'a> {
         let mut clear = false;
         loop {
             let line = self.lines.next()?;
-            if java_trim(line.field).text.is_empty() {
+            if java_trim(line.piece).text.is_empty() {
                 clear = true;
                 continue;
             }
@@ -82,7 +82,7 @@ pub fn parse_line<'a>(
     mode: WhitespaceMode,
     default_type: &'a str,
 ) -> Result<NameSample<'a>, FormatError> {
-    let parts: Vec<Field<'a>> = whitespace_tokens(line.field, mode).collect();
+    let parts: Vec<Piece<'a>> = whitespace_tokens(line.piece, mode).collect();
     let mut tokens = Vec::with_capacity(parts.len());
     let mut names = Vec::new();
     let mut name_type = default_type;
@@ -111,7 +111,7 @@ pub fn parse_line<'a>(
                 source: Span::new(from, part.span.end),
             });
         } else {
-            tokens.push(*part);
+            tokens.push(part.field());
         }
     }
     NameSample::new(tokens, names, clear_adaptive_data, line.span(), line.number)
@@ -132,7 +132,7 @@ fn start_tag(token: &str) -> Option<Option<&str>> {
 
 /// `NameSample.errorTokenWithContext`: up to two parts before the one at
 /// `index`, that part between `###`, and up to two parts after it.
-fn context(parts: &[Field<'_>], index: usize) -> String {
+fn context(parts: &[Piece<'_>], index: usize) -> String {
     let mut out = String::new();
     if index > 1 {
         out.push_str(parts[index - 2].text);
@@ -185,12 +185,12 @@ mod tests {
         let src = "<START:person> Pierre Vinken <END> , 61 .";
         let samples = read(src);
         let s = samples[0].as_ref().unwrap();
-        let toks: Vec<&str> = s.tokens().iter().map(|t| t.text).collect();
+        let toks: Vec<&str> = s.tokens().iter().map(|t| t.as_str()).collect();
         assert_eq!(toks, ["Pierre", "Vinken", ",", "61", "."]);
         assert_eq!(names(s), [(0, 2, Some("person"))]);
         assert_eq!(&src[s.names()[0].source.range()], "<START:person> Pierre Vinken <END>");
         for t in s.tokens() {
-            assert_eq!(&src[t.span.range()], t.text);
+            assert_eq!(&src[t.span.range()], t.as_str());
         }
         assert_eq!(s.to_string(), src);
     }

@@ -124,9 +124,9 @@ fn written<S: Display>(samples: &[S], out: &mut Rebuilt) {
     }
 }
 
-fn check_fields(input: &str, fields: &[Field<'_>]) {
+fn check_fields<'f, 'a: 'f>(input: &str, fields: impl IntoIterator<Item = &'f Field<'a>>) {
     for f in fields {
-        assert_eq!(&input[f.span.range()], f.text, "a field's span names other bytes");
+        assert!(f.is_borrowed() && &input[f.span.range()] == f.as_str(), "a field's span names other bytes");
     }
 }
 
@@ -134,7 +134,7 @@ fn tokens<'a>(per_sample: impl Iterator<Item = &'a [Field<'a>]>, out: &mut Rebui
     out.layer(SAMPLE_TOKENS);
     for (i, fields) in per_sample.enumerate() {
         for f in fields {
-            out.row(SAMPLE_TOKENS, vec![i.to_string(), f.text.to_owned()]);
+            out.row(SAMPLE_TOKENS, vec![i.to_string(), f.as_str().to_owned()]);
         }
     }
 }
@@ -143,7 +143,7 @@ fn column<'a>(id: &'static str, per_sample: impl Iterator<Item = &'a [Field<'a>]
     out.layer(id);
     for fields in per_sample {
         for f in fields {
-            out.row(id, vec![f.text.to_owned()]);
+            out.row(id, vec![f.as_str().to_owned()]);
         }
     }
 }
@@ -272,8 +272,8 @@ fn rebuild(run: &str, input: &str, dictionary: &DetokenizerDictionary) -> Rebuil
                 match s.phrases() {
                     Ok(phrases) => {
                         for p in phrases {
-                            check_fields(input, &[p.kind]);
-                            spans("turbo:phrases", i, p.start, p.end, p.kind.text, &mut out);
+                            check_fields(input, [&p.kind]);
+                            spans("turbo:phrases", i, p.start, p.end, p.kind.as_str(), &mut out);
                         }
                     }
                     Err(e) => out.row(
@@ -312,8 +312,8 @@ fn rebuild(run: &str, input: &str, dictionary: &DetokenizerDictionary) -> Rebuil
             written(&samples, &mut out);
             out.layer("turbo:sample-labels");
             for s in &samples {
-                out.row("turbo:sample-labels", vec![s.category.text.to_owned()]);
-                check_fields(input, &[s.category]);
+                out.row("turbo:sample-labels", vec![s.category.as_str().to_owned()]);
+                check_fields(input, [&s.category]);
                 check_fields(input, &s.tokens);
                 round_trip(s, Back::Same, |t| written_of(DocumentReader::new(t, mode).unwrap()));
             }
@@ -325,9 +325,9 @@ fn rebuild(run: &str, input: &str, dictionary: &DetokenizerDictionary) -> Rebuil
             out.layer("turbo:sample-labels");
             out.layer("turbo:sample-texts");
             for s in &samples {
-                out.row("turbo:sample-labels", vec![s.language.text.to_owned()]);
-                out.row("turbo:sample-texts", vec![s.context.text.to_owned()]);
-                check_fields(input, &[s.language, s.context]);
+                out.row("turbo:sample-labels", vec![s.language.as_str().to_owned()]);
+                out.row("turbo:sample-texts", vec![s.context.as_str().to_owned()]);
+                check_fields(input, [&s.language, &s.context]);
                 round_trip(s, Back::Same, |t| written_of(LanguageReader::new(t).unwrap()));
             }
         }

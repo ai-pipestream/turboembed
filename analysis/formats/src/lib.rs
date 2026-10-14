@@ -83,7 +83,7 @@ pub use sample::{
     ChunkSample, DocumentSample, LanguageSample, LemmaSample, Name, NameSample, Phrase, PosSample, SentenceSample,
     SplitMarker, TokenSample,
 };
-pub use source::{Field, Line, Lines};
+pub use source::{Field, Line, Lines, Piece};
 
 /// Writes each sample followed by a line feed, as OpenNLP's converter
 /// tools print samples (`System.out.println(sample.toString())` with a

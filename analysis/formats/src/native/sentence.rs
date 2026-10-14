@@ -36,7 +36,7 @@ impl<'a> SentenceReader<'a> {
     /// empty line (after skipping the empty lines that follow an empty
     /// line or the start).
     fn next_line(&mut self) -> Option<Result<Line<'a>, ()>> {
-        let blank = |l: &Line<'_>| java_trim(l.field).text.is_empty();
+        let blank = |l: &Line<'_>| java_trim(l.piece).text.is_empty();
         let mut line = self.lines.next();
         if self.last_was_empty {
             self.last_was_empty = false;
@@ -66,7 +66,7 @@ impl<'a> Iterator for SentenceReader<'a> {
         // escapes shrink, so no sentence ends past the source's length and
         // the `u32` offsets below cannot overflow.
         while let Some(Ok(line)) = self.next_line() {
-            let trimmed = java_trim(line.field);
+            let trimmed = java_trim(line.piece);
             let start = document.len() as u32;
             push_unescaped(&mut document, trimmed.text);
             sentences.push(Span::new(start, document.len() as u32));

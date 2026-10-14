@@ -15,7 +15,7 @@ use turbo_unicode::WhitespaceMode;
 
 use crate::error::{FormatError, Warning};
 use crate::sample::document::{DocumentSample, LanguageSample};
-use crate::source::{Field, Lines, whitespace_tokens};
+use crate::source::{Field, Lines, Piece, whitespace_tokens};
 
 /// Reads document category samples.
 #[derive(Clone, Debug)]
@@ -36,9 +36,9 @@ impl<'a> Iterator for DocumentReader<'a> {
 
     fn next(&mut self) -> Option<Self::Item> {
         let line = self.lines.next()?;
-        let mut tokens = whitespace_tokens(line.field, self.mode);
-        let category = tokens.next();
-        let tokens: Vec<Field<'a>> = tokens.collect();
+        let mut tokens = whitespace_tokens(line.piece, self.mode);
+        let category = tokens.next().map(Piece::field);
+        let tokens: Vec<Field<'a>> = tokens.map(Piece::field).collect();
         Some(match category {
             Some(category) if !tokens.is_empty() => Ok(DocumentSample { category, tokens, source: line.span() }),
             _ => Err(FormatError::NoDocumentText { line: line.number }),
@@ -73,10 +73,10 @@ impl<'a> Iterator for LanguageReader<'a> {
             let text = line.text();
             match text.find('\t') {
                 Some(tab) if tab > 0 => {
-                    let field = line.field;
+                    let field = line.piece;
                     return Some(Ok(LanguageSample {
-                        language: field.slice(0, tab),
-                        context: field.slice(tab + 1, text.len()),
+                        language: field.slice(0, tab).field(),
+                        context: field.slice(tab + 1, text.len()).field(),
                         source: line.span(),
                     }));
                 }

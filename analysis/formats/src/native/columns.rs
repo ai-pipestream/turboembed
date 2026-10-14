@@ -60,10 +60,10 @@ impl<'a> Blocks<'a> {
         while let Some(line) = self.lines.next().filter(|l| !l.text().is_empty()) {
             let span = line.span();
             source = Some(source.map_or(span, |s| Span::new(s.start, span.end)));
-            let fields = split_fields(line.field, self.separator);
+            let fields = split_fields(line.piece, self.separator);
             if fields.len() == 3 {
                 for (column, field) in columns.iter_mut().zip(fields) {
-                    column.push(field);
+                    column.push(field.field());
                 }
             } else {
                 self.warnings.push(Warning::CorruptLine { line: line.number, columns: fields.len() });
@@ -135,7 +135,7 @@ mod tests {
         let mut r = LemmaReader::new(src).unwrap();
         let samples: Vec<LemmaSample<'_>> = r.by_ref().map(Result::unwrap).collect();
         assert_eq!(samples.len(), 2);
-        let lemmas: Vec<&str> = samples[0].lemmas().iter().map(|f| f.text).collect();
+        let lemmas: Vec<&str> = samples[0].lemmas().iter().map(|f| f.as_str()).collect();
         assert_eq!(lemmas, ["he", "fast"]);
         assert_eq!(samples[0].to_string(), "He\tPRP\the\nfast\tRB\tfast\n");
         assert_eq!(&src[samples[0].source().range()], "He\tPRP\the\nruns\tVBZ\n \nfast\tRB\tfast\t");
@@ -160,7 +160,7 @@ mod tests {
         let src = "a  b O\nc d O \ne\tf g O\n";
         let mut r = ChunkReader::new(src).unwrap();
         let s = r.next().unwrap().unwrap();
-        let tokens: Vec<&str> = s.tokens().iter().map(|f| f.text).collect();
+        let tokens: Vec<&str> = s.tokens().iter().map(|f| f.as_str()).collect();
         assert_eq!(tokens, ["c", "e\tf"]);
         assert_eq!(r.warnings(), [Warning::CorruptLine { line: 1, columns: 4 }]);
     }

@@ -72,7 +72,7 @@ pub fn parse_line<'a>(
     let mut text = String::with_capacity(line.text().len() + 1);
     let mut tokens = Vec::new();
     let mut sources = Vec::new();
-    for piece in whitespace_tokens(line.field, mode) {
+    for piece in whitespace_tokens(line.piece, mode) {
         let mut at = 0;
         for part in piece.text.split(marker.as_str()) {
             let start = text.len() as u32;

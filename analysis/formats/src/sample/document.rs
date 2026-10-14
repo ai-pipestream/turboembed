@@ -22,10 +22,10 @@ pub struct DocumentSample<'a> {
 /// category when there are no tokens.
 impl fmt::Display for DocumentSample<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str(self.category.text)?;
+        f.write_str(&self.category.text)?;
         for (i, token) in self.tokens.iter().enumerate() {
             f.write_str(if i == 0 { "\t" } else { " " })?;
-            f.write_str(token.text)?;
+            f.write_str(&token.text)?;
         }
         Ok(())
     }

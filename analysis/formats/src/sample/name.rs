@@ -102,7 +102,7 @@ impl<'a> NameSample<'a> {
                     line,
                     first: pair[0].java_string(),
                     second: pair[1].java_string(),
-                    sentence: java_list(tokens.iter().map(|t| t.text)),
+                    sentence: java_list(tokens.iter().map(Field::as_str)),
                 });
             }
         }
@@ -181,7 +181,7 @@ impl fmt::Display for NameSample<'_> {
                     out.push_str("<END> ");
                 }
             }
-            out.push_str(token.text);
+            out.push_str(&token.text);
             out.push(' ');
         }
         if self.tokens.len() > 1 {
