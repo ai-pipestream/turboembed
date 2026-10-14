@@ -361,6 +361,20 @@ impl DataIndex {
         self.values.is_some()
     }
 
+    /// The trainers' use of the values: `Ok` when the index drops values
+    /// or every unique event has some, else [`Error::MissingValues`] for
+    /// the first event without (the JVM's `NullPointerException`).
+    pub fn check_values(&self) -> Result<()> {
+        if self.values.is_some() {
+            for i in 0..self.num_unique_events() {
+                if self.values(i).is_none() {
+                    return Err(Error::MissingValues { event: i });
+                }
+            }
+        }
+        Ok(())
+    }
+
     /// `getValues()[i]`: the values of unique event `i`, of its full
     /// context (see the module documentation), or `None` when the indexer
     /// drops values or the event had none.

@@ -1,0 +1,46 @@
+dump 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	sentence-fixture/emoji	48	42	4a468aa2fa70159a2b5058e98f496083eae0590fbebed2bfec6666b90d3bae00
+model	en-plain-qn-rust.bin	23f36eea3d663b3791fd6ee4c5f90e51f7298f4488c815f27b440a2edcac760cdcb6fbe4da87e1762c09c7f6f5db981cfb4657d0f0a6171a4f6cfaebdb9eda0f
+annotator	opennlp.tools.sentdetect.SentenceDetectorME	sentPosDetect
+config	whitespace	legacy
+point	0	25	8	2	0	none
+context	sn
+context	eos=.
+context	x=much
+context	4
+context	v=so
+context	s=
+context	n=Do
+context	ncap
+outcome	n	3f75d44d3f649bb6 0.005329419849920683
+outcome	s	3fefd457658136c8 0.9946705801500793
+acceptable	1
+end	0
+point	1	33	8	2	0	none
+context	sn
+context	eos=?
+context	x=you
+context	3
+context	v=Do
+context	vcap
+context	s=
+context	n=👍🏽
+outcome	n	3fd1d3d4e5c228de 0.27855417668673776
+outcome	s	3fe716158d1eeb91 0.7214458233132622
+acceptable	1
+end	1
+point	2	47	7	2	0	none
+context	eos=.
+context	x=Yes
+context	3
+context	xcap
+context	v=👍🏽
+context	s=
+context	n=
+outcome	n	3fee83bbb8678e8d 0.9535807229662666
+outcome	s	3fa7c44479871744 0.046419277033733525
+end	2

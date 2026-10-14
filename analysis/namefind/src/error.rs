@@ -30,7 +30,7 @@ pub enum Feature {
     /// A surrogate code point written as an escape, such as `\uD800`.
     Surrogate,
     /// `\p{..}` and `\P{..}`: Java's property names and its Unicode version
-    /// differ from the `regex` crate's.
+    /// are not supported by this port.
     Property,
     /// `\G`, `\R`, `\X`, `\N{..}` and `\b{g}`.
     Escape(char),
@@ -66,7 +66,7 @@ impl fmt::Display for Feature {
 pub enum TextLimit {
     /// `\b` or `\B` on a text with a nonspacing mark that follows a letter
     /// or digit: Java counts such a mark as a word character at a
-    /// boundary, and the `regex` crate does not.
+    /// boundary, and ASCII word boundary checks do not.
     MarkAtBoundary,
     /// `$` or `\Z` on a text that ends with a line terminator, before which
     /// Java's `$` also matches.
@@ -97,7 +97,7 @@ pub enum Error {
     /// A pattern Java accepts that uses a feature this port does not
     /// translate.
     Unsupported { pattern: Box<str>, at: usize, feature: Feature },
-    /// A translated pattern the `regex` crate refused, as too large.
+    /// A pattern whose compiled bytecode exceeds the instruction limit.
     Compile { pattern: Box<str>, message: String },
     /// A text this pattern cannot match as Java would.
     Text { pattern: Box<str>, limit: TextLimit },

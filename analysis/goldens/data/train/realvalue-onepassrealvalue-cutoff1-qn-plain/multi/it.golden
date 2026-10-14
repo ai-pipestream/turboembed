@@ -1,0 +1,24 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	multi/it	197	194	b62b80bfc802d2090eb6659bc69dda051e07499cd9c8ac88a7cbe182c464f283
+annotator	opennlp.tools.ml.maxent.quasinewton.QNTrainer	train
+config	Algorithm	MAXENT_QN
+config	Cutoff	1
+config	DataIndexer	OnePassRealValue
+config	Iterations	100
+config	L1Cost	0.0
+config	L2Cost	0.0
+config	MaxFctEval	10
+config	NumOfUpdates	5
+config	Threads	1
+config	sort	true
+config	source	realvalue
+layer	turbo:events	document	1	outcome:str	context:str	values:str
+long	Ogni estate la nostra famiglia va al mare in Liguria. Il viaggio è lungo, ma il paesaggio bellissimo. Mia nonna prepara sempre focaccia per pranzo. Perché non vieni anche tu quest'anno?	1.0 1.0 2.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 2.0 1.0 1.0 2.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0
+end	turbo:events
+layer	turbo:qn-training	document	1	iterations:u32	stop:str	message:str
+0	refused	opennlp.tools.util.InsufficientTrainingDataException: Training data must contain more than one outcome
+end	turbo:qn-training

@@ -1,0 +1,23 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	edge/chinese	70	24	6a87cfac7eeb0aa8e368eca93b72edde8c893c5dc4c4d1a1379f9d00c9e0f3cd
+annotator	opennlp.tools.ml.perceptron.PerceptronTrainer	train
+config	Algorithm	PERCEPTRON
+config	Cutoff	1
+config	DataIndexer	OnePassRealValue
+config	Iterations	50
+config	StepSizeDecrease	0.0
+config	Tolerance	1.0E-5
+config	UseAverage	false
+config	UseSkippedAveraging	true
+config	sort	false
+config	source	realvalue
+layer	turbo:events	document	1	outcome:str	context:str	values:str
+short	我爱北京天安门。今天天气很好，我们去公园玩吧！	1.0
+end	turbo:events
+layer	turbo:perceptron-training	document	1	iterations:u32	message:str
+0	opennlp.tools.util.InsufficientTrainingDataException: Training data must contain more than one outcome
+end	turbo:perceptron-training

@@ -3,7 +3,6 @@
 //! the repository checks in.
 
 use std::collections::BTreeSet;
-use std::path::Path;
 
 use turbo_zoo::{Component, Format, Index, Kind, Licence, LicenceClass, Policy, verify};
 
@@ -149,19 +148,9 @@ fn fetched_test_models_match_the_index() {
         "opennlp-fr-ud-gsd-tokens-1.3-2.5.4",
         "opennlp-pt-ud-gsd-tokens-1.3-2.5.4",
     ];
-    let dir = match std::env::var_os("TURBO_GOLDENS_MODELS") {
-        Some(d) => std::path::PathBuf::from(d),
-        None => Path::new(env!("CARGO_MANIFEST_DIR")).join("../../target/turbo-goldens/models"),
-    };
-    let required = std::env::var("TURBO_TEST_REQUIRE_OPENNLP_MODELS").is_ok_and(|v| v == "1");
     let index = Index::builtin();
     for id in MODELS {
-        let path = dir.join(format!("{id}.bin"));
-        if !path.is_file() {
-            assert!(!required, "{} not found and TURBO_TEST_REQUIRE_OPENNLP_MODELS=1", path.display());
-            eprintln!("{} not found: skipping its check", path.display());
-            continue;
-        }
+        let Some(path) = turbo_goldens::published_model(&format!("{id}.bin")) else { continue };
         let a = index.get(id).unwrap();
         verify(a, &a.files[0], &std::fs::read(&path).unwrap()).unwrap();
     }

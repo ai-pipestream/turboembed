@@ -11,3 +11,4 @@ name = "turbo_goldens"
 [dependencies]
 turbo-analysis = { path = "../core" }
 turbo-analysis-layers = { path = "../layers" }
+turbo-unicode = { path = "../unicode" }

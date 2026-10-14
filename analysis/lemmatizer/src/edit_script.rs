@@ -351,6 +351,14 @@ mod tests {
     fn lowercasing_is_javas() {
         // Final sigma, and U+0130 becoming two characters.
         assert_eq!(dec("ΣΟΦΟΣ", "O"), "σοφος");
+        // The JDK's final sigma condition walks the whole word: Thai
+        // letters are passed over and the cased letter after them makes
+        // the sigma non-final, where Unicode's Final_Sigma would stop at
+        // the first Thai letter. Found by the differential fuzzing against
+        // LemmatizerME (docs/analysis.md, "Differential fuzzing").
+        assert_eq!(dec("ΣΟΦΟΣขอบค\u{e38}ณǰ", "O"), "σοφοσขอบค\u{e38}ณǰ");
+        assert_eq!(dec("ΣΟΦΟΣ1", "O"), "σοφος1");
+        assert_eq!(dec("ΣΟΦΟΣ1a", "O"), "σοφοσ1a");
         assert_eq!(dec("İs", "O"), "i\u{307}s");
         assert_eq!(enc("İ", "i\u{307}"), "O");
     }

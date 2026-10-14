@@ -181,6 +181,9 @@ pub fn train_events(
     for e in events {
         checksum.update(e);
     }
+    // AbstractTrainer.validate, before the indexer runs: Cutoff and
+    // Iterations must parse (the indexer reads Cutoff itself).
+    params.get_int(Key::ITERATIONS)?;
     let mut indexing = params.clone();
     indexing.put(Key::SORT, true);
     if indexing.get_int(Key::CUTOFF)?.unwrap_or(-1) == -1 {
@@ -220,6 +223,8 @@ pub fn train_model(
     if params.threads <= 0 {
         return Err(Error::Threads(params.threads));
     }
+    // "Incorporating indexed data": the first read of values[ei][ci].
+    index.check_values()?;
     let mut default_monitor = DefaultProgressMonitor::new();
     let monitor: &mut dyn ProgressMonitor = match &mut config.monitor {
         Some(m) => m.as_mut(),
@@ -560,6 +565,38 @@ mod tests {
         assert_eq!(
             train(&index, &TrainingParameters::new(), &mut config).err(),
             Some(Error::InsufficientTrainingData(ONE_OUTCOME))
+        );
+    }
+
+    #[test]
+    fn iterations_must_parse_before_the_events_are_looked_at() {
+        // AbstractTrainer.validate runs before the indexer: with no events
+        // and Iterations that does not parse, the JVM reports Iterations.
+        let mut p = TrainingParameters::new();
+        p.put(Key::ITERATIONS, "many");
+        let mut config = TrainingConfiguration::default();
+        assert!(matches!(train_events(&[], &p, &mut config), Err(Error::ParameterFormat { .. })));
+        // Threads is read in doTrain, after the outcome check.
+        let events = [event("s", "a"), event("s", "b")];
+        let mut p = TrainingParameters::new();
+        p.put(Key::THREADS, 0);
+        p.put(Key::CUTOFF, 0);
+        assert_eq!(train_events(&events, &p, &mut config).err(), Some(Error::InsufficientTrainingData(ONE_OUTCOME)));
+    }
+
+    #[test]
+    fn an_event_without_values_in_a_real_value_index_is_refused() {
+        // GISTrainer reads values[ei][ci] while incorporating the index and
+        // throws NullPointerException on the event without values.
+        let events = [
+            Event::with_values("yes", vec![JavaString::new("a")], Some(vec![2.0])).unwrap(),
+            Event::with_values("no", vec![JavaString::new("b")], None).unwrap(),
+        ];
+        let index = DataIndex::index(&events, &IndexParams::new(IndexerKind::OnePassRealValue, 0, true)).unwrap();
+        let mut config = TrainingConfiguration::default();
+        assert_eq!(
+            train(&index, &TrainingParameters::new(), &mut config).err(),
+            Some(Error::MissingValues { event: 1 })
         );
     }
 

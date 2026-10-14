@@ -1,0 +1,47 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	edge/numbers	163	163	ac397ed9e560b6c7ea24fb2ad41c9c951a27fd6316ba8de71531a337aca4ae68
+annotator	opennlp.tools.ml.maxent.quasinewton.QNTrainer	train
+config	Algorithm	MAXENT_QN
+config	Cutoff	5
+config	DataIndexer	TwoPass
+config	Iterations	100
+config	L1Cost	0.1
+config	L2Cost	0.1
+config	MaxFctEval	30000
+config	NumOfUpdates	15
+config	Threads	1
+config	sort	true
+config	source	sentdetect
+layer	turbo:events	document	9	outcome:str	context:str	values:str
+n	eos=. x=3 1 v=is s=14 n=and	
+n	eos=. x=2 1 v=was s=5% n=(up	
+n	eos=. x=1 1 v=from s=2%) n=Call ncap	
+n	sn eos=. x=.2%) 4 v=1 s= n=Call ncap	
+n	sn eos=. x=555-0199 8 v=(800) s= n=Version ncap	
+n	eos=. x=2 1 v=Version vcap s=0 n=1-beta,	
+n	eos=. x=.0 2 v=2 s=1-beta, n=$4.99,	
+n	eos=. x=$4 2 v=2.0.1-beta, s=99, n=10/12/2026,	
+s	sn eos=. x=3e10 4 v=10/12/2026, s= n=	
+end	turbo:events
+layer	turbo:qn-training	document	1	iterations:u32	stop:str	message:str
+4	change-rate	
+end	turbo:qn-training
+layer	turbo:qn-iterations	document	4	iteration:u32	value:f64	rate:f64	accuracy:f64	parameters:str
+1	400ce9f1a27b0f82 3.6142304128460987	3fdaebc7a04c9cd1 0.42064085630631803	3fec71c71c71c71c 0.8888888888888888	b4c1712c30c0b400176c965cf230849e1ede6c6421a791d53ebee1592ee724db
+2	400c3b48b1b82ba0 3.5289472469643925	3f9829ade65d3092 0.02359649389772806	3fec71c71c71c71c 0.8888888888888888	da0a921e8d3592bdd221bb12ec9c47214501f1745a907e4df1576d8010731481
+3	400c26bf4412ac46 3.518919498271802	3f674733fb9e75bb 0.0028415694514040946	3fec71c71c71c71c 0.8888888888888888	703bdf2bf721187cc28dfc2590f1655ccc6af35ba52bb7302216933bb2992b6b
+4	400c267d7d669dd9 3.518794040388212	3f02b12eba0db426 3.565238808431901E-5	3fec71c71c71c71c 0.8888888888888888	0529059af1152ee6e3063773b0f0e8efc33ae8e7eb265fbd146f99abeb920095
+end	turbo:qn-iterations
+layer	turbo:qn-parameters	document	4	iteration:u32	predicate:u32	outcome:u32	value:f64
+1	0	0	3fe7bb598c88b4ae 0.7416198487095664
+1	0	1	bfe7bb598c88b4ae -0.7416198487095664
+4	0	0	3fee2620467643fc 0.9421540619097182
+4	0	1	bfee2620467643d6 -0.942154061909714
+end	turbo:qn-parameters
+layer	turbo:qn-model	document	1	sha256:str	length:u32
+c46e5c58d722e2ade4497ff6e920062b0c0aa25527424e580087c64992d66bff	52
+end	turbo:qn-model

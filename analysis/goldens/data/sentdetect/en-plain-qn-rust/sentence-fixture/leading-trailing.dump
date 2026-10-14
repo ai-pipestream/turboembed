@@ -1,0 +1,36 @@
+dump 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	sentence-fixture/leading-trailing	35	35	9ef6f1c068109e5989f020f295a3b4b877a89bcbdf750de5442a747fd6911afe
+model	en-plain-qn-rust.bin	23f36eea3d663b3791fd6ee4c5f90e51f7298f4488c815f27b440a2edcac760cdcb6fbe4da87e1762c09c7f6f5db981cfb4657d0f0a6171a4f6cfaebdb9eda0f
+annotator	opennlp.tools.sentdetect.SentenceDetectorME	sentPosDetect
+point	0	13	9	2	0	none
+context	sn
+context	eos=.
+context	x=there
+context	5
+context	v=Hello
+context	vcap
+context	s=
+context	n=General
+context	ncap
+outcome	n	3f7ca0d28c0be176 0.006989309739531149
+outcome	s	3fefc6be5ae7e840 0.9930106902604692
+acceptable	1
+end	0
+point	1	31	9	2	0	none
+context	sn
+context	eos=.
+context	x=Kenobi
+context	6
+context	xcap
+context	v=General
+context	vcap
+context	s=
+context	n=
+outcome	n	3fd2a70b047f0bfe 0.29144549788560414
+outcome	s	3fe6ac7a7dc07a02 0.708554502114396
+acceptable	1
+end	1

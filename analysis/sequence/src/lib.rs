@@ -93,6 +93,7 @@ pub mod pattern;
 pub mod postag;
 
 pub use beam::{AcceptAll, BeamSearch, ContextGenerator, Sequence, SequenceValidator, manifest_beam_size};
+pub use chunker::TokenTag;
 pub use codec::{BilouCodec, BioCodec, SequenceCodec, Span};
 pub use error::{Error, Result};
 pub use featuregen::{BoxedGenerator, FeatureGenerator};

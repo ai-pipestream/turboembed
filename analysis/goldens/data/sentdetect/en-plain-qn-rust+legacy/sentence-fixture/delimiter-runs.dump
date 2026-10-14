@@ -1,0 +1,136 @@
+dump 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	sentence-fixture/delimiter-runs	88	88	530819692a8539fefc220d12b36f0dc97bc65032851e9bd137c98dcf56ba27cc
+model	en-plain-qn-rust.bin	23f36eea3d663b3791fd6ee4c5f90e51f7298f4488c815f27b440a2edcac760cdcb6fbe4da87e1762c09c7f6f5db981cfb4657d0f0a6171a4f6cfaebdb9eda0f
+annotator	opennlp.tools.sentdetect.SentenceDetectorME	sentPosDetect
+config	whitespace	legacy
+point	0	9	7	2	0	none
+context	eos=.
+context	x=z
+context	1
+context	v=ist
+context	s=B
+context	scap
+context	n=gut.
+outcome	n	3fefb86808f33323 0.9912605452351254
+outcome	s	3f81e5fdc3333804 0.008739454764874928
+end	0
+point	1	11	7	2	0	none
+context	sn
+context	eos=.
+context	x=.B
+context	2
+context	v=z
+context	s=
+context	n=gut.
+outcome	n	3fee024ad37478e2 0.9377798204402803
+outcome	s	3fafdb52c8b871dc 0.062220179559719674
+end	1
+point	2	16	8	2	0	none
+context	sn
+context	eos=.
+context	x=gut
+context	3
+context	v=z.B.
+context	s=
+context	n=Wir
+context	ncap
+outcome	n	3f9e47d6791d0ec4 0.02957091440408878
+outcome	s	3fef0dc14c37178a 0.9704290855959112
+acceptable	1
+end	2
+point	3	31	8	2	0	none
+context	sn
+context	eos=.
+context	x=.a
+context	2
+context	v=u
+context	s=
+context	n=Gedanken.Bekannt
+context	ncap
+outcome	n	3fc9c3b7bce566b6 0.20128533099596319
+outcome	s	3fe98f1210c6a653 0.7987146690040369
+acceptable	1
+end	3
+point	4	41	8	2	0	none
+context	eos=.
+context	x=Gedanken
+context	8
+context	xcap
+context	v=u.a.
+context	s=Bekannt
+context	scap
+context	n=sind
+outcome	n	3fefd134d2cddd1b 0.9942878834980634
+outcome	s	3f77659699117182 0.005712116501936372
+end	4
+point	5	58	8	2	0	none
+context	sn
+context	eos=.
+context	x=sie
+context	3
+context	v=sind
+context	s=
+context	n=Wait...
+context	ncap
+outcome	n	3f9e47d6791d0ec4 0.02957091440408878
+outcome	s	3fef0dc14c37178a 0.9704290855959112
+acceptable	1
+end	5
+point	6	66	9	2	0	none
+context	sn
+context	eos=.
+context	x=.
+context	1
+context	v=Wait.
+context	vcap
+context	s=
+context	n=What?!
+context	ncap
+outcome	n	3fbd3382018dd81e 0.1140671972078455
+outcome	s	3fec598fbfce44fd 0.8859328027921546
+acceptable	1
+end	6
+point	7	73	9	2	0	none
+context	sn
+context	eos=!
+context	x=?
+context	1
+context	v=What
+context	vcap
+context	s=
+context	n=Really??
+context	ncap
+outcome	n	3f88acecc984fff0 0.012048578166854867
+outcome	s	3fef9d4c4cd9ec02 0.9879514218331453
+acceptable	1
+end	7
+point	8	82	9	2	0	none
+context	sn
+context	eos=?
+context	x=?
+context	1
+context	v=Really
+context	vcap
+context	s=
+context	n=Yes!
+context	ncap
+outcome	n	3f88acecc984fff0 0.012048578166854867
+outcome	s	3fef9d4c4cd9ec02 0.9879514218331453
+acceptable	1
+end	8
+point	9	87	8	2	0	none
+context	eos=!
+context	x=Yes
+context	3
+context	xcap
+context	v=Really??
+context	vcap
+context	s=
+context	n=
+outcome	n	3fea056e91053296 0.8131630737712665
+outcome	s	3fc7ea45bbeb35ab 0.18683692622873357
+end	9

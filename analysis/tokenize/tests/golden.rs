@@ -9,10 +9,11 @@ use std::num::NonZeroU32;
 
 use common::{Case, JvmSpan, compare_layers, run};
 use turbo_analysis::Span;
+use turbo_goldens::expect::{simple_newline_spans, whole_character_spans};
 use turbo_tokenize::{
     TokenizerOptions, WhitespaceMode, WordTokenizer, WordType, simple_spans, whitespace_spans, word_tokens,
 };
-use turbo_unicode::utf16::{byte_to_utf16, utf16_to_byte};
+use turbo_unicode::utf16::byte_to_utf16;
 
 /// One span with both offsets and its type, if any: what a golden row
 /// says and what the Rust side is compared on.
@@ -25,32 +26,15 @@ struct Expect {
 
 /// The spans a golden expects. Two rows holding the halves of one
 /// character outside the BMP become one span covering the character:
-/// the documented deviation of the simple tokenizer.
+/// the documented deviation of the simple tokenizer
+/// (`turbo_goldens::expect::whole_character_spans`).
 fn expected(case: &Case) -> Vec<Expect> {
-    let text = &case.text;
     let ty = |s: &JvmSpan| s.kind.as_deref().map(|t| WordType::from_java_name(t).expect("a word type name"));
-    let mut out = Vec::new();
-    let jvm = case.jvm_spans();
-    let mut spans = jvm.iter();
-    while let Some(span) = spans.next() {
-        if !span.cut {
-            out.push(Expect { utf8: span.utf8, utf16: span.utf16, ty: ty(span) });
-            continue;
-        }
-        let (high, mid) = span.utf16;
-        let Some(other) = spans.next().filter(|s| s.cut) else {
-            panic!("{}: a half span without its other half", case.path.display());
-        };
-        let (mid2, low) = other.utf16;
-        assert!(mid == mid2 && mid == high + 1 && low == mid + 1, "{}: halves of one character", case.name());
-        let start = utf16_to_byte(text, high as usize).expect("the pair starts a character");
-        let end = utf16_to_byte(text, low as usize).expect("the pair ends a character");
-        assert_eq!(text[start..end].chars().count(), 1, "{}: one character", case.name());
-        // Both rows hold the whole character's bytes.
-        assert_eq!((span.utf8, other.utf8), ((start as u32, end as u32), (start as u32, end as u32)));
-        out.push(Expect { utf8: (start as u32, end as u32), utf16: (high, low), ty: ty(span) });
-    }
-    out
+    whole_character_spans(&case.text, &case.jvm_spans())
+        .unwrap_or_else(|e| panic!("{}: {e}", case.path.display()))
+        .iter()
+        .map(|s| Expect { utf8: s.utf8, utf16: s.utf16, ty: ty(s) })
+        .collect()
 }
 
 /// Rust spans of `text` with their UTF-16 offsets worked out.
@@ -144,14 +128,12 @@ fn simple_newlines(name: &str, plain_name: &str, affected: &[&str]) {
     for case in cases(name, SIMPLE, true, mode) {
         let p = plain.iter().find(|p| p.name() == case.name()).expect("the same input without new lines");
         let text = &case.text;
-        let mut corrected = expected(p);
-        for (i, b) in text.bytes().enumerate() {
-            if b == b'\n' || b == b'\r' {
-                let unit = byte_to_utf16(text, i).unwrap() as u32;
-                corrected.push(Expect { utf8: (i as u32, i as u32 + 1), utf16: (unit, unit + 1), ty: None });
-            }
-        }
-        corrected.sort_by_key(|e| e.utf8);
+        let plain_spans: Vec<(u32, u32)> = expected(p).iter().map(|e| e.utf8).collect();
+        let unit = |b: u32| byte_to_utf16(text, b as usize).unwrap() as u32;
+        let corrected: Vec<Expect> = simple_newline_spans(text, &plain_spans)
+            .into_iter()
+            .map(|(a, b)| Expect { utf8: (a, b), utf16: (unit(a), unit(b)), ty: None })
+            .collect();
         let mut out = Vec::new();
         simple_spans(text, options, &mut out);
         let rust = actual(text, &out, None);

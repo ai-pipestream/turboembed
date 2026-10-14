@@ -1,0 +1,55 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	edge/urls-emails	189	189	24a6e1968bc86b5976b4eee7e2ef6acb6bd2372d9afa4be8b45f4ad9af261501
+annotator	opennlp.tools.ml.maxent.quasinewton.QNTrainer	train
+config	Algorithm	MAXENT_QN
+config	Cutoff	5
+config	DataIndexer	TwoPass
+config	Iterations	100
+config	L1Cost	0.1
+config	L2Cost	0.1
+config	MaxFctEval	30000
+config	NumOfUpdates	15
+config	Threads	1
+config	sort	true
+config	source	sentdetect
+layer	turbo:events	document	16	outcome:str	context:str	values:str
+n	eos=. x=https://www 11 v=Visit vcap s=example n=com/path?q=1&r=2#frag	
+n	eos=. x=.example 8 v=https://www s=com/path n=q=1&r=2#frag	
+n	eos=? x=.com/path 9 v=https://www.example s=q=1&r=2#frag n=or	
+n	eos=. x=http://localhost:8080/a_b 25 v=or s=html, n=mail	
+n	eos=. x=john 4 v=mail s=doe+tag@example n=co.uk	
+n	eos=. x=.doe+tag@example 16 v=john s=co n=uk	
+n	eos=. x=.co 3 v=john.doe+tag@example s=uk n=or	
+n	eos=. x=www 3 v=or s=test n=org.	
+n	eos=. x=.test 5 v=www s=org n=Also ncap	
+n	sn eos=. x=.org 4 v=www.test s= n=Also ncap	
+n	eos=. x=ftp://files 11 v=Also vcap s=example n=net/x.tar.gz	
+n	eos=. x=.example 8 v=ftp://files s=net/x n=tar.gz	
+n	eos=. x=.net/x 6 v=ftp://files.example s=tar n=gz	
+n	eos=. x=.tar 4 v=ftp://files.example.net/x s=gz n=(see	
+n	eos=. x=foo@bar 7 v=(see s=com) n=	
+s	sn eos=. x=.com) 5 v=foo@bar s= n=	
+end	turbo:events
+layer	turbo:qn-training	document	1	iterations:u32	stop:str	message:str
+5	change-rate	
+end	turbo:qn-training
+layer	turbo:qn-iterations	document	5	iteration:u32	value:f64	rate:f64	accuracy:f64	parameters:str
+1	4013ae0a3057c1f4 4.91996074233656	3fe0db8b42580581 0.5267998023775108	3fedddddddddddde 0.9333333333333333	91e53fbecaee16df579b7ef1311cba448c00521c2c1c4def392be98c19136eea
+2	4011632dfcdaee45 4.34685511671302	3fbdd203a4150498 0.1164858127204006	3fedddddddddddde 0.9333333333333333	70975070f743f50a052471bc335dab8a27d6e183961e3deabb85f0e6d10184c1
+3	4010f10698f744fa 4.235376730053071	3f9a42e191093758 0.025645756223006216	3fedddddddddddde 0.9333333333333333	bb9b463100b1307ec446a7766762cdb7fd3929e7b0212a341f1861ffce6ab070
+4	4010e8c95e36484d 4.227330658019196	3f5f200b8114aa2b 0.0018997299524225002	3fedddddddddddde 0.9333333333333333	11918fd572045dc0bb42ab5d9faaf7f67622b592c5eac4f9d5a92292b925464a
+5	4010e8a00b76d31b 4.227173022391777	3f038cee2f5bce8a 3.728963740270732E-5	3fedddddddddddde 0.9333333333333333	95559080882b465cc170b4e3943376a1ef24f718aa82b09c849dd31453ad3420
+end	turbo:qn-iterations
+layer	turbo:qn-parameters	document	4	iteration:u32	predicate:u32	outcome:u32	value:f64
+1	0	0	3fe7bb598c88b4ad 0.7416198487095663
+1	0	1	bfe7bb598c88b4ad -0.7416198487095663
+5	0	0	3ff38687841def34 1.220344081956637
+5	0	1	bff38687841def40 -1.2203440819566396
+end	turbo:qn-parameters
+layer	turbo:qn-model	document	1	sha256:str	length:u32
+f5686770ad314681d69ec539dd19b6c734a4bbbe3425befa4ad96ab9a7afb3de	52
+end	turbo:qn-model
