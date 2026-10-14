@@ -135,6 +135,7 @@ a directory with the same model run without them, and its options are
 | `formats` (the conversion streams) | `name-to-token`, `name-to-sentence`, `pos-to-token`, `pos-to-sentence`, with `en-detokenizer` (fixture) | `formats`, the `name` and `wordtag` inputs | `chunkSize 2` for the sentence conversions |
 | `evaluate` (the evaluators) | `pos`, `lemma`, `name`, `chunk`, `token`, `sentence` (also `+legacy`), `doccat`, `language`, `cross-validation` | `formats`, the `pairs-` inputs of the evaluator's format | `whitespace legacy` |
 | `formats` (the CoNLL-U streams) | `conllu-pos-u`, `conllu-pos-x`, `conllu-lemma-u`, `conllu-lemma-x`, `conllu-sentence`, `conllu-token` (also `+legacy`) | `formats`, the `conllu` inputs | `tagset u` or `x`; `sentencesPerSample 2`; `whitespace legacy` |
+| `masc` (the MASC readers) | `documents` (`MascDocument.parseDocument`), `pos`, `token`, `sentence`, `name` (the sample streams) | `formats`, the `masc-` inputs | `sentencesPerSample 2` for `sentence` |
 
 - `+english-dictionary` is the English model rebuilt through
   `TokenizerModel(MaxentModel, Map, TokenizerFactory)` with the
@@ -340,6 +341,49 @@ sample's own text and the UTF-8 byte span of each token or sentence in
 it) and `turbo:sample-labels` (a category or language). The streams ask
 no model, so there are no dumps. `analysis/formats/tests/opennlp.rs`
 compares the Rust readers with these goldens.
+
+## MASC goldens
+
+`masc/<run>/formats/<id>.golden` is what OpenNLP's MASC classes read from
+the corpus bundled in `inputs/formats/<id>.txt` (the `masc-` inputs).
+A bundle is one UTF-8 text holding the files of a corpus directory: a
+line `@@ file <path>` starts a file whose content runs to the next line
+`@@ end` (the line end before `@@ end` is not part of the file), `@@ hex
+<path>` does the same with the bytes written in hexadecimal for content
+that is not UTF-8, `@@ dir <path>` makes an empty directory, and other
+lines outside a file are empty or start with `#`. `MascGolden` writes
+the bundle to a temporary directory and reads it there. Each directory of
+a bundle holds at most one `.hdr` file and one subdirectory, so the order
+in which `MascDocumentStream` finds the documents does not depend on the
+order the file system lists a directory in.
+
+The `documents` run parses each document as the stream's constructor does
+(`checkAnnotations`, called by reflection, then `parseDocument`) and
+records, through reflection where the classes keep it private:
+`turbo:masc-documents` (per header, its path in the corpus, the class and
+message of what the parse threw with the corpus directory written
+`<corpus>` and without the stack trace `addPennTags` appends to its
+message, `abort` 1 when the throw ends the stream's constructor rather
+than skipping the document, and whether it has Penn tags and named
+entities), `turbo:masc-sentences` (each sentence's region in UTF-16 units,
+the ids of its quarks, whether it was tokenized), `turbo:masc-tokens`
+(each Penn token's UTF-16 span, id, tag, base, which of the two are null
+and the ids of its quarks), `turbo:masc-names` (each named entity's token
+span and type) and `turbo:masc-stream` or `turbo:masc-stream-errors` (the
+documents the stream loaded, or what its constructor threw).
+
+The sample runs read the corpus with `MascDocumentStream` and
+`MascPOSSampleStream`, `MascTokenSampleStream`,
+`MascSentenceSampleStream` (two sentences a sample) or
+`MascNamedEntitySampleStream` until `read` returns null or throws
+`NullPointerException` (the stream has run past its last document, and
+every later read throws the same), then call `reset` and read again
+(`pass` 1). Other exceptions are recorded and reading goes on. The layers
+are those of the format goldens, with the pass added to `turbo:samples`
+and `turbo:read-errors`, `turbo:open-errors` for what the constructors
+threw, and `nulls` 1 in `turbo:names` for a name without a type.
+`analysis/formats/tests/masc.rs` compares the Rust readers with these
+goldens.
 
 ## Evaluator goldens
 

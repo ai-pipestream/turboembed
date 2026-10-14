@@ -18,6 +18,8 @@ turbo-unicode = { path = "../unicode" }
 turbo-jvm = { path = "../jvm" }
 # The detokenizer the conversion streams rebuild text with.
 turbo-tokenize = { path = "../tokenize" }
+# The SAX-style XML reader the MASC stand-off files are parsed with.
+turbo-maxent = { path = "../maxent" }
 
 [dev-dependencies]
 turbo-goldens = { path = "../goldens" }

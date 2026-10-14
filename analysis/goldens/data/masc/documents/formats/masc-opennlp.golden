@@ -1,0 +1,36 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	formats/masc-opennlp	8250	8250	a2c545be6c71213bf6e00fc0a70878a14e8f1fbc457a253618a595d68bbe1f10
+annotator	opennlp.tools.formats.masc.MascDocument	parseDocument
+layer	turbo:masc-documents	document	1	path:str	class:str	message:str	abort:u32	penn:u32	ne:u32
+fakeMASC.hdr			0	1	1
+end	turbo:masc-documents
+layer	turbo:masc-sentences	document	2	doc:u32	start:u32	end:u32	quarks:str	tokenized:u32
+0	1	25	0 2 4 6 8 9	1
+0	27	57	11 13 15 16 18 20 21	1
+end	turbo:masc-sentences
+layer	turbo:masc-tokens	document	12	sentence:u32	start:u32	end:u32	id:u32	pos:str	base:str	nulls:u32	quarks:str
+0	1	5	0	DT	this	0	0
+0	6	8	1	VB	is	0	2
+0	9	10	2	AT	a	0	4
+0	11	15	3	NN	sample	0	6
+0	16	24	4	NN	sentence	0	8
+0	24	25	5	.	.	0	9
+1	27	31	6	DT	this	0	11
+1	32	34	7	VB	is	0	13
+1	35	42	8	RB	'nother	0	15 16
+1	43	47	9	NN	sample	0	18
+1	48	56	10	NN	sentence	0	20
+1	56	57	11	.	.	0	21
+end	turbo:masc-tokens
+layer	turbo:masc-names	document	1	sentence:u32	start:u32	end:u32	type:str	nulls:u32
+0	4	5	org	0
+end	turbo:masc-names
+layer	turbo:masc-stream	document	1	path:str
+fakeMASC.hdr
+end	turbo:masc-stream
+layer	turbo:masc-stream-errors	document	0	class:str	message:str
+end	turbo:masc-stream-errors

@@ -1,0 +1,576 @@
+# A MASC-format corpus written for the turbo-formats tests: hand-written text
+# and stand-off annotation in the layout of MASC 3.0 (GrAF). Not MASC data.
+# Documents OpenNLP logs and skips: each fails with an IOException from parseDocument.
+
+@@ file good.hdr
+<?xml version="1.0" encoding="UTF-8"?>
+<documentHeader xmlns="http://www.xces.org/ns/GrAF/1.0/" docId="TEST" version="1.0.4">
+  <profileDesc>
+    <primaryData f.id="f.text" loc="good.txt"/>
+    <annotations>
+      <annotation loc="good-s.xml" f.id="f.s">annotation</annotation>
+      <annotation loc="good-seg.xml" f.id="f.seg">annotation</annotation>
+      <annotation loc="good-penn.xml" f.id="f.penn">annotation</annotation>
+    </annotations>
+  </profileDesc>
+</documentHeader>
+
+@@ end
+
+@@ file good.txt
+Fine text.
+@@ end
+
+@@ file good-seg.xml
+<?xml version="1.0" encoding="UTF-8"?>
+<graph xmlns="http://www.xces.org/ns/GrAF/1.0/">
+  <graphHeader><labelsDecl/></graphHeader>
+  <region xml:id="seg-r0" anchors="0 4"/>
+  <region xml:id="seg-r1" anchors="5 9"/>
+  <region xml:id="seg-r2" anchors="9 10"/>
+</graph>
+
+@@ end
+
+@@ file good-s.xml
+<graph xmlns="http://www.xces.org/ns/GrAF/1.0/">
+  <graphHeader><labelsDecl><labelUsage label="s" occurs="1"/></labelsDecl></graphHeader>
+  <region xml:id="s-r0" anchors="0 10"/>
+  <node xml:id="s-n0"><link targets="s-r0"/></node>
+  <a xml:id="s-N0" label="s" ref="s-n0" as="anc"><fs><f name="id" value="s0"/></fs></a>
+</graph>
+
+@@ end
+
+@@ file good-penn.xml
+<graph xmlns="http://www.xces.org/ns/GrAF/1.0/">
+  <graphHeader><labelsDecl><labelUsage label="tok"/></labelsDecl><dependencies><dependsOn f.id="f.seg"/></dependencies></graphHeader>
+  <node xml:id="penn-n0">
+    <link targets="seg-r0"/>
+  </node>
+  <a xml:id="penn-N0" label="tok" ref="penn-n0" as="anc">
+    <fs>
+      <f name="base" value="fine"/>
+      <f name="msd" value="JJ"/>
+    </fs>
+  </a>
+  <node xml:id="penn-n1">
+    <link targets="seg-r1"/>
+  </node>
+  <a xml:id="penn-N1" label="tok" ref="penn-n1" as="anc">
+    <fs>
+      <f name="base" value="text"/>
+      <f name="msd" value="NN"/>
+    </fs>
+  </a>
+  <node xml:id="penn-n2">
+    <link targets="seg-r2"/>
+  </node>
+  <a xml:id="penn-N2" label="tok" ref="penn-n2" as="anc">
+    <fs>
+      <f name="base" value="."/>
+      <f name="msd" value="."/>
+    </fs>
+  </a>
+</graph>
+
+@@ end
+
+@@ file a/badseg.hdr
+<?xml version="1.0" encoding="UTF-8"?>
+<documentHeader xmlns="http://www.xces.org/ns/GrAF/1.0/" docId="TEST" version="1.0.4">
+  <profileDesc>
+    <primaryData f.id="f.text" loc="badseg.txt"/>
+    <annotations>
+      <annotation loc="badseg-s.xml" f.id="f.s">annotation</annotation>
+      <annotation loc="badseg-seg.xml" f.id="f.seg">annotation</annotation>
+      <annotation loc="badseg-penn.xml" f.id="f.penn">annotation</annotation>
+    </annotations>
+  </profileDesc>
+</documentHeader>
+
+@@ end
+
+@@ file a/badseg.txt
+Fine text.
+@@ end
+
+@@ file a/badseg-seg.xml
+<graph><region xml:id="seg-r0" anchors="0 4"></graph>
+
+@@ end
+
+@@ file a/badseg-s.xml
+<graph xmlns="http://www.xces.org/ns/GrAF/1.0/">
+  <graphHeader><labelsDecl><labelUsage label="s" occurs="1"/></labelsDecl></graphHeader>
+  <region xml:id="s-r0" anchors="0 10"/>
+  <node xml:id="s-n0"><link targets="s-r0"/></node>
+  <a xml:id="s-N0" label="s" ref="s-n0" as="anc"><fs><f name="id" value="s0"/></fs></a>
+</graph>
+
+@@ end
+
+@@ file a/badseg-penn.xml
+<graph xmlns="http://www.xces.org/ns/GrAF/1.0/">
+  <graphHeader><labelsDecl><labelUsage label="tok"/></labelsDecl><dependencies><dependsOn f.id="f.seg"/></dependencies></graphHeader>
+</graph>
+
+@@ end
+
+@@ file a/b/badid.hdr
+<?xml version="1.0" encoding="UTF-8"?>
+<documentHeader xmlns="http://www.xces.org/ns/GrAF/1.0/" docId="TEST" version="1.0.4">
+  <profileDesc>
+    <primaryData f.id="f.text" loc="badid.txt"/>
+    <annotations>
+      <annotation loc="badid-s.xml" f.id="f.s">annotation</annotation>
+      <annotation loc="badid-seg.xml" f.id="f.seg">annotation</annotation>
+    </annotations>
+  </profileDesc>
+</documentHeader>
+
+@@ end
+
+@@ file a/b/badid.txt
+Fine text.
+@@ end
+
+@@ file a/b/badid-seg.xml
+<?xml version="1.0" encoding="UTF-8"?>
+<graph xmlns="http://www.xces.org/ns/GrAF/1.0/">
+  <graphHeader><labelsDecl/></graphHeader>
+  <region xml:id="r0" anchors="0 4"/>
+</graph>
+
+@@ end
+
+@@ file a/b/badid-s.xml
+<graph xmlns="http://www.xces.org/ns/GrAF/1.0/">
+  <graphHeader><labelsDecl><labelUsage label="s" occurs="1"/></labelsDecl></graphHeader>
+  <region xml:id="s-r0" anchors="0 10"/>
+  <node xml:id="s-n0"><link targets="s-r0"/></node>
+  <a xml:id="s-N0" label="s" ref="s-n0" as="anc"><fs><f name="id" value="s0"/></fs></a>
+</graph>
+
+@@ end
+
+@@ file a/b/c/short.hdr
+<?xml version="1.0" encoding="UTF-8"?>
+<documentHeader xmlns="http://www.xces.org/ns/GrAF/1.0/" docId="TEST" version="1.0.4">
+  <profileDesc>
+    <primaryData f.id="f.text" loc="short.txt"/>
+    <annotations>
+      <annotation loc="short-s.xml" f.id="f.s">annotation</annotation>
+      <annotation loc="short-seg.xml" f.id="f.seg">annotation</annotation>
+    </annotations>
+  </profileDesc>
+</documentHeader>
+
+@@ end
+
+@@ file a/b/c/short.txt
+Aa. Bb. Cc.
+@@ end
+
+@@ file a/b/c/short-seg.xml
+<?xml version="1.0" encoding="UTF-8"?>
+<graph xmlns="http://www.xces.org/ns/GrAF/1.0/">
+  <graphHeader><labelsDecl/></graphHeader>
+  <region xml:id="seg-r0" anchors="0 2"/>
+</graph>
+
+@@ end
+
+@@ file a/b/c/short-s.xml
+<graph xmlns="http://www.xces.org/ns/GrAF/1.0/">
+  <graphHeader><labelsDecl><labelUsage label="s" occurs="3"/></labelsDecl></graphHeader>
+  <region xml:id="s-r0" anchors="0 3"/>
+  <node xml:id="s-n0"><link targets="s-r0"/></node>
+  <a xml:id="s-N0" label="s" ref="s-n0" as="anc"><fs><f name="id" value="s0"/></fs></a>
+  <region xml:id="s-r1" anchors="4 7"/>
+  <node xml:id="s-n1"><link targets="s-r1"/></node>
+  <a xml:id="s-N1" label="s" ref="s-n1" as="anc"><fs><f name="id" value="s1"/></fs></a>
+  <region xml:id="s-r2" anchors="8 11"/>
+  <node xml:id="s-n2"><link targets="s-r2"/></node>
+  <a xml:id="s-N2" label="s" ref="s-n2" as="anc"><fs><f name="id" value="s2"/></fs></a>
+</graph>
+
+@@ end
+
+@@ file a/b/c/d/spaces.hdr
+<?xml version="1.0" encoding="UTF-8"?>
+<documentHeader xmlns="http://www.xces.org/ns/GrAF/1.0/" docId="TEST" version="1.0.4">
+  <profileDesc>
+    <primaryData f.id="f.text" loc="spaces.txt"/>
+    <annotations>
+      <annotation loc="spaces-s.xml" f.id="f.s">annotation</annotation>
+      <annotation loc="spaces-seg.xml" f.id="f.seg">annotation</annotation>
+    </annotations>
+  </profileDesc>
+</documentHeader>
+
+@@ end
+
+@@ file a/b/c/d/spaces.txt
+Fine text.
+@@ end
+
+@@ file a/b/c/d/spaces-seg.xml
+<?xml version="1.0" encoding="UTF-8"?>
+<graph xmlns="http://www.xces.org/ns/GrAF/1.0/">
+  <graphHeader><labelsDecl/></graphHeader>
+  <region xml:id="seg-r0" anchors="0 4"/>
+  <region xml:id="seg-r1" anchors="5 9"/>
+  <region xml:id="seg-r2" anchors="9 10"/>
+</graph>
+
+@@ end
+
+@@ file a/b/c/d/spaces-s.xml
+<graph xmlns="http://www.xces.org/ns/GrAF/1.0/">
+  <graphHeader><labelsDecl><labelUsage label="s" occurs="1"/></labelsDecl></graphHeader>
+  <region xml:id="s-r0" anchors="0  10"/>
+  <node xml:id="s-n0"><link targets="s-r0"/></node>
+  <a xml:id="s-N0" label="s" ref="s-n0" as="anc"><fs><f name="id" value="s0"/></fs></a>
+</graph>
+
+@@ end
+
+@@ file a/b/c/d/e/nolink.hdr
+<?xml version="1.0" encoding="UTF-8"?>
+<documentHeader xmlns="http://www.xces.org/ns/GrAF/1.0/" docId="TEST" version="1.0.4">
+  <profileDesc>
+    <primaryData f.id="f.text" loc="nolink.txt"/>
+    <annotations>
+      <annotation loc="nolink-s.xml" f.id="f.s">annotation</annotation>
+      <annotation loc="nolink-seg.xml" f.id="f.seg">annotation</annotation>
+      <annotation loc="nolink-penn.xml" f.id="f.penn">annotation</annotation>
+    </annotations>
+  </profileDesc>
+</documentHeader>
+
+@@ end
+
+@@ file a/b/c/d/e/nolink.txt
+Fine text.
+@@ end
+
+@@ file a/b/c/d/e/nolink-seg.xml
+<?xml version="1.0" encoding="UTF-8"?>
+<graph xmlns="http://www.xces.org/ns/GrAF/1.0/">
+  <graphHeader><labelsDecl/></graphHeader>
+  <region xml:id="seg-r0" anchors="0 4"/>
+  <region xml:id="seg-r1" anchors="5 9"/>
+  <region xml:id="seg-r2" anchors="9 10"/>
+</graph>
+
+@@ end
+
+@@ file a/b/c/d/e/nolink-s.xml
+<graph xmlns="http://www.xces.org/ns/GrAF/1.0/">
+  <graphHeader><labelsDecl><labelUsage label="s" occurs="1"/></labelsDecl></graphHeader>
+  <region xml:id="s-r0" anchors="0 10"/>
+  <node xml:id="s-n0"><link targets="s-r0"/></node>
+  <a xml:id="s-N0" label="s" ref="s-n0" as="anc"><fs><f name="id" value="s0"/></fs></a>
+</graph>
+
+@@ end
+
+@@ file a/b/c/d/e/nolink-penn.xml
+<graph xmlns="http://www.xces.org/ns/GrAF/1.0/">
+  <graphHeader><labelsDecl><labelUsage label="tok"/></labelsDecl><dependencies><dependsOn f.id="f.seg"/></dependencies></graphHeader>
+  <node xml:id="penn-n0">
+    <link targets=" "/>
+  </node>
+  <a xml:id="penn-N0" label="tok" ref="penn-n0" as="anc">
+    <fs>
+      <f name="base" value="fine"/>
+      <f name="msd" value="JJ"/>
+    </fs>
+  </a>
+</graph>
+
+@@ end
+
+@@ file a/b/c/d/e/f/twolabels.hdr
+<?xml version="1.0" encoding="UTF-8"?>
+<documentHeader xmlns="http://www.xces.org/ns/GrAF/1.0/" docId="TEST" version="1.0.4">
+  <profileDesc>
+    <primaryData f.id="f.text" loc="twolabels.txt"/>
+    <annotations>
+      <annotation loc="twolabels-s.xml" f.id="f.s">annotation</annotation>
+      <annotation loc="twolabels-seg.xml" f.id="f.seg">annotation</annotation>
+      <annotation loc="twolabels-penn.xml" f.id="f.penn">annotation</annotation>
+      <annotation loc="twolabels-ne.xml" f.id="f.ne">annotation</annotation>
+    </annotations>
+  </profileDesc>
+</documentHeader>
+
+@@ end
+
+@@ file a/b/c/d/e/f/twolabels.txt
+Fine text.
+@@ end
+
+@@ file a/b/c/d/e/f/twolabels-seg.xml
+<?xml version="1.0" encoding="UTF-8"?>
+<graph xmlns="http://www.xces.org/ns/GrAF/1.0/">
+  <graphHeader><labelsDecl/></graphHeader>
+  <region xml:id="seg-r0" anchors="0 4"/>
+  <region xml:id="seg-r1" anchors="5 9"/>
+  <region xml:id="seg-r2" anchors="9 10"/>
+</graph>
+
+@@ end
+
+@@ file a/b/c/d/e/f/twolabels-s.xml
+<graph xmlns="http://www.xces.org/ns/GrAF/1.0/">
+  <graphHeader><labelsDecl><labelUsage label="s" occurs="1"/></labelsDecl></graphHeader>
+  <region xml:id="s-r0" anchors="0 10"/>
+  <node xml:id="s-n0"><link targets="s-r0"/></node>
+  <a xml:id="s-N0" label="s" ref="s-n0" as="anc"><fs><f name="id" value="s0"/></fs></a>
+</graph>
+
+@@ end
+
+@@ file a/b/c/d/e/f/twolabels-penn.xml
+<graph xmlns="http://www.xces.org/ns/GrAF/1.0/">
+  <graphHeader><labelsDecl><labelUsage label="tok"/></labelsDecl><dependencies><dependsOn f.id="f.seg"/></dependencies></graphHeader>
+  <node xml:id="penn-n0">
+    <link targets="seg-r0"/>
+  </node>
+  <a xml:id="penn-N0" label="tok" ref="penn-n0" as="anc">
+    <fs>
+      <f name="base" value="fine"/>
+      <f name="msd" value="JJ"/>
+    </fs>
+  </a>
+  <node xml:id="penn-n1">
+    <link targets="seg-r1"/>
+  </node>
+  <a xml:id="penn-N1" label="tok" ref="penn-n1" as="anc">
+    <fs>
+      <f name="base" value="text"/>
+      <f name="msd" value="NN"/>
+    </fs>
+  </a>
+  <node xml:id="penn-n2">
+    <link targets="seg-r2"/>
+  </node>
+  <a xml:id="penn-N2" label="tok" ref="penn-n2" as="anc">
+    <fs>
+      <f name="base" value="."/>
+      <f name="msd" value="."/>
+    </fs>
+  </a>
+</graph>
+
+@@ end
+
+@@ file a/b/c/d/e/f/twolabels-ne.xml
+<graph xmlns="http://www.xces.org/ns/GrAF/1.0/">
+  <graphHeader><dependencies><dependsOn f.id="f.penn"/></dependencies></graphHeader>
+  <node xml:id="ne-n0"/>
+  <a xml:id="ne-N0" label="a" ref="ne-n0" as="anc"><fs><f name="type" value="x"/></fs></a>
+  <edge xml:id="ne-e0-0" from="ne-n0" to="penn-n0"/>
+  <a xml:id="ne-X" label="b" ref="ne-n0"/>
+</graph>
+
+@@ end
+
+@@ file a/b/c/d/e/f/g/noseg.hdr
+<?xml version="1.0" encoding="UTF-8"?>
+<documentHeader xmlns="http://www.xces.org/ns/GrAF/1.0/" docId="TEST" version="1.0.4">
+  <profileDesc>
+    <primaryData f.id="f.text" loc="noseg.txt"/>
+    <annotations>
+      <annotation loc="noseg-s.xml" f.id="f.s">annotation</annotation>
+    </annotations>
+  </profileDesc>
+</documentHeader>
+
+@@ end
+
+@@ file a/b/c/d/e/f/g/noseg.txt
+Fine text.
+@@ end
+
+@@ file a/b/c/d/e/f/g/noseg-s.xml
+<graph xmlns="http://www.xces.org/ns/GrAF/1.0/">
+  <graphHeader><labelsDecl><labelUsage label="s" occurs="1"/></labelsDecl></graphHeader>
+  <region xml:id="s-r0" anchors="0 10"/>
+  <node xml:id="s-n0"><link targets="s-r0"/></node>
+  <a xml:id="s-N0" label="s" ref="s-n0" as="anc"><fs><f name="id" value="s0"/></fs></a>
+</graph>
+
+@@ end
+
+@@ file a/b/c/d/e/f/g/h/doctype.hdr
+<?xml version="1.0" encoding="UTF-8"?>
+<documentHeader xmlns="http://www.xces.org/ns/GrAF/1.0/" docId="TEST" version="1.0.4">
+  <profileDesc>
+    <primaryData f.id="f.text" loc="doctype.txt"/>
+    <annotations>
+      <annotation loc="doctype-s.xml" f.id="f.s">annotation</annotation>
+      <annotation loc="doctype-seg.xml" f.id="f.seg">annotation</annotation>
+    </annotations>
+  </profileDesc>
+</documentHeader>
+
+@@ end
+
+@@ file a/b/c/d/e/f/g/h/doctype.txt
+Fine text.
+@@ end
+
+@@ file a/b/c/d/e/f/g/h/doctype-seg.xml
+<!DOCTYPE graph>
+<graph xmlns="http://www.xces.org/ns/GrAF/1.0/">
+  <graphHeader><labelsDecl/></graphHeader>
+  <region xml:id="seg-r0" anchors="0 4"/>
+  <region xml:id="seg-r1" anchors="5 9"/>
+  <region xml:id="seg-r2" anchors="9 10"/>
+</graph>
+
+@@ end
+
+@@ file a/b/c/d/e/f/g/h/doctype-s.xml
+<graph xmlns="http://www.xces.org/ns/GrAF/1.0/">
+  <graphHeader><labelsDecl><labelUsage label="s" occurs="1"/></labelsDecl></graphHeader>
+  <region xml:id="s-r0" anchors="0 10"/>
+  <node xml:id="s-n0"><link targets="s-r0"/></node>
+  <a xml:id="s-N0" label="s" ref="s-n0" as="anc"><fs><f name="id" value="s0"/></fs></a>
+</graph>
+
+@@ end
+
+@@ file a/b/c/d/e/f/g/h/i/stray.hdr
+<?xml version="1.0" encoding="UTF-8"?>
+<documentHeader xmlns="http://www.xces.org/ns/GrAF/1.0/" docId="TEST" version="1.0.4">
+  <profileDesc>
+    <primaryData f.id="f.text" loc="stray.txt"/>
+    <annotations>
+      <annotation loc="stray-s.xml" f.id="f.s">annotation</annotation>
+      <annotation loc="stray-seg.xml" f.id="f.seg">annotation</annotation>
+      <annotation loc="stray-penn.xml" f.id="f.penn">annotation</annotation>
+    </annotations>
+  </profileDesc>
+</documentHeader>
+
+@@ end
+
+@@ file a/b/c/d/e/f/g/h/i/stray.txt
+Fine text.
+@@ end
+
+@@ file a/b/c/d/e/f/g/h/i/stray-seg.xml
+<?xml version="1.0" encoding="UTF-8"?>
+<graph xmlns="http://www.xces.org/ns/GrAF/1.0/">
+  <graphHeader><labelsDecl/></graphHeader>
+  <region xml:id="seg-r0" anchors="0 4"/>
+  <region xml:id="seg-r1" anchors="5 9"/>
+  <region xml:id="seg-r2" anchors="9 10"/>
+</graph>
+
+@@ end
+
+@@ file a/b/c/d/e/f/g/h/i/stray-s.xml
+<graph xmlns="http://www.xces.org/ns/GrAF/1.0/">
+  <graphHeader><labelsDecl><labelUsage label="s" occurs="1"/></labelsDecl></graphHeader>
+  <region xml:id="s-r0" anchors="0 10"/>
+  <node xml:id="s-n0"><link targets="s-r0"/></node>
+  <a xml:id="s-N0" label="s" ref="s-n0" as="anc"><fs><f name="id" value="s0"/></fs></a>
+</graph>
+
+@@ end
+
+@@ file a/b/c/d/e/f/g/h/i/stray-penn.xml
+<graph xmlns="http://www.xces.org/ns/GrAF/1.0/">
+  <graphHeader><labelsDecl><labelUsage label="tok"/></labelsDecl><dependencies><dependsOn f.id="f.seg"/></dependencies></graphHeader>
+  <node xml:id="penn-n0">
+    <link targets="seg-r0"/>
+  </node>
+  <a xml:id="penn-N0" label="tok" ref="penn-n0" as="anc">
+    <fs>
+      <f name="base" value="fine"/>
+      <f name="msd" value="JJ"/>
+    </fs>
+  </a>
+  <f name="msd" value="X"/>
+</graph>
+
+@@ end
+
+@@ file a/b/c/d/e/f/g/h/i/j/last.hdr
+<?xml version="1.0" encoding="UTF-8"?>
+<documentHeader xmlns="http://www.xces.org/ns/GrAF/1.0/" docId="TEST" version="1.0.4">
+  <profileDesc>
+    <primaryData f.id="f.text" loc="last.txt"/>
+    <annotations>
+      <annotation loc="last-s.xml" f.id="f.s">annotation</annotation>
+      <annotation loc="last-seg.xml" f.id="f.seg">annotation</annotation>
+      <annotation loc="last-penn.xml" f.id="f.penn">annotation</annotation>
+    </annotations>
+  </profileDesc>
+</documentHeader>
+
+@@ end
+
+@@ file a/b/c/d/e/f/g/h/i/j/last.txt
+Fine text.
+@@ end
+
+@@ file a/b/c/d/e/f/g/h/i/j/last-seg.xml
+<?xml version="1.0" encoding="UTF-8"?>
+<graph xmlns="http://www.xces.org/ns/GrAF/1.0/">
+  <graphHeader><labelsDecl/></graphHeader>
+  <region xml:id="seg-r0" anchors="0 4"/>
+  <region xml:id="seg-r1" anchors="5 9"/>
+  <region xml:id="seg-r2" anchors="9 10"/>
+</graph>
+
+@@ end
+
+@@ file a/b/c/d/e/f/g/h/i/j/last-s.xml
+<graph xmlns="http://www.xces.org/ns/GrAF/1.0/">
+  <graphHeader><labelsDecl><labelUsage label="s" occurs="1"/></labelsDecl></graphHeader>
+  <region xml:id="s-r0" anchors="0 10"/>
+  <node xml:id="s-n0"><link targets="s-r0"/></node>
+  <a xml:id="s-N0" label="s" ref="s-n0" as="anc"><fs><f name="id" value="s0"/></fs></a>
+</graph>
+
+@@ end
+
+@@ file a/b/c/d/e/f/g/h/i/j/last-penn.xml
+<graph xmlns="http://www.xces.org/ns/GrAF/1.0/">
+  <graphHeader><labelsDecl><labelUsage label="tok"/></labelsDecl><dependencies><dependsOn f.id="f.seg"/></dependencies></graphHeader>
+  <node xml:id="penn-n0">
+    <link targets="seg-r0"/>
+  </node>
+  <a xml:id="penn-N0" label="tok" ref="penn-n0" as="anc">
+    <fs>
+      <f name="base" value="fine"/>
+      <f name="msd" value="JJ"/>
+    </fs>
+  </a>
+  <node xml:id="penn-n1">
+    <link targets="seg-r1"/>
+  </node>
+  <a xml:id="penn-N1" label="tok" ref="penn-n1" as="anc">
+    <fs>
+      <f name="base" value="text"/>
+      <f name="msd" value="NN"/>
+    </fs>
+  </a>
+  <node xml:id="penn-n2">
+    <link targets="seg-r2"/>
+  </node>
+  <a xml:id="penn-N2" label="tok" ref="penn-n2" as="anc">
+    <fs>
+      <f name="base" value="."/>
+      <f name="msd" value="."/>
+    </fs>
+  </a>
+</graph>
+
+@@ end
