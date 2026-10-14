@@ -18,7 +18,7 @@
 //! [`JavaString::ends_with`]) compares bytes when the `str`'s UTF-8 is its
 //! modified UTF-8 (no U+0000 and nothing outside the BMP), which every
 //! label a validator compares against is, and compares UTF-16 units
-//! otherwise; neither allocates.
+//! otherwise; none of the three allocates.
 
 use std::borrow::Cow;
 use std::cmp::Ordering;
@@ -137,9 +137,8 @@ impl JavaString {
         if utf8_is_modified_utf8(suffix) {
             return self.bytes.ends_with(suffix.as_bytes());
         }
-        let suffix: Vec<u16> = suffix.encode_utf16().collect();
-        let units: Vec<u16> = self.utf16_units().collect();
-        units.ends_with(&suffix)
+        let (len, n) = (self.utf16_len(), suffix.encode_utf16().count());
+        n <= len && self.utf16_units().skip(len - n).eq(suffix.encode_utf16())
     }
 
     /// The string as `&str` when it holds no lone surrogate; modified
@@ -332,6 +331,30 @@ mod tests {
         let lone = JavaString::from_utf16(&[0x42, 0x2D, 0xD83D]);
         assert!(lone != "B-" && !lone.eq_str("B-\u{FFFD}"));
         assert!(lone.starts_with("B-") && !lone.ends_with("-"));
+    }
+
+    #[test]
+    fn ends_with_compares_utf16_units_from_the_end() {
+        // U+0000 and a character outside the BMP: the suffix is compared
+        // by units, its two surrogates as two.
+        let astral = JavaString::new("a\0😀b");
+        assert_eq!(astral.utf16_len(), 5);
+        for suffix in ["", "b", "😀b", "\0😀b", "a\0😀b"] {
+            assert!(astral.ends_with(suffix), "{suffix:?}");
+        }
+        for suffix in ["\0b", "😁b", "xa\0😀b", "a\0😀bb", "\0"] {
+            assert!(!astral.ends_with(suffix), "{suffix:?}");
+        }
+        assert!(JavaString::new("\0").ends_with("\0") && !JavaString::new("").ends_with("\0"));
+        // A pair ends a string that holds it, but not one holding only its
+        // low half.
+        let pair = JavaString::from_utf16(&[0x61, 0xD83D, 0xDE00]);
+        assert!(pair.ends_with("😀") && pair.ends_with("a😀") && !pair.ends_with("😁"));
+        let low = JavaString::from_utf16(&[0x61, 0xDE00]);
+        assert!(!low.ends_with("😀") && !low.ends_with("a😀") && low.ends_with(""));
+        // A lone high surrogate before a NUL.
+        let high = JavaString::from_utf16(&[0xD83D, 0x0]);
+        assert!(high.ends_with("\0") && !high.ends_with("😀\0"));
     }
 
     #[test]

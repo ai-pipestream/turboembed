@@ -71,7 +71,11 @@ impl PosModel {
     /// the default factory, as `BaseModel` reads it), the classifier is
     /// there with at least one outcome, the manifest's `BeamSize` is a
     /// non-negative integer and not zero, the tag dictionary reads, and
-    /// the descriptor builds its generators.
+    /// the descriptor builds its generators. It also refuses a model with
+    /// an outcome that is not text (one holding half of a surrogate pair,
+    /// [`ModelError::OutcomeNotText`]), which the JVM loads and runs: the
+    /// tagger hands tags out as `&str`, so this is a limit of the port,
+    /// not a check OpenNLP makes.
     pub fn open_with_format(file: ModelFile, format: PosTagFormat) -> Result<PosModel, ModelError> {
         if file.component_name() != COMPONENT_NAME {
             return Err(ModelError::Component(file.component_name().into()));
@@ -297,6 +301,37 @@ impl PosModel {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// A part-of-speech model file whose classifier, a GIS model the turbo-train
+    /// writer wrote, has the outcomes `outcome` and `X`.
+    fn model_with_outcome(outcome: turbo_train::JavaString) -> ModelFile {
+        use turbo_train::{Event, Key, Manifest, ModelPackage, TrainingConfiguration, TrainingParameters};
+        let events = [Event::from_strs(outcome, &["w=a"]), Event::from_strs("X", &["w=b"])];
+        let mut params = TrainingParameters::new();
+        params.put(Key::ITERATIONS, 1);
+        params.put(Key::CUTOFF, 0);
+        let (model, _) =
+            turbo_train::gis::train_events(&events, &params, &mut TrainingConfiguration::default()).unwrap();
+        let mut package = ModelPackage::new(Manifest::new(COMPONENT_NAME, "en", 0));
+        package.add_entry(MODEL_ENTRY_NAME, turbo_train::write_gis(&model).unwrap());
+        ModelFile::open(package.to_bytes()).unwrap()
+    }
+
+    #[test]
+    fn a_model_with_an_outcome_holding_half_a_surrogate_pair_is_refused() {
+        // "N" and a lone high surrogate, written as writeUTF writes
+        // it: 4E ED A0 BD.
+        let lone = turbo_train::JavaString::from_utf16(&[0x4E, 0xD83D]);
+        let file = model_with_outcome(lone.clone());
+        let classifier = file.entry(MODEL_ENTRY_NAME).unwrap();
+        assert!(classifier.windows(4).any(|w| w == b"N\xED\xA0\xBD"));
+        let e = PosModel::open(file).unwrap_err();
+        assert!(matches!(&e, ModelError::OutcomeNotText(o) if *o == lone), "{e:?}");
+        assert!(e.to_string().contains("holds half of a surrogate pair"), "{e}");
+        // The same model with a text outcome opens.
+        let text = model_with_outcome(turbo_train::JavaString::new("N"));
+        assert!(PosModel::open(text).is_ok());
+    }
 
     /// The English model, or `None` when it is not downloaded.
     fn english() -> Option<PosModel> {

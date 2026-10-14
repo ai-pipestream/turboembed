@@ -20,3 +20,5 @@ turbo-jvm = { path = "../jvm" }
 
 [dev-dependencies]
 turbo-goldens = { path = "../goldens" }
+# Writes a small model whose outcome holds half of a surrogate pair.
+turbo-train = { path = "../train" }

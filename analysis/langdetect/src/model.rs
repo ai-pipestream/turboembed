@@ -25,7 +25,11 @@ impl LanguageModel {
     /// Reads the model from an opened model file, checking what OpenNLP
     /// checks: the component name and a classifier in `langdetect.model`.
     /// A manifest without a `factory` gets OpenNLP's default factory, as
-    /// on the JVM; one naming any other factory is refused.
+    /// on the JVM; one naming any other factory is refused. It also
+    /// refuses a model with an outcome that is not text (one holding half
+    /// of a surrogate pair, [`ModelError::OutcomeNotText`]), which the JVM
+    /// loads and runs: language codes are handed out as `&str`, so this is
+    /// a limit of the port, not a check OpenNLP makes.
     pub fn open(file: ModelFile) -> Result<LanguageModel, ModelError> {
         if file.component_name() != COMPONENT {
             return Err(ModelError::Component(file.component_name().into()));

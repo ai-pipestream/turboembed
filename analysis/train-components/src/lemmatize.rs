@@ -14,9 +14,10 @@
 //! A class is written over UTF-16 units, so a token or lemma with a
 //! character outside the Basic Multilingual Plane can give a class that
 //! holds half of a surrogate pair. The class is a [`JavaString`], as the
-//! outcome of every event is, so such a sample trains as the JVM trains
-//! on it, and the class is written to the model file as `writeUTF` writes
-//! it.
+//! outcome of every event is, so such a sample makes the events the JVM
+//! makes (the `train-events` goldens), and the class is written to the
+//! model file as `writeUTF` writes it (the writer's unit tests; no golden
+//! holds a model the JVM trained on such a class).
 
 use turbo_formats::LemmaSample;
 use turbo_lemmatizer::LemmaContext;

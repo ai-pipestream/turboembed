@@ -17,10 +17,12 @@
 //! `LemmaSampleEventStream`, over word and tag lines, word, tag and lemma
 //! lines and CoNLL-U in both tag sets; their model files, the
 //! `tags.tagdict` entry and `POSDictionary.serialize` of the dictionaries
-//! the generator builds are compared the same way. Two lemma samples
-//! (`lemma-basic` and `conllu-whitespace`) have classes holding half of a
-//! surrogate pair, which the generator writes as `\u` escapes; they are
-//! read back as the `JavaString` outcomes this crate makes.
+//! the generator builds are compared the same way. Three lemma samples
+//! have four classes holding half of a surrogate pair: one in
+//! `formats/lemma-basic`, one in `formats/conllu-whitespace` and two in
+//! one sentence of `tagged/lemmas`. The generator writes them as `\u`
+//! escapes; they are read back as the `JavaString` outcomes this crate
+//! makes.
 
 mod common;
 

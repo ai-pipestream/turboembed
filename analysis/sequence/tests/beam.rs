@@ -369,3 +369,34 @@ fn en_ner_location() {
         check_names(&dir, "en-ner-location");
     }
 }
+
+/// Gives every word the feature `w=` and the word.
+struct Words;
+
+impl ContextGenerator<&str, turbo_maxent::JavaString> for Words {
+    fn context(&mut self, index: usize, sequence: &[&str], _: &[&turbo_maxent::JavaString], out: &mut Features) {
+        out.add(&format!("w={}", sequence[index]));
+    }
+}
+
+#[test]
+fn a_search_over_text_refuses_an_outcome_holding_half_a_surrogate_pair_and_one_over_java_strings_runs() {
+    use turbo_maxent::{JavaString, MaxentModel};
+    use turbo_train::{Event, Key, TrainingConfiguration, TrainingParameters};
+    // "R1" and a lone low surrogate: the class of a word losing the low
+    // half of its last character.
+    let lone = JavaString::from_utf16(&[0x52, 0x31, 0xDE00]);
+    let events = [Event::from_strs(lone.clone(), &["w=a"]), Event::from_strs("O", &["w=b"])];
+    let mut params = TrainingParameters::new();
+    params.put(Key::ITERATIONS, 10);
+    params.put(Key::CUTOFF, 0);
+    let (trained, _) = turbo_train::gis::train_events(&events, &params, &mut TrainingConfiguration::default()).unwrap();
+    let model = MaxentModel::read(&turbo_train::write_gis(&trained).unwrap()).unwrap();
+
+    let refused = BeamSearch::<str>::new(3, &model).err().unwrap();
+    assert!(matches!(&refused, turbo_sequence::Error::OutcomeNotText(o) if *o == lone), "{refused:?}");
+
+    let Ok(search) = BeamSearch::<JavaString>::new(3, &model);
+    let best = search.best_sequence(&["a", "b"], &mut Words, &turbo_sequence::AcceptAll).unwrap();
+    assert_eq!(best.outcomes(), [&lone, &JavaString::new("O")]);
+}

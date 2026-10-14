@@ -39,9 +39,17 @@ token or lemma with a character outside the Basic Multilingual Plane
 gives a class holding half of its surrogate pair, and the JVM trains on
 it, numbers it by its units and writes it with `writeUTF`. The indexers
 and the GIS, quasi-Newton and perceptron models hold outcome labels as
-`JavaString`s and the writer writes them as the bytes they are; `Event::java_string` and the event
-checksum write the class as `Event.toString` and `getBytes(UTF_8)` do
-(a lone surrogate becomes `?`).
+`JavaString`s, and the writer writes each label's modified UTF-8 as it
+is. `Event::java_string` and the event checksum write the class as
+`Event.toString` and `getBytes(UTF_8)` do (a lone surrogate becomes `?`).
+
+No golden holds a model file the JVM trained on such a class. What
+checks the written labels is the unit tests of their bytes (a lone high
+surrogate as `ED A0 BD` after the `writeUTF` length, for each of the
+three writers), the `train-events` goldens, whose lemma events and event
+checksums are the JVM's, and the JVM reading the Rust lemmatizer fixture
+(`analysis/goldens/data/fixtures/lemma-fixture-rust.bin`), whose
+decision dumps list its two such classes.
 
 ## JVM reference
 
