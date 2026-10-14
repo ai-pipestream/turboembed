@@ -14,6 +14,7 @@ use std::collections::HashMap;
 use std::collections::hash_map::Entry as MapEntry;
 use std::sync::Arc;
 
+use turbo_jvm::hash_map::put_order;
 use turbo_maxent::{Entries, ModelFile};
 use turbo_unicode::java::code_point::to_lower_case;
 
@@ -43,7 +44,7 @@ impl TagDictionary {
     /// putting each into a new map under its lowercase form, so when
     /// several words lowercase to the same one, the word Java's hash order
     /// visits last gives the tags, not the word last in the file. That
-    /// order is reproduced here ([`java_hash_order`]).
+    /// order is reproduced here ([`put_order`]).
     pub fn read(xml: &[u8]) -> Result<TagDictionary> {
         let entries = Entries::read(xml)?;
         let case_sensitive = entries.is_case_sensitive();
@@ -77,7 +78,7 @@ impl TagDictionary {
                 tags.insert(word.to_owned(), list);
             }
         } else {
-            for i in java_hash_order(words.iter().map(|(w, _)| *w)) {
+            for i in put_order(words.iter().map(|(w, _)| *w)).0 {
                 let (word, list) = std::mem::take(&mut words[i]);
                 let mut lower = String::with_capacity(word.len());
                 lowercase_into(&mut lower, word);
@@ -128,41 +129,6 @@ impl TagDictionary {
     }
 }
 
-/// The order in which a `java.util.HashMap`, filled by putting `keys` one
-/// by one into `new HashMap<>()`, iterates them: the indices of `keys`,
-/// by bucket and, within a bucket, by insertion. Keys must be distinct.
-///
-/// The table starts with 16 buckets and doubles whenever the map holds
-/// more than three quarters as many keys; a key's bucket is the low bits
-/// of `h ^ (h >>> 16)`, where `h` is `String.hashCode()`. Doubling keeps
-/// the keys of a bucket in insertion order. Java turns a bucket of more
-/// than eight keys into a tree once the table has 64 buckets, which can
-/// change the order within that bucket; that is not reproduced. A
-/// bucket that full needs keys chosen to collide.
-fn java_hash_order<'a>(keys: impl ExactSizeIterator<Item = &'a str>) -> Vec<usize> {
-    let n = keys.len();
-    let mut buckets = 16usize;
-    while n > buckets / 4 * 3 {
-        buckets *= 2;
-    }
-    let mask = buckets as u32 - 1;
-    let mut order: Vec<(u32, usize)> = keys
-        .enumerate()
-        .map(|(i, key)| {
-            let h = java_string_hash(key) as u32;
-            ((h ^ (h >> 16)) & mask, i)
-        })
-        .collect();
-    order.sort_unstable();
-    order.into_iter().map(|(_, i)| i).collect()
-}
-
-/// `String.hashCode()`: `s[0]*31^(n-1) + ... + s[n-1]` over the UTF-16
-/// code units, wrapping.
-fn java_string_hash(s: &str) -> i32 {
-    s.encode_utf16().fold(0i32, |h, u| h.wrapping_mul(31).wrapping_add(i32::from(u)))
-}
-
 /// `DefaultPOSSequenceValidator`: a word the tag dictionary lists may
 /// only take one of its tags; any other word, or any word without a
 /// dictionary, any tag.
@@ -204,24 +170,6 @@ mod tests {
         assert!(v.valid_sequence(0, &["run"], &[], "VB"));
         assert!(!v.valid_sequence(0, &["run"], &[], "JJ"));
         assert!(v.valid_sequence(0, &["walk"], &[], "JJ"));
-    }
-
-    #[test]
-    fn string_hashes_are_java_ones() {
-        assert_eq!(java_string_hash(""), 0);
-        assert_eq!(java_string_hash("a"), 97);
-        // "Aa" and "BB" are the classic colliding pair.
-        assert_eq!(java_string_hash("Aa"), java_string_hash("BB"));
-        assert_eq!(java_string_hash("hello world"), 1_794_106_052);
-        // U+10400 is the two units D801 DC00.
-        assert_eq!(java_string_hash("\u{10400}"), 0xD801 * 31 + 0xDC00);
-    }
-
-    #[test]
-    fn hash_order_follows_buckets_then_insertion() {
-        // "Aa" and "BB" share bucket 0 and keep their insertion order
-        // there, ahead of "a" in bucket 1.
-        assert_eq!(java_hash_order(["BB", "a", "Aa"].into_iter()), [0, 2, 1]);
     }
 
     #[test]

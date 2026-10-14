@@ -92,7 +92,6 @@ pub mod annotate;
 pub mod builtin;
 pub mod dictionary;
 pub mod error;
-mod hash_order;
 pub mod java_regex;
 pub mod merge;
 pub mod name;

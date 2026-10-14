@@ -23,12 +23,17 @@
 //!   parameters and real valued features are read with `parseDouble`,
 //!   `parseFloat`, `parseInt` and `parseBoolean`. [`text`] is those
 //!   conversions.
+//! - Several components iterate over a `java.util.HashMap` whose order
+//!   affects tie breaking or floating point summation. [`hash_map`]
+//!   reproduces `HashMap` hash codes, table growth, bin splitting and
+//!   iteration order for `put`, `merge`, `putAll` and `clear`.
 //!
 //! Every function here is checked against vectors written by a real JVM
 //! (`tests/vectors/`, made by `java/Vectors.java`), except [`math::log`],
 //! whose JVM values are constants in its tests.
 
 pub mod chars;
+pub mod hash_map;
 pub mod math;
 pub mod random;
 pub mod strict_math;

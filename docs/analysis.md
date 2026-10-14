@@ -68,6 +68,13 @@ match the JVM bit for bit:
   cross-validation and trainers use them.
 - `strict_math`: `exp` and `log` port fdlibm, which `StrictMath` computes
   and which the maxent, perceptron and naive Bayes models call.
+- `hash_map`: `JavaHash` (`String.hashCode`, `CharBuffer.hashCode`,
+  record/pair and `List.hashCode`), `spread` (`HashMap.hash`),
+  `HashMapOrder`, `put_order` and `JavaHashMap` reproduce JDK 21's
+  `HashMap` table sizing, bin splitting and iteration order for `put`,
+  `merge`, `putAll` and `clear`, used by `turbo-langdetect`,
+  `turbo-namefind`, `turbo-sequence`, `turbo-bpe-trainer` and
+  `turbo-formats`.
 
 It is checked against vectors a JDK 21 wrote; `analysis/jvm/README.md`
 says how to regenerate them.

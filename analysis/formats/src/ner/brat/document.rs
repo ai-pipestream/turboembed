@@ -4,11 +4,12 @@ use std::collections::HashMap;
 use std::io;
 use std::path::{Path, PathBuf};
 
+use turbo_jvm::hash_map::put_order;
 use turbo_unicode::WhitespaceMode;
 
 use super::annotation::{BratAnnotation, Parsed, parse_annotations};
 use crate::error::FormatError;
-use crate::masc::java::{HashOrder, decode_utf8, string_hash};
+use crate::masc::java::decode_utf8;
 use crate::source::check_len;
 
 /// A brat document (`BratDocument`): a text and its annotations.
@@ -47,7 +48,6 @@ impl BratDocument {
         check_len(&text)?;
         let parsed = parse_annotations(&decode_utf8(ann), &id, whitespace)?;
         // `annotationMap`, a `HashMap` by id: the order it iterates in
-        let mut order = HashOrder::default();
         let mut by_id: HashMap<String, usize> = HashMap::new();
         let mut annotations: Vec<BratAnnotation> = Vec::new();
         let mut notes = Vec::new();
@@ -56,7 +56,6 @@ impl BratDocument {
                 Parsed::Annotation(a) => match by_id.get(&a.id) {
                     Some(&i) => annotations[i] = a,
                     None => {
-                        order.insert(string_hash(&a.id), annotations.len());
                         by_id.insert(a.id.clone(), annotations.len());
                         annotations.push(a);
                     }
@@ -69,8 +68,9 @@ impl BratDocument {
                 annotations[i].note = n.note;
             }
         }
+        let (order, _) = put_order(annotations.iter().map(|a| a.id.as_str()));
         let mut slots: Vec<Option<BratAnnotation>> = annotations.into_iter().map(Some).collect();
-        let annotations = order.order().map(|i| slots[i].take().expect("each key once")).collect();
+        let annotations = order.into_iter().map(|i| slots[i].take().expect("each key once")).collect();
         Ok(BratDocument { id, text, annotations })
     }
 
