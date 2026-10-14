@@ -13,7 +13,8 @@ use super::{Outcome, Run, RustError, analyze, has_cut, outcome};
 use crate::resources::{Resources, Unavailable};
 
 /// The models that are checked in fixtures rather than downloads.
-const FIXTURE_MODELS: [&str; 3] = ["en-abbrev", "en-plain", "en-plain-rust"];
+const FIXTURE_MODELS: [&str; 5] =
+    ["en-abbrev", "en-plain", "en-plain-rust", "en-plain-qn-rust", "en-plain-perceptron-rust"];
 
 /// The probabilities are compared bit for bit, as
 /// `analysis/sentdetect/tests/golden.rs` compares them with `to_bits`.
