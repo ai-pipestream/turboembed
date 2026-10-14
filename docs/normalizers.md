@@ -134,24 +134,36 @@ UAX #29 and were modelled by probing JDK 21, never by reading it
 (`java::word_class`, with the class of every code point in
 `analysis/unicode/src/java/word_classes.rs`): letters and digits chain
 into one word; a nonspacing or enclosing mark attaches to the character
-before it; a format character is invisible; `.`, `'`, `"`, a dash, a
-connector, the soft hyphen or U+2027 stays in the word between two
-letters, and `.`, `'`, `"`, `,` or U+066B between two digits, when the
-character right after the joiner is one (a mark there breaks the word);
-`.`, `#` and a currency sign start a number; `%`, `&`, U+00A2, U+066A,
-U+2030 and U+2031 end one; a danda follows letters and digits may follow
-it; the kana and the kanji up to U+9FA5 are words of their own; a
-supplementary letter joins the word, but `isBoundary` right after a
-supplementary character answers true unless that character starts the
-text, as the iterator resynchronizes from inside the surrogate pair, and
-the model keeps that quirk. So "ΑΣ1" and "Α1Σ" end in final sigma and
-"ΑΣ1a", "ΑΣ.a" and "ΑΣ\u0e02a" (Thai letters, then a cased one, all one
-word) do not; the differential fuzzing found the last on the lemmatizer
-(`docs/analysis.md`, "Differential fuzzing"). `analysis/unicode/tests/java.rs`
-holds the cases, and `analysis/unicode/tests/jdk_sigma.rs`, with
-`TURBO_TEST_JDK` set, checks the class of every code point and the
-decision on four hundred thousand random strings against a running JDK
-21; both agree with OpenJDK 21.0.12.1 on every one.
+before it, except after a danda or percent sign that joined a word, after
+a control, and at the start of the text, where the mark is a word of its
+own and the word starts over; a format character is invisible; `.`, `'`,
+`"`, a dash, a connector, the soft hyphen or U+2027 stays in the word
+between two letters, and `.`, `'`, `"`, `,` or U+066B between two digits,
+when the character right after the joiner is one (a mark there breaks the
+word); `.`, `#` and a currency sign start a number; `%`, `&`, U+00A2,
+U+066A, U+2030 and U+2031 end one; a danda follows letters and digits may
+follow it; the kana and the kanji up to U+9FA5 are words of their own;
+supplementary characters have the classes of their categories (U+1D7CE is
+a digit, U+E0020 a format character, U+20000 a letter), and `isBoundary`
+right after a supplementary character answers true unless that character
+starts the text, as the iterator resynchronizes from inside the surrogate
+pair, while the word goes on as the rules say; the model lays that quirk
+over the rules. So "ΑΣ1" and "Α1Σ" end in final sigma, as does "ΑΣ।ͅ" (the
+mark after the danda is not in the sigma's word), and "ΑΣ1a", "ΑΣ.a" and
+"ΑΣ\u0e02a" (Thai letters, then a cased one, all one word) do not; the
+differential fuzzing found the last on the lemmatizer (`docs/analysis.md`,
+"Differential fuzzing"). `analysis/unicode/tests/java.rs` holds the cases,
+and `analysis/unicode/tests/jdk_sigma.rs`, with `TURBO_TEST_JDK` set,
+checks the class of every code point and the decision on six hundred
+thousand random strings (short ones from the Basic Multilingual Plane and
+from every plane, and ones of up to twenty characters from an alphabet of
+dandas, marks, joiners, controls and supplementary characters next to each
+other) against a running JDK 21; both agree with OpenJDK 21.0.12.1 on
+every one, over several seeds and more than a million strings. The
+decision reads only the text around the sigma, without allocating:
+backwards to the nearest cased character and on to the nearest character
+whose class fixes what the word ends in whatever came before it, from
+where the rules are replayed, and forwards to the word's end.
 `java::lowercase_at` gives the mapping `to_lowercase` applies to one
 character, with U+03A3 decided from the text around it, so a normalizer
 can lowercase character by character and replace only the characters

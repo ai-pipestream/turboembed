@@ -210,11 +210,18 @@ fn to_lowercase_applies_the_jdks_final_sigma_condition_not_unicodes() {
 /// Pairs on which the JDK's word break iterator decides, each checked on
 /// OpenJDK 21: a mark after a joiner breaks the word and one before it does
 /// not; the kana marks U+3099 and U+309A are marks, not kana; a danda
-/// chains letters to the digits after it; a spacing mark is a letter; the
-/// soft hyphen is a joiner, not a format character, so it does not join a
-/// Roman numeral; a supplementary character joins the word, but
-/// `isBoundary` right after one answers true unless it starts the text;
-/// U+0295 is a cased letter to JDK 21.
+/// chains letters to the digits after it, and a mark after that danda, or
+/// after a percent sign that followed digits, is a word of its own, as is a
+/// mark at the start of the text; a mark after a danda or a percent sign
+/// that joined nothing attaches to it; a spacing mark is a letter; the soft
+/// hyphen is a joiner, not a format character, so it does not join a Roman
+/// numeral; a supplementary character has the class of its category (the
+/// mathematical digit U+1D7CE is a digit, so the connector U+FE4F after it
+/// joins nothing; the tag U+E0020 is a format character, so a mark after it
+/// at the start of the text is a word of its own), and `isBoundary` right
+/// after one answers true unless it starts the text while the word goes on
+/// ("a\u{20000}\u{345}-\u{3A3}" is one word); U+0295 is a cased letter to
+/// JDK 21.
 #[test]
 fn the_word_iterators_corners_decide_the_sigma() {
     let decisions = |text: &str| -> String {
@@ -244,6 +251,39 @@ fn the_word_iterators_corners_decide_the_sigma() {
         ("\u{295}\u{3A3}", "F"),
         ("\u{391}\u{3A3}\u{200B}a", "S"),
         ("\u{391}\u{3A3}\u{2060}\u{301}a", "S"),
+        ("\u{391}\u{3A3}\u{964}\u{345}", "F"),
+        ("\u{391}\u{3A3}\u{965}\u{345}", "F"),
+        ("\u{391}\u{3A3}\u{964}\u{345}a", "F"),
+        ("\u{391}\u{3A3}\u{345}1", "S"),
+        ("\u{391}\u{964}\u{345}\u{345}\u{3A3}", "S"),
+        ("\u{391}\u{3A3}\u{965}\u{964}\u{660}\u{3A3}", "FS"),
+        ("\u{391}\u{3A3}\u{965}\u{964}\u{2160}", "F"),
+        ("\u{391}\u{3A3}\u{964}\u{964}\u{345}", "F"),
+        ("\u{391}\u{964}\u{301}1\u{3A3}", "S"),
+        ("\u{391}\u{3A3}\u{964}\u{301}1a", "F"),
+        ("\u{391}\u{964}\u{964}1\u{3A3}", "S"),
+        ("\u{391}\u{3A3}\u{964}\u{964}1a", "F"),
+        ("$\u{301}1a\u{3A3}", "F"),
+        (".\u{301}1a\u{3A3}", "F"),
+        ("$\u{301}1\u{3A3}", "S"),
+        ("a$\u{301}1a\u{3A3}", "F"),
+        ("\u{391}\u{964}\u{200B}\u{345}\u{3A3}", "S"),
+        ("1\u{964}\u{345}\u{3A3}", "S"),
+        ("\u{391}1%\u{345}\u{3A3}", "S"),
+        ("A%\u{345}\u{3A3}", "S"),
+        ("\u{391}$\u{345}\u{3A3}", "S"),
+        ("\u{391}\u{3A3}$\u{345}1", "F"),
+        ("\u{345}\u{3A3}", "S"),
+        ("\u{345}\u{345}\u{3A3}", "S"),
+        ("\u{3A3}\u{1D7CE}\u{345}\u{FE4F}\u{3A3}", "SS"),
+        ("\u{3A3}\u{1D7CE}\u{345}\u{3A3}", "SF"),
+        ("A\u{20000}\u{345}\u{3A3}", "F"),
+        ("\u{391}\u{20000}\u{301}\u{3A3}", "S"),
+        ("a\u{20000}\u{345}-\u{3A3}", "F"),
+        ("\u{391}\u{20000}-\u{3A3}", "S"),
+        ("\u{E0020}\u{345}\u{3A3}", "S"),
+        ("\u{20000}\u{345}\u{3A3}", "F"),
+        ("a\u{E0020}\u{345}\u{3A3}", "F"),
     ] {
         assert_eq!(decisions(text), expected, "{text:?}");
     }
