@@ -8,7 +8,8 @@
 //!   these tests say so and pass.
 //! - The maxent detector with the two fixture models (one with an
 //!   abbreviation dictionary), in both whitespace modes, and with the
-//!   model the Rust trainer wrote from en-plain's events.
+//!   models the Rust GIS, QN and perceptron trainers wrote from en-plain's
+//!   events.
 //!
 //! For every maxent run the dumps are checked too: every candidate the
 //! detector asked the model about, feature by feature, with the model's
@@ -227,6 +228,29 @@ fn fixture_with_abbreviations() {
 fn fixture_without_abbreviations() {
     for mode in [WhitespaceMode::Unicode, WhitespaceMode::Legacy] {
         assert_eq!(check_fixture("en-plain", mode, 77).refused, 0, "{mode:?}");
+    }
+}
+
+/// `en-plain-qn-rust.bin` is the `.bin` `analysis/train` writes when it
+/// trains en-plain's events with `MAXENT_QN` (`analysis/train/tests/roundtrip.rs`).
+/// The JVM loaded it with `SentenceModel` and split the fixture inputs with
+/// it; the spans and probabilities it recorded are those of this crate's
+/// detector on the same file. The model differs from en-plain's, so its
+/// spans are its own; the candidates are the same positions.
+#[test]
+fn fixture_written_by_the_rust_qn_trainer() {
+    for mode in [WhitespaceMode::Unicode, WhitespaceMode::Legacy] {
+        assert_eq!(check_fixture("en-plain-qn-rust", mode, 77).refused, 0, "{mode:?}");
+    }
+}
+
+/// `en-plain-perceptron-rust.bin` is the `.bin` `analysis/train` writes
+/// when it trains en-plain's events with `PERCEPTRON`
+/// (`analysis/train/tests/roundtrip.rs`), checked as the QN one is.
+#[test]
+fn fixture_written_by_the_rust_perceptron_trainer() {
+    for mode in [WhitespaceMode::Unicode, WhitespaceMode::Legacy] {
+        assert_eq!(check_fixture("en-plain-perceptron-rust", mode, 77).refused, 0, "{mode:?}");
     }
 }
 

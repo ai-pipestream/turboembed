@@ -11,6 +11,8 @@ name = "turbo_langdetect"
 [dependencies]
 turbo-analysis = { path = "../core" }
 turbo-analysis-layers = { path = "../layers" }
+# Java's HashMap iteration order and CharBuffer.hashCode.
+turbo-jvm = { path = "../jvm" }
 # The model file and its GIS classifier.
 turbo-maxent = { path = "../maxent" }
 # The five normalizers the detector runs before counting n-grams.

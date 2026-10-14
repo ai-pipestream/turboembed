@@ -120,9 +120,50 @@ those the JDK reports as unassigned. It fails on any other difference, on
 a JDK other than 21, and when `java` or `javac` is missing.
 `java::digit` accepts decimal digits only (`Character.digit(c, 10)`
 without the fullwidth and ASCII letters of larger radixes).
-`java::to_lowercase` implements Final_Sigma as Unicode section 3.13
-defines it; on the cases in `analysis/unicode/tests/java.rs` it gives the same output as
-OpenJDK 21.
+`java::to_lowercase` writes final sigma under the JDK's own condition, not
+Unicode's Final_Sigma: the JDK walks the word the sigma is in, as its word
+`BreakIterator` for the root locale delimits it, backwards to the first
+cased character and forwards to the word's end, passing over every other
+character, where Unicode skips only case-ignorable ones; and its cased
+characters are the three cased letter categories plus a fixed list (U+02B0
+to U+02B8, U+02C0 to U+02C1, U+02E0 to U+02E4, U+0345, U+037A, U+1D2C to
+U+1D61, the Roman numerals and the circled letters), not the current
+Other_Uppercase and Other_Lowercase; U+0295 counts as cased too, being Ll
+in JDK 21's Unicode 15.0 and Lo since 16.0. That iterator's rules predate
+UAX #29 and were modelled by probing JDK 21, never by reading it
+(`java::word_class`, with the class of every code point in
+`analysis/unicode/src/java/word_classes.rs`): letters and digits chain
+into one word; a nonspacing or enclosing mark attaches to the character
+before it, except after a danda or percent sign that joined a word, after
+a control, and at the start of the text, where the mark is a word of its
+own and the word starts over; a format character is invisible; `.`, `'`,
+`"`, a dash, a connector, the soft hyphen or U+2027 stays in the word
+between two letters, and `.`, `'`, `"`, `,` or U+066B between two digits,
+when the character right after the joiner is one (a mark there breaks the
+word); `.`, `#` and a currency sign start a number; `%`, `&`, U+00A2,
+U+066A, U+2030 and U+2031 end one; a danda follows letters and digits may
+follow it; the kana and the kanji up to U+9FA5 are words of their own;
+supplementary characters have the classes of their categories (U+1D7CE is
+a digit, U+E0020 a format character, U+20000 a letter), and `isBoundary`
+right after a supplementary character answers true unless that character
+starts the text, as the iterator resynchronizes from inside the surrogate
+pair, while the word goes on as the rules say; the model lays that quirk
+over the rules. So "ΑΣ1" and "Α1Σ" end in final sigma, as does "ΑΣ।ͅ" (the
+mark after the danda is not in the sigma's word), and "ΑΣ1a", "ΑΣ.a" and
+"ΑΣ\u0e02a" (Thai letters, then a cased one, all one word) do not; the
+differential fuzzing found the last on the lemmatizer (`docs/analysis.md`,
+"Differential fuzzing"). `analysis/unicode/tests/java.rs` holds the cases,
+and `analysis/unicode/tests/jdk_sigma.rs`, with `TURBO_TEST_JDK` set,
+checks the class of every code point and the decision on six hundred
+thousand random strings (short ones from the Basic Multilingual Plane and
+from every plane, and ones of up to twenty characters from an alphabet of
+dandas, marks, joiners, controls and supplementary characters next to each
+other) against a running JDK 21; both agree with OpenJDK 21.0.12.1 on
+every one, over several seeds and more than a million strings. The
+decision reads only the text around the sigma, without allocating:
+backwards to the nearest cased character and on to the nearest character
+whose class fixes what the word ends in whatever came before it, from
+where the rules are replayed, and forwards to the word's end.
 `java::lowercase_at` gives the mapping `to_lowercase` applies to one
 character, with U+03A3 decided from the text around it, so a normalizer
 can lowercase character by character and replace only the characters
@@ -426,6 +467,10 @@ characters in category Cf. "a" U+206A "b" U+206F becomes "ab". Other
 default-ignorable characters stay: the Hangul fillers are letters, the
 tag characters build emoji flag sequences, and the variation selectors
 choose glyphs.
+Alignment: OpenNLP's `Alignment` lists the source range of each output
+character and nothing for a deleted one, so two deleted neighbours are
+one gap in it, where each deletion is its own edit here; the text and
+every mapped span are the same.
 
 Tests: every expectation of the invisible character tests in
 `SetBasedNormalizerTest` and `AlignedNormalizerPipelineTest`, every table
@@ -1745,8 +1790,8 @@ an expansion maps back to exactly its source character. ASCII is tested
 eight bytes at a time; a stretch of ASCII without uppercase letters is
 skipped without decoding. Only U+03A3 under `lowercase` looks at its
 neighbours (through `turbo_unicode::java::lowercase_at`, which applies the
-Final_Sigma condition of Unicode section 3.13 to the whole text); the folds
-are context free.
+JDK's final sigma condition to the whole text); the folds are context
+free.
 
 Folding does not keep a normalization form: the full fold of U+01F0 is
 "j" U+030C, which is not NFC, and the combining mark U+0345 (class 240)
@@ -1959,6 +2004,13 @@ Differences from OpenNLP:
   to two acute accents, so "ő" becomes "o" U+0301 U+0301 here and "o" U+030B in
   OpenNLP.
 - OpenNLP's class has no aligned form; here every edit is aligned.
+
+The differential (`analysis/fuzz/src/runs/normalize.rs`) tells this
+difference from any other with the 17.0.0 data itself: the 2526 source
+code points whose 17.0.0 prototype is not their 18.0.0 one are listed in
+`analysis/fuzz/src/runs/confusables_17.rs`, and a JVM text is the
+documented difference only when it is the 17.0.0 skeleton of the source
+while the port's is the 18.0.0 one.
 
 Tests (`analysis/normalize/tests/confusables.rs`): every expectation of
 `ConfusableSkeletonTest`

@@ -29,9 +29,8 @@ use std::path::{Path, PathBuf};
 use turbo_analysis::{Analyzer, Document};
 use turbo_analysis_embed::SubwordAnnotator;
 use turbo_analysis_layers::Subwords;
+use turbo_goldens::expect::without_trailing_marks;
 use turbo_goldens::{Golden, Tolerance, assert_matches_golden, data_dir, matches_golden, sha512};
-use turbo_unicode::GeneralCategory;
-use turbo_unicode::category::general_category;
 
 /// The run's directory: the vocabulary fixture's name without `.txt`.
 const VOCABULARY: &str = "all-minilm-l6-v2-vocab";
@@ -110,14 +109,6 @@ fn rust_pieces(text: &str) -> Vec<(u32, [u32; 2])> {
 
 fn case(name: &str) -> Case {
     cases().into_iter().find(|c| c.name == name).unwrap_or_else(|| panic!("no golden for {name}"))
-}
-
-/// `span` with the nonspacing marks at its end left out: the JVM runs a
-/// piece's span over the marks accent stripping removed after it.
-fn without_trailing_marks(text: &str, [start, end]: [u32; 2]) -> [u32; 2] {
-    let piece = &text[start as usize..end as usize];
-    let kept = piece.trim_end_matches(|c: char| general_category(c) == GeneralCategory::Mn);
-    if kept.is_empty() { [start, end] } else { [start, start + kept.len() as u32] }
 }
 
 /// The inputs that have a test of their own.

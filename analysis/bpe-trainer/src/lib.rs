@@ -21,7 +21,6 @@
 //! ([`TieOrder`]).
 
 pub mod byte_level;
-mod java_map;
 pub mod merger;
 pub mod opennlp;
 pub mod pieces;

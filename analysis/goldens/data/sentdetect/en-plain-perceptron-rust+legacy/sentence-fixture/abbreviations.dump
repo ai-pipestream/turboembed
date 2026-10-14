@@ -1,0 +1,84 @@
+dump 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	sentence-fixture/abbreviations	67	67	14ab4e35df9c6ccf8789b218ed897aecd88c73fea53a6b06933ca4c4c4cedb30
+model	en-plain-perceptron-rust.bin	5882f58f6cea311ff8b2043509992a31a2870e75fe7fc3e08a96ca7f441e4ef58ee8d851ace176942987fa860c7ca37cab6bbcd8c38b5b67abfa57918789b915
+annotator	opennlp.tools.sentdetect.SentenceDetectorME	sentPosDetect
+config	whitespace	legacy
+point	0	2	9	2	0	none
+context	sn
+context	eos=.
+context	x=Mr
+context	2
+context	xcap
+context	v=
+context	s=
+context	n=Smith
+context	ncap
+outcome	n	3fec2f7d5a8a79ca 0.8807970779778824
+outcome	s	3fbe84152bac31ae 0.11920292202211755
+end	0
+point	1	16	9	2	0	none
+context	sn
+context	eos=.
+context	x=Dr
+context	2
+context	xcap
+context	v=met
+context	s=
+context	n=Brown
+context	ncap
+outcome	n	3fec2f7d5a8a79ca 0.8807970779778824
+outcome	s	3fbe84152bac31ae 0.11920292202211755
+end	1
+point	2	32	7	2	0	none
+context	sn
+context	eos=.
+context	x=.m
+context	2
+context	v=p
+context	s=
+context	n=on
+outcome	n	3fe524ea8a4f2201 0.6607563687658172
+outcome	s	3fd5b62aeb61bbff 0.33924363123418283
+end	2
+point	3	44	9	2	0	none
+context	sn
+context	eos=.
+context	x=St
+context	2
+context	xcap
+context	v=Main
+context	vcap
+context	s=
+context	n=today.
+outcome	n	3fec2f7d5a8a79ca 0.8807970779778824
+outcome	s	3fbe84152bac31ae 0.11920292202211755
+end	3
+point	4	51	9	2	0	none
+context	sn
+context	eos=.
+context	x=today
+context	5
+context	v=St.
+context	vcap
+context	s=
+context	n=He
+context	ncap
+outcome	n	3fbe84152bac31ae 0.11920292202211755
+outcome	s	3fec2f7d5a8a79ca 0.8807970779778824
+acceptable	1
+end	4
+point	5	66	6	2	0	none
+context	eos=.
+context	x=early
+context	5
+context	v=left
+context	s=
+context	n=
+outcome	n	3fbe84152bac31ae 0.11920292202211755
+outcome	s	3fec2f7d5a8a79ca 0.8807970779778824
+acceptable	1
+end	5

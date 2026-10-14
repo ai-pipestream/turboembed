@@ -36,6 +36,7 @@ nothing here is in the C header or the gRPC server.
 | `turbo-bpe-trainer` | `analysis/bpe-trainer/` | BPE trainers, a tool and not an annotator: byte-level BPE as upstream `tokenizers` trains it, SentencePiece BPE as the sentencepiece library trains it, and OpenNLP's `BPETokenizerTrainer` with its `BPETokenizer` ([bpe-trainer.md](bpe-trainer.md)) |
 | `turbo-train` | `analysis/train/` | Training OpenNLP maxent models, the event side: `Event`, the `FileEventStream` and `RealValueFileEventStream` formats, the CRC-32C event checksum, the three data indexers with their cutoffs, sorting and merging, `TrainingParameters` with typed values and OpenNLP's parameters file, `AlgorithmType` and the trainer types, the progress monitors and stop criteria, the GIS trainer (`GISTrainer`, parameters bit for bit the JVM's after every iteration), the binary model writer (`GenericModelWriter`, bytes the JVM's) and the `.bin` packaging with its manifest (`BaseModel.serialize`; the entries are the JVM's bytes, the archive around them is written here and loads in both). Sample types belong to the formats crate; this one starts at events. Its crate documentation lists the OpenNLP behaviour that is surprising, and "Training goldens" below describes its JVM reference |
 | `turbo-formats` | `analysis/formats/` | OpenNLP's training samples (name, part-of-speech, lemma, chunk, token, sentence, document category and language samples), a reader per native format that reproduces OpenNLP's sample stream over the same text, the conversion of name and part-of-speech samples into token and sentence samples, the CoNLL-U readers of part-of-speech, lemma, sentence and token samples, the CoNLL-2002 and CoNLL-2003 name readers and the CoNLL-X part-of-speech reader, the MASC corpus reader and its part-of-speech, token, sentence and name samples, the named entity corpus readers (GermEval 2014, BioNLP 2004, Evalita, the 1990 census names, MUC-6 and brat), the format registry, and the evaluators and cross-validation folds (`FMeasure`, `Mean`, an evaluator per component). Every token and tag keeps its byte span in the source; the crate documentation lists the OpenNLP behaviour that is surprising, and its tests compare with the `formats`, `masc`, `ner` and `evaluate` goldens |
+| `turbo-parser` | `analysis/parser/` | OpenNLP's constituency `Parse` tree and Penn Treebank bracket I/O (`Parse::parse`, `Parse::show`, `ParseSampleStream`, `ParserPosSample`, `ParserChunkSample`, `space_untokenized_parens`), `HeadRules` and `GapLabeler` traits, `EnglishHeadRules` (`opennlp.tools.parser.lang.en.HeadRules`), and `AncoraSpanishHeadRules` (`opennlp.tools.parser.lang.es.AncoraSpanishHeadRules`) with a 62-state `u64` bitmask tag matcher (`TagPattern`). `analysis/parser/README.md` describes its JVM reference vectors |
 | `turbo-eval` | `analysis/eval/` | The evaluation harness: the evaluation sets with their fetch by checksum and typed readers, the pipeline, the baseline chunkers, measures, significance tests, records, the gate and the `turbo-eval` binary (Evaluation, below) |
 
 They need nothing beyond the standard library and each other, except
@@ -68,6 +69,13 @@ match the JVM bit for bit:
   cross-validation and trainers use them.
 - `strict_math`: `exp` and `log` port fdlibm, which `StrictMath` computes
   and which the maxent, perceptron and naive Bayes models call.
+- `hash_map`: `JavaHash` (`String.hashCode`, `CharBuffer.hashCode`,
+  record/pair and `List.hashCode`), `spread` (`HashMap.hash`),
+  `HashMapOrder`, `put_order` and `JavaHashMap` reproduce JDK 21's
+  `HashMap` table sizing, bin splitting and iteration order for `put`,
+  `merge`, `putAll` and `clear`, used by `turbo-langdetect`,
+  `turbo-namefind`, `turbo-sequence`, `turbo-bpe-trainer` and
+  `turbo-formats`.
 
 It is checked against vectors a JDK 21 wrote; `analysis/jvm/README.md`
 says how to regenerate them.
@@ -1590,6 +1598,48 @@ in place of the indexer's layers, one `turbo:indexer-error` row with the
 exception's class and message. No layer type has these ids, so
 `analysis/train/tests/goldens.rs` reads these goldens itself, and compares the Rust indexers, trainer and writer with every one of them. With two threads the JVM adds the two chunks' log likelihoods in the order the threads finish, which gives the same sum either way, so those goldens are reproducible and compared like the others; no run uses more threads. `analysis/train/tests/roundtrip.rs` trains the fixture models `analysis/maxent/tests/fixtures/models/gis.model` and `en-plain.bin` again and checks that `gis.model`, and the `sent.model` entry and the manifest of `en-plain.bin`, come out byte for byte, and that the `.bin` it writes around them is the fixture `en-plain-rust.bin`, which the generator loads in the JVM as a sentence model (`sentdetect/en-plain-rust`) so that `analysis/sentdetect/tests/golden.rs` can compare the JVM's spans and probabilities with it against the Rust detector's.
 
+The runs of the L-BFGS trainer (`QNTrainer`, `Algorithm=MAXENT_QN`;
+directories with `-qn` appended, then `-l1`, `-l2` or `-plain` when only
+one cost, or neither, is on) hold the events and the trainer's layers, the
+index being that of the GIS run with the same source and indexer settings.
+`QNTrainer` reports nothing to a progress monitor; `QNMinimizer` logs one
+debug line per iteration and one naming the test that stopped it, which
+the generator captures with its own SLF4J provider. `turbo:qn-training`
+says how many iterations ran and which test stopped them (`change-rate`,
+`gradient-norm`, `step-size`, `fct-eval`, or `iterations` for the limit;
+`refused` with the exception for one outcome); `turbo:qn-iterations` has,
+per iteration, the objective value at the new point, the function change
+rate, the training accuracy and the parameter digest, where the parameters
+after iteration k are again those of a run of k iterations (so after the
+rescaling the minimizer applies at the end); `turbo:qn-parameters` and
+`turbo:qn-model` are as for GIS. The `config` records add `Algorithm`,
+`L1Cost`, `L2Cost`, `NumOfUpdates`, `MaxFctEval` and `Threads`. The runs cover one cost, both and neither, several threads, and the `postag` source with many outcomes; `analysis/train/tests/goldens.rs` compares the QN trainer with every one of them the same way. The run `sentdetect-twopass-cutoff1-qn` on `analysis/goldens/data/inputs/train/sentences.txt` is the JVM's training of the fixture `analysis/goldens/data/fixtures/en-plain-qn-rust.bin`, the `.bin` the Rust QN trainer writes for those events: `analysis/train/tests/roundtrip.rs` checks the model bytes against that golden and the `.bin` against the fixture, and the generator loads the fixture in the JVM as a sentence model (`sentdetect/en-plain-qn-rust`) for `analysis/sentdetect/tests/golden.rs` to compare with the Rust detector.
+
+The runs of the perceptron trainers (`PerceptronTrainGolden`;
+`Algorithm=PERCEPTRON`, directories with `-perceptron` appended, then
+`-raw`, `-skipped` and `-decrease` for no averaging, skipped averaging and
+a step size decrease; `Algorithm=PERCEPTRON_SEQUENCE`, directories with
+`-perceptron-sequence` appended, then `-raw`) hold the events and the
+trainer's layers as well. `turbo:perceptron-training` says how many
+iterations ran and what the monitor recorded last (empty for the sequence
+trainer, which has no monitor; with one outcome the event trainer refuses
+the index, and the sequence trainer fails after its iterations when the
+cutoff dropped an event: zero iterations and the exception, and the rest
+left out); `turbo:perceptron-monitor` has, per iteration the monitor heard
+of (1 to 9 and every tenth), the correct and total events and the
+accuracy; `turbo:perceptron-iterations` has the parameter digest after
+every iteration, from a run of that many iterations; `turbo:perceptron-parameters`
+is as for GIS; and `turbo:perceptron-model` is the written model's SHA-256
+and length, or an empty digest, zero length and the exception's class in
+`error` when `PerceptronModelWriter` fails on a model without a parameter
+left. The sequence runs cut the source's events into sequences of five
+consecutive events and tag each event by its own context. The `config`
+records add `Algorithm`, `Iterations`, `UseAverage` and, for the event
+trainer, `UseSkippedAveraging`, `StepSizeDecrease` and `Tolerance`.
+Both trainers also run on the `postag` source with its many outcomes.
+`analysis/train/tests/goldens.rs` compares both trainers with every one of them, and
+`analysis/train/tests/roundtrip.rs` trains `analysis/maxent/tests/fixtures/models/qn.model` and `analysis/maxent/tests/fixtures/models/perceptron.model` again byte for byte. As for QN, the run `sentdetect-twopass-cutoff1-unsorted-perceptron` on `analysis/goldens/data/inputs/train/sentences.txt` is the JVM's training of the fixture `analysis/goldens/data/fixtures/en-plain-perceptron-rust.bin`, which `analysis/train/tests/roundtrip.rs` writes and checks and the generator loads as a sentence model (`sentdetect/en-plain-perceptron-rust`) for `analysis/sentdetect/tests/golden.rs`.
+
 ## Generating golden files
 
 The goldens in `analysis/goldens/data` are made by `turbo-goldens`
@@ -1853,6 +1903,240 @@ it, except one with an error record, which has none (and that a golden
 without a model has none), that every dump has a golden, and that
 each dump's header parses and names the input and model of its path. The
 checked in dumps were made in the same container run as the goldens.
+
+## Differential fuzzing
+
+The golden tests compare the ports with what OpenNLP wrote for a few
+hundred hand picked inputs. `turbo-goldens fuzz` compares them on as
+many generated texts as a machine has time for: it writes a seeded
+corpus, runs the Java generator over it in the recipe container with the
+run definitions of `Runs.java`, so every annotator that has a golden run
+takes part, compares each golden with the Rust annotators through the
+comparison code the golden tests use, checks the offset invariants of
+every layer the Rust side wrote, and reduces each divergence to a
+minimal input. Three pieces make it up.
+
+### The corpus
+
+`turbo_goldens::fuzz` (`analysis/goldens/src/fuzz/mod.rs`) is a
+deterministic generator written in the crate, with its own SplitMix64
+source (`analysis/goldens/src/fuzz/rng.rs`), so it depends on nothing
+outside the workspace. `corpus(seed, count)` gives `count` inputs, and
+input `index` of a seed is the same whatever `count` is and whatever came
+before it (`input(seed, index)` makes one alone), so a failing input is
+named by its seed and index: its id, `s<seed>-<index>` with five digits,
+is its file name in every input set. The texts come from the grammar in
+`analysis/goldens/src/fuzz/grammar.rs`: sentences of a small English
+grammar with abbreviations, numbers in both notations, money, quantities,
+URLs, quotes and brackets in them; lines of other scripts (CJK, Arabic
+and Hebrew with bidi controls, Devanagari, Thai); emoji sequences with
+ZWJ, variation selectors and skin tones; very long tokens; empty and
+whitespace only lines; CR LF and lone CR line ends; and then zero width
+and format characters, combining marks (in and out of canonical order),
+NBSP and the other Unicode spaces dropped into the words. A text
+is a document of a few lines of these.
+
+### The Rust side
+
+The crate `turbo-fuzz` (`analysis/fuzz`) holds, in `runs`, one `Run` for
+every `<annotator>/<run>` directory of `analysis/goldens/data` the
+differential covers: it opens the annotators as the crate's own golden
+tests open them (the same models, fixtures, options and pipelines, the
+golden's tokens and tags where a run tags golden tokens) and compares the
+document with the golden through `matches_golden` or `matches_golden_key`
+with the tolerance the golden test uses, reading the expectations the
+golden tests read from `turbo_goldens::expect`: the JVM's spans over
+surrogate halves, the whole character spans, the simple tokenizer's line
+break spans, the view edit equivalence of the normalizers, the trailing
+marks of the WordPiece spans. Those functions moved out of the tokenize,
+embed and normalize golden tests into `turbo-goldens` so that the
+differential and the tests cannot drift apart. `runs::RUNS` lists every
+run and a test holds it to the directories on disk; the differential
+leaves out the `train`, `formats`, `masc`, `ner`, `evaluate`,
+`detokenize` and `bpe` directories (files, scores, token lists and
+merges, not layers over a text) and `normalize/case-fold-tr` (the port
+has no Turkish case fold).
+
+Every comparison ends in one of four outcomes. A match. A documented
+difference: a JVM behaviour the crate docs describe and test that the port
+does not reproduce, recognized by a rule written in the run; a divergence
+is anything else. A skip: a golden the Rust side cannot compare (a token
+golden that cuts a surrogate pair, the lemma golden that does not read, a
+run whose model is not downloaded). The documented differences are
+exactly the ones the golden tests list:
+
+- `langdetect`: the port declines a text with no evidence for any
+  language, where the JVM ranks every language at the prior
+  (`analysis/langdetect/tests/goldens.rs`); and where a bucket of the
+  JVM's n-gram map held nine or more n-grams and the JDK turned it into
+  a tree, the n-grams reached the model in an order the port does not
+  reproduce and the probabilities differ in their last bits, within
+  1e-12 (`ContextGenerator::exact_order` in
+  `analysis/langdetect/src/context.rs` says when).
+- `tokenize/simple+keep-new-lines`: the two defects of `SimpleTokenizer`
+  with `keepNewLines` (`analysis/tokenize/tests/golden.rs`,
+  `simple_newlines`), the exception on a text that starts with a line
+  break among them.
+- `normalize`: for each normalizer whose section of `docs/normalizers.md`
+  records a deliberate difference ("Differences from OpenNLP"), a rule in
+  `analysis/fuzz/src/runs/normalize.rs` recognizes that construct and no
+  other: every region of the source the two sides change differently
+  must be it (U+2E42 folded by `Quotes`, the five added bullets, the
+  three added ellipsis forms, U+206A to U+206F deleted by `Invisible`, a
+  word ending in combining marks joined by `Dehyphenate`, `y'all` and the
+  added subjects of `EnglishContractions`, a symbol in running text for
+  `SymbolWords`, an internationalized e-mail address for `BoundedUrls`,
+  and for `ConfusableSkeleton` a JVM skeleton from the 17.0 data whose
+  18.0 skeleton is the port's). The edits that are equivalent to the
+  golden's though not the same rows are a match. `EmojiRemove` in its
+  supplementary mode compares exactly: its documented differences are
+  the sequence mode and the annotator.
+- `subwords`: the four differences of `analysis/embed/tests/goldens.rs`
+  and the special token strings. The run models how `WordpieceEncoder`
+  maps its normalized text back to the source (controls dropped,
+  whitespace and the no-break spaces made spaces, ideographs and
+  punctuation isolated, `Character.toLowerCase` with final sigma, each
+  stripped mark's end given to the character before it, and the whole
+  run given to every character when canonical reordering crossed
+  characters) and lays the port's pieces over that mapping; the golden is
+  a documented difference only when its spans are exactly what the
+  mapping gives.
+
+`differential::compare_tree` walks a tree of goldens, opens each run
+once, compares each golden and runs `turbo_goldens::invariants` on the
+document, and renders a report: a table per run (matches, documented,
+divergences, skips, broken invariants), every problem in full, then the
+documented differences one line each. `reduce` is delta debugging (ddmin)
+over the lines of a text and then over its characters, asking an oracle
+whether a candidate still fails; the oracle gets a batch of candidates at
+a time, so one container run tests a whole round.
+
+### The command
+
+```
+cargo run -p turbo-goldens-tool --features fuzz -- fuzz --seed 1 --count 1000
+```
+
+writes the inputs of the corpus into `<out>/inputs/<set>/<id>.txt` for
+each set of `--sets` (`en`, `edge`, `norm`, `num`, `money`, `quantity`
+and `sentence-fixture` by default: between them every covered run reads
+each text), runs the generator in the container over that inputs
+directory with `--skip-annotators` naming those annotators, writes the
+goldens under `<out>/jvm/`, compares them, writes the report
+to `<out>/report.txt` and prints it, and reduces up to `--reduce`
+problems (10; `--no-reduce` none, `--reduce-documented` the documented
+differences as well, to a minimal example of each). Each reduction runs
+the container with `--only-runs <annotator>/<run>` over a round's
+candidates, at most `--rounds` times (40), and writes the minimal text
+as `<out>/candidates/<id>-<annotator>-<run>.txt` with a `.report` beside
+it naming the run, the mismatch and the line that makes the input again:
+`turbo-goldens fuzz --seed <seed> --count <index + 1> --sets <set>`.
+`<out>` is `target/turbo-goldens/fuzz/s<seed>-<count>` unless `--out`
+names a directory; `--models` is the models directory `fetch-models`
+filled (`target/turbo-goldens/models` by default) and `--image` the
+container image (the recipe's tag by default). `--reuse` compares and
+reduces what an earlier run left under `<out>` without writing the
+inputs or running the generator again, so a classification rule can be
+worked on against a fixed tree. The command exits non zero when the
+report has a problem.
+
+A failing input is reproduced from its id alone: `s2-01234` is
+`turbo_goldens::fuzz::input(2, 1234)`, and `turbo-goldens fuzz --seed 2
+--count 1235 --sets edge` makes its golden again (the inputs before it
+come along; every input of a seed is a fixed function of its index).
+After a fix, the candidate file is checked in as an input of the set the
+`.report` names, and `turbo-goldens generate` gives it a golden.
+
+The intended use is a nightly run on a hardware host with Docker and the
+models fetched, over a few thousand inputs with a fresh seed each night
+(the date serves), the report kept and every candidate looked at. A
+thousand inputs over the seven sets are a hundred thousand goldens: the
+generator takes about two minutes for them in the container, and the
+comparison about seven in a debug build, most of it in the MeCab
+dictionaries loading.
+
+### The offset invariants
+
+`turbo_goldens::invariants` (`analysis/goldens/src/invariants.rs`) checks
+every span of every text anchored layer of a document, in the view the
+spans are in: it is in bounds and ordered, both ends are on character
+boundaries of the view's text, UTF-8 to UTF-16 to UTF-8 round trips
+through the view's offset table and agrees with `turbo_unicode`'s own
+conversion (written apart from it), code point offsets round trip too,
+and the span maps to source bytes exactly through every normalizer
+between the view and the source: the source span is on character
+boundaries, mapping it forward covers the span, mapping that back gives
+the same source span, and where the span touches no edit the source
+bytes are the view's bytes. `check_document` finds every instance of the
+shared layer types that have spans (sentences, tokens, subwords, chunks,
+phrase chunks, entities, numbers, money, quantities, structure);
+`check_spans` takes any span columns. A `Violation` names the layer, the
+view, the span and what failed.
+
+The differential runs them on every document the Rust side makes.
+Without a container, `analysis/fuzz/tests/invariants.rs` runs every run
+over the first forty inputs of seed 7 and every checked in golden input,
+and `analysis/fuzz/tests/checked_in.rs` runs the differential itself over
+the checked in goldens, which must show no divergence and no broken
+invariant, only the documented differences and the known skips. Both
+run in an ordinary `cargo test -p turbo-fuzz`; they skip the runs whose
+published model is not downloaded unless
+`TURBO_TEST_REQUIRE_OPENNLP_MODELS=1`, and the published MeCab
+dictionaries unless `TURBO_TEST_MECAB_DICTIONARIES=1`.
+
+### What the runs found
+
+Three corpora were run while the differential was built: seed 1 with a
+thousand inputs and seed 2 with three thousand over the seven default
+sets (a hundred and three hundred thousand goldens), and seed 3 with
+forty inputs of the `edge` set to exercise the reducer. Across them the
+Rust side matched or explained every golden; no offset invariant broke.
+What it took to get there:
+
+- The lemmatizers lowercase with `turbo_unicode::java::to_lowercase`,
+  which wrote final sigma under Unicode's Final_Sigma condition. The JDK's
+  `String.toLowerCase` has its own: it walks the sigma's word, as its word
+  break iterator for the root locale delimits it, passing over every
+  character that is not cased, where Unicode skips only case-ignorable
+  ones, and its list of cased characters is an older Unicode's. The
+  reducer brought a 551 byte input down to "ΣΟΦΟΣขอบคุณǰ" in twelve
+  container runs: Thai letters and then a cased letter make the sigma
+  non-final on the JVM. `to_lowercase` follows the JDK's condition
+  (`docs/normalizers.md`, "turbo-unicode"), with the cases where the
+  two conditions differ checked against OpenJDK 21 in
+  `analysis/unicode/tests/java.rs` and the reduced input in the
+  lemmatizer's tests. The case fold normalizer lowercases through the same
+  function, so it changed with it; its goldens still match.
+- The view edit equivalence of the normalizer goldens compared the edits
+  region by region, and a diff over repeated characters ("xxxẍ",
+  "6/98/2635 4") can delete one occurrence in one region and keep another
+  in the next, so four goldens of `nfc`, `nfkc` and `number` looked
+  different though the texts were the same. The check widens a region
+  over the following ones until the lists agree.
+- The WordPiece goldens differ from the port on a third of the texts, in
+  the ways `analysis/embed/tests/goldens.rs` documents, but telling those
+  from anything else needed the JVM's offset mapping written out (the
+  model in `analysis/fuzz/src/runs/subwords.rs`); the rules of thumb the
+  golden tests use for their few inputs (a span widened to its run, a
+  trailing mark trimmed) left a few dozen of the first corpus unexplained
+  until then. The model also records what `WordpieceEncoder` does that
+  the golden tests had no input for: no-break spaces are whitespace to
+  it, controls and format characters are dropped before the split, and a
+  run's marks out of order give every piece of the run the whole run,
+  punctuation included.
+
+The documented differences are frequent in the corpora, as the generator
+aims at them: in the seed 2 run, 2,338 WordPiece goldens with a stripped
+mark in a span, 1,763 confusable skeletons (Unicode 18.0 confusables
+against the JVM's), 2,381 simple tokenizer goldens with `keepNewLines`
+(443 of them the exception), 303 bounded URL goldens (internationalized
+e-mail addresses), 224 symbol word goldens (symbols in running text), 148
+WordPiece goldens with final sigma, 100 language goldens. For the
+normalizers with a "Differences from OpenNLP" section, the rule per
+normalizer in `analysis/fuzz/src/runs/normalize.rs` (listed above) names
+the difference each mismatch is, and a region no rule recognizes is a
+divergence. No OpenNLP bug was found that the crate docs did not already
+record.
 
 ## Evaluation
 
@@ -2214,6 +2498,24 @@ runs them on any machine:
   and that the sentence detector's `acceptable` records are on exactly
   the points whose best outcome is a split. `dump.rs`'s unit tests hold
   the dump reader on hand written dumps, malformed ones included.
+- `analysis/goldens/src/fuzz/mod.rs` and `analysis/goldens/src/invariants.rs`
+  hold their own unit tests: the corpus is deterministic and an input
+  does not depend on the count, the texts are varied, and no text holds
+  a noncharacter or one of a sample of code points assigned after
+  Unicode 15.0, the container's JDK's version; the invariants pass on well formed spans in
+  text of every character width and in a normalized view, and catch a
+  span cutting a character or leaving the text, a view whose alignment
+  lies, and a broken span in a named instance of any layer type.
+- `analysis/fuzz/tests/invariants.rs` runs every run of the
+  differential over forty generated inputs and every checked in golden
+  input and holds every layer to the offset invariants;
+  `analysis/fuzz/tests/checked_in.rs` runs the differential over the
+  checked in goldens, which must show no divergence
+  (["Differential fuzzing"](#differential-fuzzing)). The unit tests of
+  `turbo-fuzz` hold the run catalog to the directories on disk, the
+  reducer on hand made oracles and the WordPiece mapping on texts with
+  final sigma, controls, no-break spaces, ideographs, punctuation and
+  reordered marks.
 - The tests of `turbo-tokenize` and `turbo-sentdetect` read their
   goldens and dumps from `analysis/goldens/data` through
   `turbo_goldens` (`docs/segmentation.md`, "Golden files"). The tests of

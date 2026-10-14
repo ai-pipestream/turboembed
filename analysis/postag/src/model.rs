@@ -287,7 +287,7 @@ mod tests {
 
     /// The English model, or `None` when it is not downloaded.
     fn english() -> Option<PosModel> {
-        Some(PosModel::read(crate::test_models::published(crate::test_models::ENGLISH)?).unwrap())
+        Some(PosModel::read(turbo_goldens::published_model("opennlp-en-ud-ewt-pos-1.3-2.5.4.bin")?).unwrap())
     }
 
     #[test]

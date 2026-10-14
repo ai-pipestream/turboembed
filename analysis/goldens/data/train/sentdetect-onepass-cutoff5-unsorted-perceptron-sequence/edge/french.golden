@@ -1,0 +1,60 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	edge/french	164	149	6bab75cdbbd521fa95a0f838d9b38e836a5efc8c22c0cb655bc79bd66bdcc6eb
+annotator	opennlp.tools.ml.perceptron.SimplePerceptronSequenceTrainer	train
+config	Algorithm	PERCEPTRON_SEQUENCE
+config	Cutoff	5
+config	DataIndexer	OnePass
+config	Iterations	20
+config	UseAverage	true
+config	sort	false
+config	source	sentdetect
+layer	turbo:events	document	6	outcome:str	context:str	values:str
+n	sp sn eos=? x= v=c'est s= n=«	
+n	sn eos=. x=dit-elle 8 v=», s= n=M. ncap	
+n	sn eos=. x=M 1 xcap v=dit-elle. s= n=Dupont ncap	
+n	sn eos=. x=€) 2 v=(3,50 s= n=Où ncap	
+n	sn eos=? x=cœur 4 v=le s= n=Naïve ncap	
+s	sn eos=. x=façade 6 v=Naïve vcap s= n=	
+end	turbo:events
+layer	turbo:perceptron-training	document	1	iterations:u32	message:str
+20	
+end	turbo:perceptron-training
+layer	turbo:perceptron-iterations	document	20	iteration:u32	parameters:str
+1	4110a811ead0ef468df346436eebbc998268e589a21e04d67dbf510bdc61e2ff
+2	448c1ac2542b2a2643af28eb8ac7c1a49664104aa67e53e2668c424dafc58db9
+3	bc9812a1b62d8151163468549bb0a7051737bce42d604642682232fa19f02e9c
+4	372f7b6a5d6d41df568067783086017f82fe9fb480f3fb87aa753e480cf46630
+5	448c1ac2542b2a2643af28eb8ac7c1a49664104aa67e53e2668c424dafc58db9
+6	cc3b4c20a32c1d717cb521bb90220e52be555524c1795f79510a1242be22fe57
+7	448c1ac2542b2a2643af28eb8ac7c1a49664104aa67e53e2668c424dafc58db9
+8	dd9f57e0aaffb2957b9506ff088ad1ff255a602d6874162d1e2296976e8f4e75
+9	d4a3eef64b2ea0f1178ff69eef971ad7effedf53aa62ffa11c553624511bc1a4
+10	448c1ac2542b2a2643af28eb8ac7c1a49664104aa67e53e2668c424dafc58db9
+11	4c1d18c0b146b4b21c8126c398fd6dbb325a1f7ce76912a3e50c02df0374bd4a
+12	448c1ac2542b2a2643af28eb8ac7c1a49664104aa67e53e2668c424dafc58db9
+13	6d5a18ed30109909209086d884eff0a72123bf5572d959173bb89bbdcec5c8a5
+14	da9b3f86d48357ffa09e9ef5ac92dbce22dea4280b5bbab05c511357078dd499
+15	448c1ac2542b2a2643af28eb8ac7c1a49664104aa67e53e2668c424dafc58db9
+16	fa857c8f90bf5c36a26a669abd34a4f96ab4e1401bc30b8042bed171b085ffba
+17	448c1ac2542b2a2643af28eb8ac7c1a49664104aa67e53e2668c424dafc58db9
+18	838635d792a7b573be4c2f4472c46b300537c509c55fb54466b4e4d05f9ccdf5
+19	83e807569476119638ec17de87e757dad03bdb1bfa4c0452d7906b21be6dc85a
+20	448c1ac2542b2a2643af28eb8ac7c1a49664104aa67e53e2668c424dafc58db9
+end	turbo:perceptron-iterations
+layer	turbo:perceptron-parameters	document	8	iteration:u32	predicate:u32	outcome:u32	value:f64
+1	0	0	bfe0000000000000 -0.5
+1	0	1	3fe0000000000000 0.5
+1	1	0	bfe0000000000000 -0.5
+1	1	1	3fe0000000000000 0.5
+20	0	0	3ff8000000000000 1.5
+20	0	1	bff8000000000000 -1.5
+20	1	0	3ff8000000000000 1.5
+20	1	1	bff8000000000000 -1.5
+end	turbo:perceptron-parameters
+layer	turbo:perceptron-model	document	1	sha256:str	length:u32	error:str
+516f1224a703584a1fdd6359f29e2a8fe5e84a2de7bb7b9169153ba63aeba62c	77	
+end	turbo:perceptron-model

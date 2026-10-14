@@ -1,7 +1,6 @@
 //! The parts of the JDK whose behaviour shows in what the MASC readers
 //! (and the brat reader of [`crate::ner`]) read: the UTF-8 decoder,
-//! `Integer.parseInt`, `String.equalsIgnoreCase`, the split functions,
-//! `String.hashCode` and the iteration order of a `java.util.HashMap`.
+//! `Integer.parseInt`, `String.equalsIgnoreCase` and the split functions.
 
 const REPLACEMENT: char = '\u{FFFD}';
 
@@ -168,77 +167,6 @@ pub(crate) fn split_space(value: &str) -> Vec<&str> {
     fields
 }
 
-/// `String.hashCode`: `s[0]*31^(n-1) + ... + s[n-1]` over the UTF-16
-/// units, in wrapping `int` arithmetic.
-pub(crate) fn string_hash(s: &str) -> i32 {
-    s.encode_utf16().fold(0i32, |h, u| h.wrapping_mul(31).wrapping_add(i32::from(u)))
-}
-
-/// The order a `java.util.HashMap` made with the default capacity
-/// iterates its keys in, for keys given in the order they were first put.
-///
-/// The map starts with 16 buckets and doubles them when it holds more
-/// than three quarters as many keys, or when one bucket of a table of
-/// fewer than 64 buckets gets a ninth key. A key goes in bucket
-/// `(h ^ (h >>> 16)) & (buckets - 1)` of its hash `h`, at the end of the
-/// bucket's list, and doubling splits each list in two keeping its order.
-/// Iteration walks the buckets in order. A bucket of nine keys or more in
-/// a table of 64 buckets or more becomes a tree, whose iteration order
-/// this does not follow (it keeps list order): that takes nine keys whose
-/// spread hashes agree on their low six bits or more, which the MASC ids
-/// the readers put in their maps (dense ranges of small numbers, and a
-/// header's few annotation names) do not have.
-#[derive(Clone, Debug, Default)]
-pub(crate) struct HashOrder {
-    /// Each bucket's keys, as (spread hash, key).
-    table: Vec<Vec<(u32, usize)>>,
-    len: usize,
-}
-
-impl HashOrder {
-    /// Adds the key `key` (any number the caller identifies it by) with
-    /// hash `hash`. The caller adds each key once, when it is first put.
-    pub(crate) fn insert(&mut self, hash: i32, key: usize) {
-        if self.table.is_empty() {
-            self.resize();
-        }
-        let h = spread(hash);
-        let i = h as usize & (self.table.len() - 1);
-        let before = self.table[i].len();
-        self.table[i].push((h, key));
-        if before >= 8 && self.table.len() < 64 {
-            self.resize();
-        }
-        self.len += 1;
-        if self.len > self.table.len() / 4 * 3 {
-            self.resize();
-        }
-    }
-
-    fn resize(&mut self) {
-        let old = self.table.len();
-        let new = if old == 0 { 16 } else { old * 2 };
-        let mut table = vec![Vec::new(); new];
-        for (j, bucket) in std::mem::take(&mut self.table).into_iter().enumerate() {
-            for (h, key) in bucket {
-                let to = if old != 0 && h as usize & old != 0 { j + old } else { j };
-                table[to].push((h, key));
-            }
-        }
-        self.table = table;
-    }
-
-    /// The keys in iteration order.
-    pub(crate) fn order(&self) -> impl Iterator<Item = usize> + '_ {
-        self.table.iter().flatten().map(|&(_, key)| key)
-    }
-}
-
-fn spread(hash: i32) -> u32 {
-    let h = hash as u32;
-    h ^ (h >> 16)
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -317,63 +245,5 @@ mod tests {
         assert_eq!(split_space(" 1 2"), ["", "1", "2"]);
         assert_eq!(split_space(""), [""]);
         assert!(split_space("   ").is_empty());
-    }
-
-    #[test]
-    fn string_hash_is_java_s() {
-        // "Aa" and "BB" collide in Java
-        assert_eq!(string_hash("Aa"), 2112);
-        assert_eq!(string_hash("BB"), 2112);
-        assert_eq!(string_hash(""), 0);
-        assert_eq!(string_hash("f.text"), {
-            let mut h = 0i32;
-            for u in "f.text".encode_utf16() {
-                h = h.wrapping_mul(31).wrapping_add(i32::from(u));
-            }
-            h
-        });
-        // a character outside the BMP counts as its two surrogates
-        assert_eq!(string_hash("\u{1F600}"), 0xD83D * 31 + 0xDE00);
-    }
-
-    fn order_of(keys: &[i32]) -> Vec<i32> {
-        let mut o = HashOrder::default();
-        for (i, &k) in keys.iter().enumerate() {
-            o.insert(k, i);
-        }
-        o.order().map(|i| keys[i]).collect()
-    }
-
-    #[test]
-    fn hash_order_walks_buckets_then_insertion_order() {
-        // 33 and 17 share bucket 1 of 16 with 1; 40 is in bucket 8
-        assert_eq!(order_of(&[33, 17, 1, 2, 40]), [33, 17, 1, 2, 40]);
-        assert_eq!(order_of(&[40, 2, 1, 17, 33]), [1, 17, 33, 2, 40]);
-    }
-
-    #[test]
-    fn hash_order_doubles_past_three_quarters() {
-        // the thirteenth key doubles the table to 32 buckets, which puts
-        // 16 after 15 rather than next to 0
-        let keys: Vec<i32> = (0..13).map(|i| if i == 1 { 16 } else { i }).collect();
-        assert_eq!(order_of(&keys), [0, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 16]);
-        let twelve: Vec<i32> = (0..12).map(|i| if i == 1 { 16 } else { i }).collect();
-        assert_eq!(order_of(&twelve), [0, 16, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]);
-    }
-
-    #[test]
-    fn hash_order_doubles_on_a_ninth_key_in_one_bucket() {
-        // nine keys in bucket 0 of 16: the ninth doubles the table, which
-        // moves the odd multiples of 16 to bucket 16
-        let keys: Vec<i32> = (0..9).map(|i| i * 16).collect();
-        assert_eq!(order_of(&keys), [0, 32, 64, 96, 128, 16, 48, 80, 112]);
-        let eight: Vec<i32> = (0..8).map(|i| i * 16).collect();
-        assert_eq!(order_of(&eight), eight);
-    }
-
-    #[test]
-    fn hash_order_spreads_the_high_bits() {
-        // 65536 spreads to 65537, so it lands in bucket 1, after 1
-        assert_eq!(order_of(&[65536, 1, 0]), [0, 65536, 1]);
     }
 }

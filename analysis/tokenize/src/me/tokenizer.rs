@@ -165,7 +165,7 @@ mod tests {
     /// The tokenizer over the published English model, or `None` when it
     /// is not downloaded.
     fn english() -> Option<TokenizerMe> {
-        let path = crate::test_models::published("opennlp-en-ud-ewt-tokens-1.3-2.5.4.bin")?;
+        let path = turbo_goldens::published_model("opennlp-en-ud-ewt-tokens-1.3-2.5.4.bin")?;
         Some(TokenizerMe::new(TokenizerModel::read(path).unwrap(), TokenizerOptions::default()))
     }
 
