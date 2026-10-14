@@ -95,7 +95,11 @@ impl Rebuilt {
         let cells = match verdict {
             Ok(Verdict::Correct) => vec!["correct".into(), String::new(), String::new()],
             Ok(Verdict::Misclassified) => vec!["misclassified".into(), String::new(), String::new()],
-            Err(e) => vec!["error".into(), e.java_class().into(), e.to_string()],
+            Err(e) => vec![
+                "error".into(),
+                e.java_class().unwrap_or_else(|| panic!("{e} has no Java class")).into(),
+                e.to_string(),
+            ],
         };
         let mut row = vec![pair.to_string()];
         row.extend(cells);

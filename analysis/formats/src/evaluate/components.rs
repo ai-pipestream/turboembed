@@ -78,17 +78,19 @@ pub enum EvalError {
 }
 
 impl EvalError {
-    /// The class of the exception Java throws.
-    pub fn java_class(&self) -> &'static str {
+    /// The class of the exception Java throws, or `None` for a refusal
+    /// of this port's own (a chunk tag that splits a surrogate pair,
+    /// [`FormatError::SplitsSurrogatePair`]).
+    pub fn java_class(&self) -> Option<&'static str> {
         match self {
-            EvalError::IndexOutOfBounds { .. } => "java.lang.ArrayIndexOutOfBoundsException",
+            EvalError::IndexOutOfBounds { .. } => Some("java.lang.ArrayIndexOutOfBoundsException"),
             EvalError::TagCount { .. }
             | EvalError::ArrayLengths { .. }
             | EvalError::TokenOutOfText { .. }
-            | EvalError::SentenceOutOfText { .. } => "java.lang.IllegalArgumentException",
-            EvalError::OverlappingNames { .. } => "java.lang.RuntimeException",
-            EvalError::TrimOutOfText { .. } => "java.lang.StringIndexOutOfBoundsException",
-            EvalError::Phrases(e) => e.java_class().unwrap_or("java.lang.RuntimeException"),
+            | EvalError::SentenceOutOfText { .. } => Some("java.lang.IllegalArgumentException"),
+            EvalError::OverlappingNames { .. } => Some("java.lang.RuntimeException"),
+            EvalError::TrimOutOfText { .. } => Some("java.lang.StringIndexOutOfBoundsException"),
+            EvalError::Phrases(e) => e.java_class(),
         }
     }
 }
@@ -357,8 +359,9 @@ fn check_in_text(spans: &[Span], text: &str) -> Result<(), EvalError> {
 /// detokenizer joins a token sample's tokens back into its text, scored
 /// as one item per sample.
 ///
-/// A sample read from the token format never matches: its text ends with
-/// a space ([`crate::native::token`]) and the detokenized text does not.
+/// No sample of the token format with a token matches: its text ends
+/// with a space ([`crate::native::token`]) and the detokenized text does
+/// not. An empty line (an empty text, no tokens) matches.
 #[derive(Copy, Clone, Debug, Default, PartialEq, Eq)]
 pub struct DetokenizerEvaluator {
     fmeasure: FMeasure,
@@ -558,10 +561,12 @@ mod tests {
         let src = "<START:p> a <END> b <START> c <END>";
         let s = NameReader::new(src, WhitespaceMode::Unicode).unwrap().next().unwrap().unwrap();
         let mut e = NameFinderEvaluator::default();
-        let p = [Name::new(2, 3, Some("p")), Name::new(0, 1, Some("p"))];
+        let p = [Name::new(2, 3, Some("p")).unwrap(), Name::new(0, 1, Some("p")).unwrap()];
         assert_eq!(e.evaluate(&s, &p), Ok(Verdict::Correct));
         assert_eq!(e.fmeasure().true_positives(), 2);
-        let overlap = [Name::new(0, 2, Some("p")), Name::new(1, 3, None)];
+        let overlap = [Name::new(0, 2, Some("p")).unwrap(), Name::new(1, 3, None).unwrap()];
+        let err = Name::new(3, 2, None).unwrap_err();
+        assert_eq!(err.to_string(), "start index must not be larger than end index: start=3, end=2");
         let err = e.evaluate(&s, &overlap).unwrap_err();
         assert_eq!(err.to_string(), "name spans [0..2) p and [1..3) are overlapped in file: null, sentence: [a, b, c]");
         assert_eq!(e.fmeasure().selected(), 4);
@@ -575,7 +580,9 @@ mod tests {
         assert_eq!(e.evaluate(&s, &["B-NP", "B-NP", "O"]), Ok(Verdict::Misclassified));
         assert_eq!((e.fmeasure().true_positives(), e.fmeasure().selected()), (0, 2));
         let err = e.evaluate(&s, &["B-NP", "X", "O"]).unwrap_err();
-        assert_eq!(err.java_class(), "java.lang.StringIndexOutOfBoundsException");
+        assert_eq!(err.java_class(), Some("java.lang.StringIndexOutOfBoundsException"));
+        let err = e.evaluate(&s, &["B-NP", "x\u{1F600}", "O"]).unwrap_err();
+        assert_eq!(err.java_class(), None);
         let err = e.evaluate(&s, &["O"]).unwrap_err();
         assert_eq!(
             err.to_string(),

@@ -24,9 +24,13 @@
 //!   sample is never correctly classified.
 //! - The detokenizer evaluator compares the detokenized text with the
 //!   sample's text, which the token format ends with a space, so no
-//!   sample of that format is ever right.
+//!   sample of that format with a token is right (an empty line is).
 //! - With one partition, cross-validation trains on the samples at odd
 //!   places and tests on all of them.
+//!
+//! The tests compare every evaluator but one with the `evaluate` goldens
+//! the JVM wrote. `DetokenizerEvaluator` is in `opennlp-tools`, which the
+//! goldens image does not build, so it has unit tests and no JVM golden.
 
 pub mod components;
 pub mod measure;

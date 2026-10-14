@@ -21,7 +21,9 @@
 //! - [`registry`]: the formats of each sample kind by name, OpenNLP's
 //!   `StreamFactoryRegistry`.
 //! - [`evaluate`]: OpenNLP's scores, an evaluator per component and the
-//!   folds of cross-validation, with their own list of surprises.
+//!   folds of cross-validation, with their own list of surprises. The
+//!   detokenizer evaluator has no JVM golden: it is in `opennlp-tools`,
+//!   which the goldens image does not build.
 //! - [`encoding`]: decoding a corpus file; [`Lines`] splits the text into
 //!   lines as `BufferedReader.readLine` does.
 //!
