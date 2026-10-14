@@ -173,7 +173,7 @@ impl<'a> Iterator for GermEvalReader<'a> {
                 let names = bio_names(
                     tags,
                     |t| types.filter(t),
-                    |k, line| name_type(k).ok_or_else(|| NerError::UnknownType { line, kind: k.to_owned() }),
+                    |k, line| name_type(k).ok_or_else(|| FormatError::UnknownNameType { line, kind: k.to_owned() }),
                 );
                 return s.sample(names);
             }

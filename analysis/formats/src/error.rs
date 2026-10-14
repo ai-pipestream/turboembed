@@ -94,17 +94,20 @@ pub enum FormatError {
     /// A CoNLL-2003 line without the number of fields its language has
     /// (four in English, five in German). `text` is the line.
     Conll03Fields { line: u32, text: String },
-    /// A CoNLL name tag that is not `O` and does not start with `B-` or
-    /// `I-`.
+    /// A name tag that is not `O` and does not start with `B-` or `I-`,
+    /// in CoNLL-2002, CoNLL-2003, BioNLP 2004 and Evalita (GermEval reads
+    /// such a tag as `O`).
     InvalidNameTag { line: u32, tag: String },
-    /// A CoNLL name tag whose type is not `PER`, `ORG`, `LOC` or `MISC`,
-    /// found when its name ends: `kind` is the tag after its prefix.
+    /// A name tag whose type the stream has no name for, found when its
+    /// name ends: `kind` is the tag after its prefix. CoNLL knows `PER`,
+    /// `ORG`, `LOC` and `MISC`, Evalita `PER`, `ORG`, `LOC` and `GPE`,
+    /// GermEval its twelve types (BioNLP takes any type as written).
     UnknownNameType { line: u32, kind: String },
-    /// A CoNLL-2003 `-DOCSTART-` line followed by a line that is not
-    /// empty; `line` and `text` are that line.
+    /// A CoNLL-2003 or Evalita `-DOCSTART-` line followed by a line that
+    /// is not empty; `line` and `text` are that line.
     DocstartNotFollowedByEmpty { line: u32, text: String },
-    /// A CoNLL-2003 `-DOCSTART-` line at the end of the text: the stream
-    /// asks `StringUtil.isEmpty` about the null line after it.
+    /// A CoNLL-2003 or Evalita `-DOCSTART-` line at the end of the text:
+    /// the stream asks `StringUtil.isEmpty` about the null line after it.
     DocstartAtEnd { line: u32 },
     /// A CoNLL-X line with fewer than five tab-separated columns (after
     /// `StringUtil.split` drops the empty columns at its end). `text` is

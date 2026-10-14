@@ -55,8 +55,8 @@
 //!   contains `ABSTRACT TRUNCATED` anywhere is skipped.
 //! - Evalita clears adaptive data for every sample. A `-DOCSTART-` line
 //!   must be followed by a line of length zero
-//!   ([`NerError::DocstartNotFollowedByEmpty`]), and at the end of the
-//!   text it throws `NullPointerException` ([`NerError::DocstartAtEnd`]),
+//!   ([`FormatError::DocstartNotFollowedByEmpty`]), and at the end of the
+//!   text it throws `NullPointerException` ([`FormatError::DocstartAtEnd`]),
 //!   losing the sentence read so far.
 //! - The census stream ends at the first empty line or line without a
 //!   space: `read` returns null there, and the dictionary tool stops.
@@ -100,9 +100,6 @@ pub const BIONLP_FORMAT: &str = "bionlp2004";
 /// The registry name of the Evalita format.
 pub const EVALITA_FORMAT: &str = "evalita";
 
-/// The line Evalita documents start with (`EvalitaNameSampleStream.DOCSTART`).
-pub const DOCSTART: &str = "-DOCSTART-";
-
 /// What a reader of a named entity corpus refuses. `Display` is the
 /// message of the exception OpenNLP throws, and [`NerError::java_class`]
 /// its class.
@@ -116,17 +113,6 @@ pub enum NerError {
     BioNlpFields { line: u32, count: usize, text: String },
     /// An Evalita line without exactly four space-separated fields.
     EvalitaFields { line: u32, text: String },
-    /// A name tag that is not `O` and does not start with `B-` or `I-`.
-    InvalidTag { line: u32, tag: String },
-    /// A name tag whose type the stream has no name for, found when its
-    /// name ends: `kind` is the tag after its prefix.
-    UnknownType { line: u32, kind: String },
-    /// An Evalita `-DOCSTART-` line followed by a line that is not empty;
-    /// `line` and `text` are that line.
-    DocstartNotFollowedByEmpty { line: u32, text: String },
-    /// An Evalita `-DOCSTART-` line at the end of the text: the stream
-    /// asks `StringUtil.isEmpty` about the null line after it.
-    DocstartAtEnd { line: u32 },
     /// A census line that starts with a space: the name before it is
     /// empty and `substring(0, 1)` throws.
     EmptyCensusName { line: u32 },
@@ -173,13 +159,7 @@ impl NerError {
     pub fn java_class(&self) -> &'static str {
         use NerError::*;
         match self {
-            GermEvalFields { .. }
-            | BioNlpFields { .. }
-            | EvalitaFields { .. }
-            | InvalidTag { .. }
-            | DocstartNotFollowedByEmpty { .. } => "java.io.IOException",
-            UnknownType { .. } => "opennlp.tools.util.InvalidFormatException",
-            DocstartAtEnd { .. } => "java.lang.NullPointerException",
+            GermEvalFields { .. } | BioNlpFields { .. } | EvalitaFields { .. } => "java.io.IOException",
             EmptyCensusName { .. } => "java.lang.StringIndexOutOfBoundsException",
             MucUnexpectedOpen { .. } | MucUnexpectedClose { .. } | MucUnclosedTag { .. } | MucUnknownType { .. } => {
                 "opennlp.tools.util.InvalidFormatException"
@@ -201,10 +181,6 @@ impl NerError {
             GermEvalFields { line, .. }
             | BioNlpFields { line, .. }
             | EvalitaFields { line, .. }
-            | InvalidTag { line, .. }
-            | UnknownType { line, .. }
-            | DocstartNotFollowedByEmpty { line, .. }
-            | DocstartAtEnd { line }
             | EmptyCensusName { line }
             | MucUnexpectedOpen { line }
             | MucUnexpectedClose { line }
@@ -234,12 +210,6 @@ impl fmt::Display for NerError {
                 write!(f, "Expected two fields per line in training data, got {count} for line '{text}'!")
             }
             EvalitaFields { text, .. } => write!(f, "Incorrect number of fields per line for language: '{text}'!"),
-            InvalidTag { tag, .. } => write!(f, "Invalid tag: {tag}"),
-            UnknownType { kind, .. } => write!(f, "Unknown type: {kind}"),
-            DocstartNotFollowedByEmpty { text, .. } => write!(f, "Empty line after -DOCSTART- not empty: '{text}'!"),
-            DocstartAtEnd { .. } => {
-                f.write_str("Cannot invoke \"java.lang.CharSequence.length()\" because \"theString\" is null")
-            }
             EmptyCensusName { .. } => f.write_str("Range [0, 1) out of bounds for length 0"),
             MucUnexpectedOpen { .. } => f.write_str("Did not expect < char!"),
             MucUnexpectedClose { .. } => f.write_str("Did not expect > char!"),
@@ -323,13 +293,13 @@ impl<'a> Sentence<'a> {
 /// The names of tagged tokens as the BioNLP, Evalita and GermEval streams
 /// find them: a name starts at `B-` and grows with each `I-`, whatever
 /// its type, until `O` or the next `B-`; any other tag is
-/// [`NerError::InvalidTag`]. `filter` gives the tag the stream reads in
+/// [`FormatError::InvalidNameTag`]. `filter` gives the tag the stream reads in
 /// place of each (`O` for a type left out), and `kind` the type of a
 /// name from its first tag as written, after the two-character prefix.
 pub(crate) fn bio_names<'a>(
     tags: &[Tag<'a>],
     filter: impl Fn(&'a str) -> &'a str,
-    kind: impl Fn(&'a str, u32) -> Result<&'a str, NerError>,
+    kind: impl Fn(&'a str, u32) -> Result<&'a str, FormatError>,
 ) -> Result<Vec<Name<'a>>, FormatError> {
     let extract = |begin: usize, end: i64| -> Result<Name<'a>, FormatError> {
         let tag = tags[begin];
@@ -358,7 +328,7 @@ pub(crate) fn bio_names<'a>(
                 end = -1;
             }
         } else {
-            return Err(NerError::InvalidTag { line: t.line, tag: tag.to_owned() }.into());
+            return Err(FormatError::InvalidNameTag { line: t.line, tag: tag.to_owned() });
         }
     }
     if let Some(b) = begin {
@@ -399,12 +369,12 @@ mod tests {
 
     #[test]
     fn errors_name_their_exceptions() {
-        let e = NerError::UnknownType { line: 3, kind: "X".into() };
+        let e = NerError::MucUnexpectedOpen { line: 3 };
         assert_eq!(e.java_class(), "opennlp.tools.util.InvalidFormatException");
         assert_eq!(e.line(), Some(3));
         let e = FormatError::from(e);
         assert_eq!(e.java_class(), Some("opennlp.tools.util.InvalidFormatException"));
         assert_eq!(e.line(), Some(3));
-        assert_eq!(e.to_string(), "Unknown type: X");
+        assert_eq!(e.to_string(), "Did not expect < char!");
     }
 }

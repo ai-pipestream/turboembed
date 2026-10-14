@@ -1,6 +1,7 @@
 //! The Evalita reader.
 
-use super::{DOCSTART, NerError, Sentence, Tag, bio_names};
+use super::{NerError, Sentence, Tag, bio_names};
+use crate::conll::DOCSTART;
 use crate::error::FormatError;
 use crate::sample::NameSample;
 use crate::source::{Lines, split_fields};
@@ -127,10 +128,10 @@ impl<'a> Iterator for EvalitaReader<'a> {
                 s.cover(&line);
                 if line.text().starts_with(DOCSTART) {
                     match self.lines.next() {
-                        None => return Some(Err(NerError::DocstartAtEnd { line: line.number }.into())),
+                        None => return Some(Err(FormatError::DocstartAtEnd { line: line.number })),
                         Some(after) if !after.text().is_empty() => {
                             let text = after.text().to_owned();
-                            return Some(Err(NerError::DocstartNotFollowedByEmpty { line: after.number, text }.into()));
+                            return Some(Err(FormatError::DocstartNotFollowedByEmpty { line: after.number, text }));
                         }
                         Some(_) => continue,
                     }
@@ -151,7 +152,7 @@ impl<'a> Iterator for EvalitaReader<'a> {
                 let names = bio_names(
                     &s.tags,
                     |t| types.filter(t),
-                    |k, line| name_type(k).ok_or_else(|| NerError::UnknownType { line, kind: k.to_owned() }),
+                    |k, line| name_type(k).ok_or_else(|| FormatError::UnknownNameType { line, kind: k.to_owned() }),
                 );
                 return s.sample(names);
             }
