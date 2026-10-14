@@ -29,7 +29,6 @@ use turbo_train::{
     write_gis,
 };
 use turbo_unicode::Utf16Cursor;
-use turbo_unicode::utf16::utf16_len;
 
 use crate::dictionary::AbbreviationDictionary;
 use crate::error::{Error, Result};
@@ -171,7 +170,7 @@ impl<'f> TokSpanEventStream<'f> {
             let ctok = &sent[unit_start..unit_end];
             // The candidate's span in the text.
             let (c_start, c_end) = (unit_start + start, unit_end + start);
-            if utf16_len(ctok) <= 1 || (self.skip_alpha_numerics && self.alpha_numeric.test(ctok)) {
+            if one_code_unit(ctok) || (self.skip_alpha_numerics && self.alpha_numeric.test(ctok)) {
                 continue;
             }
             // The training tokens inside the candidate.
@@ -196,10 +195,13 @@ impl<'f> TokSpanEventStream<'f> {
             let mut at = Utf16Cursor::new(ctok);
             for t in &tokens[first_ti..=last_ti] {
                 let (t_start, t_end) = (t.start as usize - c_start, t.end as usize - c_start);
-                let end_units = utf16_len(&ctok[..t_end]);
                 at.seek_byte(t_start);
                 at.step_forward();
-                while at.unit_index() < end_units {
+                // Every position inside the token, both halves of a
+                // character outside the BMP included: the cursor's byte is
+                // its character's first byte, and `t_end` is a character
+                // boundary.
+                while at.byte_offset() < t_end {
                     token_context(&at, facts, self.whitespace, &mut self.features);
                     out.push(Event::new(NO_SPLIT, java_strings(&self.features)));
                     at.step_forward();
@@ -207,7 +209,9 @@ impl<'f> TokSpanEventStream<'f> {
                 if t_end != ctok.len() {
                     // The split is at the token's end, where the loop left
                     // the cursor unless the token is empty.
-                    at.seek_byte(t_end);
+                    if at.byte_offset() != t_end || !at.char_start() {
+                        at.seek_byte(t_end);
+                    }
                     token_context(&at, facts, self.whitespace, &mut self.features);
                     out.push(Event::new(SPLIT, java_strings(&self.features)));
                 }
@@ -215,6 +219,12 @@ impl<'f> TokSpanEventStream<'f> {
         }
         Ok(())
     }
+}
+
+/// Whether `unit` is one UTF-16 code unit: one character of up to three
+/// bytes. `ctok.length() > 1` in the Java is the test for more.
+fn one_code_unit(unit: &str) -> bool {
+    unit.len() < 4 && unit.chars().nth(1).is_none()
 }
 
 /// The features as the predicates the JVM would hold.
@@ -413,6 +423,12 @@ mod tests {
         assert_eq!(outcomes(&events), "TFTT");
         assert_eq!(events[0].context()[2].to_string_lossy(), "p1=bok");
         assert_eq!(events[3].context()[0].to_string_lossy(), "p=xy");
+    }
+
+    #[test]
+    fn a_unit_of_one_code_unit_is_one_character_of_up_to_three_bytes() {
+        assert!(one_code_unit("a") && one_code_unit("\u{E9}") && one_code_unit("\u{4E2D}"));
+        assert!(!one_code_unit("ab") && !one_code_unit("\u{1F600}") && !one_code_unit("\u{E9}a"));
     }
 
     #[test]

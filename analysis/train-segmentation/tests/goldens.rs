@@ -29,7 +29,8 @@ use turbo_train::params::TrainerType;
 use turbo_train_segmentation::sentdetect::package_sentence_model;
 use turbo_train_segmentation::tokenize::package_tokenizer_model;
 use turbo_train_segmentation::{
-    AbbreviationDictionary, SentenceDetectorFactory, Stamp, TokenizerFactory, sd_events, tok_events,
+    AbbreviationDictionary, SdEventStream, SentenceDetectorFactory, Stamp, TokSpanEventStream, TokenizerFactory,
+    sd_events, tok_events,
 };
 use turbo_unicode::WhitespaceMode;
 
@@ -168,9 +169,10 @@ fn event_golden_events(g: &Golden, text: &str) -> (Vec<Event>, Vec<StreamError>)
             } else {
                 collect(SentenceReader::new(text).unwrap(), &mut samples, &mut errors);
             }
+            let mut stream = SdEventStream::new(&f, MODE);
             let mut out = Vec::new();
             for s in &samples {
-                out.extend(sd_events([s], &f, MODE));
+                stream.events(s, &mut out);
                 counts.push(out.len());
             }
             out
@@ -185,9 +187,10 @@ fn event_golden_events(g: &Golden, text: &str) -> (Vec<Event>, Vec<StreamError>)
             } else {
                 collect(TokenReader::new(text, MODE).unwrap(), &mut samples, &mut errors);
             }
+            let mut stream = TokSpanEventStream::new(&f, MODE);
             let mut out = Vec::new();
             for s in &samples {
-                out.extend(tok_events([s], &f, MODE).unwrap());
+                stream.events(s, &mut out).unwrap();
                 counts.push(out.len());
             }
             out

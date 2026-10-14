@@ -34,18 +34,20 @@ pub fn str_hash_code(s: &str) -> i32 {
 /// point with `Character.toLowerCase` (`StringUtil.toLowerCase`), hashed as
 /// a string.
 pub fn string_list_hash_code<'t>(tokens: impl IntoIterator<Item = &'t str>) -> i32 {
-    let mut units: Vec<u16> = Vec::new();
+    let mut h: i32 = 0;
     let mut buf = [0u16; 2];
     for (i, token) in tokens.into_iter().enumerate() {
         if i > 0 {
-            units.push(u16::from(b','));
+            h = h.wrapping_mul(31).wrapping_add(i32::from(b','));
         }
         for c in token.chars() {
             let lowered = char::from_u32(to_lower_case(c as u32)).unwrap_or(c);
-            units.extend_from_slice(lowered.encode_utf16(&mut buf));
+            for &u in lowered.encode_utf16(&mut buf).iter() {
+                h = h.wrapping_mul(31).wrapping_add(i32::from(u));
+            }
         }
     }
-    string_hash_code(units)
+    h
 }
 
 /// `HashMap.hash`: the hash with its upper half folded into its lower half.

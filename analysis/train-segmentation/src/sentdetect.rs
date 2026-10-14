@@ -67,6 +67,7 @@ pub struct SentenceDetectorFactory {
     use_token_end: bool,
     abbreviations: Option<AbbreviationDictionary>,
     eos_characters: Vec<u16>,
+    eos: EndOfSentence,
 }
 
 impl SentenceDetectorFactory {
@@ -85,10 +86,8 @@ impl SentenceDetectorFactory {
         }
         let eos_characters: Vec<u16> =
             eos_characters.unwrap_or_else(|| default_eos_characters(language)).encode_utf16().collect();
-        if let Some(&u) = eos_characters.iter().find(|&&u| (0xD800..0xE000).contains(&u)) {
-            return Err(Error::SurrogateEos(u));
-        }
-        Ok(SentenceDetectorFactory { language: language.to_owned(), use_token_end, abbreviations, eos_characters })
+        let eos = EndOfSentence::new(&eos_characters).map_err(|e| Error::SurrogateEos(e.0))?;
+        Ok(SentenceDetectorFactory { language: language.to_owned(), use_token_end, abbreviations, eos_characters, eos })
     }
 
     pub fn language(&self) -> &str {
@@ -116,8 +115,8 @@ impl SentenceDetectorFactory {
     }
 
     /// `getEndOfSentenceScanner`.
-    pub fn end_of_sentence(&self) -> EndOfSentence {
-        EndOfSentence::new(&self.eos_characters).expect("no surrogate is accepted")
+    pub fn end_of_sentence(&self) -> &EndOfSentence {
+        &self.eos
     }
 
     /// `createManifestEntries`, with `factory` as `BaseModel` adds it and
@@ -139,7 +138,7 @@ impl SentenceDetectorFactory {
 /// `SDEventStream` for one factory: the end characters, the dictionary
 /// and the buffers its events are built in.
 pub struct SdEventStream<'f> {
-    eos: EndOfSentence,
+    eos: &'f EndOfSentence,
     dictionary: Option<&'f Dictionary>,
     whitespace: WhitespaceMode,
     candidates: Vec<Position>,
@@ -167,7 +166,7 @@ impl<'f> SdEventStream<'f> {
     pub fn events(&mut self, sample: &SentenceSample<'_>, out: &mut Vec<Event>) {
         let document = sample.document();
         let scanned = self.eos.positions(document, &mut self.candidates);
-        let context = SdContext::new(&self.eos, self.dictionary, self.whitespace, Limits::NONE);
+        let context = SdContext::new(self.eos, self.dictionary, self.whitespace, Limits::NONE);
         let mut walks = Walks::new();
         let mut last_unit = 0;
         for span in sample.sentences() {
@@ -179,7 +178,9 @@ impl<'f> SdEventStream<'f> {
             for (i, &at) in self.candidates[from..to].iter().enumerate() {
                 // The context generator's memory of its whitespace
                 // searches wants candidates in text order; sentences out
-                // of order start it over.
+                // of order start it over. A candidate at the position of
+                // the last one (overlapping spans) reuses the memory, whose
+                // answers depend on the position alone.
                 if at.unit < last_unit {
                     walks = Walks::new();
                 }
@@ -285,7 +286,12 @@ pub fn train_sentence_model_from_events(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use turbo_analysis::Span;
     use turbo_formats::native::SentenceReader;
+
+    fn outcomes(events: &[Event]) -> String {
+        events.iter().map(Event::outcome).collect()
+    }
 
     fn samples(text: &str) -> Vec<SentenceSample<'_>> {
         SentenceReader::new(text).unwrap().map(|s| s.unwrap()).collect()
@@ -305,6 +311,27 @@ mod tests {
         assert_eq!(events[0].context()[2].to_string_lossy(), "x=Dr");
         assert_eq!(events[2].context()[1].to_string_lossy(), "eos=?");
         assert_eq!(events[3].context().last().unwrap().to_string_lossy(), "n=");
+    }
+
+    #[test]
+    fn sentences_out_of_order_or_overlapping_get_the_events_of_each_on_its_own() {
+        // A sample whose spans go backwards and overlap: each sentence's
+        // events are those of the same sentence in a sample of its own,
+        // where the walk memory starts fresh.
+        let text = "Dr. Who left. Two? Yes! No end";
+        let spans = [(14, 23), (0, 13), (4, 18), (14, 23)];
+        let f = SentenceDetectorFactory::new("en", true, None, None).unwrap();
+        let sample = |spans: &[(u32, u32)]| {
+            let spans: Vec<Span> = spans.iter().map(|&(s, e)| Span::new(s, e)).collect();
+            SentenceSample::new(std::borrow::Cow::Borrowed(text), spans.clone(), spans, Span::new(0, 30)).unwrap()
+        };
+        let together = sd_events([&sample(&spans)], &f, WhitespaceMode::Unicode);
+        let mut apart = Vec::new();
+        for span in spans {
+            apart.extend(sd_events([&sample(&[span])], &f, WhitespaceMode::Unicode));
+        }
+        assert_eq!(outcomes(&together), "nsnsnsns");
+        assert_eq!(together, apart);
     }
 
     #[test]

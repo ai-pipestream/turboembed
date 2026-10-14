@@ -273,21 +273,25 @@ impl Recipe {
         let stamp = Stamp { timestamp_ms, version: OPENNLP_VERSION, zone: ZONE };
         let params = training_parameters();
         match self.component {
+            // The samples are read one at a time and dropped after their
+            // events, so only the events of a treebank are held at once.
             Component::Sentence => {
-                let samples: Vec<_> =
-                    ConlluSentenceReader::new(conllu, SENTENCES_PER_SAMPLE)?.collect::<std::result::Result<_, _>>()?;
                 let factory = self.sentence_factory()?;
-                let events = sentdetect::sd_events(&samples, &factory, WHITESPACE);
-                drop(samples);
+                let mut stream = sentdetect::SdEventStream::new(&factory, WHITESPACE);
+                let mut events = Vec::new();
+                for sample in ConlluSentenceReader::new(conllu, SENTENCES_PER_SAMPLE)? {
+                    stream.events(&sample?, &mut events);
+                }
                 let t = sentdetect::train_sentence_model_from_events(&events, &factory, &params, config, stamp)?;
                 Ok(Trained { events: events.len(), model: t.model, report: t.report, package: t.package })
             }
             Component::Tokens => {
-                let samples: Vec<_> =
-                    ConlluTokenReader::new(conllu, WHITESPACE)?.collect::<std::result::Result<_, _>>()?;
                 let factory = self.tokenizer_factory()?;
-                let events = tokenize::tok_events(&samples, &factory, WHITESPACE)?;
-                drop(samples);
+                let mut stream = tokenize::TokSpanEventStream::new(&factory, WHITESPACE);
+                let mut events = Vec::new();
+                for sample in ConlluTokenReader::new(conllu, WHITESPACE)? {
+                    stream.events(&sample?, &mut events)?;
+                }
                 let t = tokenize::train_tokenizer_model_from_events(&events, &factory, &params, config, stamp)?;
                 Ok(Trained { events: events.len(), model: t.model, report: t.report, package: t.package })
             }
@@ -464,6 +468,8 @@ impl Comparison {
     pub fn agrees_within(&self, max_abs: f64) -> bool {
         let parameters = match &self.parameters {
             None => self.model_entry.is_same(),
+            // A NaN distance (a NaN parameter on either side) is no
+            // agreement; the comparison is false for it.
             Some(Ok(d)) => d.max_abs <= max_abs,
             Some(Err(_)) => false,
         };
@@ -502,8 +508,18 @@ impl Comparison {
             Agreement::Same(_) => s.push_str("  manifest: same\n"),
             Agreement::Differ { published, trained } => {
                 s.push_str("  manifest differs:\n");
-                for (a, b) in published.lines().zip(trained.lines()).filter(|(a, b)| a != b) {
-                    s.push_str(&format!("    published: {a}\n    trained:   {b}\n"));
+                // Every line of either, so extra lines on one side show.
+                let (mut p, mut t) = (published.lines(), trained.lines());
+                loop {
+                    match (p.next(), t.next()) {
+                        (None, None) => break,
+                        (a, b) if a == b => {}
+                        (a, b) => s.push_str(&format!(
+                            "    published: {}\n    trained:   {}\n",
+                            a.unwrap_or("(no line)"),
+                            b.unwrap_or("(no line)")
+                        )),
+                    }
                 }
             }
         }
@@ -542,12 +558,29 @@ fn parameter_distance(ours: &GisModel, theirs: &MaxentModel) -> std::result::Res
             d.total += 1;
             if a.to_bits() != b.to_bits() {
                 d.differing += 1;
-                d.max_ulps = d.max_ulps.max((a.to_bits() as i64).abs_diff(b.to_bits() as i64));
-                d.max_abs = d.max_abs.max((a - b).abs());
+                d.max_ulps = d.max_ulps.max(ulps_apart(a, b));
+                let gap = (a - b).abs();
+                // Not `f64::max`, which would drop a NaN gap: a NaN wins
+                // and stays, so `agrees_within` sees it.
+                if gap.is_nan() || d.max_abs.is_nan() || gap > d.max_abs {
+                    d.max_abs = if d.max_abs.is_nan() { d.max_abs } else { gap };
+                }
             }
         }
     }
     Ok(d)
+}
+
+/// How many representable numbers lie between `a` and `b`: the distance
+/// of their bit patterns once each is mapped from sign and magnitude to a
+/// number line, so that two values on either side of zero are as far
+/// apart as the numbers between them and not half the bit space.
+fn ulps_apart(a: f64, b: f64) -> u64 {
+    fn ordered(x: f64) -> i64 {
+        let bits = x.to_bits() as i64;
+        if bits < 0 { i64::MIN - bits } else { bits }
+    }
+    ordered(a).abs_diff(ordered(b))
 }
 
 /// An index of the treebank datasets alone, for a zoo that fetches them.
@@ -578,6 +611,109 @@ pub fn fetch_treebank(treebank: &Treebank, home: &Path, user: &UserId) -> Result
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn ulps_count_the_numbers_between_two_values_across_zero() {
+        assert_eq!(ulps_apart(1.0, 1.0), 0);
+        assert_eq!(ulps_apart(1.0, f64::from_bits(1.0f64.to_bits() + 3)), 3);
+        assert_eq!(ulps_apart(0.0, -0.0), 0);
+        let tiny = f64::from_bits(2);
+        assert_eq!(ulps_apart(tiny, -tiny), 4);
+        assert_eq!(ulps_apart(-1.0, -f64::from_bits(1.0f64.to_bits() + 1)), 1);
+    }
+
+    fn comparison_with(parameters: Option<std::result::Result<ParameterDistance, String>>) -> Comparison {
+        let digest = EntryDigest { len: 1, sha256: String::new() };
+        Comparison {
+            model: String::new(),
+            events: 0,
+            event_hash: Agreement::Same(1),
+            model_entry: Agreement::Differ { published: digest.clone(), trained: digest },
+            first_difference: Some(0),
+            parameters,
+            manifest: Agreement::Same(String::new()),
+            entry_names: Agreement::Same(Vec::new()),
+        }
+    }
+
+    #[test]
+    fn a_nan_distance_is_no_agreement_and_the_report_shows_every_manifest_line() {
+        let close = ParameterDistance { total: 2, differing: 1, max_ulps: 1, max_abs: 1e-15 };
+        assert!(comparison_with(Some(Ok(close.clone()))).agrees_within(1e-12));
+        let nan = ParameterDistance { max_abs: f64::NAN, ..close.clone() };
+        assert!(!comparison_with(Some(Ok(nan))).agrees_within(1e-12));
+        assert!(!comparison_with(Some(Err("shapes".to_owned()))).agrees_within(1e-12));
+        assert!(!comparison_with(None).agrees_within(1e-12));
+        let mut c = comparison_with(Some(Ok(close)));
+        c.manifest = Agreement::Differ { published: "a=1\nb=2\nc=3".to_owned(), trained: "a=1\nb=x".to_owned() };
+        let report = c.report();
+        assert!(report.contains("    published: b=2\n    trained:   b=x\n"), "{report}");
+        assert!(report.contains("    published: c=3\n    trained:   (no line)\n"), "{report}");
+    }
+
+    /// Trains the English sentence recipe on a few CoNLL-U sentences with
+    /// `iterations` iterations.
+    fn small_training(iterations: i32) -> Trained {
+        let conllu = "# text = Dr. Who left.\n1\tDr.\t_\t_\t_\t_\t_\t_\t_\t_\n2\tWho\t_\t_\t_\t_\t_\t_\t_\t_\n\
+                      3\tleft.\t_\t_\t_\t_\t_\t_\t_\t_\n\n\
+                      # text = Two? Yes!\n1\tTwo?\t_\t_\t_\t_\t_\t_\t_\t_\n2\tYes!\t_\t_\t_\t_\t_\t_\t_\t_\n\n\
+                      # text = Mr. Smith came.\n1\tMr.\t_\t_\t_\t_\t_\t_\t_\t_\n2\tSmith\t_\t_\t_\t_\t_\t_\t_\t_\n\
+                      3\tcame.\t_\t_\t_\t_\t_\t_\t_\t_\n\n";
+        let recipe = RECIPES[0];
+        let factory = recipe.sentence_factory().unwrap();
+        let mut events = Vec::new();
+        let mut stream = sentdetect::SdEventStream::new(&factory, WHITESPACE);
+        for sample in ConlluSentenceReader::new(conllu, SENTENCES_PER_SAMPLE).unwrap() {
+            stream.events(&sample.unwrap(), &mut events);
+        }
+        let mut params = training_parameters();
+        params.put(Key::ITERATIONS, iterations);
+        params.put(Key::CUTOFF, 0);
+        params.put(Key::THREADS, 1);
+        let stamp = Stamp { timestamp_ms: 1_749_698_375_454, version: OPENNLP_VERSION, zone: ZONE };
+        let t = sentdetect::train_sentence_model_from_events(
+            &events,
+            &factory,
+            &params,
+            &mut TrainingConfiguration::default(),
+            stamp,
+        )
+        .unwrap();
+        Trained { events: events.len(), model: t.model, report: t.report, package: t.package }
+    }
+
+    #[test]
+    fn a_model_compared_with_itself_is_reproduced_and_with_another_run_is_not() {
+        let recipe = RECIPES[0];
+        let ten = small_training(10);
+        assert_eq!(ten.events, 6);
+        let published = ModelFile::open(ten.package.to_bytes()).unwrap();
+        let same = Comparison::of(&recipe, &ten, &published).unwrap();
+        assert!(same.reproduced() && same.agrees_within(0.0), "{}", same.report());
+        assert!(same.parameters.is_none() && same.first_difference.is_none());
+        assert_eq!(same.model, "opennlp-en-ud-ewt-sentence-1.3-2.5.4");
+
+        let twenty = small_training(20);
+        let other = Comparison::of(&recipe, &twenty, &published).unwrap();
+        assert!(!other.reproduced() && !other.agrees_within(1e-12), "{}", other.report());
+        assert!(other.event_hash.is_same() && other.manifest.is_same() && other.entry_names.is_same());
+        let distance = other.parameters.as_ref().unwrap().as_ref().unwrap();
+        assert_eq!(distance.total, ten.model.all_parameters().len());
+        assert!(distance.differing > 0 && distance.max_ulps > 0 && distance.max_abs > 1e-12);
+        assert!(other.report().contains("same predicates and patterns;"), "{}", other.report());
+
+        // The published model's predicates, patterns and parameters are read
+        // back as the trained model holds them.
+        let theirs = published.maxent(sentdetect::MODEL_ENTRY).unwrap();
+        for (p, label) in ten.model.pred_labels().iter().enumerate() {
+            let q = theirs.predicate_index(label.as_bytes()).unwrap();
+            let ours: Vec<&str> =
+                ten.model.pattern(p).iter().map(|&o| ten.model.outcome_labels()[o as usize].as_str()).collect();
+            let published: Vec<&str> = theirs.pattern(q).iter().map(|&o| theirs.outcome(o as usize)).collect();
+            assert_eq!(ours, published);
+            assert_eq!(ten.model.parameters(p), theirs.parameters(q));
+        }
+    }
 
     #[test]
     fn the_datasets_make_a_valid_share_alike_index() {

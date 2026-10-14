@@ -20,7 +20,8 @@
 //! throw, so the JVM cannot write such a dictionary; [`Error::InvalidXmlCharacter`]
 //! stands for that.
 
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
+use std::fmt::Write as _;
 
 use turbo_maxent::{Dictionary, Entries};
 use turbo_unicode::java::code_point::to_lower_case;
@@ -45,7 +46,7 @@ impl AbbreviationDictionary {
     pub fn read(xml: &[u8]) -> Result<AbbreviationDictionary> {
         let read = Entries::read(xml).map_err(Error::DictionaryXml)?;
         let mut entries: Vec<Vec<String>> = Vec::new();
-        let mut seen: HashSet<String> = HashSet::new();
+        let mut seen: HashSet<Vec<String>> = HashSet::new();
         for entry in read.iter() {
             let tokens: Vec<String> = entry.tokens.iter().map(|t| t.to_string()).collect();
             if seen.insert(fold_key(&tokens)) {
@@ -63,32 +64,41 @@ impl AbbreviationDictionary {
     /// ([`Error::CaseVariants`]).
     pub fn new(case_sensitive: bool, entries: impl IntoIterator<Item = Vec<String>>) -> Result<AbbreviationDictionary> {
         let mut kept: Vec<Vec<String>> = Vec::new();
-        let mut exact: HashSet<String> = HashSet::new();
-        let mut folded: HashSet<String> = HashSet::new();
+        let mut exact: HashSet<Vec<String>> = HashSet::new();
+        // Each folded key and the index in `kept` of the entry that has it.
+        let mut folded: HashMap<Vec<String>, usize> = HashMap::new();
         for tokens in entries {
             if tokens.is_empty() {
                 return Err(Error::EmptyEntry);
             }
             let key = fold_key(&tokens);
             if case_sensitive {
-                if !exact.insert(tokens.join(SEPARATOR)) {
+                if exact.contains(&tokens) {
                     continue;
                 }
-                if !folded.insert(key) {
-                    let first = kept.iter().find(|k| fold_key(k) == fold_key(&tokens)).expect("a folded key was kept");
-                    return Err(Error::CaseVariants { first: first.join(" "), second: tokens.join(" ") });
+                if let Some(&first) = folded.get(&key) {
+                    return Err(Error::CaseVariants { first: kept[first].join(" "), second: tokens.join(" ") });
                 }
-            } else if !folded.insert(key) {
+                exact.insert(tokens.clone());
+            } else if folded.contains_key(&key) {
                 continue;
             }
+            folded.insert(key, kept.len());
             kept.push(tokens);
         }
         AbbreviationDictionary::assemble(case_sensitive, kept)
     }
 
+    /// The lookup side of these entries. A token the JDK serializer could
+    /// not write is refused here, so a dictionary that exists can always
+    /// be written into a model file.
     fn assemble(case_sensitive: bool, entries: Vec<Vec<String>>) -> Result<AbbreviationDictionary> {
-        let xml = write_xml(case_sensitive, entries.iter().map(Vec::as_slice))?;
-        let lookup = Dictionary::read(&xml).map_err(Error::DictionaryXml)?;
+        for token in entries.iter().flatten() {
+            if let Some(c) = token.chars().find(|&c| !xml_can_carry(c)) {
+                return Err(Error::InvalidXmlCharacter(c as u32));
+            }
+        }
+        let lookup = Dictionary::from_entries(case_sensitive, entries.iter().map(Vec::as_slice));
         Ok(AbbreviationDictionary { case_sensitive, entries, lookup })
     }
 
@@ -129,26 +139,23 @@ impl AbbreviationDictionary {
     }
 }
 
-/// Separates the tokens of an entry in the keys used to find duplicates;
-/// a tab cannot be in a token, which the readers trim and split on.
-const SEPARATOR: &str = "\t";
-
 /// The key two entries share when `StringList.compareToIgnoreCase` says
-/// they are equal: each token lowercased per code point. (`String.
-/// compareToIgnoreCase` lowercases the upper case of each `char`, which
-/// agrees with this for every character but a few with irregular
-/// mappings, the same approximation `turbo_maxent::Dictionary` makes.)
-fn fold_key(tokens: &[String]) -> String {
-    let mut key = String::new();
-    for (i, t) in tokens.iter().enumerate() {
-        if i > 0 {
-            key.push_str(SEPARATOR);
-        }
-        for c in t.chars() {
-            key.push(char::from_u32(to_lower_case(c as u32)).unwrap_or(c));
-        }
-    }
-    key
+/// they are equal: the same number of tokens, each lowercased per code
+/// point. (`String.compareToIgnoreCase` lowercases the upper case of each
+/// `char`, which agrees with this for every character but a few with
+/// irregular mappings, the same approximation `turbo_maxent::Dictionary`
+/// makes.) The tokens stay separate, so an entry of one token holding a
+/// tab and an entry of the two tokens around it are different, as
+/// `StringList.equals` says.
+fn fold_key(tokens: &[String]) -> Vec<String> {
+    tokens.iter().map(|t| t.chars().map(|c| char::from_u32(to_lower_case(c as u32)).unwrap_or(c)).collect()).collect()
+}
+
+/// Whether XML 1.0 character data can hold `c`: everything but a C0
+/// control other than tab, line feed and carriage return, U+FFFE and
+/// U+FFFF (`ToStream` throws on the others).
+fn xml_can_carry(c: char) -> bool {
+    !(((c as u32) < 0x20 && !matches!(c, '\t' | '\n' | '\r')) || matches!(c, '\u{FFFE}' | '\u{FFFF}'))
 }
 
 /// The XML `DictionaryEntryPersistor.serialize` writes for these entries
@@ -183,16 +190,12 @@ fn push_text(out: &mut String, text: &str) -> Result<()> {
             '>' => out.push_str("&gt;"),
             '\r' => out.push_str("&#13;"),
             '\t' | '\n' => out.push(c),
-            c if (c as u32) < 0x20 || matches!(c, '\u{FFFE}' | '\u{FFFF}') => {
-                return Err(Error::InvalidXmlCharacter(c as u32));
-            }
+            c if !xml_can_carry(c) => return Err(Error::InvalidXmlCharacter(c as u32)),
             // The JDK serializer writes U+007F, the C1 controls U+0080 to
             // U+009F, and a character outside the Basic Multilingual Plane
             // as decimal character references.
             c if (0x7F..=0x9F).contains(&(c as u32)) || (c as u32) > 0xFFFF => {
-                out.push_str("&#");
-                out.push_str(&(c as u32).to_string());
-                out.push(';');
+                write!(out, "&#{};", c as u32).expect("writing to a String");
             }
             c => out.push(c),
         }
@@ -221,6 +224,34 @@ mod tests {
             Err(Error::CaseVariants { first, second }) if first == "Dr." && second == "dr."
         ));
         assert!(matches!(AbbreviationDictionary::new(false, vec![Vec::new()]), Err(Error::EmptyEntry)));
+    }
+
+    #[test]
+    fn a_token_holding_a_tab_is_not_the_two_tokens_around_it() {
+        // `StringList.equals` compares token counts first.
+        let d =
+            AbbreviationDictionary::new(false, vec![vec!["a\tb".to_string()], vec!["a".to_string(), "b".to_string()]])
+                .unwrap();
+        assert_eq!(d.len(), 2);
+        let d =
+            AbbreviationDictionary::new(true, vec![vec!["A\tb".to_string()], vec!["a".to_string(), "b".to_string()]])
+                .unwrap();
+        assert_eq!(d.len(), 2);
+        let mut scratch = String::new();
+        assert!(d.lookup().contains_tokens(&["a", "b"], &mut scratch));
+    }
+
+    #[test]
+    fn entries_put_directly_are_looked_up_as_given() {
+        // `put` does not trim, unlike reading XML, so a padded token is an
+        // entry no whitespace-cut token ever matches.
+        let d = AbbreviationDictionary::new(false, vec![vec![" Dr. ".to_string()]]).unwrap();
+        assert_eq!(d.entries(), &[vec![" Dr. ".to_string()]][..]);
+        assert!(d.lookup().contains(" dr. ") && !d.lookup().contains("Dr."));
+        // Read from XML, the same token is trimmed on both sides.
+        let d = AbbreviationDictionary::read(b"<dictionary><entry><token> Dr. </token></entry></dictionary>").unwrap();
+        assert_eq!(d.entries(), &[vec!["Dr.".to_string()]][..]);
+        assert!(d.lookup().contains("Dr.") && !d.lookup().contains(" Dr. "));
     }
 
     #[test]
