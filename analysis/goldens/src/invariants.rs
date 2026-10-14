@@ -2,10 +2,13 @@
 //! properties over any document: on the fuzz corpus, on the golden
 //! inputs, on anything an annotator produced.
 //!
-//! For each span of a text anchored layer, in the view its spans are in:
+//! For each layer, its own contract (`Layer::check`: sentences and
+//! subwords in text order and not overlapping, a sentence for every token
+//! in sentence order, blocks a tree in text order, and so on) holds. For
+//! each span of a text anchored layer, in the view its spans are in:
 //!
-//! - it is in bounds and ordered, and both ends are on character
-//!   boundaries of the view's text;
+//! - it is in bounds, ends at or after its start, and both ends are on
+//!   character boundaries of the view's text;
 //! - UTF-8 to UTF-16 to UTF-8 round trips through the view's
 //!   `OffsetTable`, and so do code point offsets; the UTF-16 offsets agree
 //!   with `turbo_unicode`'s own conversion, which is written apart from it;
@@ -13,7 +16,9 @@
 //!   view and the source: the source span is on character boundaries,
 //!   mapping it forward again covers the span, mapping that back gives the
 //!   same source span, and where the span touches no edit of the view's
-//!   alignment the source bytes are the view's bytes.
+//!   alignment the source bytes are the view's bytes (this last check
+//!   needs the view's own alignment, so it runs for a view the document
+//!   holds as a layer, not for one it holds only in its chain).
 //!
 //! `check_document` finds every instance of the shared layer types that
 //! have text spans (`known_layers`); `check_spans` takes any span columns.
@@ -129,7 +134,10 @@ pub fn check_spans(doc: &Document, layer: &str, view: ViewId, starts: &[u32], en
                 back.start, back.end, forward.start, forward.end, again.start, again.end
             ));
         }
-        if view != ViewId::SOURCE && !touches_an_edit(&edits, span) && source[back.range()] != text[span.range()] {
+        if let Some(edits) = &edits
+            && !touches_an_edit(edits, span)
+            && source[back.range()] != text[span.range()]
+        {
             fail(format!(
                 "touches no edit, yet maps to source {}..{} {:?}, not its own text {:?}",
                 back.start,
@@ -143,11 +151,12 @@ pub fn check_spans(doc: &Document, layer: &str, view: ViewId, starts: &[u32], en
 }
 
 /// The edits of the view's own alignment (against its parent), when the
-/// view is a layer of the document; a view the document holds only in its
-/// chain has none listed, and the text check is skipped for it.
-fn view_edits(doc: &Document, view: ViewId) -> Vec<Span> {
+/// view is a layer of the document; the source view has none. None for a
+/// view the document holds only in its chain, whose alignment is not
+/// reachable, so the text check is skipped for it.
+fn view_edits(doc: &Document, view: ViewId) -> Option<Vec<Span>> {
     if view == ViewId::SOURCE {
-        return Vec::new();
+        return Some(Vec::new());
     }
     let target = Key::<View>::DEFAULT.id().ty;
     for k in doc.layers() {
@@ -155,10 +164,10 @@ fn view_edits(doc: &Document, view: ViewId) -> Vec<Span> {
             && let Some(v) = doc.get_key(&Key::<View>::named(k.name))
             && v.id() == view
         {
-            return v.alignment().edits().iter().map(|e| e.child).collect();
+            return Some(v.alignment().edits().iter().map(|e| e.child).collect());
         }
     }
-    Vec::new()
+    None
 }
 
 /// Whether `span` overlaps an edit's child bytes, or has a deletion (an
@@ -174,11 +183,37 @@ fn touches_an_edit(edits: &[Span], span: Span) -> bool {
     })
 }
 
-/// Checks one instance of a layer type with text spans.
+/// Checks one instance of a layer type: its own contract, then its text
+/// spans if it has them.
 pub fn check_layer<L: Layer>(doc: &Document, key: &Key<L>) -> Vec<Violation> {
     let Some(layer) = doc.get_key(key) else { return Vec::new() };
-    let Some((view, starts, ends)) = layer.text_spans() else { return Vec::new() };
-    check_spans(doc, &key.id().to_string(), view, starts, ends)
+    let mut out = check_contract(layer, &key.id().to_string());
+    if let Some((view, starts, ends)) = layer.text_spans() {
+        out.extend(check_spans(doc, &key.id().to_string(), view, starts, ends));
+    }
+    out
+}
+
+/// The layer's own contract, `Layer::check`, as a violation when it does
+/// not hold: the order of sentences, subwords and blocks, a sentence for
+/// every token, and whatever else the layer type promises. `Document::add`
+/// refuses a layer that breaks it, so this holds a document's layers to
+/// what they were added as, and a layer built outside a document to the
+/// same rule.
+pub fn check_contract<L: Layer>(layer: &L, name: &str) -> Vec<Violation> {
+    match layer.check() {
+        Ok(()) => Vec::new(),
+        Err(what) => {
+            let view = layer.text_spans().map_or(ViewId::SOURCE, |(view, _, _)| view);
+            vec![Violation {
+                layer: name.into(),
+                view,
+                index: 0,
+                span: Span::new(0, 0),
+                what: format!("the layer's contract: {what}"),
+            }]
+        }
+    }
 }
 
 type Check = fn(&Document, &'static str) -> Vec<Violation>;
@@ -259,6 +294,34 @@ mod tests {
             .collect();
         doc.add(&Key::DEFAULT, tokens(ViewId::SOURCE, &spans), Provenance::by("test")).unwrap();
         assert_eq!(assert_invariants(&doc, "plain"), 1);
+    }
+
+    #[test]
+    fn a_layer_out_of_its_contract_is_reported() {
+        // Sentences must be in text order and not overlap; tokens with a
+        // sentence index must have one per token, in order.
+        let mut s = Spans::new(ViewId::SOURCE);
+        s.push(Span::new(3, 5));
+        s.push(Span::new(0, 2));
+        let v = check_contract(&Sentences { spans: s }, "opennlp:sentences");
+        assert_eq!(v.len(), 1);
+        assert_eq!(
+            v[0].to_string(),
+            "opennlp:sentences item 0 at 0..0 in view 0: the layer's contract: sentences in text order, not overlapping"
+        );
+        let mut t = tokens(ViewId::SOURCE, &[(0, 1), (2, 3)]);
+        t.sentence = Some(vec![turbo_analysis::Ix::new(1), turbo_analysis::Ix::new(0)]);
+        let v = check_contract(&t, "opennlp:tokens");
+        assert_eq!(v.len(), 1);
+        assert!(v[0].what.ends_with("tokens in sentence order"), "{}", v[0]);
+        assert!(check_contract(&tokens(ViewId::SOURCE, &[(0, 1), (2, 3)]), "opennlp:tokens").is_empty());
+        // A document refuses such a layer, so the check on a document's
+        // layers is a second line.
+        let mut doc = Document::new("ab cd");
+        let mut s = Spans::new(ViewId::SOURCE);
+        s.push(Span::new(3, 5));
+        s.push(Span::new(0, 2));
+        assert!(doc.add(&Key::DEFAULT, Sentences { spans: s }, Provenance::by("test")).is_err());
     }
 
     #[test]
