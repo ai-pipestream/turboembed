@@ -455,6 +455,10 @@ characters in category Cf. "a" U+206A "b" U+206F becomes "ab". Other
 default-ignorable characters stay: the Hangul fillers are letters, the
 tag characters build emoji flag sequences, and the variation selectors
 choose glyphs.
+Alignment: OpenNLP's `Alignment` lists the source range of each output
+character and nothing for a deleted one, so two deleted neighbours are
+one gap in it, where each deletion is its own edit here; the text and
+every mapped span are the same.
 
 Tests: every expectation of the invisible character tests in
 `SetBasedNormalizerTest` and `AlignedNormalizerPipelineTest`, every table
@@ -1988,6 +1992,13 @@ Differences from OpenNLP:
   to two acute accents, so "ő" becomes "o" U+0301 U+0301 here and "o" U+030B in
   OpenNLP.
 - OpenNLP's class has no aligned form; here every edit is aligned.
+
+The differential (`analysis/fuzz/src/runs/normalize.rs`) tells this
+difference from any other with the 17.0.0 data itself: the 2526 source
+code points whose 17.0.0 prototype is not their 18.0.0 one are listed in
+`analysis/fuzz/src/runs/confusables_17.rs`, and a JVM text is the
+documented difference only when it is the 17.0.0 skeleton of the source
+while the port's is the 18.0.0 one.
 
 Tests (`analysis/normalize/tests/confusables.rs`): every expectation of
 `ConfusableSkeletonTest`

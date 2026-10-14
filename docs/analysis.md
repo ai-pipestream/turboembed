@@ -1864,10 +1864,20 @@ exactly the ones the golden tests list:
   with `keepNewLines` (`analysis/tokenize/tests/golden.rs`,
   `simple_newlines`), the exception on a text that starts with a line
   break among them.
-- `normalize`: the normalizers for which `docs/normalizers.md` records
-  a deliberate difference ("Differences from OpenNLP" in the
-  normalizer's section), and the edits that are equivalent to the
-  golden's though not the same rows.
+- `normalize`: for each normalizer whose section of `docs/normalizers.md`
+  records a deliberate difference ("Differences from OpenNLP"), a rule in
+  `analysis/fuzz/src/runs/normalize.rs` recognizes that construct and no
+  other: every region of the source the two sides change differently
+  must be it (U+2E42 folded by `Quotes`, the five added bullets, the
+  three added ellipsis forms, U+206A to U+206F deleted by `Invisible`, a
+  word ending in combining marks joined by `Dehyphenate`, `y'all` and the
+  added subjects of `EnglishContractions`, a symbol in running text for
+  `SymbolWords`, an internationalized e-mail address for `BoundedUrls`,
+  and for `ConfusableSkeleton` a JVM skeleton from the 17.0 data whose
+  18.0 skeleton is the port's). The edits that are equivalent to the
+  golden's though not the same rows are a match. `EmojiRemove` in its
+  supplementary mode compares exactly: its documented differences are
+  the sequence mode and the annotator.
 - `subwords`: the four differences of `analysis/embed/tests/goldens.rs`
   and the special token strings. The run models how `WordpieceEncoder`
   maps its normalized text back to the source (controls dropped,
@@ -1891,7 +1901,7 @@ a time, so one container run tests a whole round.
 ### The command
 
 ```
-cargo run -p turbo-goldens-tool -- fuzz --seed 1 --count 1000
+cargo run -p turbo-goldens-tool --features fuzz -- fuzz --seed 1 --count 1000
 ```
 
 writes the inputs of the corpus into `<out>/inputs/<set>/<id>.txt` for
@@ -2376,9 +2386,9 @@ runs them on any machine:
   the dump reader on hand written dumps, malformed ones included.
 - `analysis/goldens/src/fuzz/mod.rs` and `analysis/goldens/src/invariants.rs`
   hold their own unit tests: the corpus is deterministic and an input
-  does not depend on the count, the texts are varied, and every text
-  stays in the Unicode 15.0 repertoire the container's JDK knows and
-  holds no noncharacter; the invariants pass on well formed spans in
+  does not depend on the count, the texts are varied, and no text holds
+  a noncharacter or one of a sample of code points assigned after
+  Unicode 15.0, the container's JDK's version; the invariants pass on well formed spans in
   text of every character width and in a normalized view, and catch a
   span cutting a character or leaving the text, a view whose alignment
   lies, and a broken span in a named instance of any layer type.
