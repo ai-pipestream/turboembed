@@ -2090,6 +2090,23 @@ dependencies = [
 ]
 
 [[package]]
+name = "turbo-train-recipes"
+version = "0.1.0"
+dependencies = [
+ "serde",
+ "serde_json",
+ "turbo-analysis",
+ "turbo-eval",
+ "turbo-formats",
+ "turbo-maxent",
+ "turbo-sentdetect",
+ "turbo-tokenize",
+ "turbo-train",
+ "turbo-train-segmentation",
+ "turbo-zoo",
+]
+
+[[package]]
 name = "turbo-train-segmentation"
 version = "0.1.0"
 dependencies = [

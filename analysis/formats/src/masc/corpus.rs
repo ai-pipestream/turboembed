@@ -119,6 +119,13 @@ impl MascCorpus {
         &self.documents
     }
 
+    /// The documents in the order they were read, taken out of the
+    /// corpus, to split it into corpora of their own
+    /// ([`MascCorpus::from_documents`]).
+    pub fn into_documents(self) -> Vec<MascDocument> {
+        self.documents
+    }
+
     /// The documents left out, in the order they were met.
     pub fn skipped(&self) -> &[SkippedDocument] {
         &self.skipped

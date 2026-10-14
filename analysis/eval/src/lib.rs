@@ -35,6 +35,8 @@
 //! - [`fetch`]: downloading a set into the cache root and checking each
 //!   file's SHA-256.
 //! - [`gate`]: candidate records against baseline records.
+//! - [`model_gate`]: a trained model against the reference model for the
+//!   same task on the same held-out samples, and its record.
 
 pub mod analysis;
 pub mod chunkers;
@@ -43,6 +45,7 @@ pub mod embedder;
 pub mod fetch;
 pub mod gate;
 pub mod metrics;
+pub mod model_gate;
 pub mod pipeline;
 pub mod read;
 pub mod record;

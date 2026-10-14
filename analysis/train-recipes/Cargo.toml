@@ -1,0 +1,35 @@
+[package]
+name = "turbo-train-recipes"
+version = "0.1.0"
+edition.workspace = true
+license.workspace = true
+publish = false
+
+[lib]
+name = "turbo_train_recipes"
+
+[[bin]]
+name = "turbo-train-recipes"
+path = "src/main.rs"
+
+[dependencies]
+# The MASC reader and OpenNLP's evaluators.
+turbo-formats = { path = "../formats" }
+# Training the sentence detector and the tokenizer, with the parameters
+# the published UD models were trained with.
+turbo-train = { path = "../train" }
+turbo-train-segmentation = { path = "../train-segmentation" }
+# Running a trained model and the reference model over held-out text.
+turbo-sentdetect = { path = "../sentdetect" }
+turbo-tokenize = { path = "../tokenize" }
+turbo-maxent = { path = "../maxent" }
+# The span type the samples and models share.
+turbo-analysis = { path = "../core" }
+# The gate and its record.
+turbo-eval = { path = "../eval" }
+# Licences, digests, the reference models' index entries and the trained
+# models' entries.
+turbo-zoo = { path = "../zoo" }
+# The model card, written as strict JSON as the gate record is.
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
