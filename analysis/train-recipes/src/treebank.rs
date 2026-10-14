@@ -31,8 +31,8 @@
 use std::path::{Path, PathBuf};
 
 use turbo_zoo::{
-    Acceptances, Artifact, File, Http, Index, Kind, Licence, LicenceClass, Policy, Sha256, Sha512, TrainingData,
-    UserId, Zoo, index::Format,
+    Acceptances, Artifact, File, Http, Index, Kind, Licence, Policy, Sha256, Sha512, TrainingData, UserId, Zoo,
+    class_of, index::Format,
 };
 
 use crate::error::{Error, Result, io};
@@ -264,7 +264,7 @@ impl Treebank {
             license: LICENCE,
             license_terms: terms.parse().map_err(bad("terms", terms.clone()))?,
             trained_on: Vec::new(),
-            class: LicenceClass::Permissive,
+            class: class_of([LICENCE]),
             origin: None,
             files,
         })
@@ -540,6 +540,7 @@ pub const TREEBANKS: [Treebank; 5] =
 #[cfg(test)]
 mod tests {
     use super::*;
+    use turbo_zoo::LicenceClass;
 
     const UD_STATEMENT: &str = "The treebank is licensed under the Creative Commons License Attribution 4.0 \
                                 International.\n\nThe complete license text is available at:\n\

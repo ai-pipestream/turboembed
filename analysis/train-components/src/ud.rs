@@ -53,10 +53,13 @@
 //! 2.5.4 command line itself in the container on the same treebank and
 //! compare its parameters with both.
 //!
-//! The treebanks are CC BY-SA 4.0, so they are fetched through the zoo,
-//! by digest, after the user accepts that licence, and are never checked
-//! in. The reproduction itself is the test `tests/reproduce.rs`, ignored
-//! by default.
+//! A treebank's dataset takes its licence class from its licence
+//! (`turbo_zoo::class_of`): the five treebanks here are CC BY-SA 4.0, so
+//! their class is share-alike and they are fetched through the zoo, by
+//! digest, after the user accepts that licence; a CC BY 4.0 treebank comes
+//! out permissive, with nothing to accept. They are never checked in. The
+//! reproduction itself is the test `tests/reproduce.rs`, ignored by
+//! default.
 
 use std::path::{Path, PathBuf};
 
@@ -66,7 +69,7 @@ use turbo_train::package::MANIFEST_ENTRY;
 use turbo_train::{GisModel, Key, TimeZone, TrainingConfiguration, TrainingParameters};
 use turbo_unicode::WhitespaceMode;
 use turbo_zoo::{
-    Acceptances, Artifact, Http, Index, Kind, Licence, LicenceClass, Policy, UserId, Zoo, index::Format as ZooFormat,
+    Acceptances, Artifact, Http, Index, Kind, Licence, Policy, UserId, Zoo, class_of, index::Format as ZooFormat,
 };
 
 use crate::error::{Error, Result};
@@ -146,7 +149,8 @@ impl Treebank {
         format!("{}-{UD_RELEASE}-train", self.repository.to_ascii_lowercase().replace('_', "-"))
     }
 
-    /// The treebank's `train` file as a zoo artifact.
+    /// The treebank's `train` file as a zoo artifact, its class computed
+    /// from its licence.
     pub fn dataset(&self) -> Artifact {
         fn parse<T: std::str::FromStr<Err = String>>(what: &str, s: &str) -> T {
             s.parse().unwrap_or_else(|e| panic!("{what}: {e}"))
@@ -161,7 +165,7 @@ impl Treebank {
             license: self.licence,
             license_terms: parse("terms", &self.licence_terms()),
             trained_on: Vec::new(),
-            class: LicenceClass::ShareAlike,
+            class: class_of([self.licence]),
             origin: None,
             files: vec![turbo_zoo::File {
                 path: parse("path", self.train_file),
@@ -668,9 +672,10 @@ pub fn zoo_home() -> Option<PathBuf> {
         .or_else(|| var("HOME").map(|h| h.join(".local/share/turbo-zoo")))
 }
 
-/// Fetches a treebank's `train` file into the zoo cache under `home`,
-/// if `user` has accepted its licence there (`turbo-zoo accept
-/// CC-BY-SA-4.0 --yes`), and returns its path.
+/// Fetches a treebank's `train` file into the zoo cache under `home` and
+/// returns its path. A share-alike treebank needs `user`'s acceptance of
+/// its licence there first (`turbo-zoo accept CC-BY-SA-4.0 --yes` for the
+/// five in [`TREEBANKS`]); a permissive one needs none.
 pub fn fetch_treebank(treebank: &Treebank, home: &Path, user: &UserId) -> Result<PathBuf> {
     let zoo = Zoo::new(datasets(), home.join("artifacts"), Policy::default(), &Http);
     let acceptances = home.join("acceptances.json");
@@ -680,8 +685,12 @@ pub fn fetch_treebank(treebank: &Treebank, home: &Path, user: &UserId) -> Result
 
 /// Fetches a published model into the zoo cache under `home` through the
 /// zoo's built-in index, where every UD 1.3 model is listed under
-/// [`Recipe::model_id`] (Apache License 2.0, nothing to accept), and
-/// returns its path.
+/// [`Recipe::model_id`], and returns its path. The models are Apache
+/// License 2.0, but the index classes each by its treebank too: the ones
+/// trained on a CC BY-SA treebank, every model of [`RECIPES`] among them,
+/// are share-alike, so the fetch needs `user`'s acceptance of
+/// CC-BY-SA-4.0 under `home` (`turbo-zoo accept CC-BY-SA-4.0 --yes`);
+/// only the Catalan AnCora models (CC BY 4.0) are permissive.
 pub fn fetch_published_model(recipe: &Recipe, home: &Path, user: &UserId) -> Result<PathBuf> {
     let zoo = Zoo::new(Index::builtin(), home.join("artifacts"), Policy::default(), &Http);
     let acceptances = home.join("acceptances.json");
@@ -692,6 +701,7 @@ pub fn fetch_published_model(recipe: &Recipe, home: &Path, user: &UserId) -> Res
 #[cfg(test)]
 mod tests {
     use super::*;
+    use turbo_zoo::LicenceClass;
 
     #[test]
     fn ulps_count_the_numbers_between_two_values_across_zero() {
@@ -802,6 +812,12 @@ mod tests {
         assert_eq!(index.list().len(), 5);
         let ewt = index.get("ud-english-ewt-r2.16-train").unwrap();
         assert_eq!(ewt.class, LicenceClass::ShareAlike);
+        for a in index.list() {
+            assert_eq!(a.class, a.computed_class(), "{}", a.id);
+        }
+        // The class follows the licence: a CC BY 4.0 treebank is permissive.
+        let permissive = Treebank { licence: Licence::CcBy40, ..ENGLISH_EWT }.dataset();
+        assert_eq!(permissive.class, LicenceClass::Permissive);
         assert_eq!(ewt.files[0].size, 14203025);
         assert_eq!(
             ewt.files[0].url.as_str(),
