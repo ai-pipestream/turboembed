@@ -6,6 +6,7 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
+import opennlp.tools.postag.POSTagFormat;
 import opennlp.tools.util.WhitespaceMode;
 
 /**
@@ -24,6 +25,8 @@ final class Runs {
   static final String TOKEN_MODEL_FR = "opennlp-fr-ud-gsd-tokens-1.3-2.5.4.bin";
   static final String TOKEN_MODEL_PT = "opennlp-pt-ud-gsd-tokens-1.3-2.5.4.bin";
   static final String LANGUAGE_MODEL = "langdetect-183.bin";
+  static final String POS_MODEL_EN = "opennlp-en-ud-ewt-pos-1.3-2.5.4.bin";
+  static final String POS_MODEL_DE = "opennlp-de-ud-gsd-pos-1.3-2.5.4.bin";
 
   /**
    * The MeCab dictionaries the generator loads from the models directory, each unpacked from its
@@ -41,6 +44,7 @@ final class Runs {
   static final String SENTENCE_FIXTURE_ABBREVIATIONS = "en-abbrev.bin";
   static final String SENTENCE_FIXTURE_PLAIN = "en-plain.bin";
   static final String TOKEN_FIXTURE = "tokenizer-abbreviations.bin";
+  static final String POS_FIXTURE = "pos-fixture.bin";
   static final String ENGLISH_ABBREVIATIONS = "english-dictionary.xml";
   static final List<String> DETOKENIZER_DICTIONARIES = List.of("en-detokenizer.xml", "fr-detokenizer.xml",
       "latin-detokenizer.xml", "pt-detokenizer.xml", "quotes-detokenizer.xml");
@@ -69,6 +73,9 @@ final class Runs {
 
   /** The numbers of merges the BPE trainer runs with: few, so the tokens are pieces of words, and many. */
   static final List<Integer> BPE_MERGES = List.of(40, 400);
+
+  /** The beam sizes the English part-of-speech model is rebuilt with, besides its own 3. */
+  static final List<Integer> POS_BEAM_SIZES = List.of(1, 10);
 
   private static final List<String> TOKEN_MODELS = List.of(TOKEN_MODEL_EN, TOKEN_MODEL_DE, TOKEN_MODEL_ES,
       TOKEN_MODEL_FR, TOKEN_MODEL_PT);
@@ -162,6 +169,25 @@ final class Runs {
         models.resolve(IPADIC_UTF8), WhitespaceMode.UNICODE, Set.of(JA, MULTI, EDGE, SURROGATE)));
     annotators.add(LatticeGolden.load(models.resolve(KO_DIC), WhitespaceMode.UNICODE,
         Set.of(KO, MULTI, EDGE, SURROGATE)));
+
+    // Part-of-speech tagging, on the sentences and tokens of the published models of the same
+    // language: the English model as it is, with Penn Treebank tags asked for, and rebuilt with
+    // other beam sizes; the German model; and the fixture model, whose Penn outcomes the tagger
+    // converts to UD and whose tag dictionary restricts the tags of the words it lists.
+    List<PosGolden> taggers = new ArrayList<>();
+    PosGolden.Pipeline english = PosGolden.Pipeline.load(models.resolve(SENTENCE_MODEL_EN), models.resolve(TOKEN_MODEL_EN));
+    PosGolden.Pipeline german = PosGolden.Pipeline.load(models.resolve(SENTENCE_MODEL_DE), models.resolve(TOKEN_MODEL_DE));
+    taggers.add(PosGolden.load(models.resolve(POS_MODEL_EN), english, Set.of(EN, MULTI, EDGE)));
+    taggers.add(PosGolden.withFormat(models.resolve(POS_MODEL_EN), english, POSTagFormat.PENN, Set.of(EN)));
+    for (int beam : POS_BEAM_SIZES) {
+      taggers.add(PosGolden.withBeamSize(models.resolve(POS_MODEL_EN), english, beam, Set.of(EN)));
+    }
+    taggers.add(PosGolden.load(models.resolve(POS_MODEL_DE), german, Set.of(EDGE)));
+    taggers.add(PosGolden.load(fixtures.resolve(POS_FIXTURE), english, Set.of(EN, EDGE)));
+    for (PosGolden t : taggers) {
+      annotators.add(t);
+      recorders.add(PosDump.of(t));
+    }
 
     LanguageGolden languages = LanguageGolden.load(models.resolve(LANGUAGE_MODEL), Set.of(EN, MULTI));
     annotators.add(languages);

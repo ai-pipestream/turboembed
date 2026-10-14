@@ -36,7 +36,7 @@ pub struct Model {
 /// The published models, in the order the generator loads them. The file
 /// names are the ones the generator's `Runs` class opens in the models
 /// directory.
-pub const MODELS: [Model; 9] = [
+pub const MODELS: [Model; 11] = [
     Model {
         file: "opennlp-en-ud-ewt-sentence-1.3-2.5.4.bin",
         url: "https://downloads.apache.org/opennlp/models/ud-models-1.3/opennlp-en-ud-ewt-sentence-1.3-2.5.4.bin",
@@ -84,6 +84,18 @@ pub const MODELS: [Model; 9] = [
         url: "https://downloads.apache.org/opennlp/models/ud-models-1.3/opennlp-pt-ud-gsd-tokens-1.3-2.5.4.bin",
         sha512: "6ff66aec4835e9d5caeeb50a2e70bd673840ef6219fe1dc4018c8f9999b21b95\
                  9c52fdac68844a0934bbcd77346743627f728fb9c99b7ca468e795fc5291c3bb",
+    },
+    Model {
+        file: "opennlp-en-ud-ewt-pos-1.3-2.5.4.bin",
+        url: "https://downloads.apache.org/opennlp/models/ud-models-1.3/opennlp-en-ud-ewt-pos-1.3-2.5.4.bin",
+        sha512: "fca85b38d996b7c422401054feedeb0f748cbc03856893cb27670da5d207315e\
+                 c9af0c0f818c3107a741a2effca2499b5097ac0b46edf4a5ac10bf77a351ac3e",
+    },
+    Model {
+        file: "opennlp-de-ud-gsd-pos-1.3-2.5.4.bin",
+        url: "https://downloads.apache.org/opennlp/models/ud-models-1.3/opennlp-de-ud-gsd-pos-1.3-2.5.4.bin",
+        sha512: "9e44d582874464924a8baf8fbfed7500e15112c3dc446bfc5be281bff4dbbf19\
+                 5eda0a16ca7e78fde7a64a684c0f780b5987723db800ce88465b9894ef0ba17b",
     },
     Model {
         file: "langdetect-183.bin",
@@ -163,7 +175,7 @@ pub struct Fixture {
 /// file names are the ones the generator's `Runs` class opens there; a
 /// fixture in a subdirectory is a file of a dictionary directory, and
 /// `Runs` opens the directory.
-pub const FIXTURES: [Fixture; 26] = [
+pub const FIXTURES: [Fixture; 27] = [
     Fixture {
         file: "en-abbrev.bin",
         sha512: "759ab1defc61351f53cdd82a26e708789a225feb6e1ec0cfd6e2e54f35f67c14\
@@ -178,6 +190,11 @@ pub const FIXTURES: [Fixture; 26] = [
         file: "tokenizer-abbreviations.bin",
         sha512: "361484f0a67e129fe6f19908704d23e83c8a2bf4551a5f7eec3b40b9082a66b7\
                  026d429233c11639b35bccf042d347d79222cfed62685563f2a926cb8a2460d4",
+    },
+    Fixture {
+        file: "pos-fixture.bin",
+        sha512: "70bd00e5c7baba5552e311ad002aa382fd57aa2bc5248ffe6008476546df3799\
+                 a4e8578c3e6e90aa51d4a766857d07fa7003d395151d292ede3804fc308d5d32",
     },
     Fixture {
         file: "english-dictionary.xml",
@@ -328,9 +345,10 @@ pub const GENERATOR_ARGS: [&str; 1] = ["--dumps"];
 /// replaces and `verify` compares. The data directory holds other things
 /// (the inputs, the fixtures, the rate snapshot, a README) that neither
 /// touches.
-pub const ANNOTATORS: [&str; 13] = [
+pub const ANNOTATORS: [&str; 14] = [
     "sentdetect",
     "tokenize",
+    "postag",
     "langdetect",
     "normalize",
     "numbers",
@@ -351,7 +369,7 @@ pub const ANNOTATORS: [&str; 13] = [
 /// normalizers, the number scan, the money and quantity annotators,
 /// the detokenizer, the WordPiece encoder, the unigram segmenter, the
 /// BPE trainer and the lattice tokenizer, which ask no model.
-pub const DUMPED_ANNOTATORS: [&str; 3] = ["sentdetect", "tokenize", "langdetect"];
+pub const DUMPED_ANNOTATORS: [&str; 4] = ["sentdetect", "tokenize", "postag", "langdetect"];
 
 /// The input set the normalizers run on. They run on no other set, and the
 /// other annotators do not run on this one.
