@@ -9,6 +9,8 @@
 //! are left out unless `TURBO_TEST_MECAB_DICTIONARIES=1`, as the lattice
 //! crate's own tests on them are ignored by default.
 
+use std::collections::BTreeMap;
+
 use turbo_fuzz::{Outcome, Resources, Unavailable, compare_tree};
 
 #[test]
@@ -57,11 +59,42 @@ fn the_checked_in_goldens_show_no_divergence() {
     let skipped = count(|o| matches!(o, Outcome::Skipped(_)));
     eprintln!("{matched} matched, {documented} documented, {skipped} skipped");
     assert!(matched > 1000, "{matched} matched");
-    // The documented differences the golden tests list: the normalizers
-    // with a "Differences from OpenNLP" section, the WordPiece spans over
-    // stripped marks, the keep new lines defects of SimpleTokenizer, the
-    // language detector declining texts without evidence.
-    assert!(documented > 20, "{documented} documented");
+    // The documented differences are exactly the ones the golden tests
+    // list, run by run: the inputs of each normalizer with a "Differences
+    // from OpenNLP" section that show it, the WordPiece inputs of
+    // `analysis/embed/tests/goldens.rs` and the two keep new lines defects
+    // of `SimpleTokenizer`. A new golden input that shows a documented
+    // difference is added here with its rule.
+    let mut by_run: BTreeMap<String, usize> = BTreeMap::new();
+    for f in report.findings.iter().filter(|f| matches!(f.outcome, Outcome::Documented(_))) {
+        *by_run.entry(f.run_name()).or_default() += 1;
+    }
+    let expected: BTreeMap<String, usize> = [
+        ("normalize/bounded-url", 1),
+        ("normalize/bullet", 1),
+        ("normalize/confusable-skeleton", 16),
+        ("normalize/default-chain", 2),
+        ("normalize/dehyphenation", 1),
+        ("normalize/ellipsis", 1),
+        ("normalize/english-contraction", 2),
+        ("normalize/invisible", 1),
+        ("normalize/quote", 1),
+        ("normalize/symbol-joiner", 2),
+        ("subwords/all-minilm-l6-v2-vocab", 11),
+        ("tokenize/simple+keep-new-lines", 2),
+        ("tokenize/simple+keep-new-lines+legacy", 2),
+    ]
+    .into_iter()
+    .map(|(run, n)| (run.to_string(), n))
+    .collect();
+    assert_eq!(by_run, expected);
+    // Every explanation names where the difference is written down.
+    for f in report.findings.iter().filter(|f| matches!(f.outcome, Outcome::Documented(_))) {
+        let Outcome::Documented(why) = &f.outcome else { unreachable!() };
+        let named =
+            why.contains("docs/normalizers.md") || why.contains("tests/goldens.rs") || why.contains("tests/golden.rs");
+        assert!(named, "{} on {}: {why}", f.run_name(), f.input_name());
+    }
     // Skipped: goldens for runs whose model is absent, the goldens whose
     // JVM tokens cut a surrogate pair, the unreadable lemma golden.
     for f in report.findings.iter().filter(|f| matches!(f.outcome, Outcome::Skipped(_))) {

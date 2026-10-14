@@ -221,7 +221,7 @@ impl Run for Plain {
                     match self.compare(&doc, golden) {
                         Outcome::Match => Outcome::Match,
                         Outcome::Divergence(what) => Outcome::Documented(format!(
-                            "SimpleTokenizer with keepNewLines gives a line break after whitespace the span starting where the last token or line break ended, as modelled; the port gives the plain spans plus the line breaks ({what})"
+                            "SimpleTokenizer with keepNewLines gives a line break after whitespace the span starting where the last token or line break ended, as modelled; the port gives the plain spans plus the line breaks (analysis/tokenize/tests/golden.rs, simple_newlines; {what})"
                         )),
                         other => other,
                     }
