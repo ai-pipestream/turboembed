@@ -1994,6 +1994,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "turbo-parser"
+version = "0.1.0"
+dependencies = [
+ "turbo-analysis",
+ "turbo-jvm",
+ "turbo-unicode",
+]
+
+[[package]]
 name = "turbo-phrase-chunker"
 version = "0.1.0"
 dependencies = [
