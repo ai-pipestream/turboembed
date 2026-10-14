@@ -45,8 +45,9 @@ const F64: ColumnType = ColumnType::F64;
 
 /// The layers of the `train` and `train-events` goldens. Only the events,
 /// the checksum and the `train-events` layers are read here; the
-/// indexer's and the trainer's layers are listed so that the reader
-/// accepts the `train` files (`analysis/train/tests` compares those).
+/// indexer's and the trainers' (GIS, QN, perceptron) layers are listed
+/// so that the reader accepts the `train` files (`analysis/train/tests`
+/// compares those).
 const LAYERS: &[(&str, &[ColumnSpec])] = &[
     ("turbo:events", &[col("outcome", STR), col("context", STR), col("values", STR)]),
     ("turbo:stream-errors", &[col("after", U32), col("class", STR), col("message", STR)]),
