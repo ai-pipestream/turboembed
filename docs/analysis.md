@@ -1496,7 +1496,7 @@ lines of the input (`analysis/goldens-tool/README.md`, "Runs"); the
 1 is the training of the fixture model `en-plain.bin`, and its checksum is
 that model's `Training-Eventhash`.
 
-Then the GIS trainer runs on the index with the run's `Iterations` and
+Then, in the GIS runs, the GIS trainer runs on the index with the run's `Iterations` and
 one thread: `turbo:gis-training` says how many iterations it ran and what
 its progress monitor recorded last (the stop criterion's message or the
 finished message; with one outcome the trainer refuses the index, the row
@@ -1512,7 +1512,24 @@ is the SHA-256 and length of what `GenericModelWriter` writes for the
 final model. An index with no event left makes the indexer throw
 `InsufficientTrainingDataException`; the golden then has the events and,
 in place of the indexer's layers, one `turbo:indexer-error` row with the
-exception's class and message. No layer type has these ids, so
+exception's class and message.
+
+The runs of the L-BFGS trainer (`QNTrainer`, `Algorithm=MAXENT_QN`;
+directories with `-qn` appended, then `-l1`, `-l2` or `-plain` when only
+one cost, or neither, is on) hold the events and the trainer's layers, the
+index being that of the GIS run with the same source and indexer settings.
+`QNTrainer` reports nothing to a progress monitor; `QNMinimizer` logs one
+debug line per iteration and one naming the test that stopped it, which
+the generator captures with its own SLF4J provider. `turbo:qn-training`
+says how many iterations ran and which test stopped them (`change-rate`,
+`gradient-norm`, `step-size`, `fct-eval`, or `iterations` for the limit;
+`refused` with the exception for one outcome); `turbo:qn-iterations` has,
+per iteration, the objective value at the new point, the function change
+rate, the training accuracy and the parameter digest, where the parameters
+after iteration k are again those of a run of k iterations (so after the
+rescaling the minimizer applies at the end); `turbo:qn-parameters` and
+`turbo:qn-model` are as for GIS. The `config` records add `Algorithm`,
+`L1Cost`, `L2Cost`, `NumOfUpdates`, `MaxFctEval` and `Threads`. No layer type has these ids, so
 `analysis/train/tests/goldens.rs` reads these goldens itself, and compares the Rust indexers, trainer and writer with every one of them; `analysis/train/tests/roundtrip.rs` trains the fixture models `analysis/maxent/tests/fixtures/models/gis.model` and `en-plain.bin` again and checks the bytes are the fixtures'.
 
 ## Generating golden files

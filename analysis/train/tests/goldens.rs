@@ -8,7 +8,11 @@
 //! and the event checksum, with the golden's. It then trains the GIS model
 //! the run trained and compares the log likelihood, the counts and every
 //! parameter after every iteration, the end of training, and the bytes of
-//! the written model.
+//! the written model. The goldens of the QN runs (`QnTrainGolden`) hold
+//! the events and the trainer's layers only; for them the index is built
+//! from the events and the QN trainer is compared the same way, with the
+//! objective value, change rate and training accuracy per iteration and
+//! the reason it stopped.
 
 use std::cell::RefCell;
 use std::path::{Path, PathBuf};
@@ -20,13 +24,15 @@ use turbo_train::error::NO_EVENTS;
 use turbo_train::event::{checksum, parse_event, parse_real_value_event};
 use turbo_train::gis::train_model;
 use turbo_train::monitor::finished_message;
+use turbo_train::qn;
 use turbo_train::{
     DataIndex, Error, GisModel, GisParams, IndexerKind, JavaString, Key, LogLikelihoodThresholdBreached,
-    ProgressMonitor, StopCriteria, TrainingConfiguration, TrainingMeasure, TrainingParameters, write_gis,
+    ProgressMonitor, QnStop, StopCriteria, TrainingConfiguration, TrainingMeasure, TrainingParameters, write_gis,
+    write_qn,
 };
 
 mod common;
-use common::{config, events, java_string, layer, params, train_shapes};
+use common::{QN_TRAINER, config, events, java_string, layer, params, qn_params, train_shapes};
 
 fn golden_files(dir: &Path, out: &mut Vec<PathBuf>) {
     for e in std::fs::read_dir(dir).unwrap_or_else(|e| panic!("{}: {e}", dir.display())) {
@@ -57,6 +63,11 @@ struct Coverage {
     trained: usize,
     stopped_early: usize,
     kinds: [usize; 3],
+    qn: usize,
+    qn_stops: [usize; 5],
+    qn_threads: usize,
+    qn_l1: usize,
+    qn_discarding: usize,
 }
 
 fn check(path: &Path, g: &Golden, cov: &mut Coverage) {
@@ -279,8 +290,13 @@ fn indexers_match_the_jvm_on_every_training_golden() {
     for path in &paths {
         let g = Golden::read_with(path, &shapes).unwrap_or_else(|e| panic!("{e}"));
         g.input_text(data_dir()).unwrap_or_else(|e| panic!("{}: {e}", path.display()));
-        check(path, &g, &mut cov);
-        cov.goldens += 1;
+        if g.header.annotator.class == QN_TRAINER {
+            check_qn(path, &g, &mut cov);
+            cov.qn += 1;
+        } else {
+            check(path, &g, &mut cov);
+            cov.goldens += 1;
+        }
     }
     eprintln!("{cov:?}");
     assert!(cov.goldens >= 100, "{cov:?}");
@@ -289,6 +305,11 @@ fn indexers_match_the_jvm_on_every_training_golden() {
     assert!(cov.lone_surrogates > 0, "{cov:?}");
     assert!(cov.trained > 0 && cov.stopped_early > 0, "{cov:?}");
     assert!(cov.kinds.iter().all(|&n| n > 0), "{cov:?}");
+    assert!(cov.qn >= 100 && cov.qn_threads > 0 && cov.qn_l1 > 0 && cov.qn_discarding > 0, "{cov:?}");
+    // The change rate and the evaluation limit stop runs here; the
+    // iteration limit is tested in qn.rs. No run reaches the gradient norm
+    // or the minimum step before the change rate does.
+    assert!(cov.qn_stops[0] > 0 && cov.qn_stops[3] > 0, "{cov:?}");
 }
 
 /// The run that trained the fixture model en-plain.bin: TwoPass, cutoff 1,
@@ -307,4 +328,110 @@ fn the_sentence_fixture_run_has_the_fixture_models_event_hash() {
     let maxent = model.maxent("sent.model").unwrap();
     assert_eq!(index.outcome_labels(), maxent.outcomes().collect::<Vec<_>>());
     assert_eq!(index.pred_labels().len(), maxent.num_predicates());
+}
+
+/// A QN golden: the events indexed as the run's config says, then the
+/// QN trainer against the `turbo:qn-*` layers: the parameters after every
+/// iteration (bit for bit after the first and the last, by digest in
+/// between), the objective value, change rate and training accuracy of
+/// every iteration, why training stopped, and the written model.
+fn check_qn(path: &Path, g: &Golden, cov: &mut Coverage) {
+    let at = path.display().to_string();
+    let events = events(g);
+    let index = DataIndex::index(&events, &params(g));
+    assert!(g.header.error.is_none(), "{at}");
+    if let Some(error) = g.layers.iter().find(|l| l.id == "turbo:indexer-error") {
+        assert_eq!(error.strs("message").unwrap().get(0), NO_EVENTS, "{at}");
+        assert_eq!(index, Err(Error::InsufficientTrainingData(NO_EVENTS)), "{at}");
+        return;
+    }
+    let index = index.unwrap_or_else(|e| panic!("{at}: {e}"));
+    let qn = qn_params(g);
+    if qn.threads > 1 {
+        cov.qn_threads += 1;
+    }
+    if qn.l1_cost > 0.0 {
+        cov.qn_l1 += 1;
+    }
+
+    let training = layer(g, "turbo:qn-training");
+    let ran = training.u32s("iterations").unwrap()[0] as usize;
+    let stop = training.strs("stop").unwrap().get(0);
+    if ran == 0 {
+        assert_eq!(stop, "refused", "{at}");
+        assert!(index.outcome_labels().len() <= 1, "{at}");
+        assert_eq!(
+            training.strs("message").unwrap().get(0),
+            "opennlp.tools.util.InsufficientTrainingDataException: Training data must contain more than one outcome",
+            "{at}"
+        );
+        return;
+    }
+    assert_eq!(training.strs("message").unwrap().get(0), "", "{at}");
+    if ran > qn.updates as usize {
+        cov.qn_discarding += 1;
+    }
+
+    let iterations = layer(g, "turbo:qn-iterations");
+    assert_eq!(iterations.len(), ran, "{at}");
+    let (value, rate, accuracy, digests) = (
+        iterations.f64s("value").unwrap(),
+        iterations.f64s("rate").unwrap(),
+        iterations.f64s("accuracy").unwrap(),
+        iterations.strs("parameters").unwrap(),
+    );
+    let (n, f) = (index.outcome_labels().len(), index.pred_labels().len());
+    let mut first = Vec::new();
+    let mut seen = 0;
+    let (model, stopped) = qn::train_model(&index, &qn, &mut |it, point| {
+        let i = it.iteration as usize;
+        seen = i;
+        assert!(i <= ran, "{at}: iteration {i} after the JVM stopped at {ran}");
+        assert_eq!(it.value.to_bits(), value[i - 1].to_bits(), "{at}: value after iteration {i}");
+        assert_eq!(it.change_rate.to_bits(), rate[i - 1].to_bits(), "{at}: change rate after iteration {i}");
+        let acc = qn::training_accuracy(&index, point);
+        assert_eq!(acc.to_bits(), accuracy[i - 1].to_bits(), "{at}: accuracy after iteration {i}");
+        let parameters = qn::model_parameters(point, n, f, &qn);
+        assert_eq!(digest(&parameters), digests.get(i - 1), "{at}: parameters after iteration {i}");
+        if i == 1 {
+            first = parameters;
+        }
+    })
+    .unwrap_or_else(|e| panic!("{at}: {e}"));
+    assert_eq!(seen, ran, "{at}: iterations run");
+    assert_eq!(stopped.name(), stop, "{at}: stop");
+    cov.qn_stops[match stopped {
+        QnStop::ChangeRate => 0,
+        QnStop::GradientNorm => 1,
+        QnStop::StepSize => 2,
+        QnStop::FunctionEvaluations => 3,
+        QnStop::Iterations => 4,
+    }] += 1;
+
+    // Every parameter after the first and the last iteration, each
+    // predicate's per outcome.
+    let values = layer(g, "turbo:qn-parameters");
+    let (it, pred, oid, val) = (
+        values.u32s("iteration").unwrap(),
+        values.u32s("predicate").unwrap(),
+        values.u32s("outcome").unwrap(),
+        values.f64s("value").unwrap(),
+    );
+    let last = model.all_parameters();
+    assert_eq!(last.len(), n * f, "{at}");
+    assert_eq!(values.len(), if ran > 1 { 2 * last.len() } else { last.len() }, "{at}: parameter rows");
+    for r in 0..values.len() {
+        let flat = r % last.len();
+        let (expected_it, parameters) = if r < last.len() { (1, &first[..]) } else { (ran as u32, last) };
+        assert_eq!(it[r], expected_it, "{at}: parameter row {r} iteration");
+        assert_eq!((pred[r] as usize, oid[r] as usize), (flat / n, flat % n), "{at}: parameter row {r} ids");
+        assert_eq!(parameters[flat].to_bits(), val[r].to_bits(), "{at}: parameter row {r} value");
+    }
+
+    let bytes = write_qn(&model).unwrap_or_else(|e| panic!("{at}: {e}"));
+    let written = layer(g, "turbo:qn-model");
+    assert_eq!(bytes.len() as u32, written.u32s("length").unwrap()[0], "{at}: model length");
+    assert_eq!(turbo_maxent::sha256(&bytes).to_hex(), written.strs("sha256").unwrap().get(0), "{at}: model sha256");
+    let read = turbo_maxent::MaxentModel::read(&bytes).unwrap_or_else(|e| panic!("{at}: {e}"));
+    assert_eq!(read.num_predicates(), model.num_predicates(), "{at}");
 }

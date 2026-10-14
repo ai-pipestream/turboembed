@@ -180,6 +180,8 @@ final class Runs {
     // source on the texts, indexed and trained; the sentence detector runs on the fixture
     // sentences too.
     annotators.addAll(TrainGolden.all(Set.of(EN, MULTI, EDGE), Set.of(TRAIN)));
+    // The L-BFGS trainer on the same events, with the costs, update counts and thread counts it takes.
+    annotators.addAll(QnTrainGolden.all(Set.of(EN, MULTI, EDGE), Set.of(TRAIN)));
     // The sample streams of OpenNLP's native formats, and the conversion streams, which
     // detokenize with the English dictionary.
     annotators.addAll(FormatGolden.all(fixtures.resolve(FORMAT_DETOKENIZER)));

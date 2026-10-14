@@ -1,12 +1,14 @@
-//! The bytes of a trained GIS model: `GenericModelWriter` over a
-//! `GISModel`, which is `BinaryGISModelWriter` and `GISModelWriter.persist`
-//! writing through `DataOutputStream` and `ModelParameterChunker`.
+//! The bytes of a trained model: `GenericModelWriter` over a `GISModel` or
+//! a `QNModel`, which is `BinaryGISModelWriter` with `GISModelWriter.persist`
+//! or `BinaryQNModelWriter` with `QNModelWriter.persist`, writing through
+//! `DataOutputStream` and `ModelParameterChunker`.
 //!
 //! The layout, read back by `turbo-maxent` and by OpenNLP's
-//! `GISModelReader`:
+//! `GISModelReader` and `QNModelReader`:
 //!
 //! 1. `writeUTF("GIS")`, `writeInt(1)` and `writeDouble(1)`: the model type
-//!    and the correction constant and parameter, which nothing reads.
+//!    and the correction constant and parameter, which nothing reads; or
+//!    `writeUTF("QN")` alone.
 //! 2. The outcome labels: their count, then each with `writeUTF`.
 //! 3. The outcome patterns: the predicates are sorted by their pattern
 //!    (the outcome ids a predicate has parameters for, compared
@@ -33,13 +35,68 @@
 use crate::error::{Error, Result};
 use crate::gis::GisModel;
 use crate::java_string::JavaString;
+use crate::qn::QnModel;
 
 /// The type string `GISModelWriter.persist` starts with.
 pub const GIS_TYPE: &str = "GIS";
+/// The type string `QNModelWriter.persist` starts with.
+pub const QN_TYPE: &str = "QN";
 /// `ModelParameterChunker.SIGNATURE_CHUNKED_PARAMS`.
 pub const CHUNKED_SIGNATURE: &str = "CHUNKED-MODEL-PARAMS:";
 /// `writeUTF`'s limit on a string's modified UTF-8 bytes.
 pub const MAX_UTF_BYTES: usize = 65535;
+
+/// What a model writer reads from a model: `AbstractModel.getDataStructures`
+/// as `GISModelWriter`'s constructor takes it apart, the predicates in
+/// `pmap` order with each one's outcome pattern and parameters.
+pub trait WritableModel {
+    fn outcome_labels(&self) -> &[String];
+    fn pred_labels(&self) -> &[JavaString];
+    /// The outcome ids predicate `p` has parameters for.
+    fn pattern(&self, p: usize) -> &[u32];
+    /// Predicate `p`'s parameters, one per entry of its pattern.
+    fn parameters(&self, p: usize) -> &[f64];
+
+    fn num_predicates(&self) -> usize {
+        self.pred_labels().len()
+    }
+}
+
+impl WritableModel for GisModel {
+    fn outcome_labels(&self) -> &[String] {
+        GisModel::outcome_labels(self)
+    }
+
+    fn pred_labels(&self) -> &[JavaString] {
+        GisModel::pred_labels(self)
+    }
+
+    fn pattern(&self, p: usize) -> &[u32] {
+        GisModel::pattern(self, p)
+    }
+
+    fn parameters(&self, p: usize) -> &[f64] {
+        GisModel::parameters(self, p)
+    }
+}
+
+impl WritableModel for QnModel {
+    fn outcome_labels(&self) -> &[String] {
+        QnModel::outcome_labels(self)
+    }
+
+    fn pred_labels(&self) -> &[JavaString] {
+        QnModel::pred_labels(self)
+    }
+
+    fn pattern(&self, p: usize) -> &[u32] {
+        QnModel::pattern(self, p)
+    }
+
+    fn parameters(&self, p: usize) -> &[f64] {
+        QnModel::parameters(self, p)
+    }
+}
 
 /// `GenericModelWriter(model, DataOutputStream).persist()` for a GIS
 /// model: the bytes of the `.model` entry.
@@ -48,6 +105,22 @@ pub fn write_gis(model: &GisModel) -> Result<Vec<u8>> {
     out.write_utf(&JavaString::new(GIS_TYPE))?;
     out.write_int(1);
     out.write_double(1.0);
+    write_body(&mut out, model)?;
+    Ok(out.bytes)
+}
+
+/// `GenericModelWriter(model, DataOutputStream).persist()` for a QN
+/// model: the bytes of the `.model` entry.
+pub fn write_qn(model: &QnModel) -> Result<Vec<u8>> {
+    let mut out = ModelOutput { bytes: Vec::new() };
+    out.write_utf(&JavaString::new(QN_TYPE))?;
+    write_body(&mut out, model)?;
+    Ok(out.bytes)
+}
+
+/// What follows the type: the outcomes, the patterns, the predicates and
+/// the parameters, as `AbstractMLModelWriter.persist` writes them.
+fn write_body(out: &mut ModelOutput, model: &dyn WritableModel) -> Result<()> {
     out.write_int(to_java_int(model.outcome_labels().len()));
     for label in model.outcome_labels() {
         out.write_utf(&JavaString::new(label))?;
@@ -72,13 +145,13 @@ pub fn write_gis(model: &GisModel) -> Result<Vec<u8>> {
             out.write_double(param);
         }
     }
-    Ok(out.bytes)
+    Ok(())
 }
 
 /// `GISModelWriter.sortValues`: the predicate indices sorted by
 /// `ComparablePredicate.compareTo`, a stable sort as `Arrays.sort` on
 /// objects is.
-fn sort_by_pattern(model: &GisModel) -> Vec<usize> {
+fn sort_by_pattern(model: &dyn WritableModel) -> Vec<usize> {
     let mut sorted: Vec<usize> = (0..model.num_predicates()).collect();
     sorted.sort_by(|&a, &b| model.pattern(a).cmp(model.pattern(b)));
     sorted
@@ -86,7 +159,7 @@ fn sort_by_pattern(model: &GisModel) -> Vec<usize> {
 
 /// `compressOutcomes`: runs of predicates with equal patterns, as the
 /// run's size and its first predicate.
-fn pattern_groups(model: &GisModel, sorted: &[usize]) -> Vec<(usize, usize)> {
+fn pattern_groups(model: &dyn WritableModel, sorted: &[usize]) -> Vec<(usize, usize)> {
     let mut groups: Vec<(usize, usize)> = Vec::new();
     for &p in sorted {
         match groups.last_mut() {

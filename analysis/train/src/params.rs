@@ -53,6 +53,14 @@ impl Key {
     pub const GAUSSIAN_SMOOTHING: &'static str = "GaussianSmoothing";
     /// `GISTrainer`'s `GaussianSmoothingSigma`.
     pub const GAUSSIAN_SMOOTHING_SIGMA: &'static str = "GaussianSmoothingSigma";
+    /// `QNTrainer.L1COST_PARAM`.
+    pub const L1_COST: &'static str = "L1Cost";
+    /// `QNTrainer.L2COST_PARAM`.
+    pub const L2_COST: &'static str = "L2Cost";
+    /// `QNTrainer.M_PARAM`: the corrections L-BFGS keeps.
+    pub const NUM_OF_UPDATES: &'static str = "NumOfUpdates";
+    /// `QNTrainer.MAX_FCT_EVAL_PARAM`.
+    pub const MAX_FCT_EVAL: &'static str = "MaxFctEval";
 }
 
 /// `Parameters.ITERATIONS_DEFAULT_VALUE`.

@@ -5,7 +5,10 @@ computes on the JVM for fixed inputs and models. This directory holds
 everything that makes them:
 
 - `java/`: the generator, a Maven project that depends only on the OpenNLP
-  runtime, the OpenNLP formats module and the `numeric` module of the OpenNLP addons. It runs the
+  runtime, the OpenNLP formats module and the `numeric` module of the OpenNLP addons. It carries
+  its own SLF4J provider (`CapturingLogging`), which keeps every logger off
+  except the one a golden captures while it runs the annotator (the QN
+  trainer reports its iterations only through debug logging). It runs the
   annotator runs listed below over their input sets and writes one golden
   per run and input; for the `num` set it runs `NumberScan` of the addons
   module, and for the `money` set `MoneyAnnotator` with
@@ -110,6 +113,7 @@ a directory with the same model run without them, and its options are
 | `subwords` (`WordpieceEncoder`) | `all-minilm-l6-v2-vocab` (fixture) | `en`, `multi`, `edge`, `surrogate`, `subwords` | `lowerCase true`, `maxWordCodePoints 100` |
 | `bpe` (`BPETokenizerTrainer`, `BPETokenizer`) | `merges-40`, `merges-400` | `bpe` | `languageCode en`, `numMerges` |
 | `train` (the data indexers and `GISTrainer`) | `<source>-<indexer>-cutoff<n>`, with `-unsorted` when sorting is off: ten runs over the sources `sentdetect`, `tokenize` and `realvalue` | `en`, `multi`, `edge`; `sentdetect` also `train` | `source`, `DataIndexer`, `Cutoff`, `sort`, `Iterations` |
+| `train` (`QNTrainer`) | the same, with `-qn` appended, then `-l1`, `-l2` or `-plain` when only one cost, or neither, is on: six runs | `en`, `multi`, `edge`; one `sentdetect` run also `train` | the same with `Algorithm`, `L1Cost`, `L2Cost`, `NumOfUpdates`, `MaxFctEval`, `Threads` |
 | `unigram` (`UnigramSegmenter`) | `zh-unigram-fixture` (fixture), also `+legacy` | `zh`, `multi`, `edge`, `surrogate` | `whitespace legacy` |
 | | `jieba-dict-subset` (fixture), also `+legacy` | `zh`, `multi`, `edge` | `whitespace legacy` |
 | | `zh-unigram-modes` (fixture), also `+legacy` | `zh` | `whitespace legacy` |

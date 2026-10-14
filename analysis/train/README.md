@@ -15,7 +15,9 @@ starts at events.
 | `params` | `TrainingParameters`, `Parameters`, `AlgorithmType`, `TrainerFactory.TrainerType`, `getTrainerType`, `isValid` |
 | `monitor` | `TrainingProgressMonitor`, `DefaultTrainingProgressMonitor`, `TrainingMeasure`, `StopCriteria`, `LogLikelihoodThresholdBreached`, `IterDeltaAccuracyUnderTolerance`, `TrainingConfiguration` |
 | `gis` | `GISTrainer`, `GISModel`'s data structures, `UniformPrior`, `AbstractEventTrainer.train` |
-| `writer` | `GenericModelWriter`, `BinaryGISModelWriter`, `GISModelWriter.persist`, `ComparablePredicate`, `ModelParameterChunker` |
+| `qn` | `QNTrainer`, `QNMinimizer`, `LineSearch`, `NegLogLikelihood`, `ParallelNegLogLikelihood`, `QNModel`'s data structures |
+| `trainer` | `TrainerFactory.getEventTrainer`: the trainer `Algorithm` names |
+| `writer` | `GenericModelWriter`, `BinaryGISModelWriter`, `BinaryQNModelWriter`, `GISModelWriter.persist`, `QNModelWriter.persist`, `ComparablePredicate`, `ModelParameterChunker` |
 | `package` | `BaseModel.serialize`, the manifest `BaseModel` builds and `PropertiesSerializer` writes, `SentenceModel`'s entries |
 | `context` | `BasicContextGenerator` |
 | `crc32c` | `java.util.zip.CRC32C` |
@@ -80,6 +82,44 @@ deflates them in `HashMap` order with the local time. Both readers take
 both. Timestamps are an argument, never read from a clock, so a model
 file is reproducible.
 
+## QN trainer
+
+`qn::train_events` and `qn::train` are `TrainerFactory.getEventTrainer` for
+`Algorithm=MAXENT_QN`, and `trainer::train_events` picks the GIS or the QN
+trainer by that parameter. `qn::train_model` runs `QNMinimizer` from the
+origin with an observer called after every iteration with the iteration's
+value, change rate, step and evaluation count and the point the minimizer
+is at; `qn::model_parameters` turns a point into the parameters a run
+stopping there writes, and `qn::training_accuracy` is the accuracy the
+JVM's `ModelEvaluator` computes. The port keeps the L-BFGS two loop
+recursion with its `NumOfUpdates` corrections, the backtracking line search
+and the constrained one of `L1Cost`, the L2 penalty of `L2Cost`, the four
+stop tests (`QnStop`), the rescaling by `sqrt(1 + L2Cost)` when both costs
+are on, `StrictMath` in the log sum of exponentials, and with `Threads`
+above one the JVM's chunks of events and their order of summation.
+`writer::write_qn` produces the `.model` bytes (`QNModelWriter.persist`:
+the type `QN`, then what a GIS model has without its correction fields).
+
+Parity: `QNTrainer` reports nothing to a progress monitor, so the goldens
+of the QN runs (`QnTrainGolden`, directories ending in `-qn`, `-qn-l1`,
+`-qn-l2` or `-qn-plain`) record what `QNMinimizer` logs at debug level,
+captured by the generator's own SLF4J provider: per iteration the objective
+value, its change rate and the training accuracy, and the test that stopped
+it; the parameters after each iteration come from a run of that many
+iterations, as for GIS. `tests/goldens.rs` trains every QN golden's index
+and compares all of it, every parameter bit for bit after the first and the
+last iteration and by digest in between, and the written model's bytes.
+The runs stop by the change rate or the evaluation limit; none reaches the
+gradient norm or the minimum step first, so those two tests are checked
+against the Java code only.
+`tests/roundtrip.rs` reproduces `analysis/maxent/tests/fixtures/models/qn.model`
+byte for byte and packages a QN sentence model trained from the golden
+events as a `.bin` that `turbo-maxent` and `turbo-sentdetect` open. That
+`.bin` was also loaded in the JVM beside a `SentenceDetectorME.train` run
+with `MAXENT_QN` on the same text: the model bytes are identical and
+`SentenceDetectorME` gives the same 210 spans with bit-equal
+probabilities.
+
 ## OpenNLP behaviour worth knowing
 
 - `FileEventStream` throws `NoSuchElementException` on an empty line, so
@@ -127,11 +167,38 @@ file is reproducible.
 - `BaseModel` writes `OpenNLP-Version` from `Version.currentVersion()`,
   `3.0.0-SNAPSHOT` for the fork this crate ports; `package::OPENNLP_VERSION`
   holds it.
+- `QNTrainer` never calls its `TrainingProgressMonitor` and reads no
+  `StopCriteria`; the only account of its iterations is `QNMinimizer`'s
+  debug log, and its training accuracy is computed only when that log is
+  on. The Rust trainer takes no `TrainingConfiguration` and reports through
+  the observer of `qn::train_model` instead.
+- `QNMinimizer.UpdateInfo` discards the oldest correction by shifting array
+  references (`S[i] = S[i + 1]`), so once `NumOfUpdates` corrections are
+  stored the newest slot and the one before it are the same array, and each
+  further discard adds a slot to the alias group. Writing the newest
+  correction then overwrites the older ones, while their `rho` values stay;
+  the two loop recursion runs on copies of the latest correction. The
+  aliasing is reproduced (`qn::UpdateInfo` keeps slot indices), since the
+  parameters depend on it from iteration `NumOfUpdates + 1` on.
+- `ParallelNegLogLikelihood` sums each thread's share of the value and of
+  the gradient and then adds the shares in thread order, so a run with
+  several threads differs from one thread's in the last bits but is
+  reproducible, unlike `GISTrainer`'s. The last chunk takes the remainder
+  of the events (`GISTrainer` spreads it over the first chunks).
+- `QNModel.eval(String[], double[])` adds into the array it is given
+  without clearing it, so a caller that reuses an output array gets sums
+  accumulated across calls; `GISModel` and `PerceptronModel` clear theirs.
+  Training is unaffected: `ModelEvaluator` evaluates on a fresh array per
+  event, and `turbo-maxent` clears the array, so a model trained here
+  scores as the JVM scores it on a fresh array.
+- The line search halves the step until the Armijo condition holds. When
+  the objective is NaN it never does and the JVM loops without end; here
+  the loop stops with `Error::LineSearch` once the step has reached zero.
 
 Not ported: `Float.parseFloat` and `Double.parseDouble` read hexadecimal
 literals (`0x1p3`), which `turbo_jvm::text` refuses; a real valued feature
 written that way is counted as 1 here where OpenNLP would read it. The
 abbreviation dictionary entry of a sentence or tokenizer model
 (`abbreviations.dictionary`, `DictionarySerializer`) has no writer here
-yet; `ModelPackage::add_entry` takes its bytes. Nor are the QN, perceptron
-and naive Bayes trainers.
+yet; `ModelPackage::add_entry` takes its bytes. Nor are the perceptron and
+naive Bayes trainers (`Error::NotPorted`).
