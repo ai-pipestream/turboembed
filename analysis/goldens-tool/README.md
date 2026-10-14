@@ -5,7 +5,7 @@ computes on the JVM for fixed inputs and models. This directory holds
 everything that makes them:
 
 - `java/`: the generator, a Maven project that depends only on the OpenNLP
-  runtime and the `numeric` module of the OpenNLP addons. It runs the
+  runtime, the OpenNLP formats module and the `numeric` module of the OpenNLP addons. It runs the
   annotator runs listed below over their input sets and writes one golden
   per run and input; for the `num` set it runs `NumberScan` of the addons
   module, and for the `money` set `MoneyAnnotator` with
@@ -17,7 +17,8 @@ everything that makes them:
   annotator gave the model and every outcome probability `eval` returned.
 - `container/Dockerfile`: the container the generator runs in. It starts
   from `eclipse-temurin:21-jdk` pinned by digest, clones the OpenNLP fork
-  at a pinned commit, builds the runtime with the repository's `mvnw`,
+  at a pinned commit, builds the runtime and the formats module with the
+  repository's `mvnw`,
   clones `opennlp-addons` at a pinned commit and installs its `numeric`
   module, and builds the generator.
 - `src/`: the driver, the `turbo-goldens` binary. `src/recipe.rs` holds the
@@ -116,6 +117,8 @@ a directory with the same model run without them, and its options are
 | | `mecab-fixture-partial` (fixture) | `ja`, `edge` | |
 | | `mecab-ipadic-2.7.0-20070801` | `ja`, `multi`, `edge`, `surrogate` | |
 | | `mecab-ko-dic-2.1.1-20180720` | `ko`, `multi`, `edge`, `surrogate` | |
+| `formats` (the native sample streams) | `name`, `wordtag`, `token`, `doccat`, each also `+legacy`; `lemma`, `chunk`, `sentence`, `language` | `formats`, the inputs whose id starts with the format | `whitespace legacy` |
+| `formats` (the conversion streams) | `name-to-token`, `name-to-sentence`, `pos-to-token`, `pos-to-sentence`, with `en-detokenizer` (fixture) | `formats`, the `name` and `wordtag` inputs | `chunkSize 2` for the sentence conversions |
 
 - `+english-dictionary` is the English model rebuilt through
   `TokenizerModel(MaxentModel, Map, TokenizerFactory)` with the
@@ -219,6 +222,37 @@ License 2.0; neither is checked in, and only the goldens made with them
 are. Those goldens hold the feature columns of the entries chosen, so
 `analysis/goldens/data/README.md` carries IPADIC's notice and names
 mecab-ko-dic's license.
+
+## Format goldens
+
+`formats/<format>/formats/<id>.golden` is what one of OpenNLP's sample
+streams read from `inputs/formats/<id>.txt`, a file in the format the id
+starts with, read as the command line tools read it
+(`PlainTextByLineStream` over UTF-8). `FormatGolden` lists the streams:
+`NameSampleDataStream`, `WordTagSampleStream`, `LemmaSampleStream`,
+`ChunkSampleStream` (of `opennlp.tools.chunker`), `TokenSampleStream`,
+`SentenceSampleStream`, `DocumentSampleStream` and
+`LanguageDetectorSampleStream`, the four that split lines with
+`WhitespaceTokenizer` also in the legacy whitespace mode, and the
+conversion streams `NameToTokenSampleStream`, `POSToTokenSampleStream`,
+`NameToSentenceSampleStream` and `POSToSentenceSampleStream` with the
+fixture `en-detokenizer.xml` (the `model` record). The sentence
+conversions run with a chunk size of 2, so the inputs show the sample a
+full chunk drops.
+
+The stream is read until it returns null; an exception from `read` is
+recorded and reading goes on. Every layer is anchored to the document:
+`turbo:samples` (each sample's `toString`), `turbo:read-errors` (the
+number of samples before each exception, its class and message), and by
+sample type `turbo:sample-tokens` (sample index and token) with
+`turbo:sample-tags`, `turbo:sample-lemmas` and `turbo:sample-chunks`
+aligned to it, `turbo:names` and `turbo:phrases` (sample, token span,
+type), `turbo:phrase-errors` (what `getPhrasesAsSpanList` threw),
+`turbo:sample-texts` and `turbo:sample-spans` (a token or sentence
+sample's own text and the UTF-8 byte span of each token or sentence in
+it) and `turbo:sample-labels` (a category or language). The streams ask
+no model, so there are no dumps. `analysis/formats/tests/opennlp.rs`
+compares the Rust readers with these goldens.
 
 ## Normalizer goldens
 
@@ -339,7 +373,7 @@ git init opennlp && cd opennlp
 git remote add origin https://github.com/ai-pipestream/opennlp.git
 git fetch --depth 1 origin cdf33c653d5d61d5af7d37ffee189a83bd8392ea
 git checkout FETCH_HEAD
-./mvnw -q -DskipTests -DskipITs -Dforbiddenapis.skip=true -pl opennlp-core/opennlp-runtime -am install
+./mvnw -q -DskipTests -DskipITs -Dforbiddenapis.skip=true -pl opennlp-core/opennlp-runtime,opennlp-core/opennlp-formats -am install
 cd ..
 git init opennlp-addons && cd opennlp-addons
 git remote add origin https://github.com/ai-pipestream/opennlp-addons.git
@@ -371,5 +405,6 @@ identical.
 `-DskipITs` skips the integration tests, which download models from the
 network. `-Dforbiddenapis.skip=true` skips the forbidden API check, which
 fails at the earlier pinned commit on `NameSample` and `Parse` in `opennlp-api`
-(their use of `java.util.regex`); the generator uses neither class, and
-the check reads the compiled classes without changing them.
+(their use of `java.util.regex`); the check reads the compiled classes
+without changing them, so skipping it changes nothing the generator runs,
+including the `formats` goldens, which read `NameSample`s.

@@ -1,0 +1,62 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	formats/token-basic	176	171	95d6ac7e7b8c22dae049349f171344a88e3734173d1d97c8a0e5140a8999a670
+annotator	opennlp.tools.tokenize.TokenSampleStream	read
+config	whitespace	legacy
+layer	turbo:samples	document	9	written:str
+He said<SPLIT>, "<SPLIT>Yes<SPLIT>."
+
+<SPLIT>a<SPLIT><SPLIT>b<SPLIT>
+spaced out
+tab and nbspnel fs
+<SPLIT>
+😀<SPLIT>é<SPLIT>x
+a<SPLIT b<SPLIT>>c <SPLIT<SPLIT>>
+last
+end	turbo:samples
+layer	turbo:read-errors	document	0	after:u32	class:str	message:str
+end	turbo:read-errors
+layer	turbo:sample-texts	document	9	text:str
+He said, "Yes." 
+
+ab 
+spaced out 
+tab and nbspnel fs 
+ 
+😀éx 
+a<SPLIT b>c <SPLIT> 
+last 
+end	turbo:sample-texts
+layer	turbo:sample-spans	document	28	sample:u32	start:u32	end:u32
+0	0	2
+0	3	7
+0	7	8
+0	9	10
+0	10	13
+0	13	15
+2	0	0
+2	0	1
+2	1	1
+2	1	2
+2	2	2
+3	0	6
+3	7	10
+4	0	3
+4	4	7
+4	8	17
+4	18	20
+5	0	0
+5	0	0
+6	0	4
+6	4	6
+6	6	7
+7	0	7
+7	8	9
+7	9	11
+7	12	18
+7	18	19
+8	0	4
+end	turbo:sample-spans

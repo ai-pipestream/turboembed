@@ -1,0 +1,16 @@
+
+ 
+  One sentence.  
+Two<LF>
+
+
+	
+Three<CR<LF>>.
+Four<CR><LF>five.
+<LF>edge<LF>
+ nbsp 
+
+
+
+😀 emoji é.
+last without a line feed

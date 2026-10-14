@@ -98,6 +98,21 @@ are not taken from any corpus.
   outside the Basic Multilingual Plane (`emoji`) and words holding `</w>`
   as text (`end-marker`).
 
+- `inputs/formats/`: 15 small files in OpenNLP's native sample formats,
+  written for this project; the part of the id before the first hyphen
+  names the format (`name`, `wordtag`, `lemma`, `chunk`, `token`,
+  `sentence`, `doccat`, `language`). They hold ordinary samples and the
+  lines the streams treat unusually: untyped and nested start tags, an
+  empty type, stray and missing end tags, empty names, tags that are not
+  whole tokens, one-token samples, empty and whitespace-only lines, CR LF
+  and lone CR, tokens without `_`, lines with too few or too many
+  columns, two empty lines in a row, chunk tags that start phrases
+  without `B-` or are one character long, `<SPLIT>` at the ends of a
+  token and twice in a row, `<LF>` and `<CR>` escapes, a category with no
+  text, lines without a language, tabs, no-break spaces, `U+0085`,
+  `U+001C`, emoji and accented letters, and a last line without a line
+  feed.
+
 `analysis/goldens-tool/README.md` ("Runs") lists which run reads which set.
 
 ## Fixtures

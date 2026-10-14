@@ -1,0 +1,14 @@
+He PRP B-NP
+reckons VBZ B-VP
+the DT B-NP
+current JJ I-NP
+account NN I-NP
+deficit NN I-NP
+will MD B-VP
+narrow VB I-VP
+. . O
+
+Confidence NN B-NP
+in IN B-PP
+the DT B-NP
+pound NN I-NP
