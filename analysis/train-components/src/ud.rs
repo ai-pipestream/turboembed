@@ -600,6 +600,13 @@ impl Comparison {
 /// matched by predicate name and outcome label, or why they cannot be
 /// matched.
 fn parameter_distance(ours: &GisModel, theirs: &MaxentModel) -> std::result::Result<ParameterDistance, String> {
+    // The outcomes first, in order: a pattern is indices into them, and an
+    // outcome no pattern names would not be seen below.
+    let our_labels: Vec<&str> = ours.outcome_labels().iter().map(String::as_str).collect();
+    let their_labels: Vec<&str> = (0..theirs.num_outcomes()).map(|o| theirs.outcome(o)).collect();
+    if our_labels != their_labels {
+        return Err(format!("the outcomes are {our_labels:?} trained and {their_labels:?} published"));
+    }
     if ours.num_predicates() != theirs.num_predicates() {
         return Err(format!("{} predicates trained, {} published", ours.num_predicates(), theirs.num_predicates()));
     }
@@ -895,5 +902,24 @@ mod tests {
         let published = ModelFile::open(lemmas.package.to_bytes()).unwrap();
         let same = Comparison::of(&RECIPES[3], &lemmas, &published).unwrap();
         assert!(same.reproduced(), "{}", same.report());
+
+        // A model with another outcome is not comparable, before any
+        // predicate is looked at.
+        let more = format!(
+            "{conllu}# text = Big dogs ran.\n\
+             1\tBig\tbig\tADJ\tJJ\t_\t2\tamod\t_\t_\n\
+             2\tdogs\tdog\tNOUN\tNNS\t_\t3\tnsubj\t_\t_\n\
+             3\tran\trun\tVERB\tVBD\t_\t0\troot\t_\tSpaceAfter=No\n\
+             4\t.\t.\tPUNCT\t.\t_\t3\tpunct\t_\t_\n\n"
+        )
+        .repeat(5);
+        let five = RECIPES[2].train(&more, 1_749_698_398_335, &mut config).unwrap();
+        assert_eq!(five.model.outcome_labels().len(), 5);
+        let published = ModelFile::open(pos.package.to_bytes()).unwrap();
+        let other = Comparison::of(&RECIPES[2], &five, &published).unwrap();
+        let why = other.parameters.as_ref().unwrap().as_ref().unwrap_err();
+        assert!(why.starts_with("the outcomes are [\"NOUN\", \"VERB\", \"PUNCT\", \"DET\", \"ADJ\"] trained"), "{why}");
+        assert!(!other.agrees_within(1e-12));
+        assert!(other.report().contains("parameters not comparable: the outcomes are"), "{}", other.report());
     }
 }

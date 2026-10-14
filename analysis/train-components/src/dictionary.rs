@@ -161,15 +161,15 @@ fn xml_can_carry(c: char) -> bool {
 /// The XML `DictionaryEntryPersistor.serialize` writes for these entries
 /// in this order, none with attributes.
 fn write_xml<'e>(case_sensitive: bool, entries: impl IntoIterator<Item = &'e [String]>) -> Result<Vec<u8>> {
-    write_entries_xml(case_sensitive, entries.into_iter().map(|tokens| XmlEntry { tokens, attributes: &[] }))
+    write_entries_xml(case_sensitive, entries.into_iter().map(|tokens| XmlEntry { tokens, tags: None }))
 }
 
 /// An entry as `DictionaryEntryPersistor.serialize` is given it: its
-/// tokens and the attributes of its `entry` element, in the order they
-/// are written.
+/// tokens, and for a tag dictionary its tags, which `POSDictionary` joins
+/// with single spaces into the `tags` attribute of its `entry` element.
 pub(crate) struct XmlEntry<'e> {
     pub tokens: &'e [String],
-    pub attributes: &'e [(String, String)],
+    pub tags: Option<&'e [String]>,
 }
 
 /// The XML `DictionaryEntryPersistor.serialize` writes for these entries
@@ -184,17 +184,20 @@ pub(crate) fn write_entries_xml<'e>(
     let mut out = String::from("<?xml version=\"1.0\" encoding=\"UTF-8\"?><dictionary case_sensitive=\"");
     out.push_str(if case_sensitive { "true" } else { "false" });
     let mut any = false;
-    for XmlEntry { tokens, attributes } in entries {
+    for XmlEntry { tokens, tags } in entries {
         if !any {
             out.push_str("\">\n");
             any = true;
         }
         out.push_str("    <entry");
-        for (name, value) in attributes {
-            out.push(' ');
-            out.push_str(name);
-            out.push_str("=\"");
-            push_attribute(&mut out, value)?;
+        if let Some(tags) = tags {
+            out.push_str(" tags=\"");
+            for (i, tag) in tags.iter().enumerate() {
+                if i > 0 {
+                    out.push(' ');
+                }
+                push_attribute(&mut out, tag)?;
+            }
             out.push('"');
         }
         out.push_str(">\n");
