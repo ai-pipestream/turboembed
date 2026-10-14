@@ -10,52 +10,16 @@
 //! "opennlp:chunks" are phrase chunks (noun and verb groups), not
 //! retrieval chunks, so `Chunks` is "turbo:chunks".
 
-use std::collections::HashMap;
 use std::marker::PhantomData;
 use std::sync::Arc;
 
 use turbo_analysis::{Anchor, Ix, IxRange, Key, KeyId, Layer, ModelRef, Spans, ViewId};
+pub use turbo_analysis::{Edge, Edges, Groups, Tag, TagSet};
 
 pub use levels::{Level, Levels, Unit, VectorKind};
 pub use money::{CONVERTED_MONEY, Currency, Money, MoneyMention};
 pub use numbers::{DecimalRef, Multiplier, NumberMention, NumberNotation, Numbers, ScaleMarker};
 pub use quantities::{PERCENT, Quantities, QuantityMention};
-
-/// A closed set of labels (a POS tag set, entity kinds, dependency
-/// relations), interned: a layer stores a u16 per item, never a string.
-#[derive(Debug, Default)]
-pub struct TagSet {
-    pub name: String,
-    names: Vec<Box<str>>,
-    index: HashMap<Box<str>, u16>,
-}
-
-#[derive(Copy, Clone, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
-pub struct Tag(pub u16);
-
-impl TagSet {
-    pub fn new(name: &str, labels: &[&str]) -> Arc<TagSet> {
-        let names: Vec<Box<str>> = labels.iter().map(|&l| l.into()).collect();
-        let index = names.iter().enumerate().map(|(i, n)| (n.clone(), i as u16)).collect();
-        Arc::new(TagSet { name: name.into(), names, index })
-    }
-
-    pub fn tag(&self, label: &str) -> Option<Tag> {
-        self.index.get(label).map(|&i| Tag(i))
-    }
-
-    pub fn label(&self, t: Tag) -> &str {
-        &self.names[t.0 as usize]
-    }
-
-    pub fn len(&self) -> usize {
-        self.names.len()
-    }
-
-    pub fn is_empty(&self) -> bool {
-        self.names.is_empty()
-    }
-}
 
 /// Strings by column: one buffer and an end offset per item, never a
 /// `String` per item. Lemmas, normalized forms, glosses.
