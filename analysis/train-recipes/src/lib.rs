@@ -9,8 +9,8 @@
 //!   English UD models on the same held-out samples, and gated by
 //!   `turbo_eval::model_gate`.
 //! - [`postag`]: the English part-of-speech tagger trained on MASC's Penn
-//!   tags, gated the same way against the OpenNLP English UD tagger asked
-//!   for Penn tags.
+//!   tags, gated the same way against OpenNLP 1.5's Penn tagger
+//!   (`en-pos-maxent.bin`).
 //! - [`card`]: the model card kept beside the gate record, and the
 //!   model's permissive zoo entry with its licence and attribution.
 //!
