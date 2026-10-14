@@ -298,7 +298,11 @@ impl Document {
                     detail: format!("an index past the end of {target}, which has {len}"),
                 });
             }
-            on.push(target);
+            // An edge layer within one instance (`Edges<Tokens, Tokens>`)
+            // indexes it from both ends: record it once.
+            if !on.contains(&target) {
+                on.push(target);
+            }
         }
         let len = layer.len();
         // A view gets the next id and joins the view table.

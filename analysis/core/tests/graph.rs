@@ -129,6 +129,13 @@ fn edges_between_named_layer_instances_check_the_named_instances() {
     let cross_key = Key::<Edges<Tokens, Tokens>>::named("a_to_b");
     doc.add(&cross_key, cross, Provenance::by("test:cross")).unwrap();
     assert_eq!(doc.made_on(cross_key.id()), [TOK_A.id(), TOK_B.id()]);
+
+    // Both ends in the same instance: it is recorded once.
+    let within =
+        Edges::between(TOK_B, TOK_B, TagSet::new("next", &["next"]), [Edge::new(Ix::new(0), Ix::new(1), Tag(0), 1.0)]);
+    let within_key = Key::<Edges<Tokens, Tokens>>::named("b_to_b");
+    doc.add(&within_key, within, Provenance::by("test:within")).unwrap();
+    assert_eq!(doc.made_on(within_key.id()), [TOK_B.id()]);
 }
 
 #[test]
