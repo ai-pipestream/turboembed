@@ -26,6 +26,7 @@ nothing here is in the C header or the gRPC server.
 | `turbo-goldens` | `analysis/goldens/` | Golden layer files from the JVM: the reader, the writer, the comparison, loading golden layers as test inputs, SHA-256 and SHA-512 |
 | `turbo-sequence` | `analysis/sequence/` | OpenNLP's beam search, BIO and BILOU codecs and feature generation framework (generators, `StringPattern` and the XML descriptors), with the context generators and validators of the part-of-speech tagger, chunker and name finder, the part-of-speech tag dictionary (`tags.tagdict`) and the Penn Treebank and Universal Dependencies tag mapping. Its crate documentation lists the OpenNLP behaviour it reproduces that is surprising, and the one it does not yet (QN models in a beam search); `analysis/sequence/README.md` describes its JVM golden files |
 | `turbo-postag` | `analysis/postag/` | OpenNLP's `POSTaggerME`: `PosModel` opens a `POSModel` file with its descriptor, tag dictionary, beam size and tag format, and `PosTagger` writes `opennlp:pos` (a tag and its probability per token, aligned to `opennlp:tokens`, one beam search per sentence). Tags and probabilities are the JVM's bit for bit; the crate documentation lists the OpenNLP behaviour that is surprising, and `analysis/postag/README.md` describes its goldens and its accuracy on UD English EWT |
+| `turbo-lemmatizer` | `analysis/lemmatizer/` | OpenNLP's `LemmatizerME` (`LemmatizerModel`, `MaxentLemmatizer`: a beam search per sentence over the tagged tokens whose outcomes are lemma classes, shortest edit scripts applied to the lowercased token) and `DictionaryLemmatizer` (a `word<tab>tag<tab>lemma` lookup). Both read `opennlp:tokens` and `opennlp:pos` and write `opennlp:lemmas`; the maxent one also writes `turbo:confidence<opennlp:lemmas>`. Lemmas and probabilities are the JVM's bit for bit; the crate documentation lists the OpenNLP behaviour that is surprising, and `analysis/lemmatizer/README.md` describes its goldens |
 | `turbo-namefind` | `analysis/namefind/` | OpenNLP's `DictionaryNameFinder`, `RegexNameFinder` and the patterns of `RegexNameFinderFactory`, which write `opennlp:entities` from `opennlp:tokens`, and the merge of several entity layers by `dropOverlappingSpans`. User patterns in Java syntax are translated to the `regex` crate or refused with a typed error; the crate documentation lists what is refused and the OpenNLP behaviour that is surprising, and `analysis/namefind/README.md` describes its JVM golden files |
 | `turbo-stem` | `analysis/stem/` | OpenNLP's stemmers: `PorterStemmer`, the 21 Snowball stemmers (generated from the Snowball sources OpenNLP's classes come from, over UTF-16 code units as in Java), the light and minimal stemmers, `CachingStemmer`, and `StemAnnotator` (OpenNLP's `StemmerAnnotator`), which writes `turbo:stems` from `opennlp:tokens`. Its crate documentation lists the OpenNLP behaviour that is surprising; `analysis/stem/README.md` describes its JVM golden files and how OpenNLP's Snowball stems differ from current Snowball's |
 | `turbo-stem-layers` | `analysis/stem-layers/` | The stemmers' layer, `turbo:stems` |
@@ -1486,6 +1487,8 @@ The generator writes these layers, in this order within a golden:
 | `tokenize` (`TokenizerME.tokenizePos`) | `opennlp:tokens`, `turbo:utf16<opennlp:tokens>` when a token cuts a character, `turbo:confidence<opennlp:tokens>` |
 | `langdetect` (`LanguageDetectorME.predictLanguages`) | `opennlp:language` |
 | `postag` (`POSTaggerME.tag` on each sentence `SentenceDetectorME` and `TokenizerME` cut) | `opennlp:sentences` and `opennlp:tokens` as above, then `opennlp:pos` aligned to the tokens (`tag:str`, `prob:f64` from `probs()`) |
+| `lemmatize` (`LemmatizerME.lemmatize` on each sentence, tagged by `POSTaggerME`) | `opennlp:sentences`, `opennlp:tokens` and `opennlp:pos` as above, then `opennlp:lemmas` aligned to the tokens (`lemma:str`) and `turbo:confidence<opennlp:lemmas>` (`value:f64` from `probs()`) |
+| `lemmatize-dictionary` (`DictionaryLemmatizer.lemmatize`) | the same without the confidence; `O` where the dictionary has no entry |
 | `sentdetect` (`NewlineSentenceDetector.sentPosDetect`) | `opennlp:sentences` |
 | `tokenize` (`SimpleTokenizer`, `WhitespaceTokenizer` `tokenizePos`) | `opennlp:tokens`, `turbo:utf16<opennlp:tokens>` when a token cuts a character |
 | `tokenize` (`WordTokenizer.tokenizeTyped`, UAX #29) | `opennlp:tokens`, `turbo:utf16<opennlp:tokens>` when a token cuts a character, `turbo:word-types` |
@@ -1563,8 +1566,8 @@ least one row cuts a character, so every other golden is as it was.
 
 ## Decision point dumps
 
-Beside each golden of `sentdetect`, `tokenize`, `postag` and `langdetect`
-that names a model and has no error record,
+Beside each golden of `sentdetect`, `tokenize`, `postag`, `lemmatize` and
+`langdetect` that names a model and has no error record,
 `<annotator>/<model>/<set>/<id>.dump` records every
 decision the annotator asked its maxent model for on that input: the
 context strings the context generator produced and the probability of
@@ -1572,7 +1575,7 @@ each outcome that `eval` returned. A Rust context generator and the
 Rust maxent and perceptron evaluation can be checked against it one
 decision at a time, before a whole annotator's golden lines up. The
 generator writes them for `SentenceDetectorME`, `TokenizerME`,
-`POSTaggerME` and `LanguageDetectorME`. `turbo_goldens::Dump::read` parses one into its
+`POSTaggerME`, `LemmatizerME` and `LanguageDetectorME`. `turbo_goldens::Dump::read` parses one into its
 header (the golden's `Header` type) and a `Point` per decision, with the
 contexts as UTF-16 units, since a context can hold half of a surrogate
 pair.
@@ -1620,8 +1623,9 @@ point	...
   inside a whitespace separated token; for the part-of-speech tagger it is
   the offset of the start of the token the context is about (the beam
   search asks about a token once per path it extends, so a token has as
-  many points as the beam kept paths, in the order the search made them);
-  for the language detector it is 0.
+  many points as the beam kept paths, in the order the search made them),
+  and the same for the maxent lemmatizer; for the language detector it is
+  0.
 - `unit` is 0 when the UTF-16 index OpenNLP decided at starts a code
   point, and 1 when it lies between the two halves of a surrogate pair.
   The tokenizer walks UTF-16 units, so it asks about such positions inside
@@ -2084,7 +2088,10 @@ runs them on any machine:
   `turbo_goldens` (`docs/segmentation.md`, "Golden files"). The tests of
   `turbo-postag` load each `postag` golden's sentences and tokens with
   `load_document`, tag them, and compare the tags with
-  `matches_golden_key` (`analysis/postag/README.md`).
+  `matches_golden_key` (`analysis/postag/README.md`); the tests of
+  `turbo-lemmatizer` do the same with the tokens and tags of each
+  `lemmatize` and `lemmatize-dictionary` golden
+  (`analysis/lemmatizer/README.md`).
 - A doctest on `Ix` checks that an index into the wrong layer does not
   compile.
 

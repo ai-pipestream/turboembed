@@ -1,0 +1,26 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	edge/chinese	70	24	6a87cfac7eeb0aa8e368eca93b72edde8c893c5dc4c4d1a1379f9d00c9e0f3cd
+model	opennlp-de-ud-gsd-lemmas-1.3-2.5.4.bin	616c83327e1af12c8952f362fd99be6efcdc4e28526bee1debf27d3446110ded9beef7e0e2acc9b3094039683c9b4b2b2b0ba32dbf194278d5017e2b21e66371
+model	opennlp-de-ud-gsd-sentence-1.3-2.5.4.bin	c811604c24cdbe490ab42dcffdbae63f9a74b39622f21b7b31f63eea566ffe35ef871f0da905e61180656b877cf0be4d626588c6312fcc18df5ab9a35b4183fa
+model	opennlp-de-ud-gsd-tokens-1.3-2.5.4.bin	343c9fe93ff301b736f30fa2e0d954b270994a1535ec2bd424553cbd82b13eb0d86aa2042946db62322430a8b5a8f29a8a2d882f107cb26c6d4f6d494d97debf
+model	opennlp-de-ud-gsd-pos-1.3-2.5.4.bin	9e44d582874464924a8baf8fbfed7500e15112c3dc446bfc5be281bff4dbbf195eda0a16ca7e78fde7a64a684c0f780b5987723db800ce88465b9894ef0ba17b
+annotator	opennlp.tools.lemmatizer.LemmatizerME	lemmatize
+layer	opennlp:sentences	text	1	start:u32	end:u32
+0	69
+end	opennlp:sentences
+layer	opennlp:tokens	text	1	start:u32	end:u32
+0	69
+end	opennlp:tokens
+layer	opennlp:pos	aligned:opennlp:tokens	1	tag:str	prob:f64
+ADP+DET	3fd99fe745c0de06 0.4003847294984272
+end	opennlp:pos
+layer	opennlp:lemmas	aligned:opennlp:tokens	1	lemma:str
+我爱北京天安门。今天天气很好，我们去公园玩吧！
+end	opennlp:lemmas
+layer	turbo:confidence<opennlp:lemmas>	aligned:opennlp:lemmas	1	value:f64
+3fc0d8b718a8ebfb 0.13161362365812565
+end	turbo:confidence<opennlp:lemmas>
