@@ -232,18 +232,37 @@ impl<'c> Iterator for MascPosReader<'c> {
     }
 }
 
+/// What the token reader does with a sentence it cannot make a sample
+/// of: one whose text is empty or that has an empty token.
+#[derive(Copy, Clone, Debug, Default, PartialEq, Eq, Hash)]
+pub enum EmptySentence {
+    /// As OpenNLP: the sentence and every sentence after it in the same
+    /// `read` are skipped, so the read ends the corpus.
+    #[default]
+    EndsCorpus,
+    /// The sentence alone is skipped and counted
+    /// ([`MascTokenReader::skipped`]); the read goes on with the next
+    /// sentence. Not what OpenNLP does: a training recipe that should not
+    /// lose the rest of a corpus to one such sentence uses it.
+    Skipped,
+}
+
 /// `MascTokenSampleStream`: a token sample per sentence of the documents
 /// with Penn tags, of the text from the start of the sentence's first
 /// token to the end of its last.
 ///
-/// A sentence whose text is empty (it has no tokens) is skipped, and so
-/// is every sentence after it in the same `read`: the stream's flag for
-/// a sentence found is set once before its loop and never again, so the
-/// read goes on to the end of the corpus and returns the end.
+/// A sentence whose text is empty (it has no tokens) or that has an
+/// empty token is skipped, and so is every sentence after it in the same
+/// `read`: the stream's flag for a sentence found is set once before its
+/// loop and never again, so the read goes on to the end of the corpus and
+/// returns the end. [`MascTokenReader::with_empty_sentences`] can skip
+/// such a sentence alone instead.
 #[derive(Clone, Debug)]
 pub struct MascTokenReader<'c> {
     cursor: Cursor<'c>,
     done: bool,
+    empty: EmptySentence,
+    skipped: usize,
 }
 
 impl<'c> MascTokenReader<'c> {
@@ -251,9 +270,28 @@ impl<'c> MascTokenReader<'c> {
     ///
     /// [`MascError::NoDocuments`] when no document has Penn tags.
     pub fn new(corpus: &'c MascCorpus) -> Result<MascTokenReader<'c>, MascError> {
+        MascTokenReader::with_empty_sentences(corpus, EmptySentence::EndsCorpus)
+    }
+
+    /// A reader that treats a sentence without a sample as `empty` says.
+    ///
+    /// # Errors
+    ///
+    /// [`MascError::NoDocuments`] when no document has Penn tags.
+    pub fn with_empty_sentences(
+        corpus: &'c MascCorpus,
+        empty: EmptySentence,
+    ) -> Result<MascTokenReader<'c>, MascError> {
         let mut cursor = Cursor::new(corpus);
         cursor.first_where(MascDocument::has_penn_tags, MascStream::Tokens)?;
-        Ok(MascTokenReader { cursor, done: false })
+        Ok(MascTokenReader { cursor, done: false, empty, skipped: 0 })
+    }
+
+    /// The sentences skipped alone so far under
+    /// [`EmptySentence::Skipped`]; always 0 under
+    /// [`EmptySentence::EndsCorpus`].
+    pub fn skipped(&self) -> usize {
+        self.skipped
     }
 
     /// `read`.
@@ -284,6 +322,10 @@ impl<'c> MascTokenReader<'c> {
                 units.push((start, i64::from(t.end) - i64::from(offset)));
             }
             if text.is_none_or(|(span, _)| span.is_empty()) || units.iter().any(|&(start, end)| end - start == 0) {
+                if self.empty == EmptySentence::Skipped {
+                    self.skipped += 1;
+                    continue;
+                }
                 found = false;
             }
             if !found {
@@ -313,6 +355,7 @@ impl<'c> MascTokenReader<'c> {
     pub fn reset(&mut self) {
         self.cursor.reset();
         self.done = false;
+        self.skipped = 0;
     }
 }
 
@@ -473,5 +516,74 @@ impl<'c> Iterator for MascSentenceReader<'c> {
         }
         let read = self.read();
         next_of(&mut self.done, read)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::masc::document::MascFiles;
+
+    /// A document of three sentences, `One two.`, `Three four.` and
+    /// `Five six.`, whose middle sentence has no Penn tokens.
+    fn corpus_with_an_empty_sentence() -> MascCorpus {
+        let text = "One two. Three four. Five six.";
+        let quarks = [(0, 3), (4, 7), (7, 8), (9, 14), (15, 19), (19, 20), (21, 25), (26, 29), (29, 30)];
+        let mut seg = String::from("<graph>");
+        for (i, (a, b)) in quarks.iter().enumerate() {
+            seg.push_str(&format!("<region xml:id=\"seg-r{i}\" anchors=\"{a} {b}\"/>"));
+        }
+        seg.push_str("</graph>");
+        let mut s = String::from("<graph>");
+        for (i, (a, b)) in [(0, 8), (9, 20), (21, 30)].iter().enumerate() {
+            s.push_str(&format!(
+                "<region xml:id=\"s-r{i}\" anchors=\"{a} {b}\"/><node xml:id=\"s-n{i}\"><link targets=\"s-r{i}\"/></node>"
+            ));
+        }
+        s.push_str("</graph>");
+        let mut penn = String::from("<graph>");
+        for i in [0, 1, 2, 6, 7, 8] {
+            penn.push_str(&format!(
+                "<node xml:id=\"penn-n{i}\"><link targets=\"seg-r{i}\"/></node>\
+                 <a label=\"tok\" ref=\"penn-n{i}\"><fs><f name=\"msd\" value=\"NN\"/></fs></a>"
+            ));
+        }
+        penn.push_str("</graph>");
+        let files = MascFiles {
+            text: text.as_bytes(),
+            segments: Some(seg.as_bytes()),
+            sentences: Some(s.as_bytes()),
+            penn: Some(penn.as_bytes()),
+            named_entities: None,
+        };
+        let doc = MascDocument::parse("/corpus/doc.hdr", files).unwrap();
+        // The same document twice, so the sentence after the empty one in
+        // the second document shows where the read stops.
+        MascCorpus::from_documents(vec![doc.clone(), doc])
+    }
+
+    fn texts(reader: MascTokenReader<'_>) -> Vec<(usize, String)> {
+        reader.map(|s| s.unwrap()).map(|s| (s.document, s.sample.text().to_owned())).collect()
+    }
+
+    #[test]
+    fn an_empty_sentence_ends_the_corpus_as_in_opennlp_or_is_skipped_alone() {
+        let corpus = corpus_with_an_empty_sentence();
+        let opennlp = MascTokenReader::new(&corpus).unwrap();
+        assert_eq!(texts(opennlp), [(0, "One two.".to_owned())]);
+
+        let mut reader = MascTokenReader::with_empty_sentences(&corpus, EmptySentence::Skipped).unwrap();
+        let mut read = Vec::new();
+        while let Some(s) = reader.read().unwrap() {
+            read.push((s.document, s.sample.text().to_owned()));
+        }
+        assert_eq!(
+            read,
+            [(0, "One two.".into()), (0, "Five six.".into()), (1, "One two.".into()), (1, "Five six.".into())]
+        );
+        assert_eq!(reader.skipped(), 2);
+        reader.reset();
+        assert_eq!(reader.skipped(), 0);
+        assert_eq!(texts(reader).len(), 4);
     }
 }
