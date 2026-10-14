@@ -11,11 +11,11 @@ use super::{Run, split_options};
 use crate::resources::{Resources, Unavailable};
 
 /// The annotator directories the generator writes that the differential
-/// does not cover: the training stack and the format readers compare
-/// files, not layers of a text; the evaluators compare scores; the
-/// detokenizer runs on token lists; the BPE trainer learns merges from a
-/// whole set.
-pub const NOT_COVERED: [&str; 5] = ["train", "formats", "evaluate", "detokenize", "bpe"];
+/// does not cover: the training stack and the format readers (`formats`,
+/// `masc`, `ner`) compare files, not layers of a text; the evaluators
+/// compare scores; the detokenizer runs on token lists; the BPE trainer
+/// learns merges from a whole set.
+pub const NOT_COVERED: [&str; 7] = ["train", "formats", "evaluate", "detokenize", "bpe", "masc", "ner"];
 
 /// Every run the differential covers, as `(annotator, run)`: the golden
 /// directories under `analysis/goldens/data`. A run whose model is not
