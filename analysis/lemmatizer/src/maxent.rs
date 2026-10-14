@@ -161,16 +161,16 @@ impl Annotator for MaxentLemmatizer {
 
 #[cfg(test)]
 mod tests {
-    use std::path::Path;
-
     use turbo_analysis::{Analyzer, Document, Ix, Key, Provenance, Span, Spans};
     use turbo_analysis_layers::{Sentences, Tag, TagSet};
 
     use super::*;
 
-    fn english() -> MaxentLemmatizer {
-        let path = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/models/opennlp-en-ud-ewt-lemmas-1.3-2.5.4.bin");
-        MaxentLemmatizer::new(LemmatizerModel::read(path).unwrap())
+    /// The lemmatizer over the English model, or `None` when it is not
+    /// downloaded.
+    fn english() -> Option<MaxentLemmatizer> {
+        let path = crate::test_models::published(crate::test_models::ENGLISH)?;
+        Some(MaxentLemmatizer::new(LemmatizerModel::read(path).unwrap()))
     }
 
     fn lemmas(l: &MaxentLemmatizer, words: &[(&str, &str)]) -> Vec<String> {
@@ -183,7 +183,7 @@ mod tests {
 
     #[test]
     fn plain_english_lemmas() {
-        let l = english();
+        let Some(l) = english() else { return };
         let got = lemmas(&l, &[("The", "DET"), ("dogs", "NOUN"), ("were", "AUX"), ("barking", "VERB"), (".", "PUNCT")]);
         assert_eq!(got, ["the", "dog", "be", "bark", "."]);
         assert_eq!(lemmas(&l, &[]), Vec::<String>::new());
@@ -191,7 +191,7 @@ mod tests {
 
     #[test]
     fn classes_are_the_models_outcomes() {
-        let l = english();
+        let Some(l) = english() else { return };
         let (mut classes, mut probs) = (Vec::new(), Vec::new());
         assert!(l.classes(&[("dogs", "NOUN")], &mut classes, &mut probs));
         assert_eq!(classes, ["D0s"]);
@@ -200,6 +200,7 @@ mod tests {
 
     #[test]
     fn the_annotator_runs_per_sentence_on_given_tokens_and_tags() {
+        let Some(lemmatizer) = english() else { return };
         let text = "Dogs bark. Cats slept.";
         let mut doc = Document::new(text);
         let view = doc.get::<View>().unwrap().id();
@@ -220,7 +221,7 @@ mod tests {
         let analyzer = Analyzer::builder()
             .given(Key::<Tokens>::DEFAULT)
             .given(Key::<PosTags>::DEFAULT)
-            .add(english())
+            .add(lemmatizer)
             .build()
             .unwrap();
         assert_eq!(analyzer.run(std::slice::from_mut(&mut doc)), [Ok(())]);

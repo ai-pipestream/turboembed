@@ -129,13 +129,14 @@ impl LemmatizerModel {
 mod tests {
     use super::*;
 
-    fn models() -> std::path::PathBuf {
-        Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/models")
+    /// A published model, or `None` when it is not downloaded.
+    fn published(file: &str) -> Option<LemmatizerModel> {
+        Some(LemmatizerModel::read(crate::test_models::published(file)?).unwrap())
     }
 
     #[test]
     fn the_english_model_opens() {
-        let m = LemmatizerModel::read(models().join("opennlp-en-ud-ewt-lemmas-1.3-2.5.4.bin")).unwrap();
+        let Some(m) = published(crate::test_models::ENGLISH) else { return };
         assert_eq!(m.language(), "en");
         assert_eq!(m.opennlp_version(), "2.5.4");
         assert_eq!(m.beam_size(), 3);
@@ -148,7 +149,7 @@ mod tests {
 
     #[test]
     fn the_german_model_opens() {
-        let m = LemmatizerModel::read(models().join("opennlp-de-ud-gsd-lemmas-1.3-2.5.4.bin")).unwrap();
+        let Some(m) = published(crate::test_models::GERMAN) else { return };
         assert_eq!(m.language(), "de");
         assert_eq!(m.sha256().to_hex(), "8850986f02dfbe293046bfce93bc0c3f3fa010e89177250abca23d860033d4f6");
     }
@@ -158,7 +159,7 @@ mod tests {
         let path = Path::new(env!("CARGO_MANIFEST_DIR")).join("../goldens/data/fixtures/pos-fixture.bin");
         let e = LemmatizerModel::read(path).unwrap_err();
         assert!(matches!(e, ModelError::Component(ref c) if c == "POSTaggerME"), "{e}");
-        let m = LemmatizerModel::read(models().join("opennlp-en-ud-ewt-lemmas-1.3-2.5.4.bin")).unwrap();
+        let Some(m) = published(crate::test_models::ENGLISH) else { return };
         assert!(matches!(m.with_beam_size(0), Err(ModelError::ZeroBeam)));
     }
 }

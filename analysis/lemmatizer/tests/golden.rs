@@ -196,7 +196,7 @@ fn check_dump(case: &Case, doc: &Document, model: &LemmatizerModel) -> (usize, u
 
 #[test]
 fn english() {
-    let path = common::models_dir().join("opennlp-en-ud-ewt-lemmas-1.3-2.5.4.bin");
+    let Some(path) = common::published_model("opennlp-en-ud-ewt-lemmas-1.3-2.5.4.bin") else { return };
     let model = Arc::new(LemmatizerModel::read(&path).unwrap());
     assert_eq!(model.language(), "en");
     let counts = check_maxent_run("opennlp-en-ud-ewt-lemmas-1.3-2.5.4", &model, &path);
@@ -209,7 +209,7 @@ fn english() {
 
 #[test]
 fn german() {
-    let path = common::models_dir().join("opennlp-de-ud-gsd-lemmas-1.3-2.5.4.bin");
+    let Some(path) = common::published_model("opennlp-de-ud-gsd-lemmas-1.3-2.5.4.bin") else { return };
     let model = Arc::new(LemmatizerModel::read(&path).unwrap());
     assert_eq!(model.language(), "de");
     let counts = check_maxent_run("opennlp-de-ud-gsd-lemmas-1.3-2.5.4", &model, &path);
