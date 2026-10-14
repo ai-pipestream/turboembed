@@ -5,7 +5,7 @@
 
 mod common;
 
-use common::model;
+use common::{published_model, read_model};
 use turbo_analysis::{Analyzer, Annotator, Document, Error, Key, Refs, Span, Spans, View};
 use turbo_analysis_layers::{Confidence, Sentences, Tokens};
 use turbo_tokenize::TokenizerOptions;
@@ -34,8 +34,11 @@ impl Annotator for Sentencer {
     }
 }
 
-fn english() -> TokenizerMe {
-    TokenizerMe::new(model("opennlp-en-ud-ewt-tokens-1.3-2.5.4.bin"), TokenizerOptions::default())
+/// The tokenizer over the published English model, or `None` when it is
+/// not downloaded (`common::published_model`).
+fn english() -> Option<TokenizerMe> {
+    let path = published_model("opennlp-en-ud-ewt-tokens-1.3-2.5.4.bin")?;
+    Some(TokenizerMe::new(read_model(&path), TokenizerOptions::default()))
 }
 
 /// (token text, sentence, probability) of a document's layers.
@@ -56,7 +59,8 @@ fn layers(doc: &Document) -> Vec<(&str, Option<usize>, f64)> {
 
 #[test]
 fn tokens_with_sentences_and_confidence() {
-    let analyzer = Analyzer::builder().add(Sentencer).add(english()).build().unwrap();
+    let Some(t) = english() else { return };
+    let analyzer = Analyzer::builder().add(Sentencer).add(t).build().unwrap();
     let mut docs = vec![
         Document::new("The cat sat. It's 5 o'clock, isn't it?"),
         Document::new("  \n\t \u{3000} "),
@@ -119,7 +123,8 @@ fn tokens_with_sentences_and_confidence() {
 
 #[test]
 fn without_sentences_the_view_is_one_unit() {
-    let analyzer = Analyzer::builder().add(english()).build().unwrap();
+    let Some(t) = english() else { return };
+    let analyzer = Analyzer::builder().add(t).build().unwrap();
     let mut docs = vec![Document::new("The cat sat. Who left.")];
     analyzer.run(&mut docs)[0].clone().unwrap();
     let got = layers(&docs[0]);
@@ -137,11 +142,12 @@ fn the_annotator_is_added_as_it_is() {
     // `Analyzer::build` accepts that anchor, so no wrapper is needed: the
     // analyzer writes both layers, with the values `tokenize` gives.
     let text = "Mr. Smith's cat (aged 3) isn't here.";
-    let analyzer = Analyzer::builder().add(english()).build().unwrap();
+    let Some(t) = english() else { return };
+    let analyzer = Analyzer::builder().add(t).build().unwrap();
     let mut docs = vec![Document::new(text)];
     analyzer.run(&mut docs)[0].clone().unwrap();
     let mut want = Vec::new();
-    english().tokenize(text, &mut want);
+    english().unwrap().tokenize(text, &mut want);
     let got = layers(&docs[0]);
     assert_eq!(got.len(), want.len());
     for ((word, sentence, p), (span, q)) in got.iter().zip(&want) {

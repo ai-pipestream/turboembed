@@ -228,13 +228,16 @@ fn outcomes(maxent: &MaxentModel) -> Result<[Outcome; 2], ModelError> {
 mod tests {
     use super::*;
 
-    fn models() -> std::path::PathBuf {
-        Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/models")
+    /// The generator's fixture model, a copy of turbo-maxent's
+    /// tests/fixtures/models/tokenizer.bin.
+    fn fixture_path() -> std::path::PathBuf {
+        Path::new(env!("CARGO_MANIFEST_DIR")).join("../goldens/data/fixtures/tokenizer-abbreviations.bin")
     }
 
     #[test]
     fn reads_the_english_model() {
-        let m = TokenizerModel::read(models().join("opennlp-en-ud-ewt-tokens-1.3-2.5.4.bin")).unwrap();
+        let Some(path) = crate::test_models::published("opennlp-en-ud-ewt-tokens-1.3-2.5.4.bin") else { return };
+        let m = TokenizerModel::read(path).unwrap();
         assert_eq!(m.language(), "en");
         assert_eq!(m.opennlp_version(), "2.5.4");
         assert_eq!(m.alphanumeric_pattern(), "^[A-Za-z0-9]+$");
@@ -253,10 +256,7 @@ mod tests {
 
     #[test]
     fn reads_the_abbreviation_dictionary() {
-        // The generator's fixture model, a copy of turbo-maxent's
-        // tests/fixtures/models/tokenizer.bin.
-        let path = Path::new(env!("CARGO_MANIFEST_DIR")).join("../goldens/data/fixtures/tokenizer-abbreviations.bin");
-        let m = TokenizerModel::read(path).unwrap();
+        let m = TokenizerModel::read(fixture_path()).unwrap();
         let d = m.abbreviations().unwrap();
         assert_eq!(d.len(), 3);
         assert!(d.contains("dr."));
@@ -303,7 +303,7 @@ mod tests {
         z
     }
 
-    /// The English classifier under a manifest of `extra` lines.
+    /// A classifier under a manifest of `extra` lines.
     fn with_manifest(extra: &str, classifier: &[u8]) -> Result<TokenizerModel, ModelError> {
         let manifest = format!("OpenNLP-Version=2.5.4\nLanguage=de\n{extra}");
         let bytes = stored_zip(&[("manifest.properties", manifest.as_bytes()), (MODEL_ENTRY, classifier)]);
@@ -314,14 +314,15 @@ mod tests {
         model
     }
 
-    fn english_classifier() -> Vec<u8> {
-        let file = ModelFile::read(models().join("opennlp-en-ud-ewt-tokens-1.3-2.5.4.bin")).unwrap();
+    /// The fixture model's classifier, whose outcomes are T and F.
+    fn tokenizer_classifier() -> Vec<u8> {
+        let file = ModelFile::read(fixture_path()).unwrap();
         file.entry(MODEL_ENTRY).unwrap().into_owned()
     }
 
     #[test]
     fn manifest_checks() {
-        let c = english_classifier();
+        let c = tokenizer_classifier();
         let e = with_manifest("Component-Name=SentenceDetectorME\nuseAlphaNumericOptimization=false\n", &c);
         assert_eq!(e.unwrap_err().to_string(), "the model is for \"SentenceDetectorME\", not TokenizerME");
         let e = with_manifest("Component-Name=TokenizerME\n", &c).unwrap_err();
@@ -333,7 +334,7 @@ mod tests {
 
     #[test]
     fn the_optimization_flag_and_its_pattern() {
-        let c = english_classifier();
+        let c = tokenizer_classifier();
         // On, in any case, with no pattern: the default, not the German one.
         let m = with_manifest("Component-Name=TokenizerME\nuseAlphaNumericOptimization=TRUE\n", &c).unwrap();
         assert_eq!(m.alphanumeric_pattern(), DEFAULT_PATTERN);

@@ -1747,8 +1747,10 @@ under `analysis/eval/records` come next.
 
 1. Analysis: each document's text as a document in the source view,
    with `opennlp:sentences` (an OpenNLP maxent model, by default the
-   English UD EWT model checked in under
-   `analysis/sentdetect/tests/models`, or one sentence per line),
+   English UD EWT model `opennlp-en-ud-ewt-sentence-1.3-2.5.4.bin`, read
+   from the directory `TURBO_GOLDENS_MODELS` names or
+   `target/turbo-goldens/models`, where `turbo-goldens fetch-models`
+   downloads it; or one sentence per line),
    `turbo:structure` (plain text by default, Markdown, or none) and the
    embedder's `opennlp:subwords`. Every chunk span is a byte range of
    the set's own text, the offsets span judgements use.
