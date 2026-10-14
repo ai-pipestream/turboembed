@@ -1,0 +1,24 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	multi/ru	307	170	0694c88d949a90a29192dbe856add99bbd2f60b9be7448fa0d53b04407bfbbbf
+annotator	opennlp.tools.ml.maxent.quasinewton.QNTrainer	train
+config	Algorithm	MAXENT_QN
+config	Cutoff	1
+config	DataIndexer	OnePassRealValue
+config	Iterations	100
+config	L1Cost	0.0
+config	L2Cost	0.0
+config	MaxFctEval	10
+config	NumOfUpdates	5
+config	Threads	1
+config	sort	true
+config	source	realvalue
+layer	turbo:events	document	1	outcome:str	context:str	values:str
+long	Зима в этом году пришла рано. Уже октябре выпал первый снег, и дети побежали кататься на санках. В городе быстро расчистили дороги. Многие жители рады холодной погоде.	1.0 2.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0
+end	turbo:events
+layer	turbo:qn-training	document	1	iterations:u32	stop:str	message:str
+0	refused	opennlp.tools.util.InsufficientTrainingDataException: Training data must contain more than one outcome
+end	turbo:qn-training

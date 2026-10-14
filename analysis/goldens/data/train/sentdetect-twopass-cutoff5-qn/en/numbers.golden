@@ -1,0 +1,73 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	en/numbers	226	226	c9f48b2fbd30b7603cd02cad8f56d1a5d0961619d294faecb2a75d4c1f404102
+annotator	opennlp.tools.ml.maxent.quasinewton.QNTrainer	train
+config	Algorithm	MAXENT_QN
+config	Cutoff	5
+config	DataIndexer	TwoPass
+config	Iterations	100
+config	L1Cost	0.1
+config	L2Cost	0.1
+config	MaxFctEval	30000
+config	NumOfUpdates	15
+config	Threads	1
+config	sort	true
+config	source	sentdetect
+layer	turbo:events	document	14	outcome:str	context:str	values:str
+n	eos=. x=3 1 v=is s=5 n=metres	
+n	eos=. x=$12 3 v=costs s=99 n=at	
+n	sn eos=. x=store 5 v=the s= n=Version ncap	
+n	eos=. x=2 1 v=Version vcap s=10 n=1	
+n	eos=. x=.10 3 v=2 s=1 n=fixed	
+n	eos=. x=12 2 v=on s=03 n=2024.	
+n	eos=. x=.03 3 v=12 s=2024 n=The ncap	
+n	sn eos=. x=.2024 5 v=12.03 s= n=The ncap	
+n	eos=. x=4 1 v=roughly s=7 n=percent.	
+n	sn eos=. x=percent 7 v=4.7 s= n=Pi ncap	
+n	eos=. x=3 1 v=about s=14159 n=Section ncap	
+n	sn eos=. x=.14159 6 v=3 s= n=Section ncap	
+n	eos=. x=4 1 v=Section vcap s=2 n=explains	
+s	sn eos=. x=rest 4 v=the s= n=	
+end	turbo:events
+layer	turbo:qn-training	document	1	iterations:u32	stop:str	message:str
+9	change-rate	
+end	turbo:qn-training
+layer	turbo:qn-iterations	document	9	iteration:u32	value:f64	rate:f64	accuracy:f64	parameters:str
+1	4011d5b09a125465 4.458681495064501	3fe14c0ee7d5e90b 0.5405344512976468	3fedb6db6db6db6e 0.9285714285714286	4c7f5e3a68595b24c640d412b542fb12e01153267429fe732659bb7cfb2d60c3
+2	400e1d458dfa820a 3.7642928211282696	3fc3ef3dcd74ce00 0.15573856861156798	3fedb6db6db6db6e 0.9285714285714286	d8ae627db7e145a2011bbe32ce1572815814bf1fde5ba6a5adf33c19bbb09b14
+3	400a8afd87e4483d 3.317866384176368	3fbe5c3e829a2c61 0.1185950344899296	3fedb6db6db6db6e 0.9285714285714286	ad3294ca24217f52bde51d93e001fabde9a1865a7daf2c5b9759f270fa0d1ae8
+4	4008813161920c4b 3.0630824682898825	3fb3a89b7a80f2d4 0.07679149380505673	3fedb6db6db6db6e 0.9285714285714286	16110ded064501fd6929fcaaef771638cb1b800d9bac95b42b199eaf11d72da8
+5	400810498de907f0 3.0079527937641544	3f926e1843628aae 0.017998103249406476	3fedb6db6db6db6e 0.9285714285714286	3c0f1bf3b877a209e5a54af80c38d79f9d44a07de1b0078acd1aaf7d57718246
+6	40080acf256670a0 3.005277912319869	3f4d23bc41fc2ded 8.892697551074448E-4	3fedb6db6db6db6e 0.9285714285714286	0420f4835dbf62c1c0d3ac23ab3664adac844ac7b424b5bd27901927ed93e10b
+7	40080a08256c5a48 3.004898350114022	3f208de02da56475 1.26298537746181E-4	3fedb6db6db6db6e 0.9285714285714286	91dc30c5ee4bbe692ac3720f5b27dd901bdc5abb8d961d611849961cc5f46f37
+8	4008091a148782d2 3.0044442752699547	3f23ce7652486469 1.51111548931468E-4	3fedb6db6db6db6e 0.9285714285714286	c229ad357ee1aeb7043971c0c71eda430c5575a92de72f2f04dbc19fafcc869b
+9	40080910f95e95cf 3.004426906775485	3ed83f3b134dd4d5 5.780934135714642E-6	3fedb6db6db6db6e 0.9285714285714286	c130f261ed37bf08baeefe0cd0a6ff660fddf93a04703d283ba67869ef084692
+end	turbo:qn-iterations
+layer	turbo:qn-parameters	document	20	iteration:u32	predicate:u32	outcome:u32	value:f64
+1	0	0	3fcf52e5de9a2a46 0.24471734399078765
+1	0	1	bfcf52e5de9a2a46 -0.24471734399078765
+1	1	0	3fe34047f0cebf51 0.601596803977353
+1	1	1	bfe34047f0cebf51 -0.601596803977353
+1	2	0	3fd2ecc0367d2434 0.29570012398886836
+1	2	1	bfd2ecc0367d2434 -0.29570012398886836
+1	3	0	3fc245b0c1d9edfe 0.14275178399462612
+1	3	1	bfc245b0c1d9edfe -0.14275178399462612
+1	4	0	3fc245b0c1d9edfe 0.14275178399462612
+1	4	1	bfc245b0c1d9edfe -0.14275178399462612
+9	0	0	3fde01567dce0a6d 0.46883165631894635
+9	0	1	bfde01567dce0a61 -0.4688316563189457
+9	1	0	3ff1e10f0f5c1897 1.1174460029592745
+9	1	1	bff1e10f0f5c1892 -1.1174460029592734
+9	2	0	3ff3ca401cc817db 1.2368775486261174
+9	2	1	bff3ca401cc817dd -1.2368775486261179
+9	3	0	bfe13506cc528127 -0.5377229681653589
+9	3	1	3fe13506cc528128 0.537722968165359
+9	4	0	bfe13506cc528127 -0.5377229681653589
+9	4	1	3fe13506cc528128 0.537722968165359
+end	turbo:qn-parameters
+layer	turbo:qn-model	document	1	sha256:str	length:u32
+3937c966aac51676fe3bed3ba7e6fe7a09e0bdf53e128c694e01788aa360a6d1	133
+end	turbo:qn-model

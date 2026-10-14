@@ -298,138 +298,14 @@ fn the_jvm_splits_a_character_outside_the_bmp_and_the_trainer_does_not() {
 
 // ---- A model of the JVM's loop, with Java's HashMap -------------------------------------
 
-/// `String.hashCode` over UTF-16 units.
-fn string_hash(s: &[u16]) -> i32 {
-    s.iter().fold(0i32, |h, &c| h.wrapping_mul(31).wrapping_add(c as i32))
-}
-
-/// `List.hashCode`.
-fn list_hash(l: &[Vec<u16>]) -> i32 {
-    l.iter().fold(1i32, |h, s| h.wrapping_mul(31).wrapping_add(string_hash(s)))
-}
-
-/// The hash code of the record `SymbolPair(left, right)`.
-fn pair_hash(p: &Utf16Pair) -> i32 {
-    string_hash(&p.0).wrapping_mul(31).wrapping_add(string_hash(&p.1))
-}
-
-/// `java.util.HashMap` with the default capacity and load factor, as far
-/// as the order of its entries goes: bins by the spread hash, `put`
-/// appending to a bin, `merge` putting a new key at the head of its bin,
-/// and resizing that keeps each bin's order. A bin that would become a
-/// tree is refused, since its order is not modelled.
-struct JavaHashMap<K> {
-    bins: Vec<Vec<(K, i32, u64)>>,
-    threshold: usize,
-    size: usize,
-}
-
-impl<K: PartialEq + Clone> JavaHashMap<K> {
-    fn new() -> Self {
-        JavaHashMap { bins: Vec::new(), threshold: 0, size: 0 }
-    }
-
-    fn spread(h: i32) -> usize {
-        (h ^ ((h as u32) >> 16) as i32) as u32 as usize
-    }
-
-    fn resize(&mut self) {
-        let old = self.bins.len();
-        if old == 0 {
-            let cap = if self.threshold > 0 { self.threshold } else { 16 };
-            self.bins = vec![Vec::new(); cap];
-            self.threshold = cap * 3 / 4;
-            return;
-        }
-        let mut bins = vec![Vec::new(); old * 2];
-        for (j, bin) in self.bins.drain(..).enumerate() {
-            for e in bin {
-                let to = if Self::spread(e.1) & old == 0 { j } else { j + old };
-                bins[to].push(e);
-            }
-        }
-        self.bins = bins;
-        self.threshold *= 2;
-    }
-
-    fn treeify(&mut self) {
-        assert!(self.bins.len() < 64, "a bin of {} would become a tree", self.bins.len());
-        self.resize();
-    }
-
-    fn index(&self, h: i32) -> usize {
-        Self::spread(h) & (self.bins.len() - 1)
-    }
-
-    /// `put`: a new key at the end of its bin, then resize if needed.
-    fn put(&mut self, k: K, h: i32, v: u64) {
-        if self.bins.is_empty() {
-            self.resize();
-        }
-        let i = self.index(h);
-        if let Some(e) = self.bins[i].iter_mut().find(|e| e.1 == h && e.0 == k) {
-            e.2 = v;
-            return;
-        }
-        let before = self.bins[i].len();
-        self.bins[i].push((k, h, v));
-        if before >= 8 {
-            self.treeify();
-        }
-        self.size += 1;
-        if self.size > self.threshold {
-            self.resize();
-        }
-    }
-
-    /// `merge(k, v, Integer::sum)`: resize first if needed, then a new key
-    /// at the head of its bin.
-    fn merge(&mut self, k: K, h: i32, v: u64) {
-        if self.size > self.threshold || self.bins.is_empty() {
-            self.resize();
-        }
-        let i = self.index(h);
-        if let Some(e) = self.bins[i].iter_mut().find(|e| e.1 == h && e.0 == k) {
-            e.2 += v;
-            return;
-        }
-        let before = self.bins[i].len();
-        self.bins[i].insert(0, (k, h, v));
-        if before >= 7 {
-            self.treeify();
-        }
-        self.size += 1;
-    }
-
-    fn clear(&mut self) {
-        for b in &mut self.bins {
-            b.clear();
-        }
-        self.size = 0;
-    }
-
-    /// `putAll` into a map that has a table.
-    fn put_all(&mut self, m: &JavaHashMap<K>) {
-        assert!(!self.bins.is_empty());
-        while m.size > self.threshold {
-            self.resize();
-        }
-        for (k, h, v) in m.iter() {
-            self.put(k.clone(), h, v);
-        }
-    }
-
-    fn iter(&self) -> impl Iterator<Item = (&K, i32, u64)> {
-        self.bins.iter().flatten().map(|(k, h, v)| (k, *h, *v))
-    }
-}
+use turbo_jvm::hash_map::{JavaHash, JavaHashMap, Utf16String};
 
 /// `BPETokenizerTrainer.learnMerges` over `text` as one corpus element,
 /// with Java's HashMap.
 fn jvm_merges(text: &str, num_merges: usize) -> Vec<Utf16Pair> {
-    let utf16 = |s: &str| s.encode_utf16().collect::<Vec<u16>>();
-    let end: Vec<u16> = utf16(END_OF_WORD);
-    let mut word_freqs = JavaHashMap::new();
+    let utf16 = |s: &str| Utf16String(s.encode_utf16().collect());
+    let end = utf16(END_OF_WORD);
+    let mut word_freqs: JavaHashMap<Utf16String, u64> = JavaHashMap::new();
     let mut spans = Vec::new();
     turbo_tokenize::whitespace_spans(
         text,
@@ -438,55 +314,51 @@ fn jvm_merges(text: &str, num_merges: usize) -> Vec<Utf16Pair> {
     );
     for s in &spans {
         let w = utf16(&text[s.start as usize..s.end as usize]);
-        let h = string_hash(&w);
-        word_freqs.merge(w, h, 1);
+        word_freqs.merge(w, 1, |acc, v| *acc += v);
     }
-    let mut vocab: JavaHashMap<Vec<Vec<u16>>> = JavaHashMap::new();
-    for (w, _, n) in word_freqs.iter() {
-        let mut symbols: Vec<Vec<u16>> = w.iter().map(|&c| vec![c]).collect();
-        symbols.last_mut().unwrap().extend_from_slice(&end);
-        let h = list_hash(&symbols);
-        vocab.put(symbols, h, n);
+    let mut vocab: JavaHashMap<Vec<Utf16String>, u64> = JavaHashMap::new();
+    for (w, &n) in word_freqs.iter() {
+        let mut symbols: Vec<Utf16String> = w.0.iter().map(|&c| Utf16String(vec![c])).collect();
+        symbols.last_mut().unwrap().0.extend_from_slice(&end.0);
+        vocab.put(symbols, n);
     }
     let mut merges = Vec::new();
     for _ in 0..num_merges {
-        let mut pair_counts = JavaHashMap::new();
-        for (symbols, _, n) in vocab.iter() {
+        let mut pair_counts: JavaHashMap<(Utf16String, Utf16String), u64> = JavaHashMap::new();
+        for (symbols, &n) in vocab.iter() {
             for w in symbols.windows(2) {
                 let p = (w[0].clone(), w[1].clone());
-                let h = pair_hash(&p);
-                pair_counts.merge(p, h, n);
+                pair_counts.merge(p, n, |acc, v| *acc += v);
             }
         }
-        if pair_counts.size == 0 {
+        if pair_counts.is_empty() {
             break;
         }
-        let mut best: Option<(&Utf16Pair, u64)> = None;
-        for (p, _, n) in pair_counts.iter() {
+        let mut best: Option<(&(Utf16String, Utf16String), u64)> = None;
+        for (p, &n) in pair_counts.iter() {
             if n > best.map_or(0, |b| b.1) {
                 best = Some((p, n));
             }
         }
         let best = best.unwrap().0.clone();
-        let mut new_vocab = JavaHashMap::new();
-        for (symbols, _, n) in vocab.iter() {
-            let mut merged: Vec<Vec<u16>> = Vec::with_capacity(symbols.len());
+        let mut new_vocab: JavaHashMap<Vec<Utf16String>, u64> = JavaHashMap::new();
+        for (symbols, &n) in vocab.iter() {
+            let mut merged: Vec<Utf16String> = Vec::with_capacity(symbols.len());
             let mut i = 0;
             while i < symbols.len() {
                 if i + 1 < symbols.len() && symbols[i] == best.0 && symbols[i + 1] == best.1 {
-                    merged.push([&best.0[..], &best.1[..]].concat());
+                    merged.push(Utf16String([&best.0.0[..], &best.1.0[..]].concat()));
                     i += 2;
                 } else {
                     merged.push(symbols[i].clone());
                     i += 1;
                 }
             }
-            let h = list_hash(&merged);
-            new_vocab.merge(merged, h, n);
+            new_vocab.merge(merged, n, |acc, v| *acc += v);
         }
         vocab.clear();
-        vocab.put_all(&new_vocab);
-        merges.push(best);
+        vocab.put_all(new_vocab.into_ordered().into_iter());
+        merges.push((best.0.0, best.1.0));
     }
     merges
 }
@@ -511,10 +383,10 @@ fn a_model_of_the_jvms_hash_map_makes_every_jvm_merge() {
 /// The hash codes are Java's: values a JDK printed.
 #[test]
 fn hash_codes_are_javas() {
-    let u = |s: &str| s.encode_utf16().collect::<Vec<u16>>();
-    assert_eq!(string_hash(&u("ab")), 3105);
-    assert_eq!(pair_hash(&(u("ab"), u("c"))), 96354);
-    assert_eq!(list_hash(&[u("a"), u("b")]), 31 * (31 + 97) + 98);
+    let u = |s: &str| Utf16String(s.encode_utf16().collect());
+    assert_eq!(u("ab").java_hash(), 3105);
+    assert_eq!((u("ab"), u("c")).java_hash(), 96354);
+    assert_eq!(vec![u("a"), u("b")].java_hash(), 31 * (31 + 97) + 98);
 }
 
 /// With [`TieOrder::MadeFirst`], training twice gives the same merges,

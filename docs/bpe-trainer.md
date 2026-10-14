@@ -171,7 +171,7 @@ step (`analysis/bpe-trainer/src/opennlp/jvm.rs`): it works out the
 order of each of the JVM's three maps from the hash codes of the words,
 the symbol lists and the pairs, with the table growth of `put` and of
 `merge` (which also grows a full table when the key is already there),
-and without building the maps (`analysis/bpe-trainer/src/java_map.rs`).
+and without building the maps (`analysis/jvm/src/hash_map.rs`).
 Like the JVM, it counts every pair again before each merge, so a merge
 costs a pass over the distinct words. `--ties made-first` keeps the
 counts as the shared merge loop does instead, and its order does not

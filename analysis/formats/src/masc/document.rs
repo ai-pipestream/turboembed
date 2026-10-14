@@ -4,10 +4,11 @@ use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
 
 use turbo_analysis::Span;
+use turbo_jvm::hash_map::put_order;
 use turbo_maxent::xml::{self, Attribute, Handler, Names};
 
 use super::error::{AnnotationFile, MascError};
-use super::java::{HashOrder, decode_utf8, equals_ignore_case_ascii, parse_int, split_on_spaces, split_space};
+use super::java::{decode_utf8, equals_ignore_case_ascii, parse_int, split_on_spaces, split_space};
 
 /// The bytes of one document's files. The text is required; a document
 /// whose header names no segmentation or sentence file fails as OpenNLP
@@ -277,7 +278,7 @@ impl MascDocument {
         // Each quark's tokens, built in the order the token map iterates,
         // each token put in front of the ones before it.
         let mut quark_tokens: HashMap<i32, Vec<usize>> = HashMap::new();
-        for t in penn.order.order() {
+        for t in put_order(penn.tokens.iter().map(|t| t.id)).0 {
             for &q in &penn.tokens[t].quarks {
                 let tokens = quark_tokens.entry(q).or_default();
                 if !tokens.is_empty() {
@@ -307,7 +308,7 @@ impl MascDocument {
             let sentence = &mut self.sentences[si];
             let count = sentence.tokens.as_ref().map_or(0, Vec::len);
             let mut names = Vec::new();
-            for e in ne.order.order() {
+            for &e in &ne.order {
                 let entity = &ne.entities[e];
                 let kind = ne.types.get(&entity.id).cloned().flatten();
                 let mut start = count;
@@ -638,8 +639,6 @@ struct Penn {
     /// quarks.
     tokens: Vec<PennToken>,
     places: HashMap<i32, usize>,
-    /// The iteration order of the token map.
-    order: HashOrder,
     tags: HashMap<i32, Option<String>>,
     bases: HashMap<i32, Option<String>>,
     /// The ids of the `node` elements not linked yet.
@@ -665,7 +664,6 @@ impl Handler for Penn {
                 match self.places.get(&id) {
                     Some(&p) => self.tokens[p].quarks = quarks,
                     None => {
-                        self.order.insert(id, self.tokens.len());
                         self.places.insert(id, self.tokens.len());
                         self.tokens.push(PennToken { id, quarks });
                     }
@@ -725,7 +723,7 @@ struct NamedEntities {
     entities: Vec<Entity>,
     places: HashMap<i32, usize>,
     /// The iteration order of the entity map.
-    order: HashOrder,
+    order: Vec<usize>,
     /// The type each token was last given.
     token_types: HashMap<i32, Option<String>>,
     warnings: Vec<MascWarning>,
@@ -748,7 +746,6 @@ impl Handler for NamedEntities {
                 match self.places.get(&id) {
                     Some(&p) => self.entities[p].tokens.push(token),
                     None => {
-                        self.order.insert(id, self.entities.len());
                         self.places.insert(id, self.entities.len());
                         self.entities.push(Entity { id, tokens: vec![token] });
                     }
@@ -782,12 +779,13 @@ impl Handler for NamedEntities {
 fn parse_named_entities(bytes: &[u8]) -> Result<NamedEntities, MascError> {
     let mut h = NamedEntities::default();
     read_xml(bytes, AnnotationFile::NamedEntities, &mut h)?;
+    h.order = put_order(h.entities.iter().map(|e| e.id)).0;
     Ok(h)
 }
 
 /// A file a document header names: an `annotation` or `primaryData`
 /// element's `f.id` and `loc`, either of which may be missing.
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub(crate) struct HeaderFile {
     pub(crate) id: Option<String>,
     pub(crate) loc: Option<String>,
@@ -801,7 +799,6 @@ pub(crate) fn parse_header(text: &str) -> Result<Option<Vec<HeaderFile>>, turbo_
     #[derive(Default)]
     struct Header {
         files: Option<Vec<HeaderFile>>,
-        order: HashOrder,
         loc: Option<String>,
         id: Option<String>,
     }
@@ -824,8 +821,6 @@ pub(crate) fn parse_header(text: &str) -> Result<Option<Vec<HeaderFile>>, turbo_
                 match files.iter_mut().find(|f| f.id == self.id) {
                     Some(file) => file.loc = self.loc.clone(),
                     None => {
-                        let hash = self.id.as_deref().map_or(0, super::java::string_hash);
-                        self.order.insert(hash, files.len());
                         files.push(HeaderFile { id: self.id.clone(), loc: self.loc.clone() });
                     }
                 }
@@ -837,7 +832,10 @@ pub(crate) fn parse_header(text: &str) -> Result<Option<Vec<HeaderFile>>, turbo_
     }
     let mut h = Header::default();
     xml::parse_with(text, Names::Qualified, &mut h)?;
-    Ok(h.files.map(|files| h.order.order().map(|i| files[i].clone()).collect()))
+    Ok(h.files.map(|mut files| {
+        let (order, _) = put_order(files.iter().map(|f| f.id.as_deref()));
+        order.into_iter().map(|i| std::mem::take(&mut files[i])).collect()
+    }))
 }
 
 #[cfg(test)]

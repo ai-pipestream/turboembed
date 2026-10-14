@@ -1,0 +1,53 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	en/quotes	240	228	8e587a2221022c9fa745822b626ba04b316b213fbffa68031c095a1670e808f8
+annotator	opennlp.tools.ml.perceptron.PerceptronTrainer	train
+config	Algorithm	PERCEPTRON
+config	Cutoff	5
+config	DataIndexer	TwoPass
+config	Iterations	100
+config	StepSizeDecrease	0.05
+config	Tolerance	0.01
+config	UseAverage	false
+config	UseSkippedAveraging	false
+config	sort	false
+config	source	sentdetect
+layer	turbo:events	document	6	outcome:str	context:str	values:str
+n	eos=? x=tonight 7 v=coming s=" n=she	
+n	sn eos=. x=asked 5 v=she s= n=He ncap	
+n	eos=. x=stops 5 v=rain s=" n=The ncap	
+n	sn eos=. x=repairs' 8 v=for s= n=“Curly	
+n	eos=. x=ones 4 v=‘single’ s=” n=Nobody ncap	
+s	sn eos=. x=answered 8 v=Nobody vcap s= n=	
+end	turbo:events
+layer	turbo:perceptron-training	document	1	iterations:u32	message:str
+6	Stopping: change in training set accuracy less than {0.01}
+end	turbo:perceptron-training
+layer	turbo:perceptron-monitor	document	6	iteration:u32	correct:u32	events:u32	accuracy:f64
+1	4	5	3fe999999999999a 0.8
+2	2	5	3fd999999999999a 0.4
+3	3	5	3fe3333333333333 0.6
+4	3	5	3fe3333333333333 0.6
+5	3	5	3fe3333333333333 0.6
+6	3	5	3fe3333333333333 0.6
+end	turbo:perceptron-monitor
+layer	turbo:perceptron-iterations	document	6	iteration:u32	parameters:str
+1	5870666124a7ba0b5d5f2d6d690cfe45320774801c305f921b7ed63aef9e87a5
+2	3b377b538fde83b0d7400752af8921146f508a19dbb69bdeff8d3a68a7966fb7
+3	3b377b538fde83b0d7400752af8921146f508a19dbb69bdeff8d3a68a7966fb7
+4	3b377b538fde83b0d7400752af8921146f508a19dbb69bdeff8d3a68a7966fb7
+5	3b377b538fde83b0d7400752af8921146f508a19dbb69bdeff8d3a68a7966fb7
+6	3b377b538fde83b0d7400752af8921146f508a19dbb69bdeff8d3a68a7966fb7
+end	turbo:perceptron-iterations
+layer	turbo:perceptron-parameters	document	4	iteration:u32	predicate:u32	outcome:u32	value:f64
+1	0	0	bfee666666666666 -0.95
+1	0	1	3fee666666666666 0.95
+6	0	0	bfa851eb851eb850 -0.04749999999999999
+6	0	1	3fa851eb851eb850 0.04749999999999999
+end	turbo:perceptron-parameters
+layer	turbo:perceptron-model	document	1	sha256:str	length:u32	error:str
+953b6ec0edfc560b46a260a742423cc538bc7113acd68091dc8972b45d247516	60	
+end	turbo:perceptron-model

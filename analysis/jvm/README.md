@@ -24,6 +24,12 @@ of its results depend on the platform rather than on OpenNLP:
   (training parameters, real valued features), hexadecimal floating
   point literals included, except that `parse_int` refuses the decimal
   digits of other scripts, which Java reads.
+- `hash_map`: `JavaHash` (`String.hashCode`, `CharBuffer.hashCode`,
+  record/pair and `List.hashCode`), `spread` (`HashMap.hash`),
+  `HashMapOrder` (allocation-free bucket-sort model of `HashMap`
+  iteration order for `put`, `merge` and `clear`), `put_order` and
+  `JavaHashMap` (full `HashMap` container for `put`, `merge`, `putAll`
+  and `clear` with the default load factor `0.75f`).
 
 The crate has no dependencies.
 
@@ -41,6 +47,7 @@ pattern). The vectors are in `tests/vectors/`:
 | `compare.tsv` | `String.compareTo` over pairs of strings with ASCII, Latin-1, BMP and supplementary characters |
 | `whitespace.tsv` | Every code point for which `Character.isWhitespace` is true |
 | `text.tsv` | `Double.toString` and `Float.toString` of values on both sides of every rule of their specification (layout thresholds, subnormals, k x 10^n for every exponent, random bit patterns), and `parseDouble`, `parseFloat`, `parseInt` and `parseBoolean` of texts on both sides of their grammars |
+| `hash_map.tsv` | `String.hashCode`, `CharBuffer.hashCode`, 2-component record `hashCode`, `concat` `hashCode` and `List.hashCode`, plus `HashMap` entry iteration order across resize thresholds for `put`, `merge` (with and without trailing duplicates at `threshold + 1`), `putAll` (`tableSizeFor` pre-sizing), `clear` (retained capacity) and 8/9-key colliding bins below `MIN_TREEIFY_CAPACITY` |
 
 Each file's first line names the generator and the JVM that ran it
 (`java.version`, `java.vm.version`); the JDK does not expose its Unicode

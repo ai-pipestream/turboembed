@@ -22,23 +22,24 @@
 //!   [`Pattern`].
 //! - [`builtin`]: [`BuiltIn`], the factory's five patterns, matched as
 //!   Java matches them.
-//! - [`java_regex`]: [`JavaRegex`], a user's Java pattern translated to the
-//!   `regex` crate, or refused.
+//! - [`java_regex`]: [`JavaRegex`], a user's Java pattern compiled to a
+//!   direct bytecode matcher, or refused.
 //! - [`merge`](mod@merge): `dropOverlappingSpans` and [`MergeEntities`].
 //! - [`annotate`]: the two finders as analysis steps.
 //!
 //! # Regular expressions
 //!
-//! The `regex` crate is not `java.util.regex`: it has no lookaround or
-//! backreferences, its `\d`, `\w`, `\s` and `\b` and its case folding are
-//! Unicode where Java's are ASCII by default, and it matches over UTF-8
-//! where Java matches over UTF-16. The five built-in patterns are
-//! translated by hand and run over a stand-in text on which the two agree
-//! exactly ([`builtin`] explains how, including `EMAIL`'s lookbehind and
-//! `URL`'s word boundaries). A user's pattern goes through [`JavaRegex`],
-//! which keeps Java's meaning for what it accepts and refuses the rest
-//! with a typed error; [`java_regex`] lists what is refused, and the three
-//! constructs that refuse some texts when matched.
+//! This crate uses no external `regex` engine. The five built-in patterns
+//! are matched directly over the joined UTF-8 bytes by hand-written
+//! scanners with no regex compilation or stand-in buffer ([`builtin`]
+//! explains how, including `EMAIL`'s lookbehind and `URL`'s word
+//! boundaries). A user's pattern goes through [`JavaRegex`], which parses
+//! `java.util.regex.Pattern` syntax into a compact bytecode program and
+//! runs it with a direct cursor matcher that preserves Java's ASCII
+//! character classes, ASCII case folding, and backtracking priority while
+//! refusing unsupported features with a typed error; [`java_regex`] lists
+//! what is refused, and the three constructs that refuse some texts when
+//! matched.
 //!
 //! # OpenNLP behaviour worth knowing
 //!
@@ -91,7 +92,6 @@ pub mod annotate;
 pub mod builtin;
 pub mod dictionary;
 pub mod error;
-mod hash_order;
 pub mod java_regex;
 pub mod merge;
 pub mod name;

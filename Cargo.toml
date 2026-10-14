@@ -20,6 +20,7 @@ members = [
     "analysis/normalize",
     "analysis/normalize-layers",
     "analysis/numeric",
+    "analysis/parser",
     "analysis/postag",
     "analysis/sentdetect",
     "analysis/sequence",
@@ -38,6 +39,7 @@ members = [
     "analysis/train-segmentation",
     "analysis/train-recipes",
     "analysis/formats",
+    "analysis/fuzz",
     "analysis/zoo",
 ]
 resolver = "3"

@@ -7,14 +7,17 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.TreeMap;
+import java.util.TreeSet;
 import java.util.function.Function;
 import java.util.stream.Stream;
 
 /**
  * Writes every golden for every input, and with {@code --dumps} every decision point dump too.
  *
- * <p>Usage: {@code <inputs dir> <models dir> <fixtures dir> <out dir> <opennlp commit> [--dumps]}.
+ * <p>Usage: {@code <inputs dir> <models dir> <fixtures dir> <out dir> <opennlp commit> [--dumps]
+ * [--skip-annotators <a>,<b>,...] [--only-runs <annotator>/<model>,...]}.
  * The inputs directory holds one directory per input set, each holding {@code <id>.txt} files.
  * The models directory holds the published model files and the fixtures directory the checked in
  * ones, named in {@link Runs}. The output directory must be empty or absent; it receives
@@ -23,6 +26,11 @@ import java.util.stream.Stream;
  * that asks a maxent model, written in sorted order of their paths. The commit is the 40 hex
  * digit commit the OpenNLP runtime was built from, which the jar does not record itself. Every
  * input must be one that at least one run takes.</p>
+ *
+ * <p>{@code --skip-annotators} leaves out every run whose annotator directory is named, and
+ * {@code --only-runs} keeps only the runs named by annotator and model directory; the differential
+ * fuzzing driver uses both to run a subset of the runs over its generated inputs. The run
+ * definitions themselves are not changed, and a name that matches no run is an error.</p>
  *
  * <p>When the OpenNLP annotator throws on an input, its golden holds the header, the
  * {@code config} records and an {@code error} record with the exception's class and message, and
@@ -37,14 +45,27 @@ public final class Main {
   /** The option that adds the decision point dumps. */
   static final String DUMPS_OPTION = "--dumps";
 
+  /** The option that leaves out every run of the named annotator directories. */
+  static final String SKIP_OPTION = "--skip-annotators";
+
+  /** The option that keeps only the runs named as {@code <annotator>/<model>}. */
+  static final String ONLY_OPTION = "--only-runs";
+
   private Main() {}
 
   public static void main(String[] args) throws IOException {
-    boolean dumps = args.length == 6 && args[5].equals(DUMPS_OPTION);
-    if (args.length != 5 && !dumps) {
-      System.err.println("usage: turbo-goldens-java <inputs dir> <models dir> <fixtures dir> <out dir> <opennlp commit> ["
-          + DUMPS_OPTION + "]");
+    if (args.length < 5) {
+      System.err.println(USAGE);
       System.exit(2);
+    }
+    Options options;
+    try {
+      options = Options.parse(Arrays.asList(args).subList(5, args.length));
+    } catch (IllegalArgumentException e) {
+      System.err.println(e.getMessage());
+      System.err.println(USAGE);
+      System.exit(2);
+      return;
     }
     Path inputs = Path.of(args[0]);
     Path models = Path.of(args[1]);
@@ -58,8 +79,8 @@ public final class Main {
     String version = OpennlpVersion.read();
     Path snapshot =
         inputs.toAbsolutePath().resolveSibling(MoneyGolden.SNAPSHOT_DIR).resolve(MoneyGolden.SNAPSHOT_FILE);
-    Runs.All runs = Runs.load(models, fixtures, snapshot);
-    List<AnnotatorDump> recorders = dumps ? runs.recorders() : List.of();
+    Runs.All runs = options.select(Runs.load(models, fixtures, snapshot));
+    List<AnnotatorDump> recorders = options.dumps ? runs.recorders() : List.of();
 
     Map<Path, byte[]> files = new TreeMap<>();
     for (Input input : readInputs(inputs)) {
@@ -70,6 +91,71 @@ public final class Main {
     }
     write(out, files);
     System.out.println("wrote " + files.size() + " files to " + out);
+  }
+
+  private static final String USAGE = "usage: turbo-goldens-java <inputs dir> <models dir> <fixtures dir> <out dir>"
+      + " <opennlp commit> [" + DUMPS_OPTION + "] [" + SKIP_OPTION + " <annotator>,...] [" + ONLY_OPTION
+      + " <annotator>/<model>,...]";
+
+  /** The options after the five positional arguments. */
+  record Options(boolean dumps, Set<String> skipAnnotators, Set<String> onlyRuns) {
+
+    static Options parse(List<String> args) {
+      boolean dumps = false;
+      Set<String> skip = new TreeSet<>();
+      Set<String> only = new TreeSet<>();
+      for (int i = 0; i < args.size(); i++) {
+        String a = args.get(i);
+        switch (a) {
+          case DUMPS_OPTION -> dumps = true;
+          case SKIP_OPTION, ONLY_OPTION -> {
+            if (i + 1 >= args.size()) {
+              throw new IllegalArgumentException(a + " needs a comma separated list");
+            }
+            Set<String> target = a.equals(SKIP_OPTION) ? skip : only;
+            for (String name : args.get(++i).split(",")) {
+              if (name.isEmpty() || (a.equals(ONLY_OPTION) && name.chars().filter(c -> c == '/').count() != 1)) {
+                throw new IllegalArgumentException(a + ": " + name + " is not a name it takes");
+              }
+              target.add(name);
+            }
+          }
+          default -> throw new IllegalArgumentException("unknown option " + a);
+        }
+      }
+      return new Options(dumps, skip, only);
+    }
+
+    /**
+     * The runs that pass both filters, with their recorders. A skipped annotator or a selected
+     * run that no run matches is an error, so a misspelt name does not silently run nothing.
+     */
+    Runs.All select(Runs.All all) {
+      Set<String> annotators = new TreeSet<>();
+      Set<String> runs = new TreeSet<>();
+      for (AnnotatorGolden a : all.annotators()) {
+        annotators.add(a.annotator());
+        runs.add(a.annotator() + "/" + a.modelDir());
+      }
+      for (String s : skipAnnotators) {
+        if (!annotators.contains(s)) {
+          throw new IllegalArgumentException(SKIP_OPTION + ": no run has the annotator directory " + s);
+        }
+      }
+      for (String r : onlyRuns) {
+        if (!runs.contains(r)) {
+          throw new IllegalArgumentException(ONLY_OPTION + ": there is no run " + r);
+        }
+      }
+      List<AnnotatorGolden> selected = all.annotators().stream().filter(this::keeps).toList();
+      List<AnnotatorDump> recorders = all.recorders().stream().filter(d -> keeps(d.golden())).toList();
+      return new Runs.All(selected, recorders);
+    }
+
+    private boolean keeps(AnnotatorGolden a) {
+      return !skipAnnotators.contains(a.annotator())
+          && (onlyRuns.isEmpty() || onlyRuns.contains(a.annotator() + "/" + a.modelDir()));
+    }
   }
 
   /**
