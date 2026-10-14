@@ -72,7 +72,7 @@ fn masc_command(a: Args) -> Result<bool, String> {
         println!("the release is not recorded: this run is not a release of the models");
     }
     let corpus = MascCorpus::read(&corpus_dir).map_err(|e| Error::from(e).to_string())?;
-    let split = masc::SPLIT.apply(corpus, &corpus_dir);
+    let split = masc::SPLIT.apply(corpus, &corpus_dir).map_err(|e| e.to_string())?;
     println!(
         "{} training documents, {} held out, {} skipped by the reader",
         split.train.documents().len(),

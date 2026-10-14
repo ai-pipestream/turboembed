@@ -22,6 +22,15 @@ pub enum Error {
     InvalidRelease { field: &'static str, value: String, message: String },
     /// A field of a model card that the zoo index refuses.
     InvalidCard { field: &'static str, message: String },
+    /// A document whose path is not under the corpus directory.
+    OutsideCorpus { path: PathBuf },
+    /// A card that may not become a zoo entry: its gate failed or its
+    /// corpus is not the recorded release.
+    NotShippable { id: String, reason: &'static str },
+    /// A card file that is not a card.
+    Json { path: PathBuf, message: String },
+    /// A card of another schema version.
+    CardVersion { path: PathBuf, found: u32 },
     /// Held-out samples of one component given to a recipe of another.
     ComponentMismatch { recipe: &'static str, samples: &'static str },
     /// The release has no digest recorded yet, so it cannot be fetched
@@ -51,6 +60,12 @@ impl fmt::Display for Error {
                 write!(f, "the recorded release's {field} {value:?}: {message}")
             }
             Error::InvalidCard { field, message } => write!(f, "the model card's {field}: {message}"),
+            Error::OutsideCorpus { path } => write!(f, "{}: not under the corpus directory", path.display()),
+            Error::NotShippable { id, reason } => write!(f, "{id} is not shippable: {reason}"),
+            Error::Json { path, message } => write!(f, "{}: {message}", path.display()),
+            Error::CardVersion { path, found } => {
+                write!(f, "{}: card version {found}, this build reads {}", path.display(), crate::card::CARD_VERSION)
+            }
             Error::ComponentMismatch { recipe, samples } => {
                 write!(f, "{samples} samples given to the {recipe} recipe")
             }

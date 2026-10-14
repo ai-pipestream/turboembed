@@ -2042,7 +2042,8 @@ are the English sentence detector and tokenizer trained on MASC 3.0.0
   data, its licence and attribution, the split, the parameters, the
   training counts and the gate's outcome) and `gate.json` (the gate
   record). `ModelCard::artifact` is the model's permissive zoo entry
-  once the file is published.
+  once the file is published; it refuses a card whose gate failed or
+  whose corpus is not the recorded release.
 
 ```
 cargo run --release -p turbo-train-recipes -- masc --corpus <masc-dir> \
@@ -2413,8 +2414,10 @@ both 0 (OpenNLP's is -1).
 `ModelGateRecord` is the record kept beside the model card: the task
 and measure, the held-out set (its name, the corpus digest and the
 SHA-256 of the samples as scored), both models by id and SHA-256, the
-resamples and seed, the result, and both models' counts per sample, so
-`check` recomputes the result from the counts. It is strict JSON, as
+resamples and seed, the result, and both models' counts per sample.
+`check` refuses empty names, digests that are not 64 lower case hex,
+and resamples or a seed other than the gate's, then recomputes the
+result from the counts. It is strict JSON, as
 the evaluation record is, and is never replaced once written.
 
 ### The sets

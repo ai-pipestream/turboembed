@@ -42,7 +42,7 @@ pub struct Outcome {
 
 /// The name of the held-out set in the gate records.
 pub fn held_out_name() -> String {
-    format!("{} held out (every {}th document from the {}th)", masc::NAME, SPLIT.every, SPLIT.held_out_at + 1)
+    format!("{} held out (every {}th document from the {}th)", masc::NAME, SPLIT.every(), SPLIT.held_out_at() + 1)
 }
 
 /// Trains `recipe` on the training documents of `split`, scores it and

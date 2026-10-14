@@ -14,6 +14,7 @@
 //! Running the binary with `--unrecorded-corpus` on an extracted copy
 //! prints the corpus digest to record here.
 
+use std::fmt::Write as _;
 use std::path::{Path, PathBuf};
 
 use turbo_formats::masc::{MascCorpus, MascDocument};
@@ -146,7 +147,7 @@ pub fn corpus_digest(dir: &Path) -> Result<CorpusDigest> {
     for rel in &files {
         let path = dir.join(rel);
         let bytes = std::fs::read(&path).map_err(io(&path))?;
-        manifest.push_str(&format!("{}  {rel}\n", Sha256::of(&bytes)));
+        writeln!(manifest, "{}  {rel}", Sha256::of(&bytes)).expect("writing to a String");
     }
     Ok(CorpusDigest { sha256: Sha256::of(manifest.as_bytes()).to_string(), files: files.len() })
 }
@@ -210,15 +211,42 @@ pub fn check_digest(digest: CorpusDigest, release: Release, allow_unrecorded: bo
 /// directory), leaves `held_out_at` when divided by `every`. The rule
 /// uses no randomness, so no seed; with `every` 10 it holds out one
 /// document in ten, spread over the corpus's genre directories.
+/// `held_out_at` is below `every`, so `every` is not 0: [`Split::new`]
+/// and reading a card check it.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
-#[serde(deny_unknown_fields)]
+#[serde(try_from = "SplitFields", into = "SplitFields")]
 pub struct Split {
-    pub every: usize,
-    pub held_out_at: usize,
+    every: usize,
+    held_out_at: usize,
+}
+
+/// A split as written in a card, checked by `Split::try_from`.
+#[derive(serde::Serialize, serde::Deserialize)]
+#[serde(deny_unknown_fields)]
+struct SplitFields {
+    every: usize,
+    held_out_at: usize,
+}
+
+impl TryFrom<SplitFields> for Split {
+    type Error = String;
+    fn try_from(f: SplitFields) -> std::result::Result<Split, String> {
+        Split::new(f.every, f.held_out_at)
+            .ok_or_else(|| format!("a split of every {} at {}: the place must be below every", f.every, f.held_out_at))
+    }
+}
+
+impl From<Split> for SplitFields {
+    fn from(s: Split) -> SplitFields {
+        SplitFields { every: s.every, held_out_at: s.held_out_at }
+    }
 }
 
 /// The split of the recipes: every tenth document, from the tenth.
-pub const SPLIT: Split = Split { every: 10, held_out_at: 9 };
+pub const SPLIT: Split = match Split::new(10, 9) {
+    Some(s) => s,
+    None => panic!("a valid split"),
+};
 
 /// A corpus split into the documents trained on and those held out.
 #[derive(Debug)]
@@ -233,26 +261,48 @@ pub struct SplitCorpus {
 }
 
 impl Split {
+    /// The split that holds out the documents at `held_out_at` modulo
+    /// `every`, or `None` unless `held_out_at < every`.
+    pub const fn new(every: usize, held_out_at: usize) -> Option<Split> {
+        if held_out_at < every { Some(Split { every, held_out_at }) } else { None }
+    }
+
+    pub fn every(&self) -> usize {
+        self.every
+    }
+
+    pub fn held_out_at(&self) -> usize {
+        self.held_out_at
+    }
+
     pub fn is_held_out(&self, position: usize) -> bool {
         position % self.every == self.held_out_at
     }
 
     /// Splits `corpus`, read from `root`, by the documents' places.
-    pub fn apply(&self, corpus: MascCorpus, root: &Path) -> SplitCorpus {
-        let root = std::path::absolute(root).unwrap_or_else(|_| root.to_owned());
-        let rel = |p: &Path| p.strip_prefix(&root).unwrap_or(p).to_string_lossy().into_owned();
-        let skipped_paths = corpus.skipped().iter().map(|s| rel(&s.path)).collect();
+    ///
+    /// # Errors
+    ///
+    /// [`Error::OutsideCorpus`] for a document whose path is not under
+    /// `root`, which a corpus read from `root` does not have.
+    pub fn apply(&self, corpus: MascCorpus, root: &Path) -> Result<SplitCorpus> {
+        let root = std::path::absolute(root).map_err(io(root))?;
+        let rel = |p: &Path| -> Result<String> {
+            let inside = p.strip_prefix(&root).map_err(|_| Error::OutsideCorpus { path: p.to_owned() })?;
+            Ok(inside.to_string_lossy().into_owned())
+        };
+        let skipped_paths = corpus.skipped().iter().map(|s| rel(&s.path)).collect::<Result<_>>()?;
         let (mut train, mut held_out): (Vec<MascDocument>, Vec<MascDocument>) = (Vec::new(), Vec::new());
         for (i, doc) in corpus.into_documents().into_iter().enumerate() {
             if self.is_held_out(i) { held_out.push(doc) } else { train.push(doc) }
         }
-        let held_out_paths = held_out.iter().map(|d| rel(d.path())).collect();
-        SplitCorpus {
+        let held_out_paths = held_out.iter().map(|d| rel(d.path())).collect::<Result<_>>()?;
+        Ok(SplitCorpus {
             train: MascCorpus::from_documents(train),
             held_out: MascCorpus::from_documents(held_out),
             held_out_paths,
             skipped_paths,
-        }
+        })
     }
 }
 
@@ -264,6 +314,33 @@ mod tests {
     fn the_split_holds_out_one_in_ten() {
         let held: Vec<usize> = (0..35).filter(|&i| SPLIT.is_held_out(i)).collect();
         assert_eq!(held, [9, 19, 29]);
+        assert_eq!(Split::new(0, 0), None);
+        assert_eq!(Split::new(10, 10), None);
+        assert_eq!(serde_json::to_string(&SPLIT).unwrap(), r#"{"every":10,"held_out_at":9}"#);
+        assert_eq!(serde_json::from_str::<Split>(r#"{"every":10,"held_out_at":9}"#).unwrap(), SPLIT);
+        for bad in
+            [r#"{"every":0,"held_out_at":0}"#, r#"{"every":3,"held_out_at":3}"#, r#"{"every":3,"held_out_at":1,"x":1}"#]
+        {
+            assert!(serde_json::from_str::<Split>(bad).is_err(), "{bad}");
+        }
+    }
+
+    #[test]
+    fn a_document_outside_the_corpus_directory_is_refused() {
+        let dir = std::env::temp_dir();
+        let doc = turbo_formats::masc::MascDocument::parse(
+            "/elsewhere/doc.hdr",
+            turbo_formats::masc::MascFiles {
+                text: b"A.",
+                segments: Some(b"<graph><region xml:id=\"seg-r0\" anchors=\"0 2\"/></graph>"),
+                sentences: Some(b"<graph><region xml:id=\"s-r0\" anchors=\"0 2\"/></graph>"),
+                penn: None,
+                named_entities: None,
+            },
+        )
+        .unwrap();
+        let corpus = MascCorpus::from_documents(vec![doc; 10]);
+        assert!(matches!(SPLIT.apply(corpus, &dir), Err(Error::OutsideCorpus { .. })));
     }
 
     #[test]

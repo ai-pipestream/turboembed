@@ -38,6 +38,7 @@ use serde::{Deserialize, Serialize};
 use turbo_jvm::random::JavaRandom;
 
 use crate::gate::FLOOR_POINTS;
+use crate::record::is_hex;
 use crate::significance::{Bootstrap, percentile};
 pub use crate::significance::{RESAMPLES, SEED};
 
@@ -73,9 +74,21 @@ pub enum ModelGateError {
         candidate: u64,
         reference: u64,
     },
-    /// Accuracy counts whose predictions are not their tokens.
+    /// Accuracy counts whose predictions are not their tokens, or with
+    /// more correct tokens than tokens.
     AccuracyCounts {
         unit: usize,
+    },
+    /// A record drawn with other resamples or another seed than the
+    /// gate's [`RESAMPLES`] and [`SEED`].
+    Parameters {
+        resamples: u32,
+        seed: i64,
+    },
+    /// A record field that is empty or not a digest.
+    Field {
+        field: &'static str,
+        value: String,
     },
     /// A record of another schema version.
     Version {
@@ -114,8 +127,16 @@ impl fmt::Display for ModelGateError {
                 f,
                 "unit {unit}: the candidate was scored against {candidate} references and the reference model against {reference}"
             ),
-            ModelGateError::AccuracyCounts { unit } => {
-                write!(f, "unit {unit}: accuracy counts with predictions that are not the tokens")
+            ModelGateError::AccuracyCounts { unit } => write!(
+                f,
+                "unit {unit}: accuracy counts with predictions that are not the tokens, or more correct than tokens"
+            ),
+            ModelGateError::Parameters { resamples, seed } => write!(
+                f,
+                "a record of {resamples} resamples with seed {seed}; the gate draws {RESAMPLES} with seed {SEED}"
+            ),
+            ModelGateError::Field { field, value } => {
+                write!(f, "{field} {value:?} is empty or not 64 lower case hex")
             }
             ModelGateError::Version { found } => {
                 write!(f, "record version {found}, this build reads {MODEL_GATE_RECORD_VERSION}")
@@ -271,9 +292,8 @@ pub fn gate_models(measure: Measure, units: &[PairedUnit], resamples: u32, seed:
                 reference: u.reference.target,
             });
         }
-        if measure == Measure::Accuracy
-            && (u.candidate.selected != u.candidate.target || u.reference.selected != u.reference.target)
-        {
+        let accuracy_ok = |c: &Counts| c.selected == c.target && c.true_positives <= c.target;
+        if measure == Measure::Accuracy && !(accuracy_ok(&u.candidate) && accuracy_ok(&u.reference)) {
             return Err(ModelGateError::AccuracyCounts { unit });
         }
     }
@@ -377,11 +397,30 @@ impl ModelGateRecord {
         })
     }
 
-    /// Checks the version, that the measure is the task's, and that the
+    /// Checks the version; that the names are not empty and the digests
+    /// are 64 lower case hex; that the measure is the task's; that the
+    /// record was drawn with [`RESAMPLES`] and [`SEED`]; and that the
     /// result is what the gate gives on the recorded units, to the bit.
     pub fn check(&self) -> Result<()> {
         if self.record_version != MODEL_GATE_RECORD_VERSION {
             return Err(ModelGateError::Version { found: self.record_version });
+        }
+        let names =
+            [("set.name", &self.set.name), ("candidate.id", &self.candidate.id), ("reference.id", &self.reference.id)];
+        if let Some((field, value)) = names.into_iter().find(|(_, v)| v.is_empty()) {
+            return Err(ModelGateError::Field { field, value: value.clone() });
+        }
+        let digests = [
+            ("set.corpus_sha256", &self.set.corpus_sha256),
+            ("set.samples_sha256", &self.set.samples_sha256),
+            ("candidate.sha256", &self.candidate.sha256),
+            ("reference.sha256", &self.reference.sha256),
+        ];
+        if let Some((field, value)) = digests.into_iter().find(|(_, v)| !is_hex(v, 64)) {
+            return Err(ModelGateError::Field { field, value: value.clone() });
+        }
+        if self.resamples != RESAMPLES || self.seed != SEED {
+            return Err(ModelGateError::Parameters { resamples: self.resamples, seed: self.seed });
         }
         if self.measure != self.task.measure() {
             return Err(ModelGateError::MeasureMismatch { task: self.task, measure: self.measure });
@@ -615,6 +654,12 @@ mod tests {
             gate_models(Measure::FMeasure, &units, RESAMPLES, SEED),
             Err(ModelGateError::DifferentReferences { unit: 3, candidate: 2, reference: 1 })
         );
+        units[3] = PairedUnit { candidate: f(15, 10, 10), reference: f(10, 10, 10) };
+        assert_eq!(
+            gate_models(Measure::Accuracy, &units, RESAMPLES, SEED),
+            Err(ModelGateError::AccuracyCounts { unit: 3 }),
+            "more correct tokens than tokens"
+        );
         units[3] = PairedUnit { candidate: f(1, 2, 1), reference: f(1, 2, 1) };
         assert_eq!(
             gate_models(Measure::Accuracy, &units, RESAMPLES, SEED),
@@ -659,6 +704,24 @@ mod tests {
         let mut old = r.clone();
         old.record_version = 0;
         assert_eq!(old.check(), Err(ModelGateError::Version { found: 0 }));
+        // A record drawn with fewer resamples or another seed is refused,
+        // even though its result is what those parameters give.
+        for (resamples, seed) in [(1, SEED), (RESAMPLES, SEED + 1)] {
+            let mut other = r.clone();
+            other.resamples = resamples;
+            other.seed = seed;
+            other.result = gate_models(other.measure, &other.units, resamples, seed).unwrap();
+            assert_eq!(other.check(), Err(ModelGateError::Parameters { resamples, seed }));
+        }
+        let mut unnamed = r.clone();
+        unnamed.candidate.id.clear();
+        assert!(matches!(unnamed.check(), Err(ModelGateError::Field { field: "candidate.id", .. })));
+        let mut upper = r.clone();
+        upper.set.samples_sha256 = "B".repeat(64);
+        assert!(matches!(upper.check(), Err(ModelGateError::Field { field: "set.samples_sha256", .. })));
+        let mut short = r.clone();
+        short.reference.sha256 = "c".repeat(63);
+        assert!(matches!(short.check(), Err(ModelGateError::Field { field: "reference.sha256", .. })));
         let json = r.to_json().replace("\"seed\": 154,", "\"seed\": 154,\n  \"extra\": 1,");
         assert!(serde_json::from_str::<ModelGateRecord>(&json).is_err(), "unknown fields are refused");
         let text = r.to_string();

@@ -186,8 +186,18 @@ impl ModelCard {
     ///
     /// # Errors
     ///
-    /// An address or field the index refuses.
+    /// [`Error::NotShippable`] when the gate failed or the corpus is not
+    /// the recorded release, or an address or field the index refuses.
     pub fn artifact(&self, url: &str) -> Result<Artifact> {
+        if !self.gate.pass {
+            return Err(Error::NotShippable { id: self.id.clone(), reason: "it failed its gate" });
+        }
+        if !self.corpus.release_recorded {
+            return Err(Error::NotShippable {
+                id: self.id.clone(),
+                reason: "it was trained on a corpus that is not the recorded release",
+            });
+        }
         let bad = |field: &'static str, message: String| Error::InvalidCard { field, message };
         Ok(Artifact {
             id: self.id.parse().map_err(|e| bad("id", e))?,
@@ -220,7 +230,12 @@ impl ModelCard {
 
     pub fn read(path: &Path) -> Result<ModelCard> {
         let bytes = std::fs::read(path).map_err(io(path))?;
-        serde_json::from_slice(&bytes).map_err(|e| Error::Io { path: path.to_owned(), message: e.to_string() })
+        let card: ModelCard = serde_json::from_slice(&bytes)
+            .map_err(|e| Error::Json { path: path.to_owned(), message: e.to_string() })?;
+        if card.card_version != CARD_VERSION {
+            return Err(Error::CardVersion { path: path.to_owned(), found: card.card_version });
+        }
+        Ok(card)
     }
 }
 

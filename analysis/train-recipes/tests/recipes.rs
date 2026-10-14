@@ -12,7 +12,7 @@ use turbo_formats::masc::MascCorpus;
 use turbo_train_recipes::card::{CARD_FILE, GATE_FILE, ModelCard, write_model_dir};
 use turbo_train_recipes::masc::{self, RELEASE, SPLIT, SplitCorpus};
 use turbo_train_recipes::segmentation::{RECIPES, SENTENCE, TOKENS};
-use turbo_train_recipes::{held_out_name, run};
+use turbo_train_recipes::{Error, held_out_name, run};
 use turbo_zoo::{Index, LicenceClass};
 
 /// The pool without abbreviations, attached punctuation or contractions:
@@ -27,7 +27,7 @@ fn models_required() -> bool {
 fn split_of(root: &std::path::Path) -> (SplitCorpus, masc::CorpusDigest) {
     let digest = masc::check_corpus(root, RELEASE, true).unwrap();
     let corpus = MascCorpus::read(root).unwrap();
-    (SPLIT.apply(corpus, root), digest)
+    (SPLIT.apply(corpus, root).unwrap(), digest)
 }
 
 #[test]
@@ -126,13 +126,32 @@ fn the_recipes_train_score_gate_and_write_their_cards() {
         write_model_dir(&out, card, &outcome.trained.bytes, gate).unwrap();
         let dir = out.join(recipe.model_id);
         assert_eq!(ModelCard::read(&dir.join(CARD_FILE)).unwrap(), *card);
+        let other = dir.join("other-card.json");
+        std::fs::write(&other, card.to_json().replace("\"card_version\": 1,", "\"card_version\": 2,")).unwrap();
+        assert!(matches!(ModelCard::read(&other), Err(Error::CardVersion { found: 2, .. })));
+        std::fs::write(&other, "{}").unwrap();
+        assert!(matches!(ModelCard::read(&other), Err(Error::Json { .. })));
+        let bad_split = card.to_json().replace("\"every\": 10,", "\"every\": 0,");
+        assert_ne!(bad_split, card.to_json());
+        std::fs::write(&other, bad_split).unwrap();
+        assert!(matches!(ModelCard::read(&other), Err(Error::Json { .. })), "a split of every 0");
         assert_eq!(ModelGateRecord::read(&dir.join(GATE_FILE)).unwrap(), *gate);
         assert_eq!(std::fs::read(dir.join(&card.file.name)).unwrap(), outcome.trained.bytes);
         assert!(write_model_dir(&out, card, &outcome.trained.bytes, gate).is_err(), "nothing is replaced");
 
-        // The model's zoo entry is permissive, shippable and names MASC.
+        // A card trained on a corpus that is not the recorded release, as
+        // every card here is, or whose gate failed, makes no zoo entry.
         let url = format!("https://example.org/models/{}", card.file.name);
-        let artifact = card.artifact(&url).unwrap();
+        assert!(matches!(card.artifact(&url), Err(Error::NotShippable { .. })));
+        let mut failed = card.clone();
+        failed.corpus.release_recorded = true;
+        failed.gate.pass = false;
+        assert!(matches!(failed.artifact(&url), Err(Error::NotShippable { .. })));
+        // With the release recorded and the gate passed, the entry is
+        // permissive, shippable and names MASC.
+        let mut released = card.clone();
+        released.corpus.release_recorded = true;
+        let artifact = released.artifact(&url).unwrap();
         let index = Index::parse(Index::to_canonical_json(&[artifact]).as_bytes()).unwrap();
         let entry = index.get(recipe.model_id).unwrap();
         assert_eq!(entry.computed_class(), LicenceClass::Permissive);
