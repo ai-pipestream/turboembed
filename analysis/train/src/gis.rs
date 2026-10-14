@@ -200,21 +200,26 @@ pub fn train(index: &DataIndex, params: &TrainingParameters, config: &mut Traini
     }
     let gis = GisParams::from_training_parameters(params)?;
     let default_stop = LogLikelihoodThresholdBreached::from_parameters(params)?;
-    Ok(train_model(index, &gis, config, &default_stop, &mut |_, _| {}))
+    train_model(index, &gis, config, &default_stop, &mut |_, _| {})
 }
 
 /// `GISTrainer.trainModel(iterations, indexer, threads)`: trains without
 /// the outcome check, with `default_stop` where `config` has no criterion
 /// and the default monitor where it has none. After every iteration,
 /// `observe` is given the iteration number and every parameter (the layout
-/// of [`GisModel::all_parameters`]).
+/// of [`GisModel::all_parameters`]). A thread count under one is refused
+/// as `trainModel` refuses it (`IllegalArgumentException`,
+/// [`Error::Threads`]).
 pub fn train_model(
     index: &DataIndex,
     params: &GisParams,
     config: &mut TrainingConfiguration,
     default_stop: &dyn StopCriteria,
     observe: &mut dyn FnMut(i32, &[f64]),
-) -> GisModel {
+) -> Result<GisModel> {
+    if params.threads <= 0 {
+        return Err(Error::Threads(params.threads));
+    }
     let mut default_monitor = DefaultProgressMonitor::new();
     let monitor: &mut dyn ProgressMonitor = match &mut config.monitor {
         Some(m) => m.as_mut(),
@@ -226,13 +231,13 @@ pub fn train_model(
     };
     let mut trainer = Trainer::new(index, params);
     trainer.find_parameters(params.iterations, monitor, stop, observe);
-    GisModel {
+    Ok(GisModel {
         outcome_labels: index.outcome_labels().to_vec(),
         pred_labels: index.pred_labels().to_vec(),
         pattern_starts: trainer.pattern_starts,
         outcomes: trainer.outcomes,
         parameters: trainer.params,
-    }
+    })
 }
 
 /// The trainer's state between iterations: the per predicate arrays
@@ -254,7 +259,9 @@ struct Trainer<'i> {
     log_prior: f64,
 }
 
-/// `(seen, dist, ...)` of one event for one thread's expectations.
+/// What `ModelExpectationComputeTask` returns for its chunk of events: the
+/// chunk's log likelihood, the events it counted (each as often as it was
+/// seen) and how many of those the model's best outcome got right.
 struct Chunk {
     log_likelihood: f64,
     events: i32,
@@ -331,7 +338,8 @@ impl<'i> Trainer<'i> {
             }
         }
         pattern_starts.push(outcomes.len() as u32);
-        let threads = params.threads.max(1) as usize;
+        // Checked by train_model, as trainModel checks it.
+        let threads = params.threads as usize;
         Trainer {
             index,
             num_outcomes,
@@ -586,13 +594,25 @@ mod tests {
         let stop = LogLikelihoodThresholdBreached::default();
         let model = train_model(&index, &params, &mut TrainingConfiguration::default(), &stop, &mut |i, p| {
             seen.push((i, p.to_vec()));
-        });
+        })
+        .unwrap();
         assert_eq!(seen.iter().map(|(i, _)| *i).collect::<Vec<_>>(), [1, 2, 3, 4, 5]);
         assert_eq!(seen[4].1, model.all_parameters());
         // A run of two iterations is the first two of a run of five.
         let params = GisParams { iterations: 2, ..GisParams::default() };
-        let two = train_model(&index, &params, &mut TrainingConfiguration::default(), &stop, &mut |_, _| {});
+        let two = train_model(&index, &params, &mut TrainingConfiguration::default(), &stop, &mut |_, _| {}).unwrap();
         assert_eq!(two.all_parameters(), &seen[1].1[..]);
+    }
+
+    #[test]
+    fn a_thread_count_under_one_is_refused() {
+        let index = DataIndex::index(&events(), &IndexParams::new(IndexerKind::OnePass, 0, true)).unwrap();
+        let stop = LogLikelihoodThresholdBreached::default();
+        for threads in [0, -3] {
+            let params = GisParams { threads, ..GisParams::default() };
+            let result = train_model(&index, &params, &mut TrainingConfiguration::default(), &stop, &mut |_, _| {});
+            assert_eq!(result.err(), Some(Error::Threads(threads)));
+        }
     }
 
     #[test]
@@ -600,9 +620,10 @@ mod tests {
         let index = DataIndex::index(&events(), &IndexParams::new(IndexerKind::OnePass, 0, true)).unwrap();
         let stop = LogLikelihoodThresholdBreached::default();
         let one =
-            train_model(&index, &GisParams::default(), &mut TrainingConfiguration::default(), &stop, &mut |_, _| {});
+            train_model(&index, &GisParams::default(), &mut TrainingConfiguration::default(), &stop, &mut |_, _| {})
+                .unwrap();
         let params = GisParams { threads: 3, ..GisParams::default() };
-        let three = train_model(&index, &params, &mut TrainingConfiguration::default(), &stop, &mut |_, _| {});
+        let three = train_model(&index, &params, &mut TrainingConfiguration::default(), &stop, &mut |_, _| {}).unwrap();
         for (a, b) in one.all_parameters().iter().zip(three.all_parameters()) {
             assert!((a - b).abs() < 1e-9, "{a} vs {b}");
         }
@@ -614,7 +635,7 @@ mod tests {
         let params =
             GisParams { iterations: 3, smoothing: Smoothing::Simple { observation: 0.1 }, ..GisParams::default() };
         let stop = LogLikelihoodThresholdBreached::default();
-        let model = train_model(&index, &params, &mut TrainingConfiguration::default(), &stop, &mut |_, _| {});
+        let model = train_model(&index, &params, &mut TrainingConfiguration::default(), &stop, &mut |_, _| {}).unwrap();
         for p in 0..model.num_predicates() {
             assert_eq!(model.pattern(p), [0, 1, 2]);
         }
