@@ -402,11 +402,11 @@ impl WordPiece {
     }
 
     /// Which documented difference of `analysis/embed/tests/goldens.rs`
-    /// explains `jvm` against `rust`, if one does. Both sides are checked:
+    /// explains `jvm` against `rust`, or why none does. Both sides are checked:
     /// the JVM's spans must be what the model gives for its ids, and the
     /// port's pieces must be what upstream `tokenizers` gives for the same
     /// text, as [`expected_port_spans`] derives them from the JVM's.
-    fn documented(&self, text: &str, jvm: &[Piece], rust: &[Piece]) -> Option<String> {
+    fn documented(&self, text: &str, jvm: &[Piece], rust: &[Piece]) -> Result<String, String> {
         let mapped = map(text);
         // With final sigma written as the JVM lowercases it, the port's ids
         // are the JVM's.
@@ -423,14 +423,16 @@ impl WordPiece {
         for &piece in rust {
             if let Some(&(a, b, id)) = occurrences.iter().find(|&&(a, b, _)| piece.1[0] >= a && piece.1[1] <= b) {
                 if piece != (id, [a, b]) {
-                    return None;
+                    return Err(format!(
+                        "the port's piece {piece:?} inside the special token at {a}..{b} is not the token"
+                    ));
                 }
             } else {
                 rust_outside.push(piece);
             }
         }
-        if occurrences.iter().any(|&(a, b, id)| !rust.contains(&(id, [a, b]))) {
-            return None;
+        if let Some(&(a, b, id)) = occurrences.iter().find(|&&(a, b, id)| !rust.contains(&(id, [a, b]))) {
+            return Err(format!("the port has no piece {id} over the special token at {a}..{b}"));
         }
         let mut jvm_outside: Vec<Piece> = Vec::with_capacity(jvm.len());
         for &piece in jvm {
@@ -438,7 +440,7 @@ impl WordPiece {
             let inside = occurrences.iter().any(|&(s, e, _)| a >= s && b <= e);
             if !inside {
                 if occurrences.iter().any(|&(s, e, _)| a < e && b > s) {
-                    return None;
+                    return Err(format!("the JVM's piece at {a}..{b} crosses a special token's string"));
                 }
                 jvm_outside.push(piece);
             }
@@ -451,7 +453,14 @@ impl WordPiece {
             // a word of its own, an unknown piece, where the port has one
             // unknown piece over the whole word. Compared exactly, spans too.
             if !cjk || !occurrences.is_empty() {
-                return None;
+                let i = (0..ids.len().max(jvm_ids.len())).find(|&i| ids.get(i) != jvm_ids.get(i)).unwrap_or(0);
+                return Err(format!(
+                    "the ids differ at piece {i}: {:?} here, {:?} on the JVM ({} and {} pieces)",
+                    rust_outside.get(i),
+                    jvm_outside.get(i),
+                    ids.len(),
+                    jvm_ids.len()
+                ));
             }
             let mut split = Vec::new();
             for &(id, [a, b]) in rust.iter() {
@@ -466,19 +475,43 @@ impl WordPiece {
                     split.push((id, [a, b]));
                 }
             }
-            return (split == jvm).then(|| "the ideographs U+2B820 to U+2B91F are CJK on the JVM and not upstream (analysis/embed/tests/goldens.rs, the_ideographs_from_u2b820_are_words_on_the_jvm_only)".to_string());
+            return if split == jvm {
+                Ok("the ideographs U+2B820 to U+2B91F are CJK on the JVM and not upstream (analysis/embed/tests/goldens.rs, the_ideographs_from_u2b820_are_words_on_the_jvm_only)".to_string())
+            } else {
+                Err("the ids differ, and not by the JVM isolating the ideographs U+2B820 to U+2B91F".to_string())
+            };
         }
         // The JVM's side: its spans are the model's for its ids.
         let all_ids: Vec<u32> = jvm.iter().map(|p| p.0).collect();
-        let spans = self.jvm_spans(&mapped.units, &all_ids)?;
-        if spans.len() != jvm.len() || spans.iter().zip(jvm).any(|(s, j)| *s != j.1) {
-            return None;
+        let spans = self
+            .jvm_spans(&mapped.units, &all_ids)
+            .ok_or_else(|| "the JVM's ids do not fit the words of the modelled WordpieceEncoder text".to_string())?;
+        if let Some(i) = (0..spans.len().max(jvm.len())).find(|&i| spans.get(i) != jvm.get(i).map(|j| &j.1)) {
+            return Err(format!(
+                "the JVM's span of piece {i} is {:?} where the model of WordpieceEncoder gives {:?}",
+                jvm.get(i).map(|j| j.1),
+                spans.get(i)
+            ));
         }
         // The port's side: its spans are the JVM's with the documented
         // changes, piece by piece.
         let expected = expected_port_spans(text, &mapped, &jvm_outside);
         if !port_spans_fit(&expected, &rust_outside) {
-            return None;
+            let i = (0..expected.len().max(rust_outside.len()))
+                .find(|&i| {
+                    !port_spans_fit(
+                        &expected[i..(i + 1).min(expected.len())],
+                        &rust_outside[i..(i + 1).min(rust_outside.len())],
+                    )
+                })
+                .unwrap_or(0);
+            return Err(format!(
+                "the port's span of piece {i} is {:?} where the JVM's gives {:?} ({} and {} pieces)",
+                rust_outside.get(i).map(|r| r.1),
+                expected.get(i),
+                rust_outside.len(),
+                expected.len()
+            ));
         }
         let mut why = Vec::new();
         if !occurrences.is_empty() {
@@ -488,7 +521,7 @@ impl WordPiece {
             why.push("a word final capital sigma lowercases to final sigma on the JVM and to sigma here (a_word_final_capital_sigma_is_final_sigma_on_the_jvm_only)");
         }
         if mapped.used.stripped {
-            why.push("WordpieceEncoder runs a piece's span over the nonspacing marks accent stripping removed after it (a_stripped_mark_is_in_the_jvm_span_and_not_in_ours)");
+            why.push("WordpieceEncoder runs a piece's span over the nonspacing marks accent stripping removed after it, and over the controls it dropped before them (a_stripped_mark_is_in_the_jvm_span_and_not_in_ours)");
         }
         if !mapped.used.reordered.is_empty() {
             why.push("marks out of canonical order: WordpieceEncoder gives every piece of the run the whole run's span (marks_out_of_order_give_every_jvm_piece_the_whole_run)");
@@ -498,7 +531,10 @@ impl WordPiece {
         }
         // The model gives the JVM's spans without any documented rule: a
         // difference nobody has written down yet.
-        (!why.is_empty()).then(|| format!("{} (analysis/embed/tests/goldens.rs)", why.join("; ")))
+        if why.is_empty() {
+            return Err("the spans differ and no documented difference is in play".to_string());
+        }
+        Ok(format!("{} (analysis/embed/tests/goldens.rs)", why.join("; ")))
     }
 }
 
@@ -567,8 +603,8 @@ impl Run for WordPiece {
         };
         let Some(jvm) = jvm_pieces(golden) else { return Outcome::Divergence(mismatch.to_string()) };
         match self.documented(doc.source(), &jvm, &rust_pieces(doc)) {
-            Some(why) => Outcome::Documented(why),
-            None => Outcome::Divergence(mismatch.to_string()),
+            Ok(why) => Outcome::Documented(why),
+            Err(reason) => Outcome::Divergence(format!("{mismatch}; {reason}")),
         }
     }
 }
@@ -669,20 +705,34 @@ mod tests {
         assert!(matches!(wp.compare(&doc, &golden), Outcome::Documented(_)));
         let jvm = jvm_pieces(&golden).unwrap();
         let rust = rust_pieces(&doc);
-        assert!(wp.documented(&text, &jvm, &rust).is_some());
+        assert!(wp.documented(&text, &jvm, &rust).is_ok());
         // The port's piece given the JVM's span over the stripped mark.
         let i = rust.iter().zip(&jvm).position(|(r, j)| r.1 != j.1).expect("a piece over a mark");
         let mut wrong = rust.clone();
         wrong[i].1 = jvm[i].1;
-        assert!(wp.documented(&text, &jvm, &wrong).is_none());
+        let reason = wp.documented(&text, &jvm, &wrong).unwrap_err();
+        assert!(reason.contains(&format!("the port's span of piece {i}")), "{reason}");
         // A piece a byte short, a piece missing, a piece too many.
         let mut wrong = rust.clone();
         wrong[0].1[1] -= 1;
-        assert!(wp.documented(&text, &jvm, &wrong).is_none());
-        assert!(wp.documented(&text, &jvm, &rust[1..]).is_none());
+        assert!(wp.documented(&text, &jvm, &wrong).is_err());
+        assert!(wp.documented(&text, &jvm, &rust[1..]).is_err());
         let mut wrong = rust.clone();
         wrong.push(rust[rust.len() - 1]);
-        assert!(wp.documented(&text, &jvm, &wrong).is_none());
+        assert!(wp.documented(&text, &jvm, &wrong).is_err());
+    }
+
+    /// Explains one golden of a fuzz run: `TURBO_FUZZ_GOLDEN` names the
+    /// golden file and `TURBO_FUZZ_INPUT` its input text.
+    #[test]
+    #[ignore = "a diagnostic over files named by the environment"]
+    fn explain_one_golden_from_the_environment() {
+        let wp = WordPiece::new(&Resources::from_env()).unwrap_or_else(|e| panic!("{e}"));
+        let golden = crate::read_golden(std::path::Path::new(&std::env::var("TURBO_FUZZ_GOLDEN").unwrap())).unwrap();
+        let text = std::fs::read_to_string(std::env::var("TURBO_FUZZ_INPUT").unwrap()).unwrap();
+        let doc = wp.annotate(&text, Some(&golden)).unwrap();
+        let jvm = jvm_pieces(&golden).unwrap();
+        eprintln!("{:?}", wp.documented(&text, &jvm, &rust_pieces(&doc)));
     }
 
     #[test]
