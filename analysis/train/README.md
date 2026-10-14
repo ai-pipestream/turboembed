@@ -14,6 +14,9 @@ starts at events.
 | `index` | `OnePassDataIndexer`, `TwoPassDataIndexer`, `OnePassRealValueDataIndexer`, `ComparableEvent`, `DataIndexerFactory` |
 | `params` | `TrainingParameters`, `Parameters`, `AlgorithmType`, `TrainerFactory.TrainerType`, `getTrainerType`, `isValid` |
 | `monitor` | `TrainingProgressMonitor`, `DefaultTrainingProgressMonitor`, `TrainingMeasure`, `StopCriteria`, `LogLikelihoodThresholdBreached`, `IterDeltaAccuracyUnderTolerance`, `TrainingConfiguration` |
+| `gis` | `GISTrainer`, `GISModel`'s data structures, `UniformPrior`, `AbstractEventTrainer.train` |
+| `writer` | `GenericModelWriter`, `BinaryGISModelWriter`, `GISModelWriter.persist`, `ComparablePredicate`, `ModelParameterChunker` |
+| `package` | `BaseModel.serialize`, the manifest `BaseModel` builds and `PropertiesSerializer` writes, `SentenceModel`'s entries |
 | `context` | `BasicContextGenerator` |
 | `crc32c` | `java.util.zip.CRC32C` |
 
@@ -42,6 +45,40 @@ the events back and compares the indexers with them; the run
 `sentdetect-twopass-cutoff1/train/sentences` is the training of the
 fixture model `en-plain.bin`, whose manifest's `Training-Eventhash` is
 that run's checksum.
+
+## GIS trainer, writer and model file
+
+`gis::train_events` is `TrainerFactory.getEventTrainer(MAXENT).train(events)`:
+checksum, index, train; `gis::train` takes an index; `gis::train_model`
+also takes an observer called with the parameters after every iteration.
+The trainer keeps Java's arithmetic: `float` counts and correction
+constant, `StrictMath.log` and `exp`, the uniform prior, one event at a
+time in the JVM's order, and with `Threads` above one the JVM's chunking of
+the events and order of merging the chunks' sums. `writer::write_gis`
+produces the `.model` bytes, `package::ModelPackage` the `.bin` around
+them, and `package::sentence_model_package` the sentence detector's
+manifest entries.
+
+Parity: `tests/goldens.rs` trains every training golden's index and
+compares the log likelihood, the correct and total counts, and the SHA-256
+of every parameter after every iteration, every parameter after the first
+and the last iteration bit for bit, the end of training message, and the
+SHA-256 and length of the written model with the JVM's. `tests/roundtrip.rs`
+trains the two fixture models again from their events and parameters:
+`analysis/maxent/tests/fixtures/models/gis.model` is reproduced byte for
+byte, and so is the `sent.model` entry and the manifest of
+`analysis/goldens/data/fixtures/en-plain.bin`; the `.bin` written here
+opens with `turbo-maxent` and `turbo-sentdetect` and splits the training
+text as the fixture does, probabilities included. The same file was
+loaded in the JVM (`SentenceModel`, `SentenceDetectorME`) beside the
+fixture: same spans, bit-equal probabilities, and `GenericModelWriter`
+writes the loaded model back to the same bytes.
+
+The `.bin` written here stores its entries uncompressed, the manifest
+first, with the time of the manifest's `Timestamp` in UTC; the JVM
+deflates them in `HashMap` order with the local time. Both readers take
+both. Timestamps are an argument, never read from a clock, so a model
+file is reproducible.
 
 ## OpenNLP behaviour worth knowing
 
@@ -72,7 +109,29 @@ that run's checksum.
 - `String.CASE_INSENSITIVE_ORDER` is computed as JDK 21 does, by code
   points; JDK 17 and earlier compared UTF-16 units, which differs only for
   keys with characters outside the BMP.
+- `GISTrainer` refuses `Smoothing` with `GaussianSmoothing`
+  (`Error::BothSmoothings`) and `Threads` under one (`Error::Threads`).
+- With `Threads` above one `GISTrainer` sums the log likelihood and the
+  expectations per chunk and then across chunks, so a model trained with
+  two threads differs in the last bits from one trained with one. The
+  chunking (`n / threads` events per chunk, the first `n % threads`
+  chunks one longer) and the merge order are ported.
+- `GISTrainer` stops when the log likelihood falls ("Model Diverging")
+  without telling the monitor, so `finishedTraining` then reports the
+  requested iteration count with no stop criterion.
+- `ModelParameterChunker.writeUTF` cuts a string over 65535 bytes into
+  chunks measured in standard UTF-8 but written in modified UTF-8: a chunk
+  of characters outside the BMP can exceed 65535 bytes there and the write
+  fails (`Error::StringTooLong`), and the UTF-8 encoder stops at a lone
+  surrogate, so such a string is cut there and the rest is lost.
+- `BaseModel` writes `OpenNLP-Version` from `Version.currentVersion()`,
+  `3.0.0-SNAPSHOT` for the fork this crate ports; `package::OPENNLP_VERSION`
+  holds it.
 
 Not ported: `Float.parseFloat` and `Double.parseDouble` read hexadecimal
 literals (`0x1p3`), which `turbo_jvm::text` refuses; a real valued feature
-written that way is counted as 1 here where OpenNLP would read it.
+written that way is counted as 1 here where OpenNLP would read it. The
+abbreviation dictionary entry of a sentence or tokenizer model
+(`abbreviations.dictionary`, `DictionarySerializer`) has no writer here
+yet; `ModelPackage::add_entry` takes its bytes. Nor are the QN, perceptron
+and naive Bayes trainers.

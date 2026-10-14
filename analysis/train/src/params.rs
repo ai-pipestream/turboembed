@@ -415,7 +415,7 @@ impl TrainingParameters {
 }
 
 /// `Properties.saveConvert(s, escapeSpace, escUnicode = true)`.
-fn save_convert(s: &str, escape_space: bool, out: &mut String) {
+pub(crate) fn save_convert(s: &str, escape_space: bool, out: &mut String) {
     for (i, c) in s.chars().enumerate() {
         match c {
             '\\' => out.push_str("\\\\"),

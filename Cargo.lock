@@ -2037,6 +2037,7 @@ dependencies = [
  "turbo-goldens",
  "turbo-jvm",
  "turbo-maxent",
+ "turbo-sentdetect",
  "turbo-unicode",
 ]
 

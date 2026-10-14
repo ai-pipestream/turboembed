@@ -24,3 +24,6 @@ turbo-unicode = { path = "../unicode" }
 # The JVM's indexer results on real event data, which the indexers are
 # compared with.
 turbo-goldens = { path = "../goldens" }
+# Opens the sentence detector model trained here and the JVM's fixture,
+# and splits text with both.
+turbo-sentdetect = { path = "../sentdetect" }
