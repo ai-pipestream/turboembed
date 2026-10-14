@@ -1,0 +1,22 @@
+((S (NP (DT A) (NN dog)) (VP (VBZ runs))))
+( (S (NP (NN rain)) (VP (VBZ falls))) )
+(TOP (S (NP (NN snow)) (VP (VBZ melts)))))
+(TOP (S (NP (NN wind)) (VP (VBZ blows))
+(A (B one)) (C (D two))
+(TOP (NN tab	inside) (NN tail	) (NN tail ) (NN vt))
+(TOP (NN  spaced) (NN ok))
+(TOP (-NONE-1 *T*) (-LRB-X ( ) (NN x))
+(TOP stray (NN text) more (VB here) ) tail
+(TOP (-bad (NN x)))
+(TOP (=EQ (NN y)))
+(TOP )
+()
+(TOP (NN a) (VB b)) trailing ) text
+
+ 	 
+(TOP (S ( (NP (-NONE- *))) (NN x)))
+(TOP (A (B (C ( (-NONE- *))))))
+(TOP (NP (NP=2 (NN equal)) (VP-3-TMP (VB go)) (NP--X (NN dash)) (NP-= (NN eq))))
+(TOP (NN -LRB-) (NN -RRB-) (-LRB- -LCB-) (NN -NONE-) (NN (x)) (NN a b) (NN c)d))
+(TOP(NP(DT the)(NN end))(. .))
+(TOP (S (NP (NN (NN x))) (VP (VB y)) ) )

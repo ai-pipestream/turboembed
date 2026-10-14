@@ -1,0 +1,640 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	parse/basic	1842	1842	a2081a5bbe53a4315360d77dc84290ed4ad6174dc448ff7247efcad16098bedf
+annotator	opennlp.tools.parser.ParseSampleStream	read
+config	useFunctionTags	true
+layer	turbo:samples	document	13	written:str
+(TOP (S (NP-SBJ (DT The) (NN cat)) (VP (VBD sat) (PP-LOC (IN on) (NP (DT the) (NN mat)))) (. .)) )
+(TOP (S (NP-SBJ (NNP Maria)) (VP (VBZ says) (SBAR (IN that) (S (NP-SBJ (-NONE- *-1)) (VP (VBD left) (NP-TMP (NN yesterday)))))) (. .)) )
+(TOP (SBAR (WHNP-2 (WP what)) (S (NP-SBJ (PRP she)) (VP (VBD saw) (NP (-NONE- *T*-2))))) )
+(TOP (S (NP-SBJ (NP (NNP Anna) (POS 's)) (NN brother) (POS 's) (NN dog)) (VP (VBD barked)) (. .)) )
+(TOP (S (NP (NP (NP (NNP John) (POS 's)) (NN mother) (POS 's)) (NN dog)) (VP (VBD ran))) )
+(TOP (S (NP (NP (NP (NN tea)))) (VP (VP (VBZ cools)) (CC and) (VP (VBZ settles))) (. .)) )
+(TOP (S (NP-SBJ (PRP We)) (VP (VBD paid) (NP (QP ($ $) (CD 5))) (PRN (-LRB- -LRB-) (NP (CD two) (NNS euros)) (-RRB- -RRB-))) (: ;) (S (NP (-LCB- -LCB-) (NN set) (-RCB- -RCB-)) (VP (VBD held) (NP (-LSB- -LSB-) (NN list) (-RSB- -RSB-)))) (. .)) )
+(TOP (S-TPC (NP-SBJ (NN today)) (ADJP-PRD (JJ fine))) (`` ``) ('' '') (, ,) )
+(TOP (NX (JJR better) (NN tool)) (ADJP (RB very) (JJ big)) (NP (JJ red) (RB really)) (NP (DT a) (ADJP (JJ nice)) (PRN (, ,) (NP (NN note)))) )
+(TOP (S (NP (NP (DT the) (NN dog)) (PP (IN of) (NP (NNP Sam) (POS 's)))) (VP (VBD slept) (ADVP (RB well)) (SBAR-ADV (IN because) (S (NP (PRP it)) (VP (VBD rained))))) (. .)) )
+(TOP (S (NP (DT no) (NN rule)) (UCP (JJ odd) (CC and) (NN thing)) (FRAG (X (SYM *))) (WHADVP (WRB how)) (VP (TO to) (VP (VB go)))) )
+(TOP (NP (NP (DT the) (NNS cats)) (CC and) (NP (DT a) (NN dog))) (NP (CD 3) ($ $)) (NP (DT the) (JJS best)) (NP (DT the) (PRP it)) (NX (NNPS Smiths) (JJR more)) (NP (QP (RB about) (CD 5))) )
+(TOP (S (ADVP (RB so)) (VP (MD can) (VP (VB see) (PRT (RP up)))) (SINV (VBZ is) (NP (PRP it))) (SQ (VBZ is) (NP (PRP he))) (CONJP (CC and) (RB not)) (INTJ (UH oh)) (LST (LS a)) (RRC (ADJP (JJ ready))) (WHPP (IN of) (WHNP (WDT which))) (WHADJP (WRB how) (JJ big))) )
+end	turbo:samples
+layer	turbo:read-errors	document	0	after:u32	class:str	message:str
+end	turbo:read-errors
+layer	turbo:parse-texts	document	13	sample:u32	text:str
+0	The cat sat on the mat . 
+1	Maria says that *-1 left yesterday . 
+2	what she saw *T*-2 
+3	Anna 's brother 's dog barked . 
+4	John 's mother 's dog ran 
+5	tea cools and settles . 
+6	We paid $ 5 ( two euros ) ; { set } held [ list ] . 
+7	today fine `` '' , 
+8	better tool very big red really a nice , note 
+9	the dog of Sam 's slept well because it rained . 
+10	no rule odd and thing * how to go 
+11	the cats and a dog 3 $ the best the it Smiths more about 5 
+12	so can see up is it is he and not oh a ready of which how big 
+end	turbo:parse-texts
+layer	turbo:parse-nodes	document	354	sample:u32	depth:u32	type:str	start:u32	end:u32	head-start:u32	head-end:u32	own-head:u32	head-index:u32
+0	0	TOP	0	25	0	25	1	0
+0	1	S	0	24	0	24	1	6
+0	2	NP-SBJ	0	7	0	7	1	1
+0	3	DT	0	3	0	3	1	0
+0	4	TK	0	3	0	3	1	0
+0	3	NN	4	7	4	7	1	1
+0	4	TK	4	7	4	7	1	1
+0	2	VP	8	22	8	22	1	5
+0	3	VBD	8	11	8	11	1	2
+0	4	TK	8	11	8	11	1	2
+0	3	PP-LOC	12	22	12	22	1	5
+0	4	IN	12	14	12	14	1	3
+0	5	TK	12	14	12	14	1	3
+0	4	NP	15	22	15	22	1	5
+0	5	DT	15	18	15	18	1	4
+0	6	TK	15	18	15	18	1	4
+0	5	NN	19	22	19	22	1	5
+0	6	TK	19	22	19	22	1	5
+0	2	.	23	24	23	24	1	6
+0	3	TK	23	24	23	24	1	6
+1	0	TOP	0	37	0	37	1	0
+1	1	S	0	36	0	36	1	6
+1	2	NP-SBJ	0	5	0	5	1	0
+1	3	NNP	0	5	0	5	1	0
+1	4	TK	0	5	0	5	1	0
+1	2	VP	6	34	6	34	1	5
+1	3	VBZ	6	10	6	10	1	1
+1	4	TK	6	10	6	10	1	1
+1	3	SBAR	11	34	11	34	1	5
+1	4	IN	11	15	11	15	1	2
+1	5	TK	11	15	11	15	1	2
+1	4	S	16	34	16	34	1	5
+1	5	NP-SBJ	16	19	16	19	1	3
+1	6	-NONE-	16	19	16	19	1	3
+1	7	TK	16	19	16	19	1	3
+1	5	VP	20	34	20	34	1	5
+1	6	VBD	20	24	20	24	1	4
+1	7	TK	20	24	20	24	1	4
+1	6	NP-TMP	25	34	25	34	1	5
+1	7	NN	25	34	25	34	1	5
+1	8	TK	25	34	25	34	1	5
+1	2	.	35	36	35	36	1	6
+1	3	TK	35	36	35	36	1	6
+2	0	TOP	0	19	0	19	1	0
+2	1	SBAR	0	18	0	18	1	3
+2	2	WHNP-2	0	4	0	4	1	0
+2	3	WP	0	4	0	4	1	0
+2	4	TK	0	4	0	4	1	0
+2	2	S	5	18	5	18	1	3
+2	3	NP-SBJ	5	8	5	8	1	1
+2	4	PRP	5	8	5	8	1	1
+2	5	TK	5	8	5	8	1	1
+2	3	VP	9	18	9	18	1	3
+2	4	VBD	9	12	9	12	1	2
+2	5	TK	9	12	9	12	1	2
+2	4	NP	13	18	13	18	1	3
+2	5	-NONE-	13	18	13	18	1	3
+2	6	TK	13	18	13	18	1	3
+3	0	TOP	0	32	0	32	1	0
+3	1	S	0	31	0	31	1	6
+3	2	NP-SBJ	0	22	0	22	1	4
+3	3	NP	0	7	0	7	1	1
+3	4	NNP	0	4	0	4	1	0
+3	5	TK	0	4	0	4	1	0
+3	4	POS	5	7	5	7	1	1
+3	5	TK	5	7	5	7	1	1
+3	3	NN	8	15	8	15	1	2
+3	4	TK	8	15	8	15	1	2
+3	3	POS	16	18	16	18	1	3
+3	4	TK	16	18	16	18	1	3
+3	3	NN	19	22	19	22	1	4
+3	4	TK	19	22	19	22	1	4
+3	2	VP	23	29	23	29	1	5
+3	3	VBD	23	29	23	29	1	5
+3	4	TK	23	29	23	29	1	5
+3	2	.	30	31	30	31	1	6
+3	3	TK	30	31	30	31	1	6
+4	0	TOP	0	26	0	26	1	0
+4	1	S	0	25	0	25	1	5
+4	2	NP	0	21	0	21	1	4
+4	3	NP	0	17	0	17	1	3
+4	4	NP	0	7	0	7	1	1
+4	5	NNP	0	4	0	4	1	0
+4	6	TK	0	4	0	4	1	0
+4	5	POS	5	7	5	7	1	1
+4	6	TK	5	7	5	7	1	1
+4	4	NN	8	14	8	14	1	2
+4	5	TK	8	14	8	14	1	2
+4	4	POS	15	17	15	17	1	3
+4	5	TK	15	17	15	17	1	3
+4	3	NN	18	21	18	21	1	4
+4	4	TK	18	21	18	21	1	4
+4	2	VP	22	25	22	25	1	5
+4	3	VBD	22	25	22	25	1	5
+4	4	TK	22	25	22	25	1	5
+5	0	TOP	0	24	0	24	1	0
+5	1	S	0	23	0	23	1	4
+5	2	NP	0	3	0	3	1	0
+5	3	NP	0	3	0	3	1	0
+5	4	NP	0	3	0	3	1	0
+5	5	NN	0	3	0	3	1	0
+5	6	TK	0	3	0	3	1	0
+5	2	VP	4	21	4	21	1	3
+5	3	VP	4	9	4	9	1	1
+5	4	VBZ	4	9	4	9	1	1
+5	5	TK	4	9	4	9	1	1
+5	3	CC	10	13	10	13	1	2
+5	4	TK	10	13	10	13	1	2
+5	3	VP	14	21	14	21	1	3
+5	4	VBZ	14	21	14	21	1	3
+5	5	TK	14	21	14	21	1	3
+5	2	.	22	23	22	23	1	4
+5	3	TK	22	23	22	23	1	4
+6	0	TOP	0	52	0	52	1	0
+6	1	S	0	51	0	51	1	16
+6	2	NP-SBJ	0	2	0	2	1	0
+6	3	PRP	0	2	0	2	1	0
+6	4	TK	0	2	0	2	1	0
+6	2	VP	3	25	3	25	1	7
+6	3	VBD	3	7	3	7	1	1
+6	4	TK	3	7	3	7	1	1
+6	3	NP	8	11	8	11	1	3
+6	4	QP	8	11	8	11	1	3
+6	5	$	8	9	8	9	1	2
+6	6	TK	8	9	8	9	1	2
+6	5	CD	10	11	10	11	1	3
+6	6	TK	10	11	10	11	1	3
+6	3	PRN	12	25	12	25	1	7
+6	4	-LRB-	12	13	12	13	1	4
+6	5	TK	12	13	12	13	1	4
+6	4	NP	14	23	14	23	1	6
+6	5	CD	14	17	14	17	1	5
+6	6	TK	14	17	14	17	1	5
+6	5	NNS	18	23	18	23	1	6
+6	6	TK	18	23	18	23	1	6
+6	4	-RRB-	24	25	24	25	1	7
+6	5	TK	24	25	24	25	1	7
+6	2	:	26	27	26	27	1	8
+6	3	TK	26	27	26	27	1	8
+6	2	S	28	49	28	49	1	15
+6	3	NP	28	35	28	35	1	11
+6	4	-LCB-	28	29	28	29	1	9
+6	5	TK	28	29	28	29	1	9
+6	4	NN	30	33	30	33	1	10
+6	5	TK	30	33	30	33	1	10
+6	4	-RCB-	34	35	34	35	1	11
+6	5	TK	34	35	34	35	1	11
+6	3	VP	36	49	36	49	1	15
+6	4	VBD	36	40	36	40	1	12
+6	5	TK	36	40	36	40	1	12
+6	4	NP	41	49	41	49	1	15
+6	5	-LSB-	41	42	41	42	1	13
+6	6	TK	41	42	41	42	1	13
+6	5	NN	43	47	43	47	1	14
+6	6	TK	43	47	43	47	1	14
+6	5	-RSB-	48	49	48	49	1	15
+6	6	TK	48	49	48	49	1	15
+6	2	.	50	51	50	51	1	16
+6	3	TK	50	51	50	51	1	16
+7	0	TOP	0	19	0	19	1	0
+7	1	S-TPC	0	10	0	10	1	1
+7	2	NP-SBJ	0	5	0	5	1	0
+7	3	NN	0	5	0	5	1	0
+7	4	TK	0	5	0	5	1	0
+7	2	ADJP-PRD	6	10	6	10	1	1
+7	3	JJ	6	10	6	10	1	1
+7	4	TK	6	10	6	10	1	1
+7	1	``	11	13	11	13	1	2
+7	2	TK	11	13	11	13	1	2
+7	1	''	14	16	14	16	1	3
+7	2	TK	14	16	14	16	1	3
+7	1	,	17	18	17	18	1	4
+7	2	TK	17	18	17	18	1	4
+8	0	TOP	0	46	0	46	1	0
+8	1	NX	0	11	0	11	1	1
+8	2	JJR	0	6	0	6	1	0
+8	3	TK	0	6	0	6	1	0
+8	2	NN	7	11	7	11	1	1
+8	3	TK	7	11	7	11	1	1
+8	1	ADJP	12	20	12	20	1	3
+8	2	RB	12	16	12	16	1	2
+8	3	TK	12	16	12	16	1	2
+8	2	JJ	17	20	17	20	1	3
+8	3	TK	17	20	17	20	1	3
+8	1	NP	21	31	21	31	1	5
+8	2	JJ	21	24	21	24	1	4
+8	3	TK	21	24	21	24	1	4
+8	2	RB	25	31	25	31	1	5
+8	3	TK	25	31	25	31	1	5
+8	1	NP	32	45	32	45	1	9
+8	2	DT	32	33	32	33	1	6
+8	3	TK	32	33	32	33	1	6
+8	2	ADJP	34	38	34	38	1	7
+8	3	JJ	34	38	34	38	1	7
+8	4	TK	34	38	34	38	1	7
+8	2	PRN	39	45	39	45	1	9
+8	3	,	39	40	39	40	1	8
+8	4	TK	39	40	39	40	1	8
+8	3	NP	41	45	41	45	1	9
+8	4	NN	41	45	41	45	1	9
+8	5	TK	41	45	41	45	1	9
+9	0	TOP	0	49	0	49	1	0
+9	1	S	0	48	0	48	1	10
+9	2	NP	0	17	0	17	1	4
+9	3	NP	0	7	0	7	1	1
+9	4	DT	0	3	0	3	1	0
+9	5	TK	0	3	0	3	1	0
+9	4	NN	4	7	4	7	1	1
+9	5	TK	4	7	4	7	1	1
+9	3	PP	8	17	8	17	1	4
+9	4	IN	8	10	8	10	1	2
+9	5	TK	8	10	8	10	1	2
+9	4	NP	11	17	11	17	1	4
+9	5	NNP	11	14	11	14	1	3
+9	6	TK	11	14	11	14	1	3
+9	5	POS	15	17	15	17	1	4
+9	6	TK	15	17	15	17	1	4
+9	2	VP	18	46	18	46	1	9
+9	3	VBD	18	23	18	23	1	5
+9	4	TK	18	23	18	23	1	5
+9	3	ADVP	24	28	24	28	1	6
+9	4	RB	24	28	24	28	1	6
+9	5	TK	24	28	24	28	1	6
+9	3	SBAR-ADV	29	46	29	46	1	9
+9	4	IN	29	36	29	36	1	7
+9	5	TK	29	36	29	36	1	7
+9	4	S	37	46	37	46	1	9
+9	5	NP	37	39	37	39	1	8
+9	6	PRP	37	39	37	39	1	8
+9	7	TK	37	39	37	39	1	8
+9	5	VP	40	46	40	46	1	9
+9	6	VBD	40	46	40	46	1	9
+9	7	TK	40	46	40	46	1	9
+9	2	.	47	48	47	48	1	10
+9	3	TK	47	48	47	48	1	10
+10	0	TOP	0	34	0	34	1	0
+10	1	S	0	33	0	33	1	8
+10	2	NP	0	7	0	7	1	1
+10	3	DT	0	2	0	2	1	0
+10	4	TK	0	2	0	2	1	0
+10	3	NN	3	7	3	7	1	1
+10	4	TK	3	7	3	7	1	1
+10	2	UCP	8	21	8	21	1	4
+10	3	JJ	8	11	8	11	1	2
+10	4	TK	8	11	8	11	1	2
+10	3	CC	12	15	12	15	1	3
+10	4	TK	12	15	12	15	1	3
+10	3	NN	16	21	16	21	1	4
+10	4	TK	16	21	16	21	1	4
+10	2	FRAG	22	23	22	23	1	5
+10	3	X	22	23	22	23	1	5
+10	4	SYM	22	23	22	23	1	5
+10	5	TK	22	23	22	23	1	5
+10	2	WHADVP	24	27	24	27	1	6
+10	3	WRB	24	27	24	27	1	6
+10	4	TK	24	27	24	27	1	6
+10	2	VP	28	33	28	33	1	8
+10	3	TO	28	30	28	30	1	7
+10	4	TK	28	30	28	30	1	7
+10	3	VP	31	33	31	33	1	8
+10	4	VB	31	33	31	33	1	8
+10	5	TK	31	33	31	33	1	8
+11	0	TOP	0	59	0	59	1	0
+11	1	NP	0	18	0	18	1	4
+11	2	NP	0	8	0	8	1	1
+11	3	DT	0	3	0	3	1	0
+11	4	TK	0	3	0	3	1	0
+11	3	NNS	4	8	4	8	1	1
+11	4	TK	4	8	4	8	1	1
+11	2	CC	9	12	9	12	1	2
+11	3	TK	9	12	9	12	1	2
+11	2	NP	13	18	13	18	1	4
+11	3	DT	13	14	13	14	1	3
+11	4	TK	13	14	13	14	1	3
+11	3	NN	15	18	15	18	1	4
+11	4	TK	15	18	15	18	1	4
+11	1	NP	19	22	19	22	1	6
+11	2	CD	19	20	19	20	1	5
+11	3	TK	19	20	19	20	1	5
+11	2	$	21	22	21	22	1	6
+11	3	TK	21	22	21	22	1	6
+11	1	NP	23	31	23	31	1	8
+11	2	DT	23	26	23	26	1	7
+11	3	TK	23	26	23	26	1	7
+11	2	JJS	27	31	27	31	1	8
+11	3	TK	27	31	27	31	1	8
+11	1	NP	32	38	32	38	1	10
+11	2	DT	32	35	32	35	1	9
+11	3	TK	32	35	32	35	1	9
+11	2	PRP	36	38	36	38	1	10
+11	3	TK	36	38	36	38	1	10
+11	1	NX	39	50	39	50	1	12
+11	2	NNPS	39	45	39	45	1	11
+11	3	TK	39	45	39	45	1	11
+11	2	JJR	46	50	46	50	1	12
+11	3	TK	46	50	46	50	1	12
+11	1	NP	51	58	51	58	1	14
+11	2	QP	51	58	51	58	1	14
+11	3	RB	51	56	51	56	1	13
+11	4	TK	51	56	51	56	1	13
+11	3	CD	57	58	57	58	1	14
+11	4	TK	57	58	57	58	1	14
+12	0	TOP	0	62	0	62	1	0
+12	1	S	0	61	0	61	1	16
+12	2	ADVP	0	2	0	2	1	0
+12	3	RB	0	2	0	2	1	0
+12	4	TK	0	2	0	2	1	0
+12	2	VP	3	13	3	13	1	3
+12	3	MD	3	6	3	6	1	1
+12	4	TK	3	6	3	6	1	1
+12	3	VP	7	13	7	13	1	3
+12	4	VB	7	10	7	10	1	2
+12	5	TK	7	10	7	10	1	2
+12	4	PRT	11	13	11	13	1	3
+12	5	RP	11	13	11	13	1	3
+12	6	TK	11	13	11	13	1	3
+12	2	SINV	14	19	14	19	1	5
+12	3	VBZ	14	16	14	16	1	4
+12	4	TK	14	16	14	16	1	4
+12	3	NP	17	19	17	19	1	5
+12	4	PRP	17	19	17	19	1	5
+12	5	TK	17	19	17	19	1	5
+12	2	SQ	20	25	20	25	1	7
+12	3	VBZ	20	22	20	22	1	6
+12	4	TK	20	22	20	22	1	6
+12	3	NP	23	25	23	25	1	7
+12	4	PRP	23	25	23	25	1	7
+12	5	TK	23	25	23	25	1	7
+12	2	CONJP	26	33	26	33	1	9
+12	3	CC	26	29	26	29	1	8
+12	4	TK	26	29	26	29	1	8
+12	3	RB	30	33	30	33	1	9
+12	4	TK	30	33	30	33	1	9
+12	2	INTJ	34	36	34	36	1	10
+12	3	UH	34	36	34	36	1	10
+12	4	TK	34	36	34	36	1	10
+12	2	LST	37	38	37	38	1	11
+12	3	LS	37	38	37	38	1	11
+12	4	TK	37	38	37	38	1	11
+12	2	RRC	39	44	39	44	1	12
+12	3	ADJP	39	44	39	44	1	12
+12	4	JJ	39	44	39	44	1	12
+12	5	TK	39	44	39	44	1	12
+12	2	WHPP	45	53	45	53	1	14
+12	3	IN	45	47	45	47	1	13
+12	4	TK	45	47	45	47	1	13
+12	3	WHNP	48	53	48	53	1	14
+12	4	WDT	48	53	48	53	1	14
+12	5	TK	48	53	48	53	1	14
+12	2	WHADJP	54	61	54	61	1	16
+12	3	WRB	54	57	54	57	1	15
+12	4	TK	54	57	54	57	1	15
+12	3	JJ	58	61	58	61	1	16
+12	4	TK	58	61	58	61	1	16
+end	turbo:parse-nodes
+layer	turbo:pos-samples	document	120	sample:u32	token:str	tag:str
+0	The	DT
+0	cat	NN
+0	sat	VBD
+0	on	IN
+0	the	DT
+0	mat	NN
+0	.	.
+1	Maria	NNP
+1	says	VBZ
+1	that	IN
+1	*-1	-NONE-
+1	left	VBD
+1	yesterday	NN
+1	.	.
+2	what	WP
+2	she	PRP
+2	saw	VBD
+2	*T*-2	-NONE-
+3	Anna	NNP
+3	's	POS
+3	brother	NN
+3	's	POS
+3	dog	NN
+3	barked	VBD
+3	.	.
+4	John	NNP
+4	's	POS
+4	mother	NN
+4	's	POS
+4	dog	NN
+4	ran	VBD
+5	tea	NN
+5	cools	VBZ
+5	and	CC
+5	settles	VBZ
+5	.	.
+6	We	PRP
+6	paid	VBD
+6	$	$
+6	5	CD
+6	(	-LRB-
+6	two	CD
+6	euros	NNS
+6	)	-RRB-
+6	;	:
+6	{	-LCB-
+6	set	NN
+6	}	-RCB-
+6	held	VBD
+6	[	-LSB-
+6	list	NN
+6	]	-RSB-
+6	.	.
+7	today	NN
+7	fine	JJ
+7	``	``
+7	''	''
+7	,	,
+8	better	JJR
+8	tool	NN
+8	very	RB
+8	big	JJ
+8	red	JJ
+8	really	RB
+8	a	DT
+8	nice	JJ
+8	,	,
+8	note	NN
+9	the	DT
+9	dog	NN
+9	of	IN
+9	Sam	NNP
+9	's	POS
+9	slept	VBD
+9	well	RB
+9	because	IN
+9	it	PRP
+9	rained	VBD
+9	.	.
+10	no	DT
+10	rule	NN
+10	odd	JJ
+10	and	CC
+10	thing	NN
+10	*	SYM
+10	how	WRB
+10	to	TO
+10	go	VB
+11	the	DT
+11	cats	NNS
+11	and	CC
+11	a	DT
+11	dog	NN
+11	3	CD
+11	$	$
+11	the	DT
+11	best	JJS
+11	the	DT
+11	it	PRP
+11	Smiths	NNPS
+11	more	JJR
+11	about	RB
+11	5	CD
+12	so	RB
+12	can	MD
+12	see	VB
+12	up	RP
+12	is	VBZ
+12	it	PRP
+12	is	VBZ
+12	he	PRP
+12	and	CC
+12	not	RB
+12	oh	UH
+12	a	LS
+12	ready	JJ
+12	of	IN
+12	which	WDT
+12	how	WRB
+12	big	JJ
+end	turbo:pos-samples
+layer	turbo:chunk-samples	document	120	sample:u32	token:str	tag:str	pred:str
+0	The	DT	S-NP-SBJ
+0	cat	NN	C-NP-SBJ
+0	sat	VBD	O
+0	on	IN	O
+0	the	DT	S-NP
+0	mat	NN	C-NP
+0	.	.	O
+1	Maria	NNP	S-NP-SBJ
+1	says	VBZ	O
+1	that	IN	O
+1	*-1	-NONE-	S-NP-SBJ
+1	left	VBD	O
+1	yesterday	NN	S-NP-TMP
+1	.	.	O
+2	what	WP	S-WHNP-2
+2	she	PRP	S-NP-SBJ
+2	saw	VBD	O
+2	*T*-2	-NONE-	S-NP
+3	Anna	NNP	S-NP
+3	's	POS	C-NP
+3	brother	NN	O
+3	's	POS	O
+3	dog	NN	O
+3	barked	VBD	S-VP
+3	.	.	O
+4	John	NNP	S-NP
+4	's	POS	C-NP
+4	mother	NN	O
+4	's	POS	O
+4	dog	NN	O
+4	ran	VBD	S-VP
+5	tea	NN	S-NP
+5	cools	VBZ	S-VP
+5	and	CC	O
+5	settles	VBZ	S-VP
+5	.	.	O
+6	We	PRP	S-NP-SBJ
+6	paid	VBD	O
+6	$	$	S-QP
+6	5	CD	C-QP
+6	(	-LRB-	O
+6	two	CD	S-NP
+6	euros	NNS	C-NP
+6	)	-RRB-	O
+6	;	:	O
+6	{	-LCB-	S-NP
+6	set	NN	C-NP
+6	}	-RCB-	C-NP
+6	held	VBD	O
+6	[	-LSB-	S-NP
+6	list	NN	C-NP
+6	]	-RSB-	C-NP
+6	.	.	O
+7	today	NN	S-NP-SBJ
+7	fine	JJ	S-ADJP-PRD
+7	``	``	O
+7	''	''	O
+7	,	,	O
+8	better	JJR	S-NX
+8	tool	NN	C-NX
+8	very	RB	S-ADJP
+8	big	JJ	C-ADJP
+8	red	JJ	S-NP
+8	really	RB	C-NP
+8	a	DT	O
+8	nice	JJ	S-ADJP
+8	,	,	O
+8	note	NN	S-NP
+9	the	DT	S-NP
+9	dog	NN	C-NP
+9	of	IN	O
+9	Sam	NNP	S-NP
+9	's	POS	C-NP
+9	slept	VBD	O
+9	well	RB	S-ADVP
+9	because	IN	O
+9	it	PRP	S-NP
+9	rained	VBD	S-VP
+9	.	.	O
+10	no	DT	S-NP
+10	rule	NN	C-NP
+10	odd	JJ	S-UCP
+10	and	CC	C-UCP
+10	thing	NN	C-UCP
+10	*	SYM	S-X
+10	how	WRB	S-WHADVP
+10	to	TO	O
+10	go	VB	S-VP
+11	the	DT	S-NP
+11	cats	NNS	C-NP
+11	and	CC	O
+11	a	DT	S-NP
+11	dog	NN	C-NP
+11	3	CD	S-NP
+11	$	$	C-NP
+11	the	DT	S-NP
+11	best	JJS	C-NP
+11	the	DT	S-NP
+11	it	PRP	C-NP
+11	Smiths	NNPS	S-NX
+11	more	JJR	C-NX
+11	about	RB	S-QP
+11	5	CD	C-QP
+12	so	RB	S-ADVP
+12	can	MD	O
+12	see	VB	O
+12	up	RP	S-PRT
+12	is	VBZ	O
+12	it	PRP	S-NP
+12	is	VBZ	O
+12	he	PRP	S-NP
+12	and	CC	S-CONJP
+12	not	RB	C-CONJP
+12	oh	UH	S-INTJ
+12	a	LS	S-LST
+12	ready	JJ	S-ADJP
+12	of	IN	O
+12	which	WDT	S-WHNP
+12	how	WRB	S-WHADJP
+12	big	JJ	C-WHADJP
+end	turbo:chunk-samples
