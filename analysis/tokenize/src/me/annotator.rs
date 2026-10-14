@@ -50,16 +50,25 @@ mod tests {
     use crate::me::TokenizerModel;
     use turbo_analysis::{Document, Span, Spans, ViewId};
 
-    fn english() -> TokenizerMe {
+    /// The tokenizer over the published English model, or `None` when it
+    /// is not downloaded.
+    fn english() -> Option<TokenizerMe> {
+        let path = crate::test_models::published("opennlp-en-ud-ewt-tokens-1.3-2.5.4.bin")?;
+        Some(TokenizerMe::new(TokenizerModel::read(path).unwrap(), TokenizerOptions::default()))
+    }
+
+    /// The tokenizer over the checked in fixture model, for what does not
+    /// depend on the model's decisions.
+    fn fixture() -> TokenizerMe {
         let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
-            .join("tests/models/opennlp-en-ud-ewt-tokens-1.3-2.5.4.bin");
+            .join("../goldens/data/fixtures/tokenizer-abbreviations.bin");
         TokenizerMe::new(TokenizerModel::read(path).unwrap(), TokenizerOptions::default())
     }
 
     #[test]
     fn whitespace_only_text_has_no_tokens() {
         let doc = Document::new(" \n\t\u{a0} ");
-        let (tokens, confidence) = english().annotate((doc.get::<View>().unwrap(), None)).unwrap();
+        let (tokens, confidence) = fixture().annotate((doc.get::<View>().unwrap(), None)).unwrap();
         assert!(tokens.spans.is_empty());
         assert!(tokens.sentence.is_none());
         assert!(confidence.value.is_empty());
@@ -71,7 +80,8 @@ mod tests {
         let view = doc.get::<View>().unwrap();
         let mut spans = Spans::new(view.id());
         spans.push(Span::new(5, 11));
-        let (tokens, confidence) = english().annotate((view, Some(&Sentences { spans }))).unwrap();
+        let Some(t) = english() else { return };
+        let (tokens, confidence) = t.annotate((view, Some(&Sentences { spans }))).unwrap();
         let got: Vec<(u32, u32)> = tokens.spans.iter().map(|(_, s)| (s.start, s.end)).collect();
         assert_eq!(got, [(5, 10), (10, 11)]);
         assert_eq!(confidence.value[1], 1.0);
@@ -82,7 +92,7 @@ mod tests {
     fn sentences_in_another_view_are_refused() {
         let doc = Document::new("ab");
         let sentences = Sentences { spans: Spans::new(ViewId(3)) };
-        let e = english().annotate((doc.get::<View>().unwrap(), Some(&sentences))).err().unwrap();
+        let e = fixture().annotate((doc.get::<View>().unwrap(), Some(&sentences))).err().unwrap();
         assert_eq!(
             e,
             Error::Annotator {

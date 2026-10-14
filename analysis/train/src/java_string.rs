@@ -78,6 +78,13 @@ impl JavaString {
         Utf16Units { bytes: &self.bytes }
     }
 
+    /// The UTF-16 code units from byte `start` on, which must begin a
+    /// unit: `substring(n)` as `charAt` gives it.
+    pub fn utf16_units_from(&self, start: usize) -> Utf16Units<'_> {
+        debug_assert!(start >= self.bytes.len() || self.bytes[start] & 0xC0 != 0x80, "byte {start} is inside a unit");
+        Utf16Units { bytes: &self.bytes[start..] }
+    }
+
     /// `String.length()`.
     pub fn utf16_len(&self) -> usize {
         self.utf16_units().count()
@@ -203,6 +210,7 @@ mod tests {
         assert_eq!(lone.utf16_units().collect::<Vec<_>>(), [0x70, 0x3D, 0xD83C]);
         assert_eq!(JavaString::from_modified_utf8(b"p=\xED\xA0\xBC").unwrap(), lone);
         assert_eq!(JavaString::from_modified_utf8(b"a\0").unwrap(), JavaString::new("a\0"));
+        assert_eq!(JavaString::new("a\0é€😀").utf16_units_from(3).collect::<Vec<_>>(), [0xE9, 0x20AC, 0xD83D, 0xDE00]);
         assert!(JavaString::from_modified_utf8(b"\xFF").is_none());
     }
 

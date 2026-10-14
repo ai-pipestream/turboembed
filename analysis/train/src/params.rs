@@ -299,8 +299,7 @@ impl TrainingParameters {
     }
 
     /// `getDoubleParameter`: a double, or a string read with
-    /// `Double.parseDouble`; `None` when absent. A hexadecimal literal,
-    /// which Java would read, is refused.
+    /// `Double.parseDouble`; `None` when absent.
     pub fn get_double(&self, key: &str) -> Result<Option<f64>> {
         match self.get(key) {
             None => Ok(None),

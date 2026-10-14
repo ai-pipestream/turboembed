@@ -2,7 +2,9 @@
 //! (analysis/goldens/data/tokenize): the tokens and probabilities of every
 //! input of the five UD models, every decision of their dumps, the one
 //! documented difference, a split between surrogate halves, and the
-//! alphanumeric optimization.
+//! alphanumeric optimization. The UD models are downloaded by
+//! `turbo-goldens fetch-models` (`common::published_model`); without them
+//! these tests say so and pass.
 
 mod common;
 
@@ -41,10 +43,9 @@ fn check(t: &TokenizerMe, case: &Case) -> usize {
 
 /// The UD model for `language`, checked to be the one `case` was made
 /// with, with the optimization off as every UD model ships.
-fn checked_model(language: &str, case: &Case) -> TokenizerModel {
-    let name = ud_model_name(language);
-    case.assert_models(&[model_path(&name)]);
-    let m = model(&name);
+fn checked_model(language: &str, path: &std::path::Path, case: &Case) -> TokenizerModel {
+    case.assert_models(&[path.to_path_buf()]);
+    let m = read_model(path);
     assert!(m.alphanumeric().is_none());
     assert_eq!(m.alphanumeric_pattern(), language_pattern(language));
     m
@@ -52,20 +53,22 @@ fn checked_model(language: &str, case: &Case) -> TokenizerModel {
 
 #[test]
 fn every_golden_input_for_every_model() {
+    let Some(models) = ud_models() else { return };
     let mut files = 0;
     let mut spans = 0;
     let mut edge = (0, 0);
-    for language in LANGUAGES {
+    for (language, path) in models {
         let mut t = None;
-        for case in run("tokenize", run_name(&ud_model_name(language))) {
+        for case in run("tokenize", run_name(ud_model_name(language))) {
             if case.set() == "surrogate" {
                 continue;
             }
             case.assert_annotator(CLASS, "tokenizePos");
             assert!(case.golden.header.config.is_empty(), "{}", case.path.display());
-            let t: &TokenizerMe =
-                t.get_or_insert_with(|| TokenizerMe::new(checked_model(language, &case), TokenizerOptions::default()));
-            case.assert_models(&[model_path(&ud_model_name(language))]);
+            let t: &TokenizerMe = t.get_or_insert_with(|| {
+                TokenizerMe::new(checked_model(language, &path, &case), TokenizerOptions::default())
+            });
+            case.assert_models(std::slice::from_ref(&path));
             let n = check(t, &case);
             files += 1;
             spans += n;
@@ -86,12 +89,13 @@ fn every_golden_input_for_every_model() {
 fn every_decision_of_every_dump() {
     // The five inputs the earlier generator wrote contexts files for.
     const CONTEXT_INPUTS: [&str; 5] = ["spanish", "french", "numbers", "urls-emails", "supplementary"];
+    let Some(models) = ud_models() else { return };
     let mut positions = 0;
     let mut in_context_inputs = 0;
     let mut files = 0;
-    for language in LANGUAGES {
-        let m = model(&ud_model_name(language));
-        for case in run("tokenize", run_name(&ud_model_name(language))) {
+    for (language, path) in models {
+        let m = read_model(&path);
+        for case in run("tokenize", run_name(ud_model_name(language))) {
             let n = check_dump(&case, &m);
             if case.set() == "edge" && CONTEXT_INPUTS.contains(&case.golden.header.input.id.as_str()) {
                 in_context_inputs += n;
@@ -122,14 +126,15 @@ fn a_split_between_surrogate_halves_is_not_taken() {
         ("fr", "fr-comma-emoji-dollar", &[(0, 6)]),
         ("pt", "pt-a-emoji-question", &[(0, 5), (5, 6)]),
     ];
+    let Some(models) = ud_models() else { return };
     let mut files = 0;
     let mut joined = 0;
-    for language in LANGUAGES {
-        let t = TokenizerMe::new(model(&ud_model_name(language)), TokenizerOptions::default());
-        for case in run("tokenize", run_name(&ud_model_name(language))).into_iter().filter(|c| c.set() == "surrogate") {
+    for (language, path) in models {
+        let t = TokenizerMe::new(read_model(&path), TokenizerOptions::default());
+        for case in run("tokenize", run_name(ud_model_name(language))).into_iter().filter(|c| c.set() == "surrogate") {
             case.assert_annotator(CLASS, "tokenizePos");
             assert!(case.golden.header.config.is_empty());
-            case.assert_models(&[model_path(&ud_model_name(language))]);
+            case.assert_models(std::slice::from_ref(&path));
             let id = case.golden.header.input.id.clone();
             let jvm = case.jvm_spans();
             let expected = expected_me_spans(&case.text, &jvm);
@@ -152,20 +157,20 @@ fn the_alphanumeric_optimization_with_each_language_pattern() {
     // The UD models rebuilt with the optimization on and their language's
     // pattern: a unit the pattern accepts is a token of probability 1, any
     // other goes to the model as without it.
+    let Some(models) = ud_models() else { return };
     let mut files = 0;
     let mut positions = 0;
-    for language in LANGUAGES {
-        let name = ud_model_name(language);
+    for (language, path) in models {
         let mut tokenizer = None;
-        for case in run("tokenize", &format!("{}+alphanumeric", run_name(&name))) {
+        for case in run("tokenize", &format!("{}+alphanumeric", run_name(ud_model_name(language)))) {
             case.assert_annotator(CLASS, "tokenizePos");
-            case.assert_models(&[model_path(&name)]);
+            case.assert_models(std::slice::from_ref(&path));
             assert_eq!(case.config("useAlphaNumericOptimization"), Some("true"));
             let pattern = case.config("alphaNumericPattern").expect("the pattern the tokenizer used").to_string();
             assert_eq!(pattern, language_pattern(language));
             assert_eq!(case.golden.header.config.len(), 2);
             let t: &TokenizerMe = tokenizer.get_or_insert_with(|| {
-                let m = model(&name).with_alphanumeric_optimization(Some(&pattern)).unwrap();
+                let m = read_model(&path).with_alphanumeric_optimization(Some(&pattern)).unwrap();
                 TokenizerMe::new(m, TokenizerOptions::default())
             });
             assert_eq!(t.tokenizer_model().alphanumeric_pattern(), pattern);

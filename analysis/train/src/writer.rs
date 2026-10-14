@@ -30,7 +30,8 @@
 //! 65535 bytes of modified UTF-8, which `writeUTF` then refuses
 //! ([`Error::StringTooLong`] here, `UTFDataFormatException` there), and
 //! the encoder stops at a lone surrogate, so a chunked string is cut
-//! there and the rest of it is lost.
+//! there and the rest of it is lost. U+0000 counts one byte in a chunk
+//! and takes two when written, so a chunk of them can overflow as well.
 
 use crate::error::{Error, Result};
 use crate::gis::GisModel;
@@ -246,14 +247,13 @@ fn split_by_utf8_length(s: &JavaString) -> Vec<&[u8]> {
 /// The character at `pos` of canonical modified UTF-8: its length there
 /// and in standard UTF-8, or `None` for a lone surrogate.
 fn next_char(bytes: &[u8], pos: usize) -> Option<(usize, usize)> {
-    let unit_len = |b: u8| match b {
-        0x00..=0x7F => 1,
-        0xC0..=0xDF => 2,
-        _ => 3,
-    };
-    let len = unit_len(bytes[pos]);
-    if len < 3 {
-        return Some((len, len));
+    match bytes[pos] {
+        0x00..=0x7F => return Some((1, 1)),
+        // U+0000, which canonical modified UTF-8 writes as C0 80 and
+        // standard UTF-8 as one zero byte.
+        0xC0 => return Some((2, 1)),
+        0xC1..=0xDF => return Some((2, 2)),
+        _ => {}
     }
     let unit = (u32::from(bytes[pos] & 0x0F) << 12)
         | (u32::from(bytes[pos + 1] & 0x3F) << 6)
@@ -372,6 +372,32 @@ mod tests {
             out.write_utf(&long),
             Err(Error::StringTooLong { what: "chunk of a model parameter", bytes: 16383 * 6 })
         );
+    }
+
+    #[test]
+    fn a_nul_is_one_utf8_byte_but_two_written() {
+        assert_eq!(next_char(b"\xC0\x80a", 0), Some((2, 1)));
+        assert_eq!(next_char(b"\xC3\xA9", 0), Some((2, 2)));
+        // 40000 NULs: 80000 bytes of modified UTF-8, so the string is
+        // chunked, but 40000 bytes of UTF-8, so it is one chunk, whose
+        // writeUTF throws in the JVM.
+        let nuls = JavaString::new(&"\0".repeat(40000));
+        assert_eq!(nuls.len(), 80000);
+        let chunks = split_by_utf8_length(&nuls);
+        assert_eq!(chunks.iter().map(|c| c.len()).collect::<Vec<_>>(), [80000]);
+        let mut out = ModelOutput { bytes: Vec::new() };
+        assert_eq!(
+            out.write_utf(&nuls),
+            Err(Error::StringTooLong { what: "chunk of a model parameter", bytes: 80000 })
+        );
+        // NULs after the first chunk make a second chunk of twice their count.
+        let late = JavaString::new(&format!("{}{}", "x".repeat(65535), "\0".repeat(1000)));
+        let chunks = split_by_utf8_length(&late);
+        assert_eq!(chunks.iter().map(|c| c.len()).collect::<Vec<_>>(), [65535, 2000]);
+        let mut out = ModelOutput { bytes: Vec::new() };
+        out.write_utf(&late).unwrap();
+        let signature = b"CHUNKED-MODEL-PARAMS:2";
+        assert_eq!(out.bytes.len(), 2 + signature.len() + 2 + 65535 + 2 + 2000);
     }
 
     #[test]

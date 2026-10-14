@@ -98,9 +98,8 @@ fn fixture_models_settings() {
 
 #[test]
 fn published_models_settings() {
-    let dir = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/models");
-    let pt =
-        SentenceModel::open(ModelFile::read(dir.join("opennlp-pt-ud-gsd-sentence-1.3-2.5.4.bin")).unwrap()).unwrap();
+    let Some(path) = common::published_model("opennlp-pt-ud-gsd-sentence-1.3-2.5.4.bin") else { return };
+    let pt = SentenceModel::open(ModelFile::read(path).unwrap()).unwrap();
     assert_eq!(pt.eos(), &EndOfSentence::from_chars(".?!;:()\u{AB}\u{BB}'\"").unwrap());
     assert_eq!(pt.model_ref().sha256, "a711463f146555de26d69d806a9f1a88a66ed0c02f3fe2020b4a475ccea047ff");
     assert_eq!(pt.model_ref().revision, "2.5.4");

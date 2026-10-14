@@ -1,0 +1,22 @@
+[package]
+name = "turbo-lemmatizer"
+version = "0.1.0"
+edition.workspace = true
+license.workspace = true
+publish = false
+
+[lib]
+name = "turbo_lemmatizer"
+
+[dependencies]
+turbo-analysis = { path = "../core" }
+turbo-analysis-layers = { path = "../layers" }
+# The model archive, the classifier and SHA-256.
+turbo-maxent = { path = "../maxent" }
+# The beam search and the feature buffer.
+turbo-sequence = { path = "../sequence" }
+# Java's lowercasing, decimal digits and UTF-16 units.
+turbo-unicode = { path = "../unicode" }
+
+[dev-dependencies]
+turbo-goldens = { path = "../goldens" }

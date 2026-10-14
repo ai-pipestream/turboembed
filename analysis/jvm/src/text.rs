@@ -21,25 +21,17 @@
 
 use std::fmt;
 
-/// Why Java would throw `NumberFormatException`, or what this port does
-/// not read.
+/// Why Java would throw `NumberFormatException`.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ParseError {
-    /// The text is not a number in Java's grammar; Java throws
-    /// `NumberFormatException` with this message.
+    /// The text is not a number in Java's grammar.
     NotANumber(String),
-    /// The text is a hexadecimal floating point literal such as `0x1p3`,
-    /// which Java reads and this port does not.
-    HexFloat(String),
 }
 
 impl fmt::Display for ParseError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             ParseError::NotANumber(s) => write!(f, "{s:?} is not a number"),
-            ParseError::HexFloat(s) => {
-                write!(f, "{s:?} is a hexadecimal floating point literal, which is not read here")
-            }
         }
     }
 }
@@ -195,42 +187,47 @@ fn layout(negative: bool, digits: &[u8], exponent: i32, plain: bool) -> String {
 }
 
 /// `Double.parseDouble(s)`: Java's grammar, with the type suffixes `f`,
-/// `F`, `d` and `D`, `NaN` and `Infinity`, and whitespace (characters up to
-/// U+0020) trimmed at both ends. Hexadecimal literals are refused with
-/// [`ParseError::HexFloat`].
+/// `F`, `d` and `D`, `NaN` and `Infinity`, hexadecimal literals such as
+/// `0x1.8p1`, and whitespace (characters up to U+0020) trimmed at both
+/// ends.
 pub fn parse_double(s: &str) -> Result<f64, ParseError> {
-    let (negative, body) = decimal_body(s)?;
+    let (negative, body) = body(s)?;
     let value: f64 = match body {
-        Special::NaN => f64::NAN,
-        Special::Infinity => f64::INFINITY,
-        Special::Decimal(text) => text.parse().map_err(|_| ParseError::NotANumber(s.into()))?,
+        Number::NaN => f64::NAN,
+        Number::Infinity => f64::INFINITY,
+        Number::Decimal(text) => text.parse().map_err(|_| ParseError::NotANumber(s.into()))?,
+        Number::Hex(h) => h.to_f64(),
     };
     Ok(if negative { -value } else { value })
 }
 
 /// `Float.parseFloat(s)`, the grammar of [`parse_double`] read into an
-/// `f32` with one correctly rounded conversion, as Java does it.
+/// `f32` with one correctly rounded conversion, as Java does it: a decimal
+/// or hexadecimal literal is rounded to the float directly, not through
+/// a double.
 pub fn parse_float(s: &str) -> Result<f32, ParseError> {
-    let (negative, body) = decimal_body(s)?;
+    let (negative, body) = body(s)?;
     let value: f32 = match body {
-        Special::NaN => f32::NAN,
-        Special::Infinity => f32::INFINITY,
-        Special::Decimal(text) => text.parse().map_err(|_| ParseError::NotANumber(s.into()))?,
+        Number::NaN => f32::NAN,
+        Number::Infinity => f32::INFINITY,
+        Number::Decimal(text) => text.parse().map_err(|_| ParseError::NotANumber(s.into()))?,
+        Number::Hex(h) => h.to_f32(),
     };
     Ok(if negative { -value } else { value })
 }
 
-enum Special<'a> {
+enum Number<'a> {
     NaN,
     Infinity,
     Decimal(&'a str),
+    Hex(Hex),
 }
 
-/// Trims, takes the sign, recognizes `NaN` and `Infinity`, refuses a
-/// hexadecimal literal and checks a decimal literal against Java's
+/// Trims, takes the sign, recognizes `NaN` and `Infinity`, takes a
+/// hexadecimal literal apart and checks a decimal literal against Java's
 /// grammar, returning it without its type suffix. The decimal that
 /// remains is one Rust's parser reads, and reads to the same value.
-fn decimal_body(s: &str) -> Result<(bool, Special<'_>), ParseError> {
+fn body(s: &str) -> Result<(bool, Number<'_>), ParseError> {
     let error = || ParseError::NotANumber(s.into());
     let trimmed = s.trim_matches(|c: char| c <= ' ');
     if trimmed.is_empty() {
@@ -242,12 +239,12 @@ fn decimal_body(s: &str) -> Result<(bool, Special<'_>), ParseError> {
         _ => (false, trimmed),
     };
     match rest {
-        "NaN" => return Ok((negative, Special::NaN)),
-        "Infinity" => return Ok((negative, Special::Infinity)),
+        "NaN" => return Ok((negative, Number::NaN)),
+        "Infinity" => return Ok((negative, Number::Infinity)),
         _ => {}
     }
     if rest.starts_with("0x") || rest.starts_with("0X") {
-        return Err(ParseError::HexFloat(s.into()));
+        return Hex::parse(&rest[2..]).map(|h| (negative, Number::Hex(h))).ok_or_else(error);
     }
     let bytes = rest.as_bytes();
     let body_end = match bytes.last() {
@@ -290,7 +287,194 @@ fn decimal_body(s: &str) -> Result<(bool, Special<'_>), ParseError> {
     if i != b.len() {
         return Err(error());
     }
-    Ok((negative, Special::Decimal(body)))
+    Ok((negative, Number::Decimal(body)))
+}
+
+/// A hexadecimal floating point literal taken apart, as
+/// `FloatingDecimal.parseHexString` reads it: the value is the integer the
+/// significant hex digits form times a power of two.
+struct Hex {
+    /// The hex digits of the significand without leading zeros, so the
+    /// first is not zero; empty when the significand is zero.
+    digits: Vec<u8>,
+    /// The power of two, when the exponent fit an `int`.
+    exponent: Exponent,
+}
+
+/// The exponent written after `p`, minus four per fraction digit.
+enum Exponent {
+    Fits(i64),
+    /// The digits after `p` exceed an `int`, which `Integer.parseInt`
+    /// refuses: Java then returns infinity for a positive exponent and
+    /// zero for a negative one (a zero significand is still zero).
+    Overflow {
+        positive: bool,
+    },
+}
+
+impl Hex {
+    /// The text after `0x`: `([-+])?0[xX](((\p{XDigit}+)\.?)|((\p{XDigit}*)\.(\p{XDigit}+)))[pP]([-+])?(\p{Digit}+)[fFdD]?`
+    /// is Java's pattern, so hex digits with an optional point among them
+    /// (at least one digit), then `p`, an optional sign, decimal digits
+    /// and an optional type suffix. `None` when the text is not that.
+    fn parse(text: &str) -> Option<Hex> {
+        let b = text.as_bytes();
+        let mut i = 0;
+        let mut digits = Vec::new();
+        while i < b.len() && b[i].is_ascii_hexdigit() {
+            digits.push((b[i] as char).to_digit(16).unwrap() as u8);
+            i += 1;
+        }
+        let mut fraction_digits = 0usize;
+        if i < b.len() && b[i] == b'.' {
+            i += 1;
+            while i < b.len() && b[i].is_ascii_hexdigit() {
+                digits.push((b[i] as char).to_digit(16).unwrap() as u8);
+                fraction_digits += 1;
+                i += 1;
+            }
+        }
+        if digits.is_empty() || i >= b.len() || (b[i] != b'p' && b[i] != b'P') {
+            return None;
+        }
+        i += 1;
+        let mut positive = true;
+        if i < b.len() && (b[i] == b'+' || b[i] == b'-') {
+            positive = b[i] == b'+';
+            i += 1;
+        }
+        let start = i;
+        let mut magnitude: u64 = 0;
+        let mut overflow = false;
+        while i < b.len() && b[i].is_ascii_digit() {
+            magnitude = magnitude * 10 + u64::from(b[i] - b'0');
+            if magnitude > i32::MAX as u64 {
+                overflow = true;
+                magnitude = 0;
+            }
+            i += 1;
+        }
+        if i == start {
+            return None;
+        }
+        if i < b.len() && matches!(b[i], b'f' | b'F' | b'd' | b'D') {
+            i += 1;
+        }
+        if i != b.len() {
+            return None;
+        }
+        let leading_zeros = digits.iter().take_while(|&&d| d == 0).count();
+        digits.drain(..leading_zeros);
+        let exponent = if overflow {
+            Exponent::Overflow { positive }
+        } else {
+            let e = if positive { magnitude as i64 } else { -(magnitude as i64) };
+            Exponent::Fits(e - 4 * fraction_digits as i64)
+        };
+        Some(Hex { digits, exponent })
+    }
+
+    fn to_f64(&self) -> f64 {
+        match self.round(53, -1022, 1023) {
+            Binary::Infinity => f64::INFINITY,
+            Binary::Finite { exponent, fraction } => f64::from_bits((exponent << 52) | fraction),
+        }
+    }
+
+    fn to_f32(&self) -> f32 {
+        match self.round(24, -126, 127) {
+            Binary::Infinity => f32::INFINITY,
+            Binary::Finite { exponent, fraction } => f32::from_bits(((exponent << 23) | fraction) as u32),
+        }
+    }
+
+    /// The value rounded to the nearest, ties to even, in a binary format
+    /// of `precision` significant bits whose normal values have the
+    /// exponents `emin..=emax` (53, -1022 and 1023 for a double). The
+    /// digits beyond the first seventeen only say whether anything
+    /// follows, which is all the rounding needs of them.
+    fn round(&self, precision: u32, emin: i64, emax: i64) -> Binary {
+        let zero = Binary::Finite { exponent: 0, fraction: 0 };
+        if self.digits.is_empty() {
+            return zero;
+        }
+        let exp2 = match self.exponent {
+            Exponent::Fits(e) => e,
+            Exponent::Overflow { positive: true } => return Binary::Infinity,
+            Exponent::Overflow { positive: false } => return zero,
+        };
+        let p = i64::from(precision);
+        let taken = self.digits.len().min(17);
+        let top = self.digits[..taken].iter().fold(0u128, |acc, &d| (acc << 4) | u128::from(d));
+        let top_len = i64::from(128 - top.leading_zeros());
+        let sticky_rest = self.digits[taken..].iter().any(|&d| d != 0);
+        // The integer of all the digits has `len` bits; its leading bit
+        // has the exponent `e`, so the value is in [2^e, 2^(e+1)).
+        let len = top_len + 4 * (self.digits.len() - taken) as i64;
+        let mut e = exp2 + len - 1;
+        if e > emax {
+            return Binary::Infinity;
+        }
+        // The bits kept: the precision, fewer below the normal range.
+        let mut keep = if e >= emin { p } else { p - (emin - e) };
+        if keep < 0 {
+            return zero;
+        }
+        let dropped = len - keep;
+        let mut m: u64;
+        if dropped <= 0 {
+            m = (top << (-dropped)) as u64;
+        } else {
+            // Every dropped bit beyond the first seventeen digits is in
+            // `sticky_rest`; the rest come out of `top`, which keeps more
+            // bits than any format here, so the round bit is one of them.
+            let from_top = (dropped - 4 * (self.digits.len() - taken) as i64) as u32;
+            let round;
+            let sticky;
+            if i64::from(from_top) == top_len {
+                m = 0;
+                round = true;
+                sticky = (top & !(1u128 << (top_len - 1))) != 0 || sticky_rest;
+            } else {
+                m = (top >> from_top) as u64;
+                round = (top >> (from_top - 1)) & 1 == 1;
+                sticky = (top & ((1u128 << (from_top - 1)) - 1)) != 0 || sticky_rest;
+            }
+            if round && (sticky || m & 1 == 1) {
+                m += 1;
+            }
+            if m == 1u64 << keep {
+                // Rounding carried into a new leading bit.
+                e += 1;
+                if e >= emin {
+                    m = 1u64 << (p - 1);
+                    keep = p;
+                } else {
+                    keep += 1;
+                }
+                if e > emax {
+                    return Binary::Infinity;
+                }
+            }
+        }
+        debug_assert!(m < 1u64 << keep);
+        if e >= emin {
+            Binary::Finite { exponent: (e - emin + 1) as u64, fraction: m - (1u64 << (p - 1)) }
+        } else {
+            Binary::Finite { exponent: 0, fraction: m }
+        }
+    }
+}
+
+/// A rounded hexadecimal literal's fields, without its sign.
+enum Binary {
+    Infinity,
+    /// The biased exponent field (zero for a subnormal or zero) and the
+    /// fraction field.
+    Finite {
+        exponent: u64,
+        fraction: u64,
+    },
 }
 
 /// `Integer.parseInt(s)`: an optional sign and ASCII decimal digits in
@@ -397,10 +581,92 @@ mod tests {
         for bad in ["", " ", "inf", "nan", "1e", "1e+", ".", "1.5x", "1,5", "--1", "f", "1.5 f"] {
             assert_eq!(parse_double(bad), Err(ParseError::NotANumber(bad.into())), "{bad:?}");
         }
-        assert_eq!(parse_double("0x1p3"), Err(ParseError::HexFloat("0x1p3".into())));
         assert_eq!(parse_float("0.1"), Ok(0.1f32));
         assert_eq!(parse_float("3.4028236e38"), Ok(f32::INFINITY));
         assert_eq!(parse_float("1.00000001"), Ok(1.0f32));
+    }
+
+    #[test]
+    fn hexadecimal_literals_follow_javas_grammar() {
+        assert_eq!(parse_double("0x1p3"), Ok(8.0));
+        assert_eq!(parse_double("0X1.8P1"), Ok(3.0));
+        assert_eq!(parse_double("-0x.8p1"), Ok(-1.0));
+        assert_eq!(parse_double("+0x1.p0"), Ok(1.0));
+        assert_eq!(parse_double(" 0x0001.0000p-0 "), Ok(1.0));
+        assert_eq!(parse_double("0x.0001p16"), Ok(1.0));
+        assert_eq!(parse_double("0xABCDEFp0"), Ok(11259375.0));
+        assert_eq!(parse_double("0xabcdefp0f"), Ok(11259375.0));
+        assert_eq!(parse_double("0x1p3D"), Ok(8.0));
+        assert_eq!(parse_double("0x1p00003"), Ok(8.0));
+        assert_eq!(parse_float("0x1p3"), Ok(8.0f32));
+        // Too many digits for the type: rounded to the nearest, ties to even.
+        assert_eq!(parse_double("0x1.00000000000008p0"), Ok(1.0));
+        assert_eq!(parse_double("0x1.00000000000008000000000000000001p0"), Ok(1.0 + f64::EPSILON));
+        assert_eq!(parse_double("0x1.00000000000018p0"), Ok(1.0 + 2.0 * f64::EPSILON));
+        assert_eq!(parse_double("0x1.1234567890abcdef1234567890p0"), Ok(f64::from_bits(0x3ff1234567890abd)));
+        // The float is rounded from the digits, not from the double: the
+        // double of the second is above 1 + 2^-24 and would round up.
+        assert_eq!(parse_float("0x1.000001p0"), Ok(1.0f32));
+        assert_eq!(parse_double("0x1.000001p0"), Ok(1.0 + 2f64.powi(-24)));
+        assert_eq!(parse_float("0x1.000003p0"), Ok(1.0f32 + 2.0 * f32::EPSILON));
+        assert_eq!(parse_float("0x1.0000010000001p0"), Ok(1.0f32 + f32::EPSILON));
+        // The ends of the ranges: the largest values, the smallest subnormals,
+        // and the ties and carries at both.
+        assert_eq!(parse_double("0x1.fffffffffffffp1023"), Ok(f64::MAX));
+        assert_eq!(parse_double("0x1.fffffffffffff8p1023"), Ok(f64::INFINITY));
+        assert_eq!(parse_double("0x1p1024"), Ok(f64::INFINITY));
+        assert_eq!(parse_double("-0x1p1024"), Ok(f64::NEG_INFINITY));
+        assert_eq!(parse_double("0x1p-1022"), Ok(f64::MIN_POSITIVE));
+        assert_eq!(parse_double("0x1.ffffffffffffep-1023"), Ok(f64::MIN_POSITIVE - f64::from_bits(1)));
+        // Half an ulp under the smallest normal: a tie, to the even mantissa.
+        assert_eq!(parse_double("0x1.fffffffffffffp-1023"), Ok(f64::MIN_POSITIVE));
+        assert_eq!(parse_double("0x1.fffffffffffff8p-1023"), Ok(f64::MIN_POSITIVE));
+        assert_eq!(parse_double("0x1p-1074"), Ok(f64::from_bits(1)));
+        assert_eq!(parse_double("0x1p-1075"), Ok(0.0));
+        assert_eq!(parse_double("0x1.8p-1075"), Ok(f64::from_bits(1)));
+        assert_eq!(parse_double("0x1.0000000000000000000000000001p-1075"), Ok(f64::from_bits(1)));
+        assert_eq!(parse_double("0x1p-1076"), Ok(0.0));
+        assert!(parse_double("-0x1p-1076").unwrap().is_sign_negative());
+        assert_eq!(parse_float("0x1.fffffep127"), Ok(f32::MAX));
+        assert_eq!(parse_float("0x1.ffffffp127"), Ok(f32::INFINITY));
+        assert_eq!(parse_double("0x1.ffffffp127"), Ok(3.4028235677973366e38));
+        assert_eq!(parse_float("0x1p-126"), Ok(f32::MIN_POSITIVE));
+        assert_eq!(parse_float("0x1.ffffffp-127"), Ok(f32::MIN_POSITIVE));
+        assert_eq!(parse_float("0x1p-149"), Ok(f32::from_bits(1)));
+        assert_eq!(parse_float("0x1p-150"), Ok(0.0f32));
+        assert_eq!(parse_float("0x1.8p-150"), Ok(f32::from_bits(1)));
+        assert_eq!(parse_float("0x1p-151"), Ok(0.0f32));
+        // A zero significand is zero whatever the exponent, and an exponent
+        // over an int is infinity or zero by its sign.
+        assert_eq!(parse_double("0x0p99999999999"), Ok(0.0));
+        assert!(parse_double("-0x0.000p-99999999999").unwrap().is_sign_negative());
+        assert_eq!(parse_double("0x1p2147483647"), Ok(f64::INFINITY));
+        assert_eq!(parse_double("0x1p2147483648"), Ok(f64::INFINITY));
+        assert_eq!(parse_double("0x1p-2147483648"), Ok(0.0));
+        assert_eq!(parse_double("0x1p-2147483647"), Ok(0.0));
+        assert_eq!(parse_float("0x1p99999999999"), Ok(f32::INFINITY));
+        for bad in [
+            "0x",
+            "0x1",
+            "0x1.8",
+            "0xp1",
+            "0x.p1",
+            "0x1p",
+            "0x1p+",
+            "0x1p3.5",
+            "0x1e5",
+            "0x1p0x3",
+            "0x+1p3",
+            "0x1p3x",
+            "0x1p3 f",
+            "0x1pg",
+            "0x1p\u{663}",
+            "0xg1p0",
+            "0x1,8p1",
+        ] {
+            assert_eq!(parse_double(bad), Err(ParseError::NotANumber(bad.into())), "{bad:?}");
+            assert_eq!(parse_float(bad), Err(ParseError::NotANumber(bad.into())), "{bad:?}");
+        }
     }
 
     #[test]
