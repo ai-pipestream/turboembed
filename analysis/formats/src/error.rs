@@ -43,6 +43,9 @@ pub enum FormatError {
     Lengths { what: &'static str, expected: usize, found: usize },
     /// A name built over tokens a sample does not have.
     NameOutsideTokens { name: String, tokens: usize },
+    /// A span that starts after it ends: the `IllegalArgumentException` of
+    /// `Span`'s constructor.
+    BackwardsSpan { start: u32, end: u32 },
     /// A span outside the text it indexes, or not on its character
     /// boundaries.
     OutOfBounds { span: Span, len: usize },
@@ -93,7 +96,7 @@ impl FormatError {
             }
             OverlappingNames { .. } => Some("java.lang.RuntimeException"),
             ShortChunkTag { .. } => Some("java.lang.StringIndexOutOfBoundsException"),
-            Lengths { .. } | OutOfBounds { .. } => Some("java.lang.IllegalArgumentException"),
+            Lengths { .. } | OutOfBounds { .. } | BackwardsSpan { .. } => Some("java.lang.IllegalArgumentException"),
             ConlluColumns { .. }
             | InvalidLanguage { .. }
             | InvalidMultiwordId { .. }
@@ -146,6 +149,9 @@ impl fmt::Display for FormatError {
             }
             Lengths { what, expected, found } => {
                 write!(f, "{what}: expected {expected} values, found {found}")
+            }
+            BackwardsSpan { start, end } => {
+                write!(f, "start index must not be larger than end index: start={start}, end={end}")
             }
             NameOutsideTokens { name, tokens } => write!(f, "the name {name} reaches past the {tokens} tokens"),
             OutOfBounds { span, len } => {

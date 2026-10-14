@@ -119,6 +119,7 @@ a directory with the same model run without them, and its options are
 | | `mecab-ko-dic-2.1.1-20180720` | `ko`, `multi`, `edge`, `surrogate` | |
 | `formats` (the native sample streams) | `name`, `wordtag`, `token`, `doccat`, each also `+legacy`; `lemma`, `chunk`, `sentence`, `language` | `formats`, the inputs whose id starts with the format | `whitespace legacy` |
 | `formats` (the conversion streams) | `name-to-token`, `name-to-sentence`, `pos-to-token`, `pos-to-sentence`, with `en-detokenizer` (fixture) | `formats`, the `name` and `wordtag` inputs | `chunkSize 2` for the sentence conversions |
+| `evaluate` (the evaluators) | `pos`, `lemma`, `name`, `chunk`, `token`, `sentence` (also `+legacy`), `doccat`, `language`, `cross-validation` | `formats`, the `pairs-` inputs of the evaluator's format | `whitespace legacy` |
 | `formats` (the CoNLL-U streams) | `conllu-pos-u`, `conllu-pos-x`, `conllu-lemma-u`, `conllu-lemma-x`, `conllu-sentence`, `conllu-token` (also `+legacy`) | `formats`, the `conllu` inputs | `tagset u` or `x`; `sentencesPerSample 2`; `whitespace legacy` |
 
 - `+english-dictionary` is the English model rebuilt through
@@ -257,6 +258,27 @@ sample's own text and the UTF-8 byte span of each token or sentence in
 it) and `turbo:sample-labels` (a category or language). The streams ask
 no model, so there are no dumps. `analysis/formats/tests/opennlp.rs`
 compares the Rust readers with these goldens.
+
+## Evaluator goldens
+
+`evaluate/<evaluator>/formats/<id>.golden` is what one of OpenNLP's
+evaluators made of `inputs/formats/<id>.txt`, a `pairs-` file of
+reference samples each followed by a prediction, read with its format's
+stream. `EvalGolden` answers each reference with a stand-in component, a
+`java.lang.reflect.Proxy` of the component's interface (`POSTagger`,
+`Lemmatizer`, `TokenNameFinder`, `Chunker`, `Tokenizer`,
+`SentenceDetector`, `DocumentCategorizer`, `LanguageDetector`) that
+returns the prediction's tags, lemmas, names, chunk tags, spans, category
+or language, and hears the verdict with a proxy evaluation monitor. The
+layers are `turbo:verdicts` (per pair, correct, misclassified, or the
+class and message of what `evaluateSample` threw), `turbo:fmeasure` or
+`turbo:accuracy` (the scores after each pair), `turbo:span-scores` (the
+static `FMeasure.precision` and `recall` of each pair of name or token
+spans) and, for `cross-validation`, `turbo:folds` (the training and test
+places of every fold of `CrossValidationPartitioner` for 1 to 4
+partitions). `DetokenizerEvaluator` is in `opennlp-tools`, which the
+image does not build, so it has no golden. `analysis/formats/tests/evaluate.rs`
+compares the Rust evaluators with these goldens.
 
 ## Normalizer goldens
 

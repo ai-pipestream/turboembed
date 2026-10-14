@@ -32,9 +32,16 @@ pub struct Name<'a> {
 
 impl<'a> Name<'a> {
     /// A name of tokens `start..end`, not read from a source.
-    pub fn new(start: u32, end: u32, kind: Option<&'a str>) -> Name<'a> {
-        assert!(start <= end, "a name ends at or after its start");
-        Name { start, end, kind, source: Span::default() }
+    ///
+    /// # Errors
+    ///
+    /// [`FormatError::BackwardsSpan`] when `start` is past `end`, which
+    /// `Span`'s constructor refuses.
+    pub fn new(start: u32, end: u32, kind: Option<&'a str>) -> Result<Name<'a>, FormatError> {
+        if start > end {
+            return Err(FormatError::BackwardsSpan { start, end });
+        }
+        Ok(Name { start, end, kind, source: Span::default() })
     }
 
     /// The number of tokens.

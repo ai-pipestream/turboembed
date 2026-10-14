@@ -39,7 +39,7 @@
       <artifactId>opennlp-runtime</artifactId>
       <version>${opennlp.version}</version>
     </dependency>
-    <!-- The sample conversion streams and the CoNLL-U readers (FormatGolden, ConlluGolden). -->
+    <!-- The sample conversion streams and the CoNLL-U readers (FormatGolden). -->
     <dependency>
       <groupId>org.apache.opennlp</groupId>
       <artifactId>opennlp-formats</artifactId>

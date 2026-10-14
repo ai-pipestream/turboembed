@@ -470,7 +470,7 @@ final class FormatGolden implements AnnotatorGolden {
    * unless it is named in {@link #U32_COLUMNS}.
    */
   static final class Columns {
-    private static final Set<String> U32_COLUMNS = Set.of("after", "sample", "start", "end");
+    private static final Set<String> U32_COLUMNS = Set.of("after", "sample", "start", "end", "partitions", "fold");
 
     private final Map<String, List<Long>> u32 = new java.util.HashMap<>();
     private final Map<String, List<String>> str = new java.util.HashMap<>();

@@ -1,0 +1,27 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	formats/pairs-wordtag-basic	150	144	7630eb2b775a5809305d2ece83e0a445cd421a4a082fb2152631baa2afa9e7bb
+annotator	opennlp.tools.postag.POSEvaluator	evaluateSample
+layer	turbo:verdicts	document	8	sample:u32	verdict:str	class:str	message:str
+0	misclassified		
+1	correct		
+2	error	java.lang.ArrayIndexOutOfBoundsException	Index 2 out of bounds for length 2
+3	error	java.lang.IllegalArgumentException	There must be exactly one tag for each token. tokens: 1, tags: 2
+4	correct		
+5	misclassified		
+6	correct		
+7	correct		
+end	turbo:verdicts
+layer	turbo:accuracy	document	8	after:u32	accuracy:f64	count:u32
+0	3fe8000000000000 0.75	4
+1	3feaaaaaaaaaaaab 0.8333333333333334	6
+2	3fe8000000000000 0.75	8
+3	3fe8e38e38e38e39 0.7777777777777778	9
+4	3fe8e38e38e38e39 0.7777777777777778	9
+5	3fe6666666666666 0.7	10
+6	3fe745d1745d1746 0.7272727272727273	11
+7	3fe89d89d89d89d9 0.7692307692307693	13
+end	turbo:accuracy
