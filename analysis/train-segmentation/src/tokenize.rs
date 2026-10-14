@@ -32,7 +32,7 @@ use turbo_unicode::Utf16Cursor;
 use turbo_unicode::utf16::utf16_len;
 
 use crate::dictionary::AbbreviationDictionary;
-use crate::error::Result;
+use crate::error::{Error, Result};
 use crate::package::{DICTIONARY_SERIALIZER, FACTORY_KEY, Stamp, add_artifacts, serializer_class_key};
 
 /// `TokenizerModel.COMPONENT_NAME`.
@@ -149,12 +149,20 @@ impl<'f> TokSpanEventStream<'f> {
         }
     }
 
-    /// `createEvents(sample)`: appends the sample's events to `out`.
-    pub fn events(&mut self, sample: &TokenSample<'_>, out: &mut Vec<Event>) {
+    /// `createEvents(sample)`: appends the sample's events to `out`. The
+    /// tokens must be in text order ([`Error::TokensOutOfOrder`]); the
+    /// Java indexes the text with a negative offset otherwise.
+    pub fn events(&mut self, sample: &TokenSample<'_>, out: &mut Vec<Event>) -> Result<()> {
         let tokens = sample.tokens();
         let (Some(first), Some(last)) = (tokens.first(), tokens.last()) else {
-            return;
+            return Ok(());
         };
+        if let Some(i) = (1..tokens.len()).find(|&i| {
+            let (p, t) = (tokens[i - 1], tokens[i]);
+            t.start < p.start || t.end < p.end
+        }) {
+            return Err(Error::TokensOutOfOrder { token: i });
+        }
         let text = sample.text();
         let start = first.start as usize;
         let sent = &text[start..last.end as usize];
@@ -205,6 +213,7 @@ impl<'f> TokSpanEventStream<'f> {
                 }
             }
         }
+        Ok(())
     }
 }
 
@@ -218,16 +227,16 @@ pub fn tok_events<'a, 's>(
     samples: impl IntoIterator<Item = &'s TokenSample<'a>>,
     factory: &TokenizerFactory,
     whitespace: WhitespaceMode,
-) -> Vec<Event>
+) -> Result<Vec<Event>>
 where
     'a: 's,
 {
     let mut stream = TokSpanEventStream::new(factory, whitespace);
     let mut out = Vec::new();
     for sample in samples {
-        stream.events(sample, &mut out);
+        stream.events(sample, &mut out)?;
     }
-    out
+    Ok(out)
 }
 
 /// A trained tokenizer model: the GIS model, what the trainer reports,
@@ -279,7 +288,7 @@ pub fn train_tokenizer_model<'a, 's>(
 where
     'a: 's,
 {
-    let events = tok_events(samples, factory, whitespace);
+    let events = tok_events(samples, factory, whitespace)?;
     train_tokenizer_model_from_events(&events, factory, params, config, stamp)
 }
 
@@ -314,7 +323,7 @@ mod tests {
     fn positions_inside_tokens_do_not_split_and_token_ends_inside_a_unit_do() {
         let f = TokenizerFactory::new("en", None, false, None).unwrap();
         let s = samples("Hi<SPLIT>, you<SPLIT>.\n");
-        let events = tok_events(&s, &f, WhitespaceMode::Unicode);
+        let events = tok_events(&s, &f, WhitespaceMode::Unicode).unwrap();
         // "Hi," gives F (inside Hi) and T (after Hi); "," at the unit's
         // end gives nothing. "you." gives F F T.
         assert_eq!(outcomes(&events), "FTFFT");
@@ -328,13 +337,13 @@ mod tests {
         let optimized = TokenizerFactory::new("en", None, true, None).unwrap();
         let s = samples("a bcd ef<SPLIT>1\n");
         // "a" is one code unit; "bcd" is inside one token; "ef1" splits.
-        assert_eq!(outcomes(&tok_events(&s, &plain, WhitespaceMode::Unicode)), "FFFT");
+        assert_eq!(outcomes(&tok_events(&s, &plain, WhitespaceMode::Unicode).unwrap()), "FFFT");
         // With the optimization "ef1" is alphanumeric and is skipped too.
-        assert_eq!(outcomes(&tok_events(&s, &optimized, WhitespaceMode::Unicode)), "");
+        assert_eq!(outcomes(&tok_events(&s, &optimized, WhitespaceMode::Unicode).unwrap()), "");
         // A single character outside the BMP is two code units: an event
         // between its halves.
         let s = samples("\u{1F600}\n");
-        let events = tok_events(&s, &plain, WhitespaceMode::Unicode);
+        let events = tok_events(&s, &plain, WhitespaceMode::Unicode).unwrap();
         assert_eq!(outcomes(&events), "F");
         assert_eq!(events[0].context()[0].as_bytes(), b"p=\xED\xA0\xBD");
     }
@@ -344,7 +353,7 @@ mod tests {
         let d = AbbreviationDictionary::new(false, vec![vec!["Dr.".to_string()]]).unwrap();
         let f = TokenizerFactory::new("en", Some(d), false, None).unwrap();
         let s = samples("Dr<SPLIT>. Who\n");
-        let events = tok_events(&s, &f, WhitespaceMode::Unicode);
+        let events = tok_events(&s, &f, WhitespaceMode::Unicode).unwrap();
         // "Dr.": F inside Dr, T after it; "Who": two F.
         assert_eq!(outcomes(&events), "FTFF");
         assert!(events[1].context().iter().any(|c| c.as_bytes() == b"pabb"));
@@ -377,7 +386,7 @@ mod tests {
         )
         .unwrap();
         let f = TokenizerFactory::new("en", None, false, None).unwrap();
-        let events = tok_events([&s], &f, WhitespaceMode::Unicode);
+        let events = tok_events([&s], &f, WhitespaceMode::Unicode).unwrap();
         // "ab" is one token in one unit: one F. "c" and "d" find no token.
         assert_eq!(outcomes(&events), "F");
     }
@@ -400,10 +409,23 @@ mod tests {
         let s = TokenSample::new(std::borrow::Cow::Borrowed(text), spans.clone(), spans, turbo_analysis_span(0, 3))
             .unwrap();
         let f = TokenizerFactory::new("en", None, false, None).unwrap();
-        let events = tok_events([&s], &f, WhitespaceMode::Unicode);
+        let events = tok_events([&s], &f, WhitespaceMode::Unicode).unwrap();
         assert_eq!(outcomes(&events), "TFTT");
         assert_eq!(events[0].context()[2].to_string_lossy(), "p1=bok");
         assert_eq!(events[3].context()[0].to_string_lossy(), "p=xy");
+    }
+
+    #[test]
+    fn tokens_out_of_text_order_are_refused() {
+        let text = "ab cd";
+        let spans = vec![turbo_analysis_span(3, 5), turbo_analysis_span(0, 2)];
+        let s = TokenSample::new(std::borrow::Cow::Borrowed(text), spans.clone(), spans, turbo_analysis_span(0, 5))
+            .unwrap();
+        let f = TokenizerFactory::new("en", None, false, None).unwrap();
+        assert!(matches!(
+            tok_events([&s], &f, WhitespaceMode::Unicode),
+            Err(crate::Error::TokensOutOfOrder { token: 1 })
+        ));
     }
 
     fn turbo_analysis_span(start: u32, end: u32) -> turbo_analysis::Span {

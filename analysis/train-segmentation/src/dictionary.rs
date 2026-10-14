@@ -186,9 +186,10 @@ fn push_text(out: &mut String, text: &str) -> Result<()> {
             c if (c as u32) < 0x20 || matches!(c, '\u{FFFE}' | '\u{FFFF}') => {
                 return Err(Error::InvalidXmlCharacter(c as u32));
             }
-            // The JDK serializer writes a character outside the Basic
-            // Multilingual Plane as a decimal character reference.
-            c if (c as u32) > 0xFFFF => {
+            // The JDK serializer writes U+007F, the C1 controls U+0080 to
+            // U+009F, and a character outside the Basic Multilingual Plane
+            // as decimal character references.
+            c if (0x7F..=0x9F).contains(&(c as u32)) || (c as u32) > 0xFFFF => {
                 out.push_str("&#");
                 out.push_str(&(c as u32).to_string());
                 out.push(';');
@@ -257,6 +258,11 @@ mod tests {
         assert_eq!(out, "a&amp;b&lt;c&gt;d\"e'f&#13;\t\n&#128512;");
         let d = AbbreviationDictionary::new(false, vec![vec!["\u{1F600}.".to_string()]]).unwrap();
         assert!(d.lookup().contains("\u{1F600}."));
+        // U+007F and the C1 controls are references too, as
+        // `ToStream.accumDefaultEscape` writes them; U+00A0 is not.
+        let mut out = String::new();
+        push_text(&mut out, "a\u{7F}b n\u{85}l c\u{9F}d e\u{A0}f").unwrap();
+        assert_eq!(out, "a&#127;b n&#133;l c&#159;d e\u{A0}f");
         assert!(matches!(push_text(&mut out, "\u{1}"), Err(Error::InvalidXmlCharacter(1))));
         assert!(matches!(push_text(&mut out, "\u{FFFE}"), Err(Error::InvalidXmlCharacter(0xFFFE))));
         // A dictionary with such a token cannot be made, as its lookup

@@ -53,13 +53,14 @@ pub fn default_eos_characters(language: &str) -> &'static str {
 /// `SentenceDetectorFactory(languageCode, useTokenEnd, abbreviationDictionary,
 /// eosCharacters)` as a training run uses it.
 ///
-/// With no end characters the factory asks the language factory for the
-/// language's, and from then on holds them, so `getEOSCharacters` is never
-/// null during training: the manifest always has `eosCharacters`, and the
-/// context generator is always `DefaultSDContextGenerator`, built from
-/// those characters. (The `SentenceContextGenerator` the language factory
-/// has for Thai is reachable only through the branch for null end
-/// characters, which training never takes.)
+/// With no end characters (`null`) the factory asks the language factory
+/// for the language's, and from then on holds them, so the manifest
+/// always has `eosCharacters` and the context generator is
+/// `DefaultSDContextGenerator` built from those characters. An empty
+/// array is different: the JVM then uses the language's scanner and
+/// context generator (for Thai the `SentenceContextGenerator`) but writes
+/// `eosCharacters=` empty to the manifest, so the file does not say what
+/// the model was trained with; this port refuses it ([`Error::EmptyEos`]).
 #[derive(Debug, Clone)]
 pub struct SentenceDetectorFactory {
     language: String,
@@ -70,14 +71,18 @@ pub struct SentenceDetectorFactory {
 
 impl SentenceDetectorFactory {
     /// `eos_characters` are the `char[]`, as a string; `None` takes the
-    /// language's. A surrogate code unit is refused: the scanner cannot
-    /// match half a character ([`Error::SurrogateEos`]).
+    /// language's. An empty string is refused ([`Error::EmptyEos`]), and
+    /// so is a surrogate code unit: the scanner cannot match half a
+    /// character ([`Error::SurrogateEos`]).
     pub fn new(
         language: &str,
         use_token_end: bool,
         abbreviations: Option<AbbreviationDictionary>,
         eos_characters: Option<&str>,
     ) -> Result<SentenceDetectorFactory> {
+        if eos_characters == Some("") {
+            return Err(Error::EmptyEos);
+        }
         let eos_characters: Vec<u16> =
             eos_characters.unwrap_or_else(|| default_eos_characters(language)).encode_utf16().collect();
         if let Some(&u) = eos_characters.iter().find(|&&u| (0xD800..0xE000).contains(&u)) {
@@ -319,6 +324,9 @@ mod tests {
             SentenceDetectorFactory::new("en", true, None, Some("\u{1F600}")),
             Err(Error::SurrogateEos(0xD83D))
         ));
+        // An empty array would make the JVM train with the language's
+        // context generator while the manifest says `eosCharacters=`.
+        assert!(matches!(SentenceDetectorFactory::new("th", true, None, Some("")), Err(Error::EmptyEos)));
     }
 
     #[test]

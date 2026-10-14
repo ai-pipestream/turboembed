@@ -30,8 +30,11 @@
 //!   last end character is its split whatever follows it.
 //! - The factories resolve a missing end character set or alphanumeric
 //!   pattern to the language's before anything reads them, so a trained
-//!   model's manifest always has `eosCharacters` and `alphaNumericPattern`,
-//!   and the Thai `SentenceContextGenerator` is never used in training.
+//!   model's manifest always has `eosCharacters` and `alphaNumericPattern`.
+//!   An empty end character array is not resolved: the JVM then trains
+//!   with the language's scanner and context generator (Thai's
+//!   `SentenceContextGenerator`) but records `eosCharacters=` empty, so
+//!   the model file does not describe the model; this crate refuses it.
 //! - The tokenizer's events are at UTF-16 positions, so a character
 //!   outside the Basic Multilingual Plane gives an event between its two
 //!   halves, with predicates that hold half a character.
@@ -50,10 +53,11 @@
 //! - `BaseModel.serialize` adds `serializer-class-abbreviations.dictionary`
 //!   to the manifest only when a dictionary is present.
 //! - The JDK's XML serializer writes a dictionary token's character outside
-//!   the Basic Multilingual Plane as a decimal character reference, and
-//!   throws on a control character other than tab, line feed and carriage
-//!   return, so a dictionary holding one cannot be written into a model
-//!   file at all ([`Error::InvalidXmlCharacter`]).
+//!   the Basic Multilingual Plane, U+007F and the C1 controls U+0080 to
+//!   U+009F as decimal character references, and throws on a C0 control
+//!   character other than tab, line feed and carriage return, so a
+//!   dictionary holding one cannot be written into a model file at all
+//!   ([`Error::InvalidXmlCharacter`]).
 //! - An empty training token (CoNLL-U with an empty word form gives one)
 //!   makes a split event at its position, at index 0 of the unit when it
 //!   is first there, where the context has `p1=bok` and no `p2` or `p1f1`.

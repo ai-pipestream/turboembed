@@ -1569,13 +1569,14 @@ close a cycle, and one inside `turbo-formats` would make the sample
 readers depend on the trainer. Its README lists the OpenNLP behaviour
 that is surprising: the factories resolve a missing end character set or
 pattern to the language's before the context generator or the manifest
-sees them, so the Thai `SentenceContextGenerator` is never used in
-training; the dictionary's entries are written in a Java `HashSet`'s
+sees them, while an empty end character array makes the JVM train with
+the language's context generator (Thai's `SentenceContextGenerator`) and
+record `eosCharacters=` empty, which the crate refuses; the dictionary's entries are written in a Java `HashSet`'s
 order and the zip entries in a Java `HashMap`'s order, both simulated;
 `new Dictionary(InputStream)` collapses case variants before it reads
 `case_sensitive`; the JDK's XML serializer writes characters outside the
-Basic Multilingual Plane as decimal character references and refuses
-control characters; and an empty training token asks the tokenizer's
+Basic Multilingual Plane, U+007F and the C1 controls as decimal character
+references and refuses the other C0 controls; and an empty training token asks the tokenizer's
 context generator for index 0.
 
 `analysis/train-segmentation/tests/goldens.rs` compares the events with
@@ -1616,12 +1617,15 @@ every iteration of a longer run were compared with the file; 300 agrees,
 299 and 301 do not), so the recipes use 300. And with 300 iterations the
 events, manifests, predicates and patterns of all eight models come out
 exactly while the parameters differ in their last bits, by 2.2e-15 to
-9.8e-15 at most depending on the model: the JVM of
-the goldens container, running the fork's trainer on the same events,
-writes the parameters this port writes and shows the same residual
-against the published file, so the residual is between the publisher's
-platform and this one (`Math.exp` and `Math.log` are intrinsics whose
-last bit varies by platform), not between the port and the JVM. The test
+9.8e-15 at most depending on the model. The JVM of the goldens
+container, running the fork's trainer on the same events, writes the
+parameters this port writes and shows the same residual against the
+published file, so the residual is not between the port and the fork's
+trainer; its cause is not known (`GISTrainer` uses `StrictMath` and
+merges its threads' sums in a fixed order, so platform `Math` intrinsics
+and thread timing do not explain it), and the next experiment is to run
+the OpenNLP 2.5.4 command line itself in the container on the same
+treebank. The test
 asserts agreement to within `1e-12` and says which models match byte for
 byte (none does); a model that did not come out this close would fail it.
 

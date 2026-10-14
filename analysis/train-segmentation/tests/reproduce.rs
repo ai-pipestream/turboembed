@@ -17,10 +17,10 @@
 //!
 //! The test passes when every model agrees in its events, manifest, zip
 //! entries, predicates and patterns, and in its parameters to within
-//! [`TOLERANCE`]: the published files were trained on another machine,
-//! whose `Math.exp` and `Math.log` round differently from this one's, so
-//! the parameters' last bits are the publisher's and cannot be matched
-//! from here (`turbo_train_segmentation::ud` says how this was checked).
+//! [`TOLERANCE`]: the published files' parameters differ from this
+//! port's in their last bits for a reason not yet known; the fork's
+//! trainer in the goldens container writes this port's parameters bit for
+//! bit (`turbo_train_segmentation::ud` says what was checked).
 //! The report printed with `--nocapture` says which models match byte for
 //! byte and how far the others are.
 

@@ -34,10 +34,12 @@ All of these are kept and tested (`src/`, `tests/goldens.rs`,
   non-splits.
 - The factories resolve a missing end character set or alphanumeric
   pattern to the language's before anything reads them, so a trained
-  model's manifest always has `eosCharacters` and `alphaNumericPattern`,
-  and the Thai `SentenceContextGenerator` is never used in training (the
-  training factory gives the default context generator; only a model's
-  `eosCharacters` of a space and a line feed show the language).
+  model's manifest always has `eosCharacters` and `alphaNumericPattern`.
+  An empty end character array is not resolved: the JVM then trains with
+  the language's scanner and context generator (Thai's
+  `SentenceContextGenerator`) but records `eosCharacters=` empty, so the
+  model file does not describe the model; this crate refuses an empty set
+  (`Error::EmptyEos`).
 - The tokenizer's events are at UTF-16 positions, so a character outside
   the Basic Multilingual Plane gives an event between its two halves,
   with predicates that hold half a character; the predicates are
@@ -63,11 +65,12 @@ All of these are kept and tested (`src/`, `tests/goldens.rs`,
   `case_sensitive` attribute, so entries that differ only in case
   collapse to the first even in a case-sensitive dictionary.
 - The JDK's XML serializer writes a token's character outside the Basic
-  Multilingual Plane as a decimal character reference (`&#128512;`),
-  escapes `&`, `<`, `>` and a carriage return (`&#13;`), writes `"` and
-  `'` as they are, and throws on any other control character, so a
-  dictionary with such a token cannot be written into a model file
-  (`Error::InvalidXmlCharacter`).
+  Multilingual Plane as a decimal character reference (`&#128512;`), and
+  U+007F and the C1 controls U+0080 to U+009F the same way (`&#127;`,
+  `&#133;`); it escapes `&`, `<`, `>` and a carriage return (`&#13;`),
+  writes `"` and `'` as they are, and throws on any other C0 control
+  character, so a dictionary with such a token cannot be written into a
+  model file (`Error::InvalidXmlCharacter`).
 - `BaseModel.serialize` adds `serializer-class-abbreviations.dictionary`
   to the manifest only when a dictionary is present.
 - The published UD 1.3 models were trained with 300 iterations, not the
@@ -118,12 +121,15 @@ last place, 299 and 301 do not). With 300 iterations the events, the
 manifest, the predicates and the outcome patterns of a published model
 come out exactly for all eight models, and the parameters to within
 2.2e-15 (German sentences) to 9.8e-15 (French tokens), with 60 to 85
-percent of them differing in their last bits. That residual
-is the publisher's platform: the JVM of the goldens container, running
-the fork's trainer on the same events, writes exactly the parameters this
-crate writes and shows the same residual against the published file.
-`Math.exp` and `Math.log` are intrinsics whose last bit varies by
-platform, and 300 iterations of GIS carry that bit into the parameters.
-The test therefore asserts agreement to within `1e-12` and reports which
+percent of them differing in their last bits. The JVM of the goldens
+container, running the fork's trainer on the same events, writes exactly
+the parameters this crate writes and shows the same residual against the
+published file, so the residual is not between this port and the fork's
+trainer. Its cause is not known: `GISTrainer` uses `StrictMath`
+throughout and merges its threads' sums in a fixed order, so neither
+platform `Math` intrinsics nor thread timing explain it. The next
+experiment is to run the OpenNLP 2.5.4 command line itself in the
+container on the same treebank and compare its parameters with both.
+The test asserts agreement to within `1e-12` and reports which
 models match byte for byte (none does); the model files it writes under
 `TURBO_REPRODUCE_OUT` load in `turbo-maxent` and in OpenNLP.

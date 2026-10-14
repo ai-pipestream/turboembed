@@ -36,6 +36,17 @@ pub enum Error {
     Pattern(PatternError),
     /// An end-of-sentence character given as a surrogate code unit.
     SurrogateEos(u16),
+    /// An empty end-of-sentence character set. The JVM factory then falls
+    /// back to the language's scanner and context generator (for Thai the
+    /// `SentenceContextGenerator`) while the manifest records
+    /// `eosCharacters=` empty, so the model file does not describe the
+    /// model; the set is refused rather than reproduced.
+    EmptyEos,
+    /// A token sample whose tokens are not in text order (a token starting
+    /// or ending before the one before it), which `TokSpanEventStream`
+    /// would index the text with at a negative offset. `token` is the
+    /// index of the token out of order.
+    TokensOutOfOrder { token: usize },
     /// The treebank could not be fetched or verified.
     Zoo(turbo_zoo::ZooError),
     /// A published model file could not be read.
@@ -64,6 +75,8 @@ impl fmt::Display for Error {
             }
             Error::Pattern(e) => write!(f, "alphanumeric pattern: {e}"),
             Error::SurrogateEos(u) => write!(f, "end of sentence character U+{u:04X} is a surrogate"),
+            Error::EmptyEos => f.write_str("the end of sentence character set is empty"),
+            Error::TokensOutOfOrder { token } => write!(f, "token {token} of the sample is out of text order"),
             Error::Zoo(e) => write!(f, "zoo: {e}"),
             Error::Model(e) => write!(f, "model file: {e}"),
             Error::MissingManifestEntry(k) => write!(f, "the published manifest has no {k}"),

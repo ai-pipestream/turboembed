@@ -35,9 +35,12 @@
 //! container (Temurin 21 on x86-64), running the same training with the
 //! fork's trainer, writes exactly the parameters this crate writes and
 //! shows the same residual against the published file, so the residual
-//! is between the publisher's JVM and platform (`Math.exp` and `Math.log`
-//! are intrinsics whose last bit varies by platform) and this one, not
-//! between this port and the JVM.
+//! is not between this port and the fork's trainer. Its cause is not
+//! known: `GISTrainer` uses `StrictMath` throughout and merges its
+//! threads' sums in a fixed order, so neither platform `Math` intrinsics
+//! nor thread timing explain it. The next experiment is to run the OpenNLP
+//! 2.5.4 command line itself in the container on the same treebank and
+//! compare its parameters with both.
 //!
 //! The treebanks are CC BY-SA 4.0, so they are fetched through the zoo,
 //! by digest, after the user accepts that licence, and are never checked
@@ -283,7 +286,7 @@ impl Recipe {
                 let samples: Vec<_> =
                     ConlluTokenReader::new(conllu, WHITESPACE)?.collect::<std::result::Result<_, _>>()?;
                 let factory = self.tokenizer_factory()?;
-                let events = tokenize::tok_events(&samples, &factory, WHITESPACE);
+                let events = tokenize::tok_events(&samples, &factory, WHITESPACE)?;
                 drop(samples);
                 let t = tokenize::train_tokenizer_model_from_events(&events, &factory, &params, config, stamp)?;
                 Ok(Trained { events: events.len(), model: t.model, report: t.report, package: t.package })
@@ -454,10 +457,10 @@ impl Comparison {
 
     /// Whether everything but the parameters' last bits agrees: the same
     /// events, manifest and zip entries, the same predicates and patterns,
-    /// and no parameter further than `max_abs` from the published one. A
-    /// model trained on another machine's JVM differs from this port in
-    /// the rounding of `Math.exp` and `Math.log` (the module comment says
-    /// how far), so this is the agreement a published model can show.
+    /// and no parameter further than `max_abs` from the published one. The
+    /// published models differ from this port in their parameters' last
+    /// bits for a reason not yet known (the module comment says how far),
+    /// so this is the agreement they can show.
     pub fn agrees_within(&self, max_abs: f64) -> bool {
         let parameters = match &self.parameters {
             None => self.model_entry.is_same(),

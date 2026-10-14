@@ -64,7 +64,7 @@ fn check_train_golden(path: &Path, source: &str) {
         }
         "tokenize" => {
             let f = TokenizerFactory::new("en", None, false, None).unwrap();
-            tok_events(&token_samples(&text), &f, MODE)
+            tok_events(&token_samples(&text), &f, MODE).unwrap()
         }
         other => panic!("{other}"),
     };
@@ -187,7 +187,7 @@ fn event_golden_events(g: &Golden, text: &str) -> (Vec<Event>, Vec<StreamError>)
             }
             let mut out = Vec::new();
             for s in &samples {
-                out.extend(tok_events([s], &f, MODE));
+                out.extend(tok_events([s], &f, MODE).unwrap());
                 counts.push(out.len());
             }
             out
