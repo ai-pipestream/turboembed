@@ -3,9 +3,9 @@
 //! - `rules`: the newline and paragraph detectors on 10 MB of synthetic
 //!   text (a few repeated lines, mostly ASCII with some accented and CJK
 //!   text, a blank line after every fourth), in both whitespace modes.
-//! - `maxent`: the maxent detector with the published English model in
-//!   tests/models on 10 MB of synthetic English (a paragraph of varied
-//!   sentences, repeated), once all ASCII, which the context generator
+//! - `maxent`: the maxent detector with the published English model on
+//!   10 MB of synthetic English (a paragraph of varied sentences,
+//!   repeated), once all ASCII, which the context generator
 //!   walks by byte, and once with one accented word per paragraph, which
 //!   takes the general UTF-16 walk.
 //! - `no-whitespace`: the maxent detector on texts with end characters
@@ -16,10 +16,16 @@
 //! cargo run --release -p turbo-sentdetect --example throughput [section]
 //! ```
 //!
-//! With no section named, all three run.
+//! With no section named, all three run. The English model,
+//! `opennlp-en-ud-ewt-sentence-1.3-2.5.4.bin`, is trained on a CC BY-SA
+//! treebank and not checked in: it is read from the directory
+//! `TURBO_GOLDENS_MODELS` names, or `target/turbo-goldens/models` under the
+//! repository root, where
+//! `cargo run -p turbo-goldens-tool -- fetch-models target/turbo-goldens/models`
+//! puts it.
 
 use std::hint::black_box;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::time::Instant;
 
 use turbo_maxent::ModelFile;
@@ -46,8 +52,14 @@ fn main() {
         rules();
     }
     if wants("maxent") || wants("no-whitespace") {
-        let path = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/models/opennlp-en-ud-ewt-sentence-1.3-2.5.4.bin");
-        let model = SentenceModel::open(ModelFile::read(path).expect("the English model")).expect("a sentence model");
+        let dir = match std::env::var_os("TURBO_GOLDENS_MODELS") {
+            Some(d) => PathBuf::from(d),
+            None => Path::new(env!("CARGO_MANIFEST_DIR")).join("../../target/turbo-goldens/models"),
+        };
+        let path = dir.join("opennlp-en-ud-ewt-sentence-1.3-2.5.4.bin");
+        let file = ModelFile::read(&path)
+            .unwrap_or_else(|e| panic!("{}: {e} (download it with turbo-goldens-tool fetch-models)", path.display()));
+        let model = SentenceModel::open(file).expect("a sentence model");
         let detector = SentenceDetector::new(model, WhitespaceMode::Unicode);
         if wants("maxent") {
             maxent(&detector, "ASCII", &repeat(PARAGRAPH, TEN_MB), 5);

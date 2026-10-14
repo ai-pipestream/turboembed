@@ -160,12 +160,13 @@ fn span(start: usize, end: usize) -> Span {
 mod tests {
     use super::*;
     use crate::me::context::AffixLimits;
-    use std::path::Path;
     use turbo_unicode::WhitespaceMode;
 
-    fn english() -> TokenizerMe {
-        let path = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/models/opennlp-en-ud-ewt-tokens-1.3-2.5.4.bin");
-        TokenizerMe::new(TokenizerModel::read(path).unwrap(), TokenizerOptions::default())
+    /// The tokenizer over the published English model, or `None` when it
+    /// is not downloaded.
+    fn english() -> Option<TokenizerMe> {
+        let path = crate::test_models::published("opennlp-en-ud-ewt-tokens-1.3-2.5.4.bin")?;
+        Some(TokenizerMe::new(TokenizerModel::read(path).unwrap(), TokenizerOptions::default()))
     }
 
     fn tokens(t: &TokenizerMe, text: &str) -> Vec<(String, f64)> {
@@ -189,7 +190,7 @@ mod tests {
         // What TokenizerME.tokenizePos and probs() returned on the JVM for
         // this text with the English model (the same values
         // tests/me_pipeline.rs checks per sentence).
-        let t = english();
+        let Some(t) = english() else { return };
         let text = "The cat sat. It's 5 o'clock, isn't it?";
         let mut got = Vec::new();
         t.tokenize(text, &mut got);
@@ -221,7 +222,7 @@ mod tests {
             "<?xml version=\"1.0\" encoding=\"UTF-8\"?><dictionary case_sensitive=\"false\"><entry><token>{unit}</token></entry></dictionary>"
         );
         let dictionary = turbo_maxent::Dictionary::read(xml.as_bytes()).unwrap();
-        let t = english();
+        let Some(t) = english() else { return };
         // Without the dictionary the model splits the unit.
         assert!(tokens(&t, unit).len() > 1);
         let t = TokenizerMe::new(t.model.with_abbreviations(Some(dictionary)), TokenizerOptions::default());
@@ -238,7 +239,7 @@ mod tests {
 
     #[test]
     fn affix_limits_change_no_token_and_no_probability() {
-        let t = english();
+        let Some(t) = english() else { return };
         let unlimited =
             TokenizerMe::new(t.model.clone().with_affix_limits(AffixLimits::UNLIMITED), TokenizerOptions::default());
         let text = format!("{} and {}", long_unit(), long_unit());
@@ -259,7 +260,7 @@ mod tests {
         // The bytes of features built over every position of the unit:
         // without limits the prefix and suffix make that the unit's length
         // squared, with the model's limits a bounded amount per position.
-        let t = english();
+        let Some(t) = english() else { return };
         let limits = t.model.affix_limits();
         let unit = long_unit();
         let built = |affixes: AffixLimits| {
@@ -285,7 +286,8 @@ mod tests {
 
     #[test]
     fn options_change_the_units() {
-        let model = english().model;
+        let Some(t) = english() else { return };
+        let model = t.model;
         let legacy = TokenizerMe::new(
             model.clone(),
             TokenizerOptions { whitespace: WhitespaceMode::Legacy, ..Default::default() },
@@ -303,7 +305,7 @@ mod tests {
     fn the_alphanumeric_optimization_skips_the_model() {
         // With the optimization on, "ab12" is a token of probability 1
         // without consulting the model; with it off the model decides.
-        let t = english();
+        let Some(t) = english() else { return };
         let off = tokens(&t, "ab12");
         assert_eq!(off.len(), 1);
         assert!(off[0].1 < 1.0);

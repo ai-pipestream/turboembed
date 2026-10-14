@@ -3,7 +3,10 @@
 //! the JVM returned for the same model and dictionary: the runs
 //! `tokenize/tokenizer-abbreviations` and
 //! `tokenize/opennlp-en-ud-ewt-tokens-1.3-2.5.4+english-dictionary` and
-//! their dumps, whose decision points show the jump over the dots.
+//! their dumps, whose decision points show the jump over the dots. The
+//! English UD model is downloaded by `turbo-goldens fetch-models`
+//! (`common::published_model`); without it the tests over it say so and
+//! pass.
 
 mod common;
 
@@ -17,18 +20,20 @@ const EN: &str = "opennlp-en-ud-ewt-tokens-1.3-2.5.4.bin";
 
 /// The English UD model with the generator's English dictionary as its
 /// abbreviation dictionary, as the JVM ran it with the dictionary given
-/// to `TokenizerFactory`.
-fn english_with_dictionary() -> TokenizerMe {
+/// to `TokenizerFactory`, and the model's path; `None` when the model is
+/// not downloaded.
+fn english_with_dictionary() -> Option<(TokenizerMe, std::path::PathBuf)> {
+    let path = published_model(EN)?;
     let bytes = std::fs::read(fixtures_dir().join("english-dictionary.xml")).unwrap();
     let dictionary = Dictionary::read(&bytes).unwrap();
-    let model = model(EN).with_abbreviations(Some(dictionary));
-    TokenizerMe::new(model, TokenizerOptions::default())
+    let model = read_model(&path).with_abbreviations(Some(dictionary));
+    Some((TokenizerMe::new(model, TokenizerOptions::default()), path))
 }
 
 /// The fixture model, which holds its own case-insensitive dictionary
 /// `Dr.`, `U.S.`, `e.g.`: OpenNLP trained it on six sentences.
 fn fixture() -> TokenizerMe {
-    TokenizerMe::new(model("tokenizer-abbreviations.bin"), TokenizerOptions::default())
+    TokenizerMe::new(fixture_model("tokenizer-abbreviations.bin"), TokenizerOptions::default())
 }
 
 /// The UTF-8 spans and probabilities the port gives for one input.
@@ -70,12 +75,14 @@ fn words<'a>(run: &Run, id: &str, input: &'a str) -> Vec<&'a str> {
     spans.iter().map(|&(a, b, _)| &input[a as usize..b as usize]).collect()
 }
 
-fn english_run() -> Run {
-    check_run(
+/// The English run, or `None` when the model is not downloaded.
+fn english_run() -> Option<Run> {
+    let (t, path) = english_with_dictionary()?;
+    Some(check_run(
         "opennlp-en-ud-ewt-tokens-1.3-2.5.4+english-dictionary",
-        &english_with_dictionary(),
-        &[model_path(EN), fixtures_dir().join("english-dictionary.xml")],
-    )
+        &t,
+        &[path, fixtures_dir().join("english-dictionary.xml")],
+    ))
 }
 
 #[test]
@@ -93,7 +100,7 @@ fn the_dictionary_in_the_model_file() {
 
 #[test]
 fn known_abbreviations_stay_whole() {
-    let run = english_run();
+    let Some(run) = english_run() else { return };
     assert_eq!(run.spans.len(), 38);
     let input = "Dr. Smith met e.g. U.S. officials at 9 a.m. etc. DR. dr.x e.g.,";
     assert_eq!(
@@ -110,14 +117,14 @@ fn the_dot_count_jump_and_its_overlapping_spans() {
     // splitting from there, so the spans overlap. `check_run` has also
     // checked the dump: the JVM asked the model about no position the
     // jump passed over.
-    let run = english_run();
+    let Some(run) = english_run() else { return };
     let input = "(c)Co.ltd xyz.,\"abc A.M.";
     assert_eq!(words(&run, "dot-count-jump", input), ["(c)Co.ltd", "Co.ltd", ".ltd", "xyz.,\"abc", "abc", "A.M."]);
 }
 
 #[test]
 fn the_pabb_feature() {
-    let t = english_with_dictionary();
+    let Some((t, _)) = english_with_dictionary() else { return };
     let maxent = t.tokenizer_model().maxent();
     let t_index = maxent.outcome_index("T").unwrap();
     let mut features = Features::new();

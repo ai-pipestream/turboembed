@@ -309,12 +309,15 @@ mod tests {
         // and skips lookups of words longer than every dictionary entry;
         // detect_traced builds every feature as the Java does. On texts
         // without whitespace every word reaches to an end of the text.
-        let models = [
-            "../goldens/data/fixtures/en-abbrev.bin",
-            "../goldens/data/fixtures/en-plain.bin",
-            "tests/models/opennlp-en-ud-ewt-sentence-1.3-2.5.4.bin",
-            "tests/models/opennlp-pt-ud-gsd-sentence-1.3-2.5.4.bin",
-        ];
+        // The two fixture models always, the published English and
+        // Portuguese models when they are downloaded.
+        let fixtures = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../goldens/data/fixtures");
+        let mut models = vec![fixtures.join("en-abbrev.bin"), fixtures.join("en-plain.bin")];
+        models.extend(
+            ["opennlp-en-ud-ewt-sentence-1.3-2.5.4.bin", "opennlp-pt-ud-gsd-sentence-1.3-2.5.4.bin"]
+                .into_iter()
+                .filter_map(crate::test_models::published),
+        );
         let texts = [
             "A.".repeat(1500),
             "x.Y".repeat(1000),
@@ -323,8 +326,7 @@ mod tests {
             format!("Start. {} End. Mr. Brown left.", "\u{E9}t\u{E9}.\u{1F600}".repeat(400)),
         ];
         let mut splits = 0;
-        for model in models {
-            let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join(model);
+        for path in models {
             let model = Arc::new(SentenceModel::open(ModelFile::read(path).unwrap()).unwrap());
             assert!(model.limits().feature < 1000, "{}", model.limits().feature);
             for mode in [WhitespaceMode::Unicode, WhitespaceMode::Legacy] {
@@ -346,6 +348,7 @@ mod tests {
                 }
             }
         }
+        // The two fixture models alone split over 3000 times.
         assert!(splits > 1000, "only {splits} splits");
     }
 
