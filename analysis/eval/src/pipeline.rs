@@ -242,6 +242,7 @@ mod tests {
                 .unwrap(),
             ),
             unplaced: Vec::new(),
+            absent: Vec::new(),
         }
     }
 

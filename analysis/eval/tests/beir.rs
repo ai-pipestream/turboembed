@@ -37,6 +37,7 @@ fn reads_the_sample() {
     assert_eq!(s.qrels.scored_queries().collect::<Vec<_>>(), ["q1", "q2"]);
     assert!(s.spans.is_none());
     assert!(s.unplaced.is_empty());
+    assert!(s.absent.is_empty());
     // `sha256sum corpus.jsonl queries.jsonl qrels/test.tsv | LC_ALL=C sort -k2 | sha256sum`
     assert_eq!(s.sha256, "c62f2c11c492de125113311a2d7905e35d97004c79d6498ab1ba6787927ea0e0");
 }
@@ -74,9 +75,6 @@ fn errors_name_the_file_and_line() {
     let e = broken("beir-fields", beir::QRELS, "query-id\tcorpus-id\tscore\nq1 d1 1\n");
     assert_eq!(e, "qrels/test.tsv:2: expected 3 tab separated fields, found 1");
 
-    let e = broken("beir-doc", beir::QRELS, "query-id\tcorpus-id\tscore\nq1\td9\t1\n");
-    assert_eq!(e, "qrels/test.tsv:2: document d9 is not in corpus.jsonl");
-
     let e = broken("beir-query", beir::QRELS, "query-id\tcorpus-id\tscore\nq9\td1\t1\n");
     assert_eq!(e, "qrels/test.tsv:2: query q9 is not in queries.jsonl");
 }
@@ -88,4 +86,15 @@ fn bad_utf8_names_the_line() {
     fs::write(dir.join(beir::QUERIES), b"{\"_id\": \"q1\", \"text\": \"a\"}\n{\"_id\": \"q2\", \"text\": \"\xff\"}\n")
         .unwrap();
     assert_eq!(beir::read("b", &dir).unwrap_err(), "queries.jsonl:2: not UTF-8");
+}
+
+#[test]
+fn a_judged_document_not_in_the_corpus_is_kept() {
+    let dir = scratch("beir-absent");
+    copy_dir(&data("beir"), &dir);
+    fs::write(dir.join(beir::QRELS), "query-id\tcorpus-id\tscore\nq1\td1\t1\nq1\td9\t1\nq2\td2\t2\n").unwrap();
+    let s = beir::read("b", &dir).unwrap();
+    assert_eq!(s.qrels.grade("q1", "d9"), 1);
+    assert_eq!(s.absent, ["qrels/test.tsv:3: query q1 document d9"]);
+    assert_eq!(s.docs.len(), 3);
 }

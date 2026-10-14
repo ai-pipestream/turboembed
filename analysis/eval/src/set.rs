@@ -51,6 +51,11 @@ pub struct LoadedSet {
     /// one line each naming the query and the text, so a run can say how
     /// many there were. Only sets that quote their judged text have them.
     pub unplaced: Vec<String>,
+    /// Judgements kept although the document they name is not in the set,
+    /// one line each naming the query and the document. They count as
+    /// relevant and can never be retrieved, as `trec_eval` scores a run
+    /// against such judgements. Only the BEIR reader has them.
+    pub absent: Vec<String>,
 }
 
 impl LoadedSet {

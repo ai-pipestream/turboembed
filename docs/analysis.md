@@ -1748,7 +1748,10 @@ under `analysis/eval/records` come next.
    no index, summed in f32 in a fixed order so the scores are the same
    on every machine. A document scores its best chunk. The top 100
    documents and the top 100 chunks of each query are kept, ordered by
-   the tie rules of `metrics` and `spans`.
+   the tie rules of `metrics` and `spans`. As in BEIR (its
+   `ignore_identical_ids`, on by default), a document whose id is the
+   query's own id is left out of both rankings before the cut; in
+   ArguAna 1298 of the 1406 test queries are also documents.
 
 The record's cost is the wall time of each stage, the tokens the
 embedder was given (chunks, queries and any sentences a chunker
@@ -1828,10 +1831,10 @@ a `sha256sum` style manifest of the files read, sorted by path.
 
 | Set | Source | Licence | Spans | Digests |
 |---|---|---|---|---|
-| `scifact`, `nfcorpus`, `arguana` | BEIR layout, from MTEB's plain copies at a pinned revision | CC BY-SA 4.0 (BEIR dataset cards) | none | not recorded yet |
+| `scifact`, `nfcorpus`, `arguana` | BEIR layout, from MTEB's plain copies at a pinned revision | CC BY-SA 4.0 (BEIR dataset cards) | none | recorded |
 | `legalbench-rag-mini` | a shared folder, placed by hand | MIT for the benchmark; the documents under their sources' terms | code points, converted after Python's newline translation; the mini subset is chosen with a port of CPython's `random` | none (no stable file URLs) |
 | `conteb-covid-qa` | Parquet, read as JSON Lines rows | none stated, so refused | the judged chunk | not recorded yet |
-| `gutenqa` | Parquet, read as JSON Lines rows | MIT (dataset card) | the quoted passage, located in its chunk | not recorded yet |
+| `gutenqa` | Parquet, read as JSON Lines rows | MIT (dataset card) | the quoted passage, located in its chunk | recorded |
 | `hicbench` | no published copy found | none stated, so refused | quoted sentences, located in the document | none |
 | `qasper` | gzip tar, test split | CC BY 4.0 | quoted evidence, located by paragraph or text | recorded |
 
@@ -1840,7 +1843,10 @@ have to be converted to JSON Lines (one object per row, the column
 names as keys) outside the crate. Chunked sets are joined into
 documents with a line break between chunks. Evidence a reader cannot
 place in its document is listed in `LoadedSet.unplaced` rather than
-dropped silently.
+dropped silently. A BEIR judgement naming a document the corpus does
+not have (ArguAna's test split has 5) is kept and listed in
+`LoadedSet.absent`: it counts as relevant and is never retrieved, as
+`trec_eval` scores it, and `run` prints how many there were.
 
 ### The binary
 
@@ -1854,6 +1860,12 @@ cargo run --release -p turbo-eval -- gate <candidate-dir> <baseline-dir>
 `fetch` downloads each named set into the cache and checks it; `run`
 reads them from there. Both take the cache root from `--cache`, or from
 `$TURBO_EVAL_CACHE` when it is not given.
+
+`--device cuda` needs the binary built with the core's cuda backend:
+`cargo run --release -p turbo-eval --features turbo/cuda -- run ...`,
+with `TURBO_CUDA_ROOT` set when nvcc is not under `/usr/local/cuda`
+(`TURBO_CUDA_ROOT=/usr` for a distribution's toolkit; docs/cuda.md).
+Without it the device is not found.
 
 `run` writes `<record-dir>/<set>.json` for each set, so one directory
 holds one pipeline's records, and never replaces a record. As

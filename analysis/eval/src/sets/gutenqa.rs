@@ -2,8 +2,9 @@
 //! LumberChunker, each with the passage its answer is in.
 //!
 //! The tables are published as Parquet, which nothing in the workspace
-//! reads. Fetching gets the Parquet files (once their digests are
-//! recorded); the reader reads each one's rows as JSON Lines beside it,
+//! reads, and no JSON Lines copy is published. Fetching gets the Parquet
+//! files, whose digests two downloads and the repository's LFS object ids
+//! agree on; the reader reads each one's rows as JSON Lines beside it,
 //! with the same name and `.jsonl`, which have to be written from the
 //! Parquet outside this crate.
 
@@ -17,12 +18,12 @@ pub const SET: Set = Set {
         RemoteFile {
             path: "gutenqa_chunks.parquet",
             url: "https://huggingface.co/datasets/LumberChunker/GutenQA/resolve/5f0f6f10d92a819f8efac7c10c0c983033bbe430/gutenqa_chunks.parquet",
-            sha256: Digest::NotRecorded,
+            sha256: Digest::Recorded("ee544a9c7e046464c3ff9329b33e848a9d7a29d7936d4cff92ed1b984549397d"),
         },
         RemoteFile {
             path: "questions.parquet",
             url: "https://huggingface.co/datasets/LumberChunker/GutenQA/resolve/5f0f6f10d92a819f8efac7c10c0c983033bbe430/questions.parquet",
-            sha256: Digest::NotRecorded,
+            sha256: Digest::Recorded("7d5b9ab95cfd78afa606e77c84d67ff12f0235978d9ab9b03f483af7952ff516"),
         },
     ]),
     span_unit: Some(SpanUnit::QuotedText),
