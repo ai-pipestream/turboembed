@@ -442,50 +442,82 @@ fn the_tagger_is_scored_in_the_reference_s_spelling_over_the_tags_it_can_give() 
 
 /// What the part-of-speech recipe reads from the MASC corpora checked in
 /// for the goldens (`analysis/goldens/data/inputs/formats/masc-*.txt`,
-/// written for the tests in MASC's layout): the samples OpenNLP's
-/// `MascPOSSampleStream` read from them in the JVM, as the `masc/pos`
-/// goldens record them, up to the first sentence the stream threw on; and
-/// where it threw, the recipe skips that sentence alone and reads on.
+/// written for the tests in MASC's layout), against what OpenNLP's
+/// `MascPOSSampleStream` read from them in the JVM (the `masc/pos`
+/// goldens). The goldens' generator reads on after a read throws, so a
+/// golden's first pass records every sample the stream read and every
+/// exception it threw, each a token without a tag
+/// (`IllegalArgumentException`): the recipe reads the same samples in the
+/// same order and skips one sentence for each exception. A corpus the
+/// stream could not open (`masc-aborts`) is refused when it is read, with
+/// the JVM's exception. The recipe's other skip, a sentence of no tokens,
+/// is in none of these corpora; `skipped_sentences_are_recorded_and_bounded`
+/// reads one.
 #[test]
 fn the_tagger_recipe_reads_the_jvm_s_samples_from_the_checked_in_masc_corpora() {
     let goldens = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../goldens/data");
-    // The samples of the first pass of each golden, and whether the
-    // stream threw in that pass.
-    let jvm = |name: &str| -> (Vec<String>, bool) {
+    // A layer's rows of the first pass, without the pass column, or every
+    // row of a layer without one.
+    let jvm = |name: &str, id: &str| -> Vec<Vec<String>> {
         let text = std::fs::read_to_string(goldens.join(format!("masc/pos/formats/{name}.golden"))).unwrap();
-        let layer = |id: &str| -> Vec<Vec<String>> {
-            let start = text.find(&format!("layer\t{id}\t")).unwrap_or_else(|| panic!("{name}: no {id}"));
-            let body = &text[start..];
-            let end = body.find(&format!("\nend\t{id}")).unwrap();
-            body[..end].lines().skip(1).map(|l| l.split('\t').map(str::to_owned).collect()).collect()
-        };
-        let samples = layer("turbo:samples").into_iter().filter(|r| r[0] == "0").map(|r| r[1].clone()).collect();
-        let threw = layer("turbo:read-errors").iter().any(|r| r[0] == "0");
-        (samples, threw)
+        let start = text.find(&format!("layer\t{id}\t")).unwrap_or_else(|| panic!("{name}: no {id}"));
+        let body = &text[start..];
+        let end = body.find(&format!("\nend\t{id}")).unwrap();
+        let rows = body[..end].lines().skip(1).map(|l| l.split('\t').map(str::to_owned).collect::<Vec<_>>());
+        if id == "turbo:open-errors" {
+            rows.collect()
+        } else {
+            rows.filter(|r| r[0] == "0").map(|r| r[1..].to_vec()).collect()
+        }
     };
-    let mut checked = 0;
-    for name in ["masc-basic", "masc-names", "masc-opennlp", "masc-penn", "masc-sentences", "masc-skips", "masc-xml"] {
-        let (expected, threw) = jvm(name);
+    let write = |name: &str| {
         let root = temp_dir(&format!("checked-in-{name}"));
         let bundle = std::fs::read_to_string(goldens.join(format!("inputs/formats/{name}.txt"))).unwrap();
         bundle::write_bundle(&bundle, &root);
+        root
+    };
+    let names = [
+        "masc-basic",
+        "masc-names",
+        "masc-opennlp",
+        "masc-penn",
+        "masc-sentences",
+        "masc-skips",
+        "masc-unicode",
+        "masc-xml",
+    ];
+    let mut skipped_any = 0;
+    for name in names {
+        let expected: Vec<String> = jvm(name, "turbo:samples").into_iter().map(|r| r[0].clone()).collect();
+        let thrown = jvm(name, "turbo:read-errors");
+        assert!(jvm(name, "turbo:open-errors").is_empty(), "{name}");
+        for row in &thrown {
+            assert_eq!(row[1..], ["java.lang.IllegalArgumentException", "null elements are not allowed in tags!"]);
+        }
+        let root = write(name);
         let corpus = MascCorpus::read(&root).unwrap();
         let mut read = Vec::new();
         let skipped = postag::read_samples(&corpus, |s| read.push(s.to_string())).unwrap();
-        if threw {
-            // The JVM read the samples before the sentence it threw on;
-            // the recipe reads those, skips that sentence and goes on.
-            assert!(skipped > 0, "{name}: nothing skipped");
-            assert_eq!(read[..expected.len()], expected[..], "{name}");
-        } else {
-            assert_eq!(skipped, 0, "{name}");
-            assert_eq!(read, expected, "{name}");
-        }
-        println!("{name}: {} samples read, {} sentences skipped; the JVM read {}", read.len(), skipped, expected.len());
-        checked += 1;
+        assert_eq!(read, expected, "{name}");
+        assert_eq!(skipped, thrown.len(), "{name}");
+        println!(
+            "{name}: {} samples read, {skipped} sentences skipped; the JVM threw {} times",
+            read.len(),
+            thrown.len()
+        );
+        skipped_any += skipped;
         std::fs::remove_dir_all(&root).unwrap();
     }
-    assert_eq!(checked, 7);
+    // masc-penn and masc-xml have sentences with a token without a tag.
+    assert_eq!(skipped_any, 3);
+
+    let opened = jvm("masc-aborts", "turbo:open-errors");
+    assert_eq!(opened.len(), 1);
+    let root = write("masc-aborts");
+    let err = MascCorpus::read(&root).unwrap_err();
+    assert_eq!(err.java_class(), Some(opened[0][0].as_str()), "{err}");
+    assert_eq!(err.to_string(), opened[0][1]);
+    std::fs::remove_dir_all(&root).unwrap();
 }
 
 /// Where a recipe's reference is, or `None` when it is not there and the
@@ -595,7 +627,9 @@ fn labels(tagset: &turbo_analysis::TagSet) -> Vec<&str> {
 /// [`reference_path`]). The corpus is the test corpus, not MASC, and the
 /// candidate has seen its held-out sentences, so the scores say nothing
 /// about the recipes; the test checks that the published models load,
-/// match their recorded digests and are scored on the same samples.
+/// match their recorded digests and are scored on the same samples, and
+/// that each scores what it scored when the test was written, so a change
+/// in how a reference is read or scored shows.
 #[test]
 fn the_published_references_are_checked_and_scored_when_present() {
     let root = temp_dir("published");
@@ -609,6 +643,13 @@ fn the_published_references_are_checked_and_scored_when_present() {
         outcome.gate.check().unwrap();
         assert_eq!(outcome.gate.reference.id, recipe.reference_id());
         println!("{}", outcome.gate);
+        let expected = match recipe.task() {
+            Task::SentenceDetector => "63.16",
+            Task::Tokenizer => "94.34",
+            Task::PartOfSpeechTagger => "92.41",
+        };
+        let scores = (outcome.gate.result.candidate.score, outcome.gate.result.reference.score);
+        assert_eq!(format!("{:.2} {:.2}", scores.0, scores.1), format!("100.00 {expected}"), "{}", outcome.gate);
     }
     std::fs::remove_dir_all(&root).unwrap();
 }

@@ -130,19 +130,26 @@ published as a gzip tar needs one before it can be listed.
 MASC text, Penn tags written for the tests) and runs everything on
 them: the split in the reader's order; the three recipes trained,
 scored and gated; the same bytes from a second training; the card, the
-model's directory and its zoo entry; and the binary's refusal of an
-unrecorded corpus and its output. It also reads the MASC corpora
-checked in for the goldens (`analysis/goldens/data/inputs/formats/masc-*.txt`)
-with the tagger recipe's reader and checks that it reads the samples
-OpenNLP's `MascPOSSampleStream` read from them in the JVM (the
-`masc/pos` goldens), and skips the sentences that stream threw on. The
-test corpora are made of eight sentences, so a model trained on one has
-seen every held-out sentence and its score there measures nothing. The gate
-is checked against a model trained on plainer text: as the reference it
-loses and the trained model passes, and as the candidate it loses far
-more than the margin and fails, which is the check that tells the gate
-from one that passes everything. A model against itself passes with no
-difference.
+model's directory and its zoo entry; the skipped sentences recorded and
+bounded on both sides; the tagger scored in the reference's spelling
+with the tokens of a tag the reference cannot give left out, and a
+reference that cannot give most tags refused; and the binary's refusal
+of an unrecorded corpus, of a missing or wrong reference and of an
+existing model directory before it trains anything, and its output. It
+also reads the MASC corpora checked in for the goldens
+(`analysis/goldens/data/inputs/formats/masc-*.txt`) with the tagger
+recipe's reader: it reads every sample OpenNLP's `MascPOSSampleStream`
+read from them in the JVM (the `masc/pos` goldens, whose generator reads
+on after an exception), in order, skips one sentence for each exception
+the JVM recorded, and refuses the corpus the JVM could not open with the
+JVM's exception. The test corpora are made of eight sentences, so a
+model trained on one has seen every held-out sentence and its score
+there measures nothing. The gate is checked against a weaker model,
+trained on plainer text (for the tagger, on the same sentences with
+their tags moved one token along): as the reference it loses and the
+trained model passes, and as the candidate it loses far more than the
+margin and fails, which is the check that tells the gate from one that
+passes everything. A model against itself passes with no difference.
 
 The OpenNLP UD references need `TURBO_GOLDENS_MODELS` naming a
 directory that holds them (`cargo run -p turbo-goldens-tool --
@@ -160,11 +167,13 @@ documented, so CI does not fetch it. The parts that need it run when
 `TURBO_TEST_OPENNLP_MODELS` names a directory holding it (a missing file
 there fails), and skip without it even with
 `TURBO_TEST_REQUIRE_OPENNLP_MODELS=1`. With it, it is checked against the
-recorded digest, shown to return its 45 Penn outcomes unconverted, scored
-and gated, and the binary runs all three recipes.
+recorded digest, shown to return its 45 Penn outcomes unconverted and
+to tag brackets, hyphens, ellipses and semicolons as
+`postag::REFERENCE_SPELLINGS` says, scored and gated, and the binary
+runs all three recipes.
 
 On the test corpus, with both directories set, the published references
 score 63.16 (sentences, F-measure), 94.34 (tokens, F-measure) and 92.41
 (`en-pos-maxent.bin`, accuracy), against 100 for the trained models,
-which have seen every held-out sentence; these numbers show the gate is
-wired through, not how the recipes do on MASC.
+which have seen every held-out sentence; the test checks these numbers,
+which show the gate is wired through, not how the recipes do on MASC.
