@@ -343,13 +343,23 @@ fn symbol_rule(text: &str, d: &Disagreement) -> bool {
 /// whitespace, around at most one space, holding a non-ASCII letter,
 /// digit or mark.
 ///
-/// What this does not check: that the JVM kept the very address the port
-/// matched. The rule sees the region's two results and the source, not
-/// the port's or OpenNLP's scan; a port scan that took a wrong stretch
-/// next to a real address, with the same non-ASCII shape, would pass.
+/// What the JVM kept is the source's own text, in order, and each kept
+/// stretch is in a whitespace-delimited token of the source that holds an
+/// `@`: the address the port matched (the region can hold other tokens
+/// too, a URL both sides replaced next to the address among them).
+///
+/// What this does not check: that the port's match is the address the
+/// port's `BoundedUrls` should take, or the one OpenNLP's scan would take
+/// up to its first non-ASCII character. The rule sees the region's source
+/// and the two results, and it cannot run OpenNLP's scan; whether the
+/// port's scan takes the right stretch is for `turbo-normalize`'s own
+/// tests, and the JVM's ASCII stretch is whatever it replaced. A port
+/// match that took a wrong whitespace-free stretch with an `@` and a
+/// non-ASCII letter would pass here as the documented difference.
 fn bounded_url_rule(text: &str, d: &Disagreement) -> bool {
     let Some((rust, golden)) = d.results() else { return false };
-    if !d.source(text).contains('@') {
+    let source = d.source(text);
+    if !source.contains('@') {
         return false;
     }
     let prefix = rust.char_indices().zip(golden.chars()).take_while(|((_, a), b)| a == b).count();
@@ -360,9 +370,25 @@ fn bounded_url_rule(text: &str, d: &Disagreement) -> bool {
     let (removed, kept) = (&r_rest[..r_rest.len() - suffix], &g_rest[..g_rest.len() - suffix]);
     let international = |c: char| !c.is_ascii() && (c.is_alphanumeric() || general_category(c).is_mark());
     let parts: Vec<&str> = kept.split(' ').collect();
+    // Each kept stretch is in the source, after the one before it, in a
+    // token with an `@`.
+    let mut from = 0;
+    let in_source = parts.iter().all(|part| match source[from..].find(part) {
+        Some(i) => {
+            let at = from + i;
+            let token_start = source[..at]
+                .rfind(char::is_whitespace)
+                .map_or(0, |w| w + source[w..].chars().next().map_or(1, char::len_utf8));
+            let token_end = source[at..].find(char::is_whitespace).map_or(source.len(), |w| at + w);
+            from = at + part.len();
+            source[token_start..token_end].contains('@')
+        }
+        None => false,
+    });
     (removed.is_empty() || removed == " ")
         && parts.len() <= 2
         && parts.iter().all(|part| !part.is_empty() && !part.chars().any(char::is_whitespace))
+        && in_source
         && kept.chars().any(international)
 }
 
@@ -550,6 +576,23 @@ mod tests {
         assert!(matches!(out, Outcome::Divergence(_)), "{name} on {text:?}: {out}");
     }
 
+    /// Explains one golden of a fuzz run: `TURBO_FUZZ_GOLDEN` names the
+    /// golden file, `TURBO_FUZZ_INPUT` its input text and `TURBO_FUZZ_RUN`
+    /// the normalizer run.
+    #[test]
+    #[ignore = "a diagnostic over files named by the environment"]
+    fn explain_one_golden_from_the_environment() {
+        let name = std::env::var("TURBO_FUZZ_RUN").unwrap();
+        let (normalize, edits, documented) = table(&name).unwrap();
+        let run = NormalizerRun { name: name.clone(), normalize, edits, documented };
+        let golden = crate::read_golden(std::path::Path::new(&std::env::var("TURBO_FUZZ_GOLDEN").unwrap())).unwrap();
+        let text = std::fs::read_to_string(std::env::var("TURBO_FUZZ_INPUT").unwrap()).unwrap();
+        let doc = run.annotate(&text, Some(&golden)).unwrap();
+        eprintln!("port: {:?}", view_edits(&doc));
+        eprintln!("jvm:  {:?}", golden_edits(&golden));
+        eprintln!("{}", run.compare(&doc, &golden));
+    }
+
     #[test]
     fn the_character_additions_are_documented_and_other_characters_are_not() {
         // U+2E42 folded here only; the JVM folds U+201C as the port does.
@@ -599,6 +642,14 @@ mod tests {
         documented("bounded-url", "mail \u{E9}a@b.co now", &[e(7, 13, " ")]);
         divergence("bounded-url", "mail a@b.co now", &[]);
         divergence("bounded-url", "mail Jos\u{E9}@example.com now", &[e(5, 9, "Jos ")]);
+        // Text the JVM kept that is not the source's, or out of its order.
+        divergence("bounded-url", "mail Jos\u{E9}@example.com now", &[e(5, 8, "Zos")]);
+        divergence("bounded-url", "see first\u{5B8}+tag@a.b.c\u{20DD} now", &[e(4, 24, "c\u{20DD} first\u{5B8}")]);
+        // A URL both replace right before the address, one region for the
+        // diff; and a kept stretch in a token without an `@`.
+        let text = "needs https://s\u{E48}.d.ex/ x.y.z@sub.d\u{338}omain.example b";
+        documented("bounded-url", text, &[e(6, 36, "   ")]);
+        divergence("bounded-url", text, &[e(6, 36, "   "), e(49, 50, " \u{E9}")]);
         // The ASCII part replaced in the middle, the Greek kept by the JVM.
         let text = "x brien@example.com...\u{3AC}\u{3BD} y";
         documented("bounded-url", text, &[e(2, 22, " ")]);
