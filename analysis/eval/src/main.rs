@@ -42,8 +42,10 @@ run options:
                           (default cpu)
   --precision <p>         model, fastest or exact (default model)
   --sentences <s>         newline, or an OpenNLP sentence model file
-                          (default: the English UD EWT model in
-                          analysis/sentdetect/tests/models)
+                          (default: the English UD EWT model in the
+                          directory $TURBO_GOLDENS_MODELS names, or
+                          target/turbo-goldens/models, where
+                          turbo-goldens-tool fetch-models puts it)
   --structure <s>         plain, markdown or none (default plain)
   --titles <t>            ignore, or prefix each chunk with the document's
                           title (default ignore)
@@ -228,9 +230,22 @@ fn run_cmd(args: &[String]) -> Result<()> {
     let sentences = match o.take("--sentences") {
         Some(s) if s == "newline" => Sentencer::Newline,
         Some(path) => Sentencer::maxent(Path::new(&path))?,
-        None => Sentencer::maxent(
-            &workspace.join("analysis/sentdetect/tests/models/opennlp-en-ud-ewt-sentence-1.3-2.5.4.bin"),
-        )?,
+        None => {
+            let dir = match std::env::var_os("TURBO_GOLDENS_MODELS") {
+                Some(d) => PathBuf::from(d),
+                None => workspace.join("target/turbo-goldens/models"),
+            };
+            let path = dir.join("opennlp-en-ud-ewt-sentence-1.3-2.5.4.bin");
+            if !path.is_file() {
+                return Err(format!(
+                    "{}: not found; download it with `cargo run -p turbo-goldens-tool -- fetch-models \
+                     target/turbo-goldens/models` (or into the directory TURBO_GOLDENS_MODELS names), \
+                     or give --sentences",
+                    path.display()
+                ));
+            }
+            Sentencer::maxent(&path)?
+        }
     };
     let structure = match o.take("--structure").as_deref().unwrap_or("plain") {
         "plain" => Some(Syntax::Plain),

@@ -1,0 +1,390 @@
+dump 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	edge/lone-cr	19	19	ac38dbe53768d70bdacbfafc39f0b99e470f6ed16f23d7d91585e912fa4441f2
+model	opennlp-de-ud-gsd-pos-1.3-2.5.4.bin	9e44d582874464924a8baf8fbfed7500e15112c3dc446bfc5be281bff4dbbf195eda0a16ca7e78fde7a64a684c0f780b5987723db800ce88465b9894ef0ba17b
+model	opennlp-de-ud-gsd-sentence-1.3-2.5.4.bin	c811604c24cdbe490ab42dcffdbae63f9a74b39622f21b7b31f63eea566ffe35ef871f0da905e61180656b877cf0be4d626588c6312fcc18df5ab9a35b4183fa
+model	opennlp-de-ud-gsd-tokens-1.3-2.5.4.bin	343c9fe93ff301b736f30fa2e0d954b270994a1535ec2bd424553cbd82b13eb0d86aa2042946db62322430a8b5a8f29a8a2d882f107cb26c6d4f6d494d97debf
+annotator	opennlp.tools.postag.POSTaggerME	tag
+point	0	0	13	20	0	none
+context	def
+context	suf=e
+context	suf=ne
+context	suf=one
+context	pre=o
+context	pre=on
+context	pre=one
+context	w=one
+context	n1w=two
+context	n2w=three
+context	S=begin
+context	wc=lc
+context	w&c=one,lc
+outcome	ADV	3f8e711482612aa3 0.014864120701664268
+outcome	ADJ	3feaba734e87655a 0.8352600606696499
+outcome	NOUN	3f777a7b53c82378 0.005732042071493797
+outcome	PUNCT	3f586a644389f47d 0.0014902094973472662
+outcome	DET	3fafc634662eadcd 0.0620590567335416
+outcome	VERB	3f5849fa0c2e5a34 0.0014824811812325202
+outcome	PRON	3f8731959213ac1e 0.011325043220912486
+outcome	ADP	3f78beb5afa1cfd9 0.006041249953444316
+outcome	ADP+DET	3f72c52f55f08994 0.004582581429561822
+outcome	PROPN	3fa97de3523b8786 0.04978857401671548
+outcome	CCONJ	3f776fff6da15fc9 0.0057220437684790204
+outcome	AUX	3f43351623218cc5 5.861623851725275E-4
+outcome	PART	3f0b703c02a71e00 5.233462464420899E-5
+outcome	SCONJ	3f44622dc129413c 6.220553789919934E-4
+outcome	NUM	3edec1b1bc22faae 7.332949225778941E-6
+outcome	X	3f3665d5ecb360aa 3.417632367024396E-4
+outcome	SYM	3f0667d22b64ca53 4.273519646104799E-5
+outcome	INTJ	3e6d11b363ce5220 5.414549917381224E-8
+outcome	PROPN+DET	3e5244804424dfa1 1.7013011674118356E-8
+outcome	ADP+PRON	3e75f70e977cb7d6 8.182624877388192E-8
+end	0
+point	1	4	15	20	0	none
+context	def
+context	suf=o
+context	suf=wo
+context	suf=two
+context	pre=t
+context	pre=tw
+context	pre=two
+context	w=two
+context	p1w=one
+context	n1w=three
+context	n2w=five
+context	p1S=begin
+context	wc=lc
+context	w&c=two,lc
+context	t=ADJ
+outcome	ADV	3fbaf7286b143c4a 0.10533383001551147
+outcome	ADJ	3f498d5de96ea799 7.797916940621596E-4
+outcome	NOUN	3f88c0155649a820 0.012085119910995756
+outcome	PUNCT	3f7ffb8e421a91d1 0.007808261581577062
+outcome	DET	3f412d88d87e81c4 5.242269698904557E-4
+outcome	VERB	3fbb6b1478607efb 0.10710266055002286
+outcome	PRON	3f4a8d2e5cdc7790 8.10287130409414E-4
+outcome	ADP	3f658a3a754fcc5f 0.0026293889773057323
+outcome	ADP+DET	3f4acdf5ee9c65b9 8.180094566540486E-4
+outcome	PROPN	3fe7acd2d4fa5bb5 0.7398466262555902
+outcome	CCONJ	3f0facce4eb8582f 6.041531181837122E-5
+outcome	AUX	3f929c0c75f03464 0.018173403452284367
+outcome	PART	3f6f629c8d65c867 0.0038312013304500517
+outcome	SCONJ	3eba225d88d8339d 1.5577220752211131E-6
+outcome	NUM	3f26959cd798b4a2 1.7230548455541168E-4
+outcome	X	3ef73eabb9ebe012 2.216797622175976E-5
+outcome	SYM	3e92ba9890ea1b5d 2.79082215927744E-7
+outcome	INTJ	3e908672b1aa26c3 2.4624448406087925E-7
+outcome	PROPN+DET	3e6468c345e05cdb 3.8015152567673834E-8
+outcome	ADP+PRON	3e888a4a6ab0b2ab 1.828387231351708E-7
+end	1
+point	2	4	15	20	0	none
+context	def
+context	suf=o
+context	suf=wo
+context	suf=two
+context	pre=t
+context	pre=tw
+context	pre=two
+context	w=two
+context	p1w=one
+context	n1w=three
+context	n2w=five
+context	p1S=begin
+context	wc=lc
+context	w&c=two,lc
+context	t=ADJ
+outcome	ADV	3fbaf7286b143c4a 0.10533383001551147
+outcome	ADJ	3f498d5de96ea799 7.797916940621596E-4
+outcome	NOUN	3f88c0155649a820 0.012085119910995756
+outcome	PUNCT	3f7ffb8e421a91d1 0.007808261581577062
+outcome	DET	3f412d88d87e81c4 5.242269698904557E-4
+outcome	VERB	3fbb6b1478607efb 0.10710266055002286
+outcome	PRON	3f4a8d2e5cdc7790 8.10287130409414E-4
+outcome	ADP	3f658a3a754fcc5f 0.0026293889773057323
+outcome	ADP+DET	3f4acdf5ee9c65b9 8.180094566540486E-4
+outcome	PROPN	3fe7acd2d4fa5bb5 0.7398466262555902
+outcome	CCONJ	3f0facce4eb8582f 6.041531181837122E-5
+outcome	AUX	3f929c0c75f03464 0.018173403452284367
+outcome	PART	3f6f629c8d65c867 0.0038312013304500517
+outcome	SCONJ	3eba225d88d8339d 1.5577220752211131E-6
+outcome	NUM	3f26959cd798b4a2 1.7230548455541168E-4
+outcome	X	3ef73eabb9ebe012 2.216797622175976E-5
+outcome	SYM	3e92ba9890ea1b5d 2.79082215927744E-7
+outcome	INTJ	3e908672b1aa26c3 2.4624448406087925E-7
+outcome	PROPN+DET	3e6468c345e05cdb 3.8015152567673834E-8
+outcome	ADP+PRON	3e888a4a6ab0b2ab 1.828387231351708E-7
+end	2
+point	3	4	15	20	0	none
+context	def
+context	suf=o
+context	suf=wo
+context	suf=two
+context	pre=t
+context	pre=tw
+context	pre=two
+context	w=two
+context	p1w=one
+context	n1w=three
+context	n2w=five
+context	p1S=begin
+context	wc=lc
+context	w&c=two,lc
+context	t=ADJ
+outcome	ADV	3fbaf7286b143c4a 0.10533383001551147
+outcome	ADJ	3f498d5de96ea799 7.797916940621596E-4
+outcome	NOUN	3f88c0155649a820 0.012085119910995756
+outcome	PUNCT	3f7ffb8e421a91d1 0.007808261581577062
+outcome	DET	3f412d88d87e81c4 5.242269698904557E-4
+outcome	VERB	3fbb6b1478607efb 0.10710266055002286
+outcome	PRON	3f4a8d2e5cdc7790 8.10287130409414E-4
+outcome	ADP	3f658a3a754fcc5f 0.0026293889773057323
+outcome	ADP+DET	3f4acdf5ee9c65b9 8.180094566540486E-4
+outcome	PROPN	3fe7acd2d4fa5bb5 0.7398466262555902
+outcome	CCONJ	3f0facce4eb8582f 6.041531181837122E-5
+outcome	AUX	3f929c0c75f03464 0.018173403452284367
+outcome	PART	3f6f629c8d65c867 0.0038312013304500517
+outcome	SCONJ	3eba225d88d8339d 1.5577220752211131E-6
+outcome	NUM	3f26959cd798b4a2 1.7230548455541168E-4
+outcome	X	3ef73eabb9ebe012 2.216797622175976E-5
+outcome	SYM	3e92ba9890ea1b5d 2.79082215927744E-7
+outcome	INTJ	3e908672b1aa26c3 2.4624448406087925E-7
+outcome	PROPN+DET	3e6468c345e05cdb 3.8015152567673834E-8
+outcome	ADP+PRON	3e888a4a6ab0b2ab 1.828387231351708E-7
+end	3
+point	4	8	18	20	0	none
+context	def
+context	suf=e
+context	suf=ee
+context	suf=ree
+context	suf=hree
+context	pre=t
+context	pre=th
+context	pre=thr
+context	pre=thre
+context	w=three
+context	p1w=two
+context	p2w=one
+context	n1w=five
+context	p2S=begin
+context	wc=lc
+context	w&c=three,lc
+context	t=PROPN
+context	t2=ADJ,PROPN
+outcome	ADV	3f653f3146f3d851 0.0025936090893266335
+outcome	ADJ	3fe25c261da5d4cf 0.5737486437853024
+outcome	NOUN	3f4e03b82b27a3e9 9.159707317937224E-4
+outcome	PUNCT	3f81725408576ae0 0.008518845085679627
+outcome	DET	3f95f10615821352 0.021427245199919405
+outcome	VERB	3fb320dda120074a 0.07472024139135872
+outcome	PRON	3f5b791a226fd803 0.0016768222064889044
+outcome	ADP	3f562b77da8f2036 0.0013531370589010667
+outcome	ADP+DET	3f42f938d48ff05e 5.79025983028735E-4
+outcome	PROPN	3fd391b5bdc50a09 0.3057684281558584
+outcome	CCONJ	3f22189a724acc4d 1.3806233723343206E-4
+outcome	AUX	3f8172340b3cb9e3 0.00851860675137756
+outcome	PART	3f001c993edafc15 3.0730654413606427E-5
+outcome	SCONJ	3e7307a9ded568a3 7.089203509416728E-8
+outcome	NUM	3e85ef4d1845b8ce 1.6342677268015355E-7
+outcome	X	3ee556f7d870d40d 1.0175571118245888E-5
+outcome	SYM	3e7899f820b154ab 9.16475146201408E-8
+outcome	INTJ	3e5daa26cb438360 2.7627362356936934E-8
+outcome	PROPN+DET	3e52ed302dc05395 1.7626691981091645E-8
+outcome	ADP+PRON	3e76c1e3399c3921 8.477782245336279E-8
+end	4
+point	5	8	18	20	0	none
+context	def
+context	suf=e
+context	suf=ee
+context	suf=ree
+context	suf=hree
+context	pre=t
+context	pre=th
+context	pre=thr
+context	pre=thre
+context	w=three
+context	p1w=two
+context	p2w=one
+context	n1w=five
+context	p2S=begin
+context	wc=lc
+context	w&c=three,lc
+context	t=PROPN
+context	t2=ADJ,PROPN
+outcome	ADV	3f653f3146f3d851 0.0025936090893266335
+outcome	ADJ	3fe25c261da5d4cf 0.5737486437853024
+outcome	NOUN	3f4e03b82b27a3e9 9.159707317937224E-4
+outcome	PUNCT	3f81725408576ae0 0.008518845085679627
+outcome	DET	3f95f10615821352 0.021427245199919405
+outcome	VERB	3fb320dda120074a 0.07472024139135872
+outcome	PRON	3f5b791a226fd803 0.0016768222064889044
+outcome	ADP	3f562b77da8f2036 0.0013531370589010667
+outcome	ADP+DET	3f42f938d48ff05e 5.79025983028735E-4
+outcome	PROPN	3fd391b5bdc50a09 0.3057684281558584
+outcome	CCONJ	3f22189a724acc4d 1.3806233723343206E-4
+outcome	AUX	3f8172340b3cb9e3 0.00851860675137756
+outcome	PART	3f001c993edafc15 3.0730654413606427E-5
+outcome	SCONJ	3e7307a9ded568a3 7.089203509416728E-8
+outcome	NUM	3e85ef4d1845b8ce 1.6342677268015355E-7
+outcome	X	3ee556f7d870d40d 1.0175571118245888E-5
+outcome	SYM	3e7899f820b154ab 9.16475146201408E-8
+outcome	INTJ	3e5daa26cb438360 2.7627362356936934E-8
+outcome	PROPN+DET	3e52ed302dc05395 1.7626691981091645E-8
+outcome	ADP+PRON	3e76c1e3399c3921 8.477782245336279E-8
+end	5
+point	6	8	18	20	0	none
+context	def
+context	suf=e
+context	suf=ee
+context	suf=ree
+context	suf=hree
+context	pre=t
+context	pre=th
+context	pre=thr
+context	pre=thre
+context	w=three
+context	p1w=two
+context	p2w=one
+context	n1w=five
+context	p2S=begin
+context	wc=lc
+context	w&c=three,lc
+context	t=PROPN
+context	t2=ADJ,PROPN
+outcome	ADV	3f653f3146f3d851 0.0025936090893266335
+outcome	ADJ	3fe25c261da5d4cf 0.5737486437853024
+outcome	NOUN	3f4e03b82b27a3e9 9.159707317937224E-4
+outcome	PUNCT	3f81725408576ae0 0.008518845085679627
+outcome	DET	3f95f10615821352 0.021427245199919405
+outcome	VERB	3fb320dda120074a 0.07472024139135872
+outcome	PRON	3f5b791a226fd803 0.0016768222064889044
+outcome	ADP	3f562b77da8f2036 0.0013531370589010667
+outcome	ADP+DET	3f42f938d48ff05e 5.79025983028735E-4
+outcome	PROPN	3fd391b5bdc50a09 0.3057684281558584
+outcome	CCONJ	3f22189a724acc4d 1.3806233723343206E-4
+outcome	AUX	3f8172340b3cb9e3 0.00851860675137756
+outcome	PART	3f001c993edafc15 3.0730654413606427E-5
+outcome	SCONJ	3e7307a9ded568a3 7.089203509416728E-8
+outcome	NUM	3e85ef4d1845b8ce 1.6342677268015355E-7
+outcome	X	3ee556f7d870d40d 1.0175571118245888E-5
+outcome	SYM	3e7899f820b154ab 9.16475146201408E-8
+outcome	INTJ	3e5daa26cb438360 2.7627362356936934E-8
+outcome	PROPN+DET	3e52ed302dc05395 1.7626691981091645E-8
+outcome	ADP+PRON	3e76c1e3399c3921 8.477782245336279E-8
+end	6
+point	7	15	16	20	0	none
+context	def
+context	suf=e
+context	suf=ve
+context	suf=ive
+context	suf=five
+context	pre=f
+context	pre=fi
+context	pre=fiv
+context	pre=five
+context	w=five
+context	p1w=three
+context	p2w=two
+context	wc=lc
+context	w&c=five,lc
+context	t=ADJ
+context	t2=PROPN,ADJ
+outcome	ADV	3f80dcd93fea3d80 0.008233735335379633
+outcome	ADJ	3fe7c24dc462e814 0.7424687228842708
+outcome	NOUN	3f5d881ec971597a 0.0018024731305295847
+outcome	PUNCT	3f8ff9a33bb31be1 0.015612864741695933
+outcome	DET	3f9323643ad4b0e5 0.018689695444820926
+outcome	VERB	3fc820fdb90e45c0 0.18850680862355595
+outcome	PRON	3f505b60d822f85e 9.983487839657838E-4
+outcome	ADP	3f91a5d80092ed5d 0.017234206233053374
+outcome	ADP+DET	3f424df4de57b201 5.586095473382736E-4
+outcome	PROPN	3f5c75abd687818b 0.0017370393853682632
+outcome	CCONJ	3f245337f5789785 1.5506799785319436E-4
+outcome	AUX	3f6f318be0e03366 0.003807805252114371
+outcome	PART	3f198640d4fa3e56 9.736796095637912E-5
+outcome	SCONJ	3edb3849dc71c166 6.489724405076306E-6
+outcome	NUM	3ed30580b43623b7 4.535077838049268E-6
+outcome	X	3f167df68e8d49af 8.580033649011638E-5
+outcome	SYM	3e90af2e457664ce 2.4861544064556154E-7
+outcome	INTJ	3e64a335a0cae43e 3.844040827788944E-8
+outcome	PROPN+DET	3e5a558aa609f7fb 2.452558545356865E-8
+outcome	ADP+PRON	3e7faa13721e1393 1.1795893020527219E-7
+end	7
+point	8	15	16	20	0	none
+context	def
+context	suf=e
+context	suf=ve
+context	suf=ive
+context	suf=five
+context	pre=f
+context	pre=fi
+context	pre=fiv
+context	pre=five
+context	w=five
+context	p1w=three
+context	p2w=two
+context	wc=lc
+context	w&c=five,lc
+context	t=ADJ
+context	t2=PROPN,ADJ
+outcome	ADV	3f80dcd93fea3d80 0.008233735335379633
+outcome	ADJ	3fe7c24dc462e814 0.7424687228842708
+outcome	NOUN	3f5d881ec971597a 0.0018024731305295847
+outcome	PUNCT	3f8ff9a33bb31be1 0.015612864741695933
+outcome	DET	3f9323643ad4b0e5 0.018689695444820926
+outcome	VERB	3fc820fdb90e45c0 0.18850680862355595
+outcome	PRON	3f505b60d822f85e 9.983487839657838E-4
+outcome	ADP	3f91a5d80092ed5d 0.017234206233053374
+outcome	ADP+DET	3f424df4de57b201 5.586095473382736E-4
+outcome	PROPN	3f5c75abd687818b 0.0017370393853682632
+outcome	CCONJ	3f245337f5789785 1.5506799785319436E-4
+outcome	AUX	3f6f318be0e03366 0.003807805252114371
+outcome	PART	3f198640d4fa3e56 9.736796095637912E-5
+outcome	SCONJ	3edb3849dc71c166 6.489724405076306E-6
+outcome	NUM	3ed30580b43623b7 4.535077838049268E-6
+outcome	X	3f167df68e8d49af 8.580033649011638E-5
+outcome	SYM	3e90af2e457664ce 2.4861544064556154E-7
+outcome	INTJ	3e64a335a0cae43e 3.844040827788944E-8
+outcome	PROPN+DET	3e5a558aa609f7fb 2.452558545356865E-8
+outcome	ADP+PRON	3e7faa13721e1393 1.1795893020527219E-7
+end	8
+point	9	15	16	20	0	none
+context	def
+context	suf=e
+context	suf=ve
+context	suf=ive
+context	suf=five
+context	pre=f
+context	pre=fi
+context	pre=fiv
+context	pre=five
+context	w=five
+context	p1w=three
+context	p2w=two
+context	wc=lc
+context	w&c=five,lc
+context	t=ADJ
+context	t2=PROPN,ADJ
+outcome	ADV	3f80dcd93fea3d80 0.008233735335379633
+outcome	ADJ	3fe7c24dc462e814 0.7424687228842708
+outcome	NOUN	3f5d881ec971597a 0.0018024731305295847
+outcome	PUNCT	3f8ff9a33bb31be1 0.015612864741695933
+outcome	DET	3f9323643ad4b0e5 0.018689695444820926
+outcome	VERB	3fc820fdb90e45c0 0.18850680862355595
+outcome	PRON	3f505b60d822f85e 9.983487839657838E-4
+outcome	ADP	3f91a5d80092ed5d 0.017234206233053374
+outcome	ADP+DET	3f424df4de57b201 5.586095473382736E-4
+outcome	PROPN	3f5c75abd687818b 0.0017370393853682632
+outcome	CCONJ	3f245337f5789785 1.5506799785319436E-4
+outcome	AUX	3f6f318be0e03366 0.003807805252114371
+outcome	PART	3f198640d4fa3e56 9.736796095637912E-5
+outcome	SCONJ	3edb3849dc71c166 6.489724405076306E-6
+outcome	NUM	3ed30580b43623b7 4.535077838049268E-6
+outcome	X	3f167df68e8d49af 8.580033649011638E-5
+outcome	SYM	3e90af2e457664ce 2.4861544064556154E-7
+outcome	INTJ	3e64a335a0cae43e 3.844040827788944E-8
+outcome	PROPN+DET	3e5a558aa609f7fb 2.452558545356865E-8
+outcome	ADP+PRON	3e7faa13721e1393 1.1795893020527219E-7
+end	9

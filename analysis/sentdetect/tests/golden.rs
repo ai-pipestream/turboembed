@@ -3,7 +3,9 @@
 //! - The newline detector against `NewlineSentenceDetector`: every golden
 //!   of the `newline` and `newline+legacy` runs.
 //! - The maxent detector against `SentenceDetectorME` with the published
-//!   German, English and Portuguese models.
+//!   German, English and Portuguese models, which `turbo-goldens
+//!   fetch-models` downloads (`common::published_model`); without them
+//!   these tests say so and pass.
 //! - The maxent detector with the two fixture models (one with an
 //!   abbreviation dictionary), in both whitespace modes, and with the
 //!   model the Rust trainer wrote from en-plain's events.
@@ -165,8 +167,10 @@ fn check_dump(case: &Case, detector: &SentenceDetector, s: &str, n: &str) -> (us
     (seen.len(), refused)
 }
 
-fn check_published(language: &str, model_file: &str) -> Counts {
-    let path = common::models_dir().join(model_file);
+/// Runs a published model's goldens, or returns `None` when the model is
+/// not downloaded (`common::published_model`).
+fn check_published(language: &str, model_file: &str) -> Option<Counts> {
+    let path = common::published_model(model_file)?;
     let model = open(&path);
     assert_eq!(model.language(), language);
     let detector = SentenceDetector::new(model, WhitespaceMode::Unicode);
@@ -174,26 +178,26 @@ fn check_published(language: &str, model_file: &str) -> Counts {
     // The 34 edge inputs for each model.
     assert!(counts.files.contains(&("edge".to_string(), 34)), "{counts:?}");
     assert_eq!(counts.refused, 0, "no published model has an abbreviation dictionary");
-    counts
+    Some(counts)
 }
 
 #[test]
 fn maxent_english() {
-    let counts = check_published("en", "opennlp-en-ud-ewt-sentence-1.3-2.5.4.bin");
+    let Some(counts) = check_published("en", "opennlp-en-ud-ewt-sentence-1.3-2.5.4.bin") else { return };
     assert_eq!(counts.files, [("edge".into(), 34), ("en".into(), 11), ("multi".into(), 11)]);
     assert_eq!(counts.candidates, 185);
 }
 
 #[test]
 fn maxent_portuguese() {
-    let counts = check_published("pt", "opennlp-pt-ud-gsd-sentence-1.3-2.5.4.bin");
+    let Some(counts) = check_published("pt", "opennlp-pt-ud-gsd-sentence-1.3-2.5.4.bin") else { return };
     assert_eq!(counts.files, [("edge".into(), 34)]);
     assert_eq!(counts.candidates, 104);
 }
 
 #[test]
 fn maxent_german() {
-    let counts = check_published("de", "opennlp-de-ud-gsd-sentence-1.3-2.5.4.bin");
+    let Some(counts) = check_published("de", "opennlp-de-ud-gsd-sentence-1.3-2.5.4.bin") else { return };
     assert_eq!(counts.files, [("edge".into(), 34)]);
     assert_eq!(counts.candidates, 67);
 }

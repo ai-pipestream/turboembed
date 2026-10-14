@@ -1,0 +1,2390 @@
+dump 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	edge/greek-cyrillic	191	110	79aa0a28a938d78b6093561b7b74ca326c3b23be13e3028964a50fd8c7128d8a
+model	pos-fixture.bin	70bd00e5c7baba5552e311ad002aa382fd57aa2bc5248ffe6008476546df3799a4e8578c3e6e90aa51d4a766857d07fa7003d395151d292ede3804fc308d5d32
+model	opennlp-en-ud-ewt-sentence-1.3-2.5.4.bin	fed5d53ea87bf66afeb08c084f89ca9b95a96de0920dca40487b2ab9972ee6b7ef211e477db480b7253431de079fd66dfd14329cd7d19ad1f565155eb0cf5191
+model	opennlp-en-ud-ewt-tokens-1.3-2.5.4.bin	147d1cdcb89ca5d9bd0ead8fddf2cc14ae543a9151803fe56b3c1fa152b986605e34fb6dda4819c68aa22fc9bffa6bfab14f916b7d0bf4892d452686af34778a
+annotator	opennlp.tools.postag.POSTaggerME	tag
+point	0	0	15	20	0	none
+context	def
+context	suf=α
+context	suf=ρα
+context	suf=έρα
+context	suf=μέρα
+context	pre=Κ
+context	pre=Κα
+context	pre=Καλ
+context	pre=Καλη
+context	w=καλημέρα
+context	n1w=κόσμε
+context	n2w=!
+context	S=begin
+context	wc=jah
+context	w&c=καλημέρα,jah
+outcome	DT	3fb74e15d90a4798 0.09103523777801426
+outcome	NN	3faeae927b1b761c 0.05992563011907867
+outcome	VBD	3fad9fcc7a8dc1ac 0.05785979267136851
+outcome	IN	3fabb126c1cae9bf 0.054085932880713276
+outcome	.	3fb313734a287f7f 0.07451553879263705
+outcome	NNP	3fb837b6a5cc7b09 0.09460012004681685
+outcome	,	3fa366eecdfb8840 0.03789469017444036
+outcome	CD	3fa9a79077722727 0.05010653932647662
+outcome	NNS	3fb14909db62489d 0.0675207291226649
+outcome	JJ	3fa76ace52271c02 0.045736739662565654
+outcome	MD	3fa245e9444bf776 0.0356896301145601
+outcome	VB	3fa598b66f143d46 0.042180729922729074
+outcome	TO	3fa320fea35e2b86 0.0373611044334075
+outcome	PRP	3fb075315d22248f 0.06428822063220906
+outcome	VBZ	3f9bf07c6cf47851 0.027284568929751455
+outcome	VBP	3fa5631a923a5b42 0.04177172694215027
+outcome	$	3f9c94cec14771e0 0.02791140608484166
+outcome	RB	3f9b0c78ff413396 0.0264147668643094
+outcome	CC	3fa2e0a8d6d8d0e1 0.036870266176636475
+outcome	VBN	3f9b97e5aebf3231 0.026946629324628716
+end	0
+point	1	17	16	20	0	none
+context	def
+context	suf=ε
+context	suf=με
+context	suf=σμε
+context	suf=όσμε
+context	pre=κ
+context	pre=κό
+context	pre=κόσ
+context	pre=κόσμ
+context	w=κόσμε
+context	p1w=καλημέρα
+context	n1w=!
+context	p1S=begin
+context	wc=jah
+context	w&c=κόσμε,jah
+context	t=NNP
+outcome	DT	3fab443063b505cb 0.05325461594703603
+outcome	NN	3fb23e2e1f1f3822 0.07126129398167838
+outcome	VBD	3fb7f52a6473bb4c 0.09358468010371473
+outcome	IN	3fa8d493b19fb212 0.0484968332601491
+outcome	.	3fb9aec337196883 0.10032291503140027
+outcome	NNP	3fb86440dadb1f52 0.09527974455988655
+outcome	,	3fa4e5470d4d6f82 0.040811748861158584
+outcome	CD	3fa9c7994b093bd4 0.05035094300239221
+outcome	NNS	3fa87792c8a45e54 0.047787272446097845
+outcome	JJ	3fa5892bd0e6bd8e 0.04206215786995947
+outcome	MD	3fa062820dc9af80 0.03200155657108805
+outcome	VB	3fa35d63cd31d7d3 0.03782188300912961
+outcome	TO	3fa126f3b57653ef 0.033500305081510244
+outcome	PRP	3fa4131add8bb987 0.0392082591478014
+outcome	VBZ	3f9ef8399ba61e19 0.030243778348021253
+outcome	VBP	3facb7af14b4182b 0.05608889701584049
+outcome	$	3f99a0b5303d651e 0.025027113980603415
+outcome	RB	3f9840ea683d116e 0.02368513356420137
+outcome	CC	3fac2f5c56eefe99 0.05504883347702822
+outcome	VBN	3f98bdeeb4132904 0.024162034741302754
+end	1
+point	2	17	16	20	0	none
+context	def
+context	suf=ε
+context	suf=με
+context	suf=σμε
+context	suf=όσμε
+context	pre=κ
+context	pre=κό
+context	pre=κόσ
+context	pre=κόσμ
+context	w=κόσμε
+context	p1w=καλημέρα
+context	n1w=!
+context	p1S=begin
+context	wc=jah
+context	w&c=κόσμε,jah
+context	t=NNP
+outcome	DT	3fab443063b505cb 0.05325461594703603
+outcome	NN	3fb23e2e1f1f3822 0.07126129398167838
+outcome	VBD	3fb7f52a6473bb4c 0.09358468010371473
+outcome	IN	3fa8d493b19fb212 0.0484968332601491
+outcome	.	3fb9aec337196883 0.10032291503140027
+outcome	NNP	3fb86440dadb1f52 0.09527974455988655
+outcome	,	3fa4e5470d4d6f82 0.040811748861158584
+outcome	CD	3fa9c7994b093bd4 0.05035094300239221
+outcome	NNS	3fa87792c8a45e54 0.047787272446097845
+outcome	JJ	3fa5892bd0e6bd8e 0.04206215786995947
+outcome	MD	3fa062820dc9af80 0.03200155657108805
+outcome	VB	3fa35d63cd31d7d3 0.03782188300912961
+outcome	TO	3fa126f3b57653ef 0.033500305081510244
+outcome	PRP	3fa4131add8bb987 0.0392082591478014
+outcome	VBZ	3f9ef8399ba61e19 0.030243778348021253
+outcome	VBP	3facb7af14b4182b 0.05608889701584049
+outcome	$	3f99a0b5303d651e 0.025027113980603415
+outcome	RB	3f9840ea683d116e 0.02368513356420137
+outcome	CC	3fac2f5c56eefe99 0.05504883347702822
+outcome	VBN	3f98bdeeb4132904 0.024162034741302754
+end	2
+point	3	17	16	20	0	none
+context	def
+context	suf=ε
+context	suf=με
+context	suf=σμε
+context	suf=όσμε
+context	pre=κ
+context	pre=κό
+context	pre=κόσ
+context	pre=κόσμ
+context	w=κόσμε
+context	p1w=καλημέρα
+context	n1w=!
+context	p1S=begin
+context	wc=jah
+context	w&c=κόσμε,jah
+context	t=NNP
+outcome	DT	3fab443063b505cb 0.05325461594703603
+outcome	NN	3fb23e2e1f1f3822 0.07126129398167838
+outcome	VBD	3fb7f52a6473bb4c 0.09358468010371473
+outcome	IN	3fa8d493b19fb212 0.0484968332601491
+outcome	.	3fb9aec337196883 0.10032291503140027
+outcome	NNP	3fb86440dadb1f52 0.09527974455988655
+outcome	,	3fa4e5470d4d6f82 0.040811748861158584
+outcome	CD	3fa9c7994b093bd4 0.05035094300239221
+outcome	NNS	3fa87792c8a45e54 0.047787272446097845
+outcome	JJ	3fa5892bd0e6bd8e 0.04206215786995947
+outcome	MD	3fa062820dc9af80 0.03200155657108805
+outcome	VB	3fa35d63cd31d7d3 0.03782188300912961
+outcome	TO	3fa126f3b57653ef 0.033500305081510244
+outcome	PRP	3fa4131add8bb987 0.0392082591478014
+outcome	VBZ	3f9ef8399ba61e19 0.030243778348021253
+outcome	VBP	3facb7af14b4182b 0.05608889701584049
+outcome	$	3f99a0b5303d651e 0.025027113980603415
+outcome	RB	3f9840ea683d116e 0.02368513356420137
+outcome	CC	3fac2f5c56eefe99 0.05504883347702822
+outcome	VBN	3f98bdeeb4132904 0.024162034741302754
+end	3
+point	4	27	11	20	0	none
+context	def
+context	suf=!
+context	pre=!
+context	w=!
+context	p1w=κόσμε
+context	p2w=καλημέρα
+context	p2S=begin
+context	wc=other
+context	w&c=!,other
+context	t=.
+context	t2=NNP,.
+outcome	DT	3fb1dc284e2dedd1 0.06976558598210338
+outcome	NN	3faf4cf527b583a3 0.06113401517610064
+outcome	VBD	3fb2a9e40f20b5bd 0.07290482873278044
+outcome	IN	3fafe450515c9e32 0.06228877061067485
+outcome	.	3fc07f73d89148bd 0.1288895423372817
+outcome	NNP	3fae31f521a23ce5 0.0589748958164991
+outcome	,	3fadc28a26124f55 0.058124844691660606
+outcome	CD	3fa7b12226c8d9e9 0.04627329562611122
+outcome	NNS	3fadb63bab06af15 0.0580309530517679
+outcome	JJ	3fa5a0312dedaee4 0.04223779378557227
+outcome	MD	3fa44e5440d1e3ef 0.03966010371454575
+outcome	VB	3fa3f1c17c7c5e67 0.038953825422308345
+outcome	TO	3fa1aa5d8e75dc27 0.034502910270866764
+outcome	PRP	3fa4ace8c8ac41cf 0.040381693359566755
+outcome	VBZ	3f99cd4eb9731557 0.02519724852461044
+outcome	VBP	3fa3c03f86504c45 0.03857611193247882
+outcome	$	3f9e2dbfff20b9c4 0.029471397349135633
+outcome	RB	3f9f41d3413b2429 0.03052454076422265
+outcome	CC	3fa16ef3ba58168e 0.0340496220560854
+outcome	VBN	3f9ec787a132e691 0.03005802079562742
+end	4
+point	5	27	11	20	0	none
+context	def
+context	suf=!
+context	pre=!
+context	w=!
+context	p1w=κόσμε
+context	p2w=καλημέρα
+context	p2S=begin
+context	wc=other
+context	w&c=!,other
+context	t=.
+context	t2=NNP,.
+outcome	DT	3fb1dc284e2dedd1 0.06976558598210338
+outcome	NN	3faf4cf527b583a3 0.06113401517610064
+outcome	VBD	3fb2a9e40f20b5bd 0.07290482873278044
+outcome	IN	3fafe450515c9e32 0.06228877061067485
+outcome	.	3fc07f73d89148bd 0.1288895423372817
+outcome	NNP	3fae31f521a23ce5 0.0589748958164991
+outcome	,	3fadc28a26124f55 0.058124844691660606
+outcome	CD	3fa7b12226c8d9e9 0.04627329562611122
+outcome	NNS	3fadb63bab06af15 0.0580309530517679
+outcome	JJ	3fa5a0312dedaee4 0.04223779378557227
+outcome	MD	3fa44e5440d1e3ef 0.03966010371454575
+outcome	VB	3fa3f1c17c7c5e67 0.038953825422308345
+outcome	TO	3fa1aa5d8e75dc27 0.034502910270866764
+outcome	PRP	3fa4ace8c8ac41cf 0.040381693359566755
+outcome	VBZ	3f99cd4eb9731557 0.02519724852461044
+outcome	VBP	3fa3c03f86504c45 0.03857611193247882
+outcome	$	3f9e2dbfff20b9c4 0.029471397349135633
+outcome	RB	3f9f41d3413b2429 0.03052454076422265
+outcome	CC	3fa16ef3ba58168e 0.0340496220560854
+outcome	VBN	3f9ec787a132e691 0.03005802079562742
+end	5
+point	6	27	11	20	0	none
+context	def
+context	suf=!
+context	pre=!
+context	w=!
+context	p1w=κόσμε
+context	p2w=καλημέρα
+context	p2S=begin
+context	wc=other
+context	w&c=!,other
+context	t=.
+context	t2=NNP,.
+outcome	DT	3fb1dc284e2dedd1 0.06976558598210338
+outcome	NN	3faf4cf527b583a3 0.06113401517610064
+outcome	VBD	3fb2a9e40f20b5bd 0.07290482873278044
+outcome	IN	3fafe450515c9e32 0.06228877061067485
+outcome	.	3fc07f73d89148bd 0.1288895423372817
+outcome	NNP	3fae31f521a23ce5 0.0589748958164991
+outcome	,	3fadc28a26124f55 0.058124844691660606
+outcome	CD	3fa7b12226c8d9e9 0.04627329562611122
+outcome	NNS	3fadb63bab06af15 0.0580309530517679
+outcome	JJ	3fa5a0312dedaee4 0.04223779378557227
+outcome	MD	3fa44e5440d1e3ef 0.03966010371454575
+outcome	VB	3fa3f1c17c7c5e67 0.038953825422308345
+outcome	TO	3fa1aa5d8e75dc27 0.034502910270866764
+outcome	PRP	3fa4ace8c8ac41cf 0.040381693359566755
+outcome	VBZ	3f99cd4eb9731557 0.02519724852461044
+outcome	VBP	3fa3c03f86504c45 0.03857611193247882
+outcome	$	3f9e2dbfff20b9c4 0.029471397349135633
+outcome	RB	3f9f41d3413b2429 0.03052454076422265
+outcome	CC	3fa16ef3ba58168e 0.0340496220560854
+outcome	VBN	3f9ec787a132e691 0.03005802079562742
+end	6
+point	7	29	9	20	0	none
+context	def
+context	suf=Ο
+context	pre=Ο
+context	w=ο
+context	n1w=σωκράτης
+context	n2w=είπε
+context	S=begin
+context	wc=jah
+context	w&c=ο,jah
+outcome	DT	3fb74e15d90a4798 0.09103523777801426
+outcome	NN	3faeae927b1b761c 0.05992563011907867
+outcome	VBD	3fad9fcc7a8dc1ac 0.05785979267136851
+outcome	IN	3fabb126c1cae9bf 0.054085932880713276
+outcome	.	3fb313734a287f7f 0.07451553879263705
+outcome	NNP	3fb837b6a5cc7b09 0.09460012004681685
+outcome	,	3fa366eecdfb8840 0.03789469017444036
+outcome	CD	3fa9a79077722727 0.05010653932647662
+outcome	NNS	3fb14909db62489d 0.0675207291226649
+outcome	JJ	3fa76ace52271c02 0.045736739662565654
+outcome	MD	3fa245e9444bf776 0.0356896301145601
+outcome	VB	3fa598b66f143d46 0.042180729922729074
+outcome	TO	3fa320fea35e2b86 0.0373611044334075
+outcome	PRP	3fb075315d22248f 0.06428822063220906
+outcome	VBZ	3f9bf07c6cf47851 0.027284568929751455
+outcome	VBP	3fa5631a923a5b42 0.04177172694215027
+outcome	$	3f9c94cec14771e0 0.02791140608484166
+outcome	RB	3f9b0c78ff413396 0.0264147668643094
+outcome	CC	3fa2e0a8d6d8d0e1 0.036870266176636475
+outcome	VBN	3f9b97e5aebf3231 0.026946629324628716
+end	7
+point	8	32	17	20	0	none
+context	def
+context	suf=ς
+context	suf=ης
+context	suf=της
+context	suf=άτης
+context	pre=Σ
+context	pre=Σω
+context	pre=Σωκ
+context	pre=Σωκρ
+context	w=σωκράτης
+context	p1w=ο
+context	n1w=είπε
+context	n2w=:
+context	p1S=begin
+context	wc=jah
+context	w&c=σωκράτης,jah
+context	t=NNP
+outcome	DT	3fab443063b505cb 0.05325461594703603
+outcome	NN	3fb23e2e1f1f3822 0.07126129398167838
+outcome	VBD	3fb7f52a6473bb4c 0.09358468010371473
+outcome	IN	3fa8d493b19fb212 0.0484968332601491
+outcome	.	3fb9aec337196883 0.10032291503140027
+outcome	NNP	3fb86440dadb1f52 0.09527974455988655
+outcome	,	3fa4e5470d4d6f82 0.040811748861158584
+outcome	CD	3fa9c7994b093bd4 0.05035094300239221
+outcome	NNS	3fa87792c8a45e54 0.047787272446097845
+outcome	JJ	3fa5892bd0e6bd8e 0.04206215786995947
+outcome	MD	3fa062820dc9af80 0.03200155657108805
+outcome	VB	3fa35d63cd31d7d3 0.03782188300912961
+outcome	TO	3fa126f3b57653ef 0.033500305081510244
+outcome	PRP	3fa4131add8bb987 0.0392082591478014
+outcome	VBZ	3f9ef8399ba61e19 0.030243778348021253
+outcome	VBP	3facb7af14b4182b 0.05608889701584049
+outcome	$	3f99a0b5303d651e 0.025027113980603415
+outcome	RB	3f9840ea683d116e 0.02368513356420137
+outcome	CC	3fac2f5c56eefe99 0.05504883347702822
+outcome	VBN	3f98bdeeb4132904 0.024162034741302754
+end	8
+point	9	32	17	20	0	none
+context	def
+context	suf=ς
+context	suf=ης
+context	suf=της
+context	suf=άτης
+context	pre=Σ
+context	pre=Σω
+context	pre=Σωκ
+context	pre=Σωκρ
+context	w=σωκράτης
+context	p1w=ο
+context	n1w=είπε
+context	n2w=:
+context	p1S=begin
+context	wc=jah
+context	w&c=σωκράτης,jah
+context	t=NNP
+outcome	DT	3fab443063b505cb 0.05325461594703603
+outcome	NN	3fb23e2e1f1f3822 0.07126129398167838
+outcome	VBD	3fb7f52a6473bb4c 0.09358468010371473
+outcome	IN	3fa8d493b19fb212 0.0484968332601491
+outcome	.	3fb9aec337196883 0.10032291503140027
+outcome	NNP	3fb86440dadb1f52 0.09527974455988655
+outcome	,	3fa4e5470d4d6f82 0.040811748861158584
+outcome	CD	3fa9c7994b093bd4 0.05035094300239221
+outcome	NNS	3fa87792c8a45e54 0.047787272446097845
+outcome	JJ	3fa5892bd0e6bd8e 0.04206215786995947
+outcome	MD	3fa062820dc9af80 0.03200155657108805
+outcome	VB	3fa35d63cd31d7d3 0.03782188300912961
+outcome	TO	3fa126f3b57653ef 0.033500305081510244
+outcome	PRP	3fa4131add8bb987 0.0392082591478014
+outcome	VBZ	3f9ef8399ba61e19 0.030243778348021253
+outcome	VBP	3facb7af14b4182b 0.05608889701584049
+outcome	$	3f99a0b5303d651e 0.025027113980603415
+outcome	RB	3f9840ea683d116e 0.02368513356420137
+outcome	CC	3fac2f5c56eefe99 0.05504883347702822
+outcome	VBN	3f98bdeeb4132904 0.024162034741302754
+end	9
+point	10	32	17	20	0	none
+context	def
+context	suf=ς
+context	suf=ης
+context	suf=της
+context	suf=άτης
+context	pre=Σ
+context	pre=Σω
+context	pre=Σωκ
+context	pre=Σωκρ
+context	w=σωκράτης
+context	p1w=ο
+context	n1w=είπε
+context	n2w=:
+context	p1S=begin
+context	wc=jah
+context	w&c=σωκράτης,jah
+context	t=NNP
+outcome	DT	3fab443063b505cb 0.05325461594703603
+outcome	NN	3fb23e2e1f1f3822 0.07126129398167838
+outcome	VBD	3fb7f52a6473bb4c 0.09358468010371473
+outcome	IN	3fa8d493b19fb212 0.0484968332601491
+outcome	.	3fb9aec337196883 0.10032291503140027
+outcome	NNP	3fb86440dadb1f52 0.09527974455988655
+outcome	,	3fa4e5470d4d6f82 0.040811748861158584
+outcome	CD	3fa9c7994b093bd4 0.05035094300239221
+outcome	NNS	3fa87792c8a45e54 0.047787272446097845
+outcome	JJ	3fa5892bd0e6bd8e 0.04206215786995947
+outcome	MD	3fa062820dc9af80 0.03200155657108805
+outcome	VB	3fa35d63cd31d7d3 0.03782188300912961
+outcome	TO	3fa126f3b57653ef 0.033500305081510244
+outcome	PRP	3fa4131add8bb987 0.0392082591478014
+outcome	VBZ	3f9ef8399ba61e19 0.030243778348021253
+outcome	VBP	3facb7af14b4182b 0.05608889701584049
+outcome	$	3f99a0b5303d651e 0.025027113980603415
+outcome	RB	3f9840ea683d116e 0.02368513356420137
+outcome	CC	3fac2f5c56eefe99 0.05504883347702822
+outcome	VBN	3f98bdeeb4132904 0.024162034741302754
+end	10
+point	11	49	19	20	0	none
+context	def
+context	suf=ε
+context	suf=πε
+context	suf=ίπε
+context	suf=είπε
+context	pre=ε
+context	pre=εί
+context	pre=είπ
+context	pre=είπε
+context	w=είπε
+context	p1w=σωκράτης
+context	p2w=ο
+context	n1w=:
+context	n2w=«εν
+context	p2S=begin
+context	wc=jah
+context	w&c=είπε,jah
+context	t=.
+context	t2=NNP,.
+outcome	DT	3fb37ac01dfef830 0.07609177334140393
+outcome	NN	3faee76e35b43acf 0.06035942464415244
+outcome	VBD	3fb45b23aa3f7810 0.07951567560618877
+outcome	IN	3fb1645156b28a1d 0.0679369770682929
+outcome	.	3fb336cd12c8e50b 0.0750549479352182
+outcome	NNP	3fb0777247ad860a 0.06432260751673638
+outcome	,	3fa950a88e09ed57 0.04944349988815116
+outcome	CD	3fa9d71b2c1486b0 0.05046925461853158
+outcome	NNS	3fb033f982485591 0.06329307013250786
+outcome	JJ	3fa796339e03aa16 0.046067822493416496
+outcome	MD	3fa625b3b4b39653 0.04325639324978838
+outcome	VB	3fa5c0bbfcdc2880 0.04248607122106396
+outcome	TO	3fa344718586168f 0.03763155703476883
+outcome	PRP	3fa68cdbc6521300 0.04404341503053466
+outcome	VBZ	3f9c244314bc86a6 0.02748207868638155
+outcome	VBP	3fa58abcc79541fe 0.04207410751644501
+outcome	$	3f9cc9c5ec6e60c9 0.028113453441250855
+outcome	RB	3fa09b98216f0638 0.0324370899975403
+outcome	CC	3fa303a47fef7593 0.037137165658104675
+outcome	VBN	3fa0c90393d91735 0.03278361491952212
+end	11
+point	12	49	19	20	0	none
+context	def
+context	suf=ε
+context	suf=πε
+context	suf=ίπε
+context	suf=είπε
+context	pre=ε
+context	pre=εί
+context	pre=είπ
+context	pre=είπε
+context	w=είπε
+context	p1w=σωκράτης
+context	p2w=ο
+context	n1w=:
+context	n2w=«εν
+context	p2S=begin
+context	wc=jah
+context	w&c=είπε,jah
+context	t=.
+context	t2=NNP,.
+outcome	DT	3fb37ac01dfef830 0.07609177334140393
+outcome	NN	3faee76e35b43acf 0.06035942464415244
+outcome	VBD	3fb45b23aa3f7810 0.07951567560618877
+outcome	IN	3fb1645156b28a1d 0.0679369770682929
+outcome	.	3fb336cd12c8e50b 0.0750549479352182
+outcome	NNP	3fb0777247ad860a 0.06432260751673638
+outcome	,	3fa950a88e09ed57 0.04944349988815116
+outcome	CD	3fa9d71b2c1486b0 0.05046925461853158
+outcome	NNS	3fb033f982485591 0.06329307013250786
+outcome	JJ	3fa796339e03aa16 0.046067822493416496
+outcome	MD	3fa625b3b4b39653 0.04325639324978838
+outcome	VB	3fa5c0bbfcdc2880 0.04248607122106396
+outcome	TO	3fa344718586168f 0.03763155703476883
+outcome	PRP	3fa68cdbc6521300 0.04404341503053466
+outcome	VBZ	3f9c244314bc86a6 0.02748207868638155
+outcome	VBP	3fa58abcc79541fe 0.04207410751644501
+outcome	$	3f9cc9c5ec6e60c9 0.028113453441250855
+outcome	RB	3fa09b98216f0638 0.0324370899975403
+outcome	CC	3fa303a47fef7593 0.037137165658104675
+outcome	VBN	3fa0c90393d91735 0.03278361491952212
+end	12
+point	13	49	19	20	0	none
+context	def
+context	suf=ε
+context	suf=πε
+context	suf=ίπε
+context	suf=είπε
+context	pre=ε
+context	pre=εί
+context	pre=είπ
+context	pre=είπε
+context	w=είπε
+context	p1w=σωκράτης
+context	p2w=ο
+context	n1w=:
+context	n2w=«εν
+context	p2S=begin
+context	wc=jah
+context	w&c=είπε,jah
+context	t=.
+context	t2=NNP,.
+outcome	DT	3fb37ac01dfef830 0.07609177334140393
+outcome	NN	3faee76e35b43acf 0.06035942464415244
+outcome	VBD	3fb45b23aa3f7810 0.07951567560618877
+outcome	IN	3fb1645156b28a1d 0.0679369770682929
+outcome	.	3fb336cd12c8e50b 0.0750549479352182
+outcome	NNP	3fb0777247ad860a 0.06432260751673638
+outcome	,	3fa950a88e09ed57 0.04944349988815116
+outcome	CD	3fa9d71b2c1486b0 0.05046925461853158
+outcome	NNS	3fb033f982485591 0.06329307013250786
+outcome	JJ	3fa796339e03aa16 0.046067822493416496
+outcome	MD	3fa625b3b4b39653 0.04325639324978838
+outcome	VB	3fa5c0bbfcdc2880 0.04248607122106396
+outcome	TO	3fa344718586168f 0.03763155703476883
+outcome	PRP	3fa68cdbc6521300 0.04404341503053466
+outcome	VBZ	3f9c244314bc86a6 0.02748207868638155
+outcome	VBP	3fa58abcc79541fe 0.04207410751644501
+outcome	$	3f9cc9c5ec6e60c9 0.028113453441250855
+outcome	RB	3fa09b98216f0638 0.0324370899975403
+outcome	CC	3fa303a47fef7593 0.037137165658104675
+outcome	VBN	3fa0c90393d91735 0.03278361491952212
+end	13
+point	14	57	12	20	0	none
+context	def
+context	suf=:
+context	pre=:
+context	w=:
+context	p1w=είπε
+context	p2w=σωκράτης
+context	n1w=«εν
+context	n2w=οίδα
+context	wc=other
+context	w&c=:,other
+context	t=VBD
+context	t2=.,VBD
+outcome	DT	3fab5d69034d0aec 0.05344703831953787
+outcome	NN	3fae80395c82e589 0.0595720220021106
+outcome	VBD	3faaa8ade1448913 0.052068170307636795
+outcome	IN	3fb1fd06488bca3a 0.07026709815162571
+outcome	.	3fc561b465f409e3 0.16704421022593782
+outcome	NNP	3faea5ee64d04457 0.05985970478662555
+outcome	,	3fa663080bd3da0f 0.04372429985408043
+outcome	CD	3faae149d0e18518 0.05250006365600707
+outcome	NNS	3fae74fb57d07abb 0.05948625037148277
+outcome	JJ	3fa894f6aa221103 0.04801150156802871
+outcome	MD	3fa071a9f1602f9f 0.03211718627434767
+outcome	VB	3fa36f4d59c29ce2 0.03795854302125591
+outcome	TO	3fa711b7accdaaaa 0.04505704864898992
+outcome	PRP	3fa425ac7fe71280 0.039349928486932306
+outcome	VBZ	3f99248a337a05de 0.024553450958142757
+outcome	VBP	3fa33f0f3672f8b4 0.03759048022901493
+outcome	$	3f9d685acb29d3c0 0.028718393945798004
+outcome	RB	3f9ffeda8e3a3706 0.031245627337333402
+outcome	CC	3fa0fcec1828122b 0.03317964358214839
+outcome	VBN	3f98d4d18b53fc77 0.02424933827296313
+end	14
+point	15	57	12	20	0	none
+context	def
+context	suf=:
+context	pre=:
+context	w=:
+context	p1w=είπε
+context	p2w=σωκράτης
+context	n1w=«εν
+context	n2w=οίδα
+context	wc=other
+context	w&c=:,other
+context	t=VBD
+context	t2=.,VBD
+outcome	DT	3fab5d69034d0aec 0.05344703831953787
+outcome	NN	3fae80395c82e589 0.0595720220021106
+outcome	VBD	3faaa8ade1448913 0.052068170307636795
+outcome	IN	3fb1fd06488bca3a 0.07026709815162571
+outcome	.	3fc561b465f409e3 0.16704421022593782
+outcome	NNP	3faea5ee64d04457 0.05985970478662555
+outcome	,	3fa663080bd3da0f 0.04372429985408043
+outcome	CD	3faae149d0e18518 0.05250006365600707
+outcome	NNS	3fae74fb57d07abb 0.05948625037148277
+outcome	JJ	3fa894f6aa221103 0.04801150156802871
+outcome	MD	3fa071a9f1602f9f 0.03211718627434767
+outcome	VB	3fa36f4d59c29ce2 0.03795854302125591
+outcome	TO	3fa711b7accdaaaa 0.04505704864898992
+outcome	PRP	3fa425ac7fe71280 0.039349928486932306
+outcome	VBZ	3f99248a337a05de 0.024553450958142757
+outcome	VBP	3fa33f0f3672f8b4 0.03759048022901493
+outcome	$	3f9d685acb29d3c0 0.028718393945798004
+outcome	RB	3f9ffeda8e3a3706 0.031245627337333402
+outcome	CC	3fa0fcec1828122b 0.03317964358214839
+outcome	VBN	3f98d4d18b53fc77 0.02424933827296313
+end	15
+point	16	57	12	20	0	none
+context	def
+context	suf=:
+context	pre=:
+context	w=:
+context	p1w=είπε
+context	p2w=σωκράτης
+context	n1w=«εν
+context	n2w=οίδα
+context	wc=other
+context	w&c=:,other
+context	t=VBD
+context	t2=.,VBD
+outcome	DT	3fab5d69034d0aec 0.05344703831953787
+outcome	NN	3fae80395c82e589 0.0595720220021106
+outcome	VBD	3faaa8ade1448913 0.052068170307636795
+outcome	IN	3fb1fd06488bca3a 0.07026709815162571
+outcome	.	3fc561b465f409e3 0.16704421022593782
+outcome	NNP	3faea5ee64d04457 0.05985970478662555
+outcome	,	3fa663080bd3da0f 0.04372429985408043
+outcome	CD	3faae149d0e18518 0.05250006365600707
+outcome	NNS	3fae74fb57d07abb 0.05948625037148277
+outcome	JJ	3fa894f6aa221103 0.04801150156802871
+outcome	MD	3fa071a9f1602f9f 0.03211718627434767
+outcome	VB	3fa36f4d59c29ce2 0.03795854302125591
+outcome	TO	3fa711b7accdaaaa 0.04505704864898992
+outcome	PRP	3fa425ac7fe71280 0.039349928486932306
+outcome	VBZ	3f99248a337a05de 0.024553450958142757
+outcome	VBP	3fa33f0f3672f8b4 0.03759048022901493
+outcome	$	3f9d685acb29d3c0 0.028718393945798004
+outcome	RB	3f9ffeda8e3a3706 0.031245627337333402
+outcome	CC	3fa0fcec1828122b 0.03317964358214839
+outcome	VBN	3f98d4d18b53fc77 0.02424933827296313
+end	16
+point	17	59	16	20	0	none
+context	def
+context	suf=ν
+context	suf=Εν
+context	suf=«Εν
+context	pre=«
+context	pre=«Ε
+context	pre=«Εν
+context	w=«εν
+context	p1w=:
+context	p2w=είπε
+context	n1w=οίδα
+context	n2w=ότι
+context	wc=other
+context	w&c=«εν,other
+context	t=.
+context	t2=VBD,.
+outcome	DT	3faeb6455286a820 0.059984365772223436
+outcome	NN	3fb11da3db0ec669 0.06685852144325967
+outcome	VBD	3fadeb6f10d6e985 0.05843684273300468
+outcome	IN	3fabf7da6f37450d 0.054625345302733753
+outcome	.	3fc20aee4ec5b31e 0.1409585842733571
+outcome	NNP	3fb0a95636938ec8 0.06508387405807092
+outcome	,	3fa920047a9d3bc9 0.04907239910846035
+outcome	CD	3fa9e9107405a57d 0.05060626426968449
+outcome	NNS	3fab8f18cef84743 0.05382611776816628
+outcome	JJ	3fa7a697f7f782f7 0.04619288351000777
+outcome	MD	3fa27490aec6ef6e 0.036045571646780114
+outcome	VB	3fa5cfda132561a5 0.042601408803139486
+outcome	TO	3fa351d5684c2f1c 0.03773371599353778
+outcome	PRP	3fa69c87b8a8930d 0.044162980357475325
+outcome	VBZ	3f9c37d1ce54922a 0.027556684702306246
+outcome	VBP	3fa599b55731c6aa 0.04218832673440194
+outcome	$	3fa08096e0dcfb54 0.03223105902588111
+outcome	RB	3f9c09f299259211 0.027381697270714215
+outcome	CC	3fa310db59e29485 0.03723798248510327
+outcome	VBN	3f9bde58e1db162b 0.027215374741692038
+end	17
+point	18	59	16	20	0	none
+context	def
+context	suf=ν
+context	suf=Εν
+context	suf=«Εν
+context	pre=«
+context	pre=«Ε
+context	pre=«Εν
+context	w=«εν
+context	p1w=:
+context	p2w=είπε
+context	n1w=οίδα
+context	n2w=ότι
+context	wc=other
+context	w&c=«εν,other
+context	t=.
+context	t2=VBD,.
+outcome	DT	3faeb6455286a820 0.059984365772223436
+outcome	NN	3fb11da3db0ec669 0.06685852144325967
+outcome	VBD	3fadeb6f10d6e985 0.05843684273300468
+outcome	IN	3fabf7da6f37450d 0.054625345302733753
+outcome	.	3fc20aee4ec5b31e 0.1409585842733571
+outcome	NNP	3fb0a95636938ec8 0.06508387405807092
+outcome	,	3fa920047a9d3bc9 0.04907239910846035
+outcome	CD	3fa9e9107405a57d 0.05060626426968449
+outcome	NNS	3fab8f18cef84743 0.05382611776816628
+outcome	JJ	3fa7a697f7f782f7 0.04619288351000777
+outcome	MD	3fa27490aec6ef6e 0.036045571646780114
+outcome	VB	3fa5cfda132561a5 0.042601408803139486
+outcome	TO	3fa351d5684c2f1c 0.03773371599353778
+outcome	PRP	3fa69c87b8a8930d 0.044162980357475325
+outcome	VBZ	3f9c37d1ce54922a 0.027556684702306246
+outcome	VBP	3fa599b55731c6aa 0.04218832673440194
+outcome	$	3fa08096e0dcfb54 0.03223105902588111
+outcome	RB	3f9c09f299259211 0.027381697270714215
+outcome	CC	3fa310db59e29485 0.03723798248510327
+outcome	VBN	3f9bde58e1db162b 0.027215374741692038
+end	18
+point	19	59	16	20	0	none
+context	def
+context	suf=ν
+context	suf=Εν
+context	suf=«Εν
+context	pre=«
+context	pre=«Ε
+context	pre=«Εν
+context	w=«εν
+context	p1w=:
+context	p2w=είπε
+context	n1w=οίδα
+context	n2w=ότι
+context	wc=other
+context	w&c=«εν,other
+context	t=.
+context	t2=VBD,.
+outcome	DT	3faeb6455286a820 0.059984365772223436
+outcome	NN	3fb11da3db0ec669 0.06685852144325967
+outcome	VBD	3fadeb6f10d6e985 0.05843684273300468
+outcome	IN	3fabf7da6f37450d 0.054625345302733753
+outcome	.	3fc20aee4ec5b31e 0.1409585842733571
+outcome	NNP	3fb0a95636938ec8 0.06508387405807092
+outcome	,	3fa920047a9d3bc9 0.04907239910846035
+outcome	CD	3fa9e9107405a57d 0.05060626426968449
+outcome	NNS	3fab8f18cef84743 0.05382611776816628
+outcome	JJ	3fa7a697f7f782f7 0.04619288351000777
+outcome	MD	3fa27490aec6ef6e 0.036045571646780114
+outcome	VB	3fa5cfda132561a5 0.042601408803139486
+outcome	TO	3fa351d5684c2f1c 0.03773371599353778
+outcome	PRP	3fa69c87b8a8930d 0.044162980357475325
+outcome	VBZ	3f9c37d1ce54922a 0.027556684702306246
+outcome	VBP	3fa599b55731c6aa 0.04218832673440194
+outcome	$	3fa08096e0dcfb54 0.03223105902588111
+outcome	RB	3f9c09f299259211 0.027381697270714215
+outcome	CC	3fa310db59e29485 0.03723798248510327
+outcome	VBN	3f9bde58e1db162b 0.027215374741692038
+end	19
+point	20	66	18	20	0	none
+context	def
+context	suf=α
+context	suf=δα
+context	suf=ίδα
+context	suf=οίδα
+context	pre=ο
+context	pre=οί
+context	pre=οίδ
+context	pre=οίδα
+context	w=οίδα
+context	p1w=«εν
+context	p2w=:
+context	n1w=ότι
+context	n2w=ουδέν
+context	wc=jah
+context	w&c=οίδα,jah
+context	t=.
+context	t2=.,.
+outcome	DT	3fb0d47842960e70 0.06574203134192103
+outcome	NN	3fb0fb2da8508864 0.06633267745249466
+outcome	VBD	3fb06551084343aa 0.06404596759536099
+outcome	IN	3faea719848ea03c 0.05986861937645968
+outcome	.	3fb51d928df76d4d 0.08248249021510397
+outcome	NNP	3fb242bff4cab080 0.07133102156029913
+outcome	,	3fa579fb0a48f167 0.041946263318524406
+outcome	CD	3fac65bf0b5bb30b 0.05546376241350089
+outcome	NNS	3fae3449c5bc6c01 0.05899267710466206
+outcome	JJ	3fa9ebc01f835f64 0.050626758429358515
+outcome	MD	3fa43a0eca0769f7 0.0395054456345924
+outcome	VB	3fa7e7d2f43dce2f 0.046690552057864536
+outcome	TO	3fa52c909ecbe374 0.04135562838013743
+outcome	PRP	3fa8c8260beaa59b 0.04840201278177433
+outcome	VBZ	3f9eed34b28c9240 0.03020174350526106
+outcome	VBP	3fa7ac7bc831c67c 0.04623781985072825
+outcome	$	3f9fa3189e1f2354 0.030895599986055913
+outcome	RB	3f9df0d06441c65e 0.029238945120999886
+outcome	CC	3fa4e559ecfd72f6 0.04081231134362
+outcome	VBN	3f9e8b2538268d3e 0.029827672531280706
+end	20
+point	21	66	18	20	0	none
+context	def
+context	suf=α
+context	suf=δα
+context	suf=ίδα
+context	suf=οίδα
+context	pre=ο
+context	pre=οί
+context	pre=οίδ
+context	pre=οίδα
+context	w=οίδα
+context	p1w=«εν
+context	p2w=:
+context	n1w=ότι
+context	n2w=ουδέν
+context	wc=jah
+context	w&c=οίδα,jah
+context	t=.
+context	t2=.,.
+outcome	DT	3fb0d47842960e70 0.06574203134192103
+outcome	NN	3fb0fb2da8508864 0.06633267745249466
+outcome	VBD	3fb06551084343aa 0.06404596759536099
+outcome	IN	3faea719848ea03c 0.05986861937645968
+outcome	.	3fb51d928df76d4d 0.08248249021510397
+outcome	NNP	3fb242bff4cab080 0.07133102156029913
+outcome	,	3fa579fb0a48f167 0.041946263318524406
+outcome	CD	3fac65bf0b5bb30b 0.05546376241350089
+outcome	NNS	3fae3449c5bc6c01 0.05899267710466206
+outcome	JJ	3fa9ebc01f835f64 0.050626758429358515
+outcome	MD	3fa43a0eca0769f7 0.0395054456345924
+outcome	VB	3fa7e7d2f43dce2f 0.046690552057864536
+outcome	TO	3fa52c909ecbe374 0.04135562838013743
+outcome	PRP	3fa8c8260beaa59b 0.04840201278177433
+outcome	VBZ	3f9eed34b28c9240 0.03020174350526106
+outcome	VBP	3fa7ac7bc831c67c 0.04623781985072825
+outcome	$	3f9fa3189e1f2354 0.030895599986055913
+outcome	RB	3f9df0d06441c65e 0.029238945120999886
+outcome	CC	3fa4e559ecfd72f6 0.04081231134362
+outcome	VBN	3f9e8b2538268d3e 0.029827672531280706
+end	21
+point	22	66	18	20	0	none
+context	def
+context	suf=α
+context	suf=δα
+context	suf=ίδα
+context	suf=οίδα
+context	pre=ο
+context	pre=οί
+context	pre=οίδ
+context	pre=οίδα
+context	w=οίδα
+context	p1w=«εν
+context	p2w=:
+context	n1w=ότι
+context	n2w=ουδέν
+context	wc=jah
+context	w&c=οίδα,jah
+context	t=.
+context	t2=.,.
+outcome	DT	3fb0d47842960e70 0.06574203134192103
+outcome	NN	3fb0fb2da8508864 0.06633267745249466
+outcome	VBD	3fb06551084343aa 0.06404596759536099
+outcome	IN	3faea719848ea03c 0.05986861937645968
+outcome	.	3fb51d928df76d4d 0.08248249021510397
+outcome	NNP	3fb242bff4cab080 0.07133102156029913
+outcome	,	3fa579fb0a48f167 0.041946263318524406
+outcome	CD	3fac65bf0b5bb30b 0.05546376241350089
+outcome	NNS	3fae3449c5bc6c01 0.05899267710466206
+outcome	JJ	3fa9ebc01f835f64 0.050626758429358515
+outcome	MD	3fa43a0eca0769f7 0.0395054456345924
+outcome	VB	3fa7e7d2f43dce2f 0.046690552057864536
+outcome	TO	3fa52c909ecbe374 0.04135562838013743
+outcome	PRP	3fa8c8260beaa59b 0.04840201278177433
+outcome	VBZ	3f9eed34b28c9240 0.03020174350526106
+outcome	VBP	3fa7ac7bc831c67c 0.04623781985072825
+outcome	$	3f9fa3189e1f2354 0.030895599986055913
+outcome	RB	3f9df0d06441c65e 0.029238945120999886
+outcome	CC	3fa4e559ecfd72f6 0.04081231134362
+outcome	VBN	3f9e8b2538268d3e 0.029827672531280706
+end	22
+point	23	75	16	20	0	none
+context	def
+context	suf=ι
+context	suf=τι
+context	suf=ότι
+context	pre=ό
+context	pre=ότ
+context	pre=ότι
+context	w=ότι
+context	p1w=οίδα
+context	p2w=«εν
+context	n1w=ουδέν
+context	n2w=οίδα»
+context	wc=jah
+context	w&c=ότι,jah
+context	t=.
+context	t2=.,.
+outcome	DT	3fb0d47842960e70 0.06574203134192103
+outcome	NN	3fb0fb2da8508864 0.06633267745249466
+outcome	VBD	3fb06551084343aa 0.06404596759536099
+outcome	IN	3faea719848ea03c 0.05986861937645968
+outcome	.	3fb51d928df76d4d 0.08248249021510397
+outcome	NNP	3fb242bff4cab080 0.07133102156029913
+outcome	,	3fa579fb0a48f167 0.041946263318524406
+outcome	CD	3fac65bf0b5bb30b 0.05546376241350089
+outcome	NNS	3fae3449c5bc6c01 0.05899267710466206
+outcome	JJ	3fa9ebc01f835f64 0.050626758429358515
+outcome	MD	3fa43a0eca0769f7 0.0395054456345924
+outcome	VB	3fa7e7d2f43dce2f 0.046690552057864536
+outcome	TO	3fa52c909ecbe374 0.04135562838013743
+outcome	PRP	3fa8c8260beaa59b 0.04840201278177433
+outcome	VBZ	3f9eed34b28c9240 0.03020174350526106
+outcome	VBP	3fa7ac7bc831c67c 0.04623781985072825
+outcome	$	3f9fa3189e1f2354 0.030895599986055913
+outcome	RB	3f9df0d06441c65e 0.029238945120999886
+outcome	CC	3fa4e559ecfd72f6 0.04081231134362
+outcome	VBN	3f9e8b2538268d3e 0.029827672531280706
+end	23
+point	24	75	16	20	0	none
+context	def
+context	suf=ι
+context	suf=τι
+context	suf=ότι
+context	pre=ό
+context	pre=ότ
+context	pre=ότι
+context	w=ότι
+context	p1w=οίδα
+context	p2w=«εν
+context	n1w=ουδέν
+context	n2w=οίδα»
+context	wc=jah
+context	w&c=ότι,jah
+context	t=.
+context	t2=.,.
+outcome	DT	3fb0d47842960e70 0.06574203134192103
+outcome	NN	3fb0fb2da8508864 0.06633267745249466
+outcome	VBD	3fb06551084343aa 0.06404596759536099
+outcome	IN	3faea719848ea03c 0.05986861937645968
+outcome	.	3fb51d928df76d4d 0.08248249021510397
+outcome	NNP	3fb242bff4cab080 0.07133102156029913
+outcome	,	3fa579fb0a48f167 0.041946263318524406
+outcome	CD	3fac65bf0b5bb30b 0.05546376241350089
+outcome	NNS	3fae3449c5bc6c01 0.05899267710466206
+outcome	JJ	3fa9ebc01f835f64 0.050626758429358515
+outcome	MD	3fa43a0eca0769f7 0.0395054456345924
+outcome	VB	3fa7e7d2f43dce2f 0.046690552057864536
+outcome	TO	3fa52c909ecbe374 0.04135562838013743
+outcome	PRP	3fa8c8260beaa59b 0.04840201278177433
+outcome	VBZ	3f9eed34b28c9240 0.03020174350526106
+outcome	VBP	3fa7ac7bc831c67c 0.04623781985072825
+outcome	$	3f9fa3189e1f2354 0.030895599986055913
+outcome	RB	3f9df0d06441c65e 0.029238945120999886
+outcome	CC	3fa4e559ecfd72f6 0.04081231134362
+outcome	VBN	3f9e8b2538268d3e 0.029827672531280706
+end	24
+point	25	75	16	20	0	none
+context	def
+context	suf=ι
+context	suf=τι
+context	suf=ότι
+context	pre=ό
+context	pre=ότ
+context	pre=ότι
+context	w=ότι
+context	p1w=οίδα
+context	p2w=«εν
+context	n1w=ουδέν
+context	n2w=οίδα»
+context	wc=jah
+context	w&c=ότι,jah
+context	t=.
+context	t2=.,.
+outcome	DT	3fb0d47842960e70 0.06574203134192103
+outcome	NN	3fb0fb2da8508864 0.06633267745249466
+outcome	VBD	3fb06551084343aa 0.06404596759536099
+outcome	IN	3faea719848ea03c 0.05986861937645968
+outcome	.	3fb51d928df76d4d 0.08248249021510397
+outcome	NNP	3fb242bff4cab080 0.07133102156029913
+outcome	,	3fa579fb0a48f167 0.041946263318524406
+outcome	CD	3fac65bf0b5bb30b 0.05546376241350089
+outcome	NNS	3fae3449c5bc6c01 0.05899267710466206
+outcome	JJ	3fa9ebc01f835f64 0.050626758429358515
+outcome	MD	3fa43a0eca0769f7 0.0395054456345924
+outcome	VB	3fa7e7d2f43dce2f 0.046690552057864536
+outcome	TO	3fa52c909ecbe374 0.04135562838013743
+outcome	PRP	3fa8c8260beaa59b 0.04840201278177433
+outcome	VBZ	3f9eed34b28c9240 0.03020174350526106
+outcome	VBP	3fa7ac7bc831c67c 0.04623781985072825
+outcome	$	3f9fa3189e1f2354 0.030895599986055913
+outcome	RB	3f9df0d06441c65e 0.029238945120999886
+outcome	CC	3fa4e559ecfd72f6 0.04081231134362
+outcome	VBN	3f9e8b2538268d3e 0.029827672531280706
+end	25
+point	26	82	18	20	0	none
+context	def
+context	suf=ν
+context	suf=έν
+context	suf=δέν
+context	suf=υδέν
+context	pre=ο
+context	pre=ου
+context	pre=ουδ
+context	pre=ουδέ
+context	w=ουδέν
+context	p1w=ότι
+context	p2w=οίδα
+context	n1w=οίδα»
+context	n2w=.
+context	wc=jah
+context	w&c=ουδέν,jah
+context	t=.
+context	t2=.,.
+outcome	DT	3fb4e9b7d299ff83 0.08169125453605201
+outcome	NN	3faf3dcfed292303 0.06101846475627861
+outcome	VBD	3fb029d96e116068 0.06313857018665348
+outcome	IN	3fb295c1cde10740 0.07259761120169816
+outcome	.	3fb36c81e933af6d 0.07587444251447346
+outcome	NNP	3faf3fe2fc7db0df 0.061034291574147075
+outcome	,	3fa3c1832af6f9f9 0.038585757250519444
+outcome	CD	3fac61bf7aa43611 0.05543325779045117
+outcome	NNS	3fac5055563025ad 0.05530039479351543
+outcome	JJ	3fa99fa6f9e38614 0.05004617500686606
+outcome	MD	3fa29b38519635c5 0.036340484580346145
+outcome	VB	3fa5fd897e328106 0.042949959425870474
+outcome	TO	3fab952424f1df75 0.053872231969704844
+outcome	PRP	3fa6cbe3d6f5c7cc 0.04452430724167264
+outcome	VBZ	3f9c72ec25fc0f00 0.02778214437331794
+outcome	VBP	3fa950ab9cf7049a 0.04944359103274927
+outcome	$	3fa3b4f257751519 0.03848988835901874
+outcome	RB	3f9b8ac03a7b4d17 0.026896480149685233
+outcome	CC	3fa338ca57546098 0.037542651329375676
+outcome	VBN	3f9c18b7d2fb3931 0.027438041927603855
+end	26
+point	27	82	18	20	0	none
+context	def
+context	suf=ν
+context	suf=έν
+context	suf=δέν
+context	suf=υδέν
+context	pre=ο
+context	pre=ου
+context	pre=ουδ
+context	pre=ουδέ
+context	w=ουδέν
+context	p1w=ότι
+context	p2w=οίδα
+context	n1w=οίδα»
+context	n2w=.
+context	wc=jah
+context	w&c=ουδέν,jah
+context	t=.
+context	t2=.,.
+outcome	DT	3fb4e9b7d299ff83 0.08169125453605201
+outcome	NN	3faf3dcfed292303 0.06101846475627861
+outcome	VBD	3fb029d96e116068 0.06313857018665348
+outcome	IN	3fb295c1cde10740 0.07259761120169816
+outcome	.	3fb36c81e933af6d 0.07587444251447346
+outcome	NNP	3faf3fe2fc7db0df 0.061034291574147075
+outcome	,	3fa3c1832af6f9f9 0.038585757250519444
+outcome	CD	3fac61bf7aa43611 0.05543325779045117
+outcome	NNS	3fac5055563025ad 0.05530039479351543
+outcome	JJ	3fa99fa6f9e38614 0.05004617500686606
+outcome	MD	3fa29b38519635c5 0.036340484580346145
+outcome	VB	3fa5fd897e328106 0.042949959425870474
+outcome	TO	3fab952424f1df75 0.053872231969704844
+outcome	PRP	3fa6cbe3d6f5c7cc 0.04452430724167264
+outcome	VBZ	3f9c72ec25fc0f00 0.02778214437331794
+outcome	VBP	3fa950ab9cf7049a 0.04944359103274927
+outcome	$	3fa3b4f257751519 0.03848988835901874
+outcome	RB	3f9b8ac03a7b4d17 0.026896480149685233
+outcome	CC	3fa338ca57546098 0.037542651329375676
+outcome	VBN	3f9c18b7d2fb3931 0.027438041927603855
+end	27
+point	28	82	18	20	0	none
+context	def
+context	suf=ν
+context	suf=έν
+context	suf=δέν
+context	suf=υδέν
+context	pre=ο
+context	pre=ου
+context	pre=ουδ
+context	pre=ουδέ
+context	w=ουδέν
+context	p1w=ότι
+context	p2w=οίδα
+context	n1w=οίδα»
+context	n2w=.
+context	wc=jah
+context	w&c=ουδέν,jah
+context	t=.
+context	t2=.,.
+outcome	DT	3fb4e9b7d299ff83 0.08169125453605201
+outcome	NN	3faf3dcfed292303 0.06101846475627861
+outcome	VBD	3fb029d96e116068 0.06313857018665348
+outcome	IN	3fb295c1cde10740 0.07259761120169816
+outcome	.	3fb36c81e933af6d 0.07587444251447346
+outcome	NNP	3faf3fe2fc7db0df 0.061034291574147075
+outcome	,	3fa3c1832af6f9f9 0.038585757250519444
+outcome	CD	3fac61bf7aa43611 0.05543325779045117
+outcome	NNS	3fac5055563025ad 0.05530039479351543
+outcome	JJ	3fa99fa6f9e38614 0.05004617500686606
+outcome	MD	3fa29b38519635c5 0.036340484580346145
+outcome	VB	3fa5fd897e328106 0.042949959425870474
+outcome	TO	3fab952424f1df75 0.053872231969704844
+outcome	PRP	3fa6cbe3d6f5c7cc 0.04452430724167264
+outcome	VBZ	3f9c72ec25fc0f00 0.02778214437331794
+outcome	VBP	3fa950ab9cf7049a 0.04944359103274927
+outcome	$	3fa3b4f257751519 0.03848988835901874
+outcome	RB	3f9b8ac03a7b4d17 0.026896480149685233
+outcome	CC	3fa338ca57546098 0.037542651329375676
+outcome	VBN	3f9c18b7d2fb3931 0.027438041927603855
+end	28
+point	29	93	17	20	0	none
+context	def
+context	suf=»
+context	suf=α»
+context	suf=δα»
+context	suf=ίδα»
+context	pre=ο
+context	pre=οί
+context	pre=οίδ
+context	pre=οίδα
+context	w=οίδα»
+context	p1w=ουδέν
+context	p2w=ότι
+context	n1w=.
+context	wc=other
+context	w&c=οίδα»,other
+context	t=DT
+context	t2=.,DT
+outcome	DT	3faa7a70f7497bea 0.051715402780921085
+outcome	NN	3fc3003e67873739 0.1484449391850207
+outcome	VBD	3faa7d0c8615184d 0.05173529755352089
+outcome	IN	3fa81cda774a7f8c 0.04709513384045669
+outcome	.	3fbf1c67826fe788 0.12152716574192202
+outcome	NNP	3fb25e0ce7f0e54f 0.07174759543058438
+outcome	,	3fa5a959e9188b38 0.04230767221840498
+outcome	CD	3fae6e68bddb5b6e 0.05943610494221373
+outcome	NNS	3fa8e7511c503da3 0.04863980742095044
+outcome	JJ	3faa8b5fa817c7af 0.051844586629058546
+outcome	MD	3f9fd28c91f9c9cc 0.031076618585254498
+outcome	VB	3fa2ce1b5c3e0bb8 0.03672872067456673
+outcome	TO	3fa0a80a6c43ca41 0.03253204890815598
+outcome	PRP	3fa37e91e357ac5f 0.03807502651383098
+outcome	VBZ	3f98540075d5e23b 0.023757941429240353
+outcome	VBP	3fa29f6d5b0bd24e 0.03637258278277909
+outcome	$	3f9c74715b906b6d 0.02778794404376177
+outcome	RB	3f982c7413adabb4 0.023607076359819693
+outcome	CC	3fa07005676f32eb 0.03210465324045749
+outcome	VBN	3f9806dd068240d4 0.023463681719079713
+end	29
+point	30	93	17	20	0	none
+context	def
+context	suf=»
+context	suf=α»
+context	suf=δα»
+context	suf=ίδα»
+context	pre=ο
+context	pre=οί
+context	pre=οίδ
+context	pre=οίδα
+context	w=οίδα»
+context	p1w=ουδέν
+context	p2w=ότι
+context	n1w=.
+context	wc=other
+context	w&c=οίδα»,other
+context	t=DT
+context	t2=.,DT
+outcome	DT	3faa7a70f7497bea 0.051715402780921085
+outcome	NN	3fc3003e67873739 0.1484449391850207
+outcome	VBD	3faa7d0c8615184d 0.05173529755352089
+outcome	IN	3fa81cda774a7f8c 0.04709513384045669
+outcome	.	3fbf1c67826fe788 0.12152716574192202
+outcome	NNP	3fb25e0ce7f0e54f 0.07174759543058438
+outcome	,	3fa5a959e9188b38 0.04230767221840498
+outcome	CD	3fae6e68bddb5b6e 0.05943610494221373
+outcome	NNS	3fa8e7511c503da3 0.04863980742095044
+outcome	JJ	3faa8b5fa817c7af 0.051844586629058546
+outcome	MD	3f9fd28c91f9c9cc 0.031076618585254498
+outcome	VB	3fa2ce1b5c3e0bb8 0.03672872067456673
+outcome	TO	3fa0a80a6c43ca41 0.03253204890815598
+outcome	PRP	3fa37e91e357ac5f 0.03807502651383098
+outcome	VBZ	3f98540075d5e23b 0.023757941429240353
+outcome	VBP	3fa29f6d5b0bd24e 0.03637258278277909
+outcome	$	3f9c74715b906b6d 0.02778794404376177
+outcome	RB	3f982c7413adabb4 0.023607076359819693
+outcome	CC	3fa07005676f32eb 0.03210465324045749
+outcome	VBN	3f9806dd068240d4 0.023463681719079713
+end	30
+point	31	93	17	20	0	none
+context	def
+context	suf=»
+context	suf=α»
+context	suf=δα»
+context	suf=ίδα»
+context	pre=ο
+context	pre=οί
+context	pre=οίδ
+context	pre=οίδα
+context	w=οίδα»
+context	p1w=ουδέν
+context	p2w=ότι
+context	n1w=.
+context	wc=other
+context	w&c=οίδα»,other
+context	t=DT
+context	t2=.,DT
+outcome	DT	3faa7a70f7497bea 0.051715402780921085
+outcome	NN	3fc3003e67873739 0.1484449391850207
+outcome	VBD	3faa7d0c8615184d 0.05173529755352089
+outcome	IN	3fa81cda774a7f8c 0.04709513384045669
+outcome	.	3fbf1c67826fe788 0.12152716574192202
+outcome	NNP	3fb25e0ce7f0e54f 0.07174759543058438
+outcome	,	3fa5a959e9188b38 0.04230767221840498
+outcome	CD	3fae6e68bddb5b6e 0.05943610494221373
+outcome	NNS	3fa8e7511c503da3 0.04863980742095044
+outcome	JJ	3faa8b5fa817c7af 0.051844586629058546
+outcome	MD	3f9fd28c91f9c9cc 0.031076618585254498
+outcome	VB	3fa2ce1b5c3e0bb8 0.03672872067456673
+outcome	TO	3fa0a80a6c43ca41 0.03253204890815598
+outcome	PRP	3fa37e91e357ac5f 0.03807502651383098
+outcome	VBZ	3f98540075d5e23b 0.023757941429240353
+outcome	VBP	3fa29f6d5b0bd24e 0.03637258278277909
+outcome	$	3f9c74715b906b6d 0.02778794404376177
+outcome	RB	3f982c7413adabb4 0.023607076359819693
+outcome	CC	3fa07005676f32eb 0.03210465324045749
+outcome	VBN	3f9806dd068240d4 0.023463681719079713
+end	31
+point	32	103	10	20	0	none
+context	def
+context	suf=.
+context	pre=.
+context	w=.
+context	p1w=οίδα»
+context	p2w=ουδέν
+context	wc=other
+context	w&c=.,other
+context	t=NN
+context	t2=DT,NN
+outcome	DT	3f80896bc0782d5b 0.008074609576417193
+outcome	NN	3f826e9135b6641c 0.008999952747034405
+outcome	VBD	3f8bffda09547eea 0.013671592149477847
+outcome	IN	3f88b49c7335e085 0.012063238397544982
+outcome	.	3febcfa326d115c7 0.8690963514460969
+outcome	NNP	3f86ad94fe2d53a5 0.011073268896930897
+outcome	,	3f7b0e9bdf7b41a1 0.006605728987509358
+outcome	CD	3f7be71d7d0058af 0.006812205494517594
+outcome	NNS	3f7dad99a1511a49 0.007245636098622451
+outcome	JJ	3f797829b51e8d56 0.006218111915504329
+outcome	MD	3f7ddd43f7d50563 0.007291093349807684
+outcome	VB	3f777d392ddfce26 0.005734656673655835
+outcome	TO	3f74ce2502c89dcf 0.005079407285428285
+outcome	PRP	3f7859a3f442cac6 0.005944862790942812
+outcome	VBZ	3f6e634bf66b36a1 0.0037094577449810627
+outcome	VBP	3f7742ea9eef9ab0 0.005679050910635183
+outcome	$	3f71c570a97a7de9 0.004338684164081987
+outcome	RB	3f6e31e5c220d903 0.003685902353960492
+outcome	CC	3f74882be00d34f8 0.005012675654893821
+outcome	VBN	3f6e02f1c27f7f9f 0.003663513361956874
+end	32
+point	33	103	10	20	0	none
+context	def
+context	suf=.
+context	pre=.
+context	w=.
+context	p1w=οίδα»
+context	p2w=ουδέν
+context	wc=other
+context	w&c=.,other
+context	t=NN
+context	t2=DT,NN
+outcome	DT	3f80896bc0782d5b 0.008074609576417193
+outcome	NN	3f826e9135b6641c 0.008999952747034405
+outcome	VBD	3f8bffda09547eea 0.013671592149477847
+outcome	IN	3f88b49c7335e085 0.012063238397544982
+outcome	.	3febcfa326d115c7 0.8690963514460969
+outcome	NNP	3f86ad94fe2d53a5 0.011073268896930897
+outcome	,	3f7b0e9bdf7b41a1 0.006605728987509358
+outcome	CD	3f7be71d7d0058af 0.006812205494517594
+outcome	NNS	3f7dad99a1511a49 0.007245636098622451
+outcome	JJ	3f797829b51e8d56 0.006218111915504329
+outcome	MD	3f7ddd43f7d50563 0.007291093349807684
+outcome	VB	3f777d392ddfce26 0.005734656673655835
+outcome	TO	3f74ce2502c89dcf 0.005079407285428285
+outcome	PRP	3f7859a3f442cac6 0.005944862790942812
+outcome	VBZ	3f6e634bf66b36a1 0.0037094577449810627
+outcome	VBP	3f7742ea9eef9ab0 0.005679050910635183
+outcome	$	3f71c570a97a7de9 0.004338684164081987
+outcome	RB	3f6e31e5c220d903 0.003685902353960492
+outcome	CC	3f74882be00d34f8 0.005012675654893821
+outcome	VBN	3f6e02f1c27f7f9f 0.003663513361956874
+end	33
+point	34	103	10	20	0	none
+context	def
+context	suf=.
+context	pre=.
+context	w=.
+context	p1w=οίδα»
+context	p2w=ουδέν
+context	wc=other
+context	w&c=.,other
+context	t=NN
+context	t2=DT,NN
+outcome	DT	3f80896bc0782d5b 0.008074609576417193
+outcome	NN	3f826e9135b6641c 0.008999952747034405
+outcome	VBD	3f8bffda09547eea 0.013671592149477847
+outcome	IN	3f88b49c7335e085 0.012063238397544982
+outcome	.	3febcfa326d115c7 0.8690963514460969
+outcome	NNP	3f86ad94fe2d53a5 0.011073268896930897
+outcome	,	3f7b0e9bdf7b41a1 0.006605728987509358
+outcome	CD	3f7be71d7d0058af 0.006812205494517594
+outcome	NNS	3f7dad99a1511a49 0.007245636098622451
+outcome	JJ	3f797829b51e8d56 0.006218111915504329
+outcome	MD	3f7ddd43f7d50563 0.007291093349807684
+outcome	VB	3f777d392ddfce26 0.005734656673655835
+outcome	TO	3f74ce2502c89dcf 0.005079407285428285
+outcome	PRP	3f7859a3f442cac6 0.005944862790942812
+outcome	VBZ	3f6e634bf66b36a1 0.0037094577449810627
+outcome	VBP	3f7742ea9eef9ab0 0.005679050910635183
+outcome	$	3f71c570a97a7de9 0.004338684164081987
+outcome	RB	3f6e31e5c220d903 0.003685902353960492
+outcome	CC	3f74882be00d34f8 0.005012675654893821
+outcome	VBN	3f6e02f1c27f7f9f 0.003663513361956874
+end	34
+point	35	105	15	20	0	none
+context	def
+context	suf=т
+context	suf=ет
+context	suf=вет
+context	suf=ивет
+context	pre=П
+context	pre=Пр
+context	pre=При
+context	pre=Прив
+context	w=привет
+context	n1w=,
+context	n2w=мир
+context	S=begin
+context	wc=jah
+context	w&c=привет,jah
+outcome	DT	3fb5ba75c12bfcfc 0.084876403485385
+outcome	NN	3fac9b2f38aea743 0.05587146346017715
+outcome	VBD	3fab9ebacf95cad5 0.05394538673399089
+outcome	IN	3fa9d18c01fcec03 0.05042684101359642
+outcome	.	3fb1c9119df61780 0.06947431665875392
+outcome	NNP	3fc09aee0a05c07f 0.12972808350923867
+outcome	,	3fa216e74748c365 0.03533098931473581
+outcome	CD	3fa7eb3f362ae0ad 0.04671666656708005
+outcome	NNS	3fb01dab88079a65 0.06295272894895161
+outcome	JJ	3fb19ac4a704de0f 0.06876782491314536
+outcome	MD	3fa1096f608679ba 0.033275108845589554
+outcome	VB	3fa422ad4e465131 0.03932706432820721
+outcome	TO	3fa1d5b2635041f8 0.03483350241015509
+outcome	PRP	3faeb0501738a1f5 0.05993891032659696
+outcome	VBZ	3f9a0c98c4a71ee3 0.02543867779038934
+outcome	VBP	3fa3f0b1e85ce2e4 0.03894573174915708
+outcome	$	3f9aa5cd2bea6261 0.0260231073430951
+outcome	RB	3f9938025c04df04 0.024627720705409764
+outcome	CC	3fa199b6d3460abe 0.03437587098144011
+outcome	VBN	3f99ba0051262a93 0.025123600914904797
+end	35
+point	36	117	11	20	0	none
+context	def
+context	suf=,
+context	pre=,
+context	w=,
+context	p1w=привет
+context	n1w=мир
+context	n2w=!
+context	p1S=begin
+context	wc=other
+context	w&c=,,other
+context	t=NNP
+outcome	DT	3f9e7943674f475d 0.02975945776035559
+outcome	NN	3fa685e189af6418 0.04399018102385116
+outcome	VBD	3faac69aeb5dca70 0.05229648707508694
+outcome	IN	3f9bc04bd331ab6a 0.027100739255199548
+outcome	.	3fbae17e168cd081 0.10500324297464837
+outcome	NNP	3fab42c293903bc7 0.053243713868247826
+outcome	,	3fda255266b8e6c5 0.40852794677230647
+outcome	CD	3f9ccfe78fe8af45 0.028136842878822028
+outcome	NNS	3f9b585a4a847a02 0.026704226301371044
+outcome	JJ	3f9811ae66170afc 0.02350494859798412
+outcome	MD	3f924fe79fac9cab 0.01788293754648566
+outcome	VB	3f95a48618715aac 0.021135421029920096
+outcome	TO	3f932b74cfec2ff4 0.01872046011980895
+outcome	PRP	3f966f9d293e515c 0.021910148279475336
+outcome	VBZ	3f914e68746a618a 0.016900665383759818
+outcome	VBP	3fa00c3a79ca8e21 0.031343295447438864
+outcome	$	3f905fcefd9aac82 0.015990480641147282
+outcome	RB	3f8bd2400b9d94e9 0.013584614138105926
+outcome	CC	3f9f8019191b1f0d 0.030762092740388037
+outcome	VBN	3f8ba6fcf0639312 0.013502098165596919
+end	36
+point	37	117	11	20	0	none
+context	def
+context	suf=,
+context	pre=,
+context	w=,
+context	p1w=привет
+context	n1w=мир
+context	n2w=!
+context	p1S=begin
+context	wc=other
+context	w&c=,,other
+context	t=NNP
+outcome	DT	3f9e7943674f475d 0.02975945776035559
+outcome	NN	3fa685e189af6418 0.04399018102385116
+outcome	VBD	3faac69aeb5dca70 0.05229648707508694
+outcome	IN	3f9bc04bd331ab6a 0.027100739255199548
+outcome	.	3fbae17e168cd081 0.10500324297464837
+outcome	NNP	3fab42c293903bc7 0.053243713868247826
+outcome	,	3fda255266b8e6c5 0.40852794677230647
+outcome	CD	3f9ccfe78fe8af45 0.028136842878822028
+outcome	NNS	3f9b585a4a847a02 0.026704226301371044
+outcome	JJ	3f9811ae66170afc 0.02350494859798412
+outcome	MD	3f924fe79fac9cab 0.01788293754648566
+outcome	VB	3f95a48618715aac 0.021135421029920096
+outcome	TO	3f932b74cfec2ff4 0.01872046011980895
+outcome	PRP	3f966f9d293e515c 0.021910148279475336
+outcome	VBZ	3f914e68746a618a 0.016900665383759818
+outcome	VBP	3fa00c3a79ca8e21 0.031343295447438864
+outcome	$	3f905fcefd9aac82 0.015990480641147282
+outcome	RB	3f8bd2400b9d94e9 0.013584614138105926
+outcome	CC	3f9f8019191b1f0d 0.030762092740388037
+outcome	VBN	3f8ba6fcf0639312 0.013502098165596919
+end	37
+point	38	117	11	20	0	none
+context	def
+context	suf=,
+context	pre=,
+context	w=,
+context	p1w=привет
+context	n1w=мир
+context	n2w=!
+context	p1S=begin
+context	wc=other
+context	w&c=,,other
+context	t=NNP
+outcome	DT	3f9e7943674f475d 0.02975945776035559
+outcome	NN	3fa685e189af6418 0.04399018102385116
+outcome	VBD	3faac69aeb5dca70 0.05229648707508694
+outcome	IN	3f9bc04bd331ab6a 0.027100739255199548
+outcome	.	3fbae17e168cd081 0.10500324297464837
+outcome	NNP	3fab42c293903bc7 0.053243713868247826
+outcome	,	3fda255266b8e6c5 0.40852794677230647
+outcome	CD	3f9ccfe78fe8af45 0.028136842878822028
+outcome	NNS	3f9b585a4a847a02 0.026704226301371044
+outcome	JJ	3f9811ae66170afc 0.02350494859798412
+outcome	MD	3f924fe79fac9cab 0.01788293754648566
+outcome	VB	3f95a48618715aac 0.021135421029920096
+outcome	TO	3f932b74cfec2ff4 0.01872046011980895
+outcome	PRP	3f966f9d293e515c 0.021910148279475336
+outcome	VBZ	3f914e68746a618a 0.016900665383759818
+outcome	VBP	3fa00c3a79ca8e21 0.031343295447438864
+outcome	$	3f905fcefd9aac82 0.015990480641147282
+outcome	RB	3f8bd2400b9d94e9 0.013584614138105926
+outcome	CC	3f9f8019191b1f0d 0.030762092740388037
+outcome	VBN	3f8ba6fcf0639312 0.013502098165596919
+end	38
+point	39	119	16	20	0	none
+context	def
+context	suf=р
+context	suf=ир
+context	suf=мир
+context	pre=м
+context	pre=ми
+context	pre=мир
+context	w=мир
+context	p1w=,
+context	p2w=привет
+context	n1w=!
+context	p2S=begin
+context	wc=jah
+context	w&c=мир,jah
+context	t=,
+context	t2=NNP,,
+outcome	DT	3fb04408c29f0d5d 0.0635381198072102
+outcome	NN	3fa9ce3304fdfefa 0.05040130077304457
+outcome	VBD	3fb0ff673f309789 0.06639714520187402
+outcome	IN	3fad0b8b7c511a1c 0.05672870533503646
+outcome	.	3fb00b4b8eea3da2 0.06267235030303778
+outcome	NNP	3fab7ff5e2615f0c 0.0537106360285958
+outcome	,	3fa5237a028299eb 0.04128628998414626
+outcome	CD	3fc526a3928422ee 0.16524166730984952
+outcome	NNS	3fab0f47ae39bc68 0.05285095216537955
+outcome	JJ	3fa3b2043af5c52e 0.03846753329970408
+outcome	MD	3fb3f7e83d51da22 0.07800151345313869
+outcome	VB	3fa22a008c39bf0b 0.035476700894717515
+outcome	TO	3fa016afd2236ee0 0.03142308654943604
+outcome	PRP	3fa2d4732708adc3 0.03677711345184378
+outcome	VBZ	3f977fb324ec27cf 0.02294807350975941
+outcome	VBP	3fa1fce9e60227cf 0.03513270313949556
+outcome	$	3f9809e7a07ec241 0.023475283785673765
+outcome	RB	3f9bbc542d4fcbf8 0.027085604920966205
+outcome	CC	3f9fc127537347be 0.031010260074999733
+outcome	VBN	3f9c082e77ecca0d 0.02737496001209121
+end	39
+point	40	119	16	20	0	none
+context	def
+context	suf=р
+context	suf=ир
+context	suf=мир
+context	pre=м
+context	pre=ми
+context	pre=мир
+context	w=мир
+context	p1w=,
+context	p2w=привет
+context	n1w=!
+context	p2S=begin
+context	wc=jah
+context	w&c=мир,jah
+context	t=,
+context	t2=NNP,,
+outcome	DT	3fb04408c29f0d5d 0.0635381198072102
+outcome	NN	3fa9ce3304fdfefa 0.05040130077304457
+outcome	VBD	3fb0ff673f309789 0.06639714520187402
+outcome	IN	3fad0b8b7c511a1c 0.05672870533503646
+outcome	.	3fb00b4b8eea3da2 0.06267235030303778
+outcome	NNP	3fab7ff5e2615f0c 0.0537106360285958
+outcome	,	3fa5237a028299eb 0.04128628998414626
+outcome	CD	3fc526a3928422ee 0.16524166730984952
+outcome	NNS	3fab0f47ae39bc68 0.05285095216537955
+outcome	JJ	3fa3b2043af5c52e 0.03846753329970408
+outcome	MD	3fb3f7e83d51da22 0.07800151345313869
+outcome	VB	3fa22a008c39bf0b 0.035476700894717515
+outcome	TO	3fa016afd2236ee0 0.03142308654943604
+outcome	PRP	3fa2d4732708adc3 0.03677711345184378
+outcome	VBZ	3f977fb324ec27cf 0.02294807350975941
+outcome	VBP	3fa1fce9e60227cf 0.03513270313949556
+outcome	$	3f9809e7a07ec241 0.023475283785673765
+outcome	RB	3f9bbc542d4fcbf8 0.027085604920966205
+outcome	CC	3f9fc127537347be 0.031010260074999733
+outcome	VBN	3f9c082e77ecca0d 0.02737496001209121
+end	40
+point	41	119	16	20	0	none
+context	def
+context	suf=р
+context	suf=ир
+context	suf=мир
+context	pre=м
+context	pre=ми
+context	pre=мир
+context	w=мир
+context	p1w=,
+context	p2w=привет
+context	n1w=!
+context	p2S=begin
+context	wc=jah
+context	w&c=мир,jah
+context	t=,
+context	t2=NNP,,
+outcome	DT	3fb04408c29f0d5d 0.0635381198072102
+outcome	NN	3fa9ce3304fdfefa 0.05040130077304457
+outcome	VBD	3fb0ff673f309789 0.06639714520187402
+outcome	IN	3fad0b8b7c511a1c 0.05672870533503646
+outcome	.	3fb00b4b8eea3da2 0.06267235030303778
+outcome	NNP	3fab7ff5e2615f0c 0.0537106360285958
+outcome	,	3fa5237a028299eb 0.04128628998414626
+outcome	CD	3fc526a3928422ee 0.16524166730984952
+outcome	NNS	3fab0f47ae39bc68 0.05285095216537955
+outcome	JJ	3fa3b2043af5c52e 0.03846753329970408
+outcome	MD	3fb3f7e83d51da22 0.07800151345313869
+outcome	VB	3fa22a008c39bf0b 0.035476700894717515
+outcome	TO	3fa016afd2236ee0 0.03142308654943604
+outcome	PRP	3fa2d4732708adc3 0.03677711345184378
+outcome	VBZ	3f977fb324ec27cf 0.02294807350975941
+outcome	VBP	3fa1fce9e60227cf 0.03513270313949556
+outcome	$	3f9809e7a07ec241 0.023475283785673765
+outcome	RB	3f9bbc542d4fcbf8 0.027085604920966205
+outcome	CC	3f9fc127537347be 0.031010260074999733
+outcome	VBN	3f9c082e77ecca0d 0.02737496001209121
+end	41
+point	42	125	10	20	0	none
+context	def
+context	suf=!
+context	pre=!
+context	w=!
+context	p1w=мир
+context	p2w=,
+context	wc=other
+context	w&c=!,other
+context	t=CD
+context	t2=,,CD
+outcome	DT	3fa85afcb813c145 0.04756917712245693
+outcome	NN	3fb4c4ab5b3010ca 0.08112593628181056
+outcome	VBD	3fa7ba21d587ab30 0.046341950717609826
+outcome	IN	3fa62df39e874724 0.04331933317338457
+outcome	.	3fc92e0c843abf38 0.1967178006793746
+outcome	NNP	3faa6d0c514b478d 0.05161322109564912
+outcome	,	3fa3ecc23e788364 0.038915701032471245
+outcome	CD	3fa48c31b2f4d7d9 0.04013209638144106
+outcome	NNS	3fbe7f34e1d60eff 0.11912851823404579
+outcome	JJ	3fa2c173a46be7f6 0.036632169552788627
+outcome	MD	3f9d45689170ea8c 0.02858508479787729
+outcome	VB	3faa40c73de08922 0.051275469115596786
+outcome	TO	3f9ea45a1383fdaa 0.029923827592026754
+outcome	PRP	3fa1ee74d7782f22 0.03502240305178207
+outcome	VBZ	3f9660adb807a8e6 0.02185317455033777
+outcome	VBP	3fa1213434b9c76c 0.03345645087837465
+outcome	$	3f9a2c6bac37ac17 0.025560076128311317
+outcome	RB	3f963c4d0bf91ff5 0.021714404922278125
+outcome	CC	3f9e3d4b96e25551 0.029530697902904027
+outcome	VBN	3f9619b9834e586d 0.02158250678947875
+end	42
+point	43	125	10	20	0	none
+context	def
+context	suf=!
+context	pre=!
+context	w=!
+context	p1w=мир
+context	p2w=,
+context	wc=other
+context	w&c=!,other
+context	t=CD
+context	t2=,,CD
+outcome	DT	3fa85afcb813c145 0.04756917712245693
+outcome	NN	3fb4c4ab5b3010ca 0.08112593628181056
+outcome	VBD	3fa7ba21d587ab30 0.046341950717609826
+outcome	IN	3fa62df39e874724 0.04331933317338457
+outcome	.	3fc92e0c843abf38 0.1967178006793746
+outcome	NNP	3faa6d0c514b478d 0.05161322109564912
+outcome	,	3fa3ecc23e788364 0.038915701032471245
+outcome	CD	3fa48c31b2f4d7d9 0.04013209638144106
+outcome	NNS	3fbe7f34e1d60eff 0.11912851823404579
+outcome	JJ	3fa2c173a46be7f6 0.036632169552788627
+outcome	MD	3f9d45689170ea8c 0.02858508479787729
+outcome	VB	3faa40c73de08922 0.051275469115596786
+outcome	TO	3f9ea45a1383fdaa 0.029923827592026754
+outcome	PRP	3fa1ee74d7782f22 0.03502240305178207
+outcome	VBZ	3f9660adb807a8e6 0.02185317455033777
+outcome	VBP	3fa1213434b9c76c 0.03345645087837465
+outcome	$	3f9a2c6bac37ac17 0.025560076128311317
+outcome	RB	3f963c4d0bf91ff5 0.021714404922278125
+outcome	CC	3f9e3d4b96e25551 0.029530697902904027
+outcome	VBN	3f9619b9834e586d 0.02158250678947875
+end	43
+point	44	125	10	20	0	none
+context	def
+context	suf=!
+context	pre=!
+context	w=!
+context	p1w=мир
+context	p2w=,
+context	wc=other
+context	w&c=!,other
+context	t=CD
+context	t2=,,CD
+outcome	DT	3fa85afcb813c145 0.04756917712245693
+outcome	NN	3fb4c4ab5b3010ca 0.08112593628181056
+outcome	VBD	3fa7ba21d587ab30 0.046341950717609826
+outcome	IN	3fa62df39e874724 0.04331933317338457
+outcome	.	3fc92e0c843abf38 0.1967178006793746
+outcome	NNP	3faa6d0c514b478d 0.05161322109564912
+outcome	,	3fa3ecc23e788364 0.038915701032471245
+outcome	CD	3fa48c31b2f4d7d9 0.04013209638144106
+outcome	NNS	3fbe7f34e1d60eff 0.11912851823404579
+outcome	JJ	3fa2c173a46be7f6 0.036632169552788627
+outcome	MD	3f9d45689170ea8c 0.02858508479787729
+outcome	VB	3faa40c73de08922 0.051275469115596786
+outcome	TO	3f9ea45a1383fdaa 0.029923827592026754
+outcome	PRP	3fa1ee74d7782f22 0.03502240305178207
+outcome	VBZ	3f9660adb807a8e6 0.02185317455033777
+outcome	VBP	3fa1213434b9c76c 0.03345645087837465
+outcome	$	3f9a2c6bac37ac17 0.025560076128311317
+outcome	RB	3f963c4d0bf91ff5 0.021714404922278125
+outcome	CC	3f9e3d4b96e25551 0.029530697902904027
+outcome	VBN	3f9619b9834e586d 0.02158250678947875
+end	44
+point	45	127	13	20	0	none
+context	def
+context	suf=к
+context	suf=ак
+context	suf=Как
+context	pre=К
+context	pre=Ка
+context	pre=Как
+context	w=как
+context	n1w=дела
+context	n2w=?
+context	S=begin
+context	wc=jah
+context	w&c=как,jah
+outcome	DT	3fb74e15d90a4798 0.09103523777801426
+outcome	NN	3faeae927b1b761c 0.05992563011907867
+outcome	VBD	3fad9fcc7a8dc1ac 0.05785979267136851
+outcome	IN	3fabb126c1cae9bf 0.054085932880713276
+outcome	.	3fb313734a287f7f 0.07451553879263705
+outcome	NNP	3fb837b6a5cc7b09 0.09460012004681685
+outcome	,	3fa366eecdfb8840 0.03789469017444036
+outcome	CD	3fa9a79077722727 0.05010653932647662
+outcome	NNS	3fb14909db62489d 0.0675207291226649
+outcome	JJ	3fa76ace52271c02 0.045736739662565654
+outcome	MD	3fa245e9444bf776 0.0356896301145601
+outcome	VB	3fa598b66f143d46 0.042180729922729074
+outcome	TO	3fa320fea35e2b86 0.0373611044334075
+outcome	PRP	3fb075315d22248f 0.06428822063220906
+outcome	VBZ	3f9bf07c6cf47851 0.027284568929751455
+outcome	VBP	3fa5631a923a5b42 0.04177172694215027
+outcome	$	3f9c94cec14771e0 0.02791140608484166
+outcome	RB	3f9b0c78ff413396 0.0264147668643094
+outcome	CC	3fa2e0a8d6d8d0e1 0.036870266176636475
+outcome	VBN	3f9b97e5aebf3231 0.026946629324628716
+end	45
+point	46	134	16	20	0	none
+context	def
+context	suf=а
+context	suf=ла
+context	suf=ела
+context	suf=дела
+context	pre=д
+context	pre=де
+context	pre=дел
+context	pre=дела
+context	w=дела
+context	p1w=как
+context	n1w=?
+context	p1S=begin
+context	wc=jah
+context	w&c=дела,jah
+context	t=NNP
+outcome	DT	3fab443063b505cb 0.05325461594703603
+outcome	NN	3fb23e2e1f1f3822 0.07126129398167838
+outcome	VBD	3fb7f52a6473bb4c 0.09358468010371473
+outcome	IN	3fa8d493b19fb212 0.0484968332601491
+outcome	.	3fb9aec337196883 0.10032291503140027
+outcome	NNP	3fb86440dadb1f52 0.09527974455988655
+outcome	,	3fa4e5470d4d6f82 0.040811748861158584
+outcome	CD	3fa9c7994b093bd4 0.05035094300239221
+outcome	NNS	3fa87792c8a45e54 0.047787272446097845
+outcome	JJ	3fa5892bd0e6bd8e 0.04206215786995947
+outcome	MD	3fa062820dc9af80 0.03200155657108805
+outcome	VB	3fa35d63cd31d7d3 0.03782188300912961
+outcome	TO	3fa126f3b57653ef 0.033500305081510244
+outcome	PRP	3fa4131add8bb987 0.0392082591478014
+outcome	VBZ	3f9ef8399ba61e19 0.030243778348021253
+outcome	VBP	3facb7af14b4182b 0.05608889701584049
+outcome	$	3f99a0b5303d651e 0.025027113980603415
+outcome	RB	3f9840ea683d116e 0.02368513356420137
+outcome	CC	3fac2f5c56eefe99 0.05504883347702822
+outcome	VBN	3f98bdeeb4132904 0.024162034741302754
+end	46
+point	47	134	16	20	0	none
+context	def
+context	suf=а
+context	suf=ла
+context	suf=ела
+context	suf=дела
+context	pre=д
+context	pre=де
+context	pre=дел
+context	pre=дела
+context	w=дела
+context	p1w=как
+context	n1w=?
+context	p1S=begin
+context	wc=jah
+context	w&c=дела,jah
+context	t=NNP
+outcome	DT	3fab443063b505cb 0.05325461594703603
+outcome	NN	3fb23e2e1f1f3822 0.07126129398167838
+outcome	VBD	3fb7f52a6473bb4c 0.09358468010371473
+outcome	IN	3fa8d493b19fb212 0.0484968332601491
+outcome	.	3fb9aec337196883 0.10032291503140027
+outcome	NNP	3fb86440dadb1f52 0.09527974455988655
+outcome	,	3fa4e5470d4d6f82 0.040811748861158584
+outcome	CD	3fa9c7994b093bd4 0.05035094300239221
+outcome	NNS	3fa87792c8a45e54 0.047787272446097845
+outcome	JJ	3fa5892bd0e6bd8e 0.04206215786995947
+outcome	MD	3fa062820dc9af80 0.03200155657108805
+outcome	VB	3fa35d63cd31d7d3 0.03782188300912961
+outcome	TO	3fa126f3b57653ef 0.033500305081510244
+outcome	PRP	3fa4131add8bb987 0.0392082591478014
+outcome	VBZ	3f9ef8399ba61e19 0.030243778348021253
+outcome	VBP	3facb7af14b4182b 0.05608889701584049
+outcome	$	3f99a0b5303d651e 0.025027113980603415
+outcome	RB	3f9840ea683d116e 0.02368513356420137
+outcome	CC	3fac2f5c56eefe99 0.05504883347702822
+outcome	VBN	3f98bdeeb4132904 0.024162034741302754
+end	47
+point	48	134	16	20	0	none
+context	def
+context	suf=а
+context	suf=ла
+context	suf=ела
+context	suf=дела
+context	pre=д
+context	pre=де
+context	pre=дел
+context	pre=дела
+context	w=дела
+context	p1w=как
+context	n1w=?
+context	p1S=begin
+context	wc=jah
+context	w&c=дела,jah
+context	t=NNP
+outcome	DT	3fab443063b505cb 0.05325461594703603
+outcome	NN	3fb23e2e1f1f3822 0.07126129398167838
+outcome	VBD	3fb7f52a6473bb4c 0.09358468010371473
+outcome	IN	3fa8d493b19fb212 0.0484968332601491
+outcome	.	3fb9aec337196883 0.10032291503140027
+outcome	NNP	3fb86440dadb1f52 0.09527974455988655
+outcome	,	3fa4e5470d4d6f82 0.040811748861158584
+outcome	CD	3fa9c7994b093bd4 0.05035094300239221
+outcome	NNS	3fa87792c8a45e54 0.047787272446097845
+outcome	JJ	3fa5892bd0e6bd8e 0.04206215786995947
+outcome	MD	3fa062820dc9af80 0.03200155657108805
+outcome	VB	3fa35d63cd31d7d3 0.03782188300912961
+outcome	TO	3fa126f3b57653ef 0.033500305081510244
+outcome	PRP	3fa4131add8bb987 0.0392082591478014
+outcome	VBZ	3f9ef8399ba61e19 0.030243778348021253
+outcome	VBP	3facb7af14b4182b 0.05608889701584049
+outcome	$	3f99a0b5303d651e 0.025027113980603415
+outcome	RB	3f9840ea683d116e 0.02368513356420137
+outcome	CC	3fac2f5c56eefe99 0.05504883347702822
+outcome	VBN	3f98bdeeb4132904 0.024162034741302754
+end	48
+point	49	142	11	20	0	none
+context	def
+context	suf=?
+context	pre=?
+context	w=?
+context	p1w=дела
+context	p2w=как
+context	p2S=begin
+context	wc=other
+context	w&c=?,other
+context	t=.
+context	t2=NNP,.
+outcome	DT	3fb1dc284e2dedd1 0.06976558598210338
+outcome	NN	3faf4cf527b583a3 0.06113401517610064
+outcome	VBD	3fb2a9e40f20b5bd 0.07290482873278044
+outcome	IN	3fafe450515c9e32 0.06228877061067485
+outcome	.	3fc07f73d89148bd 0.1288895423372817
+outcome	NNP	3fae31f521a23ce5 0.0589748958164991
+outcome	,	3fadc28a26124f55 0.058124844691660606
+outcome	CD	3fa7b12226c8d9e9 0.04627329562611122
+outcome	NNS	3fadb63bab06af15 0.0580309530517679
+outcome	JJ	3fa5a0312dedaee4 0.04223779378557227
+outcome	MD	3fa44e5440d1e3ef 0.03966010371454575
+outcome	VB	3fa3f1c17c7c5e67 0.038953825422308345
+outcome	TO	3fa1aa5d8e75dc27 0.034502910270866764
+outcome	PRP	3fa4ace8c8ac41cf 0.040381693359566755
+outcome	VBZ	3f99cd4eb9731557 0.02519724852461044
+outcome	VBP	3fa3c03f86504c45 0.03857611193247882
+outcome	$	3f9e2dbfff20b9c4 0.029471397349135633
+outcome	RB	3f9f41d3413b2429 0.03052454076422265
+outcome	CC	3fa16ef3ba58168e 0.0340496220560854
+outcome	VBN	3f9ec787a132e691 0.03005802079562742
+end	49
+point	50	142	11	20	0	none
+context	def
+context	suf=?
+context	pre=?
+context	w=?
+context	p1w=дела
+context	p2w=как
+context	p2S=begin
+context	wc=other
+context	w&c=?,other
+context	t=.
+context	t2=NNP,.
+outcome	DT	3fb1dc284e2dedd1 0.06976558598210338
+outcome	NN	3faf4cf527b583a3 0.06113401517610064
+outcome	VBD	3fb2a9e40f20b5bd 0.07290482873278044
+outcome	IN	3fafe450515c9e32 0.06228877061067485
+outcome	.	3fc07f73d89148bd 0.1288895423372817
+outcome	NNP	3fae31f521a23ce5 0.0589748958164991
+outcome	,	3fadc28a26124f55 0.058124844691660606
+outcome	CD	3fa7b12226c8d9e9 0.04627329562611122
+outcome	NNS	3fadb63bab06af15 0.0580309530517679
+outcome	JJ	3fa5a0312dedaee4 0.04223779378557227
+outcome	MD	3fa44e5440d1e3ef 0.03966010371454575
+outcome	VB	3fa3f1c17c7c5e67 0.038953825422308345
+outcome	TO	3fa1aa5d8e75dc27 0.034502910270866764
+outcome	PRP	3fa4ace8c8ac41cf 0.040381693359566755
+outcome	VBZ	3f99cd4eb9731557 0.02519724852461044
+outcome	VBP	3fa3c03f86504c45 0.03857611193247882
+outcome	$	3f9e2dbfff20b9c4 0.029471397349135633
+outcome	RB	3f9f41d3413b2429 0.03052454076422265
+outcome	CC	3fa16ef3ba58168e 0.0340496220560854
+outcome	VBN	3f9ec787a132e691 0.03005802079562742
+end	50
+point	51	142	11	20	0	none
+context	def
+context	suf=?
+context	pre=?
+context	w=?
+context	p1w=дела
+context	p2w=как
+context	p2S=begin
+context	wc=other
+context	w&c=?,other
+context	t=.
+context	t2=NNP,.
+outcome	DT	3fb1dc284e2dedd1 0.06976558598210338
+outcome	NN	3faf4cf527b583a3 0.06113401517610064
+outcome	VBD	3fb2a9e40f20b5bd 0.07290482873278044
+outcome	IN	3fafe450515c9e32 0.06228877061067485
+outcome	.	3fc07f73d89148bd 0.1288895423372817
+outcome	NNP	3fae31f521a23ce5 0.0589748958164991
+outcome	,	3fadc28a26124f55 0.058124844691660606
+outcome	CD	3fa7b12226c8d9e9 0.04627329562611122
+outcome	NNS	3fadb63bab06af15 0.0580309530517679
+outcome	JJ	3fa5a0312dedaee4 0.04223779378557227
+outcome	MD	3fa44e5440d1e3ef 0.03966010371454575
+outcome	VB	3fa3f1c17c7c5e67 0.038953825422308345
+outcome	TO	3fa1aa5d8e75dc27 0.034502910270866764
+outcome	PRP	3fa4ace8c8ac41cf 0.040381693359566755
+outcome	VBZ	3f99cd4eb9731557 0.02519724852461044
+outcome	VBP	3fa3c03f86504c45 0.03857611193247882
+outcome	$	3f9e2dbfff20b9c4 0.029471397349135633
+outcome	RB	3f9f41d3413b2429 0.03052454076422265
+outcome	CC	3fa16ef3ba58168e 0.0340496220560854
+outcome	VBN	3f9ec787a132e691 0.03005802079562742
+end	51
+point	52	144	13	20	0	none
+context	def
+context	suf=о
+context	suf=то
+context	suf=Это
+context	pre=Э
+context	pre=Эт
+context	pre=Это
+context	w=это
+context	n1w=тест-проверка
+context	n2w=3,5
+context	S=begin
+context	wc=jah
+context	w&c=это,jah
+outcome	DT	3fb74e15d90a4798 0.09103523777801426
+outcome	NN	3faeae927b1b761c 0.05992563011907867
+outcome	VBD	3fad9fcc7a8dc1ac 0.05785979267136851
+outcome	IN	3fabb126c1cae9bf 0.054085932880713276
+outcome	.	3fb313734a287f7f 0.07451553879263705
+outcome	NNP	3fb837b6a5cc7b09 0.09460012004681685
+outcome	,	3fa366eecdfb8840 0.03789469017444036
+outcome	CD	3fa9a79077722727 0.05010653932647662
+outcome	NNS	3fb14909db62489d 0.0675207291226649
+outcome	JJ	3fa76ace52271c02 0.045736739662565654
+outcome	MD	3fa245e9444bf776 0.0356896301145601
+outcome	VB	3fa598b66f143d46 0.042180729922729074
+outcome	TO	3fa320fea35e2b86 0.0373611044334075
+outcome	PRP	3fb075315d22248f 0.06428822063220906
+outcome	VBZ	3f9bf07c6cf47851 0.027284568929751455
+outcome	VBP	3fa5631a923a5b42 0.04177172694215027
+outcome	$	3f9c94cec14771e0 0.02791140608484166
+outcome	RB	3f9b0c78ff413396 0.0264147668643094
+outcome	CC	3fa2e0a8d6d8d0e1 0.036870266176636475
+outcome	VBN	3f9b97e5aebf3231 0.026946629324628716
+end	52
+point	53	151	17	20	0	none
+context	def
+context	suf=а
+context	suf=ка
+context	suf=рка
+context	suf=ерка
+context	pre=т
+context	pre=те
+context	pre=тес
+context	pre=тест
+context	w=тест-проверка
+context	p1w=это
+context	n1w=3,5
+context	n2w=раза
+context	p1S=begin
+context	wc=other
+context	w&c=тест-проверка,other
+context	t=NNP
+outcome	DT	3fa88c1b7f918afa 0.04794393474801058
+outcome	NN	3fb2248eb5586472 0.070870322488547
+outcome	VBD	3fb5918d1e887596 0.08425218577800417
+outcome	IN	3fa65aaef6d0c627 0.04366060984501657
+outcome	.	3fc5a735addbefdc 0.16916533459868688
+outcome	NNP	3fb5f58fa0defff0 0.08577821424023546
+outcome	,	3fa81ec4796f19db 0.047109737227902314
+outcome	CD	3fa7357878691570 0.045329823206467945
+outcome	NNS	3fa606f4564a671b 0.04302180817940223
+outcome	JJ	3fa363625975f901 0.03786761610079915
+outcome	MD	3f9d807157ccba83 0.02881028269183129
+outcome	VB	3fa16f06d9054fbb 0.03405019187144328
+outcome	TO	3f9ee226a30cfaa0 0.03015957231695643
+outcome	PRP	3fa2129eea8d48d3 0.0352983151739338
+outcome	VBZ	3f9be19a5a8a21e0 0.027227794433686614
+outcome	VBP	3fa9da8e50c8ce9d 0.05049557434213379
+outcome	$	3f9a613524718efa 0.025761442517604906
+outcome	RB	3f96692554dccd20 0.02188547449550271
+outcome	CC	3fa95fd3c3358ab6 0.04955922849582832
+outcome	VBN	3f96464c10574143 0.02175253724800653
+end	53
+point	54	151	17	20	0	none
+context	def
+context	suf=а
+context	suf=ка
+context	suf=рка
+context	suf=ерка
+context	pre=т
+context	pre=те
+context	pre=тес
+context	pre=тест
+context	w=тест-проверка
+context	p1w=это
+context	n1w=3,5
+context	n2w=раза
+context	p1S=begin
+context	wc=other
+context	w&c=тест-проверка,other
+context	t=NNP
+outcome	DT	3fa88c1b7f918afa 0.04794393474801058
+outcome	NN	3fb2248eb5586472 0.070870322488547
+outcome	VBD	3fb5918d1e887596 0.08425218577800417
+outcome	IN	3fa65aaef6d0c627 0.04366060984501657
+outcome	.	3fc5a735addbefdc 0.16916533459868688
+outcome	NNP	3fb5f58fa0defff0 0.08577821424023546
+outcome	,	3fa81ec4796f19db 0.047109737227902314
+outcome	CD	3fa7357878691570 0.045329823206467945
+outcome	NNS	3fa606f4564a671b 0.04302180817940223
+outcome	JJ	3fa363625975f901 0.03786761610079915
+outcome	MD	3f9d807157ccba83 0.02881028269183129
+outcome	VB	3fa16f06d9054fbb 0.03405019187144328
+outcome	TO	3f9ee226a30cfaa0 0.03015957231695643
+outcome	PRP	3fa2129eea8d48d3 0.0352983151739338
+outcome	VBZ	3f9be19a5a8a21e0 0.027227794433686614
+outcome	VBP	3fa9da8e50c8ce9d 0.05049557434213379
+outcome	$	3f9a613524718efa 0.025761442517604906
+outcome	RB	3f96692554dccd20 0.02188547449550271
+outcome	CC	3fa95fd3c3358ab6 0.04955922849582832
+outcome	VBN	3f96464c10574143 0.02175253724800653
+end	54
+point	55	151	17	20	0	none
+context	def
+context	suf=а
+context	suf=ка
+context	suf=рка
+context	suf=ерка
+context	pre=т
+context	pre=те
+context	pre=тес
+context	pre=тест
+context	w=тест-проверка
+context	p1w=это
+context	n1w=3,5
+context	n2w=раза
+context	p1S=begin
+context	wc=other
+context	w&c=тест-проверка,other
+context	t=NNP
+outcome	DT	3fa88c1b7f918afa 0.04794393474801058
+outcome	NN	3fb2248eb5586472 0.070870322488547
+outcome	VBD	3fb5918d1e887596 0.08425218577800417
+outcome	IN	3fa65aaef6d0c627 0.04366060984501657
+outcome	.	3fc5a735addbefdc 0.16916533459868688
+outcome	NNP	3fb5f58fa0defff0 0.08577821424023546
+outcome	,	3fa81ec4796f19db 0.047109737227902314
+outcome	CD	3fa7357878691570 0.045329823206467945
+outcome	NNS	3fa606f4564a671b 0.04302180817940223
+outcome	JJ	3fa363625975f901 0.03786761610079915
+outcome	MD	3f9d807157ccba83 0.02881028269183129
+outcome	VB	3fa16f06d9054fbb 0.03405019187144328
+outcome	TO	3f9ee226a30cfaa0 0.03015957231695643
+outcome	PRP	3fa2129eea8d48d3 0.0352983151739338
+outcome	VBZ	3f9be19a5a8a21e0 0.027227794433686614
+outcome	VBP	3fa9da8e50c8ce9d 0.05049557434213379
+outcome	$	3f9a613524718efa 0.025761442517604906
+outcome	RB	3f96692554dccd20 0.02188547449550271
+outcome	CC	3fa95fd3c3358ab6 0.04955922849582832
+outcome	VBN	3f96464c10574143 0.02175253724800653
+end	55
+point	56	177	17	20	0	none
+context	def
+context	suf=5
+context	suf=,5
+context	suf=3,5
+context	pre=3
+context	pre=3,
+context	pre=3,5
+context	w=3,5
+context	p1w=тест-проверка
+context	p2w=это
+context	n1w=раза
+context	n2w=.
+context	p2S=begin
+context	wc=2d
+context	w&c=3,5,2d
+context	t=.
+context	t2=NNP,.
+outcome	DT	3fb4337f6ec80921 0.07891079382537615
+outcome	NN	3fa7b9b94014779c 0.046338833877810987
+outcome	VBD	3fb0bf7a586a0069 0.06542172106310463
+outcome	IN	3fb199d653419180 0.06875361950512193
+outcome	.	3fad807974203765 0.05762080709983656
+outcome	NNP	3fa78489b1bc63f3 0.045933058687474125
+outcome	,	3fa36f4c6954bcfd 0.037958515031613495
+outcome	CD	3fca2e0dd374bb34 0.2045304567813787
+outcome	NNS	3fa95a44041e5370 0.049516797545186786
+outcome	JJ	3fa3758d3b3cfc76 0.038006223183850205
+outcome	MD	3fa100b70fa148cf 0.03320858064457043
+outcome	VB	3fa0b3336183116f 0.03261719289142461
+outcome	TO	3fa4f264dc5c8b1c 0.040911819362255936
+outcome	PRP	3fa14fe8ee4a2ba6 0.03381278904733813
+outcome	VBZ	3f959ad1df321f52 0.02109840321330065
+outcome	VBP	3fa339922de9c11b 0.03754860697233849
+outcome	$	3f9dee7f97d18593 0.029230111733686902
+outcome	RB	3f9980066e3affeb 0.024902439573224838
+outcome	CC	3f9d31ec951528b9 0.028510758017809865
+outcome	VBN	3f99c5c38f8c0890 0.025168471943296356
+end	56
+point	57	177	17	20	0	none
+context	def
+context	suf=5
+context	suf=,5
+context	suf=3,5
+context	pre=3
+context	pre=3,
+context	pre=3,5
+context	w=3,5
+context	p1w=тест-проверка
+context	p2w=это
+context	n1w=раза
+context	n2w=.
+context	p2S=begin
+context	wc=2d
+context	w&c=3,5,2d
+context	t=.
+context	t2=NNP,.
+outcome	DT	3fb4337f6ec80921 0.07891079382537615
+outcome	NN	3fa7b9b94014779c 0.046338833877810987
+outcome	VBD	3fb0bf7a586a0069 0.06542172106310463
+outcome	IN	3fb199d653419180 0.06875361950512193
+outcome	.	3fad807974203765 0.05762080709983656
+outcome	NNP	3fa78489b1bc63f3 0.045933058687474125
+outcome	,	3fa36f4c6954bcfd 0.037958515031613495
+outcome	CD	3fca2e0dd374bb34 0.2045304567813787
+outcome	NNS	3fa95a44041e5370 0.049516797545186786
+outcome	JJ	3fa3758d3b3cfc76 0.038006223183850205
+outcome	MD	3fa100b70fa148cf 0.03320858064457043
+outcome	VB	3fa0b3336183116f 0.03261719289142461
+outcome	TO	3fa4f264dc5c8b1c 0.040911819362255936
+outcome	PRP	3fa14fe8ee4a2ba6 0.03381278904733813
+outcome	VBZ	3f959ad1df321f52 0.02109840321330065
+outcome	VBP	3fa339922de9c11b 0.03754860697233849
+outcome	$	3f9dee7f97d18593 0.029230111733686902
+outcome	RB	3f9980066e3affeb 0.024902439573224838
+outcome	CC	3f9d31ec951528b9 0.028510758017809865
+outcome	VBN	3f99c5c38f8c0890 0.025168471943296356
+end	57
+point	58	177	17	20	0	none
+context	def
+context	suf=5
+context	suf=,5
+context	suf=3,5
+context	pre=3
+context	pre=3,
+context	pre=3,5
+context	w=3,5
+context	p1w=тест-проверка
+context	p2w=это
+context	n1w=раза
+context	n2w=.
+context	p2S=begin
+context	wc=2d
+context	w&c=3,5,2d
+context	t=.
+context	t2=NNP,.
+outcome	DT	3fb4337f6ec80921 0.07891079382537615
+outcome	NN	3fa7b9b94014779c 0.046338833877810987
+outcome	VBD	3fb0bf7a586a0069 0.06542172106310463
+outcome	IN	3fb199d653419180 0.06875361950512193
+outcome	.	3fad807974203765 0.05762080709983656
+outcome	NNP	3fa78489b1bc63f3 0.045933058687474125
+outcome	,	3fa36f4c6954bcfd 0.037958515031613495
+outcome	CD	3fca2e0dd374bb34 0.2045304567813787
+outcome	NNS	3fa95a44041e5370 0.049516797545186786
+outcome	JJ	3fa3758d3b3cfc76 0.038006223183850205
+outcome	MD	3fa100b70fa148cf 0.03320858064457043
+outcome	VB	3fa0b3336183116f 0.03261719289142461
+outcome	TO	3fa4f264dc5c8b1c 0.040911819362255936
+outcome	PRP	3fa14fe8ee4a2ba6 0.03381278904733813
+outcome	VBZ	3f959ad1df321f52 0.02109840321330065
+outcome	VBP	3fa339922de9c11b 0.03754860697233849
+outcome	$	3f9dee7f97d18593 0.029230111733686902
+outcome	RB	3f9980066e3affeb 0.024902439573224838
+outcome	CC	3f9d31ec951528b9 0.028510758017809865
+outcome	VBN	3f99c5c38f8c0890 0.025168471943296356
+end	58
+point	59	181	17	20	0	none
+context	def
+context	suf=а
+context	suf=за
+context	suf=аза
+context	suf=раза
+context	pre=р
+context	pre=ра
+context	pre=раз
+context	pre=раза
+context	w=раза
+context	p1w=3,5
+context	p2w=тест-проверка
+context	n1w=.
+context	wc=jah
+context	w&c=раза,jah
+context	t=CD
+context	t2=.,CD
+outcome	DT	3faba49972011505 0.05399016873028909
+outcome	NN	3fc083be283a2f24 0.12902047123167748
+outcome	VBD	3faba7525dd189a6 0.05401093859906618
+outcome	IN	3fa92c5fbcb0b9c8 0.04916667154644788
+outcome	.	3fbe8447c9e78cc7 0.11920593909558184
+outcome	NNP	3fb32ce03c14f69d 0.07490350214808435
+outcome	,	3fa1a32d49b32044 0.03444806599287678
+outcome	CD	3fafc51476289c02 0.062050475524579
+outcome	NNS	3fb03f9c57470a84 0.06347062235639994
+outcome	JJ	3fa71206f2738c91 0.04505941114055035
+outcome	MD	3fa09c714c4295f1 0.03244356208714894
+outcome	VB	3fa3a1dc7f87df75 0.03834427887699025
+outcome	TO	3fa163998db96093 0.033963011312779255
+outcome	PRP	3fa45a161557ee2e 0.0397498036436129
+outcome	VBZ	3f9965f2ba945822 0.024802963865191548
+outcome	VBP	3fa37120db96278f 0.03797247581958551
+outcome	$	3f99fb53032010a8 0.0253727884919647
+outcome	RB	3f9896ac56c9f8ba 0.024012272641350953
+outcome	CC	3fa1291dba2fae89 0.033516816118063515
+outcome	VBN	3f99156aadb97673 0.024495760777759345
+end	59
+point	60	181	17	20	0	none
+context	def
+context	suf=а
+context	suf=за
+context	suf=аза
+context	suf=раза
+context	pre=р
+context	pre=ра
+context	pre=раз
+context	pre=раза
+context	w=раза
+context	p1w=3,5
+context	p2w=тест-проверка
+context	n1w=.
+context	wc=jah
+context	w&c=раза,jah
+context	t=CD
+context	t2=.,CD
+outcome	DT	3faba49972011505 0.05399016873028909
+outcome	NN	3fc083be283a2f24 0.12902047123167748
+outcome	VBD	3faba7525dd189a6 0.05401093859906618
+outcome	IN	3fa92c5fbcb0b9c8 0.04916667154644788
+outcome	.	3fbe8447c9e78cc7 0.11920593909558184
+outcome	NNP	3fb32ce03c14f69d 0.07490350214808435
+outcome	,	3fa1a32d49b32044 0.03444806599287678
+outcome	CD	3fafc51476289c02 0.062050475524579
+outcome	NNS	3fb03f9c57470a84 0.06347062235639994
+outcome	JJ	3fa71206f2738c91 0.04505941114055035
+outcome	MD	3fa09c714c4295f1 0.03244356208714894
+outcome	VB	3fa3a1dc7f87df75 0.03834427887699025
+outcome	TO	3fa163998db96093 0.033963011312779255
+outcome	PRP	3fa45a161557ee2e 0.0397498036436129
+outcome	VBZ	3f9965f2ba945822 0.024802963865191548
+outcome	VBP	3fa37120db96278f 0.03797247581958551
+outcome	$	3f99fb53032010a8 0.0253727884919647
+outcome	RB	3f9896ac56c9f8ba 0.024012272641350953
+outcome	CC	3fa1291dba2fae89 0.033516816118063515
+outcome	VBN	3f99156aadb97673 0.024495760777759345
+end	60
+point	61	181	17	20	0	none
+context	def
+context	suf=а
+context	suf=за
+context	suf=аза
+context	suf=раза
+context	pre=р
+context	pre=ра
+context	pre=раз
+context	pre=раза
+context	w=раза
+context	p1w=3,5
+context	p2w=тест-проверка
+context	n1w=.
+context	wc=jah
+context	w&c=раза,jah
+context	t=CD
+context	t2=.,CD
+outcome	DT	3faba49972011505 0.05399016873028909
+outcome	NN	3fc083be283a2f24 0.12902047123167748
+outcome	VBD	3faba7525dd189a6 0.05401093859906618
+outcome	IN	3fa92c5fbcb0b9c8 0.04916667154644788
+outcome	.	3fbe8447c9e78cc7 0.11920593909558184
+outcome	NNP	3fb32ce03c14f69d 0.07490350214808435
+outcome	,	3fa1a32d49b32044 0.03444806599287678
+outcome	CD	3fafc51476289c02 0.062050475524579
+outcome	NNS	3fb03f9c57470a84 0.06347062235639994
+outcome	JJ	3fa71206f2738c91 0.04505941114055035
+outcome	MD	3fa09c714c4295f1 0.03244356208714894
+outcome	VB	3fa3a1dc7f87df75 0.03834427887699025
+outcome	TO	3fa163998db96093 0.033963011312779255
+outcome	PRP	3fa45a161557ee2e 0.0397498036436129
+outcome	VBZ	3f9965f2ba945822 0.024802963865191548
+outcome	VBP	3fa37120db96278f 0.03797247581958551
+outcome	$	3f99fb53032010a8 0.0253727884919647
+outcome	RB	3f9896ac56c9f8ba 0.024012272641350953
+outcome	CC	3fa1291dba2fae89 0.033516816118063515
+outcome	VBN	3f99156aadb97673 0.024495760777759345
+end	61
+point	62	189	10	20	0	none
+context	def
+context	suf=.
+context	pre=.
+context	w=.
+context	p1w=раза
+context	p2w=3,5
+context	wc=other
+context	w&c=.,other
+context	t=NN
+context	t2=CD,NN
+outcome	DT	3f7fc84553697eb8 0.007759352497117504
+outcome	NN	3f81b65713fa87b4 0.00864856748313856
+outcome	VBD	3f83c145b7f27b68 0.009645981479761992
+outcome	IN	3f83a15218a6f257 0.009585038544963327
+outcome	.	3fec32dea62eb505 0.8812096830130548
+outcome	NNP	3f85caea22e775a6 0.010640935125531947
+outcome	,	3f7a002c572356c6 0.006347821430798544
+outcome	CD	3f7ad039f90498e3 0.0065462364730477255
+outcome	NNS	3f7c84f7885d5df1 0.006962744640837113
+outcome	JJ	3f7879989b55919e 0.005975338096821407
+outcome	MD	3f768a53efa5f69a 0.005503013492100495
+outcome	VB	3f769272f1ede8ec 0.0055107584038245165
+outcome	TO	3f73fe3223033901 0.004881091925382331
+outcome	PRP	3f776642a61309b0 0.00571275744113324
+outcome	VBZ	3f6d3391ce32b14f 0.003564629341403037
+outcome	VBP	3f765a6b2a1b7dda 0.0054573236572816545
+outcome	$	3f7113d0f5385c67 0.004169288865816779
+outcome	RB	3f6d041958dc0220 0.0035419936237988253
+outcome	CC	3f73baf462453282 0.0048169656987054905
+outcome	VBN	3f6cd6faa53f80c6 0.0035204787654806472
+end	62
+point	63	189	10	20	0	none
+context	def
+context	suf=.
+context	pre=.
+context	w=.
+context	p1w=раза
+context	p2w=3,5
+context	wc=other
+context	w&c=.,other
+context	t=NN
+context	t2=CD,NN
+outcome	DT	3f7fc84553697eb8 0.007759352497117504
+outcome	NN	3f81b65713fa87b4 0.00864856748313856
+outcome	VBD	3f83c145b7f27b68 0.009645981479761992
+outcome	IN	3f83a15218a6f257 0.009585038544963327
+outcome	.	3fec32dea62eb505 0.8812096830130548
+outcome	NNP	3f85caea22e775a6 0.010640935125531947
+outcome	,	3f7a002c572356c6 0.006347821430798544
+outcome	CD	3f7ad039f90498e3 0.0065462364730477255
+outcome	NNS	3f7c84f7885d5df1 0.006962744640837113
+outcome	JJ	3f7879989b55919e 0.005975338096821407
+outcome	MD	3f768a53efa5f69a 0.005503013492100495
+outcome	VB	3f769272f1ede8ec 0.0055107584038245165
+outcome	TO	3f73fe3223033901 0.004881091925382331
+outcome	PRP	3f776642a61309b0 0.00571275744113324
+outcome	VBZ	3f6d3391ce32b14f 0.003564629341403037
+outcome	VBP	3f765a6b2a1b7dda 0.0054573236572816545
+outcome	$	3f7113d0f5385c67 0.004169288865816779
+outcome	RB	3f6d041958dc0220 0.0035419936237988253
+outcome	CC	3f73baf462453282 0.0048169656987054905
+outcome	VBN	3f6cd6faa53f80c6 0.0035204787654806472
+end	63
+point	64	189	10	20	0	none
+context	def
+context	suf=.
+context	pre=.
+context	w=.
+context	p1w=раза
+context	p2w=3,5
+context	wc=other
+context	w&c=.,other
+context	t=NN
+context	t2=CD,NN
+outcome	DT	3f7fc84553697eb8 0.007759352497117504
+outcome	NN	3f81b65713fa87b4 0.00864856748313856
+outcome	VBD	3f83c145b7f27b68 0.009645981479761992
+outcome	IN	3f83a15218a6f257 0.009585038544963327
+outcome	.	3fec32dea62eb505 0.8812096830130548
+outcome	NNP	3f85caea22e775a6 0.010640935125531947
+outcome	,	3f7a002c572356c6 0.006347821430798544
+outcome	CD	3f7ad039f90498e3 0.0065462364730477255
+outcome	NNS	3f7c84f7885d5df1 0.006962744640837113
+outcome	JJ	3f7879989b55919e 0.005975338096821407
+outcome	MD	3f768a53efa5f69a 0.005503013492100495
+outcome	VB	3f769272f1ede8ec 0.0055107584038245165
+outcome	TO	3f73fe3223033901 0.004881091925382331
+outcome	PRP	3f776642a61309b0 0.00571275744113324
+outcome	VBZ	3f6d3391ce32b14f 0.003564629341403037
+outcome	VBP	3f765a6b2a1b7dda 0.0054573236572816545
+outcome	$	3f7113d0f5385c67 0.004169288865816779
+outcome	RB	3f6d041958dc0220 0.0035419936237988253
+outcome	CC	3f73baf462453282 0.0048169656987054905
+outcome	VBN	3f6cd6faa53f80c6 0.0035204787654806472
+end	64

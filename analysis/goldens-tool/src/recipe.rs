@@ -36,7 +36,7 @@ pub struct Model {
 /// The published models, in the order the generator loads them. The file
 /// names are the ones the generator's `Runs` class opens in the models
 /// directory.
-pub const MODELS: [Model; 9] = [
+pub const MODELS: [Model; 13] = [
     Model {
         file: "opennlp-en-ud-ewt-sentence-1.3-2.5.4.bin",
         url: "https://downloads.apache.org/opennlp/models/ud-models-1.3/opennlp-en-ud-ewt-sentence-1.3-2.5.4.bin",
@@ -84,6 +84,30 @@ pub const MODELS: [Model; 9] = [
         url: "https://downloads.apache.org/opennlp/models/ud-models-1.3/opennlp-pt-ud-gsd-tokens-1.3-2.5.4.bin",
         sha512: "6ff66aec4835e9d5caeeb50a2e70bd673840ef6219fe1dc4018c8f9999b21b95\
                  9c52fdac68844a0934bbcd77346743627f728fb9c99b7ca468e795fc5291c3bb",
+    },
+    Model {
+        file: "opennlp-en-ud-ewt-pos-1.3-2.5.4.bin",
+        url: "https://downloads.apache.org/opennlp/models/ud-models-1.3/opennlp-en-ud-ewt-pos-1.3-2.5.4.bin",
+        sha512: "fca85b38d996b7c422401054feedeb0f748cbc03856893cb27670da5d207315e\
+                 c9af0c0f818c3107a741a2effca2499b5097ac0b46edf4a5ac10bf77a351ac3e",
+    },
+    Model {
+        file: "opennlp-de-ud-gsd-pos-1.3-2.5.4.bin",
+        url: "https://downloads.apache.org/opennlp/models/ud-models-1.3/opennlp-de-ud-gsd-pos-1.3-2.5.4.bin",
+        sha512: "9e44d582874464924a8baf8fbfed7500e15112c3dc446bfc5be281bff4dbbf19\
+                 5eda0a16ca7e78fde7a64a684c0f780b5987723db800ce88465b9894ef0ba17b",
+    },
+    Model {
+        file: "opennlp-en-ud-ewt-lemmas-1.3-2.5.4.bin",
+        url: "https://downloads.apache.org/opennlp/models/ud-models-1.3/opennlp-en-ud-ewt-lemmas-1.3-2.5.4.bin",
+        sha512: "ee81553985908ac25c50fbd8f2ca4222cb42a18845f063c792a1b43639181b70\
+                 ce20d57b8736a1604367f5e8c59aef55f8463e04004840cbc88abb7123fd9e7f",
+    },
+    Model {
+        file: "opennlp-de-ud-gsd-lemmas-1.3-2.5.4.bin",
+        url: "https://downloads.apache.org/opennlp/models/ud-models-1.3/opennlp-de-ud-gsd-lemmas-1.3-2.5.4.bin",
+        sha512: "616c83327e1af12c8952f362fd99be6efcdc4e28526bee1debf27d3446110ded\
+                 9beef7e0e2acc9b3094039683c9b4b2b2b0ba32dbf194278d5017e2b21e66371",
     },
     Model {
         file: "langdetect-183.bin",
@@ -164,7 +188,7 @@ pub struct Fixture {
 /// file names are the ones the generator's `Runs` class opens there; a
 /// fixture in a subdirectory is a file of a dictionary directory, and
 /// `Runs` opens the directory.
-pub const FIXTURES: [Fixture; 27] = [
+pub const FIXTURES: [Fixture; 30] = [
     Fixture {
         file: "en-abbrev.bin",
         sha512: "759ab1defc61351f53cdd82a26e708789a225feb6e1ec0cfd6e2e54f35f67c14\
@@ -184,6 +208,21 @@ pub const FIXTURES: [Fixture; 27] = [
         file: "tokenizer-abbreviations.bin",
         sha512: "361484f0a67e129fe6f19908704d23e83c8a2bf4551a5f7eec3b40b9082a66b7\
                  026d429233c11639b35bccf042d347d79222cfed62685563f2a926cb8a2460d4",
+    },
+    Fixture {
+        file: "pos-fixture.bin",
+        sha512: "70bd00e5c7baba5552e311ad002aa382fd57aa2bc5248ffe6008476546df3799\
+                 a4e8578c3e6e90aa51d4a766857d07fa7003d395151d292ede3804fc308d5d32",
+    },
+    Fixture {
+        file: "lemmatizer-dictionary.txt",
+        sha512: "e642dfeb8d0b9f45b1853808878afa8a0a3cbe9f738a0646b9e4cafdaf8bb8c9\
+                 15aa548d72833274e877a2b57118906557512d9e6fe22b320c7be87fc964e707",
+    },
+    Fixture {
+        file: "chunker-fixture.bin",
+        sha512: "be8e0bfd341644705a652b85b978e4138056922ddb9caea1ac9a2395f0648e55\
+                 ad1f1b035d90f6febc0f057f832cecac377f397552fdbdfefadaa27cfa232d6a",
     },
     Fixture {
         file: "english-dictionary.xml",
@@ -336,9 +375,13 @@ pub const GENERATOR_ARGS: [&str; 1] = ["--dumps"];
 /// replaces and `verify` compares. The data directory holds other things
 /// (the inputs, the fixtures, the rate snapshot, a README) that neither
 /// touches.
-pub const ANNOTATORS: [&str; 16] = [
+pub const ANNOTATORS: [&str; 20] = [
     "sentdetect",
     "tokenize",
+    "postag",
+    "lemmatize",
+    "lemmatize-dictionary",
+    "chunk",
     "langdetect",
     "normalize",
     "numbers",
@@ -362,7 +405,7 @@ pub const ANNOTATORS: [&str; 16] = [
 /// normalizers, the number scan, the money and quantity annotators,
 /// the detokenizer, the WordPiece encoder, the unigram segmenter, the
 /// BPE trainer and the lattice tokenizer, which ask no model.
-pub const DUMPED_ANNOTATORS: [&str; 3] = ["sentdetect", "tokenize", "langdetect"];
+pub const DUMPED_ANNOTATORS: [&str; 6] = ["sentdetect", "tokenize", "postag", "lemmatize", "chunk", "langdetect"];
 
 /// The input set the normalizers run on. They run on no other set, and the
 /// other annotators do not run on this one.

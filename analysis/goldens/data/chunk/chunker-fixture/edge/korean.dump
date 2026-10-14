@@ -1,0 +1,2102 @@
+dump 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	edge/korean	71	29	60ba1fd14bb56d1bbd0a9ccc6162453017a491f787a98c5a8f0cd592411f196e
+model	chunker-fixture.bin	be8e0bfd341644705a652b85b978e4138056922ddb9caea1ac9a2395f0648e55ad1f1b035d90f6febc0f057f832cecac377f397552fdbdfefadaa27cfa232d6a
+model	opennlp-en-ud-ewt-sentence-1.3-2.5.4.bin	fed5d53ea87bf66afeb08c084f89ca9b95a96de0920dca40487b2ab9972ee6b7ef211e477db480b7253431de079fd66dfd14329cd7d19ad1f565155eb0cf5191
+model	opennlp-en-ud-ewt-tokens-1.3-2.5.4.bin	147d1cdcb89ca5d9bd0ead8fddf2cc14ae543a9151803fe56b3c1fa152b986605e34fb6dda4819c68aa22fc9bffa6bfab14f916b7d0bf4892d452686af34778a
+model	opennlp-en-ud-ewt-pos-1.3-2.5.4.bin	fca85b38d996b7c422401054feedeb0f748cbc03856893cb27670da5d207315ec9af0c0f818c3107a741a2effca2499b5097ac0b46edf4a5ac10bf77a351ac3e
+annotator	opennlp.tools.chunker.ChunkerME	chunk
+point	0	0	41	8	0	none
+context	w_2=bos
+context	w_1=bos
+context	w0=안녕하세요
+context	w1=.
+context	w2=eos
+context	w_1=bosw0=안녕하세요
+context	w0=안녕하세요w1=.
+context	t_2=bos
+context	t_1=bos
+context	t0=NN
+context	t1=.
+context	t2=eos
+context	t_2=bost_1=bos
+context	t_1=bost0=NN
+context	t0=NNt1=.
+context	t1=.t2=eos
+context	t_2=bost_1=bost0=NN
+context	t_1=bost0=NNt1=.
+context	t0=NNt1=.t2=eos
+context	p_2=bos
+context	p_1=bos
+context	p_2=bosp_1=bos
+context	p_1=bost_2=bos
+context	p_1=bost_1=bos
+context	p_1=bost0=NN
+context	p_1=bost1=.
+context	p_1=bost2=eos
+context	p_1=bost_2=bost_1=bos
+context	p_1=bost_1=bost0=NN
+context	p_1=bost0=NNt1=.
+context	p_1=bost1=.t2=eos
+context	p_1=bost_2=bost_1=bost0=NN
+context	p_1=bost_1=bost0=NNt1=.
+context	p_1=bost0=NNt1=.t2=eos
+context	p_1=bosw_2=bos
+context	p_1=bosw_1=bos
+context	p_1=bosw0=안녕하세요
+context	p_1=bosw1=.
+context	p_1=bosw2=eos
+context	p_1=bosw_1=bosw0=안녕하세요
+context	p_1=bosw0=안녕하세요w1=.
+outcome	B-NP	3fd34f3ecb720de7 0.3017117487690641
+outcome	I-NP	3fa81dd69d70575c 0.04710264846668963
+outcome	B-VP	3fbc6a12c14e96e8 0.1109935495320219
+outcome	B-PP	3fbc6a12c14e96e8 0.1109935495320219
+outcome	O	3fb8a1bbbcf6aa35 0.0962178551041369
+outcome	B-ADJP	3fbc6a12c14e96e8 0.1109935495320219
+outcome	I-VP	3fbc6a12c14e96e8 0.1109935495320219
+outcome	B-SBAR	3fbc6a12c14e96e8 0.1109935495320219
+end	0
+point	1	15	41	8	0	none
+context	w_2=bos
+context	w_1=안녕하세요
+context	w0=.
+context	w1=eos
+context	w2=eos
+context	w_1=안녕하세요w0=.
+context	w0=.w1=eos
+context	t_2=bos
+context	t_1=NN
+context	t0=.
+context	t1=eos
+context	t2=eos
+context	t_2=bost_1=NN
+context	t_1=NNt0=.
+context	t0=.t1=eos
+context	t1=eost2=eos
+context	t_2=bost_1=NNt0=.
+context	t_1=NNt0=.t1=eos
+context	t0=.t1=eost2=eos
+context	p_2=bos
+context	p_1=B-NP
+context	p_2=bosp_1=B-NP
+context	p_1=B-NPt_2=bos
+context	p_1=B-NPt_1=NN
+context	p_1=B-NPt0=.
+context	p_1=B-NPt1=eos
+context	p_1=B-NPt2=eos
+context	p_1=B-NPt_2=bost_1=NN
+context	p_1=B-NPt_1=NNt0=.
+context	p_1=B-NPt0=.t1=eos
+context	p_1=B-NPt1=eost2=eos
+context	p_1=B-NPt_2=bost_1=NNt0=.
+context	p_1=B-NPt_1=NNt0=.t1=eos
+context	p_1=B-NPt0=.t1=eost2=eos
+context	p_1=B-NPw_2=bos
+context	p_1=B-NPw_1=안녕하세요
+context	p_1=B-NPw0=.
+context	p_1=B-NPw1=eos
+context	p_1=B-NPw2=eos
+context	p_1=B-NPw_1=안녕하세요w0=.
+context	p_1=B-NPw0=.w1=eos
+outcome	B-NP	3fb4d0252dd011cd 0.08130104416347379
+outcome	I-NP	3fb02072440e7899 0.06299509202514954
+outcome	B-VP	3fb84166a0568723 0.09474793829442922
+outcome	B-PP	3fbeabebee983777 0.11981081557334315
+outcome	O	3fd381806d70204c 0.3047791546564482
+outcome	B-ADJP	3fbcb406c32611f4 0.11212198509571875
+outcome	I-VP	3fbcb406c32611f4 0.11212198509571875
+outcome	B-SBAR	3fbcb406c32611f4 0.11212198509571875
+end	1
+point	2	15	41	8	0	none
+context	w_2=bos
+context	w_1=안녕하세요
+context	w0=.
+context	w1=eos
+context	w2=eos
+context	w_1=안녕하세요w0=.
+context	w0=.w1=eos
+context	t_2=bos
+context	t_1=NN
+context	t0=.
+context	t1=eos
+context	t2=eos
+context	t_2=bost_1=NN
+context	t_1=NNt0=.
+context	t0=.t1=eos
+context	t1=eost2=eos
+context	t_2=bost_1=NNt0=.
+context	t_1=NNt0=.t1=eos
+context	t0=.t1=eost2=eos
+context	p_2=bos
+context	p_1=B-ADJP
+context	p_2=bosp_1=B-ADJP
+context	p_1=B-ADJPt_2=bos
+context	p_1=B-ADJPt_1=NN
+context	p_1=B-ADJPt0=.
+context	p_1=B-ADJPt1=eos
+context	p_1=B-ADJPt2=eos
+context	p_1=B-ADJPt_2=bost_1=NN
+context	p_1=B-ADJPt_1=NNt0=.
+context	p_1=B-ADJPt0=.t1=eos
+context	p_1=B-ADJPt1=eost2=eos
+context	p_1=B-ADJPt_2=bost_1=NNt0=.
+context	p_1=B-ADJPt_1=NNt0=.t1=eos
+context	p_1=B-ADJPt0=.t1=eost2=eos
+context	p_1=B-ADJPw_2=bos
+context	p_1=B-ADJPw_1=안녕하세요
+context	p_1=B-ADJPw0=.
+context	p_1=B-ADJPw1=eos
+context	p_1=B-ADJPw2=eos
+context	p_1=B-ADJPw_1=안녕하세요w0=.
+context	p_1=B-ADJPw0=.w1=eos
+outcome	B-NP	3fb9e8daf9179d1c 0.10120934087136785
+outcome	I-NP	3fb0b88a405f2013 0.06531585761615614
+outcome	B-VP	3fb31190dc4a1423 0.07448678377302591
+outcome	B-PP	3fbe33a1f8918dd1 0.11797535246437653
+outcome	O	3fd380785adb69e1 0.3047161948467459
+outcome	B-ADJP	3fbcb2822cbffdc7 0.11209882347610921
+outcome	I-VP	3fbcb2822cbffdc7 0.11209882347610921
+outcome	B-SBAR	3fbcb2822cbffdc7 0.11209882347610921
+end	2
+point	3	15	41	8	0	none
+context	w_2=bos
+context	w_1=안녕하세요
+context	w0=.
+context	w1=eos
+context	w2=eos
+context	w_1=안녕하세요w0=.
+context	w0=.w1=eos
+context	t_2=bos
+context	t_1=NN
+context	t0=.
+context	t1=eos
+context	t2=eos
+context	t_2=bost_1=NN
+context	t_1=NNt0=.
+context	t0=.t1=eos
+context	t1=eost2=eos
+context	t_2=bost_1=NNt0=.
+context	t_1=NNt0=.t1=eos
+context	t0=.t1=eost2=eos
+context	p_2=bos
+context	p_1=B-PP
+context	p_2=bosp_1=B-PP
+context	p_1=B-PPt_2=bos
+context	p_1=B-PPt_1=NN
+context	p_1=B-PPt0=.
+context	p_1=B-PPt1=eos
+context	p_1=B-PPt2=eos
+context	p_1=B-PPt_2=bost_1=NN
+context	p_1=B-PPt_1=NNt0=.
+context	p_1=B-PPt0=.t1=eos
+context	p_1=B-PPt1=eost2=eos
+context	p_1=B-PPt_2=bost_1=NNt0=.
+context	p_1=B-PPt_1=NNt0=.t1=eos
+context	p_1=B-PPt0=.t1=eost2=eos
+context	p_1=B-PPw_2=bos
+context	p_1=B-PPw_1=안녕하세요
+context	p_1=B-PPw0=.
+context	p_1=B-PPw1=eos
+context	p_1=B-PPw2=eos
+context	p_1=B-PPw_1=안녕하세요w0=.
+context	p_1=B-PPw0=.w1=eos
+outcome	B-NP	3fc12ccd8c1add2f 0.13417977658330346
+outcome	I-NP	3facbcb4f504557c 0.05612721911362947
+outcome	B-VP	3fb0f2d25f87af5c 0.06620516617084377
+outcome	B-PP	3fbc54a1884798c3 0.11066636635914322
+outcome	O	3fd340ac7b28821f 0.30082237269565043
+outcome	B-ADJP	3fbc54a1884798c3 0.11066636635914322
+outcome	I-VP	3fbc54a1884798c3 0.11066636635914322
+outcome	B-SBAR	3fbc54a1884798c3 0.11066636635914322
+end	3
+point	4	15	41	8	0	none
+context	w_2=bos
+context	w_1=안녕하세요
+context	w0=.
+context	w1=eos
+context	w2=eos
+context	w_1=안녕하세요w0=.
+context	w0=.w1=eos
+context	t_2=bos
+context	t_1=NN
+context	t0=.
+context	t1=eos
+context	t2=eos
+context	t_2=bost_1=NN
+context	t_1=NNt0=.
+context	t0=.t1=eos
+context	t1=eost2=eos
+context	t_2=bost_1=NNt0=.
+context	t_1=NNt0=.t1=eos
+context	t0=.t1=eost2=eos
+context	p_2=bos
+context	p_1=B-SBAR
+context	p_2=bosp_1=B-SBAR
+context	p_1=B-SBARt_2=bos
+context	p_1=B-SBARt_1=NN
+context	p_1=B-SBARt0=.
+context	p_1=B-SBARt1=eos
+context	p_1=B-SBARt2=eos
+context	p_1=B-SBARt_2=bost_1=NN
+context	p_1=B-SBARt_1=NNt0=.
+context	p_1=B-SBARt0=.t1=eos
+context	p_1=B-SBARt1=eost2=eos
+context	p_1=B-SBARt_2=bost_1=NNt0=.
+context	p_1=B-SBARt_1=NNt0=.t1=eos
+context	p_1=B-SBARt0=.t1=eost2=eos
+context	p_1=B-SBARw_2=bos
+context	p_1=B-SBARw_1=안녕하세요
+context	p_1=B-SBARw0=.
+context	p_1=B-SBARw1=eos
+context	p_1=B-SBARw2=eos
+context	p_1=B-SBARw_1=안녕하세요w0=.
+context	p_1=B-SBARw0=.w1=eos
+outcome	B-NP	3fbb249319aba441 0.10602683426590521
+outcome	I-NP	3fb0362e517f5ada 0.0633267353981454
+outcome	B-VP	3fb29e8172ae8102 0.07273110437245481
+outcome	B-PP	3fbe3aa992130fb5 0.11808261696120222
+outcome	O	3fd37747b808871b 0.30415528270724373
+outcome	B-ADJP	3fbca4fc3aa5c696 0.11189247543168288
+outcome	I-VP	3fbca4fc3aa5c696 0.11189247543168288
+outcome	B-SBAR	3fbca4fc3aa5c696 0.11189247543168288
+end	4
+point	5	15	41	8	0	none
+context	w_2=bos
+context	w_1=안녕하세요
+context	w0=.
+context	w1=eos
+context	w2=eos
+context	w_1=안녕하세요w0=.
+context	w0=.w1=eos
+context	t_2=bos
+context	t_1=NN
+context	t0=.
+context	t1=eos
+context	t2=eos
+context	t_2=bost_1=NN
+context	t_1=NNt0=.
+context	t0=.t1=eos
+context	t1=eost2=eos
+context	t_2=bost_1=NNt0=.
+context	t_1=NNt0=.t1=eos
+context	t0=.t1=eost2=eos
+context	p_2=bos
+context	p_1=B-VP
+context	p_2=bosp_1=B-VP
+context	p_1=B-VPt_2=bos
+context	p_1=B-VPt_1=NN
+context	p_1=B-VPt0=.
+context	p_1=B-VPt1=eos
+context	p_1=B-VPt2=eos
+context	p_1=B-VPt_2=bost_1=NN
+context	p_1=B-VPt_1=NNt0=.
+context	p_1=B-VPt0=.t1=eos
+context	p_1=B-VPt1=eost2=eos
+context	p_1=B-VPt_2=bost_1=NNt0=.
+context	p_1=B-VPt_1=NNt0=.t1=eos
+context	p_1=B-VPt0=.t1=eost2=eos
+context	p_1=B-VPw_2=bos
+context	p_1=B-VPw_1=안녕하세요
+context	p_1=B-VPw0=.
+context	p_1=B-VPw1=eos
+context	p_1=B-VPw2=eos
+context	p_1=B-VPw_1=안녕하세요w0=.
+context	p_1=B-VPw0=.w1=eos
+outcome	B-NP	3fbc92a948b7357e 0.11161287331852596
+outcome	I-NP	3faea595d271ec31 0.05985706514271561
+outcome	B-VP	3fb292984abe52b7 0.07254936051169635
+outcome	B-PP	3fbdec2c4bf09d13 0.11688496450425516
+outcome	O	3fd36ad3e4266066 0.30339524536385054
+outcome	B-ADJP	3fbc92a948b7357e 0.11161287331852596
+outcome	I-VP	3fbc92a948b7357e 0.11161287331852596
+outcome	B-SBAR	3fbccb251558f812 0.11247474452190456
+end	5
+point	6	15	41	8	0	none
+context	w_2=bos
+context	w_1=안녕하세요
+context	w0=.
+context	w1=eos
+context	w2=eos
+context	w_1=안녕하세요w0=.
+context	w0=.w1=eos
+context	t_2=bos
+context	t_1=NN
+context	t0=.
+context	t1=eos
+context	t2=eos
+context	t_2=bost_1=NN
+context	t_1=NNt0=.
+context	t0=.t1=eos
+context	t1=eost2=eos
+context	t_2=bost_1=NNt0=.
+context	t_1=NNt0=.t1=eos
+context	t0=.t1=eost2=eos
+context	p_2=bos
+context	p_1=O
+context	p_2=bosp_1=O
+context	p_1=Ot_2=bos
+context	p_1=Ot_1=NN
+context	p_1=Ot0=.
+context	p_1=Ot1=eos
+context	p_1=Ot2=eos
+context	p_1=Ot_2=bost_1=NN
+context	p_1=Ot_1=NNt0=.
+context	p_1=Ot0=.t1=eos
+context	p_1=Ot1=eost2=eos
+context	p_1=Ot_2=bost_1=NNt0=.
+context	p_1=Ot_1=NNt0=.t1=eos
+context	p_1=Ot0=.t1=eost2=eos
+context	p_1=Ow_2=bos
+context	p_1=Ow_1=안녕하세요
+context	p_1=Ow0=.
+context	p_1=Ow1=eos
+context	p_1=Ow2=eos
+context	p_1=Ow_1=안녕하세요w0=.
+context	p_1=Ow0=.w1=eos
+outcome	B-NP	3fbb33a94ddb51aa 0.10625703955458357
+outcome	I-NP	3fb03f31199d1c3a 0.06346423030218853
+outcome	B-VP	3fb3b11ef69bfb5a 0.07692140122160876
+outcome	B-PP	3fbcb4e8194354ad 0.11213541619084096
+outcome	O	3fd382198f379102 0.30481566415825523
+outcome	B-ADJP	3fbcb4e8194354ad 0.11213541619084096
+outcome	I-VP	3fbcb4e8194354ad 0.11213541619084096
+outcome	B-SBAR	3fbcb4e8194354ad 0.11213541619084096
+end	6
+point	7	17	41	8	0	none
+context	w_2=bos
+context	w_1=bos
+context	w0=저는
+context	w1=한국어를
+context	w2=공부합니다
+context	w_1=bosw0=저는
+context	w0=저는w1=한국어를
+context	t_2=bos
+context	t_1=bos
+context	t0=PRP
+context	t1=VB
+context	t2=NN
+context	t_2=bost_1=bos
+context	t_1=bost0=PRP
+context	t0=PRPt1=VB
+context	t1=VBt2=NN
+context	t_2=bost_1=bost0=PRP
+context	t_1=bost0=PRPt1=VB
+context	t0=PRPt1=VBt2=NN
+context	p_2=bos
+context	p_1=bos
+context	p_2=bosp_1=bos
+context	p_1=bost_2=bos
+context	p_1=bost_1=bos
+context	p_1=bost0=PRP
+context	p_1=bost1=VB
+context	p_1=bost2=NN
+context	p_1=bost_2=bost_1=bos
+context	p_1=bost_1=bost0=PRP
+context	p_1=bost0=PRPt1=VB
+context	p_1=bost1=VBt2=NN
+context	p_1=bost_2=bost_1=bost0=PRP
+context	p_1=bost_1=bost0=PRPt1=VB
+context	p_1=bost0=PRPt1=VBt2=NN
+context	p_1=bosw_2=bos
+context	p_1=bosw_1=bos
+context	p_1=bosw0=저는
+context	p_1=bosw1=한국어를
+context	p_1=bosw2=공부합니다
+context	p_1=bosw_1=bosw0=저는
+context	p_1=bosw0=저는w1=한국어를
+outcome	B-NP	3fcbfc36ee861d5c 0.2186344780604753
+outcome	I-NP	3fa5a6ffb16dbff2 0.04228972473981675
+outcome	B-VP	3fc507be9c9fd953 0.16429884574581397
+outcome	B-PP	3fbd6db769cc3d55 0.1149553902907788
+outcome	O	3fbd6db769cc3d55 0.1149553902907788
+outcome	B-ADJP	3fbd6db769cc3d55 0.1149553902907788
+outcome	I-VP	3fbd6db769cc3d55 0.1149553902907788
+outcome	B-SBAR	3fbd6db769cc3d55 0.1149553902907788
+end	7
+point	8	24	41	8	0	none
+context	w_2=bos
+context	w_1=저는
+context	w0=한국어를
+context	w1=공부합니다
+context	w2=.
+context	w_1=저는w0=한국어를
+context	w0=한국어를w1=공부합니다
+context	t_2=bos
+context	t_1=PRP
+context	t0=VB
+context	t1=NN
+context	t2=.
+context	t_2=bost_1=PRP
+context	t_1=PRPt0=VB
+context	t0=VBt1=NN
+context	t1=NNt2=.
+context	t_2=bost_1=PRPt0=VB
+context	t_1=PRPt0=VBt1=NN
+context	t0=VBt1=NNt2=.
+context	p_2=bos
+context	p_1=B-NP
+context	p_2=bosp_1=B-NP
+context	p_1=B-NPt_2=bos
+context	p_1=B-NPt_1=PRP
+context	p_1=B-NPt0=VB
+context	p_1=B-NPt1=NN
+context	p_1=B-NPt2=.
+context	p_1=B-NPt_2=bost_1=PRP
+context	p_1=B-NPt_1=PRPt0=VB
+context	p_1=B-NPt0=VBt1=NN
+context	p_1=B-NPt1=NNt2=.
+context	p_1=B-NPt_2=bost_1=PRPt0=VB
+context	p_1=B-NPt_1=PRPt0=VBt1=NN
+context	p_1=B-NPt0=VBt1=NNt2=.
+context	p_1=B-NPw_2=bos
+context	p_1=B-NPw_1=저는
+context	p_1=B-NPw0=한국어를
+context	p_1=B-NPw1=공부합니다
+context	p_1=B-NPw2=.
+context	p_1=B-NPw_1=저는w0=한국어를
+context	p_1=B-NPw0=한국어를w1=공부합니다
+outcome	B-NP	3fb6131264df31cf 0.0862285133618521
+outcome	I-NP	3fb10db5a1dde0be 0.06661544038604725
+outcome	B-VP	3fd36af8d3b13788 0.3034040515238918
+outcome	B-PP	3fc10f761e8e4529 0.13328434459666852
+outcome	O	3fb91d6043aa560d 0.09810449268328388
+outcome	B-ADJP	3fbc92dfa2b6d586 0.11161611292376081
+outcome	I-VP	3fbffd2c6aadfb68 0.1249568710754666
+outcome	B-SBAR	3fb366fc1c525e16 0.07579017344902925
+end	8
+point	9	24	41	8	0	none
+context	w_2=bos
+context	w_1=저는
+context	w0=한국어를
+context	w1=공부합니다
+context	w2=.
+context	w_1=저는w0=한국어를
+context	w0=한국어를w1=공부합니다
+context	t_2=bos
+context	t_1=PRP
+context	t0=VB
+context	t1=NN
+context	t2=.
+context	t_2=bost_1=PRP
+context	t_1=PRPt0=VB
+context	t0=VBt1=NN
+context	t1=NNt2=.
+context	t_2=bost_1=PRPt0=VB
+context	t_1=PRPt0=VBt1=NN
+context	t0=VBt1=NNt2=.
+context	p_2=bos
+context	p_1=B-VP
+context	p_2=bosp_1=B-VP
+context	p_1=B-VPt_2=bos
+context	p_1=B-VPt_1=PRP
+context	p_1=B-VPt0=VB
+context	p_1=B-VPt1=NN
+context	p_1=B-VPt2=.
+context	p_1=B-VPt_2=bost_1=PRP
+context	p_1=B-VPt_1=PRPt0=VB
+context	p_1=B-VPt0=VBt1=NN
+context	p_1=B-VPt1=NNt2=.
+context	p_1=B-VPt_2=bost_1=PRPt0=VB
+context	p_1=B-VPt_1=PRPt0=VBt1=NN
+context	p_1=B-VPt0=VBt1=NNt2=.
+context	p_1=B-VPw_2=bos
+context	p_1=B-VPw_1=저는
+context	p_1=B-VPw0=한국어를
+context	p_1=B-VPw1=공부합니다
+context	p_1=B-VPw2=.
+context	p_1=B-VPw_1=저는w0=한국어를
+context	p_1=B-VPw0=한국어를w1=공부합니다
+outcome	B-NP	3fd153e5adf444d8 0.2707456778308148
+outcome	I-NP	3fa837a2d1ab6c3a 0.047299469084201864
+outcome	B-VP	3fc92fbae3952ccb 0.19676910507619136
+outcome	B-PP	3fc01c656b4d544a 0.12586658229216346
+outcome	O	3fb3c0a78f2239ed 0.07715842480158815
+outcome	B-ADJP	3fba9b431df7bd3b 0.10393161279329359
+outcome	I-VP	3fc1eb59b4642002 0.1399948244873031
+outcome	B-SBAR	3fa393725763fa4f 0.03823430363444357
+end	9
+point	10	24	41	8	0	none
+context	w_2=bos
+context	w_1=저는
+context	w0=한국어를
+context	w1=공부합니다
+context	w2=.
+context	w_1=저는w0=한국어를
+context	w0=한국어를w1=공부합니다
+context	t_2=bos
+context	t_1=PRP
+context	t0=VB
+context	t1=NN
+context	t2=.
+context	t_2=bost_1=PRP
+context	t_1=PRPt0=VB
+context	t0=VBt1=NN
+context	t1=NNt2=.
+context	t_2=bost_1=PRPt0=VB
+context	t_1=PRPt0=VBt1=NN
+context	t0=VBt1=NNt2=.
+context	p_2=bos
+context	p_1=B-ADJP
+context	p_2=bosp_1=B-ADJP
+context	p_1=B-ADJPt_2=bos
+context	p_1=B-ADJPt_1=PRP
+context	p_1=B-ADJPt0=VB
+context	p_1=B-ADJPt1=NN
+context	p_1=B-ADJPt2=.
+context	p_1=B-ADJPt_2=bost_1=PRP
+context	p_1=B-ADJPt_1=PRPt0=VB
+context	p_1=B-ADJPt0=VBt1=NN
+context	p_1=B-ADJPt1=NNt2=.
+context	p_1=B-ADJPt_2=bost_1=PRPt0=VB
+context	p_1=B-ADJPt_1=PRPt0=VBt1=NN
+context	p_1=B-ADJPt0=VBt1=NNt2=.
+context	p_1=B-ADJPw_2=bos
+context	p_1=B-ADJPw_1=저는
+context	p_1=B-ADJPw0=한국어를
+context	p_1=B-ADJPw1=공부합니다
+context	p_1=B-ADJPw2=.
+context	p_1=B-ADJPw_1=저는w0=한국어를
+context	p_1=B-ADJPw0=한국어를w1=공부합니다
+outcome	B-NP	3fc8f9663d990373 0.1951110649843276
+outcome	I-NP	3fa381f325bd80e7 0.03810081325241459
+outcome	B-VP	3fd2049267f005d5 0.2815290465369718
+outcome	B-PP	3fbf5276415aae35 0.12235201926767376
+outcome	O	3fb4feef8ed57386 0.08201501118806051
+outcome	B-ADJP	3fba837b42e4f452 0.10356874831355015
+outcome	I-VP	3fc0bd9faf0fecea 0.13078685806235707
+outcome	B-SBAR	3fa7d39fc1f46302 0.04653643839464473
+end	10
+point	11	24	41	8	0	none
+context	w_2=bos
+context	w_1=저는
+context	w0=한국어를
+context	w1=공부합니다
+context	w2=.
+context	w_1=저는w0=한국어를
+context	w0=한국어를w1=공부합니다
+context	t_2=bos
+context	t_1=PRP
+context	t0=VB
+context	t1=NN
+context	t2=.
+context	t_2=bost_1=PRP
+context	t_1=PRPt0=VB
+context	t0=VBt1=NN
+context	t1=NNt2=.
+context	t_2=bost_1=PRPt0=VB
+context	t_1=PRPt0=VBt1=NN
+context	t0=VBt1=NNt2=.
+context	p_2=bos
+context	p_1=B-PP
+context	p_2=bosp_1=B-PP
+context	p_1=B-PPt_2=bos
+context	p_1=B-PPt_1=PRP
+context	p_1=B-PPt0=VB
+context	p_1=B-PPt1=NN
+context	p_1=B-PPt2=.
+context	p_1=B-PPt_2=bost_1=PRP
+context	p_1=B-PPt_1=PRPt0=VB
+context	p_1=B-PPt0=VBt1=NN
+context	p_1=B-PPt1=NNt2=.
+context	p_1=B-PPt_2=bost_1=PRPt0=VB
+context	p_1=B-PPt_1=PRPt0=VBt1=NN
+context	p_1=B-PPt0=VBt1=NNt2=.
+context	p_1=B-PPw_2=bos
+context	p_1=B-PPw_1=저는
+context	p_1=B-PPw0=한국어를
+context	p_1=B-PPw1=공부합니다
+context	p_1=B-PPw2=.
+context	p_1=B-PPw_1=저는w0=한국어를
+context	p_1=B-PPw0=한국어를w1=공부합니다
+outcome	B-NP	3fd2d615a7ab570f 0.29431668638186265
+outcome	I-NP	3fafce75ae8ed4f4 0.06212203746637526
+outcome	B-VP	3fc827a6f2ae251c 0.1887100872957398
+outcome	B-PP	3fb49c30d46f82a1 0.08050828157821367
+outcome	O	3fb2c996fb6392e5 0.07338851582933222
+outcome	B-ADJP	3fbbb7c87ba2c253 0.10827305811359027
+outcome	I-VP	3fbf8de30a284709 0.1232587718771151
+outcome	B-SBAR	3fb1c5ad4f10d023 0.06942256145777086
+end	11
+point	12	24	41	8	0	none
+context	w_2=bos
+context	w_1=저는
+context	w0=한국어를
+context	w1=공부합니다
+context	w2=.
+context	w_1=저는w0=한국어를
+context	w0=한국어를w1=공부합니다
+context	t_2=bos
+context	t_1=PRP
+context	t0=VB
+context	t1=NN
+context	t2=.
+context	t_2=bost_1=PRP
+context	t_1=PRPt0=VB
+context	t0=VBt1=NN
+context	t1=NNt2=.
+context	t_2=bost_1=PRPt0=VB
+context	t_1=PRPt0=VBt1=NN
+context	t0=VBt1=NNt2=.
+context	p_2=bos
+context	p_1=B-SBAR
+context	p_2=bosp_1=B-SBAR
+context	p_1=B-SBARt_2=bos
+context	p_1=B-SBARt_1=PRP
+context	p_1=B-SBARt0=VB
+context	p_1=B-SBARt1=NN
+context	p_1=B-SBARt2=.
+context	p_1=B-SBARt_2=bost_1=PRP
+context	p_1=B-SBARt_1=PRPt0=VB
+context	p_1=B-SBARt0=VBt1=NN
+context	p_1=B-SBARt1=NNt2=.
+context	p_1=B-SBARt_2=bost_1=PRPt0=VB
+context	p_1=B-SBARt_1=PRPt0=VBt1=NN
+context	p_1=B-SBARt0=VBt1=NNt2=.
+context	p_1=B-SBARw_2=bos
+context	p_1=B-SBARw_1=저는
+context	p_1=B-SBARw0=한국어를
+context	p_1=B-SBARw1=공부합니다
+context	p_1=B-SBARw2=.
+context	p_1=B-SBARw_1=저는w0=한국어를
+context	p_1=B-SBARw0=한국어를w1=공부합니다
+outcome	B-NP	3fce7e8ea354a594 0.23823721861962766
+outcome	I-NP	3fa2dcc512c2a808 0.03684059003838064
+outcome	B-VP	3fd16c01a25e6922 0.2722171865113002
+outcome	B-PP	3fbe493e3e3f57b4 0.11830510158264823
+outcome	O	3fb013927fc6fa01 0.0627986490207846
+outcome	B-ADJP	3fb9a2fa8720870f 0.1001431064510394
+outcome	I-VP	3fc02fdf55248672 0.12646094949109316
+outcome	B-SBAR	3fa709df6e17ad54 0.04499719828512619
+end	12
+point	13	24	41	8	0	none
+context	w_2=bos
+context	w_1=저는
+context	w0=한국어를
+context	w1=공부합니다
+context	w2=.
+context	w_1=저는w0=한국어를
+context	w0=한국어를w1=공부합니다
+context	t_2=bos
+context	t_1=PRP
+context	t0=VB
+context	t1=NN
+context	t2=.
+context	t_2=bost_1=PRP
+context	t_1=PRPt0=VB
+context	t0=VBt1=NN
+context	t1=NNt2=.
+context	t_2=bost_1=PRPt0=VB
+context	t_1=PRPt0=VBt1=NN
+context	t0=VBt1=NNt2=.
+context	p_2=bos
+context	p_1=O
+context	p_2=bosp_1=O
+context	p_1=Ot_2=bos
+context	p_1=Ot_1=PRP
+context	p_1=Ot0=VB
+context	p_1=Ot1=NN
+context	p_1=Ot2=.
+context	p_1=Ot_2=bost_1=PRP
+context	p_1=Ot_1=PRPt0=VB
+context	p_1=Ot0=VBt1=NN
+context	p_1=Ot1=NNt2=.
+context	p_1=Ot_2=bost_1=PRPt0=VB
+context	p_1=Ot_1=PRPt0=VBt1=NN
+context	p_1=Ot0=VBt1=NNt2=.
+context	p_1=Ow_2=bos
+context	p_1=Ow_1=저는
+context	p_1=Ow0=한국어를
+context	p_1=Ow1=공부합니다
+context	p_1=Ow2=.
+context	p_1=Ow_1=저는w0=한국어를
+context	p_1=Ow0=한국어를w1=공부합니다
+outcome	B-NP	3fcb13aaf1ec8407 0.21153771221818848
+outcome	I-NP	3fa7d79d8ccc56c0 0.04656689017990123
+outcome	B-VP	3fd239c258dc5797 0.28477533986858233
+outcome	B-PP	3fb9687a5f3c3519 0.09925045800283207
+outcome	O	3fb25ed6fdb3acda 0.07175964063542342
+outcome	B-ADJP	3fbad1bf5c4b7502 0.10476299289026161
+outcome	I-VP	3fc033d633c774d2 0.12658193138387347
+outcome	B-SBAR	3fac0a29a30a5b32 0.05476503482093732
+end	13
+point	14	37	41	8	0	none
+context	w_2=저는
+context	w_1=한국어를
+context	w0=공부합니다
+context	w1=.
+context	w2=eos
+context	w_1=한국어를w0=공부합니다
+context	w0=공부합니다w1=.
+context	t_2=PRP
+context	t_1=VB
+context	t0=NN
+context	t1=.
+context	t2=eos
+context	t_2=PRPt_1=VB
+context	t_1=VBt0=NN
+context	t0=NNt1=.
+context	t1=.t2=eos
+context	t_2=PRPt_1=VBt0=NN
+context	t_1=VBt0=NNt1=.
+context	t0=NNt1=.t2=eos
+context	p_2=B-NP
+context	p_1=B-VP
+context	p_2=B-NPp_1=B-VP
+context	p_1=B-VPt_2=PRP
+context	p_1=B-VPt_1=VB
+context	p_1=B-VPt0=NN
+context	p_1=B-VPt1=.
+context	p_1=B-VPt2=eos
+context	p_1=B-VPt_2=PRPt_1=VB
+context	p_1=B-VPt_1=VBt0=NN
+context	p_1=B-VPt0=NNt1=.
+context	p_1=B-VPt1=.t2=eos
+context	p_1=B-VPt_2=PRPt_1=VBt0=NN
+context	p_1=B-VPt_1=VBt0=NNt1=.
+context	p_1=B-VPt0=NNt1=.t2=eos
+context	p_1=B-VPw_2=저는
+context	p_1=B-VPw_1=한국어를
+context	p_1=B-VPw0=공부합니다
+context	p_1=B-VPw1=.
+context	p_1=B-VPw2=eos
+context	p_1=B-VPw_1=한국어를w0=공부합니다
+context	p_1=B-VPw0=공부합니다w1=.
+outcome	B-NP	3fd34ae1eb863de1 0.3014454650919714
+outcome	I-NP	3fc31704f0f6afd7 0.14913999334146297
+outcome	B-VP	3fb39a28a3432ef4 0.07657102571391389
+outcome	B-PP	3fb2e3b36250e01f 0.07378693723956119
+outcome	O	3fbadae7ce38a021 0.1049027327031813
+outcome	B-ADJP	3fbc63a7411051f8 0.11089558924169995
+outcome	I-VP	3fb0e72cd52a5fc3 0.0660274525092737
+outcome	B-SBAR	3fbe02d685f247ef 0.11723080415893582
+end	14
+point	15	37	41	8	0	none
+context	w_2=저는
+context	w_1=한국어를
+context	w0=공부합니다
+context	w1=.
+context	w2=eos
+context	w_1=한국어를w0=공부합니다
+context	w0=공부합니다w1=.
+context	t_2=PRP
+context	t_1=VB
+context	t0=NN
+context	t1=.
+context	t2=eos
+context	t_2=PRPt_1=VB
+context	t_1=VBt0=NN
+context	t0=NNt1=.
+context	t1=.t2=eos
+context	t_2=PRPt_1=VBt0=NN
+context	t_1=VBt0=NNt1=.
+context	t0=NNt1=.t2=eos
+context	p_2=B-VP
+context	p_1=B-NP
+context	p_2=B-VPp_1=B-NP
+context	p_1=B-NPt_2=PRP
+context	p_1=B-NPt_1=VB
+context	p_1=B-NPt0=NN
+context	p_1=B-NPt1=.
+context	p_1=B-NPt2=eos
+context	p_1=B-NPt_2=PRPt_1=VB
+context	p_1=B-NPt_1=VBt0=NN
+context	p_1=B-NPt0=NNt1=.
+context	p_1=B-NPt1=.t2=eos
+context	p_1=B-NPt_2=PRPt_1=VBt0=NN
+context	p_1=B-NPt_1=VBt0=NNt1=.
+context	p_1=B-NPt0=NNt1=.t2=eos
+context	p_1=B-NPw_2=저는
+context	p_1=B-NPw_1=한국어를
+context	p_1=B-NPw0=공부합니다
+context	p_1=B-NPw1=.
+context	p_1=B-NPw2=eos
+context	p_1=B-NPw_1=한국어를w0=공부합니다
+context	p_1=B-NPw0=공부합니다w1=.
+outcome	B-NP	3fa9f25f79ccdad2 0.050677283876600435
+outcome	I-NP	3fd3309c55cc906a 0.2998419607049586
+outcome	B-VP	3fb2e04c3d380563 0.07373501295662303
+outcome	B-PP	3fc2211b1f636e87 0.14163531334530807
+outcome	O	3fbd089d3f41472d 0.11341269296943031
+outcome	B-ADJP	3fbc3cfe6fc1b222 0.11030569294388973
+outcome	I-VP	3fb99f425123c305 0.10008635025929997
+outcome	B-SBAR	3fbc3cfe6fc1b222 0.11030569294388973
+end	15
+point	16	37	41	8	0	none
+context	w_2=저는
+context	w_1=한국어를
+context	w0=공부합니다
+context	w1=.
+context	w2=eos
+context	w_1=한국어를w0=공부합니다
+context	w0=공부합니다w1=.
+context	t_2=PRP
+context	t_1=VB
+context	t0=NN
+context	t1=.
+context	t2=eos
+context	t_2=PRPt_1=VB
+context	t_1=VBt0=NN
+context	t0=NNt1=.
+context	t1=.t2=eos
+context	t_2=PRPt_1=VBt0=NN
+context	t_1=VBt0=NNt1=.
+context	t0=NNt1=.t2=eos
+context	p_2=B-PP
+context	p_1=B-NP
+context	p_2=B-PPp_1=B-NP
+context	p_1=B-NPt_2=PRP
+context	p_1=B-NPt_1=VB
+context	p_1=B-NPt0=NN
+context	p_1=B-NPt1=.
+context	p_1=B-NPt2=eos
+context	p_1=B-NPt_2=PRPt_1=VB
+context	p_1=B-NPt_1=VBt0=NN
+context	p_1=B-NPt0=NNt1=.
+context	p_1=B-NPt1=.t2=eos
+context	p_1=B-NPt_2=PRPt_1=VBt0=NN
+context	p_1=B-NPt_1=VBt0=NNt1=.
+context	p_1=B-NPt0=NNt1=.t2=eos
+context	p_1=B-NPw_2=저는
+context	p_1=B-NPw_1=한국어를
+context	p_1=B-NPw0=공부합니다
+context	p_1=B-NPw1=.
+context	p_1=B-NPw2=eos
+context	p_1=B-NPw_1=한국어를w0=공부합니다
+context	p_1=B-NPw0=공부합니다w1=.
+outcome	B-NP	3fa49b82738d6c5e 0.040248943906328036
+outcome	I-NP	3fd2c9c1fcdc1aa4 0.29356431668603933
+outcome	B-VP	3fb5e249639a9071 0.08548411065800267
+outcome	B-PP	3fbe47382b30385f 0.11827422193911862
+outcome	O	3fc26527521603a2 0.14371196277718662
+outcome	B-ADJP	3fbc0229313fbef5 0.10940797283523891
+outcome	I-VP	3fb993143d529145 0.09990049836284694
+outcome	B-SBAR	3fbc0229313fbef5 0.10940797283523891
+end	16
+point	17	37	41	8	0	none
+context	w_2=저는
+context	w_1=한국어를
+context	w0=공부합니다
+context	w1=.
+context	w2=eos
+context	w_1=한국어를w0=공부합니다
+context	w0=공부합니다w1=.
+context	t_2=PRP
+context	t_1=VB
+context	t0=NN
+context	t1=.
+context	t2=eos
+context	t_2=PRPt_1=VB
+context	t_1=VBt0=NN
+context	t0=NNt1=.
+context	t1=.t2=eos
+context	t_2=PRPt_1=VBt0=NN
+context	t_1=VBt0=NNt1=.
+context	t0=NNt1=.t2=eos
+context	p_2=O
+context	p_1=B-VP
+context	p_2=Op_1=B-VP
+context	p_1=B-VPt_2=PRP
+context	p_1=B-VPt_1=VB
+context	p_1=B-VPt0=NN
+context	p_1=B-VPt1=.
+context	p_1=B-VPt2=eos
+context	p_1=B-VPt_2=PRPt_1=VB
+context	p_1=B-VPt_1=VBt0=NN
+context	p_1=B-VPt0=NNt1=.
+context	p_1=B-VPt1=.t2=eos
+context	p_1=B-VPt_2=PRPt_1=VBt0=NN
+context	p_1=B-VPt_1=VBt0=NNt1=.
+context	p_1=B-VPt0=NNt1=.t2=eos
+context	p_1=B-VPw_2=저는
+context	p_1=B-VPw_1=한국어를
+context	p_1=B-VPw0=공부합니다
+context	p_1=B-VPw1=.
+context	p_1=B-VPw2=eos
+context	p_1=B-VPw_1=한국어를w0=공부합니다
+context	p_1=B-VPw0=공부합니다w1=.
+outcome	B-NP	3fc13d152d8206e9 0.13467659685198122
+outcome	I-NP	3fd3642012d899e9 0.3029861625713282
+outcome	B-VP	3fb02d1c31a2e77b 0.06318832599472828
+outcome	B-PP	3fb306280d26d564 0.0743126899822833
+outcome	O	3fb65f8d538f97b0 0.0873955086713909
+outcome	B-ADJP	3fbc88cc6d8fddc6 0.11146238016941998
+outcome	I-VP	3fbc88cc6d8fddc6 0.11146238016941998
+outcome	B-SBAR	3fbd50eaec207a71 0.11451595558944817
+end	17
+point	18	37	41	8	0	none
+context	w_2=저는
+context	w_1=한국어를
+context	w0=공부합니다
+context	w1=.
+context	w2=eos
+context	w_1=한국어를w0=공부합니다
+context	w0=공부합니다w1=.
+context	t_2=PRP
+context	t_1=VB
+context	t0=NN
+context	t1=.
+context	t2=eos
+context	t_2=PRPt_1=VB
+context	t_1=VBt0=NN
+context	t0=NNt1=.
+context	t1=.t2=eos
+context	t_2=PRPt_1=VBt0=NN
+context	t_1=VBt0=NNt1=.
+context	t0=NNt1=.t2=eos
+context	p_2=B-ADJP
+context	p_1=B-VP
+context	p_2=B-ADJPp_1=B-VP
+context	p_1=B-VPt_2=PRP
+context	p_1=B-VPt_1=VB
+context	p_1=B-VPt0=NN
+context	p_1=B-VPt1=.
+context	p_1=B-VPt2=eos
+context	p_1=B-VPt_2=PRPt_1=VB
+context	p_1=B-VPt_1=VBt0=NN
+context	p_1=B-VPt0=NNt1=.
+context	p_1=B-VPt1=.t2=eos
+context	p_1=B-VPt_2=PRPt_1=VBt0=NN
+context	p_1=B-VPt_1=VBt0=NNt1=.
+context	p_1=B-VPt0=NNt1=.t2=eos
+context	p_1=B-VPw_2=저는
+context	p_1=B-VPw_1=한국어를
+context	p_1=B-VPw0=공부합니다
+context	p_1=B-VPw1=.
+context	p_1=B-VPw2=eos
+context	p_1=B-VPw_1=한국어를w0=공부합니다
+context	p_1=B-VPw0=공부합니다w1=.
+outcome	B-NP	3fc2016786175c2d 0.14066785857605293
+outcome	I-NP	3fd3610db7f573b5 0.3027986809227586
+outcome	B-VP	3fb1e1ecca1369f0 0.06985359128467628
+outcome	B-PP	3fbb94f26766f1d8 0.1077414991804696
+outcome	O	3fb5202de7d8f48d 0.08252226744021325
+outcome	B-ADJP	3fbc84474ae6b267 0.11139340952531428
+outcome	I-VP	3fb1e1ecca1369f0 0.06985359128467628
+outcome	B-SBAR	3fbd7bb8e5ae0c29 0.11516910178583885
+end	18
+point	19	37	41	8	0	none
+context	w_2=저는
+context	w_1=한국어를
+context	w0=공부합니다
+context	w1=.
+context	w2=eos
+context	w_1=한국어를w0=공부합니다
+context	w0=공부합니다w1=.
+context	t_2=PRP
+context	t_1=VB
+context	t0=NN
+context	t1=.
+context	t2=eos
+context	t_2=PRPt_1=VB
+context	t_1=VBt0=NN
+context	t0=NNt1=.
+context	t1=.t2=eos
+context	t_2=PRPt_1=VBt0=NN
+context	t_1=VBt0=NNt1=.
+context	t0=NNt1=.t2=eos
+context	p_2=B-VP
+context	p_1=B-VP
+context	p_2=B-VPp_1=B-VP
+context	p_1=B-VPt_2=PRP
+context	p_1=B-VPt_1=VB
+context	p_1=B-VPt0=NN
+context	p_1=B-VPt1=.
+context	p_1=B-VPt2=eos
+context	p_1=B-VPt_2=PRPt_1=VB
+context	p_1=B-VPt_1=VBt0=NN
+context	p_1=B-VPt0=NNt1=.
+context	p_1=B-VPt1=.t2=eos
+context	p_1=B-VPt_2=PRPt_1=VBt0=NN
+context	p_1=B-VPt_1=VBt0=NNt1=.
+context	p_1=B-VPt0=NNt1=.t2=eos
+context	p_1=B-VPw_2=저는
+context	p_1=B-VPw_1=한국어를
+context	p_1=B-VPw0=공부합니다
+context	p_1=B-VPw1=.
+context	p_1=B-VPw2=eos
+context	p_1=B-VPw_1=한국어를w0=공부합니다
+context	p_1=B-VPw0=공부합니다w1=.
+outcome	B-NP	3fcb7d8378c9aa47 0.2147678699287374
+outcome	I-NP	3fd21c8bea0b73c3 0.2829923425286404
+outcome	B-VP	3fa5bf04ba4749d2 0.042472980250426354
+outcome	B-PP	3fbfaa9864a4b7b3 0.12369682747950499
+outcome	O	3faeb338038a0c03 0.0599610809631699
+outcome	B-ADJP	3fbaa6c2b6b4f963 0.10410706482523362
+outcome	I-VP	3fb0722e3d1c3f98 0.06424225799514571
+outcome	B-SBAR	3fbb9621aee040ce 0.10775957602914163
+end	19
+point	20	37	41	8	0	none
+context	w_2=저는
+context	w_1=한국어를
+context	w0=공부합니다
+context	w1=.
+context	w2=eos
+context	w_1=한국어를w0=공부합니다
+context	w0=공부합니다w1=.
+context	t_2=PRP
+context	t_1=VB
+context	t0=NN
+context	t1=.
+context	t2=eos
+context	t_2=PRPt_1=VB
+context	t_1=VBt0=NN
+context	t0=NNt1=.
+context	t1=.t2=eos
+context	t_2=PRPt_1=VBt0=NN
+context	t_1=VBt0=NNt1=.
+context	t0=NNt1=.t2=eos
+context	p_2=B-SBAR
+context	p_1=B-VP
+context	p_2=B-SBARp_1=B-VP
+context	p_1=B-VPt_2=PRP
+context	p_1=B-VPt_1=VB
+context	p_1=B-VPt0=NN
+context	p_1=B-VPt1=.
+context	p_1=B-VPt2=eos
+context	p_1=B-VPt_2=PRPt_1=VB
+context	p_1=B-VPt_1=VBt0=NN
+context	p_1=B-VPt0=NNt1=.
+context	p_1=B-VPt1=.t2=eos
+context	p_1=B-VPt_2=PRPt_1=VBt0=NN
+context	p_1=B-VPt_1=VBt0=NNt1=.
+context	p_1=B-VPt0=NNt1=.t2=eos
+context	p_1=B-VPw_2=저는
+context	p_1=B-VPw_1=한국어를
+context	p_1=B-VPw0=공부합니다
+context	p_1=B-VPw1=.
+context	p_1=B-VPw2=eos
+context	p_1=B-VPw_1=한국어를w0=공부합니다
+context	p_1=B-VPw0=공부합니다w1=.
+outcome	B-NP	3fc93c918b24dc10 0.19716090482845106
+outcome	I-NP	3fd2a94b85c6df75 0.29158294738908036
+outcome	B-VP	3fade15903ed6eca 0.05835989163344164
+outcome	B-PP	3fba4ac6e8fcc638 0.10270350635689673
+outcome	O	3fb2916bb1b7b1c5 0.07253144348914649
+outcome	B-ADJP	3fbb75dfdd8dc76e 0.10726737174061693
+outcome	I-VP	3fade15903ed6eca 0.05835989163344164
+outcome	B-SBAR	3fbcae43566b1bd6 0.11203404292892513
+end	20
+point	21	37	41	8	0	none
+context	w_2=저는
+context	w_1=한국어를
+context	w0=공부합니다
+context	w1=.
+context	w2=eos
+context	w_1=한국어를w0=공부합니다
+context	w0=공부합니다w1=.
+context	t_2=PRP
+context	t_1=VB
+context	t0=NN
+context	t1=.
+context	t2=eos
+context	t_2=PRPt_1=VB
+context	t_1=VBt0=NN
+context	t0=NNt1=.
+context	t1=.t2=eos
+context	t_2=PRPt_1=VBt0=NN
+context	t_1=VBt0=NNt1=.
+context	t0=NNt1=.t2=eos
+context	p_2=B-NP
+context	p_1=B-PP
+context	p_2=B-NPp_1=B-PP
+context	p_1=B-PPt_2=PRP
+context	p_1=B-PPt_1=VB
+context	p_1=B-PPt0=NN
+context	p_1=B-PPt1=.
+context	p_1=B-PPt2=eos
+context	p_1=B-PPt_2=PRPt_1=VB
+context	p_1=B-PPt_1=VBt0=NN
+context	p_1=B-PPt0=NNt1=.
+context	p_1=B-PPt1=.t2=eos
+context	p_1=B-PPt_2=PRPt_1=VBt0=NN
+context	p_1=B-PPt_1=VBt0=NNt1=.
+context	p_1=B-PPt0=NNt1=.t2=eos
+context	p_1=B-PPw_2=저는
+context	p_1=B-PPw_1=한국어를
+context	p_1=B-PPw0=공부합니다
+context	p_1=B-PPw1=.
+context	p_1=B-PPw2=eos
+context	p_1=B-PPw_1=한국어를w0=공부합니다
+context	p_1=B-PPw0=공부합니다w1=.
+outcome	B-NP	3fd3333a3a5160c1 0.30000167555909846
+outcome	I-NP	3fc4f6bf5ea45fbe 0.16378013726420976
+outcome	B-VP	3fb5b75010f66cc0 0.08482838071943188
+outcome	B-PP	3fb38bde5e300383 0.07635297584057636
+outcome	O	3faf41dcc2ea613e 0.061049364846612594
+outcome	B-ADJP	3fbc40d8320b67f8 0.11036444875517748
+outcome	I-VP	3fb77ffee34a1b3d 0.09179680871066594
+outcome	B-SBAR	3fbca0a47380996a 0.11182620830422754
+end	21
+point	22	37	41	8	0	none
+context	w_2=저는
+context	w_1=한국어를
+context	w0=공부합니다
+context	w1=.
+context	w2=eos
+context	w_1=한국어를w0=공부합니다
+context	w0=공부합니다w1=.
+context	t_2=PRP
+context	t_1=VB
+context	t0=NN
+context	t1=.
+context	t2=eos
+context	t_2=PRPt_1=VB
+context	t_1=VBt0=NN
+context	t0=NNt1=.
+context	t1=.t2=eos
+context	t_2=PRPt_1=VBt0=NN
+context	t_1=VBt0=NNt1=.
+context	t0=NNt1=.t2=eos
+context	p_2=B-SBAR
+context	p_1=B-NP
+context	p_2=B-SBARp_1=B-NP
+context	p_1=B-NPt_2=PRP
+context	p_1=B-NPt_1=VB
+context	p_1=B-NPt0=NN
+context	p_1=B-NPt1=.
+context	p_1=B-NPt2=eos
+context	p_1=B-NPt_2=PRPt_1=VB
+context	p_1=B-NPt_1=VBt0=NN
+context	p_1=B-NPt0=NNt1=.
+context	p_1=B-NPt1=.t2=eos
+context	p_1=B-NPt_2=PRPt_1=VBt0=NN
+context	p_1=B-NPt_1=VBt0=NNt1=.
+context	p_1=B-NPt0=NNt1=.t2=eos
+context	p_1=B-NPw_2=저는
+context	p_1=B-NPw_1=한국어를
+context	p_1=B-NPw0=공부합니다
+context	p_1=B-NPw1=.
+context	p_1=B-NPw2=eos
+context	p_1=B-NPw_1=한국어를w0=공부합니다
+context	p_1=B-NPw0=공부합니다w1=.
+outcome	B-NP	3fa4dac7d0aa8040 0.04073166296188946
+outcome	I-NP	3fd25dc2470a32a5 0.286972588896598
+outcome	B-VP	3fba2e87913a5c8f 0.10227248473744253
+outcome	B-PP	3fbf2d31f94e2b31 0.1217833741813308
+outcome	O	3fc05939259b2b23 0.1277228768943469
+outcome	B-ADJP	3fbc5827b12ec967 0.11072013927222245
+outcome	I-VP	3fb95d17c3658476 0.09907673378394741
+outcome	B-SBAR	3fbc5827b12ec967 0.11072013927222245
+end	22
+point	23	37	41	8	0	none
+context	w_2=저는
+context	w_1=한국어를
+context	w0=공부합니다
+context	w1=.
+context	w2=eos
+context	w_1=한국어를w0=공부합니다
+context	w0=공부합니다w1=.
+context	t_2=PRP
+context	t_1=VB
+context	t0=NN
+context	t1=.
+context	t2=eos
+context	t_2=PRPt_1=VB
+context	t_1=VBt0=NN
+context	t0=NNt1=.
+context	t1=.t2=eos
+context	t_2=PRPt_1=VBt0=NN
+context	t_1=VBt0=NNt1=.
+context	t0=NNt1=.t2=eos
+context	p_2=B-NP
+context	p_1=B-ADJP
+context	p_2=B-NPp_1=B-ADJP
+context	p_1=B-ADJPt_2=PRP
+context	p_1=B-ADJPt_1=VB
+context	p_1=B-ADJPt0=NN
+context	p_1=B-ADJPt1=.
+context	p_1=B-ADJPt2=eos
+context	p_1=B-ADJPt_2=PRPt_1=VB
+context	p_1=B-ADJPt_1=VBt0=NN
+context	p_1=B-ADJPt0=NNt1=.
+context	p_1=B-ADJPt1=.t2=eos
+context	p_1=B-ADJPt_2=PRPt_1=VBt0=NN
+context	p_1=B-ADJPt_1=VBt0=NNt1=.
+context	p_1=B-ADJPt0=NNt1=.t2=eos
+context	p_1=B-ADJPw_2=저는
+context	p_1=B-ADJPw_1=한국어를
+context	p_1=B-ADJPw0=공부합니다
+context	p_1=B-ADJPw1=.
+context	p_1=B-ADJPw2=eos
+context	p_1=B-ADJPw_1=한국어를w0=공부합니다
+context	p_1=B-ADJPw0=공부합니다w1=.
+outcome	B-NP	3fc572bb2485f467 0.1675638130508645
+outcome	I-NP	3fd2e6627012e6f2 0.29531155533514586
+outcome	B-VP	3fac8ed28561bd69 0.05577714803882367
+outcome	B-PP	3fb170bab2bf7955 0.06812636245692734
+outcome	O	3fbfc74465c5b384 0.12413432583498546
+outcome	B-ADJP	3fbbcfc4ce988af3 0.10863904994816291
+outcome	I-VP	3fb170bab2bf7955 0.06812636245692734
+outcome	B-SBAR	3fbcc1181a1a6b89 0.11232138287816275
+end	23
+point	24	52	41	8	0	none
+context	w_2=한국어를
+context	w_1=공부합니다
+context	w0=.
+context	w1=eos
+context	w2=eos
+context	w_1=공부합니다w0=.
+context	w0=.w1=eos
+context	t_2=VB
+context	t_1=NN
+context	t0=.
+context	t1=eos
+context	t2=eos
+context	t_2=VBt_1=NN
+context	t_1=NNt0=.
+context	t0=.t1=eos
+context	t1=eost2=eos
+context	t_2=VBt_1=NNt0=.
+context	t_1=NNt0=.t1=eos
+context	t0=.t1=eost2=eos
+context	p_2=B-VP
+context	p_1=B-NP
+context	p_2=B-VPp_1=B-NP
+context	p_1=B-NPt_2=VB
+context	p_1=B-NPt_1=NN
+context	p_1=B-NPt0=.
+context	p_1=B-NPt1=eos
+context	p_1=B-NPt2=eos
+context	p_1=B-NPt_2=VBt_1=NN
+context	p_1=B-NPt_1=NNt0=.
+context	p_1=B-NPt0=.t1=eos
+context	p_1=B-NPt1=eost2=eos
+context	p_1=B-NPt_2=VBt_1=NNt0=.
+context	p_1=B-NPt_1=NNt0=.t1=eos
+context	p_1=B-NPt0=.t1=eost2=eos
+context	p_1=B-NPw_2=한국어를
+context	p_1=B-NPw_1=공부합니다
+context	p_1=B-NPw0=.
+context	p_1=B-NPw1=eos
+context	p_1=B-NPw2=eos
+context	p_1=B-NPw_1=공부합니다w0=.
+context	p_1=B-NPw0=.w1=eos
+outcome	B-NP	3fb7cce5f9b12b1b 0.09297025056836754
+outcome	I-NP	3fb2c1fb449e4642 0.07327242303133466
+outcome	B-VP	3fb0f6b6d6d950f6 0.06626456017812984
+outcome	B-PP	3fc058b5598af036 0.1277071654529906
+outcome	O	3fd376e9cafcc3c1 0.3041328890131432
+outcome	B-ADJP	3fbca47203ef6f6c 0.11188423725201141
+outcome	I-VP	3fbca47203ef6f6c 0.11188423725201141
+outcome	B-SBAR	3fbca47203ef6f6c 0.11188423725201141
+end	24
+point	25	52	41	8	0	none
+context	w_2=한국어를
+context	w_1=공부합니다
+context	w0=.
+context	w1=eos
+context	w2=eos
+context	w_1=공부합니다w0=.
+context	w0=.w1=eos
+context	t_2=VB
+context	t_1=NN
+context	t0=.
+context	t1=eos
+context	t2=eos
+context	t_2=VBt_1=NN
+context	t_1=NNt0=.
+context	t0=.t1=eos
+context	t1=eost2=eos
+context	t_2=VBt_1=NNt0=.
+context	t_1=NNt0=.t1=eos
+context	t0=.t1=eost2=eos
+context	p_2=B-NP
+context	p_1=I-NP
+context	p_2=B-NPp_1=I-NP
+context	p_1=I-NPt_2=VB
+context	p_1=I-NPt_1=NN
+context	p_1=I-NPt0=.
+context	p_1=I-NPt1=eos
+context	p_1=I-NPt2=eos
+context	p_1=I-NPt_2=VBt_1=NN
+context	p_1=I-NPt_1=NNt0=.
+context	p_1=I-NPt0=.t1=eos
+context	p_1=I-NPt1=eost2=eos
+context	p_1=I-NPt_2=VBt_1=NNt0=.
+context	p_1=I-NPt_1=NNt0=.t1=eos
+context	p_1=I-NPt0=.t1=eost2=eos
+context	p_1=I-NPw_2=한국어를
+context	p_1=I-NPw_1=공부합니다
+context	p_1=I-NPw0=.
+context	p_1=I-NPw1=eos
+context	p_1=I-NPw2=eos
+context	p_1=I-NPw_1=공부합니다w0=.
+context	p_1=I-NPw0=.w1=eos
+outcome	B-NP	3fbb9a884cd76dbe 0.10782672763837461
+outcome	I-NP	3fb5e85ccbddccfc 0.08557682015616658
+outcome	B-VP	3fac58284db6eaba 0.055360087858806264
+outcome	B-PP	3fbd81b15e841a9a 0.11526020581741606
+outcome	O	3fd37006082013f8 0.3037123755787543
+outcome	B-ADJP	3fbc9a4e9c05ca16 0.11172953900476332
+outcome	I-VP	3fbbba025652f2a4 0.1083070240737905
+outcome	B-SBAR	3fbcbaec4f1228bd 0.11222721987192848
+end	25
+point	26	52	41	8	0	none
+context	w_2=한국어를
+context	w_1=공부합니다
+context	w0=.
+context	w1=eos
+context	w2=eos
+context	w_1=공부합니다w0=.
+context	w0=.w1=eos
+context	t_2=VB
+context	t_1=NN
+context	t0=.
+context	t1=eos
+context	t2=eos
+context	t_2=VBt_1=NN
+context	t_1=NNt0=.
+context	t0=.t1=eos
+context	t1=eost2=eos
+context	t_2=VBt_1=NNt0=.
+context	t_1=NNt0=.t1=eos
+context	t0=.t1=eost2=eos
+context	p_2=B-NP
+context	p_1=I-NP
+context	p_2=B-NPp_1=I-NP
+context	p_1=I-NPt_2=VB
+context	p_1=I-NPt_1=NN
+context	p_1=I-NPt0=.
+context	p_1=I-NPt1=eos
+context	p_1=I-NPt2=eos
+context	p_1=I-NPt_2=VBt_1=NN
+context	p_1=I-NPt_1=NNt0=.
+context	p_1=I-NPt0=.t1=eos
+context	p_1=I-NPt1=eost2=eos
+context	p_1=I-NPt_2=VBt_1=NNt0=.
+context	p_1=I-NPt_1=NNt0=.t1=eos
+context	p_1=I-NPt0=.t1=eost2=eos
+context	p_1=I-NPw_2=한국어를
+context	p_1=I-NPw_1=공부합니다
+context	p_1=I-NPw0=.
+context	p_1=I-NPw1=eos
+context	p_1=I-NPw2=eos
+context	p_1=I-NPw_1=공부합니다w0=.
+context	p_1=I-NPw0=.w1=eos
+outcome	B-NP	3fbb9a884cd76dbe 0.10782672763837461
+outcome	I-NP	3fb5e85ccbddccfc 0.08557682015616658
+outcome	B-VP	3fac58284db6eaba 0.055360087858806264
+outcome	B-PP	3fbd81b15e841a9a 0.11526020581741606
+outcome	O	3fd37006082013f8 0.3037123755787543
+outcome	B-ADJP	3fbc9a4e9c05ca16 0.11172953900476332
+outcome	I-VP	3fbbba025652f2a4 0.1083070240737905
+outcome	B-SBAR	3fbcbaec4f1228bd 0.11222721987192848
+end	26
+point	27	52	41	8	0	none
+context	w_2=한국어를
+context	w_1=공부합니다
+context	w0=.
+context	w1=eos
+context	w2=eos
+context	w_1=공부합니다w0=.
+context	w0=.w1=eos
+context	t_2=VB
+context	t_1=NN
+context	t0=.
+context	t1=eos
+context	t2=eos
+context	t_2=VBt_1=NN
+context	t_1=NNt0=.
+context	t0=.t1=eos
+context	t1=eost2=eos
+context	t_2=VBt_1=NNt0=.
+context	t_1=NNt0=.t1=eos
+context	t0=.t1=eost2=eos
+context	p_2=B-PP
+context	p_1=B-NP
+context	p_2=B-PPp_1=B-NP
+context	p_1=B-NPt_2=VB
+context	p_1=B-NPt_1=NN
+context	p_1=B-NPt0=.
+context	p_1=B-NPt1=eos
+context	p_1=B-NPt2=eos
+context	p_1=B-NPt_2=VBt_1=NN
+context	p_1=B-NPt_1=NNt0=.
+context	p_1=B-NPt0=.t1=eos
+context	p_1=B-NPt1=eost2=eos
+context	p_1=B-NPt_2=VBt_1=NNt0=.
+context	p_1=B-NPt_1=NNt0=.t1=eos
+context	p_1=B-NPt0=.t1=eost2=eos
+context	p_1=B-NPw_2=한국어를
+context	p_1=B-NPw_1=공부합니다
+context	p_1=B-NPw0=.
+context	p_1=B-NPw1=eos
+context	p_1=B-NPw2=eos
+context	p_1=B-NPw_1=공부합니다w0=.
+context	p_1=B-NPw0=.w1=eos
+outcome	B-NP	3fb5fe401acee918 0.08591080336092138
+outcome	I-NP	3fb3fa17d263564e 0.07803486715723659
+outcome	B-VP	3fb2c43eee04f380 0.07330697356242233
+outcome	B-PP	3fbea510ac3dd77d 0.11970619397274436
+outcome	O	3fd39044d6c7e5fc 0.30568047499363593
+outcome	B-ADJP	3fbcc9c1b4791f3b 0.11245356231767982
+outcome	I-VP	3fbcc9c1b4791f3b 0.11245356231767982
+outcome	B-SBAR	3fbcc9c1b4791f3b 0.11245356231767982
+end	27
+point	28	52	41	8	0	none
+context	w_2=한국어를
+context	w_1=공부합니다
+context	w0=.
+context	w1=eos
+context	w2=eos
+context	w_1=공부합니다w0=.
+context	w0=.w1=eos
+context	t_2=VB
+context	t_1=NN
+context	t0=.
+context	t1=eos
+context	t2=eos
+context	t_2=VBt_1=NN
+context	t_1=NNt0=.
+context	t0=.t1=eos
+context	t1=eost2=eos
+context	t_2=VBt_1=NNt0=.
+context	t_1=NNt0=.t1=eos
+context	t0=.t1=eost2=eos
+context	p_2=B-NP
+context	p_1=I-NP
+context	p_2=B-NPp_1=I-NP
+context	p_1=I-NPt_2=VB
+context	p_1=I-NPt_1=NN
+context	p_1=I-NPt0=.
+context	p_1=I-NPt1=eos
+context	p_1=I-NPt2=eos
+context	p_1=I-NPt_2=VBt_1=NN
+context	p_1=I-NPt_1=NNt0=.
+context	p_1=I-NPt0=.t1=eos
+context	p_1=I-NPt1=eost2=eos
+context	p_1=I-NPt_2=VBt_1=NNt0=.
+context	p_1=I-NPt_1=NNt0=.t1=eos
+context	p_1=I-NPt0=.t1=eost2=eos
+context	p_1=I-NPw_2=한국어를
+context	p_1=I-NPw_1=공부합니다
+context	p_1=I-NPw0=.
+context	p_1=I-NPw1=eos
+context	p_1=I-NPw2=eos
+context	p_1=I-NPw_1=공부합니다w0=.
+context	p_1=I-NPw0=.w1=eos
+outcome	B-NP	3fbb9a884cd76dbe 0.10782672763837461
+outcome	I-NP	3fb5e85ccbddccfc 0.08557682015616658
+outcome	B-VP	3fac58284db6eaba 0.055360087858806264
+outcome	B-PP	3fbd81b15e841a9a 0.11526020581741606
+outcome	O	3fd37006082013f8 0.3037123755787543
+outcome	B-ADJP	3fbc9a4e9c05ca16 0.11172953900476332
+outcome	I-VP	3fbbba025652f2a4 0.1083070240737905
+outcome	B-SBAR	3fbcbaec4f1228bd 0.11222721987192848
+end	28
+point	29	52	41	8	0	none
+context	w_2=한국어를
+context	w_1=공부합니다
+context	w0=.
+context	w1=eos
+context	w2=eos
+context	w_1=공부합니다w0=.
+context	w0=.w1=eos
+context	t_2=VB
+context	t_1=NN
+context	t0=.
+context	t1=eos
+context	t2=eos
+context	t_2=VBt_1=NN
+context	t_1=NNt0=.
+context	t0=.t1=eos
+context	t1=eost2=eos
+context	t_2=VBt_1=NNt0=.
+context	t_1=NNt0=.t1=eos
+context	t0=.t1=eost2=eos
+context	p_2=B-VP
+context	p_1=B-SBAR
+context	p_2=B-VPp_1=B-SBAR
+context	p_1=B-SBARt_2=VB
+context	p_1=B-SBARt_1=NN
+context	p_1=B-SBARt0=.
+context	p_1=B-SBARt1=eos
+context	p_1=B-SBARt2=eos
+context	p_1=B-SBARt_2=VBt_1=NN
+context	p_1=B-SBARt_1=NNt0=.
+context	p_1=B-SBARt0=.t1=eos
+context	p_1=B-SBARt1=eost2=eos
+context	p_1=B-SBARt_2=VBt_1=NNt0=.
+context	p_1=B-SBARt_1=NNt0=.t1=eos
+context	p_1=B-SBARt0=.t1=eost2=eos
+context	p_1=B-SBARw_2=한국어를
+context	p_1=B-SBARw_1=공부합니다
+context	p_1=B-SBARw0=.
+context	p_1=B-SBARw1=eos
+context	p_1=B-SBARw2=eos
+context	p_1=B-SBARw_1=공부합니다w0=.
+context	p_1=B-SBARw0=.w1=eos
+outcome	B-NP	3fbc740cf2a509ef 0.11114579128210499
+outcome	I-NP	3fb36ac33ec1e325 0.07584781915819556
+outcome	B-VP	3fab99bc2b8a4584 0.053907280268627594
+outcome	B-PP	3fbfa010af198ab2 0.12353615069290916
+outcome	O	3fd356068c72d1ec 0.3021255847518478
+outcome	B-ADJP	3fbc740cf2a509ef 0.11114579128210499
+outcome	I-VP	3fbc740cf2a509ef 0.11114579128210499
+outcome	B-SBAR	3fbc740cf2a509ef 0.11114579128210499
+end	29
+point	30	52	41	8	0	none
+context	w_2=한국어를
+context	w_1=공부합니다
+context	w0=.
+context	w1=eos
+context	w2=eos
+context	w_1=공부합니다w0=.
+context	w0=.w1=eos
+context	t_2=VB
+context	t_1=NN
+context	t0=.
+context	t1=eos
+context	t2=eos
+context	t_2=VBt_1=NN
+context	t_1=NNt0=.
+context	t0=.t1=eos
+context	t1=eost2=eos
+context	t_2=VBt_1=NNt0=.
+context	t_1=NNt0=.t1=eos
+context	t0=.t1=eost2=eos
+context	p_2=B-VP
+context	p_1=B-ADJP
+context	p_2=B-VPp_1=B-ADJP
+context	p_1=B-ADJPt_2=VB
+context	p_1=B-ADJPt_1=NN
+context	p_1=B-ADJPt0=.
+context	p_1=B-ADJPt1=eos
+context	p_1=B-ADJPt2=eos
+context	p_1=B-ADJPt_2=VBt_1=NN
+context	p_1=B-ADJPt_1=NNt0=.
+context	p_1=B-ADJPt0=.t1=eos
+context	p_1=B-ADJPt1=eost2=eos
+context	p_1=B-ADJPt_2=VBt_1=NNt0=.
+context	p_1=B-ADJPt_1=NNt0=.t1=eos
+context	p_1=B-ADJPt0=.t1=eost2=eos
+context	p_1=B-ADJPw_2=한국어를
+context	p_1=B-ADJPw_1=공부합니다
+context	p_1=B-ADJPw0=.
+context	p_1=B-ADJPw1=eos
+context	p_1=B-ADJPw2=eos
+context	p_1=B-ADJPw_1=공부합니다w0=.
+context	p_1=B-ADJPw0=.w1=eos
+outcome	B-NP	3fbb09a5ee00b1e6 0.10561596928227565
+outcome	I-NP	3fb3e064038333ff 0.077642680032298
+outcome	B-VP	3facc7282a78872c 0.05620694654886757
+outcome	B-PP	3fbf88cc24f83bac 0.12318111326770403
+outcome	O	3fd363f82c2ff49a 0.30297664942902147
+outcome	B-ADJP	3fbc8891b6829824 0.1114588804799444
+outcome	I-VP	3fbc8891b6829824 0.1114588804799444
+outcome	B-SBAR	3fbc8891b6829824 0.1114588804799444
+end	30
+point	31	52	41	8	0	none
+context	w_2=한국어를
+context	w_1=공부합니다
+context	w0=.
+context	w1=eos
+context	w2=eos
+context	w_1=공부합니다w0=.
+context	w0=.w1=eos
+context	t_2=VB
+context	t_1=NN
+context	t0=.
+context	t1=eos
+context	t2=eos
+context	t_2=VBt_1=NN
+context	t_1=NNt0=.
+context	t0=.t1=eos
+context	t1=eost2=eos
+context	t_2=VBt_1=NNt0=.
+context	t_1=NNt0=.t1=eos
+context	t0=.t1=eost2=eos
+context	p_2=B-VP
+context	p_1=O
+context	p_2=B-VPp_1=O
+context	p_1=Ot_2=VB
+context	p_1=Ot_1=NN
+context	p_1=Ot0=.
+context	p_1=Ot1=eos
+context	p_1=Ot2=eos
+context	p_1=Ot_2=VBt_1=NN
+context	p_1=Ot_1=NNt0=.
+context	p_1=Ot0=.t1=eos
+context	p_1=Ot1=eost2=eos
+context	p_1=Ot_2=VBt_1=NNt0=.
+context	p_1=Ot_1=NNt0=.t1=eos
+context	p_1=Ot0=.t1=eost2=eos
+context	p_1=Ow_2=한국어를
+context	p_1=Ow_1=공부합니다
+context	p_1=Ow0=.
+context	p_1=Ow1=eos
+context	p_1=Ow2=eos
+context	p_1=Ow_1=공부합니다w0=.
+context	p_1=Ow0=.w1=eos
+outcome	B-NP	3fbc8eef6e8662b5 0.11155601929057009
+outcome	I-NP	3fb37d1bf8c48f63 0.07612776587899144
+outcome	B-VP	3fad531e605f2840 0.05727477003490877
+outcome	B-PP	3fbdfc68633b5e67 0.11713268683103593
+outcome	O	3fd3684bae6dbccf 0.3032407000927834
+outcome	B-ADJP	3fbc8eef6e8662b5 0.11155601929057009
+outcome	I-VP	3fbc8eef6e8662b5 0.11155601929057009
+outcome	B-SBAR	3fbc8eef6e8662b5 0.11155601929057009
+end	31
+point	32	52	41	8	0	none
+context	w_2=한국어를
+context	w_1=공부합니다
+context	w0=.
+context	w1=eos
+context	w2=eos
+context	w_1=공부합니다w0=.
+context	w0=.w1=eos
+context	t_2=VB
+context	t_1=NN
+context	t0=.
+context	t1=eos
+context	t2=eos
+context	t_2=VBt_1=NN
+context	t_1=NNt0=.
+context	t0=.t1=eos
+context	t1=eost2=eos
+context	t_2=VBt_1=NNt0=.
+context	t_1=NNt0=.t1=eos
+context	t0=.t1=eost2=eos
+context	p_2=B-VP
+context	p_1=B-NP
+context	p_2=B-VPp_1=B-NP
+context	p_1=B-NPt_2=VB
+context	p_1=B-NPt_1=NN
+context	p_1=B-NPt0=.
+context	p_1=B-NPt1=eos
+context	p_1=B-NPt2=eos
+context	p_1=B-NPt_2=VBt_1=NN
+context	p_1=B-NPt_1=NNt0=.
+context	p_1=B-NPt0=.t1=eos
+context	p_1=B-NPt1=eost2=eos
+context	p_1=B-NPt_2=VBt_1=NNt0=.
+context	p_1=B-NPt_1=NNt0=.t1=eos
+context	p_1=B-NPt0=.t1=eost2=eos
+context	p_1=B-NPw_2=한국어를
+context	p_1=B-NPw_1=공부합니다
+context	p_1=B-NPw0=.
+context	p_1=B-NPw1=eos
+context	p_1=B-NPw2=eos
+context	p_1=B-NPw_1=공부합니다w0=.
+context	p_1=B-NPw0=.w1=eos
+outcome	B-NP	3fb7cce5f9b12b1b 0.09297025056836754
+outcome	I-NP	3fb2c1fb449e4642 0.07327242303133466
+outcome	B-VP	3fb0f6b6d6d950f6 0.06626456017812984
+outcome	B-PP	3fc058b5598af036 0.1277071654529906
+outcome	O	3fd376e9cafcc3c1 0.3041328890131432
+outcome	B-ADJP	3fbca47203ef6f6c 0.11188423725201141
+outcome	I-VP	3fbca47203ef6f6c 0.11188423725201141
+outcome	B-SBAR	3fbca47203ef6f6c 0.11188423725201141
+end	32
+point	33	52	41	8	0	none
+context	w_2=한국어를
+context	w_1=공부합니다
+context	w0=.
+context	w1=eos
+context	w2=eos
+context	w_1=공부합니다w0=.
+context	w0=.w1=eos
+context	t_2=VB
+context	t_1=NN
+context	t0=.
+context	t1=eos
+context	t2=eos
+context	t_2=VBt_1=NN
+context	t_1=NNt0=.
+context	t0=.t1=eos
+context	t1=eost2=eos
+context	t_2=VBt_1=NNt0=.
+context	t_1=NNt0=.t1=eos
+context	t0=.t1=eost2=eos
+context	p_2=B-NP
+context	p_1=B-PP
+context	p_2=B-NPp_1=B-PP
+context	p_1=B-PPt_2=VB
+context	p_1=B-PPt_1=NN
+context	p_1=B-PPt0=.
+context	p_1=B-PPt1=eos
+context	p_1=B-PPt2=eos
+context	p_1=B-PPt_2=VBt_1=NN
+context	p_1=B-PPt_1=NNt0=.
+context	p_1=B-PPt0=.t1=eos
+context	p_1=B-PPt1=eost2=eos
+context	p_1=B-PPt_2=VBt_1=NNt0=.
+context	p_1=B-PPt_1=NNt0=.t1=eos
+context	p_1=B-PPt0=.t1=eost2=eos
+context	p_1=B-PPw_2=한국어를
+context	p_1=B-PPw_1=공부합니다
+context	p_1=B-PPw0=.
+context	p_1=B-PPw1=eos
+context	p_1=B-PPw2=eos
+context	p_1=B-PPw_1=공부합니다w0=.
+context	p_1=B-PPw0=.w1=eos
+outcome	B-NP	3fc544c3ecbbd542 0.1661610513616925
+outcome	I-NP	3fb1aca742825560 0.0690407311797876
+outcome	B-VP	3fab3b6ae4f3c79c 0.053187694977068406
+outcome	B-PP	3fb7584d1770e0a6 0.09119111845291403
+outcome	O	3fd30afb17c91294 0.29754521677777146
+outcome	B-ADJP	3fbc059ef30fd7b8 0.10946076807144223
+outcome	I-VP	3fba5dfd584d2a58 0.10299666791721884
+outcome	B-SBAR	3fbc4445af99ef44 0.11041675126210487
+end	33
+point	34	54	41	8	0	none
+context	w_2=bos
+context	w_1=bos
+context	w0=감사합니다
+context	w1=!
+context	w2=eos
+context	w_1=bosw0=감사합니다
+context	w0=감사합니다w1=!
+context	t_2=bos
+context	t_1=bos
+context	t0=NN
+context	t1=.
+context	t2=eos
+context	t_2=bost_1=bos
+context	t_1=bost0=NN
+context	t0=NNt1=.
+context	t1=.t2=eos
+context	t_2=bost_1=bost0=NN
+context	t_1=bost0=NNt1=.
+context	t0=NNt1=.t2=eos
+context	p_2=bos
+context	p_1=bos
+context	p_2=bosp_1=bos
+context	p_1=bost_2=bos
+context	p_1=bost_1=bos
+context	p_1=bost0=NN
+context	p_1=bost1=.
+context	p_1=bost2=eos
+context	p_1=bost_2=bost_1=bos
+context	p_1=bost_1=bost0=NN
+context	p_1=bost0=NNt1=.
+context	p_1=bost1=.t2=eos
+context	p_1=bost_2=bost_1=bost0=NN
+context	p_1=bost_1=bost0=NNt1=.
+context	p_1=bost0=NNt1=.t2=eos
+context	p_1=bosw_2=bos
+context	p_1=bosw_1=bos
+context	p_1=bosw0=감사합니다
+context	p_1=bosw1=!
+context	p_1=bosw2=eos
+context	p_1=bosw_1=bosw0=감사합니다
+context	p_1=bosw0=감사합니다w1=!
+outcome	B-NP	3fd33008a7898e5c 0.2998067508799289
+outcome	I-NP	3fa571b6103790d3 0.041883172492619324
+outcome	B-VP	3fbc3c251f2bbc59 0.11029273997313406
+outcome	B-PP	3fbc3c251f2bbc59 0.11029273997313406
+outcome	O	3fbb5a48bde35070 0.10684637676178155
+outcome	B-ADJP	3fbc3c251f2bbc59 0.11029273997313406
+outcome	I-VP	3fbc3c251f2bbc59 0.11029273997313406
+outcome	B-SBAR	3fbc3c251f2bbc59 0.11029273997313406
+end	34
+point	35	69	41	8	0	none
+context	w_2=bos
+context	w_1=감사합니다
+context	w0=!
+context	w1=eos
+context	w2=eos
+context	w_1=감사합니다w0=!
+context	w0=!w1=eos
+context	t_2=bos
+context	t_1=NN
+context	t0=.
+context	t1=eos
+context	t2=eos
+context	t_2=bost_1=NN
+context	t_1=NNt0=.
+context	t0=.t1=eos
+context	t1=eost2=eos
+context	t_2=bost_1=NNt0=.
+context	t_1=NNt0=.t1=eos
+context	t0=.t1=eost2=eos
+context	p_2=bos
+context	p_1=B-NP
+context	p_2=bosp_1=B-NP
+context	p_1=B-NPt_2=bos
+context	p_1=B-NPt_1=NN
+context	p_1=B-NPt0=.
+context	p_1=B-NPt1=eos
+context	p_1=B-NPt2=eos
+context	p_1=B-NPt_2=bost_1=NN
+context	p_1=B-NPt_1=NNt0=.
+context	p_1=B-NPt0=.t1=eos
+context	p_1=B-NPt1=eost2=eos
+context	p_1=B-NPt_2=bost_1=NNt0=.
+context	p_1=B-NPt_1=NNt0=.t1=eos
+context	p_1=B-NPt0=.t1=eost2=eos
+context	p_1=B-NPw_2=bos
+context	p_1=B-NPw_1=감사합니다
+context	p_1=B-NPw0=!
+context	p_1=B-NPw1=eos
+context	p_1=B-NPw2=eos
+context	p_1=B-NPw_1=감사합니다w0=!
+context	p_1=B-NPw0=!w1=eos
+outcome	B-NP	3fb33ceea303f756 0.07514850120420866
+outcome	I-NP	3fb051ab6072dd22 0.0637461767645289
+outcome	B-VP	3fb96a6f12ff990b 0.09928030217961152
+outcome	B-PP	3fbf1f1ee6a8e952 0.12156861430495283
+outcome	O	3fd37a947fc70ef2 0.3043566940143442
+outcome	B-ADJP	3fbca9d75696cf1e 0.1119665705107846
+outcome	I-VP	3fbca9d75696cf1e 0.1119665705107846
+outcome	B-SBAR	3fbca9d75696cf1e 0.1119665705107846
+end	35
+point	36	69	41	8	0	none
+context	w_2=bos
+context	w_1=감사합니다
+context	w0=!
+context	w1=eos
+context	w2=eos
+context	w_1=감사합니다w0=!
+context	w0=!w1=eos
+context	t_2=bos
+context	t_1=NN
+context	t0=.
+context	t1=eos
+context	t2=eos
+context	t_2=bost_1=NN
+context	t_1=NNt0=.
+context	t0=.t1=eos
+context	t1=eost2=eos
+context	t_2=bost_1=NNt0=.
+context	t_1=NNt0=.t1=eos
+context	t0=.t1=eost2=eos
+context	p_2=bos
+context	p_1=B-ADJP
+context	p_2=bosp_1=B-ADJP
+context	p_1=B-ADJPt_2=bos
+context	p_1=B-ADJPt_1=NN
+context	p_1=B-ADJPt0=.
+context	p_1=B-ADJPt1=eos
+context	p_1=B-ADJPt2=eos
+context	p_1=B-ADJPt_2=bost_1=NN
+context	p_1=B-ADJPt_1=NNt0=.
+context	p_1=B-ADJPt0=.t1=eos
+context	p_1=B-ADJPt1=eost2=eos
+context	p_1=B-ADJPt_2=bost_1=NNt0=.
+context	p_1=B-ADJPt_1=NNt0=.t1=eos
+context	p_1=B-ADJPt0=.t1=eost2=eos
+context	p_1=B-ADJPw_2=bos
+context	p_1=B-ADJPw_1=감사합니다
+context	p_1=B-ADJPw0=!
+context	p_1=B-ADJPw1=eos
+context	p_1=B-ADJPw2=eos
+context	p_1=B-ADJPw_1=감사합니다w0=!
+context	p_1=B-ADJPw0=!w1=eos
+outcome	B-NP	3fb94b1d728d7c63 0.09880241438576003
+outcome	I-NP	3fb069e351c5c213 0.0641157221450686
+outcome	B-VP	3fb3a77acf1a5a7a 0.07677428776001163
+outcome	B-PP	3fbe8faf240b6a89 0.1193799460410593
+outcome	O	3fd37fcecedf124a 0.30467577173502447
+outcome	B-ADJP	3fbcb188af039123 0.1120839526443587
+outcome	I-VP	3fbcb188af039123 0.1120839526443587
+outcome	B-SBAR	3fbcb188af039123 0.1120839526443587
+end	36
+point	37	69	41	8	0	none
+context	w_2=bos
+context	w_1=감사합니다
+context	w0=!
+context	w1=eos
+context	w2=eos
+context	w_1=감사합니다w0=!
+context	w0=!w1=eos
+context	t_2=bos
+context	t_1=NN
+context	t0=.
+context	t1=eos
+context	t2=eos
+context	t_2=bost_1=NN
+context	t_1=NNt0=.
+context	t0=.t1=eos
+context	t1=eost2=eos
+context	t_2=bost_1=NNt0=.
+context	t_1=NNt0=.t1=eos
+context	t0=.t1=eost2=eos
+context	p_2=bos
+context	p_1=B-PP
+context	p_2=bosp_1=B-PP
+context	p_1=B-PPt_2=bos
+context	p_1=B-PPt_1=NN
+context	p_1=B-PPt0=.
+context	p_1=B-PPt1=eos
+context	p_1=B-PPt2=eos
+context	p_1=B-PPt_2=bost_1=NN
+context	p_1=B-PPt_1=NNt0=.
+context	p_1=B-PPt0=.t1=eos
+context	p_1=B-PPt1=eost2=eos
+context	p_1=B-PPt_2=bost_1=NNt0=.
+context	p_1=B-PPt_1=NNt0=.t1=eos
+context	p_1=B-PPt0=.t1=eost2=eos
+context	p_1=B-PPw_2=bos
+context	p_1=B-PPw_1=감사합니다
+context	p_1=B-PPw0=!
+context	p_1=B-PPw1=eos
+context	p_1=B-PPw2=eos
+context	p_1=B-PPw_1=감사합니다w0=!
+context	p_1=B-PPw0=!w1=eos
+outcome	B-NP	3fc22651bed223f6 0.1417944127790915
+outcome	I-NP	3faab52433e38396 0.05216324933440501
+outcome	B-VP	3fb0fe0bc0580a91 0.06637643285652418
+outcome	B-PP	3fbc2f5937abe8a6 0.11009748086135804
+outcome	O	3fd3275672589247 0.2992759815845471
+outcome	B-ADJP	3fbc2f5937abe8a6 0.11009748086135804
+outcome	I-VP	3fbc2f5937abe8a6 0.11009748086135804
+outcome	B-SBAR	3fbc2f5937abe8a6 0.11009748086135804
+end	37
+point	38	69	41	8	0	none
+context	w_2=bos
+context	w_1=감사합니다
+context	w0=!
+context	w1=eos
+context	w2=eos
+context	w_1=감사합니다w0=!
+context	w0=!w1=eos
+context	t_2=bos
+context	t_1=NN
+context	t0=.
+context	t1=eos
+context	t2=eos
+context	t_2=bost_1=NN
+context	t_1=NNt0=.
+context	t0=.t1=eos
+context	t1=eost2=eos
+context	t_2=bost_1=NNt0=.
+context	t_1=NNt0=.t1=eos
+context	t0=.t1=eost2=eos
+context	p_2=bos
+context	p_1=B-SBAR
+context	p_2=bosp_1=B-SBAR
+context	p_1=B-SBARt_2=bos
+context	p_1=B-SBARt_1=NN
+context	p_1=B-SBARt0=.
+context	p_1=B-SBARt1=eos
+context	p_1=B-SBARt2=eos
+context	p_1=B-SBARt_2=bost_1=NN
+context	p_1=B-SBARt_1=NNt0=.
+context	p_1=B-SBARt0=.t1=eos
+context	p_1=B-SBARt1=eost2=eos
+context	p_1=B-SBARt_2=bost_1=NNt0=.
+context	p_1=B-SBARt_1=NNt0=.t1=eos
+context	p_1=B-SBARt0=.t1=eost2=eos
+context	p_1=B-SBARw_2=bos
+context	p_1=B-SBARw_1=감사합니다
+context	p_1=B-SBARw0=!
+context	p_1=B-SBARw1=eos
+context	p_1=B-SBARw2=eos
+context	p_1=B-SBARw_1=감사합니다w0=!
+context	p_1=B-SBARw0=!w1=eos
+outcome	B-NP	3fbac456aa60e67d 0.10455838832504045
+outcome	I-NP	3faf8bf43dd58928 0.0616146398049458
+outcome	B-VP	3fb31e3411deb4bc 0.07467961727407418
+outcome	B-PP	3fbe9fbcd6b3955f 0.11962490312324324
+outcome	O	3fd374dd1dfab59e 0.30400779655141175
+outcome	B-ADJP	3fbca16df21266ca 0.11183821830709487
+outcome	I-VP	3fbca16df21266ca 0.11183821830709487
+outcome	B-SBAR	3fbca16df21266ca 0.11183821830709487
+end	38
+point	39	69	41	8	0	none
+context	w_2=bos
+context	w_1=감사합니다
+context	w0=!
+context	w1=eos
+context	w2=eos
+context	w_1=감사합니다w0=!
+context	w0=!w1=eos
+context	t_2=bos
+context	t_1=NN
+context	t0=.
+context	t1=eos
+context	t2=eos
+context	t_2=bost_1=NN
+context	t_1=NNt0=.
+context	t0=.t1=eos
+context	t1=eost2=eos
+context	t_2=bost_1=NNt0=.
+context	t_1=NNt0=.t1=eos
+context	t0=.t1=eost2=eos
+context	p_2=bos
+context	p_1=B-VP
+context	p_2=bosp_1=B-VP
+context	p_1=B-VPt_2=bos
+context	p_1=B-VPt_1=NN
+context	p_1=B-VPt0=.
+context	p_1=B-VPt1=eos
+context	p_1=B-VPt2=eos
+context	p_1=B-VPt_2=bost_1=NN
+context	p_1=B-VPt_1=NNt0=.
+context	p_1=B-VPt0=.t1=eos
+context	p_1=B-VPt1=eost2=eos
+context	p_1=B-VPt_2=bost_1=NNt0=.
+context	p_1=B-VPt_1=NNt0=.t1=eos
+context	p_1=B-VPt0=.t1=eost2=eos
+context	p_1=B-VPw_2=bos
+context	p_1=B-VPw_1=감사합니다
+context	p_1=B-VPw0=!
+context	p_1=B-VPw1=eos
+context	p_1=B-VPw2=eos
+context	p_1=B-VPw_1=감사합니다w0=!
+context	p_1=B-VPw0=!w1=eos
+outcome	B-NP	3fbc8a037f3b776f 0.11148092132813557
+outcome	I-NP	3fad66260c4a695f 0.057419957161260575
+outcome	B-VP	3fb30e914bb187a6 0.07444103334412819
+outcome	B-PP	3fbe3be90d2bf16f 0.11810165950368455
+outcome	O	3fd364f377892c7d 0.30303656266614337
+outcome	B-ADJP	3fbc8a037f3b776f 0.11148092132813557
+outcome	I-VP	3fbc8a037f3b776f 0.11148092132813557
+outcome	B-SBAR	3fbcd09a45263a01 0.11255802334037669
+end	39
+point	40	69	41	8	0	none
+context	w_2=bos
+context	w_1=감사합니다
+context	w0=!
+context	w1=eos
+context	w2=eos
+context	w_1=감사합니다w0=!
+context	w0=!w1=eos
+context	t_2=bos
+context	t_1=NN
+context	t0=.
+context	t1=eos
+context	t2=eos
+context	t_2=bost_1=NN
+context	t_1=NNt0=.
+context	t0=.t1=eos
+context	t1=eost2=eos
+context	t_2=bost_1=NNt0=.
+context	t_1=NNt0=.t1=eos
+context	t0=.t1=eost2=eos
+context	p_2=bos
+context	p_1=O
+context	p_2=bosp_1=O
+context	p_1=Ot_2=bos
+context	p_1=Ot_1=NN
+context	p_1=Ot0=.
+context	p_1=Ot1=eos
+context	p_1=Ot2=eos
+context	p_1=Ot_2=bost_1=NN
+context	p_1=Ot_1=NNt0=.
+context	p_1=Ot0=.t1=eos
+context	p_1=Ot1=eost2=eos
+context	p_1=Ot_2=bost_1=NNt0=.
+context	p_1=Ot_1=NNt0=.t1=eos
+context	p_1=Ot0=.t1=eost2=eos
+context	p_1=Ow_2=bos
+context	p_1=Ow_1=감사합니다
+context	p_1=Ow0=!
+context	p_1=Ow1=eos
+context	p_1=Ow2=eos
+context	p_1=Ow_1=감사합니다w0=!
+context	p_1=Ow0=!w1=eos
+outcome	B-NP	3fbad61cd04847f2 0.10482959828394181
+outcome	I-NP	3fafa0e6e7ba212a 0.06177445963573043
+outcome	B-VP	3fb48089f0e4ad2b 0.08008634692366871
+outcome	B-PP	3fbcb470e5483daf 0.112128311135385
+outcome	O	3fd381c88d7540e5 0.30479635061511906
+outcome	B-ADJP	3fbcb470e5483daf 0.112128311135385
+outcome	I-VP	3fbcb470e5483daf 0.112128311135385
+outcome	B-SBAR	3fbcb470e5483daf 0.112128311135385
+end	40

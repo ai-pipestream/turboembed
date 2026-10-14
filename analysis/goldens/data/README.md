@@ -149,6 +149,9 @@ that differs.
 |---|---|
 | `en-abbrev.bin`, `en-plain.bin` | English sentence models trained by `analysis/sentdetect/tests/fixtures/src/TrainSentenceModel.java` (see the README there): `en-abbrev` has an abbreviation dictionary of 13 entries and `useTokenEnd=true`, `en-plain` has no dictionary and `useTokenEnd=false` |
 | `en-plain-rust.bin` | the `.bin` the Rust trainer writes when it trains `en-plain`'s events again (`analysis/train/tests/roundtrip.rs`, which checks that the fixture is that file): the `sent.model` entry and the manifest of `en-plain.bin`, byte for byte, in an archive written here (entries stored, manifest first); the JVM loads it so the goldens of the two files can be compared |
+| `pos-fixture.bin` | a copy of `analysis/sequence/golden/models/pos-fixture.bin`, a part-of-speech model OpenNLP trained by GIS on 15 sentences with Penn Treebank tags, the default descriptor and the case-insensitive tag dictionary `tags.tagdict` (`the`, `Run`, `fell`, `Paris`; `analysis/sequence/README.md`) |
+| `lemmatizer-dictionary.txt` | a `DictionaryLemmatizer` dictionary written for this project: 48 `word<tab>tag<tab>lemma` lines with Universal Dependencies tags for words of the `en` and `multi` inputs, among them entries with several lemmas (`leave#leaf`), a word listed twice with one tag (the last wins), a word with two tags, an empty lemma field (`#`), fields after the lemma and a trailing tab (both ignored), entries with a capital letter (never found, since a lookup lowercases the token) and non-ASCII words |
+| `chunker-fixture.bin` | a copy of `analysis/sequence/golden/models/chunker-fixture.bin`, a chunker model OpenNLP trained by perceptron on 8 sentences with Penn Treebank tags and `B-`, `I-` and `O` chunk tags for `NP`, `VP`, `PP`, `ADJP` and `SBAR` (`analysis/sequence/golden/inputs/train-chunk.txt`, `analysis/sequence/README.md`); the only chunker model here, since the published chunker models are OpenNLP 1.5 models, which this project does not use |
 | `tokenizer-abbreviations.bin` | a copy of `analysis/maxent/tests/fixtures/models/tokenizer.bin`, a tokenizer model OpenNLP trained on six sentences with the case-insensitive dictionary `Dr.`, `U.S.`, `e.g.` (`analysis/maxent/tests/fixtures/README.md`) |
 | `english-dictionary.xml` | an abbreviation dictionary written for this project, added to the English tokenizer model |
 | `latin-detokenizer.xml` | Apache OpenNLP's test resource of `DictionaryDetokenizerTest`, unchanged (license header kept) |
@@ -290,7 +293,7 @@ https://www.apache.org/licenses/LICENSE-2.0); its archive has no
 `<annotator>` produced with model `<model>` (the model file's name
 without `.bin`, `.xml` or `.txt`) on `inputs/<set>/<id>.txt`. A run with options
 has `+` and their names after the model (`+legacy`, `+keep-new-lines`,
-`+alphanumeric`, `+english-dictionary`), and a run without a model names
+`+alphanumeric`, `+english-dictionary`, `+penn`, `+beam1`), and a run without a model names
 itself there (`simple`, `whitespace`, `uax29`, `newline`). Each file's
 header names the OpenNLP commit, the JDK, the input's hash, each model's
 hash and the run's options.
@@ -414,8 +417,8 @@ quantity annotator runs on the set, and it has no dumps.
 ## Decision point dumps
 
 `<annotator>/<model>/<set>/<id>.dump`, beside each golden of
-`sentdetect`, `tokenize` and `langdetect` that names a model and has no
-`error` record, records every
+`sentdetect`, `tokenize`, `postag`, `lemmatize`, `chunk` and `langdetect` that
+names a model and has no `error` record, records every
 decision the annotator asked its maxent model for on that input: the
 context strings, at the UTF-8 byte offset the decision is about, and the
 probability of each outcome the model returned. `docs/analysis.md`
