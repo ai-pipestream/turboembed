@@ -102,11 +102,17 @@ All of these are kept and tested (`src/`, `tests/goldens.rs`,
   script is the class `_`.
 - A lemma class is the shortest edit script over UTF-16 units, so a token
   or lemma with a character outside the Basic Multilingual Plane can give
-  a class that holds half of a surrogate pair; the JVM trains on it, a
-  Rust string cannot hold it, and this crate refuses the sample
-  (`Error::LemmaClassSurrogate`; issue #404 tracks holding the outcome as
-  a `JavaString`). The `train-events` goldens have two such samples, which
-  `tests/goldens.rs` checks are the only events this crate does not make.
+  a class that holds half of a surrogate pair. A class is a `JavaString`
+  for that reason, so such a sample trains, and the model file holds the
+  class's modified UTF-8 as `writeUTF` writes it. The `train-events`
+  goldens have four such classes in three samples (one each in
+  `formats/lemma-basic` and `formats/conllu-whitespace`, two in one
+  sentence of `tagged/lemmas`, the Rust lemmatizer fixture's training
+  data), which `tests/goldens.rs` counts; their events and checksums are
+  the JVM's. No golden holds a lemmatizer model the JVM trained on them:
+  the written bytes are checked by the writer's unit tests, and
+  `analysis/lemmatizer/tests/golden.rs` checks the JVM's lemmas and dumps
+  over the Rust fixture, which the JVM reads.
 - The published UD 1.3 models were trained with 300 iterations, not the
   150 that `ud-train.conf` in `apache/opennlp-models` says (below).
 

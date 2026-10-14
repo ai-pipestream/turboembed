@@ -116,7 +116,9 @@ pub fn layer_opt<'g>(g: &'g Golden, id: &str) -> Option<&'g GoldenLayer> {
 }
 
 /// The events of the golden: the outcome and the predicates read back
-/// through [`java_string`]. The sources this crate ports give no values.
+/// through [`java_string`], so a lemma class holding half of a surrogate
+/// pair is the `JavaString` the event stream makes. The sources this crate
+/// ports give no values.
 pub fn events(g: &Golden) -> Vec<Event> {
     let l = layer(g, "turbo:events");
     let (outcomes, contexts, values) =
@@ -125,7 +127,7 @@ pub fn events(g: &Golden) -> Vec<Event> {
         .map(|i| {
             assert!(values.get(i).is_empty(), "an event with values");
             let context = contexts.get(i);
-            Event::new(outcomes.get(i), split_context(context))
+            Event::new(java_string(outcomes.get(i)), split_context(context))
         })
         .collect()
 }
@@ -183,7 +185,7 @@ pub fn describe_difference(expected: &[Event], actual: &[Event]) -> String {
     for (i, (e, a)) in expected.iter().zip(actual).enumerate() {
         if e != a {
             return format!(
-                "event {i}: expected {} {:?}, made {} {:?}",
+                "event {i}: expected {:?} {:?}, made {:?} {:?}",
                 e.outcome(),
                 e.context().iter().map(JavaString::to_string_lossy).collect::<Vec<_>>(),
                 a.outcome(),

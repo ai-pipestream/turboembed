@@ -1,0 +1,79 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	parse/unicode	170	141	f29c51a780f5b19e5d15aeb17ceaa8531d2e193438bc551502f65eeee9f9a404
+model	en-head-rules.txt	4924379ef7ca9376c6953e166512a556006e069e9ba319dc941a74342e3b46aa64313014d5a801030d5867dc6ea4be9208b75706579840bbcc12fa00aab0cca4
+annotator	opennlp.tools.parser.Parse	parseParse
+config	rules	opennlp.tools.parser.lang.en.HeadRules
+layer	turbo:samples	document	3	written:str
+(TOP (S (NP (NN café) (NN 日本)) (VP (VB 😀) (NN a b) (NN 🐱é)) (. .)) )
+(TOP (NP (NNP Ångström) (POS 's)) (NN नमस्ते) )
+(TOP (X (Y  ) (Z 　)) )
+end	turbo:samples
+layer	turbo:read-errors	document	0	after:u32	class:str	message:str
+end	turbo:read-errors
+layer	turbo:parse-texts	document	3	sample:u32	text:str
+0	café 日本 😀 a b 🐱é . 
+1	Ångström 's नमस्ते 
+2	  　 
+end	turbo:parse-texts
+layer	turbo:parse-nodes	document	30	sample:u32	depth:u32	type:str	start:u32	end:u32	head-start:u32	head-end:u32	own-head:u32	head-index:u32
+0	0	TOP	0	32	13	17	0	2
+0	1	S	0	31	13	17	0	2
+0	2	NP	0	12	6	12	0	1
+0	3	NN	0	5	0	5	1	0
+0	4	TK	0	5	0	5	1	0
+0	3	NN	6	12	6	12	1	1
+0	4	TK	6	12	6	12	1	1
+0	2	VP	13	29	13	17	0	2
+0	3	VB	13	17	13	17	1	2
+0	4	TK	13	17	13	17	1	2
+0	3	NN	18	22	18	22	1	3
+0	4	TK	18	22	18	22	1	3
+0	3	NN	23	29	23	29	1	4
+0	4	TK	23	29	23	29	1	4
+0	2	.	30	31	30	31	1	5
+0	3	TK	30	31	30	31	1	5
+1	0	TOP	0	33	14	32	0	2
+1	1	NP	0	13	11	13	0	1
+1	2	NNP	0	10	0	10	1	0
+1	3	TK	0	10	0	10	1	0
+1	2	POS	11	13	11	13	1	1
+1	3	TK	11	13	11	13	1	1
+1	1	NN	14	32	14	32	1	2
+1	2	TK	14	32	14	32	1	2
+2	0	TOP	0	8	0	3	0	0
+2	1	X	0	7	0	3	0	0
+2	2	Y	0	3	0	3	1	0
+2	3	TK	0	3	0	3	1	0
+2	2	Z	4	7	4	7	1	1
+2	3	TK	4	7	4	7	1	1
+end	turbo:parse-nodes
+layer	turbo:pos-samples	document	11	sample:u32	token:str	tag:str
+0	café	NN
+0	日本	NN
+0	😀	VB
+0	a b	NN
+0	🐱é	NN
+0	.	.
+1	Ångström	NNP
+1	's	POS
+1	नमस्ते	NN
+2	 	Y
+2	　	Z
+end	turbo:pos-samples
+layer	turbo:chunk-samples	document	11	sample:u32	token:str	tag:str	pred:str
+0	café	NN	S-NP
+0	日本	NN	C-NP
+0	😀	VB	S-VP
+0	a b	NN	C-VP
+0	🐱é	NN	C-VP
+0	.	.	O
+1	Ångström	NNP	S-NP
+1	's	POS	C-NP
+1	नमस्ते	NN	O
+2	 	Y	S-X
+2	　	Z	C-X
+end	turbo:chunk-samples

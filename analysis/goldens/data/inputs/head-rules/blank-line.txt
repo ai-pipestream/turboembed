@@ -1,0 +1,3 @@
+4 NP 1 NN NNS
+
+3 VP 0 VB

@@ -1,0 +1,12 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	head-rules/bad-count	10	10	e886d8b281f1df1e1224c14250eb9777fe31fb423702d20a8980cb5b03dbe588
+annotator	opennlp.tools.parser.lang.en.HeadRules	serialize
+layer	turbo:head-rules	document	0	line:str
+end	turbo:head-rules
+layer	turbo:rules-errors	document	1	class:str	message:str
+java.io.IOException	Invalid tag count in head rules: x
+end	turbo:rules-errors

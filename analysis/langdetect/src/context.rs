@@ -152,10 +152,12 @@ impl ContextGenerator {
     }
 
     /// Whether [`features`](Self::features) is exactly the JVM's order.
-    /// It is not when one of the JVM's maps would have turned a bucket into
-    /// a tree (nine or more n-grams in one bucket of a table of 64 or more),
-    /// whose order is not reproduced; the n-grams are the same, and the
-    /// sums the model makes over them can differ in the last bits.
+    /// It is not when one of the JVM's maps turned a bucket into a tree
+    /// (nine or more n-grams in one bucket of a table of 64 or more) that
+    /// holds n-grams with equal hash codes: the JDK orders those by
+    /// `System.identityHashCode`, which no port can follow. The n-grams are
+    /// the same, and the sums the model makes over them can differ in the
+    /// last bits.
     pub fn exact_order(&self) -> bool {
         self.exact
     }

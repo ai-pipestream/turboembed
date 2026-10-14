@@ -332,7 +332,8 @@ fn the_penn_reference_returns_its_own_outcomes() {
     assert!(!model.converts_tags());
     assert_eq!(model.tag_format(), PosTagFormat::Penn);
     let tags = labels(model.tagset());
-    let outcomes: Vec<&str> = (0..model.maxent().num_outcomes()).map(|o| model.maxent().outcome(o)).collect();
+    let outcomes: Vec<&str> =
+        (0..model.maxent().num_outcomes()).map(|o| model.maxent().outcome_str(o).unwrap()).collect();
     assert_eq!(tags.len(), outcomes.len());
     for tag in ["VBD", "VBZ", "NNS", ",", "TO", "POS", "PRP$"] {
         assert!(tags.contains(&tag), "{tag} is not an outcome: {tags:?}");

@@ -181,11 +181,14 @@ Two cases are not reproduced, and `OpenNlpBpe::is_jvm_exact` (and a
 warning from the command) says when either can apply:
 
 - A bin of eight or more keys in a table of 64 or more becomes a
-  red-black tree in the JVM, which iterates in an order of its own and,
-  for keys with equal hash codes, one that depends on identity hash
-  codes and changes from run to run. The bin keeps its list order here.
-  It changes the merges only when two pairs in that bin tie for the
-  highest count.
+  red-black tree in the JVM. The tree's order is reproduced, except
+  between keys with equal hash codes: the pairs (a record) and the
+  symbol lists are not classes `HashMap` compares, so the JVM orders
+  them by identity hash code, which changes from run to run. The words
+  are strings, which the JVM compares, but the trainer works from their
+  hash codes alone and reports equal ones in a tree bin the same way.
+  The order changes the merges only when two pairs in that bin tie for
+  the highest count.
 - A symbol is a Unicode character, where the JVM's is a UTF-16 unit: the
   JVM splits a character outside the Basic Multilingual Plane into its
   surrogates and spends merges joining them. Such a merge has a lone
@@ -207,8 +210,9 @@ the JVM on random corpora (`analysis/bpe-trainer/tests/opennlp.rs`):
   `BPETokenizerTrainer` (the commit above, JDK 21) on 160 random corpora
   of small alphabets and up to 3000 words, and wrote
   `opennlp-random.jsonl`: the trainer makes the same 9907 merges. Six of
-  the corpora reach a bin that became a tree, which the trainer reports;
-  their merges are the JVM's too.
+  the corpora reach a bin that became a tree; five of them hold keys
+  with equal hash codes in it, which the trainer reports, and their
+  merges are the JVM's too.
 - A model of the JVM's loop with explicit `HashMap` bins, written in the
   test, makes all 748 of the JVM's merges on the twelve goldens, the
   emoji golden's surrogate merges among them.

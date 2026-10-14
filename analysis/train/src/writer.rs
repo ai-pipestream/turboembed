@@ -60,7 +60,7 @@ pub const MAX_UTF_BYTES: usize = 65535;
 /// as `GISModelWriter`'s constructor takes it apart, the predicates in
 /// `pmap` order with each one's outcome pattern and parameters.
 pub trait WritableModel {
-    fn outcome_labels(&self) -> &[String];
+    fn outcome_labels(&self) -> &[JavaString];
     fn pred_labels(&self) -> &[JavaString];
     /// The outcome ids predicate `p` has parameters for.
     fn pattern(&self, p: usize) -> &[u32];
@@ -73,7 +73,7 @@ pub trait WritableModel {
 }
 
 impl WritableModel for GisModel {
-    fn outcome_labels(&self) -> &[String] {
+    fn outcome_labels(&self) -> &[JavaString] {
         GisModel::outcome_labels(self)
     }
 
@@ -91,7 +91,7 @@ impl WritableModel for GisModel {
 }
 
 impl WritableModel for QnModel {
-    fn outcome_labels(&self) -> &[String] {
+    fn outcome_labels(&self) -> &[JavaString] {
         QnModel::outcome_labels(self)
     }
 
@@ -111,7 +111,7 @@ impl WritableModel for QnModel {
 /// The model as the trainer leaves it, zero parameters included. Writing
 /// the model drops them ([`write_perceptron`]).
 impl WritableModel for PerceptronModel {
-    fn outcome_labels(&self) -> &[String] {
+    fn outcome_labels(&self) -> &[JavaString] {
         PerceptronModel::outcome_labels(self)
     }
 
@@ -166,7 +166,7 @@ pub fn write_perceptron(model: &PerceptronModel) -> Result<Vec<u8>> {
 /// parameters without the zero ones, and only the predicates that keep a
 /// parameter, in model order.
 struct Pruned<'m> {
-    outcome_labels: &'m [String],
+    outcome_labels: &'m [JavaString],
     pred_labels: Vec<JavaString>,
     /// `starts[p]..starts[p + 1]` of `outcomes` and `parameters` is
     /// predicate `p`'s.
@@ -203,7 +203,7 @@ impl<'m> Pruned<'m> {
 }
 
 impl WritableModel for Pruned<'_> {
-    fn outcome_labels(&self) -> &[String] {
+    fn outcome_labels(&self) -> &[JavaString] {
         self.outcome_labels
     }
 
@@ -225,7 +225,7 @@ impl WritableModel for Pruned<'_> {
 fn write_body(out: &mut ModelOutput, model: &dyn WritableModel) -> Result<()> {
     out.write_int(to_java_int(model.outcome_labels().len()));
     for label in model.outcome_labels() {
-        out.write_utf(&JavaString::new(label))?;
+        out.write_utf(label)?;
     }
     let sorted = sort_by_pattern(model);
     let groups = pattern_groups(model, &sorted);
@@ -400,7 +400,7 @@ mod tests {
         let model = trained();
         let bytes = write_gis(&model).unwrap();
         let read = MaxentModel::read(&bytes).unwrap();
-        assert_eq!(read.outcomes().collect::<Vec<_>>(), model.outcome_labels());
+        assert_eq!(read.outcomes().cloned().collect::<Vec<_>>(), model.outcome_labels());
         assert_eq!(read.num_predicates(), model.num_predicates());
         for p in ["a", "b", "c", "d"] {
             assert!(read.has_predicate(p), "{p}");
@@ -408,8 +408,64 @@ mod tests {
         // The written parameters evaluate as the trained ones.
         let mut out = vec![0.0; 3];
         read.eval(&["a", "b"], &mut out);
-        let yes = model.outcome_labels().iter().position(|o| o == "yes").unwrap();
+        let yes = model.outcome_labels().iter().position(|o| *o == "yes").unwrap();
         assert!(out[yes] > 0.5, "{out:?}");
+    }
+
+    #[test]
+    fn an_outcome_with_a_lone_surrogate_is_written_as_write_utf_writes_it() {
+        // The class of "😀" with the lemma "_": R1<low>_D0<high>.
+        let class = JavaString::from_utf16(&[0x52, 0x31, 0xDE00, 0x5F, 0x44, 0x30, 0xD83D]);
+        let events = [
+            Event::new(class.clone(), vec![JavaString::new("w0=😀"), JavaString::new("t0=_")]),
+            Event::from_strs("O", &["w0=x", "t0=_"]),
+            Event::from_strs("O", &["w0=y", "t0=_"]),
+        ];
+        let index = DataIndex::index(&events, &IndexParams::new(IndexerKind::TwoPass, 0, true)).unwrap();
+        let mut params = TrainingParameters::new();
+        params.put(Key::ITERATIONS, 5);
+        let model = crate::gis::train(&index, &params, &mut TrainingConfiguration::default()).unwrap();
+        let bytes = write_gis(&model).unwrap();
+        // After "GIS", the int, the double and the outcome count: the class
+        // as writeUTF writes it, each surrogate as three bytes.
+        let at = 5 + 4 + 8 + 4;
+        assert_eq!(&bytes[at..at + 2], &[0, 11]);
+        assert_eq!(&bytes[at + 2..at + 13], b"R1\xED\xB8\x80_D0\xED\xA0\xBD");
+        let read = MaxentModel::read(&bytes).unwrap();
+        assert_eq!(read.outcome(0), &class);
+        assert_eq!(read.outcome_index(&class), Some(0));
+        assert_eq!(read.outcome_texts(), Err(&class));
+    }
+
+    #[test]
+    fn the_qn_and_perceptron_writers_write_a_lone_surrogate_outcome_as_write_utf_does() {
+        use crate::params::Algorithm;
+        let class = JavaString::from_utf16(&[0x52, 0x31, 0xDE00, 0x5F, 0x44, 0x30, 0xD83D]);
+        let events = [
+            Event::new(class.clone(), vec![JavaString::new("w0=😀"), JavaString::new("t0=_")]),
+            Event::from_strs("O", &["w0=x", "t0=_"]),
+            Event::from_strs("O", &["w0=y", "t0=_"]),
+        ];
+        for (algorithm, kind) in [(Algorithm::MaxentQn, &b"\0\x02QN"[..]), (Algorithm::Perceptron, b"\0\x0aPerceptron")]
+        {
+            let mut params = TrainingParameters::new();
+            params.put(Key::ALGORITHM, algorithm.name());
+            params.put(Key::ITERATIONS, 5);
+            params.put(Key::CUTOFF, 0);
+            let (model, _) =
+                crate::trainer::train_events(&events, &params, &mut TrainingConfiguration::default()).unwrap();
+            let bytes = model.write().unwrap();
+            assert!(bytes.starts_with(kind), "{algorithm:?}");
+            // The outcome count, then the class as writeUTF writes it, each
+            // surrogate as three bytes.
+            let at = kind.len();
+            assert_eq!(&bytes[at..at + 4], &[0, 0, 0, 2], "{algorithm:?}");
+            assert_eq!(&bytes[at + 4..at + 6], &[0, 11], "{algorithm:?}");
+            assert_eq!(&bytes[at + 6..at + 17], b"R1\xED\xB8\x80_D0\xED\xA0\xBD", "{algorithm:?}");
+            let read = MaxentModel::read(&bytes).unwrap();
+            assert_eq!(read.outcome(0), &class, "{algorithm:?}");
+            assert_eq!(read.outcome_index(&class), Some(0), "{algorithm:?}");
+        }
     }
 
     #[test]
