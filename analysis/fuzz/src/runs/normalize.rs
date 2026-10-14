@@ -342,6 +342,11 @@ fn symbol_rule(text: &str, d: &Disagreement) -> bool {
 /// in its place: what the JVM kept is one or two stretches without
 /// whitespace, around at most one space, holding a non-ASCII letter,
 /// digit or mark.
+///
+/// What this does not check: that the JVM kept the very address the port
+/// matched. The rule sees the region's two results and the source, not
+/// the port's or OpenNLP's scan; a port scan that took a wrong stretch
+/// next to a real address, with the same non-ASCII shape, would pass.
 fn bounded_url_rule(text: &str, d: &Disagreement) -> bool {
     let Some((rust, golden)) = d.results() else { return false };
     if !d.source(text).contains('@') {
