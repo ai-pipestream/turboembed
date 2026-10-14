@@ -14,13 +14,17 @@
 
 import java.io.IOException;
 import java.io.PrintWriter;
+import java.nio.CharBuffer;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Random;
 import java.util.Set;
 import java.util.function.Consumer;
@@ -53,6 +57,7 @@ public class Vectors {
                 }
             }
         });
+        write(out.resolve("hash_map.tsv"), "kind,input,result", Vectors::hashMap);
     }
 
     static void write(Path path, String columns, Consumer<PrintWriter> body) throws IOException {
@@ -414,6 +419,174 @@ public class Vectors {
         }
         for (String s : new String[] {"true", "TRUE", "tRuE", "false", "yes", " true", "true ", "", "1", "t"}) {
             w.println("Boolean.parseBoolean\t" + escape(s) + "\t" + Boolean.parseBoolean(s));
+        }
+    }
+
+    record SymbolPair(String left, String right) {}
+
+    static int spread(int h) {
+        return h ^ (h >>> 16);
+    }
+
+    static String joinEntries(Map<String, Integer> map) {
+        StringBuilder b = new StringBuilder();
+        boolean first = true;
+        for (Map.Entry<String, Integer> e : map.entrySet()) {
+            if (!first) {
+                b.append(',');
+            }
+            first = false;
+            b.append(escape(e.getKey())).append('=').append(e.getValue());
+        }
+        return b.toString();
+    }
+
+    static String joinEscaped(List<String> items, char sep) {
+        StringBuilder b = new StringBuilder();
+        for (int i = 0; i < items.size(); i++) {
+            if (i > 0) {
+                b.append(sep);
+            }
+            b.append(escape(items.get(i)));
+        }
+        return b.toString();
+    }
+
+    static void hashMap(PrintWriter w) {
+        String[] sampleStrings = {"", "a", "b", "ab", "abc", "Aa", "BB", "EMAIL", "URL", "the", "quick",
+            "brown", "fox", "jumps", "over", "lazy", "dog", "café", "naïve", "Ümlaut", "日本語", "한국어",
+            "😀", "😁", "🤔", "a😀b", "𐀀", "</w>", "abc</w>", "0123456789abcdef0123456789abcdef"};
+        for (String s : sampleStrings) {
+            w.println("String.hashCode\t" + escape(s) + "\t" + s.hashCode());
+            w.println("CharBuffer.hashCode\t" + escape(s) + "\t" + CharBuffer.wrap(s.toCharArray()).hashCode());
+        }
+        for (int i = 0; i < sampleStrings.length; i++) {
+            for (int j = 0; j < sampleStrings.length; j += 3) {
+                String a = sampleStrings[i];
+                String b = sampleStrings[j];
+                String pairInput = escape(a) + "," + escape(b);
+                w.println("SymbolPair.hashCode\t" + pairInput + "\t" + new SymbolPair(a, b).hashCode());
+                w.println("concat.hashCode\t" + pairInput + "\t" + (a + b).hashCode());
+            }
+        }
+        for (int len = 0; len <= 6; len++) {
+            for (int start = 0; start + len <= sampleStrings.length; start += 4) {
+                List<String> sub = List.of(sampleStrings).subList(start, start + len);
+                String listInput = sub.isEmpty() ? "-" : joinEscaped(sub, ',');
+                w.println("List.hashCode\t" + listInput + "\t" + sub.hashCode());
+            }
+        }
+
+        // HashMap.put with distinct and duplicate keys across resize thresholds.
+        int[] sizes = {1, 2, 5, 11, 12, 13, 14, 23, 24, 25, 26, 47, 48, 49, 50, 95, 96, 97, 200};
+        for (int n : sizes) {
+            List<String> keys = new ArrayList<>();
+            Map<String, Integer> m = new HashMap<>();
+            for (int i = 0; i < n; i++) {
+                String k = "k" + i + "_" + sampleStrings[i % sampleStrings.length];
+                keys.add(k);
+                m.put(k, i);
+            }
+            w.println("HashMap.put\t" + joinEscaped(keys, ',') + "\t" + joinEntries(m));
+        }
+        // HashMap.put with replacements of existing keys.
+        for (int n : new int[] {12, 13, 24, 25, 48, 49}) {
+            List<String> keys = new ArrayList<>();
+            Map<String, Integer> m = new HashMap<>();
+            for (int i = 0; i < n; i++) {
+                String k = "item_" + (i % (n / 2 + 1));
+                keys.add(k);
+                m.put(k, i);
+            }
+            w.println("HashMap.put\t" + joinEscaped(keys, ',') + "\t" + joinEntries(m));
+        }
+
+        // HashMap.merge with distinct keys, and with a trailing duplicate on both sides of threshold + 1.
+        for (int n : sizes) {
+            List<String> keys = new ArrayList<>();
+            Map<String, Integer> m = new HashMap<>();
+            for (int i = 0; i < n; i++) {
+                String k = "m" + i + "_" + sampleStrings[i % sampleStrings.length];
+                keys.add(k);
+                m.merge(k, 1, Integer::sum);
+            }
+            w.println("HashMap.merge\t" + joinEscaped(keys, ',') + "\t" + joinEntries(m));
+
+            // Repeat the first key at the end: at n = 13, 25, 49, 97 (threshold + 1), this extra merge
+            // call sees size > threshold and doubles the table even though no new key is inserted.
+            List<String> withDup = new ArrayList<>(keys);
+            withDup.add(keys.get(0));
+            Map<String, Integer> mDup = new HashMap<>();
+            for (String k : withDup) {
+                mDup.merge(k, 1, Integer::sum);
+            }
+            w.println("HashMap.merge\t" + joinEscaped(withDup, ',') + "\t" + joinEntries(mDup));
+        }
+
+        // HashMap.putAll on an empty map and on a non-empty map across tableSizeFor boundaries.
+        for (int n : new int[] {1, 2, 3, 6, 7, 11, 12, 13, 23, 24, 25, 48, 49, 64}) {
+            Map<String, Integer> src = new LinkedHashMap<>();
+            List<String> keys = new ArrayList<>();
+            for (int i = 0; i < n; i++) {
+                String k = "p" + i;
+                keys.add(k);
+                src.put(k, i);
+            }
+            Map<String, Integer> m = new HashMap<>();
+            m.putAll(src);
+            w.println("HashMap.putAll\t" + joinEscaped(keys, ',') + "\t" + joinEntries(m));
+
+            Map<String, Integer> pre = new HashMap<>();
+            pre.put("init_0", 100);
+            pre.put("init_1", 101);
+            pre.putAll(src);
+            w.println("HashMap.putAllNonEmpty\t" + joinEscaped(keys, ',') + "\t" + joinEntries(pre));
+        }
+
+        // HashMap.clear retains the allocated table capacity for subsequent insertions.
+        for (int initial : new int[] {12, 13, 25, 50, 100}) {
+            for (int after : new int[] {2, 8, 12, 13}) {
+                Map<String, Integer> m = new HashMap<>();
+                List<String> beforeKeys = new ArrayList<>();
+                for (int i = 0; i < initial; i++) {
+                    String k = "before_" + i;
+                    beforeKeys.add(k);
+                    m.put(k, i);
+                }
+                m.clear();
+                List<String> afterKeys = new ArrayList<>();
+                for (int i = 0; i < after; i++) {
+                    String k = "after_" + i;
+                    afterKeys.add(k);
+                    m.put(k, i);
+                }
+                w.println("HashMap.clearPut\t" + joinEscaped(beforeKeys, ',') + ";" + joinEscaped(afterKeys, ',')
+                        + "\t" + joinEntries(m));
+            }
+        }
+
+        // Long bins below MIN_TREEIFY_CAPACITY (64): 8 keys in bin 0 at capacity 16 stay at capacity 16
+        // for put, while a 9th key (or 8th for merge) triggers treeifyBin -> resize() to capacity 32.
+        List<String> bin0 = new ArrayList<>();
+        for (int i = 0; bin0.size() < 10; i++) {
+            String cand = "c" + i;
+            if ((spread(cand.hashCode()) & 15) == 0) {
+                bin0.add(cand);
+            }
+        }
+        for (int count : new int[] {7, 8, 9, 10}) {
+            List<String> sub = bin0.subList(0, count);
+            Map<String, Integer> mp = new HashMap<>();
+            for (int i = 0; i < sub.size(); i++) {
+                mp.put(sub.get(i), i);
+            }
+            w.println("HashMap.put\t" + joinEscaped(sub, ',') + "\t" + joinEntries(mp));
+
+            Map<String, Integer> mm = new HashMap<>();
+            for (String k : sub) {
+                mm.merge(k, 1, Integer::sum);
+            }
+            w.println("HashMap.merge\t" + joinEscaped(sub, ',') + "\t" + joinEntries(mm));
         }
     }
 

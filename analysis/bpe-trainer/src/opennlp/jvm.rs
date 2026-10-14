@@ -9,15 +9,16 @@
 //! then merges the pair in each word of `vocab`, in order, into a new map
 //! (`merge`), clears `vocab` and puts that map back into it (`putAll`).
 //! Each map's order is its keys' bins and, within a bin, the order they
-//! were put ([`crate::java_map`]), so the order of `vocab` and of
+//! were put ([`turbo_jvm::hash_map`]), so the order of `vocab` and of
 //! `pairCounts` is worked out here from the hash codes of the words, the
 //! symbol lists and the pairs, without building the maps. `merge`
 //! resizes a full table even for a key already in it, so whether such a
 //! call follows the last new key counts too. Each merge
 //! costs a pass over the distinct words, as it does on the JVM.
 
+use turbo_jvm::hash_map::{HashMapOrder, Insert, concat_hash, list_hash, pair_hash, spread, string_hash};
+
 use crate::Merge;
-use crate::java_map::{HashMapOrder, Insert, concat_hash, list_hash, spread, string_hash};
 use crate::pieces::{FxMap, Pair, Pieces, SymbolId};
 
 use super::symbols;
@@ -31,19 +32,22 @@ pub(super) fn learn_merges(words: &[(&str, u64)], again: bool, num_merges: usize
     let mut exact = words.iter().all(|(w, _)| w.chars().all(|c| (c as u32) < 0x1_0000));
 
     // `wordFreqs`: each word merged in the order first seen.
-    let spreads: Vec<u32> = words.iter().map(|(w, _)| spread(string_hash(w))).collect();
+    let mut spreads: Vec<u32> = words.iter().map(|(w, _)| spread(string_hash(w))).collect();
     let mut order: Vec<u32> = Vec::new();
-    exact &= HashMapOrder::new().order(&spreads, Insert::Merge { again }, &mut order);
+    let mut tmp_map = HashMapOrder::new();
+    exact &= tmp_map.order(&spreads, Insert::Merge { again }, &mut order);
 
     let mut table = Symbols::default();
     let mut lists: Vec<Vec<SymbolId>> = words.iter().map(|(w, _)| table.intern_all(&symbols(w))).collect();
     let freqs: Vec<u64> = words.iter().map(|&(_, n)| n).collect();
-    let mut hashes: Vec<i32> = lists.iter().map(|l| table.list_hash(l)).collect();
+    for (s, l) in spreads.iter_mut().zip(&lists) {
+        *s = spread(table.list_hash(l));
+    }
 
     // `vocab`: put in `wordFreqs`' order. Its table is kept from now on.
     let mut vocab = HashMapOrder::new();
     let mut scratch = Vec::new();
-    exact &= reorder(&mut vocab, &mut order, &hashes, Insert::Put, &mut scratch);
+    exact &= reorder(&mut vocab, &mut order, &spreads, Insert::Put, &mut scratch);
 
     let mut merges = Vec::new();
     let mut slots: FxMap<Pair, u32> = FxMap::default();
@@ -73,7 +77,8 @@ pub(super) fn learn_merges(words: &[(&str, u64)], again: bool, num_merges: usize
         }
         pair_spreads.clear();
         pair_spreads.extend(pairs.iter().map(|&(p, _)| spread(table.pair_hash(p))));
-        exact &= HashMapOrder::new().order(&pair_spreads, Insert::Merge { again }, &mut scratch);
+        tmp_map.reset();
+        exact &= tmp_map.order(&pair_spreads, Insert::Merge { again }, &mut scratch);
         // The first pair of the highest count in the map's order.
         let mut best: Option<(Pair, u64)> = None;
         for &k in &scratch {
@@ -92,15 +97,16 @@ pub(super) fn learn_merges(words: &[(&str, u64)], again: bool, num_merges: usize
         let merged = table.join(pair);
         for (w, list) in lists.iter_mut().enumerate() {
             if merge_in(list, pair, merged) {
-                hashes[w] = table.list_hash(list);
+                spreads[w] = spread(table.list_hash(list));
             }
         }
         // The merged words into a new map (`merge`), in `vocab`'s order,
         // then that map's order put back into `vocab` (`putAll`).
         // Each word is a new key there: no two words merge into one list.
         let merge = Insert::Merge { again: false };
-        exact &= reorder(&mut HashMapOrder::new(), &mut order, &hashes, merge, &mut scratch);
-        exact &= reorder(&mut vocab, &mut order, &hashes, Insert::Put, &mut scratch);
+        tmp_map.reset();
+        exact &= reorder(&mut tmp_map, &mut order, &spreads, merge, &mut scratch);
+        exact &= reorder(&mut vocab, &mut order, &spreads, Insert::Put, &mut scratch);
     }
     (merges, exact)
 }
@@ -110,14 +116,12 @@ pub(super) fn learn_merges(words: &[(&str, u64)], again: bool, num_merges: usize
 fn reorder(
     map: &mut HashMapOrder,
     order: &mut Vec<u32>,
-    hashes: &[i32],
+    spreads: &[u32],
     insert: Insert,
     scratch: &mut Vec<u32>,
 ) -> bool {
-    let spreads: Vec<u32> = order.iter().map(|&w| spread(hashes[w as usize])).collect();
-    let exact = map.order(&spreads, insert, scratch);
-    let next: Vec<u32> = scratch.iter().map(|&k| order[k as usize]).collect();
-    *order = next;
+    let exact = map.order_keys(spreads, order, insert, scratch);
+    std::mem::swap(order, scratch);
     exact
 }
 
@@ -181,6 +185,6 @@ impl Symbols {
 
     /// The hash code of the record `SymbolPair(left, right)`.
     fn pair_hash(&self, pair: Pair) -> i32 {
-        self.hashes[pair.left.index()].wrapping_mul(31).wrapping_add(self.hashes[pair.right.index()])
+        pair_hash(self.hashes[pair.left.index()], self.hashes[pair.right.index()])
     }
 }

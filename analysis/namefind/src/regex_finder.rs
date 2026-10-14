@@ -13,16 +13,16 @@
 //! Patterns run type by type, in the order the finder's map iterates, and
 //! within a type in the order given; the names come out in that order,
 //! not in text order. The factory builds its map as a `HashMap`, whose
-//! order this reproduces (`hash_order`).
+//! order this reproduces ([`turbo_jvm::hash_map::JavaHashMap`]).
 
 use std::cell::OnceCell;
 use std::sync::Arc;
 
 use turbo_analysis_layers::{Tag, TagSet};
+use turbo_jvm::hash_map::JavaHashMap;
 
 use crate::builtin::{self, BuiltIn};
 use crate::error::Error;
-use crate::hash_order::JavaHashMap;
 use crate::java_regex::{JavaRegex, Scratch, TextFacts};
 use crate::name::{Name, TokenNameFinder, kinds};
 
@@ -111,7 +111,7 @@ impl RegexNameFinder {
 }
 
 /// `defaultsToMap`: each default's one-entry map put into a new `HashMap`.
-fn defaults_map(defaults: &[BuiltIn]) -> JavaHashMap<Vec<Pattern>> {
+fn defaults_map(defaults: &[BuiltIn]) -> JavaHashMap<Box<str>, Vec<Pattern>> {
     let mut map = JavaHashMap::new();
     for &d in defaults {
         map.put_all(std::iter::once((Box::from(d.kind()), vec![Pattern::BuiltIn(d)])));
