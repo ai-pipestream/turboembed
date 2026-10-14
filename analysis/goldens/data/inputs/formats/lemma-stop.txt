@@ -1,0 +1,4 @@
+a	DT	a
+
+
+b	NN	b

@@ -1,0 +1,103 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	formats/conllu-errors	1474	1474	42b7f753628a5492507589493a66fb4426f1d7b8baf5936632829acb1a3bb77f
+annotator	opennlp.tools.formats.conllu.ConlluLemmaSampleStream	read
+config	tagset	u
+layer	turbo:samples	document	9	written:str
+good\t_\t_\none\t_\t_\n
+cd\tY+Y\tc+d\nab\tX+X\ta+b\nc\tY\tc\nd\tY\td\n
+ab\tX+Y\tla+lb\ncd\t\t\n
+Hello\t_\t_\nthere\t_\t_\n
+Hello\t_\t_\nWorld\t_\t_\n
+a\t_\t_\nSPLIT\t_\t_\nb\t_\t_\n
+a\t_\t_\n<\t_\t_\nb\t_\t_\n
+\t_\t_\ny\t_\t_\n\t_\t_\n
+last\t_\t_\n
+end	turbo:samples
+layer	turbo:read-errors	document	10	after:u32	class:str	message:str
+0	opennlp.tools.util.InvalidFormatException	Line [1\tnine\tnine\tNUM\t_\t_\t_\t_\t_] must have exactly 10 fields
+0	opennlp.tools.util.InvalidFormatException	Line [1\tempty\t_\t_\t_\t_\t_\t_\t_\t] must have exactly 10 fields
+1	opennlp.tools.util.InvalidFormatException	Line [   ] must have exactly 10 fields
+1	opennlp.tools.util.InvalidFormatException	Invalid multiword token id: 01-2
+1	opennlp.tools.util.InvalidFormatException	Multiword token id runs backwards: 2-1
+1	opennlp.tools.util.InvalidFormatException	Multiword token 1-3 has no word line for id 3
+1	opennlp.tools.util.InvalidFormatException	Locale language code is invalid: text_X
+1	java.lang.IndexOutOfBoundsException	Index 3 out of bounds for length 2
+8	opennlp.tools.util.InvalidFormatException	Invalid multiword token id: 2147483647-2147483648
+8	opennlp.tools.util.InvalidFormatException	Multiword token 2147483646-2147483647 has no word line for id 2147483646
+end	turbo:read-errors
+layer	turbo:sample-tokens	document	22	sample:u32	text:str
+0	good
+0	one
+1	cd
+1	ab
+1	c
+1	d
+2	ab
+2	cd
+3	Hello
+3	there
+4	Hello
+4	World
+5	a
+5	SPLIT
+5	b
+6	a
+6	<
+6	b
+7	
+7	y
+7	
+8	last
+end	turbo:sample-tokens
+layer	turbo:sample-tags	aligned:turbo:sample-tokens	22	tag:str
+_
+_
+Y+Y
+X+X
+Y
+Y
+X+Y
+
+_
+_
+_
+_
+_
+_
+_
+_
+_
+_
+_
+_
+_
+_
+end	turbo:sample-tags
+layer	turbo:sample-lemmas	aligned:turbo:sample-tokens	22	lemma:str
+_
+_
+c+d
+a+b
+c
+d
+la+lb
+
+_
+_
+_
+_
+_
+_
+_
+_
+_
+_
+_
+_
+_
+_
+end	turbo:sample-lemmas

@@ -1,0 +1,105 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	formats/conllu-basic	1620	1618	3997cb00603cdc6d6e9b5bea88a4291b2e44ceceec24a04d93df40e673f5828c
+annotator	opennlp.tools.formats.conllu.ConlluLemmaSampleStream	read
+config	tagset	x
+layer	turbo:samples	document	6	written:str
+Vamos\tvmip1p0\tir\nal\tspcms+da0ms0\ta+el\nmar\tncms000\tmar\ndel\tda0ms0\tde\nnorte\tncms000\tnorte\n.\tfp\t.\n
+Ele\t_\tele\nsaiu\t_\tsair\nda\t\tde+o\ncasa\t_\tcasa\nàs\t\t\n10\t_\t10\nh\t_\thora\n.\t_\t.\n
+Sue\tNNP\tSue\nlikes\tVBZ\tlike\ncoffee\tNN\tcoffee\nand\tCC\tand\nBill\tNNP\tBill\nlikes\tVBZ\tlike\ntea\tNN\ttea\n
+Sin\t_\tsin\ntexto\t_\ttexto\n
+
+Kept\t_\t_\ninner\t_\t_\nspaces\t_\t_\n,\t_\t_\n
+end	turbo:samples
+layer	turbo:read-errors	document	0	after:u32	class:str	message:str
+end	turbo:read-errors
+layer	turbo:sample-tokens	document	27	sample:u32	text:str
+0	Vamos
+0	al
+0	mar
+0	del
+0	norte
+0	.
+1	Ele
+1	saiu
+1	da
+1	casa
+1	às
+1	10
+1	h
+1	.
+2	Sue
+2	likes
+2	coffee
+2	and
+2	Bill
+2	likes
+2	tea
+3	Sin
+3	texto
+5	Kept
+5	inner
+5	spaces
+5	,
+end	turbo:sample-tokens
+layer	turbo:sample-tags	aligned:turbo:sample-tokens	27	tag:str
+vmip1p0
+spcms+da0ms0
+ncms000
+da0ms0
+ncms000
+fp
+_
+_
+
+_
+
+_
+_
+_
+NNP
+VBZ
+NN
+CC
+NNP
+VBZ
+NN
+_
+_
+_
+_
+_
+_
+end	turbo:sample-tags
+layer	turbo:sample-lemmas	aligned:turbo:sample-tokens	27	lemma:str
+ir
+a+el
+mar
+de
+norte
+.
+ele
+sair
+de+o
+casa
+
+10
+hora
+.
+Sue
+like
+coffee
+and
+Bill
+like
+tea
+sin
+texto
+_
+_
+_
+_
+end	turbo:sample-lemmas

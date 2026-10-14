@@ -1,0 +1,62 @@
+# newdoc id = es-1
+# newpar id = es-1-p1
+# sent_id = es-1-s1
+# text = Vamos al mar del norte.
+# text_en = We go to the north sea.
+1	Vamos	ir	VERB	vmip1p0	Mood=Ind|Number=Plur	0	root	_	_
+2-3	al	_	_	_	_	_	_	_	_
+2	a	a	ADP	spcms	_	4	case	_	_
+3	el	el	DET	da0ms0	Definite=Def	4	det	_	_
+4	mar	mar	NOUN	ncms000	Number=Sing	1	obl	_	_
+5-6	del	_	_	_	_	_	_	_	_
+5	de	de	ADP	_	_	7	case	_	_
+6	el	_	DET	da0ms0	_	7	det	_	_
+7	norte	norte	NOUN	ncms000	_	4	nmod	_	SpaceAfter=No
+8	.	.	PUNCT	fp	_	1	punct	_	_
+
+# sent_id = pt-1
+#newpar
+# text = Ele saiu da casa às 10h.
+# translit = ele saiu da casa as 10h
+1	Ele	ele	PRON	_	_	2	nsubj	_	_
+2	saiu	sair	VERB	_	_	0	root	_	_
+3-4	da	_	_	_	_	_	_	_	_
+3	de	de	ADP	_	_	5	case	_	_
+4	a	o	DET	_	_	5	det	_	_
+5	casa	casa	NOUN	_	_	2	obl	_	_
+6-7	às	_	_	_	_	_	_	_	_
+6	a	_	ADP	_	_	8	case	_	_
+7	as	_	DET	_	_	8	det	_	_
+8	10	10	NUM	_	_	2	obl	_	SpaceAfter=No
+9	h	hora	NOUN	_	_	8	nmod	_	SpaceAfter=No
+10	.	.	PUNCT	_	_	2	punct	_	_
+
+# sent_id = en-empty-node
+# text = Sue likes coffee and Bill tea
+1	Sue	Sue	PROPN	NNP	_	_	_	_	_
+2	likes	like	VERB	VBZ	_	_	_	_	_
+3	coffee	coffee	NOUN	NN	_	_	_	_	_
+4	and	and	CCONJ	CC	_	_	_	_	_
+5	Bill	Bill	PROPN	NNP	_	_	_	_	_
+5.1	likes	like	VERB	VBZ	_	_	_	_	_
+6	tea	tea	NOUN	NN	_	_	_	_	_
+
+# sent_id = no-text
+1	Sin	sin	ADP	_	_	_	_	_	_
+2	texto	texto	NOUN	_	_	_	_	_	_
+
+# sent_id = comments-only
+# text = Nothing but comments.
+
+# text =
+# text = Kept   inner  spaces, 	
+#   sent_id   =   spaced id  
+# text_pt = primeiro
+# text_pt = segundo
+# text_eng =
+# note = an unknown key
+# newdoc
+1	Kept	_	_	_	_	_	_	_	_
+2	inner	_	_	_	_	_	_	_	_
+3	spaces	_	_	_	_	_	_	_	SpaceAfter=No
+4	,	_	_	_	_	_	_	_	_
