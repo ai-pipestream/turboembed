@@ -1,0 +1,108 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	ner/brat-basic	2327	2325	dc299eafa2f7a656a147ef1868975dde5c972061ecd7d3e02b74ce20ffcd5ff7
+annotator	opennlp.tools.formats.brat.BratNameSampleStream	read
+config	nameTypes	Person , Location
+config	recursive	true
+config	tokenizer	whitespace
+layer	turbo:samples	document	12	written:str
+\n<START:Person> Ada Byron King <END> <START:Person> visited <END> <START:Location> London <END> in 1842 .
+She met <START:Person> Charles <END> at the Royal Society .
+The Society
+of Friends met again .
+\n<START:Person> Grace <END> Hopper wrote <START:Location> code <END> in <START:Location> Arlington <END> .
+\n<START:Person> Kim Lee <END> saw <START:Person> Sam <END>
+<START:Person> Pat <END> Ray <START:Location> ran\u001cfar <END> .
+<START:Person> Last <END> line
+\n<START:Person> Eve <END> � and <START:Person> Max <END> .
+\n<START:Person> Uma <END> visits <START:Location> Rome <END> .
+\n<START:Person> Vic <END> is deeper .
+\n<START:Person> Zed <END> lives in <START:Location> Oslo <END> .
+end	turbo:samples
+layer	turbo:read-errors	document	1	after:u32	class:str	message:str
+5	java.lang.RuntimeException	name spans [0..3) Location and [1..2) Location are overlapped in file: <corpus>/c, sentence: [Mount, Kenya, Park, is, big, .]
+end	turbo:read-errors
+layer	turbo:sample-tokens	document	58	sample:u32	text:str
+0	Ada
+0	Byron
+0	King
+0	visited
+0	London
+0	in
+0	1842
+0	.
+1	She
+1	met
+1	Charles
+1	at
+1	the
+1	Royal
+1	Society
+1	.
+2	The
+2	Society
+3	of
+3	Friends
+3	met
+3	again
+3	.
+4	Grace
+4	Hopper
+4	wrote
+4	code
+4	in
+4	Arlington
+4	.
+5	Kim
+5	Lee
+5	saw
+5	Sam
+6	Pat
+6	Ray
+6	ran\u001cfar
+6	.
+7	Last
+7	line
+8	Eve
+8	�
+8	and
+8	Max
+8	.
+9	Uma
+9	visits
+9	Rome
+9	.
+10	Vic
+10	is
+10	deeper
+10	.
+11	Zed
+11	lives
+11	in
+11	Oslo
+11	.
+end	turbo:sample-tokens
+layer	turbo:names	document	19	sample:u32	start:u32	end:u32	type:str
+0	0	3	Person
+0	3	4	Person
+0	4	5	Location
+1	2	3	Person
+4	0	1	Person
+4	3	4	Location
+4	5	6	Location
+5	0	2	Person
+5	3	4	Person
+6	0	1	Person
+6	2	3	Location
+7	0	1	Person
+8	0	1	Person
+8	3	4	Person
+9	0	1	Person
+9	2	3	Location
+10	0	1	Person
+11	0	1	Person
+11	3	4	Location
+end	turbo:names

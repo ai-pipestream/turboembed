@@ -1,0 +1,42 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	formats/masc-basic	10008	10008	29a119fb5bebeea71d4fcd386b28061fb70674bb878053362460f5f2ef72483e
+annotator	opennlp.tools.formats.masc.MascSentenceSampleStream	read
+config	sentencesPerSample	2
+layer	turbo:samples	document	6	pass:u32	written:str
+0	No tags here.\nNone at all.\n
+0	Rain fell on Lyon today.\nThen it's sunny again.\n
+0	Short one.\nAnd two.\n
+1	No tags here.\nNone at all.\n
+1	Rain fell on Lyon today.\nThen it's sunny again.\n
+1	Short one.\nAnd two.\n
+end	turbo:samples
+layer	turbo:read-errors	document	0	pass:u32	after:u32	class:str	message:str
+end	turbo:read-errors
+layer	turbo:open-errors	document	0	class:str	message:str
+end	turbo:open-errors
+layer	turbo:sample-texts	document	6	text:str
+No tags here. None at all.
+\nRain fell on Lyon today. Then it's sunny again.
+\nShort one. And two.
+No tags here. None at all.
+\nRain fell on Lyon today. Then it's sunny again.
+\nShort one. And two.
+end	turbo:sample-texts
+layer	turbo:sample-spans	document	12	sample:u32	start:u32	end:u32
+0	0	13
+0	14	26
+1	1	25
+1	26	48
+2	1	11
+2	12	20
+3	0	13
+3	14	26
+4	1	25
+4	26	48
+5	1	11
+5	12	20
+end	turbo:sample-spans

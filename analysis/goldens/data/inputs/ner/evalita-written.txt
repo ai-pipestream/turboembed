@@ -1,0 +1,49 @@
+-DOCSTART- -X- O O
+
+Il RS B-NP O
+sindaco SS I-NP O
+di E B-PP O
+Pievelunga SP B-NP B-GPE
+ha VA B-VP O
+incontrato V I-VP O
+Carla SP B-NP B-PER
+Neri SP I-NP I-PER
+della EA B-PP O
+Banca SP B-NP B-ORG
+Alpina SP I-NP I-ORG
+sul EA B-PP O
+Monte SP B-NP B-LOC
+Chiaro SP I-NP I-LOC
+. FS O O
+
+Ieri B B-ADVP O
+Tommaso SP B-NP I-PER
+Bassi SP I-NP B-PER
+Galli SP I-NP I-LOC
+e CC O O
+Roma SP B-NP B-GPE
+Est SP I-NP B-ORG
+sono VA B-VP O
+qui B B-ADVP B-XORG
+. FS O O
+
+
+Una RI B-NP O
+riga E O
+corta SP I-NP O
+. FS O O
+
+Una RI B-NP O
+Lega SP B-NP B-MISC
+
+Un RI B-NP O
+tag SS I-NP Z
+
+-DOCSTART- -X- O O
+Errato SS B-NP O
+dopo E B-PP O
+
+Fine SS B-NP O
+del EA B-PP O
+testo SS B-NP B-LOC
+-DOCSTART- -X- O O

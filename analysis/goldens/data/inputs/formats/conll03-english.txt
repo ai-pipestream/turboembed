@@ -1,0 +1,60 @@
+-DOCSTART- -X- -X- O
+
+Acme NNP I-NP I-ORG
+hires VBZ I-VP O
+Dutch JJ I-NP I-MISC
+bakers NNS I-NP O
+for IN I-PP O
+its PRP$ I-NP O
+Welsh JJ I-NP I-MISC
+shop NN I-NP O
+. . O O
+
+Mary NNP I-NP I-PER
+Okafor NNP I-NP I-PER
+
+LISBON NNP I-NP I-LOC
+2031-04-09 CD I-NP O
+
+The DT I-NP O
+River NNP I-NP I-ORG
+Trust NNP I-NP I-ORG
+said VBD I-VP O
+on IN I-PP O
+Monday NNP I-NP O
+it PRP B-NP O
+liked VBD I-VP O
+the DT I-NP O
+Swiss JJ I-NP I-MISC
+plan NN I-NP O
+. . O O
+
+Oslo NNP I-NP I-LOC
+Lima NNP I-NP B-LOC
+New NNP I-NP I-LOC
+Delhi NNP I-NP I-LOC
+Post NNP I-NP I-ORG
+and CC O O
+Ito NNP I-NP B-PER
+. . O O
+
+-DOCSTART- -X- -X- O
+Kenya NNP I-NP I-LOC
+
+Peru NNP I-NP I-LOC
+'S POS B-NP O
+
+Short NN I-NP
+line NN I-NP O
+
+Odd NN I-NP I-XYZ
+tag NN I-NP Z-LOC
+
+Odd NN I-NP I-XYZ
+type NN I-NP O
+. . O O
+
+
+
+Last NN I-NP O
+-DOCSTART- -X- -X- O

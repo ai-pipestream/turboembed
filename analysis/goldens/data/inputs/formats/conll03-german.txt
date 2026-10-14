@@ -1,0 +1,15 @@
+-DOCSTART- -X- -X- -X- O
+
+Die die ART I-NC O
+Europäische europäisch ADJA I-NC I-ORG
+Union Union NN I-NC I-ORG
+lehnt lehnen VVFIN I-VC O
+Müller Müller NE I-NC I-PER
+in in APPR I-PC O
+Düsseldorf Düsseldorf NE I-NC I-LOC
+ab ab PTKVZ O O
+. . $. O O
+
+Bonn Bonn NE I-NC B-LOC
+Köln Köln NE I-NC B-LOC
+. . $. O O

@@ -1,0 +1,37 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	formats/masc-unicode	11458	11444	bbfdbde1d423774008548d2c1eee3eadb806d41799402f3bf7ff8cabf1ec9774
+annotator	opennlp.tools.formats.masc.MascNamedEntitySampleStream	read
+layer	turbo:samples	document	4	pass:u32	written:str
+0	\nCafé <START:thing> 😀 <END> ok .
+0	\nNaïve résumés .
+1	\nCafé <START:thing> 😀 <END> ok .
+1	\nNaïve résumés .
+end	turbo:samples
+layer	turbo:read-errors	document	0	pass:u32	after:u32	class:str	message:str
+end	turbo:read-errors
+layer	turbo:open-errors	document	0	class:str	message:str
+end	turbo:open-errors
+layer	turbo:sample-tokens	document	14	sample:u32	text:str
+0	Café
+0	😀
+0	ok
+0	.
+1	Naïve
+1	résumés
+1	.
+2	Café
+2	😀
+2	ok
+2	.
+3	Naïve
+3	résumés
+3	.
+end	turbo:sample-tokens
+layer	turbo:names	document	2	sample:u32	start:u32	end:u32	type:str	nulls:u32
+0	1	2	thing	0
+2	1	2	thing	0
+end	turbo:names

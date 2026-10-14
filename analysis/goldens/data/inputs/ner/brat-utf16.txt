@@ -1,0 +1,30 @@
+# A brat corpus written for this project: a text with a character outside the Basic
+# Multilingual Plane, which counts two UTF-16 code units in the offsets.
+@@ file annotation.conf
+# the annotation types
+[entities]
+Person
+Location
+Organization
+[relations]
+Lives_in Arg1:Person, Arg2:Location
+[events]
+Visit Agent:Person, Place:Location
+[attributes]
+Negated Arg:<ENTITY>
+[other]
+Ignored
+
+@@ end
+
+@@ file d.txt
+Ana 😀 met Boé in Lyon .
+
+@@ end
+
+@@ file d.ann
+T1	Person 0 3	Ana
+T2	Person 11 14	Bo
+T3	Location 18 22	Lyon
+
+@@ end

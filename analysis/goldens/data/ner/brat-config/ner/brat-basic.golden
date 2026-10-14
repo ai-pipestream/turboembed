@@ -1,0 +1,17 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	ner/brat-basic	2327	2325	dc299eafa2f7a656a147ef1868975dde5c972061ecd7d3e02b74ce20ffcd5ff7
+annotator	opennlp.tools.formats.brat.AnnotationConfiguration	parse
+layer	turbo:brat-config	document	6	file:str	type:str	class:str
+annotation.conf	Lives_in	Relation
+annotation.conf	Location	Entity
+annotation.conf	Negated	Attribute
+annotation.conf	Organization	Entity
+annotation.conf	Person	Entity
+annotation.conf	Visit	Event
+end	turbo:brat-config
+layer	turbo:brat-config-errors	document	0	file:str	class:str	message:str
+end	turbo:brat-config-errors

@@ -1,0 +1,26 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	formats/masc-opennlp	8250	8250	a2c545be6c71213bf6e00fc0a70878a14e8f1fbc457a253618a595d68bbe1f10
+annotator	opennlp.tools.formats.masc.MascSentenceSampleStream	read
+config	sentencesPerSample	2
+layer	turbo:samples	document	2	pass:u32	written:str
+0	This is a test Sentence.\nThis is 'nother test sentence.\n
+1	This is a test Sentence.\nThis is 'nother test sentence.\n
+end	turbo:samples
+layer	turbo:read-errors	document	0	pass:u32	after:u32	class:str	message:str
+end	turbo:read-errors
+layer	turbo:open-errors	document	0	class:str	message:str
+end	turbo:open-errors
+layer	turbo:sample-texts	document	2	text:str
+This is a test Sentence. This is 'nother test sentence.
+This is a test Sentence. This is 'nother test sentence.
+end	turbo:sample-texts
+layer	turbo:sample-spans	document	4	sample:u32	start:u32	end:u32
+0	0	24
+0	25	55
+1	0	24
+1	25	55
+end	turbo:sample-spans

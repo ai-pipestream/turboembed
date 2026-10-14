@@ -1,0 +1,83 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	ner/germeval-written	921	918	71dfffecabd5846ca174dbcbab9b6451a1ff157f2880826aba5d7565d47eab22
+annotator	opennlp.tools.formats.GermEval2014NameSampleStream	read
+config	layer	inner
+config	types	per,loc,org,misc
+layer	turbo:samples	document	8	written:str
+\nAnna Berger besucht das Museum <START:person> Ludwig <END> in Köln .
+Die deutsche Elf und <START:location> Bonner <END> Fans jubeln über Marie Krugs Tor .
+Der Verlag Blauwal bringt Stille Tage heraus , eine Fortsetzung im Wolfsstil .
+Gestern sprach Jonas <START:location> Wolf <END> mit Ida <START:person> Lenz Ost <END> .
+laut .
+<START:person> Kai <END> winkt
+Ole Hansen
+ Lücke Ende
+end	turbo:samples
+layer	turbo:read-errors	document	1	after:u32	class:str	message:str
+4	java.io.IOException	Expected at least four tab-separated fields per line in GermEval 2014 data, got 3 for line '3\tlacht\tO'!
+end	turbo:read-errors
+layer	turbo:sample-tokens	document	52	sample:u32	text:str
+0	Anna
+0	Berger
+0	besucht
+0	das
+0	Museum
+0	Ludwig
+0	in
+0	Köln
+0	.
+1	Die
+1	deutsche
+1	Elf
+1	und
+1	Bonner
+1	Fans
+1	jubeln
+1	über
+1	Marie
+1	Krugs
+1	Tor
+1	.
+2	Der
+2	Verlag
+2	Blauwal
+2	bringt
+2	Stille
+2	Tage
+2	heraus
+2	,
+2	eine
+2	Fortsetzung
+2	im
+2	Wolfsstil
+2	.
+3	Gestern
+3	sprach
+3	Jonas
+3	Wolf
+3	mit
+3	Ida
+3	Lenz
+3	Ost
+3	.
+4	laut
+4	.
+5	Kai
+5	winkt
+6	Ole
+6	Hansen
+7	
+7	Lücke
+7	Ende
+end	turbo:sample-tokens
+layer	turbo:names	document	5	sample:u32	start:u32	end:u32	type:str
+0	5	6	person
+1	4	5	location
+3	3	4	location
+3	6	8	person
+5	0	1	person
+end	turbo:names

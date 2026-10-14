@@ -1,0 +1,58 @@
+# A corpus in the layout of MUC-6, written for this project: each file ends with
+# an error, after the samples it gives first, which OpenNLP returns after the error.
+
+@@ file i.sgm
+<DOC>
+<s> Kept <ENAMEX TYPE="PERSON">one</ENAMEX> . </s>
+<s> A <ENAMEX TYPE="THING">thing</ENAMEX> . </s>
+<s> Lost . </s>
+</DOC>
+@@ end
+@@ file h.sgm
+<DOC>
+<s> Single <ENAMEX TYPE='PERSON'>quotes</ENAMEX> . </s>
+</DOC>
+@@ end
+@@ file g.sgm
+<DOC>
+<s> Kept . </s>
+<s> Closed </ENAMEX> unopened . </s>
+</DOC>
+@@ end
+@@ file f.sgm
+<DOC>
+<s> Kept . </s>
+<s> 5 > 3 </s>
+</DOC>
+@@ end
+@@ file e.sgm
+<DOC>
+<s> Kept . </s>
+<s <b> </s>
+</DOC>
+@@ end
+@@ file d.sgm
+<DOC>
+<s> Kept . </s>
+<s
+@@ end
+@@ file c.sgm
+<DOC>
+<s> <ENAMEX TYPE="ORGANIZATION"><ENAMEX TYPE="LOCATION">River</ENAMEX> Bank</ENAMEX> . </s>
+</DOC>
+@@ end
+@@ file b.sgm
+<DOC>
+<s> a b <ENAMEX TYPE="PERSON">c</s>
+<s> d</ENAMEX> </s>
+</DOC>
+@@ end
+@@ file a.sgm
+<DOC>
+<s> <ENAMEX TYPE="PERSON">Open</s>
+<s> across</ENAMEX> samples . </s>
+<ENAMEX TYPE="DATE">outside</ENAMEX>
+<s> joins the next . </s>
+<s> Nel <ENAMEXTYPE="PERSON">tag</ENAMEX> . </s>
+</DOC>
+@@ end

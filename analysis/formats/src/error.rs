@@ -11,6 +11,8 @@ use std::fmt;
 
 use turbo_analysis::Span;
 
+use crate::ner::NerError;
+
 /// A sample a reader cannot read, or a sample value that cannot be built.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum FormatError {
@@ -52,6 +54,8 @@ pub enum FormatError {
     /// A source text longer than `u32::MAX` bytes, which [`Span`] cannot
     /// index.
     TooLong { len: usize },
+    /// What a reader of a named entity corpus ([`crate::ner`]) refuses.
+    Ner(NerError),
     /// A CoNLL-U word line without exactly ten tab-separated columns
     /// (after `StringUtil.split` drops the empty columns at its end).
     /// `text` is the line.
@@ -83,6 +87,32 @@ pub enum FormatError {
     /// A CoNLL-U sentence with no `# text = ...` comment, which
     /// `ConlluTokenSampleStream` needs.
     NoSentenceText { line: u32 },
+    /// A CoNLL-2002 line without exactly three space-separated fields
+    /// (after `StringUtil.split` drops the empty fields at its end).
+    /// `count` is the number of fields and `text` the line.
+    Conll02Fields { line: u32, count: usize, text: String },
+    /// A CoNLL-2003 line without the number of fields its language has
+    /// (four in English, five in German). `text` is the line.
+    Conll03Fields { line: u32, text: String },
+    /// A name tag that is not `O` and does not start with `B-` or `I-`,
+    /// in CoNLL-2002, CoNLL-2003, BioNLP 2004 and Evalita (GermEval reads
+    /// such a tag as `O`).
+    InvalidNameTag { line: u32, tag: String },
+    /// A name tag whose type the stream has no name for, found when its
+    /// name ends: `kind` is the tag after its prefix. CoNLL knows `PER`,
+    /// `ORG`, `LOC` and `MISC`, Evalita `PER`, `ORG`, `LOC` and `GPE`,
+    /// GermEval its twelve types (BioNLP takes any type as written).
+    UnknownNameType { line: u32, kind: String },
+    /// A CoNLL-2003 or Evalita `-DOCSTART-` line followed by a line that
+    /// is not empty; `line` and `text` are that line.
+    DocstartNotFollowedByEmpty { line: u32, text: String },
+    /// A CoNLL-2003 or Evalita `-DOCSTART-` line at the end of the text:
+    /// the stream asks `StringUtil.isEmpty` about the null line after it.
+    DocstartAtEnd { line: u32 },
+    /// A CoNLL-X line with fewer than five tab-separated columns (after
+    /// `StringUtil.split` drops the empty columns at its end). `text` is
+    /// the line.
+    ConllXColumns { line: u32, text: String },
 }
 
 impl FormatError {
@@ -95,6 +125,7 @@ impl FormatError {
                 Some("java.io.IOException")
             }
             OverlappingNames { .. } => Some("java.lang.RuntimeException"),
+            Ner(e) => Some(e.java_class()),
             ShortChunkTag { .. } => Some("java.lang.StringIndexOutOfBoundsException"),
             Lengths { .. } | OutOfBounds { .. } | BackwardsSpan { .. } => Some("java.lang.IllegalArgumentException"),
             ConlluColumns { .. }
@@ -104,6 +135,11 @@ impl FormatError {
             | MissingMultiwordLine { .. } => Some("opennlp.tools.util.InvalidFormatException"),
             MultiwordRemoval { .. } => Some("java.lang.IndexOutOfBoundsException"),
             TokenNotInText { .. } | NoSentenceText { .. } => Some("java.io.IOException"),
+            Conll02Fields { .. } | Conll03Fields { .. } | InvalidNameTag { .. } | DocstartNotFollowedByEmpty { .. } => {
+                Some("java.io.IOException")
+            }
+            UnknownNameType { .. } | ConllXColumns { .. } => Some("opennlp.tools.util.InvalidFormatException"),
+            DocstartAtEnd { .. } => Some("java.lang.NullPointerException"),
             SplitsSurrogatePair { .. } | NameOutsideTokens { .. } | TooLong { .. } => None,
         }
     }
@@ -112,6 +148,7 @@ impl FormatError {
     pub fn line(&self) -> Option<u32> {
         use FormatError::*;
         match *self {
+            Ner(ref e) => e.line(),
             NestedName { line, .. }
             | MissingNameType { line, .. }
             | UnexpectedEnd { line, .. }
@@ -124,7 +161,14 @@ impl FormatError {
             | MissingMultiwordLine { line, .. }
             | MultiwordRemoval { line, .. }
             | TokenNotInText { line, .. }
-            | NoSentenceText { line } => Some(line),
+            | NoSentenceText { line }
+            | Conll02Fields { line, .. }
+            | Conll03Fields { line, .. }
+            | InvalidNameTag { line, .. }
+            | UnknownNameType { line, .. }
+            | DocstartNotFollowedByEmpty { line, .. }
+            | DocstartAtEnd { line }
+            | ConllXColumns { line, .. } => Some(line),
             _ => None,
         }
     }
@@ -134,6 +178,7 @@ impl fmt::Display for FormatError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         use FormatError::*;
         match self {
+            Ner(e) => e.fmt(f),
             NestedName { context, .. } => {
                 write!(f, "Found unexpected annotation while handling a name sequence: {context}")
             }
@@ -176,6 +221,17 @@ impl fmt::Display for FormatError {
                 sentence.as_deref().unwrap_or("null")
             ),
             NoSentenceText { .. } => f.write_str("Sentence is missing raw text sample!"),
+            Conll02Fields { count, text, .. } => {
+                write!(f, "Expected three fields per line in training data, got {count} for line '{text}'!")
+            }
+            Conll03Fields { text, .. } => write!(f, "Incorrect number of fields per line for language: '{text}'!"),
+            InvalidNameTag { tag, .. } => write!(f, "Invalid tag: {tag}"),
+            UnknownNameType { kind, .. } => write!(f, "Unknown type: {kind}"),
+            DocstartNotFollowedByEmpty { text, .. } => write!(f, "Empty line after -DOCSTART- not empty: '{text}'!"),
+            DocstartAtEnd { .. } => {
+                f.write_str("Cannot invoke \"java.lang.CharSequence.length()\" because \"theString\" is null")
+            }
+            ConllXColumns { text, .. } => write!(f, "Every non-empty line must have at least 5 fields: '{text}'!"),
         }
     }
 }

@@ -1,0 +1,81 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	ner/bionlp-written	554	554	2a3b2bb00a849e93a71bdb9e3216506b0a64fae5bc9f7557a856d63c7cf58f82
+annotator	opennlp.tools.formats.BioNLP2004NameSampleStream	read
+config	types	DNA,protein,cell_type,cell_line,RNA
+layer	turbo:samples	document	7	written:str
+\nTreatment of <START:cell_type> mouse T cells <END> with the <START:protein> Abc-7 kinase <END> raised levels of <START:RNA> Xyz mRNA <END> .
+The <START:cell_line> Q2 line <END> carries a <START:DNA> zeta promoter region <END> and <START:protein> p21 <END> <START:protein> Q9 <END> .
+Levels rose in <START:XDNA> HQ <END> cells .
+\nBinding was weak .
+fields only
+<START:> Empty <END> type
+Trailing <START:protein>  <END> Ende <START:RNA> last <END>
+end	turbo:samples
+layer	turbo:read-errors	document	2	after:u32	class:str	message:str
+4	java.io.IOException	Expected two fields per line in training data, got 3 for line 'Two\tO\tO'!
+5	java.io.IOException	Invalid tag: X
+end	turbo:read-errors
+layer	turbo:sample-tokens	document	45	sample:u32	text:str
+0	Treatment
+0	of
+0	mouse
+0	T
+0	cells
+0	with
+0	the
+0	Abc-7
+0	kinase
+0	raised
+0	levels
+0	of
+0	Xyz
+0	mRNA
+0	.
+1	The
+1	Q2
+1	line
+1	carries
+1	a
+1	zeta
+1	promoter
+1	region
+1	and
+1	p21
+1	Q9
+1	.
+2	Levels
+2	rose
+2	in
+2	HQ
+2	cells
+2	.
+3	Binding
+3	was
+3	weak
+3	.
+4	fields
+4	only
+5	Empty
+5	type
+6	Trailing
+6	
+6	Ende
+6	last
+end	turbo:sample-tokens
+layer	turbo:names	document	11	sample:u32	start:u32	end:u32	type:str
+0	2	5	cell_type
+0	7	9	protein
+0	12	14	RNA
+1	1	3	cell_line
+1	5	8	DNA
+1	9	10	protein
+1	10	11	protein
+2	3	4	XDNA
+5	0	1	
+6	1	2	protein
+6	3	4	RNA
+end	turbo:names
