@@ -1,0 +1,20 @@
+single
+<START:t> single <END>
+<START:t> <END>
+<START:a> <END> <START:b> <END> x
+a <START:x> b c
+<START:a:b> x <END:y> <START:a>b
+   leading  and   trailing   spaces   
+tab	separated no-break emnelfs <START:p> x <END>
+<START:é😀> ünïcode 😀 <END> .
+
+
+after blanks
+ 	 
+after a whitespace only line
+<START:x> a <END><START:y> b <END>
+
+after a next line
+
+after a file separator
+final line without a line feed

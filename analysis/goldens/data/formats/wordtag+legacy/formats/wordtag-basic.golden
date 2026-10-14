@@ -1,0 +1,57 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	formats/wordtag-basic	149	144	b0275e6eb2d4a54e23cf800fa1cc7abec698159c46fbbceb7736f7d20e58f1a9
+annotator	opennlp.tools.postag.WordTagSampleStream	read
+config	whitespace	legacy
+layer	turbo:samples	document	9	written:str
+The_DT driver_NN stopped_VBD ._.
+a_b_C d_ _x
+New_York_NNP is_VBZ big_JJ
+
+
+
+é_A 😀_SYM
+_ __ ___
+last_JJ
+end	turbo:samples
+layer	turbo:read-errors	document	0	after:u32	class:str	message:str
+end	turbo:read-errors
+layer	turbo:sample-tokens	document	16	sample:u32	text:str
+0	The
+0	driver
+0	stopped
+0	.
+1	a_b
+1	d
+1	
+2	New_York
+2	is
+2	big
+6	é
+6	😀
+7	
+7	_
+7	__
+8	last
+end	turbo:sample-tokens
+layer	turbo:sample-tags	aligned:turbo:sample-tokens	16	tag:str
+DT
+NN
+VBD
+.
+C
+
+x
+NNP
+VBZ
+JJ
+A
+SYM
+
+
+
+JJ
+end	turbo:sample-tags

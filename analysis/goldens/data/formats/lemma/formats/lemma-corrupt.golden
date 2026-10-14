@@ -1,0 +1,17 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	formats/lemma-corrupt	17	17	2f3b89f3fa4ea334470590a7ed49534d5ed4e5054f4e2966de985e3bc4066d50
+annotator	opennlp.tools.lemmatizer.LemmaSampleStream	read
+layer	turbo:samples	document	0	written:str
+end	turbo:samples
+layer	turbo:read-errors	document	0	after:u32	class:str	message:str
+end	turbo:read-errors
+layer	turbo:sample-tokens	document	0	sample:u32	text:str
+end	turbo:sample-tokens
+layer	turbo:sample-tags	aligned:turbo:sample-tokens	0	tag:str
+end	turbo:sample-tags
+layer	turbo:sample-lemmas	aligned:turbo:sample-tokens	0	lemma:str
+end	turbo:sample-lemmas

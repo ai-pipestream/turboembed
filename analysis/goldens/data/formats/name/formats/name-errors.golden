@@ -1,0 +1,28 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	formats/name-errors	179	179	c918f9772ffc4b8f79ece15c0084ca9198ca6c6471a8047dd02762571ff0d4f7
+annotator	opennlp.tools.namefind.NameSampleDataStream	read
+layer	turbo:samples	document	2	written:str
+ok line
+last good line
+end	turbo:samples
+layer	turbo:read-errors	document	6	after:u32	class:str	message:str
+0	java.io.IOException	Found unexpected annotation while handling a name sequence: <START:x> c ###<START:y>### d e
+0	java.io.IOException	Found unexpected annotation: ###<END>### x 
+0	java.io.IOException	Missing a name type: ###<START:>### y 
+1	java.lang.RuntimeException	name spans [0..1) b and [0..0) a are overlapped in file: null, sentence: [x]
+1	java.io.IOException	Found unexpected annotation: y <END> ###<END>### 
+1	java.io.IOException	Found unexpected annotation while handling a name sequence: <START:q> nested ###<START>### deeper <END>
+end	turbo:read-errors
+layer	turbo:sample-tokens	document	5	sample:u32	text:str
+0	ok
+0	line
+1	last
+1	good
+1	line
+end	turbo:sample-tokens
+layer	turbo:names	document	0	sample:u32	start:u32	end:u32	type:str
+end	turbo:names

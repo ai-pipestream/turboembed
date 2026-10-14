@@ -1,0 +1,17 @@
+He	PRP	he
+reckons	VBZ	reckon
+the	DT	the
+		
+current	JJ	current
+account	NN	account
+.	.	.
+
+trailing	NN	trailing	
+two	CD
+ 
+three	CD	three	extra
+	EMPTY	token
+a		b
+été	NOUN	été 😀
+
+last	JJ	last

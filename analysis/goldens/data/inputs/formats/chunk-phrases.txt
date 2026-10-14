@@ -1,0 +1,29 @@
+a DT I-NP
+b NN I-NP
+c VB I-VP
+d IN O
+e NN I-
+f NN I-
+g NN B-
+h NN XY
+i NN XYZ
+j NN O
+
+a DT B-NP
+b NN X
+
+a NN O
+b NN I-
+
+a NN B-😀
+b NN I-😀
+c NN 😀x
+
+a  b O
+c d O 
+e	f g O
+ 
+h i B-NP
+
+
+never read NN O

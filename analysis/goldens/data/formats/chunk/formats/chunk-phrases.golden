@@ -1,0 +1,95 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	formats/chunk-phrases	207	201	09875bb6dbd5b3225ffecee865cba97e9905772fe2dc2e1a6eab1c12cc2f2a3c
+annotator	opennlp.tools.chunker.ChunkSampleStream	read
+layer	turbo:samples	document	5	written:str
+a DT I-NP\nb NN I-NP\nc VB I-VP\nd IN O\ne NN I-\nf NN I-\ng NN B-\nh NN XY\ni NN XYZ\nj NN O\n
+a DT B-NP\nb NN X\n
+a NN O\nb NN I-\n
+a NN B-😀\nb NN I-😀\nc NN 😀x\n
+c d O\ne\tf g O\nh i B-NP\n
+end	turbo:samples
+layer	turbo:read-errors	document	0	after:u32	class:str	message:str
+end	turbo:read-errors
+layer	turbo:sample-tokens	document	20	sample:u32	text:str
+0	a
+0	b
+0	c
+0	d
+0	e
+0	f
+0	g
+0	h
+0	i
+0	j
+1	a
+1	b
+2	a
+2	b
+3	a
+3	b
+3	c
+4	c
+4	e\tf
+4	h
+end	turbo:sample-tokens
+layer	turbo:sample-tags	aligned:turbo:sample-tokens	20	tag:str
+DT
+NN
+VB
+IN
+NN
+NN
+NN
+NN
+NN
+NN
+DT
+NN
+NN
+NN
+NN
+NN
+NN
+d
+g
+i
+end	turbo:sample-tags
+layer	turbo:sample-chunks	aligned:turbo:sample-tokens	20	chunk:str
+I-NP
+I-NP
+I-VP
+O
+I-
+I-
+B-
+XY
+XYZ
+O
+B-NP
+X
+O
+I-
+B-😀
+I-😀
+😀x
+O
+O
+B-NP
+end	turbo:sample-chunks
+layer	turbo:phrases	document	8	sample:u32	start:u32	end:u32	type:str
+0	0	2	NP
+0	2	3	VP
+0	6	7	
+0	7	8	
+0	8	9	Z
+3	0	2	😀
+3	2	3	x
+4	2	3	NP
+end	turbo:phrases
+layer	turbo:phrase-errors	document	1	sample:u32	class:str	message:str
+1	java.lang.StringIndexOutOfBoundsException	Range [2, 1) out of bounds for length 1
+end	turbo:phrase-errors
