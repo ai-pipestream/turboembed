@@ -1872,6 +1872,7 @@ version = "0.1.0"
 dependencies = [
  "turbo-analysis",
  "turbo-analysis-layers",
+ "turbo-maxent",
  "turbo-unicode",
 ]
 
@@ -1958,6 +1959,7 @@ dependencies = [
 name = "turbo-namefind"
 version = "0.1.0"
 dependencies = [
+ "regex",
  "turbo-analysis",
  "turbo-analysis-layers",
  "turbo-jvm",
@@ -1999,6 +2001,7 @@ name = "turbo-parser"
 version = "0.1.0"
 dependencies = [
  "turbo-analysis",
+ "turbo-goldens",
  "turbo-jvm",
  "turbo-unicode",
 ]
@@ -2012,6 +2015,7 @@ dependencies = [
  "turbo-goldens",
  "turbo-maxent",
  "turbo-sequence",
+ "turbo-train",
  "turbo-unicode",
 ]
 
@@ -2024,6 +2028,7 @@ dependencies = [
  "turbo-goldens",
  "turbo-maxent",
  "turbo-sequence",
+ "turbo-train",
  "turbo-unicode",
 ]
 
@@ -2045,6 +2050,7 @@ dependencies = [
  "turbo-goldens",
  "turbo-jvm",
  "turbo-maxent",
+ "turbo-train",
  "turbo-unicode",
 ]
 
@@ -2153,6 +2159,7 @@ dependencies = [
  "turbo-eval",
  "turbo-formats",
  "turbo-maxent",
+ "turbo-postag",
  "turbo-sentdetect",
  "turbo-tokenize",
  "turbo-train",

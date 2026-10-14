@@ -128,7 +128,8 @@ fn run(args: &[String]) -> Result<(), String> {
             if ties == TieOrder::Jvm && !m.is_jvm_exact() {
                 eprintln!(
                     "the merges may differ from the JVM's: the corpus holds a character outside the Basic \
-                     Multilingual Plane, or a bin of the JVM's maps became a tree (docs/bpe-trainer.md)"
+                     Multilingual Plane, or a tree bin of the JVM's maps held keys with equal hash codes \
+                     (docs/bpe-trainer.md)"
                 );
             }
             m.to_merges_text().into_bytes()

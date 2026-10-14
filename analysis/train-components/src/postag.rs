@@ -272,7 +272,7 @@ mod tests {
         assert_eq!(f.manifest_entries(), [("factory".to_owned(), FACTORY.to_owned())]);
         let s = samples("The_DT cat_NN sat_VBD\n\nno tag_T\ntag_T\n");
         let events = pos_events(&s, &f).unwrap();
-        let outcomes: Vec<&str> = events.iter().map(Event::outcome).collect();
+        let outcomes: Vec<String> = events.iter().map(|e| e.outcome().to_string()).collect();
         // The second line is a sample with no tokens, and so is the third
         // in place of a line with a token without `_`, as
         // `WordTagSampleStream` reads it; the fourth has one token.

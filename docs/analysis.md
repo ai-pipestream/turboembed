@@ -36,9 +36,9 @@ nothing here is in the C header or the gRPC server.
 | `turbo-bpe-trainer` | `analysis/bpe-trainer/` | BPE trainers, a tool and not an annotator: byte-level BPE as upstream `tokenizers` trains it, SentencePiece BPE as the sentencepiece library trains it, and OpenNLP's `BPETokenizerTrainer` with its `BPETokenizer` ([bpe-trainer.md](bpe-trainer.md)) |
 | `turbo-train` | `analysis/train/` | Training OpenNLP maxent models, the event side: `Event`, the `FileEventStream` and `RealValueFileEventStream` formats, the CRC-32C event checksum, the three data indexers with their cutoffs, sorting and merging, `TrainingParameters` with typed values and OpenNLP's parameters file, `AlgorithmType` and the trainer types, the progress monitors and stop criteria, the GIS trainer (`GISTrainer`, parameters bit for bit the JVM's after every iteration), the binary model writer (`GenericModelWriter`, bytes the JVM's) and the `.bin` packaging with its manifest (`BaseModel.serialize`; the entries are the JVM's bytes, the archive around them is written here and loads in both). Sample types belong to the formats crate; this one starts at events. Its crate documentation lists the OpenNLP behaviour that is surprising, and "Training goldens" below describes its JVM reference |
 | `turbo-train-components` | `analysis/train-components/` | Training the sentence detector, the tokenizer, the part-of-speech tagger and the lemmatizer: `SDEventStream`, `TokSpanEventStream`, `POSSampleEventStream` and `LemmaSampleEventStream` with their factories (end characters, alphanumeric pattern, abbreviation dictionary, feature generator descriptor, tag dictionary), the `SentenceModel`, `TokenizerModel`, `POSModel` and `LemmatizerModel` files with every manifest entry and artifact the JVM writes (the dictionaries as `Dictionary.serialize` and `POSDictionary.serialize` write them, zip entries in the JVM's order), and the recipes that train the eighteen published UD 1.3 models again from their treebanks and compare them with the published files. Its own crate because `turbo-formats` depends on `turbo-tokenize`; "Training the components" below |
-| `turbo-train-recipes` | `analysis/train-recipes/` | Recipes that train models on permissive data and gate them: MASC 3.0.0 (CC BY 3.0 US) with the record of its release and fixed split, the English sentence detector and tokenizer trained on it, their gate against the OpenNLP English UD models, the model card and the permissive zoo entry, and the `turbo-train-recipes` binary ("Models trained on permissive data", below) |
+| `turbo-train-recipes` | `analysis/train-recipes/` | Recipes that train models on permissive data and gate them: MASC 3.0.0 (CC BY 3.0 US) with the record of its release and fixed split, the English sentence detector, tokenizer and part-of-speech tagger trained on it, their gates against the OpenNLP English UD models and OpenNLP 1.5's Penn tagger (`en-pos-maxent.bin`), the model card and the permissive zoo entry, and the `turbo-train-recipes` binary ("Models trained on permissive data", below) |
 | `turbo-formats` | `analysis/formats/` | OpenNLP's training samples (name, part-of-speech, lemma, chunk, token, sentence, document category and language samples), a reader per native format that reproduces OpenNLP's sample stream over the same text, the conversion of name and part-of-speech samples into token and sentence samples, the CoNLL-U readers of part-of-speech, lemma, sentence and token samples, the CoNLL-2002 and CoNLL-2003 name readers and the CoNLL-X part-of-speech reader, the MASC corpus reader and its part-of-speech, token, sentence and name samples, the named entity corpus readers (GermEval 2014, BioNLP 2004, Evalita, the 1990 census names, MUC-6 and brat), the format registry, and the evaluators and cross-validation folds (`FMeasure`, `Mean`, an evaluator per component). Every token and tag keeps its byte span in the source; the crate documentation lists the OpenNLP behaviour that is surprising, and its tests compare with the `formats`, `masc`, `ner` and `evaluate` goldens |
-| `turbo-parser` | `analysis/parser/` | OpenNLP's constituency `Parse` tree and Penn Treebank bracket I/O (`Parse::parse`, `Parse::show`, `ParseSampleStream`, `ParserPosSample`, `ParserChunkSample`, `space_untokenized_parens`), `HeadRules` and `GapLabeler` traits, `EnglishHeadRules` (`opennlp.tools.parser.lang.en.HeadRules`), and `AncoraSpanishHeadRules` (`opennlp.tools.parser.lang.es.AncoraSpanishHeadRules`) with a 62-state `u64` bitmask tag matcher (`TagPattern`). `analysis/parser/README.md` describes its JVM reference vectors |
+| `turbo-parser` | `analysis/parser/` | OpenNLP's constituency `Parse` tree and Penn Treebank bracket I/O (`Parse::parse`, `Parse::show`, `ParseSampleStream`, `ParserPosSample`, `ParserChunkSample`, `space_untokenized_parens`), the `HeadRules` and `GapLabeler` traits, `EnglishHeadRules` (`opennlp.tools.parser.lang.en.HeadRules`), and `AncoraSpanishHeadRules` (`opennlp.tools.parser.lang.es.AncoraSpanishHeadRules`), whose tags are Java regular expressions (`TagPattern`). `analysis/parser/README.md` describes where it differs from OpenNLP and its JVM golden files |
 | `turbo-eval` | `analysis/eval/` | The evaluation harness: the evaluation sets with their fetch by checksum and typed readers, the pipeline, the baseline chunkers, measures, significance tests, records, the gate and the `turbo-eval` binary (Evaluation, below) |
 
 They need nothing beyond the standard library and each other, except
@@ -75,7 +75,8 @@ match the JVM bit for bit:
 - `hash_map`: `JavaHash` (`String.hashCode`, `CharBuffer.hashCode`,
   record/pair and `List.hashCode`), `spread` (`HashMap.hash`),
   `HashMapOrder`, `put_order` and `JavaHashMap` reproduce JDK 21's
-  `HashMap` table sizing, bin splitting and iteration order for `put`,
+  `HashMap` table sizing, bin splitting, red-black tree bins and
+  iteration order for `new HashMap<>()`, `new HashMap<>(n)`, `put`,
   `merge`, `putAll` and `clear`, used by `turbo-langdetect`,
   `turbo-namefind`, `turbo-sequence`, `turbo-bpe-trainer` and
   `turbo-formats`.
@@ -1770,8 +1771,8 @@ first one's order and `serialize` writes that order, so a trained model's
 before the manifest among the zip entries; `POSModel` refuses a
 dictionary tag the model has no outcome for; and a lemma class is an edit
 script over UTF-16 units, which can hold half of a surrogate pair for a
-token or lemma outside the Basic Multilingual Plane, a class the JVM
-trains on and the crate refuses.
+token or lemma outside the Basic Multilingual Plane, so an outcome label
+is a `JavaString` from the event to the model file, as it is on the JVM.
 
 `analysis/train-components/tests/goldens.rs` compares the events with
 every `train` and `train-events` golden, and the stream errors, the
@@ -1951,7 +1952,7 @@ generator writes them for `SentenceDetectorME`, `TokenizerME`,
 `POSTaggerME`, `LemmatizerME`, `ChunkerME` and `LanguageDetectorME`. `turbo_goldens::Dump::read` parses one into its
 header (the golden's `Header` type) and a `Point` per decision, with the
 contexts as UTF-16 units, since a context can hold half of a surrogate
-pair.
+pair, and the outcome labels as `JavaString`s, since a lemma class can.
 
 ### The format
 
@@ -2104,9 +2105,11 @@ checked in dumps were made in the same container run as the goldens.
 `analysis/train-recipes` (`turbo-train-recipes`) trains models only on
 data the licence policy lets the project ship, and gates each one
 against the OpenNLP model for the same task (#401). The first recipes
-are the English sentence detector and tokenizer trained on MASC 3.0.0
-(CC BY 3.0 US), gated against `opennlp-en-ud-ewt-sentence-1.3-2.5.4` and
-`opennlp-en-ud-ewt-tokens-1.3-2.5.4`:
+are the English sentence detector, tokenizer and part-of-speech tagger
+trained on MASC 3.0.0 (CC BY 3.0 US), gated against
+`opennlp-en-ud-ewt-sentence-1.3-2.5.4`,
+`opennlp-en-ud-ewt-tokens-1.3-2.5.4` and OpenNLP 1.5's
+`en-pos-maxent.bin`:
 
 - The data: MASC is fetched through the zoo by digest as a permissive
   dataset and read from its extracted directory with the MASC reader of
@@ -2120,30 +2123,40 @@ are the English sentence detector and tokenizer trained on MASC 3.0.0
   tenth, from the tenth, is held out. No randomness, so no seed.
 - The training: the factory defaults and the settings of the UD 1.3
   models (GIS, 300 iterations, cutoff 5, 4 threads, OpenNLP 2.5.4's
-  whitespace, 10 sentences per sentence detector sample), so the model
-  and the reference differ in their data, not their settings. The token
-  stream skips a sentence without a sample alone
+  whitespace, 10 sentences per sentence detector sample, the default
+  feature generator descriptor and no tag dictionary for the tagger), so
+  the model and the reference differ in their data, not their settings.
+  The token stream skips a sentence without a sample alone
   (`EmptySentence::Skipped`) rather than end the corpus there as
-  OpenNLP's does. The manifest's `Timestamp` is fixed, so a run gives
-  the same bytes.
-- The gate: both models scored with OpenNLP's `SentenceDetectorEvaluator`
-  and `TokenizerEvaluator` on the same held-out samples, gated by
-  `turbo_eval::model_gate`.
+  OpenNLP's does, and the tagger's skips a sentence with a token without
+  a tag alone rather than throw. The manifest's `Timestamp` is fixed, so
+  a run gives the same bytes.
+- The gate: both models scored with OpenNLP's `SentenceDetectorEvaluator`,
+  `TokenizerEvaluator` and `POSEvaluator` on the same held-out samples,
+  gated by `turbo_eval::model_gate`. MASC's tags are Penn tags, so the
+  tagger's reference is OpenNLP's English maxent tagger trained on Penn
+  tags, `en-pos-maxent.bin` of the 1.5 models, scored in its own
+  outcomes. Its training data is described only as "(private) English
+  data" and the zoo does not list it; the recipe records its size and
+  SHA-256, reads it only to score it, and never ships or bundles it. The
+  English UD tagger asked for Penn tags would be no reference: it gives
+  one Penn tag per UD tag, never `VBD`, `NNS` or `,`.
 - The output: `<out>/<model id>/` with the model, `card.json` (the
   data, its licence and attribution, the split, the parameters, the
-  training counts and the gate's outcome) and `gate.json` (the gate
-  record). `ModelCard::artifact` is the model's permissive zoo entry
-  once the file is published; it refuses a card whose gate failed or
-  whose corpus is not the recorded release.
+  training counts, the tag formats a tagger was scored in and the
+  gate's outcome) and `gate.json` (the gate record). `ModelCard::artifact`
+  is the model's permissive zoo entry once the file is published; it
+  refuses a card whose gate failed or whose corpus is not the recorded
+  release.
 
 ```
 cargo run --release -p turbo-train-recipes -- masc --corpus <masc-dir> \
-    --references <dir with the OpenNLP models> --out <dir> [--unrecorded-corpus]
+    --references <dir with the OpenNLP models> --out <dir> [--unrecorded-corpus] \
+    [--recipe <model id>]...
 ```
 
-The part-of-speech tagger recipe is not written yet: it needs the
-part-of-speech event stream, which is not in the workspace yet. The
-crate's README has the rest.
+None of the recipes has been run on MASC itself yet. The crate's README
+has the rest.
 
 ## Differential fuzzing
 
@@ -2209,9 +2222,10 @@ exactly the ones the golden tests list:
 - `langdetect`: the port declines a text with no evidence for any
   language, where the JVM ranks every language at the prior
   (`analysis/langdetect/tests/goldens.rs`); and where a bucket of the
-  JVM's n-gram map held nine or more n-grams and the JDK turned it into
-  a tree, the n-grams reached the model in an order the port does not
-  reproduce and the probabilities differ in their last bits, within
+  JVM's n-gram map that the JDK turned into a tree held n-grams with
+  equal hash codes, which the JDK orders by identity hash code, the
+  n-grams reached the model in an order the port cannot reproduce and
+  the probabilities differ in their last bits, within
   1e-12 (`ContextGenerator::exact_order` in
   `analysis/langdetect/src/context.rs` says when).
 - `tokenize/simple+keep-new-lines`: the two defects of `SimpleTokenizer`

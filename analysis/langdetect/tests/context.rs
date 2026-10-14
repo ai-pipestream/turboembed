@@ -175,33 +175,39 @@ fn a_large_text_keeps_every_distinct_n_gram() {
     assert_eq!(found.len(), g.len());
 }
 
-// Differences from OpenNLP
-
 #[test]
-fn a_bucket_that_java_turns_into_a_tree_keeps_put_order_and_says_so() {
+fn a_bucket_that_java_turns_into_a_tree_comes_in_the_jvms_order() {
     // These eleven characters all have a CharBuffer hash (31 plus the code
     // unit) that is a multiple of 64, so as unigrams they share one bucket
     // of a table of 64. The ninth and tenth grow the table from 16 to 64;
     // the eleventh makes the JVM turn the bucket into a red-black tree,
-    // whose iteration order is not reproduced.
+    // which iterates its root first. Their hashes differ, so the order is
+    // the JVM's.
     let text = "!a\u{A1}\u{E1}\u{121}\u{161}\u{1A1}\u{1E1}\u{221}\u{261}\u{2A1}";
     for c in text.chars() {
         assert!((31 + u32::from(c)).is_multiple_of(64), "{c:?}");
     }
     let mut unigrams = ContextGenerator::new(1, 1);
-    unigrams.generate_prepared(text);
-    assert!(!unigrams.exact_order());
-    assert_eq!(unigrams.len(), 11);
-    // Ten of them stay a list.
-    let shorter: String = text.chars().take(10).collect();
-    unigrams.generate_prepared(&shorter);
+    // The order JDK 21 gives for the two maps of `getContext` and
+    // `predict`.
+    let jvm =
+        ["\u{E1}", "!", "a", "\u{A1}", "\u{121}", "\u{161}", "\u{1A1}", "\u{1E1}", "\u{221}", "\u{261}", "\u{2A1}"];
+    assert_eq!(grams(&mut unigrams, text), strs(&jvm));
     assert!(unigrams.exact_order());
-    // The n-grams are all there either way.
+    // Ten of them stay a list, in put order.
+    let shorter: String = text.chars().take(10).collect();
+    assert_eq!(
+        grams(&mut unigrams, &shorter),
+        strs(&["!", "a", "\u{A1}", "\u{E1}", "\u{121}", "\u{161}", "\u{1A1}", "\u{1E1}", "\u{221}", "\u{261}"])
+    );
+    assert!(unigrams.exact_order());
     let mut g = ContextGenerator::default();
     g.generate_prepared(text);
-    assert!(!g.exact_order());
+    assert!(g.exact_order());
     assert_eq!(g.len(), 11 + 10 + 9);
 }
+
+// Differences from OpenNLP
 
 #[test]
 fn characters_new_since_unicode_15_lowercase_with_the_unicode_18_tables() {

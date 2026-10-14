@@ -25,8 +25,8 @@
 //!   conversions.
 //! - Several components iterate over a `java.util.HashMap` whose order
 //!   affects tie breaking or floating point summation. [`hash_map`]
-//!   reproduces `HashMap` hash codes, table growth, bin splitting and
-//!   iteration order for `put`, `merge`, `putAll` and `clear`.
+//!   reproduces `HashMap` hash codes, table growth, bin splitting, tree
+//!   bins and iteration order for `put`, `merge`, `putAll` and `clear`.
 //!
 //! Every function here is checked against vectors written by a real JVM
 //! (`tests/vectors/`, made by `java/Vectors.java`), except [`math::log`],

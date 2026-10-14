@@ -170,3 +170,8 @@ library	NN	library
 The	DT	the
 end	NN	end
 .	.	.
+
+Smile😀	NN	smile
+ok👍	UH	ok
+done	VBN	do
+.	.	.

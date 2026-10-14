@@ -290,7 +290,7 @@ mod tests {
     use turbo_formats::native::SentenceReader;
 
     fn outcomes(events: &[Event]) -> String {
-        events.iter().map(Event::outcome).collect()
+        events.iter().map(|e| e.outcome().to_string()).collect()
     }
 
     fn samples(text: &str) -> Vec<SentenceSample<'_>> {
@@ -302,7 +302,7 @@ mod tests {
         let f = SentenceDetectorFactory::new("en", true, None, None).unwrap();
         let s = samples("Dr. Who left.\nNo end here\nTwo? Yes!\n");
         let events = sd_events(&s, &f, WhitespaceMode::Unicode);
-        let outcomes: Vec<&str> = events.iter().map(Event::outcome).collect();
+        let outcomes: Vec<String> = events.iter().map(|e| e.outcome().to_string()).collect();
         // "Dr." and "left." in the first sentence; none in the second;
         // "Two?" and "Yes!" in the third.
         assert_eq!(outcomes, ["n", "s", "n", "s"]);

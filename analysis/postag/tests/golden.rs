@@ -29,6 +29,7 @@ use common::{Case, Setting};
 use turbo_analysis::{Analyzer, Bound, Key};
 use turbo_analysis_layers::{PosTags, Tokens};
 use turbo_goldens::{GOLDEN_KEY, Tolerance, Unit, golden_key, load_document, matches_golden_key};
+use turbo_maxent::JavaString;
 use turbo_postag::{PosModel, PosTagFormat, PosTagger};
 use turbo_sequence::{BeamSearch, ContextGenerator, Features};
 use turbo_unicode::modified_utf8::push_modified_utf8;
@@ -169,13 +170,13 @@ fn check_dump(case: &Case, doc: &turbo_analysis::Document, model: &PosModel) -> 
     let dump = case.dump();
     let what = case.path.display().to_string();
     let maxent = model.maxent();
-    let labels: Vec<&str> = (0..maxent.num_outcomes()).map(|i| maxent.outcome(i)).collect();
+    let labels: Vec<&JavaString> = maxent.outcomes().collect();
     let mut recorder = Recorder { inner: model.new_context().unwrap(), calls: Vec::new() };
     let validator = model.validator();
     let mut seen: Vec<(u32, Vec<Vec<u8>>)> = Vec::new();
     for sentence in sentences(doc) {
         let words: Vec<&str> = sentence.iter().map(|&(w, _)| w).collect();
-        let search = BeamSearch::new(model.beam_size(), maxent);
+        let search = BeamSearch::new(model.beam_size(), maxent).unwrap();
         assert!(search.best_sequence(&words, &mut recorder, &validator).is_some(), "{what}");
         for (index, features) in recorder.calls.drain(..) {
             seen.push((sentence[index].1, features));
@@ -200,7 +201,7 @@ fn check_dump(case: &Case, doc: &turbo_analysis::Document, model: &PosModel) -> 
         let show = |f: &[Vec<u8>]| f.iter().map(|x| String::from_utf8_lossy(x).into_owned()).collect::<Vec<_>>();
         assert_eq!(features, &want, "{what} at {start}: {:?} against {:?}", show(features), show(&want));
         assert!(p.values.is_none() && p.acceptable.is_none(), "{what} at {start}");
-        let got: Vec<&str> = p.outcomes.iter().map(|o| o.label.as_str()).collect();
+        let got: Vec<&JavaString> = p.outcomes.iter().map(|o| &o.label).collect();
         assert_eq!(got, labels, "{what} at {start}: outcomes");
         maxent.eval_features(features.iter().map(Vec::as_slice), &mut probs);
         for (o, &got) in p.outcomes.iter().zip(&probs) {

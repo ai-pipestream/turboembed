@@ -5,9 +5,10 @@
 //! - [`event`][]: `Event`, the `FileEventStream` and `RealValueFileEventStream`
 //!   formats, and the CRC-32C event checksum a trained model's manifest
 //!   records (`Training-Eventhash`).
-//! - [`java_string`][]: `JavaString`, a predicate as Java holds it, which may
-//!   be half a surrogate pair (the tokenizer's features are cut at UTF-16
-//!   units), kept in the modified UTF-8 the model files use.
+//! - [`java_string`][]: `JavaString` (from `turbo-maxent`), a predicate or
+//!   an outcome as Java holds it, which may hold half a surrogate pair (the
+//!   tokenizer's features are cut at UTF-16 units, and a lemma class edits
+//!   the units of a word), kept in the modified UTF-8 the model files use.
 //! - [`index`][]: `OnePassDataIndexer`, `TwoPassDataIndexer` and
 //!   `OnePassRealValueDataIndexer`, which number outcomes and predicates,
 //!   apply the cutoff, and sort and merge events, quirks included.
@@ -72,7 +73,6 @@ pub mod error;
 pub mod event;
 pub mod gis;
 pub mod index;
-pub mod java_string;
 pub mod monitor;
 pub mod package;
 pub mod params;
@@ -80,6 +80,8 @@ pub mod perceptron;
 pub mod qn;
 pub mod trainer;
 pub mod writer;
+
+pub use turbo_maxent::java_string;
 
 pub use context::{BasicContextGenerator, Separator};
 pub use crc32c::{Crc32c, crc32c};

@@ -72,6 +72,9 @@ final class Runs {
   static final String LATTICE_KO = "mecab-fixture-ko";
   static final String LATTICE_PARTIAL = "mecab-fixture-partial";
   static final String FORMAT_DETOKENIZER = "en-detokenizer.xml";
+  static final String EN_HEAD_RULES = "en-head-rules.txt";
+  static final String ES_HEAD_RULES = "es-head-rules.txt";
+  static final String ES_REGEX_HEAD_RULES = "es-regex-head-rules.txt";
 
   /** The input sets, the directories of the inputs directory. */
   static final String EN = "en";
@@ -93,6 +96,8 @@ final class Runs {
   /** The word and tag lines and the word, tag and lemma lines the Rust tagger fixtures were trained on. */
   static final String TAGGED = "tagged";
   static final String NER = "ner";
+  static final String PARSE = "parse";
+  static final String HEAD_RULES = "head-rules";
 
   /** The numbers of merges the BPE trainer runs with: few, so the tokens are pieces of words, and many. */
   static final List<Integer> BPE_MERGES = List.of(40, 400);
@@ -274,6 +279,11 @@ final class Runs {
     annotators.addAll(MascGolden.all());
     // The CoNLL-2002, CoNLL-2003 and CoNLL-X streams.
     annotators.addAll(ConllGolden.all(fixtures.resolve(FORMAT_DETOKENIZER)));
+    // The Penn Treebank parse reader and writer, alone and with the English and AnCora head rules,
+    // and the head rule readers and writers.
+    annotators.addAll(ParserGolden.all(fixtures.resolve(EN_HEAD_RULES), fixtures.resolve(ES_HEAD_RULES),
+        fixtures.resolve(ES_REGEX_HEAD_RULES)));
+    annotators.addAll(ParserGolden.Rules.all());
     return new All(annotators, recorders);
   }
 }

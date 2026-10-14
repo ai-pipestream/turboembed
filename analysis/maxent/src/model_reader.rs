@@ -23,7 +23,8 @@ use turbo_jvm::strict_math;
 
 use crate::error::{Error, Result};
 use crate::java_data::{JavaData, canonical_modified_utf8, decode_modified_utf8};
-use crate::model::{MaxentModel, ModelKind};
+use crate::java_string::JavaString;
+use crate::model::{MaxentModel, ModelKind, outcome_texts};
 
 /// `ResourceLimits.MAX_ENTRIES`: OpenNLP refuses outcome, pattern and
 /// predicate counts above this.
@@ -56,9 +57,9 @@ impl MaxentModel {
         if outcome_count == 0 {
             return Err(Error::Count { what: "outcome", value: 0, offset: r.position() - 4 });
         }
-        let mut outcomes: Vec<Box<str>> = Vec::with_capacity(capacity(&r, outcome_count));
+        let mut outcomes: Vec<JavaString> = Vec::with_capacity(capacity(&r, outcome_count));
         for _ in 0..outcome_count {
-            outcomes.push(decode_modified_utf8(&r.read_chunked_utf()?).into());
+            outcomes.push(JavaString::from_checked(&r.read_chunked_utf()?));
         }
 
         let pattern_count = read_count(&mut r, "outcome pattern")?;
@@ -106,7 +107,8 @@ impl MaxentModel {
             ModelKind::Gis => strict_math::log(1.0 / f64::from(outcome_count)),
             ModelKind::Qn | ModelKind::Perceptron => 0.0,
         };
-        Ok(MaxentModel { kind, outcomes, predicates, pred_start, pred_outcome, pred_param, start })
+        let outcome_texts = outcome_texts(&outcomes);
+        Ok(MaxentModel { kind, outcomes, outcome_texts, predicates, pred_start, pred_outcome, pred_param, start })
     }
 }
 
@@ -217,7 +219,7 @@ mod tests {
     fn a_gis_model_is_read_into_columns() {
         let m = MaxentModel::read(&gis().0).unwrap();
         assert_eq!(m.kind(), ModelKind::Gis);
-        assert_eq!(m.outcomes().collect::<Vec<_>>(), ["x", "y"]);
+        assert_eq!(m.outcomes().collect::<Vec<_>>(), [&JavaString::new("x"), &JavaString::new("y")]);
         assert_eq!(m.pred_start, [0, 2, 4, 5]);
         assert_eq!(m.pred_outcome, [0, 1, 0, 1, 1]);
         assert_eq!(m.pred_param, [0.5, -0.5, 1.5, 0.25, 2.0]);

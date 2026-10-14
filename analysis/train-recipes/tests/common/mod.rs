@@ -8,32 +8,38 @@ use std::path::{Path, PathBuf};
 pub struct Token {
     pub text: String,
     pub space_before: bool,
-    pub tag: &'static str,
+    pub tag: String,
 }
 
 /// The sentences the corpora are made of. Tokens are written with a space
 /// before them unless they start with `~` (which is dropped), so `dog ~'s`
-/// is `dog's` in two tokens.
+/// is `dog's` in two tokens. A token's Penn tag follows its last `/`; a
+/// token without one is tagged `.` when it is punctuation and `NN`
+/// otherwise.
 pub const SENTENCES: &[&str] = &[
-    "Dr. Smith said that the dog ~'s food costs $ ~5.00 ~, not more ~.",
-    "Mr. Jones left early ~.",
-    "It was cold in the U.S. that week ~, and it rained ~.",
-    "Who called ~? Nobody did ~!",
-    "The St. Louis team won 3 ~- ~1 ~.",
-    "Prices rose 4 ~% in May ~; they fell in June ~.",
-    "She did n't go ~, did she ~?",
-    "Ms. Brown met Prof. White at 10 a.m. on Monday ~.",
+    "Dr./NNP Smith/NNP said/VBD that/IN the/DT dog/NN ~'s/POS food/NN costs/VBZ $/$ ~5.00/CD ~,/, not/RB more/JJR ~./.",
+    "Mr./NNP Jones/NNP left/VBD early/RB ~./.",
+    "It/PRP was/VBD cold/JJ in/IN the/DT U.S./NNP that/DT week/NN ~,/, and/CC it/PRP rained/VBD ~./.",
+    "Who/WP called/VBD ~?/. Nobody/NN did/VBD ~!/.",
+    "The/DT St./NNP Louis/NNP team/NN won/VBD 3/CD ~-/: ~1/CD ~./.",
+    "Prices/NNS rose/VBD 4/CD ~%/NN in/IN May/NNP ~;/: they/PRP fell/VBD in/IN June/NNP ~./.",
+    "She/PRP did/VBD n't/RB go/VB ~,/, did/VBD she/PRP ~?/.",
+    "Ms./NNP Brown/NNP met/VBD Prof./NNP White/NNP at/IN 10/CD a.m./RB on/IN Monday/NNP ~./.",
 ];
 
 pub fn tokens(sentence: &str) -> Vec<Token> {
     sentence
         .split(' ')
         .map(|t| {
-            let (text, space_before) = match t.strip_prefix('~') {
+            let (t, space_before) = match t.strip_prefix('~') {
                 Some(rest) => (rest, false),
                 None => (t, true),
             };
-            let tag = if text.chars().all(|c| c.is_ascii_punctuation()) { "." } else { "NN" };
+            let (text, tag) = match t.rsplit_once('/') {
+                Some((text, tag)) if !text.is_empty() && !tag.is_empty() => (text, tag.to_owned()),
+                _ if t.chars().all(|c| c.is_ascii_punctuation()) => (t, ".".to_owned()),
+                _ => (t, "NN".to_owned()),
+            };
             Token { text: text.to_owned(), space_before, tag }
         })
         .collect()

@@ -20,11 +20,12 @@ pub enum Error {
     /// generators keeps one, so the pair is refused rather than looked up
     /// differently.
     CaseVariants { first: String, second: String },
-    /// A `java.util.HashMap` bucket would hold nine entries in a table of
-    /// 64 or more, where the JVM turns the bucket into a tree whose
-    /// iteration order this crate does not simulate; the serialized
-    /// dictionary's entry order would be a guess, so it is refused.
-    TreeifiedBucket { entries: usize },
+    /// A `java.util.HashMap` bucket that the JVM turns into a tree (nine
+    /// entries in a table of 64 or more) holds two entries with one hash
+    /// code, which the JVM orders by `System.identityHashCode`, differently
+    /// from run to run; the serialized dictionary's entry order would be a
+    /// guess, so it is refused.
+    TreeBucketTie,
     /// A dictionary token holds a character XML 1.0 cannot carry (a control
     /// character other than tab, line feed and carriage return, or U+FFFE
     /// or U+FFFF): the JDK's XML serializer throws `SAXException` and
@@ -57,12 +58,6 @@ pub enum Error {
     /// wrapping the `InvalidFormatException` of `validatePOSDictionary`,
     /// and writes no model.
     UnknownDictionaryTags(Vec<String>),
-    /// A lemma sample whose token and lemma give a class holding half of a
-    /// surrogate pair (a character outside the Basic Multilingual Plane
-    /// replaced or deleted), which the JVM trains on and a Rust string
-    /// cannot hold. Issue #404 tracks holding the outcome as a
-    /// `JavaString` so that such a sample can be trained on.
-    LemmaClassSurrogate { token: String },
     /// The treebank or a published model could not be fetched or verified.
     Zoo(turbo_zoo::ZooError),
     /// A published model file could not be read.
@@ -83,8 +78,8 @@ impl fmt::Display for Error {
             Error::CaseVariants { first, second } => {
                 write!(f, "a case-sensitive dictionary with {first:?} and {second:?}, which differ only in case")
             }
-            Error::TreeifiedBucket { entries } => {
-                write!(f, "a HashMap bucket of {entries} entries in a table of 64 or more would be a tree")
+            Error::TreeBucketTie => {
+                f.write_str("a HashMap bucket that would be a tree holds two entries with one hash code")
             }
             Error::InvalidXmlCharacter(c) => {
                 write!(f, "An invalid XML character (Unicode: 0x{c:x}) was found in the node's character data content.")
@@ -101,9 +96,6 @@ impl fmt::Display for Error {
                     write!(f, "{t} ")?;
                 }
                 Ok(())
-            }
-            Error::LemmaClassSurrogate { token } => {
-                write!(f, "the lemma class of {token:?} holds half of a surrogate pair")
             }
             Error::Zoo(e) => write!(f, "zoo: {e}"),
             Error::Model(e) => write!(f, "model file: {e}"),

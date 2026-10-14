@@ -1,0 +1,2 @@
+# opennlp-ancora-head-rules 2
+3 SN 0 SN

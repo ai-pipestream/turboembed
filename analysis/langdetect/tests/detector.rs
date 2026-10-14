@@ -185,6 +185,19 @@ fn other_components_and_factories_are_refused() {
 }
 
 #[test]
+fn a_model_with_an_outcome_holding_half_a_surrogate_pair_is_refused() {
+    // The outcome "ccc" rewritten in place to a lone high surrogate, as
+    // writeUTF writes it: three bytes, so the length stays 3.
+    let mut classifier = classifier();
+    let at = classifier.windows(5).position(|w| w == b"\0\x03ccc").unwrap();
+    classifier[at + 2..at + 5].copy_from_slice(b"\xED\xA0\xBD");
+    let e = LanguageModel::open(model_file(MANIFEST, &[("langdetect.model", &classifier)])).unwrap_err();
+    let lone = turbo_maxent::JavaString::from_utf16(&[0xD83D]);
+    assert!(matches!(&e, ModelError::OutcomeNotText(o) if *o == lone), "{e:?}");
+    assert!(e.to_string().contains("holds half of a surrogate pair"), "{e}");
+}
+
+#[test]
 fn a_model_without_its_classifier_is_refused() {
     let e = LanguageModel::open(model_file(MANIFEST, &[])).unwrap_err();
     assert!(matches!(e, ModelError::File(_)), "{e:?}");

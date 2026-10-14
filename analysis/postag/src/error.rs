@@ -17,6 +17,9 @@ pub enum ModelError {
     /// subclass can change the context generator, the tag dictionary and
     /// the validator, which this port does not reproduce.
     Factory(String),
+    /// A classifier outcome holds half of a surrogate pair, which no tag
+    /// set label can hold.
+    OutcomeNotText(turbo_maxent::JavaString),
     /// The classifier has no outcome, so nothing could be tagged.
     NoOutcomes,
     /// A beam size of zero: `BeamSearch` keeps no sequence then and
@@ -34,6 +37,9 @@ impl fmt::Display for ModelError {
                 write!(f, "part-of-speech model: factory {c:?} is not opennlp.tools.postag.POSTaggerFactory")
             }
             ModelError::NoOutcomes => write!(f, "part-of-speech model: the classifier has no outcome"),
+            ModelError::OutcomeNotText(o) => {
+                write!(f, "part-of-speech model: the outcome {o:?} holds half of a surrogate pair")
+            }
             ModelError::ZeroBeam => write!(f, "part-of-speech model: a beam size of zero tags nothing"),
         }
     }

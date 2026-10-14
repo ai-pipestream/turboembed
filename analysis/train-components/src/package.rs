@@ -5,7 +5,7 @@ use turbo_train::package::OPENNLP_VERSION;
 use turbo_train::{Manifest, ModelPackage, TimeZone};
 
 use crate::error::Result;
-use crate::java_hash::{hash_map_order, str_hash_code};
+use crate::java_hash::string_order;
 
 /// `BaseModel.FACTORY_NAME`: the manifest entry naming the factory class.
 pub const FACTORY_KEY: &str = "factory";
@@ -49,8 +49,7 @@ pub fn serializer_class_key(entry: &str) -> String {
 /// `insertion`. The map never holds more than a few entries, so its table
 /// stays at 16 buckets.
 pub fn artifact_order(insertion: &[&str]) -> Result<Vec<usize>> {
-    let hashes: Vec<i32> = insertion.iter().map(|k| str_hash_code(k)).collect();
-    hash_map_order(&hashes)
+    Ok(string_order(insertion.iter().copied()))
 }
 
 /// Adds `artifacts` (name and bytes) to `package` in the JVM's zip order

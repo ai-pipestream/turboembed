@@ -1,0 +1,15 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	head-rules/patterns	95	95	40411adce136c941e9be945658e8b40545db9020bcc8f2c9ef1c2035998d5211
+annotator	opennlp.tools.parser.lang.es.AncoraSpanishHeadRules	serialize
+layer	turbo:head-rules	document	4	line:str
+4 GRUP.A 0 ^RG$ AQ.*
+6 S 1 V[MA]+IP.* GRUP\\.VERB SN? F[^a-o]
+3 X 0 [-M]
+4 INFINITIU 0 \\\\.* \\\\$
+end	turbo:head-rules
+layer	turbo:rules-errors	document	0	class:str	message:str
+end	turbo:rules-errors

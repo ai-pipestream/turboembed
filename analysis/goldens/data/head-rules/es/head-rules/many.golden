@@ -1,0 +1,71 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	head-rules/many	808	808	8d6684ff2419057c3e2be82f2521bc0bce4b54fa47d384501447d72b9e961456
+annotator	opennlp.tools.parser.lang.es.AncoraSpanishHeadRules	serialize
+layer	turbo:head-rules	document	60	line:str
+2 T60 0
+3 T21 1 A0
+2 T20 0
+5 T23 1 A0 A23 A46
+4 T22 0 A0 A22
+3 T25 1 A0
+2 T24 0
+5 T27 1 A0 A27 A54
+4 T26 0 A0 A26
+3 T29 1 A0
+2 T28 0
+4 T30 0 A0 A30
+2 T32 0
+5 T31 1 A0 A31 A62
+4 T34 0 A0 A34
+3 T33 1 A0
+2 T36 0
+5 T35 1 A0 A35 A70
+4 T38 0 A0 A38
+3 T37 1 A0
+5 T39 1 A0 A39 A78
+3 T41 1 A0
+2 T40 0
+5 T43 1 A0 A43 A86
+4 T42 0 A0 A42
+3 T01 1 A0
+3 T45 1 A0
+2 T44 0
+5 T03 1 A0 A3 A6
+5 T47 1 A0 A47 A94
+4 T02 0 A0 A2
+4 T46 0 A0 A46
+3 T05 1 A0
+3 T49 1 A0
+2 T04 0
+2 T48 0
+5 T07 1 A0 A7 A14
+4 T06 0 A0 A6
+3 T09 1 A0
+2 T08 0
+4 T50 0 A0 A50
+2 T52 0
+5 T51 1 A0 A51 A102
+4 T10 0 A0 A10
+4 T54 0 A0 A54
+3 T53 1 A0
+2 T12 0
+2 T56 0
+5 T11 1 A0 A11 A22
+5 T55 1 A0 A55 A110
+4 T14 0 A0 A14
+4 T58 0 A0 A58
+3 T13 1 A0
+3 T57 1 A0
+2 T16 0
+5 T15 1 A0 A15 A30
+5 T59 1 A0 A59 A118
+4 T18 0 A0 A18
+3 T17 1 A0
+5 T19 1 A0 A19 A38
+end	turbo:head-rules
+layer	turbo:rules-errors	document	0	class:str	message:str
+end	turbo:rules-errors

@@ -137,16 +137,17 @@ test.
   `without_evidence_the_jvm_ranks_every_language_equal_and_the_annotator_declines`
   (`analysis/langdetect/tests/goldens.rs`).
 - A `HashMap` bucket that reaches nine keys at a capacity of 64 or more
-  becomes a red-black tree on the JVM, and a tree bucket is iterated in
-  an order that depends on the tree's shape and, for keys with equal
-  hashes, on `System.identityHashCode`. That order is not reproduced:
-  the bucket keeps the order its n-grams were put in, and
-  `ContextGenerator::exact_order` returns false. The n-grams are the
-  same, so the probabilities can differ from the JVM's only in the last
-  bits. None of the 22 golden texts reaches it; a text of eleven
-  distinct characters whose code units are all 33 modulo 64 does.
-  Test: `a_bucket_that_java_turns_into_a_tree_keeps_put_order_and_says_so`
-  (`analysis/langdetect/tests/context.rs`).
+  becomes a red-black tree on the JVM. The tree's iteration order is
+  reproduced (`turbo_jvm::hash_map`; a text of eleven distinct
+  characters whose code units are all 33 modulo 64 makes one, test
+  `a_bucket_that_java_turns_into_a_tree_comes_in_the_jvms_order` in
+  `analysis/langdetect/tests/context.rs`), except between n-grams with
+  equal hash codes: `CharBuffer` is not a class `HashMap` compares, so
+  the JDK orders them by `System.identityHashCode`, which changes from
+  run to run. `ContextGenerator::exact_order` returns false when that
+  happens. The n-grams are the same, so the probabilities can differ
+  from the JVM's only in the last bits. None of the 22 golden texts
+  reaches a tree bucket.
 - Lowercasing uses `turbo-unicode`'s Unicode 18.0 tables. JDK 21 has
   Unicode 15.0, so a capital letter added since then (such as U+A7CB,
   Unicode 16.0) is lowercased here and left as it is on the JVM, and its

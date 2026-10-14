@@ -5,13 +5,16 @@
 //!
 //! The contexts are kept as UTF-16 units: the tokenizer's and the
 //! language detector's contexts are cut at UTF-16 units and can hold half
-//! of a surrogate pair, which no Rust string can.
+//! of a surrogate pair, which no Rust string can. The outcome labels are
+//! `JavaString`s for the same reason: a lemma class edits the units of a
+//! word.
 
 use std::path::Path;
 
 use crate::escape::unescape_utf16;
 use crate::format::Header;
 use crate::read::{GoldenError, Lines, field_error, parse_f64, read_header_records, record, u32_field};
+use turbo_maxent::JavaString;
 
 /// The format version the first line names (`dump 1`).
 pub const DUMP_VERSION: u32 = 1;
@@ -39,7 +42,7 @@ pub enum Unit {
 /// One outcome of the model and the probability `eval` gave it.
 #[derive(Clone, Debug, PartialEq)]
 pub struct Outcome {
-    pub label: String,
+    pub label: JavaString,
     pub prob: f64,
 }
 
@@ -192,12 +195,12 @@ fn read_point(lines: &mut Lines<'_>, head: &str, index: usize) -> Result<Point, 
         let prob = parse_f64(prob).ok_or_else(|| {
             field_error(line, "outcome probability", "16 lowercase hex digits of bits, a space, a decimal", prob)
         })?;
-        let label = crate::escape::unescape(label).map_err(|error| GoldenError::Escape {
+        let label = unescape_utf16(label).map_err(|error| GoldenError::Escape {
             line,
             field: "outcome label".into(),
             error,
         })?;
-        point.outcomes.push(Outcome { label, prob });
+        point.outcomes.push(Outcome { label: JavaString::from_utf16(&label), prob });
     }
     let mut l = lines.expect(&format!("\"end\t{index}\""))?;
     if l.split('\t').next() == Some("acceptable") {
@@ -260,6 +263,20 @@ mod tests {
         // A tie goes to the first outcome, as getBestOutcome does.
         assert_eq!(q.best().label, "T");
         assert_eq!(q.acceptable, None);
+    }
+
+    #[test]
+    fn an_outcome_label_with_half_a_surrogate_pair_is_the_jvms_string() {
+        // A lemma class that deletes the two units of an emoji.
+        let d = parse(
+            "point\t0\t1\t1\t2\t0\tnone\ncontext\tw0=a\n\
+             outcome\tO\t3fd0000000000000 0.25\noutcome\tD1\\ude00D0\\ud83d\t3fe8000000000000 0.75\nend\t0\n",
+        )
+        .unwrap();
+        let p = &d.points[0];
+        assert_eq!(p.best().label, JavaString::from_utf16(&[0x44, 0x31, 0xDE00, 0x44, 0x30, 0xD83D]));
+        assert_eq!(p.best().label.to_str(), None);
+        assert_eq!(p.prob("O"), Some(0.25));
     }
 
     #[test]
