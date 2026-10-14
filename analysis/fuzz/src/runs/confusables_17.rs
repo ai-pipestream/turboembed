@@ -2,7 +2,10 @@
 //! bundles, where they differ from the 18.0.0 data `turbo_unicode` has:
 //! each source code point whose 17.0.0 prototype is not its 18.0.0 one,
 //! with the 17.0.0 prototype, or `None` where 17.0.0 maps it to nothing.
-//! Written once from the two files; sorted by code point.
+//! Derived from Unicode data under the Unicode License v3 (see
+//! analysis/unicode/ucd/LICENSE); regenerated from OpenNLP's bundled
+//! confusables.txt 17.0.0 and our 18.0.0. Written once from the two
+//! files; sorted by code point.
 
 pub(crate) static CHANGES_17: &[(u32, Option<&str>)] = &[
     (0x0025, Some("\u{BA}\u{2F}\u{2080}")),
