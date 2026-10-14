@@ -613,6 +613,57 @@ fn the_published_references_are_checked_and_scored_when_present() {
     std::fs::remove_dir_all(&root).unwrap();
 }
 
+/// The binary reads and checks every reference a run needs, and checks
+/// that none of its model directories exists, before it trains anything:
+/// a run that fails on one writes nothing, and says what every problem
+/// is, in the order the recipes run, `RECIPES`'s, whatever the order of
+/// `--recipe`.
+#[test]
+fn the_binary_checks_every_reference_and_model_directory_before_training() {
+    let root = temp_dir("binary-checks");
+    write_corpus(&root, GATED_DOCUMENTS, SENTENCES);
+    let out = temp_dir("binary-checks-out");
+    let refs = out.join("references");
+    std::fs::create_dir_all(&refs).unwrap();
+    let models = out.join("models");
+    let bin = env!("CARGO_BIN_EXE_turbo-train-recipes");
+    let run = |extra: &[&str]| {
+        let mut c = std::process::Command::new(bin);
+        c.arg("masc").arg("--corpus").arg(&root).arg("--references").arg(&refs).arg("--out").arg(&models);
+        c.arg("--unrecorded-corpus").args(extra);
+        let output = c.output().unwrap();
+        assert_eq!(output.status.code(), Some(2), "{output:?}");
+        String::from_utf8_lossy(&output.stderr).into_owned()
+    };
+    let (sentence, tokens, pos) = (RECIPES[0], RECIPES[1], RECIPES[2]);
+    let file = |r: Recipe| r.reference_file().unwrap();
+
+    // No references: the two named are missing, in the recipes' order.
+    let stderr = run(&["--recipe", pos.model_id(), "--recipe", sentence.model_id()]);
+    let (at_sentence, at_pos) = (stderr.find(&file(sentence)).unwrap(), stderr.find(&file(pos)).unwrap());
+    assert!(at_sentence < at_pos, "{stderr}");
+    assert!(!stderr.contains(&file(tokens)), "{stderr}");
+    assert!(!models.exists(), "nothing is written");
+
+    // References that are not the recorded files, and a model directory
+    // already there.
+    for r in RECIPES {
+        std::fs::write(refs.join(file(r)), b"not the model").unwrap();
+    }
+    std::fs::create_dir_all(models.join(tokens.model_id())).unwrap();
+    let stderr = run(&[]);
+    assert_eq!(stderr.lines().count(), 4, "{stderr}");
+    for r in RECIPES {
+        assert!(stderr.contains(&format!("reference model {}: SHA-256", r.reference_id())), "{stderr}");
+    }
+    assert!(stderr.contains(&format!("{}: the model directory exists", tokens.model_id())), "{stderr}");
+    let written: Vec<_> = std::fs::read_dir(&models).unwrap().map(|e| e.unwrap().file_name()).collect();
+    assert_eq!(written, [tokens.model_id()], "nothing else is written");
+    for dir in [root, out] {
+        std::fs::remove_dir_all(dir).unwrap();
+    }
+}
+
 #[test]
 fn the_binary_refuses_an_unrecorded_corpus_and_writes_each_model_s_directory() {
     let root = temp_dir("binary");
@@ -645,11 +696,15 @@ fn the_binary_refuses_an_unrecorded_corpus_and_writes_each_model_s_directory() {
     assert!(String::from_utf8_lossy(&unknown.stderr).contains("no recipe trains"), "{unknown:?}");
 
     if present.len() < RECIPES.len() {
-        // Without every reference, a run of every recipe fails on the
-        // first one missing, before it writes anything for that recipe.
+        // Without every reference, a run of every recipe fails before it
+        // trains or writes anything, and names every one missing.
         let all = args(&["--unrecorded-corpus"]);
         assert_eq!(all.status.code(), Some(2), "{all:?}");
-        std::fs::remove_dir_all(out.join("models")).ok();
+        let stderr = String::from_utf8_lossy(&all.stderr);
+        for r in RECIPES.iter().filter(|r| !present.contains(r)) {
+            assert!(stderr.contains(&r.reference_file().unwrap()), "{stderr}");
+        }
+        assert!(!out.join("models").exists(), "a run without every reference wrote models");
     }
     if present.is_empty() {
         eprintln!("no published model is present: only the refusals were checked");

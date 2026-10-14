@@ -26,8 +26,13 @@ the zoo's SHA-256, and `en-pos-maxent.bin`, downloaded by hand from
 against the size and SHA-256 the recipe records (5,696,197 bytes,
 `645a094f45a866687a617385233fd23ae8b0f5fa8b1b76996781a50c17bdcf3d`).
 `--recipe` runs only the recipes named by the trained model's id; without
-it every recipe runs, and a missing reference is an error. The exit
-status is 1 when a gate fails and 2 on an error.
+it every recipe runs. The recipes run in the order of the table below,
+whatever the order they are named in. Before anything is trained, every
+reference the run needs is read and checked, and every model directory
+it would write is checked not to exist: a run with a reference missing
+or wrong, or a model directory already there, names every such problem
+and writes nothing. The exit status is 1 when a gate fails and 2 on an
+error.
 
 ## The recipes
 
