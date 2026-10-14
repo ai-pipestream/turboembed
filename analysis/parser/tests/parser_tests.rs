@@ -218,6 +218,20 @@ fn parse_token_replacement_round_trip() {
 }
 
 #[test]
+fn fix_possessives_reads_parents_after_each_insert() {
+    // Java's Parse.fixPossesives compares live parents: once "mother 's" is wrapped in an NP,
+    // the second POS's grandparent is the middle NP, not the outer one, so "dog" stays unwrapped.
+    let mut p =
+        Parse::parse("(TOP (S (NP (NP (NP (NNP John) (POS 's)) (NN mother) (POS 's)) (NN dog)) (VP (VBD barked))))")
+            .unwrap();
+    Parse::fix_possessives(&mut p);
+    assert_eq!(
+        p.to_string_penn_treebank(),
+        "(TOP (S (NP (NP (NP (NNP John) (POS 's)) (NP (NN mother) (POS 's))) (NN dog)) (VP (VBD barked))) )"
+    );
+}
+
+#[test]
 fn parse_get_tag_nodes() {
     let p = Parse::parse(PARSE_STRING).unwrap();
     let tags = p.tag_nodes();

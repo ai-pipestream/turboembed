@@ -700,6 +700,9 @@ impl Parse {
     }
 
     /// Wraps post-possessive sibling tag sequences in an `NP` constituent (`Parse.fixPossesives`).
+    ///
+    /// OpenNLP compares the tag nodes' live parents, so an `NP` inserted for one possessive
+    /// changes the parents seen by the next; the tag paths are recomputed after every insert.
     pub fn fix_possessives(parse: &mut Parse) {
         let mut tags: Vec<TagPathEntry> = Vec::new();
         let mut path = Vec::new();
@@ -718,14 +721,12 @@ impl Parse {
                         break;
                     }
                 }
-                let np_pos = Parse::with_head(
-                    Arc::clone(&parse.text),
-                    Span::new(start, end),
-                    "NP",
-                    1.0,
-                    Some(&tags[ti + 1].node),
-                );
-                let _ = parse.insert(np_pos);
+                let np_pos =
+                    Parse::new(Arc::clone(&parse.text), Span::new(start, end), "NP", 1.0, tags[ti + 1].head_index);
+                if parse.insert(np_pos).is_ok() {
+                    tags.clear();
+                    Self::collect_tag_paths(parse, &mut path, &mut tags);
+                }
             }
         }
     }
@@ -737,7 +738,7 @@ impl Parse {
             out.push(TagPathEntry {
                 kind: node.kind.clone(),
                 span: node.span,
-                node: node.clone(),
+                head_index: node.head_index,
                 parent,
                 grandparent,
             });
@@ -1062,7 +1063,7 @@ impl<'a> Scanner<'a> {
 struct TagPathEntry {
     kind: String,
     span: Span,
-    node: Parse,
+    head_index: i32,
     parent: Vec<usize>,
     grandparent: Option<Vec<usize>>,
 }
