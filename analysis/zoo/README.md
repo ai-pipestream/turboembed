@@ -35,7 +35,10 @@ fetches every entry again and checks it.
 - `tests/zoo.rs`: one artifact per class, served from memory. Refused
   artifacts are neither listed nor fetched; share-alike, LGPL and GPL
   artifacts are refused until the user accepts each licence they need,
-  per user, rechecked on every call; GPL acceptance can be turned off;
+  per user, rechecked on every call; restricted but public data, and
+  any model trained on it, needs its host's own terms accepted, is
+  fetched from its origin only and is never shippable; the most
+  restrictive licence decides the class; GPL acceptance can be turned off;
   a size, SHA-256 or SHA-512 mismatch fails and writes nothing; a corrupt
   cached file is fetched again; a symlink in the cache is refused; the
   index parser rejects every malformed field.

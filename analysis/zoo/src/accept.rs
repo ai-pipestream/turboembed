@@ -15,7 +15,8 @@ use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
 use crate::error::ZooError;
 use crate::fetch::write_atomic;
-use crate::licence::{Licence, LicenceClass};
+use crate::index::Url;
+use crate::licence::{Licence, LicenceClass, Requirement};
 
 /// The only `acceptances_version` this build reads.
 pub const ACCEPTANCES_VERSION: u32 = 1;
@@ -57,16 +58,23 @@ impl<'de> Deserialize<'de> for UserId {
     }
 }
 
-/// One user's acceptance of one licence.
+/// One user's acceptance of one set of terms.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Acceptance {
     pub user: UserId,
     pub license: Licence,
-    /// The licence text the user was shown: `license`'s `legal_url`.
+    /// The text the user was shown: `license`'s `legal_url`, or, for
+    /// `LicenseRef-RestrictedPublic`, the terms page of the data's host.
     pub license_text: String,
     /// When, in seconds since the Unix epoch, UTC.
     pub accepted_at: u64,
+}
+
+impl Acceptance {
+    fn requirement(&self) -> Requirement {
+        Requirement { licence: self.license, text: self.license_text.clone() }
+    }
 }
 
 #[derive(Serialize, Deserialize)]
@@ -82,18 +90,27 @@ pub struct Acceptances {
     accepted: Vec<Acceptance>,
 }
 
-/// Whether a licence is one a user can accept: its class needs acceptance
-/// under some policy. Permissive licences need none; refused ones cannot
-/// be accepted at all.
-fn acceptable(l: Licence) -> bool {
-    matches!(l.class(), LicenceClass::Lgpl | LicenceClass::ShareAlike | LicenceClass::Gpl)
+/// Check that `r` is terms a user can accept: its licence's class needs
+/// acceptance under some policy (permissive licences need none; refused
+/// ones cannot be accepted at all), and its text is the licence's own
+/// address, or, for a licence without one, an `https://` address.
+fn check(r: &Requirement) -> Result<(), String> {
+    let class = r.licence.class();
+    if !matches!(class, LicenceClass::Lgpl | LicenceClass::ShareAlike | LicenceClass::Gpl | LicenceClass::LocalOnly) {
+        return Err(format!("{} is {class}: there is nothing to accept", r.licence));
+    }
+    match r.licence.legal_url() {
+        Some(u) if u == r.text => Ok(()),
+        Some(u) => Err(format!("{:?} is not the text of {}, which is at {u}", r.text, r.licence)),
+        None => r.text.parse::<Url>().map(|_| ()).map_err(|e| format!("{}: {e}", r.licence)),
+    }
 }
 
 impl Acceptances {
     /// Parse and check an acceptance file. An unknown field, a version
-    /// other than 1, a licence that cannot be accepted, a `license_text`
-    /// that is not the licence's, or the same user and licence twice is
-    /// `ZooError::Acceptances`.
+    /// other than 1, terms that cannot be accepted (a permissive or refused
+    /// licence, a `license_text` that is not the licence's own address),
+    /// or the same user and terms twice is `ZooError::Acceptances`.
     pub fn parse(bytes: &[u8]) -> Result<Acceptances, ZooError> {
         let file: AcceptancesFile = serde_json::from_slice(bytes).map_err(|e| ZooError::Acceptances(e.to_string()))?;
         if file.acceptances_version != ACCEPTANCES_VERSION {
@@ -104,17 +121,10 @@ impl Acceptances {
         }
         let mut out = Acceptances::default();
         for a in file.accepted {
-            if !acceptable(a.license) {
-                return Err(ZooError::Acceptances(format!("{}: {} is not a licence to accept", a.user, a.license)));
-            }
-            if Some(a.license_text.as_str()) != a.license.legal_url() {
-                return Err(ZooError::Acceptances(format!(
-                    "{}: license_text {:?} is not the text of {}",
-                    a.user, a.license_text, a.license
-                )));
-            }
-            if out.has(&a.user, a.license) {
-                return Err(ZooError::Acceptances(format!("{} accepted {} twice", a.user, a.license)));
+            let r = a.requirement();
+            check(&r).map_err(|e| ZooError::Acceptances(format!("{}: {e}", a.user)))?;
+            if out.has(&a.user, &r) {
+                return Err(ZooError::Acceptances(format!("{} accepted {r} twice", a.user)));
             }
             out.accepted.push(a);
         }
@@ -143,37 +153,53 @@ impl Acceptances {
         s
     }
 
-    /// Record that `user` accepted `licence` at `accepted_at` (seconds
-    /// since the Unix epoch). Call it only on the user's explicit action,
-    /// after showing them `licence.legal_url()`. Accepting again is a no-op
-    /// that keeps the first time. A permissive or refused licence is
+    /// Record that `user` accepted `licence`, whose text is its
+    /// `legal_url`, at `accepted_at` (seconds since the Unix epoch). Call it
+    /// only on the user's explicit action, after showing them that text.
+    /// Accepting again is a no-op that keeps the first time. A permissive
+    /// or refused licence, or `LicenseRef-RestrictedPublic` (whose terms
+    /// are each host's own: [`Acceptances::accept_terms`]), is
     /// `ZooError::Acceptances`.
     pub fn accept(&mut self, user: &UserId, licence: Licence, accepted_at: u64) -> Result<(), ZooError> {
-        let Some(text) = licence.legal_url().filter(|_| acceptable(licence)) else {
-            return Err(ZooError::Acceptances(format!("{licence} is {}: there is nothing to accept", licence.class())));
+        let Some(text) = licence.legal_url() else {
+            return Err(ZooError::Acceptances(format!(
+                "{licence} names no single text; accept the terms address an artifact gives for it"
+            )));
         };
-        if !self.has(user, licence) {
+        self.accept_terms(user, &Requirement { licence, text: text.to_owned() }, accepted_at)
+    }
+
+    /// Record that `user` accepted the terms `r`, as
+    /// [`crate::Artifact::licences_to_accept`] or
+    /// [`crate::ZooError::NotAccepted`] gives them. The same rules as
+    /// [`Acceptances::accept`]; for `LicenseRef-RestrictedPublic` the text is
+    /// the host's terms page, so each host's terms are accepted on their
+    /// own.
+    pub fn accept_terms(&mut self, user: &UserId, r: &Requirement, accepted_at: u64) -> Result<(), ZooError> {
+        check(r).map_err(ZooError::Acceptances)?;
+        if !self.has(user, r) {
             self.accepted.push(Acceptance {
                 user: user.clone(),
-                license: licence,
-                license_text: text.to_owned(),
+                license: r.licence,
+                license_text: r.text.clone(),
                 accepted_at,
             });
         }
         Ok(())
     }
 
-    /// Withdraw `user`'s acceptance of `licence`. Returns whether there was
-    /// one. Files already fetched stay on disk, but the zoo hands none of
-    /// them out again until the licence is accepted again.
-    pub fn revoke(&mut self, user: &UserId, licence: Licence) -> bool {
+    /// Withdraw `user`'s acceptance of `r`. Returns whether there was one.
+    /// Files already fetched stay on disk, but the zoo hands none of them
+    /// out again until the terms are accepted again.
+    pub fn revoke(&mut self, user: &UserId, r: &Requirement) -> bool {
         let before = self.accepted.len();
-        self.accepted.retain(|a| !(a.user == *user && a.license == licence));
+        self.accepted.retain(|a| !(a.user == *user && a.requirement() == *r));
         before != self.accepted.len()
     }
 
-    pub fn has(&self, user: &UserId, licence: Licence) -> bool {
-        self.accepted.iter().any(|a| a.user == *user && a.license == licence)
+    /// Whether `user` accepted the terms `r`.
+    pub fn has(&self, user: &UserId, r: &Requirement) -> bool {
+        self.accepted.iter().any(|a| a.user == *user && a.license == r.licence && a.license_text == r.text)
     }
 
     pub fn iter(&self) -> impl Iterator<Item = &Acceptance> {
@@ -189,6 +215,37 @@ mod tests {
         s.parse().unwrap()
     }
 
+    fn req(l: Licence) -> Requirement {
+        Requirement::of(l).unwrap()
+    }
+
+    fn restricted(text: &str) -> Requirement {
+        Requirement { licence: Licence::RestrictedPublic, text: text.to_owned() }
+    }
+
+    #[test]
+    fn restricted_terms_are_accepted_per_host() {
+        let imdb = restricted("https://ai.stanford.edu/~amaas/data/sentiment/");
+        let other = restricted("https://example.org/terms");
+        let mut a = Acceptances::default();
+        // There is no one text to accept for the licence as a whole.
+        assert!(a.accept(&user("alice"), Licence::RestrictedPublic, 0).is_err());
+        a.accept_terms(&user("alice"), &imdb, 7).unwrap();
+        assert!(a.has(&user("alice"), &imdb));
+        assert!(!a.has(&user("alice"), &other));
+        assert!(!a.has(&user("bob"), &imdb));
+        let back = Acceptances::parse(a.to_canonical_json().as_bytes()).unwrap();
+        assert_eq!(back, a);
+        assert!(a.revoke(&user("alice"), &imdb));
+        assert!(!a.has(&user("alice"), &imdb));
+        // The text must be an https address.
+        assert!(a.accept_terms(&user("alice"), &restricted("not a url"), 0).is_err());
+        assert!(a.accept_terms(&user("alice"), &restricted("http://example.org/terms"), 0).is_err());
+        // A licence with its own text accepts that text only.
+        let wrong = Requirement { licence: Licence::CcBySa40, text: "https://example.org/terms".into() };
+        assert!(a.accept_terms(&user("alice"), &wrong, 0).is_err());
+    }
+
     #[test]
     fn accept_round_trips_through_the_file() {
         let mut a = Acceptances::default();
@@ -202,9 +259,9 @@ mod tests {
         assert_eq!(back, a);
         assert_eq!(back.to_canonical_json(), text);
         assert_eq!(back.iter().next().unwrap().accepted_at, 1_792_000_000);
-        assert!(back.has(&user("alice"), Licence::CcBySa40));
-        assert!(!back.has(&user("carol"), Licence::CcBySa40));
-        assert!(!back.has(&user("bob"), Licence::Lgpl30Only));
+        assert!(back.has(&user("alice"), &req(Licence::CcBySa40)));
+        assert!(!back.has(&user("carol"), &req(Licence::CcBySa40)));
+        assert!(!back.has(&user("bob"), &req(Licence::Lgpl30Only)));
     }
 
     #[test]
@@ -242,10 +299,10 @@ mod tests {
         let mut a = Acceptances::default();
         a.accept(&user("alice"), Licence::Gpl30Only, 0).unwrap();
         a.accept(&user("bob"), Licence::Gpl30Only, 0).unwrap();
-        assert!(a.revoke(&user("alice"), Licence::Gpl30Only));
-        assert!(!a.revoke(&user("alice"), Licence::Gpl30Only));
-        assert!(!a.has(&user("alice"), Licence::Gpl30Only));
-        assert!(a.has(&user("bob"), Licence::Gpl30Only));
+        assert!(a.revoke(&user("alice"), &req(Licence::Gpl30Only)));
+        assert!(!a.revoke(&user("alice"), &req(Licence::Gpl30Only)));
+        assert!(!a.has(&user("alice"), &req(Licence::Gpl30Only)));
+        assert!(a.has(&user("bob"), &req(Licence::Gpl30Only)));
     }
 
     #[test]

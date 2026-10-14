@@ -4,13 +4,16 @@ use std::path::PathBuf;
 use std::process::ExitCode;
 use std::time::{SystemTime, UNIX_EPOCH};
 
-use turbo_zoo::{Acceptances, Http, Index, Licence, Policy, Sha256, Sha512, UserId, Zoo, ZooError};
+use turbo_zoo::{Acceptances, Http, Index, Licence, Policy, Requirement, Sha256, Sha512, UserId, Zoo, ZooError};
 
 const USAGE: &str = "usage: turbo-zoo [--index <zoo.json>] <command>
   list                 the artifacts the zoo may fetch, with class and licences
   show <id>            one artifact: licences, training data, files
-  accept <licence>     record that you accept a licence (SPDX id, as `show` prints it)
-  revoke <licence>     withdraw an acceptance
+  accept <licence> [<terms>]
+                       record that you accept a licence (SPDX id, as `show` prints it);
+                       LicenseRef-RestrictedPublic also takes the host's terms address
+  revoke <licence> [<terms>]
+                       withdraw an acceptance
   accepted             the licences you have accepted
   fetch <id>           fetch and verify an artifact; prints its local files
   hash <file>...       size, SHA-256 and SHA-512 of files, for an index entry
@@ -43,6 +46,19 @@ fn home() -> Result<PathBuf, String> {
 fn user() -> Result<UserId, String> {
     let name = std::env::var("USER").or_else(|_| std::env::var("USERNAME")).map_err(|_| "set USER".to_string())?;
     name.parse()
+}
+
+/// The terms `accept` and `revoke` name: a licence with its own text, or
+/// one without (LicenseRef-RestrictedPublic) and the terms address `show`
+/// prints for it.
+fn requirement(licence: &str, terms: Option<&str>) -> Result<Requirement, String> {
+    let licence: Licence = licence.parse()?;
+    match (Requirement::of(licence), terms) {
+        (Some(r), None) => Ok(r),
+        (Some(_), Some(_)) => Err(format!("{licence} has its own text; give no terms address")),
+        (None, Some(t)) => Ok(Requirement { licence, text: t.to_owned() }),
+        (None, None) => Err(format!("{licence} needs the terms address `show` prints for the artifact")),
+    }
 }
 
 fn run(mut args: Vec<String>) -> Result<(), String> {
@@ -82,33 +98,36 @@ fn run(mut args: Vec<String>) -> Result<(), String> {
             for t in &a.trained_on {
                 println!("trained on: {} under {} ({})", t.name, t.license, t.license_terms);
             }
-            for l in a.licences_to_accept(Policy::default()) {
-                println!("accept first: {l}, text at {}", l.legal_url().unwrap_or("(none)"));
+            for r in a.licences_to_accept(Policy::default()) {
+                println!("accept first: {} {}", r.licence, r.text);
+            }
+            if let Some(o) = &a.origin {
+                println!("origin: {o} (fetched from there only; for local training and evaluation only)");
             }
             for f in &a.files {
                 println!("file: {} {} bytes sha256 {} from {}", f.path, f.size, f.sha256, f.url);
             }
             Ok(())
         }
-        ["accept", licence] => {
-            let l: Licence = licence.parse()?;
+        ["accept", licence, rest @ ..] if rest.len() <= 1 => {
+            let r = requirement(licence, rest.first().copied())?;
             let user = user()?;
             let mut acc = Acceptances::load(&accept_path).map_err(e)?;
             let now = SystemTime::now().duration_since(UNIX_EPOCH).map_err(|e| e.to_string())?.as_secs();
-            acc.accept(&user, l, now).map_err(e)?;
+            acc.accept_terms(&user, &r, now).map_err(e)?;
             acc.save(&accept_path).map_err(e)?;
-            println!("{user} accepts {l}, whose text is at {}", l.legal_url().unwrap_or("(none)"));
+            println!("{user} accepts {}, whose text is at {}", r.licence, r.text);
             Ok(())
         }
-        ["revoke", licence] => {
-            let l: Licence = licence.parse()?;
+        ["revoke", licence, rest @ ..] if rest.len() <= 1 => {
+            let r = requirement(licence, rest.first().copied())?;
             let user = user()?;
             let mut acc = Acceptances::load(&accept_path).map_err(e)?;
-            if acc.revoke(&user, l) {
+            if acc.revoke(&user, &r) {
                 acc.save(&accept_path).map_err(e)?;
-                println!("{user} no longer accepts {l}");
+                println!("{user} no longer accepts {r}");
             } else {
-                println!("{user} had not accepted {l}");
+                println!("{user} had not accepted {r}");
             }
             Ok(())
         }

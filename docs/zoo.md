@@ -28,13 +28,49 @@ Apache-2.0 but trained on a CC BY-SA treebank is `CLASS_SHARE_ALIKE`.
 | `CLASS_LGPL` | LGPL-2.1-only, LGPL-2.1-or-later, LGPL-3.0-only, LGPL-3.0-or-later | no, and not attributed to this project | after the user accepts the licence |
 | `CLASS_SHARE_ALIKE` | CC-BY-SA-3.0, CC-BY-SA-4.0, ODbL-1.0 | no | after the user accepts the licence (decided 2026-10-14) |
 | `CLASS_GPL` | GPL-2.0-only, GPL-2.0-or-later, GPL-3.0-only, GPL-3.0-or-later | no | yes; by default after the user accepts the licence |
+| `CLASS_LOCAL_ONLY` | LicenseRef-RestrictedPublic | no, and no model trained on it is either | only from its original host (`origin`), after the user accepts that host's terms; for local training and evaluation only |
 | `CLASS_REFUSED` | CC-BY-NC-4.0, CC-BY-NC-SA-3.0, CC-BY-NC-SA-4.0, CC-BY-ND-4.0, CC-BY-NC-ND-4.0, LicenseRef-ResearchOnly, LicenseRef-PlatformTerms, LicenseRef-NoLicence, LicenseRef-Proprietary, LicenseRef-Unconfirmed | no | never; not listed |
 
 The order, least to most restrictive, is permissive, LGPL, share-alike,
-GPL, refused. LGPL sits below CC BY-SA because its copyleft is weaker;
-GPL sits above it as the strongest copyleft the zoo fetches. Under the
-default policy the three middle classes behave the same, so the order
-between them only decides which class an artifact reports.
+GPL, local-only, refused. LGPL sits below CC BY-SA because its copyleft
+is weaker; GPL sits above it as the strongest copyleft the zoo fetches.
+Under the default policy those three classes behave the same, so the
+order between them only decides which class an artifact reports.
+Local-only sits above them because nothing in it ever leaves the user's
+machine, and a refused licence anywhere still wins over everything.
+
+### Restricted but public data
+
+`CLASS_LOCAL_ONLY` is for data that anyone can download from its
+publisher but that carries terms of its own: IMDB (no stated licence),
+Sentiment140 and the SemEval Twitter sets (Twitter's terms). The rule is
+Kristian's, from his 2026-10-12 comment on #326:
+
+- The zoo fetches it only from the original host, after the user accepts
+  that host's terms, so the user takes on the terms. The project never
+  carries, mirrors or checks in the data. The index enforces this: an
+  artifact of the class must name its `origin`, and every file's `url`
+  must be on the origin's host.
+- It is used for local training and evaluation only. Evaluation numbers
+  may be recorded; the files are not.
+- A model trained on it is in the class too, by the class rule: the
+  most restrictive licence among its own and its training data's. Such
+  a model stays with the user who trained it. It is never bundled,
+  checked in, shipped, or listed as a shipped model
+  (`Index::shippable`, `LicenceClass::may_redistribute`).
+  `turbo_zoo::class_of` gives the class of a model trained locally from
+  the licences of its data.
+
+The licence is `LicenseRef-RestrictedPublic`. It names a kind of terms,
+not one text, so its `license_terms` in the index is the host's terms
+page, and the user accepts that page, not the licence as a whole:
+accepting IMDB's terms never covers Sentiment140's.
+
+Research-only and non-commercial data stay `CLASS_REFUSED`. An entry
+moves such data into `CLASS_LOCAL_ONLY` only by naming
+`LicenseRef-RestrictedPublic` for it, which is a decision recorded with
+the entry in docs/licences.md. Refused data mixed into a restricted
+artifact keeps it refused.
 
 Licences are named by their SPDX identifiers, case and all. Terms SPDX
 has no identifier for use `LicenseRef-`: `LicenseRef-Unconfirmed` is for
@@ -110,6 +146,7 @@ is in that form and a test keeps it there.
 | `.trained_on[].license` | SPDX string | yes | The dataset's licence. |
 | `.trained_on[].license_terms` | https URL | yes | Where the dataset's publisher states it, at the release used. |
 | `.class` | enum | yes | The class `license` and every `trained_on[].license` give. Written out so a reader that does not know a licence still sees the class; a value that differs from the computed one rejects the index. |
+| `.origin` | https URL | for `CLASS_LOCAL_ONLY`, and only for it | The original publisher's site: the data's host for a dataset, the model's publisher for a model. Every `files[].url` must be on its host (compared without regard to case). |
 | `.files[]` | message | yes | At least one. |
 | `.files[].path` | path | yes | Where the file goes in the artifact's directory: relative, `/` separated, no empty, `.` or `..` component, no backslash, no control character. Unique in the artifact. |
 | `.files[].url` | https URL | yes | Where it is fetched from. The address must serve the same bytes for as long as the entry exists: a release archive (`archive.apache.org/dist`, not the mirror network, which drops old releases), or a repository path at a commit. |
@@ -146,14 +183,16 @@ Which user accepted which licence, in the zoo's home directory as
 |---|---|---|
 | `acceptances_version` | uint32 | 1. |
 | `accepted[].user` | string | Who accepted: 1 to 256 bytes, no control characters, no leading or trailing whitespace. |
-| `accepted[].license` | SPDX string | A licence of `CLASS_LGPL`, `CLASS_SHARE_ALIKE` or `CLASS_GPL`. A permissive licence needs no acceptance and a refused one cannot be accepted; either rejects the file. |
-| `accepted[].license_text` | https URL | The licence text the user was shown. Must be the zoo's address for that licence. |
+| `accepted[].license` | SPDX string | A licence of `CLASS_LGPL`, `CLASS_SHARE_ALIKE`, `CLASS_GPL` or `CLASS_LOCAL_ONLY`. A permissive licence needs no acceptance and a refused one cannot be accepted; either rejects the file. |
+| `accepted[].license_text` | https URL | The text the user was shown. For a licence with one text, the zoo's address for it; for `LicenseRef-RestrictedPublic`, the host's terms page as the index gives it (`license_terms`), so each host's terms are accepted on their own. |
 | `accepted[].accepted_at` | uint64 | Seconds since the Unix epoch, UTC. |
 
-Every field is required. One user accepts one licence at most once. An
-absent file means nothing has been accepted. The zoo never writes the
-file on its own: only the user's explicit action (`turbo-zoo accept`)
-adds an entry, and `turbo-zoo revoke` removes one.
+Every field is required. One user accepts one licence and text at most
+once. An absent file means nothing has been accepted. The zoo never
+writes the file on its own: only the user's explicit action
+(`turbo-zoo accept <licence>`, or `turbo-zoo accept
+LicenseRef-RestrictedPublic <terms>` with the address `turbo-zoo show`
+prints) adds an entry, and `turbo-zoo revoke` removes one.
 
 ## Fetch rules
 
@@ -163,9 +202,12 @@ For `fetch(id, user)`:
    `Refused`, naming each refused licence and why.
 2. Every distinct licence among the artifact's own and its training
    data's whose class needs acceptance under the policy must be
-   accepted by `user`. Otherwise `NotAccepted`, naming the class, the
-   user and each missing licence with its text's address. Nothing is
-   read, fetched or written.
+   accepted by `user`, with its text: the licence's own address, or for
+   `LicenseRef-RestrictedPublic` the `license_terms` next to it.
+   Otherwise `NotAccepted`, naming the class, the user and each missing
+   licence with its text's address. Nothing is read, fetched or
+   written. The `CLASS_LOCAL_ONLY` check of step 2 does not depend on
+   the GPL policy.
 3. Each file goes to `<cache>/<id>/<path>`. A directory on the way that
    resolves outside the cache, or a symlink at the file's own path, is
    an error: the zoo never reads or writes a file elsewhere on disk.
@@ -202,8 +244,8 @@ The index is meant to replace that page for OpenNLP 3.1 too:
   form the published `.sha512` files hold, so OpenNLP checks a file
   against the index without fetching a checksum file.
 - `class` is written out, so a reader that does not map licences itself
-  can still refuse `CLASS_REFUSED` and ask before the other non-
-  permissive classes.
+  can still refuse `CLASS_REFUSED`, keep `CLASS_LOCAL_ONLY` to the
+  user's machine, and ask before the other non-permissive classes.
 
 ## Decisions taken with the design
 
@@ -213,7 +255,13 @@ The index is meant to replace that page for OpenNLP 3.1 too:
   it.
 - Acceptance is per licence, not per artifact: accepting CC-BY-SA-4.0
   once covers every artifact whose only restrictive licence it is. An
-  artifact with two restrictive licences needs both.
+  artifact with two restrictive licences needs both. The exception is
+  `LicenseRef-RestrictedPublic`, accepted per host's terms page.
+- Restricted data is a class of its own rather than share-alike or
+  refused because it differs from both: it may be fetched (unlike
+  refused data), but nothing made from it may leave the user's machine
+  (unlike share-alike data, whose derived models may be shared under
+  the same licence).
 - Both digests are required. SHA-256 is what the bundle tool and the
   repository's model READMEs use; SHA-512 is what OpenNLP and the Apache
   distribution publish.

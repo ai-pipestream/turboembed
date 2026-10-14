@@ -5,6 +5,8 @@ their licences, their class under the policy on #326 and where the terms
 are stated. The classes and what the zoo does with each are in
 docs/zoo.md. The zoo's built-in index (`analysis/zoo/index/zoo.json`)
 lists the fetchable checkpoints below; refused ones are only here.
+Restricted but public data, fetched only from its own host and used
+only locally, has a section of its own at the end.
 
 A checkpoint's class is the most restrictive of its own licence and the
 licences of the data it was trained on. The OpenNLP UD models are
@@ -151,6 +153,30 @@ here is used.
 - WikiANN: listed as ODC-By by one source and "unknown" on its card.
 - Sentiment (#326, #318): SST, SemEval 2014 to 2016 ABSA and the ASTE
   derivatives, Jigsaw Toxic Comment, Civil Comments, iSarcasm, SARC,
-  GoEmotions, and public sentiment and toxicity checkpoints. IMDB states
-  no licence and Sentiment140 and the SemEval Twitter sets carry Twitter's
-  terms, so as they stand they are refused.
+  GoEmotions, and public sentiment and toxicity checkpoints.
+
+## Restricted but public data (local only)
+
+Data anyone can download from its publisher, under the publisher's own
+terms rather than an open licence. Under Kristian's 2026-10-12 comment
+on #326 it is `CLASS_LOCAL_ONLY` (docs/zoo.md, "Restricted but public
+data"): fetched only from the original host after the user accepts that
+host's terms, used for local training and evaluation only, and never
+carried, mirrored or checked in. Any model trained on it is local-only
+too and is never shipped; evaluation numbers on it may be recorded, the
+files not.
+
+An index entry for one of these names `LicenseRef-RestrictedPublic`,
+the host's terms page as `license_terms`, and the host as `origin`. The built-in
+index has none of them: the host and terms page of each must
+be read at the source first.
+
+| Dataset or checkpoint | Use | Terms as #326 records them | Class once entered | Checked |
+|---|---|---|---|---|
+| IMDB (Large Movie Review Dataset) | polarity, evaluation | no stated licence | local-only | #326 only; host and terms page not opened |
+| Sentiment140 | polarity | Twitter's terms | local-only | #326 only; host and terms page not opened |
+| SemEval Twitter sentiment sets | polarity | Twitter's terms | local-only | #326 only; host and terms page not opened |
+| `lvwerra/distilbert-imdb` | the checkpoint OpenNLP's DL doccat eval downloads | a model trained on IMDB | local-only, by the class rule | #326 only; card not opened |
+
+Research-only and non-commercial data stay refused (the tables above)
+unless an entry here places them in this class, with the reason.

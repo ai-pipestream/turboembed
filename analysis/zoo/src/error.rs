@@ -4,7 +4,7 @@ use std::fmt;
 use std::path::PathBuf;
 
 use crate::index::ArtifactId;
-use crate::licence::{Licence, LicenceClass};
+use crate::licence::{Licence, LicenceClass, Requirement};
 
 /// Which check a file failed.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -37,7 +37,7 @@ pub enum ZooError {
     Refused { id: ArtifactId, licences: Vec<Licence> },
     /// The artifact's class needs the user's acceptance of these licences,
     /// and the user has not accepted them.
-    NotAccepted { id: ArtifactId, class: LicenceClass, user: String, missing: Vec<Licence> },
+    NotAccepted { id: ArtifactId, class: LicenceClass, user: String, missing: Vec<Requirement> },
     /// A fetched or cached file is not the one the index describes.
     Integrity { id: ArtifactId, path: String, check: Check, expected: String, actual: String },
     /// The transport could not fetch an address.
@@ -65,12 +65,9 @@ impl fmt::Display for ZooError {
             }
             ZooError::NotAccepted { id, class, user, missing } => {
                 write!(f, "{id}: {class} needs the licence accepted before it is fetched; {user} has not accepted ")?;
-                for (i, l) in missing.iter().enumerate() {
+                for (i, r) in missing.iter().enumerate() {
                     let sep = if i == 0 { "" } else { ", " };
-                    match l.legal_url() {
-                        Some(u) => write!(f, "{sep}{l} ({u})")?,
-                        None => write!(f, "{sep}{l}")?,
-                    }
+                    write!(f, "{sep}{r}")?;
                 }
                 Ok(())
             }

@@ -80,12 +80,12 @@ impl<'t> Zoo<'t> {
     }
 
     /// The artifact `id`, if `user` may have it: listed (not refused), and
-    /// every licence among its own and its training data's whose class
-    /// needs acceptance accepted by `user`. Touches no file.
+    /// every term [`Artifact::licences_to_accept`] gives accepted by
+    /// `user`. Touches no file.
     pub fn permit(&self, id: &str, user: &UserId, acceptances: &Acceptances) -> Result<&Artifact, ZooError> {
         let a = self.index.get(id)?;
         let missing: Vec<_> =
-            a.licences_to_accept(self.policy).into_iter().filter(|l| !acceptances.has(user, *l)).collect();
+            a.licences_to_accept(self.policy).into_iter().filter(|r| !acceptances.has(user, r)).collect();
         if !missing.is_empty() {
             return Err(ZooError::NotAccepted { id: a.id.clone(), class: a.class, user: user.to_string(), missing });
         }

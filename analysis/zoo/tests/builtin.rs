@@ -122,9 +122,9 @@ fn only_catalan_needs_no_acceptance() {
         if a.id.as_str().starts_with("opennlp-ca-ud-ancora-") {
             assert!(needs.is_empty(), "{}", a.id);
         } else if a.id.as_str().starts_with("opennlp-ga-") {
-            assert_eq!(needs, [Licence::CcBySa30], "{}", a.id);
+            assert_eq!(needs, [turbo_zoo::Requirement::of(Licence::CcBySa30).unwrap()], "{}", a.id);
         } else {
-            assert_eq!(needs, [Licence::CcBySa40], "{}", a.id);
+            assert_eq!(needs, [turbo_zoo::Requirement::of(Licence::CcBySa40).unwrap()], "{}", a.id);
         }
     }
 }

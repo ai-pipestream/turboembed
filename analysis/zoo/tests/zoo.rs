@@ -7,8 +7,8 @@ use std::fs;
 use std::path::PathBuf;
 
 use turbo_zoo::{
-    Acceptances, Check, GplAcceptance, Index, Licence, LicenceClass, Policy, Sha256, Sha512, Transport, Url, UserId,
-    Zoo, ZooError,
+    Acceptances, Check, GplAcceptance, Index, Licence, LicenceClass, Policy, Requirement, Sha256, Sha512, Transport,
+    Url, UserId, Zoo, ZooError,
 };
 
 /// Serves fixed bytes per address and counts the requests.
@@ -92,7 +92,31 @@ fn sample() -> String {
         entry("trained-on-non-commercial", Apache2, &[CcByNcSa40], Refused, BYTES),
         entry("unconfirmed", Apache2, &[Unconfirmed], Refused, BYTES),
         entry("lgpl-and-share-alike", Lgpl21Only, &[CcBySa30], ShareAlike, BYTES),
+        with_origin(entry("restricted", RestrictedPublic, &[], LocalOnly, BYTES)),
+        with_origin(entry("trained-on-restricted", Apache2, &[RestrictedPublic], LocalOnly, BYTES)),
+        with_origin(entry("restricted-and-share-alike", Apache2, &[CcBySa40, RestrictedPublic], LocalOnly, BYTES)),
+        entry("restricted-and-non-commercial", RestrictedPublic, &[CcByNcSa40], Refused, BYTES),
     ])
+}
+
+/// The entry with an origin on the host its files are fetched from.
+fn with_origin(entry: String) -> String {
+    entry.replace("\"files\": [", "\"origin\": \"https://example.org/\",\n      \"files\": [")
+}
+
+/// The terms of licences with a single text.
+fn reqs(licences: &[Licence]) -> Vec<Requirement> {
+    licences.iter().map(|l| Requirement::of(*l).unwrap()).collect()
+}
+
+/// The terms `entry` gives a `LicenseRef-RestrictedPublic` licence of the
+/// artifact `id` itself, or of its training data when `id` is `None`.
+fn restricted_terms(id: Option<&str>) -> Requirement {
+    let text = match id {
+        Some(id) => format!("https://example.org/{id}/LICENSE"),
+        None => "https://example.org/data/LicenseRef-RestrictedPublic".to_owned(),
+    };
+    Requirement { licence: Licence::RestrictedPublic, text }
 }
 
 fn transport() -> Memory {
@@ -106,6 +130,10 @@ fn transport() -> Memory {
         "trained-on-non-commercial",
         "unconfirmed",
         "lgpl-and-share-alike",
+        "restricted",
+        "trained-on-restricted",
+        "restricted-and-share-alike",
+        "restricted-and-non-commercial",
     ];
     let urls: Vec<String> = ids.iter().map(|i| url(i)).collect();
     Memory::new(&urls.iter().map(|u| (u.as_str(), BYTES)).collect::<Vec<_>>())
@@ -154,10 +182,24 @@ fn refused_artifacts_are_not_listed_and_never_fetched() {
     let t = transport();
     let zoo = Zoo::new(Index::parse(sample().as_bytes()).unwrap(), dir.0.clone(), Policy::default(), &t);
     let listed: Vec<&str> = zoo.index().list().iter().map(|a| a.id.as_str()).collect();
-    assert_eq!(listed, ["permissive", "share-alike", "trained-on-share-alike", "lgpl", "gpl", "lgpl-and-share-alike"]);
+    assert_eq!(
+        listed,
+        [
+            "permissive",
+            "share-alike",
+            "trained-on-share-alike",
+            "lgpl",
+            "gpl",
+            "lgpl-and-share-alike",
+            "restricted",
+            "trained-on-restricted",
+            "restricted-and-share-alike",
+        ]
+    );
     for (id, licence) in [
         ("non-commercial", Licence::CcByNcSa40),
         ("trained-on-non-commercial", Licence::CcByNcSa40),
+        ("restricted-and-non-commercial", Licence::CcByNcSa40),
         ("unconfirmed", Licence::Unconfirmed),
     ] {
         match zoo.fetch(id, &alice(), &Acceptances::default()) {
@@ -180,11 +222,11 @@ fn share_alike_lgpl_and_gpl_need_the_licence_accepted() {
     let zoo = Zoo::new(Index::parse(sample().as_bytes()).unwrap(), dir.0.clone(), Policy::default(), &t);
     let none = Acceptances::default();
     for (id, class, missing) in [
-        ("share-alike", LicenceClass::ShareAlike, vec![Licence::CcBySa40]),
-        ("trained-on-share-alike", LicenceClass::ShareAlike, vec![Licence::CcBySa40]),
-        ("lgpl", LicenceClass::Lgpl, vec![Licence::Lgpl30Only]),
-        ("gpl", LicenceClass::Gpl, vec![Licence::Gpl30Only]),
-        ("lgpl-and-share-alike", LicenceClass::ShareAlike, vec![Licence::CcBySa30, Licence::Lgpl21Only]),
+        ("share-alike", LicenceClass::ShareAlike, reqs(&[Licence::CcBySa40])),
+        ("trained-on-share-alike", LicenceClass::ShareAlike, reqs(&[Licence::CcBySa40])),
+        ("lgpl", LicenceClass::Lgpl, reqs(&[Licence::Lgpl30Only])),
+        ("gpl", LicenceClass::Gpl, reqs(&[Licence::Gpl30Only])),
+        ("lgpl-and-share-alike", LicenceClass::ShareAlike, reqs(&[Licence::CcBySa30, Licence::Lgpl21Only])),
     ] {
         match zoo.fetch(id, &alice(), &none) {
             Err(ZooError::NotAccepted { id: got, class: c, user, missing: m }) => {
@@ -209,7 +251,7 @@ fn share_alike_lgpl_and_gpl_need_the_licence_accepted() {
     // Both licences are needed, not one of them.
     assert!(matches!(
         zoo.fetch("lgpl-and-share-alike", &alice(), &acc),
-        Err(ZooError::NotAccepted { ref missing, .. }) if missing == &[Licence::Lgpl21Only]
+        Err(ZooError::NotAccepted { ref missing, .. }) if missing == &reqs(&[Licence::Lgpl21Only])
     ));
     acc.accept(&alice(), Licence::Lgpl21Only, 1_792_000_000).unwrap();
     zoo.fetch("lgpl-and-share-alike", &alice(), &acc).unwrap();
@@ -226,8 +268,89 @@ fn acceptance_is_per_user_and_checked_on_every_call() {
     let bob: UserId = "bob".parse().unwrap();
     assert!(matches!(zoo.fetch("share-alike", &bob, &acc), Err(ZooError::NotAccepted { .. })));
     // A revoked acceptance stops the zoo handing out the cached file.
-    acc.revoke(&alice(), Licence::CcBySa40);
+    acc.revoke(&alice(), &Requirement::of(Licence::CcBySa40).unwrap());
     assert!(matches!(zoo.fetch("share-alike", &alice(), &acc), Err(ZooError::NotAccepted { .. })));
+}
+
+#[test]
+fn restricted_data_needs_its_hosts_terms_accepted() {
+    let dir = TempDir::new("restricted");
+    let t = transport();
+    let zoo = Zoo::new(Index::parse(sample().as_bytes()).unwrap(), dir.0.clone(), Policy::default(), &t);
+    let none = Acceptances::default();
+    let own = restricted_terms(Some("restricted"));
+    let data = restricted_terms(None);
+    for (id, missing) in [
+        ("restricted", vec![own.clone()]),
+        ("trained-on-restricted", vec![data.clone()]),
+        ("restricted-and-share-alike", vec![Requirement::of(Licence::CcBySa40).unwrap(), data.clone()]),
+    ] {
+        match zoo.fetch(id, &alice(), &none) {
+            Err(ZooError::NotAccepted { class, missing: m, .. }) => {
+                assert_eq!(class, LicenceClass::LocalOnly, "{id}");
+                assert_eq!(m, missing, "{id}");
+            }
+            other => panic!("{id}: {other:?}"),
+        }
+    }
+    assert_eq!(t.gets.get(), 0);
+
+    // One host's terms never cover another's.
+    let mut acc = Acceptances::default();
+    acc.accept_terms(&alice(), &data, 0).unwrap();
+    assert!(matches!(zoo.fetch("restricted", &alice(), &acc), Err(ZooError::NotAccepted { .. })));
+    zoo.fetch("trained-on-restricted", &alice(), &acc).unwrap();
+    acc.accept_terms(&alice(), &own, 0).unwrap();
+    zoo.fetch("restricted", &alice(), &acc).unwrap();
+    // Every licence that needs it is still needed.
+    assert!(matches!(
+        zoo.fetch("restricted-and-share-alike", &alice(), &acc),
+        Err(ZooError::NotAccepted { ref missing, .. }) if missing == &reqs(&[Licence::CcBySa40])
+    ));
+    acc.accept(&alice(), Licence::CcBySa40, 0).unwrap();
+    zoo.fetch("restricted-and-share-alike", &alice(), &acc).unwrap();
+}
+
+#[test]
+fn restricted_data_and_models_trained_on_it_are_never_shippable() {
+    let index = Index::parse(sample().as_bytes()).unwrap();
+    let shippable: Vec<&str> = index.shippable().map(|a| a.id.as_str()).collect();
+    assert_eq!(shippable, ["permissive"]);
+    for id in ["restricted", "trained-on-restricted", "restricted-and-share-alike"] {
+        let a = index.get(id).unwrap();
+        assert_eq!(a.class, LicenceClass::LocalOnly, "{id}");
+        assert!(!a.class.may_bundle() && !a.class.may_redistribute(), "{id}");
+    }
+    // A model trained locally on restricted data is restricted too.
+    assert_eq!(turbo_zoo::class_of([Licence::Apache2, Licence::RestrictedPublic]), LicenceClass::LocalOnly);
+}
+
+#[test]
+fn restricted_artifacts_are_fetched_from_their_origin_only() {
+    use Licence::*;
+    use LicenceClass::*;
+    let restricted = entry("r", RestrictedPublic, &[], LocalOnly, BYTES);
+    assert!(Index::parse(index_of(&[with_origin(restricted.clone())]).as_bytes()).is_ok());
+    let bad = [
+        // No origin.
+        restricted.clone(),
+        // A file on another host than the origin's.
+        with_origin(restricted.replace("https://example.org/r.bin", "https://mirror.example.net/r.bin")),
+        // An origin on an artifact that is not restricted.
+        with_origin(entry("p", Apache2, &[], Permissive, BYTES)),
+        with_origin(entry("s", Apache2, &[CcBySa40], ShareAlike, BYTES)),
+        // The class must still be the most restrictive one.
+        with_origin(entry("r", Apache2, &[RestrictedPublic], Gpl, BYTES)),
+        with_origin(entry("r", RestrictedPublic, &[Gpl30Only], Gpl, BYTES)),
+        entry("r", RestrictedPublic, &[CcByNcSa40], LocalOnly, BYTES),
+    ];
+    for b in bad {
+        let text = index_of(&[b]);
+        assert!(matches!(Index::parse(text.as_bytes()), Err(ZooError::Index(_))), "{text}");
+    }
+    // The host is compared without regard to case or path.
+    let upper = with_origin(restricted).replace("\"https://example.org/\"", "\"https://EXAMPLE.org/terms\"");
+    assert!(Index::parse(index_of(&[upper]).as_bytes()).is_ok());
 }
 
 #[test]
@@ -237,9 +360,10 @@ fn gpl_acceptance_can_be_turned_off() {
     let lax = Policy { gpl: GplAcceptance::NotRequired };
     let zoo = Zoo::new(Index::parse(sample().as_bytes()).unwrap(), dir.0.clone(), lax, &t);
     zoo.fetch("gpl", &alice(), &Acceptances::default()).unwrap();
-    // LGPL and CC BY-SA still need it.
-    assert!(matches!(zoo.fetch("lgpl", &alice(), &Acceptances::default()), Err(ZooError::NotAccepted { .. })));
-    assert!(matches!(zoo.fetch("share-alike", &alice(), &Acceptances::default()), Err(ZooError::NotAccepted { .. })));
+    // LGPL, CC BY-SA and restricted data still need it.
+    for id in ["lgpl", "share-alike", "restricted", "trained-on-restricted"] {
+        assert!(matches!(zoo.fetch(id, &alice(), &Acceptances::default()), Err(ZooError::NotAccepted { .. })), "{id}");
+    }
 }
 
 fn tampered(check: Check, served: &[u8], sha512_of: &[u8]) {

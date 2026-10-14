@@ -10,7 +10,7 @@ use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
 use crate::digest::{Sha256, Sha512};
 use crate::error::ZooError;
-use crate::licence::{Licence, LicenceClass};
+use crate::licence::{Licence, LicenceClass, Requirement};
 
 /// The index this crate carries: the OpenNLP 1.3 UD models the zoo may
 /// fetch (docs/licences.md lists them, and the ones it refuses).
@@ -289,13 +289,20 @@ pub struct Artifact {
     /// `trained_on[].license`. Written out so a reader that does not know
     /// a licence still sees the class; checked against the computed one.
     pub class: LicenceClass,
+    /// For a `CLASS_LOCAL_ONLY` artifact, and only for one: the original
+    /// publisher's site (the data's host for a dataset, the model's
+    /// publisher for a model). Every file's `url` must be on its host, so
+    /// the zoo fetches such an artifact from nowhere else, never from a
+    /// copy.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub origin: Option<Url>,
     pub files: Vec<File>,
 }
 
 impl Artifact {
     /// The class `license` and `trained_on` give, whatever `class` says.
     pub fn computed_class(&self) -> LicenceClass {
-        self.licences().map(Licence::class).max().unwrap_or(LicenceClass::Permissive)
+        crate::licence::class_of(self.licences())
     }
 
     /// The artifact's own licence, then each training licence, in index
@@ -304,12 +311,33 @@ impl Artifact {
         std::iter::once(self.license).chain(self.trained_on.iter().map(|t| t.license))
     }
 
-    /// The distinct licences whose class needs the user's acceptance under
-    /// `policy`, in `Licence` order.
-    pub fn licences_to_accept(&self, policy: crate::licence::Policy) -> Vec<Licence> {
-        let set: BTreeSet<Licence> = self.licences().filter(|l| l.class().needs_acceptance(policy)).collect();
+    /// The distinct terms the user must accept under `policy`, in
+    /// `Licence` order, then by address: each licence among the artifact's
+    /// own and its training data's whose class needs acceptance, with its
+    /// `legal_url`, or, for a licence without one
+    /// (`LicenseRef-RestrictedPublic`), the terms address the index gives
+    /// next to it.
+    pub fn licences_to_accept(&self, policy: crate::licence::Policy) -> Vec<Requirement> {
+        let own = std::iter::once((self.license, &self.license_terms));
+        let data = self.trained_on.iter().map(|t| (t.license, &t.license_terms));
+        let set: BTreeSet<Requirement> = own
+            .chain(data)
+            .filter(|(l, _)| l.class().needs_acceptance(policy))
+            .map(|(licence, terms)| Requirement {
+                licence,
+                text: licence.legal_url().unwrap_or(terms.as_str()).to_owned(),
+            })
+            .collect();
         set.into_iter().collect()
     }
+}
+
+/// The host of an `https://` address: what follows the scheme up to the
+/// first `/`, `?` or `#`, lowercased.
+fn host(url: &Url) -> String {
+    let rest = &url.as_str()["https://".len()..];
+    let end = rest.find(['/', '?', '#']).unwrap_or(rest.len());
+    rest[..end].to_ascii_lowercase()
 }
 
 #[derive(Serialize, Deserialize)]
@@ -366,6 +394,26 @@ impl Index {
             if a.files.is_empty() {
                 return Err(ZooError::Index(format!("{}: no files", a.id)));
             }
+            match (&a.origin, computed == LicenceClass::LocalOnly) {
+                (None, true) => {
+                    return Err(ZooError::Index(format!("{}: {computed} needs origin, its publisher's site", a.id)));
+                }
+                (Some(_), false) => {
+                    return Err(ZooError::Index(format!("{}: origin is only for {}", a.id, LicenceClass::LocalOnly)));
+                }
+                (Some(origin), true) => {
+                    let want = host(origin);
+                    if let Some(f) = a.files.iter().find(|f| host(&f.url) != want) {
+                        return Err(ZooError::Index(format!(
+                            "{}: {} is fetched from {}, not from its origin {want}",
+                            a.id,
+                            f.path,
+                            host(&f.url)
+                        )));
+                    }
+                }
+                (None, false) => {}
+            }
             let mut paths = BTreeSet::new();
             for f in &a.files {
                 if !paths.insert(f.path.as_str()) {
@@ -400,6 +448,13 @@ impl Index {
     /// among them.
     pub fn list(&self) -> &[Artifact] {
         &self.artifacts
+    }
+
+    /// The artifacts that may be bundled and shipped: the permissive ones.
+    /// A `CLASS_LOCAL_ONLY` artifact, or a model trained on one, is never
+    /// among them.
+    pub fn shippable(&self) -> impl Iterator<Item = &Artifact> + '_ {
+        self.artifacts.iter().filter(|a| a.class.may_bundle())
     }
 
     /// The artifact `id`. A refused one is `ZooError::Refused`, naming its

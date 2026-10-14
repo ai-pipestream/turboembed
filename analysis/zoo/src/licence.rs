@@ -22,12 +22,15 @@ use serde::{Deserialize, Deserializer, Serialize, Serializer};
 /// | `Lgpl` | no | after the user accepts the licence |
 /// | `ShareAlike` | no | after the user accepts the licence |
 /// | `Gpl` | no | yes; by default only after the user accepts the licence ([`GplAcceptance`]) |
+/// | `LocalOnly` | no, nor any model trained on it | only from its original host, after the user accepts that host's terms; for local training and evaluation only |
 /// | `Refused` | no | never; the zoo does not list it either |
 ///
 /// LGPL sits below CC BY-SA because its copyleft is weaker; GPL sits
 /// above it because GPL is the strongest copyleft the zoo fetches at all.
-/// Under the default policy the three middle classes behave the same, so
-/// the order between them only decides which class an artifact reports.
+/// Under the default policy those three classes behave the same, so the
+/// order between them only decides which class an artifact reports.
+/// `LocalOnly` sits above them: nothing in it, and nothing trained on it,
+/// leaves the user's machine. A refused licence anywhere still wins.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum LicenceClass {
     /// MIT, BSD, Apache-2.0, CC0, CC BY, ODC-By, public domain.
@@ -41,8 +44,17 @@ pub enum LicenceClass {
     ShareAlike,
     /// GPL: fetched on demand, never bundled or checked in.
     Gpl,
+    /// Restricted but public data (IMDB, Sentiment140, the SemEval Twitter
+    /// sets; Kristian, 2026-10-12, on #326): fetched only from its original
+    /// host, after the user accepts that host's terms, and used for local
+    /// training and evaluation only. A model trained on it is in this class
+    /// too, so it is never bundled, checked in, shipped or listed as a
+    /// shipped model; evaluation numbers on it may be recorded, its files
+    /// not.
+    LocalOnly,
     /// Non-commercial, no-derivatives, research-only, platform terms, no
-    /// licence, proprietary, or unconfirmed terms.
+    /// licence, proprietary, or unconfirmed terms, unless an entry places
+    /// the data in `LocalOnly` by naming `LicenseRef-RestrictedPublic`.
     Refused,
 }
 
@@ -54,22 +66,33 @@ impl LicenceClass {
             LicenceClass::Lgpl => "CLASS_LGPL",
             LicenceClass::ShareAlike => "CLASS_SHARE_ALIKE",
             LicenceClass::Gpl => "CLASS_GPL",
+            LicenceClass::LocalOnly => "CLASS_LOCAL_ONLY",
             LicenceClass::Refused => "CLASS_REFUSED",
         }
     }
 
-    pub const ALL: [LicenceClass; 5] = [
+    pub const ALL: [LicenceClass; 6] = [
         LicenceClass::Permissive,
         LicenceClass::Lgpl,
         LicenceClass::ShareAlike,
         LicenceClass::Gpl,
+        LicenceClass::LocalOnly,
         LicenceClass::Refused,
     ];
 
     /// Whether an artifact of this class may be carried in a bundle,
-    /// checked in or shipped.
+    /// checked in or shipped. A model this project ships must be trained
+    /// only on data of a class for which this holds.
     pub const fn may_bundle(self) -> bool {
         matches!(self, LicenceClass::Permissive)
+    }
+
+    /// Whether an artifact of this class may leave the machine of the user
+    /// who fetched it or trained it: published, shared, or listed as a
+    /// model another user can fetch from somewhere other than the original
+    /// host. False for `LocalOnly` and `Refused`.
+    pub const fn may_redistribute(self) -> bool {
+        !matches!(self, LicenceClass::LocalOnly | LicenceClass::Refused)
     }
 
     /// Whether the zoo lists and fetches artifacts of this class at all.
@@ -82,7 +105,7 @@ impl LicenceClass {
     pub const fn needs_acceptance(self, policy: Policy) -> bool {
         match self {
             LicenceClass::Permissive | LicenceClass::Refused => false,
-            LicenceClass::Lgpl | LicenceClass::ShareAlike => true,
+            LicenceClass::Lgpl | LicenceClass::ShareAlike | LicenceClass::LocalOnly => true,
             LicenceClass::Gpl => matches!(policy.gpl, GplAcceptance::Required),
         }
     }
@@ -166,9 +189,10 @@ macro_rules! licences {
 
             /// Where the licence's own text is published. An artifact's
             /// `terms` says where the artifact's publisher states that the
-            /// licence applies; this is the licence itself. `None` for the
-            /// `LicenseRef-` refusals, which name a kind of terms rather
-            /// than one text.
+            /// licence applies; this is the licence itself. `None` for
+            /// `LicenseRef-RestrictedPublic` and the `LicenseRef-`
+            /// refusals, which name a kind of terms rather than one text:
+            /// for those the artifact's own terms address is the text.
             pub const fn legal_url(self) -> Option<&'static str> {
                 match self {
                     $(Licence::$variant => $url,)*
@@ -188,7 +212,7 @@ macro_rules! licences {
     };
 }
 
-use LicenceClass::{Gpl, Lgpl, Permissive, Refused, ShareAlike};
+use LicenceClass::{Gpl, Lgpl, LocalOnly, Permissive, Refused, ShareAlike};
 
 licences! {
     Apache2 => "Apache-2.0", Permissive, Some("https://www.apache.org/licenses/LICENSE-2.0");
@@ -214,6 +238,7 @@ licences! {
     Gpl20OrLater => "GPL-2.0-or-later", Gpl, Some("https://www.gnu.org/licenses/old-licenses/gpl-2.0.html");
     Gpl30Only => "GPL-3.0-only", Gpl, Some("https://www.gnu.org/licenses/gpl-3.0.html");
     Gpl30OrLater => "GPL-3.0-or-later", Gpl, Some("https://www.gnu.org/licenses/gpl-3.0.html");
+    RestrictedPublic => "LicenseRef-RestrictedPublic", LocalOnly, None;
     CcByNc40 => "CC-BY-NC-4.0", Refused, Some("https://creativecommons.org/licenses/by-nc/4.0/legalcode");
     CcByNcSa30 => "CC-BY-NC-SA-3.0", Refused, Some("https://creativecommons.org/licenses/by-nc-sa/3.0/legalcode");
     CcByNcSa40 => "CC-BY-NC-SA-4.0", Refused, Some("https://creativecommons.org/licenses/by-nc-sa/4.0/legalcode");
@@ -242,6 +267,39 @@ impl Licence {
             Licence::Unconfirmed => Some(RefusalReason::Unconfirmed),
             _ => None,
         }
+    }
+}
+
+/// The class of an artifact under `licences`: its own licence and those of
+/// everything it was trained on. The most restrictive wins; no licences at
+/// all is `Permissive`. Use it for a model trained locally too: a model
+/// trained on `LocalOnly` data is `LocalOnly` whatever its own licence.
+pub fn class_of(licences: impl IntoIterator<Item = Licence>) -> LicenceClass {
+    licences.into_iter().map(Licence::class).max().unwrap_or(LicenceClass::Permissive)
+}
+
+/// Terms a user must accept before a fetch: a licence and the address of
+/// the text they are shown. For a licence with a `legal_url` that is the
+/// address; for `LicenseRef-RestrictedPublic` it is the terms page of the
+/// data's host, as the index records it, so accepting one host's terms
+/// never covers another's.
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct Requirement {
+    pub licence: Licence,
+    pub text: String,
+}
+
+impl Requirement {
+    /// The terms of a licence with a single text: the licence and its
+    /// `legal_url`. `None` for a licence without one.
+    pub fn of(licence: Licence) -> Option<Requirement> {
+        licence.legal_url().map(|u| Requirement { licence, text: u.to_owned() })
+    }
+}
+
+impl fmt::Display for Requirement {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{} ({})", self.licence, self.text)
     }
 }
 
@@ -301,7 +359,10 @@ mod tests {
             }
             match a.legal_url() {
                 Some(u) => assert!(u.starts_with("https://"), "{a}"),
-                None => assert!(a.spdx().starts_with("LicenseRef-") && a.refusal().is_some(), "{a}"),
+                None => assert!(
+                    a.spdx().starts_with("LicenseRef-") && (a.refusal().is_some() || a.class() == LocalOnly),
+                    "{a}"
+                ),
             }
         }
     }
@@ -320,6 +381,9 @@ mod tests {
         assert_eq!(Licence::CcByNd40.class(), Refused);
         assert_eq!(Licence::Unconfirmed.class(), Refused);
         assert_eq!(Licence::PlatformTerms.class(), Refused);
+        assert_eq!(Licence::ResearchOnly.class(), Refused);
+        assert_eq!(Licence::NoLicence.class(), Refused);
+        assert_eq!(Licence::RestrictedPublic.class(), LocalOnly);
         for l in Licence::ALL {
             assert_eq!(l.class() == Refused, l.refusal().is_some(), "{l}");
         }
@@ -333,13 +397,19 @@ mod tests {
 
     #[test]
     fn class_order_and_behaviour() {
-        assert!(Permissive < Lgpl && Lgpl < ShareAlike && ShareAlike < Gpl && Gpl < Refused);
+        assert!(Permissive < Lgpl && Lgpl < ShareAlike && ShareAlike < Gpl && Gpl < LocalOnly && LocalOnly < Refused);
         let default = Policy::default();
         let lax = Policy { gpl: GplAcceptance::NotRequired };
         assert!(Permissive.may_bundle());
-        for c in [Lgpl, ShareAlike, Gpl, Refused] {
+        for c in [Lgpl, ShareAlike, Gpl, LocalOnly, Refused] {
             assert!(!c.may_bundle(), "{c}");
         }
+        for c in [Permissive, Lgpl, ShareAlike, Gpl] {
+            assert!(c.may_redistribute(), "{c}");
+        }
+        assert!(!LocalOnly.may_redistribute() && !Refused.may_redistribute());
+        assert!(LocalOnly.may_fetch());
+        assert!(LocalOnly.needs_acceptance(default) && LocalOnly.needs_acceptance(lax));
         assert!(!Refused.may_fetch());
         assert!(!Permissive.needs_acceptance(default));
         assert!(Lgpl.needs_acceptance(default) && Lgpl.needs_acceptance(lax));
@@ -349,5 +419,25 @@ mod tests {
         for c in LicenceClass::ALL {
             assert_eq!(c.name().parse::<LicenceClass>(), Ok(c));
         }
+    }
+
+    #[test]
+    fn the_most_restrictive_licence_decides_the_class() {
+        use Licence::*;
+        assert_eq!(class_of([]), Permissive);
+        assert_eq!(class_of([Apache2, CcBy40]), Permissive);
+        assert_eq!(class_of([Apache2, CcBySa40]), ShareAlike);
+        assert_eq!(class_of([Lgpl21Only, CcBySa30]), ShareAlike);
+        assert_eq!(class_of([CcBySa40, Gpl30Only]), Gpl);
+        // A model trained on restricted data is restricted, whatever its
+        // own licence, and whatever else it was trained on short of refused
+        // data.
+        assert_eq!(class_of([Apache2, RestrictedPublic]), LocalOnly);
+        assert_eq!(class_of([Apache2, CcBy40, RestrictedPublic]), LocalOnly);
+        assert_eq!(class_of([Gpl30Only, RestrictedPublic, CcBySa40]), LocalOnly);
+        assert_eq!(class_of([RestrictedPublic, CcByNcSa40]), Refused);
+        assert_eq!(class_of([RestrictedPublic, ResearchOnly]), Refused);
+        // Order of the licences never matters.
+        assert_eq!(class_of([RestrictedPublic, Apache2]), class_of([Apache2, RestrictedPublic]));
     }
 }

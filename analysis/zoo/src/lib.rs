@@ -9,7 +9,7 @@
 //! - [`Index`]: the artifacts, parsed strictly from the JSON format
 //!   docs/zoo.md describes, which OpenNLP can read as well. Refused
 //!   artifacts are never listed.
-//! - [`Acceptances`]: which user accepted which licence, in a strict JSON
+//! - [`Acceptances`]: which user accepted which terms, in a strict JSON
 //!   file of its own.
 //! - [`Zoo`]: hands out an artifact by id as verified local files, after
 //!   checking the user accepted every licence its class needs. Every file
@@ -32,4 +32,4 @@ pub use error::{Check, ZooError};
 pub use fetch::Http;
 pub use fetch::{Fetched, Offline, Transport, Zoo, verify};
 pub use index::{Artifact, ArtifactId, Component, File, Format, Index, Kind, Language, TrainingData, Url};
-pub use licence::{GplAcceptance, Licence, LicenceClass, Policy, RefusalReason};
+pub use licence::{GplAcceptance, Licence, LicenceClass, Policy, RefusalReason, Requirement, class_of};
