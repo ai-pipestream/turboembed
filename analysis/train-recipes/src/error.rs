@@ -38,7 +38,7 @@ pub enum Error {
     NotRecorded,
     /// The corpus directory is not the recorded release.
     CorpusDigest { expected: String, found: String },
-    /// A reference model file is not the zoo's.
+    /// A reference model file does not have its recorded digest.
     ReferenceDigest { id: String, expected: String, found: String },
     /// The split leaves one side without a sample for the recipe.
     EmptySplit { what: &'static str },
@@ -76,7 +76,7 @@ impl fmt::Display for Error {
                 write!(f, "the corpus directory has the digest {found}, the recorded release {expected}")
             }
             Error::ReferenceDigest { id, expected, found } => {
-                write!(f, "reference model {id}: SHA-256 {found}, the zoo's {expected}")
+                write!(f, "reference model {id}: SHA-256 {found}, expected {expected}")
             }
             Error::EmptySplit { what } => write!(f, "the split leaves no {what}"),
         }

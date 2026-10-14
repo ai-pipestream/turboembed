@@ -12,15 +12,17 @@ use std::path::Path;
 
 use serde::{Deserialize, Serialize};
 use turbo_eval::model_gate::ModelGateRecord;
+use turbo_postag::PosTagFormat;
 use turbo_train_components::ud;
 use turbo_zoo::{Artifact, File, Kind, Licence, LicenceClass, Sha256, Sha512, TrainingData, class_of, index::Format};
 
 use crate::error::{Error, Result, io};
 use crate::masc::{self, Split};
-use crate::segmentation::{Component, LANGUAGE, SENTENCES_PER_SAMPLE, SegmentationRecipe, TIMESTAMP_MS, Trained};
+use crate::segmentation::{Component, LANGUAGE, SENTENCES_PER_SAMPLE, TIMESTAMP_MS};
+use crate::{Recipe, Trained, postag};
 
 /// The card's schema version.
-pub const CARD_VERSION: u32 = 1;
+pub const CARD_VERSION: u32 = 2;
 /// The card's file name in the model's directory.
 pub const CARD_FILE: &str = "card.json";
 /// The gate record's file name in the model's directory.
@@ -75,18 +77,50 @@ pub struct ParametersCard {
 #[serde(deny_unknown_fields)]
 pub struct TrainingCard {
     pub parameters: ParametersCard,
-    /// Sentences per sentence detector sample; `null` for the tokenizer.
+    /// Sentences per sentence detector sample; `null` for the other
+    /// components.
     pub sentences_per_sample: Option<usize>,
-    /// `legacy` (OpenNLP 2.5.4's `Character.isWhitespace` or `Zs`).
-    pub whitespace: String,
+    /// `legacy` (OpenNLP 2.5.4's `Character.isWhitespace` or `Zs`) for the
+    /// sentence detector and the tokenizer; `null` for the tagger, which
+    /// reads tokens.
+    pub whitespace: Option<String>,
     /// The manifest's `Timestamp`.
     pub timestamp_ms: i64,
     /// Training uses no randomness, so there is no seed.
     pub seed: Option<i64>,
     pub samples: usize,
+    /// Sentences left out of training ([`Trained::skipped_sentences`]).
     pub skipped_sentences: usize,
     pub events: usize,
     pub event_hash: u32,
+}
+
+/// The tags a tagger was scored in, as `POSTaggerME` returns them for a
+/// `POSTagFormat`.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum TagFormat {
+    /// Universal Dependencies tags: the outcomes of a UD model, or a Penn
+    /// model's converted by `POSTagFormatMapper`.
+    Ud,
+    /// Penn Treebank tags: the outcomes of a Penn model, or a UD model's
+    /// converted by `POSTagFormatMapper`, one Penn tag per UD tag.
+    Penn,
+    /// The model's outcomes as they are (`POSTagFormat.CUSTOM`).
+    Custom,
+}
+
+impl TagFormat {
+    /// The format of a tagger asked for `format`; `None` for
+    /// `PosTagFormat::Unknown`, which no recipe asks for.
+    pub fn of(format: PosTagFormat) -> Option<TagFormat> {
+        match format {
+            PosTagFormat::Ud => Some(TagFormat::Ud),
+            PosTagFormat::Penn => Some(TagFormat::Penn),
+            PosTagFormat::Custom => Some(TagFormat::Custom),
+            PosTagFormat::Unknown => None,
+        }
+    }
 }
 
 /// The gate's outcome; the record itself is [`GATE_FILE`].
@@ -95,6 +129,12 @@ pub struct TrainingCard {
 pub struct GateCard {
     pub record: String,
     pub reference: String,
+    /// For a tagger, the tags the trained model was scored in; `null`
+    /// for the other components.
+    pub candidate_tag_format: Option<TagFormat>,
+    /// For a tagger, the tags the reference was scored in; `null` for the
+    /// other components.
+    pub reference_tag_format: Option<TagFormat>,
     pub candidate_score: f64,
     pub reference_score: f64,
     pub difference_low: f64,
@@ -125,25 +165,26 @@ pub struct ModelCard {
 
 impl ModelCard {
     /// The card of a model `recipe` trained, gated by `gate`.
-    pub fn new(
-        recipe: &SegmentationRecipe,
-        trained: &Trained,
-        corpus: CorpusCard,
-        gate: &ModelGateRecord,
-    ) -> ModelCard {
+    pub fn new(recipe: &Recipe, trained: &Trained, corpus: CorpusCard, gate: &ModelGateRecord) -> ModelCard {
         let trained_on = vec![masc::training_data()];
         let class = class_of(std::iter::once(MODEL_LICENCE).chain(trained_on.iter().map(|t| t.license)));
         let r = &gate.result;
+        let (sentences_per_sample, whitespace, candidate_tag_format, reference_tag_format) = match recipe {
+            Recipe::Segmentation(s) => (
+                (s.component == Component::Sentence).then_some(SENTENCES_PER_SAMPLE),
+                Some("legacy".to_owned()),
+                None,
+                None,
+            ),
+            Recipe::Pos(p) => (None, None, TagFormat::of(postag::CANDIDATE_FORMAT), TagFormat::of(p.reference_format)),
+        };
         ModelCard {
             card_version: CARD_VERSION,
-            id: recipe.model_id.to_owned(),
-            component: match recipe.component {
-                Component::Sentence => turbo_zoo::Component::SentenceDetector,
-                Component::Tokens => turbo_zoo::Component::Tokenizer,
-            },
+            id: recipe.model_id().to_owned(),
+            component: recipe.component(),
             language: LANGUAGE.to_owned(),
             file: ModelFileCard {
-                name: format!("{}.bin", recipe.model_id),
+                name: format!("{}.bin", recipe.model_id()),
                 size: trained.bytes.len() as u64,
                 sha256: Sha256::of(&trained.bytes).to_string(),
                 sha512: Sha512::of(&trained.bytes).to_string(),
@@ -161,8 +202,8 @@ impl ModelCard {
                     cutoff: ud::CUTOFF,
                     threads: ud::THREADS,
                 },
-                sentences_per_sample: (recipe.component == Component::Sentence).then_some(SENTENCES_PER_SAMPLE),
-                whitespace: "legacy".to_owned(),
+                sentences_per_sample,
+                whitespace,
                 timestamp_ms: TIMESTAMP_MS,
                 seed: None,
                 samples: trained.samples,
@@ -173,6 +214,8 @@ impl ModelCard {
             gate: GateCard {
                 record: GATE_FILE.to_owned(),
                 reference: gate.reference.id.clone(),
+                candidate_tag_format,
+                reference_tag_format,
                 candidate_score: r.candidate.score,
                 reference_score: r.reference.score,
                 difference_low: r.difference.low,

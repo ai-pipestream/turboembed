@@ -34,8 +34,9 @@ use turbo_tokenize::me::{TokenizerMe, TokenizerModel};
 use turbo_train::TrainingConfiguration;
 use turbo_train_components::ud;
 use turbo_train_components::{SentenceDetectorFactory, Stamp, TokenizerFactory, sentdetect, tokenize};
-use turbo_zoo::{Index, Sha256};
+use turbo_zoo::Sha256;
 
+use crate::Trained;
 use crate::error::{Error, Result};
 
 /// The segmentation component a recipe trains.
@@ -121,21 +122,6 @@ impl HeldOut<'_> {
         }
         Sha256::of(&bytes).to_string()
     }
-}
-
-/// A model a recipe trained, and what it was trained from.
-#[derive(Debug, Clone)]
-pub struct Trained {
-    /// The `.bin` file.
-    pub bytes: Vec<u8>,
-    /// The samples read from the training documents.
-    pub samples: usize,
-    /// Sentences the token stream skipped for having no sample (always 0
-    /// for the sentence detector).
-    pub skipped_sentences: usize,
-    pub events: usize,
-    /// `Training-Eventhash`.
-    pub event_hash: u32,
 }
 
 /// The factories of the recipes: the language, every other setting at its
@@ -335,21 +321,12 @@ impl SegmentationRecipe {
     ///
     /// [`Error::ReferenceDigest`] for other bytes.
     pub fn check_reference(&self, bytes: &[u8]) -> Result<()> {
-        let index = Index::builtin();
-        let entry = index.get(self.reference_id)?;
-        let expected = entry.files[0].sha256.to_string();
-        let found = Sha256::of(bytes).to_string();
-        if expected == found {
-            Ok(())
-        } else {
-            Err(Error::ReferenceDigest { id: self.reference_id.to_owned(), expected, found })
-        }
+        crate::Reference::Zoo(self.reference_id).check(bytes)
     }
 
     /// The reference model's file name in the zoo's built-in index.
     pub fn reference_file(&self) -> Result<String> {
-        let index = Index::builtin();
-        Ok(index.get(self.reference_id)?.files[0].path.to_string())
+        crate::Reference::Zoo(self.reference_id).file()
     }
 }
 

@@ -2159,6 +2159,7 @@ dependencies = [
  "turbo-eval",
  "turbo-formats",
  "turbo-maxent",
+ "turbo-postag",
  "turbo-sentdetect",
  "turbo-tokenize",
  "turbo-train",
