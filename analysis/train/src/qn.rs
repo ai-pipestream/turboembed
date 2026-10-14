@@ -246,6 +246,9 @@ impl QnModel {
 /// checksum over the events, the indexer named by the parameters with
 /// `sort` on and the default cutoff when none is given, then [`train`].
 pub fn train_events(events: &[Event], params: &TrainingParameters) -> Result<(QnModel, TrainingReport)> {
+    // QNTrainer.init reads its parameters and validate checks them before
+    // the indexer runs, so a bad parameter is refused whatever the events.
+    QnParams::from_training_parameters(params)?;
     let mut checksum = EventChecksum::new();
     for e in events {
         checksum.update(e);
@@ -286,6 +289,8 @@ pub fn train_model(
     if params.iterations <= 0 {
         return Err(Error::NotPositive { key: Key::ITERATIONS, value: params.iterations });
     }
+    // NegLogLikelihood.valueAt reads values[ei][ci] at the first evaluation.
+    index.check_values()?;
     let function = NegLogLikelihood::new(index, params);
     let mut minimizer = Minimizer::new(&function, params);
     let stop = minimizer.minimize(observe)?;
@@ -521,20 +526,20 @@ impl<'i> NegLogLikelihood<'i> {
 
     /// `L2RegFunction.gradientAt` into `gradient`: with one thread the
     /// events accumulate into it directly; with more, each chunk into its
-    /// own array and the arrays are added in chunk order.
-    fn gradient_at(&self, x: &[f64], expectation: &mut [f64], gradient: &mut [f64], per_thread: &mut [Vec<f64>]) {
+    /// own zeroed array (`chunk_grad`, reused) and the arrays are added in
+    /// chunk order, `((0 + g0) + g1) + ...` for every element, which is
+    /// `ParallelNegLogLikelihood`'s sum over its per thread arrays.
+    fn gradient_at(&self, x: &[f64], expectation: &mut [f64], gradient: &mut [f64], chunk_grad: &mut [f64]) {
         if self.chunks.len() == 1 {
             gradient.fill(0.0);
             self.gradient_of_chunk(x, 0, self.chunks[0].1, expectation, gradient);
         } else {
-            for (t, &(start, len)) in self.chunks.iter().enumerate() {
-                per_thread[t].fill(0.0);
-                self.gradient_of_chunk(x, start, len, expectation, &mut per_thread[t]);
-            }
-            for i in 0..self.dimension {
-                gradient[i] = 0.0;
-                for g in per_thread.iter() {
-                    gradient[i] += g[i];
+            gradient.fill(0.0);
+            for &(start, len) in &self.chunks {
+                chunk_grad.fill(0.0);
+                self.gradient_of_chunk(x, start, len, expectation, chunk_grad);
+                for (g, &c) in gradient.iter_mut().zip(chunk_grad.iter()) {
+                    *g += c;
                 }
             }
         }
@@ -654,10 +659,10 @@ struct Minimizer<'f, 'i> {
     updates: UpdateInfo,
     direction: Vec<f64>,
     /// Scratch for the function: one sum per outcome, the gradient, and
-    /// with several threads one gradient per thread.
+    /// with several threads one chunk's gradient.
     sums: Vec<f64>,
     gradient: Vec<f64>,
-    per_thread: Vec<Vec<f64>>,
+    chunk_grad: Vec<f64>,
 }
 
 impl<'f, 'i> Minimizer<'f, 'i> {
@@ -683,7 +688,7 @@ impl<'f, 'i> Minimizer<'f, 'i> {
             direction: vec![0.0; dimension],
             sums: vec![0.0; function.num_outcomes],
             gradient: vec![0.0; dimension],
-            per_thread: if threads > 1 { vec![vec![0.0; dimension]; threads] } else { Vec::new() },
+            chunk_grad: if threads > 1 { vec![0.0; dimension] } else { Vec::new() },
         }
     }
 
@@ -693,7 +698,7 @@ impl<'f, 'i> Minimizer<'f, 'i> {
 
     /// The gradient at `x` into `out`.
     fn gradient_at(&mut self, x: &[f64], out: &mut [f64]) {
-        self.function.gradient_at(x, &mut self.sums, &mut self.gradient, &mut self.per_thread);
+        self.function.gradient_at(x, &mut self.sums, &mut self.gradient, &mut self.chunk_grad);
         out.copy_from_slice(&self.gradient);
     }
 
@@ -715,10 +720,11 @@ impl<'f, 'i> Minimizer<'f, 'i> {
     /// The loop of `minimize`: returns why it stopped.
     fn minimize(&mut self, observe: &mut dyn FnMut(&QnIteration, &[f64])) -> Result<QnStop> {
         let l1 = self.params.l1();
-        // The origin, its value and gradient.
-        let origin = vec![0.0; self.function.dimension];
+        // The origin (next_point starts as it), its value and gradient, in
+        // the search's own buffers.
+        let origin = std::mem::take(&mut self.search.next_point);
+        let mut grad = std::mem::take(&mut self.search.grad_at_next);
         let mut value = self.value_at(&origin);
-        let mut grad = vec![0.0; self.function.dimension];
         self.gradient_at(&origin, &mut grad);
         if l1 {
             value += self.params.l1_cost * l1_norm(&origin);
@@ -948,6 +954,39 @@ mod tests {
     fn one_outcome_is_refused_before_training() {
         let events = [event("s", "a"), event("s", "b")];
         let index = DataIndex::index(&events, &IndexParams::new(IndexerKind::OnePass, 0, true)).unwrap();
+        assert_eq!(train(&index, &TrainingParameters::new()).err(), Some(Error::InsufficientTrainingData(ONE_OUTCOME)));
+    }
+
+    #[test]
+    fn a_bad_parameter_is_refused_before_the_events_are_looked_at() {
+        // QNTrainer.init and validate run before the indexer: with one
+        // outcome and Threads 0 the JVM reports the threads.
+        let events = [event("s", "a"), event("s", "b")];
+        let mut p = TrainingParameters::new();
+        p.put(Key::THREADS, 0);
+        assert_eq!(train_events(&events, &p).err(), Some(Error::NotPositive { key: Key::THREADS, value: 0 }));
+        // So does Iterations that does not parse, with no events at all.
+        let mut p = TrainingParameters::new();
+        p.put(Key::ITERATIONS, "many");
+        assert!(matches!(train_events(&[], &p), Err(Error::ParameterFormat { .. })));
+    }
+
+    #[test]
+    fn an_event_without_values_in_a_real_value_index_is_refused() {
+        // The JVM's NegLogLikelihood reads values[ei][ci] and throws
+        // NullPointerException on the event without values.
+        let events = [
+            Event::with_values("yes", vec![JavaString::new("a")], Some(vec![2.0])).unwrap(),
+            Event::with_values("no", vec![JavaString::new("b")], None).unwrap(),
+        ];
+        let index = DataIndex::index(&events, &IndexParams::new(IndexerKind::OnePassRealValue, 0, true)).unwrap();
+        assert_eq!(train(&index, &TrainingParameters::new()).err(), Some(Error::MissingValues { event: 1 }));
+        // One outcome is reported first, as the JVM checks it first.
+        let one = [
+            Event::with_values("s", vec![JavaString::new("b")], None).unwrap(),
+            Event::with_values("s", vec![JavaString::new("a")], Some(vec![2.0])).unwrap(),
+        ];
+        let index = DataIndex::index(&one, &IndexParams::new(IndexerKind::OnePassRealValue, 0, true)).unwrap();
         assert_eq!(train(&index, &TrainingParameters::new()).err(), Some(Error::InsufficientTrainingData(ONE_OUTCOME)));
     }
 

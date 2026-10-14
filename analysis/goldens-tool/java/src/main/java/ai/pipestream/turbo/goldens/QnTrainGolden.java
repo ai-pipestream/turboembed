@@ -331,6 +331,15 @@ final class QnTrainGolden implements AnnotatorGolden {
     // Real valued events indexed without their values, both costs, two threads, fewer iterations.
     runs.add(new QnTrainGolden(TrainGolden.Source.REALVALUE, "TwoPass", 1, true, 30, QNTrainer.L1COST_DEFAULT,
         QNTrainer.L2COST_DEFAULT, QNTrainer.M_DEFAULT, QNTrainer.MAX_FCT_EVAL_DEFAULT, 2, texts));
+    // The defaults on the fixture model's sentences with cutoff 1: the training of the fixture
+    // en-plain-qn-rust.bin (analysis/train/tests/roundtrip.rs), whose model bytes this run records.
+    runs.add(new QnTrainGolden(TrainGolden.Source.SENTDETECT, "TwoPass", 1, true, 100,
+        QNTrainer.L1COST_DEFAULT, QNTrainer.L2COST_DEFAULT, QNTrainer.M_DEFAULT, QNTrainer.MAX_FCT_EVAL_DEFAULT,
+        1, sentences));
+    // The defaults on the part-of-speech shaped events, which have many outcomes.
+    runs.add(new QnTrainGolden(TrainGolden.Source.POSTAG, "TwoPass", 1, true, 100,
+        QNTrainer.L1COST_DEFAULT, QNTrainer.L2COST_DEFAULT, QNTrainer.M_DEFAULT, QNTrainer.MAX_FCT_EVAL_DEFAULT,
+        1, texts));
     return runs;
   }
 }

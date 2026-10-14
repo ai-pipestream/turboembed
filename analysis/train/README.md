@@ -120,14 +120,21 @@ and compares all of it, every parameter bit for bit after the first and the
 last iteration and by digest in between, and the written model's bytes.
 The runs stop by the change rate or the evaluation limit; none reaches the
 gradient norm or the minimum step first, so those two tests are checked
-against the Java code only.
+against the Java code only. The runs cover L1 only, L2 only, both costs
+and neither, two and three threads, discarded corrections, and the
+part-of-speech shaped source with many outcomes.
 `tests/roundtrip.rs` reproduces `analysis/maxent/tests/fixtures/models/qn.model`
-byte for byte and packages a QN sentence model trained from the golden
-events as a `.bin` that `turbo-maxent` and `turbo-sentdetect` open. That
-`.bin` was also loaded in the JVM beside a `SentenceDetectorME.train` run
-with `MAXENT_QN` on the same text: the model bytes are identical and
-`SentenceDetectorME` gives the same 210 spans with bit-equal
-probabilities.
+byte for byte and trains the QN sentence model of `en-plain.bin`'s events
+(`MAXENT_QN`, cutoff 1, the defaults): its `sent.model` bytes are the
+ones the JVM's `QNTrainer` wrote for the same events and parameters (the
+golden `sentdetect-twopass-cutoff1-qn/train/sentences` records their
+SHA-256), the `.bin` written around them is the checked in fixture
+`analysis/goldens/data/fixtures/en-plain-qn-rust.bin` byte for byte, and
+it splits the training text into 210 sentences. The golden generator
+loads that fixture in the JVM with `SentenceModel` and runs it on the
+sentence fixture inputs (`analysis/goldens/data/sentdetect/en-plain-qn-rust`);
+`analysis/sentdetect/tests/golden.rs` checks that the Rust detector gives
+the spans and probabilities the JVM recorded with it.
 
 ## Perceptron trainers
 
@@ -252,6 +259,19 @@ probabilities.
 - The line search halves the step until the Armijo condition holds. When
   the objective is NaN it never does and the JVM loops without end; here
   the loop stops with `Error::LineSearch` once the step has reached zero.
+- `OnePassRealValueDataIndexer` keeps each event's values array as it is,
+  null for an event made without values, and the trainers read
+  `values[ei][ci]` for every event once the indexer has values:
+  `GISTrainer`, `NegLogLikelihood.valueAt` and `PerceptronTrainer` throw
+  `NullPointerException`. The index is built (and matches the JVM's), and
+  the trainers refuse it with `Error::MissingValues` where the JVM would
+  throw: after the parameter checks and the outcome check.
+- `AbstractEventTrainer.train(events)` validates before it indexes:
+  `Cutoff` and `Iterations` must parse, and `QNTrainer` reads and checks
+  its own parameters (`Threads`, the costs, `NumOfUpdates`, `MaxFctEval`)
+  then too, so a bad parameter is reported whatever the events are.
+  `GISTrainer` reads `Threads` and `PerceptronTrainer` its tolerance and
+  step decrease in `doTrain`, after the outcome check.
 - `PerceptronTrainer` tells its progress monitor about iterations 1 to 9
   and every tenth only; the observer of `perceptron::train_model` hears
   every iteration. Its stop test compares the accuracy with each of the

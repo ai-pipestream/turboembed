@@ -20,14 +20,19 @@
 //!   checked by `analysis/sentdetect/tests/golden.rs`).
 //!
 //! - The same sentence events trained with `MAXENT_QN` (the defaults, cutoff
-//!   1), packaged the same way: no JVM fixture exists for it, so the check
-//!   is that `turbo-maxent` and `turbo-sentdetect` open it and that it
-//!   splits the training text; the JVM's own training of the same events
-//!   is compared outside the tests (see the crate README).
+//!   1), packaged the same way. The `sent.model` bytes are those the JVM's
+//!   `QNTrainer` wrote for the same events and parameters (the training
+//!   golden `sentdetect-twopass-cutoff1-qn/train/sentences` records their
+//!   SHA-256), and the `.bin` is the checked in fixture
+//!   `analysis/goldens/data/fixtures/en-plain-qn-rust.bin`, which the golden
+//!   generator loads in the JVM with `SentenceModel` and runs on the sentence
+//!   fixture inputs (`analysis/goldens/data/sentdetect/en-plain-qn-rust`,
+//!   checked by `analysis/sentdetect/tests/golden.rs`). It splits the
+//!   training text into 210 sentences, as `SentenceDetectorME` does with it.
 //!
 //! With `TURBO_TRAIN_OUT` set to a directory, the `.bin` files written here
-//! are saved there as `en-plain-rust.bin` (which is how that fixture was
-//! made) and `en-plain-qn-rust.bin`, for loading in the JVM.
+//! are saved there as `en-plain-rust.bin` and `en-plain-qn-rust.bin`, which
+//! is how the fixtures were made.
 
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
@@ -177,8 +182,16 @@ fn the_sentence_fixture_model_is_trained_written_loaded_and_scores_the_same() {
     assert_eq!(labels, theirs);
 }
 
+/// The SHA-256 and length a training golden recorded for the written model.
+fn golden_model(dir: &str, layer: &str) -> (String, usize) {
+    let path = data_dir().join(format!("train/{dir}/train/sentences.golden"));
+    let g = Golden::read_with(&path, &common::train_shapes()).unwrap_or_else(|e| panic!("{e}"));
+    let written = common::layer(&g, layer);
+    (written.strs("sha256").unwrap().get(0).to_string(), written.u32s("length").unwrap()[0] as usize)
+}
+
 #[test]
-fn a_qn_sentence_model_is_written_as_a_bin_that_opens_and_splits() {
+fn the_qn_sentence_model_is_the_jvms_and_its_bin_is_the_fixture() {
     let path = data_dir().join("train/sentdetect-twopass-cutoff1/train/sentences.golden");
     let g = Golden::read_with(&path, &common::train_shapes()).unwrap_or_else(|e| panic!("{e}"));
     let events = common::events(&g);
@@ -192,6 +205,10 @@ fn a_qn_sentence_model_is_written_as_a_bin_that_opens_and_splits() {
     assert_eq!(model.algorithm(), Algorithm::MaxentQn);
     let bytes = model.write().unwrap();
     assert_eq!(&bytes[..4], b"\0\x02QN");
+    // The bytes QNTrainer and GenericModelWriter produced on the JVM for
+    // the same events and parameters.
+    let (sha, length) = golden_model("sentdetect-twopass-cutoff1-qn", "turbo:qn-model");
+    assert_eq!((turbo_maxent::sha256(&bytes).to_hex(), bytes.len()), (sha, length), "the JVM's model bytes");
 
     // The fixture's instant, so the manifest differs from en-plain.bin's
     // only where the model does.
@@ -202,19 +219,19 @@ fn a_qn_sentence_model_is_written_as_a_bin_that_opens_and_splits() {
     if let Ok(dir) = std::env::var("TURBO_TRAIN_OUT") {
         std::fs::write(Path::new(&dir).join("en-plain-qn-rust.bin"), &bin).unwrap();
     }
+    let committed = std::fs::read(data_dir().join("fixtures/en-plain-qn-rust.bin")).unwrap();
+    assert_eq!(bin, committed, "analysis/goldens/data/fixtures/en-plain-qn-rust.bin is not the .bin written here");
     let ours = ModelFile::open(bin).unwrap();
     assert_eq!(ours.manifest().iter().collect::<Vec<_>>(), fixture.manifest().iter().collect::<Vec<_>>());
     let maxent = ours.maxent(SENTENCE_MODEL_ENTRY).unwrap();
     assert_eq!(maxent.num_predicates(), model.as_writable().num_predicates());
 
-    // It splits the training text into about as many sentences as the
-    // GIS fixture does; the models differ, so not the same ones.
-    let theirs = Arc::new(SentenceModel::open(fixture).unwrap());
+    // It splits the training text into 210 sentences, as SentenceDetectorME
+    // does with the same file.
     let ours = Arc::new(SentenceModel::open(ours).unwrap());
-    let (mut a, mut b) = (Vec::new(), Vec::new());
-    SentenceDetector::new(theirs, WhitespaceMode::Unicode).detect(&text, &mut a);
-    SentenceDetector::new(ours, WhitespaceMode::Unicode).detect(&text, &mut b);
-    assert!(b.len() > 100 && (a.len() as i64 - b.len() as i64).abs() < 20, "{} vs {}", a.len(), b.len());
+    let mut spans = Vec::new();
+    SentenceDetector::new(ours, WhitespaceMode::Unicode).detect(&text, &mut spans);
+    assert_eq!(spans.len(), 210);
 }
 
 #[test]

@@ -93,6 +93,12 @@ pub enum Error {
     /// decrease condition before the step reached zero, which happens when
     /// the objective is NaN. The JVM's loop does not terminate then.
     LineSearch,
+    /// An `OnePassRealValue` index keeps the events' values, and unique
+    /// event `event` has none (`Event::with_values(.., None)`). The
+    /// trainers read `values[ei][ci]` for every event when the index has
+    /// values, so the JVM throws `NullPointerException` in `GISTrainer`,
+    /// `NegLogLikelihood.valueAt` and `PerceptronTrainer`.
+    MissingValues { event: usize },
 }
 
 pub type Result<T> = std::result::Result<T, Error>;
@@ -161,6 +167,10 @@ impl fmt::Display for Error {
                 write!(f, "parameter {key} must not be negative but is {value} (IllegalArgumentException)")
             }
             Error::LineSearch => f.write_str("the line search found no acceptable step (the JVM would not terminate)"),
+            Error::MissingValues { event } => write!(
+                f,
+                "event {event} of a real value index has no values, which the JVM trainers read (NullPointerException)"
+            ),
         }
     }
 }
