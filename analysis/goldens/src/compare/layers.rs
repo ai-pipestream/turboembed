@@ -4,8 +4,8 @@
 
 use turbo_analysis::{Layer, ViewId};
 use turbo_analysis_layers::{
-    Confidence, Entities, Language, Lemmas, Money, Numbers, PosTags, Quantities, Sentences, Strs, Subwords, Tokens,
-    Utf16Spans,
+    ChunkTags, Confidence, Entities, Language, Lemmas, Money, Numbers, PhraseChunks, PosTags, Quantities, Sentences,
+    Strs, Subwords, Tokens, Utf16Spans,
 };
 
 use super::{CutCol, Items, Labels, Names, SpanCols, TokenCols, UnitCols, compare_items};
@@ -237,6 +237,69 @@ impl GoldenCompare for Entities {
             values: Some(f64s(golden, "prob")),
         };
         compare_items(cx, &rust, &golden, Names { label: Some("kind"), value: Some("prob") }, tol)
+    }
+}
+
+impl GoldenCompare for ChunkTags {
+    const COLUMNS: &'static [ColumnSpec] = &[ColumnSpec::new("tag", Str), ColumnSpec::new("prob", F64)];
+
+    /// As `PosTags`: the tag's label through the tag set, then the
+    /// probability. A layer without probabilities compares them as absent.
+    fn compare(&self, cx: &Cx<'_>, golden: &GoldenLayer, tol: Tolerance) -> Result<(), Mismatch> {
+        let rust = Items {
+            len: self.tags.len(),
+            spans: None,
+            context: cx.rust_anchor::<Tokens>(),
+            tokens: None,
+            units: None,
+            labels: Some(Labels::Tags(&self.tagset, &self.tags)),
+            values: self.prob.as_deref(),
+        };
+        let golden = Items {
+            len: golden.len(),
+            spans: None,
+            context: anchor_spans(cx, golden),
+            tokens: None,
+            units: None,
+            labels: Some(strs(golden, "tag")),
+            values: Some(f64s(golden, "prob")),
+        };
+        compare_items(cx, &rust, &golden, Names { label: Some("tag"), value: Some("prob") }, tol)
+    }
+}
+
+impl GoldenCompare for PhraseChunks {
+    const COLUMNS: &'static [ColumnSpec] = &[
+        ColumnSpec::new("start", U32),
+        ColumnSpec::new("end", U32),
+        ColumnSpec::new("token_start", U32),
+        ColumnSpec::new("token_end", U32),
+        ColumnSpec::new("kind", Str),
+    ];
+
+    /// The span, then the token range and the kind (its label through the
+    /// tag set). A phrase has no probability of its own.
+    fn compare(&self, cx: &Cx<'_>, golden: &GoldenLayer, tol: Tolerance) -> Result<(), Mismatch> {
+        let (start, end) = self.spans.columns();
+        let rust = Items {
+            len: self.spans.len(),
+            spans: Some(SpanCols { view: self.spans.view(), start, end }),
+            context: None,
+            tokens: Some(TokenCols::Ranges(&self.tokens)),
+            units: None,
+            labels: Some(Labels::Tags(&self.kinds, &self.kind)),
+            values: None,
+        };
+        let golden = Items {
+            len: golden.len(),
+            spans: Some(golden_spans(golden)),
+            context: None,
+            tokens: Some(TokenCols::Columns { start: u32s(golden, "token_start"), end: u32s(golden, "token_end") }),
+            units: None,
+            labels: Some(strs(golden, "kind")),
+            values: None,
+        };
+        compare_items(cx, &rust, &golden, Names { label: Some("kind"), value: None }, tol)
     }
 }
 

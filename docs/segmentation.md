@@ -214,9 +214,11 @@ The model's `ModelRef` is `opennlp:SentenceDetectorME:<language>`, the
 OpenNLP version in the manifest as the revision, and the SHA-256 of the
 model file.
 
-The goldens are the runs of the three published UD models checked in
-under `analysis/sentdetect/tests/models`
-(`analysis/goldens/data/sentdetect/opennlp-<language>-...`). The
+The goldens are the runs of the three published UD models
+(`analysis/goldens/data/sentdetect/opennlp-<language>-...`). The models
+are trained on CC BY-SA treebanks and not checked in;
+`turbo-goldens fetch-models` downloads them and the tests read them from
+its directory (`analysis/sentdetect/tests/models/README.md`). The
 published models have no abbreviation dictionary, so two small English
 models trained on the JVM (`en-abbrev.bin` and `en-plain.bin` in
 `analysis/goldens/data/fixtures`; the training sentences, the Java

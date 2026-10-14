@@ -70,12 +70,17 @@ The Spanish and Portuguese models are trained on GSD, not on the CC BY
 AnCora and Porttinari treebanks, so they are share-alike; only Catalan
 uses AnCora.
 
-The repository checks in eight of these share-alike models as test
-fixtures: the English, German and Portuguese sentence models
-(`analysis/sentdetect/tests/models/`) and the English, German, Spanish,
-French and Portuguese tokenizer models (`analysis/tokenize/tests/models/`).
-Under the 2026-10-14 decision share-alike files are not checked in; this
-is open.
+The tests run eight of these share-alike models: the English, German and
+Portuguese sentence models and the English, German, Spanish, French and
+Portuguese tokenizer models. Under the 2026-10-14 decision share-alike
+files are not checked in, so the tests fetch them: `cargo run -p
+turbo-goldens-tool -- fetch-models <dir>` downloads them and checks their
+SHA-512 (`analysis/goldens-tool/src/recipe.rs`), the tests read them from
+that directory, and CI fetches them and requires them. The READMEs in
+`analysis/sentdetect/tests/models/` and `analysis/tokenize/tests/models/`
+list them. The small fixture models trained for this project
+(`analysis/goldens/data/fixtures`, listed in `analysis/goldens/data/README.md`)
+stay checked in.
 
 ## OpenNLP models (refused)
 

@@ -129,24 +129,42 @@ fn only_catalan_needs_no_acceptance() {
     }
 }
 
-/// The OpenNLP models the repository checks in as test fixtures are the
-/// bytes the index describes.
+/// The UD models the sentence detector and tokenizer tests run, which
+/// `turbo-goldens fetch-models` downloads (they are trained on CC BY-SA
+/// treebanks and not checked in), are the bytes the index describes. They
+/// are read from the directory in `TURBO_GOLDENS_MODELS`, or
+/// `target/turbo-goldens/models` under the repository root; without them
+/// the test says so and passes, unless
+/// `TURBO_TEST_REQUIRE_OPENNLP_MODELS=1`, which makes a missing model fail
+/// it, as CI sets it.
 #[test]
-fn checked_in_models_match_the_index() {
-    let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("..");
+fn fetched_test_models_match_the_index() {
+    const MODELS: [&str; 8] = [
+        "opennlp-de-ud-gsd-sentence-1.3-2.5.4",
+        "opennlp-en-ud-ewt-sentence-1.3-2.5.4",
+        "opennlp-pt-ud-gsd-sentence-1.3-2.5.4",
+        "opennlp-en-ud-ewt-tokens-1.3-2.5.4",
+        "opennlp-de-ud-gsd-tokens-1.3-2.5.4",
+        "opennlp-es-ud-gsd-tokens-1.3-2.5.4",
+        "opennlp-fr-ud-gsd-tokens-1.3-2.5.4",
+        "opennlp-pt-ud-gsd-tokens-1.3-2.5.4",
+    ];
+    let dir = match std::env::var_os("TURBO_GOLDENS_MODELS") {
+        Some(d) => std::path::PathBuf::from(d),
+        None => Path::new(env!("CARGO_MANIFEST_DIR")).join("../../target/turbo-goldens/models"),
+    };
+    let required = std::env::var("TURBO_TEST_REQUIRE_OPENNLP_MODELS").is_ok_and(|v| v == "1");
     let index = Index::builtin();
-    let mut seen = 0;
-    for dir in ["sentdetect/tests/models", "tokenize/tests/models"] {
-        for entry in std::fs::read_dir(root.join(dir)).unwrap() {
-            let path = entry.unwrap().path();
-            let Some(name) = path.file_name().and_then(|n| n.to_str()) else { continue };
-            let Some(id) = name.strip_suffix(".bin") else { continue };
-            let a = index.get(id).unwrap();
-            verify(a, &a.files[0], &std::fs::read(&path).unwrap()).unwrap();
-            seen += 1;
+    for id in MODELS {
+        let path = dir.join(format!("{id}.bin"));
+        if !path.is_file() {
+            assert!(!required, "{} not found and TURBO_TEST_REQUIRE_OPENNLP_MODELS=1", path.display());
+            eprintln!("{} not found: skipping its check", path.display());
+            continue;
         }
+        let a = index.get(id).unwrap();
+        verify(a, &a.files[0], &std::fs::read(&path).unwrap()).unwrap();
     }
-    assert_eq!(seen, 8);
 }
 
 /// Fetches every artifact of the built-in index from its address and
