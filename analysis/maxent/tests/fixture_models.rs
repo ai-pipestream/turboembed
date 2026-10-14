@@ -37,7 +37,7 @@ fn expected(model: &str) -> (Vec<String>, Vec<Case>) {
 
 fn check(model: &MaxentModel, name: &str) {
     let (outcomes, cases) = expected(name);
-    assert_eq!(model.outcomes().collect::<Vec<_>>(), outcomes, "{name}");
+    assert_eq!(model.outcome_texts().unwrap(), outcomes, "{name}");
     assert!(!cases.is_empty());
     let mut out = vec![0.0; model.num_outcomes()];
     let mut bytes_out = vec![0.0; model.num_outcomes()];

@@ -25,6 +25,7 @@ use common::Case;
 use turbo_analysis::{Analyzer, Bound, Document, Key};
 use turbo_analysis_layers::{ChunkTags, PhraseChunks, PosTags, Tokens};
 use turbo_goldens::{GOLDEN_KEY, Tolerance, Unit, golden_key, load_document, matches_golden_key};
+use turbo_maxent::JavaString;
 use turbo_phrase_chunker::{ChunkerModel, PhraseChunker, TokenTag};
 use turbo_sequence::chunker::{ChunkerValidator, DefaultChunkerContext};
 use turbo_sequence::{BeamSearch, ContextGenerator, Features};
@@ -146,12 +147,12 @@ fn check_dump(case: &Case, doc: &Document, model: &ChunkerModel) -> usize {
     let dump = case.dump();
     let what = case.path.display().to_string();
     let maxent = model.maxent();
-    let labels: Vec<&str> = (0..maxent.num_outcomes()).map(|i| maxent.outcome(i)).collect();
+    let labels: Vec<&JavaString> = maxent.outcomes().collect();
     let mut recorder = Recorder { inner: DefaultChunkerContext, calls: Vec::new() };
     let mut seen: Vec<(u32, Vec<Vec<u8>>)> = Vec::new();
     for sentence in sentences(doc) {
         let words: Vec<TokenTag<'_>> = sentence.iter().map(|&(w, _)| w).collect();
-        let search = BeamSearch::new(model.beam_size(), maxent);
+        let search = BeamSearch::new(model.beam_size(), maxent).unwrap();
         search.best_sequence(&words, &mut recorder, &ChunkerValidator).unwrap_or_else(|| panic!("{what}"));
         for (index, features) in recorder.calls.drain(..) {
             seen.push((sentence[index].1, features));
@@ -176,7 +177,7 @@ fn check_dump(case: &Case, doc: &Document, model: &ChunkerModel) -> usize {
         assert_eq!(features, &want, "{what} at {start}: {:?} against {:?}", show(features), show(&want));
         assert_eq!(features.len(), 41, "{what} at {start}");
         assert!(p.values.is_none() && p.acceptable.is_none(), "{what} at {start}");
-        let got: Vec<&str> = p.outcomes.iter().map(|o| o.label.as_str()).collect();
+        let got: Vec<&JavaString> = p.outcomes.iter().map(|o| &o.label).collect();
         assert_eq!(got, labels, "{what} at {start}: outcomes");
         maxent.eval_features(features.iter().map(Vec::as_slice), &mut probs);
         for (o, &got) in p.outcomes.iter().zip(&probs) {

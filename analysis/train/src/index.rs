@@ -122,7 +122,7 @@ struct EventValues {
 #[derive(Debug, Clone, PartialEq)]
 pub struct DataIndex {
     kind: IndexerKind,
-    outcome_labels: Vec<String>,
+    outcome_labels: Vec<JavaString>,
     pred_labels: Vec<JavaString>,
     pred_counts: Vec<u32>,
     num_events: u32,
@@ -185,20 +185,6 @@ fn compare(a: &Comparable, b: &Comparable, all: &[u32]) -> Ordering {
     pa.len().cmp(&pb.len())
 }
 
-/// The length of a string in Java's modified UTF-8, which
-/// `DataOutputStream.writeUTF` limits to 65535.
-fn modified_utf8_len(s: &str) -> usize {
-    s.chars()
-        .map(|c| match u32::from(c) {
-            0 => 2,
-            1..=0x7F => 1,
-            0x80..=0x7FF => 2,
-            0x800..=0xFFFF => 3,
-            _ => 6,
-        })
-        .sum()
-}
-
 impl DataIndex {
     /// Indexes `events` as the indexer `params.kind` would.
     pub fn index(events: &[Event], params: &IndexParams) -> Result<DataIndex> {
@@ -220,13 +206,13 @@ impl DataIndex {
         let pred_counts: Vec<u32> = kept.iter().map(|(_, n)| *n).collect();
 
         // Steps 2 and 3: outcomes in order of first sight, contexts as ids.
-        let mut outcome_index: HashMap<&str, u32> = HashMap::new();
-        let mut outcome_labels: Vec<String> = Vec::new();
+        let mut outcome_index: HashMap<&JavaString, u32> = HashMap::new();
+        let mut outcome_labels: Vec<JavaString> = Vec::new();
         let mut all_preds: Vec<u32> = Vec::new();
         let mut comparables: Vec<Comparable> = Vec::new();
         for e in events {
             let outcome = *outcome_index.entry(e.outcome()).or_insert_with(|| {
-                outcome_labels.push(e.outcome().to_owned());
+                outcome_labels.push(e.outcome().clone());
                 outcome_labels.len() as u32 - 1
             });
             let start = all_preds.len();
@@ -302,7 +288,7 @@ impl DataIndex {
 
     /// `getOutcomeLabels`: every outcome in order of first sight, those of
     /// dropped events included.
-    pub fn outcome_labels(&self) -> &[String] {
+    pub fn outcome_labels(&self) -> &[JavaString] {
         &self.outcome_labels
     }
 
@@ -388,9 +374,8 @@ impl DataIndex {
 /// What `TwoPassDataIndexer.computeEventCounts` would throw while writing
 /// the event: `UTFDataFormatException` for a string over 65535 bytes.
 fn check_write_utf(e: &Event) -> Result<()> {
-    let bytes = modified_utf8_len(e.outcome());
-    if bytes > 65535 {
-        return Err(Error::StringTooLong { what: "outcome", bytes });
+    if e.outcome().len() > 65535 {
+        return Err(Error::StringTooLong { what: "outcome", bytes: e.outcome().len() });
     }
     for c in e.context() {
         if c.len() > 65535 {
@@ -572,7 +557,7 @@ mod tests {
         );
         // Exactly 65535 bytes is fine, and OnePass has no limit.
         let fits = format!("{}a", "é".repeat(32767));
-        assert_eq!(modified_utf8_len(&fits), 65535);
+        assert_eq!(JavaString::new(&fits).len(), 65535);
         assert!(DataIndex::index(&[Event::from_strs("s", &[&fits])], &params(IndexerKind::TwoPass, 0)).is_ok());
         assert!(DataIndex::index(&events, &params(IndexerKind::OnePass, 0)).is_ok());
     }
@@ -592,11 +577,20 @@ mod tests {
     }
 
     #[test]
-    fn modified_utf8_lengths() {
-        assert_eq!(modified_utf8_len("a\0"), 3);
-        assert_eq!(modified_utf8_len("é"), 2);
-        assert_eq!(modified_utf8_len("€"), 3);
-        assert_eq!(modified_utf8_len("😀"), 6);
+    fn outcomes_with_lone_surrogates_are_numbered_by_their_units() {
+        // Two lemma classes that differ only in which half of the pair they
+        // delete, and the same class seen again.
+        let high = JavaString::from_utf16(&[0x44, 0x30, 0xD83D]);
+        let low = JavaString::from_utf16(&[0x44, 0x30, 0xDE00]);
+        let events = [
+            Event::new(high.clone(), vec![JavaString::new("a")]),
+            Event::new(low.clone(), vec![JavaString::new("a")]),
+            Event::new(high.clone(), vec![JavaString::new("a")]),
+        ];
+        let ix = DataIndex::index(&events, &params(IndexerKind::TwoPass, 0)).unwrap();
+        assert_eq!(ix.outcome_labels(), [high, low]);
+        assert_eq!(ix.outcomes(), [0, 1]);
+        assert_eq!(ix.times_seen(), [2, 1]);
     }
 
     #[test]

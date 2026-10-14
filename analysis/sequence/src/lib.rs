@@ -5,7 +5,10 @@
 //!
 //! - [`beam`]: `BeamSearch` over a [`turbo_maxent::MaxentModel`], with
 //!   the [`ContextGenerator`] and [`SequenceValidator`] traits a tagger
-//!   plugs into it.
+//!   plugs into it. The outcomes it hands out are `str` for the taggers
+//!   whose outcomes are text and [`turbo_maxent::JavaString`] for the
+//!   lemmatizer, whose classes can hold half of a surrogate pair
+//!   ([`OutcomeLabel`]).
 //! - [`codec`]: `BioCodec` and `BilouCodec` and their validators.
 //! - [`featuregen`]: the feature generators and `GeneratorFactory`
 //!   ([`featuregen::descriptor`]).
@@ -92,7 +95,9 @@ pub mod namefind;
 pub mod pattern;
 pub mod postag;
 
-pub use beam::{AcceptAll, BeamSearch, ContextGenerator, Sequence, SequenceValidator, manifest_beam_size};
+pub use beam::{
+    AcceptAll, BeamSearch, ContextGenerator, OutcomeLabel, Sequence, SequenceValidator, manifest_beam_size,
+};
 pub use chunker::TokenTag;
 pub use codec::{BilouCodec, BioCodec, SequenceCodec, Span};
 pub use error::{Error, Result};

@@ -2,10 +2,10 @@
 //!
 //! An [`Event`] is `opennlp.tools.ml.model.Event`: an outcome, the context
 //! (the predicates that were true) and, for real valued features, one
-//! `float` per predicate. A predicate is a [`JavaString`], since the
-//! tokenizer's context generator makes predicates that hold half a
-//! surrogate pair; an outcome is a `String`, as outcomes are labels from
-//! the samples. [`FileEventStream`] reads the format `FileEventStream`
+//! `float` per predicate. Both are [`JavaString`]s: the tokenizer's
+//! context generator makes predicates that hold half a surrogate pair,
+//! and the lemmatizer's classes, its outcomes, edit the UTF-16 units of a
+//! word and can hold one too. [`FileEventStream`] reads the format `FileEventStream`
 //! reads (`outcome pred pred ...` per line), and
 //! [`RealValueFileEventStream`] the one `RealValueFileEventStream` reads,
 //! where a predicate may end in `=value`. [`EventChecksum`] is
@@ -21,7 +21,7 @@ use turbo_unicode::props::white_space;
 /// One training event.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Event {
-    outcome: String,
+    outcome: JavaString,
     context: Vec<JavaString>,
     /// One value per context, or none when every predicate counts 1.
     values: Option<Vec<f32>>,
@@ -29,12 +29,12 @@ pub struct Event {
 
 impl Event {
     /// An event whose predicates all count 1.
-    pub fn new(outcome: impl Into<String>, context: Vec<JavaString>) -> Event {
+    pub fn new(outcome: impl Into<JavaString>, context: Vec<JavaString>) -> Event {
         Event { outcome: outcome.into(), context, values: None }
     }
 
     /// An event with predicates given as text.
-    pub fn from_strs(outcome: impl Into<String>, context: &[&str]) -> Event {
+    pub fn from_strs(outcome: impl Into<JavaString>, context: &[&str]) -> Event {
         Event::new(outcome, context.iter().map(|c| JavaString::new(c)).collect())
     }
 
@@ -42,7 +42,7 @@ impl Event {
     /// `context`; OpenNLP does not check that and fails later, out of
     /// bounds. `None` values make a plain event.
     pub fn with_values(
-        outcome: impl Into<String>,
+        outcome: impl Into<JavaString>,
         context: Vec<JavaString>,
         values: Option<Vec<f32>>,
     ) -> Result<Event> {
@@ -54,7 +54,7 @@ impl Event {
         Ok(Event { outcome: outcome.into(), context, values })
     }
 
-    pub fn outcome(&self) -> &str {
+    pub fn outcome(&self) -> &JavaString {
         &self.outcome
     }
 
@@ -69,12 +69,12 @@ impl Event {
     /// What `Event.toString` returns, encoded as `getBytes(UTF_8)` encodes
     /// it: `outcome [pred pred ...]`, each predicate followed by `=` and
     /// `Float.toString` of its value when the event has values, and a
-    /// lone surrogate in a predicate written as `?`. This is the text the
-    /// event checksum hashes.
+    /// lone surrogate in the outcome or a predicate written as `?`. This
+    /// is the text the event checksum hashes.
     pub fn java_string(&self) -> String {
         let mut s =
             String::with_capacity(self.outcome.len() + 3 + self.context.iter().map(|c| c.len() + 1).sum::<usize>());
-        s.push_str(&self.outcome);
+        self.outcome.push_java_utf8(&mut s);
         s.push_str(" [");
         for (i, c) in self.context.iter().enumerate() {
             if i > 0 {
@@ -97,7 +97,7 @@ impl Event {
     /// OpenNLP. [`Event::real_value_line`] writes them.
     pub fn to_line(&self) -> String {
         let mut s = String::with_capacity(self.outcome.len() + self.context.iter().map(|c| c.len() + 1).sum::<usize>());
-        s.push_str(&self.outcome);
+        self.outcome.push_java_utf8(&mut s);
         for c in &self.context {
             s.push(' ');
             c.push_java_utf8(&mut s);
@@ -113,7 +113,7 @@ impl Event {
             return self.to_line();
         };
         let mut s = String::with_capacity(self.outcome.len() + self.context.iter().map(|c| c.len() + 5).sum::<usize>());
-        s.push_str(&self.outcome);
+        self.outcome.push_java_utf8(&mut s);
         for (c, v) in self.context.iter().zip(values) {
             s.push(' ');
             c.push_java_utf8(&mut s);
@@ -384,6 +384,13 @@ mod tests {
         assert_eq!(e.java_string(), "T [p=? 😀]");
         assert_eq!(e.to_line(), "T p=? 😀");
         assert_eq!(checksum([&e]), crate::crc32c::crc32c("T [p=? 😀]".as_bytes()));
+        // The lemmatizer's class of "😀" with the lemma "_": R1<low>_D0<high>.
+        let class = JavaString::from_utf16(&[0x52, 0x31, 0xDE00, 0x5F, 0x44, 0x30, 0xD83D]);
+        let e = Event::new(class.clone(), vec![JavaString::new("w0=😀")]);
+        assert_eq!(e.outcome(), &class);
+        assert_eq!(e.java_string(), "R1?_D0? [w0=😀]");
+        assert_eq!(e.to_line(), "R1?_D0? w0=😀");
+        assert_eq!(e.real_value_line(), "R1?_D0? w0=😀");
     }
 
     #[test]
@@ -400,7 +407,7 @@ mod tests {
         // The no-break space and the ideographic space have White_Space; the
         // zero width space and the word joiner do not.
         let e = parse_real_value_event("s\u{A0}a=2\u{3000}b\u{200B}c=0.5 d", 1).unwrap();
-        assert_eq!(e.outcome(), "s");
+        assert_eq!(*e.outcome(), "s");
         assert_eq!(e.context(), strs(&["a", "b\u{200B}c", "d"]));
         assert_eq!(e.values(), Some(&[2.0f32, 0.5, 1.0][..]));
     }

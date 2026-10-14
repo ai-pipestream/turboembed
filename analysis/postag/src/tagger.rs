@@ -62,7 +62,8 @@ impl PosTagger {
         probs: &mut Vec<f64>,
     ) -> bool {
         let model = &self.model;
-        let search = BeamSearch::new(model.beam_size(), model.maxent());
+        let search = BeamSearch::new(model.beam_size(), model.maxent())
+            .expect("the outcomes were checked to be text when the model was opened");
         let Some(best) = search.best_sequence(words, context, &model.validator()) else {
             return false;
         };

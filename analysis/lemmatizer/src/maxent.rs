@@ -6,6 +6,7 @@ use std::sync::Arc;
 
 use turbo_analysis::{Annotator, Error, ModelRef, Refs, View};
 use turbo_analysis_layers::{Confidence, Lemmas, PosTags, Strs, Tokens};
+use turbo_maxent::JavaString;
 use turbo_sequence::{AcceptAll, BeamSearch, TokenTag};
 
 use crate::context::LemmaContext;
@@ -22,6 +23,13 @@ use crate::model::LemmatizerModel;
 /// (`LemmatizerME.decodeLemmas`), so a lemma is lowercase and `_` where
 /// the class leaves nothing. The probabilities (`probs()`) are the JVM's
 /// doubles bit for bit. A sentence is lemmatized on its own.
+///
+/// The classes are the model's outcomes as [`JavaString`]s: a class edits
+/// the UTF-16 units of a word, so a model trained on a word or lemma with
+/// a character outside the BMP can hold a class with half of a surrogate
+/// pair, which is searched for, written into the next token's features
+/// and decoded as the JVM does it. A lemma that is left holding half a
+/// pair has it replaced by U+FFFD, since the layer holds text.
 #[derive(Debug)]
 pub struct MaxentLemmatizer {
     model: Arc<LemmatizerModel>,
@@ -41,8 +49,13 @@ impl MaxentLemmatizer {
     /// each tagged word and its probability, or appends nothing and
     /// returns false when no sequence scored above the search's minimum
     /// (where `lemmatize` returns an array of nulls).
-    pub fn classes<'m>(&'m self, words: &[TokenTag<'_>], classes: &mut Vec<&'m str>, probs: &mut Vec<f64>) -> bool {
-        let search = BeamSearch::new(self.model.beam_size(), self.model.maxent());
+    pub fn classes<'m>(
+        &'m self,
+        words: &[TokenTag<'_>],
+        classes: &mut Vec<&'m JavaString>,
+        probs: &mut Vec<f64>,
+    ) -> bool {
+        let Ok(search) = BeamSearch::<JavaString>::new(self.model.beam_size(), self.model.maxent());
         let Some(best) = search.best_sequence(words, &mut LemmaContext, &AcceptAll) else {
             return false;
         };
@@ -196,7 +209,7 @@ mod tests {
         let Some(l) = english() else { return };
         let (mut classes, mut probs) = (Vec::new(), Vec::new());
         assert!(l.classes(&[TokenTag { token: "dogs", tag: "NOUN" }], &mut classes, &mut probs));
-        assert_eq!(classes, ["D0s"]);
+        assert_eq!(classes, [&JavaString::new("D0s")]);
         assert_eq!(probs.len(), 1);
     }
 
