@@ -1,0 +1,33 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	formats/lemma-stop	16	16	f50e736c752e2f2c747b40d8ebc008700ac81a772db8be7db3bf09080d136ad2
+annotator	opennlp.tools.lemmatizer.LemmaSampleEventStream	read
+config	format	text
+config	language	en
+config	run	lemma-text
+config	source	lemmatize
+layer	turbo:events	document	1	outcome:str	context:str	values:str
+O	w0=a t0=DT p_1=bos p_1=bost0=DT p_1=bosw0=a suf=null suf=a suf=a suf=a suf=a suf=a suf=a pre=null pre=a pre=a pre=a pre=a	
+end	turbo:events
+layer	turbo:stream-errors	document	0	after:u32	class:str	message:str
+end	turbo:stream-errors
+layer	turbo:event-checksum	document	1	crc32c:u32
+3185677817
+end	turbo:event-checksum
+layer	turbo:manifest	document	8	key:str	value:str
+BeamSize	3
+Component-Name	StatisticalLemmatizer
+Language	en
+Manifest-Version	1.0
+OpenNLP-Version	3.0.0-SNAPSHOT
+TrainerType	Event
+Training-Eventhash	1
+factory	opennlp.tools.lemmatizer.LemmatizerFactory
+end	turbo:manifest
+layer	turbo:package-entries	document	2	name:str	length:u32
+manifest.properties	258
+lemmatizer.model	67
+end	turbo:package-entries

@@ -1,0 +1,187 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	tagged/wordtag	1209	1209	16973097463ec90305b0e175fcd69ff911c7fcb30ea14ba2f9a03adbaf1b6267
+annotator	opennlp.tools.postag.POSSampleEventStream	read
+config	format	text
+config	language	en
+config	run	postag-wordtag
+config	source	postag
+layer	turbo:events	document	154	outcome:str	context:str	values:str
+DT	def suf=e suf=he suf=The pre=T pre=Th pre=The w=the n1w=driver n2w=stopped S=begin wc=ic w&c=the,ic	
+NN	def suf=r suf=er suf=ver suf=iver pre=d pre=dr pre=dri pre=driv w=driver p1w=the n1w=stopped n2w=the p1S=begin wc=lc w&c=driver,lc t=DT	
+VBD	def suf=d suf=ed suf=ped suf=pped pre=s pre=st pre=sto pre=stop w=stopped p1w=driver p2w=the n1w=the n2w=bus p2S=begin wc=lc w&c=stopped,lc t=NN t2=DT,NN	
+DT	def suf=e suf=he suf=the pre=t pre=th pre=the w=the p1w=stopped p2w=driver n1w=bus n2w=at wc=lc w&c=the,lc t=VBD t2=NN,VBD	
+NN	def suf=s suf=us suf=bus pre=b pre=bu pre=bus w=bus p1w=the p2w=stopped n1w=at n2w=the wc=lc w&c=bus,lc t=DT t2=VBD,DT	
+IN	def suf=t suf=at pre=a pre=at w=at p1w=bus p2w=the n1w=the n2w=station wc=lc w&c=at,lc t=NN t2=DT,NN	
+DT	def suf=e suf=he suf=the pre=t pre=th pre=the w=the p1w=at p2w=bus n1w=station n2w=. wc=lc w&c=the,lc t=IN t2=NN,IN	
+NN	def suf=n suf=on suf=ion suf=tion pre=s pre=st pre=sta pre=stat w=station p1w=the p2w=at n1w=. wc=lc w&c=station,lc t=DT t2=IN,DT	
+.	def suf=. pre=. w=. p1w=station p2w=the wc=other w&c=.,other t=NN t2=DT,NN	
+NNP	def suf=. suf=r. suf=Mr. pre=M pre=Mr pre=Mr. w=mr. n1w=smith n2w=arrived S=begin wc=ic w&c=mr.,ic	
+NNP	def suf=h suf=th suf=ith suf=mith pre=S pre=Sm pre=Smi pre=Smit w=smith p1w=mr. n1w=arrived n2w=in p1S=begin wc=ic w&c=smith,ic t=NNP	
+VBD	def suf=d suf=ed suf=ved suf=ived pre=a pre=ar pre=arr pre=arri w=arrived p1w=smith p2w=mr. n1w=in n2w=paris p2S=begin wc=lc w&c=arrived,lc t=NNP t2=NNP,NNP	
+IN	def suf=n suf=in pre=i pre=in w=in p1w=arrived p2w=smith n1w=paris n2w=on wc=lc w&c=in,lc t=VBD t2=NNP,VBD	
+NNP	def suf=s suf=is suf=ris suf=aris pre=P pre=Pa pre=Par pre=Pari w=paris p1w=in p2w=arrived n1w=on n2w=monday wc=ic w&c=paris,ic t=IN t2=VBD,IN	
+IN	def suf=n suf=on pre=o pre=on w=on p1w=paris p2w=in n1w=monday n2w=. wc=lc w&c=on,lc t=NNP t2=IN,NNP	
+NNP	def suf=y suf=ay suf=day suf=nday pre=M pre=Mo pre=Mon pre=Mond w=monday p1w=on p2w=paris n1w=. wc=ic w&c=monday,ic t=IN t2=NNP,IN	
+.	def suf=. pre=. w=. p1w=monday p2w=on wc=other w&c=.,other t=NNP t2=IN,NNP	
+PRP	def suf=e suf=he suf=She pre=S pre=Sh pre=She w=she n1w=runs n2w=every S=begin wc=ic w&c=she,ic	
+VBZ	def suf=s suf=ns suf=uns suf=runs pre=r pre=ru pre=run pre=runs w=runs p1w=she n1w=every n2w=morning p1S=begin wc=lc w&c=runs,lc t=PRP	
+DT	def suf=y suf=ry suf=ery suf=very pre=e pre=ev pre=eve pre=ever w=every p1w=runs p2w=she n1w=morning n2w=before p2S=begin wc=lc w&c=every,lc t=VBZ t2=PRP,VBZ	
+NN	def suf=g suf=ng suf=ing suf=ning pre=m pre=mo pre=mor pre=morn w=morning p1w=every p2w=runs n1w=before n2w=work wc=lc w&c=morning,lc t=DT t2=VBZ,DT	
+IN	def suf=e suf=re suf=ore suf=fore pre=b pre=be pre=bef pre=befo w=before p1w=morning p2w=every n1w=work n2w=. wc=lc w&c=before,lc t=NN t2=DT,NN	
+NN	def suf=k suf=rk suf=ork suf=work pre=w pre=wo pre=wor pre=work w=work p1w=before p2w=morning n1w=. wc=lc w&c=work,lc t=IN t2=NN,IN	
+.	def suf=. pre=. w=. p1w=work p2w=before wc=other w&c=.,other t=NN t2=IN,NN	
+PRP	def suf=y suf=ey suf=hey suf=They pre=T pre=Th pre=The pre=They w=they n1w=run n2w=a S=begin wc=ic w&c=they,ic	
+VBP	def suf=n suf=un suf=run pre=r pre=ru pre=run w=run p1w=they n1w=a n2w=small p1S=begin wc=lc w&c=run,lc t=PRP	
+DT	def suf=a pre=a w=a p1w=run p2w=they n1w=small n2w=shop p2S=begin wc=lc w&c=a,lc t=VBP t2=PRP,VBP	
+JJ	def suf=l suf=ll suf=all suf=mall pre=s pre=sm pre=sma pre=smal w=small p1w=a p2w=run n1w=shop n2w=near wc=lc w&c=small,lc t=DT t2=VBP,DT	
+NN	def suf=p suf=op suf=hop suf=shop pre=s pre=sh pre=sho pre=shop w=shop p1w=small p2w=a n1w=near n2w=the wc=lc w&c=shop,lc t=JJ t2=DT,JJ	
+IN	def suf=r suf=ar suf=ear suf=near pre=n pre=ne pre=nea pre=near w=near p1w=shop p2w=small n1w=the n2w=river wc=lc w&c=near,lc t=NN t2=JJ,NN	
+DT	def suf=e suf=he suf=the pre=t pre=th pre=the w=the p1w=near p2w=shop n1w=river n2w=. wc=lc w&c=the,lc t=IN t2=NN,IN	
+NN	def suf=r suf=er suf=ver suf=iver pre=r pre=ri pre=riv pre=rive w=river p1w=the p2w=near n1w=. wc=lc w&c=river,lc t=DT t2=IN,DT	
+.	def suf=. pre=. w=. p1w=river p2w=the wc=other w&c=.,other t=NN t2=DT,NN	
+PRP	def suf=e suf=He pre=H pre=He w=he n1w=fell n2w=and S=begin wc=ic w&c=he,ic	
+VBD	def suf=l suf=ll suf=ell suf=fell pre=f pre=fe pre=fel pre=fell w=fell p1w=he n1w=and n2w=broke p1S=begin wc=lc w&c=fell,lc t=PRP	
+CC	def suf=d suf=nd suf=and pre=a pre=an pre=and w=and p1w=fell p2w=he n1w=broke n2w=his p2S=begin wc=lc w&c=and,lc t=VBD t2=PRP,VBD	
+VBD	def suf=e suf=ke suf=oke suf=roke pre=b pre=br pre=bro pre=brok w=broke p1w=and p2w=fell n1w=his n2w=arm wc=lc w&c=broke,lc t=CC t2=VBD,CC	
+PRP$	def suf=s suf=is suf=his pre=h pre=hi pre=his w=his p1w=broke p2w=and n1w=arm n2w=. wc=lc w&c=his,lc t=VBD t2=CC,VBD	
+NN	def suf=m suf=rm suf=arm pre=a pre=ar pre=arm w=arm p1w=his p2w=broke n1w=. wc=lc w&c=arm,lc t=PRP$ t2=VBD,PRP$	
+.	def suf=. pre=. w=. p1w=arm p2w=his wc=other w&c=.,other t=NN t2=PRP$,NN	
+NNS	def suf=s suf=es suf=ces suf=ices pre=P pre=Pr pre=Pri pre=Pric w=prices n1w=have n2w=fallen S=begin wc=ic w&c=prices,ic	
+VBP	def suf=e suf=ve suf=ave suf=have pre=h pre=ha pre=hav pre=have w=have p1w=prices n1w=fallen n2w=by p1S=begin wc=lc w&c=have,lc t=NNS	
+VBN	def suf=n suf=en suf=len suf=llen pre=f pre=fa pre=fal pre=fall w=fallen p1w=have p2w=prices n1w=by n2w=12 p2S=begin wc=lc w&c=fallen,lc t=VBP t2=NNS,VBP	
+IN	def suf=y suf=by pre=b pre=by w=by p1w=fallen p2w=have n1w=12 n2w=percent wc=lc w&c=by,lc t=VBN t2=VBP,VBN	
+CD	def suf=2 suf=12 pre=1 pre=12 w=12 p1w=by p2w=fallen n1w=percent n2w=since wc=2d w&c=12,2d t=IN t2=VBN,IN	
+NN	def suf=t suf=nt suf=ent suf=cent pre=p pre=pe pre=per pre=perc w=percent p1w=12 p2w=by n1w=since n2w=march wc=lc w&c=percent,lc t=CD t2=IN,CD	
+IN	def suf=e suf=ce suf=nce suf=ince pre=s pre=si pre=sin pre=sinc w=since p1w=percent p2w=12 n1w=march n2w=. wc=lc w&c=since,lc t=NN t2=CD,NN	
+NNP	def suf=h suf=ch suf=rch suf=arch pre=M pre=Ma pre=Mar pre=Marc w=march p1w=since p2w=percent n1w=. wc=ic w&c=march,ic t=IN t2=NN,IN	
+.	def suf=. pre=. w=. p1w=march p2w=since wc=other w&c=.,other t=NNP t2=IN,NNP	
+PRP	def suf=e suf=We pre=W pre=We w=we n1w=will n2w=run S=begin wc=ic w&c=we,ic	
+MD	def suf=l suf=ll suf=ill suf=will pre=w pre=wi pre=wil pre=will w=will p1w=we n1w=run n2w=the p1S=begin wc=lc w&c=will,lc t=PRP	
+VB	def suf=n suf=un suf=run pre=r pre=ru pre=run w=run p1w=will p2w=we n1w=the n2w=test p2S=begin wc=lc w&c=run,lc t=MD t2=PRP,MD	
+DT	def suf=e suf=he suf=the pre=t pre=th pre=the w=the p1w=run p2w=will n1w=test n2w=again wc=lc w&c=the,lc t=VB t2=MD,VB	
+NN	def suf=t suf=st suf=est suf=test pre=t pre=te pre=tes pre=test w=test p1w=the p2w=run n1w=again n2w=tomorrow wc=lc w&c=test,lc t=DT t2=VB,DT	
+RB	def suf=n suf=in suf=ain suf=gain pre=a pre=ag pre=aga pre=agai w=again p1w=test p2w=the n1w=tomorrow n2w=. wc=lc w&c=again,lc t=NN t2=DT,NN	
+NN	def suf=w suf=ow suf=row suf=rrow pre=t pre=to pre=tom pre=tomo w=tomorrow p1w=again p2w=test n1w=. wc=lc w&c=tomorrow,lc t=RB t2=NN,RB	
+.	def suf=. pre=. w=. p1w=tomorrow p2w=again wc=other w&c=.,other t=NN t2=RB,NN	
+DT	def suf=e suf=he suf=The pre=T pre=Th pre=The w=the n1w=quick n2w=brown S=begin wc=ic w&c=the,ic	
+JJ	def suf=k suf=ck suf=ick suf=uick pre=q pre=qu pre=qui pre=quic w=quick p1w=the n1w=brown n2w=fox p1S=begin wc=lc w&c=quick,lc t=DT	
+JJ	def suf=n suf=wn suf=own suf=rown pre=b pre=br pre=bro pre=brow w=brown p1w=quick p2w=the n1w=fox n2w=jumped p2S=begin wc=lc w&c=brown,lc t=JJ t2=DT,JJ	
+NN	def suf=x suf=ox suf=fox pre=f pre=fo pre=fox w=fox p1w=brown p2w=quick n1w=jumped n2w=over wc=lc w&c=fox,lc t=JJ t2=JJ,JJ	
+VBD	def suf=d suf=ed suf=ped suf=mped pre=j pre=ju pre=jum pre=jump w=jumped p1w=fox p2w=brown n1w=over n2w=the wc=lc w&c=jumped,lc t=NN t2=JJ,NN	
+IN	def suf=r suf=er suf=ver suf=over pre=o pre=ov pre=ove pre=over w=over p1w=jumped p2w=fox n1w=the n2w=lazy wc=lc w&c=over,lc t=VBD t2=NN,VBD	
+DT	def suf=e suf=he suf=the pre=t pre=th pre=the w=the p1w=over p2w=jumped n1w=lazy n2w=dog wc=lc w&c=the,lc t=IN t2=VBD,IN	
+JJ	def suf=y suf=zy suf=azy suf=lazy pre=l pre=la pre=laz pre=lazy w=lazy p1w=the p2w=over n1w=dog n2w=. wc=lc w&c=lazy,lc t=DT t2=IN,DT	
+NN	def suf=g suf=og suf=dog pre=d pre=do pre=dog w=dog p1w=lazy p2w=the n1w=. wc=lc w&c=dog,lc t=JJ t2=DT,JJ	
+.	def suf=. pre=. w=. p1w=dog p2w=lazy wc=other w&c=.,other t=NN t2=JJ,NN	
+NNP	def suf=. suf=r. suf=Dr. pre=D pre=Dr pre=Dr. w=dr. n1w=brown n2w=met S=begin wc=ic w&c=dr.,ic	
+NNP	def suf=n suf=wn suf=own suf=rown pre=B pre=Br pre=Bro pre=Brow w=brown p1w=dr. n1w=met n2w=him p1S=begin wc=ic w&c=brown,ic t=NNP	
+VBD	def suf=t suf=et suf=met pre=m pre=me pre=met w=met p1w=brown p2w=dr. n1w=him n2w=on p2S=begin wc=lc w&c=met,lc t=NNP t2=NNP,NNP	
+PRP	def suf=m suf=im suf=him pre=h pre=hi pre=him w=him p1w=met p2w=brown n1w=on n2w=the wc=lc w&c=him,lc t=VBD t2=NNP,VBD	
+IN	def suf=n suf=on pre=o pre=on w=on p1w=him p2w=met n1w=the n2w=platform wc=lc w&c=on,lc t=PRP t2=VBD,PRP	
+DT	def suf=e suf=he suf=the pre=t pre=th pre=the w=the p1w=on p2w=him n1w=platform n2w=. wc=lc w&c=the,lc t=IN t2=PRP,IN	
+NN	def suf=m suf=rm suf=orm suf=form pre=p pre=pl pre=pla pre=plat w=platform p1w=the p2w=on n1w=. wc=lc w&c=platform,lc t=DT t2=IN,DT	
+.	def suf=. pre=. w=. p1w=platform p2w=the wc=other w&c=.,other t=NN t2=DT,NN	
+VBD	def suf=d suf=id suf=Did pre=D pre=Di pre=Did w=did n1w=you n2w=see S=begin wc=ic w&c=did,ic	
+PRP	def suf=u suf=ou suf=you pre=y pre=yo pre=you w=you p1w=did n1w=see n2w=the p1S=begin wc=lc w&c=you,lc t=VBD	
+VB	def suf=e suf=ee suf=see pre=s pre=se pre=see w=see p1w=you p2w=did n1w=the n2w=2024 p2S=begin wc=lc w&c=see,lc t=PRP t2=VBD,PRP	
+DT	def suf=e suf=he suf=the pre=t pre=th pre=the w=the p1w=see p2w=you n1w=2024 n2w=report wc=lc w&c=the,lc t=VB t2=PRP,VB	
+CD	def suf=4 suf=24 suf=024 suf=2024 pre=2 pre=20 pre=202 pre=2024 w=2024 p1w=the p2w=see n1w=report n2w=? wc=4d w&c=2024,4d t=DT t2=VB,DT	
+NN	def suf=t suf=rt suf=ort suf=port pre=r pre=re pre=rep pre=repo w=report p1w=2024 p2w=the n1w=? wc=lc w&c=report,lc t=CD t2=DT,CD	
+.	def suf=? pre=? w=? p1w=report p2w=2024 wc=other w&c=?,other t=NN t2=CD,NN	
+DT	def suf=e suf=he suf=The pre=T pre=Th pre=The w=the n1w=fence n2w=had S=begin wc=ic w&c=the,ic	
+NN	def suf=e suf=ce suf=nce suf=ence pre=f pre=fe pre=fen pre=fenc w=fence p1w=the n1w=had n2w=fallen p1S=begin wc=lc w&c=fence,lc t=DT	
+VBD	def suf=d suf=ad suf=had pre=h pre=ha pre=had w=had p1w=fence p2w=the n1w=fallen n2w=during p2S=begin wc=lc w&c=had,lc t=NN t2=DT,NN	
+VBN	def suf=n suf=en suf=len suf=llen pre=f pre=fa pre=fal pre=fall w=fallen p1w=had p2w=fence n1w=during n2w=the wc=lc w&c=fallen,lc t=VBD t2=NN,VBD	
+IN	def suf=g suf=ng suf=ing suf=ring pre=d pre=du pre=dur pre=duri w=during p1w=fallen p2w=had n1w=the n2w=storm wc=lc w&c=during,lc t=VBN t2=VBD,VBN	
+DT	def suf=e suf=he suf=the pre=t pre=th pre=the w=the p1w=during p2w=fallen n1w=storm n2w=. wc=lc w&c=the,lc t=IN t2=VBN,IN	
+NN	def suf=m suf=rm suf=orm suf=torm pre=s pre=st pre=sto pre=stor w=storm p1w=the p2w=during n1w=. wc=lc w&c=storm,lc t=DT t2=IN,DT	
+.	def suf=. pre=. w=. p1w=storm p2w=the wc=other w&c=.,other t=NN t2=DT,NN	
+JJ	def suf=d suf=ld suf=Old pre=O pre=Ol pre=Old w=old n1w=trees n2w=fell S=begin wc=ic w&c=old,ic	
+NNS	def suf=s suf=es suf=ees suf=rees pre=t pre=tr pre=tre pre=tree w=trees p1w=old n1w=fell n2w=across p1S=begin wc=lc w&c=trees,lc t=JJ	
+VBD	def suf=l suf=ll suf=ell suf=fell pre=f pre=fe pre=fel pre=fell w=fell p1w=trees p2w=old n1w=across n2w=the p2S=begin wc=lc w&c=fell,lc t=NNS t2=JJ,NNS	
+IN	def suf=s suf=ss suf=oss suf=ross pre=a pre=ac pre=acr pre=acro w=across p1w=fell p2w=trees n1w=the n2w=road wc=lc w&c=across,lc t=VBD t2=NNS,VBD	
+DT	def suf=e suf=he suf=the pre=t pre=th pre=the w=the p1w=across p2w=fell n1w=road n2w=, wc=lc w&c=the,lc t=IN t2=VBD,IN	
+NN	def suf=d suf=ad suf=oad suf=road pre=r pre=ro pre=roa pre=road w=road p1w=the p2w=across n1w=, n2w=blocking wc=lc w&c=road,lc t=DT t2=IN,DT	
+,	def suf=, pre=, w=, p1w=road p2w=the n1w=blocking n2w=traffic wc=other w&c=,,other t=NN t2=DT,NN	
+VBG	def suf=g suf=ng suf=ing suf=king pre=b pre=bl pre=blo pre=bloc w=blocking p1w=, p2w=road n1w=traffic n2w=. wc=lc w&c=blocking,lc t=, t2=NN,,	
+NN	def suf=c suf=ic suf=fic suf=ffic pre=t pre=tr pre=tra pre=traf w=traffic p1w=blocking p2w=, n1w=. wc=lc w&c=traffic,lc t=VBG t2=,,VBG	
+.	def suf=. pre=. w=. p1w=traffic p2w=blocking wc=other w&c=.,other t=NN t2=VBG,NN	
+PRP	def suf=t suf=It pre=I pre=It w=it n1w=was n2w=a S=begin wc=ic w&c=it,ic	
+VBD	def suf=s suf=as suf=was pre=w pre=wa pre=was w=was p1w=it n1w=a n2w=long p1S=begin wc=lc w&c=was,lc t=PRP	
+DT	def suf=a pre=a w=a p1w=was p2w=it n1w=long n2w=, p2S=begin wc=lc w&c=a,lc t=VBD t2=PRP,VBD	
+JJ	def suf=g suf=ng suf=ong suf=long pre=l pre=lo pre=lon pre=long w=long p1w=a p2w=was n1w=, n2w=cold wc=lc w&c=long,lc t=DT t2=VBD,DT	
+,	def suf=, pre=, w=, p1w=long p2w=a n1w=cold n2w=winter wc=other w&c=,,other t=JJ t2=DT,JJ	
+JJ	def suf=d suf=ld suf=old suf=cold pre=c pre=co pre=col pre=cold w=cold p1w=, p2w=long n1w=winter n2w=in wc=lc w&c=cold,lc t=, t2=JJ,,	
+NN	def suf=r suf=er suf=ter suf=nter pre=w pre=wi pre=win pre=wint w=winter p1w=cold p2w=, n1w=in n2w=paris wc=lc w&c=winter,lc t=JJ t2=,,JJ	
+IN	def suf=n suf=in pre=i pre=in w=in p1w=winter p2w=cold n1w=paris n2w=. wc=lc w&c=in,lc t=NN t2=JJ,NN	
+NNP	def suf=s suf=is suf=ris suf=aris pre=P pre=Pa pre=Par pre=Pari w=paris p1w=in p2w=winter n1w=. wc=ic w&c=paris,ic t=IN t2=NN,IN	
+.	def suf=. pre=. w=. p1w=paris p2w=in wc=other w&c=.,other t=NNP t2=IN,NNP	
+PRP$	def suf=r suf=er suf=Her pre=H pre=He pre=Her w=her n1w=run n2w=of S=begin wc=ic w&c=her,ic	
+NN	def suf=n suf=un suf=run pre=r pre=ru pre=run w=run p1w=her n1w=of n2w=good p1S=begin wc=lc w&c=run,lc t=PRP$	
+IN	def suf=f suf=of pre=o pre=of w=of p1w=run p2w=her n1w=good n2w=luck p2S=begin wc=lc w&c=of,lc t=NN t2=PRP$,NN	
+JJ	def suf=d suf=od suf=ood suf=good pre=g pre=go pre=goo pre=good w=good p1w=of p2w=run n1w=luck n2w=ended wc=lc w&c=good,lc t=IN t2=NN,IN	
+NN	def suf=k suf=ck suf=uck suf=luck pre=l pre=lu pre=luc pre=luck w=luck p1w=good p2w=of n1w=ended n2w=on wc=lc w&c=luck,lc t=JJ t2=IN,JJ	
+VBD	def suf=d suf=ed suf=ded suf=nded pre=e pre=en pre=end pre=ende w=ended p1w=luck p2w=good n1w=on n2w=friday wc=lc w&c=ended,lc t=NN t2=JJ,NN	
+IN	def suf=n suf=on pre=o pre=on w=on p1w=ended p2w=luck n1w=friday n2w=. wc=lc w&c=on,lc t=VBD t2=NN,VBD	
+NNP	def suf=y suf=ay suf=day suf=iday pre=F pre=Fr pre=Fri pre=Frid w=friday p1w=on p2w=ended n1w=. wc=ic w&c=friday,ic t=IN t2=VBD,IN	
+.	def suf=. pre=. w=. p1w=friday p2w=on wc=other w&c=.,other t=NNP t2=IN,NNP	
+CD	def suf=e suf=ee suf=ree suf=hree pre=T pre=Th pre=Thr pre=Thre w=three n1w=birds n2w=sat S=begin wc=ic w&c=three,ic	
+NNS	def suf=s suf=ds suf=rds suf=irds pre=b pre=bi pre=bir pre=bird w=birds p1w=three n1w=sat n2w=on p1S=begin wc=lc w&c=birds,lc t=CD	
+VBD	def suf=t suf=at suf=sat pre=s pre=sa pre=sat w=sat p1w=birds p2w=three n1w=on n2w=the p2S=begin wc=lc w&c=sat,lc t=NNS t2=CD,NNS	
+IN	def suf=n suf=on pre=o pre=on w=on p1w=sat p2w=birds n1w=the n2w=wire wc=lc w&c=on,lc t=VBD t2=NNS,VBD	
+DT	def suf=e suf=he suf=the pre=t pre=th pre=the w=the p1w=on p2w=sat n1w=wire n2w=. wc=lc w&c=the,lc t=IN t2=VBD,IN	
+NN	def suf=e suf=re suf=ire suf=wire pre=w pre=wi pre=wir pre=wire w=wire p1w=the p2w=on n1w=. wc=lc w&c=wire,lc t=DT t2=IN,DT	
+.	def suf=. pre=. w=. p1w=wire p2w=the wc=other w&c=.,other t=NN t2=DT,NN	
+PRP	def suf=I pre=I w=i n1w=think n2w=that S=begin wc=sc w&c=i,sc	
+VBP	def suf=k suf=nk suf=ink suf=hink pre=t pre=th pre=thi pre=thin w=think p1w=i n1w=that n2w=the p1S=begin wc=lc w&c=think,lc t=PRP	
+IN	def suf=t suf=at suf=hat suf=that pre=t pre=th pre=tha pre=that w=that p1w=think p2w=i n1w=the n2w=trains p2S=begin wc=lc w&c=that,lc t=VBP t2=PRP,VBP	
+DT	def suf=e suf=he suf=the pre=t pre=th pre=the w=the p1w=that p2w=think n1w=trains n2w=run wc=lc w&c=the,lc t=IN t2=VBP,IN	
+NNS	def suf=s suf=ns suf=ins suf=ains pre=t pre=tr pre=tra pre=trai w=trains p1w=the p2w=that n1w=run n2w=late wc=lc w&c=trains,lc t=DT t2=IN,DT	
+VBP	def suf=n suf=un suf=run pre=r pre=ru pre=run w=run p1w=trains p2w=the n1w=late n2w=on wc=lc w&c=run,lc t=NNS t2=DT,NNS	
+RB	def suf=e suf=te suf=ate suf=late pre=l pre=la pre=lat pre=late w=late p1w=run p2w=trains n1w=on n2w=sundays wc=lc w&c=late,lc t=VBP t2=NNS,VBP	
+IN	def suf=n suf=on pre=o pre=on w=on p1w=late p2w=run n1w=sundays n2w=. wc=lc w&c=on,lc t=RB t2=VBP,RB	
+NNPS	def suf=s suf=ys suf=ays suf=days pre=S pre=Su pre=Sun pre=Sund w=sundays p1w=on p2w=late n1w=. wc=ic w&c=sundays,ic t=IN t2=RB,IN	
+.	def suf=. pre=. w=. p1w=sundays p2w=on wc=other w&c=.,other t=NNPS t2=IN,NNPS	
+UH	def suf=e suf=se suf=ase suf=ease pre=P pre=Pl pre=Ple pre=Plea w=please n1w=do n2w=not S=begin wc=ic w&c=please,ic	
+VB	def suf=o suf=do pre=d pre=do w=do p1w=please n1w=not n2w=run p1S=begin wc=lc w&c=do,lc t=UH	
+RB	def suf=t suf=ot suf=not pre=n pre=no pre=not w=not p1w=do p2w=please n1w=run n2w=in p2S=begin wc=lc w&c=not,lc t=VB t2=UH,VB	
+VB	def suf=n suf=un suf=run pre=r pre=ru pre=run w=run p1w=not p2w=do n1w=in n2w=the wc=lc w&c=run,lc t=RB t2=VB,RB	
+IN	def suf=n suf=in pre=i pre=in w=in p1w=run p2w=not n1w=the n2w=hall wc=lc w&c=in,lc t=VB t2=RB,VB	
+DT	def suf=e suf=he suf=the pre=t pre=th pre=the w=the p1w=in p2w=run n1w=hall n2w=! wc=lc w&c=the,lc t=IN t2=VB,IN	
+NN	def suf=l suf=ll suf=all suf=hall pre=h pre=ha pre=hal pre=hall w=hall p1w=the p2w=in n1w=! wc=lc w&c=hall,lc t=DT t2=IN,DT	
+.	def suf=! pre=! w=! p1w=hall p2w=the wc=other w&c=!,other t=NN t2=DT,NN	
+JJ	def suf=n suf=wn suf=own suf=nown pre=W pre=We pre=Wel pre=Well w=well-known n1w=writers n2w=visited S=begin wc=ic w&c=well-known,ic	
+NNS	def suf=s suf=rs suf=ers suf=ters pre=w pre=wr pre=wri pre=writ w=writers p1w=well-known n1w=visited n2w=the p1S=begin wc=lc w&c=writers,lc t=JJ	
+VBD	def suf=d suf=ed suf=ted suf=ited pre=v pre=vi pre=vis pre=visi w=visited p1w=writers p2w=well-known n1w=the n2w=old p2S=begin wc=lc w&c=visited,lc t=NNS t2=JJ,NNS	
+DT	def suf=e suf=he suf=the pre=t pre=th pre=the w=the p1w=visited p2w=writers n1w=old n2w=library wc=lc w&c=the,lc t=VBD t2=NNS,VBD	
+JJ	def suf=d suf=ld suf=old pre=o pre=ol pre=old w=old p1w=the p2w=visited n1w=library n2w=. wc=lc w&c=old,lc t=DT t2=VBD,DT	
+NN	def suf=y suf=ry suf=ary suf=rary pre=l pre=li pre=lib pre=libr w=library p1w=old p2w=the n1w=. wc=lc w&c=library,lc t=JJ t2=DT,JJ	
+.	def suf=. pre=. w=. p1w=library p2w=old wc=other w&c=.,other t=NN t2=JJ,NN	
+DT	def suf=e suf=he suf=The pre=T pre=Th pre=The w=the n1w=end n2w=. S=begin wc=ic w&c=the,ic	
+NN	def suf=d suf=nd suf=end pre=e pre=en pre=end w=end p1w=the n1w=. p1S=begin wc=lc w&c=end,lc t=DT	
+.	def suf=. pre=. w=. p1w=end p2w=the p2S=begin wc=other w&c=.,other t=NN t2=DT,NN	
+end	turbo:events
+layer	turbo:stream-errors	document	0	after:u32	class:str	message:str
+end	turbo:stream-errors
+layer	turbo:event-checksum	document	1	crc32c:u32
+3055711050
+end	turbo:event-checksum
+layer	turbo:manifest	document	8	key:str	value:str
+BeamSize	3
+Component-Name	POSTaggerME
+Language	en
+Manifest-Version	1.0
+OpenNLP-Version	3.0.0-SNAPSHOT
+TrainerType	Event
+Training-Eventhash	1
+factory	opennlp.tools.postag.POSTaggerFactory
+end	turbo:manifest
+layer	turbo:package-entries	document	3	name:str	length:u32
+manifest.properties	243
+generator.featuregen	1930
+pos.model	67
+end	turbo:package-entries

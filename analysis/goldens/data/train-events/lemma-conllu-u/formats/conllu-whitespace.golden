@@ -1,0 +1,46 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	formats/conllu-whitespace	399	389	1e8cbfcdb4aac58a419a87aeddddca80a5083e117ef3e8aab3cce7d8d8710bc5
+annotator	opennlp.tools.lemmatizer.LemmaSampleEventStream	read
+config	format	conllu
+config	language	es
+config	run	lemma-conllu-u
+config	source	lemmatize
+config	tagset	u
+layer	turbo:events	document	13	outcome:str	context:str	values:str
+R0a_	w0=a t0=_ p_1=bos p_1=bost0=_ p_1=bosw0=a suf=null suf=a suf=a suf=a suf=a suf=a suf=a pre=null pre=a pre=a pre=a pre=a	
+R0b_	w0=b t0=_ p_1=R0a_ p_1=R0a_t0=_ p_1=R0a_w0=b suf=null suf=b suf=b suf=b suf=b suf=b suf=b pre=null pre=b pre=b pre=b pre=b	
+R0c_	w0=c t0=_ p_1=R0b_ p_1=R0b_t0=_ p_1=R0b_w0=c suf=null suf=c suf=c suf=c suf=c suf=c suf=c pre=null pre=c pre=c pre=c pre=c	
+R0d_	w0=d t0=_ p_1=R0c_ p_1=R0c_t0=_ p_1=R0c_w0=d suf=null suf=d suf=d suf=d suf=d suf=d suf=d pre=null pre=d pre=d pre=d pre=d	
+R0e_	w0=e t0=_ p_1=R0d_ p_1=R0d_t0=_ p_1=R0d_w0=e suf=null suf=e suf=e suf=e suf=e suf=e suf=e pre=null pre=e pre=e pre=e pre=e	
+R0f_	w0=f t0=_ p_1=R0e_ p_1=R0e_t0=_ p_1=R0e_w0=f suf=null suf=f suf=f suf=f suf=f suf=f suf=f pre=null pre=f pre=f pre=f pre=f	
+R4a_D3fD2tD1eD0r	w0=after t0=_ p_1=bos p_1=bost0=_ p_1=bosw0=after suf=null suf=er suf=ter suf=fter suf=after suf=after suf=after pre=null pre=af pre=aft pre=afte pre=after	
+R4t_D3hD2rD1eD0e	w0=three t0=_ p_1=R4a_D3fD2tD1eD0r p_1=R4a_D3fD2tD1eD0rt0=_ p_1=R4a_D3fD2tD1eD0rw0=three suf=null suf=ee suf=ree suf=hree suf=three suf=three suf=three pre=null pre=th pre=thr pre=thre pre=three	
+R1\\ude00_D0\\ud83d	w0=😀 t0=_ p_1=bos p_1=bost0=_ p_1=bosw0=😀 suf=null suf=😀 suf=😀 suf=😀 suf=😀 suf=😀 suf=😀 pre=null pre=😀 pre=😀 pre=😀 pre=😀	
+R0x_	w0=x t0=_ p_1=R1\\ude00_D0\\ud83d p_1=R1\\ude00_D0\\ud83dt0=_ p_1=R1\\ude00_D0\\ud83dw0=x suf=null suf=x suf=x suf=x suf=x suf=x suf=x pre=null pre=x pre=x pre=x pre=x	
+R0é_	w0=é t0=_ p_1=R0x_ p_1=R0x_t0=_ p_1=R0x_w0=é suf=null suf=é suf=é suf=é suf=é suf=é suf=é pre=null pre=é pre=é pre=é pre=é	
+R1n_D0o	w0=no t0=_ p_1=bos p_1=bost0=_ p_1=bosw0=no suf=null suf=no suf=no suf=no suf=no suf=no suf=no pre=null pre=no pre=no pre=no pre=no	
+R4f_D3iD2nD1aD0l	w0=final t0=_ p_1=R1n_D0o p_1=R1n_D0ot0=_ p_1=R1n_D0ow0=final suf=null suf=al suf=nal suf=inal suf=final suf=final suf=final pre=null pre=fi pre=fin pre=fina pre=final	
+end	turbo:events
+layer	turbo:stream-errors	document	0	after:u32	class:str	message:str
+end	turbo:stream-errors
+layer	turbo:event-checksum	document	1	crc32c:u32
+2987649063
+end	turbo:event-checksum
+layer	turbo:manifest	document	8	key:str	value:str
+BeamSize	3
+Component-Name	StatisticalLemmatizer
+Language	es
+Manifest-Version	1.0
+OpenNLP-Version	3.0.0-SNAPSHOT
+TrainerType	Event
+Training-Eventhash	1
+factory	opennlp.tools.lemmatizer.LemmatizerFactory
+end	turbo:manifest
+layer	turbo:package-entries	document	2	name:str	length:u32
+manifest.properties	258
+lemmatizer.model	67
+end	turbo:package-entries

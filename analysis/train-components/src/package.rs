@@ -45,31 +45,35 @@ pub fn serializer_class_key(entry: &str) -> String {
 /// `BaseModel.serialize` writes the artifacts in the iteration order of
 /// its `HashMap<String, Object>`, whose keys were put in `insertion`
 /// order (the manifest first, then the factory's artifacts, then the
-/// model). This is that order, as indices into `insertion`. The map never
-/// holds more than a few entries, so its table stays at 16 buckets.
+/// model and its descriptor). This is that order, as indices into
+/// `insertion`. The map never holds more than a few entries, so its table
+/// stays at 16 buckets.
 pub fn artifact_order(insertion: &[&str]) -> Result<Vec<usize>> {
     let hashes: Vec<i32> = insertion.iter().map(|k| str_hash_code(k)).collect();
     hash_map_order(&hashes)
 }
 
 /// Adds `artifacts` (name and bytes) to `package` in the JVM's zip order
-/// for a map that held the manifest and then these names in this order.
-/// [`ModelPackage::to_bytes`] writes the manifest first; the names here
-/// follow in the JVM's relative order, which for every OpenNLP model file
-/// (sentence and token models, with or without a dictionary) is the JVM's
-/// whole order, since `manifest.properties` hashes to an earlier bucket
-/// than `sent.model`, `token.model` and `abbreviations.dictionary`.
+/// for a map that held the manifest and then these names in this order,
+/// and places the manifest where the JVM writes it. For a sentence or
+/// token model, with or without a dictionary, `manifest.properties`
+/// hashes to an earlier bucket than `sent.model`, `token.model` and
+/// `abbreviations.dictionary` and comes first; a part-of-speech model's
+/// `tags.tagdict` comes before it.
 pub fn add_artifacts(package: &mut ModelPackage, artifacts: Vec<(&str, Vec<u8>)>) -> Result<()> {
     let mut names: Vec<&str> = vec![turbo_train::package::MANIFEST_ENTRY];
     names.extend(artifacts.iter().map(|(n, _)| *n));
     let order = artifact_order(&names)?;
     let mut artifacts: Vec<Option<(&str, Vec<u8>)>> = artifacts.into_iter().map(Some).collect();
+    let mut added = 0;
     for i in order {
         if i == 0 {
+            package.place_manifest(added);
             continue;
         }
         let (name, bytes) = artifacts[i - 1].take().expect("each index once");
         package.add_entry(name, bytes);
+        added += 1;
     }
     Ok(())
 }
@@ -91,5 +95,31 @@ mod tests {
         assert_eq!(artifact_order(&token).unwrap(), vec![0, 1, 2]);
         assert_eq!(artifact_order(&["manifest.properties", "sent.model"]).unwrap(), vec![0, 1]);
         assert_eq!(artifact_order(&["manifest.properties", "token.model"]).unwrap(), vec![0, 1]);
+        // POSModel: the factory's tag dictionary, then the classifier and
+        // the descriptor; the file has tags.tagdict, manifest.properties,
+        // generator.featuregen, pos.model (fixture pos-fixture.bin), and
+        // without a dictionary manifest.properties, generator.featuregen,
+        // pos.model (the published models).
+        let pos = ["manifest.properties", "tags.tagdict", "pos.model", "generator.featuregen"];
+        assert_eq!(artifact_order(&pos).unwrap(), vec![1, 0, 3, 2]);
+        assert_eq!(
+            artifact_order(&["manifest.properties", "pos.model", "generator.featuregen"]).unwrap(),
+            vec![0, 2, 1]
+        );
+        assert_eq!(artifact_order(&["manifest.properties", "lemmatizer.model"]).unwrap(), vec![0, 1]);
+    }
+
+    #[test]
+    fn the_manifest_is_placed_where_the_jvm_writes_it() {
+        let mut package = ModelPackage::new(Stamp::at(0).manifest("POSTaggerME", "en"));
+        add_artifacts(
+            &mut package,
+            vec![("tags.tagdict", vec![1]), ("pos.model", vec![2]), ("generator.featuregen", vec![3])],
+        )
+        .unwrap();
+        assert_eq!(package.entry_names(), ["tags.tagdict", "manifest.properties", "generator.featuregen", "pos.model"]);
+        let mut package = ModelPackage::new(Stamp::at(0).manifest("SentenceDetectorME", "en"));
+        add_artifacts(&mut package, vec![("abbreviations.dictionary", vec![1]), ("sent.model", vec![2])]).unwrap();
+        assert_eq!(package.entry_names(), ["manifest.properties", "sent.model", "abbreviations.dictionary"]);
     }
 }

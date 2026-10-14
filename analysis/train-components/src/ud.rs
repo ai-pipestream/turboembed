@@ -1,19 +1,24 @@
-//! Reproducing the published OpenNLP UD 1.3 sentence and token models:
-//! what Apache OpenNLP trained them from and with, as typed recipes, and
-//! the comparison of a model trained here with the published file.
+//! Reproducing the published OpenNLP UD 1.3 models (sentence detector,
+//! tokenizer, part-of-speech tagger and lemmatizer): what Apache OpenNLP
+//! trained them from and with, as typed recipes, and the comparison of a
+//! model trained here with the published file.
 //!
 //! The models were made by the scripts in `apache/opennlp-models`
 //! (`opennlp-models-training/opennlp-models-training-ud/src/main/resources/
 //! ud-train.sh` and `ud-train.conf`) with the OpenNLP 2.5.4 command line:
 //! `TokenizerTrainer.conllu -params ud-train.conf -lang <code> -data
-//! <treebank>-ud-train.conllu -encoding UTF-8` and
-//! `SentenceDetectorTrainer.conllu ... -sentencesPerSample 10`, over the
-//! `train` file of each treebank at Universal Dependencies release 2.16.
-//! `ud-train.conf` is `Algorithm=MAXENT`, `Iterations=150`, `Cutoff=5`,
-//! `Threads=4`. The tools' defaults supply the rest: the tokenizer with no
-//! abbreviation dictionary, the alphanumeric optimization off and the
-//! language's pattern; the sentence detector with `useTokenEnd` on, no
-//! dictionary and the language's end characters. OpenNLP 2.5.4 tests
+//! <treebank>-ud-train.conllu -encoding UTF-8`,
+//! `SentenceDetectorTrainer.conllu ... -sentencesPerSample 10`,
+//! `POSTaggerTrainer.conllu ...` and `LemmatizerTrainerME.conllu ...`,
+//! over the `train` file of each treebank at Universal Dependencies
+//! release 2.16. `ud-train.conf` is `Algorithm=MAXENT`, `Iterations=150`,
+//! `Cutoff=5`, `Threads=4`. The tools' defaults supply the rest: the
+//! tokenizer with no abbreviation dictionary, the alphanumeric
+//! optimization off and the language's pattern; the sentence detector
+//! with `useTokenEnd` on, no dictionary and the language's end
+//! characters; the tagger with the default feature generator descriptor,
+//! no tag dictionary and the universal tags (`-tagset u`, column 4); the
+//! lemmatizer with its one context generator. OpenNLP 2.5.4 tests
 //! whitespace with `Character.isWhitespace` or the `Zs` category
 //! everywhere (`WhitespaceMode::Legacy` here), and the JVM that wrote the
 //! files had its clock in Central European Summer Time.
@@ -49,7 +54,7 @@
 
 use std::path::{Path, PathBuf};
 
-use turbo_formats::conllu::{ConlluSentenceReader, ConlluTokenReader};
+use turbo_formats::conllu::{ConlluLemmaReader, ConlluPosReader, ConlluSentenceReader, ConlluTokenReader, Tagset};
 use turbo_maxent::{MaxentModel, ModelFile, sha256};
 use turbo_train::package::MANIFEST_ENTRY;
 use turbo_train::{GisModel, Key, TimeZone, TrainingConfiguration, TrainingParameters};
@@ -59,7 +64,9 @@ use turbo_zoo::{
 };
 
 use crate::error::{Error, Result};
+use crate::lemmatize::{self, LemmatizerFactory};
 use crate::package::Stamp;
+use crate::postag::{self, PosTaggerFactory};
 use crate::sentdetect::{self, SentenceDetectorFactory};
 use crate::tokenize::{self, TokenizerFactory};
 
@@ -71,6 +78,9 @@ pub const ZONE: TimeZone = TimeZone::CEST;
 pub const WHITESPACE: WhitespaceMode = WhitespaceMode::Legacy;
 /// `-sentencesPerSample 10` of `SentenceDetectorTrainer.conllu`.
 pub const SENTENCES_PER_SAMPLE: usize = 10;
+/// The default `-tagset` of `POSTaggerTrainer.conllu` and
+/// `LemmatizerTrainerME.conllu`: the universal tags.
+pub const TAGSET: Tagset = Tagset::U;
 /// The Universal Dependencies release.
 pub const UD_RELEASE: &str = "r2.16";
 /// The iterations the published models' parameters agree with (see the
@@ -203,7 +213,7 @@ pub const PORTUGUESE_GSD: Treebank = Treebank {
     licence: Licence::CcBySa40,
 };
 
-/// The treebanks the published sentence and token models come from.
+/// The treebanks the published models come from.
 pub const TREEBANKS: [Treebank; 5] = [ENGLISH_EWT, GERMAN_GSD, SPANISH_GSD, FRENCH_GSD, PORTUGUESE_GSD];
 
 /// Which model of a treebank.
@@ -211,6 +221,8 @@ pub const TREEBANKS: [Treebank; 5] = [ENGLISH_EWT, GERMAN_GSD, SPANISH_GSD, FREN
 pub enum Component {
     Sentence,
     Tokens,
+    Pos,
+    Lemmas,
 }
 
 impl Component {
@@ -219,6 +231,8 @@ impl Component {
         match self {
             Component::Sentence => "sentence",
             Component::Tokens => "tokens",
+            Component::Pos => "pos",
+            Component::Lemmas => "lemmas",
         }
     }
 
@@ -227,6 +241,8 @@ impl Component {
         match self {
             Component::Sentence => sentdetect::MODEL_ENTRY,
             Component::Tokens => tokenize::MODEL_ENTRY,
+            Component::Pos => postag::MODEL_ENTRY,
+            Component::Lemmas => lemmatize::MODEL_ENTRY,
         }
     }
 }
@@ -266,6 +282,17 @@ impl Recipe {
         TokenizerFactory::new(self.language, None, false, None)
     }
 
+    /// The factory the trainer tool built: the language, the default
+    /// feature generator descriptor and no tag dictionary.
+    pub fn pos_factory(&self) -> Result<PosTaggerFactory> {
+        PosTaggerFactory::new(self.language, None, None)
+    }
+
+    /// The factory the trainer tool built: the language.
+    pub fn lemmatizer_factory(&self) -> LemmatizerFactory {
+        LemmatizerFactory::new(self.language)
+    }
+
     /// Trains the model from the treebank's CoNLL-U text as the published
     /// one was trained, stamped with `timestamp_ms` (the published
     /// manifest's `Timestamp`, to compare the manifests).
@@ -293,6 +320,26 @@ impl Recipe {
                     stream.events(&sample?, &mut events)?;
                 }
                 let t = tokenize::train_tokenizer_model_from_events(&events, &factory, &params, config, stamp)?;
+                Ok(Trained { events: events.len(), model: t.model, report: t.report, package: t.package })
+            }
+            Component::Pos => {
+                let factory = self.pos_factory()?;
+                let mut stream = postag::PosEventStream::new(&factory)?;
+                let mut events = Vec::new();
+                for sample in ConlluPosReader::new(conllu, TAGSET)? {
+                    stream.events(&sample?, &mut events);
+                }
+                let t = postag::train_pos_model_from_events(&events, &factory, &params, config, stamp)?;
+                Ok(Trained { events: events.len(), model: t.model, report: t.report, package: t.package })
+            }
+            Component::Lemmas => {
+                let factory = self.lemmatizer_factory();
+                let mut stream = lemmatize::LemmaEventStream::new(&factory);
+                let mut events = Vec::new();
+                for sample in ConlluLemmaReader::new(conllu, TAGSET)? {
+                    stream.events(&sample?, &mut events)?;
+                }
+                let t = lemmatize::train_lemmatizer_model_from_events(&events, &factory, &params, config, stamp)?;
                 Ok(Trained { events: events.len(), model: t.model, report: t.report, package: t.package })
             }
         }
@@ -323,16 +370,27 @@ impl Recipe {
     }
 }
 
-/// The eight published sentence and token models.
-pub const RECIPES: [Recipe; 8] = [
+/// The eighteen published models: sentence detectors for three languages,
+/// and tokenizers, taggers and lemmatizers for five.
+pub const RECIPES: [Recipe; 18] = [
     Recipe { language: "en", treebank_name: "ewt", component: Component::Sentence, treebank: ENGLISH_EWT },
     Recipe { language: "en", treebank_name: "ewt", component: Component::Tokens, treebank: ENGLISH_EWT },
+    Recipe { language: "en", treebank_name: "ewt", component: Component::Pos, treebank: ENGLISH_EWT },
+    Recipe { language: "en", treebank_name: "ewt", component: Component::Lemmas, treebank: ENGLISH_EWT },
     Recipe { language: "de", treebank_name: "gsd", component: Component::Sentence, treebank: GERMAN_GSD },
     Recipe { language: "de", treebank_name: "gsd", component: Component::Tokens, treebank: GERMAN_GSD },
+    Recipe { language: "de", treebank_name: "gsd", component: Component::Pos, treebank: GERMAN_GSD },
+    Recipe { language: "de", treebank_name: "gsd", component: Component::Lemmas, treebank: GERMAN_GSD },
     Recipe { language: "pt", treebank_name: "gsd", component: Component::Sentence, treebank: PORTUGUESE_GSD },
     Recipe { language: "pt", treebank_name: "gsd", component: Component::Tokens, treebank: PORTUGUESE_GSD },
+    Recipe { language: "pt", treebank_name: "gsd", component: Component::Pos, treebank: PORTUGUESE_GSD },
+    Recipe { language: "pt", treebank_name: "gsd", component: Component::Lemmas, treebank: PORTUGUESE_GSD },
     Recipe { language: "es", treebank_name: "gsd", component: Component::Tokens, treebank: SPANISH_GSD },
+    Recipe { language: "es", treebank_name: "gsd", component: Component::Pos, treebank: SPANISH_GSD },
+    Recipe { language: "es", treebank_name: "gsd", component: Component::Lemmas, treebank: SPANISH_GSD },
     Recipe { language: "fr", treebank_name: "gsd", component: Component::Tokens, treebank: FRENCH_GSD },
+    Recipe { language: "fr", treebank_name: "gsd", component: Component::Pos, treebank: FRENCH_GSD },
+    Recipe { language: "fr", treebank_name: "gsd", component: Component::Lemmas, treebank: FRENCH_GSD },
 ];
 
 /// A model trained from a recipe.
@@ -440,8 +498,7 @@ impl Comparison {
             String::from_utf8_lossy(&published.entry(MANIFEST_ENTRY).map_err(Error::Model)?).into_owned();
         let their_names: Vec<String> =
             published.archive().names().map(|n| String::from_utf8_lossy(n).into_owned()).collect();
-        let mut our_names = vec![MANIFEST_ENTRY.to_owned()];
-        our_names.extend(trained.package.entries().map(|(n, _)| n.to_owned()));
+        let our_names: Vec<String> = trained.package.entry_names().into_iter().map(str::to_owned).collect();
         Ok(Comparison {
             model: recipe.model_id(),
             events: trained.events,
@@ -608,6 +665,17 @@ pub fn fetch_treebank(treebank: &Treebank, home: &Path, user: &UserId) -> Result
     Ok(fetched.single().expect("one file per treebank").to_path_buf())
 }
 
+/// Fetches a published model into the zoo cache under `home` through the
+/// zoo's built-in index, where every UD 1.3 model is listed under
+/// [`Recipe::model_id`] (Apache License 2.0, nothing to accept), and
+/// returns its path.
+pub fn fetch_published_model(recipe: &Recipe, home: &Path, user: &UserId) -> Result<PathBuf> {
+    let zoo = Zoo::new(Index::builtin(), home.join("artifacts"), Policy::default(), &Http);
+    let acceptances = home.join("acceptances.json");
+    let fetched = zoo.fetch_with(&recipe.model_id(), user, || Acceptances::load(&acceptances))?;
+    Ok(fetched.single().expect("one file per model").to_path_buf())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -744,24 +812,82 @@ mod tests {
             [
                 "opennlp-en-ud-ewt-sentence-1.3-2.5.4.bin",
                 "opennlp-en-ud-ewt-tokens-1.3-2.5.4.bin",
+                "opennlp-en-ud-ewt-pos-1.3-2.5.4.bin",
+                "opennlp-en-ud-ewt-lemmas-1.3-2.5.4.bin",
                 "opennlp-de-ud-gsd-sentence-1.3-2.5.4.bin",
                 "opennlp-de-ud-gsd-tokens-1.3-2.5.4.bin",
+                "opennlp-de-ud-gsd-pos-1.3-2.5.4.bin",
+                "opennlp-de-ud-gsd-lemmas-1.3-2.5.4.bin",
                 "opennlp-pt-ud-gsd-sentence-1.3-2.5.4.bin",
                 "opennlp-pt-ud-gsd-tokens-1.3-2.5.4.bin",
+                "opennlp-pt-ud-gsd-pos-1.3-2.5.4.bin",
+                "opennlp-pt-ud-gsd-lemmas-1.3-2.5.4.bin",
                 "opennlp-es-ud-gsd-tokens-1.3-2.5.4.bin",
+                "opennlp-es-ud-gsd-pos-1.3-2.5.4.bin",
+                "opennlp-es-ud-gsd-lemmas-1.3-2.5.4.bin",
                 "opennlp-fr-ud-gsd-tokens-1.3-2.5.4.bin",
+                "opennlp-fr-ud-gsd-pos-1.3-2.5.4.bin",
+                "opennlp-fr-ud-gsd-lemmas-1.3-2.5.4.bin",
             ]
         );
+        // Every model is in the zoo's index under its id.
+        let index = Index::builtin();
+        for r in &RECIPES {
+            assert!(index.get(&r.model_id()).is_ok(), "{}", r.model_id());
+        }
         let p = training_parameters();
         assert_eq!(p.get_int(Key::ITERATIONS).unwrap(), Some(300));
         assert_eq!(CONF_ITERATIONS, 150);
         assert_eq!(p.get_int(Key::CUTOFF).unwrap(), Some(5));
         assert_eq!(p.get_int(Key::THREADS).unwrap(), Some(4));
         assert_eq!(p.algorithm().unwrap(), Some("MAXENT"));
-        let pt = RECIPES[4].sentence_factory().unwrap();
+        let pt = RECIPES[8].sentence_factory().unwrap();
         assert_eq!(pt.eos_string(), ".?!;:()\u{AB}\u{BB}'\"");
-        let de = RECIPES[3].tokenizer_factory().unwrap();
+        let de = RECIPES[5].tokenizer_factory().unwrap();
         assert!(!de.use_alpha_numeric_optimization());
         assert_eq!(de.alpha_numeric_pattern(), turbo_tokenize::me::alnum::language_pattern("de"));
+        let pos = RECIPES[2].pos_factory().unwrap();
+        assert_eq!(pos.descriptor(), turbo_sequence::postag::DEFAULT_DESCRIPTOR.as_bytes());
+        assert!(pos.tag_dictionary().is_none());
+        assert_eq!(RECIPES[3].lemmatizer_factory().language(), "en");
+        assert_eq!(RECIPES[6].component.model_entry(), "pos.model");
+        assert_eq!(RECIPES[7].component.model_entry(), "lemmatizer.model");
+    }
+
+    #[test]
+    fn the_tagger_and_lemmatizer_recipes_train_from_conllu_and_compare_with_themselves() {
+        let two = "# text = Dogs ran.\n\
+            1\tDogs\tdog\tNOUN\tNNS\t_\t2\tnsubj\t_\t_\n\
+            2\tran\trun\tVERB\tVBD\t_\t0\troot\t_\tSpaceAfter=No\n\
+            3\t.\t.\tPUNCT\t.\t_\t2\tpunct\t_\t_\n\n\
+            # text = A dog runs.\n\
+            1\tA\ta\tDET\tDT\t_\t2\tdet\t_\t_\n\
+            2\tdog\tdog\tNOUN\tNN\t_\t3\tnsubj\t_\t_\n\
+            3\truns\trun\tVERB\tVBZ\t_\t0\troot\t_\tSpaceAfter=No\n\
+            4\t.\t.\tPUNCT\t.\t_\t3\tpunct\t_\t_\n\n";
+        // Five times, so every feature passes the recipe's cutoff of 5.
+        let conllu = two.repeat(5);
+        let mut config = TrainingConfiguration::default();
+        let pos = RECIPES[2].train(&conllu, 1_749_698_398_335, &mut config).unwrap();
+        assert_eq!(pos.events, 35);
+        let outcomes: Vec<&str> = pos.model.outcome_labels().iter().map(String::as_str).collect();
+        assert_eq!(outcomes, ["NOUN", "VERB", "PUNCT", "DET"]);
+        assert_eq!(pos.package.entry_names(), ["manifest.properties", "generator.featuregen", "pos.model"]);
+        let manifest = pos.package.manifest().to_properties();
+        assert!(manifest.contains("Component-Name=POSTaggerME\n"), "{manifest}");
+        assert!(manifest.contains("BeamSize=3\n") && manifest.contains("Language=en\n"), "{manifest}");
+        let published = ModelFile::open(pos.package.to_bytes()).unwrap();
+        let same = Comparison::of(&RECIPES[2], &pos, &published).unwrap();
+        assert!(same.reproduced(), "{}", same.report());
+
+        let lemmas = RECIPES[3].train(&conllu, 1_749_698_430_433, &mut config).unwrap();
+        assert_eq!(lemmas.events, 35);
+        let outcomes: Vec<&str> = lemmas.model.outcome_labels().iter().map(String::as_str).collect();
+        assert_eq!(outcomes, ["D0s", "R1au", "O"]);
+        assert_eq!(lemmas.package.entry_names(), ["manifest.properties", "lemmatizer.model"]);
+        assert_eq!(lemmas.package.manifest().component_name(), "StatisticalLemmatizer");
+        let published = ModelFile::open(lemmas.package.to_bytes()).unwrap();
+        let same = Comparison::of(&RECIPES[3], &lemmas, &published).unwrap();
+        assert!(same.reproduced(), "{}", same.report());
     }
 }

@@ -1,0 +1,20 @@
+The_DT driver_NN stopped_VBD the_DT bus_NN at_IN the_DT station_NN ._.
+Mr._NNP Smith_NNP arrived_VBD in_IN Paris_NNP on_IN Monday_NNP ._.
+She_PRP runs_VBZ every_DT morning_NN before_IN work_NN ._.
+They_PRP run_VBP a_DT small_JJ shop_NN near_IN the_DT river_NN ._.
+He_PRP fell_VBD and_CC broke_VBD his_PRP$ arm_NN ._.
+Prices_NNS have_VBP fallen_VBN by_IN 12_CD percent_NN since_IN March_NNP ._.
+We_PRP will_MD run_VB the_DT test_NN again_RB tomorrow_NN ._.
+The_DT quick_JJ brown_JJ fox_NN jumped_VBD over_IN the_DT lazy_JJ dog_NN ._.
+Dr._NNP Brown_NNP met_VBD him_PRP on_IN the_DT platform_NN ._.
+Did_VBD you_PRP see_VB the_DT 2024_CD report_NN ?_.
+The_DT fence_NN had_VBD fallen_VBN during_IN the_DT storm_NN ._.
+Old_JJ trees_NNS fell_VBD across_IN the_DT road_NN ,_, blocking_VBG traffic_NN ._.
+It_PRP was_VBD a_DT long_JJ ,_, cold_JJ winter_NN in_IN Paris_NNP ._.
+Her_PRP$ run_NN of_IN good_JJ luck_NN ended_VBD on_IN Friday_NNP ._.
+Three_CD birds_NNS sat_VBD on_IN the_DT wire_NN ._.
+I_PRP think_VBP that_IN the_DT trains_NNS run_VBP late_RB on_IN Sundays_NNPS ._.
+Please_UH do_VB not_RB run_VB in_IN the_DT hall_NN !_.
+Well-known_JJ writers_NNS visited_VBD the_DT old_JJ library_NN ._.
+
+The_DT end_NN ._.

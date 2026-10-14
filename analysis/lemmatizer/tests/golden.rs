@@ -207,6 +207,20 @@ fn english() {
     assert_eq!((counts.tokens, counts.points, counts.changed), (1304, 3584, 181), "{counts:?}");
 }
 
+/// The model the Rust trainer wrote from `inputs/tagged/lemmas.txt`
+/// (`analysis/train-components/tests/fixtures.rs`), which the JVM loaded
+/// and lemmatized with over the English pipeline's tags.
+#[test]
+fn rust_fixture() {
+    let path = common::fixtures_dir().join("lemma-fixture-rust.bin");
+    let model = Arc::new(LemmatizerModel::read(&path).unwrap());
+    assert_eq!(model.language(), "en");
+    let counts = check_maxent_run("lemma-fixture-rust", &model, &path);
+    assert_eq!(counts.files, [("edge".into(), 34), ("en".into(), 10)]);
+    assert_eq!(counts.skipped, 1);
+    assert_eq!((counts.tokens, counts.points, counts.changed), (972, 2672, 7), "{counts:?}");
+}
+
 #[test]
 fn german() {
     let Some(path) = common::published_model("opennlp-de-ud-gsd-lemmas-1.3-2.5.4.bin") else { return };

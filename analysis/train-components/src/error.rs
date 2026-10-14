@@ -47,7 +47,21 @@ pub enum Error {
     /// would index the text with at a negative offset. `token` is the
     /// index of the token out of order.
     TokensOutOfOrder { token: usize },
-    /// The treebank could not be fetched or verified.
+    /// A part-of-speech descriptor whose generators cannot be built.
+    Sequence(turbo_sequence::Error),
+    /// A tag dictionary entry `POSDictionary.create` refuses: more than one
+    /// token, or no `tags` attribute.
+    TagDictionaryEntry(String),
+    /// A tag dictionary lists tags the trained model has no outcome for;
+    /// `POSModel`'s constructor throws `InvalidFormatException` and writes
+    /// no model.
+    UnknownDictionaryTags(Vec<String>),
+    /// A lemma sample whose token and lemma give a class holding half of a
+    /// surrogate pair (a character outside the Basic Multilingual Plane
+    /// replaced or deleted), which the JVM trains on and a Rust string
+    /// cannot hold.
+    LemmaClassSurrogate { token: String },
+    /// The treebank or a published model could not be fetched or verified.
     Zoo(turbo_zoo::ZooError),
     /// A published model file could not be read.
     Model(turbo_maxent::Error),
@@ -77,6 +91,18 @@ impl fmt::Display for Error {
             Error::SurrogateEos(u) => write!(f, "end of sentence character U+{u:04X} is a surrogate"),
             Error::EmptyEos => f.write_str("the end of sentence character set is empty"),
             Error::TokensOutOfOrder { token } => write!(f, "token {token} of the sample is out of text order"),
+            Error::Sequence(e) => write!(f, "feature generators: {e}"),
+            Error::TagDictionaryEntry(m) => f.write_str(m),
+            Error::UnknownDictionaryTags(tags) => {
+                write!(f, "Tag dictionary contains tags which are unknown by the model! The unknown tags are: ")?;
+                for t in tags {
+                    write!(f, "{t} ")?;
+                }
+                Ok(())
+            }
+            Error::LemmaClassSurrogate { token } => {
+                write!(f, "the lemma class of {token:?} holds half of a surrogate pair")
+            }
             Error::Zoo(e) => write!(f, "zoo: {e}"),
             Error::Model(e) => write!(f, "model file: {e}"),
             Error::MissingManifestEntry(k) => write!(f, "the published manifest has no {k}"),
@@ -102,6 +128,12 @@ impl From<turbo_formats::FormatError> for Error {
 impl From<PatternError> for Error {
     fn from(e: PatternError) -> Error {
         Error::Pattern(e)
+    }
+}
+
+impl From<turbo_sequence::Error> for Error {
+    fn from(e: turbo_sequence::Error) -> Error {
+        Error::Sequence(e)
     }
 }
 

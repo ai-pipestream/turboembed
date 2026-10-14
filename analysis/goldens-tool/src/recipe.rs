@@ -188,7 +188,7 @@ pub struct Fixture {
 /// file names are the ones the generator's `Runs` class opens there; a
 /// fixture in a subdirectory is a file of a dictionary directory, and
 /// `Runs` opens the directory.
-pub const FIXTURES: [Fixture; 30] = [
+pub const FIXTURES: [Fixture; 33] = [
     Fixture {
         file: "en-abbrev.bin",
         sha512: "759ab1defc61351f53cdd82a26e708789a225feb6e1ec0cfd6e2e54f35f67c14\
@@ -213,6 +213,21 @@ pub const FIXTURES: [Fixture; 30] = [
         file: "pos-fixture.bin",
         sha512: "70bd00e5c7baba5552e311ad002aa382fd57aa2bc5248ffe6008476546df3799\
                  a4e8578c3e6e90aa51d4a766857d07fa7003d395151d292ede3804fc308d5d32",
+    },
+    Fixture {
+        file: "pos-fixture-rust.bin",
+        sha512: "7ce6a0d76f18242966640050d44a94f0f8ff496b2a518a72c0e191a964d32158\
+                 8bda11782be6ae3d09f62fec387f01db32bdeb87eb64a741f07bb10359e57328",
+    },
+    Fixture {
+        file: "lemma-fixture-rust.bin",
+        sha512: "daf10241ffbb3231a9ffe6eac838168caca0ab58b25f71dacc91842ad34cb166\
+                 2ab5fbefd99d735108953777a889c4935bdf027a2ca92fe2488045e8c1e630bf",
+    },
+    Fixture {
+        file: "tags.tagdict",
+        sha512: "cbd3dee98987711b48b42967df8e6e3e8400dcba70336fa2c83bfdba03a8c42b\
+                 3bd7d5f6f0c80c2f35dc01173795792e117489f11fd23f03f9fcba3fa453417d",
     },
     Fixture {
         file: "lemmatizer-dictionary.txt",
@@ -342,7 +357,7 @@ pub const FIXTURES: [Fixture; 30] = [
 ];
 
 /// The input sets under `analysis/goldens/data/inputs`.
-pub const INPUT_SETS: [&str; 20] = [
+pub const INPUT_SETS: [&str; 21] = [
     "en",
     "multi",
     "norm",
@@ -361,6 +376,7 @@ pub const INPUT_SETS: [&str; 20] = [
     "ja",
     "ko",
     "train",
+    "tagged",
     "formats",
     "ner",
 ];
@@ -481,7 +497,10 @@ mod tests {
             assert!(is_lower_hex(f.sha512, 128), "{}: {}", f.file, f.sha512);
             match f.file.split_once('/') {
                 None => assert!(
-                    f.file.ends_with(".bin") || f.file.ends_with(".xml") || f.file.ends_with(".txt"),
+                    f.file.ends_with(".bin")
+                        || f.file.ends_with(".xml")
+                        || f.file.ends_with(".txt")
+                        || f.file.ends_with(".tagdict"),
                     "{}",
                     f.file
                 ),

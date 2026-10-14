@@ -159,17 +159,45 @@ fn xml_can_carry(c: char) -> bool {
 }
 
 /// The XML `DictionaryEntryPersistor.serialize` writes for these entries
-/// in this order.
+/// in this order, none with attributes.
 fn write_xml<'e>(case_sensitive: bool, entries: impl IntoIterator<Item = &'e [String]>) -> Result<Vec<u8>> {
+    write_entries_xml(case_sensitive, entries.into_iter().map(|tokens| XmlEntry { tokens, attributes: &[] }))
+}
+
+/// An entry as `DictionaryEntryPersistor.serialize` is given it: its
+/// tokens and the attributes of its `entry` element, in the order they
+/// are written.
+pub(crate) struct XmlEntry<'e> {
+    pub tokens: &'e [String],
+    pub attributes: &'e [(String, String)],
+}
+
+/// The XML `DictionaryEntryPersistor.serialize` writes for these entries
+/// in this order: the JDK's `ToStream` with indentation, so a dictionary
+/// with entries is `<dictionary case_sensitive="...">`, each entry on its
+/// own lines indented by four and its tokens by eight spaces, and an empty
+/// dictionary is one self-closing element.
+pub(crate) fn write_entries_xml<'e>(
+    case_sensitive: bool,
+    entries: impl IntoIterator<Item = XmlEntry<'e>>,
+) -> Result<Vec<u8>> {
     let mut out = String::from("<?xml version=\"1.0\" encoding=\"UTF-8\"?><dictionary case_sensitive=\"");
     out.push_str(if case_sensitive { "true" } else { "false" });
     let mut any = false;
-    for tokens in entries {
+    for XmlEntry { tokens, attributes } in entries {
         if !any {
             out.push_str("\">\n");
             any = true;
         }
-        out.push_str("    <entry>\n");
+        out.push_str("    <entry");
+        for (name, value) in attributes {
+            out.push(' ');
+            out.push_str(name);
+            out.push_str("=\"");
+            push_attribute(&mut out, value)?;
+            out.push('"');
+        }
+        out.push_str(">\n");
         for token in tokens {
             out.push_str("        <token>");
             push_text(&mut out, token)?;
@@ -179,6 +207,22 @@ fn write_xml<'e>(case_sensitive: bool, entries: impl IntoIterator<Item = &'e [St
     }
     out.push_str(if any { "</dictionary>\n" } else { "\"/>\n" });
     Ok(out.into_bytes())
+}
+
+/// An attribute value as `ToStream.writeAttrString` writes it: like
+/// character data, with `"` as `&quot;` and a tab, line feed or carriage
+/// return as a character reference, since an XML parser would normalize
+/// them to spaces otherwise.
+fn push_attribute(out: &mut String, value: &str) -> Result<()> {
+    for c in value.chars() {
+        match c {
+            '"' => out.push_str("&quot;"),
+            '\t' => out.push_str("&#9;"),
+            '\n' => out.push_str("&#10;"),
+            c => push_text(out, c.encode_utf8(&mut [0; 4]))?,
+        }
+    }
+    Ok(())
 }
 
 /// Character data as `ToStream.characters` writes it.
@@ -295,6 +339,10 @@ mod tests {
         push_text(&mut out, "a\u{7F}b n\u{85}l c\u{9F}d e\u{A0}f").unwrap();
         assert_eq!(out, "a&#127;b n&#133;l c&#159;d e\u{A0}f");
         assert!(matches!(push_text(&mut out, "\u{1}"), Err(Error::InvalidXmlCharacter(1))));
+        let mut out = String::new();
+        push_attribute(&mut out, "a&b<c>d\"e'f\r\t\n\u{85}").unwrap();
+        assert_eq!(out, "a&amp;b&lt;c&gt;d&quot;e'f&#13;&#9;&#10;&#133;");
+        assert!(matches!(push_attribute(&mut out, "\u{1}"), Err(Error::InvalidXmlCharacter(1))));
         assert!(matches!(push_text(&mut out, "\u{FFFE}"), Err(Error::InvalidXmlCharacter(0xFFFE))));
         // A dictionary with such a token cannot be made, as its lookup
         // side is read from the XML.

@@ -72,6 +72,8 @@ const LAYERS: &[(&str, &[ColumnSpec])] = &[
     ("turbo:package-entries", &[col("name", STR), col("length", U32)]),
     ("turbo:dictionary", &[col("xml", STR)]),
     ("turbo:dictionary-cases", &[col("name", STR), col("xml", STR)]),
+    ("turbo:tagdict", &[col("xml", STR)]),
+    ("turbo:tagdict-cases", &[col("name", STR), col("xml", STR)]),
 ];
 
 pub fn shapes() -> Vec<Shape> {

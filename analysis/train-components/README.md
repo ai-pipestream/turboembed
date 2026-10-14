@@ -1,25 +1,31 @@
 # turbo-train-components
 
-Training OpenNLP's sentence detector and tokenizer in Rust: the event
-streams `SDEventStream` and `TokSpanEventStream`, the factories that set
-them up, the model files `SentenceDetectorME.train` and
-`TokenizerME.train` return, with every manifest entry and artifact the
-JVM writes, and the reproduction of the published UD 1.3 sentence and
-token models from their treebanks.
+Training OpenNLP's components in Rust: the event streams
+`SDEventStream`, `TokSpanEventStream`, `POSSampleEventStream` and
+`LemmaSampleEventStream`, the factories that set them up, the model
+files `SentenceDetectorME.train`, `TokenizerME.train`,
+`POSTaggerME.train` and `LemmatizerME.train` return, with every manifest
+entry and artifact the JVM writes, and the reproduction of the published
+UD 1.3 models from their treebanks.
 
 | Module | OpenNLP |
 |---|---|
 | `sentdetect` | `SentenceDetectorFactory` (with the language's end characters from the `Factory` classes), `SDEventStream`, `SentenceDetectorME.train`, `SentenceModel` |
 | `tokenize` | `TokenizerFactory` (with the language's alphanumeric pattern), `TokSpanEventStream`, `TokenizerME.train`, `TokenizerModel` |
+| `postag` | `POSTaggerFactory` (the default feature generator descriptor or a given one, a tag dictionary or none), `POSSampleEventStream` over `ConfigurablePOSContextGenerator`, `POSTaggerME.train`, `POSModel` with its `generator.featuregen` and `tags.tagdict` entries |
+| `lemmatize` | `LemmatizerFactory`, `LemmatizerME.encodeLemmas`, `LemmaSampleEventStream` over `DefaultLemmatizerContextGenerator`, `LemmatizerME.train`, `LemmatizerModel` |
 | `dictionary` | `Dictionary` as `new Dictionary(InputStream)` reads it and `Dictionary.serialize` writes it, through the JDK's `ToStream` with indentation |
+| `tagdict` | `POSDictionary` as `POSDictionary.create` reads it (a case-insensitive one is lowercased into a second map in the first map's order) and `POSDictionary.serialize` writes it |
 | `java_hash` | `String.hashCode`, `StringList.hashCode`, and the iteration order of a `java.util.HashMap` |
 | `package` | The `factory` and `serializer-class-*` manifest entries and the zip entry order of `BaseModel.serialize` |
-| `ud` | The recipes of the eight `opennlp-*-ud-*-{sentence,tokens}-1.3-2.5.4.bin` models and the comparison with the published files |
+| `ud` | The recipes of the eighteen `opennlp-*-ud-*-{sentence,tokens,pos,lemmas}-1.3-2.5.4.bin` models and the comparison with the published files |
 
 The samples come from `turbo-formats` (native and CoNLL-U readers), the
-context generators from `turbo-sentdetect` and `turbo-tokenize`, and the
-trainer, model writer and `.bin` packaging from `turbo-train`. This crate
-connects them, as the two `train` methods do. It is a crate of its own
+context generators from `turbo-sentdetect`, `turbo-tokenize`,
+`turbo-sequence` (the tagger's) and `turbo-lemmatizer`, so that training
+and inference share one implementation of each, and the trainer, model
+writer and `.bin` packaging from `turbo-train`. This crate connects them,
+as the `train` methods do. It is a crate of its own
 because `turbo-formats` depends on `turbo-tokenize`: a training module
 inside the annotator crates would close a cycle, and a module in
 `turbo-formats` would make the sample readers depend on the trainer.
@@ -72,7 +78,35 @@ All of these are kept and tested (`src/`, `tests/goldens.rs`,
   character, so a dictionary with such a token cannot be written into a
   model file (`Error::InvalidXmlCharacter`).
 - `BaseModel.serialize` adds `serializer-class-abbreviations.dictionary`
-  to the manifest only when a dictionary is present.
+  to the manifest only when a dictionary is present, and
+  `serializer-class-tags.tagdict` only when a tag dictionary is.
+- `POSTaggerFactory` given no descriptor loads `pos-default-features.xml`
+  when its context generator is first asked for, so every trained
+  `POSModel` carries a `generator.featuregen` entry (the published UD
+  models do), and training uses no feature cache.
+- `POSDictionary.create` puts the entries as written into a `HashMap`
+  and, when the dictionary is case insensitive, copies them lowercased
+  (`StringUtil.toLowerCase`, per code point) into a second map in the
+  first one's iteration order; `serialize` writes the second map's order,
+  so the `tags.tagdict` entry of a trained model is not the file it was
+  read from (`pos-fixture.bin` shows this). A later `put` of a word
+  already present replaces its tags and keeps its place.
+- `POSModel` refuses a tag dictionary with a tag the model has no
+  outcome for (`Error::UnknownDictionaryTags`, in the order of a
+  `HashSet` of the tags, as the JVM's message lists them).
+- With a tag dictionary the zip entries are `tags.tagdict`,
+  `manifest.properties`, `generator.featuregen`, `pos.model`: the hash
+  order puts the dictionary before the manifest.
+- The lemmatizer's features name a missing suffix or prefix `suf=null`
+  and `pre=null`, Java's string of a null reference, and an empty edit
+  script is the class `_`.
+- A lemma class is the shortest edit script over UTF-16 units, so a token
+  or lemma with a character outside the Basic Multilingual Plane can give
+  a class that holds half of a surrogate pair; the JVM trains on it, a
+  Rust string cannot hold it, and this crate refuses the sample
+  (`Error::LemmaClassSurrogate`). The `train-events` goldens have two
+  such samples, which `tests/goldens.rs` checks are the only events this
+  crate does not make.
 - The published UD 1.3 models were trained with 300 iterations, not the
   150 that `ud-train.conf` in `apache/opennlp-models` says (below).
 
@@ -85,22 +119,36 @@ Portuguese and Thai end characters, the German alphanumeric pattern with
 the optimization on, and CoNLL-U input, plus what the sample stream
 threw, the manifest and zip entries of a model file built from each
 factory, and `Dictionary.serialize` of dictionaries built in the
-generator (`EventGolden`; docs/analysis.md, "Training the sentence
-detector and tokenizer"). `tests/goldens.rs` compares this crate with
-every one of them. `tests/fixtures.rs` trains the fixture models
-`en-plain.bin`, `en-abbrev.bin` and `tokenizer-abbreviations.bin` again
-from their training texts and checks the manifest, the dictionary and the
-model entries byte for byte.
+generator (`EventGolden`), and the events of `POSSampleEventStream` with
+and without a tag dictionary and of `LemmaSampleEventStream`, over word
+and tag lines, word, tag and lemma lines and CoNLL-U in both tag sets,
+with their model files, the `tags.tagdict` entry and
+`POSDictionary.serialize` of dictionaries built in the generator
+(`TaggerEventGolden`; docs/analysis.md, "Training the components").
+`tests/goldens.rs` compares this crate with every one of them.
+`tests/fixtures.rs` trains the fixture models `en-plain.bin`,
+`en-abbrev.bin`, `tokenizer-abbreviations.bin` and `pos-fixture.bin`
+again from their training texts and checks the manifest, the
+dictionaries, the descriptor and the model entries byte for byte, and
+trains `pos-fixture-rust.bin` and `lemma-fixture-rust.bin`, the fixtures
+this crate wrote from `analysis/goldens/data/inputs/tagged/`, which the
+golden generator loads in the JVM and tags with
+(`analysis/postag/tests/golden.rs`, `analysis/lemmatizer/tests/golden.rs`
+compare the Rust annotators with those goldens).
 
 ## Reproducing the UD 1.3 models
 
-`ud::RECIPES` are the eight published models (`opennlp-{en,de,es,fr,pt}-ud-{ewt,gsd}-{sentence,tokens}-1.3-2.5.4`)
-as typed data: the treebank (repository, train file, size and digests at
-Universal Dependencies release 2.16, licence), the component, the
-factory and the training parameters. The treebanks are CC BY-SA 4.0, so
-they are fetched through `turbo-zoo` by digest after the licence is
-accepted, into the zoo cache, and never committed; `ud::datasets()` is
-the zoo index of the five.
+`ud::RECIPES` are the eighteen published models
+(`opennlp-{en,de,es,fr,pt}-ud-{ewt,gsd}-{sentence,tokens,pos,lemmas}-1.3-2.5.4`;
+no sentence model was published for Spanish and French) as typed data:
+the treebank (repository, train file, size and digests at Universal
+Dependencies release 2.16, licence), the component, the factory and the
+training parameters. The treebanks are CC BY-SA 4.0, so they are fetched
+through `turbo-zoo` by digest after the licence is accepted, into the zoo
+cache, and never committed; `ud::datasets()` is the zoo index of the
+five. A published model that is not under `TURBO_GOLDENS_MODELS` (the
+goldens use only the English and German taggers and lemmatizers) is
+fetched through the zoo's built-in index (`ud::fetch_published_model`).
 
 ```text
 cargo run -p turbo-zoo -- accept CC-BY-SA-4.0 --yes
@@ -119,9 +167,11 @@ iterations, not the committed 150 (every iteration of a longer run was
 compared with the file; 300 agrees to within a few thousand units in the
 last place, 299 and 301 do not). With 300 iterations the events, the
 manifest, the predicates and the outcome patterns of a published model
-come out exactly for all eight models, and the parameters to within
-2.2e-15 (German sentences) to 9.8e-15 (French tokens), with 60 to 85
-percent of them differing in their last bits. The JVM of the goldens
+come out exactly for all eighteen models, and the parameters to within
+2.2e-15 (German sentences) to 9.8e-15 (French tokens) for the sentence
+and token models and to within 1.6e-14 (English tags) to 6.9e-14 (German
+tags) for the taggers and lemmatizers, with 60 to 95 percent of them
+differing in their last bits. The JVM of the goldens
 container, running the fork's trainer on the same events, writes exactly
 the parameters this crate writes and shows the same residual against the
 published file, so the residual is not between this port and the fork's

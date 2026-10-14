@@ -1,10 +1,12 @@
-//! Trains the eight published UD 1.3 sentence and token models again and
-//! compares them with the published files. Ignored by default: it fetches
-//! the treebanks (CC BY-SA 4.0, about 95 MB) through the zoo, which needs
-//! `turbo-zoo accept CC-BY-SA-4.0 --yes` under the zoo home first, and
-//! the published models under `TURBO_GOLDENS_MODELS` (`cargo run -p
-//! turbo-goldens-tool -- fetch-models <dir>`). Training the five token
-//! models takes some minutes each.
+//! Trains the eighteen published UD 1.3 models again and compares them
+//! with the published files. Ignored by default: it fetches the treebanks
+//! (CC BY-SA 4.0, about 95 MB) through the zoo, which needs `turbo-zoo
+//! accept CC-BY-SA-4.0 --yes` under the zoo home first, and the published
+//! models under `TURBO_GOLDENS_MODELS` (`cargo run -p turbo-goldens-tool
+//! -- fetch-models <dir>`); a model not there (the goldens use only the
+//! English and German taggers and lemmatizers) is fetched through the zoo
+//! too. Training the five token models takes some minutes each, a tagger
+//! or lemmatizer under a minute.
 //!
 //! ```text
 //! TURBO_GOLDENS_MODELS=<dir> cargo test -p turbo-train-components --test reproduce -- --ignored --nocapture
@@ -52,7 +54,10 @@ fn the_published_ud_models_are_reproduced() {
             continue;
         }
         let treebank = ud::fetch_treebank(&recipe.treebank, &home, &user).unwrap_or_else(|e| panic!("{id}: {e}"));
-        let published = models.join(recipe.model_file());
+        let mut published = models.join(recipe.model_file());
+        if !published.is_file() {
+            published = ud::fetch_published_model(recipe, &home, &user).unwrap_or_else(|e| panic!("{id}: {e}"));
+        }
         let started = std::time::Instant::now();
         let (trained, comparison) = recipe
             .reproduce(&treebank, &published, &mut TrainingConfiguration::default())

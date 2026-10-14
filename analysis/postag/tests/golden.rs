@@ -284,3 +284,19 @@ fn fixture_with_tag_dictionary() {
     assert_eq!(counts.skipped, 1);
     assert_eq!((counts.tokens, counts.points, counts.restricted), (972, 2648, 42), "{counts:?}");
 }
+
+/// The model the Rust trainer wrote from `inputs/tagged/wordtag.txt` with
+/// the same tag dictionary (`analysis/train-components/tests/fixtures.rs`),
+/// which the JVM loaded and tagged with like the fixture above.
+#[test]
+fn rust_fixture_with_tag_dictionary() {
+    let path = common::fixtures_dir().join("pos-fixture-rust.bin");
+    let model = open(&path, Setting::Default);
+    assert!(model.tag_dictionary().is_some());
+    assert_eq!(model.guessed_format(), PosTagFormat::Penn);
+    assert_eq!(model.tag_format(), PosTagFormat::Ud);
+    let counts = check_run("pos-fixture-rust", &model, &path, Setting::Default);
+    assert_eq!(counts.files, [("edge".into(), 34), ("en".into(), 10)]);
+    assert_eq!(counts.skipped, 1);
+    assert_eq!((counts.tokens, counts.points, counts.restricted), (972, 2648, 42), "{counts:?}");
+}
