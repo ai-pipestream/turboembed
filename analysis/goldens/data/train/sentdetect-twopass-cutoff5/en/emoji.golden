@@ -1,0 +1,55 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	en/emoji	194	176	988126c5cc162c43b57be5509c7c49796549ca909ed887ec66f50edf7e54b441
+annotator	opennlp.tools.ml.maxent.GISTrainer	train
+config	Cutoff	5
+config	DataIndexer	TwoPass
+config	Iterations	100
+config	sort	true
+config	source	sentdetect
+layer	turbo:events	document	5	outcome:str	context:str	values:str
+n	sn eos=! x=match 5 v=the s= n=🎉	
+n	sn eos=. x=afterwards 10 v=🍕 s= n=My ncap	
+n	sn eos=. x=❤️ 2 v=heart s= n=The ncap	
+n	sn eos=. x=stadium 7 v=the s= n=What ncap	
+s	sn eos=. x=😀 2 v=day s= n=	
+end	turbo:events
+layer	turbo:event-checksum	document	1	crc32c:u32
+4056527795
+end	turbo:event-checksum
+layer	turbo:indexer-outcomes	document	2	label:str
+n
+s
+end	turbo:indexer-outcomes
+layer	turbo:indexer-predicates	document	2	label:str	count:u32
+s=	5
+sn	5
+end	turbo:indexer-predicates
+layer	turbo:indexer-events	document	2	outcome:u32	context:str	values:str	seen:u32
+0	1 0		4
+1	1 0		1
+end	turbo:indexer-events
+layer	turbo:gis-training	document	1	iterations:u32	message:str
+3	Training finished after completing 100 iterations successfully.
+end	turbo:gis-training
+layer	turbo:gis-iterations	document	3	iteration:u32	likelihood:f64	correct:u32	events:u32	parameters:str
+1	c00bb9d3beb8c86b -3.4657359027997265	4	5	05d3d9887fdfaf5643b487ee3329699793b4e42de31e349211c534af7d877d9c
+2	c004041eeddd6d22 -2.5020121176909393	4	5	b6cdfcc830519af814a2a5dce93f0d5d01da8998f76c79a72e0c651885792fe7
+3	c004041eeddd6d23 -2.50201211769094	4	5	b6cdfcc830519af814a2a5dce93f0d5d01da8998f76c79a72e0c651885792fe7
+end	turbo:gis-iterations
+layer	turbo:gis-parameters	document	8	iteration:u32	predicate:u32	outcome:u32	value:f64
+1	0	0	3fce148a1a2726cc 0.23500181462286773
+1	0	1	bfdd5240f0e0e078 -0.45814536593707755
+1	1	0	3fce148a1a2726cc 0.23500181462286773
+1	1	1	bfdd5240f0e0e078 -0.45814536593707755
+3	0	0	3fce148a1a2726cc 0.23500181462286773
+3	0	1	bfdd5240f0e0e077 -0.4581453659370775
+3	1	0	3fce148a1a2726cc 0.23500181462286773
+3	1	1	bfdd5240f0e0e077 -0.4581453659370775
+end	turbo:gis-parameters
+layer	turbo:gis-model	document	1	sha256:str	length:u32
+b4219e82ea30aa384726f481eaa2c8d027684039b95a4f093fcbfe0dd0caeb7c	82
+end	turbo:gis-model

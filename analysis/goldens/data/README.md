@@ -98,6 +98,11 @@ are not taken from any corpus.
   outside the Basic Multilingual Plane (`emoji`) and words holding `</w>`
   as text (`end-marker`).
 
+- `inputs/train/sentences.txt`: the 230 sentences, one per line, the
+  fixture sentence model `en-plain.bin` was trained on
+  (`analysis/sentdetect/tests/fixtures/sentences.txt`), for the training
+  goldens.
+
 `analysis/goldens-tool/README.md` ("Runs") lists which run reads which set.
 
 ## Fixtures
@@ -292,6 +297,17 @@ has no model file; `merges-<n>` names it. The trainer counts symbols in
 UTF-16 units, so on `emoji` its merges hold halves of surrogate pairs;
 its tokens are whole characters. `analysis/bpe-trainer/tests/opennlp.rs`
 compares the Rust trainer and tokenizer with them (docs/bpe-trainer.md).
+
+## Training goldens
+
+`train/<source>-<indexer>-cutoff<n>[-unsorted]/<set>/<id>.golden` is what
+OpenNLP's event streams, data indexers and GIS trainer did on
+`inputs/<set>/<id>.txt`: the events a source made from the text, the
+event checksum, the labels, counts and indexed events of the named
+indexer with the run's cutoff and sorting, and the GIS trainer's log
+likelihood and parameters after every iteration (docs/analysis.md,
+"Training goldens"). The run has no model file; its settings name it.
+`analysis/train/tests/goldens.rs` compares the Rust indexers with them.
 
 ## Normalizer goldens
 

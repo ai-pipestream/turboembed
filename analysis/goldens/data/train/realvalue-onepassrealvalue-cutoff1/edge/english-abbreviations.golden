@@ -1,0 +1,48 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	edge/english-abbreviations	100	100	a1ae6c3cea011ea2aa2fa0957c75784f28e53270a0ed62574eb35e06b08fb03b
+annotator	opennlp.tools.ml.maxent.GISTrainer	train
+config	Cutoff	1
+config	DataIndexer	OnePassRealValue
+config	Iterations	100
+config	sort	true
+config	source	realvalue
+layer	turbo:events	document	1	outcome:str	context:str	values:str
+long	Mr. Smith met Dr. Jones in the U.S. last week, e.g. on Monday. They agreed. Prof. Lee wasn't there.	1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0
+end	turbo:events
+layer	turbo:event-checksum	document	1	crc32c:u32
+725787685
+end	turbo:event-checksum
+layer	turbo:indexer-outcomes	document	1	label:str
+long
+end	turbo:indexer-outcomes
+layer	turbo:indexer-predicates	document	19	label:str	count:u32
+Dr.	1
+Jones	1
+Lee	1
+Monday.	1
+Mr.	1
+Prof.	1
+Smith	1
+They	1
+U.S.	1
+agreed.	1
+e.g.	1
+in	1
+last	1
+met	1
+on	1
+the	1
+there.	1
+wasn't	1
+week,	1
+end	turbo:indexer-predicates
+layer	turbo:indexer-events	document	1	outcome:u32	context:str	values:str	seen:u32
+0	4 6 13 0 1 11 15 8 12 18 10 14 3 7 9 5 2 17 16	1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0	1
+end	turbo:indexer-events
+layer	turbo:gis-training	document	1	iterations:u32	message:str
+0	opennlp.tools.util.InsufficientTrainingDataException: Training data must contain more than one outcome
+end	turbo:gis-training

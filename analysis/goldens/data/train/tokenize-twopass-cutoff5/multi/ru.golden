@@ -1,0 +1,296 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	multi/ru	307	170	0694c88d949a90a29192dbe856add99bbd2f60b9be7448fa0d53b04407bfbbbf
+annotator	opennlp.tools.ml.maxent.GISTrainer	train
+config	Cutoff	5
+config	DataIndexer	TwoPass
+config	Iterations	100
+config	sort	true
+config	source	tokenize
+layer	turbo:events	document	114	outcome:str	context:str	values:str
+F	p=З s=има p1=З p1_alpha p1_caps p2=bok p1f1=Зи f1=и f1_alpha f2=м f2_alpha f12=им	
+F	p=Зи s=ма p1=и p1_alpha p2=З p2_alpha p2_caps p21=Зи p1f1=им f1=м f1_alpha f2=а f2_alpha f12=ма	
+F	p=Зим s=а p1=м p1_alpha p2=и p2_alpha p21=им p1f1=ма f1=а f1_alpha f2=bok	
+F	p=э s=том p1=э p1_alpha p2=bok p1f1=эт f1=т f1_alpha f2=о f2_alpha f12=то	
+F	p=эт s=ом p1=т p1_alpha p2=э p2_alpha p21=эт p1f1=то f1=о f1_alpha f2=м f2_alpha f12=ом	
+F	p=это s=м p1=о p1_alpha p2=т p2_alpha p21=то p1f1=ом f1=м f1_alpha f2=bok	
+F	p=г s=оду p1=г p1_alpha p2=bok p1f1=го f1=о f1_alpha f2=д f2_alpha f12=од	
+F	p=го s=ду p1=о p1_alpha p2=г p2_alpha p21=го p1f1=од f1=д f1_alpha f2=у f2_alpha f12=ду	
+F	p=год s=у p1=д p1_alpha p2=о p2_alpha p21=од p1f1=ду f1=у f1_alpha f2=bok	
+F	p=п s=ришла p1=п p1_alpha p2=bok p1f1=пр f1=р f1_alpha f2=и f2_alpha f12=ри	
+F	p=пр s=ишла p1=р p1_alpha p2=п p2_alpha p21=пр p1f1=ри f1=и f1_alpha f2=ш f2_alpha f12=иш	
+F	p=при s=шла p1=и p1_alpha p2=р p2_alpha p21=ри p1f1=иш f1=ш f1_alpha f2=л f2_alpha f12=шл	
+F	p=приш s=ла p1=ш p1_alpha p2=и p2_alpha p21=иш p1f1=шл f1=л f1_alpha f2=а f2_alpha f12=ла	
+F	p=пришл s=а p1=л p1_alpha p2=ш p2_alpha p21=шл p1f1=ла f1=а f1_alpha f2=bok	
+F	p=р s=ано. p1=р p1_alpha p2=bok p1f1=ра f1=а f1_alpha f2=н f2_alpha f12=ан	
+F	p=ра s=но. p1=а p1_alpha p2=р p2_alpha p21=ра p1f1=ан f1=н f1_alpha f2=о f2_alpha f12=но	
+F	p=ран s=о. p1=н p1_alpha p2=а p2_alpha p21=ан p1f1=но f1=о f1_alpha f2=. f2_eos f12=о.	
+F	p=рано s=. p1=о p1_alpha p2=н p2_alpha p21=но p1f1=о. f1=. f1_eos f2=bok	
+F	p=У s=же p1=У p1_alpha p1_caps p2=bok p1f1=Уж f1=ж f1_alpha f2=е f2_alpha f12=же	
+F	p=Уж s=е p1=ж p1_alpha p2=У p2_alpha p2_caps p21=Уж p1f1=же f1=е f1_alpha f2=bok	
+F	p=о s=ктябре p1=о p1_alpha p2=bok p1f1=ок f1=к f1_alpha f2=т f2_alpha f12=кт	
+F	p=ок s=тябре p1=к p1_alpha p2=о p2_alpha p21=ок p1f1=кт f1=т f1_alpha f2=я f2_alpha f12=тя	
+F	p=окт s=ябре p1=т p1_alpha p2=к p2_alpha p21=кт p1f1=тя f1=я f1_alpha f2=б f2_alpha f12=яб	
+F	p=октя s=бре p1=я p1_alpha p2=т p2_alpha p21=тя p1f1=яб f1=б f1_alpha f2=р f2_alpha f12=бр	
+F	p=октяб s=ре p1=б p1_alpha p2=я p2_alpha p21=яб p1f1=бр f1=р f1_alpha f2=е f2_alpha f12=ре	
+F	p=октябр s=е p1=р p1_alpha p2=б p2_alpha p21=бр p1f1=ре f1=е f1_alpha f2=bok	
+F	p=в s=ыпал p1=в p1_alpha p2=bok p1f1=вы f1=ы f1_alpha f2=п f2_alpha f12=ып	
+F	p=вы s=пал p1=ы p1_alpha p2=в p2_alpha p21=вы p1f1=ып f1=п f1_alpha f2=а f2_alpha f12=па	
+F	p=вып s=ал p1=п p1_alpha p2=ы p2_alpha p21=ып p1f1=па f1=а f1_alpha f2=л f2_alpha f12=ал	
+F	p=выпа s=л p1=а p1_alpha p2=п p2_alpha p21=па p1f1=ал f1=л f1_alpha f2=bok	
+F	p=п s=ервый p1=п p1_alpha p2=bok p1f1=пе f1=е f1_alpha f2=р f2_alpha f12=ер	
+F	p=пе s=рвый p1=е p1_alpha p2=п p2_alpha p21=пе p1f1=ер f1=р f1_alpha f2=в f2_alpha f12=рв	
+F	p=пер s=вый p1=р p1_alpha p2=е p2_alpha p21=ер p1f1=рв f1=в f1_alpha f2=ы f2_alpha f12=вы	
+F	p=перв s=ый p1=в p1_alpha p2=р p2_alpha p21=рв p1f1=вы f1=ы f1_alpha f2=й f2_alpha f12=ый	
+F	p=первы s=й p1=ы p1_alpha p2=в p2_alpha p21=вы p1f1=ый f1=й f1_alpha f2=bok	
+F	p=с s=нег, p1=с p1_alpha p2=bok p1f1=сн f1=н f1_alpha f2=е f2_alpha f12=не	
+F	p=сн s=ег, p1=н p1_alpha p2=с p2_alpha p21=сн p1f1=не f1=е f1_alpha f2=г f2_alpha f12=ег	
+F	p=сне s=г, p1=е p1_alpha p2=н p2_alpha p21=не p1f1=ег f1=г f1_alpha f2=, f12=г,	
+F	p=снег s=, p1=г p1_alpha p2=е p2_alpha p21=ег p1f1=г, f1=, f2=bok	
+F	p=д s=ети p1=д p1_alpha p2=bok p1f1=де f1=е f1_alpha f2=т f2_alpha f12=ет	
+F	p=де s=ти p1=е p1_alpha p2=д p2_alpha p21=де p1f1=ет f1=т f1_alpha f2=и f2_alpha f12=ти	
+F	p=дет s=и p1=т p1_alpha p2=е p2_alpha p21=ет p1f1=ти f1=и f1_alpha f2=bok	
+F	p=п s=обежали p1=п p1_alpha p2=bok p1f1=по f1=о f1_alpha f2=б f2_alpha f12=об	
+F	p=по s=бежали p1=о p1_alpha p2=п p2_alpha p21=по p1f1=об f1=б f1_alpha f2=е f2_alpha f12=бе	
+F	p=поб s=ежали p1=б p1_alpha p2=о p2_alpha p21=об p1f1=бе f1=е f1_alpha f2=ж f2_alpha f12=еж	
+F	p=побе s=жали p1=е p1_alpha p2=б p2_alpha p21=бе p1f1=еж f1=ж f1_alpha f2=а f2_alpha f12=жа	
+F	p=побеж s=али p1=ж p1_alpha p2=е p2_alpha p21=еж p1f1=жа f1=а f1_alpha f2=л f2_alpha f12=ал	
+F	p=побежа s=ли p1=а p1_alpha p2=ж p2_alpha p21=жа p1f1=ал f1=л f1_alpha f2=и f2_alpha f12=ли	
+F	p=побежал s=и p1=л p1_alpha p2=а p2_alpha p21=ал p1f1=ли f1=и f1_alpha f2=bok	
+F	p=к s=ататься p1=к p1_alpha p2=bok p1f1=ка f1=а f1_alpha f2=т f2_alpha f12=ат	
+F	p=ка s=таться p1=а p1_alpha p2=к p2_alpha p21=ка p1f1=ат f1=т f1_alpha f2=а f2_alpha f12=та	
+F	p=кат s=аться p1=т p1_alpha p2=а p2_alpha p21=ат p1f1=та f1=а f1_alpha f2=т f2_alpha f12=ат	
+F	p=ката s=ться p1=а p1_alpha p2=т p2_alpha p21=та p1f1=ат f1=т f1_alpha f2=ь f2_alpha f12=ть	
+F	p=катат s=ься p1=т p1_alpha p2=а p2_alpha p21=ат p1f1=ть f1=ь f1_alpha f2=с f2_alpha f12=ьс	
+F	p=катать s=ся p1=ь p1_alpha p2=т p2_alpha p21=ть p1f1=ьс f1=с f1_alpha f2=я f2_alpha f12=ся	
+F	p=кататьс s=я p1=с p1_alpha p2=ь p2_alpha p21=ьс p1f1=ся f1=я f1_alpha f2=bok	
+F	p=н s=а p1=н p1_alpha p2=bok p1f1=на f1=а f1_alpha f2=bok	
+F	p=с s=анках. p1=с p1_alpha p2=bok p1f1=са f1=а f1_alpha f2=н f2_alpha f12=ан	
+F	p=са s=нках. p1=а p1_alpha p2=с p2_alpha p21=са p1f1=ан f1=н f1_alpha f2=к f2_alpha f12=нк	
+F	p=сан s=ках. p1=н p1_alpha p2=а p2_alpha p21=ан p1f1=нк f1=к f1_alpha f2=а f2_alpha f12=ка	
+F	p=санк s=ах. p1=к p1_alpha p2=н p2_alpha p21=нк p1f1=ка f1=а f1_alpha f2=х f2_alpha f12=ах	
+F	p=санка s=х. p1=а p1_alpha p2=к p2_alpha p21=ка p1f1=ах f1=х f1_alpha f2=. f2_eos f12=х.	
+F	p=санках s=. p1=х p1_alpha p2=а p2_alpha p21=ах p1f1=х. f1=. f1_eos f2=bok	
+F	p=г s=ороде p1=г p1_alpha p2=bok p1f1=го f1=о f1_alpha f2=р f2_alpha f12=ор	
+F	p=го s=роде p1=о p1_alpha p2=г p2_alpha p21=го p1f1=ор f1=р f1_alpha f2=о f2_alpha f12=ро	
+F	p=гор s=оде p1=р p1_alpha p2=о p2_alpha p21=ор p1f1=ро f1=о f1_alpha f2=д f2_alpha f12=од	
+F	p=горо s=де p1=о p1_alpha p2=р p2_alpha p21=ро p1f1=од f1=д f1_alpha f2=е f2_alpha f12=де	
+F	p=город s=е p1=д p1_alpha p2=о p2_alpha p21=од p1f1=де f1=е f1_alpha f2=bok	
+F	p=б s=ыстро p1=б p1_alpha p2=bok p1f1=бы f1=ы f1_alpha f2=с f2_alpha f12=ыс	
+F	p=бы s=стро p1=ы p1_alpha p2=б p2_alpha p21=бы p1f1=ыс f1=с f1_alpha f2=т f2_alpha f12=ст	
+F	p=быс s=тро p1=с p1_alpha p2=ы p2_alpha p21=ыс p1f1=ст f1=т f1_alpha f2=р f2_alpha f12=тр	
+F	p=быст s=ро p1=т p1_alpha p2=с p2_alpha p21=ст p1f1=тр f1=р f1_alpha f2=о f2_alpha f12=ро	
+F	p=быстр s=о p1=р p1_alpha p2=т p2_alpha p21=тр p1f1=ро f1=о f1_alpha f2=bok	
+F	p=р s=асчистили p1=р p1_alpha p2=bok p1f1=ра f1=а f1_alpha f2=с f2_alpha f12=ас	
+F	p=ра s=счистили p1=а p1_alpha p2=р p2_alpha p21=ра p1f1=ас f1=с f1_alpha f2=ч f2_alpha f12=сч	
+F	p=рас s=чистили p1=с p1_alpha p2=а p2_alpha p21=ас p1f1=сч f1=ч f1_alpha f2=и f2_alpha f12=чи	
+F	p=расч s=истили p1=ч p1_alpha p2=с p2_alpha p21=сч p1f1=чи f1=и f1_alpha f2=с f2_alpha f12=ис	
+F	p=расчи s=стили p1=и p1_alpha p2=ч p2_alpha p21=чи p1f1=ис f1=с f1_alpha f2=т f2_alpha f12=ст	
+F	p=расчис s=тили p1=с p1_alpha p2=и p2_alpha p21=ис p1f1=ст f1=т f1_alpha f2=и f2_alpha f12=ти	
+F	p=расчист s=или p1=т p1_alpha p2=с p2_alpha p21=ст p1f1=ти f1=и f1_alpha f2=л f2_alpha f12=ил	
+F	p=расчисти s=ли p1=и p1_alpha p2=т p2_alpha p21=ти p1f1=ил f1=л f1_alpha f2=и f2_alpha f12=ли	
+F	p=расчистил s=и p1=л p1_alpha p2=и p2_alpha p21=ил p1f1=ли f1=и f1_alpha f2=bok	
+F	p=д s=ороги. p1=д p1_alpha p2=bok p1f1=до f1=о f1_alpha f2=р f2_alpha f12=ор	
+F	p=до s=роги. p1=о p1_alpha p2=д p2_alpha p21=до p1f1=ор f1=р f1_alpha f2=о f2_alpha f12=ро	
+F	p=дор s=оги. p1=р p1_alpha p2=о p2_alpha p21=ор p1f1=ро f1=о f1_alpha f2=г f2_alpha f12=ог	
+F	p=доро s=ги. p1=о p1_alpha p2=р p2_alpha p21=ро p1f1=ог f1=г f1_alpha f2=и f2_alpha f12=ги	
+F	p=дорог s=и. p1=г p1_alpha p2=о p2_alpha p21=ог p1f1=ги f1=и f1_alpha f2=. f2_eos f12=и.	
+F	p=дороги s=. p1=и p1_alpha p2=г p2_alpha p21=ги p1f1=и. f1=. f1_eos f2=bok	
+F	p=М s=ногие p1=М p1_alpha p1_caps p2=bok p1f1=Мн f1=н f1_alpha f2=о f2_alpha f12=но	
+F	p=Мн s=огие p1=н p1_alpha p2=М p2_alpha p2_caps p21=Мн p1f1=но f1=о f1_alpha f2=г f2_alpha f12=ог	
+F	p=Мно s=гие p1=о p1_alpha p2=н p2_alpha p21=но p1f1=ог f1=г f1_alpha f2=и f2_alpha f12=ги	
+F	p=Мног s=ие p1=г p1_alpha p2=о p2_alpha p21=ог p1f1=ги f1=и f1_alpha f2=е f2_alpha f12=ие	
+F	p=Многи s=е p1=и p1_alpha p2=г p2_alpha p21=ги p1f1=ие f1=е f1_alpha f2=bok	
+F	p=ж s=ители p1=ж p1_alpha p2=bok p1f1=жи f1=и f1_alpha f2=т f2_alpha f12=ит	
+F	p=жи s=тели p1=и p1_alpha p2=ж p2_alpha p21=жи p1f1=ит f1=т f1_alpha f2=е f2_alpha f12=те	
+F	p=жит s=ели p1=т p1_alpha p2=и p2_alpha p21=ит p1f1=те f1=е f1_alpha f2=л f2_alpha f12=ел	
+F	p=жите s=ли p1=е p1_alpha p2=т p2_alpha p21=те p1f1=ел f1=л f1_alpha f2=и f2_alpha f12=ли	
+F	p=жител s=и p1=л p1_alpha p2=е p2_alpha p21=ел p1f1=ли f1=и f1_alpha f2=bok	
+F	p=р s=ады p1=р p1_alpha p2=bok p1f1=ра f1=а f1_alpha f2=д f2_alpha f12=ад	
+F	p=ра s=ды p1=а p1_alpha p2=р p2_alpha p21=ра p1f1=ад f1=д f1_alpha f2=ы f2_alpha f12=ды	
+F	p=рад s=ы p1=д p1_alpha p2=а p2_alpha p21=ад p1f1=ды f1=ы f1_alpha f2=bok	
+F	p=х s=олодной p1=х p1_alpha p2=bok p1f1=хо f1=о f1_alpha f2=л f2_alpha f12=ол	
+F	p=хо s=лодной p1=о p1_alpha p2=х p2_alpha p21=хо p1f1=ол f1=л f1_alpha f2=о f2_alpha f12=ло	
+F	p=хол s=одной p1=л p1_alpha p2=о p2_alpha p21=ол p1f1=ло f1=о f1_alpha f2=д f2_alpha f12=од	
+F	p=холо s=дной p1=о p1_alpha p2=л p2_alpha p21=ло p1f1=од f1=д f1_alpha f2=н f2_alpha f12=дн	
+F	p=холод s=ной p1=д p1_alpha p2=о p2_alpha p21=од p1f1=дн f1=н f1_alpha f2=о f2_alpha f12=но	
+F	p=холодн s=ой p1=н p1_alpha p2=д p2_alpha p21=дн p1f1=но f1=о f1_alpha f2=й f2_alpha f12=ой	
+F	p=холодно s=й p1=о p1_alpha p2=н p2_alpha p21=но p1f1=ой f1=й f1_alpha f2=bok	
+F	p=п s=огоде. p1=п p1_alpha p2=bok p1f1=по f1=о f1_alpha f2=г f2_alpha f12=ог	
+F	p=по s=годе. p1=о p1_alpha p2=п p2_alpha p21=по p1f1=ог f1=г f1_alpha f2=о f2_alpha f12=го	
+F	p=пог s=оде. p1=г p1_alpha p2=о p2_alpha p21=ог p1f1=го f1=о f1_alpha f2=д f2_alpha f12=од	
+F	p=пого s=де. p1=о p1_alpha p2=г p2_alpha p21=го p1f1=од f1=д f1_alpha f2=е f2_alpha f12=де	
+F	p=погод s=е. p1=д p1_alpha p2=о p2_alpha p21=од p1f1=де f1=е f1_alpha f2=. f2_eos f12=е.	
+F	p=погоде s=. p1=е p1_alpha p2=д p2_alpha p21=де p1f1=е. f1=. f1_eos f2=bok	
+end	turbo:events
+layer	turbo:event-checksum	document	1	crc32c:u32
+487955297
+end	turbo:event-checksum
+layer	turbo:indexer-outcomes	document	1	label:str
+F
+end	turbo:indexer-outcomes
+layer	turbo:indexer-predicates	document	45	label:str	count:u32
+f1=а	12
+f1=д	5
+f1=е	10
+f1=и	11
+f1=л	6
+f1=н	5
+f1=о	15
+f1=р	6
+f1=т	8
+f1_alpha	109
+f2=bok	24
+f2=а	6
+f2=д	5
+f2=е	8
+f2=и	9
+f2=л	6
+f2=о	9
+f2=р	5
+f2=т	7
+f2_alpha	85
+p1=а	9
+p1=г	6
+p1=д	7
+p1=е	6
+p1=и	7
+p1=л	5
+p1=н	6
+p1=о	15
+p1=п	5
+p1=р	9
+p1=с	6
+p1=т	8
+p1_alpha	114
+p2=bok	24
+p2=а	8
+p2=г	5
+p2=е	5
+p2=и	5
+p2=н	5
+p2=о	12
+p2=п	5
+p2=р	7
+p2=с	5
+p2=т	7
+p2_alpha	90
+end	turbo:indexer-predicates
+layer	turbo:indexer-events	document	110	outcome:u32	context:str	values:str	seen:u32
+0	20 32 40 44 4 9 10		1
+0	20 32 41 44 1 9 19		1
+0	20 32 41 44 5 9 16 19		1
+0	20 32 41 44 9 19		1
+0	20 32 42 44 5 9 19		1
+0	20 32 43 44 8 9 19		1
+0	20 32 44 4 9 14 19		1
+0	20 32 44 8 9 11 19		1
+0	20 32 44 9		1
+0	21 32 33 6 9 12 19		1
+0	21 32 33 6 9 17 19		1
+0	21 32 36 44 10		1
+0	21 32 39 44 3 9		1
+0	21 32 39 44 3 9 13 19		1
+0	21 32 39 44 6 9 12 19		1
+0	22 32 33 2 9 18 19		1
+0	22 32 33 6 9 17 19		1
+0	22 32 34 44 9 10		1
+0	22 32 39 44 2 9		1
+0	22 32 39 44 2 9 10		1
+0	22 32 39 44 5 9 16 19		1
+0	22 32 39 44 9 10		1
+0	23 32 38 44 9		1
+0	23 32 40 44 7 9 19		1
+0	23 32 43 44 4 9 14 19		1
+0	23 32 44 8 9 14 19		1
+0	23 32 44 9 11 19		1
+0	23 32 44 10		1
+0	24 32 35 44 2 9 10		1
+0	24 32 35 44 10		1
+0	24 32 41 44 9 15 19		1
+0	24 32 43 44 4 9 14 19		1
+0	24 32 44 8 9 13 19		1
+0	24 32 44 9 11 19		1
+0	24 32 44 9 18 19		1
+0	25 32 34 44 3 9 10		1
+0	25 32 36 44 3 9 10		1
+0	25 32 37 44 3 9 10		1
+0	25 32 39 44 6 9 12 19		1
+0	25 32 44 0 9 10		1
+0	26 32 33 0 9 10		1
+0	26 32 34 44 6 9		1
+0	26 32 34 44 9 11 19		1
+0	26 32 42 44 2 9 19		1
+0	26 32 44 6 9 19		2
+0	27 32 33 9 18 19		1
+0	27 32 35 44 1 9 13 19		1
+0	27 32 35 44 1 9 19		1
+0	27 32 35 44 7 9 16 19		1
+0	27 32 38 44 9 10		1
+0	27 32 38 44 9 14 19		1
+0	27 32 38 44 10		1
+0	27 32 40 44 9 13 19		1
+0	27 32 40 44 9 16 19		1
+0	27 32 41 44 1 9 13 19		1
+0	27 32 41 44 9 14 19		1
+0	27 32 43 44 9 10		1
+0	27 32 44 1 9 19		1
+0	27 32 44 4 9 16 19		1
+0	27 32 44 7 9 16 19		1
+0	28 32 33 2 9 17 19		1
+0	28 32 33 6 9 19		2
+0	28 32 33 7 9 14 19		1
+0	28 32 44 0 9 15 19		1
+0	29 32 33 0 9 12 19		1
+0	29 32 33 0 9 19		2
+0	29 32 36 44 9 19		1
+0	29 32 39 44 6 9 12 19		1
+0	29 32 39 44 6 9 19		1
+0	29 32 40 44 3 9 19		1
+0	29 32 43 44 6 9 10		1
+0	29 32 44 2 9 10		1
+0	30 32 33 0 9 19		1
+0	30 32 33 5 9 13 19		1
+0	30 32 34 44 9 14 19		1
+0	30 32 37 44 8 9 14 19		1
+0	30 32 44 8 9 17 19		1
+0	30 32 44 9 10		1
+0	31 32 34 44 0 9 18 19		1
+0	31 32 34 44 9 19		1
+0	31 32 36 44 3 9 10		1
+0	31 32 37 44 2 9 15 19		1
+0	31 32 42 44 3 9 15 19		1
+0	31 32 42 44 7 9 16 19		1
+0	31 32 44 6 9 19		1
+0	31 32 44 9 19		1
+0	32 33 0 9 18 19		1
+0	32 33 3 9 18 19		1
+0	32 33 3 9 19		1
+0	32 33 5 9 16 19		1
+0	32 33 6 9 15 19		1
+0	32 33 8 9 16 19		1
+0	32 33 9 13 19		1
+0	32 33 9 19		2
+0	32 34 44 10		1
+0	32 36 44 0 9 15 19		1
+0	32 37 44 0 9 10		1
+0	32 37 44 4 9 11 19		1
+0	32 38 44 0 9 19		1
+0	32 39 44 2 9 19		1
+0	32 39 44 8 9 19		1
+0	32 41 44 9 19		1
+0	32 42 44 3 9 19		1
+0	32 43 44 9 17 19		1
+0	32 43 44 9 19		1
+0	32 44 2 9 10		1
+0	32 44 7 9 13 19		1
+0	32 44 9 10		1
+0	32 44 9 11 19		1
+0	32 44 9 18 19		1
+end	turbo:indexer-events
+layer	turbo:gis-training	document	1	iterations:u32	message:str
+0	opennlp.tools.util.InsufficientTrainingDataException: Training data must contain more than one outcome
+end	turbo:gis-training

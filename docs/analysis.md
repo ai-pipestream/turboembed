@@ -31,6 +31,7 @@ nothing here is in the C header or the gRPC server.
 | `turbo-stopword` | `analysis/stopword/` | OpenNLP's eleven bundled stopword lists (Bulgarian, Danish, German, English, Spanish, Finnish, French, Italian, Dutch, Portuguese, Russian) and `StopwordFilter.isStopword`, and the step that reads `opennlp:tokens` and, optionally, `opennlp:language` and writes `turbo:stopwords`, a flag per token; it flags and never removes. `analysis/stopword/data/README.md` gives each list's origin and license, the crate documentation lists the OpenNLP behaviour that is surprising, and `analysis/stopword/README.md` describes its JVM golden files |
 | `turbo-stopword-layers` | `analysis/stopword-layers/` | The `turbo:stopwords` layer and the languages that have a list (`StopwordLanguage`) |
 | `turbo-bpe-trainer` | `analysis/bpe-trainer/` | BPE trainers, a tool and not an annotator: byte-level BPE as upstream `tokenizers` trains it, SentencePiece BPE as the sentencepiece library trains it, and OpenNLP's `BPETokenizerTrainer` with its `BPETokenizer` ([bpe-trainer.md](bpe-trainer.md)) |
+| `turbo-train` | `analysis/train/` | Training OpenNLP maxent models, the event side: `Event`, the `FileEventStream` and `RealValueFileEventStream` formats, the CRC-32C event checksum, the three data indexers with their cutoffs, sorting and merging, `TrainingParameters` with typed values and OpenNLP's parameters file, `AlgorithmType` and the trainer types, and the progress monitors and stop criteria. Sample types belong to the formats crate; this one starts at events. Its crate documentation lists the OpenNLP behaviour that is surprising, and "Training goldens" below describes its JVM reference |
 | `turbo-eval` | `analysis/eval/` | The evaluation harness: the evaluation sets with their fetch by checksum and typed readers, the pipeline, the baseline chunkers, measures, significance tests, records, the gate and the `turbo-eval` binary (Evaluation, below) |
 
 They need nothing beyond the standard library and each other, except
@@ -1265,6 +1266,16 @@ The layers and their columns, in order:
 | `turbo:detokenized` | `document` | `text:str`, `marked:str` |
 | `turbo:bpe-merges` | `document` | `left:str`, `right:str` |
 | `turbo:morphemes` | `aligned:opennlp:tokens` | `unknown:u32`, `features:str` |
+| `turbo:events` | `document` | `outcome:str`, `context:str`, `values:str` |
+| `turbo:indexer-error` | `document` | `class:str`, `message:str` |
+| `turbo:event-checksum` | `document` | `crc32c:u32` |
+| `turbo:indexer-outcomes` | `document` | `label:str` |
+| `turbo:indexer-predicates` | `document` | `label:str`, `count:u32` |
+| `turbo:indexer-events` | `document` | `outcome:u32`, `context:str`, `values:str`, `seen:u32` |
+| `turbo:gis-training` | `document` | `iterations:u32`, `message:str` |
+| `turbo:gis-iterations` | `document` | `iteration:u32`, `likelihood:f64`, `correct:u32`, `events:u32`, `parameters:str` |
+| `turbo:gis-parameters` | `document` | `iteration:u32`, `predicate:u32`, `outcome:u32`, `value:f64` |
+| `turbo:gis-model` | `document` | `sha256:str`, `length:u32` |
 
 `opennlp:language` has a row per language the detector ranked, best
 first. A `turbo:view` block is what a normalizer produced: a row per
@@ -1459,6 +1470,49 @@ SHA-512.
 A `turbo:view` block is not loaded. A view golden is only compared with
 the view a Rust normalizer makes, so `load_document` on one gives the
 source text alone, for the normalizer to run on.
+
+## Training goldens
+
+`analysis/goldens/data/train/<source>-<indexer>-cutoff<n>[-unsorted]/<set>/<id>.golden`
+is what OpenNLP's training stack does below the sample types, for the
+Rust trainers in `analysis/train` to be compared with. Each golden holds
+the events an event stream made from the input (`turbo:events`: the
+outcome, the contexts joined with single spaces as `FileEventStream.toLine`
+writes them, and the values as `Float.toString` joined the same way, empty
+when the event has none; in the contexts and in the predicate labels a
+backslash is doubled and a lone surrogate, which the tokenizer's features
+hold and a `str` column cannot, is the six characters `\uXXXX`), the CRC-32C `ChecksumEventStream` computed over
+them (`turbo:event-checksum`, the manifest's `Training-Eventhash`), and
+what the named data indexer made of them with the run's `Cutoff` and
+`sort`: the outcome labels by id (`turbo:indexer-outcomes`), the predicate
+labels and counts by id (`turbo:indexer-predicates`) and one row per
+indexed event (`turbo:indexer-events`: outcome id, predicate ids joined
+with single spaces, the values the indexer kept, and how often the event
+was seen). The sources are the sentence detector's `SDEventStream`, the
+tokenizer's `TokSpanEventStream` and a real valued source made from the
+lines of the input (`analysis/goldens-tool/README.md`, "Runs"); the
+`sentdetect` runs on `inputs/train/sentences.txt` with `TwoPass` and cutoff
+1 is the training of the fixture model `en-plain.bin`, and its checksum is
+that model's `Training-Eventhash`.
+
+Then the GIS trainer runs on the index with the run's `Iterations` and
+one thread: `turbo:gis-training` says how many iterations it ran and what
+its progress monitor recorded last (the stop criterion's message or the
+finished message; with one outcome the trainer refuses the index, the row
+says zero iterations and the exception, and the rest is left out);
+`turbo:gis-iterations` has, per iteration, the log likelihood the monitor
+was given, the correct and total events, and the SHA-256 of every model
+parameter after the iteration (each predicate's parameters in order, each
+as the 8 bytes of its IEEE 754 bits, big endian), where the parameters
+after iteration k are those of a run of k iterations;
+`turbo:gis-parameters` lists every parameter after the first and after the
+last iteration with its predicate and outcome ids; and `turbo:gis-model`
+is the SHA-256 and length of what `GenericModelWriter` writes for the
+final model. An index with no event left makes the indexer throw
+`InsufficientTrainingDataException`; the golden then has the events and,
+in place of the indexer's layers, one `turbo:indexer-error` row with the
+exception's class and message. No layer type has these ids, so
+`analysis/train/tests/goldens.rs` reads these goldens itself.
 
 ## Generating golden files
 

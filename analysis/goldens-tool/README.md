@@ -108,6 +108,7 @@ a directory with the same model run without them, and its options are
 | `quantity` (`QuantityAnnotator`) | `latin-us`, `latin-eu` | `quantity` | `notation` |
 | `subwords` (`WordpieceEncoder`) | `all-minilm-l6-v2-vocab` (fixture) | `en`, `multi`, `edge`, `surrogate`, `subwords` | `lowerCase true`, `maxWordCodePoints 100` |
 | `bpe` (`BPETokenizerTrainer`, `BPETokenizer`) | `merges-40`, `merges-400` | `bpe` | `languageCode en`, `numMerges` |
+| `train` (the data indexers and `GISTrainer`) | `<source>-<indexer>-cutoff<n>`, with `-unsorted` when sorting is off: ten runs over the sources `sentdetect`, `tokenize` and `realvalue` | `en`, `multi`, `edge`; `sentdetect` also `train` | `source`, `DataIndexer`, `Cutoff`, `sort`, `Iterations` |
 | `unigram` (`UnigramSegmenter`) | `zh-unigram-fixture` (fixture), also `+legacy` | `zh`, `multi`, `edge`, `surrogate` | `whitespace legacy` |
 | | `jieba-dict-subset` (fixture), also `+legacy` | `zh`, `multi`, `edge` | `whitespace legacy` |
 | | `zh-unigram-modes` (fixture), also `+legacy` | `zh` | `whitespace legacy` |
@@ -137,6 +138,25 @@ a directory with the same model run without them, and its options are
 - The sentence detector's dumps also record, for each point whose best
   outcome is a split, what `isAcceptableBreak` returned
   (`docs/analysis.md`, "Decision point dumps").
+- A `train` run (`TrainGolden`) makes events from the input with
+  `SDEventStream` (`sentdetect`, the settings of `SentenceDetectorME.train`
+  with a default factory), `TokSpanEventStream` (`tokenize`, those of
+  `TokenizerME.train`) or a real valued source (`realvalue`: one event per
+  line, outcome `long` or `short` by the number of fields, each distinct
+  field a context whose value is its count, read back through
+  `RealValueFileEventStream.parseEvent`); records the events, the CRC-32C
+  event checksum and what the named `DataIndexer` made of them with the
+  run's `Cutoff` and `sort` (contexts and predicate labels with each
+  backslash doubled and each lone surrogate, which the tokenizer's features
+  hold, as the six characters `\uXXXX`); then trains a GIS model on the index with
+  `Iterations` iterations and one thread and records every iteration's
+  log likelihood and a hash of its parameters, the parameters after the
+  first and the last iteration, and the hash of the model
+  `GenericModelWriter` writes (`docs/analysis.md`, "Training goldens").
+  An index with no event left makes the indexer throw
+  `InsufficientTrainingDataException`; the golden then has the events and
+  one `turbo:indexer-error` row with the exception's class and message in
+  place of the indexer's layers.
 
 The fixtures (`analysis/goldens/data/fixtures`) are checked in, mounted at
 `/fixtures` and listed with their SHA-512 in `src/recipe.rs`; the data

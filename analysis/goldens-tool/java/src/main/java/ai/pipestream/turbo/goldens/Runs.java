@@ -66,6 +66,8 @@ final class Runs {
   static final String ZH = "zh";
   static final String JA = "ja";
   static final String KO = "ko";
+  /** The sentences the fixture model en-plain.bin was trained on, one per line, for the training goldens. */
+  static final String TRAIN = "train";
 
   /** The numbers of merges the BPE trainer runs with: few, so the tokens are pieces of words, and many. */
   static final List<Integer> BPE_MERGES = List.of(40, 400);
@@ -171,6 +173,11 @@ final class Runs {
     annotators.addAll(NumberGolden.all());
     annotators.addAll(MoneyGolden.all(moneySnapshot));
     annotators.addAll(QuantityGolden.all());
+
+    // The training stack: the events of the sentence detector, the tokenizer and a real valued
+    // source on the texts, indexed and trained; the sentence detector runs on the fixture
+    // sentences too.
+    annotators.addAll(TrainGolden.all(Set.of(EN, MULTI, EDGE), Set.of(TRAIN)));
     return new All(annotators, recorders);
   }
 }

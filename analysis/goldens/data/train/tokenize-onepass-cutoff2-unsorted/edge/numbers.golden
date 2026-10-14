@@ -1,0 +1,391 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	edge/numbers	163	163	ac397ed9e560b6c7ea24fb2ad41c9c951a27fd6316ba8de71531a337aca4ae68
+annotator	opennlp.tools.ml.maxent.GISTrainer	train
+config	Cutoff	2
+config	DataIndexer	OnePass
+config	Iterations	100
+config	sort	false
+config	source	tokenize
+layer	turbo:events	document	107	outcome:str	context:str	values:str
+F	p=P s=i p1=P p1_alpha p1_caps p2=bok p1f1=Pi f1=i f1_alpha f2=bok	
+F	p=i s=s p1=i p1_alpha p2=bok p1f1=is f1=s f1_alpha f2=bok	
+F	p=3 s=.14 p1=3 p1_num p2=bok p1f1=3. f1=. f1_eos f2=1 f2_num f12=.1	
+F	p=3. s=14 p1=. p1_eos p2=3 p2_num p21=3. p1f1=.1 f1=1 f1_num f2=4 f2_num f12=14	
+F	p=3.1 s=4 p1=1 p1_num p2=. p2_eos p21=.1 p1f1=14 f1=4 f1_num f2=bok	
+F	p=a s=nd p1=a p1_alpha p2=bok p1f1=an f1=n f1_alpha f2=d f2_alpha f12=nd	
+F	p=an s=d p1=n p1_alpha p2=a p2_alpha p21=an p1f1=nd f1=d f1_alpha f2=bok	
+F	p=t s=he p1=t p1_alpha p2=bok p1f1=th f1=h f1_alpha f2=e f2_alpha f12=he	
+F	p=th s=e p1=h p1_alpha p2=t p2_alpha p21=th p1f1=he f1=e f1_alpha f2=bok	
+F	p=f s=ee p1=f p1_alpha p2=bok p1f1=fe f1=e f1_alpha f2=e f2_alpha f12=ee	
+F	p=fe s=e p1=e p1_alpha p2=f p2_alpha p21=fe p1f1=ee f1=e f1_alpha f2=bok	
+F	p=i s=s p1=i p1_alpha p2=bok p1f1=is f1=s f1_alpha f2=bok	
+F	p=1 s=,000 p1=1 p1_num p2=bok p1f1=1, f1=, f2=0 f2_num f12=,0	
+F	p=1, s=000 p1=, p2=1 p2_num p21=1, p1f1=,0 f1=0 f1_num f2=0 f2_num f12=00	
+F	p=1,0 s=00 p1=0 p1_num p2=, p21=,0 p1f1=00 f1=0 f1_num f2=0 f2_num f12=00	
+F	p=1,00 s=0 p1=0 p1_num p2=0 p2_num p21=00 p1f1=00 f1=0 f1_num f2=bok	
+F	p=d s=ollars p1=d p1_alpha p2=bok p1f1=do f1=o f1_alpha f2=l f2_alpha f12=ol	
+F	p=do s=llars p1=o p1_alpha p2=d p2_alpha p21=do p1f1=ol f1=l f1_alpha f2=l f2_alpha f12=ll	
+F	p=dol s=lars p1=l p1_alpha p2=o p2_alpha p21=ol p1f1=ll f1=l f1_alpha f2=a f2_alpha f12=la	
+F	p=doll s=ars p1=l p1_alpha p2=l p2_alpha p21=ll p1f1=la f1=a f1_alpha f2=r f2_alpha f12=ar	
+F	p=dolla s=rs p1=a p1_alpha p2=l p2_alpha p21=la p1f1=ar f1=r f1_alpha f2=s f2_alpha f12=rs	
+F	p=dollar s=s p1=r p1_alpha p2=a p2_alpha p21=ar p1f1=rs f1=s f1_alpha f2=bok	
+F	p=a s=t p1=a p1_alpha p2=bok p1f1=at f1=t f1_alpha f2=bok	
+F	p=1 s=2:30; p1=1 p1_num p2=bok p1f1=12 f1=2 f1_num f2=: f12=2:	
+F	p=12 s=:30; p1=2 p1_num p2=1 p2_num p21=12 p1f1=2: f1=: f2=3 f2_num f12=:3	
+F	p=12: s=30; p1=: p2=2 p2_num p21=2: p1f1=:3 f1=3 f1_num f2=0 f2_num f12=30	
+F	p=12:3 s=0; p1=3 p1_num p2=: p21=:3 p1f1=30 f1=0 f1_num f2=; f12=0;	
+F	p=12:30 s=; p1=0 p1_num p2=3 p2_num p21=30 p1f1=0; f1=; f2=bok	
+F	p=g s=rowth p1=g p1_alpha p2=bok p1f1=gr f1=r f1_alpha f2=o f2_alpha f12=ro	
+F	p=gr s=owth p1=r p1_alpha p2=g p2_alpha p21=gr p1f1=ro f1=o f1_alpha f2=w f2_alpha f12=ow	
+F	p=gro s=wth p1=o p1_alpha p2=r p2_alpha p21=ro p1f1=ow f1=w f1_alpha f2=t f2_alpha f12=wt	
+F	p=grow s=th p1=w p1_alpha p2=o p2_alpha p21=ow p1f1=wt f1=t f1_alpha f2=h f2_alpha f12=th	
+F	p=growt s=h p1=t p1_alpha p2=w p2_alpha p21=wt p1f1=th f1=h f1_alpha f2=bok	
+F	p=w s=as p1=w p1_alpha p2=bok p1f1=wa f1=a f1_alpha f2=s f2_alpha f12=as	
+F	p=wa s=s p1=a p1_alpha p2=w p2_alpha p21=wa p1f1=as f1=s f1_alpha f2=bok	
+F	p=2 s=.5% p1=2 p1_num p2=bok p1f1=2. f1=. f1_eos f2=5 f2_num f12=.5	
+F	p=2. s=5% p1=. p1_eos p2=2 p2_num p21=2. p1f1=.5 f1=5 f1_num f2=% f12=5%	
+F	p=2.5 s=% p1=5 p1_num p2=. p2_eos p21=.5 p1f1=5% f1=% f2=bok	
+F	p=( s=up p1=( p1_lp p2=bok p1f1=(u f1=u f1_alpha f2=p f2_alpha f12=up	
+F	p=(u s=p p1=u p1_alpha p2=( p2_lp p21=(u p1f1=up f1=p f1_alpha f2=bok	
+F	p=f s=rom p1=f p1_alpha p2=bok p1f1=fr f1=r f1_alpha f2=o f2_alpha f12=ro	
+F	p=fr s=om p1=r p1_alpha p2=f p2_alpha p21=fr p1f1=ro f1=o f1_alpha f2=m f2_alpha f12=om	
+F	p=fro s=m p1=o p1_alpha p2=r p2_alpha p21=ro p1f1=om f1=m f1_alpha f2=bok	
+F	p=1 s=.2%). p1=1 p1_num p2=bok p1f1=1. f1=. f1_eos f2=2 f2_num f12=.2	
+F	p=1. s=2%). p1=. p1_eos p2=1 p2_num p21=1. p1f1=.2 f1=2 f1_num f2=% f12=2%	
+F	p=1.2 s=%). p1=2 p1_num p2=. p2_eos p21=.2 p1f1=2% f1=% f2=) f2_rp f12=%)	
+F	p=1.2% s=). p1=% p2=2 p2_num p21=2% p1f1=%) f1=) f1_rp f2=. f2_eos f12=).	
+F	p=1.2%) s=. p1=) p1_rp p2=% p21=%) p1f1=). f1=. f1_eos f2=bok	
+F	p=C s=all p1=C p1_alpha p1_caps p2=bok p1f1=Ca f1=a f1_alpha f2=l f2_alpha f12=al	
+F	p=Ca s=ll p1=a p1_alpha p2=C p2_alpha p2_caps p21=Ca p1f1=al f1=l f1_alpha f2=l f2_alpha f12=ll	
+F	p=Cal s=l p1=l p1_alpha p2=a p2_alpha p21=al p1f1=ll f1=l f1_alpha f2=bok	
+F	p=5 s=55-1234 p1=5 p1_num p2=bok p1f1=55 f1=5 f1_num f2=5 f2_num f12=55	
+F	p=55 s=5-1234 p1=5 p1_num p2=5 p2_num p21=55 p1f1=55 f1=5 f1_num f2=- f12=5-	
+F	p=555 s=-1234 p1=5 p1_num p2=5 p2_num p21=55 p1f1=5- f1=- f2=1 f2_num f12=-1	
+F	p=555- s=1234 p1=- p2=5 p2_num p21=5- p1f1=-1 f1=1 f1_num f2=2 f2_num f12=12	
+F	p=555-1 s=234 p1=1 p1_num p2=- p21=-1 p1f1=12 f1=2 f1_num f2=3 f2_num f12=23	
+F	p=555-12 s=34 p1=2 p1_num p2=1 p2_num p21=12 p1f1=23 f1=3 f1_num f2=4 f2_num f12=34	
+F	p=555-123 s=4 p1=3 p1_num p2=2 p2_num p21=23 p1f1=34 f1=4 f1_num f2=bok	
+F	p=o s=r p1=o p1_alpha p2=bok p1f1=or f1=r f1_alpha f2=bok	
+F	p=+ s=1 p1=+ p2=bok p1f1=+1 f1=1 f1_num f2=bok	
+F	p=( s=800) p1=( p1_lp p2=bok p1f1=(8 f1=8 f1_num f2=0 f2_num f12=80	
+F	p=(8 s=00) p1=8 p1_num p2=( p2_lp p21=(8 p1f1=80 f1=0 f1_num f2=0 f2_num f12=00	
+F	p=(80 s=0) p1=0 p1_num p2=8 p2_num p21=80 p1f1=00 f1=0 f1_num f2=) f2_rp f12=0)	
+F	p=(800 s=) p1=0 p1_num p2=0 p2_num p21=00 p1f1=0) f1=) f1_rp f2=bok	
+F	p=5 s=55-0199. p1=5 p1_num p2=bok p1f1=55 f1=5 f1_num f2=5 f2_num f12=55	
+F	p=55 s=5-0199. p1=5 p1_num p2=5 p2_num p21=55 p1f1=55 f1=5 f1_num f2=- f12=5-	
+F	p=555 s=-0199. p1=5 p1_num p2=5 p2_num p21=55 p1f1=5- f1=- f2=0 f2_num f12=-0	
+F	p=555- s=0199. p1=- p2=5 p2_num p21=5- p1f1=-0 f1=0 f1_num f2=1 f2_num f12=01	
+F	p=555-0 s=199. p1=0 p1_num p2=- p21=-0 p1f1=01 f1=1 f1_num f2=9 f2_num f12=19	
+F	p=555-01 s=99. p1=1 p1_num p2=0 p2_num p21=01 p1f1=19 f1=9 f1_num f2=9 f2_num f12=99	
+F	p=555-019 s=9. p1=9 p1_num p2=1 p2_num p21=19 p1f1=99 f1=9 f1_num f2=. f2_eos f12=9.	
+F	p=555-0199 s=. p1=9 p1_num p2=9 p2_num p21=99 p1f1=9. f1=. f1_eos f2=bok	
+F	p=V s=ersion p1=V p1_alpha p1_caps p2=bok p1f1=Ve f1=e f1_alpha f2=r f2_alpha f12=er	
+F	p=Ve s=rsion p1=e p1_alpha p2=V p2_alpha p2_caps p21=Ve p1f1=er f1=r f1_alpha f2=s f2_alpha f12=rs	
+F	p=Ver s=sion p1=r p1_alpha p2=e p2_alpha p21=er p1f1=rs f1=s f1_alpha f2=i f2_alpha f12=si	
+F	p=Vers s=ion p1=s p1_alpha p2=r p2_alpha p21=rs p1f1=si f1=i f1_alpha f2=o f2_alpha f12=io	
+F	p=Versi s=on p1=i p1_alpha p2=s p2_alpha p21=si p1f1=io f1=o f1_alpha f2=n f2_alpha f12=on	
+F	p=Versio s=n p1=o p1_alpha p2=i p2_alpha p21=io p1f1=on f1=n f1_alpha f2=bok	
+F	p=2 s=.0.1-beta, p1=2 p1_num p2=bok p1f1=2. f1=. f1_eos f2=0 f2_num f12=.0	
+F	p=2. s=0.1-beta, p1=. p1_eos p2=2 p2_num p21=2. p1f1=.0 f1=0 f1_num f2=. f2_eos f12=0.	
+F	p=2.0 s=.1-beta, p1=0 p1_num p2=. p2_eos p21=.0 p1f1=0. f1=. f1_eos f2=1 f2_num f12=.1	
+F	p=2.0. s=1-beta, p1=. p1_eos p2=0 p2_num p21=0. p1f1=.1 f1=1 f1_num f2=- f12=1-	
+F	p=2.0.1 s=-beta, p1=1 p1_num p2=. p2_eos p21=.1 p1f1=1- f1=- f2=b f2_alpha f12=-b	
+F	p=2.0.1- s=beta, p1=- p2=1 p2_num p21=1- p1f1=-b f1=b f1_alpha f2=e f2_alpha f12=be	
+F	p=2.0.1-b s=eta, p1=b p1_alpha p2=- p21=-b p1f1=be f1=e f1_alpha f2=t f2_alpha f12=et	
+F	p=2.0.1-be s=ta, p1=e p1_alpha p2=b p2_alpha p21=be p1f1=et f1=t f1_alpha f2=a f2_alpha f12=ta	
+F	p=2.0.1-bet s=a, p1=t p1_alpha p2=e p2_alpha p21=et p1f1=ta f1=a f1_alpha f2=, f12=a,	
+F	p=2.0.1-beta s=, p1=a p1_alpha p2=t p2_alpha p21=ta p1f1=a, f1=, f2=bok	
+F	p=$ s=4.99, p1=$ p2=bok p1f1=$4 f1=4 f1_num f2=. f2_eos f12=4.	
+F	p=$4 s=.99, p1=4 p1_num p2=$ p21=$4 p1f1=4. f1=. f1_eos f2=9 f2_num f12=.9	
+F	p=$4. s=99, p1=. p1_eos p2=4 p2_num p21=4. p1f1=.9 f1=9 f1_num f2=9 f2_num f12=99	
+F	p=$4.9 s=9, p1=9 p1_num p2=. p2_eos p21=.9 p1f1=99 f1=9 f1_num f2=, f12=9,	
+F	p=$4.99 s=, p1=9 p1_num p2=9 p2_num p21=99 p1f1=9, f1=, f2=bok	
+F	p=1 s=0/12/2026, p1=1 p1_num p2=bok p1f1=10 f1=0 f1_num f2=/ f12=0/	
+F	p=10 s=/12/2026, p1=0 p1_num p2=1 p2_num p21=10 p1f1=0/ f1=/ f2=1 f2_num f12=/1	
+F	p=10/ s=12/2026, p1=/ p2=0 p2_num p21=0/ p1f1=/1 f1=1 f1_num f2=2 f2_num f12=12	
+F	p=10/1 s=2/2026, p1=1 p1_num p2=/ p21=/1 p1f1=12 f1=2 f1_num f2=/ f12=2/	
+F	p=10/12 s=/2026, p1=2 p1_num p2=1 p2_num p21=12 p1f1=2/ f1=/ f2=2 f2_num f12=/2	
+F	p=10/12/ s=2026, p1=/ p2=2 p2_num p21=2/ p1f1=/2 f1=2 f1_num f2=0 f2_num f12=20	
+F	p=10/12/2 s=026, p1=2 p1_num p2=/ p21=/2 p1f1=20 f1=0 f1_num f2=2 f2_num f12=02	
+F	p=10/12/20 s=26, p1=0 p1_num p2=2 p2_num p21=20 p1f1=02 f1=2 f1_num f2=6 f2_num f12=26	
+F	p=10/12/202 s=6, p1=2 p1_num p2=0 p2_num p21=02 p1f1=26 f1=6 f1_num f2=, f12=6,	
+F	p=10/12/2026 s=, p1=6 p1_num p2=2 p2_num p21=26 p1f1=6, f1=, f2=bok	
+F	p=3 s=e10. p1=3 p1_num p2=bok p1f1=3e f1=e f1_alpha f2=1 f2_num f12=e1	
+F	p=3e s=10. p1=e p1_alpha p2=3 p2_num p21=3e p1f1=e1 f1=1 f1_num f2=0 f2_num f12=10	
+F	p=3e1 s=0. p1=1 p1_num p2=e p2_alpha p21=e1 p1f1=10 f1=0 f1_num f2=. f2_eos f12=0.	
+F	p=3e10 s=. p1=0 p1_num p2=1 p2_num p21=10 p1f1=0. f1=. f1_eos f2=bok	
+end	turbo:events
+layer	turbo:event-checksum	document	1	crc32c:u32
+3952054951
+end	turbo:event-checksum
+layer	turbo:indexer-outcomes	document	1	label:str
+F
+end	turbo:indexer-outcomes
+layer	turbo:indexer-predicates	document	150	label:str	count:u32
+f12=.1	2
+f12=0.	2
+f12=00	3
+f12=12	2
+f12=5-	2
+f12=55	2
+f12=99	2
+f12=ll	2
+f12=ro	2
+f12=rs	2
+f1=%	2
+f1=)	2
+f1=,	4
+f1=-	3
+f1=.	9
+f1=/	2
+f1=0	11
+f1=1	7
+f1=2	6
+f1=3	2
+f1=4	3
+f1=5	5
+f1=9	4
+f1=a	4
+f1=e	6
+f1=h	2
+f1=i	2
+f1=l	4
+f1=n	2
+f1=o	4
+f1=r	5
+f1=s	5
+f1=t	3
+f1_alpha	43
+f1_eos	9
+f1_num	40
+f1_rp	2
+f2=%	2
+f2=)	2
+f2=,	3
+f2=-	3
+f2=.	5
+f2=/	2
+f2=0	10
+f2=1	6
+f2=2	5
+f2=3	2
+f2=4	2
+f2=5	3
+f2=9	4
+f2=a	2
+f2=bok	28
+f2=e	3
+f2=l	4
+f2=o	3
+f2=r	2
+f2=s	3
+f2=t	2
+f2_alpha	27
+f2_eos	5
+f2_num	33
+f2_rp	2
+p1=(	2
+p1=-	3
+p1=.	6
+p1=/	2
+p1=0	10
+p1=1	10
+p1=2	8
+p1=3	4
+p1=5	7
+p1=9	4
+p1=a	6
+p1=e	4
+p1=f	2
+p1=i	3
+p1=l	3
+p1=o	5
+p1=r	4
+p1=t	3
+p1=w	2
+p1_alpha	42
+p1_caps	3
+p1_eos	6
+p1_lp	2
+p1_num	46
+p1f1=.1	2
+p1f1=0.	2
+p1f1=00	3
+p1f1=10	2
+p1f1=12	3
+p1f1=2.	2
+p1f1=5-	2
+p1f1=55	4
+p1f1=99	2
+p1f1=is	2
+p1f1=ll	2
+p1f1=ro	2
+p1f1=rs	2
+p1f1=th	2
+p21=.1	2
+p21=00	2
+p21=10	2
+p21=12	3
+p21=2.	2
+p21=5-	2
+p21=55	4
+p21=99	2
+p21=ro	2
+p2=(	2
+p2=-	3
+p2=.	6
+p2=/	2
+p2=0	6
+p2=1	9
+p2=2	8
+p2=3	3
+p2=5	6
+p2=9	2
+p2=a	3
+p2=bok	28
+p2=e	3
+p2=f	2
+p2=l	2
+p2=o	2
+p2=r	3
+p2=t	2
+p2=w	2
+p2_alpha	26
+p2_caps	2
+p2_eos	6
+p2_lp	2
+p2_num	36
+p=(	2
+p=1	4
+p=2	2
+p=2.	2
+p=3	2
+p=5	2
+p=55	2
+p=555	2
+p=555-	2
+p=a	2
+p=f	2
+p=i	2
+s=,	3
+s=.	3
+s=4	2
+s=e	2
+s=s	4
+end	turbo:indexer-predicates
+layer	turbo:indexer-events	document	107	outcome:u32	context:str	values:str	seen:u32
+0	81 82 120 26 33 51		1
+0	144 149 75 81 120 95 31 33 51		1
+0	137 69 85 120 14 34 44 60 0		1
+0	64 83 116 132 86 17 35 47 60		1
+0	147 67 85 111 130 100 20 35 51		1
+0	142 72 81 120 28 33 58		1
+0	81 119 128 33 51		1
+0	79 81 120 99 25 33 52 58		1
+0	148 81 126 128 24 33 51		1
+0	143 74 81 120 24 33 52 58		1
+0	148 73 81 122 128 24 33 51		1
+0	144 149 75 81 120 95 31 33 51		1
+0	134 67 85 120 12 43 60		1
+0	114 132 16 35 43 60 2		1
+0	66 85 88 16 35 43 60 2		1
+0	66 85 113 132 101 88 16 35 51		1
+0	81 120 29 33 53 58		1
+0	77 81 128 27 33 53 58 7		1
+0	76 81 124 128 96 27 33 50 58		1
+0	76 81 123 128 23 33 55 58		1
+0	72 81 123 128 30 33 56 58 9		1
+0	149 78 81 119 128 98 31 33 51		1
+0	142 72 81 120 32 33 51		1
+0	134 67 85 120 90 18 35		1
+0	68 85 114 132 103 46 60		1
+0	115 132 19 35 43 60		1
+0	69 85 16 35		1
+0	66 85 116 132 51		1
+0	81 120 30 33 54 58 8		1
+0	78 81 128 97 29 33 58		1
+0	77 81 125 128 108 33 57 58		1
+0	80 81 124 128 32 33 58		1
+0	79 81 127 128 99 25 33 51		1
+0	80 81 120 23 33 56 58		1
+0	149 72 81 127 128 31 33 51		1
+0	135 68 85 120 91 14 34 48 60		1
+0	136 64 83 115 132 104 21 35 37		1
+0	70 85 111 130 10 51		1
+0	133 62 84 120 33 58		1
+0	81 109 131 33 51		1
+0	143 74 81 120 30 33 54 58 8		1
+0	78 81 122 128 97 29 33 58		1
+0	77 81 125 128 108 33 51		1
+0	134 67 85 120 14 34 45 60		1
+0	64 83 114 132 18 35 37		1
+0	68 85 111 130 10 38 61		1
+0	115 132 11 36 41 59		1
+0	146 14 34 51		1
+0	81 82 120 23 33 53 58		1
+0	72 81 128 129 27 33 53 58 7		1
+0	76 81 119 128 96 27 33 51		1
+0	138 70 85 120 93 21 35 48 60 5		1
+0	139 70 85 117 132 106 93 21 35 40 4		1
+0	140 70 85 117 132 106 92 13 44 60		1
+0	141 63 117 132 105 17 35 45 60 3		1
+0	67 85 110 90 18 35 46 60		1
+0	68 85 114 132 103 19 35 47 60		1
+0	147 69 85 115 132 20 35 51		1
+0	77 81 120 30 33 51		1
+0	120 17 35 51		1
+0	133 62 84 120 35 43 60		1
+0	85 109 131 16 35 43 60 2		1
+0	66 85 132 88 16 35 38 61		1
+0	66 85 113 132 101 11 36 51		1
+0	138 70 85 120 93 21 35 48 60 5		1
+0	139 70 85 117 132 106 93 21 35 40 4		1
+0	140 70 85 117 132 106 92 13 43 60		1
+0	141 63 117 132 105 16 35 44 60		1
+0	66 85 110 17 35 49 60		1
+0	67 85 113 132 22 35 49 60 6		1
+0	71 85 114 132 94 22 35 41 59		1
+0	146 71 85 118 132 107 14 34 51		1
+0	81 82 120 24 33 55 58		1
+0	73 81 128 129 30 33 56 58 9		1
+0	78 81 121 128 98 31 33 58		1
+0	81 125 128 26 33 54 58		1
+0	75 81 128 29 33 58		1
+0	77 81 128 28 33 51		1
+0	135 68 85 120 91 14 34 43 60		1
+0	136 64 83 115 132 104 16 35 41 59 1		1
+0	66 85 111 130 87 14 34 44 60 0		1
+0	64 83 113 132 86 17 35 40		1
+0	67 85 111 130 100 13 58		1
+0	63 114 132 33 52 58		1
+0	81 110 24 33 57 58		1
+0	73 81 128 32 33 50 58		1
+0	79 81 121 128 23 33 39		1
+0	145 72 81 126 128 12 51		1
+0	120 20 35 41 59		1
+0	85 14 34 49 60		1
+0	64 83 132 22 35 49 60 6		1
+0	71 85 111 130 94 22 35 39		1
+0	145 71 85 118 132 107 12 51		1
+0	134 67 85 120 89 16 35 42		1
+0	66 85 114 132 102 15 44 60		1
+0	65 113 132 17 35 45 60 3		1
+0	67 85 112 90 18 35 42		1
+0	68 85 114 132 103 15 45 60		1
+0	65 115 132 18 35 43 60		1
+0	68 85 112 16 35 45 60		1
+0	66 85 115 132 18 35 60		1
+0	68 85 113 132 35 39		1
+0	145 85 115 132 12 51		1
+0	137 69 85 120 24 33 44 60		1
+0	73 81 116 132 17 35 43 60		1
+0	67 85 121 128 89 16 35 41 59 1		1
+0	146 66 85 114 132 102 87 14 34 51		1
+end	turbo:indexer-events
+layer	turbo:gis-training	document	1	iterations:u32	message:str
+0	opennlp.tools.util.InsufficientTrainingDataException: Training data must contain more than one outcome
+end	turbo:gis-training

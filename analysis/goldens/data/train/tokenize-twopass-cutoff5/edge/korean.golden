@@ -1,0 +1,58 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	edge/korean	71	29	60ba1fd14bb56d1bbd0a9ccc6162453017a491f787a98c5a8f0cd592411f196e
+annotator	opennlp.tools.ml.maxent.GISTrainer	train
+config	Cutoff	5
+config	DataIndexer	TwoPass
+config	Iterations	100
+config	sort	true
+config	source	tokenize
+layer	turbo:events	document	19	outcome:str	context:str	values:str
+F	p=안 s=녕하세요. p1=안 p1_alpha p2=bok p1f1=안녕 f1=녕 f1_alpha f2=하 f2_alpha f12=녕하	
+F	p=안녕 s=하세요. p1=녕 p1_alpha p2=안 p2_alpha p21=안녕 p1f1=녕하 f1=하 f1_alpha f2=세 f2_alpha f12=하세	
+F	p=안녕하 s=세요. p1=하 p1_alpha p2=녕 p2_alpha p21=녕하 p1f1=하세 f1=세 f1_alpha f2=요 f2_alpha f12=세요	
+F	p=안녕하세 s=요. p1=세 p1_alpha p2=하 p2_alpha p21=하세 p1f1=세요 f1=요 f1_alpha f2=. f2_eos f12=요.	
+F	p=안녕하세요 s=. p1=요 p1_alpha p2=세 p2_alpha p21=세요 p1f1=요. f1=. f1_eos f2=bok	
+F	p=저 s=는 p1=저 p1_alpha p2=bok p1f1=저는 f1=는 f1_alpha f2=bok	
+F	p=한 s=국어를 p1=한 p1_alpha p2=bok p1f1=한국 f1=국 f1_alpha f2=어 f2_alpha f12=국어	
+F	p=한국 s=어를 p1=국 p1_alpha p2=한 p2_alpha p21=한국 p1f1=국어 f1=어 f1_alpha f2=를 f2_alpha f12=어를	
+F	p=한국어 s=를 p1=어 p1_alpha p2=국 p2_alpha p21=국어 p1f1=어를 f1=를 f1_alpha f2=bok	
+F	p=공 s=부합니다. p1=공 p1_alpha p2=bok p1f1=공부 f1=부 f1_alpha f2=합 f2_alpha f12=부합	
+F	p=공부 s=합니다. p1=부 p1_alpha p2=공 p2_alpha p21=공부 p1f1=부합 f1=합 f1_alpha f2=니 f2_alpha f12=합니	
+F	p=공부합 s=니다. p1=합 p1_alpha p2=부 p2_alpha p21=부합 p1f1=합니 f1=니 f1_alpha f2=다 f2_alpha f12=니다	
+F	p=공부합니 s=다. p1=니 p1_alpha p2=합 p2_alpha p21=합니 p1f1=니다 f1=다 f1_alpha f2=. f2_eos f12=다.	
+F	p=공부합니다 s=. p1=다 p1_alpha p2=니 p2_alpha p21=니다 p1f1=다. f1=. f1_eos f2=bok	
+F	p=감 s=사합니다! p1=감 p1_alpha p2=bok p1f1=감사 f1=사 f1_alpha f2=합 f2_alpha f12=사합	
+F	p=감사 s=합니다! p1=사 p1_alpha p2=감 p2_alpha p21=감사 p1f1=사합 f1=합 f1_alpha f2=니 f2_alpha f12=합니	
+F	p=감사합 s=니다! p1=합 p1_alpha p2=사 p2_alpha p21=사합 p1f1=합니 f1=니 f1_alpha f2=다 f2_alpha f12=니다	
+F	p=감사합니 s=다! p1=니 p1_alpha p2=합 p2_alpha p21=합니 p1f1=니다 f1=다 f1_alpha f2=! f2_eos f12=다!	
+F	p=감사합니다 s=! p1=다 p1_alpha p2=니 p2_alpha p21=니다 p1f1=다! f1=! f1_eos f2=bok	
+end	turbo:events
+layer	turbo:event-checksum	document	1	crc32c:u32
+188352823
+end	turbo:event-checksum
+layer	turbo:indexer-outcomes	document	1	label:str
+F
+end	turbo:indexer-outcomes
+layer	turbo:indexer-predicates	document	6	label:str	count:u32
+f1_alpha	16
+f2=bok	5
+f2_alpha	11
+p1_alpha	19
+p2=bok	5
+p2_alpha	14
+end	turbo:indexer-predicates
+layer	turbo:indexer-events	document	6	outcome:u32	context:str	values:str	seen:u32
+0	3 4 0 1		1
+0	3 4 0 2		4
+0	3 5 0		3
+0	3 5 0 1		1
+0	3 5 0 2		7
+0	3 5 1		3
+end	turbo:indexer-events
+layer	turbo:gis-training	document	1	iterations:u32	message:str
+0	opennlp.tools.util.InsufficientTrainingDataException: Training data must contain more than one outcome
+end	turbo:gis-training

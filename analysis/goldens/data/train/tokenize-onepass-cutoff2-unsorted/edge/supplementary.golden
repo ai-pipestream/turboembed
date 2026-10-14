@@ -1,0 +1,179 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	edge/supplementary	98	76	ccf9ecafa95f1e9d3891e47badd0ef6b83a8a2b02d79d24db46daf0bfa5b387e
+annotator	opennlp.tools.ml.maxent.GISTrainer	train
+config	Cutoff	2
+config	DataIndexer	OnePass
+config	Iterations	100
+config	sort	false
+config	source	tokenize
+layer	turbo:events	document	50	outcome:str	context:str	values:str
+F	p=e s=moji p1=e p1_alpha p2=bok p1f1=em f1=m f1_alpha f2=o f2_alpha f12=mo	
+F	p=em s=oji p1=m p1_alpha p2=e p2_alpha p21=em p1f1=mo f1=o f1_alpha f2=j f2_alpha f12=oj	
+F	p=emo s=ji p1=o p1_alpha p2=m p2_alpha p21=mo p1f1=oj f1=j f1_alpha f2=i f2_alpha f12=ji	
+F	p=emoj s=i p1=j p1_alpha p2=o p2_alpha p21=oj p1f1=ji f1=i f1_alpha f2=bok	
+F	p=i s=n p1=i p1_alpha p2=bok p1f1=in f1=n f1_alpha f2=bok	
+F	p=w s=ord: p1=w p1_alpha p2=bok p1f1=wo f1=o f1_alpha f2=r f2_alpha f12=or	
+F	p=wo s=rd: p1=o p1_alpha p2=w p2_alpha p21=wo p1f1=or f1=r f1_alpha f2=d f2_alpha f12=rd	
+F	p=wor s=d: p1=r p1_alpha p2=o p2_alpha p21=or p1f1=rd f1=d f1_alpha f2=: f12=d:	
+F	p=word s=: p1=d p1_alpha p2=r p2_alpha p21=rd p1f1=d: f1=: f2=bok	
+F	p=a s=b😀cd, p1=a p1_alpha p2=bok p1f1=ab f1=b f1_alpha f2=\\ud83d f12=b\\ud83d	
+F	p=ab s=😀cd, p1=b p1_alpha p2=a p2_alpha p21=ab p1f1=b\\ud83d f1=\\ud83d f2=\\ude00 f12=😀	
+F	p=ab\\ud83d s=\\ude00cd, p1=\\ud83d p2=b p2_alpha p21=b\\ud83d p1f1=😀 f1=\\ude00 f2=c f2_alpha f12=\\ude00c	
+F	p=ab😀 s=cd, p1=\\ude00 p2=\\ud83d p21=😀 p1f1=\\ude00c f1=c f1_alpha f2=d f2_alpha f12=cd	
+F	p=ab😀c s=d, p1=c p1_alpha p2=\\ude00 p21=\\ude00c p1f1=cd f1=d f1_alpha f2=, f12=d,	
+F	p=ab😀cd s=, p1=d p1_alpha p2=c p2_alpha p21=cd p1f1=d, f1=, f2=bok	
+F	p=m s=ath p1=m p1_alpha p2=bok p1f1=ma f1=a f1_alpha f2=t f2_alpha f12=at	
+F	p=ma s=th p1=a p1_alpha p2=m p2_alpha p21=ma p1f1=at f1=t f1_alpha f2=h f2_alpha f12=th	
+F	p=mat s=h p1=t p1_alpha p2=a p2_alpha p21=at p1f1=th f1=h f1_alpha f2=bok	
+F	p=\\ud835 s=\\udc00𝐁𝐂 p1=\\ud835 p2=bok p1f1=𝐀 f1=\\udc00 f2=\\ud835 f12=\\udc00\\ud835	
+F	p=𝐀 s=𝐁𝐂 p1=\\udc00 p2=\\ud835 p21=𝐀 p1f1=\\udc00\\ud835 f1=\\ud835 f2=\\udc01 f12=𝐁	
+F	p=𝐀\\ud835 s=\\udc01𝐂 p1=\\ud835 p2=\\udc00 p21=\\udc00\\ud835 p1f1=𝐁 f1=\\udc01 f2=\\ud835 f12=\\udc01\\ud835	
+F	p=𝐀𝐁 s=𝐂 p1=\\udc01 p2=\\ud835 p21=𝐁 p1f1=\\udc01\\ud835 f1=\\ud835 f2=\\udc02 f12=𝐂	
+F	p=𝐀𝐁\\ud835 s=\\udc02 p1=\\ud835 p2=\\udc01 p21=\\udc01\\ud835 p1f1=𝐂 f1=\\udc02 f2=bok	
+F	p=\\ud835 s=\\udc1a𝐛𝐜 p1=\\ud835 p2=bok p1f1=𝐚 f1=\\udc1a f2=\\ud835 f12=\\udc1a\\ud835	
+F	p=𝐚 s=𝐛𝐜 p1=\\udc1a p2=\\ud835 p21=𝐚 p1f1=\\udc1a\\ud835 f1=\\ud835 f2=\\udc1b f12=𝐛	
+F	p=𝐚\\ud835 s=\\udc1b𝐜 p1=\\ud835 p2=\\udc1a p21=\\udc1a\\ud835 p1f1=𝐛 f1=\\udc1b f2=\\ud835 f12=\\udc1b\\ud835	
+F	p=𝐚𝐛 s=𝐜 p1=\\udc1b p2=\\ud835 p21=𝐛 p1f1=\\udc1b\\ud835 f1=\\ud835 f2=\\udc1c f12=𝐜	
+F	p=𝐚𝐛\\ud835 s=\\udc1c p1=\\ud835 p2=\\udc1b p21=\\udc1b\\ud835 p1f1=𝐜 f1=\\udc1c f2=bok	
+F	p=d s=eseret p1=d p1_alpha p2=bok p1f1=de f1=e f1_alpha f2=s f2_alpha f12=es	
+F	p=de s=seret p1=e p1_alpha p2=d p2_alpha p21=de p1f1=es f1=s f1_alpha f2=e f2_alpha f12=se	
+F	p=des s=eret p1=s p1_alpha p2=e p2_alpha p21=es p1f1=se f1=e f1_alpha f2=r f2_alpha f12=er	
+F	p=dese s=ret p1=e p1_alpha p2=s p2_alpha p21=se p1f1=er f1=r f1_alpha f2=e f2_alpha f12=re	
+F	p=deser s=et p1=r p1_alpha p2=e p2_alpha p21=er p1f1=re f1=e f1_alpha f2=t f2_alpha f12=et	
+F	p=desere s=t p1=e p1_alpha p2=r p2_alpha p21=re p1f1=et f1=t f1_alpha f2=bok	
+F	p=\\ud801 s=\\udc00𐐨𐑅 p1=\\ud801 p2=bok p1f1=𐐀 f1=\\udc00 f2=\\ud801 f12=\\udc00\\ud801	
+F	p=𐐀 s=𐐨𐑅 p1=\\udc00 p2=\\ud801 p21=𐐀 p1f1=\\udc00\\ud801 f1=\\ud801 f2=\\udc28 f12=𐐨	
+F	p=𐐀\\ud801 s=\\udc28𐑅 p1=\\ud801 p2=\\udc00 p21=\\udc00\\ud801 p1f1=𐐨 f1=\\udc28 f2=\\ud801 f12=\\udc28\\ud801	
+F	p=𐐀𐐨 s=𐑅 p1=\\udc28 p2=\\ud801 p21=𐐨 p1f1=\\udc28\\ud801 f1=\\ud801 f2=\\udc45 f12=𐑅	
+F	p=𐐀𐐨\\ud801 s=\\udc45 p1=\\ud801 p2=\\udc28 p21=\\udc28\\ud801 p1f1=𐑅 f1=\\udc45 f2=bok	
+F	p=d s=one. p1=d p1_alpha p2=bok p1f1=do f1=o f1_alpha f2=n f2_alpha f12=on	
+F	p=do s=ne. p1=o p1_alpha p2=d p2_alpha p21=do p1f1=on f1=n f1_alpha f2=e f2_alpha f12=ne	
+F	p=don s=e. p1=n p1_alpha p2=o p2_alpha p21=on p1f1=ne f1=e f1_alpha f2=. f2_eos f12=e.	
+F	p=done s=. p1=e p1_alpha p2=n p2_alpha p21=ne p1f1=e. f1=. f1_eos f2=bok	
+F	p=\\ud840 s=\\udc00 p1=\\ud840 p2=bok p1f1=𠀀 f1=\\udc00 f2=bok	
+F	p=r s=are p1=r p1_alpha p2=bok p1f1=ra f1=a f1_alpha f2=r f2_alpha f12=ar	
+F	p=ra s=re p1=a p1_alpha p2=r p2_alpha p21=ra p1f1=ar f1=r f1_alpha f2=e f2_alpha f12=re	
+F	p=rar s=e p1=r p1_alpha p2=a p2_alpha p21=ar p1f1=re f1=e f1_alpha f2=bok	
+F	p=C s=JK. p1=C p1_alpha p1_caps p2=bok p1f1=CJ f1=J f1_alpha f1_caps f2=K f2_alpha f2_caps f12=JK	
+F	p=CJ s=K. p1=J p1_alpha p1_caps p2=C p2_alpha p2_caps p21=CJ p1f1=JK f1=K f1_alpha f1_caps f2=. f2_eos f12=K.	
+F	p=CJK s=. p1=K p1_alpha p1_caps p2=J p2_alpha p2_caps p21=JK p1f1=K. f1=. f1_eos f2=bok	
+end	turbo:events
+layer	turbo:event-checksum	document	1	crc32c:u32
+4004951706
+end	turbo:event-checksum
+layer	turbo:indexer-outcomes	document	1	label:str
+F
+end	turbo:indexer-outcomes
+layer	turbo:indexer-predicates	document	52	label:str	count:u32
+f12=re	2
+f1=.	2
+f1=a	2
+f1=d	2
+f1=e	5
+f1=n	2
+f1=o	3
+f1=r	3
+f1=t	2
+f1=\\ud801	2
+f1=\\ud835	4
+f1=\\udc00	3
+f1_alpha	28
+f1_caps	2
+f1_eos	2
+f2=.	2
+f2=bok	13
+f2=d	2
+f2=e	4
+f2=r	3
+f2=t	2
+f2=\\ud801	2
+f2=\\ud835	4
+f2_alpha	19
+f2_eos	2
+p1=a	3
+p1=d	4
+p1=e	5
+p1=m	2
+p1=o	3
+p1=r	4
+p1=\\ud801	3
+p1=\\ud835	6
+p1=\\udc00	2
+p1_alpha	32
+p1_caps	3
+p1f1=re	2
+p2=a	3
+p2=bok	13
+p2=d	2
+p2=e	3
+p2=m	2
+p2=o	3
+p2=r	3
+p2=\\ud801	2
+p2=\\ud835	4
+p2=\\udc00	2
+p2_alpha	23
+p2_caps	2
+p=d	2
+p=\\ud835	2
+s=.	2
+end	turbo:indexer-predicates
+layer	turbo:indexer-events	document	50	outcome:u32	context:str	values:str	seen:u32
+0	27 34 38 12 23		1
+0	28 34 40 47 6 12 23		1
+0	29 34 41 47 12 23		1
+0	34 42 47 12 16		1
+0	34 38 5 12 16		1
+0	34 38 6 12 19 23		1
+0	29 34 47 7 12 17 23		1
+0	30 34 42 47 3 12		1
+0	26 34 43 47 16		1
+0	25 34 38 12		1
+0	34 37 47		1
+0	47 23		1
+0	12 17 23		1
+0	34 3 12		1
+0	26 34 47 16		1
+0	28 34 38 2 12 20 23		1
+0	25 34 41 47 8 12 23		1
+0	34 37 47 12 16		1
+0	50 32 38 11 22		1
+0	33 45 10		1
+0	32 46 22		1
+0	45 10		1
+0	32 16		1
+0	50 32 38 22		1
+0	45 10		1
+0	32 22		1
+0	45 10		1
+0	32 16		1
+0	49 26 34 38 4 12 23		1
+0	27 34 39 47 12 18 23		1
+0	34 40 47 4 12 19 23		1
+0	27 34 47 7 12 18 23 0		1
+0	30 34 40 47 36 4 12 20 23		1
+0	27 34 43 47 8 12 16		1
+0	31 38 11 21		1
+0	33 44 9		1
+0	31 46 21		1
+0	44 9		1
+0	31 16		1
+0	49 26 34 38 6 12 23		1
+0	29 34 39 47 5 12 18 23		1
+0	34 42 47 4 12 15 24		1
+0	51 27 34 47 1 14 16		1
+0	38 11 16		1
+0	30 34 38 2 12 19 23		1
+0	25 34 43 47 7 12 18 23 0		1
+0	30 34 37 47 36 4 12 16		1
+0	34 35 38 12 13 23		1
+0	34 35 47 48 12 13 15 24		1
+0	51 34 35 47 48 1 14 16		1
+end	turbo:indexer-events
+layer	turbo:gis-training	document	1	iterations:u32	message:str
+0	opennlp.tools.util.InsufficientTrainingDataException: Training data must contain more than one outcome
+end	turbo:gis-training
