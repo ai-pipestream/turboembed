@@ -21,5 +21,5 @@ n	eos=. x=ones 4 v=‘single’ s=” n=Nobody ncap
 s	sn eos=. x=answered 8 v=Nobody vcap s= n=	
 end	turbo:events
 layer	turbo:perceptron-training	document	1	iterations:u32	message:str
-0	java.lang.ArrayIndexOutOfBoundsException: Index 5 out of bounds for length 5
+0	java.lang.ArrayIndexOutOfBoundsException
 end	turbo:perceptron-training

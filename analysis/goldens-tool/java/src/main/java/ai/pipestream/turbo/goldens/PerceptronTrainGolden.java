@@ -60,7 +60,8 @@ import opennlp.tools.util.TrainingParameters;
  *   the sequence trainer, which has no monitor, empty). With one outcome the event trainer
  *   refuses the index: zero iterations and the exception's {@code toString()}, and the layers
  *   below are left out. The sequence trainer fails the same way, after its iterations, when the
- *   cutoff dropped an event (its {@code trainingStats} reads past the indexer's outcome list).</li>
+ *   cutoff dropped an event (its {@code trainingStats} reads past the indexer's outcome list); the
+ *   message is then the exception's class alone.</li>
  *   <li>{@code turbo:perceptron-monitor}: one row per iteration the monitor heard of:
  *   {@code iteration}, {@code correct}, {@code events} and the {@code accuracy}; absent for the
  *   sequence trainer.</li>
@@ -408,9 +409,11 @@ final class PerceptronTrainGolden implements AnnotatorGolden {
     } catch (ArrayIndexOutOfBoundsException e) {
       // trainingStats, after the iterations, reads the indexer's outcome
       // list at each event's position in the stream, past its end when the
-      // cutoff dropped an event. No model comes back.
+      // cutoff dropped an event. No model comes back. Only the class is
+      // recorded: the JVM leaves the message out of an exception it throws
+      // often from the same place (OmitStackTraceInFastThrow).
       layers.add(new Layer("turbo:perceptron-training", "document", new Column.U32("iterations", new long[] {0}),
-          new Column.Str("message", new String[] {e.toString()})));
+          new Column.Str("message", new String[] {e.getClass().getName()})));
       return layers;
     }
     layers.add(new Layer("turbo:perceptron-training", "document",
@@ -491,6 +494,17 @@ final class PerceptronTrainGolden implements AnnotatorGolden {
         0, both));
     runs.add(new PerceptronTrainGolden(TrainGolden.Source.SENTDETECT, "OnePass", 1, false, 10, true, false, false, 0,
         0, texts));
+    // The defaults with the default indexer on the fixture model's sentences: the training of the
+    // fixture en-plain-perceptron-rust.bin (analysis/train/tests/roundtrip.rs), whose model bytes
+    // this run records.
+    runs.add(new PerceptronTrainGolden(TrainGolden.Source.SENTDETECT, "TwoPass", 1, false, 100, false, true, false,
+        0, PerceptronTrainer.TOLERANCE_DEFAULT, sentences));
+    // The part-of-speech shaped events, which have many outcomes: the event trainer and the
+    // sequence trainer, both averaged.
+    runs.add(new PerceptronTrainGolden(TrainGolden.Source.POSTAG, "OnePass", 1, false, 50, false, true, false, 0,
+        PerceptronTrainer.TOLERANCE_DEFAULT, texts));
+    runs.add(new PerceptronTrainGolden(TrainGolden.Source.POSTAG, "OnePass", 1, false, 20, true, true, false, 0, 0,
+        texts));
     return runs;
   }
 }

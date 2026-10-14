@@ -70,6 +70,14 @@ pub enum Error {
     /// the cutoff dropped an event. The JVM throws
     /// `ArrayIndexOutOfBoundsException` and returns no model.
     SequenceEventsDropped { indexed: u32, streamed: usize },
+    /// A `SequenceSource::update_context` returned `got` events for a
+    /// sequence of `expected`. The JVM reads the tagged events by the
+    /// sequence's positions and fails out of bounds.
+    SequenceLength { expected: usize, got: usize },
+    /// A `SequenceSource::update_context` tagged an event with an outcome
+    /// the index does not have. The JVM unboxes `omap.get(outcome)`, null,
+    /// and throws `NullPointerException`.
+    UnknownOutcome(String),
     /// The `DataIndexer` parameter names none of the three built in
     /// indexers. OpenNLP would load it as an extension class by that name.
     UnknownIndexer(String),
@@ -149,6 +157,10 @@ impl fmt::Display for Error {
                 write!(f, "decrease must be between 0 and 100 but is {}!", turbo_jvm::text::double_to_string(*d))
             }
             Error::NoParameters => f.write_str("every parameter is zero, which PerceptronModelWriter cannot write"),
+            Error::SequenceLength { expected, got } => {
+                write!(f, "updateContext returned {got} events for a sequence of {expected}")
+            }
+            Error::UnknownOutcome(outcome) => write!(f, "updateContext tagged an event {outcome:?}, not an outcome"),
             Error::SequenceEventsDropped { indexed, streamed } => write!(
                 f,
                 "the cutoff dropped {} of the {streamed} events, after which SimplePerceptronSequenceTrainer fails (ArrayIndexOutOfBoundsException)",

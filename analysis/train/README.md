@@ -173,13 +173,21 @@ the first and the last, and the written model or the writer's failure.
 The sequence runs cut the source's events into sequences of five and tag
 each event by its own context; the test implements the same stream.
 `tests/goldens.rs` compares all of it, as for GIS and QN.
+The runs cover averaging, none and skipped averaging, a step decrease,
+the tolerance stop, real valued events, and the part-of-speech shaped
+source with many outcomes for both trainers.
 `tests/roundtrip.rs` reproduces `analysis/maxent/tests/fixtures/models/perceptron.model`
-byte for byte and packages a perceptron sentence model trained from the
-golden events as a `.bin` that `turbo-maxent` and `turbo-sentdetect` open.
-That `.bin` was also loaded in the JVM beside a `SentenceDetectorME.train`
-run with `PERCEPTRON` on the same text: the model bytes are identical and
-`SentenceDetectorME` gives the same 212 spans with bit-equal
-probabilities.
+byte for byte and trains the perceptron sentence model of `en-plain.bin`'s
+events (`PERCEPTRON`, cutoff 1, the defaults): its `sent.model` bytes are
+the ones the JVM's `PerceptronTrainer` wrote for the same events and
+parameters (the golden `sentdetect-twopass-cutoff1-unsorted-perceptron/train/sentences`
+records their SHA-256), the `.bin` written around them is the checked in
+fixture `analysis/goldens/data/fixtures/en-plain-perceptron-rust.bin` byte
+for byte, and it splits the training text into 212 sentences. The golden
+generator loads that fixture in the JVM with `SentenceModel` and runs it
+on the sentence fixture inputs (`analysis/goldens/data/sentdetect/en-plain-perceptron-rust`);
+`analysis/sentdetect/tests/golden.rs` checks that the Rust detector gives
+the spans and probabilities the JVM recorded with it.
 
 ## OpenNLP behaviour worth knowing
 
@@ -274,7 +282,11 @@ probabilities.
   step decrease in `doTrain`, after the outcome check.
 - `PerceptronTrainer` tells its progress monitor about iterations 1 to 9
   and every tenth only; the observer of `perceptron::train_model` hears
-  every iteration. Its stop test compares the accuracy with each of the
+  every iteration. With `Iterations` at zero or below no iteration runs,
+  and with averaging the parameters are the sums divided by the number of
+  times they were summed, `0.0 / 0`: a model of NaN parameters, kept as
+  the JVM has it, and written as it is, since NaN is not zero to the
+  writer. Its stop test compares the accuracy with each of the
   three before it, so it needs three iterations at least; the tolerance
   is the default `0.00001` and an iteration counts an event once per time
   it was seen.

@@ -30,9 +30,16 @@
 //!   checked by `analysis/sentdetect/tests/golden.rs`). It splits the
 //!   training text into 210 sentences, as `SentenceDetectorME` does with it.
 //!
+//! - The same events trained with `PERCEPTRON` (the defaults, cutoff 1),
+//!   checked the same way against the training golden
+//!   `sentdetect-twopass-cutoff1-unsorted-perceptron/train/sentences` and
+//!   the fixture `analysis/goldens/data/fixtures/en-plain-perceptron-rust.bin`
+//!   (`analysis/goldens/data/sentdetect/en-plain-perceptron-rust`). It splits
+//!   the training text into 212 sentences, as `SentenceDetectorME` does.
+//!
 //! With `TURBO_TRAIN_OUT` set to a directory, the `.bin` files written here
-//! are saved there as `en-plain-rust.bin` and `en-plain-qn-rust.bin`, which
-//! is how the fixtures were made.
+//! are saved there as `en-plain-rust.bin`, `en-plain-qn-rust.bin` and
+//! `en-plain-perceptron-rust.bin`, which is how the fixtures were made.
 
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
@@ -235,7 +242,7 @@ fn the_qn_sentence_model_is_the_jvms_and_its_bin_is_the_fixture() {
 }
 
 #[test]
-fn a_perceptron_sentence_model_is_written_as_a_bin_that_opens_and_splits() {
+fn the_perceptron_sentence_model_is_the_jvms_and_its_bin_is_the_fixture() {
     let path = data_dir().join("train/sentdetect-twopass-cutoff1/train/sentences.golden");
     let g = Golden::read_with(&path, &common::train_shapes()).unwrap_or_else(|e| panic!("{e}"));
     let events = common::events(&g);
@@ -249,6 +256,7 @@ fn a_perceptron_sentence_model_is_written_as_a_bin_that_opens_and_splits() {
     assert_eq!(model.algorithm(), Algorithm::Perceptron);
     let bytes = model.write().unwrap();
     assert_eq!(&bytes[..12], b"\0\x0aPerceptron");
+    let model_bytes = bytes.clone();
 
     // The fixture's instant, so the manifest differs from en-plain.bin's
     // only where the model does.
@@ -259,6 +267,19 @@ fn a_perceptron_sentence_model_is_written_as_a_bin_that_opens_and_splits() {
     if let Ok(dir) = std::env::var("TURBO_TRAIN_OUT") {
         std::fs::write(Path::new(&dir).join("en-plain-perceptron-rust.bin"), &bin).unwrap();
     }
+    // The bytes PerceptronTrainer and GenericModelWriter produced on the
+    // JVM for the same events and parameters.
+    let (sha, length) = golden_model("sentdetect-twopass-cutoff1-unsorted-perceptron", "turbo:perceptron-model");
+    assert_eq!(
+        (turbo_maxent::sha256(&model_bytes).to_hex(), model_bytes.len()),
+        (sha, length),
+        "the JVM's model bytes"
+    );
+    let committed = std::fs::read(data_dir().join("fixtures/en-plain-perceptron-rust.bin")).unwrap();
+    assert_eq!(
+        bin, committed,
+        "analysis/goldens/data/fixtures/en-plain-perceptron-rust.bin is not the .bin written here"
+    );
     let ours = ModelFile::open(bin).unwrap();
     assert_eq!(ours.manifest().iter().collect::<Vec<_>>(), fixture.manifest().iter().collect::<Vec<_>>());
     // The writer drops the predicates whose parameters are all zero.
@@ -268,12 +289,10 @@ fn a_perceptron_sentence_model_is_written_as_a_bin_that_opens_and_splits() {
     assert!(kept > 0 && kept < writable.num_predicates());
     assert_eq!(maxent.num_predicates(), kept);
 
-    // It splits the training text into about as many sentences as the
-    // GIS fixture does; the models differ, so not the same ones.
-    let theirs = Arc::new(SentenceModel::open(fixture).unwrap());
+    // It splits the training text into 212 sentences, as SentenceDetectorME
+    // does with the same file.
     let ours = Arc::new(SentenceModel::open(ours).unwrap());
-    let (mut a, mut b) = (Vec::new(), Vec::new());
-    SentenceDetector::new(theirs, WhitespaceMode::Unicode).detect(&text, &mut a);
-    SentenceDetector::new(ours, WhitespaceMode::Unicode).detect(&text, &mut b);
-    assert!(b.len() > 100 && (a.len() as i64 - b.len() as i64).abs() < 20, "{} vs {}", a.len(), b.len());
+    let mut spans = Vec::new();
+    SentenceDetector::new(ours, WhitespaceMode::Unicode).detect(&text, &mut spans);
+    assert_eq!(spans.len(), 212);
 }

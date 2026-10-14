@@ -1565,8 +1565,9 @@ left. The sequence runs cut the source's events into sequences of five
 consecutive events and tag each event by its own context. The `config`
 records add `Algorithm`, `Iterations`, `UseAverage` and, for the event
 trainer, `UseSkippedAveraging`, `StepSizeDecrease` and `Tolerance`.
+Both trainers also run on the `postag` source with its many outcomes.
 `analysis/train/tests/goldens.rs` compares both trainers with every one of them, and
-`analysis/train/tests/roundtrip.rs` trains `analysis/maxent/tests/fixtures/models/qn.model` and `analysis/maxent/tests/fixtures/models/perceptron.model` again byte for byte.
+`analysis/train/tests/roundtrip.rs` trains `analysis/maxent/tests/fixtures/models/qn.model` and `analysis/maxent/tests/fixtures/models/perceptron.model` again byte for byte. As for QN, the run `sentdetect-twopass-cutoff1-unsorted-perceptron` on `analysis/goldens/data/inputs/train/sentences.txt` is the JVM's training of the fixture `analysis/goldens/data/fixtures/en-plain-perceptron-rust.bin`, which `analysis/train/tests/roundtrip.rs` writes and checks and the generator loads as a sentence model (`sentdetect/en-plain-perceptron-rust`) for `analysis/sentdetect/tests/golden.rs`.
 
 ## Generating golden files
 

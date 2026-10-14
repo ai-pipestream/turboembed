@@ -188,7 +188,7 @@ pub struct Fixture {
 /// file names are the ones the generator's `Runs` class opens there; a
 /// fixture in a subdirectory is a file of a dictionary directory, and
 /// `Runs` opens the directory.
-pub const FIXTURES: [Fixture; 31] = [
+pub const FIXTURES: [Fixture; 32] = [
     Fixture {
         file: "en-abbrev.bin",
         sha512: "759ab1defc61351f53cdd82a26e708789a225feb6e1ec0cfd6e2e54f35f67c14\
@@ -208,6 +208,11 @@ pub const FIXTURES: [Fixture; 31] = [
         file: "en-plain-qn-rust.bin",
         sha512: "23f36eea3d663b3791fd6ee4c5f90e51f7298f4488c815f27b440a2edcac760c\
                  dcb6fbe4da87e1762c09c7f6f5db981cfb4657d0f0a6171a4f6cfaebdb9eda0f",
+    },
+    Fixture {
+        file: "en-plain-perceptron-rust.bin",
+        sha512: "5882f58f6cea311ff8b2043509992a31a2870e75fe7fc3e08a96ca7f441e4ef5\
+                 8ee8d851ace176942987fa860c7ca37cab6bbcd8c38b5b67abfa57918789b915",
     },
     Fixture {
         file: "tokenizer-abbreviations.bin",

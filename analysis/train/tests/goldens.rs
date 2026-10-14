@@ -92,9 +92,12 @@ struct Coverage {
     perceptron_skipped: usize,
     perceptron_decrease: usize,
     perceptron_unwritable: usize,
+    perceptron_values: usize,
+    perceptron_many_outcomes: usize,
     sequence: usize,
     sequence_raw: usize,
     sequence_dropped: usize,
+    sequence_many_outcomes: usize,
 }
 
 fn check(path: &Path, g: &Golden, cov: &mut Coverage) {
@@ -381,8 +384,9 @@ fn indexers_match_the_jvm_on_every_training_golden() {
     assert!(cov.qn_stops[0] > 0 && cov.qn_stops[3] > 0, "{cov:?}");
     assert!(cov.perceptron >= 100 && cov.perceptron_one_outcome > 0 && cov.perceptron_stopped_early > 0, "{cov:?}");
     assert!(cov.perceptron_raw > 0 && cov.perceptron_skipped > 0 && cov.perceptron_decrease > 0, "{cov:?}");
-    assert!(cov.perceptron_unwritable > 0, "{cov:?}");
+    assert!(cov.perceptron_unwritable > 0 && cov.perceptron_values > 0 && cov.perceptron_many_outcomes > 0, "{cov:?}");
     assert!(cov.sequence >= 100 && cov.sequence_raw > 0 && cov.sequence_dropped > 0, "{cov:?}");
+    assert!(cov.sequence_many_outcomes > 0, "{cov:?}");
 }
 
 /// The events indexed as the run's config says, or `None` when the golden
@@ -497,6 +501,12 @@ fn check_perceptron(path: &Path, g: &Golden, cov: &mut Coverage) {
     if ran < params.iterations as usize {
         cov.perceptron_stopped_early += 1;
     }
+    if index.has_values() {
+        cov.perceptron_values += 1;
+    }
+    if index.outcome_labels().len() > 2 {
+        cov.perceptron_many_outcomes += 1;
+    }
 
     let iterations = layer(g, "turbo:perceptron-iterations");
     assert_eq!(iterations.len(), ran, "{at}");
@@ -506,15 +516,22 @@ fn check_perceptron(path: &Path, g: &Golden, cov: &mut Coverage) {
         TrainingConfiguration::new(Some(Box::new(Recorder(recorded.clone(), TrainingMeasure::Accuracy))), None);
     let mut first = Vec::new();
     let mut seen = 0;
-    let model = perceptron::train_model(&index, &params, &mut config, &stop, &mut |it, parameters| {
-        let i = it.iteration as usize;
-        seen = i;
-        assert!(i <= ran, "{at}: iteration {i} after the JVM stopped at {ran}");
-        assert_eq!(digest(parameters), digests.get(i - 1), "{at}: parameters after iteration {i}");
-        if i == 1 {
-            first = parameters.to_vec();
-        }
-    });
+    let model = perceptron::train_model(
+        &index,
+        &params,
+        &mut config,
+        &stop,
+        Some(&mut |it, parameters| {
+            let i = it.iteration as usize;
+            seen = i;
+            assert!(i <= ran, "{at}: iteration {i} after the JVM stopped at {ran}");
+            assert_eq!(digest(parameters), digests.get(i - 1), "{at}: parameters after iteration {i}");
+            if i == 1 {
+                first = parameters.to_vec();
+            }
+        }),
+    )
+    .unwrap_or_else(|e| panic!("{at}: {e}"));
     assert_eq!(seen, ran, "{at}: iterations run");
 
     // The monitor: iterations 1 to 9 and every tenth, then the end.
@@ -578,21 +595,31 @@ impl SequenceSource for EventSequences {
 fn check_sequence_perceptron(path: &Path, g: &Golden, cov: &mut Coverage) {
     let at = path.display().to_string();
     let events = events(g);
-    if indexed(&at, g, &events).is_none() {
+    let cutoff: i32 = config(g, "Cutoff").parse().unwrap();
+    let source = EventSequences(events.chunks(5).map(|c| Sequence { events: c.to_vec() }).collect());
+    let Some(index) = indexed(&at, g, &events) else {
+        // The sequence trainer indexes the same events with OnePass and the
+        // run's cutoff, and meets the same refusal.
+        assert_eq!(
+            perceptron::train_sequence_model(&source, 1, cutoff, true, None).err(),
+            Some(Error::InsufficientTrainingData(NO_EVENTS)),
+            "{at}"
+        );
         return;
+    };
+    if index.outcome_labels().len() > 2 {
+        cov.sequence_many_outcomes += 1;
     }
     let training = layer(g, "turbo:perceptron-training");
     let ran = training.u32s("iterations").unwrap()[0] as usize;
     let message = training.strs("message").unwrap().get(0);
     let iterations: i32 = config(g, "Iterations").parse().unwrap();
-    let cutoff: i32 = config(g, "Cutoff").parse().unwrap();
     let use_average: bool = config(g, "UseAverage").parse().unwrap();
-    let source = EventSequences(events.chunks(5).map(|c| Sequence { events: c.to_vec() }).collect());
     if ran == 0 {
-        assert!(message.starts_with("java.lang.ArrayIndexOutOfBoundsException: Index "), "{at}: {message}");
+        assert_eq!(message, "java.lang.ArrayIndexOutOfBoundsException", "{at}");
         let index = DataIndex::index(&events, &IndexParams::new(IndexerKind::OnePass, cutoff, false)).unwrap();
         assert_eq!(
-            perceptron::train_sequence_model(&source, iterations, cutoff, use_average, &mut |_, _| {}).err(),
+            perceptron::train_sequence_model(&source, iterations, cutoff, use_average, None).err(),
             Some(Error::SequenceEventsDropped { indexed: index.num_events(), streamed: events.len() }),
             "{at}"
         );
@@ -609,14 +636,20 @@ fn check_sequence_perceptron(path: &Path, g: &Golden, cov: &mut Coverage) {
     assert_eq!(digests.len(), ran, "{at}");
     let mut first = Vec::new();
     let mut seen = 0;
-    let model = perceptron::train_sequence_model(&source, iterations, cutoff, use_average, &mut |it, parameters| {
-        let i = it.iteration as usize;
-        seen = i;
-        assert_eq!(digest(parameters), digests.get(i - 1), "{at}: parameters after iteration {i}");
-        if i == 1 {
-            first = parameters.to_vec();
-        }
-    })
+    let model = perceptron::train_sequence_model(
+        &source,
+        iterations,
+        cutoff,
+        use_average,
+        Some(&mut |it, parameters| {
+            let i = it.iteration as usize;
+            seen = i;
+            assert_eq!(digest(parameters), digests.get(i - 1), "{at}: parameters after iteration {i}");
+            if i == 1 {
+                first = parameters.to_vec();
+            }
+        }),
+    )
     .unwrap_or_else(|e| panic!("{at}: {e}"));
     assert_eq!(seen, ran, "{at}: iterations run");
     check_perceptron_layers(&at, g, &model, &first, ran, cov);

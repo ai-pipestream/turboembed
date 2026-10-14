@@ -245,6 +245,10 @@ fn argmax(x: &[f64]) -> usize {
     max
 }
 
+/// What a trainer tells after every iteration: the iteration and the
+/// parameters a run stopping there would return.
+pub type Observer<'a> = &'a mut dyn FnMut(&PerceptronIteration, &[f64]);
+
 /// One iteration of `PerceptronTrainer` as its progress monitor would hear
 /// of it, had it heard of every one.
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -267,6 +271,9 @@ pub fn train_events(
     params: &TrainingParameters,
     config: &mut TrainingConfiguration,
 ) -> Result<(PerceptronModel, TrainingReport)> {
+    // AbstractTrainer.validate, before the indexer runs: Cutoff and
+    // Iterations must parse (the indexer reads Cutoff itself).
+    params.get_int(Key::ITERATIONS)?;
     let mut checksum = EventChecksum::new();
     for e in events {
         checksum.update(e);
@@ -294,22 +301,25 @@ pub fn train(
     }
     let perceptron = PerceptronParams::from_training_parameters(params)?;
     let default_stop = IterDeltaAccuracyUnderTolerance::from_parameters(params)?;
-    Ok(train_model(index, &perceptron, config, &default_stop, &mut |_, _| {}))
+    train_model(index, &perceptron, config, &default_stop, None)
 }
 
 /// `PerceptronTrainer.trainModel(iterations, indexer, cutoff, useAverage)`
 /// without the outcome check, with `default_stop` where `config` has no
 /// criterion and the default monitor where it has none. After every
-/// iteration `observe` is given the iteration and the parameters a run
-/// stopping there would return: the mean so far with `UseAverage`, the
-/// parameters themselves without.
+/// iteration an observer, when given, hears the iteration and the
+/// parameters a run stopping there would return: the mean so far with
+/// `UseAverage`, the parameters themselves without. An index that keeps
+/// values with an event without any is [`Error::MissingValues`].
 pub fn train_model(
     index: &DataIndex,
     params: &PerceptronParams,
     config: &mut TrainingConfiguration,
     default_stop: &dyn StopCriteria,
-    observe: &mut dyn FnMut(&PerceptronIteration, &[f64]),
-) -> PerceptronModel {
+    mut observe: Option<Observer<'_>>,
+) -> Result<PerceptronModel> {
+    // The first iteration reads values[ei][ci] of every event.
+    index.check_values()?;
     let mut default_monitor = DefaultProgressMonitor::new();
     let monitor: &mut dyn ProgressMonitor = match &mut config.monitor {
         Some(m) => m.as_mut(),
@@ -323,6 +333,8 @@ pub fn train_model(
     let num_outcomes = model.num_outcomes();
     let mut summed = vec![0.0; model.parameters.len()];
     let mut times_summed = 0;
+    // The mean so far, for the observer.
+    let mut mean = vec![0.0; if observe.is_some() && params.use_average { model.parameters.len() } else { 0 }];
     let total = index.num_events() as i32;
     let mut dist = vec![0.0; num_outcomes];
     let (mut prev1, mut prev2, mut prev3) = (0.0, 0.0, 0.0);
@@ -367,14 +379,17 @@ pub fn train_model(
                 *s += p;
             }
         }
-        let result;
-        let output: &[f64] = if params.use_average {
-            result = summed.iter().map(|s| s / f64::from(times_summed)).collect::<Vec<f64>>();
-            &result
-        } else {
-            &model.parameters
-        };
-        observe(&PerceptronIteration { iteration: i, correct, total, accuracy }, output);
+        if let Some(observe) = observe.as_deref_mut() {
+            let output: &[f64] = if params.use_average {
+                for (m, &s) in mean.iter_mut().zip(&summed) {
+                    *m = s / f64::from(times_summed);
+                }
+                &mean
+            } else {
+                &model.parameters
+            };
+            observe(&PerceptronIteration { iteration: i, correct, total, accuracy }, output);
+        }
         if stop.test(prev1 - accuracy) && stop.test(prev2 - accuracy) && stop.test(prev3 - accuracy) {
             monitor.finished_training(params.iterations, Some(stop));
             break;
@@ -388,11 +403,12 @@ pub fn train_model(
     }
     monitor.display(true);
     if params.use_average {
+        // With no iteration run this is 0.0 / 0, NaN, as on the JVM.
         for (p, s) in model.parameters.iter_mut().zip(&summed) {
             *p = s / f64::from(times_summed);
         }
     }
-    model
+    Ok(model)
 }
 
 /// `Sequence<T>` without its source: the events of one sequence.
@@ -436,20 +452,23 @@ pub fn train_sequences(
     let iterations = params.get_int(Key::ITERATIONS)?.unwrap_or(DEFAULT_ITERATIONS);
     let cutoff = params.get_int(Key::CUTOFF)?.unwrap_or(DEFAULT_CUTOFF);
     let use_average = params.get_bool(Key::USE_AVERAGE)?.unwrap_or(true);
-    let model = train_sequence_model(source, iterations, cutoff, use_average, &mut |_, _| {})?;
+    let model = train_sequence_model(source, iterations, cutoff, use_average, None)?;
     Ok((model, TrainingReport { event_hash: None, trainer_type: TrainerType::EventModelSequence }))
 }
 
 /// `SimplePerceptronSequenceTrainer.trainModel(iterations, stream, cutoff,
-/// useAverage)`. After every iteration `observe` is given the iteration
-/// (with the events tagged right over the events, as the trainer logs
-/// them) and the parameters a run stopping there would return.
+/// useAverage)`. After every iteration an observer, when given, hears the
+/// iteration (with the events tagged right over the events, as the trainer
+/// logs them) and the parameters a run stopping there would return. A
+/// source whose `update_context` returns another number of events than the
+/// sequence has, or an outcome the index does not know, is refused
+/// ([`Error::SequenceLength`], [`Error::UnknownOutcome`]).
 pub fn train_sequence_model(
     source: &dyn SequenceSource,
     iterations: i32,
     cutoff: i32,
     use_average: bool,
-    observe: &mut dyn FnMut(&PerceptronIteration, &[f64]),
+    mut observe: Option<Observer<'_>>,
 ) -> Result<PerceptronModel> {
     let sequences = source.sequences();
     let events: Vec<Event> = sequences.iter().flat_map(|s| s.events.iter().cloned()).collect();
@@ -466,12 +485,19 @@ pub fn train_sequence_model(
     let omap: HashMap<String, usize> = index.outcome_labels().iter().enumerate().map(|(i, o)| (o.clone(), i)).collect();
     let mut average = vec![0.0; model.parameters.len()];
     let mut changes = vec![LastChange::default(); model.parameters.len()];
+    // `featureCounts`: one map per outcome, cleared for each sequence that
+    // updates. Keyed by predicate id, since a feature the index does not
+    // know never reaches the parameters.
+    let mut counts: Vec<HashMap<u32, f32>> = (0..num_outcomes).map(|_| HashMap::new()).collect();
+    let mut mean = vec![0.0; if observe.is_some() && use_average { model.parameters.len() } else { 0 }];
 
     for iteration in 0..iterations {
         let mut correct = 0;
         for (si, sequence) in (0i32..).zip(sequences) {
             let tagged = source.update_context(sequence, &model);
-            assert_eq!(tagged.len(), sequence.events.len(), "updateContext must return one event per event");
+            if tagged.len() != sequence.events.len() {
+                return Err(Error::SequenceLength { expected: sequence.events.len(), got: tagged.len() });
+            }
             let mut update = false;
             for (t, e) in tagged.iter().zip(&sequence.events) {
                 if t.outcome() != e.outcome() {
@@ -483,35 +509,38 @@ pub fn train_sequence_model(
             if !update {
                 continue;
             }
-            // `featureCounts`: one map per outcome, filled for this sequence.
-            let mut counts: Vec<HashMap<&JavaString, f32>> = (0..num_outcomes).map(|_| HashMap::new()).collect();
+            for c in counts.iter_mut() {
+                c.clear();
+            }
             for e in &sequence.events {
+                // The sequence's own outcomes are the index's.
                 let oi = omap[e.outcome()];
                 for (ci, feature) in e.context().iter().enumerate() {
+                    let Some(pi) = model.predicate_index(feature) else { continue };
                     let value = e.values().map_or(1.0f32, |v| v[ci]);
-                    counts[oi].entry(feature).and_modify(|c| *c += value).or_insert(value);
+                    counts[oi].entry(pi).and_modify(|c| *c += value).or_insert(value);
                 }
             }
             for t in &tagged {
-                let oi = *omap
-                    .get(t.outcome())
-                    .unwrap_or_else(|| panic!("updateContext tagged {:?}, not an outcome", t.outcome()));
+                let Some(&oi) = omap.get(t.outcome()) else {
+                    return Err(Error::UnknownOutcome(t.outcome().to_string()));
+                };
                 for (ci, feature) in t.context().iter().enumerate() {
+                    let Some(pi) = model.predicate_index(feature) else { continue };
                     let value = t.values().map_or(1.0f32, |v| v[ci]);
-                    let c = match counts[oi].get(feature) {
+                    let c = match counts[oi].get(&pi) {
                         None => -value,
                         Some(&c) => c - value,
                     };
                     if c == 0.0 {
-                        counts[oi].remove(feature);
+                        counts[oi].remove(&pi);
                     } else {
-                        counts[oi].insert(feature, c);
+                        counts[oi].insert(pi, c);
                     }
                 }
             }
             for (oi, c) in counts.iter().enumerate() {
-                for (feature, &count) in c {
-                    let Some(pi) = model.predicate_index(feature) else { continue };
+                for (&pi, &count) in c {
                     *model.cell(pi, oi) += f64::from(count);
                     if use_average {
                         let at = pi as usize * num_outcomes + oi;
@@ -528,29 +557,32 @@ pub fn train_sequence_model(
             }
         }
         let accuracy = f64::from(correct) / f64::from(total);
-        let result;
-        let output: &[f64] = if use_average {
-            result = finish_average(&average, &changes, num_sequences, iteration + 1);
-            &result
-        } else {
-            &model.parameters
-        };
-        observe(&PerceptronIteration { iteration: iteration + 1, correct, total, accuracy }, output);
+        if let Some(observe) = observe.as_deref_mut() {
+            let output: &[f64] = if use_average {
+                finish_average(&average, &changes, num_sequences, iteration + 1, &mut mean);
+                &mean
+            } else {
+                &model.parameters
+            };
+            observe(&PerceptronIteration { iteration: iteration + 1, correct, total, accuracy }, output);
+        }
     }
     if use_average {
-        model.parameters = finish_average(&average, &changes, num_sequences, iterations);
+        let mut out = vec![0.0; model.parameters.len()];
+        finish_average(&average, &changes, num_sequences, iterations, &mut out);
+        model.parameters = out;
     }
     Ok(model)
 }
 
-/// The end of `nextIteration` on the last iteration: each parameter's
-/// pending weight added and the sum divided by the iterations times the
-/// sequences. `ran` is the iterations run so far, which the trainer only
-/// ever reaches with `ran == iterations`; the observer sees the mean a run
-/// of `ran` iterations would end with.
-fn finish_average(average: &[f64], changes: &[LastChange], num_sequences: i32, ran: i32) -> Vec<f64> {
+/// The end of `nextIteration` on the last iteration, into `out`: each
+/// parameter's pending weight added and the sum divided by the iterations
+/// times the sequences. `ran` is the iterations run so far, which the
+/// trainer only ever reaches with `ran == iterations`; the observer sees
+/// the mean a run of `ran` iterations would end with.
+fn finish_average(average: &[f64], changes: &[LastChange], num_sequences: i32, ran: i32, out: &mut [f64]) {
     let total = f64::from(ran) * f64::from(num_sequences);
-    let mut out = average.to_vec();
+    out.copy_from_slice(average);
     for (at, p) in out.iter_mut().enumerate() {
         let last = changes[at];
         if last.value != 0 {
@@ -561,7 +593,6 @@ fn finish_average(average: &[f64], changes: &[LastChange], num_sequences: i32, r
             *p /= total;
         }
     }
-    out
 }
 
 #[cfg(test)]
@@ -675,7 +706,7 @@ mod tests {
         let mut config = TrainingConfiguration::new(Some(Box::new(Heard(Rc::clone(&heard)))), None);
         let stop = IterDeltaAccuracyUnderTolerance { tolerance: 0.0 };
         let mut seen = Vec::new();
-        train_model(&index(), &params, &mut config, &stop, &mut |it, _| seen.push(it.iteration));
+        train_model(&index(), &params, &mut config, &stop, Some(&mut |it, _| seen.push(it.iteration))).unwrap();
         // The observer hears every iteration; the monitor only the first
         // nine and every tenth.
         assert_eq!(seen, (1..=25).collect::<Vec<_>>());
@@ -688,19 +719,33 @@ mod tests {
         let stop = IterDeltaAccuracyUnderTolerance { tolerance: 0.0 };
         let raw = PerceptronParams { iterations: 6, use_average: false, tolerance: 0.0, ..PerceptronParams::default() };
         let mut raws = Vec::new();
-        let model = train_model(&index, &raw, &mut TrainingConfiguration::default(), &stop, &mut |_, p| {
-            raws.push(p.to_vec());
-        });
+        let model = train_model(
+            &index,
+            &raw,
+            &mut TrainingConfiguration::default(),
+            &stop,
+            Some(&mut |_, p| {
+                raws.push(p.to_vec());
+            }),
+        )
+        .unwrap();
         assert_eq!(model.all_parameters(), &raws[5][..]);
         let short = PerceptronParams { iterations: 2, ..raw };
-        let two = train_model(&index, &short, &mut TrainingConfiguration::default(), &stop, &mut |_, _| {});
+        let two = train_model(&index, &short, &mut TrainingConfiguration::default(), &stop, None).unwrap();
         assert_eq!(two.all_parameters(), &raws[1][..]);
         // The averaged model is the mean of the raw parameters.
         let averaged = PerceptronParams { use_average: true, ..raw };
         let mut means = Vec::new();
-        let model = train_model(&index, &averaged, &mut TrainingConfiguration::default(), &stop, &mut |_, p| {
-            means.push(p.to_vec());
-        });
+        let model = train_model(
+            &index,
+            &averaged,
+            &mut TrainingConfiguration::default(),
+            &stop,
+            Some(&mut |_, p| {
+                means.push(p.to_vec());
+            }),
+        )
+        .unwrap();
         for k in 0..6 {
             let mut sum = vec![0.0; raws[0].len()];
             for r in &raws[..=k] {
@@ -714,7 +759,7 @@ mod tests {
         assert_eq!(model.all_parameters(), &means[5][..]);
         // Skipped averaging changes nothing.
         let skipped = PerceptronParams { use_skipped_averaging: true, ..averaged };
-        let same = train_model(&index, &skipped, &mut TrainingConfiguration::default(), &stop, &mut |_, _| {});
+        let same = train_model(&index, &skipped, &mut TrainingConfiguration::default(), &stop, None).unwrap();
         assert_eq!(same, model);
     }
 
@@ -725,7 +770,7 @@ mod tests {
         let stop = IterDeltaAccuracyUnderTolerance::default();
         let mut config = TrainingConfiguration::new(Some(Box::new(DefaultProgressMonitor::new())), None);
         let mut accuracies = Vec::new();
-        train_model(&index, &params, &mut config, &stop, &mut |it, _| accuracies.push(it.accuracy));
+        train_model(&index, &params, &mut config, &stop, Some(&mut |it, _| accuracies.push(it.accuracy))).unwrap();
         let n = accuracies.len();
         assert!((4..100).contains(&n), "{n}");
         let last = accuracies[n - 1];
@@ -743,7 +788,7 @@ mod tests {
             tolerance: 0.0,
             ..PerceptronParams::default()
         };
-        let model = train_model(&index, &params, &mut TrainingConfiguration::default(), &stop, &mut |_, _| {});
+        let model = train_model(&index, &params, &mut TrainingConfiguration::default(), &stop, None).unwrap();
         // One iteration with step 0.5: every parameter is a multiple of 0.5.
         assert!(model.all_parameters().iter().all(|p| (p * 2.0).fract() == 0.0));
         assert!(model.all_parameters().iter().any(|&p| p == 0.5 || p == -0.5));
@@ -803,6 +848,89 @@ mod tests {
     }
 
     #[test]
+    fn iterations_must_parse_before_the_events_are_looked_at() {
+        // AbstractTrainer.validate runs before the indexer: with no events
+        // and Iterations that does not parse, the JVM reports Iterations.
+        let mut p = TrainingParameters::new();
+        p.put(Key::ITERATIONS, "many");
+        let mut config = TrainingConfiguration::default();
+        assert!(matches!(train_events(&[], &p, &mut config), Err(Error::ParameterFormat { .. })));
+        // The tolerance is checked in doTrain, after the outcome check.
+        let events = [event("s", "a"), event("s", "b")];
+        let mut p = TrainingParameters::new();
+        p.put(Key::TOLERANCE, -1.0);
+        p.put(Key::CUTOFF, 0);
+        assert_eq!(train_events(&events, &p, &mut config).err(), Some(Error::InsufficientTrainingData(ONE_OUTCOME)));
+    }
+
+    #[test]
+    fn an_event_without_values_in_a_real_value_index_is_refused() {
+        // PerceptronTrainer reads values[ei][ci] in its first iteration and
+        // throws NullPointerException on the event without values.
+        let events = [
+            Event::with_values("yes", vec![JavaString::new("a")], Some(vec![2.0])).unwrap(),
+            Event::with_values("no", vec![JavaString::new("b")], None).unwrap(),
+        ];
+        let index = DataIndex::index(&events, &IndexParams::new(IndexerKind::OnePassRealValue, 0, false)).unwrap();
+        let mut config = TrainingConfiguration::default();
+        assert_eq!(
+            train(&index, &TrainingParameters::new(), &mut config).err(),
+            Some(Error::MissingValues { event: 1 })
+        );
+        // The tolerance is checked first, as the JVM checks it in doTrain.
+        let mut p = TrainingParameters::new();
+        p.put(Key::TOLERANCE, -1.0);
+        assert_eq!(train(&index, &p, &mut config).err(), Some(Error::Tolerance(-1.0)));
+    }
+
+    #[test]
+    fn no_iteration_with_averaging_gives_nan_parameters_as_the_jvm_does() {
+        // PerceptronTrainer divides the summed parameters by the number of
+        // times they were summed, 0.0 / 0, so Iterations 0 (or less) with
+        // UseAverage gives a model of NaN parameters; without averaging the
+        // zero parameters stay.
+        let stop = IterDeltaAccuracyUnderTolerance::default();
+        let averaged = PerceptronParams { iterations: 0, ..PerceptronParams::default() };
+        let model = train_model(&index(), &averaged, &mut TrainingConfiguration::default(), &stop, None).unwrap();
+        assert!(model.all_parameters().iter().all(|p| p.is_nan()));
+        let raw = PerceptronParams { iterations: -3, use_average: false, ..PerceptronParams::default() };
+        let model = train_model(&index(), &raw, &mut TrainingConfiguration::default(), &stop, None).unwrap();
+        assert!(model.all_parameters().iter().all(|&p| p == 0.0));
+        // The writer then has nothing to write.
+        assert_eq!(crate::writer::write_perceptron(&model).err(), Some(Error::NoParameters));
+    }
+
+    /// A source whose tagging misbehaves.
+    struct Bad(Vec<Sequence>, bool);
+
+    impl SequenceSource for Bad {
+        fn sequences(&self) -> &[Sequence] {
+            &self.0
+        }
+
+        fn update_context(&self, sequence: &Sequence, _: &PerceptronModel) -> Vec<Event> {
+            if self.1 {
+                sequence.events.iter().map(|e| Event::new("elsewhere", e.context().to_vec())).collect()
+            } else {
+                Vec::new()
+            }
+        }
+    }
+
+    #[test]
+    fn a_source_that_tags_wrongly_is_refused() {
+        let sequences: Vec<Sequence> = events().chunks(2).map(|c| Sequence { events: c.to_vec() }).collect();
+        assert_eq!(
+            train_sequence_model(&Bad(sequences.clone(), false), 1, 0, true, None).err(),
+            Some(Error::SequenceLength { expected: 2, got: 0 })
+        );
+        assert_eq!(
+            train_sequence_model(&Bad(sequences, true), 1, 0, true, None).err(),
+            Some(Error::UnknownOutcome("elsewhere".to_string()))
+        );
+    }
+
+    #[test]
     fn the_sequence_trainer_fails_as_the_jvm_does_when_the_cutoff_drops_an_event() {
         // Only "cap" is seen three times, so cutoff 3 drops every event
         // without it: five of the eight.
@@ -818,11 +946,11 @@ mod tests {
     fn a_shorter_sequence_run_is_a_prefix() {
         let source = pairs();
         let mut seen = Vec::new();
-        let model =
-            train_sequence_model(&source, 5, 0, true, &mut |it, p| seen.push((it.iteration, p.to_vec()))).unwrap();
+        let model = train_sequence_model(&source, 5, 0, true, Some(&mut |it, p| seen.push((it.iteration, p.to_vec()))))
+            .unwrap();
         assert_eq!(seen.len(), 5);
         assert_eq!(model.all_parameters(), &seen[4].1[..]);
-        let three = train_sequence_model(&source, 3, 0, true, &mut |_, _| {}).unwrap();
+        let three = train_sequence_model(&source, 3, 0, true, None).unwrap();
         assert_eq!(three.all_parameters(), &seen[2].1[..]);
     }
 }
