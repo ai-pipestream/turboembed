@@ -1,0 +1,62 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	edge/french	164	149	6bab75cdbbd521fa95a0f838d9b38e836a5efc8c22c0cb655bc79bd66bdcc6eb
+annotator	opennlp.tools.sentdetect.SDEventStream	read
+config	format	text
+config	language	th
+config	run	sentdetect-th
+config	source	sentdetect
+config	useTokenEnd	false
+layer	turbo:events	document	28	outcome:str	context:str	values:str
+n	eos=  x=Qu'est-ce 9 xcap v= s=que n=c'est	
+n	eos=  x=que 3 v=Qu'est-ce vcap s=c'est n=?	
+n	eos=  x=c'est 5 v=que s=? n=«	
+n	eos=  x=? 1 v=c'est s=« n=Bonjour, ncap	
+n	eos=  x=« 1 v=? s=Bonjour, scap n=l'été	
+n	eos=  x=Bonjour, 8 xcap v=« s=l'été n=à	
+n	eos=  x=l'été 5 v=Bonjour, vcap s=à n=Paris ncap	
+n	eos=  x=à 1 v=l'été s=Paris scap n=»,	
+n	eos=  x=Paris 5 xcap v=à s=», n=dit-elle.	
+n	eos=  x=», 2 v=Paris vcap s=dit-elle. n=M. ncap	
+n	eos=  x=dit-elle. 9 v=», s=M. scap n=Dupont ncap	
+n	eos=  x=M. 2 xcap v=dit-elle. s=Dupont scap n=est	
+n	eos=  x=Dupont 6 xcap v=M. vcap s=est n=arrivé	
+n	eos=  x=est 3 v=Dupont vcap s=arrivé n=à	
+n	eos=  x=arrivé 6 v=est s=à n=12h30	
+n	eos=  x=à 1 v=arrivé s=12h30 n=;	
+n	eos=  x=12h30 5 v=à s=; n=c'était	
+n	eos=  x=; 1 v=12h30 s=c'était n=très	
+n	eos=  x=c'était 7 v=; s=très n=cher	
+n	eos=  x=très 4 v=c'était s=cher n=(3,50	
+n	eos=  x=cher 4 v=très s=(3,50 n=€).	
+n	eos=  x=(3,50 5 v=cher s=€). n=Où ncap	
+n	eos=  x=€). 3 v=(3,50 s=Où scap n=est	
+n	eos=  x=Où 2 xcap v=€). s=est n=le	
+n	eos=  x=est 3 v=Où vcap s=le n=cœur?	
+n	eos=  x=le 2 v=est s=cœur? n=Naïve ncap	
+n	eos=  x=cœur? 5 v=le s=Naïve scap n=façade.	
+s	eos=  x=Naïve 5 xcap v=cœur? s=façade. n=	
+end	turbo:events
+layer	turbo:stream-errors	document	0	after:u32	class:str	message:str
+end	turbo:stream-errors
+layer	turbo:event-checksum	document	1	crc32c:u32
+1629029386
+end	turbo:event-checksum
+layer	turbo:manifest	document	9	key:str	value:str
+Component-Name	SentenceDetectorME
+Language	th
+Manifest-Version	1.0
+OpenNLP-Version	3.0.0-SNAPSHOT
+TrainerType	Event
+Training-Eventhash	1
+eosCharacters	 \n
+factory	opennlp.tools.sentdetect.SentenceDetectorFactory
+useTokenEnd	false
+end	turbo:manifest
+layer	turbo:package-entries	document	2	name:str	length:u32
+manifest.properties	287
+sent.model	61
+end	turbo:package-entries

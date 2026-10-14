@@ -1,0 +1,52 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	edge/english-abbreviations	100	100	a1ae6c3cea011ea2aa2fa0957c75784f28e53270a0ed62574eb35e06b08fb03b
+annotator	opennlp.tools.sentdetect.SDEventStream	read
+config	format	text
+config	language	th
+config	run	sentdetect-th
+config	source	sentdetect
+config	useTokenEnd	false
+layer	turbo:events	document	18	outcome:str	context:str	values:str
+n	eos=  x=Mr. 3 xcap v= s=Smith scap n=met	
+n	eos=  x=Smith 5 xcap v=Mr. vcap s=met n=Dr. ncap	
+n	eos=  x=met 3 v=Smith vcap s=Dr. scap n=Jones ncap	
+n	eos=  x=Dr. 3 xcap v=met s=Jones scap n=in	
+n	eos=  x=Jones 5 xcap v=Dr. vcap s=in n=the	
+n	eos=  x=in 2 v=Jones vcap s=the n=U.S. ncap	
+n	eos=  x=the 3 v=in s=U.S. scap n=last	
+n	eos=  x=U.S. 4 xcap v=the s=last n=week,	
+n	eos=  x=last 4 v=U.S. vcap s=week, n=e.g.	
+n	eos=  x=week, 5 v=last s=e.g. n=on	
+n	eos=  x=e.g. 4 v=week, s=on n=Monday. ncap	
+n	eos=  x=on 2 v=e.g. s=Monday. scap n=They ncap	
+n	eos=  x=Monday. 7 xcap v=on s=They scap n=agreed.	
+n	eos=  x=They 4 xcap v=Monday. vcap s=agreed. n=Prof. ncap	
+n	eos=  x=agreed. 7 v=They vcap s=Prof. scap n=Lee ncap	
+n	eos=  x=Prof. 5 xcap v=agreed. s=Lee scap n=wasn't	
+n	eos=  x=Lee 3 xcap v=Prof. vcap s=wasn't n=there.	
+s	eos=  x=wasn't 6 v=Lee vcap s=there. n=	
+end	turbo:events
+layer	turbo:stream-errors	document	0	after:u32	class:str	message:str
+end	turbo:stream-errors
+layer	turbo:event-checksum	document	1	crc32c:u32
+3936561309
+end	turbo:event-checksum
+layer	turbo:manifest	document	9	key:str	value:str
+Component-Name	SentenceDetectorME
+Language	th
+Manifest-Version	1.0
+OpenNLP-Version	3.0.0-SNAPSHOT
+TrainerType	Event
+Training-Eventhash	1
+eosCharacters	 \n
+factory	opennlp.tools.sentdetect.SentenceDetectorFactory
+useTokenEnd	false
+end	turbo:manifest
+layer	turbo:package-entries	document	2	name:str	length:u32
+manifest.properties	287
+sent.model	61
+end	turbo:package-entries

@@ -1,0 +1,74 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	edge/ellipses	67	61	ebe802ab1de2ac8701cb588a1dd9bfecb7930f7cb6f4b10b3aedcbc6ea3d88d9
+annotator	opennlp.tools.tokenize.TokSpanEventStream	read
+config	abbreviations	english-dictionary.xml
+config	format	text
+config	language	de
+config	run	tokenize-dictionary-alnum-de
+config	source	tokenize
+config	useAlphaNumericOptimization	true
+layer	turbo:events	document	34	outcome:str	context:str	values:str
+F	p=W s=ait... p1=W p1_alpha p1_caps p2=bok p1f1=Wa f1=a f1_alpha f2=i f2_alpha f12=ai	
+F	p=Wa s=it... p1=a p1_alpha p2=W p2_alpha p2_caps p21=Wa p1f1=ai f1=i f1_alpha f2=t f2_alpha f12=it	
+F	p=Wai s=t... p1=i p1_alpha p2=a p2_alpha p21=ai p1f1=it f1=t f1_alpha f2=. f2_eos f12=t.	
+F	p=Wait s=... p1=t p1_alpha p2=i p2_alpha p21=it p1f1=t. f1=. f1_eos f2=. f2_eos f12=..	
+F	p=Wait. s=.. p1=. p1_eos p2=t p2_alpha p21=t. p1f1=.. f1=. f1_eos f2=. f2_eos f12=..	
+F	p=Wait.. s=. p1=. p1_eos p2=. p2_eos p21=.. p1f1=.. f1=. f1_eos f2=bok	
+F	p=w s=hat? p1=w p1_alpha p2=bok p1f1=wh f1=h f1_alpha f2=a f2_alpha f12=ha	
+F	p=wh s=at? p1=h p1_alpha p2=w p2_alpha p21=wh p1f1=ha f1=a f1_alpha f2=t f2_alpha f12=at	
+F	p=wha s=t? p1=a p1_alpha p2=h p2_alpha p21=ha p1f1=at f1=t f1_alpha f2=? f2_eos f12=t?	
+F	p=what s=? p1=t p1_alpha p2=a p2_alpha p21=at p1f1=t? f1=? f1_eos f2=bok	
+F	p=W s=ell… p1=W p1_alpha p1_caps p2=bok p1f1=We f1=e f1_alpha f2=l f2_alpha f12=el	
+F	p=We s=ll… p1=e p1_alpha p2=W p2_alpha p2_caps p21=We p1f1=el f1=l f1_alpha f2=l f2_alpha f12=ll	
+F	p=Wel s=l… p1=l p1_alpha p2=e p2_alpha p21=el p1f1=ll f1=l f1_alpha f2=… f12=l…	
+F	p=Well s=… p1=l p1_alpha p2=l p2_alpha p21=ll p1f1=l… f1=… f2=bok	
+F	p=m s=aybe. p1=m p1_alpha p2=bok p1f1=ma f1=a f1_alpha f2=y f2_alpha f12=ay	
+F	p=ma s=ybe. p1=a p1_alpha p2=m p2_alpha p21=ma p1f1=ay f1=y f1_alpha f2=b f2_alpha f12=yb	
+F	p=may s=be. p1=y p1_alpha p2=a p2_alpha p21=ay p1f1=yb f1=b f1_alpha f2=e f2_alpha f12=be	
+F	p=mayb s=e. p1=b p1_alpha p2=y p2_alpha p21=yb p1f1=be f1=e f1_alpha f2=. f2_eos f12=e.	
+F	p=maybe s=. p1=e p1_alpha p2=b p2_alpha p21=be p1f1=e. f1=. f1_eos f2=bok	
+F	p=n s=ot.. p1=n p1_alpha p2=bok p1f1=no f1=o f1_alpha f2=t f2_alpha f12=ot	
+F	p=no s=t.. p1=o p1_alpha p2=n p2_alpha p21=no p1f1=ot f1=t f1_alpha f2=. f2_eos f12=t.	
+F	p=not s=.. p1=t p1_alpha p2=o p2_alpha p21=ot p1f1=t. f1=. f1_eos f2=. f2_eos f12=..	
+F	p=not. s=. p1=. p1_eos p2=t p2_alpha p21=t. p1f1=.. f1=. f1_eos f2=bok	
+F	p=H s=mm...... p1=H p1_alpha p1_caps p2=bok p1f1=Hm f1=m f1_alpha f2=m f2_alpha f12=mm	
+F	p=Hm s=m...... p1=m p1_alpha p2=H p2_alpha p2_caps p21=Hm p1f1=mm f1=m f1_alpha f2=. f2_eos f12=m.	
+F	p=Hmm s=...... p1=m p1_alpha p2=m p2_alpha p21=mm p1f1=m. f1=. f1_eos f2=. f2_eos f12=..	
+F	p=Hmm. s=..... p1=. p1_eos p2=m p2_alpha p21=m. p1f1=.. f1=. f1_eos f2=. f2_eos f12=..	
+F	p=Hmm.. s=.... p1=. p1_eos p2=. p2_eos p21=.. p1f1=.. f1=. f1_eos f2=. f2_eos f12=..	
+F	p=Hmm... s=... p1=. p1_eos p2=. p2_eos p21=.. p1f1=.. f1=. f1_eos f2=. f2_eos f12=..	
+F	p=Hmm.... s=.. p1=. p1_eos p2=. p2_eos p21=.. p1f1=.. f1=. f1_eos f2=. f2_eos f12=..	
+F	p=Hmm..... s=. p1=. p1_eos p2=. p2_eos p21=.. p1f1=.. f1=. f1_eos f2=bok	
+F	p=o s=k…… p1=o p1_alpha p2=bok p1f1=ok f1=k f1_alpha f2=… f12=k…	
+F	p=ok s=…… p1=k p1_alpha p2=o p2_alpha p21=ok p1f1=k… f1=… f2=… f12=……	
+F	p=ok… s=… p1=… p2=k p2_alpha p21=k… p1f1=…… f1=… f2=bok	
+end	turbo:events
+layer	turbo:stream-errors	document	0	after:u32	class:str	message:str
+end	turbo:stream-errors
+layer	turbo:event-checksum	document	1	crc32c:u32
+182224614
+end	turbo:event-checksum
+layer	turbo:manifest	document	10	key:str	value:str
+Component-Name	TokenizerME
+Language	de
+Manifest-Version	1.0
+OpenNLP-Version	3.0.0-SNAPSHOT
+TrainerType	Event
+Training-Eventhash	1
+alphaNumericPattern	^[A-Za-z0-9äéöüÄÉÖÜß]+$
+factory	opennlp.tools.tokenize.TokenizerFactory
+serializer-class-abbreviations.dictionary	opennlp.tools.util.model.DictionarySerializer
+useAlphaNumericOptimization	true
+end	turbo:manifest
+layer	turbo:package-entries	document	3	name:str	length:u32
+manifest.properties	444
+abbreviations.dictionary	468
+token.model	61
+end	turbo:package-entries
+layer	turbo:dictionary	document	1	xml:str
+<?xml version="1.0" encoding="UTF-8"?><dictionary case_sensitive="false">\n    <entry>\n        <token>Dr.</token>\n    </entry>\n    <entry>\n        <token>U.S.</token>\n    </entry>\n    <entry>\n        <token>xyz.,"abc</token>\n    </entry>\n    <entry>\n        <token>a.m.</token>\n    </entry>\n    <entry>\n        <token>etc.</token>\n    </entry>\n    <entry>\n        <token>e.g.</token>\n    </entry>\n    <entry>\n        <token>(c)Co.ltd</token>\n    </entry>\n</dictionary>\n
+end	turbo:dictionary

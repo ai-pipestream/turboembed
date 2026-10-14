@@ -137,6 +137,7 @@ a directory with the same model run without them, and its options are
 | `train` (`QNTrainer`) | the same, with `-qn` appended, then `-l1`, `-l2` or `-plain` when only one cost, or neither, is on: eight runs over `sentdetect`, `realvalue` and `postag` | `en`, `multi`, `edge`; one `sentdetect` run also `train`, one only `train` | the same with `Algorithm`, `L1Cost`, `L2Cost`, `NumOfUpdates`, `MaxFctEval`, `Threads` |
 | `train` (`PerceptronTrainer`) | the same, with `-perceptron` appended, then `-raw` without averaging, `-skipped` with `UseSkippedAveraging`, `-decrease` with a `StepSizeDecrease`: five runs over `sentdetect`, `realvalue` and `postag` | `en`, `multi`, `edge`; one `sentdetect` run also `train`, one only `train` | `source`, `DataIndexer`, `Cutoff`, `sort`, `Algorithm`, `Iterations`, `UseAverage`, `UseSkippedAveraging`, `StepSizeDecrease`, `Tolerance` |
 | `train` (`SimplePerceptronSequenceTrainer`) | the same, with `-perceptron-sequence` appended, then `-raw` without averaging: three runs over sequences of five events of `sentdetect` and `postag` | `en`, `multi`, `edge`; one `sentdetect` run also `train` | `source`, `DataIndexer`, `Cutoff`, `sort`, `Algorithm`, `Iterations`, `UseAverage` |
+| `train-events` (`SDEventStream`, `TokSpanEventStream` with factory options) | `sentdetect-dictionary-pt`, `sentdetect-th`, `sentdetect-conllu`, `tokenize-dictionary-alnum-de`, `tokenize-conllu` | `en`, `multi`, `edge`, `train`, `abbreviations`, `alphanumeric`, `formats` by run | `run`, `source`, `language`, `format`, and when given `abbreviations`, `useTokenEnd`, `eosCharacters`, `useAlphaNumericOptimization`, `alphaNumericPattern`, `sentencesPerSample` |
 | `unigram` (`UnigramSegmenter`) | `zh-unigram-fixture` (fixture), also `+legacy` | `zh`, `multi`, `edge`, `surrogate` | `whitespace legacy` |
 | | `jieba-dict-subset` (fixture), also `+legacy` | `zh`, `multi`, `edge` | `whitespace legacy` |
 | | `zh-unigram-modes` (fixture), also `+legacy` | `zh` | `whitespace legacy` |
@@ -202,6 +203,23 @@ a directory with the same model run without them, and its options are
   the chunks' log likelihoods in the order its threads finish; two chunks
   give the same sum either way, so a two thread run is reproducible, and
   no run uses more.
+- A `train-events` run (`EventGolden`) makes the same two kinds of events
+  with the factory options `TrainGolden` leaves at their defaults: a
+  `SentenceDetectorFactory` or `TokenizerFactory` built as the trainer
+  tools build them from a language, the English abbreviation dictionary
+  fixture or none, and explicit or absent end characters or alphanumeric
+  pattern, over the input read as one sample per line or as CoNLL-U
+  (`ConlluSentenceSampleStream` with ten sentences a sample,
+  `ConlluTokenSampleStream`). It records the events and the checksum,
+  `turbo:stream-errors` (one row per exception the sample stream threw,
+  with the events made before it; reading goes on), `turbo:manifest` and
+  `turbo:package-entries` (the manifest without `Timestamp` and the zip
+  entries of a model file built from the factory around a one-predicate
+  model), `turbo:dictionary` (the file's dictionary entry) and, on the
+  `train` input of the dictionary run, `turbo:dictionary-cases`
+  (`Dictionary.serialize` of dictionaries built in the generator;
+  `docs/analysis.md`, "Training goldens").
+  `analysis/train-segmentation/tests/goldens.rs` compares with them.
 - `en-plain-rust.bin` is the `.bin` the Rust trainer writes when it trains
   `en-plain.bin`'s events again (`analysis/train/tests/roundtrip.rs`), and
   `en-plain-qn-rust.bin` and `en-plain-perceptron-rust.bin` the ones it

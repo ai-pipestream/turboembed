@@ -1,0 +1,119 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	edge/hyphens-dashes	168	152	526fcc38bf7570639c441e13ec8c185653b19dbfd9a5747df5b9408625d4b323
+annotator	opennlp.tools.tokenize.TokSpanEventStream	read
+config	abbreviations	english-dictionary.xml
+config	format	text
+config	language	de
+config	run	tokenize-dictionary-alnum-de
+config	source	tokenize
+config	useAlphaNumericOptimization	true
+layer	turbo:events	document	79	outcome:str	context:str	values:str
+F	p=w s=ell-known p1=w p1_alpha p2=bok p1f1=we f1=e f1_alpha f2=l f2_alpha f12=el	
+F	p=we s=ll-known p1=e p1_alpha p2=w p2_alpha p21=we p1f1=el f1=l f1_alpha f2=l f2_alpha f12=ll	
+F	p=wel s=l-known p1=l p1_alpha p2=e p2_alpha p21=el p1f1=ll f1=l f1_alpha f2=- f12=l-	
+F	p=well s=-known p1=l p1_alpha p2=l p2_alpha p21=ll p1f1=l- f1=- f2=k f2_alpha f12=-k	
+F	p=well- s=known p1=- p2=l p2_alpha p21=l- p1f1=-k f1=k f1_alpha f2=n f2_alpha f12=kn	
+F	p=well-k s=nown p1=k p1_alpha p2=- p21=-k p1f1=kn f1=n f1_alpha f2=o f2_alpha f12=no	
+F	p=well-kn s=own p1=n p1_alpha p2=k p2_alpha p21=kn p1f1=no f1=o f1_alpha f2=w f2_alpha f12=ow	
+F	p=well-kno s=wn p1=o p1_alpha p2=n p2_alpha p21=no p1f1=ow f1=w f1_alpha f2=n f2_alpha f12=wn	
+F	p=well-know s=n p1=w p1_alpha p2=o p2_alpha p21=ow p1f1=wn f1=n f1_alpha f2=bok	
+F	p=s s=tate-of-the-art p1=s p1_alpha p2=bok p1f1=st f1=t f1_alpha f2=a f2_alpha f12=ta	
+F	p=st s=ate-of-the-art p1=t p1_alpha p2=s p2_alpha p21=st p1f1=ta f1=a f1_alpha f2=t f2_alpha f12=at	
+F	p=sta s=te-of-the-art p1=a p1_alpha p2=t p2_alpha p21=ta p1f1=at f1=t f1_alpha f2=e f2_alpha f12=te	
+F	p=stat s=e-of-the-art p1=t p1_alpha p2=a p2_alpha p21=at p1f1=te f1=e f1_alpha f2=- f12=e-	
+F	p=state s=-of-the-art p1=e p1_alpha p2=t p2_alpha p21=te p1f1=e- f1=- f2=o f2_alpha f12=-o	
+F	p=state- s=of-the-art p1=- p2=e p2_alpha p21=e- p1f1=-o f1=o f1_alpha f2=f f2_alpha f12=of	
+F	p=state-o s=f-the-art p1=o p1_alpha p2=- p21=-o p1f1=of f1=f f1_alpha f2=- f12=f-	
+F	p=state-of s=-the-art p1=f p1_alpha p2=o p2_alpha p21=of p1f1=f- f1=- f2=t f2_alpha f12=-t	
+F	p=state-of- s=the-art p1=- p2=f p2_alpha p21=f- p1f1=-t f1=t f1_alpha f2=h f2_alpha f12=th	
+F	p=state-of-t s=he-art p1=t p1_alpha p2=- p21=-t p1f1=th f1=h f1_alpha f2=e f2_alpha f12=he	
+F	p=state-of-th s=e-art p1=h p1_alpha p2=t p2_alpha p21=th p1f1=he f1=e f1_alpha f2=- f12=e-	
+F	p=state-of-the s=-art p1=e p1_alpha p2=h p2_alpha p21=he p1f1=e- f1=- f2=a f2_alpha f12=-a	
+F	p=state-of-the- s=art p1=- p2=e p2_alpha p21=e- p1f1=-a f1=a f1_alpha f2=r f2_alpha f12=ar	
+F	p=state-of-the-a s=rt p1=a p1_alpha p2=- p21=-a p1f1=ar f1=r f1_alpha f2=t f2_alpha f12=rt	
+F	p=state-of-the-ar s=t p1=r p1_alpha p2=a p2_alpha p21=ar p1f1=rt f1=t f1_alpha f2=bok	
+F	p=r s=e-entry p1=r p1_alpha p2=bok p1f1=re f1=e f1_alpha f2=- f12=e-	
+F	p=re s=-entry p1=e p1_alpha p2=r p2_alpha p21=re p1f1=e- f1=- f2=e f2_alpha f12=-e	
+F	p=re- s=entry p1=- p2=e p2_alpha p21=e- p1f1=-e f1=e f1_alpha f2=n f2_alpha f12=en	
+F	p=re-e s=ntry p1=e p1_alpha p2=- p21=-e p1f1=en f1=n f1_alpha f2=t f2_alpha f12=nt	
+F	p=re-en s=try p1=n p1_alpha p2=e p2_alpha p21=en p1f1=nt f1=t f1_alpha f2=r f2_alpha f12=tr	
+F	p=re-ent s=ry p1=t p1_alpha p2=n p2_alpha p21=nt p1f1=tr f1=r f1_alpha f2=y f2_alpha f12=ry	
+F	p=re-entr s=y p1=r p1_alpha p2=t p2_alpha p21=tr p1f1=ry f1=y f1_alpha f2=bok	
+F	p=t s=wo-em p1=t p1_alpha p2=bok p1f1=tw f1=w f1_alpha f2=o f2_alpha f12=wo	
+F	p=tw s=o-em p1=w p1_alpha p2=t p2_alpha p21=tw p1f1=wo f1=o f1_alpha f2=- f12=o-	
+F	p=two s=-em p1=o p1_alpha p2=w p2_alpha p21=wo p1f1=o- f1=- f2=e f2_alpha f12=-e	
+F	p=two- s=em p1=- p2=o p2_alpha p21=o- p1f1=-e f1=e f1_alpha f2=m f2_alpha f12=em	
+F	p=two-e s=m p1=e p1_alpha p2=- p21=-e p1f1=em f1=m f1_alpha f2=bok	
+F	p=− s=minus p1=− p2=bok p1f1=−m f1=m f1_alpha f2=i f2_alpha f12=mi	
+F	p=−m s=inus p1=m p1_alpha p2=− p21=−m p1f1=mi f1=i f1_alpha f2=n f2_alpha f12=in	
+F	p=−mi s=nus p1=i p1_alpha p2=m p2_alpha p21=mi p1f1=in f1=n f1_alpha f2=u f2_alpha f12=nu	
+F	p=−min s=us p1=n p1_alpha p2=i p2_alpha p21=in p1f1=nu f1=u f1_alpha f2=s f2_alpha f12=us	
+F	p=−minu s=s p1=u p1_alpha p2=n p2_alpha p21=nu p1f1=us f1=s f1_alpha f2=bok	
+F	p=- s=- p1=- p2=bok p1f1=-- f1=- f2=bok	
+F	p=a s=-b-c. p1=a p1_alpha p2=bok p1f1=a- f1=- f2=b f2_alpha f12=-b	
+F	p=a- s=b-c. p1=- p2=a p2_alpha p21=a- p1f1=-b f1=b f1_alpha f2=- f12=b-	
+F	p=a-b s=-c. p1=b p1_alpha p2=- p21=-b p1f1=b- f1=- f2=c f2_alpha f12=-c	
+F	p=a-b- s=c. p1=- p2=b p2_alpha p21=b- p1f1=-c f1=c f1_alpha f2=. f2_eos f12=c.	
+F	p=a-b-c s=. p1=c p1_alpha p2=- p21=-c p1f1=c. f1=. f1_eos f2=bok	
+F	p=1 s=990-2000, p1=1 p1_num p2=bok p1f1=19 f1=9 f1_num f2=9 f2_num f12=99	
+F	p=19 s=90-2000, p1=9 p1_num p2=1 p2_num p21=19 p1f1=99 f1=9 f1_num f2=0 f2_num f12=90	
+F	p=199 s=0-2000, p1=9 p1_num p2=9 p2_num p21=99 p1f1=90 f1=0 f1_num f2=- f12=0-	
+F	p=1990 s=-2000, p1=0 p1_num p2=9 p2_num p21=90 p1f1=0- f1=- f2=2 f2_num f12=-2	
+F	p=1990- s=2000, p1=- p2=0 p2_num p21=0- p1f1=-2 f1=2 f1_num f2=0 f2_num f12=20	
+F	p=1990-2 s=000, p1=2 p1_num p2=- p21=-2 p1f1=20 f1=0 f1_num f2=0 f2_num f12=00	
+F	p=1990-20 s=00, p1=0 p1_num p2=2 p2_num p21=20 p1f1=00 f1=0 f1_num f2=0 f2_num f12=00	
+F	p=1990-200 s=0, p1=0 p1_num p2=0 p2_num p21=00 p1f1=00 f1=0 f1_num f2=, f12=0,	
+F	p=1990-2000 s=, p1=0 p1_num p2=0 p2_num p21=00 p1f1=0, f1=, f2=bok	
+F	p=A s=--B, p1=A p1_alpha p1_caps p2=bok p1f1=A- f1=- f2=- f12=--	
+F	p=A- s=-B, p1=- p2=A p2_alpha p2_caps p21=A- p1f1=-- f1=- f2=B f2_alpha f2_caps f12=-B	
+F	p=A-- s=B, p1=- p2=- p21=-- p1f1=-B f1=B f1_alpha f1_caps f2=, f12=B,	
+F	p=A--B s=, p1=B p1_alpha p1_caps p2=- p21=-B p1f1=B, f1=, f2=bok	
+F	p=n s=on‑breaking‐hyphen. p1=n p1_alpha p2=bok p1f1=no f1=o f1_alpha f2=n f2_alpha f12=on	
+F	p=no s=n‑breaking‐hyphen. p1=o p1_alpha p2=n p2_alpha p21=no p1f1=on f1=n f1_alpha f2=‑ f12=n‑	
+F	p=non s=‑breaking‐hyphen. p1=n p1_alpha p2=o p2_alpha p21=on p1f1=n‑ f1=‑ f2=b f2_alpha f12=‑b	
+F	p=non‑ s=breaking‐hyphen. p1=‑ p2=n p2_alpha p21=n‑ p1f1=‑b f1=b f1_alpha f2=r f2_alpha f12=br	
+F	p=non‑b s=reaking‐hyphen. p1=b p1_alpha p2=‑ p21=‑b p1f1=br f1=r f1_alpha f2=e f2_alpha f12=re	
+F	p=non‑br s=eaking‐hyphen. p1=r p1_alpha p2=b p2_alpha p21=br p1f1=re f1=e f1_alpha f2=a f2_alpha f12=ea	
+F	p=non‑bre s=aking‐hyphen. p1=e p1_alpha p2=r p2_alpha p21=re p1f1=ea f1=a f1_alpha f2=k f2_alpha f12=ak	
+F	p=non‑brea s=king‐hyphen. p1=a p1_alpha p2=e p2_alpha p21=ea p1f1=ak f1=k f1_alpha f2=i f2_alpha f12=ki	
+F	p=non‑break s=ing‐hyphen. p1=k p1_alpha p2=a p2_alpha p21=ak p1f1=ki f1=i f1_alpha f2=n f2_alpha f12=in	
+F	p=non‑breaki s=ng‐hyphen. p1=i p1_alpha p2=k p2_alpha p21=ki p1f1=in f1=n f1_alpha f2=g f2_alpha f12=ng	
+F	p=non‑breakin s=g‐hyphen. p1=n p1_alpha p2=i p2_alpha p21=in p1f1=ng f1=g f1_alpha f2=‐ f12=g‐	
+F	p=non‑breaking s=‐hyphen. p1=g p1_alpha p2=n p2_alpha p21=ng p1f1=g‐ f1=‐ f2=h f2_alpha f12=‐h	
+F	p=non‑breaking‐ s=hyphen. p1=‐ p2=g p2_alpha p21=g‐ p1f1=‐h f1=h f1_alpha f2=y f2_alpha f12=hy	
+F	p=non‑breaking‐h s=yphen. p1=h p1_alpha p2=‐ p21=‐h p1f1=hy f1=y f1_alpha f2=p f2_alpha f12=yp	
+F	p=non‑breaking‐hy s=phen. p1=y p1_alpha p2=h p2_alpha p21=hy p1f1=yp f1=p f1_alpha f2=h f2_alpha f12=ph	
+F	p=non‑breaking‐hyp s=hen. p1=p p1_alpha p2=y p2_alpha p21=yp p1f1=ph f1=h f1_alpha f2=e f2_alpha f12=he	
+F	p=non‑breaking‐hyph s=en. p1=h p1_alpha p2=p p2_alpha p21=ph p1f1=he f1=e f1_alpha f2=n f2_alpha f12=en	
+F	p=non‑breaking‐hyphe s=n. p1=e p1_alpha p2=h p2_alpha p21=he p1f1=en f1=n f1_alpha f2=. f2_eos f12=n.	
+F	p=non‑breaking‐hyphen s=. p1=n p1_alpha p2=e p2_alpha p21=en p1f1=n. f1=. f1_eos f2=bok	
+end	turbo:events
+layer	turbo:stream-errors	document	0	after:u32	class:str	message:str
+end	turbo:stream-errors
+layer	turbo:event-checksum	document	1	crc32c:u32
+1818800098
+end	turbo:event-checksum
+layer	turbo:manifest	document	10	key:str	value:str
+Component-Name	TokenizerME
+Language	de
+Manifest-Version	1.0
+OpenNLP-Version	3.0.0-SNAPSHOT
+TrainerType	Event
+Training-Eventhash	1
+alphaNumericPattern	^[A-Za-z0-9äéöüÄÉÖÜß]+$
+factory	opennlp.tools.tokenize.TokenizerFactory
+serializer-class-abbreviations.dictionary	opennlp.tools.util.model.DictionarySerializer
+useAlphaNumericOptimization	true
+end	turbo:manifest
+layer	turbo:package-entries	document	3	name:str	length:u32
+manifest.properties	444
+abbreviations.dictionary	468
+token.model	61
+end	turbo:package-entries
+layer	turbo:dictionary	document	1	xml:str
+<?xml version="1.0" encoding="UTF-8"?><dictionary case_sensitive="false">\n    <entry>\n        <token>Dr.</token>\n    </entry>\n    <entry>\n        <token>U.S.</token>\n    </entry>\n    <entry>\n        <token>xyz.,"abc</token>\n    </entry>\n    <entry>\n        <token>a.m.</token>\n    </entry>\n    <entry>\n        <token>etc.</token>\n    </entry>\n    <entry>\n        <token>e.g.</token>\n    </entry>\n    <entry>\n        <token>(c)Co.ltd</token>\n    </entry>\n</dictionary>\n
+end	turbo:dictionary

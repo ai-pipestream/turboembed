@@ -1,0 +1,66 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	multi/fr	212	209	56bdde2c4bdb4db6f3ef4837291e2727e705804bf1a29cccc5738304ca7c5c61
+annotator	opennlp.tools.tokenize.TokSpanEventStream	read
+config	abbreviations	english-dictionary.xml
+config	format	text
+config	language	de
+config	run	tokenize-dictionary-alnum-de
+config	source	tokenize
+config	useAlphaNumericOptimization	true
+layer	turbo:events	document	26	outcome:str	context:str	values:str
+F	p=h s=eures. p1=h p1_alpha p2=bok p1f1=he f1=e f1_alpha f2=u f2_alpha f12=eu	
+F	p=he s=ures. p1=e p1_alpha p2=h p2_alpha p21=he p1f1=eu f1=u f1_alpha f2=r f2_alpha f12=ur	
+F	p=heu s=res. p1=u p1_alpha p2=e p2_alpha p21=eu p1f1=ur f1=r f1_alpha f2=e f2_alpha f12=re	
+F	p=heur s=es. p1=r p1_alpha p2=u p2_alpha p21=ur p1f1=re f1=e f1_alpha f2=s f2_alpha f12=es	
+F	p=heure s=s. p1=e p1_alpha p2=r p2_alpha p21=re p1f1=es f1=s f1_alpha f2=. f2_eos f12=s.	
+F	p=heures s=. p1=s p1_alpha p2=e p2_alpha p21=es p1f1=s. f1=. f1_eos f2=bok	
+F	p=f s=romages, p1=f p1_alpha p2=bok p1f1=fr f1=r f1_alpha f2=o f2_alpha f12=ro	
+F	p=fr s=omages, p1=r p1_alpha p2=f p2_alpha p21=fr p1f1=ro f1=o f1_alpha f2=m f2_alpha f12=om	
+F	p=fro s=mages, p1=o p1_alpha p2=r p2_alpha p21=ro p1f1=om f1=m f1_alpha f2=a f2_alpha f12=ma	
+F	p=from s=ages, p1=m p1_alpha p2=o p2_alpha p21=om p1f1=ma f1=a f1_alpha f2=g f2_alpha f12=ag	
+F	p=froma s=ges, p1=a p1_alpha p2=m p2_alpha p21=ma p1f1=ag f1=g f1_alpha f2=e f2_alpha f12=ge	
+F	p=fromag s=es, p1=g p1_alpha p2=a p2_alpha p21=ag p1f1=ge f1=e f1_alpha f2=s f2_alpha f12=es	
+F	p=fromage s=s, p1=e p1_alpha p2=g p2_alpha p21=ge p1f1=es f1=s f1_alpha f2=, f12=s,	
+F	p=fromages s=, p1=s p1_alpha p2=e p2_alpha p21=es p1f1=s, f1=, f2=bok	
+F	p=s s=aison. p1=s p1_alpha p2=bok p1f1=sa f1=a f1_alpha f2=i f2_alpha f12=ai	
+F	p=sa s=ison. p1=a p1_alpha p2=s p2_alpha p21=sa p1f1=ai f1=i f1_alpha f2=s f2_alpha f12=is	
+F	p=sai s=son. p1=i p1_alpha p2=a p2_alpha p21=ai p1f1=is f1=s f1_alpha f2=o f2_alpha f12=so	
+F	p=sais s=on. p1=s p1_alpha p2=i p2_alpha p21=is p1f1=so f1=o f1_alpha f2=n f2_alpha f12=on	
+F	p=saiso s=n. p1=o p1_alpha p2=s p2_alpha p21=so p1f1=on f1=n f1_alpha f2=. f2_eos f12=n.	
+F	p=saison s=. p1=n p1_alpha p2=o p2_alpha p21=on p1f1=n. f1=. f1_eos f2=bok	
+F	p=M s=. p1=M p1_alpha p1_caps p2=bok p1f1=M. f1=. f1_eos f2=bok	
+F	p=E s=st-ce p1=E p1_alpha p1_caps p2=bok p1f1=Es f1=s f1_alpha f2=t f2_alpha f12=st	
+F	p=Es s=t-ce p1=s p1_alpha p2=E p2_alpha p2_caps p21=Es p1f1=st f1=t f1_alpha f2=- f12=t-	
+F	p=Est s=-ce p1=t p1_alpha p2=s p2_alpha p21=st p1f1=t- f1=- f2=c f2_alpha f12=-c	
+F	p=Est- s=ce p1=- p2=t p2_alpha p21=t- p1f1=-c f1=c f1_alpha f2=e f2_alpha f12=ce	
+F	p=Est-c s=e p1=c p1_alpha p2=- p21=-c p1f1=ce f1=e f1_alpha f2=bok	
+end	turbo:events
+layer	turbo:stream-errors	document	0	after:u32	class:str	message:str
+end	turbo:stream-errors
+layer	turbo:event-checksum	document	1	crc32c:u32
+61463194
+end	turbo:event-checksum
+layer	turbo:manifest	document	10	key:str	value:str
+Component-Name	TokenizerME
+Language	de
+Manifest-Version	1.0
+OpenNLP-Version	3.0.0-SNAPSHOT
+TrainerType	Event
+Training-Eventhash	1
+alphaNumericPattern	^[A-Za-z0-9äéöüÄÉÖÜß]+$
+factory	opennlp.tools.tokenize.TokenizerFactory
+serializer-class-abbreviations.dictionary	opennlp.tools.util.model.DictionarySerializer
+useAlphaNumericOptimization	true
+end	turbo:manifest
+layer	turbo:package-entries	document	3	name:str	length:u32
+manifest.properties	444
+abbreviations.dictionary	468
+token.model	61
+end	turbo:package-entries
+layer	turbo:dictionary	document	1	xml:str
+<?xml version="1.0" encoding="UTF-8"?><dictionary case_sensitive="false">\n    <entry>\n        <token>Dr.</token>\n    </entry>\n    <entry>\n        <token>U.S.</token>\n    </entry>\n    <entry>\n        <token>xyz.,"abc</token>\n    </entry>\n    <entry>\n        <token>a.m.</token>\n    </entry>\n    <entry>\n        <token>etc.</token>\n    </entry>\n    <entry>\n        <token>e.g.</token>\n    </entry>\n    <entry>\n        <token>(c)Co.ltd</token>\n    </entry>\n</dictionary>\n
+end	turbo:dictionary

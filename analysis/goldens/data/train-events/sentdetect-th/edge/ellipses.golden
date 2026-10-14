@@ -1,0 +1,45 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	edge/ellipses	67	61	ebe802ab1de2ac8701cb588a1dd9bfecb7930f7cb6f4b10b3aedcbc6ea3d88d9
+annotator	opennlp.tools.sentdetect.SDEventStream	read
+config	format	text
+config	language	th
+config	run	sentdetect-th
+config	source	sentdetect
+config	useTokenEnd	false
+layer	turbo:events	document	11	outcome:str	context:str	values:str
+n	eos=  x=Wait... 7 xcap v= s=what? n=Well… ncap	
+n	eos=  x=what? 5 v=Wait... vcap s=Well… scap n=maybe.	
+n	eos=  x=Well… 5 xcap v=what? s=maybe. n=.	
+n	eos=  x=maybe. 6 v=Well… vcap s=. n=.	
+n	eos=  x=. 1 v=maybe. s=. n=.	
+n	eos=  x=. 1 v=. s=. n=or	
+n	eos=  x=. 1 v=. s=or n=not..	
+n	eos=  x=or 2 v=. s=not.. n=Hmm...... ncap	
+n	eos=  x=not.. 5 v=or s=Hmm...... scap n=ok……	
+n	eos=  x=Hmm...... 9 xcap v=not.. s=ok…… n=end	
+s	eos=  x=ok…… 4 v=Hmm...... vcap s=end n=	
+end	turbo:events
+layer	turbo:stream-errors	document	0	after:u32	class:str	message:str
+end	turbo:stream-errors
+layer	turbo:event-checksum	document	1	crc32c:u32
+3741634858
+end	turbo:event-checksum
+layer	turbo:manifest	document	9	key:str	value:str
+Component-Name	SentenceDetectorME
+Language	th
+Manifest-Version	1.0
+OpenNLP-Version	3.0.0-SNAPSHOT
+TrainerType	Event
+Training-Eventhash	1
+eosCharacters	 \n
+factory	opennlp.tools.sentdetect.SentenceDetectorFactory
+useTokenEnd	false
+end	turbo:manifest
+layer	turbo:package-entries	document	2	name:str	length:u32
+manifest.properties	287
+sent.model	61
+end	turbo:package-entries

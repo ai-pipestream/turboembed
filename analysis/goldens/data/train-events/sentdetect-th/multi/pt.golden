@@ -1,0 +1,71 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	multi/pt	191	184	699a006ea30a073970f33c421ff9ea82f271df4e609177456a4272ff34bbf511
+annotator	opennlp.tools.sentdetect.SDEventStream	read
+config	format	text
+config	language	th
+config	run	sentdetect-th
+config	source	sentdetect
+config	useTokenEnd	false
+layer	turbo:events	document	37	outcome:str	context:str	values:str
+n	eos=  x=A 1 xcap v= s=padaria n=da	
+n	eos=  x=padaria 7 v=A vcap s=da n=esquina	
+n	eos=  x=da 2 v=padaria s=esquina n=faz	
+n	eos=  x=esquina 7 v=da s=faz n=o	
+n	eos=  x=faz 3 v=esquina s=o n=melhor	
+n	eos=  x=o 1 v=faz s=melhor n=pão	
+n	eos=  x=melhor 6 v=o s=pão n=de	
+n	eos=  x=pão 3 v=melhor s=de n=queijo	
+n	eos=  x=de 2 v=pão s=queijo n=da	
+n	eos=  x=queijo 6 v=de s=da n=cidade.	
+n	eos=  x=da 2 v=queijo s=cidade. n=Todas ncap	
+n	eos=  x=cidade. 7 v=da s=Todas scap n=as	
+n	eos=  x=Todas 5 xcap v=cidade. s=as n=manhãs	
+n	eos=  x=as 2 v=Todas vcap s=manhãs n=há	
+n	eos=  x=manhãs 6 v=as s=há n=uma	
+n	eos=  x=há 2 v=manhãs s=uma n=fila	
+n	eos=  x=uma 3 v=há s=fila n=na	
+n	eos=  x=fila 4 v=uma s=na n=porta.	
+n	eos=  x=na 2 v=fila s=porta. n=O ncap	
+n	eos=  x=porta. 6 v=na s=O scap n=dono,	
+n	eos=  x=O 1 xcap v=porta. s=dono, n=o	
+n	eos=  x=dono, 5 v=O vcap s=o n=Sr. ncap	
+n	eos=  x=o 1 v=dono, s=Sr. scap n=Almeida, ncap	
+n	eos=  x=Sr. 3 xcap v=o s=Almeida, scap n=começou	
+n	eos=  x=Almeida, 8 xcap v=Sr. vcap s=começou n=o	
+n	eos=  x=começou 7 v=Almeida, vcap s=o n=negócio	
+n	eos=  x=o 1 v=começou s=negócio n=em	
+n	eos=  x=negócio 7 v=o s=em n=1985.	
+n	eos=  x=em 2 v=negócio s=1985. n=Ele ncap	
+n	eos=  x=1985. 5 v=em s=Ele scap n=diz	
+n	eos=  x=Ele 3 xcap v=1985. s=diz n=que	
+n	eos=  x=diz 3 v=Ele vcap s=que n=o	
+n	eos=  x=que 3 v=diz s=o n=segredo	
+n	eos=  x=o 1 v=que s=segredo n=é	
+n	eos=  x=segredo 7 v=o s=é n=a	
+n	eos=  x=é 1 v=segredo s=a n=paciência.	
+s	eos=  x=a 1 v=é s=paciência. n=	
+end	turbo:events
+layer	turbo:stream-errors	document	0	after:u32	class:str	message:str
+end	turbo:stream-errors
+layer	turbo:event-checksum	document	1	crc32c:u32
+866896189
+end	turbo:event-checksum
+layer	turbo:manifest	document	9	key:str	value:str
+Component-Name	SentenceDetectorME
+Language	th
+Manifest-Version	1.0
+OpenNLP-Version	3.0.0-SNAPSHOT
+TrainerType	Event
+Training-Eventhash	1
+eosCharacters	 \n
+factory	opennlp.tools.sentdetect.SentenceDetectorFactory
+useTokenEnd	false
+end	turbo:manifest
+layer	turbo:package-entries	document	2	name:str	length:u32
+manifest.properties	287
+sent.model	61
+end	turbo:package-entries

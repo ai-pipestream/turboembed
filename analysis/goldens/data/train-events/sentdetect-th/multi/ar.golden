@@ -1,0 +1,54 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	multi/ar	224	124	421843fa20516ed200f358d541cb8ecd397177813c10f6207e75b9f1632bc013
+annotator	opennlp.tools.sentdetect.SDEventStream	read
+config	format	text
+config	language	th
+config	run	sentdetect-th
+config	source	sentdetect
+config	useTokenEnd	false
+layer	turbo:events	document	20	outcome:str	context:str	values:str
+n	eos=  x=ذهبنا 5 v= s=إلى n=السوق	
+n	eos=  x=إلى 3 v=ذهبنا s=السوق n=في	
+n	eos=  x=السوق 5 v=إلى s=في n=الصباح	
+n	eos=  x=في 2 v=السوق s=الصباح n=الباكر.	
+n	eos=  x=الصباح 6 v=في s=الباكر. n=كانت	
+n	eos=  x=الباكر. 7 v=الصباح s=كانت n=الفواكه	
+n	eos=  x=كانت 4 v=الباكر. s=الفواكه n=طازجة	
+n	eos=  x=الفواكه 7 v=كانت s=طازجة n=والأسعار	
+n	eos=  x=طازجة 5 v=الفواكه s=والأسعار n=مناسبة.	
+n	eos=  x=والأسعار 8 v=طازجة s=مناسبة. n=اشترت	
+n	eos=  x=مناسبة. 7 v=والأسعار s=اشترت n=أمي	
+n	eos=  x=اشترت 5 v=مناسبة. s=أمي n=البرتقال	
+n	eos=  x=أمي 3 v=اشترت s=البرتقال n=والعنب.	
+n	eos=  x=البرتقال 8 v=أمي s=والعنب. n=هل	
+n	eos=  x=والعنب. 7 v=البرتقال s=هل n=تريد	
+n	eos=  x=هل 2 v=والعنب. s=تريد n=أن	
+n	eos=  x=تريد 4 v=هل s=أن n=تأتي	
+n	eos=  x=أن 2 v=تريد s=تأتي n=معنا	
+n	eos=  x=تأتي 4 v=أن s=معنا n=غداً؟	
+s	eos=  x=معنا 4 v=تأتي s=غداً؟ n=	
+end	turbo:events
+layer	turbo:stream-errors	document	0	after:u32	class:str	message:str
+end	turbo:stream-errors
+layer	turbo:event-checksum	document	1	crc32c:u32
+1722794651
+end	turbo:event-checksum
+layer	turbo:manifest	document	9	key:str	value:str
+Component-Name	SentenceDetectorME
+Language	th
+Manifest-Version	1.0
+OpenNLP-Version	3.0.0-SNAPSHOT
+TrainerType	Event
+Training-Eventhash	1
+eosCharacters	 \n
+factory	opennlp.tools.sentdetect.SentenceDetectorFactory
+useTokenEnd	false
+end	turbo:manifest
+layer	turbo:package-entries	document	2	name:str	length:u32
+manifest.properties	287
+sent.model	61
+end	turbo:package-entries
