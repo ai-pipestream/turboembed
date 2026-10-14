@@ -2053,6 +2053,16 @@ name = "turbo-unicode-gen"
 version = "0.1.0"
 
 [[package]]
+name = "turbo-zoo"
+version = "0.1.0"
+dependencies = [
+ "serde",
+ "serde_json",
+ "sha2",
+ "ureq",
+]
+
+[[package]]
 name = "typenum"
 version = "1.20.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
