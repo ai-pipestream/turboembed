@@ -1,0 +1,61 @@
+###MEDLINE:00000001
+
+Treatment	O
+of	O
+mouse	B-cell_type
+T	I-cell_type
+cells	I-cell_type
+with	O
+the	O
+Abc-7	B-protein
+kinase	I-protein
+raised	O
+levels	O
+of	O
+Xyz	B-RNA
+mRNA	I-RNA
+.	O
+
+The	O
+Q2	B-cell_line
+line	I-cell_line
+carries	O
+a	O
+zeta	B-DNA
+promoter	I-DNA
+region	I-protein
+and	O
+p21	B-protein
+Q9	B-protein
+.	O
+   
+Levels	I-DNA
+rose	O
+in	O
+HQ	B-XDNA
+cells	O
+.	O
+
+
+###MEDLINE:00000002
+Lost	O
+Binding	O
+was	O
+weak	O
+[ABSTRACT TRUNCATED AT 400 WORDS]
+.	O
+
+Two	O	O
+fields	O
+only	O
+
+Tag	X
+here	O
+
+Empty	B-
+type	O
+
+Trailing	O	
+	B-protein
+Ende	O
+last	B-RNA

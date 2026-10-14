@@ -168,6 +168,30 @@ are not taken from any corpus.
   test corpus (`opennlp-core/opennlp-formats/src/test/resources/opennlp/tools/formats/masc/`
   at the goldens' OpenNLP commit, Apache License 2.0), unchanged.
 
+- `inputs/ner/`: 12 files in the named entity corpus formats OpenNLP
+  reads, written for this project except as noted below; the part of
+  the id before the first hyphen names the corpus (`germeval`,
+  `bionlp`, `evalita`, `census`, `muc`, `brat`). They hold names of
+  every type, types left out, nested GermEval names, unknown types and
+  tags, lines with too few or too many columns, comment, abstract and
+  document start lines, empty and whitespace-only lines, census names
+  with `MC` prefixes and a line that ends the list, and accented
+  letters. The `muc-` and `brat-` files are corpus directories bundled
+  into one text (see "MASC goldens" in `analysis/goldens-tool/README.md`):
+  MUC-6 style SGML documents with names, nested and unclosed tags, files
+  in other cases and subdirectories, a file that gives no sample and
+  errors after a document's first samples, and brat documents with
+  text-bound annotations over several fragments, relations, events,
+  attributes, notes, overlapping names, each error of the annotation
+  file parsers, annotation configurations that fail, and a text with a
+  character outside the Basic Multilingual Plane (`brat-utf16`). They
+  hold no text of the MUC or brat corpora. `germeval-opennlp.txt` is
+  four sentences of the GermEval 2014 named entity data (CC BY 4.0;
+  D. Benikova, C. Biemann and M. Reznicek, "NoSta-D Named Entity
+  Annotation for German: Guidelines and Dataset", LREC 2014) as Apache
+  OpenNLP's test file `germeval2014.sample` holds them (Apache License
+  2.0), unchanged after the comment lines that say so.
+
 `analysis/goldens-tool/README.md` ("Runs") lists which run reads which set.
 
 ## Fixtures

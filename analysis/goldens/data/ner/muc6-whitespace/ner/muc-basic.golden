@@ -1,0 +1,106 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	ner/muc-basic	1501	1498	d96860038d46db7896db733c62617175c4772e3fe7fdcb4872d2451c6784a323
+annotator	opennlp.tools.formats.muc.MucNameSampleStream	read
+config	tokenizer	whitespace
+layer	turbo:samples	document	12	written:str
+\n<START:organization> Harbor Lights Co. <END> Opens Plant
+<START:date> 06/01/94  <END>
+<START:location> RIVERTON  <END>
+<START:organization> Harbor Lights Co. <END> said it will open a <START:location> Riverton <END> -based plant on <START:date> Monday <END> .
+The plant cost <START:money> $12 million <END> , or <START:percent> 8% <END> of sales, said <START:person> Mara Quill <END> , its chief, at <START:time> 9 a.m. <END>
+\nSecond Story
+Only <START:person> Kim <END> 's dog <START:location> barked <END> .
+head inner
+
+
+\nAn upper-case <START:location> suffix <END> is read too\u001cand so .
+<START:organization> Nbsp Corp <END> and <START:person> Ada <END> .
+end	turbo:samples
+layer	turbo:read-errors	document	0	after:u32	class:str	message:str
+end	turbo:read-errors
+layer	turbo:sample-tokens	document	63	sample:u32	text:str
+0	Harbor
+0	Lights
+0	Co.
+0	Opens
+0	Plant
+1	06/01/94
+2	RIVERTON
+3	Harbor
+3	Lights
+3	Co.
+3	said
+3	it
+3	will
+3	open
+3	a
+3	Riverton
+3	-based
+3	plant
+3	on
+3	Monday
+3	.
+4	The
+4	plant
+4	cost
+4	$12
+4	million
+4	,
+4	or
+4	8%
+4	of
+4	sales,
+4	said
+4	Mara
+4	Quill
+4	,
+4	its
+4	chief,
+4	at
+4	9
+4	a.m.
+5	Second
+5	Story
+6	Only
+6	Kim
+6	's
+6	dog
+6	barked
+6	.
+7	head
+7	inner
+10	An
+10	upper-case
+10	suffix
+10	is
+10	read
+10	too\u001cand
+10	so
+10	.
+11	Nbsp
+11	Corp
+11	and
+11	Ada
+11	.
+end	turbo:sample-tokens
+layer	turbo:names	document	15	sample:u32	start:u32	end:u32	type:str
+0	0	3	organization
+1	0	1	date
+2	0	1	location
+3	0	3	organization
+3	8	9	location
+3	12	13	date
+4	3	5	money
+4	7	8	percent
+4	11	13	person
+4	17	19	time
+6	1	2	person
+6	4	5	location
+10	2	3	location
+11	0	2	organization
+11	3	4	person
+end	turbo:names

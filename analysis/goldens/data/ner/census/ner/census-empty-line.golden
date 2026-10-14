@@ -1,0 +1,17 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	ner/census-empty-line	49	49	6415bf9ccea96ddffbd09df34728d8228aadc568e7b1ec242c552ccdbfe498c8
+annotator	opennlp.tools.formats.NameFinderCensus90NameStream	read
+layer	turbo:samples	document	2	written:str
+[Adams]
+[Baker]
+end	turbo:samples
+layer	turbo:read-errors	document	0	after:u32	class:str	message:str
+end	turbo:read-errors
+layer	turbo:sample-tokens	document	2	sample:u32	text:str
+0	Adams
+1	Baker
+end	turbo:sample-tokens

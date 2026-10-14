@@ -1,0 +1,67 @@
+#	wiki.example vom 01.01.2020	[2020-01-01]
+1	Anna	B-PER	O
+2	Berger	I-PER	O
+3	besucht	O	O
+4	das	O	O
+5	Museum	B-ORG	O
+6	Ludwig	I-ORG	B-PER  
+7	in	O	O
+8	Köln	B-LOC	O
+9	.	O	O
+
+1	Die	O	O
+2	deutsche	B-LOCderiv	O
+3	Elf	O	O
+4	und	O	O
+5	Bonner	B-LOCpart	B-LOC
+6	Fans	O	O
+7	jubeln	O	O
+8	über	O	O
+9	Marie	B-PERderiv	O
+10	Krugs	I-PERderiv	O
+11	Tor	B-PERpart	O
+12	.	O	O
+
+
+1	Der	O	O
+2	Verlag	B-ORGpart	O
+3	Blauwal	B-ORG	O
+4	bringt	O	O
+5	Stille	B-OTH	O
+6	Tage	I-OTH	O
+7	heraus	O	O
+8	,	O	O
+9	eine	O	O
+10	Fortsetzung	B-OTHpart	O
+11	im	O	O
+12	Wolfsstil	B-OTHderiv	O
+13	.	O	O
+
+#	ohne Satz danach
+
+1	Gestern	O	O
+2	sprach	I-PER	O
+3	Jonas	B-PER	O
+4	Wolf	I-LOC	B-LOC
+5	mit	X	O
+6	Ida	B-XYZ	B-ABC
+7	Lenz	B-PER	B-PER
+8	Ost	B-ORG	I-LOC
+9	.	O	O	_	extra
+
+1	Frau	O	O
+#	Kommentar mitten im Satz
+2	Sommer	B-PER	O
+3	lacht	O
+4	laut	O	O
+5	.	O	O
+
+1	Kai	B-PER 	B-PER	 
+2	winkt	O	O
+
+1	Ole	B-PERfoo	O
+2	Hansen	I-PER	O
+
+1		O	O
+2	Lücke	B-LOC	O
+3	Ende	I-LOC	O

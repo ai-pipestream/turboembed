@@ -137,6 +137,7 @@ a directory with the same model run without them, and its options are
 | `formats` (the CoNLL-U streams) | `conllu-pos-u`, `conllu-pos-x`, `conllu-lemma-u`, `conllu-lemma-x`, `conllu-sentence`, `conllu-token` (also `+legacy`) | `formats`, the `conllu` inputs | `tagset u` or `x`; `sentencesPerSample 2`; `whitespace legacy` |
 | `formats` (the CoNLL streams) | `conll02-nld`, `conll02-spa`, `conll02-spa-per-loc`, `conll03-eng`, `conll03-deu`, `conll03-eng-org-misc`, `conllx-pos`, `conllx-token` and `conllx-sentence` (with `en-detokenizer`, fixture) | `formats`, the `conll02`, `conll03` and `conllx` inputs | `lang`, `types`; `chunkSize 2` for `conllx-sentence` |
 | `masc` (the MASC readers) | `documents` (`MascDocument.parseDocument`), `pos`, `token`, `sentence`, `name` (the sample streams) | `formats`, the `masc-` inputs | `sentencesPerSample 2` for `sentence` |
+| `ner` (the named entity corpus streams) | `germeval-outer`, `germeval-inner`, `germeval-outer-loc-misc`, `bionlp`, `bionlp-cell-line`, `bionlp-dna-cell-type`, `evalita`, `evalita-per-gpe`, `census`, `muc6-whitespace` (also `+legacy`), `muc6-simple`, `brat-whitespace` (also `+legacy`), `brat-simple`, `brat-recursive-person-location`, `brat-config` | `ner`, the inputs whose id starts with the corpus's prefix (`germeval-`, `bionlp-`, `evalita-`, `census-`, `muc-`, `brat-`) | `types`, `layer`, `lang it`, `tokenizer`, `recursive true`, `nameTypes`, `whitespace legacy` |
 
 - `+english-dictionary` is the English model rebuilt through
   `TokenizerModel(MaxentModel, Map, TokenizerFactory)` with the
@@ -394,6 +395,41 @@ and `turbo:read-errors`, `turbo:open-errors` for what the constructors
 threw, and `nulls` 1 in `turbo:names` for a name without a type.
 `analysis/formats/tests/masc.rs` compares the Rust readers with these
 goldens.
+
+## NER goldens
+
+`ner/<run>/ner/<id>.golden` is what one of OpenNLP's named entity corpus
+streams read from `inputs/ner/<id>.txt`. `NerGolden` makes each stream
+as its factory does: `GermEval2014NameSampleStream`,
+`BioNLP2004NameSampleStream` and `EvalitaNameSampleStream` with the name
+types of the `types` record (and the GermEval layer of `layer`), and
+`NameFinderCensus90NameStream`, each over the file read as UTF-8.
+
+The `muc-` and `brat-` inputs are corpus directories bundled into one
+text, as the MASC inputs are. The MUC runs read the files whose name
+ends with `.sgm` in any case with `MucNameSampleStream`, as
+`Muc6NameSampleStreamFactory` does; the factory splits words with a
+tokenizer model, and the runs use the whitespace and the simple
+tokenizer in its place. The message of an unknown MUC name type lists
+the expected types in an order that changes from one JVM run to the
+next, so the golden writes them in the order of OpenNLP's source. The
+brat runs read the corpus with `BratDocumentStream` and
+`BratNameSampleStream` as `BratNameSampleStreamFactory` does without a
+sentence or tokenizer model: sentences split at line ends, and the
+whitespace or the simple tokenizer. The simple tokenizer cuts a
+character outside the Basic Multilingual Plane into its two surrogates,
+which a golden cannot hold, so `brat-simple` does not read `brat-utf16`.
+Messages naming a document write the corpus directory as `<corpus>`.
+The `brat-config` run parses each `.conf` file of a bundle's top
+directory with `AnnotationConfiguration.parse` and writes
+`turbo:brat-config` (each type and its class) and
+`turbo:brat-config-errors` (what the parse threw).
+
+The streams are read until `read` returns null; an exception is recorded
+and reading goes on. The layers are `turbo:samples`,
+`turbo:read-errors`, `turbo:sample-tokens` and `turbo:names`, as the
+format goldens write them. `analysis/formats/tests/ner.rs` compares the
+Rust readers with these goldens.
 
 ## Evaluator goldens
 

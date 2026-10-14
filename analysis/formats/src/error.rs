@@ -11,6 +11,8 @@ use std::fmt;
 
 use turbo_analysis::Span;
 
+use crate::ner::NerError;
+
 /// A sample a reader cannot read, or a sample value that cannot be built.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum FormatError {
@@ -52,6 +54,8 @@ pub enum FormatError {
     /// A source text longer than `u32::MAX` bytes, which [`Span`] cannot
     /// index.
     TooLong { len: usize },
+    /// What a reader of a named entity corpus ([`crate::ner`]) refuses.
+    Ner(NerError),
     /// A CoNLL-U word line without exactly ten tab-separated columns
     /// (after `StringUtil.split` drops the empty columns at its end).
     /// `text` is the line.
@@ -90,17 +94,20 @@ pub enum FormatError {
     /// A CoNLL-2003 line without the number of fields its language has
     /// (four in English, five in German). `text` is the line.
     Conll03Fields { line: u32, text: String },
-    /// A CoNLL name tag that is not `O` and does not start with `B-` or
-    /// `I-`.
+    /// A name tag that is not `O` and does not start with `B-` or `I-`,
+    /// in CoNLL-2002, CoNLL-2003, BioNLP 2004 and Evalita (GermEval reads
+    /// such a tag as `O`).
     InvalidNameTag { line: u32, tag: String },
-    /// A CoNLL name tag whose type is not `PER`, `ORG`, `LOC` or `MISC`,
-    /// found when its name ends: `kind` is the tag after its prefix.
+    /// A name tag whose type the stream has no name for, found when its
+    /// name ends: `kind` is the tag after its prefix. CoNLL knows `PER`,
+    /// `ORG`, `LOC` and `MISC`, Evalita `PER`, `ORG`, `LOC` and `GPE`,
+    /// GermEval its twelve types (BioNLP takes any type as written).
     UnknownNameType { line: u32, kind: String },
-    /// A CoNLL-2003 `-DOCSTART-` line followed by a line that is not
-    /// empty; `line` and `text` are that line.
+    /// A CoNLL-2003 or Evalita `-DOCSTART-` line followed by a line that
+    /// is not empty; `line` and `text` are that line.
     DocstartNotFollowedByEmpty { line: u32, text: String },
-    /// A CoNLL-2003 `-DOCSTART-` line at the end of the text: the stream
-    /// asks `StringUtil.isEmpty` about the null line after it.
+    /// A CoNLL-2003 or Evalita `-DOCSTART-` line at the end of the text:
+    /// the stream asks `StringUtil.isEmpty` about the null line after it.
     DocstartAtEnd { line: u32 },
     /// A CoNLL-X line with fewer than five tab-separated columns (after
     /// `StringUtil.split` drops the empty columns at its end). `text` is
@@ -118,6 +125,7 @@ impl FormatError {
                 Some("java.io.IOException")
             }
             OverlappingNames { .. } => Some("java.lang.RuntimeException"),
+            Ner(e) => Some(e.java_class()),
             ShortChunkTag { .. } => Some("java.lang.StringIndexOutOfBoundsException"),
             Lengths { .. } | OutOfBounds { .. } | BackwardsSpan { .. } => Some("java.lang.IllegalArgumentException"),
             ConlluColumns { .. }
@@ -140,6 +148,7 @@ impl FormatError {
     pub fn line(&self) -> Option<u32> {
         use FormatError::*;
         match *self {
+            Ner(ref e) => e.line(),
             NestedName { line, .. }
             | MissingNameType { line, .. }
             | UnexpectedEnd { line, .. }
@@ -169,6 +178,7 @@ impl fmt::Display for FormatError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         use FormatError::*;
         match self {
+            Ner(e) => e.fmt(f),
             NestedName { context, .. } => {
                 write!(f, "Found unexpected annotation while handling a name sequence: {context}")
             }

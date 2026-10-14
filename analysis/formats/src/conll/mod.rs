@@ -63,7 +63,8 @@ mod names;
 pub use conllx::ConllXPosReader;
 pub use names::{Conll02Reader, Conll03Reader};
 
-/// The name `-DOCSTART-` lines start with (`Conll02NameSampleStream.DOCSTART`).
+/// The name `-DOCSTART-` lines start with (`Conll02NameSampleStream.DOCSTART`,
+/// and the same in CoNLL-2003 and Evalita).
 pub const DOCSTART: &str = "-DOCSTART-";
 
 /// The registry name of the CoNLL-2002 name format.

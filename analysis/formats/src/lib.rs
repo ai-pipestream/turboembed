@@ -25,6 +25,8 @@
 //!   and the part-of-speech, token, sentence and name samples OpenNLP
 //!   reads from it. A corpus is a directory of files, so it is not in the
 //!   registry, which reads one text.
+//! - [`ner`]: the GermEval 2014, BioNLP 2004, Evalita, MUC-6 and brat
+//!   name corpora and the 1990 US Census name lists.
 //! - [`registry`]: the formats of each sample kind by name, OpenNLP's
 //!   `StreamFactoryRegistry`.
 //! - [`evaluate`]: OpenNLP's scores, an evaluator per component and the
@@ -98,6 +100,7 @@ pub mod error;
 pub mod evaluate;
 pub mod masc;
 pub mod native;
+pub mod ner;
 pub mod registry;
 pub mod sample;
 pub mod source;
