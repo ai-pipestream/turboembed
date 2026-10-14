@@ -1,0 +1,40 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	formats/conllu-whitespace	399	389	1e8cbfcdb4aac58a419a87aeddddca80a5083e117ef3e8aab3cce7d8d8710bc5
+annotator	opennlp.tools.formats.conllu.ConlluTokenSampleStream	read
+layer	turbo:samples	document	4	written:str
+a b c<SPLIT>\u001cd e f
+after three blank lines
+😀<SPLIT>x é
+no final line feed
+end	turbo:samples
+layer	turbo:read-errors	document	0	after:u32	class:str	message:str
+end	turbo:read-errors
+layer	turbo:sample-texts	document	4	text:str
+a b c\u001cd e f 
+after three blank lines 
+😀x é 
+no final line feed 
+end	turbo:sample-texts
+layer	turbo:sample-spans	document	17	sample:u32	start:u32	end:u32
+0	0	1
+0	2	3
+0	4	5
+0	5	7
+0	8	9
+0	10	11
+1	0	5
+1	6	11
+1	12	17
+1	18	23
+2	0	4
+2	4	5
+2	6	8
+3	0	2
+3	3	8
+3	9	13
+3	14	18
+end	turbo:sample-spans

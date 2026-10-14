@@ -1,0 +1,46 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	formats/doccat-basic	127	123	6501234bb95a048572dea91c76fc6a214e0898bd365eb4ee94ea53c4d1f5513e
+annotator	opennlp.tools.doccat.DocumentSampleStream	read
+layer	turbo:samples	document	6	written:str
+spam\tbuy cheap pills now
+ham\tsee you at lunch
+ham\ttabs and nbsp
+😀\temoji category
+nel\tx fs\u001cy
+last\tline
+end	turbo:samples
+layer	turbo:read-errors	document	3	after:u32	class:str	message:str
+2	java.io.IOException	Empty lines, or lines with only a category string are not allowed!
+2	java.io.IOException	Empty lines, or lines with only a category string are not allowed!
+5	java.io.IOException	Empty lines, or lines with only a category string are not allowed!
+end	turbo:read-errors
+layer	turbo:sample-labels	document	6	label:str
+spam
+ham
+ham
+😀
+nel
+last
+end	turbo:sample-labels
+layer	turbo:sample-tokens	document	16	sample:u32	text:str
+0	buy
+0	cheap
+0	pills
+0	now
+1	see
+1	you
+1	at
+1	lunch
+2	tabs
+2	and
+2	nbsp
+3	emoji
+3	category
+4	x
+4	fs\u001cy
+5	line
+end	turbo:sample-tokens

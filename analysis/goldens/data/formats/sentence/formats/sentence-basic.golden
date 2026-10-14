@@ -1,0 +1,30 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	formats/sentence-basic	133	127	95057e819c93a2c46f1f0524389c897308ab63de643d7fd6f5784dab8d9c2b03
+annotator	opennlp.tools.sentdetect.SentenceSampleStream	read
+layer	turbo:samples	document	3	written:str
+One sentence.\nTwo<LF>\n
+Three<CR<LF>>.\nFour<CR><LF>five.\n<LF>edge<LF>\n nbsp \n\n
+😀 emoji é.\nlast without a line feed\n
+end	turbo:samples
+layer	turbo:read-errors	document	0	after:u32	class:str	message:str
+end	turbo:read-errors
+layer	turbo:sample-texts	document	3	text:str
+One sentence. Two\n 
+Three<CR\n>. Four\r\nfive. \nedge\n  nbsp   
+😀 emoji é. last without a line feed 
+end	turbo:sample-texts
+layer	turbo:sample-spans	document	9	sample:u32	start:u32	end:u32
+0	0	13
+0	14	18
+1	0	11
+1	12	23
+1	24	30
+1	31	39
+1	40	42
+2	0	14
+2	15	39
+end	turbo:sample-spans

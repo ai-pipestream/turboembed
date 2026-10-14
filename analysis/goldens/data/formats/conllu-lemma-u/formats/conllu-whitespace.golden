@@ -1,0 +1,61 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	formats/conllu-whitespace	399	389	1e8cbfcdb4aac58a419a87aeddddca80a5083e117ef3e8aab3cce7d8d8710bc5
+annotator	opennlp.tools.formats.conllu.ConlluLemmaSampleStream	read
+config	tagset	u
+layer	turbo:samples	document	4	written:str
+a\t_\t_\nb\t_\t_\nc\t_\t_\nd\t_\t_\ne\t_\t_\nf\t_\t_\n
+after\t_\t_\nthree\t_\t_\n
+😀\t_\t_\nx\t_\t_\né\t_\t_\n
+no\t_\t_\nfinal\t_\t_\n
+end	turbo:samples
+layer	turbo:read-errors	document	0	after:u32	class:str	message:str
+end	turbo:read-errors
+layer	turbo:sample-tokens	document	13	sample:u32	text:str
+0	a
+0	b
+0	c
+0	d
+0	e
+0	f
+1	after
+1	three
+2	😀
+2	x
+2	é
+3	no
+3	final
+end	turbo:sample-tokens
+layer	turbo:sample-tags	aligned:turbo:sample-tokens	13	tag:str
+_
+_
+_
+_
+_
+_
+_
+_
+_
+_
+_
+_
+_
+end	turbo:sample-tags
+layer	turbo:sample-lemmas	aligned:turbo:sample-tokens	13	lemma:str
+_
+_
+_
+_
+_
+_
+_
+_
+_
+_
+_
+_
+_
+end	turbo:sample-lemmas

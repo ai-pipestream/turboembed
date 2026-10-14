@@ -98,6 +98,39 @@ are not taken from any corpus.
   outside the Basic Multilingual Plane (`emoji`) and words holding `</w>`
   as text (`end-marker`).
 
+- `inputs/formats/`: 26 small files in OpenNLP's native sample formats
+  and in CoNLL-U, written for this project; the part of the id before
+  the first hyphen names the format, or for the evaluator inputs the
+  part after `pairs-` (`name`, `wordtag`, `lemma`,
+  `chunk`, `token`, `sentence`, `doccat`, `language`, `conllu`). They hold ordinary samples and the
+  lines the streams treat unusually: untyped and nested start tags, an
+  empty type, stray and missing end tags, empty names, tags that are not
+  whole tokens, one-token samples, empty and whitespace-only lines, CR LF
+  and lone CR, tokens without `_`, lines with too few or too many
+  columns, two empty lines in a row, chunk tags that start phrases
+  without `B-` or are one character long, `<SPLIT>` at the ends of a
+  token and twice in a row, `<LF>` and `<CR>` escapes, a category with no
+  text, lines without a language, tabs, no-break spaces, `U+0085`,
+  `U+001C`, emoji and accented letters, and a last line without a line
+  feed. The CoNLL-U files (Spanish, Portuguese and English sentences
+  written for this project) hold multiword tokens with `_` among their
+  words' values, an empty node, every comment `ConlluStream` reads, a
+  sentence without a `text` comment and one of comments only, and the
+  sentences it refuses or reads unusually: nine columns, an empty last
+  column, a line of spaces, multiword ids with a leading zero, running
+  backwards, past the words, past Java's `int`, out of order, repeated
+  and overlapping, a bad `text_` language, forms missing from the text,
+  a form found inside an inserted `<SPLIT>`, empty forms, CR LF and lone
+  CR, and whitespace that only one whitespace mode splits on. The
+  `pairs-` files hold a reference sample and then a prediction for it,
+  pair after pair: predictions that are right, wrong, shorter and
+  longer than the reference, chunk tags with no phrase, token and
+  sentence spans past the reference's text (also after accented
+  letters and emoji, whose UTF-16 offsets differ from their byte
+  offsets), a name predicted twice,
+  pairs with nothing to find, and sentence ends that only one
+  whitespace mode trims.
+
 `analysis/goldens-tool/README.md` ("Runs") lists which run reads which set.
 
 ## Fixtures

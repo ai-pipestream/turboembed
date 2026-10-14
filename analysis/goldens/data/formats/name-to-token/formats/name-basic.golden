@@ -1,0 +1,78 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	formats/name-basic	422	422	694e2045c62b46e5c02f94f64318a251c77da0c7cc4c74064d138dde455d714a
+model	en-detokenizer.xml	d071b56f77ae5b6aff0a591c1cf7e601a4007b5fdbcc0bd3fc31e8c84e95ec232df9765a70bfef786f75dbefcc4cad7d053b34b00ecc805507192a5fddc81260
+annotator	opennlp.tools.formats.convert.NameToTokenSampleStream	read
+layer	turbo:samples	document	5	written:str
+Pierre Vinken<SPLIT>, 61 years old<SPLIT>, will join the board as a nonexecutive director Nov. 29<SPLIT>.
+Mr<SPLIT>. Vinken is chairman of Elsevier N.V.<SPLIT>, the Dutch publishing group<SPLIT>.
+Paris is in France<SPLIT>.
+Untyped names get the default type<SPLIT>.
+Berlin and Potsdam share the last type<SPLIT>.
+end	turbo:samples
+layer	turbo:read-errors	document	0	after:u32	class:str	message:str
+end	turbo:read-errors
+layer	turbo:sample-texts	document	5	text:str
+Pierre Vinken, 61 years old, will join the board as a nonexecutive director Nov. 29.
+Mr. Vinken is chairman of Elsevier N.V., the Dutch publishing group.
+Paris is in France.
+Untyped names get the default type.
+Berlin and Potsdam share the last type.
+end	turbo:sample-texts
+layer	turbo:sample-spans	document	52	sample:u32	start:u32	end:u32
+0	0	6
+0	7	13
+0	13	14
+0	15	17
+0	18	23
+0	24	27
+0	27	28
+0	29	33
+0	34	38
+0	39	42
+0	43	48
+0	49	51
+0	52	53
+0	54	66
+0	67	75
+0	76	80
+0	81	83
+0	83	84
+1	0	2
+1	2	3
+1	4	10
+1	11	13
+1	14	22
+1	23	25
+1	26	34
+1	35	39
+1	39	40
+1	41	44
+1	45	50
+1	51	61
+1	62	67
+1	67	68
+2	0	5
+2	6	8
+2	9	11
+2	12	18
+2	18	19
+3	0	7
+3	8	13
+3	14	17
+3	18	21
+3	22	29
+3	30	34
+3	34	35
+4	0	6
+4	7	10
+4	11	18
+4	19	24
+4	25	28
+4	29	33
+4	34	38
+4	38	39
+end	turbo:sample-spans

@@ -1,0 +1,4 @@
+eng	Hello there
+fra	Bonjour
+deu	Hallo
+deu	x
