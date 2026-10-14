@@ -1,0 +1,63 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	ner/muc-errors	1101	1100	24d382036e43a13e7708aad713fb92446a7c43b19ee51a61df0afe7442d6349b
+annotator	opennlp.tools.formats.muc.MucNameSampleStream	read
+config	tokenizer	whitespace
+layer	turbo:samples	document	10	written:str
+\nKept <START:person> one <END> .
+\nKept .
+\nKept .
+\nKept .
+\nKept .
+\na b c
+\nOpen 
+<START:person> across <END> samples .
+<START:date> <END> joins the next .
+Nel <START:person> tag <END> .
+end	turbo:samples
+layer	turbo:read-errors	document	8	after:u32	class:str	message:str
+0	opennlp.tools.util.InvalidFormatException	Unknown timex, numex or namex type: THING, expected one of [PERSON, ORGANIZATION, LOCATION, DATE, TIME, MONEY, PERCENT]
+1	java.lang.NullPointerException	
+1	java.util.EmptyStackException	
+2	opennlp.tools.util.InvalidFormatException	Did not expect > char!
+3	opennlp.tools.util.InvalidFormatException	Did not expect < char!
+4	opennlp.tools.util.InvalidFormatException	Did not find matching > char!
+5	java.lang.RuntimeException	name spans [0..2) organization and [0..1) location are overlapped in file: null, sentence: [River, Bank, .]
+5	java.lang.IllegalArgumentException	start index must not be larger than end index: start=2, end=1
+end	turbo:read-errors
+layer	turbo:sample-tokens	document	25	sample:u32	text:str
+0	Kept
+0	one
+0	.
+1	Kept
+1	.
+2	Kept
+2	.
+3	Kept
+3	.
+4	Kept
+4	.
+5	a
+5	b
+5	c
+6	Open
+7	across
+7	samples
+7	.
+8	joins
+8	the
+8	next
+8	.
+9	Nel
+9	tag
+9	.
+end	turbo:sample-tokens
+layer	turbo:names	document	4	sample:u32	start:u32	end:u32	type:str
+0	1	2	person
+7	0	1	person
+8	0	0	date
+9	1	2	person
+end	turbo:names

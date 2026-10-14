@@ -1,0 +1,90 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	ner/germeval-written	921	918	71dfffecabd5846ca174dbcbab9b6451a1ff157f2880826aba5d7565d47eab22
+annotator	opennlp.tools.formats.GermEval2014NameSampleStream	read
+config	layer	outer
+config	types	per,loc,org,misc
+layer	turbo:samples	document	6	written:str
+\n<START:person> Anna Berger <END> besucht das <START:organization> Museum Ludwig <END> in <START:location> Köln <END> .
+Die <START:locationderiv> deutsche <END> Elf und <START:locationpart> Bonner <END> Fans jubeln über <START:personderiv> Marie Krugs <END> <START:personpart> Tor <END> .
+Der <START:organizationpart> Verlag <END> <START:organization> Blauwal <END> bringt <START:misc> Stille Tage <END> heraus , eine <START:miscpart> Fortsetzung <END> im <START:miscderiv> Wolfsstil <END> .
+Gestern sprach <START:person> Jonas Wolf <END> mit Ida <START:person> Lenz <END> <START:organization> Ost <END> .
+laut .
+ <START:location> Lücke Ende <END>
+end	turbo:samples
+layer	turbo:read-errors	document	3	after:u32	class:str	message:str
+4	java.io.IOException	Expected at least four tab-separated fields per line in GermEval 2014 data, got 3 for line '3\tlacht\tO'!
+5	opennlp.tools.util.InvalidFormatException	Unknown type: PER 
+5	opennlp.tools.util.InvalidFormatException	Unknown type: PERfoo
+end	turbo:read-errors
+layer	turbo:sample-tokens	document	48	sample:u32	text:str
+0	Anna
+0	Berger
+0	besucht
+0	das
+0	Museum
+0	Ludwig
+0	in
+0	Köln
+0	.
+1	Die
+1	deutsche
+1	Elf
+1	und
+1	Bonner
+1	Fans
+1	jubeln
+1	über
+1	Marie
+1	Krugs
+1	Tor
+1	.
+2	Der
+2	Verlag
+2	Blauwal
+2	bringt
+2	Stille
+2	Tage
+2	heraus
+2	,
+2	eine
+2	Fortsetzung
+2	im
+2	Wolfsstil
+2	.
+3	Gestern
+3	sprach
+3	Jonas
+3	Wolf
+3	mit
+3	Ida
+3	Lenz
+3	Ost
+3	.
+4	laut
+4	.
+5	
+5	Lücke
+5	Ende
+end	turbo:sample-tokens
+layer	turbo:names	document	16	sample:u32	start:u32	end:u32	type:str
+0	0	2	person
+0	4	6	organization
+0	7	8	location
+1	1	2	locationderiv
+1	4	5	locationpart
+1	8	10	personderiv
+1	10	11	personpart
+2	1	2	organizationpart
+2	2	3	organization
+2	4	6	misc
+2	9	10	miscpart
+2	11	12	miscderiv
+3	2	4	person
+3	6	7	person
+3	7	8	organization
+5	1	3	location
+end	turbo:names

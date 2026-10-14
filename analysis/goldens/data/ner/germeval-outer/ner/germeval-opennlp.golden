@@ -1,0 +1,68 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	ner/germeval-opennlp	972	970	9ab895d3496ce0546143116f68c4359899e44429bcb81c65e444b29692b452c1
+annotator	opennlp.tools.formats.GermEval2014NameSampleStream	read
+config	layer	outer
+config	types	per,loc,org,misc
+layer	turbo:samples	document	4	written:str
+\n<START:person> Schartau <END> sagte dem " <START:organization> Tagesspiegel <END> " vom Freitag , <START:person> Fischer <END> sei in <START:location> Berlin <END> .
+\n<START:organization> Bayern München <END> ist wieder alleiniger Favorit auf den Gewinn der <START:locationderiv> deutschen <END> Fußball-Meisterschaft .
+<START:misc> Ecce homo <END> ist ein Werk .
+<START:organizationpart> ARD-Programmchef <END> <START:person> Volker Herres <END> sagte .
+end	turbo:samples
+layer	turbo:read-errors	document	0	after:u32	class:str	message:str
+end	turbo:read-errors
+layer	turbo:sample-tokens	document	38	sample:u32	text:str
+0	Schartau
+0	sagte
+0	dem
+0	"
+0	Tagesspiegel
+0	"
+0	vom
+0	Freitag
+0	,
+0	Fischer
+0	sei
+0	in
+0	Berlin
+0	.
+1	Bayern
+1	München
+1	ist
+1	wieder
+1	alleiniger
+1	Favorit
+1	auf
+1	den
+1	Gewinn
+1	der
+1	deutschen
+1	Fußball-Meisterschaft
+1	.
+2	Ecce
+2	homo
+2	ist
+2	ein
+2	Werk
+2	.
+3	ARD-Programmchef
+3	Volker
+3	Herres
+3	sagte
+3	.
+end	turbo:sample-tokens
+layer	turbo:names	document	9	sample:u32	start:u32	end:u32	type:str
+0	0	1	person
+0	4	5	organization
+0	9	10	person
+0	12	13	location
+1	0	2	organization
+1	10	11	locationderiv
+2	0	2	misc
+3	0	1	organizationpart
+3	1	3	person
+end	turbo:names

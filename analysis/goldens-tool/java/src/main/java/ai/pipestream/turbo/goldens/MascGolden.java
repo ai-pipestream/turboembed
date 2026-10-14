@@ -187,7 +187,7 @@ final class MascGolden implements AnnotatorGolden {
 
   // ---- the bundle ----
 
-  private static void writeBundle(Input input, Path root) throws IOException {
+  static void writeBundle(Input input, Path root) throws IOException {
     String text = input.text();
     int pos = 0;
     while (pos < text.length()) {
@@ -265,7 +265,7 @@ final class MascGolden implements AnnotatorGolden {
     }
   }
 
-  private static void delete(Path root) {
+  static void delete(Path root) {
     try (Stream<Path> walk = Files.walk(root)) {
       for (Path p : walk.sorted(Comparator.reverseOrder()).toList()) {
         Files.delete(p);

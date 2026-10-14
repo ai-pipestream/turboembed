@@ -1,0 +1,48 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	ner/evalita-written	684	684	7ee4afce3e3fb55fc495b53cf413be3b10969c739530c099fbe2cf8c36bb041e
+annotator	opennlp.tools.formats.EvalitaNameSampleStream	read
+config	lang	it
+config	types	per,org,loc,gpe
+layer	turbo:samples	document	3	written:str
+\nIl sindaco di <START:gpe> Pievelunga <END> ha incontrato <START:person> Carla Neri <END> della <START:organization> Banca Alpina <END> sul <START:location> Monte Chiaro <END> .
+\ncorta .
+\ndopo 
+end	turbo:samples
+layer	turbo:read-errors	document	6	after:u32	class:str	message:str
+1	opennlp.tools.util.InvalidFormatException	Unknown type: XORG
+1	java.io.IOException	Incorrect number of fields per line for language: 'riga E O'!
+2	opennlp.tools.util.InvalidFormatException	Unknown type: MISC
+2	java.io.IOException	Invalid tag: Z
+2	java.io.IOException	Empty line after -DOCSTART- not empty: 'Errato SS B-NP O'!
+3	java.lang.NullPointerException	Cannot invoke "java.lang.CharSequence.length()" because "theString" is null
+end	turbo:read-errors
+layer	turbo:sample-tokens	document	18	sample:u32	text:str
+0	Il
+0	sindaco
+0	di
+0	Pievelunga
+0	ha
+0	incontrato
+0	Carla
+0	Neri
+0	della
+0	Banca
+0	Alpina
+0	sul
+0	Monte
+0	Chiaro
+0	.
+1	corta
+1	.
+2	dopo
+end	turbo:sample-tokens
+layer	turbo:names	document	4	sample:u32	start:u32	end:u32	type:str
+0	3	4	gpe
+0	6	8	person
+0	9	11	organization
+0	12	14	location
+end	turbo:names

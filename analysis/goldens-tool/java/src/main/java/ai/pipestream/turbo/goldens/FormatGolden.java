@@ -303,7 +303,7 @@ final class FormatGolden implements AnnotatorGolden {
     return layers;
   }
 
-  private static String message(Exception e) {
+  static String message(Exception e) {
     return e.getMessage() == null ? "" : e.getMessage();
   }
 
@@ -337,7 +337,7 @@ final class FormatGolden implements AnnotatorGolden {
     return c.layer(id, "document", "sample", "start", "end", "type");
   }
 
-  private static void names(List<Object> samples, List<Layer> layers) {
+  static void names(List<Object> samples, List<Layer> layers) {
     List<String[]> toks = new ArrayList<>();
     List<Span[]> names = new ArrayList<>();
     for (Object o : samples) {

@@ -1,0 +1,41 @@
+# A corpus in the layout of MUC-6, written for this project (no text of the MUC
+# corpora). The factory reads the files whose name ends with .sgm in any case, not
+# those in subdirectories, in the reverse of their name order: b.sgm, then a.SGM.
+
+@@ file b.sgm
+<DOC>
+<DOCID> sample-0001 </DOCID>
+<DOCNO> 0001 </DOCNO>
+<HL> <ENAMEX TYPE="ORGANIZATION">Harbor Lights Co.</ENAMEX> Opens Plant </HL>
+<DD> <TIMEX TYPE="DATE">06/01/94</TIMEX> </DD>
+<DATELINE> <ENAMEX TYPE="LOCATION">RIVERTON</ENAMEX> </DATELINE>
+<TXT>
+<p>
+<s> <ENAMEX TYPE="ORGANIZATION">Harbor Lights Co.</ENAMEX> said it will open a
+<ENAMEX TYPE="LOCATION">Riverton</ENAMEX>-based plant on <TIMEX TYPE="DATE">Monday</TIMEX> . </s>
+<s> The plant cost <NUMEX TYPE="MONEY">$12 million</NUMEX>, or <NUMEX TYPE="PERCENT">8%</NUMEX> of sales,
+said <ENAMEX TYPE="PERSON">Mara Quill</ENAMEX>, its chief, at <TIMEX TYPE="TIME">9 a.m.</TIMEX> </s>
+</p>
+</TXT>
+</DOC>
+<DOC>
+<HL> Second Story </HL>
+<s>> Only <ENAMEX TYPE="PERSON" STATUS="OPT">Kim</ENAMEX>'s dog <ENAMEX TYPE="PERSON" TYPE="LOCATION">barked</ENAMEX> . </s>
+<HL> head <s> inner </s> tail </HL>
+<s></s>
+</DOC>
+text after the last tag
+@@ end
+@@ file a.SGM
+<DOC>
+<s> An upper-case <ENAMEX TYPE="LOCATION">suffix</ENAMEX> is readtooand so . </s>
+<s> <ENAMEX TYPE="ORGANIZATION">Nbsp Corp</ENAMEX> and <ENAMEX TYPE="PERSON">Ada</ENAMEX> . </s>
+</DOC>
+@@ end
+@@ file c.txt
+<DOC><s> never read </s></DOC>
+@@ end
+@@ file sub/d.sgm
+<DOC><s> not read either </s></DOC>
+@@ end
+@@ dir e.sgm
