@@ -112,6 +112,7 @@ that differs.
 | `en-abbrev.bin`, `en-plain.bin` | English sentence models trained by `analysis/sentdetect/tests/fixtures/src/TrainSentenceModel.java` (see the README there): `en-abbrev` has an abbreviation dictionary of 13 entries and `useTokenEnd=true`, `en-plain` has no dictionary and `useTokenEnd=false` |
 | `pos-fixture.bin` | a copy of `analysis/sequence/golden/models/pos-fixture.bin`, a part-of-speech model OpenNLP trained by GIS on 15 sentences with Penn Treebank tags, the default descriptor and the case-insensitive tag dictionary `tags.tagdict` (`the`, `Run`, `fell`, `Paris`; `analysis/sequence/README.md`) |
 | `lemmatizer-dictionary.txt` | a `DictionaryLemmatizer` dictionary written for this project: 48 `word<tab>tag<tab>lemma` lines with Universal Dependencies tags for words of the `en` and `multi` inputs, among them entries with several lemmas (`leave#leaf`), a word listed twice with one tag (the last wins), a word with two tags, an empty lemma field (`#`), fields after the lemma and a trailing tab (both ignored), entries with a capital letter (never found, since a lookup lowercases the token) and non-ASCII words |
+| `chunker-fixture.bin` | a copy of `analysis/sequence/golden/models/chunker-fixture.bin`, a chunker model OpenNLP trained by perceptron on 8 sentences with Penn Treebank tags and `B-`, `I-` and `O` chunk tags for `NP`, `VP`, `PP`, `ADJP` and `SBAR` (`analysis/sequence/golden/inputs/train-chunk.txt`, `analysis/sequence/README.md`); the only chunker model here, since the published chunker models are OpenNLP 1.5 models, which this project does not use |
 | `tokenizer-abbreviations.bin` | a copy of `analysis/maxent/tests/fixtures/models/tokenizer.bin`, a tokenizer model OpenNLP trained on six sentences with the case-insensitive dictionary `Dr.`, `U.S.`, `e.g.` (`analysis/maxent/tests/fixtures/README.md`) |
 | `english-dictionary.xml` | an abbreviation dictionary written for this project, added to the English tokenizer model |
 | `latin-detokenizer.xml` | Apache OpenNLP's test resource of `DictionaryDetokenizerTest`, unchanged (license header kept) |
@@ -366,7 +367,7 @@ quantity annotator runs on the set, and it has no dumps.
 ## Decision point dumps
 
 `<annotator>/<model>/<set>/<id>.dump`, beside each golden of
-`sentdetect`, `tokenize`, `postag`, `lemmatize` and `langdetect` that
+`sentdetect`, `tokenize`, `postag`, `lemmatize`, `chunk` and `langdetect` that
 names a model and has no `error` record, records every
 decision the annotator asked its maxent model for on that input: the
 context strings, at the UTF-8 byte offset the decision is about, and the

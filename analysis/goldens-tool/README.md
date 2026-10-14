@@ -14,7 +14,7 @@ everything that makes them:
   `CursorQuantityExtractor` (see below). With `--dumps` it also writes a decision point dump
   beside each golden of a run that asks a maxent model (the sentence
   detector, the tokenizer, the part-of-speech tagger, the maxent
-  lemmatizer and the language detector): every context the annotator gave
+  lemmatizer, the chunker and the language detector): every context the annotator gave
   the model and every outcome probability `eval` returned. `PosAccuracy` is a second main class, run by
   hand, that scores a part-of-speech model on a CoNLL-U file
   (`analysis/postag/README.md`).
@@ -67,7 +67,7 @@ cargo run -p turbo-goldens-tool -- verify [--models <dir>]
   it wrote. The generator is always given `--dumps`
   (`GENERATOR_ARGS` in `src/recipe.rs`), so the goldens and their dumps are
   made and installed together; before installing, every sentence, token,
-  part-of-speech, maxent lemmatizer and language golden whose header names a model must have a dump beside it
+  part-of-speech, maxent lemmatizer, chunk and language golden whose header names a model must have a dump beside it
   whose header parses, except a golden with an error record (the annotator
   threw on that input), which must have none. A golden that names no model
   (a tokenizer or sentence detector without one, a normalizer) has no dump,
@@ -112,6 +112,8 @@ a directory with the same model run without them, and its options are
 | `lemmatize` (`LemmatizerME`) | `opennlp-en-ud-ewt-lemmas-1.3-2.5.4` | `en`, `multi`, `edge` | |
 | | `opennlp-de-ud-gsd-lemmas-1.3-2.5.4` | `edge` | |
 | `lemmatize-dictionary` (`DictionaryLemmatizer`) | `lemmatizer-dictionary` (fixture) | `en`, `multi`, `edge` | |
+| `chunk` (`ChunkerME`) | `chunker-fixture` (fixture) | `en`, `multi`, `edge` | |
+| | `chunker-fixture+beam1` | `en` | `beamSize 1` |
 | `langdetect` (`LanguageDetectorME`) | `langdetect-183` | `en`, `multi` | |
 | `normalize` (each normalizer) | the normalizer's name | `norm` | see below |
 | `numbers` (`NumberScan` of the addons `numeric` module) | `latin-us`, `latin-eu` | `num` | `notation` |
@@ -169,6 +171,20 @@ a directory with the same model run without them, and its options are
   over the fixture dictionary and the English pipeline, without a
   confidence layer; it asks no model, so it has its own annotator
   directory and no dumps.
+- A `chunk` run cuts the input with the English sentence and tokenizer
+  models and tags it with the English part-of-speech model asked for
+  `POSTagFormat.PENN` (its second, third and fourth `model` records), since
+  the fixture chunker was trained on Penn Treebank tags, and chunks each
+  sentence with `chunk`; its golden has the sentences, tokens and tags,
+  `opennlp:chunk-tags` with `probs()` as the probability column, and
+  `opennlp:chunks`, the phrases `ChunkSample.phrasesAsSpanList` reads off
+  the tags (what `chunkAsSpans` returns), each spanning its tokens' text,
+  with its token range and kind. `+beam<n>` rebuilds the model through
+  `ChunkerModel(String, MaxentModel, int, Map, ChunkerFactory)` with that
+  beam size. The dumps are made like the tagger's
+  (`RecordingChunkerFactory`). The fixture is a perceptron model, so the
+  generator depends on `opennlp-ml-perceptron`, which the runtime lists as
+  optional.
 
 The fixtures (`analysis/goldens/data/fixtures`) are checked in, mounted at
 `/fixtures` and listed with their SHA-512 in `src/recipe.rs`; the data

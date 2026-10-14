@@ -1,0 +1,2408 @@
+dump 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	edge/tabs-spaces	20	20	3b5bbb6da02856fe989d454a7c27dfb71dd7d0382625f327eb7eaa6945dadb84
+model	chunker-fixture.bin	be8e0bfd341644705a652b85b978e4138056922ddb9caea1ac9a2395f0648e55ad1f1b035d90f6febc0f057f832cecac377f397552fdbdfefadaa27cfa232d6a
+model	opennlp-en-ud-ewt-sentence-1.3-2.5.4.bin	fed5d53ea87bf66afeb08c084f89ca9b95a96de0920dca40487b2ab9972ee6b7ef211e477db480b7253431de079fd66dfd14329cd7d19ad1f565155eb0cf5191
+model	opennlp-en-ud-ewt-tokens-1.3-2.5.4.bin	147d1cdcb89ca5d9bd0ead8fddf2cc14ae543a9151803fe56b3c1fa152b986605e34fb6dda4819c68aa22fc9bffa6bfab14f916b7d0bf4892d452686af34778a
+model	opennlp-en-ud-ewt-pos-1.3-2.5.4.bin	fca85b38d996b7c422401054feedeb0f748cbc03856893cb27670da5d207315ec9af0c0f818c3107a741a2effca2499b5097ac0b46edf4a5ac10bf77a351ac3e
+annotator	opennlp.tools.chunker.ChunkerME	chunk
+point	0	0	41	8	0	none
+context	w_2=bos
+context	w_1=bos
+context	w0=a
+context	w1=b
+context	w2=c
+context	w_1=bosw0=a
+context	w0=aw1=b
+context	t_2=bos
+context	t_1=bos
+context	t0=DT
+context	t1=NN
+context	t2=NN
+context	t_2=bost_1=bos
+context	t_1=bost0=DT
+context	t0=DTt1=NN
+context	t1=NNt2=NN
+context	t_2=bost_1=bost0=DT
+context	t_1=bost0=DTt1=NN
+context	t0=DTt1=NNt2=NN
+context	p_2=bos
+context	p_1=bos
+context	p_2=bosp_1=bos
+context	p_1=bost_2=bos
+context	p_1=bost_1=bos
+context	p_1=bost0=DT
+context	p_1=bost1=NN
+context	p_1=bost2=NN
+context	p_1=bost_2=bost_1=bos
+context	p_1=bost_1=bost0=DT
+context	p_1=bost0=DTt1=NN
+context	p_1=bost1=NNt2=NN
+context	p_1=bost_2=bost_1=bost0=DT
+context	p_1=bost_1=bost0=DTt1=NN
+context	p_1=bost0=DTt1=NNt2=NN
+context	p_1=bosw_2=bos
+context	p_1=bosw_1=bos
+context	p_1=bosw0=a
+context	p_1=bosw1=b
+context	p_1=bosw2=c
+context	p_1=bosw_1=bosw0=a
+context	p_1=bosw0=aw1=b
+outcome	B-NP	3fd324161da07688 0.29907753842585594
+outcome	I-NP	3fa5aa57d9bc43cc 0.042315240220098
+outcome	B-VP	3fc0d2b9a4b3e2fe 0.13143082182048
+outcome	B-PP	3fbc2a906d7e77b5 0.11002447770303443
+outcome	O	3fbc2a906d7e77b5 0.11002447770303443
+outcome	B-ADJP	3fbc2a906d7e77b5 0.11002447770303443
+outcome	I-VP	3fb81bce8e5dd999 0.0941742990088187
+outcome	B-SBAR	3fba59887c5efd4f 0.1029286674156442
+end	0
+point	1	2	41	8	0	none
+context	w_2=bos
+context	w_1=a
+context	w0=b
+context	w1=c
+context	w2=d
+context	w_1=aw0=b
+context	w0=bw1=c
+context	t_2=bos
+context	t_1=DT
+context	t0=NN
+context	t1=NN
+context	t2=NN
+context	t_2=bost_1=DT
+context	t_1=DTt0=NN
+context	t0=NNt1=NN
+context	t1=NNt2=NN
+context	t_2=bost_1=DTt0=NN
+context	t_1=DTt0=NNt1=NN
+context	t0=NNt1=NNt2=NN
+context	p_2=bos
+context	p_1=B-NP
+context	p_2=bosp_1=B-NP
+context	p_1=B-NPt_2=bos
+context	p_1=B-NPt_1=DT
+context	p_1=B-NPt0=NN
+context	p_1=B-NPt1=NN
+context	p_1=B-NPt2=NN
+context	p_1=B-NPt_2=bost_1=DT
+context	p_1=B-NPt_1=DTt0=NN
+context	p_1=B-NPt0=NNt1=NN
+context	p_1=B-NPt1=NNt2=NN
+context	p_1=B-NPt_2=bost_1=DTt0=NN
+context	p_1=B-NPt_1=DTt0=NNt1=NN
+context	p_1=B-NPt0=NNt1=NNt2=NN
+context	p_1=B-NPw_2=bos
+context	p_1=B-NPw_1=a
+context	p_1=B-NPw0=b
+context	p_1=B-NPw1=c
+context	p_1=B-NPw2=d
+context	p_1=B-NPw_1=aw0=b
+context	p_1=B-NPw0=bw1=c
+outcome	B-NP	3fa528893a29adb4 0.04132489047045898
+outcome	I-NP	3fd14974e2089b39 0.2701084334716373
+outcome	B-VP	3fbeb86809dc865f 0.12000131836659865
+outcome	B-PP	3fbe6e9010a5bbf3 0.11887455374174731
+outcome	O	3fbe6e9010a5bbf3 0.11887455374174731
+outcome	B-ADJP	3fbcc1d5f3bdd84c 0.112332698828909
+outcome	I-VP	3fbcc1d5f3bdd84c 0.112332698828909
+outcome	B-SBAR	3fbb2cb3c8250d69 0.10615085254999247
+end	1
+point	2	2	41	8	0	none
+context	w_2=bos
+context	w_1=a
+context	w0=b
+context	w1=c
+context	w2=d
+context	w_1=aw0=b
+context	w0=bw1=c
+context	t_2=bos
+context	t_1=DT
+context	t0=NN
+context	t1=NN
+context	t2=NN
+context	t_2=bost_1=DT
+context	t_1=DTt0=NN
+context	t0=NNt1=NN
+context	t1=NNt2=NN
+context	t_2=bost_1=DTt0=NN
+context	t_1=DTt0=NNt1=NN
+context	t0=NNt1=NNt2=NN
+context	p_2=bos
+context	p_1=B-VP
+context	p_2=bosp_1=B-VP
+context	p_1=B-VPt_2=bos
+context	p_1=B-VPt_1=DT
+context	p_1=B-VPt0=NN
+context	p_1=B-VPt1=NN
+context	p_1=B-VPt2=NN
+context	p_1=B-VPt_2=bost_1=DT
+context	p_1=B-VPt_1=DTt0=NN
+context	p_1=B-VPt0=NNt1=NN
+context	p_1=B-VPt1=NNt2=NN
+context	p_1=B-VPt_2=bost_1=DTt0=NN
+context	p_1=B-VPt_1=DTt0=NNt1=NN
+context	p_1=B-VPt0=NNt1=NNt2=NN
+context	p_1=B-VPw_2=bos
+context	p_1=B-VPw_1=a
+context	p_1=B-VPw0=b
+context	p_1=B-VPw1=c
+context	p_1=B-VPw2=d
+context	p_1=B-VPw_1=aw0=b
+context	p_1=B-VPw0=bw1=c
+outcome	B-NP	3fb08bf9aa3e88a8 0.06463585287432017
+outcome	I-NP	3fd3860713716151 0.3050553979751572
+outcome	B-VP	3fbbc1663b05dbce 0.10841978970516594
+outcome	B-PP	3fbbc1663b05dbce 0.10841978970516594
+outcome	O	3fbcbaafbbed19be 0.11222360933343276
+outcome	B-ADJP	3fbcbaafbbed19be 0.11222360933343276
+outcome	I-VP	3fbcbaafbbed19be 0.11222360933343276
+outcome	B-SBAR	3fb3a90e5e28ed47 0.07679834173989263
+end	2
+point	3	2	41	8	0	none
+context	w_2=bos
+context	w_1=a
+context	w0=b
+context	w1=c
+context	w2=d
+context	w_1=aw0=b
+context	w0=bw1=c
+context	t_2=bos
+context	t_1=DT
+context	t0=NN
+context	t1=NN
+context	t2=NN
+context	t_2=bost_1=DT
+context	t_1=DTt0=NN
+context	t0=NNt1=NN
+context	t1=NNt2=NN
+context	t_2=bost_1=DTt0=NN
+context	t_1=DTt0=NNt1=NN
+context	t0=NNt1=NNt2=NN
+context	p_2=bos
+context	p_1=B-ADJP
+context	p_2=bosp_1=B-ADJP
+context	p_1=B-ADJPt_2=bos
+context	p_1=B-ADJPt_1=DT
+context	p_1=B-ADJPt0=NN
+context	p_1=B-ADJPt1=NN
+context	p_1=B-ADJPt2=NN
+context	p_1=B-ADJPt_2=bost_1=DT
+context	p_1=B-ADJPt_1=DTt0=NN
+context	p_1=B-ADJPt0=NNt1=NN
+context	p_1=B-ADJPt1=NNt2=NN
+context	p_1=B-ADJPt_2=bost_1=DTt0=NN
+context	p_1=B-ADJPt_1=DTt0=NNt1=NN
+context	p_1=B-ADJPt0=NNt1=NNt2=NN
+context	p_1=B-ADJPw_2=bos
+context	p_1=B-ADJPw_1=a
+context	p_1=B-ADJPw0=b
+context	p_1=B-ADJPw1=c
+context	p_1=B-ADJPw2=d
+context	p_1=B-ADJPw_1=aw0=b
+context	p_1=B-ADJPw0=bw1=c
+outcome	B-NP	3fa4a7347f4e9412 0.0403381734279621
+outcome	I-NP	3fd3136e8e230161 0.2980610263876056
+outcome	B-VP	3fbb4d30e1f2225a 0.1066465903878763
+outcome	B-PP	3fbc120e85ce85d7 0.10965052382245886
+outcome	O	3fc10c38bb1ccff9 0.133185473788785
+outcome	B-ADJP	3fbc120e85ce85d7 0.10965052382245886
+outcome	I-VP	3fbc120e85ce85d7 0.10965052382245886
+outcome	B-SBAR	3fb7c2dd9e355ca0 0.09281716454039435
+end	3
+point	4	2	41	8	0	none
+context	w_2=bos
+context	w_1=a
+context	w0=b
+context	w1=c
+context	w2=d
+context	w_1=aw0=b
+context	w0=bw1=c
+context	t_2=bos
+context	t_1=DT
+context	t0=NN
+context	t1=NN
+context	t2=NN
+context	t_2=bost_1=DT
+context	t_1=DTt0=NN
+context	t0=NNt1=NN
+context	t1=NNt2=NN
+context	t_2=bost_1=DTt0=NN
+context	t_1=DTt0=NNt1=NN
+context	t0=NNt1=NNt2=NN
+context	p_2=bos
+context	p_1=B-PP
+context	p_2=bosp_1=B-PP
+context	p_1=B-PPt_2=bos
+context	p_1=B-PPt_1=DT
+context	p_1=B-PPt0=NN
+context	p_1=B-PPt1=NN
+context	p_1=B-PPt2=NN
+context	p_1=B-PPt_2=bost_1=DT
+context	p_1=B-PPt_1=DTt0=NN
+context	p_1=B-PPt0=NNt1=NN
+context	p_1=B-PPt1=NNt2=NN
+context	p_1=B-PPt_2=bost_1=DTt0=NN
+context	p_1=B-PPt_1=DTt0=NNt1=NN
+context	p_1=B-PPt0=NNt1=NNt2=NN
+context	p_1=B-PPw_2=bos
+context	p_1=B-PPw_1=a
+context	p_1=B-PPw0=b
+context	p_1=B-PPw1=c
+context	p_1=B-PPw2=d
+context	p_1=B-PPw_1=aw0=b
+context	p_1=B-PPw0=bw1=c
+outcome	B-NP	3fb31590b4433328 0.0745478096097939
+outcome	I-NP	3fd3ac3a3f654d3e 0.30738693419444363
+outcome	B-VP	3fbc27df72b152f2 0.10998341131319103
+outcome	B-PP	3fb7d55527bd5e87 0.09309894771774384
+outcome	O	3fb7d55527bd5e87 0.09309894771774384
+outcome	B-ADJP	3fbcf2e5f57df82e 0.11308133357485481
+outcome	I-VP	3fbcf2e5f57df82e 0.11308133357485481
+outcome	B-SBAR	3fb88130a0ff977a 0.095721282297374
+end	4
+point	5	2	41	8	0	none
+context	w_2=bos
+context	w_1=a
+context	w0=b
+context	w1=c
+context	w2=d
+context	w_1=aw0=b
+context	w0=bw1=c
+context	t_2=bos
+context	t_1=DT
+context	t0=NN
+context	t1=NN
+context	t2=NN
+context	t_2=bost_1=DT
+context	t_1=DTt0=NN
+context	t0=NNt1=NN
+context	t1=NNt2=NN
+context	t_2=bost_1=DTt0=NN
+context	t_1=DTt0=NNt1=NN
+context	t0=NNt1=NNt2=NN
+context	p_2=bos
+context	p_1=O
+context	p_2=bosp_1=O
+context	p_1=Ot_2=bos
+context	p_1=Ot_1=DT
+context	p_1=Ot0=NN
+context	p_1=Ot1=NN
+context	p_1=Ot2=NN
+context	p_1=Ot_2=bost_1=DT
+context	p_1=Ot_1=DTt0=NN
+context	p_1=Ot0=NNt1=NN
+context	p_1=Ot1=NNt2=NN
+context	p_1=Ot_2=bost_1=DTt0=NN
+context	p_1=Ot_1=DTt0=NNt1=NN
+context	p_1=Ot0=NNt1=NNt2=NN
+context	p_1=Ow_2=bos
+context	p_1=Ow_1=a
+context	p_1=Ow0=b
+context	p_1=Ow1=c
+context	p_1=Ow2=d
+context	p_1=Ow_1=aw0=b
+context	p_1=Ow0=bw1=c
+outcome	B-NP	3fa95fd74988811a 0.04955933354017557
+outcome	I-NP	3fd34b8f34120447 0.3014867790698798
+outcome	B-VP	3fc0c57283b08384 0.13102561407233904
+outcome	B-PP	3fb76038642c031a 0.09131195493320057
+outcome	O	3fbc64a63e652e21 0.11091078780480547
+outcome	B-ADJP	3fbc64a63e652e21 0.11091078780480547
+outcome	I-VP	3fbc64a63e652e21 0.11091078780480547
+outcome	B-SBAR	3fb808c7643719d2 0.09388395496998861
+end	5
+point	6	2	41	8	0	none
+context	w_2=bos
+context	w_1=a
+context	w0=b
+context	w1=c
+context	w2=d
+context	w_1=aw0=b
+context	w0=bw1=c
+context	t_2=bos
+context	t_1=DT
+context	t0=NN
+context	t1=NN
+context	t2=NN
+context	t_2=bost_1=DT
+context	t_1=DTt0=NN
+context	t0=NNt1=NN
+context	t1=NNt2=NN
+context	t_2=bost_1=DTt0=NN
+context	t_1=DTt0=NNt1=NN
+context	t0=NNt1=NNt2=NN
+context	p_2=bos
+context	p_1=B-SBAR
+context	p_2=bosp_1=B-SBAR
+context	p_1=B-SBARt_2=bos
+context	p_1=B-SBARt_1=DT
+context	p_1=B-SBARt0=NN
+context	p_1=B-SBARt1=NN
+context	p_1=B-SBARt2=NN
+context	p_1=B-SBARt_2=bost_1=DT
+context	p_1=B-SBARt_1=DTt0=NN
+context	p_1=B-SBARt0=NNt1=NN
+context	p_1=B-SBARt1=NNt2=NN
+context	p_1=B-SBARt_2=bost_1=DTt0=NN
+context	p_1=B-SBARt_1=DTt0=NNt1=NN
+context	p_1=B-SBARt0=NNt1=NNt2=NN
+context	p_1=B-SBARw_2=bos
+context	p_1=B-SBARw_1=a
+context	p_1=B-SBARw0=b
+context	p_1=B-SBARw1=c
+context	p_1=B-SBARw2=d
+context	p_1=B-SBARw_1=aw0=b
+context	p_1=B-SBARw0=bw1=c
+outcome	B-NP	3fa97703323fc8c9 0.049736118205957754
+outcome	I-NP	3fd35d2df03930c0 0.30256222209278505
+outcome	B-VP	3fbbb6bd254fb528 0.10825712357446504
+outcome	B-PP	3fbc7e93ded0eeeb 0.11130642118308358
+outcome	O	3fbc7e93ded0eeeb 0.11130642118308358
+outcome	B-ADJP	3fbc7e93ded0eeeb 0.11130642118308358
+outcome	I-VP	3fbc7e93ded0eeeb 0.11130642118308358
+outcome	B-SBAR	3fb81eba0567e7c2 0.09421885139445776
+end	6
+point	7	5	41	8	0	none
+context	w_2=a
+context	w_1=b
+context	w0=c
+context	w1=d
+context	w2=e
+context	w_1=bw0=c
+context	w0=cw1=d
+context	t_2=DT
+context	t_1=NN
+context	t0=NN
+context	t1=NN
+context	t2=NNP
+context	t_2=DTt_1=NN
+context	t_1=NNt0=NN
+context	t0=NNt1=NN
+context	t1=NNt2=NNP
+context	t_2=DTt_1=NNt0=NN
+context	t_1=NNt0=NNt1=NN
+context	t0=NNt1=NNt2=NNP
+context	p_2=B-NP
+context	p_1=I-NP
+context	p_2=B-NPp_1=I-NP
+context	p_1=I-NPt_2=DT
+context	p_1=I-NPt_1=NN
+context	p_1=I-NPt0=NN
+context	p_1=I-NPt1=NN
+context	p_1=I-NPt2=NNP
+context	p_1=I-NPt_2=DTt_1=NN
+context	p_1=I-NPt_1=NNt0=NN
+context	p_1=I-NPt0=NNt1=NN
+context	p_1=I-NPt1=NNt2=NNP
+context	p_1=I-NPt_2=DTt_1=NNt0=NN
+context	p_1=I-NPt_1=NNt0=NNt1=NN
+context	p_1=I-NPt0=NNt1=NNt2=NNP
+context	p_1=I-NPw_2=a
+context	p_1=I-NPw_1=b
+context	p_1=I-NPw0=c
+context	p_1=I-NPw1=d
+context	p_1=I-NPw2=e
+context	p_1=I-NPw_1=bw0=c
+context	p_1=I-NPw0=cw1=d
+outcome	B-NP	3fa585317b1ea41f 0.04203180911947179
+outcome	I-NP	3fbf967c0e69469c 0.12338996269070396
+outcome	B-VP	3fc2e6287bc894cd 0.14764886898152554
+outcome	B-PP	3fc09fff25f1df5d 0.12988271096014162
+outcome	O	3fd2e21927f979ba 0.2950499430061445
+outcome	B-ADJP	3fb367fc866b68d2 0.07580545694091548
+outcome	I-VP	3fb738b5d375c979 0.09070907986259681
+outcome	B-SBAR	3fb87184f6cb65d0 0.09548216843850033
+end	7
+point	8	5	41	8	0	none
+context	w_2=a
+context	w_1=b
+context	w0=c
+context	w1=d
+context	w2=e
+context	w_1=bw0=c
+context	w0=cw1=d
+context	t_2=DT
+context	t_1=NN
+context	t0=NN
+context	t1=NN
+context	t2=NNP
+context	t_2=DTt_1=NN
+context	t_1=NNt0=NN
+context	t0=NNt1=NN
+context	t1=NNt2=NNP
+context	t_2=DTt_1=NNt0=NN
+context	t_1=NNt0=NNt1=NN
+context	t0=NNt1=NNt2=NNP
+context	p_2=B-NP
+context	p_1=B-VP
+context	p_2=B-NPp_1=B-VP
+context	p_1=B-VPt_2=DT
+context	p_1=B-VPt_1=NN
+context	p_1=B-VPt0=NN
+context	p_1=B-VPt1=NN
+context	p_1=B-VPt2=NNP
+context	p_1=B-VPt_2=DTt_1=NN
+context	p_1=B-VPt_1=NNt0=NN
+context	p_1=B-VPt0=NNt1=NN
+context	p_1=B-VPt1=NNt2=NNP
+context	p_1=B-VPt_2=DTt_1=NNt0=NN
+context	p_1=B-VPt_1=NNt0=NNt1=NN
+context	p_1=B-VPt0=NNt1=NNt2=NNP
+context	p_1=B-VPw_2=a
+context	p_1=B-VPw_1=b
+context	p_1=B-VPw0=c
+context	p_1=B-VPw1=d
+context	p_1=B-VPw2=e
+context	p_1=B-VPw_1=bw0=c
+context	p_1=B-VPw0=cw1=d
+outcome	B-NP	3fd2c2bed28062c8 0.293136315887335
+outcome	I-NP	3fb4a6842f376b6b 0.08066583779092944
+outcome	B-VP	3fbe697285d5f61d 0.11879649894213924
+outcome	B-PP	3fb1043f743faa99 0.06647106731512976
+outcome	O	3fca50339278c1d1 0.2055725541299709
+outcome	B-ADJP	3fb606d3128f0004 0.08604163363543199
+outcome	I-VP	3fb1931025f979ad 0.06865025450813418
+outcome	B-SBAR	3fb4a6842f376b6b 0.08066583779092944
+end	8
+point	9	5	41	8	0	none
+context	w_2=a
+context	w_1=b
+context	w0=c
+context	w1=d
+context	w2=e
+context	w_1=bw0=c
+context	w0=cw1=d
+context	t_2=DT
+context	t_1=NN
+context	t0=NN
+context	t1=NN
+context	t2=NNP
+context	t_2=DTt_1=NN
+context	t_1=NNt0=NN
+context	t0=NNt1=NN
+context	t1=NNt2=NNP
+context	t_2=DTt_1=NNt0=NN
+context	t_1=NNt0=NNt1=NN
+context	t0=NNt1=NNt2=NNP
+context	p_2=B-NP
+context	p_1=B-PP
+context	p_2=B-NPp_1=B-PP
+context	p_1=B-PPt_2=DT
+context	p_1=B-PPt_1=NN
+context	p_1=B-PPt0=NN
+context	p_1=B-PPt1=NN
+context	p_1=B-PPt2=NNP
+context	p_1=B-PPt_2=DTt_1=NN
+context	p_1=B-PPt_1=NNt0=NN
+context	p_1=B-PPt0=NNt1=NN
+context	p_1=B-PPt1=NNt2=NNP
+context	p_1=B-PPt_2=DTt_1=NNt0=NN
+context	p_1=B-PPt_1=NNt0=NNt1=NN
+context	p_1=B-PPt0=NNt1=NNt2=NNP
+context	p_1=B-PPw_2=a
+context	p_1=B-PPw_1=b
+context	p_1=B-PPw0=c
+context	p_1=B-PPw1=d
+context	p_1=B-PPw2=e
+context	p_1=B-PPw_1=bw0=c
+context	p_1=B-PPw0=cw1=d
+outcome	B-NP	3fd0ef2f91ea2f9d 0.26459874391070476
+outcome	I-NP	3fc163846917c64d 0.13584952479827664
+outcome	B-VP	3fbf9e404a92c49d 0.12350847073209299
+outcome	B-PP	3fa42a9e9973f22e 0.03938766120152014
+outcome	O	3fc9739660860e46 0.1988399478251372
+outcome	B-ADJP	3fb3a3b4743fe974 0.07671668851972929
+outcome	I-VP	3fb3a3b4743fe974 0.07671668851972929
+outcome	B-SBAR	3fb59a13a54f07cd 0.08438227449280973
+end	9
+point	10	5	41	8	0	none
+context	w_2=a
+context	w_1=b
+context	w0=c
+context	w1=d
+context	w2=e
+context	w_1=bw0=c
+context	w0=cw1=d
+context	t_2=DT
+context	t_1=NN
+context	t0=NN
+context	t1=NN
+context	t2=NNP
+context	t_2=DTt_1=NN
+context	t_1=NNt0=NN
+context	t0=NNt1=NN
+context	t1=NNt2=NNP
+context	t_2=DTt_1=NNt0=NN
+context	t_1=NNt0=NNt1=NN
+context	t0=NNt1=NNt2=NNP
+context	p_2=B-NP
+context	p_1=O
+context	p_2=B-NPp_1=O
+context	p_1=Ot_2=DT
+context	p_1=Ot_1=NN
+context	p_1=Ot0=NN
+context	p_1=Ot1=NN
+context	p_1=Ot2=NNP
+context	p_1=Ot_2=DTt_1=NN
+context	p_1=Ot_1=NNt0=NN
+context	p_1=Ot0=NNt1=NN
+context	p_1=Ot1=NNt2=NNP
+context	p_1=Ot_2=DTt_1=NNt0=NN
+context	p_1=Ot_1=NNt0=NNt1=NN
+context	p_1=Ot0=NNt1=NNt2=NNP
+context	p_1=Ow_2=a
+context	p_1=Ow_1=b
+context	p_1=Ow0=c
+context	p_1=Ow1=d
+context	p_1=Ow2=e
+context	p_1=Ow_1=bw0=c
+context	p_1=Ow0=cw1=d
+outcome	B-NP	3fb911401a514389 0.09791947023883386
+outcome	I-NP	3fc1c94182889787 0.13895434259137238
+outcome	B-VP	3fc6d67f0da1d073 0.1784209076464581
+outcome	B-PP	3fab83b92fb55fa0 0.053739344667234734
+outcome	O	3fd2d39f1474d6f0 0.29416634557433863
+outcome	B-ADJP	3fb385c277a14b16 0.07625976009994093
+outcome	I-VP	3fb385c277a14b16 0.07625976009994093
+outcome	B-SBAR	3fb59360ec694ac1 0.08428006908188036
+end	10
+point	11	5	41	8	0	none
+context	w_2=a
+context	w_1=b
+context	w0=c
+context	w1=d
+context	w2=e
+context	w_1=bw0=c
+context	w0=cw1=d
+context	t_2=DT
+context	t_1=NN
+context	t0=NN
+context	t1=NN
+context	t2=NNP
+context	t_2=DTt_1=NN
+context	t_1=NNt0=NN
+context	t0=NNt1=NN
+context	t1=NNt2=NNP
+context	t_2=DTt_1=NNt0=NN
+context	t_1=NNt0=NNt1=NN
+context	t0=NNt1=NNt2=NNP
+context	p_2=B-NP
+context	p_1=B-ADJP
+context	p_2=B-NPp_1=B-ADJP
+context	p_1=B-ADJPt_2=DT
+context	p_1=B-ADJPt_1=NN
+context	p_1=B-ADJPt0=NN
+context	p_1=B-ADJPt1=NN
+context	p_1=B-ADJPt2=NNP
+context	p_1=B-ADJPt_2=DTt_1=NN
+context	p_1=B-ADJPt_1=NNt0=NN
+context	p_1=B-ADJPt0=NNt1=NN
+context	p_1=B-ADJPt1=NNt2=NNP
+context	p_1=B-ADJPt_2=DTt_1=NNt0=NN
+context	p_1=B-ADJPt_1=NNt0=NNt1=NN
+context	p_1=B-ADJPt0=NNt1=NNt2=NNP
+context	p_1=B-ADJPw_2=a
+context	p_1=B-ADJPw_1=b
+context	p_1=B-ADJPw0=c
+context	p_1=B-ADJPw1=d
+context	p_1=B-ADJPw2=e
+context	p_1=B-ADJPw_1=bw0=c
+context	p_1=B-ADJPw0=cw1=d
+outcome	B-NP	3fb49b4d7cd6733e 0.0804947309283763
+outcome	I-NP	3fc14e08dc46ef5d 0.13519392734257965
+outcome	B-VP	3fc011be361bcec2 0.12554147378943098
+outcome	B-PP	3fb630e71276bcee 0.08668369484688629
+outcome	O	3fd38b2fc597a152 0.30537027641414227
+outcome	B-ADJP	3fb630e71276bcee 0.08668369484688629
+outcome	I-VP	3fb630e71276bcee 0.08668369484688629
+outcome	B-SBAR	3fb7e5b010a15479 0.09334850698481202
+end	11
+point	12	5	41	8	0	none
+context	w_2=a
+context	w_1=b
+context	w0=c
+context	w1=d
+context	w2=e
+context	w_1=bw0=c
+context	w0=cw1=d
+context	t_2=DT
+context	t_1=NN
+context	t0=NN
+context	t1=NN
+context	t2=NNP
+context	t_2=DTt_1=NN
+context	t_1=NNt0=NN
+context	t0=NNt1=NN
+context	t1=NNt2=NNP
+context	t_2=DTt_1=NNt0=NN
+context	t_1=NNt0=NNt1=NN
+context	t0=NNt1=NNt2=NNP
+context	p_2=B-NP
+context	p_1=B-SBAR
+context	p_2=B-NPp_1=B-SBAR
+context	p_1=B-SBARt_2=DT
+context	p_1=B-SBARt_1=NN
+context	p_1=B-SBARt0=NN
+context	p_1=B-SBARt1=NN
+context	p_1=B-SBARt2=NNP
+context	p_1=B-SBARt_2=DTt_1=NN
+context	p_1=B-SBARt_1=NNt0=NN
+context	p_1=B-SBARt0=NNt1=NN
+context	p_1=B-SBARt1=NNt2=NNP
+context	p_1=B-SBARt_2=DTt_1=NNt0=NN
+context	p_1=B-SBARt_1=NNt0=NNt1=NN
+context	p_1=B-SBARt0=NNt1=NNt2=NNP
+context	p_1=B-SBARw_2=a
+context	p_1=B-SBARw_1=b
+context	p_1=B-SBARw0=c
+context	p_1=B-SBARw1=d
+context	p_1=B-SBARw2=e
+context	p_1=B-SBARw_1=bw0=c
+context	p_1=B-SBARw0=cw1=d
+outcome	B-NP	3fb9d8e0adf4a6e1 0.10096554038014062
+outcome	I-NP	3fc256e5eedf4f07 0.14327692187963967
+outcome	B-VP	3fc0981e9a69a818 0.12964232005771303
+outcome	B-PP	3fb4213ac06d3929 0.07863204191128105
+outcome	O	3fd3698cbcf85611 0.30331724599941007
+outcome	B-ADJP	3fb4213ac06d3929 0.07863204191128105
+outcome	I-VP	3fb4213ac06d3929 0.07863204191128105
+outcome	B-SBAR	3fb63f330a506715 0.08690184594925328
+end	12
+point	13	5	41	8	0	none
+context	w_2=a
+context	w_1=b
+context	w0=c
+context	w1=d
+context	w2=e
+context	w_1=bw0=c
+context	w0=cw1=d
+context	t_2=DT
+context	t_1=NN
+context	t0=NN
+context	t1=NN
+context	t2=NNP
+context	t_2=DTt_1=NN
+context	t_1=NNt0=NN
+context	t0=NNt1=NN
+context	t1=NNt2=NNP
+context	t_2=DTt_1=NNt0=NN
+context	t_1=NNt0=NNt1=NN
+context	t0=NNt1=NNt2=NNP
+context	p_2=B-VP
+context	p_1=B-ADJP
+context	p_2=B-VPp_1=B-ADJP
+context	p_1=B-ADJPt_2=DT
+context	p_1=B-ADJPt_1=NN
+context	p_1=B-ADJPt0=NN
+context	p_1=B-ADJPt1=NN
+context	p_1=B-ADJPt2=NNP
+context	p_1=B-ADJPt_2=DTt_1=NN
+context	p_1=B-ADJPt_1=NNt0=NN
+context	p_1=B-ADJPt0=NNt1=NN
+context	p_1=B-ADJPt1=NNt2=NNP
+context	p_1=B-ADJPt_2=DTt_1=NNt0=NN
+context	p_1=B-ADJPt_1=NNt0=NNt1=NN
+context	p_1=B-ADJPt0=NNt1=NNt2=NNP
+context	p_1=B-ADJPw_2=a
+context	p_1=B-ADJPw_1=b
+context	p_1=B-ADJPw0=c
+context	p_1=B-ADJPw1=d
+context	p_1=B-ADJPw2=e
+context	p_1=B-ADJPw_1=bw0=c
+context	p_1=B-ADJPw0=cw1=d
+outcome	B-NP	3fa4c2742e1bbb9c 0.040546064976175716
+outcome	I-NP	3fc7426eb264add1 0.1817148562489437
+outcome	B-VP	3fb89e548457fcab 0.09616592627570479
+outcome	B-PP	3fc9791cc6b069c0 0.19900855733506084
+outcome	O	3fcaa85dd53c378b 0.20826313888431644
+outcome	B-ADJP	3fb486960dd52ce6 0.08017862165177156
+outcome	I-VP	3fbc3717756723e9 0.11021563164025817
+outcome	B-SBAR	3fb57af144bb367e 0.08390720298776874
+end	13
+point	14	5	41	8	0	none
+context	w_2=a
+context	w_1=b
+context	w0=c
+context	w1=d
+context	w2=e
+context	w_1=bw0=c
+context	w0=cw1=d
+context	t_2=DT
+context	t_1=NN
+context	t0=NN
+context	t1=NN
+context	t2=NNP
+context	t_2=DTt_1=NN
+context	t_1=NNt0=NN
+context	t0=NNt1=NN
+context	t1=NNt2=NNP
+context	t_2=DTt_1=NNt0=NN
+context	t_1=NNt0=NNt1=NN
+context	t0=NNt1=NNt2=NNP
+context	p_2=B-VP
+context	p_1=I-VP
+context	p_2=B-VPp_1=I-VP
+context	p_1=I-VPt_2=DT
+context	p_1=I-VPt_1=NN
+context	p_1=I-VPt0=NN
+context	p_1=I-VPt1=NN
+context	p_1=I-VPt2=NNP
+context	p_1=I-VPt_2=DTt_1=NN
+context	p_1=I-VPt_1=NNt0=NN
+context	p_1=I-VPt0=NNt1=NN
+context	p_1=I-VPt1=NNt2=NNP
+context	p_1=I-VPt_2=DTt_1=NNt0=NN
+context	p_1=I-VPt_1=NNt0=NNt1=NN
+context	p_1=I-VPt0=NNt1=NNt2=NNP
+context	p_1=I-VPw_2=a
+context	p_1=I-VPw_1=b
+context	p_1=I-VPw0=c
+context	p_1=I-VPw1=d
+context	p_1=I-VPw2=e
+context	p_1=I-VPw_1=bw0=c
+context	p_1=I-VPw0=cw1=d
+outcome	B-NP	3fa3be8c26e40ed6 0.03856313681356276
+outcome	I-NP	3fcbef89790c7226 0.21824758921219817
+outcome	B-VP	3fb5f88d170d5395 0.08582383930963851
+outcome	B-PP	3fcfeb9108384387 0.24937642003399338
+outcome	O	3fc565909a4072c5 0.16716201335738937
+outcome	B-ADJP	3fb0d400cb6174a5 0.06573491063450605
+outcome	I-VP	3fbad5d79ed3a9d7 0.10482547404868768
+outcome	B-SBAR	3fb1fcfe3441359d 0.07026661659002405
+end	14
+point	15	5	41	8	0	none
+context	w_2=a
+context	w_1=b
+context	w0=c
+context	w1=d
+context	w2=e
+context	w_1=bw0=c
+context	w0=cw1=d
+context	t_2=DT
+context	t_1=NN
+context	t0=NN
+context	t1=NN
+context	t2=NNP
+context	t_2=DTt_1=NN
+context	t_1=NNt0=NN
+context	t0=NNt1=NN
+context	t1=NNt2=NNP
+context	t_2=DTt_1=NNt0=NN
+context	t_1=NNt0=NNt1=NN
+context	t0=NNt1=NNt2=NNP
+context	p_2=B-VP
+context	p_1=O
+context	p_2=B-VPp_1=O
+context	p_1=Ot_2=DT
+context	p_1=Ot_1=NN
+context	p_1=Ot0=NN
+context	p_1=Ot1=NN
+context	p_1=Ot2=NNP
+context	p_1=Ot_2=DTt_1=NN
+context	p_1=Ot_1=NNt0=NN
+context	p_1=Ot0=NNt1=NN
+context	p_1=Ot1=NNt2=NNP
+context	p_1=Ot_2=DTt_1=NNt0=NN
+context	p_1=Ot_1=NNt0=NNt1=NN
+context	p_1=Ot0=NNt1=NNt2=NNP
+context	p_1=Ow_2=a
+context	p_1=Ow_1=b
+context	p_1=Ow0=c
+context	p_1=Ow1=d
+context	p_1=Ow2=e
+context	p_1=Ow_1=bw0=c
+context	p_1=Ow0=cw1=d
+outcome	B-NP	3fa49bea8b859e64 0.04025204613827496
+outcome	I-NP	3fcd28bed14eb324 0.22780595035637774
+outcome	B-VP	3fc2490f734a5710 0.14285462502874013
+outcome	B-PP	3fc4e4b94a6067d5 0.1632300961653629
+outcome	O	3fc65575c446e09f 0.17448303302604004
+outcome	B-ADJP	3fb190ad1bbc9841 0.06861383368649944
+outcome	I-VP	3fbc02b6ab983b41 0.10941640557596789
+outcome	B-SBAR	3fb2c6ac4c67b803 0.07334401002273698
+end	15
+point	16	5	41	8	0	none
+context	w_2=a
+context	w_1=b
+context	w0=c
+context	w1=d
+context	w2=e
+context	w_1=bw0=c
+context	w0=cw1=d
+context	t_2=DT
+context	t_1=NN
+context	t0=NN
+context	t1=NN
+context	t2=NNP
+context	t_2=DTt_1=NN
+context	t_1=NNt0=NN
+context	t0=NNt1=NN
+context	t1=NNt2=NNP
+context	t_2=DTt_1=NNt0=NN
+context	t_1=NNt0=NNt1=NN
+context	t0=NNt1=NNt2=NNP
+context	p_2=B-ADJP
+context	p_1=O
+context	p_2=B-ADJPp_1=O
+context	p_1=Ot_2=DT
+context	p_1=Ot_1=NN
+context	p_1=Ot0=NN
+context	p_1=Ot1=NN
+context	p_1=Ot2=NNP
+context	p_1=Ot_2=DTt_1=NN
+context	p_1=Ot_1=NNt0=NN
+context	p_1=Ot0=NNt1=NN
+context	p_1=Ot1=NNt2=NNP
+context	p_1=Ot_2=DTt_1=NNt0=NN
+context	p_1=Ot_1=NNt0=NNt1=NN
+context	p_1=Ot0=NNt1=NNt2=NNP
+context	p_1=Ow_2=a
+context	p_1=Ow_1=b
+context	p_1=Ow0=c
+context	p_1=Ow1=d
+context	p_1=Ow2=e
+context	p_1=Ow_1=bw0=c
+context	p_1=Ow0=cw1=d
+outcome	B-NP	3fa5658aa3a30d0e 0.04179032561799022
+outcome	I-NP	3fc44afe4ebc89cc 0.15853861660532542
+outcome	B-VP	3fcb8b930a4077e7 0.21519697189881912
+outcome	B-PP	3fbd14c0373b6a14 0.11359788273276933
+outcome	O	3fc573c58a8b7c19 0.16759557022939545
+outcome	B-ADJP	3fb7f13403af24bc 0.09352421846337483
+outcome	I-VP	3fbd14c0373b6a14 0.11359788273276933
+outcome	B-SBAR	3fb89dd874f784fb 0.09615853171955628
+end	16
+point	17	9	41	8	0	none
+context	w_2=b
+context	w_1=c
+context	w0=d
+context	w1=e
+context	w2=f
+context	w_1=cw0=d
+context	w0=dw1=e
+context	t_2=NN
+context	t_1=NN
+context	t0=NN
+context	t1=NNP
+context	t2=NN
+context	t_2=NNt_1=NN
+context	t_1=NNt0=NN
+context	t0=NNt1=NNP
+context	t1=NNPt2=NN
+context	t_2=NNt_1=NNt0=NN
+context	t_1=NNt0=NNt1=NNP
+context	t0=NNt1=NNPt2=NN
+context	p_2=I-NP
+context	p_1=O
+context	p_2=I-NPp_1=O
+context	p_1=Ot_2=NN
+context	p_1=Ot_1=NN
+context	p_1=Ot0=NN
+context	p_1=Ot1=NNP
+context	p_1=Ot2=NN
+context	p_1=Ot_2=NNt_1=NN
+context	p_1=Ot_1=NNt0=NN
+context	p_1=Ot0=NNt1=NNP
+context	p_1=Ot1=NNPt2=NN
+context	p_1=Ot_2=NNt_1=NNt0=NN
+context	p_1=Ot_1=NNt0=NNt1=NNP
+context	p_1=Ot0=NNt1=NNPt2=NN
+context	p_1=Ow_2=b
+context	p_1=Ow_1=c
+context	p_1=Ow0=d
+context	p_1=Ow1=e
+context	p_1=Ow2=f
+context	p_1=Ow_1=cw0=d
+context	p_1=Ow0=dw1=e
+outcome	B-NP	3fa490934301211a 0.0401655215542311
+outcome	I-NP	3fbbf34cb2ff8736 0.10918120737144651
+outcome	B-VP	3fc24afd891851a9 0.14291352457133868
+outcome	B-PP	3fd2fe87bcc6a76e 0.29678529200702186
+outcome	O	3fb55a698d361198 0.08341083238162239
+outcome	B-ADJP	3fbbf34cb2ff8736 0.10918120737144651
+outcome	I-VP	3fbbf34cb2ff8736 0.10918120737144651
+outcome	B-SBAR	3fbbf34cb2ff8736 0.10918120737144651
+end	17
+point	18	9	41	8	0	none
+context	w_2=b
+context	w_1=c
+context	w0=d
+context	w1=e
+context	w2=f
+context	w_1=cw0=d
+context	w0=dw1=e
+context	t_2=NN
+context	t_1=NN
+context	t0=NN
+context	t1=NNP
+context	t2=NN
+context	t_2=NNt_1=NN
+context	t_1=NNt0=NN
+context	t0=NNt1=NNP
+context	t1=NNPt2=NN
+context	t_2=NNt_1=NNt0=NN
+context	t_1=NNt0=NNt1=NNP
+context	t0=NNt1=NNPt2=NN
+context	p_2=I-NP
+context	p_1=B-VP
+context	p_2=I-NPp_1=B-VP
+context	p_1=B-VPt_2=NN
+context	p_1=B-VPt_1=NN
+context	p_1=B-VPt0=NN
+context	p_1=B-VPt1=NNP
+context	p_1=B-VPt2=NN
+context	p_1=B-VPt_2=NNt_1=NN
+context	p_1=B-VPt_1=NNt0=NN
+context	p_1=B-VPt0=NNt1=NNP
+context	p_1=B-VPt1=NNPt2=NN
+context	p_1=B-VPt_2=NNt_1=NNt0=NN
+context	p_1=B-VPt_1=NNt0=NNt1=NNP
+context	p_1=B-VPt0=NNt1=NNPt2=NN
+context	p_1=B-VPw_2=b
+context	p_1=B-VPw_1=c
+context	p_1=B-VPw0=d
+context	p_1=B-VPw1=e
+context	p_1=B-VPw2=f
+context	p_1=B-VPw_1=cw0=d
+context	p_1=B-VPw0=dw1=e
+outcome	B-NP	3fa99f305dffa801 0.0500426401848273
+outcome	I-NP	3fb999af547bcda2 0.10000129520977066
+outcome	B-VP	3fbc82df28bf5616 0.11137194390115498
+outcome	B-PP	3fd36018fb891c4b 0.30274033130666983
+outcome	O	3fb999af547bcda2 0.10000129520977066
+outcome	B-ADJP	3fbc82df28bf5616 0.11137194390115498
+outcome	I-VP	3fbc82df28bf5616 0.11137194390115498
+outcome	B-SBAR	3fbcf407bfa61d50 0.11309860638549663
+end	18
+point	19	9	41	8	0	none
+context	w_2=b
+context	w_1=c
+context	w0=d
+context	w1=e
+context	w2=f
+context	w_1=cw0=d
+context	w0=dw1=e
+context	t_2=NN
+context	t_1=NN
+context	t0=NN
+context	t1=NNP
+context	t2=NN
+context	t_2=NNt_1=NN
+context	t_1=NNt0=NN
+context	t0=NNt1=NNP
+context	t1=NNPt2=NN
+context	t_2=NNt_1=NNt0=NN
+context	t_1=NNt0=NNt1=NNP
+context	t0=NNt1=NNPt2=NN
+context	p_2=B-VP
+context	p_1=B-NP
+context	p_2=B-VPp_1=B-NP
+context	p_1=B-NPt_2=NN
+context	p_1=B-NPt_1=NN
+context	p_1=B-NPt0=NN
+context	p_1=B-NPt1=NNP
+context	p_1=B-NPt2=NN
+context	p_1=B-NPt_2=NNt_1=NN
+context	p_1=B-NPt_1=NNt0=NN
+context	p_1=B-NPt0=NNt1=NNP
+context	p_1=B-NPt1=NNPt2=NN
+context	p_1=B-NPt_2=NNt_1=NNt0=NN
+context	p_1=B-NPt_1=NNt0=NNt1=NNP
+context	p_1=B-NPt0=NNt1=NNPt2=NN
+context	p_1=B-NPw_2=b
+context	p_1=B-NPw_1=c
+context	p_1=B-NPw0=d
+context	p_1=B-NPw1=e
+context	p_1=B-NPw2=f
+context	p_1=B-NPw_1=cw0=d
+context	p_1=B-NPw0=dw1=e
+outcome	B-NP	3fa69f2f6a3f79d8 0.044183236808510606
+outcome	I-NP	3fc25d3651e69787 0.14346961020526924
+outcome	B-VP	3fb78ca66dc6fefb 0.0919899003993087
+outcome	B-PP	3fd31dfbb59d6365 0.29870503173656565
+outcome	O	3fb78ca66dc6fefb 0.0919899003993087
+outcome	B-ADJP	3fbc219551afd829 0.1098874401503457
+outcome	I-VP	3fbc219551afd829 0.1098874401503457
+outcome	B-SBAR	3fbc219551afd829 0.1098874401503457
+end	19
+point	20	9	41	8	0	none
+context	w_2=b
+context	w_1=c
+context	w0=d
+context	w1=e
+context	w2=f
+context	w_1=cw0=d
+context	w0=dw1=e
+context	t_2=NN
+context	t_1=NN
+context	t0=NN
+context	t1=NNP
+context	t2=NN
+context	t_2=NNt_1=NN
+context	t_1=NNt0=NN
+context	t0=NNt1=NNP
+context	t1=NNPt2=NN
+context	t_2=NNt_1=NNt0=NN
+context	t_1=NNt0=NNt1=NNP
+context	t0=NNt1=NNPt2=NN
+context	p_2=I-NP
+context	p_1=B-PP
+context	p_2=I-NPp_1=B-PP
+context	p_1=B-PPt_2=NN
+context	p_1=B-PPt_1=NN
+context	p_1=B-PPt0=NN
+context	p_1=B-PPt1=NNP
+context	p_1=B-PPt2=NN
+context	p_1=B-PPt_2=NNt_1=NN
+context	p_1=B-PPt_1=NNt0=NN
+context	p_1=B-PPt0=NNt1=NNP
+context	p_1=B-PPt1=NNPt2=NN
+context	p_1=B-PPt_2=NNt_1=NNt0=NN
+context	p_1=B-PPt_1=NNt0=NNt1=NNP
+context	p_1=B-PPt0=NNt1=NNPt2=NN
+context	p_1=B-PPw_2=b
+context	p_1=B-PPw_1=c
+context	p_1=B-PPw0=d
+context	p_1=B-PPw1=e
+context	p_1=B-PPw2=f
+context	p_1=B-PPw_1=cw0=d
+context	p_1=B-PPw0=dw1=e
+outcome	B-NP	3fb01c4142f34777 0.06293113598374399
+outcome	I-NP	3fbca6e4dafe779b 0.11192159983190068
+outcome	B-VP	3fbca6e4dafe779b 0.11192159983190068
+outcome	B-PP	3fd37893c660ca72 0.3042344510351206
+outcome	O	3fb2bef75c9138b3 0.0732264138216319
+outcome	B-ADJP	3fbca6e4dafe779b 0.11192159983190068
+outcome	I-VP	3fbca6e4dafe779b 0.11192159983190068
+outcome	B-SBAR	3fbca6e4dafe779b 0.11192159983190068
+end	20
+point	21	9	41	8	0	none
+context	w_2=b
+context	w_1=c
+context	w0=d
+context	w1=e
+context	w2=f
+context	w_1=cw0=d
+context	w0=dw1=e
+context	t_2=NN
+context	t_1=NN
+context	t0=NN
+context	t1=NNP
+context	t2=NN
+context	t_2=NNt_1=NN
+context	t_1=NNt0=NN
+context	t0=NNt1=NNP
+context	t1=NNPt2=NN
+context	t_2=NNt_1=NNt0=NN
+context	t_1=NNt0=NNt1=NNP
+context	t0=NNt1=NNPt2=NN
+context	p_2=O
+context	p_1=O
+context	p_2=Op_1=O
+context	p_1=Ot_2=NN
+context	p_1=Ot_1=NN
+context	p_1=Ot0=NN
+context	p_1=Ot1=NNP
+context	p_1=Ot2=NN
+context	p_1=Ot_2=NNt_1=NN
+context	p_1=Ot_1=NNt0=NN
+context	p_1=Ot0=NNt1=NNP
+context	p_1=Ot1=NNPt2=NN
+context	p_1=Ot_2=NNt_1=NNt0=NN
+context	p_1=Ot_1=NNt0=NNt1=NNP
+context	p_1=Ot0=NNt1=NNPt2=NN
+context	p_1=Ow_2=b
+context	p_1=Ow_1=c
+context	p_1=Ow0=d
+context	p_1=Ow1=e
+context	p_1=Ow2=f
+context	p_1=Ow_1=cw0=d
+context	p_1=Ow0=dw1=e
+outcome	B-NP	3fa5c91210f18468 0.04254967171505869
+outcome	I-NP	3fc32fbdce7e09b5 0.14989445288308692
+outcome	B-VP	3fc32fbdce7e09b5 0.14989445288308692
+outcome	B-PP	3fc7f605d1c8415a 0.18719551795266903
+outcome	O	3fb6d8ebcb206b4d 0.08924745282312792
+outcome	B-ADJP	3fbd9c0658f10aca 0.11566199942994185
+outcome	I-VP	3fc32fbdce7e09b5 0.14989445288308692
+outcome	B-SBAR	3fbd9c0658f10aca 0.11566199942994185
+end	21
+point	22	9	41	8	0	none
+context	w_2=b
+context	w_1=c
+context	w0=d
+context	w1=e
+context	w2=f
+context	w_1=cw0=d
+context	w0=dw1=e
+context	t_2=NN
+context	t_1=NN
+context	t0=NN
+context	t1=NNP
+context	t2=NN
+context	t_2=NNt_1=NN
+context	t_1=NNt0=NN
+context	t0=NNt1=NNP
+context	t1=NNPt2=NN
+context	t_2=NNt_1=NNt0=NN
+context	t_1=NNt0=NNt1=NNP
+context	t0=NNt1=NNPt2=NN
+context	p_2=B-ADJP
+context	p_1=O
+context	p_2=B-ADJPp_1=O
+context	p_1=Ot_2=NN
+context	p_1=Ot_1=NN
+context	p_1=Ot0=NN
+context	p_1=Ot1=NNP
+context	p_1=Ot2=NN
+context	p_1=Ot_2=NNt_1=NN
+context	p_1=Ot_1=NNt0=NN
+context	p_1=Ot0=NNt1=NNP
+context	p_1=Ot1=NNPt2=NN
+context	p_1=Ot_2=NNt_1=NNt0=NN
+context	p_1=Ot_1=NNt0=NNt1=NNP
+context	p_1=Ot0=NNt1=NNPt2=NN
+context	p_1=Ow_2=b
+context	p_1=Ow_1=c
+context	p_1=Ow0=d
+context	p_1=Ow1=e
+context	p_1=Ow2=f
+context	p_1=Ow_1=cw0=d
+context	p_1=Ow0=dw1=e
+outcome	B-NP	3fa55058d23c51bb 0.041628623641517724
+outcome	I-NP	3fbcf7f1c3b97b3d 0.11315833118849823
+outcome	B-VP	3fcadca771daf0f1 0.20985882815683213
+outcome	B-PP	3fca15584d923f93 0.20377639568004877
+outcome	O	3fb7940d09218927 0.09210282776760846
+outcome	B-ADJP	3fbcf7f1c3b97b3d 0.11315833118849823
+outcome	I-VP	3fbcf7f1c3b97b3d 0.11315833118849823
+outcome	B-SBAR	3fbcf7f1c3b97b3d 0.11315833118849823
+end	22
+point	23	9	41	8	0	none
+context	w_2=b
+context	w_1=c
+context	w0=d
+context	w1=e
+context	w2=f
+context	w_1=cw0=d
+context	w0=dw1=e
+context	t_2=NN
+context	t_1=NN
+context	t0=NN
+context	t1=NNP
+context	t2=NN
+context	t_2=NNt_1=NN
+context	t_1=NNt0=NN
+context	t0=NNt1=NNP
+context	t1=NNPt2=NN
+context	t_2=NNt_1=NNt0=NN
+context	t_1=NNt0=NNt1=NNP
+context	t0=NNt1=NNPt2=NN
+context	p_2=I-NP
+context	p_1=I-NP
+context	p_2=I-NPp_1=I-NP
+context	p_1=I-NPt_2=NN
+context	p_1=I-NPt_1=NN
+context	p_1=I-NPt0=NN
+context	p_1=I-NPt1=NNP
+context	p_1=I-NPt2=NN
+context	p_1=I-NPt_2=NNt_1=NN
+context	p_1=I-NPt_1=NNt0=NN
+context	p_1=I-NPt0=NNt1=NNP
+context	p_1=I-NPt1=NNPt2=NN
+context	p_1=I-NPt_2=NNt_1=NNt0=NN
+context	p_1=I-NPt_1=NNt0=NNt1=NNP
+context	p_1=I-NPt0=NNt1=NNPt2=NN
+context	p_1=I-NPw_2=b
+context	p_1=I-NPw_1=c
+context	p_1=I-NPw0=d
+context	p_1=I-NPw1=e
+context	p_1=I-NPw2=f
+context	p_1=I-NPw_1=cw0=d
+context	p_1=I-NPw0=dw1=e
+outcome	B-NP	3faca29e275d25fa 0.05592817526355627
+outcome	I-NP	3fbc942f7c6a504f 0.11163613116724601
+outcome	B-VP	3fbd00924b0bbfc9 0.11328996975112128
+outcome	B-PP	3fd36bdd0f990f18 0.3034584667513953
+outcome	O	3fb4adec71382f9d 0.08077886356494308
+outcome	B-ADJP	3fbc942f7c6a504f 0.11163613116724601
+outcome	I-VP	3fbc942f7c6a504f 0.11163613116724601
+outcome	B-SBAR	3fbc942f7c6a504f 0.11163613116724601
+end	23
+point	24	9	41	8	0	none
+context	w_2=b
+context	w_1=c
+context	w0=d
+context	w1=e
+context	w2=f
+context	w_1=cw0=d
+context	w0=dw1=e
+context	t_2=NN
+context	t_1=NN
+context	t0=NN
+context	t1=NNP
+context	t2=NN
+context	t_2=NNt_1=NN
+context	t_1=NNt0=NN
+context	t0=NNt1=NNP
+context	t1=NNPt2=NN
+context	t_2=NNt_1=NNt0=NN
+context	t_1=NNt0=NNt1=NNP
+context	t0=NNt1=NNPt2=NN
+context	p_2=B-SBAR
+context	p_1=O
+context	p_2=B-SBARp_1=O
+context	p_1=Ot_2=NN
+context	p_1=Ot_1=NN
+context	p_1=Ot0=NN
+context	p_1=Ot1=NNP
+context	p_1=Ot2=NN
+context	p_1=Ot_2=NNt_1=NN
+context	p_1=Ot_1=NNt0=NN
+context	p_1=Ot0=NNt1=NNP
+context	p_1=Ot1=NNPt2=NN
+context	p_1=Ot_2=NNt_1=NNt0=NN
+context	p_1=Ot_1=NNt0=NNt1=NNP
+context	p_1=Ot0=NNt1=NNPt2=NN
+context	p_1=Ow_2=b
+context	p_1=Ow_1=c
+context	p_1=Ow0=d
+context	p_1=Ow1=e
+context	p_1=Ow2=f
+context	p_1=Ow_1=cw0=d
+context	p_1=Ow0=dw1=e
+outcome	B-NP	3fa3ceb17daf5ca8 0.03868631991616073
+outcome	I-NP	3fb2f88f5f3a5e2e 0.07410522532369931
+outcome	B-VP	3fcb1b2d57fd3f77 0.21176688000059204
+outcome	B-PP	3fd24b7465d78e0a 0.28585538812168976
+outcome	O	3fb2f88f5f3a5e2e 0.07410522532369931
+outcome	B-ADJP	3fbaebc9691e4a14 0.10516032043805296
+outcome	I-VP	3fbaebc9691e4a14 0.10516032043805296
+outcome	B-SBAR	3fbaebc9691e4a14 0.10516032043805296
+end	24
+point	25	9	41	8	0	none
+context	w_2=b
+context	w_1=c
+context	w0=d
+context	w1=e
+context	w2=f
+context	w_1=cw0=d
+context	w0=dw1=e
+context	t_2=NN
+context	t_1=NN
+context	t0=NN
+context	t1=NNP
+context	t2=NN
+context	t_2=NNt_1=NN
+context	t_1=NNt0=NN
+context	t0=NNt1=NNP
+context	t1=NNPt2=NN
+context	t_2=NNt_1=NNt0=NN
+context	t_1=NNt0=NNt1=NNP
+context	t0=NNt1=NNPt2=NN
+context	p_2=B-PP
+context	p_1=B-NP
+context	p_2=B-PPp_1=B-NP
+context	p_1=B-NPt_2=NN
+context	p_1=B-NPt_1=NN
+context	p_1=B-NPt0=NN
+context	p_1=B-NPt1=NNP
+context	p_1=B-NPt2=NN
+context	p_1=B-NPt_2=NNt_1=NN
+context	p_1=B-NPt_1=NNt0=NN
+context	p_1=B-NPt0=NNt1=NNP
+context	p_1=B-NPt1=NNPt2=NN
+context	p_1=B-NPt_2=NNt_1=NNt0=NN
+context	p_1=B-NPt_1=NNt0=NNt1=NNP
+context	p_1=B-NPt0=NNt1=NNPt2=NN
+context	p_1=B-NPw_2=b
+context	p_1=B-NPw_1=c
+context	p_1=B-NPw0=d
+context	p_1=B-NPw1=e
+context	p_1=B-NPw2=f
+context	p_1=B-NPw_1=cw0=d
+context	p_1=B-NPw0=dw1=e
+outcome	B-NP	3fa5ec0d38063863 0.04281655606165271
+outcome	I-NP	3fc348a5d6569265 0.15065453496676465
+outcome	B-VP	3fbec5a19519ae82 0.12020311250824459
+outcome	B-PP	3fc95e0250d1b754 0.1981814283967035
+outcome	O	3fc1ca294227a382 0.13898196916786892
+outcome	B-ADJP	3fbdcb91a96bc8f2 0.11638746629958854
+outcome	I-VP	3fbdcb91a96bc8f2 0.11638746629958854
+outcome	B-SBAR	3fbdcb91a96bc8f2 0.11638746629958854
+end	25
+point	26	9	41	8	0	none
+context	w_2=b
+context	w_1=c
+context	w0=d
+context	w1=e
+context	w2=f
+context	w_1=cw0=d
+context	w0=dw1=e
+context	t_2=NN
+context	t_1=NN
+context	t0=NN
+context	t1=NNP
+context	t2=NN
+context	t_2=NNt_1=NN
+context	t_1=NNt0=NN
+context	t0=NNt1=NNP
+context	t1=NNPt2=NN
+context	t_2=NNt_1=NNt0=NN
+context	t_1=NNt0=NNt1=NNP
+context	t0=NNt1=NNPt2=NN
+context	p_2=I-NP
+context	p_1=B-SBAR
+context	p_2=I-NPp_1=B-SBAR
+context	p_1=B-SBARt_2=NN
+context	p_1=B-SBARt_1=NN
+context	p_1=B-SBARt0=NN
+context	p_1=B-SBARt1=NNP
+context	p_1=B-SBARt2=NN
+context	p_1=B-SBARt_2=NNt_1=NN
+context	p_1=B-SBARt_1=NNt0=NN
+context	p_1=B-SBARt0=NNt1=NNP
+context	p_1=B-SBARt1=NNPt2=NN
+context	p_1=B-SBARt_2=NNt_1=NNt0=NN
+context	p_1=B-SBARt_1=NNt0=NNt1=NNP
+context	p_1=B-SBARt0=NNt1=NNPt2=NN
+context	p_1=B-SBARw_2=b
+context	p_1=B-SBARw_1=c
+context	p_1=B-SBARw0=d
+context	p_1=B-SBARw1=e
+context	p_1=B-SBARw2=f
+context	p_1=B-SBARw_1=cw0=d
+context	p_1=B-SBARw0=dw1=e
+outcome	B-NP	3fa8f11db53cb21f 0.04871456944815499
+outcome	I-NP	3fbc7509682a6055 0.11116083901504344
+outcome	B-VP	3fbc7509682a6055 0.11116083901504344
+outcome	B-PP	3fd356b21cc2f473 0.3021664887308539
+outcome	O	3fb7e379a981f374 0.09331474674577384
+outcome	B-ADJP	3fbc7509682a6055 0.11116083901504344
+outcome	I-VP	3fbc7509682a6055 0.11116083901504344
+outcome	B-SBAR	3fbc7509682a6055 0.11116083901504344
+end	26
+point	27	14	41	8	0	none
+context	w_2=c
+context	w_1=d
+context	w0=e
+context	w1=f
+context	w2=eos
+context	w_1=dw0=e
+context	w0=ew1=f
+context	t_2=NN
+context	t_1=NN
+context	t0=NNP
+context	t1=NN
+context	t2=eos
+context	t_2=NNt_1=NN
+context	t_1=NNt0=NNP
+context	t0=NNPt1=NN
+context	t1=NNt2=eos
+context	t_2=NNt_1=NNt0=NNP
+context	t_1=NNt0=NNPt1=NN
+context	t0=NNPt1=NNt2=eos
+context	p_2=O
+context	p_1=B-PP
+context	p_2=Op_1=B-PP
+context	p_1=B-PPt_2=NN
+context	p_1=B-PPt_1=NN
+context	p_1=B-PPt0=NNP
+context	p_1=B-PPt1=NN
+context	p_1=B-PPt2=eos
+context	p_1=B-PPt_2=NNt_1=NN
+context	p_1=B-PPt_1=NNt0=NNP
+context	p_1=B-PPt0=NNPt1=NN
+context	p_1=B-PPt1=NNt2=eos
+context	p_1=B-PPt_2=NNt_1=NNt0=NNP
+context	p_1=B-PPt_1=NNt0=NNPt1=NN
+context	p_1=B-PPt0=NNPt1=NNt2=eos
+context	p_1=B-PPw_2=c
+context	p_1=B-PPw_1=d
+context	p_1=B-PPw0=e
+context	p_1=B-PPw1=f
+context	p_1=B-PPw2=eos
+context	p_1=B-PPw_1=dw0=e
+context	p_1=B-PPw0=ew1=f
+outcome	B-NP	3fd32b54304d32ab 0.2995195838637225
+outcome	I-NP	3fc0d374cf9bd502 0.13145313393730623
+outcome	B-VP	3fb09cf2aabfac0c 0.06489483517331979
+outcome	B-PP	3fbc3538ba9f2d01 0.11018709713168919
+outcome	O	3facaea81e6751b6 0.05602002497804241
+outcome	B-ADJP	3fbc3538ba9f2d01 0.11018709713168919
+outcome	I-VP	3fc1540715743313 0.13537682101777956
+outcome	B-SBAR	3fb7a4ff45797638 0.09236140676645099
+end	27
+point	28	14	41	8	0	none
+context	w_2=c
+context	w_1=d
+context	w0=e
+context	w1=f
+context	w2=eos
+context	w_1=dw0=e
+context	w0=ew1=f
+context	t_2=NN
+context	t_1=NN
+context	t0=NNP
+context	t1=NN
+context	t2=eos
+context	t_2=NNt_1=NN
+context	t_1=NNt0=NNP
+context	t0=NNPt1=NN
+context	t1=NNt2=eos
+context	t_2=NNt_1=NNt0=NNP
+context	t_1=NNt0=NNPt1=NN
+context	t0=NNPt1=NNt2=eos
+context	p_2=B-VP
+context	p_1=B-PP
+context	p_2=B-VPp_1=B-PP
+context	p_1=B-PPt_2=NN
+context	p_1=B-PPt_1=NN
+context	p_1=B-PPt0=NNP
+context	p_1=B-PPt1=NN
+context	p_1=B-PPt2=eos
+context	p_1=B-PPt_2=NNt_1=NN
+context	p_1=B-PPt_1=NNt0=NNP
+context	p_1=B-PPt0=NNPt1=NN
+context	p_1=B-PPt1=NNt2=eos
+context	p_1=B-PPt_2=NNt_1=NNt0=NNP
+context	p_1=B-PPt_1=NNt0=NNPt1=NN
+context	p_1=B-PPt0=NNPt1=NNt2=eos
+context	p_1=B-PPw_2=c
+context	p_1=B-PPw_1=d
+context	p_1=B-PPw0=e
+context	p_1=B-PPw1=f
+context	p_1=B-PPw2=eos
+context	p_1=B-PPw_1=dw0=e
+context	p_1=B-PPw0=ew1=f
+outcome	B-NP	3fd34c91b9a05f97 0.30154841544708105
+outcome	I-NP	3fbb62840bdfbc4d 0.10697198190585873
+outcome	B-VP	3fb2b1832ad3197b 0.07302112384340902
+outcome	B-PP	3fc1fc4da6d1ab65 0.14051218648395572
+outcome	O	3facfc1df31ce255 0.05661099999128242
+outcome	B-ADJP	3fbc6622a9bb0f53 0.11093346256080609
+outcome	I-VP	3fbc6622a9bb0f53 0.11093346256080609
+outcome	B-SBAR	3fb976c24823c53a 0.09946836720680077
+end	28
+point	29	14	41	8	0	none
+context	w_2=c
+context	w_1=d
+context	w0=e
+context	w1=f
+context	w2=eos
+context	w_1=dw0=e
+context	w0=ew1=f
+context	t_2=NN
+context	t_1=NN
+context	t0=NNP
+context	t1=NN
+context	t2=eos
+context	t_2=NNt_1=NN
+context	t_1=NNt0=NNP
+context	t0=NNPt1=NN
+context	t1=NNt2=eos
+context	t_2=NNt_1=NNt0=NNP
+context	t_1=NNt0=NNPt1=NN
+context	t0=NNPt1=NNt2=eos
+context	p_2=O
+context	p_1=B-VP
+context	p_2=Op_1=B-VP
+context	p_1=B-VPt_2=NN
+context	p_1=B-VPt_1=NN
+context	p_1=B-VPt0=NNP
+context	p_1=B-VPt1=NN
+context	p_1=B-VPt2=eos
+context	p_1=B-VPt_2=NNt_1=NN
+context	p_1=B-VPt_1=NNt0=NNP
+context	p_1=B-VPt0=NNPt1=NN
+context	p_1=B-VPt1=NNt2=eos
+context	p_1=B-VPt_2=NNt_1=NNt0=NNP
+context	p_1=B-VPt_1=NNt0=NNPt1=NN
+context	p_1=B-VPt0=NNPt1=NNt2=eos
+context	p_1=B-VPw_2=c
+context	p_1=B-VPw_1=d
+context	p_1=B-VPw0=e
+context	p_1=B-VPw1=f
+context	p_1=B-VPw2=eos
+context	p_1=B-VPw_1=dw0=e
+context	p_1=B-VPw0=ew1=f
+outcome	B-NP	3fc2a1fde1c1c8a9 0.14556859515466172
+outcome	I-NP	3fbab3b2647bbb4a 0.10430445626455512
+outcome	B-VP	3fa4c4be8e637b50 0.040563540345593396
+outcome	B-PP	3fc3b27d97b0ba34 0.15388460070376342
+outcome	O	3fc2a1fde1c1c8a9 0.14556859515466172
+outcome	B-ADJP	3fbc3a346d250d40 0.11026313461939186
+outcome	I-VP	3fceb863069ec406 0.2400020391774264
+outcome	B-SBAR	3faea402470eb579 0.05984503857994645
+end	29
+point	30	14	41	8	0	none
+context	w_2=c
+context	w_1=d
+context	w0=e
+context	w1=f
+context	w2=eos
+context	w_1=dw0=e
+context	w0=ew1=f
+context	t_2=NN
+context	t_1=NN
+context	t0=NNP
+context	t1=NN
+context	t2=eos
+context	t_2=NNt_1=NN
+context	t_1=NNt0=NNP
+context	t0=NNPt1=NN
+context	t1=NNt2=eos
+context	t_2=NNt_1=NNt0=NNP
+context	t_1=NNt0=NNPt1=NN
+context	t0=NNPt1=NNt2=eos
+context	p_2=B-PP
+context	p_1=B-PP
+context	p_2=B-PPp_1=B-PP
+context	p_1=B-PPt_2=NN
+context	p_1=B-PPt_1=NN
+context	p_1=B-PPt0=NNP
+context	p_1=B-PPt1=NN
+context	p_1=B-PPt2=eos
+context	p_1=B-PPt_2=NNt_1=NN
+context	p_1=B-PPt_1=NNt0=NNP
+context	p_1=B-PPt0=NNPt1=NN
+context	p_1=B-PPt1=NNt2=eos
+context	p_1=B-PPt_2=NNt_1=NNt0=NNP
+context	p_1=B-PPt_1=NNt0=NNPt1=NN
+context	p_1=B-PPt0=NNPt1=NNt2=eos
+context	p_1=B-PPw_2=c
+context	p_1=B-PPw_1=d
+context	p_1=B-PPw0=e
+context	p_1=B-PPw1=f
+context	p_1=B-PPw2=eos
+context	p_1=B-PPw_1=dw0=e
+context	p_1=B-PPw0=ew1=f
+outcome	B-NP	3fd35f2c4fe9723d 0.30268390468498635
+outcome	I-NP	3fbc8182e4fb9ab6 0.11135118570710287
+outcome	B-VP	3fb0c9e0fbc81a15 0.06558042666447535
+outcome	B-PP	3fc182e48c884777 0.13680703031473815
+outcome	O	3fb14a2a12a4fcfc 0.06753790812671306
+outcome	B-ADJP	3fbc8182e4fb9ab6 0.11135118570710287
+outcome	I-VP	3fbc8182e4fb9ab6 0.11135118570710287
+outcome	B-SBAR	3fb7e4f1e9e9c0f7 0.09333717308777865
+end	30
+point	31	14	41	8	0	none
+context	w_2=c
+context	w_1=d
+context	w0=e
+context	w1=f
+context	w2=eos
+context	w_1=dw0=e
+context	w0=ew1=f
+context	t_2=NN
+context	t_1=NN
+context	t0=NNP
+context	t1=NN
+context	t2=eos
+context	t_2=NNt_1=NN
+context	t_1=NNt0=NNP
+context	t0=NNPt1=NN
+context	t1=NNt2=eos
+context	t_2=NNt_1=NNt0=NNP
+context	t_1=NNt0=NNPt1=NN
+context	t0=NNPt1=NNt2=eos
+context	p_2=B-NP
+context	p_1=B-PP
+context	p_2=B-NPp_1=B-PP
+context	p_1=B-PPt_2=NN
+context	p_1=B-PPt_1=NN
+context	p_1=B-PPt0=NNP
+context	p_1=B-PPt1=NN
+context	p_1=B-PPt2=eos
+context	p_1=B-PPt_2=NNt_1=NN
+context	p_1=B-PPt_1=NNt0=NNP
+context	p_1=B-PPt0=NNPt1=NN
+context	p_1=B-PPt1=NNt2=eos
+context	p_1=B-PPt_2=NNt_1=NNt0=NNP
+context	p_1=B-PPt_1=NNt0=NNPt1=NN
+context	p_1=B-PPt0=NNPt1=NNt2=eos
+context	p_1=B-PPw_2=c
+context	p_1=B-PPw_1=d
+context	p_1=B-PPw0=e
+context	p_1=B-PPw1=f
+context	p_1=B-PPw2=eos
+context	p_1=B-PPw_1=dw0=e
+context	p_1=B-PPw0=ew1=f
+outcome	B-NP	3fd3bf236ce48e6e 0.30854116090833983
+outcome	I-NP	3fb9d519992d8bc7 0.10090789785094421
+outcome	B-VP	3fb6a1491bb4dc90 0.08839852262905112
+outcome	B-PP	3fb7a697eda85dd6 0.09238576461972711
+outcome	O	3fb6a1491bb4dc90 0.08839852262905112
+outcome	B-ADJP	3fbd0eb9d685840c 0.11350594985334811
+outcome	I-VP	3fba3711efe313d0 0.1024028025304482
+outcome	B-SBAR	3fbaff62c7c58bb7 0.1054593789790904
+end	31
+point	32	14	41	8	0	none
+context	w_2=c
+context	w_1=d
+context	w0=e
+context	w1=f
+context	w2=eos
+context	w_1=dw0=e
+context	w0=ew1=f
+context	t_2=NN
+context	t_1=NN
+context	t0=NNP
+context	t1=NN
+context	t2=eos
+context	t_2=NNt_1=NN
+context	t_1=NNt0=NNP
+context	t0=NNPt1=NN
+context	t1=NNt2=eos
+context	t_2=NNt_1=NNt0=NNP
+context	t_1=NNt0=NNPt1=NN
+context	t0=NNPt1=NNt2=eos
+context	p_2=I-NP
+context	p_1=B-PP
+context	p_2=I-NPp_1=B-PP
+context	p_1=B-PPt_2=NN
+context	p_1=B-PPt_1=NN
+context	p_1=B-PPt0=NNP
+context	p_1=B-PPt1=NN
+context	p_1=B-PPt2=eos
+context	p_1=B-PPt_2=NNt_1=NN
+context	p_1=B-PPt_1=NNt0=NNP
+context	p_1=B-PPt0=NNPt1=NN
+context	p_1=B-PPt1=NNt2=eos
+context	p_1=B-PPt_2=NNt_1=NNt0=NNP
+context	p_1=B-PPt_1=NNt0=NNPt1=NN
+context	p_1=B-PPt0=NNPt1=NNt2=eos
+context	p_1=B-PPw_2=c
+context	p_1=B-PPw_1=d
+context	p_1=B-PPw0=e
+context	p_1=B-PPw1=f
+context	p_1=B-PPw2=eos
+context	p_1=B-PPw_1=dw0=e
+context	p_1=B-PPw0=ew1=f
+outcome	B-NP	3fd250b587a0498c 0.28617609257448673
+outcome	I-NP	3fba0174a490d5e4 0.10158471124380913
+outcome	B-VP	3fac575e5fe16d03 0.055354069904490565
+outcome	B-PP	3fcb86eab66cc8ec 0.21505483539073766
+outcome	O	3fa7b4db5e9ca7f2 0.046301703738507075
+outcome	B-ADJP	3fbaf384cbd437a7 0.1052783010129291
+outcome	I-VP	3fbaf384cbd437a7 0.1052783010129291
+outcome	B-SBAR	3fb5c0b9592cf845 0.08497198512211053
+end	32
+point	33	14	41	8	0	none
+context	w_2=c
+context	w_1=d
+context	w0=e
+context	w1=f
+context	w2=eos
+context	w_1=dw0=e
+context	w0=ew1=f
+context	t_2=NN
+context	t_1=NN
+context	t0=NNP
+context	t1=NN
+context	t2=eos
+context	t_2=NNt_1=NN
+context	t_1=NNt0=NNP
+context	t0=NNPt1=NN
+context	t1=NNt2=eos
+context	t_2=NNt_1=NNt0=NNP
+context	t_1=NNt0=NNPt1=NN
+context	t0=NNPt1=NNt2=eos
+context	p_2=O
+context	p_1=B-PP
+context	p_2=Op_1=B-PP
+context	p_1=B-PPt_2=NN
+context	p_1=B-PPt_1=NN
+context	p_1=B-PPt0=NNP
+context	p_1=B-PPt1=NN
+context	p_1=B-PPt2=eos
+context	p_1=B-PPt_2=NNt_1=NN
+context	p_1=B-PPt_1=NNt0=NNP
+context	p_1=B-PPt0=NNPt1=NN
+context	p_1=B-PPt1=NNt2=eos
+context	p_1=B-PPt_2=NNt_1=NNt0=NNP
+context	p_1=B-PPt_1=NNt0=NNPt1=NN
+context	p_1=B-PPt0=NNPt1=NNt2=eos
+context	p_1=B-PPw_2=c
+context	p_1=B-PPw_1=d
+context	p_1=B-PPw0=e
+context	p_1=B-PPw1=f
+context	p_1=B-PPw2=eos
+context	p_1=B-PPw_1=dw0=e
+context	p_1=B-PPw0=ew1=f
+outcome	B-NP	3fd32b54304d32ab 0.2995195838637225
+outcome	I-NP	3fc0d374cf9bd502 0.13145313393730623
+outcome	B-VP	3fb09cf2aabfac0c 0.06489483517331979
+outcome	B-PP	3fbc3538ba9f2d01 0.11018709713168919
+outcome	O	3facaea81e6751b6 0.05602002497804241
+outcome	B-ADJP	3fbc3538ba9f2d01 0.11018709713168919
+outcome	I-VP	3fc1540715743313 0.13537682101777956
+outcome	B-SBAR	3fb7a4ff45797638 0.09236140676645099
+end	33
+point	34	14	41	8	0	none
+context	w_2=c
+context	w_1=d
+context	w0=e
+context	w1=f
+context	w2=eos
+context	w_1=dw0=e
+context	w0=ew1=f
+context	t_2=NN
+context	t_1=NN
+context	t0=NNP
+context	t1=NN
+context	t2=eos
+context	t_2=NNt_1=NN
+context	t_1=NNt0=NNP
+context	t0=NNPt1=NN
+context	t1=NNt2=eos
+context	t_2=NNt_1=NNt0=NNP
+context	t_1=NNt0=NNPt1=NN
+context	t0=NNPt1=NNt2=eos
+context	p_2=O
+context	p_1=B-ADJP
+context	p_2=Op_1=B-ADJP
+context	p_1=B-ADJPt_2=NN
+context	p_1=B-ADJPt_1=NN
+context	p_1=B-ADJPt0=NNP
+context	p_1=B-ADJPt1=NN
+context	p_1=B-ADJPt2=eos
+context	p_1=B-ADJPt_2=NNt_1=NN
+context	p_1=B-ADJPt_1=NNt0=NNP
+context	p_1=B-ADJPt0=NNPt1=NN
+context	p_1=B-ADJPt1=NNt2=eos
+context	p_1=B-ADJPt_2=NNt_1=NNt0=NNP
+context	p_1=B-ADJPt_1=NNt0=NNPt1=NN
+context	p_1=B-ADJPt0=NNPt1=NNt2=eos
+context	p_1=B-ADJPw_2=c
+context	p_1=B-ADJPw_1=d
+context	p_1=B-ADJPw0=e
+context	p_1=B-ADJPw1=f
+context	p_1=B-ADJPw2=eos
+context	p_1=B-ADJPw_1=dw0=e
+context	p_1=B-ADJPw0=ew1=f
+outcome	B-NP	3fb232c70ee0dba2 0.07108730424157142
+outcome	I-NP	3fc3ce37a4703427 0.1547307541772238
+outcome	B-VP	3fa4e1faa89daca1 0.040786583979604225
+outcome	B-PP	3fc4efde1043fedf 0.16357017320841913
+outcome	O	3fcba40eef1461a2 0.2159441630726749
+outcome	B-ADJP	3fbc61f0604e345b 0.11086943007667698
+outcome	I-VP	3fc4efde1043fedf 0.16357017320841913
+outcome	B-SBAR	3fb45645d468f2a3 0.07944141803541042
+end	34
+point	35	14	41	8	0	none
+context	w_2=c
+context	w_1=d
+context	w0=e
+context	w1=f
+context	w2=eos
+context	w_1=dw0=e
+context	w0=ew1=f
+context	t_2=NN
+context	t_1=NN
+context	t0=NNP
+context	t1=NN
+context	t2=eos
+context	t_2=NNt_1=NN
+context	t_1=NNt0=NNP
+context	t0=NNPt1=NN
+context	t1=NNt2=eos
+context	t_2=NNt_1=NNt0=NNP
+context	t_1=NNt0=NNPt1=NN
+context	t0=NNPt1=NNt2=eos
+context	p_2=O
+context	p_1=B-SBAR
+context	p_2=Op_1=B-SBAR
+context	p_1=B-SBARt_2=NN
+context	p_1=B-SBARt_1=NN
+context	p_1=B-SBARt0=NNP
+context	p_1=B-SBARt1=NN
+context	p_1=B-SBARt2=eos
+context	p_1=B-SBARt_2=NNt_1=NN
+context	p_1=B-SBARt_1=NNt0=NNP
+context	p_1=B-SBARt0=NNPt1=NN
+context	p_1=B-SBARt1=NNt2=eos
+context	p_1=B-SBARt_2=NNt_1=NNt0=NNP
+context	p_1=B-SBARt_1=NNt0=NNPt1=NN
+context	p_1=B-SBARt0=NNPt1=NNt2=eos
+context	p_1=B-SBARw_2=c
+context	p_1=B-SBARw_1=d
+context	p_1=B-SBARw0=e
+context	p_1=B-SBARw1=f
+context	p_1=B-SBARw2=eos
+context	p_1=B-SBARw_1=dw0=e
+context	p_1=B-SBARw0=ew1=f
+outcome	B-NP	3fbbd85e5af08995 0.10877027244763433
+outcome	I-NP	3fc48a62c6720705 0.16047320069997553
+outcome	B-VP	3fa5a861bfeb27ae 0.04230027644878419
+outcome	B-PP	3fc5b6c91ac46a84 0.16964067275042194
+outcome	O	3fc36e3849dc4687 0.1518011437079176
+outcome	B-ADJP	3fbd6f98a0471d31 0.11498407280952418
+outcome	I-VP	3fc5b6c91ac46a84 0.16964067275042194
+outcome	B-SBAR	3fb5177d99248040 0.08238968838532035
+end	35
+point	36	14	41	8	0	none
+context	w_2=c
+context	w_1=d
+context	w0=e
+context	w1=f
+context	w2=eos
+context	w_1=dw0=e
+context	w0=ew1=f
+context	t_2=NN
+context	t_1=NN
+context	t0=NNP
+context	t1=NN
+context	t2=eos
+context	t_2=NNt_1=NN
+context	t_1=NNt0=NNP
+context	t0=NNPt1=NN
+context	t1=NNt2=eos
+context	t_2=NNt_1=NNt0=NNP
+context	t_1=NNt0=NNPt1=NN
+context	t0=NNPt1=NNt2=eos
+context	p_2=B-SBAR
+context	p_1=B-PP
+context	p_2=B-SBARp_1=B-PP
+context	p_1=B-PPt_2=NN
+context	p_1=B-PPt_1=NN
+context	p_1=B-PPt0=NNP
+context	p_1=B-PPt1=NN
+context	p_1=B-PPt2=eos
+context	p_1=B-PPt_2=NNt_1=NN
+context	p_1=B-PPt_1=NNt0=NNP
+context	p_1=B-PPt0=NNPt1=NN
+context	p_1=B-PPt1=NNt2=eos
+context	p_1=B-PPt_2=NNt_1=NNt0=NNP
+context	p_1=B-PPt_1=NNt0=NNPt1=NN
+context	p_1=B-PPt0=NNPt1=NNt2=eos
+context	p_1=B-PPw_2=c
+context	p_1=B-PPw_1=d
+context	p_1=B-PPw0=e
+context	p_1=B-PPw1=f
+context	p_1=B-PPw2=eos
+context	p_1=B-PPw_1=dw0=e
+context	p_1=B-PPw0=ew1=f
+outcome	B-NP	3fd37d4a164547ed 0.3045220582472428
+outcome	I-NP	3fb7985fb46aba1e 0.09216879038533718
+outcome	B-VP	3fb5ee2d8d939d7c 0.08566555696926587
+outcome	B-PP	3fc102564c440f89 0.13288382266921087
+outcome	O	3fb05da116d538bc 0.06392866904681943
+outcome	B-ADJP	3fbcadd3f710def4 0.1120274046123731
+outcome	I-VP	3fbcadd3f710def4 0.1120274046123731
+outcome	B-SBAR	3fb8c654c76d72fe 0.09677629345737768
+end	36
+point	37	18	41	8	0	none
+context	w_2=d
+context	w_1=e
+context	w0=f
+context	w1=eos
+context	w2=eos
+context	w_1=ew0=f
+context	w0=fw1=eos
+context	t_2=NN
+context	t_1=NNP
+context	t0=NN
+context	t1=eos
+context	t2=eos
+context	t_2=NNt_1=NNP
+context	t_1=NNPt0=NN
+context	t0=NNt1=eos
+context	t1=eost2=eos
+context	t_2=NNt_1=NNPt0=NN
+context	t_1=NNPt0=NNt1=eos
+context	t0=NNt1=eost2=eos
+context	p_2=B-PP
+context	p_1=B-NP
+context	p_2=B-PPp_1=B-NP
+context	p_1=B-NPt_2=NN
+context	p_1=B-NPt_1=NNP
+context	p_1=B-NPt0=NN
+context	p_1=B-NPt1=eos
+context	p_1=B-NPt2=eos
+context	p_1=B-NPt_2=NNt_1=NNP
+context	p_1=B-NPt_1=NNPt0=NN
+context	p_1=B-NPt0=NNt1=eos
+context	p_1=B-NPt1=eost2=eos
+context	p_1=B-NPt_2=NNt_1=NNPt0=NN
+context	p_1=B-NPt_1=NNPt0=NNt1=eos
+context	p_1=B-NPt0=NNt1=eost2=eos
+context	p_1=B-NPw_2=d
+context	p_1=B-NPw_1=e
+context	p_1=B-NPw0=f
+context	p_1=B-NPw1=eos
+context	p_1=B-NPw2=eos
+context	p_1=B-NPw_1=ew0=f
+context	p_1=B-NPw0=fw1=eos
+outcome	B-NP	3faf6731a6161247 0.06133418228549608
+outcome	I-NP	3fbc8fac86de955f 0.11156729023658361
+outcome	B-VP	3fb228341446e437 0.0709259557251166
+outcome	B-PP	3fbfeaef5f135ab7 0.12467857428724015
+outcome	O	3fd368cc2f4f39f3 0.30327133770052156
+outcome	B-ADJP	3fbae70d67c21006 0.10508807929187478
+outcome	I-VP	3fbc8fac86de955f 0.11156729023658361
+outcome	B-SBAR	3fbc8fac86de955f 0.11156729023658361
+end	37
+point	38	18	41	8	0	none
+context	w_2=d
+context	w_1=e
+context	w0=f
+context	w1=eos
+context	w2=eos
+context	w_1=ew0=f
+context	w0=fw1=eos
+context	t_2=NN
+context	t_1=NNP
+context	t0=NN
+context	t1=eos
+context	t2=eos
+context	t_2=NNt_1=NNP
+context	t_1=NNPt0=NN
+context	t0=NNt1=eos
+context	t1=eost2=eos
+context	t_2=NNt_1=NNPt0=NN
+context	t_1=NNPt0=NNt1=eos
+context	t0=NNt1=eost2=eos
+context	p_2=B-PP
+context	p_1=B-NP
+context	p_2=B-PPp_1=B-NP
+context	p_1=B-NPt_2=NN
+context	p_1=B-NPt_1=NNP
+context	p_1=B-NPt0=NN
+context	p_1=B-NPt1=eos
+context	p_1=B-NPt2=eos
+context	p_1=B-NPt_2=NNt_1=NNP
+context	p_1=B-NPt_1=NNPt0=NN
+context	p_1=B-NPt0=NNt1=eos
+context	p_1=B-NPt1=eost2=eos
+context	p_1=B-NPt_2=NNt_1=NNPt0=NN
+context	p_1=B-NPt_1=NNPt0=NNt1=eos
+context	p_1=B-NPt0=NNt1=eost2=eos
+context	p_1=B-NPw_2=d
+context	p_1=B-NPw_1=e
+context	p_1=B-NPw0=f
+context	p_1=B-NPw1=eos
+context	p_1=B-NPw2=eos
+context	p_1=B-NPw_1=ew0=f
+context	p_1=B-NPw0=fw1=eos
+outcome	B-NP	3faf6731a6161247 0.06133418228549608
+outcome	I-NP	3fbc8fac86de955f 0.11156729023658361
+outcome	B-VP	3fb228341446e437 0.0709259557251166
+outcome	B-PP	3fbfeaef5f135ab7 0.12467857428724015
+outcome	O	3fd368cc2f4f39f3 0.30327133770052156
+outcome	B-ADJP	3fbae70d67c21006 0.10508807929187478
+outcome	I-VP	3fbc8fac86de955f 0.11156729023658361
+outcome	B-SBAR	3fbc8fac86de955f 0.11156729023658361
+end	38
+point	39	18	41	8	0	none
+context	w_2=d
+context	w_1=e
+context	w0=f
+context	w1=eos
+context	w2=eos
+context	w_1=ew0=f
+context	w0=fw1=eos
+context	t_2=NN
+context	t_1=NNP
+context	t0=NN
+context	t1=eos
+context	t2=eos
+context	t_2=NNt_1=NNP
+context	t_1=NNPt0=NN
+context	t0=NNt1=eos
+context	t1=eost2=eos
+context	t_2=NNt_1=NNPt0=NN
+context	t_1=NNPt0=NNt1=eos
+context	t0=NNt1=eost2=eos
+context	p_2=B-PP
+context	p_1=B-NP
+context	p_2=B-PPp_1=B-NP
+context	p_1=B-NPt_2=NN
+context	p_1=B-NPt_1=NNP
+context	p_1=B-NPt0=NN
+context	p_1=B-NPt1=eos
+context	p_1=B-NPt2=eos
+context	p_1=B-NPt_2=NNt_1=NNP
+context	p_1=B-NPt_1=NNPt0=NN
+context	p_1=B-NPt0=NNt1=eos
+context	p_1=B-NPt1=eost2=eos
+context	p_1=B-NPt_2=NNt_1=NNPt0=NN
+context	p_1=B-NPt_1=NNPt0=NNt1=eos
+context	p_1=B-NPt0=NNt1=eost2=eos
+context	p_1=B-NPw_2=d
+context	p_1=B-NPw_1=e
+context	p_1=B-NPw0=f
+context	p_1=B-NPw1=eos
+context	p_1=B-NPw2=eos
+context	p_1=B-NPw_1=ew0=f
+context	p_1=B-NPw0=fw1=eos
+outcome	B-NP	3faf6731a6161247 0.06133418228549608
+outcome	I-NP	3fbc8fac86de955f 0.11156729023658361
+outcome	B-VP	3fb228341446e437 0.0709259557251166
+outcome	B-PP	3fbfeaef5f135ab7 0.12467857428724015
+outcome	O	3fd368cc2f4f39f3 0.30327133770052156
+outcome	B-ADJP	3fbae70d67c21006 0.10508807929187478
+outcome	I-VP	3fbc8fac86de955f 0.11156729023658361
+outcome	B-SBAR	3fbc8fac86de955f 0.11156729023658361
+end	39
+point	40	18	41	8	0	none
+context	w_2=d
+context	w_1=e
+context	w0=f
+context	w1=eos
+context	w2=eos
+context	w_1=ew0=f
+context	w0=fw1=eos
+context	t_2=NN
+context	t_1=NNP
+context	t0=NN
+context	t1=eos
+context	t2=eos
+context	t_2=NNt_1=NNP
+context	t_1=NNPt0=NN
+context	t0=NNt1=eos
+context	t1=eost2=eos
+context	t_2=NNt_1=NNPt0=NN
+context	t_1=NNPt0=NNt1=eos
+context	t0=NNt1=eost2=eos
+context	p_2=B-PP
+context	p_1=B-NP
+context	p_2=B-PPp_1=B-NP
+context	p_1=B-NPt_2=NN
+context	p_1=B-NPt_1=NNP
+context	p_1=B-NPt0=NN
+context	p_1=B-NPt1=eos
+context	p_1=B-NPt2=eos
+context	p_1=B-NPt_2=NNt_1=NNP
+context	p_1=B-NPt_1=NNPt0=NN
+context	p_1=B-NPt0=NNt1=eos
+context	p_1=B-NPt1=eost2=eos
+context	p_1=B-NPt_2=NNt_1=NNPt0=NN
+context	p_1=B-NPt_1=NNPt0=NNt1=eos
+context	p_1=B-NPt0=NNt1=eost2=eos
+context	p_1=B-NPw_2=d
+context	p_1=B-NPw_1=e
+context	p_1=B-NPw0=f
+context	p_1=B-NPw1=eos
+context	p_1=B-NPw2=eos
+context	p_1=B-NPw_1=ew0=f
+context	p_1=B-NPw0=fw1=eos
+outcome	B-NP	3faf6731a6161247 0.06133418228549608
+outcome	I-NP	3fbc8fac86de955f 0.11156729023658361
+outcome	B-VP	3fb228341446e437 0.0709259557251166
+outcome	B-PP	3fbfeaef5f135ab7 0.12467857428724015
+outcome	O	3fd368cc2f4f39f3 0.30327133770052156
+outcome	B-ADJP	3fbae70d67c21006 0.10508807929187478
+outcome	I-VP	3fbc8fac86de955f 0.11156729023658361
+outcome	B-SBAR	3fbc8fac86de955f 0.11156729023658361
+end	40
+point	41	18	41	8	0	none
+context	w_2=d
+context	w_1=e
+context	w0=f
+context	w1=eos
+context	w2=eos
+context	w_1=ew0=f
+context	w0=fw1=eos
+context	t_2=NN
+context	t_1=NNP
+context	t0=NN
+context	t1=eos
+context	t2=eos
+context	t_2=NNt_1=NNP
+context	t_1=NNPt0=NN
+context	t0=NNt1=eos
+context	t1=eost2=eos
+context	t_2=NNt_1=NNPt0=NN
+context	t_1=NNPt0=NNt1=eos
+context	t0=NNt1=eost2=eos
+context	p_2=B-PP
+context	p_1=B-NP
+context	p_2=B-PPp_1=B-NP
+context	p_1=B-NPt_2=NN
+context	p_1=B-NPt_1=NNP
+context	p_1=B-NPt0=NN
+context	p_1=B-NPt1=eos
+context	p_1=B-NPt2=eos
+context	p_1=B-NPt_2=NNt_1=NNP
+context	p_1=B-NPt_1=NNPt0=NN
+context	p_1=B-NPt0=NNt1=eos
+context	p_1=B-NPt1=eost2=eos
+context	p_1=B-NPt_2=NNt_1=NNPt0=NN
+context	p_1=B-NPt_1=NNPt0=NNt1=eos
+context	p_1=B-NPt0=NNt1=eost2=eos
+context	p_1=B-NPw_2=d
+context	p_1=B-NPw_1=e
+context	p_1=B-NPw0=f
+context	p_1=B-NPw1=eos
+context	p_1=B-NPw2=eos
+context	p_1=B-NPw_1=ew0=f
+context	p_1=B-NPw0=fw1=eos
+outcome	B-NP	3faf6731a6161247 0.06133418228549608
+outcome	I-NP	3fbc8fac86de955f 0.11156729023658361
+outcome	B-VP	3fb228341446e437 0.0709259557251166
+outcome	B-PP	3fbfeaef5f135ab7 0.12467857428724015
+outcome	O	3fd368cc2f4f39f3 0.30327133770052156
+outcome	B-ADJP	3fbae70d67c21006 0.10508807929187478
+outcome	I-VP	3fbc8fac86de955f 0.11156729023658361
+outcome	B-SBAR	3fbc8fac86de955f 0.11156729023658361
+end	41
+point	42	18	41	8	0	none
+context	w_2=d
+context	w_1=e
+context	w0=f
+context	w1=eos
+context	w2=eos
+context	w_1=ew0=f
+context	w0=fw1=eos
+context	t_2=NN
+context	t_1=NNP
+context	t0=NN
+context	t1=eos
+context	t2=eos
+context	t_2=NNt_1=NNP
+context	t_1=NNPt0=NN
+context	t0=NNt1=eos
+context	t1=eost2=eos
+context	t_2=NNt_1=NNPt0=NN
+context	t_1=NNPt0=NNt1=eos
+context	t0=NNt1=eost2=eos
+context	p_2=B-PP
+context	p_1=B-NP
+context	p_2=B-PPp_1=B-NP
+context	p_1=B-NPt_2=NN
+context	p_1=B-NPt_1=NNP
+context	p_1=B-NPt0=NN
+context	p_1=B-NPt1=eos
+context	p_1=B-NPt2=eos
+context	p_1=B-NPt_2=NNt_1=NNP
+context	p_1=B-NPt_1=NNPt0=NN
+context	p_1=B-NPt0=NNt1=eos
+context	p_1=B-NPt1=eost2=eos
+context	p_1=B-NPt_2=NNt_1=NNPt0=NN
+context	p_1=B-NPt_1=NNPt0=NNt1=eos
+context	p_1=B-NPt0=NNt1=eost2=eos
+context	p_1=B-NPw_2=d
+context	p_1=B-NPw_1=e
+context	p_1=B-NPw0=f
+context	p_1=B-NPw1=eos
+context	p_1=B-NPw2=eos
+context	p_1=B-NPw_1=ew0=f
+context	p_1=B-NPw0=fw1=eos
+outcome	B-NP	3faf6731a6161247 0.06133418228549608
+outcome	I-NP	3fbc8fac86de955f 0.11156729023658361
+outcome	B-VP	3fb228341446e437 0.0709259557251166
+outcome	B-PP	3fbfeaef5f135ab7 0.12467857428724015
+outcome	O	3fd368cc2f4f39f3 0.30327133770052156
+outcome	B-ADJP	3fbae70d67c21006 0.10508807929187478
+outcome	I-VP	3fbc8fac86de955f 0.11156729023658361
+outcome	B-SBAR	3fbc8fac86de955f 0.11156729023658361
+end	42
+point	43	18	41	8	0	none
+context	w_2=d
+context	w_1=e
+context	w0=f
+context	w1=eos
+context	w2=eos
+context	w_1=ew0=f
+context	w0=fw1=eos
+context	t_2=NN
+context	t_1=NNP
+context	t0=NN
+context	t1=eos
+context	t2=eos
+context	t_2=NNt_1=NNP
+context	t_1=NNPt0=NN
+context	t0=NNt1=eos
+context	t1=eost2=eos
+context	t_2=NNt_1=NNPt0=NN
+context	t_1=NNPt0=NNt1=eos
+context	t0=NNt1=eost2=eos
+context	p_2=B-VP
+context	p_1=I-VP
+context	p_2=B-VPp_1=I-VP
+context	p_1=I-VPt_2=NN
+context	p_1=I-VPt_1=NNP
+context	p_1=I-VPt0=NN
+context	p_1=I-VPt1=eos
+context	p_1=I-VPt2=eos
+context	p_1=I-VPt_2=NNt_1=NNP
+context	p_1=I-VPt_1=NNPt0=NN
+context	p_1=I-VPt0=NNt1=eos
+context	p_1=I-VPt1=eost2=eos
+context	p_1=I-VPt_2=NNt_1=NNPt0=NN
+context	p_1=I-VPt_1=NNPt0=NNt1=eos
+context	p_1=I-VPt0=NNt1=eost2=eos
+context	p_1=I-VPw_2=d
+context	p_1=I-VPw_1=e
+context	p_1=I-VPw0=f
+context	p_1=I-VPw1=eos
+context	p_1=I-VPw2=eos
+context	p_1=I-VPw_1=ew0=f
+context	p_1=I-VPw0=fw1=eos
+outcome	B-NP	3fb8d531d4d3eec5 0.09700309225075461
+outcome	I-NP	3fbb26e985a8f593 0.10606250298675084
+outcome	B-VP	3fa5d7d3532d889f 0.042662242797420584
+outcome	B-PP	3fc1befa82060d2d 0.1386407027131126
+outcome	O	3fd31f626ff9357b 0.29879055914792446
+outcome	B-ADJP	3fb8d531d4d3eec5 0.09700309225075461
+outcome	I-VP	3fbc23a53193bc2d 0.10991890392664123
+outcome	B-SBAR	3fbc23a53193bc2d 0.10991890392664123
+end	43
+point	44	18	41	8	0	none
+context	w_2=d
+context	w_1=e
+context	w0=f
+context	w1=eos
+context	w2=eos
+context	w_1=ew0=f
+context	w0=fw1=eos
+context	t_2=NN
+context	t_1=NNP
+context	t0=NN
+context	t1=eos
+context	t2=eos
+context	t_2=NNt_1=NNP
+context	t_1=NNPt0=NN
+context	t0=NNt1=eos
+context	t1=eost2=eos
+context	t_2=NNt_1=NNPt0=NN
+context	t_1=NNPt0=NNt1=eos
+context	t0=NNt1=eost2=eos
+context	p_2=B-PP
+context	p_1=B-ADJP
+context	p_2=B-PPp_1=B-ADJP
+context	p_1=B-ADJPt_2=NN
+context	p_1=B-ADJPt_1=NNP
+context	p_1=B-ADJPt0=NN
+context	p_1=B-ADJPt1=eos
+context	p_1=B-ADJPt2=eos
+context	p_1=B-ADJPt_2=NNt_1=NNP
+context	p_1=B-ADJPt_1=NNPt0=NN
+context	p_1=B-ADJPt0=NNt1=eos
+context	p_1=B-ADJPt1=eost2=eos
+context	p_1=B-ADJPt_2=NNt_1=NNPt0=NN
+context	p_1=B-ADJPt_1=NNPt0=NNt1=eos
+context	p_1=B-ADJPt0=NNt1=eost2=eos
+context	p_1=B-ADJPw_2=d
+context	p_1=B-ADJPw_1=e
+context	p_1=B-ADJPw0=f
+context	p_1=B-ADJPw1=eos
+context	p_1=B-ADJPw2=eos
+context	p_1=B-ADJPw_1=ew0=f
+context	p_1=B-ADJPw0=fw1=eos
+outcome	B-NP	3fb3c9ab17e5267d 0.07729596455933492
+outcome	I-NP	3fbc9a2c4573be9f 0.11172749229057864
+outcome	B-VP	3fae6b27403bbef1 0.05941126498316674
+outcome	B-PP	3fbf5c9e2eb2a997 0.12250698700032668
+outcome	O	3fd36feeb2503472 0.30370681203277805
+outcome	B-ADJP	3fba15e37fae42d9 0.10189649455265783
+outcome	I-VP	3fbc9a2c4573be9f 0.11172749229057864
+outcome	B-SBAR	3fbc9a2c4573be9f 0.11172749229057864
+end	44
+point	45	18	41	8	0	none
+context	w_2=d
+context	w_1=e
+context	w0=f
+context	w1=eos
+context	w2=eos
+context	w_1=ew0=f
+context	w0=fw1=eos
+context	t_2=NN
+context	t_1=NNP
+context	t0=NN
+context	t1=eos
+context	t2=eos
+context	t_2=NNt_1=NNP
+context	t_1=NNPt0=NN
+context	t0=NNt1=eos
+context	t1=eost2=eos
+context	t_2=NNt_1=NNPt0=NN
+context	t_1=NNPt0=NNt1=eos
+context	t0=NNt1=eost2=eos
+context	p_2=B-PP
+context	p_1=B-PP
+context	p_2=B-PPp_1=B-PP
+context	p_1=B-PPt_2=NN
+context	p_1=B-PPt_1=NNP
+context	p_1=B-PPt0=NN
+context	p_1=B-PPt1=eos
+context	p_1=B-PPt2=eos
+context	p_1=B-PPt_2=NNt_1=NNP
+context	p_1=B-PPt_1=NNPt0=NN
+context	p_1=B-PPt0=NNt1=eos
+context	p_1=B-PPt1=eost2=eos
+context	p_1=B-PPt_2=NNt_1=NNPt0=NN
+context	p_1=B-PPt_1=NNPt0=NNt1=eos
+context	p_1=B-PPt0=NNt1=eost2=eos
+context	p_1=B-PPw_2=d
+context	p_1=B-PPw_1=e
+context	p_1=B-PPw0=f
+context	p_1=B-PPw1=eos
+context	p_1=B-PPw2=eos
+context	p_1=B-PPw_1=ew0=f
+context	p_1=B-PPw0=fw1=eos
+outcome	B-NP	3fc042d04c6d00b0 0.12703899127700913
+outcome	I-NP	3fbc1bdaacfe6382 0.10980002139548442
+outcome	B-VP	3fa4ae69e4a872e3 0.04039317051158322
+outcome	B-PP	3fbc1bdaacfe6382 0.10980002139548442
+outcome	O	3fd31a17059eb1d0 0.29846740292375973
+outcome	B-ADJP	3fb84b63aa5d6fe5 0.09490034970571022
+outcome	I-VP	3fbc1bdaacfe6382 0.10980002139548442
+outcome	B-SBAR	3fbc1bdaacfe6382 0.10980002139548442
+end	45
+point	46	18	41	8	0	none
+context	w_2=d
+context	w_1=e
+context	w0=f
+context	w1=eos
+context	w2=eos
+context	w_1=ew0=f
+context	w0=fw1=eos
+context	t_2=NN
+context	t_1=NNP
+context	t0=NN
+context	t1=eos
+context	t2=eos
+context	t_2=NNt_1=NNP
+context	t_1=NNPt0=NN
+context	t0=NNt1=eos
+context	t1=eost2=eos
+context	t_2=NNt_1=NNPt0=NN
+context	t_1=NNPt0=NNt1=eos
+context	t0=NNt1=eost2=eos
+context	p_2=B-PP
+context	p_1=B-NP
+context	p_2=B-PPp_1=B-NP
+context	p_1=B-NPt_2=NN
+context	p_1=B-NPt_1=NNP
+context	p_1=B-NPt0=NN
+context	p_1=B-NPt1=eos
+context	p_1=B-NPt2=eos
+context	p_1=B-NPt_2=NNt_1=NNP
+context	p_1=B-NPt_1=NNPt0=NN
+context	p_1=B-NPt0=NNt1=eos
+context	p_1=B-NPt1=eost2=eos
+context	p_1=B-NPt_2=NNt_1=NNPt0=NN
+context	p_1=B-NPt_1=NNPt0=NNt1=eos
+context	p_1=B-NPt0=NNt1=eost2=eos
+context	p_1=B-NPw_2=d
+context	p_1=B-NPw_1=e
+context	p_1=B-NPw0=f
+context	p_1=B-NPw1=eos
+context	p_1=B-NPw2=eos
+context	p_1=B-NPw_1=ew0=f
+context	p_1=B-NPw0=fw1=eos
+outcome	B-NP	3faf6731a6161247 0.06133418228549608
+outcome	I-NP	3fbc8fac86de955f 0.11156729023658361
+outcome	B-VP	3fb228341446e437 0.0709259557251166
+outcome	B-PP	3fbfeaef5f135ab7 0.12467857428724015
+outcome	O	3fd368cc2f4f39f3 0.30327133770052156
+outcome	B-ADJP	3fbae70d67c21006 0.10508807929187478
+outcome	I-VP	3fbc8fac86de955f 0.11156729023658361
+outcome	B-SBAR	3fbc8fac86de955f 0.11156729023658361
+end	46
