@@ -220,7 +220,11 @@ pub fn apply_view_edits(text: &str, edits: &[ViewEdit]) -> Result<String, String
 /// This is the check for goldens whose edits were reconstructed by a
 /// diff: the diff may cut one change into several rows or join two
 /// changes that are a character apart, and the Rust edits may span an
-/// unchanged character that the diff kept.
+/// unchanged character that the diff kept. Where a region's results
+/// differ, the region is widened over the following ones until they
+/// agree: a diff over repeated characters ("xxxẍ", "6/98/2635 4") may
+/// delete one occurrence in one region and keep another in the next, so
+/// the two lists agree only over both regions together.
 pub fn view_edits_equivalent(text: &str, rust: &[ViewEdit], golden: &[ViewEdit]) -> bool {
     let mut all: Vec<(usize, usize)> = rust.iter().chain(golden).map(|r| (r.start, r.end)).collect();
     all.sort_unstable();
@@ -231,7 +235,7 @@ pub fn view_edits_equivalent(text: &str, rust: &[ViewEdit], golden: &[ViewEdit])
             _ => regions.push((s, e)),
         }
     }
-    regions.iter().all(|&(s, e)| {
+    let agree = |s: usize, e: usize| {
         let inside = |rows: &[ViewEdit]| -> Vec<ViewEdit> {
             rows.iter()
                 .filter(|r| r.start >= s && r.end <= e)
@@ -239,7 +243,21 @@ pub fn view_edits_equivalent(text: &str, rust: &[ViewEdit], golden: &[ViewEdit])
                 .collect()
         };
         apply_view_edits(&text[s..e], &inside(rust)) == apply_view_edits(&text[s..e], &inside(golden))
-    })
+    };
+    let mut i = 0;
+    while i < regions.len() {
+        let start = regions[i].0;
+        let mut end = regions[i].1;
+        while !agree(start, end) {
+            i += 1;
+            match regions.get(i) {
+                Some(&(_, next_end)) => end = next_end,
+                None => return false,
+            }
+        }
+        i += 1;
+    }
+    true
 }
 
 #[cfg(test)]
@@ -294,5 +312,15 @@ mod tests {
         assert!(!view_edits_equivalent(text, &one, &[]));
         assert_eq!(apply_view_edits(text, &two).unwrap(), "axyb");
         assert!(apply_view_edits(text, &[e(2, 1, "")]).is_err());
+        // A diff over repeated characters: one list deletes the first x and
+        // inserts one before the last, the other changes only the marks.
+        // Region by region they differ; over both regions they agree.
+        let text = "\u{301}\u{323}xxxx\u{308}\u{301}\u{323}";
+        let rust = [e(0, 4, "\u{323}\u{301}"), e(7, 14, "\u{1e8d}\u{323}\u{301}")];
+        let golden = [e(0, 5, "\u{323}\u{301}"), e(8, 10, "\u{1e8d}"), e(10, 12, "\u{323}"), e(12, 14, "\u{301}")];
+        assert!(view_edits_equivalent(text, &rust, &golden));
+        assert_eq!(apply_view_edits(text, &rust), apply_view_edits(text, &golden));
+        // Not when the texts differ after all.
+        assert!(!view_edits_equivalent(text, &rust, &[e(0, 5, "\u{323}\u{301}"), e(8, 10, "\u{1e8d}")]));
     }
 }
