@@ -17,7 +17,7 @@
 use turbo_analysis::{Analyzer, Document};
 use turbo_analysis_embed::SubwordAnnotator;
 use turbo_analysis_layers::Subwords;
-use turbo_goldens::expect::without_trailing_marks;
+use turbo_goldens::expect::{only_stripped, without_trailing_marks};
 use turbo_goldens::{Golden, Tolerance, matches_golden};
 use turbo_unicode::GeneralCategory;
 use turbo_unicode::category::general_category;
@@ -409,11 +409,43 @@ impl WordPiece {
     fn documented(&self, text: &str, jvm: &[Piece], rust: &[Piece]) -> Result<String, String> {
         let mapped = map(text);
         // With final sigma written as the JVM lowercases it, the port's ids
-        // are the JVM's.
+        // are the JVM's: the port's pieces on that text stand in for its
+        // pieces on `text` from here on, once the two agree on every word
+        // without a capital sigma. The words with one may split differently,
+        // as the vocabulary has pieces for one sigma and not the other.
         let final_sigma_pieces;
         let mut rust = rust;
         if mapped.as_jvm != text {
-            final_sigma_pieces = analyze(&self.analyzer, &mapped.as_jvm).map(|d| rust_pieces(&d)).unwrap_or_default();
+            final_sigma_pieces = analyze(&self.analyzer, &mapped.as_jvm)
+                .map(|d| rust_pieces(&d))
+                .map_err(|e| format!("the port fails on the text with final sigma written: {e}"))?;
+            let words = sigma_words(text, &mapped.units);
+            let outside = |pieces: &[Piece]| -> Vec<Piece> {
+                pieces.iter().copied().filter(|&(_, [a, b])| !words.iter().any(|&[s, e]| a >= s && b <= e)).collect()
+            };
+            let (on_text, with_final) = (outside(rust), outside(&final_sigma_pieces));
+            if on_text != with_final {
+                let i = (0..on_text.len().max(with_final.len()))
+                    .find(|&i| on_text.get(i) != with_final.get(i))
+                    .unwrap_or(0);
+                return Err(format!(
+                    "outside the words with a capital sigma, the port's piece {i} is {:?} on the text and {:?} with final sigma written",
+                    on_text.get(i),
+                    with_final.get(i)
+                ));
+            }
+            // Inside such a word the port's pieces still cover the word.
+            for &word in &words {
+                let inside: Vec<Piece> =
+                    rust.iter().copied().filter(|&(_, [a, b])| a >= word[0] && b <= word[1]).collect();
+                let expected = vec![PortSpan::Within(word); inside.len()];
+                if inside.is_empty() || !port_spans_fit(text, &expected, &inside) {
+                    return Err(format!(
+                        "the port's pieces {inside:?} do not cover the word with a capital sigma at {}..{}",
+                        word[0], word[1]
+                    ));
+                }
+            }
             rust = &final_sigma_pieces;
         }
         // The special token strings: one piece of the token's id here, text
@@ -496,17 +528,17 @@ impl WordPiece {
         // The port's side: its spans are the JVM's with the documented
         // changes, piece by piece.
         let expected = expected_port_spans(text, &mapped, &jvm_outside);
-        if !port_spans_fit(&expected, &rust_outside) {
-            let i = (0..expected.len().max(rust_outside.len()))
-                .find(|&i| {
-                    !port_spans_fit(
-                        &expected[i..(i + 1).min(expected.len())],
-                        &rust_outside[i..(i + 1).min(rust_outside.len())],
-                    )
-                })
-                .unwrap_or(0);
+        if let Some(i) = port_span_misfit(text, &expected, &rust_outside) {
+            let inside = match expected.get(i) {
+                Some(PortSpan::Within([s, e])) => {
+                    let pieces: Vec<[u32; 2]> =
+                        rust_outside.iter().map(|r| r.1).filter(|&[a, b]| a >= *s && b <= *e).collect();
+                    format!("; the port's pieces inside the run are {pieces:?}")
+                }
+                _ => String::new(),
+            };
             return Err(format!(
-                "the port's span of piece {i} is {:?} where the JVM's gives {:?} ({} and {} pieces)",
+                "the port's span of piece {i} is {:?} where the JVM's gives {:?} ({} and {} pieces){inside}",
                 rust_outside.get(i).map(|r| r.1),
                 expected.get(i),
                 rust_outside.len(),
@@ -561,6 +593,26 @@ enum PortSpan {
     Within([u32; 2]),
 }
 
+/// The source spans of the modelled words (runs of units between spaces)
+/// that hold a capital sigma.
+fn sigma_words(text: &str, units: &[Unit]) -> Vec<[u32; 2]> {
+    let mut words = Vec::new();
+    let mut from = 0;
+    while from < units.len() {
+        if units[from].c == ' ' {
+            from += 1;
+            continue;
+        }
+        let to = units[from..].iter().position(|u| u.c == ' ').map_or(units.len(), |i| from + i);
+        let span = [units[from].start, units[to - 1].end];
+        if text[span[0] as usize..span[1] as usize].contains('\u{3A3}') {
+            words.push(span);
+        }
+        from = to;
+    }
+    words
+}
+
 /// The port's expected span for each JVM piece, as `analysis/embed/tests/goldens.rs`
 /// documents the differences: a piece in a run canonical reordering
 /// crossed lies inside the run; otherwise the port's span is the JVM's
@@ -579,39 +631,52 @@ fn expected_port_spans(text: &str, mapped: &Mapped, jvm: &[Piece]) -> Vec<PortSp
 }
 
 /// Whether the port's pieces have the expected spans, one for one. The
-/// pieces of a reordered run must lie inside it, follow each other
-/// without a gap, and together cover the run.
-fn port_spans_fit(expected: &[PortSpan], rust: &[Piece]) -> bool {
-    if expected.len() != rust.len() {
-        return false;
-    }
-    let mut run_end: Option<u32> = None;
+/// pieces of a reordered run must lie inside it, follow each other with
+/// nothing but stripped marks and dropped characters between them (or
+/// repeat the span before them, as the pieces of one decomposed character
+/// do: a Hangul syllable is two or three jamo to the port, each piece with
+/// the syllable's span), and reach the run's end but for such characters;
+/// no piece ends in one, as the port ends a piece before the marks it
+/// strips.
+fn port_spans_fit(text: &str, expected: &[PortSpan], rust: &[Piece]) -> bool {
+    port_span_misfit(text, expected, rust).is_none()
+}
+
+/// The index of the first piece that does not fit as [`port_spans_fit`]
+/// asks, `rust.len()` when the port has too few pieces, None when all fit.
+fn port_span_misfit(text: &str, expected: &[PortSpan], rust: &[Piece]) -> Option<usize> {
+    let gap_is_stripped = |from: u32, to: u32| from <= to && only_stripped(text, [from, to]);
+    // The piece before, inside a run.
+    let mut previous: Option<[u32; 2]> = None;
     for (i, (e, &(_, [a, b]))) in expected.iter().zip(rust).enumerate() {
+        if !text.is_char_boundary(a as usize) || !text.is_char_boundary(b as usize) {
+            return Some(i);
+        }
         match *e {
             PortSpan::Exact(span) => {
-                if span != [a, b] || run_end.is_some() {
-                    return false;
+                if span != [a, b] || previous.is_some() {
+                    return Some(i);
                 }
             }
             PortSpan::Within([s, end]) => {
                 let first = i == 0 || expected[i - 1] != *e;
-                let follows = match (first, run_end) {
-                    (true, None) => a == s,
-                    (false, Some(previous)) => a == previous,
+                let follows = match (first, previous) {
+                    (true, None) => gap_is_stripped(s, a),
+                    (false, Some([p, q])) => gap_is_stripped(q, a) || [a, b] == [p, q],
                     _ => false,
                 };
-                if !follows || b > end || a >= b {
-                    return false;
+                if !follows || a >= b || b > end || without_trailing_marks(text, [a, b]) != [a, b] {
+                    return Some(i);
                 }
                 let last = expected.get(i + 1) != Some(e);
-                if last && b != end {
-                    return false;
+                if last && !gap_is_stripped(b, end) {
+                    return Some(i);
                 }
-                run_end = if last { None } else { Some(b) };
+                previous = if last { None } else { Some([a, b]) };
             }
         }
     }
-    run_end.is_none()
+    (expected.len() != rust.len()).then_some(expected.len().min(rust.len()))
 }
 
 impl Run for WordPiece {
@@ -695,13 +760,13 @@ mod tests {
         let jvm = [(1, [0, 6]), (2, [7, 8])];
         let expected = expected_port_spans(text, &m, &jvm);
         assert_eq!(expected, [PortSpan::Exact([0, 4]), PortSpan::Exact([7, 8])]);
-        assert!(port_spans_fit(&expected, &[(1, [0, 4]), (2, [7, 8])]));
+        assert!(port_spans_fit(text, &expected, &[(1, [0, 4]), (2, [7, 8])]));
         // A fabricated wrong port span: the mark kept, a piece short by a
         // character, a piece too many or too few.
-        assert!(!port_spans_fit(&expected, &[(1, [0, 6]), (2, [7, 8])]));
-        assert!(!port_spans_fit(&expected, &[(1, [0, 3]), (2, [7, 8])]));
-        assert!(!port_spans_fit(&expected, &[(1, [0, 4])]));
-        assert!(!port_spans_fit(&expected, &[(1, [0, 4]), (2, [7, 8]), (3, [8, 8])]));
+        assert!(!port_spans_fit(text, &expected, &[(1, [0, 6]), (2, [7, 8])]));
+        assert!(!port_spans_fit(text, &expected, &[(1, [0, 3]), (2, [7, 8])]));
+        assert!(!port_spans_fit(text, &expected, &[(1, [0, 4])]));
+        assert!(!port_spans_fit(text, &expected, &[(1, [0, 4]), (2, [7, 8]), (3, [8, 8])]));
         // A reordered run: the JVM gives every piece the run, the port's
         // pieces lie inside it, and one outside the run does not fit.
         let text = "Vie\u{302}\u{323}t x";
@@ -709,21 +774,42 @@ mod tests {
         let jvm = [(1, [0, 8]), (2, [0, 8]), (3, [9, 10])];
         let expected = expected_port_spans(text, &m, &jvm);
         assert_eq!(expected, [PortSpan::Within([0, 8]), PortSpan::Within([0, 8]), PortSpan::Exact([9, 10])]);
-        assert!(port_spans_fit(&expected, &[(1, [0, 2]), (2, [2, 8]), (3, [9, 10])]));
-        assert!(!port_spans_fit(&expected, &[(1, [0, 2]), (2, [2, 9]), (3, [9, 10])]));
-        assert!(!port_spans_fit(&expected, &[(1, [0, 0]), (2, [2, 8]), (3, [9, 10])]));
+        assert!(port_spans_fit(text, &expected, &[(1, [0, 2]), (2, [2, 8]), (3, [9, 10])]));
+        assert!(!port_spans_fit(text, &expected, &[(1, [0, 2]), (2, [2, 9]), (3, [9, 10])]));
+        assert!(!port_spans_fit(text, &expected, &[(1, [0, 0]), (2, [2, 8]), (3, [9, 10])]));
         // Inside the run but with a gap, not from its start, or not to its
         // end: the pieces must be contiguous and cover the run.
-        assert!(!port_spans_fit(&expected, &[(1, [0, 2]), (2, [3, 8]), (3, [9, 10])]));
-        assert!(!port_spans_fit(&expected, &[(1, [1, 2]), (2, [2, 8]), (3, [9, 10])]));
-        assert!(!port_spans_fit(&expected, &[(1, [0, 2]), (2, [2, 7]), (3, [9, 10])]));
+        assert!(!port_spans_fit(text, &expected, &[(1, [0, 2]), (2, [3, 8]), (3, [9, 10])]));
+        assert!(!port_spans_fit(text, &expected, &[(1, [1, 2]), (2, [2, 8]), (3, [9, 10])]));
+        assert!(!port_spans_fit(text, &expected, &[(1, [0, 2]), (2, [2, 7]), (3, [9, 10])]));
+        // A run whose marks are all stripped: the port's piece is the base
+        // character alone, and a piece that ends in a mark does not fit.
+        let text = "a\u{308}\u{323} x";
+        let m = map(text);
+        let jvm = [(1, [0, 5]), (2, [6, 7])];
+        let expected = expected_port_spans(text, &m, &jvm);
+        assert_eq!(expected, [PortSpan::Within([0, 5]), PortSpan::Exact([6, 7])]);
+        assert!(port_spans_fit(text, &expected, &[(1, [0, 1]), (2, [6, 7])]));
+        assert!(!port_spans_fit(text, &expected, &[(1, [0, 3]), (2, [6, 7])]));
+        assert!(!port_spans_fit(text, &expected, &[(1, [0, 5]), (2, [6, 7])]));
+        // A Hangul syllable in a run is two or three pieces with one span.
+        let text = "\u{D55C}\u{302}\u{323}\u{AD6D} x";
+        let m = map(text);
+        let jvm = [(1, [0, 10]), (2, [0, 10]), (3, [0, 10]), (4, [0, 10]), (5, [0, 10]), (6, [11, 12])];
+        let expected = expected_port_spans(text, &m, &jvm);
+        assert_eq!(expected[0], PortSpan::Within([0, 10]));
+        let fits = [(1, [0, 3]), (2, [0, 3]), (3, [0, 3]), (4, [7, 10]), (5, [7, 10]), (6, [11, 12])];
+        assert!(port_spans_fit(text, &expected, &fits));
+        // The repeated span must be the one right before it.
+        let gap = [(1, [0, 3]), (2, [0, 3]), (3, [7, 10]), (4, [0, 3]), (5, [7, 10]), (6, [11, 12])];
+        assert!(!port_spans_fit(text, &expected, &gap));
         // Two reordered runs in a row, each covered.
         let text = "Vie\u{302}\u{323}t Vie\u{302}\u{323}t";
         let m = map(text);
         let jvm = [(1, [0, 8]), (2, [0, 8]), (1, [9, 17]), (2, [9, 17])];
         let expected = expected_port_spans(text, &m, &jvm);
-        assert!(port_spans_fit(&expected, &[(1, [0, 3]), (2, [3, 8]), (1, [9, 12]), (2, [12, 17])]));
-        assert!(!port_spans_fit(&expected, &[(1, [0, 3]), (2, [3, 7]), (1, [9, 12]), (2, [12, 17])]));
+        assert!(port_spans_fit(text, &expected, &[(1, [0, 3]), (2, [3, 8]), (1, [9, 12]), (2, [12, 17])]));
+        assert!(!port_spans_fit(text, &expected, &[(1, [0, 3]), (2, [3, 7]), (1, [9, 12]), (2, [12, 17])]));
         // A final sigma leaves the spans alone.
         let text = "ΟΔΥΣΣΕΥΣ";
         let m = map(text);
@@ -759,6 +845,41 @@ mod tests {
         let mut wrong = rust.clone();
         wrong.push(rust[rust.len() - 1]);
         assert!(wp.documented(&text, &jvm, &wrong).is_err());
+    }
+
+    /// The checked in final sigma golden is a documented difference; the
+    /// port's own pieces on the text are still checked, so one of them
+    /// changed beyond a sigma's id is a divergence.
+    #[test]
+    fn the_ports_pieces_are_checked_when_final_sigma_differs() {
+        let wp = WordPiece::new(&Resources::from_env()).unwrap_or_else(|e| panic!("{e}"));
+        let data = turbo_goldens::data_dir();
+        let path = data.join("subwords").join(VOCABULARY).join("subwords").join("final-sigma.golden");
+        let golden = crate::read_golden(&path).unwrap_or_else(|e| panic!("{e}"));
+        let text = golden.input_text(&data).unwrap();
+        assert_ne!(map(&text).as_jvm, text, "the input has a final sigma");
+        let doc = wp.annotate(&text, Some(&golden)).unwrap();
+        let jvm = jvm_pieces(&golden).unwrap();
+        let rust = rust_pieces(&doc);
+        wp.documented(&text, &jvm, &rust).unwrap_or_else(|e| panic!("{e}"));
+        // The id of a piece in a word without a sigma ("λόγος"), its span,
+        // and in the first word, which has sigmas, a piece a byte short, a
+        // character short and a piece missing.
+        let i = rust.iter().position(|&(_, [a, b])| text[a as usize..b as usize].starts_with('λ')).unwrap();
+        let mut wrong = rust.clone();
+        wrong[i].0 += 1;
+        let reason = wp.documented(&text, &jvm, &wrong).unwrap_err();
+        assert!(reason.contains("outside the words with a capital sigma"), "{reason}");
+        let mut wrong = rust.clone();
+        wrong[i].1[1] -= 2;
+        assert!(wp.documented(&text, &jvm, &wrong).unwrap_err().contains("outside the words"));
+        let mut wrong = rust.clone();
+        wrong[0].1[1] -= 1;
+        assert!(wp.documented(&text, &jvm, &wrong).unwrap_err().contains("do not cover the word"));
+        let mut wrong = rust.clone();
+        wrong[0].1[1] -= 2;
+        assert!(wp.documented(&text, &jvm, &wrong).unwrap_err().contains("do not cover the word"));
+        assert!(wp.documented(&text, &jvm, &rust[1..]).unwrap_err().contains("do not cover the word"));
     }
 
     /// Explains one golden of a fuzz run: `TURBO_FUZZ_GOLDEN` names the

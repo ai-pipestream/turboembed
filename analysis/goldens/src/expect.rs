@@ -251,6 +251,13 @@ pub fn without_trailing_marks(text: &str, [start, end]: [u32; 2]) -> [u32; 2] {
     if kept.is_empty() { [start, end] } else { [start, start + kept.len() as u32] }
 }
 
+/// Whether `span` holds only characters the encoder leaves no piece over:
+/// nonspacing marks accent stripping removes and the characters
+/// `WordpieceEncoder` drops. An empty span qualifies.
+pub fn only_stripped(text: &str, [start, end]: [u32; 2]) -> bool {
+    text[start as usize..end as usize].chars().all(|c| general_category(c) == GeneralCategory::Mn || bert_drops(c))
+}
+
 /// `BertNormalization.cleanText`: U+0000, U+FFFD and the control, format,
 /// surrogate, private use and unassigned characters, but for tab, line
 /// feed and carriage return, are dropped.
