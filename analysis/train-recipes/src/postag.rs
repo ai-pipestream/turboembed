@@ -6,7 +6,10 @@
 //! no tag dictionary) and the parameters the published UD 1.3 models were
 //! trained with ([`turbo_train_components::ud`]: GIS, 300 iterations,
 //! cutoff 5, 4 threads). Training uses no randomness, so the recipe has
-//! no seed.
+//! no seed. The reference was trained otherwise: its manifest records
+//! OpenNLP 1.5.0, 100 iterations and cutoff 5, and it holds a tag
+//! dictionary (`tags.tagdict`) and no feature generator descriptor, so
+//! the gate compares the two models' data and settings together.
 //!
 //! The samples are what OpenNLP's `MascPOSSampleStream` reads, one per
 //! sentence, its Penn tokens and their `msd` tags, with one change: a
@@ -35,9 +38,8 @@
 //! whatever it did, so it is left out of both models' scores
 //! ([`ReferenceTags`]); the card records those tokens by tag, and the
 //! recipe fails when they are more than [`crate::MAX_TOKENS_LEFT_OUT`] of
-//! the held-out tokens. OpenNLP describes the
-//! reference's training data only as "(private) English data" (the 1.5.1
-//! test plan) and the zoo does not list it: a run reads it from its
+//! the held-out tokens. The reference's training data is not published,
+//! and the zoo does not list it: a run reads it from its
 //! references directory, checks it against the recorded size and SHA-256,
 //! and only scores it. It is never shipped or bundled, and the trained
 //! model is trained on MASC alone.

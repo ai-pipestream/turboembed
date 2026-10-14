@@ -2079,20 +2079,32 @@ trained on MASC 3.0.0 (CC BY 3.0 US), gated against
 - The training: the factory defaults and the settings of the UD 1.3
   models (GIS, 300 iterations, cutoff 5, 4 threads, OpenNLP 2.5.4's
   whitespace, 10 sentences per sentence detector sample, the default
-  feature generator descriptor and no tag dictionary for the tagger), so
-  the model and the reference differ in their data, not their settings.
-  The token stream skips a sentence without a sample alone
+  feature generator descriptor and no tag dictionary for the tagger). The
+  sentence detector and the tokenizer differ from their references in
+  their data, not their settings. The tagger's reference was trained
+  otherwise (its manifest records OpenNLP 1.5.0, 100 iterations and
+  cutoff 5, and it holds a tag dictionary and no feature generator
+  descriptor), so its gate compares data and settings together. The
+  token stream skips a sentence without a sample alone
   (`EmptySentence::Skipped`) rather than end the corpus there as
   OpenNLP's does, and the tagger's skips a sentence with a token without
-  a tag alone rather than throw. The manifest's `Timestamp` is fixed, so
-  a run gives the same bytes.
+  a tag, or with no token, alone rather than throw. Held-out sentences
+  are skipped the same way; the card records both counts, and a recipe
+  fails when its reader skips more than one sentence in a thousand on
+  either side. The manifest's `Timestamp` is fixed, so a run gives the
+  same bytes.
 - The gate: both models scored with OpenNLP's `SentenceDetectorEvaluator`,
   `TokenizerEvaluator` and `POSEvaluator` on the same held-out samples,
   gated by `turbo_eval::model_gate`. MASC's tags are Penn tags, so the
   tagger's reference is OpenNLP's English maxent tagger trained on Penn
   tags, `en-pos-maxent.bin` of the 1.5 models, scored in its own
-  outcomes. Its training data is described only as "(private) English
-  data" and the zoo does not list it; the recipe records its size and
+  outcomes. The tags are compared in its spelling where MASC writes them
+  another way (`(` and `)` for `-LRB-` and `-RRB-`; `-`, `...` and `;`
+  for `:`), over the held-out tokens whose tag it can give: the others,
+  6 of the 85,292 tokens of MASC 3.0.0's held-out documents, are left
+  out of both models' scores and listed on the card, and more than one
+  in a thousand fails the recipe. Its training data is not published
+  and the zoo does not list it; the recipe records its size and
   SHA-256, reads it only to score it, and never ships or bundles it. The
   English UD tagger asked for Penn tags would be no reference: it gives
   one Penn tag per UD tag, never `VBD`, `NNS` or `,`.

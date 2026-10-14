@@ -129,7 +129,7 @@ fn masc_command(a: Args) -> Result<bool, String> {
 }
 
 /// Reads and checks the reference of each recipe from `references`, and
-/// checks that none of their model directories is in `out` yet. Returns
+/// checks that `out` holds none of their model directories. Returns
 /// the references' bytes, in the recipes' order, or every problem found.
 fn check_before_training(recipes: &[Recipe], references: &Path, out: &Path) -> Result<Vec<Vec<u8>>, String> {
     let mut bytes = Vec::with_capacity(recipes.len());

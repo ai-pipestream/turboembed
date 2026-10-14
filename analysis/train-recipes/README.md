@@ -45,12 +45,18 @@ error.
 - Split: the documents in the reader's order (each directory's headers
   by name); positions 9, 19, 29 and so on are held out, one in ten. No
   randomness, so no seed.
-- Parameters: those of the reference models (`ud::training_parameters`:
-  GIS, 300 iterations, cutoff 5, 4 threads), the factory defaults for
-  English (for the tagger: the default feature generator descriptor, no
-  tag dictionary, beam size 3), OpenNLP 2.5.4's whitespace, and a fixed
-  manifest `Timestamp` (2026-10-14T00:00:00Z), so a run gives the same
-  model bytes.
+- Parameters: those the UD 1.3 models were trained with
+  (`ud::training_parameters`: GIS, 300 iterations, cutoff 5, 4 threads),
+  the factory defaults for English (for the tagger: the default feature
+  generator descriptor, no tag dictionary, beam size 3), OpenNLP 2.5.4's
+  whitespace, and a fixed manifest `Timestamp` (2026-10-14T00:00:00Z), so
+  a run gives the same model bytes. The sentence detector's and the
+  tokenizer's references, UD 1.3 models, were trained with the same
+  settings, so they differ from the trained models in their data alone.
+  The tagger's reference was not: its manifest records OpenNLP 1.5.0, 100
+  iterations and cutoff 5, and it holds a tag dictionary (`tags.tagdict`)
+  and no feature generator descriptor, so its gate compares data and
+  settings together.
 - Samples: what OpenNLP's MASC streams read, except that the token
   stream skips a sentence without a sample (no tokens, or an empty
   token) alone, where OpenNLP's stops reading the corpus, and the
@@ -82,9 +88,9 @@ error.
   by tag (`held_out.tokens.left_out`), and the recipe fails when they are
   more than one in a thousand of the held-out tokens
   (`MAX_TOKENS_LEFT_OUT`). MASC 3.0.0's held-out documents have 6 of
-  85,292: ``UH` `` (3), `"` (2) and `PRN` (1). OpenNLP describes
-  the reference's training data only as "(private) English data" (the
-  1.5.1 test plan) and the zoo does not list it: the recipe records its
+  85,292: ``UH` `` (3), `"` (2) and `PRN` (1). The reference's
+  training data is not published, and the zoo does not list it: the
+  recipe records its
   address, size and SHA-256 (`postag::EN_POS_MAXENT`), a run reads it
   from `--references` and checks it, and it is only scored. It is never
   shipped or bundled, and the trained model is trained on MASC alone.
@@ -97,6 +103,9 @@ error.
   their zoo class is permissive; the card carries the attribution CC BY
   asks for, which ships with the model: MASC 3.0.0, by the American
   National Corpus project (anc.org), its address and its licence.
+  MASC's Twitter genre (two documents, 24,180 words) is trained on with
+  the rest: neither the release nor anc.org gives it terms of its own
+  (docs/licences.md, "Datasets").
   Whether the ANC asks for a particular citation is to be confirmed on
   their site, which could not be reached when the recipes were written.
 
@@ -163,7 +172,7 @@ requires the published models.
 
 The tagger's reference, `en-pos-maxent.bin`, is local-only, as in
 turbo-sequence's tests of the 1.5 models: its training data is not
-documented, so CI does not fetch it. The parts that need it run when
+published, so CI does not fetch it. The parts that need it run when
 `TURBO_TEST_OPENNLP_MODELS` names a directory holding it (a missing file
 there fails), and skip without it even with
 `TURBO_TEST_REQUIRE_OPENNLP_MODELS=1`. With it, it is checked against the
