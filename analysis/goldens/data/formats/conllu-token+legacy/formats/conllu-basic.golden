@@ -1,0 +1,54 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	formats/conllu-basic	1620	1618	3997cb00603cdc6d6e9b5bea88a4291b2e44ceceec24a04d93df40e673f5828c
+annotator	opennlp.tools.formats.conllu.ConlluTokenSampleStream	read
+config	whitespace	legacy
+layer	turbo:samples	document	5	written:str
+Vamos al mar del norte<SPLIT>.
+Ele saiu da casa às 10<SPLIT>h<SPLIT>.
+Sue likes coffee and Bill tea
+Nothing but comments.
+Kept inner spaces<SPLIT>,
+end	turbo:samples
+layer	turbo:read-errors	document	1	after:u32	class:str	message:str
+3	java.io.IOException	Sentence is missing raw text sample!
+end	turbo:read-errors
+layer	turbo:sample-texts	document	5	text:str
+Vamos al mar del norte. 
+Ele saiu da casa às 10h. 
+Sue likes coffee and Bill tea 
+Nothing but comments. 
+Kept inner spaces, 
+end	turbo:sample-texts
+layer	turbo:sample-spans	document	27	sample:u32	start:u32	end:u32
+0	0	5
+0	6	8
+0	9	12
+0	13	16
+0	17	22
+0	22	23
+1	0	3
+1	4	8
+1	9	11
+1	12	16
+1	17	20
+1	21	23
+1	23	24
+1	24	25
+2	0	3
+2	4	9
+2	10	16
+2	17	20
+2	21	25
+2	26	29
+3	0	7
+3	8	11
+3	12	21
+4	0	4
+4	5	10
+4	11	17
+4	17	18
+end	turbo:sample-spans

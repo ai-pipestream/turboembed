@@ -49,6 +49,37 @@ pub enum FormatError {
     /// A source text longer than `u32::MAX` bytes, which [`Span`] cannot
     /// index.
     TooLong { len: usize },
+    /// A CoNLL-U word line without exactly ten tab-separated columns
+    /// (after `StringUtil.split` drops the empty columns at its end).
+    /// `text` is the line.
+    ConlluColumns { line: u32, text: String },
+    /// A CoNLL-U `# text_<language> = ...` comment whose key has no two
+    /// or three lowercase ASCII letters after a `text_`. `key` is the
+    /// trimmed key.
+    InvalidLanguage { line: u32, key: String },
+    /// A CoNLL-U multiword token id that is not two ASCII digit runs
+    /// without a leading zero, each fitting a Java `int`, joined by one
+    /// hyphen.
+    InvalidMultiwordId { line: u32, id: String },
+    /// A CoNLL-U multiword token id whose end is less than its start.
+    BackwardsMultiwordId { line: u32, id: String },
+    /// A CoNLL-U multiword token whose range names a word id no line of
+    /// the sentence has.
+    MissingMultiwordLine { line: u32, id: String, missing: u64 },
+    /// The `IndexOutOfBoundsException` of `ArrayList.remove` when
+    /// `ConlluStream` deletes the word lines of multiword tokens whose
+    /// ranges overlap or repeat: it removes the lines by their places
+    /// before any removal, so it removes more lines than there are.
+    /// `line` is the sentence's first line.
+    MultiwordRemoval { line: u32, index: usize, len: usize },
+    /// A CoNLL-U word form `ConlluTokenSampleStream` cannot find in the
+    /// sentence's text after the forms before it. `text` is the text with
+    /// the `<SPLIT>` markers inserted so far, and `sentence` the
+    /// `sent_id` comment.
+    TokenNotInText { line: u32, token: String, sentence: Option<String>, text: String },
+    /// A CoNLL-U sentence with no `# text = ...` comment, which
+    /// `ConlluTokenSampleStream` needs.
+    NoSentenceText { line: u32 },
 }
 
 impl FormatError {
@@ -63,6 +94,13 @@ impl FormatError {
             OverlappingNames { .. } => Some("java.lang.RuntimeException"),
             ShortChunkTag { .. } => Some("java.lang.StringIndexOutOfBoundsException"),
             Lengths { .. } | OutOfBounds { .. } => Some("java.lang.IllegalArgumentException"),
+            ConlluColumns { .. }
+            | InvalidLanguage { .. }
+            | InvalidMultiwordId { .. }
+            | BackwardsMultiwordId { .. }
+            | MissingMultiwordLine { .. } => Some("opennlp.tools.util.InvalidFormatException"),
+            MultiwordRemoval { .. } => Some("java.lang.IndexOutOfBoundsException"),
+            TokenNotInText { .. } | NoSentenceText { .. } => Some("java.io.IOException"),
             SplitsSurrogatePair { .. } | NameOutsideTokens { .. } | TooLong { .. } => None,
         }
     }
@@ -75,7 +113,15 @@ impl FormatError {
             | MissingNameType { line, .. }
             | UnexpectedEnd { line, .. }
             | OverlappingNames { line, .. }
-            | NoDocumentText { line } => Some(line),
+            | NoDocumentText { line }
+            | ConlluColumns { line, .. }
+            | InvalidLanguage { line, .. }
+            | InvalidMultiwordId { line, .. }
+            | BackwardsMultiwordId { line, .. }
+            | MissingMultiwordLine { line, .. }
+            | MultiwordRemoval { line, .. }
+            | TokenNotInText { line, .. }
+            | NoSentenceText { line } => Some(line),
             _ => None,
         }
     }
@@ -110,6 +156,20 @@ impl fmt::Display for FormatError {
                 )
             }
             TooLong { len } => write!(f, "a source of {len} bytes is longer than spans can index"),
+            ConlluColumns { text, .. } => write!(f, "Line [{text}] must have exactly 10 fields"),
+            InvalidLanguage { key, .. } => write!(f, "Locale language code is invalid: {key}"),
+            InvalidMultiwordId { id, .. } => write!(f, "Invalid multiword token id: {id}"),
+            BackwardsMultiwordId { id, .. } => write!(f, "Multiword token id runs backwards: {id}"),
+            MissingMultiwordLine { id, missing, .. } => {
+                write!(f, "Multiword token {id} has no word line for id {missing}")
+            }
+            MultiwordRemoval { index, len, .. } => write!(f, "Index {index} out of bounds for length {len}"),
+            TokenNotInText { token, sentence, text, .. } => write!(
+                f,
+                "Failed to match token [{token}] in sentence [{}] with text [{text}]",
+                sentence.as_deref().unwrap_or("null")
+            ),
+            NoSentenceText { .. } => f.write_str("Sentence is missing raw text sample!"),
         }
     }
 }
