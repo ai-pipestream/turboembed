@@ -20,6 +20,10 @@ use crate::resources::{Resources, Unavailable};
 
 const TOKENS: &str = "opennlp:tokens";
 
+/// The POS models that are checked-in fixtures rather than downloads: the
+/// JVM's and the one the Rust trainer wrote.
+const FIXTURE_TAGGERS: [&str; 2] = ["pos-fixture", "pos-fixture-rust"];
+
 fn broken(what: impl std::fmt::Display) -> Unavailable {
     Unavailable::Broken(what.to_string())
 }
@@ -52,8 +56,11 @@ pub(crate) struct Tagger {
 
 impl Tagger {
     pub(crate) fn open(model: &str, options: &[&str], res: &Resources) -> Result<Box<dyn Run>, Unavailable> {
-        let path =
-            if model == "pos-fixture" { res.fixture("pos-fixture.bin")? } else { res.model(&format!("{model}.bin"))? };
+        let path = if FIXTURE_TAGGERS.contains(&model) {
+            res.fixture(&format!("{model}.bin"))?
+        } else {
+            res.model(&format!("{model}.bin"))?
+        };
         let mut m = PosModel::read(&path).map_err(|e| broken(format!("{}: {e}", path.display())))?;
         match options {
             [] => {}
@@ -122,7 +129,11 @@ pub(crate) struct Lemmatizer {
 
 impl Lemmatizer {
     pub(crate) fn open_maxent(model: &str, res: &Resources) -> Result<Box<dyn Run>, Unavailable> {
-        let path = res.model(&format!("{model}.bin"))?;
+        let path = if model == "lemma-fixture-rust" {
+            res.fixture(&format!("{model}.bin"))?
+        } else {
+            res.model(&format!("{model}.bin"))?
+        };
         let m = Arc::new(LemmatizerModel::read(&path).map_err(|e| broken(format!("{}: {e}", path.display())))?);
         Lemmatizer::build(|| MaxentLemmatizer::new(m.clone()), true, res)
     }

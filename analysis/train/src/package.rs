@@ -15,10 +15,11 @@
 //! clock printed the date in.
 //!
 //! The JVM writes the entries deflated, in the order of a `HashMap`. The
-//! archive written here stores them uncompressed, the manifest first: the
-//! readers on both sides take either method and any order, and a stored
-//! entry's bytes are the artifact's bytes, which is what the parity tests
-//! compare. Timestamps in the manifest and the zip entries are taken from
+//! archive written here stores them uncompressed, the manifest first
+//! unless the caller places it elsewhere ([`ModelPackage::place_manifest`],
+//! for a caller reproducing the JVM's order): the readers on both sides
+//! take either method and any order, and a stored entry's bytes are the
+//! artifact's bytes, which is what the parity tests compare. Timestamps in the manifest and the zip entries are taken from
 //! one instant the caller supplies, in UTC, where the JVM reads its clock
 //! and time zone.
 
@@ -162,11 +163,13 @@ impl Manifest {
 pub struct ModelPackage {
     manifest: Manifest,
     entries: Vec<(String, Vec<u8>)>,
+    /// How many entries precede the manifest in the archive.
+    before_manifest: usize,
 }
 
 impl ModelPackage {
     pub fn new(manifest: Manifest) -> ModelPackage {
-        ModelPackage { manifest, entries: Vec::new() }
+        ModelPackage { manifest, entries: Vec::new(), before_manifest: 0 }
     }
 
     pub fn manifest(&self) -> &Manifest {
@@ -183,15 +186,39 @@ impl ModelPackage {
         self.entries.push((name.to_owned(), bytes));
     }
 
+    /// The artifact entries in the order they were added, which is their
+    /// order in the archive; the manifest is not among them.
     pub fn entries(&self) -> impl Iterator<Item = (&str, &[u8])> {
         self.entries.iter().map(|(n, b)| (n.as_str(), b.as_slice()))
+    }
+
+    /// Writes the manifest after the first `before` artifact entries. The
+    /// JVM writes `manifest.properties` where its `HashMap` iterates it,
+    /// which for a model with a tag dictionary is after the dictionary.
+    /// A count beyond the entries puts the manifest last.
+    pub fn place_manifest(&mut self, before: usize) {
+        self.before_manifest = before;
+    }
+
+    /// The names of every entry in archive order, the manifest included.
+    pub fn entry_names(&self) -> Vec<&str> {
+        let at = self.before_manifest.min(self.entries.len());
+        let mut names: Vec<&str> = Vec::with_capacity(self.entries.len() + 1);
+        names.extend(self.entries[..at].iter().map(|(n, _)| n.as_str()));
+        names.push(MANIFEST_ENTRY);
+        names.extend(self.entries[at..].iter().map(|(n, _)| n.as_str()));
+        names
     }
 
     /// `BaseModel.serialize`: the bytes of the `.bin` file.
     pub fn to_bytes(&self) -> Vec<u8> {
         let mut zip = ZipWriter::new(self.manifest.timestamp_ms, self.manifest.zone);
+        let at = self.before_manifest.min(self.entries.len());
+        for (name, bytes) in &self.entries[..at] {
+            zip.add(name, bytes);
+        }
         zip.add(MANIFEST_ENTRY, self.manifest.to_properties().as_bytes());
-        for (name, bytes) in &self.entries {
+        for (name, bytes) in &self.entries[at..] {
             zip.add(name, bytes);
         }
         zip.finish()
@@ -436,6 +463,24 @@ mod tests {
         // 06:25:13 on 2026-10-12.
         assert_eq!(time, (6 << 11) | (25 << 5) | 6);
         assert_eq!(date, (46 << 9) | (10 << 5) | 12);
+    }
+
+    #[test]
+    fn the_manifest_is_written_where_it_is_placed() {
+        let mut package = ModelPackage::new(Manifest::new("POSTaggerME", "en", FIXTURE_MS));
+        package.add_entry("tags.tagdict", b"<dictionary/>".to_vec());
+        package.add_entry("pos.model", vec![1]);
+        assert_eq!(package.entry_names(), ["manifest.properties", "tags.tagdict", "pos.model"]);
+        package.place_manifest(1);
+        assert_eq!(package.entry_names(), ["tags.tagdict", "manifest.properties", "pos.model"]);
+        let file = ModelFile::open(package.to_bytes()).unwrap();
+        let names: Vec<String> = file.archive().names().map(|n| String::from_utf8(n.to_vec()).unwrap()).collect();
+        assert_eq!(names, ["tags.tagdict", "manifest.properties", "pos.model"]);
+        assert_eq!(file.component_name(), "POSTaggerME");
+        // A count beyond the entries puts it last.
+        package.place_manifest(9);
+        assert_eq!(package.entry_names(), ["tags.tagdict", "pos.model", "manifest.properties"]);
+        assert_eq!(package.entries().count(), 2);
     }
 
     #[test]

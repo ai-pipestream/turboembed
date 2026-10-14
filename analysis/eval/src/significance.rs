@@ -68,7 +68,7 @@ pub fn bootstrap(diffs: &[f64], resamples: u32, seed: i64) -> Result<Bootstrap> 
 }
 
 /// Type 7 percentile of ascending `sorted`, which is not empty.
-fn percentile(sorted: &[f64], p: f64) -> f64 {
+pub(crate) fn percentile(sorted: &[f64], p: f64) -> f64 {
     let h = (sorted.len() - 1) as f64 * p;
     let lo = h.floor() as usize;
     let hi = (lo + 1).min(sorted.len() - 1);

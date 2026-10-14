@@ -1,0 +1,55 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	formats/wordtag-basic	149	144	b0275e6eb2d4a54e23cf800fa1cc7abec698159c46fbbceb7736f7d20e58f1a9
+annotator	opennlp.tools.postag.POSSampleEventStream	read
+config	format	text
+config	language	en
+config	run	postag-wordtag-tagdict
+config	source	postag
+config	tagDictionary	tags.tagdict
+layer	turbo:events	document	16	outcome:str	context:str	values:str
+DT	def suf=e suf=he suf=The pre=T pre=Th pre=The w=the n1w=driver n2w=stopped S=begin wc=ic w&c=the,ic	
+NN	def suf=r suf=er suf=ver suf=iver pre=d pre=dr pre=dri pre=driv w=driver p1w=the n1w=stopped n2w=. p1S=begin wc=lc w&c=driver,lc t=DT	
+VBD	def suf=d suf=ed suf=ped suf=pped pre=s pre=st pre=sto pre=stop w=stopped p1w=driver p2w=the n1w=. p2S=begin wc=lc w&c=stopped,lc t=NN t2=DT,NN	
+.	def suf=. pre=. w=. p1w=stopped p2w=driver wc=other w&c=.,other t=VBD t2=NN,VBD	
+C	def suf=b suf=_b suf=a_b pre=a pre=a_ pre=a_b w=a_b n1w=d n2w= S=begin wc=other w&c=a_b,other	
+	def suf=d pre=d w=d p1w=a_b n1w= p1S=begin wc=lc w&c=d,lc t=C	
+x	def w= p1w=d p2w=a_b p2S=begin wc=jah w&c=,jah t= t2=C,	
+NNP	def suf=k suf=rk suf=ork suf=York pre=N pre=Ne pre=New pre=New_ w=new_york n1w=is n2w=big S=begin wc=ic w&c=new_york,ic	
+VBZ	def suf=s suf=is pre=i pre=is w=is p1w=new_york n1w=big p1S=begin wc=lc w&c=is,lc t=NNP	
+JJ	def suf=g suf=ig suf=big pre=b pre=bi pre=big w=big p1w=is p2w=new_york p2S=begin wc=lc w&c=big,lc t=VBZ t2=NNP,VBZ	
+A	def suf=é pre=é w=é n1w=😀 S=begin wc=lc w&c=é,lc	
+SYM	def suf=\\ude00 suf=😀 pre=\\ud83d pre=😀 w=😀 p1w=é p1S=begin wc=other w&c=😀,other t=A	
+	def w= n1w=_ n2w=__ S=begin wc=jah w&c=,jah	
+	def suf=_ pre=_ w=_ p1w= n1w=__ p1S=begin wc=other w&c=_,other t=	
+	def suf=_ suf=__ pre=_ pre=__ w=__ p1w=_ p2w= p2S=begin wc=other w&c=__,other t= t2=,	
+JJ	def suf=t suf=st suf=ast suf=last pre=l pre=la pre=las pre=last w=last S=begin wc=lc w&c=last,lc	
+end	turbo:events
+layer	turbo:stream-errors	document	0	after:u32	class:str	message:str
+end	turbo:stream-errors
+layer	turbo:event-checksum	document	1	crc32c:u32
+3463624619
+end	turbo:event-checksum
+layer	turbo:manifest	document	9	key:str	value:str
+BeamSize	3
+Component-Name	POSTaggerME
+Language	en
+Manifest-Version	1.0
+OpenNLP-Version	3.0.0-SNAPSHOT
+TrainerType	Event
+Training-Eventhash	1
+factory	opennlp.tools.postag.POSTaggerFactory
+serializer-class-tags.tagdict	opennlp.tools.postag.POSTaggerFactory$POSDictionarySerializer
+end	turbo:manifest
+layer	turbo:package-entries	document	4	name:str	length:u32
+tags.tagdict	352
+manifest.properties	335
+generator.featuregen	1930
+pos.model	87
+end	turbo:package-entries
+layer	turbo:tagdict	document	1	xml:str
+<?xml version="1.0" encoding="UTF-8"?><dictionary case_sensitive="false">\n    <entry tags="DT">\n        <token>the</token>\n    </entry>\n    <entry tags="VBD VBN">\n        <token>fell</token>\n    </entry>\n    <entry tags="NNP">\n        <token>paris</token>\n    </entry>\n    <entry tags="NN VB VBP">\n        <token>run</token>\n    </entry>\n</dictionary>\n
+end	turbo:tagdict

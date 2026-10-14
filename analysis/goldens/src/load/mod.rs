@@ -143,14 +143,7 @@ const LOADERS: &[(&LayerName, LoadFn)] = &[
 /// Whether a golden block's id is this layer name, as `LayerName` prints
 /// it (`turbo:confidence<opennlp:tokens>` for a generic layer).
 fn is_named(id: &str, name: &LayerName) -> bool {
-    if name.of.is_empty() && name.to.is_empty() {
-        return id == name.id;
-    }
-    let Some(inner) = id.strip_prefix(name.id).and_then(|r| r.strip_prefix('<')).and_then(|r| r.strip_suffix('>'))
-    else {
-        return false;
-    };
-    if name.to.is_empty() { inner == name.of } else { inner.split_once(", ") == Some((name.of, name.to)) }
+    id == name.to_string()
 }
 
 fn check_source(golden: &Golden, source: &str) -> Result<(), LoadError> {

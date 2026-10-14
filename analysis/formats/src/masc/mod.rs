@@ -74,6 +74,9 @@
 //!
 //! - The documents of a directory are read in the order of their names,
 //!   not the file system's.
+//! - The token reader can skip a sentence without a sample alone
+//!   ([`EmptySentence::Skipped`]) rather than end the corpus there; the
+//!   default is OpenNLP's.
 //! - A directory reached again inside itself through a symbolic link is
 //!   refused ([`MascError::DirectoryCycle`]).
 //! - An offset inside a surrogate pair is refused
@@ -93,4 +96,6 @@ pub mod samples;
 pub use corpus::{MascCorpus, SkippedDocument, read_document};
 pub use document::{MascDocument, MascFiles, MascName, MascSentence, MascToken, MascWarning, Quark};
 pub use error::{AnnotationFile, MascError, MascStream};
-pub use samples::{MascNameReader, MascPosReader, MascSample, MascSentenceReader, MascSentenceSample, MascTokenReader};
+pub use samples::{
+    EmptySentence, MascNameReader, MascPosReader, MascSample, MascSentenceReader, MascSentenceSample, MascTokenReader,
+};

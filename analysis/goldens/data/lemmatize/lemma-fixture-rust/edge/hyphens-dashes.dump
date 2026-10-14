@@ -1,0 +1,3788 @@
+dump 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	edge/hyphens-dashes	168	152	526fcc38bf7570639c441e13ec8c185653b19dbfd9a5747df5b9408625d4b323
+model	lemma-fixture-rust.bin	daf10241ffbb3231a9ffe6eac838168caca0ab58b25f71dacc91842ad34cb1662ab5fbefd99d735108953777a889c4935bdf027a2ca92fe2488045e8c1e630bf
+model	opennlp-en-ud-ewt-sentence-1.3-2.5.4.bin	fed5d53ea87bf66afeb08c084f89ca9b95a96de0920dca40487b2ab9972ee6b7ef211e477db480b7253431de079fd66dfd14329cd7d19ad1f565155eb0cf5191
+model	opennlp-en-ud-ewt-tokens-1.3-2.5.4.bin	147d1cdcb89ca5d9bd0ead8fddf2cc14ae543a9151803fe56b3c1fa152b986605e34fb6dda4819c68aa22fc9bffa6bfab14f916b7d0bf4892d452686af34778a
+model	opennlp-en-ud-ewt-pos-1.3-2.5.4.bin	fca85b38d996b7c422401054feedeb0f748cbc03856893cb27670da5d207315ec9af0c0f818c3107a741a2effca2499b5097ac0b46edf4a5ac10bf77a351ac3e
+annotator	opennlp.tools.lemmatizer.LemmatizerME	lemmatize
+point	0	0	17	16	0	none
+context	w0=well
+context	t0=ADV
+context	p_1=bos
+context	p_1=bost0=ADV
+context	p_1=bosw0=well
+context	suf=null
+context	suf=ll
+context	suf=ell
+context	suf=well
+context	suf=well
+context	suf=well
+context	suf=well
+context	pre=null
+context	pre=we
+context	pre=wel
+context	pre=well
+context	pre=well
+outcome	O	3fdeb91bce7c6910 0.4800481335129385
+outcome	D3pD1eD0d	3f973f95a4178f98 0.02270349325216578
+outcome	D0d	3f97604f08c35dff 0.022828326139316953
+outcome	D0s	3fb352f96d7db759 0.07548483775255245
+outcome	R2ea	3fbf83a9d1ee5b87 0.12310277343054397
+outcome	R2oeR1kaR0ek	3f9779451cbadfa1 0.022923545721567632
+outcome	D1eD0n	3fa5b0f846c8d645 0.042365797653854766
+outcome	D1eD0d	3fa57ec214f7d9a4 0.04198271280249635
+outcome	I2e	3f9785ef8cbbb167 0.022971861805602425
+outcome	R1ieD0m	3f913953532fa1a3 0.016820241882585695
+outcome	R1ioD0d	3f94db7cc8289654 0.02036852809592056
+outcome	R0dvI0e	3f977874c5228d26 0.022920441181338756
+outcome	D2iD1nD0g	3f97ad8e76c602e6 0.0231230030053692
+outcome	R2wbR1aeD0s	3f9785ef8cbbb167 0.022971861805602425
+outcome	D2dD1e	3f973905d3643fb1 0.022678462054556984
+outcome	R1ai	3f911b5f55558c2d 0.01670597990358773
+end	0
+point	1	4	18	16	0	none
+context	w0=-
+context	t0=PUNCT
+context	p_1=O
+context	p_1=Ot0=PUNCT
+context	p_1=Ow0=-
+context	suf=null
+context	suf=-
+context	suf=-
+context	suf=-
+context	suf=-
+context	suf=-
+context	suf=-
+context	pre=null
+context	pre=-
+context	pre=-
+context	pre=-
+context	pre=-
+context	h
+outcome	O	3fe4e7a2a5007e5a 0.6532757971471697
+outcome	D3pD1eD0d	3f8fd1d7af59de91 0.015536961592473449
+outcome	D0d	3f900b2513354a11 0.015667514130948194
+outcome	D0s	3fb67dec156e3b73 0.08785892031867863
+outcome	R2ea	3f97c01160615385 0.02319361830480517
+outcome	R2oeR1kaR0ek	3f901b65ee4d31e0 0.015729515714427822
+outcome	D1eD0n	3f9852466e2e8daf 0.02375135467049255
+outcome	D1eD0d	3f971492e32275b6 0.022539420235821082
+outcome	I2e	3f9026190e23772e 0.01577033184809478
+outcome	R1ieD0m	3f95cdbc7fd97a15 0.021292634299579023
+outcome	R1ioD0d	3f95b6da38e7e1c3 0.021205339167836856
+outcome	R0dvI0e	3f90284ce3af026a 0.015778733631807297
+outcome	D2iD1nD0g	3f905a3090179d84 0.015969046396916223
+outcome	R2wbR1aeD0s	3f9026190e237732 0.015770331848094794
+outcome	D2dD1e	3f8fc50325eaad51 0.015512489885927268
+outcome	R1ai	3f95a7d1a39143ba 0.021147990806926954
+end	1
+point	2	4	18	16	0	none
+context	w0=-
+context	t0=PUNCT
+context	p_1=R2ea
+context	p_1=R2eat0=PUNCT
+context	p_1=R2eaw0=-
+context	suf=null
+context	suf=-
+context	suf=-
+context	suf=-
+context	suf=-
+context	suf=-
+context	suf=-
+context	pre=null
+context	pre=-
+context	pre=-
+context	pre=-
+context	pre=-
+context	h
+outcome	O	3fe1a3ea3ee81312 0.551259158005083
+outcome	D3pD1eD0d	3f97736ab5b60d2a 0.02290121778561375
+outcome	D0d	3f97946d0fcbcf1f 0.02302713784133836
+outcome	D0s	3fb602d42d421d0a 0.08598066430032617
+outcome	R2ea	3fa5a141938e9168 0.042245911848371176
+outcome	R2oeR1kaR0ek	3f97ad9aca7429d7 0.02312318669013699
+outcome	D1eD0n	3fa5e154a212b87c 0.042734761032407115
+outcome	D1eD0d	3fa5aeae7dce522c 0.04234833989827211
+outcome	I2e	3f97ba61777a3a03 0.023171923558544815
+outcome	R1ieD0m	3f915fb9eca20991 0.016966729228906244
+outcome	R1ioD0d	3f914d7dd72ca73e 0.016897169359402435
+outcome	R0dvI0e	3f97acc8a25c085c 0.02312005511249314
+outcome	D2iD1nD0g	3f97e258b729f757 0.02332438104576026
+outcome	R2wbR1aeD0s	3f97ba61777a3a03 0.023171923558544815
+outcome	D2dD1e	3f976ccc43dc0809 0.02287596859151367
+outcome	R1ai	3f91418326fabe94 0.01685147214328582
+end	2
+point	3	4	18	16	0	none
+context	w0=-
+context	t0=PUNCT
+context	p_1=D0s
+context	p_1=D0st0=PUNCT
+context	p_1=D0sw0=-
+context	suf=null
+context	suf=-
+context	suf=-
+context	suf=-
+context	suf=-
+context	suf=-
+context	suf=-
+context	pre=null
+context	pre=-
+context	pre=-
+context	pre=-
+context	pre=-
+context	h
+outcome	O	3fe0749ffb3e1c46 0.5142364413339997
+outcome	D3pD1eD0d	3f97c9ed626c180c 0.02323122895452205
+outcome	D0d	3f97eb6981f42e27 0.023358963543655655
+outcome	D0s	3fb65407203ddccd 0.08721966302060764
+outcome	R2ea	3fab26882976718e 0.05302834993492232
+outcome	R2oeR1kaR0ek	3f9804f41efb3878 0.023456396475744573
+outcome	D1eD0n	3fa6320c01c6a31e 0.043350577561176204
+outcome	D1eD0d	3fac5518edbf6917 0.05533674146836825
+outcome	I2e	3f9811e9ed9100f3 0.023505835652259454
+outcome	R1ieD0m	3f919fd1a36c1a5b 0.017211223220352383
+outcome	R1ioD0d	3f918d5249591f68 0.01714066097909442
+outcome	R0dvI0e	3f98041eef9dea4d 0.02345321977143504
+outcome	D2iD1nD0g	3f983a749c72e761 0.023660490082625944
+outcome	R2wbR1aeD0s	3f9811e9ed9100f3 0.023505835652259454
+outcome	D2dD1e	3f97c33685be866e 0.02320561591444064
+outcome	R1ai	3f99b37d0839f5f7 0.025098756434536153
+end	3
+point	4	5	17	16	0	none
+context	w0=known
+context	t0=VERB
+context	p_1=O
+context	p_1=Ot0=VERB
+context	p_1=Ow0=known
+context	suf=null
+context	suf=wn
+context	suf=own
+context	suf=nown
+context	suf=known
+context	suf=known
+context	suf=known
+context	pre=null
+context	pre=kn
+context	pre=kno
+context	pre=know
+context	pre=known
+outcome	O	3fecf23d6261861b 0.9045702859404544
+outcome	D3pD1eD0d	3f7183ffa51f8765 0.004276274312333549
+outcome	D0d	3f71a9ad24a85421 0.004312206593131613
+outcome	D0s	3f98c310cd1a1ddc 0.0241816163238847
+outcome	R2ea	3f7a25b9aad0a69b 0.0063836338640982605
+outcome	R2oeR1kaR0ek	3f71bb91f399851d 0.004329271434103246
+outcome	D1eD0n	3f7ac6b0696a3b6f 0.006537140949730665
+outcome	D1eD0d	3f7968ec20af4f20 0.006203577398043142
+outcome	I2e	3f71c75988b4922d 0.004340505354126151
+outcome	R1ieD0m	3f780118f0d76ac4 0.005860421585988266
+outcome	R1ioD0d	3f77e7e76437d5c7 0.005836395142514167
+outcome	R0dvI0e	3f71c9c6468d03c6 0.004342817796726578
+outcome	D2iD1nD0g	3f7200b2fc66e46a 0.004395198024604511
+outcome	R2wbR1aeD0s	3f71c75988b49231 0.004340505354126154
+outcome	D2dD1e	3f717cef9f9c39f7 0.004269538907250673
+outcome	R1ai	3f77d75a5f806263 0.005820611018883956
+end	4
+point	5	5	17	16	0	none
+context	w0=known
+context	t0=VERB
+context	p_1=O
+context	p_1=Ot0=VERB
+context	p_1=Ow0=known
+context	suf=null
+context	suf=wn
+context	suf=own
+context	suf=nown
+context	suf=known
+context	suf=known
+context	suf=known
+context	pre=null
+context	pre=kn
+context	pre=kno
+context	pre=know
+context	pre=known
+outcome	O	3fecf23d6261861b 0.9045702859404544
+outcome	D3pD1eD0d	3f7183ffa51f8765 0.004276274312333549
+outcome	D0d	3f71a9ad24a85421 0.004312206593131613
+outcome	D0s	3f98c310cd1a1ddc 0.0241816163238847
+outcome	R2ea	3f7a25b9aad0a69b 0.0063836338640982605
+outcome	R2oeR1kaR0ek	3f71bb91f399851d 0.004329271434103246
+outcome	D1eD0n	3f7ac6b0696a3b6f 0.006537140949730665
+outcome	D1eD0d	3f7968ec20af4f20 0.006203577398043142
+outcome	I2e	3f71c75988b4922d 0.004340505354126151
+outcome	R1ieD0m	3f780118f0d76ac4 0.005860421585988266
+outcome	R1ioD0d	3f77e7e76437d5c7 0.005836395142514167
+outcome	R0dvI0e	3f71c9c6468d03c6 0.004342817796726578
+outcome	D2iD1nD0g	3f7200b2fc66e46a 0.004395198024604511
+outcome	R2wbR1aeD0s	3f71c75988b49231 0.004340505354126154
+outcome	D2dD1e	3f717cef9f9c39f7 0.004269538907250673
+outcome	R1ai	3f77d75a5f806263 0.005820611018883956
+end	5
+point	6	5	17	16	0	none
+context	w0=known
+context	t0=VERB
+context	p_1=D0s
+context	p_1=D0st0=VERB
+context	p_1=D0sw0=known
+context	suf=null
+context	suf=wn
+context	suf=own
+context	suf=nown
+context	suf=known
+context	suf=known
+context	suf=known
+context	pre=null
+context	pre=kn
+context	pre=kno
+context	pre=know
+context	pre=known
+outcome	O	3feaf0fbfaf41117 0.8419170285638157
+outcome	D3pD1eD0d	3f7ef76d56ef881c 0.007560183627875385
+outcome	D0d	3f7f2303e8ed6f85 0.0076017525414861
+outcome	D0s	3f9d10b63addb104 0.028384063094038417
+outcome	R2ea	3f91abd9986c59aa 0.017257118156601393
+outcome	R2oeR1kaR0ek	3f7f444367744d97 0.0076334603284239555
+outcome	D1eD0n	3f8ce47a587d81fe 0.014107662034519738
+outcome	D1eD0d	3f9270c767bfe646 0.018008342463849546
+outcome	I2e	3f7f5522490fd5e9 0.0076495494149546395
+outcome	R1ieD0m	3f76f128e1a45e63 0.00560108155539005
+outcome	R1ioD0d	3f76d914be20766d 0.005578118349175304
+outcome	R0dvI0e	3f7f432de530a2f1 0.007632426527415901
+outcome	D2iD1nD0g	3f7f89e8813da725 0.007699878904398526
+outcome	R2wbR1aeD0s	3f7f5522490fd5e9 0.0076495494149546395
+outcome	D2dD1e	3f7eeeafd9695712 0.007551848326860415
+outcome	R1ai	3f80ba59e7e3a3e8 0.008167936696240788
+end	6
+point	7	11	17	16	0	none
+context	w0=state
+context	t0=NOUN
+context	p_1=O
+context	p_1=Ot0=NOUN
+context	p_1=Ow0=state
+context	suf=null
+context	suf=te
+context	suf=ate
+context	suf=tate
+context	suf=state
+context	suf=state
+context	suf=state
+context	pre=null
+context	pre=st
+context	pre=sta
+context	pre=stat
+context	pre=state
+outcome	O	3febb806507d2f03 0.866213948445392
+outcome	D3pD1eD0d	3f850472a0474b38 0.010262389675437342
+outcome	D0d	3f77ef679d81d607 0.005843548533552851
+outcome	D0s	3fa0c7173e2777ba 0.032768942200831444
+outcome	R2ea	3f81b764c3883094 0.008650576798594302
+outcome	R2oeR1kaR0ek	3f7807a726a01cef 0.005866673405768837
+outcome	D1eD0n	3f822474c3655b22 0.008858597004900274
+outcome	D1eD0d	3f813777f0be7980 0.008406579050469487
+outcome	I2e	3f78179d9eea4fa1 0.0058818966923758495
+outcome	R1ieD0m	3f8043aa78147def 0.007941562451889232
+outcome	R1ioD0d	3f80329884e1387d 0.007909003787201602
+outcome	R0dvI0e	3f781ae6cc7f9787 0.005885030324838675
+outcome	D2iD1nD0g	3f786554b8407599 0.005956011711558595
+outcome	R2wbR1aeD0s	3f78179d9eea4fa7 0.005881896692375855
+outcome	D2dD1e	3f77b2c6bec38407 0.005785728786777084
+outcome	R1ai	3f802761b0704790 0.007887614438036455
+end	7
+point	8	11	17	16	0	none
+context	w0=state
+context	t0=NOUN
+context	p_1=O
+context	p_1=Ot0=NOUN
+context	p_1=Ow0=state
+context	suf=null
+context	suf=te
+context	suf=ate
+context	suf=tate
+context	suf=state
+context	suf=state
+context	suf=state
+context	pre=null
+context	pre=st
+context	pre=sta
+context	pre=stat
+context	pre=state
+outcome	O	3febb806507d2f03 0.866213948445392
+outcome	D3pD1eD0d	3f850472a0474b38 0.010262389675437342
+outcome	D0d	3f77ef679d81d607 0.005843548533552851
+outcome	D0s	3fa0c7173e2777ba 0.032768942200831444
+outcome	R2ea	3f81b764c3883094 0.008650576798594302
+outcome	R2oeR1kaR0ek	3f7807a726a01cef 0.005866673405768837
+outcome	D1eD0n	3f822474c3655b22 0.008858597004900274
+outcome	D1eD0d	3f813777f0be7980 0.008406579050469487
+outcome	I2e	3f78179d9eea4fa1 0.0058818966923758495
+outcome	R1ieD0m	3f8043aa78147def 0.007941562451889232
+outcome	R1ioD0d	3f80329884e1387d 0.007909003787201602
+outcome	R0dvI0e	3f781ae6cc7f9787 0.005885030324838675
+outcome	D2iD1nD0g	3f786554b8407599 0.005956011711558595
+outcome	R2wbR1aeD0s	3f78179d9eea4fa7 0.005881896692375855
+outcome	D2dD1e	3f77b2c6bec38407 0.005785728786777084
+outcome	R1ai	3f802761b0704790 0.007887614438036455
+end	8
+point	9	11	17	16	0	none
+context	w0=state
+context	t0=NOUN
+context	p_1=O
+context	p_1=Ot0=NOUN
+context	p_1=Ow0=state
+context	suf=null
+context	suf=te
+context	suf=ate
+context	suf=tate
+context	suf=state
+context	suf=state
+context	suf=state
+context	pre=null
+context	pre=st
+context	pre=sta
+context	pre=stat
+context	pre=state
+outcome	O	3febb806507d2f03 0.866213948445392
+outcome	D3pD1eD0d	3f850472a0474b38 0.010262389675437342
+outcome	D0d	3f77ef679d81d607 0.005843548533552851
+outcome	D0s	3fa0c7173e2777ba 0.032768942200831444
+outcome	R2ea	3f81b764c3883094 0.008650576798594302
+outcome	R2oeR1kaR0ek	3f7807a726a01cef 0.005866673405768837
+outcome	D1eD0n	3f822474c3655b22 0.008858597004900274
+outcome	D1eD0d	3f813777f0be7980 0.008406579050469487
+outcome	I2e	3f78179d9eea4fa1 0.0058818966923758495
+outcome	R1ieD0m	3f8043aa78147def 0.007941562451889232
+outcome	R1ioD0d	3f80329884e1387d 0.007909003787201602
+outcome	R0dvI0e	3f781ae6cc7f9787 0.005885030324838675
+outcome	D2iD1nD0g	3f786554b8407599 0.005956011711558595
+outcome	R2wbR1aeD0s	3f78179d9eea4fa7 0.005881896692375855
+outcome	D2dD1e	3f77b2c6bec38407 0.005785728786777084
+outcome	R1ai	3f802761b0704790 0.007887614438036455
+end	9
+point	10	16	18	16	0	none
+context	w0=-
+context	t0=PUNCT
+context	p_1=O
+context	p_1=Ot0=PUNCT
+context	p_1=Ow0=-
+context	suf=null
+context	suf=-
+context	suf=-
+context	suf=-
+context	suf=-
+context	suf=-
+context	suf=-
+context	pre=null
+context	pre=-
+context	pre=-
+context	pre=-
+context	pre=-
+context	h
+outcome	O	3fe4e7a2a5007e5a 0.6532757971471697
+outcome	D3pD1eD0d	3f8fd1d7af59de91 0.015536961592473449
+outcome	D0d	3f900b2513354a11 0.015667514130948194
+outcome	D0s	3fb67dec156e3b73 0.08785892031867863
+outcome	R2ea	3f97c01160615385 0.02319361830480517
+outcome	R2oeR1kaR0ek	3f901b65ee4d31e0 0.015729515714427822
+outcome	D1eD0n	3f9852466e2e8daf 0.02375135467049255
+outcome	D1eD0d	3f971492e32275b6 0.022539420235821082
+outcome	I2e	3f9026190e23772e 0.01577033184809478
+outcome	R1ieD0m	3f95cdbc7fd97a15 0.021292634299579023
+outcome	R1ioD0d	3f95b6da38e7e1c3 0.021205339167836856
+outcome	R0dvI0e	3f90284ce3af026a 0.015778733631807297
+outcome	D2iD1nD0g	3f905a3090179d84 0.015969046396916223
+outcome	R2wbR1aeD0s	3f9026190e237732 0.015770331848094794
+outcome	D2dD1e	3f8fc50325eaad51 0.015512489885927268
+outcome	R1ai	3f95a7d1a39143ba 0.021147990806926954
+end	10
+point	11	16	18	16	0	none
+context	w0=-
+context	t0=PUNCT
+context	p_1=O
+context	p_1=Ot0=PUNCT
+context	p_1=Ow0=-
+context	suf=null
+context	suf=-
+context	suf=-
+context	suf=-
+context	suf=-
+context	suf=-
+context	suf=-
+context	pre=null
+context	pre=-
+context	pre=-
+context	pre=-
+context	pre=-
+context	h
+outcome	O	3fe4e7a2a5007e5a 0.6532757971471697
+outcome	D3pD1eD0d	3f8fd1d7af59de91 0.015536961592473449
+outcome	D0d	3f900b2513354a11 0.015667514130948194
+outcome	D0s	3fb67dec156e3b73 0.08785892031867863
+outcome	R2ea	3f97c01160615385 0.02319361830480517
+outcome	R2oeR1kaR0ek	3f901b65ee4d31e0 0.015729515714427822
+outcome	D1eD0n	3f9852466e2e8daf 0.02375135467049255
+outcome	D1eD0d	3f971492e32275b6 0.022539420235821082
+outcome	I2e	3f9026190e23772e 0.01577033184809478
+outcome	R1ieD0m	3f95cdbc7fd97a15 0.021292634299579023
+outcome	R1ioD0d	3f95b6da38e7e1c3 0.021205339167836856
+outcome	R0dvI0e	3f90284ce3af026a 0.015778733631807297
+outcome	D2iD1nD0g	3f905a3090179d84 0.015969046396916223
+outcome	R2wbR1aeD0s	3f9026190e237732 0.015770331848094794
+outcome	D2dD1e	3f8fc50325eaad51 0.015512489885927268
+outcome	R1ai	3f95a7d1a39143ba 0.021147990806926954
+end	11
+point	12	16	18	16	0	none
+context	w0=-
+context	t0=PUNCT
+context	p_1=O
+context	p_1=Ot0=PUNCT
+context	p_1=Ow0=-
+context	suf=null
+context	suf=-
+context	suf=-
+context	suf=-
+context	suf=-
+context	suf=-
+context	suf=-
+context	pre=null
+context	pre=-
+context	pre=-
+context	pre=-
+context	pre=-
+context	h
+outcome	O	3fe4e7a2a5007e5a 0.6532757971471697
+outcome	D3pD1eD0d	3f8fd1d7af59de91 0.015536961592473449
+outcome	D0d	3f900b2513354a11 0.015667514130948194
+outcome	D0s	3fb67dec156e3b73 0.08785892031867863
+outcome	R2ea	3f97c01160615385 0.02319361830480517
+outcome	R2oeR1kaR0ek	3f901b65ee4d31e0 0.015729515714427822
+outcome	D1eD0n	3f9852466e2e8daf 0.02375135467049255
+outcome	D1eD0d	3f971492e32275b6 0.022539420235821082
+outcome	I2e	3f9026190e23772e 0.01577033184809478
+outcome	R1ieD0m	3f95cdbc7fd97a15 0.021292634299579023
+outcome	R1ioD0d	3f95b6da38e7e1c3 0.021205339167836856
+outcome	R0dvI0e	3f90284ce3af026a 0.015778733631807297
+outcome	D2iD1nD0g	3f905a3090179d84 0.015969046396916223
+outcome	R2wbR1aeD0s	3f9026190e237732 0.015770331848094794
+outcome	D2dD1e	3f8fc50325eaad51 0.015512489885927268
+outcome	R1ai	3f95a7d1a39143ba 0.021147990806926954
+end	12
+point	13	17	17	16	0	none
+context	w0=of
+context	t0=ADP
+context	p_1=O
+context	p_1=Ot0=ADP
+context	p_1=Ow0=of
+context	suf=null
+context	suf=of
+context	suf=of
+context	suf=of
+context	suf=of
+context	suf=of
+context	suf=of
+context	pre=null
+context	pre=of
+context	pre=of
+context	pre=of
+context	pre=of
+outcome	O	3fef93d1d16bef2a 0.9867943849817256
+outcome	D3pD1eD0d	3f4363fc2d487561 5.917531330543007E-4
+outcome	D0d	3f438db22bab4e13 5.967254613445404E-4
+outcome	D0s	3f6b69a05cca0dc1 0.003346265037466018
+outcome	R2ea	3f4cf24016253313 8.83370678175762E-4
+outcome	R2oeR1kaR0ek	3f43a181540dbcb6 5.990869031914567E-4
+outcome	D1eD0n	3f4da471c71d4de6 9.046130710239047E-4
+outcome	D1eD0d	3f4c213cb7ab3ab9 8.58454367824133E-4
+outcome	I2e	3f43ae8bb62f9373 6.006414590698908E-4
+outcome	R1ieD0m	3f4a92e5202d6c47 8.10968282489618E-4
+outcome	R1ioD0d	3f4a7701305f0000 8.076434903543372E-4
+outcome	R0dvI0e	3f43b13ae66c4ed2 6.009614561172888E-4
+outcome	D2iD1nD0g	3f43ee08baae01f4 6.08209860146812E-4
+outcome	R2wbR1aeD0s	3f43ae8bb62f9378 6.006414590698913E-4
+outcome	D2dD1e	3f435c2a9df1a979 5.90821084086187E-4
+outcome	R1ai	3f4a64ae9f344fb9 8.054592748600798E-4
+end	13
+point	14	17	17	16	0	none
+context	w0=of
+context	t0=ADP
+context	p_1=O
+context	p_1=Ot0=ADP
+context	p_1=Ow0=of
+context	suf=null
+context	suf=of
+context	suf=of
+context	suf=of
+context	suf=of
+context	suf=of
+context	suf=of
+context	pre=null
+context	pre=of
+context	pre=of
+context	pre=of
+context	pre=of
+outcome	O	3fef93d1d16bef2a 0.9867943849817256
+outcome	D3pD1eD0d	3f4363fc2d487561 5.917531330543007E-4
+outcome	D0d	3f438db22bab4e13 5.967254613445404E-4
+outcome	D0s	3f6b69a05cca0dc1 0.003346265037466018
+outcome	R2ea	3f4cf24016253313 8.83370678175762E-4
+outcome	R2oeR1kaR0ek	3f43a181540dbcb6 5.990869031914567E-4
+outcome	D1eD0n	3f4da471c71d4de6 9.046130710239047E-4
+outcome	D1eD0d	3f4c213cb7ab3ab9 8.58454367824133E-4
+outcome	I2e	3f43ae8bb62f9373 6.006414590698908E-4
+outcome	R1ieD0m	3f4a92e5202d6c47 8.10968282489618E-4
+outcome	R1ioD0d	3f4a7701305f0000 8.076434903543372E-4
+outcome	R0dvI0e	3f43b13ae66c4ed2 6.009614561172888E-4
+outcome	D2iD1nD0g	3f43ee08baae01f4 6.08209860146812E-4
+outcome	R2wbR1aeD0s	3f43ae8bb62f9378 6.006414590698913E-4
+outcome	D2dD1e	3f435c2a9df1a979 5.90821084086187E-4
+outcome	R1ai	3f4a64ae9f344fb9 8.054592748600798E-4
+end	14
+point	15	17	17	16	0	none
+context	w0=of
+context	t0=ADP
+context	p_1=D0s
+context	p_1=D0st0=ADP
+context	p_1=D0sw0=of
+context	suf=null
+context	suf=of
+context	suf=of
+context	suf=of
+context	suf=of
+context	suf=of
+context	suf=of
+context	pre=null
+context	pre=of
+context	pre=of
+context	pre=of
+context	pre=of
+outcome	O	3feef87de42072f5 0.9678334670639673
+outcome	D3pD1eD0d	3f593440daf8ad57 0.0015383370736213509
+outcome	D0d	3f5957bafc3694d4 0.0015467954661770216
+outcome	D0s	3f77a81bbf52057a 0.0057755550270724935
+outcome	R2ea	3f6cc40f78bc0fa8 0.0035114576511449842
+outcome	R2oeR1kaR0ek	3f5972ca9ea253ea 0.0015532473285351186
+outcome	D1eD0n	3f67841b10e011d8 0.0028706101065856075
+outcome	D1eD0d	3f6e04a09a57d70f 0.003664315869850727
+outcome	I2e	3f598085d29f371a 0.001556521116515558
+outcome	R1ieD0m	3f52ac40fecbf880 0.0011397013396954592
+outcome	R1ioD0d	3f5298a7e8be38fa 0.0011350288141077068
+outcome	R0dvI0e	3f5971e8c0418ac0 0.001553036971949126
+outcome	D2iD1nD0g	3f59ab79fedddc32 0.0015667621005073348
+outcome	R2wbR1aeD0s	3f598085d29f371a 0.001556521116515558
+outcome	D2dD1e	3f592d23ba5d9973 0.0015366410165938676
+outcome	R1ai	3f5b3af0fdd2d7e2 0.0016620019371607
+end	15
+point	16	19	18	16	0	none
+context	w0=-
+context	t0=PUNCT
+context	p_1=O
+context	p_1=Ot0=PUNCT
+context	p_1=Ow0=-
+context	suf=null
+context	suf=-
+context	suf=-
+context	suf=-
+context	suf=-
+context	suf=-
+context	suf=-
+context	pre=null
+context	pre=-
+context	pre=-
+context	pre=-
+context	pre=-
+context	h
+outcome	O	3fe4e7a2a5007e5a 0.6532757971471697
+outcome	D3pD1eD0d	3f8fd1d7af59de91 0.015536961592473449
+outcome	D0d	3f900b2513354a11 0.015667514130948194
+outcome	D0s	3fb67dec156e3b73 0.08785892031867863
+outcome	R2ea	3f97c01160615385 0.02319361830480517
+outcome	R2oeR1kaR0ek	3f901b65ee4d31e0 0.015729515714427822
+outcome	D1eD0n	3f9852466e2e8daf 0.02375135467049255
+outcome	D1eD0d	3f971492e32275b6 0.022539420235821082
+outcome	I2e	3f9026190e23772e 0.01577033184809478
+outcome	R1ieD0m	3f95cdbc7fd97a15 0.021292634299579023
+outcome	R1ioD0d	3f95b6da38e7e1c3 0.021205339167836856
+outcome	R0dvI0e	3f90284ce3af026a 0.015778733631807297
+outcome	D2iD1nD0g	3f905a3090179d84 0.015969046396916223
+outcome	R2wbR1aeD0s	3f9026190e237732 0.015770331848094794
+outcome	D2dD1e	3f8fc50325eaad51 0.015512489885927268
+outcome	R1ai	3f95a7d1a39143ba 0.021147990806926954
+end	16
+point	17	19	18	16	0	none
+context	w0=-
+context	t0=PUNCT
+context	p_1=O
+context	p_1=Ot0=PUNCT
+context	p_1=Ow0=-
+context	suf=null
+context	suf=-
+context	suf=-
+context	suf=-
+context	suf=-
+context	suf=-
+context	suf=-
+context	pre=null
+context	pre=-
+context	pre=-
+context	pre=-
+context	pre=-
+context	h
+outcome	O	3fe4e7a2a5007e5a 0.6532757971471697
+outcome	D3pD1eD0d	3f8fd1d7af59de91 0.015536961592473449
+outcome	D0d	3f900b2513354a11 0.015667514130948194
+outcome	D0s	3fb67dec156e3b73 0.08785892031867863
+outcome	R2ea	3f97c01160615385 0.02319361830480517
+outcome	R2oeR1kaR0ek	3f901b65ee4d31e0 0.015729515714427822
+outcome	D1eD0n	3f9852466e2e8daf 0.02375135467049255
+outcome	D1eD0d	3f971492e32275b6 0.022539420235821082
+outcome	I2e	3f9026190e23772e 0.01577033184809478
+outcome	R1ieD0m	3f95cdbc7fd97a15 0.021292634299579023
+outcome	R1ioD0d	3f95b6da38e7e1c3 0.021205339167836856
+outcome	R0dvI0e	3f90284ce3af026a 0.015778733631807297
+outcome	D2iD1nD0g	3f905a3090179d84 0.015969046396916223
+outcome	R2wbR1aeD0s	3f9026190e237732 0.015770331848094794
+outcome	D2dD1e	3f8fc50325eaad51 0.015512489885927268
+outcome	R1ai	3f95a7d1a39143ba 0.021147990806926954
+end	17
+point	18	19	18	16	0	none
+context	w0=-
+context	t0=PUNCT
+context	p_1=O
+context	p_1=Ot0=PUNCT
+context	p_1=Ow0=-
+context	suf=null
+context	suf=-
+context	suf=-
+context	suf=-
+context	suf=-
+context	suf=-
+context	suf=-
+context	pre=null
+context	pre=-
+context	pre=-
+context	pre=-
+context	pre=-
+context	h
+outcome	O	3fe4e7a2a5007e5a 0.6532757971471697
+outcome	D3pD1eD0d	3f8fd1d7af59de91 0.015536961592473449
+outcome	D0d	3f900b2513354a11 0.015667514130948194
+outcome	D0s	3fb67dec156e3b73 0.08785892031867863
+outcome	R2ea	3f97c01160615385 0.02319361830480517
+outcome	R2oeR1kaR0ek	3f901b65ee4d31e0 0.015729515714427822
+outcome	D1eD0n	3f9852466e2e8daf 0.02375135467049255
+outcome	D1eD0d	3f971492e32275b6 0.022539420235821082
+outcome	I2e	3f9026190e23772e 0.01577033184809478
+outcome	R1ieD0m	3f95cdbc7fd97a15 0.021292634299579023
+outcome	R1ioD0d	3f95b6da38e7e1c3 0.021205339167836856
+outcome	R0dvI0e	3f90284ce3af026a 0.015778733631807297
+outcome	D2iD1nD0g	3f905a3090179d84 0.015969046396916223
+outcome	R2wbR1aeD0s	3f9026190e237732 0.015770331848094794
+outcome	D2dD1e	3f8fc50325eaad51 0.015512489885927268
+outcome	R1ai	3f95a7d1a39143ba 0.021147990806926954
+end	18
+point	19	20	17	16	0	none
+context	w0=the
+context	t0=DET
+context	p_1=O
+context	p_1=Ot0=DET
+context	p_1=Ow0=the
+context	suf=null
+context	suf=he
+context	suf=the
+context	suf=the
+context	suf=the
+context	suf=the
+context	suf=the
+context	pre=null
+context	pre=th
+context	pre=the
+context	pre=the
+context	pre=the
+outcome	O	3fef97f6138f8d14 0.9872999555631474
+outcome	D3pD1eD0d	3f42a5f0f901c597 5.690981506757839E-4
+outcome	D0d	3f42ce0e2a206803 5.738801157832988E-4
+outcome	D0s	3f6a5cf5c1830f3f 0.003218154899601005
+outcome	R2ea	3f4bd68d6fee5947 8.49551259181771E-4
+outcome	R2oeR1kaR0ek	3f42e11b2cecc992 5.761511509716924E-4
+outcome	D1eD0n	3f4c81ecad6212f2 8.699803972978799E-4
+outcome	D1eD0d	3f4b0d8a92691e1e 8.255888577161673E-4
+outcome	I2e	3f42eda5c01bf2e3 5.776461914304944E-4
+outcome	R1ieD0m	3f498e7310fbd607 7.799207541824845E-4
+outcome	R1ioD0d	3f4973a07a870560 7.767232501053982E-4
+outcome	R0dvI0e	3f42f03aa153434c 5.779539375457637E-4
+outcome	D2iD1nD0g	3f432ab48770fa0c 5.849248399341657E-4
+outcome	R2wbR1aeD0s	3f42eda5c01bf2e7 5.776461914304948E-4
+outcome	D2dD1e	3f429e6c0aa0eebd 5.682017847514414E-4
+outcome	R1ai	3f4962017cd6fbe8 7.746226562445032E-4
+end	19
+point	20	20	17	16	0	none
+context	w0=the
+context	t0=DET
+context	p_1=O
+context	p_1=Ot0=DET
+context	p_1=Ow0=the
+context	suf=null
+context	suf=he
+context	suf=the
+context	suf=the
+context	suf=the
+context	suf=the
+context	suf=the
+context	pre=null
+context	pre=th
+context	pre=the
+context	pre=the
+context	pre=the
+outcome	O	3fef97f6138f8d14 0.9872999555631474
+outcome	D3pD1eD0d	3f42a5f0f901c597 5.690981506757839E-4
+outcome	D0d	3f42ce0e2a206803 5.738801157832988E-4
+outcome	D0s	3f6a5cf5c1830f3f 0.003218154899601005
+outcome	R2ea	3f4bd68d6fee5947 8.49551259181771E-4
+outcome	R2oeR1kaR0ek	3f42e11b2cecc992 5.761511509716924E-4
+outcome	D1eD0n	3f4c81ecad6212f2 8.699803972978799E-4
+outcome	D1eD0d	3f4b0d8a92691e1e 8.255888577161673E-4
+outcome	I2e	3f42eda5c01bf2e3 5.776461914304944E-4
+outcome	R1ieD0m	3f498e7310fbd607 7.799207541824845E-4
+outcome	R1ioD0d	3f4973a07a870560 7.767232501053982E-4
+outcome	R0dvI0e	3f42f03aa153434c 5.779539375457637E-4
+outcome	D2iD1nD0g	3f432ab48770fa0c 5.849248399341657E-4
+outcome	R2wbR1aeD0s	3f42eda5c01bf2e7 5.776461914304948E-4
+outcome	D2dD1e	3f429e6c0aa0eebd 5.682017847514414E-4
+outcome	R1ai	3f4962017cd6fbe8 7.746226562445032E-4
+end	20
+point	21	20	17	16	0	none
+context	w0=the
+context	t0=DET
+context	p_1=D0s
+context	p_1=D0st0=DET
+context	p_1=D0sw0=the
+context	suf=null
+context	suf=he
+context	suf=the
+context	suf=the
+context	suf=the
+context	suf=the
+context	suf=the
+context	pre=null
+context	pre=th
+context	pre=the
+context	pre=the
+context	pre=the
+outcome	O	3fef02e8c8e81c84 0.9691051410635656
+outcome	D3pD1eD0d	3f58352b64494d06 0.00147752034640264
+outcome	D0d	3f58573e77d0a185 0.001485644344265764
+outcome	D0s	3f76b8af8e875819 0.005547223824086366
+outcome	R2ea	3f6ba0eddc988517 0.0033726354347584186
+outcome	R2oeR1kaR0ek	3f58713c39927083 0.001491841138238776
+outcome	D1eD0n	3f66961b3f8e4ce5 0.0027571232025792474
+outcome	D1eD0d	3f6cd4d29fcef8f4 0.003519450545780173
+outcome	I2e	3f587e6c752a82a9 0.0014949855000524848
+outcome	R1ieD0m	3f51ef455fa8b0b3 0.001094644305918141
+outcome	R1ioD0d	3f51dc72a223efe6 0.0010901565042891136
+outcome	R0dvI0e	3f5870634925e102 0.001491639097905007
+outcome	D2iD1nD0g	3f58a7ade833475b 0.0015048216162551673
+outcome	R2wbR1aeD0s	3f587e6c752a82a9 0.0014949855000524848
+outcome	D2dD1e	3f582e5642ce021a 0.0014758913414142428
+outcome	R1ai	3f5a275a07c8d12f 0.001596296234436311
+end	21
+point	22	23	18	16	0	none
+context	w0=-
+context	t0=PUNCT
+context	p_1=O
+context	p_1=Ot0=PUNCT
+context	p_1=Ow0=-
+context	suf=null
+context	suf=-
+context	suf=-
+context	suf=-
+context	suf=-
+context	suf=-
+context	suf=-
+context	pre=null
+context	pre=-
+context	pre=-
+context	pre=-
+context	pre=-
+context	h
+outcome	O	3fe4e7a2a5007e5a 0.6532757971471697
+outcome	D3pD1eD0d	3f8fd1d7af59de91 0.015536961592473449
+outcome	D0d	3f900b2513354a11 0.015667514130948194
+outcome	D0s	3fb67dec156e3b73 0.08785892031867863
+outcome	R2ea	3f97c01160615385 0.02319361830480517
+outcome	R2oeR1kaR0ek	3f901b65ee4d31e0 0.015729515714427822
+outcome	D1eD0n	3f9852466e2e8daf 0.02375135467049255
+outcome	D1eD0d	3f971492e32275b6 0.022539420235821082
+outcome	I2e	3f9026190e23772e 0.01577033184809478
+outcome	R1ieD0m	3f95cdbc7fd97a15 0.021292634299579023
+outcome	R1ioD0d	3f95b6da38e7e1c3 0.021205339167836856
+outcome	R0dvI0e	3f90284ce3af026a 0.015778733631807297
+outcome	D2iD1nD0g	3f905a3090179d84 0.015969046396916223
+outcome	R2wbR1aeD0s	3f9026190e237732 0.015770331848094794
+outcome	D2dD1e	3f8fc50325eaad51 0.015512489885927268
+outcome	R1ai	3f95a7d1a39143ba 0.021147990806926954
+end	22
+point	23	23	18	16	0	none
+context	w0=-
+context	t0=PUNCT
+context	p_1=O
+context	p_1=Ot0=PUNCT
+context	p_1=Ow0=-
+context	suf=null
+context	suf=-
+context	suf=-
+context	suf=-
+context	suf=-
+context	suf=-
+context	suf=-
+context	pre=null
+context	pre=-
+context	pre=-
+context	pre=-
+context	pre=-
+context	h
+outcome	O	3fe4e7a2a5007e5a 0.6532757971471697
+outcome	D3pD1eD0d	3f8fd1d7af59de91 0.015536961592473449
+outcome	D0d	3f900b2513354a11 0.015667514130948194
+outcome	D0s	3fb67dec156e3b73 0.08785892031867863
+outcome	R2ea	3f97c01160615385 0.02319361830480517
+outcome	R2oeR1kaR0ek	3f901b65ee4d31e0 0.015729515714427822
+outcome	D1eD0n	3f9852466e2e8daf 0.02375135467049255
+outcome	D1eD0d	3f971492e32275b6 0.022539420235821082
+outcome	I2e	3f9026190e23772e 0.01577033184809478
+outcome	R1ieD0m	3f95cdbc7fd97a15 0.021292634299579023
+outcome	R1ioD0d	3f95b6da38e7e1c3 0.021205339167836856
+outcome	R0dvI0e	3f90284ce3af026a 0.015778733631807297
+outcome	D2iD1nD0g	3f905a3090179d84 0.015969046396916223
+outcome	R2wbR1aeD0s	3f9026190e237732 0.015770331848094794
+outcome	D2dD1e	3f8fc50325eaad51 0.015512489885927268
+outcome	R1ai	3f95a7d1a39143ba 0.021147990806926954
+end	23
+point	24	23	18	16	0	none
+context	w0=-
+context	t0=PUNCT
+context	p_1=O
+context	p_1=Ot0=PUNCT
+context	p_1=Ow0=-
+context	suf=null
+context	suf=-
+context	suf=-
+context	suf=-
+context	suf=-
+context	suf=-
+context	suf=-
+context	pre=null
+context	pre=-
+context	pre=-
+context	pre=-
+context	pre=-
+context	h
+outcome	O	3fe4e7a2a5007e5a 0.6532757971471697
+outcome	D3pD1eD0d	3f8fd1d7af59de91 0.015536961592473449
+outcome	D0d	3f900b2513354a11 0.015667514130948194
+outcome	D0s	3fb67dec156e3b73 0.08785892031867863
+outcome	R2ea	3f97c01160615385 0.02319361830480517
+outcome	R2oeR1kaR0ek	3f901b65ee4d31e0 0.015729515714427822
+outcome	D1eD0n	3f9852466e2e8daf 0.02375135467049255
+outcome	D1eD0d	3f971492e32275b6 0.022539420235821082
+outcome	I2e	3f9026190e23772e 0.01577033184809478
+outcome	R1ieD0m	3f95cdbc7fd97a15 0.021292634299579023
+outcome	R1ioD0d	3f95b6da38e7e1c3 0.021205339167836856
+outcome	R0dvI0e	3f90284ce3af026a 0.015778733631807297
+outcome	D2iD1nD0g	3f905a3090179d84 0.015969046396916223
+outcome	R2wbR1aeD0s	3f9026190e237732 0.015770331848094794
+outcome	D2dD1e	3f8fc50325eaad51 0.015512489885927268
+outcome	R1ai	3f95a7d1a39143ba 0.021147990806926954
+end	24
+point	25	24	17	16	0	none
+context	w0=art
+context	t0=NOUN
+context	p_1=O
+context	p_1=Ot0=NOUN
+context	p_1=Ow0=art
+context	suf=null
+context	suf=rt
+context	suf=art
+context	suf=art
+context	suf=art
+context	suf=art
+context	suf=art
+context	pre=null
+context	pre=ar
+context	pre=art
+context	pre=art
+context	pre=art
+outcome	O	3fe5e656adb2d39b 0.6843675034093509
+outcome	D3pD1eD0d	3f8bf05eed9248cb 0.013642064690689534
+outcome	D0d	3f998cee8cfc7f6b 0.0249516748000355
+outcome	D0s	3fb3bfaec22dfabc 0.07714359513009134
+outcome	R2ea	3f94da8a0c580114 0.020364911082652773
+outcome	R2oeR1kaR0ek	3f8c490322474cba 0.013811134799573178
+outcome	D1eD0n	3f955aea3b9db56d 0.02085462559573641
+outcome	D1eD0d	3f9443f5eea38522 0.01979049939189282
+outcome	I2e	3f8c5bcd409134d4 0.013846972973761508
+outcome	R1ieD0m	3f9324fc089ec6f2 0.018695772195946377
+outcome	R1ioD0d	3f9310e43c4622ed 0.01861912362940903
+outcome	R0dvI0e	3f8c5fab63b30364 0.013854350071029926
+outcome	D2iD1nD0g	3f8cb7477473fafa 0.014021452180256844
+outcome	R2wbR1aeD0s	3f8c5bcd409134da 0.013846972973761518
+outcome	D2dD1e	3f8be51af9a6281f 0.013620577567753199
+outcome	R1ai	3f9303b1070e69ce 0.018568769508059017
+end	25
+point	26	24	17	16	0	none
+context	w0=art
+context	t0=NOUN
+context	p_1=O
+context	p_1=Ot0=NOUN
+context	p_1=Ow0=art
+context	suf=null
+context	suf=rt
+context	suf=art
+context	suf=art
+context	suf=art
+context	suf=art
+context	suf=art
+context	pre=null
+context	pre=ar
+context	pre=art
+context	pre=art
+context	pre=art
+outcome	O	3fe5e656adb2d39b 0.6843675034093509
+outcome	D3pD1eD0d	3f8bf05eed9248cb 0.013642064690689534
+outcome	D0d	3f998cee8cfc7f6b 0.0249516748000355
+outcome	D0s	3fb3bfaec22dfabc 0.07714359513009134
+outcome	R2ea	3f94da8a0c580114 0.020364911082652773
+outcome	R2oeR1kaR0ek	3f8c490322474cba 0.013811134799573178
+outcome	D1eD0n	3f955aea3b9db56d 0.02085462559573641
+outcome	D1eD0d	3f9443f5eea38522 0.01979049939189282
+outcome	I2e	3f8c5bcd409134d4 0.013846972973761508
+outcome	R1ieD0m	3f9324fc089ec6f2 0.018695772195946377
+outcome	R1ioD0d	3f9310e43c4622ed 0.01861912362940903
+outcome	R0dvI0e	3f8c5fab63b30364 0.013854350071029926
+outcome	D2iD1nD0g	3f8cb7477473fafa 0.014021452180256844
+outcome	R2wbR1aeD0s	3f8c5bcd409134da 0.013846972973761518
+outcome	D2dD1e	3f8be51af9a6281f 0.013620577567753199
+outcome	R1ai	3f9303b1070e69ce 0.018568769508059017
+end	26
+point	27	24	17	16	0	none
+context	w0=art
+context	t0=NOUN
+context	p_1=D0s
+context	p_1=D0st0=NOUN
+context	p_1=D0sw0=art
+context	suf=null
+context	suf=rt
+context	suf=art
+context	suf=art
+context	suf=art
+context	suf=art
+context	suf=art
+context	pre=null
+context	pre=ar
+context	pre=art
+context	pre=art
+context	pre=art
+outcome	O	3fe18e5f351ac7e8 0.5486293828200788
+outcome	D3pD1eD0d	3f9545a5bfc24026 0.020773496464755813
+outcome	D0d	3fa365c4d6e1f357 0.03788581011847352
+outcome	D0s	3fb3f74df0ba2d58 0.07799231650476679
+outcome	R2ea	3fa8473478732405 0.04741825075468146
+outcome	R2oeR1kaR0ek	3f957a6ddaf151a4 0.020974842537116026
+outcome	D1eD0n	3fa3d8eb238d1025 0.03876433190319543
+outcome	D1eD0d	3fa955c2bff81667 0.04948242753384307
+outcome	I2e	3f958604a832cd9a 0.021019051328676853
+outcome	R1ieD0m	3f8f84fcee56a23f 0.015390373252402443
+outcome	R1ioD0d	3f8f63e82c941647 0.015327276096751009
+outcome	R0dvI0e	3f9579af3957bda3 0.02097200191013616
+outcome	D2iD1nD0g	3f95aa4555913d2f 0.021157344195953328
+outcome	R2wbR1aeD0s	3f958604a832cd9a 0.021019051328676853
+outcome	D2dD1e	3f953fa4bb9f9e44 0.02075059313929574
+outcome	R1ai	3f96fb6a70f2af72 0.0224434501111967
+end	27
+point	28	28	18	16	0	none
+context	w0=re-entry
+context	t0=NOUN
+context	p_1=O
+context	p_1=Ot0=NOUN
+context	p_1=Ow0=re-entry
+context	suf=null
+context	suf=ry
+context	suf=try
+context	suf=ntry
+context	suf=entry
+context	suf=-entry
+context	suf=e-entry
+context	pre=null
+context	pre=re
+context	pre=re-
+context	pre=re-e
+context	pre=re-en
+context	h
+outcome	O	3fe939a3cb635d46 0.7882861111092232
+outcome	D3pD1eD0d	3f836df292676045 0.009487052052392761
+outcome	D0d	3f8397bdfeed4676 0.009566768972635514
+outcome	D0s	3fab77b5e075e85e 0.05364769330022122
+outcome	R2ea	3f8d011f52b47b1f 0.014162296973663722
+outcome	R2oeR1kaR0ek	3f83ab9754c4fefd 0.009604627870998689
+outcome	D1eD0n	3f8db3ac911ec2af 0.014502857378688587
+outcome	D1eD0d	3f8c2fb09139d488 0.013762835914557195
+outcome	I2e	3f83b8a86a186f54 0.009629550683761735
+outcome	R1ieD0m	3f8aa08c50bd90cf 0.013001533712391126
+outcome	R1ioD0d	3f8a849a0c94491d 0.012948230275047263
+outcome	R0dvI0e	3f83bb58fb656c14 0.009634680912020278
+outcome	D2iD1nD0g	3f83f8460d0f83fc 0.009750888131692996
+outcome	R2wbR1aeD0s	3f83b8a86a186f58 0.009629550683761742
+outcome	D2dD1e	3f83661cfeb42cf1 0.009472109339660114
+outcome	R1ai	3f8a723e117e7eb9 0.01291321268928357
+end	28
+point	29	28	18	16	0	none
+context	w0=re-entry
+context	t0=NOUN
+context	p_1=O
+context	p_1=Ot0=NOUN
+context	p_1=Ow0=re-entry
+context	suf=null
+context	suf=ry
+context	suf=try
+context	suf=ntry
+context	suf=entry
+context	suf=-entry
+context	suf=e-entry
+context	pre=null
+context	pre=re
+context	pre=re-
+context	pre=re-e
+context	pre=re-en
+context	h
+outcome	O	3fe939a3cb635d46 0.7882861111092232
+outcome	D3pD1eD0d	3f836df292676045 0.009487052052392761
+outcome	D0d	3f8397bdfeed4676 0.009566768972635514
+outcome	D0s	3fab77b5e075e85e 0.05364769330022122
+outcome	R2ea	3f8d011f52b47b1f 0.014162296973663722
+outcome	R2oeR1kaR0ek	3f83ab9754c4fefd 0.009604627870998689
+outcome	D1eD0n	3f8db3ac911ec2af 0.014502857378688587
+outcome	D1eD0d	3f8c2fb09139d488 0.013762835914557195
+outcome	I2e	3f83b8a86a186f54 0.009629550683761735
+outcome	R1ieD0m	3f8aa08c50bd90cf 0.013001533712391126
+outcome	R1ioD0d	3f8a849a0c94491d 0.012948230275047263
+outcome	R0dvI0e	3f83bb58fb656c14 0.009634680912020278
+outcome	D2iD1nD0g	3f83f8460d0f83fc 0.009750888131692996
+outcome	R2wbR1aeD0s	3f83b8a86a186f58 0.009629550683761742
+outcome	D2dD1e	3f83661cfeb42cf1 0.009472109339660114
+outcome	R1ai	3f8a723e117e7eb9 0.01291321268928357
+end	29
+point	30	28	18	16	0	none
+context	w0=re-entry
+context	t0=NOUN
+context	p_1=D0s
+context	p_1=D0st0=NOUN
+context	p_1=D0sw0=re-entry
+context	suf=null
+context	suf=ry
+context	suf=try
+context	suf=ntry
+context	suf=entry
+context	suf=-entry
+context	suf=e-entry
+context	pre=null
+context	pre=re
+context	pre=re-
+context	pre=re-e
+context	pre=re-en
+context	h
+outcome	O	3fe5a6934a12d0f3 0.6765839049099028
+outcome	D3pD1eD0d	3f8fad36f82e7f0d 0.015467099617864766
+outcome	D0d	3f8fd9cd6c182aac 0.015552143918303805
+outcome	D0s	3fadbb569e3da201 0.058069903198717306
+outcome	R2ea	3fa21396aaf863e9 0.035305698748011434
+outcome	R2oeR1kaR0ek	3f8ffbd018fe2ad2 0.015617013704987501
+outcome	D1eD0n	3f9d8e170f79a2c7 0.028862343139197912
+outcome	D1eD0d	3fa2dd088a767399 0.036842600729165294
+outcome	I2e	3f9006890234d100 0.01564992977110169
+outcome	R1ieD0m	3f8777d7052b11bd 0.01145904526254859
+outcome	R1ioD0d	3f875f3587557b24 0.011412065689624003
+outcome	R0dvI0e	3f8ffab4399fda9f 0.015614898689802202
+outcome	D2iD1nD0g	3f90218705e2aa7d 0.015752897009102974
+outcome	R2wbR1aeD0s	3f9006890234d100 0.01564992977110169
+outcome	D2dD1e	3f8fa4462b905a6e 0.015450046734298808
+outcome	R1ai	3f911c8d450c3405 0.016710479106269122
+end	30
+point	31	37	17	16	0	none
+context	w0=—
+context	t0=PUNCT
+context	p_1=O
+context	p_1=Ot0=PUNCT
+context	p_1=Ow0=—
+context	suf=null
+context	suf=—
+context	suf=—
+context	suf=—
+context	suf=—
+context	suf=—
+context	suf=—
+context	pre=null
+context	pre=—
+context	pre=—
+context	pre=—
+context	pre=—
+outcome	O	3fe281370e47b0f5 0.5782733229548557
+outcome	D3pD1eD0d	3f9359f7070d46e7 0.018897876553927963
+outcome	D0d	3f938397779027a3 0.01905666987662581
+outcome	D0s	3fbb5b75fd62d0a8 0.10686433254415084
+outcome	R2ea	3f9ce34ad31ae02b 0.02821080125315249
+outcome	R2oeR1kaR0ek	3f93975c636aa3d4 0.019132083480744758
+outcome	D1eD0n	3f9d95206f0a2c96 0.028889185693100027
+outcome	D1eD0d	3f9c12b376ab7efa 0.027415088766132613
+outcome	I2e	3f93a460086eb182 0.01918172885386716
+outcome	R1ieD0m	3f9a8529b745aaa2 0.025898601351779356
+outcome	R1ioD0d	3f9a6954310ae61f 0.02579242276508442
+outcome	R0dvI0e	3f93a70dd5904949 0.01919194808949357
+outcome	D2iD1nD0g	3f93e3bc3e258230 0.01942342881500475
+outcome	R2wbR1aeD0s	3f93a460086eb186 0.019181728853867173
+outcome	D2dD1e	3f9352298205e08a 0.018868111191722416
+outcome	R1ai	3f9a570b17bc60d1 0.02572266895649095
+end	31
+point	32	37	17	16	0	none
+context	w0=—
+context	t0=PUNCT
+context	p_1=O
+context	p_1=Ot0=PUNCT
+context	p_1=Ow0=—
+context	suf=null
+context	suf=—
+context	suf=—
+context	suf=—
+context	suf=—
+context	suf=—
+context	suf=—
+context	pre=null
+context	pre=—
+context	pre=—
+context	pre=—
+context	pre=—
+outcome	O	3fe281370e47b0f5 0.5782733229548557
+outcome	D3pD1eD0d	3f9359f7070d46e7 0.018897876553927963
+outcome	D0d	3f938397779027a3 0.01905666987662581
+outcome	D0s	3fbb5b75fd62d0a8 0.10686433254415084
+outcome	R2ea	3f9ce34ad31ae02b 0.02821080125315249
+outcome	R2oeR1kaR0ek	3f93975c636aa3d4 0.019132083480744758
+outcome	D1eD0n	3f9d95206f0a2c96 0.028889185693100027
+outcome	D1eD0d	3f9c12b376ab7efa 0.027415088766132613
+outcome	I2e	3f93a460086eb182 0.01918172885386716
+outcome	R1ieD0m	3f9a8529b745aaa2 0.025898601351779356
+outcome	R1ioD0d	3f9a6954310ae61f 0.02579242276508442
+outcome	R0dvI0e	3f93a70dd5904949 0.01919194808949357
+outcome	D2iD1nD0g	3f93e3bc3e258230 0.01942342881500475
+outcome	R2wbR1aeD0s	3f93a460086eb186 0.019181728853867173
+outcome	D2dD1e	3f9352298205e08a 0.018868111191722416
+outcome	R1ai	3f9a570b17bc60d1 0.02572266895649095
+end	32
+point	33	37	17	16	0	none
+context	w0=—
+context	t0=PUNCT
+context	p_1=O
+context	p_1=Ot0=PUNCT
+context	p_1=Ow0=—
+context	suf=null
+context	suf=—
+context	suf=—
+context	suf=—
+context	suf=—
+context	suf=—
+context	suf=—
+context	pre=null
+context	pre=—
+context	pre=—
+context	pre=—
+context	pre=—
+outcome	O	3fe281370e47b0f5 0.5782733229548557
+outcome	D3pD1eD0d	3f9359f7070d46e7 0.018897876553927963
+outcome	D0d	3f938397779027a3 0.01905666987662581
+outcome	D0s	3fbb5b75fd62d0a8 0.10686433254415084
+outcome	R2ea	3f9ce34ad31ae02b 0.02821080125315249
+outcome	R2oeR1kaR0ek	3f93975c636aa3d4 0.019132083480744758
+outcome	D1eD0n	3f9d95206f0a2c96 0.028889185693100027
+outcome	D1eD0d	3f9c12b376ab7efa 0.027415088766132613
+outcome	I2e	3f93a460086eb182 0.01918172885386716
+outcome	R1ieD0m	3f9a8529b745aaa2 0.025898601351779356
+outcome	R1ioD0d	3f9a6954310ae61f 0.02579242276508442
+outcome	R0dvI0e	3f93a70dd5904949 0.01919194808949357
+outcome	D2iD1nD0g	3f93e3bc3e258230 0.01942342881500475
+outcome	R2wbR1aeD0s	3f93a460086eb186 0.019181728853867173
+outcome	D2dD1e	3f9352298205e08a 0.018868111191722416
+outcome	R1ai	3f9a570b17bc60d1 0.02572266895649095
+end	33
+point	34	41	17	16	0	none
+context	w0=em
+context	t0=NOUN
+context	p_1=O
+context	p_1=Ot0=NOUN
+context	p_1=Ow0=em
+context	suf=null
+context	suf=em
+context	suf=em
+context	suf=em
+context	suf=em
+context	suf=em
+context	suf=em
+context	pre=null
+context	pre=em
+context	pre=em
+context	pre=em
+context	pre=em
+outcome	O	3fe281370e47b0f5 0.5782733229548557
+outcome	D3pD1eD0d	3f9359f7070d46e7 0.018897876553927963
+outcome	D0d	3f938397779027a3 0.01905666987662581
+outcome	D0s	3fbb5b75fd62d0a8 0.10686433254415084
+outcome	R2ea	3f9ce34ad31ae02b 0.02821080125315249
+outcome	R2oeR1kaR0ek	3f93975c636aa3d4 0.019132083480744758
+outcome	D1eD0n	3f9d95206f0a2c96 0.028889185693100027
+outcome	D1eD0d	3f9c12b376ab7efa 0.027415088766132613
+outcome	I2e	3f93a460086eb182 0.01918172885386716
+outcome	R1ieD0m	3f9a8529b745aaa2 0.025898601351779356
+outcome	R1ioD0d	3f9a6954310ae61f 0.02579242276508442
+outcome	R0dvI0e	3f93a70dd5904949 0.01919194808949357
+outcome	D2iD1nD0g	3f93e3bc3e258230 0.01942342881500475
+outcome	R2wbR1aeD0s	3f93a460086eb186 0.019181728853867173
+outcome	D2dD1e	3f9352298205e08a 0.018868111191722416
+outcome	R1ai	3f9a570b17bc60d1 0.02572266895649095
+end	34
+point	35	41	17	16	0	none
+context	w0=em
+context	t0=NOUN
+context	p_1=O
+context	p_1=Ot0=NOUN
+context	p_1=Ow0=em
+context	suf=null
+context	suf=em
+context	suf=em
+context	suf=em
+context	suf=em
+context	suf=em
+context	suf=em
+context	pre=null
+context	pre=em
+context	pre=em
+context	pre=em
+context	pre=em
+outcome	O	3fe281370e47b0f5 0.5782733229548557
+outcome	D3pD1eD0d	3f9359f7070d46e7 0.018897876553927963
+outcome	D0d	3f938397779027a3 0.01905666987662581
+outcome	D0s	3fbb5b75fd62d0a8 0.10686433254415084
+outcome	R2ea	3f9ce34ad31ae02b 0.02821080125315249
+outcome	R2oeR1kaR0ek	3f93975c636aa3d4 0.019132083480744758
+outcome	D1eD0n	3f9d95206f0a2c96 0.028889185693100027
+outcome	D1eD0d	3f9c12b376ab7efa 0.027415088766132613
+outcome	I2e	3f93a460086eb182 0.01918172885386716
+outcome	R1ieD0m	3f9a8529b745aaa2 0.025898601351779356
+outcome	R1ioD0d	3f9a6954310ae61f 0.02579242276508442
+outcome	R0dvI0e	3f93a70dd5904949 0.01919194808949357
+outcome	D2iD1nD0g	3f93e3bc3e258230 0.01942342881500475
+outcome	R2wbR1aeD0s	3f93a460086eb186 0.019181728853867173
+outcome	D2dD1e	3f9352298205e08a 0.018868111191722416
+outcome	R1ai	3f9a570b17bc60d1 0.02572266895649095
+end	35
+point	36	41	17	16	0	none
+context	w0=em
+context	t0=NOUN
+context	p_1=D0s
+context	p_1=D0st0=NOUN
+context	p_1=D0sw0=em
+context	suf=null
+context	suf=em
+context	suf=em
+context	suf=em
+context	suf=em
+context	suf=em
+context	suf=em
+context	pre=null
+context	pre=em
+context	pre=em
+context	pre=em
+context	pre=em
+outcome	O	3fdbd9b2fc4f9f9a 0.4351623023962873
+outcome	D3pD1eD0d	3f9ba943d9963953 0.027012882380909996
+outcome	D0d	3f9bd0335ee14d69 0.027161410013218843
+outcome	D0s	3fb9f68044bcc263 0.10141755750806562
+outcome	R2ea	3faf91f62b22be5a 0.061660473599997004
+outcome	R2oeR1kaR0ek	3f9bede65c3e1ee9 0.027274703388257136
+outcome	D1eD0n	3fa9cefd1446cb88 0.05040732262150188
+outcome	D1eD0d	3fb078e3cc149d4a 0.06434463245806402
+outcome	I2e	3f9bfcf8401f775b 0.027332190431358466
+outcome	R1ieD0m	3f947e4463cbc257 0.020012920943317827
+outcome	R1ioD0d	3f9468c233cb6146 0.019930872355730565
+outcome	R0dvI0e	3f9becee78ed3381 0.02727100956990425
+outcome	D2iD1nD0g	3f9c2c1c68a0e32c 0.02751202000237922
+outcome	R2wbR1aeD0s	3f9bfcf8401f775b 0.027332190431358466
+outcome	D2dD1e	3f9ba1752fa3ae9a 0.026983099968602355
+outcome	R1ai	3f9de284bb2ff659 0.029184411931046792
+end	36
+point	37	44	17	16	0	none
+context	w0=dash
+context	t0=NOUN
+context	p_1=O
+context	p_1=Ot0=NOUN
+context	p_1=Ow0=dash
+context	suf=null
+context	suf=sh
+context	suf=ash
+context	suf=dash
+context	suf=dash
+context	suf=dash
+context	suf=dash
+context	pre=null
+context	pre=da
+context	pre=das
+context	pre=dash
+context	pre=dash
+outcome	O	3fe281370e47b0f5 0.5782733229548557
+outcome	D3pD1eD0d	3f9359f7070d46e7 0.018897876553927963
+outcome	D0d	3f938397779027a3 0.01905666987662581
+outcome	D0s	3fbb5b75fd62d0a8 0.10686433254415084
+outcome	R2ea	3f9ce34ad31ae02b 0.02821080125315249
+outcome	R2oeR1kaR0ek	3f93975c636aa3d4 0.019132083480744758
+outcome	D1eD0n	3f9d95206f0a2c96 0.028889185693100027
+outcome	D1eD0d	3f9c12b376ab7efa 0.027415088766132613
+outcome	I2e	3f93a460086eb182 0.01918172885386716
+outcome	R1ieD0m	3f9a8529b745aaa2 0.025898601351779356
+outcome	R1ioD0d	3f9a6954310ae61f 0.02579242276508442
+outcome	R0dvI0e	3f93a70dd5904949 0.01919194808949357
+outcome	D2iD1nD0g	3f93e3bc3e258230 0.01942342881500475
+outcome	R2wbR1aeD0s	3f93a460086eb186 0.019181728853867173
+outcome	D2dD1e	3f9352298205e08a 0.018868111191722416
+outcome	R1ai	3f9a570b17bc60d1 0.02572266895649095
+end	37
+point	38	44	17	16	0	none
+context	w0=dash
+context	t0=NOUN
+context	p_1=O
+context	p_1=Ot0=NOUN
+context	p_1=Ow0=dash
+context	suf=null
+context	suf=sh
+context	suf=ash
+context	suf=dash
+context	suf=dash
+context	suf=dash
+context	suf=dash
+context	pre=null
+context	pre=da
+context	pre=das
+context	pre=dash
+context	pre=dash
+outcome	O	3fe281370e47b0f5 0.5782733229548557
+outcome	D3pD1eD0d	3f9359f7070d46e7 0.018897876553927963
+outcome	D0d	3f938397779027a3 0.01905666987662581
+outcome	D0s	3fbb5b75fd62d0a8 0.10686433254415084
+outcome	R2ea	3f9ce34ad31ae02b 0.02821080125315249
+outcome	R2oeR1kaR0ek	3f93975c636aa3d4 0.019132083480744758
+outcome	D1eD0n	3f9d95206f0a2c96 0.028889185693100027
+outcome	D1eD0d	3f9c12b376ab7efa 0.027415088766132613
+outcome	I2e	3f93a460086eb182 0.01918172885386716
+outcome	R1ieD0m	3f9a8529b745aaa2 0.025898601351779356
+outcome	R1ioD0d	3f9a6954310ae61f 0.02579242276508442
+outcome	R0dvI0e	3f93a70dd5904949 0.01919194808949357
+outcome	D2iD1nD0g	3f93e3bc3e258230 0.01942342881500475
+outcome	R2wbR1aeD0s	3f93a460086eb186 0.019181728853867173
+outcome	D2dD1e	3f9352298205e08a 0.018868111191722416
+outcome	R1ai	3f9a570b17bc60d1 0.02572266895649095
+end	38
+point	39	44	17	16	0	none
+context	w0=dash
+context	t0=NOUN
+context	p_1=D0s
+context	p_1=D0st0=NOUN
+context	p_1=D0sw0=dash
+context	suf=null
+context	suf=sh
+context	suf=ash
+context	suf=dash
+context	suf=dash
+context	suf=dash
+context	suf=dash
+context	pre=null
+context	pre=da
+context	pre=das
+context	pre=dash
+context	pre=dash
+outcome	O	3fdbd9b2fc4f9f9a 0.4351623023962873
+outcome	D3pD1eD0d	3f9ba943d9963953 0.027012882380909996
+outcome	D0d	3f9bd0335ee14d69 0.027161410013218843
+outcome	D0s	3fb9f68044bcc263 0.10141755750806562
+outcome	R2ea	3faf91f62b22be5a 0.061660473599997004
+outcome	R2oeR1kaR0ek	3f9bede65c3e1ee9 0.027274703388257136
+outcome	D1eD0n	3fa9cefd1446cb88 0.05040732262150188
+outcome	D1eD0d	3fb078e3cc149d4a 0.06434463245806402
+outcome	I2e	3f9bfcf8401f775b 0.027332190431358466
+outcome	R1ieD0m	3f947e4463cbc257 0.020012920943317827
+outcome	R1ioD0d	3f9468c233cb6146 0.019930872355730565
+outcome	R0dvI0e	3f9becee78ed3381 0.02727100956990425
+outcome	D2iD1nD0g	3f9c2c1c68a0e32c 0.02751202000237922
+outcome	R2wbR1aeD0s	3f9bfcf8401f775b 0.027332190431358466
+outcome	D2dD1e	3f9ba1752fa3ae9a 0.026983099968602355
+outcome	R1ai	3f9de284bb2ff659 0.029184411931046792
+end	39
+point	40	49	17	16	0	none
+context	w0=–
+context	t0=PUNCT
+context	p_1=O
+context	p_1=Ot0=PUNCT
+context	p_1=Ow0=–
+context	suf=null
+context	suf=–
+context	suf=–
+context	suf=–
+context	suf=–
+context	suf=–
+context	suf=–
+context	pre=null
+context	pre=–
+context	pre=–
+context	pre=–
+context	pre=–
+outcome	O	3fe281370e47b0f5 0.5782733229548557
+outcome	D3pD1eD0d	3f9359f7070d46e7 0.018897876553927963
+outcome	D0d	3f938397779027a3 0.01905666987662581
+outcome	D0s	3fbb5b75fd62d0a8 0.10686433254415084
+outcome	R2ea	3f9ce34ad31ae02b 0.02821080125315249
+outcome	R2oeR1kaR0ek	3f93975c636aa3d4 0.019132083480744758
+outcome	D1eD0n	3f9d95206f0a2c96 0.028889185693100027
+outcome	D1eD0d	3f9c12b376ab7efa 0.027415088766132613
+outcome	I2e	3f93a460086eb182 0.01918172885386716
+outcome	R1ieD0m	3f9a8529b745aaa2 0.025898601351779356
+outcome	R1ioD0d	3f9a6954310ae61f 0.02579242276508442
+outcome	R0dvI0e	3f93a70dd5904949 0.01919194808949357
+outcome	D2iD1nD0g	3f93e3bc3e258230 0.01942342881500475
+outcome	R2wbR1aeD0s	3f93a460086eb186 0.019181728853867173
+outcome	D2dD1e	3f9352298205e08a 0.018868111191722416
+outcome	R1ai	3f9a570b17bc60d1 0.02572266895649095
+end	40
+point	41	49	17	16	0	none
+context	w0=–
+context	t0=PUNCT
+context	p_1=O
+context	p_1=Ot0=PUNCT
+context	p_1=Ow0=–
+context	suf=null
+context	suf=–
+context	suf=–
+context	suf=–
+context	suf=–
+context	suf=–
+context	suf=–
+context	pre=null
+context	pre=–
+context	pre=–
+context	pre=–
+context	pre=–
+outcome	O	3fe281370e47b0f5 0.5782733229548557
+outcome	D3pD1eD0d	3f9359f7070d46e7 0.018897876553927963
+outcome	D0d	3f938397779027a3 0.01905666987662581
+outcome	D0s	3fbb5b75fd62d0a8 0.10686433254415084
+outcome	R2ea	3f9ce34ad31ae02b 0.02821080125315249
+outcome	R2oeR1kaR0ek	3f93975c636aa3d4 0.019132083480744758
+outcome	D1eD0n	3f9d95206f0a2c96 0.028889185693100027
+outcome	D1eD0d	3f9c12b376ab7efa 0.027415088766132613
+outcome	I2e	3f93a460086eb182 0.01918172885386716
+outcome	R1ieD0m	3f9a8529b745aaa2 0.025898601351779356
+outcome	R1ioD0d	3f9a6954310ae61f 0.02579242276508442
+outcome	R0dvI0e	3f93a70dd5904949 0.01919194808949357
+outcome	D2iD1nD0g	3f93e3bc3e258230 0.01942342881500475
+outcome	R2wbR1aeD0s	3f93a460086eb186 0.019181728853867173
+outcome	D2dD1e	3f9352298205e08a 0.018868111191722416
+outcome	R1ai	3f9a570b17bc60d1 0.02572266895649095
+end	41
+point	42	49	17	16	0	none
+context	w0=–
+context	t0=PUNCT
+context	p_1=D0s
+context	p_1=D0st0=PUNCT
+context	p_1=D0sw0=–
+context	suf=null
+context	suf=–
+context	suf=–
+context	suf=–
+context	suf=–
+context	suf=–
+context	suf=–
+context	pre=null
+context	pre=–
+context	pre=–
+context	pre=–
+context	pre=–
+outcome	O	3fdbd9b2fc4f9f9a 0.4351623023962873
+outcome	D3pD1eD0d	3f9ba943d9963953 0.027012882380909996
+outcome	D0d	3f9bd0335ee14d69 0.027161410013218843
+outcome	D0s	3fb9f68044bcc263 0.10141755750806562
+outcome	R2ea	3faf91f62b22be5a 0.061660473599997004
+outcome	R2oeR1kaR0ek	3f9bede65c3e1ee9 0.027274703388257136
+outcome	D1eD0n	3fa9cefd1446cb88 0.05040732262150188
+outcome	D1eD0d	3fb078e3cc149d4a 0.06434463245806402
+outcome	I2e	3f9bfcf8401f775b 0.027332190431358466
+outcome	R1ieD0m	3f947e4463cbc257 0.020012920943317827
+outcome	R1ioD0d	3f9468c233cb6146 0.019930872355730565
+outcome	R0dvI0e	3f9becee78ed3381 0.02727100956990425
+outcome	D2iD1nD0g	3f9c2c1c68a0e32c 0.02751202000237922
+outcome	R2wbR1aeD0s	3f9bfcf8401f775b 0.027332190431358466
+outcome	D2dD1e	3f9ba1752fa3ae9a 0.026983099968602355
+outcome	R1ai	3f9de284bb2ff659 0.029184411931046792
+end	42
+point	43	53	17	16	0	none
+context	w0=en
+context	t0=NOUN
+context	p_1=O
+context	p_1=Ot0=NOUN
+context	p_1=Ow0=en
+context	suf=null
+context	suf=en
+context	suf=en
+context	suf=en
+context	suf=en
+context	suf=en
+context	suf=en
+context	pre=null
+context	pre=en
+context	pre=en
+context	pre=en
+context	pre=en
+outcome	O	3fde2bbd02571dea 0.4714195750097746
+outcome	D3pD1eD0d	3f810cf7eb59a12e 0.008325516576591054
+outcome	D0d	3f8131a55f5e1ec8 0.00839547345437043
+outcome	D0s	3fa81acaac2e2fa4 0.047079404371373174
+outcome	R2ea	3f89740964887a52 0.012428353672530399
+outcome	R2oeR1kaR0ek	3f81431094b2b395 0.008428697145370903
+outcome	D1eD0n	3fd17eabf0581618 0.2733564231024004
+outcome	D1eD0d	3f88bc3ee4a85914 0.01207780013377805
+outcome	I2e	3f814e881cef0396 0.008450568564400556
+outcome	R1ieD0m	3f875df8f4374e30 0.01140970702446173
+outcome	R1ioD0d	3f8745729c87db53 0.011362929727494786
+outcome	R0dvI0e	3f8150e4606e54bd 0.008455070679512006
+outcome	D2iD1nD0g	3f81865bd67d1e07 0.008557050212075102
+outcome	R2wbR1aeD0s	3f814e881cef039a 0.008450568564400563
+outcome	D2dD1e	3fb72915d7c2e9cf 0.0904706622849638
+outcome	R1ai	3f8735561125882e 0.011332199476502405
+end	43
+point	44	53	17	16	0	none
+context	w0=en
+context	t0=NOUN
+context	p_1=O
+context	p_1=Ot0=NOUN
+context	p_1=Ow0=en
+context	suf=null
+context	suf=en
+context	suf=en
+context	suf=en
+context	suf=en
+context	suf=en
+context	suf=en
+context	pre=null
+context	pre=en
+context	pre=en
+context	pre=en
+context	pre=en
+outcome	O	3fde2bbd02571dea 0.4714195750097746
+outcome	D3pD1eD0d	3f810cf7eb59a12e 0.008325516576591054
+outcome	D0d	3f8131a55f5e1ec8 0.00839547345437043
+outcome	D0s	3fa81acaac2e2fa4 0.047079404371373174
+outcome	R2ea	3f89740964887a52 0.012428353672530399
+outcome	R2oeR1kaR0ek	3f81431094b2b395 0.008428697145370903
+outcome	D1eD0n	3fd17eabf0581618 0.2733564231024004
+outcome	D1eD0d	3f88bc3ee4a85914 0.01207780013377805
+outcome	I2e	3f814e881cef0396 0.008450568564400556
+outcome	R1ieD0m	3f875df8f4374e30 0.01140970702446173
+outcome	R1ioD0d	3f8745729c87db53 0.011362929727494786
+outcome	R0dvI0e	3f8150e4606e54bd 0.008455070679512006
+outcome	D2iD1nD0g	3f81865bd67d1e07 0.008557050212075102
+outcome	R2wbR1aeD0s	3f814e881cef039a 0.008450568564400563
+outcome	D2dD1e	3fb72915d7c2e9cf 0.0904706622849638
+outcome	R1ai	3f8735561125882e 0.011332199476502405
+end	44
+point	45	53	17	16	0	none
+context	w0=en
+context	t0=NOUN
+context	p_1=D0s
+context	p_1=D0st0=NOUN
+context	p_1=D0sw0=en
+context	suf=null
+context	suf=en
+context	suf=en
+context	suf=en
+context	suf=en
+context	suf=en
+context	suf=en
+context	pre=null
+context	pre=en
+context	pre=en
+context	pre=en
+context	pre=en
+outcome	O	3fd34f0ce22f42fa 0.3016998490175379
+outcome	D3pD1eD0d	3f84ba422a791489 0.010120884820148628
+outcome	D0d	3f84d76f34519cd5 0.010176533493178411
+outcome	D0s	3fa3747933248370 0.03799799680041971
+outcome	R2ea	3f97a81e393be577 0.02310225700691634
+outcome	R2oeR1kaR0ek	3f84edb069276645 0.010218980988543023
+outcome	D1eD0n	3fd9f5f2a25b0afa 0.4056364617828617
+outcome	D1eD0d	3f98afbfa339f1da 0.024107927644296236
+outcome	I2e	3f84f8fb45e87a73 0.010240519591261354
+outcome	R1ieD0m	3f7eb673700a3ba0 0.00749821751436644
+outcome	R1ioD0d	3f7e96377354a63d 0.007467476466709364
+outcome	R0dvI0e	3f84ecf6a8b31224 0.01021759702997211
+outcome	D2iD1nD0g	3f851c4e65f8f29b 0.01030789612479426
+outcome	R2wbR1aeD0s	3f84f8fb45e87a73 0.010240519591261354
+outcome	D2dD1e	3fbc2b1538f59bbb 0.1100323928891233
+outcome	R1ai	3f8664d24d6d252d 0.010934489238609924
+end	45
+point	46	56	17	16	0	none
+context	w0=dash
+context	t0=NOUN
+context	p_1=O
+context	p_1=Ot0=NOUN
+context	p_1=Ow0=dash
+context	suf=null
+context	suf=sh
+context	suf=ash
+context	suf=dash
+context	suf=dash
+context	suf=dash
+context	suf=dash
+context	pre=null
+context	pre=da
+context	pre=das
+context	pre=dash
+context	pre=dash
+outcome	O	3fe281370e47b0f5 0.5782733229548557
+outcome	D3pD1eD0d	3f9359f7070d46e7 0.018897876553927963
+outcome	D0d	3f938397779027a3 0.01905666987662581
+outcome	D0s	3fbb5b75fd62d0a8 0.10686433254415084
+outcome	R2ea	3f9ce34ad31ae02b 0.02821080125315249
+outcome	R2oeR1kaR0ek	3f93975c636aa3d4 0.019132083480744758
+outcome	D1eD0n	3f9d95206f0a2c96 0.028889185693100027
+outcome	D1eD0d	3f9c12b376ab7efa 0.027415088766132613
+outcome	I2e	3f93a460086eb182 0.01918172885386716
+outcome	R1ieD0m	3f9a8529b745aaa2 0.025898601351779356
+outcome	R1ioD0d	3f9a6954310ae61f 0.02579242276508442
+outcome	R0dvI0e	3f93a70dd5904949 0.01919194808949357
+outcome	D2iD1nD0g	3f93e3bc3e258230 0.01942342881500475
+outcome	R2wbR1aeD0s	3f93a460086eb186 0.019181728853867173
+outcome	D2dD1e	3f9352298205e08a 0.018868111191722416
+outcome	R1ai	3f9a570b17bc60d1 0.02572266895649095
+end	46
+point	47	56	17	16	0	none
+context	w0=dash
+context	t0=NOUN
+context	p_1=D1eD0n
+context	p_1=D1eD0nt0=NOUN
+context	p_1=D1eD0nw0=dash
+context	suf=null
+context	suf=sh
+context	suf=ash
+context	suf=dash
+context	suf=dash
+context	suf=dash
+context	suf=dash
+context	pre=null
+context	pre=da
+context	pre=das
+context	pre=dash
+context	pre=dash
+outcome	O	3fde52ca4ca3e1af 0.4738031147421919
+outcome	D3pD1eD0d	3f9b7fa6d708b942 0.02685414016212318
+outcome	D0d	3f9ba65bc940b7aa 0.027001794966217275
+outcome	D0s	3fb9cf715090b39a 0.10082157341885392
+outcome	R2ea	3fa95d073857060a 0.04953787386649473
+outcome	R2oeR1kaR0ek	3f9bc3e218b9e527 0.027114422568478205
+outcome	D1eD0n	3fa9a8299154aa88 0.05011110209519126
+outcome	D1eD0d	3fa96cc55f5b754f 0.04965798176793134
+outcome	I2e	3f9bd2dd50d230b1 0.027171571786809682
+outcome	R1ieD0m	3f945f6ff0613008 0.019895314261063418
+outcome	R1ioD0d	3f944a0e1bd9fe04 0.019813747835085507
+outcome	R0dvI0e	3f9bc2ebaa54c41c 0.02711075045698773
+outcome	D2iD1nD0g	3f9c01ba8e10faa6 0.02735034458259613
+outcome	R2wbR1aeD0s	3f9bd2dd50d230b1 0.027171571786809682
+outcome	D2dD1e	3f9b77e3ebdd22a8 0.026824532767281056
+outcome	R1ai	3f943c02164b03d3 0.01976016293588485
+end	47
+point	48	56	17	16	0	none
+context	w0=dash
+context	t0=NOUN
+context	p_1=O
+context	p_1=Ot0=NOUN
+context	p_1=Ow0=dash
+context	suf=null
+context	suf=sh
+context	suf=ash
+context	suf=dash
+context	suf=dash
+context	suf=dash
+context	suf=dash
+context	pre=null
+context	pre=da
+context	pre=das
+context	pre=dash
+context	pre=dash
+outcome	O	3fe281370e47b0f5 0.5782733229548557
+outcome	D3pD1eD0d	3f9359f7070d46e7 0.018897876553927963
+outcome	D0d	3f938397779027a3 0.01905666987662581
+outcome	D0s	3fbb5b75fd62d0a8 0.10686433254415084
+outcome	R2ea	3f9ce34ad31ae02b 0.02821080125315249
+outcome	R2oeR1kaR0ek	3f93975c636aa3d4 0.019132083480744758
+outcome	D1eD0n	3f9d95206f0a2c96 0.028889185693100027
+outcome	D1eD0d	3f9c12b376ab7efa 0.027415088766132613
+outcome	I2e	3f93a460086eb182 0.01918172885386716
+outcome	R1ieD0m	3f9a8529b745aaa2 0.025898601351779356
+outcome	R1ioD0d	3f9a6954310ae61f 0.02579242276508442
+outcome	R0dvI0e	3f93a70dd5904949 0.01919194808949357
+outcome	D2iD1nD0g	3f93e3bc3e258230 0.01942342881500475
+outcome	R2wbR1aeD0s	3f93a460086eb186 0.019181728853867173
+outcome	D2dD1e	3f9352298205e08a 0.018868111191722416
+outcome	R1ai	3f9a570b17bc60d1 0.02572266895649095
+end	48
+point	49	61	17	16	0	none
+context	w0=‒
+context	t0=PUNCT
+context	p_1=O
+context	p_1=Ot0=PUNCT
+context	p_1=Ow0=‒
+context	suf=null
+context	suf=‒
+context	suf=‒
+context	suf=‒
+context	suf=‒
+context	suf=‒
+context	suf=‒
+context	pre=null
+context	pre=‒
+context	pre=‒
+context	pre=‒
+context	pre=‒
+outcome	O	3fe281370e47b0f5 0.5782733229548557
+outcome	D3pD1eD0d	3f9359f7070d46e7 0.018897876553927963
+outcome	D0d	3f938397779027a3 0.01905666987662581
+outcome	D0s	3fbb5b75fd62d0a8 0.10686433254415084
+outcome	R2ea	3f9ce34ad31ae02b 0.02821080125315249
+outcome	R2oeR1kaR0ek	3f93975c636aa3d4 0.019132083480744758
+outcome	D1eD0n	3f9d95206f0a2c96 0.028889185693100027
+outcome	D1eD0d	3f9c12b376ab7efa 0.027415088766132613
+outcome	I2e	3f93a460086eb182 0.01918172885386716
+outcome	R1ieD0m	3f9a8529b745aaa2 0.025898601351779356
+outcome	R1ioD0d	3f9a6954310ae61f 0.02579242276508442
+outcome	R0dvI0e	3f93a70dd5904949 0.01919194808949357
+outcome	D2iD1nD0g	3f93e3bc3e258230 0.01942342881500475
+outcome	R2wbR1aeD0s	3f93a460086eb186 0.019181728853867173
+outcome	D2dD1e	3f9352298205e08a 0.018868111191722416
+outcome	R1ai	3f9a570b17bc60d1 0.02572266895649095
+end	49
+point	50	61	17	16	0	none
+context	w0=‒
+context	t0=PUNCT
+context	p_1=O
+context	p_1=Ot0=PUNCT
+context	p_1=Ow0=‒
+context	suf=null
+context	suf=‒
+context	suf=‒
+context	suf=‒
+context	suf=‒
+context	suf=‒
+context	suf=‒
+context	pre=null
+context	pre=‒
+context	pre=‒
+context	pre=‒
+context	pre=‒
+outcome	O	3fe281370e47b0f5 0.5782733229548557
+outcome	D3pD1eD0d	3f9359f7070d46e7 0.018897876553927963
+outcome	D0d	3f938397779027a3 0.01905666987662581
+outcome	D0s	3fbb5b75fd62d0a8 0.10686433254415084
+outcome	R2ea	3f9ce34ad31ae02b 0.02821080125315249
+outcome	R2oeR1kaR0ek	3f93975c636aa3d4 0.019132083480744758
+outcome	D1eD0n	3f9d95206f0a2c96 0.028889185693100027
+outcome	D1eD0d	3f9c12b376ab7efa 0.027415088766132613
+outcome	I2e	3f93a460086eb182 0.01918172885386716
+outcome	R1ieD0m	3f9a8529b745aaa2 0.025898601351779356
+outcome	R1ioD0d	3f9a6954310ae61f 0.02579242276508442
+outcome	R0dvI0e	3f93a70dd5904949 0.01919194808949357
+outcome	D2iD1nD0g	3f93e3bc3e258230 0.01942342881500475
+outcome	R2wbR1aeD0s	3f93a460086eb186 0.019181728853867173
+outcome	D2dD1e	3f9352298205e08a 0.018868111191722416
+outcome	R1ai	3f9a570b17bc60d1 0.02572266895649095
+end	50
+point	51	61	17	16	0	none
+context	w0=‒
+context	t0=PUNCT
+context	p_1=O
+context	p_1=Ot0=PUNCT
+context	p_1=Ow0=‒
+context	suf=null
+context	suf=‒
+context	suf=‒
+context	suf=‒
+context	suf=‒
+context	suf=‒
+context	suf=‒
+context	pre=null
+context	pre=‒
+context	pre=‒
+context	pre=‒
+context	pre=‒
+outcome	O	3fe281370e47b0f5 0.5782733229548557
+outcome	D3pD1eD0d	3f9359f7070d46e7 0.018897876553927963
+outcome	D0d	3f938397779027a3 0.01905666987662581
+outcome	D0s	3fbb5b75fd62d0a8 0.10686433254415084
+outcome	R2ea	3f9ce34ad31ae02b 0.02821080125315249
+outcome	R2oeR1kaR0ek	3f93975c636aa3d4 0.019132083480744758
+outcome	D1eD0n	3f9d95206f0a2c96 0.028889185693100027
+outcome	D1eD0d	3f9c12b376ab7efa 0.027415088766132613
+outcome	I2e	3f93a460086eb182 0.01918172885386716
+outcome	R1ieD0m	3f9a8529b745aaa2 0.025898601351779356
+outcome	R1ioD0d	3f9a6954310ae61f 0.02579242276508442
+outcome	R0dvI0e	3f93a70dd5904949 0.01919194808949357
+outcome	D2iD1nD0g	3f93e3bc3e258230 0.01942342881500475
+outcome	R2wbR1aeD0s	3f93a460086eb186 0.019181728853867173
+outcome	D2dD1e	3f9352298205e08a 0.018868111191722416
+outcome	R1ai	3f9a570b17bc60d1 0.02572266895649095
+end	51
+point	52	65	17	16	0	none
+context	w0=figure
+context	t0=VERB
+context	p_1=O
+context	p_1=Ot0=VERB
+context	p_1=Ow0=figure
+context	suf=null
+context	suf=re
+context	suf=ure
+context	suf=gure
+context	suf=igure
+context	suf=figure
+context	suf=figure
+context	pre=null
+context	pre=fi
+context	pre=fig
+context	pre=figu
+context	pre=figur
+outcome	O	3fe504081ca7348e 0.6567421493179084
+outcome	D3pD1eD0d	3f8f8067ae1911c4 0.015381631851718043
+outcome	D0d	3f8fc42af72a43d3 0.01551087919986741
+outcome	D0s	3fb6445b95ff536e 0.08698055660290802
+outcome	R2ea	3f97834865bdbcac 0.022961741647517783
+outcome	R2oeR1kaR0ek	3f8fe4597b3ccc7c 0.015572260926637542
+outcome	D1eD0n	3f98140741c19e95 0.023513902080962785
+outcome	D1eD0d	3f96d980d205fbe6 0.02231408388024283
+outcome	I2e	3f8ff988f631ad02 0.015612669003721272
+outcome	R1ieD0m	3f9595eeebf552ba 0.021079762603522602
+outcome	R1ioD0d	3f957f47365ae23a 0.020993340199057388
+outcome	R0dvI0e	3f8ffde55b31b8eb 0.015620986791159605
+outcome	D2iD1nD0g	3f903056aae9b05c 0.01580939691704973
+outcome	R2wbR1aeD0s	3f8ff988f631ad0a 0.015612669003721286
+outcome	D2dD1e	3f8f73b3faeb8087 0.015357404799431386
+outcome	R1ai	3f9570651adc8900 0.02093656517457365
+end	52
+point	53	65	17	16	0	none
+context	w0=figure
+context	t0=VERB
+context	p_1=O
+context	p_1=Ot0=VERB
+context	p_1=Ow0=figure
+context	suf=null
+context	suf=re
+context	suf=ure
+context	suf=gure
+context	suf=igure
+context	suf=figure
+context	suf=figure
+context	pre=null
+context	pre=fi
+context	pre=fig
+context	pre=figu
+context	pre=figur
+outcome	O	3fe504081ca7348e 0.6567421493179084
+outcome	D3pD1eD0d	3f8f8067ae1911c4 0.015381631851718043
+outcome	D0d	3f8fc42af72a43d3 0.01551087919986741
+outcome	D0s	3fb6445b95ff536e 0.08698055660290802
+outcome	R2ea	3f97834865bdbcac 0.022961741647517783
+outcome	R2oeR1kaR0ek	3f8fe4597b3ccc7c 0.015572260926637542
+outcome	D1eD0n	3f98140741c19e95 0.023513902080962785
+outcome	D1eD0d	3f96d980d205fbe6 0.02231408388024283
+outcome	I2e	3f8ff988f631ad02 0.015612669003721272
+outcome	R1ieD0m	3f9595eeebf552ba 0.021079762603522602
+outcome	R1ioD0d	3f957f47365ae23a 0.020993340199057388
+outcome	R0dvI0e	3f8ffde55b31b8eb 0.015620986791159605
+outcome	D2iD1nD0g	3f903056aae9b05c 0.01580939691704973
+outcome	R2wbR1aeD0s	3f8ff988f631ad0a 0.015612669003721286
+outcome	D2dD1e	3f8f73b3faeb8087 0.015357404799431386
+outcome	R1ai	3f9570651adc8900 0.02093656517457365
+end	53
+point	54	65	17	16	0	none
+context	w0=figure
+context	t0=VERB
+context	p_1=O
+context	p_1=Ot0=VERB
+context	p_1=Ow0=figure
+context	suf=null
+context	suf=re
+context	suf=ure
+context	suf=gure
+context	suf=igure
+context	suf=figure
+context	suf=figure
+context	pre=null
+context	pre=fi
+context	pre=fig
+context	pre=figu
+context	pre=figur
+outcome	O	3fe504081ca7348e 0.6567421493179084
+outcome	D3pD1eD0d	3f8f8067ae1911c4 0.015381631851718043
+outcome	D0d	3f8fc42af72a43d3 0.01551087919986741
+outcome	D0s	3fb6445b95ff536e 0.08698055660290802
+outcome	R2ea	3f97834865bdbcac 0.022961741647517783
+outcome	R2oeR1kaR0ek	3f8fe4597b3ccc7c 0.015572260926637542
+outcome	D1eD0n	3f98140741c19e95 0.023513902080962785
+outcome	D1eD0d	3f96d980d205fbe6 0.02231408388024283
+outcome	I2e	3f8ff988f631ad02 0.015612669003721272
+outcome	R1ieD0m	3f9595eeebf552ba 0.021079762603522602
+outcome	R1ioD0d	3f957f47365ae23a 0.020993340199057388
+outcome	R0dvI0e	3f8ffde55b31b8eb 0.015620986791159605
+outcome	D2iD1nD0g	3f903056aae9b05c 0.01580939691704973
+outcome	R2wbR1aeD0s	3f8ff988f631ad0a 0.015612669003721286
+outcome	D2dD1e	3f8f73b3faeb8087 0.015357404799431386
+outcome	R1ai	3f9570651adc8900 0.02093656517457365
+end	54
+point	55	72	17	16	0	none
+context	w0=dash
+context	t0=NOUN
+context	p_1=O
+context	p_1=Ot0=NOUN
+context	p_1=Ow0=dash
+context	suf=null
+context	suf=sh
+context	suf=ash
+context	suf=dash
+context	suf=dash
+context	suf=dash
+context	suf=dash
+context	pre=null
+context	pre=da
+context	pre=das
+context	pre=dash
+context	pre=dash
+outcome	O	3fe281370e47b0f5 0.5782733229548557
+outcome	D3pD1eD0d	3f9359f7070d46e7 0.018897876553927963
+outcome	D0d	3f938397779027a3 0.01905666987662581
+outcome	D0s	3fbb5b75fd62d0a8 0.10686433254415084
+outcome	R2ea	3f9ce34ad31ae02b 0.02821080125315249
+outcome	R2oeR1kaR0ek	3f93975c636aa3d4 0.019132083480744758
+outcome	D1eD0n	3f9d95206f0a2c96 0.028889185693100027
+outcome	D1eD0d	3f9c12b376ab7efa 0.027415088766132613
+outcome	I2e	3f93a460086eb182 0.01918172885386716
+outcome	R1ieD0m	3f9a8529b745aaa2 0.025898601351779356
+outcome	R1ioD0d	3f9a6954310ae61f 0.02579242276508442
+outcome	R0dvI0e	3f93a70dd5904949 0.01919194808949357
+outcome	D2iD1nD0g	3f93e3bc3e258230 0.01942342881500475
+outcome	R2wbR1aeD0s	3f93a460086eb186 0.019181728853867173
+outcome	D2dD1e	3f9352298205e08a 0.018868111191722416
+outcome	R1ai	3f9a570b17bc60d1 0.02572266895649095
+end	55
+point	56	72	17	16	0	none
+context	w0=dash
+context	t0=NOUN
+context	p_1=O
+context	p_1=Ot0=NOUN
+context	p_1=Ow0=dash
+context	suf=null
+context	suf=sh
+context	suf=ash
+context	suf=dash
+context	suf=dash
+context	suf=dash
+context	suf=dash
+context	pre=null
+context	pre=da
+context	pre=das
+context	pre=dash
+context	pre=dash
+outcome	O	3fe281370e47b0f5 0.5782733229548557
+outcome	D3pD1eD0d	3f9359f7070d46e7 0.018897876553927963
+outcome	D0d	3f938397779027a3 0.01905666987662581
+outcome	D0s	3fbb5b75fd62d0a8 0.10686433254415084
+outcome	R2ea	3f9ce34ad31ae02b 0.02821080125315249
+outcome	R2oeR1kaR0ek	3f93975c636aa3d4 0.019132083480744758
+outcome	D1eD0n	3f9d95206f0a2c96 0.028889185693100027
+outcome	D1eD0d	3f9c12b376ab7efa 0.027415088766132613
+outcome	I2e	3f93a460086eb182 0.01918172885386716
+outcome	R1ieD0m	3f9a8529b745aaa2 0.025898601351779356
+outcome	R1ioD0d	3f9a6954310ae61f 0.02579242276508442
+outcome	R0dvI0e	3f93a70dd5904949 0.01919194808949357
+outcome	D2iD1nD0g	3f93e3bc3e258230 0.01942342881500475
+outcome	R2wbR1aeD0s	3f93a460086eb186 0.019181728853867173
+outcome	D2dD1e	3f9352298205e08a 0.018868111191722416
+outcome	R1ai	3f9a570b17bc60d1 0.02572266895649095
+end	56
+point	57	72	17	16	0	none
+context	w0=dash
+context	t0=NOUN
+context	p_1=O
+context	p_1=Ot0=NOUN
+context	p_1=Ow0=dash
+context	suf=null
+context	suf=sh
+context	suf=ash
+context	suf=dash
+context	suf=dash
+context	suf=dash
+context	suf=dash
+context	pre=null
+context	pre=da
+context	pre=das
+context	pre=dash
+context	pre=dash
+outcome	O	3fe281370e47b0f5 0.5782733229548557
+outcome	D3pD1eD0d	3f9359f7070d46e7 0.018897876553927963
+outcome	D0d	3f938397779027a3 0.01905666987662581
+outcome	D0s	3fbb5b75fd62d0a8 0.10686433254415084
+outcome	R2ea	3f9ce34ad31ae02b 0.02821080125315249
+outcome	R2oeR1kaR0ek	3f93975c636aa3d4 0.019132083480744758
+outcome	D1eD0n	3f9d95206f0a2c96 0.028889185693100027
+outcome	D1eD0d	3f9c12b376ab7efa 0.027415088766132613
+outcome	I2e	3f93a460086eb182 0.01918172885386716
+outcome	R1ieD0m	3f9a8529b745aaa2 0.025898601351779356
+outcome	R1ioD0d	3f9a6954310ae61f 0.02579242276508442
+outcome	R0dvI0e	3f93a70dd5904949 0.01919194808949357
+outcome	D2iD1nD0g	3f93e3bc3e258230 0.01942342881500475
+outcome	R2wbR1aeD0s	3f93a460086eb186 0.019181728853867173
+outcome	D2dD1e	3f9352298205e08a 0.018868111191722416
+outcome	R1ai	3f9a570b17bc60d1 0.02572266895649095
+end	57
+point	58	77	17	16	0	none
+context	w0=―
+context	t0=PUNCT
+context	p_1=O
+context	p_1=Ot0=PUNCT
+context	p_1=Ow0=―
+context	suf=null
+context	suf=―
+context	suf=―
+context	suf=―
+context	suf=―
+context	suf=―
+context	suf=―
+context	pre=null
+context	pre=―
+context	pre=―
+context	pre=―
+context	pre=―
+outcome	O	3fe281370e47b0f5 0.5782733229548557
+outcome	D3pD1eD0d	3f9359f7070d46e7 0.018897876553927963
+outcome	D0d	3f938397779027a3 0.01905666987662581
+outcome	D0s	3fbb5b75fd62d0a8 0.10686433254415084
+outcome	R2ea	3f9ce34ad31ae02b 0.02821080125315249
+outcome	R2oeR1kaR0ek	3f93975c636aa3d4 0.019132083480744758
+outcome	D1eD0n	3f9d95206f0a2c96 0.028889185693100027
+outcome	D1eD0d	3f9c12b376ab7efa 0.027415088766132613
+outcome	I2e	3f93a460086eb182 0.01918172885386716
+outcome	R1ieD0m	3f9a8529b745aaa2 0.025898601351779356
+outcome	R1ioD0d	3f9a6954310ae61f 0.02579242276508442
+outcome	R0dvI0e	3f93a70dd5904949 0.01919194808949357
+outcome	D2iD1nD0g	3f93e3bc3e258230 0.01942342881500475
+outcome	R2wbR1aeD0s	3f93a460086eb186 0.019181728853867173
+outcome	D2dD1e	3f9352298205e08a 0.018868111191722416
+outcome	R1ai	3f9a570b17bc60d1 0.02572266895649095
+end	58
+point	59	77	17	16	0	none
+context	w0=―
+context	t0=PUNCT
+context	p_1=O
+context	p_1=Ot0=PUNCT
+context	p_1=Ow0=―
+context	suf=null
+context	suf=―
+context	suf=―
+context	suf=―
+context	suf=―
+context	suf=―
+context	suf=―
+context	pre=null
+context	pre=―
+context	pre=―
+context	pre=―
+context	pre=―
+outcome	O	3fe281370e47b0f5 0.5782733229548557
+outcome	D3pD1eD0d	3f9359f7070d46e7 0.018897876553927963
+outcome	D0d	3f938397779027a3 0.01905666987662581
+outcome	D0s	3fbb5b75fd62d0a8 0.10686433254415084
+outcome	R2ea	3f9ce34ad31ae02b 0.02821080125315249
+outcome	R2oeR1kaR0ek	3f93975c636aa3d4 0.019132083480744758
+outcome	D1eD0n	3f9d95206f0a2c96 0.028889185693100027
+outcome	D1eD0d	3f9c12b376ab7efa 0.027415088766132613
+outcome	I2e	3f93a460086eb182 0.01918172885386716
+outcome	R1ieD0m	3f9a8529b745aaa2 0.025898601351779356
+outcome	R1ioD0d	3f9a6954310ae61f 0.02579242276508442
+outcome	R0dvI0e	3f93a70dd5904949 0.01919194808949357
+outcome	D2iD1nD0g	3f93e3bc3e258230 0.01942342881500475
+outcome	R2wbR1aeD0s	3f93a460086eb186 0.019181728853867173
+outcome	D2dD1e	3f9352298205e08a 0.018868111191722416
+outcome	R1ai	3f9a570b17bc60d1 0.02572266895649095
+end	59
+point	60	77	17	16	0	none
+context	w0=―
+context	t0=PUNCT
+context	p_1=O
+context	p_1=Ot0=PUNCT
+context	p_1=Ow0=―
+context	suf=null
+context	suf=―
+context	suf=―
+context	suf=―
+context	suf=―
+context	suf=―
+context	suf=―
+context	pre=null
+context	pre=―
+context	pre=―
+context	pre=―
+context	pre=―
+outcome	O	3fe281370e47b0f5 0.5782733229548557
+outcome	D3pD1eD0d	3f9359f7070d46e7 0.018897876553927963
+outcome	D0d	3f938397779027a3 0.01905666987662581
+outcome	D0s	3fbb5b75fd62d0a8 0.10686433254415084
+outcome	R2ea	3f9ce34ad31ae02b 0.02821080125315249
+outcome	R2oeR1kaR0ek	3f93975c636aa3d4 0.019132083480744758
+outcome	D1eD0n	3f9d95206f0a2c96 0.028889185693100027
+outcome	D1eD0d	3f9c12b376ab7efa 0.027415088766132613
+outcome	I2e	3f93a460086eb182 0.01918172885386716
+outcome	R1ieD0m	3f9a8529b745aaa2 0.025898601351779356
+outcome	R1ioD0d	3f9a6954310ae61f 0.02579242276508442
+outcome	R0dvI0e	3f93a70dd5904949 0.01919194808949357
+outcome	D2iD1nD0g	3f93e3bc3e258230 0.01942342881500475
+outcome	R2wbR1aeD0s	3f93a460086eb186 0.019181728853867173
+outcome	D2dD1e	3f9352298205e08a 0.018868111191722416
+outcome	R1ai	3f9a570b17bc60d1 0.02572266895649095
+end	60
+point	61	81	17	16	0	none
+context	w0=bar
+context	t0=NOUN
+context	p_1=O
+context	p_1=Ot0=NOUN
+context	p_1=Ow0=bar
+context	suf=null
+context	suf=ar
+context	suf=bar
+context	suf=bar
+context	suf=bar
+context	suf=bar
+context	suf=bar
+context	pre=null
+context	pre=ba
+context	pre=bar
+context	pre=bar
+context	pre=bar
+outcome	O	3fe5042325adacdb 0.6567550407320611
+outcome	D3pD1eD0d	3f8f801a2562a63f 0.015381054178152385
+outcome	D0d	3f8fc3dcc7ab6ae6 0.015510296672279943
+outcome	D0s	3fb64424c7da7bfd 0.08697728995547034
+outcome	R2ea	3f97830e86a29f02 0.022960879294855914
+outcome	R2oeR1kaR0ek	3f8fe40afc88b442 0.015571676093793955
+outcome	D1eD0n	3f9813cbfe6454cd 0.023513018991327784
+outcome	D1eD0d	3f96d94894caa6f4 0.022313245851058164
+outcome	I2e	3f8ff93a4358e89c 0.015612082653309316
+outcome	R1ieD0m	3f9595b9cb1eef74 0.02107897093058804
+outcome	R1ioD0d	3f957f124d472be3 0.020992551771808265
+outcome	R0dvI0e	3f8ffd969d9d33b7 0.015620400128364282
+outcome	D2iD1nD0g	3f90302ed28f1a44 0.015808803178311473
+outcome	R2wbR1aeD0s	3f8ff93a4358e8a4 0.01561208265330933
+outcome	D2dD1e	3f8f73669178684c 0.015356828035738478
+outcome	R1ai	3f957030566a8ace 0.020935778879571036
+end	61
+point	62	81	17	16	0	none
+context	w0=bar
+context	t0=NOUN
+context	p_1=O
+context	p_1=Ot0=NOUN
+context	p_1=Ow0=bar
+context	suf=null
+context	suf=ar
+context	suf=bar
+context	suf=bar
+context	suf=bar
+context	suf=bar
+context	suf=bar
+context	pre=null
+context	pre=ba
+context	pre=bar
+context	pre=bar
+context	pre=bar
+outcome	O	3fe5042325adacdb 0.6567550407320611
+outcome	D3pD1eD0d	3f8f801a2562a63f 0.015381054178152385
+outcome	D0d	3f8fc3dcc7ab6ae6 0.015510296672279943
+outcome	D0s	3fb64424c7da7bfd 0.08697728995547034
+outcome	R2ea	3f97830e86a29f02 0.022960879294855914
+outcome	R2oeR1kaR0ek	3f8fe40afc88b442 0.015571676093793955
+outcome	D1eD0n	3f9813cbfe6454cd 0.023513018991327784
+outcome	D1eD0d	3f96d94894caa6f4 0.022313245851058164
+outcome	I2e	3f8ff93a4358e89c 0.015612082653309316
+outcome	R1ieD0m	3f9595b9cb1eef74 0.02107897093058804
+outcome	R1ioD0d	3f957f124d472be3 0.020992551771808265
+outcome	R0dvI0e	3f8ffd969d9d33b7 0.015620400128364282
+outcome	D2iD1nD0g	3f90302ed28f1a44 0.015808803178311473
+outcome	R2wbR1aeD0s	3f8ff93a4358e8a4 0.01561208265330933
+outcome	D2dD1e	3f8f73669178684c 0.015356828035738478
+outcome	R1ai	3f957030566a8ace 0.020935778879571036
+end	62
+point	63	81	17	16	0	none
+context	w0=bar
+context	t0=NOUN
+context	p_1=O
+context	p_1=Ot0=NOUN
+context	p_1=Ow0=bar
+context	suf=null
+context	suf=ar
+context	suf=bar
+context	suf=bar
+context	suf=bar
+context	suf=bar
+context	suf=bar
+context	pre=null
+context	pre=ba
+context	pre=bar
+context	pre=bar
+context	pre=bar
+outcome	O	3fe5042325adacdb 0.6567550407320611
+outcome	D3pD1eD0d	3f8f801a2562a63f 0.015381054178152385
+outcome	D0d	3f8fc3dcc7ab6ae6 0.015510296672279943
+outcome	D0s	3fb64424c7da7bfd 0.08697728995547034
+outcome	R2ea	3f97830e86a29f02 0.022960879294855914
+outcome	R2oeR1kaR0ek	3f8fe40afc88b442 0.015571676093793955
+outcome	D1eD0n	3f9813cbfe6454cd 0.023513018991327784
+outcome	D1eD0d	3f96d94894caa6f4 0.022313245851058164
+outcome	I2e	3f8ff93a4358e89c 0.015612082653309316
+outcome	R1ieD0m	3f9595b9cb1eef74 0.02107897093058804
+outcome	R1ioD0d	3f957f124d472be3 0.020992551771808265
+outcome	R0dvI0e	3f8ffd969d9d33b7 0.015620400128364282
+outcome	D2iD1nD0g	3f90302ed28f1a44 0.015808803178311473
+outcome	R2wbR1aeD0s	3f8ff93a4358e8a4 0.01561208265330933
+outcome	D2dD1e	3f8f73669178684c 0.015356828035738478
+outcome	R1ai	3f957030566a8ace 0.020935778879571036
+end	63
+point	64	85	17	16	0	none
+context	w0=⸺
+context	t0=PUNCT
+context	p_1=O
+context	p_1=Ot0=PUNCT
+context	p_1=Ow0=⸺
+context	suf=null
+context	suf=⸺
+context	suf=⸺
+context	suf=⸺
+context	suf=⸺
+context	suf=⸺
+context	suf=⸺
+context	pre=null
+context	pre=⸺
+context	pre=⸺
+context	pre=⸺
+context	pre=⸺
+outcome	O	3fe281370e47b0f5 0.5782733229548557
+outcome	D3pD1eD0d	3f9359f7070d46e7 0.018897876553927963
+outcome	D0d	3f938397779027a3 0.01905666987662581
+outcome	D0s	3fbb5b75fd62d0a8 0.10686433254415084
+outcome	R2ea	3f9ce34ad31ae02b 0.02821080125315249
+outcome	R2oeR1kaR0ek	3f93975c636aa3d4 0.019132083480744758
+outcome	D1eD0n	3f9d95206f0a2c96 0.028889185693100027
+outcome	D1eD0d	3f9c12b376ab7efa 0.027415088766132613
+outcome	I2e	3f93a460086eb182 0.01918172885386716
+outcome	R1ieD0m	3f9a8529b745aaa2 0.025898601351779356
+outcome	R1ioD0d	3f9a6954310ae61f 0.02579242276508442
+outcome	R0dvI0e	3f93a70dd5904949 0.01919194808949357
+outcome	D2iD1nD0g	3f93e3bc3e258230 0.01942342881500475
+outcome	R2wbR1aeD0s	3f93a460086eb186 0.019181728853867173
+outcome	D2dD1e	3f9352298205e08a 0.018868111191722416
+outcome	R1ai	3f9a570b17bc60d1 0.02572266895649095
+end	64
+point	65	85	17	16	0	none
+context	w0=⸺
+context	t0=PUNCT
+context	p_1=O
+context	p_1=Ot0=PUNCT
+context	p_1=Ow0=⸺
+context	suf=null
+context	suf=⸺
+context	suf=⸺
+context	suf=⸺
+context	suf=⸺
+context	suf=⸺
+context	suf=⸺
+context	pre=null
+context	pre=⸺
+context	pre=⸺
+context	pre=⸺
+context	pre=⸺
+outcome	O	3fe281370e47b0f5 0.5782733229548557
+outcome	D3pD1eD0d	3f9359f7070d46e7 0.018897876553927963
+outcome	D0d	3f938397779027a3 0.01905666987662581
+outcome	D0s	3fbb5b75fd62d0a8 0.10686433254415084
+outcome	R2ea	3f9ce34ad31ae02b 0.02821080125315249
+outcome	R2oeR1kaR0ek	3f93975c636aa3d4 0.019132083480744758
+outcome	D1eD0n	3f9d95206f0a2c96 0.028889185693100027
+outcome	D1eD0d	3f9c12b376ab7efa 0.027415088766132613
+outcome	I2e	3f93a460086eb182 0.01918172885386716
+outcome	R1ieD0m	3f9a8529b745aaa2 0.025898601351779356
+outcome	R1ioD0d	3f9a6954310ae61f 0.02579242276508442
+outcome	R0dvI0e	3f93a70dd5904949 0.01919194808949357
+outcome	D2iD1nD0g	3f93e3bc3e258230 0.01942342881500475
+outcome	R2wbR1aeD0s	3f93a460086eb186 0.019181728853867173
+outcome	D2dD1e	3f9352298205e08a 0.018868111191722416
+outcome	R1ai	3f9a570b17bc60d1 0.02572266895649095
+end	65
+point	66	85	17	16	0	none
+context	w0=⸺
+context	t0=PUNCT
+context	p_1=O
+context	p_1=Ot0=PUNCT
+context	p_1=Ow0=⸺
+context	suf=null
+context	suf=⸺
+context	suf=⸺
+context	suf=⸺
+context	suf=⸺
+context	suf=⸺
+context	suf=⸺
+context	pre=null
+context	pre=⸺
+context	pre=⸺
+context	pre=⸺
+context	pre=⸺
+outcome	O	3fe281370e47b0f5 0.5782733229548557
+outcome	D3pD1eD0d	3f9359f7070d46e7 0.018897876553927963
+outcome	D0d	3f938397779027a3 0.01905666987662581
+outcome	D0s	3fbb5b75fd62d0a8 0.10686433254415084
+outcome	R2ea	3f9ce34ad31ae02b 0.02821080125315249
+outcome	R2oeR1kaR0ek	3f93975c636aa3d4 0.019132083480744758
+outcome	D1eD0n	3f9d95206f0a2c96 0.028889185693100027
+outcome	D1eD0d	3f9c12b376ab7efa 0.027415088766132613
+outcome	I2e	3f93a460086eb182 0.01918172885386716
+outcome	R1ieD0m	3f9a8529b745aaa2 0.025898601351779356
+outcome	R1ioD0d	3f9a6954310ae61f 0.02579242276508442
+outcome	R0dvI0e	3f93a70dd5904949 0.01919194808949357
+outcome	D2iD1nD0g	3f93e3bc3e258230 0.01942342881500475
+outcome	R2wbR1aeD0s	3f93a460086eb186 0.019181728853867173
+outcome	D2dD1e	3f9352298205e08a 0.018868111191722416
+outcome	R1ai	3f9a570b17bc60d1 0.02572266895649095
+end	66
+point	67	89	17	16	0	none
+context	w0=two
+context	t0=NUM
+context	p_1=O
+context	p_1=Ot0=NUM
+context	p_1=Ow0=two
+context	suf=null
+context	suf=wo
+context	suf=two
+context	suf=two
+context	suf=two
+context	suf=two
+context	suf=two
+context	pre=null
+context	pre=tw
+context	pre=two
+context	pre=two
+context	pre=two
+outcome	O	3fe281370e47b0f5 0.5782733229548557
+outcome	D3pD1eD0d	3f9359f7070d46e7 0.018897876553927963
+outcome	D0d	3f938397779027a3 0.01905666987662581
+outcome	D0s	3fbb5b75fd62d0a8 0.10686433254415084
+outcome	R2ea	3f9ce34ad31ae02b 0.02821080125315249
+outcome	R2oeR1kaR0ek	3f93975c636aa3d4 0.019132083480744758
+outcome	D1eD0n	3f9d95206f0a2c96 0.028889185693100027
+outcome	D1eD0d	3f9c12b376ab7efa 0.027415088766132613
+outcome	I2e	3f93a460086eb182 0.01918172885386716
+outcome	R1ieD0m	3f9a8529b745aaa2 0.025898601351779356
+outcome	R1ioD0d	3f9a6954310ae61f 0.02579242276508442
+outcome	R0dvI0e	3f93a70dd5904949 0.01919194808949357
+outcome	D2iD1nD0g	3f93e3bc3e258230 0.01942342881500475
+outcome	R2wbR1aeD0s	3f93a460086eb186 0.019181728853867173
+outcome	D2dD1e	3f9352298205e08a 0.018868111191722416
+outcome	R1ai	3f9a570b17bc60d1 0.02572266895649095
+end	67
+point	68	89	17	16	0	none
+context	w0=two
+context	t0=NUM
+context	p_1=O
+context	p_1=Ot0=NUM
+context	p_1=Ow0=two
+context	suf=null
+context	suf=wo
+context	suf=two
+context	suf=two
+context	suf=two
+context	suf=two
+context	suf=two
+context	pre=null
+context	pre=tw
+context	pre=two
+context	pre=two
+context	pre=two
+outcome	O	3fe281370e47b0f5 0.5782733229548557
+outcome	D3pD1eD0d	3f9359f7070d46e7 0.018897876553927963
+outcome	D0d	3f938397779027a3 0.01905666987662581
+outcome	D0s	3fbb5b75fd62d0a8 0.10686433254415084
+outcome	R2ea	3f9ce34ad31ae02b 0.02821080125315249
+outcome	R2oeR1kaR0ek	3f93975c636aa3d4 0.019132083480744758
+outcome	D1eD0n	3f9d95206f0a2c96 0.028889185693100027
+outcome	D1eD0d	3f9c12b376ab7efa 0.027415088766132613
+outcome	I2e	3f93a460086eb182 0.01918172885386716
+outcome	R1ieD0m	3f9a8529b745aaa2 0.025898601351779356
+outcome	R1ioD0d	3f9a6954310ae61f 0.02579242276508442
+outcome	R0dvI0e	3f93a70dd5904949 0.01919194808949357
+outcome	D2iD1nD0g	3f93e3bc3e258230 0.01942342881500475
+outcome	R2wbR1aeD0s	3f93a460086eb186 0.019181728853867173
+outcome	D2dD1e	3f9352298205e08a 0.018868111191722416
+outcome	R1ai	3f9a570b17bc60d1 0.02572266895649095
+end	68
+point	69	89	17	16	0	none
+context	w0=two
+context	t0=NUM
+context	p_1=O
+context	p_1=Ot0=NUM
+context	p_1=Ow0=two
+context	suf=null
+context	suf=wo
+context	suf=two
+context	suf=two
+context	suf=two
+context	suf=two
+context	suf=two
+context	pre=null
+context	pre=tw
+context	pre=two
+context	pre=two
+context	pre=two
+outcome	O	3fe281370e47b0f5 0.5782733229548557
+outcome	D3pD1eD0d	3f9359f7070d46e7 0.018897876553927963
+outcome	D0d	3f938397779027a3 0.01905666987662581
+outcome	D0s	3fbb5b75fd62d0a8 0.10686433254415084
+outcome	R2ea	3f9ce34ad31ae02b 0.02821080125315249
+outcome	R2oeR1kaR0ek	3f93975c636aa3d4 0.019132083480744758
+outcome	D1eD0n	3f9d95206f0a2c96 0.028889185693100027
+outcome	D1eD0d	3f9c12b376ab7efa 0.027415088766132613
+outcome	I2e	3f93a460086eb182 0.01918172885386716
+outcome	R1ieD0m	3f9a8529b745aaa2 0.025898601351779356
+outcome	R1ioD0d	3f9a6954310ae61f 0.02579242276508442
+outcome	R0dvI0e	3f93a70dd5904949 0.01919194808949357
+outcome	D2iD1nD0g	3f93e3bc3e258230 0.01942342881500475
+outcome	R2wbR1aeD0s	3f93a460086eb186 0.019181728853867173
+outcome	D2dD1e	3f9352298205e08a 0.018868111191722416
+outcome	R1ai	3f9a570b17bc60d1 0.02572266895649095
+end	69
+point	70	92	18	16	0	none
+context	w0=-em
+context	t0=PUNCT
+context	p_1=O
+context	p_1=Ot0=PUNCT
+context	p_1=Ow0=-em
+context	suf=null
+context	suf=em
+context	suf=-em
+context	suf=-em
+context	suf=-em
+context	suf=-em
+context	suf=-em
+context	pre=null
+context	pre=-e
+context	pre=-em
+context	pre=-em
+context	pre=-em
+context	h
+outcome	O	3fe4e7a2a5007e5a 0.6532757971471697
+outcome	D3pD1eD0d	3f8fd1d7af59de91 0.015536961592473449
+outcome	D0d	3f900b2513354a11 0.015667514130948194
+outcome	D0s	3fb67dec156e3b73 0.08785892031867863
+outcome	R2ea	3f97c01160615385 0.02319361830480517
+outcome	R2oeR1kaR0ek	3f901b65ee4d31e0 0.015729515714427822
+outcome	D1eD0n	3f9852466e2e8daf 0.02375135467049255
+outcome	D1eD0d	3f971492e32275b6 0.022539420235821082
+outcome	I2e	3f9026190e23772e 0.01577033184809478
+outcome	R1ieD0m	3f95cdbc7fd97a15 0.021292634299579023
+outcome	R1ioD0d	3f95b6da38e7e1c3 0.021205339167836856
+outcome	R0dvI0e	3f90284ce3af026a 0.015778733631807297
+outcome	D2iD1nD0g	3f905a3090179d84 0.015969046396916223
+outcome	R2wbR1aeD0s	3f9026190e237732 0.015770331848094794
+outcome	D2dD1e	3f8fc50325eaad51 0.015512489885927268
+outcome	R1ai	3f95a7d1a39143ba 0.021147990806926954
+end	70
+point	71	92	18	16	0	none
+context	w0=-em
+context	t0=PUNCT
+context	p_1=O
+context	p_1=Ot0=PUNCT
+context	p_1=Ow0=-em
+context	suf=null
+context	suf=em
+context	suf=-em
+context	suf=-em
+context	suf=-em
+context	suf=-em
+context	suf=-em
+context	pre=null
+context	pre=-e
+context	pre=-em
+context	pre=-em
+context	pre=-em
+context	h
+outcome	O	3fe4e7a2a5007e5a 0.6532757971471697
+outcome	D3pD1eD0d	3f8fd1d7af59de91 0.015536961592473449
+outcome	D0d	3f900b2513354a11 0.015667514130948194
+outcome	D0s	3fb67dec156e3b73 0.08785892031867863
+outcome	R2ea	3f97c01160615385 0.02319361830480517
+outcome	R2oeR1kaR0ek	3f901b65ee4d31e0 0.015729515714427822
+outcome	D1eD0n	3f9852466e2e8daf 0.02375135467049255
+outcome	D1eD0d	3f971492e32275b6 0.022539420235821082
+outcome	I2e	3f9026190e23772e 0.01577033184809478
+outcome	R1ieD0m	3f95cdbc7fd97a15 0.021292634299579023
+outcome	R1ioD0d	3f95b6da38e7e1c3 0.021205339167836856
+outcome	R0dvI0e	3f90284ce3af026a 0.015778733631807297
+outcome	D2iD1nD0g	3f905a3090179d84 0.015969046396916223
+outcome	R2wbR1aeD0s	3f9026190e237732 0.015770331848094794
+outcome	D2dD1e	3f8fc50325eaad51 0.015512489885927268
+outcome	R1ai	3f95a7d1a39143ba 0.021147990806926954
+end	71
+point	72	92	18	16	0	none
+context	w0=-em
+context	t0=PUNCT
+context	p_1=O
+context	p_1=Ot0=PUNCT
+context	p_1=Ow0=-em
+context	suf=null
+context	suf=em
+context	suf=-em
+context	suf=-em
+context	suf=-em
+context	suf=-em
+context	suf=-em
+context	pre=null
+context	pre=-e
+context	pre=-em
+context	pre=-em
+context	pre=-em
+context	h
+outcome	O	3fe4e7a2a5007e5a 0.6532757971471697
+outcome	D3pD1eD0d	3f8fd1d7af59de91 0.015536961592473449
+outcome	D0d	3f900b2513354a11 0.015667514130948194
+outcome	D0s	3fb67dec156e3b73 0.08785892031867863
+outcome	R2ea	3f97c01160615385 0.02319361830480517
+outcome	R2oeR1kaR0ek	3f901b65ee4d31e0 0.015729515714427822
+outcome	D1eD0n	3f9852466e2e8daf 0.02375135467049255
+outcome	D1eD0d	3f971492e32275b6 0.022539420235821082
+outcome	I2e	3f9026190e23772e 0.01577033184809478
+outcome	R1ieD0m	3f95cdbc7fd97a15 0.021292634299579023
+outcome	R1ioD0d	3f95b6da38e7e1c3 0.021205339167836856
+outcome	R0dvI0e	3f90284ce3af026a 0.015778733631807297
+outcome	D2iD1nD0g	3f905a3090179d84 0.015969046396916223
+outcome	R2wbR1aeD0s	3f9026190e237732 0.015770331848094794
+outcome	D2dD1e	3f8fc50325eaad51 0.015512489885927268
+outcome	R1ai	3f95a7d1a39143ba 0.021147990806926954
+end	72
+point	73	96	17	16	0	none
+context	w0=−minus
+context	t0=PUNCT
+context	p_1=O
+context	p_1=Ot0=PUNCT
+context	p_1=Ow0=−minus
+context	suf=null
+context	suf=us
+context	suf=nus
+context	suf=inus
+context	suf=minus
+context	suf=−minus
+context	suf=−minus
+context	pre=null
+context	pre=−m
+context	pre=−mi
+context	pre=−min
+context	pre=−minu
+outcome	O	3fe504202e6b03de 0.6567536264993767
+outcome	D3pD1eD0d	3f8f8022a6db9331 0.015381117550938935
+outcome	D0d	3f8fc3e55b7049ee 0.015510360577569462
+outcome	D0s	3fb6442acb023c0c 0.08697764831798355
+outcome	R2ea	3f978314dfe74f98 0.022960973897923148
+outcome	R2oeR1kaR0ek	3f8fe41398fe0f37 0.015571740251978035
+outcome	D1eD0n	3f9813d27ebe36ec 0.023513115869312637
+outcome	D1eD0d	3f96d94ec037ba8f 0.02231333778575589
+outcome	I2e	3f8ff942e586a8d2 0.015612146977975892
+outcome	R1ieD0m	3f9595bf9f2e01b1 0.021079057779844926
+outcome	R1ioD0d	3f957f181b3842ed 0.02099263826500224
+outcome	R0dvI0e	3f8ffd9f40f8640f 0.015620464487300393
+outcome	D2iD1nD0g	3f9030333192b450 0.015808868313502977
+outcome	R2wbR1aeD0s	3f8ff942e586a8da 0.015612146977975905
+outcome	D2dD1e	3f8f736f0f83572d 0.015356891308708842
+outcome	R1ai	3f9570362056dd2f 0.020935865138850204
+end	73
+point	74	96	17	16	0	none
+context	w0=−minus
+context	t0=PUNCT
+context	p_1=O
+context	p_1=Ot0=PUNCT
+context	p_1=Ow0=−minus
+context	suf=null
+context	suf=us
+context	suf=nus
+context	suf=inus
+context	suf=minus
+context	suf=−minus
+context	suf=−minus
+context	pre=null
+context	pre=−m
+context	pre=−mi
+context	pre=−min
+context	pre=−minu
+outcome	O	3fe504202e6b03de 0.6567536264993767
+outcome	D3pD1eD0d	3f8f8022a6db9331 0.015381117550938935
+outcome	D0d	3f8fc3e55b7049ee 0.015510360577569462
+outcome	D0s	3fb6442acb023c0c 0.08697764831798355
+outcome	R2ea	3f978314dfe74f98 0.022960973897923148
+outcome	R2oeR1kaR0ek	3f8fe41398fe0f37 0.015571740251978035
+outcome	D1eD0n	3f9813d27ebe36ec 0.023513115869312637
+outcome	D1eD0d	3f96d94ec037ba8f 0.02231333778575589
+outcome	I2e	3f8ff942e586a8d2 0.015612146977975892
+outcome	R1ieD0m	3f9595bf9f2e01b1 0.021079057779844926
+outcome	R1ioD0d	3f957f181b3842ed 0.02099263826500224
+outcome	R0dvI0e	3f8ffd9f40f8640f 0.015620464487300393
+outcome	D2iD1nD0g	3f9030333192b450 0.015808868313502977
+outcome	R2wbR1aeD0s	3f8ff942e586a8da 0.015612146977975905
+outcome	D2dD1e	3f8f736f0f83572d 0.015356891308708842
+outcome	R1ai	3f9570362056dd2f 0.020935865138850204
+end	74
+point	75	96	17	16	0	none
+context	w0=−minus
+context	t0=PUNCT
+context	p_1=O
+context	p_1=Ot0=PUNCT
+context	p_1=Ow0=−minus
+context	suf=null
+context	suf=us
+context	suf=nus
+context	suf=inus
+context	suf=minus
+context	suf=−minus
+context	suf=−minus
+context	pre=null
+context	pre=−m
+context	pre=−mi
+context	pre=−min
+context	pre=−minu
+outcome	O	3fe504202e6b03de 0.6567536264993767
+outcome	D3pD1eD0d	3f8f8022a6db9331 0.015381117550938935
+outcome	D0d	3f8fc3e55b7049ee 0.015510360577569462
+outcome	D0s	3fb6442acb023c0c 0.08697764831798355
+outcome	R2ea	3f978314dfe74f98 0.022960973897923148
+outcome	R2oeR1kaR0ek	3f8fe41398fe0f37 0.015571740251978035
+outcome	D1eD0n	3f9813d27ebe36ec 0.023513115869312637
+outcome	D1eD0d	3f96d94ec037ba8f 0.02231333778575589
+outcome	I2e	3f8ff942e586a8d2 0.015612146977975892
+outcome	R1ieD0m	3f9595bf9f2e01b1 0.021079057779844926
+outcome	R1ioD0d	3f957f181b3842ed 0.02099263826500224
+outcome	R0dvI0e	3f8ffd9f40f8640f 0.015620464487300393
+outcome	D2iD1nD0g	3f9030333192b450 0.015808868313502977
+outcome	R2wbR1aeD0s	3f8ff942e586a8da 0.015612146977975905
+outcome	D2dD1e	3f8f736f0f83572d 0.015356891308708842
+outcome	R1ai	3f9570362056dd2f 0.020935865138850204
+end	75
+point	76	105	18	16	0	none
+context	w0=--
+context	t0=PUNCT
+context	p_1=O
+context	p_1=Ot0=PUNCT
+context	p_1=Ow0=--
+context	suf=null
+context	suf=--
+context	suf=--
+context	suf=--
+context	suf=--
+context	suf=--
+context	suf=--
+context	pre=null
+context	pre=--
+context	pre=--
+context	pre=--
+context	pre=--
+context	h
+outcome	O	3fe4e7a2a5007e5a 0.6532757971471697
+outcome	D3pD1eD0d	3f8fd1d7af59de91 0.015536961592473449
+outcome	D0d	3f900b2513354a11 0.015667514130948194
+outcome	D0s	3fb67dec156e3b73 0.08785892031867863
+outcome	R2ea	3f97c01160615385 0.02319361830480517
+outcome	R2oeR1kaR0ek	3f901b65ee4d31e0 0.015729515714427822
+outcome	D1eD0n	3f9852466e2e8daf 0.02375135467049255
+outcome	D1eD0d	3f971492e32275b6 0.022539420235821082
+outcome	I2e	3f9026190e23772e 0.01577033184809478
+outcome	R1ieD0m	3f95cdbc7fd97a15 0.021292634299579023
+outcome	R1ioD0d	3f95b6da38e7e1c3 0.021205339167836856
+outcome	R0dvI0e	3f90284ce3af026a 0.015778733631807297
+outcome	D2iD1nD0g	3f905a3090179d84 0.015969046396916223
+outcome	R2wbR1aeD0s	3f9026190e237732 0.015770331848094794
+outcome	D2dD1e	3f8fc50325eaad51 0.015512489885927268
+outcome	R1ai	3f95a7d1a39143ba 0.021147990806926954
+end	76
+point	77	105	18	16	0	none
+context	w0=--
+context	t0=PUNCT
+context	p_1=O
+context	p_1=Ot0=PUNCT
+context	p_1=Ow0=--
+context	suf=null
+context	suf=--
+context	suf=--
+context	suf=--
+context	suf=--
+context	suf=--
+context	suf=--
+context	pre=null
+context	pre=--
+context	pre=--
+context	pre=--
+context	pre=--
+context	h
+outcome	O	3fe4e7a2a5007e5a 0.6532757971471697
+outcome	D3pD1eD0d	3f8fd1d7af59de91 0.015536961592473449
+outcome	D0d	3f900b2513354a11 0.015667514130948194
+outcome	D0s	3fb67dec156e3b73 0.08785892031867863
+outcome	R2ea	3f97c01160615385 0.02319361830480517
+outcome	R2oeR1kaR0ek	3f901b65ee4d31e0 0.015729515714427822
+outcome	D1eD0n	3f9852466e2e8daf 0.02375135467049255
+outcome	D1eD0d	3f971492e32275b6 0.022539420235821082
+outcome	I2e	3f9026190e23772e 0.01577033184809478
+outcome	R1ieD0m	3f95cdbc7fd97a15 0.021292634299579023
+outcome	R1ioD0d	3f95b6da38e7e1c3 0.021205339167836856
+outcome	R0dvI0e	3f90284ce3af026a 0.015778733631807297
+outcome	D2iD1nD0g	3f905a3090179d84 0.015969046396916223
+outcome	R2wbR1aeD0s	3f9026190e237732 0.015770331848094794
+outcome	D2dD1e	3f8fc50325eaad51 0.015512489885927268
+outcome	R1ai	3f95a7d1a39143ba 0.021147990806926954
+end	77
+point	78	105	18	16	0	none
+context	w0=--
+context	t0=PUNCT
+context	p_1=O
+context	p_1=Ot0=PUNCT
+context	p_1=Ow0=--
+context	suf=null
+context	suf=--
+context	suf=--
+context	suf=--
+context	suf=--
+context	suf=--
+context	suf=--
+context	pre=null
+context	pre=--
+context	pre=--
+context	pre=--
+context	pre=--
+context	h
+outcome	O	3fe4e7a2a5007e5a 0.6532757971471697
+outcome	D3pD1eD0d	3f8fd1d7af59de91 0.015536961592473449
+outcome	D0d	3f900b2513354a11 0.015667514130948194
+outcome	D0s	3fb67dec156e3b73 0.08785892031867863
+outcome	R2ea	3f97c01160615385 0.02319361830480517
+outcome	R2oeR1kaR0ek	3f901b65ee4d31e0 0.015729515714427822
+outcome	D1eD0n	3f9852466e2e8daf 0.02375135467049255
+outcome	D1eD0d	3f971492e32275b6 0.022539420235821082
+outcome	I2e	3f9026190e23772e 0.01577033184809478
+outcome	R1ieD0m	3f95cdbc7fd97a15 0.021292634299579023
+outcome	R1ioD0d	3f95b6da38e7e1c3 0.021205339167836856
+outcome	R0dvI0e	3f90284ce3af026a 0.015778733631807297
+outcome	D2iD1nD0g	3f905a3090179d84 0.015969046396916223
+outcome	R2wbR1aeD0s	3f9026190e237732 0.015770331848094794
+outcome	D2dD1e	3f8fc50325eaad51 0.015512489885927268
+outcome	R1ai	3f95a7d1a39143ba 0.021147990806926954
+end	78
+point	79	108	17	16	0	none
+context	w0=double
+context	t0=ADJ
+context	p_1=O
+context	p_1=Ot0=ADJ
+context	p_1=Ow0=double
+context	suf=null
+context	suf=le
+context	suf=ble
+context	suf=uble
+context	suf=ouble
+context	suf=double
+context	suf=double
+context	pre=null
+context	pre=do
+context	pre=dou
+context	pre=doub
+context	pre=doubl
+outcome	O	3fe504b400a0e44c 0.6568241131091184
+outcome	D3pD1eD0d	3f8f7e7ab7b4c78f 0.015377958995120426
+outcome	D0d	3f8fc239dc5d7e61 0.01550717548133135
+outcome	D0s	3fb642ff22257d3a 0.0869597872128808
+outcome	R2ea	3f9781d873173ffd 0.02295625879725093
+outcome	R2oeR1kaR0ek	3f8fe26668d50192 0.015568542551250873
+outcome	D1eD0n	3f98128e76027277 0.023508287384731177
+outcome	D1eD0d	3f96d81b403906a3 0.022308755678983726
+outcome	I2e	3f8ff7949842d634 0.015608940979613718
+outcome	R1ieD0m	3f95949d21a4d286 0.02107472913594901
+outcome	R1ioD0d	3f957df6ce90f820 0.020988327367597148
+outcome	R0dvI0e	3f8ffbf0b904a162 0.01561725678091425
+outcome	D2iD1nD0g	3f902f5954ebacbc 0.015805621917860377
+outcome	R2wbR1aeD0s	3f8ff7949842d63c 0.015608940979613732
+outcome	D2dD1e	3f8f71c7cb4c776f 0.015353737727817422
+outcome	R1ai	3f956f159bfa4a86 0.020931565899966496
+end	79
+point	80	108	17	16	0	none
+context	w0=double
+context	t0=ADJ
+context	p_1=O
+context	p_1=Ot0=ADJ
+context	p_1=Ow0=double
+context	suf=null
+context	suf=le
+context	suf=ble
+context	suf=uble
+context	suf=ouble
+context	suf=double
+context	suf=double
+context	pre=null
+context	pre=do
+context	pre=dou
+context	pre=doub
+context	pre=doubl
+outcome	O	3fe504b400a0e44c 0.6568241131091184
+outcome	D3pD1eD0d	3f8f7e7ab7b4c78f 0.015377958995120426
+outcome	D0d	3f8fc239dc5d7e61 0.01550717548133135
+outcome	D0s	3fb642ff22257d3a 0.0869597872128808
+outcome	R2ea	3f9781d873173ffd 0.02295625879725093
+outcome	R2oeR1kaR0ek	3f8fe26668d50192 0.015568542551250873
+outcome	D1eD0n	3f98128e76027277 0.023508287384731177
+outcome	D1eD0d	3f96d81b403906a3 0.022308755678983726
+outcome	I2e	3f8ff7949842d634 0.015608940979613718
+outcome	R1ieD0m	3f95949d21a4d286 0.02107472913594901
+outcome	R1ioD0d	3f957df6ce90f820 0.020988327367597148
+outcome	R0dvI0e	3f8ffbf0b904a162 0.01561725678091425
+outcome	D2iD1nD0g	3f902f5954ebacbc 0.015805621917860377
+outcome	R2wbR1aeD0s	3f8ff7949842d63c 0.015608940979613732
+outcome	D2dD1e	3f8f71c7cb4c776f 0.015353737727817422
+outcome	R1ai	3f956f159bfa4a86 0.020931565899966496
+end	80
+point	81	108	17	16	0	none
+context	w0=double
+context	t0=ADJ
+context	p_1=O
+context	p_1=Ot0=ADJ
+context	p_1=Ow0=double
+context	suf=null
+context	suf=le
+context	suf=ble
+context	suf=uble
+context	suf=ouble
+context	suf=double
+context	suf=double
+context	pre=null
+context	pre=do
+context	pre=dou
+context	pre=doub
+context	pre=doubl
+outcome	O	3fe504b400a0e44c 0.6568241131091184
+outcome	D3pD1eD0d	3f8f7e7ab7b4c78f 0.015377958995120426
+outcome	D0d	3f8fc239dc5d7e61 0.01550717548133135
+outcome	D0s	3fb642ff22257d3a 0.0869597872128808
+outcome	R2ea	3f9781d873173ffd 0.02295625879725093
+outcome	R2oeR1kaR0ek	3f8fe26668d50192 0.015568542551250873
+outcome	D1eD0n	3f98128e76027277 0.023508287384731177
+outcome	D1eD0d	3f96d81b403906a3 0.022308755678983726
+outcome	I2e	3f8ff7949842d634 0.015608940979613718
+outcome	R1ieD0m	3f95949d21a4d286 0.02107472913594901
+outcome	R1ioD0d	3f957df6ce90f820 0.020988327367597148
+outcome	R0dvI0e	3f8ffbf0b904a162 0.01561725678091425
+outcome	D2iD1nD0g	3f902f5954ebacbc 0.015805621917860377
+outcome	R2wbR1aeD0s	3f8ff7949842d63c 0.015608940979613732
+outcome	D2dD1e	3f8f71c7cb4c776f 0.015353737727817422
+outcome	R1ai	3f956f159bfa4a86 0.020931565899966496
+end	81
+point	82	115	17	16	0	none
+context	w0=and
+context	t0=CCONJ
+context	p_1=O
+context	p_1=Ot0=CCONJ
+context	p_1=Ow0=and
+context	suf=null
+context	suf=nd
+context	suf=and
+context	suf=and
+context	suf=and
+context	suf=and
+context	suf=and
+context	pre=null
+context	pre=an
+context	pre=and
+context	pre=and
+context	pre=and
+outcome	O	3fef8901341492fa 0.9854742066569024
+outcome	D3pD1eD0d	3f45543d5243663d 6.509112759218238E-4
+outcome	D0d	3f45821ecdf86268 6.563806927629258E-4
+outcome	D0s	3f6e272f78806c17 0.0036807944452568286
+outcome	R2ea	3f4fd70f73607f97 9.716821139171713E-4
+outcome	R2oeR1kaR0ek	3f4597e8ee52e951 6.589782102744223E-4
+outcome	D1eD0n	3f504d88cb31a641 9.950481296762267E-4
+outcome	D1eD0d	3f4ef126e5b6b620 9.442748955074722E-4
+outcome	I2e	3f45a6410e457104 6.606881766333676E-4
+outcome	R1ieD0m	3f4d3afcb490359f 8.920415795061093E-4
+outcome	R1ioD0d	3f4d1c4efb69b268 8.883844046301938E-4
+outcome	R0dvI0e	3f45a934f16d7bfe 6.610401641004013E-4
+outcome	D2iD1nD0g	3f45ec16e748ddd8 6.690131982116055E-4
+outcome	R2wbR1aeD0s	3f45a6410e457109 6.606881766333682E-4
+outcome	D2dD1e	3f454ba3a9dbb40b 6.498860491014347E-4
+outcome	R1ai	3f4d08277e925a9e 8.859818309641836E-4
+end	82
+point	83	115	17	16	0	none
+context	w0=and
+context	t0=CCONJ
+context	p_1=O
+context	p_1=Ot0=CCONJ
+context	p_1=Ow0=and
+context	suf=null
+context	suf=nd
+context	suf=and
+context	suf=and
+context	suf=and
+context	suf=and
+context	suf=and
+context	pre=null
+context	pre=an
+context	pre=and
+context	pre=and
+context	pre=and
+outcome	O	3fef8901341492fa 0.9854742066569024
+outcome	D3pD1eD0d	3f45543d5243663d 6.509112759218238E-4
+outcome	D0d	3f45821ecdf86268 6.563806927629258E-4
+outcome	D0s	3f6e272f78806c17 0.0036807944452568286
+outcome	R2ea	3f4fd70f73607f97 9.716821139171713E-4
+outcome	R2oeR1kaR0ek	3f4597e8ee52e951 6.589782102744223E-4
+outcome	D1eD0n	3f504d88cb31a641 9.950481296762267E-4
+outcome	D1eD0d	3f4ef126e5b6b620 9.442748955074722E-4
+outcome	I2e	3f45a6410e457104 6.606881766333676E-4
+outcome	R1ieD0m	3f4d3afcb490359f 8.920415795061093E-4
+outcome	R1ioD0d	3f4d1c4efb69b268 8.883844046301938E-4
+outcome	R0dvI0e	3f45a934f16d7bfe 6.610401641004013E-4
+outcome	D2iD1nD0g	3f45ec16e748ddd8 6.690131982116055E-4
+outcome	R2wbR1aeD0s	3f45a6410e457109 6.606881766333682E-4
+outcome	D2dD1e	3f454ba3a9dbb40b 6.498860491014347E-4
+outcome	R1ai	3f4d08277e925a9e 8.859818309641836E-4
+end	83
+point	84	115	17	16	0	none
+context	w0=and
+context	t0=CCONJ
+context	p_1=O
+context	p_1=Ot0=CCONJ
+context	p_1=Ow0=and
+context	suf=null
+context	suf=nd
+context	suf=and
+context	suf=and
+context	suf=and
+context	suf=and
+context	suf=and
+context	pre=null
+context	pre=an
+context	pre=and
+context	pre=and
+context	pre=and
+outcome	O	3fef8901341492fa 0.9854742066569024
+outcome	D3pD1eD0d	3f45543d5243663d 6.509112759218238E-4
+outcome	D0d	3f45821ecdf86268 6.563806927629258E-4
+outcome	D0s	3f6e272f78806c17 0.0036807944452568286
+outcome	R2ea	3f4fd70f73607f97 9.716821139171713E-4
+outcome	R2oeR1kaR0ek	3f4597e8ee52e951 6.589782102744223E-4
+outcome	D1eD0n	3f504d88cb31a641 9.950481296762267E-4
+outcome	D1eD0d	3f4ef126e5b6b620 9.442748955074722E-4
+outcome	I2e	3f45a6410e457104 6.606881766333676E-4
+outcome	R1ieD0m	3f4d3afcb490359f 8.920415795061093E-4
+outcome	R1ioD0d	3f4d1c4efb69b268 8.883844046301938E-4
+outcome	R0dvI0e	3f45a934f16d7bfe 6.610401641004013E-4
+outcome	D2iD1nD0g	3f45ec16e748ddd8 6.690131982116055E-4
+outcome	R2wbR1aeD0s	3f45a6410e457109 6.606881766333682E-4
+outcome	D2dD1e	3f454ba3a9dbb40b 6.498860491014347E-4
+outcome	R1ai	3f4d08277e925a9e 8.859818309641836E-4
+end	84
+point	85	119	18	16	0	none
+context	w0=a-b-
+context	t0=PUNCT
+context	p_1=O
+context	p_1=Ot0=PUNCT
+context	p_1=Ow0=a-b-
+context	suf=null
+context	suf=b-
+context	suf=-b-
+context	suf=a-b-
+context	suf=a-b-
+context	suf=a-b-
+context	suf=a-b-
+context	pre=null
+context	pre=a-
+context	pre=a-b
+context	pre=a-b-
+context	pre=a-b-
+context	h
+outcome	O	3fe4e7a2a5007e5a 0.6532757971471697
+outcome	D3pD1eD0d	3f8fd1d7af59de91 0.015536961592473449
+outcome	D0d	3f900b2513354a11 0.015667514130948194
+outcome	D0s	3fb67dec156e3b73 0.08785892031867863
+outcome	R2ea	3f97c01160615385 0.02319361830480517
+outcome	R2oeR1kaR0ek	3f901b65ee4d31e0 0.015729515714427822
+outcome	D1eD0n	3f9852466e2e8daf 0.02375135467049255
+outcome	D1eD0d	3f971492e32275b6 0.022539420235821082
+outcome	I2e	3f9026190e23772e 0.01577033184809478
+outcome	R1ieD0m	3f95cdbc7fd97a15 0.021292634299579023
+outcome	R1ioD0d	3f95b6da38e7e1c3 0.021205339167836856
+outcome	R0dvI0e	3f90284ce3af026a 0.015778733631807297
+outcome	D2iD1nD0g	3f905a3090179d84 0.015969046396916223
+outcome	R2wbR1aeD0s	3f9026190e237732 0.015770331848094794
+outcome	D2dD1e	3f8fc50325eaad51 0.015512489885927268
+outcome	R1ai	3f95a7d1a39143ba 0.021147990806926954
+end	85
+point	86	119	18	16	0	none
+context	w0=a-b-
+context	t0=PUNCT
+context	p_1=O
+context	p_1=Ot0=PUNCT
+context	p_1=Ow0=a-b-
+context	suf=null
+context	suf=b-
+context	suf=-b-
+context	suf=a-b-
+context	suf=a-b-
+context	suf=a-b-
+context	suf=a-b-
+context	pre=null
+context	pre=a-
+context	pre=a-b
+context	pre=a-b-
+context	pre=a-b-
+context	h
+outcome	O	3fe4e7a2a5007e5a 0.6532757971471697
+outcome	D3pD1eD0d	3f8fd1d7af59de91 0.015536961592473449
+outcome	D0d	3f900b2513354a11 0.015667514130948194
+outcome	D0s	3fb67dec156e3b73 0.08785892031867863
+outcome	R2ea	3f97c01160615385 0.02319361830480517
+outcome	R2oeR1kaR0ek	3f901b65ee4d31e0 0.015729515714427822
+outcome	D1eD0n	3f9852466e2e8daf 0.02375135467049255
+outcome	D1eD0d	3f971492e32275b6 0.022539420235821082
+outcome	I2e	3f9026190e23772e 0.01577033184809478
+outcome	R1ieD0m	3f95cdbc7fd97a15 0.021292634299579023
+outcome	R1ioD0d	3f95b6da38e7e1c3 0.021205339167836856
+outcome	R0dvI0e	3f90284ce3af026a 0.015778733631807297
+outcome	D2iD1nD0g	3f905a3090179d84 0.015969046396916223
+outcome	R2wbR1aeD0s	3f9026190e237732 0.015770331848094794
+outcome	D2dD1e	3f8fc50325eaad51 0.015512489885927268
+outcome	R1ai	3f95a7d1a39143ba 0.021147990806926954
+end	86
+point	87	119	18	16	0	none
+context	w0=a-b-
+context	t0=PUNCT
+context	p_1=O
+context	p_1=Ot0=PUNCT
+context	p_1=Ow0=a-b-
+context	suf=null
+context	suf=b-
+context	suf=-b-
+context	suf=a-b-
+context	suf=a-b-
+context	suf=a-b-
+context	suf=a-b-
+context	pre=null
+context	pre=a-
+context	pre=a-b
+context	pre=a-b-
+context	pre=a-b-
+context	h
+outcome	O	3fe4e7a2a5007e5a 0.6532757971471697
+outcome	D3pD1eD0d	3f8fd1d7af59de91 0.015536961592473449
+outcome	D0d	3f900b2513354a11 0.015667514130948194
+outcome	D0s	3fb67dec156e3b73 0.08785892031867863
+outcome	R2ea	3f97c01160615385 0.02319361830480517
+outcome	R2oeR1kaR0ek	3f901b65ee4d31e0 0.015729515714427822
+outcome	D1eD0n	3f9852466e2e8daf 0.02375135467049255
+outcome	D1eD0d	3f971492e32275b6 0.022539420235821082
+outcome	I2e	3f9026190e23772e 0.01577033184809478
+outcome	R1ieD0m	3f95cdbc7fd97a15 0.021292634299579023
+outcome	R1ioD0d	3f95b6da38e7e1c3 0.021205339167836856
+outcome	R0dvI0e	3f90284ce3af026a 0.015778733631807297
+outcome	D2iD1nD0g	3f905a3090179d84 0.015969046396916223
+outcome	R2wbR1aeD0s	3f9026190e237732 0.015770331848094794
+outcome	D2dD1e	3f8fc50325eaad51 0.015512489885927268
+outcome	R1ai	3f95a7d1a39143ba 0.021147990806926954
+end	87
+point	88	123	17	16	0	none
+context	w0=c.
+context	t0=PUNCT
+context	p_1=O
+context	p_1=Ot0=PUNCT
+context	p_1=Ow0=c.
+context	suf=null
+context	suf=c.
+context	suf=c.
+context	suf=c.
+context	suf=c.
+context	suf=c.
+context	suf=c.
+context	pre=null
+context	pre=c.
+context	pre=c.
+context	pre=c.
+context	pre=c.
+outcome	O	3fe281370e47b0f5 0.5782733229548557
+outcome	D3pD1eD0d	3f9359f7070d46e7 0.018897876553927963
+outcome	D0d	3f938397779027a3 0.01905666987662581
+outcome	D0s	3fbb5b75fd62d0a8 0.10686433254415084
+outcome	R2ea	3f9ce34ad31ae02b 0.02821080125315249
+outcome	R2oeR1kaR0ek	3f93975c636aa3d4 0.019132083480744758
+outcome	D1eD0n	3f9d95206f0a2c96 0.028889185693100027
+outcome	D1eD0d	3f9c12b376ab7efa 0.027415088766132613
+outcome	I2e	3f93a460086eb182 0.01918172885386716
+outcome	R1ieD0m	3f9a8529b745aaa2 0.025898601351779356
+outcome	R1ioD0d	3f9a6954310ae61f 0.02579242276508442
+outcome	R0dvI0e	3f93a70dd5904949 0.01919194808949357
+outcome	D2iD1nD0g	3f93e3bc3e258230 0.01942342881500475
+outcome	R2wbR1aeD0s	3f93a460086eb186 0.019181728853867173
+outcome	D2dD1e	3f9352298205e08a 0.018868111191722416
+outcome	R1ai	3f9a570b17bc60d1 0.02572266895649095
+end	88
+point	89	123	17	16	0	none
+context	w0=c.
+context	t0=PUNCT
+context	p_1=O
+context	p_1=Ot0=PUNCT
+context	p_1=Ow0=c.
+context	suf=null
+context	suf=c.
+context	suf=c.
+context	suf=c.
+context	suf=c.
+context	suf=c.
+context	suf=c.
+context	pre=null
+context	pre=c.
+context	pre=c.
+context	pre=c.
+context	pre=c.
+outcome	O	3fe281370e47b0f5 0.5782733229548557
+outcome	D3pD1eD0d	3f9359f7070d46e7 0.018897876553927963
+outcome	D0d	3f938397779027a3 0.01905666987662581
+outcome	D0s	3fbb5b75fd62d0a8 0.10686433254415084
+outcome	R2ea	3f9ce34ad31ae02b 0.02821080125315249
+outcome	R2oeR1kaR0ek	3f93975c636aa3d4 0.019132083480744758
+outcome	D1eD0n	3f9d95206f0a2c96 0.028889185693100027
+outcome	D1eD0d	3f9c12b376ab7efa 0.027415088766132613
+outcome	I2e	3f93a460086eb182 0.01918172885386716
+outcome	R1ieD0m	3f9a8529b745aaa2 0.025898601351779356
+outcome	R1ioD0d	3f9a6954310ae61f 0.02579242276508442
+outcome	R0dvI0e	3f93a70dd5904949 0.01919194808949357
+outcome	D2iD1nD0g	3f93e3bc3e258230 0.01942342881500475
+outcome	R2wbR1aeD0s	3f93a460086eb186 0.019181728853867173
+outcome	D2dD1e	3f9352298205e08a 0.018868111191722416
+outcome	R1ai	3f9a570b17bc60d1 0.02572266895649095
+end	89
+point	90	123	17	16	0	none
+context	w0=c.
+context	t0=PUNCT
+context	p_1=O
+context	p_1=Ot0=PUNCT
+context	p_1=Ow0=c.
+context	suf=null
+context	suf=c.
+context	suf=c.
+context	suf=c.
+context	suf=c.
+context	suf=c.
+context	suf=c.
+context	pre=null
+context	pre=c.
+context	pre=c.
+context	pre=c.
+context	pre=c.
+outcome	O	3fe281370e47b0f5 0.5782733229548557
+outcome	D3pD1eD0d	3f9359f7070d46e7 0.018897876553927963
+outcome	D0d	3f938397779027a3 0.01905666987662581
+outcome	D0s	3fbb5b75fd62d0a8 0.10686433254415084
+outcome	R2ea	3f9ce34ad31ae02b 0.02821080125315249
+outcome	R2oeR1kaR0ek	3f93975c636aa3d4 0.019132083480744758
+outcome	D1eD0n	3f9d95206f0a2c96 0.028889185693100027
+outcome	D1eD0d	3f9c12b376ab7efa 0.027415088766132613
+outcome	I2e	3f93a460086eb182 0.01918172885386716
+outcome	R1ieD0m	3f9a8529b745aaa2 0.025898601351779356
+outcome	R1ioD0d	3f9a6954310ae61f 0.02579242276508442
+outcome	R0dvI0e	3f93a70dd5904949 0.01919194808949357
+outcome	D2iD1nD0g	3f93e3bc3e258230 0.01942342881500475
+outcome	R2wbR1aeD0s	3f93a460086eb186 0.019181728853867173
+outcome	D2dD1e	3f9352298205e08a 0.018868111191722416
+outcome	R1ai	3f9a570b17bc60d1 0.02572266895649095
+end	90
+point	91	126	19	16	0	none
+context	w0=1990-2000
+context	t0=NUM
+context	p_1=bos
+context	p_1=bost0=NUM
+context	p_1=bosw0=1990-2000
+context	suf=null
+context	suf=00
+context	suf=000
+context	suf=2000
+context	suf=-2000
+context	suf=0-2000
+context	suf=90-2000
+context	pre=null
+context	pre=19
+context	pre=199
+context	pre=1990
+context	pre=1990-
+context	h
+context	d
+outcome	O	3fe3ea6561e3f86a 0.6223627960132607
+outcome	D3pD1eD0d	3f9402d402858c28 0.01954203858748485
+outcome	D0d	3f941efeda849579 0.01964948853232815
+outcome	D0s	3fb0a21c10878e0b 0.06497359660675543
+outcome	R2ea	3fa2750b65641d3f 0.036049228789176706
+outcome	R2oeR1kaR0ek	3f94347b1d78e1ea 0.019731448816147003
+outcome	D1eD0n	3fa2abb86e939b3e 0.03646637296497211
+outcome	D1eD0d	3fa280802e1b9958 0.036136632564921
+outcome	I2e	3f943f620b4f7ca6 0.019773036899888873
+outcome	R1ieD0m	3f8da6a80d9b650b 0.014478028216603286
+outcome	R1ioD0d	3f91f3f72442487e 0.017532216632908597
+outcome	R0dvI0e	3f9433c7c8d7c77d 0.019728776582219155
+outcome	D2iD1nD0g	3f94617c8f84e05d 0.019903131732661773
+outcome	R2wbR1aeD0s	3f943f620b4f7ca6 0.019773036899888873
+outcome	D2dD1e	3f93fd2e1bbf1c1c 0.019520492976678225
+outcome	R1ai	3f8d731799dcb66d 0.014379677184105344
+end	91
+point	92	135	17	16	0	none
+context	w0=,
+context	t0=PUNCT
+context	p_1=O
+context	p_1=Ot0=PUNCT
+context	p_1=Ow0=,
+context	suf=null
+context	suf=,
+context	suf=,
+context	suf=,
+context	suf=,
+context	suf=,
+context	suf=,
+context	pre=null
+context	pre=,
+context	pre=,
+context	pre=,
+context	pre=,
+outcome	O	3fef94631bb06895 0.9868636647036221
+outcome	D3pD1eD0d	3f4349f15e7c491d 5.886486587505544E-4
+outcome	D0d	3f43736f57f2a221 5.935949010523225E-4
+outcome	D0s	3f6b44cf710a9691 0.003328709754287847
+outcome	R2ea	3f4ccb5fdb9756df 8.787363105351129E-4
+outcome	R2oeR1kaR0ek	3f438723e5967819 5.959439542271321E-4
+outcome	D1eD0n	3f4d7ca23a628453 8.998672608592308E-4
+outcome	D1eD0d	3f4bfb7533682eca 8.539507169315838E-4
+outcome	I2e	3f43941cc42722b4 5.974903545445582E-4
+outcome	R1ieD0m	3f4a6f3498bf7aa4 8.067137546240066E-4
+outcome	R1ioD0d	3f4a53761e212eb3 8.034064051200745E-4
+outcome	R0dvI0e	3f4396c85978c1ac 5.978086728131624E-4
+outcome	D2iD1nD0g	3f43d3448444b43c 6.050190500325246E-4
+outcome	R2wbR1aeD0s	3f43941cc42722b8 5.974903545445586E-4
+outcome	D2dD1e	3f43422a4f4ff448 5.877214995276903E-4
+outcome	R1ai	3f4a413c288f8358 8.01233648527337E-4
+end	92
+point	93	135	17	16	0	none
+context	w0=,
+context	t0=PUNCT
+context	p_1=D0s
+context	p_1=D0st0=PUNCT
+context	p_1=D0sw0=,
+context	suf=null
+context	suf=,
+context	suf=,
+context	suf=,
+context	suf=,
+context	suf=,
+context	suf=,
+context	pre=null
+context	pre=,
+context	pre=,
+context	pre=,
+context	pre=,
+outcome	O	3feef9bc2a3fdfc9 0.9679852318940841
+outcome	D3pD1eD0d	3f5915cf9c8e0966 0.0015310790497272352
+outcome	D0d	3f59391ee419fa84 0.0015394975347643733
+outcome	D0s	3f778b88fafdcc04 0.005748305396866552
+outcome	R2ea	3f6ca150eacde8b3 0.0034948902525090086
+outcome	R2oeR1kaR0ek	3f59540dd718fc64 0.0015459189566085158
+outcome	D1eD0n	3f6767b3c8c1db6f 0.002857066288977909
+outcome	D1eD0d	3f6de05edb72ae4f 0.0036470272712756722
+outcome	I2e	3f5961b8754ebb20 0.0015491772985389354
+outcome	R1ieD0m	3f5295b33f56f6fd 0.001134324117955498
+outcome	R1ioD0d	3f528231d51671d6 0.0011296736377978032
+outcome	R0dvI0e	3f59532d0987f862 0.00154570959250535
+outcome	D2iD1nD0g	3f598c78c00354f9 0.001559369964572453
+outcome	R2wbR1aeD0s	3f5961b8754ebb20 0.0015491772985389354
+outcome	D2dD1e	3f590ebb13910c37 0.0015293909948617243
+outcome	R1ai	3f5b1a0d425c1e91 0.0016541604504158073
+end	93
+point	94	135	17	16	0	none
+context	w0=,
+context	t0=PUNCT
+context	p_1=D1eD0n
+context	p_1=D1eD0nt0=PUNCT
+context	p_1=D1eD0nw0=,
+context	suf=null
+context	suf=,
+context	suf=,
+context	suf=,
+context	suf=,
+context	suf=,
+context	suf=,
+context	pre=null
+context	pre=,
+context	pre=,
+context	pre=,
+context	pre=,
+outcome	O	3fef1e8f6ec16647 0.9724805033867562
+outcome	D3pD1eD0d	3f5702a6eae8e1b3 0.0014044408850520773
+outcome	D0d	3f57230a8af7b2ce 0.001412163062805383
+outcome	D0s	3f7598fcc3286d6b 0.005272853234170464
+outcome	R2ea	3f65393f58906df3 0.0025907742715511827
+outcome	R2oeR1kaR0ek	3f573bbf32f29897 0.0014180533578751814
+outcome	D1eD0n	3f65781e4bfe0200 0.0026207534537550092
+outcome	D1eD0d	3f65466bb43327ea 0.0025970557777314955
+outcome	I2e	3f57484870ba9e8e 0.0014210421967763317
+outcome	R1ieD0m	3f510c2ec39f1be8 0.0010405022317045935
+outcome	R1ioD0d	3f50fa4a5ced00d6 0.0010362364007079814
+outcome	R0dvI0e	3f573af0fd677737 0.0014178613106347723
+outcome	D2iD1nD0g	3f576f7f82d69520 0.0014303918099838955
+outcome	R2wbR1aeD0s	3f57484870ba9e8e 0.0014210421967763317
+outcome	D2dD1e	3f56fc284ce5d79d 0.0014028924520892224
+outcome	R1ai	3f50ee89471620a6 0.0010334339716298407
+end	94
+point	95	137	19	16	0	none
+context	w0=A--B
+context	t0=PROPN
+context	p_1=O
+context	p_1=Ot0=PROPN
+context	p_1=Ow0=A--B
+context	suf=null
+context	suf=-B
+context	suf=--B
+context	suf=A--B
+context	suf=A--B
+context	suf=A--B
+context	suf=A--B
+context	pre=null
+context	pre=A-
+context	pre=A--
+context	pre=A--B
+context	pre=A--B
+context	h
+context	c
+outcome	O	3fe6fdea4a2fd000 0.7184955071411423
+outcome	D3pD1eD0d	3f89a9ec83375cbf 0.01253113532486194
+outcome	D0d	3f89e12107b14ab8 0.012636430785425076
+outcome	D0s	3fb23cc9b679d102 0.0712400503633184
+outcome	R2ea	3f9327ccd1688eba 0.01870651271941768
+outcome	R2oeR1kaR0ek	3f89fb58cc8576de 0.012686437360283017
+outcome	D1eD0n	3f939db8bcb2e6ee 0.019156347768080666
+outcome	D1eD0d	3f929d7bd559c257 0.01817887773217061
+outcome	I2e	3f8a0c9b35a3fe80 0.012719357084733263
+outcome	R1ieD0m	3f9195e09095c89b 0.01717329866864557
+outcome	R1ioD0d	3f930764ab89f33a 0.018582890481854998
+outcome	R0dvI0e	3f8a1028b7405ecf 0.012726133434667912
+outcome	D2iD1nD0g	3f8a60a25f2c7d09 0.012879627732728343
+outcome	R2wbR1aeD0s	3f8a0c9b35a3fe87 0.012719357084733275
+outcome	D2dD1e	3f899f9369701607 0.012511397986609841
+outcome	R1ai	3f91774b9f404164 0.017056638331326993
+end	95
+point	96	137	19	16	0	none
+context	w0=A--B
+context	t0=PROPN
+context	p_1=O
+context	p_1=Ot0=PROPN
+context	p_1=Ow0=A--B
+context	suf=null
+context	suf=-B
+context	suf=--B
+context	suf=A--B
+context	suf=A--B
+context	suf=A--B
+context	suf=A--B
+context	pre=null
+context	pre=A-
+context	pre=A--
+context	pre=A--B
+context	pre=A--B
+context	h
+context	c
+outcome	O	3fe6fdea4a2fd000 0.7184955071411423
+outcome	D3pD1eD0d	3f89a9ec83375cbf 0.01253113532486194
+outcome	D0d	3f89e12107b14ab8 0.012636430785425076
+outcome	D0s	3fb23cc9b679d102 0.0712400503633184
+outcome	R2ea	3f9327ccd1688eba 0.01870651271941768
+outcome	R2oeR1kaR0ek	3f89fb58cc8576de 0.012686437360283017
+outcome	D1eD0n	3f939db8bcb2e6ee 0.019156347768080666
+outcome	D1eD0d	3f929d7bd559c257 0.01817887773217061
+outcome	I2e	3f8a0c9b35a3fe80 0.012719357084733263
+outcome	R1ieD0m	3f9195e09095c89b 0.01717329866864557
+outcome	R1ioD0d	3f930764ab89f33a 0.018582890481854998
+outcome	R0dvI0e	3f8a1028b7405ecf 0.012726133434667912
+outcome	D2iD1nD0g	3f8a60a25f2c7d09 0.012879627732728343
+outcome	R2wbR1aeD0s	3f8a0c9b35a3fe87 0.012719357084733275
+outcome	D2dD1e	3f899f9369701607 0.012511397986609841
+outcome	R1ai	3f91774b9f404164 0.017056638331326993
+end	96
+point	97	137	19	16	0	none
+context	w0=A--B
+context	t0=PROPN
+context	p_1=O
+context	p_1=Ot0=PROPN
+context	p_1=Ow0=A--B
+context	suf=null
+context	suf=-B
+context	suf=--B
+context	suf=A--B
+context	suf=A--B
+context	suf=A--B
+context	suf=A--B
+context	pre=null
+context	pre=A-
+context	pre=A--
+context	pre=A--B
+context	pre=A--B
+context	h
+context	c
+outcome	O	3fe6fdea4a2fd000 0.7184955071411423
+outcome	D3pD1eD0d	3f89a9ec83375cbf 0.01253113532486194
+outcome	D0d	3f89e12107b14ab8 0.012636430785425076
+outcome	D0s	3fb23cc9b679d102 0.0712400503633184
+outcome	R2ea	3f9327ccd1688eba 0.01870651271941768
+outcome	R2oeR1kaR0ek	3f89fb58cc8576de 0.012686437360283017
+outcome	D1eD0n	3f939db8bcb2e6ee 0.019156347768080666
+outcome	D1eD0d	3f929d7bd559c257 0.01817887773217061
+outcome	I2e	3f8a0c9b35a3fe80 0.012719357084733263
+outcome	R1ieD0m	3f9195e09095c89b 0.01717329866864557
+outcome	R1ioD0d	3f930764ab89f33a 0.018582890481854998
+outcome	R0dvI0e	3f8a1028b7405ecf 0.012726133434667912
+outcome	D2iD1nD0g	3f8a60a25f2c7d09 0.012879627732728343
+outcome	R2wbR1aeD0s	3f8a0c9b35a3fe87 0.012719357084733275
+outcome	D2dD1e	3f899f9369701607 0.012511397986609841
+outcome	R1ai	3f91774b9f404164 0.017056638331326993
+end	97
+point	98	141	17	16	0	none
+context	w0=,
+context	t0=PUNCT
+context	p_1=O
+context	p_1=Ot0=PUNCT
+context	p_1=Ow0=,
+context	suf=null
+context	suf=,
+context	suf=,
+context	suf=,
+context	suf=,
+context	suf=,
+context	suf=,
+context	pre=null
+context	pre=,
+context	pre=,
+context	pre=,
+context	pre=,
+outcome	O	3fef94631bb06895 0.9868636647036221
+outcome	D3pD1eD0d	3f4349f15e7c491d 5.886486587505544E-4
+outcome	D0d	3f43736f57f2a221 5.935949010523225E-4
+outcome	D0s	3f6b44cf710a9691 0.003328709754287847
+outcome	R2ea	3f4ccb5fdb9756df 8.787363105351129E-4
+outcome	R2oeR1kaR0ek	3f438723e5967819 5.959439542271321E-4
+outcome	D1eD0n	3f4d7ca23a628453 8.998672608592308E-4
+outcome	D1eD0d	3f4bfb7533682eca 8.539507169315838E-4
+outcome	I2e	3f43941cc42722b4 5.974903545445582E-4
+outcome	R1ieD0m	3f4a6f3498bf7aa4 8.067137546240066E-4
+outcome	R1ioD0d	3f4a53761e212eb3 8.034064051200745E-4
+outcome	R0dvI0e	3f4396c85978c1ac 5.978086728131624E-4
+outcome	D2iD1nD0g	3f43d3448444b43c 6.050190500325246E-4
+outcome	R2wbR1aeD0s	3f43941cc42722b8 5.974903545445586E-4
+outcome	D2dD1e	3f43422a4f4ff448 5.877214995276903E-4
+outcome	R1ai	3f4a413c288f8358 8.01233648527337E-4
+end	98
+point	99	141	17	16	0	none
+context	w0=,
+context	t0=PUNCT
+context	p_1=O
+context	p_1=Ot0=PUNCT
+context	p_1=Ow0=,
+context	suf=null
+context	suf=,
+context	suf=,
+context	suf=,
+context	suf=,
+context	suf=,
+context	suf=,
+context	pre=null
+context	pre=,
+context	pre=,
+context	pre=,
+context	pre=,
+outcome	O	3fef94631bb06895 0.9868636647036221
+outcome	D3pD1eD0d	3f4349f15e7c491d 5.886486587505544E-4
+outcome	D0d	3f43736f57f2a221 5.935949010523225E-4
+outcome	D0s	3f6b44cf710a9691 0.003328709754287847
+outcome	R2ea	3f4ccb5fdb9756df 8.787363105351129E-4
+outcome	R2oeR1kaR0ek	3f438723e5967819 5.959439542271321E-4
+outcome	D1eD0n	3f4d7ca23a628453 8.998672608592308E-4
+outcome	D1eD0d	3f4bfb7533682eca 8.539507169315838E-4
+outcome	I2e	3f43941cc42722b4 5.974903545445582E-4
+outcome	R1ieD0m	3f4a6f3498bf7aa4 8.067137546240066E-4
+outcome	R1ioD0d	3f4a53761e212eb3 8.034064051200745E-4
+outcome	R0dvI0e	3f4396c85978c1ac 5.978086728131624E-4
+outcome	D2iD1nD0g	3f43d3448444b43c 6.050190500325246E-4
+outcome	R2wbR1aeD0s	3f43941cc42722b8 5.974903545445586E-4
+outcome	D2dD1e	3f43422a4f4ff448 5.877214995276903E-4
+outcome	R1ai	3f4a413c288f8358 8.01233648527337E-4
+end	99
+point	100	141	17	16	0	none
+context	w0=,
+context	t0=PUNCT
+context	p_1=D0s
+context	p_1=D0st0=PUNCT
+context	p_1=D0sw0=,
+context	suf=null
+context	suf=,
+context	suf=,
+context	suf=,
+context	suf=,
+context	suf=,
+context	suf=,
+context	pre=null
+context	pre=,
+context	pre=,
+context	pre=,
+context	pre=,
+outcome	O	3feef9bc2a3fdfc9 0.9679852318940841
+outcome	D3pD1eD0d	3f5915cf9c8e0966 0.0015310790497272352
+outcome	D0d	3f59391ee419fa84 0.0015394975347643733
+outcome	D0s	3f778b88fafdcc04 0.005748305396866552
+outcome	R2ea	3f6ca150eacde8b3 0.0034948902525090086
+outcome	R2oeR1kaR0ek	3f59540dd718fc64 0.0015459189566085158
+outcome	D1eD0n	3f6767b3c8c1db6f 0.002857066288977909
+outcome	D1eD0d	3f6de05edb72ae4f 0.0036470272712756722
+outcome	I2e	3f5961b8754ebb20 0.0015491772985389354
+outcome	R1ieD0m	3f5295b33f56f6fd 0.001134324117955498
+outcome	R1ioD0d	3f528231d51671d6 0.0011296736377978032
+outcome	R0dvI0e	3f59532d0987f862 0.00154570959250535
+outcome	D2iD1nD0g	3f598c78c00354f9 0.001559369964572453
+outcome	R2wbR1aeD0s	3f5961b8754ebb20 0.0015491772985389354
+outcome	D2dD1e	3f590ebb13910c37 0.0015293909948617243
+outcome	R1ai	3f5b1a0d425c1e91 0.0016541604504158073
+end	100
+point	101	143	17	16	0	none
+context	w0=non‑breaking‐hyphen
+context	t0=PROPN
+context	p_1=O
+context	p_1=Ot0=PROPN
+context	p_1=Ow0=non‑breaking‐hyphen
+context	suf=null
+context	suf=en
+context	suf=hen
+context	suf=phen
+context	suf=yphen
+context	suf=hyphen
+context	suf=‐hyphen
+context	pre=null
+context	pre=no
+context	pre=non
+context	pre=non‑
+context	pre=non‑b
+outcome	O	3fe4b1e0424d670e 0.6467133803336951
+outcome	D3pD1eD0d	3f8f0139d3c2b25b 0.015139056944769516
+outcome	D0d	3f8f43eb89db6fc5 0.01526626600701054
+outcome	D0s	3fb5ea75ef1e34f8 0.08560883605806058
+outcome	R2ea	3f97245b2c077d80 0.022599625170071302
+outcome	R2oeR1kaR0ek	3f8f63982126a927 0.015326679717720794
+outcome	D1eD0n	3fa3c16f747bc518 0.03858516976277765
+outcome	D1eD0d	3f967d4108bdf56e 0.021962181242533622
+outcome	I2e	3f8f7872144604bf 0.015366450542162345
+outcome	R1ieD0m	3f953ec97620928e 0.020747325739778825
+outcome	R1ioD0d	3f95287d3747f98a 0.020662266253560747
+outcome	R0dvI0e	3f8f7cbcde22042e 0.015374637154538542
+outcome	D2iD1nD0g	3f8fddf60b6466a4 0.015560075972234806
+outcome	R2wbR1aeD0s	3f8f7872144604c6 0.015366450542162357
+outcome	D2dD1e	3f8ef4b96870e532 0.015115211963449757
+outcome	R1ai	3f9519d73210ae8f 0.020606386595473366
+end	101
+point	102	143	17	16	0	none
+context	w0=non‑breaking‐hyphen
+context	t0=PROPN
+context	p_1=O
+context	p_1=Ot0=PROPN
+context	p_1=Ow0=non‑breaking‐hyphen
+context	suf=null
+context	suf=en
+context	suf=hen
+context	suf=phen
+context	suf=yphen
+context	suf=hyphen
+context	suf=‐hyphen
+context	pre=null
+context	pre=no
+context	pre=non
+context	pre=non‑
+context	pre=non‑b
+outcome	O	3fe4b1e0424d670e 0.6467133803336951
+outcome	D3pD1eD0d	3f8f0139d3c2b25b 0.015139056944769516
+outcome	D0d	3f8f43eb89db6fc5 0.01526626600701054
+outcome	D0s	3fb5ea75ef1e34f8 0.08560883605806058
+outcome	R2ea	3f97245b2c077d80 0.022599625170071302
+outcome	R2oeR1kaR0ek	3f8f63982126a927 0.015326679717720794
+outcome	D1eD0n	3fa3c16f747bc518 0.03858516976277765
+outcome	D1eD0d	3f967d4108bdf56e 0.021962181242533622
+outcome	I2e	3f8f7872144604bf 0.015366450542162345
+outcome	R1ieD0m	3f953ec97620928e 0.020747325739778825
+outcome	R1ioD0d	3f95287d3747f98a 0.020662266253560747
+outcome	R0dvI0e	3f8f7cbcde22042e 0.015374637154538542
+outcome	D2iD1nD0g	3f8fddf60b6466a4 0.015560075972234806
+outcome	R2wbR1aeD0s	3f8f7872144604c6 0.015366450542162357
+outcome	D2dD1e	3f8ef4b96870e532 0.015115211963449757
+outcome	R1ai	3f9519d73210ae8f 0.020606386595473366
+end	102
+point	103	143	17	16	0	none
+context	w0=non‑breaking‐hyphen
+context	t0=PROPN
+context	p_1=O
+context	p_1=Ot0=PROPN
+context	p_1=Ow0=non‑breaking‐hyphen
+context	suf=null
+context	suf=en
+context	suf=hen
+context	suf=phen
+context	suf=yphen
+context	suf=hyphen
+context	suf=‐hyphen
+context	pre=null
+context	pre=no
+context	pre=non
+context	pre=non‑
+context	pre=non‑b
+outcome	O	3fe4b1e0424d670e 0.6467133803336951
+outcome	D3pD1eD0d	3f8f0139d3c2b25b 0.015139056944769516
+outcome	D0d	3f8f43eb89db6fc5 0.01526626600701054
+outcome	D0s	3fb5ea75ef1e34f8 0.08560883605806058
+outcome	R2ea	3f97245b2c077d80 0.022599625170071302
+outcome	R2oeR1kaR0ek	3f8f63982126a927 0.015326679717720794
+outcome	D1eD0n	3fa3c16f747bc518 0.03858516976277765
+outcome	D1eD0d	3f967d4108bdf56e 0.021962181242533622
+outcome	I2e	3f8f7872144604bf 0.015366450542162345
+outcome	R1ieD0m	3f953ec97620928e 0.020747325739778825
+outcome	R1ioD0d	3f95287d3747f98a 0.020662266253560747
+outcome	R0dvI0e	3f8f7cbcde22042e 0.015374637154538542
+outcome	D2iD1nD0g	3f8fddf60b6466a4 0.015560075972234806
+outcome	R2wbR1aeD0s	3f8f7872144604c6 0.015366450542162357
+outcome	D2dD1e	3f8ef4b96870e532 0.015115211963449757
+outcome	R1ai	3f9519d73210ae8f 0.020606386595473366
+end	103
+point	104	166	17	16	0	none
+context	w0=.
+context	t0=PUNCT
+context	p_1=O
+context	p_1=Ot0=PUNCT
+context	p_1=Ow0=.
+context	suf=null
+context	suf=.
+context	suf=.
+context	suf=.
+context	suf=.
+context	suf=.
+context	suf=.
+context	pre=null
+context	pre=.
+context	pre=.
+context	pre=.
+context	pre=.
+outcome	O	3fef9665e06d6b94 0.9871091254566289
+outcome	D3pD1eD0d	3f42edac9c002715 5.776493853783838E-4
+outcome	D0d	3f4316641b02e016 5.825032040069923E-4
+outcome	D0s	3f6ac25e946bbbec 0.0032665107022391473
+outcome	R2ea	3f4c41a2b94958fd 8.623165654835504E-4
+outcome	R2oeR1kaR0ek	3f4329ba65eb0a38 5.848083636340101E-4
+outcome	D1eD0n	3f4cef952ba25970 8.830526706045515E-4
+outcome	D1eD0d	3f4b759aa400ac6b 8.379941064097345E-4
+outcome	I2e	3f4336753707cabc 5.863258684811394E-4
+outcome	R1ieD0m	3f49f0c184bc3483 7.91639796689517E-4
+outcome	R1ioD0d	3f49d587c0fbbe5a 7.88394247107814E-4
+outcome	R0dvI0e	3f4339140669d62e 5.866382387710917E-4
+outcome	D2iD1nD0g	3f43746edc59e794 5.937138855209739E-4
+outcome	R2wbR1aeD0s	3f4336753707cac0 5.863258684811398E-4
+outcome	D2dD1e	3f42e60ac11a9515 5.767395507133866E-4
+outcome	R1ai	3f49c3a4fb226cd4 7.862620898494662E-4
+end	104
+point	105	166	17	16	0	none
+context	w0=.
+context	t0=PUNCT
+context	p_1=D0s
+context	p_1=D0st0=PUNCT
+context	p_1=D0sw0=.
+context	suf=null
+context	suf=.
+context	suf=.
+context	suf=.
+context	suf=.
+context	suf=.
+context	suf=.
+context	pre=null
+context	pre=.
+context	pre=.
+context	pre=.
+context	pre=.
+outcome	O	3fef4fd051650e46 0.9784928884259407
+outcome	D3pD1eD0d	3f50da1727a903ef 0.001028559314946383
+outcome	D0d	3f50f1cfa0913dfb 0.0010342147454770456
+outcome	D0s	3f6fa2711f5a6c3e 0.0038616380141554265
+outcome	R2ea	3f633bbda2ac20a2 0.0023478225533644795
+outcome	R2oeR1kaR0ek	3f5103e790dcba95 0.0010385285745077345
+outcome	D1eD0n	3f5f724c40328538 0.0019193405758318304
+outcome	D1eD0d	3f641213d49800cf 0.0024500262559286955
+outcome	I2e	3f510d15e486a627 0.001040717486925033
+outcome	R1ieD0m	3f48f852ffd54ddd 7.620244283920681E-4
+outcome	R1ioD0d	3f48de1df9846030 7.58900295326553E-4
+outcome	R0dvI0e	3f5103508bccc1fa 0.0010383879263821103
+outcome	D2iD1nD0g	3f5129ce20bd384d 0.0010475647895478335
+outcome	R2wbR1aeD0s	3f510d15e486a627 0.001040717486925033
+outcome	D2dD1e	3f50d555845bebb9 0.0010274253012869507
+outcome	R1ai	3f5234e4f8bccac2 0.0011112438250619337
+end	105
+point	106	166	17	16	0	none
+context	w0=.
+context	t0=PUNCT
+context	p_1=O
+context	p_1=Ot0=PUNCT
+context	p_1=Ow0=.
+context	suf=null
+context	suf=.
+context	suf=.
+context	suf=.
+context	suf=.
+context	suf=.
+context	suf=.
+context	pre=null
+context	pre=.
+context	pre=.
+context	pre=.
+context	pre=.
+outcome	O	3fef9665e06d6b94 0.9871091254566289
+outcome	D3pD1eD0d	3f42edac9c002715 5.776493853783838E-4
+outcome	D0d	3f4316641b02e016 5.825032040069923E-4
+outcome	D0s	3f6ac25e946bbbec 0.0032665107022391473
+outcome	R2ea	3f4c41a2b94958fd 8.623165654835504E-4
+outcome	R2oeR1kaR0ek	3f4329ba65eb0a38 5.848083636340101E-4
+outcome	D1eD0n	3f4cef952ba25970 8.830526706045515E-4
+outcome	D1eD0d	3f4b759aa400ac6b 8.379941064097345E-4
+outcome	I2e	3f4336753707cabc 5.863258684811394E-4
+outcome	R1ieD0m	3f49f0c184bc3483 7.91639796689517E-4
+outcome	R1ioD0d	3f49d587c0fbbe5a 7.88394247107814E-4
+outcome	R0dvI0e	3f4339140669d62e 5.866382387710917E-4
+outcome	D2iD1nD0g	3f43746edc59e794 5.937138855209739E-4
+outcome	R2wbR1aeD0s	3f4336753707cac0 5.863258684811398E-4
+outcome	D2dD1e	3f42e60ac11a9515 5.767395507133866E-4
+outcome	R1ai	3f49c3a4fb226cd4 7.862620898494662E-4
+end	106

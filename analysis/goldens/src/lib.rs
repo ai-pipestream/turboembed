@@ -59,7 +59,9 @@ pub fn data_dir() -> PathBuf {
 /// are trained on CC BY-SA treebanks and are not checked in, so a test
 /// that needs one says so and returns `None` when it is missing, unless
 /// `TURBO_TEST_REQUIRE_OPENNLP_MODELS=1`, which makes a missing model
-/// fail it, as CI sets it.
+/// fail it, as CI sets it. Give `TURBO_GOLDENS_MODELS` as an absolute
+/// path: cargo runs each test in its own crate's directory, so a relative
+/// one names a different directory for each crate.
 pub fn published_model(file: &str) -> Option<PathBuf> {
     let dir = match std::env::var_os("TURBO_GOLDENS_MODELS") {
         Some(d) => PathBuf::from(d),
