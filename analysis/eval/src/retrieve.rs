@@ -6,6 +6,11 @@
 //! lanes in order, so the same vectors give the same scores on every
 //! machine. Rankings keep the top [`DEPTH`] documents and chunks, by the
 //! tie rules of `metrics` and `spans`.
+//!
+//! A document whose id is the query's own id is left out of both
+//! rankings before the cut, as BEIR's exact search leaves it out (its
+//! `ignore_identical_ids`, on by default): in ArguAna, say, each query is
+//! also a document and would otherwise rank itself first.
 
 use std::cmp::Ordering;
 
@@ -62,7 +67,8 @@ impl Index<'_> {
             let d = self.doc[c] as usize;
             best[d] = best[d].max(s);
         }
-        let mut docs: Vec<usize> = (0..self.docs.len()).filter(|&d| best[d].is_finite()).collect();
+        let mut docs: Vec<usize> =
+            (0..self.docs.len()).filter(|&d| best[d].is_finite() && self.docs[d] != query).collect();
         top(&mut docs, self.doc_order(&best));
         let hits = docs.iter().map(|&d| Hit { doc: self.docs[d].clone(), score: best[d] }).collect();
 
@@ -74,7 +80,7 @@ impl Index<'_> {
                 .then_with(|| self.docs[self.doc[b] as usize].cmp(&self.docs[self.doc[a] as usize]))
                 .then_with(|| self.span[a].cmp(&self.span[b]))
         };
-        let mut chunks: Vec<usize> = (0..self.len()).collect();
+        let mut chunks: Vec<usize> = (0..self.len()).filter(|&c| self.docs[self.doc[c] as usize] != query).collect();
         top(&mut chunks, chunk_order);
         let chunk_hits = chunks
             .iter()
@@ -154,6 +160,27 @@ mod tests {
         assert_eq!(ranked, [("a", 1.0), ("b", f64::from(0.8f32))]);
         let c: Vec<(&str, Span)> = chunks.hits("q").iter().map(|h| (h.doc.as_str(), h.span)).collect();
         assert_eq!(c, [("a", s(5, 9)), ("b", s(0, 3)), ("a", s(0, 5))]);
+    }
+
+    #[test]
+    fn the_query_s_own_document_is_left_out() {
+        // Query b is also document b, the best match; it is dropped from
+        // both rankings, and a is ranked as if b were not there.
+        let docs = ["a".to_string(), "b".into()];
+        let s = |x, y| Span::new(x, y).unwrap();
+        let index = Index {
+            dim: 2,
+            vectors: vec![0.6, 0.8, 0.0, 1.0],
+            doc: vec![0, 1],
+            span: vec![s(0, 3), s(0, 4)],
+            docs: &docs,
+        };
+        let (run, chunks) = index.search(&["b", "q"], &[0.0, 1.0, 0.0, 1.0]).unwrap();
+        let ids = |q| run.hits(q).iter().map(|h| h.doc.as_str()).collect::<Vec<_>>();
+        assert_eq!(ids("b"), ["a"]);
+        assert_eq!(ids("q"), ["b", "a"]);
+        assert_eq!(chunks.hits("b").iter().map(|h| h.doc.as_str()).collect::<Vec<_>>(), ["a"]);
+        assert_eq!(chunks.hits("q").len(), 2);
     }
 
     #[test]
