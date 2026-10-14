@@ -1,0 +1,53 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	ner/brat-errors	2283	2282	0a0ca34e91751e1b3ceaa8d8c9e264e3d114115096c6f38600f96cc279a60c4d
+annotator	opennlp.tools.formats.brat.BratNameSampleStream	read
+config	tokenizer	whitespace
+layer	turbo:samples	document	3	written:str
+\n<START:Person> Ann and <END> <START:Person> Bob <END> met .
+\n<START:Person> Ann <END> and <START:Person> Bob <END> met .
+\n<START:Person> Ann <END> and <START:Person> Bob <END> met .
+end	turbo:samples
+layer	turbo:read-errors	document	13	after:u32	class:str	message:str
+0	java.io.IOException	Failed to parse ann document with id [<corpus>/e01.ann]
+0	java.io.IOException	Failed to parse ann document with id [<corpus>/e02.ann]
+0	java.lang.ArrayIndexOutOfBoundsException	Index 1 out of bounds for length 1
+0	java.lang.IllegalArgumentException	start index must be zero or greater: -1
+0	java.lang.IllegalArgumentException	start index must not be larger than end index: start=3, end=0
+0	java.lang.ArrayIndexOutOfBoundsException	Index 5 out of bounds for length 5
+1	java.lang.ArrayIndexOutOfBoundsException	Index 3 out of bounds for length 3
+1	java.io.IOException	Failed to parse ann document with id [<corpus>/e09.ann]
+1	java.io.IOException	Failed to parse ann document with id [<corpus>/e10.ann]
+1	java.io.IOException	Failed to parse ann document with id [<corpus>/e11.ann]
+1	java.io.IOException	Failed to parse ann document with id [<corpus>/e12.ann]
+1	java.lang.ArrayIndexOutOfBoundsException	Index 3 out of bounds for length 3
+1	java.io.IOException	Failed to parse ann document with id [<corpus>/e14.ann]
+end	turbo:read-errors
+layer	turbo:sample-tokens	document	15	sample:u32	text:str
+0	Ann
+0	and
+0	Bob
+0	met
+0	.
+1	Ann
+1	and
+1	Bob
+1	met
+1	.
+2	Ann
+2	and
+2	Bob
+2	met
+2	.
+end	turbo:sample-tokens
+layer	turbo:names	document	6	sample:u32	start:u32	end:u32	type:str
+0	0	2	Person
+0	2	3	Person
+1	0	1	Person
+1	2	3	Person
+2	0	1	Person
+2	2	3	Person
+end	turbo:names

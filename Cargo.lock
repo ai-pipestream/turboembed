@@ -1841,6 +1841,27 @@ dependencies = [
  "turbo-analysis",
  "turbo-goldens",
  "turbo-jvm",
+ "turbo-maxent",
+ "turbo-tokenize",
+ "turbo-unicode",
+]
+
+[[package]]
+name = "turbo-fuzz"
+version = "0.1.0"
+dependencies = [
+ "turbo-analysis",
+ "turbo-analysis-embed",
+ "turbo-analysis-layers",
+ "turbo-goldens",
+ "turbo-langdetect",
+ "turbo-lemmatizer",
+ "turbo-maxent",
+ "turbo-normalize",
+ "turbo-numeric",
+ "turbo-phrase-chunker",
+ "turbo-postag",
+ "turbo-sentdetect",
  "turbo-tokenize",
  "turbo-unicode",
 ]
@@ -1851,11 +1872,16 @@ version = "0.1.0"
 dependencies = [
  "turbo-analysis",
  "turbo-analysis-layers",
+ "turbo-unicode",
 ]
 
 [[package]]
 name = "turbo-goldens-tool"
 version = "0.1.0"
+dependencies = [
+ "turbo-fuzz",
+ "turbo-goldens",
+]
 
 [[package]]
 name = "turbo-jvm"
@@ -1901,6 +1927,7 @@ dependencies = [
  "turbo-analysis",
  "turbo-analysis-layers",
  "turbo-goldens",
+ "turbo-jvm",
  "turbo-maxent",
  "turbo-normalize",
  "turbo-unicode",
@@ -1922,6 +1949,7 @@ dependencies = [
 name = "turbo-maxent"
 version = "0.1.0"
 dependencies = [
+ "turbo-goldens",
  "turbo-jvm",
  "turbo-unicode",
 ]
@@ -1930,7 +1958,6 @@ dependencies = [
 name = "turbo-namefind"
 version = "0.1.0"
 dependencies = [
- "regex",
  "turbo-analysis",
  "turbo-analysis-layers",
  "turbo-jvm",
@@ -1964,6 +1991,15 @@ dependencies = [
  "turbo-analysis",
  "turbo-analysis-layers",
  "turbo-goldens",
+ "turbo-unicode",
+]
+
+[[package]]
+name = "turbo-parser"
+version = "0.1.0"
+dependencies = [
+ "turbo-analysis",
+ "turbo-jvm",
  "turbo-unicode",
 ]
 
@@ -2006,6 +2042,7 @@ dependencies = [
 name = "turbo-sequence"
 version = "0.1.0"
 dependencies = [
+ "turbo-goldens",
  "turbo-jvm",
  "turbo-maxent",
  "turbo-unicode",
@@ -2106,6 +2143,7 @@ dependencies = [
  "serde",
  "serde_json",
  "sha2",
+ "turbo-goldens",
  "ureq",
 ]
 

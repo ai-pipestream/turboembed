@@ -87,10 +87,10 @@ impl Builder {
     /// output's anchor one of its step's reads or an output the step writes
     /// before it, and no cycle.
     pub fn build(self) -> Result<Analyzer, Error> {
-        let mut types: HashMap<(&str, &str), TypeId> = HashMap::new();
+        let mut types: HashMap<(&str, &str, &str), TypeId> = HashMap::new();
         let keys = self.steps.iter().flat_map(|s| s.reads().into_iter().chain(s.writes()));
         for k in self.given.iter().copied().chain(keys) {
-            if *types.entry((k.layer.id, k.layer.of)).or_insert(k.ty) != k.ty {
+            if *types.entry((k.layer.id, k.layer.of, k.layer.to)).or_insert(k.ty) != k.ty {
                 return Err(Error::Pipeline(format!("two layer types are both {}", k.layer)));
             }
         }

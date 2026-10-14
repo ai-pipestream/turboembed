@@ -352,7 +352,7 @@ pub const FIXTURES: [Fixture; 32] = [
 ];
 
 /// The input sets under `analysis/goldens/data/inputs`.
-pub const INPUT_SETS: [&str; 19] = [
+pub const INPUT_SETS: [&str; 20] = [
     "en",
     "multi",
     "norm",
@@ -372,6 +372,7 @@ pub const INPUT_SETS: [&str; 19] = [
     "ko",
     "train",
     "formats",
+    "ner",
 ];
 
 /// The arguments the driver passes to the generator after the fixed ones
@@ -385,7 +386,7 @@ pub const GENERATOR_ARGS: [&str; 1] = ["--dumps"];
 /// replaces and `verify` compares. The data directory holds other things
 /// (the inputs, the fixtures, the rate snapshot, a README) that neither
 /// touches.
-pub const ANNOTATORS: [&str; 20] = [
+pub const ANNOTATORS: [&str; 22] = [
     "sentdetect",
     "tokenize",
     "postag",
@@ -406,6 +407,8 @@ pub const ANNOTATORS: [&str; 20] = [
     "train",
     "formats",
     "evaluate",
+    "masc",
+    "ner",
 ];
 
 /// The annotators with runs that ask a maxent model for their decisions:

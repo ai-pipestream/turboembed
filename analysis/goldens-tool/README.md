@@ -30,7 +30,10 @@ everything that makes them:
 - `src/`: the driver, the `turbo-goldens` binary. `src/recipe.rs` holds the
   base image digest, the OpenNLP and addons commits, the published models
   with their URLs and SHA-512 hashes, the checked in fixtures with their
-  SHA-512 hashes, and the input sets.
+  SHA-512 hashes, and the input sets. `src/fuzz.rs` is the `fuzz`
+  command, which is why the crate depends on `turbo-goldens` (the corpus
+  generator) and `turbo-fuzz` (the Rust side of the comparison); the
+  other commands use neither.
 
 Both formats are described in `docs/analysis.md` ("Generating golden
 files" and "Decision point dumps").
@@ -44,6 +47,7 @@ cargo run -p turbo-goldens-tool -- image
 cargo run -p turbo-goldens-tool -- fetch-models <dir>
 cargo run -p turbo-goldens-tool -- generate [--out <dir>] [--models <dir>]
 cargo run -p turbo-goldens-tool -- verify [--models <dir>]
+cargo run -p turbo-goldens-tool --features fuzz -- fuzz [--seed <n>] [--count <n>] [--sets <a,b>] [--out <dir>] [--models <dir>] [--image <tag>] [--reduce <n>] [--no-reduce] [--reduce-documented] [--rounds <n>] [--reuse]
 ```
 
 - `image` builds the container image, tags it with the OpenNLP commit and
@@ -83,6 +87,10 @@ cargo run -p turbo-goldens-tool -- verify [--models <dir>]
   also checks the checked in dumps by the same rule, and that each one's
   header names the golden's input and model; it does not read the
   decision points.
+- `fuzz` generates `<count>` texts from `<seed>`, runs the generator over
+  them in the container, compares every golden with the Rust annotators
+  and reduces each divergence to a minimal input; see "Fuzzing against
+  the Rust ports" below.
 
 ## Runs
 
@@ -141,6 +149,9 @@ a directory with the same model run without them, and its options are
 | `formats` (the conversion streams) | `name-to-token`, `name-to-sentence`, `pos-to-token`, `pos-to-sentence`, with `en-detokenizer` (fixture) | `formats`, the `name` and `wordtag` inputs | `chunkSize 2` for the sentence conversions |
 | `evaluate` (the evaluators) | `pos`, `lemma`, `name`, `chunk`, `token`, `sentence` (also `+legacy`), `doccat`, `language`, `cross-validation` | `formats`, the `pairs-` inputs of the evaluator's format | `whitespace legacy` |
 | `formats` (the CoNLL-U streams) | `conllu-pos-u`, `conllu-pos-x`, `conllu-lemma-u`, `conllu-lemma-x`, `conllu-sentence`, `conllu-token` (also `+legacy`) | `formats`, the `conllu` inputs | `tagset u` or `x`; `sentencesPerSample 2`; `whitespace legacy` |
+| `formats` (the CoNLL streams) | `conll02-nld`, `conll02-spa`, `conll02-spa-per-loc`, `conll03-eng`, `conll03-deu`, `conll03-eng-org-misc`, `conllx-pos`, `conllx-token` and `conllx-sentence` (with `en-detokenizer`, fixture) | `formats`, the `conll02`, `conll03` and `conllx` inputs | `lang`, `types`; `chunkSize 2` for `conllx-sentence` |
+| `masc` (the MASC readers) | `documents` (`MascDocument.parseDocument`), `pos`, `token`, `sentence`, `name` (the sample streams) | `formats`, the `masc-` inputs | `sentencesPerSample 2` for `sentence` |
+| `ner` (the named entity corpus streams) | `germeval-outer`, `germeval-inner`, `germeval-outer-loc-misc`, `bionlp`, `bionlp-cell-line`, `bionlp-dna-cell-type`, `evalita`, `evalita-per-gpe`, `census`, `muc6-whitespace` (also `+legacy`), `muc6-simple`, `brat-whitespace` (also `+legacy`), `brat-simple`, `brat-recursive-person-location`, `brat-config` | `ner`, the inputs whose id starts with the corpus's prefix (`germeval-`, `bionlp-`, `evalita-`, `census-`, `muc-`, `brat-`) | `types`, `layer`, `lang it`, `tokenizer`, `recursive true`, `nameTypes`, `whitespace legacy` |
 
 - `+english-dictionary` is the English model rebuilt through
   `TokenizerModel(MaxentModel, Map, TokenizerFactory)` with the
@@ -336,7 +347,16 @@ conversions run with a chunk size of 2, so the inputs show the sample a
 full chunk drops. The CoNLL-U streams `ConlluPOSSampleStream` and
 `ConlluLemmaSampleStream` (with each tag set), `ConlluSentenceSampleStream`
 (two sentences a sample) and `ConlluTokenSampleStream` (in both
-whitespace modes) read the `conllu` inputs through a `ConlluStream`.
+whitespace modes) read the `conllu` inputs through a `ConlluStream`. `ConllGolden` runs `Conll02NameSampleStream` (Dutch and
+Spanish) and `Conll03NameSampleStream` (English and German), each with
+every name type and one run of each with some left out, over the
+`conll02` and `conll03` inputs of both languages, and
+`ConllXPOSSampleStream` over the `conllx` inputs, also through
+`POSToTokenSampleStream` and `POSToSentenceSampleStream` (chunk size 2)
+as `ConllXTokenSampleStreamFactory` and
+`ConllXSentenceSampleStreamFactory` use them. Every stream reads lines of
+UTF-8 text. CoNLL-2000 is the chunker's native format, read by
+`ChunkSampleStream` (the `chunk` inputs).
 
 The stream is read until it returns null; an exception from `read` is
 recorded and reading goes on. Every layer is anchored to the document:
@@ -351,6 +371,84 @@ sample's own text and the UTF-8 byte span of each token or sentence in
 it) and `turbo:sample-labels` (a category or language). The streams ask
 no model, so there are no dumps. `analysis/formats/tests/opennlp.rs`
 compares the Rust readers with these goldens.
+
+## MASC goldens
+
+`masc/<run>/formats/<id>.golden` is what OpenNLP's MASC classes read from
+the corpus bundled in `inputs/formats/<id>.txt` (the `masc-` inputs).
+A bundle is one UTF-8 text holding the files of a corpus directory: a
+line `@@ file <path>` starts a file whose content runs to the next line
+`@@ end` (the line end before `@@ end` is not part of the file), `@@ hex
+<path>` does the same with the bytes written in hexadecimal for content
+that is not UTF-8, `@@ dir <path>` makes an empty directory, and other
+lines outside a file are empty or start with `#`. `MascGolden` writes
+the bundle to a temporary directory and reads it there. Each directory of
+a bundle holds at most one `.hdr` file and one subdirectory, so the order
+in which `MascDocumentStream` finds the documents does not depend on the
+order the file system lists a directory in.
+
+The `documents` run parses each document as the stream's constructor does
+(`checkAnnotations`, called by reflection, then `parseDocument`) and
+records, through reflection where the classes keep it private:
+`turbo:masc-documents` (per header, its path in the corpus, the class and
+message of what the parse threw with the corpus directory written
+`<corpus>` and without the stack trace `addPennTags` appends to its
+message, `abort` 1 when the throw ends the stream's constructor rather
+than skipping the document, and whether it has Penn tags and named
+entities), `turbo:masc-sentences` (each sentence's region in UTF-16 units,
+the ids of its quarks, whether it was tokenized), `turbo:masc-tokens`
+(each Penn token's UTF-16 span, id, tag, base, which of the two are null
+and the ids of its quarks), `turbo:masc-names` (each named entity's token
+span and type) and `turbo:masc-stream` or `turbo:masc-stream-errors` (the
+documents the stream loaded, or what its constructor threw).
+
+The sample runs read the corpus with `MascDocumentStream` and
+`MascPOSSampleStream`, `MascTokenSampleStream`,
+`MascSentenceSampleStream` (two sentences a sample) or
+`MascNamedEntitySampleStream` until `read` returns null or throws
+`NullPointerException` (the stream has run past its last document, and
+every later read throws the same), then call `reset` and read again
+(`pass` 1). Other exceptions are recorded and reading goes on. The layers
+are those of the format goldens, with the pass added to `turbo:samples`
+and `turbo:read-errors`, `turbo:open-errors` for what the constructors
+threw, and `nulls` 1 in `turbo:names` for a name without a type.
+`analysis/formats/tests/masc.rs` compares the Rust readers with these
+goldens.
+
+## NER goldens
+
+`ner/<run>/ner/<id>.golden` is what one of OpenNLP's named entity corpus
+streams read from `inputs/ner/<id>.txt`. `NerGolden` makes each stream
+as its factory does: `GermEval2014NameSampleStream`,
+`BioNLP2004NameSampleStream` and `EvalitaNameSampleStream` with the name
+types of the `types` record (and the GermEval layer of `layer`), and
+`NameFinderCensus90NameStream`, each over the file read as UTF-8.
+
+The `muc-` and `brat-` inputs are corpus directories bundled into one
+text, as the MASC inputs are. The MUC runs read the files whose name
+ends with `.sgm` in any case with `MucNameSampleStream`, as
+`Muc6NameSampleStreamFactory` does; the factory splits words with a
+tokenizer model, and the runs use the whitespace and the simple
+tokenizer in its place. The message of an unknown MUC name type lists
+the expected types in an order that changes from one JVM run to the
+next, so the golden writes them in the order of OpenNLP's source. The
+brat runs read the corpus with `BratDocumentStream` and
+`BratNameSampleStream` as `BratNameSampleStreamFactory` does without a
+sentence or tokenizer model: sentences split at line ends, and the
+whitespace or the simple tokenizer. The simple tokenizer cuts a
+character outside the Basic Multilingual Plane into its two surrogates,
+which a golden cannot hold, so `brat-simple` does not read `brat-utf16`.
+Messages naming a document write the corpus directory as `<corpus>`.
+The `brat-config` run parses each `.conf` file of a bundle's top
+directory with `AnnotationConfiguration.parse` and writes
+`turbo:brat-config` (each type and its class) and
+`turbo:brat-config-errors` (what the parse threw).
+
+The streams are read until `read` returns null; an exception is recorded
+and reading goes on. The layers are `turbo:samples`,
+`turbo:read-errors`, `turbo:sample-tokens` and `turbo:names`, as the
+format goldens write them. `analysis/formats/tests/ner.rs` compares the
+Rust readers with these goldens.
 
 ## Evaluator goldens
 
@@ -467,6 +565,86 @@ value with a negative scale is written with scale 0, as for money.
 
 The `quantity` inputs are written for the project. Only the quantity
 annotator runs on them, and it has no dumps.
+
+## Fuzzing against the Rust ports
+
+`turbo-goldens fuzz` compares the JVM and the Rust ports on generated
+texts. `docs/analysis.md` ("Differential fuzzing") describes the corpus,
+the comparison, the offset invariants and what the runs found; this
+section is about running it.
+
+```
+cargo run -p turbo-goldens-tool -- fetch-models target/turbo-goldens/models
+cargo run -p turbo-goldens-tool -- image
+cargo run -p turbo-goldens-tool --features fuzz -- fuzz --seed 1 --count 1000
+```
+
+The command:
+
+1. writes the first `<count>` texts of the seed's corpus
+   (`turbo_goldens::fuzz::corpus`) as `<out>/inputs/<set>/s<seed>-<index>.txt`
+   for each set named by `--sets`, `en`, `edge`, `norm`, `num`, `money`,
+   `quantity` and `sentence-fixture` by default, so that every run the
+   differential covers reads each text; `<out>` is
+   `target/turbo-goldens/fuzz/s<seed>-<count>` unless `--out` names a
+   directory; the inputs and the `jvm` directory of an earlier run there
+   are replaced;
+2. runs the generator in the container (`--image`, the recipe's tag by
+   default) over that inputs directory with the models, the fixtures and
+   the rate snapshot mounted as `generate` mounts them, and with
+   `--skip-annotators train,formats,evaluate,detokenize,bpe,masc,ner`,
+   the annotators the differential does not cover; the goldens go under
+   `<out>/jvm/`;
+3. compares every golden with the Rust side (`turbo_fuzz::compare_tree`),
+   checks the offset invariants of every layer the Rust side wrote,
+   prints the report and writes it to `<out>/report.txt`;
+4. reduces up to `--reduce` problems (10; `--no-reduce` none,
+   `--reduce-documented` the documented differences as well), each by
+   delta debugging over the text's lines and then its characters, with
+   the container as the oracle: each round writes the candidates as an
+   input set and runs the generator with `--only-runs <annotator>/<model>`
+   over them, at most `--rounds` times (40). The minimal text is written
+   as `<out>/candidates/<id>-<annotator>-<model>.txt` with a `.report`
+   beside it naming the run, the mismatch, how many bytes and rounds the
+   reduction took and the command that makes the input again.
+
+It exits non zero when the report has a problem. `--reuse` compares and
+reduces what an earlier run left under `<out>` without writing the
+inputs or running the generator again (the input count is what the
+directory holds, whatever `--count` says); it is how a classification
+rule in `analysis/fuzz/src/runs` is worked on against a fixed tree.
+
+Delta debugging keeps any candidate on which the run still has a
+problem, not necessarily the problem the input started with, so the
+minimal text can show another divergence than the input it came from;
+the `.report` names the mismatch of the minimal text. When a fix for
+that one lands, reduce the original input again.
+
+The command is behind the crate's `fuzz` feature: `image`,
+`fetch-models`, `generate` and `verify` use the standard library alone,
+and the feature brings in `turbo-goldens` and `turbo-fuzz`, with every
+analysis crate behind them.
+
+To make one input again, `turbo_goldens::fuzz::input(seed, index)` gives
+the text of `s<seed>-<index>`, and
+`turbo-goldens fuzz --seed <seed> --count <index + 1> --sets <set>`
+its golden (the inputs before it come along, and every input of a seed is
+a fixed function of its index). After a fix, the candidate file is
+checked in under `analysis/goldens/data/inputs/<set>/` and `generate`
+gives it a golden.
+
+The intended use is a nightly run on a hardware host with Docker and the
+models fetched, a few thousand inputs with a fresh seed each night (the
+date serves), the report kept and every candidate looked at. A thousand
+inputs over the seven default sets are a hundred thousand goldens and
+take about ten minutes: two for the generator, the rest for the
+comparison in a debug build.
+
+The generator's two options behind this are general: `--skip-annotators
+<a>,<b>` leaves out every run whose annotator directory is named, and
+`--only-runs <annotator>/<model>,...` keeps only the runs named. They
+follow the five positional arguments, in any order with `--dumps`, and
+the inputs directory may hold any subset of the sets.
 
 ## How the checked in goldens and dumps were made
 

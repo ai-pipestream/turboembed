@@ -1,0 +1,214 @@
+# A brat corpus written for this project: a document per error of the annotation
+# file parsers, after which the stream goes on with the next document, and
+# annotation configurations that fail.
+@@ file annotation.conf
+# the annotation types
+[entities]
+Person
+Location
+Organization
+[relations]
+Lives_in Arg1:Person, Arg2:Location
+[events]
+Visit Agent:Person, Place:Location
+[attributes]
+Negated Arg:<ENTITY>
+[other]
+Ignored
+
+@@ end
+
+@@ file e01.txt
+Ann and Bob met .
+
+@@ end
+
+@@ file e01.ann
+T9	Person 8 11	Bob
+T1	Person 0 3
+
+@@ end
+
+@@ file e02.txt
+Ann and Bob met .
+
+@@ end
+
+@@ file e02.ann
+T9	Person 8 11	Bob
+T1	Person 0 x	Ann
+
+@@ end
+
+@@ file e03.txt
+Ann and Bob met .
+
+@@ end
+
+@@ file e03.ann
+T9	Person 8 11	Bob
+T1	Person 0 3;	Ann
+
+@@ end
+
+@@ file e04.txt
+Ann and Bob met .
+
+@@ end
+
+@@ file e04.ann
+T9	Person 8 11	Bob
+T1	Person -1 3	Ann
+
+@@ end
+
+@@ file e05.txt
+Ann and Bob met .
+
+@@ end
+
+@@ file e05.ann
+T9	Person 8 11	Bob
+T1	Person 3 0	Ann
+
+@@ end
+
+@@ file e06.txt
+Ann and Bob met .
+
+@@ end
+
+@@ file e06.ann
+T9	Person 8 11	Bob
+T1	Person 0 3;4 7
+
+@@ end
+
+@@ file e07.txt
+Ann and Bob met .
+
+@@ end
+
+@@ file e07.ann
+T9	Person 8 11	Bob
+T1	Person 0 3;4 7 8
+
+@@ end
+
+@@ file e08.txt
+Ann and Bob met .
+
+@@ end
+
+@@ file e08.ann
+T9	Person 8 11	Bob
+R1	Rel Arg1:T1
+
+@@ end
+
+@@ file e09.txt
+Ann and Bob met .
+
+@@ end
+
+@@ file e09.ann
+T9	Person 8 11	Bob
+R1	Rel Arg1 Arg2:T2
+
+@@ end
+
+@@ file e10.txt
+Ann and Bob met .
+
+@@ end
+
+@@ file e10.ann
+T9	Person 8 11	Bob
+E1	Visit Agent:T1
+
+@@ end
+
+@@ file e11.txt
+Ann and Bob met .
+
+@@ end
+
+@@ file e11.ann
+T9	Person 8 11	Bob
+E1	Visit:T1 Agent
+
+@@ end
+
+@@ file e12.txt
+Ann and Bob met .
+
+@@ end
+
+@@ file e12.ann
+T9	Person 8 11	Bob
+A1	Negated T1 a b
+
+@@ end
+
+@@ file e13.txt
+Ann and Bob met .
+
+@@ end
+
+@@ file e13.ann
+T9	Person 8 11	Bob
+#1	AnnotatorNotes T1
+
+@@ end
+
+@@ file e14.txt
+Ann and Bob met .
+
+@@ end
+
+@@ file e14.ann
+T9	Person 8 11	Bob
+T1	Person 0 3;x 7	Ann
+
+@@ end
+
+@@ file e15.txt
+Ann and Bob met .
+
+@@ end
+
+@@ file e15.ann
+T9	Person 8 11	Bob
+T1	Person 0 +3	Ann
+
+@@ end
+
+@@ file e16.txt
+Ann and Bob met .
+
+@@ end
+
+@@ file e16.ann
+T1	Person 0 3	Ann
+R1	Rel Arg1:T1 Arg2:T2
+T2	Person 8 11	Bob
+
+@@ end
+
+@@ file errs.conf
+Before any section
+[entities]
+Person
+
+@@ end
+
+@@ file blank.conf
+[entities]
+ 
+Person
+
+@@ end
+
+@@ file empty.conf
+
+@@ end

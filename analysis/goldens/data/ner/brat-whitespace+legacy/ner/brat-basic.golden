@@ -1,0 +1,87 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	ner/brat-basic	2327	2325	dc299eafa2f7a656a147ef1868975dde5c972061ecd7d3e02b74ce20ffcd5ff7
+annotator	opennlp.tools.formats.brat.BratNameSampleStream	read
+config	tokenizer	whitespace
+config	whitespace	legacy
+layer	turbo:samples	document	8	written:str
+\n<START:Person> Ada Byron King <END> <START:Person> visited <END> <START:Location> London <END> in 1842 .
+She met <START:Person> Charles <END> at the <START:Organization> Royal Society <END> .
+The <START:Organization> Society of Friends <END> met again .
+\n<START:Person> Grace <END> Hopper wrote <START:Location> code <END> in <START:Location> Arlington <END> .
+\n<START:Person> KimLee <END> saw <START:Person> Sam <END>
+<START:Person> Pat <END> Ray <START:Location> ran far <END> .
+<START:Person> Last <END> line
+\n<START:Person> Eve <END> � and <START:Person> Max <END> .
+end	turbo:samples
+layer	turbo:read-errors	document	1	after:u32	class:str	message:str
+4	java.lang.RuntimeException	name spans [0..3) Location and [1..2) Location are overlapped in file: <corpus>/c, sentence: [Mount, Kenya, Park, is, big, .]
+end	turbo:read-errors
+layer	turbo:sample-tokens	document	45	sample:u32	text:str
+0	Ada
+0	Byron
+0	King
+0	visited
+0	London
+0	in
+0	1842
+0	.
+1	She
+1	met
+1	Charles
+1	at
+1	the
+1	Royal
+1	Society
+1	.
+2	The
+2	Society
+2	of
+2	Friends
+2	met
+2	again
+2	.
+3	Grace
+3	Hopper
+3	wrote
+3	code
+3	in
+3	Arlington
+3	.
+4	KimLee
+4	saw
+4	Sam
+5	Pat
+5	Ray
+5	ran
+5	far
+5	.
+6	Last
+6	line
+7	Eve
+7	�
+7	and
+7	Max
+7	.
+end	turbo:sample-tokens
+layer	turbo:names	document	16	sample:u32	start:u32	end:u32	type:str
+0	0	3	Person
+0	3	4	Person
+0	4	5	Location
+1	2	3	Person
+1	5	7	Organization
+2	1	4	Organization
+3	0	1	Person
+3	3	4	Location
+3	5	6	Location
+4	0	1	Person
+4	2	3	Person
+5	0	1	Person
+5	2	4	Location
+6	0	1	Person
+7	0	1	Person
+7	3	4	Person
+end	turbo:names

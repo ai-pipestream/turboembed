@@ -22,8 +22,6 @@ pub mod detector;
 pub mod error;
 pub mod model;
 
-mod java_map;
-
 pub use context::ContextGenerator;
 pub use detector::{LanguageDetector, NO_EVIDENCE, Prediction, Ranking, Scratch};
 pub use error::ModelError;

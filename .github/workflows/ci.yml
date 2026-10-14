@@ -25,6 +25,8 @@ jobs:
         run: cargo fmt --all --check
       - name: clippy
         run: cargo clippy --workspace --all-targets
+      - name: clippy (fuzz)
+        run: cargo clippy -p turbo-goldens-tool --features fuzz --all-targets
       - name: clippy (npu)
         run: cargo clippy -p turbo --features npu --all-targets
       # The OpenNLP models the JVM goldens were made with, downloaded from
@@ -50,6 +52,10 @@ jobs:
         env:
           TURBO_GOLDENS_MODELS: ${{ github.workspace }}/.opennlp-models
         run: cargo test --workspace --exclude turbo
+      - name: test (fuzz command)
+        env:
+          TURBO_GOLDENS_MODELS: ${{ github.workspace }}/.opennlp-models
+        run: cargo test -p turbo-goldens-tool --features fuzz
       - name: test (core)
         env:
           CARGO_TARGET_DIR: target/core
@@ -57,6 +63,8 @@ jobs:
       # The published UD sentence detector, tokenizer, part-of-speech and
       # lemmatizer models are trained on CC BY-SA treebanks and not checked
       # in either; the tests over them skip without them and fail here.
+      # turbo-maxent evaluates the es and fr token models, and
+      # turbo-sequence's beam and tag-format tests the en pos model.
       # turbo-zoo checks their bytes against its index, and turbo-eval's
       # default sentence model is the English one.
       - name: parity against the JVM with the published models, models required
@@ -64,7 +72,7 @@ jobs:
           TURBO_GOLDENS_MODELS: ${{ github.workspace }}/.opennlp-models
           TURBO_TEST_REQUIRE_OPENNLP_MODELS: "1"
         run: |
-          cargo test -p turbo-langdetect -p turbo-sentdetect -p turbo-tokenize -p turbo-postag -p turbo-lemmatizer
+          cargo test -p turbo-maxent -p turbo-sequence -p turbo-langdetect -p turbo-sentdetect -p turbo-tokenize -p turbo-postag -p turbo-lemmatizer
           cargo test -p turbo-zoo --test builtin
           cargo test -p turbo-eval --lib
       # fetch-models also unpacks the MeCab dictionaries into the same

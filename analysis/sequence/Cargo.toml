@@ -17,3 +17,6 @@ turbo-maxent = { path = "../maxent" }
 turbo-unicode = { path = "../unicode" }
 # StrictMath.log for sequence scores, and UTF-16 code units of a &str.
 turbo-jvm = { path = "../jvm" }
+
+[dev-dependencies]
+turbo-goldens = { path = "../goldens" }

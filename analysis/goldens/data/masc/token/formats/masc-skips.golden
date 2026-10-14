@@ -1,0 +1,37 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	formats/masc-skips	17467	17467	b70533a94549c0d2f580b90460c533140c199a41553ef36376df1113fd8a2ae2
+annotator	opennlp.tools.formats.masc.MascTokenSampleStream	read
+layer	turbo:samples	document	4	pass:u32	written:str
+0	Fine text<SPLIT>.
+0	Fine text<SPLIT>.
+1	Fine text<SPLIT>.
+1	Fine text<SPLIT>.
+end	turbo:samples
+layer	turbo:read-errors	document	0	pass:u32	after:u32	class:str	message:str
+end	turbo:read-errors
+layer	turbo:open-errors	document	0	class:str	message:str
+end	turbo:open-errors
+layer	turbo:sample-texts	document	4	text:str
+Fine text.
+Fine text.
+Fine text.
+Fine text.
+end	turbo:sample-texts
+layer	turbo:sample-spans	document	12	sample:u32	start:u32	end:u32
+0	0	4
+0	5	9
+0	9	10
+1	0	4
+1	5	9
+1	9	10
+2	0	4
+2	5	9
+2	9	10
+3	0	4
+3	5	9
+3	9	10
+end	turbo:sample-spans

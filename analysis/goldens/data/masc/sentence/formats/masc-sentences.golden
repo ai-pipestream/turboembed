@@ -1,0 +1,52 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	formats/masc-sentences	10341	10341	67ed2c8820d08bdaf107992598058578b151070898edbd3847cd7ded3996f452
+annotator	opennlp.tools.formats.masc.MascSentenceSampleStream	read
+config	sentencesPerSample	2
+layer	turbo:samples	document	8	pass:u32	written:str
+0	One.\nThree.\n
+0	Five six.\nOk.\n
+0	Doc 0 here.\nDoc 1 here.\n
+0	Doc 2 here.\n
+1	One.\nThree.\n
+1	Five six.\nOk.\n
+1	Doc 0 here.\nDoc 1 here.\n
+1	Doc 2 here.\n
+end	turbo:samples
+layer	turbo:read-errors	document	4	pass:u32	after:u32	class:str	message:str
+0	2	java.lang.StringIndexOutOfBoundsException	Range [4, 9) out of bounds for length 6
+0	4	java.lang.NullPointerException	Cannot invoke "opennlp.tools.formats.masc.MascDocument.read()" because "this.buffer" is null
+1	6	java.lang.StringIndexOutOfBoundsException	Range [4, 9) out of bounds for length 6
+1	8	java.lang.NullPointerException	Cannot invoke "opennlp.tools.formats.masc.MascDocument.read()" because "this.buffer" is null
+end	turbo:read-errors
+layer	turbo:open-errors	document	0	class:str	message:str
+end	turbo:open-errors
+layer	turbo:sample-texts	document	8	text:str
+One. Three.
+Five six. \nOk.
+\nDoc 0 here. \nDoc 1 here.
+\nDoc 2 here.
+One. Three.
+Five six. \nOk.
+\nDoc 0 here. \nDoc 1 here.
+\nDoc 2 here.
+end	turbo:sample-texts
+layer	turbo:sample-spans	document	14	sample:u32	start:u32	end:u32
+0	0	4
+0	5	11
+1	0	9
+1	11	14
+2	1	12
+2	14	25
+3	1	12
+4	0	4
+4	5	11
+5	0	9
+5	11	14
+6	1	12
+6	14	25
+7	1	12
+end	turbo:sample-spans

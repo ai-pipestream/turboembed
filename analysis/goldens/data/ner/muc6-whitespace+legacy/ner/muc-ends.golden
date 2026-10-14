@@ -1,0 +1,22 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	ner/muc-ends	380	380	f261d96fc95c419d341311e13a700bdead6fda3f2b90371cc1abdba1f5939095
+annotator	opennlp.tools.formats.muc.MucNameSampleStream	read
+config	tokenizer	whitespace
+config	whitespace	legacy
+layer	turbo:samples	document	1	written:str
+\nFirst <START:person> Lee <END> .
+end	turbo:samples
+layer	turbo:read-errors	document	0	after:u32	class:str	message:str
+end	turbo:read-errors
+layer	turbo:sample-tokens	document	3	sample:u32	text:str
+0	First
+0	Lee
+0	.
+end	turbo:sample-tokens
+layer	turbo:names	document	1	sample:u32	start:u32	end:u32	type:str
+0	1	2	person
+end	turbo:names
