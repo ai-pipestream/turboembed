@@ -1,0 +1,12 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	head-rules/blank-line	25	25	a807406de7c0e677894084f73f558f15fcd5b51b2ae87b79e28602503007251c
+annotator	opennlp.tools.parser.lang.es.AncoraSpanishHeadRules	serialize
+layer	turbo:head-rules	document	0	line:str
+end	turbo:head-rules
+layer	turbo:rules-errors	document	1	class:str	message:str
+java.util.NoSuchElementException	
+end	turbo:rules-errors

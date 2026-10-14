@@ -201,6 +201,28 @@ are not taken from any corpus.
   OpenNLP's test file `germeval2014.sample` holds them (Apache License
   2.0), unchanged after the comment lines that say so.
 
+- `inputs/parse/`: four files of Penn Treebank parses, one per line,
+  written for this project: English trees with function tags, gap
+  indexes, `-NONE-` traces in subject and object extraction chains,
+  possessives, every bracket escape, the types the English rules name
+  and types they do not; Spanish trees with AnCora labels for the
+  AnCora rules; lines OpenNLP reads leniently or fails on (an outer
+  bracket without a type, an extra or a missing `)`, text outside the
+  brackets, `=` and `-` in labels, empty brackets, blank and whitespace
+  only lines); and tokens with accented letters, Chinese and Devanagari
+  letters, a no-break space, `U+2028`, an ideographic space and an emoji
+  outside the Basic Multilingual Plane, with CR line ends. They hold no
+  text of the Penn Treebank or AnCora corpora.
+- `inputs/head-rules/`: 13 head rule files written for this project:
+  rules with each direction, a later rule for a type already read, a
+  sign and tabs in a line, CR line ends, 60 types (more than
+  `new HashMap<>(30)` and `new HashMap<>(60)` hold before they grow, so
+  the order `serialize` writes them in changes), regular expression
+  tags, an empty file, and each error the readers throw: a blank line,
+  a line starting with `#`, a count that is not a number, one above
+  1,002, one above the `int` range and one below 2, more and fewer tags
+  than the count, and a missing direction.
+
 `analysis/goldens-tool/README.md` ("Runs") lists which run reads which set.
 
 ## Fixtures
@@ -234,6 +256,9 @@ that differs.
 | `mecab-fixture-ko/` | a MeCab dictionary directory written for this project: one lexicon file of 23 entries with mecab-ko-dic-style features, a 4 by 4 `matrix.def`, and a `char.def` and `unk.def` with Hangul, jamo and Hanja categories |
 | `mecab-fixture-partial/` | a MeCab dictionary directory written for this project whose `unk.def` has no `DEFAULT` template, so a character that starts no lexicon word and is outside its `KANJI` category has no candidate |
 | `all-minilm-l6-v2-vocab.txt` | the WordPiece vocabulary of `testdata/all-minilm-l6-v2/tokenizer.json` (sentence-transformers/all-MiniLM-L6-v2, Apache-2.0), one piece per line in id order with a line feed after each, written with `jq -r '.model.vocab \| to_entries \| sort_by(.value) \| .[].key'`; 30522 pieces, the uncased BERT vocabulary |
+| `en-head-rules.txt` | Apache OpenNLP's English head rules (`opennlp-tools/lang/en/parser/en-head_rules` at the goldens' OpenNLP commit, the same bytes as the test resource `opennlp-core/opennlp-runtime/src/test/resources/opennlp/tools/parser/en_head_rules`; Apache License 2.0, rules after Collins and Magerman), unchanged |
+| `es-head-rules.txt` | Apache OpenNLP's AnCora Spanish head rules (`opennlp-tools/lang/es/parser/es-head-rules` at the same commit, Apache License 2.0), unchanged; its tags double their backslashes, so OpenNLP never matches those |
+| `es-regex-head-rules.txt` | AnCora head rules written for this project whose tags use classes, ranges, negation, `?`, `+`, `^`, `$` and escapes, for the patterns OpenNLP's file does not reach |
 
 `jieba-dict-subset.txt` was written from the repository root with
 
