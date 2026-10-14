@@ -11,14 +11,20 @@
 //! key name `golden`, so one Rust annotator can run on the JVM's own
 //! input layers. `Dump::read` (`dump`) parses a decision point dump, the
 //! contexts and probabilities of every maxent decision beside a golden.
-//! docs/analysis.md, "Golden files" and "Decision point dumps", describes
+//! `fuzz` makes a seeded corpus of texts that stress the annotators,
+//! `invariants` checks the offsets of every layer a document holds, and
+//! `expect` holds the JVM behaviours the golden tests of several crates
+//! allow for. docs/analysis.md, "Golden files" and "Decision point dumps", describes
 //! the formats.
 
 pub mod compare;
 pub mod dump;
 pub mod escape;
+pub mod expect;
 pub mod format;
+pub mod fuzz;
 pub mod hex;
+pub mod invariants;
 pub mod load;
 pub mod read;
 pub mod sha;
@@ -35,6 +41,7 @@ pub use format::{
     AnnotatorRef, Column, ColumnData, ColumnSpec, ColumnType, ConfigEntry, Generator, Golden, GoldenAnchor,
     GoldenLayer, Header, Input, Jdk, JvmError, Model, OpenNlp, UnicodeVersion,
 };
+pub use invariants::{Violation, assert_invariants, check_document};
 pub use load::{GOLDEN_KEY, GoldenLoad, LoadCx, LoadError, golden_key, load_document, load_layer};
 pub use read::GoldenError;
 pub use sha::{Sha256, Sha512, sha256, sha512};
