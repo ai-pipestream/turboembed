@@ -99,6 +99,11 @@ fn the_qn_fixture_model_is_trained_byte_for_byte() {
     check_fixture_model(Algorithm::MaxentQn, "qn.model");
 }
 
+#[test]
+fn the_perceptron_fixture_model_is_trained_byte_for_byte() {
+    check_fixture_model(Algorithm::Perceptron, "perceptron.model");
+}
+
 /// `expected.txt` escapes a feature's non-ASCII characters as `\uXXXX`.
 fn unescape(field: &str) -> String {
     let mut units = Vec::new();
@@ -194,6 +199,50 @@ fn a_qn_sentence_model_is_written_as_a_bin_that_opens_and_splits() {
     assert_eq!(ours.manifest().iter().collect::<Vec<_>>(), fixture.manifest().iter().collect::<Vec<_>>());
     let maxent = ours.maxent(SENTENCE_MODEL_ENTRY).unwrap();
     assert_eq!(maxent.num_predicates(), model.as_writable().num_predicates());
+
+    // It splits the training text into about as many sentences as the
+    // GIS fixture does; the models differ, so not the same ones.
+    let theirs = Arc::new(SentenceModel::open(fixture).unwrap());
+    let ours = Arc::new(SentenceModel::open(ours).unwrap());
+    let (mut a, mut b) = (Vec::new(), Vec::new());
+    SentenceDetector::new(theirs, WhitespaceMode::Unicode).detect(&text, &mut a);
+    SentenceDetector::new(ours, WhitespaceMode::Unicode).detect(&text, &mut b);
+    assert!(b.len() > 100 && (a.len() as i64 - b.len() as i64).abs() < 20, "{} vs {}", a.len(), b.len());
+}
+
+#[test]
+fn a_perceptron_sentence_model_is_written_as_a_bin_that_opens_and_splits() {
+    let path = data_dir().join("train/sentdetect-twopass-cutoff1/train/sentences.golden");
+    let g = Golden::read_with(&path, &common::train_shapes()).unwrap_or_else(|e| panic!("{e}"));
+    let events = common::events(&g);
+    let text = g.input_text(data_dir()).unwrap();
+
+    let mut params = TrainingParameters::new();
+    params.put(Key::ALGORITHM, Algorithm::Perceptron.name());
+    params.put(Key::ITERATIONS, 100);
+    params.put(Key::CUTOFF, 1);
+    let (model, report) = train_events(&events, &params, &mut TrainingConfiguration::default()).unwrap();
+    assert_eq!(model.algorithm(), Algorithm::Perceptron);
+    let bytes = model.write().unwrap();
+    assert_eq!(&bytes[..12], b"\0\x0aPerceptron");
+
+    // The fixture's instant, so the manifest differs from en-plain.bin's
+    // only where the model does.
+    let fixture = ModelFile::read(data_dir().join("fixtures/en-plain.bin")).unwrap();
+    assert_eq!(fixture.manifest().get("Training-Eventhash"), Some(report.event_hash.unwrap().to_string().as_str()));
+    let timestamp: i64 = fixture.manifest().get("Timestamp").unwrap().parse().unwrap();
+    let bin = sentence_model_package("en", timestamp, &report, false, Some(".!?"), bytes).to_bytes();
+    if let Ok(dir) = std::env::var("TURBO_TRAIN_OUT") {
+        std::fs::write(Path::new(&dir).join("en-plain-perceptron-rust.bin"), &bin).unwrap();
+    }
+    let ours = ModelFile::open(bin).unwrap();
+    assert_eq!(ours.manifest().iter().collect::<Vec<_>>(), fixture.manifest().iter().collect::<Vec<_>>());
+    // The writer drops the predicates whose parameters are all zero.
+    let maxent = ours.maxent(SENTENCE_MODEL_ENTRY).unwrap();
+    let writable = model.as_writable();
+    let kept = (0..writable.num_predicates()).filter(|&p| writable.parameters(p).iter().any(|&x| x != 0.0)).count();
+    assert!(kept > 0 && kept < writable.num_predicates());
+    assert_eq!(maxent.num_predicates(), kept);
 
     // It splits the training text into about as many sentences as the
     // GIS fixture does; the models differ, so not the same ones.

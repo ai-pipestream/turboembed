@@ -1,22 +1,27 @@
-//! `TrainerFactory.getEventTrainer(params).train(...)`: the event trainer
-//! the `Algorithm` parameter names, and the model it produces. Without an
-//! `Algorithm` the trainer is `GISTrainer`, as `Parameters.ALGORITHM_DEFAULT_VALUE`
-//! is `MAXENT`.
+//! `TrainerFactory.getEventTrainer(params).train(...)` and
+//! `getEventModelSequenceTrainer(params).train(...)`: the trainer the
+//! `Algorithm` parameter names, and the model it produces. Without an
+//! `Algorithm` the event trainer is `GISTrainer`, as
+//! `Parameters.ALGORITHM_DEFAULT_VALUE` is `MAXENT`; the sequence trainer
+//! has no default.
 
 use crate::error::{Error, Result};
 use crate::event::Event;
 use crate::gis::{self, GisModel, TrainingReport};
 use crate::index::DataIndex;
 use crate::monitor::TrainingConfiguration;
-use crate::params::{Algorithm, TrainingParameters};
+use crate::params::{Algorithm, TrainerType, TrainingParameters};
+use crate::perceptron::{self, PerceptronModel, SequenceSource};
 use crate::qn::{self, QnModel};
-use crate::writer::{WritableModel, write_gis, write_qn};
+use crate::writer::{WritableModel, write_gis, write_perceptron, write_qn};
 
 /// A model an event trainer produced, by the trainer that produced it.
 #[derive(Debug, Clone, PartialEq)]
 pub enum TrainedModel {
     Gis(GisModel),
     Qn(QnModel),
+    /// From the perceptron or the sequence perceptron trainer.
+    Perceptron(PerceptronModel),
 }
 
 impl TrainedModel {
@@ -25,6 +30,7 @@ impl TrainedModel {
         match self {
             TrainedModel::Gis(_) => Algorithm::Maxent,
             TrainedModel::Qn(_) => Algorithm::MaxentQn,
+            TrainedModel::Perceptron(_) => Algorithm::Perceptron,
         }
     }
 
@@ -33,6 +39,7 @@ impl TrainedModel {
         match self {
             TrainedModel::Gis(m) => write_gis(m),
             TrainedModel::Qn(m) => write_qn(m),
+            TrainedModel::Perceptron(m) => write_perceptron(m),
         }
     }
 
@@ -41,20 +48,47 @@ impl TrainedModel {
         match self {
             TrainedModel::Gis(m) => m,
             TrainedModel::Qn(m) => m,
+            TrainedModel::Perceptron(m) => m,
         }
     }
 }
 
 /// The event trainer `Algorithm` names: `MAXENT` when absent. An algorithm
-/// OpenNLP has but this crate does not train yet is [`Error::NotPorted`].
+/// OpenNLP has but this crate does not train yet is [`Error::NotPorted`];
+/// the sequence perceptron is [`Error::WrongTrainerType`].
 fn event_trainer(params: &TrainingParameters) -> Result<Algorithm> {
     let algorithm = match params.algorithm()? {
         None => Algorithm::Maxent,
         Some(name) => Algorithm::from_name(name)?,
     };
     match algorithm {
-        Algorithm::Maxent | Algorithm::MaxentQn => Ok(algorithm),
+        Algorithm::Maxent | Algorithm::MaxentQn | Algorithm::Perceptron => Ok(algorithm),
+        Algorithm::PerceptronSequence => {
+            Err(Error::WrongTrainerType { algorithm, wanted: TrainerType::Event })
+        }
         other => Err(Error::NotPorted(other)),
+    }
+}
+
+/// `getEventModelSequenceTrainer(params, report).train(stream)`: the
+/// sequence perceptron, the one sequence trainer OpenNLP has built in. An
+/// absent `Algorithm` is refused as the JVM refuses it
+/// (`IllegalArgumentException("Trainer type couldn't be determined!")`,
+/// [`Error::NoAlgorithm`]).
+pub fn train_sequences(
+    source: &dyn SequenceSource,
+    params: &TrainingParameters,
+) -> Result<(TrainedModel, TrainingReport)> {
+    let algorithm = match params.algorithm()? {
+        None => return Err(Error::NoAlgorithm),
+        Some(name) => Algorithm::from_name(name)?,
+    };
+    match algorithm {
+        Algorithm::PerceptronSequence => {
+            let (model, report) = perceptron::train_sequences(source, params)?;
+            Ok((TrainedModel::Perceptron(model), report))
+        }
+        other => Err(Error::WrongTrainerType { algorithm: other, wanted: TrainerType::EventModelSequence }),
     }
 }
 
@@ -68,6 +102,10 @@ pub fn train_events(
         Algorithm::MaxentQn => {
             let (model, report) = qn::train_events(events, params)?;
             (TrainedModel::Qn(model), report)
+        }
+        Algorithm::Perceptron => {
+            let (model, report) = perceptron::train_events(events, params, config)?;
+            (TrainedModel::Perceptron(model), report)
         }
         _ => {
             let (model, report) = gis::train_events(events, params, config)?;
@@ -84,6 +122,7 @@ pub fn train(
 ) -> Result<TrainedModel> {
     Ok(match event_trainer(params)? {
         Algorithm::MaxentQn => TrainedModel::Qn(qn::train(index, params)?),
+        Algorithm::Perceptron => TrainedModel::Perceptron(perceptron::train(index, params, config)?),
         _ => TrainedModel::Gis(gis::train(index, params, config)?),
     })
 }
@@ -116,6 +155,15 @@ mod tests {
         assert_eq!(qn.algorithm(), Algorithm::MaxentQn);
         assert_eq!(&qn.write().unwrap()[..4], b"\0\x02QN");
         assert_eq!(qn.as_writable().num_predicates(), 4);
+        p.put(Key::ALGORITHM, Algorithm::Perceptron.name());
+        let (perceptron, _) = train_events(&events(), &p, &mut config).unwrap();
+        assert_eq!(perceptron.algorithm(), Algorithm::Perceptron);
+        assert_eq!(&perceptron.write().unwrap()[..12], b"\0\x0aPerceptron");
+        p.put(Key::ALGORITHM, Algorithm::PerceptronSequence.name());
+        assert_eq!(
+            train_events(&events(), &p, &mut config).err(),
+            Some(Error::WrongTrainerType { algorithm: Algorithm::PerceptronSequence, wanted: TrainerType::Event })
+        );
         p.put(Key::ALGORITHM, Algorithm::NaiveBayes.name());
         assert_eq!(train_events(&events(), &p, &mut config).err(), Some(Error::NotPorted(Algorithm::NaiveBayes)));
         p.put(Key::ALGORITHM, "Mystery");
