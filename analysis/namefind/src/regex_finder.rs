@@ -20,10 +20,10 @@ use std::sync::Arc;
 
 use turbo_analysis_layers::{Tag, TagSet};
 
-use crate::builtin::{self, BuiltIn, push_stand_in};
+use crate::builtin::{self, BuiltIn};
 use crate::error::Error;
 use crate::hash_order::JavaHashMap;
-use crate::java_regex::{JavaRegex, TextFacts};
+use crate::java_regex::{JavaRegex, Scratch, TextFacts};
 use crate::name::{Name, TokenNameFinder, kinds};
 
 /// One pattern of a regex name finder.
@@ -31,7 +31,7 @@ use crate::name::{Name, TokenNameFinder, kinds};
 pub enum Pattern {
     /// One of the factory's patterns, matched exactly as Java does.
     BuiltIn(BuiltIn),
-    /// A Java pattern, translated (`crate::java_regex`).
+    /// A Java pattern, compiled (`crate::java_regex`).
     Java(JavaRegex),
 }
 
@@ -125,23 +125,21 @@ impl TokenNameFinder for RegexNameFinder {
     }
 
     fn find(&self, tokens: &[&str], out: &mut Vec<Name>) -> Result<(), Error> {
-        let text = OnceCell::new();
+        if tokens.is_empty() {
+            return Ok(());
+        }
+        let joined = Joined::new(tokens);
         let facts = OnceCell::new();
-        let stand_in = OnceCell::new();
+        let mut scratch = Scratch::default();
         for (kind, patterns) in &self.groups {
             for pattern in patterns {
                 match pattern {
                     Pattern::BuiltIn(b) => {
-                        let joined = stand_in.get_or_init(|| Joined::new(tokens, true));
                         joined.each_match(*kind, out, |from| builtin::search(*b, &joined.text, from));
                     }
                     Pattern::Java(r) => {
-                        let joined = text.get_or_init(|| Joined::new(tokens, false));
                         r.check(facts.get_or_init(|| TextFacts::of(&joined.text)))?;
-                        let regex = r.regex();
-                        joined.each_match(*kind, out, |from| {
-                            regex.find_at(&joined.text, from).map(|m| (m.start(), m.end()))
-                        });
+                        joined.each_match(*kind, out, |from| r.find_at(&joined.text, from, &mut scratch));
                     }
                 }
             }
@@ -150,8 +148,8 @@ impl TokenNameFinder for RegexNameFinder {
     }
 }
 
-/// The tokens joined by spaces, or their stand-in, with the token each
-/// boundary position maps to.
+/// The tokens joined by spaces, with the token each boundary position
+/// maps to.
 struct Joined {
     text: String,
     /// Positions in increasing order and the token index each gives.
@@ -159,16 +157,12 @@ struct Joined {
 }
 
 impl Joined {
-    fn new(tokens: &[&str], stand_in: bool) -> Joined {
+    fn new(tokens: &[&str]) -> Joined {
         let len = tokens.iter().map(|t| t.len() + 1).sum();
         let mut joined = Joined { text: String::with_capacity(len), bounds: Vec::with_capacity(tokens.len() * 2) };
         for (i, token) in tokens.iter().enumerate() {
             joined.bound(i as u32);
-            if stand_in {
-                push_stand_in(&mut joined.text, token);
-            } else {
-                joined.text.push_str(token);
-            }
+            joined.text.push_str(token);
             joined.bound(i as u32 + 1);
             if i + 1 < tokens.len() {
                 joined.text.push(' ');

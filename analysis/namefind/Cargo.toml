@@ -17,4 +17,3 @@ turbo-maxent = { path = "../maxent" }
 turbo-unicode = { path = "../unicode" }
 # String.compareTo, which orders entity types when names are merged.
 turbo-jvm = { path = "../jvm" }
-regex = "1"
