@@ -16,7 +16,8 @@
 //! orders by `System.identityHashCode`) is counted and skipped.
 //!
 //! Scenarios that insert with only `put` or only `merge` from a new or
-//! cleared map are also run through [`HashMapOrder`].
+//! cleared map are also run through [`HashMapOrder`], and `String`
+//! scenarios that only `put` into a new map through [`put_order`].
 //!
 //! The test runs only with `TURBO_TEST_JDK` set and then needs `java` and
 //! `javac` on the PATH. `TURBO_TEST_JDK_SEED` picks the seed (1 by default)
@@ -28,7 +29,8 @@ use std::path::{Path, PathBuf};
 use std::process::Command;
 
 use turbo_jvm::hash_map::{
-    CharBuffer, HashMapOrder, Insert, JavaHash, JavaHashMap, Utf16String, char_buffer_hash, spread, utf16_string_hash,
+    CharBuffer, HashMapOrder, Insert, JavaHash, JavaHashMap, Utf16String, char_buffer_hash, put_order, spread,
+    utf16_string_hash,
 };
 use turbo_jvm::random::JavaRandom;
 
@@ -242,6 +244,30 @@ fn run_order(s: &Scenario) -> Option<(Vec<usize>, bool)> {
     Some((out.into_iter().map(|k| k as usize).collect(), exact))
 }
 
+/// The key indexes of a line the probe printed.
+fn jvm_keys(line: &str) -> Vec<usize> {
+    if line.is_empty() {
+        return Vec::new();
+    }
+    line.split(',').map(|e| e.split_once('=').unwrap().0.parse().unwrap()).collect()
+}
+
+/// For a `String` scenario that only calls `put` on `new HashMap<>()`, the
+/// order [`put_order`] gives its keys, which must be exact: the JVM
+/// compares strings in a tree bin.
+fn run_put_order(s: &Scenario) -> Option<Vec<usize>> {
+    if s.kind != Kind::String || s.capacity.is_some() || !s.ops.iter().all(|op| matches!(op, Op::Put(_))) {
+        return None;
+    }
+    let mut seen = HashSet::new();
+    let first_seen: Vec<usize> =
+        s.ops.iter().filter_map(|op| if let Op::Put(k) = op { seen.insert(*k).then_some(*k) } else { None }).collect();
+    let keys = first_seen.iter().map(|&k| (k != 0 || !s.null_first).then(|| Utf16String(s.units[k].clone())));
+    let (order, exact) = put_order(keys);
+    assert!(exact, "put_order of String keys: {}", s.line());
+    Some(order.into_iter().map(|i| first_seen[i]).collect())
+}
+
 /// Draws scenarios from `rng`.
 struct Generator {
     rng: JavaRandom,
@@ -451,7 +477,7 @@ fn java_hash_map_matches_the_jdk_on_random_scenarios() {
     let jvm: Vec<&str> = output.lines().collect();
     assert_eq!(jvm.len(), count);
 
-    let (mut trees, mut inexact, mut orders, mut orders_inexact) = (0, 0, 0, 0);
+    let (mut trees, mut inexact, mut orders, mut orders_inexact, mut puts) = (0, 0, 0, 0, 0);
     let mut mismatches = Vec::new();
     for (i, (s, &jvm)) in scenarios.iter().zip(&jvm).enumerate() {
         let ours = run(s);
@@ -461,17 +487,19 @@ fn java_hash_map_matches_the_jdk_on_random_scenarios() {
         } else if ours.line != jvm {
             mismatches.push(format!("scenario {i}: {}\n  ours {}\n  jvm  {jvm}", lines[i], ours.line));
         }
+        if let Some(order) = run_put_order(s) {
+            puts += 1;
+            if order != jvm_keys(jvm) {
+                mismatches.push(format!("scenario {i} (put_order): {}\n  ours {order:?}\n  jvm  {jvm}", lines[i]));
+            }
+        }
         if let Some((order, exact)) = run_order(s) {
             orders += 1;
             if !exact {
                 orders_inexact += 1;
                 continue;
             }
-            let jvm_order: Vec<usize> = if jvm.is_empty() {
-                Vec::new()
-            } else {
-                jvm.split(',').map(|e| e.split_once('=').unwrap().0.parse().unwrap()).collect()
-            };
+            let jvm_order = jvm_keys(jvm);
             if order != jvm_order {
                 mismatches
                     .push(format!("scenario {i} (HashMapOrder): {}\n  ours {order:?}\n  jvm  {jvm_order:?}", lines[i]));
@@ -480,7 +508,7 @@ fn java_hash_map_matches_the_jdk_on_random_scenarios() {
     }
     eprintln!(
         "{count} scenarios: {trees} with a tree bin, {inexact} not exact; {orders} through HashMapOrder, \
-         {orders_inexact} of them not exact"
+         {orders_inexact} of them not exact; {puts} String scenarios through put_order"
     );
     let shown: Vec<&String> = mismatches.iter().take(10).collect();
     assert!(

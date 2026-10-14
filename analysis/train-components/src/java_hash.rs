@@ -11,7 +11,7 @@
 //! a table of 64 buckets or more (the table is doubled instead when it is
 //! smaller).
 
-use turbo_jvm::hash_map::{HashMapOrder, Insert, spread};
+use turbo_jvm::hash_map::{HashMapOrder, Insert, put_order, spread};
 use turbo_unicode::java::code_point::to_lower_case;
 
 use crate::error::{Error, Result};
@@ -58,9 +58,8 @@ pub fn string_list_hash_code<'t>(tokens: impl IntoIterator<Item = &'t str>) -> i
 /// tree's order ([`turbo_jvm::hash_map`]). Two entries with one hash code
 /// in such a bucket are refused ([`Error::TreeBucketTie`]): `StringList`
 /// is not `Comparable`, so the JVM orders them by
-/// `System.identityHashCode`. `String` keys would be ordered by
-/// `compareTo`, but only their hash codes are given here, and a model's
-/// few artifact names never fill a bucket.
+/// `System.identityHashCode`. For `String` keys, which the JVM compares
+/// there, use [`string_order`].
 pub fn hash_map_order(hashes: &[i32]) -> Result<Vec<usize>> {
     let spreads: Vec<u32> = hashes.iter().map(|&h| spread(h)).collect();
     let mut order = Vec::with_capacity(hashes.len());
@@ -68,6 +67,16 @@ pub fn hash_map_order(hashes: &[i32]) -> Result<Vec<usize>> {
         return Err(Error::TreeBucketTie);
     }
     Ok(order.into_iter().map(|i| i as usize).collect())
+}
+
+/// The order a `HashMap<String, _>` (or `HashSet<String>`) iterates
+/// `keys`, distinct and put in this order, as indices into `keys`. A tree
+/// bucket orders strings with one hash code by `compareTo`, so this is
+/// always the JVM's order.
+pub fn string_order<'a>(keys: impl IntoIterator<Item = &'a str>) -> Vec<usize> {
+    let (order, exact) = put_order(keys);
+    debug_assert!(exact, "strings are compared in a tree bucket");
+    order
 }
 
 #[cfg(test)]

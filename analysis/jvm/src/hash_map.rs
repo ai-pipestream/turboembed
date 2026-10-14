@@ -485,17 +485,28 @@ impl HashMapOrder {
 }
 
 /// Returns the indices `0..keys.len()` in the order a fresh `new HashMap<>()`
-/// iterates them after each distinct key is inserted with `put`, together
-/// with whether the order is the JVM's (see [`JavaHashMap::is_jvm_exact`]).
+/// iterates them after each key, all distinct, is inserted with `put`,
+/// together with whether the order is the JVM's (see
+/// [`JavaHashMap::is_jvm_exact`]). A tree bin holding keys with equal hash
+/// codes is ordered by the keys themselves, so `String` and `Integer` keys
+/// always come in the JVM's order.
 pub fn put_order<I, K>(keys: I) -> (Vec<usize>, bool)
 where
     I: IntoIterator<Item = K>,
-    K: JavaHash,
+    K: JavaHash + Eq,
 {
-    let spreads: Vec<u32> = keys.into_iter().map(|k| spread(k.java_hash())).collect();
+    let keys: Vec<K> = keys.into_iter().collect();
+    let spreads: Vec<u32> = keys.iter().map(|k| spread(k.java_hash())).collect();
     let mut order = Vec::with_capacity(spreads.len());
-    let exact = HashMapOrder::new().order(&spreads, Insert::Put, &mut order);
-    (order.into_iter().map(|i| i as usize).collect(), exact)
+    if HashMapOrder::new().order(&spreads, Insert::Put, &mut order) {
+        return (order.into_iter().map(|i| i as usize).collect(), true);
+    }
+    let mut map = JavaHashMap::new();
+    for (i, k) in keys.into_iter().enumerate() {
+        map.put(k, i);
+    }
+    let exact = map.is_jvm_exact();
+    (map.into_ordered().into_iter().map(|(_, i)| i).collect(), exact)
 }
 
 /// A `java.util.HashMap<K, V>` with the default load factor (`0.75f`),

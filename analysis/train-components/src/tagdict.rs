@@ -24,7 +24,7 @@ use turbo_unicode::java::to_lower_char;
 
 use crate::dictionary::{XmlEntry, write_entries_xml};
 use crate::error::{Error, Result};
-use crate::java_hash::{hash_map_order, str_hash_code};
+use crate::java_hash::string_order;
 
 /// A tag dictionary: the words in the order the JVM's map first saw them
 /// (lowercased when the dictionary is not case sensitive), each with the
@@ -135,8 +135,7 @@ impl PosDictionary {
                 }
             }
         }
-        let hashes: Vec<i32> = seen.iter().map(|t| str_hash_code(t)).collect();
-        Ok(hash_map_order(&hashes)?.into_iter().map(|i| seen[i]).collect())
+        Ok(string_order(seen.iter().copied()).into_iter().map(|i| seen[i]).collect())
     }
 
     /// `validatePOSDictionary`: the tags the model has no outcome for, in
@@ -151,8 +150,7 @@ impl PosDictionary {
     /// The entries in the order `iterator()` and `serialize` give them:
     /// the map's, by `String.hashCode` of the words.
     pub fn java_order(&self) -> Result<Vec<usize>> {
-        let hashes: Vec<i32> = self.words.iter().map(|(w, _)| str_hash_code(w)).collect();
-        hash_map_order(&hashes)
+        Ok(string_order(self.words.iter().map(|(w, _)| w.as_str())))
     }
 
     /// `POSDictionary.serialize`: the bytes of the `tags.tagdict` entry.
