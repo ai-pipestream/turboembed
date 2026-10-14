@@ -1,0 +1,49 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	formats/masc-basic	10008	10008	29a119fb5bebeea71d4fcd386b28061fb70674bb878053362460f5f2ef72483e
+annotator	opennlp.tools.formats.masc.MascDocument	parseDocument
+layer	turbo:masc-documents	document	3	path:str	class:str	message:str	abort:u32	penn:u32	ne:u32
+weather0.hdr			0	0	0
+a/weather1.hdr			0	1	1
+a/b/plain2.hdr			0	1	0
+end	turbo:masc-documents
+layer	turbo:masc-sentences	document	6	doc:u32	start:u32	end:u32	quarks:str	tokenized:u32
+0	0	13	0 1 2 3	0
+0	14	26	4 5 6 7	0
+1	1	25	0 1 2 3 4 5	1
+1	27	49	6 7 8 9 10 11	1
+2	0	10	0 1 2	1
+2	11	19	3 4 5	1
+end	turbo:masc-sentences
+layer	turbo:masc-tokens	document	17	sentence:u32	start:u32	end:u32	id:u32	pos:str	base:str	nulls:u32	quarks:str
+2	1	5	0	NN	rain	0	0
+2	6	10	1	VBD	fall	0	1
+2	11	13	2	IN	on	0	2
+2	14	18	3	NNP	Lyon	0	3
+2	19	24	4	NN	today	0	4
+2	24	25	5	.	.	0	5
+3	27	31	6	RB	then	0	6
+3	32	36	7	PRP+VBZ	it+be	0	7 8
+3	37	42	9	JJ	sunny	0	9
+3	43	48	10	RB	again	0	10
+3	48	49	11	.	.	0	11
+4	0	5	0	JJ	short	0	0
+4	6	9	1	CD	one	0	1
+4	9	10	2	.	.	0	2
+5	11	14	3	CC	and	0	3
+5	15	18	4	CD	two	0	4
+5	18	19	5	.	.	0	5
+end	turbo:masc-tokens
+layer	turbo:masc-names	document	1	sentence:u32	start:u32	end:u32	type:str	nulls:u32
+2	3	4	location	0
+end	turbo:masc-names
+layer	turbo:masc-stream	document	3	path:str
+weather0.hdr
+a/weather1.hdr
+a/b/plain2.hdr
+end	turbo:masc-stream
+layer	turbo:masc-stream-errors	document	0	class:str	message:str
+end	turbo:masc-stream-errors

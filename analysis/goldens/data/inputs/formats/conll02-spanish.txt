@@ -1,0 +1,29 @@
+-DOCSTART- -DOCSTART- O
+La DA O
+Directora NC B-PER
+General AQ I-PER
+de SP I-PER
+Puertos NC I-PER
+, Fc O
+Lucía NC B-PER
+Ferrer NC I-PER
+, Fc O
+visitó VMI O
+ayer RG O
+Vigo NC B-LOC
+, Fc O
+Galicia NC B-LOC
+. Fp O
+
+El DA O
+Club NC B-ORG
+Náutico NC I-ORG
+y CC O
+la DA O
+Regata NC B-MISC
+de SP I-MISC
+Otoño NC I-MISC
+. Fp O
+
+Ñandú NC B-PER
+corre VMI O

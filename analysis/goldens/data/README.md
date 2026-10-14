@@ -103,8 +103,9 @@ are not taken from any corpus.
   (`analysis/sentdetect/tests/fixtures/sentences.txt`), for the training
   goldens.
 
-- `inputs/formats/`: 26 small files in OpenNLP's native sample formats
-  and in CoNLL-U, written for this project; the part of the id before
+- `inputs/formats/`: 41 small files in OpenNLP's native sample formats,
+  in CoNLL-U, CoNLL-2002, CoNLL-2003, CoNLL-X and in MASC's layout, written for this project except as
+  noted below; the part of the id before
   the first hyphen names the format, or for the evaluator inputs the
   part after `pairs-` (`name`, `wordtag`, `lemma`,
   `chunk`, `token`, `sentence`, `doccat`, `language`, `conllu`). They hold ordinary samples and the
@@ -135,6 +136,61 @@ are not taken from any corpus.
   offsets), a name predicted twice,
   pairs with nothing to find, and sentence ends that only one
   whitespace mode trims.
+
+  The `conll02`, `conll03` and `conllx` files, and `chunk-conll2000.txt`,
+  are sentences written for this project in the layouts of the CoNLL
+  shared tasks (no text of the CoNLL corpora): document starts that
+  clear adaptive data, one followed by an empty line and one by a
+  sentence, one at the end of the file, a line that starts with
+  `-DOCSTART-` and goes on, IOB1 and IOB2 name tags, `I-` tags that open
+  a name or change its type, adjacent `B-` names, unknown types, invalid
+  tags, lines with too few and too many fields, a line of spaces, CR LF,
+  accented letters, ten and fewer columns, empty columns, and a last line
+  without a line feed.
+
+  The `masc-` files are corpus directories bundled into one text (see
+  "MASC goldens" in `analysis/goldens-tool/README.md`), with text and
+  stand-off annotation written for this project in the layout of MASC
+  3.0 (GrAF); they hold no MASC text. They hold documents with and
+  without Penn tokens and named entities, the documents
+  `MascDocumentStream` skips (each annotation file that does not parse,
+  bad ids and anchors, a missing segmentation file, a document type
+  declaration) and those that end it (a header that does not parse, has
+  no annotation, no `loc`, no primary data or a missing file, no sentence
+  regions, no quarks), overlapping, touching and empty sentence regions,
+  quarks shared by Penn tokens, tokens across sentences, missing tags,
+  empty tokens, named entities over one and several tokens, overlapping
+  and untyped names, character references, element names in other cases
+  and with prefixes, digits of other scripts in anchors, accented letters,
+  a character outside the Basic Multilingual Plane, a byte order mark and
+  malformed UTF-8 that the JDK's decoder replaces otherwise than the
+  Unicode recommendation. `masc-opennlp.txt` is Apache OpenNLP's MASC
+  test corpus (`opennlp-core/opennlp-formats/src/test/resources/opennlp/tools/formats/masc/`
+  at the goldens' OpenNLP commit, Apache License 2.0), unchanged.
+
+- `inputs/ner/`: 12 files in the named entity corpus formats OpenNLP
+  reads, written for this project except as noted below; the part of
+  the id before the first hyphen names the corpus (`germeval`,
+  `bionlp`, `evalita`, `census`, `muc`, `brat`). They hold names of
+  every type, types left out, nested GermEval names, unknown types and
+  tags, lines with too few or too many columns, comment, abstract and
+  document start lines, empty and whitespace-only lines, census names
+  with `MC` prefixes and a line that ends the list, and accented
+  letters. The `muc-` and `brat-` files are corpus directories bundled
+  into one text (see "MASC goldens" in `analysis/goldens-tool/README.md`):
+  MUC-6 style SGML documents with names, nested and unclosed tags, files
+  in other cases and subdirectories, a file that gives no sample and
+  errors after a document's first samples, and brat documents with
+  text-bound annotations over several fragments, relations, events,
+  attributes, notes, overlapping names, each error of the annotation
+  file parsers, annotation configurations that fail, and a text with a
+  character outside the Basic Multilingual Plane (`brat-utf16`). They
+  hold no text of the MUC or brat corpora. `germeval-opennlp.txt` is
+  four sentences of the GermEval 2014 named entity data (CC BY 4.0;
+  D. Benikova, C. Biemann and M. Reznicek, "NoSta-D Named Entity
+  Annotation for German: Guidelines and Dataset", LREC 2014) as Apache
+  OpenNLP's test file `germeval2014.sample` holds them (Apache License
+  2.0), unchanged after the comment lines that say so.
 
 `analysis/goldens-tool/README.md` ("Runs") lists which run reads which set.
 

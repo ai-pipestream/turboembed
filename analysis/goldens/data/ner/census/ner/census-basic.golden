@@ -1,0 +1,38 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	ner/census-basic	517	501	abee833066653f49ef2a5baf8ea519ad9647a20ff5e057dca579fe05786e2614
+annotator	opennlp.tools.formats.NameFinderCensus90NameStream	read
+layer	turbo:samples	document	12	written:str
+[Smith]
+[McDonald]
+[Mc]
+[McKay]
+[Mccoy]
+[O'brien]
+[Élan]
+[Straße]
+[Οδος]
+[𐐀𐐨𐐨]
+[Mc𐐀𐐨]
+[Smith]
+end	turbo:samples
+layer	turbo:read-errors	document	1	after:u32	class:str	message:str
+6	java.lang.StringIndexOutOfBoundsException	Range [0, 1) out of bounds for length 0
+end	turbo:read-errors
+layer	turbo:sample-tokens	document	12	sample:u32	text:str
+0	Smith
+1	McDonald
+2	Mc
+3	McKay
+4	Mccoy
+5	O'brien
+6	Élan
+7	Straße
+8	Οδος
+9	𐐀𐐨𐐨
+10	Mc𐐀𐐨
+11	Smith
+end	turbo:sample-tokens

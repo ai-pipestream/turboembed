@@ -1,0 +1,29 @@
+1	The	the	DT	DT	_	2	NMOD	_	_
+2	cat	cat	NN	NN	_	3	SUB	_	_
+3	said	say	VB	VBD	_	0	ROOT	_	_
+4	,	,	Punc	,	_	3	P	_	_
+5	"	"	Punc	``	_	3	P	_	_
+6	it	it	PRP	PRP	_	7	SUB	_	_
+7	's	be	VB	VBZ	_	3	VMOD	_	_
+8	fine	fine	JJ	JJ	_	7	PRD	_	_
+9	"	"	Punc	''	_	3	P	_	_
+10	.	.	Punc	.	_	3	P	_	_
+
+
+
+1	(	(	Punc	(	_	2	P
+2	Yes	yes	UH	UH
+3	)	)	Punc	)	_	2	P	_	_
+
+1	Short	short	JJ
+2	line	line	NN	NN	_	0	ROOT	_	_
+
+1	Empty			NN					
+2					
+3	.	.	Punc	.
+
+1	A	a	DT	DT	_	2	NMOD	_	_
+2	dog	dog	NN	NN	_	0	ROOT	_	_
+
+1	Café	café	NN	NN	_	0	ROOT	_	_
+2	!	!	Punc	.	_	1	P	_	_

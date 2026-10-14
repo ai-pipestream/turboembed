@@ -1,0 +1,18 @@
+# A corpus in the layout of MUC-6, written for this project: y.sgm gives no sample,
+# so OpenNLP's stream ends there and x.sgm is not read.
+
+@@ file z.sgm
+<DOC>
+<s> First <ENAMEX TYPE="PERSON">Lee</ENAMEX> . </s>
+</DOC>
+@@ end
+@@ file y.sgm
+<DOC>
+<TXT> no content element </TXT>
+</DOC>
+@@ end
+@@ file x.sgm
+<DOC>
+<s> Never <ENAMEX TYPE="PERSON">read</ENAMEX> . </s>
+</DOC>
+@@ end

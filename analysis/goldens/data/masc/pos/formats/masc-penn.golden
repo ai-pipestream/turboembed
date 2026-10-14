@@ -1,0 +1,63 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	formats/masc-penn	11498	11498	04ada1a60d78b941bf38983c0f38fdfe7d149b01b46dd300b7d0b5f662f33d78
+annotator	opennlp.tools.formats.masc.MascPOSSampleStream	read
+layer	turbo:samples	document	6	pass:u32	written:str
+0	Ca_MD n't_RB stop._VB ._. . Wo_X
+0	ab cd ef_A cd_B
+0	cd ef_B ab_A
+1	Ca_MD n't_RB stop._VB ._. . Wo_X
+1	ab cd ef_A cd_B
+1	cd ef_B ab_A
+end	turbo:samples
+layer	turbo:read-errors	document	4	pass:u32	after:u32	class:str	message:str
+0	1	java.lang.IllegalArgumentException	null elements are not allowed in tags!
+0	1	java.lang.IllegalArgumentException	null elements are not allowed in tags!
+1	4	java.lang.IllegalArgumentException	null elements are not allowed in tags!
+1	4	java.lang.IllegalArgumentException	null elements are not allowed in tags!
+end	turbo:read-errors
+layer	turbo:open-errors	document	0	class:str	message:str
+end	turbo:open-errors
+layer	turbo:sample-tokens	document	18	sample:u32	text:str
+0	Ca
+0	n't
+0	stop.
+0	.
+0	. Wo
+1	ab cd ef
+1	cd
+2	cd ef
+2	ab
+3	Ca
+3	n't
+3	stop.
+3	.
+3	. Wo
+4	ab cd ef
+4	cd
+5	cd ef
+5	ab
+end	turbo:sample-tokens
+layer	turbo:sample-tags	aligned:turbo:sample-tokens	18	tag:str
+MD
+RB
+VB
+.
+X
+A
+B
+B
+A
+MD
+RB
+VB
+.
+X
+A
+B
+B
+A
+end	turbo:sample-tags

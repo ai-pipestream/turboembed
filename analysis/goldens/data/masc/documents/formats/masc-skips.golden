@@ -1,0 +1,40 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	formats/masc-skips	17467	17467	b70533a94549c0d2f580b90460c533140c199a41553ef36376df1113fd8a2ae2
+annotator	opennlp.tools.formats.masc.MascDocument	parseDocument
+layer	turbo:masc-documents	document	11	path:str	class:str	message:str	abort:u32	penn:u32	ne:u32
+good.hdr			0	1	0
+a/badseg.hdr	java.io.IOException	Could not parse the region annotation file	0	0	0
+a/b/badid.hdr	java.io.IOException	Could not parse the region annotation file	0	0	0
+a/b/c/short.hdr	java.io.IOException	Sentence ends and word ends do not match.First sentence not completed ends at character: 3	0	0	0
+a/b/c/d/spaces.hdr	java.io.IOException	Could not parse the sentence annotation file	0	0	0
+a/b/c/d/e/nolink.hdr	java.io.IOException	Could not parse the Penn tag annotation file	0	0	0
+a/b/c/d/e/f/twolabels.hdr	java.io.IOException	Could not parse the named entity annotation file	0	0	0
+a/b/c/d/e/f/g/noseg.hdr	java.io.IOException	Stream closed	0	0	0
+a/b/c/d/e/f/g/h/doctype.hdr	java.io.IOException	Could not parse the region annotation file	0	0	0
+a/b/c/d/e/f/g/h/i/stray.hdr	java.io.IOException	Could not parse the Penn tag annotation file	0	0	0
+a/b/c/d/e/f/g/h/i/j/last.hdr			0	1	0
+end	turbo:masc-documents
+layer	turbo:masc-sentences	document	2	doc:u32	start:u32	end:u32	quarks:str	tokenized:u32
+0	0	10	0 1 2	1
+10	0	10	0 1 2	1
+end	turbo:masc-sentences
+layer	turbo:masc-tokens	document	6	sentence:u32	start:u32	end:u32	id:u32	pos:str	base:str	nulls:u32	quarks:str
+0	0	4	0	JJ	fine	0	0
+0	5	9	1	NN	text	0	1
+0	9	10	2	.	.	0	2
+1	0	4	0	JJ	fine	0	0
+1	5	9	1	NN	text	0	1
+1	9	10	2	.	.	0	2
+end	turbo:masc-tokens
+layer	turbo:masc-names	document	0	sentence:u32	start:u32	end:u32	type:str	nulls:u32
+end	turbo:masc-names
+layer	turbo:masc-stream	document	2	path:str
+good.hdr
+a/b/c/d/e/f/g/h/i/j/last.hdr
+end	turbo:masc-stream
+layer	turbo:masc-stream-errors	document	0	class:str	message:str
+end	turbo:masc-stream-errors

@@ -1,0 +1,42 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	formats/masc-penn	11498	11498	04ada1a60d78b941bf38983c0f38fdfe7d149b01b46dd300b7d0b5f662f33d78
+annotator	opennlp.tools.formats.masc.MascSentenceSampleStream	read
+config	sentencesPerSample	2
+layer	turbo:samples	document	6	pass:u32	written:str
+0	Can't stop.\nWon't stop now.\n
+0	No tags.\nab cd ef\n
+0	ab cd ef\n
+1	Can't stop.\nWon't stop now.\n
+1	No tags.\nab cd ef\n
+1	ab cd ef\n
+end	turbo:samples
+layer	turbo:read-errors	document	2	pass:u32	after:u32	class:str	message:str
+0	3	java.lang.NullPointerException	Cannot invoke "opennlp.tools.formats.masc.MascDocument.read()" because "this.buffer" is null
+1	6	java.lang.NullPointerException	Cannot invoke "opennlp.tools.formats.masc.MascDocument.read()" because "this.buffer" is null
+end	turbo:read-errors
+layer	turbo:open-errors	document	0	class:str	message:str
+end	turbo:open-errors
+layer	turbo:sample-texts	document	6	text:str
+Can't stop. Won't stop now.
+No tags. \nab cd ef
+\nab cd ef
+Can't stop. Won't stop now.
+No tags. \nab cd ef
+\nab cd ef
+end	turbo:sample-texts
+layer	turbo:sample-spans	document	10	sample:u32	start:u32	end:u32
+0	0	11
+0	12	27
+1	0	8
+1	10	18
+2	1	9
+3	0	11
+3	12	27
+4	0	8
+4	10	18
+5	1	9
+end	turbo:sample-spans

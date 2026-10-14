@@ -1,0 +1,43 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	formats/masc-basic	10008	10008	29a119fb5bebeea71d4fcd386b28061fb70674bb878053362460f5f2ef72483e
+annotator	opennlp.tools.formats.masc.MascTokenSampleStream	read
+layer	turbo:samples	document	4	pass:u32	written:str
+0	Rain fell on Lyon today<SPLIT>.
+0	Then it's sunny again<SPLIT>.
+0	Short one<SPLIT>.
+0	And two<SPLIT>.
+end	turbo:samples
+layer	turbo:read-errors	document	1	pass:u32	after:u32	class:str	message:str
+1	4	java.lang.NullPointerException	Cannot invoke "java.util.List.isEmpty()" because "this.sentenceTokens" is null
+end	turbo:read-errors
+layer	turbo:open-errors	document	0	class:str	message:str
+end	turbo:open-errors
+layer	turbo:sample-texts	document	4	text:str
+Rain fell on Lyon today.
+Then it's sunny again.
+Short one.
+And two.
+end	turbo:sample-texts
+layer	turbo:sample-spans	document	17	sample:u32	start:u32	end:u32
+0	0	4
+0	5	9
+0	10	12
+0	13	17
+0	18	23
+0	23	24
+1	0	4
+1	5	9
+1	10	15
+1	16	21
+1	21	22
+2	0	5
+2	6	9
+2	9	10
+3	0	3
+3	4	7
+3	7	8
+end	turbo:sample-spans

@@ -1,0 +1,29 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	formats/conll03-german	313	305	514ca418ca8764752f553a1c0dd90af92e2eb6648e281e6be6c1d701ce21b2bf
+annotator	opennlp.tools.formats.Conll03NameSampleStream	read
+config	lang	eng
+config	types	org,misc
+layer	turbo:samples	document	0	written:str
+end	turbo:samples
+layer	turbo:read-errors	document	12	after:u32	class:str	message:str
+0	java.io.IOException	Incorrect number of fields per line for language: 'Die die ART I-NC O'!
+0	java.io.IOException	Incorrect number of fields per line for language: 'Europäische europäisch ADJA I-NC I-ORG'!
+0	java.io.IOException	Incorrect number of fields per line for language: 'Union Union NN I-NC I-ORG'!
+0	java.io.IOException	Incorrect number of fields per line for language: 'lehnt lehnen VVFIN I-VC O'!
+0	java.io.IOException	Incorrect number of fields per line for language: 'Müller Müller NE I-NC I-PER'!
+0	java.io.IOException	Incorrect number of fields per line for language: 'in in APPR I-PC O'!
+0	java.io.IOException	Incorrect number of fields per line for language: 'Düsseldorf Düsseldorf NE I-NC I-LOC'!
+0	java.io.IOException	Incorrect number of fields per line for language: 'ab ab PTKVZ O O'!
+0	java.io.IOException	Incorrect number of fields per line for language: '. . $. O O'!
+0	java.io.IOException	Incorrect number of fields per line for language: 'Bonn Bonn NE I-NC B-LOC'!
+0	java.io.IOException	Incorrect number of fields per line for language: 'Köln Köln NE I-NC B-LOC'!
+0	java.io.IOException	Incorrect number of fields per line for language: '. . $. O O'!
+end	turbo:read-errors
+layer	turbo:sample-tokens	document	0	sample:u32	text:str
+end	turbo:sample-tokens
+layer	turbo:names	document	0	sample:u32	start:u32	end:u32	type:str
+end	turbo:names

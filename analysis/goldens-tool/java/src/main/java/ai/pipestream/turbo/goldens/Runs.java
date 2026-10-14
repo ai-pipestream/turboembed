@@ -80,6 +80,7 @@ final class Runs {
   /** The sentences the fixture model en-plain.bin was trained on, one per line, for the training goldens. */
   static final String TRAIN = "train";
   static final String FORMATS = "formats";
+  static final String NER = "ner";
 
   /** The numbers of merges the BPE trainer runs with: few, so the tokens are pieces of words, and many. */
   static final List<Integer> BPE_MERGES = List.of(40, 400);
@@ -245,6 +246,12 @@ final class Runs {
     annotators.addAll(FormatGolden.all(fixtures.resolve(FORMAT_DETOKENIZER)));
     // The evaluators, over pairs of a reference sample and a prediction in a native format.
     annotators.addAll(EvalGolden.all());
+    // The named entity corpus streams, over the ner set.
+    annotators.addAll(NerGolden.all());
+    // The MASC readers, over small corpora bundled in the formats set.
+    annotators.addAll(MascGolden.all());
+    // The CoNLL-2002, CoNLL-2003 and CoNLL-X streams.
+    annotators.addAll(ConllGolden.all(fixtures.resolve(FORMAT_DETOKENIZER)));
     return new All(annotators, recorders);
   }
 }
