@@ -13,9 +13,9 @@ everything that makes them:
   and for the `quantity` set `QuantityAnnotator` with
   `CursorQuantityExtractor` (see below). With `--dumps` it also writes a decision point dump
   beside each golden of a run that asks a maxent model (the sentence
-  detector, the tokenizer, the part-of-speech tagger and the language
-  detector): every context the annotator gave the model and every outcome
-  probability `eval` returned. `PosAccuracy` is a second main class, run by
+  detector, the tokenizer, the part-of-speech tagger, the maxent
+  lemmatizer and the language detector): every context the annotator gave
+  the model and every outcome probability `eval` returned. `PosAccuracy` is a second main class, run by
   hand, that scores a part-of-speech model on a CoNLL-U file
   (`analysis/postag/README.md`).
 - `container/Dockerfile`: the container the generator runs in. It starts
@@ -67,7 +67,7 @@ cargo run -p turbo-goldens-tool -- verify [--models <dir>]
   it wrote. The generator is always given `--dumps`
   (`GENERATOR_ARGS` in `src/recipe.rs`), so the goldens and their dumps are
   made and installed together; before installing, every sentence, token,
-  part-of-speech and language golden whose header names a model must have a dump beside it
+  part-of-speech, maxent lemmatizer and language golden whose header names a model must have a dump beside it
   whose header parses, except a golden with an error record (the annotator
   threw on that input), which must have none. A golden that names no model
   (a tokenizer or sentence detector without one, a normalizer) has no dump,
@@ -109,6 +109,9 @@ a directory with the same model run without them, and its options are
 | | `opennlp-en-ud-ewt-pos-1.3-2.5.4+beam1`, `+beam10` | `en` | `beamSize` |
 | | `opennlp-de-ud-gsd-pos-1.3-2.5.4` | `edge` | |
 | | `pos-fixture` (fixture) | `en`, `edge` | |
+| `lemmatize` (`LemmatizerME`) | `opennlp-en-ud-ewt-lemmas-1.3-2.5.4` | `en`, `multi`, `edge` | |
+| | `opennlp-de-ud-gsd-lemmas-1.3-2.5.4` | `edge` | |
+| `lemmatize-dictionary` (`DictionaryLemmatizer`) | `lemmatizer-dictionary` (fixture) | `en`, `multi`, `edge` | |
 | `langdetect` (`LanguageDetectorME`) | `langdetect-183` | `en`, `multi` | |
 | `normalize` (each normalizer) | the normalizer's name | `norm` | see below |
 | `numbers` (`NumberScan` of the addons `numeric` module) | `latin-us`, `latin-eu` | `num` | `notation` |
@@ -156,6 +159,16 @@ a directory with the same model run without them, and its options are
   record every context the beam search asked for, by wrapping the context
   generator (`RecordingPOSTaggerFactory`), at the start of the token it is
   about.
+- A `lemmatize` run cuts and tags the input with the sentence, tokenizer
+  and part-of-speech models of its language (its second, third and fourth
+  `model` records) and lemmatizes each sentence with `lemmatize`; its
+  golden has the sentences, tokens and tags, `opennlp:lemmas` and
+  `turbo:confidence<opennlp:lemmas>` from `probs()`, and its dumps are
+  made like the tagger's (`RecordingLemmatizerFactory`). A
+  `lemmatize-dictionary` run does the same with `DictionaryLemmatizer`
+  over the fixture dictionary and the English pipeline, without a
+  confidence layer; it asks no model, so it has its own annotator
+  directory and no dumps.
 
 The fixtures (`analysis/goldens/data/fixtures`) are checked in, mounted at
 `/fixtures` and listed with their SHA-512 in `src/recipe.rs`; the data

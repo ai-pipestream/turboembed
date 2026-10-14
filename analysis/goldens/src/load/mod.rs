@@ -131,6 +131,7 @@ const LOADERS: &[(&LayerName, LoadFn)] = &[
     (Confidence::<Tokens>::NAME, add::<Confidence<Tokens>>),
     (PosTags::NAME, add::<PosTags>),
     (Lemmas::NAME, add::<Lemmas>),
+    (Confidence::<Lemmas>::NAME, add::<Confidence<Lemmas>>),
     (Entities::NAME, add::<Entities>),
     (Language::NAME, add::<Language>),
 ];

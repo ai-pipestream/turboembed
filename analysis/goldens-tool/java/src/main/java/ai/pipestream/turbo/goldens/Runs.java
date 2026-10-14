@@ -27,6 +27,8 @@ final class Runs {
   static final String LANGUAGE_MODEL = "langdetect-183.bin";
   static final String POS_MODEL_EN = "opennlp-en-ud-ewt-pos-1.3-2.5.4.bin";
   static final String POS_MODEL_DE = "opennlp-de-ud-gsd-pos-1.3-2.5.4.bin";
+  static final String LEMMA_MODEL_EN = "opennlp-en-ud-ewt-lemmas-1.3-2.5.4.bin";
+  static final String LEMMA_MODEL_DE = "opennlp-de-ud-gsd-lemmas-1.3-2.5.4.bin";
 
   /**
    * The MeCab dictionaries the generator loads from the models directory, each unpacked from its
@@ -45,6 +47,7 @@ final class Runs {
   static final String SENTENCE_FIXTURE_PLAIN = "en-plain.bin";
   static final String TOKEN_FIXTURE = "tokenizer-abbreviations.bin";
   static final String POS_FIXTURE = "pos-fixture.bin";
+  static final String LEMMA_DICTIONARY = "lemmatizer-dictionary.txt";
   static final String ENGLISH_ABBREVIATIONS = "english-dictionary.xml";
   static final List<String> DETOKENIZER_DICTIONARIES = List.of("en-detokenizer.xml", "fr-detokenizer.xml",
       "latin-detokenizer.xml", "pt-detokenizer.xml", "quotes-detokenizer.xml");
@@ -188,6 +191,20 @@ final class Runs {
       annotators.add(t);
       recorders.add(PosDump.of(t));
     }
+
+    // Lemmatization, on the sentences, tokens and tags of the published models of the same
+    // language: the English and German maxent lemmatizers, and the dictionary lemmatizer with the
+    // fixture dictionary over the English pipeline.
+    LemmaGolden.Pipeline taggedEnglish = LemmaGolden.Pipeline.load(models.resolve(SENTENCE_MODEL_EN),
+        models.resolve(TOKEN_MODEL_EN), models.resolve(POS_MODEL_EN));
+    LemmaGolden.Pipeline taggedGerman = LemmaGolden.Pipeline.load(models.resolve(SENTENCE_MODEL_DE),
+        models.resolve(TOKEN_MODEL_DE), models.resolve(POS_MODEL_DE));
+    for (LemmaGolden l : List.of(LemmaGolden.load(models.resolve(LEMMA_MODEL_EN), taggedEnglish, Set.of(EN, MULTI, EDGE)),
+        LemmaGolden.load(models.resolve(LEMMA_MODEL_DE), taggedGerman, Set.of(EDGE)))) {
+      annotators.add(l);
+      recorders.add(LemmaDump.of(l));
+    }
+    annotators.add(DictionaryLemmaGolden.load(fixtures.resolve(LEMMA_DICTIONARY), taggedEnglish, Set.of(EN, MULTI, EDGE)));
 
     LanguageGolden languages = LanguageGolden.load(models.resolve(LANGUAGE_MODEL), Set.of(EN, MULTI));
     annotators.add(languages);

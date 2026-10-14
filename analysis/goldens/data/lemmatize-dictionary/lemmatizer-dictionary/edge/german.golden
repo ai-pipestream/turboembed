@@ -1,0 +1,98 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	edge/german	119	106	d48ae253086e3984a56fc973a73652963f5c48c360ab2859b8e383a73af3c063
+model	lemmatizer-dictionary.txt	e642dfeb8d0b9f45b1853808878afa8a0a3cbe9f738a0646b9e4cafdaf8bb8c915aa548d72833274e877a2b57118906557512d9e6fe22b320c7be87fc964e707
+model	opennlp-en-ud-ewt-sentence-1.3-2.5.4.bin	fed5d53ea87bf66afeb08c084f89ca9b95a96de0920dca40487b2ab9972ee6b7ef211e477db480b7253431de079fd66dfd14329cd7d19ad1f565155eb0cf5191
+model	opennlp-en-ud-ewt-tokens-1.3-2.5.4.bin	147d1cdcb89ca5d9bd0ead8fddf2cc14ae543a9151803fe56b3c1fa152b986605e34fb6dda4819c68aa22fc9bffa6bfab14f916b7d0bf4892d452686af34778a
+model	opennlp-en-ud-ewt-pos-1.3-2.5.4.bin	fca85b38d996b7c422401054feedeb0f748cbc03856893cb27670da5d207315ec9af0c0f818c3107a741a2effca2499b5097ac0b46edf4a5ac10bf77a351ac3e
+annotator	opennlp.tools.lemmatizer.DictionaryLemmatizer	lemmatize
+layer	opennlp:sentences	text	4	start:u32	end:u32
+0	58
+59	63
+64	90
+91	118
+end	opennlp:sentences
+layer	opennlp:tokens	text	25	start:u32	end:u32
+0	3
+4	11
+12	15
+16	21
+21	22
+23	30
+31	34
+35	41
+41	42
+43	46
+47	50
+51	57
+57	58
+59	63
+64	70
+71	77
+78	89
+89	90
+91	94
+95	100
+101	104
+105	107
+108	113
+114	117
+117	118
+end	opennlp:tokens
+layer	opennlp:pos	aligned:opennlp:tokens	25	tag:str	prob:f64
+PROPN	3fe5b4ba9f8679e6 0.6783116451004474
+PROPN	3fed33d219f0be7a 0.9125757700584949
+NOUN	3fe6bdd7eb32bfd8 0.7106742471423741
+NOUN	3fe8bfef0404395a 0.773429401249625
+PUNCT	3fefd82ea292028f 0.995139424820154
+PROPN	3fea0b4a4d01a5a4 0.8138782028228673
+ADP	3fe28476a4a5ddb6 0.5786698547153069
+PROPN	3fedea6f5698cfed 0.9348675433488985
+PUNCT	3fefbf98d453b3af 0.9921383044253299
+PROPN	3fe627a4f1364ef4 0.692339392774072
+VERB	3fd090bf74ae10fd 0.2588347091152768
+NOUN	3fd1fd3d9c1bbc21 0.28108158345179574
+PUNCT	3feff2fc5c6c5d50 0.9984113507406764
+PUNCT	3fea5dc5561a468d 0.8239466363613289
+NOUN	3fde4ce56c5c068d 0.47344337064723946
+PUNCT	3fe3b36d2dc5caf5 0.6156526464459079
+PROPN	3fed1d10e3650af8 0.9097980920126636
+PUNCT	3fefeb8befcc9c15 0.9975032504634124
+PROPN	3fef743a985e881f 0.9829380966150473
+PROPN	3fe57edd4149ebaa 0.6717363619967405
+PROPN	3fe8fa439f2039c4 0.7805498226096508
+NOUN	3fd1d6bcec06b0ee 0.2787315659468409
+NUM	3fe4b903dbc1bad9 0.6475848476528326
+PROPN	3fdc9c7b23a5f349 0.4470508430602434
+PUNCT	3fefdc1776ce346b 0.9956166572971034
+end	opennlp:pos
+layer	opennlp:lemmas	aligned:opennlp:tokens	25	lemma:str
+O
+O
+O
+O
+O
+O
+O
+O
+O
+O
+O
+O
+O
+O
+O
+O
+O
+O
+O
+O
+O
+O
+O
+O
+O
+end	opennlp:lemmas
