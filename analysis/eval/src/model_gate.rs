@@ -28,6 +28,10 @@
 //! [`ModelGateRecord`] is the record kept with a model card: the two
 //! models, the held-out set, the per unit counts and the result, which
 //! [`ModelGateRecord::check`] recomputes from the counts.
+//!
+//! Where there is no reference model to score, [`UngatedRecord`] keeps the
+//! model's own score on the held-out set, with the interval of the same
+//! draws ([`score_model`]), and the reason there is no reference.
 
 use std::fmt;
 use std::fs;
@@ -179,6 +183,7 @@ pub enum Task {
     SentenceDetector,
     Tokenizer,
     PartOfSpeechTagger,
+    Lemmatizer,
 }
 
 impl Task {
@@ -186,7 +191,7 @@ impl Task {
     pub fn measure(self) -> Measure {
         match self {
             Task::SentenceDetector | Task::Tokenizer => Measure::FMeasure,
-            Task::PartOfSpeechTagger => Measure::Accuracy,
+            Task::PartOfSpeechTagger | Task::Lemmatizer => Measure::Accuracy,
         }
     }
 }
@@ -277,13 +282,7 @@ fn total<'a>(counts: impl Iterator<Item = &'a Counts>) -> Counts {
 /// did not score the same reference), or accuracy counts whose
 /// predictions are not their references.
 pub fn gate_models(measure: Measure, units: &[PairedUnit], resamples: u32, seed: i64) -> Result<ModelGate> {
-    if units.len() < MIN_UNITS {
-        return Err(ModelGateError::TooFewUnits { units: units.len(), min: MIN_UNITS });
-    }
-    let n = i32::try_from(units.len()).map_err(|_| ModelGateError::TooManyUnits { units: units.len() })?;
-    if resamples == 0 {
-        return Err(ModelGateError::NoResamples);
-    }
+    let n = draw_size(units.len(), resamples)?;
     for (unit, u) in units.iter().enumerate() {
         if u.candidate.target != u.reference.target {
             return Err(ModelGateError::DifferentReferences {
@@ -292,7 +291,6 @@ pub fn gate_models(measure: Measure, units: &[PairedUnit], resamples: u32, seed:
                 reference: u.reference.target,
             });
         }
-        let accuracy_ok = |c: &Counts| c.selected == c.target && c.true_positives <= c.target;
         if measure == Measure::Accuracy && !(accuracy_ok(&u.candidate) && accuracy_ok(&u.reference)) {
             return Err(ModelGateError::AccuracyCounts { unit });
         }
@@ -314,10 +312,6 @@ pub fn gate_models(measure: Measure, units: &[PairedUnit], resamples: u32, seed:
         refr.push(r);
         diff.push(c - r);
     }
-    let interval = |mut v: Vec<f64>| {
-        v.sort_by(f64::total_cmp);
-        (percentile(&v, 0.025), percentile(&v, 0.975))
-    };
     let (c_low, c_high) = interval(cand);
     let (r_low, r_high) = interval(refr);
     let (d_low, d_high) = interval(diff);
@@ -328,6 +322,61 @@ pub fn gate_models(measure: Measure, units: &[PairedUnit], resamples: u32, seed:
         difference,
         pass: difference.low >= -MARGIN_POINTS,
     })
+}
+
+/// The number of units each resample draws: refuses fewer than
+/// [`MIN_UNITS`] units, more than `nextInt` can index, and no resamples.
+fn draw_size(units: usize, resamples: u32) -> Result<i32> {
+    if units < MIN_UNITS {
+        return Err(ModelGateError::TooFewUnits { units, min: MIN_UNITS });
+    }
+    let n = i32::try_from(units).map_err(|_| ModelGateError::TooManyUnits { units })?;
+    if resamples == 0 {
+        return Err(ModelGateError::NoResamples);
+    }
+    Ok(n)
+}
+
+/// Accuracy counts: the predictions are the tokens, and no more are right
+/// than there are tokens.
+fn accuracy_ok(c: &Counts) -> bool {
+    c.selected == c.target && c.true_positives <= c.target
+}
+
+/// The 2.5th and 97.5th percentiles of `v`.
+fn interval(mut v: Vec<f64>) -> (f64, f64) {
+    v.sort_by(f64::total_cmp);
+    (percentile(&v, 0.025), percentile(&v, 0.975))
+}
+
+/// One model's score on the units and the 95 percent interval of its
+/// resampled scores, for a model no reference is scored against. The
+/// draws are those of [`gate_models`], so the score and interval are the
+/// ones the gate reports for a candidate with the same counts.
+///
+/// # Errors
+///
+/// Fewer than [`MIN_UNITS`] units, more than `nextInt` can index, no
+/// resamples, or accuracy counts whose predictions are not their tokens.
+pub fn score_model(measure: Measure, units: &[Counts], resamples: u32, seed: i64) -> Result<Scored> {
+    let n = draw_size(units.len(), resamples)?;
+    if measure == Measure::Accuracy
+        && let Some(unit) = units.iter().position(|c| !accuracy_ok(c))
+    {
+        return Err(ModelGateError::AccuracyCounts { unit });
+    }
+    let score = total(units.iter()).score(measure);
+    let mut random = JavaRandom::new(seed);
+    let mut scores = Vec::with_capacity(resamples as usize);
+    for _ in 0..resamples {
+        let mut c = Counts::default();
+        for _ in 0..n {
+            c.add(&units[random.next_int_bounded(n) as usize]);
+        }
+        scores.push(c.score(measure));
+    }
+    let (low, high) = interval(scores);
+    Ok(Scored { score, low, high })
 }
 
 /// A model scored by the gate: its zoo id or file name, and the SHA-256
@@ -405,20 +454,15 @@ impl ModelGateRecord {
         if self.record_version != MODEL_GATE_RECORD_VERSION {
             return Err(ModelGateError::Version { found: self.record_version });
         }
-        let names =
-            [("set.name", &self.set.name), ("candidate.id", &self.candidate.id), ("reference.id", &self.reference.id)];
-        if let Some((field, value)) = names.into_iter().find(|(_, v)| v.is_empty()) {
-            return Err(ModelGateError::Field { field, value: value.clone() });
-        }
-        let digests = [
-            ("set.corpus_sha256", &self.set.corpus_sha256),
-            ("set.samples_sha256", &self.set.samples_sha256),
-            ("candidate.sha256", &self.candidate.sha256),
-            ("reference.sha256", &self.reference.sha256),
-        ];
-        if let Some((field, value)) = digests.into_iter().find(|(_, v)| !is_hex(v, 64)) {
-            return Err(ModelGateError::Field { field, value: value.clone() });
-        }
+        check_fields(
+            &[("set.name", &self.set.name), ("candidate.id", &self.candidate.id), ("reference.id", &self.reference.id)],
+            &[
+                ("set.corpus_sha256", &self.set.corpus_sha256),
+                ("set.samples_sha256", &self.set.samples_sha256),
+                ("candidate.sha256", &self.candidate.sha256),
+                ("reference.sha256", &self.reference.sha256),
+            ],
+        )?;
         if self.resamples != RESAMPLES || self.seed != SEED {
             return Err(ModelGateError::Parameters { resamples: self.resamples, seed: self.seed });
         }
@@ -441,28 +485,167 @@ impl ModelGateRecord {
 
     /// Reads and checks a record.
     pub fn read(path: &Path) -> Result<ModelGateRecord> {
-        let named = |message: String| (path.display().to_string(), message);
-        let bytes = fs::read(path).map_err(|e| {
-            let (path, message) = named(e.to_string());
-            ModelGateError::Io { path, message }
-        })?;
-        let record: ModelGateRecord = serde_json::from_slice(&bytes).map_err(|e| {
-            let (path, message) = named(e.to_string());
-            ModelGateError::Json { path, message }
-        })?;
+        let record: ModelGateRecord = read_json(path)?;
         record.check()?;
         Ok(record)
     }
 
     /// Writes the record to `path`, which must not exist yet.
     pub fn write(&self, path: &Path) -> Result<()> {
-        let mut f = fs::OpenOptions::new()
-            .write(true)
-            .create_new(true)
-            .open(path)
-            .map_err(|e| ModelGateError::Io { path: path.display().to_string(), message: e.to_string() })?;
-        f.write_all(self.to_json().as_bytes())
-            .map_err(|e| ModelGateError::Io { path: path.display().to_string(), message: e.to_string() })
+        write_new(path, &self.to_json())
+    }
+}
+
+/// Reads a record file as JSON.
+fn read_json<T: serde::de::DeserializeOwned>(path: &Path) -> Result<T> {
+    let named = |message: String| (path.display().to_string(), message);
+    let bytes = fs::read(path).map_err(|e| {
+        let (path, message) = named(e.to_string());
+        ModelGateError::Io { path, message }
+    })?;
+    serde_json::from_slice(&bytes).map_err(|e| {
+        let (path, message) = named(e.to_string());
+        ModelGateError::Json { path, message }
+    })
+}
+
+/// Writes `text` to `path`, which must not exist yet.
+fn write_new(path: &Path, text: &str) -> Result<()> {
+    let io = |e: std::io::Error| ModelGateError::Io { path: path.display().to_string(), message: e.to_string() };
+    let mut f = fs::OpenOptions::new().write(true).create_new(true).open(path).map_err(io)?;
+    f.write_all(text.as_bytes()).map_err(io)
+}
+
+/// Checks that each named field is not empty and each digest is 64 lower
+/// case hex.
+fn check_fields(names: &[(&'static str, &String)], digests: &[(&'static str, &String)]) -> Result<()> {
+    if let Some((field, value)) = names.iter().find(|(_, v)| v.is_empty()) {
+        return Err(ModelGateError::Field { field, value: (*value).clone() });
+    }
+    if let Some((field, value)) = digests.iter().find(|(_, v)| !is_hex(v, 64)) {
+        return Err(ModelGateError::Field { field, value: (*value).clone() });
+    }
+    Ok(())
+}
+
+/// The record of a model that no reference model is scored against: its
+/// own score on the held-out set, with the interval of [`score_model`],
+/// and why there is no reference. There is no gate to pass, so a model
+/// with such a record is not one that passed a gate. Kept beside the
+/// model card in place of a [`ModelGateRecord`].
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct UngatedRecord {
+    pub record_version: u32,
+    pub task: Task,
+    pub measure: Measure,
+    pub set: HeldOutSet,
+    pub candidate: ModelId,
+    /// Why no reference model is scored.
+    pub no_reference: String,
+    pub resamples: u32,
+    pub seed: i64,
+    pub result: Scored,
+    /// The model's counts on each held-out unit, in the order of the set.
+    pub units: Vec<Counts>,
+}
+
+impl UngatedRecord {
+    /// Scores `units` with [`RESAMPLES`] and [`SEED`] and records it.
+    ///
+    /// # Errors
+    ///
+    /// What [`score_model`] refuses.
+    pub fn new(
+        task: Task,
+        set: HeldOutSet,
+        candidate: ModelId,
+        no_reference: String,
+        units: Vec<Counts>,
+    ) -> Result<UngatedRecord> {
+        let measure = task.measure();
+        let result = score_model(measure, &units, RESAMPLES, SEED)?;
+        Ok(UngatedRecord {
+            record_version: MODEL_GATE_RECORD_VERSION,
+            task,
+            measure,
+            set,
+            candidate,
+            no_reference,
+            resamples: RESAMPLES,
+            seed: SEED,
+            result,
+            units,
+        })
+    }
+
+    /// The checks of [`ModelGateRecord::check`], with `no_reference` in
+    /// place of the reference: not empty.
+    pub fn check(&self) -> Result<()> {
+        if self.record_version != MODEL_GATE_RECORD_VERSION {
+            return Err(ModelGateError::Version { found: self.record_version });
+        }
+        check_fields(
+            &[("set.name", &self.set.name), ("candidate.id", &self.candidate.id), ("no_reference", &self.no_reference)],
+            &[
+                ("set.corpus_sha256", &self.set.corpus_sha256),
+                ("set.samples_sha256", &self.set.samples_sha256),
+                ("candidate.sha256", &self.candidate.sha256),
+            ],
+        )?;
+        if self.resamples != RESAMPLES || self.seed != SEED {
+            return Err(ModelGateError::Parameters { resamples: self.resamples, seed: self.seed });
+        }
+        if self.measure != self.task.measure() {
+            return Err(ModelGateError::MeasureMismatch { task: self.task, measure: self.measure });
+        }
+        if score_model(self.measure, &self.units, self.resamples, self.seed)? != self.result {
+            return Err(ModelGateError::ResultMismatch);
+        }
+        Ok(())
+    }
+
+    /// The record as written: pretty JSON with a final newline.
+    pub fn to_json(&self) -> String {
+        let mut s = serde_json::to_string_pretty(self).expect("an ungated record serializes");
+        s.push('\n');
+        s
+    }
+
+    /// Reads and checks a record.
+    pub fn read(path: &Path) -> Result<UngatedRecord> {
+        let record: UngatedRecord = read_json(path)?;
+        record.check()?;
+        Ok(record)
+    }
+
+    /// Writes the record to `path`, which must not exist yet.
+    pub fn write(&self, path: &Path) -> Result<()> {
+        write_new(path, &self.to_json())
+    }
+}
+
+impl fmt::Display for UngatedRecord {
+    /// The model's score with its interval, and why there is no gate.
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let r = &self.result;
+        writeln!(
+            f,
+            "{:?} on {}, {} units, {} in points:",
+            self.task,
+            self.set.name,
+            self.units.len(),
+            measure_name(self.measure)
+        )?;
+        writeln!(f, "  candidate {}: {:.2} (95% interval {:.2} to {:.2})", self.candidate.id, r.score, r.low, r.high)?;
+        write!(f, "UNGATED: no reference model is scored: {}", self.no_reference)
+    }
+}
+
+fn measure_name(measure: Measure) -> &'static str {
+    match measure {
+        Measure::FMeasure => "F-measure",
+        Measure::Accuracy => "accuracy",
     }
 }
 
@@ -471,10 +654,7 @@ impl fmt::Display for ModelGateRecord {
     /// interval, and the verdict.
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let r = &self.result;
-        let measure = match self.measure {
-            Measure::FMeasure => "F-measure",
-            Measure::Accuracy => "accuracy",
-        };
+        let measure = measure_name(self.measure);
         writeln!(f, "{:?} on {}, {} units, {measure} in points:", self.task, self.set.name, self.units.len())?;
         for (who, id, s) in [("candidate", &self.candidate, r.candidate), ("reference", &self.reference, r.reference)] {
             writeln!(f, "  {who} {}: {:.2} (95% interval {:.2} to {:.2})", id.id, s.score, s.low, s.high)?;
@@ -728,5 +908,70 @@ mod tests {
         assert!(text.contains("candidate trained:"), "{text}");
         assert_eq!(text.contains("PASS: "), r.result.pass, "{text}");
         assert_eq!(text.contains("FAIL: "), !r.result.pass, "{text}");
+    }
+
+    #[test]
+    fn the_lemmatizer_is_scored_by_accuracy() {
+        assert_eq!(Task::Lemmatizer.measure(), Measure::Accuracy);
+        assert_eq!(serde_json::to_string(&Task::Lemmatizer).unwrap(), "\"lemmatizer\"");
+    }
+
+    #[test]
+    fn a_model_alone_gets_the_interval_the_gate_gives_its_candidate() {
+        let units = tagging(40, |i| 7 + i % 4);
+        let alone: Vec<Counts> = units.iter().map(|u| u.candidate).collect();
+        let g = gate_models(Measure::Accuracy, &units, RESAMPLES, SEED).unwrap();
+        assert_eq!(score_model(Measure::Accuracy, &alone, RESAMPLES, SEED).unwrap(), g.candidate);
+        assert_eq!(
+            score_model(Measure::Accuracy, &alone[..29], RESAMPLES, SEED),
+            Err(ModelGateError::TooFewUnits { units: 29, min: MIN_UNITS })
+        );
+        assert_eq!(score_model(Measure::Accuracy, &alone, 0, SEED), Err(ModelGateError::NoResamples));
+        let mut bad = alone.clone();
+        bad[5] = f(3, 4, 3);
+        assert_eq!(
+            score_model(Measure::Accuracy, &bad, RESAMPLES, SEED),
+            Err(ModelGateError::AccuracyCounts { unit: 5 })
+        );
+        assert!(score_model(Measure::FMeasure, &bad, RESAMPLES, SEED).is_ok());
+    }
+
+    #[test]
+    fn an_ungated_record_round_trips_and_is_checked_against_its_units() {
+        let set = HeldOutSet { name: "test".into(), corpus_sha256: "a".repeat(64), samples_sha256: "b".repeat(64) };
+        let model = ModelId { id: "trained".into(), sha256: "c".repeat(64) };
+        let units: Vec<Counts> = (0..35).map(|i| Counts::accuracy(8 + i % 3, 10)).collect();
+        let r = UngatedRecord::new(Task::Lemmatizer, set, model, "none published".into(), units).unwrap();
+        r.check().unwrap();
+        assert_eq!(r.measure, Measure::Accuracy);
+        let dir = std::env::temp_dir().join(format!("turbo-eval-ungated-{}", std::process::id()));
+        fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("gate.json");
+        let _ = fs::remove_file(&path);
+        r.write(&path).unwrap();
+        assert!(matches!(r.write(&path), Err(ModelGateError::Io { .. })), "a record is never replaced");
+        assert_eq!(UngatedRecord::read(&path).unwrap(), r);
+        assert!(matches!(ModelGateRecord::read(&path), Err(ModelGateError::Json { .. })), "not a gate record");
+        fs::remove_dir_all(&dir).unwrap();
+
+        let mut changed = r.clone();
+        changed.units[0].true_positives += 1;
+        assert_eq!(changed.check(), Err(ModelGateError::ResultMismatch));
+        let mut silent = r.clone();
+        silent.no_reference.clear();
+        assert!(matches!(silent.check(), Err(ModelGateError::Field { field: "no_reference", .. })));
+        let mut wrong = r.clone();
+        wrong.measure = Measure::FMeasure;
+        assert!(matches!(wrong.check(), Err(ModelGateError::MeasureMismatch { .. })));
+        let mut other = r.clone();
+        other.seed = SEED + 1;
+        other.result = score_model(other.measure, &other.units, RESAMPLES, other.seed).unwrap();
+        assert_eq!(other.check(), Err(ModelGateError::Parameters { resamples: RESAMPLES, seed: SEED + 1 }));
+        let text = r.to_string();
+        assert!(
+            text.contains("candidate trained:")
+                && text.contains("UNGATED: no reference model is scored: none published"),
+            "{text}"
+        );
     }
 }

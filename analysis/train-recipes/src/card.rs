@@ -276,7 +276,7 @@ impl ModelCard {
         let card: ModelCard = serde_json::from_slice(&bytes)
             .map_err(|e| Error::Json { path: path.to_owned(), message: e.to_string() })?;
         if card.card_version != CARD_VERSION {
-            return Err(Error::CardVersion { path: path.to_owned(), found: card.card_version });
+            return Err(Error::CardVersion { path: path.to_owned(), found: card.card_version, expected: CARD_VERSION });
         }
         Ok(card)
     }

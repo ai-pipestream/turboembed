@@ -24,6 +24,9 @@ pub mod error;
 pub mod masc;
 pub mod postag;
 pub mod segmentation;
+pub mod treebank;
+pub mod ud;
+pub mod ud_card;
 
 use turbo_eval::model_gate::{ModelGateRecord, Task};
 use turbo_formats::masc::MascCorpus;

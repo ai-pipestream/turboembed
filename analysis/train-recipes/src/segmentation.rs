@@ -134,6 +134,55 @@ fn tokenizer_factory() -> Result<TokenizerFactory> {
     Ok(TokenizerFactory::new(LANGUAGE, None, false, None)?)
 }
 
+/// Each sample's counts for the model in `bytes`: a sentence detector for
+/// sentence samples, a tokenizer for token samples, scored with OpenNLP's
+/// evaluator for the component, one unit per sample.
+///
+/// # Errors
+///
+/// A model file that is not a model of the samples' component, or a
+/// prediction the evaluator throws on.
+pub fn score_segments(bytes: &[u8], held_out: &HeldOut<'_>) -> Result<Vec<Counts>> {
+    let file = ModelFile::open(bytes.to_vec()).map_err(|e| Error::Model(e.to_string()))?;
+    let counts = |f: &turbo_formats::evaluate::FMeasure| Counts {
+        true_positives: f.true_positives(),
+        selected: f.selected(),
+        target: f.target(),
+    };
+    let mut out = Vec::with_capacity(held_out.len());
+    let mut predicted = Vec::new();
+    let mut spans: Vec<Span> = Vec::new();
+    match held_out {
+        HeldOut::Sentences(samples) => {
+            let model = SentenceModel::open(file).map_err(|e| Error::Model(e.to_string()))?;
+            let detector = SentenceDetector::new(Arc::new(model), WHITESPACE);
+            for sample in samples {
+                predicted.clear();
+                detector.detect(sample.document(), &mut predicted);
+                spans.clear();
+                spans.extend(predicted.iter().map(|&(s, _)| s));
+                let mut evaluator = SentenceDetectorEvaluator::new(WHITESPACE);
+                evaluator.evaluate(sample, &spans)?;
+                out.push(counts(evaluator.fmeasure()));
+            }
+        }
+        HeldOut::Tokens(samples) => {
+            let model = TokenizerModel::open(file).map_err(|e| Error::Model(e.to_string()))?;
+            let tokenizer = TokenizerMe::new(model, TokenizerOptions { whitespace: WHITESPACE, keep_newlines: false });
+            for sample in samples {
+                predicted.clear();
+                tokenizer.tokenize(sample.text(), &mut predicted);
+                spans.clear();
+                spans.extend(predicted.iter().map(|&(s, _)| s));
+                let mut evaluator = TokenizerEvaluator::default();
+                evaluator.evaluate(sample, &spans)?;
+                out.push(counts(evaluator.fmeasure()));
+            }
+        }
+    }
+    Ok(out)
+}
+
 impl SegmentationRecipe {
     /// The gate's task.
     pub fn task(&self) -> Task {
@@ -228,42 +277,9 @@ impl SegmentationRecipe {
     /// A model file that is not a model of the recipe's component, or a
     /// prediction the evaluator throws on.
     pub fn score(&self, bytes: &[u8], held_out: &HeldOut<'_>) -> Result<Vec<Counts>> {
-        let file = ModelFile::open(bytes.to_vec()).map_err(|e| Error::Model(e.to_string()))?;
-        let counts = |f: &turbo_formats::evaluate::FMeasure| Counts {
-            true_positives: f.true_positives(),
-            selected: f.selected(),
-            target: f.target(),
-        };
-        let mut out = Vec::with_capacity(held_out.len());
-        let mut predicted = Vec::new();
-        let mut spans: Vec<Span> = Vec::new();
         match (self.component, held_out) {
-            (Component::Sentence, HeldOut::Sentences(samples)) => {
-                let model = SentenceModel::open(file).map_err(|e| Error::Model(e.to_string()))?;
-                let detector = SentenceDetector::new(Arc::new(model), WHITESPACE);
-                for sample in samples {
-                    predicted.clear();
-                    detector.detect(sample.document(), &mut predicted);
-                    spans.clear();
-                    spans.extend(predicted.iter().map(|&(s, _)| s));
-                    let mut evaluator = SentenceDetectorEvaluator::new(WHITESPACE);
-                    evaluator.evaluate(sample, &spans)?;
-                    out.push(counts(evaluator.fmeasure()));
-                }
-            }
-            (Component::Tokens, HeldOut::Tokens(samples)) => {
-                let model = TokenizerModel::open(file).map_err(|e| Error::Model(e.to_string()))?;
-                let tokenizer =
-                    TokenizerMe::new(model, TokenizerOptions { whitespace: WHITESPACE, keep_newlines: false });
-                for sample in samples {
-                    predicted.clear();
-                    tokenizer.tokenize(sample.text(), &mut predicted);
-                    spans.clear();
-                    spans.extend(predicted.iter().map(|&(s, _)| s));
-                    let mut evaluator = TokenizerEvaluator::default();
-                    evaluator.evaluate(sample, &spans)?;
-                    out.push(counts(evaluator.fmeasure()));
-                }
+            (Component::Sentence, HeldOut::Sentences(_)) | (Component::Tokens, HeldOut::Tokens(_)) => {
+                score_segments(bytes, held_out)
             }
             (component, samples) => {
                 let name = |c: Component| match c {
@@ -274,10 +290,9 @@ impl SegmentationRecipe {
                     HeldOut::Sentences(_) => "sentence",
                     HeldOut::Tokens(_) => "token",
                 };
-                return Err(Error::ComponentMismatch { recipe: name(component), samples });
+                Err(Error::ComponentMismatch { recipe: name(component), samples })
             }
         }
-        Ok(out)
     }
 
     /// Scores the trained model and the reference on the same held-out

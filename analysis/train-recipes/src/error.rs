@@ -29,8 +29,8 @@ pub enum Error {
     NotShippable { id: String, reason: &'static str },
     /// A card file that is not a card.
     Json { path: PathBuf, message: String },
-    /// A card of another schema version.
-    CardVersion { path: PathBuf, found: u32 },
+    /// A card of another schema version than the `expected` one.
+    CardVersion { path: PathBuf, found: u32, expected: u32 },
     /// Held-out samples of one component given to a recipe of another.
     ComponentMismatch { recipe: &'static str, samples: &'static str },
     /// The release has no digest recorded yet, so it cannot be fetched
@@ -42,6 +42,15 @@ pub enum Error {
     ReferenceDigest { id: String, expected: String, found: String },
     /// The split leaves one side without a sample for the recipe.
     EmptySplit { what: &'static str },
+    /// A treebank whose licence check refuses it.
+    Licence { treebank: &'static str, reason: &'static str },
+    /// A treebank file that is not the recorded one.
+    TreebankFile { treebank: &'static str, file: &'static str, expected: String, found: String },
+    /// A sentence of a treebank file the CoNLL-U reader refuses.
+    Conllu { treebank: &'static str, file: &'static str, error: turbo_formats::FormatError },
+    /// More held-out tokens than the limit have tags the reference tagger
+    /// has no outcome for ([`crate::ud::LEFT_OUT_LIMIT_PERCENT`]).
+    ReferenceTags { id: String, left_out: u64, tokens: u64 },
 }
 
 pub type Result<T> = std::result::Result<T, Error>;
@@ -63,8 +72,8 @@ impl fmt::Display for Error {
             Error::OutsideCorpus { path } => write!(f, "{}: not under the corpus directory", path.display()),
             Error::NotShippable { id, reason } => write!(f, "{id} is not shippable: {reason}"),
             Error::Json { path, message } => write!(f, "{}: {message}", path.display()),
-            Error::CardVersion { path, found } => {
-                write!(f, "{}: card version {found}, this build reads {}", path.display(), crate::card::CARD_VERSION)
+            Error::CardVersion { path, found, expected } => {
+                write!(f, "{}: card version {found}, this build reads {expected}", path.display())
             }
             Error::ComponentMismatch { recipe, samples } => {
                 write!(f, "{samples} samples given to the {recipe} recipe")
@@ -79,6 +88,18 @@ impl fmt::Display for Error {
                 write!(f, "reference model {id}: SHA-256 {found}, the zoo's {expected}")
             }
             Error::EmptySplit { what } => write!(f, "the split leaves no {what}"),
+            Error::Licence { treebank, reason } => {
+                write!(f, "{treebank} is refused: {reason}; the recipes train only on CC BY 4.0 data")
+            }
+            Error::TreebankFile { treebank, file, expected, found } => {
+                write!(f, "{treebank} {file}: {found}, the recorded file {expected}")
+            }
+            Error::Conllu { treebank, file, error } => write!(f, "{treebank} {file}: {error}"),
+            Error::ReferenceTags { id, left_out, tokens } => write!(
+                f,
+                "{left_out} of the {tokens} held-out tokens have tags {id} has no outcome for, more than {}%",
+                crate::ud::LEFT_OUT_LIMIT_PERCENT
+            ),
         }
     }
 }

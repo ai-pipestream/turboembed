@@ -36,7 +36,8 @@
 //!   file's SHA-256.
 //! - [`gate`]: candidate records against baseline records.
 //! - [`model_gate`]: a trained model against the reference model for the
-//!   same task on the same held-out samples, and its record.
+//!   same task on the same held-out samples, and its record; the record
+//!   of a model with no reference to score.
 
 pub mod analysis;
 pub mod chunkers;

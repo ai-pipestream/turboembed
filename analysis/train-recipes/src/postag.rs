@@ -160,6 +160,72 @@ fn factory() -> Result<PosTaggerFactory> {
     Ok(PosTaggerFactory::new(LANGUAGE, None, None)?)
 }
 
+/// Each sample's counts for the tagger in `bytes`, its tags asked for in
+/// `format`: the tokens tagged as the sample tags them, of all its
+/// tokens, as `POSEvaluator` counts them.
+///
+/// # Errors
+///
+/// A model file that is not a part-of-speech model, a sentence no tag
+/// sequence scores above the search's minimum for, or what the evaluator
+/// throws on.
+pub fn score_tags(bytes: &[u8], format: PosTagFormat, samples: &[PosSample<'_>]) -> Result<Vec<Counts>> {
+    score_tags_where(bytes, format, samples, |_| true)
+}
+
+/// [`score_tags`], counting only the tokens whose reference tag `counted`
+/// accepts: the tagger still tags every token, and the evaluator still
+/// sees every tag, but a token whose tag is not counted is in neither the
+/// correct nor the total count.
+///
+/// # Errors
+///
+/// What [`score_tags`] fails on.
+pub fn score_tags_where(
+    bytes: &[u8],
+    format: PosTagFormat,
+    samples: &[PosSample<'_>],
+    counted: impl Fn(&str) -> bool,
+) -> Result<Vec<Counts>> {
+    let tagger = PosTagger::new(open_tagger(bytes, format)?);
+    let tagset = tagger.pos_model().tagset().clone();
+    let mut out = Vec::with_capacity(samples.len());
+    let (mut tags, mut probs) = (Vec::new(), Vec::new());
+    let mut words: Vec<&str> = Vec::new();
+    let mut labels: Vec<&str> = Vec::new();
+    for sample in samples {
+        words.clear();
+        words.extend(sample.tokens().iter().map(|t| t.as_str()));
+        tags.clear();
+        probs.clear();
+        let found = tagger.tag(&words, &mut tags, &mut probs).map_err(|e| Error::Model(e.to_string()))?;
+        if !found {
+            return Err(Error::Model(format!("no tag sequence scored above the minimum for: {sample}")));
+        }
+        labels.clear();
+        labels.extend(tags.iter().map(|&t| tagset.label(t)));
+        let mut evaluator = PosEvaluator::default();
+        evaluator.evaluate(sample, &labels)?;
+        let (mut correct, mut total) = (0, 0);
+        for (r, p) in sample.tags().iter().zip(&labels).filter(|(r, _)| counted(r.as_str())) {
+            total += 1;
+            correct += u64::from(r.as_str() == *p);
+        }
+        out.push(Counts::accuracy(correct, total));
+    }
+    Ok(out)
+}
+
+/// The tagger in `bytes`, its tags asked for in `format`.
+///
+/// # Errors
+///
+/// A model file that is not a part-of-speech model.
+pub fn open_tagger(bytes: &[u8], format: PosTagFormat) -> Result<PosModel> {
+    let file = ModelFile::open(bytes.to_vec()).map_err(|e| Error::Model(e.to_string()))?;
+    PosModel::open_with_format(file, format).map_err(|e| Error::Model(e.to_string()))
+}
+
 impl PosRecipe {
     /// The gate's task.
     pub fn task(&self) -> Task {
@@ -221,31 +287,7 @@ impl PosRecipe {
     /// sequence scores above the search's minimum for, or what the
     /// evaluator throws on.
     pub fn score(&self, bytes: &[u8], format: PosTagFormat, held_out: &HeldOutTags<'_>) -> Result<Vec<Counts>> {
-        let file = ModelFile::open(bytes.to_vec()).map_err(|e| Error::Model(e.to_string()))?;
-        let model = PosModel::open_with_format(file, format).map_err(|e| Error::Model(e.to_string()))?;
-        let tagger = PosTagger::new(model);
-        let tagset = tagger.pos_model().tagset().clone();
-        let mut out = Vec::with_capacity(held_out.len());
-        let (mut tags, mut probs) = (Vec::new(), Vec::new());
-        let mut words: Vec<&str> = Vec::new();
-        let mut labels: Vec<&str> = Vec::new();
-        for sample in held_out.samples() {
-            words.clear();
-            words.extend(sample.tokens().iter().map(|t| t.as_str()));
-            tags.clear();
-            probs.clear();
-            let found = tagger.tag(&words, &mut tags, &mut probs).map_err(|e| Error::Model(e.to_string()))?;
-            if !found {
-                return Err(Error::Model(format!("no tag sequence scored above the minimum for: {sample}")));
-            }
-            labels.clear();
-            labels.extend(tags.iter().map(|&t| tagset.label(t)));
-            let mut evaluator = PosEvaluator::default();
-            evaluator.evaluate(sample, &labels)?;
-            let correct = sample.tags().iter().zip(&labels).filter(|(r, p)| r.as_str() == **p).count();
-            out.push(Counts::accuracy(correct as u64, evaluator.word_count()));
-        }
-        Ok(out)
+        score_tags(bytes, format, held_out.samples())
     }
 
     /// Scores the trained model (in [`CANDIDATE_FORMAT`]) and the reference
