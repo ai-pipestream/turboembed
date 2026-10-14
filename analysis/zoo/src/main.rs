@@ -9,8 +9,9 @@ use turbo_zoo::{Acceptances, Http, Index, Licence, Policy, Requirement, Sha256, 
 const USAGE: &str = "usage: turbo-zoo [--index <zoo.json>] <command>
   list                 the artifacts the zoo may fetch, with class and licences
   show <id>            one artifact: licences, training data, files
-  accept <licence> [<terms>]
-                       record that you accept a licence (SPDX id, as `show` prints it);
+  accept <licence> [<terms>] [--yes]
+                       show the text of a licence (SPDX id, as `show` prints it) and,
+                       with --yes after you have read it, record that you accept it;
                        LicenseRef-RestrictedPublic also takes the host's terms address
   revoke <licence> [<terms>]
                        withdraw an acceptance
@@ -109,14 +110,31 @@ fn run(mut args: Vec<String>) -> Result<(), String> {
             }
             Ok(())
         }
-        ["accept", licence, rest @ ..] if rest.len() <= 1 => {
-            let r = requirement(licence, rest.first().copied())?;
+        ["accept", licence, rest @ ..] => {
+            let yes = rest.contains(&"--yes");
+            let terms: Vec<&str> = rest.iter().copied().filter(|a| *a != "--yes").collect();
+            if terms.len() > 1 {
+                return Err(USAGE.into());
+            }
+            let r = requirement(licence, terms.first().copied())?;
+            println!("{}: read the text at {}", r.licence, r.text);
+            if r.licence.class() == turbo_zoo::LicenceClass::LocalOnly {
+                println!(
+                    "These are the host's own terms. Data under them is fetched only from its host, used only for \
+                     local training and evaluation, and nothing made from it may be shared or shipped."
+                );
+            }
+            if !yes {
+                return Err("nothing recorded: once you have read the text and accept it, run the same command \
+                            again with --yes"
+                    .into());
+            }
             let user = user()?;
             let mut acc = Acceptances::load(&accept_path).map_err(e)?;
             let now = SystemTime::now().duration_since(UNIX_EPOCH).map_err(|e| e.to_string())?.as_secs();
             acc.accept_terms(&user, &r, now).map_err(e)?;
             acc.save(&accept_path).map_err(e)?;
-            println!("{user} accepts {}, whose text is at {}", r.licence, r.text);
+            println!("{user} accepts {}", r.licence);
             Ok(())
         }
         ["revoke", licence, rest @ ..] if rest.len() <= 1 => {
@@ -140,9 +158,9 @@ fn run(mut args: Vec<String>) -> Result<(), String> {
         }
         ["fetch", id] => {
             let user = user()?;
-            let acc = Acceptances::load(&accept_path).map_err(e)?;
             let zoo = Zoo::new(index, home.join("artifacts"), Policy::default(), &Http);
-            let fetched = zoo.fetch(id, &user, &acc).map_err(e)?;
+            // The acceptance file is read only for an artifact that needs it.
+            let fetched = zoo.fetch_with(id, &user, || Acceptances::load(&accept_path)).map_err(e)?;
             for f in &fetched.files {
                 println!("{}", f.display());
             }

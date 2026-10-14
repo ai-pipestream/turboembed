@@ -120,11 +120,11 @@ impl Acceptances {
             )));
         }
         let mut out = Acceptances::default();
-        for a in file.accepted {
+        for (i, a) in file.accepted.into_iter().enumerate() {
             let r = a.requirement();
-            check(&r).map_err(|e| ZooError::Acceptances(format!("{}: {e}", a.user)))?;
+            check(&r).map_err(|e| ZooError::Acceptances(format!("accepted[{i}] ({}): {e}", a.user)))?;
             if out.has(&a.user, &r) {
-                return Err(ZooError::Acceptances(format!("{} accepted {r} twice", a.user)));
+                return Err(ZooError::Acceptances(format!("accepted[{i}]: {} accepted {r} twice", a.user)));
             }
             out.accepted.push(a);
         }
@@ -134,7 +134,13 @@ impl Acceptances {
     /// The file at `path`, or no acceptances when there is no file.
     pub fn load(path: &Path) -> Result<Acceptances, ZooError> {
         match fs::read(path) {
-            Ok(b) => Acceptances::parse(&b),
+            Ok(b) => Acceptances::parse(&b).map_err(|e| match e {
+                ZooError::Acceptances(m) => ZooError::Acceptances(format!(
+                    "{}: {m}; fix the file by hand, or remove it to accept again from nothing",
+                    path.display()
+                )),
+                other => other,
+            }),
             Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(Acceptances::default()),
             Err(e) => Err(ZooError::Io { path: path.to_path_buf(), message: e.to_string() }),
         }
@@ -334,6 +340,43 @@ mod tests {
         a.accept(&user("alice"), Licence::CcBySa30, 5).unwrap();
         a.save(&path).unwrap();
         assert_eq!(Acceptances::load(&path).unwrap(), a);
+        fs::remove_dir_all(&dir).unwrap();
+    }
+
+    #[test]
+    fn an_unusable_entry_is_named_with_the_file() {
+        let dir = std::env::temp_dir().join(format!("turbo-zoo-accept-bad-{}", std::process::id()));
+        fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("acceptances.json");
+        let text = r#"{"acceptances_version":1,"accepted":[{"user":"a","license":"CC-BY-SA-4.0","license_text":"https://creativecommons.org/licenses/by-sa/4.0/legalcode","accepted_at":1},{"user":"a","license":"MIT","license_text":"https://opensource.org/license/mit","accepted_at":2}]}"#;
+        fs::write(&path, text).unwrap();
+        let msg = Acceptances::load(&path).unwrap_err().to_string();
+        assert!(
+            msg.contains(&path.display().to_string()) && msg.contains("accepted[1]") && msg.contains("MIT"),
+            "{msg}"
+        );
+        fs::remove_dir_all(&dir).unwrap();
+    }
+
+    /// A symlink left at the temporary name is replaced, never written
+    /// through.
+    #[cfg(unix)]
+    #[test]
+    fn save_never_writes_through_a_symlinked_temporary_file() {
+        let dir = std::env::temp_dir().join(format!("turbo-zoo-accept-link-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&dir);
+        fs::create_dir_all(dir.join("home")).unwrap();
+        let victim = dir.join("victim");
+        fs::write(&victim, b"untouched").unwrap();
+        let path = dir.join("home").join("acceptances.json");
+        std::os::unix::fs::symlink(&victim, dir.join("home").join("acceptances.json.partial")).unwrap();
+        let mut a = Acceptances::default();
+        a.accept(&user("alice"), Licence::CcBySa40, 5).unwrap();
+        a.save(&path).unwrap();
+        assert_eq!(fs::read(&victim).unwrap(), b"untouched");
+        assert!(!fs::symlink_metadata(&path).unwrap().file_type().is_symlink());
+        assert_eq!(Acceptances::load(&path).unwrap(), a);
+        assert!(!dir.join("home").join("acceptances.json.partial").exists());
         fs::remove_dir_all(&dir).unwrap();
     }
 }

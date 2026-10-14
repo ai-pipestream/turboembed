@@ -1,7 +1,7 @@
 //! The zoo's licence rules and integrity checks, on a small index of one
 //! artifact per class served from memory.
 
-use std::cell::Cell;
+use std::cell::{Cell, RefCell};
 use std::collections::HashMap;
 use std::fs;
 use std::path::PathBuf;
@@ -15,16 +15,23 @@ use turbo_zoo::{
 struct Memory {
     files: HashMap<String, Vec<u8>>,
     gets: Cell<usize>,
+    /// The size the zoo expected, per request.
+    sizes: RefCell<Vec<u64>>,
 }
 
 impl Memory {
     fn new(files: &[(&str, &[u8])]) -> Memory {
-        Memory { files: files.iter().map(|(u, b)| (u.to_string(), b.to_vec())).collect(), gets: Cell::new(0) }
+        Memory {
+            files: files.iter().map(|(u, b)| (u.to_string(), b.to_vec())).collect(),
+            gets: Cell::new(0),
+            sizes: RefCell::new(Vec::new()),
+        }
     }
 }
 
 impl Transport for Memory {
-    fn get(&self, url: &Url) -> Result<Vec<u8>, String> {
+    fn get(&self, url: &Url, size: u64) -> Result<Vec<u8>, String> {
+        self.sizes.borrow_mut().push(size);
         self.gets.set(self.gets.get() + 1);
         self.files.get(url.as_str()).cloned().ok_or_else(|| "404".to_string())
     }
@@ -437,6 +444,85 @@ fn a_symlink_in_the_cache_is_refused() {
     let zoo = Zoo::new(Index::parse(sample().as_bytes()).unwrap(), cache, Policy::default(), &t);
     assert!(matches!(zoo.fetch("permissive", &alice(), &Acceptances::default()), Err(ZooError::Io { .. })));
     assert!(!outside.0.join("permissive.bin").exists());
+}
+
+/// A symlink above a nested file is found before any directory is made
+/// below it, so nothing is created outside the cache.
+#[cfg(unix)]
+#[test]
+fn a_symlink_above_a_nested_path_creates_nothing_outside() {
+    let dir = TempDir::new("nested-symlink");
+    let outside = TempDir::new("nested-symlink-outside");
+    let cache = dir.0.join("cache");
+    fs::create_dir_all(&cache).unwrap();
+    std::os::unix::fs::symlink(&outside.0, cache.join("m")).unwrap();
+    let e = entry("m", Licence::Apache2, &[], LicenceClass::Permissive, BYTES)
+        .replace("\"path\": \"m.bin\"", "\"path\": \"sub/deeper/m.bin\"");
+    let t = Memory::new(&[(&url("m"), BYTES)]);
+    let zoo = Zoo::new(Index::parse(index_of(&[e]).as_bytes()).unwrap(), cache.clone(), Policy::default(), &t);
+    assert!(matches!(zoo.fetch("m", &alice(), &Acceptances::default()), Err(ZooError::Io { .. })));
+    assert!(!outside.0.join("sub").exists());
+    assert_eq!(fs::read_dir(&outside.0).unwrap().count(), 0);
+    assert_eq!(t.gets.get(), 0);
+
+    // The same with the symlink one level further down.
+    fs::remove_file(cache.join("m")).unwrap();
+    fs::create_dir(cache.join("m")).unwrap();
+    std::os::unix::fs::symlink(&outside.0, cache.join("m").join("sub")).unwrap();
+    assert!(matches!(zoo.fetch("m", &alice(), &Acceptances::default()), Err(ZooError::Io { .. })));
+    assert!(!outside.0.join("deeper").exists());
+
+    // With plain directories it is fetched into place.
+    fs::remove_file(cache.join("m").join("sub")).unwrap();
+    let got = zoo.fetch("m", &alice(), &Acceptances::default()).unwrap();
+    assert_eq!(got.single().unwrap(), cache.join("m").join("sub").join("deeper").join("m.bin"));
+}
+
+/// A symlink left at the temporary name is removed, never written
+/// through, and never renamed onto the file.
+#[cfg(unix)]
+#[test]
+fn a_symlinked_temporary_file_is_never_written_through() {
+    let dir = TempDir::new("partial-symlink");
+    let outside = TempDir::new("partial-symlink-outside");
+    let victim = outside.0.join("victim");
+    fs::write(&victim, b"untouched").unwrap();
+    let cache = dir.0.join("cache");
+    fs::create_dir_all(cache.join("permissive")).unwrap();
+    std::os::unix::fs::symlink(&victim, cache.join("permissive").join("permissive.bin.partial")).unwrap();
+    let t = transport();
+    let zoo = Zoo::new(Index::parse(sample().as_bytes()).unwrap(), cache.clone(), Policy::default(), &t);
+    let got = zoo.fetch("permissive", &alice(), &Acceptances::default()).unwrap();
+    let path = got.single().unwrap();
+    assert_eq!(fs::read(&victim).unwrap(), b"untouched");
+    assert!(!fs::symlink_metadata(path).unwrap().file_type().is_symlink());
+    assert_eq!(fs::read(path).unwrap(), BYTES);
+    assert!(fs::symlink_metadata(cache.join("permissive").join("permissive.bin.partial")).is_err());
+}
+
+#[test]
+fn the_transport_is_told_the_expected_size() {
+    let dir = TempDir::new("size");
+    let t = transport();
+    let zoo = Zoo::new(Index::parse(sample().as_bytes()).unwrap(), dir.0.clone(), Policy::default(), &t);
+    zoo.fetch("permissive", &alice(), &Acceptances::default()).unwrap();
+    assert_eq!(*t.sizes.borrow(), [BYTES.len() as u64]);
+}
+
+/// A broken acceptance file blocks only artifacts that need acceptance,
+/// and the error says what is wrong.
+#[test]
+fn acceptances_are_read_only_when_needed() {
+    let dir = TempDir::new("lazy");
+    let t = transport();
+    let zoo = Zoo::new(Index::parse(sample().as_bytes()).unwrap(), dir.0.clone(), Policy::default(), &t);
+    let broken = || Err(ZooError::Acceptances("accepted[0]: broken".into()));
+    zoo.fetch_with("permissive", &alice(), broken).unwrap();
+    match zoo.fetch_with("share-alike", &alice(), broken) {
+        Err(ZooError::Acceptances(m)) => assert!(m.contains("accepted[0]"), "{m}"),
+        other => panic!("{other:?}"),
+    }
+    assert_eq!(t.gets.get(), 1);
 }
 
 #[test]

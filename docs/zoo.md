@@ -189,10 +189,13 @@ Which user accepted which licence, in the zoo's home directory as
 
 Every field is required. One user accepts one licence and text at most
 once. An absent file means nothing has been accepted. The zoo never
-writes the file on its own: only the user's explicit action
-(`turbo-zoo accept <licence>`, or `turbo-zoo accept
-LicenseRef-RestrictedPublic <terms>` with the address `turbo-zoo show`
-prints) adds an entry, and `turbo-zoo revoke` removes one.
+writes the file on its own: only the user's explicit action adds an
+entry. `turbo-zoo accept <licence>` (or `turbo-zoo accept
+LicenseRef-RestrictedPublic <terms>`, with the address `turbo-zoo show`
+prints) prints the address of the text, and for restricted data what
+its terms allow, and records nothing; the same command with `--yes`,
+run after reading it, records the acceptance. `turbo-zoo revoke`
+removes one.
 
 ## Fetch rules
 
@@ -207,16 +210,27 @@ For `fetch(id, user)`:
    Otherwise `NotAccepted`, naming the class, the user and each missing
    licence with its text's address. Nothing is read, fetched or
    written. The `CLASS_LOCAL_ONLY` check of step 2 does not depend on
-   the GPL policy.
-3. Each file goes to `<cache>/<id>/<path>`. A directory on the way that
-   resolves outside the cache, or a symlink at the file's own path, is
-   an error: the zoo never reads or writes a file elsewhere on disk.
+   the GPL policy. The acceptance file is read only when the artifact
+   needs some acceptance (`Zoo::fetch_with`), so a malformed or stale
+   file never blocks a permissive artifact; when it is read, an
+   unusable entry is reported with the file's path and the entry's
+   position (`accepted[3]`).
+3. Each file goes to `<cache>/<id>/<path>`. The directories below the
+   cache are checked one at a time, from the top, before anything is
+   made below them: a symlink or a non-directory on the way, or a
+   symlink at the file's own path, is an error, so the zoo never
+   creates, reads or writes anything elsewhere on disk.
 4. A file already in the cache is read and checked by size, SHA-256 and
    SHA-512 on every call. One that is absent or fails is fetched.
 5. Fetched bytes are checked by size, then SHA-256, then SHA-512, before
    they are written. The first failure is `Integrity`, naming the
    artifact, the path, the check and both values; nothing is written.
-   Bytes that pass are written through a temporary name.
+   Bytes that pass are written through a temporary name beside the
+   file: whatever is left at that name is removed first (a symlink
+   itself, never its target), the temporary file is created anew,
+   never opened through a link, and renamed onto the file. The
+   transport is told the expected size; the HTTP transport reads at
+   most one byte more.
 
 Step 2 runs on every call, cached files or not, so a revoked acceptance
 takes effect at once. There is no hash cache, as in the bundle loader.

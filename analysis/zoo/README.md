@@ -9,7 +9,8 @@ table of datasets and checkpoints the index is built from.
 ```
 cargo run -p turbo-zoo -- list
 cargo run -p turbo-zoo -- show opennlp-en-ud-ewt-sentence-1.3-2.5.4
-cargo run -p turbo-zoo -- accept CC-BY-SA-4.0
+cargo run -p turbo-zoo -- accept CC-BY-SA-4.0          # prints the licence text address
+cargo run -p turbo-zoo -- accept CC-BY-SA-4.0 --yes    # records the acceptance
 cargo run -p turbo-zoo -- fetch opennlp-en-ud-ewt-sentence-1.3-2.5.4
 ```
 

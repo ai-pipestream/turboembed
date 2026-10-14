@@ -117,7 +117,7 @@ not list it.
 | [FineWeb-2](https://huggingface.co/datasets/HuggingFaceFW/fineweb-2) | language detection | ODC-By 1.0 | permissive | also subject to Common Crawl's terms of use | plan |
 | [Tatoeba](https://tatoeba.org/en/downloads) | language detection | CC BY 2.0 FR | permissive | by default; some sentences carry other licences, check per item | plan |
 | [WNUT-17](https://noisy-text.github.io/2017/emerging-rare-entities.html) | NER | CC BY 4.0 | permissive, pending | its text comes from Twitter, Reddit and YouTube; platform terms need a look before it is used | plan |
-| Other UD treebanks (280 of 359 in UD 2.18), including English EWT, German GSD and HDT, French GSD, Dutch Alpino | sentence, token, POS, lemma | CC BY-SA (3.0 or 4.0) | share-alike | check each treebank's README at the release used | plan; the ones above here |
+| Other UD treebanks (the plan counts 280 of 359 in UD 2.18; not recounted here), including English EWT, German GSD and HDT, French GSD, Dutch Alpino | sentence, token, POS, lemma | CC BY-SA (3.0 or 4.0) | share-alike | check each treebank's README at the release used | plan; the ones above here |
 | [UniMorph](https://unimorph.github.io/) | lemmas | mostly CC BY-SA 3.0, some LGPL-LR | share-alike | check per language | plan |
 | [Few-NERD](https://huggingface.co/datasets/DFKI-SLT/few-nerd) | NER | CC BY-SA 4.0 | share-alike | | plan |
 | [Universal NER](https://www.universalner.org/) | NER | CC BY-SA 4.0 | share-alike | except its Tagalog-Ugnayan subset, which is non-commercial (refused) | plan |
@@ -129,7 +129,7 @@ not list it.
 | [UD_Swedish-LinES r2.16](https://github.com/UniversalDependencies/UD_Swedish-LinES/blob/r2.16/README.txt) | | CC BY-NC-SA 4.0 | refused | non-commercial | here |
 | [UD_Italian-ISDT r2.16](https://github.com/UniversalDependencies/UD_Italian-ISDT/blob/r2.16/README.md) | | CC BY-NC-SA 3.0 | refused | non-commercial | here |
 | [UD_Italian-ParTUT r2.16](https://github.com/UniversalDependencies/UD_Italian-ParTUT/blob/r2.16/README.md) | | CC BY-NC-SA 4.0 | refused | non-commercial | here |
-| [UD_Czech-PDT r2.16](https://github.com/UniversalDependencies/UD_Czech-PDT/blob/r2.16/README.md) | | CC BY-NC-SA 4.0 | refused | non-commercial; about 62 UD treebanks are | here |
+| [UD_Czech-PDT r2.16](https://github.com/UniversalDependencies/UD_Czech-PDT/blob/r2.16/README.md) | | CC BY-NC-SA 4.0 | refused | non-commercial (the plan counts about 62 non-commercial UD treebanks; not recounted here) | here |
 | [UD_English-GUMReddit r2.16](https://github.com/UniversalDependencies/UD_English-GUMReddit/blob/r2.16/README.md) | | CC BY 4.0 annotations | refused | the text is rebuilt from Reddit, under Reddit's terms | here (annotations); plan (text) |
 | [CoNLL-2003](https://www.clips.uantwerpen.be/conll2003/ner/) | NER | Reuters RCV1, research only | refused | | plan |
 | [OntoNotes 5.0](https://catalog.ldc.upenn.edu/LDC2013T19) | NER | LDC, non-commercial | refused | | plan |
