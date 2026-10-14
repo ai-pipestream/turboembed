@@ -129,22 +129,9 @@ mod tests {
 
     #[test]
     fn the_maxent_model_splits_sentences_and_is_named_by_its_hash() {
-        // The published English model is trained on a CC BY-SA treebank
-        // and not checked in: `turbo-goldens fetch-models` downloads it
-        // into the directory TURBO_GOLDENS_MODELS names, or
-        // target/turbo-goldens/models. Without it the test says so and
-        // passes, unless TURBO_TEST_REQUIRE_OPENNLP_MODELS=1.
-        let dir = match std::env::var_os("TURBO_GOLDENS_MODELS") {
-            Some(d) => std::path::PathBuf::from(d),
-            None => Path::new(env!("CARGO_MANIFEST_DIR")).join("../../target/turbo-goldens/models"),
-        };
-        let path = dir.join("opennlp-en-ud-ewt-sentence-1.3-2.5.4.bin");
-        if !path.is_file() {
-            let required = std::env::var("TURBO_TEST_REQUIRE_OPENNLP_MODELS").is_ok_and(|v| v == "1");
-            assert!(!required, "{} not found and TURBO_TEST_REQUIRE_OPENNLP_MODELS=1", path.display());
-            eprintln!("{} not found: skipping the test that needs it", path.display());
+        let Some(path) = turbo_goldens::published_model("opennlp-en-ud-ewt-sentence-1.3-2.5.4.bin") else {
             return;
-        }
+        };
         let a = Analysis { sentences: Sentencer::maxent(&path).unwrap(), structure: Some(Syntax::Plain) };
         let text = "Cats purr all day. Dogs bark at night.";
         let doc = a.analyze(text, &Stub::new(&["cats"])).unwrap();

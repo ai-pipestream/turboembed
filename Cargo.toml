@@ -36,6 +36,7 @@ members = [
     "analysis/stopword-layers",
     "analysis/eval",
     "analysis/train",
+    "analysis/train-components",
     "analysis/formats",
     "analysis/fuzz",
     "analysis/zoo",

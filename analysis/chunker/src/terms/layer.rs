@@ -4,7 +4,7 @@
 
 use std::marker::PhantomData;
 
-use turbo_analysis::{Anchor, Ix, Key, KeyId, Layer};
+use turbo_analysis::{Anchor, Ix, Key, KeyId, Layer, LayerName};
 use turbo_analysis_layers::{Strs, Tokens};
 
 /// The distinct terms of one document, in byte order, each once. A term's
@@ -127,7 +127,7 @@ impl<L> TermStats<L> {
 
 impl<L: Layer> Layer for TermStats<L> {
     const ID: &'static str = "turbo:term-stats";
-    const OF: &'static str = L::ID;
+    const OF: Option<&'static LayerName> = Some(L::NAME);
     fn anchor() -> Anchor {
         Anchor::aligned::<L>()
     }

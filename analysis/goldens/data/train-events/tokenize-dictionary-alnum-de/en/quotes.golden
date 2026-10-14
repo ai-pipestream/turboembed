@@ -1,0 +1,129 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	en/quotes	240	228	8e587a2221022c9fa745822b626ba04b316b213fbffa68031c095a1670e808f8
+annotator	opennlp.tools.tokenize.TokSpanEventStream	read
+config	abbreviations	english-dictionary.xml
+config	format	text
+config	language	de
+config	run	tokenize-dictionary-alnum-de
+config	source	tokenize
+config	useAlphaNumericOptimization	true
+layer	turbo:events	document	89	outcome:str	context:str	values:str
+F	p=" s=Are p1=" p1_quote p2=bok p1f1="A f1=A f1_alpha f1_caps f2=r f2_alpha f12=Ar	
+F	p="A s=re p1=A p1_alpha p1_caps p2=" p2_quote p21="A p1f1=Ar f1=r f1_alpha f2=e f2_alpha f12=re	
+F	p="Ar s=e p1=r p1_alpha p2=A p2_alpha p2_caps p21=Ar p1f1=re f1=e f1_alpha f2=bok	
+F	p=t s=onight?" p1=t p1_alpha p2=bok p1f1=to f1=o f1_alpha f2=n f2_alpha f12=on	
+F	p=to s=night?" p1=o p1_alpha p2=t p2_alpha p21=to p1f1=on f1=n f1_alpha f2=i f2_alpha f12=ni	
+F	p=ton s=ight?" p1=n p1_alpha p2=o p2_alpha p21=on p1f1=ni f1=i f1_alpha f2=g f2_alpha f12=ig	
+F	p=toni s=ght?" p1=i p1_alpha p2=n p2_alpha p21=ni p1f1=ig f1=g f1_alpha f2=h f2_alpha f12=gh	
+F	p=tonig s=ht?" p1=g p1_alpha p2=i p2_alpha p21=ig p1f1=gh f1=h f1_alpha f2=t f2_alpha f12=ht	
+F	p=tonigh s=t?" p1=h p1_alpha p2=g p2_alpha p21=gh p1f1=ht f1=t f1_alpha f2=? f2_eos f12=t?	
+F	p=tonight s=?" p1=t p1_alpha p2=h p2_alpha p21=ht p1f1=t? f1=? f1_eos f2=" f2_quote f12=?"	
+F	p=tonight? s=" p1=? p1_eos p2=t p2_alpha p21=t? p1f1=?" f1=" f1_quote f2=bok	
+F	p=a s=sked. p1=a p1_alpha p2=bok p1f1=as f1=s f1_alpha f2=k f2_alpha f12=sk	
+F	p=as s=ked. p1=s p1_alpha p2=a p2_alpha p21=as p1f1=sk f1=k f1_alpha f2=e f2_alpha f12=ke	
+F	p=ask s=ed. p1=k p1_alpha p2=s p2_alpha p21=sk p1f1=ke f1=e f1_alpha f2=d f2_alpha f12=ed	
+F	p=aske s=d. p1=e p1_alpha p2=k p2_alpha p21=ke p1f1=ed f1=d f1_alpha f2=. f2_eos f12=d.	
+F	p=asked s=. p1=d p1_alpha p2=e p2_alpha p21=ed p1f1=d. f1=. f1_eos f2=bok	
+F	p=s s=aid, p1=s p1_alpha p2=bok p1f1=sa f1=a f1_alpha f2=i f2_alpha f12=ai	
+F	p=sa s=id, p1=a p1_alpha p2=s p2_alpha p21=sa p1f1=ai f1=i f1_alpha f2=d f2_alpha f12=id	
+F	p=sai s=d, p1=i p1_alpha p2=a p2_alpha p21=ai p1f1=id f1=d f1_alpha f2=, f12=d,	
+F	p=said s=, p1=d p1_alpha p2=i p2_alpha p21=id p1f1=d, f1=, f2=bok	
+F	p=" s=Maybe, p1=" p1_quote p2=bok p1f1="M f1=M f1_alpha f1_caps f2=a f2_alpha f12=Ma	
+F	p="M s=aybe, p1=M p1_alpha p1_caps p2=" p2_quote p21="M p1f1=Ma f1=a f1_alpha f2=y f2_alpha f12=ay	
+F	p="Ma s=ybe, p1=a p1_alpha p2=M p2_alpha p2_caps p21=Ma p1f1=ay f1=y f1_alpha f2=b f2_alpha f12=yb	
+F	p="May s=be, p1=y p1_alpha p2=a p2_alpha p21=ay p1f1=yb f1=b f1_alpha f2=e f2_alpha f12=be	
+F	p="Mayb s=e, p1=b p1_alpha p2=y p2_alpha p21=yb p1f1=be f1=e f1_alpha f2=, f12=e,	
+F	p="Maybe s=, p1=e p1_alpha p2=b p2_alpha p21=be p1f1=e, f1=, f2=bok	
+F	p=s s=tops." p1=s p1_alpha p2=bok p1f1=st f1=t f1_alpha f2=o f2_alpha f12=to	
+F	p=st s=ops." p1=t p1_alpha p2=s p2_alpha p21=st p1f1=to f1=o f1_alpha f2=p f2_alpha f12=op	
+F	p=sto s=ps." p1=o p1_alpha p2=t p2_alpha p21=to p1f1=op f1=p f1_alpha f2=s f2_alpha f12=ps	
+F	p=stop s=s." p1=p p1_alpha p2=o p2_alpha p21=op p1f1=ps f1=s f1_alpha f2=. f2_eos f12=s.	
+F	p=stops s=." p1=s p1_alpha p2=p p2_alpha p21=ps p1f1=s. f1=. f1_eos f2=" f2_quote f12=."	
+F	p=stops. s=" p1=. p1_eos p2=s p2_alpha p21=s. p1f1=." f1=" f1_quote f2=bok	
+F	p=' s=Closed p1=' p1_quote p2=bok p1f1='C f1=C f1_alpha f1_caps f2=l f2_alpha f12=Cl	
+F	p='C s=losed p1=C p1_alpha p1_caps p2=' p2_quote p21='C p1f1=Cl f1=l f1_alpha f2=o f2_alpha f12=lo	
+F	p='Cl s=osed p1=l p1_alpha p2=C p2_alpha p2_caps p21=Cl p1f1=lo f1=o f1_alpha f2=s f2_alpha f12=os	
+F	p='Clo s=sed p1=o p1_alpha p2=l p2_alpha p21=lo p1f1=os f1=s f1_alpha f2=e f2_alpha f12=se	
+F	p='Clos s=ed p1=s p1_alpha p2=o p2_alpha p21=os p1f1=se f1=e f1_alpha f2=d f2_alpha f12=ed	
+F	p='Close s=d p1=e p1_alpha p2=s p2_alpha p21=se p1f1=ed f1=d f1_alpha f2=bok	
+F	p=r s=epairs'. p1=r p1_alpha p2=bok p1f1=re f1=e f1_alpha f2=p f2_alpha f12=ep	
+F	p=re s=pairs'. p1=e p1_alpha p2=r p2_alpha p21=re p1f1=ep f1=p f1_alpha f2=a f2_alpha f12=pa	
+F	p=rep s=airs'. p1=p p1_alpha p2=e p2_alpha p21=ep p1f1=pa f1=a f1_alpha f2=i f2_alpha f12=ai	
+F	p=repa s=irs'. p1=a p1_alpha p2=p p2_alpha p21=pa p1f1=ai f1=i f1_alpha f2=r f2_alpha f12=ir	
+F	p=repai s=rs'. p1=i p1_alpha p2=a p2_alpha p21=ai p1f1=ir f1=r f1_alpha f2=s f2_alpha f12=rs	
+F	p=repair s=s'. p1=r p1_alpha p2=i p2_alpha p21=ir p1f1=rs f1=s f1_alpha f2=' f2_quote f12=s'	
+F	p=repairs s='. p1=s p1_alpha p2=r p2_alpha p21=rs p1f1=s' f1=' f1_quote f2=. f2_eos f12='.	
+F	p=repairs' s=. p1=' p1_quote p2=s p2_alpha p21=s' p1f1='. f1=. f1_eos f2=bok	
+F	p=“ s=Curly p1=“ p2=bok p1f1=“C f1=C f1_alpha f1_caps f2=u f2_alpha f12=Cu	
+F	p=“C s=urly p1=C p1_alpha p1_caps p2=“ p21=“C p1f1=Cu f1=u f1_alpha f2=r f2_alpha f12=ur	
+F	p=“Cu s=rly p1=u p1_alpha p2=C p2_alpha p2_caps p21=Cu p1f1=ur f1=r f1_alpha f2=l f2_alpha f12=rl	
+F	p=“Cur s=ly p1=r p1_alpha p2=u p2_alpha p21=ur p1f1=rl f1=l f1_alpha f2=y f2_alpha f12=ly	
+F	p=“Curl s=y p1=l p1_alpha p2=r p2_alpha p21=rl p1f1=ly f1=y f1_alpha f2=bok	
+F	p=d s=ifferent,” p1=d p1_alpha p2=bok p1f1=di f1=i f1_alpha f2=f f2_alpha f12=if	
+F	p=di s=fferent,” p1=i p1_alpha p2=d p2_alpha p21=di p1f1=if f1=f f1_alpha f2=f f2_alpha f12=ff	
+F	p=dif s=ferent,” p1=f p1_alpha p2=i p2_alpha p21=if p1f1=ff f1=f f1_alpha f2=e f2_alpha f12=fe	
+F	p=diff s=erent,” p1=f p1_alpha p2=f p2_alpha p21=ff p1f1=fe f1=e f1_alpha f2=r f2_alpha f12=er	
+F	p=diffe s=rent,” p1=e p1_alpha p2=f p2_alpha p21=fe p1f1=er f1=r f1_alpha f2=e f2_alpha f12=re	
+F	p=differ s=ent,” p1=r p1_alpha p2=e p2_alpha p21=er p1f1=re f1=e f1_alpha f2=n f2_alpha f12=en	
+F	p=differe s=nt,” p1=e p1_alpha p2=r p2_alpha p21=re p1f1=en f1=n f1_alpha f2=t f2_alpha f12=nt	
+F	p=differen s=t,” p1=n p1_alpha p2=e p2_alpha p21=en p1f1=nt f1=t f1_alpha f2=, f12=t,	
+F	p=different s=,” p1=t p1_alpha p2=n p2_alpha p21=nt p1f1=t, f1=, f2=” f12=,”	
+F	p=different, s=” p1=, p2=t p2_alpha p21=t, p1f1=,” f1=” f2=bok	
+F	p=n s=oted, p1=n p1_alpha p2=bok p1f1=no f1=o f1_alpha f2=t f2_alpha f12=ot	
+F	p=no s=ted, p1=o p1_alpha p2=n p2_alpha p21=no p1f1=ot f1=t f1_alpha f2=e f2_alpha f12=te	
+F	p=not s=ed, p1=t p1_alpha p2=o p2_alpha p21=ot p1f1=te f1=e f1_alpha f2=d f2_alpha f12=ed	
+F	p=note s=d, p1=e p1_alpha p2=t p2_alpha p21=te p1f1=ed f1=d f1_alpha f2=, f12=d,	
+F	p=noted s=, p1=d p1_alpha p2=e p2_alpha p21=ed p1f1=d, f1=, f2=bok	
+F	p=“ s=and p1=“ p2=bok p1f1=“a f1=a f1_alpha f2=n f2_alpha f12=an	
+F	p=“a s=nd p1=a p1_alpha p2=“ p21=“a p1f1=an f1=n f1_alpha f2=d f2_alpha f12=nd	
+F	p=“an s=d p1=n p1_alpha p2=a p2_alpha p21=an p1f1=nd f1=d f1_alpha f2=bok	
+F	p=‘ s=single’ p1=‘ p2=bok p1f1=‘s f1=s f1_alpha f2=i f2_alpha f12=si	
+F	p=‘s s=ingle’ p1=s p1_alpha p2=‘ p21=‘s p1f1=si f1=i f1_alpha f2=n f2_alpha f12=in	
+F	p=‘si s=ngle’ p1=i p1_alpha p2=s p2_alpha p21=si p1f1=in f1=n f1_alpha f2=g f2_alpha f12=ng	
+F	p=‘sin s=gle’ p1=n p1_alpha p2=i p2_alpha p21=in p1f1=ng f1=g f1_alpha f2=l f2_alpha f12=gl	
+F	p=‘sing s=le’ p1=g p1_alpha p2=n p2_alpha p21=ng p1f1=gl f1=l f1_alpha f2=e f2_alpha f12=le	
+F	p=‘singl s=e’ p1=l p1_alpha p2=g p2_alpha p21=gl p1f1=le f1=e f1_alpha f2=’ f12=e’	
+F	p=‘single s=’ p1=e p1_alpha p2=l p2_alpha p21=le p1f1=e’ f1=’ f2=bok	
+F	p=o s=nes.” p1=o p1_alpha p2=bok p1f1=on f1=n f1_alpha f2=e f2_alpha f12=ne	
+F	p=on s=es.” p1=n p1_alpha p2=o p2_alpha p21=on p1f1=ne f1=e f1_alpha f2=s f2_alpha f12=es	
+F	p=one s=s.” p1=e p1_alpha p2=n p2_alpha p21=ne p1f1=es f1=s f1_alpha f2=. f2_eos f12=s.	
+F	p=ones s=.” p1=s p1_alpha p2=e p2_alpha p21=es p1f1=s. f1=. f1_eos f2=” f12=.”	
+F	p=ones. s=” p1=. p1_eos p2=s p2_alpha p21=s. p1f1=.” f1=” f2=bok	
+F	p=a s=nswered. p1=a p1_alpha p2=bok p1f1=an f1=n f1_alpha f2=s f2_alpha f12=ns	
+F	p=an s=swered. p1=n p1_alpha p2=a p2_alpha p21=an p1f1=ns f1=s f1_alpha f2=w f2_alpha f12=sw	
+F	p=ans s=wered. p1=s p1_alpha p2=n p2_alpha p21=ns p1f1=sw f1=w f1_alpha f2=e f2_alpha f12=we	
+F	p=answ s=ered. p1=w p1_alpha p2=s p2_alpha p21=sw p1f1=we f1=e f1_alpha f2=r f2_alpha f12=er	
+F	p=answe s=red. p1=e p1_alpha p2=w p2_alpha p21=we p1f1=er f1=r f1_alpha f2=e f2_alpha f12=re	
+F	p=answer s=ed. p1=r p1_alpha p2=e p2_alpha p21=er p1f1=re f1=e f1_alpha f2=d f2_alpha f12=ed	
+F	p=answere s=d. p1=e p1_alpha p2=r p2_alpha p21=re p1f1=ed f1=d f1_alpha f2=. f2_eos f12=d.	
+F	p=answered s=. p1=d p1_alpha p2=e p2_alpha p21=ed p1f1=d. f1=. f1_eos f2=bok	
+end	turbo:events
+layer	turbo:stream-errors	document	0	after:u32	class:str	message:str
+end	turbo:stream-errors
+layer	turbo:event-checksum	document	1	crc32c:u32
+2208803839
+end	turbo:event-checksum
+layer	turbo:manifest	document	10	key:str	value:str
+Component-Name	TokenizerME
+Language	de
+Manifest-Version	1.0
+OpenNLP-Version	3.0.0-SNAPSHOT
+TrainerType	Event
+Training-Eventhash	1
+alphaNumericPattern	^[A-Za-z0-9äéöüÄÉÖÜß]+$
+factory	opennlp.tools.tokenize.TokenizerFactory
+serializer-class-abbreviations.dictionary	opennlp.tools.util.model.DictionarySerializer
+useAlphaNumericOptimization	true
+end	turbo:manifest
+layer	turbo:package-entries	document	3	name:str	length:u32
+manifest.properties	444
+abbreviations.dictionary	468
+token.model	61
+end	turbo:package-entries
+layer	turbo:dictionary	document	1	xml:str
+<?xml version="1.0" encoding="UTF-8"?><dictionary case_sensitive="false">\n    <entry>\n        <token>Dr.</token>\n    </entry>\n    <entry>\n        <token>U.S.</token>\n    </entry>\n    <entry>\n        <token>xyz.,"abc</token>\n    </entry>\n    <entry>\n        <token>a.m.</token>\n    </entry>\n    <entry>\n        <token>etc.</token>\n    </entry>\n    <entry>\n        <token>e.g.</token>\n    </entry>\n    <entry>\n        <token>(c)Co.ltd</token>\n    </entry>\n</dictionary>\n
+end	turbo:dictionary

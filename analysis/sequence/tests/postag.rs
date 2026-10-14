@@ -5,10 +5,10 @@
 //! `POSTaggerME` returns for each requested format.
 //!
 //! The dictionary files under `golden/resources` and the fixture model
-//! are always checked. The public English models are not checked in: set
-//! TURBO_TEST_OPENNLP_MODELS to a directory holding them (see the crate
-//! README) to run those tests; without it they say they were skipped and
-//! pass, unless TURBO_TEST_REQUIRE_OPENNLP_MODELS=1.
+//! are always checked. The published English UD model comes from
+//! `turbo-goldens fetch-models` (`turbo_goldens::published_model`). The
+//! OpenNLP 1.5 models are local-only: set `TURBO_TEST_OPENNLP_MODELS` to
+//! a directory holding them (see the crate README) to run those tests.
 
 mod common;
 
@@ -83,8 +83,8 @@ fn check_file(name: &str) {
     check_dictionary(Some(&TagDictionary::read(&xml).unwrap()), name);
 }
 
-fn check_model(dir: &Path, name: &str, file_name: &str) {
-    let file = ModelFile::read(dir.join(file_name)).unwrap();
+fn check_model(path: &Path, name: &str) {
+    let file = ModelFile::read(path).unwrap_or_else(|e| panic!("{}: {e}", path.display()));
     check_dictionary(TagDictionary::for_model(&file).unwrap().as_ref(), name);
 
     let text = common::read(&format!("expected/tagformat-{name}.txt"));
@@ -144,7 +144,7 @@ fn fixture_dictionary_case_sensitive() {
 
 #[test]
 fn pos_fixture() {
-    check_model(&common::golden().join("models"), "pos-fixture", "pos-fixture.bin");
+    check_model(&common::golden().join("models/pos-fixture.bin"), "pos-fixture");
 }
 
 #[test]
@@ -162,38 +162,36 @@ fn guesses() {
     assert!(n > 0);
 }
 
-/// The directory of the public English models, or None after saying the
-/// test is skipped.
-fn real_models(test: &str) -> Option<PathBuf> {
+/// An OpenNLP 1.5 model in `TURBO_TEST_OPENNLP_MODELS` (local-only: the
+/// 1.5 training corpora are LDC or undocumented, so CI does not fetch
+/// them), or `None` after saying the test is skipped.
+fn model_15(file_name: &str, test: &str) -> Option<PathBuf> {
     let Some(dir) = std::env::var_os("TURBO_TEST_OPENNLP_MODELS") else {
-        if std::env::var("TURBO_TEST_REQUIRE_OPENNLP_MODELS").is_ok_and(|v| v == "1") {
-            panic!("{test}: TURBO_TEST_OPENNLP_MODELS is not set");
-        }
         println!("{test}: skipped: TURBO_TEST_OPENNLP_MODELS is not set");
         return None;
     };
-    Some(PathBuf::from(dir))
+    Some(PathBuf::from(dir).join(file_name))
 }
 
 /// No tag dictionary; UD outcomes, among them joined ones like
 /// `AUX+PART` that convert to `?`.
 #[test]
 fn en_ud_ewt_pos() {
-    if let Some(dir) = real_models("en_ud_ewt_pos") {
-        check_model(&dir, "en-ud-ewt-pos", "opennlp-en-ud-ewt-pos-1.3-2.5.4.bin");
+    if let Some(path) = turbo_goldens::published_model("opennlp-en-ud-ewt-pos-1.3-2.5.4.bin") {
+        check_model(&path, "en-ud-ewt-pos");
     }
 }
 
 #[test]
 fn en_pos_maxent() {
-    if let Some(dir) = real_models("en_pos_maxent") {
-        check_model(&dir, "en-pos-maxent", "en-pos-maxent.bin");
+    if let Some(path) = model_15("en-pos-maxent.bin", "en_pos_maxent") {
+        check_model(&path, "en-pos-maxent");
     }
 }
 
 #[test]
 fn en_pos_perceptron() {
-    if let Some(dir) = real_models("en_pos_perceptron") {
-        check_model(&dir, "en-pos-perceptron", "en-pos-perceptron.bin");
+    if let Some(path) = model_15("en-pos-perceptron.bin", "en_pos_perceptron") {
+        check_model(&path, "en-pos-perceptron");
     }
 }

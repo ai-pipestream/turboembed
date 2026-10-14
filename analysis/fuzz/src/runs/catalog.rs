@@ -11,11 +11,12 @@ use super::{Run, split_options};
 use crate::resources::{Resources, Unavailable};
 
 /// The annotator directories the generator writes that the differential
-/// does not cover: the training stack and the format readers (`formats`,
-/// `masc`, `ner`) compare files, not layers of a text; the evaluators
+/// does not cover: the training stack (`train`, `train-events`) and the
+/// format readers (`formats`, `masc`, `ner`) compare files, not layers of
+/// a text; the evaluators
 /// compare scores; the detokenizer runs on token lists; the BPE trainer
 /// learns merges from a whole set.
-pub const NOT_COVERED: [&str; 7] = ["train", "formats", "evaluate", "detokenize", "bpe", "masc", "ner"];
+pub const NOT_COVERED: [&str; 8] = ["train", "train-events", "formats", "evaluate", "detokenize", "bpe", "masc", "ner"];
 
 /// Every run the differential covers, as `(annotator, run)`: the golden
 /// directories under `analysis/goldens/data`. A run whose model is not
@@ -25,6 +26,10 @@ pub const RUNS: &[(&str, &str)] = &[
     ("sentdetect", "en-abbrev+legacy"),
     ("sentdetect", "en-plain"),
     ("sentdetect", "en-plain+legacy"),
+    ("sentdetect", "en-plain-perceptron-rust"),
+    ("sentdetect", "en-plain-perceptron-rust+legacy"),
+    ("sentdetect", "en-plain-qn-rust"),
+    ("sentdetect", "en-plain-qn-rust+legacy"),
     ("sentdetect", "en-plain-rust"),
     ("sentdetect", "en-plain-rust+legacy"),
     ("sentdetect", "newline"),
@@ -71,6 +76,8 @@ pub const RUNS: &[(&str, &str)] = &[
     ("postag", "opennlp-en-ud-ewt-pos-1.3-2.5.4+beam10"),
     ("postag", "opennlp-en-ud-ewt-pos-1.3-2.5.4+penn"),
     ("postag", "pos-fixture"),
+    ("postag", "pos-fixture-rust"),
+    ("lemmatize", "lemma-fixture-rust"),
     ("lemmatize", "opennlp-de-ud-gsd-lemmas-1.3-2.5.4"),
     ("lemmatize", "opennlp-en-ud-ewt-lemmas-1.3-2.5.4"),
     ("lemmatize-dictionary", "lemmatizer-dictionary"),

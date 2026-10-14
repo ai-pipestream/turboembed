@@ -1,0 +1,57 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	edge/french	164	149	6bab75cdbbd521fa95a0f838d9b38e836a5efc8c22c0cb655bc79bd66bdcc6eb
+annotator	opennlp.tools.ml.perceptron.PerceptronTrainer	train
+config	Algorithm	PERCEPTRON
+config	Cutoff	5
+config	DataIndexer	TwoPass
+config	Iterations	100
+config	StepSizeDecrease	0.05
+config	Tolerance	0.01
+config	UseAverage	false
+config	UseSkippedAveraging	false
+config	sort	false
+config	source	sentdetect
+layer	turbo:events	document	6	outcome:str	context:str	values:str
+n	sp sn eos=? x= v=c'est s= n=«	
+n	sn eos=. x=dit-elle 8 v=», s= n=M. ncap	
+n	sn eos=. x=M 1 xcap v=dit-elle. s= n=Dupont ncap	
+n	sn eos=. x=€) 2 v=(3,50 s= n=Où ncap	
+n	sn eos=? x=cœur 4 v=le s= n=Naïve ncap	
+s	sn eos=. x=façade 6 v=Naïve vcap s= n=	
+end	turbo:events
+layer	turbo:perceptron-training	document	1	iterations:u32	message:str
+6	Stopping: change in training set accuracy less than {0.01}
+end	turbo:perceptron-training
+layer	turbo:perceptron-monitor	document	6	iteration:u32	correct:u32	events:u32	accuracy:f64
+1	5	6	3feaaaaaaaaaaaab 0.8333333333333334
+2	3	6	3fe0000000000000 0.5
+3	4	6	3fe5555555555555 0.6666666666666666
+4	4	6	3fe5555555555555 0.6666666666666666
+5	4	6	3fe5555555555555 0.6666666666666666
+6	4	6	3fe5555555555555 0.6666666666666666
+end	turbo:perceptron-monitor
+layer	turbo:perceptron-iterations	document	6	iteration:u32	parameters:str
+1	4de1bb4296f006660b4d4bae3f0a18037068ab1cb2e03d6c125a6ae494288de6
+2	9315327256244cec500802ef29f87924d4d12c8a40b02538948ec749d8e2eecc
+3	9315327256244cec500802ef29f87924d4d12c8a40b02538948ec749d8e2eecc
+4	9315327256244cec500802ef29f87924d4d12c8a40b02538948ec749d8e2eecc
+5	9315327256244cec500802ef29f87924d4d12c8a40b02538948ec749d8e2eecc
+6	9315327256244cec500802ef29f87924d4d12c8a40b02538948ec749d8e2eecc
+end	turbo:perceptron-iterations
+layer	turbo:perceptron-parameters	document	8	iteration:u32	predicate:u32	outcome:u32	value:f64
+1	0	0	bfee666666666666 -0.95
+1	0	1	3fee666666666666 0.95
+1	1	0	bfee666666666666 -0.95
+1	1	1	3fee666666666666 0.95
+6	0	0	bfa851eb851eb850 -0.04749999999999999
+6	0	1	3fa851eb851eb850 0.04749999999999999
+6	1	0	bfa851eb851eb850 -0.04749999999999999
+6	1	1	3fa851eb851eb850 0.04749999999999999
+end	turbo:perceptron-parameters
+layer	turbo:perceptron-model	document	1	sha256:str	length:u32	error:str
+e56dd3474d7644d2054d392c63d6be4b1cc2cbcf60b9a0a2182f808e2e29e28f	77	
+end	turbo:perceptron-model

@@ -1,0 +1,61 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	formats/conllu-basic	1620	1618	3997cb00603cdc6d6e9b5bea88a4291b2e44ceceec24a04d93df40e673f5828c
+annotator	opennlp.tools.postag.POSSampleEventStream	read
+config	format	conllu
+config	language	es
+config	run	postag-conllu-u
+config	source	postag
+config	tagset	u
+layer	turbo:events	document	27	outcome:str	context:str	values:str
+VERB	def suf=s suf=os suf=mos suf=amos pre=V pre=Va pre=Vam pre=Vamo w=vamos n1w=al n2w=mar S=begin wc=ic w&c=vamos,ic	
+ADP+DET	def suf=l suf=al pre=a pre=al w=al p1w=vamos n1w=mar n2w=del p1S=begin wc=lc w&c=al,lc t=VERB	
+NOUN	def suf=r suf=ar suf=mar pre=m pre=ma pre=mar w=mar p1w=al p2w=vamos n1w=del n2w=norte p2S=begin wc=lc w&c=mar,lc t=ADP+DET t2=VERB,ADP+DET	
+ADP+DET	def suf=l suf=el suf=del pre=d pre=de pre=del w=del p1w=mar p2w=al n1w=norte n2w=. wc=lc w&c=del,lc t=NOUN t2=ADP+DET,NOUN	
+NOUN	def suf=e suf=te suf=rte suf=orte pre=n pre=no pre=nor pre=nort w=norte p1w=del p2w=mar n1w=. wc=lc w&c=norte,lc t=ADP+DET t2=NOUN,ADP+DET	
+PUNCT	def suf=. pre=. w=. p1w=norte p2w=del wc=other w&c=.,other t=NOUN t2=ADP+DET,NOUN	
+PRON	def suf=e suf=le suf=Ele pre=E pre=El pre=Ele w=ele n1w=saiu n2w=da S=begin wc=ic w&c=ele,ic	
+VERB	def suf=u suf=iu suf=aiu suf=saiu pre=s pre=sa pre=sai pre=saiu w=saiu p1w=ele n1w=da n2w=casa p1S=begin wc=lc w&c=saiu,lc t=PRON	
+ADP+DET	def suf=a suf=da pre=d pre=da w=da p1w=saiu p2w=ele n1w=casa n2w=às p2S=begin wc=lc w&c=da,lc t=VERB t2=PRON,VERB	
+NOUN	def suf=a suf=sa suf=asa suf=casa pre=c pre=ca pre=cas pre=casa w=casa p1w=da p2w=saiu n1w=às n2w=10 wc=lc w&c=casa,lc t=ADP+DET t2=VERB,ADP+DET	
+ADP+DET	def suf=s suf=às pre=à pre=às w=às p1w=casa p2w=da n1w=10 n2w=h wc=lc w&c=às,lc t=NOUN t2=ADP+DET,NOUN	
+NUM	def suf=0 suf=10 pre=1 pre=10 w=10 p1w=às p2w=casa n1w=h n2w=. wc=2d w&c=10,2d t=ADP+DET t2=NOUN,ADP+DET	
+NOUN	def suf=h pre=h w=h p1w=10 p2w=às n1w=. wc=lc w&c=h,lc t=NUM t2=ADP+DET,NUM	
+PUNCT	def suf=. pre=. w=. p1w=h p2w=10 wc=other w&c=.,other t=NOUN t2=NUM,NOUN	
+PROPN	def suf=e suf=ue suf=Sue pre=S pre=Su pre=Sue w=sue n1w=likes n2w=coffee S=begin wc=ic w&c=sue,ic	
+VERB	def suf=s suf=es suf=kes suf=ikes pre=l pre=li pre=lik pre=like w=likes p1w=sue n1w=coffee n2w=and p1S=begin wc=lc w&c=likes,lc t=PROPN	
+NOUN	def suf=e suf=ee suf=fee suf=ffee pre=c pre=co pre=cof pre=coff w=coffee p1w=likes p2w=sue n1w=and n2w=bill p2S=begin wc=lc w&c=coffee,lc t=VERB t2=PROPN,VERB	
+CCONJ	def suf=d suf=nd suf=and pre=a pre=an pre=and w=and p1w=coffee p2w=likes n1w=bill n2w=likes wc=lc w&c=and,lc t=NOUN t2=VERB,NOUN	
+PROPN	def suf=l suf=ll suf=ill suf=Bill pre=B pre=Bi pre=Bil pre=Bill w=bill p1w=and p2w=coffee n1w=likes n2w=tea wc=ic w&c=bill,ic t=CCONJ t2=NOUN,CCONJ	
+VERB	def suf=s suf=es suf=kes suf=ikes pre=l pre=li pre=lik pre=like w=likes p1w=bill p2w=and n1w=tea wc=lc w&c=likes,lc t=PROPN t2=CCONJ,PROPN	
+NOUN	def suf=a suf=ea suf=tea pre=t pre=te pre=tea w=tea p1w=likes p2w=bill wc=lc w&c=tea,lc t=VERB t2=PROPN,VERB	
+ADP	def suf=n suf=in suf=Sin pre=S pre=Si pre=Sin w=sin n1w=texto S=begin wc=ic w&c=sin,ic	
+NOUN	def suf=o suf=to suf=xto suf=exto pre=t pre=te pre=tex pre=text w=texto p1w=sin p1S=begin wc=lc w&c=texto,lc t=ADP	
+_	def suf=t suf=pt suf=ept suf=Kept pre=K pre=Ke pre=Kep pre=Kept w=kept n1w=inner n2w=spaces S=begin wc=ic w&c=kept,ic	
+_	def suf=r suf=er suf=ner suf=nner pre=i pre=in pre=inn pre=inne w=inner p1w=kept n1w=spaces n2w=, p1S=begin wc=lc w&c=inner,lc t=_	
+_	def suf=s suf=es suf=ces suf=aces pre=s pre=sp pre=spa pre=spac w=spaces p1w=inner p2w=kept n1w=, p2S=begin wc=lc w&c=spaces,lc t=_ t2=_,_	
+_	def suf=, pre=, w=, p1w=spaces p2w=inner wc=other w&c=,,other t=_ t2=_,_	
+end	turbo:events
+layer	turbo:stream-errors	document	0	after:u32	class:str	message:str
+end	turbo:stream-errors
+layer	turbo:event-checksum	document	1	crc32c:u32
+456635155
+end	turbo:event-checksum
+layer	turbo:manifest	document	8	key:str	value:str
+BeamSize	3
+Component-Name	POSTaggerME
+Language	es
+Manifest-Version	1.0
+OpenNLP-Version	3.0.0-SNAPSHOT
+TrainerType	Event
+Training-Eventhash	1
+factory	opennlp.tools.postag.POSTaggerFactory
+end	turbo:manifest
+layer	turbo:package-entries	document	3	name:str	length:u32
+manifest.properties	243
+generator.featuregen	1930
+pos.model	67
+end	turbo:package-entries

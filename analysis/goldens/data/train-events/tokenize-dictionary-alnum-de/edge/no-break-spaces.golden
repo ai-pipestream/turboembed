@@ -1,0 +1,46 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	edge/no-break-spaces	92	77	28744c64ca548f1b96f0de0d90ef4a9ce78d2992e8d9f219426ef9e46f1e06fe
+annotator	opennlp.tools.tokenize.TokSpanEventStream	read
+config	abbreviations	english-dictionary.xml
+config	format	text
+config	language	de
+config	run	tokenize-dictionary-alnum-de
+config	source	tokenize
+config	useAlphaNumericOptimization	true
+layer	turbo:events	document	6	outcome:str	context:str	values:str
+F	p=e s=m​zero p1=e p1_alpha p2=bok p1f1=em f1=m f1_alpha f2=​ f12=m​	
+F	p=em s=​zero p1=m p1_alpha p2=e p2_alpha p21=em p1f1=m​ f1=​ f2=z f2_alpha f12=​z	
+F	p=em​ s=zero p1=​ p2=m p2_alpha p21=m​ p1f1=​z f1=z f1_alpha f2=e f2_alpha f12=ze	
+F	p=em​z s=ero p1=z p1_alpha p2=​ p21=​z p1f1=ze f1=e f1_alpha f2=r f2_alpha f12=er	
+F	p=em​ze s=ro p1=e p1_alpha p2=z p2_alpha p21=ze p1f1=er f1=r f1_alpha f2=o f2_alpha f12=ro	
+F	p=em​zer s=o p1=r p1_alpha p2=e p2_alpha p21=er p1f1=ro f1=o f1_alpha f2=bok	
+end	turbo:events
+layer	turbo:stream-errors	document	0	after:u32	class:str	message:str
+end	turbo:stream-errors
+layer	turbo:event-checksum	document	1	crc32c:u32
+1084688386
+end	turbo:event-checksum
+layer	turbo:manifest	document	10	key:str	value:str
+Component-Name	TokenizerME
+Language	de
+Manifest-Version	1.0
+OpenNLP-Version	3.0.0-SNAPSHOT
+TrainerType	Event
+Training-Eventhash	1
+alphaNumericPattern	^[A-Za-z0-9äéöüÄÉÖÜß]+$
+factory	opennlp.tools.tokenize.TokenizerFactory
+serializer-class-abbreviations.dictionary	opennlp.tools.util.model.DictionarySerializer
+useAlphaNumericOptimization	true
+end	turbo:manifest
+layer	turbo:package-entries	document	3	name:str	length:u32
+manifest.properties	444
+abbreviations.dictionary	468
+token.model	61
+end	turbo:package-entries
+layer	turbo:dictionary	document	1	xml:str
+<?xml version="1.0" encoding="UTF-8"?><dictionary case_sensitive="false">\n    <entry>\n        <token>Dr.</token>\n    </entry>\n    <entry>\n        <token>U.S.</token>\n    </entry>\n    <entry>\n        <token>xyz.,"abc</token>\n    </entry>\n    <entry>\n        <token>a.m.</token>\n    </entry>\n    <entry>\n        <token>etc.</token>\n    </entry>\n    <entry>\n        <token>e.g.</token>\n    </entry>\n    <entry>\n        <token>(c)Co.ltd</token>\n    </entry>\n</dictionary>\n
+end	turbo:dictionary

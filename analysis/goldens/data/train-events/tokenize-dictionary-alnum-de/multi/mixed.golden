@@ -1,0 +1,86 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	multi/mixed	208	159	71ffe6d2d2efe18534c6caac3d4b4b2934977b4396111c647e9b0231c6370f99
+annotator	opennlp.tools.tokenize.TokSpanEventStream	read
+config	abbreviations	english-dictionary.xml
+config	format	text
+config	language	de
+config	run	tokenize-dictionary-alnum-de
+config	source	tokenize
+config	useAlphaNumericOptimization	true
+layer	turbo:events	document	46	outcome:str	context:str	values:str
+F	p=東 s=京 p1=東 p1_alpha p2=bok p1f1=東京 f1=京 f1_alpha f2=bok	
+F	p=\\ud842 s=\\udfb7野家-style p1=\\ud842 p2=bok p1f1=𠮷 f1=\\udfb7 f2=野 f2_alpha f12=\\udfb7野	
+F	p=𠮷 s=野家-style p1=\\udfb7 p2=\\ud842 p21=𠮷 p1f1=\\udfb7野 f1=野 f1_alpha f2=家 f2_alpha f12=野家	
+F	p=𠮷野 s=家-style p1=野 p1_alpha p2=\\udfb7 p21=\\udfb7野 p1f1=野家 f1=家 f1_alpha f2=- f12=家-	
+F	p=𠮷野家 s=-style p1=家 p1_alpha p2=野 p2_alpha p21=野家 p1f1=家- f1=- f2=s f2_alpha f12=-s	
+F	p=𠮷野家- s=style p1=- p2=家 p2_alpha p21=家- p1f1=-s f1=s f1_alpha f2=t f2_alpha f12=st	
+F	p=𠮷野家-s s=tyle p1=s p1_alpha p2=- p21=-s p1f1=st f1=t f1_alpha f2=y f2_alpha f12=ty	
+F	p=𠮷野家-st s=yle p1=t p1_alpha p2=s p2_alpha p21=st p1f1=ty f1=y f1_alpha f2=l f2_alpha f12=yl	
+F	p=𠮷野家-sty s=le p1=y p1_alpha p2=t p2_alpha p21=ty p1f1=yl f1=l f1_alpha f2=e f2_alpha f12=le	
+F	p=𠮷野家-styl s=e p1=l p1_alpha p2=y p2_alpha p21=yl p1f1=le f1=e f1_alpha f2=bok	
+F	p=\\ud83c s=\\udf5c p1=\\ud83c p2=bok p1f1=🍜 f1=\\udf5c f2=bok	
+F	p=¥ s=800. p1=¥ p2=bok p1f1=¥8 f1=8 f1_num f2=0 f2_num f12=80	
+F	p=¥8 s=00. p1=8 p1_num p2=¥ p21=¥8 p1f1=80 f1=0 f1_num f2=0 f2_num f12=00	
+F	p=¥80 s=0. p1=0 p1_num p2=8 p2_num p21=80 p1f1=00 f1=0 f1_num f2=. f2_eos f12=0.	
+F	p=¥800 s=. p1=0 p1_num p2=0 p2_num p21=00 p1f1=0. f1=. f1_eos f2=bok	
+F	p=\\ud835 s=\\udc00 p1=\\ud835 p2=bok p1f1=𝐀 f1=\\udc00 f2=bok	
+F	p=\\ud835 s=\\udd05 p1=\\ud835 p2=bok p1f1=𝔅 f1=\\udd05 f2=bok	
+F	p=s s=ets. p1=s p1_alpha p2=bok p1f1=se f1=e f1_alpha f2=t f2_alpha f12=et	
+F	p=se s=ts. p1=e p1_alpha p2=s p2_alpha p21=se p1f1=et f1=t f1_alpha f2=s f2_alpha f12=ts	
+F	p=set s=s. p1=t p1_alpha p2=e p2_alpha p21=et p1f1=ts f1=s f1_alpha f2=. f2_eos f12=s.	
+F	p=sets s=. p1=s p1_alpha p2=t p2_alpha p21=ts p1f1=s. f1=. f1_eos f2=bok	
+F	p=М s=ой p1=М p1_alpha p1_caps p2=bok p1f1=Мо f1=о f1_alpha f2=й f2_alpha f12=ой	
+F	p=Мо s=й p1=о p1_alpha p2=М p2_alpha p2_caps p21=Мо p1f1=ой f1=й f1_alpha f2=bok	
+F	p=д s=руг p1=д p1_alpha p2=bok p1f1=др f1=р f1_alpha f2=у f2_alpha f12=ру	
+F	p=др s=уг p1=р p1_alpha p2=д p2_alpha p21=др p1f1=ру f1=у f1_alpha f2=г f2_alpha f12=уг	
+F	p=дру s=г p1=у p1_alpha p2=р p2_alpha p21=ру p1f1=уг f1=г f1_alpha f2=bok	
+F	p=\\ud83d s=\\udc4b🏽 p1=\\ud83d p2=bok p1f1=👋 f1=\\udc4b f2=\\ud83c f12=\\udc4b\\ud83c	
+F	p=👋 s=🏽 p1=\\udc4b p2=\\ud83d p21=👋 p1f1=\\udc4b\\ud83c f1=\\ud83c f2=\\udffd f12=🏽	
+F	p=👋\\ud83c s=\\udffd p1=\\ud83c p2=\\udc4b p21=\\udc4b\\ud83c p1f1=🏽 f1=\\udffd f2=bok	
+F	p=B s=erlin! p1=B p1_alpha p1_caps p2=bok p1f1=Be f1=e f1_alpha f2=r f2_alpha f12=er	
+F	p=Be s=rlin! p1=e p1_alpha p2=B p2_alpha p2_caps p21=Be p1f1=er f1=r f1_alpha f2=l f2_alpha f12=rl	
+F	p=Ber s=lin! p1=r p1_alpha p2=e p2_alpha p21=er p1f1=rl f1=l f1_alpha f2=i f2_alpha f12=li	
+F	p=Berl s=in! p1=l p1_alpha p2=r p2_alpha p21=rl p1f1=li f1=i f1_alpha f2=n f2_alpha f12=in	
+F	p=Berli s=n! p1=i p1_alpha p2=l p2_alpha p21=li p1f1=in f1=n f1_alpha f2=! f2_eos f12=n!	
+F	p=Berlin s=! p1=n p1_alpha p2=i p2_alpha p21=in p1f1=n! f1=! f1_eos f2=bok	
+F	p=我 s=喜欢𠀀这个字吗？ p1=我 p1_alpha p2=bok p1f1=我喜 f1=喜 f1_alpha f2=欢 f2_alpha f12=喜欢	
+F	p=我喜 s=欢𠀀这个字吗？ p1=喜 p1_alpha p2=我 p2_alpha p21=我喜 p1f1=喜欢 f1=欢 f1_alpha f2=\\ud840 f12=欢\\ud840	
+F	p=我喜欢 s=𠀀这个字吗？ p1=欢 p1_alpha p2=喜 p2_alpha p21=喜欢 p1f1=欢\\ud840 f1=\\ud840 f2=\\udc00 f12=𠀀	
+F	p=我喜欢\\ud840 s=\\udc00这个字吗？ p1=\\ud840 p2=欢 p2_alpha p21=欢\\ud840 p1f1=𠀀 f1=\\udc00 f2=这 f2_alpha f12=\\udc00这	
+F	p=我喜欢𠀀 s=这个字吗？ p1=\\udc00 p2=\\ud840 p21=𠀀 p1f1=\\udc00这 f1=这 f1_alpha f2=个 f2_alpha f12=这个	
+F	p=我喜欢𠀀这 s=个字吗？ p1=这 p1_alpha p2=\\udc00 p21=\\udc00这 p1f1=这个 f1=个 f1_alpha f2=字 f2_alpha f12=个字	
+F	p=我喜欢𠀀这个 s=字吗？ p1=个 p1_alpha p2=这 p2_alpha p21=这个 p1f1=个字 f1=字 f1_alpha f2=吗 f2_alpha f12=字吗	
+F	p=我喜欢𠀀这个字 s=吗？ p1=字 p1_alpha p2=个 p2_alpha p21=个字 p1f1=字吗 f1=吗 f1_alpha f2=？ f12=吗？	
+F	p=我喜欢𠀀这个字吗 s=？ p1=吗 p1_alpha p2=字 p2_alpha p21=字吗 p1f1=吗？ f1=？ f2=bok	
+F	p=\\ud83c s=\\udf89. p1=\\ud83c p2=bok p1f1=🎉 f1=\\udf89 f2=. f2_eos f12=\\udf89.	
+F	p=🎉 s=. p1=\\udf89 p2=\\ud83c p21=🎉 p1f1=\\udf89. f1=. f1_eos f2=bok	
+end	turbo:events
+layer	turbo:stream-errors	document	0	after:u32	class:str	message:str
+end	turbo:stream-errors
+layer	turbo:event-checksum	document	1	crc32c:u32
+1907969921
+end	turbo:event-checksum
+layer	turbo:manifest	document	10	key:str	value:str
+Component-Name	TokenizerME
+Language	de
+Manifest-Version	1.0
+OpenNLP-Version	3.0.0-SNAPSHOT
+TrainerType	Event
+Training-Eventhash	1
+alphaNumericPattern	^[A-Za-z0-9äéöüÄÉÖÜß]+$
+factory	opennlp.tools.tokenize.TokenizerFactory
+serializer-class-abbreviations.dictionary	opennlp.tools.util.model.DictionarySerializer
+useAlphaNumericOptimization	true
+end	turbo:manifest
+layer	turbo:package-entries	document	3	name:str	length:u32
+manifest.properties	444
+abbreviations.dictionary	468
+token.model	61
+end	turbo:package-entries
+layer	turbo:dictionary	document	1	xml:str
+<?xml version="1.0" encoding="UTF-8"?><dictionary case_sensitive="false">\n    <entry>\n        <token>Dr.</token>\n    </entry>\n    <entry>\n        <token>U.S.</token>\n    </entry>\n    <entry>\n        <token>xyz.,"abc</token>\n    </entry>\n    <entry>\n        <token>a.m.</token>\n    </entry>\n    <entry>\n        <token>etc.</token>\n    </entry>\n    <entry>\n        <token>e.g.</token>\n    </entry>\n    <entry>\n        <token>(c)Co.ltd</token>\n    </entry>\n</dictionary>\n
+end	turbo:dictionary

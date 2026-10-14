@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<dictionary case_sensitive="false">
+<entry tags="DT"><token>the</token></entry>
+<entry tags="NN VB VBP"><token>Run</token></entry>
+<entry tags="VBD VBN"><token>fell</token></entry>
+<entry tags="NNP"><token>Paris</token></entry>
+</dictionary>

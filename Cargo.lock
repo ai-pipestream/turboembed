@@ -1949,6 +1949,7 @@ dependencies = [
 name = "turbo-maxent"
 version = "0.1.0"
 dependencies = [
+ "turbo-goldens",
  "turbo-jvm",
  "turbo-unicode",
 ]
@@ -2042,6 +2043,7 @@ dependencies = [
 name = "turbo-sequence"
 version = "0.1.0"
 dependencies = [
+ "turbo-goldens",
  "turbo-jvm",
  "turbo-maxent",
  "turbo-unicode",
@@ -2125,6 +2127,24 @@ dependencies = [
 ]
 
 [[package]]
+name = "turbo-train-components"
+version = "0.1.0"
+dependencies = [
+ "turbo-analysis",
+ "turbo-formats",
+ "turbo-goldens",
+ "turbo-jvm",
+ "turbo-lemmatizer",
+ "turbo-maxent",
+ "turbo-sentdetect",
+ "turbo-sequence",
+ "turbo-tokenize",
+ "turbo-train",
+ "turbo-unicode",
+ "turbo-zoo",
+]
+
+[[package]]
 name = "turbo-unicode"
 version = "0.1.0"
 dependencies = [
@@ -2142,6 +2162,7 @@ dependencies = [
  "serde",
  "serde_json",
  "sha2",
+ "turbo-goldens",
  "ureq",
 ]
 

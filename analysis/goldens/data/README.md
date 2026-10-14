@@ -103,6 +103,15 @@ are not taken from any corpus.
   (`analysis/sentdetect/tests/fixtures/sentences.txt`), for the training
   goldens.
 
+- `inputs/tagged/`: 19 English sentences written for this project with
+  Penn Treebank tags, as word and tag lines (`wordtag.txt`, with one
+  empty line, a sample with no tokens) and as word, tag and lemma lines
+  with a blank line between sentences (`lemmas.txt`); every tag of the
+  fixture tag dictionary `tags.tagdict` occurs in them. The fixtures
+  `pos-fixture-rust.bin` and `lemma-fixture-rust.bin` were trained on
+  them, and the `train-events` goldens of the tagger and the lemmatizer
+  run on them.
+
 - `inputs/formats/`: 41 small files in OpenNLP's native sample formats,
   in CoNLL-U, CoNLL-2002, CoNLL-2003, CoNLL-X and in MASC's layout, written for this project except as
   noted below; the part of the id before
@@ -206,7 +215,11 @@ that differs.
 | `en-abbrev.bin`, `en-plain.bin` | English sentence models trained by `analysis/sentdetect/tests/fixtures/src/TrainSentenceModel.java` (see the README there): `en-abbrev` has an abbreviation dictionary of 13 entries and `useTokenEnd=true`, `en-plain` has no dictionary and `useTokenEnd=false` |
 | `en-plain-rust.bin` | the `.bin` the Rust trainer writes when it trains `en-plain`'s events again (`analysis/train/tests/roundtrip.rs`, which checks that the fixture is that file): the `sent.model` entry and the manifest of `en-plain.bin`, byte for byte, in an archive written here (entries stored, manifest first); the JVM loads it so the goldens of the two files can be compared |
 | `en-plain-qn-rust.bin` | the `.bin` the Rust trainer writes when it trains `en-plain`'s events with `MAXENT_QN` (cutoff 1, the trainer's defaults; `analysis/train/tests/roundtrip.rs` checks that the fixture is that file and that its `sent.model` entry has the bytes the training golden `train/sentdetect-twopass-cutoff1-qn/train/sentences` recorded from the JVM's `QNTrainer`); the JVM loads it so the goldens show how it splits the fixture inputs |
-| `pos-fixture.bin` | a copy of `analysis/sequence/golden/models/pos-fixture.bin`, a part-of-speech model OpenNLP trained by GIS on 15 sentences with Penn Treebank tags, the default descriptor and the case-insensitive tag dictionary `tags.tagdict` (`the`, `Run`, `fell`, `Paris`; `analysis/sequence/README.md`) |
+| `en-plain-perceptron-rust.bin` | the same for `PERCEPTRON` (cutoff 1, the trainer's defaults), checked against the training golden `train/sentdetect-twopass-cutoff1-unsorted-perceptron/train/sentences` |
+| `pos-fixture.bin` | a copy of `analysis/sequence/golden/models/pos-fixture.bin`, a part-of-speech model OpenNLP trained by GIS on 15 sentences with Penn Treebank tags, the default descriptor and the case-insensitive tag dictionary `tags.tagdict` (`the`, `Run`, `fell`, `Paris`; `analysis/sequence/README.md`); `analysis/train-components/tests/fixtures.rs` trains it again byte for byte |
+| `tags.tagdict` | a copy of `analysis/sequence/golden/resources/tags.tagdict`, the case-insensitive tag dictionary above, as the generator reads it for the `postag-wordtag-tagdict` run and the Rust trainer for `pos-fixture-rust.bin` |
+| `pos-fixture-rust.bin` | the `.bin` the Rust trainer writes from `inputs/tagged/wordtag.txt` with the default descriptor and `tags.tagdict` (GIS, 100 iterations, cutoff 1, one thread; `analysis/train-components/tests/fixtures.rs`, which checks that the fixture is that file); the JVM loads it with `POSModel` so the goldens of the two taggers can be compared |
+| `lemma-fixture-rust.bin` | the `.bin` the Rust trainer writes from `inputs/tagged/lemmas.txt` (GIS, 100 iterations, cutoff 1, one thread; the same test); the JVM loads it with `LemmatizerModel` |
 | `lemmatizer-dictionary.txt` | a `DictionaryLemmatizer` dictionary written for this project: 48 `word<tab>tag<tab>lemma` lines with Universal Dependencies tags for words of the `en` and `multi` inputs, among them entries with several lemmas (`leave#leaf`), a word listed twice with one tag (the last wins), a word with two tags, an empty lemma field (`#`), fields after the lemma and a trailing tab (both ignored), entries with a capital letter (never found, since a lookup lowercases the token) and non-ASCII words |
 | `chunker-fixture.bin` | a copy of `analysis/sequence/golden/models/chunker-fixture.bin`, a chunker model OpenNLP trained by perceptron on 8 sentences with Penn Treebank tags and `B-`, `I-` and `O` chunk tags for `NP`, `VP`, `PP`, `ADJP` and `SBAR` (`analysis/sequence/golden/inputs/train-chunk.txt`, `analysis/sequence/README.md`); the only chunker model here, since the published chunker models are OpenNLP 1.5 models, which this project does not use |
 | `tokenizer-abbreviations.bin` | a copy of `analysis/maxent/tests/fixtures/models/tokenizer.bin`, a tokenizer model OpenNLP trained on six sentences with the case-insensitive dictionary `Dr.`, `U.S.`, `e.g.` (`analysis/maxent/tests/fixtures/README.md`) |
@@ -402,6 +415,17 @@ indexer with the run's cutoff and sorting, and the GIS trainer's log
 likelihood and parameters after every iteration (docs/analysis.md,
 "Training goldens"). The run has no model file; its settings name it.
 `analysis/train/tests/goldens.rs` compares the Rust indexers with them.
+
+`train-events/<run>/<set>/<id>.golden` is what the two event streams did
+with factory options (an abbreviation dictionary, the Portuguese and Thai
+end characters, the German alphanumeric pattern with the optimization
+on, CoNLL-U input) on `inputs/<set>/<id>.txt`: the events, the
+checksum, the exceptions the sample stream threw, and the manifest, zip
+entries and dictionary entry of a model file built from the factory
+(docs/analysis.md, "Training goldens"). The `postag-*` and `lemma-*` runs
+are the same for the tagger's and the lemmatizer's event streams, with
+the tag dictionary entry and `POSDictionary.serialize` cases.
+`analysis/train-components/tests/goldens.rs` compares with them.
 
 ## Normalizer goldens
 

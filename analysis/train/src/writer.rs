@@ -1,14 +1,16 @@
-//! The bytes of a trained model: `GenericModelWriter` over a `GISModel` or
-//! a `QNModel`, which is `BinaryGISModelWriter` with `GISModelWriter.persist`
-//! or `BinaryQNModelWriter` with `QNModelWriter.persist`, writing through
-//! `DataOutputStream` and `ModelParameterChunker`.
+//! The bytes of a trained model: `GenericModelWriter` over a `GISModel`, a
+//! `QNModel` or a `PerceptronModel`, which is `BinaryGISModelWriter` with
+//! `GISModelWriter.persist`, `BinaryQNModelWriter` with
+//! `QNModelWriter.persist` or `BinaryPerceptronModelWriter` with
+//! `PerceptronModelWriter.persist`, writing through `DataOutputStream` and
+//! `ModelParameterChunker`.
 //!
 //! The layout, read back by `turbo-maxent` and by OpenNLP's
-//! `GISModelReader` and `QNModelReader`:
+//! `GISModelReader`, `QNModelReader` and `PerceptronModelReader`:
 //!
 //! 1. `writeUTF("GIS")`, `writeInt(1)` and `writeDouble(1)`: the model type
 //!    and the correction constant and parameter, which nothing reads; or
-//!    `writeUTF("QN")` alone.
+//!    `writeUTF("QN")` or `writeUTF("Perceptron")` alone.
 //! 2. The outcome labels: their count, then each with `writeUTF`.
 //! 3. The outcome patterns: the predicates are sorted by their pattern
 //!    (the outcome ids a predicate has parameters for, compared
@@ -19,6 +21,10 @@
 //! 4. The predicate labels in the sorted order, their count first.
 //! 5. The parameters: for every predicate in the sorted order, one
 //!    `writeDouble` per entry of its pattern.
+//!
+//! The perceptron writer first drops every parameter that is zero from
+//! its predicate's pattern, and every predicate left with none; a model
+//! with no parameter left cannot be written ([`Error::NoParameters`]).
 //!
 //! Every string goes through `ModelParameterChunker.writeUTF`: a string of
 //! at most 65535 bytes of modified UTF-8 is written as `writeUTF` writes
@@ -36,12 +42,15 @@
 use crate::error::{Error, Result};
 use crate::gis::GisModel;
 use crate::java_string::JavaString;
+use crate::perceptron::PerceptronModel;
 use crate::qn::QnModel;
 
 /// The type string `GISModelWriter.persist` starts with.
 pub const GIS_TYPE: &str = "GIS";
 /// The type string `QNModelWriter.persist` starts with.
 pub const QN_TYPE: &str = "QN";
+/// The type string `PerceptronModelWriter.persist` starts with.
+pub const PERCEPTRON_TYPE: &str = "Perceptron";
 /// `ModelParameterChunker.SIGNATURE_CHUNKED_PARAMS`.
 pub const CHUNKED_SIGNATURE: &str = "CHUNKED-MODEL-PARAMS:";
 /// `writeUTF`'s limit on a string's modified UTF-8 bytes.
@@ -99,6 +108,26 @@ impl WritableModel for QnModel {
     }
 }
 
+/// The model as the trainer leaves it, zero parameters included. Writing
+/// the model drops them ([`write_perceptron`]).
+impl WritableModel for PerceptronModel {
+    fn outcome_labels(&self) -> &[String] {
+        PerceptronModel::outcome_labels(self)
+    }
+
+    fn pred_labels(&self) -> &[JavaString] {
+        PerceptronModel::pred_labels(self)
+    }
+
+    fn pattern(&self, p: usize) -> &[u32] {
+        PerceptronModel::pattern(self, p)
+    }
+
+    fn parameters(&self, p: usize) -> &[f64] {
+        PerceptronModel::parameters(self, p)
+    }
+}
+
 /// `GenericModelWriter(model, DataOutputStream).persist()` for a GIS
 /// model: the bytes of the `.model` entry.
 pub fn write_gis(model: &GisModel) -> Result<Vec<u8>> {
@@ -117,6 +146,78 @@ pub fn write_qn(model: &QnModel) -> Result<Vec<u8>> {
     out.write_utf(&JavaString::new(QN_TYPE))?;
     write_body(&mut out, model)?;
     Ok(out.bytes)
+}
+
+/// `GenericModelWriter(model, DataOutputStream).persist()` for a
+/// perceptron model: the bytes of the `.model` entry, without the zero
+/// parameters (`PerceptronModelWriter.sortValues`).
+pub fn write_perceptron(model: &PerceptronModel) -> Result<Vec<u8>> {
+    let pruned = Pruned::of(model);
+    if pruned.pred_labels.is_empty() {
+        return Err(Error::NoParameters);
+    }
+    let mut out = ModelOutput { bytes: Vec::new() };
+    out.write_utf(&JavaString::new(PERCEPTRON_TYPE))?;
+    write_body(&mut out, &pruned)?;
+    Ok(out.bytes)
+}
+
+/// A perceptron model as its writer sees it: each predicate's pattern and
+/// parameters without the zero ones, and only the predicates that keep a
+/// parameter, in model order.
+struct Pruned<'m> {
+    outcome_labels: &'m [String],
+    pred_labels: Vec<JavaString>,
+    /// `starts[p]..starts[p + 1]` of `outcomes` and `parameters` is
+    /// predicate `p`'s.
+    starts: Vec<usize>,
+    outcomes: Vec<u32>,
+    parameters: Vec<f64>,
+}
+
+impl<'m> Pruned<'m> {
+    fn of(model: &'m PerceptronModel) -> Pruned<'m> {
+        let mut pruned = Pruned {
+            outcome_labels: model.outcome_labels(),
+            pred_labels: Vec::new(),
+            starts: vec![0],
+            outcomes: Vec::new(),
+            parameters: Vec::new(),
+        };
+        for (p, label) in model.pred_labels().iter().enumerate() {
+            let mut kept = 0;
+            for (&o, &x) in model.pattern(p).iter().zip(model.parameters(p)) {
+                if x != 0.0 {
+                    pruned.outcomes.push(o);
+                    pruned.parameters.push(x);
+                    kept += 1;
+                }
+            }
+            if kept > 0 {
+                pruned.pred_labels.push(label.clone());
+                pruned.starts.push(pruned.outcomes.len());
+            }
+        }
+        pruned
+    }
+}
+
+impl WritableModel for Pruned<'_> {
+    fn outcome_labels(&self) -> &[String] {
+        self.outcome_labels
+    }
+
+    fn pred_labels(&self) -> &[JavaString] {
+        &self.pred_labels
+    }
+
+    fn pattern(&self, p: usize) -> &[u32] {
+        &self.outcomes[self.starts[p]..self.starts[p + 1]]
+    }
+
+    fn parameters(&self, p: usize) -> &[f64] {
+        &self.parameters[self.starts[p]..self.starts[p + 1]]
+    }
 }
 
 /// What follows the type: the outcomes, the patterns, the predicates and

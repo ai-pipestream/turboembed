@@ -61,6 +61,12 @@ impl Key {
     pub const NUM_OF_UPDATES: &'static str = "NumOfUpdates";
     /// `QNTrainer.MAX_FCT_EVAL_PARAM`.
     pub const MAX_FCT_EVAL: &'static str = "MaxFctEval";
+    /// `PerceptronTrainer`'s `UseAverage`.
+    pub const USE_AVERAGE: &'static str = "UseAverage";
+    /// `PerceptronTrainer`'s `UseSkippedAveraging`.
+    pub const USE_SKIPPED_AVERAGING: &'static str = "UseSkippedAveraging";
+    /// `PerceptronTrainer`'s `StepSizeDecrease`.
+    pub const STEP_SIZE_DECREASE: &'static str = "StepSizeDecrease";
 }
 
 /// `Parameters.ITERATIONS_DEFAULT_VALUE`.

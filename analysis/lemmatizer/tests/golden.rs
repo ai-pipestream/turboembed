@@ -27,7 +27,7 @@ use common::Case;
 use turbo_analysis::{Analyzer, Bound, Document, Key};
 use turbo_analysis_layers::{Confidence, Lemmas, PosTags, Tokens};
 use turbo_goldens::{GOLDEN_KEY, Tolerance, Unit, golden_key, load_document, matches_golden_key};
-use turbo_lemmatizer::{DictionaryLemmatizer, LemmaContext, LemmatizerModel, MaxentLemmatizer, Tagged};
+use turbo_lemmatizer::{DictionaryLemmatizer, LemmaContext, LemmatizerModel, MaxentLemmatizer, TokenTag};
 use turbo_sequence::{AcceptAll, BeamSearch, ContextGenerator, Features};
 use turbo_unicode::modified_utf8::push_modified_utf8;
 
@@ -71,20 +71,20 @@ impl<T, C: ContextGenerator<T>> ContextGenerator<T> for Recorder<C> {
 }
 
 /// The golden's sentences as tagged words with each token's byte start.
-fn sentences(doc: &Document) -> Vec<Vec<(Tagged<'_>, u32)>> {
+fn sentences(doc: &Document) -> Vec<Vec<(TokenTag<'_>, u32)>> {
     let tokens = doc.get_key(&golden_key::<Tokens>()).unwrap();
     let tags = doc.get_key(&golden_key::<PosTags>()).unwrap();
     let text = doc.text(tokens.spans.view());
     let (starts, ends) = tokens.spans.columns();
     assert_eq!(tags.tags.len(), starts.len());
     let sentence = tokens.sentence.as_ref().expect("tokens loaded with their sentences");
-    let mut out: Vec<Vec<(Tagged<'_>, u32)>> = Vec::new();
+    let mut out: Vec<Vec<(TokenTag<'_>, u32)>> = Vec::new();
     for i in 0..starts.len() {
         if i == 0 || sentence[i] != sentence[i - 1] {
             out.push(Vec::new());
         }
-        let word = &text[starts[i] as usize..ends[i] as usize];
-        out.last_mut().unwrap().push(((word, tags.tagset.label(tags.tags[i])), starts[i]));
+        let token = &text[starts[i] as usize..ends[i] as usize];
+        out.last_mut().unwrap().push((TokenTag { token, tag: tags.tagset.label(tags.tags[i]) }, starts[i]));
     }
     out
 }
@@ -158,7 +158,7 @@ fn check_dump(case: &Case, doc: &Document, model: &LemmatizerModel) -> (usize, u
     let mut seen: Vec<(u32, Vec<Vec<u8>>)> = Vec::new();
     let mut changed = 0;
     for sentence in sentences(doc) {
-        let words: Vec<Tagged<'_>> = sentence.iter().map(|&(w, _)| w).collect();
+        let words: Vec<TokenTag<'_>> = sentence.iter().map(|&(w, _)| w).collect();
         let search = BeamSearch::new(model.beam_size(), maxent);
         let best = search.best_sequence(&words, &mut recorder, &AcceptAll).unwrap_or_else(|| panic!("{what}"));
         changed += best.outcomes().iter().filter(|&&o| o != "O").count();
@@ -205,6 +205,20 @@ fn english() {
     // The same searches as the tagger's over these tokens: one per path
     // of a beam of three.
     assert_eq!((counts.tokens, counts.points, counts.changed), (1304, 3584, 181), "{counts:?}");
+}
+
+/// The model the Rust trainer wrote from `inputs/tagged/lemmas.txt`
+/// (`analysis/train-components/tests/fixtures.rs`), which the JVM loaded
+/// and lemmatized with over the English pipeline's tags.
+#[test]
+fn rust_fixture() {
+    let path = common::fixtures_dir().join("lemma-fixture-rust.bin");
+    let model = Arc::new(LemmatizerModel::read(&path).unwrap());
+    assert_eq!(model.language(), "en");
+    let counts = check_maxent_run("lemma-fixture-rust", &model, &path);
+    assert_eq!(counts.files, [("edge".into(), 34), ("en".into(), 10)]);
+    assert_eq!(counts.skipped, 1);
+    assert_eq!((counts.tokens, counts.points, counts.changed), (972, 2672, 7), "{counts:?}");
 }
 
 #[test]

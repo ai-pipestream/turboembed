@@ -1,0 +1,62 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	multi/mixed	208	159	71ffe6d2d2efe18534c6caac3d4b4b2934977b4396111c647e9b0231c6370f99
+annotator	opennlp.tools.sentdetect.SDEventStream	read
+config	format	text
+config	language	th
+config	run	sentdetect-th
+config	source	sentdetect
+config	useTokenEnd	false
+layer	turbo:events	document	28	outcome:str	context:str	values:str
+n	eos=  x=The 3 xcap v= s=café n=in	
+n	eos=  x=café 4 v=The vcap s=in n=東京	
+n	eos=  x=in 2 v=café s=東京 n=serves	
+n	eos=  x=東京 2 v=in s=serves n=𠮷野家-style	
+n	eos=  x=serves 6 v=東京 s=𠮷野家-style n=bowls	
+n	eos=  x=𠮷野家-style 10 v=serves s=bowls n=🍜	
+n	eos=  x=bowls 5 v=𠮷野家-style s=🍜 n=for	
+n	eos=  x=🍜 2 v=bowls s=for n=¥800.	
+n	eos=  x=for 3 v=🍜 s=¥800. n=Mathematicians ncap	
+n	eos=  x=¥800. 5 v=for s=Mathematicians scap n=write	
+n	eos=  x=Mathematicians 14 xcap v=¥800. s=write n=𝐀	
+n	eos=  x=write 5 v=Mathematicians vcap s=𝐀 n=and	
+n	eos=  x=𝐀 2 v=write s=and n=𝔅	
+n	eos=  x=and 3 v=𝐀 s=𝔅 n=for	
+n	eos=  x=𝔅 2 v=and s=for n=special	
+n	eos=  x=for 3 v=𝔅 s=special n=sets.	
+n	eos=  x=special 7 v=for s=sets. n=Мой ncap	
+n	eos=  x=sets. 5 v=special s=Мой scap n=друг	
+n	eos=  x=Мой 3 xcap v=sets. s=друг n=sent	
+n	eos=  x=друг 4 v=Мой vcap s=sent n=me	
+n	eos=  x=sent 4 v=друг s=me n=👋🏽	
+n	eos=  x=me 2 v=sent s=👋🏽 n=from	
+n	eos=  x=👋🏽 4 v=me s=from n=Berlin! ncap	
+n	eos=  x=from 4 v=👋🏽 s=Berlin! scap n=我喜欢𠀀这个字吗？	
+n	eos=  x=Berlin! 7 xcap v=from s=我喜欢𠀀这个字吗？ n=The ncap	
+n	eos=  x=我喜欢𠀀这个字吗？ 10 v=Berlin! vcap s=The scap n=end	
+n	eos=  x=The 3 xcap v=我喜欢𠀀这个字吗？ s=end n=🎉.	
+s	eos=  x=end 3 v=The vcap s=🎉. n=	
+end	turbo:events
+layer	turbo:stream-errors	document	0	after:u32	class:str	message:str
+end	turbo:stream-errors
+layer	turbo:event-checksum	document	1	crc32c:u32
+1057862943
+end	turbo:event-checksum
+layer	turbo:manifest	document	9	key:str	value:str
+Component-Name	SentenceDetectorME
+Language	th
+Manifest-Version	1.0
+OpenNLP-Version	3.0.0-SNAPSHOT
+TrainerType	Event
+Training-Eventhash	1
+eosCharacters	 \n
+factory	opennlp.tools.sentdetect.SentenceDetectorFactory
+useTokenEnd	false
+end	turbo:manifest
+layer	turbo:package-entries	document	2	name:str	length:u32
+manifest.properties	287
+sent.model	61
+end	turbo:package-entries

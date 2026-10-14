@@ -49,8 +49,16 @@ final class Runs {
   static final String SENTENCE_FIXTURE_RUST = "en-plain-rust.bin";
   /** The same events trained by the Rust QN trainer (MAXENT_QN, the defaults, cutoff 1). */
   static final String SENTENCE_FIXTURE_QN_RUST = "en-plain-qn-rust.bin";
+  /** The same events trained by the Rust perceptron trainer (PERCEPTRON, the defaults, cutoff 1). */
+  static final String SENTENCE_FIXTURE_PERCEPTRON_RUST = "en-plain-perceptron-rust.bin";
   static final String TOKEN_FIXTURE = "tokenizer-abbreviations.bin";
   static final String POS_FIXTURE = "pos-fixture.bin";
+  /** The tagger model the Rust trainer wrote from inputs/tagged/wordtag.txt with the tag dictionary fixture. */
+  static final String POS_FIXTURE_RUST = "pos-fixture-rust.bin";
+  /** The lemmatizer model the Rust trainer wrote from inputs/tagged/lemmas.txt. */
+  static final String LEMMA_FIXTURE_RUST = "lemma-fixture-rust.bin";
+  /** The tag dictionary the tagger fixtures were trained with, a copy of analysis/sequence/golden/resources/tags.tagdict. */
+  static final String TAG_DICTIONARY = "tags.tagdict";
   static final String CHUNKER_FIXTURE = "chunker-fixture.bin";
   static final String LEMMA_DICTIONARY = "lemmatizer-dictionary.txt";
   static final String ENGLISH_ABBREVIATIONS = "english-dictionary.xml";
@@ -82,6 +90,8 @@ final class Runs {
   /** The sentences the fixture model en-plain.bin was trained on, one per line, for the training goldens. */
   static final String TRAIN = "train";
   static final String FORMATS = "formats";
+  /** The word and tag lines and the word, tag and lemma lines the Rust tagger fixtures were trained on. */
+  static final String TAGGED = "tagged";
   static final String NER = "ner";
 
   /** The numbers of merges the BPE trainer runs with: few, so the tokens are pieces of words, and many. */
@@ -103,8 +113,8 @@ final class Runs {
     List<AnnotatorGolden> annotators = new ArrayList<>();
     List<AnnotatorDump> recorders = new ArrayList<>();
 
-    // Sentence detection: the published models, the two fixture models and the two models the Rust
-    // trainers wrote in both whitespace modes, and the newline detector in both.
+    // Sentence detection: the published models, the two fixture models and the three models the
+    // Rust trainers wrote in both whitespace modes, and the newline detector in both.
     List<SentenceGolden> sentences = new ArrayList<>();
     sentences.add(SentenceGolden.load(models.resolve(SENTENCE_MODEL_EN), WhitespaceMode.UNICODE,
         Set.of(EN, MULTI, EDGE)));
@@ -112,7 +122,7 @@ final class Runs {
       sentences.add(SentenceGolden.load(models.resolve(m), WhitespaceMode.UNICODE, Set.of(EDGE)));
     }
     for (String m : List.of(SENTENCE_FIXTURE_ABBREVIATIONS, SENTENCE_FIXTURE_PLAIN, SENTENCE_FIXTURE_RUST,
-        SENTENCE_FIXTURE_QN_RUST)) {
+        SENTENCE_FIXTURE_QN_RUST, SENTENCE_FIXTURE_PERCEPTRON_RUST)) {
       for (WhitespaceMode mode : MODES) {
         sentences.add(SentenceGolden.load(fixtures.resolve(m), mode, Set.of(SENTENCE_FIXTURE)));
       }
@@ -186,8 +196,9 @@ final class Runs {
 
     // Part-of-speech tagging, on the sentences and tokens of the published models of the same
     // language: the English model as it is, with Penn Treebank tags asked for, and rebuilt with
-    // other beam sizes; the German model; and the fixture model, whose Penn outcomes the tagger
-    // converts to UD and whose tag dictionary restricts the tags of the words it lists.
+    // other beam sizes; the German model; the fixture model, whose Penn outcomes the tagger
+    // converts to UD and whose tag dictionary restricts the tags of the words it lists; and the
+    // model the Rust trainer wrote with the same tag dictionary.
     List<PosGolden> taggers = new ArrayList<>();
     PosGolden.Pipeline english = PosGolden.Pipeline.load(models.resolve(SENTENCE_MODEL_EN), models.resolve(TOKEN_MODEL_EN));
     PosGolden.Pipeline german = PosGolden.Pipeline.load(models.resolve(SENTENCE_MODEL_DE), models.resolve(TOKEN_MODEL_DE));
@@ -198,20 +209,22 @@ final class Runs {
     }
     taggers.add(PosGolden.load(models.resolve(POS_MODEL_DE), german, Set.of(EDGE)));
     taggers.add(PosGolden.load(fixtures.resolve(POS_FIXTURE), english, Set.of(EN, EDGE)));
+    taggers.add(PosGolden.load(fixtures.resolve(POS_FIXTURE_RUST), english, Set.of(EN, EDGE)));
     for (PosGolden t : taggers) {
       annotators.add(t);
       recorders.add(PosDump.of(t));
     }
 
     // Lemmatization, on the sentences, tokens and tags of the published models of the same
-    // language: the English and German maxent lemmatizers, and the dictionary lemmatizer with the
-    // fixture dictionary over the English pipeline.
+    // language: the English and German maxent lemmatizers, the lemmatizer the Rust trainer wrote,
+    // and the dictionary lemmatizer with the fixture dictionary over the English pipeline.
     LemmaGolden.Pipeline taggedEnglish = LemmaGolden.Pipeline.load(models.resolve(SENTENCE_MODEL_EN),
         models.resolve(TOKEN_MODEL_EN), models.resolve(POS_MODEL_EN));
     LemmaGolden.Pipeline taggedGerman = LemmaGolden.Pipeline.load(models.resolve(SENTENCE_MODEL_DE),
         models.resolve(TOKEN_MODEL_DE), models.resolve(POS_MODEL_DE));
     for (LemmaGolden l : List.of(LemmaGolden.load(models.resolve(LEMMA_MODEL_EN), taggedEnglish, Set.of(EN, MULTI, EDGE)),
-        LemmaGolden.load(models.resolve(LEMMA_MODEL_DE), taggedGerman, Set.of(EDGE)))) {
+        LemmaGolden.load(models.resolve(LEMMA_MODEL_DE), taggedGerman, Set.of(EDGE)),
+        LemmaGolden.load(fixtures.resolve(LEMMA_FIXTURE_RUST), taggedEnglish, Set.of(EN, EDGE)))) {
       annotators.add(l);
       recorders.add(LemmaDump.of(l));
     }
@@ -243,6 +256,13 @@ final class Runs {
     annotators.addAll(TrainGolden.all(Set.of(EN, MULTI, EDGE), Set.of(TRAIN)));
     // The L-BFGS trainer on the same events, with the costs, update counts and thread counts it takes.
     annotators.addAll(QnTrainGolden.all(Set.of(EN, MULTI, EDGE), Set.of(TRAIN)));
+    // The perceptron and the sequence perceptron trainers on the same events.
+    annotators.addAll(PerceptronTrainGolden.all(Set.of(EN, MULTI, EDGE), Set.of(TRAIN)));
+    // The same event streams with the factory options TrainGolden leaves at their defaults, and
+    // the model file around a trained model.
+    annotators.addAll(EventGolden.all(fixtures.resolve(ENGLISH_ABBREVIATIONS)));
+    // The tagger's and the lemmatizer's event streams, and the model files around them.
+    annotators.addAll(TaggerEventGolden.all(fixtures.resolve(TAG_DICTIONARY)));
     // The sample streams of OpenNLP's native formats, and the conversion streams, which
     // detokenize with the English dictionary.
     annotators.addAll(FormatGolden.all(fixtures.resolve(FORMAT_DETOKENIZER)));

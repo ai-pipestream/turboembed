@@ -1,0 +1,52 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	en/quotes	240	228	8e587a2221022c9fa745822b626ba04b316b213fbffa68031c095a1670e808f8
+annotator	opennlp.tools.sentdetect.SDEventStream	read
+config	abbreviations	english-dictionary.xml
+config	format	text
+config	language	pt
+config	run	sentdetect-dictionary-pt
+config	source	sentdetect
+config	useTokenEnd	true
+layer	turbo:events	document	12	outcome:str	context:str	values:str
+n	eos=" x= v= s=Are scap n=you	
+n	eos=? x=tonight 7 v=coming s= n=she	
+n	sn eos=" x=? 1 v=tonight s= n=she	
+n	sn eos=. x=asked 5 v=she s= n=He ncap	
+n	sp eos=" x= v=said, s=Maybe, scap n=if	
+n	eos=. x=stops 5 v=rain s= n=The ncap	
+n	sn eos=" x=. 1 v=stops s= n=The ncap	
+n	sp eos=' x= v=read s=Closed scap n=for	
+n	eos=' x=repairs 7 v=for s= n=“Curly	
+n	sn eos=. x=' 1 v=repairs s= n=“Curly	
+n	eos=. x=ones 4 v=‘single’ s=” n=Nobody ncap	
+s	sn eos=. x=answered 8 v=Nobody vcap s= n=	
+end	turbo:events
+layer	turbo:stream-errors	document	0	after:u32	class:str	message:str
+end	turbo:stream-errors
+layer	turbo:event-checksum	document	1	crc32c:u32
+2589538390
+end	turbo:event-checksum
+layer	turbo:manifest	document	10	key:str	value:str
+Component-Name	SentenceDetectorME
+Language	pt
+Manifest-Version	1.0
+OpenNLP-Version	3.0.0-SNAPSHOT
+TrainerType	Event
+Training-Eventhash	1
+eosCharacters	.?!;:()«»'"
+factory	opennlp.tools.sentdetect.SentenceDetectorFactory
+serializer-class-abbreviations.dictionary	opennlp.tools.util.model.DictionarySerializer
+useTokenEnd	true
+end	turbo:manifest
+layer	turbo:package-entries	document	3	name:str	length:u32
+manifest.properties	393
+sent.model	61
+abbreviations.dictionary	468
+end	turbo:package-entries
+layer	turbo:dictionary	document	1	xml:str
+<?xml version="1.0" encoding="UTF-8"?><dictionary case_sensitive="false">\n    <entry>\n        <token>Dr.</token>\n    </entry>\n    <entry>\n        <token>U.S.</token>\n    </entry>\n    <entry>\n        <token>xyz.,"abc</token>\n    </entry>\n    <entry>\n        <token>a.m.</token>\n    </entry>\n    <entry>\n        <token>etc.</token>\n    </entry>\n    <entry>\n        <token>e.g.</token>\n    </entry>\n    <entry>\n        <token>(c)Co.ltd</token>\n    </entry>\n</dictionary>\n
+end	turbo:dictionary

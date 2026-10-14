@@ -1,0 +1,111 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	edge/numbers	163	163	ac397ed9e560b6c7ea24fb2ad41c9c951a27fd6316ba8de71531a337aca4ae68
+annotator	opennlp.tools.tokenize.TokSpanEventStream	read
+config	abbreviations	english-dictionary.xml
+config	format	text
+config	language	de
+config	run	tokenize-dictionary-alnum-de
+config	source	tokenize
+config	useAlphaNumericOptimization	true
+layer	turbo:events	document	71	outcome:str	context:str	values:str
+F	p=3 s=.14 p1=3 p1_num p2=bok p1f1=3. f1=. f1_eos f2=1 f2_num f12=.1	
+F	p=3. s=14 p1=. p1_eos p2=3 p2_num p21=3. p1f1=.1 f1=1 f1_num f2=4 f2_num f12=14	
+F	p=3.1 s=4 p1=1 p1_num p2=. p2_eos p21=.1 p1f1=14 f1=4 f1_num f2=bok	
+F	p=1 s=,000 p1=1 p1_num p2=bok p1f1=1, f1=, f2=0 f2_num f12=,0	
+F	p=1, s=000 p1=, p2=1 p2_num p21=1, p1f1=,0 f1=0 f1_num f2=0 f2_num f12=00	
+F	p=1,0 s=00 p1=0 p1_num p2=, p21=,0 p1f1=00 f1=0 f1_num f2=0 f2_num f12=00	
+F	p=1,00 s=0 p1=0 p1_num p2=0 p2_num p21=00 p1f1=00 f1=0 f1_num f2=bok	
+F	p=1 s=2:30; p1=1 p1_num p2=bok p1f1=12 f1=2 f1_num f2=: f12=2:	
+F	p=12 s=:30; p1=2 p1_num p2=1 p2_num p21=12 p1f1=2: f1=: f2=3 f2_num f12=:3	
+F	p=12: s=30; p1=: p2=2 p2_num p21=2: p1f1=:3 f1=3 f1_num f2=0 f2_num f12=30	
+F	p=12:3 s=0; p1=3 p1_num p2=: p21=:3 p1f1=30 f1=0 f1_num f2=; f12=0;	
+F	p=12:30 s=; p1=0 p1_num p2=3 p2_num p21=30 p1f1=0; f1=; f2=bok	
+F	p=2 s=.5% p1=2 p1_num p2=bok p1f1=2. f1=. f1_eos f2=5 f2_num f12=.5	
+F	p=2. s=5% p1=. p1_eos p2=2 p2_num p21=2. p1f1=.5 f1=5 f1_num f2=% f12=5%	
+F	p=2.5 s=% p1=5 p1_num p2=. p2_eos p21=.5 p1f1=5% f1=% f2=bok	
+F	p=( s=up p1=( p1_lp p2=bok p1f1=(u f1=u f1_alpha f2=p f2_alpha f12=up	
+F	p=(u s=p p1=u p1_alpha p2=( p2_lp p21=(u p1f1=up f1=p f1_alpha f2=bok	
+F	p=1 s=.2%). p1=1 p1_num p2=bok p1f1=1. f1=. f1_eos f2=2 f2_num f12=.2	
+F	p=1. s=2%). p1=. p1_eos p2=1 p2_num p21=1. p1f1=.2 f1=2 f1_num f2=% f12=2%	
+F	p=1.2 s=%). p1=2 p1_num p2=. p2_eos p21=.2 p1f1=2% f1=% f2=) f2_rp f12=%)	
+F	p=1.2% s=). p1=% p2=2 p2_num p21=2% p1f1=%) f1=) f1_rp f2=. f2_eos f12=).	
+F	p=1.2%) s=. p1=) p1_rp p2=% p21=%) p1f1=). f1=. f1_eos f2=bok	
+F	p=5 s=55-1234 p1=5 p1_num p2=bok p1f1=55 f1=5 f1_num f2=5 f2_num f12=55	
+F	p=55 s=5-1234 p1=5 p1_num p2=5 p2_num p21=55 p1f1=55 f1=5 f1_num f2=- f12=5-	
+F	p=555 s=-1234 p1=5 p1_num p2=5 p2_num p21=55 p1f1=5- f1=- f2=1 f2_num f12=-1	
+F	p=555- s=1234 p1=- p2=5 p2_num p21=5- p1f1=-1 f1=1 f1_num f2=2 f2_num f12=12	
+F	p=555-1 s=234 p1=1 p1_num p2=- p21=-1 p1f1=12 f1=2 f1_num f2=3 f2_num f12=23	
+F	p=555-12 s=34 p1=2 p1_num p2=1 p2_num p21=12 p1f1=23 f1=3 f1_num f2=4 f2_num f12=34	
+F	p=555-123 s=4 p1=3 p1_num p2=2 p2_num p21=23 p1f1=34 f1=4 f1_num f2=bok	
+F	p=+ s=1 p1=+ p2=bok p1f1=+1 f1=1 f1_num f2=bok	
+F	p=( s=800) p1=( p1_lp p2=bok p1f1=(8 f1=8 f1_num f2=0 f2_num f12=80	
+F	p=(8 s=00) p1=8 p1_num p2=( p2_lp p21=(8 p1f1=80 f1=0 f1_num f2=0 f2_num f12=00	
+F	p=(80 s=0) p1=0 p1_num p2=8 p2_num p21=80 p1f1=00 f1=0 f1_num f2=) f2_rp f12=0)	
+F	p=(800 s=) p1=0 p1_num p2=0 p2_num p21=00 p1f1=0) f1=) f1_rp f2=bok	
+F	p=5 s=55-0199. p1=5 p1_num p2=bok p1f1=55 f1=5 f1_num f2=5 f2_num f12=55	
+F	p=55 s=5-0199. p1=5 p1_num p2=5 p2_num p21=55 p1f1=55 f1=5 f1_num f2=- f12=5-	
+F	p=555 s=-0199. p1=5 p1_num p2=5 p2_num p21=55 p1f1=5- f1=- f2=0 f2_num f12=-0	
+F	p=555- s=0199. p1=- p2=5 p2_num p21=5- p1f1=-0 f1=0 f1_num f2=1 f2_num f12=01	
+F	p=555-0 s=199. p1=0 p1_num p2=- p21=-0 p1f1=01 f1=1 f1_num f2=9 f2_num f12=19	
+F	p=555-01 s=99. p1=1 p1_num p2=0 p2_num p21=01 p1f1=19 f1=9 f1_num f2=9 f2_num f12=99	
+F	p=555-019 s=9. p1=9 p1_num p2=1 p2_num p21=19 p1f1=99 f1=9 f1_num f2=. f2_eos f12=9.	
+F	p=555-0199 s=. p1=9 p1_num p2=9 p2_num p21=99 p1f1=9. f1=. f1_eos f2=bok	
+F	p=2 s=.0.1-beta, p1=2 p1_num p2=bok p1f1=2. f1=. f1_eos f2=0 f2_num f12=.0	
+F	p=2. s=0.1-beta, p1=. p1_eos p2=2 p2_num p21=2. p1f1=.0 f1=0 f1_num f2=. f2_eos f12=0.	
+F	p=2.0 s=.1-beta, p1=0 p1_num p2=. p2_eos p21=.0 p1f1=0. f1=. f1_eos f2=1 f2_num f12=.1	
+F	p=2.0. s=1-beta, p1=. p1_eos p2=0 p2_num p21=0. p1f1=.1 f1=1 f1_num f2=- f12=1-	
+F	p=2.0.1 s=-beta, p1=1 p1_num p2=. p2_eos p21=.1 p1f1=1- f1=- f2=b f2_alpha f12=-b	
+F	p=2.0.1- s=beta, p1=- p2=1 p2_num p21=1- p1f1=-b f1=b f1_alpha f2=e f2_alpha f12=be	
+F	p=2.0.1-b s=eta, p1=b p1_alpha p2=- p21=-b p1f1=be f1=e f1_alpha f2=t f2_alpha f12=et	
+F	p=2.0.1-be s=ta, p1=e p1_alpha p2=b p2_alpha p21=be p1f1=et f1=t f1_alpha f2=a f2_alpha f12=ta	
+F	p=2.0.1-bet s=a, p1=t p1_alpha p2=e p2_alpha p21=et p1f1=ta f1=a f1_alpha f2=, f12=a,	
+F	p=2.0.1-beta s=, p1=a p1_alpha p2=t p2_alpha p21=ta p1f1=a, f1=, f2=bok	
+F	p=$ s=4.99, p1=$ p2=bok p1f1=$4 f1=4 f1_num f2=. f2_eos f12=4.	
+F	p=$4 s=.99, p1=4 p1_num p2=$ p21=$4 p1f1=4. f1=. f1_eos f2=9 f2_num f12=.9	
+F	p=$4. s=99, p1=. p1_eos p2=4 p2_num p21=4. p1f1=.9 f1=9 f1_num f2=9 f2_num f12=99	
+F	p=$4.9 s=9, p1=9 p1_num p2=. p2_eos p21=.9 p1f1=99 f1=9 f1_num f2=, f12=9,	
+F	p=$4.99 s=, p1=9 p1_num p2=9 p2_num p21=99 p1f1=9, f1=, f2=bok	
+F	p=1 s=0/12/2026, p1=1 p1_num p2=bok p1f1=10 f1=0 f1_num f2=/ f12=0/	
+F	p=10 s=/12/2026, p1=0 p1_num p2=1 p2_num p21=10 p1f1=0/ f1=/ f2=1 f2_num f12=/1	
+F	p=10/ s=12/2026, p1=/ p2=0 p2_num p21=0/ p1f1=/1 f1=1 f1_num f2=2 f2_num f12=12	
+F	p=10/1 s=2/2026, p1=1 p1_num p2=/ p21=/1 p1f1=12 f1=2 f1_num f2=/ f12=2/	
+F	p=10/12 s=/2026, p1=2 p1_num p2=1 p2_num p21=12 p1f1=2/ f1=/ f2=2 f2_num f12=/2	
+F	p=10/12/ s=2026, p1=/ p2=2 p2_num p21=2/ p1f1=/2 f1=2 f1_num f2=0 f2_num f12=20	
+F	p=10/12/2 s=026, p1=2 p1_num p2=/ p21=/2 p1f1=20 f1=0 f1_num f2=2 f2_num f12=02	
+F	p=10/12/20 s=26, p1=0 p1_num p2=2 p2_num p21=20 p1f1=02 f1=2 f1_num f2=6 f2_num f12=26	
+F	p=10/12/202 s=6, p1=2 p1_num p2=0 p2_num p21=02 p1f1=26 f1=6 f1_num f2=, f12=6,	
+F	p=10/12/2026 s=, p1=6 p1_num p2=2 p2_num p21=26 p1f1=6, f1=, f2=bok	
+F	p=3 s=e10. p1=3 p1_num p2=bok p1f1=3e f1=e f1_alpha f2=1 f2_num f12=e1	
+F	p=3e s=10. p1=e p1_alpha p2=3 p2_num p21=3e p1f1=e1 f1=1 f1_num f2=0 f2_num f12=10	
+F	p=3e1 s=0. p1=1 p1_num p2=e p2_alpha p21=e1 p1f1=10 f1=0 f1_num f2=. f2_eos f12=0.	
+F	p=3e10 s=. p1=0 p1_num p2=1 p2_num p21=10 p1f1=0. f1=. f1_eos f2=bok	
+end	turbo:events
+layer	turbo:stream-errors	document	0	after:u32	class:str	message:str
+end	turbo:stream-errors
+layer	turbo:event-checksum	document	1	crc32c:u32
+908761176
+end	turbo:event-checksum
+layer	turbo:manifest	document	10	key:str	value:str
+Component-Name	TokenizerME
+Language	de
+Manifest-Version	1.0
+OpenNLP-Version	3.0.0-SNAPSHOT
+TrainerType	Event
+Training-Eventhash	1
+alphaNumericPattern	^[A-Za-z0-9äéöüÄÉÖÜß]+$
+factory	opennlp.tools.tokenize.TokenizerFactory
+serializer-class-abbreviations.dictionary	opennlp.tools.util.model.DictionarySerializer
+useAlphaNumericOptimization	true
+end	turbo:manifest
+layer	turbo:package-entries	document	3	name:str	length:u32
+manifest.properties	444
+abbreviations.dictionary	468
+token.model	61
+end	turbo:package-entries
+layer	turbo:dictionary	document	1	xml:str
+<?xml version="1.0" encoding="UTF-8"?><dictionary case_sensitive="false">\n    <entry>\n        <token>Dr.</token>\n    </entry>\n    <entry>\n        <token>U.S.</token>\n    </entry>\n    <entry>\n        <token>xyz.,"abc</token>\n    </entry>\n    <entry>\n        <token>a.m.</token>\n    </entry>\n    <entry>\n        <token>etc.</token>\n    </entry>\n    <entry>\n        <token>e.g.</token>\n    </entry>\n    <entry>\n        <token>(c)Co.ltd</token>\n    </entry>\n</dictionary>\n
+end	turbo:dictionary

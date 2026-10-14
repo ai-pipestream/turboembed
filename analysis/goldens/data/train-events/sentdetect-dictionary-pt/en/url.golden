@@ -1,0 +1,56 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	en/url	240	240	40c3987b444f0d812d66c7a62a3654135ae28fbbfc5980e3802fba91b11f2037
+annotator	opennlp.tools.sentdetect.SDEventStream	read
+config	abbreviations	english-dictionary.xml
+config	format	text
+config	language	pt
+config	run	sentdetect-dictionary-pt
+config	source	sentdetect
+config	useTokenEnd	true
+layer	turbo:events	document	16	outcome:str	context:str	values:str
+n	eos=: x=https 5 v=at s=//example n=org/docs/v1.2/index.html.	
+n	eos=. x=://example 10 v=https s=org/docs/v1 n=2/index.html.	
+n	eos=. x=.org/docs/v1 12 v=https://example s=2/index n=html.	
+n	eos=. x=.2/index 8 v=https://example.org/docs/v1 s=html n=You ncap	
+n	sn eos=. x=.html 5 v=https://example.org/docs/v1.2/index s= n=You ncap	
+n	eos=. x=help@example 12 v=to s=org n=for	
+n	sn eos=. x=support 7 v=for s= n=Visit ncap	
+n	eos=. x=www 3 v=Visit vcap s=example n=com.	
+n	eos=. x=.example 8 v=www s=com n=before	
+n	sn eos=. x=.com 4 v=www.example s= n=before	
+n	eos=: x=http 4 v=at s=//mirror n=example.net/path?q=1&lang=en.	
+n	eos=. x=://mirror 9 v=http s=example n=net/path?q=1&lang=en.	
+n	eos=. x=.example 8 v=http://mirror s=net/path n=q=1&lang=en.	
+n	eos=? x=.net/path 9 v=http://mirror.example s=q=1&lang=en n=Links ncap	
+n	sn eos=. x=?q=1&lang=en 12 v=http://mirror.example.net/path s= n=Links ncap	
+s	sn eos=. x=often 5 v=break s= n=	
+end	turbo:events
+layer	turbo:stream-errors	document	0	after:u32	class:str	message:str
+end	turbo:stream-errors
+layer	turbo:event-checksum	document	1	crc32c:u32
+533676165
+end	turbo:event-checksum
+layer	turbo:manifest	document	10	key:str	value:str
+Component-Name	SentenceDetectorME
+Language	pt
+Manifest-Version	1.0
+OpenNLP-Version	3.0.0-SNAPSHOT
+TrainerType	Event
+Training-Eventhash	1
+eosCharacters	.?!;:()«»'"
+factory	opennlp.tools.sentdetect.SentenceDetectorFactory
+serializer-class-abbreviations.dictionary	opennlp.tools.util.model.DictionarySerializer
+useTokenEnd	true
+end	turbo:manifest
+layer	turbo:package-entries	document	3	name:str	length:u32
+manifest.properties	393
+sent.model	61
+abbreviations.dictionary	468
+end	turbo:package-entries
+layer	turbo:dictionary	document	1	xml:str
+<?xml version="1.0" encoding="UTF-8"?><dictionary case_sensitive="false">\n    <entry>\n        <token>Dr.</token>\n    </entry>\n    <entry>\n        <token>U.S.</token>\n    </entry>\n    <entry>\n        <token>xyz.,"abc</token>\n    </entry>\n    <entry>\n        <token>a.m.</token>\n    </entry>\n    <entry>\n        <token>etc.</token>\n    </entry>\n    <entry>\n        <token>e.g.</token>\n    </entry>\n    <entry>\n        <token>(c)Co.ltd</token>\n    </entry>\n</dictionary>\n
+end	turbo:dictionary

@@ -80,6 +80,30 @@ impl Dictionary {
         Ok(Dictionary { case_sensitive, entries, min_tokens, max_tokens })
     }
 
+    /// `new Dictionary(caseSensitive)` followed by `put` of each entry: the
+    /// tokens as given, not trimmed, matched exactly when case-sensitive
+    /// and ignoring case otherwise. Entries equal under that rule collapse
+    /// to one.
+    pub fn from_entries<'e>(case_sensitive: bool, entries: impl IntoIterator<Item = &'e [String]>) -> Dictionary {
+        let mut set: HashSet<Box<str>, BuildFoldHasher> = HashSet::default();
+        let mut min_tokens = usize::MAX;
+        let mut max_tokens = 0;
+        let mut key = String::new();
+        for tokens in entries {
+            key.clear();
+            push_joined(&mut key, tokens.iter().map(String::as_str), case_sensitive);
+            if !set.contains(key.as_str()) {
+                set.insert(key.as_str().into());
+            }
+            min_tokens = min_tokens.min(tokens.len());
+            max_tokens = max_tokens.max(tokens.len());
+        }
+        if set.is_empty() {
+            min_tokens = 0;
+        }
+        Dictionary { case_sensitive, entries: set, min_tokens, max_tokens }
+    }
+
     /// Whether lookups match case exactly.
     pub fn is_case_sensitive(&self) -> bool {
         self.case_sensitive
@@ -337,6 +361,24 @@ fn java_trim(s: &str) -> &str {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn entries_put_directly_keep_their_whitespace_and_match_by_the_case_rule() {
+        let padded = [" Dr. ".to_string()];
+        let dr = ["Dr.".to_string()];
+        let two = ["et".to_string(), "al.".to_string()];
+        let d = Dictionary::from_entries(false, [&padded[..], &dr[..], &two[..], &["dr.".to_string()][..]]);
+        assert_eq!(d.len(), 3);
+        assert!(d.contains(" Dr. ") && d.contains("DR.") && !d.contains("Dr"));
+        let mut scratch = String::new();
+        assert!(d.contains_tokens(&["ET", "al."], &mut scratch));
+        assert_eq!((d.min_tokens(), d.max_tokens()), (1, 2));
+        let exact = Dictionary::from_entries(true, [&dr[..], &["dr.".to_string()][..]]);
+        assert_eq!(exact.len(), 2);
+        assert!(exact.contains("Dr.") && exact.contains("dr.") && !exact.contains("DR."));
+        let empty = Dictionary::from_entries(false, []);
+        assert!(empty.is_empty() && empty.min_tokens() == 0);
+    }
 
     const XML: &str = r#"<?xml version="1.0" encoding="UTF-8"?>
 <dictionary case_sensitive="false">
