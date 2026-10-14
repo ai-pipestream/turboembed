@@ -1847,16 +1847,41 @@ dependencies = [
 ]
 
 [[package]]
+name = "turbo-fuzz"
+version = "0.1.0"
+dependencies = [
+ "turbo-analysis",
+ "turbo-analysis-embed",
+ "turbo-analysis-layers",
+ "turbo-goldens",
+ "turbo-langdetect",
+ "turbo-lemmatizer",
+ "turbo-maxent",
+ "turbo-normalize",
+ "turbo-numeric",
+ "turbo-phrase-chunker",
+ "turbo-postag",
+ "turbo-sentdetect",
+ "turbo-tokenize",
+ "turbo-unicode",
+]
+
+[[package]]
 name = "turbo-goldens"
 version = "0.1.0"
 dependencies = [
  "turbo-analysis",
  "turbo-analysis-layers",
+ "turbo-unicode",
 ]
 
 [[package]]
 name = "turbo-goldens-tool"
 version = "0.1.0"
+dependencies = [
+ "turbo-fuzz",
+ "turbo-goldens",
+]
 
 [[package]]
 name = "turbo-jvm"

@@ -9,7 +9,10 @@ use std::path::{Path, PathBuf};
 
 use turbo_analysis::{Document, Key, Provenance, Span, Spans, ViewId};
 use turbo_analysis_layers::{Confidence, Tokens};
+use turbo_goldens::expect::{joined_me_spans, jvm_token_spans};
 use turbo_goldens::{Dump, Golden, Tolerance, Unit, assert_matches_golden, data_dir, segmentation_shapes, sha512};
+
+pub use turbo_goldens::expect::JvmSpan;
 use turbo_tokenize::me::{Features, TokenizerModel, UnitFacts, token_context};
 use turbo_tokenize::{TokenizerOptions, WhitespaceMode, whitespace_spans};
 use turbo_unicode::Utf16Cursor;
@@ -99,30 +102,7 @@ impl Case {
     /// The spans the JVM returned, with their UTF-16 offsets, the
     /// confidence and word type of each when the golden has them.
     pub fn jvm_spans(&self) -> Vec<JvmSpan> {
-        let g = &self.golden;
-        let tokens = g.layer("opennlp:tokens").unwrap_or_else(|| panic!("{}: no tokens", self.path.display()));
-        let (starts, ends) = (tokens.u32s("start").unwrap(), tokens.u32s("end").unwrap());
-        let units = g.layer("turbo:utf16<opennlp:tokens>");
-        let prob = g.layer("turbo:confidence<opennlp:tokens>").map(|l| l.f64s("value").unwrap());
-        let kind = g.layer("turbo:word-types").map(|l| l.strs("kind").unwrap());
-        let unit = |b: u32| byte_to_utf16(&self.text, b as usize).expect("a span on a character boundary") as u32;
-        (0..tokens.len())
-            .map(|i| {
-                let (utf16, cut) = match units {
-                    Some(u) => {
-                        ((u.u32s("start16").unwrap()[i], u.u32s("end16").unwrap()[i]), u.u32s("cut").unwrap()[i] == 1)
-                    }
-                    None => ((unit(starts[i]), unit(ends[i])), false),
-                };
-                JvmSpan {
-                    utf8: (starts[i], ends[i]),
-                    utf16,
-                    cut,
-                    prob: prob.map(|p| p[i]),
-                    kind: kind.map(|k| k.get(i).to_string()),
-                }
-            })
-            .collect()
+        jvm_token_spans(&self.golden, &self.text).unwrap_or_else(|e| panic!("{}: {e}", self.path.display()))
     }
 
     /// The decision point dump beside the golden.
@@ -135,19 +115,6 @@ impl Case {
     pub fn has_cut(&self) -> bool {
         self.golden.layer("turbo:utf16<opennlp:tokens>").is_some()
     }
-}
-
-/// One span as the JVM returned it.
-#[derive(Clone, Debug, PartialEq)]
-pub struct JvmSpan {
-    /// The UTF-8 span, widened to whole characters where it cuts one.
-    pub utf8: (u32, u32),
-    /// The JVM's exact UTF-16 span.
-    pub utf16: (u32, u32),
-    /// Whether it starts or ends between the two halves of a pair.
-    pub cut: bool,
-    pub prob: Option<f64>,
-    pub kind: Option<String>,
 }
 
 /// Every golden of `<annotator>/<run>`, over all its input sets, sorted
@@ -221,38 +188,11 @@ pub fn assert_close(got: f64, want: f64, what: &dyn std::fmt::Display) {
     assert!((got - want).abs() <= 1e-9, "{what}: probability {got}, the JVM gave {want}");
 }
 
-/// What the Rust maxent tokenizer produces for the spans the JVM wrote:
-/// a span whose end falls between the two halves of a pair is joined with
-/// the span after it, whose start is the same point, and their
-/// probabilities multiply, since the port does not take that split and
-/// goes on multiplying the token's decisions. Gives (UTF-8 start, UTF-8
-/// end, probability).
+/// What the Rust maxent tokenizer produces for the spans the JVM wrote
+/// (`turbo_goldens::expect::joined_me_spans`), or a panic naming what in
+/// the golden does not pair up.
 pub fn expected_me_spans(text: &str, spans: &[JvmSpan]) -> Vec<(u32, u32, f64)> {
-    let byte = |unit: u32| utf16_to_byte(text, unit as usize).map(|b| b as u32);
-    let mut out = Vec::new();
-    let mut open: Option<(u32, f64)> = None;
-    for s in spans {
-        let p = s.prob.expect("a confidence per span");
-        let joined = open.is_some();
-        let (start, prob) = match open.take() {
-            Some((start, prob)) => {
-                assert!(byte(s.utf16.0).is_none(), "a joined span continues where the last one stopped");
-                (start, prob * p)
-            }
-            None => (byte(s.utf16.0).expect("a span start between two halves without a split before it"), p),
-        };
-        match byte(s.utf16.1) {
-            Some(end) => {
-                if !s.cut && !joined {
-                    assert_eq!(s.utf8, (start, end), "the UTF-8 offsets agree with the UTF-16 ones");
-                }
-                out.push((start, end, prob));
-            }
-            None => open = Some((start, prob)),
-        }
-    }
-    assert!(open.is_none(), "no span ends between two halves at the end of the text");
-    out
+    joined_me_spans(text, spans).unwrap_or_else(|e| panic!("{e}"))
 }
 
 /// A document over `text` with `spans` as its tokens and, when given,
