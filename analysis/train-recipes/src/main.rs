@@ -111,6 +111,16 @@ fn masc_command(a: Args) -> Result<bool, String> {
             outcome.card.held_out.samples,
             outcome.card.held_out.skipped_sentences,
         );
+        if let Some(tokens) = &outcome.card.held_out.tokens {
+            let left_out: Vec<String> = tokens.left_out.iter().map(|t| format!("{} ({})", t.tag, t.tokens)).collect();
+            let count: u64 = tokens.left_out.iter().map(|t| t.tokens).sum();
+            println!(
+                "{}: {count} of {} held-out tokens left out, their tags not the reference's: {}",
+                recipe.model_id(),
+                tokens.tokens,
+                if left_out.is_empty() { "none".to_owned() } else { left_out.join(", ") }
+            );
+        }
         println!("{}", outcome.gate);
         all_pass &= outcome.gate.result.pass;
     }

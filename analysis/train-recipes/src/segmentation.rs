@@ -39,8 +39,9 @@ use turbo_train_components::ud;
 use turbo_train_components::{SentenceDetectorFactory, Stamp, TokenizerFactory, sentdetect, tokenize};
 use turbo_zoo::Sha256;
 
+use crate::card::HeldOutCard;
 use crate::error::{Error, LeftOut, Result};
-use crate::{Trained, check_skipped};
+use crate::{GateRun, Trained, check_skipped};
 
 /// The segmentation component a recipe trains.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -319,7 +320,7 @@ impl SegmentationRecipe {
         held_out: &HeldOut<'_>,
         set_name: &str,
         corpus_sha256: &str,
-    ) -> Result<ModelGateRecord> {
+    ) -> Result<GateRun> {
         let candidate = self.score(trained, held_out)?;
         let baseline = self.score(reference, held_out)?;
         let units = candidate
@@ -333,8 +334,11 @@ impl SegmentationRecipe {
             samples_sha256: held_out.sha256(),
         };
         let id = |id: &str, bytes: &[u8]| ModelId { id: id.to_owned(), sha256: Sha256::of(bytes).to_string() };
-        ModelGateRecord::new(self.task(), set, id(self.model_id, trained), id(reference_id, reference), units)
-            .map_err(Error::Gate)
+        let record =
+            ModelGateRecord::new(self.task(), set, id(self.model_id, trained), id(reference_id, reference), units)
+                .map_err(Error::Gate)?;
+        let held_out = HeldOutCard { samples: held_out.len(), skipped_sentences: held_out.skipped(), tokens: None };
+        Ok(GateRun { record, held_out })
     }
 
     /// Checks that `bytes` are the reference model the zoo's built-in

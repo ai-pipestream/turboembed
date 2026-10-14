@@ -2,6 +2,7 @@ use std::fmt;
 use std::path::PathBuf;
 
 use crate::Limit;
+use crate::card::TagCount;
 
 /// What a recipe can fail on.
 #[derive(Debug)]
@@ -48,6 +49,10 @@ pub enum Error {
     EmptySplit { what: &'static str },
     /// A recipe left out more than its limit allows.
     TooManyLeftOut { what: LeftOut, count: u64, of: u64, limit: Limit },
+    /// The tagger's reference cannot give the tags of more held-out tokens
+    /// than [`crate::MAX_TOKENS_LEFT_OUT`] allows (`left_out`, by tag in
+    /// the reference's spelling, of `of` tokens).
+    TagsOutsideReference { reference: String, left_out: Vec<TagCount>, of: u64, limit: Limit },
 }
 
 /// What a recipe leaves out, and [`Error::TooManyLeftOut`] counts.
@@ -105,6 +110,18 @@ impl fmt::Display for Error {
             Error::EmptySplit { what } => write!(f, "the split leaves no {what}"),
             Error::TooManyLeftOut { what, count, of, limit } => {
                 write!(f, "{count} of {of} {what}, more than the limit of {limit}")
+            }
+            Error::TagsOutsideReference { reference, left_out, of, limit } => {
+                let count: u64 = left_out.iter().map(|t| t.tokens).sum();
+                write!(
+                    f,
+                    "the reference {reference} cannot give the tags of {count} of {of} held-out tokens, more than the \
+                     limit of {limit}:"
+                )?;
+                for t in left_out {
+                    write!(f, " {} ({})", t.tag, t.tokens)?;
+                }
+                Ok(())
             }
         }
     }

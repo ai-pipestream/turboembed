@@ -54,6 +54,29 @@ pub fn tokens(sentence: &str) -> Vec<Token> {
         .collect()
 }
 
+/// `pool` with each sentence's tags moved one token along, the last
+/// token's to the first: a tagger trained on it can give every tag of
+/// `pool` but has learned the wrong one for nearly every token.
+pub fn with_tags_rotated(pool: &[&str]) -> Vec<String> {
+    pool.iter()
+        .map(|sentence| {
+            let tokens = tokens(sentence);
+            let n = tokens.len();
+            let written: Vec<String> = tokens
+                .iter()
+                .enumerate()
+                .map(|(i, t)| {
+                    let tag = tokens[(i + n - 1) % n].tag.as_deref().unwrap_or_default();
+                    let space = if t.space_before { "" } else { "~" };
+                    let penn = if t.penn { "" } else { "^" };
+                    format!("{space}{penn}{}/{tag}", t.text)
+                })
+                .collect();
+            written.join(" ")
+        })
+        .collect()
+}
+
 /// Writes one document of `sentences` (indices into `pool`) under `dir`
 /// as `<name>.hdr`, `<name>.txt`, `<name>-seg.xml`, `<name>-s.xml` and
 /// `<name>-penn.xml`.

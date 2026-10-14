@@ -93,6 +93,14 @@ impl fmt::Display for Limit {
 /// skip and one held-out sentence (a sentence of no tokens) of 6,385.
 pub const MAX_SKIPPED_SENTENCES: Limit = Limit { count: 1, of: 1000 };
 
+/// The most held-out tokens the tagger's gate may leave out of both
+/// models' scores because the reference cannot give their tag, even in
+/// its spelling ([`postag::ReferenceTags`]): one in a thousand. Read with
+/// the recipe's reader and split by [`masc::SPLIT`], MASC 3.0.0's
+/// held-out documents have 6 such tokens of 85,292: ``UH` `` (3), `"`
+/// (2) and `PRN` (1).
+pub const MAX_TOKENS_LEFT_OUT: Limit = Limit { count: 1, of: 1000 };
+
 /// Checks the sentences a reader skipped against [`MAX_SKIPPED_SENTENCES`]:
 /// `skipped` of `skipped + read`.
 pub(crate) fn check_skipped(what: LeftOut, skipped: usize, read: usize) -> Result<()> {
@@ -256,17 +264,9 @@ impl Recipe {
     ) -> Result<GateRun> {
         match self {
             Recipe::Segmentation(r) => {
-                let samples = r.held_out(held_out)?;
-                let record = r.gate(trained, reference_id, reference, &samples, set_name, corpus_sha256)?;
-                let held_out = HeldOutCard { samples: samples.len(), skipped_sentences: samples.skipped() };
-                Ok(GateRun { record, held_out })
+                r.gate(trained, reference_id, reference, &r.held_out(held_out)?, set_name, corpus_sha256)
             }
-            Recipe::Pos(r) => {
-                let samples = r.held_out(held_out)?;
-                let record = r.gate(trained, reference_id, reference, &samples, set_name, corpus_sha256)?;
-                let held_out = HeldOutCard { samples: samples.len(), skipped_sentences: samples.skipped() };
-                Ok(GateRun { record, held_out })
-            }
+            Recipe::Pos(r) => r.gate(trained, reference_id, reference, &r.held_out(held_out)?, set_name, corpus_sha256),
         }
     }
 

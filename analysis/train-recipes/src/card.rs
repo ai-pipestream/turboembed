@@ -105,6 +105,44 @@ pub struct HeldOutCard {
     /// skips training sentences ([`TrainingCard::skipped_sentences`]);
     /// at most [`crate::MAX_SKIPPED_SENTENCES`] of those read.
     pub skipped_sentences: usize,
+    /// For a tagger, how its held-out tokens were scored; `null` for the
+    /// other components.
+    pub tokens: Option<TokenCoverage>,
+}
+
+/// How a tagger's held-out tokens were scored: both models' tags and the
+/// held-out tags compared in the reference's spelling, over the tokens
+/// whose tag the reference can give ([`postag::ReferenceTags`]).
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct TokenCoverage {
+    /// The tokens of the held-out samples.
+    pub tokens: u64,
+    /// The tags scored as the reference writes them
+    /// ([`postag::REFERENCE_SPELLINGS`]).
+    pub spellings: Vec<SpellingCard>,
+    /// The tokens left out of both models' scores because the reference
+    /// cannot give their tag, by that tag in the reference's spelling,
+    /// sorted by tag; at most [`crate::MAX_TOKENS_LEFT_OUT`] of `tokens`.
+    pub left_out: Vec<TagCount>,
+}
+
+/// A tag scored as the reference writes it.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct SpellingCard {
+    /// The tag as MASC, and so the trained model, writes it.
+    pub masc: String,
+    /// The tag the reference gives the same tokens.
+    pub reference: String,
+}
+
+/// How many held-out tokens have a tag.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct TagCount {
+    pub tag: String,
+    pub tokens: u64,
 }
 
 /// The tags a tagger was scored in, as `POSTaggerME` returns them for a

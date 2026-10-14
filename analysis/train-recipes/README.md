@@ -62,9 +62,22 @@ status is 1 when a gate fails and 2 on an error.
   OpenNLP's English maxent tagger of the 1.5 models, `en-pos-maxent.bin`.
   OpenNLP's only English taggers trained on Penn tags are that one and
   the 1.5 perceptron tagger; the maxent one is trained with the
-  algorithm the recipe uses. Both models are scored in the same tag set: the reference asked for Penn tags (`PosTagFormat::Penn`), its
+  algorithm the recipe uses. Both models are scored in the reference's
+  tag set: the reference asked for Penn tags (`PosTagFormat::Penn`), its
   own outcomes, which come out unconverted, and the trained model with its
-  outcomes as they are. The card records both formats. OpenNLP describes
+  outcomes as they are, MASC's tags. The card records both formats.
+  MASC 3.0.0 writes some tags another way than the reference: brackets
+  `(` and `)` where the reference has `-LRB-` and `-RRB-`, and tags of its
+  own for hyphens and dashes (`-`), ellipses (`...`) and semicolons
+  (`;`), tokens the reference tags `:`. The held-out tags and both
+  models' tags are compared in the reference's spelling
+  (`postag::REFERENCE_SPELLINGS`). A held-out token whose tag the
+  reference cannot give even so would count against it whatever it did,
+  so it is left out of both models' scores; the card lists those tokens
+  by tag (`held_out.tokens.left_out`), and the recipe fails when they are
+  more than one in a thousand of the held-out tokens
+  (`MAX_TOKENS_LEFT_OUT`). MASC 3.0.0's held-out documents have 6 of
+  85,292: ``UH` `` (3), `"` (2) and `PRN` (1). OpenNLP describes
   the reference's training data only as "(private) English data" (the
   1.5.1 test plan) and the zoo does not list it: the recipe records its
   address, size and SHA-256 (`postag::EN_POS_MAXENT`), a run reads it
