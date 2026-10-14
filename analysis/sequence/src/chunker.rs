@@ -10,7 +10,8 @@ pub const MODEL_ENTRY_NAME: &str = "chunker.model";
 /// `ChunkerME.DEFAULT_BEAM_SIZE`.
 pub const DEFAULT_BEAM_SIZE: usize = 10;
 
-/// A token and its part-of-speech tag: `TokenTag`.
+/// A token and its part-of-speech tag: `TokenTag`. The chunker searches
+/// over these, and so does the maxent lemmatizer (`turbo-lemmatizer`).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct TokenTag<'a> {
     pub token: &'a str,

@@ -1,0 +1,66 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	formats/conllu-errors	1474	1474	42b7f753628a5492507589493a66fb4426f1d7b8baf5936632829acb1a3bb77f
+annotator	opennlp.tools.postag.POSSampleEventStream	read
+config	format	conllu
+config	language	es
+config	run	postag-conllu-u
+config	source	postag
+config	tagset	u
+layer	turbo:events	document	22	outcome:str	context:str	values:str
+_	def suf=d suf=od suf=ood suf=good pre=g pre=go pre=goo pre=good w=good n1w=one S=begin wc=lc w&c=good,lc	
+_	def suf=e suf=ne suf=one pre=o pre=on pre=one w=one p1w=good p1S=begin wc=lc w&c=one,lc t=_	
+Y+Y	def suf=d suf=cd pre=c pre=cd w=cd n1w=ab n2w=c S=begin wc=lc w&c=cd,lc	
+X+X	def suf=b suf=ab pre=a pre=ab w=ab p1w=cd n1w=c n2w=d p1S=begin wc=lc w&c=ab,lc t=Y+Y	
+Y	def suf=c pre=c w=c p1w=ab p2w=cd n1w=d p2S=begin wc=lc w&c=c,lc t=X+X t2=Y+Y,X+X	
+Y	def suf=d pre=d w=d p1w=c p2w=ab wc=lc w&c=d,lc t=Y t2=X+X,Y	
+X+Y	def suf=b suf=ab pre=a pre=ab w=ab n1w=cd S=begin wc=lc w&c=ab,lc	
+	def suf=d suf=cd pre=c pre=cd w=cd p1w=ab p1S=begin wc=lc w&c=cd,lc t=X+Y	
+_	def suf=o suf=lo suf=llo suf=ello pre=H pre=He pre=Hel pre=Hell w=hello n1w=there S=begin wc=ic w&c=hello,ic	
+_	def suf=e suf=re suf=ere suf=here pre=t pre=th pre=the pre=ther w=there p1w=hello p1S=begin wc=lc w&c=there,lc t=_	
+_	def suf=o suf=lo suf=llo suf=ello pre=H pre=He pre=Hel pre=Hell w=hello n1w=world S=begin wc=ic w&c=hello,ic	
+_	def suf=d suf=ld suf=rld suf=orld pre=W pre=Wo pre=Wor pre=Worl w=world p1w=hello p1S=begin wc=ic w&c=world,ic t=_	
+_	def suf=a pre=a w=a n1w=split n2w=b S=begin wc=lc w&c=a,lc	
+_	def suf=T suf=IT suf=LIT suf=PLIT pre=S pre=SP pre=SPL pre=SPLI w=split p1w=a n1w=b p1S=begin wc=ac w&c=split,ac t=_	
+_	def suf=b pre=b w=b p1w=split p2w=a p2S=begin wc=lc w&c=b,lc t=_ t2=_,_	
+_	def suf=a pre=a w=a n1w=< n2w=b S=begin wc=lc w&c=a,lc	
+_	def suf=< pre=< w=< p1w=a n1w=b p1S=begin wc=other w&c=<,other t=_	
+_	def suf=b pre=b w=b p1w=< p2w=a p2S=begin wc=lc w&c=b,lc t=_ t2=_,_	
+_	def w= n1w=y n2w= S=begin wc=jah w&c=,jah	
+_	def suf=y pre=y w=y p1w= n1w= p1S=begin wc=lc w&c=y,lc t=_	
+_	def w= p1w=y p2w= p2S=begin wc=jah w&c=,jah t=_ t2=_,_	
+_	def suf=t suf=st suf=ast suf=last pre=l pre=la pre=las pre=last w=last S=begin wc=lc w&c=last,lc	
+end	turbo:events
+layer	turbo:stream-errors	document	10	after:u32	class:str	message:str
+0	opennlp.tools.util.InvalidFormatException	Line [1\tnine\tnine\tNUM\t_\t_\t_\t_\t_] must have exactly 10 fields
+0	opennlp.tools.util.InvalidFormatException	Line [1\tempty\t_\t_\t_\t_\t_\t_\t_\t] must have exactly 10 fields
+2	opennlp.tools.util.InvalidFormatException	Line [   ] must have exactly 10 fields
+2	opennlp.tools.util.InvalidFormatException	Invalid multiword token id: 01-2
+2	opennlp.tools.util.InvalidFormatException	Multiword token id runs backwards: 2-1
+2	opennlp.tools.util.InvalidFormatException	Multiword token 1-3 has no word line for id 3
+2	opennlp.tools.util.InvalidFormatException	Locale language code is invalid: text_X
+2	java.lang.IndexOutOfBoundsException	Index 3 out of bounds for length 2
+21	opennlp.tools.util.InvalidFormatException	Invalid multiword token id: 2147483647-2147483648
+21	opennlp.tools.util.InvalidFormatException	Multiword token 2147483646-2147483647 has no word line for id 2147483646
+end	turbo:stream-errors
+layer	turbo:event-checksum	document	1	crc32c:u32
+2096834469
+end	turbo:event-checksum
+layer	turbo:manifest	document	8	key:str	value:str
+BeamSize	3
+Component-Name	POSTaggerME
+Language	es
+Manifest-Version	1.0
+OpenNLP-Version	3.0.0-SNAPSHOT
+TrainerType	Event
+Training-Eventhash	1
+factory	opennlp.tools.postag.POSTaggerFactory
+end	turbo:manifest
+layer	turbo:package-entries	document	3	name:str	length:u32
+manifest.properties	243
+generator.featuregen	1930
+pos.model	67
+end	turbo:package-entries

@@ -59,15 +59,17 @@ pub trait Layer: Any + Send + Sync + Sized {
     /// Bumped when what the layer's fields mean changes.
     const SCHEMA: u16 = 1;
     /// For a layer generic over another (`Vectors<Sentences>`,
-    /// `Groups<Tokens>`), that layer's id, or for a directed edge layer
-    /// (`Edges<From, To>`), the source layer's id, so distinct
-    /// instantiations have distinct names.
-    const OF: &'static str = "";
-    /// For a layer generic over two layers (`Edges<From, To>`), the target
-    /// layer's id, so `Edges<Entities, Tokens>` is named
-    /// `"turbo:edges<opennlp:entities, opennlp:tokens>"`.
-    const TO: &'static str = "";
-    /// The static name what a `KeyId` points at.
+    /// `Groups<Tokens>`), that layer's name, or for a layer generic over
+    /// two (`Edges<From, To>`), the first one's, so distinct instantiations
+    /// have distinct names. It is the inner layer's full name, so nested
+    /// generic layers stay distinct too: `Groups<Edges<Entities, Tokens>>`
+    /// is `turbo:groups<turbo:edges<opennlp:entities, opennlp:tokens>>`.
+    const OF: Option<&'static LayerName> = None;
+    /// For a layer generic over two layers (`Edges<From, To>`), the second
+    /// one's name, so `Edges<Entities, Tokens>` is
+    /// `turbo:edges<opennlp:entities, opennlp:tokens>`. Set only with `OF`.
+    const TO: Option<&'static LayerName> = None;
+    /// The static name a `KeyId` points at.
     const NAME: &'static LayerName = &LayerName { id: Self::ID, of: Self::OF, to: Self::TO };
 
     /// What the layer's items are anchored to.
@@ -162,24 +164,24 @@ impl<L> fmt::Debug for Key<L> {
     }
 }
 
-/// A layer type's full name: its id, and for a generic layer the id(s) of
-/// the layer(s) it describes.
-#[derive(Debug, PartialEq, Eq)]
+/// A layer type's full name: its id, and for a generic layer the full
+/// names of the layers it is generic over.
+#[derive(Debug, PartialEq, Eq, Hash)]
 pub struct LayerName {
     pub id: &'static str,
-    pub of: &'static str,
-    pub to: &'static str,
+    pub of: Option<&'static LayerName>,
+    pub to: Option<&'static LayerName>,
 }
 
 impl fmt::Display for LayerName {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.write_str(self.id)?;
-        if !self.to.is_empty() {
-            write!(f, "<{}, {}>", self.of, self.to)?;
-        } else if !self.of.is_empty() {
-            write!(f, "<{}>", self.of)?;
+        match (self.of, self.to) {
+            (Some(of), Some(to)) => write!(f, "<{of}, {to}>"),
+            (Some(of), None) => write!(f, "<{of}>"),
+            (None, Some(to)) => write!(f, "<, {to}>"),
+            (None, None) => Ok(()),
         }
-        Ok(())
     }
 }
 

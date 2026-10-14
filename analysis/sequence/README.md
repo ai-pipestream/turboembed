@@ -94,8 +94,10 @@ fetch-models` and read from `TURBO_GOLDENS_MODELS` (or
 `target/turbo-goldens/models`), failing when missing if
 `TURBO_TEST_REQUIRE_OPENNLP_MODELS=1`. The five OpenNLP 1.5 models are
 local-only (their training corpora are LDC or undocumented) and run when
-`TURBO_TEST_OPENNLP_MODELS` names a directory holding them. None are checked
-in.
+`TURBO_TEST_OPENNLP_MODELS` names a directory holding them; without it they
+say they were skipped and pass, even with
+`TURBO_TEST_REQUIRE_OPENNLP_MODELS=1`, which CI sets for this crate and which
+covers only the fetched model. None are checked in.
 
 | Model | Source | SHA-256 |
 |---|---|---|

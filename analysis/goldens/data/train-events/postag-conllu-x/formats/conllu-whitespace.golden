@@ -1,0 +1,47 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	formats/conllu-whitespace	399	389	1e8cbfcdb4aac58a419a87aeddddca80a5083e117ef3e8aab3cce7d8d8710bc5
+annotator	opennlp.tools.postag.POSSampleEventStream	read
+config	format	conllu
+config	language	es
+config	run	postag-conllu-x
+config	source	postag
+config	tagset	x
+layer	turbo:events	document	13	outcome:str	context:str	values:str
+_	def suf=a pre=a w=a n1w=b n2w=c S=begin wc=lc w&c=a,lc	
+_	def suf=b pre=b w=b p1w=a n1w=c n2w=d p1S=begin wc=lc w&c=b,lc t=_	
+_	def suf=c pre=c w=c p1w=b p2w=a n1w=d n2w=e p2S=begin wc=lc w&c=c,lc t=_ t2=_,_	
+_	def suf=d pre=d w=d p1w=c p2w=b n1w=e n2w=f wc=lc w&c=d,lc t=_ t2=_,_	
+_	def suf=e pre=e w=e p1w=d p2w=c n1w=f wc=lc w&c=e,lc t=_ t2=_,_	
+_	def suf=f pre=f w=f p1w=e p2w=d wc=lc w&c=f,lc t=_ t2=_,_	
+_	def suf=r suf=er suf=ter suf=fter pre=a pre=af pre=aft pre=afte w=after n1w=three S=begin wc=lc w&c=after,lc	
+_	def suf=e suf=ee suf=ree suf=hree pre=t pre=th pre=thr pre=thre w=three p1w=after p1S=begin wc=lc w&c=three,lc t=_	
+_	def suf=\\ude00 suf=😀 pre=\\ud83d pre=😀 w=😀 n1w=x n2w=é S=begin wc=other w&c=😀,other	
+_	def suf=x pre=x w=x p1w=😀 n1w=é p1S=begin wc=lc w&c=x,lc t=_	
+_	def suf=é pre=é w=é p1w=x p2w=😀 p2S=begin wc=lc w&c=é,lc t=_ t2=_,_	
+_	def suf=o suf=no pre=n pre=no w=no n1w=final S=begin wc=lc w&c=no,lc	
+_	def suf=l suf=al suf=nal suf=inal pre=f pre=fi pre=fin pre=fina w=final p1w=no p1S=begin wc=lc w&c=final,lc t=_	
+end	turbo:events
+layer	turbo:stream-errors	document	0	after:u32	class:str	message:str
+end	turbo:stream-errors
+layer	turbo:event-checksum	document	1	crc32c:u32
+531516229
+end	turbo:event-checksum
+layer	turbo:manifest	document	8	key:str	value:str
+BeamSize	3
+Component-Name	POSTaggerME
+Language	es
+Manifest-Version	1.0
+OpenNLP-Version	3.0.0-SNAPSHOT
+TrainerType	Event
+Training-Eventhash	1
+factory	opennlp.tools.postag.POSTaggerFactory
+end	turbo:manifest
+layer	turbo:package-entries	document	3	name:str	length:u32
+manifest.properties	243
+generator.featuregen	1930
+pos.model	67
+end	turbo:package-entries
