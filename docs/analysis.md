@@ -1513,7 +1513,7 @@ final model. An index with no event left makes the indexer throw
 `InsufficientTrainingDataException`; the golden then has the events and,
 in place of the indexer's layers, one `turbo:indexer-error` row with the
 exception's class and message. No layer type has these ids, so
-`analysis/train/tests/goldens.rs` reads these goldens itself, and compares the Rust indexers, trainer and writer with every one of them; `tests/roundtrip.rs` trains the fixture models `analysis/maxent/tests/fixtures/models/gis.model` and `en-plain.bin` again and checks the bytes are the fixtures'.
+`analysis/train/tests/goldens.rs` reads these goldens itself, and compares the Rust indexers, trainer and writer with every one of them; `analysis/train/tests/roundtrip.rs` trains the fixture models `analysis/maxent/tests/fixtures/models/gis.model` and `en-plain.bin` again and checks the bytes are the fixtures'.
 
 ## Generating golden files
 
