@@ -153,17 +153,20 @@ impl Annotator for PosTagger {
 
 #[cfg(test)]
 mod tests {
-    use std::path::Path;
-
     use turbo_analysis::{Analyzer, Document, Ix, Key, Layer, Span, Spans, Status, ViewId};
     use turbo_analysis_layers::Sentences;
     use turbo_sequence::postag::PosTagFormat;
 
     use super::*;
 
-    fn english() -> PosTagger {
-        let path = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/models/opennlp-en-ud-ewt-pos-1.3-2.5.4.bin");
-        PosTagger::new(PosModel::read(path).unwrap())
+    /// The tagger over the English model, or `None` when it is not
+    /// downloaded.
+    fn english() -> Option<PosTagger> {
+        Some(PosTagger::new(PosModel::read(english_path()?).unwrap()))
+    }
+
+    fn english_path() -> Option<std::path::PathBuf> {
+        crate::test_models::published(crate::test_models::ENGLISH)
     }
 
     fn labels(t: &PosTagger, words: &[&str]) -> Vec<String> {
@@ -176,14 +179,14 @@ mod tests {
 
     #[test]
     fn tags_a_sentence() {
-        let t = english();
+        let Some(t) = english() else { return };
         assert_eq!(labels(&t, &["The", "cat", "sat", "."]), ["DET", "NOUN", "VERB", "PUNCT"]);
         assert_eq!(labels(&t, &[]), Vec::<String>::new());
     }
 
     #[test]
     fn penn_tags_are_the_converted_outcomes() {
-        let path = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/models/opennlp-en-ud-ewt-pos-1.3-2.5.4.bin");
+        let Some(path) = english_path() else { return };
         let t = PosTagger::new(PosModel::read(path).unwrap().with_format(PosTagFormat::Penn));
         assert_eq!(labels(&t, &["The", "cat", "sat", "."]), ["DT", "NN", "VB", "."]);
     }
@@ -199,7 +202,7 @@ mod tests {
 
     #[test]
     fn sentences_are_tagged_one_at_a_time() {
-        let t = english();
+        let Some(t) = english() else { return };
         let text = "I run . Dogs run .";
         let doc = Document::new(text);
         let view = doc.get::<View>().unwrap();
@@ -226,7 +229,8 @@ mod tests {
     #[test]
     fn tokens_in_another_view_are_refused() {
         let doc = Document::new("ab");
-        let e = english().annotate((doc.get::<View>().unwrap(), &tokens(ViewId(3), &[(0, 1, 0)]))).err().unwrap();
+        let Some(t) = english() else { return };
+        let e = t.annotate((doc.get::<View>().unwrap(), &tokens(ViewId(3), &[(0, 1, 0)]))).err().unwrap();
         assert_eq!(
             e,
             Error::Annotator {
@@ -246,7 +250,7 @@ mod tests {
         doc.add(&Key::<Sentences>::DEFAULT, Sentences { spans: s }, turbo_analysis::Provenance::by("test")).unwrap();
         let toks = tokens(view, &[(0, 5, 0), (6, 10, 0), (11, 12, 0)]);
         doc.add(&Key::<Tokens>::DEFAULT, toks, turbo_analysis::Provenance::by("test")).unwrap();
-        let tagger = english();
+        let Some(tagger) = english() else { return };
         let config = tagger.config_hash();
         let analyzer = Analyzer::builder()
             .given(Key::<Sentences>::DEFAULT)
@@ -270,7 +274,7 @@ mod tests {
 
     #[test]
     fn the_configuration_hash_tells_settings_apart() {
-        let path = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/models/opennlp-en-ud-ewt-pos-1.3-2.5.4.bin");
+        let Some(path) = english_path() else { return };
         let open = || PosModel::read(&path).unwrap();
         let a = PosTagger::new(open()).config_hash();
         let b = PosTagger::new(open().with_format(PosTagFormat::Penn)).config_hash();

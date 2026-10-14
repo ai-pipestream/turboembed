@@ -210,15 +210,17 @@ fn check_dump(case: &Case, doc: &turbo_analysis::Document, model: &PosModel) -> 
     seen.len()
 }
 
-fn check_published(language: &str, model_file: &str, setting: Setting) -> Counts {
-    let path = common::models_dir().join(model_file);
+/// Runs a published model's goldens, or returns `None` when the model is
+/// not downloaded (`common::published_model`).
+fn check_published(language: &str, model_file: &str, setting: Setting) -> Option<Counts> {
+    let path = common::published_model(model_file)?;
     let model = open(&path, setting);
     assert_eq!(model.language(), language);
     assert!(model.tag_dictionary().is_none(), "no published model has a tag dictionary");
     let base = model_file.strip_suffix(".bin").unwrap();
     let counts = check_run(&format!("{base}{}", setting.suffix()), &model, &path, setting);
     assert_eq!(counts.restricted, 0);
-    counts
+    Some(counts)
 }
 
 const EN: &str = "opennlp-en-ud-ewt-pos-1.3-2.5.4.bin";
@@ -226,7 +228,7 @@ const DE: &str = "opennlp-de-ud-gsd-pos-1.3-2.5.4.bin";
 
 #[test]
 fn english() {
-    let counts = check_published("en", EN, Setting::Default);
+    let Some(counts) = check_published("en", EN, Setting::Default) else { return };
     assert_eq!(counts.files, [("edge".into(), 34), ("en".into(), 10), ("multi".into(), 11)]);
     assert_eq!(counts.skipped, 1);
     assert_eq!((counts.tokens, counts.points), (1304, 3584), "{counts:?}");
@@ -234,7 +236,7 @@ fn english() {
 
 #[test]
 fn english_penn() {
-    let counts = check_published("en", EN, Setting::Format(PosTagFormat::Penn));
+    let Some(counts) = check_published("en", EN, Setting::Format(PosTagFormat::Penn)) else { return };
     assert_eq!(counts.files, [("en".into(), 10)]);
     assert_eq!(counts.skipped, 1);
     // The same searches as in the UD run over the same set: only the
@@ -244,7 +246,7 @@ fn english_penn() {
 
 #[test]
 fn english_beam_1() {
-    let counts = check_published("en", EN, Setting::BeamSize(1));
+    let Some(counts) = check_published("en", EN, Setting::BeamSize(1)) else { return };
     assert_eq!(counts.files, [("en".into(), 10)]);
     // A beam of one asks once per token.
     assert_eq!((counts.tokens, counts.points), (496, 496), "{counts:?}");
@@ -252,7 +254,7 @@ fn english_beam_1() {
 
 #[test]
 fn english_beam_10() {
-    let counts = check_published("en", EN, Setting::BeamSize(10));
+    let Some(counts) = check_published("en", EN, Setting::BeamSize(10)) else { return };
     assert_eq!(counts.files, [("en".into(), 10)]);
     // More paths kept than the beam of three asks about (1380 over the
     // same set), fewer than ten per token: a sentence's first token is
@@ -263,7 +265,7 @@ fn english_beam_10() {
 
 #[test]
 fn german() {
-    let counts = check_published("de", DE, Setting::Default);
+    let Some(counts) = check_published("de", DE, Setting::Default) else { return };
     assert_eq!(counts.files, [("edge".into(), 34)]);
     assert_eq!(counts.skipped, 0);
     assert_eq!((counts.tokens, counts.points), (465, 1271), "{counts:?}");
