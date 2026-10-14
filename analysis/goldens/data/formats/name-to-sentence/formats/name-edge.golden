@@ -1,0 +1,40 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	formats/name-edge	420	408	ef594ec59eb49dc9e4bf1e1819c596c164edb9ccb5ec6e80349236624e5d7ff6
+model	en-detokenizer.xml	d071b56f77ae5b6aff0a591c1cf7e601a4007b5fdbcc0bd3fc31e8c84e95ec232df9765a70bfef786f75dbefcc4cad7d053b34b00ecc805507192a5fddc81260
+annotator	opennlp.tools.formats.convert.NameToSentenceSampleStream	read
+config	chunkSize	2
+layer	turbo:samples	document	6	written:str
+single\nsingle\n
+x\na b c\n
+leading and trailing spaces\ntab separated no-break em nel\u001cfs x\n
+after blanks\nafter a whitespace only line\n
+\nafter a next line\n
+final line without a line feed\n
+end	turbo:samples
+layer	turbo:read-errors	document	0	after:u32	class:str	message:str
+end	turbo:read-errors
+layer	turbo:sample-texts	document	6	text:str
+singlesingle
+xa b c
+leading and trailing spacestab separated no-break em nel\u001cfs x
+after blanksafter a whitespace only line
+after a next line
+final line without a line feed
+end	turbo:sample-texts
+layer	turbo:sample-spans	document	11	sample:u32	start:u32	end:u32
+0	0	6
+0	6	12
+1	0	1
+1	1	6
+2	0	27
+2	27	61
+3	0	12
+3	12	40
+4	0	0
+4	0	17
+5	0	30
+end	turbo:sample-spans

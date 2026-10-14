@@ -1,0 +1,9 @@
+a b <START:x> c <START:y> d e f
+<END> x
+<START:> y
+ok line
+<START:a> <END> <START:b> x <END>
+x <START:p> y <END> <END>
+
+<START:q> nested <START> deeper <END> <END>
+last good line

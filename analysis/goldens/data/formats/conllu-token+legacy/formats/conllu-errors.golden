@@ -1,0 +1,61 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	formats/conllu-errors	1474	1474	42b7f753628a5492507589493a66fb4426f1d7b8baf5936632829acb1a3bb77f
+annotator	opennlp.tools.formats.conllu.ConlluTokenSampleStream	read
+config	whitespace	legacy
+layer	turbo:samples	document	7	written:str
+good one
+cd ab c d e f
+ab cd
+a<SPLIT<SPLIT>>b
+a<<SPLIT>SPLIT><b
+<SPLIT>xy<SPLIT><SPLIT>z
+last
+end	turbo:samples
+layer	turbo:read-errors	document	12	after:u32	class:str	message:str
+0	opennlp.tools.util.InvalidFormatException	Line [1\tnine\tnine\tNUM\t_\t_\t_\t_\t_] must have exactly 10 fields
+0	opennlp.tools.util.InvalidFormatException	Line [1\tempty\t_\t_\t_\t_\t_\t_\t_\t] must have exactly 10 fields
+1	opennlp.tools.util.InvalidFormatException	Line [   ] must have exactly 10 fields
+1	opennlp.tools.util.InvalidFormatException	Invalid multiword token id: 01-2
+1	opennlp.tools.util.InvalidFormatException	Multiword token id runs backwards: 2-1
+1	opennlp.tools.util.InvalidFormatException	Multiword token 1-3 has no word line for id 3
+1	opennlp.tools.util.InvalidFormatException	Locale language code is invalid: text_X
+1	java.lang.IndexOutOfBoundsException	Index 3 out of bounds for length 2
+3	java.io.IOException	Failed to match token [there] in sentence [unmatched] with text [Hello world]
+3	java.io.IOException	Failed to match token [World] in sentence [null] with text [Hello world]
+6	opennlp.tools.util.InvalidFormatException	Invalid multiword token id: 2147483647-2147483648
+6	opennlp.tools.util.InvalidFormatException	Multiword token 2147483646-2147483647 has no word line for id 2147483646
+end	turbo:read-errors
+layer	turbo:sample-texts	document	7	text:str
+good one 
+cd ab c d e f 
+ab cd 
+a<SPLIT>b 
+a<SPLIT><b 
+xyz 
+last 
+end	turbo:sample-texts
+layer	turbo:sample-spans	document	19	sample:u32	start:u32	end:u32
+0	0	4
+0	5	8
+1	0	2
+1	3	5
+1	6	7
+1	8	9
+1	10	11
+1	12	13
+2	0	2
+2	3	5
+3	0	7
+3	7	9
+4	0	2
+4	2	10
+5	0	0
+5	0	2
+5	2	2
+5	2	3
+6	0	4
+end	turbo:sample-spans

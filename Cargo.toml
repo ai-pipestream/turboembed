@@ -33,6 +33,8 @@ members = [
     "analysis/stopword",
     "analysis/stopword-layers",
     "analysis/eval",
+    "analysis/formats",
+    "analysis/zoo",
 ]
 resolver = "3"
 

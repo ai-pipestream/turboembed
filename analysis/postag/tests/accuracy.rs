@@ -19,7 +19,9 @@
 //! tagger gets right, so the accuracy is given over every token, as
 //! `POSTaggerEvaluator` gives it, and over the plain word lines alone.
 
-use std::path::{Path, PathBuf};
+mod common;
+
+use std::path::PathBuf;
 
 use turbo_postag::{PosModel, PosTagger};
 
@@ -119,7 +121,8 @@ fn english_ewt_test_split() {
     let conllu = env_path("TURBO_UD_EWT_TEST").expect("TURBO_UD_EWT_TEST names the treebank's test split");
     let text = std::fs::read_to_string(&conllu).unwrap_or_else(|e| panic!("{}: {e}", conllu.display()));
     let sentences = read_conllu(&text);
-    let model = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/models/opennlp-en-ud-ewt-pos-1.3-2.5.4.bin");
+    let model = common::published_model("opennlp-en-ud-ewt-pos-1.3-2.5.4.bin")
+        .expect("the English model, downloaded by turbo-goldens fetch-models (TURBO_GOLDENS_MODELS)");
     let tagger = PosTagger::new(PosModel::read(&model).unwrap());
     let jvm_text = env_path("TURBO_UD_EWT_JVM_TAGS")
         .map(|p| std::fs::read_to_string(&p).unwrap_or_else(|e| panic!("{}: {e}", p.display())));

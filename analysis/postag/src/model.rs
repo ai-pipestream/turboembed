@@ -285,17 +285,14 @@ impl PosModel {
 mod tests {
     use super::*;
 
-    fn models() -> std::path::PathBuf {
-        Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/models")
-    }
-
-    fn english() -> PosModel {
-        PosModel::read(models().join("opennlp-en-ud-ewt-pos-1.3-2.5.4.bin")).unwrap()
+    /// The English model, or `None` when it is not downloaded.
+    fn english() -> Option<PosModel> {
+        Some(PosModel::read(crate::test_models::published(crate::test_models::ENGLISH)?).unwrap())
     }
 
     #[test]
     fn reads_the_english_model() {
-        let m = english();
+        let Some(m) = english() else { return };
         assert_eq!(m.language(), "en");
         assert_eq!(m.opennlp_version(), "2.5.4");
         assert_eq!(m.beam_size(), 3);
@@ -322,7 +319,8 @@ mod tests {
 
     #[test]
     fn penn_tags_from_a_ud_model() {
-        let m = english().with_format(PosTagFormat::Penn);
+        let Some(m) = english() else { return };
+        let m = m.with_format(PosTagFormat::Penn);
         let (penn, ud) = (PosTagFormat::Penn, PosTagFormat::Ud);
         assert_eq!((m.requested_format(), m.guessed_format(), m.tag_format()), (penn, ud, penn));
         assert!(m.converts_tags());
@@ -335,7 +333,8 @@ mod tests {
 
     #[test]
     fn custom_and_unknown_formats() {
-        let m = english().with_format(PosTagFormat::Custom);
+        let Some(m) = english() else { return };
+        let m = m.with_format(PosTagFormat::Custom);
         assert_eq!(m.tag_format(), PosTagFormat::Custom);
         assert!(!m.converts_tags());
         assert_eq!(m.tagset().name, "custom");
@@ -349,11 +348,12 @@ mod tests {
 
     #[test]
     fn beam_and_cache_sizes() {
-        let m = english().with_beam_size(10).unwrap();
+        let Some(m) = english() else { return };
+        let m = m.with_beam_size(10).unwrap();
         assert_eq!((m.beam_size(), m.context_cache_size()), (10, 10));
         let m = m.with_context_cache(0);
         assert_eq!((m.beam_size(), m.context_cache_size()), (10, 0));
-        assert!(matches!(english().with_beam_size(0), Err(ModelError::ZeroBeam)));
+        assert!(matches!(english().unwrap().with_beam_size(0), Err(ModelError::ZeroBeam)));
     }
 
     #[test]

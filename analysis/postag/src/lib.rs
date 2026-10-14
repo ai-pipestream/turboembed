@@ -48,3 +48,34 @@ pub use error::ModelError;
 pub use model::{COMPONENT_NAME, FACTORY, PosModel};
 pub use tagger::PosTagger;
 pub use turbo_sequence::postag::{PosTagFormat, TagDictionary};
+
+/// The published models the unit tests open. They are trained on CC BY-SA
+/// treebanks and not checked in; `turbo-goldens fetch-models` downloads
+/// them (tests/common/mod.rs has the same lookup for the golden tests).
+#[cfg(test)]
+pub(crate) mod test_models {
+    use std::path::{Path, PathBuf};
+
+    /// The English UD model, `opennlp-en-ud-ewt-pos-1.3-2.5.4.bin`.
+    pub const ENGLISH: &str = "opennlp-en-ud-ewt-pos-1.3-2.5.4.bin";
+
+    /// The model's path in the directory `TURBO_GOLDENS_MODELS` names, or
+    /// `target/turbo-goldens/models` under the repository root; `None`,
+    /// after saying so, when it is not there, unless
+    /// `TURBO_TEST_REQUIRE_OPENNLP_MODELS=1` makes that a failure.
+    pub fn published(file: &str) -> Option<PathBuf> {
+        let dir = match std::env::var_os("TURBO_GOLDENS_MODELS") {
+            Some(d) => PathBuf::from(d),
+            None => Path::new(env!("CARGO_MANIFEST_DIR")).join("../../target/turbo-goldens/models"),
+        };
+        let path = dir.join(file);
+        if path.is_file() {
+            Some(path)
+        } else if std::env::var("TURBO_TEST_REQUIRE_OPENNLP_MODELS").is_ok_and(|v| v == "1") {
+            panic!("{} not found and TURBO_TEST_REQUIRE_OPENNLP_MODELS=1", path.display());
+        } else {
+            eprintln!("{} not found: skipping the test that needs it", path.display());
+            None
+        }
+    }
+}

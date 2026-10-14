@@ -331,7 +331,7 @@ pub const FIXTURES: [Fixture; 28] = [
 ];
 
 /// The input sets under `analysis/goldens/data/inputs`.
-pub const INPUT_SETS: [&str; 17] = [
+pub const INPUT_SETS: [&str; 18] = [
     "en",
     "multi",
     "norm",
@@ -349,6 +349,7 @@ pub const INPUT_SETS: [&str; 17] = [
     "bpe",
     "ja",
     "ko",
+    "formats",
 ];
 
 /// The arguments the driver passes to the generator after the fixed ones
@@ -379,6 +380,8 @@ pub const ANNOTATORS: [&str; 16] = [
     "unigram",
     "bpe",
     "lattice",
+    "formats",
+    "evaluate",
 ];
 
 /// The annotators with runs that ask a maxent model for their decisions:

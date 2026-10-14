@@ -1,0 +1,17 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	formats/pairs-doccat-basic	92	92	d89ba604415def85b31eebc15ab611a9c8a40e3304054f0672a8c19c12b04c90
+annotator	opennlp.tools.doccat.DocumentCategorizerEvaluator	evaluateSample
+layer	turbo:verdicts	document	3	sample:u32	verdict:str	class:str	message:str
+0	misclassified		
+1	correct		
+2	misclassified		
+end	turbo:verdicts
+layer	turbo:accuracy	document	3	after:u32	accuracy:f64	count:u32
+0	0000000000000000 0.0	1
+1	3fe0000000000000 0.5	2
+2	3fd5555555555555 0.3333333333333333	3
+end	turbo:accuracy

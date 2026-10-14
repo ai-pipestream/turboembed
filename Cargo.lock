@@ -1835,6 +1835,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "turbo-formats"
+version = "0.1.0"
+dependencies = [
+ "turbo-analysis",
+ "turbo-goldens",
+ "turbo-jvm",
+ "turbo-tokenize",
+ "turbo-unicode",
+]
+
+[[package]]
 name = "turbo-goldens"
 version = "0.1.0"
 dependencies = [
@@ -2064,6 +2075,16 @@ dependencies = [
 [[package]]
 name = "turbo-unicode-gen"
 version = "0.1.0"
+
+[[package]]
+name = "turbo-zoo"
+version = "0.1.0"
+dependencies = [
+ "serde",
+ "serde_json",
+ "sha2",
+ "ureq",
+]
 
 [[package]]
 name = "typenum"
