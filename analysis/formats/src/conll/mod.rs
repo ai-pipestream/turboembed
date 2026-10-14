@@ -54,6 +54,9 @@
 //!   tokens that reads the next sentence and drops it; it cannot be
 //!   reached, as `ParagraphStream` never returns an empty sentence.
 
+#[cfg(doc)]
+use crate::FormatError;
+
 mod conllx;
 mod names;
 
