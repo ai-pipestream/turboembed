@@ -1,0 +1,18 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	en/ellipsis	144	142	edebdc578afc31b3243270390028ab0b7d1fc7416c7a001521b11cf8167c1de7
+annotator	opennlp.tools.ml.maxent.GISTrainer	train
+config	Cutoff	3
+config	DataIndexer	OnePassRealValue
+config	Iterations	100
+config	sort	false
+config	source	realvalue
+layer	turbo:events	document	1	outcome:str	context:str	values:str
+long	I thought about it for a long time... Then decided to stay. She paused… and laughed. Wait. . what did you say? The list went on on...	2.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 2.0 1.0 1.0 2.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0
+end	turbo:events
+layer	turbo:indexer-error	document	1	class:str	message:str
+opennlp.tools.util.InsufficientTrainingDataException	Insufficient training data to create model.
+end	turbo:indexer-error

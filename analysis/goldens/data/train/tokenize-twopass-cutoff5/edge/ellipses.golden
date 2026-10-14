@@ -1,0 +1,99 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	edge/ellipses	67	61	ebe802ab1de2ac8701cb588a1dd9bfecb7930f7cb6f4b10b3aedcbc6ea3d88d9
+annotator	opennlp.tools.ml.maxent.GISTrainer	train
+config	Cutoff	5
+config	DataIndexer	TwoPass
+config	Iterations	100
+config	sort	true
+config	source	tokenize
+layer	turbo:events	document	37	outcome:str	context:str	values:str
+F	p=W s=ait... p1=W p1_alpha p1_caps p2=bok p1f1=Wa f1=a f1_alpha f2=i f2_alpha f12=ai	
+F	p=Wa s=it... p1=a p1_alpha p2=W p2_alpha p2_caps p21=Wa p1f1=ai f1=i f1_alpha f2=t f2_alpha f12=it	
+F	p=Wai s=t... p1=i p1_alpha p2=a p2_alpha p21=ai p1f1=it f1=t f1_alpha f2=. f2_eos f12=t.	
+F	p=Wait s=... p1=t p1_alpha p2=i p2_alpha p21=it p1f1=t. f1=. f1_eos f2=. f2_eos f12=..	
+F	p=Wait. s=.. p1=. p1_eos p2=t p2_alpha p21=t. p1f1=.. f1=. f1_eos f2=. f2_eos f12=..	
+F	p=Wait.. s=. p1=. p1_eos p2=. p2_eos p21=.. p1f1=.. f1=. f1_eos f2=bok	
+F	p=w s=hat? p1=w p1_alpha p2=bok p1f1=wh f1=h f1_alpha f2=a f2_alpha f12=ha	
+F	p=wh s=at? p1=h p1_alpha p2=w p2_alpha p21=wh p1f1=ha f1=a f1_alpha f2=t f2_alpha f12=at	
+F	p=wha s=t? p1=a p1_alpha p2=h p2_alpha p21=ha p1f1=at f1=t f1_alpha f2=? f2_eos f12=t?	
+F	p=what s=? p1=t p1_alpha p2=a p2_alpha p21=at p1f1=t? f1=? f1_eos f2=bok	
+F	p=W s=ell… p1=W p1_alpha p1_caps p2=bok p1f1=We f1=e f1_alpha f2=l f2_alpha f12=el	
+F	p=We s=ll… p1=e p1_alpha p2=W p2_alpha p2_caps p21=We p1f1=el f1=l f1_alpha f2=l f2_alpha f12=ll	
+F	p=Wel s=l… p1=l p1_alpha p2=e p2_alpha p21=el p1f1=ll f1=l f1_alpha f2=… f12=l…	
+F	p=Well s=… p1=l p1_alpha p2=l p2_alpha p21=ll p1f1=l… f1=… f2=bok	
+F	p=m s=aybe. p1=m p1_alpha p2=bok p1f1=ma f1=a f1_alpha f2=y f2_alpha f12=ay	
+F	p=ma s=ybe. p1=a p1_alpha p2=m p2_alpha p21=ma p1f1=ay f1=y f1_alpha f2=b f2_alpha f12=yb	
+F	p=may s=be. p1=y p1_alpha p2=a p2_alpha p21=ay p1f1=yb f1=b f1_alpha f2=e f2_alpha f12=be	
+F	p=mayb s=e. p1=b p1_alpha p2=y p2_alpha p21=yb p1f1=be f1=e f1_alpha f2=. f2_eos f12=e.	
+F	p=maybe s=. p1=e p1_alpha p2=b p2_alpha p21=be p1f1=e. f1=. f1_eos f2=bok	
+F	p=o s=r p1=o p1_alpha p2=bok p1f1=or f1=r f1_alpha f2=bok	
+F	p=n s=ot.. p1=n p1_alpha p2=bok p1f1=no f1=o f1_alpha f2=t f2_alpha f12=ot	
+F	p=no s=t.. p1=o p1_alpha p2=n p2_alpha p21=no p1f1=ot f1=t f1_alpha f2=. f2_eos f12=t.	
+F	p=not s=.. p1=t p1_alpha p2=o p2_alpha p21=ot p1f1=t. f1=. f1_eos f2=. f2_eos f12=..	
+F	p=not. s=. p1=. p1_eos p2=t p2_alpha p21=t. p1f1=.. f1=. f1_eos f2=bok	
+F	p=H s=mm...... p1=H p1_alpha p1_caps p2=bok p1f1=Hm f1=m f1_alpha f2=m f2_alpha f12=mm	
+F	p=Hm s=m...... p1=m p1_alpha p2=H p2_alpha p2_caps p21=Hm p1f1=mm f1=m f1_alpha f2=. f2_eos f12=m.	
+F	p=Hmm s=...... p1=m p1_alpha p2=m p2_alpha p21=mm p1f1=m. f1=. f1_eos f2=. f2_eos f12=..	
+F	p=Hmm. s=..... p1=. p1_eos p2=m p2_alpha p21=m. p1f1=.. f1=. f1_eos f2=. f2_eos f12=..	
+F	p=Hmm.. s=.... p1=. p1_eos p2=. p2_eos p21=.. p1f1=.. f1=. f1_eos f2=. f2_eos f12=..	
+F	p=Hmm... s=... p1=. p1_eos p2=. p2_eos p21=.. p1f1=.. f1=. f1_eos f2=. f2_eos f12=..	
+F	p=Hmm.... s=.. p1=. p1_eos p2=. p2_eos p21=.. p1f1=.. f1=. f1_eos f2=. f2_eos f12=..	
+F	p=Hmm..... s=. p1=. p1_eos p2=. p2_eos p21=.. p1f1=.. f1=. f1_eos f2=bok	
+F	p=o s=k…… p1=o p1_alpha p2=bok p1f1=ok f1=k f1_alpha f2=… f12=k…	
+F	p=ok s=…… p1=k p1_alpha p2=o p2_alpha p21=ok p1f1=k… f1=… f2=… f12=……	
+F	p=ok… s=… p1=… p2=k p2_alpha p21=k… p1f1=…… f1=… f2=bok	
+F	p=e s=nd p1=e p1_alpha p2=bok p1f1=en f1=n f1_alpha f2=d f2_alpha f12=nd	
+F	p=en s=d p1=n p1_alpha p2=e p2_alpha p21=en p1f1=nd f1=d f1_alpha f2=bok	
+end	turbo:events
+layer	turbo:event-checksum	document	1	crc32c:u32
+3047517548
+end	turbo:event-checksum
+layer	turbo:indexer-outcomes	document	1	label:str
+F
+end	turbo:indexer-outcomes
+layer	turbo:indexer-predicates	document	17	label:str	count:u32
+f12=..	8
+f1=.	12
+f1_alpha	21
+f1_eos	13
+f2=.	12
+f2=bok	9
+f2_alpha	12
+f2_eos	13
+p1=.	8
+p1_alpha	28
+p1_eos	8
+p1f1=..	8
+p21=..	5
+p2=.	5
+p2=bok	9
+p2_alpha	23
+p2_eos	5
+end	turbo:indexer-predicates
+layer	turbo:indexer-events	document	18	outcome:u32	context:str	values:str	seen:u32
+0	8 10 13 16 12 11 1 3 4 7 0		3
+0	8 10 13 16 12 11 1 3 5		2
+0	8 10 15 11 1 3 4 7 0		2
+0	8 10 15 11 1 3 5		1
+0	9 14 2		1
+0	9 14 2 5		1
+0	9 14 2 6		7
+0	9 15		1
+0	9 15 1 3 4 7 0		3
+0	9 15 1 3 5		1
+0	9 15 2		1
+0	9 15 2 4 7		4
+0	9 15 2 5		1
+0	9 15 2 6		5
+0	9 15 2 7		1
+0	9 15 3 5		1
+0	9 15 5		1
+0	15 5		1
+end	turbo:indexer-events
+layer	turbo:gis-training	document	1	iterations:u32	message:str
+0	opennlp.tools.util.InsufficientTrainingDataException: Training data must contain more than one outcome
+end	turbo:gis-training

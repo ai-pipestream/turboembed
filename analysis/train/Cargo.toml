@@ -1,0 +1,29 @@
+[package]
+name = "turbo-train"
+version = "0.1.0"
+edition.workspace = true
+license.workspace = true
+publish = false
+
+[lib]
+name = "turbo_train"
+
+[dependencies]
+# The model file reader the trained models are checked against, and the
+# properties file reader that OpenNLP's parameter files are read with.
+turbo-maxent = { path = "../maxent" }
+# Java's string order (predicate labels are sorted by it), the UTF-16 view
+# of a string (case-insensitive parameter keys), and Java's number
+# formatting and parsing (event files, parameter values).
+turbo-jvm = { path = "../jvm" }
+# The Unicode White_Space set that event lines are split on, Java's per
+# character case mapping, and modified UTF-8 lengths.
+turbo-unicode = { path = "../unicode" }
+
+[dev-dependencies]
+# The JVM's indexer results on real event data, which the indexers are
+# compared with.
+turbo-goldens = { path = "../goldens" }
+# Opens the sentence detector model trained here and the JVM's fixture,
+# and splits text with both.
+turbo-sentdetect = { path = "../sentdetect" }

@@ -1,0 +1,56 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	multi/mixed	208	159	71ffe6d2d2efe18534c6caac3d4b4b2934977b4396111c647e9b0231c6370f99
+annotator	opennlp.tools.ml.maxent.GISTrainer	train
+config	Cutoff	1
+config	DataIndexer	OnePassRealValue
+config	Iterations	100
+config	sort	true
+config	source	realvalue
+layer	turbo:events	document	1	outcome:str	context:str	values:str
+long	The café in 東京 serves 𠮷野家-style bowls 🍜 for ¥800. Mathematicians write 𝐀 and 𝔅 special sets. Мой друг sent me 👋🏽 from Berlin! 我喜欢𠀀这个字吗？ end 🎉.	2.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 2.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0
+end	turbo:events
+layer	turbo:event-checksum	document	1	crc32c:u32
+1549037942
+end	turbo:event-checksum
+layer	turbo:indexer-outcomes	document	1	label:str
+long
+end	turbo:indexer-outcomes
+layer	turbo:indexer-predicates	document	27	label:str	count:u32
+Berlin!	1
+Mathematicians	1
+The	1
+and	1
+bowls	1
+café	1
+end	1
+for	1
+from	1
+in	1
+me	1
+sent	1
+serves	1
+sets.	1
+special	1
+write	1
+¥800.	1
+Мой	1
+друг	1
+我喜欢𠀀这个字吗？	1
+東京	1
+𝐀	1
+𝔅	1
+🍜	1
+🎉.	1
+👋🏽	1
+𠮷野家-style	1
+end	turbo:indexer-predicates
+layer	turbo:indexer-events	document	1	outcome:u32	context:str	values:str	seen:u32
+0	2 5 9 20 12 26 4 23 7 16 1 15 21 3 22 14 13 17 18 11 10 25 8 0 19 6 24	2.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 2.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0	1
+end	turbo:indexer-events
+layer	turbo:gis-training	document	1	iterations:u32	message:str
+0	opennlp.tools.util.InsufficientTrainingDataException: Training data must contain more than one outcome
+end	turbo:gis-training

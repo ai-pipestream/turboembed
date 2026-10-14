@@ -1,0 +1,19 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	sentence-fixture/crlf	25	25	ef0f4ce89fecc7bc80d4153caba7a724164a1031372c95a2bc235fcf2b72d546
+model	en-plain-rust.bin	ef8684db6573d7096b72db1d520fe7181c8ee058d2c9c1abe140556d36da18d1693e63c2f84faf8f427fdd80b0e0f4bd47ce6a92a7aa53233b0b74c403cff736
+annotator	opennlp.tools.sentdetect.SentenceDetectorME	sentPosDetect
+config	whitespace	legacy
+layer	opennlp:sentences	text	3	start:u32	end:u32
+0	10
+11	17
+19	24
+end	opennlp:sentences
+layer	turbo:confidence<opennlp:sentences>	aligned:opennlp:sentences	3	value:f64
+3fe1915da6d28b76 0.5489948518992225
+3feaacc86a617cba 0.8335916593313393
+3fe6711d5a4bd89a 0.7013079417800043
+end	turbo:confidence<opennlp:sentences>

@@ -1,0 +1,562 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	edge/urls-emails	189	189	24a6e1968bc86b5976b4eee7e2ef6acb6bd2372d9afa4be8b45f4ad9af261501
+annotator	opennlp.tools.ml.maxent.GISTrainer	train
+config	Cutoff	2
+config	DataIndexer	OnePass
+config	Iterations	100
+config	sort	false
+config	source	tokenize
+layer	turbo:events	document	165	outcome:str	context:str	values:str
+F	p=V s=isit p1=V p1_alpha p1_caps p2=bok p1f1=Vi f1=i f1_alpha f2=s f2_alpha f12=is	
+F	p=Vi s=sit p1=i p1_alpha p2=V p2_alpha p2_caps p21=Vi p1f1=is f1=s f1_alpha f2=i f2_alpha f12=si	
+F	p=Vis s=it p1=s p1_alpha p2=i p2_alpha p21=is p1f1=si f1=i f1_alpha f2=t f2_alpha f12=it	
+F	p=Visi s=t p1=i p1_alpha p2=s p2_alpha p21=si p1f1=it f1=t f1_alpha f2=bok	
+F	p=h s=ttps://www.example.com/path?q=1&r=2#frag p1=h p1_alpha p2=bok p1f1=ht f1=t f1_alpha f2=t f2_alpha f12=tt	
+F	p=ht s=tps://www.example.com/path?q=1&r=2#frag p1=t p1_alpha p2=h p2_alpha p21=ht p1f1=tt f1=t f1_alpha f2=p f2_alpha f12=tp	
+F	p=htt s=ps://www.example.com/path?q=1&r=2#frag p1=t p1_alpha p2=t p2_alpha p21=tt p1f1=tp f1=p f1_alpha f2=s f2_alpha f12=ps	
+F	p=http s=s://www.example.com/path?q=1&r=2#frag p1=p p1_alpha p2=t p2_alpha p21=tp p1f1=ps f1=s f1_alpha f2=: f12=s:	
+F	p=https s=://www.example.com/path?q=1&r=2#frag p1=s p1_alpha p2=p p2_alpha p21=ps p1f1=s: f1=: f2=/ f12=:/	
+F	p=https: s=//www.example.com/path?q=1&r=2#frag p1=: p2=s p2_alpha p21=s: p1f1=:/ f1=/ f2=/ f12=//	
+F	p=https:/ s=/www.example.com/path?q=1&r=2#frag p1=/ p2=: p21=:/ p1f1=// f1=/ f2=w f2_alpha f12=/w	
+F	p=https:// s=www.example.com/path?q=1&r=2#frag p1=/ p2=/ p21=// p1f1=/w f1=w f1_alpha f2=w f2_alpha f12=ww	
+F	p=https://w s=ww.example.com/path?q=1&r=2#frag p1=w p1_alpha p2=/ p21=/w p1f1=ww f1=w f1_alpha f2=w f2_alpha f12=ww	
+F	p=https://ww s=w.example.com/path?q=1&r=2#frag p1=w p1_alpha p2=w p2_alpha p21=ww p1f1=ww f1=w f1_alpha f2=. f2_eos f12=w.	
+F	p=https://www s=.example.com/path?q=1&r=2#frag p1=w p1_alpha p2=w p2_alpha p21=ww p1f1=w. f1=. f1_eos f2=e f2_alpha f12=.e	
+F	p=https://www. s=example.com/path?q=1&r=2#frag p1=. p1_eos p2=w p2_alpha p21=w. p1f1=.e f1=e f1_alpha f2=x f2_alpha f12=ex	
+F	p=https://www.e s=xample.com/path?q=1&r=2#frag p1=e p1_alpha p2=. p2_eos p21=.e p1f1=ex f1=x f1_alpha f2=a f2_alpha f12=xa	
+F	p=https://www.ex s=ample.com/path?q=1&r=2#frag p1=x p1_alpha p2=e p2_alpha p21=ex p1f1=xa f1=a f1_alpha f2=m f2_alpha f12=am	
+F	p=https://www.exa s=mple.com/path?q=1&r=2#frag p1=a p1_alpha p2=x p2_alpha p21=xa p1f1=am f1=m f1_alpha f2=p f2_alpha f12=mp	
+F	p=https://www.exam s=ple.com/path?q=1&r=2#frag p1=m p1_alpha p2=a p2_alpha p21=am p1f1=mp f1=p f1_alpha f2=l f2_alpha f12=pl	
+F	p=https://www.examp s=le.com/path?q=1&r=2#frag p1=p p1_alpha p2=m p2_alpha p21=mp p1f1=pl f1=l f1_alpha f2=e f2_alpha f12=le	
+F	p=https://www.exampl s=e.com/path?q=1&r=2#frag p1=l p1_alpha p2=p p2_alpha p21=pl p1f1=le f1=e f1_alpha f2=. f2_eos f12=e.	
+F	p=https://www.example s=.com/path?q=1&r=2#frag p1=e p1_alpha p2=l p2_alpha p21=le p1f1=e. f1=. f1_eos f2=c f2_alpha f12=.c	
+F	p=https://www.example. s=com/path?q=1&r=2#frag p1=. p1_eos p2=e p2_alpha p21=e. p1f1=.c f1=c f1_alpha f2=o f2_alpha f12=co	
+F	p=https://www.example.c s=om/path?q=1&r=2#frag p1=c p1_alpha p2=. p2_eos p21=.c p1f1=co f1=o f1_alpha f2=m f2_alpha f12=om	
+F	p=https://www.example.co s=m/path?q=1&r=2#frag p1=o p1_alpha p2=c p2_alpha p21=co p1f1=om f1=m f1_alpha f2=/ f12=m/	
+F	p=https://www.example.com s=/path?q=1&r=2#frag p1=m p1_alpha p2=o p2_alpha p21=om p1f1=m/ f1=/ f2=p f2_alpha f12=/p	
+F	p=https://www.example.com/ s=path?q=1&r=2#frag p1=/ p2=m p2_alpha p21=m/ p1f1=/p f1=p f1_alpha f2=a f2_alpha f12=pa	
+F	p=https://www.example.com/p s=ath?q=1&r=2#frag p1=p p1_alpha p2=/ p21=/p p1f1=pa f1=a f1_alpha f2=t f2_alpha f12=at	
+F	p=https://www.example.com/pa s=th?q=1&r=2#frag p1=a p1_alpha p2=p p2_alpha p21=pa p1f1=at f1=t f1_alpha f2=h f2_alpha f12=th	
+F	p=https://www.example.com/pat s=h?q=1&r=2#frag p1=t p1_alpha p2=a p2_alpha p21=at p1f1=th f1=h f1_alpha f2=? f2_eos f12=h?	
+F	p=https://www.example.com/path s=?q=1&r=2#frag p1=h p1_alpha p2=t p2_alpha p21=th p1f1=h? f1=? f1_eos f2=q f2_alpha f12=?q	
+F	p=https://www.example.com/path? s=q=1&r=2#frag p1=? p1_eos p2=h p2_alpha p21=h? p1f1=?q f1=q f1_alpha f2== f12=q=	
+F	p=https://www.example.com/path?q s==1&r=2#frag p1=q p1_alpha p2=? p2_eos p21=?q p1f1=q= f1== f2=1 f2_num f12==1	
+F	p=https://www.example.com/path?q= s=1&r=2#frag p1== p2=q p2_alpha p21=q= p1f1==1 f1=1 f1_num f2=& f12=1&	
+F	p=https://www.example.com/path?q=1 s=&r=2#frag p1=1 p1_num p2== p21==1 p1f1=1& f1=& f2=r f2_alpha f12=&r	
+F	p=https://www.example.com/path?q=1& s=r=2#frag p1=& p2=1 p2_num p21=1& p1f1=&r f1=r f1_alpha f2== f12=r=	
+F	p=https://www.example.com/path?q=1&r s==2#frag p1=r p1_alpha p2=& p21=&r p1f1=r= f1== f2=2 f2_num f12==2	
+F	p=https://www.example.com/path?q=1&r= s=2#frag p1== p2=r p2_alpha p21=r= p1f1==2 f1=2 f1_num f2=# f12=2#	
+F	p=https://www.example.com/path?q=1&r=2 s=#frag p1=2 p1_num p2== p21==2 p1f1=2# f1=# f2=f f2_alpha f12=#f	
+F	p=https://www.example.com/path?q=1&r=2# s=frag p1=# p2=2 p2_num p21=2# p1f1=#f f1=f f1_alpha f2=r f2_alpha f12=fr	
+F	p=https://www.example.com/path?q=1&r=2#f s=rag p1=f p1_alpha p2=# p21=#f p1f1=fr f1=r f1_alpha f2=a f2_alpha f12=ra	
+F	p=https://www.example.com/path?q=1&r=2#fr s=ag p1=r p1_alpha p2=f p2_alpha p21=fr p1f1=ra f1=a f1_alpha f2=g f2_alpha f12=ag	
+F	p=https://www.example.com/path?q=1&r=2#fra s=g p1=a p1_alpha p2=r p2_alpha p21=ra p1f1=ag f1=g f1_alpha f2=bok	
+F	p=o s=r p1=o p1_alpha p2=bok p1f1=or f1=r f1_alpha f2=bok	
+F	p=h s=ttp://localhost:8080/a_b.html, p1=h p1_alpha p2=bok p1f1=ht f1=t f1_alpha f2=t f2_alpha f12=tt	
+F	p=ht s=tp://localhost:8080/a_b.html, p1=t p1_alpha p2=h p2_alpha p21=ht p1f1=tt f1=t f1_alpha f2=p f2_alpha f12=tp	
+F	p=htt s=p://localhost:8080/a_b.html, p1=t p1_alpha p2=t p2_alpha p21=tt p1f1=tp f1=p f1_alpha f2=: f12=p:	
+F	p=http s=://localhost:8080/a_b.html, p1=p p1_alpha p2=t p2_alpha p21=tp p1f1=p: f1=: f2=/ f12=:/	
+F	p=http: s=//localhost:8080/a_b.html, p1=: p2=p p2_alpha p21=p: p1f1=:/ f1=/ f2=/ f12=//	
+F	p=http:/ s=/localhost:8080/a_b.html, p1=/ p2=: p21=:/ p1f1=// f1=/ f2=l f2_alpha f12=/l	
+F	p=http:// s=localhost:8080/a_b.html, p1=/ p2=/ p21=// p1f1=/l f1=l f1_alpha f2=o f2_alpha f12=lo	
+F	p=http://l s=ocalhost:8080/a_b.html, p1=l p1_alpha p2=/ p21=/l p1f1=lo f1=o f1_alpha f2=c f2_alpha f12=oc	
+F	p=http://lo s=calhost:8080/a_b.html, p1=o p1_alpha p2=l p2_alpha p21=lo p1f1=oc f1=c f1_alpha f2=a f2_alpha f12=ca	
+F	p=http://loc s=alhost:8080/a_b.html, p1=c p1_alpha p2=o p2_alpha p21=oc p1f1=ca f1=a f1_alpha f2=l f2_alpha f12=al	
+F	p=http://loca s=lhost:8080/a_b.html, p1=a p1_alpha p2=c p2_alpha p21=ca p1f1=al f1=l f1_alpha f2=h f2_alpha f12=lh	
+F	p=http://local s=host:8080/a_b.html, p1=l p1_alpha p2=a p2_alpha p21=al p1f1=lh f1=h f1_alpha f2=o f2_alpha f12=ho	
+F	p=http://localh s=ost:8080/a_b.html, p1=h p1_alpha p2=l p2_alpha p21=lh p1f1=ho f1=o f1_alpha f2=s f2_alpha f12=os	
+F	p=http://localho s=st:8080/a_b.html, p1=o p1_alpha p2=h p2_alpha p21=ho p1f1=os f1=s f1_alpha f2=t f2_alpha f12=st	
+F	p=http://localhos s=t:8080/a_b.html, p1=s p1_alpha p2=o p2_alpha p21=os p1f1=st f1=t f1_alpha f2=: f12=t:	
+F	p=http://localhost s=:8080/a_b.html, p1=t p1_alpha p2=s p2_alpha p21=st p1f1=t: f1=: f2=8 f2_num f12=:8	
+F	p=http://localhost: s=8080/a_b.html, p1=: p2=t p2_alpha p21=t: p1f1=:8 f1=8 f1_num f2=0 f2_num f12=80	
+F	p=http://localhost:8 s=080/a_b.html, p1=8 p1_num p2=: p21=:8 p1f1=80 f1=0 f1_num f2=8 f2_num f12=08	
+F	p=http://localhost:80 s=80/a_b.html, p1=0 p1_num p2=8 p2_num p21=80 p1f1=08 f1=8 f1_num f2=0 f2_num f12=80	
+F	p=http://localhost:808 s=0/a_b.html, p1=8 p1_num p2=0 p2_num p21=08 p1f1=80 f1=0 f1_num f2=/ f12=0/	
+F	p=http://localhost:8080 s=/a_b.html, p1=0 p1_num p2=8 p2_num p21=80 p1f1=0/ f1=/ f2=a f2_alpha f12=/a	
+F	p=http://localhost:8080/ s=a_b.html, p1=/ p2=0 p2_num p21=0/ p1f1=/a f1=a f1_alpha f2=_ f12=a_	
+F	p=http://localhost:8080/a s=_b.html, p1=a p1_alpha p2=/ p21=/a p1f1=a_ f1=_ f2=b f2_alpha f12=_b	
+F	p=http://localhost:8080/a_ s=b.html, p1=_ p2=a p2_alpha p21=a_ p1f1=_b f1=b f1_alpha f2=. f2_eos f12=b.	
+F	p=http://localhost:8080/a_b s=.html, p1=b p1_alpha p2=_ p21=_b p1f1=b. f1=. f1_eos f2=h f2_alpha f12=.h	
+F	p=http://localhost:8080/a_b. s=html, p1=. p1_eos p2=b p2_alpha p21=b. p1f1=.h f1=h f1_alpha f2=t f2_alpha f12=ht	
+F	p=http://localhost:8080/a_b.h s=tml, p1=h p1_alpha p2=. p2_eos p21=.h p1f1=ht f1=t f1_alpha f2=m f2_alpha f12=tm	
+F	p=http://localhost:8080/a_b.ht s=ml, p1=t p1_alpha p2=h p2_alpha p21=ht p1f1=tm f1=m f1_alpha f2=l f2_alpha f12=ml	
+F	p=http://localhost:8080/a_b.htm s=l, p1=m p1_alpha p2=t p2_alpha p21=tm p1f1=ml f1=l f1_alpha f2=, f12=l,	
+F	p=http://localhost:8080/a_b.html s=, p1=l p1_alpha p2=m p2_alpha p21=ml p1f1=l, f1=, f2=bok	
+F	p=m s=ail p1=m p1_alpha p2=bok p1f1=ma f1=a f1_alpha f2=i f2_alpha f12=ai	
+F	p=ma s=il p1=a p1_alpha p2=m p2_alpha p21=ma p1f1=ai f1=i f1_alpha f2=l f2_alpha f12=il	
+F	p=mai s=l p1=i p1_alpha p2=a p2_alpha p21=ai p1f1=il f1=l f1_alpha f2=bok	
+F	p=j s=ohn.doe+tag@example.co.uk p1=j p1_alpha p2=bok p1f1=jo f1=o f1_alpha f2=h f2_alpha f12=oh	
+F	p=jo s=hn.doe+tag@example.co.uk p1=o p1_alpha p2=j p2_alpha p21=jo p1f1=oh f1=h f1_alpha f2=n f2_alpha f12=hn	
+F	p=joh s=n.doe+tag@example.co.uk p1=h p1_alpha p2=o p2_alpha p21=oh p1f1=hn f1=n f1_alpha f2=. f2_eos f12=n.	
+F	p=john s=.doe+tag@example.co.uk p1=n p1_alpha p2=h p2_alpha p21=hn p1f1=n. f1=. f1_eos f2=d f2_alpha f12=.d	
+F	p=john. s=doe+tag@example.co.uk p1=. p1_eos p2=n p2_alpha p21=n. p1f1=.d f1=d f1_alpha f2=o f2_alpha f12=do	
+F	p=john.d s=oe+tag@example.co.uk p1=d p1_alpha p2=. p2_eos p21=.d p1f1=do f1=o f1_alpha f2=e f2_alpha f12=oe	
+F	p=john.do s=e+tag@example.co.uk p1=o p1_alpha p2=d p2_alpha p21=do p1f1=oe f1=e f1_alpha f2=+ f12=e+	
+F	p=john.doe s=+tag@example.co.uk p1=e p1_alpha p2=o p2_alpha p21=oe p1f1=e+ f1=+ f2=t f2_alpha f12=+t	
+F	p=john.doe+ s=tag@example.co.uk p1=+ p2=e p2_alpha p21=e+ p1f1=+t f1=t f1_alpha f2=a f2_alpha f12=ta	
+F	p=john.doe+t s=ag@example.co.uk p1=t p1_alpha p2=+ p21=+t p1f1=ta f1=a f1_alpha f2=g f2_alpha f12=ag	
+F	p=john.doe+ta s=g@example.co.uk p1=a p1_alpha p2=t p2_alpha p21=ta p1f1=ag f1=g f1_alpha f2=@ f12=g@	
+F	p=john.doe+tag s=@example.co.uk p1=g p1_alpha p2=a p2_alpha p21=ag p1f1=g@ f1=@ f2=e f2_alpha f12=@e	
+F	p=john.doe+tag@ s=example.co.uk p1=@ p2=g p2_alpha p21=g@ p1f1=@e f1=e f1_alpha f2=x f2_alpha f12=ex	
+F	p=john.doe+tag@e s=xample.co.uk p1=e p1_alpha p2=@ p21=@e p1f1=ex f1=x f1_alpha f2=a f2_alpha f12=xa	
+F	p=john.doe+tag@ex s=ample.co.uk p1=x p1_alpha p2=e p2_alpha p21=ex p1f1=xa f1=a f1_alpha f2=m f2_alpha f12=am	
+F	p=john.doe+tag@exa s=mple.co.uk p1=a p1_alpha p2=x p2_alpha p21=xa p1f1=am f1=m f1_alpha f2=p f2_alpha f12=mp	
+F	p=john.doe+tag@exam s=ple.co.uk p1=m p1_alpha p2=a p2_alpha p21=am p1f1=mp f1=p f1_alpha f2=l f2_alpha f12=pl	
+F	p=john.doe+tag@examp s=le.co.uk p1=p p1_alpha p2=m p2_alpha p21=mp p1f1=pl f1=l f1_alpha f2=e f2_alpha f12=le	
+F	p=john.doe+tag@exampl s=e.co.uk p1=l p1_alpha p2=p p2_alpha p21=pl p1f1=le f1=e f1_alpha f2=. f2_eos f12=e.	
+F	p=john.doe+tag@example s=.co.uk p1=e p1_alpha p2=l p2_alpha p21=le p1f1=e. f1=. f1_eos f2=c f2_alpha f12=.c	
+F	p=john.doe+tag@example. s=co.uk p1=. p1_eos p2=e p2_alpha p21=e. p1f1=.c f1=c f1_alpha f2=o f2_alpha f12=co	
+F	p=john.doe+tag@example.c s=o.uk p1=c p1_alpha p2=. p2_eos p21=.c p1f1=co f1=o f1_alpha f2=. f2_eos f12=o.	
+F	p=john.doe+tag@example.co s=.uk p1=o p1_alpha p2=c p2_alpha p21=co p1f1=o. f1=. f1_eos f2=u f2_alpha f12=.u	
+F	p=john.doe+tag@example.co. s=uk p1=. p1_eos p2=o p2_alpha p21=o. p1f1=.u f1=u f1_alpha f2=k f2_alpha f12=uk	
+F	p=john.doe+tag@example.co.u s=k p1=u p1_alpha p2=. p2_eos p21=.u p1f1=uk f1=k f1_alpha f2=bok	
+F	p=o s=r p1=o p1_alpha p2=bok p1f1=or f1=r f1_alpha f2=bok	
+F	p=w s=ww.test.org. p1=w p1_alpha p2=bok p1f1=ww f1=w f1_alpha f2=w f2_alpha f12=ww	
+F	p=ww s=w.test.org. p1=w p1_alpha p2=w p2_alpha p21=ww p1f1=ww f1=w f1_alpha f2=. f2_eos f12=w.	
+F	p=www s=.test.org. p1=w p1_alpha p2=w p2_alpha p21=ww p1f1=w. f1=. f1_eos f2=t f2_alpha f12=.t	
+F	p=www. s=test.org. p1=. p1_eos p2=w p2_alpha p21=w. p1f1=.t f1=t f1_alpha f2=e f2_alpha f12=te	
+F	p=www.t s=est.org. p1=t p1_alpha p2=. p2_eos p21=.t p1f1=te f1=e f1_alpha f2=s f2_alpha f12=es	
+F	p=www.te s=st.org. p1=e p1_alpha p2=t p2_alpha p21=te p1f1=es f1=s f1_alpha f2=t f2_alpha f12=st	
+F	p=www.tes s=t.org. p1=s p1_alpha p2=e p2_alpha p21=es p1f1=st f1=t f1_alpha f2=. f2_eos f12=t.	
+F	p=www.test s=.org. p1=t p1_alpha p2=s p2_alpha p21=st p1f1=t. f1=. f1_eos f2=o f2_alpha f12=.o	
+F	p=www.test. s=org. p1=. p1_eos p2=t p2_alpha p21=t. p1f1=.o f1=o f1_alpha f2=r f2_alpha f12=or	
+F	p=www.test.o s=rg. p1=o p1_alpha p2=. p2_eos p21=.o p1f1=or f1=r f1_alpha f2=g f2_alpha f12=rg	
+F	p=www.test.or s=g. p1=r p1_alpha p2=o p2_alpha p21=or p1f1=rg f1=g f1_alpha f2=. f2_eos f12=g.	
+F	p=www.test.org s=. p1=g p1_alpha p2=r p2_alpha p21=rg p1f1=g. f1=. f1_eos f2=bok	
+F	p=A s=lso p1=A p1_alpha p1_caps p2=bok p1f1=Al f1=l f1_alpha f2=s f2_alpha f12=ls	
+F	p=Al s=so p1=l p1_alpha p2=A p2_alpha p2_caps p21=Al p1f1=ls f1=s f1_alpha f2=o f2_alpha f12=so	
+F	p=Als s=o p1=s p1_alpha p2=l p2_alpha p21=ls p1f1=so f1=o f1_alpha f2=bok	
+F	p=f s=tp://files.example.net/x.tar.gz p1=f p1_alpha p2=bok p1f1=ft f1=t f1_alpha f2=p f2_alpha f12=tp	
+F	p=ft s=p://files.example.net/x.tar.gz p1=t p1_alpha p2=f p2_alpha p21=ft p1f1=tp f1=p f1_alpha f2=: f12=p:	
+F	p=ftp s=://files.example.net/x.tar.gz p1=p p1_alpha p2=t p2_alpha p21=tp p1f1=p: f1=: f2=/ f12=:/	
+F	p=ftp: s=//files.example.net/x.tar.gz p1=: p2=p p2_alpha p21=p: p1f1=:/ f1=/ f2=/ f12=//	
+F	p=ftp:/ s=/files.example.net/x.tar.gz p1=/ p2=: p21=:/ p1f1=// f1=/ f2=f f2_alpha f12=/f	
+F	p=ftp:// s=files.example.net/x.tar.gz p1=/ p2=/ p21=// p1f1=/f f1=f f1_alpha f2=i f2_alpha f12=fi	
+F	p=ftp://f s=iles.example.net/x.tar.gz p1=f p1_alpha p2=/ p21=/f p1f1=fi f1=i f1_alpha f2=l f2_alpha f12=il	
+F	p=ftp://fi s=les.example.net/x.tar.gz p1=i p1_alpha p2=f p2_alpha p21=fi p1f1=il f1=l f1_alpha f2=e f2_alpha f12=le	
+F	p=ftp://fil s=es.example.net/x.tar.gz p1=l p1_alpha p2=i p2_alpha p21=il p1f1=le f1=e f1_alpha f2=s f2_alpha f12=es	
+F	p=ftp://file s=s.example.net/x.tar.gz p1=e p1_alpha p2=l p2_alpha p21=le p1f1=es f1=s f1_alpha f2=. f2_eos f12=s.	
+F	p=ftp://files s=.example.net/x.tar.gz p1=s p1_alpha p2=e p2_alpha p21=es p1f1=s. f1=. f1_eos f2=e f2_alpha f12=.e	
+F	p=ftp://files. s=example.net/x.tar.gz p1=. p1_eos p2=s p2_alpha p21=s. p1f1=.e f1=e f1_alpha f2=x f2_alpha f12=ex	
+F	p=ftp://files.e s=xample.net/x.tar.gz p1=e p1_alpha p2=. p2_eos p21=.e p1f1=ex f1=x f1_alpha f2=a f2_alpha f12=xa	
+F	p=ftp://files.ex s=ample.net/x.tar.gz p1=x p1_alpha p2=e p2_alpha p21=ex p1f1=xa f1=a f1_alpha f2=m f2_alpha f12=am	
+F	p=ftp://files.exa s=mple.net/x.tar.gz p1=a p1_alpha p2=x p2_alpha p21=xa p1f1=am f1=m f1_alpha f2=p f2_alpha f12=mp	
+F	p=ftp://files.exam s=ple.net/x.tar.gz p1=m p1_alpha p2=a p2_alpha p21=am p1f1=mp f1=p f1_alpha f2=l f2_alpha f12=pl	
+F	p=ftp://files.examp s=le.net/x.tar.gz p1=p p1_alpha p2=m p2_alpha p21=mp p1f1=pl f1=l f1_alpha f2=e f2_alpha f12=le	
+F	p=ftp://files.exampl s=e.net/x.tar.gz p1=l p1_alpha p2=p p2_alpha p21=pl p1f1=le f1=e f1_alpha f2=. f2_eos f12=e.	
+F	p=ftp://files.example s=.net/x.tar.gz p1=e p1_alpha p2=l p2_alpha p21=le p1f1=e. f1=. f1_eos f2=n f2_alpha f12=.n	
+F	p=ftp://files.example. s=net/x.tar.gz p1=. p1_eos p2=e p2_alpha p21=e. p1f1=.n f1=n f1_alpha f2=e f2_alpha f12=ne	
+F	p=ftp://files.example.n s=et/x.tar.gz p1=n p1_alpha p2=. p2_eos p21=.n p1f1=ne f1=e f1_alpha f2=t f2_alpha f12=et	
+F	p=ftp://files.example.ne s=t/x.tar.gz p1=e p1_alpha p2=n p2_alpha p21=ne p1f1=et f1=t f1_alpha f2=/ f12=t/	
+F	p=ftp://files.example.net s=/x.tar.gz p1=t p1_alpha p2=e p2_alpha p21=et p1f1=t/ f1=/ f2=x f2_alpha f12=/x	
+F	p=ftp://files.example.net/ s=x.tar.gz p1=/ p2=t p2_alpha p21=t/ p1f1=/x f1=x f1_alpha f2=. f2_eos f12=x.	
+F	p=ftp://files.example.net/x s=.tar.gz p1=x p1_alpha p2=/ p21=/x p1f1=x. f1=. f1_eos f2=t f2_alpha f12=.t	
+F	p=ftp://files.example.net/x. s=tar.gz p1=. p1_eos p2=x p2_alpha p21=x. p1f1=.t f1=t f1_alpha f2=a f2_alpha f12=ta	
+F	p=ftp://files.example.net/x.t s=ar.gz p1=t p1_alpha p2=. p2_eos p21=.t p1f1=ta f1=a f1_alpha f2=r f2_alpha f12=ar	
+F	p=ftp://files.example.net/x.ta s=r.gz p1=a p1_alpha p2=t p2_alpha p21=ta p1f1=ar f1=r f1_alpha f2=. f2_eos f12=r.	
+F	p=ftp://files.example.net/x.tar s=.gz p1=r p1_alpha p2=a p2_alpha p21=ar p1f1=r. f1=. f1_eos f2=g f2_alpha f12=.g	
+F	p=ftp://files.example.net/x.tar. s=gz p1=. p1_eos p2=r p2_alpha p21=r. p1f1=.g f1=g f1_alpha f2=z f2_alpha f12=gz	
+F	p=ftp://files.example.net/x.tar.g s=z p1=g p1_alpha p2=. p2_eos p21=.g p1f1=gz f1=z f1_alpha f2=bok	
+F	p=( s=see p1=( p1_lp p2=bok p1f1=(s f1=s f1_alpha f2=e f2_alpha f12=se	
+F	p=(s s=ee p1=s p1_alpha p2=( p2_lp p21=(s p1f1=se f1=e f1_alpha f2=e f2_alpha f12=ee	
+F	p=(se s=e p1=e p1_alpha p2=s p2_alpha p21=se p1f1=ee f1=e f1_alpha f2=bok	
+F	p=f s=oo@bar.com). p1=f p1_alpha p2=bok p1f1=fo f1=o f1_alpha f2=o f2_alpha f12=oo	
+F	p=fo s=o@bar.com). p1=o p1_alpha p2=f p2_alpha p21=fo p1f1=oo f1=o f1_alpha f2=@ f12=o@	
+F	p=foo s=@bar.com). p1=o p1_alpha p2=o p2_alpha p21=oo p1f1=o@ f1=@ f2=b f2_alpha f12=@b	
+F	p=foo@ s=bar.com). p1=@ p2=o p2_alpha p21=o@ p1f1=@b f1=b f1_alpha f2=a f2_alpha f12=ba	
+F	p=foo@b s=ar.com). p1=b p1_alpha p2=@ p21=@b p1f1=ba f1=a f1_alpha f2=r f2_alpha f12=ar	
+F	p=foo@ba s=r.com). p1=a p1_alpha p2=b p2_alpha p21=ba p1f1=ar f1=r f1_alpha f2=. f2_eos f12=r.	
+F	p=foo@bar s=.com). p1=r p1_alpha p2=a p2_alpha p21=ar p1f1=r. f1=. f1_eos f2=c f2_alpha f12=.c	
+F	p=foo@bar. s=com). p1=. p1_eos p2=r p2_alpha p21=r. p1f1=.c f1=c f1_alpha f2=o f2_alpha f12=co	
+F	p=foo@bar.c s=om). p1=c p1_alpha p2=. p2_eos p21=.c p1f1=co f1=o f1_alpha f2=m f2_alpha f12=om	
+F	p=foo@bar.co s=m). p1=o p1_alpha p2=c p2_alpha p21=co p1f1=om f1=m f1_alpha f2=) f2_rp f12=m)	
+F	p=foo@bar.com s=). p1=m p1_alpha p2=o p2_alpha p21=om p1f1=m) f1=) f1_rp f2=. f2_eos f12=).	
+F	p=foo@bar.com) s=. p1=) p1_rp p2=m p2_alpha p21=m) p1f1=). f1=. f1_eos f2=bok	
+end	turbo:events
+layer	turbo:event-checksum	document	1	crc32c:u32
+4029064688
+end	turbo:event-checksum
+layer	turbo:indexer-outcomes	document	1	label:str
+F
+end	turbo:indexer-outcomes
+layer	turbo:indexer-predicates	document	205	label:str	count:u32
+f12=.c	3
+f12=.e	2
+f12=.t	2
+f12=//	3
+f12=80	2
+f12=:/	3
+f12=ag	2
+f12=am	3
+f12=ar	2
+f12=co	3
+f12=e.	3
+f12=es	2
+f12=ex	3
+f12=il	2
+f12=le	4
+f12=mp	3
+f12=om	2
+f12=p:	2
+f12=pl	3
+f12=r.	2
+f12=st	2
+f12=ta	2
+f12=tp	3
+f12=tt	2
+f12=w.	2
+f12=ww	3
+f12=xa	3
+f1=.	15
+f1=/	9
+f1=0	2
+f1=8	2
+f1=:	4
+f1==	2
+f1=@	2
+f1=a	11
+f1=b	2
+f1=c	4
+f1=e	12
+f1=f	2
+f1=g	4
+f1=h	4
+f1=i	4
+f1=l	9
+f1=m	6
+f1=n	2
+f1=o	11
+f1=p	7
+f1=r	7
+f1=s	7
+f1=t	14
+f1=w	5
+f1=x	4
+f1_alpha	120
+f1_eos	16
+f1_num	6
+f2=.	15
+f2=/	9
+f2=0	2
+f2=8	2
+f2=:	4
+f2==	2
+f2=@	2
+f2=a	10
+f2=b	2
+f2=bok	12
+f2=c	4
+f2=e	12
+f2=f	2
+f2=g	4
+f2=h	4
+f2=i	3
+f2=l	8
+f2=m	6
+f2=n	2
+f2=o	9
+f2=p	7
+f2=r	5
+f2=s	6
+f2=t	11
+f2=w	4
+f2=x	4
+f2_alpha	108
+f2_eos	16
+f2_num	6
+p1=.	13
+p1=/	9
+p1=0	2
+p1=8	2
+p1=:	4
+p1==	2
+p1=@	2
+p1=a	11
+p1=b	2
+p1=c	4
+p1=e	11
+p1=f	4
+p1=g	3
+p1=h	6
+p1=i	4
+p1=l	8
+p1=m	7
+p1=n	2
+p1=o	12
+p1=p	7
+p1=r	5
+p1=s	7
+p1=t	13
+p1=w	6
+p1=x	4
+p1_alpha	122
+p1_caps	2
+p1_eos	14
+p1_num	6
+p1f1=.c	3
+p1f1=.e	2
+p1f1=.t	2
+p1f1=//	3
+p1f1=80	2
+p1f1=:/	3
+p1f1=ag	2
+p1f1=am	3
+p1f1=ar	2
+p1f1=co	3
+p1f1=e.	3
+p1f1=es	2
+p1f1=ex	3
+p1f1=ht	3
+p1f1=il	2
+p1f1=le	4
+p1f1=mp	3
+p1f1=om	2
+p1f1=or	3
+p1f1=p:	2
+p1f1=pl	3
+p1f1=r.	2
+p1f1=st	2
+p1f1=ta	2
+p1f1=tp	3
+p1f1=tt	2
+p1f1=w.	2
+p1f1=ww	4
+p1f1=xa	3
+p21=.c	3
+p21=.e	2
+p21=.t	2
+p21=//	3
+p21=80	2
+p21=:/	3
+p21=am	3
+p21=ar	2
+p21=co	3
+p21=e.	3
+p21=es	2
+p21=ex	3
+p21=ht	3
+p21=le	4
+p21=mp	3
+p21=om	2
+p21=p:	2
+p21=pl	3
+p21=r.	2
+p21=st	2
+p21=ta	2
+p21=tp	3
+p21=tt	2
+p21=w.	2
+p21=ww	4
+p21=xa	3
+p2=.	13
+p2=/	9
+p2=0	2
+p2=8	2
+p2=:	4
+p2==	2
+p2=@	2
+p2=a	10
+p2=b	2
+p2=bok	12
+p2=c	4
+p2=e	10
+p2=f	4
+p2=h	6
+p2=i	2
+p2=l	7
+p2=m	7
+p2=n	2
+p2=o	10
+p2=p	7
+p2=r	5
+p2=s	6
+p2=t	13
+p2=w	6
+p2=x	4
+p2_alpha	111
+p2_caps	2
+p2_eos	14
+p2_num	6
+p=f	2
+p=h	2
+p=ht	2
+p=htt	2
+p=http	2
+p=o	2
+s=.	2
+s=r	2
+end	turbo:indexer-predicates
+layer	turbo:indexer-events	document	165	outcome:u32	context:str	values:str	seen:u32
+0	109 110 177 41 52 77 81		1
+0	98 109 193 194 48 52 70 81		1
+0	105 109 182 193 41 52 78 81		1
+0	98 109 189 193 49 52 64		1
+0	198 97 109 177 126 49 52 78 81 23		1
+0	199 106 109 181 193 154 138 49 52 75 81 22		1
+0	200 106 109 190 193 164 137 46 52 77 81		1
+0	201 103 109 190 193 163 48 52 59		1
+0	105 109 187 193 31 56 5		1
+0	88 189 193 118 28 56 3		1
+0	85 172 147 116 28 79 81		1
+0	85 169 145 50 52 79 81 25		1
+0	107 109 169 140 50 52 79 81 25		1
+0	107 109 191 193 166 140 50 52 55 82 24		1
+0	107 109 191 193 166 139 27 53 66 81 1		1
+0	84 111 191 193 165 114 37 52 80 81 12		1
+0	94 109 168 195 143 125 51 52 62 81 26		1
+0	108 109 179 193 153 141 34 52 72 81 7		1
+0	91 109 192 193 167 120 43 52 75 81 15		1
+0	100 109 175 193 148 129 46 52 71 81 18		1
+0	103 109 184 193 156 133 42 52 66 81 14		1
+0	99 109 187 193 159 128 37 52 55 82 10		1
+0	94 109 183 193 155 123 27 53 65 81 0		1
+0	84 111 179 193 151 113 36 52 74 81 9		1
+0	93 109 168 195 142 122 45 52 72 81 16		1
+0	102 109 178 193 150 130 43 52 56		1
+0	100 109 186 193 157 28 75 81		1
+0	85 184 193 46 52 62 81		1
+0	103 109 169 34 52 78 81		1
+0	91 109 187 193 49 52 69 81		1
+0	106 109 175 193 40 52 82		1
+0	97 109 190 193 53 81		1
+0	111 181 193 52 60		1
+0	109 195 32 83		1
+0	89 193 54		1
+0	112 173 76 81		1
+0	196 47 52 60		1
+0	104 109 32 83		1
+0	89 188 193 54		1
+0	112 173 67 81		1
+0	196 38 52 76 81		1
+0	95 109 47 52 62 81		1
+0	104 109 180 193 34 52 68 81 6		1
+0	91 109 188 193 119 39 52 64		1
+0	202 204 102 109 177 131 47 52 64		1
+0	198 97 109 177 126 49 52 78 81 23		1
+0	199 106 109 181 193 154 138 49 52 75 81 22		1
+0	200 106 109 190 193 164 137 46 52 59 17		1
+0	201 103 109 190 193 163 132 31 56 5		1
+0	88 187 193 158 118 28 56 3		1
+0	85 172 147 116 28 71 81		1
+0	85 169 145 42 52 74 81		1
+0	99 109 169 45 52 65 81		1
+0	102 109 183 193 36 52 62 81		1
+0	93 109 186 193 34 52 71 81		1
+0	91 109 178 193 42 52 69 81		1
+0	99 109 175 193 40 52 74 81		1
+0	97 109 183 193 45 52 77 81		1
+0	102 109 181 193 48 52 78 81 20		1
+0	105 109 186 193 135 49 52 59		1
+0	106 109 189 193 161 31 58 83		1
+0	88 190 193 30 54 57 83 4		1
+0	87 112 172 117 29 54 58 83		1
+0	86 112 171 196 146 30 54 57 83 4		1
+0	87 112 170 196 117 29 54 56		1
+0	86 112 171 196 146 28 62 81		1
+0	85 170 196 34 52		1
+0	91 109 169 63 81		1
+0	175 193 35 52 55 82		1
+0	92 109 27 53 69 81		1
+0	84 111 176 193 40 52 78 81		1
+0	97 109 168 195 126 49 52 72 81		1
+0	106 109 181 193 154 43 52 71 81		1
+0	100 109 190 193 42 52		1
+0	99 109 184 193 64		1
+0	100 109 177 34 52 70 81		1
+0	91 109 184 193 41 52 71 81 13		1
+0	98 109 175 193 127 42 52 64		1
+0	109 177 45 52 69 81		1
+0	102 109 193 40 52 73 81		1
+0	97 109 186 193 44 52 55 82		1
+0	101 109 181 193 27 53 81		1
+0	84 111 185 193 52 74 81		1
+0	109 168 195 45 52 66 81		1
+0	102 109 193 37 52		1
+0	94 109 186 193 78 81		1
+0	179 193 49 52 62 81 21		1
+0	106 109 136 34 52 68 81 6		1
+0	91 109 190 193 162 119 39 52 61		1
+0	96 109 175 193 33 66 81		1
+0	90 193 37 52 80 81 12		1
+0	94 109 174 125 51 52 62 81 26		1
+0	108 109 179 193 153 141 34 52 72 81 7		1
+0	91 109 192 193 167 120 43 52 75 81 15		1
+0	100 109 175 193 148 129 46 52 71 81 18		1
+0	103 109 184 193 156 133 42 52 66 81 14		1
+0	99 109 187 193 159 128 37 52 55 82 10		1
+0	94 109 183 193 155 123 27 53 65 81 0		1
+0	84 111 179 193 151 113 36 52 74 81 9		1
+0	93 109 168 195 142 122 45 52 55 82		1
+0	102 109 178 193 150 27 53 81		1
+0	84 111 186 193 52 81		1
+0	109 168 195 52 64		1
+0	202 204 102 109 177 131 47 52 64		1
+0	107 109 177 140 50 52 79 81 25		1
+0	107 109 191 193 166 140 50 52 55 82 24		1
+0	107 109 191 193 166 139 27 53 78 81 2		1
+0	84 111 191 193 165 115 49 52 66 81		1
+0	106 109 168 195 144 37 52 77 81 11		1
+0	94 109 190 193 124 48 52 78 81 20		1
+0	105 109 179 193 152 135 49 52 55 82		1
+0	106 109 189 193 161 27 53 74 81		1
+0	84 111 190 193 45 52 76 81		1
+0	102 109 168 195 131 47 52 68 81		1
+0	104 109 186 193 39 52 55 82		1
+0	203 96 109 188 193 27 53 64		1
+0	109 110 177 42 52 77 81		1
+0	99 109 193 194 48 52 74 81		1
+0	105 109 183 193 45 52 64		1
+0	197 95 109 177 49 52 75 81 22		1
+0	106 109 180 193 137 46 52 59 17		1
+0	103 109 190 193 163 132 31 56 5		1
+0	88 187 193 158 118 28 56 3		1
+0	85 172 147 116 28 67 81		1
+0	85 169 145 38 52 70 81		1
+0	95 109 169 41 52 71 81 13		1
+0	98 109 180 193 127 42 52 66 81 14		1
+0	99 109 182 193 128 37 52 77 81 11		1
+0	94 109 183 193 155 124 48 52 55 82		1
+0	105 109 179 193 152 27 53 66 81 1		1
+0	84 111 189 193 114 37 52 80 81 12		1
+0	94 109 168 195 143 125 51 52 62 81 26		1
+0	108 109 179 193 153 141 34 52 72 81 7		1
+0	91 109 192 193 167 120 43 52 75 81 15		1
+0	100 109 175 193 148 129 46 52 71 81 18		1
+0	103 109 184 193 156 133 42 52 66 81 14		1
+0	99 109 187 193 159 128 37 52 55 82 10		1
+0	94 109 183 193 155 123 27 53 73 81		1
+0	84 111 179 193 151 44 52 66 81		1
+0	101 109 168 195 37 52 78 81		1
+0	94 109 185 193 49 52 56		1
+0	106 109 179 193 28 80 81		1
+0	85 190 193 51 52 55 82		1
+0	108 109 169 27 53 78 81 2		1
+0	84 111 192 193 115 49 52 62 81 21		1
+0	106 109 168 195 144 136 34 52 76 81 8		1
+0	91 109 190 193 162 121 47 52 55 82 19		1
+0	104 109 175 193 149 134 27 53 68 81		1
+0	84 111 188 193 160 39 52 81		1
+0	96 109 168 195 52 64		1
+0	177 48 52 66 81		1
+0	105 109 37 52 66 81		1
+0	94 109 189 193 37 52 64		1
+0	197 95 109 177 45 52 74 81		1
+0	102 109 180 193 45 52 61		1
+0	102 109 186 193 33 63 81		1
+0	90 186 193 35 52 62 81		1
+0	92 109 174 34 52 76 81 8		1
+0	91 109 176 193 121 47 52 55 82 19		1
+0	104 109 175 193 149 134 27 53 65 81 0		1
+0	84 111 188 193 160 113 36 52 74 81 9		1
+0	93 109 168 195 142 122 45 52 72 81 16		1
+0	102 109 178 193 150 130 43 52		1
+0	100 109 186 193 157 55 82		1
+0	203 184 193 27 53 64		1
+end	turbo:indexer-events
+layer	turbo:gis-training	document	1	iterations:u32	message:str
+0	opennlp.tools.util.InsufficientTrainingDataException: Training data must contain more than one outcome
+end	turbo:gis-training

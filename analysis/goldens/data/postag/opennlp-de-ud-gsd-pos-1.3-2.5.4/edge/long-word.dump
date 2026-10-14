@@ -1,0 +1,45 @@
+dump 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	edge/long-word	301	301	16c71221108fb1f1660472af2242b80ca0565891ad284bc8d0f24df7e548fc9e
+model	opennlp-de-ud-gsd-pos-1.3-2.5.4.bin	9e44d582874464924a8baf8fbfed7500e15112c3dc446bfc5be281bff4dbbf195eda0a16ca7e78fde7a64a684c0f780b5987723db800ce88465b9894ef0ba17b
+model	opennlp-de-ud-gsd-sentence-1.3-2.5.4.bin	c811604c24cdbe490ab42dcffdbae63f9a74b39622f21b7b31f63eea566ffe35ef871f0da905e61180656b877cf0be4d626588c6312fcc18df5ab9a35b4183fa
+model	opennlp-de-ud-gsd-tokens-1.3-2.5.4.bin	343c9fe93ff301b736f30fa2e0d954b270994a1535ec2bd424553cbd82b13eb0d86aa2042946db62322430a8b5a8f29a8a2d882f107cb26c6d4f6d494d97debf
+annotator	opennlp.tools.postag.POSTaggerME	tag
+point	0	0	13	20	0	none
+context	def
+context	suf=a
+context	suf=aa
+context	suf=aaa
+context	suf=aaaa
+context	pre=a
+context	pre=aa
+context	pre=aaa
+context	pre=aaaa
+context	w=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+context	S=begin
+context	wc=lc
+context	w&c=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa,lc
+outcome	ADV	3fd93220b37db61f 0.39368455437110755
+outcome	ADJ	3f973ab798240fb2 0.022684925709668576
+outcome	NOUN	3f556a355ad1698a 0.0013070603411252401
+outcome	PUNCT	3f88990afce8bc51 0.012010656207250532
+outcome	DET	3f7e191ac5ba624a 0.007348160342779917
+outcome	VERB	3f677a4dc22f868f 0.0028659361573638085
+outcome	PRON	3fbafc968b706638 0.10541668800615234
+outcome	ADP	3f8b906a327f5e69 0.013459043184339952
+outcome	ADP+DET	3fb537947ac4386b 0.08287933346966418
+outcome	PROPN	3fc75560463be9d8 0.18229297093769392
+outcome	CCONJ	3fb467deae341275 0.07970992806446893
+outcome	AUX	3fa4f4d03be8c91b 0.04093027812304425
+outcome	PART	3f6345a77216100e 0.0023525495932421652
+outcome	SCONJ	3faaabcbb695181e 0.05209194759167722
+outcome	NUM	3f37a5849f574ff3 3.6081779339025495E-4
+outcome	X	3f4353f91e2f3da9 5.898443599736031E-4
+outcome	SYM	3eed58d527ec2e13 1.3993741274662683E-5
+outcome	INTJ	3ea5dca9ae99995c 6.515373033977247E-7
+outcome	PROPN+DET	3e894f72bdacf010 1.8857676206153776E-7
+outcome	ADP+PRON	3e9fab09b8b05bc1 4.7189171742525465E-7
+end	0

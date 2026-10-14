@@ -1,0 +1,214 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	edge/no-break-spaces	92	77	28744c64ca548f1b96f0de0d90ef4a9ce78d2992e8d9f219426ef9e46f1e06fe
+annotator	opennlp.tools.ml.maxent.GISTrainer	train
+config	Cutoff	2
+config	DataIndexer	OnePass
+config	Iterations	100
+config	sort	false
+config	source	tokenize
+layer	turbo:events	document	51	outcome:str	context:str	values:str
+F	p=n s=o p1=n p1_alpha p2=bok p1f1=no f1=o f1_alpha f2=bok	
+F	p=b s=reak p1=b p1_alpha p2=bok p1f1=br f1=r f1_alpha f2=e f2_alpha f12=re	
+F	p=br s=eak p1=r p1_alpha p2=b p2_alpha p21=br p1f1=re f1=e f1_alpha f2=a f2_alpha f12=ea	
+F	p=bre s=ak p1=e p1_alpha p2=r p2_alpha p21=re p1f1=ea f1=a f1_alpha f2=k f2_alpha f12=ak	
+F	p=brea s=k p1=a p1_alpha p2=e p2_alpha p21=ea p1f1=ak f1=k f1_alpha f2=bok	
+F	p=s s=pace p1=s p1_alpha p2=bok p1f1=sp f1=p f1_alpha f2=a f2_alpha f12=pa	
+F	p=sp s=ace p1=p p1_alpha p2=s p2_alpha p21=sp p1f1=pa f1=a f1_alpha f2=c f2_alpha f12=ac	
+F	p=spa s=ce p1=a p1_alpha p2=p p2_alpha p21=pa p1f1=ac f1=c f1_alpha f2=e f2_alpha f12=ce	
+F	p=spac s=e p1=c p1_alpha p2=a p2_alpha p21=ac p1f1=ce f1=e f1_alpha f2=bok	
+F	p=a s=nd p1=a p1_alpha p2=bok p1f1=an f1=n f1_alpha f2=d f2_alpha f12=nd	
+F	p=an s=d p1=n p1_alpha p2=a p2_alpha p21=an p1f1=nd f1=d f1_alpha f2=bok	
+F	p=i s=deographic p1=i p1_alpha p2=bok p1f1=id f1=d f1_alpha f2=e f2_alpha f12=de	
+F	p=id s=eographic p1=d p1_alpha p2=i p2_alpha p21=id p1f1=de f1=e f1_alpha f2=o f2_alpha f12=eo	
+F	p=ide s=ographic p1=e p1_alpha p2=d p2_alpha p21=de p1f1=eo f1=o f1_alpha f2=g f2_alpha f12=og	
+F	p=ideo s=graphic p1=o p1_alpha p2=e p2_alpha p21=eo p1f1=og f1=g f1_alpha f2=r f2_alpha f12=gr	
+F	p=ideog s=raphic p1=g p1_alpha p2=o p2_alpha p21=og p1f1=gr f1=r f1_alpha f2=a f2_alpha f12=ra	
+F	p=ideogr s=aphic p1=r p1_alpha p2=g p2_alpha p21=gr p1f1=ra f1=a f1_alpha f2=p f2_alpha f12=ap	
+F	p=ideogra s=phic p1=a p1_alpha p2=r p2_alpha p21=ra p1f1=ap f1=p f1_alpha f2=h f2_alpha f12=ph	
+F	p=ideograp s=hic p1=p p1_alpha p2=a p2_alpha p21=ap p1f1=ph f1=h f1_alpha f2=i f2_alpha f12=hi	
+F	p=ideograph s=ic p1=h p1_alpha p2=p p2_alpha p21=ph p1f1=hi f1=i f1_alpha f2=c f2_alpha f12=ic	
+F	p=ideographi s=c p1=i p1_alpha p2=h p2_alpha p21=hi p1f1=ic f1=c f1_alpha f2=bok	
+F	p=s s=pace p1=s p1_alpha p2=bok p1f1=sp f1=p f1_alpha f2=a f2_alpha f12=pa	
+F	p=sp s=ace p1=p p1_alpha p2=s p2_alpha p21=sp p1f1=pa f1=a f1_alpha f2=c f2_alpha f12=ac	
+F	p=spa s=ce p1=a p1_alpha p2=p p2_alpha p21=pa p1f1=ac f1=c f1_alpha f2=e f2_alpha f12=ce	
+F	p=spac s=e p1=c p1_alpha p2=a p2_alpha p21=ac p1f1=ce f1=e f1_alpha f2=bok	
+F	p=f s=igure p1=f p1_alpha p2=bok p1f1=fi f1=i f1_alpha f2=g f2_alpha f12=ig	
+F	p=fi s=gure p1=i p1_alpha p2=f p2_alpha p21=fi p1f1=ig f1=g f1_alpha f2=u f2_alpha f12=gu	
+F	p=fig s=ure p1=g p1_alpha p2=i p2_alpha p21=ig p1f1=gu f1=u f1_alpha f2=r f2_alpha f12=ur	
+F	p=figu s=re p1=u p1_alpha p2=g p2_alpha p21=gu p1f1=ur f1=r f1_alpha f2=e f2_alpha f12=re	
+F	p=figur s=e p1=r p1_alpha p2=u p2_alpha p21=ur p1f1=re f1=e f1_alpha f2=bok	
+F	p=n s=arrow p1=n p1_alpha p2=bok p1f1=na f1=a f1_alpha f2=r f2_alpha f12=ar	
+F	p=na s=rrow p1=a p1_alpha p2=n p2_alpha p21=na p1f1=ar f1=r f1_alpha f2=r f2_alpha f12=rr	
+F	p=nar s=row p1=r p1_alpha p2=a p2_alpha p21=ar p1f1=rr f1=r f1_alpha f2=o f2_alpha f12=ro	
+F	p=narr s=ow p1=r p1_alpha p2=r p2_alpha p21=rr p1f1=ro f1=o f1_alpha f2=w f2_alpha f12=ow	
+F	p=narro s=w p1=o p1_alpha p2=r p2_alpha p21=ro p1f1=ow f1=w f1_alpha f2=bok	
+F	p=e s=n p1=e p1_alpha p2=bok p1f1=en f1=n f1_alpha f2=bok	
+F	p=e s=m​zero p1=e p1_alpha p2=bok p1f1=em f1=m f1_alpha f2=​ f12=m​	
+F	p=em s=​zero p1=m p1_alpha p2=e p2_alpha p21=em p1f1=m​ f1=​ f2=z f2_alpha f12=​z	
+F	p=em​ s=zero p1=​ p2=m p2_alpha p21=m​ p1f1=​z f1=z f1_alpha f2=e f2_alpha f12=ze	
+F	p=em​z s=ero p1=z p1_alpha p2=​ p21=​z p1f1=ze f1=e f1_alpha f2=r f2_alpha f12=er	
+F	p=em​ze s=ro p1=e p1_alpha p2=z p2_alpha p21=ze p1f1=er f1=r f1_alpha f2=o f2_alpha f12=ro	
+F	p=em​zer s=o p1=r p1_alpha p2=e p2_alpha p21=er p1f1=ro f1=o f1_alpha f2=bok	
+F	p=w s=idth p1=w p1_alpha p2=bok p1f1=wi f1=i f1_alpha f2=d f2_alpha f12=id	
+F	p=wi s=dth p1=i p1_alpha p2=w p2_alpha p21=wi p1f1=id f1=d f1_alpha f2=t f2_alpha f12=dt	
+F	p=wid s=th p1=d p1_alpha p2=i p2_alpha p21=id p1f1=dt f1=t f1_alpha f2=h f2_alpha f12=th	
+F	p=widt s=h p1=t p1_alpha p2=d p2_alpha p21=dt p1f1=th f1=h f1_alpha f2=bok	
+F	p=t s=hin p1=t p1_alpha p2=bok p1f1=th f1=h f1_alpha f2=i f2_alpha f12=hi	
+F	p=th s=in p1=h p1_alpha p2=t p2_alpha p21=th p1f1=hi f1=i f1_alpha f2=n f2_alpha f12=in	
+F	p=thi s=n p1=i p1_alpha p2=h p2_alpha p21=hi p1f1=in f1=n f1_alpha f2=bok	
+F	p=e s=nd p1=e p1_alpha p2=bok p1f1=en f1=n f1_alpha f2=d f2_alpha f12=nd	
+F	p=en s=d p1=n p1_alpha p2=e p2_alpha p21=en p1f1=nd f1=d f1_alpha f2=bok	
+end	turbo:events
+layer	turbo:event-checksum	document	1	crc32c:u32
+2347487814
+end	turbo:event-checksum
+layer	turbo:indexer-outcomes	document	1	label:str
+F
+end	turbo:indexer-outcomes
+layer	turbo:indexer-predicates	document	85	label:str	count:u32
+f12=ac	2
+f12=ce	2
+f12=hi	2
+f12=nd	2
+f12=pa	2
+f12=re	2
+f12=ro	2
+f1=a	5
+f1=c	3
+f1=d	4
+f1=e	6
+f1=g	2
+f1=h	3
+f1=i	4
+f1=n	4
+f1=o	4
+f1=p	3
+f1=r	6
+f1_alpha	50
+f2=a	4
+f2=bok	13
+f2=c	3
+f2=d	3
+f2=e	6
+f2=g	2
+f2=h	2
+f2=i	2
+f2=o	3
+f2=r	5
+f2_alpha	37
+p1=a	6
+p1=c	2
+p1=d	2
+p1=e	6
+p1=g	2
+p1=h	2
+p1=i	5
+p1=n	4
+p1=o	2
+p1=p	3
+p1=r	6
+p1=s	2
+p1=t	2
+p1_alpha	50
+p1f1=ac	2
+p1f1=ce	2
+p1f1=en	2
+p1f1=hi	2
+p1f1=id	2
+p1f1=nd	2
+p1f1=pa	2
+p1f1=re	2
+p1f1=ro	2
+p1f1=sp	2
+p1f1=th	2
+p21=ac	2
+p21=hi	2
+p21=id	2
+p21=pa	2
+p21=sp	2
+p2=a	5
+p2=bok	13
+p2=d	2
+p2=e	5
+p2=g	2
+p2=h	2
+p2=i	3
+p2=p	3
+p2=r	4
+p2=s	2
+p2_alpha	37
+p=e	3
+p=n	2
+p=s	2
+p=sp	2
+p=spa	2
+p=spac	2
+s=ace	2
+s=ce	2
+s=d	2
+s=e	3
+s=n	2
+s=nd	2
+s=o	2
+s=pace	2
+end	turbo:indexer-predicates
+layer	turbo:indexer-events	document	51	outcome:u32	context:str	values:str	seen:u32
+0	72 83 37 43 61 15 18 20		1
+0	43 61 17 18 23 29 5		1
+0	40 43 70 51 10 18 19 29		1
+0	33 43 68 70 7 18 29		1
+0	30 43 63 70 18 20		1
+0	73 84 41 43 61 53 16 18 19 29 4		1
+0	74 77 39 43 69 70 59 50 7 18 21 29 0		1
+0	75 78 30 43 67 70 58 44 8 18 23 29 1		1
+0	76 80 31 43 60 70 55 45 10 18 20		1
+0	82 30 43 61 14 18 22 29 3		1
+0	79 37 43 60 70 49 9 18 20		1
+0	36 43 61 48 9 18 23 29		1
+0	32 43 66 70 57 10 18 27 29		1
+0	33 43 62 70 15 18 24 29		1
+0	38 43 63 70 11 18 28 29		1
+0	34 43 70 17 18 19 29		1
+0	40 43 64 70 7 18 29		1
+0	30 43 68 70 16 18 25 29		1
+0	39 43 60 70 12 18 26 29 2		1
+0	35 43 67 70 47 13 18 21 29		1
+0	36 43 65 70 56 8 18 20		1
+0	73 84 41 43 61 53 16 18 19 29 4		1
+0	74 77 39 43 69 70 59 50 7 18 21 29 0		1
+0	75 78 30 43 67 70 58 44 8 18 23 29 1		1
+0	76 80 31 43 60 70 55 45 10 18 20		1
+0	43 61 13 18 24 29		1
+0	36 43 70 11 18 29		1
+0	34 43 66 70 18 28 29		1
+0	43 64 70 17 18 23 29 5		1
+0	80 40 43 70 51 10 18 20		1
+0	72 37 43 61 7 18 28 29		1
+0	30 43 70 17 18 28 29		1
+0	40 43 60 70 17 18 27 29 6		1
+0	40 43 68 70 52 15 18 29		1
+0	38 43 68 70 18 20		1
+0	71 81 33 43 61 46 14 18 20		1
+0	71 33 43 61 18		1
+0	43 63 70 29		1
+0	70 18 23 29		1
+0	43 10 18 28 29		1
+0	33 43 70 17 18 27 29 6		1
+0	83 40 43 63 70 52 15 18 20		1
+0	43 61 13 18 22 29		1
+0	36 43 70 48 9 18 29		1
+0	32 43 66 70 57 18 25 29		1
+0	42 43 62 70 54 12 18 20		1
+0	42 43 61 54 12 18 26 29 2		1
+0	35 43 70 47 13 18 29		1
+0	81 36 43 65 70 56 14 18 20		1
+0	71 82 33 43 61 46 14 18 22 29 3		1
+0	79 37 43 63 70 49 9 18 20		1
+end	turbo:indexer-events
+layer	turbo:gis-training	document	1	iterations:u32	message:str
+0	opennlp.tools.util.InsufficientTrainingDataException: Training data must contain more than one outcome
+end	turbo:gis-training

@@ -1,0 +1,147 @@
+//! Train, write, load, score: the models the JVM trained for the fixtures
+//! are trained again here from the same events and parameters, and the
+//! bytes written must be the fixtures' bytes.
+//!
+//! - `analysis/maxent/tests/fixtures/models/gis.model`: nine hand-written
+//!   events, `MAXENT`, 100 iterations, cutoff 0 (`MakeModelFixtures.java`).
+//! - `analysis/goldens/data/fixtures/en-plain.bin`: the sentence detector
+//!   model `TrainSentenceModel.java` trained with cutoff 1 and 100
+//!   iterations from `analysis/sentdetect/tests/fixtures/sentences.txt`,
+//!   whose events the JVM dumped in the training golden
+//!   `sentdetect-twopass-cutoff1/train/sentences`. The model trained here is
+//!   packaged as a `.bin` with the fixture's manifest entries and instant,
+//!   opened with `turbo-maxent` and `turbo-sentdetect`, and must split the
+//!   training text exactly as the fixture does, probabilities included.
+//!   It is also the checked in fixture
+//!   `analysis/goldens/data/fixtures/en-plain-rust.bin`, byte for byte,
+//!   which the golden generator loads in the JVM with `SentenceModel` and
+//!   runs beside `en-plain.bin` (`analysis/goldens/data/sentdetect/en-plain-rust`,
+//!   checked by `analysis/sentdetect/tests/golden.rs`).
+//!
+//! With `TURBO_TRAIN_OUT` set to a directory, the `.bin` written here is
+//! saved there as `en-plain-rust.bin`, which is how the fixture was made.
+
+use std::path::{Path, PathBuf};
+use std::sync::Arc;
+
+use turbo_goldens::{Golden, data_dir};
+use turbo_maxent::{MaxentModel, ModelFile};
+use turbo_sentdetect::{SentenceDetector, SentenceModel, WhitespaceMode};
+use turbo_train::gis::train_events;
+use turbo_train::package::{MANIFEST_ENTRY, SENTENCE_MODEL_ENTRY, sentence_model_package};
+use turbo_train::{Algorithm, Event, JavaString, Key, TrainingConfiguration, TrainingParameters, write_gis};
+
+mod common;
+
+fn maxent_fixture(name: &str) -> PathBuf {
+    Path::new(env!("CARGO_MANIFEST_DIR")).join("../maxent/tests/fixtures/models").join(name)
+}
+
+#[test]
+fn the_gis_fixture_model_is_trained_byte_for_byte() {
+    let event = |outcome: &str, context: &[&str]| Event::from_strs(outcome, context);
+    let (nul, accent, emoji) = ("w=\u{0}", "w=été", "w=😀");
+    let events = [
+        event("yes", &["w=a", "len=1", "cap"]),
+        event("yes", &["w=a", "len=2"]),
+        event("yes", &["w=b", "cap", accent]),
+        event("no", &["w=c", "len=1"]),
+        event("no", &["w=c", "len=3", nul]),
+        event("no", &["w=d", "len=3"]),
+        event("maybe", &["w=b", "len=2", emoji]),
+        event("maybe", &["w=d", "cap", emoji]),
+        event("maybe", &["w=a", "len=3", nul, accent]),
+    ];
+    let mut params = TrainingParameters::new();
+    params.put(Key::ALGORITHM, Algorithm::Maxent.name());
+    params.put(Key::ITERATIONS, 100);
+    params.put(Key::CUTOFF, 0);
+    let (model, _) = train_events(&events, &params, &mut TrainingConfiguration::default()).unwrap();
+    let bytes = write_gis(&model).unwrap();
+    let fixture = std::fs::read(maxent_fixture("gis.model")).unwrap();
+    assert_eq!(bytes, fixture);
+    // The fixture's expected probabilities hold for the model read back.
+    let read = MaxentModel::read(&bytes).unwrap();
+    let expected = std::fs::read_to_string(maxent_fixture("expected.txt")).unwrap();
+    let mut checked = 0;
+    for line in expected.lines().filter(|l| l.starts_with("gis.model\t")) {
+        let mut fields = line.split('\t');
+        fields.next();
+        let context: Vec<String> = fields.next().unwrap().split(' ').filter(|f| !f.is_empty()).map(unescape).collect();
+        let probabilities: Vec<f64> = fields.next().unwrap().split(' ').map(|p| p.parse().unwrap()).collect();
+        let mut out = vec![0.0; read.num_outcomes()];
+        let context: Vec<&str> = context.iter().map(String::as_str).collect();
+        read.eval(&context, &mut out);
+        assert_eq!(out, probabilities, "{line}");
+        checked += 1;
+    }
+    assert!(checked > 5);
+}
+
+/// `expected.txt` escapes a feature's non-ASCII characters as `\uXXXX`.
+fn unescape(field: &str) -> String {
+    let mut units = Vec::new();
+    let mut rest = field;
+    while let Some(i) = rest.find("\\u") {
+        units.extend(rest[..i].encode_utf16());
+        units.push(u16::from_str_radix(&rest[i + 2..i + 6], 16).unwrap());
+        rest = &rest[i + 6..];
+    }
+    units.extend(rest.encode_utf16());
+    String::from_utf16(&units).unwrap()
+}
+
+#[test]
+fn the_sentence_fixture_model_is_trained_written_loaded_and_scores_the_same() {
+    let path = data_dir().join("train/sentdetect-twopass-cutoff1/train/sentences.golden");
+    let g = Golden::read_with(&path, &common::train_shapes()).unwrap_or_else(|e| panic!("{e}"));
+    let events = common::events(&g);
+    let text = g.input_text(data_dir()).unwrap();
+
+    // TrainSentenceModel.java: cutoff 1, 100 iterations, the default
+    // algorithm and indexer.
+    let mut params = TrainingParameters::new();
+    params.put(Key::ITERATIONS, 100);
+    params.put(Key::CUTOFF, 1);
+    let (model, report) = train_events(&events, &params, &mut TrainingConfiguration::default()).unwrap();
+    let bytes = write_gis(&model).unwrap();
+
+    let fixture_path = data_dir().join("fixtures/en-plain.bin");
+    let fixture = ModelFile::read(&fixture_path).unwrap();
+    assert_eq!(&*fixture.entry(SENTENCE_MODEL_ENTRY).unwrap(), &bytes[..], "the model entry");
+    assert_eq!(fixture.manifest().get("Training-Eventhash"), Some(report.event_hash.unwrap().to_string().as_str()));
+
+    // The .bin with the fixture's instant and factory settings has the
+    // fixture's manifest, byte for byte.
+    let timestamp: i64 = fixture.manifest().get("Timestamp").unwrap().parse().unwrap();
+    let package = sentence_model_package("en", timestamp, &report, false, Some(".!?"), bytes);
+    let bin = package.to_bytes();
+    if let Ok(dir) = std::env::var("TURBO_TRAIN_OUT") {
+        std::fs::write(Path::new(&dir).join("en-plain-rust.bin"), &bin).unwrap();
+    }
+    let committed = std::fs::read(data_dir().join("fixtures/en-plain-rust.bin")).unwrap();
+    assert_eq!(bin, committed, "analysis/goldens/data/fixtures/en-plain-rust.bin is not the .bin written here");
+    let ours = ModelFile::open(bin).unwrap();
+    assert_eq!(&*ours.entry(MANIFEST_ENTRY).unwrap(), &*fixture.entry(MANIFEST_ENTRY).unwrap());
+    assert_eq!(ours.manifest().iter().collect::<Vec<_>>(), fixture.manifest().iter().collect::<Vec<_>>());
+
+    // Both load as sentence models and split the training text alike.
+    let theirs = Arc::new(SentenceModel::open(fixture).unwrap());
+    let ours = Arc::new(SentenceModel::open(ours).unwrap());
+    for mode in [WhitespaceMode::Unicode, WhitespaceMode::Legacy] {
+        let (mut a, mut b) = (Vec::new(), Vec::new());
+        SentenceDetector::new(theirs.clone(), mode).detect(&text, &mut a);
+        SentenceDetector::new(ours.clone(), mode).detect(&text, &mut b);
+        assert!(a.len() > 100, "{mode:?}: {} sentences", a.len());
+        assert_eq!(a, b, "{mode:?}");
+    }
+
+    // The predicates of the model trained here are the fixture's.
+    let fixture_maxent = ModelFile::read(&fixture_path).unwrap().maxent(SENTENCE_MODEL_ENTRY).unwrap();
+    let mut labels: Vec<JavaString> = model.pred_labels().to_vec();
+    labels.sort();
+    let mut theirs: Vec<JavaString> =
+        fixture_maxent.predicates().map(|p| JavaString::from_modified_utf8(p).unwrap()).collect();
+    theirs.sort();
+    assert_eq!(labels, theirs);
+}

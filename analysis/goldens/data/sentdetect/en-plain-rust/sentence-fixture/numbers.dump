@@ -1,0 +1,87 @@
+dump 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	sentence-fixture/numbers	81	81	a9d0b521c996117773d4cf5805de5748b4e132a6a434307df50b13db90cbf659
+model	en-plain-rust.bin	ef8684db6573d7096b72db1d520fe7181c8ee058d2c9c1abe140556d36da18d1693e63c2f84faf8f427fdd80b0e0f4bd47ce6a92a7aa53233b0b74c403cff736
+annotator	opennlp.tools.sentdetect.SentenceDetectorME	sentPosDetect
+point	0	7	6	2	0	none
+context	eos=.
+context	x=3
+context	1
+context	v=is
+context	s=14159
+context	n=and
+outcome	n	3fefdbdff061822a 0.9955901808680825
+outcome	s	3f721007cf3eeaa9 0.0044098191319174385
+end	0
+point	1	29	6	2	0	none
+context	eos=.
+context	x=.5
+context	2
+context	v=2
+context	s=4
+context	n=shipped.
+outcome	n	3fee4f8908ed21a7 0.9472088980046934
+outcome	s	3fab076f712de594 0.052791101995306594
+end	1
+point	2	39	8	2	0	none
+context	sn
+context	eos=.
+context	x=shipped
+context	7
+context	v=2.5.4
+context	s=
+context	n=Costs
+context	ncap
+outcome	n	3f8457196c4c0d61 0.009931753747429441
+outcome	s	3fefaea39a4ecfcb 0.9900682462525706
+acceptable	1
+end	2
+point	3	53	6	2	0	none
+context	eos=.
+context	x=4
+context	1
+context	v=rose
+context	s=5
+context	n=percent.
+outcome	n	3fef3d133918cc6c 0.9762054553197124
+outcome	s	3f985d98dce6725c 0.023794544680287508
+end	3
+point	4	63	8	2	0	none
+context	sn
+context	eos=.
+context	x=percent
+context	7
+context	v=4.5
+context	s=
+context	n=It
+context	ncap
+outcome	n	3f58e8f08a9ed8a2 0.0015203808820678862
+outcome	s	3feff38b87bab094 0.9984796191179321
+acceptable	1
+end	4
+point	5	72	8	2	0	none
+context	sn
+context	eos=.
+context	x=1
+context	1
+context	v=is
+context	s=
+context	n=Then
+context	ncap
+outcome	n	3fe43694fb83d392 0.6316628372575102
+outcome	s	3fd792d608f858dd 0.3683371627424899
+end	5
+point	6	80	7	2	0	none
+context	eos=.
+context	x=2
+context	1
+context	v=Then
+context	vcap
+context	s=
+context	n=
+outcome	n	3fef5fa352e577bb 0.9804245585507866
+outcome	s	3f940b95a35108b2 0.019575441449213478
+end	6

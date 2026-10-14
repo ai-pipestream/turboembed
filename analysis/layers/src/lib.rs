@@ -359,6 +359,65 @@ impl Layer for Entities {
     }
 }
 
+/// A phrase chunk tag per token (`B-NP`, `I-NP`, `O`, the outcomes of a
+/// chunker model) and its probability, as `ChunkerME.chunk` and `probs`
+/// give them.
+pub struct ChunkTags {
+    pub tagset: Arc<TagSet>,
+    pub tags: Vec<Tag>,
+    pub prob: Option<Vec<f64>>,
+}
+
+impl Layer for ChunkTags {
+    const ID: &'static str = "opennlp:chunk-tags";
+    fn anchor() -> Anchor {
+        Anchor::aligned::<Tokens>()
+    }
+    fn len(&self) -> usize {
+        self.tags.len()
+    }
+    fn check(&self) -> Result<(), String> {
+        if self.tags.iter().any(|t| t.0 as usize >= self.tagset.len()) {
+            return Err(format!("a tag outside {}", self.tagset.name));
+        }
+        if self.prob.as_ref().is_some_and(|p| p.len() != self.tags.len()) {
+            return Err("a probability for every tag".into());
+        }
+        Ok(())
+    }
+}
+
+/// The phrases a chunker's tags make (`ChunkerME.chunkAsSpans`): each a
+/// run of tokens with its kind (`NP`, `VP`, ...), as a span of the text
+/// and a token range. Not `turbo:chunks`, which are retrieval units.
+pub struct PhraseChunks {
+    pub spans: Spans<PhraseChunks>,
+    pub tokens: Vec<IxRange<Tokens>>,
+    pub kind: Vec<Tag>,
+    pub kinds: Arc<TagSet>,
+}
+
+impl Layer for PhraseChunks {
+    const ID: &'static str = "opennlp:chunks";
+    positional!(PhraseChunks);
+    fn indexes(&self) -> Vec<(KeyId, usize)> {
+        vec![(Key::<Tokens>::DEFAULT.id(), self.tokens.iter().map(|r| r.end.get()).max().unwrap_or(0))]
+    }
+    fn check(&self) -> Result<(), String> {
+        let n = self.spans.len();
+        if self.tokens.len() != n || self.kind.len() != n {
+            return Err("tokens and a kind for every phrase".into());
+        }
+        if self.tokens.iter().any(|r| r.start >= r.end) {
+            return Err("a phrase has at least one token".into());
+        }
+        if self.kind.iter().any(|k| k.0 as usize >= self.kinds.len()) {
+            return Err(format!("a kind outside {}", self.kinds.name));
+        }
+        Ok(())
+    }
+}
+
 /// Why a chunk starts where it does: the evaluation and the debugger read
 /// this, and so does a person asking why a chunk was cut.
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]

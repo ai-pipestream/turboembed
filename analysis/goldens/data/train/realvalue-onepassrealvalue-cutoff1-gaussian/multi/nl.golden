@@ -1,0 +1,60 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	multi/nl	199	199	3f17963ed7870277a2a9e701567e7a4d5f9adcc7d2880300e666acf388ac7a57
+annotator	opennlp.tools.ml.maxent.GISTrainer	train
+config	Cutoff	1
+config	DataIndexer	OnePassRealValue
+config	GaussianSmoothing	true
+config	Iterations	100
+config	sort	true
+config	source	realvalue
+layer	turbo:events	document	1	outcome:str	context:str	values:str
+long	In Amsterdam fietsen bijna alle inwoners naar hun werk. De stad heeft honderden kilometers fietspad. Op zondag is het rustig langs de grachten. Toeristen moeten wel goed opletten bij oversteken.	1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 2.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0
+end	turbo:events
+layer	turbo:event-checksum	document	1	crc32c:u32
+3005002737
+end	turbo:event-checksum
+layer	turbo:indexer-outcomes	document	1	label:str
+long
+end	turbo:indexer-outcomes
+layer	turbo:indexer-predicates	document	30	label:str	count:u32
+Amsterdam	1
+De	1
+In	1
+Op	1
+Toeristen	1
+alle	1
+bij	1
+bijna	1
+de	1
+fietsen	1
+fietspad.	1
+goed	1
+grachten.	1
+heeft	1
+het	1
+honderden	1
+hun	1
+inwoners	1
+is	1
+kilometers	1
+langs	1
+moeten	1
+naar	1
+opletten	1
+oversteken.	1
+rustig	1
+stad	1
+wel	1
+werk.	1
+zondag	1
+end	turbo:indexer-predicates
+layer	turbo:indexer-events	document	1	outcome:u32	context:str	values:str	seen:u32
+0	2 0 9 7 5 17 22 16 28 1 26 13 15 19 10 3 29 18 14 25 20 8 12 4 21 27 11 23 6 24	1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 2.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0	1
+end	turbo:indexer-events
+layer	turbo:gis-training	document	1	iterations:u32	message:str
+0	opennlp.tools.util.InsufficientTrainingDataException: Training data must contain more than one outcome
+end	turbo:gis-training

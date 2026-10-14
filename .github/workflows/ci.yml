@@ -31,7 +31,8 @@ jobs:
       # downloads.apache.org and checked against their published SHA-512
       # (analysis/goldens-tool/src/recipe.rs). With them present and
       # required, the language detector's probability and ranking parity
-      # tests compare instead of skipping.
+      # tests and the sentence detector and tokenizer tests over the
+      # published UD models compare instead of skipping.
       - uses: actions/cache@v4
         with:
           path: .opennlp-models
@@ -53,11 +54,19 @@ jobs:
         env:
           CARGO_TARGET_DIR: target/core
         run: cargo test -p turbo
-      - name: language detector parity against the JVM, model required
+      # The published UD sentence detector, tokenizer, part-of-speech and
+      # lemmatizer models are trained on CC BY-SA treebanks and not checked
+      # in either; the tests over them skip without them and fail here.
+      # turbo-zoo checks their bytes against its index, and turbo-eval's
+      # default sentence model is the English one.
+      - name: parity against the JVM with the published models, models required
         env:
           TURBO_GOLDENS_MODELS: ${{ github.workspace }}/.opennlp-models
           TURBO_TEST_REQUIRE_OPENNLP_MODELS: "1"
-        run: cargo test -p turbo-langdetect
+        run: |
+          cargo test -p turbo-langdetect -p turbo-sentdetect -p turbo-tokenize -p turbo-postag -p turbo-lemmatizer
+          cargo test -p turbo-zoo --test builtin
+          cargo test -p turbo-eval --lib
       # fetch-models also unpacks the MeCab dictionaries into the same
       # directory (IPADIC with its UTF-8 copy). The lattice tokenizer's
       # IPADIC and mecab-ko-dic golden tests are ignored by default; here
