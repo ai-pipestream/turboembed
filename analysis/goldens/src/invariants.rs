@@ -200,6 +200,9 @@ pub fn check_layer<L: Layer>(doc: &Document, key: &Key<L>) -> Vec<Violation> {
     if let Some((view, starts, ends)) = layer.text_spans() {
         out.extend(check_spans(doc, &key.id().to_string(), view, starts, ends));
     }
+    if let Some((view, starts, ends)) = layer.fragment_spans() {
+        out.extend(check_spans(doc, &format!("{} (fragments)", key.id()), view, starts, ends));
+    }
     out
 }
 
@@ -433,5 +436,34 @@ mod tests {
         s.push(Span::new(0, 7));
         doc.add(&Key::DEFAULT, Sentences { spans: s }, Provenance::by("test")).unwrap();
         assert_eq!(check_document(&doc), (3, Vec::new()));
+    }
+
+    #[test]
+    fn discontinuous_fragments_are_checked_in_derived_views() {
+        use turbo_analysis::IxRange;
+        use turbo_analysis_layers::{Tag, TagSet};
+
+        let source = "take  this  off";
+        let mut doc = Document::new(source);
+        let mut b = ViewBuilder::new(source);
+        b.keep(4);
+        b.replace(6, " ");
+        b.keep(10);
+        b.replace(12, " ");
+        b.keep(15);
+        let (text, alignment) = b.finish();
+        assert_eq!(text, "take this off");
+        let view = View::derived(doc.get::<View>().unwrap(), text, alignment);
+        doc.add(&Key::<View>::named("norm"), view, Provenance::by("test")).unwrap();
+        let id = doc.get_key(&Key::<View>::named("norm")).unwrap().id();
+        doc.add(&Key::DEFAULT, tokens(id, &[(0, 4), (5, 9), (10, 13)]), Provenance::by("test")).unwrap();
+
+        let kinds = TagSet::new("phrasal", &["verb"]);
+        let mut spans = Spans::new(id);
+        spans.push_fragments(&[Span::new(0, 4), Span::new(10, 13)]);
+        let entities =
+            Entities { spans, tokens: vec![IxRange::new(0, 3)], kind: vec![Tag(0)], kinds, score: vec![0.9] };
+        doc.add(&Key::DEFAULT, entities, Provenance::by("test")).unwrap();
+        assert_eq!(assert_invariants(&doc, "discontinuous"), 2);
     }
 }

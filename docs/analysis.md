@@ -28,7 +28,7 @@ nothing here is in the C header or the gRPC server.
 | `turbo-postag` | `analysis/postag/` | OpenNLP's `POSTaggerME`: `PosModel` opens a `POSModel` file with its descriptor, tag dictionary, beam size and tag format, and `PosTagger` writes `opennlp:pos` (a tag and its probability per token, aligned to `opennlp:tokens`, one beam search per sentence). Tags and probabilities are the JVM's bit for bit; the crate documentation lists the OpenNLP behaviour that is surprising, and `analysis/postag/README.md` describes its goldens and its accuracy on UD English EWT |
 | `turbo-lemmatizer` | `analysis/lemmatizer/` | OpenNLP's `LemmatizerME` (`LemmatizerModel`, `MaxentLemmatizer`: a beam search per sentence over the tagged tokens whose outcomes are lemma classes, shortest edit scripts applied to the lowercased token) and `DictionaryLemmatizer` (a `word<tab>tag<tab>lemma` lookup). Both read `opennlp:tokens` and `opennlp:pos` and write `opennlp:lemmas`; the maxent one also writes `turbo:confidence<opennlp:lemmas>`. Lemmas and probabilities are the JVM's bit for bit; the crate documentation lists the OpenNLP behaviour that is surprising, and `analysis/lemmatizer/README.md` describes its goldens |
 | `turbo-phrase-chunker` | `analysis/phrase-chunker/` | OpenNLP's `ChunkerME`: `ChunkerModel` opens a `ChunkerModel` file and `PhraseChunker` writes `opennlp:chunk-tags` (a chunk tag and its probability per token, aligned to `opennlp:tokens`, one beam search per sentence over the tokens and their part-of-speech tags) and `opennlp:chunks` (the phrases those tags make, as `chunkAsSpans` returns them). Tags and probabilities are the JVM's bit for bit; the crate documentation lists the OpenNLP behaviour that is surprising, and `analysis/phrase-chunker/README.md` describes its goldens. It is not `turbo-chunker`, which cuts retrieval units |
-| `turbo-namefind` | `analysis/namefind/` | OpenNLP's `DictionaryNameFinder`, `RegexNameFinder` and the patterns of `RegexNameFinderFactory`, which write `opennlp:entities` from `opennlp:tokens`, and the merge of several entity layers by `dropOverlappingSpans`. User patterns in Java syntax are translated to the `regex` crate or refused with a typed error; the crate documentation lists what is refused and the OpenNLP behaviour that is surprising, and `analysis/namefind/README.md` describes its JVM golden files |
+| `turbo-namefind` | `analysis/namefind/` | OpenNLP's `DictionaryNameFinder`, `RegexNameFinder` and the patterns of `RegexNameFinderFactory`, which write `opennlp:entities` from `opennlp:tokens`, `FilterEntities` to resolve overlapping or nested entities by `FilterRule`, and the merge of several entity layers by `dropOverlappingSpans`. Built-in patterns use hand-written UTF-8 scanners and user patterns in Java syntax are compiled by `JavaRegex` to a cursor bytecode VM or refused with a typed error; the crate documentation lists what is refused and the OpenNLP behaviour that is surprising, and `analysis/namefind/README.md` describes its JVM golden files |
 | `turbo-stem` | `analysis/stem/` | OpenNLP's stemmers: `PorterStemmer`, the 21 Snowball stemmers (generated from the Snowball sources OpenNLP's classes come from, over UTF-16 code units as in Java), the light and minimal stemmers, `CachingStemmer`, and `StemAnnotator` (OpenNLP's `StemmerAnnotator`), which writes `turbo:stems` from `opennlp:tokens`. Its crate documentation lists the OpenNLP behaviour that is surprising; `analysis/stem/README.md` describes its JVM golden files and how OpenNLP's Snowball stems differ from current Snowball's |
 | `turbo-stem-layers` | `analysis/stem-layers/` | The stemmers' layer, `turbo:stems` |
 | `turbo-stopword` | `analysis/stopword/` | OpenNLP's eleven bundled stopword lists (Bulgarian, Danish, German, English, Spanish, Finnish, French, Italian, Dutch, Portuguese, Russian) and `StopwordFilter.isStopword`, and the step that reads `opennlp:tokens` and, optionally, `opennlp:language` and writes `turbo:stopwords`, a flag per token; it flags and never removes. `analysis/stopword/data/README.md` gives each list's origin and license, the crate documentation lists the OpenNLP behaviour that is surprising, and `analysis/stopword/README.md` describes its JVM golden files |
@@ -172,6 +172,51 @@ sentence, an entity's tokens) is inside it. A document clones
 cheaply, since its layers are shared, so branches of a pipeline can
 grow copies and merge them; a merge where both branches wrote the same
 layer, or both made a view, is refused and changes nothing.
+
+### Overlapping, nested and discontinuous spans
+
+A positional layer (`Anchor::Text`) stores its spans in `Spans<L>` and
+declares what overlap its items may have through `Layer::OVERLAP`
+(`Overlap` in `turbo-analysis`):
+
+- `Overlap::None` (the default, used by `Sentences` and `Tokens`):
+  continuous spans in text order (`start` non-decreasing) that do not
+  overlap (`end[i - 1] <= start[i]`).
+- `Overlap::Nesting` (`Entities`, `Structure`, `Chunks`): spans may nest
+  (`a.contains(b)` or `b.contains(a)` whenever `a` and `b` overlap, such
+  as `"New York"` inside `"Bank of New York"`), and never partially
+  cross (`a.start < b.start && b.start < a.end && a.end < b.end`).
+- `Overlap::Any` (`Subwords`, or multi-tagger candidate layers): any
+  valid spans in the view, including partially crossing spans.
+
+For discontinuous spans (such as split verbs `"take ... off"` or
+clinical mentions `"pain in the left ... and right knee"`),
+`Spans::push_fragments` stores the item's bounding envelope
+(`first.start..last.end`) in `start` and `end` and populates three flat
+columns (`frag_start: Vec<u32>`, `frag_end: Vec<u32>`,
+`frag_item_end: Vec<u32>`). Layers whose items are all continuous keep
+those three vectors empty and pay no allocation overhead. When a layer
+holds any discontinuous item, `Layer::fragment_spans` exposes the
+fragment columns so `Document::add` and `turbo_goldens::invariants`
+check every fragment's bounds, character boundaries, UTF-16 and code
+point round-trips, and view-to-source alignment.
+
+`Spans<L>` provides lookup and conflict-resolution helpers that work
+across continuous, nested, overlapping and discontinuous spans:
+
+- `Spans::covering(offset)` returns all `Ix<L>` covering byte `offset`
+  (for a discontinuous item, only when one of its fragments covers
+  `offset`, never the gap between fragments).
+- `Spans::overlapping(span)` returns all `Ix<L>` overlapping `span`
+  (again testing each fragment of a discontinuous item).
+- `Spans::in_range(outer)` returns all `Ix<L>` whose bounding span lies
+  inside `outer`, narrowed by binary search on both ends when `start` is
+  ordered.
+- `Spans::filter(scores, rule)` (`filter_spans`), `Entities::filter` and
+  `FilterEntities` resolve overlapping or nested items to a
+  non-overlapping subset in text order (`Overlap::None`) under
+  `FilterRule::LongestFirst`, `FilterRule::HighestScore` or
+  `FilterRule::LeftmostLongest`.
 
 ### Edges and groups
 

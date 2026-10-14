@@ -80,3 +80,48 @@ fn finders_then_merge() {
     assert_eq!(merged.tokens[2].end.get(), 9);
     assert!(merged.score.iter().all(|&s| s == 0.0));
 }
+
+#[test]
+fn filter_entities_step_resolves_nested_entities() {
+    use std::sync::Arc;
+    use turbo_analysis::IxRange;
+    use turbo_analysis_layers::{FilterRule, Tag, TagSet};
+    use turbo_namefind::FilterEntities;
+
+    let text = "Bank of New York in Boston";
+    let mut doc = Document::new(text);
+    let mut sentences = Spans::new(ViewId::SOURCE);
+    sentences.push(Span::new(0, text.len() as u32));
+    doc.add(&Key::DEFAULT, Sentences { spans: sentences }, Provenance::by("test")).unwrap();
+    doc.add(&Key::DEFAULT, tokens(text), Provenance::by("test")).unwrap();
+
+    let kinds = TagSet::new("ner", &["org", "loc"]);
+    let mut spans = Spans::new(ViewId::SOURCE);
+    spans.push(Span::new(0, 16)); // "Bank of New York"
+    spans.push(Span::new(8, 16)); // "New York"
+    spans.push(Span::new(20, 26)); // "Boston"
+    let raw = Entities {
+        spans,
+        tokens: vec![IxRange::new(0, 4), IxRange::new(2, 4), IxRange::new(5, 6)],
+        kind: vec![Tag(0), Tag(1), Tag(1)],
+        kinds: Arc::clone(&kinds),
+        score: vec![0.7, 0.95, 0.8],
+    };
+    doc.add(&Key::named("raw"), raw, Provenance::by("test")).unwrap();
+
+    let analyzer = Analyzer::builder()
+        .given(Key::<Tokens>::DEFAULT)
+        .given(Key::<Entities>::named("raw"))
+        .step(Bound::new(FilterEntities::new(FilterRule::LongestFirst)).read(0, "raw").write(0, "longest"))
+        .step(Bound::new(FilterEntities::new(FilterRule::HighestScore)).read(0, "raw").write(0, "highest"))
+        .build()
+        .unwrap();
+
+    let mut docs = vec![doc];
+    let results = analyzer.run(&mut docs);
+    assert!(results.iter().all(Result::is_ok), "{results:?}");
+    let d = &docs[0];
+    let pair = |a: &str, b: &str| (a.to_string(), b.to_string());
+    assert_eq!(names(d, &Key::named("longest")), [pair("Bank of New York", "org"), pair("Boston", "loc")]);
+    assert_eq!(names(d, &Key::named("highest")), [pair("New York", "loc"), pair("Boston", "loc")]);
+}

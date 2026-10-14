@@ -6,6 +6,7 @@ use std::fmt;
 use std::marker::PhantomData;
 use std::sync::Arc;
 
+use crate::span::Overlap;
 use crate::text::ViewId;
 
 /// A closed set of labels (a POS tag set, entity kinds, dependency
@@ -71,6 +72,8 @@ pub trait Layer: Any + Send + Sync + Sized {
     const TO: Option<&'static LayerName> = None;
     /// The static name a `KeyId` points at.
     const NAME: &'static LayerName = &LayerName { id: Self::ID, of: Self::OF, to: Self::TO };
+    /// What overlap the layer's spans may have when anchored to text.
+    const OVERLAP: Overlap = Overlap::None;
 
     /// What the layer's items are anchored to.
     fn anchor() -> Anchor {
@@ -88,6 +91,14 @@ pub trait Layer: Any + Send + Sync + Sized {
     /// span columns, `[start]` and `[end]`, so the container can check
     /// every offset before it takes the layer.
     fn text_spans(&self) -> Option<(ViewId, &[u32], &[u32])> {
+        None
+    }
+
+    /// For a layer anchored to text that holds discontinuous items: the
+    /// view and the fragment columns, `[frag_start]` and `[frag_end]`, so
+    /// the container and offset-invariant checker check every fragment's
+    /// bounds and character boundaries.
+    fn fragment_spans(&self) -> Option<(ViewId, &[u32], &[u32])> {
         None
     }
 

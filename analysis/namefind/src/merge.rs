@@ -18,7 +18,7 @@
 use std::cmp::Ordering;
 use std::sync::Arc;
 
-use turbo_analysis::{Annotator, Error, Refs, Spans};
+use turbo_analysis::{Annotator, Error, FilterRule, Refs, Spans};
 use turbo_analysis_layers::{Entities, Tag, TagSet};
 use turbo_jvm::chars::compare_to;
 
@@ -101,6 +101,31 @@ pub fn merge(layers: &[&Entities]) -> Result<Entities, String> {
         out.score.push(layer.score[e]);
     }
     Ok(out)
+}
+
+/// Resolves overlapping or nested entities in an [`Entities`] layer into
+/// a non-overlapping [`Entities`] layer in text order according to a
+/// [`FilterRule`]. Bind the input and output instances with
+/// [`turbo_analysis::Bound`].
+#[derive(Copy, Clone, Debug)]
+pub struct FilterEntities {
+    pub rule: FilterRule,
+}
+
+impl FilterEntities {
+    pub const fn new(rule: FilterRule) -> FilterEntities {
+        FilterEntities { rule }
+    }
+}
+
+impl Annotator for FilterEntities {
+    const ID: &'static str = "turbo-namefind:filter";
+    type Reads = (Entities,);
+    type Writes = (Entities,);
+
+    fn annotate(&self, (entities,): Refs<'_, Self>) -> Result<(Entities,), Error> {
+        Ok((entities.filter(self.rule),))
+    }
 }
 
 /// Merges `N` instances of `opennlp:entities` into one, as

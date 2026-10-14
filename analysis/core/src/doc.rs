@@ -278,6 +278,12 @@ impl Document {
                     };
                     check_spans(&v.text, starts, ends).map_err(|detail| Error::Bounds { layer: id, view, detail })?;
                 }
+                if let Some((view, starts, ends)) = layer.fragment_spans() {
+                    let Some(v) = self.views.get(view.0 as usize) else {
+                        return Err(Error::Bounds { layer: id, view, detail: "no such view".into() });
+                    };
+                    check_spans(&v.text, starts, ends).map_err(|detail| Error::Bounds { layer: id, view, detail })?;
+                }
             }
             Anchor::Aligned { ty, layer: of } => {
                 let anchor = made_on(KeyId { ty, layer: of, name: "" }, &provenance);
