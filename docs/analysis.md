@@ -162,6 +162,49 @@ cheaply, since its layers are shared, so branches of a pipeline can
 grow copies and merge them; a merge where both branches wrote the same
 layer, or both made a view, is refused and changes nothing.
 
+### Edges and groups
+
+Two generic layers in `turbo-analysis` represent graph structure over any
+layers on the document:
+
+- `Edges<From, To>` (`turbo:edges<From, To>`) holds directed, labeled,
+  scored edges between items of `From` and items of `To` (`From` and `To`
+  may be the same layer type or two different ones). Its rows are stored
+  by column: `from: Vec<Ix<From>>`, `to: Vec<Ix<To>>`, `kind: Vec<Tag>`
+  (interned against `kinds: Arc<TagSet>`), and `score: Vec<f64>`, alongside
+  a secondary row-index column `by_to: Vec<Ix<Edges<From, To>>>`.
+  - **Sort order**: the primary columns (`from`, `to`, `kind`, `score`) are
+    stored in non-decreasing `(from, to, kind)` order (`Edges::new` and
+    `Edges::between` sort stably by `(from, to, kind)`). The secondary
+    index `by_to` holds a permutation of `0..len` in strictly increasing
+    `(to[r], r)` order. Lookups by source (`from_source`, `outgoing`) are
+    two binary searches over `from` returning a contiguous `IxRange`, and
+    lookups by target (`to_target`, `incoming`) are two binary searches
+    over `by_to` returning a contiguous slice of row indices in `(from,
+    kind)` order. `Layer::check` verifies column lengths, tag bounds,
+    non-decreasing `(from, to, kind)` order, and strictly increasing
+    `(to[r], r)` order across `by_to`.
+  - **Naming the two layer instances**: `Edges<From, To>` carries
+    `from_key: Key<From>` and `to_key: Key<To>`. `Edges::new` sets both to
+    `Key::DEFAULT`, so when the layer is added to a document each endpoint
+    resolves through provenance (`on`, then `reads`, then the default
+    instance) just like any other cross-layer index. `Edges::between` takes
+    explicit `Key<From>` and `Key<To>` (including `Key::named`), so an edge
+    layer can link two named instances (`opennlp:entities@gold` to
+    `opennlp:tokens@predicted`, or two named instances of the same layer
+    type such as `opennlp:tokens@a` to `opennlp:tokens@b`). `Layer::indexes`
+    reports both keys with one past the largest source and target index, so
+    `Document::add` checks both bounds against their respective instances
+    and records both in `Document::made_on`.
+- `Groups<L>` (`turbo:groups<L>`) holds sets of `Ix<L>` (coreference
+  chains, multi-argument clusters, duplicate groups) in two flat columns:
+  `members: Vec<Ix<L>>` and `end: Vec<u32>`, with `of_key: Key<L>` naming
+  the target instance (`Groups::new` for `Key::DEFAULT`, `Groups::of` for a
+  named key). Group `g` is the slice `members[start..end[g]]`, kept in
+  strictly increasing `Ix<L>` order with no duplicates, so membership
+  (`Groups::contains`) is a binary search over the group's slice and no
+  group allocates its own `Vec`.
+
 ## Keys
 
 A `Key<L>` names one instance of layer `L` on a document. Most layers
@@ -300,6 +343,8 @@ fields mean bumps its `SCHEMA`.
 | `Vectors<L>` | `opennlp:embeddings<L>` | `L` | `turbo-analysis-layers` |
 | `Confidence<L>` | `turbo:confidence<L>` | `L` | `turbo-analysis-layers` |
 | `Utf16Spans<L>` | `turbo:utf16<L>` | `L` | `turbo-analysis-layers` |
+| `Edges<From, To>` | `turbo:edges<From, To>` | the document (indexes `From` and `To`) | `turbo-analysis` |
+| `Groups<L>` | `turbo:groups<L>` | the document (indexes `L`) | `turbo-analysis` |
 | `Language` | `opennlp:language` | the document | `turbo-analysis-layers` |
 | `Vocabulary` | `turbo:vocabulary` | the document | `turbo-chunker` |
 | `Terms` | `turbo:terms` | tokens | `turbo-chunker` |

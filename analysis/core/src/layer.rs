@@ -1,10 +1,49 @@
 //! What a layer is, how a document names one, and where it came from.
 
 use std::any::{Any, TypeId};
+use std::collections::HashMap;
 use std::fmt;
 use std::marker::PhantomData;
+use std::sync::Arc;
 
 use crate::text::ViewId;
+
+/// A closed set of labels (a POS tag set, entity kinds, dependency
+/// relations, edge kinds), interned: a layer stores a u16 per item,
+/// never a string.
+#[derive(Debug, Default)]
+pub struct TagSet {
+    pub name: String,
+    names: Vec<Box<str>>,
+    index: HashMap<Box<str>, u16>,
+}
+
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
+pub struct Tag(pub u16);
+
+impl TagSet {
+    pub fn new(name: &str, labels: &[&str]) -> Arc<TagSet> {
+        let names: Vec<Box<str>> = labels.iter().map(|&l| l.into()).collect();
+        let index = names.iter().enumerate().map(|(i, n)| (n.clone(), i as u16)).collect();
+        Arc::new(TagSet { name: name.into(), names, index })
+    }
+
+    pub fn tag(&self, label: &str) -> Option<Tag> {
+        self.index.get(label).map(|&i| Tag(i))
+    }
+
+    pub fn label(&self, t: Tag) -> &str {
+        &self.names[t.0 as usize]
+    }
+
+    pub fn len(&self) -> usize {
+        self.names.len()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.names.is_empty()
+    }
+}
 
 /// A layer: one typed, columnar result over a document. Each layer is its
 /// own Rust type (Sentences, Tokens, PosTags, Dependencies, Chunks...),
@@ -19,13 +58,17 @@ pub trait Layer: Any + Send + Sync + Sized {
     const ID: &'static str;
     /// Bumped when what the layer's fields mean changes.
     const SCHEMA: u16 = 1;
-    /// For a layer generic over another (`Vectors<Sentences>`), that
-    /// layer's id, so the two instances have different names:
-    /// "opennlp:embeddings<opennlp:sentences>" and
-    /// "opennlp:embeddings<turbo:chunks>".
+    /// For a layer generic over another (`Vectors<Sentences>`,
+    /// `Groups<Tokens>`), that layer's id, or for a directed edge layer
+    /// (`Edges<From, To>`), the source layer's id, so distinct
+    /// instantiations have distinct names.
     const OF: &'static str = "";
-    /// Both, as one static name: what a `KeyId` points at.
-    const NAME: &'static LayerName = &LayerName { id: Self::ID, of: Self::OF };
+    /// For a layer generic over two layers (`Edges<From, To>`), the target
+    /// layer's id, so `Edges<Entities, Tokens>` is named
+    /// `"turbo:edges<opennlp:entities, opennlp:tokens>"`.
+    const TO: &'static str = "";
+    /// The static name what a `KeyId` points at.
+    const NAME: &'static LayerName = &LayerName { id: Self::ID, of: Self::OF, to: Self::TO };
 
     /// What the layer's items are anchored to.
     fn anchor() -> Anchor {
@@ -47,10 +90,11 @@ pub trait Layer: Any + Send + Sync + Sized {
     }
 
     /// The other layers its items point into by index, besides an anchor:
-    /// a token's sentence, an entity's tokens. Each is named by its
-    /// default key, with one past the largest index held. The document
-    /// checks that every index is inside that layer, and records which
-    /// instance of it the layer was made on, as it does an anchor.
+    /// a token's sentence, an entity's tokens, an edge's endpoints. Each is
+    /// named by its key (`Key::DEFAULT` unless the layer names a specific
+    /// instance), with one past the largest index held. The document checks
+    /// that every index is inside that layer, and records which instance of
+    /// it the layer was made on, as it does an anchor.
     fn indexes(&self) -> Vec<(KeyId, usize)> {
         Vec::new()
     }
@@ -107,19 +151,32 @@ impl<L> Clone for Key<L> {
     }
 }
 impl<L> Copy for Key<L> {}
+impl<L> fmt::Debug for Key<L> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let name = std::any::type_name::<L>();
+        write!(f, "Key<{}>", name.rsplit("::").next().unwrap_or(name))?;
+        if !self.name.is_empty() {
+            write!(f, "@{}", self.name)?;
+        }
+        Ok(())
+    }
+}
 
-/// A layer type's full name: its id, and for a generic layer the id of
-/// the layer it describes.
+/// A layer type's full name: its id, and for a generic layer the id(s) of
+/// the layer(s) it describes.
 #[derive(Debug, PartialEq, Eq)]
 pub struct LayerName {
     pub id: &'static str,
     pub of: &'static str,
+    pub to: &'static str,
 }
 
 impl fmt::Display for LayerName {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.write_str(self.id)?;
-        if !self.of.is_empty() {
+        if !self.to.is_empty() {
+            write!(f, "<{}, {}>", self.of, self.to)?;
+        } else if !self.of.is_empty() {
             write!(f, "<{}>", self.of)?;
         }
         Ok(())

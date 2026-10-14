@@ -370,12 +370,16 @@ impl Document {
     }
 }
 
-/// The instance of `of`'s layer type a layer was made on: one its step
+/// The instance of `of`'s layer type a layer was made on: when `of` names an
+/// instance explicitly (`Key::named`), that instance; otherwise one its step
 /// wrote itself before this layer, else the one it read (the first, if it
 /// read several), else the default. A step's own output comes first: a
 /// retokenizer that reads gold tokens and writes its own tokens with a
 /// confidence for each scores the tokens it wrote.
 fn made_on(of: KeyId, p: &Provenance) -> KeyId {
+    if !of.name.is_empty() {
+        return of;
+    }
     p.on.iter().chain(&p.reads).copied().find(|r| r.ty == of.ty).unwrap_or(of)
 }
 
