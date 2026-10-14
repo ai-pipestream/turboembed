@@ -1,0 +1,25 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	en/quotes	240	228	8e587a2221022c9fa745822b626ba04b316b213fbffa68031c095a1670e808f8
+annotator	opennlp.tools.ml.perceptron.SimplePerceptronSequenceTrainer	train
+config	Algorithm	PERCEPTRON_SEQUENCE
+config	Cutoff	5
+config	DataIndexer	OnePass
+config	Iterations	20
+config	UseAverage	true
+config	sort	false
+config	source	sentdetect
+layer	turbo:events	document	6	outcome:str	context:str	values:str
+n	eos=? x=tonight 7 v=coming s=" n=she	
+n	sn eos=. x=asked 5 v=she s= n=He ncap	
+n	eos=. x=stops 5 v=rain s=" n=The ncap	
+n	sn eos=. x=repairs' 8 v=for s= n=“Curly	
+n	eos=. x=ones 4 v=‘single’ s=” n=Nobody ncap	
+s	sn eos=. x=answered 8 v=Nobody vcap s= n=	
+end	turbo:events
+layer	turbo:perceptron-training	document	1	iterations:u32	message:str
+0	java.lang.ArrayIndexOutOfBoundsException: Index 5 out of bounds for length 5
+end	turbo:perceptron-training

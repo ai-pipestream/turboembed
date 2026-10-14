@@ -284,7 +284,11 @@ pub fn train_events(
 /// `AbstractEventTrainer.train(DataIndexer)` for `PERCEPTRON`: refuses an
 /// index with one outcome, then trains with [`PerceptronParams`] read from
 /// the parameters and `IterDeltaAccuracyUnderTolerance` from them too.
-pub fn train(index: &DataIndex, params: &TrainingParameters, config: &mut TrainingConfiguration) -> Result<PerceptronModel> {
+pub fn train(
+    index: &DataIndex,
+    params: &TrainingParameters,
+    config: &mut TrainingConfiguration,
+) -> Result<PerceptronModel> {
     if index.outcome_labels().len() <= 1 {
         return Err(Error::InsufficientTrainingData(ONE_OUTCOME));
     }
@@ -459,8 +463,7 @@ pub fn train_sequence_model(
     let total = index.num_events() as i32;
     let mut model = PerceptronModel::zeros(index.outcome_labels().to_vec(), index.pred_labels().to_vec());
     let num_outcomes = model.num_outcomes();
-    let omap: HashMap<String, usize> =
-        index.outcome_labels().iter().enumerate().map(|(i, o)| (o.clone(), i)).collect();
+    let omap: HashMap<String, usize> = index.outcome_labels().iter().enumerate().map(|(i, o)| (o.clone(), i)).collect();
     let mut average = vec![0.0; model.parameters.len()];
     let mut changes = vec![LastChange::default(); model.parameters.len()];
 
@@ -490,11 +493,13 @@ pub fn train_sequence_model(
                 }
             }
             for t in &tagged {
-                let oi = *omap.get(t.outcome()).unwrap_or_else(|| panic!("updateContext tagged {:?}, not an outcome", t.outcome()));
+                let oi = *omap
+                    .get(t.outcome())
+                    .unwrap_or_else(|| panic!("updateContext tagged {:?}, not an outcome", t.outcome()));
                 for (ci, feature) in t.context().iter().enumerate() {
                     let value = t.values().map_or(1.0f32, |v| v[ci]);
                     let c = match counts[oi].get(feature) {
-                        None => -1.0 * value,
+                        None => -value,
                         Some(&c) => c - value,
                     };
                     if c == 0.0 {
@@ -722,7 +727,7 @@ mod tests {
         let mut accuracies = Vec::new();
         train_model(&index, &params, &mut config, &stop, &mut |it, _| accuracies.push(it.accuracy));
         let n = accuracies.len();
-        assert!(n < 100 && n >= 4, "{n}");
+        assert!((4..100).contains(&n), "{n}");
         let last = accuracies[n - 1];
         assert!(accuracies[n - 4..n - 1].iter().all(|a| (a - last).abs() < stop.tolerance));
     }
@@ -759,8 +764,12 @@ mod tests {
                 .iter()
                 .map(|e| {
                     model.eval(e.context(), e.values(), &mut out);
-                    Event::with_values(&model.outcome_labels()[argmax(&out)], e.context().to_vec(), e.values().map(<[f32]>::to_vec))
-                        .unwrap()
+                    Event::with_values(
+                        &model.outcome_labels()[argmax(&out)],
+                        e.context().to_vec(),
+                        e.values().map(<[f32]>::to_vec),
+                    )
+                    .unwrap()
                 })
                 .collect()
         }
@@ -809,7 +818,8 @@ mod tests {
     fn a_shorter_sequence_run_is_a_prefix() {
         let source = pairs();
         let mut seen = Vec::new();
-        let model = train_sequence_model(&source, 5, 0, true, &mut |it, p| seen.push((it.iteration, p.to_vec()))).unwrap();
+        let model =
+            train_sequence_model(&source, 5, 0, true, &mut |it, p| seen.push((it.iteration, p.to_vec()))).unwrap();
         assert_eq!(seen.len(), 5);
         assert_eq!(model.all_parameters(), &seen[4].1[..]);
         let three = train_sequence_model(&source, 3, 0, true, &mut |_, _| {}).unwrap();

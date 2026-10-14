@@ -1,0 +1,80 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	en/numbers	226	226	c9f48b2fbd30b7603cd02cad8f56d1a5d0961619d294faecb2a75d4c1f404102
+annotator	opennlp.tools.ml.perceptron.SimplePerceptronSequenceTrainer	train
+config	Algorithm	PERCEPTRON_SEQUENCE
+config	Cutoff	5
+config	DataIndexer	OnePass
+config	Iterations	20
+config	UseAverage	true
+config	sort	false
+config	source	sentdetect
+layer	turbo:events	document	14	outcome:str	context:str	values:str
+n	eos=. x=3 1 v=is s=5 n=metres	
+n	eos=. x=$12 3 v=costs s=99 n=at	
+n	sn eos=. x=store 5 v=the s= n=Version ncap	
+n	eos=. x=2 1 v=Version vcap s=10 n=1	
+n	eos=. x=.10 3 v=2 s=1 n=fixed	
+n	eos=. x=12 2 v=on s=03 n=2024.	
+n	eos=. x=.03 3 v=12 s=2024 n=The ncap	
+n	sn eos=. x=.2024 5 v=12.03 s= n=The ncap	
+n	eos=. x=4 1 v=roughly s=7 n=percent.	
+n	sn eos=. x=percent 7 v=4.7 s= n=Pi ncap	
+n	eos=. x=3 1 v=about s=14159 n=Section ncap	
+n	sn eos=. x=.14159 6 v=3 s= n=Section ncap	
+n	eos=. x=4 1 v=Section vcap s=2 n=explains	
+s	sn eos=. x=rest 4 v=the s= n=	
+end	turbo:events
+layer	turbo:perceptron-training	document	1	iterations:u32	message:str
+20	
+end	turbo:perceptron-training
+layer	turbo:perceptron-iterations	document	20	iteration:u32	parameters:str
+1	a9933848fb5ffe06434d5d770b78288fa59deb03138dfbae27aa9f835ce8c629
+2	51a059381db146ae9df3083b5b52914d3f13f0bcf14814311a58847e4d0b7179
+3	91e6dba44405ea4e2ab6e17cb1e2878efa49ee9eb262509ede31bb51524de279
+4	4fa65c50925ce5e994f7b662abcfa9f6747063478ab624d8f2a128dbf32347ae
+5	adcdb93ddfa52d88ae75ae77a57f8e515cd77cd2092392f1e81c2347fa9139af
+6	ba22e0d95711ee46e6c49962415f644b3692d8c05e429bd9b4739c811809a2cd
+7	fd61451903a6a483e3691ba54c37212b7ddbf3009a632ee188d2d5152dbcc7d8
+8	a229db507a75c1c4315cc894953d69be2bd19acca8d2dfaae2a5c0da9aadf3a7
+9	29d03a736bf5bdb56883ca373572d0d4cc72293e629dd726a869bb0b6f70df6a
+10	26ea7223521a589bbdb49f92fe1146d9a884e2a83ed582adb4a39bd9fea2ca0e
+11	78e387a476251ab7c1baf27565efdcc4846c650481e888e7fc18f82e7822b4d8
+12	065114a87038fc637c99483d642d6ce80c353b460d40faf2ab87b4f134548400
+13	329fde50ae20a43920f3cdcd2938509cad8add3281fa61a84971bcc5d9c33500
+14	9df7f245403970e5fd8d618e6dc701765a6e7d94058d250a1972a80af9c79ea5
+15	69c27d53e30a24764a861378f5f2e47ac849209f73d57bb30ce5ec96ce28338e
+16	91f0c2fc78ad1b36f61dc14966a9a9cc5bcb5c94995dd4ee3cff9c2f58e1ed12
+17	2c4b8b7fc533731a91af802cea9c62181ab1dae11b359ce8c251971e18da6890
+18	41353999ad481cac8eb2dfce2282c5b45e71d9342ee747b9a6364a1f11b244bc
+19	7c7ebbd389807bc656796e1d9f1242d9a6048be39d014a77070e7f072618d319
+20	79ba29c24726ef089d7de8c94574109fb8b9626c5e7a2ea95695ec0dfb2fc197
+end	turbo:perceptron-iterations
+layer	turbo:perceptron-parameters	document	20	iteration:u32	predicate:u32	outcome:u32	value:f64
+1	0	0	0000000000000000 0.0
+1	0	1	0000000000000000 0.0
+1	1	0	bfd5555555555555 -0.3333333333333333
+1	1	1	3fd5555555555555 0.3333333333333333
+1	2	0	0000000000000000 0.0
+1	2	1	0000000000000000 0.0
+1	3	0	bfd5555555555555 -0.3333333333333333
+1	3	1	3fd5555555555555 0.3333333333333333
+1	4	0	bfd5555555555555 -0.3333333333333333
+1	4	1	3fd5555555555555 0.3333333333333333
+20	0	0	3ffe666666666666 1.9
+20	0	1	bffe666666666666 -1.9
+20	1	0	4000444444444444 2.033333333333333
+20	1	1	c000444444444444 -2.033333333333333
+20	2	0	3ffccccccccccccd 1.8
+20	2	1	bffccccccccccccd -1.8
+20	3	0	bffc444444444444 -1.7666666666666666
+20	3	1	3ffc444444444444 1.7666666666666666
+20	4	0	bffc444444444444 -1.7666666666666666
+20	4	1	3ffc444444444444 1.7666666666666666
+end	turbo:perceptron-parameters
+layer	turbo:perceptron-model	document	1	sha256:str	length:u32	error:str
+23ebc8d4570aab7201f513d57ad90b1bb3c59095141fbcfd92bdd3e518f6b05f	141	
+end	turbo:perceptron-model

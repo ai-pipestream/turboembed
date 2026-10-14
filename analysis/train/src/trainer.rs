@@ -63,9 +63,7 @@ fn event_trainer(params: &TrainingParameters) -> Result<Algorithm> {
     };
     match algorithm {
         Algorithm::Maxent | Algorithm::MaxentQn | Algorithm::Perceptron => Ok(algorithm),
-        Algorithm::PerceptronSequence => {
-            Err(Error::WrongTrainerType { algorithm, wanted: TrainerType::Event })
-        }
+        Algorithm::PerceptronSequence => Err(Error::WrongTrainerType { algorithm, wanted: TrainerType::Event }),
         other => Err(Error::NotPorted(other)),
     }
 }

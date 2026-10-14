@@ -1,0 +1,64 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	en/list	231	231	374002664b56c2b3d6cce83151f15ed288f1a976eb26ceb4019d9afdf2442431
+annotator	opennlp.tools.ml.perceptron.PerceptronTrainer	train
+config	Algorithm	PERCEPTRON
+config	Cutoff	5
+config	DataIndexer	TwoPass
+config	Iterations	100
+config	StepSizeDecrease	0.05
+config	Tolerance	0.01
+config	UseAverage	false
+config	UseSkippedAveraging	false
+config	sort	false
+config	source	sentdetect
+layer	turbo:events	document	9	outcome:str	context:str	values:str
+n	sn eos=. x=1 1 v=things: s= n=The ncap	
+s	sn eos=. x=in 2 v=plugged s= n=2.	
+n	sn eos=. x=2 1 v=in. s= n=The ncap	
+s	sn eos=. x=on 2 v=is s= n=3.	
+n	sn eos=. x=3 1 v=on. s= n=The ncap	
+s	sn eos=. x=green 5 v=is s= n=-	
+s	sn eos=. x=case 4 v=the s= n=-	
+s	sn eos=. x=clear 5 v=vents s= n=If ncap	
+s	sn eos=. x=button 6 v=the s= n=	
+end	turbo:events
+layer	turbo:perceptron-training	document	1	iterations:u32	message:str
+6	Stopping: change in training set accuracy less than {0.01}
+end	turbo:perceptron-training
+layer	turbo:perceptron-monitor	document	6	iteration:u32	correct:u32	events:u32	accuracy:f64
+1	4	9	3fdc71c71c71c71c 0.4444444444444444
+2	4	9	3fdc71c71c71c71c 0.4444444444444444
+3	3	9	3fd5555555555555 0.3333333333333333
+4	3	9	3fd5555555555555 0.3333333333333333
+5	3	9	3fd5555555555555 0.3333333333333333
+6	3	9	3fd5555555555555 0.3333333333333333
+end	turbo:perceptron-monitor
+layer	turbo:perceptron-iterations	document	6	iteration:u32	parameters:str
+1	f15a0ef647c91932700e843bd4cc651b5fa6633e2e1cd01ce29ad7135335e249
+2	38b30142bd7a5ac7ce2ea763685324761f1abd41c0073466043bc79654975648
+3	38b30142bd7a5ac7ce2ea763685324761f1abd41c0073466043bc79654975648
+4	38b30142bd7a5ac7ce2ea763685324761f1abd41c0073466043bc79654975648
+5	38b30142bd7a5ac7ce2ea763685324761f1abd41c0073466043bc79654975648
+6	38b30142bd7a5ac7ce2ea763685324761f1abd41c0073466043bc79654975648
+end	turbo:perceptron-iterations
+layer	turbo:perceptron-parameters	document	12	iteration:u32	predicate:u32	outcome:u32	value:f64
+1	0	0	bfee666666666666 -0.95
+1	0	1	3fee666666666666 0.95
+1	1	0	bfee666666666666 -0.95
+1	1	1	3fee666666666666 0.95
+1	2	0	bfee666666666666 -0.95
+1	2	1	3fee666666666666 0.95
+6	0	0	bfa851eb851eb850 -0.04749999999999999
+6	0	1	3fa851eb851eb850 0.04749999999999999
+6	1	0	bfa851eb851eb850 -0.04749999999999999
+6	1	1	3fa851eb851eb850 0.04749999999999999
+6	2	0	bfa851eb851eb850 -0.04749999999999999
+6	2	1	3fa851eb851eb850 0.04749999999999999
+end	turbo:perceptron-parameters
+layer	turbo:perceptron-model	document	1	sha256:str	length:u32	error:str
+424d5fe8a9291e1a0ef3166e83904a3c53b0ac332941a3d817f8e55fee2a5f52	100	
+end	turbo:perceptron-model

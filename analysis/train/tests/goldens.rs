@@ -23,17 +23,17 @@ use std::rc::Rc;
 use turbo_goldens::{Golden, data_dir};
 use turbo_jvm::text::float_to_string;
 use turbo_train::error::NO_EVENTS;
+use turbo_train::error::ONE_OUTCOME;
 use turbo_train::event::{checksum, parse_event, parse_real_value_event};
 use turbo_train::gis::train_model;
-use turbo_train::error::ONE_OUTCOME;
 use turbo_train::monitor::finished_message;
-use turbo_train::{perceptron, qn};
 use turbo_train::{
-    DataIndex, Error, Event, GisModel, GisParams, IndexParams, IndexerKind, IterDeltaAccuracyUnderTolerance, JavaString,
-    Key, LogLikelihoodThresholdBreached, PerceptronModel, PerceptronParams, ProgressMonitor, QnStop, Sequence,
-    SequenceSource, Smoothing, StopCriteria, TrainingConfiguration, TrainingMeasure, TrainingParameters, write_gis,
-    write_perceptron, write_qn,
+    DataIndex, Error, Event, GisModel, GisParams, IndexParams, IndexerKind, IterDeltaAccuracyUnderTolerance,
+    JavaString, Key, LogLikelihoodThresholdBreached, PerceptronModel, PerceptronParams, ProgressMonitor, QnStop,
+    Sequence, SequenceSource, Smoothing, StopCriteria, TrainingConfiguration, TrainingMeasure, TrainingParameters,
+    write_gis, write_perceptron, write_qn,
 };
+use turbo_train::{perceptron, qn};
 
 mod common;
 use common::{
@@ -397,7 +397,14 @@ fn indexed(at: &str, g: &Golden, events: &[Event]) -> Option<DataIndex> {
 /// predicate's parameter for every outcome), and the `turbo:perceptron-model`
 /// bytes or the writer's failure, against a trained model and what the
 /// observer saw of it.
-fn check_perceptron_layers(at: &str, g: &Golden, model: &PerceptronModel, first: &[f64], ran: usize, cov: &mut Coverage) {
+fn check_perceptron_layers(
+    at: &str,
+    g: &Golden,
+    model: &PerceptronModel,
+    first: &[f64],
+    ran: usize,
+    cov: &mut Coverage,
+) {
     let n = model.num_outcomes();
     let values = layer(g, "turbo:perceptron-parameters");
     let (it, pred, oid, val) = (
@@ -431,7 +438,11 @@ fn check_perceptron_layers(at: &str, g: &Golden, model: &PerceptronModel, first:
         Ok(bytes) => {
             assert_eq!(error, "", "{at}: the JVM writer failed: {error}");
             assert_eq!(bytes.len() as u32, written.u32s("length").unwrap()[0], "{at}: model length");
-            assert_eq!(turbo_maxent::sha256(&bytes).to_hex(), written.strs("sha256").unwrap().get(0), "{at}: model sha256");
+            assert_eq!(
+                turbo_maxent::sha256(&bytes).to_hex(),
+                written.strs("sha256").unwrap().get(0),
+                "{at}: model sha256"
+            );
             let read = turbo_maxent::MaxentModel::read(&bytes).unwrap_or_else(|e| panic!("{at}: {e}"));
             assert!(read.num_predicates() <= model.num_predicates(), "{at}");
         }

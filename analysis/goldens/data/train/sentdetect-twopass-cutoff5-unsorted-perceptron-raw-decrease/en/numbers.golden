@@ -1,0 +1,79 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	en/numbers	226	226	c9f48b2fbd30b7603cd02cad8f56d1a5d0961619d294faecb2a75d4c1f404102
+annotator	opennlp.tools.ml.perceptron.PerceptronTrainer	train
+config	Algorithm	PERCEPTRON
+config	Cutoff	5
+config	DataIndexer	TwoPass
+config	Iterations	100
+config	StepSizeDecrease	0.05
+config	Tolerance	0.01
+config	UseAverage	false
+config	UseSkippedAveraging	false
+config	sort	false
+config	source	sentdetect
+layer	turbo:events	document	14	outcome:str	context:str	values:str
+n	eos=. x=3 1 v=is s=5 n=metres	
+n	eos=. x=$12 3 v=costs s=99 n=at	
+n	sn eos=. x=store 5 v=the s= n=Version ncap	
+n	eos=. x=2 1 v=Version vcap s=10 n=1	
+n	eos=. x=.10 3 v=2 s=1 n=fixed	
+n	eos=. x=12 2 v=on s=03 n=2024.	
+n	eos=. x=.03 3 v=12 s=2024 n=The ncap	
+n	sn eos=. x=.2024 5 v=12.03 s= n=The ncap	
+n	eos=. x=4 1 v=roughly s=7 n=percent.	
+n	sn eos=. x=percent 7 v=4.7 s= n=Pi ncap	
+n	eos=. x=3 1 v=about s=14159 n=Section ncap	
+n	sn eos=. x=.14159 6 v=3 s= n=Section ncap	
+n	eos=. x=4 1 v=Section vcap s=2 n=explains	
+s	sn eos=. x=rest 4 v=the s= n=	
+end	turbo:events
+layer	turbo:perceptron-training	document	1	iterations:u32	message:str
+7	Stopping: change in training set accuracy less than {0.01}
+end	turbo:perceptron-training
+layer	turbo:perceptron-monitor	document	7	iteration:u32	correct:u32	events:u32	accuracy:f64
+1	13	14	3fedb6db6db6db6e 0.9285714285714286
+2	10	14	3fe6db6db6db6db7 0.7142857142857143
+3	12	14	3feb6db6db6db6db 0.8571428571428571
+4	14	14	3ff0000000000000 1.0
+5	14	14	3ff0000000000000 1.0
+6	14	14	3ff0000000000000 1.0
+7	14	14	3ff0000000000000 1.0
+end	turbo:perceptron-monitor
+layer	turbo:perceptron-iterations	document	7	iteration:u32	parameters:str
+1	59b8cf4d1a3ad68470a45ca8f098adc2cf9ebdcd6926bfcb9879b3b75cfbaa9d
+2	80c261a098f900b9722419080375008e3835dbff18affd5b84e9a13388e5499a
+3	5390c7f58cfc2682defd718c18ef29fdb325674827118a5e92acae3f8362c00e
+4	5390c7f58cfc2682defd718c18ef29fdb325674827118a5e92acae3f8362c00e
+5	5390c7f58cfc2682defd718c18ef29fdb325674827118a5e92acae3f8362c00e
+6	5390c7f58cfc2682defd718c18ef29fdb325674827118a5e92acae3f8362c00e
+7	5390c7f58cfc2682defd718c18ef29fdb325674827118a5e92acae3f8362c00e
+end	turbo:perceptron-iterations
+layer	turbo:perceptron-parameters	document	20	iteration:u32	predicate:u32	outcome:u32	value:f64
+1	0	0	0000000000000000 0.0
+1	0	1	0000000000000000 0.0
+1	1	0	bfee666666666666 -0.95
+1	1	1	3fee666666666666 0.95
+1	2	0	0000000000000000 0.0
+1	2	1	0000000000000000 0.0
+1	3	0	bfee666666666666 -0.95
+1	3	1	3fee666666666666 0.95
+1	4	0	bfee666666666666 -0.95
+1	4	1	3fee666666666666 0.95
+7	0	0	3fece147ae147ae1 0.9025
+7	0	1	bfece147ae147ae1 -0.9025
+7	1	0	3feb5c28f5c28f5b 0.8549999999999999
+7	1	1	bfeb5c28f5c28f5b -0.8549999999999999
+7	2	0	3ffc2872b020c49b 1.7598749999999999
+7	2	1	bffc2872b020c49b -1.7598749999999999
+7	3	0	bfee666666666666 -0.95
+7	3	1	3fee666666666666 0.95
+7	4	0	bfee666666666666 -0.95
+7	4	1	3fee666666666666 0.95
+end	turbo:perceptron-parameters
+layer	turbo:perceptron-model	document	1	sha256:str	length:u32	error:str
+638a8aeb787bee4aef7ddba5fc16ef062dffabec1b5ae2dffee73a26b8782eb7	141	
+end	turbo:perceptron-model
