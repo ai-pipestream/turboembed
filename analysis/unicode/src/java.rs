@@ -13,6 +13,7 @@
 //! `UnicodeScript.of`.
 
 pub mod code_point;
+mod word_classes;
 
 use crate::ascii::push_lowercase_run;
 use crate::category::{GeneralCategory, general_category};
@@ -193,133 +194,219 @@ fn push_lower(text: &str, at: usize, c: char, out: &mut String) {
 /// then forwards, where any cased character before the word's end makes
 /// the sigma non-final. So "ΑΣ1" and "Α1Σ" end in final sigma, "ΑΣ1a" and
 /// "ΑΣ.a" do not, and a space, a comma or an ideograph after the sigma
-/// ends the word where Unicode would look on.
+/// ends the word where Unicode would look on. [`word_class`] and
+/// [`word_boundaries`] model the iterator, from probing JDK 21.
 fn is_final_sigma(text: &str, at: usize) -> bool {
-    let after = at + CAPITAL_SIGMA.len_utf8();
-    cased_before_in_word(&text[..at]) && !cased_after_in_word(&text[after..])
+    let chars: Vec<char> = text.chars().collect();
+    let sigma = text[..at].chars().count();
+    let boundary = word_boundaries(&chars);
+    // Backwards to a cased character, stopping at a word boundary.
+    let mut k = sigma;
+    let mut follows_cased = false;
+    while k > 0 && !boundary[k] {
+        k -= 1;
+        if java_cased(chars[k]) {
+            follows_cased = true;
+            break;
+        }
+    }
+    if !follows_cased {
+        return false;
+    }
+    // Forwards: a cased character before the word's end makes it non-final.
+    let mut k = sigma + 1;
+    while k < chars.len() && !boundary[k] {
+        if java_cased(chars[k]) {
+            return false;
+        }
+        k += 1;
+    }
+    true
 }
 
 /// `isCased` of the JDK's conditional casing: the three cased letter
 /// categories and a fixed list of other characters (modifier letters,
 /// U+0345, the Roman numerals, the circled letters), which is an older
 /// Unicode's Other_Uppercase and Other_Lowercase, not the current ones.
+/// U+0295 is Ll in JDK 21 (Unicode 15.0) and Lo since Unicode 16.0, so
+/// it is listed.
 fn java_cased(c: char) -> bool {
     matches!(general_category(c), GeneralCategory::Lu | GeneralCategory::Ll | GeneralCategory::Lt)
         || matches!(
             c as u32,
-            0x02B0..=0x02B8 | 0x02C0..=0x02C1 | 0x02E0..=0x02E4 | 0x0345 | 0x037A | 0x1D2C..=0x1D61 | 0x2160..=0x217F | 0x24B6..=0x24E9
+            0x0295
+                | 0x02B0..=0x02B8
+                | 0x02C0..=0x02C1
+                | 0x02E0..=0x02E4
+                | 0x0345
+                | 0x037A
+                | 0x1D2C..=0x1D61
+                | 0x2160..=0x217F
+                | 0x24B6..=0x24E9
         )
 }
 
-/// What a character is to the root locale's word `BreakIterator`, as far
-/// as the sigma condition needs: the iterator's rules predate UAX #29.
-#[derive(Clone, Copy, PartialEq, Eq)]
-enum WordClass {
-    /// Nonspacing and enclosing marks and format characters attach to the
-    /// character before them.
-    Ignorable,
-    /// Letters and spacing marks, except the kanji, hiragana and katakana
-    /// ranges, which make words of their own.
-    Letter,
-    /// Every numeric category.
-    Digit,
-    /// Everything else ends a word, unless it is one of the characters
-    /// allowed between two letters (`.`, `'`, `"`, the dashes, the
-    /// connectors, the soft hyphen and U+2027) or between two digits
-    /// (`.`, `'`, `"`, `,` and U+066B), which [`mid_word`] and [`mid_num`]
-    /// tell apart.
+/// What the root locale's word `BreakIterator` of the JDK makes of a
+/// character. Its rules predate UAX #29: a word is letters and digits in
+/// any order, with a few joiners allowed between two letters or two
+/// digits, a currency sign before a number, a percent sign after one and
+/// a danda after letters. The class of each code point comes from probing
+/// JDK 21 (`word_classes.rs`).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum WordClass {
+    /// Ends a word on both sides: punctuation, symbols, separators,
+    /// controls, private use, unassigned, and the kana and the common
+    /// kanji, which the iterator segments on their own.
     Other,
+    /// Letters and spacing marks; also every supplementary letter, digit,
+    /// mark and format character, which the iterator joins to the word.
+    Letter,
+    /// The numeric categories.
+    Digit,
+    /// Nonspacing and enclosing marks: attached to the character before
+    /// them, and a word of their own at the start of the text.
+    Mark,
+    /// Format characters, invisible to the rules (the soft hyphen is a
+    /// joiner instead).
+    Transparent,
+    /// Dashes, connectors, the soft hyphen and U+2027: joins two letters.
+    MidWord,
+    /// `,` and U+066B: joins two digits.
+    MidNum,
+    /// `'` and `"`: joins two letters or two digits.
+    MidBoth,
+    /// `.`: joins two letters or two digits, and starts a number.
+    Dot,
+    /// Currency signs and `#`: attached to the number after them.
+    PreNum,
+    /// `%`, `&`, U+00A2, U+066A, U+2030 and U+2031: attached to the number
+    /// before them.
+    PostNum,
+    /// The dandas: attached to the letters before them, and digits may
+    /// follow.
+    Danda,
 }
 
-fn word_class(c: char) -> WordClass {
-    if matches!(c as u32, 0x3005 | 0x4E00..=0x9FA5 | 0xF900..=0xFA2D | 0x3099..=0x309C | 0x30A1..=0x30FE | 0x3041..=0x309E)
-    {
-        return WordClass::Other;
+/// The class of `c`, by the table's class number.
+fn word_class_number(c: char) -> u8 {
+    let cp = c as u32;
+    let table = word_classes::JDK_WORD_CLASSES;
+    let i = table.partition_point(|&(_, last, _)| last < cp);
+    match table.get(i) {
+        Some(&(first, _, class)) if first <= cp => class,
+        _ => 0,
     }
-    use GeneralCategory::*;
-    match general_category(c) {
-        Mn | Me | Cf => WordClass::Ignorable,
-        Lu | Ll | Lt | Lm | Lo | Mc => WordClass::Letter,
-        Nd | Nl | No => WordClass::Digit,
+}
+
+/// What the JDK's root locale word `BreakIterator` makes of `c`, from
+/// the probed table; `analysis/unicode/tests/jdk_sigma.rs` checks it
+/// against a running JDK.
+pub fn word_class(c: char) -> WordClass {
+    match word_class_number(c) {
+        1 => WordClass::Letter,
+        2 => WordClass::Digit,
+        3 => WordClass::Mark,
+        4 => WordClass::Transparent,
+        5 => WordClass::MidWord,
+        6 => WordClass::MidNum,
+        7 => WordClass::MidBoth,
+        8 => WordClass::Dot,
+        9 => WordClass::PreNum,
+        10 => WordClass::PostNum,
+        11 => WordClass::Danda,
         _ => WordClass::Other,
     }
 }
 
-fn mid_word(c: char) -> bool {
-    matches!(c, '.' | '\'' | '"' | '\u{AD}' | '\u{2027}')
-        || matches!(general_category(c), GeneralCategory::Pd | GeneralCategory::Pc)
-}
-
-fn mid_num(c: char) -> bool {
-    matches!(c, '.' | '\'' | '"' | ',' | '\u{66B}')
-}
-
-/// Walks `before` backwards from the sigma: true when a cased character
-/// comes before the start of the sigma's word. A cased character that is
-/// a mark or format character counts only when a letter or digit stands
-/// before it in the word, as the iterator makes a lone mark a word of its
-/// own.
-fn cased_before_in_word(before: &str) -> bool {
-    let mut chars = before.chars().rev().peekable();
-    let mut last = WordClass::Letter;
-    let mut pending = false;
-    while let Some(c) = chars.next() {
-        let class = word_class(c);
-        match class {
-            WordClass::Ignorable => {
-                pending |= java_cased(c);
-                continue;
-            }
-            WordClass::Letter | WordClass::Digit => {
-                if pending || java_cased(c) {
-                    return true;
+/// The word boundaries of the JDK's root locale word `BreakIterator` as
+/// `isBoundary` reports them at the start of each character and at the
+/// end of the text: `out[k]` is true when a boundary lies before
+/// character `k`. The rules, as probed: letters and digits chain into one
+/// word; a mark attaches to the character before it; a format character
+/// is invisible; a joiner stays in the word when the character before it
+/// (marks attached) and the character right after it are both letters, or
+/// both digits for the numeric joiners; `.` and a currency sign start a
+/// number; a percent sign ends one; a danda follows letters and may be
+/// followed by digits. Everything else is a word of its own. One quirk is
+/// kept: `isBoundary` right after a supplementary character answers true
+/// unless that character starts the text, as the iterator resynchronizes
+/// from inside the surrogate pair.
+fn word_boundaries(chars: &[char]) -> Vec<bool> {
+    let n = chars.len();
+    let mut out = vec![false; n + 1];
+    out[0] = true;
+    out[n] = true;
+    let class: Vec<WordClass> = chars.iter().map(|&c| word_class(c)).collect();
+    // What the word so far ends in, marks and format characters aside.
+    let mut last = WordClass::Other;
+    let mut at_start = true;
+    let next_visible = |from: usize| (from..n).map(|j| class[j]).find(|&c| c != WordClass::Transparent);
+    for k in 0..n {
+        let c = class[k];
+        let boundary = match c {
+            WordClass::Transparent => false,
+            WordClass::Mark => {
+                if at_start {
+                    last = WordClass::Other;
                 }
+                false
+            }
+            WordClass::Letter => !matches!(last, WordClass::Letter | WordClass::Digit),
+            WordClass::Digit => {
+                !matches!(last, WordClass::Letter | WordClass::Digit | WordClass::Danda | WordClass::PreNum)
+            }
+            WordClass::MidWord | WordClass::MidNum | WordClass::MidBoth | WordClass::Dot => {
+                let next = next_visible(k + 1);
+                let letters = matches!(c, WordClass::MidWord | WordClass::MidBoth | WordClass::Dot);
+                let digits = matches!(c, WordClass::MidNum | WordClass::MidBoth | WordClass::Dot);
+                let joins = (letters && last == WordClass::Letter && next == Some(WordClass::Letter))
+                    || (digits && last == WordClass::Digit && next == Some(WordClass::Digit));
+                if joins {
+                    false
+                } else {
+                    // A lone dot before digits starts the number.
+                    last = if c == WordClass::Dot && next == Some(WordClass::Digit) {
+                        WordClass::PreNum
+                    } else {
+                        WordClass::Other
+                    };
+                    true
+                }
+            }
+            WordClass::PreNum => {
+                last = WordClass::PreNum;
+                true
+            }
+            WordClass::PostNum => {
+                let joins = last == WordClass::Digit;
+                last = WordClass::Other;
+                !joins
+            }
+            WordClass::Danda => {
+                let joins = matches!(last, WordClass::Letter | WordClass::Danda);
+                last = WordClass::Danda;
+                !joins
             }
             WordClass::Other => {
-                // Allowed between two characters of the class on this side.
-                let beyond = chars.peek().map(|&b| word_class(b));
-                let joins = (last == WordClass::Letter && mid_word(c) && beyond == Some(WordClass::Letter))
-                    || (last == WordClass::Digit && mid_num(c) && beyond == Some(WordClass::Digit));
-                if !joins {
-                    return false;
-                }
+                last = WordClass::Other;
+                true
             }
+        };
+        if matches!(c, WordClass::Letter | WordClass::Digit) {
+            last = c;
         }
-        last = class;
-    }
-    false
-}
-
-/// Walks `after` forwards from the sigma: true when a cased character
-/// comes before the end of the sigma's word.
-fn cased_after_in_word(after: &str) -> bool {
-    let mut chars = after.chars().peekable();
-    let mut last = WordClass::Letter;
-    while let Some(c) = chars.next() {
-        let class = word_class(c);
-        match class {
-            WordClass::Ignorable | WordClass::Letter | WordClass::Digit => {
-                if java_cased(c) {
-                    return true;
-                }
-                if class == WordClass::Ignorable {
-                    continue;
-                }
-            }
-            // A word boundary comes before the cased check: a circled
-            // letter is on the JDK's cased list and ends the word.
-            WordClass::Other => {
-                // The character after the joiner must follow it directly:
-                // a mark between them ends the word.
-                let beyond = chars.peek().map(|&b| word_class(b));
-                let joins = (last == WordClass::Letter && mid_word(c) && beyond == Some(WordClass::Letter))
-                    || (last == WordClass::Digit && mid_num(c) && beyond == Some(WordClass::Digit));
-                if !joins {
-                    return false;
-                }
-            }
+        if c != WordClass::Transparent && c != WordClass::Mark {
+            at_start = false;
         }
-        last = class;
+        if k > 0 {
+            out[k] = boundary;
+        }
     }
-    false
+    // The resynchronization quirk after a supplementary character.
+    for k in 1..n {
+        if chars[k] as u32 > 0xFFFF {
+            out[k + 1] = true;
+        }
+    }
+    out
 }

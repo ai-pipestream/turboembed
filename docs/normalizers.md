@@ -121,20 +121,37 @@ a JDK other than 21, and when `java` or `javac` is missing.
 `java::digit` accepts decimal digits only (`Character.digit(c, 10)`
 without the fullwidth and ASCII letters of larger radixes).
 `java::to_lowercase` writes final sigma under the JDK's own condition, not
-Unicode's Final_Sigma: the JDK walks the word the sigma is in (as its word
-break iterator for the root locale delimits it: letters, digits and the
-marks on them, with `.`, `'`, `"`, a dash or a connector allowed between
-two letters and `.`, `'`, `"`, `,` or U+066B between two digits) backwards
-to the first cased character and forwards to the word's end, passing over
-every other character, where Unicode skips only case-ignorable ones; and
-its cased characters are the three cased letter categories plus a fixed
-list (U+02B0 to U+02B8, U+02C0 to U+02C1, U+02E0 to U+02E4, U+0345, U+037A,
-U+1D2C to U+1D61, the Roman numerals and the circled letters), not the
-current Other_Uppercase and Other_Lowercase. So "ΑΣ1" and "Α1Σ" end in
-final sigma and "ΑΣ1a", "ΑΣ.a" and "ΑΣ\u0e02a" (Thai letters, then a cased
-one, all one word) do not; the differential fuzzing found the last on the
-lemmatizer (`docs/analysis.md`, "Differential fuzzing"). On the cases in
-`analysis/unicode/tests/java.rs` it gives the same output as OpenJDK 21.
+Unicode's Final_Sigma: the JDK walks the word the sigma is in, as its word
+`BreakIterator` for the root locale delimits it, backwards to the first
+cased character and forwards to the word's end, passing over every other
+character, where Unicode skips only case-ignorable ones; and its cased
+characters are the three cased letter categories plus a fixed list (U+02B0
+to U+02B8, U+02C0 to U+02C1, U+02E0 to U+02E4, U+0345, U+037A, U+1D2C to
+U+1D61, the Roman numerals and the circled letters), not the current
+Other_Uppercase and Other_Lowercase; U+0295 counts as cased too, being Ll
+in JDK 21's Unicode 15.0 and Lo since 16.0. That iterator's rules predate
+UAX #29 and were modelled by probing JDK 21, never by reading it
+(`java::word_class`, with the class of every code point in
+`analysis/unicode/src/java/word_classes.rs`): letters and digits chain
+into one word; a nonspacing or enclosing mark attaches to the character
+before it; a format character is invisible; `.`, `'`, `"`, a dash, a
+connector, the soft hyphen or U+2027 stays in the word between two
+letters, and `.`, `'`, `"`, `,` or U+066B between two digits, when the
+character right after the joiner is one (a mark there breaks the word);
+`.`, `#` and a currency sign start a number; `%`, `&`, U+00A2, U+066A,
+U+2030 and U+2031 end one; a danda follows letters and digits may follow
+it; the kana and the kanji up to U+9FA5 are words of their own; a
+supplementary letter joins the word, but `isBoundary` right after a
+supplementary character answers true unless that character starts the
+text, as the iterator resynchronizes from inside the surrogate pair, and
+the model keeps that quirk. So "ΑΣ1" and "Α1Σ" end in final sigma and
+"ΑΣ1a", "ΑΣ.a" and "ΑΣ\u0e02a" (Thai letters, then a cased one, all one
+word) do not; the differential fuzzing found the last on the lemmatizer
+(`docs/analysis.md`, "Differential fuzzing"). `analysis/unicode/tests/java.rs`
+holds the cases, and `analysis/unicode/tests/jdk_sigma.rs`, with
+`TURBO_TEST_JDK` set, checks the class of every code point and the
+decision on four hundred thousand random strings against a running JDK
+21; both agree with OpenJDK 21.0.12.1 on every one.
 `java::lowercase_at` gives the mapping `to_lowercase` applies to one
 character, with U+03A3 decided from the text around it, so a normalizer
 can lowercase character by character and replace only the characters

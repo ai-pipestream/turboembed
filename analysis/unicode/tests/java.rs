@@ -207,6 +207,48 @@ fn to_lowercase_applies_the_jdks_final_sigma_condition_not_unicodes() {
     }
 }
 
+/// Pairs on which the JDK's word break iterator decides, each checked on
+/// OpenJDK 21: a mark after a joiner breaks the word and one before it does
+/// not; the kana marks U+3099 and U+309A are marks, not kana; a danda
+/// chains letters to the digits after it; a spacing mark is a letter; the
+/// soft hyphen is a joiner, not a format character, so it does not join a
+/// Roman numeral; a supplementary character joins the word, but
+/// `isBoundary` right after one answers true unless it starts the text;
+/// U+0295 is a cased letter to JDK 21.
+#[test]
+fn the_word_iterators_corners_decide_the_sigma() {
+    let decisions = |text: &str| -> String {
+        lower(text)
+            .chars()
+            .zip(text.chars())
+            .filter(|(_, c)| *c == '\u{3A3}')
+            .map(|(l, _)| if l == '\u{3C2}' { 'F' } else { 'S' })
+            .collect()
+    };
+    for (text, expected) in [
+        ("\u{3A3}.\u{301}\u{3A3}", "SS"),
+        ("\u{3A3}\u{301}.\u{3A3}", "SF"),
+        ("A\u{3099}\u{3A3}", "F"),
+        ("\u{3A3}\u{964}\u{2460}\u{3A3}", "SF"),
+        ("\u{391}\u{964}1\u{3A3}", "F"),
+        ("K\u{203F}\u{F7E}\u{3A3}", "S"),
+        ("\u{2160}\u{AD}\u{3A3}", "S"),
+        ("\u{2160}\u{3A3}", "F"),
+        ("\u{391}\u{20000}\u{3A3}", "S"),
+        ("\u{391}\u{10400}\u{3A3}", "S"),
+        ("a\u{1D400}\u{3A3}", "S"),
+        ("\u{3A3}\u{109B2}\u{3A3}", "SS"),
+        ("\u{391}\u{3A3}\u{20000}a", "F"),
+        ("\u{10400}\u{3A3}", "F"),
+        ("\u{1E9E}_\u{3A3}-\u{180E}\u{3A3}", "SF"),
+        ("\u{295}\u{3A3}", "F"),
+        ("\u{391}\u{3A3}\u{200B}a", "S"),
+        ("\u{391}\u{3A3}\u{2060}\u{301}a", "S"),
+    ] {
+        assert_eq!(decisions(text), expected, "{text:?}");
+    }
+}
+
 #[test]
 fn to_lowercase_applies_unconditional_special_casing_only() {
     assert_eq!(lower("\u{130}STANBUL"), "i\u{307}stanbul");
