@@ -162,6 +162,14 @@ Each setup page has a check script under `scripts/setup/` that reports
 what is missing and, with `--install`, installs it. To run the gRPC
 server instead, see [docs/grpc.md](docs/grpc.md).
 
+To run the tests, run the core's apart from the rest, in a target
+directory of its own (the CI does the same; #358 explains why):
+
+```sh
+cargo test --workspace --exclude turbo
+CARGO_TARGET_DIR=target/core cargo test -p turbo
+```
+
 To verify a machine produces correct vectors:
 
 ```sh

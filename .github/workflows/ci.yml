@@ -38,10 +38,21 @@ jobs:
           key: opennlp-models-${{ hashFiles('analysis/goldens-tool/src/recipe.rs') }}
       - name: fetch the OpenNLP models
         run: cargo run -q -p turbo-goldens-tool -- fetch-models .opennlp-models
+      # The core's own tests build it with its `internals` feature, and
+      # the core is a cdylib as well, so its rlib has no hash in its name:
+      # one run building both the core's tests and the crates that use the
+      # core writes two different builds to target/debug/deps/libturbo.rlib,
+      # and a crate compiled against the one overwritten fails to load
+      # (#358). So the core's tests, and every later run that turns on
+      # another core feature, build in a target directory of their own.
       - name: test
         env:
           TURBO_GOLDENS_MODELS: ${{ github.workspace }}/.opennlp-models
-        run: cargo test --workspace
+        run: cargo test --workspace --exclude turbo
+      - name: test (core)
+        env:
+          CARGO_TARGET_DIR: target/core
+        run: cargo test -p turbo
       - name: language detector parity against the JVM, model required
         env:
           TURBO_GOLDENS_MODELS: ${{ github.workspace }}/.opennlp-models
@@ -62,6 +73,8 @@ jobs:
       # self-hosted NPU runner. A green job is not a device run.
       # docs/npu.md, "Host-only blocker".
       - name: test (npu)
+        env:
+          CARGO_TARGET_DIR: target/core
         run: cargo test -p turbo --features npu
       - name: a benchmark record end to end, from the pushed commit
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'

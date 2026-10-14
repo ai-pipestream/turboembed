@@ -7,12 +7,6 @@ publish = false
 
 [lib]
 name = "turbo_eval"
-# The crate has no documentation tests. In `cargo test --workspace` the
-# core is built twice (the core's own tests turn on its `internals`
-# feature) and, being a cdylib as well, both builds write the one
-# unhashed libturbo.rlib, so rustdoc can be handed a turbo-analysis-embed
-# built against the other core and fail to load it.
-doctest = false
 
 [[bin]]
 name = "turbo-eval"
