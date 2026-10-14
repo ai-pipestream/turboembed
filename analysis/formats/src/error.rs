@@ -11,6 +11,8 @@ use std::fmt;
 
 use turbo_analysis::Span;
 
+use crate::ner::NerError;
+
 /// A sample a reader cannot read, or a sample value that cannot be built.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum FormatError {
@@ -52,6 +54,8 @@ pub enum FormatError {
     /// A source text longer than `u32::MAX` bytes, which [`Span`] cannot
     /// index.
     TooLong { len: usize },
+    /// What a reader of a named entity corpus ([`crate::ner`]) refuses.
+    Ner(NerError),
     /// A CoNLL-U word line without exactly ten tab-separated columns
     /// (after `StringUtil.split` drops the empty columns at its end).
     /// `text` is the line.
@@ -95,6 +99,7 @@ impl FormatError {
                 Some("java.io.IOException")
             }
             OverlappingNames { .. } => Some("java.lang.RuntimeException"),
+            Ner(e) => Some(e.java_class()),
             ShortChunkTag { .. } => Some("java.lang.StringIndexOutOfBoundsException"),
             Lengths { .. } | OutOfBounds { .. } | BackwardsSpan { .. } => Some("java.lang.IllegalArgumentException"),
             ConlluColumns { .. }
@@ -112,6 +117,7 @@ impl FormatError {
     pub fn line(&self) -> Option<u32> {
         use FormatError::*;
         match *self {
+            Ner(ref e) => e.line(),
             NestedName { line, .. }
             | MissingNameType { line, .. }
             | UnexpectedEnd { line, .. }
@@ -134,6 +140,7 @@ impl fmt::Display for FormatError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         use FormatError::*;
         match self {
+            Ner(e) => e.fmt(f),
             NestedName { context, .. } => {
                 write!(f, "Found unexpected annotation while handling a name sequence: {context}")
             }

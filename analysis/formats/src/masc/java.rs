@@ -1,7 +1,7 @@
 //! The parts of the JDK whose behaviour shows in what the MASC readers
-//! read: the UTF-8 decoder, `Integer.parseInt`, `String.equalsIgnoreCase`,
-//! the split functions, `String.hashCode` and the iteration order of a
-//! `java.util.HashMap`.
+//! (and the brat reader of [`crate::ner`]) read: the UTF-8 decoder,
+//! `Integer.parseInt`, `String.equalsIgnoreCase`, the split functions,
+//! `String.hashCode` and the iteration order of a `java.util.HashMap`.
 
 const REPLACEMENT: char = '\u{FFFD}';
 

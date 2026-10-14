@@ -90,7 +90,7 @@
 mod corpus;
 mod document;
 mod error;
-mod java;
+pub(crate) mod java;
 pub mod samples;
 
 pub use corpus::{MascCorpus, SkippedDocument, read_document};
