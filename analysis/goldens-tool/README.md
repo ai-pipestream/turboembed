@@ -95,7 +95,7 @@ a directory with the same model run without them, and its options are
 |---|---|---|---|
 | `sentdetect` (`SentenceDetectorME`) | `opennlp-en-ud-ewt-sentence-1.3-2.5.4` | `en`, `multi`, `edge` | |
 | | `opennlp-de-ud-gsd-sentence-1.3-2.5.4`, `opennlp-pt-ud-gsd-sentence-1.3-2.5.4` | `edge` | |
-| | `en-abbrev`, `en-plain` (fixtures), each also `+legacy` | `sentence-fixture` | `whitespace legacy` |
+| | `en-abbrev`, `en-plain`, `en-plain-rust` (fixtures), each also `+legacy` | `sentence-fixture` | `whitespace legacy` |
 | `sentdetect` (`NewlineSentenceDetector`) | `newline`, `newline+legacy` | `edge` | `whitespace legacy` |
 | `tokenize` (`TokenizerME`) | `opennlp-en-ud-ewt-tokens-1.3-2.5.4` | `en`, `multi`, `edge`, `surrogate` | |
 | | the `de`, `es`, `fr` and `pt` tokenizer models | `edge`, `surrogate` | |
@@ -122,7 +122,7 @@ a directory with the same model run without them, and its options are
 | `quantity` (`QuantityAnnotator`) | `latin-us`, `latin-eu` | `quantity` | `notation` |
 | `subwords` (`WordpieceEncoder`) | `all-minilm-l6-v2-vocab` (fixture) | `en`, `multi`, `edge`, `surrogate`, `subwords` | `lowerCase true`, `maxWordCodePoints 100` |
 | `bpe` (`BPETokenizerTrainer`, `BPETokenizer`) | `merges-40`, `merges-400` | `bpe` | `languageCode en`, `numMerges` |
-| `train` (the data indexers and `GISTrainer`) | `<source>-<indexer>-cutoff<n>`, with `-unsorted` when sorting is off: ten runs over the sources `sentdetect`, `tokenize` and `realvalue` | `en`, `multi`, `edge`; `sentdetect` also `train` | `source`, `DataIndexer`, `Cutoff`, `sort`, `Iterations` |
+| `train` (the data indexers and `GISTrainer`) | `<source>-<indexer>-cutoff<n>`, with `-unsorted` when sorting is off, then `-threads2`, `-smoothing`, `-smoothing0.5`, `-gaussian` or `-gaussian0.5` when the trainer is given that: nineteen runs over the sources `sentdetect`, `tokenize`, `realvalue` and `postag` | `en`, `multi`, `edge`; `sentdetect` and `postag` also `train` | `source`, `DataIndexer`, `Cutoff`, `sort`, `Iterations`, and when set `Threads`, `Smoothing`, `SmoothingObservation`, `GaussianSmoothing`, `GaussianSmoothingSigma` |
 | `unigram` (`UnigramSegmenter`) | `zh-unigram-fixture` (fixture), also `+legacy` | `zh`, `multi`, `edge`, `surrogate` | `whitespace legacy` |
 | | `jieba-dict-subset` (fixture), also `+legacy` | `zh`, `multi`, `edge` | `whitespace legacy` |
 | | `zh-unigram-modes` (fixture), also `+legacy` | `zh` | `whitespace legacy` |
@@ -162,19 +162,33 @@ a directory with the same model run without them, and its options are
   `TokenizerME.train`) or a real valued source (`realvalue`: one event per
   line, outcome `long` or `short` by the number of fields, each distinct
   field a context whose value is its count, read back through
-  `RealValueFileEventStream.parseEvent`); records the events, the CRC-32C
+  `RealValueFileEventStream.parseEvent`) or a part-of-speech shaped source
+  (`postag`: one event per whitespace separated field of each line, the
+  outcome `L` and the field's length in UTF-16 units, so a text has many
+  outcomes, and the context `bias`, `w=` the field, `p=` and `n=` its
+  neighbours, `pre=` and `suf=` its first and last two UTF-16 units, which
+  may be half a surrogate pair); records the events, the CRC-32C
   event checksum and what the named `DataIndexer` made of them with the
   run's `Cutoff` and `sort` (contexts and predicate labels with each
   backslash doubled and each lone surrogate, which the tokenizer's features
   hold, as the six characters `\uXXXX`); then trains a GIS model on the index with
-  `Iterations` iterations and one thread and records every iteration's
+  `Iterations` iterations, the run's `Threads` (one, or two) and its
+  smoothing (none, `Smoothing` with `SmoothingObservation`, or
+  `GaussianSmoothing` with `GaussianSmoothingSigma`) and records every iteration's
   log likelihood and a hash of its parameters, the parameters after the
   first and the last iteration, and the hash of the model
   `GenericModelWriter` writes (`docs/analysis.md`, "Training goldens").
   An index with no event left makes the indexer throw
   `InsufficientTrainingDataException`; the golden then has the events and
   one `turbo:indexer-error` row with the exception's class and message in
-  place of the indexer's layers.
+  place of the indexer's layers. With more than one thread the JVM adds
+  the chunks' log likelihoods in the order its threads finish; two chunks
+  give the same sum either way, so a two thread run is reproducible, and
+  no run uses more.
+- `en-plain-rust.bin` is the `.bin` the Rust trainer writes when it trains
+  `en-plain.bin`'s events again (`analysis/train/tests/roundtrip.rs`). The
+  JVM loads it with `SentenceModel` like the other fixtures, so its goldens
+  show what the JVM makes of a model file written here.
 - A `postag` run cuts the input with the English (or, for the German
   model, German) sentence and tokenizer models, which are its second and
   third `model` records, and tags each sentence with `tag`; its golden has

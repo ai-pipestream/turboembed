@@ -7,7 +7,8 @@
 //!   fetch-models` downloads (`common::published_model`); without them
 //!   these tests say so and pass.
 //! - The maxent detector with the two fixture models (one with an
-//!   abbreviation dictionary), in both whitespace modes.
+//!   abbreviation dictionary), in both whitespace modes, and with the
+//!   model the Rust trainer wrote from en-plain's events.
 //!
 //! For every maxent run the dumps are checked too: every candidate the
 //! detector asked the model about, feature by feature, with the model's
@@ -226,5 +227,25 @@ fn fixture_with_abbreviations() {
 fn fixture_without_abbreviations() {
     for mode in [WhitespaceMode::Unicode, WhitespaceMode::Legacy] {
         assert_eq!(check_fixture("en-plain", mode, 77).refused, 0, "{mode:?}");
+    }
+}
+
+/// `en-plain-rust.bin` is the `.bin` `analysis/train` writes from
+/// en-plain's events (`analysis/train/tests/roundtrip.rs`). The JVM loaded
+/// it with `SentenceModel` and split the fixture inputs with it; the spans
+/// and probabilities it recorded are those of this crate's detector on
+/// the same file, which are also those of the en-plain goldens.
+#[test]
+fn fixture_written_by_the_rust_trainer() {
+    for mode in [WhitespaceMode::Unicode, WhitespaceMode::Legacy] {
+        assert_eq!(check_fixture("en-plain-rust", mode, 77).refused, 0, "{mode:?}");
+        let suffix = if mode == WhitespaceMode::Legacy { "+legacy" } else { "" };
+        let theirs = common::run(&format!("en-plain{suffix}"));
+        let ours = common::run(&format!("en-plain-rust{suffix}"));
+        assert_eq!(theirs.len(), ours.len());
+        for (a, b) in theirs.iter().zip(&ours) {
+            assert_eq!(a.golden.header.input.id, b.golden.header.input.id);
+            assert_eq!(a.spans(), b.spans(), "{}", b.path.display());
+        }
     }
 }

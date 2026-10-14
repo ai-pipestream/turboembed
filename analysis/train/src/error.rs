@@ -49,6 +49,12 @@ pub enum Error {
     /// A parameters file could not be read as a Java properties file: the
     /// reader's message.
     Properties(String),
+    /// `GISTrainer` refuses `Smoothing` and `GaussianSmoothing` together
+    /// (`RuntimeException`).
+    BothSmoothings,
+    /// `GISTrainer` refuses a `Threads` value below one
+    /// (`IllegalArgumentException`).
+    Threads(i32),
 }
 
 pub type Result<T> = std::result::Result<T, Error>;
@@ -91,6 +97,8 @@ impl fmt::Display for Error {
                 write!(f, "DataIndexer {name:?} is not OnePass, TwoPass or OnePassRealValue")
             }
             Error::Properties(e) => write!(f, "parameters file: {e}"),
+            Error::BothSmoothings => f.write_str("Cannot set both Gaussian smoothing and Simple smoothing"),
+            Error::Threads(n) => write!(f, "threads must be at least one or greater but is {n}!"),
         }
     }
 }

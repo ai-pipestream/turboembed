@@ -34,7 +34,7 @@ nothing here is in the C header or the gRPC server.
 | `turbo-stopword` | `analysis/stopword/` | OpenNLP's eleven bundled stopword lists (Bulgarian, Danish, German, English, Spanish, Finnish, French, Italian, Dutch, Portuguese, Russian) and `StopwordFilter.isStopword`, and the step that reads `opennlp:tokens` and, optionally, `opennlp:language` and writes `turbo:stopwords`, a flag per token; it flags and never removes. `analysis/stopword/data/README.md` gives each list's origin and license, the crate documentation lists the OpenNLP behaviour that is surprising, and `analysis/stopword/README.md` describes its JVM golden files |
 | `turbo-stopword-layers` | `analysis/stopword-layers/` | The `turbo:stopwords` layer and the languages that have a list (`StopwordLanguage`) |
 | `turbo-bpe-trainer` | `analysis/bpe-trainer/` | BPE trainers, a tool and not an annotator: byte-level BPE as upstream `tokenizers` trains it, SentencePiece BPE as the sentencepiece library trains it, and OpenNLP's `BPETokenizerTrainer` with its `BPETokenizer` ([bpe-trainer.md](bpe-trainer.md)) |
-| `turbo-train` | `analysis/train/` | Training OpenNLP maxent models, the event side: `Event`, the `FileEventStream` and `RealValueFileEventStream` formats, the CRC-32C event checksum, the three data indexers with their cutoffs, sorting and merging, `TrainingParameters` with typed values and OpenNLP's parameters file, `AlgorithmType` and the trainer types, and the progress monitors and stop criteria. Sample types belong to the formats crate; this one starts at events. Its crate documentation lists the OpenNLP behaviour that is surprising, and "Training goldens" below describes its JVM reference |
+| `turbo-train` | `analysis/train/` | Training OpenNLP maxent models, the event side: `Event`, the `FileEventStream` and `RealValueFileEventStream` formats, the CRC-32C event checksum, the three data indexers with their cutoffs, sorting and merging, `TrainingParameters` with typed values and OpenNLP's parameters file, `AlgorithmType` and the trainer types, the progress monitors and stop criteria, the GIS trainer (`GISTrainer`, parameters bit for bit the JVM's after every iteration), the binary model writer (`GenericModelWriter`, bytes the JVM's) and the `.bin` packaging with its manifest (`BaseModel.serialize`; the entries are the JVM's bytes, the archive around them is written here and loads in both). Sample types belong to the formats crate; this one starts at events. Its crate documentation lists the OpenNLP behaviour that is surprising, and "Training goldens" below describes its JVM reference |
 | `turbo-formats` | `analysis/formats/` | OpenNLP's training samples (name, part-of-speech, lemma, chunk, token, sentence, document category and language samples), a reader per native format that reproduces OpenNLP's sample stream over the same text, the conversion of name and part-of-speech samples into token and sentence samples, the CoNLL-U readers of part-of-speech, lemma, sentence and token samples, the format registry, and the evaluators and cross-validation folds (`FMeasure`, `Mean`, an evaluator per component). Every token and tag keeps its byte span in the source; the crate documentation lists the OpenNLP behaviour that is surprising, and its tests compare with the `formats` and `evaluate` goldens |
 | `turbo-eval` | `analysis/eval/` | The evaluation harness: the evaluation sets with their fetch by checksum and typed readers, the pipeline, the baseline chunkers, measures, significance tests, records, the gate and the `turbo-eval` binary (Evaluation, below) |
 
@@ -1498,14 +1498,18 @@ labels and counts by id (`turbo:indexer-predicates`) and one row per
 indexed event (`turbo:indexer-events`: outcome id, predicate ids joined
 with single spaces, the values the indexer kept, and how often the event
 was seen). The sources are the sentence detector's `SDEventStream`, the
-tokenizer's `TokSpanEventStream` and a real valued source made from the
-lines of the input (`analysis/goldens-tool/README.md`, "Runs"); the
+tokenizer's `TokSpanEventStream`, a real valued source made from the
+lines of the input and a part-of-speech shaped source with many outcomes
+(`analysis/goldens-tool/README.md`, "Runs"); the
 `sentdetect` runs on `analysis/goldens/data/inputs/train/sentences.txt` with `TwoPass` and cutoff
 1 is the training of the fixture model `en-plain.bin`, and its checksum is
 that model's `Training-Eventhash`.
 
-Then the GIS trainer runs on the index with the run's `Iterations` and
-one thread: `turbo:gis-training` says how many iterations it ran and what
+Then the GIS trainer runs on the index with the run's `Iterations`, its
+`Threads` (one, or two) and its smoothing (`Smoothing` with
+`SmoothingObservation`, or `GaussianSmoothing` with
+`GaussianSmoothingSigma`), each a `config` record when the run sets it:
+`turbo:gis-training` says how many iterations it ran and what
 its progress monitor recorded last (the stop criterion's message or the
 finished message; with one outcome the trainer refuses the index, the row
 says zero iterations and the exception, and the rest is left out);
@@ -1521,7 +1525,7 @@ final model. An index with no event left makes the indexer throw
 `InsufficientTrainingDataException`; the golden then has the events and,
 in place of the indexer's layers, one `turbo:indexer-error` row with the
 exception's class and message. No layer type has these ids, so
-`analysis/train/tests/goldens.rs` reads these goldens itself.
+`analysis/train/tests/goldens.rs` reads these goldens itself, and compares the Rust indexers, trainer and writer with every one of them. With two threads the JVM adds the two chunks' log likelihoods in the order the threads finish, which gives the same sum either way, so those goldens are reproducible and compared like the others; no run uses more threads. `analysis/train/tests/roundtrip.rs` trains the fixture models `analysis/maxent/tests/fixtures/models/gis.model` and `en-plain.bin` again and checks that `gis.model`, and the `sent.model` entry and the manifest of `en-plain.bin`, come out byte for byte, and that the `.bin` it writes around them is the fixture `en-plain-rust.bin`, which the generator loads in the JVM as a sentence model (`sentdetect/en-plain-rust`) so that `analysis/sentdetect/tests/golden.rs` can compare the JVM's spans and probabilities with it against the Rust detector's.
 
 ## Generating golden files
 

@@ -33,8 +33,8 @@ pub fn published_model(file: &str) -> Option<PathBuf> {
     }
 }
 
-/// The generator's fixture models, `en-abbrev.bin` and `en-plain.bin`
-/// among them.
+/// The generator's fixture models, `en-abbrev.bin`, `en-plain.bin` and
+/// `en-plain-rust.bin` among them.
 pub fn fixtures_dir() -> PathBuf {
     data_dir().join("fixtures")
 }

@@ -15,6 +15,12 @@
 //!   typed values, the parameters file format, `AlgorithmType` and
 //!   `TrainerFactory`'s trainer types.
 //! - [`monitor`][]: training progress monitors and stop criteria.
+//! - [`gis`][]: `GISTrainer`, the model as `GISModel` holds it, and the
+//!   manifest entries `AbstractEventTrainer` reports.
+//! - [`writer`][]: `GenericModelWriter` for a GIS model, the bytes of a
+//!   `.model` entry, chunked strings included.
+//! - [`package`][]: the `.bin` file, `BaseModel.serialize`: a zip archive
+//!   with the `manifest.properties` entry, typed.
 //! - [`context`][]: `BasicContextGenerator`.
 //!
 //! Sample types (sentences, tokens, tags) and the event streams that make
@@ -36,24 +42,37 @@
 //!   ([`Error::StringTooLong`]).
 //! - `TrainingParameters.serialize` fails on a parameter put as a number
 //!   or a boolean ([`Error::SerializeType`]).
+//! - `GISTrainer` with `Threads` above one sums the log likelihood and the
+//!   expectations per chunk of events and then across chunks, so its
+//!   results differ in the last bits from one thread's; the chunking is
+//!   ported and the sums are in the JVM's order.
+//! - `ModelParameterChunker` measures the chunks of a string over 65535
+//!   bytes in standard UTF-8 and writes them in modified UTF-8, and stops
+//!   at a lone surrogate, dropping the rest of the string ([`writer`][]).
 
 pub mod context;
 pub mod crc32c;
 pub mod error;
 pub mod event;
+pub mod gis;
 pub mod index;
 pub mod java_string;
 pub mod monitor;
+pub mod package;
 pub mod params;
+pub mod writer;
 
 pub use context::{BasicContextGenerator, Separator};
 pub use crc32c::{Crc32c, crc32c};
 pub use error::{Error, Result};
 pub use event::{Event, EventChecksum, FileEventStream, RealValueFileEventStream};
+pub use gis::{GisModel, GisParams, Smoothing, TrainingReport};
 pub use index::{DataIndex, IndexParams, IndexerKind};
 pub use java_string::JavaString;
 pub use monitor::{
     DefaultProgressMonitor, IterDeltaAccuracyUnderTolerance, LogLikelihoodThresholdBreached, ProgressMonitor,
     StopCriteria, TrainingConfiguration, TrainingMeasure,
 };
+pub use package::{Manifest, ModelPackage, sentence_model_package};
 pub use params::{Algorithm, Key, TrainerType, TrainingParameters, Value};
+pub use writer::write_gis;

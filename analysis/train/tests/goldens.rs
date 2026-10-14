@@ -1,80 +1,33 @@
 //! The indexers against the JVM: `analysis/goldens/data/train/` holds, for
-//! events the JVM's sentence detector, tokenizer and a real valued source
-//! made from the input texts, what `OnePassDataIndexer`,
-//! `TwoPassDataIndexer` and `OnePassRealValueDataIndexer` produced with
-//! each run's cutoff and sorting (`analysis/goldens-tool`, `TrainGolden`).
-//! This test reads the events back through the event stream parsers,
-//! indexes them, and compares every label, count, context and seen count,
-//! and the event checksum, with the golden's.
+//! events the JVM's sentence detector, tokenizer, a real valued source and
+//! a part-of-speech shaped source with many outcomes made from the input
+//! texts, what `OnePassDataIndexer`, `TwoPassDataIndexer` and
+//! `OnePassRealValueDataIndexer` produced with each run's cutoff and
+//! sorting (`analysis/goldens-tool`, `TrainGolden`). This test reads the
+//! events back through the event stream parsers, indexes them, and
+//! compares every label, count, context and seen count, and the event
+//! checksum, with the golden's. It then trains the GIS model the run
+//! trained, with the run's `Threads` and smoothing settings, and compares
+//! the log likelihood, the counts and every parameter after every
+//! iteration, the end of training, and the bytes of the written model.
 
+use std::cell::RefCell;
 use std::path::{Path, PathBuf};
+use std::rc::Rc;
 
-use turbo_goldens::{ColumnSpec, ColumnType, Golden, GoldenAnchor, GoldenLayer, Shape, data_dir};
-use turbo_jvm::text::{float_to_string, parse_float};
+use turbo_goldens::{Golden, data_dir};
+use turbo_jvm::text::float_to_string;
 use turbo_train::error::NO_EVENTS;
 use turbo_train::event::{checksum, parse_event, parse_real_value_event};
-use turbo_train::{DataIndex, Error, Event, IndexParams, IndexerKind, JavaString};
+use turbo_train::gis::train_model;
+use turbo_train::monitor::finished_message;
+use turbo_train::{
+    DataIndex, Error, GisModel, GisParams, IndexerKind, JavaString, Key, LogLikelihoodThresholdBreached,
+    ProgressMonitor, Smoothing, StopCriteria, TrainingConfiguration, TrainingMeasure, TrainingParameters, write_gis,
+};
 
-/// A predicate as `TrainGolden.lossless` wrote it: a doubled backslash is
-/// one, `\uXXXX` is a lone surrogate, everything else is itself.
-fn java_string(field: &str) -> JavaString {
-    let mut units: Vec<u16> = Vec::with_capacity(field.len());
-    let mut chars = field.chars();
-    while let Some(c) = chars.next() {
-        if c != '\\' {
-            let mut buf = [0u16; 2];
-            units.extend_from_slice(c.encode_utf16(&mut buf));
-            continue;
-        }
-        match chars.next() {
-            Some('\\') => units.push(u16::from(b'\\')),
-            Some('u') => {
-                let hex: String = chars.by_ref().take(4).collect();
-                units.push(u16::from_str_radix(&hex, 16).unwrap_or_else(|_| panic!("{field:?}: bad escape")));
-            }
-            other => panic!("{field:?}: unexpected {other:?} after a backslash"),
-        }
-    }
-    JavaString::from_utf16(&units)
-}
-
-const fn col(name: &'static str, ty: ColumnType) -> ColumnSpec {
-    ColumnSpec::new(name, ty)
-}
-
-const STR: ColumnType = ColumnType::Str;
-const U32: ColumnType = ColumnType::U32;
-const F64: ColumnType = ColumnType::F64;
-
-/// The layer blocks a training golden has, all anchored on the document.
-const TRAIN_LAYERS: &[(&str, &[ColumnSpec])] = &[
-    ("turbo:events", &[col("outcome", STR), col("context", STR), col("values", STR)]),
-    ("turbo:indexer-error", &[col("class", STR), col("message", STR)]),
-    ("turbo:event-checksum", &[col("crc32c", U32)]),
-    ("turbo:indexer-outcomes", &[col("label", STR)]),
-    ("turbo:indexer-predicates", &[col("label", STR), col("count", U32)]),
-    ("turbo:indexer-events", &[col("outcome", U32), col("context", STR), col("values", STR), col("seen", U32)]),
-    ("turbo:gis-training", &[col("iterations", U32), col("message", STR)]),
-    (
-        "turbo:gis-iterations",
-        &[
-            col("iteration", U32),
-            col("likelihood", F64),
-            col("correct", U32),
-            col("events", U32),
-            col("parameters", STR),
-        ],
-    ),
-    ("turbo:gis-parameters", &[col("iteration", U32), col("predicate", U32), col("outcome", U32), col("value", F64)]),
-    ("turbo:gis-model", &[col("sha256", STR), col("length", U32)]),
-];
-
-pub fn train_shapes() -> Vec<Shape> {
-    TRAIN_LAYERS
-        .iter()
-        .map(|(id, columns)| Shape { id: id.to_string(), anchor: GoldenAnchor::Document, columns })
-        .collect()
-}
+mod common;
+use common::{config, config_opt, events, java_string, layer, params, train_shapes};
 
 fn golden_files(dir: &Path, out: &mut Vec<PathBuf>) {
     for e in std::fs::read_dir(dir).unwrap_or_else(|e| panic!("{}: {e}", dir.display())) {
@@ -85,41 +38,6 @@ fn golden_files(dir: &Path, out: &mut Vec<PathBuf>) {
             out.push(p);
         }
     }
-}
-
-fn config<'g>(g: &'g Golden, key: &str) -> &'g str {
-    &g.header.config.iter().find(|c| c.key == key).unwrap_or_else(|| panic!("no config {key}")).value
-}
-
-fn layer<'g>(g: &'g Golden, id: &str) -> &'g GoldenLayer {
-    g.layers.iter().find(|l| l.id == id).unwrap_or_else(|| panic!("no layer {id}"))
-}
-
-/// The run's indexer settings from the config records.
-fn params(g: &Golden) -> IndexParams {
-    let kind = IndexerKind::parse(config(g, "DataIndexer")).unwrap();
-    let cutoff: i32 = config(g, "Cutoff").parse().unwrap();
-    let sort: bool = config(g, "sort").parse().unwrap();
-    IndexParams::new(kind, cutoff, sort)
-}
-
-/// The events of the golden: the outcome, the predicates read back
-/// through [`java_string`], and the values read with `Float.parseFloat`
-/// from their `Float.toString` form, which round trips.
-fn events(g: &Golden) -> Vec<Event> {
-    let l = layer(g, "turbo:events");
-    let (outcomes, contexts, values) =
-        (l.strs("outcome").unwrap(), l.strs("context").unwrap(), l.strs("values").unwrap());
-    (0..l.len())
-        .map(|i| {
-            let (outcome, context, values) = (outcomes.get(i), contexts.get(i), values.get(i));
-            let context: Vec<JavaString> =
-                if context.is_empty() { Vec::new() } else { context.split(' ').map(java_string).collect() };
-            let values: Option<Vec<f32>> =
-                (!values.is_empty()).then(|| values.split(' ').map(|v| parse_float(v).unwrap()).collect());
-            Event::with_values(outcome, context, values).unwrap()
-        })
-        .collect()
 }
 
 fn joined<T: ToString>(items: impl Iterator<Item = T>) -> String {
@@ -137,7 +55,15 @@ struct Coverage {
     with_values: usize,
     dropped_events: usize,
     lone_surrogates: usize,
+    trained: usize,
+    stopped_early: usize,
     kinds: [usize; 3],
+    /// Trained runs with two threads, with `Smoothing`, with
+    /// `GaussianSmoothing`, and with more than two outcomes.
+    threads: usize,
+    smoothing: usize,
+    gaussian: usize,
+    many_outcomes: usize,
 }
 
 fn check(path: &Path, g: &Golden, cov: &mut Coverage) {
@@ -223,8 +149,163 @@ fn check(path: &Path, g: &Golden, cov: &mut Coverage) {
         cov.one_outcome += 1;
     } else {
         assert!(index.outcome_labels().len() > 1, "{at}");
-        assert_eq!(layer(g, "turbo:gis-iterations").len(), iterations as usize, "{at}");
+        check_gis(&at.to_string(), g, &index, iterations as usize, cov);
     }
+}
+
+/// What `TrainGolden.Recorder` kept: `(correct, total, log likelihood)`
+/// per iteration, and the message of the end of training.
+#[derive(Default)]
+struct Recorded {
+    rows: Vec<(i32, i32, f64)>,
+    last: Option<String>,
+}
+
+/// A monitor writing into a shared [`Recorded`].
+struct Recorder(Rc<RefCell<Recorded>>);
+
+impl ProgressMonitor for Recorder {
+    fn finished_iteration(&mut self, iteration: i32, correct: i32, total: i32, measure: TrainingMeasure, value: f64) {
+        let mut r = self.0.borrow_mut();
+        assert_eq!(iteration as usize, r.rows.len() + 1);
+        assert_eq!(measure, TrainingMeasure::LogLikelihood);
+        r.rows.push((correct, total, value));
+    }
+
+    fn finished_training(&mut self, iterations: i32, stop: Option<&dyn StopCriteria>) {
+        self.0.borrow_mut().last = Some(match stop {
+            Some(s) => s.message_if_satisfied(),
+            None => finished_message(iterations),
+        });
+    }
+
+    fn is_training_finished(&self) -> bool {
+        self.0.borrow().last.is_some()
+    }
+
+    fn display(&mut self, _clear: bool) {}
+}
+
+/// `TrainGolden.digest`: the SHA-256 over every parameter's bits.
+fn digest(parameters: &[f64]) -> String {
+    let mut bytes = Vec::with_capacity(parameters.len() * 8);
+    for p in parameters {
+        bytes.extend_from_slice(&p.to_bits().to_be_bytes());
+    }
+    turbo_maxent::sha256(&bytes).to_hex()
+}
+
+/// The offset of predicate `p`'s parameters in [`GisModel::all_parameters`].
+fn pattern_start(model: &GisModel, p: usize) -> usize {
+    (0..p).map(|q| model.pattern(q).len()).sum()
+}
+
+/// The GIS training of the run against its `turbo:gis-*` layers: the
+/// parameters after every iteration (bit for bit after the first and the
+/// last, by digest in between), the log likelihood and the counts reported
+/// after every iteration, the end of training, and the written model. The
+/// trainer's settings are the run's config records: `Iterations` always,
+/// and `Threads`, `Smoothing`, `SmoothingObservation`, `GaussianSmoothing`
+/// and `GaussianSmoothingSigma` when the run set them, as strings, as a
+/// parameters file gives them.
+fn check_gis(at: &str, g: &Golden, index: &DataIndex, ran: usize, cov: &mut Coverage) {
+    let mut params = TrainingParameters::new();
+    params.put(Key::ITERATIONS, config(g, "Iterations").parse::<i32>().unwrap());
+    for key in [
+        Key::THREADS,
+        Key::SMOOTHING,
+        Key::SMOOTHING_OBSERVATION,
+        Key::GAUSSIAN_SMOOTHING,
+        Key::GAUSSIAN_SMOOTHING_SIGMA,
+    ] {
+        if let Some(value) = config_opt(g, key) {
+            params.put(key, value);
+        }
+    }
+    let gis = GisParams::from_training_parameters(&params).unwrap();
+    // The JVM adds the chunks' log likelihoods in the order its threads
+    // finish. Two chunks give the same sum either way, so the goldens of a
+    // two thread run are reproducible and compared bit for bit like the
+    // others; a run with more threads would not be (TrainGolden).
+    assert!(gis.threads <= 2, "{at}: a golden with {} threads is not reproducible", gis.threads);
+    if gis.threads == 2 {
+        cov.threads += 1;
+    }
+    match gis.smoothing {
+        Smoothing::None => {}
+        Smoothing::Simple { .. } => cov.smoothing += 1,
+        Smoothing::Gaussian { .. } => cov.gaussian += 1,
+    }
+    if index.outcome_labels().len() > 2 {
+        cov.many_outcomes += 1;
+    }
+    let stop = LogLikelihoodThresholdBreached::from_parameters(&params).unwrap();
+
+    let iterations = layer(g, "turbo:gis-iterations");
+    assert_eq!(iterations.len(), ran, "{at}");
+    let digests = iterations.strs("parameters").unwrap();
+    let mut first = Vec::new();
+    let mut seen = 0;
+    let recorded = Rc::new(RefCell::new(Recorded::default()));
+    let mut config = TrainingConfiguration::new(Some(Box::new(Recorder(recorded.clone()))), None);
+    let model = train_model(index, &gis, &mut config, &stop, &mut |i, parameters| {
+        seen = i as usize;
+        assert_eq!(digest(parameters), digests.get(i as usize - 1), "{at}: parameters after iteration {i}");
+        if i == 1 {
+            first = parameters.to_vec();
+        }
+    })
+    .unwrap_or_else(|e| panic!("{at}: {e}"));
+    assert_eq!(seen, ran, "{at}: iterations run");
+
+    let recorded = recorded.borrow();
+    let (correct, events, likelihood) = (
+        iterations.u32s("correct").unwrap(),
+        iterations.u32s("events").unwrap(),
+        iterations.f64s("likelihood").unwrap(),
+    );
+    assert_eq!(recorded.rows.len(), ran, "{at}");
+    for (i, (c, total, ll)) in recorded.rows.iter().enumerate() {
+        assert_eq!(*c as u32, correct[i], "{at}: correct after iteration {}", i + 1);
+        assert_eq!(*total as u32, events[i], "{at}: events after iteration {}", i + 1);
+        assert_eq!(ll.to_bits(), likelihood[i].to_bits(), "{at}: log likelihood after iteration {}", i + 1);
+    }
+    let training = layer(g, "turbo:gis-training");
+    assert_eq!(recorded.last.as_deref(), Some(training.strs("message").unwrap().get(0)), "{at}");
+    if ran < gis.iterations as usize {
+        cov.stopped_early += 1;
+    }
+
+    // Every parameter after the first and the last iteration, in the
+    // layout of the model: predicates in order, each one's pattern in order.
+    let values = layer(g, "turbo:gis-parameters");
+    let (it, pred, oid, value) = (
+        values.u32s("iteration").unwrap(),
+        values.u32s("predicate").unwrap(),
+        values.u32s("outcome").unwrap(),
+        values.f64s("value").unwrap(),
+    );
+    let last = model.all_parameters();
+    assert_eq!(first.len(), last.len(), "{at}");
+    assert_eq!(values.len(), if ran > 1 { 2 * last.len() } else { last.len() }, "{at}: parameter rows");
+    for r in 0..values.len() {
+        let flat = r % last.len();
+        let (expected_it, parameters) = if r < last.len() { (1, &first[..]) } else { (ran as u32, last) };
+        assert_eq!(it[r], expected_it, "{at}: parameter row {r} iteration");
+        let p = pred[r] as usize;
+        let o = flat - pattern_start(&model, p);
+        assert_eq!(model.pattern(p)[o], oid[r], "{at}: parameter row {r} outcome");
+        assert_eq!(parameters[flat].to_bits(), value[r].to_bits(), "{at}: parameter row {r} value");
+    }
+
+    // The written model: the bytes GenericModelWriter wrote.
+    let bytes = write_gis(&model).unwrap_or_else(|e| panic!("{at}: {e}"));
+    let written = layer(g, "turbo:gis-model");
+    assert_eq!(bytes.len() as u32, written.u32s("length").unwrap()[0], "{at}: model length");
+    assert_eq!(turbo_maxent::sha256(&bytes).to_hex(), written.strs("sha256").unwrap().get(0), "{at}: model sha256");
+    let read = turbo_maxent::MaxentModel::read(&bytes).unwrap_or_else(|e| panic!("{at}: {e}"));
+    assert_eq!(read.num_predicates(), model.num_predicates(), "{at}");
+    cov.trained += 1;
 }
 
 #[test]
@@ -241,11 +322,13 @@ fn indexers_match_the_jvm_on_every_training_golden() {
         cov.goldens += 1;
     }
     eprintln!("{cov:?}");
-    assert!(cov.goldens >= 100, "{cov:?}");
+    assert!(cov.goldens >= 1000, "{cov:?}");
     assert!(cov.errors > 0 && cov.one_outcome > 0 && cov.unsorted > 0, "{cov:?}");
     assert!(cov.merged > 0 && cov.with_values > 0 && cov.dropped_events > 0, "{cov:?}");
     assert!(cov.lone_surrogates > 0, "{cov:?}");
+    assert!(cov.trained > 0 && cov.stopped_early > 0, "{cov:?}");
     assert!(cov.kinds.iter().all(|&n| n > 0), "{cov:?}");
+    assert!(cov.threads > 0 && cov.smoothing > 0 && cov.gaussian > 0 && cov.many_outcomes > 0, "{cov:?}");
 }
 
 /// The run that trained the fixture model en-plain.bin: TwoPass, cutoff 1,
