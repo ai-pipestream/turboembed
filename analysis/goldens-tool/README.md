@@ -13,8 +13,11 @@ everything that makes them:
   and for the `quantity` set `QuantityAnnotator` with
   `CursorQuantityExtractor` (see below). With `--dumps` it also writes a decision point dump
   beside each golden of a run that asks a maxent model (the sentence
-  detector, the tokenizer and the language detector): every context the
-  annotator gave the model and every outcome probability `eval` returned.
+  detector, the tokenizer, the part-of-speech tagger, the maxent
+  lemmatizer, the chunker and the language detector): every context the annotator gave
+  the model and every outcome probability `eval` returned. `PosAccuracy` is a second main class, run by
+  hand, that scores a part-of-speech model on a CoNLL-U file
+  (`analysis/postag/README.md`).
 - `container/Dockerfile`: the container the generator runs in. It starts
   from `eclipse-temurin:21-jdk` pinned by digest, clones the OpenNLP fork
   at a pinned commit, builds the runtime and the formats module with the
@@ -64,8 +67,8 @@ cargo run -p turbo-goldens-tool -- verify [--models <dir>]
   annotator directories in `analysis/goldens/data` (or `<dir>`) with what
   it wrote. The generator is always given `--dumps`
   (`GENERATOR_ARGS` in `src/recipe.rs`), so the goldens and their dumps are
-  made and installed together; before installing, every sentence, token and
-  language golden whose header names a model must have a dump beside it
+  made and installed together; before installing, every sentence, token,
+  part-of-speech, maxent lemmatizer, chunk and language golden whose header names a model must have a dump beside it
   whose header parses, except a golden with an error record (the annotator
   threw on that input), which must have none. A golden that names no model
   (a tokenizer or sentence detector without one, a normalizer) has no dump,
@@ -92,7 +95,7 @@ a directory with the same model run without them, and its options are
 |---|---|---|---|
 | `sentdetect` (`SentenceDetectorME`) | `opennlp-en-ud-ewt-sentence-1.3-2.5.4` | `en`, `multi`, `edge` | |
 | | `opennlp-de-ud-gsd-sentence-1.3-2.5.4`, `opennlp-pt-ud-gsd-sentence-1.3-2.5.4` | `edge` | |
-| | `en-abbrev`, `en-plain` (fixtures), each also `+legacy` | `sentence-fixture` | `whitespace legacy` |
+| | `en-abbrev`, `en-plain`, `en-plain-rust` (fixtures), each also `+legacy` | `sentence-fixture` | `whitespace legacy` |
 | `sentdetect` (`NewlineSentenceDetector`) | `newline`, `newline+legacy` | `edge` | `whitespace legacy` |
 | `tokenize` (`TokenizerME`) | `opennlp-en-ud-ewt-tokens-1.3-2.5.4` | `en`, `multi`, `edge`, `surrogate` | |
 | | the `de`, `es`, `fr` and `pt` tokenizer models | `edge`, `surrogate` | |
@@ -102,6 +105,16 @@ a directory with the same model run without them, and its options are
 | `tokenize` (`SimpleTokenizer`, `WhitespaceTokenizer`) | `simple`, `whitespace`, each also `+keep-new-lines`, `+legacy` and `+keep-new-lines+legacy` | `edge` | `keepNewLines true`, `whitespace legacy` |
 | `tokenize` (UAX #29 `WordTokenizer`) | `uax29` | `edge` | |
 | `detokenize` (`DictionaryDetokenizer`) | `en-detokenizer`, `fr-detokenizer`, `latin-detokenizer`, `pt-detokenizer`, `quotes-detokenizer` (fixtures) | `detokenizer`, the inputs whose id starts with the dictionary's name | `splitMarker <SPLIT>` |
+| `postag` (`POSTaggerME`) | `opennlp-en-ud-ewt-pos-1.3-2.5.4` | `en`, `multi`, `edge` | |
+| | `opennlp-en-ud-ewt-pos-1.3-2.5.4+penn` | `en` | `format PENN` |
+| | `opennlp-en-ud-ewt-pos-1.3-2.5.4+beam1`, `+beam10` | `en` | `beamSize` |
+| | `opennlp-de-ud-gsd-pos-1.3-2.5.4` | `edge` | |
+| | `pos-fixture` (fixture) | `en`, `edge` | |
+| `lemmatize` (`LemmatizerME`) | `opennlp-en-ud-ewt-lemmas-1.3-2.5.4` | `en`, `multi`, `edge` | |
+| | `opennlp-de-ud-gsd-lemmas-1.3-2.5.4` | `edge` | |
+| `lemmatize-dictionary` (`DictionaryLemmatizer`) | `lemmatizer-dictionary` (fixture) | `en`, `multi`, `edge` | |
+| `chunk` (`ChunkerME`) | `chunker-fixture` (fixture) | `en`, `multi`, `edge` | |
+| | `chunker-fixture+beam1` | `en` | `beamSize 1` |
 | `langdetect` (`LanguageDetectorME`) | `langdetect-183` | `en`, `multi` | |
 | `normalize` (each normalizer) | the normalizer's name | `norm` | see below |
 | `numbers` (`NumberScan` of the addons `numeric` module) | `latin-us`, `latin-eu` | `num` | `notation` |
@@ -109,6 +122,7 @@ a directory with the same model run without them, and its options are
 | `quantity` (`QuantityAnnotator`) | `latin-us`, `latin-eu` | `quantity` | `notation` |
 | `subwords` (`WordpieceEncoder`) | `all-minilm-l6-v2-vocab` (fixture) | `en`, `multi`, `edge`, `surrogate`, `subwords` | `lowerCase true`, `maxWordCodePoints 100` |
 | `bpe` (`BPETokenizerTrainer`, `BPETokenizer`) | `merges-40`, `merges-400` | `bpe` | `languageCode en`, `numMerges` |
+| `train` (the data indexers and `GISTrainer`) | `<source>-<indexer>-cutoff<n>`, with `-unsorted` when sorting is off, then `-threads2`, `-smoothing`, `-smoothing0.5`, `-gaussian` or `-gaussian0.5` when the trainer is given that: nineteen runs over the sources `sentdetect`, `tokenize`, `realvalue` and `postag` | `en`, `multi`, `edge`; `sentdetect` and `postag` also `train` | `source`, `DataIndexer`, `Cutoff`, `sort`, `Iterations`, and when set `Threads`, `Smoothing`, `SmoothingObservation`, `GaussianSmoothing`, `GaussianSmoothingSigma` |
 | `unigram` (`UnigramSegmenter`) | `zh-unigram-fixture` (fixture), also `+legacy` | `zh`, `multi`, `edge`, `surrogate` | `whitespace legacy` |
 | | `jieba-dict-subset` (fixture), also `+legacy` | `zh`, `multi`, `edge` | `whitespace legacy` |
 | | `zh-unigram-modes` (fixture), also `+legacy` | `zh` | `whitespace legacy` |
@@ -121,6 +135,7 @@ a directory with the same model run without them, and its options are
 | `formats` (the conversion streams) | `name-to-token`, `name-to-sentence`, `pos-to-token`, `pos-to-sentence`, with `en-detokenizer` (fixture) | `formats`, the `name` and `wordtag` inputs | `chunkSize 2` for the sentence conversions |
 | `evaluate` (the evaluators) | `pos`, `lemma`, `name`, `chunk`, `token`, `sentence` (also `+legacy`), `doccat`, `language`, `cross-validation` | `formats`, the `pairs-` inputs of the evaluator's format | `whitespace legacy` |
 | `formats` (the CoNLL-U streams) | `conllu-pos-u`, `conllu-pos-x`, `conllu-lemma-u`, `conllu-lemma-x`, `conllu-sentence`, `conllu-token` (also `+legacy`) | `formats`, the `conllu` inputs | `tagset u` or `x`; `sentencesPerSample 2`; `whitespace legacy` |
+| `formats` (the CoNLL streams) | `conll02-nld`, `conll02-spa`, `conll02-spa-per-loc`, `conll03-eng`, `conll03-deu`, `conll03-eng-org-misc`, `conllx-pos`, `conllx-token` and `conllx-sentence` (with `en-detokenizer`, fixture) | `formats`, the `conll02`, `conll03` and `conllx` inputs | `lang`, `types`; `chunkSize 2` for `conllx-sentence` |
 | `masc` (the MASC readers) | `documents` (`MascDocument.parseDocument`), `pos`, `token`, `sentence`, `name` (the sample streams) | `formats`, the `masc-` inputs | `sentencesPerSample 2` for `sentence` |
 | `ner` (the named entity corpus streams) | `germeval-outer`, `germeval-inner`, `germeval-outer-loc-misc`, `bionlp`, `bionlp-cell-line`, `bionlp-dna-cell-type`, `evalita`, `evalita-per-gpe`, `census`, `muc6-whitespace` (also `+legacy`), `muc6-simple`, `brat-whitespace` (also `+legacy`), `brat-simple`, `brat-recursive-person-location`, `brat-config` | `ner`, the inputs whose id starts with the corpus's prefix (`germeval-`, `bionlp-`, `evalita-`, `census-`, `muc-`, `brat-`) | `types`, `layer`, `lang it`, `tokenizer`, `recursive true`, `nameTypes`, `whitespace legacy` |
 
@@ -144,6 +159,74 @@ a directory with the same model run without them, and its options are
 - The sentence detector's dumps also record, for each point whose best
   outcome is a split, what `isAcceptableBreak` returned
   (`docs/analysis.md`, "Decision point dumps").
+- A `train` run (`TrainGolden`) makes events from the input with
+  `SDEventStream` (`sentdetect`, the settings of `SentenceDetectorME.train`
+  with a default factory), `TokSpanEventStream` (`tokenize`, those of
+  `TokenizerME.train`) or a real valued source (`realvalue`: one event per
+  line, outcome `long` or `short` by the number of fields, each distinct
+  field a context whose value is its count, read back through
+  `RealValueFileEventStream.parseEvent`) or a part-of-speech shaped source
+  (`postag`: one event per whitespace separated field of each line, the
+  outcome `L` and the field's length in UTF-16 units, so a text has many
+  outcomes, and the context `bias`, `w=` the field, `p=` and `n=` its
+  neighbours, `pre=` and `suf=` its first and last two UTF-16 units, which
+  may be half a surrogate pair); records the events, the CRC-32C
+  event checksum and what the named `DataIndexer` made of them with the
+  run's `Cutoff` and `sort` (contexts and predicate labels with each
+  backslash doubled and each lone surrogate, which the tokenizer's features
+  hold, as the six characters `\uXXXX`); then trains a GIS model on the index with
+  `Iterations` iterations, the run's `Threads` (one, or two) and its
+  smoothing (none, `Smoothing` with `SmoothingObservation`, or
+  `GaussianSmoothing` with `GaussianSmoothingSigma`) and records every iteration's
+  log likelihood and a hash of its parameters, the parameters after the
+  first and the last iteration, and the hash of the model
+  `GenericModelWriter` writes (`docs/analysis.md`, "Training goldens").
+  An index with no event left makes the indexer throw
+  `InsufficientTrainingDataException`; the golden then has the events and
+  one `turbo:indexer-error` row with the exception's class and message in
+  place of the indexer's layers. With more than one thread the JVM adds
+  the chunks' log likelihoods in the order its threads finish; two chunks
+  give the same sum either way, so a two thread run is reproducible, and
+  no run uses more.
+- `en-plain-rust.bin` is the `.bin` the Rust trainer writes when it trains
+  `en-plain.bin`'s events again (`analysis/train/tests/roundtrip.rs`). The
+  JVM loads it with `SentenceModel` like the other fixtures, so its goldens
+  show what the JVM makes of a model file written here.
+- A `postag` run cuts the input with the English (or, for the German
+  model, German) sentence and tokenizer models, which are its second and
+  third `model` records, and tags each sentence with `tag`; its golden has
+  the sentences, the tokens and `opennlp:pos` aligned to the tokens, with
+  `probs()` as the probability column. `+penn` asks the tagger for
+  `POSTagFormat.PENN`; `+beam<n>` rebuilds the model through
+  `POSModel(String, MaxentModel, int, Map, POSTaggerFactory)` with that
+  beam size and the model's own descriptor and tag dictionary. The dumps
+  record every context the beam search asked for, by wrapping the context
+  generator (`RecordingPOSTaggerFactory`), at the start of the token it is
+  about.
+- A `lemmatize` run cuts and tags the input with the sentence, tokenizer
+  and part-of-speech models of its language (its second, third and fourth
+  `model` records) and lemmatizes each sentence with `lemmatize`; its
+  golden has the sentences, tokens and tags, `opennlp:lemmas` and
+  `turbo:confidence<opennlp:lemmas>` from `probs()`, and its dumps are
+  made like the tagger's (`RecordingLemmatizerFactory`). A
+  `lemmatize-dictionary` run does the same with `DictionaryLemmatizer`
+  over the fixture dictionary and the English pipeline, without a
+  confidence layer; it asks no model, so it has its own annotator
+  directory and no dumps.
+- A `chunk` run cuts the input with the English sentence and tokenizer
+  models and tags it with the English part-of-speech model asked for
+  `POSTagFormat.PENN` (its second, third and fourth `model` records), since
+  the fixture chunker was trained on Penn Treebank tags, and chunks each
+  sentence with `chunk`; its golden has the sentences, tokens and tags,
+  `opennlp:chunk-tags` with `probs()` as the probability column, and
+  `opennlp:chunks`, the phrases `ChunkSample.phrasesAsSpanList` reads off
+  the tags (what `chunkAsSpans` returns), each spanning its tokens' text,
+  with its token range and kind. `+beam<n>` rebuilds the model through
+  `ChunkerModel(String, MaxentModel, int, Map, ChunkerFactory)` with that
+  beam size. The dumps are made like the tagger's
+  (`RecordingChunkerFactory`). The fixture is a perceptron model, so the
+  generator depends on `opennlp-ml-perceptron`, which the runtime lists as
+  optional.
 
 The fixtures (`analysis/goldens/data/fixtures`) are checked in, mounted at
 `/fixtures` and listed with their SHA-512 in `src/recipe.rs`; the data
@@ -245,7 +328,16 @@ conversions run with a chunk size of 2, so the inputs show the sample a
 full chunk drops. The CoNLL-U streams `ConlluPOSSampleStream` and
 `ConlluLemmaSampleStream` (with each tag set), `ConlluSentenceSampleStream`
 (two sentences a sample) and `ConlluTokenSampleStream` (in both
-whitespace modes) read the `conllu` inputs through a `ConlluStream`.
+whitespace modes) read the `conllu` inputs through a `ConlluStream`. `ConllGolden` runs `Conll02NameSampleStream` (Dutch and
+Spanish) and `Conll03NameSampleStream` (English and German), each with
+every name type and one run of each with some left out, over the
+`conll02` and `conll03` inputs of both languages, and
+`ConllXPOSSampleStream` over the `conllx` inputs, also through
+`POSToTokenSampleStream` and `POSToSentenceSampleStream` (chunk size 2)
+as `ConllXTokenSampleStreamFactory` and
+`ConllXSentenceSampleStreamFactory` use them. Every stream reads lines of
+UTF-8 text. CoNLL-2000 is the chunker's native format, read by
+`ChunkSampleStream` (the `chunk` inputs).
 
 The stream is read until it returns null; an exception from `read` is
 recorded and reading goes on. Every layer is anchored to the document:

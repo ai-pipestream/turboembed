@@ -12,6 +12,7 @@ use std::path::PathBuf;
 use turbo_jvm::chars::{self, Utf16Units};
 use turbo_jvm::random::JavaRandom;
 use turbo_jvm::strict_math;
+use turbo_jvm::text;
 
 /// The records of a vector file: its lines after the header, split on tabs.
 fn records(name: &str) -> Vec<(usize, Vec<String>)> {
@@ -171,4 +172,70 @@ fn whitespace_matches_character_is_whitespace_for_every_code_point() {
         let expected = java.binary_search(&(c as u32)).is_ok();
         assert_eq!(chars::is_java_whitespace(c), expected, "U+{:04X}", c as u32);
     }
+}
+
+/// Whether Rust's shortest form of `x` has a single significant digit.
+fn one_digit(x: f64) -> bool {
+    format!("{x:e}").trim_start_matches('-').split('e').next().unwrap().len() == 1
+}
+
+#[test]
+fn text_conversions_match_the_jvm() {
+    let records = records("text.tsv");
+    let mut one_digit_replaced = 0;
+    let mut non_ascii_digits = 0;
+    for (line, fields) in &records {
+        let [method, input, expected] = fields.as_slice() else {
+            panic!("text.tsv line {line}: {fields:?}");
+        };
+        let at = format!("text.tsv line {line}: {method}({input:?})");
+        match method.as_str() {
+            "Double.toString" => {
+                let x = bits(input);
+                let actual = text::double_to_string(x);
+                assert_eq!(&actual, &unescape(expected), "{at}");
+                if one_digit(x) && actual.trim_start_matches('-').bytes().filter(u8::is_ascii_digit).count() > 2 {
+                    one_digit_replaced += 1;
+                }
+            }
+            "Float.toString" => {
+                let x = bits(input) as f32;
+                assert_eq!(text::float_to_string(x), unescape(expected), "{at}");
+            }
+            "Double.parseDouble" | "Float.parseFloat" => {
+                let input = unescape(input);
+                let actual = if method == "Double.parseDouble" {
+                    text::parse_double(&input).map(hex)
+                } else {
+                    text::parse_float(&input).map(|v| hex(f64::from(v)))
+                };
+                match actual {
+                    Ok(h) if bits(&h).is_nan() => assert!(bits(expected).is_nan(), "{at}"),
+                    Ok(h) => assert_eq!(&h, expected, "{at}"),
+                    Err(text::ParseError::NotANumber(_)) => assert_eq!(expected, "NumberFormatException", "{at}"),
+                }
+            }
+            "Integer.parseInt" => {
+                let input = unescape(input);
+                match text::parse_int(&input) {
+                    Ok(v) => assert_eq!(&v.to_string(), expected, "{at}"),
+                    Err(_) if !input.is_ascii() => {
+                        // Java accepts the decimal digits of other scripts; this port does not.
+                        assert_ne!(expected, "NumberFormatException", "{at}");
+                        non_ascii_digits += 1;
+                    }
+                    Err(_) => assert_eq!(expected, "NumberFormatException", "{at}"),
+                }
+            }
+            "Boolean.parseBoolean" => {
+                assert_eq!(text::parse_boolean(&unescape(input)).to_string(), *expected, "{at}");
+            }
+            _ => panic!("{at}: unknown method"),
+        }
+    }
+    // The vectors reach the rule that replaces a one digit decimal with a
+    // closer two digit one (Double.MIN_VALUE prints as 4.9E-324).
+    assert!(one_digit_replaced > 0);
+    assert_eq!(non_ascii_digits, 1);
+    eprintln!("text.tsv: {} records match", records.len());
 }

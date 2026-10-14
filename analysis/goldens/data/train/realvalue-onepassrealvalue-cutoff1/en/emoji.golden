@@ -1,0 +1,62 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	en/emoji	194	176	988126c5cc162c43b57be5509c7c49796549ca909ed887ec66f50edf7e54b441
+annotator	opennlp.tools.ml.maxent.GISTrainer	train
+config	Cutoff	1
+config	DataIndexer	OnePassRealValue
+config	Iterations	100
+config	sort	true
+config	source	realvalue
+layer	turbo:events	document	1	outcome:str	context:str	values:str
+long	We won the match! 🎉 The whole team went out for pizza 🍕 afterwards. My sister sent a thumbs up 👍🏽 and heart ❤️. flag 🇺🇸 was flying over stadium. What day 😀.	1.0 1.0 2.0 1.0 1.0 2.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 3.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0
+end	turbo:events
+layer	turbo:event-checksum	document	1	crc32c:u32
+2443046765
+end	turbo:event-checksum
+layer	turbo:indexer-outcomes	document	1	label:str
+long
+end	turbo:indexer-outcomes
+layer	turbo:indexer-predicates	document	33	label:str	count:u32
+My	1
+The	1
+We	1
+What	1
+a	1
+afterwards.	1
+and	1
+day	1
+flag	1
+flying	1
+for	1
+heart	1
+match!	1
+out	1
+over	1
+pizza	1
+sent	1
+sister	1
+stadium.	1
+team	1
+the	1
+thumbs	1
+up	1
+was	1
+went	1
+whole	1
+won	1
+❤️.	1
+🇺🇸	1
+🍕	1
+🎉	1
+👍🏽	1
+😀.	1
+end	turbo:indexer-predicates
+layer	turbo:indexer-events	document	1	outcome:u32	context:str	values:str	seen:u32
+0	2 26 20 12 30 1 25 19 24 13 10 15 29 5 0 17 16 4 21 22 31 6 11 27 8 28 23 9 14 18 3 7 32	1.0 1.0 2.0 1.0 1.0 2.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 3.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0	1
+end	turbo:indexer-events
+layer	turbo:gis-training	document	1	iterations:u32	message:str
+0	opennlp.tools.util.InsufficientTrainingDataException: Training data must contain more than one outcome
+end	turbo:gis-training

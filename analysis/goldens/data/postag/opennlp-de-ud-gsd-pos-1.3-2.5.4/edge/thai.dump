@@ -1,0 +1,278 @@
+dump 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	edge/thai	117	41	c4dc880f98c87743656fa5c51e8e0cd42432ddf69ecef26e2cef994df33e8366
+model	opennlp-de-ud-gsd-pos-1.3-2.5.4.bin	9e44d582874464924a8baf8fbfed7500e15112c3dc446bfc5be281bff4dbbf195eda0a16ca7e78fde7a64a684c0f780b5987723db800ce88465b9894ef0ba17b
+model	opennlp-de-ud-gsd-sentence-1.3-2.5.4.bin	c811604c24cdbe490ab42dcffdbae63f9a74b39622f21b7b31f63eea566ffe35ef871f0da905e61180656b877cf0be4d626588c6312fcc18df5ab9a35b4183fa
+model	opennlp-de-ud-gsd-tokens-1.3-2.5.4.bin	343c9fe93ff301b736f30fa2e0d954b270994a1535ec2bd424553cbd82b13eb0d86aa2042946db62322430a8b5a8f29a8a2d882f107cb26c6d4f6d494d97debf
+annotator	opennlp.tools.postag.POSTaggerME	tag
+point	0	0	15	20	0	none
+context	def
+context	suf=บ
+context	suf=ับ
+context	suf=รับ
+context	suf=ครับ
+context	pre=ส
+context	pre=สว
+context	pre=สวั
+context	pre=สวัส
+context	w=สวัสดีครับ
+context	n1w=ผมชื่อสมชาย
+context	n2w=ยินดีที่ได้รู้จัก
+context	S=begin
+context	wc=jah
+context	w&c=สวัสดีครับ,jah
+outcome	ADV	3f9817326445804f 0.023525988931737903
+outcome	ADJ	3fe31a770a366808 0.5969805907691361
+outcome	NOUN	3f8e58924667b149 0.014817374013511258
+outcome	PUNCT	3f56f135c44c2157 0.001400282389285653
+outcome	DET	3f9640f695af4319 0.02173219002344515
+outcome	VERB	3fa83cf7a327fc01 0.047340143839385014
+outcome	PRON	3f87df79e376360f 0.011656715635377983
+outcome	ADP	3f9a6ea30db6e1d4 0.025812671386775524
+outcome	ADP+DET	3f6fcddc411a314f 0.003882341560546155
+outcome	PROPN	3fc5cd7ccd06b676 0.1703334809403036
+outcome	CCONJ	3f7c134eae0f8bc9 0.006854350417571938
+outcome	AUX	3f75738c939f4ed1 0.005237149360215646
+outcome	PART	3f694bf25e4364c9 0.003087972045346808
+outcome	SCONJ	3f66533725cd4db4 0.002725227079659576
+outcome	NUM	3f98610766adc903 0.023807635919589575
+outcome	X	3fa4d7cd39e4fb11 0.04070893604010995
+outcome	SYM	3f18811bd66a8607 9.347660452842947E-5
+outcome	INTJ	3ec33a36728cb463 2.292083895480541E-6
+outcome	PROPN+DET	3e924a334cd56828 2.725399326962657E-7
+outcome	ADP+PRON	3eae7b43ed43908e 9.084196457534767E-7
+end	0
+point	1	31	16	20	0	none
+context	def
+context	suf=ย
+context	suf=าย
+context	suf=ชาย
+context	suf=มชาย
+context	pre=ผ
+context	pre=ผม
+context	pre=ผมช
+context	pre=ผมชื
+context	w=ผมชื่อสมชาย
+context	p1w=สวัสดีครับ
+context	n1w=ยินดีที่ได้รู้จัก
+context	p1S=begin
+context	wc=jah
+context	w&c=ผมชื่อสมชาย,jah
+context	t=ADJ
+outcome	ADV	3f823c0b04677f23 0.008903585502536842
+outcome	ADJ	3fcffaf7716c8202 0.24984639204286913
+outcome	NOUN	3fd6326f4eb37432 0.34682829557079053
+outcome	PUNCT	3f7ea6ba4b92910e 0.007483222690243941
+outcome	DET	3f92949e83aba5fd 0.018145062243013033
+outcome	VERB	3faafefba8d06268 0.05272661624639313
+outcome	PRON	3f482278e56681e4 7.365312874761357E-4
+outcome	ADP	3f93d81504f96a67 0.019378975323301264
+outcome	ADP+DET	3f4729391b956fcd 7.068184706144842E-4
+outcome	PROPN	3fcc7c35cac28f70 0.22254059219732936
+outcome	CCONJ	3f9447f2480e056b 0.019805703781007915
+outcome	AUX	3f9392db01bd2d02 0.019114896756303963
+outcome	PART	3f71ca41ad761973 0.004343277504977971
+outcome	SCONJ	3efdc673470206b3 2.839584016146061E-5
+outcome	NUM	3f98c068b2674372 0.024171481980207195
+outcome	X	3f7566d0953aafa7 0.0052250049372268076
+outcome	SYM	3ee4ba46f3bc3814 9.883711406224355E-6
+outcome	INTJ	3ec59474446d0d3a 2.572524440054615E-6
+outcome	PROPN+DET	3ea4d755528d375f 6.211145421126683E-7
+outcome	ADP+PRON	3ec15de1cdfd7203 2.070275158345829E-6
+end	1
+point	2	31	16	20	0	none
+context	def
+context	suf=ย
+context	suf=าย
+context	suf=ชาย
+context	suf=มชาย
+context	pre=ผ
+context	pre=ผม
+context	pre=ผมช
+context	pre=ผมชื
+context	w=ผมชื่อสมชาย
+context	p1w=สวัสดีครับ
+context	n1w=ยินดีที่ได้รู้จัก
+context	p1S=begin
+context	wc=jah
+context	w&c=ผมชื่อสมชาย,jah
+context	t=ADJ
+outcome	ADV	3f823c0b04677f23 0.008903585502536842
+outcome	ADJ	3fcffaf7716c8202 0.24984639204286913
+outcome	NOUN	3fd6326f4eb37432 0.34682829557079053
+outcome	PUNCT	3f7ea6ba4b92910e 0.007483222690243941
+outcome	DET	3f92949e83aba5fd 0.018145062243013033
+outcome	VERB	3faafefba8d06268 0.05272661624639313
+outcome	PRON	3f482278e56681e4 7.365312874761357E-4
+outcome	ADP	3f93d81504f96a67 0.019378975323301264
+outcome	ADP+DET	3f4729391b956fcd 7.068184706144842E-4
+outcome	PROPN	3fcc7c35cac28f70 0.22254059219732936
+outcome	CCONJ	3f9447f2480e056b 0.019805703781007915
+outcome	AUX	3f9392db01bd2d02 0.019114896756303963
+outcome	PART	3f71ca41ad761973 0.004343277504977971
+outcome	SCONJ	3efdc673470206b3 2.839584016146061E-5
+outcome	NUM	3f98c068b2674372 0.024171481980207195
+outcome	X	3f7566d0953aafa7 0.0052250049372268076
+outcome	SYM	3ee4ba46f3bc3814 9.883711406224355E-6
+outcome	INTJ	3ec59474446d0d3a 2.572524440054615E-6
+outcome	PROPN+DET	3ea4d755528d375f 6.211145421126683E-7
+outcome	ADP+PRON	3ec15de1cdfd7203 2.070275158345829E-6
+end	2
+point	3	31	16	20	0	none
+context	def
+context	suf=ย
+context	suf=าย
+context	suf=ชาย
+context	suf=มชาย
+context	pre=ผ
+context	pre=ผม
+context	pre=ผมช
+context	pre=ผมชื
+context	w=ผมชื่อสมชาย
+context	p1w=สวัสดีครับ
+context	n1w=ยินดีที่ได้รู้จัก
+context	p1S=begin
+context	wc=jah
+context	w&c=ผมชื่อสมชาย,jah
+context	t=ADJ
+outcome	ADV	3f823c0b04677f23 0.008903585502536842
+outcome	ADJ	3fcffaf7716c8202 0.24984639204286913
+outcome	NOUN	3fd6326f4eb37432 0.34682829557079053
+outcome	PUNCT	3f7ea6ba4b92910e 0.007483222690243941
+outcome	DET	3f92949e83aba5fd 0.018145062243013033
+outcome	VERB	3faafefba8d06268 0.05272661624639313
+outcome	PRON	3f482278e56681e4 7.365312874761357E-4
+outcome	ADP	3f93d81504f96a67 0.019378975323301264
+outcome	ADP+DET	3f4729391b956fcd 7.068184706144842E-4
+outcome	PROPN	3fcc7c35cac28f70 0.22254059219732936
+outcome	CCONJ	3f9447f2480e056b 0.019805703781007915
+outcome	AUX	3f9392db01bd2d02 0.019114896756303963
+outcome	PART	3f71ca41ad761973 0.004343277504977971
+outcome	SCONJ	3efdc673470206b3 2.839584016146061E-5
+outcome	NUM	3f98c068b2674372 0.024171481980207195
+outcome	X	3f7566d0953aafa7 0.0052250049372268076
+outcome	SYM	3ee4ba46f3bc3814 9.883711406224355E-6
+outcome	INTJ	3ec59474446d0d3a 2.572524440054615E-6
+outcome	PROPN+DET	3ea4d755528d375f 6.211145421126683E-7
+outcome	ADP+PRON	3ec15de1cdfd7203 2.070275158345829E-6
+end	3
+point	4	65	17	20	0	none
+context	def
+context	suf=ก
+context	suf=ัก
+context	suf=จัก
+context	suf=้จัก
+context	pre=ย
+context	pre=ยิ
+context	pre=ยิน
+context	pre=ยินด
+context	w=ยินดีที่ได้รู้จัก
+context	p1w=ผมชื่อสมชาย
+context	p2w=สวัสดีครับ
+context	p2S=begin
+context	wc=jah
+context	w&c=ยินดีที่ได้รู้จัก,jah
+context	t=NOUN
+context	t2=ADJ,NOUN
+outcome	ADV	3f86228e0850dbb6 0.01080809557798355
+outcome	ADJ	3fb86810f4be5da0 0.09533792472063007
+outcome	NOUN	3f9205702a5a87c6 0.017598869881687816
+outcome	PUNCT	3f8095d389294897 0.008098271010713183
+outcome	DET	3f9972e36a9ae9b5 0.02485232675710743
+outcome	VERB	3fad16d4d638ae15 0.056814814710687646
+outcome	PRON	3f479af1b8814bf8 7.203750874488204E-4
+outcome	ADP	3fa256f0dff27269 0.035819556557929406
+outcome	ADP+DET	3f502aeec3b57015 9.86798447079278E-4
+outcome	PROPN	3fe6607de89e22d5 0.6992787879290413
+outcome	CCONJ	3f8d295925584650 0.014239021732495832
+outcome	AUX	3f8ea2b7f4b4c451 0.014958798556650306
+outcome	PART	3f6f9eb6fa7720ee 0.0038598607822884967
+outcome	SCONJ	3eb49eb9e15f2566 1.2290491944059468E-6
+outcome	NUM	3f8d7a4f532cfeb2 0.014393443799803538
+outcome	X	3f6219e71a699a23 0.0022096170171608405
+outcome	SYM	3ef4255789aa3c7c 1.9212595911141387E-5
+outcome	INTJ	3eb89020d2263253 1.4640689377259455E-6
+outcome	PROPN+DET	3e97b8dd39f5638f 3.5348721812638075E-7
+outcome	ADP+PRON	3eb3c4759ea8a1f1 1.1782300314376962E-6
+end	4
+point	5	65	17	20	0	none
+context	def
+context	suf=ก
+context	suf=ัก
+context	suf=จัก
+context	suf=้จัก
+context	pre=ย
+context	pre=ยิ
+context	pre=ยิน
+context	pre=ยินด
+context	w=ยินดีที่ได้รู้จัก
+context	p1w=ผมชื่อสมชาย
+context	p2w=สวัสดีครับ
+context	p2S=begin
+context	wc=jah
+context	w&c=ยินดีที่ได้รู้จัก,jah
+context	t=NOUN
+context	t2=ADJ,NOUN
+outcome	ADV	3f86228e0850dbb6 0.01080809557798355
+outcome	ADJ	3fb86810f4be5da0 0.09533792472063007
+outcome	NOUN	3f9205702a5a87c6 0.017598869881687816
+outcome	PUNCT	3f8095d389294897 0.008098271010713183
+outcome	DET	3f9972e36a9ae9b5 0.02485232675710743
+outcome	VERB	3fad16d4d638ae15 0.056814814710687646
+outcome	PRON	3f479af1b8814bf8 7.203750874488204E-4
+outcome	ADP	3fa256f0dff27269 0.035819556557929406
+outcome	ADP+DET	3f502aeec3b57015 9.86798447079278E-4
+outcome	PROPN	3fe6607de89e22d5 0.6992787879290413
+outcome	CCONJ	3f8d295925584650 0.014239021732495832
+outcome	AUX	3f8ea2b7f4b4c451 0.014958798556650306
+outcome	PART	3f6f9eb6fa7720ee 0.0038598607822884967
+outcome	SCONJ	3eb49eb9e15f2566 1.2290491944059468E-6
+outcome	NUM	3f8d7a4f532cfeb2 0.014393443799803538
+outcome	X	3f6219e71a699a23 0.0022096170171608405
+outcome	SYM	3ef4255789aa3c7c 1.9212595911141387E-5
+outcome	INTJ	3eb89020d2263253 1.4640689377259455E-6
+outcome	PROPN+DET	3e97b8dd39f5638f 3.5348721812638075E-7
+outcome	ADP+PRON	3eb3c4759ea8a1f1 1.1782300314376962E-6
+end	5
+point	6	65	17	20	0	none
+context	def
+context	suf=ก
+context	suf=ัก
+context	suf=จัก
+context	suf=้จัก
+context	pre=ย
+context	pre=ยิ
+context	pre=ยิน
+context	pre=ยินด
+context	w=ยินดีที่ได้รู้จัก
+context	p1w=ผมชื่อสมชาย
+context	p2w=สวัสดีครับ
+context	p2S=begin
+context	wc=jah
+context	w&c=ยินดีที่ได้รู้จัก,jah
+context	t=NOUN
+context	t2=ADJ,NOUN
+outcome	ADV	3f86228e0850dbb6 0.01080809557798355
+outcome	ADJ	3fb86810f4be5da0 0.09533792472063007
+outcome	NOUN	3f9205702a5a87c6 0.017598869881687816
+outcome	PUNCT	3f8095d389294897 0.008098271010713183
+outcome	DET	3f9972e36a9ae9b5 0.02485232675710743
+outcome	VERB	3fad16d4d638ae15 0.056814814710687646
+outcome	PRON	3f479af1b8814bf8 7.203750874488204E-4
+outcome	ADP	3fa256f0dff27269 0.035819556557929406
+outcome	ADP+DET	3f502aeec3b57015 9.86798447079278E-4
+outcome	PROPN	3fe6607de89e22d5 0.6992787879290413
+outcome	CCONJ	3f8d295925584650 0.014239021732495832
+outcome	AUX	3f8ea2b7f4b4c451 0.014958798556650306
+outcome	PART	3f6f9eb6fa7720ee 0.0038598607822884967
+outcome	SCONJ	3eb49eb9e15f2566 1.2290491944059468E-6
+outcome	NUM	3f8d7a4f532cfeb2 0.014393443799803538
+outcome	X	3f6219e71a699a23 0.0022096170171608405
+outcome	SYM	3ef4255789aa3c7c 1.9212595911141387E-5
+outcome	INTJ	3eb89020d2263253 1.4640689377259455E-6
+outcome	PROPN+DET	3e97b8dd39f5638f 3.5348721812638075E-7
+outcome	ADP+PRON	3eb3c4759ea8a1f1 1.1782300314376962E-6
+end	6

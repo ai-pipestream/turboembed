@@ -1,0 +1,163 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	edge/german	119	106	d48ae253086e3984a56fc973a73652963f5c48c360ab2859b8e383a73af3c063
+annotator	opennlp.tools.ml.maxent.GISTrainer	train
+config	Cutoff	5
+config	DataIndexer	TwoPass
+config	Iterations	100
+config	sort	true
+config	source	tokenize
+layer	turbo:events	document	66	outcome:str	context:str	values:str
+F	p=D s=ie p1=D p1_alpha p1_caps p2=bok p1f1=Di f1=i f1_alpha f2=e f2_alpha f12=ie	
+F	p=Di s=e p1=i p1_alpha p2=D p2_alpha p2_caps p21=Di p1f1=ie f1=e f1_alpha f2=bok	
+F	p=S s=traße p1=S p1_alpha p1_caps p2=bok p1f1=St f1=t f1_alpha f2=r f2_alpha f12=tr	
+F	p=St s=raße p1=t p1_alpha p2=S p2_alpha p2_caps p21=St p1f1=tr f1=r f1_alpha f2=a f2_alpha f12=ra	
+F	p=Str s=aße p1=r p1_alpha p2=t p2_alpha p21=tr p1f1=ra f1=a f1_alpha f2=ß f2_alpha f12=aß	
+F	p=Stra s=ße p1=a p1_alpha p2=r p2_alpha p21=ra p1f1=aß f1=ß f1_alpha f2=e f2_alpha f12=ße	
+F	p=Straß s=e p1=ß p1_alpha p2=a p2_alpha p21=aß p1f1=ße f1=e f1_alpha f2=bok	
+F	p=i s=st p1=i p1_alpha p2=bok p1f1=is f1=s f1_alpha f2=t f2_alpha f12=st	
+F	p=is s=t p1=s p1_alpha p2=i p2_alpha p21=is p1f1=st f1=t f1_alpha f2=bok	
+F	p=g s=roß; p1=g p1_alpha p2=bok p1f1=gr f1=r f1_alpha f2=o f2_alpha f12=ro	
+F	p=gr s=oß; p1=r p1_alpha p2=g p2_alpha p21=gr p1f1=ro f1=o f1_alpha f2=ß f2_alpha f12=oß	
+F	p=gro s=ß; p1=o p1_alpha p2=r p2_alpha p21=ro p1f1=oß f1=ß f1_alpha f2=; f12=ß;	
+F	p=groß s=; p1=ß p1_alpha p2=o p2_alpha p21=oß p1f1=ß; f1=; f2=bok	
+F	p=M s=üller p1=M p1_alpha p1_caps p2=bok p1f1=Mü f1=ü f1_alpha f2=l f2_alpha f12=ül	
+F	p=Mü s=ller p1=ü p1_alpha p2=M p2_alpha p2_caps p21=Mü p1f1=ül f1=l f1_alpha f2=l f2_alpha f12=ll	
+F	p=Mül s=ler p1=l p1_alpha p2=ü p2_alpha p21=ül p1f1=ll f1=l f1_alpha f2=e f2_alpha f12=le	
+F	p=Müll s=er p1=l p1_alpha p2=l p2_alpha p21=ll p1f1=le f1=e f1_alpha f2=r f2_alpha f12=er	
+F	p=Mülle s=r p1=e p1_alpha p2=l p2_alpha p21=le p1f1=er f1=r f1_alpha f2=bok	
+F	p=a s=ß p1=a p1_alpha p2=bok p1f1=aß f1=ß f1_alpha f2=bok	
+F	p=Ä s=pfel, p1=Ä p1_alpha p1_caps p2=bok p1f1=Äp f1=p f1_alpha f2=f f2_alpha f12=pf	
+F	p=Äp s=fel, p1=p p1_alpha p2=Ä p2_alpha p2_caps p21=Äp p1f1=pf f1=f f1_alpha f2=e f2_alpha f12=fe	
+F	p=Äpf s=el, p1=f p1_alpha p2=p p2_alpha p21=pf p1f1=fe f1=e f1_alpha f2=l f2_alpha f12=el	
+F	p=Äpfe s=l, p1=e p1_alpha p2=f p2_alpha p21=fe p1f1=el f1=l f1_alpha f2=, f12=l,	
+F	p=Äpfel s=, p1=l p1_alpha p2=e p2_alpha p21=el p1f1=l, f1=, f2=bok	
+F	p=Ö s=l p1=Ö p1_alpha p1_caps p2=bok p1f1=Öl f1=l f1_alpha f2=bok	
+F	p=u s=nd p1=u p1_alpha p2=bok p1f1=un f1=n f1_alpha f2=d f2_alpha f12=nd	
+F	p=un s=d p1=n p1_alpha p2=u p2_alpha p21=un p1f1=nd f1=d f1_alpha f2=bok	
+F	p=Ü s=bung. p1=Ü p1_alpha p1_caps p2=bok p1f1=Üb f1=b f1_alpha f2=u f2_alpha f12=bu	
+F	p=Üb s=ung. p1=b p1_alpha p2=Ü p2_alpha p2_caps p21=Üb p1f1=bu f1=u f1_alpha f2=n f2_alpha f12=un	
+F	p=Übu s=ng. p1=u p1_alpha p2=b p2_alpha p21=bu p1f1=un f1=n f1_alpha f2=g f2_alpha f12=ng	
+F	p=Übun s=g. p1=n p1_alpha p2=u p2_alpha p21=un p1f1=ng f1=g f1_alpha f2=. f2_eos f12=g.	
+F	p=Übung s=. p1=g p1_alpha p2=n p2_alpha p21=ng p1f1=g. f1=. f1_eos f2=bok	
+F	p=z s=.B. p1=z p1_alpha p2=bok p1f1=z. f1=. f1_eos f2=B f2_alpha f2_caps f12=.B	
+F	p=z. s=B. p1=. p1_eos p2=z p2_alpha p21=z. p1f1=.B f1=B f1_alpha f1_caps f2=. f2_eos f12=B.	
+F	p=z.B s=. p1=B p1_alpha p1_caps p2=. p2_eos p21=.B p1f1=B. f1=. f1_eos f2=bok	
+F	p=h s=eißt p1=h p1_alpha p2=bok p1f1=he f1=e f1_alpha f2=i f2_alpha f12=ei	
+F	p=he s=ißt p1=e p1_alpha p2=h p2_alpha p21=he p1f1=ei f1=i f1_alpha f2=ß f2_alpha f12=iß	
+F	p=hei s=ßt p1=i p1_alpha p2=e p2_alpha p21=ei p1f1=iß f1=ß f1_alpha f2=t f2_alpha f12=ßt	
+F	p=heiß s=t p1=ß p1_alpha p2=i p2_alpha p21=iß p1f1=ßt f1=t f1_alpha f2=bok	
+F	p=„ s=zum p1=„ p2=bok p1f1=„z f1=z f1_alpha f2=u f2_alpha f12=zu	
+F	p=„z s=um p1=z p1_alpha p2=„ p21=„z p1f1=zu f1=u f1_alpha f2=m f2_alpha f12=um	
+F	p=„zu s=m p1=u p1_alpha p2=z p2_alpha p21=zu p1f1=um f1=m f1_alpha f2=bok	
+F	p=B s=eispiel“. p1=B p1_alpha p1_caps p2=bok p1f1=Be f1=e f1_alpha f2=i f2_alpha f12=ei	
+F	p=Be s=ispiel“. p1=e p1_alpha p2=B p2_alpha p2_caps p21=Be p1f1=ei f1=i f1_alpha f2=s f2_alpha f12=is	
+F	p=Bei s=spiel“. p1=i p1_alpha p2=e p2_alpha p21=ei p1f1=is f1=s f1_alpha f2=p f2_alpha f12=sp	
+F	p=Beis s=piel“. p1=s p1_alpha p2=i p2_alpha p21=is p1f1=sp f1=p f1_alpha f2=i f2_alpha f12=pi	
+F	p=Beisp s=iel“. p1=p p1_alpha p2=s p2_alpha p21=sp p1f1=pi f1=i f1_alpha f2=e f2_alpha f12=ie	
+F	p=Beispi s=el“. p1=i p1_alpha p2=p p2_alpha p21=pi p1f1=ie f1=e f1_alpha f2=l f2_alpha f12=el	
+F	p=Beispie s=l“. p1=e p1_alpha p2=i p2_alpha p21=ie p1f1=el f1=l f1_alpha f2=“ f12=l“	
+F	p=Beispiel s=“. p1=l p1_alpha p2=e p2_alpha p21=el p1f1=l“ f1=“ f2=. f2_eos f12=“.	
+F	p=Beispiel“ s=. p1=“ p2=l p2_alpha p21=l“ p1f1=“. f1=. f1_eos f2=bok	
+F	p=D s=r. p1=D p1_alpha p1_caps p2=bok p1f1=Dr f1=r f1_alpha f2=. f2_eos f12=r.	
+F	p=Dr s=. p1=r p1_alpha p2=D p2_alpha p2_caps p21=Dr p1f1=r. f1=. f1_eos f2=bok	
+F	p=W s=eiß p1=W p1_alpha p1_caps p2=bok p1f1=We f1=e f1_alpha f2=i f2_alpha f12=ei	
+F	p=We s=iß p1=e p1_alpha p2=W p2_alpha p2_caps p21=We p1f1=ei f1=i f1_alpha f2=ß f2_alpha f12=iß	
+F	p=Wei s=ß p1=i p1_alpha p2=e p2_alpha p21=ei p1f1=iß f1=ß f1_alpha f2=bok	
+F	p=k s=am p1=k p1_alpha p2=bok p1f1=ka f1=a f1_alpha f2=m f2_alpha f12=am	
+F	p=ka s=m p1=a p1_alpha p2=k p2_alpha p21=ka p1f1=am f1=m f1_alpha f2=bok	
+F	p=u s=m p1=u p1_alpha p2=bok p1f1=um f1=m f1_alpha f2=bok	
+F	p=1 s=2.30 p1=1 p1_num p2=bok p1f1=12 f1=2 f1_num f2=. f2_eos f12=2.	
+F	p=12 s=.30 p1=2 p1_num p2=1 p2_num p21=12 p1f1=2. f1=. f1_eos f2=3 f2_num f12=.3	
+F	p=12. s=30 p1=. p1_eos p2=2 p2_num p21=2. p1f1=.3 f1=3 f1_num f2=0 f2_num f12=30	
+F	p=12.3 s=0 p1=3 p1_num p2=. p2_eos p21=.3 p1f1=30 f1=0 f1_num f2=bok	
+F	p=U s=hr. p1=U p1_alpha p1_caps p2=bok p1f1=Uh f1=h f1_alpha f2=r f2_alpha f12=hr	
+F	p=Uh s=r. p1=h p1_alpha p2=U p2_alpha p2_caps p21=Uh p1f1=hr f1=r f1_alpha f2=. f2_eos f12=r.	
+F	p=Uhr s=. p1=r p1_alpha p2=h p2_alpha p21=hr p1f1=r. f1=. f1_eos f2=bok	
+end	turbo:events
+layer	turbo:event-checksum	document	1	crc32c:u32
+981400520
+end	turbo:event-checksum
+layer	turbo:indexer-outcomes	document	1	label:str
+F
+end	turbo:indexer-outcomes
+layer	turbo:indexer-predicates	document	22	label:str	count:u32
+f1=.	7
+f1=e	8
+f1=i	5
+f1=l	5
+f1=r	5
+f1=ß	5
+f1_alpha	53
+f1_eos	7
+f2=.	6
+f2=bok	20
+f2=e	5
+f2_alpha	35
+f2_eos	6
+p1=e	6
+p1=i	6
+p1_alpha	59
+p1_caps	11
+p2=bok	20
+p2=e	5
+p2_alpha	41
+p2_caps	9
+s=.	5
+end	turbo:indexer-predicates
+layer	turbo:indexer-events	document	48	outcome:u32	context:str	values:str	seen:u32
+0	0 7		1
+0	9		1
+0	13 15 19 2 6 11		1
+0	13 15 19 3 6		2
+0	13 15 19 4 6 9		1
+0	13 15 19 20 2 6 11		2
+0	14 15 17 6 11		1
+0	14 15 18 19 5 6 9		1
+0	14 15 18 19 5 6 11		1
+0	14 15 18 19 6 11		1
+0	14 15 19 1 6 11		1
+0	14 15 19 20 1 6 9		1
+0	15 6 11		1
+0	15 16 17 1 6 11		2
+0	15 16 17 2 6 10 11		1
+0	15 16 17 3 6 9		1
+0	15 16 17 4 6 8 12		1
+0	15 16 17 6 11		5
+0	15 17 0 7 11		1
+0	15 17 1 6 11		1
+0	15 17 4 6 11		1
+0	15 17 5 6 9		1
+0	15 17 6 9		1
+0	15 17 6 11		2
+0	15 18 19 8 12		1
+0	15 18 19 9		1
+0	15 19 1 6 9		1
+0	15 19 1 6 11		2
+0	15 19 2 6 10 11		1
+0	15 19 3 6 10 11		1
+0	15 19 5 6		1
+0	15 19 5 6 10 11		1
+0	15 19 6 8 12		1
+0	15 19 6 9		5
+0	15 19 6 11		4
+0	15 19 9		1
+0	15 19 20 3 6 11		1
+0	15 19 20 4 6 8 12		1
+0	15 19 20 4 6 11		1
+0	15 19 20 6 10 11		1
+0	15 19 20 6 11		1
+0	17 6 11		1
+0	17 8 12		1
+0	19 6 8 12		1
+0	21 15 16 0 7 9		1
+0	21 15 19 0 7 9		2
+0	21 15 19 20 0 7 9		1
+0	21 19 0 7 9		1
+end	turbo:indexer-events
+layer	turbo:gis-training	document	1	iterations:u32	message:str
+0	opennlp.tools.util.InsufficientTrainingDataException: Training data must contain more than one outcome
+end	turbo:gis-training

@@ -1,0 +1,205 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	edge/quotes-brackets	139	127	0ddef673358aac174b9cf1cbd5157e01eb8bc8e78395b51f7a218e42c177ed7b
+annotator	opennlp.tools.ml.maxent.GISTrainer	train
+config	Cutoff	5
+config	DataIndexer	TwoPass
+config	Iterations	100
+config	sort	true
+config	source	tokenize
+layer	turbo:events	document	87	outcome:str	context:str	values:str
+F	p=H s=e p1=H p1_alpha p1_caps p2=bok p1f1=He f1=e f1_alpha f2=bok	
+F	p=s s=aid, p1=s p1_alpha p2=bok p1f1=sa f1=a f1_alpha f2=i f2_alpha f12=ai	
+F	p=sa s=id, p1=a p1_alpha p2=s p2_alpha p21=sa p1f1=ai f1=i f1_alpha f2=d f2_alpha f12=id	
+F	p=sai s=d, p1=i p1_alpha p2=a p2_alpha p21=ai p1f1=id f1=d f1_alpha f2=, f12=d,	
+F	p=said s=, p1=d p1_alpha p2=i p2_alpha p21=id p1f1=d, f1=, f2=bok	
+F	p=" s=Stop!" p1=" p1_quote p2=bok p1f1="S f1=S f1_alpha f1_caps f2=t f2_alpha f12=St	
+F	p="S s=top!" p1=S p1_alpha p1_caps p2=" p2_quote p21="S p1f1=St f1=t f1_alpha f2=o f2_alpha f12=to	
+F	p="St s=op!" p1=t p1_alpha p2=S p2_alpha p2_caps p21=St p1f1=to f1=o f1_alpha f2=p f2_alpha f12=op	
+F	p="Sto s=p!" p1=o p1_alpha p2=t p2_alpha p21=to p1f1=op f1=p f1_alpha f2=! f2_eos f12=p!	
+F	p="Stop s=!" p1=p p1_alpha p2=o p2_alpha p21=op p1f1=p! f1=! f1_eos f2=" f2_quote f12=!"	
+F	p="Stop! s=" p1=! p1_eos p2=p p2_alpha p21=p! p1f1=!" f1=" f1_quote f2=bok	
+F	p=a s=nd p1=a p1_alpha p2=bok p1f1=an f1=n f1_alpha f2=d f2_alpha f12=nd	
+F	p=an s=d p1=n p1_alpha p2=a p2_alpha p21=an p1f1=nd f1=d f1_alpha f2=bok	
+F	p=s s=he p1=s p1_alpha p2=bok p1f1=sh f1=h f1_alpha f2=e f2_alpha f12=he	
+F	p=sh s=e p1=h p1_alpha p2=s p2_alpha p21=sh p1f1=he f1=e f1_alpha f2=bok	
+F	p=r s=eplied p1=r p1_alpha p2=bok p1f1=re f1=e f1_alpha f2=p f2_alpha f12=ep	
+F	p=re s=plied p1=e p1_alpha p2=r p2_alpha p21=re p1f1=ep f1=p f1_alpha f2=l f2_alpha f12=pl	
+F	p=rep s=lied p1=p p1_alpha p2=e p2_alpha p21=ep p1f1=pl f1=l f1_alpha f2=i f2_alpha f12=li	
+F	p=repl s=ied p1=l p1_alpha p2=p p2_alpha p21=pl p1f1=li f1=i f1_alpha f2=e f2_alpha f12=ie	
+F	p=repli s=ed p1=i p1_alpha p2=l p2_alpha p21=li p1f1=ie f1=e f1_alpha f2=d f2_alpha f12=ed	
+F	p=replie s=d p1=e p1_alpha p2=i p2_alpha p21=ie p1f1=ed f1=d f1_alpha f2=bok	
+F	p=' s=No.' p1=' p1_quote p2=bok p1f1='N f1=N f1_alpha f1_caps f2=o f2_alpha f12=No	
+F	p='N s=o.' p1=N p1_alpha p1_caps p2=' p2_quote p21='N p1f1=No f1=o f1_alpha f2=. f2_eos f12=o.	
+F	p='No s=.' p1=o p1_alpha p2=N p2_alpha p2_caps p21=No p1f1=o. f1=. f1_eos f2=' f2_quote f12=.'	
+F	p='No. s=' p1=. p1_eos p2=o p2_alpha p21=o. p1f1=.' f1=' f1_quote f2=bok	
+F	p=[ s=See p1=[ p1_lp p2=bok p1f1=[S f1=S f1_alpha f1_caps f2=e f2_alpha f12=Se	
+F	p=[S s=ee p1=S p1_alpha p1_caps p2=[ p2_lp p21=[S p1f1=Se f1=e f1_alpha f2=e f2_alpha f12=ee	
+F	p=[Se s=e p1=e p1_alpha p2=S p2_alpha p2_caps p21=Se p1f1=ee f1=e f1_alpha f2=bok	
+F	p=n s=ote p1=n p1_alpha p2=bok p1f1=no f1=o f1_alpha f2=t f2_alpha f12=ot	
+F	p=no s=te p1=o p1_alpha p2=n p2_alpha p21=no p1f1=ot f1=t f1_alpha f2=e f2_alpha f12=te	
+F	p=not s=e p1=t p1_alpha p2=o p2_alpha p21=ot p1f1=te f1=e f1_alpha f2=bok	
+F	p=( s=a)] p1=( p1_lp p2=bok p1f1=(a f1=a f1_alpha f2=) f2_rp f12=a)	
+F	p=(a s=)] p1=a p1_alpha p2=( p2_lp p21=(a p1f1=a) f1=) f1_rp f2=] f2_rp f12=)]	
+F	p=(a) s=] p1=) p1_rp p2=a p2_alpha p21=a) p1f1=)] f1=] f1_rp f2=bok	
+F	p={ s=x: p1={ p1_lp p2=bok p1f1={x f1=x f1_alpha f2=: f12=x:	
+F	p={x s=: p1=x p1_alpha p2={ p2_lp p21={x p1f1=x: f1=: f2=bok	
+F	p=1 s=} p1=1 p1_num p2=bok p1f1=1} f1=} f1_rp f2=bok	
+F	p=< s=tag> p1=< p2=bok p1f1=<t f1=t f1_alpha f2=a f2_alpha f12=ta	
+F	p=<t s=ag> p1=t p1_alpha p2=< p21=<t p1f1=ta f1=a f1_alpha f2=g f2_alpha f12=ag	
+F	p=<ta s=g> p1=a p1_alpha p2=t p2_alpha p21=ta p1f1=ag f1=g f1_alpha f2=> f12=g>	
+F	p=<tag s=> p1=g p1_alpha p2=a p2_alpha p21=ag p1f1=g> f1=> f2=bok	
+F	p=“ s=curly” p1=“ p2=bok p1f1=“c f1=c f1_alpha f2=u f2_alpha f12=cu	
+F	p=“c s=urly” p1=c p1_alpha p2=“ p21=“c p1f1=cu f1=u f1_alpha f2=r f2_alpha f12=ur	
+F	p=“cu s=rly” p1=u p1_alpha p2=c p2_alpha p21=cu p1f1=ur f1=r f1_alpha f2=l f2_alpha f12=rl	
+F	p=“cur s=ly” p1=r p1_alpha p2=u p2_alpha p21=ur p1f1=rl f1=l f1_alpha f2=y f2_alpha f12=ly	
+F	p=“curl s=y” p1=l p1_alpha p2=r p2_alpha p21=rl p1f1=ly f1=y f1_alpha f2=” f12=y”	
+F	p=“curly s=” p1=y p1_alpha p2=l p2_alpha p21=ly p1f1=y” f1=” f2=bok	
+F	p=‘ s=single’ p1=‘ p2=bok p1f1=‘s f1=s f1_alpha f2=i f2_alpha f12=si	
+F	p=‘s s=ingle’ p1=s p1_alpha p2=‘ p21=‘s p1f1=si f1=i f1_alpha f2=n f2_alpha f12=in	
+F	p=‘si s=ngle’ p1=i p1_alpha p2=s p2_alpha p21=si p1f1=in f1=n f1_alpha f2=g f2_alpha f12=ng	
+F	p=‘sin s=gle’ p1=n p1_alpha p2=i p2_alpha p21=in p1f1=ng f1=g f1_alpha f2=l f2_alpha f12=gl	
+F	p=‘sing s=le’ p1=g p1_alpha p2=n p2_alpha p21=ng p1f1=gl f1=l f1_alpha f2=e f2_alpha f12=le	
+F	p=‘singl s=e’ p1=l p1_alpha p2=g p2_alpha p21=gl p1f1=le f1=e f1_alpha f2=’ f12=e’	
+F	p=‘single s=’ p1=e p1_alpha p2=l p2_alpha p21=le p1f1=e’ f1=’ f2=bok	
+F	p=„ s=low“ p1=„ p2=bok p1f1=„l f1=l f1_alpha f2=o f2_alpha f12=lo	
+F	p=„l s=ow“ p1=l p1_alpha p2=„ p21=„l p1f1=lo f1=o f1_alpha f2=w f2_alpha f12=ow	
+F	p=„lo s=w“ p1=o p1_alpha p2=l p2_alpha p21=lo p1f1=ow f1=w f1_alpha f2=“ f12=w“	
+F	p=„low s=“ p1=w p1_alpha p2=o p2_alpha p21=ow p1f1=w“ f1=“ f2=bok	
+F	p=` s=code` p1=` p1_quote p2=bok p1f1=`c f1=c f1_alpha f2=o f2_alpha f12=co	
+F	p=`c s=ode` p1=c p1_alpha p2=` p2_quote p21=`c p1f1=co f1=o f1_alpha f2=d f2_alpha f12=od	
+F	p=`co s=de` p1=o p1_alpha p2=c p2_alpha p21=co p1f1=od f1=d f1_alpha f2=e f2_alpha f12=de	
+F	p=`cod s=e` p1=d p1_alpha p2=o p2_alpha p21=od p1f1=de f1=e f1_alpha f2=` f2_quote f12=e`	
+F	p=`code s=` p1=e p1_alpha p2=d p2_alpha p21=de p1f1=e` f1=` f1_quote f2=bok	
+F	p=( s=(nested p1=( p1_lp p2=bok p1f1=(( f1=( f1_lp f2=n f2_alpha f12=(n	
+F	p=(( s=nested p1=( p1_lp p2=( p2_lp p21=(( p1f1=(n f1=n f1_alpha f2=e f2_alpha f12=ne	
+F	p=((n s=ested p1=n p1_alpha p2=( p2_lp p21=(n p1f1=ne f1=e f1_alpha f2=s f2_alpha f12=es	
+F	p=((ne s=sted p1=e p1_alpha p2=n p2_alpha p21=ne p1f1=es f1=s f1_alpha f2=t f2_alpha f12=st	
+F	p=((nes s=ted p1=s p1_alpha p2=e p2_alpha p21=es p1f1=st f1=t f1_alpha f2=e f2_alpha f12=te	
+F	p=((nest s=ed p1=t p1_alpha p2=s p2_alpha p21=st p1f1=te f1=e f1_alpha f2=d f2_alpha f12=ed	
+F	p=((neste s=d p1=e p1_alpha p2=t p2_alpha p21=te p1f1=ed f1=d f1_alpha f2=bok	
+F	p=[ s=mixed p1=[ p1_lp p2=bok p1f1=[m f1=m f1_alpha f2=i f2_alpha f12=mi	
+F	p=[m s=ixed p1=m p1_alpha p2=[ p2_lp p21=[m p1f1=mi f1=i f1_alpha f2=x f2_alpha f12=ix	
+F	p=[mi s=xed p1=i p1_alpha p2=m p2_alpha p21=mi p1f1=ix f1=x f1_alpha f2=e f2_alpha f12=xe	
+F	p=[mix s=ed p1=x p1_alpha p2=i p2_alpha p21=ix p1f1=xe f1=e f1_alpha f2=d f2_alpha f12=ed	
+F	p=[mixe s=d p1=e p1_alpha p2=x p2_alpha p21=xe p1f1=ed f1=d f1_alpha f2=bok	
+F	p={ s=brackets}])) p1={ p1_lp p2=bok p1f1={b f1=b f1_alpha f2=r f2_alpha f12=br	
+F	p={b s=rackets}])) p1=b p1_alpha p2={ p2_lp p21={b p1f1=br f1=r f1_alpha f2=a f2_alpha f12=ra	
+F	p={br s=ackets}])) p1=r p1_alpha p2=b p2_alpha p21=br p1f1=ra f1=a f1_alpha f2=c f2_alpha f12=ac	
+F	p={bra s=ckets}])) p1=a p1_alpha p2=r p2_alpha p21=ra p1f1=ac f1=c f1_alpha f2=k f2_alpha f12=ck	
+F	p={brac s=kets}])) p1=c p1_alpha p2=a p2_alpha p21=ac p1f1=ck f1=k f1_alpha f2=e f2_alpha f12=ke	
+F	p={brack s=ets}])) p1=k p1_alpha p2=c p2_alpha p21=ck p1f1=ke f1=e f1_alpha f2=t f2_alpha f12=et	
+F	p={bracke s=ts}])) p1=e p1_alpha p2=k p2_alpha p21=ke p1f1=et f1=t f1_alpha f2=s f2_alpha f12=ts	
+F	p={bracket s=s}])) p1=t p1_alpha p2=e p2_alpha p21=et p1f1=ts f1=s f1_alpha f2=} f2_rp f12=s}	
+F	p={brackets s=}])) p1=s p1_alpha p2=t p2_alpha p21=ts p1f1=s} f1=} f1_rp f2=] f2_rp f12=}]	
+F	p={brackets} s=])) p1=} p1_rp p2=s p2_alpha p21=s} p1f1=}] f1=] f1_rp f2=) f2_rp f12=])	
+F	p={brackets}] s=)) p1=] p1_rp p2=} p2_rp p21=}] p1f1=]) f1=) f1_rp f2=) f2_rp f12=))	
+F	p={brackets}]) s=) p1=) p1_rp p2=] p2_rp p21=]) p1f1=)) f1=) f1_rp f2=bok	
+end	turbo:events
+layer	turbo:event-checksum	document	1	crc32c:u32
+418529552
+end	turbo:event-checksum
+layer	turbo:indexer-outcomes	document	1	label:str
+F
+end	turbo:indexer-outcomes
+layer	turbo:indexer-predicates	document	24	label:str	count:u32
+f1=d	6
+f1=e	13
+f1=o	5
+f1=t	5
+f1_alpha	68
+f1_rp	7
+f2=bok	20
+f2=d	6
+f2=e	11
+f2_alpha	50
+f2_rp	6
+p1=a	5
+p1=e	9
+p1=o	5
+p1=s	5
+p1=t	5
+p1_alpha	66
+p1_lp	7
+p2=a	5
+p2=bok	20
+p2=o	5
+p2=s	5
+p2_alpha	51
+p2_lp	7
+end	turbo:indexer-predicates
+layer	turbo:indexer-events	document	67	outcome:u32	context:str	values:str	seen:u32
+0	5 6		1
+0	5 10		1
+0	11 16 19 4 7 9		1
+0	11 16 21 22 4 7 9		1
+0	11 16 22 4		1
+0	11 16 22 4 9		1
+0	11 16 23 5 10		1
+0	12 16 22 0 4 6		3
+0	12 16 22 1 4 6		1
+0	12 16 22 3 4 9		1
+0	12 16 22 4 9		2
+0	12 16 22 6		2
+0	13 16 22		1
+0	13 16 22 0 4 8 9		1
+0	13 16 22 3 4 8 9		1
+0	13 16 22 4		2
+0	14 16 4 9		1
+0	14 16 19 4 8 9		1
+0	14 16 19 4 9		1
+0	14 16 22 3 4 8 9		1
+0	14 16 22 5 10		1
+0	15 16 4 9		1
+0	15 16 20 22 1 4 6		1
+0	15 16 21 22 1 4 7 9		1
+0	15 16 22 2 4 9		1
+0	15 16 22 4 10		1
+0	16 2 4		1
+0	16 2 4 7 9		1
+0	16 2 4 9		1
+0	16 3 4 9		1
+0	16 4 9		1
+0	16 18 22 0 4		1
+0	16 18 22 0 4 6		1
+0	16 18 22 4 8 9		1
+0	16 18 22 6		1
+0	16 19 1 4 6		1
+0	16 19 1 4 9		1
+0	16 19 2 4 9		1
+0	16 20 22		1
+0	16 20 22 1 4		1
+0	16 20 22 6		1
+0	16 21 22 1 4 6		1
+0	16 21 22 4 9		1
+0	16 22 1 4		1
+0	16 22 1 4 7 9		2
+0	16 22 1 4 9		1
+0	16 22 4		1
+0	16 22 4 8 9		3
+0	16 22 4 9		5
+0	16 22 6		2
+0	16 23 1 4 8 9		1
+0	16 23 1 4 9		1
+0	16 23 4 9		2
+0	16 23 6		1
+0	17 19 4		1
+0	17 19 4 8 9		1
+0	17 19 4 9		2
+0	17 19 4 10		1
+0	17 19 9		1
+0	17 23 4 8 9		1
+0	18 22 5 6		1
+0	19 3 4 9		1
+0	19 4 9		6
+0	19 5 6		1
+0	20 22 6		1
+0	21 22 5 10		1
+0	22 6		1
+end	turbo:indexer-events
+layer	turbo:gis-training	document	1	iterations:u32	message:str
+0	opennlp.tools.util.InsufficientTrainingDataException: Training data must contain more than one outcome
+end	turbo:gis-training

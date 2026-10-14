@@ -1,0 +1,30 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	multi/ja	172	58	d3061ebd06c3c878e31d5458e694849ea9a81a9ef20ca024233c46366645e824
+annotator	opennlp.tools.ml.maxent.GISTrainer	train
+config	Cutoff	1
+config	DataIndexer	TwoPass
+config	Iterations	100
+config	sort	true
+config	source	realvalue
+layer	turbo:events	document	1	outcome:str	context:str	values:str
+short	今日は朝から雨が降っています。駅まで歩くのに傘が必要でした。午後には晴れるそうです。週末は友達と山に登る予定です！	1.0
+end	turbo:events
+layer	turbo:event-checksum	document	1	crc32c:u32
+1126962768
+end	turbo:event-checksum
+layer	turbo:indexer-outcomes	document	1	label:str
+short
+end	turbo:indexer-outcomes
+layer	turbo:indexer-predicates	document	1	label:str	count:u32
+今日は朝から雨が降っています。駅まで歩くのに傘が必要でした。午後には晴れるそうです。週末は友達と山に登る予定です！	1
+end	turbo:indexer-predicates
+layer	turbo:indexer-events	document	1	outcome:u32	context:str	values:str	seen:u32
+0	0		1
+end	turbo:indexer-events
+layer	turbo:gis-training	document	1	iterations:u32	message:str
+0	opennlp.tools.util.InsufficientTrainingDataException: Training data must contain more than one outcome
+end	turbo:gis-training

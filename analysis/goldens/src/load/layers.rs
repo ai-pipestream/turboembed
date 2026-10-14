@@ -6,7 +6,9 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use turbo_analysis::{Ix, IxRange, Key, KeyId, Layer, Span, Spans, ViewId};
-use turbo_analysis_layers::{Confidence, Entities, Language, Lemmas, PosTags, Sentences, Tag, TagSet, Tokens};
+use turbo_analysis_layers::{
+    ChunkTags, Confidence, Entities, Language, Lemmas, PhraseChunks, PosTags, Sentences, Tag, TagSet, Tokens,
+};
 
 use super::{GoldenLoad, LoadCx, LoadError};
 use crate::format::GoldenLayer;
@@ -156,6 +158,40 @@ impl GoldenLoad for Entities {
         }
         let (kinds, kind) = tags(g, "kind", cx.key)?;
         Ok(Entities { spans: spans(g), tokens, kind, kinds, score: f64s(g, "prob").to_vec() })
+    }
+
+    /// The tokens it indexes.
+    fn made_on(cx: &LoadCx<'_>) -> Vec<KeyId> {
+        vec![Key::<Tokens>::named(cx.name).id()]
+    }
+}
+
+/// Chunk tags with their probabilities, onto the tokens loaded under the
+/// same name, as `PosTags`.
+impl GoldenLoad for ChunkTags {
+    fn load(g: &GoldenLayer, cx: &LoadCx<'_>) -> Result<ChunkTags, LoadError> {
+        cx.anchor::<Tokens>()?;
+        let (tagset, tags) = tags(g, "tag", cx.key)?;
+        Ok(ChunkTags { tagset, tags, prob: Some(f64s(g, "prob").to_vec()) })
+    }
+}
+
+/// Phrases on the source text, with their token ranges checked against
+/// the tokens loaded under the same name, as `Entities`; a phrase without
+/// a token is refused too.
+impl GoldenLoad for PhraseChunks {
+    fn load(g: &GoldenLayer, cx: &LoadCx<'_>) -> Result<PhraseChunks, LoadError> {
+        let n = cx.anchor::<Tokens>()?.len();
+        let (token_start, token_end) = (u32s(g, "token_start"), u32s(g, "token_end"));
+        let mut tokens = Vec::with_capacity(token_start.len());
+        for (row, (&start, &end)) in token_start.iter().zip(token_end).enumerate() {
+            if start >= end || end as usize > n {
+                return Err(LoadError::TokenRange { layer: cx.key, row, start, end, tokens: n });
+            }
+            tokens.push(IxRange::new(start, end));
+        }
+        let (kinds, kind) = tags(g, "kind", cx.key)?;
+        Ok(PhraseChunks { spans: spans(g), tokens, kind, kinds })
     }
 
     /// The tokens it indexes.

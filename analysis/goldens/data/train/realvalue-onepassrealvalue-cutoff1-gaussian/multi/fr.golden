@@ -1,0 +1,68 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	multi/fr	212	209	56bdde2c4bdb4db6f3ef4837291e2727e705804bf1a29cccc5738304ca7c5c61
+annotator	opennlp.tools.ml.maxent.GISTrainer	train
+config	Cutoff	1
+config	DataIndexer	OnePassRealValue
+config	GaussianSmoothing	true
+config	Iterations	100
+config	sort	true
+config	source	realvalue
+layer	turbo:events	document	1	outcome:str	context:str	values:str
+long	Le marché ouvre chaque samedi à huit heures. On y trouve des fromages, du pain et légumes de saison. M. Durand vend ses pommes depuis trente ans ! Est-ce que vous viendrez avec nous la semaine prochaine ?	1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 2.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0
+end	turbo:events
+layer	turbo:event-checksum	document	1	crc32c:u32
+2183791926
+end	turbo:event-checksum
+layer	turbo:indexer-outcomes	document	1	label:str
+long
+end	turbo:indexer-outcomes
+layer	turbo:indexer-predicates	document	38	label:str	count:u32
+!	1
+?	1
+Durand	1
+Est-ce	1
+Le	1
+M.	1
+On	1
+ans	1
+avec	1
+chaque	1
+de	1
+depuis	1
+des	1
+du	1
+et	1
+fromages,	1
+heures.	1
+huit	1
+la	1
+légumes	1
+marché	1
+nous	1
+ouvre	1
+pain	1
+pommes	1
+prochaine	1
+que	1
+saison.	1
+samedi	1
+semaine	1
+ses	1
+trente	1
+trouve	1
+vend	1
+viendrez	1
+vous	1
+y	1
+à	1
+end	turbo:indexer-predicates
+layer	turbo:indexer-events	document	1	outcome:u32	context:str	values:str	seen:u32
+0	4 20 22 9 28 37 17 16 6 36 32 12 15 13 23 14 19 10 27 5 2 33 30 24 11 31 7 0 3 26 35 34 8 21 18 29 25 1	1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 2.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0	1
+end	turbo:indexer-events
+layer	turbo:gis-training	document	1	iterations:u32	message:str
+0	opennlp.tools.util.InsufficientTrainingDataException: Training data must contain more than one outcome
+end	turbo:gis-training

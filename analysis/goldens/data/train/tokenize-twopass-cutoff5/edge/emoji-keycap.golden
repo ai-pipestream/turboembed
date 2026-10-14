@@ -1,0 +1,55 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	edge/emoji-keycap	42	30	579cb532486986a4ea86b75b4d584563581d9d0f39b0fa67b852ce5691b97d77
+annotator	opennlp.tools.ml.maxent.GISTrainer	train
+config	Cutoff	5
+config	DataIndexer	TwoPass
+config	Iterations	100
+config	sort	true
+config	source	tokenize
+layer	turbo:events	document	16	outcome:str	context:str	values:str
+F	p=P s=ress p1=P p1_alpha p1_caps p2=bok p1f1=Pr f1=r f1_alpha f2=e f2_alpha f12=re	
+F	p=Pr s=ess p1=r p1_alpha p2=P p2_alpha p2_caps p21=Pr p1f1=re f1=e f1_alpha f2=s f2_alpha f12=es	
+F	p=Pre s=ss p1=e p1_alpha p2=r p2_alpha p21=re p1f1=es f1=s f1_alpha f2=s f2_alpha f12=ss	
+F	p=Pres s=s p1=s p1_alpha p2=e p2_alpha p21=es p1f1=ss f1=s f1_alpha f2=bok	
+F	p=1 s=️⃣ p1=1 p1_num p2=bok p1f1=1️ f1=️ f2=⃣ f12=️⃣	
+F	p=1️ s=⃣ p1=️ p2=1 p2_num p21=1️ p1f1=️⃣ f1=⃣ f2=bok	
+F	p=t s=hen p1=t p1_alpha p2=bok p1f1=th f1=h f1_alpha f2=e f2_alpha f12=he	
+F	p=th s=en p1=h p1_alpha p2=t p2_alpha p21=th p1f1=he f1=e f1_alpha f2=n f2_alpha f12=en	
+F	p=the s=n p1=e p1_alpha p2=h p2_alpha p21=he p1f1=en f1=n f1_alpha f2=bok	
+F	p=# s=️⃣ p1=# p2=bok p1f1=#️ f1=️ f2=⃣ f12=️⃣	
+F	p=#️ s=⃣ p1=️ p2=# p21=#️ p1f1=️⃣ f1=⃣ f2=bok	
+F	p=o s=r p1=o p1_alpha p2=bok p1f1=or f1=r f1_alpha f2=bok	
+F	p=* s=️⃣ p1=* p2=bok p1f1=*️ f1=️ f2=⃣ f12=️⃣	
+F	p=*️ s=⃣ p1=️ p2=* p21=*️ p1f1=️⃣ f1=⃣ f2=bok	
+F	p=n s=ow p1=n p1_alpha p2=bok p1f1=no f1=o f1_alpha f2=w f2_alpha f12=ow	
+F	p=no s=w p1=o p1_alpha p2=n p2_alpha p21=no p1f1=ow f1=w f1_alpha f2=bok	
+end	turbo:events
+layer	turbo:event-checksum	document	1	crc32c:u32
+2422366568
+end	turbo:event-checksum
+layer	turbo:indexer-outcomes	document	1	label:str
+F
+end	turbo:indexer-outcomes
+layer	turbo:indexer-predicates	document	6	label:str	count:u32
+f1_alpha	10
+f2=bok	7
+f2_alpha	6
+p1_alpha	10
+p2=bok	7
+p2_alpha	6
+end	turbo:indexer-predicates
+layer	turbo:indexer-events	document	6	outcome:u32	context:str	values:str	seen:u32
+0	1		3
+0	3 4 0 1		1
+0	3 4 0 2		3
+0	3 5 0 1		3
+0	3 5 0 2		3
+0	4		3
+end	turbo:indexer-events
+layer	turbo:gis-training	document	1	iterations:u32	message:str
+0	opennlp.tools.util.InsufficientTrainingDataException: Training data must contain more than one outcome
+end	turbo:gis-training

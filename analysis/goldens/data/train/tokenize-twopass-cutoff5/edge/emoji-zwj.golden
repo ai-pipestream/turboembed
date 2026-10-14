@@ -1,0 +1,65 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	edge/emoji-zwj	61	39	cd1ccf3a0d51f34eaf3c645ac6ee1921a3aa17f6264b9803534a6da35a9e4e45
+annotator	opennlp.tools.ml.maxent.GISTrainer	train
+config	Cutoff	5
+config	DataIndexer	TwoPass
+config	Iterations	100
+config	sort	true
+config	source	tokenize
+layer	turbo:events	document	27	outcome:str	context:str	values:str
+F	p=F s=amily p1=F p1_alpha p1_caps p2=bok p1f1=Fa f1=a f1_alpha f2=m f2_alpha f12=am	
+F	p=Fa s=mily p1=a p1_alpha p2=F p2_alpha p2_caps p21=Fa p1f1=am f1=m f1_alpha f2=i f2_alpha f12=mi	
+F	p=Fam s=ily p1=m p1_alpha p2=a p2_alpha p21=am p1f1=mi f1=i f1_alpha f2=l f2_alpha f12=il	
+F	p=Fami s=ly p1=i p1_alpha p2=m p2_alpha p21=mi p1f1=il f1=l f1_alpha f2=y f2_alpha f12=ly	
+F	p=Famil s=y p1=l p1_alpha p2=i p2_alpha p21=il p1f1=ly f1=y f1_alpha f2=bok	
+F	p=\\ud83d s=\\udc68‍👩‍👧‍👦 p1=\\ud83d p2=bok p1f1=👨 f1=\\udc68 f2=‍ f12=\\udc68‍	
+F	p=👨 s=‍👩‍👧‍👦 p1=\\udc68 p2=\\ud83d p21=👨 p1f1=\\udc68‍ f1=‍ f2=\\ud83d f12=‍\\ud83d	
+F	p=👨‍ s=👩‍👧‍👦 p1=‍ p2=\\udc68 p21=\\udc68‍ p1f1=‍\\ud83d f1=\\ud83d f2=\\udc69 f12=👩	
+F	p=👨‍\\ud83d s=\\udc69‍👧‍👦 p1=\\ud83d p2=‍ p21=‍\\ud83d p1f1=👩 f1=\\udc69 f2=‍ f12=\\udc69‍	
+F	p=👨‍👩 s=‍👧‍👦 p1=\\udc69 p2=\\ud83d p21=👩 p1f1=\\udc69‍ f1=‍ f2=\\ud83d f12=‍\\ud83d	
+F	p=👨‍👩‍ s=👧‍👦 p1=‍ p2=\\udc69 p21=\\udc69‍ p1f1=‍\\ud83d f1=\\ud83d f2=\\udc67 f12=👧	
+F	p=👨‍👩‍\\ud83d s=\\udc67‍👦 p1=\\ud83d p2=‍ p21=‍\\ud83d p1f1=👧 f1=\\udc67 f2=‍ f12=\\udc67‍	
+F	p=👨‍👩‍👧 s=‍👦 p1=\\udc67 p2=\\ud83d p21=👧 p1f1=\\udc67‍ f1=‍ f2=\\ud83d f12=‍\\ud83d	
+F	p=👨‍👩‍👧‍ s=👦 p1=‍ p2=\\udc67 p21=\\udc67‍ p1f1=‍\\ud83d f1=\\ud83d f2=\\udc66 f12=👦	
+F	p=👨‍👩‍👧‍\\ud83d s=\\udc66 p1=\\ud83d p2=‍ p21=‍\\ud83d p1f1=👦 f1=\\udc66 f2=bok	
+F	p=h s=ere p1=h p1_alpha p2=bok p1f1=he f1=e f1_alpha f2=r f2_alpha f12=er	
+F	p=he s=re p1=e p1_alpha p2=h p2_alpha p21=he p1f1=er f1=r f1_alpha f2=e f2_alpha f12=re	
+F	p=her s=e p1=r p1_alpha p2=e p2_alpha p21=er p1f1=re f1=e f1_alpha f2=bok	
+F	p=a s=nd p1=a p1_alpha p2=bok p1f1=an f1=n f1_alpha f2=d f2_alpha f12=nd	
+F	p=an s=d p1=n p1_alpha p2=a p2_alpha p21=an p1f1=nd f1=d f1_alpha f2=bok	
+F	p=\\ud83c s=\\udff3️‍🌈 p1=\\ud83c p2=bok p1f1=🏳 f1=\\udff3 f2=️ f12=\\udff3️	
+F	p=🏳 s=️‍🌈 p1=\\udff3 p2=\\ud83c p21=🏳 p1f1=\\udff3️ f1=️ f2=‍ f12=️‍	
+F	p=🏳️ s=‍🌈 p1=️ p2=\\udff3 p21=\\udff3️ p1f1=️‍ f1=‍ f2=\\ud83c f12=‍\\ud83c	
+F	p=🏳️‍ s=🌈 p1=‍ p2=️ p21=️‍ p1f1=‍\\ud83c f1=\\ud83c f2=\\udf08 f12=🌈	
+F	p=🏳️‍\\ud83c s=\\udf08 p1=\\ud83c p2=‍ p21=‍\\ud83c p1f1=🌈 f1=\\udf08 f2=bok	
+F	p=t s=oo p1=t p1_alpha p2=bok p1f1=to f1=o f1_alpha f2=o f2_alpha f12=oo	
+F	p=to s=o p1=o p1_alpha p2=t p2_alpha p21=to p1f1=oo f1=o f1_alpha f2=bok	
+end	turbo:events
+layer	turbo:event-checksum	document	1	crc32c:u32
+1307949750
+end	turbo:event-checksum
+layer	turbo:indexer-outcomes	document	1	label:str
+F
+end	turbo:indexer-outcomes
+layer	turbo:indexer-predicates	document	6	label:str	count:u32
+f1_alpha	12
+f2=bok	6
+f2_alpha	8
+p1_alpha	12
+p2=bok	6
+p2_alpha	8
+end	turbo:indexer-predicates
+layer	turbo:indexer-events	document	5	outcome:u32	context:str	values:str	seen:u32
+0	1		2
+0	3 4 0 2		4
+0	3 5 0 1		4
+0	3 5 0 2		4
+0	4		2
+end	turbo:indexer-events
+layer	turbo:gis-training	document	1	iterations:u32	message:str
+0	opennlp.tools.util.InsufficientTrainingDataException: Training data must contain more than one outcome
+end	turbo:gis-training

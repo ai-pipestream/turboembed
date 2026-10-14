@@ -1,0 +1,87 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	edge/supplementary	98	76	ccf9ecafa95f1e9d3891e47badd0ef6b83a8a2b02d79d24db46daf0bfa5b387e
+model	opennlp-en-ud-ewt-lemmas-1.3-2.5.4.bin	ee81553985908ac25c50fbd8f2ca4222cb42a18845f063c792a1b43639181b70ce20d57b8736a1604367f5e8c59aef55f8463e04004840cbc88abb7123fd9e7f
+model	opennlp-en-ud-ewt-sentence-1.3-2.5.4.bin	fed5d53ea87bf66afeb08c084f89ca9b95a96de0920dca40487b2ab9972ee6b7ef211e477db480b7253431de079fd66dfd14329cd7d19ad1f565155eb0cf5191
+model	opennlp-en-ud-ewt-tokens-1.3-2.5.4.bin	147d1cdcb89ca5d9bd0ead8fddf2cc14ae543a9151803fe56b3c1fa152b986605e34fb6dda4819c68aa22fc9bffa6bfab14f916b7d0bf4892d452686af34778a
+model	opennlp-en-ud-ewt-pos-1.3-2.5.4.bin	fca85b38d996b7c422401054feedeb0f748cbc03856893cb27670da5d207315ec9af0c0f818c3107a741a2effca2499b5097ac0b46edf4a5ac10bf77a351ac3e
+annotator	opennlp.tools.lemmatizer.LemmatizerME	lemmatize
+layer	opennlp:sentences	text	2	start:u32	end:u32
+0	82
+83	97
+end	opennlp:sentences
+layer	opennlp:tokens	text	16	start:u32	end:u32
+0	5
+6	8
+9	13
+13	14
+15	23
+23	24
+25	29
+30	42
+43	55
+56	63
+64	76
+77	81
+81	82
+83	87
+88	92
+93	97
+end	opennlp:tokens
+layer	opennlp:pos	aligned:opennlp:tokens	16	tag:str	prob:f64
+NOUN	3fd103ddff05d6c7 0.26586103348323004
+ADP	3fee874f92cc169e 0.954017435754128
+NOUN	3fef2bf98a216cc4 0.9741180131781211
+PUNCT	3fefd9d9d38432a9 0.9953431254558228
+NOUN	3fe7ef65124bdfdf 0.7479729993201508
+PUNCT	3fefb50fb5a57e26 0.9908522174627634
+NOUN	3feedfcf6684eae2 0.9648205759361554
+PUNCT	3febfa27d6665f56 0.8742865741250891
+PUNCT	3fe4d170fd37cfd9 0.6505665727295266
+VERB	3fe1a9c5c71e8948 0.5519741906212312
+ADV	3fe28c1bc3f2b725 0.5796030833350626
+VERB	3fe2667f4d36a15a 0.5750118740152559
+PUNCT	3fefee4399b9022c 0.9978349687954213
+PRON+AUX	3fe35413687a24d5 0.604013160759815
+ADJ	3fefa04e1366c1bd 0.9883184794362517
+PROPN	3fdb3e58ffd91504 0.4256803987994575
+end	opennlp:pos
+layer	opennlp:lemmas	aligned:opennlp:tokens	16	lemma:str
+emoji
+in
+word
+:
+ab😀cd
+,
+math
+𝐀𝐁𝐂
+𝐚𝐛𝐜
+deseret
+𐐨𐐨𐑅
+do
+.
+𠀀
+rare
+cjk.
+end	opennlp:lemmas
+layer	turbo:confidence<opennlp:lemmas>	aligned:opennlp:lemmas	16	value:f64
+3fe25dc63ef85d23 0.5739470701109081
+3feff15342591e1a 0.9982086463796265
+3feff4f5f3abfed9 0.998652435227963
+3feff4b30cf862df 0.9986205342603077
+3febb86edb7d0dd5 0.8662637984165779
+3feff4d01acdd323 0.9986343883052523
+3fefff0bc2011325 0.9998835362572193
+3fe2d7c1ae2c2de7 0.5888374711807359
+3fe2d7c1ae2c2de7 0.5888374711807359
+3fec4b7b0782e96d 0.8842139383989839
+3fe163f86ff5be3a 0.5434534250943621
+3feea29f5d63e3ce 0.9573513816859476
+3feff06e4f15fde1 0.9980994743963799
+3fc5849d894db653 0.1681096001079135
+3feff6e226992642 0.9988871339675784
+3feed473f573d567 0.9634341997140553
+end	turbo:confidence<opennlp:lemmas>

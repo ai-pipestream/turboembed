@@ -1,0 +1,50 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	multi/ar	224	124	421843fa20516ed200f358d541cb8ecd397177813c10f6207e75b9f1632bc013
+annotator	opennlp.tools.ml.maxent.GISTrainer	train
+config	Cutoff	1
+config	DataIndexer	TwoPass
+config	Iterations	100
+config	sort	true
+config	source	realvalue
+layer	turbo:events	document	1	outcome:str	context:str	values:str
+long	ذهبنا إلى السوق في الصباح الباكر. كانت الفواكه طازجة والأسعار مناسبة. اشترت أمي البرتقال والعنب. هل تريد أن تأتي معنا غداً؟	1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0
+end	turbo:events
+layer	turbo:event-checksum	document	1	crc32c:u32
+4063757282
+end	turbo:event-checksum
+layer	turbo:indexer-outcomes	document	1	label:str
+long
+end	turbo:indexer-outcomes
+layer	turbo:indexer-predicates	document	21	label:str	count:u32
+أمي	1
+أن	1
+إلى	1
+اشترت	1
+الباكر.	1
+البرتقال	1
+السوق	1
+الصباح	1
+الفواكه	1
+تأتي	1
+تريد	1
+ذهبنا	1
+طازجة	1
+غداً؟	1
+في	1
+كانت	1
+معنا	1
+مناسبة.	1
+هل	1
+والأسعار	1
+والعنب.	1
+end	turbo:indexer-predicates
+layer	turbo:indexer-events	document	1	outcome:u32	context:str	values:str	seen:u32
+0	11 2 6 14 7 4 15 8 12 19 17 3 0 5 20 18 10 1 9 16 13		1
+end	turbo:indexer-events
+layer	turbo:gis-training	document	1	iterations:u32	message:str
+0	opennlp.tools.util.InsufficientTrainingDataException: Training data must contain more than one outcome
+end	turbo:gis-training

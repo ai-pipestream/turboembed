@@ -1,0 +1,59 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	edge/chinese	70	24	6a87cfac7eeb0aa8e368eca93b72edde8c893c5dc4c4d1a1379f9d00c9e0f3cd
+annotator	opennlp.tools.ml.maxent.GISTrainer	train
+config	Cutoff	5
+config	DataIndexer	TwoPass
+config	Iterations	100
+config	sort	true
+config	source	tokenize
+layer	turbo:events	document	22	outcome:str	context:str	values:str
+F	p=我 s=爱北京天安门。今天天气很好，我们去公园玩吧！ p1=我 p1_alpha p2=bok p1f1=我爱 f1=爱 f1_alpha f2=北 f2_alpha f12=爱北	
+F	p=我爱 s=北京天安门。今天天气很好，我们去公园玩吧！ p1=爱 p1_alpha p2=我 p2_alpha p21=我爱 p1f1=爱北 f1=北 f1_alpha f2=京 f2_alpha f12=北京	
+F	p=我爱北 s=京天安门。今天天气很好，我们去公园玩吧！ p1=北 p1_alpha p2=爱 p2_alpha p21=爱北 p1f1=北京 f1=京 f1_alpha f2=天 f2_alpha f12=京天	
+F	p=我爱北京 s=天安门。今天天气很好，我们去公园玩吧！ p1=京 p1_alpha p2=北 p2_alpha p21=北京 p1f1=京天 f1=天 f1_alpha f2=安 f2_alpha f12=天安	
+F	p=我爱北京天 s=安门。今天天气很好，我们去公园玩吧！ p1=天 p1_alpha p2=京 p2_alpha p21=京天 p1f1=天安 f1=安 f1_alpha f2=门 f2_alpha f12=安门	
+F	p=我爱北京天安 s=门。今天天气很好，我们去公园玩吧！ p1=安 p1_alpha p2=天 p2_alpha p21=天安 p1f1=安门 f1=门 f1_alpha f2=。 f12=门。	
+F	p=我爱北京天安门 s=。今天天气很好，我们去公园玩吧！ p1=门 p1_alpha p2=安 p2_alpha p21=安门 p1f1=门。 f1=。 f2=今 f2_alpha f12=。今	
+F	p=我爱北京天安门。 s=今天天气很好，我们去公园玩吧！ p1=。 p2=门 p2_alpha p21=门。 p1f1=。今 f1=今 f1_alpha f2=天 f2_alpha f12=今天	
+F	p=我爱北京天安门。今 s=天天气很好，我们去公园玩吧！ p1=今 p1_alpha p2=。 p21=。今 p1f1=今天 f1=天 f1_alpha f2=天 f2_alpha f12=天天	
+F	p=我爱北京天安门。今天 s=天气很好，我们去公园玩吧！ p1=天 p1_alpha p2=今 p2_alpha p21=今天 p1f1=天天 f1=天 f1_alpha f2=气 f2_alpha f12=天气	
+F	p=我爱北京天安门。今天天 s=气很好，我们去公园玩吧！ p1=天 p1_alpha p2=天 p2_alpha p21=天天 p1f1=天气 f1=气 f1_alpha f2=很 f2_alpha f12=气很	
+F	p=我爱北京天安门。今天天气 s=很好，我们去公园玩吧！ p1=气 p1_alpha p2=天 p2_alpha p21=天气 p1f1=气很 f1=很 f1_alpha f2=好 f2_alpha f12=很好	
+F	p=我爱北京天安门。今天天气很 s=好，我们去公园玩吧！ p1=很 p1_alpha p2=气 p2_alpha p21=气很 p1f1=很好 f1=好 f1_alpha f2=， f12=好，	
+F	p=我爱北京天安门。今天天气很好 s=，我们去公园玩吧！ p1=好 p1_alpha p2=很 p2_alpha p21=很好 p1f1=好， f1=， f2=我 f2_alpha f12=，我	
+F	p=我爱北京天安门。今天天气很好， s=我们去公园玩吧！ p1=， p2=好 p2_alpha p21=好， p1f1=，我 f1=我 f1_alpha f2=们 f2_alpha f12=我们	
+F	p=我爱北京天安门。今天天气很好，我 s=们去公园玩吧！ p1=我 p1_alpha p2=， p21=，我 p1f1=我们 f1=们 f1_alpha f2=去 f2_alpha f12=们去	
+F	p=我爱北京天安门。今天天气很好，我们 s=去公园玩吧！ p1=们 p1_alpha p2=我 p2_alpha p21=我们 p1f1=们去 f1=去 f1_alpha f2=公 f2_alpha f12=去公	
+F	p=我爱北京天安门。今天天气很好，我们去 s=公园玩吧！ p1=去 p1_alpha p2=们 p2_alpha p21=们去 p1f1=去公 f1=公 f1_alpha f2=园 f2_alpha f12=公园	
+F	p=我爱北京天安门。今天天气很好，我们去公 s=园玩吧！ p1=公 p1_alpha p2=去 p2_alpha p21=去公 p1f1=公园 f1=园 f1_alpha f2=玩 f2_alpha f12=园玩	
+F	p=我爱北京天安门。今天天气很好，我们去公园 s=玩吧！ p1=园 p1_alpha p2=公 p2_alpha p21=公园 p1f1=园玩 f1=玩 f1_alpha f2=吧 f2_alpha f12=玩吧	
+F	p=我爱北京天安门。今天天气很好，我们去公园玩 s=吧！ p1=玩 p1_alpha p2=园 p2_alpha p21=园玩 p1f1=玩吧 f1=吧 f1_alpha f2=！ f12=吧！	
+F	p=我爱北京天安门。今天天气很好，我们去公园玩吧 s=！ p1=吧 p1_alpha p2=玩 p2_alpha p21=玩吧 p1f1=吧！ f1=！ f2=bok	
+end	turbo:events
+layer	turbo:event-checksum	document	1	crc32c:u32
+3493469471
+end	turbo:event-checksum
+layer	turbo:indexer-outcomes	document	1	label:str
+F
+end	turbo:indexer-outcomes
+layer	turbo:indexer-predicates	document	4	label:str	count:u32
+f1_alpha	19
+f2_alpha	18
+p1_alpha	20
+p2_alpha	19
+end	turbo:indexer-predicates
+layer	turbo:indexer-events	document	6	outcome:u32	context:str	values:str	seen:u32
+0	2 0 1		3
+0	2 3		1
+0	2 3 0		3
+0	2 3 0 1		11
+0	2 3 1		2
+0	3 0 1		2
+end	turbo:indexer-events
+layer	turbo:gis-training	document	1	iterations:u32	message:str
+0	opennlp.tools.util.InsufficientTrainingDataException: Training data must contain more than one outcome
+end	turbo:gis-training
