@@ -23,8 +23,7 @@ use std::process::ExitCode;
 use turbo_formats::masc::MascCorpus;
 use turbo_train_recipes::card::write_model_dir;
 use turbo_train_recipes::masc::{self, RELEASE, Release};
-use turbo_train_recipes::segmentation::RECIPES;
-use turbo_train_recipes::{Error, run};
+use turbo_train_recipes::{Error, RECIPES, run};
 
 const USAGE: &str = "usage:
   turbo-train-recipes masc --corpus <dir> --references <dir> --out <dir> [--unrecorded-corpus]
@@ -86,11 +85,14 @@ fn masc_command(a: Args) -> Result<bool, String> {
         let reference = std::fs::read(&path).map_err(|e| format!("{}: {e}", path.display()))?;
         recipe.check_reference(&reference).map_err(|e| e.to_string())?;
         let outcome =
-            run(recipe, &split, &digest, recorded, recipe.reference_id, &reference).map_err(|e| e.to_string())?;
+            run(recipe, &split, &digest, recorded, recipe.reference_id(), &reference).map_err(|e| e.to_string())?;
         write_model_dir(&out, &outcome.card, &outcome.trained.bytes, &outcome.gate).map_err(|e| e.to_string())?;
         println!(
             "{}: {} samples, {} sentences skipped, {} events",
-            recipe.model_id, outcome.trained.samples, outcome.trained.skipped_sentences, outcome.trained.events
+            recipe.model_id(),
+            outcome.trained.samples,
+            outcome.trained.skipped_sentences,
+            outcome.trained.events
         );
         println!("{}", outcome.gate);
         all_pass &= outcome.gate.result.pass;

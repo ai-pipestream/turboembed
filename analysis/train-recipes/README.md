@@ -8,6 +8,7 @@ accuracy gate each model passes before it ships (#401). docs/analysis.md
 |---|---|
 | `masc` | MASC 3.0.0 (CC BY 3.0 US): the release record, its zoo dataset entry and fetch, the digest of an extracted copy, the fixed split |
 | `segmentation` | The English sentence detector and tokenizer recipes: training on the split's training documents, the held-out samples, scoring a model with OpenNLP's evaluators, the gate against the OpenNLP English UD model |
+| `postag` | The English part-of-speech tagger recipe, the same way: training on MASC's Penn tags, the held-out samples, scoring with `POSEvaluator`, the gate against the OpenNLP English UD tagger asked for Penn tags |
 | `card` | The model card, the model's directory (model, `card.json`, `gate.json`) and its permissive zoo entry, made only for a card whose gate passed on the recorded release |
 
 ```
@@ -18,7 +19,8 @@ cargo run --release -p turbo-train-recipes -- fetch-masc --home <zoo-home>
 
 `--references` is a directory holding the OpenNLP models under the file
 names the zoo gives them (`opennlp-en-ud-ewt-sentence-1.3-2.5.4.bin`,
-`opennlp-en-ud-ewt-tokens-1.3-2.5.4.bin`), as `cargo run -p
+`opennlp-en-ud-ewt-tokens-1.3-2.5.4.bin`,
+`opennlp-en-ud-ewt-pos-1.3-2.5.4.bin`), as `cargo run -p
 turbo-goldens-tool -- fetch-models <dir>` writes them; each is checked
 against the zoo's SHA-256. The exit status is 1 when a gate fails and 2
 on an error.
@@ -29,18 +31,40 @@ on an error.
 |---|---|---|---|
 | `turbo-en-masc-3.0.0-sentence-1` | `opennlp-en-ud-ewt-sentence-1.3-2.5.4` | MASC sentence samples of 10 sentences | F-measure of sentence spans |
 | `turbo-en-masc-3.0.0-tokens-1` | `opennlp-en-ud-ewt-tokens-1.3-2.5.4` | MASC Penn tokens, one sample per sentence | F-measure of token spans |
+| `turbo-en-masc-3.0.0-pos-1` | `opennlp-en-ud-ewt-pos-1.3-2.5.4`, asked for Penn tags | MASC Penn tokens and their `msd` tags, one sample per sentence | Word accuracy, one unit per sentence |
 
 - Split: the documents in the reader's order (each directory's headers
   by name); positions 9, 19, 29 and so on are held out, one in ten. No
   randomness, so no seed.
 - Parameters: those of the reference models (`ud::training_parameters`:
   GIS, 300 iterations, cutoff 5, 4 threads), the factory defaults for
-  English, OpenNLP 2.5.4's whitespace, and a fixed manifest `Timestamp`
-  (2026-10-14T00:00:00Z), so a run gives the same model bytes.
+  English (for the tagger: the default feature generator descriptor, no
+  tag dictionary, beam size 3), OpenNLP 2.5.4's whitespace, and a fixed
+  manifest `Timestamp` (2026-10-14T00:00:00Z), so a run gives the same
+  model bytes.
 - Samples: what OpenNLP's MASC streams read, except that the token
   stream skips a sentence without a sample (no tokens, or an empty
-  token) alone; OpenNLP's stops reading the corpus there. The card
-  records how many were skipped.
+  token) alone, where OpenNLP's stops reading the corpus, and the
+  part-of-speech stream skips a sentence with a token without a tag
+  alone, where OpenNLP's throws and ends the training run; a sentence of
+  no tokens gives the tagger no event and no held-out unit, and is
+  skipped too. The card records how many were skipped.
+- The tagger's gate: MASC's tags are Penn tags and the reference was
+  trained on UD tags, so the reference is scored as `POSTaggerME` returns
+  Penn tags when asked for them (`PosTagFormat::Penn`), its outcomes
+  converted by `POSTagFormatMapper`, one Penn tag per UD tag (`VERB` is
+  `VB`, `NOUN` is `NN`, `PUNCT` is `.`). The reference can never give
+  `VBD`, `NNS`, `,`, `TO` and the other Penn tags outside that image, so
+  the gate is lenient: it shows that the trained model is not worse than
+  what OpenNLP 2.5.4 gives a user who asks its English model for Penn
+  tags, not that it tags as well as the reference in the reference's
+  own tag set. On the eight sentences of the tests' corpus (below), the
+  published model scores 62.0 that way. OpenNLP publishes no English tagger trained on Penn
+  tags other than the 1.5 models, whose training data was never
+  released; scoring both in UD tags instead would convert MASC's tags
+  with the same many to one table and count the reference wrong on every
+  `AUX` and `SCONJ`, which the table never gives. The card records the
+  tag formats both models were scored in.
 - Licence: the models are Apache-2.0, trained on CC BY 3.0 US data, so
   their zoo class is permissive; the card carries the attribution CC BY
   asks for, which ships with the model: MASC 3.0.0, by the American
@@ -69,24 +93,24 @@ published as a gzip tar needs one before it can be listed.
 
 ## Not here yet
 
-- The part-of-speech tagger recipe: it needs the part-of-speech event
-  stream and its trainer, which are not in the workspace yet. MASC's
-  Penn tags and the reader's `MascPosReader` are ready for it, and the
-  gate takes accuracy counts (`Counts::accuracy`). The reference,
-  `opennlp-en-ud-ewt-pos-1.3-2.5.4`, tags with the UD tag set, so its
-  scores against MASC's Penn tags need a mapping or a Penn reference.
 - Scores on MASC: none are recorded until the release is recorded and
-  the recipes are run on it.
+  the recipes are run on it. No recipe, the tagger's included, has been
+  run on MASC itself.
 
 ## Tests
 
 `tests/recipes.rs` writes corpora in MASC's layout (`tests/common`, no
-MASC text) and runs everything on them: the split in the reader's
-order; both recipes trained, scored and gated; the same bytes from a
-second training; the card, the model's directory and its zoo entry; and
-the binary's refusal of an unrecorded corpus and its output. The test
-corpora are made of eight sentences, so a model trained on one has seen
-every held-out sentence and its score there measures nothing. The gate
+MASC text, Penn tags written for the tests) and runs everything on
+them: the split in the reader's order; the three recipes trained,
+scored and gated; the same bytes from a second training; the card, the
+model's directory and its zoo entry; and the binary's refusal of an
+unrecorded corpus and its output. It also reads the MASC corpora
+checked in for the goldens (`analysis/goldens/data/inputs/formats/masc-*.txt`)
+with the tagger recipe's reader and checks that it reads the samples
+OpenNLP's `MascPOSSampleStream` read from them in the JVM (the
+`masc/pos` goldens), and skips the sentences that stream threw on. The
+test corpora are made of eight sentences, so a model trained on one has
+seen every held-out sentence and its score there measures nothing. The gate
 is checked against a model trained on plainer text: as the reference it
 loses and the trained model passes, and as the candidate it loses far
 more than the margin and fails, which is the check that tells the gate
@@ -96,7 +120,8 @@ difference.
 The published references need `TURBO_GOLDENS_MODELS` naming a directory
 that holds them (`cargo run -p turbo-goldens-tool -- fetch-models
 <dir>`). With it, they are checked against the zoo's digests and scored
-on the test corpus, and the binary runs end to end; without it those
+on the test corpus, the tagger asked for Penn tags is checked to give
+only the converted tags, and the binary runs end to end; without it those
 parts skip, unless `TURBO_TEST_REQUIRE_OPENNLP_MODELS=1`, which makes
 them fail. CI runs the test with both set, in the step that requires
 the published models.

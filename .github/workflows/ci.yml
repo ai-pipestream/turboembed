@@ -67,7 +67,7 @@ jobs:
       # turbo-sequence's beam and tag-format tests the en pos model.
       # turbo-zoo checks their bytes against its index, turbo-eval's
       # default sentence model is the English one, and turbo-train-recipes
-      # gates its models against the English sentence and token models.
+      # gates its models against the English sentence, token and pos models.
       - name: parity against the JVM with the published models, models required
         env:
           TURBO_GOLDENS_MODELS: ${{ github.workspace }}/.opennlp-models

@@ -1,7 +1,12 @@
 //! The MASC recipes end to end on corpora written in MASC's layout: the
 //! split, training, scoring both models on the held-out samples, the
-//! gate, the card and the model's directory.
+//! gate, the card and the model's directory; and the part-of-speech
+//! recipe's samples on the MASC corpora checked in for the goldens.
 
+/// The bundles the MASC goldens' inputs are written in, read as the
+/// `turbo-formats` tests read them.
+#[path = "../../formats/tests/bundle/mod.rs"]
+mod bundle;
 mod common;
 
 use std::path::PathBuf;
@@ -9,10 +14,11 @@ use std::path::PathBuf;
 use common::{GATED_DOCUMENTS, SENTENCES, temp_dir, write_corpus};
 use turbo_eval::model_gate::{Measure, ModelGateRecord, Task};
 use turbo_formats::masc::MascCorpus;
-use turbo_train_recipes::card::{CARD_FILE, GATE_FILE, ModelCard, write_model_dir};
+use turbo_train_recipes::card::{CARD_FILE, GATE_FILE, ModelCard, TagFormat, write_model_dir};
 use turbo_train_recipes::masc::{self, RELEASE, SPLIT, SplitCorpus};
-use turbo_train_recipes::segmentation::{RECIPES, SENTENCE, TOKENS};
-use turbo_train_recipes::{Error, held_out_name, run};
+use turbo_train_recipes::postag::{self, CANDIDATE_FORMAT, POS};
+use turbo_train_recipes::segmentation::{SENTENCE, TOKENS};
+use turbo_train_recipes::{Error, RECIPES, Recipe, held_out_name, run};
 use turbo_zoo::{Index, LicenceClass};
 
 /// The pool without abbreviations, attached punctuation or contractions:
@@ -69,15 +75,17 @@ fn the_recipes_train_score_gate_and_write_their_cards() {
     let out = temp_dir("out");
     for recipe in RECIPES {
         let weak = recipe.train(&plain.train).unwrap();
+        println!("{}: the plain corpus gave {} samples, {} events", recipe.model_id(), weak.samples, weak.events);
         let outcome = run(&recipe, &split, &digest, false, "plain", &weak.bytes).unwrap();
         let gate = &outcome.gate;
         gate.check().unwrap();
         println!("{gate}");
         assert_eq!(gate.task, recipe.task());
-        assert_eq!(gate.measure, Measure::FMeasure);
+        let measure = if recipe.task() == Task::PartOfSpeechTagger { Measure::Accuracy } else { Measure::FMeasure };
+        assert_eq!(gate.measure, measure);
         assert_eq!(gate.set.name, held_out_name());
         assert_eq!(gate.set.corpus_sha256, digest.sha256);
-        assert_eq!(gate.candidate.id, recipe.model_id);
+        assert_eq!(gate.candidate.id, recipe.model_id());
         assert_eq!(gate.reference.id, "plain");
         // The model that has seen the held-out sentences beats the one
         // that never saw their abbreviations and contractions, and passes.
@@ -89,9 +97,15 @@ fn the_recipes_train_score_gate_and_write_their_cards() {
         // The same models with their places swapped: the weak model as
         // the candidate loses far more than the margin, and fails. This is
         // the check that discriminates.
-        let held_out = recipe.held_out(&split.held_out).unwrap();
         let swapped = recipe
-            .gate(&weak.bytes, recipe.model_id, &outcome.trained.bytes, &held_out, &held_out_name(), &digest.sha256)
+            .gate(
+                &weak.bytes,
+                recipe.model_id(),
+                &outcome.trained.bytes,
+                &split.held_out,
+                &held_out_name(),
+                &digest.sha256,
+            )
             .unwrap();
         assert!(swapped.result.difference.high < 0.0, "{swapped}");
         assert!(!swapped.result.pass);
@@ -99,9 +113,9 @@ fn the_recipes_train_score_gate_and_write_their_cards() {
         let itself = recipe
             .gate(
                 &outcome.trained.bytes,
-                recipe.model_id,
+                recipe.model_id(),
                 &outcome.trained.bytes,
-                &held_out,
+                &split.held_out,
                 &held_out_name(),
                 &digest.sha256,
             )
@@ -113,7 +127,8 @@ fn the_recipes_train_score_gate_and_write_their_cards() {
         assert_eq!(recipe.train(&split.train).unwrap().bytes, outcome.trained.bytes);
 
         let card = &outcome.card;
-        assert_eq!(card.id, recipe.model_id);
+        assert_eq!(card.id, recipe.model_id());
+        assert_eq!(card.component, recipe.component());
         assert_eq!(card.class, LicenceClass::Permissive);
         assert_eq!(card.trained_on, vec![masc::training_data()]);
         assert!(card.attribution.contains("CC") || card.attribution.contains("Creative Commons"));
@@ -122,13 +137,24 @@ fn the_recipes_train_score_gate_and_write_their_cards() {
         assert_eq!(card.training.seed, None);
         assert_eq!(card.training.sentences_per_sample.is_some(), recipe.task() == Task::SentenceDetector);
         assert_eq!(card.gate.pass, gate.result.pass);
+        match recipe {
+            Recipe::Pos(_) => {
+                assert_eq!(card.training.whitespace, None);
+                assert_eq!(card.gate.candidate_tag_format, Some(TagFormat::Custom));
+                assert_eq!(card.gate.reference_tag_format, Some(TagFormat::Penn));
+            }
+            Recipe::Segmentation(_) => {
+                assert_eq!(card.training.whitespace.as_deref(), Some("legacy"));
+                assert_eq!((card.gate.candidate_tag_format, card.gate.reference_tag_format), (None, None));
+            }
+        }
 
         write_model_dir(&out, card, &outcome.trained.bytes, gate).unwrap();
-        let dir = out.join(recipe.model_id);
+        let dir = out.join(recipe.model_id());
         assert_eq!(ModelCard::read(&dir.join(CARD_FILE)).unwrap(), *card);
         let other = dir.join("other-card.json");
-        std::fs::write(&other, card.to_json().replace("\"card_version\": 1,", "\"card_version\": 2,")).unwrap();
-        assert!(matches!(ModelCard::read(&other), Err(Error::CardVersion { found: 2, .. })));
+        std::fs::write(&other, card.to_json().replace("\"card_version\": 2,", "\"card_version\": 1,")).unwrap();
+        assert!(matches!(ModelCard::read(&other), Err(Error::CardVersion { found: 1, .. })));
         std::fs::write(&other, "{}").unwrap();
         assert!(matches!(ModelCard::read(&other), Err(Error::Json { .. })));
         let bad_split = card.to_json().replace("\"every\": 10,", "\"every\": 0,");
@@ -153,7 +179,8 @@ fn the_recipes_train_score_gate_and_write_their_cards() {
         released.corpus.release_recorded = true;
         let artifact = released.artifact(&url).unwrap();
         let index = Index::parse(Index::to_canonical_json(&[artifact]).as_bytes()).unwrap();
-        let entry = index.get(recipe.model_id).unwrap();
+        let entry = index.get(recipe.model_id()).unwrap();
+        assert_eq!(entry.component, Some(recipe.component()));
         assert_eq!(entry.computed_class(), LicenceClass::Permissive);
         assert_eq!(index.shippable().count(), 1);
         assert_eq!(entry.trained_on[0].name, masc::NAME);
@@ -176,7 +203,89 @@ fn a_held_out_set_of_another_component_is_refused() {
     assert!(TOKENS.score(&model.bytes, &sentences).is_err());
     let tokens_again = TOKENS.held_out(&split.held_out).unwrap();
     assert!(TOKENS.score(&model.bytes, &tokens_again).is_err());
+    // A sentence model is not a part-of-speech model, in any format, and
+    // a part-of-speech model is not a tokenizer model.
+    let tags = POS.held_out(&split.held_out).unwrap();
+    assert!(matches!(POS.score(&model.bytes, CANDIDATE_FORMAT, &tags), Err(Error::Model(_))));
+    assert!(matches!(POS.score(&model.bytes, POS.reference_format, &tags), Err(Error::Model(_))));
+    let tagger = POS.train(&split.train).unwrap();
+    assert!(TOKENS.score(&tagger.bytes, &tokens_again).is_err());
     std::fs::remove_dir_all(&root).unwrap();
+}
+
+/// What the part-of-speech recipe reads from the MASC corpora checked in
+/// for the goldens (`analysis/goldens/data/inputs/formats/masc-*.txt`,
+/// written for the tests in MASC's layout): the samples OpenNLP's
+/// `MascPOSSampleStream` read from them in the JVM, as the `masc/pos`
+/// goldens record them, up to the first sentence the stream threw on; and
+/// where it threw, the recipe skips that sentence alone and reads on.
+#[test]
+fn the_tagger_recipe_reads_the_jvm_s_samples_from_the_checked_in_masc_corpora() {
+    let goldens = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../goldens/data");
+    // The samples of the first pass of each golden, and whether the
+    // stream threw in that pass.
+    let jvm = |name: &str| -> (Vec<String>, bool) {
+        let text = std::fs::read_to_string(goldens.join(format!("masc/pos/formats/{name}.golden"))).unwrap();
+        let layer = |id: &str| -> Vec<Vec<String>> {
+            let start = text.find(&format!("layer\t{id}\t")).unwrap_or_else(|| panic!("{name}: no {id}"));
+            let body = &text[start..];
+            let end = body.find(&format!("\nend\t{id}")).unwrap();
+            body[..end].lines().skip(1).map(|l| l.split('\t').map(str::to_owned).collect()).collect()
+        };
+        let samples = layer("turbo:samples").into_iter().filter(|r| r[0] == "0").map(|r| r[1].clone()).collect();
+        let threw = layer("turbo:read-errors").iter().any(|r| r[0] == "0");
+        (samples, threw)
+    };
+    let mut checked = 0;
+    for name in ["masc-basic", "masc-names", "masc-opennlp", "masc-penn", "masc-sentences", "masc-skips", "masc-xml"] {
+        let (expected, threw) = jvm(name);
+        let root = temp_dir(&format!("checked-in-{name}"));
+        let bundle = std::fs::read_to_string(goldens.join(format!("inputs/formats/{name}.txt"))).unwrap();
+        bundle::write_bundle(&bundle, &root);
+        let corpus = MascCorpus::read(&root).unwrap();
+        let mut read = Vec::new();
+        let skipped = postag::read_samples(&corpus, |s| read.push(s.to_string())).unwrap();
+        if threw {
+            // The JVM read the samples before the sentence it threw on;
+            // the recipe reads those, skips that sentence and goes on.
+            assert!(skipped > 0, "{name}: nothing skipped");
+            assert_eq!(read[..expected.len()], expected[..], "{name}");
+        } else {
+            assert_eq!(skipped, 0, "{name}");
+            assert_eq!(read, expected, "{name}");
+        }
+        println!("{name}: {} samples read, {} sentences skipped; the JVM read {}", read.len(), skipped, expected.len());
+        checked += 1;
+        std::fs::remove_dir_all(&root).unwrap();
+    }
+    assert_eq!(checked, 7);
+}
+
+/// The published English tagger asked for Penn tags returns its UD
+/// outcomes converted, one Penn tag per UD tag: it never gives an
+/// inflected verb, a plural noun or a comma, which is why its Penn score
+/// on MASC is low and the gate lenient (`postag`'s documentation).
+#[test]
+fn the_published_tagger_asked_for_penn_tags_gives_one_penn_tag_per_ud_tag() {
+    let Some(dir) = std::env::var_os("TURBO_GOLDENS_MODELS").map(PathBuf::from) else {
+        assert!(!models_required(), "TURBO_GOLDENS_MODELS is not set and TURBO_TEST_REQUIRE_OPENNLP_MODELS=1");
+        return;
+    };
+    let path = dir.join(turbo_train_recipes::reference_file(POS.reference_id).unwrap());
+    let Ok(bytes) = std::fs::read(&path) else {
+        assert!(!models_required(), "{} not found and TURBO_TEST_REQUIRE_OPENNLP_MODELS=1", path.display());
+        return;
+    };
+    turbo_train_recipes::check_reference(POS.reference_id, &bytes).unwrap();
+    let file = turbo_maxent::ModelFile::open(bytes).unwrap();
+    let model = turbo_postag::PosModel::open_with_format(file, POS.reference_format).unwrap();
+    let tagset = model.tagset();
+    let mut labels: Vec<&str> = (0..tagset.len()).map(|i| tagset.label(turbo_analysis::Tag(i as u16))).collect();
+    labels.sort_unstable();
+    assert_eq!(
+        labels,
+        [".", "?", "CC", "CD", "DT", "FW", "IN", "JJ", "MD", "NN", "NNP", "PRP", "RB", "RP", "SYM", "UH", "VB"]
+    );
 }
 
 /// The gate against the published OpenNLP English UD models. It needs
@@ -205,7 +314,7 @@ fn the_published_references_are_checked_and_scored_when_present() {
             continue;
         };
         recipe.check_reference(&reference).unwrap();
-        let outcome = run(&recipe, &split, &digest, false, recipe.reference_id, &reference).unwrap();
+        let outcome = run(&recipe, &split, &digest, false, recipe.reference_id(), &reference).unwrap();
         outcome.gate.check().unwrap();
         println!("{}", outcome.gate);
     }
@@ -238,10 +347,10 @@ fn the_binary_refuses_an_unrecorded_corpus_and_writes_each_model_s_directory() {
         // pass; that says nothing about the recipes on MASC.
         assert_eq!(ran.status.code(), Some(0), "{ran:?}");
         for r in RECIPES {
-            let dir = out.join("models").join(r.model_id);
+            let dir = out.join("models").join(r.model_id());
             let card = ModelCard::read(&dir.join(CARD_FILE)).unwrap();
             assert!(!card.corpus.release_recorded);
-            assert_eq!(card.gate.reference, r.reference_id);
+            assert_eq!(card.gate.reference, r.reference_id());
             ModelGateRecord::read(&dir.join(GATE_FILE)).unwrap();
         }
     } else {
