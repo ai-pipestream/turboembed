@@ -1,0 +1,80 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	formats/conllu-errors	1474	1474	42b7f753628a5492507589493a66fb4426f1d7b8baf5936632829acb1a3bb77f
+annotator	opennlp.tools.tokenize.TokSpanEventStream	read
+config	alphaNumericPattern	^[A-Za-z0-9]+$
+config	format	conllu
+config	language	en
+config	run	tokenize-conllu
+config	source	tokenize
+config	useAlphaNumericOptimization	false
+layer	turbo:events	document	33	outcome:str	context:str	values:str
+F	p=g s=ood p1=g p1_alpha p2=bok p1f1=go f1=o f1_alpha f2=o f2_alpha f12=oo	
+F	p=go s=od p1=o p1_alpha p2=g p2_alpha p21=go p1f1=oo f1=o f1_alpha f2=d f2_alpha f12=od	
+F	p=goo s=d p1=o p1_alpha p2=o p2_alpha p21=oo p1f1=od f1=d f1_alpha f2=bok	
+F	p=o s=ne p1=o p1_alpha p2=bok p1f1=on f1=n f1_alpha f2=e f2_alpha f12=ne	
+F	p=on s=e p1=n p1_alpha p2=o p2_alpha p21=on p1f1=ne f1=e f1_alpha f2=bok	
+F	p=c s=d p1=c p1_alpha p2=bok p1f1=cd f1=d f1_alpha f2=bok	
+F	p=a s=b p1=a p1_alpha p2=bok p1f1=ab f1=b f1_alpha f2=bok	
+F	p=a s=b p1=a p1_alpha p2=bok p1f1=ab f1=b f1_alpha f2=bok	
+F	p=c s=d p1=c p1_alpha p2=bok p1f1=cd f1=d f1_alpha f2=bok	
+F	p=a s=<SPLIT>b p1=a p1_alpha p2=bok p1f1=a< f1=< f2=S f2_alpha f2_caps f12=<S	
+F	p=a< s=SPLIT>b p1=< p2=a p2_alpha p21=a< p1f1=<S f1=S f1_alpha f1_caps f2=P f2_alpha f2_caps f12=SP	
+F	p=a<S s=PLIT>b p1=S p1_alpha p1_caps p2=< p21=<S p1f1=SP f1=P f1_alpha f1_caps f2=L f2_alpha f2_caps f12=PL	
+F	p=a<SP s=LIT>b p1=P p1_alpha p1_caps p2=S p2_alpha p2_caps p21=SP p1f1=PL f1=L f1_alpha f1_caps f2=I f2_alpha f2_caps f12=LI	
+F	p=a<SPL s=IT>b p1=L p1_alpha p1_caps p2=P p2_alpha p2_caps p21=PL p1f1=LI f1=I f1_alpha f1_caps f2=T f2_alpha f2_caps f12=IT	
+F	p=a<SPLI s=T>b p1=I p1_alpha p1_caps p2=L p2_alpha p2_caps p21=LI p1f1=IT f1=T f1_alpha f1_caps f2=> f12=T>	
+T	p=a<SPLIT s=>b p1=T p1_alpha p1_caps p2=I p2_alpha p2_caps p21=IT p1f1=T> f1=> f2=b f2_alpha f12=>b	
+F	p=a<SPLIT> s=b p1=> p2=T p2_alpha p2_caps p21=T> p1f1=>b f1=b f1_alpha f2=bok	
+F	p=a s=<SPLIT><b p1=a p1_alpha p2=bok p1f1=a< f1=< f2=S f2_alpha f2_caps f12=<S	
+T	p=a< s=SPLIT><b p1=< p2=a p2_alpha p21=a< p1f1=<S f1=S f1_alpha f1_caps f2=P f2_alpha f2_caps f12=SP	
+F	p=a<S s=PLIT><b p1=S p1_alpha p1_caps p2=< p21=<S p1f1=SP f1=P f1_alpha f1_caps f2=L f2_alpha f2_caps f12=PL	
+F	p=a<SP s=LIT><b p1=P p1_alpha p1_caps p2=S p2_alpha p2_caps p21=SP p1f1=PL f1=L f1_alpha f1_caps f2=I f2_alpha f2_caps f12=LI	
+F	p=a<SPL s=IT><b p1=L p1_alpha p1_caps p2=P p2_alpha p2_caps p21=PL p1f1=LI f1=I f1_alpha f1_caps f2=T f2_alpha f2_caps f12=IT	
+F	p=a<SPLI s=T><b p1=I p1_alpha p1_caps p2=L p2_alpha p2_caps p21=LI p1f1=IT f1=T f1_alpha f1_caps f2=> f12=T>	
+F	p=a<SPLIT s=><b p1=T p1_alpha p1_caps p2=I p2_alpha p2_caps p21=IT p1f1=T> f1=> f2=< f12=><	
+F	p=a<SPLIT> s=<b p1=> p2=T p2_alpha p2_caps p21=T> p1f1=>< f1=< f2=b f2_alpha f12=<b	
+F	p=a<SPLIT>< s=b p1=< p2=> p21=>< p1f1=<b f1=b f1_alpha f2=bok	
+T	p= s=xyz p1=bok f1=x f1_alpha f2=y f2_alpha f12=xy	
+F	p=x s=yz p1=x p1_alpha p2=bok p1f1=xy f1=y f1_alpha f2=z f2_alpha f12=yz	
+T	p=xy s=z p1=y p1_alpha p2=x p2_alpha p21=xy p1f1=yz f1=z f1_alpha f2=bok	
+T	p=xy s=z p1=y p1_alpha p2=x p2_alpha p21=xy p1f1=yz f1=z f1_alpha f2=bok	
+F	p=l s=ast p1=l p1_alpha p2=bok p1f1=la f1=a f1_alpha f2=s f2_alpha f12=as	
+F	p=la s=st p1=a p1_alpha p2=l p2_alpha p21=la p1f1=as f1=s f1_alpha f2=t f2_alpha f12=st	
+F	p=las s=t p1=s p1_alpha p2=a p2_alpha p21=as p1f1=st f1=t f1_alpha f2=bok	
+end	turbo:events
+layer	turbo:stream-errors	document	12	after:u32	class:str	message:str
+0	opennlp.tools.util.InvalidFormatException	Line [1\tnine\tnine\tNUM\t_\t_\t_\t_\t_] must have exactly 10 fields
+0	opennlp.tools.util.InvalidFormatException	Line [1\tempty\t_\t_\t_\t_\t_\t_\t_\t] must have exactly 10 fields
+5	opennlp.tools.util.InvalidFormatException	Line [   ] must have exactly 10 fields
+5	opennlp.tools.util.InvalidFormatException	Invalid multiword token id: 01-2
+5	opennlp.tools.util.InvalidFormatException	Multiword token id runs backwards: 2-1
+5	opennlp.tools.util.InvalidFormatException	Multiword token 1-3 has no word line for id 3
+5	opennlp.tools.util.InvalidFormatException	Locale language code is invalid: text_X
+5	java.lang.IndexOutOfBoundsException	Index 3 out of bounds for length 2
+9	java.io.IOException	Failed to match token [there] in sentence [unmatched] with text [Hello world]
+9	java.io.IOException	Failed to match token [World] in sentence [null] with text [Hello world]
+30	opennlp.tools.util.InvalidFormatException	Invalid multiword token id: 2147483647-2147483648
+30	opennlp.tools.util.InvalidFormatException	Multiword token 2147483646-2147483647 has no word line for id 2147483646
+end	turbo:stream-errors
+layer	turbo:event-checksum	document	1	crc32c:u32
+3467175491
+end	turbo:event-checksum
+layer	turbo:manifest	document	9	key:str	value:str
+Component-Name	TokenizerME
+Language	en
+Manifest-Version	1.0
+OpenNLP-Version	3.0.0-SNAPSHOT
+TrainerType	Event
+Training-Eventhash	1
+alphaNumericPattern	^[A-Za-z0-9]+$
+factory	opennlp.tools.tokenize.TokenizerFactory
+useAlphaNumericOptimization	false
+end	turbo:manifest
+layer	turbo:package-entries	document	2	name:str	length:u32
+manifest.properties	303
+token.model	61
+end	turbo:package-entries

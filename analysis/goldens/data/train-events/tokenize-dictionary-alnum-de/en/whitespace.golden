@@ -1,0 +1,53 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	en/whitespace	153	153	76c94cbd1ae0247501def8fdbabdfc55204f1feee1130aff2020cfd2afd98a7a
+annotator	opennlp.tools.tokenize.TokSpanEventStream	read
+config	abbreviations	english-dictionary.xml
+config	format	text
+config	language	de
+config	run	tokenize-dictionary-alnum-de
+config	source	tokenize
+config	useAlphaNumericOptimization	true
+layer	turbo:events	document	13	outcome:str	context:str	values:str
+F	p=h s=ere. p1=h p1_alpha p2=bok p1f1=he f1=e f1_alpha f2=r f2_alpha f12=er	
+F	p=he s=re. p1=e p1_alpha p2=h p2_alpha p21=he p1f1=er f1=r f1_alpha f2=e f2_alpha f12=re	
+F	p=her s=e. p1=r p1_alpha p2=e p2_alpha p21=er p1f1=re f1=e f1_alpha f2=. f2_eos f12=e.	
+F	p=here s=. p1=e p1_alpha p2=r p2_alpha p21=re p1f1=e. f1=. f1_eos f2=bok	
+F	p=s s=paces. p1=s p1_alpha p2=bok p1f1=sp f1=p f1_alpha f2=a f2_alpha f12=pa	
+F	p=sp s=aces. p1=p p1_alpha p2=s p2_alpha p21=sp p1f1=pa f1=a f1_alpha f2=c f2_alpha f12=ac	
+F	p=spa s=ces. p1=a p1_alpha p2=p p2_alpha p21=pa p1f1=ac f1=c f1_alpha f2=e f2_alpha f12=ce	
+F	p=spac s=es. p1=c p1_alpha p2=a p2_alpha p21=ac p1f1=ce f1=e f1_alpha f2=s f2_alpha f12=es	
+F	p=space s=s. p1=e p1_alpha p2=c p2_alpha p21=ce p1f1=es f1=s f1_alpha f2=. f2_eos f12=s.	
+F	p=spaces s=. p1=s p1_alpha p2=e p2_alpha p21=es p1f1=s. f1=. f1_eos f2=bok	
+F	p=o s=ne. p1=o p1_alpha p2=bok p1f1=on f1=n f1_alpha f2=e f2_alpha f12=ne	
+F	p=on s=e. p1=n p1_alpha p2=o p2_alpha p21=on p1f1=ne f1=e f1_alpha f2=. f2_eos f12=e.	
+F	p=one s=. p1=e p1_alpha p2=n p2_alpha p21=ne p1f1=e. f1=. f1_eos f2=bok	
+end	turbo:events
+layer	turbo:stream-errors	document	0	after:u32	class:str	message:str
+end	turbo:stream-errors
+layer	turbo:event-checksum	document	1	crc32c:u32
+2663818273
+end	turbo:event-checksum
+layer	turbo:manifest	document	10	key:str	value:str
+Component-Name	TokenizerME
+Language	de
+Manifest-Version	1.0
+OpenNLP-Version	3.0.0-SNAPSHOT
+TrainerType	Event
+Training-Eventhash	1
+alphaNumericPattern	^[A-Za-z0-9äéöüÄÉÖÜß]+$
+factory	opennlp.tools.tokenize.TokenizerFactory
+serializer-class-abbreviations.dictionary	opennlp.tools.util.model.DictionarySerializer
+useAlphaNumericOptimization	true
+end	turbo:manifest
+layer	turbo:package-entries	document	3	name:str	length:u32
+manifest.properties	444
+abbreviations.dictionary	468
+token.model	61
+end	turbo:package-entries
+layer	turbo:dictionary	document	1	xml:str
+<?xml version="1.0" encoding="UTF-8"?><dictionary case_sensitive="false">\n    <entry>\n        <token>Dr.</token>\n    </entry>\n    <entry>\n        <token>U.S.</token>\n    </entry>\n    <entry>\n        <token>xyz.,"abc</token>\n    </entry>\n    <entry>\n        <token>a.m.</token>\n    </entry>\n    <entry>\n        <token>etc.</token>\n    </entry>\n    <entry>\n        <token>e.g.</token>\n    </entry>\n    <entry>\n        <token>(c)Co.ltd</token>\n    </entry>\n</dictionary>\n
+end	turbo:dictionary

@@ -237,6 +237,9 @@ final class Runs {
     // source on the texts, indexed and trained; the sentence detector runs on the fixture
     // sentences too.
     annotators.addAll(TrainGolden.all(Set.of(EN, MULTI, EDGE), Set.of(TRAIN)));
+    // The same event streams with the factory options TrainGolden leaves at their defaults, and
+    // the model file around a trained model.
+    annotators.addAll(EventGolden.all(fixtures.resolve(ENGLISH_ABBREVIATIONS)));
     // The sample streams of OpenNLP's native formats, and the conversion streams, which
     // detokenize with the English dictionary.
     annotators.addAll(FormatGolden.all(fixtures.resolve(FORMAT_DETOKENIZER)));

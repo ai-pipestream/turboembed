@@ -1,0 +1,67 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	multi/de	239	234	252f7ce6614012d5d03442f3c99fdb40587bd9431e2a636fb006478ccd4c7dde
+annotator	opennlp.tools.sentdetect.SDEventStream	read
+config	format	text
+config	language	th
+config	run	sentdetect-th
+config	source	sentdetect
+config	useTokenEnd	false
+layer	turbo:events	document	33	outcome:str	context:str	values:str
+n	eos=  x=Der 3 xcap v= s=Zug scap n=nach	
+n	eos=  x=Zug 3 xcap v=Der vcap s=nach n=München ncap	
+n	eos=  x=nach 4 v=Zug vcap s=München scap n=hatte	
+n	eos=  x=München 7 xcap v=nach s=hatte n=heute	
+n	eos=  x=hatte 5 v=München vcap s=heute n=zwanzig	
+n	eos=  x=heute 5 v=hatte s=zwanzig n=Minuten ncap	
+n	eos=  x=zwanzig 7 v=heute s=Minuten scap n=Verspätung. ncap	
+n	eos=  x=Minuten 7 xcap v=zwanzig s=Verspätung. scap n=Viele ncap	
+n	eos=  x=Verspätung. 11 xcap v=Minuten vcap s=Viele scap n=Fahrgäste ncap	
+n	eos=  x=Viele 5 xcap v=Verspätung. vcap s=Fahrgäste scap n=mussten	
+n	eos=  x=Fahrgäste 9 xcap v=Viele vcap s=mussten n=ihren	
+n	eos=  x=mussten 7 v=Fahrgäste vcap s=ihren n=Anschluss ncap	
+n	eos=  x=ihren 5 v=mussten s=Anschluss scap n=in	
+n	eos=  x=Anschluss 9 xcap v=ihren s=in n=Augsburg ncap	
+n	eos=  x=in 2 v=Anschluss vcap s=Augsburg scap n=verpassen,	
+n	eos=  x=Augsburg 8 xcap v=in s=verpassen, n=z.B.	
+n	eos=  x=verpassen, 10 v=Augsburg vcap s=z.B. n=die	
+n	eos=  x=z.B. 4 v=verpassen, s=die n=Gruppe ncap	
+n	eos=  x=die 3 v=z.B. s=Gruppe scap n=aus	
+n	eos=  x=Gruppe 6 xcap v=die s=aus n=Köln. ncap	
+n	eos=  x=aus 3 v=Gruppe vcap s=Köln. scap n=Die ncap	
+n	eos=  x=Köln. 5 xcap v=aus s=Die scap n=Bahn ncap	
+n	eos=  x=Die 3 xcap v=Köln. vcap s=Bahn scap n=entschuldigte	
+n	eos=  x=Bahn 4 xcap v=Die vcap s=entschuldigte n=sich	
+n	eos=  x=entschuldigte 13 v=Bahn vcap s=sich n=am	
+n	eos=  x=sich 4 v=entschuldigte s=am n=Nachmittag. ncap	
+n	eos=  x=am 2 v=sich s=Nachmittag. scap n=Morgen ncap	
+n	eos=  x=Nachmittag. 11 xcap v=am s=Morgen scap n=soll	
+n	eos=  x=Morgen 6 xcap v=Nachmittag. vcap s=soll n=alles	
+n	eos=  x=soll 4 v=Morgen vcap s=alles n=wieder	
+n	eos=  x=alles 5 v=soll s=wieder n=pünktlich	
+n	eos=  x=wieder 6 v=alles s=pünktlich n=sein.	
+s	eos=  x=pünktlich 9 v=wieder s=sein. n=	
+end	turbo:events
+layer	turbo:stream-errors	document	0	after:u32	class:str	message:str
+end	turbo:stream-errors
+layer	turbo:event-checksum	document	1	crc32c:u32
+2580733945
+end	turbo:event-checksum
+layer	turbo:manifest	document	9	key:str	value:str
+Component-Name	SentenceDetectorME
+Language	th
+Manifest-Version	1.0
+OpenNLP-Version	3.0.0-SNAPSHOT
+TrainerType	Event
+Training-Eventhash	1
+eosCharacters	 \n
+factory	opennlp.tools.sentdetect.SentenceDetectorFactory
+useTokenEnd	false
+end	turbo:manifest
+layer	turbo:package-entries	document	2	name:str	length:u32
+manifest.properties	287
+sent.model	61
+end	turbo:package-entries

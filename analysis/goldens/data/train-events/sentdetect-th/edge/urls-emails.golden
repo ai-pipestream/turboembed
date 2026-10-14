@@ -1,0 +1,45 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	edge/urls-emails	189	189	24a6e1968bc86b5976b4eee7e2ef6acb6bd2372d9afa4be8b45f4ad9af261501
+annotator	opennlp.tools.sentdetect.SDEventStream	read
+config	format	text
+config	language	th
+config	run	sentdetect-th
+config	source	sentdetect
+config	useTokenEnd	false
+layer	turbo:events	document	11	outcome:str	context:str	values:str
+n	eos=  x=Visit 5 xcap v= s=https://www.example.com/path?q=1&r=2#frag n=or	
+n	eos=  x=https://www.example.com/path?q=1&r=2#frag 41 v=Visit vcap s=or n=http://localhost:8080/a_b.html,	
+n	eos=  x=or 2 v=https://www.example.com/path?q=1&r=2#frag s=http://localhost:8080/a_b.html, n=mail	
+n	eos=  x=http://localhost:8080/a_b.html, 31 v=or s=mail n=john.doe+tag@example.co.uk	
+n	eos=  x=mail 4 v=http://localhost:8080/a_b.html, s=john.doe+tag@example.co.uk n=or	
+n	eos=  x=john.doe+tag@example.co.uk 26 v=mail s=or n=www.test.org.	
+n	eos=  x=or 2 v=john.doe+tag@example.co.uk s=www.test.org. n=Also ncap	
+n	eos=  x=www.test.org. 13 v=or s=Also scap n=ftp://files.example.net/x.tar.gz	
+n	eos=  x=Also 4 xcap v=www.test.org. s=ftp://files.example.net/x.tar.gz n=(see	
+n	eos=  x=ftp://files.example.net/x.tar.gz 32 v=Also vcap s=(see n=foo@bar.com).	
+s	eos=  x=(see 4 v=ftp://files.example.net/x.tar.gz s=foo@bar.com). n=	
+end	turbo:events
+layer	turbo:stream-errors	document	0	after:u32	class:str	message:str
+end	turbo:stream-errors
+layer	turbo:event-checksum	document	1	crc32c:u32
+1892817738
+end	turbo:event-checksum
+layer	turbo:manifest	document	9	key:str	value:str
+Component-Name	SentenceDetectorME
+Language	th
+Manifest-Version	1.0
+OpenNLP-Version	3.0.0-SNAPSHOT
+TrainerType	Event
+Training-Eventhash	1
+eosCharacters	 \n
+factory	opennlp.tools.sentdetect.SentenceDetectorFactory
+useTokenEnd	false
+end	turbo:manifest
+layer	turbo:package-entries	document	2	name:str	length:u32
+manifest.properties	287
+sent.model	61
+end	turbo:package-entries

@@ -1,0 +1,67 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	multi/it	197	194	b62b80bfc802d2090eb6659bc69dda051e07499cd9c8ac88a7cbe182c464f283
+annotator	opennlp.tools.sentdetect.SDEventStream	read
+config	format	text
+config	language	th
+config	run	sentdetect-th
+config	source	sentdetect
+config	useTokenEnd	false
+layer	turbo:events	document	33	outcome:str	context:str	values:str
+n	eos=  x=Ogni 4 xcap v= s=estate n=la	
+n	eos=  x=estate 6 v=Ogni vcap s=la n=nostra	
+n	eos=  x=la 2 v=estate s=nostra n=famiglia	
+n	eos=  x=nostra 6 v=la s=famiglia n=va	
+n	eos=  x=famiglia 8 v=nostra s=va n=al	
+n	eos=  x=va 2 v=famiglia s=al n=mare	
+n	eos=  x=al 2 v=va s=mare n=in	
+n	eos=  x=mare 4 v=al s=in n=Liguria. ncap	
+n	eos=  x=in 2 v=mare s=Liguria. scap n=Il ncap	
+n	eos=  x=Liguria. 8 xcap v=in s=Il scap n=viaggio	
+n	eos=  x=Il 2 xcap v=Liguria. vcap s=viaggio n=è	
+n	eos=  x=viaggio 7 v=Il vcap s=è n=lungo,	
+n	eos=  x=è 1 v=viaggio s=lungo, n=ma	
+n	eos=  x=lungo, 6 v=è s=ma n=il	
+n	eos=  x=ma 2 v=lungo, s=il n=paesaggio	
+n	eos=  x=il 2 v=ma s=paesaggio n=è	
+n	eos=  x=paesaggio 9 v=il s=è n=bellissimo.	
+n	eos=  x=è 1 v=paesaggio s=bellissimo. n=Mia ncap	
+n	eos=  x=bellissimo. 11 v=è s=Mia scap n=nonna	
+n	eos=  x=Mia 3 xcap v=bellissimo. s=nonna n=prepara	
+n	eos=  x=nonna 5 v=Mia vcap s=prepara n=sempre	
+n	eos=  x=prepara 7 v=nonna s=sempre n=la	
+n	eos=  x=sempre 6 v=prepara s=la n=focaccia	
+n	eos=  x=la 2 v=sempre s=focaccia n=per	
+n	eos=  x=focaccia 8 v=la s=per n=il	
+n	eos=  x=per 3 v=focaccia s=il n=pranzo.	
+n	eos=  x=il 2 v=per s=pranzo. n=Perché ncap	
+n	eos=  x=pranzo. 7 v=il s=Perché scap n=non	
+n	eos=  x=Perché 6 xcap v=pranzo. s=non n=vieni	
+n	eos=  x=non 3 v=Perché vcap s=vieni n=anche	
+n	eos=  x=vieni 5 v=non s=anche n=tu	
+n	eos=  x=anche 5 v=vieni s=tu n=quest'anno?	
+s	eos=  x=tu 2 v=anche s=quest'anno? n=	
+end	turbo:events
+layer	turbo:stream-errors	document	0	after:u32	class:str	message:str
+end	turbo:stream-errors
+layer	turbo:event-checksum	document	1	crc32c:u32
+3395638373
+end	turbo:event-checksum
+layer	turbo:manifest	document	9	key:str	value:str
+Component-Name	SentenceDetectorME
+Language	th
+Manifest-Version	1.0
+OpenNLP-Version	3.0.0-SNAPSHOT
+TrainerType	Event
+Training-Eventhash	1
+eosCharacters	 \n
+factory	opennlp.tools.sentdetect.SentenceDetectorFactory
+useTokenEnd	false
+end	turbo:manifest
+layer	turbo:package-entries	document	2	name:str	length:u32
+manifest.properties	287
+sent.model	61
+end	turbo:package-entries

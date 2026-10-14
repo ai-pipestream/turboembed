@@ -1,0 +1,46 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	edge/supplementary	98	76	ccf9ecafa95f1e9d3891e47badd0ef6b83a8a2b02d79d24db46daf0bfa5b387e
+annotator	opennlp.tools.sentdetect.SDEventStream	read
+config	format	text
+config	language	th
+config	run	sentdetect-th
+config	source	sentdetect
+config	useTokenEnd	false
+layer	turbo:events	document	12	outcome:str	context:str	values:str
+n	eos=  x=emoji 5 v= s=in n=word:	
+n	eos=  x=in 2 v=emoji s=word: n=ab😀cd,	
+n	eos=  x=word: 5 v=in s=ab😀cd, n=math	
+n	eos=  x=ab😀cd, 7 v=word: s=math n=𝐀𝐁𝐂	
+n	eos=  x=math 4 v=ab😀cd, s=𝐀𝐁𝐂 n=𝐚𝐛𝐜	
+n	eos=  x=𝐀𝐁𝐂 6 v=math s=𝐚𝐛𝐜 n=deseret	
+n	eos=  x=𝐚𝐛𝐜 6 v=𝐀𝐁𝐂 s=deseret n=𐐀𐐨𐑅	
+n	eos=  x=deseret 7 v=𝐚𝐛𝐜 s=𐐀𐐨𐑅 n=done.	
+n	eos=  x=𐐀𐐨𐑅 6 v=deseret s=done. n=𠀀	
+n	eos=  x=done. 5 v=𐐀𐐨𐑅 s=𠀀 n=rare	
+n	eos=  x=𠀀 2 v=done. s=rare n=CJK. ncap	
+s	eos=  x=rare 4 v=𠀀 s=CJK. scap n=	
+end	turbo:events
+layer	turbo:stream-errors	document	0	after:u32	class:str	message:str
+end	turbo:stream-errors
+layer	turbo:event-checksum	document	1	crc32c:u32
+299844684
+end	turbo:event-checksum
+layer	turbo:manifest	document	9	key:str	value:str
+Component-Name	SentenceDetectorME
+Language	th
+Manifest-Version	1.0
+OpenNLP-Version	3.0.0-SNAPSHOT
+TrainerType	Event
+Training-Eventhash	1
+eosCharacters	 \n
+factory	opennlp.tools.sentdetect.SentenceDetectorFactory
+useTokenEnd	false
+end	turbo:manifest
+layer	turbo:package-entries	document	2	name:str	length:u32
+manifest.properties	287
+sent.model	61
+end	turbo:package-entries

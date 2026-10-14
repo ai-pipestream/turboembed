@@ -1,0 +1,48 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	edge/greek-cyrillic	191	110	79aa0a28a938d78b6093561b7b74ca326c3b23be13e3028964a50fd8c7128d8a
+annotator	opennlp.tools.sentdetect.SDEventStream	read
+config	abbreviations	english-dictionary.xml
+config	format	text
+config	language	pt
+config	run	sentdetect-dictionary-pt
+config	source	sentdetect
+config	useTokenEnd	true
+layer	turbo:events	document	8	outcome:str	context:str	values:str
+n	sn eos=! x=κόσμε 5 v=Καλημέρα vcap s= n=Ο ncap	
+n	sn eos=: x=είπε 4 v=Σωκράτης vcap s= n=«Εν	
+n	sp eos=« x= v=είπε: s=Εν scap n=οίδα	
+n	eos=» x=οίδα 4 v=ουδέν s= n=Привет, ncap	
+n	sn eos=. x=» 1 v=οίδα s= n=Привет, ncap	
+n	sn eos=! x=мир 3 v=Привет, vcap s= n=Как ncap	
+n	sn eos=? x=дела 4 v=Как vcap s= n=Это ncap	
+s	sn eos=. x=раза 4 v=3,5 s= n=	
+end	turbo:events
+layer	turbo:stream-errors	document	0	after:u32	class:str	message:str
+end	turbo:stream-errors
+layer	turbo:event-checksum	document	1	crc32c:u32
+3392609238
+end	turbo:event-checksum
+layer	turbo:manifest	document	10	key:str	value:str
+Component-Name	SentenceDetectorME
+Language	pt
+Manifest-Version	1.0
+OpenNLP-Version	3.0.0-SNAPSHOT
+TrainerType	Event
+Training-Eventhash	1
+eosCharacters	.?!;:()«»'"
+factory	opennlp.tools.sentdetect.SentenceDetectorFactory
+serializer-class-abbreviations.dictionary	opennlp.tools.util.model.DictionarySerializer
+useTokenEnd	true
+end	turbo:manifest
+layer	turbo:package-entries	document	3	name:str	length:u32
+manifest.properties	393
+sent.model	61
+abbreviations.dictionary	468
+end	turbo:package-entries
+layer	turbo:dictionary	document	1	xml:str
+<?xml version="1.0" encoding="UTF-8"?><dictionary case_sensitive="false">\n    <entry>\n        <token>Dr.</token>\n    </entry>\n    <entry>\n        <token>U.S.</token>\n    </entry>\n    <entry>\n        <token>xyz.,"abc</token>\n    </entry>\n    <entry>\n        <token>a.m.</token>\n    </entry>\n    <entry>\n        <token>etc.</token>\n    </entry>\n    <entry>\n        <token>e.g.</token>\n    </entry>\n    <entry>\n        <token>(c)Co.ltd</token>\n    </entry>\n</dictionary>\n
+end	turbo:dictionary

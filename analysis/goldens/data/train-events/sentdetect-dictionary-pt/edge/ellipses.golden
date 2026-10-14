@@ -1,0 +1,56 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	edge/ellipses	67	61	ebe802ab1de2ac8701cb588a1dd9bfecb7930f7cb6f4b10b3aedcbc6ea3d88d9
+annotator	opennlp.tools.sentdetect.SDEventStream	read
+config	abbreviations	english-dictionary.xml
+config	format	text
+config	language	pt
+config	run	sentdetect-dictionary-pt
+config	source	sentdetect
+config	useTokenEnd	true
+layer	turbo:events	document	16	outcome:str	context:str	values:str
+n	eos=. x=Wait 4 xcap v= s= n=.	
+n	eos=. x=. 1 v=Wait vcap s= n=what?	
+n	sn eos=. x=. 1 v=Wait. vcap s= n=what?	
+n	sn eos=? x=what 4 v=Wait... vcap s= n=Well… ncap	
+n	sn eos=. x=maybe 5 v=Well… vcap s= n=.	
+n	sp sn eos=. x= v=maybe. s= n=.	
+n	sp sn eos=. x= v=. s= n=.	
+n	sp sn eos=. x= v=. s= n=or	
+n	eos=. x=not 3 v=or s= n=Hmm...... ncap	
+n	sn eos=. x=. 1 v=not s= n=Hmm...... ncap	
+n	eos=. x=Hmm 3 xcap v=not.. s= n=....	
+n	eos=. x=. 1 v=Hmm vcap s= n=...	
+n	eos=. x=. 1 v=Hmm. vcap s= n=..	
+n	eos=. x=. 1 v=Hmm.. vcap s= n=.	
+n	eos=. x=. 1 v=Hmm... vcap s= n=ok……	
+s	sn eos=. x=. 1 v=Hmm.... vcap s= n=ok……	
+end	turbo:events
+layer	turbo:stream-errors	document	0	after:u32	class:str	message:str
+end	turbo:stream-errors
+layer	turbo:event-checksum	document	1	crc32c:u32
+850972411
+end	turbo:event-checksum
+layer	turbo:manifest	document	10	key:str	value:str
+Component-Name	SentenceDetectorME
+Language	pt
+Manifest-Version	1.0
+OpenNLP-Version	3.0.0-SNAPSHOT
+TrainerType	Event
+Training-Eventhash	1
+eosCharacters	.?!;:()«»'"
+factory	opennlp.tools.sentdetect.SentenceDetectorFactory
+serializer-class-abbreviations.dictionary	opennlp.tools.util.model.DictionarySerializer
+useTokenEnd	true
+end	turbo:manifest
+layer	turbo:package-entries	document	3	name:str	length:u32
+manifest.properties	393
+sent.model	61
+abbreviations.dictionary	468
+end	turbo:package-entries
+layer	turbo:dictionary	document	1	xml:str
+<?xml version="1.0" encoding="UTF-8"?><dictionary case_sensitive="false">\n    <entry>\n        <token>Dr.</token>\n    </entry>\n    <entry>\n        <token>U.S.</token>\n    </entry>\n    <entry>\n        <token>xyz.,"abc</token>\n    </entry>\n    <entry>\n        <token>a.m.</token>\n    </entry>\n    <entry>\n        <token>etc.</token>\n    </entry>\n    <entry>\n        <token>e.g.</token>\n    </entry>\n    <entry>\n        <token>(c)Co.ltd</token>\n    </entry>\n</dictionary>\n
+end	turbo:dictionary

@@ -346,6 +346,15 @@ likelihood and parameters after every iteration (docs/analysis.md,
 "Training goldens"). The run has no model file; its settings name it.
 `analysis/train/tests/goldens.rs` compares the Rust indexers with them.
 
+`train-events/<run>/<set>/<id>.golden` is what the two event streams did
+with factory options (an abbreviation dictionary, the Portuguese and Thai
+end characters, the German alphanumeric pattern with the optimization
+on, CoNLL-U input) on `inputs/<set>/<id>.txt`: the events, the
+checksum, the exceptions the sample stream threw, and the manifest, zip
+entries and dictionary entry of a model file built from the factory
+(docs/analysis.md, "Training goldens").
+`analysis/train-segmentation/tests/goldens.rs` compares with them.
+
 ## Normalizer goldens
 
 `inputs/norm/` holds 61 short texts written for the normalizers: curly

@@ -1,0 +1,57 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	edge/hyphens-dashes	168	152	526fcc38bf7570639c441e13ec8c185653b19dbfd9a5747df5b9408625d4b323
+annotator	opennlp.tools.sentdetect.SDEventStream	read
+config	format	text
+config	language	th
+config	run	sentdetect-th
+config	source	sentdetect
+config	useTokenEnd	false
+layer	turbo:events	document	23	outcome:str	context:str	values:str
+n	eos=  x=well-known 10 v= s=state-of-the-art n=re-entry	
+n	eos=  x=state-of-the-art 16 v=well-known s=re-entry n=—	
+n	eos=  x=re-entry 8 v=state-of-the-art s=— n=em	
+n	eos=  x=— 1 v=re-entry s=em n=dash	
+n	eos=  x=em 2 v=— s=dash n=–	
+n	eos=  x=dash 4 v=em s=– n=en	
+n	eos=  x=– 1 v=dash s=en n=dash	
+n	eos=  x=en 2 v=– s=dash n=‒	
+n	eos=  x=dash 4 v=en s=‒ n=figure	
+n	eos=  x=‒ 1 v=dash s=figure n=dash	
+n	eos=  x=figure 6 v=‒ s=dash n=―	
+n	eos=  x=dash 4 v=figure s=― n=bar	
+n	eos=  x=― 1 v=dash s=bar n=⸺	
+n	eos=  x=bar 3 v=― s=⸺ n=two-em	
+n	eos=  x=⸺ 1 v=bar s=two-em n=−minus	
+n	eos=  x=two-em 6 v=⸺ s=−minus n=--	
+n	eos=  x=−minus 6 v=two-em s=-- n=double	
+n	eos=  x=-- 2 v=−minus s=double n=and	
+n	eos=  x=double 6 v=-- s=and n=a-b-c.	
+n	eos=  x=and 3 v=double s=a-b-c. n=1990-2000,	
+n	eos=  x=a-b-c. 6 v=and s=1990-2000, n=A--B, ncap	
+n	eos=  x=1990-2000, 10 v=a-b-c. s=A--B, scap n=non‑breaking‐hyphen.	
+s	eos=  x=A--B, 5 xcap v=1990-2000, s=non‑breaking‐hyphen. n=	
+end	turbo:events
+layer	turbo:stream-errors	document	0	after:u32	class:str	message:str
+end	turbo:stream-errors
+layer	turbo:event-checksum	document	1	crc32c:u32
+1384311593
+end	turbo:event-checksum
+layer	turbo:manifest	document	9	key:str	value:str
+Component-Name	SentenceDetectorME
+Language	th
+Manifest-Version	1.0
+OpenNLP-Version	3.0.0-SNAPSHOT
+TrainerType	Event
+Training-Eventhash	1
+eosCharacters	 \n
+factory	opennlp.tools.sentdetect.SentenceDetectorFactory
+useTokenEnd	false
+end	turbo:manifest
+layer	turbo:package-entries	document	2	name:str	length:u32
+manifest.properties	287
+sent.model	61
+end	turbo:package-entries
