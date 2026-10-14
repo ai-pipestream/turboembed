@@ -1,0 +1,57 @@
+dump 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	sentence-fixture/supplementary-after-period	57	51	e784bc4cd83cd06e55598c185aa27faa2a31bae7fe545856e944c51b7f028096
+model	en-plain-rust.bin	ef8684db6573d7096b72db1d520fe7181c8ee058d2c9c1abe140556d36da18d1693e63c2f84faf8f427fdd80b0e0f4bd47ce6a92a7aa53233b0b74c403cff736
+annotator	opennlp.tools.sentdetect.SentenceDetectorME	sentPosDetect
+config	whitespace	legacy
+point	0	8	8	2	0	none
+context	eos=.
+context	x=ended
+context	5
+context	v=It
+context	vcap
+context	s=😀
+context	n=Next
+context	ncap
+outcome	n	3fc583acd157cfa3 0.1680809042151142
+outcome	s	3fea9f14cbaa0c18 0.8319190957848859
+acceptable	1
+end	0
+point	1	29	6	2	0	none
+context	eos=.
+context	x=starts
+context	6
+context	v=one
+context	s=𐐀Deseret
+context	n=here.
+outcome	n	3fd5416c0383e9e1 0.33211803763665954
+outcome	s	3fe55f49fe3e0b0f 0.6678819623633404
+acceptable	1
+end	1
+point	2	46	8	2	0	none
+context	sn
+context	eos=.
+context	x=here
+context	4
+context	v=starts.𐐀Deseret
+context	s=
+context	n=Last.😀
+context	ncap
+outcome	n	3f86424527a03364 0.010868587753088917
+outcome	s	3fefa6f6eb617f33 0.9891314122469111
+acceptable	1
+end	2
+point	3	52	7	2	0	none
+context	eos=.
+context	x=Last
+context	4
+context	xcap
+context	v=here.
+context	s=\ud83d
+context	n=
+outcome	n	3fe2379bd697db07 0.5692881766579782
+outcome	s	3fdb90c852d049f1 0.4307118233420218
+end	3

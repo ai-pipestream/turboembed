@@ -148,6 +148,7 @@ that differs.
 | File | What it is |
 |---|---|
 | `en-abbrev.bin`, `en-plain.bin` | English sentence models trained by `analysis/sentdetect/tests/fixtures/src/TrainSentenceModel.java` (see the README there): `en-abbrev` has an abbreviation dictionary of 13 entries and `useTokenEnd=true`, `en-plain` has no dictionary and `useTokenEnd=false` |
+| `en-plain-rust.bin` | the `.bin` the Rust trainer writes when it trains `en-plain`'s events again (`analysis/train/tests/roundtrip.rs`, which checks that the fixture is that file): the `sent.model` entry and the manifest of `en-plain.bin`, byte for byte, in an archive written here (entries stored, manifest first); the JVM loads it so the goldens of the two files can be compared |
 | `tokenizer-abbreviations.bin` | a copy of `analysis/maxent/tests/fixtures/models/tokenizer.bin`, a tokenizer model OpenNLP trained on six sentences with the case-insensitive dictionary `Dr.`, `U.S.`, `e.g.` (`analysis/maxent/tests/fixtures/README.md`) |
 | `english-dictionary.xml` | an abbreviation dictionary written for this project, added to the English tokenizer model |
 | `latin-detokenizer.xml` | Apache OpenNLP's test resource of `DictionaryDetokenizerTest`, unchanged (license header kept) |

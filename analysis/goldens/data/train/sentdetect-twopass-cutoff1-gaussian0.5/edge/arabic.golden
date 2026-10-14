@@ -1,0 +1,96 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	edge/arabic	82	48	5aeeaa567149bf3362840f0155ba9116a1a099afc184f13bb0255bee8c6e8879
+annotator	opennlp.tools.ml.maxent.GISTrainer	train
+config	Cutoff	1
+config	DataIndexer	TwoPass
+config	GaussianSmoothing	true
+config	GaussianSmoothingSigma	0.5
+config	Iterations	100
+config	sort	true
+config	source	sentdetect
+layer	turbo:events	document	2	outcome:str	context:str	values:str
+n	sn eos=! x=بالعالم 7 v=مرحبا s= n=هذا	
+s	sn eos=. x=456 3 v=و s= n=كيف	
+end	turbo:events
+layer	turbo:event-checksum	document	1	crc32c:u32
+2637627067
+end	turbo:event-checksum
+layer	turbo:indexer-outcomes	document	2	label:str
+n
+s
+end	turbo:indexer-outcomes
+layer	turbo:indexer-predicates	document	12	label:str	count:u32
+3	1
+7	1
+eos=!	1
+eos=.	1
+n=كيف	1
+n=هذا	1
+s=	2
+sn	2
+v=مرحبا	1
+v=و	1
+x=456	1
+x=بالعالم	1
+end	turbo:indexer-predicates
+layer	turbo:indexer-events	document	2	outcome:u32	context:str	values:str	seen:u32
+0	7 2 11 1 8 6 5		1
+1	7 3 10 0 9 6 4		1
+end	turbo:indexer-events
+layer	turbo:gis-training	document	1	iterations:u32	message:str
+15	Stopping: Difference between log likelihood of current and previous iteration is less than threshold 1.0E-4 .
+end	turbo:gis-training
+layer	turbo:gis-iterations	document	15	iteration:u32	likelihood:f64	correct:u32	events:u32	parameters:str
+1	bff62e42fefa39ef -1.3862943611198906	1	2	422bc4a5d807d166b24dee959d1358d5f7d85a901df80c1eaafdc204619ab420
+2	bff0b3657fc59583 -1.043797968968051	2	2	9e50c813f6ebf898a7ca55ca317b7b4ebecc34381a78cf3bf4e1e91b5c040dff
+3	bfecc125619f069e -0.8985773951209983	2	2	86fc11808107cf178aaf457db10bbe08a5888a073a400e267150a511e3c37e65
+4	bfea85fcadee098a -0.828855838495927	2	2	7f54c85f443c9b1b7e67c811b79f7b5ee4988ab101a9dee6d280c4b9e3a619dc
+5	bfe9623854e16218 -0.7932397516079304	2	2	ad823ac07f95beade0c96f6cd7968363e4175998e2aa25d6a3930e27bf6ddc4a
+6	bfe8c8456466403e -0.7744471512724045	2	2	455a40524ba5fb2020c41e5b128bbdf90eec46eabbd7f99c8293d5fca54e9ee2
+7	bfe8759fc7f1d42d -0.7643584160965752	2	2	3fc5affe77c355800d1f495d001ad10229938d246c59ba75b5dddf5ad6f9f6ad
+8	bfe848d6c3984178 -0.7588914699754659	2	2	66e508ef1ba27acbd4519f022e58862ba0d32aae38f12478e20359bd06f28990
+9	bfe830725fe9a239 -0.7559139130872331	2	2	a5a0cbdeefa5e20e28bd673f93ccccd624e93fae1d8ac217c033e2e7367aabf5
+10	bfe8231ff06fef2d -0.7542876907386692	2	2	0e9c161e0b417faf549ac59bb2e1eb5479688466de5fe99b5e952aa268c7b3cd
+11	bfe81bd67810f1d6 -0.7533981652300621	2	2	6378377b4c8c778d88d7c5758b085b5ffce7533196773069954e53535af9d0a7
+12	bfe817d93af31648 -0.7529112006529397	2	2	1c10b3479b1fa16cc9ab0cceb8b72e1ec8cb9badf0280ea61ce750344be7bf1b
+13	bfe815a9e7f0b0b4 -0.7526444940645178	2	2	0e6d5fd35186de7023bc7ae6a1aca1db7172b44fc3d31b1c2194769c8baa4372
+14	bfe814777e091194 -0.7524983846310982	2	2	2b1556b3250001db54e57645c8db1042bad98a74e5b19fb907ae24127a59e543
+15	bfe813cf9b78edfb -0.7524183308191249	2	2	444cc15851703d34965ace24c9b1c9a4d36c7d6d9fa0b07750f7a0a196d3a175
+end	turbo:gis-iterations
+layer	turbo:gis-parameters	document	28	iteration:u32	predicate:u32	outcome:u32	value:f64
+1	0	1	3fb35aa14db563be 0.0756016554563663
+1	1	0	3fb35aa14db563be 0.0756016554563663
+1	2	0	3fb35aa14db563be 0.0756016554563663
+1	3	1	3fb35aa14db563be 0.0756016554563663
+1	4	1	3fb35aa14db563be 0.0756016554563663
+1	5	0	3fb35aa14db563be 0.0756016554563663
+1	6	0	0000000000000000 0.0
+1	6	1	0000000000000000 0.0
+1	7	0	0000000000000000 0.0
+1	7	1	0000000000000000 0.0
+1	8	0	3fb35aa14db563be 0.0756016554563663
+1	9	1	3fb35aa14db563be 0.0756016554563663
+1	10	1	3fb35aa14db563be 0.0756016554563663
+1	11	0	3fb35aa14db563be 0.0756016554563663
+15	0	1	3fc40ff565c7f477 0.15673701734332088
+15	1	0	3fc40ff565c7f477 0.15673701734332088
+15	2	0	3fc40ff565c7f477 0.15673701734332088
+15	3	1	3fc40ff565c7f477 0.15673701734332088
+15	4	1	3fc40ff565c7f477 0.15673701734332088
+15	5	0	3fc40ff565c7f477 0.15673701734332088
+15	6	0	0000000000000000 0.0
+15	6	1	0000000000000000 0.0
+15	7	0	0000000000000000 0.0
+15	7	1	0000000000000000 0.0
+15	8	0	3fc40ff565c7f477 0.15673701734332088
+15	9	1	3fc40ff565c7f477 0.15673701734332088
+15	10	1	3fc40ff565c7f477 0.15673701734332088
+15	11	0	3fc40ff565c7f477 0.15673701734332088
+end	turbo:gis-parameters
+layer	turbo:gis-model	document	1	sha256:str	length:u32
+565e50a3dc1b6c5763ecacbfa65ac17f968d5bb27230719307a090305cd4a65a	257
+end	turbo:gis-model

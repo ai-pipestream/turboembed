@@ -1,0 +1,61 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	multi/it	197	194	b62b80bfc802d2090eb6659bc69dda051e07499cd9c8ac88a7cbe182c464f283
+annotator	opennlp.tools.ml.maxent.GISTrainer	train
+config	Cutoff	1
+config	DataIndexer	OnePassRealValue
+config	GaussianSmoothing	true
+config	Iterations	100
+config	sort	true
+config	source	realvalue
+layer	turbo:events	document	1	outcome:str	context:str	values:str
+long	Ogni estate la nostra famiglia va al mare in Liguria. Il viaggio è lungo, ma il paesaggio bellissimo. Mia nonna prepara sempre focaccia per pranzo. Perché non vieni anche tu quest'anno?	1.0 1.0 2.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 2.0 1.0 1.0 2.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0
+end	turbo:events
+layer	turbo:event-checksum	document	1	crc32c:u32
+3232759934
+end	turbo:event-checksum
+layer	turbo:indexer-outcomes	document	1	label:str
+long
+end	turbo:indexer-outcomes
+layer	turbo:indexer-predicates	document	31	label:str	count:u32
+Il	1
+Liguria.	1
+Mia	1
+Ogni	1
+Perché	1
+al	1
+anche	1
+bellissimo.	1
+estate	1
+famiglia	1
+focaccia	1
+il	1
+in	1
+la	1
+lungo,	1
+ma	1
+mare	1
+non	1
+nonna	1
+nostra	1
+paesaggio	1
+per	1
+pranzo.	1
+prepara	1
+quest'anno?	1
+sempre	1
+tu	1
+va	1
+viaggio	1
+vieni	1
+è	1
+end	turbo:indexer-predicates
+layer	turbo:indexer-events	document	1	outcome:u32	context:str	values:str	seen:u32
+0	3 8 13 19 9 27 5 16 12 1 0 28 30 14 15 11 20 7 2 18 23 25 10 21 22 4 17 29 6 26 24	1.0 1.0 2.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 2.0 1.0 1.0 2.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0	1
+end	turbo:indexer-events
+layer	turbo:gis-training	document	1	iterations:u32	message:str
+0	opennlp.tools.util.InsufficientTrainingDataException: Training data must contain more than one outcome
+end	turbo:gis-training

@@ -149,7 +149,8 @@ pub const DICTIONARIES: [Dictionary; 2] = [
 pub const UTF8_COPY_SUFFIX: &str = ".utf8";
 
 /// A checked in file the generator loads from the fixtures directory,
-/// `analysis/goldens/data/fixtures`: a model trained for the tests, a
+/// `analysis/goldens/data/fixtures`: a model trained for the tests or
+/// written by the Rust trainer, a
 /// dictionary, a WordPiece vocabulary, a frequency lexicon or a file of a
 /// MeCab dictionary directory, and the SHA-512 of its bytes. `file` is the
 /// path below the fixtures directory, with `/` between directory and file.
@@ -163,7 +164,7 @@ pub struct Fixture {
 /// file names are the ones the generator's `Runs` class opens there; a
 /// fixture in a subdirectory is a file of a dictionary directory, and
 /// `Runs` opens the directory.
-pub const FIXTURES: [Fixture; 26] = [
+pub const FIXTURES: [Fixture; 27] = [
     Fixture {
         file: "en-abbrev.bin",
         sha512: "759ab1defc61351f53cdd82a26e708789a225feb6e1ec0cfd6e2e54f35f67c14\
@@ -173,6 +174,11 @@ pub const FIXTURES: [Fixture; 26] = [
         file: "en-plain.bin",
         sha512: "8da69d821956999ff898cf23963145cc134beb2bb59aa1ccc5e93d90b0489505\
                  7057d80baf0e8c726bf28dea47021e51eab43689c8dc5fb78c99f19949c93ad8",
+    },
+    Fixture {
+        file: "en-plain-rust.bin",
+        sha512: "ef8684db6573d7096b72db1d520fe7181c8ee058d2c9c1abe140556d36da18d1\
+                 693e63c2f84faf8f427fdd80b0e0f4bd47ce6a92a7aa53233b0b74c403cff736",
     },
     Fixture {
         file: "tokenizer-abbreviations.bin",
