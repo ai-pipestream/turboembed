@@ -117,6 +117,25 @@ impl MaxentModel {
         self.predicates.contains_key(name)
     }
 
+    /// The index of the predicate with this name, given as Java modified
+    /// UTF-8, for [`pattern`](Self::pattern) and
+    /// [`parameters`](Self::parameters).
+    pub fn predicate_index(&self, name: &[u8]) -> Option<usize> {
+        self.predicates.get(name).map(|&i| i as usize)
+    }
+
+    /// The outcomes predicate `p` has a parameter for, by outcome index,
+    /// in the model's order (`Context.getOutcomes`).
+    pub fn pattern(&self, p: usize) -> &[u32] {
+        &self.pred_outcome[self.pred_start[p] as usize..self.pred_start[p + 1] as usize]
+    }
+
+    /// The parameters of predicate `p`, one per entry of its
+    /// [`pattern`](Self::pattern) (`Context.getParameters`).
+    pub fn parameters(&self, p: usize) -> &[f64] {
+        &self.pred_param[self.pred_start[p] as usize..self.pred_start[p + 1] as usize]
+    }
+
     /// Writes the probability of each outcome given the context's features
     /// into `out`, computed as the Java model of this kind computes it,
     /// with the same operations in the same order and `StrictMath`'s `exp`
