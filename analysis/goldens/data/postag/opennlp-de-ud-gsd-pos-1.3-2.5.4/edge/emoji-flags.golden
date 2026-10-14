@@ -1,0 +1,27 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	edge/emoji-flags	50	32	b322415aacd6335bcb52b5f337296ec760bd4f0369a6af7b30317f0340b8a015
+model	opennlp-de-ud-gsd-pos-1.3-2.5.4.bin	9e44d582874464924a8baf8fbfed7500e15112c3dc446bfc5be281bff4dbbf195eda0a16ca7e78fde7a64a684c0f780b5987723db800ce88465b9894ef0ba17b
+model	opennlp-de-ud-gsd-sentence-1.3-2.5.4.bin	c811604c24cdbe490ab42dcffdbae63f9a74b39622f21b7b31f63eea566ffe35ef871f0da905e61180656b877cf0be4d626588c6312fcc18df5ab9a35b4183fa
+model	opennlp-de-ud-gsd-tokens-1.3-2.5.4.bin	343c9fe93ff301b736f30fa2e0d954b270994a1535ec2bd424553cbd82b13eb0d86aa2042946db62322430a8b5a8f29a8a2d882f107cb26c6d4f6d494d97debf
+annotator	opennlp.tools.postag.POSTaggerME	tag
+layer	opennlp:sentences	text	1	start:u32	end:u32
+0	49
+end	opennlp:sentences
+layer	opennlp:tokens	text	5	start:u32	end:u32
+0	5
+6	30
+31	34
+35	44
+45	49
+end	opennlp:tokens
+layer	opennlp:pos	aligned:opennlp:tokens	5	tag:str	prob:f64
+NOUN	3fe5f079092b8be0 0.6856045893767906
+PUNCT	3fea39e720c1fcda 0.819568218212136
+CCONJ	3fef4cb869959f3e 0.9781152784534937
+PUNCT	3fe2b34fdddf7f5e 0.5843886693437346
+ADP+DET	3fd53c39eca8574e 0.3318009196385575
+end	opennlp:pos

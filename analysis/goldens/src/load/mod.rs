@@ -19,7 +19,9 @@ mod layers;
 use std::sync::Mutex;
 
 use turbo_analysis::{Anchor, Document, Key, KeyId, Layer, LayerName, Provenance};
-use turbo_analysis_layers::{Confidence, Entities, Language, Lemmas, PosTags, Sentences, Tokens};
+use turbo_analysis_layers::{
+    ChunkTags, Confidence, Entities, Language, Lemmas, PhraseChunks, PosTags, Sentences, Tokens,
+};
 
 pub use error::LoadError;
 
@@ -131,7 +133,10 @@ const LOADERS: &[(&LayerName, LoadFn)] = &[
     (Confidence::<Tokens>::NAME, add::<Confidence<Tokens>>),
     (PosTags::NAME, add::<PosTags>),
     (Lemmas::NAME, add::<Lemmas>),
+    (Confidence::<Lemmas>::NAME, add::<Confidence<Lemmas>>),
     (Entities::NAME, add::<Entities>),
+    (ChunkTags::NAME, add::<ChunkTags>),
+    (PhraseChunks::NAME, add::<PhraseChunks>),
     (Language::NAME, add::<Language>),
 ];
 

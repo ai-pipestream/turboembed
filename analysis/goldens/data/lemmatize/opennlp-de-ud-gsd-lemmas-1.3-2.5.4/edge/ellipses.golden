@@ -1,0 +1,92 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	edge/ellipses	67	61	ebe802ab1de2ac8701cb588a1dd9bfecb7930f7cb6f4b10b3aedcbc6ea3d88d9
+model	opennlp-de-ud-gsd-lemmas-1.3-2.5.4.bin	616c83327e1af12c8952f362fd99be6efcdc4e28526bee1debf27d3446110ded9beef7e0e2acc9b3094039683c9b4b2b2b0ba32dbf194278d5017e2b21e66371
+model	opennlp-de-ud-gsd-sentence-1.3-2.5.4.bin	c811604c24cdbe490ab42dcffdbae63f9a74b39622f21b7b31f63eea566ffe35ef871f0da905e61180656b877cf0be4d626588c6312fcc18df5ab9a35b4183fa
+model	opennlp-de-ud-gsd-tokens-1.3-2.5.4.bin	343c9fe93ff301b736f30fa2e0d954b270994a1535ec2bd424553cbd82b13eb0d86aa2042946db62322430a8b5a8f29a8a2d882f107cb26c6d4f6d494d97debf
+model	opennlp-de-ud-gsd-pos-1.3-2.5.4.bin	9e44d582874464924a8baf8fbfed7500e15112c3dc446bfc5be281bff4dbbf195eda0a16ca7e78fde7a64a684c0f780b5987723db800ce88465b9894ef0ba17b
+annotator	opennlp.tools.lemmatizer.LemmatizerME	lemmatize
+layer	opennlp:sentences	text	3	start:u32	end:u32
+0	13
+14	34
+35	66
+end	opennlp:sentences
+layer	opennlp:tokens	text	17	start:u32	end:u32
+0	4
+4	7
+8	12
+12	13
+14	21
+22	27
+27	28
+29	30
+31	32
+33	34
+35	37
+38	41
+41	43
+44	47
+47	53
+54	62
+63	66
+end	opennlp:tokens
+layer	opennlp:pos	aligned:opennlp:tokens	17	tag:str	prob:f64
+PROPN	3fef600751f4b85e 0.9804722405149382
+PUNCT	3feff9e5ac277f6c 0.9992550241840781
+AUX	3feb6070d1b7d23f 0.8555225463920307
+PUNCT	3fee282c39475f8b 0.9424039000250429
+PROPN	3fe100c6507bcde5 0.5313445636697308
+VERB	3feb1e7e7afff0fc 0.8474724199618602
+PUNCT	3fefd456d04efb3e 0.9946703022504619
+PUNCT	3fedf93ed7b34465 0.936675473489356
+PUNCT	3fee20ef3ee195aa 0.941520331206154
+PUNCT	3fef82770674caae 0.9846758962724687
+ADJ	3fe43916155ca3cf 0.6319685380195724
+PROPN	3fdd243bfeccdd50 0.45533656962239366
+PUNCT	3feef9358792a348 0.9679210327059105
+PROPN	3fefc654a19a67cc 0.9929602772056056
+PUNCT	3feffc152fb5f7dc 0.9995218211986372
+PUNCT	3fe9dad2ce962c73 0.8079618487257804
+ADJ	3fec94878971a645 0.8931310352756517
+end	opennlp:pos
+layer	opennlp:lemmas	aligned:opennlp:tokens	17	lemma:str
+wait
+...
+what
+?
+well…
+maybe
+.
+.
+.
+.
+or
+not
+..
+hmm
+......
+ok……
+end
+end	opennlp:lemmas
+layer	turbo:confidence<opennlp:lemmas>	aligned:opennlp:lemmas	17	value:f64
+3fee8394b53a0aed 0.9535621203980021
+3feff21f81e57dac 0.9983060395278947
+3fd08e0c55ef092b 0.2586699332424753
+3feff320a448b422 0.9984286507293556
+3fedf751b29eefd8 0.9364403237045691
+3fe408559ed01718 0.6260173894704364
+3feff0e2b2c3b3cd 0.9981549731725124
+3feff0e2b2c3b3cd 0.9981549731725124
+3feff0e2b2c3b3cd 0.9981549731725124
+3feff0e2b2c3b3cd 0.9981549731725124
+3fe9e443b54eed95 0.8091143170526488
+3feff6092ba5f4cc 0.9987836697106558
+3feff100d57b4bb9 0.9981693429530117
+3fee4c4fcdc40833 0.9468153971540744
+3feecf5985becaca 0.9628112423145805
+3fe2d60a7aced6f3 0.5886280439942467
+3fefcd0363b96098 0.9937760303246419
+end	turbo:confidence<opennlp:lemmas>

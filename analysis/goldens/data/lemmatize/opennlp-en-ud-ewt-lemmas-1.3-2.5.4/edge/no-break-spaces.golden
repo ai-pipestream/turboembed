@@ -1,0 +1,74 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	edge/no-break-spaces	92	77	28744c64ca548f1b96f0de0d90ef4a9ce78d2992e8d9f219426ef9e46f1e06fe
+model	opennlp-en-ud-ewt-lemmas-1.3-2.5.4.bin	ee81553985908ac25c50fbd8f2ca4222cb42a18845f063c792a1b43639181b70ce20d57b8736a1604367f5e8c59aef55f8463e04004840cbc88abb7123fd9e7f
+model	opennlp-en-ud-ewt-sentence-1.3-2.5.4.bin	fed5d53ea87bf66afeb08c084f89ca9b95a96de0920dca40487b2ab9972ee6b7ef211e477db480b7253431de079fd66dfd14329cd7d19ad1f565155eb0cf5191
+model	opennlp-en-ud-ewt-tokens-1.3-2.5.4.bin	147d1cdcb89ca5d9bd0ead8fddf2cc14ae543a9151803fe56b3c1fa152b986605e34fb6dda4819c68aa22fc9bffa6bfab14f916b7d0bf4892d452686af34778a
+model	opennlp-en-ud-ewt-pos-1.3-2.5.4.bin	fca85b38d996b7c422401054feedeb0f748cbc03856893cb27670da5d207315ec9af0c0f818c3107a741a2effca2499b5097ac0b46edf4a5ac10bf77a351ac3e
+annotator	opennlp.tools.lemmatizer.LemmatizerME	lemmatize
+layer	opennlp:sentences	text	1	start:u32	end:u32
+0	91
+end	opennlp:sentences
+layer	opennlp:tokens	text	13	start:u32	end:u32
+0	2
+4	9
+10	15
+16	19
+22	33
+34	39
+42	48
+51	57
+60	62
+65	74
+75	80
+83	87
+88	91
+end	opennlp:tokens
+layer	opennlp:pos	aligned:opennlp:tokens	13	tag:str	prob:f64
+DET	3feb6e1cf5c698e9 0.8571915436084768
+NOUN	3fef96f3525da860 0.9871765717227952
+NOUN	3fefc2816ef84cbb 0.9924933593159929
+CCONJ	3fef713b31c91a9c 0.9825721714376701
+ADJ	3febd50797395388 0.8697545960991286
+NOUN	3fefd8cfdcb0fc98 0.9952163038614286
+NOUN	3fe3570101c4a439 0.6043705973180585
+NOUN	3fdbb5e2435d2dd9 0.432976308617723
+NOUN	3fd7be388763e12d 0.3709851572198371
+PUNCT	3fe8e3aa844d9742 0.777791269688102
+NOUN	3fed5089579efec9 0.9160811148976445
+ADP	3fde71e97fb93de5 0.4757026431370533
+NOUN	3fef7b5f064483a6 0.983809959641907
+end	opennlp:pos
+layer	opennlp:lemmas	aligned:opennlp:tokens	13	lemma:str
+no
+break
+space
+and
+ideographic
+space
+figure
+narrow
+en
+em​zero
+width
+thin
+end
+end	opennlp:lemmas
+layer	turbo:confidence<opennlp:lemmas>	aligned:opennlp:lemmas	13	value:f64
+3fefe6bebe31061d 0.9969171251943326
+3feffb64aee8bf72 0.9994376579470396
+3fefec31435968e1 0.997582084218518
+3feff4cb17bccf1d 0.9986319984077202
+3feff23fcd4d2ef7 0.998321438769806
+3fefec31435968e1 0.997582084218518
+3feff912df3ae283 0.9991545066796593
+3fefe103e47b3c8e 0.9962176764037325
+3fed7dbc6dbd41f5 0.921598638853594
+3feebdb88b0f1820 0.9606592861171102
+3fefeb00ec4fc2b1 0.9974369636020893
+3fefd071a3ff49da 0.9941948130675045
+3feffa6a8665a15c 0.9993183731976774
+end	turbo:confidence<opennlp:lemmas>
