@@ -1,0 +1,35 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	multi/zh	157	53	fec0f4f268aec5fb5b5f03e7a5d7e9bc8b5fd848d6ca3ce10c19d64a587fd7cc
+annotator	opennlp.tools.ml.maxent.GISTrainer	train
+config	Cutoff	0
+config	DataIndexer	OnePass
+config	Iterations	100
+config	sort	false
+config	source	postag
+layer	turbo:events	document	1	outcome:str	context:str	values:str
+L52	bias w=我们周末去了博物馆。那里有很多古代的瓷器和书画。导游讲得非常清楚，大家都听得很认真。下次我还想再去一次！ p=*SB* n=*SE* pre=我们 suf=次！	
+end	turbo:events
+layer	turbo:event-checksum	document	1	crc32c:u32
+1499097529
+end	turbo:event-checksum
+layer	turbo:indexer-outcomes	document	1	label:str
+L52
+end	turbo:indexer-outcomes
+layer	turbo:indexer-predicates	document	6	label:str	count:u32
+bias	1
+n=*SE*	1
+p=*SB*	1
+pre=我们	1
+suf=次！	1
+w=我们周末去了博物馆。那里有很多古代的瓷器和书画。导游讲得非常清楚，大家都听得很认真。下次我还想再去一次！	1
+end	turbo:indexer-predicates
+layer	turbo:indexer-events	document	1	outcome:u32	context:str	values:str	seen:u32
+0	0 5 2 1 3 4		1
+end	turbo:indexer-events
+layer	turbo:gis-training	document	1	iterations:u32	message:str
+0	opennlp.tools.util.InsufficientTrainingDataException: Training data must contain more than one outcome
+end	turbo:gis-training

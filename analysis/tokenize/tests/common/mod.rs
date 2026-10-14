@@ -20,9 +20,27 @@ pub fn fixtures_dir() -> PathBuf {
     data_dir().join("fixtures")
 }
 
-/// The published tokenizer models the tests run, under tests/models.
-pub fn models_dir() -> PathBuf {
-    Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/models")
+/// A published tokenizer model, where `turbo-goldens fetch-models` puts
+/// it: the directory in `TURBO_GOLDENS_MODELS`, or
+/// `target/turbo-goldens/models` under the repository root. The models
+/// are trained on CC BY-SA treebanks and are not checked in, so a test
+/// that needs one says so and passes without it when it is missing,
+/// unless `TURBO_TEST_REQUIRE_OPENNLP_MODELS=1`, which makes a missing
+/// model fail it, as CI sets it.
+pub fn published_model(file: &str) -> Option<PathBuf> {
+    let dir = match std::env::var_os("TURBO_GOLDENS_MODELS") {
+        Some(d) => PathBuf::from(d),
+        None => Path::new(env!("CARGO_MANIFEST_DIR")).join("../../target/turbo-goldens/models"),
+    };
+    let path = dir.join(file);
+    if path.is_file() {
+        Some(path)
+    } else if std::env::var("TURBO_TEST_REQUIRE_OPENNLP_MODELS").is_ok_and(|v| v == "1") {
+        panic!("{} not found and TURBO_TEST_REQUIRE_OPENNLP_MODELS=1", path.display());
+    } else {
+        eprintln!("{} not found: skipping the test that needs it", path.display());
+        None
+    }
 }
 
 /// One golden of a run and its input text, checked against the header.
@@ -159,28 +177,37 @@ pub fn run(annotator: &str, run: &str) -> Vec<Case> {
         .collect()
 }
 
-/// A tokenizer model of tests/models, or a fixture.
-pub fn model(name: &str) -> TokenizerModel {
-    let path = model_path(name);
-    TokenizerModel::read(&path).unwrap_or_else(|e| panic!("{}: {e}", path.display()))
+/// The tokenizer model at `path`.
+pub fn read_model(path: &Path) -> TokenizerModel {
+    TokenizerModel::read(path).unwrap_or_else(|e| panic!("{}: {e}", path.display()))
 }
 
-/// Where the model file `name` is: tests/models, else the generator's
-/// fixtures.
-pub fn model_path(name: &str) -> PathBuf {
-    let published = models_dir().join(name);
-    if published.exists() { published } else { fixtures_dir().join(name) }
+/// A fixture model of the generator, by file name.
+pub fn fixture_model(name: &str) -> TokenizerModel {
+    read_model(&fixtures_dir().join(name))
 }
 
 pub const LANGUAGES: [&str; 5] = ["en", "de", "es", "fr", "pt"];
 
-/// The file name of the UD tokenizer model for `language`.
-pub fn ud_model_name(language: &str) -> String {
-    std::fs::read_dir(models_dir())
-        .unwrap()
-        .map(|e| e.unwrap().file_name().into_string().unwrap())
-        .find(|n| n.starts_with(&format!("opennlp-{language}-")))
-        .unwrap_or_else(|| panic!("no UD model for {language}"))
+/// The file name of the UD tokenizer model for `language`, one of
+/// `LANGUAGES`.
+pub fn ud_model_name(language: &str) -> &'static str {
+    match language {
+        "en" => "opennlp-en-ud-ewt-tokens-1.3-2.5.4.bin",
+        "de" => "opennlp-de-ud-gsd-tokens-1.3-2.5.4.bin",
+        "es" => "opennlp-es-ud-gsd-tokens-1.3-2.5.4.bin",
+        "fr" => "opennlp-fr-ud-gsd-tokens-1.3-2.5.4.bin",
+        "pt" => "opennlp-pt-ud-gsd-tokens-1.3-2.5.4.bin",
+        _ => panic!("no UD model for {language}"),
+    }
+}
+
+/// The path of each language's UD model, in the order of `LANGUAGES`, or
+/// `None` when any of them is not downloaded (`published_model` says
+/// which).
+pub fn ud_models() -> Option<Vec<(&'static str, PathBuf)>> {
+    let found: Vec<_> = LANGUAGES.iter().map(|&l| published_model(ud_model_name(l)).map(|p| (l, p))).collect();
+    found.into_iter().collect()
 }
 
 /// The run directory of a model file: its name without `.bin`.

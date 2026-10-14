@@ -1,0 +1,63 @@
+dump 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	edge/long-word-emoji	299	297	5dbd5bc952a059e356487829312c19b1326aefb63f1d30ac6deff30397496ebb
+model	opennlp-en-ud-ewt-pos-1.3-2.5.4.bin	fca85b38d996b7c422401054feedeb0f748cbc03856893cb27670da5d207315ec9af0c0f818c3107a741a2effca2499b5097ac0b46edf4a5ac10bf77a351ac3e
+model	opennlp-en-ud-ewt-sentence-1.3-2.5.4.bin	fed5d53ea87bf66afeb08c084f89ca9b95a96de0920dca40487b2ab9972ee6b7ef211e477db480b7253431de079fd66dfd14329cd7d19ad1f565155eb0cf5191
+model	opennlp-en-ud-ewt-tokens-1.3-2.5.4.bin	147d1cdcb89ca5d9bd0ead8fddf2cc14ae543a9151803fe56b3c1fa152b986605e34fb6dda4819c68aa22fc9bffa6bfab14f916b7d0bf4892d452686af34778a
+annotator	opennlp.tools.postag.POSTaggerME	tag
+point	0	0	13	38	0	none
+context	def
+context	suf=b
+context	suf=bb
+context	suf=bbb
+context	suf=bbbb
+context	pre=a
+context	pre=aa
+context	pre=aaa
+context	pre=aaaa
+context	w=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa😀bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+context	S=begin
+context	wc=other
+context	w&c=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa😀bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb,other
+outcome	PROPN	3f7c9c356cf40292 0.006984909719222403
+outcome	PUNCT	3fe581a1e3b70c5c 0.6720742652472711
+outcome	ADJ	3f8559c03aadb967 0.010425092497567246
+outcome	NOUN	3f9b6e293127e7fc 0.0267874180080767
+outcome	VERB	3f7200b3e91a7fc4 0.0043952014690659715
+outcome	DET	3f388154e61bb04e 3.739197037322437E-4
+outcome	ADP	3f807a7a698d6d06 0.008046108576016408
+outcome	AUX	3f3a96e4c013923a 4.057224724205753E-4
+outcome	PRON	3f32856bd94bf98a 2.826107313892648E-4
+outcome	PART	3f1979ee8f2dffb0 9.718435812366868E-5
+outcome	SCONJ	3f36bde3a50cd9c8 3.4701163990593894E-4
+outcome	NUM	3f9acffb5b23df2f 0.02618401283049748
+outcome	ADV	3f6723894fce9561 0.002824562251094662
+outcome	CCONJ	3f91b9064a2af5aa 0.017307375218242584
+outcome	AUX+PART	3f865c344a4cf1a0 0.010918053166840747
+outcome	ADJ+PART	3f0d8924a63a36f0 5.6334906529105044E-5
+outcome	PRON+AUX	3fb21c7afce58afb 0.07074707674250284
+outcome	PROPN+PART	3f1c382becb89ce0 1.0764854521793125E-4
+outcome	NOUN+PART	3f368210de84a294 3.4344589086513747E-4
+outcome	PRON+PART	3f18aabc186e494f 9.409688037312801E-5
+outcome	VERB+PRON	3f205f22f4376009 1.249056023044928E-4
+outcome	INTJ	3f24f8fdbdeb6f18 1.600084060190347E-4
+outcome	X	3f3ece4dc962fb82 4.700603398183832E-4
+outcome	SYM	3fc1d03d42581fc6 0.1391674589106044
+outcome	ADV+AUX	3efd8a06b64cfa55 2.8170742911055115E-5
+outcome	PROPN+AUX	3f312ed43e669025 2.621906445716713E-4
+outcome	PRON+VERB	3f350bed38b53893 3.2114545384310486E-4
+outcome	NOUN+AUX	3f1dece0375d0d34 1.1415594584911621E-4
+outcome	VERB+PART	3f007d3185b32dc4 3.1450341987228635E-5
+outcome	NUM+PART	3f16abb0930e9742 8.648171639310829E-5
+outcome	ADV+PART	3f07964d927e36e5 4.498886329350002E-5
+outcome	PROPN+PROPN	3ee9ac1006558dd8 1.2241420516096344E-5
+outcome	DET+NOUN	3f2251f1c457425e 1.3977123505394795E-4
+outcome	NOUN+ADP	3efdd11d659a8d06 2.8435568629203905E-5
+outcome	VERB+ADV	3ee50ebdcb77f2e5 1.0041038293267946E-5
+outcome	ADP+ADP	3f2011e54adb9875 1.2260364513067318E-4
+outcome	AUX+AUX	3ee381e1fd26869e 9.301831515543074E-6
+outcome	AUX+PART+VERB	3f10eb08bf6656c0 6.453743831110869E-5
+end	0

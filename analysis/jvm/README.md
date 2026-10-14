@@ -16,6 +16,14 @@ of its results depend on the platform rather than on OpenNLP:
 - `random`: `JavaRandom` is `java.util.Random` from a seed (every method
   OpenNLP uses, `nextGaussian` included) and its `shuffle` is
   `Collections.shuffle(List, Random)`.
+- `text`: `double_to_string` and `float_to_string` are `Double.toString`
+  and `Float.toString` (event files, model manifests and training
+  reports hold numbers in that form); `parse_double`, `parse_float`,
+  `parse_int` and `parse_boolean` read numbers as `Double.parseDouble`,
+  `Float.parseFloat`, `Integer.parseInt` and `Boolean.parseBoolean` do
+  (training parameters, real valued features), hexadecimal floating
+  point literals included, except that `parse_int` refuses the decimal
+  digits of other scripts, which Java reads.
 
 The crate has no dependencies.
 
@@ -32,6 +40,7 @@ pattern). The vectors are in `tests/vectors/`:
 | `random.tsv` | For nine seeds (0, 1, -1, 42, `Long.MIN_VALUE`, `Long.MAX_VALUE` and others): the first 64 values of each `java.util.Random` method from a fresh generator (`nextInt(bound)` for twelve bounds), a run mixing methods, and `Collections.shuffle` of the list 0..n for eight sizes |
 | `compare.tsv` | `String.compareTo` over pairs of strings with ASCII, Latin-1, BMP and supplementary characters |
 | `whitespace.tsv` | Every code point for which `Character.isWhitespace` is true |
+| `text.tsv` | `Double.toString` and `Float.toString` of values on both sides of every rule of their specification (layout thresholds, subnormals, k x 10^n for every exponent, random bit patterns), and `parseDouble`, `parseFloat`, `parseInt` and `parseBoolean` of texts on both sides of their grammars |
 
 Each file's first line names the generator and the JVM that ran it
 (`java.version`, `java.vm.version`); the JDK does not expose its Unicode
@@ -41,16 +50,18 @@ written the same way, an integer is decimal, and a string has every
 character outside printable ASCII, and the backslash, written as `\u`
 and four hex digits.
 
-The files were made with the JDK named in their headers, by running this
-from the repository root:
+The files were made with the JDK named in their headers, the one in the
+golden generator's container (`analysis/goldens-tool`), by running the
+JDK 21 source launcher in it from the repository root:
 
 ```sh
-java analysis/jvm/java/Vectors.java analysis/jvm/tests/vectors
+docker run --rm --entrypoint java --user "$(id -u):$(id -g)" \
+    -v "$PWD/analysis/jvm:/jvm" <image> /jvm/java/Vectors.java /jvm/tests/vectors
 ```
 
-`java/Vectors.java` is a single file for the JDK 21 source launcher and
-needs no build tool. The golden-file container (issue #152) will
-regenerate the files under its pinned JDK.
+`java/Vectors.java` is a single file for the source launcher and needs no
+build tool; any JDK 21 gives the same records, and only the header line
+names the JDK that ran it.
 
 ## What is not here
 

@@ -1,0 +1,56 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	edge/french	164	149	6bab75cdbbd521fa95a0f838d9b38e836a5efc8c22c0cb655bc79bd66bdcc6eb
+annotator	opennlp.tools.ml.maxent.GISTrainer	train
+config	Cutoff	5
+config	DataIndexer	TwoPass
+config	Iterations	100
+config	sort	true
+config	source	sentdetect
+layer	turbo:events	document	6	outcome:str	context:str	values:str
+n	sp sn eos=? x= v=c'est s= n=«	
+n	sn eos=. x=dit-elle 8 v=», s= n=M. ncap	
+n	sn eos=. x=M 1 xcap v=dit-elle. s= n=Dupont ncap	
+n	sn eos=. x=€) 2 v=(3,50 s= n=Où ncap	
+n	sn eos=? x=cœur 4 v=le s= n=Naïve ncap	
+s	sn eos=. x=façade 6 v=Naïve vcap s= n=	
+end	turbo:events
+layer	turbo:event-checksum	document	1	crc32c:u32
+355694043
+end	turbo:event-checksum
+layer	turbo:indexer-outcomes	document	2	label:str
+n
+s
+end	turbo:indexer-outcomes
+layer	turbo:indexer-predicates	document	2	label:str	count:u32
+s=	6
+sn	6
+end	turbo:indexer-predicates
+layer	turbo:indexer-events	document	2	outcome:u32	context:str	values:str	seen:u32
+0	1 0		5
+1	1 0		1
+end	turbo:indexer-events
+layer	turbo:gis-training	document	1	iterations:u32	message:str
+3	Training finished after completing 100 iterations successfully.
+end	turbo:gis-training
+layer	turbo:gis-iterations	document	3	iteration:u32	likelihood:f64	correct:u32	events:u32	parameters:str
+1	c010a2b23f3bab73 -4.1588830833596715	5	6	20395692962dadb1d5bdb258f53dd8e73c7eaa23ab0bf6249a7e603a5314b8f4
+2	c005a07f02ac7f05 -2.7033672531978277	5	6	4a00cbe43e81a0f17d496da83eed2255ae9aefc7eaee77dc006e61c4e099fdd7
+3	c005a07f02ac7f06 -2.703367253197828	5	6	bc4c0197f38bdf84701af7c64969687b8ddfb03786592592f2d55446d234d979
+end	turbo:gis-iterations
+layer	turbo:gis-parameters	document	8	iteration:u32	predicate:u32	outcome:u32	value:f64
+1	0	0	3fd058aefa811452 0.25541281188299536
+1	0	1	bfe193ea7aad030a -0.5493061443340548
+1	1	0	3fd058aefa811452 0.25541281188299536
+1	1	1	bfe193ea7aad030a -0.5493061443340548
+3	0	0	3fd058aefa811452 0.25541281188299536
+3	0	1	bfe193ea7aad030c -0.549306144334055
+3	1	0	3fd058aefa811452 0.25541281188299536
+3	1	1	bfe193ea7aad030c -0.549306144334055
+end	turbo:gis-parameters
+layer	turbo:gis-model	document	1	sha256:str	length:u32
+fb60c20ade8f6fbc0d942aed2e48cc684085209ff5471bdb5ed370ec0e1e8fc8	82
+end	turbo:gis-model

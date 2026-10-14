@@ -45,6 +45,7 @@ public class Vectors {
         });
         write(out.resolve("random.tsv"), "seed,method,argument,index,value", Vectors::random);
         write(out.resolve("compare.tsv"), "a,b,a.compareTo(b)", Vectors::compare);
+        write(out.resolve("text.tsv"), "method,input,result", Vectors::text);
         write(out.resolve("whitespace.tsv"), "code point (hex) for which Character.isWhitespace is true", w -> {
             for (int cp = 0; cp <= Character.MAX_CODE_POINT; cp++) {
                 if (Character.isWhitespace(cp)) {
@@ -294,6 +295,125 @@ public class Vectors {
             for (String b : strings) {
                 w.println(escape(a) + "\t" + escape(b) + "\t" + a.compareTo(b));
             }
+        }
+    }
+
+    /**
+     * Double.toString and Float.toString of values on both sides of every rule of their
+     * specification (the plain and the scientific layout, the shortest decimal, the two digit
+     * decimal that replaces a one digit one), and parseDouble, parseFloat, parseInt and
+     * parseBoolean of texts on both sides of their grammars. A toString input is the value's
+     * bit pattern and its result the string; a parse input is the string and its result the
+     * value's bit pattern, the integer, the boolean, or NumberFormatException.
+     */
+    static void text(PrintWriter w) {
+        Set<Double> doubles = new LinkedHashSet<>();
+        specials(doubles);
+        for (double x : new double[] {0.001, 1.0e7, 1.0, 10.0, 0.1, 0.5, 2.0 / 3.0, 100.0, 1234567.0, 12345678.0,
+            Double.MIN_NORMAL, Double.MAX_VALUE, 1.0e23, 2.0e23, 9.007199254740992e15, 4503599627370496.5}) {
+            around(doubles, x, 3);
+        }
+        for (int i = 1; i <= 300; i++) {
+            doubles.add(i * Double.MIN_VALUE);
+        }
+        for (int n = -324; n <= 308; n++) {
+            for (int k = 1; k <= 9; k++) {
+                doubles.add(Double.parseDouble(k + "e" + n));
+            }
+        }
+        Random r = new Random(20261014);
+        for (int i = 0; i < 3000; i++) {
+            double x = Double.longBitsToDouble(r.nextLong());
+            if (!Double.isNaN(x)) {
+                doubles.add(x);
+            }
+        }
+        for (int i = 0; i < 1000; i++) {
+            doubles.add(r.nextDouble() * Math.pow(10, r.nextInt(30) - 15));
+            doubles.add((double) r.nextInt(100_000_000));
+        }
+        for (double x : doubles) {
+            w.println("Double.toString\t" + hex(x) + "\t" + escape(Double.toString(x)));
+        }
+        Set<Float> floats = new LinkedHashSet<>();
+        for (float x : new float[] {0.0f, -0.0f, Float.NaN, Float.POSITIVE_INFINITY, Float.NEGATIVE_INFINITY,
+            Float.MIN_VALUE, Float.MIN_NORMAL, Float.MAX_VALUE, 0.001f, 1.0e7f, 1.0f, 0.1f, 16777216.0f,
+            1234567.0f, 12345678.0f, 1.0f / 3.0f}) {
+            floats.add(x);
+            floats.add(Math.nextUp(x));
+            floats.add(Math.nextDown(x));
+            floats.add(-x);
+        }
+        for (int i = 1; i <= 300; i++) {
+            floats.add(i * Float.MIN_VALUE);
+        }
+        for (int n = -45; n <= 38; n++) {
+            for (int k = 1; k <= 9; k++) {
+                floats.add(Float.parseFloat(k + "e" + n));
+            }
+        }
+        for (int i = 0; i < 3000; i++) {
+            float x = Float.intBitsToFloat(r.nextInt());
+            if (!Float.isNaN(x)) {
+                floats.add(x);
+            }
+        }
+        for (int i = 0; i < 1000; i++) {
+            floats.add((float) (r.nextFloat() * Math.pow(10, r.nextInt(16) - 8)));
+            floats.add((float) r.nextInt(100_000_000));
+        }
+        for (float x : floats) {
+            w.println("Float.toString\t" + hex(x) + "\t" + escape(Float.toString(x)));
+        }
+        String[] numbers = {"1.5", " 1.5 ", "\t1.5\n", "\u00a01.5", "1.5f", "1.5F", "1.5d", "1.5D", "1.5e", "1.5e+",
+            "1.5e3", "1.5E-3", "+1.5", "-1.5", "--1.5", "+-1.5", ".5", "5.", ".", "-.5", "+.5e-3", "1e400", "-1e400",
+            "1e-400", "0.1", "1.00000001", "3.4028236e38", "3.4028235e38", "1.7976931348623157e308",
+            "1.7976931348623159e308", "4.9e-324", "2.4e-324", "2.5e-324", "123456789012345678901234567890",
+            "0.30000000000000004", "Infinity", "-Infinity", "+Infinity", "infinity", "Inf", "NaN", "-NaN", "nan",
+            "NaNf", "Infinityd", "1,5", "1_000", "1e5f", "1x", "", " ", "0x1p3", "0X1.8p1", "0x10", "1f5", "1.5.2",
+            "1e5.0", "00012", "-0", "-0.0", "0e0", "1E", "e5", "9007199254740993", "1.5\u0000", "1.5 f",
+            // Hexadecimal literals: the grammar, rounding to a double and to a float (ties, carries, the
+            // ends of both ranges, more digits than either holds), zero significands and exponents over an int.
+            "0x.8p1", "0x1.p0", "0xp1", "0x.p1", "0x1p", "0x1p+", "0x1", "0x1.8", "-0x1p-2", "+0x1P+2", "0x1p3f",
+            "0x1p3D", "0x1p3x", "0x1p3 f", "0x1e5", "0x1p3.5", "0x1p0x3", "0x+1p3", "0x1p-0", "0x1p+0", "0x1p00003",
+            " 0x1p3 ", "0x1p3\u0000", "0X1P3", "0x0001.0000p0", "0x.0001p16", "0xABCDEFp0", "0xabcdefp0",
+            "0x1.1234567890abcdef1234567890p0", "0x1.00000000000008p0", "0x1.00000000000008000000000000000001p0",
+            "0x1.00000000000018p0", "0x1.000001p0", "0x1.000003p0", "0x1.0000010000001p0", "0x1.fffffffp0",
+            "0x1.fffffffffffffp1023", "0x1.fffffffffffff8p1023", "0x1p1024", "-0x1p1024", "0x1p-1022",
+            "0x1.fffffffffffffp-1023", "0x1.fffffffffffff8p-1023", "0x1p-1074", "0x1p-1075", "0x1.8p-1075",
+            "0x1.0000000000000000000000000001p-1075", "0x1p-1076", "-0x1p-1076", "0x1.fffffep127", "0x1.ffffffp127",
+            "0x1p-126", "0x1.ffffffp-127", "0x1p-149", "0x1p-150", "0x1.8p-150", "0x1p-151", "0x0p99999999999",
+            "-0x0.000p-99999999999", "0x1p2147483647", "0x1p2147483648", "0x1p-2147483648", "0x1p-2147483647",
+            "0x1p99999999999", "0x1p\u0663", "0xg1p0", "0x1,8p1", "0x.000000000000000000001p0"};
+        for (String s : numbers) {
+            String d;
+            try {
+                d = hex(Double.parseDouble(s));
+            } catch (NumberFormatException e) {
+                d = "NumberFormatException";
+            }
+            w.println("Double.parseDouble\t" + escape(s) + "\t" + d);
+            String f;
+            try {
+                f = hex(Float.parseFloat(s));
+            } catch (NumberFormatException e) {
+                f = "NumberFormatException";
+            }
+            w.println("Float.parseFloat\t" + escape(s) + "\t" + f);
+        }
+        String[] ints = {"5", "-5", "+5", "2147483647", "-2147483648", "2147483648", "-2147483649", "", "-", "+",
+            " 5", "5 ", "1.0", "0x10", "00012", "1e3", "\u0661\u0662", "99999999999", "-0", "+0"};
+        for (String s : ints) {
+            String i;
+            try {
+                i = Integer.toString(Integer.parseInt(s));
+            } catch (NumberFormatException e) {
+                i = "NumberFormatException";
+            }
+            w.println("Integer.parseInt\t" + escape(s) + "\t" + i);
+        }
+        for (String s : new String[] {"true", "TRUE", "tRuE", "false", "yes", " true", "true ", "", "1", "t"}) {
+            w.println("Boolean.parseBoolean\t" + escape(s) + "\t" + Boolean.parseBoolean(s));
         }
     }
 

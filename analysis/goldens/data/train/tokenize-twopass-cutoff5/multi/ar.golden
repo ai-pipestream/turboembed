@@ -1,0 +1,201 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	multi/ar	224	124	421843fa20516ed200f358d541cb8ecd397177813c10f6207e75b9f1632bc013
+annotator	opennlp.tools.ml.maxent.GISTrainer	train
+config	Cutoff	5
+config	DataIndexer	TwoPass
+config	Iterations	100
+config	sort	true
+config	source	tokenize
+layer	turbo:events	document	82	outcome:str	context:str	values:str
+F	p=ذ s=هبنا p1=ذ p1_alpha p2=bok p1f1=ذه f1=ه f1_alpha f2=ب f2_alpha f12=هب	
+F	p=ذه s=بنا p1=ه p1_alpha p2=ذ p2_alpha p21=ذه p1f1=هب f1=ب f1_alpha f2=ن f2_alpha f12=بن	
+F	p=ذهب s=نا p1=ب p1_alpha p2=ه p2_alpha p21=هب p1f1=بن f1=ن f1_alpha f2=ا f2_alpha f12=نا	
+F	p=ذهبن s=ا p1=ن p1_alpha p2=ب p2_alpha p21=بن p1f1=نا f1=ا f1_alpha f2=bok	
+F	p=إ s=لى p1=إ p1_alpha p2=bok p1f1=إل f1=ل f1_alpha f2=ى f2_alpha f12=لى	
+F	p=إل s=ى p1=ل p1_alpha p2=إ p2_alpha p21=إل p1f1=لى f1=ى f1_alpha f2=bok	
+F	p=ا s=لسوق p1=ا p1_alpha p2=bok p1f1=ال f1=ل f1_alpha f2=س f2_alpha f12=لس	
+F	p=ال s=سوق p1=ل p1_alpha p2=ا p2_alpha p21=ال p1f1=لس f1=س f1_alpha f2=و f2_alpha f12=سو	
+F	p=الس s=وق p1=س p1_alpha p2=ل p2_alpha p21=لس p1f1=سو f1=و f1_alpha f2=ق f2_alpha f12=وق	
+F	p=السو s=ق p1=و p1_alpha p2=س p2_alpha p21=سو p1f1=وق f1=ق f1_alpha f2=bok	
+F	p=ف s=ي p1=ف p1_alpha p2=bok p1f1=في f1=ي f1_alpha f2=bok	
+F	p=ا s=لصباح p1=ا p1_alpha p2=bok p1f1=ال f1=ل f1_alpha f2=ص f2_alpha f12=لص	
+F	p=ال s=صباح p1=ل p1_alpha p2=ا p2_alpha p21=ال p1f1=لص f1=ص f1_alpha f2=ب f2_alpha f12=صب	
+F	p=الص s=باح p1=ص p1_alpha p2=ل p2_alpha p21=لص p1f1=صب f1=ب f1_alpha f2=ا f2_alpha f12=با	
+F	p=الصب s=اح p1=ب p1_alpha p2=ص p2_alpha p21=صب p1f1=با f1=ا f1_alpha f2=ح f2_alpha f12=اح	
+F	p=الصبا s=ح p1=ا p1_alpha p2=ب p2_alpha p21=با p1f1=اح f1=ح f1_alpha f2=bok	
+F	p=ا s=لباكر. p1=ا p1_alpha p2=bok p1f1=ال f1=ل f1_alpha f2=ب f2_alpha f12=لب	
+F	p=ال s=باكر. p1=ل p1_alpha p2=ا p2_alpha p21=ال p1f1=لب f1=ب f1_alpha f2=ا f2_alpha f12=با	
+F	p=الب s=اكر. p1=ب p1_alpha p2=ل p2_alpha p21=لب p1f1=با f1=ا f1_alpha f2=ك f2_alpha f12=اك	
+F	p=البا s=كر. p1=ا p1_alpha p2=ب p2_alpha p21=با p1f1=اك f1=ك f1_alpha f2=ر f2_alpha f12=كر	
+F	p=الباك s=ر. p1=ك p1_alpha p2=ا p2_alpha p21=اك p1f1=كر f1=ر f1_alpha f2=. f2_eos f12=ر.	
+F	p=الباكر s=. p1=ر p1_alpha p2=ك p2_alpha p21=كر p1f1=ر. f1=. f1_eos f2=bok	
+F	p=ك s=انت p1=ك p1_alpha p2=bok p1f1=كا f1=ا f1_alpha f2=ن f2_alpha f12=ان	
+F	p=كا s=نت p1=ا p1_alpha p2=ك p2_alpha p21=كا p1f1=ان f1=ن f1_alpha f2=ت f2_alpha f12=نت	
+F	p=كان s=ت p1=ن p1_alpha p2=ا p2_alpha p21=ان p1f1=نت f1=ت f1_alpha f2=bok	
+F	p=ا s=لفواكه p1=ا p1_alpha p2=bok p1f1=ال f1=ل f1_alpha f2=ف f2_alpha f12=لف	
+F	p=ال s=فواكه p1=ل p1_alpha p2=ا p2_alpha p21=ال p1f1=لف f1=ف f1_alpha f2=و f2_alpha f12=فو	
+F	p=الف s=واكه p1=ف p1_alpha p2=ل p2_alpha p21=لف p1f1=فو f1=و f1_alpha f2=ا f2_alpha f12=وا	
+F	p=الفو s=اكه p1=و p1_alpha p2=ف p2_alpha p21=فو p1f1=وا f1=ا f1_alpha f2=ك f2_alpha f12=اك	
+F	p=الفوا s=كه p1=ا p1_alpha p2=و p2_alpha p21=وا p1f1=اك f1=ك f1_alpha f2=ه f2_alpha f12=كه	
+F	p=الفواك s=ه p1=ك p1_alpha p2=ا p2_alpha p21=اك p1f1=كه f1=ه f1_alpha f2=bok	
+F	p=ط s=ازجة p1=ط p1_alpha p2=bok p1f1=طا f1=ا f1_alpha f2=ز f2_alpha f12=از	
+F	p=طا s=زجة p1=ا p1_alpha p2=ط p2_alpha p21=طا p1f1=از f1=ز f1_alpha f2=ج f2_alpha f12=زج	
+F	p=طاز s=جة p1=ز p1_alpha p2=ا p2_alpha p21=از p1f1=زج f1=ج f1_alpha f2=ة f2_alpha f12=جة	
+F	p=طازج s=ة p1=ج p1_alpha p2=ز p2_alpha p21=زج p1f1=جة f1=ة f1_alpha f2=bok	
+F	p=و s=الأسعار p1=و p1_alpha p2=bok p1f1=وا f1=ا f1_alpha f2=ل f2_alpha f12=ال	
+F	p=وا s=لأسعار p1=ا p1_alpha p2=و p2_alpha p21=وا p1f1=ال f1=ل f1_alpha f2=أ f2_alpha f12=لأ	
+F	p=وال s=أسعار p1=ل p1_alpha p2=ا p2_alpha p21=ال p1f1=لأ f1=أ f1_alpha f2=س f2_alpha f12=أس	
+F	p=والأ s=سعار p1=أ p1_alpha p2=ل p2_alpha p21=لأ p1f1=أس f1=س f1_alpha f2=ع f2_alpha f12=سع	
+F	p=والأس s=عار p1=س p1_alpha p2=أ p2_alpha p21=أس p1f1=سع f1=ع f1_alpha f2=ا f2_alpha f12=عا	
+F	p=والأسع s=ار p1=ع p1_alpha p2=س p2_alpha p21=سع p1f1=عا f1=ا f1_alpha f2=ر f2_alpha f12=ار	
+F	p=والأسعا s=ر p1=ا p1_alpha p2=ع p2_alpha p21=عا p1f1=ار f1=ر f1_alpha f2=bok	
+F	p=م s=ناسبة. p1=م p1_alpha p2=bok p1f1=من f1=ن f1_alpha f2=ا f2_alpha f12=نا	
+F	p=من s=اسبة. p1=ن p1_alpha p2=م p2_alpha p21=من p1f1=نا f1=ا f1_alpha f2=س f2_alpha f12=اس	
+F	p=منا s=سبة. p1=ا p1_alpha p2=ن p2_alpha p21=نا p1f1=اس f1=س f1_alpha f2=ب f2_alpha f12=سب	
+F	p=مناس s=بة. p1=س p1_alpha p2=ا p2_alpha p21=اس p1f1=سب f1=ب f1_alpha f2=ة f2_alpha f12=بة	
+F	p=مناسب s=ة. p1=ب p1_alpha p2=س p2_alpha p21=سب p1f1=بة f1=ة f1_alpha f2=. f2_eos f12=ة.	
+F	p=مناسبة s=. p1=ة p1_alpha p2=ب p2_alpha p21=بة p1f1=ة. f1=. f1_eos f2=bok	
+F	p=ا s=شترت p1=ا p1_alpha p2=bok p1f1=اش f1=ش f1_alpha f2=ت f2_alpha f12=شت	
+F	p=اش s=ترت p1=ش p1_alpha p2=ا p2_alpha p21=اش p1f1=شت f1=ت f1_alpha f2=ر f2_alpha f12=تر	
+F	p=اشت s=رت p1=ت p1_alpha p2=ش p2_alpha p21=شت p1f1=تر f1=ر f1_alpha f2=ت f2_alpha f12=رت	
+F	p=اشتر s=ت p1=ر p1_alpha p2=ت p2_alpha p21=تر p1f1=رت f1=ت f1_alpha f2=bok	
+F	p=أ s=مي p1=أ p1_alpha p2=bok p1f1=أم f1=م f1_alpha f2=ي f2_alpha f12=مي	
+F	p=أم s=ي p1=م p1_alpha p2=أ p2_alpha p21=أم p1f1=مي f1=ي f1_alpha f2=bok	
+F	p=ا s=لبرتقال p1=ا p1_alpha p2=bok p1f1=ال f1=ل f1_alpha f2=ب f2_alpha f12=لب	
+F	p=ال s=برتقال p1=ل p1_alpha p2=ا p2_alpha p21=ال p1f1=لب f1=ب f1_alpha f2=ر f2_alpha f12=بر	
+F	p=الب s=رتقال p1=ب p1_alpha p2=ل p2_alpha p21=لب p1f1=بر f1=ر f1_alpha f2=ت f2_alpha f12=رت	
+F	p=البر s=تقال p1=ر p1_alpha p2=ب p2_alpha p21=بر p1f1=رت f1=ت f1_alpha f2=ق f2_alpha f12=تق	
+F	p=البرت s=قال p1=ت p1_alpha p2=ر p2_alpha p21=رت p1f1=تق f1=ق f1_alpha f2=ا f2_alpha f12=قا	
+F	p=البرتق s=ال p1=ق p1_alpha p2=ت p2_alpha p21=تق p1f1=قا f1=ا f1_alpha f2=ل f2_alpha f12=ال	
+F	p=البرتقا s=ل p1=ا p1_alpha p2=ق p2_alpha p21=قا p1f1=ال f1=ل f1_alpha f2=bok	
+F	p=و s=العنب. p1=و p1_alpha p2=bok p1f1=وا f1=ا f1_alpha f2=ل f2_alpha f12=ال	
+F	p=وا s=لعنب. p1=ا p1_alpha p2=و p2_alpha p21=وا p1f1=ال f1=ل f1_alpha f2=ع f2_alpha f12=لع	
+F	p=وال s=عنب. p1=ل p1_alpha p2=ا p2_alpha p21=ال p1f1=لع f1=ع f1_alpha f2=ن f2_alpha f12=عن	
+F	p=والع s=نب. p1=ع p1_alpha p2=ل p2_alpha p21=لع p1f1=عن f1=ن f1_alpha f2=ب f2_alpha f12=نب	
+F	p=والعن s=ب. p1=ن p1_alpha p2=ع p2_alpha p21=عن p1f1=نب f1=ب f1_alpha f2=. f2_eos f12=ب.	
+F	p=والعنب s=. p1=ب p1_alpha p2=ن p2_alpha p21=نب p1f1=ب. f1=. f1_eos f2=bok	
+F	p=ه s=ل p1=ه p1_alpha p2=bok p1f1=هل f1=ل f1_alpha f2=bok	
+F	p=ت s=ريد p1=ت p1_alpha p2=bok p1f1=تر f1=ر f1_alpha f2=ي f2_alpha f12=ري	
+F	p=تر s=يد p1=ر p1_alpha p2=ت p2_alpha p21=تر p1f1=ري f1=ي f1_alpha f2=د f2_alpha f12=يد	
+F	p=تري s=د p1=ي p1_alpha p2=ر p2_alpha p21=ري p1f1=يد f1=د f1_alpha f2=bok	
+F	p=أ s=ن p1=أ p1_alpha p2=bok p1f1=أن f1=ن f1_alpha f2=bok	
+F	p=ت s=أتي p1=ت p1_alpha p2=bok p1f1=تأ f1=أ f1_alpha f2=ت f2_alpha f12=أت	
+F	p=تأ s=تي p1=أ p1_alpha p2=ت p2_alpha p21=تأ p1f1=أت f1=ت f1_alpha f2=ي f2_alpha f12=تي	
+F	p=تأت s=ي p1=ت p1_alpha p2=أ p2_alpha p21=أت p1f1=تي f1=ي f1_alpha f2=bok	
+F	p=م s=عنا p1=م p1_alpha p2=bok p1f1=مع f1=ع f1_alpha f2=ن f2_alpha f12=عن	
+F	p=مع s=نا p1=ع p1_alpha p2=م p2_alpha p21=مع p1f1=عن f1=ن f1_alpha f2=ا f2_alpha f12=نا	
+F	p=معن s=ا p1=ن p1_alpha p2=ع p2_alpha p21=عن p1f1=نا f1=ا f1_alpha f2=bok	
+F	p=غ s=داً؟ p1=غ p1_alpha p2=bok p1f1=غد f1=د f1_alpha f2=ا f2_alpha f12=دا	
+F	p=غد s=اً؟ p1=د p1_alpha p2=غ p2_alpha p21=غد p1f1=دا f1=ا f1_alpha f2=ً f12=اً	
+F	p=غدا s=ً؟ p1=ا p1_alpha p2=د p2_alpha p21=دا p1f1=اً f1=ً f2=؟ f12=ً؟	
+F	p=غداً s=؟ p1=ً p2=ا p2_alpha p21=اً p1f1=ً؟ f1=؟ f2=bok	
+end	turbo:events
+layer	turbo:event-checksum	document	1	crc32c:u32
+2607240417
+end	turbo:event-checksum
+layer	turbo:indexer-outcomes	document	1	label:str
+F
+end	turbo:indexer-outcomes
+layer	turbo:indexer-predicates	document	27	label:str	count:u32
+f1=ا	13
+f1=ب	6
+f1=ت	5
+f1=ر	5
+f1=ل	10
+f1=ن	6
+f1_alpha	77
+f2=bok	21
+f2=ا	9
+f2=ب	6
+f2=ت	5
+f2_alpha	56
+p1=ا	17
+p1=ب	6
+p1=ت	5
+p1=ل	8
+p1=ن	5
+p1_alpha	81
+p1f1=ال	8
+p21=ال	7
+p2=bok	21
+p2=ا	14
+p2=ب	5
+p2=ل	7
+p2_alpha	61
+p=ا	6
+p=ال	5
+end	turbo:indexer-predicates
+layer	turbo:indexer-events	document	65	outcome:u32	context:str	values:str	seen:u32
+0	12 17 22 24 6 7		1
+0	12 17 22 24 6 11		1
+0	12 17 24		1
+0	12 17 24 3 6 7		1
+0	12 17 24 5 6 10 11		1
+0	12 17 24 6 9 11		1
+0	12 17 24 6 11		2
+0	12 17 24 18 4 6 7		1
+0	12 17 24 18 4 6 11		2
+0	13 17 23 24 0 6 11		1
+0	13 17 23 24 3 6 10 11		1
+0	13 17 24 0 6 11		1
+0	13 17 24 5 6 8 11		1
+0	13 17 24 6		1
+0	13 17 24 7		1
+0	14 17 20 3 6 11		1
+0	14 17 20 6 10 11		1
+0	14 17 24 3 6 10 11		1
+0	14 17 24 6 7		1
+0	14 17 24 6 8 11		1
+0	15 17 21 24 19 6 11		2
+0	15 17 24 6 7		1
+0	16 17 21 24 2 6 7		1
+0	16 17 22 24 0 6 7		1
+0	16 17 24 0 6 7		1
+0	16 17 24 0 6 11		1
+0	16 17 24 1 6		1
+0	17 20 0 6 11		4
+0	17 20 4 6 7		1
+0	17 20 4 6 11		1
+0	17 20 5 6 7		1
+0	17 20 5 6 8 11		1
+0	17 20 6 7		1
+0	17 20 6 8 11		1
+0	17 20 6 9 11		1
+0	17 20 6 11		2
+0	17 21 24 1 6 11		1
+0	17 21 24 2 6 11		1
+0	17 21 24 3 6		1
+0	17 21 24 6 7		1
+0	17 21 24 6 11		1
+0	17 22 24 2 6 11		1
+0	17 22 24 7		1
+0	17 23 24 1 6 8 11		1
+0	17 23 24 5 6 9 11		1
+0	17 23 24 6 8 11		1
+0	17 23 24 6 11		2
+0	17 24 0 6		1
+0	17 24 0 6 11		3
+0	17 24 1 6 11		1
+0	17 24 2 6 7		1
+0	17 24 2 6 11		1
+0	17 24 5 6 8 11		1
+0	17 24 6 7		4
+0	17 24 6 8 11		1
+0	17 24 6 11		1
+0	17 24 7		1
+0	21 24 7		1
+0	25 12 17 20 6 10 11		1
+0	25 12 17 20 18 4 6 9 11		2
+0	25 12 17 20 18 4 6 11		3
+0	26 15 17 21 24 19 1 6 8 11		1
+0	26 15 17 21 24 19 1 6 11		1
+0	26 15 17 21 24 19 6 9 11		1
+0	26 15 17 21 24 19 6 11		2
+end	turbo:indexer-events
+layer	turbo:gis-training	document	1	iterations:u32	message:str
+0	opennlp.tools.util.InsufficientTrainingDataException: Training data must contain more than one outcome
+end	turbo:gis-training
