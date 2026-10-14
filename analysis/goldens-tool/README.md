@@ -153,6 +153,8 @@ a directory with the same model run without them, and its options are
 | `formats` (the CoNLL streams) | `conll02-nld`, `conll02-spa`, `conll02-spa-per-loc`, `conll03-eng`, `conll03-deu`, `conll03-eng-org-misc`, `conllx-pos`, `conllx-token` and `conllx-sentence` (with `en-detokenizer`, fixture) | `formats`, the `conll02`, `conll03` and `conllx` inputs | `lang`, `types`; `chunkSize 2` for `conllx-sentence` |
 | `masc` (the MASC readers) | `documents` (`MascDocument.parseDocument`), `pos`, `token`, `sentence`, `name` (the sample streams) | `formats`, the `masc-` inputs | `sentencesPerSample 2` for `sentence` |
 | `ner` (the named entity corpus streams) | `germeval-outer`, `germeval-inner`, `germeval-outer-loc-misc`, `bionlp`, `bionlp-cell-line`, `bionlp-dna-cell-type`, `evalita`, `evalita-per-gpe`, `census`, `muc6-whitespace` (also `+legacy`), `muc6-simple`, `brat-whitespace` (also `+legacy`), `brat-simple`, `brat-recursive-person-location`, `brat-config` | `ner`, the inputs whose id starts with the corpus's prefix (`germeval-`, `bionlp-`, `evalita-`, `census-`, `muc-`, `brat-`) | `types`, `layer`, `lang it`, `tokenizer`, `recursive true`, `nameTypes`, `whitespace legacy` |
+| `parse` (`ParseSampleStream`, `Parse.parseParse`) | `treebank`, `treebank+function-tags`; `en-head-rules`, `en-head-rules+possessives`, `es-head-rules`, `es-regex-head-rules` (fixtures) | `parse` | `useFunctionTags true`; `rules`, `fixPossesives true` |
+| `head-rules` (`HeadRules`, `AncoraSpanishHeadRules`) | `en`, `es` | `head-rules` | |
 
 - `+english-dictionary` is the English model rebuilt through
   `TokenizerModel(MaxentModel, Map, TokenizerFactory)` with the
@@ -467,6 +469,34 @@ and reading goes on. The layers are `turbo:samples`,
 `turbo:read-errors`, `turbo:sample-tokens` and `turbo:names`, as the
 format goldens write them. `analysis/formats/tests/ner.rs` compares the
 Rust readers with these goldens.
+
+## Parse goldens
+
+`parse/<run>/parse/<id>.golden` is what OpenNLP's Penn Treebank reader
+made of `inputs/parse/<id>.txt`, one bracketed parse per line, read with
+`PlainTextByLineStream` over UTF-8. `ParserGolden` runs
+`ParseSampleStream` (`treebank`, and `treebank+function-tags` with
+`Parse.useFunctionTags(true)`, set back to false afterwards), and
+`Parse.parseParse` with a rule class as the gap labeler followed by
+`updateHeads` (`en-head-rules` and `es-head-rules`, OpenNLP's English and
+AnCora rule files, and `es-regex-head-rules`, AnCora rules written for this
+project whose tags use more of Java's regular expressions;
+`en-head-rules+possessives` calls `pruneParse` and `fixPossesives` before
+`updateHeads`, as `AbstractParserEventStream` does). A line that throws is
+recorded with the number of parses before it, and reading goes on. The
+layers are `turbo:samples` (`toStringPennTreebank` of each parse),
+`turbo:read-errors`, `turbo:parse-texts` (each parse's text),
+`turbo:parse-nodes` (every node in preorder with its depth, type, UTF-8
+span, its head's span, whether it is its own head and its head index),
+`turbo:pos-samples` and `turbo:chunk-samples` (what `PosSampleStream` and
+`ChunkSampleStream` make of each parse).
+
+`head-rules/<en|es>/head-rules/<id>.golden` is what
+`opennlp.tools.parser.lang.en.HeadRules` or `AncoraSpanishHeadRules` read
+from the rule file `inputs/head-rules/<id>.txt`: `turbo:head-rules`, the
+lines `serialize` wrote, or `turbo:rules-errors`, what the reader threw.
+`analysis/parser/tests/goldens.rs` compares the Rust reader, writer and
+rule classes with both.
 
 ## Evaluator goldens
 
