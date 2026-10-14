@@ -1,0 +1,114 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	edge/greek-cyrillic	191	110	79aa0a28a938d78b6093561b7b74ca326c3b23be13e3028964a50fd8c7128d8a
+annotator	opennlp.tools.tokenize.TokSpanEventStream	read
+config	abbreviations	english-dictionary.xml
+config	format	text
+config	language	de
+config	run	tokenize-dictionary-alnum-de
+config	source	tokenize
+config	useAlphaNumericOptimization	true
+layer	turbo:events	document	74	outcome:str	context:str	values:str
+F	p=Κ s=αλημέρα p1=Κ p1_alpha p1_caps p2=bok p1f1=Κα f1=α f1_alpha f2=λ f2_alpha f12=αλ	
+F	p=Κα s=λημέρα p1=α p1_alpha p2=Κ p2_alpha p2_caps p21=Κα p1f1=αλ f1=λ f1_alpha f2=η f2_alpha f12=λη	
+F	p=Καλ s=ημέρα p1=λ p1_alpha p2=α p2_alpha p21=αλ p1f1=λη f1=η f1_alpha f2=μ f2_alpha f12=ημ	
+F	p=Καλη s=μέρα p1=η p1_alpha p2=λ p2_alpha p21=λη p1f1=ημ f1=μ f1_alpha f2=έ f2_alpha f12=μέ	
+F	p=Καλημ s=έρα p1=μ p1_alpha p2=η p2_alpha p21=ημ p1f1=μέ f1=έ f1_alpha f2=ρ f2_alpha f12=έρ	
+F	p=Καλημέ s=ρα p1=έ p1_alpha p2=μ p2_alpha p21=μέ p1f1=έρ f1=ρ f1_alpha f2=α f2_alpha f12=ρα	
+F	p=Καλημέρ s=α p1=ρ p1_alpha p2=έ p2_alpha p21=έρ p1f1=ρα f1=α f1_alpha f2=bok	
+F	p=κ s=όσμε! p1=κ p1_alpha p2=bok p1f1=κό f1=ό f1_alpha f2=σ f2_alpha f12=όσ	
+F	p=κό s=σμε! p1=ό p1_alpha p2=κ p2_alpha p21=κό p1f1=όσ f1=σ f1_alpha f2=μ f2_alpha f12=σμ	
+F	p=κόσ s=με! p1=σ p1_alpha p2=ό p2_alpha p21=όσ p1f1=σμ f1=μ f1_alpha f2=ε f2_alpha f12=με	
+F	p=κόσμ s=ε! p1=μ p1_alpha p2=σ p2_alpha p21=σμ p1f1=με f1=ε f1_alpha f2=! f2_eos f12=ε!	
+F	p=κόσμε s=! p1=ε p1_alpha p2=μ p2_alpha p21=με p1f1=ε! f1=! f1_eos f2=bok	
+F	p=Σ s=ωκράτης p1=Σ p1_alpha p1_caps p2=bok p1f1=Σω f1=ω f1_alpha f2=κ f2_alpha f12=ωκ	
+F	p=Σω s=κράτης p1=ω p1_alpha p2=Σ p2_alpha p2_caps p21=Σω p1f1=ωκ f1=κ f1_alpha f2=ρ f2_alpha f12=κρ	
+F	p=Σωκ s=ράτης p1=κ p1_alpha p2=ω p2_alpha p21=ωκ p1f1=κρ f1=ρ f1_alpha f2=ά f2_alpha f12=ρά	
+F	p=Σωκρ s=άτης p1=ρ p1_alpha p2=κ p2_alpha p21=κρ p1f1=ρά f1=ά f1_alpha f2=τ f2_alpha f12=άτ	
+F	p=Σωκρά s=της p1=ά p1_alpha p2=ρ p2_alpha p21=ρά p1f1=άτ f1=τ f1_alpha f2=η f2_alpha f12=τη	
+F	p=Σωκράτ s=ης p1=τ p1_alpha p2=ά p2_alpha p21=άτ p1f1=τη f1=η f1_alpha f2=ς f2_alpha f12=ης	
+F	p=Σωκράτη s=ς p1=η p1_alpha p2=τ p2_alpha p21=τη p1f1=ης f1=ς f1_alpha f2=bok	
+F	p=ε s=ίπε: p1=ε p1_alpha p2=bok p1f1=εί f1=ί f1_alpha f2=π f2_alpha f12=ίπ	
+F	p=εί s=πε: p1=ί p1_alpha p2=ε p2_alpha p21=εί p1f1=ίπ f1=π f1_alpha f2=ε f2_alpha f12=πε	
+F	p=είπ s=ε: p1=π p1_alpha p2=ί p2_alpha p21=ίπ p1f1=πε f1=ε f1_alpha f2=: f12=ε:	
+F	p=είπε s=: p1=ε p1_alpha p2=π p2_alpha p21=πε p1f1=ε: f1=: f2=bok	
+F	p=« s=Εν p1=« p2=bok p1f1=«Ε f1=Ε f1_alpha f1_caps f2=ν f2_alpha f12=Εν	
+F	p=«Ε s=ν p1=Ε p1_alpha p1_caps p2=« p21=«Ε p1f1=Εν f1=ν f1_alpha f2=bok	
+F	p=ο s=ίδα p1=ο p1_alpha p2=bok p1f1=οί f1=ί f1_alpha f2=δ f2_alpha f12=ίδ	
+F	p=οί s=δα p1=ί p1_alpha p2=ο p2_alpha p21=οί p1f1=ίδ f1=δ f1_alpha f2=α f2_alpha f12=δα	
+F	p=οίδ s=α p1=δ p1_alpha p2=ί p2_alpha p21=ίδ p1f1=δα f1=α f1_alpha f2=bok	
+F	p=ό s=τι p1=ό p1_alpha p2=bok p1f1=ότ f1=τ f1_alpha f2=ι f2_alpha f12=τι	
+F	p=ότ s=ι p1=τ p1_alpha p2=ό p2_alpha p21=ότ p1f1=τι f1=ι f1_alpha f2=bok	
+F	p=ο s=υδέν p1=ο p1_alpha p2=bok p1f1=ου f1=υ f1_alpha f2=δ f2_alpha f12=υδ	
+F	p=ου s=δέν p1=υ p1_alpha p2=ο p2_alpha p21=ου p1f1=υδ f1=δ f1_alpha f2=έ f2_alpha f12=δέ	
+F	p=ουδ s=έν p1=δ p1_alpha p2=υ p2_alpha p21=υδ p1f1=δέ f1=έ f1_alpha f2=ν f2_alpha f12=έν	
+F	p=ουδέ s=ν p1=έ p1_alpha p2=δ p2_alpha p21=δέ p1f1=έν f1=ν f1_alpha f2=bok	
+F	p=ο s=ίδα». p1=ο p1_alpha p2=bok p1f1=οί f1=ί f1_alpha f2=δ f2_alpha f12=ίδ	
+F	p=οί s=δα». p1=ί p1_alpha p2=ο p2_alpha p21=οί p1f1=ίδ f1=δ f1_alpha f2=α f2_alpha f12=δα	
+F	p=οίδ s=α». p1=δ p1_alpha p2=ί p2_alpha p21=ίδ p1f1=δα f1=α f1_alpha f2=» f12=α»	
+F	p=οίδα s=». p1=α p1_alpha p2=δ p2_alpha p21=δα p1f1=α» f1=» f2=. f2_eos f12=».	
+F	p=οίδα» s=. p1=» p2=α p2_alpha p21=α» p1f1=». f1=. f1_eos f2=bok	
+F	p=П s=ривет, p1=П p1_alpha p1_caps p2=bok p1f1=Пр f1=р f1_alpha f2=и f2_alpha f12=ри	
+F	p=Пр s=ивет, p1=р p1_alpha p2=П p2_alpha p2_caps p21=Пр p1f1=ри f1=и f1_alpha f2=в f2_alpha f12=ив	
+F	p=При s=вет, p1=и p1_alpha p2=р p2_alpha p21=ри p1f1=ив f1=в f1_alpha f2=е f2_alpha f12=ве	
+F	p=Прив s=ет, p1=в p1_alpha p2=и p2_alpha p21=ив p1f1=ве f1=е f1_alpha f2=т f2_alpha f12=ет	
+F	p=Приве s=т, p1=е p1_alpha p2=в p2_alpha p21=ве p1f1=ет f1=т f1_alpha f2=, f12=т,	
+F	p=Привет s=, p1=т p1_alpha p2=е p2_alpha p21=ет p1f1=т, f1=, f2=bok	
+F	p=м s=ир! p1=м p1_alpha p2=bok p1f1=ми f1=и f1_alpha f2=р f2_alpha f12=ир	
+F	p=ми s=р! p1=и p1_alpha p2=м p2_alpha p21=ми p1f1=ир f1=р f1_alpha f2=! f2_eos f12=р!	
+F	p=мир s=! p1=р p1_alpha p2=и p2_alpha p21=ир p1f1=р! f1=! f1_eos f2=bok	
+F	p=К s=ак p1=К p1_alpha p1_caps p2=bok p1f1=Ка f1=а f1_alpha f2=к f2_alpha f12=ак	
+F	p=Ка s=к p1=а p1_alpha p2=К p2_alpha p2_caps p21=Ка p1f1=ак f1=к f1_alpha f2=bok	
+F	p=д s=ела? p1=д p1_alpha p2=bok p1f1=де f1=е f1_alpha f2=л f2_alpha f12=ел	
+F	p=де s=ла? p1=е p1_alpha p2=д p2_alpha p21=де p1f1=ел f1=л f1_alpha f2=а f2_alpha f12=ла	
+F	p=дел s=а? p1=л p1_alpha p2=е p2_alpha p21=ел p1f1=ла f1=а f1_alpha f2=? f2_eos f12=а?	
+F	p=дела s=? p1=а p1_alpha p2=л p2_alpha p21=ла p1f1=а? f1=? f1_eos f2=bok	
+F	p=Э s=то p1=Э p1_alpha p1_caps p2=bok p1f1=Эт f1=т f1_alpha f2=о f2_alpha f12=то	
+F	p=Эт s=о p1=т p1_alpha p2=Э p2_alpha p2_caps p21=Эт p1f1=то f1=о f1_alpha f2=bok	
+F	p=т s=ест-проверка p1=т p1_alpha p2=bok p1f1=те f1=е f1_alpha f2=с f2_alpha f12=ес	
+F	p=те s=ст-проверка p1=е p1_alpha p2=т p2_alpha p21=те p1f1=ес f1=с f1_alpha f2=т f2_alpha f12=ст	
+F	p=тес s=т-проверка p1=с p1_alpha p2=е p2_alpha p21=ес p1f1=ст f1=т f1_alpha f2=- f12=т-	
+F	p=тест s=-проверка p1=т p1_alpha p2=с p2_alpha p21=ст p1f1=т- f1=- f2=п f2_alpha f12=-п	
+F	p=тест- s=проверка p1=- p2=т p2_alpha p21=т- p1f1=-п f1=п f1_alpha f2=р f2_alpha f12=пр	
+F	p=тест-п s=роверка p1=п p1_alpha p2=- p21=-п p1f1=пр f1=р f1_alpha f2=о f2_alpha f12=ро	
+F	p=тест-пр s=оверка p1=р p1_alpha p2=п p2_alpha p21=пр p1f1=ро f1=о f1_alpha f2=в f2_alpha f12=ов	
+F	p=тест-про s=верка p1=о p1_alpha p2=р p2_alpha p21=ро p1f1=ов f1=в f1_alpha f2=е f2_alpha f12=ве	
+F	p=тест-пров s=ерка p1=в p1_alpha p2=о p2_alpha p21=ов p1f1=ве f1=е f1_alpha f2=р f2_alpha f12=ер	
+F	p=тест-прове s=рка p1=е p1_alpha p2=в p2_alpha p21=ве p1f1=ер f1=р f1_alpha f2=к f2_alpha f12=рк	
+F	p=тест-провер s=ка p1=р p1_alpha p2=е p2_alpha p21=ер p1f1=рк f1=к f1_alpha f2=а f2_alpha f12=ка	
+F	p=тест-проверк s=а p1=к p1_alpha p2=р p2_alpha p21=рк p1f1=ка f1=а f1_alpha f2=bok	
+F	p=3 s=,5 p1=3 p1_num p2=bok p1f1=3, f1=, f2=5 f2_num f12=,5	
+F	p=3, s=5 p1=, p2=3 p2_num p21=3, p1f1=,5 f1=5 f1_num f2=bok	
+F	p=р s=аза. p1=р p1_alpha p2=bok p1f1=ра f1=а f1_alpha f2=з f2_alpha f12=аз	
+F	p=ра s=за. p1=а p1_alpha p2=р p2_alpha p21=ра p1f1=аз f1=з f1_alpha f2=а f2_alpha f12=за	
+F	p=раз s=а. p1=з p1_alpha p2=а p2_alpha p21=аз p1f1=за f1=а f1_alpha f2=. f2_eos f12=а.	
+F	p=раза s=. p1=а p1_alpha p2=з p2_alpha p21=за p1f1=а. f1=. f1_eos f2=bok	
+end	turbo:events
+layer	turbo:stream-errors	document	0	after:u32	class:str	message:str
+end	turbo:stream-errors
+layer	turbo:event-checksum	document	1	crc32c:u32
+191969431
+end	turbo:event-checksum
+layer	turbo:manifest	document	10	key:str	value:str
+Component-Name	TokenizerME
+Language	de
+Manifest-Version	1.0
+OpenNLP-Version	3.0.0-SNAPSHOT
+TrainerType	Event
+Training-Eventhash	1
+alphaNumericPattern	^[A-Za-z0-9äéöüÄÉÖÜß]+$
+factory	opennlp.tools.tokenize.TokenizerFactory
+serializer-class-abbreviations.dictionary	opennlp.tools.util.model.DictionarySerializer
+useAlphaNumericOptimization	true
+end	turbo:manifest
+layer	turbo:package-entries	document	3	name:str	length:u32
+manifest.properties	444
+abbreviations.dictionary	468
+token.model	61
+end	turbo:package-entries
+layer	turbo:dictionary	document	1	xml:str
+<?xml version="1.0" encoding="UTF-8"?><dictionary case_sensitive="false">\n    <entry>\n        <token>Dr.</token>\n    </entry>\n    <entry>\n        <token>U.S.</token>\n    </entry>\n    <entry>\n        <token>xyz.,"abc</token>\n    </entry>\n    <entry>\n        <token>a.m.</token>\n    </entry>\n    <entry>\n        <token>etc.</token>\n    </entry>\n    <entry>\n        <token>e.g.</token>\n    </entry>\n    <entry>\n        <token>(c)Co.ltd</token>\n    </entry>\n</dictionary>\n
+end	turbo:dictionary

@@ -1,0 +1,78 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	multi/it	197	194	b62b80bfc802d2090eb6659bc69dda051e07499cd9c8ac88a7cbe182c464f283
+annotator	opennlp.tools.tokenize.TokSpanEventStream	read
+config	abbreviations	english-dictionary.xml
+config	format	text
+config	language	de
+config	run	tokenize-dictionary-alnum-de
+config	source	tokenize
+config	useAlphaNumericOptimization	true
+layer	turbo:events	document	38	outcome:str	context:str	values:str
+F	p=L s=iguria. p1=L p1_alpha p1_caps p2=bok p1f1=Li f1=i f1_alpha f2=g f2_alpha f12=ig	
+F	p=Li s=guria. p1=i p1_alpha p2=L p2_alpha p2_caps p21=Li p1f1=ig f1=g f1_alpha f2=u f2_alpha f12=gu	
+F	p=Lig s=uria. p1=g p1_alpha p2=i p2_alpha p21=ig p1f1=gu f1=u f1_alpha f2=r f2_alpha f12=ur	
+F	p=Ligu s=ria. p1=u p1_alpha p2=g p2_alpha p21=gu p1f1=ur f1=r f1_alpha f2=i f2_alpha f12=ri	
+F	p=Ligur s=ia. p1=r p1_alpha p2=u p2_alpha p21=ur p1f1=ri f1=i f1_alpha f2=a f2_alpha f12=ia	
+F	p=Liguri s=a. p1=i p1_alpha p2=r p2_alpha p21=ri p1f1=ia f1=a f1_alpha f2=. f2_eos f12=a.	
+F	p=Liguria s=. p1=a p1_alpha p2=i p2_alpha p21=ia p1f1=a. f1=. f1_eos f2=bok	
+F	p=l s=ungo, p1=l p1_alpha p2=bok p1f1=lu f1=u f1_alpha f2=n f2_alpha f12=un	
+F	p=lu s=ngo, p1=u p1_alpha p2=l p2_alpha p21=lu p1f1=un f1=n f1_alpha f2=g f2_alpha f12=ng	
+F	p=lun s=go, p1=n p1_alpha p2=u p2_alpha p21=un p1f1=ng f1=g f1_alpha f2=o f2_alpha f12=go	
+F	p=lung s=o, p1=g p1_alpha p2=n p2_alpha p21=ng p1f1=go f1=o f1_alpha f2=, f12=o,	
+F	p=lungo s=, p1=o p1_alpha p2=g p2_alpha p21=go p1f1=o, f1=, f2=bok	
+F	p=b s=ellissimo. p1=b p1_alpha p2=bok p1f1=be f1=e f1_alpha f2=l f2_alpha f12=el	
+F	p=be s=llissimo. p1=e p1_alpha p2=b p2_alpha p21=be p1f1=el f1=l f1_alpha f2=l f2_alpha f12=ll	
+F	p=bel s=lissimo. p1=l p1_alpha p2=e p2_alpha p21=el p1f1=ll f1=l f1_alpha f2=i f2_alpha f12=li	
+F	p=bell s=issimo. p1=l p1_alpha p2=l p2_alpha p21=ll p1f1=li f1=i f1_alpha f2=s f2_alpha f12=is	
+F	p=belli s=ssimo. p1=i p1_alpha p2=l p2_alpha p21=li p1f1=is f1=s f1_alpha f2=s f2_alpha f12=ss	
+F	p=bellis s=simo. p1=s p1_alpha p2=i p2_alpha p21=is p1f1=ss f1=s f1_alpha f2=i f2_alpha f12=si	
+F	p=belliss s=imo. p1=s p1_alpha p2=s p2_alpha p21=ss p1f1=si f1=i f1_alpha f2=m f2_alpha f12=im	
+F	p=bellissi s=mo. p1=i p1_alpha p2=s p2_alpha p21=si p1f1=im f1=m f1_alpha f2=o f2_alpha f12=mo	
+F	p=bellissim s=o. p1=m p1_alpha p2=i p2_alpha p21=im p1f1=mo f1=o f1_alpha f2=. f2_eos f12=o.	
+F	p=bellissimo s=. p1=o p1_alpha p2=m p2_alpha p21=mo p1f1=o. f1=. f1_eos f2=bok	
+F	p=p s=ranzo. p1=p p1_alpha p2=bok p1f1=pr f1=r f1_alpha f2=a f2_alpha f12=ra	
+F	p=pr s=anzo. p1=r p1_alpha p2=p p2_alpha p21=pr p1f1=ra f1=a f1_alpha f2=n f2_alpha f12=an	
+F	p=pra s=nzo. p1=a p1_alpha p2=r p2_alpha p21=ra p1f1=an f1=n f1_alpha f2=z f2_alpha f12=nz	
+F	p=pran s=zo. p1=n p1_alpha p2=a p2_alpha p21=an p1f1=nz f1=z f1_alpha f2=o f2_alpha f12=zo	
+F	p=pranz s=o. p1=z p1_alpha p2=n p2_alpha p21=nz p1f1=zo f1=o f1_alpha f2=. f2_eos f12=o.	
+F	p=pranzo s=. p1=o p1_alpha p2=z p2_alpha p21=zo p1f1=o. f1=. f1_eos f2=bok	
+F	p=q s=uest'anno? p1=q p1_alpha p2=bok p1f1=qu f1=u f1_alpha f2=e f2_alpha f12=ue	
+F	p=qu s=est'anno? p1=u p1_alpha p2=q p2_alpha p21=qu p1f1=ue f1=e f1_alpha f2=s f2_alpha f12=es	
+F	p=que s=st'anno? p1=e p1_alpha p2=u p2_alpha p21=ue p1f1=es f1=s f1_alpha f2=t f2_alpha f12=st	
+F	p=ques s=t'anno? p1=s p1_alpha p2=e p2_alpha p21=es p1f1=st f1=t f1_alpha f2=' f2_quote f12=t'	
+F	p=quest s='anno? p1=t p1_alpha p2=s p2_alpha p21=st p1f1=t' f1=' f1_quote f2=a f2_alpha f12='a	
+F	p=quest' s=anno? p1=' p1_quote p2=t p2_alpha p21=t' p1f1='a f1=a f1_alpha f2=n f2_alpha f12=an	
+F	p=quest'a s=nno? p1=a p1_alpha p2=' p2_quote p21='a p1f1=an f1=n f1_alpha f2=n f2_alpha f12=nn	
+F	p=quest'an s=no? p1=n p1_alpha p2=a p2_alpha p21=an p1f1=nn f1=n f1_alpha f2=o f2_alpha f12=no	
+F	p=quest'ann s=o? p1=n p1_alpha p2=n p2_alpha p21=nn p1f1=no f1=o f1_alpha f2=? f2_eos f12=o?	
+F	p=quest'anno s=? p1=o p1_alpha p2=n p2_alpha p21=no p1f1=o? f1=? f1_eos f2=bok	
+end	turbo:events
+layer	turbo:stream-errors	document	0	after:u32	class:str	message:str
+end	turbo:stream-errors
+layer	turbo:event-checksum	document	1	crc32c:u32
+1609936419
+end	turbo:event-checksum
+layer	turbo:manifest	document	10	key:str	value:str
+Component-Name	TokenizerME
+Language	de
+Manifest-Version	1.0
+OpenNLP-Version	3.0.0-SNAPSHOT
+TrainerType	Event
+Training-Eventhash	1
+alphaNumericPattern	^[A-Za-z0-9äéöüÄÉÖÜß]+$
+factory	opennlp.tools.tokenize.TokenizerFactory
+serializer-class-abbreviations.dictionary	opennlp.tools.util.model.DictionarySerializer
+useAlphaNumericOptimization	true
+end	turbo:manifest
+layer	turbo:package-entries	document	3	name:str	length:u32
+manifest.properties	444
+abbreviations.dictionary	468
+token.model	61
+end	turbo:package-entries
+layer	turbo:dictionary	document	1	xml:str
+<?xml version="1.0" encoding="UTF-8"?><dictionary case_sensitive="false">\n    <entry>\n        <token>Dr.</token>\n    </entry>\n    <entry>\n        <token>U.S.</token>\n    </entry>\n    <entry>\n        <token>xyz.,"abc</token>\n    </entry>\n    <entry>\n        <token>a.m.</token>\n    </entry>\n    <entry>\n        <token>etc.</token>\n    </entry>\n    <entry>\n        <token>e.g.</token>\n    </entry>\n    <entry>\n        <token>(c)Co.ltd</token>\n    </entry>\n</dictionary>\n
+end	turbo:dictionary

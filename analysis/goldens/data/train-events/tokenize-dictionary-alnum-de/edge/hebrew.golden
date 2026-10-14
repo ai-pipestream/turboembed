@@ -1,0 +1,72 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	edge/hebrew	86	48	fdec23581c55cd33b0c462c0d0922b3d8ef84447e18d5e7eb5c7cdb595d6159d
+annotator	opennlp.tools.tokenize.TokSpanEventStream	read
+config	abbreviations	english-dictionary.xml
+config	format	text
+config	language	de
+config	run	tokenize-dictionary-alnum-de
+config	source	tokenize
+config	useAlphaNumericOptimization	true
+layer	turbo:events	document	32	outcome:str	context:str	values:str
+F	p=ש s=לום p1=ש p1_alpha p2=bok p1f1=של f1=ל f1_alpha f2=ו f2_alpha f12=לו	
+F	p=של s=ום p1=ל p1_alpha p2=ש p2_alpha p21=של p1f1=לו f1=ו f1_alpha f2=ם f2_alpha f12=ום	
+F	p=שלו s=ם p1=ו p1_alpha p2=ל p2_alpha p21=לו p1f1=ום f1=ם f1_alpha f2=bok	
+F	p=ע s=ולם. p1=ע p1_alpha p2=bok p1f1=עו f1=ו f1_alpha f2=ל f2_alpha f12=ול	
+F	p=עו s=לם. p1=ו p1_alpha p2=ע p2_alpha p21=עו p1f1=ול f1=ל f1_alpha f2=ם f2_alpha f12=לם	
+F	p=עול s=ם. p1=ל p1_alpha p2=ו p2_alpha p21=ול p1f1=לם f1=ם f1_alpha f2=. f2_eos f12=ם.	
+F	p=עולם s=. p1=ם p1_alpha p2=ל p2_alpha p21=לם p1f1=ם. f1=. f1_eos f2=bok	
+F	p=ג s=׳ירפה p1=ג p1_alpha p2=bok p1f1=ג׳ f1=׳ f2=י f2_alpha f12=׳י	
+F	p=ג׳ s=ירפה p1=׳ p2=ג p2_alpha p21=ג׳ p1f1=׳י f1=י f1_alpha f2=ר f2_alpha f12=יר	
+F	p=ג׳י s=רפה p1=י p1_alpha p2=׳ p21=׳י p1f1=יר f1=ר f1_alpha f2=פ f2_alpha f12=רפ	
+F	p=ג׳יר s=פה p1=ר p1_alpha p2=י p2_alpha p21=יר p1f1=רפ f1=פ f1_alpha f2=ה f2_alpha f12=פה	
+F	p=ג׳ירפ s=ה p1=פ p1_alpha p2=ר p2_alpha p21=רפ p1f1=פה f1=ה f1_alpha f2=bok	
+F	p=ו s=־צה״ל p1=ו p1_alpha p2=bok p1f1=ו־ f1=־ f2=צ f2_alpha f12=־צ	
+F	p=ו־ s=צה״ל p1=־ p2=ו p2_alpha p21=ו־ p1f1=־צ f1=צ f1_alpha f2=ה f2_alpha f12=צה	
+F	p=ו־צ s=ה״ל p1=צ p1_alpha p2=־ p21=־צ p1f1=צה f1=ה f1_alpha f2=״ f12=ה״	
+F	p=ו־צה s=״ל p1=ה p1_alpha p2=צ p2_alpha p21=צה p1f1=ה״ f1=״ f2=ל f2_alpha f12=״ל	
+F	p=ו־צה״ s=ל p1=״ p2=ה p2_alpha p21=ה״ p1f1=״ל f1=ל f1_alpha f2=bok	
+F	p=נ s=פגשו p1=נ p1_alpha p2=bok p1f1=נפ f1=פ f1_alpha f2=ג f2_alpha f12=פג	
+F	p=נפ s=גשו p1=פ p1_alpha p2=נ p2_alpha p21=נפ p1f1=פג f1=ג f1_alpha f2=ש f2_alpha f12=גש	
+F	p=נפג s=שו p1=ג p1_alpha p2=פ p2_alpha p21=פג p1f1=גש f1=ש f1_alpha f2=ו f2_alpha f12=שו	
+F	p=נפגש s=ו p1=ש p1_alpha p2=ג p2_alpha p21=גש p1f1=שו f1=ו f1_alpha f2=bok	
+F	p=ב s=תל־אביב. p1=ב p1_alpha p2=bok p1f1=בת f1=ת f1_alpha f2=ל f2_alpha f12=תל	
+F	p=בת s=ל־אביב. p1=ת p1_alpha p2=ב p2_alpha p21=בת p1f1=תל f1=ל f1_alpha f2=־ f12=ל־	
+F	p=בתל s=־אביב. p1=ל p1_alpha p2=ת p2_alpha p21=תל p1f1=ל־ f1=־ f2=א f2_alpha f12=־א	
+F	p=בתל־ s=אביב. p1=־ p2=ל p2_alpha p21=ל־ p1f1=־א f1=א f1_alpha f2=ב f2_alpha f12=אב	
+F	p=בתל־א s=ביב. p1=א p1_alpha p2=־ p21=־א p1f1=אב f1=ב f1_alpha f2=י f2_alpha f12=בי	
+F	p=בתל־אב s=יב. p1=ב p1_alpha p2=א p2_alpha p21=אב p1f1=בי f1=י f1_alpha f2=ב f2_alpha f12=יב	
+F	p=בתל־אבי s=ב. p1=י p1_alpha p2=ב p2_alpha p21=בי p1f1=יב f1=ב f1_alpha f2=. f2_eos f12=ב.	
+F	p=בתל־אביב s=. p1=ב p1_alpha p2=י p2_alpha p21=יב p1f1=ב. f1=. f1_eos f2=bok	
+F	p=ב s=״ה p1=ב p1_alpha p2=bok p1f1=ב״ f1=״ f2=ה f2_alpha f12=״ה	
+F	p=ב״ s=ה p1=״ p2=ב p2_alpha p21=ב״ p1f1=״ה f1=ה f1_alpha f2=bok	
+F	p=צ s=׳ p1=צ p1_alpha p2=bok p1f1=צ׳ f1=׳ f2=bok	
+end	turbo:events
+layer	turbo:stream-errors	document	0	after:u32	class:str	message:str
+end	turbo:stream-errors
+layer	turbo:event-checksum	document	1	crc32c:u32
+1127333812
+end	turbo:event-checksum
+layer	turbo:manifest	document	10	key:str	value:str
+Component-Name	TokenizerME
+Language	de
+Manifest-Version	1.0
+OpenNLP-Version	3.0.0-SNAPSHOT
+TrainerType	Event
+Training-Eventhash	1
+alphaNumericPattern	^[A-Za-z0-9äéöüÄÉÖÜß]+$
+factory	opennlp.tools.tokenize.TokenizerFactory
+serializer-class-abbreviations.dictionary	opennlp.tools.util.model.DictionarySerializer
+useAlphaNumericOptimization	true
+end	turbo:manifest
+layer	turbo:package-entries	document	3	name:str	length:u32
+manifest.properties	444
+abbreviations.dictionary	468
+token.model	61
+end	turbo:package-entries
+layer	turbo:dictionary	document	1	xml:str
+<?xml version="1.0" encoding="UTF-8"?><dictionary case_sensitive="false">\n    <entry>\n        <token>Dr.</token>\n    </entry>\n    <entry>\n        <token>U.S.</token>\n    </entry>\n    <entry>\n        <token>xyz.,"abc</token>\n    </entry>\n    <entry>\n        <token>a.m.</token>\n    </entry>\n    <entry>\n        <token>etc.</token>\n    </entry>\n    <entry>\n        <token>e.g.</token>\n    </entry>\n    <entry>\n        <token>(c)Co.ltd</token>\n    </entry>\n</dictionary>\n
+end	turbo:dictionary

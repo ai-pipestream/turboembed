@@ -92,7 +92,7 @@ pub use monitor::{
     DefaultProgressMonitor, IterDeltaAccuracyUnderTolerance, LogLikelihoodThresholdBreached, ProgressMonitor,
     StopCriteria, TrainingConfiguration, TrainingMeasure,
 };
-pub use package::{Manifest, ModelPackage, sentence_model_package};
+pub use package::{Manifest, ModelPackage, TimeZone, sentence_model_package};
 pub use params::{Algorithm, Key, TrainerType, TrainingParameters, Value};
 pub use perceptron::{PerceptronIteration, PerceptronModel, PerceptronParams, Sequence, SequenceSource};
 pub use qn::{QnIteration, QnModel, QnParams, QnStop};

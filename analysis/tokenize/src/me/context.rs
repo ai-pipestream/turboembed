@@ -206,16 +206,17 @@ impl UnitFacts {
 
 /// Writes the features of the position `at` of its unit into `out`,
 /// replacing what was there. `at` walks the unit's text; its position is
-/// the index `getContext` is given, which must be at least 1 and before
-/// the unit's last code unit's end (the tokenizer never asks for index 0,
-/// where the Java would add `p1=bok`, nor for the end).
+/// the index `getContext` is given, which must be before the unit's end
+/// (`charAt(index)` throws there). The tokenizer never asks for index 0;
+/// training does, for an empty training token at the start of a unit,
+/// and gets `p1=bok` with no `p2` and no `p1f1`.
 ///
 /// The `p=` and `s=` features are left out when they are longer than
 /// `facts.affixes` allows. The others are always listed.
 pub fn token_context(at: &Utf16Cursor<'_>, facts: UnitFacts, mode: WhitespaceMode, out: &mut Features) {
     let unit = at.text();
     let f1 = at.unit().expect("a position before the end of the unit");
-    let p1 = at.peek_prev_unit().expect("a position after the start of the unit");
+    let p1 = at.peek_prev_unit();
     out.clear();
 
     // The prefix and the suffix. On the low half of a pair the prefix ends
@@ -229,7 +230,7 @@ pub fn token_context(at: &Utf16Cursor<'_>, facts: UnitFacts, mode: WhitespaceMod
     if 2 + byte + half <= facts.affixes.prefix {
         out.bytes.extend_from_slice(b"p=");
         push_str_modified_utf8(&mut out.bytes, &unit[..byte]);
-        if half != 0 {
+        if let (true, Some(p1)) = (half != 0, p1) {
             push_modified_utf8(&mut out.bytes, u32::from(p1));
         }
         out.end();
@@ -243,17 +244,22 @@ pub fn token_context(at: &Utf16Cursor<'_>, facts: UnitFacts, mode: WhitespaceMod
         out.end();
     }
 
-    out.char_features(b"p1", p1, mode);
-    let mut back = *at;
-    back.step_back();
-    match back.peek_prev_unit() {
-        Some(p2) => {
-            out.char_features(b"p2", p2, mode);
-            out.pair(b"p21=", p2, p1);
+    match p1 {
+        Some(p1) => {
+            out.char_features(b"p1", p1, mode);
+            let mut back = *at;
+            back.step_back();
+            match back.peek_prev_unit() {
+                Some(p2) => {
+                    out.char_features(b"p2", p2, mode);
+                    out.pair(b"p21=", p2, p1);
+                }
+                None => out.fixed(b"p2=bok"),
+            }
+            out.pair(b"p1f1=", p1, f1);
         }
-        None => out.fixed(b"p2=bok"),
+        None => out.fixed(b"p1=bok"),
     }
-    out.pair(b"p1f1=", p1, f1);
 
     out.char_features(b"f1", f1, mode);
     let next = at.peek_next_unit();
@@ -311,6 +317,19 @@ mod tests {
             }
         }
         s
+    }
+
+    #[test]
+    fn index_zero_has_no_previous_character() {
+        // An event of the `train-events` goldens (tokenize-conllu,
+        // formats/conllu-errors): an empty training token at the start of
+        // the unit asks for the context at index 0.
+        assert_eq!(
+            context("xyz", 0, false),
+            ["p=", "s=xyz", "p1=bok", "f1=x", "f1_alpha", "f2=y", "f2_alpha", "f12=xy"]
+        );
+        // The abbreviation feature is for the last index only.
+        assert_eq!(context("x", 0, true), ["p=", "s=x", "p1=bok", "f1=x", "f1_alpha", "f2=bok", "pabb"]);
     }
 
     #[test]

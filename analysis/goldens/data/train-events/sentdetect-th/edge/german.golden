@@ -1,0 +1,53 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	edge/german	119	106	d48ae253086e3984a56fc973a73652963f5c48c360ab2859b8e383a73af3c063
+annotator	opennlp.tools.sentdetect.SDEventStream	read
+config	format	text
+config	language	th
+config	run	sentdetect-th
+config	source	sentdetect
+config	useTokenEnd	false
+layer	turbo:events	document	19	outcome:str	context:str	values:str
+n	eos=  x=Die 3 xcap v= s=Straße scap n=ist	
+n	eos=  x=Straße 6 xcap v=Die vcap s=ist n=groß;	
+n	eos=  x=ist 3 v=Straße vcap s=groß; n=Müller ncap	
+n	eos=  x=groß; 5 v=ist s=Müller scap n=aß	
+n	eos=  x=Müller 6 xcap v=groß; s=aß n=Äpfel, ncap	
+n	eos=  x=aß 2 v=Müller vcap s=Äpfel, scap n=Öl ncap	
+n	eos=  x=Äpfel, 6 xcap v=aß s=Öl scap n=und	
+n	eos=  x=Öl 2 xcap v=Äpfel, vcap s=und n=Übung. ncap	
+n	eos=  x=und 3 v=Öl vcap s=Übung. scap n=z.B.	
+n	eos=  x=Übung. 6 xcap v=und s=z.B. n=heißt	
+n	eos=  x=z.B. 4 v=Übung. vcap s=heißt n=„zum	
+n	eos=  x=heißt 5 v=z.B. s=„zum n=Beispiel“. ncap	
+n	eos=  x=„zum 4 v=heißt s=Beispiel“. scap n=Dr. ncap	
+n	eos=  x=Beispiel“. 10 xcap v=„zum s=Dr. scap n=Weiß ncap	
+n	eos=  x=Dr. 3 xcap v=Beispiel“. vcap s=Weiß scap n=kam	
+n	eos=  x=Weiß 4 xcap v=Dr. vcap s=kam n=um	
+n	eos=  x=kam 3 v=Weiß vcap s=um n=12.30	
+n	eos=  x=um 2 v=kam s=12.30 n=Uhr. ncap	
+s	eos=  x=12.30 5 v=um s=Uhr. scap n=	
+end	turbo:events
+layer	turbo:stream-errors	document	0	after:u32	class:str	message:str
+end	turbo:stream-errors
+layer	turbo:event-checksum	document	1	crc32c:u32
+3448281041
+end	turbo:event-checksum
+layer	turbo:manifest	document	9	key:str	value:str
+Component-Name	SentenceDetectorME
+Language	th
+Manifest-Version	1.0
+OpenNLP-Version	3.0.0-SNAPSHOT
+TrainerType	Event
+Training-Eventhash	1
+eosCharacters	 \n
+factory	opennlp.tools.sentdetect.SentenceDetectorFactory
+useTokenEnd	false
+end	turbo:manifest
+layer	turbo:package-entries	document	2	name:str	length:u32
+manifest.properties	287
+sent.model	61
+end	turbo:package-entries

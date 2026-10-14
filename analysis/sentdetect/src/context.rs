@@ -47,7 +47,7 @@ pub struct Lookup {
 
 /// The context generator for one model and whitespace mode.
 #[derive(Copy, Clone, Debug)]
-pub(crate) struct SdContext<'m> {
+pub struct SdContext<'m> {
     eos: &'m EndOfSentence,
     abbreviations: Option<&'m Dictionary>,
     whitespace: WhitespaceMode,
@@ -61,16 +61,16 @@ pub(crate) struct SdContext<'m> {
 /// byte of modified UTF-8, and lowercasing per code point keeps the
 /// number of code units, so a count of code units is a safe bound.
 #[derive(Copy, Clone, Debug)]
-pub(crate) struct Limits {
+pub struct Limits {
     /// The longest predicate, in bytes of modified UTF-8.
-    pub(crate) feature: usize,
+    pub feature: usize,
     /// The longest dictionary entry, in code units.
-    pub(crate) abbreviation: usize,
+    pub abbreviation: usize,
 }
 
 impl Limits {
     /// No limit: every feature is written as the Java writes it.
-    pub(crate) const NONE: Limits = Limits { feature: usize::MAX, abbreviation: usize::MAX };
+    pub const NONE: Limits = Limits { feature: usize::MAX, abbreviation: usize::MAX };
 }
 
 /// What the whitespace searches of earlier candidates of one text found,
@@ -79,7 +79,7 @@ impl Limits {
 /// to its end per candidate. Each search returns exactly what the plain
 /// walk returns; `Walks::plain` turns the memory off, for tests.
 #[derive(Copy, Clone, Debug)]
-pub(crate) struct Walks {
+pub struct Walks {
     enabled: bool,
     /// The last `previous_space` answered with this memory was for the
     /// unit index `back_seek`: the last whitespace unit in
@@ -97,7 +97,7 @@ pub(crate) struct Walks {
 
 impl Walks {
     /// The memory for a new text.
-    pub(crate) fn new() -> Walks {
+    pub fn new() -> Walks {
         Walks {
             enabled: true,
             back_seek: 0,
@@ -192,7 +192,10 @@ impl<'t, C: Units<'t>> Word<C> {
 }
 
 impl<'m> SdContext<'m> {
-    pub(crate) fn new(
+    /// `DefaultSDContextGenerator(abbreviations, eosCharacters)` with the
+    /// whitespace definition of `whitespace`. `Limits::NONE` builds every
+    /// feature the Java builds.
+    pub fn new(
         eos: &'m EndOfSentence,
         abbreviations: Option<&'m Dictionary>,
         whitespace: WhitespaceMode,
@@ -211,14 +214,7 @@ impl<'m> SdContext<'m> {
     /// text with this context's end set. `walks` must be new for the text
     /// and see its candidates in text order. A text that is all ASCII is
     /// walked by byte.
-    pub(crate) fn context(
-        &self,
-        text: Scanned<'_>,
-        at: Position,
-        walks: &mut Walks,
-        out: &mut Features,
-        lookup: &mut Lookup,
-    ) {
+    pub fn context(&self, text: Scanned<'_>, at: Position, walks: &mut Walks, out: &mut Features, lookup: &mut Lookup) {
         text.debug_check(at);
         if text.is_ascii() {
             self.build(AsciiCursor::at(text.text(), at.byte as usize), text, walks, out, lookup);

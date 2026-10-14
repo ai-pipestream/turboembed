@@ -1,0 +1,52 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	edge/apostrophes	117	111	6b69b6f64d24416906fcab108088306ae2ac284629d75125905f2f4cb02bb05d
+annotator	opennlp.tools.sentdetect.SDEventStream	read
+config	format	text
+config	language	th
+config	run	sentdetect-th
+config	source	sentdetect
+config	useTokenEnd	false
+layer	turbo:events	document	18	outcome:str	context:str	values:str
+n	eos=  x=don't 5 v= s=can't n=O'Neil ncap	
+n	eos=  x=can't 5 v=don't s=O'Neil scap n=rock	
+n	eos=  x=O'Neil 6 xcap v=can't s=rock n='n'	
+n	eos=  x=rock 4 v=O'Neil vcap s='n' n=roll	
+n	eos=  x='n' 3 v=rock s=roll n=the	
+n	eos=  x=roll 4 v='n' s=the n='90s	
+n	eos=  x=the 3 v=roll s='90s n=y'all	
+n	eos=  x='90s 4 v=the s=y'all n=it's	
+n	eos=  x=y'all 5 v='90s s=it's n=Bob's ncap	
+n	eos=  x=it's 4 v=y'all s=Bob's scap n=dogs'	
+n	eos=  x=Bob's 5 xcap v=it's s=dogs' n=bones	
+n	eos=  x=dogs' 5 v=Bob's vcap s=bones n=l'homme	
+n	eos=  x=bones 5 v=dogs' s=l'homme n=ma'am;	
+n	eos=  x=l'homme 7 v=bones s=ma'am; n=curly:	
+n	eos=  x=ma'am; 6 v=l'homme s=curly: n=don’t	
+n	eos=  x=curly: 6 v=ma'am; s=don’t n=O’Neil ncap	
+n	eos=  x=don’t 5 v=curly: s=O’Neil scap n=’90s	
+s	eos=  x=O’Neil 6 xcap v=don’t s=’90s n=	
+end	turbo:events
+layer	turbo:stream-errors	document	0	after:u32	class:str	message:str
+end	turbo:stream-errors
+layer	turbo:event-checksum	document	1	crc32c:u32
+2500888187
+end	turbo:event-checksum
+layer	turbo:manifest	document	9	key:str	value:str
+Component-Name	SentenceDetectorME
+Language	th
+Manifest-Version	1.0
+OpenNLP-Version	3.0.0-SNAPSHOT
+TrainerType	Event
+Training-Eventhash	1
+eosCharacters	 \n
+factory	opennlp.tools.sentdetect.SentenceDetectorFactory
+useTokenEnd	false
+end	turbo:manifest
+layer	turbo:package-entries	document	2	name:str	length:u32
+manifest.properties	287
+sent.model	61
+end	turbo:package-entries

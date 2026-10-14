@@ -1,0 +1,110 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	formats/conllu-basic	1620	1618	3997cb00603cdc6d6e9b5bea88a4291b2e44ceceec24a04d93df40e673f5828c
+annotator	opennlp.tools.tokenize.TokSpanEventStream	read
+config	alphaNumericPattern	^[A-Za-z0-9]+$
+config	format	conllu
+config	language	en
+config	run	tokenize-conllu
+config	source	tokenize
+config	useAlphaNumericOptimization	false
+layer	turbo:events	document	74	outcome:str	context:str	values:str
+F	p=V s=amos p1=V p1_alpha p1_caps p2=bok p1f1=Va f1=a f1_alpha f2=m f2_alpha f12=am	
+F	p=Va s=mos p1=a p1_alpha p2=V p2_alpha p2_caps p21=Va p1f1=am f1=m f1_alpha f2=o f2_alpha f12=mo	
+F	p=Vam s=os p1=m p1_alpha p2=a p2_alpha p21=am p1f1=mo f1=o f1_alpha f2=s f2_alpha f12=os	
+F	p=Vamo s=s p1=o p1_alpha p2=m p2_alpha p21=mo p1f1=os f1=s f1_alpha f2=bok	
+F	p=a s=l p1=a p1_alpha p2=bok p1f1=al f1=l f1_alpha f2=bok	
+F	p=m s=ar p1=m p1_alpha p2=bok p1f1=ma f1=a f1_alpha f2=r f2_alpha f12=ar	
+F	p=ma s=r p1=a p1_alpha p2=m p2_alpha p21=ma p1f1=ar f1=r f1_alpha f2=bok	
+F	p=d s=el p1=d p1_alpha p2=bok p1f1=de f1=e f1_alpha f2=l f2_alpha f12=el	
+F	p=de s=l p1=e p1_alpha p2=d p2_alpha p21=de p1f1=el f1=l f1_alpha f2=bok	
+F	p=n s=orte. p1=n p1_alpha p2=bok p1f1=no f1=o f1_alpha f2=r f2_alpha f12=or	
+F	p=no s=rte. p1=o p1_alpha p2=n p2_alpha p21=no p1f1=or f1=r f1_alpha f2=t f2_alpha f12=rt	
+F	p=nor s=te. p1=r p1_alpha p2=o p2_alpha p21=or p1f1=rt f1=t f1_alpha f2=e f2_alpha f12=te	
+F	p=nort s=e. p1=t p1_alpha p2=r p2_alpha p21=rt p1f1=te f1=e f1_alpha f2=. f2_eos f12=e.	
+T	p=norte s=. p1=e p1_alpha p2=t p2_alpha p21=te p1f1=e. f1=. f1_eos f2=bok	
+F	p=E s=le p1=E p1_alpha p1_caps p2=bok p1f1=El f1=l f1_alpha f2=e f2_alpha f12=le	
+F	p=El s=e p1=l p1_alpha p2=E p2_alpha p2_caps p21=El p1f1=le f1=e f1_alpha f2=bok	
+F	p=s s=aiu p1=s p1_alpha p2=bok p1f1=sa f1=a f1_alpha f2=i f2_alpha f12=ai	
+F	p=sa s=iu p1=a p1_alpha p2=s p2_alpha p21=sa p1f1=ai f1=i f1_alpha f2=u f2_alpha f12=iu	
+F	p=sai s=u p1=i p1_alpha p2=a p2_alpha p21=ai p1f1=iu f1=u f1_alpha f2=bok	
+F	p=d s=a p1=d p1_alpha p2=bok p1f1=da f1=a f1_alpha f2=bok	
+F	p=c s=asa p1=c p1_alpha p2=bok p1f1=ca f1=a f1_alpha f2=s f2_alpha f12=as	
+F	p=ca s=sa p1=a p1_alpha p2=c p2_alpha p21=ca p1f1=as f1=s f1_alpha f2=a f2_alpha f12=sa	
+F	p=cas s=a p1=s p1_alpha p2=a p2_alpha p21=as p1f1=sa f1=a f1_alpha f2=bok	
+F	p=à s=s p1=à p1_alpha p2=bok p1f1=às f1=s f1_alpha f2=bok	
+F	p=1 s=0h. p1=1 p1_num p2=bok p1f1=10 f1=0 f1_num f2=h f2_alpha f12=0h	
+T	p=10 s=h. p1=0 p1_num p2=1 p2_num p21=10 p1f1=0h f1=h f1_alpha f2=. f2_eos f12=h.	
+T	p=10h s=. p1=h p1_alpha p2=0 p2_num p21=0h p1f1=h. f1=. f1_eos f2=bok	
+F	p=S s=ue p1=S p1_alpha p1_caps p2=bok p1f1=Su f1=u f1_alpha f2=e f2_alpha f12=ue	
+F	p=Su s=e p1=u p1_alpha p2=S p2_alpha p2_caps p21=Su p1f1=ue f1=e f1_alpha f2=bok	
+F	p=l s=ikes p1=l p1_alpha p2=bok p1f1=li f1=i f1_alpha f2=k f2_alpha f12=ik	
+F	p=li s=kes p1=i p1_alpha p2=l p2_alpha p21=li p1f1=ik f1=k f1_alpha f2=e f2_alpha f12=ke	
+F	p=lik s=es p1=k p1_alpha p2=i p2_alpha p21=ik p1f1=ke f1=e f1_alpha f2=s f2_alpha f12=es	
+F	p=like s=s p1=e p1_alpha p2=k p2_alpha p21=ke p1f1=es f1=s f1_alpha f2=bok	
+F	p=c s=offee p1=c p1_alpha p2=bok p1f1=co f1=o f1_alpha f2=f f2_alpha f12=of	
+F	p=co s=ffee p1=o p1_alpha p2=c p2_alpha p21=co p1f1=of f1=f f1_alpha f2=f f2_alpha f12=ff	
+F	p=cof s=fee p1=f p1_alpha p2=o p2_alpha p21=of p1f1=ff f1=f f1_alpha f2=e f2_alpha f12=fe	
+F	p=coff s=ee p1=f p1_alpha p2=f p2_alpha p21=ff p1f1=fe f1=e f1_alpha f2=e f2_alpha f12=ee	
+F	p=coffe s=e p1=e p1_alpha p2=f p2_alpha p21=fe p1f1=ee f1=e f1_alpha f2=bok	
+F	p=a s=nd p1=a p1_alpha p2=bok p1f1=an f1=n f1_alpha f2=d f2_alpha f12=nd	
+F	p=an s=d p1=n p1_alpha p2=a p2_alpha p21=an p1f1=nd f1=d f1_alpha f2=bok	
+F	p=B s=ill p1=B p1_alpha p1_caps p2=bok p1f1=Bi f1=i f1_alpha f2=l f2_alpha f12=il	
+F	p=Bi s=ll p1=i p1_alpha p2=B p2_alpha p2_caps p21=Bi p1f1=il f1=l f1_alpha f2=l f2_alpha f12=ll	
+F	p=Bil s=l p1=l p1_alpha p2=i p2_alpha p21=il p1f1=ll f1=l f1_alpha f2=bok	
+F	p=t s=ea p1=t p1_alpha p2=bok p1f1=te f1=e f1_alpha f2=a f2_alpha f12=ea	
+F	p=te s=a p1=e p1_alpha p2=t p2_alpha p21=te p1f1=ea f1=a f1_alpha f2=bok	
+F	p=N s=othing p1=N p1_alpha p1_caps p2=bok p1f1=No f1=o f1_alpha f2=t f2_alpha f12=ot	
+F	p=No s=thing p1=o p1_alpha p2=N p2_alpha p2_caps p21=No p1f1=ot f1=t f1_alpha f2=h f2_alpha f12=th	
+F	p=Not s=hing p1=t p1_alpha p2=o p2_alpha p21=ot p1f1=th f1=h f1_alpha f2=i f2_alpha f12=hi	
+F	p=Noth s=ing p1=h p1_alpha p2=t p2_alpha p21=th p1f1=hi f1=i f1_alpha f2=n f2_alpha f12=in	
+F	p=Nothi s=ng p1=i p1_alpha p2=h p2_alpha p21=hi p1f1=in f1=n f1_alpha f2=g f2_alpha f12=ng	
+F	p=Nothin s=g p1=n p1_alpha p2=i p2_alpha p21=in p1f1=ng f1=g f1_alpha f2=bok	
+F	p=b s=ut p1=b p1_alpha p2=bok p1f1=bu f1=u f1_alpha f2=t f2_alpha f12=ut	
+F	p=bu s=t p1=u p1_alpha p2=b p2_alpha p21=bu p1f1=ut f1=t f1_alpha f2=bok	
+F	p=c s=omments. p1=c p1_alpha p2=bok p1f1=co f1=o f1_alpha f2=m f2_alpha f12=om	
+F	p=co s=mments. p1=o p1_alpha p2=c p2_alpha p21=co p1f1=om f1=m f1_alpha f2=m f2_alpha f12=mm	
+F	p=com s=ments. p1=m p1_alpha p2=o p2_alpha p21=om p1f1=mm f1=m f1_alpha f2=e f2_alpha f12=me	
+F	p=comm s=ents. p1=m p1_alpha p2=m p2_alpha p21=mm p1f1=me f1=e f1_alpha f2=n f2_alpha f12=en	
+F	p=comme s=nts. p1=e p1_alpha p2=m p2_alpha p21=me p1f1=en f1=n f1_alpha f2=t f2_alpha f12=nt	
+F	p=commen s=ts. p1=n p1_alpha p2=e p2_alpha p21=en p1f1=nt f1=t f1_alpha f2=s f2_alpha f12=ts	
+F	p=comment s=s. p1=t p1_alpha p2=n p2_alpha p21=nt p1f1=ts f1=s f1_alpha f2=. f2_eos f12=s.	
+F	p=comments s=. p1=s p1_alpha p2=t p2_alpha p21=ts p1f1=s. f1=. f1_eos f2=bok	
+F	p=K s=ept p1=K p1_alpha p1_caps p2=bok p1f1=Ke f1=e f1_alpha f2=p f2_alpha f12=ep	
+F	p=Ke s=pt p1=e p1_alpha p2=K p2_alpha p2_caps p21=Ke p1f1=ep f1=p f1_alpha f2=t f2_alpha f12=pt	
+F	p=Kep s=t p1=p p1_alpha p2=e p2_alpha p21=ep p1f1=pt f1=t f1_alpha f2=bok	
+F	p=i s=nner p1=i p1_alpha p2=bok p1f1=in f1=n f1_alpha f2=n f2_alpha f12=nn	
+F	p=in s=ner p1=n p1_alpha p2=i p2_alpha p21=in p1f1=nn f1=n f1_alpha f2=e f2_alpha f12=ne	
+F	p=inn s=er p1=n p1_alpha p2=n p2_alpha p21=nn p1f1=ne f1=e f1_alpha f2=r f2_alpha f12=er	
+F	p=inne s=r p1=e p1_alpha p2=n p2_alpha p21=ne p1f1=er f1=r f1_alpha f2=bok	
+F	p=s s=paces, p1=s p1_alpha p2=bok p1f1=sp f1=p f1_alpha f2=a f2_alpha f12=pa	
+F	p=sp s=aces, p1=p p1_alpha p2=s p2_alpha p21=sp p1f1=pa f1=a f1_alpha f2=c f2_alpha f12=ac	
+F	p=spa s=ces, p1=a p1_alpha p2=p p2_alpha p21=pa p1f1=ac f1=c f1_alpha f2=e f2_alpha f12=ce	
+F	p=spac s=es, p1=c p1_alpha p2=a p2_alpha p21=ac p1f1=ce f1=e f1_alpha f2=s f2_alpha f12=es	
+F	p=space s=s, p1=e p1_alpha p2=c p2_alpha p21=ce p1f1=es f1=s f1_alpha f2=, f12=s,	
+T	p=spaces s=, p1=s p1_alpha p2=e p2_alpha p21=es p1f1=s, f1=, f2=bok	
+end	turbo:events
+layer	turbo:stream-errors	document	1	after:u32	class:str	message:str
+45	java.io.IOException	Sentence is missing raw text sample!
+end	turbo:stream-errors
+layer	turbo:event-checksum	document	1	crc32c:u32
+1274973233
+end	turbo:event-checksum
+layer	turbo:manifest	document	9	key:str	value:str
+Component-Name	TokenizerME
+Language	en
+Manifest-Version	1.0
+OpenNLP-Version	3.0.0-SNAPSHOT
+TrainerType	Event
+Training-Eventhash	1
+alphaNumericPattern	^[A-Za-z0-9]+$
+factory	opennlp.tools.tokenize.TokenizerFactory
+useAlphaNumericOptimization	false
+end	turbo:manifest
+layer	turbo:package-entries	document	2	name:str	length:u32
+manifest.properties	303
+token.model	61
+end	turbo:package-entries

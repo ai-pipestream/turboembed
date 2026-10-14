@@ -10,6 +10,9 @@
 //! `OpenNLP-Version`, `Timestamp` and `Component-Name`; a trainer adds
 //! `Training-Eventhash` and `TrainerType` ([`crate::gis::TrainingReport`]),
 //! and a tool factory adds `factory`, its class name, and its own entries.
+//! The version is this port's by default; a caller reproducing a model
+//! another OpenNLP wrote sets that version, and the time zone that JVM's
+//! clock printed the date in.
 //!
 //! The JVM writes the entries deflated, in the order of a `HashMap`. The
 //! archive written here stores them uncompressed, the manifest first: the
@@ -27,12 +30,31 @@ pub const OPENNLP_VERSION: &str = "3.0.0-SNAPSHOT";
 /// `BaseModel.MANIFEST_ENTRY`.
 pub const MANIFEST_ENTRY: &str = "manifest.properties";
 
+/// A fixed offset from UTC with the abbreviation `Date.toString` prints
+/// for it: the JVM's default zone at the instant a model was written.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct TimeZone {
+    /// Seconds east of UTC.
+    pub offset_seconds: i32,
+    /// The short name, `UTC` or `CEST`.
+    pub name: &'static str,
+}
+
+impl TimeZone {
+    pub const UTC: TimeZone = TimeZone { offset_seconds: 0, name: "UTC" };
+    /// Central European Summer Time, the zone the UD 1.3 models' manifests
+    /// are dated in.
+    pub const CEST: TimeZone = TimeZone { offset_seconds: 7200, name: "CEST" };
+}
+
 /// The manifest of a model file, typed where `BaseModel` types it.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Manifest {
     component_name: String,
     language: String,
     timestamp_ms: i64,
+    version: String,
+    zone: TimeZone,
     /// `factory` and the entries of the trainer and of the tool factory,
     /// in the order they were set.
     entries: Vec<(String, String)>,
@@ -46,8 +68,32 @@ impl Manifest {
             component_name: component_name.to_owned(),
             language: language.to_owned(),
             timestamp_ms,
+            version: OPENNLP_VERSION.to_owned(),
+            zone: TimeZone::UTC,
             entries: Vec::new(),
         }
+    }
+
+    /// The same manifest with `OpenNLP-Version` set to `version`, for a
+    /// model another OpenNLP wrote.
+    pub fn with_version(mut self, version: &str) -> Manifest {
+        self.version = version.to_owned();
+        self
+    }
+
+    /// The same manifest dated in `zone`, in its header line and in the
+    /// zip entries' times.
+    pub fn with_zone(mut self, zone: TimeZone) -> Manifest {
+        self.zone = zone;
+        self
+    }
+
+    pub fn version(&self) -> &str {
+        &self.version
+    }
+
+    pub fn zone(&self) -> TimeZone {
+        self.zone
     }
 
     pub fn component_name(&self) -> &str {
@@ -92,14 +138,14 @@ impl Manifest {
         let mut entries: Vec<(&str, &str)> = vec![
             ("Manifest-Version", "1.0"),
             ("Language", &self.language),
-            ("OpenNLP-Version", OPENNLP_VERSION),
+            ("OpenNLP-Version", &self.version),
             ("Timestamp", &timestamp),
             ("Component-Name", &self.component_name),
         ];
         entries.extend(self.entries.iter().map(|(k, v)| (k.as_str(), v.as_str())));
         entries.sort_by(|a, b| turbo_jvm::chars::compare(a.0, b.0));
         let mut out = String::from("#\n#");
-        out.push_str(&java_date_string(self.timestamp_ms));
+        out.push_str(&java_date_string_in(self.timestamp_ms, self.zone));
         out.push('\n');
         for (k, v) in entries {
             save_convert(k, true, &mut out);
@@ -143,7 +189,7 @@ impl ModelPackage {
 
     /// `BaseModel.serialize`: the bytes of the `.bin` file.
     pub fn to_bytes(&self) -> Vec<u8> {
-        let mut zip = ZipWriter::new(self.manifest.timestamp_ms);
+        let mut zip = ZipWriter::new(self.manifest.timestamp_ms, self.manifest.zone);
         zip.add(MANIFEST_ENTRY, self.manifest.to_properties().as_bytes());
         for (name, bytes) in &self.entries {
             zip.add(name, bytes);
@@ -220,24 +266,31 @@ fn civil(ms: i64) -> Civil {
 /// `new Date(ms).toString()` in the UTC time zone:
 /// `EEE MMM dd HH:mm:ss zzz yyyy`.
 pub fn java_date_string(ms: i64) -> String {
+    java_date_string_in(ms, TimeZone::UTC)
+}
+
+/// `new Date(ms).toString()` on a JVM whose default zone is `zone`.
+pub fn java_date_string_in(ms: i64, zone: TimeZone) -> String {
     const DAYS: [&str; 7] = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
     const MONTHS: [&str; 12] = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-    let c = civil(ms);
+    let c = civil(ms + i64::from(zone.offset_seconds) * 1000);
     format!(
-        "{} {} {:02} {:02}:{:02}:{:02} UTC {}",
+        "{} {} {:02} {:02}:{:02}:{:02} {} {}",
         DAYS[c.weekday],
         MONTHS[c.month as usize - 1],
         c.day,
         c.hour,
         c.minute,
         c.second,
+        zone.name,
         c.year
     )
 }
 
-/// The MS-DOS time and date fields of a zip entry for `ms`, in UTC.
-fn dos_time_date(ms: i64) -> (u16, u16) {
-    let c = civil(ms);
+/// The MS-DOS time and date fields of a zip entry for `ms`, in `zone`
+/// (`ZipEntry.setTime` converts the instant in the default zone).
+fn dos_time_date(ms: i64, zone: TimeZone) -> (u16, u16) {
+    let c = civil(ms + i64::from(zone.offset_seconds) * 1000);
     let time = (c.hour << 11) | (c.minute << 5) | (c.second / 2);
     let year = c.year.clamp(1980, 2107) - 1980;
     let date = ((year as u32) << 9) | (c.month << 5) | c.day;
@@ -263,8 +316,8 @@ struct ZipWriter {
 }
 
 impl ZipWriter {
-    fn new(timestamp_ms: i64) -> ZipWriter {
-        let (time, date) = dos_time_date(timestamp_ms);
+    fn new(timestamp_ms: i64, zone: TimeZone) -> ZipWriter {
+        let (time, date) = dos_time_date(timestamp_ms, zone);
         ZipWriter { bytes: Vec::new(), central: Vec::new(), count: 0, time, date }
     }
 
@@ -379,9 +432,26 @@ mod tests {
         assert_eq!(&*file.entry("abbreviations.dictionary").unwrap(), b"<dictionary/>");
         assert_eq!(file.archive().len(), 3);
         assert_eq!(file.archive().method("sent.model"), Some(Method::Stored));
-        let (time, date) = dos_time_date(FIXTURE_MS);
+        let (time, date) = dos_time_date(FIXTURE_MS, TimeZone::UTC);
         // 06:25:13 on 2026-10-12.
         assert_eq!(time, (6 << 11) | (25 << 5) | 6);
         assert_eq!(date, (46 << 9) | (10 << 5) | 12);
+    }
+
+    #[test]
+    fn another_version_and_zone_print_as_that_jvm_printed_them() {
+        // The published model opennlp-en-ud-ewt-sentence-1.3-2.5.4.bin.
+        let ms = 1749698375454;
+        assert_eq!(java_date_string_in(ms, TimeZone::CEST), "Thu Jun 12 05:19:35 CEST 2025");
+        assert_eq!(java_date_string_in(ms, TimeZone::UTC), "Thu Jun 12 03:19:35 UTC 2025");
+        let manifest = Manifest::new("SentenceDetectorME", "en", ms).with_version("2.5.4").with_zone(TimeZone::CEST);
+        assert_eq!(manifest.version(), "2.5.4");
+        assert_eq!(manifest.zone(), TimeZone::CEST);
+        let text = manifest.to_properties();
+        assert!(text.starts_with("#\n#Thu Jun 12 05:19:35 CEST 2025\n"), "{text}");
+        assert!(text.contains("\nOpenNLP-Version=2.5.4\n"), "{text}");
+        let (time, date) = dos_time_date(ms, TimeZone::CEST);
+        assert_eq!(time, (5 << 11) | (19 << 5) | 17);
+        assert_eq!(date, (45 << 9) | (6 << 5) | 12);
     }
 }
