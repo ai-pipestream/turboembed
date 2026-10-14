@@ -1,0 +1,52 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	en/paragraphs	356	356	eaca16d3efa3ea3ed6853381c5ad6ccb382a2096f35004fa4557113f9454a1a0
+annotator	opennlp.tools.ml.maxent.quasinewton.QNTrainer	train
+config	Algorithm	MAXENT_QN
+config	Cutoff	5
+config	DataIndexer	TwoPass
+config	Iterations	100
+config	L1Cost	0.1
+config	L2Cost	0.1
+config	MaxFctEval	30000
+config	NumOfUpdates	15
+config	Threads	1
+config	sort	true
+config	source	sentdetect
+layer	turbo:events	document	7	outcome:str	context:str	values:str
+n	sn eos=. x=them 4 v=around s= n=Over ncap	
+s	sn eos=. x=plains 6 v=up s= n=	
+n	sn eos=. x=silt 4 v=fine s= n=Farmers ncap	
+n	sn eos=. x=farms 5 v=been s= n=The ncap	
+s	sn eos=. x=example 7 v=known s= n=	
+n	sn eos=. x=dams 4 v=by s= n=That ncap	
+s	sn eos=. x=silt 4 v=the s= n=	
+end	turbo:events
+layer	turbo:qn-training	document	1	iterations:u32	stop:str	message:str
+3	change-rate	
+end	turbo:qn-training
+layer	turbo:qn-iterations	document	3	iteration:u32	value:f64	rate:f64	accuracy:f64	parameters:str
+1	40134056ca7490b0 4.812831080784392	3f808baece98a356 0.008078923873726811	3fe2492492492492 0.5714285714285714	6d72cde879e27c37a9c1fab1a67cd84d2dce814769dce5fb2ad001ba20b26fc7
+2	40133a72b97164f1 4.807078263803519	3f53957c8624581a 0.0011953083090410267	3fe2492492492492 0.5714285714285714	764740af7d85fb9cd035cbea5778cf93a2a103c623868f786459c86f007a5be9
+3	40133a7294d5ea20 4.807077718311604	3e7e76112f839aaa 1.1347681183917019E-7	3fe2492492492492 0.5714285714285714	5d106e14c961eba4f69b49158fb6745368105d9b21df9431fde87737ab3661ab
+end	turbo:qn-iterations
+layer	turbo:qn-parameters	document	12	iteration:u32	predicate:u32	outcome:u32	value:f64
+1	0	0	3fab6735adf5140e 0.0535218024111047
+1	0	1	bfab6735adf5140e -0.0535218024111047
+1	1	0	3fab6735adf5140e 0.0535218024111047
+1	1	1	bfab6735adf5140e -0.0535218024111047
+1	2	0	3fab6735adf5140e 0.0535218024111047
+1	2	1	bfab6735adf5140e -0.0535218024111047
+3	0	0	3fa428411e70a07b 0.03936961647588163
+3	0	1	bfa428411e70a07b -0.03936961647588163
+3	1	0	3fa428411e70a07b 0.03936961647588163
+3	1	1	bfa428411e70a07b -0.03936961647588163
+3	2	0	3fa428411e70a07b 0.03936961647588163
+3	2	1	bfa428411e70a07b -0.03936961647588163
+end	turbo:qn-parameters
+layer	turbo:qn-model	document	1	sha256:str	length:u32
+b5b7ec4d91ad63cc6d55817f6e371d8416db1bdb28db996fc280ca2a28b304e9	92
+end	turbo:qn-model

@@ -2,17 +2,13 @@
 //! maxent lemmatizer.
 
 use turbo_maxent::JavaString;
-use turbo_sequence::{ContextGenerator, Features};
+use turbo_sequence::{ContextGenerator, Features, TokenTag};
 use turbo_unicode::utf16::utf16_len;
 
 /// `PREFIX_LENGTH`: the prefix features are the first 2 to 5 units.
 const PREFIX_LENGTH: usize = 5;
 /// `SUFFIX_LENGTH`: the suffix features are the last 2 to 7 units.
 const SUFFIX_LENGTH: usize = 7;
-
-/// A token and its part-of-speech tag, the item a lemmatizer search runs
-/// over (`toks[i]` and `tags[i]` of `lemmatize(String[], String[])`).
-pub type Tagged<'a> = (&'a str, &'a str);
 
 /// The features of `DefaultLemmatizerContextGenerator.getContext`, in its
 /// order: the word (`w0=`), the tag (`t0=`), the previous lemma class
@@ -80,10 +76,10 @@ impl LemmaContext {
     }
 }
 
-impl<'a> ContextGenerator<Tagged<'a>, JavaString> for LemmaContext {
-    fn context(&mut self, index: usize, sequence: &[Tagged<'a>], prior: &[&JavaString], out: &mut Features) {
-        let (word, tag) = sequence[index];
-        self.features(out, word, tag, if index == 0 { None } else { Some(prior[index - 1]) });
+impl<'a> ContextGenerator<TokenTag<'a>, JavaString> for LemmaContext {
+    fn context(&mut self, index: usize, sequence: &[TokenTag<'a>], prior: &[&JavaString], out: &mut Features) {
+        let item = sequence[index];
+        self.features(out, item.token, item.tag, if index == 0 { None } else { Some(prior[index - 1]) });
     }
 }
 
@@ -147,7 +143,7 @@ mod tests {
         assert_eq!(out.to_string_lossy(4), "p_1=R1\u{FFFD}_D0\u{FFFD}w0=x");
         let mut context = LemmaContext;
         let mut by_search = Features::new();
-        context.context(1, &[("\u{1F600}", "_"), ("x", "_")], &[&class], &mut by_search);
+        context.context(1, &[TokenTag { token: "\u{1F600}", tag: "_" }, TokenTag { token: "x", tag: "_" }], &[&class], &mut by_search);
         assert_eq!(by_search, out);
     }
 

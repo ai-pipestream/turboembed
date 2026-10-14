@@ -114,7 +114,7 @@ impl PosDictionary {
     /// is not case sensitive.
     pub fn tags(&self, word: &str) -> Option<&[String]> {
         let lowered;
-        let key = if self.case_sensitive {
+        let key = if self.case_sensitive || word.chars().all(|c| to_lower_char(c) == c) {
             word
         } else {
             lowered = lowercase(word);
@@ -157,15 +157,13 @@ impl PosDictionary {
 
     /// `POSDictionary.serialize`: the bytes of the `tags.tagdict` entry.
     pub fn serialize(&self) -> Result<Vec<u8>> {
-        // Each entry's one token and its `tags` attribute, the tags joined
-        // with spaces as `DictionaryEntryPersistor` joins them.
         let order = self.java_order()?;
-        let tokens: Vec<[String; 1]> = order.iter().map(|&i| [self.words[i].0.clone()]).collect();
-        let attributes: Vec<[(String, String); 1]> =
-            order.iter().map(|&i| [("tags".to_owned(), self.words[i].1.join(" "))]).collect();
         write_entries_xml(
             self.case_sensitive,
-            tokens.iter().zip(&attributes).map(|(tokens, attributes)| XmlEntry { tokens, attributes }),
+            order.iter().map(|&i| {
+                let (word, tags) = &self.words[i];
+                XmlEntry { tokens: std::slice::from_ref(word), tags: Some(tags) }
+            }),
         )
     }
 }
@@ -212,6 +210,7 @@ mod tests {
         assert!(!d.is_case_sensitive());
         assert_eq!(d.len(), 4);
         assert_eq!(d.tags("RUN").unwrap(), ["NN", "VB", "VBP"]);
+        assert_eq!(d.tags("run").unwrap(), ["NN", "VB", "VBP"]);
         assert_eq!(d.tags("paris").unwrap(), ["NNP"]);
         assert_eq!(d.tags("London"), None);
         // The order of a `HashSet` of the tags: buckets 0 (DT, then NN), 1
@@ -305,5 +304,19 @@ mod tests {
         let d = PosDictionary::new(true, [("a&b".to_owned(), tags(&["x\"y", "<z>"]))]);
         let xml = String::from_utf8(d.serialize().unwrap()).unwrap();
         assert!(xml.contains("<entry tags=\"x&quot;y &lt;z&gt;\">\n        <token>a&amp;b</token>"), "{xml}");
+    }
+
+    #[test]
+    fn a_lookup_lowercases_per_code_point_as_java_does() {
+        let d = PosDictionary::new(false, [("Straße".to_owned(), vec!["NN".to_owned()])]);
+        assert_eq!(d.words().next().unwrap().0, "straße");
+        assert_eq!(d.tags("STRAßE").unwrap(), ["NN"]);
+        // `Character.toLowerCase` maps a code point to one code point, so
+        // the full case folding of "SS" to "ß" is not applied.
+        assert_eq!(d.tags("STRASSE"), None);
+        assert_eq!(d.tags("strasse"), None);
+        let sensitive = PosDictionary::new(true, [("Run".to_owned(), vec!["VB".to_owned()])]);
+        assert_eq!(sensitive.tags("Run").unwrap(), ["VB"]);
+        assert_eq!(sensitive.tags("run"), None);
     }
 }

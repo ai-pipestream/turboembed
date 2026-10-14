@@ -1,0 +1,23 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	multi/ru	307	170	0694c88d949a90a29192dbe856add99bbd2f60b9be7448fa0d53b04407bfbbbf
+annotator	opennlp.tools.ml.perceptron.SimplePerceptronSequenceTrainer	train
+config	Algorithm	PERCEPTRON_SEQUENCE
+config	Cutoff	5
+config	DataIndexer	OnePass
+config	Iterations	20
+config	UseAverage	true
+config	sort	false
+config	source	sentdetect
+layer	turbo:events	document	4	outcome:str	context:str	values:str
+n	sn eos=. x=рано 4 v=пришла s= n=Уже ncap	
+n	sn eos=. x=санках 6 v=на s= n=В ncap	
+n	sn eos=. x=дороги 6 v=расчистили s= n=Многие ncap	
+s	sn eos=. x=погоде 6 v=холодной s= n=	
+end	turbo:events
+layer	turbo:indexer-error	document	1	class:str	message:str
+opennlp.tools.util.InsufficientTrainingDataException	Insufficient training data to create model.
+end	turbo:indexer-error

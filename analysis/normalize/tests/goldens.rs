@@ -42,6 +42,7 @@
 use std::path::PathBuf;
 
 use turbo_analysis::{Document, Key, Provenance, View};
+use turbo_goldens::expect::{ViewEdit, apply_view_edits, view_edits_equivalent};
 use turbo_goldens::{Golden, Mismatch, Tolerance, data_dir, matches_golden_key};
 use turbo_normalize::{
     AccentFold, BoundedUrls, Bullets, CaseFold, Chain, ConfusableSkeleton, Dashes, Dehyphenate, Digits, Ellipsis,
@@ -50,12 +51,7 @@ use turbo_normalize::{
 };
 
 /// One edit of the golden: the source byte span it replaces and what it writes.
-#[derive(Debug, Clone, PartialEq, Eq)]
-struct Row {
-    start: usize,
-    end: usize,
-    with: String,
-}
+type Row = ViewEdit;
 
 /// A text on which the Rust normalizer is documented to differ from OpenNLP.
 struct Divergence {
@@ -117,16 +113,7 @@ fn view_rows(golden: &Golden, name: &str, id: &str) -> Vec<Row> {
 
 /// The source with the rows applied: the text OpenNLP produced.
 fn rebuild(text: &str, rows: &[Row]) -> String {
-    let mut out = String::with_capacity(text.len());
-    let mut at = 0;
-    for r in rows {
-        assert!(r.start >= at && r.end >= r.start, "rows out of order at {r:?}");
-        out.push_str(&text[at..r.start]);
-        out.push_str(&r.with);
-        at = r.end;
-    }
-    out.push_str(&text[at..]);
-    out
+    apply_view_edits(text, rows).unwrap_or_else(|e| panic!("{e}"))
 }
 
 /// A document holding `text` and, as the view `norm`, the text `n` makes of it.
@@ -148,31 +135,10 @@ fn normalized<N: Normalizer>(n: &N, text: &str) -> (Document, String, Vec<Row>) 
 }
 
 /// Whether the two edit lists change the same stretches of the source into the same text, whatever
-/// their granularity. Edits of either list that overlap or touch, directly or through edits of the
-/// other list, form a region; the lists are equivalent when, for every region, the source with the
-/// Rust edits applied equals the source with the golden's applied. This is the check for goldens
-/// whose edits were reconstructed by a diff: the diff may cut one change into several rows or join
-/// two changes that are a character apart, and the Rust edits may span an unchanged character that
-/// the diff kept.
+/// their granularity: `turbo_goldens::expect::view_edits_equivalent`, the check for goldens whose
+/// edits were reconstructed by a diff.
 fn equivalent(text: &str, rust: &[Row], golden: &[Row]) -> bool {
-    let mut all: Vec<(usize, usize)> = rust.iter().chain(golden).map(|r| (r.start, r.end)).collect();
-    all.sort_unstable();
-    let mut regions: Vec<(usize, usize)> = Vec::new();
-    for (s, e) in all {
-        match regions.last_mut() {
-            Some(last) if s <= last.1 => last.1 = last.1.max(e),
-            _ => regions.push((s, e)),
-        }
-    }
-    regions.iter().all(|&(s, e)| {
-        let inside = |rows: &[Row]| -> Vec<Row> {
-            rows.iter()
-                .filter(|r| r.start >= s && r.end <= e)
-                .map(|r| Row { start: r.start - s, end: r.end - s, with: r.with.clone() })
-                .collect()
-        };
-        rebuild(&text[s..e], &inside(rust)) == rebuild(&text[s..e], &inside(golden))
-    })
+    view_edits_equivalent(text, rust, golden)
 }
 
 /// Runs `n` over every text of the norm set and compares with the goldens of `name`.

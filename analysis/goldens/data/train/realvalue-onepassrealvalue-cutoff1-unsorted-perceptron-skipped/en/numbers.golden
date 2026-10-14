@@ -1,0 +1,23 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	en/numbers	226	226	c9f48b2fbd30b7603cd02cad8f56d1a5d0961619d294faecb2a75d4c1f404102
+annotator	opennlp.tools.ml.perceptron.PerceptronTrainer	train
+config	Algorithm	PERCEPTRON
+config	Cutoff	1
+config	DataIndexer	OnePassRealValue
+config	Iterations	50
+config	StepSizeDecrease	0.0
+config	Tolerance	1.0E-5
+config	UseAverage	false
+config	UseSkippedAveraging	true
+config	sort	false
+config	source	realvalue
+layer	turbo:events	document	1	outcome:str	context:str	values:str
+long	The rope is 3.5 metres long and costs $12.99 at the store. Version 2.10.1 fixed bug reported on 12.03.2024. population grew by 1,250,000 people, roughly 4.7 percent. Pi about 3.14159. Section 4.2 explains rest.	2.0 1.0 2.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 3.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0
+end	turbo:events
+layer	turbo:perceptron-training	document	1	iterations:u32	message:str
+0	opennlp.tools.util.InsufficientTrainingDataException: Training data must contain more than one outcome
+end	turbo:perceptron-training

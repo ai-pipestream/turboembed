@@ -126,6 +126,11 @@ impl PosEventStream {
     /// of the sample to `out`, in token order. The sample's tags stand in
     /// for the tags decided so far; the generators only read the tags of
     /// earlier tokens.
+    ///
+    /// The two slices of `&str` are built per sample: the generator is
+    /// implemented over `&str`, and a sample's fields may own their text,
+    /// so the slices cannot outlive the sample and be kept on the stream.
+    /// Each token's event allocates far more than these two vectors.
     pub fn events(&mut self, sample: &PosSample<'_>, out: &mut Vec<Event>) {
         let tokens: Vec<&str> = sample.tokens().iter().map(|f| f.as_str()).collect();
         let tags: Vec<&str> = sample.tags().iter().map(|f| f.as_str()).collect();

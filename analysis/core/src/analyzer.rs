@@ -6,7 +6,7 @@ use std::collections::{HashMap, HashSet};
 use crate::annotate::{AnchorUse, Annotator, Bound, Step};
 use crate::doc::{Document, View};
 use crate::error::Error;
-use crate::layer::{Key, KeyId, Layer};
+use crate::layer::{Key, KeyId, Layer, LayerName};
 
 /// A pipeline. Steps are ordered by what they read and write, not by the
 /// order they were added; steps that do not depend on each other form one
@@ -87,10 +87,10 @@ impl Builder {
     /// output's anchor one of its step's reads or an output the step writes
     /// before it, and no cycle.
     pub fn build(self) -> Result<Analyzer, Error> {
-        let mut types: HashMap<(&str, &str), TypeId> = HashMap::new();
+        let mut types: HashMap<&LayerName, TypeId> = HashMap::new();
         let keys = self.steps.iter().flat_map(|s| s.reads().into_iter().chain(s.writes()));
         for k in self.given.iter().copied().chain(keys) {
-            if *types.entry((k.layer.id, k.layer.of)).or_insert(k.ty) != k.ty {
+            if *types.entry(k.layer).or_insert(k.ty) != k.ty {
                 return Err(Error::Pipeline(format!("two layer types are both {}", k.layer)));
             }
         }

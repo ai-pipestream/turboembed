@@ -7,9 +7,9 @@ use std::sync::Arc;
 use turbo_analysis::{Annotator, Error, ModelRef, Refs, View};
 use turbo_analysis_layers::{Confidence, Lemmas, PosTags, Strs, Tokens};
 use turbo_maxent::JavaString;
-use turbo_sequence::{AcceptAll, BeamSearch};
+use turbo_sequence::{AcceptAll, BeamSearch, TokenTag};
 
-use crate::context::{LemmaContext, Tagged};
+use crate::context::LemmaContext;
 use crate::edit_script::decode_lemma;
 use crate::model::LemmatizerModel;
 
@@ -51,7 +51,7 @@ impl MaxentLemmatizer {
     /// (where `lemmatize` returns an array of nulls).
     pub fn classes<'m>(
         &'m self,
-        words: &[Tagged<'_>],
+        words: &[TokenTag<'_>],
         classes: &mut Vec<&'m JavaString>,
         probs: &mut Vec<f64>,
     ) -> bool {
@@ -68,12 +68,13 @@ impl MaxentLemmatizer {
     /// per tagged word, or appends nothing and returns `Ok(false)` when no
     /// class sequence was found. A class the decoder cannot read is an
     /// error, which no class of a trained model is.
-    pub fn lemmatize(&self, words: &[Tagged<'_>], lemmas: &mut Strs, probs: &mut Vec<f64>) -> Result<bool, Error> {
+    pub fn lemmatize(&self, words: &[TokenTag<'_>], lemmas: &mut Strs, probs: &mut Vec<f64>) -> Result<bool, Error> {
         let mut classes = Vec::with_capacity(words.len());
         if !self.classes(words, &mut classes, probs) {
             return Ok(false);
         }
-        for (&(word, _), class) in words.iter().zip(&classes) {
+        for (item, class) in words.iter().zip(&classes) {
+            let word = item.token;
             let lemma = decode_lemma(word, class).map_err(|e| Error::Annotator {
                 annotator: Self::ID,
                 detail: format!("{word:?} with the class {class:?}: {e}"),
@@ -143,10 +144,10 @@ impl Annotator for MaxentLemmatizer {
         let words = words(Self::ID, view, tokens, tags)?;
         let mut lemmas = Strs::default();
         let mut probs = Vec::with_capacity(words.len());
-        let mut tagged: Vec<Tagged<'_>> = Vec::new();
+        let mut tagged: Vec<TokenTag<'_>> = Vec::new();
         for (from, to) in sentence_ranges(tokens) {
             tagged.clear();
-            tagged.extend((from..to).map(|i| (words[i], tags.tagset.label(tags.tags[i]))));
+            tagged.extend((from..to).map(|i| TokenTag { token: words[i], tag: tags.tagset.label(tags.tags[i]) }));
             if !self.lemmatize(&tagged, &mut lemmas, &mut probs)? {
                 return Err(Error::Annotator {
                     annotator: Self::ID,
@@ -182,13 +183,14 @@ mod tests {
     /// The lemmatizer over the English model, or `None` when it is not
     /// downloaded.
     fn english() -> Option<MaxentLemmatizer> {
-        let path = crate::test_models::published(crate::test_models::ENGLISH)?;
+        let path = turbo_goldens::published_model("opennlp-en-ud-ewt-lemmas-1.3-2.5.4.bin")?;
         Some(MaxentLemmatizer::new(LemmatizerModel::read(path).unwrap()))
     }
 
     fn lemmas(l: &MaxentLemmatizer, words: &[(&str, &str)]) -> Vec<String> {
+        let words: Vec<TokenTag<'_>> = words.iter().map(|&(token, tag)| TokenTag { token, tag }).collect();
         let (mut out, mut probs) = (Strs::default(), Vec::new());
-        assert!(l.lemmatize(words, &mut out, &mut probs).unwrap());
+        assert!(l.lemmatize(&words, &mut out, &mut probs).unwrap());
         assert_eq!(out.len(), probs.len());
         assert!(probs.iter().all(|p| (0.0..=1.0).contains(p)));
         out.iter().map(str::to_string).collect()
@@ -206,7 +208,7 @@ mod tests {
     fn classes_are_the_models_outcomes() {
         let Some(l) = english() else { return };
         let (mut classes, mut probs) = (Vec::new(), Vec::new());
-        assert!(l.classes(&[("dogs", "NOUN")], &mut classes, &mut probs));
+        assert!(l.classes(&[TokenTag { token: "dogs", tag: "NOUN" }], &mut classes, &mut probs));
         assert_eq!(classes, [&JavaString::new("D0s")]);
         assert_eq!(probs.len(), 1);
     }

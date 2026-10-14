@@ -59,7 +59,62 @@ const TRAIN_LAYERS: &[(&str, &[ColumnSpec])] = &[
     ),
     ("turbo:gis-parameters", &[col("iteration", U32), col("predicate", U32), col("outcome", U32), col("value", F64)]),
     ("turbo:gis-model", &[col("sha256", STR), col("length", U32)]),
+    ("turbo:qn-training", &[col("iterations", U32), col("stop", STR), col("message", STR)]),
+    (
+        "turbo:qn-iterations",
+        &[col("iteration", U32), col("value", F64), col("rate", F64), col("accuracy", F64), col("parameters", STR)],
+    ),
+    ("turbo:qn-parameters", &[col("iteration", U32), col("predicate", U32), col("outcome", U32), col("value", F64)]),
+    ("turbo:qn-model", &[col("sha256", STR), col("length", U32)]),
+    ("turbo:perceptron-training", &[col("iterations", U32), col("message", STR)]),
+    (
+        "turbo:perceptron-monitor",
+        &[col("iteration", U32), col("correct", U32), col("events", U32), col("accuracy", F64)],
+    ),
+    ("turbo:perceptron-iterations", &[col("iteration", U32), col("parameters", STR)]),
+    (
+        "turbo:perceptron-parameters",
+        &[col("iteration", U32), col("predicate", U32), col("outcome", U32), col("value", F64)],
+    ),
+    ("turbo:perceptron-model", &[col("sha256", STR), col("length", U32), col("error", STR)]),
 ];
+
+/// `QNTrainer`'s class name: the annotator of the QN training goldens.
+pub const QN_TRAINER: &str = "opennlp.tools.ml.maxent.quasinewton.QNTrainer";
+
+/// The run's QN settings from the config records.
+pub fn qn_params(g: &Golden) -> turbo_train::QnParams {
+    turbo_train::QnParams {
+        iterations: config(g, "Iterations").parse().unwrap(),
+        threads: config(g, "Threads").parse().unwrap(),
+        l1_cost: turbo_jvm::text::parse_double(config(g, "L1Cost")).unwrap(),
+        l2_cost: turbo_jvm::text::parse_double(config(g, "L2Cost")).unwrap(),
+        updates: config(g, "NumOfUpdates").parse().unwrap(),
+        max_fct_eval: config(g, "MaxFctEval").parse().unwrap(),
+    }
+}
+
+/// `PerceptronTrainer`'s class name: the annotator of the perceptron
+/// training goldens.
+pub const PERCEPTRON_TRAINER: &str = "opennlp.tools.ml.perceptron.PerceptronTrainer";
+
+/// `SimplePerceptronSequenceTrainer`'s class name: the annotator of the
+/// sequence perceptron goldens.
+pub const SEQUENCE_PERCEPTRON_TRAINER: &str = "opennlp.tools.ml.perceptron.SimplePerceptronSequenceTrainer";
+
+/// The run's perceptron settings from the config records, read as the
+/// trainer reads them from its training parameters.
+pub fn perceptron_params(g: &Golden) -> turbo_train::TrainingParameters {
+    let mut p = turbo_train::TrainingParameters::new();
+    p.put(turbo_train::Key::ITERATIONS, config(g, "Iterations").parse::<i32>().unwrap());
+    p.put(turbo_train::Key::USE_AVERAGE, config(g, "UseAverage").parse::<bool>().unwrap());
+    if g.header.annotator.class == PERCEPTRON_TRAINER {
+        p.put(turbo_train::Key::USE_SKIPPED_AVERAGING, config(g, "UseSkippedAveraging").parse::<bool>().unwrap());
+        p.put(turbo_train::Key::STEP_SIZE_DECREASE, config(g, "StepSizeDecrease").to_string());
+        p.put(turbo_train::Key::TOLERANCE, config(g, "Tolerance").to_string());
+    }
+    p
+}
 
 pub fn train_shapes() -> Vec<Shape> {
     TRAIN_LAYERS

@@ -167,7 +167,7 @@ mod tests {
     }
 
     fn english_path() -> Option<std::path::PathBuf> {
-        crate::test_models::published(crate::test_models::ENGLISH)
+        turbo_goldens::published_model("opennlp-en-ud-ewt-pos-1.3-2.5.4.bin")
     }
 
     fn labels(t: &PosTagger, words: &[&str]) -> Vec<String> {

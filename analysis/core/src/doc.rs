@@ -290,6 +290,16 @@ impl Document {
             Anchor::Document => {}
         }
         for (of, bound) in layer.indexes() {
+            // A layer that names the instance it indexes (`Edges::between`)
+            // must have been made from it: its step read it or wrote it, so
+            // the analyzer runs the step after that instance is made and
+            // the provenance lists every instance the layer points into.
+            if !of.name.is_empty() && !provenance.on.contains(&of) && !provenance.reads.contains(&of) {
+                return Err(Error::Invalid {
+                    layer: id,
+                    detail: format!("an index into {of}, which its step neither read nor wrote"),
+                });
+            }
             let target = made_on(of, &provenance);
             let len = self.len_of(target)?;
             if bound > len {
@@ -298,7 +308,11 @@ impl Document {
                     detail: format!("an index past the end of {target}, which has {len}"),
                 });
             }
-            on.push(target);
+            // An edge layer within one instance (`Edges<Tokens, Tokens>`)
+            // indexes it from both ends: record it once.
+            if !on.contains(&target) {
+                on.push(target);
+            }
         }
         let len = layer.len();
         // A view gets the next id and joins the view table.
@@ -370,12 +384,17 @@ impl Document {
     }
 }
 
-/// The instance of `of`'s layer type a layer was made on: one its step
-/// wrote itself before this layer, else the one it read (the first, if it
-/// read several), else the default. A step's own output comes first: a
+/// The instance of `of`'s layer type a layer was made on: when `of` names an
+/// instance (`Key::named`), that instance, which `Document::add` has
+/// checked the provenance lists; otherwise one its step wrote itself before
+/// this layer, else the one it read (the first, if it read several), else
+/// the default. A step's own output comes first: a
 /// retokenizer that reads gold tokens and writes its own tokens with a
 /// confidence for each scores the tokens it wrote.
 fn made_on(of: KeyId, p: &Provenance) -> KeyId {
+    if !of.name.is_empty() {
+        return of;
+    }
     p.on.iter().chain(&p.reads).copied().find(|r| r.ty == of.ty).unwrap_or(of)
 }
 

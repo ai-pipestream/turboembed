@@ -1,0 +1,23 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	edge/control-separators	14	14	4b8b0f0cf5b626b1f4d744c04f4396cb1a1b1d6684f1a13c3cae82102d1b807a
+annotator	opennlp.tools.ml.perceptron.PerceptronTrainer	train
+config	Algorithm	PERCEPTRON
+config	Cutoff	1
+config	DataIndexer	OnePassRealValue
+config	Iterations	50
+config	StepSizeDecrease	0.0
+config	Tolerance	1.0E-5
+config	UseAverage	false
+config	UseSkippedAveraging	true
+config	sort	false
+config	source	realvalue
+layer	turbo:events	document	1	outcome:str	context:str	values:str
+short	a\u001cb\u001dc\u001ed\u001fe f g	1.0 1.0 1.0
+end	turbo:events
+layer	turbo:perceptron-training	document	1	iterations:u32	message:str
+0	opennlp.tools.util.InsufficientTrainingDataException: Training data must contain more than one outcome
+end	turbo:perceptron-training

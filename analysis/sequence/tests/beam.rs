@@ -4,11 +4,11 @@
 //! the sequences of the final beam with their outcomes, probabilities and
 //! scores, compared bit for bit, and the names the codec decodes.
 //!
-//! The fixture models in `golden/models` are always run. The public
-//! English models are not checked in: set TURBO_TEST_OPENNLP_MODELS to a
-//! directory holding them (see the crate README) to run those tests;
-//! without it they say they were skipped and pass, unless
-//! TURBO_TEST_REQUIRE_OPENNLP_MODELS=1.
+//! The fixture models in `golden/models` are always run. The published
+//! English UD model comes from `turbo-goldens fetch-models`
+//! (`turbo_goldens::published_model`). The OpenNLP 1.5 models are
+//! local-only: set `TURBO_TEST_OPENNLP_MODELS` to a directory holding
+//! them (see the crate README) to run those tests.
 
 mod common;
 
@@ -314,13 +314,11 @@ fn ner_qn_fixture() {
     check_names(&fixtures(), "ner-qn-fixture");
 }
 
-/// The directory of the public English models, or None after saying the
-/// test is skipped.
-fn real_models(test: &str) -> Option<PathBuf> {
+/// The directory of the OpenNLP 1.5 English models (local-only: their
+/// training corpora are LDC or undocumented, so CI does not fetch them),
+/// or `None` after saying the test is skipped.
+fn models_15(test: &str) -> Option<PathBuf> {
     let Some(dir) = std::env::var_os("TURBO_TEST_OPENNLP_MODELS") else {
-        if std::env::var("TURBO_TEST_REQUIRE_OPENNLP_MODELS").is_ok_and(|v| v == "1") {
-            panic!("{test}: TURBO_TEST_OPENNLP_MODELS is not set");
-        }
         println!("{test}: skipped: TURBO_TEST_OPENNLP_MODELS is not set");
         return None;
     };
@@ -329,42 +327,45 @@ fn real_models(test: &str) -> Option<PathBuf> {
 
 #[test]
 fn en_ud_ewt_pos() {
-    if let Some(dir) = real_models("en_ud_ewt_pos") {
-        check_pos(&dir, "en-ud-ewt-pos");
+    // The file name comes from the golden, so the lookup and `open` read
+    // the same file.
+    let golden = read_golden("en-ud-ewt-pos");
+    if let Some(path) = turbo_goldens::published_model(&golden.model) {
+        check_pos(path.parent().unwrap(), "en-ud-ewt-pos");
     }
 }
 
 #[test]
 fn en_pos_maxent() {
-    if let Some(dir) = real_models("en_pos_maxent") {
+    if let Some(dir) = models_15("en_pos_maxent") {
         check_pos(&dir, "en-pos-maxent");
     }
 }
 
 #[test]
 fn en_pos_perceptron() {
-    if let Some(dir) = real_models("en_pos_perceptron") {
+    if let Some(dir) = models_15("en_pos_perceptron") {
         check_pos(&dir, "en-pos-perceptron");
     }
 }
 
 #[test]
 fn en_chunker() {
-    if let Some(dir) = real_models("en_chunker") {
+    if let Some(dir) = models_15("en_chunker") {
         check_chunker(&dir, "en-chunker");
     }
 }
 
 #[test]
 fn en_ner_person() {
-    if let Some(dir) = real_models("en_ner_person") {
+    if let Some(dir) = models_15("en_ner_person") {
         check_names(&dir, "en-ner-person");
     }
 }
 
 #[test]
 fn en_ner_location() {
-    if let Some(dir) = real_models("en_ner_location") {
+    if let Some(dir) = models_15("en_ner_location") {
         check_names(&dir, "en-ner-location");
     }
 }

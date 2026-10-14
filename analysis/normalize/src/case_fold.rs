@@ -12,7 +12,9 @@ use crate::{Normalizer, hash_config};
 pub enum CaseFoldMode {
     /// `String.toLowerCase(Locale.ROOT)`: the simple lowercase mapping of
     /// each character, U+0130 to "i" U+0307, and U+03A3 to final sigma
-    /// U+03C2 where the Final_Sigma condition holds.
+    /// U+03C2 where the JDK's final sigma condition holds (which walks the
+    /// word around the sigma, not only the case-ignorable characters;
+    /// `turbo_unicode::java::to_lowercase`).
     Lowercase,
     /// Simple case folding: the CaseFolding.txt entries of status C and S.
     /// Every character folds to one character.

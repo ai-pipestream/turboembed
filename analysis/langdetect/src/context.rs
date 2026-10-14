@@ -19,15 +19,13 @@
 //!
 //! The context here is the same n-grams in the same order, each written
 //! as Java modified UTF-8 (the form the model keys its predicates by, in
-//! which a lone surrogate is three bytes) into one buffer. The order
-//! comes from [`crate::java_map`]; `CharBuffer.hashCode` is computed over
-//! the code units from the last to the first.
+//! which a lone surrogate is three bytes) into one buffer. The order and
+//! `CharBuffer.hashCode` come from [`turbo_jvm::hash_map`].
 
+use turbo_jvm::hash_map::{HashMapOrder, Insert, char_buffer_hash, spread};
 use turbo_normalize::language_detection::prepare;
 use turbo_unicode::java::code_point::to_lower_case;
 use turbo_unicode::modified_utf8::push_modified_utf8;
-
-use crate::java_map::{self, OrderScratch};
 
 /// The shortest and longest n-grams, in UTF-16 code units, of the
 /// generator `LanguageDetectorFactory` builds.
@@ -60,8 +58,6 @@ pub struct ContextGenerator {
     slots: Vec<u32>,
     /// `HashMap.hash` of each gram, by gram index.
     spread: Vec<u32>,
-    /// 0, 1, 2, ...: the order the grams are put into the first map.
-    first_seen: Vec<u32>,
     /// The first map's iteration order, the put order of the second.
     counted: Vec<u32>,
     /// The second map's iteration order: the order the model gets.
@@ -70,7 +66,7 @@ pub struct ContextGenerator {
     bytes: Vec<u8>,
     ends: Vec<u32>,
     exact: bool,
-    order_scratch: OrderScratch,
+    order_scratch: HashMapOrder,
 }
 
 impl Default for ContextGenerator {
@@ -96,13 +92,12 @@ impl ContextGenerator {
             grams: Vec::new(),
             slots: Vec::new(),
             spread: Vec::new(),
-            first_seen: Vec::new(),
             counted: Vec::new(),
             order: Vec::new(),
             bytes: Vec::new(),
             ends: Vec::new(),
             exact: true,
-            order_scratch: OrderScratch::default(),
+            order_scratch: HashMapOrder::default(),
         }
     }
 
@@ -119,14 +114,12 @@ impl ContextGenerator {
         self.lowercase(text);
         self.collect_grams();
 
-        let n = self.grams.len() as u32;
         self.spread.clear();
-        self.spread.extend(self.grams.iter().map(|g| java_map::spread(g.hash)));
-        self.first_seen.clear();
-        self.first_seen.extend(0..n);
-        let first =
-            java_map::iteration_order(&self.spread, &self.first_seen, &mut self.order_scratch, &mut self.counted);
-        let second = java_map::iteration_order(&self.spread, &self.counted, &mut self.order_scratch, &mut self.order);
+        self.spread.extend(self.grams.iter().map(|g| spread(g.hash)));
+        self.order_scratch.reset();
+        let first = self.order_scratch.order(&self.spread, Insert::Put, &mut self.counted);
+        self.order_scratch.reset();
+        let second = self.order_scratch.order_keys(&self.spread, &self.counted, Insert::Put, &mut self.order);
         self.exact = first && second;
 
         self.bytes.clear();
@@ -205,13 +198,6 @@ impl ContextGenerator {
             }
         }
     }
-}
-
-/// `CharBuffer.hashCode`: 31 times the hash plus each code unit, from the
-/// last unit to the first, starting at 1.
-#[inline]
-pub(crate) fn char_buffer_hash(units: &[u16]) -> i32 {
-    units.iter().rev().fold(1i32, |h, &u| h.wrapping_mul(31).wrapping_add(i32::from(u)))
 }
 
 /// The slot of a hash in a table of `slots` entries (a power of two):

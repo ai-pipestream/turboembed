@@ -36,7 +36,10 @@ Spanish and French tokenizer models, which are not checked in (about 540 KB each
 | `opennlp-es-ud-gsd-tokens-1.3-2.5.4.bin` | `309de611ff7a8c4227c57086838d4783bcede8520026d7ad416c85a513567ce7` |
 | `opennlp-fr-ud-gsd-tokens-1.3-2.5.4.bin` | `a06dbc9b72600ba0886f64a632636e136e5fc225955913c4c1a926a9333bc14a` |
 
-`tests/models.rs` runs when `TURBO_TEST_OPENNLP_MODELS` names a directory holding them.
+`turbo-goldens fetch-models` downloads them, and `tests/models.rs` reads them from
+`TURBO_GOLDENS_MODELS` (or `target/turbo-goldens/models`) through
+`turbo_goldens::published_model`; without them it skips, unless
+`TURBO_TEST_REQUIRE_OPENNLP_MODELS=1`.
 
 ## Provenance
 

@@ -18,8 +18,17 @@
 //! - [`monitor`][]: training progress monitors and stop criteria.
 //! - [`gis`][]: `GISTrainer`, the model as `GISModel` holds it, and the
 //!   manifest entries `AbstractEventTrainer` reports.
-//! - [`writer`][]: `GenericModelWriter` for a GIS model, the bytes of a
-//!   `.model` entry, chunked strings included.
+//! - [`qn`][]: `QNTrainer`, the L-BFGS trainer: `QNMinimizer`, its line
+//!   searches, the L1 and L2 penalties and the threaded negative log
+//!   likelihood, and the model as `QNModel` holds it.
+//! - [`perceptron`][]: `PerceptronTrainer` and
+//!   `SimplePerceptronSequenceTrainer`, with averaging and the tolerance
+//!   stop, and the model as `PerceptronModel` holds it.
+//! - [`trainer`][]: `TrainerFactory.getEventTrainer` and
+//!   `getEventModelSequenceTrainer`, the trainer the `Algorithm` parameter
+//!   names, and the model it trained.
+//! - [`writer`][]: `GenericModelWriter` for a GIS, QN or perceptron model,
+//!   the bytes of a `.model` entry, chunked strings included.
 //! - [`package`][]: the `.bin` file, `BaseModel.serialize`: a zip archive
 //!   with the `manifest.properties` entry, typed.
 //! - [`context`][]: `BasicContextGenerator`.
@@ -50,6 +59,13 @@
 //! - `ModelParameterChunker` measures the chunks of a string over 65535
 //!   bytes in standard UTF-8 and writes them in modified UTF-8, and stops
 //!   at a lone surrogate, dropping the rest of the string ([`writer`][]).
+//! - `QNTrainer` reports nothing to the progress monitor and reads no
+//!   stop criterion, and `QNMinimizer` aliases its stored corrections once
+//!   it starts discarding the oldest ([`qn`][]).
+//! - `PerceptronTrainer`'s `UseSkippedAveraging` only turns averaging on,
+//!   its monitor hears of iterations 1 to 9 and every tenth, and a
+//!   perceptron model with every parameter zero cannot be written
+//!   ([`perceptron`][], [`writer`][]).
 
 pub mod context;
 pub mod crc32c;
@@ -60,6 +76,9 @@ pub mod index;
 pub mod monitor;
 pub mod package;
 pub mod params;
+pub mod perceptron;
+pub mod qn;
+pub mod trainer;
 pub mod writer;
 
 pub use turbo_maxent::java_string;
@@ -77,4 +96,7 @@ pub use monitor::{
 };
 pub use package::{Manifest, ModelPackage, TimeZone, sentence_model_package};
 pub use params::{Algorithm, Key, TrainerType, TrainingParameters, Value};
-pub use writer::write_gis;
+pub use perceptron::{PerceptronIteration, PerceptronModel, PerceptronParams, Sequence, SequenceSource};
+pub use qn::{QnIteration, QnModel, QnParams, QnStop};
+pub use trainer::TrainedModel;
+pub use writer::{WritableModel, write_gis, write_perceptron, write_qn};

@@ -124,7 +124,7 @@ impl<L> IxRange<L> {
         self.len() == 0
     }
 
-    pub fn iter(&self) -> impl Iterator<Item = Ix<L>> + use<L> {
+    pub fn iter(&self) -> impl ExactSizeIterator<Item = Ix<L>> + use<L> {
         (self.start.get() as u32..self.end.get() as u32).map(Ix::new)
     }
 }

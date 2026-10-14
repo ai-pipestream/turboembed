@@ -1,0 +1,55 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	edge/german	119	106	d48ae253086e3984a56fc973a73652963f5c48c360ab2859b8e383a73af3c063
+annotator	opennlp.tools.ml.maxent.quasinewton.QNTrainer	train
+config	Algorithm	MAXENT_QN
+config	Cutoff	5
+config	DataIndexer	TwoPass
+config	Iterations	100
+config	L1Cost	0.1
+config	L2Cost	0.1
+config	MaxFctEval	30000
+config	NumOfUpdates	15
+config	Threads	1
+config	sort	true
+config	source	sentdetect
+layer	turbo:events	document	7	outcome:str	context:str	values:str
+n	sn eos=. x=Übung 5 xcap v=und s= n=z.B.	
+n	eos=. x=z 1 v=Übung. vcap s=B scap n=heißt	
+n	sn eos=. x=.B 2 v=z s= n=heißt	
+n	sn eos=. x=Beispiel“ 9 xcap v=„zum s= n=Dr. ncap	
+n	sn eos=. x=Dr 2 xcap v=Beispiel“. vcap s= n=Weiß ncap	
+n	eos=. x=12 2 v=um s=30 n=Uhr. ncap	
+s	sn eos=. x=Uhr 3 xcap v=12.30 s= n=	
+end	turbo:events
+layer	turbo:qn-training	document	1	iterations:u32	stop:str	message:str
+6	change-rate	
+end	turbo:qn-training
+layer	turbo:qn-iterations	document	6	iteration:u32	value:f64	rate:f64	accuracy:f64	parameters:str
+1	400dd48d04ff44a0 3.7287845983888275	3fcda1cbe45fb36c 0.23150013590875618	3feb6db6db6db6db 0.8571428571428571	f17f726001a089b342118df6a46169a5f8dc0b3d6ce8465b54544444c110a805
+2	400a3a3d21a5583a 3.2784369114479235	3fbeeb2d082ad572 0.12077599954030463	3feb6db6db6db6db 0.8571428571428571	c41992bd1d0feb68372ebd6d35362dc03a263c8637a569569e226f93cfb60c17
+3	40099a7317495702 3.2004148310905984	3f985ea6625052b3 0.023798560858341044	3feb6db6db6db6db 0.8571428571428571	cad82aaac821206e68f64ac6964330a475ad56607e9bfe33eb105d80c786b42f
+4	40096f83ae2cdfe5 3.1794503791279447	3f7ad4bdbebf17f6 0.006550542060670841	3feb6db6db6db6db 0.8571428571428571	ac074933f2acca9e9413de6bdd31cb619810c44624fc620ae92a66f69e27eb70
+5	4009607b9116f051 3.1721106848836276	3f62e93b31c4fd87 0.002308478941045858	3feb6db6db6db6db 0.8571428571428571	95a12c7c0e332c41ffc8718c20db67b7bcf2b7871939d5c0fe7d9a66817a06ac
+6	4009604f1b0db99d 3.17202588210712	3efc085129f8bdfe 2.673386427270822E-5	3feb6db6db6db6db 0.8571428571428571	53448b7a9289b2d895dfa26daaa39109126cb519051d3f843798913812fa9c8e
+end	turbo:qn-iterations
+layer	turbo:qn-parameters	document	12	iteration:u32	predicate:u32	outcome:u32	value:f64
+1	0	0	3fe24e7595e85edd 0.5720775535473553
+1	0	1	bfe24e7595e85edd -0.5720775535473553
+1	1	0	3fd55b892ee46ead 0.3337119062359573
+1	1	1	bfd55b892ee46ead -0.3337119062359573
+1	2	0	3fd55b892ee46ead 0.3337119062359573
+1	2	1	bfd55b892ee46ead -0.3337119062359573
+6	0	0	3fe9cbdea300ed71 0.8061364349045289
+6	0	1	bfe9cbdea300ed5e -0.8061364349045268
+6	1	0	bf75b9cbe2bff791 -0.005304142407110649
+6	1	1	3f75b9cbe2c003cd 0.005304142407113366
+6	2	0	bf75b9cbe2bff791 -0.005304142407110649
+6	2	1	3f75b9cbe2c003cd 0.005304142407113366
+end	turbo:qn-parameters
+layer	turbo:qn-model	document	1	sha256:str	length:u32
+a48db055e6d8dc124e62b88443e4d7c03efbed8f74759b47cfc57a4fdd76017f	92
+end	turbo:qn-model
