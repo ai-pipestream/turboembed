@@ -89,9 +89,13 @@ test for the first is ignored until `turbo-maxent` can evaluate from given sums.
 
 ### The public models
 
-The beam tests for these run when `TURBO_TEST_OPENNLP_MODELS` names a directory
-holding them; without it they say they were skipped and pass, unless
-`TURBO_TEST_REQUIRE_OPENNLP_MODELS=1`. They are not checked in.
+`opennlp-en-ud-ewt-pos-1.3-2.5.4.bin` is fetched by `turbo-goldens
+fetch-models` and read from `TURBO_GOLDENS_MODELS` (or
+`target/turbo-goldens/models`), failing when missing if
+`TURBO_TEST_REQUIRE_OPENNLP_MODELS=1`. The five OpenNLP 1.5 models are
+local-only (their training corpora are LDC or undocumented) and run when
+`TURBO_TEST_OPENNLP_MODELS` names a directory holding them. None are checked
+in.
 
 | Model | Source | SHA-256 |
 |---|---|---|
