@@ -27,7 +27,10 @@ everything that makes them:
 - `src/`: the driver, the `turbo-goldens` binary. `src/recipe.rs` holds the
   base image digest, the OpenNLP and addons commits, the published models
   with their URLs and SHA-512 hashes, the checked in fixtures with their
-  SHA-512 hashes, and the input sets.
+  SHA-512 hashes, and the input sets. `src/fuzz.rs` is the `fuzz`
+  command, which is why the crate depends on `turbo-goldens` (the corpus
+  generator) and `turbo-fuzz` (the Rust side of the comparison); the
+  other commands use neither.
 
 Both formats are described in `docs/analysis.md` ("Generating golden
 files" and "Decision point dumps").
@@ -41,6 +44,7 @@ cargo run -p turbo-goldens-tool -- image
 cargo run -p turbo-goldens-tool -- fetch-models <dir>
 cargo run -p turbo-goldens-tool -- generate [--out <dir>] [--models <dir>]
 cargo run -p turbo-goldens-tool -- verify [--models <dir>]
+cargo run -p turbo-goldens-tool -- fuzz [--seed <n>] [--count <n>] [--sets <a,b>] [--out <dir>] [--models <dir>] [--image <tag>] [--reduce <n>] [--no-reduce] [--reduce-documented] [--rounds <n>] [--reuse]
 ```
 
 - `image` builds the container image, tags it with the OpenNLP commit and
@@ -80,6 +84,10 @@ cargo run -p turbo-goldens-tool -- verify [--models <dir>]
   also checks the checked in dumps by the same rule, and that each one's
   header names the golden's input and model; it does not read the
   decision points.
+- `fuzz` generates `<count>` texts from `<seed>`, runs the generator over
+  them in the container, compares every golden with the Rust annotators
+  and reduces each divergence to a minimal input; see "Fuzzing against
+  the Rust ports" below.
 
 ## Runs
 
@@ -546,6 +554,74 @@ value with a negative scale is written with scale 0, as for money.
 
 The `quantity` inputs are written for the project. Only the quantity
 annotator runs on them, and it has no dumps.
+
+## Fuzzing against the Rust ports
+
+`turbo-goldens fuzz` compares the JVM and the Rust ports on generated
+texts. `docs/analysis.md` ("Differential fuzzing") describes the corpus,
+the comparison, the offset invariants and what the runs found; this
+section is about running it.
+
+```
+cargo run -p turbo-goldens-tool -- fetch-models target/turbo-goldens/models
+cargo run -p turbo-goldens-tool -- image
+cargo run -p turbo-goldens-tool -- fuzz --seed 1 --count 1000
+```
+
+The command:
+
+1. writes the first `<count>` texts of the seed's corpus
+   (`turbo_goldens::fuzz::corpus`) as `<out>/inputs/<set>/s<seed>-<index>.txt`
+   for each set named by `--sets`, `en`, `edge`, `norm`, `num`, `money`,
+   `quantity` and `sentence-fixture` by default, so that every run the
+   differential covers reads each text; `<out>` is
+   `target/turbo-goldens/fuzz/s<seed>-<count>` unless `--out` names a
+   directory; the inputs and the `jvm` directory of an earlier run there
+   are replaced;
+2. runs the generator in the container (`--image`, the recipe's tag by
+   default) over that inputs directory with the models, the fixtures and
+   the rate snapshot mounted as `generate` mounts them, and with
+   `--skip-annotators train,formats,evaluate,detokenize,bpe,masc,ner`,
+   the annotators the differential does not cover; the goldens go under
+   `<out>/jvm/`;
+3. compares every golden with the Rust side (`turbo_fuzz::compare_tree`),
+   checks the offset invariants of every layer the Rust side wrote,
+   prints the report and writes it to `<out>/report.txt`;
+4. reduces up to `--reduce` problems (10; `--no-reduce` none,
+   `--reduce-documented` the documented differences as well), each by
+   delta debugging over the text's lines and then its characters, with
+   the container as the oracle: each round writes the candidates as an
+   input set and runs the generator with `--only-runs <annotator>/<model>`
+   over them, at most `--rounds` times (40). The minimal text is written
+   as `<out>/candidates/<id>-<annotator>-<model>.txt` with a `.report`
+   beside it naming the run, the mismatch, how many bytes and rounds the
+   reduction took and the command that makes the input again.
+
+It exits non zero when the report has a problem. `--reuse` compares and
+reduces what an earlier run left under `<out>` without writing the
+inputs or running the generator again; it is how a classification rule
+in `analysis/fuzz/src/runs` is worked on against a fixed tree.
+
+To make one input again, `turbo_goldens::fuzz::input(seed, index)` gives
+the text of `s<seed>-<index>`, and
+`turbo-goldens fuzz --seed <seed> --count <index + 1> --sets <set>`
+its golden (the inputs before it come along, and every input of a seed is
+a fixed function of its index). After a fix, the candidate file is
+checked in under `analysis/goldens/data/inputs/<set>/` and `generate`
+gives it a golden.
+
+The intended use is a nightly run on a hardware host with Docker and the
+models fetched, a few thousand inputs with a fresh seed each night (the
+date serves), the report kept and every candidate looked at. A thousand
+inputs over the seven default sets are a hundred thousand goldens and
+take about ten minutes: two for the generator, the rest for the
+comparison in a debug build.
+
+The generator's two options behind this are general: `--skip-annotators
+<a>,<b>` leaves out every run whose annotator directory is named, and
+`--only-runs <annotator>/<model>,...` keeps only the runs named. They
+follow the five positional arguments, in any order with `--dumps`, and
+the inputs directory may hold any subset of the sets.
 
 ## How the checked in goldens and dumps were made
 
