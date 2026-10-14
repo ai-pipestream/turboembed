@@ -15,7 +15,11 @@
 //! skipped alone ([`read_samples`]), as the token recipe skips the
 //! sentences its stream cannot read. A sentence of no tokens is skipped
 //! too: it gives no event, and as a held-out unit it would count nothing.
-//! The card records how many were skipped.
+//! Held-out sentences are skipped the same way. The card records how many
+//! training and held-out sentences were skipped, and the recipe fails when
+//! either is more than [`crate::MAX_SKIPPED_SENTENCES`] of the sentences
+//! read, so a held-out document whose tags are missing cannot drop out of
+//! the gate.
 //!
 //! The reference is OpenNLP's English maxent tagger from the 1.5 models
 //! ([`EN_POS_MAXENT`]). OpenNLP's only English taggers trained on Penn
@@ -50,9 +54,9 @@ use turbo_train::TrainingConfiguration;
 use turbo_train_components::{PosTaggerFactory, Stamp, postag, ud};
 use turbo_zoo::Sha256;
 
-use crate::error::{Error, Result};
+use crate::error::{Error, LeftOut, Result};
 use crate::segmentation::{LANGUAGE, TIMESTAMP_MS};
-use crate::{RecordedReference, Reference, Trained};
+use crate::{RecordedReference, Reference, Trained, check_skipped};
 
 /// The format the trained model's tags are scored in: its outcomes as
 /// they are, MASC's Penn tags.
@@ -171,7 +175,9 @@ impl PosRecipe {
     /// # Errors
     ///
     /// What [`read_samples`] fails on, a corpus without a sample
-    /// ([`Error::EmptySplit`]), or what training fails on.
+    /// ([`Error::EmptySplit`]), more skipped sentences than
+    /// [`crate::MAX_SKIPPED_SENTENCES`] allows ([`Error::TooManyLeftOut`]),
+    /// or what training fails on.
     pub fn train(&self, train: &MascCorpus) -> Result<Trained> {
         let factory = factory()?;
         let mut stream = postag::PosEventStream::new(&factory)?;
@@ -184,6 +190,7 @@ impl PosRecipe {
         if samples == 0 {
             return Err(Error::EmptySplit { what: "training part-of-speech sample" });
         }
+        check_skipped(LeftOut::TrainingSentences, skipped, samples)?;
         let params = ud::training_parameters();
         let mut config = TrainingConfiguration::default();
         let t = postag::train_pos_model_from_events(&events, &factory, &params, &mut config, Stamp::at(TIMESTAMP_MS))?;
@@ -200,7 +207,9 @@ impl PosRecipe {
     ///
     /// # Errors
     ///
-    /// A sample the corpus fails on, or no sample ([`Error::EmptySplit`]).
+    /// A sample the corpus fails on, no sample ([`Error::EmptySplit`]), or
+    /// more skipped sentences than [`crate::MAX_SKIPPED_SENTENCES`] allows
+    /// ([`Error::TooManyLeftOut`]).
     pub fn held_out<'c>(&self, held_out: &'c MascCorpus) -> Result<HeldOutTags<'c>> {
         let mut samples = Vec::new();
         let skipped = read_samples(held_out, |s| samples.push(s))?;
@@ -208,6 +217,7 @@ impl PosRecipe {
         if out.is_empty() {
             return Err(Error::EmptySplit { what: "held-out part-of-speech sample" });
         }
+        check_skipped(LeftOut::HeldOutSentences, out.skipped, out.len())?;
         Ok(out)
     }
 

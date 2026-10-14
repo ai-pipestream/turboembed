@@ -4,18 +4,22 @@
 use std::fmt::Write as _;
 use std::path::{Path, PathBuf};
 
-/// A token: its text, whether a space comes before it, and its tag.
+/// A token: its text, whether a space comes before it, whether it is a
+/// Penn token, and its tag, if it has one.
 pub struct Token {
     pub text: String,
     pub space_before: bool,
-    pub tag: String,
+    pub penn: bool,
+    pub tag: Option<String>,
 }
 
 /// The sentences the corpora are made of. Tokens are written with a space
 /// before them unless they start with `~` (which is dropped), so `dog ~'s`
-/// is `dog's` in two tokens. A token's Penn tag follows its last `/`; a
-/// token without one is tagged `.` when it is punctuation and `NN`
-/// otherwise.
+/// is `dog's` in two tokens. A token that starts with `^` (after any `~`,
+/// and dropped too) is in the text but not a Penn token, so a sentence of
+/// such tokens has none. A token's Penn tag follows its last `/`, and a
+/// token that ends in `/` has no tag (no `msd` feature); a token without
+/// a `/` is tagged `.` when it is punctuation and `NN` otherwise.
 pub const SENTENCES: &[&str] = &[
     "Dr./NNP Smith/NNP said/VBD that/IN the/DT dog/NN ~'s/POS food/NN costs/VBZ $/$ ~5.00/CD ~,/, not/RB more/JJR ~./.",
     "Mr./NNP Jones/NNP left/VBD early/RB ~./.",
@@ -35,12 +39,17 @@ pub fn tokens(sentence: &str) -> Vec<Token> {
                 Some(rest) => (rest, false),
                 None => (t, true),
             };
-            let (text, tag) = match t.rsplit_once('/') {
-                Some((text, tag)) if !text.is_empty() && !tag.is_empty() => (text, tag.to_owned()),
-                _ if t.chars().all(|c| c.is_ascii_punctuation()) => (t, ".".to_owned()),
-                _ => (t, "NN".to_owned()),
+            let (t, penn) = match t.strip_prefix('^') {
+                Some(rest) => (rest, false),
+                None => (t, true),
             };
-            Token { text: text.to_owned(), space_before, tag }
+            let (text, tag) = match t.rsplit_once('/') {
+                Some((text, "")) if !text.is_empty() => (text, None),
+                Some((text, tag)) if !text.is_empty() => (text, Some(tag.to_owned())),
+                _ if t.chars().all(|c| c.is_ascii_punctuation()) => (t, Some(".".to_owned())),
+                _ => (t, Some("NN".to_owned())),
+            };
+            Token { text: text.to_owned(), space_before, penn, tag }
         })
         .collect()
 }
@@ -67,13 +76,15 @@ pub fn write_document(dir: &Path, name: &str, pool: &[&str], sentences: &[usize]
             let a = text.len();
             text.push_str(&t.text);
             writeln!(seg, "  <region xml:id=\"seg-r{q}\" anchors=\"{a} {}\"/>", text.len()).unwrap();
-            writeln!(
-                penn,
-                "  <node xml:id=\"penn-n{q}\"><link targets=\"seg-r{q}\"/></node>\n  \
-                 <a xml:id=\"penn-N{q}\" label=\"tok\" ref=\"penn-n{q}\" as=\"anc\"><fs><f name=\"msd\" value=\"{}\"/></fs></a>",
-                t.tag
-            )
-            .unwrap();
+            if t.penn {
+                let msd = t.tag.as_ref().map(|tag| format!("<f name=\"msd\" value=\"{tag}\"/>")).unwrap_or_default();
+                writeln!(
+                    penn,
+                    "  <node xml:id=\"penn-n{q}\"><link targets=\"seg-r{q}\"/></node>\n  \
+                     <a xml:id=\"penn-N{q}\" label=\"tok\" ref=\"penn-n{q}\" as=\"anc\"><fs>{msd}</fs></a>"
+                )
+                .unwrap();
+            }
             q += 1;
         }
         writeln!(
@@ -126,6 +137,14 @@ pub fn write_corpus(root: &Path, documents: usize, pool: &[&str]) {
     for d in 0..documents {
         let genre = if d % 2 == 0 { "written/news" } else { "spoken/talk" };
         let sentences: Vec<usize> = (0..SENTENCES_PER_DOCUMENT).map(|k| (d * 3 + k * 5) % pool.len()).collect();
-        write_document(&root.join(genre), &format!("doc{d:02}"), pool, &sentences);
+        write_document(&root.join(genre), &format!("doc{d:03}"), pool, &sentences);
     }
+}
+
+/// Writes the document whose header is `header` (relative to `root`, as
+/// a split lists it) again, of `sentences` of `pool`.
+pub fn rewrite_document(root: &Path, header: &str, pool: &[&str], sentences: &[usize]) {
+    let path = root.join(header);
+    let name = path.file_stem().unwrap().to_str().unwrap().to_owned();
+    write_document(path.parent().unwrap(), &name, pool, sentences);
 }

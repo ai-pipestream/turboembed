@@ -103,11 +103,13 @@ fn masc_command(a: Args) -> Result<bool, String> {
             run(recipe, &split, &digest, recorded, recipe.reference_id(), &reference).map_err(|e| e.to_string())?;
         write_model_dir(&out, &outcome.card, &outcome.trained.bytes, &outcome.gate).map_err(|e| e.to_string())?;
         println!(
-            "{}: {} samples, {} sentences skipped, {} events",
+            "{}: trained on {} samples, {} sentences skipped, {} events; held out {} samples, {} sentences skipped",
             recipe.model_id(),
             outcome.trained.samples,
             outcome.trained.skipped_sentences,
-            outcome.trained.events
+            outcome.trained.events,
+            outcome.card.held_out.samples,
+            outcome.card.held_out.skipped_sentences,
         );
         println!("{}", outcome.gate);
         all_pass &= outcome.gate.result.pass;

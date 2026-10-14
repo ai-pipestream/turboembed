@@ -11,15 +11,15 @@ mod common;
 
 use std::path::PathBuf;
 
-use common::{GATED_DOCUMENTS, SENTENCES, temp_dir, write_corpus};
+use common::{GATED_DOCUMENTS, SENTENCES, rewrite_document, temp_dir, write_corpus};
 use turbo_eval::model_gate::{Measure, ModelGateRecord, Task};
 use turbo_formats::masc::MascCorpus;
 use turbo_postag::PosTagFormat;
-use turbo_train_recipes::card::{CARD_FILE, GATE_FILE, ModelCard, TagFormat, write_model_dir};
+use turbo_train_recipes::card::{CARD_FILE, GATE_FILE, HeldOutCard, ModelCard, TagFormat, write_model_dir};
 use turbo_train_recipes::masc::{self, RELEASE, SPLIT, SplitCorpus};
 use turbo_train_recipes::postag::{self, CANDIDATE_FORMAT, POS, PosRecipe};
 use turbo_train_recipes::segmentation::{SENTENCE, TOKENS};
-use turbo_train_recipes::{Error, RECIPES, Recipe, Reference, held_out_name, run};
+use turbo_train_recipes::{Error, LeftOut, RECIPES, Recipe, Reference, held_out_name, run};
 use turbo_zoo::{Index, LicenceClass};
 
 /// The pool without abbreviations, attached punctuation or contractions:
@@ -107,7 +107,8 @@ fn the_recipes_train_score_gate_and_write_their_cards() {
                 &held_out_name(),
                 &digest.sha256,
             )
-            .unwrap();
+            .unwrap()
+            .record;
         assert!(swapped.result.difference.high < 0.0, "{swapped}");
         assert!(!swapped.result.pass);
         // A model against itself passes with no difference.
@@ -120,7 +121,8 @@ fn the_recipes_train_score_gate_and_write_their_cards() {
                 &held_out_name(),
                 &digest.sha256,
             )
-            .unwrap();
+            .unwrap()
+            .record;
         assert_eq!(itself.result.difference.mean, 0.0);
         assert!(itself.result.pass);
 
@@ -136,6 +138,7 @@ fn the_recipes_train_score_gate_and_write_their_cards() {
         assert!(!card.corpus.release_recorded);
         assert_eq!(card.corpus.held_out_documents, split.held_out_paths);
         assert_eq!(card.training.seed, None);
+        assert_eq!(card.held_out, HeldOutCard { samples: gate.units.len(), skipped_sentences: 0 });
         assert_eq!(card.training.sentences_per_sample.is_some(), recipe.task() == Task::SentenceDetector);
         assert_eq!(card.gate.pass, gate.result.pass);
         match recipe {
@@ -187,6 +190,90 @@ fn the_recipes_train_score_gate_and_write_their_cards() {
         assert_eq!(entry.trained_on[0].name, masc::NAME);
     }
     for dir in [root, plain_root, out] {
+        std::fs::remove_dir_all(dir).unwrap();
+    }
+}
+
+/// [`SENTENCES`] with two sentences the recipes' readers skip: one with a
+/// token without a tag, which the tagger's reader skips, and one with no
+/// Penn token, which both readers skip.
+fn with_skipped_sentences() -> Vec<&'static str> {
+    let mut pool = SENTENCES.to_vec();
+    pool.extend(["Dogs/NNS ran/ home/NN ~./.", "^Not ^tokenized ~^."]);
+    pool
+}
+
+/// The document's sentences: `first`, then the corpus's sentences.
+fn sentences_after(first: &[usize]) -> Vec<usize> {
+    first.iter().copied().chain((0..SENTENCES.len()).cycle()).take(common::SENTENCES_PER_DOCUMENT).collect()
+}
+
+fn too_many(err: Option<Error>, side: LeftOut, skipped: u64, of: u64) {
+    match err {
+        Some(Error::TooManyLeftOut { what, count, of: total, limit })
+            if (what, count, total) == (side, skipped, of) =>
+        {
+            assert_eq!(limit, turbo_train_recipes::MAX_SKIPPED_SENTENCES);
+        }
+        other => panic!("{side:?}, {skipped} of {of}: {other:?}"),
+    }
+}
+
+/// A recipe's reader skips held-out sentences as it skips training ones;
+/// the gate run and the card record how many, and a recipe fails when
+/// either side skips more than one sentence in a thousand.
+#[test]
+fn skipped_sentences_are_recorded_and_bounded() {
+    let pool = with_skipped_sentences();
+    let (untagged, no_tokens) = (SENTENCES.len(), SENTENCES.len() + 1);
+    // 250 documents of 40 sentences: 1,000 held-out sentences.
+    let root = temp_dir("skips");
+    write_corpus(&root, 250, SENTENCES);
+    let (split, _) = split_of(&root);
+    rewrite_document(&root, &split.held_out_paths[0], &pool, &sentences_after(&[no_tokens]));
+    let (split, digest) = split_of(&root);
+    assert_eq!(split.held_out.documents().len(), 25);
+
+    // One sentence in a thousand is within the limit.
+    let tags = POS.held_out(&split.held_out).unwrap();
+    assert_eq!((tags.len(), tags.skipped()), (999, 1));
+    let tokens = TOKENS.held_out(&split.held_out).unwrap();
+    assert_eq!((tokens.len(), tokens.skipped()), (999, 1));
+    assert_eq!(SENTENCE.held_out(&split.held_out).unwrap().skipped(), 0);
+
+    // The gate run reports the count, which `run` puts on the card.
+    let small = temp_dir("skips-train");
+    write_corpus(&small, GATED_DOCUMENTS, SENTENCES);
+    let (small_split, _) = split_of(&small);
+    for recipe in [Recipe::Segmentation(TOKENS), Recipe::Pos(POS)] {
+        let trained = recipe.train(&small_split.train).unwrap();
+        let gated = recipe
+            .gate(&trained.bytes, "itself", &trained.bytes, &split.held_out, &held_out_name(), &digest.sha256)
+            .unwrap();
+        assert_eq!(gated.held_out, HeldOutCard { samples: 999, skipped_sentences: 1 }, "{}", recipe.model_id());
+        assert_eq!(gated.record.units.len(), 999);
+    }
+
+    // Two in a thousand are not: a sentence without a tag for the tagger,
+    rewrite_document(&root, &split.held_out_paths[1], &pool, &sentences_after(&[untagged]));
+    let (split, _) = split_of(&root);
+    too_many(POS.held_out(&split.held_out).err(), LeftOut::HeldOutSentences, 2, 1000);
+    let message = POS.held_out(&split.held_out).unwrap_err().to_string();
+    assert_eq!(message, "2 of 1000 held-out sentences skipped, more than the limit of 1 in 1000");
+    assert_eq!(TOKENS.held_out(&split.held_out).unwrap().skipped(), 1);
+    // and another sentence without tokens for both.
+    rewrite_document(&root, &split.held_out_paths[1], &pool, &sentences_after(&[no_tokens]));
+    let (split, _) = split_of(&root);
+    too_many(POS.held_out(&split.held_out).err(), LeftOut::HeldOutSentences, 2, 1000);
+    too_many(TOKENS.held_out(&split.held_out).err(), LeftOut::HeldOutSentences, 2, 1000);
+
+    // Training sentences are bounded the same way, before any training.
+    let first = split.train.documents()[0].path().strip_prefix(&root).unwrap().to_string_lossy().into_owned();
+    rewrite_document(&root, &first, &pool, &[[untagged; 20], [no_tokens; 20]].concat());
+    let (split, _) = split_of(&root);
+    too_many(POS.train(&split.train).err(), LeftOut::TrainingSentences, 40, 9000);
+    too_many(TOKENS.train(&split.train).err(), LeftOut::TrainingSentences, 20, 9000);
+    for dir in [root, small] {
         std::fs::remove_dir_all(dir).unwrap();
     }
 }

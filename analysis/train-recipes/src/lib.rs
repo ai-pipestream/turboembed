@@ -25,13 +25,15 @@ pub mod masc;
 pub mod postag;
 pub mod segmentation;
 
+use std::fmt;
+
 use turbo_eval::model_gate::{ModelGateRecord, Task};
 use turbo_formats::masc::MascCorpus;
 use turbo_zoo::{Index, Sha256};
 
-pub use error::{Error, Result};
+pub use error::{Error, LeftOut, Result};
 
-use card::{CorpusCard, ModelCard};
+use card::{CorpusCard, HeldOutCard, ModelCard};
 use masc::{CorpusDigest, SPLIT, SplitCorpus};
 use postag::PosRecipe;
 use segmentation::{Component, SegmentationRecipe};
@@ -45,11 +47,56 @@ pub struct Trained {
     pub samples: usize,
     /// Sentences left out of training: by the token stream for having no
     /// sample, by the tagger's for a token without a tag or for having no
-    /// token (always 0 for the sentence detector).
+    /// token (always 0 for the sentence detector). At most
+    /// [`MAX_SKIPPED_SENTENCES`] of those read.
     pub skipped_sentences: usize,
     pub events: usize,
     /// `Training-Eventhash`.
     pub event_hash: u32,
+}
+
+/// A bound on how much a recipe may leave out: at most `count` in every
+/// `of`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Limit {
+    pub count: u64,
+    pub of: u64,
+}
+
+impl Limit {
+    /// Whether leaving out `left_out` of `total` is within the limit.
+    pub fn allows(&self, left_out: u64, total: u64) -> bool {
+        u128::from(left_out) * u128::from(self.of) <= u128::from(total) * u128::from(self.count)
+    }
+
+    /// Checks that leaving out `count` of `of` is within the limit.
+    ///
+    /// # Errors
+    ///
+    /// [`Error::TooManyLeftOut`] when it is not.
+    pub fn check(&self, what: LeftOut, count: u64, of: u64) -> Result<()> {
+        if self.allows(count, of) { Ok(()) } else { Err(Error::TooManyLeftOut { what, count, of, limit: *self }) }
+    }
+}
+
+impl fmt::Display for Limit {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{} in {}", self.count, self.of)
+    }
+}
+
+/// The most sentences a recipe's reader may skip, of those it reads from
+/// the training documents and, apart, of those it reads from the held-out
+/// documents: one in a thousand, so the gate cannot lose a held-out
+/// document of more than a few sentences. Read with the recipes' readers
+/// and split by [`masc::SPLIT`], MASC 3.0.0 has no training sentence to
+/// skip and one held-out sentence (a sentence of no tokens) of 6,385.
+pub const MAX_SKIPPED_SENTENCES: Limit = Limit { count: 1, of: 1000 };
+
+/// Checks the sentences a reader skipped against [`MAX_SKIPPED_SENTENCES`]:
+/// `skipped` of `skipped + read`.
+pub(crate) fn check_skipped(what: LeftOut, skipped: usize, read: usize) -> Result<()> {
+    MAX_SKIPPED_SENTENCES.check(what, skipped as u64, (skipped + read) as u64)
 }
 
 /// The OpenNLP model a recipe's model is gated against.
@@ -206,12 +253,20 @@ impl Recipe {
         held_out: &MascCorpus,
         set_name: &str,
         corpus_sha256: &str,
-    ) -> Result<ModelGateRecord> {
+    ) -> Result<GateRun> {
         match self {
             Recipe::Segmentation(r) => {
-                r.gate(trained, reference_id, reference, &r.held_out(held_out)?, set_name, corpus_sha256)
+                let samples = r.held_out(held_out)?;
+                let record = r.gate(trained, reference_id, reference, &samples, set_name, corpus_sha256)?;
+                let held_out = HeldOutCard { samples: samples.len(), skipped_sentences: samples.skipped() };
+                Ok(GateRun { record, held_out })
             }
-            Recipe::Pos(r) => r.gate(trained, reference_id, reference, &r.held_out(held_out)?, set_name, corpus_sha256),
+            Recipe::Pos(r) => {
+                let samples = r.held_out(held_out)?;
+                let record = r.gate(trained, reference_id, reference, &samples, set_name, corpus_sha256)?;
+                let held_out = HeldOutCard { samples: samples.len(), skipped_sentences: samples.skipped() };
+                Ok(GateRun { record, held_out })
+            }
         }
     }
 
@@ -232,6 +287,13 @@ impl Recipe {
     pub fn check_reference(&self, bytes: &[u8]) -> Result<()> {
         self.reference().check(bytes)
     }
+}
+
+/// A gate run: its record, and what it read from the held-out documents.
+#[derive(Debug)]
+pub struct GateRun {
+    pub record: ModelGateRecord,
+    pub held_out: HeldOutCard,
 }
 
 /// What one recipe made.
@@ -255,7 +317,9 @@ pub fn held_out_name() -> String {
 ///
 /// # Errors
 ///
-/// What training, reading the samples, scoring or the gate fail on.
+/// What training, reading the samples, scoring or the gate fail on, and
+/// [`Error::TooManyLeftOut`] when the recipe's reader skips more than
+/// [`MAX_SKIPPED_SENTENCES`] of the training or of the held-out sentences.
 pub fn run(
     recipe: &Recipe,
     split: &SplitCorpus,
@@ -265,7 +329,7 @@ pub fn run(
     reference: &[u8],
 ) -> Result<Outcome> {
     let trained = recipe.train(&split.train)?;
-    let gate =
+    let GateRun { record: gate, held_out } =
         recipe.gate(&trained.bytes, reference_id, reference, &split.held_out, &held_out_name(), &digest.sha256)?;
     let corpus = CorpusCard {
         name: masc::NAME.to_owned(),
@@ -276,7 +340,7 @@ pub fn run(
         held_out_documents: split.held_out_paths.clone(),
         skipped_documents: split.skipped_paths.clone(),
     };
-    let card = ModelCard::new(recipe, &trained, corpus, &gate);
+    let card = ModelCard::new(recipe, &trained, corpus, held_out, &gate);
     Ok(Outcome { trained, gate, card })
 }
 

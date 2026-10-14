@@ -95,6 +95,18 @@ pub struct TrainingCard {
     pub event_hash: u32,
 }
 
+/// What the gate read from the held-out documents.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct HeldOutCard {
+    /// The samples scored, a unit of the gate each.
+    pub samples: usize,
+    /// Held-out sentences the recipe's reader skipped, for the reasons it
+    /// skips training sentences ([`TrainingCard::skipped_sentences`]);
+    /// at most [`crate::MAX_SKIPPED_SENTENCES`] of those read.
+    pub skipped_sentences: usize,
+}
+
 /// The tags a tagger was scored in, as `POSTaggerME` returns them for a
 /// `POSTagFormat`.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -160,12 +172,20 @@ pub struct ModelCard {
     pub attribution: String,
     pub corpus: CorpusCard,
     pub training: TrainingCard,
+    pub held_out: HeldOutCard,
     pub gate: GateCard,
 }
 
 impl ModelCard {
-    /// The card of a model `recipe` trained, gated by `gate`.
-    pub fn new(recipe: &Recipe, trained: &Trained, corpus: CorpusCard, gate: &ModelGateRecord) -> ModelCard {
+    /// The card of a model `recipe` trained, gated by `gate` on what
+    /// `held_out` describes.
+    pub fn new(
+        recipe: &Recipe,
+        trained: &Trained,
+        corpus: CorpusCard,
+        held_out: HeldOutCard,
+        gate: &ModelGateRecord,
+    ) -> ModelCard {
         let trained_on = vec![masc::training_data()];
         let class = class_of(std::iter::once(MODEL_LICENCE).chain(trained_on.iter().map(|t| t.license)));
         let r = &gate.result;
@@ -211,6 +231,7 @@ impl ModelCard {
                 events: trained.events,
                 event_hash: trained.event_hash,
             },
+            held_out,
             gate: GateCard {
                 record: GATE_FILE.to_owned(),
                 reference: gate.reference.id.clone(),

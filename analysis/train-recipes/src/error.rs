@@ -1,6 +1,8 @@
 use std::fmt;
 use std::path::PathBuf;
 
+use crate::Limit;
+
 /// What a recipe can fail on.
 #[derive(Debug)]
 pub enum Error {
@@ -38,10 +40,32 @@ pub enum Error {
     NotRecorded,
     /// The corpus directory is not the recorded release.
     CorpusDigest { expected: String, found: String },
-    /// A reference model file does not have its recorded digest.
+    /// A reference model file is not the one recorded for it: its SHA-256
+    /// is not the one the zoo's index or the recipe records, or its size
+    /// is not the one the recipe records.
     ReferenceDigest { id: String, expected: String, found: String },
     /// The split leaves one side without a sample for the recipe.
     EmptySplit { what: &'static str },
+    /// A recipe left out more than its limit allows.
+    TooManyLeftOut { what: LeftOut, count: u64, of: u64, limit: Limit },
+}
+
+/// What a recipe leaves out, and [`Error::TooManyLeftOut`] counts.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum LeftOut {
+    /// Sentences of the training documents the recipe's reader skipped.
+    TrainingSentences,
+    /// Sentences of the held-out documents the recipe's reader skipped.
+    HeldOutSentences,
+}
+
+impl fmt::Display for LeftOut {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(match self {
+            LeftOut::TrainingSentences => "training sentences skipped",
+            LeftOut::HeldOutSentences => "held-out sentences skipped",
+        })
+    }
 }
 
 pub type Result<T> = std::result::Result<T, Error>;
@@ -79,6 +103,9 @@ impl fmt::Display for Error {
                 write!(f, "reference model {id}: SHA-256 {found}, expected {expected}")
             }
             Error::EmptySplit { what } => write!(f, "the split leaves no {what}"),
+            Error::TooManyLeftOut { what, count, of, limit } => {
+                write!(f, "{count} of {of} {what}, more than the limit of {limit}")
+            }
         }
     }
 }

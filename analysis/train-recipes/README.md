@@ -52,7 +52,12 @@ status is 1 when a gate fails and 2 on an error.
   part-of-speech stream skips a sentence with a token without a tag
   alone, where OpenNLP's throws and ends the training run; a sentence of
   no tokens gives the tagger no event and no held-out unit, and is
-  skipped too. The card records how many were skipped.
+  skipped too. Held-out sentences are skipped the same way. The card
+  records how many training sentences (`training.skipped_sentences`) and
+  how many held-out sentences (`held_out.skipped_sentences`) were
+  skipped, and a recipe fails when its reader skips more than one in a
+  thousand of either (`MAX_SKIPPED_SENTENCES`), so a held-out document
+  whose tags are missing cannot drop out of the gate.
 - The tagger's gate: MASC's tags are Penn tags, so the reference is
   OpenNLP's English maxent tagger of the 1.5 models, `en-pos-maxent.bin`.
   OpenNLP's only English taggers trained on Penn tags are that one and
