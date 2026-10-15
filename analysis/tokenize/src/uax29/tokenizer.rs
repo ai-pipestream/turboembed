@@ -24,19 +24,32 @@ use crate::utf8::decode;
 /// and the type of each to `types`. `max_token_length` is in UTF-16 code
 /// units.
 pub fn word_tokens(text: &str, max_token_length: NonZeroU32, spans: &mut Vec<Span>, types: &mut Vec<WordType>) {
-    let max = max_token_length.get();
-    for_each_segment(text, |start, end| {
-        let segment = &text[start as usize..end as usize];
-        let Some(ty) = word_type(segment) else { return };
-        // A UTF-16 code unit takes at least one UTF-8 byte, so a segment
-        // no longer than the maximum in bytes needs no cut.
-        if end - start <= max {
-            spans.push(Span { start, end });
-            types.push(ty);
-        } else {
-            cut(segment, start, max, ty, spans, types);
-        }
-    });
+    for_each_segment(text, |start, end| push_word(text, start, end, max_token_length, spans, types));
+}
+
+/// Appends the segment `text[start..end]` to `spans` and its type to
+/// `types` when it is a word, cut into pieces of at most `max` UTF-16
+/// code units.
+#[inline]
+pub(crate) fn push_word(
+    text: &str,
+    start: u32,
+    end: u32,
+    max: NonZeroU32,
+    spans: &mut Vec<Span>,
+    types: &mut Vec<WordType>,
+) {
+    let max = max.get();
+    let segment = &text[start as usize..end as usize];
+    let Some(ty) = word_type(segment) else { return };
+    // A UTF-16 code unit takes at least one UTF-8 byte, so a segment
+    // no longer than the maximum in bytes needs no cut.
+    if end - start <= max {
+        spans.push(Span { start, end });
+        types.push(ty);
+    } else {
+        cut(segment, start, max, ty, spans, types);
+    }
 }
 
 /// Emits `segment`, which starts at byte `base`, as pieces of at most
