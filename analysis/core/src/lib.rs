@@ -8,6 +8,7 @@
 //! turbo-analysis-layers; each add-on, the chunker first, is a crate of
 //! its own. docs/analysis.md describes the model.
 
+pub mod alternatives;
 pub mod analyzer;
 pub mod annotate;
 pub mod doc;
@@ -19,6 +20,7 @@ pub mod registry;
 pub mod span;
 pub mod text;
 
+pub use alternatives::{Alternative, Alternatives, ModeSet, NBest, SplitMode};
 pub use analyzer::Analyzer;
 pub use annotate::{Annotator, Bound, Refs};
 pub use doc::{Document, Status, View};

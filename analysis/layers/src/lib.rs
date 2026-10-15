@@ -13,10 +13,11 @@
 use std::marker::PhantomData;
 use std::sync::Arc;
 
-use turbo_analysis::{Anchor, Ix, IxRange, Key, KeyId, Layer, LayerName, ModelRef, Span, Spans};
 pub use turbo_analysis::{
-    Edge, Edges, FilterRule, FragmentError, Fragments, Groups, Overlap, Tag, TagSet, TextSpans, filter_spans,
+    Alternative, Alternatives, Edge, Edges, FilterRule, FragmentError, Fragments, Groups, ModeSet, NBest, Overlap,
+    SplitMode, Tag, TagSet, TextSpans, filter_spans,
 };
+use turbo_analysis::{Anchor, Ix, IxRange, Key, KeyId, Layer, LayerName, ModelRef, Span, Spans};
 
 pub use levels::{Level, Levels, Unit, VectorKind};
 pub use money::{CONVERTED_MONEY, Currency, Money, MoneyMention};
@@ -181,6 +182,19 @@ impl Tokens {
         let a = col.partition_point(|&x| x < s);
         let b = a + col[a..].partition_point(|&x| x == s);
         IxRange::new(a as u32, b as u32)
+    }
+
+    /// The tokens of `mode`'s path through `alt`
+    /// (`Alternatives::path_for_mode`): each alternative's raw byte span,
+    /// so an alternative's `form` is not carried over. `None` when `mode`
+    /// has no complete path from position `0` to `alt.num_positions`.
+    pub fn from_alternatives(alt: &Alternatives<Tokens>, mode: SplitMode) -> Option<Tokens> {
+        let path = alt.path_for_mode(mode)?;
+        let mut spans = Spans::new(alt.spans.view());
+        for &ix in &path {
+            spans.push(alt.spans.get(ix));
+        }
+        Some(Tokens { spans, sentence: None })
     }
 }
 
@@ -863,6 +877,25 @@ mod tests {
         assert!(three(vec![0]).check().unwrap_err().contains("zeros for every item"));
         let v = Vectors::<Sentences>::new(2, vec![0.0; 3], Vec::new(), toy());
         assert!(v.check().unwrap_err().contains("whole number"));
+    }
+
+    #[test]
+    fn tokens_from_alternatives_materializes_split_modes() {
+        let s = |a: u32, b: u32| turbo_analysis::Span::new(a, b);
+        let mut alt = Alternatives::<Tokens>::new(ViewId::SOURCE);
+        alt.push(s(0, 6), 0, 1, SplitMode::A | SplitMode::B);
+        alt.push(s(0, 18), 0, 3, SplitMode::C | SplitMode::Best);
+        alt.push(s(6, 12), 1, 1, ModeSet::A);
+        alt.push(s(6, 18), 1, 2, ModeSet::B);
+        alt.push(s(12, 18), 2, 1, ModeSet::A);
+        assert_eq!(alt.check(), Ok(()));
+
+        let tok_a = Tokens::from_alternatives(&alt, SplitMode::A).unwrap();
+        assert_eq!(tok_a.spans.len(), 3);
+        let tok_b = Tokens::from_alternatives(&alt, SplitMode::B).unwrap();
+        assert_eq!(tok_b.spans.len(), 2);
+        let tok_c = Tokens::from_alternatives(&alt, SplitMode::C).unwrap();
+        assert_eq!(tok_c.spans.len(), 1);
     }
 
     #[test]
