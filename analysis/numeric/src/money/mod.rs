@@ -14,7 +14,6 @@
 
 mod convert;
 mod csv;
-mod date;
 mod decimal;
 mod divide;
 mod ecb;
@@ -25,12 +24,11 @@ mod tables;
 use std::fmt;
 
 pub use convert::MoneyConverter;
-pub use date::Date;
 pub use decimal::{Decimal, DecimalParseError, cmp_values};
 pub use ecb::{EcbError, EcbRates, MAX_STALENESS_DAYS};
 pub use extract::{MoneyExtractor, SymbolError};
 pub use tables::{DEFAULT_SYMBOLS, is_iso_currency};
-pub use turbo_analysis_layers::{CONVERTED_MONEY, Currency, Money, MoneyMention};
+pub use turbo_analysis_layers::{CONVERTED_MONEY, Currency, Date, Money, MoneyMention};
 
 use turbo_analysis_layers::DecimalRef;
 

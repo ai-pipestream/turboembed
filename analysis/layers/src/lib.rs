@@ -16,10 +16,12 @@ use std::sync::Arc;
 use turbo_analysis::{Anchor, Ix, IxRange, Key, KeyId, Layer, LayerName, ModelRef, Spans, ViewId};
 pub use turbo_analysis::{Edge, Edges, Groups, Tag, TagSet};
 
+pub use date::{Date, write_year};
 pub use levels::{Level, Levels, Unit, VectorKind};
 pub use money::{CONVERTED_MONEY, Currency, Money, MoneyMention};
 pub use numbers::{DecimalRef, Multiplier, NumberMention, NumberNotation, Numbers, ScaleMarker};
 pub use quantities::{PERCENT, Quantities, QuantityMention};
+pub use temporal::{DocumentDate, Granularity, Origin, TemporalMention, TemporalValue, Temporals};
 
 /// Strings by column: one buffer and an end offset per item, never a
 /// `String` per item. Lemmas, normalized forms, glosses.
@@ -74,10 +76,12 @@ macro_rules! positional {
     };
 }
 
+mod date;
 mod levels;
 mod money;
 mod numbers;
 mod quantities;
+mod temporal;
 
 /// Document structure from the parser upstream or a structure annotator:
 /// sections, headings, lists, tables, code, as a tree.
