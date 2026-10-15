@@ -820,9 +820,8 @@ order), `turbo:svm-vote` (the category the pairwise vote picks) and
 `turbo:categories` (every category with its probability, best first).
 
 The corpora and documents are written for the project. Only these runs read
-them, and they have no dumps. The goldens are not checked in; the parity
-test skips, naming the `generate` command, while
-`analysis/goldens/data/svm-doccat` is absent.
+them, and they have no dumps. The parity test skips, naming the `generate`
+command, while `analysis/goldens/data/svm-doccat` is absent.
 
 ## Sentiment goldens
 
@@ -853,9 +852,8 @@ outcome with its probability, best first), scored by the model read back
 from its serialized bytes.
 
 The corpus and documents are written for the project. Only these runs
-read them, and they have no dumps. The goldens are not checked in; the
-parity test skips, naming the `generate` command, while
-`analysis/goldens/data/sentiment` is absent.
+read them, and they have no dumps. The parity test skips, naming the
+`generate` command, while `analysis/goldens/data/sentiment` is absent.
 
 ## PII goldens
 
