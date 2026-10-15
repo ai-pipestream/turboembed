@@ -1,12 +1,9 @@
 //! GutenQA: questions over 100 Project Gutenberg books cut into chunks by
 //! LumberChunker, each with the passage its answer is in.
 //!
-//! The tables are published as Parquet, which nothing in the workspace
-//! reads, and no JSON Lines copy is published. Fetching gets the Parquet
-//! files, whose digests two downloads and the repository's LFS object ids
-//! agree on; the reader reads each one's rows as JSON Lines beside it,
-//! with the same name and `.jsonl`, which have to be written from the
-//! Parquet outside this crate.
+//! The tables are published as Parquet, whose digests two downloads and
+//! the repository's LFS object ids agree on. The reader reads the files
+//! as fetched.
 
 use super::{Digest, RemoteFile, Set, Source, SpanUnit};
 use crate::read::gutenqa;
@@ -27,5 +24,5 @@ pub const SET: Set = Set {
         },
     ]),
     span_unit: Some(SpanUnit::QuotedText),
-    read: gutenqa::read,
+    read: gutenqa::read_in,
 };

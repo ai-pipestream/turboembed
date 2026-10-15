@@ -13,7 +13,7 @@ use turbo_maxent::{Digest, sha256};
 use turbo_unicode::WhitespaceMode;
 
 use super::chardef::{AssignmentId, Category, CategoryId, CharDef, CharDefSource};
-use super::entries::{Columns, Dimensions, Entry, FeatureStore, read_entries};
+use super::entries::{Columns, Dimensions, Entry, FeatureStore, Record, read_entries};
 use super::error::{DictionaryError, DictionaryFile};
 use super::limits::DictionaryLimits;
 use super::matrix::Matrix;
@@ -316,6 +316,25 @@ impl MecabDictionary {
     /// The feature columns of `entry`, in file order.
     pub fn features(&self, entry: EntryId) -> Columns<'_> {
         self.features.columns(self.entries[entry.0 as usize].features)
+    }
+
+    /// Feature column `i` of `entry` (counted from 0, the first after the
+    /// cost), if it has one.
+    #[inline]
+    pub fn feature(&self, entry: EntryId, i: usize) -> Option<&str> {
+        self.features.column(self.entries[entry.0 as usize].features, i)
+    }
+
+    /// The feature record of `entry`, for reading several of its columns
+    /// with one lookup of the entry.
+    #[inline]
+    pub(crate) fn feature_record(&self, entry: EntryId) -> Record<'_> {
+        self.features.record(self.entries[entry.0 as usize].features)
+    }
+
+    /// The number of feature columns of `entry`.
+    pub fn feature_count(&self, entry: EntryId) -> usize {
+        self.features.len(self.entries[entry.0 as usize].features)
     }
 
     /// The left and right context ids and the cost of `entry`.

@@ -1,0 +1,1 @@
+<featureGenerators><generator class="opennlp.tools.util.featuregen.WordClusterFeatureGeneratorFactory"><str name="dict">nothing</str></generator></featureGenerators>

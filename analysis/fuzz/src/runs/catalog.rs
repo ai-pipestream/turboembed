@@ -16,8 +16,12 @@ use crate::resources::{Resources, Unavailable};
 /// readers (`parse`, `head-rules`) compare files, not layers of a text;
 /// the evaluators compare scores; the detokenizer runs on token lists;
 /// the BPE trainer learns merges from a whole set; the gazetteers answer
-/// queries line by line and load whole tables.
-pub const NOT_COVERED: [&str; 11] = [
+/// queries line by line and load whole tables; the sequence runs
+/// (`string-pattern`, `features`, `codec`, `beam`, `tag-dictionary`,
+/// `tag-format`), the name finders, the stemmers and the stopword lists
+/// read input sets of their own, which turbo-sequence, turbo-namefind,
+/// turbo-stem and turbo-stopword compare with.
+pub const NOT_COVERED: [&str; 20] = [
     "train",
     "train-events",
     "formats",
@@ -29,6 +33,15 @@ pub const NOT_COVERED: [&str; 11] = [
     "parse",
     "head-rules",
     "gazetteer",
+    "string-pattern",
+    "features",
+    "codec",
+    "beam",
+    "tag-dictionary",
+    "tag-format",
+    "namefind",
+    "stem",
+    "stopword",
 ];
 
 /// Every run the differential covers, as `(annotator, run)`: the golden
@@ -180,7 +193,7 @@ mod tests {
             if !annotator.file_type().unwrap().is_dir() || NOT_COVERED.contains(&name.as_str()) {
                 continue;
             }
-            if ["inputs", "fixtures", "rates"].contains(&name.as_str()) {
+            if ["inputs", "fixtures", "train-fixtures", "rates"].contains(&name.as_str()) {
                 continue;
             }
             for run in std::fs::read_dir(annotator.path()).unwrap() {
