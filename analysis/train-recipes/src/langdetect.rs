@@ -908,6 +908,26 @@ mod tests {
     use super::*;
 
     #[test]
+    fn the_tatoeba_workflow_fetches_the_recipe_s_export_and_reference() {
+        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../.github/workflows/models-tatoeba.yml");
+        let workflow = std::fs::read_to_string(path).unwrap();
+        let lines: Vec<&str> = workflow.lines().map(str::trim).collect();
+        for line in [
+            format!("DETAILED: {}", tatoeba::DETAILED_ARCHIVE_URL),
+            format!("CC0: {}", tatoeba::CC0_ARCHIVE_URL),
+            format!("REFERENCE: {}", LANGDETECT_183.url),
+            format!("REFERENCE_SHA256: {}", LANGDETECT_183.sha256),
+        ] {
+            assert!(lines.contains(&line.as_str()), "{line}");
+        }
+        // The runs read the reference by its file name, the address's last
+        // segment, and write the model's directory under its id.
+        assert_eq!(LANGDETECT_183.url.rsplit('/').next(), Some(LANGDETECT_183.file));
+        assert!(lines.contains(&format!("id={MODEL_ID}").as_str()));
+        assert!(workflow.contains(&format!("\"$id.bin\" {SENTENCES_FILE}")));
+    }
+
+    #[test]
     fn every_reference_code_is_in_one_pair_and_the_tatoeba_codes_are_unique() {
         let mut tatoeba: Vec<&str> = LANGUAGES.iter().map(|p| p.tatoeba).collect();
         let sorted = {
