@@ -162,9 +162,10 @@ impl Encoding {
         }
     }
 
-    /// Whether every ASCII byte decodes to itself and never takes part in
-    /// a multi-byte character: true for all but UTF-16, ISO-2022-JP and
-    /// the replacement encoding.
+    /// Whether an ASCII byte outside a multi-byte sequence decodes to
+    /// itself: true for all but UTF-16, ISO-2022-JP and the replacement
+    /// encoding. In Shift_JIS, Big5, EUC-KR and gb18030 ASCII bytes can
+    /// still be the trail bytes of a multi-byte character.
     pub fn ascii_compatible(self) -> bool {
         !matches!(self, Encoding::Utf16Be | Encoding::Utf16Le | Encoding::Iso2022Jp | Encoding::Replacement)
     }

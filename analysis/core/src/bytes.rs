@@ -12,8 +12,15 @@
 //! Where the bytes are already the UTF-8 of the text (ASCII in any
 //! ASCII-compatible encoding, valid UTF-8 in a UTF-8 file) the alignment
 //! has no edits at all. Each other character is one edit from the bytes
-//! that encoded it to its UTF-8, and each replacement character is one
-//! edit from the bytes it replaced.
+//! that encoded it to its UTF-8 (four Big5 codes decode to two characters,
+//! which share one edit), and each replacement character is one edit from
+//! the bytes it replaced. An edit is 16 bytes, so text that is mostly
+//! non-ASCII in a legacy encoding, or any UTF-16 file, holds about 16
+//! bytes of alignment per character beside its text.
+//!
+//! `SourceBytes::new` checks the edits' bounds and order and that the
+//! bytes outside every edit are the text's own; the bytes inside an edit
+//! are the decoder's to vouch for.
 
 use std::fmt;
 use std::sync::Arc;
@@ -69,6 +76,9 @@ impl SourceBytes {
         let (mut parent_at, mut child_at) = (0usize, 0usize);
         for (i, e) in alignment.edits().iter().enumerate() {
             let (p, c) = (e.parent.range(), e.child.range());
+            if p.start > p.end || c.start > c.end {
+                return Err(SourceError::Misaligned(format!("edit {i} ends before it starts")));
+            }
             if p.start < parent_at || c.start < child_at {
                 return Err(SourceError::Misaligned(format!("edit {i} starts before the edit before it ends")));
             }
@@ -187,8 +197,16 @@ impl<'a> DecodeBuilder<'a> {
     /// current position inserts. A call that neither consumes nor writes
     /// anything records nothing.
     pub fn replace(&mut self, end: usize, with: &str) {
+        let out_end = self.out.len() + with.len();
+        if out_end > MAX_SOURCE_LEN {
+            // The text has outgrown u32 offsets; `finish` refuses it, so
+            // no span is recorded.
+            self.out.push_str(with);
+            self.at = end;
+            return;
+        }
         let parent = Span::new(self.at as u32, end as u32);
-        let child = Span::new(self.out.len() as u32, (self.out.len() + with.len()) as u32);
+        let child = Span::new(self.out.len() as u32, out_end as u32);
         self.out.push_str(with);
         self.at = end;
         if !(parent.is_empty() && child.is_empty()) {
@@ -283,5 +301,21 @@ mod tests {
         // Two bytes unchanged before in the parent, one in the child.
         assert!(Alignment::from_edits(vec![e((2, 3), (1, 2))]).is_err());
         assert!(Alignment::from_edits(vec![e((0, 2), (0, 1)), e((3, 4), (2, 5))]).is_ok());
+        // Spans ending before they start, built without `Span::new`.
+        let back = |p: (u32, u32), c: (u32, u32)| Edit {
+            parent: Span { start: p.0, end: p.1 },
+            child: Span { start: c.0, end: c.1 },
+        };
+        assert!(Alignment::from_edits(vec![back((1, 0), (1, 0))]).is_err());
+        assert!(Alignment::from_edits(vec![back((3, 0), (3, 0))]).is_err());
+    }
+
+    #[test]
+    fn edits_ending_before_they_start_are_refused_not_a_panic() {
+        // An alignment built in this crate skips `from_edits`; `new` still
+        // refuses it.
+        let back = Edit { parent: Span { start: 3, end: 0 }, child: Span { start: 3, end: 0 } };
+        let a = Alignment::from_builder(vec![back]);
+        assert!(matches!(SourceBytes::new(b"a"[..].into(), "abc", a), Err(SourceError::Misaligned(_))));
     }
 }

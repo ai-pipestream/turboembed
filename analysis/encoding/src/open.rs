@@ -14,7 +14,8 @@ pub const OPEN_ID: &str = "turbo:encoding:open";
 
 /// The encoding `bytes` are read with, in this order: a byte order mark;
 /// the `declared` label; otherwise the detector, which prefers valid
-/// UTF-8 to every legacy encoding and reads pure ASCII as UTF-8.
+/// UTF-8 to every legacy encoding and reads ASCII as UTF-8, unless it
+/// holds valid ISO-2022-JP escape sequences, which make it ISO-2022-JP.
 pub fn settle(bytes: &[u8], declared: Option<Encoding>) -> SourceEncoding {
     if let Some((encoding, _)) = bom_sniff(bytes) {
         return SourceEncoding { encoding, confidence: 1.0, evidence: EncodingEvidence::Bom };

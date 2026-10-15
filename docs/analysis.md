@@ -177,7 +177,10 @@ produced it:
   encoding, a valid stretch of a UTF-8 file) are kept, with no edit.
 - Every other decoded character is one edit over its bytes: the smallest
   unit an offset maps to, so a span that cuts a character's bytes widens
-  to the whole character.
+  to the whole character. Four Big5 codes decode to two characters, which
+  share one edit. An edit takes 16 bytes, so mostly non-ASCII text in a
+  legacy encoding, or a UTF-16 file, carries about 16 bytes of alignment
+  per character.
 - A byte order mark and an ISO-2022-JP escape sequence are deletions.
 - A U+FFFD is one edit over exactly the bytes it replaced: the decoders
   follow the WHATWG algorithms, which say which bytes an error consumes
@@ -187,8 +190,10 @@ produced it:
 
 `SourceBytes::new` checks the alignment against the bytes and the text
 (every edit in bounds, in order and on character boundaries, every
-unchanged stretch the same bytes on both sides), so a document cannot
-carry a byte view that lies.
+unchanged stretch the same bytes on both sides), so a byte view cannot
+place text at bytes it did not come from outside an edit. The bytes
+inside an edit are not decoded again: that they encode the edit's text is
+the decoder's guarantee.
 
 The encoding a document was read with is the document layer
 `turbo:encoding` (`SourceEncoding`: the encoding, a confidence in

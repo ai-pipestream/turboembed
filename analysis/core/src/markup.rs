@@ -160,7 +160,8 @@ impl MarkupText {
     /// documentation).
     pub fn check(&self, parent: &str) -> Result<(), MarkupError> {
         let in_parent = |s: Span| {
-            (s.end as usize) <= parent.len()
+            s.start <= s.end
+                && (s.end as usize) <= parent.len()
                 && parent.is_char_boundary(s.start as usize)
                 && parent.is_char_boundary(s.end as usize)
         };
@@ -173,7 +174,8 @@ impl MarkupText {
                 return Err(MarkupError::Gap { run: i });
             }
             text_at = r.text.end;
-            let text_ok = (r.text.end as usize) <= self.text.len()
+            let text_ok = r.text.start <= r.text.end
+                && (r.text.end as usize) <= self.text.len()
                 && self.text.is_char_boundary(r.text.start as usize)
                 && self.text.is_char_boundary(r.text.end as usize);
             if !text_ok || !in_parent(r.source) {
@@ -327,6 +329,18 @@ mod tests {
         let mut m = MarkupText::new();
         m.push_decoded(Span::new(1, 2), "x");
         assert_eq!(m.check("é"), Err(MarkupError::Bounds { what: "run", index: 0 }));
+        // Spans that end before they start (the fields are public, so
+        // `Span::new`'s check can be skipped).
+        let mut m = good.clone();
+        m.runs[1].source = Span { start: 12, end: 9 };
+        assert_eq!(m.check(html), Err(MarkupError::Bounds { what: "run", index: 1 }));
+        let mut m = good.clone();
+        m.runs[0].text = Span { start: 0, end: 5 };
+        m.runs[1].text = Span { start: 5, end: 4 };
+        assert_eq!(m.check(html), Err(MarkupError::Bounds { what: "run", index: 1 }));
+        let mut m = good.clone();
+        m.tags[1].source = Span { start: 23, end: 19 };
+        assert_eq!(m.check(html), Err(MarkupError::Bounds { what: "tag", index: 1 }));
         // No runs at all is an empty text, with every byte deleted.
         let parent = Document::new("<p></p>");
         let view = MarkupText::new().view(parent.get::<View>().unwrap()).unwrap();
