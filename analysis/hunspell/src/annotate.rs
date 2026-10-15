@@ -45,11 +45,14 @@ impl Annotator for HunspellAnnotator {
         let mut stems = Stems::default();
         // The item that holds the stem of each word stemmed so far.
         let mut seen: HashMap<&str, usize> = HashMap::new();
+        let mut repeated = String::new();
         for (i, (&start, &end)) in starts.iter().zip(ends).enumerate() {
             let token = &text[start as usize..end as usize];
             if let Some(&first) = seen.get(token) {
-                let stem = stems.stem.get(first).to_string();
-                stems.stem.push(&stem);
+                // the column cannot lend an item to itself while it grows
+                repeated.clear();
+                repeated.push_str(stems.stem.get(first));
+                stems.stem.push(&repeated);
             } else {
                 match stemmer.stem(token) {
                     Some(stem) => stems.stem.push(&stem),
