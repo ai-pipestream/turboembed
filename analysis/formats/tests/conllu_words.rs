@@ -1,5 +1,6 @@
-use turbo_analysis::{Ix, Layer, Span};
-use turbo_analysis_layers::{Tokens, Words};
+use turbo_analysis::{Document, Ix, Key, Layer, Provenance, Span, Spans, Tag, TagSet, ViewId};
+use turbo_analysis_layers::{Sentences, Tokens, WordDependencies, Words};
+use turbo_formats::FormatError;
 use turbo_formats::conllu::{
     ConlluWordReader, SyntacticSentence, misc_spaces_in_token, misc_trailing_space, write_conllu_sentences,
     write_document_conllu,
@@ -28,7 +29,7 @@ fn conllu_with_multiword_tokens_space_after_and_spaces_in_token_round_trips_byte
 # sent_id = 2
 # text = We can't wait.
 1\tWe\twe\tPRON\tPRP\tCase=Nom|Number=Plur|Person=1|PronType=Prs\t4\tnsubj\t_\t_
-2-3\tcan't\t_\t_\t_\t_\t_\t_\t_\tSpacesInToken=ca\\sn't
+2-3\tcan't\t_\t_\t_\t_\t_\t_\t_\t_
 2\tca\tcan\tAUX\tMD\tVerbForm=Fin\t4\taux\t_\t_
 3\tn't\tnot\tPART\tRB\tPolarity=Neg\t4\tadvmod\t_\t_
 4\twait\twait\tVERB\tVB\tVerbForm=Inf\t0\troot\t_\tSpaceAfter=No
@@ -76,4 +77,74 @@ fn conllu_with_multiword_tokens_space_after_and_spaces_in_token_round_trips_byte
     assert!(doc1_conllu.contains("2-3\tal\t_\t_\t_\t_\t_\t_\t_\t_\n"));
     assert!(doc1_conllu.contains("5-6\tdel\t_\t_\t_\t_\t_\t_\t_\t_\n"));
     assert!(doc1_conllu.contains("7\tnorte\tnorte\tNOUN\t_\tGender=Masc|Number=Sing\t4\tnmod\t_\tSpaceAfter=No\n"));
+}
+
+#[test]
+fn a_head_outside_the_sentence_is_refused_rather_than_read_as_a_root() {
+    let src = "\
+# text = Go now
+1\tGo\tgo\tVERB\t_\t_\t0\troot\t_\t_
+2\tnow\tnow\tADV\t_\t_\t9\tadvmod\t_\t_
+
+# text = Stay
+1\tStay\tstay\tVERB\t_\t_\t1\troot\t_\t_
+
+# text = Stay
+1\tStay\tstay\tVERB\t_\t_\tx\troot\t_\t_
+
+";
+    let sentences: Vec<SyntacticSentence<'_>> = ConlluWordReader::new(src).unwrap().map(Result::unwrap).collect();
+    for s in &sentences {
+        let Err(err) = s.to_document() else { panic!("a bad head was accepted") };
+        assert!(matches!(err, FormatError::ConlluHead { .. }), "{err}");
+    }
+}
+
+#[test]
+fn a_document_writes_the_gaps_between_its_tokens_and_refuses_a_head_across_sentences() {
+    // Two sentences; the gap after "a" is two spaces, the gap after
+    // "b" a line break with a pipe, and "c" abuts ".".
+    let text = "a  b|\nc. d";
+    let mut doc = Document::new(text);
+    let mut sents = Spans::<Sentences>::new(ViewId::SOURCE);
+    sents.push(Span::new(0, 8));
+    sents.push(Span::new(9, 10));
+    doc.add(&Key::DEFAULT, Sentences { spans: sents }, Provenance::by("test")).unwrap();
+    let mut toks = Spans::<Tokens>::new(ViewId::SOURCE);
+    for (a, b) in [(0, 1), (3, 4), (6, 7), (7, 8), (9, 10)] {
+        toks.push(Span::new(a, b));
+    }
+    let sentence = vec![Ix::new(0), Ix::new(0), Ix::new(0), Ix::new(0), Ix::new(1)];
+    doc.add(&Key::DEFAULT, Tokens { spans: toks, sentence: Some(sentence) }, Provenance::by("test")).unwrap();
+    let written = write_document_conllu(&doc).unwrap();
+    assert_eq!(
+        written,
+        "\
+# sent_id = 1
+# text = a  b| c.
+1\ta\t_\t_\t_\t_\t_\t_\t_\tSpacesAfter=\\s\\s
+2\tb\t_\t_\t_\t_\t_\t_\t_\tSpacesAfter=\\p\\n
+3\tc\t_\t_\t_\t_\t_\t_\t_\tSpaceAfter=No
+4\t.\t_\t_\t_\t_\t_\t_\t_\t_
+
+# sent_id = 2
+# text = d
+1\td\t_\t_\t_\t_\t_\t_\t_\t_
+
+"
+    );
+    // Read back, the spacing rebuilds the text of each sentence.
+    let read: Vec<SyntacticSentence<'_>> = ConlluWordReader::new(&written).unwrap().map(Result::unwrap).collect();
+    assert_eq!(read[0].reconstruct_surface_text(), "a  b|\nc.");
+
+    let relations = TagSet::new("deprel", &["dep"]);
+    let deps = WordDependencies {
+        head: vec![None, Some(Ix::new(0)), None, None, Some(Ix::new(0))],
+        relation: vec![Tag(0); 5],
+        relations,
+    };
+    doc.add(&Key::DEFAULT, Words::from_tokens(doc.get::<Tokens>().unwrap()), Provenance::by("test")).unwrap();
+    doc.add(&Key::DEFAULT, deps, Provenance::by("test")).unwrap();
+    let err = write_document_conllu(&doc).unwrap_err();
+    assert!(matches!(err, FormatError::HeadOutsideSentence { word: 4, head: 0 }), "{err}");
 }

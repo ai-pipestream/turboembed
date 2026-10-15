@@ -5,7 +5,7 @@
 //! token range into a single surface line (`al` with `a+el` and `ADP+DET`) and
 //! removes the constituent syntactic word lines. Universal Dependencies POS,
 //! lemma, morphological-feature and dependency annotations, however, attach to
-//! syntactic words (`opennlp:words`), and round-tripping CoNLL-U requires
+//! syntactic words (`turbo:words`), and round-tripping CoNLL-U requires
 //! keeping both the multi-word token range lines (`1-2`) and the individual
 //! syntactic word lines (`1`, `2`).
 
@@ -239,6 +239,24 @@ pub fn misc_spaces_in_token(misc: &str) -> Option<String> {
     None
 }
 
+/// The inverse of [`unescape_conllu_spaces`]: the whitespace between two
+/// tokens as a `SpacesAfter` value.
+pub(super) fn escape_conllu_spaces(gap: &str) -> String {
+    let mut out = String::with_capacity(gap.len() * 2);
+    for c in gap.chars() {
+        match c {
+            ' ' => out.push_str("\\s"),
+            '\t' => out.push_str("\\t"),
+            '\n' => out.push_str("\\n"),
+            '\r' => out.push_str("\\r"),
+            '|' => out.push_str("\\p"),
+            '\\' => out.push_str("\\\\"),
+            c => out.push(c),
+        }
+    }
+    out
+}
+
 fn unescape_conllu_spaces(escaped: &str) -> String {
     let mut out = String::with_capacity(escaped.len());
     let mut chars = escaped.chars();
@@ -293,9 +311,11 @@ impl<'a> SyntacticSentence<'a> {
         out
     }
 
-    /// Appends this sentence in CoNLL-U format to `out`, preserving comments,
+    /// Appends this sentence in CoNLL-U format to `out`, keeping comments,
     /// multi-word token range lines (`start-end`), syntactic word lines, empty
-    /// nodes and `MISC` annotations byte-identically.
+    /// nodes and `MISC` annotations as read. A file in the format's own shape
+    /// (LF line ends, one blank line after each sentence, comments before the
+    /// word lines, no empty trailing columns) comes back as the same bytes.
     pub fn write_conllu(&self, out: &mut String) {
         if !self.comments.is_empty() {
             for c in &self.comments {

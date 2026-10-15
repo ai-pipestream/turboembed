@@ -8,7 +8,7 @@ use turbo_analysis::{Document, Ix, IxRange, Key, Provenance, Span, Spans, Tag, T
 use turbo_analysis_layers::{MorphFeatures, Sentences, Strs, Tokens, WordDependencies, WordLemmas, WordPosTags, Words};
 
 use super::WordLine;
-use super::words::SyntacticSentence;
+use super::words::{SyntacticSentence, escape_conllu_spaces};
 use crate::error::FormatError;
 
 impl<'a> SyntacticSentence<'a> {
@@ -104,38 +104,41 @@ impl<'a> SyntacticSentence<'a> {
         let mut heads = Vec::with_capacity(self.words.len());
         let mut rels = Vec::with_capacity(self.words.len());
 
-        for w in &self.words {
+        for (i, w) in self.words.iter().enumerate() {
             pos_tags.push(upos_set.tag(w.upos.as_str()).unwrap_or(Tag(0)));
             lemmas.push(w.lemma.as_str());
             feats.push(w.feats.as_str());
+            // A head is `0` or `_` for a root, else the 1-based id of
+            // another word of the sentence; anything else is refused, not
+            // read as a root.
             let head_ix = match w.head.as_str() {
                 "_" | "0" => None,
-                h => h
-                    .parse::<u32>()
-                    .ok()
-                    .and_then(|id| id.checked_sub(1))
-                    .filter(|&idx| (idx as usize) < self.words.len())
-                    .map(Ix::new),
+                h => match h.parse::<usize>() {
+                    Ok(id) if (1..=self.words.len()).contains(&id) && id != i + 1 => Some(Ix::new(id as u32 - 1)),
+                    _ => return Err(FormatError::ConlluHead { line: w.line, head: h.to_owned() }),
+                },
             };
             heads.push(head_ix);
             rels.push(dep_set.tag(w.deprel.as_str()).unwrap_or(Tag(0)));
         }
 
+        let line = self.words.first().map_or(1, |w| w.line);
+        let refused = |e: turbo_analysis::Error| FormatError::ConlluDocument { line, detail: e.to_string() };
+        words.check_against(&surface_text, &tokens).map_err(|detail| FormatError::ConlluDocument { line, detail })?;
         let mut doc = Document::new(surface_text);
-        doc.add(&Key::DEFAULT, Sentences { spans: sent_spans }, Provenance::by("conllu")).expect("valid sentence");
-        doc.add(&Key::DEFAULT, tokens, Provenance::by("conllu")).expect("valid tokens");
-        doc.add(&Key::DEFAULT, words, Provenance::by("conllu")).expect("valid words");
+        doc.add(&Key::DEFAULT, Sentences { spans: sent_spans }, Provenance::by("conllu")).map_err(refused)?;
+        doc.add(&Key::DEFAULT, tokens, Provenance::by("conllu")).map_err(refused)?;
+        doc.add(&Key::DEFAULT, words, Provenance::by("conllu")).map_err(refused)?;
         doc.add(&Key::DEFAULT, WordPosTags { tagset: upos_set, tags: pos_tags, prob: None }, Provenance::by("conllu"))
-            .expect("valid word pos");
-        doc.add(&Key::DEFAULT, WordLemmas { lemma: lemmas }, Provenance::by("conllu")).expect("valid word lemmas");
-        doc.add(&Key::DEFAULT, MorphFeatures::<Words>::new(feats), Provenance::by("conllu"))
-            .expect("valid morph features");
+            .map_err(refused)?;
+        doc.add(&Key::DEFAULT, WordLemmas { lemma: lemmas }, Provenance::by("conllu")).map_err(refused)?;
+        doc.add(&Key::DEFAULT, MorphFeatures::<Words>::new(feats), Provenance::by("conllu")).map_err(refused)?;
         doc.add(
             &Key::DEFAULT,
             WordDependencies { head: heads, relation: rels, relations: dep_set },
             Provenance::by("conllu"),
         )
-        .expect("valid word dependencies");
+        .map_err(refused)?;
 
         Ok(doc)
     }
@@ -160,10 +163,16 @@ fn match_contiguous_subspans(surface: &str, tok_start: u32, words: &[WordLine<'_
 /// Serializes a [`Document`] with [`Tokens`] and [`Words`] (and optional
 /// [`Sentences`], [`WordPosTags`], [`WordLemmas`], [`MorphFeatures`],
 /// [`WordDependencies`]) to CoNLL-U format, emitting multi-word token range
-/// lines (`start-end`) whenever multiple syntactic words share a surface token
-/// and `SpaceAfter=No` whenever adjacent surface tokens abut in the view text.
+/// lines (`start-end`) whenever multiple syntactic words share a surface
+/// token, `SpaceAfter=No` when the next token abuts, and `SpacesAfter=...`
+/// when the gap to it is anything but one space (escaped as `\s`, `\t`,
+/// `\n`, `\r`, `\p` and `\\`, as the treebanks write it). The `# text`
+/// comment is the sentence's text with line breaks and tabs as spaces,
+/// since a comment is one line. A sentence with no tokens is not written,
+/// and a token no word covers is in the text but has no line. A head in
+/// another sentence is refused.
 pub fn write_document_conllu(doc: &Document) -> Result<String, FormatError> {
-    let tokens = doc.get::<Tokens>().ok_or(FormatError::NoSentenceText { line: 1 })?;
+    let tokens = doc.get::<Tokens>().ok_or(FormatError::NoTokens)?;
     let words = doc.get::<Words>();
     let default_words;
     let words = match words {
@@ -191,8 +200,13 @@ pub fn write_document_conllu(doc: &Document) -> Result<String, FormatError> {
 
     let mut out = String::new();
     for (s_idx, (sent_span, tok_range)) in sentence_ranges.into_iter().enumerate() {
+        if tok_range.is_empty() {
+            continue;
+        }
         let _ = writeln!(out, "# sent_id = {}", s_idx + 1);
-        let _ = writeln!(out, "# text = {}", &view_text[sent_span.range()]);
+        out.push_str("# text = ");
+        out.extend(view_text[sent_span.range()].chars().map(|c| if matches!(c, '\n' | '\r' | '\t') { ' ' } else { c }));
+        out.push('\n');
 
         let w_start = words.tokens.partition_point(|r| r.end <= tok_range.start);
         let w_end = w_start + words.tokens[w_start..].partition_point(|r| r.start < tok_range.end);
@@ -207,8 +221,16 @@ pub fn write_document_conllu(doc: &Document) -> Result<String, FormatError> {
             let surface = &view_text[tok_span.range()];
 
             let next_tok_ix = t_range.end;
-            let space_after_no = next_tok_ix < tok_range.end && tokens.spans.get(next_tok_ix).start == tok_span.end;
-            let surface_misc = if space_after_no { "SpaceAfter=No" } else { "_" };
+            let gap = if next_tok_ix < tok_range.end {
+                &view_text[tok_span.end as usize..tokens.spans.get(next_tok_ix).start as usize]
+            } else {
+                " "
+            };
+            let surface_misc = match gap {
+                " " => "_".to_owned(),
+                "" => "SpaceAfter=No".to_owned(),
+                _ => format!("SpacesAfter={}", escape_conllu_spaces(gap)),
+            };
 
             if group_end - w_idx > 1 {
                 let start_1 = (w_idx - w_start) + 1;
@@ -227,13 +249,16 @@ pub fn write_document_conllu(doc: &Document) -> Result<String, FormatError> {
                     Some(d) => {
                         let h = match d.head[cur] {
                             None => 0usize,
-                            Some(h_ix) => (h_ix.get() - w_start) + 1,
+                            Some(h_ix) if (w_start..w_end).contains(&h_ix.get()) => (h_ix.get() - w_start) + 1,
+                            Some(h_ix) => {
+                                return Err(FormatError::HeadOutsideSentence { word: cur, head: h_ix.get() });
+                            }
                         };
                         (h.to_string(), d.relations.label(d.relation[cur]))
                     }
                     None => ("_".to_owned(), "_"),
                 };
-                let word_misc = if group_end - w_idx == 1 { surface_misc } else { "_" };
+                let word_misc = if group_end - w_idx == 1 { surface_misc.as_str() } else { "_" };
                 let _ = writeln!(out, "{id_1}\t{form}\t{lemma}\t{upos}\t_\t{feat}\t{head_s}\t{deprel}\t_\t{word_misc}");
             }
 

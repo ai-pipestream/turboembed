@@ -7,17 +7,24 @@ use turbo_analysis::{Annotator, Error, Ix, IxRange, Refs, Span, View};
 use super::Words;
 use crate::Tokens;
 
-/// Language ruleset for [`RuleMwtExpander`], compiled from Universal
-/// Dependencies contraction tables and permissive corpora (including UD
-/// Spanish/Catalan AnCora under CC BY 4.0).
+/// The language [`RuleMwtExpander`] splits. The tables are the closed
+/// class of contractions each language's grammar has, written here from
+/// that grammar and checked against how the Universal Dependencies
+/// treebanks segment them; no treebank data is in them. A table splits a
+/// form wherever it appears, so a homograph is split too (Portuguese
+/// `nos` the clitic pronoun as well as `em` + `os`, `pelo` the noun as
+/// well as `por` + `o`, Italian `dai` the verb as well as `da` + `i`); a
+/// tagger or a model over the words decides between the readings.
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
 pub enum MwtLanguage {
     /// Spanish (`del` -> `de` + `el`, `al` -> `a` + `el`).
     Spanish,
-    /// Catalan (`del`/`dels`, `al`/`als`, `pel`/`pels`, `cal`/`cals`).
+    /// Catalan (`del`/`dels`, `al`/`als`, `pel`/`pels`; `cal` is left
+    /// whole, since it is the verb far more often than `ca` + `el`).
     Catalan,
-    /// French (`au`/`aux`, `du`/`des`, `auquel`/`auxquels`/`auxquelles`,
-    /// `duquel`/`desquels`/`desquelles`).
+    /// French (`au`/`aux`, `du`, `auquel`/`auxquels`/`auxquelles`,
+    /// `duquel`/`desquels`/`desquelles`; `des` is left whole, as the
+    /// French treebanks keep the plural article `des` one token).
     French,
     /// Portuguese (`do`/`da`/`dos`/`das`, `no`/`na`/`nos`/`nas`,
     /// `ao`/`à`/`aos`/`às`, `pelo`/`pela`/`pelos`/`pelas`, `dum`/`num`,
@@ -59,7 +66,7 @@ impl MwtLanguage {
 }
 
 /// Deterministic rule-based multi-word token (MWT) expander that reads `(View,
-/// Tokens)` and writes [`Words`] (`opennlp:words`).
+/// Tokens)` and writes [`Words`] (`turbo:words`).
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub struct RuleMwtExpander {
     pub language: MwtLanguage,
@@ -80,6 +87,10 @@ impl RuleMwtExpander {
         match self.language {
             MwtLanguage::English => expand_english_subspans(surface, token_span).map(TokenExpansion::Subspans),
             lang => {
+                // The longest form in any table is ten bytes.
+                if surface.len() > 10 {
+                    return None;
+                }
                 let lower = surface.to_lowercase();
                 let (w1, w2) = lookup_fusional(lang, &lower)?;
                 Some(TokenExpansion::Forms(apply_case(surface, w1, w2)))
@@ -135,7 +146,18 @@ impl Annotator for RuleMwtExpander {
         if tokens.spans.view() != view.id() {
             return Err(Error::Annotator { annotator: Self::ID, detail: "tokens are not in the given view".into() });
         }
-        Ok((self.expand(view.text(), tokens),))
+        let words = self.expand(view.text(), tokens);
+        words.check_against(view.text(), tokens).map_err(|detail| Error::Annotator { annotator: Self::ID, detail })?;
+        Ok((words,))
+    }
+
+    /// FNV-1a over the language, the one setting the expander has.
+    fn config_hash(&self) -> u64 {
+        let mut h: u64 = 0xcbf2_9ce4_8422_2325;
+        for b in (self.language as u64).to_le_bytes() {
+            h = (h ^ u64::from(b)).wrapping_mul(0x0100_0000_01b3);
+        }
+        h
     }
 }
 
@@ -153,15 +175,12 @@ fn lookup_fusional(lang: MwtLanguage, lower: &str) -> Option<(&'static str, &'st
             "dels" => Some(("de", "els")),
             "pel" => Some(("per", "el")),
             "pels" => Some(("per", "els")),
-            "cal" => Some(("ca", "el")),
-            "cals" => Some(("ca", "els")),
             _ => None,
         },
         MwtLanguage::French => match lower {
             "au" => Some(("à", "le")),
             "aux" => Some(("à", "les")),
             "du" => Some(("de", "le")),
-            "des" => Some(("de", "les")),
             "auquel" => Some(("à", "lequel")),
             "auxquels" => Some(("à", "lesquels")),
             "auxquelles" => Some(("à", "lesquelles")),
@@ -327,7 +346,8 @@ fn expand_english_subspans(surface: &str, span: Span) -> Option<[Span; 2]> {
     }
     let before = &surface[..apos_idx];
     let after = &surface[apos_idx + apos_len..];
-    if !before.bytes().all(|b| b.is_ascii_alphabetic()) || !after.bytes().all(|b| b.is_ascii_alphabetic()) {
+    // The host is letters of any script (`José's`); the clitic is ASCII.
+    if !before.chars().all(char::is_alphabetic) || !after.bytes().all(|b| b.is_ascii_alphabetic()) {
         return None;
     }
     if after.eq_ignore_ascii_case("t") && before.len() >= 2 {

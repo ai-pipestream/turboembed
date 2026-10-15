@@ -1,5 +1,5 @@
 //! Syntactic words beside surface tokens for Universal Dependencies
-//! multi-word tokens (`opennlp:words`), word-anchored morphological layers,
+//! multi-word tokens (`turbo:words`), word-anchored morphological layers,
 //! and the rule-based multi-word token expander for Romance, German and
 //! English contractions.
 //!
@@ -11,7 +11,7 @@
 //! clitic contraction such as `"can't"` splits into `"ca"` + `"n't"`, whose
 //! pieces are contiguous byte substrings of the surface token.
 //!
-//! [`Words`] (`opennlp:words`) sits beside [`Tokens`]:
+//! [`Words`] (`turbo:words`) sits beside [`Tokens`]:
 //! - Every syntactic word points at a non-empty [`IxRange<Tokens>`] (normally a
 //!   single surface token `t..t+1`, or a multi-token range when a syntactic
 //!   word spans several tokens).
@@ -19,10 +19,15 @@
 //!   are `None`, so [`Words`] costs only the single `Vec<IxRange<Tokens>>`
 //!   column (`8` bytes per word) and reads each word's surface slice directly
 //!   from the document view.
-//! - When a word's form is not equal to its token's slice, `form` carries its
-//!   syntactic form (`"de"`, `"el"`), and `subspan` carries `Some(Span)` only
-//!   when that form is a contiguous byte substring of the token (`"ca"` and
-//!   `"n't"` inside `"can't"`).
+//! - When a word's form is not a substring of its token, `form` carries the
+//!   syntactic form (`"de"`, `"el"`); when it is a contiguous byte substring
+//!   of the token (`"ca"` and `"n't"` inside `"can't"`), `subspan` carries
+//!   its bytes and `form` stays `None`. A word has one or the other, never
+//!   both.
+//!
+//! The ids are `turbo:` ones, as `analysis/layers/src/lib.rs` asks of a
+//! layer the OpenNLP gRPC standard does not have yet; they move to
+//! `opennlp:` when the standard adds syntactic words.
 //! - Every word maps to its token's span (`Words::token_span`), so UTF-16 and
 //!   code-point conversions at the edge (`Words::utf16_span`,
 //!   `Words::code_point_span`) never split a surface token between words.
@@ -57,7 +62,7 @@ pub struct Word<'a> {
     pub form: &'a str,
 }
 
-/// Universal Dependencies syntactic words (`opennlp:words`).
+/// Universal Dependencies syntactic words (`turbo:words`).
 ///
 /// Anchored to the document and indexing [`Tokens`] (default or named via
 /// `tokens_key`), because multi-word token expansion produces `Words.len() >=
@@ -153,8 +158,34 @@ impl Words {
         ix
     }
 
+    /// What `check` cannot see without the tokens: every token range inside
+    /// `tokens`, and every subspan inside its token's bytes and on character
+    /// boundaries of `text`. The producers in this crate and in
+    /// `turbo-formats` run it before handing the layer to a document.
+    pub fn check_against(&self, text: &str, tokens: &Tokens) -> Result<(), String> {
+        self.check()?;
+        let n = tokens.spans.len();
+        for (i, r) in self.tokens.iter().enumerate() {
+            if r.end.get() > n {
+                return Err(format!("word {i} points at token {} of {n}", r.end.get() - 1));
+            }
+            let Some(sub) = self.subspan_of(Ix::new(i as u32)) else { continue };
+            let span = self.token_span(Ix::new(i as u32), tokens);
+            if sub.start < span.start || sub.end > span.end {
+                return Err(format!(
+                    "word {i} subspan {}..{} is outside its token {}..{}",
+                    sub.start, sub.end, span.start, span.end
+                ));
+            }
+            if !text.is_char_boundary(sub.start as usize) || !text.is_char_boundary(sub.end as usize) {
+                return Err(format!("word {i} subspan {}..{} is not on character boundaries", sub.start, sub.end));
+            }
+        }
+        Ok(())
+    }
+
     /// The contiguous range of syntactic words belonging to surface token `t`,
-    /// found by binary search (`O(log N)`).
+    /// found by binary search (`O(log N)`): empty when no word covers it.
     pub fn of_token(&self, t: Ix<Tokens>) -> IxRange<Words> {
         let a = self.tokens.partition_point(|r| r.end <= t);
         let b = a + self.tokens[a..].partition_point(|r| r.start <= t);
@@ -162,7 +193,8 @@ impl Words {
     }
 
     /// The contiguous range of syntactic words in sentence `s`, found by
-    /// binary search over `tokens.of(s)`.
+    /// binary search over `tokens.of(s)`, which needs tokens made per
+    /// sentence and panics otherwise.
     pub fn of_sentence(&self, tokens: &Tokens, s: Ix<Sentences>) -> IxRange<Words> {
         let tok_range = tokens.of(s);
         if tok_range.is_empty() {
@@ -248,7 +280,7 @@ impl Words {
 }
 
 impl Layer for Words {
-    const ID: &'static str = "opennlp:words";
+    const ID: &'static str = "turbo:words";
 
     fn anchor() -> Anchor {
         Anchor::Document
@@ -310,6 +342,9 @@ impl Layer for Words {
             if let Some(subs) = &self.subspan
                 && let Some(sub) = subs[i]
             {
+                if self.form.as_ref().is_some_and(|f| f[i].is_some()) {
+                    return Err(format!("word {i} has both a form and a subspan"));
+                }
                 if sub.start >= sub.end {
                     return Err(format!("word {i} has an empty or backwards subspan {}..{}", sub.start, sub.end));
                 }
@@ -329,12 +364,12 @@ impl Layer for Words {
     }
 }
 
-/// Sealed marker trait for the two granularities morphosyntactic layers can
+/// Marker trait for the two granularities morphosyntactic layers can
 /// anchor on: surface [`Tokens`] (`OF = None`, keeping the existing layer names
 /// `opennlp:pos`, `opennlp:lemmas`, `opennlp:dependencies`) and syntactic
-/// [`Words`] (`OF = Some(Words::NAME)`, giving `opennlp:pos<opennlp:words>`,
-/// `opennlp:lemmas<opennlp:words>`, `opennlp:dependencies<opennlp:words>`,
-/// `opennlp:feats<opennlp:words>` so token-based and word-based layers can
+/// [`Words`] (`OF = Some(Words::NAME)`, giving `opennlp:pos<turbo:words>`,
+/// `opennlp:lemmas<turbo:words>`, `opennlp:dependencies<turbo:words>`,
+/// `turbo:feats<turbo:words>` so token-based and word-based layers can
 /// coexist on the same [`turbo_analysis::Document`]).
 pub trait WordOrTokenAnchor: Layer {
     const TARGET_OF: Option<&'static LayerName>;
@@ -349,7 +384,7 @@ impl WordOrTokenAnchor for Words {
 }
 
 /// One part-of-speech tag per syntactic [`Words`] item
-/// (`opennlp:pos<opennlp:words>`). Coexists with token-anchored [`crate::PosTags`]
+/// (`opennlp:pos<turbo:words>`). Coexists with token-anchored [`crate::PosTags`]
 /// (`opennlp:pos`) on the same document.
 #[derive(Clone, Debug)]
 pub struct WordPosTags {
@@ -381,7 +416,7 @@ impl Layer for WordPosTags {
     }
 }
 
-/// One lemma per syntactic [`Words`] item (`opennlp:lemmas<opennlp:words>`).
+/// One lemma per syntactic [`Words`] item (`opennlp:lemmas<turbo:words>`).
 /// Coexists with token-anchored [`crate::Lemmas`] (`opennlp:lemmas`) on the same
 /// document.
 #[derive(Clone, Debug, Default)]
@@ -404,7 +439,7 @@ impl Layer for WordLemmas {
 
 /// Universal Dependencies morphological features (`FEATS` column, such as
 /// `Gender=Masc|Number=Sing` or `_`), aligned to `A` (by default [`Words`]:
-/// `opennlp:feats<opennlp:words>`).
+/// `turbo:feats<turbo:words>`).
 pub struct MorphFeatures<A: WordOrTokenAnchor = Words> {
     pub feats: Strs,
     pub _of: PhantomData<fn() -> A>,
@@ -435,7 +470,7 @@ impl<A: WordOrTokenAnchor> MorphFeatures<A> {
 }
 
 impl<A: WordOrTokenAnchor> Layer for MorphFeatures<A> {
-    const ID: &'static str = "opennlp:feats";
+    const ID: &'static str = "turbo:feats";
     const OF: Option<&'static LayerName> = A::TARGET_OF;
 
     fn anchor() -> Anchor {

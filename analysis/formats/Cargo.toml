@@ -11,6 +11,7 @@ name = "turbo_formats"
 [dependencies]
 # Span, the byte offsets every sample keeps into its source text.
 turbo-analysis = { path = "../core" }
+# Tokens, Words and the word-anchored layers the CoNLL-U converter fills.
 turbo-analysis-layers = { path = "../layers" }
 # OpenNLP's two whitespace definitions, which split the lines of the
 # whitespace separated formats.

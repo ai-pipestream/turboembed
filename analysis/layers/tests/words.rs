@@ -1,8 +1,10 @@
 use turbo_analysis::{
-    Analyzer, Bound, Document, Ix, IxRange, Key, Layer, Provenance, Span, Spans, Tag, TagSet, Utf16Offset, ViewId,
+    Analyzer, Annotator, Bound, Document, Ix, IxRange, Key, Layer, Provenance, Span, Spans, Tag, TagSet, Utf16Offset,
+    ViewId,
 };
 use turbo_analysis_layers::{
-    Dependencies, Lemmas, MwtLanguage, PosTags, RuleMwtExpander, Strs, Tokens, WordLemmas, WordPosTags, Words,
+    Dependencies, Lemmas, MorphFeatures, MwtLanguage, PosTags, RuleMwtExpander, Strs, Tokens, WordLemmas, WordPosTags,
+    Words,
 };
 
 fn make_tokens(text: &str) -> Tokens {
@@ -46,7 +48,7 @@ fn identity_words_cost_one_index_column_and_slice_view_text() {
 
 #[test]
 fn rule_mwt_expander_splits_spanish_catalan_french_portuguese_italian_german_and_english() {
-    // Spanish (AnCora: del -> de + el, al -> a + el)
+    // Spanish (del -> de + el, al -> a + el)
     let es_text = "Vamos al mar del norte.";
     let es_tok = make_tokens(es_text);
     let es_words = RuleMwtExpander::new(MwtLanguage::Spanish).expand(es_text, &es_tok);
@@ -56,19 +58,27 @@ fn rule_mwt_expander_splits_spanish_catalan_french_portuguese_italian_german_and
     assert_eq!(es_words.of_token(Ix::new(1)), IxRange::new(1, 3));
     assert_eq!(es_words.of_token(Ix::new(3)), IxRange::new(4, 6));
 
-    // Catalan (AnCora: pels -> per + els, dels -> de + els)
+    // Catalan (pels -> per + els, dels -> de + els)
     let ca_text = "Passa pels camins dels boscos.";
     let ca_tok = make_tokens(ca_text);
     let ca_words = RuleMwtExpander::new(MwtLanguage::Catalan).expand(ca_text, &ca_tok);
     let ca_forms: Vec<&str> = ca_words.iter(ca_text, &ca_tok).map(|w| w.form).collect();
     assert_eq!(ca_forms, ["Passa", "per", "els", "camins", "de", "els", "boscos", "."]);
 
-    // French (au -> à + le, des -> de + les, duquel -> de + lequel)
+    // French (au -> à + le, duquel -> de + lequel; des stays whole)
     let fr_text = "Il va au marché des fleurs duquel il parle.";
     let fr_tok = make_tokens(fr_text);
     let fr_words = RuleMwtExpander::new(MwtLanguage::French).expand(fr_text, &fr_tok);
     let fr_forms: Vec<&str> = fr_words.iter(fr_text, &fr_tok).map(|w| w.form).collect();
-    assert_eq!(fr_forms, ["Il", "va", "à", "le", "marché", "de", "les", "fleurs", "de", "lequel", "il", "parle", "."]);
+    assert_eq!(fr_forms, ["Il", "va", "à", "le", "marché", "des", "fleurs", "de", "lequel", "il", "parle", "."]);
+
+    // Catalan `cal` (the verb "it is necessary") is not a contraction and
+    // stays whole; `al` next to it still splits.
+    let ca_text = "Cal dir que va al mar.";
+    let ca_tok = make_tokens(ca_text);
+    let ca_words = RuleMwtExpander::new(MwtLanguage::Catalan).expand(ca_text, &ca_tok);
+    let ca_forms: Vec<&str> = ca_words.iter(ca_text, &ca_tok).map(|w| w.form).collect();
+    assert_eq!(ca_forms, ["Cal", "dir", "que", "va", "a", "el", "mar", "."]);
 
     // Portuguese (pelos -> por + os, na -> em + a, daquele -> de + aquele)
     let pt_text = "Andou pelos campos na sombra daquele monte.";
@@ -104,6 +114,41 @@ fn rule_mwt_expander_splits_spanish_catalan_french_portuguese_italian_german_and
     // Both words still map to the full token span 3..8 at the edge.
     assert_eq!(en_words.token_span(Ix::new(1), &en_tok), Span::new(3, 8));
     assert_eq!(en_words.token_span(Ix::new(2), &en_tok), Span::new(3, 8));
+
+    // A typographic apostrophe, a host outside ASCII, and an upper case
+    // contraction: the split lands on the apostrophe's bytes.
+    let en_text = "José\u{2019}s DOG can\u{2019}t";
+    let en_tok = make_tokens(en_text);
+    let en_words = RuleMwtExpander::new(MwtLanguage::English).expand(en_text, &en_tok);
+    assert_eq!(en_words.check_against(en_text, &en_tok), Ok(()));
+    let en_forms: Vec<&str> = en_words.iter(en_text, &en_tok).map(|w| w.form).collect();
+    assert_eq!(en_forms, ["José", "\u{2019}s", "DOG", "ca", "n\u{2019}t"]);
+    assert_eq!(en_words.subspan_of(Ix::new(0)), Some(Span::new(0, 5)));
+    assert_eq!(en_words.subspan_of(Ix::new(1)), Some(Span::new(5, 9)));
+    assert_eq!(en_words.of_token(Ix::new(1)), IxRange::new(2, 3));
+    // A token past the words, and an upper case Spanish contraction.
+    assert_eq!(en_words.of_token(Ix::new(7)), IxRange::new(5, 5));
+    let es_text = "DEL Norte";
+    let es_tok = make_tokens(es_text);
+    let es_words = RuleMwtExpander::new(MwtLanguage::Spanish).expand(es_text, &es_tok);
+    let es_forms: Vec<&str> = es_words.iter(es_text, &es_tok).map(|w| w.form).collect();
+    assert_eq!(es_forms, ["DE", "EL", "Norte"]);
+    assert_ne!(
+        RuleMwtExpander::new(MwtLanguage::Spanish).config_hash(),
+        RuleMwtExpander::new(MwtLanguage::French).config_hash()
+    );
+}
+
+#[test]
+fn the_layer_names_tell_word_layers_from_token_layers() {
+    assert_eq!(Words::NAME.to_string(), "turbo:words");
+    assert_eq!(WordPosTags::NAME.to_string(), "opennlp:pos<turbo:words>");
+    assert_eq!(WordLemmas::NAME.to_string(), "opennlp:lemmas<turbo:words>");
+    assert_eq!(MorphFeatures::<Words>::NAME.to_string(), "turbo:feats<turbo:words>");
+    assert_eq!(MorphFeatures::<Tokens>::NAME.to_string(), "turbo:feats");
+    assert_eq!(Dependencies::<Tokens>::NAME.to_string(), "opennlp:dependencies");
+    assert_eq!(Dependencies::<Words>::NAME.to_string(), "opennlp:dependencies<turbo:words>");
+    assert_eq!(Words::from_tokens(&make_tokens("")).of_token(Ix::new(0)), IxRange::new(0, 0));
 }
 
 #[test]
@@ -200,4 +245,24 @@ fn words_check_rejects_broken_invariants() {
     w.push_word(IxRange::new(0, 1), None, Some(Span::new(0, 3)));
     w.push_word(IxRange::new(0, 1), None, Some(Span::new(2, 5)));
     assert!(w.check().unwrap_err().contains("overlaps previous subspan"));
+
+    let mut w = Words::new();
+    w.push_word(IxRange::new(0, 1), Some("de"), Some(Span::new(0, 1)));
+    assert!(w.check().unwrap_err().contains("both a form and a subspan"));
+
+    // What only the tokens can tell: a subspan outside its token, or
+    // inside a character, and a word past the tokens.
+    let text = "ñu ok";
+    let tokens = make_tokens(text);
+    let mut w = Words::new();
+    w.push_word(IxRange::new(0, 1), None, Some(Span::new(1, 2)));
+    w.push_word(IxRange::new(0, 1), None, Some(Span::new(2, 3)));
+    assert!(w.check_against(text, &tokens).unwrap_err().contains("not on character boundaries"));
+    let mut w = Words::new();
+    w.push_word(IxRange::new(0, 1), None, Some(Span::new(0, 2)));
+    w.push_word(IxRange::new(0, 1), None, Some(Span::new(2, 4)));
+    assert!(w.check_against(text, &tokens).unwrap_err().contains("outside its token"));
+    let mut w = Words::from_tokens(&tokens);
+    w.push_token(Ix::new(5));
+    assert!(w.check_against(text, &tokens).unwrap_err().contains("points at token 5 of 2"));
 }

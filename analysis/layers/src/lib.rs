@@ -284,15 +284,30 @@ impl Layer for Lemmas {
 
 /// A head and a relation per token or syntactic word (`A = Tokens` by
 /// default: `opennlp:dependencies`; `A = Words`:
-/// `opennlp:dependencies<opennlp:words>`): the tree is the columns, no nodes.
-#[derive(Clone, Debug)]
+/// `opennlp:dependencies<turbo:words>`): the tree is the columns, no nodes.
 pub struct Dependencies<A: WordOrTokenAnchor = Tokens> {
     pub head: Vec<Option<Ix<A>>>,
     pub relation: Vec<Tag>,
     pub relations: Arc<TagSet>,
 }
 
-/// Dependencies anchored on syntactic [`Words`] (`opennlp:dependencies<opennlp:words>`).
+impl<A: WordOrTokenAnchor> Clone for Dependencies<A> {
+    fn clone(&self) -> Self {
+        Dependencies { head: self.head.clone(), relation: self.relation.clone(), relations: self.relations.clone() }
+    }
+}
+
+impl<A: WordOrTokenAnchor> std::fmt::Debug for Dependencies<A> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Dependencies")
+            .field("head", &self.head)
+            .field("relation", &self.relation)
+            .field("relations", &self.relations.name)
+            .finish()
+    }
+}
+
+/// Dependencies anchored on syntactic [`Words`] (`opennlp:dependencies<turbo:words>`).
 pub type WordDependencies = Dependencies<Words>;
 
 impl<A: WordOrTokenAnchor> Layer for Dependencies<A> {
