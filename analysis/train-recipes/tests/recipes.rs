@@ -1493,8 +1493,11 @@ fn the_binary_refuses_an_unrecorded_corpus_and_writes_each_model_s_directory() {
             .output()
             .unwrap();
         assert_eq!(index.status.code(), Some(2), "{index:?}");
-        let all_released = MASC_MODELS.recipes().iter().all(|r| present.contains(r));
-        let expected = if all_released { "not the recorded release" } else { CARD_FILE };
+        // The release's models are read in order: the first one's card,
+        // when its reference was present and it ran, is refused for the
+        // corpus, and otherwise its missing card is.
+        let first_ran = present.contains(&MASC_MODELS.recipes()[0]);
+        let expected = if first_ran { "not the recorded release" } else { CARD_FILE };
         assert!(String::from_utf8_lossy(&index.stderr).contains(expected), "{index:?}");
         assert!(index.stdout.is_empty(), "{index:?}");
     }
