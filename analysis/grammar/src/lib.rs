@@ -30,6 +30,7 @@ pub use annotator::{Found, GRAMMAR, GRAMMAR_NUMBERS, GRAMMAR_PERCENTS, GrammarAn
 pub use dec::Dec;
 pub use engine::{Grammar, Mention, Output, Parser};
 pub use lang::en::{ENGLISH, ENGLISH_TIMES, English, EnglishTimes};
+pub use lang::es::{SPANISH, SPANISH_TIMES, Spanish, SpanishTimes};
 pub use lang::nl::{DUTCH, DUTCH_TIMES, Dutch, DutchTimes};
 pub use times::TimeAnnotator;
 pub use value::{Num, NumKind, Ordinal, Relative, Value, flag};

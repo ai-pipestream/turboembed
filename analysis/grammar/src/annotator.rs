@@ -57,6 +57,10 @@ impl GrammarAnnotator {
         GrammarAnnotator::new(&ENGLISH)
     }
 
+    pub fn spanish() -> GrammarAnnotator {
+        GrammarAnnotator::new(&crate::lang::es::SPANISH)
+    }
+
     /// The step for a pipeline: writes numbers under [`GRAMMAR_NUMBERS`],
     /// percentages under [`GRAMMAR_PERCENTS`] and ordinals to the default
     /// instance.
@@ -216,6 +220,18 @@ mod tests {
         assert_eq!(doc.get_key(&GRAMMAR_PERCENTS).unwrap().len(), 1);
         let ordinals = doc.get::<Ordinals>().unwrap();
         assert_eq!(ordinals.get(Ix::new(0)).base, OrdinalBase::Current);
+    }
+
+    #[test]
+    fn spanish_numbers_take_the_decimal_comma() {
+        let text = "1.234,56 y veintiún";
+        let f = GrammarAnnotator::spanish().find(text, ViewId::SOURCE);
+        assert_eq!(f.numbers.check(), Ok(()));
+        assert_eq!(f.numbers.len(), 2);
+        assert_eq!(f.numbers.value(Ix::new(0)).to_plain_string(), "1234.56");
+        assert_eq!(f.numbers.notation[0], NumberNotation::LatinEu);
+        assert_eq!(&text[f.numbers.spans.get(Ix::new(1)).range()], "veintiún");
+        assert_eq!(f.numbers.value(Ix::new(1)).to_plain_string(), "21");
     }
 
     #[test]
