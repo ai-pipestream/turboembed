@@ -174,7 +174,8 @@ the stride is the main setting for throughput.
   `81eb7a4fcd4dab85c50866c7e2cf58f3d848e1c830c9207d132277110489ea0c`)
   with a recipe like `testdata/tiny-sat-recipe`'s, then run the
   `segment` command of the reference on it and compare as
-  `tests/parity.rs` does. CI would fetch it by that digest and cache it.
+  `analysis/sat/tests/parity.rs` does. CI would fetch it by that
+  digest and cache it.
 - Limited lookahead, for the models without `-sm`.
 - A bundle task for token classification. The bundle carries a SaT
   model as `TASK_EMBED` with the classifier in its raw weights, read by
