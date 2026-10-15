@@ -1,0 +1,13 @@
+# Hand written in the format of OpenNLP's OvertureGenerator output, for the gazetteer goldens.
+# id	name	alternate names	latitude	longitude	country	subtype	population
+ov-au	Australia	Commonwealth of Australia,Australien,Австралия	-25.0	134.0	AU	country	25690000
+ov-by	Bavaria	Bayern,Freistaat Bayern,!!!	48.9	11.4	DE	region	13140000
+ov-brooklyn	Brooklyn	Kings County	40.65	-73.95	US	borough	2736074
+ov-mitte	Mitte	Berlin-Mitte	52.52	13.4	DE	macrohood	102000
+ov-springfield-il	Springfield		39.80	-89.64	US	locality	114394
+ov-springfield-co	Springfield		37.40	-102.62	US	county	1300
+
+ov-bavaria-county	Bavaria		38.8	-97.9	US	localadmin	0
+ov-noord	Noord-Holland	North Holland,Hollande-Septentrionale	52.6	4.85	NL	region	2952000
+ov-sp	São Paulo	Sao Paulo, Sampa ,São Paulo	-23.55	-46.63	BR	locality	11451999
+ov-x	Nowhere		0	0		dependency	
