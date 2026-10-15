@@ -1,0 +1,166 @@
+//! Candidates and their order, OpenNLP's `Hits`: by start, longer first,
+//! then by kind rank, then in the order they were found; equal mentions
+//! once, the first kept.
+
+use std::cmp::Reverse;
+use std::ops::Range;
+
+use turbo_analysis::Span;
+use turbo_analysis_layers::{Pii, PiiConfidence, PiiKind, PiiMention};
+
+/// One candidate, with its normalized form as a range of the shared
+/// buffer.
+#[derive(Clone, Debug)]
+struct Hit {
+    start: u32,
+    end: u32,
+    kind: PiiKind,
+    confidence: PiiConfidence,
+    normalized: Range<u32>,
+}
+
+/// The candidates of one text: the scanners append, [`Hits::resolve`]
+/// orders them and drops repeats.
+#[derive(Default, Debug)]
+pub(crate) struct Hits {
+    hits: Vec<Hit>,
+    buf: String,
+}
+
+impl Hits {
+    /// Adds a candidate whose normalized form `write` appends to the
+    /// buffer it is given, so no string is made per candidate.
+    pub(crate) fn add(
+        &mut self,
+        start: usize,
+        end: usize,
+        kind: PiiKind,
+        confidence: PiiConfidence,
+        write: impl FnOnce(&mut String),
+    ) {
+        let from = self.buf.len() as u32;
+        write(&mut self.buf);
+        let to = self.buf.len() as u32;
+        self.hits.push(Hit { start: start as u32, end: end as u32, kind, confidence, normalized: from..to });
+    }
+
+    /// Adds a candidate whose normalized form is the text it covers.
+    pub(crate) fn add_text(&mut self, text: &str, start: usize, end: usize, kind: PiiKind, confidence: PiiConfidence) {
+        self.add(start, end, kind, confidence, |s| s.push_str(&text[start..end]));
+    }
+
+    fn normalized(&self, h: &Hit) -> &str {
+        &self.buf[h.normalized.start as usize..h.normalized.end as usize]
+    }
+
+    /// Orders the candidates (a stable sort keeps the finding order of
+    /// ties) and writes each distinct mention to `out`. Equal mentions
+    /// share a span, so they sit in one run of that span.
+    pub(crate) fn resolve(mut self, out: &mut Pii) {
+        self.hits.sort_by_key(|h| (h.start, Reverse(h.end), h.kind));
+        let mut run_start = 0;
+        for i in 0..self.hits.len() {
+            let h = &self.hits[i];
+            if i > 0 {
+                let p = &self.hits[i - 1];
+                if (p.start, p.end) != (h.start, h.end) {
+                    run_start = i;
+                }
+            }
+            let value = self.normalized(h);
+            let repeat = self.hits[run_start..i].iter().any(|e| e.kind == h.kind && self.normalized(e) == value);
+            if !repeat {
+                out.push(PiiMention {
+                    span: Span::new(h.start, h.end),
+                    kind: h.kind,
+                    confidence: h.confidence,
+                    normalized: value,
+                });
+            }
+        }
+    }
+
+    /// The resolved mentions as a layer over `view`.
+    #[cfg(test)]
+    pub(crate) fn into_layer(self, view: turbo_analysis::ViewId) -> Pii {
+        let mut out = Pii::new(view);
+        self.resolve(&mut out);
+        out
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use turbo_analysis::{Layer, ViewId};
+
+    #[test]
+    fn order_is_start_then_longer_then_rank_and_repeats_go() {
+        let mut h = Hits::default();
+        let f = PiiConfidence::Format;
+        h.add(4, 6, PiiKind::Phone, f, |s| s.push('a'));
+        h.add(0, 3, PiiKind::Phone, f, |s| s.push('b'));
+        h.add(0, 5, PiiKind::Phone, f, |s| s.push('c'));
+        h.add(0, 5, PiiKind::Email, f, |s| s.push('d'));
+        h.add(0, 5, PiiKind::Email, f, |s| s.push('d'));
+        h.add(0, 5, PiiKind::Email, f, |s| s.push('e'));
+        let p = h.into_layer(ViewId::SOURCE);
+        assert_eq!(p.check(), Ok(()));
+        let rows: Vec<_> = p.mentions().map(|m| (m.span.start, m.span.end, m.kind, m.normalized.to_owned())).collect();
+        assert_eq!(
+            rows,
+            [
+                (0, 5, PiiKind::Email, "d".to_owned()),
+                (0, 5, PiiKind::Email, "e".to_owned()),
+                (0, 5, PiiKind::Phone, "c".to_owned()),
+                (0, 3, PiiKind::Phone, "b".to_owned()),
+                (4, 6, PiiKind::Phone, "a".to_owned()),
+            ]
+        );
+    }
+
+    fn resolved(adds: &[(u32, u32, PiiKind, &str)]) -> Vec<(u32, u32, PiiKind, String)> {
+        let mut h = Hits::default();
+        for &(start, end, kind, value) in adds {
+            h.add(start as usize, end as usize, kind, PiiConfidence::Format, |s| s.push_str(value));
+        }
+        h.into_layer(ViewId::SOURCE)
+            .mentions()
+            .map(|m| (m.span.start, m.span.end, m.kind, m.normalized.to_owned()))
+            .collect()
+    }
+
+    fn row(start: u32, end: u32, kind: PiiKind, value: &str) -> (u32, u32, PiiKind, String) {
+        (start, end, kind, value.to_owned())
+    }
+
+    #[test]
+    fn composite_orders() {
+        use PiiKind::*;
+        // Crossing candidates, in either order found.
+        for adds in [[(4, 12, Email, "e"), (0, 8, Card, "c")], [(0, 8, Card, "c"), (4, 12, Email, "e")]] {
+            assert_eq!(resolved(&adds), [row(0, 8, Card, "c"), row(4, 12, Email, "e")]);
+        }
+        assert_eq!(resolved(&[(2, 6, Phone, "p"), (2, 10, Card, "c")]), [row(2, 10, Card, "c"), row(2, 6, Phone, "p")]);
+        // The rank decides an exact span tie, in either order found.
+        for adds in [[(2, 10, Phone, "p"), (2, 10, Card, "c")], [(2, 10, Card, "c"), (2, 10, Phone, "p")]] {
+            assert_eq!(resolved(&adds), [row(2, 10, Card, "c"), row(2, 10, Phone, "p")]);
+        }
+        // Equal ranks keep the order found.
+        assert_eq!(resolved(&[(0, 5, Email, "b"), (0, 5, Email, "a")]), [row(0, 5, Email, "b"), row(0, 5, Email, "a")]);
+        assert_eq!(resolved(&[(0, 4, Card, "c"), (4, 8, Phone, "p")]), [row(0, 4, Card, "c"), row(4, 8, Phone, "p")]);
+        assert_eq!(
+            resolved(&[(0, 6, Card, "a"), (10, 16, Card, "b"), (4, 12, Phone, "p"), (5, 7, Ipv4, "i")]),
+            [row(0, 6, Card, "a"), row(4, 12, Phone, "p"), row(5, 7, Ipv4, "i"), row(10, 16, Card, "b")]
+        );
+        assert_eq!(resolved(&[(9, 25, Email, "x"), (9, 25, Email, "x")]), [row(9, 25, Email, "x")]);
+        // Every pair of kinds on one span: the stronger first.
+        for (i, &a) in PiiKind::ALL.iter().enumerate() {
+            for &b in &PiiKind::ALL[i + 1..] {
+                let want = [row(0, 5, a, "higher"), row(0, 5, b, "lower")];
+                assert_eq!(resolved(&[(0, 5, a, "higher"), (0, 5, b, "lower")]), want);
+                assert_eq!(resolved(&[(0, 5, b, "lower"), (0, 5, a, "higher")]), want);
+            }
+        }
+    }
+}

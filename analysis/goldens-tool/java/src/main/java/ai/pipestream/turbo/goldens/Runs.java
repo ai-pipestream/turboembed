@@ -93,6 +93,8 @@ final class Runs {
   static final String GAZETTEER_OVERTURE = "gazetteer-overture.txt";
   static final String GAZETTEER_USER = "gazetteer-user.txt";
   static final String GAZETTEER_SUPPRESSIONS = "gazetteer-suppressions.txt";
+  /** The glossary the glossary matchers are built from, tab separated with a header. */
+  static final String GLOSSARY_TERMS = "glossary-terms.tsv";
   /** The name finder models OpenNLP trained for the beam search goldens. */
   static final String NER_BIO_FIXTURE = "ner-bio-fixture.bin";
   static final String NER_BILOU_FIXTURE = "ner-bilou-fixture.bin";
@@ -130,6 +132,8 @@ final class Runs {
   static final String HEAD_RULES = "head-rules";
   /** Names, record ids, region codes and whole tables for the gazetteers of the addons geo module. */
   static final String GAZETTEER = "gazetteer";
+  /** Texts for the glossary matchers, and delimited lists and TBX termbases for the readers. */
+  static final String GLOSSARY = "glossary";
   /** The language samples the Rust language detector fixture was trained on. */
   static final String LANGDETECT = "langdetect";
   /** The tokenized sentences and the pattern tokens of the sequence goldens. */
@@ -307,6 +311,7 @@ final class Runs {
     annotators.addAll(MoneyGolden.all(moneySnapshot));
     annotators.addAll(QuantityGolden.all());
     annotators.addAll(TemporalGolden.all());
+    annotators.addAll(PiiGolden.all());
 
     // The training stack: the events of the sentence detector, the tokenizer and a real valued
     // source on the texts, indexed and trained; the sentence detector runs on the fixture
@@ -362,6 +367,8 @@ final class Runs {
     annotators.addAll(NameFindGolden.all(fixtures));
     annotators.addAll(StemGolden.all());
     annotators.addAll(StopwordGolden.all());
+    // The glossary matchers over the fixture glossary, and the glossary readers.
+    annotators.addAll(GlossaryGolden.all(fixtures.resolve(GLOSSARY_TERMS)));
     return new All(annotators, recorders);
   }
 }

@@ -1,0 +1,16 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	pii/mixed-record	148	148	408eb6c52e6e98bcc22eb7945c0891c515b2ee07b9e47bdc61dd7c404ce3f5e8
+annotator	opennlp.tools.pii.PiiPacks	allStructured
+config	pack	all-structured
+layer	turbo:pii	text	6	start:u32	end:u32	type:str	normalized:str
+23	47	email	customer.one@example.com
+55	71	phone	+442079460000
+78	97	card	4111111111111111
+104	131	iban	GB82WEST12345698765432
+119	131	phone	5698765432
+136	147	ipv4	203.0.113.9
+end	turbo:pii

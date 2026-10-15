@@ -1,0 +1,15 @@
+[package]
+name = "turbo-glossary-layers"
+version = "0.1.0"
+edition.workspace = true
+license.workspace = true
+publish = false
+
+[lib]
+name = "turbo_glossary_layers"
+
+[dependencies]
+turbo-analysis = { path = "../core" }
+turbo-analysis-layers = { path = "../layers" }
+# The Unicode White_Space property, for blank ids and terms.
+turbo-unicode = { path = "../unicode" }
