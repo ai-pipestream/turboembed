@@ -12,15 +12,19 @@
 //! - [`QuantityExtractor`] finds measured quantities and percentages
 //!   (`80 kg`, `2.5km`, `45%`) as the `turbo:quantities` layer
 //!   ([`Quantities`]), leaving out what is money.
+//! - [`temporal`] finds dates and relative expressions (`July 14, 2026`,
+//!   `Q3 2024`, `3 days ago`) as the `turbo:temporal` layer and picks the
+//!   document's date as `turbo:document-date`.
 //!
 //! Every offset is a UTF-8 byte offset into the text, on a character
-//! boundary. docs/numbers.md, docs/money.md and docs/quantities.md
-//! describe the rules.
+//! boundary. docs/numbers.md, docs/money.md, docs/quantities.md and
+//! docs/temporal.md describe the rules.
 
 pub mod annotator;
 pub mod money;
 pub mod quantity;
 pub mod scan;
+pub mod temporal;
 
 pub use annotator::NumberScanner;
 pub use money::{
@@ -28,6 +32,8 @@ pub use money::{
 };
 pub use quantity::{DEFAULT_UNITS, QuantityExtractor, UnitError};
 pub use scan::{ScanResult, parse};
+pub use temporal::{DocumentDateSelector, TemporalExtractor};
 pub use turbo_analysis_layers::{
-    DecimalRef, Multiplier, NumberNotation, Numbers, PERCENT, Quantities, QuantityMention, ScaleMarker,
+    DecimalRef, DocumentDate, Granularity, Multiplier, NumberNotation, Numbers, Origin, PERCENT, Quantities,
+    QuantityMention, ScaleMarker, TemporalMention, TemporalValue, Temporals,
 };
