@@ -93,6 +93,31 @@ impl MascEntity {
     }
 }
 
+/// Why an entity of the named entity file is in no sentence of its
+/// document ([`MascDocument::unplaced_entities`]).
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+pub enum Unplaced {
+    /// None of its tokens is in a region of the sentence file: MASC marks
+    /// no sentence over some text, such as most of a movie script's
+    /// speaker labels.
+    OutsideSentences,
+    /// A token of it is in a region of the sentence file, but in no
+    /// sentence the reader keeps: the reader drops a region that does not
+    /// end before the next starts, and an empty one, as OpenNLP's
+    /// `MascDocument` does. (A token of a kept region that the reader left
+    /// out of its sentence would count here too; MASC 3.0.0 has none.)
+    DroppedSentence,
+}
+
+/// An entity of the named entity file that is in no sentence, so that
+/// neither OpenNLP's names nor [`MascSentence::entities`] hold it: its
+/// label and why. OpenNLP computes no such thing.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct MascUnplacedEntity {
+    pub kind: Option<String>,
+    pub cause: Unplaced,
+}
+
 /// A sentence (`MascSentence`): a region of the sentence file and the
 /// quarks that overlap it.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -220,6 +245,7 @@ pub struct MascDocument {
     has_penn_tags: bool,
     has_named_entities: bool,
     warnings: Vec<MascWarning>,
+    unplaced: Vec<MascUnplacedEntity>,
 }
 
 impl MascDocument {
@@ -241,8 +267,9 @@ impl MascDocument {
         let segments = files.segments.ok_or(MascError::NoAnnotationStream { file: AnnotationFile::Segments })?;
         let quarks = parse_segments(segments)?;
         let sentence_file = files.sentences.ok_or(MascError::NoAnnotationStream { file: AnnotationFile::Sentences })?;
-        let regions = parse_sentences(sentence_file)?;
+        let (regions, mut dropped) = parse_sentences(sentence_file)?;
         let sentences = combine(&regions, &quarks)?;
+        dropped.extend(regions.iter().filter(|&&(start, end)| end - start <= 0));
         let index = TextIndex::new(&text);
         let mut doc = MascDocument {
             path: path.into(),
@@ -253,15 +280,19 @@ impl MascDocument {
             has_penn_tags: false,
             has_named_entities: false,
             warnings: Vec::new(),
+            unplaced: Vec::new(),
         };
-        if let Some(penn) = files.penn {
-            let penn = parse_penn(penn)?;
-            doc.add_penn_tags(&penn)?;
+        let penn = files.penn.map(parse_penn).transpose()?;
+        if let Some(penn) = &penn {
+            doc.add_penn_tags(penn)?;
         }
         if let Some(ne) = files.named_entities {
             let ne = parse_named_entities(ne)?;
             doc.warnings.extend(ne.warnings.iter().cloned());
             doc.add_named_entities(&ne);
+            if let (true, Some(penn)) = (doc.has_named_entities, &penn) {
+                doc.unplaced = doc.unplaced(&ne, penn, &dropped);
+            }
         }
         Ok(doc)
     }
@@ -302,6 +333,14 @@ impl MascDocument {
         self.has_named_entities
     }
 
+    /// The entities of the named entity file that are in no sentence, in
+    /// the order of their first edge in the file, with why; empty for a
+    /// document without named entities. An entity is in a sentence when
+    /// one of its tokens is one of the sentence's tokens.
+    pub fn unplaced_entities(&self) -> &[MascUnplacedEntity] {
+        &self.unplaced
+    }
+
     /// What OpenNLP logged while reading the document.
     pub fn warnings(&self) -> &[MascWarning] {
         &self.warnings
@@ -339,6 +378,36 @@ impl MascDocument {
         }
         self.has_penn_tags = true;
         Ok(())
+    }
+
+    /// The entities of `ne` that are in no sentence, and why: whether a
+    /// token of one has a quark in a region of the sentence file, those
+    /// the reader keeps (the sentences) or those it dropped (`dropped`). A
+    /// region holds a quark it overlaps, as `combineAnnotations` gives it
+    /// the quark.
+    fn unplaced(&self, ne: &NamedEntities, penn: &Penn, dropped: &[Region]) -> Vec<MascUnplacedEntity> {
+        let placed: HashSet<i32> = self.sentences.iter().flat_map(|s| s.token_places.keys().copied()).collect();
+        let quark_places: HashMap<i32, usize> = self.quarks.iter().enumerate().map(|(i, q)| (q.id, i)).collect();
+        let regions: Vec<Region> =
+            self.sentences.iter().map(|s| (s.start, s.end)).chain(dropped.iter().copied()).collect();
+        let in_a_region = |tokens: &[i32]| {
+            tokens.iter().filter_map(|t| penn.places.get(t)).any(|&p| {
+                penn.tokens[p].quarks.iter().filter_map(|q| quark_places.get(q)).any(|&w| {
+                    let q = &self.quarks[w];
+                    regions.iter().any(|&(start, end)| end > q.start && start < q.end)
+                })
+            })
+        };
+        let mut out = Vec::new();
+        for entity in &ne.entities {
+            if entity.tokens.iter().any(|t| placed.contains(t)) {
+                continue;
+            }
+            let cause =
+                if in_a_region(&entity.tokens) { Unplaced::DroppedSentence } else { Unplaced::OutsideSentences };
+            out.push(MascUnplacedEntity { kind: ne.types.get(&entity.id).cloned().flatten(), cause });
+        }
+        out
     }
 
     fn add_named_entities(&mut self, ne: &NamedEntities) {
@@ -675,18 +744,24 @@ impl Handler for Sentences {
     fn characters(&mut self, _: &str) {}
 }
 
+/// A region of the sentence file: its start and end, in UTF-16 units.
+type Region = (i32, i32);
+
 /// The regions, without each one that does not end before the next
-/// starts (the last is always kept).
-fn parse_sentences(bytes: &[u8]) -> Result<Vec<(i32, i32)>, MascError> {
+/// starts (the last is always kept), and the regions left out.
+fn parse_sentences(bytes: &[u8]) -> Result<(Vec<Region>, Vec<Region>), MascError> {
     let mut h = Sentences(Vec::new());
     read_xml(bytes, AnnotationFile::Sentences, &mut h)?;
     let anchors = h.0;
     let Some(&last) = anchors.last() else {
         return Err(MascError::IndexOutOfBounds { index: -1, len: 0 });
     };
-    let mut kept: Vec<(i32, i32)> = anchors.windows(2).filter(|w| w[0].1 < w[1].0).map(|w| w[0]).collect();
+    let (mut kept, mut dropped) = (Vec::new(), Vec::new());
+    for w in anchors.windows(2) {
+        if w[0].1 < w[1].0 { kept.push(w[0]) } else { dropped.push(w[0]) }
+    }
     kept.push(last);
-    Ok(kept)
+    Ok((kept, dropped))
 }
 
 /// One token of the Penn file and its quark ids.
@@ -939,7 +1014,7 @@ mod tests {
     }
 
     #[test]
-    fn two_names_over_the_same_tokens_can_both_survive() {
+    fn overlapping_names_can_survive() {
         // next to each other, the right copy is marked
         let kept = remove_overlaps(&[name(0, 2), name(0, 2)]).unwrap();
         assert_eq!(spans(&kept), [(0, 2)]);
@@ -949,6 +1024,10 @@ mod tests {
         // refuses them
         let kept = remove_overlaps(&[name(0, 2), name(1, 4), name(1, 4), name(9, 10)]).unwrap();
         assert_eq!(spans(&kept), [(1, 4), (1, 4)]);
+        // the same with two names of one start but different ends, which a
+        // `HashMap` of entity ids can order shorter first
+        let kept = remove_overlaps(&[name(0, 2), name(1, 5), name(1, 6), name(20, 21)]).unwrap();
+        assert_eq!(spans(&kept), [(1, 5), (1, 6)]);
     }
 
     #[test]
@@ -989,6 +1068,65 @@ mod tests {
         // the first token alone is empty
         assert_eq!(names(&[0]), [(0, 0)]);
         assert_eq!(names(&[4, 2]), [(2, 5)]);
+        // Listed first to last, an even number of tokens loses the last
+        // and an odd number is whole.
+        assert_eq!(names(&[1, 2, 3, 4]), [(1, 4)]);
+        assert_eq!(names(&[2, 3, 4]), [(2, 5)]);
+        // Listed last to first, as MASC lists most entities, the first
+        // token visited sets the end.
+        assert_eq!(names(&[4, 3]), [(3, 5)]);
+        assert_eq!(names(&[4, 3, 2, 1]), [(1, 5)]);
+        // At the sentence's start the token 0 does not move the end from
+        // 0, so the parity flips; last to first is whole there too.
+        assert_eq!(names(&[0, 1]), [(0, 2)]);
+        assert_eq!(names(&[0, 1, 2]), [(0, 2)]);
+        assert_eq!(names(&[2, 1, 0]), [(0, 3)]);
+    }
+
+    #[test]
+    fn an_entity_in_no_sentence_is_kept_with_why() {
+        // Seven tokens; the first region touches the next, so the reader
+        // drops it, and the last three tokens are in no region.
+        let text = b"a b c d e f g";
+        let mut seg = String::from("<graph>");
+        let mut penn = String::from("<graph>");
+        for i in 0..7 {
+            seg.push_str(&format!(r#"<region xml:id="seg-r{i}" anchors="{} {}"/>"#, 2 * i, 2 * i + 1));
+            penn.push_str(&format!(r#"<node xml:id="penn-n{i}"><link targets="seg-r{i}"/></node>"#));
+        }
+        seg.push_str("</graph>");
+        penn.push_str("</graph>");
+        let s = br#"<graph><region anchors="0 3"/><region anchors="3 7"/></graph>"#;
+        // ne-n0: `a`, in the dropped region; ne-n1: `c`, in the sentence;
+        // ne-n2: `e`, in no region; ne-n3: `f` and `b`, one token in the
+        // dropped region; ne-n4: `g`, no label.
+        let ne = r#"<graph><a ref="ne-n0" label="person"/><a ref="ne-n1" label="org"/><a ref="ne-n2" label="date"/>
+            <a ref="ne-n3" label="location"/>
+            <edge from="ne-n0" to="penn-n0"/><edge from="ne-n1" to="penn-n2"/><edge from="ne-n2" to="penn-n4"/>
+            <edge from="ne-n3" to="penn-n5"/><edge from="ne-n3" to="penn-n1"/><edge from="ne-n4" to="penn-n6"/></graph>"#;
+        let doc = MascDocument::parse(
+            "t.hdr",
+            MascFiles {
+                text,
+                segments: Some(seg.as_bytes()),
+                sentences: Some(s),
+                penn: Some(penn.as_bytes()),
+                named_entities: Some(ne.as_bytes()),
+            },
+        )
+        .unwrap();
+        assert_eq!(doc.sentences().len(), 1);
+        assert_eq!(doc.sentences()[0].entities().len(), 1);
+        let unplaced = |kind: Option<&str>, cause| MascUnplacedEntity { kind: kind.map(str::to_owned), cause };
+        assert_eq!(
+            doc.unplaced_entities(),
+            [
+                unplaced(Some("person"), Unplaced::DroppedSentence),
+                unplaced(Some("date"), Unplaced::OutsideSentences),
+                unplaced(Some("location"), Unplaced::DroppedSentence),
+                unplaced(None, Unplaced::OutsideSentences),
+            ]
+        );
     }
 
     #[test]
