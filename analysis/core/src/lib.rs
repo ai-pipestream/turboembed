@@ -8,6 +8,7 @@
 //! turbo-analysis-layers; each add-on, the chunker first, is a crate of
 //! its own. docs/analysis.md describes the model.
 
+pub mod alternatives;
 pub mod analyzer;
 pub mod annotate;
 pub mod doc;
@@ -19,6 +20,7 @@ pub mod registry;
 pub mod span;
 pub mod text;
 
+pub use alternatives::{Alternative, Alternatives, ModeSet, NBest, SplitMode};
 pub use analyzer::Analyzer;
 pub use annotate::{Annotator, Bound, Refs};
 pub use doc::{Document, Status, View};
@@ -26,5 +28,5 @@ pub use error::Error;
 pub use graph::{Edge, Edges, Groups};
 pub use layer::{Anchor, Execution, Key, KeyId, Layer, LayerName, ModelRef, Provenance, Tag, TagSet};
 pub use offsets::{CodePointOffset, OffsetCursor, OffsetError, OffsetTable, OffsetUnit, Utf16Offset};
-pub use span::{Ix, IxRange, Span, Spans};
+pub use span::{FilterRule, FragmentError, Fragments, Ix, IxRange, Overlap, Span, Spans, TextSpans, filter_spans};
 pub use text::{Alignment, ViewBuilder, ViewId};

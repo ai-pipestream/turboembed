@@ -1,13 +1,11 @@
 //! ConTEB's layout: a `documents` table of chunks and a `queries` table,
-//! published as Parquet. The workspace has no Parquet reader, so this
-//! reads their rows as JSON Lines, one object per row with the column
-//! names as keys (what `datasets`' `to_json` writes for a split):
+//! each published as Parquet:
 //!
-//! - documents: `{"chunk_id", "chunk"}`, other columns allowed. A chunk
-//!   id is `<doc id>_<position>`, as ConTEB's `DataFormatter.parse_id`
-//!   splits it: exactly one `_`, and an integer position.
-//! - queries: `{"chunk_id", "query"}`, other columns allowed; the chunk
-//!   is the one that answers the query.
+//! - documents: `chunk_id`, `chunk`, other columns allowed. A chunk id is
+//!   `<doc id>_<position>`, as ConTEB's `DataFormatter.parse_id` splits
+//!   it: exactly one `_`, and an integer position.
+//! - queries: `chunk_id`, `query`, other columns allowed; the chunk is
+//!   the one that answers the query.
 //!
 //! A document is its chunks in position order joined by
 //! [`CHUNK_SEPARATOR`](crate::read::CHUNK_SEPARATOR). A query (id: its
@@ -17,28 +15,15 @@
 use std::collections::BTreeMap;
 use std::path::Path;
 
-use serde::Deserialize;
-
 use crate::Result;
 use crate::metrics::{Qrel, Qrels};
-use crate::read::{SetDir, join_chunks, json_lines};
+use crate::read::parquet::Parquet;
+use crate::read::{SetDir, join_chunks};
 use crate::set::{Doc, LoadedSet, Query};
 use crate::spans::{Span, SpanRel, SpanRels};
 
-#[derive(Deserialize)]
-struct ChunkRow {
-    chunk_id: String,
-    chunk: String,
-}
-
-#[derive(Deserialize)]
-struct QueryRow {
-    chunk_id: String,
-    query: String,
-}
-
-fn parse_id(file: &str, line: usize, id: &str) -> Result<(String, u64)> {
-    let bad = || format!("{file}:{line}: chunk id {id:?} is not <doc id>_<position>");
+fn parse_id(file: &str, row: usize, id: &str) -> Result<(String, u64)> {
+    let bad = || format!("{file}: row {row}: chunk id {id:?} is not <doc id>_<position>");
     let (doc, pos) = id.split_once('_').ok_or_else(bad)?;
     if pos.contains('_') {
         return Err(bad());
@@ -49,37 +34,49 @@ fn parse_id(file: &str, line: usize, id: &str) -> Result<(String, u64)> {
 /// Reads the tables `documents` and `queries` (paths under `dir`) as
 /// `name`.
 pub fn read(name: &str, dir: &Path, documents: &str, queries: &str) -> Result<LoadedSet> {
-    let mut files = SetDir::new(dir);
-    let mut by_doc: BTreeMap<String, BTreeMap<u64, String>> = BTreeMap::new();
-    for (line, r) in json_lines::<ChunkRow>(documents, &files.text(documents)?)? {
-        let (doc, pos) = parse_id(documents, line, &r.chunk_id)?;
-        if by_doc.entry(doc).or_default().insert(pos, r.chunk).is_some() {
-            return Err(format!("{documents}:{line}: chunk {} appears twice", r.chunk_id));
+    read_in(name, SetDir::new(dir), documents, queries)
+}
+
+/// Reads the tables `documents` and `queries` from `files` as `name`.
+pub fn read_in(name: &str, mut files: SetDir, documents: &str, queries: &str) -> Result<LoadedSet> {
+    let bytes = files.bytes(documents)?;
+    let t = Parquet::open(documents, &bytes)?;
+    let (ids, chunks) = (t.strings("chunk_id")?, t.strings("chunk")?);
+    let mut by_doc: BTreeMap<String, BTreeMap<u64, &str>> = BTreeMap::new();
+    for row in 0..t.rows() {
+        let chunk_id = ids.at(row)?;
+        let (doc, pos) = parse_id(documents, row, chunk_id)?;
+        if by_doc.entry(doc).or_default().insert(pos, chunks.at(row)?).is_some() {
+            return Err(format!("{documents}: row {row}: chunk {chunk_id} appears twice"));
         }
     }
     let mut docs = Vec::with_capacity(by_doc.len());
     let mut ranges: BTreeMap<(String, u64), (usize, usize)> = BTreeMap::new();
     for (id, chunks) in by_doc {
-        let (text, r) = join_chunks(chunks.values().map(String::as_str));
+        let (text, r) = join_chunks(chunks.values().copied());
         for (pos, range) in chunks.keys().zip(r) {
             ranges.insert((id.clone(), *pos), range);
         }
         docs.push(Doc { id, title: None, text });
     }
 
+    let qbytes = files.bytes(queries)?;
+    let t = Parquet::open(queries, &qbytes)?;
+    let (ids, texts) = (t.strings("chunk_id")?, t.strings("query")?);
     let mut qs = Vec::new();
     let mut qrels = Vec::new();
     let mut spans = Vec::new();
-    for (n, (line, r)) in json_lines::<QueryRow>(queries, &files.text(queries)?)?.into_iter().enumerate() {
-        let (doc, pos) = parse_id(queries, line, &r.chunk_id)?;
+    for row in 0..t.rows() {
+        let chunk_id = ids.at(row)?;
+        let (doc, pos) = parse_id(queries, row, chunk_id)?;
         let Some(&(start, end)) = ranges.get(&(doc.clone(), pos)) else {
-            return Err(format!("{queries}:{line}: chunk {} is not in {documents}", r.chunk_id));
+            return Err(format!("{queries}: row {row}: chunk {chunk_id} is not in {documents}"));
         };
-        let span = Span::new(start, end).map_err(|e| format!("{queries}:{line}: chunk {}: {e}", r.chunk_id))?;
-        let id = n.to_string();
+        let span = Span::new(start, end).map_err(|e| format!("{queries}: row {row}: chunk {chunk_id}: {e}"))?;
+        let id = row.to_string();
         spans.push(SpanRel { query: id.clone(), doc: doc.clone(), span, grade: 1 });
         qrels.push(Qrel { query: id.clone(), doc, grade: 1 });
-        qs.push(Query { id, text: r.query });
+        qs.push(Query { id, text: texts.at(row)?.to_owned() });
     }
 
     let set = LoadedSet {

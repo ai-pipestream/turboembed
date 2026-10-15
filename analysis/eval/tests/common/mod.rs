@@ -3,6 +3,8 @@
 
 #![allow(dead_code)]
 
+pub mod parquet;
+
 use std::fs;
 use std::path::{Path, PathBuf};
 

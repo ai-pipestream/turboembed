@@ -84,21 +84,13 @@ impl LanguageSpans {
 
 impl Layer for LanguageSpans {
     const ID: &'static str = "turbo:language-spans";
-    fn len(&self) -> usize {
-        self.spans.len()
-    }
-    fn text_spans(&self) -> Option<(ViewId, &[u32], &[u32])> {
-        let (start, end) = self.spans.columns();
-        Some((self.spans.view(), start, end))
-    }
+    positional!(LanguageSpans);
     fn check(&self) -> Result<(), String> {
         let n = self.spans.len();
         if self.language.len() != n || self.script.len() != n || self.confidence.len() != n {
             return Err("a language, a script and a confidence for every span".into());
         }
-        if !self.spans.is_ordered() {
-            return Err("spans in text order, not overlapping".into());
-        }
+        self.spans.check(Self::OVERLAP)?;
         if self.spans.iter().any(|(_, s)| s.is_empty()) {
             return Err("no empty span".into());
         }

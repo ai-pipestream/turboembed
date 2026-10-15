@@ -1,0 +1,316 @@
+# Converted from tests/lang/test_spanish.py of pySBD
+# (github.com/nipunsadvilkar/pySBD, commit 5905f13be4fc95f407b98392e0ec303617a33d86),
+# MIT License, Copyright (c) 2019 Nipun Sadvilkar (LICENSE in this directory).
+# One case per entry of each test list, in file order; `name` is the list's name and,
+# for the regression tests, the issue number; `option` the segmenter options its test uses.
+
+case pysbd/test_spanish/001
+lang es
+name GOLDEN_ES_RULES_TEST_CASES
+text ¿Cómo está hoy? Espero que muy bien.
+sentence ¿Cómo está hoy?
+sentence Espero que muy bien.
+end
+
+case pysbd/test_spanish/002
+lang es
+name GOLDEN_ES_RULES_TEST_CASES
+text ¡Hola señorita! Espero que muy bien.
+sentence ¡Hola señorita!
+sentence Espero que muy bien.
+end
+
+case pysbd/test_spanish/003
+lang es
+name GOLDEN_ES_RULES_TEST_CASES
+text Hola Srta. Ledesma. Buenos días, soy el Lic. Naser Pastoriza, y él es mi padre, el Dr. Naser.
+sentence Hola Srta. Ledesma.
+sentence Buenos días, soy el Lic. Naser Pastoriza, y él es mi padre, el Dr. Naser.
+end
+
+case pysbd/test_spanish/004
+lang es
+name GOLDEN_ES_RULES_TEST_CASES
+text ¡La casa cuesta $170.500.000,00! ¡Muy costosa! Se prevé una disminución del 12.5% para el próximo año.
+sentence ¡La casa cuesta $170.500.000,00!
+sentence ¡Muy costosa!
+sentence Se prevé una disminución del 12.5% para el próximo año.
+end
+
+case pysbd/test_spanish/005
+lang es
+name GOLDEN_ES_RULES_TEST_CASES
+text «Ninguna mente extraordinaria está exenta de un toque de demencia.», dijo Aristóteles.
+sentence «Ninguna mente extraordinaria está exenta de un toque de demencia.», dijo Aristóteles.
+end
+
+case pysbd/test_spanish/006
+lang es
+name ES_MORE_TEST_CASES
+text «Ninguna mente extraordinaria está exenta de un toque de demencia», dijo Aristóteles. Pablo, ¿adónde vas? ¡¿Qué viste?!
+sentence «Ninguna mente extraordinaria está exenta de un toque de demencia», dijo Aristóteles.
+sentence Pablo, ¿adónde vas?
+sentence ¡¿Qué viste?!
+end
+
+case pysbd/test_spanish/007
+lang es
+name ES_MORE_TEST_CASES
+text Admón. es administración o me equivoco.
+sentence Admón. es administración o me equivoco.
+end
+
+case pysbd/test_spanish/008
+lang es
+name ES_MORE_TEST_CASES
+text ¡Hola Srta. Ledesma! ¿Cómo está hoy? Espero que muy bien.
+sentence ¡Hola Srta. Ledesma!
+sentence ¿Cómo está hoy?
+sentence Espero que muy bien.
+end
+
+case pysbd/test_spanish/009
+lang es
+name ES_MORE_TEST_CASES
+text Buenos días, soy el Lic. Naser Pastoriza, y él es mi padre, el Dr. Naser.
+sentence Buenos días, soy el Lic. Naser Pastoriza, y él es mi padre, el Dr. Naser.
+end
+
+case pysbd/test_spanish/010
+lang es
+name ES_MORE_TEST_CASES
+text He apuntado una cita para la siguiente fecha: Mar. 23 de Nov. de 2014. Gracias.
+sentence He apuntado una cita para la siguiente fecha: Mar. 23 de Nov. de 2014.
+sentence Gracias.
+end
+
+case pysbd/test_spanish/011
+lang es
+name ES_MORE_TEST_CASES
+text Núm. de tel: 351.123.465.4. Envíe mis saludos a la Sra. Rescia.
+sentence Núm. de tel: 351.123.465.4.
+sentence Envíe mis saludos a la Sra. Rescia.
+end
+
+case pysbd/test_spanish/012
+lang es
+name ES_MORE_TEST_CASES
+text Cero en la escala Celsius o de grados centígrados (0 °C) se define como el equivalente a 273.15 K, con una diferencia de temperatura de 1 °C equivalente a una diferencia de 1 Kelvin. Esto significa que 100 °C, definido como el punto de ebullición del agua, se define como el equivalente a 373.15 K.
+sentence Cero en la escala Celsius o de grados centígrados (0 °C) se define como el equivalente a 273.15 K, con una diferencia de temperatura de 1 °C equivalente a una diferencia de 1 Kelvin.
+sentence Esto significa que 100 °C, definido como el punto de ebullición del agua, se define como el equivalente a 373.15 K.
+end
+
+case pysbd/test_spanish/013
+lang es
+name ES_MORE_TEST_CASES
+text Durante la primera misión del Discovery (30 Ago. 1984 15:08.10) tuvo lugar el lanzamiento de dos satélites de comunicación, el nombre de esta misión fue STS-41-D.
+sentence Durante la primera misión del Discovery (30 Ago. 1984 15:08.10) tuvo lugar el lanzamiento de dos satélites de comunicación, el nombre de esta misión fue STS-41-D.
+end
+
+case pysbd/test_spanish/014
+lang es
+name ES_MORE_TEST_CASES
+text Frase del gran José Hernández: "Aquí me pongo a cantar / al compás de la vigüela, / que el hombre que lo desvela / una pena estrordinaria, / como la ave solitaria / con el cantar se consuela. / [...] ".
+sentence Frase del gran José Hernández: "Aquí me pongo a cantar / al compás de la vigüela, / que el hombre que lo desvela / una pena estrordinaria, / como la ave solitaria / con el cantar se consuela. / [...] ".
+end
+
+case pysbd/test_spanish/015
+lang es
+name ES_MORE_TEST_CASES
+text Citando a Criss Jami «Prefiero ser un artista a ser un líder, irónicamente, un líder tiene que seguir las reglas.», lo cual parece muy acertado.
+sentence Citando a Criss Jami «Prefiero ser un artista a ser un líder, irónicamente, un líder tiene que seguir las reglas.», lo cual parece muy acertado.
+end
+
+case pysbd/test_spanish/016
+lang es
+name ES_MORE_TEST_CASES
+text Cuando llegué, le estaba dando ejercicios a los niños, uno de los cuales era "3 + (14/7).x = 5". ¿Qué te parece?
+sentence Cuando llegué, le estaba dando ejercicios a los niños, uno de los cuales era "3 + (14/7).x = 5".
+sentence ¿Qué te parece?
+end
+
+case pysbd/test_spanish/017
+lang es
+name ES_MORE_TEST_CASES
+text Se le pidió a los niños que leyeran los párrf. 5 y 6 del art. 4 de la constitución de los EE. UU..
+sentence Se le pidió a los niños que leyeran los párrf. 5 y 6 del art. 4 de la constitución de los EE. UU..
+end
+
+case pysbd/test_spanish/018
+lang es
+name ES_MORE_TEST_CASES
+text Una de las preguntas realizadas en la evaluación del día Lun. 15 de Mar. fue la siguiente: "Alumnos, ¿cuál es el resultado de la operación 1.1 + 4/5?". Disponían de 1 min. para responder esa pregunta.
+sentence Una de las preguntas realizadas en la evaluación del día Lun. 15 de Mar. fue la siguiente: "Alumnos, ¿cuál es el resultado de la operación 1.1 + 4/5?".
+sentence Disponían de 1 min. para responder esa pregunta.
+end
+
+case pysbd/test_spanish/019
+lang es
+name ES_MORE_TEST_CASES
+text La temperatura del motor alcanzó los 120.5°C. Afortunadamente, pudo llegar al final de carrera.
+sentence La temperatura del motor alcanzó los 120.5°C.
+sentence Afortunadamente, pudo llegar al final de carrera.
+end
+
+case pysbd/test_spanish/020
+lang es
+name ES_MORE_TEST_CASES
+text El volumen del cuerpo es 3m³. ¿Cuál es la superficie de cada cara del prisma?
+sentence El volumen del cuerpo es 3m³.
+sentence ¿Cuál es la superficie de cada cara del prisma?
+end
+
+case pysbd/test_spanish/021
+lang es
+name ES_MORE_TEST_CASES
+text La habitación tiene 20.55m². El living tiene 50.0m².
+sentence La habitación tiene 20.55m².
+sentence El living tiene 50.0m².
+end
+
+case pysbd/test_spanish/022
+lang es
+name ES_MORE_TEST_CASES
+text 1°C corresponde a 33.8°F. ¿A cuánto corresponde 35°C?
+sentence 1°C corresponde a 33.8°F.
+sentence ¿A cuánto corresponde 35°C?
+end
+
+case pysbd/test_spanish/023
+lang es
+name ES_MORE_TEST_CASES
+text Hamilton ganó el último gran premio de Fórmula 1, luego de 1:39:02.619 Hs. de carrera, segundo resultó Massa, a una diferencia de 2.5 segundos. De esta manera se consagró ¡Campeón mundial!
+sentence Hamilton ganó el último gran premio de Fórmula 1, luego de 1:39:02.619 Hs. de carrera, segundo resultó Massa, a una diferencia de 2.5 segundos.
+sentence De esta manera se consagró ¡Campeón mundial!
+end
+
+case pysbd/test_spanish/024
+lang es
+name ES_MORE_TEST_CASES
+text ¡La casa cuesta $170.500.000,00! ¡Muy costosa! Se prevé una disminución del 12.5% para el próximo año.
+sentence ¡La casa cuesta $170.500.000,00!
+sentence ¡Muy costosa!
+sentence Se prevé una disminución del 12.5% para el próximo año.
+end
+
+case pysbd/test_spanish/025
+lang es
+name ES_MORE_TEST_CASES
+text El corredor No. 103 arrivó 4°.
+sentence El corredor No. 103 arrivó 4°.
+end
+
+case pysbd/test_spanish/026
+lang es
+name ES_MORE_TEST_CASES
+text Hoy es 27/04/2014, y es mi cumpleaños. ¿Cuándo es el tuyo?
+sentence Hoy es 27/04/2014, y es mi cumpleaños.
+sentence ¿Cuándo es el tuyo?
+end
+
+case pysbd/test_spanish/027
+lang es
+name ES_MORE_TEST_CASES
+text Aquí está la lista de compras para el almuerzo: 1.Helado, 2.Carne, 3.Arroz. ¿Cuánto costará? Quizás $12.5.
+sentence Aquí está la lista de compras para el almuerzo: 1.Helado, 2.Carne, 3.Arroz.
+sentence ¿Cuánto costará?
+sentence Quizás $12.5.
+end
+
+case pysbd/test_spanish/028
+lang es
+name ES_MORE_TEST_CASES
+text 1 + 1 es 2. 2 + 2 es 4. El auto es de color rojo.
+sentence 1 + 1 es 2.
+sentence 2 + 2 es 4.
+sentence El auto es de color rojo.
+end
+
+case pysbd/test_spanish/029
+lang es
+name ES_MORE_TEST_CASES
+text La máquina viajaba a 100 km/h. ¿En cuánto tiempo recorrió los 153 Km.?
+sentence La máquina viajaba a 100 km/h.
+sentence ¿En cuánto tiempo recorrió los 153 Km.?
+end
+
+case pysbd/test_spanish/030
+lang es
+name ES_MORE_TEST_CASES
+text Explora oportunidades de carrera en el área de Salud en el Hospital de Northern en Mt. Kisco.
+sentence Explora oportunidades de carrera en el área de Salud en el Hospital de Northern en Mt. Kisco.
+end
+
+case pysbd/test_spanish/031
+lang es
+name ES_CLEAN_TEST_CASES
+option clean=true
+text \n \nCentro de Relaciones Interinstitucionales -CERI \n\nCra. 7 No. 40-53 Piso 10 Tel.  (57-1) 3239300 Ext. 1010 Fax: (57-1) 3402973 Bogotá, D.C. - Colombia \n\nhttp://www.udistrital.edu.co - http://ceri.udistrital.edu.co - relinter@udistrital.edu.co \n\n \n\nCERI 0908 \n \nBogotá, D.C. 6 de noviembre de 2014.  \n \nSeñores: \nEMBAJADA DE UNITED KINGDOM \n \n
+sentence Centro de Relaciones Interinstitucionales -CERI
+sentence Cra. 7 No. 40-53 Piso 10 Tel.  (57-1) 3239300 Ext. 1010 Fax: (57-1) 3402973 Bogotá, D.C. - Colombia
+sentence http://www.udistrital.edu.co - http://ceri.udistrital.edu.co - relinter@udistrital.edu.co
+sentence CERI 0908
+sentence Bogotá, D.C. 6 de noviembre de 2014.
+sentence Señores:
+sentence EMBAJADA DE UNITED KINGDOM
+end
+
+case pysbd/test_spanish/032
+lang es
+name ES_CLEAN_TEST_CASES
+option clean=true
+text N°. 1026.253.553
+sentence N°. 1026.253.553
+end
+
+case pysbd/test_spanish/033
+lang es
+name ES_CLEAN_TEST_CASES
+option clean=true
+text \n__________________________________________________________\nEl Board para Servicios Educativos de Putnam/Northern Westchester según el título IX, Sección 504 del “Rehabilitation Act” del 1973, del Título VII y del Acta “American with Disabilities” no discrimina para la admisión a programas educativos por sexo, creencia, nacionalidad, origen, edad o discapacidad.
+sentence __________________________________________________________
+sentence El Board para Servicios Educativos de Putnam/Northern Westchester según el título IX, Sección 504 del “Rehabilitation Act” del 1973, del Título VII y del Acta “American with Disabilities” no discrimina para la admisión a programas educativos por sexo, creencia, nacionalidad, origen, edad o discapacidad.
+end
+
+case pysbd/test_spanish/034
+lang es
+name ES_CLEAN_TEST_CASES
+option clean=true
+text • 1. Busca atención prenatal desde el principio \n• 2. Aliméntate bien \n• 3. Presta mucha atención a la higiene de los alimentos \n• 4. Toma suplementos de ácido fólico y come pescado \n• 5. Haz ejercicio regularmente \n• 6. Comienza a hacer ejercicios de Kegel \n• 7. Restringe el consumo de alcohol \n• 8. Disminuye el consumo de cafeína \n• 9. Deja de fumar \n• 10. Descansa
+sentence • 1. Busca atención prenatal desde el principio
+sentence • 2. Aliméntate bien
+sentence • 3. Presta mucha atención a la higiene de los alimentos
+sentence • 4. Toma suplementos de ácido fólico y come pescado
+sentence • 5. Haz ejercicio regularmente
+sentence • 6. Comienza a hacer ejercicios de Kegel
+sentence • 7. Restringe el consumo de alcohol
+sentence • 8. Disminuye el consumo de cafeína
+sentence • 9. Deja de fumar
+sentence • 10. Descansa
+end
+
+case pysbd/test_spanish/035
+lang es
+name ES_CLEAN_TEST_CASES
+option clean=true
+text • 1. Busca atención prenatal desde el principio \n• 2. Aliméntate bien \n• 3. Presta mucha atención a la higiene de los alimentos \n• 4. Toma suplementos de ácido fólico y come pescado \n• 5. Haz ejercicio regularmente \n• 6. Comienza a hacer ejercicios de Kegel \n• 7. Restringe el consumo de alcohol \n• 8. Disminuye el consumo de cafeína \n• 9. Deja de fumar \n• 10. Descansa \n• 11. Hola
+sentence • 1. Busca atención prenatal desde el principio
+sentence • 2. Aliméntate bien
+sentence • 3. Presta mucha atención a la higiene de los alimentos
+sentence • 4. Toma suplementos de ácido fólico y come pescado
+sentence • 5. Haz ejercicio regularmente
+sentence • 6. Comienza a hacer ejercicios de Kegel
+sentence • 7. Restringe el consumo de alcohol
+sentence • 8. Disminuye el consumo de cafeína
+sentence • 9. Deja de fumar
+sentence • 10. Descansa
+sentence • 11. Hola
+end
+
+case pysbd/test_spanish/036
+lang es
+name ES_PDF_CASE
+option doc_type=pdf
+text \nA continuación me permito presentar a la Ingeniera LAURA MILENA LEÓN \nSANDOVAL, identificada con el documento N°. 1026.253.553 de Bogotá, \negresada del Programa Ingeniería Industrial en el año 2012, quien se desatacó por \nsu excelencia académica, actualmente cursa el programa de Maestría en \nIngeniería Industrial y se encuentra en un intercambio cultural en Bangalore – \nIndia.
+sentence A continuación me permito presentar a la Ingeniera LAURA MILENA LEÓN SANDOVAL, identificada con el documento N°. 1026.253.553 de Bogotá, egresada del Programa Ingeniería Industrial en el año 2012, quien se desatacó por su excelencia académica, actualmente cursa el programa de Maestría en Ingeniería Industrial y se encuentra en un intercambio cultural en Bangalore – India.
+end

@@ -196,7 +196,7 @@ mod tests {
         list.iter().map(|t| JavaString::new(t)).collect()
     }
 
-    /// The fixture `analysis/sequence/golden/resources/tags.tagdict`.
+    /// The fixture `analysis/goldens/data/fixtures/tags.tagdict`.
     const FIXTURE: &[u8] = b"<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<dictionary case_sensitive=\"false\">\n\
         <entry tags=\"DT\"><token>the</token></entry>\n<entry tags=\"NN VB VBP\"><token>Run</token></entry>\n\
         <entry tags=\"VBD VBN\"><token>fell</token></entry>\n<entry tags=\"NNP\"><token>Paris</token></entry>\n\

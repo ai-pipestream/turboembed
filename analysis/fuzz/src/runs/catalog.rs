@@ -15,9 +15,32 @@ use crate::resources::{Resources, Unavailable};
 /// format readers (`formats`, `masc`, `ner`) and the parse and head rule
 /// readers (`parse`, `head-rules`) compare files, not layers of a text;
 /// the evaluators compare scores; the detokenizer runs on token lists;
-/// the BPE trainer learns merges from a whole set.
-pub const NOT_COVERED: [&str; 10] =
-    ["train", "train-events", "formats", "evaluate", "detokenize", "bpe", "masc", "ner", "parse", "head-rules"];
+/// the BPE trainer learns merges from a whole set; the sequence runs
+/// (`string-pattern`, `features`, `codec`, `beam`, `tag-dictionary`,
+/// `tag-format`), the name finders, the stemmers and the stopword lists
+/// read input sets of their own, which turbo-sequence, turbo-namefind,
+/// turbo-stem and turbo-stopword compare with.
+pub const NOT_COVERED: [&str; 19] = [
+    "train",
+    "train-events",
+    "formats",
+    "evaluate",
+    "detokenize",
+    "bpe",
+    "masc",
+    "ner",
+    "parse",
+    "head-rules",
+    "string-pattern",
+    "features",
+    "codec",
+    "beam",
+    "tag-dictionary",
+    "tag-format",
+    "namefind",
+    "stem",
+    "stopword",
+];
 
 /// Every run the differential covers, as `(annotator, run)`: the golden
 /// directories under `analysis/goldens/data`. A run whose model is not
@@ -168,7 +191,8 @@ mod tests {
             if !annotator.file_type().unwrap().is_dir() || NOT_COVERED.contains(&name.as_str()) {
                 continue;
             }
-            if ["inputs", "fixtures", "rates"].contains(&name.as_str()) {
+            // Inputs and test data, not golden runs.
+            if ["inputs", "fixtures", "train-fixtures", "rates", "conformance"].contains(&name.as_str()) {
                 continue;
             }
             for run in std::fs::read_dir(annotator.path()).unwrap() {

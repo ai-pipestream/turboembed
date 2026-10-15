@@ -145,19 +145,59 @@ impl FeatureGenerator for CharacterNgram {
         // the number of UTF-16 units.
         let length = utf16_len(tokens[index]);
         debug_assert_eq!(length, self.lowered.len());
-        let mut seen: HashSet<&[u16]> = HashSet::new();
-        for len in self.min..=self.max {
-            if len > length {
-                // No n-gram is longer than the token, and the lengths only
-                // grow from here.
-                break;
+        // Substrings of different lengths never equal one another, so each
+        // `len` only needs to check whether `gram` already occurred at an
+        // earlier start offset for the same `len`. For tokens up to 64
+        // units, a slice scan in L1 cache avoids allocating a `HashSet`.
+        if length <= 64 {
+            for len in self.min..=self.max {
+                if len > length {
+                    break;
+                }
+                for start in 0..=(length - len) {
+                    let gram = &self.lowered[start..start + len];
+                    let duplicate =
+                        start > 0 && (len == 0 || self.lowered[..start + len - 1].windows(len).any(|w| w == gram));
+                    if !duplicate {
+                        out.push_str("ng=").push_lower_utf16(gram).finish();
+                    }
+                }
             }
-            for start in 0..=(length - len) {
-                let gram = &self.lowered[start..start + len];
-                if seen.insert(gram) {
-                    out.push_str("ng=").push_lower_utf16(gram).finish();
+        } else {
+            let mut seen: HashSet<&[u16]> = HashSet::new();
+            for len in self.min..=self.max {
+                if len > length {
+                    break;
+                }
+                for start in 0..=(length - len) {
+                    let gram = &self.lowered[start..start + len];
+                    if seen.insert(gram) {
+                        out.push_str("ng=").push_lower_utf16(gram).finish();
+                    }
                 }
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn character_ngram_deduplicates_both_short_and_long_tokens() {
+        let mut g = CharacterNgram::new(2, 3);
+        let mut short = Features::new();
+        g.create_features(&mut short, &["Banana"], 0, &[]);
+        let got: Vec<String> = (0..short.len()).map(|i| short.to_string_lossy(i)).collect();
+        assert_eq!(got, ["ng=ba", "ng=an", "ng=na", "ng=ban", "ng=ana", "ng=nan"]);
+
+        // A 70-unit repeating token exercises the `length > 64` fallback
+        // and produces the exact same distinct n-grams.
+        let long_tok = "ab".repeat(35);
+        let mut long_out = Features::new();
+        g.create_features(&mut long_out, &[&long_tok], 0, &[]);
+        let got_long: Vec<String> = (0..long_out.len()).map(|i| long_out.to_string_lossy(i)).collect();
+        assert_eq!(got_long, ["ng=ab", "ng=ba", "ng=aba", "ng=bab"]);
     }
 }
