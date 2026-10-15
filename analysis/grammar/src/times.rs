@@ -38,6 +38,10 @@ impl TimeAnnotator {
         TimeAnnotator::new(&ENGLISH_TIMES)
     }
 
+    pub fn spanish() -> TimeAnnotator {
+        TimeAnnotator::new(&crate::lang::es::SPANISH_TIMES)
+    }
+
     /// The reference to resolve against when the pipeline has no document
     /// date.
     pub fn with_reference(mut self, reference: DateTime) -> TimeAnnotator {
@@ -192,6 +196,16 @@ mod tests {
         let b = TimeAnnotator::english();
         assert_ne!(a.config_hash(), b.config_hash());
         assert_eq!(a.config_hash(), TimeAnnotator::english().with_reference(reference()).config_hash());
+    }
+
+    #[test]
+    fn spanish_mentions_resolve() {
+        let text = "Nos vemos mañana a las 8 de la tarde.";
+        let t = TimeAnnotator::spanish().find(text, ViewId::SOURCE, Some(reference()));
+        assert_eq!(t.check(), Ok(()));
+        let got: Vec<_> =
+            t.spans.iter().map(|(i, s)| (&text[s.start as usize..s.end as usize], t.get(i).timex)).collect();
+        assert_eq!(got, [("mañana a las 8 de la tarde", "2016-11-08T20")]);
     }
 
     #[test]
