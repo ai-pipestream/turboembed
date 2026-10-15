@@ -16,6 +16,11 @@
 //!
 //! A whitespace-delimited chunk that holds `://` or starts with `www.`
 //! is a web address and yields no lexemes at all.
+//!
+//! A grammar can ask for two more things through [`WordForms`]: that the
+//! lowercase form of a word drop its accents (`miércoles` is looked up as
+//! `miercoles`), and that a word be cut into glued words (`tresmillonesimo`
+//! into `tres` and `millonesimo`). Spans stay those of the text as written.
 
 use crate::dec::Dec;
 
@@ -63,6 +68,48 @@ pub struct Lexed {
     /// The value of every numeral lexeme, in order.
     pub numerals: Vec<Dec>,
     digits: Vec<u8>,
+    /// For the word being read: the offset in [`Lexed::lower`] and in the
+    /// text where each of its characters starts.
+    bounds: Vec<(u32, u32)>,
+    cuts: Vec<u32>,
+}
+
+/// How a grammar wants its words: accents folded, and compounds cut.
+pub trait WordForms {
+    /// Whether the lowercase form of a word drops its accents (see
+    /// [`fold`]).
+    fn folds(&self) -> bool {
+        false
+    }
+
+    /// Byte offsets into `word`, a lowercase form, where it is cut into
+    /// glued words, in increasing order; none leaves it whole. Every offset
+    /// is a character boundary inside the word.
+    fn split(&self, _word: &str, _cuts: &mut Vec<u32>) {}
+}
+
+/// The forms of the plain lexer: no folding, no cutting.
+pub struct PlainWords;
+
+impl WordForms for PlainWords {}
+
+/// A lowercase letter without its accent: `á` is `a`, `ü` is `u`, `º` is
+/// `o`. `ñ` and `ç` are letters of their own and stay.
+pub fn fold(c: char) -> char {
+    match c {
+        'à' | 'á' | 'â' | 'ä' | 'ã' | 'å' | 'ª' => 'a',
+        'è' | 'é' | 'ê' | 'ë' => 'e',
+        'ì' | 'í' | 'î' | 'ï' => 'i',
+        'ò' | 'ó' | 'ô' | 'ö' | 'õ' | 'º' => 'o',
+        'ù' | 'ú' | 'û' | 'ü' => 'u',
+        'ý' | 'ÿ' => 'y',
+        _ => c,
+    }
+}
+
+/// Whether `c` is a combining accent that folding drops.
+fn is_accent_mark(c: char) -> bool {
+    ('\u{300}'..='\u{36f}').contains(&c)
 }
 
 /// Whether `c` belongs in a word.
@@ -114,6 +161,16 @@ impl Lexed {
     ///
     /// When `text` is longer than `u32::MAX` bytes.
     pub fn lex(&mut self, text: &str, style: &NumeralStyle) {
+        self.lex_words(text, style, &PlainWords);
+    }
+
+    /// Cuts `text` into lexemes with the word forms `words` asks for.
+    ///
+    /// # Panics
+    ///
+    /// When `text` is longer than `u32::MAX` bytes.
+    pub fn lex_words(&mut self, text: &str, style: &NumeralStyle, words: &dyn WordForms) {
+        let folds = words.folds();
         assert!(u32::try_from(text.len()).is_ok(), "a text of at most u32::MAX bytes");
         self.lexemes.clear();
         self.lower.clear();
@@ -166,7 +223,9 @@ impl Lexed {
                 self.push_numeral(text, start, i, value, glued);
             } else if is_word_char(c) {
                 let low_start = self.lower.len();
+                self.bounds.clear();
                 while i < b.len() {
+                    self.bounds.push((self.lower.len() as u32, i as u32));
                     if b[i].is_ascii_alphabetic() {
                         self.lower.push(char::from(b[i].to_ascii_lowercase()));
                         i += 1;
@@ -174,12 +233,23 @@ impl Lexed {
                     }
                     let c = char_at(text, i);
                     if c.is_ascii() || !is_word_char(c) {
+                        self.bounds.pop();
                         break;
                     }
-                    self.lower.extend(c.to_lowercase());
                     i += c.len_utf8();
+                    if !folds {
+                        self.lower.extend(c.to_lowercase());
+                    } else if is_accent_mark(c) {
+                        // `n` and a combining tilde is `ñ`; other accents go.
+                        if c == '\u{303}' && self.lower.ends_with('n') {
+                            self.lower.pop();
+                            self.lower.push('ñ');
+                        }
+                    } else {
+                        self.lower.extend(c.to_lowercase().map(fold));
+                    }
                 }
-                self.push(start, i, Kind::Word, glued, low_start, u32::MAX);
+                self.push_word(start, i, glued, low_start, words);
             } else {
                 let low_start = self.lower.len();
                 self.lower.extend(c.to_lowercase());
@@ -188,6 +258,44 @@ impl Lexed {
             }
             glued = true;
         }
+    }
+
+    /// Pushes the word `start..end`, cut where `words` says.
+    fn push_word(&mut self, start: usize, end: usize, glued: bool, low_start: usize, words: &dyn WordForms) {
+        self.cuts.clear();
+        words.split(&self.lower[low_start..], &mut self.cuts);
+        if self.cuts.is_empty() {
+            self.push(start, end, Kind::Word, glued, low_start, u32::MAX);
+            return;
+        }
+        let (mut text_at, mut low_at, mut glue) = (start, low_start, glued);
+        for k in 0..self.cuts.len() {
+            let low_cut = low_start + self.cuts[k] as usize;
+            // A dropped accent shares its offset with the next letter; the
+            // cut goes before that letter.
+            let Some(&(_, text_cut)) = self.bounds.iter().rev().find(|b| b.0 as usize == low_cut) else { continue };
+            let text_cut = text_cut as usize;
+            if low_cut <= low_at || text_cut <= text_at {
+                continue;
+            }
+            self.lexemes.push(Lexeme {
+                start: text_at as u32,
+                end: text_cut as u32,
+                kind: Kind::Word,
+                glued: glue,
+                low: (low_at as u32, low_cut as u32),
+                numeral: u32::MAX,
+            });
+            (text_at, low_at, glue) = (text_cut, low_cut, true);
+        }
+        self.lexemes.push(Lexeme {
+            start: text_at as u32,
+            end: end as u32,
+            kind: Kind::Word,
+            glued: glue,
+            low: (low_at as u32, self.lower.len() as u32),
+            numeral: u32::MAX,
+        });
     }
 
     fn push_numeral(&mut self, text: &str, start: usize, end: usize, value: Dec, glued: bool) {
@@ -239,7 +347,8 @@ impl Lexed {
 mod tests {
     use super::*;
 
-    const EN: NumeralStyle = NumeralStyle { mixed_separators: true, space_groups: true, indian_groups: true };
+    const EN: NumeralStyle =
+        NumeralStyle { mixed_separators: true, space_groups: true, indian_groups: true, decimal_comma: false };
 
     fn lex(text: &str) -> Vec<(String, Kind, bool)> {
         let mut l = Lexed::default();
@@ -304,6 +413,52 @@ mod tests {
         assert_eq!(words("www. 5"), ["www", ".", "5"]);
         let l = lex("a http://x b");
         assert!(!l[1].2, "the lexeme after an address is not glued");
+    }
+
+    /// Folds accents and cuts `dosmil` after `dos`.
+    struct Folding;
+
+    impl WordForms for Folding {
+        fn folds(&self) -> bool {
+            true
+        }
+
+        fn split(&self, word: &str, cuts: &mut Vec<u32>) {
+            if let Some(rest) = word.strip_prefix("dos")
+                && !rest.is_empty()
+            {
+                cuts.push(3);
+            }
+        }
+    }
+
+    fn lex_folded(text: &str) -> Lexed {
+        let mut l = Lexed::default();
+        l.lex_words(text, &EN, &Folding);
+        l
+    }
+
+    #[test]
+    fn folding_drops_accents_and_keeps_spans() {
+        let text = "Miércoles 1º Año a\u{301}n\u{303}o";
+        let l = lex_folded(text);
+        let words: Vec<&str> = (0..l.len()).map(|i| l.word(i)).collect();
+        assert_eq!(words, ["miercoles", "1", "o", "año", "año"]);
+        assert_eq!(l.raw(text, 0), "Miércoles");
+        assert_eq!(l.raw(text, 2), "º");
+        assert_eq!(l.raw(text, 4), "a\u{301}n\u{303}o");
+        assert_eq!(fold('Ü'), 'Ü', "fold takes a lowercase letter");
+        assert_eq!(fold('ü'), 'u');
+    }
+
+    #[test]
+    fn a_split_word_gives_glued_pieces_with_exact_spans() {
+        let text = "x Dósmilésimo";
+        let l = lex_folded(text);
+        let got: Vec<(&str, &str, bool)> =
+            (0..l.len()).map(|i| (l.word(i), l.raw(text, i), l.lexemes[i].glued)).collect();
+        assert_eq!(got, [("x", "x", false), ("dos", "Dós", false), ("milesimo", "milésimo", true)]);
+        assert_eq!(words("dosmil"), ["dosmil"], "the plain lexer does not cut");
     }
 
     #[test]

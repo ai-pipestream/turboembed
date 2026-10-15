@@ -19,6 +19,8 @@
 
 #[path = "spec/datetime.rs"]
 mod datetime;
+#[path = "spec/spanish.rs"]
+mod spanish;
 
 use std::collections::BTreeSet;
 use std::fmt::Write as _;
@@ -223,6 +225,46 @@ fn english_percentages() {
     assert_eq!(eligible, 20);
 }
 
+#[path = "spec/units.rs"]
+mod units;
+
+/// The number-with-unit files: file, kind, eligible cases.
+const UNIT_FILES: [(&str, turbo_grammar::Measure, usize); 4] = [
+    ("AgeModel.json", turbo_grammar::Measure::Age, 19),
+    ("CurrencyModel.json", turbo_grammar::Measure::Currency, 177),
+    ("DimensionModel.json", turbo_grammar::Measure::Dimension, 100),
+    ("TemperatureModel.json", turbo_grammar::Measure::Temperature, 43),
+];
+
+fn check_units(k: usize, bless: bool) -> (usize, usize) {
+    let (file, measure, want) = UNIT_FILES[k];
+    let (eligible, passing) = units::run_file(file, measure);
+    ratchet("English", file, &passing, bless);
+    println!("English/NumberWithUnit/{file}: {} of {eligible} eligible cases pass", passing.len());
+    assert_eq!(eligible, want);
+    (eligible, passing.len())
+}
+
+#[test]
+fn english_ages() {
+    check_units(0, true);
+}
+
+#[test]
+fn english_currencies() {
+    check_units(1, true);
+}
+
+#[test]
+fn english_dimensions() {
+    check_units(2, true);
+}
+
+#[test]
+fn english_temperatures() {
+    check_units(3, true);
+}
+
 fn datetime_cases() -> Vec<datetime::TimeCase> {
     let path = data().join("recognizers-text/English/DateTime/DateTimeModel.json");
     let json = std::fs::read_to_string(path).expect("a specification file");
@@ -247,15 +289,19 @@ fn english_datetimes() {
 /// The pass rate of every file, in one table.
 #[test]
 fn summary() {
-    let mut table = String::from("file                                eligible  passing\n");
+    let mut table = format!("{:<46}eligible  passing\n", "file");
     for spec in [&NUMBER, &ORDINAL, &PERCENT] {
         let (eligible, passing) = check(spec, false);
         let name = format!("{}/{}/{}", spec.language, spec.kind, spec.file);
-        let _ = writeln!(table, "{name:<36}{eligible:>8}{passing:>9}");
+        let _ = writeln!(table, "{name:<46}{eligible:>8}{passing:>9}");
+    }
+    for (k, (file, _, _)) in UNIT_FILES.iter().enumerate() {
+        let (eligible, passing) = check_units(k, false);
+        let _ = writeln!(table, "{:<46}{eligible:>8}{passing:>9}", format!("English/NumberWithUnit/{file}"));
     }
     let run = datetime::run_all(&datetime_cases(), false);
     ratchet("English", "DateTimeModel.json", &run.passing, false);
-    let _ = writeln!(table, "{:<36}{:>8}{:>9}", "English/DateTime/DateTimeModel.json", run.eligible, run.passing.len());
+    let _ = writeln!(table, "{:<46}{:>8}{:>9}", "English/DateTime/DateTimeModel.json", run.eligible, run.passing.len());
     println!("{table}");
 }
 

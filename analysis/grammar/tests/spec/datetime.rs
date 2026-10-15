@@ -14,7 +14,7 @@ use serde::Deserialize;
 use turbo_analysis::{OffsetTable, Utf16Offset};
 use turbo_analysis_layers::{DateTime, Relation, TimeKind};
 use turbo_grammar::time::{Resolution, Resolved, resolve};
-use turbo_grammar::{ENGLISH_TIMES, Mention, Output, Parser};
+use turbo_grammar::{ENGLISH_TIMES, Grammar, Mention, Output, Parser};
 
 /// The reference of a case that gives none.
 const DEFAULT_REFERENCE: &str = "2016-11-07T00:00:00";
@@ -241,7 +241,12 @@ pub struct Run {
 }
 
 pub fn run_all(cases: &[TimeCase], show: bool) -> Run {
-    let mut parser = Parser::new(&ENGLISH_TIMES);
+    run_all_with(&ENGLISH_TIMES, cases, show)
+}
+
+/// [`run_all`] with another grammar.
+pub fn run_all_with(grammar: &'static dyn Grammar, cases: &[TimeCase], show: bool) -> Run {
+    let mut parser = Parser::new(grammar);
     let mut out = Run { passing: BTreeSet::new(), eligible: 0, spans_only: 0, by_type: BTreeMap::new() };
     for (i, case) in cases.iter().enumerate() {
         if !case.eligible() {
