@@ -4,10 +4,12 @@
 //! whitespace-separated chunk: punctuation ends it, except an apostrophe,
 //! a hyphen, a middle dot or a full stop with a letter on both sides
 //! (`don't`, `e-mail`, `col·lecció`, `z.B`), and so does a change of script
-//! group (`iPhone是` is two units). With a token layer the same rules run
-//! inside each token, so no unit crosses a token boundary. Scripts written
-//! without spaces (Han, kana, Thai) make long units without a token layer:
-//! a clause each, cut at punctuation.
+//! group (`iPhone是` is two units). With a token layer a token is at most
+//! one unit, so a run never starts inside a token: the words the rules
+//! above find in it become one unit, in the script group of most of its
+//! letters (the first such on a tie), so the token `COVID対策` is one Latin
+//! unit. Scripts written without spaces (Han, kana, Thai) make long units
+//! without a token layer: a clause each, cut at punctuation.
 //!
 //! A chunk (or token) that OpenNLP's detector would not see, because its
 //! normalizers remove it (a URL, an e-mail address, a hashtag, a
@@ -57,7 +59,9 @@ pub fn units(text: &str, tokens: Option<(&[u32], &[u32])>, out: &mut Vec<Unit>) 
             let mut done = 0;
             for (&s, &e) in starts.iter().zip(ends) {
                 if s >= done {
+                    let from = out.len();
                     chunk(text, s as usize, e as usize, out);
+                    merge(out, from);
                     done = e;
                 }
             }
@@ -81,10 +85,46 @@ pub fn units(text: &str, tokens: Option<(&[u32], &[u32])>, out: &mut Vec<Unit>) 
     }
 }
 
+/// Makes `out[from..]`, the units of one token, a single unit in the
+/// script group with the most letters among them, the first on a tie.
+fn merge(out: &mut Vec<Unit>, from: usize) {
+    if out.len() - from < 2 {
+        return;
+    }
+    let units = &out[from..];
+    let mut best = units[0].group;
+    let mut most = 0;
+    for (i, u) in units.iter().enumerate() {
+        if units[..i].iter().any(|v| v.group == u.group) {
+            continue;
+        }
+        let n: u32 = units[i..].iter().filter(|v| v.group == u.group).map(|v| v.letters).sum();
+        if n > most {
+            best = u.group;
+            most = n;
+        }
+    }
+    let letters = units.iter().map(|u| u.letters).sum();
+    let merged = Unit { start: units[0].start, end: units[units.len() - 1].end, group: best, letters };
+    out.truncate(from);
+    out.push(merged);
+}
+
+/// Whether OpenNLP's normalizers could remove every letter of `piece`:
+/// only URLs and e-mail addresses (`:`, `@`), hashtags and mentions (`#`,
+/// `@`), emoticons (eyes `:`, `;`, `x`, `X`) and characters outside the
+/// Basic Multilingual Plane remove letters; digits, repeats and laughter
+/// shrink or remove other things. A piece with none of these keeps its
+/// letters, so the normalizers, which allocate, need not run on it.
+fn normalizers_may_remove_letters(piece: &str) -> bool {
+    piece.chars().any(|c| matches!(c, ':' | ';' | '@' | '#' | 'x' | 'X') || u32::from(c) > 0xFFFF)
+}
+
 /// The units of `text[from..to]`.
 fn chunk(text: &str, from: usize, to: usize, out: &mut Vec<Unit>) {
     let piece = &text[from..to];
-    if !prepare(piece).chars().any(|c| wordy(c) && group(script(c)).is_some()) {
+    let letter = |c: char| wordy(c) && group(script(c)).is_some();
+    if !piece.chars().any(letter) || (normalizers_may_remove_letters(piece) && !prepare(piece).chars().any(letter)) {
         return;
     }
     let mut open: Option<Unit> = None;
@@ -178,6 +218,27 @@ mod tests {
         let w = words(text, Some((&[0, 2, 6], &[2, 5, 10])));
         let w: Vec<&str> = w.into_iter().map(|(s, _)| s).collect();
         assert_eq!(w, ["do", "n't", "stop"]);
+    }
+
+    #[test]
+    fn a_token_of_two_script_groups_is_one_unit_in_the_group_of_most_letters() {
+        let text = "iPhone是 COVID対策 東京大学x";
+        let w = words(text, Some((&[0, 10, 22], &[9, 21, 35])));
+        assert_eq!(w, [("iPhone是", Script::Latin), ("COVID対策", Script::Latin), ("東京大学x", Script::Han)]);
+        let mut out = Vec::new();
+        units(text, Some((&[0], &[9])), &mut out);
+        assert_eq!((out[0].start, out[0].end, out[0].letters), (0, 9, 7));
+        // A tie goes to the group that comes first.
+        assert_eq!(words("ab是是", Some((&[0], &[8]))), [("ab是是", Script::Latin)]);
+    }
+
+    #[test]
+    fn letters_survive_the_normalizers_unless_a_piece_could_lose_them() {
+        // The normalizers run only on pieces that could lose every letter,
+        // and then decide: an emoticon is removed, a word with an x stays.
+        assert!(!normalizers_may_remove_letters("Straße"));
+        assert!(normalizers_may_remove_letters("xD"));
+        assert_eq!(words("xD taxi", None).into_iter().map(|(s, _)| s).collect::<Vec<_>>(), ["taxi"]);
     }
 
     #[test]

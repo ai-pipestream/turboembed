@@ -13,6 +13,9 @@
 //! words is a matter of convention (does an opening quotation mark go
 //! with the quote?), so boundaries are compared at the first letter at or
 //! after them: two boundaries match when no letter lies between them.
+//! How many match to the byte is counted too, so a boundary that lands
+//! on the wrong side of punctuation (`休息。|But` against `休息|。But`)
+//! shows up.
 
 use std::fmt;
 
@@ -131,6 +134,8 @@ pub struct Scores {
     /// Predicted boundaries that match a gold boundary (and so gold
     /// boundaries matched by one).
     pub matched_boundaries: usize,
+    /// Predicted boundaries at the same byte as a gold boundary.
+    pub exact_boundaries: usize,
     pub letters: usize,
     pub correct_letters: usize,
     /// Documents whose most frequent predicted language (by letters) is
@@ -173,6 +178,11 @@ impl Scores {
         self.predicted_boundaries += predicted_bounds.len();
         let matched = predicted_bounds.iter().filter(|b| gold_bounds.contains(b)).count();
         self.matched_boundaries += matched;
+        self.exact_boundaries += predicted
+            .iter()
+            .skip(1)
+            .filter(|(p, _)| gold.spans.iter().skip(1).any(|(g, _)| g.start == p.start))
+            .count();
         if all_spans_right {
             all_spans_right = matched == gold_bounds.len()
                 && gold.spans.iter().zip(predicted).all(|((_, g), (_, p))| g.as_str() == *p);
@@ -196,6 +206,11 @@ impl Scores {
 
     pub fn boundary_recall(&self) -> f64 {
         Scores::share(self.matched_boundaries, self.gold_boundaries)
+    }
+
+    /// The share of predicted boundaries at the byte of a gold one.
+    pub fn exact_boundary_precision(&self) -> f64 {
+        Scores::share(self.exact_boundaries, self.predicted_boundaries)
     }
 
     pub fn letter_accuracy(&self) -> f64 {
@@ -228,6 +243,13 @@ impl fmt::Display for Scores {
             self.matched_boundaries,
             self.gold_boundaries,
             self.boundary_recall()
+        )?;
+        writeln!(
+            f,
+            "boundaries to the byte    {}/{} = {:.3}",
+            self.exact_boundaries,
+            self.predicted_boundaries,
+            self.exact_boundary_precision()
         )?;
         write!(f, "letter accuracy           {}/{} = {:.3}", self.correct_letters, self.letters, self.letter_accuracy())
     }
@@ -285,6 +307,11 @@ mod tests {
         // it, before the quotation mark: no letter between them.
         s.add(doc, &[(Span::new(0, 9), "deu"), (Span::new(9, 24), "eng")]);
         assert_eq!((s.matched_boundaries, s.exact_documents, s.correct_spans), (1, 1, 2));
+        // It matches, but not to the byte.
+        assert_eq!(s.exact_boundaries, 0);
+        let mut s = Scores::default();
+        s.add(doc, &[(Span::new(0, 10), "deu"), (Span::new(10, 24), "eng")]);
+        assert_eq!((s.matched_boundaries, s.exact_boundaries), (1, 1));
         assert_eq!(s.letter_accuracy(), 1.0);
 
         let mut s = Scores::default();

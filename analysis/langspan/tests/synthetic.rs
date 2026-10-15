@@ -112,6 +112,38 @@ fn with_a_token_layer_words_stay_inside_tokens() {
 }
 
 #[test]
+fn a_token_of_two_scripts_stays_in_one_span() {
+    let text = "xxxx xxxx xxxxκ, yyyy yyyy yyyy";
+    let (doc, result) = run(Document::new(text));
+    result.unwrap();
+    let got: Vec<(&str, &str)> = spans(&doc).iter().map(|s| (s.0, s.1)).collect();
+    assert_eq!(got, [("xxxx xxxx xxxx", "deu"), ("κ, ", "ell"), ("yyyy yyyy yyyy", "eng")]);
+
+    let mut doc = Document::new(text);
+    let mut t = Spans::new(ViewId::SOURCE);
+    for (a, b) in [(0, 4), (5, 9), (10, 16), (16, 17), (18, 22), (23, 27), (28, 32)] {
+        t.push(Span::new(a, b));
+    }
+    doc.add(&Key::DEFAULT, Tokens { spans: t, sentence: None }, Provenance::by("test")).unwrap();
+    let (doc, result) = run(doc);
+    result.unwrap();
+    let got: Vec<(&str, &str)> = spans(&doc).iter().map(|s| (s.0, s.1)).collect();
+    assert_eq!(got, [("xxxx xxxx xxxxκ, ", "deu"), ("yyyy yyyy yyyy", "eng")]);
+}
+
+#[test]
+fn han_inside_hangul_is_scored_as_a_han_language() {
+    // Korean is written in Hangul only in the script table, so Hanja in a
+    // Korean text is a Han segment: here the model's only Han language.
+    let d = SpanDetector::new(small_detector(&["kor", "cmn"], &[]), Settings::default());
+    let analyzer = Analyzer::builder().add(d).build().unwrap();
+    let mut doc = Document::new("대한민국 大韓民國 만세");
+    analyzer.run(slice::from_mut(&mut doc)).remove(0).unwrap();
+    let got: Vec<(&str, &str)> = spans(&doc).iter().map(|s| (s.0, s.1)).collect();
+    assert_eq!(got, [("대한민국 ", "kor"), ("大韓民國 ", "cmn"), ("만세", "kor")]);
+}
+
+#[test]
 fn scripts_with_one_language_need_no_scoring_and_scripts_with_none_are_und() {
     let (doc, result) = run(Document::new("xxxx xxxx xxxx. Καλημέρα κόσμε! Привет мир. สวัสดี"));
     result.unwrap();
@@ -202,6 +234,18 @@ fn tokens_out_of_text_order_fail_the_document() {
     assert!(e.to_string().contains("not in text order"), "{e}");
 }
 
+/// The step reads sentence starts as sorted; the layer itself guarantees
+/// it, so a document cannot hold sentences out of order.
+#[test]
+fn sentences_out_of_text_order_cannot_reach_the_step() {
+    let mut doc = Document::new("xxxx yyyy");
+    let mut s = Spans::new(ViewId::SOURCE);
+    s.push(Span::new(5, 9));
+    s.push(Span::new(0, 4));
+    let e = doc.add(&Key::DEFAULT, Sentences { spans: s }, Provenance::by("test")).unwrap_err();
+    assert!(e.to_string().contains("in text order"), "{e}");
+}
+
 /// Texts with marks before any letter, emoji, mixed scripts inside one
 /// chunk, line breaks and stray punctuation: the spans are in order,
 /// touch, start and end on character boundaries and cover every word.
@@ -210,7 +254,7 @@ fn odd_texts_give_spans_that_tile_the_words() {
     let texts = [
         "\u{301}xxxx yyyy",
         "xxxx😀yyyy 😀😀 ...",
-        "«xxxx» (yyyy) — ¿xxxx? ¡yyyy!",
+        "«xxxx» (yyyy) – ¿xxxx? ¡yyyy!",
         "x\r\ny\r\n\r\nΚαλη\u{301}μερα",
         "iPhone是Привет",
         "xx-yy x'y x.y. 'x' -y- .",

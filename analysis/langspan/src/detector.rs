@@ -8,7 +8,7 @@ use turbo_analysis::{Span, TagSet};
 use turbo_analysis_layers::UNDETERMINED;
 use turbo_langdetect::{LanguageDetector, Scratch};
 use turbo_unicode::Script;
-use turbo_unicode::category::general_category;
+use turbo_unicode::category::{GeneralCategory, general_category};
 use turbo_unicode::props::white_space;
 use turbo_unicode::script::script;
 
@@ -25,15 +25,32 @@ pub struct Settings {
     /// How many letters a clause (words between two gaps stronger than
     /// a space) needs before its best language joins the shortlist.
     pub clause_letters: u32,
+    /// How much better (in natural log probability) the best shortlisted
+    /// language of a run's whole text must be than the language the
+    /// labelling gave it before the run takes it. Infinite turns the
+    /// rescoring off.
+    pub rescore_margin: f64,
+    /// Whether to build a shortlist; without one every word is labelled
+    /// against all the languages of its script. Only for measuring what
+    /// the shortlist does.
+    pub shortlist: bool,
 }
 
 impl Default for Settings {
     /// The settings chosen on `tests/data/mixed-dev.txt` with
     /// `langdetect-183.bin` (docs/langdetect.md, "Language by span").
     fn default() -> Settings {
-        Settings { switch: SwitchCost { space: 0.20, punctuation: 0.10, sentence: 0.05 }, clause_letters: 10 }
+        Settings {
+            switch: SwitchCost { space: 0.20, punctuation: 0.10, sentence: 0.05 },
+            clause_letters: 10,
+            rescore_margin: RESCORE_MARGIN,
+            shortlist: true,
+        }
     }
 }
+
+/// The default [`Settings::rescore_margin`].
+const RESCORE_MARGIN: f64 = 0.0;
 
 /// One run of a single language, as [`SpanDetector::detect`] finds it.
 #[derive(Copy, Clone, Debug, PartialEq)]
@@ -67,6 +84,8 @@ pub struct SpanScratch {
     shortlist: Vec<u32>,
     decoder: Decoder,
     text: String,
+    /// Letters per script, for a run's dominant script.
+    scripts: Vec<(Script, u32)>,
     /// Runs as (first unit, end unit, outcome), before spans are cut.
     pieces: Vec<(usize, usize, Option<u32>)>,
 }
@@ -183,7 +202,7 @@ impl SpanDetector {
             }
             let last = units[end - 1].end;
             let letters = units[first..end].iter().map(|u| u.letters).sum();
-            let script = dominant_script(text, &units[first..end]);
+            let script = dominant_script(text, &units[first..end], &mut scratch.scripts);
             let confidence =
                 self.confidence(text, units[first].start, last, units[first].group, outcome, &mut scratch.detect);
             out.push(Run { span: Span::new(start, last), outcome, script, confidence, letters });
@@ -207,7 +226,7 @@ impl SpanDetector {
         // each clause long enough to say something.
         let mut shortlist = std::mem::take(&mut scratch.shortlist);
         shortlist.clear();
-        {
+        if self.settings.shortlist {
             let whole = self.best(text, scratch.units[a].start, scratch.units[b - 1].end, all, &mut scratch.detect);
             shortlist.extend(whole);
             let mut first = a;
@@ -258,9 +277,9 @@ impl SpanDetector {
         let mut first = a;
         for u in a + 1..=b {
             if u == b || scratch.labels[u - a] != scratch.labels[first - a] {
-                let mut label = shortlist[scratch.labels[first - a] as usize];
+                let labelled = shortlist[scratch.labels[first - a] as usize];
                 let (s, e) = (scratch.units[first].start, scratch.units[u - 1].end);
-                label = self.best(text, s, e, &shortlist, &mut scratch.detect).unwrap_or(label);
+                let label = self.rescore(text, s, e, labelled, &shortlist, &mut scratch.detect);
                 match scratch.pieces[from..].last_mut() {
                     Some(last) if last.2 == Some(label) => last.1 = u,
                     _ => scratch.pieces.push((first, u, Some(label))),
@@ -269,6 +288,18 @@ impl SpanDetector {
             }
         }
         scratch.shortlist = shortlist;
+    }
+
+    /// The language of a run the labelling gave `labelled`: the best of
+    /// `among` for the run's whole text when it beats `labelled` by more
+    /// than [`Settings::rescore_margin`], else `labelled`.
+    fn rescore(&self, text: &str, start: u32, end: u32, labelled: u32, among: &[u32], scratch: &mut Scratch) -> u32 {
+        if self.settings.rescore_margin == f64::INFINITY {
+            return labelled;
+        }
+        let Some(best) = self.best(text, start, end, among, scratch) else { return labelled };
+        let p = scratch.probabilities();
+        if p[best as usize].ln() - p[labelled as usize].ln() > self.settings.rescore_margin { best } else { labelled }
     }
 
     /// The most probable of `among` for `text[start..end]`, the first in
@@ -359,11 +390,25 @@ fn gap(text: &str, end: u32, start: u32, sentence_starts: Option<&[u32]>) -> Gap
     if between.chars().any(|c| general_category(c).is_punctuation()) { Gap::Punctuation } else { Gap::Space }
 }
 
+/// Punctuation that opens what follows it: opening brackets and initial
+/// quotation marks (Ps, Pi), the Spanish inverted marks and the straight
+/// quotation marks, which open as often as they close.
+fn opening(c: char) -> bool {
+    matches!(c, '"' | '\'' | '\u{00BF}' | '\u{00A1}')
+        || matches!(general_category(c), GeneralCategory::Ps | GeneralCategory::Pi)
+}
+
 /// Where a run whose first word starts at `start` begins: at the start of
-/// a sentence between the word before it (which ends at `floor`) and it,
-/// or else back over the characters before it up to whitespace (an
-/// opening quotation mark or bracket), and then back to the start of the
-/// token it falls inside, never before `floor`.
+/// a sentence between the word before it (which ends at `floor`) and it;
+/// or else back over the opening punctuation right before it (a quotation
+/// mark or bracket), when whitespace or the start of the text comes
+/// before that punctuation; and then back to the start of the token it
+/// falls inside, never before `floor`.
+///
+/// Anything else before the word stays with the run before: sentence-final
+/// punctuation (`休息。But`), closing brackets and quotation marks, and
+/// opening marks with no space before them, which close what precedes
+/// them as often as not (German `„Hallo!“Then`).
 fn snap_start(
     text: &str,
     start: u32,
@@ -380,10 +425,13 @@ fn snap_start(
     let mut s = start as usize;
     while s > floor as usize {
         let c = text[..s].chars().next_back().expect("a character before a position above the floor");
-        if white_space(c) {
+        if !opening(c) {
             break;
         }
         s -= c.len_utf8();
+    }
+    if text[..s].chars().next_back().is_some_and(|c| !white_space(c)) {
+        s = start as usize;
     }
     let mut s = s as u32;
     if let Some((starts, ends)) = tokens {
@@ -412,8 +460,8 @@ fn snap_end(text: &str, end: u32, tokens: Option<(&[u32], &[u32])>) -> u32 {
 
 /// The script most letters of `units` are in; the first such in text
 /// order on a tie.
-fn dominant_script(text: &str, units: &[Unit]) -> Script {
-    let mut counts: Vec<(Script, u32)> = Vec::new();
+fn dominant_script(text: &str, units: &[Unit], counts: &mut Vec<(Script, u32)>) -> Script {
+    counts.clear();
     for u in units {
         for c in text[u.start as usize..u.end as usize].chars() {
             let s = script(c);
@@ -428,7 +476,7 @@ fn dominant_script(text: &str, units: &[Unit]) -> Script {
     }
     let mut best = counts.first().map_or(units[0].group, |&(s, _)| s);
     let mut most = 0;
-    for &(s, n) in &counts {
+    for &(s, n) in counts.iter() {
         if n > most {
             best = s;
             most = n;
@@ -462,10 +510,26 @@ mod tests {
         assert_eq!(snap_start(text, 7, 2, None, None), 6);
         // A sentence starting at the dash takes the run's start with it.
         assert_eq!(snap_start(text, 7, 2, Some(&[0, 4]), None), 4);
-        // Never back before the word before it.
-        assert_eq!(snap_start("ab\"cd", 3, 2, None, None), 2);
+        // A quotation mark with no space before it is left where it is.
+        assert_eq!(snap_start("ab\"cd", 3, 2, None, None), 3);
+        assert_eq!(snap_start("ab \"cd", 4, 2, None, None), 3);
         // A sentence start before the floor is not used.
         assert_eq!(snap_start(text, 7, 2, Some(&[0]), None), 6);
+    }
+
+    #[test]
+    fn closing_and_sentence_final_punctuation_stay_with_the_run_before() {
+        // (text, end of the word before, start of the run's first word)
+        for (text, floor, start) in [("休息。But tomorrow", 6, 9), ("today!Привет", 5, 6), ("„Hallo!“Then", 8, 12)]
+        {
+            assert_eq!(snap_start(text, start, floor, None, None), start, "{text}");
+        }
+        // Opening marks after whitespace go with the run.
+        assert_eq!(snap_start("gestern (I was", 9, 7, None, None), 8);
+        assert_eq!(snap_start("nur „Hallo", 7, 3, None, None), 4);
+        assert_eq!(snap_start("dijo ¿«Qué", 9, 4, None, None), 5);
+        // Closing punctuation before an opening mark stops the walk.
+        assert_eq!(snap_start("ab.)(cd", 5, 2, None, None), 5);
     }
 
     #[test]

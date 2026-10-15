@@ -70,6 +70,7 @@ fn the_development_set_scores_as_recorded() {
         gold_boundaries: 37,
         predicted_boundaries: 37,
         matched_boundaries: 37,
+        exact_boundaries: 37,
         letters: 3142,
         correct_letters: 3142,
         correct_document_languages: 30,
@@ -77,7 +78,7 @@ fn the_development_set_scores_as_recorded() {
     assert_eq!(scores, expected, "\n{scores}");
 }
 
-/// The held-out set, scored once the settings were fixed. The misses: a
+/// The held-out set, which no setting was chosen on. The misses: a
 /// short English stretch next to Japanese or Hindi and a three-word
 /// French clause read as Waray, a one-word quotation (`Schadenfreude`)
 /// and two short quotations stay with the surrounding language, and
@@ -94,11 +95,35 @@ fn the_held_out_set_scores_as_recorded() {
         gold_boundaries: 47,
         predicted_boundaries: 42,
         matched_boundaries: 41,
+        exact_boundaries: 41,
         letters: 4020,
         correct_letters: 3845,
         correct_document_languages: 40,
     };
     assert_eq!(scores, expected, "\n{scores}");
+}
+
+/// Short texts from review: a German quotation after an opening mark
+/// stays German, and terminal punctuation with no space after it stays
+/// with the run it ends. The parenthesis inside German is a known miss:
+/// its shortlist gets Frisian from the clause after it, and the
+/// labelling takes it (docs/langdetect.md).
+#[test]
+fn short_review_texts_keep_their_language_and_punctuation() {
+    let Some(detector) = published_detector() else { return };
+    let d = SpanDetector::new(detector, Settings::default());
+    let mut scratch = SpanScratch::new();
+    let mut runs: Vec<Run> = Vec::new();
+    let mut got = |text: &'static str| -> Vec<(&'static str, String)> {
+        d.detect(text, None, None, &mut scratch, &mut runs);
+        runs.iter().map(|r| (&text[r.span.range()], d.code(r).to_string())).collect()
+    };
+    assert_eq!(got("Er sagte nur „Hallo\""), [("Er sagte nur „Hallo\"", "deu".to_string())]);
+    let spans = got("Ich habe gestern (I was really tired) noch lange gearbeitet.");
+    assert_eq!(spans.iter().map(|s| s.1.as_str()).collect::<Vec<_>>(), ["deu", "eng", "fry"]);
+    assert_eq!(spans[1].0, "(I was really tired) ");
+    let spans = got("Wir haben heute sehr lange gearbeitet!Привет, как у тебя дела сегодня?");
+    assert_eq!(spans[0].0, "Wir haben heute sehr lange gearbeitet!");
 }
 
 #[test]

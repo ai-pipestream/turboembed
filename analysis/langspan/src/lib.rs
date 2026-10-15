@@ -18,8 +18,9 @@
 //! # How it works
 //!
 //! 1. **Words** ([`units`]): the letters of the text cut into words, each
-//!    in one script group (Han and kana are one group). Inside the tokens
-//!    of a token layer when the document has one. Words OpenNLP's
+//!    in one script group (Han and kana are one group). With a token
+//!    layer a token is at most one word, in the script group of most of
+//!    its letters, so no span starts inside a token. Words OpenNLP's
 //!    normalizers would remove (URLs, e-mail addresses, hashtags,
 //!    mentions) are skipped.
 //! 2. **Script first** ([`scripts`]): consecutive words of one script
@@ -40,24 +41,27 @@
 //!    ([`Settings::switch`]). With a sentence layer, its boundaries are
 //!    the sentence boundaries; without one, sentence-final punctuation is.
 //! 5. **Runs**: each stretch of one label is scored again as a whole and
-//!    given its best shortlisted language, and neighbours that end up
+//!    given its best shortlisted language when that beats the label by
+//!    more than [`Settings::rescore_margin`], and neighbours that end up
 //!    with the same language merge. A run's confidence is the model's
 //!    probability of its language for its whole text, over the languages
 //!    of its script.
 //! 6. **Spans**: runs touch. A run starts at the start of a sentence that
 //!    begins between the word before it and its first word (snapped to
-//!    the sentence layer), or else at its first word less any opening
-//!    punctuation attached to it, moved back to the start of the token it
-//!    falls inside (snapped to the token layer). The last run ends after
+//!    the sentence layer), or else at its first word less the opening
+//!    punctuation (brackets, quotation marks, `¿`, `¡`) right before it
+//!    when whitespace comes before that, moved back to the start of the
+//!    token it falls inside (snapped to the token layer). Sentence-final
+//!    and closing punctuation stays with the run before. The last run ends after
 //!    its last word and any closing punctuation attached to it.
 //!
 //! The approach follows lingua's `detect_multiple_languages_of` (a
 //! candidate set from the whole text and its parts, then a label per
 //! word, merged into runs) and whatlang and CLD3 (script before
 //! n-grams); no code or data of theirs is used. The settings were chosen
-//! on `tests/data/mixed-dev.txt` and the detector is measured on the
-//! held-out `tests/data/mixed-test.txt`; docs/langdetect.md has the
-//! numbers.
+//! on `tests/data/mixed-dev.txt` and the detector is measured on
+//! `tests/data/mixed-test.txt`, which no setting was chosen on;
+//! docs/langdetect.md has the numbers.
 
 pub mod annotate;
 pub mod decode;

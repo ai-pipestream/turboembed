@@ -65,6 +65,8 @@ impl Annotator for SpanDetector {
         if tokens.is_some_and(|t| t.spans.view() != view.id()) {
             return Err(other_view("tokens"));
         }
+        // Sentences are in text order: the layer refuses to be added
+        // otherwise. A token layer may be out of order, so it is checked.
         if tokens.is_some_and(|t| !t.spans.is_ordered()) {
             return Err(Error::Annotator { annotator: Self::ID, detail: "the tokens are not in text order".into() });
         }
@@ -96,6 +98,8 @@ impl Annotator for SpanDetector {
             s.switch.punctuation.to_bits(),
             s.switch.sentence.to_bits(),
             u64::from(s.clause_letters),
+            s.rescore_margin.to_bits(),
+            u64::from(s.shortlist),
         ] {
             h = (h ^ word).wrapping_mul(0x0000_0100_0000_01b3);
         }

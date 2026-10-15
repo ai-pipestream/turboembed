@@ -1,7 +1,12 @@
 //! Scores the span detector on fixture files with gold spans.
 //!
 //! cargo run --release -p turbo-langspan --example evaluate -- \
-//!     <langdetect-183.bin> <fixture file>... [--switch space,punctuation,sentence] [--verbose]
+//!     <langdetect-183.bin> <fixture file>... [--switch space,punctuation,sentence]
+//!     [--clause letters] [--margin log-probability] [--no-rescore] [--no-shortlist] [--verbose]
+//!
+//! `--no-rescore` and `--no-shortlist` turn off the whole-run rescoring
+//! and the shortlist, for the ablation in docs/langdetect.md; with both
+//! every word is labelled against all the languages of its script.
 
 use turbo_langdetect::{LanguageDetector, LanguageModel};
 use turbo_langspan::decode::SwitchCost;
@@ -23,6 +28,9 @@ fn main() {
             }
             "--verbose" => verbose = true,
             "--clause" => settings.clause_letters = args.next().unwrap().parse().unwrap(),
+            "--margin" => settings.rescore_margin = args.next().unwrap().parse().unwrap(),
+            "--no-rescore" => settings.rescore_margin = f64::INFINITY,
+            "--no-shortlist" => settings.shortlist = false,
             _ => files.push(a),
         }
     }

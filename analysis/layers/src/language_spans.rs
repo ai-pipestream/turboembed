@@ -23,6 +23,13 @@ pub const UNDETERMINED: &str = "und";
 /// not overlapping. Each span has the language code it was given (a tag
 /// in `languages`, ISO 639-3 for the OpenNLP models), the script most of
 /// its letters are in, and a confidence between 0 and 1.
+///
+/// The confidence ranks spans of one detector against each other; it is
+/// not a calibrated probability, and readers should not threshold on it.
+/// For `turbo-langspan` over OpenNLP's `langdetect-183.bin` it is the
+/// model's probability of the span's language over the languages of its
+/// script, and that model's probabilities are flat: a clear French
+/// sentence gets about 0.07 among 65 Latin-script languages.
 pub struct LanguageSpans {
     pub spans: Spans<LanguageSpans>,
     pub language: Vec<Tag>,
@@ -30,6 +37,7 @@ pub struct LanguageSpans {
     /// [`UNDETERMINED`].
     pub languages: Arc<TagSet>,
     pub script: Vec<Script>,
+    /// Not calibrated; see the type's documentation.
     pub confidence: Vec<f64>,
 }
 
