@@ -14,6 +14,9 @@
 //! - [`chunk`]: the English chunker trained on MASC's noun and verb
 //!   chunks, gated on those two chunk types against OpenNLP 1.5's
 //!   chunker (`en-chunker.bin`).
+//! - [`namefind`]: English name finders trained on MASC's named entities,
+//!   one per type (person, location, organization, date), each gated
+//!   against OpenNLP 1.5's name finder of that type.
 //! - [`spans`]: a held-out unit's counts from OpenNLP's `FMeasure`, both
 //!   models' counts paired, and the types a gate of typed spans scores.
 //! - [`card`]: the model card kept beside the gate record, and the
@@ -29,6 +32,9 @@
 //!   treebank's licence, attribution and citation, and its zoo entry,
 //!   which a treebank whose text rights are not settled (Porttinari) never
 //!   gets.
+//! - [`release`]: the releases of this repository that publish the MASC
+//!   models, each naming the models it publishes, and their entries in
+//!   the zoo's built-in index.
 //! - [`tatoeba`]: Tatoeba's sentence exports read with each sentence's
 //!   licence (issue #429).
 //! - [`langdetect`]: the language detector trained on Tatoeba's CC BY
@@ -40,15 +46,19 @@
 //! card and the gate record, and [`ud::run_ud`] one UD recipe from a
 //! treebank; the `turbo-train-recipes` binary runs the recipes of
 //! [`RECIPES`] on a MASC directory, or those of [`ud::UD_RECIPES`] on the
-//! treebanks, and writes each model's directory, and runs
-//! [`langdetect::run`] on a Tatoeba export.
+//! treebanks, and writes each model's directory, runs
+//! [`langdetect::run`] on a Tatoeba export, and its `zoo-index` command
+//! makes the zoo's entries for a release of the MASC models
+//! ([`release`]).
 
 pub mod card;
 pub mod chunk;
 pub mod error;
 pub mod langdetect;
 pub mod masc;
+pub mod namefind;
 pub mod postag;
+pub mod release;
 pub mod segmentation;
 pub mod spans;
 pub mod tatoeba;
@@ -64,9 +74,10 @@ use turbo_zoo::{Index, Sha256};
 
 pub use error::{Error, LeftOut, Result};
 
-use card::{ChunksCard, CorpusCard, HeldOutCard, ModelCard, ParametersCard};
+use card::{ChunksCard, CorpusCard, HeldOutCard, ModelCard, NamesCard, ParametersCard};
 use chunk::ChunkRecipe;
 use masc::{CorpusDigest, SPLIT, SplitCorpus};
+use namefind::NameRecipe;
 use postag::PosRecipe;
 use segmentation::{Component, SegmentationRecipe};
 
@@ -81,12 +92,16 @@ pub struct Trained {
     /// sample or tokens out of text order, by the tagger's for a token
     /// without a tag or for having no token (always 0 for the sentence
     /// detector), by the chunker's for those and for chunks that chunk
-    /// tags cannot express. At most [`MAX_SKIPPED_SENTENCES`] of those
-    /// read, or [`chunk::MAX_SKIPPED_SENTENCES`] for the chunker.
+    /// tags cannot express, by the name finder's for having no token. At
+    /// most [`MAX_SKIPPED_SENTENCES`] of those read, or
+    /// [`chunk::MAX_SKIPPED_SENTENCES`] for the chunker.
     pub skipped_sentences: usize,
     pub events: usize,
     /// `Training-Eventhash`.
     pub event_hash: u32,
+    /// For a name finder, what its reader counted of the named entities;
+    /// `None` for the other components.
+    pub names: Option<NamesCard>,
     /// For the chunker, the training documents' chunks in no sentence its
     /// reader reads ([`chunk::chunk_counts`]); `None` for the others.
     pub chunks: Option<ChunksCard>,
@@ -239,15 +254,21 @@ pub enum Recipe {
     Segmentation(SegmentationRecipe),
     Pos(PosRecipe),
     Chunk(ChunkRecipe),
+    Name(NameRecipe),
 }
 
 /// The recipes, in the order the binary runs them: the sentence detector,
-/// the tokenizer, the part-of-speech tagger, the chunker.
-pub const RECIPES: [Recipe; 4] = [
+/// the tokenizer, the part-of-speech tagger, the chunker, then the name
+/// finders of [`namefind::RECIPES`].
+pub const RECIPES: [Recipe; 8] = [
     Recipe::Segmentation(segmentation::SENTENCE),
     Recipe::Segmentation(segmentation::TOKENS),
     Recipe::Pos(postag::POS),
     Recipe::Chunk(chunk::CHUNKS),
+    Recipe::Name(namefind::PERSON),
+    Recipe::Name(namefind::LOCATION),
+    Recipe::Name(namefind::ORGANIZATION),
+    Recipe::Name(namefind::DATE),
 ];
 
 impl Recipe {
@@ -262,6 +283,7 @@ impl Recipe {
             Recipe::Segmentation(r) => r.model_id,
             Recipe::Pos(r) => r.model_id,
             Recipe::Chunk(r) => r.model_id,
+            Recipe::Name(r) => r.model_id,
         }
     }
 
@@ -271,6 +293,7 @@ impl Recipe {
             Recipe::Segmentation(r) => Reference::Zoo(r.reference_id),
             Recipe::Pos(r) => r.reference,
             Recipe::Chunk(r) => r.reference,
+            Recipe::Name(r) => r.reference,
         }
     }
 
@@ -285,6 +308,7 @@ impl Recipe {
             Recipe::Segmentation(r) => r.task(),
             Recipe::Pos(r) => r.task(),
             Recipe::Chunk(r) => r.task(),
+            Recipe::Name(r) => r.task(),
         }
     }
 
@@ -297,6 +321,7 @@ impl Recipe {
             },
             Recipe::Pos(_) => turbo_zoo::Component::Pos,
             Recipe::Chunk(_) => turbo_zoo::Component::Chunker,
+            Recipe::Name(_) => turbo_zoo::Component::NameFinder,
         }
     }
 
@@ -307,12 +332,17 @@ impl Recipe {
         matches!(self, Recipe::Chunk(_))
     }
 
-    /// The training parameters, as the card records them.
+    /// The training parameters, as the card records them: the UD models'
+    /// for the segmentation recipes and the tagger
+    /// ([`turbo_train_components::ud`]), the chunker's, and
+    /// `NameFinderME.train`'s defaults for the name finders
+    /// ([`namefind::training_parameters`]).
     pub fn parameters(&self) -> ParametersCard {
-        use turbo_train_components::ud;
+        use turbo_train_components::{namefind as names, ud};
         let (iterations, cutoff, threads) = match self {
             Recipe::Segmentation(_) | Recipe::Pos(_) => (ud::ITERATIONS, ud::CUTOFF, ud::THREADS),
             Recipe::Chunk(_) => (chunk::ITERATIONS, chunk::CUTOFF, chunk::THREADS),
+            Recipe::Name(_) => (names::DEFAULT_ITERATIONS, names::DEFAULT_CUTOFF, 1),
         };
         ParametersCard { algorithm: "MAXENT".to_owned(), iterations, cutoff, threads }
     }
@@ -327,6 +357,7 @@ impl Recipe {
             Recipe::Segmentation(r) => r.train(train),
             Recipe::Pos(r) => r.train(train),
             Recipe::Chunk(r) => r.train(train),
+            Recipe::Name(r) => r.train(train),
         }
     }
 
@@ -353,6 +384,9 @@ impl Recipe {
             }
             Recipe::Pos(r) => r.gate(trained, reference_id, reference, &r.held_out(held_out)?, set_name, corpus_sha256),
             Recipe::Chunk(r) => {
+                r.gate(trained, reference_id, reference, &r.held_out(held_out)?, set_name, corpus_sha256)
+            }
+            Recipe::Name(r) => {
                 r.gate(trained, reference_id, reference, &r.held_out(held_out)?, set_name, corpus_sha256)
             }
         }
@@ -400,6 +434,10 @@ impl Recipe {
                 self.check_recorded_skips(recorded, LeftOut::TrainingSentences, skipped.total())?;
                 let held_out = r.held_out(&split.held_out)?;
                 self.check_recorded_skips(recorded, LeftOut::HeldOutSentences, held_out.skipped().total())?;
+            }
+            Recipe::Name(r) => {
+                r.check_training(&split.train)?;
+                r.held_out(&split.held_out)?;
             }
         }
         Ok(())
@@ -521,7 +559,11 @@ mod tests {
                 "turbo-en-masc-3.0.0-sentence-1",
                 "turbo-en-masc-3.0.0-tokens-1",
                 "turbo-en-masc-3.0.0-pos-1",
-                "turbo-en-masc-3.0.0-chunks-1"
+                "turbo-en-masc-3.0.0-chunks-1",
+                "turbo-en-masc-3.0.0-ner-person-1",
+                "turbo-en-masc-3.0.0-ner-location-1",
+                "turbo-en-masc-3.0.0-ner-organization-1",
+                "turbo-en-masc-3.0.0-ner-date-1",
             ]
         );
         for r in RECIPES {
@@ -547,6 +589,18 @@ mod tests {
         assert_eq!(RECIPES[2].component(), turbo_zoo::Component::Pos);
         assert_eq!(RECIPES[2].reference_id(), "opennlp-en-pos-maxent-1.5");
         assert_eq!(RECIPES[2].reference().sha256().unwrap(), postag::EN_POS_MAXENT.sha256);
+        for r in &RECIPES[4..] {
+            assert_eq!(r.task(), Task::NameFinder);
+            assert_eq!(r.component(), turbo_zoo::Component::NameFinder);
+            assert_eq!(
+                r.parameters(),
+                ParametersCard { algorithm: "MAXENT".into(), iterations: 300, cutoff: 0, threads: 1 }
+            );
+        }
+        assert_eq!(
+            RECIPES[0].parameters(),
+            ParametersCard { algorithm: "MAXENT".into(), iterations: 300, cutoff: 5, threads: 4 }
+        );
         for r in RECIPES {
             assert_eq!(Recipe::trains(r.model_id()), Some(r));
         }

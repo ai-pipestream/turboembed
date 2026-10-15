@@ -254,6 +254,7 @@ impl SegmentationRecipe {
             skipped_sentences,
             events: events.len(),
             event_hash: report.event_hash.expect("trained from events"),
+            names: None,
             chunks: None,
         })
     }
@@ -404,8 +405,13 @@ impl SegmentationRecipe {
         let record =
             ModelGateRecord::new(self.task(), set, id(self.model_id, trained), id(reference_id, reference), units)
                 .map_err(Error::Gate)?;
-        let held_out =
-            HeldOutCard { samples: held_out.len(), skipped_sentences: held_out.skipped(), tokens: None, chunks: None };
+        let held_out = HeldOutCard {
+            samples: held_out.len(),
+            skipped_sentences: held_out.skipped(),
+            tokens: None,
+            names: None,
+            chunks: None,
+        };
         Ok(GateRun { record, held_out })
     }
 

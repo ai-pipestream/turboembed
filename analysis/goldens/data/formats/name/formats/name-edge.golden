@@ -3,13 +3,14 @@ generator	turbo-goldens-java	1
 opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
 jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
 unicode	15.0
-input	formats/name-edge	420	408	ef594ec59eb49dc9e4bf1e1819c596c164edb9ccb5ec6e80349236624e5d7ff6
+input	formats/name-edge	438	426	bdf19a4c216647138610a91432bddb582445ae5a5e761b554856b3501c5a3f34
 annotator	opennlp.tools.namefind.NameSampleDataStream	read
-layer	turbo:samples	document	16	written:str
+layer	turbo:samples	document	17	written:str
 single 
 <START:t> single  <END>
  <END>
 <START:a> <END> <START:b> <END> x 
+a  <END>
 a b c
 <START:a:b> x <END:y> <START:a>b
 leading and trailing spaces
@@ -25,61 +26,63 @@ final line without a line feed
 end	turbo:samples
 layer	turbo:read-errors	document	0	after:u32	class:str	message:str
 end	turbo:read-errors
-layer	turbo:sample-tokens	document	47	sample:u32	text:str
+layer	turbo:sample-tokens	document	48	sample:u32	text:str
 0	single
 1	single
 3	x
 4	a
-4	b
-4	c
-5	<START:a:b>
-5	x
-5	<END:y>
-5	<START:a>b
-6	leading
-6	and
-6	trailing
-6	spaces
-7	tab
-7	separated
-7	no-break
-7	em
-7	nel\u001cfs
-7	x
-8	ünïcode
-8	😀
-8	.
-9	after
-9	blanks
+5	a
+5	b
+5	c
+6	<START:a:b>
+6	x
+6	<END:y>
+6	<START:a>b
+7	leading
+7	and
+7	trailing
+7	spaces
+8	tab
+8	separated
+8	no-break
+8	em
+8	nel\u001cfs
+8	x
+9	ünïcode
+9	😀
+9	.
 10	after
-10	a
-10	whitespace
-10	only
-10	line
+10	blanks
+11	after
 11	a
-11	<END><START:y>
-11	b
-13	after
-13	a
-13	next
-13	line
+11	whitespace
+11	only
+11	line
+12	a
+12	<END><START:y>
+12	b
 14	after
 14	a
-14	file
-14	separator
-15	final
-15	line
-15	without
+14	next
+14	line
+15	after
 15	a
-15	line
-15	feed
+15	file
+15	separator
+16	final
+16	line
+16	without
+16	a
+16	line
+16	feed
 end	turbo:sample-tokens
-layer	turbo:names	document	7	sample:u32	start:u32	end:u32	type:str
+layer	turbo:names	document	8	sample:u32	start:u32	end:u32	type:str
 1	0	1	t
 2	0	0	t
 3	0	0	a
 3	0	0	b
-7	5	6	p
-8	0	2	é😀
-11	0	3	x
+4	1	1	x
+8	5	6	p
+9	0	2	é😀
+12	0	3	x
 end	turbo:names

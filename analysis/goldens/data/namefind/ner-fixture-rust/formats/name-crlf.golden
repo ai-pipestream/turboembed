@@ -1,0 +1,18 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	formats/name-crlf	31	31	eeaf6fd26f7504ce52f42b2653bc7ac31d9efd2fc21b0a01679319bb925ccaea
+model	ner-fixture-rust.bin	c9e30b48571cd106396a9f84c0692216b5934cd7cae4ec277ceb867b93a5b9ed4285349d48c2e3d7c508bb824697a2e68055b54817b0f9fbc06e011c510ef070
+annotator	opennlp.tools.namefind.NameFinderME	find
+config	run	find
+layer	turbo:name-found	document	0	sentence:u32	start:u32	end:u32	type:str	prob:f64
+end	turbo:name-found
+layer	turbo:name-probs	document	5	sentence:u32	token:u32	prob:f64
+0	0	3fed7b80020ef821 0.921325687427956
+0	1	3feb98e0927ed819 0.8624117718925418
+1	0	3fe5a6f1336f9c4c 0.6766286854371031
+2	0	3fe5a6f1336f9c4c 0.6766286854371031
+3	0	3fe5a6f1336f9c4c 0.6766286854371031
+end	turbo:name-probs

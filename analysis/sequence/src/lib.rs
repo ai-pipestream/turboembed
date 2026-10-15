@@ -18,7 +18,8 @@
 //!   version of the `ready/string-pattern-unicode` branch.
 //! - [`postag`], [`chunker`], [`namefind`]: the context generators and
 //!   validators of the three taggers, and the choices their factories make
-//!   for a model.
+//!   for a model; [`namefind::NameFinder`] is `NameFinderME.find` over a
+//!   model file, with the names' probabilities and `probs()`.
 //! - [`postag::dictionary`]: the part-of-speech tag dictionary a model
 //!   stores as `tags.tagdict`, which only the sequence validator reads.
 //! - [`postag::format`]: `POSTagFormatMapper`, the Penn Treebank and
@@ -73,6 +74,16 @@
 //!   `?`; so does every joined outcome of the UD English model (such as
 //!   `AUX+PART`) when Penn tags are asked for ([`postag::format`] lists
 //!   the rest).
+//! - The codecs' `encode` indexes the outcome array directly: an empty
+//!   span marks its start token as a start with BIO, and the token before
+//!   it as a unit with BILOU, over whatever outcome that token had; past
+//!   the last token with BIO, or at the first with BILOU (index -1), Java
+//!   throws `ArrayIndexOutOfBoundsException` and [`SequenceCodec::encode`]
+//!   panics. The trainer checks for those spans first.
+//! - `NameFinderME.find` returns no names when the search finds no
+//!   sequence, and then leaves the adaptive data and `probs()` as they
+//!   were; a name's probability is the mean of its outcomes', `NaN` for
+//!   an empty name.
 //!
 //! One is not reproduced yet: `QNModel.eval(context, probs)` adds its sums
 //! to what `probs` already holds, and `BeamSearch` passes the same array to

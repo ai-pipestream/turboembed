@@ -1,13 +1,13 @@
 //! The name finder's context generator and codec choice
 //! (`opennlp.tools.namefind`).
 
-use crate::beam::{ContextGenerator, SequenceValidator};
+use crate::beam::{BeamSearch, ContextGenerator, SequenceValidator, manifest_beam_size};
 use crate::codec::{BilouCodec, BilouValidator, BioCodec, BioValidator, SequenceCodec, Span};
 use crate::error::Result;
 use crate::featuregen::{AdditionalContext, BoxedGenerator, Window, descriptor};
 use crate::features::Features;
 use crate::pattern::{PatternMode, token_feature};
-use turbo_maxent::ModelFile;
+use turbo_maxent::{MaxentModel, ModelFile};
 
 /// The model entry of the classifier.
 pub const MODEL_ENTRY_NAME: &str = "nameFinder.model";
@@ -118,7 +118,7 @@ impl NameCodec {
     /// made.
     pub fn for_model(model: &ModelFile) -> NameCodec {
         match model.manifest().get(CODEC_PROPERTY) {
-            Some("opennlp.tools.namefind.BilouCodec") => NameCodec::Bilou,
+            Some(class) if class == NameCodec::Bilou.class_name() => NameCodec::Bilou,
             _ => NameCodec::Bio,
         }
     }
@@ -130,10 +130,36 @@ impl NameCodec {
         }
     }
 
+    /// `encode`: the outcomes of `length` tokens holding the spans.
+    ///
+    /// # Panics
+    ///
+    /// Where Java throws `ArrayIndexOutOfBoundsException`: with BIO, an
+    /// empty span after the last token; with BILOU, an empty span at the
+    /// first token, whose unit would go at index -1.
     pub fn encode(self, spans: &[Span], length: usize) -> Vec<String> {
         match self {
             NameCodec::Bio => BioCodec.encode(spans, length),
             NameCodec::Bilou => BilouCodec.encode(spans, length),
+        }
+    }
+
+    /// `areOutcomesCompatible`: whether a model with these outcomes can
+    /// be decoded with the codec, as `TokenNameFinderModel` checks a
+    /// trained model.
+    pub fn are_outcomes_compatible(self, outcomes: &[&str]) -> bool {
+        match self {
+            NameCodec::Bio => BioCodec.are_outcomes_compatible(outcomes),
+            NameCodec::Bilou => BilouCodec.are_outcomes_compatible(outcomes),
+        }
+    }
+
+    /// The codec's class, which a trained model's manifest names under
+    /// [`CODEC_PROPERTY`].
+    pub fn class_name(self) -> &'static str {
+        match self {
+            NameCodec::Bio => "opennlp.tools.namefind.BioCodec",
+            NameCodec::Bilou => "opennlp.tools.namefind.BilouCodec",
         }
     }
 }
@@ -144,5 +170,102 @@ impl<T> SequenceValidator<T> for NameCodec {
             NameCodec::Bio => BioValidator.valid_sequence(index, sequence, prior, outcome),
             NameCodec::Bilou => BilouValidator.valid_sequence(index, sequence, prior, outcome),
         }
+    }
+}
+
+/// A name `NameFinderME.find` returned: its span, typed as the model's
+/// outcomes name it, and the arithmetic mean of the probabilities of the
+/// outcomes it spans (`NameFinderME.probs(Span[])`), which is `NaN` for
+/// an empty span (0 / 0 in Java).
+#[derive(Debug, Clone, PartialEq)]
+pub struct FoundName {
+    pub span: Span,
+    pub prob: f64,
+}
+
+/// `NameFinderME` over a model file: the beam search of the model's beam
+/// size, the context generator `NameFinderME` builds for the model, and
+/// the model's codec with its sequence validator. Sentences are given in
+/// document order; the context generator's adaptive data carries over
+/// from one to the next until [`NameFinder::clear_adaptive_data`].
+pub struct NameFinder<'m> {
+    search: BeamSearch<'m>,
+    context: DefaultNameContext,
+    codec: NameCodec,
+    probs: Vec<f64>,
+}
+
+impl<'m> NameFinder<'m> {
+    /// `new NameFinderME(new TokenNameFinderModel(file))`, with `model` the
+    /// classifier of the file's `nameFinder.model` entry.
+    pub fn new(file: &ModelFile, model: &'m MaxentModel, mode: PatternMode) -> Result<NameFinder<'m>> {
+        let beam = manifest_beam_size(file, DEFAULT_BEAM_SIZE)?;
+        Ok(NameFinder {
+            search: BeamSearch::new(beam, model)?,
+            context: DefaultNameContext::for_model(file, mode)?,
+            codec: NameCodec::for_model(file),
+            probs: Vec::new(),
+        })
+    }
+
+    pub fn codec(&self) -> NameCodec {
+        self.codec
+    }
+
+    /// `find(tokens)`: the names of one sentence, with no additional
+    /// context. The best outcome sequence is passed to the generators'
+    /// adaptive data and decoded; when the search finds no sequence
+    /// scoring above its minimum, Java returns no names and leaves the
+    /// adaptive data as it was, and so does this.
+    pub fn find(&mut self, tokens: &[&str]) -> Vec<FoundName> {
+        self.context.set_additional_context(&[]);
+        let Some(best) = self.search.best_sequence(tokens, &mut self.context, &self.codec) else {
+            return Vec::new();
+        };
+        self.context.update_adaptive_data(tokens, best.outcomes());
+        self.probs.clear();
+        self.probs.extend_from_slice(best.probs());
+        let probs = best.probs();
+        self.codec
+            .decode(best.outcomes())
+            .into_iter()
+            .map(|span| {
+                let mut p = 0.0;
+                for prob in &probs[span.start..span.end] {
+                    p += prob;
+                }
+                let prob = p / span.len() as f64;
+                FoundName { span, prob }
+            })
+            .collect()
+    }
+
+    /// `probs()`: the probability of each outcome of the best sequence of
+    /// the last [`find`](NameFinder::find) that found one.
+    pub fn probs(&self) -> &[f64] {
+        &self.probs
+    }
+
+    /// `clearAdaptiveData`: the next sentence starts a document.
+    pub fn clear_adaptive_data(&mut self) {
+        self.context.clear_adaptive_data();
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn each_codec_names_its_class_and_checks_outcomes_as_its_codec_does() {
+        assert_eq!(NameCodec::Bio.class_name(), "opennlp.tools.namefind.BioCodec");
+        assert_eq!(NameCodec::Bilou.class_name(), "opennlp.tools.namefind.BilouCodec");
+        let bio = ["other", "person-start", "person-cont"];
+        assert!(NameCodec::Bio.are_outcomes_compatible(&bio));
+        assert!(!NameCodec::Bilou.are_outcomes_compatible(&bio));
+        // No start outcome: a model trained on samples without names.
+        assert!(!NameCodec::Bio.are_outcomes_compatible(&["other"]));
+        assert!(NameCodec::Bilou.are_outcomes_compatible(&["other", "x-unit"]));
+        assert_eq!(NameCodec::Bio.encode(&[Span::new(0, 1, Some("x"))], 2), ["x-start", "other"]);
     }
 }

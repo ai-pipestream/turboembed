@@ -26,6 +26,7 @@ pub use levels::{Level, Levels, Unit, VectorKind};
 pub use matches::Matches;
 pub use money::{CONVERTED_MONEY, Currency, Money, MoneyMention};
 pub use numbers::{DecimalRef, Multiplier, NumberMention, NumberNotation, Numbers, ScaleMarker};
+pub use ordinals::{OrdinalBase, OrdinalMention, Ordinals};
 pub use quantities::{PERCENT, Quantities, QuantityMention};
 pub use temporal::{DocumentDate, Granularity, Origin, TemporalMention, TemporalValue, Temporals};
 pub use words::{
@@ -92,6 +93,7 @@ mod levels;
 mod matches;
 mod money;
 mod numbers;
+mod ordinals;
 mod quantities;
 mod temporal;
 mod words;

@@ -386,6 +386,7 @@ impl PosRecipe {
             skipped_sentences: skipped,
             events: events.len(),
             event_hash: t.report.event_hash.expect("trained from events"),
+            names: None,
             chunks: None,
         })
     }
@@ -541,6 +542,7 @@ impl PosRecipe {
                 left_out,
                 reference_mismatches: baseline.mismatches,
             }),
+            names: None,
             chunks: None,
         };
         Ok(GateRun { record, held_out })

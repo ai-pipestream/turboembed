@@ -1,0 +1,12 @@
+# The OpenNLP models the gates of the MASC models release
+# (release::MASC_MODELS) score beside the trained ones: one line per
+# model, its SHA-256 and the address the models workflow fetches it from,
+# in the order of the recipes. The workflow saves each file under the
+# address's last segment and checks it against the SHA-256 before it
+# caches it. A test checks these lines against the recipes' references
+# (release::references). en-pos-maxent.bin and en-chunker.bin are only
+# scored, never shipped, bundled or trained on.
+4de58d12b09421003c8b1ba13e8b58ec533b28e1f22a65272119dc0993d333e8 https://archive.apache.org/dist/opennlp/models/ud-models-1.3/opennlp-en-ud-ewt-sentence-1.3-2.5.4.bin
+95139111197ba9f1165fc12be8d4cbac05ea3912f995d167efa1a0e04e3e649a https://archive.apache.org/dist/opennlp/models/ud-models-1.3/opennlp-en-ud-ewt-tokens-1.3-2.5.4.bin
+645a094f45a866687a617385233fd23ae8b0f5fa8b1b76996781a50c17bdcf3d https://opennlp.sourceforge.net/models-1.5/en-pos-maxent.bin
+7861a0c2f134d9c12a022a1ba501e88bc7039f6db72b4140e1bafd1fb5ef76cc https://opennlp.sourceforge.net/models-1.5/en-chunker.bin

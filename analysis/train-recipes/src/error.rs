@@ -17,6 +17,8 @@ pub enum Error {
     Train(turbo_train_components::Error),
     /// A model file could not be read.
     Model(String),
+    /// A sample built from a document that OpenNLP's sample class refuses.
+    Sample { path: PathBuf, message: String },
     /// The zoo refused or failed.
     Zoo(turbo_zoo::ZooError),
     /// The gate or its record failed.
@@ -82,6 +84,9 @@ pub enum Error {
     /// ([`crate::ud::ReferenceClasses`]): `left_out`, by tag as written, of
     /// `of` tokens.
     ClassesOutsideReference { reference: String, left_out: Vec<TagCount>, of: u64, limit: Limit },
+    /// A tag that names none of the releases of the recipes' models
+    /// ([`crate::release::MODELS_RELEASES`]), with the tags that do.
+    UnknownRelease { tag: String, known: Vec<&'static str> },
 }
 
 /// What a recipe leaves out, and [`Error::TooManyLeftOut`] counts.
@@ -112,6 +117,7 @@ impl fmt::Display for Error {
             Error::Eval(e) => write!(f, "evaluation: {e}"),
             Error::Train(e) => write!(f, "training: {e}"),
             Error::Model(e) => write!(f, "model: {e}"),
+            Error::Sample { path, message } => write!(f, "{}: a sample: {message}", path.display()),
             Error::Zoo(e) => write!(f, "zoo: {e}"),
             Error::Gate(e) => write!(f, "gate: {e}"),
             Error::InvalidRelease { field, value, message } => {
@@ -184,6 +190,9 @@ impl fmt::Display for Error {
                     write!(f, " {} ({})", t.tag, t.tokens)?;
                 }
                 Ok(())
+            }
+            Error::UnknownRelease { tag, known } => {
+                write!(f, "no release of the models is tagged {tag:?}; the releases are {}", known.join(", "))
             }
         }
     }
