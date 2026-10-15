@@ -7,8 +7,9 @@ use std::sync::Arc;
 
 use turbo_analysis::{Ix, IxRange, Key, KeyId, Layer, Span, Spans, ViewId};
 use turbo_analysis_layers::{
-    Aspects, ChunkTags, Chunks, Confidence, Entities, Incivility, IncivilityLabel, IncivilityTarget, Incongruity,
-    Language, Lemmas, Opinions, PhraseChunks, PosTags, Pragmatics, Sentences, Structure, Tag, TagSet, Tokens,
+    Aspects, Categories, ChunkTags, Chunks, Confidence, Entities, Incivility, IncivilityLabel, IncivilityTarget,
+    Incongruity, Language, Lemmas, Opinions, PhraseChunks, PosTags, Pragmatics, Sentences, Structure, Tag, TagSet,
+    Tokens,
 };
 
 use super::{GoldenLoad, LoadCx, LoadError};
@@ -532,5 +533,17 @@ impl GoldenLoad for Pragmatics {
 
     fn made_on(cx: &LoadCx<'_>) -> Vec<KeyId> {
         vec![Key::<Sentences>::named(cx.name).id(), Key::<Tokens>::named(cx.name).id()]
+    }
+}
+
+/// Every category the categorizer scored, best first, as the golden lists
+/// them. A golden with no rows names no category and is refused.
+impl GoldenLoad for Categories {
+    fn load(g: &GoldenLayer, cx: &LoadCx<'_>) -> Result<Categories, LoadError> {
+        if g.is_empty() {
+            return Err(LoadError::Empty { layer: cx.key });
+        }
+        let category = g.strs("category").expect("a str column the shape checked").clone();
+        Ok(Categories { category, score: f64s(g, "score").to_vec() })
     }
 }

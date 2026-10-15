@@ -562,7 +562,7 @@ pub const FIXTURES: [Fixture; 63] = [
 ];
 
 /// The input sets under `analysis/goldens/data/inputs`.
-pub const INPUT_SETS: [&str; 34] = [
+pub const INPUT_SETS: [&str; 38] = [
     "en",
     "multi",
     "norm",
@@ -599,6 +599,8 @@ pub const INPUT_SETS: [&str; 34] = [
     "stem",
     "stopword",
     "glossary",
+    "svm-doccat",
+    "svm-doccat-train",
 ];
 
 /// The arguments the driver passes to the generator after the fixed ones
@@ -612,7 +614,7 @@ pub const GENERATOR_ARGS: [&str; 1] = ["--dumps"];
 /// replaces and `verify` compares. The data directory holds other things
 /// (the inputs, the fixtures, the rate snapshot, a README) that neither
 /// touches.
-pub const ANNOTATORS: [&str; 38] = [
+pub const ANNOTATORS: [&str; 41] = [
     "sentdetect",
     "tokenize",
     "postag",
@@ -653,6 +655,7 @@ pub const ANNOTATORS: [&str; 38] = [
     "stem",
     "stopword",
     "glossary",
+    "svm-doccat",
 ];
 
 /// The annotators with runs that ask a maxent model for their decisions:
@@ -683,6 +686,12 @@ pub const QUANTITY_INPUT_SET: &str = "quantity";
 /// The input set the temporal extractor runs on. It runs on no other set,
 /// and the other annotators do not run on this one.
 pub const TEMPORAL_INPUT_SET: &str = "temporal";
+
+/// The input sets of the SVM document categorizer: the documents its models
+/// categorize, and the corpora they are trained on. No other annotator runs
+/// on them.
+pub const SVM_DOCCAT_INPUT_SET: &str = "svm-doccat";
+pub const SVM_DOCCAT_TRAIN_SET: &str = "svm-doccat-train";
 
 /// The input set the PII packs run on. They run on no other set, and the
 /// other annotators do not run on this one.
@@ -821,6 +830,8 @@ mod tests {
                 MONEY_INPUT_SET,
                 QUANTITY_INPUT_SET,
                 TEMPORAL_INPUT_SET,
+                SVM_DOCCAT_INPUT_SET,
+                SVM_DOCCAT_TRAIN_SET,
                 PII_INPUT_SET,
             ]
             .contains(s)
@@ -892,13 +903,15 @@ mod tests {
     }
 
     #[test]
-    fn the_pii_packs_have_their_own_input_set_and_no_dumps() {
-        assert!(INPUT_SETS.contains(&PII_INPUT_SET));
-        assert!(ANNOTATORS.contains(&"pii"));
-        assert!(!DUMPED_ANNOTATORS.contains(&"pii"));
-        let pii = include_str!("../java/src/main/java/ai/pipestream/turbo/goldens/PiiGolden.java");
-        assert!(pii.contains(&format!("INPUT_SET = \"{PII_INPUT_SET}\"")));
-        assert!(pii.contains("ANNOTATOR = \"pii\""));
+    fn the_svm_categorizer_has_its_own_input_sets_and_no_dumps() {
+        assert!(INPUT_SETS.contains(&SVM_DOCCAT_INPUT_SET));
+        assert!(INPUT_SETS.contains(&SVM_DOCCAT_TRAIN_SET));
+        assert!(ANNOTATORS.contains(&"svm-doccat"));
+        assert!(!DUMPED_ANNOTATORS.contains(&"svm-doccat"));
+        let svm = include_str!("../java/src/main/java/ai/pipestream/turbo/goldens/SvmDoccatGolden.java");
+        assert!(svm.contains(&format!("INPUT_SET = \"{SVM_DOCCAT_INPUT_SET}\"")));
+        assert!(svm.contains(&format!("TRAIN_SET = \"{SVM_DOCCAT_TRAIN_SET}\"")));
+        assert!(svm.contains("ANNOTATOR = \"svm-doccat\""));
     }
 
     #[test]

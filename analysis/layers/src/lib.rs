@@ -20,6 +20,7 @@ pub use turbo_analysis::{
 use turbo_analysis::{Anchor, Ix, IxRange, Key, KeyId, Layer, LayerName, ModelRef, Span, Spans};
 
 pub use abbreviations::{AbbreviationForm, Abbreviations, DEFINITION, MENTION, abbreviation_links};
+pub use categories::Categories;
 pub use date::{DAY_SECONDS, Date, DateTime, write_year};
 pub use language_spans::{LanguageSpan, LanguageSpans, UNDETERMINED};
 pub use levels::{Level, Levels, Unit, VectorKind};
@@ -93,6 +94,7 @@ macro_rules! positional {
 }
 
 mod abbreviations;
+mod categories;
 mod date;
 mod language_spans;
 mod levels;

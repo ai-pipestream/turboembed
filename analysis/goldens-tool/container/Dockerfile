@@ -30,13 +30,14 @@ RUN git init -q . \
  && test "$(git rev-parse HEAD)" = "$OPENNLP_COMMIT" \
  && git rev-parse HEAD > /opennlp.commit
 
-# The runtime, the formats module (the sample conversion streams) and the
-# modules they depend on, installed into the local Maven repository. The
-# forbidden API check is skipped because it fails on classes of this commit
-# (NameSample and Parse in opennlp-api use java.util.regex); it only reads the
-# compiled classes and changes nothing in them.
+# The runtime, the formats module (the sample conversion streams), the
+# LIBSVM document categorizer module and the modules they depend on,
+# installed into the local Maven repository. The forbidden API check is
+# skipped because it fails on classes of this commit (NameSample and Parse in
+# opennlp-api use java.util.regex); it only reads the compiled classes and
+# changes nothing in them.
 # -DskipITs is needed as well: the integration tests download models.
-RUN ./mvnw -q -DskipTests -DskipITs -Dforbiddenapis.skip=true -pl opennlp-core/opennlp-runtime,opennlp-core/opennlp-formats -am install
+RUN ./mvnw -q -DskipTests -DskipITs -Dforbiddenapis.skip=true -pl opennlp-core/opennlp-runtime,opennlp-core/opennlp-formats,opennlp-core/opennlp-ml/opennlp-ml-libsvm -am install
 
 # The code point StringPattern of the fork's ready/string-pattern-unicode
 # branch: its StringPattern and FeatureGeneratorUtil, and its ParamChecks,
