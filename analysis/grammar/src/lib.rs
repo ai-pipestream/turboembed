@@ -1,6 +1,7 @@
 //! A rule grammar for numbers, ordinals and percentages written in words
 //! or digits, with exact values (`one hundred and three and two thirds`,
-//! `1,674.5 million`, `twenty-first`, `per cent of 210`), and for dates,
+//! `1,674.5 million`, `twenty-first`, `per cent of 210`), for amounts in
+//! units and money (`6 ft 2 in`, `$3.5m`), and for dates,
 //! times, durations and sets (`tomorrow at 8am`, `from May to Oct 2020`,
 //! `for 3 hours`, `every Monday`).
 //!
@@ -11,6 +12,8 @@
 //!   numbers and [`ENGLISH_TIMES`], which adds the time rules.
 //! - [`time`] is the language-free form of a time value, its TIMEX3 text
 //!   and its resolution against a reference date-time.
+//! - [`unit`] types the units of measure and of money that
+//!   [`ENGLISH_UNITS`] reads after a number (`6 ft 2 in`, `$3.5m`).
 //! - [`GrammarAnnotator`] and [`TimeAnnotator`] write what a grammar finds
 //!   as layers.
 //!
@@ -24,13 +27,16 @@ pub mod engine;
 pub mod lang;
 pub mod time;
 pub mod times;
+pub mod unit;
 pub mod value;
 
-pub use annotator::{Found, GRAMMAR, GRAMMAR_NUMBERS, GRAMMAR_PERCENTS, GrammarAnnotator};
+pub use annotator::{Found, GRAMMAR, GRAMMAR_MONEY, GRAMMAR_NUMBERS, GRAMMAR_PERCENTS, GrammarAnnotator};
 pub use dec::Dec;
 pub use engine::{Grammar, Mention, Output, Parser};
+pub use lang::en::unit::{ENGLISH_UNITS, EnglishUnits};
 pub use lang::en::{ENGLISH, ENGLISH_TIMES, English, EnglishTimes};
 pub use lang::es::{SPANISH, SPANISH_TIMES, Spanish, SpanishTimes};
 pub use lang::nl::{DUTCH, DUTCH_TIMES, Dutch, DutchTimes};
 pub use times::TimeAnnotator;
-pub use value::{Num, NumKind, Ordinal, Relative, Value, flag};
+pub use unit::{CurrencyUnit, Measure, Unit};
+pub use value::{Num, NumKind, Ordinal, Quantity, Relative, Value, flag};

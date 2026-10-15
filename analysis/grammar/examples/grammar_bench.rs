@@ -1,4 +1,4 @@
-//! Times the English number and time grammars over a 100 KB text:
+//! Times the English number, unit and time grammars over a 100 KB text:
 //! `cargo run --release -p turbo-grammar --example grammar_bench`.
 
 #[path = "../tests/common/sample.rs"]
@@ -9,7 +9,7 @@ use std::time::Instant;
 use turbo_analysis::{Layer, ViewId};
 use turbo_analysis_layers::DateTime;
 use turbo_grammar::engine::Lexed;
-use turbo_grammar::{ENGLISH, Grammar, GrammarAnnotator, Output, Parser, TimeAnnotator};
+use turbo_grammar::{ENGLISH, ENGLISH_UNITS, Grammar, GrammarAnnotator, Output, Parser, TimeAnnotator};
 
 fn main() {
     let text = sample::sample(100 * 1024);
@@ -37,16 +37,24 @@ fn main() {
     let mut out = Vec::new();
     parser.select(&text, Output::Number, &mut out);
     println!(
-        "{} bytes, {} lexemes, {} chart nodes: {} numbers, {} percentages, {} ordinals",
+        "{} bytes, {} lexemes, {} chart nodes: {} numbers, {} percentages, {} ordinals, {} quantities, {} money",
         text.len(),
         parser.lexed().len(),
         parser.chart().nodes.len(),
         found.numbers.len(),
         found.percents.len(),
-        found.ordinals.len()
+        found.ordinals.len(),
+        found.quantities.len(),
+        found.money.len()
     );
+    let mut units = Parser::new(&ENGLISH_UNITS);
+    let t = Instant::now();
+    for _ in 0..runs {
+        units.parse(&text);
+    }
+    let units = t.elapsed() / runs;
     println!(
-        "lex {lex:?}, lex and parse {parse:?}, both and all three layers {per:?} per run ({:.1} MB/s)",
+        "lex {lex:?}, lex and parse {parse:?}, with the unit rules {units:?}, all layers {per:?} per run ({:.1} MB/s)",
         text.len() as f64 / per.as_secs_f64() / 1e6
     );
     let times = TimeAnnotator::english();

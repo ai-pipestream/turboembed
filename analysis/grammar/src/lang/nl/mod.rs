@@ -173,7 +173,7 @@ pub(crate) fn keep(rules: &[Rule], output: Output, node: &Node, ctx: &Ctx<'_>) -
             }
             _ => true,
         },
-        Output::Percent | Output::Time => true,
+        Output::Percent | Output::Quantity | Output::Time => true,
     }
 }
 

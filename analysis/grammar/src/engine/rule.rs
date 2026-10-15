@@ -143,6 +143,8 @@ pub enum Output {
     Number,
     Ordinal,
     Percent,
+    /// Amounts with a unit, money included, and units named alone.
+    Quantity,
     Time,
 }
 
