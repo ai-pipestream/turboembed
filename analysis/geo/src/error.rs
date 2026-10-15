@@ -87,7 +87,7 @@ pub enum RowProblem {
     },
     /// A suppression rule that could never match or has a bad filter.
     Suppression(SuppressionError),
-    /// A row of the bundled table without its eleven fields.
+    /// A row of the bundled table without its eleven fields; the row.
     Bundled(String),
 }
 
@@ -114,7 +114,7 @@ impl fmt::Display for RowProblem {
             }
             RowProblem::NoLocation => f.write_str("a row needs coordinates or a bounding box"),
             RowProblem::BoxEdges(field) => write!(f, "a bounding box must read west,south,east,north, got: {field}"),
-            RowProblem::AttributePair(pair) => write!(f, "an attribute must read key=value, got: {pair}"),
+            RowProblem::AttributePair(pair) => write!(f, "an attribute column must read key=value, got: {pair}"),
             RowProblem::DuplicateAttribute(key) => write!(f, "the attribute key repeats: {key}"),
             RowProblem::RepeatedId(id) => write!(f, "repeats record id: {id}"),
             RowProblem::Unmatchable { name, source, record_id } => write!(
@@ -122,8 +122,8 @@ impl fmt::Display for RowProblem {
                 "Name '{name}' of record {source};{record_id} folds to an empty match key, so the record would be \
                  unreachable by lookup"
             ),
-            RowProblem::Suppression(e) => write!(f, "not a suppression rule: {e}"),
-            RowProblem::Bundled(line) => write!(f, "malformed gazetteer data: {line}"),
+            RowProblem::Suppression(e) => e.fmt(f),
+            RowProblem::Bundled(line) => f.write_str(line),
         }
     }
 }
@@ -140,6 +140,29 @@ impl From<NumberFormat> for RowProblem {
     }
 }
 
+/// The kind of table a row is in, which OpenNLP names in its messages.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum TableKind {
+    GeoNames,
+    Overture,
+    User,
+    Suppressions,
+    Bundled,
+}
+
+impl TableKind {
+    /// What OpenNLP calls a row of this table in "line N is not a ...".
+    fn row_name(self) -> &'static str {
+        match self {
+            TableKind::GeoNames => "GeoNames row",
+            TableKind::Overture => "derived division row",
+            TableKind::User => "gazetteer row",
+            TableKind::Suppressions => "suppression rule",
+            TableKind::Bundled => "bundled row",
+        }
+    }
+}
+
 /// Why a table cannot be loaded.
 #[derive(Debug)]
 pub enum LoadError {
@@ -149,9 +172,11 @@ pub enum LoadError {
     Utf8 {
         line: usize,
     },
-    /// A row the format refuses, with its one-based line number.
+    /// A row the format refuses, with its one-based line number and the
+    /// kind of table it is in.
     Row {
         line: usize,
+        table: TableKind,
         problem: RowProblem,
     },
     /// The table holds no data rows.
@@ -166,7 +191,7 @@ impl fmt::Display for LoadError {
         match self {
             LoadError::Io(e) => e.fmt(f),
             LoadError::Utf8 { line } => write!(f, "line {line} is not valid UTF-8"),
-            LoadError::Row { line, problem } => write!(f, "line {line}: {problem}"),
+            LoadError::Row { line, table, problem } => row_message(f, *line, *table, problem),
             LoadError::NoRows => f.write_str("the table contains no rows"),
             LoadError::Capacity(e) => e.fmt(f),
             LoadError::BlankSource => f.write_str("source must not be null or blank"),
@@ -192,5 +217,21 @@ impl From<std::io::Error> for LoadError {
 impl From<CapacityError> for LoadError {
     fn from(e: CapacityError) -> LoadError {
         LoadError::Capacity(e)
+    }
+}
+
+/// OpenNLP's message for a refused row. The column count, a repeated id
+/// and a name that folds to nothing have messages of their own; a row the
+/// format cannot read is "not a" row of its table, except in the bundled
+/// table, whose messages name the resource. The bundled table loads, so
+/// those messages are never seen.
+fn row_message(f: &mut fmt::Formatter<'_>, line: usize, table: TableKind, problem: &RowProblem) -> fmt::Result {
+    match problem {
+        RowProblem::Columns { .. } | RowProblem::RepeatedId(_) => write!(f, "line {line} {problem}"),
+        RowProblem::Unmatchable { .. } => write!(f, "line {line}: {problem}"),
+        _ if table == TableKind::Bundled => {
+            write!(f, "Malformed gazetteer data in {} at line {line}: {problem}", crate::BUNDLED_TABLE_NAME)
+        }
+        _ => write!(f, "line {line} is not a {}: {problem}", table.row_name()),
     }
 }

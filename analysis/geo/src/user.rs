@@ -4,7 +4,7 @@
 use std::path::Path;
 
 use crate::entry::{GeoBoundingBox, GeoPoint};
-use crate::error::{ColumnCount, LoadError, RowProblem};
+use crate::error::{ColumnCount, LoadError, RowProblem, TableKind};
 use crate::gazetteer::indexed_gazetteer;
 use crate::geonames::{double, population};
 use crate::index::{Alternates, GazetteerIndex};
@@ -44,8 +44,12 @@ pub struct UserGazetteer {
     index: GazetteerIndex,
 }
 
-const FORMAT: TableFormat =
-    TableFormat { skip_comments: true, strip_byte_order_mark: true, alternates: Alternates::Reject };
+const FORMAT: TableFormat = TableFormat {
+    table: TableKind::User,
+    skip_comments: true,
+    strip_byte_order_mark: true,
+    alternates: Alternates::Reject,
+};
 
 impl UserGazetteer {
     /// Loads the table in the file at `path`, scoping its records to the
@@ -97,11 +101,14 @@ impl UserGazetteer {
             let fields: Vec<&str> = content.split('\t').collect();
             if fields.len() > 3 {
                 let problem = RowProblem::Columns { found: fields.len(), expected: ColumnCount::AtMost(3) };
-                return Err(LoadError::Row { line, problem });
+                return Err(LoadError::Row { line, table: TableKind::Suppressions, problem });
             }
             let filter = |i: usize| (!absent(&fields, i)).then(|| trim(fields[i]));
-            let rule = Suppression::new(trim(fields[0]), filter(1), filter(2))
-                .map_err(|e| LoadError::Row { line, problem: RowProblem::Suppression(e) })?;
+            let rule = Suppression::new(trim(fields[0]), filter(1), filter(2)).map_err(|e| LoadError::Row {
+                line,
+                table: TableKind::Suppressions,
+                problem: RowProblem::Suppression(e),
+            })?;
             rules.push(rule);
         }
         Ok(rules)

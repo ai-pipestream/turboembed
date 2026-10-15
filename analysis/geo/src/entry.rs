@@ -51,8 +51,9 @@ pub enum EntryError {
     },
     /// A required text that is empty or Unicode white space only.
     Blank(&'static str),
-    /// An alternate name or containment level that is blank.
-    BlankElement(&'static str),
+    /// An alternate name or containment level that is blank: the field and
+    /// the whole list as Java's `List.toString` writes it.
+    BlankElement(&'static str, String),
     /// A country code that is not two ASCII capital letters.
     CountryCode(String),
     Population(i64),
@@ -76,13 +77,15 @@ impl fmt::Display for EntryError {
                 write!(f, "south must not be greater than north, got: {} > {}", d(*south), d(*north))
             }
             EntryError::Blank(what) => write!(f, "{what} must not be null or blank"),
-            EntryError::BlankElement(what) => write!(f, "{what} must not contain a null or blank element"),
+            EntryError::BlankElement(what, list) => {
+                write!(f, "{what} must not contain a null or blank element, got: {list}")
+            }
             EntryError::CountryCode(code) => write!(
                 f,
                 "countryCode must be an ISO 3166-1 alpha-2 code (two ASCII capital letters) or null, got: {code}"
             ),
             EntryError::Population(p) => write!(f, "population must not be negative, got: {p}"),
-            EntryError::Attribute(what) => write!(f, "attribute {what} must not be null or blank"),
+            EntryError::Attribute(what) => write!(f, "{what} must not be null or blank"),
             EntryError::DuplicateAttribute(key) => write!(f, "the attribute key repeats: {key}"),
         }
     }

@@ -6,7 +6,7 @@ use std::sync::OnceLock;
 use turbo_jvm::text::parse_double;
 
 use crate::entry::GeoPoint;
-use crate::error::{LoadError, NumberFormat, RowProblem};
+use crate::error::{LoadError, NumberFormat, RowProblem, TableKind};
 use crate::gazetteer::indexed_gazetteer;
 use crate::index::{Alternates, GazetteerIndex};
 use crate::load::{RowParser, Scratch, TableFormat, load_bytes};
@@ -38,8 +38,12 @@ pub struct BundledGazetteer {
 /// the row's source. Nothing is trimmed.
 const FIELDS: usize = 11;
 
-const FORMAT: TableFormat =
-    TableFormat { skip_comments: true, strip_byte_order_mark: false, alternates: Alternates::Reject };
+const FORMAT: TableFormat = TableFormat {
+    table: TableKind::Bundled,
+    skip_comments: true,
+    strip_byte_order_mark: false,
+    alternates: Alternates::Reject,
+};
 
 impl BundledGazetteer {
     /// The shared instance. Parsing the bundled table cannot fail; a test

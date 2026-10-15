@@ -6,7 +6,7 @@ use std::path::Path;
 use turbo_jvm::text::parse_double;
 
 use crate::entry::{FEATURE_CLASS_ADMIN, FEATURE_CLASS_CITY, FEATURE_CLASS_POI, GeoPoint};
-use crate::error::{ColumnCount, LoadError, NumberFormat, RowProblem};
+use crate::error::{ColumnCount, LoadError, NumberFormat, RowProblem, TableKind};
 use crate::gazetteer::indexed_gazetteer;
 use crate::index::{Alternates, GazetteerIndex};
 use crate::load::{RowParser, Scratch, TableFormat, load_bytes, load_path};
@@ -38,8 +38,12 @@ pub const GEONAMES_SOURCE: &str = "geonames";
 
 const COLUMNS: usize = 19;
 
-const FORMAT: TableFormat =
-    TableFormat { skip_comments: false, strip_byte_order_mark: true, alternates: Alternates::Skip };
+const FORMAT: TableFormat = TableFormat {
+    table: TableKind::GeoNames,
+    skip_comments: false,
+    strip_byte_order_mark: true,
+    alternates: Alternates::Skip,
+};
 
 impl GeoNamesGazetteer {
     /// Loads the table in the file at `path`.

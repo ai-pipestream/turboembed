@@ -16,23 +16,14 @@ fn ids(found: &[Entry<'_>]) -> Vec<String> {
 
 fn row_problem(e: LoadError) -> (usize, RowProblem) {
     match e {
-        LoadError::Row { line, problem } => (line, problem),
+        LoadError::Row { line, problem, .. } => (line, problem),
         other => panic!("expected a row problem, got {other:?}"),
     }
 }
 
 /// A GeoNames row with the given cells in columns 0 to 8 and 14.
-fn geonames_row(
-    id: &str,
-    name: &str,
-    ascii: &str,
-    alternates: &str,
-    lat: &str,
-    lon: &str,
-    class: &str,
-    cc: &str,
-    pop: &str,
-) -> String {
+fn geonames_row(cells: [&str; 9]) -> String {
+    let [id, name, ascii, alternates, lat, lon, class, cc, pop] = cells;
     [id, name, ascii, alternates, lat, lon, class, "PPL", cc, "", "", "", "", "", pop, "", "0", "", "2026-01-01"]
         .join("\t")
 }
@@ -76,20 +67,20 @@ fn ties_fall_to_the_feature_class_then_the_record_id_as_java_compares_it() {
 
 #[test]
 fn a_geonames_row_needs_nineteen_columns_and_java_numbers() {
-    let ok = geonames_row("1", "A", "", "", "1", "2", "P", "", "");
+    let ok = geonames_row(["1", "A", "", "", "1", "2", "P", "", ""]);
     let wide = format!("{ok}\textra");
     let e = GeoNamesGazetteer::from_bytes(format!("{ok}\n{wide}\n").as_bytes()).err().unwrap();
     assert_eq!(row_problem(e), (2, RowProblem::Columns { found: 20, expected: ColumnCount::Exactly(19) }));
-    let bad = geonames_row("2", "B", "", "", "north", "2", "P", "", "");
+    let bad = geonames_row(["2", "B", "", "", "north", "2", "P", "", ""]);
     let e = GeoNamesGazetteer::from_bytes(format!("{ok}\n\n{bad}").as_bytes()).err().unwrap();
     assert_eq!(row_problem(e), (3, RowProblem::Number(NumberFormat("north".into()))));
-    let far = geonames_row("2", "B", "", "", "91", "2", "P", "", "");
+    let far = geonames_row(["2", "B", "", "", "91", "2", "P", "", ""]);
     let e = GeoNamesGazetteer::from_bytes(far.as_bytes()).err().unwrap();
     assert_eq!(row_problem(e), (1, RowProblem::Entry(EntryError::Latitude(91.0))));
-    let lower = geonames_row("2", "B", "", "", "1", "2", "P", "de", "");
+    let lower = geonames_row(["2", "B", "", "", "1", "2", "P", "de", ""]);
     let e = GeoNamesGazetteer::from_bytes(lower.as_bytes()).err().unwrap();
     assert_eq!(row_problem(e), (1, RowProblem::Entry(EntryError::CountryCode("de".into()))));
-    let negative = geonames_row("2", "B", "", "", "1", "2", "P", "", "-5");
+    let negative = geonames_row(["2", "B", "", "", "1", "2", "P", "", "-5"]);
     let e = GeoNamesGazetteer::from_bytes(negative.as_bytes()).err().unwrap();
     assert_eq!(row_problem(e), (1, RowProblem::Entry(EntryError::Population(-5))));
     let repeated = format!("{ok}\r\n{ok}\r\n");
@@ -102,16 +93,16 @@ fn a_geonames_row_needs_nineteen_columns_and_java_numbers() {
 
 #[test]
 fn a_canonical_name_without_a_word_token_is_refused_and_an_alternate_skipped() {
-    let ok = geonames_row("1", "A", "", "...", "1", "2", "P", "", "");
+    let ok = geonames_row(["1", "A", "", "...", "1", "2", "P", "", ""]);
     let g = GeoNamesGazetteer::from_bytes(ok.as_bytes()).unwrap();
     assert_eq!(g.by_id("geonames", "1").unwrap().alternate_names().collect::<Vec<_>>(), ["..."]);
-    let bad = geonames_row("2", "...", "", "", "1", "2", "P", "", "");
+    let bad = geonames_row(["2", "...", "", "", "1", "2", "P", "", ""]);
     let e = GeoNamesGazetteer::from_bytes(format!("{ok}\n{bad}\n").as_bytes()).err().unwrap();
     let (line, problem) = row_problem(e);
     assert_eq!(line, 2);
     assert!(matches!(problem, RowProblem::Unmatchable { name, .. } if name == "..."));
     // The repeated id is reported before the unmatchable name.
-    let both = geonames_row("1", "...", "", "", "1", "2", "P", "", "");
+    let both = geonames_row(["1", "...", "", "", "1", "2", "P", "", ""]);
     let e = GeoNamesGazetteer::from_bytes(format!("{ok}\n{both}\n").as_bytes()).err().unwrap();
     assert_eq!(row_problem(e), (2, RowProblem::RepeatedId("1".into())));
 }
@@ -246,7 +237,7 @@ fn large_table(rows: usize) -> String {
         let name = format!("Place {} Ünïcode {}", i % 9973, i % 7);
         let alternates = format!("Alt {i},Ålt {},Plàce {}", i % 101, i % 13);
         let class = ["P", "A", "S"][i % 3];
-        text.push_str(&geonames_row(
+        text.push_str(&geonames_row([
             &i.to_string(),
             &name,
             "",
@@ -256,7 +247,7 @@ fn large_table(rows: usize) -> String {
             class,
             "DE",
             &(i % 1000).to_string(),
-        ));
+        ]));
         text.push(if i % 2 == 0 { '\n' } else { '\r' });
         if i % 3 == 0 {
             text.push('\n');
@@ -281,10 +272,27 @@ fn a_table_read_on_several_threads_matches_one_read_on_one() {
         assert!(!found.is_empty(), "{query}");
         assert_eq!(found, ids(&single.lookup(query)), "{query}");
     }
+    // Long candidate lists are in ranking order: population descending,
+    // then CITY, ADMIN, POI, then the record id (ASCII digits here, where
+    // String.compareTo is byte order).
+    let rank = |e: &Entry<'_>| match e.feature_class() {
+        Some("CITY") => 0,
+        Some("ADMIN") => 1,
+        Some("POI") => 2,
+        _ => 3,
+    };
+    for query in ["ALT 100", "plàce 12"] {
+        let found = parallel.lookup(query);
+        assert!(found.len() > 400, "{query}");
+        for pair in found.windows(2) {
+            let key = |e: &Entry<'_>| (std::cmp::Reverse(e.population()), rank(e), e.record_id().to_string());
+            assert!(key(&pair[0]) < key(&pair[1]), "{query}: {:?} before {:?}", pair[0], pair[1]);
+        }
+    }
     let de = RegionCode::parse("DE").unwrap();
     assert_eq!(parallel.by_region(de).unwrap().record_id(), single.by_region(de).unwrap().record_id());
     // A repeated id far into the table is reported on its line.
-    let repeated = format!("{text}{}\n", geonames_row("59990", "X", "", "", "1", "2", "P", "", ""));
+    let repeated = format!("{text}{}\n", geonames_row(["59990", "X", "", "", "1", "2", "P", "", ""]));
     let e = GeoNamesGazetteer::from_bytes(repeated.as_bytes()).err().unwrap();
     let lines = text.replace("\r\n", "\n").replace('\r', "\n").lines().count();
     assert_eq!(row_problem(e), (lines + 1, RowProblem::RepeatedId("59990".into())));

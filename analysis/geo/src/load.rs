@@ -9,7 +9,7 @@
 
 use std::path::Path;
 
-use crate::error::{LoadError, RowProblem};
+use crate::error::{LoadError, RowProblem, TableKind};
 use crate::fold::Folder;
 use crate::index::{Alternates, BuildError, Fragment, GazetteerIndex, IndexBuilder};
 use crate::store::{CapacityError, Row, RowAttribute};
@@ -35,6 +35,7 @@ pub(crate) trait RowParser<'t>: Sync {
 /// How a table format reads its lines.
 #[derive(Clone, Copy, Debug)]
 pub(crate) struct TableFormat {
+    pub(crate) table: TableKind,
     pub(crate) skip_comments: bool,
     pub(crate) strip_byte_order_mark: bool,
     pub(crate) alternates: Alternates,
@@ -101,16 +102,20 @@ pub(crate) fn load_bytes<'t>(
             let line = |row: usize| first_line + line_numbers[row] as usize;
             match e {
                 BuildError::Duplicate { row, record_id } => {
-                    LoadError::Row { line: line(row), problem: RowProblem::RepeatedId(record_id) }
+                    LoadError::Row { line: line(row), table: format.table, problem: RowProblem::RepeatedId(record_id) }
                 }
-                BuildError::Unmatchable { row, name, source, record_id } => {
-                    LoadError::Row { line: line(row), problem: RowProblem::Unmatchable { name, source, record_id } }
-                }
+                BuildError::Unmatchable { row, name, source, record_id } => LoadError::Row {
+                    line: line(row),
+                    table: format.table,
+                    problem: RowProblem::Unmatchable { name, source, record_id },
+                },
                 BuildError::Capacity(c) => LoadError::Capacity(c),
             }
         })?;
         match error {
-            Some(Stop::Row(line, problem)) => return Err(LoadError::Row { line: first_line + line, problem }),
+            Some(Stop::Row(line, problem)) => {
+                return Err(LoadError::Row { line: first_line + line, table: format.table, problem });
+            }
             Some(Stop::Capacity(c)) => return Err(LoadError::Capacity(c)),
             None => {}
         }

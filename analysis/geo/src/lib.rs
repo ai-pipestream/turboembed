@@ -37,11 +37,13 @@
 //! ranked in parallel.
 //!
 //! It follows the `geo` module at commit
-//! `abaada5e21c3177d911233149f5c7095a6266fb4` of the OpenNLP addons fork,
-//! run against the runtime of commit
-//! `cdf33c653d5d61d5af7d37ffee189a83bd8392ea` of the OpenNLP fork on
-//! JDK 21; `README.md` describes the JVM golden files the tests compare
-//! with.
+//! `abaada5e21c3177d911233149f5c7095a6266fb4` of the OpenNLP addons fork
+//! (the module is the same at `33e95a4956f1535cdc074056b29246fe88b3c81a`,
+//! the addons commit the goldens are built from), run against the runtime
+//! of commit `cdf33c653d5d61d5af7d37ffee189a83bd8392ea` of the OpenNLP fork
+//! on JDK 21; `README.md` describes the JVM golden files the tests compare
+//! with. A table that does not load gives a [`LoadError`] whose message is
+//! OpenNLP's, line number included.
 //!
 //! # What OpenNLP does that may surprise
 //!
@@ -98,7 +100,7 @@ pub use entry::{
     ATTRIBUTE_KEY_ZCTA, AttributeValue, EntryError, EntryParts, FEATURE_CLASS_ADMIN, FEATURE_CLASS_CITY,
     FEATURE_CLASS_POI, GazetteerEntry, GeoBoundingBox, GeoPoint, InvalidRegionCode, RegionCode, SOURCE_UNSPECIFIED,
 };
-pub use error::{ColumnCount, IndexError, LoadError, NumberFormat, RowProblem};
+pub use error::{ColumnCount, IndexError, LoadError, NumberFormat, RowProblem, TableKind};
 pub use fold::Folder;
 pub use gazetteer::Gazetteer;
 pub use geonames::{GEONAMES_SOURCE, GeoNamesGazetteer};

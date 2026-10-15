@@ -77,11 +77,11 @@ impl Row<'_> {
             return Err(EntryError::Blank("name"));
         }
         if self.alternates.iter().any(|n| is_blank(n)) {
-            return Err(EntryError::BlankElement("alternateNames"));
+            return Err(EntryError::BlankElement("alternateNames", java_list(self.alternates)));
         }
         let country = self.country.map(RegionCode::from_record).transpose()?;
         if self.containment.iter().any(|n| is_blank(n)) {
-            return Err(EntryError::BlankElement("containment"));
+            return Err(EntryError::BlankElement("containment", java_list(self.containment)));
         }
         if self.population < 0 {
             return Err(EntryError::Population(self.population));
@@ -102,6 +102,11 @@ impl Row<'_> {
         }
         Ok(country)
     }
+}
+
+/// A list of strings as Java's `List.toString` writes it.
+fn java_list(items: &[&str]) -> String {
+    format!("[{}]", items.join(", "))
 }
 
 /// The small integer codes of the few distinct short strings: sources,

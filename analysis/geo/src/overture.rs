@@ -4,7 +4,7 @@
 use std::path::Path;
 
 use crate::entry::{FEATURE_CLASS_ADMIN, FEATURE_CLASS_CITY, FEATURE_CLASS_POI, GeoPoint};
-use crate::error::{ColumnCount, LoadError, RowProblem};
+use crate::error::{ColumnCount, LoadError, RowProblem, TableKind};
 use crate::gazetteer::indexed_gazetteer;
 use crate::geonames::{double, population, push_alternates};
 use crate::index::{Alternates, GazetteerIndex};
@@ -36,8 +36,12 @@ pub const OVERTURE_SOURCE: &str = "overture";
 
 const COLUMNS: usize = 8;
 
-const FORMAT: TableFormat =
-    TableFormat { skip_comments: true, strip_byte_order_mark: true, alternates: Alternates::Skip };
+const FORMAT: TableFormat = TableFormat {
+    table: TableKind::Overture,
+    skip_comments: true,
+    strip_byte_order_mark: true,
+    alternates: Alternates::Skip,
+};
 
 impl OvertureGazetteer {
     /// Loads the table in the file at `path`.

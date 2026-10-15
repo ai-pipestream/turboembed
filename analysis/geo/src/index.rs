@@ -12,7 +12,7 @@ use std::cell::RefCell;
 
 use crate::entry::RegionCode;
 use crate::fold::Folder;
-use crate::ranking::{by_prior, code_ranks};
+use crate::ranking::{Ranker, by_prior, code_ranks};
 use crate::store::{CapacityError, Entry, EntryStore, NONE32, Row};
 use crate::table::{HashSlots, hash_bytes};
 
@@ -40,6 +40,9 @@ pub(crate) struct Fragment {
     /// The match keys of all rows, one after the other.
     keys: String,
     key_bounds: Vec<u32>,
+    /// The hash of each key, taken here so the threads that parse share
+    /// the work.
+    key_hashes: Vec<u64>,
     /// The first key of each row, and the key count at the end.
     row_keys: Vec<u32>,
     /// The rows with a name that folds to nothing, in row order, each with
@@ -56,6 +59,7 @@ impl Fragment {
             store: EntryStore::new(),
             keys: String::new(),
             key_bounds: vec![0],
+            key_hashes: Vec::new(),
             row_keys: vec![0],
             unmatchable: Vec::new(),
             lines: Vec::new(),
@@ -97,6 +101,7 @@ impl Fragment {
     }
 
     fn push_key(&mut self, key: &str) -> Result<(), CapacityError> {
+        self.key_hashes.push(hash_bytes(NAME_SEED, key.as_bytes()));
         self.keys.push_str(key);
         self.key_bounds.push(u32::try_from(self.keys.len()).map_err(|_| CapacityError::Text)?);
         Ok(())
@@ -129,19 +134,18 @@ impl KeyTable {
         self.slots.find(hash_bytes(NAME_SEED, key.as_bytes()), |k| self.key(k) == key)
     }
 
-    fn find_or_insert(&mut self, key: &str) -> Result<u32, CapacityError> {
-        let hash = hash_bytes(NAME_SEED, key.as_bytes());
+    /// The id of `key`, whose hash is `hash`, added if it is new. `hashes`
+    /// holds the hash of every key so far, so the table grows without
+    /// hashing the key text again.
+    fn find_or_insert(&mut self, key: &str, hash: u64, hashes: &mut Vec<u64>) -> Result<u32, CapacityError> {
         if let Some(k) = self.slots.find(hash, |k| self.key(k) == key) {
             return Ok(k);
         }
         let k = u32::try_from(self.len()).map_err(|_| CapacityError::Text)?;
         self.text.push_str(key);
         self.bounds.push(u32::try_from(self.text.len()).map_err(|_| CapacityError::Text)?);
-        let (text, bounds) = (&self.text, &self.bounds);
-        self.slots.insert(hash, k, |k| {
-            let k = k as usize;
-            hash_bytes(NAME_SEED, &text.as_bytes()[bounds[k] as usize..bounds[k + 1] as usize])
-        });
+        hashes.push(hash);
+        self.slots.insert(hash, k, |k| hashes[k as usize]);
         Ok(k)
     }
 }
@@ -178,6 +182,8 @@ impl From<CapacityError> for BuildError {
 pub(crate) struct IndexBuilder {
     store: EntryStore,
     names: KeyTable,
+    /// The hash of each key of `names`, while the index is built.
+    name_hashes: Vec<u64>,
     /// For each name of each record, the key and the record, in record
     /// order.
     pair_key: Vec<u32>,
@@ -192,6 +198,7 @@ impl IndexBuilder {
         IndexBuilder {
             store: EntryStore::new(),
             names: KeyTable::new(),
+            name_hashes: Vec::new(),
             pair_key: Vec::new(),
             pair_record: Vec::new(),
             ids: HashSlots::default(),
@@ -216,7 +223,7 @@ impl IndexBuilder {
     pub(crate) fn add(&mut self, fragment: Fragment) -> Result<(), BuildError> {
         let base = self.store.len() as u32;
         let rows = fragment.len();
-        let Fragment { store, keys, key_bounds, row_keys, unmatchable, .. } = fragment;
+        let Fragment { store, keys, key_bounds, key_hashes, row_keys, unmatchable, .. } = fragment;
         let key_of = |k: u32| &keys[key_bounds[k as usize] as usize..key_bounds[k as usize + 1] as usize];
         self.store.append(store)?;
         let mut ranks = code_ranks(&self.store);
@@ -246,7 +253,7 @@ impl IndexBuilder {
             }
             let first_pair = self.pair_key.len();
             for k in row_keys[r]..row_keys[r + 1] {
-                let key = self.names.find_or_insert(key_of(k))?;
+                let key = self.names.find_or_insert(key_of(k), key_hashes[k as usize], &mut self.name_hashes)?;
                 // A record whose names fold to the same key is listed once.
                 if !self.pair_key[first_pair..].contains(&key) {
                     self.pair_key.push(key);
@@ -282,7 +289,7 @@ impl IndexBuilder {
 
     /// Ranks every key's records and freezes the index.
     pub(crate) fn build(self) -> GazetteerIndex {
-        let IndexBuilder { mut store, mut names, pair_key, pair_record, ids, regions, sources } = self;
+        let IndexBuilder { mut store, mut names, pair_key, pair_record, ids, regions, sources, .. } = self;
         let n = names.len();
         let mut postings_start = vec![0u32; n + 1];
         for &k in &pair_key {
@@ -298,8 +305,7 @@ impl IndexBuilder {
             fill[k as usize] += 1;
         }
         drop((pair_key, pair_record, fill));
-        let ranks = code_ranks(&store);
-        rank_postings(&store, &ranks, &postings_start, &mut postings);
+        rank_postings(&store, &postings_start, &mut postings);
         store.shrink_to_fit();
         names.text.shrink_to_fit();
         names.bounds.shrink_to_fit();
@@ -308,42 +314,43 @@ impl IndexBuilder {
 }
 
 /// Sorts each key's records into ranking order, on several threads when
-/// there are many keys.
-fn rank_postings(store: &EntryStore, ranks: &[u8], starts: &[u32], postings: &mut [u32]) {
+/// there are many keys. The threads get runs of whole keys with about the
+/// same number of records each, since a few names can hold most of them.
+fn rank_postings(store: &EntryStore, starts: &[u32], postings: &mut [u32]) {
+    let ranker = Ranker::new(store);
     let keys = starts.len() - 1;
-    let threads = if keys < 1 << 16 { 1 } else { std::thread::available_parallelism().map_or(1, |n| n.get()) };
-    if threads == 1 {
-        for k in 0..keys {
-            let list = &mut postings[starts[k] as usize..starts[k + 1] as usize];
+    let sort_keys = |ranker: &Ranker<'_>, run: &mut [u32], k0: usize, k1: usize, base: usize| {
+        let mut scratch = Vec::new();
+        for k in k0..k1 {
+            let list = &mut run[starts[k] as usize - base..starts[k + 1] as usize - base];
             if list.len() > 1 {
-                list.sort_unstable_by(|&a, &b| by_prior(store, ranks, a, b));
+                ranker.sort(list, &mut scratch);
             }
         }
+    };
+    let threads = if keys < 1 << 16 { 1 } else { std::thread::available_parallelism().map_or(1, |n| n.get()) };
+    if threads == 1 {
+        sort_keys(&ranker, postings, 0, keys, 0);
         return;
     }
-    // Cut the postings at key boundaries into one run per thread.
-    let per = keys.div_ceil(threads);
+    let total = postings.len();
     std::thread::scope(|scope| {
         let mut rest = postings;
-        let mut offset = 0usize;
-        for t in 0..threads {
-            let (k0, k1) = (t * per, ((t + 1) * per).min(keys));
-            if k0 >= k1 {
-                break;
+        let (mut k0, mut offset) = (0usize, 0usize);
+        for t in 1..=threads {
+            // The first key boundary at or after this thread's share.
+            let target = (total * t / threads) as u32;
+            let k1 = if t == threads { keys } else { k0 + starts[k0..=keys].partition_point(|&s| s < target) };
+            if k1 <= k0 {
+                continue;
             }
             let end = starts[k1] as usize;
             let (run, tail) = rest.split_at_mut(end - offset);
             rest = tail;
-            let base = offset;
-            offset = end;
-            scope.spawn(move || {
-                for k in k0..k1 {
-                    let list = &mut run[starts[k] as usize - base..starts[k + 1] as usize - base];
-                    if list.len() > 1 {
-                        list.sort_unstable_by(|&a, &b| by_prior(store, ranks, a, b));
-                    }
-                }
-            });
+            let (from, base) = (k0, offset);
+            let (ranker, sort_keys) = (&ranker, &sort_keys);
+            scope.spawn(move || sort_keys(ranker, run, from, k1, base));
+            (k0, offset) = (k1, end);
         }
     });
 }

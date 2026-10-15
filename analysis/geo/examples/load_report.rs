@@ -211,8 +211,8 @@ fn synthesize(rows: u64, file: &str) {
         let class = classes[if r.chance(400) { 0 } else { r.below(classes.len() as u64) as usize }];
         let population = if class == "P" && r.chance(300) { r.below(2_000_000) } else { 0 };
         let ascii: String = canonical.chars().filter(char::is_ascii).collect();
-        let lat = r.below(180_000_00) as f64 / 100_000.0 - 90.0;
-        let lon = r.below(360_000_00) as f64 / 100_000.0 - 180.0;
+        let lat = r.below(18_000_000) as f64 / 100_000.0 - 90.0;
+        let lon = r.below(36_000_000) as f64 / 100_000.0 - 180.0;
         let cc = format!("{}{}", char::from(b'A' + r.below(26) as u8), char::from(b'A' + r.below(26) as u8));
         line.push_str(&format!(
             "{id}\t{canonical}\t{ascii}\t{}\t{lat:.5}\t{lon:.5}\t{class}\tPPL\t{cc}\t\t01\t\t\t\t{population}\t\t123\tEurope/Berlin\t2026-01-01\n",
