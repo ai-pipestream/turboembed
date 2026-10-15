@@ -168,7 +168,9 @@ impl fmt::Display for Language {
     }
 }
 
-/// An `https://` address of printable ASCII with no spaces.
+/// An `https://` address of printable ASCII with no spaces and no
+/// backslash, whose host is not empty: `https:///x` and
+/// `https://user@/x` are refused.
 #[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct Url(String);
 
@@ -181,8 +183,18 @@ impl Url {
 impl FromStr for Url {
     type Err = String;
     fn from_str(s: &str) -> Result<Self, String> {
-        let ok = s.len() > "https://".len() && s.starts_with("https://") && s.bytes().all(|c| c.is_ascii_graphic());
-        if ok { Ok(Url(s.to_owned())) } else { Err(format!("{s:?} is not an https:// address")) }
+        let Some(rest) = s.strip_prefix("https://") else {
+            return Err(format!("{s:?} is not an https:// address"));
+        };
+        if !s.bytes().all(|c| c.is_ascii_graphic() && c != b'\\') {
+            return Err(format!("{s:?} is not an https:// address of printable ASCII without a backslash"));
+        }
+        let authority = &rest[..rest.find(['/', '?', '#']).unwrap_or(rest.len())];
+        let host = authority.rsplit_once('@').map_or(authority, |(_, host)| host);
+        if host.is_empty() || host.starts_with(':') {
+            return Err(format!("{s:?} is not an https:// address: it names no host"));
+        }
+        Ok(Url(s.to_owned()))
     }
 }
 
@@ -294,17 +306,27 @@ pub struct Artifact {
     /// For a `CLASS_LOCAL_ONLY` artifact, and only for one: the original
     /// publisher's own location, which every file's `url` must lie under.
     /// For a dataset it is the data's own place on its host, such as a
-    /// treebank's repository path on `raw.githubusercontent.com`, not the
-    /// whole host; for a model, the model publisher's. The host is compared
-    /// without regard to case. A file's path must be the origin's path or
-    /// continue it after a `/`, so `.../UD_English-GUM` holds
+    /// treebank's repository path on `raw.githubusercontent.com`; for a
+    /// model, the model publisher's. It has a path of at least one
+    /// non-empty segment, so it is never a whole host; a file at the root
+    /// of a host is named as the origin by its own address. The host is
+    /// compared without regard to case. A file's path must be the origin's
+    /// path or continue it after a `/`, so `.../UD_English-GUM` holds
     /// `.../UD_English-GUM/r2.16/...` but not `.../UD_English-GUM-copy/...`;
     /// a trailing `/` on the origin makes no difference. The origin has no
     /// user information, query or fragment, and neither its path nor a
     /// file's holds a `.` or `..` segment (plain or percent-encoded), a
-    /// backslash or an encoded `/` or `\`. So the zoo fetches such an
-    /// artifact from its publisher only, never from a copy, whether on
-    /// another host or the same one.
+    /// `\` or `;` (plain or percent-encoded), a percent-encoded `/`, `%` or
+    /// NUL, a `%` not followed by two hex digits, or percent-encoded bytes
+    /// that are not valid UTF-8, such as an overlong form.
+    ///
+    /// The rule covers the addresses the index names. The zoo's HTTP
+    /// transport requests each file at its `url` and follows a redirect
+    /// the server issues from there over HTTPS only, without checking it
+    /// against the origin (a GitHub release, for one, redirects to another
+    /// host). Every file's size, SHA-256 and SHA-512 are checked before it
+    /// is kept, so the bytes are the ones the index records wherever a
+    /// redirect leads.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub origin: Option<Url>,
     pub files: Vec<File>,
@@ -363,31 +385,105 @@ fn strip_dot(s: &[u8]) -> Option<&[u8]> {
     }
 }
 
+/// The byte a `%` escape's two hex digits give, in either case; `None`
+/// unless both are hex digits.
+fn hex_byte(digits: &[u8]) -> Option<u8> {
+    let [high, low] = digits else { return None };
+    let value = |c: u8| (c as char).to_digit(16);
+    Some((value(*high)? * 16 + value(*low)?) as u8)
+}
+
+/// Whether `path` is free of the bytes and escapes this check knows a
+/// server may turn into a step out of a directory, and decodes to valid
+/// UTF-8. Scans once, without allocating:
+///
+/// - every `%` starts an escape of two hex digits, so a malformed escape
+///   a lenient decoder might repair into another escape (`%%32%65` or
+///   `%2%65` into `%2e`) and IIS's `%u002e` form are refused;
+/// - no `\` or `;` is in the path, plain or escaped (`%5c`, `%3b`): some
+///   servers read `\` as `/` and strip a `;` with what follows it from a
+///   segment (`..;` as `..`);
+/// - no escape gives `/`, `%` (`%252e` decodes twice to `.`) or NUL;
+/// - the decoded bytes are valid UTF-8 as RFC 3629 defines it, so there
+///   is no overlong form (`%c0%ae` for `.`), no surrogate (`%ed%a0%80`),
+///   no five- or six-byte form, no byte from `%f5` up, no lone or
+///   missing continuation byte, and nothing past U+10FFFF. A lax decoder
+///   reads an overlong form as the ASCII character it encodes; the other
+///   forms are not UTF-8 at all.
+///
+/// A `.` or `..` segment is [`plain_path`]'s to refuse.
+fn decodes_plainly(path: &[u8]) -> bool {
+    // Continuation bytes the character being decoded still needs, and the
+    // range the next one must fall in.
+    let mut needed = 0u8;
+    let (mut low, mut high) = (0x80u8, 0xBFu8);
+    let mut i = 0;
+    while i < path.len() {
+        let byte = match path[i] {
+            b'\\' | b';' => return false,
+            b'%' => match path.get(i + 1..i + 3).and_then(hex_byte) {
+                Some(b'/' | b'\\' | b'%' | b';' | 0) | None => return false,
+                Some(decoded) => {
+                    i += 3;
+                    decoded
+                }
+            },
+            plain => {
+                i += 1;
+                plain
+            }
+        };
+        if needed > 0 {
+            if !(low..=high).contains(&byte) {
+                return false;
+            }
+            needed -= 1;
+            (low, high) = (0x80, 0xBF);
+            continue;
+        }
+        (needed, low, high) = match byte {
+            0x00..=0x7F => (0, 0x80, 0xBF),
+            0xC2..=0xDF => (1, 0x80, 0xBF),
+            0xE0 => (2, 0xA0, 0xBF),
+            0xE1..=0xEC | 0xEE..=0xEF => (2, 0x80, 0xBF),
+            0xED => (2, 0x80, 0x9F),
+            0xF0 => (3, 0x90, 0xBF),
+            0xF1..=0xF3 => (3, 0x80, 0xBF),
+            0xF4 => (3, 0x80, 0x8F),
+            // A continuation byte with no lead, `%c0` and `%c1` (always
+            // overlong), and `%f5` to `%ff`.
+            _ => return false,
+        };
+    }
+    needed == 0
+}
+
 /// Whether the path of `rest` (what [`split_host`] leaves, up to a `?` or
-/// `#`) has no step a server could take out of the directory it names: no
-/// `.` or `..` segment, plain or with its dots percent-encoded, no
-/// backslash, and no percent-encoded `/` or `\`.
+/// `#`) is free of the forms this check knows a server may read as a step
+/// out of the directory the path names: a `.` or `..` segment, plain or
+/// with its dots percent-encoded, and whatever [`decodes_plainly`]
+/// refuses. A query or fragment is not checked.
 fn plain_path(rest: &str) -> bool {
     let path = &rest[..rest.find(['?', '#']).unwrap_or(rest.len())];
-    let bytes = path.as_bytes();
-    if bytes.contains(&b'\\')
-        || bytes.windows(3).any(|w| w.eq_ignore_ascii_case(b"%2f") || w.eq_ignore_ascii_case(b"%5c"))
-    {
-        return false;
-    }
-    path.split('/').all(|segment| match strip_dot(segment.as_bytes()) {
-        None => true,
-        Some(b"") => false,
-        Some(after_first) => strip_dot(after_first) != Some(b""),
-    })
+    decodes_plainly(path.as_bytes())
+        && path.split('/').all(|segment| match strip_dot(segment.as_bytes()) {
+            None => true,
+            Some(b"") => false,
+            Some(after_first) => strip_dot(after_first) != Some(b""),
+        })
 }
 
 /// Whether `origin` names a location a file can lie under: no user
 /// information before its host (`https://a.org@b.net/` is on `b.net`), no
-/// query or fragment, and a plain path ([`plain_path`]).
+/// query or fragment, a plain path ([`plain_path`]), and at least one
+/// non-empty path segment, so not a whole host (`https://example.org` or
+/// `https://example.org/`).
 fn origin_is_a_location(origin: &Url) -> bool {
     let (host, rest) = split_host(origin);
-    !host.contains('@') && !rest.contains(['?', '#']) && plain_path(rest)
+    !host.contains('@')
+        && !rest.contains(['?', '#'])
+        && plain_path(rest)
+        && rest.split('/').any(|segment| !segment.is_empty())
 }
 
 /// Whether `file` lies under `origin` ([`Artifact::origin`]): the same
@@ -470,8 +566,9 @@ impl Index {
                 (Some(origin), true) => {
                     if !origin_is_a_location(origin) {
                         return Err(ZooError::Index(format!(
-                            "{}: origin {origin} is not a location: it has user information, a query or \
-                             fragment, a `.` or `..` segment, a backslash or an encoded separator",
+                            "{}: origin {origin} is not a location: it is a whole host, or it has user \
+                             information, a query or fragment, or a path form the zoo refuses (a `.` or `..` \
+                             segment, a backslash, a `;`, or a malformed or refused percent-encoding)",
                             a.id
                         )));
                     }
@@ -558,5 +655,95 @@ impl Index {
         let mut s = serde_json::to_string_pretty(&file).expect("an index always serializes");
         s.push('\n');
         s
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::plain_path;
+
+    /// The percent-encoding of every byte of `bytes`, between `/a/x` and
+    /// `y`, so no segment is a dot segment.
+    fn encoded<'a>(bytes: &[u8], into: &'a mut String) -> &'a str {
+        into.clear();
+        into.push_str("/a/x");
+        for b in bytes {
+            const HEX: &[u8; 16] = b"0123456789abcdef";
+            into.extend(['%', HEX[usize::from(b >> 4)] as char, HEX[usize::from(b & 15)] as char]);
+        }
+        into.push('y');
+        into
+    }
+
+    /// What the path check should say of these decoded bytes: valid UTF-8
+    /// holding no `/`, `\`, `%`, `;` or NUL.
+    fn expected(bytes: &[u8]) -> bool {
+        std::str::from_utf8(bytes).is_ok() && !bytes.iter().any(|b| matches!(b, b'/' | b'\\' | b'%' | b';' | 0))
+    }
+
+    /// Every scalar value's UTF-8, percent-encoded, is accepted, except
+    /// the five characters a path may not hold escaped.
+    #[test]
+    fn every_scalar_value_is_accepted_but_five() {
+        let mut path = String::new();
+        let mut utf8 = [0u8; 4];
+        for c in (0..=0x10FFFF).filter_map(char::from_u32) {
+            let bytes = c.encode_utf8(&mut utf8).as_bytes();
+            let refused = matches!(c, '/' | '\\' | '%' | ';' | '\0');
+            assert_eq!(plain_path(encoded(bytes, &mut path)), !refused, "U+{:04X}", c as u32);
+        }
+    }
+
+    /// The check agrees with the standard library's UTF-8 validation on
+    /// every sequence of one or two bytes, every three-byte sequence with
+    /// a three-byte lead, and four-byte sequences over every lead and
+    /// second byte with a few third and fourth bytes at the edges of the
+    /// continuation range.
+    #[test]
+    fn decoded_bytes_are_checked_as_strictly_as_utf8() {
+        let mut path = String::new();
+        let mut check = |bytes: &[u8]| {
+            assert_eq!(plain_path(encoded(bytes, &mut path)), expected(bytes), "{bytes:02x?}");
+        };
+        for a in 0..=255u8 {
+            check(&[a]);
+            for b in 0..=255u8 {
+                check(&[a, b]);
+                for c in [0x7F, 0x80, 0x8F, 0x90, 0x9F, 0xA0, 0xBF, 0xC0] {
+                    check(&[a, b, c, 0x80]);
+                    check(&[a, b, 0x80, c]);
+                }
+            }
+        }
+        for a in 0xE0..=0xEFu8 {
+            for b in 0..=255u8 {
+                for c in 0..=255u8 {
+                    check(&[a, b, c]);
+                }
+            }
+        }
+    }
+
+    /// A character cut off by the end of the path, or by its query, is
+    /// refused.
+    #[test]
+    fn a_character_cut_off_at_the_end_is_refused() {
+        for path in ["/a/x%c3", "/a/x%e0%a0", "/a/x%f0%90%80", "/a/x%c3?%a9", "/a/x%c3#%a9"] {
+            assert!(!plain_path(path), "{path}");
+        }
+        assert!(plain_path("/a/x%c3%a9?%c3"));
+    }
+
+    /// Escapes must be well formed: a `%` with fewer than two hex digits
+    /// after it is refused, whatever a lenient decoder would make of it.
+    #[test]
+    fn malformed_escapes_are_refused() {
+        for path in ["/a/%", "/a/%2", "/a/%zz", "/a/%2g", "/a/%%32%65", "/a/%2%65", "/a/%%35%63", "/a/%u002e", "/a/x%"]
+        {
+            assert!(!plain_path(path), "{path}");
+        }
+        for path in ["/a/%2E%2e.x", "/a/%41%7e", "/a/%3F", "/a/%23"] {
+            assert!(plain_path(path), "{path}");
+        }
     }
 }

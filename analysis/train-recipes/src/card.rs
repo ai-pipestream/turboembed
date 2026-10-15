@@ -8,10 +8,11 @@
 //! whether it passed its gate. Like the gate record it is strict JSON: every
 //! field is required and an unknown field is an error.
 
+use std::fmt;
 use std::path::Path;
 
 use serde::{Deserialize, Serialize};
-use turbo_eval::model_gate::ModelGateRecord;
+use turbo_eval::model_gate::{ModelGateRecord, TagMapping};
 use turbo_postag::PosTagFormat;
 use turbo_train_components::ud;
 use turbo_zoo::{Artifact, File, Kind, Licence, LicenceClass, Sha256, Sha512, TrainingData, class_of, index::Format};
@@ -21,8 +22,10 @@ use crate::masc::{self, Split};
 use crate::segmentation::{Component, LANGUAGE, SENTENCES_PER_SAMPLE, TIMESTAMP_MS};
 use crate::{Recipe, Trained, postag};
 
-/// The card's schema version.
-pub const CARD_VERSION: u32 = 2;
+/// The card's schema version: 3, with the held-out counts, the tag
+/// formats and the reference's digest, the documents the split leaves
+/// out, and how a tagger's held-out tokens were scored.
+pub const CARD_VERSION: u32 = 3;
 /// The card's file name in the model's directory.
 pub const CARD_FILE: &str = "card.json";
 /// The gate record's file name in the model's directory.
@@ -52,14 +55,15 @@ pub struct CorpusCard {
     /// [`masc::corpus_digest`] of the directory read.
     pub corpus_sha256: String,
     /// Whether that digest is the recorded release's ([`masc::RELEASE`]).
-    /// A model trained on an unrecorded copy is not a release.
+    /// A model trained on another corpus is not a release.
     pub release_recorded: bool,
     pub split: Split,
     pub training_documents: usize,
     /// The held-out documents, relative to the corpus directory.
     pub held_out_documents: Vec<String>,
-    /// Documents the corpus read logged and left out.
-    pub skipped_documents: Vec<String>,
+    /// Documents left out of both training and the held-out set by an
+    /// exclusion ([`masc::EXCLUSIONS`]), with the exclusion.
+    pub excluded_documents: Vec<masc::ExcludedDocument>,
 }
 
 /// The trainer's parameters, as the parameters file gives them.
@@ -110,31 +114,39 @@ pub struct HeldOutCard {
     pub tokens: Option<TokenCoverage>,
 }
 
-/// How a tagger's held-out tokens were scored: both models' tags and the
-/// held-out tags compared in the reference's spelling, over the tokens
-/// whose tag the reference can give ([`postag::ReferenceTags`]).
+/// How a tagger's held-out tokens were scored: over the tokens whose tag
+/// the reference can give, as written or through the mapping of its tags
+/// ([`postag::ReferenceTags`]), the trained model's tag compared with the
+/// held-out tag as written and the reference's through
+/// [`postag::REFERENCE_MAPPINGS`].
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct TokenCoverage {
     /// The tokens of the held-out samples.
     pub tokens: u64,
-    /// The tags scored as the reference writes them
-    /// ([`postag::REFERENCE_SPELLINGS`]).
-    pub spellings: Vec<SpellingCard>,
+    /// The reference's tags counted right for another held-out tag
+    /// ([`postag::REFERENCE_MAPPINGS`]).
+    pub reference_mappings: Vec<TagMapping>,
     /// The tokens left out of both models' scores because the reference
-    /// cannot give their tag, by that tag in the reference's spelling,
-    /// sorted by tag; at most [`crate::MAX_TOKENS_LEFT_OUT`] of `tokens`.
+    /// cannot give their tag, by that tag as written, sorted by tag; at
+    /// most [`crate::MAX_TOKENS_LEFT_OUT`] of `tokens`.
     pub left_out: Vec<TagCount>,
+    /// The reference's most frequent mismatches on the scored tokens, at
+    /// most [`postag::MISMATCHES_LISTED`], most frequent first: where it
+    /// and MASC differ by convention or by its tag dictionary as much as
+    /// where it errs.
+    pub reference_mismatches: Vec<Mismatch>,
 }
 
-/// A tag scored as the reference writes it.
+/// How many scored held-out tokens of a tag a model gave another tag.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
-pub struct SpellingCard {
-    /// The tag as MASC, and so the trained model, writes it.
-    pub masc: String,
-    /// The tag the reference gives the same tokens.
-    pub reference: String,
+pub struct Mismatch {
+    /// The held-out tag, as written.
+    pub held_out: String,
+    /// The tag the model gave.
+    pub given: String,
+    pub tokens: u64,
 }
 
 /// How many held-out tokens have a tag.
@@ -352,14 +364,72 @@ impl ModelCard {
         s
     }
 
+    /// Reads a card written by [`write_model_dir`]. Its `card_version` is
+    /// read first, alone, so a card of another schema version is
+    /// [`Error::CardVersion`] whatever fields it has.
+    ///
+    /// # Errors
+    ///
+    /// A file that cannot be read, is not JSON with a `card_version`, is of
+    /// another version, or is not a card of this version.
     pub fn read(path: &Path) -> Result<ModelCard> {
-        let bytes = std::fs::read(path).map_err(io(path))?;
-        let card: ModelCard = serde_json::from_slice(&bytes)
-            .map_err(|e| Error::Json { path: path.to_owned(), message: e.to_string() })?;
-        if card.card_version != CARD_VERSION {
-            return Err(Error::CardVersion { path: path.to_owned(), found: card.card_version });
+        /// The one field every version of the card has.
+        #[derive(Deserialize)]
+        struct Version {
+            card_version: u32,
         }
-        Ok(card)
+        let bytes = std::fs::read(path).map_err(io(path))?;
+        let json = |e: serde_json::Error| Error::Json { path: path.to_owned(), message: e.to_string() };
+        let Version { card_version } = serde_json::from_slice(&bytes).map_err(json)?;
+        if card_version != CARD_VERSION {
+            return Err(Error::CardVersion { path: path.to_owned(), found: card_version });
+        }
+        serde_json::from_slice(&bytes).map_err(json)
+    }
+}
+
+/// What a run prints of a card before its gate record
+/// ([`ModelCard::summary`]): a line of the training and held-out samples
+/// and the sentences each side skipped, and for a tagger a second line of
+/// the held-out tokens left out of the scores, with their tags as written.
+#[derive(Clone, Copy, Debug)]
+pub struct Summary<'c>(&'c ModelCard);
+
+impl ModelCard {
+    /// The card's [`Summary`].
+    pub fn summary(&self) -> Summary<'_> {
+        Summary(self)
+    }
+}
+
+impl fmt::Display for Summary<'_> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let Summary(card) = *self;
+        write!(
+            f,
+            "{}: trained on {} samples, {} sentences skipped, {} events; held out {} samples, {} sentences skipped",
+            card.id,
+            card.training.samples,
+            card.training.skipped_sentences,
+            card.training.events,
+            card.held_out.samples,
+            card.held_out.skipped_sentences,
+        )?;
+        if let Some(tokens) = &card.held_out.tokens {
+            let count: u64 = tokens.left_out.iter().map(|t| t.tokens).sum();
+            write!(
+                f,
+                "\n{}: {count} of {} held-out tokens left out, their tags not the reference's:",
+                card.id, tokens.tokens
+            )?;
+            if tokens.left_out.is_empty() {
+                f.write_str(" none")?;
+            }
+            for (i, t) in tokens.left_out.iter().enumerate() {
+                write!(f, "{} {} ({})", if i == 0 { "" } else { "," }, t.tag, t.tokens)?;
+            }
+        }
+        Ok(())
     }
 }
 

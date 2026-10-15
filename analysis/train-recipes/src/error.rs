@@ -27,6 +27,12 @@ pub enum Error {
     InvalidCard { field: &'static str, message: String },
     /// A document whose path is not under the corpus directory.
     OutsideCorpus { path: PathBuf },
+    /// Documents the corpus read skipped, each with its error, which
+    /// would move the documents after them to other places of the split.
+    SkippedDocuments { documents: Vec<String> },
+    /// A document header that could not be read again for its categories
+    /// ([`crate::masc::Categories`]).
+    Header { path: PathBuf, message: String },
     /// A card that may not become a zoo entry: no recipe trains it, it was
     /// not gated against its recipe's reference, its gate failed, or its
     /// corpus is not the recorded release.
@@ -37,11 +43,12 @@ pub enum Error {
     CardVersion { path: PathBuf, found: u32 },
     /// Held-out samples of one component given to a recipe of another.
     ComponentMismatch { recipe: &'static str, samples: &'static str },
-    /// The release has no digest recorded yet, so it cannot be fetched
-    /// or checked ([`crate::masc::RELEASE`]).
+    /// The release has no digest recorded, so it cannot be fetched or
+    /// checked ([`crate::masc::Release::NotRecorded`]).
     NotRecorded,
-    /// The corpus directory is not the recorded release.
-    CorpusDigest { expected: String, found: String },
+    /// The corpus directory is not the recorded release, the directory
+    /// `corpus_dir` its archive extracts to.
+    CorpusDigest { expected: String, corpus_dir: &'static str, found: String },
     /// A reference model file is not the one recorded for it: its SHA-256
     /// is not the one the zoo's index or the recipe records, or its size
     /// is not the one the recipe records.
@@ -51,8 +58,8 @@ pub enum Error {
     /// A recipe left out more than its limit allows.
     TooManyLeftOut { what: LeftOut, count: u64, of: u64, limit: Limit },
     /// The tagger's reference cannot give the tags of more held-out tokens
-    /// than [`crate::MAX_TOKENS_LEFT_OUT`] allows (`left_out`, by tag in
-    /// the reference's spelling, of `of` tokens).
+    /// than [`crate::MAX_TOKENS_LEFT_OUT`] allows (`left_out`, by tag as
+    /// written, of `of` tokens).
     TagsOutsideReference { reference: String, left_out: Vec<TagCount>, of: u64, limit: Limit },
 }
 
@@ -91,6 +98,14 @@ impl fmt::Display for Error {
             }
             Error::InvalidCard { field, message } => write!(f, "the model card's {field}: {message}"),
             Error::OutsideCorpus { path } => write!(f, "{}: not under the corpus directory", path.display()),
+            Error::SkippedDocuments { documents } => write!(
+                f,
+                "the corpus read skipped {} documents, which would move the documents after them to other places of \
+                 the split: {}",
+                documents.len(),
+                documents.join("; ")
+            ),
+            Error::Header { path, message } => write!(f, "{}: the document header: {message}", path.display()),
             Error::NotShippable { id, reason } => write!(f, "{id} is not shippable: {reason}"),
             Error::Json { path, message } => write!(f, "{}: {message}", path.display()),
             Error::CardVersion { path, found } => {
@@ -100,11 +115,13 @@ impl fmt::Display for Error {
                 write!(f, "{samples} samples given to the {recipe} recipe")
             }
             Error::NotRecorded => {
-                f.write_str("the MASC release has no recorded digest yet; see turbo_train_recipes::masc::RELEASE")
+                f.write_str("the MASC release has no recorded digest; see turbo_train_recipes::masc::RELEASE")
             }
-            Error::CorpusDigest { expected, found } => {
-                write!(f, "the corpus directory has the digest {found}, the recorded release {expected}")
-            }
+            Error::CorpusDigest { expected, corpus_dir, found } => write!(
+                f,
+                "the corpus directory has the digest {found}, not the recorded release's {expected} (the directory \
+                 {corpus_dir} its archive extracts to); --unrecorded-corpus runs on another corpus"
+            ),
             Error::ReferenceDigest { id, expected, found } => {
                 write!(f, "reference model {id}: SHA-256 {found}, expected {expected}")
             }

@@ -149,8 +149,21 @@ impl<'f> TokSpanEventStream<'f> {
     }
 
     /// `createEvents(sample)`: appends the sample's events to `out`. The
-    /// tokens must be in text order ([`Error::TokensOutOfOrder`]); the
-    /// Java indexes the text with a negative offset otherwise.
+    /// tokens must be in text order ([`Error::TokensOutOfOrder`]), which
+    /// the Java does not check. For each whitespace unit it notes the
+    /// first and the last token, in sample order, that the unit contains,
+    /// passing over tokens that end before the unit, and then makes events
+    /// for every token from the first to the last, those passed over
+    /// included. So the Java throws when the last token ends before the
+    /// first starts (`String.substring`), and when a token that ends
+    /// before a unit lies, in sample order, between two tokens inside that
+    /// unit: its positions are negative offsets into the unit, and
+    /// `DefaultTokenContextGenerator.createContext` throws
+    /// `StringIndexOutOfBoundsException` (tokens (3,5), (0,2), (5,7) of
+    /// `xy abcd`). A token inside the one before it (as MASC 3.0.0 has
+    /// once) is inside the same unit, and the Java makes events of both:
+    /// a split inside the outer token where that token gave a no-split.
+    /// The port refuses every sample out of text order.
     pub fn events(&mut self, sample: &TokenSample<'_>, out: &mut Vec<Event>) -> Result<()> {
         let tokens = sample.tokens();
         let (Some(first), Some(last)) = (tokens.first(), tokens.last()) else {
@@ -431,17 +444,37 @@ mod tests {
         assert!(!one_code_unit("ab") && !one_code_unit("\u{1F600}") && !one_code_unit("\u{E9}a"));
     }
 
+    /// Each sample out of text order is refused, whatever the Java does
+    /// with it: (3,5), (0,2) of `ab cd`, whose last token ends before the
+    /// first starts (`String.substring` throws); (3,5), (0,2), (5,7) of
+    /// `xy abcd`, where the token passed over between two tokens of the
+    /// unit `abcd` gets negative offsets (`createContext` throws); and
+    /// (0,5), (1,2) of `abcde`, a token inside the one before it, for
+    /// which the Java makes a no-split at 2 for the outer token and a
+    /// split at 2 for the inner one.
     #[test]
     fn tokens_out_of_text_order_are_refused() {
-        let text = "ab cd";
-        let spans = vec![turbo_analysis_span(3, 5), turbo_analysis_span(0, 2)];
-        let s = TokenSample::new(std::borrow::Cow::Borrowed(text), spans.clone(), spans, turbo_analysis_span(0, 5))
-            .unwrap();
         let f = TokenizerFactory::new("en", None, false, None).unwrap();
-        assert!(matches!(
-            tok_events([&s], &f, WhitespaceMode::Unicode),
-            Err(crate::Error::TokensOutOfOrder { token: 1 })
-        ));
+        let shapes: [(&str, &[(u32, u32)]); 3] =
+            [("ab cd", &[(3, 5), (0, 2)]), ("xy abcd", &[(3, 5), (0, 2), (5, 7)]), ("abcde", &[(0, 5), (1, 2)])];
+        for (text, spans) in shapes {
+            let spans: Vec<_> = spans.iter().map(|&(a, b)| turbo_analysis_span(a, b)).collect();
+            let all = turbo_analysis_span(0, text.len() as u32);
+            let s = TokenSample::new(std::borrow::Cow::Borrowed(text), spans.clone(), spans, all).unwrap();
+            assert!(
+                matches!(
+                    tok_events([&s], &f, WhitespaceMode::Unicode),
+                    Err(crate::Error::TokensOutOfOrder { token: 1 })
+                ),
+                "{text}"
+            );
+        }
+        // In text order, the tokens of the same units give their events.
+        let spans = vec![turbo_analysis_span(0, 2), turbo_analysis_span(3, 5), turbo_analysis_span(5, 7)];
+        let all = turbo_analysis_span(0, 7);
+        let s = TokenSample::new(std::borrow::Cow::Borrowed("xy abcd"), spans.clone(), spans, all).unwrap();
+        // "xy": F; "abcd": F inside "ab", T after it, F inside "cd".
+        assert_eq!(outcomes(&tok_events([&s], &f, WhitespaceMode::Unicode).unwrap()), "FFTF");
     }
 
     fn turbo_analysis_span(start: u32, end: u32) -> turbo_analysis::Span {
