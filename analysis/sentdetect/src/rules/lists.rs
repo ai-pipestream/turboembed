@@ -2,11 +2,19 @@
 //! starts a sentence, and the full stop inside a marker ends none, so each
 //! item is one sentence even when the items are written on one line.
 //!
-//! A marker counts when it starts a line, or, written inside a line, when
-//! the same paragraph holds the next or the previous marker of its
-//! sequence (`1.` and `2.`, `a)` and `b)`, two of the same bullet). One
-//! inline number with a full stop after it (`in 1990. Then`, `p. 5.`) is
-//! not a marker.
+//! A bullet counts at a line start, or inside a line when its paragraph
+//! holds another of the same bullet, and a number or letter right after a
+//! counted bullet counts with it. A marker with `)`, `.)` or parentheses
+//! counts at a line start or next to a neighbour of its sequence.
+//!
+//! A number or letter with a bare full stop is also prose (`plan A. Then
+//! plan B.`, `Der 1. und 2. Platz`, `J. K. Rowling`), so it counts only as
+//! part of a list: at a line start unless a single letter with a full stop
+//! or the end of the text follows (`J. K.`, `x. A`); inside a line when it
+//! continues by one a counted marker of its sequence in the same paragraph
+//! (`1. One 2. Two`), or when it is a `1.` or `a.` whose `2.` or `b.` comes
+//! later in the paragraph and it follows a sentence end, a colon or an
+//! earlier counted marker of the paragraph (`this. 1. One 2. Two`).
 
 use turbo_unicode::SentenceBreak::Sp;
 
@@ -77,30 +85,51 @@ impl Marker {
         (self.paragraph, self.kind, self.value, self.start)
     }
 
-    /// Whether this marker starts a sentence: at the start of a line, or
-    /// with a neighbour of its sequence in the same paragraph. `index`
-    /// holds the keys of every marker found, sorted, so each question is a
-    /// binary search and a text with many markers stays linear in them.
-    fn accepted(&self, index: &[Key]) -> bool {
-        if self.line_start {
-            return true;
-        }
-        let (p, kind) = (self.paragraph, self.kind);
-        // The keys with this paragraph and kind, and this value when given.
-        let range = |value: Option<u32>| {
-            let lo = index.partition_point(|k| (k.0, k.1, k.2) < (p, kind, value.unwrap_or(0)));
-            let hi = index.partition_point(|k| (k.0, k.1, k.2) <= (p, kind, value.unwrap_or(u32::MAX)));
-            &index[lo..hi]
-        };
-        match kind {
-            Kind::Bullet(_) => range(None).len() >= 2,
-            _ => {
-                let before =
-                    self.value.checked_sub(1).is_some_and(|v| range(Some(v)).first().is_some_and(|k| k.3 < self.start));
-                let after =
-                    self.value.checked_add(1).is_some_and(|v| range(Some(v)).last().is_some_and(|k| k.3 > self.start));
-                before || after
-            }
+    /// The keys of the markers in this paragraph of this kind with
+    /// `value`. `index` holds the keys of every marker found, sorted, so
+    /// this is a binary search.
+    fn with_value<'a>(&self, index: &'a [Key], value: u32) -> &'a [Key] {
+        let at = (self.paragraph, self.kind, value);
+        let lo = index.partition_point(|k| (k.0, k.1, k.2) < at);
+        let hi = index.partition_point(|k| (k.0, k.1, k.2) <= at);
+        &index[lo..hi]
+    }
+
+    /// Whether a bullet written inside a line counts: when its paragraph
+    /// holds another of the same bullet.
+    fn bullet_repeats(&self, index: &[Key]) -> bool {
+        let lo = index.partition_point(|k| (k.0, k.1) < (self.paragraph, self.kind));
+        let hi = index.partition_point(|k| (k.0, k.1) <= (self.paragraph, self.kind));
+        hi - lo >= 2
+    }
+
+    /// Whether the paragraph holds the next value of this marker's
+    /// sequence after it.
+    fn followed(&self, index: &[Key]) -> bool {
+        self.with_value(index, self.value + 1).last().is_some_and(|k| k.3 > self.start)
+    }
+
+    /// Whether the paragraph holds the previous value of this marker's
+    /// sequence before it.
+    fn preceded(&self, index: &[Key]) -> bool {
+        self.value > 0 && self.with_value(index, self.value - 1).first().is_some_and(|k| k.3 < self.start)
+    }
+}
+
+/// The last accepted marker of each number or letter kind: its value and
+/// paragraph. There are eight such kinds, so a linear search is enough.
+#[derive(Default)]
+struct Last(Vec<(Kind, u32, u32)>);
+
+impl Last {
+    fn get(&self, kind: Kind) -> Option<(u32, u32)> {
+        self.0.iter().find(|e| e.0 == kind).map(|e| (e.1, e.2))
+    }
+
+    fn set(&mut self, m: &Marker) {
+        match self.0.iter_mut().find(|e| e.0 == m.kind) {
+            Some(e) => (e.1, e.2) = (m.value, m.paragraph),
+            None => self.0.push((m.kind, m.value, m.paragraph)),
         }
     }
 }
@@ -159,13 +188,63 @@ pub(crate) fn markers(
     }
     index.extend(found.iter().map(Marker::key));
     index.sort_unstable();
-    // A marker after a bullet counts when its bullet does.
-    for (k, m) in found.iter().enumerate() {
-        let owner = if m.after_bullet { &found[k - 1] } else { m };
-        if owner.accepted(index) {
+    let mut last = Last::default();
+    let mut bullet_accepted = false;
+    // The paragraph of the last accepted marker.
+    let mut listing = None;
+    for m in found.iter() {
+        let accepted = match m.kind {
+            Kind::Bullet(_) => m.line_start || m.bullet_repeats(index),
+            _ if m.after_bullet => bullet_accepted,
+            // A parenthesis is not prose punctuation: such a marker counts
+            // at a line start, or next to a neighbour of its sequence.
+            Kind::Number(d) | Kind::Letter(d) if d != Delimiter::Stop => {
+                m.line_start || m.followed(index) || m.preceded(index)
+            }
+            _ => {
+                let continues =
+                    last.get(m.kind).is_some_and(|(v, p)| v + 1 == m.value && (m.line_start || p == m.paragraph));
+                if m.line_start {
+                    continues || !initial_follows(text, units, m.content as usize)
+                } else {
+                    let starts = m.value == 1
+                        && m.followed(index)
+                        && (listing == Some(m.paragraph) || after_sentence_end(text, units, m.start as usize));
+                    continues || starts
+                }
+            }
+        };
+        if let Kind::Bullet(_) = m.kind {
+            bullet_accepted = accepted;
+        }
+        if accepted {
+            if !matches!(m.kind, Kind::Bullet(_)) {
+                last.set(m);
+            }
+            listing = Some(m.paragraph);
             out.push(*m);
         }
     }
+}
+
+/// Whether the word at unit `i` is a single letter that ends the text or
+/// has a full stop after it, as `K` in `J. K. Rowling` or `A` in `x. A`:
+/// the letter before it is then an initial, not a list marker.
+fn initial_follows(text: &str, units: &[Unit], i: usize) -> bool {
+    let char_at = |j: usize| units.get(j).map(|u| text[u.start as usize..].chars().next().unwrap_or(' '));
+    char_at(i).is_some_and(|c| c.is_alphabetic())
+        && match char_at(i + 1) {
+            None => true,
+            Some(c) => c == '.' || units[i + 1].class == Sp && char_at(i + 2).is_none(),
+        }
+}
+
+/// Whether the text before unit `i`, past spaces and closing quotes and
+/// brackets, ends with a sentence terminator or a colon.
+fn after_sentence_end(text: &str, units: &[Unit], i: usize) -> bool {
+    let before = &text[..units[i].start as usize];
+    let before = before.trim_end().trim_end_matches(['"', '\'', '\u{201D}', '\u{2019}', ')', ']']);
+    before.ends_with(['.', '!', '?', ':'])
 }
 
 /// Parses a marker starting at unit `i`. Returns it (its `start` and
@@ -265,6 +344,23 @@ mod tests {
         assert_eq!(accepted("Points 1. and 3. only"), Vec::<String>::new());
         assert_eq!(accepted("a - b * c"), Vec::<String>::new());
         assert_eq!(accepted("1.5 and 2.5"), Vec::<String>::new());
+        // Consecutive values inside a line, with nothing at a line start.
+        assert_eq!(accepted("plan A. Then plan B. Both"), Vec::<String>::new());
+        assert_eq!(accepted("Der 1. und 2. Platz."), Vec::<String>::new());
+        assert_eq!(accepted("Mary A. and John B. came"), Vec::<String>::new());
+    }
+
+    #[test]
+    fn chains_reach_back_to_an_anchor() {
+        // `J.` starts the line but is not a first value; `K.` has no anchor.
+        assert_eq!(accepted("J. K. Rowling"), Vec::<String>::new());
+        assert_eq!(accepted("x. A"), Vec::<String>::new());
+        // A line start anchors the inline values that follow it by one.
+        assert_eq!(accepted("1. One 2. Two 4. Four"), ["1.", "2."]);
+        // A later line continues the sequence.
+        assert_eq!(accepted("1. One\n2. Two\n3. Three"), ["1.", "2.", "3."]);
+        // Parentheses mark a list at a line start from any value.
+        assert_eq!(accepted("c) Three d) Four"), ["c)", "d)"]);
     }
 
     #[test]

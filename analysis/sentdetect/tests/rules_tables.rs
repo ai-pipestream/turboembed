@@ -87,6 +87,20 @@ fn sentencex_words(text: &str, lower: bool) -> (Vec<String>, usize) {
     (out, spaced)
 }
 
+/// A Rust string literal's contents: only `"` and `\` are escaped, so the
+/// output does not depend on the toolchain's `Debug` escaping, which
+/// follows its Unicode tables.
+fn escape(entry: &str) -> String {
+    let mut out = String::with_capacity(entry.len());
+    for c in entry.chars() {
+        if matches!(c, '"' | '\\') {
+            out.push('\\');
+        }
+        out.push(c);
+    }
+    out
+}
+
 fn emit(out: &mut String, doc: &str, name: &str, entries: &[String]) {
     writeln!(out).unwrap();
     for line in doc.lines() {
@@ -94,7 +108,7 @@ fn emit(out: &mut String, doc: &str, name: &str, entries: &[String]) {
     }
     writeln!(out, "pub(crate) const {name}: &[&str] = &[").unwrap();
     for e in entries {
-        writeln!(out, "    {e:?},").unwrap();
+        writeln!(out, "    \"{}\",", escape(e)).unwrap();
     }
     writeln!(out, "];").unwrap();
 }

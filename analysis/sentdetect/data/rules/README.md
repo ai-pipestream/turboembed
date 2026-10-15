@@ -35,14 +35,21 @@ trailing full stop is removed.
 Only `am ar bg da kk pl uk` are copied. Many sentencex abbreviation lists
 overlap the Moses `nonbreaking_prefix` files (`mosesdecoder`,
 `scripts/share/nonbreaking_prefixes`), which are LGPL, and this project
-does not ship LGPL data. Each sentencex list was compared with the Moses
-list for the same language: the seven kept share between 0% and 8% of
-their entries with Moses, while the lists for
+does not ship LGPL data. The lists for
 `bn de el en es fi fr gu hi it kn ml nl pa pt ru sk ta te` share a large
-part (Italian holds 88% of the Moses Italian list) and are left out. For
-`de en es fr it pt ru` the CLDR suppressions above take their place; the
-other languages in that list get no abbreviation list, which shows in the
-conformance results.
+part of their entries with Moses (Italian holds 88% of the Moses Italian
+list) and are left out. Of the seven kept, Moses has a list only for
+Polish. Counted as the splitter reads them (lowercased, without a
+trailing full stop, entries with whitespace dropped), `pl.txt` has 129
+entries, of which 16 (12%) are in the Moses Polish list, mostly short
+forms any list has (`np`, `tzn`, `ul`). The kept lists come from MIT
+data: `da.txt` matches the Danish list of Pragmatic Segmenter
+(`github.com/diasks2/pragmatic_segmenter`, MIT,
+`lib/pragmatic_segmenter/languages/danish.rb`) on 472 of its 473
+entries, and `pl.txt` matches its Polish list (`polish.rb`) on 128 of
+129. For `de en es fr it pt ru` the CLDR suppressions above take the
+place of the dropped lists; the other languages in that list get no
+abbreviation list, which shows in the conformance results.
 
 The language table, the fallback chains and the terminator tailorings in
 `src/rules/languages.rs` and `src/rules/profile.rs` were written for this

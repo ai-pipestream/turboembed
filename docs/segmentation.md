@@ -282,12 +282,23 @@ steps, each but the first of which `Rules` can switch off:
    letter, a digit or a dash is an ordinal (`am 12. Juni`, `1. -3.
    Jahrhundert`) and ends no sentence.
 7. List item markers start sentences (`lists`): numbers and single ASCII
-   letters with `.`, `)`, `.)` or in parentheses, and bullets. A marker
-   counts at the start of a line, or inside a line when the same
-   paragraph holds the previous or next marker of its sequence (`1. The
-   first item 2. The second item`), or, for a bullet, another of the same
-   bullet. One number with a full stop inside a line (`It was 1990.
-   Then`) is no marker. A full stop inside a marker ends nothing.
+   letters with `.`, `)`, `.)` or in parentheses, and bullets. A bullet
+   counts at the start of a line, or inside a line when its paragraph
+   holds another of the same bullet; a number or letter right after a
+   counted bullet counts with it. A marker with `)`, `.)` or
+   parentheses counts at the start of a line, or inside a line next to
+   the previous or next marker of its sequence. A number or letter with
+   a bare full stop is also prose (`plan A. Then plan B.`, `I was 7.
+   Then I turned 8.`, `Der 1. und 2. Platz`, `John A. Smith and Mary B.
+   Jones`), so it counts only as part of a list: at the start of a line
+   unless a single letter with a full stop or the end of the text
+   follows (`J. K. Rowling`, `x. A`); inside a line when it continues
+   by one a counted marker of its sequence in the same paragraph (`1. The
+   first item 2. The second item`), or when it is a `1.` or `a.` with
+   its `2.` or `b.` later in the paragraph and it follows a sentence end,
+   a colon or an earlier counted marker of the paragraph (`Finally,
+   this. 1. The first item 2. The second item`). A full stop inside a
+   marker ends nothing.
    `-`, `*`, `+` and `–` are bullets only at the start of a line.
 8. No boundary falls between an opening bracket or quotation mark and
    the mark that closes it (`He said "Stop. Go." Then` is two
@@ -353,7 +364,8 @@ conformance results below.
   languages above instead of sentencex's own, so an abbreviation CLDR
   does not list (`p.`, `St.` in English) ends a sentence here.
   Brackets protect what they enclose up to a paragraph break, with no
-  length limit. List markers need a line start or a sequence neighbour.
+  length limit. List markers need a line start, a bullet or a sequence
+  that reaches back to one, or a sentence end before a `1.` or `a.`.
   A single newline is a space by default.
 - From ICU's suppressions: they are applied to the word before any full
   stop that UAX #29 breaks after, and a sentence starter after the
@@ -384,7 +396,7 @@ cleaning step rewrote, and fail for every detector that runs them.
 
 | Detector | Pragmatic Segmenter | Golden Rules (English) | pySBD | `SentenceBreakTest.txt` |
 |---|---|---|---|---|
-| `rules` | 427 of 585 | 44 of 52 | 371 of 471 | 504 of 512 |
+| `rules` | 429 of 585 | 44 of 52 | 372 of 471 | 504 of 512 |
 | `uax29` | 305 of 585 | 29 of 52 | 264 of 471 | 512 of 512 |
 | maxent, English UD model | 133 of 289 (English cases) | 31 of 52 | 98 of 193 (English) | 467 of 512 |
 | maxent, German UD model | 22 of 37 (German cases) | | 20 of 35 (German) | |
@@ -395,7 +407,7 @@ list for Dutch or Slovak, and CLDR's lists are short), a sentence that
 starts with a lower case letter after a full stop (the Greek cases,
 which SB8 keeps together), `:` as a sentence end in Arabic, and the
 references' document cleaning. By language, the rules detector passes
-all cases of `am bg fa fr hi hy mr my pl ur zh`, and 326 of 482 English,
+all cases of `am bg fa fr hi hy mr my pl ur zh`, and 329 of 482 English,
 61 of 72 German, 86 of 109 Danish, 78 of 84 Russian, 60 of 72 Italian
 and 54 of 72 Spanish cases, against 234, 29, 63, 72, 56 and 41 for
 plain UAX #29.
@@ -412,7 +424,7 @@ that the rule splitter places.
 | Language, texts | Texts | Split alike | Sentences (maxent, rules, same span) | Boundaries (maxent, rules, same) | Precision | Recall |
 |---|---|---|---|---|---|---|
 | English, golden inputs | 45 | 31 | 125, 123, 93 | 82, 80, 69 | 86.2% | 84.1% |
-| English, conformance texts | 482 | 255 | 3253, 2679, 1770 | 2771, 2197, 1950 | 88.8% | 70.4% |
+| English, conformance texts | 482 | 258 | 3253, 2673, 1773 | 2771, 2191, 1950 | 89.0% | 70.4% |
 | German, golden inputs | 2 | 1 | 7, 6, 5 | 5, 4, 4 | 100% | 80.0% |
 | German, conformance texts | 72 | 42 | 194, 179, 100 | 122, 107, 76 | 71.0% | 62.3% |
 | Portuguese, golden inputs | 1 | 1 | 5, 5, 5 | 4, 4, 4 | 100% | 100% |

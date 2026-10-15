@@ -216,6 +216,15 @@ fn check_failures(detector: &str, suite: &str, run: usize, failed: &[(String, St
     }
     let listed: Vec<(String, String)> =
         read_expected_failures(&path).unwrap_or_else(|e| panic!("{e}")).into_iter().map(|f| (f.id, f.reason)).collect();
+    let header = format!("{} of {run} cases fail.", failed.len());
+    let text = std::fs::read_to_string(&path).unwrap();
+    let stated =
+        text.lines().take_while(|l| l.starts_with('#')).filter(|l| l.ends_with(" cases fail.")).find_map(|l| {
+            let at = l.find(" of ")?;
+            let count = l[..at].rsplit(' ').next()?;
+            Some(format!("{count}{}", &l[at..]))
+        });
+    assert_eq!(stated.as_deref(), Some(header.as_str()), "{}: the header's count", path.display());
     let new: Vec<_> = failed.iter().filter(|f| !listed.contains(f)).collect();
     let gone: Vec<_> = listed.iter().filter(|f| !failed.contains(f)).collect();
     assert!(

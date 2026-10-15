@@ -1,6 +1,6 @@
 # The cases of the pysbd suite that the rules detector gets wrong, and what
 # differs. tests/conformance.rs writes this file and fails when a run differs
-# from it. 100 of 471 cases fail.
+# from it. 99 of 471 cases fail.
 pysbd/test_arabic/001	1 missing, first after "سؤال وجواب:"
 pysbd/test_arabic/002	1 extra, first after "وقال د‪.‬" [xfail-upstream]
 pysbd/test_arabic/004	1 missing, first after "...05:01 GMT الصنداي تايمز:"
@@ -34,7 +34,6 @@ pysbd/test_english_clean/015	1 missing, first after "I live in the U.S.A." [clea
 pysbd/test_english_clean/017	1 extra, first after "A." [clean=true]
 pysbd/test_english_clean/022	the expected sentences rewrite the text [clean=true]
 pysbd/test_english_clean/023	the same breaks, different text [clean=true]
-pysbd/test_english_clean/024	2 extra, first after "As payment for" [clean=true]; passes without the lists rule
 pysbd/test_english_clean/025	the same breaks, different text [clean=true]
 pysbd/test_english_clean/028	the same breaks, different text [clean=true]
 pysbd/test_english_clean/029	the same breaks, different text [clean=true]
@@ -55,7 +54,7 @@ pysbd/test_english_clean/067	1 missing, first after "He left at 6 P.M." [clean=t
 pysbd/test_english_clean/068	1 missing, first after "He left at 6 a.m." [clean=true]; passes without the abbreviations rule
 pysbd/test_english_clean/069	1 missing, first after "He left at 6 A.M." [clean=true]
 pysbd/test_english_clean/070	6 missing, first after "c. The third list item"; 5 extra, first after "Please turn to p." [clean=true]
-pysbd/test_english_clean/071	1 missing, first after "c. one more"; 2 extra, first after "It was John" [clean=true]
+pysbd/test_english_clean/071	1 missing, first after "c. one more"; 2 extra, first after "It was John" [clean=true]; passes without the paragraph line breaks rule
 pysbd/test_english_clean/072	the expected sentences rewrite the text [clean=true]
 pysbd/test_english_clean/073	1 extra, first after "...f the top of the house!'" [clean=true]
 pysbd/test_english_clean/076	the expected sentences rewrite the text [clean=true]

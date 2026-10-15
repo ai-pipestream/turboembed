@@ -142,12 +142,12 @@ fn english() {
         conformance,
         Agreement {
             texts: 482,
-            identical: 255,
+            identical: 258,
             maxent_sentences: 3253,
-            rule_sentences: 2679,
-            same_spans: 1770,
+            rule_sentences: 2673,
+            same_spans: 1773,
             maxent_boundaries: 2771,
-            rule_boundaries: 2197,
+            rule_boundaries: 2191,
             same_boundaries: 1950
         }
     );

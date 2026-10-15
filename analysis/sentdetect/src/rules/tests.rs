@@ -133,6 +133,23 @@ fn lists() {
 }
 
 #[test]
+fn prose_with_single_letters_and_numbers_is_no_list() {
+    // Two consecutive letters or numbers inside a line are not a list
+    // unless the sequence reaches back to a line start or a bullet.
+    assert_eq!(en("J. K. Rowling wrote it. Then she left."), ["J. K. Rowling wrote it.", "Then she left."]);
+    assert_eq!(en("John A. Smith and Mary B. Jones came."), ["John A. Smith and Mary B. Jones came."]);
+    assert_eq!(en("We tried plan A. Then plan B. Both failed."), ["We tried plan A.", "Then plan B.", "Both failed."]);
+    assert_eq!(en("I was 7. Then I turned 8. Life went on."), ["I was 7.", "Then I turned 8.", "Life went on."]);
+    let de = |t| split(RuleSplitter::new("de"), t);
+    assert_eq!(de("Der 1. und 2. Platz. Dann"), ["Der 1. und 2. Platz.", "Dann"]);
+    // A single letter that is not the first of its sequence does not start
+    // a list at a line start, so the break after it stays.
+    assert_eq!(en("x. A"), ["x.", "A"]);
+    // A sequence that does start at a line start still chains inside it.
+    assert_eq!(en("Steps:\na. Mix b. Bake"), ["Steps:", "a. Mix", "b. Bake"]);
+}
+
+#[test]
 fn line_breaks() {
     let text = "It was a cold \nnight in the city.\n\nNext paragraph";
     assert_eq!(en(text), ["It was a cold \nnight in the city.", "Next paragraph"]);
