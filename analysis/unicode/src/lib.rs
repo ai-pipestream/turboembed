@@ -24,6 +24,7 @@
 //!
 //! - [`whitespace`]: OpenNLP's two whitespace definitions, chosen by a
 //!   [`WhitespaceMode`] value.
+//! - [`grapheme`]: UAX #29 extended grapheme cluster boundaries.
 //! - [`word_break`]: the UAX #29 `Word_Break` and `Extended_Pictographic`
 //!   properties.
 //! - [`utf16`]: a cursor that steps over UTF-8 text one UTF-16 code unit
@@ -36,6 +37,7 @@ pub mod category;
 pub mod chars;
 pub mod confusables;
 pub mod emoji;
+pub mod grapheme;
 pub mod java;
 pub mod modified_utf8;
 pub mod normalize;
@@ -50,6 +52,7 @@ mod tables;
 mod trie;
 
 pub use category::GeneralCategory;
+pub use grapheme::{GraphemeBreak, IndicConjunctBreak, grapheme_boundaries};
 pub use script::Script;
 pub use utf16::Utf16Cursor;
 pub use whitespace::WhitespaceMode;
