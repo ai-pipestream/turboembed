@@ -1,6 +1,6 @@
 //! The offset invariants (`turbo_goldens::invariants`) over every layer
 //! every run writes, on a small seeded corpus of the fuzz generator and on
-//! the checked in golden inputs of the sets the covered runs read. No
+//! the checked in golden inputs of the sets of [`FED`]. No
 //! container is needed: the Rust side runs alone. Runs whose published
 //! model is not downloaded are skipped, unless
 //! `TURBO_TEST_REQUIRE_OPENNLP_MODELS=1`; the published MeCab dictionaries
@@ -17,41 +17,61 @@ use turbo_goldens::invariants::check_document;
 const SEED: u64 = 7;
 const COUNT: u64 = 40;
 
-/// The names of the subdirectories of `dir`, or none when it is missing.
-fn subdirectories(dir: &Path) -> Vec<String> {
-    let Ok(entries) = std::fs::read_dir(dir) else { return Vec::new() };
-    entries
+/// The input sets every run is given. A set added under
+/// `analysis/goldens/data/inputs` goes here or in [`NOT_FED`]; the test
+/// below fails until it is in one of them.
+const FED: &[&str] = &[
+    "abbreviations",
+    "alphanumeric",
+    "bpe",
+    "codec",
+    "descriptor-errors",
+    "detokenizer",
+    "edge",
+    "en",
+    "formats",
+    "head-rules",
+    "ja",
+    "ko",
+    "money",
+    "multi",
+    "namefind",
+    "ner",
+    "norm",
+    "num",
+    "parse",
+    "quantity",
+    "sentence-fixture",
+    "sequence",
+    "stopword",
+    "subwords",
+    "surrogate",
+    "tag-format",
+    "tagged",
+    "train",
+    "zh",
+];
+
+/// The input sets the runs are not given, each with the reason.
+const NOT_FED: &[(&str, &str)] = &[(
+    "stem",
+    "about half a megabyte of words, one per line, read only by the stemmers; \
+     it more than doubles the test's time and gives the covered runs nothing new",
+)];
+
+/// The names of the subdirectories of `dir`.
+fn subdirectories(dir: &Path) -> BTreeSet<String> {
+    std::fs::read_dir(dir)
+        .unwrap_or_else(|e| panic!("{}: {e}", dir.display()))
         .map(|e| e.unwrap())
         .filter(|e| e.file_type().unwrap().is_dir())
         .map(|e| e.file_name().into_string().unwrap())
         .collect()
 }
 
-/// The input sets the goldens of the given annotators were made from: the
-/// set directories under `<annotator>/<run>/` in the golden data.
-fn sets_read_by(annotators: impl IntoIterator<Item = (String, Option<String>)>) -> BTreeSet<String> {
-    let data = turbo_goldens::data_dir();
-    let mut sets = BTreeSet::new();
-    for (annotator, run) in annotators {
-        let runs = match run {
-            Some(run) => vec![run],
-            None => subdirectories(&data.join(&annotator)),
-        };
-        for run in runs {
-            sets.extend(subdirectories(&data.join(&annotator).join(run)));
-        }
-    }
-    sets
-}
-
-/// The input sets some run of [`runs::RUNS`] reads. The other sets are
-/// read only by the annotators the differential does not cover (the
-/// stemmers' word lists, the format readers' corpora, ...); no covered run
-/// is compared on them, and every run below reading them all, the
-/// stemmers' half a megabyte of words among them, takes many times as long
-/// as the rest of the test.
-fn covered_sets() -> BTreeSet<String> {
-    sets_read_by(runs::RUNS.iter().map(|&(a, r)| (a.to_string(), Some(r.to_string()))))
+/// [`FED`] as owned names.
+fn fed_sets() -> BTreeSet<String> {
+    FED.iter().map(|s| s.to_string()).collect()
 }
 
 /// Every checked in input text of the given sets, as `<set>/<id>` and its
@@ -60,46 +80,41 @@ fn golden_inputs(sets: &BTreeSet<String>) -> Vec<(String, String)> {
     let inputs = turbo_goldens::data_dir().join("inputs");
     let mut out = Vec::new();
     for set in sets {
-        let mut texts = 0;
         for file in std::fs::read_dir(inputs.join(set)).unwrap_or_else(|e| panic!("inputs/{set}: {e}")) {
             let file = file.unwrap().path();
             if file.extension().is_some_and(|x| x == "txt") {
                 let name = format!("{set}/{}", file.file_stem().unwrap().to_string_lossy());
                 out.push((name, std::fs::read_to_string(&file).unwrap()));
-                texts += 1;
             }
         }
-        assert!(texts > 0, "inputs/{set} has no text, but a covered run's goldens were made from it");
     }
     out.sort();
     out
 }
 
-/// Every input set is fed to the runs below exactly when a covered run
-/// reads it, and a set no covered run reads must be read by an annotator
-/// the differential does not cover: a new set with goldens of a covered
-/// run is picked up from the goldens, and a set with no goldens at all is
-/// an error here rather than a set silently left out.
+/// Every input set on disk is in exactly one of [`FED`] and [`NOT_FED`],
+/// both name only sets on disk, and no text of a set of [`NOT_FED`] is fed.
 #[test]
-fn the_sets_fed_are_the_ones_the_covered_runs_read() {
-    let covered = covered_sets();
-    for set in ["en", "multi", "edge", "surrogate", "norm", "money", "zh", "ja", "ko"] {
-        assert!(covered.contains(set), "{set} is not among {covered:?}");
+fn every_input_set_is_fed_or_left_out_by_name() {
+    let on_disk = subdirectories(&turbo_goldens::data_dir().join("inputs"));
+    let fed = fed_sets();
+    let not_fed: BTreeSet<String> = NOT_FED.iter().map(|(set, _)| set.to_string()).collect();
+    assert_eq!(fed.len(), FED.len(), "a set is named twice in FED");
+    assert_eq!(not_fed.len(), NOT_FED.len(), "a set is named twice in NOT_FED");
+    assert!(fed.is_disjoint(&not_fed), "in both FED and NOT_FED: {:?}", fed.intersection(&not_fed));
+    for set in fed.iter().chain(&not_fed) {
+        assert!(on_disk.contains(set), "{set} is named but not in inputs/");
     }
-    let others = sets_read_by(runs::NOT_COVERED.iter().map(|a| (a.to_string(), None)));
-    let on_disk: BTreeSet<String> = subdirectories(&turbo_goldens::data_dir().join("inputs")).into_iter().collect();
     for set in &on_disk {
         assert!(
-            covered.contains(set) || others.contains(set),
-            "inputs/{set}: no golden of any run was made from it, so this test would leave it out"
+            fed.contains(set) || not_fed.contains(set),
+            "inputs/{set} is new: add it to FED, or to NOT_FED with the reason"
         );
     }
-    assert!(covered.is_subset(&on_disk), "{covered:?} names a set that is not in inputs/");
-    // The stemmers' word lists are the largest set and are read only by `stem`.
-    assert!(!covered.contains("stem"), "{covered:?}");
-    let texts = golden_inputs(&covered);
-    let fed: BTreeSet<&str> = texts.iter().map(|(id, _)| id.split_once('/').unwrap().0).collect();
-    assert_eq!(fed, covered.iter().map(String::as_str).collect(), "every covered set gives texts");
+    let texts = golden_inputs(&fed);
+    let given: BTreeSet<String> = texts.iter().map(|(id, _)| id.split_once('/').unwrap().0.to_string()).collect();
+    assert!(given.is_disjoint(&not_fed), "{given:?}");
+    assert_eq!(given, fed, "every fed set gives texts");
 }
 
 fn required(path: &Path) -> bool {
@@ -111,7 +126,7 @@ fn required(path: &Path) -> bool {
 fn every_layer_of_every_run_keeps_the_offset_invariants() {
     let res = Resources::from_env();
     let mut texts: Vec<(String, String)> = corpus(SEED, COUNT).into_iter().map(|i| (i.id, i.text)).collect();
-    texts.extend(golden_inputs(&covered_sets()));
+    texts.extend(golden_inputs(&fed_sets()));
     assert!(texts.len() > 300, "{} texts", texts.len());
     let (mut runs_checked, mut layers_checked, mut skipped) = (0, 0, Vec::new());
     let mut failures = Vec::new();
