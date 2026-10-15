@@ -108,6 +108,20 @@ fn modifiers_bound_and_cut() {
     assert_eq!(show(&resolve(&decade(Portion::Start), n).unwrap()), [format!("{eighties} 1980-01-01..1984-01-01")]);
     assert_eq!(show(&resolve(&decade(Portion::Mid), n).unwrap()), [format!("{eighties} 1984-01-01..1987-01-01")]);
     assert_eq!(show(&resolve(&decade(Portion::End), n).unwrap()), [format!("{eighties} 1987-01-01..1990-01-01")]);
+    // A decade without its century prefers the last one by the reference
+    // and keeps both readings.
+    let late_eighties = TimeValue::Point {
+        point: Point::date(DateSpec::Decade { year: YearRef::Short(80) }),
+        modifier: Modifier::portion(Portion::End),
+        clip: false,
+    };
+    let r = resolve(&late_eighties, now("2026-03-15T10:00:00")).unwrap();
+    let (s, e) =
+        ("(XX80-01-01,XX90-01-01,P10Y) 1987-01-01..1990-01-01", "(XX80-01-01,XX90-01-01,P10Y) 2087-01-01..2090-01-01");
+    assert_eq!((show(&r), r.preferred), (vec![s.to_string(), e.to_string()], 0));
+    let twenties = TimeValue::point(Point::date(DateSpec::Decade { year: YearRef::Short(20) }));
+    let r = resolve(&twenties, now("2026-03-15T10:00:00")).unwrap();
+    assert_eq!(show(&r)[r.preferred], "(XX20-01-01,XX30-01-01,P10Y) 2020-01-01..2030-01-01");
     // `around 1pm` keeps its point.
     let around = TimeValue::Point {
         point: Point::time(clock(1, 0, Shown::Hour, Meridiem::Pm)),

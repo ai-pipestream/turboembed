@@ -361,5 +361,14 @@ pub(super) fn resolve(p: &Point, modifier: Modifier, clip: bool, now: DateTime) 
     let end_of_day = kind == TimeKind::Date && modified == TimeKind::DateTime;
     let clipped = clip && matches!(grain, TimeGrain::Week | TimeGrain::Month | TimeGrain::Year);
     let shown = if end_of_day || clipped { Modifier::NONE } else { modifier };
-    Some(finish(modified, grain, shown, &ms))
+    let mut r = finish(modified, grain, shown, &ms);
+    // A decade without its century (`the eighties`) means the last one
+    // that starts by the reference far more often than the next.
+    if matches!(p.date, DateSpec::Decade { year: YearRef::Short(_) })
+        && let Some(i) =
+            ms.iter().find(|m| !m.future).and_then(|m| r.alternatives.iter().position(|a| *a == m.alternative()))
+    {
+        r.preferred = i;
+    }
+    Some(r)
 }

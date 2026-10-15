@@ -204,7 +204,9 @@ where they choose a reading:
 
 - A clock with no `am` or `pm` reads in both halves of the day; the first
   is preferred. A weekday or a day of an unnamed year reads before and
-  after the reference; the later reading is preferred.
+  after the reference; the later reading is preferred. A decade without
+  its century (`the eighties`) prefers the last one that starts by the
+  reference.
 - `may`, `sun` and a few other words with a common sense need a cue to
   be a date (`in May`, `on Sun`); `last` after `will` or `to` is a verb.
 - A date with a dot after a full month name (`April. One`) is two
