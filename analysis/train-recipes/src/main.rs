@@ -5,6 +5,7 @@
 //! turbo-train-recipes fetch-masc --home <dir>
 //! turbo-train-recipes ud --treebanks <dir> --references <dir> --out <dir> [--recipe <model id>]...
 //! turbo-train-recipes fetch-ud --home <dir>
+//! turbo-train-recipes zoo-index --models <dir> --release <tag> [--check]
 //! turbo-train-recipes tatoeba --export <dir> --references <dir> --out <dir> [--unrecorded-export]
 //! ```
 //!
@@ -45,6 +46,15 @@
 //! files at the release through the zoo into
 //! `<home>/artifacts/<dataset id>/`.
 //!
+//! `zoo-index` reads the directories `masc` wrote into `--models` of the
+//! models release `--release` publishes (`release::MODELS_RELEASES`),
+//! checks each model file and gate record against its card, and prints
+//! the zoo's built-in index with each model's entry at its address in the
+//! release (`release::index_with`). With `--check` it prints nothing of
+//! the index and exits with 1 unless the built-in index is already that
+//! one, naming the entries that differ with the size and SHA-256 the
+//! index lists and the ones the model has.
+//!
 //! `tatoeba` runs the language detector recipe (`langdetect::LANGDETECT`)
 //! on the Tatoeba export extracted into `--export` (`sentences_detailed.csv`
 //! and `sentences_CC0.csv`), gates it against `langdetect-183.bin` read
@@ -62,17 +72,20 @@ use turbo_formats::masc::MascCorpus;
 use turbo_train_recipes::card::write_model_dir;
 use turbo_train_recipes::langdetect::{self, LANGDETECT, write_language_dir};
 use turbo_train_recipes::masc::{self, RELEASE, SplitCorpus};
+use turbo_train_recipes::release::{self, ModelsRelease};
 use turbo_train_recipes::tatoeba::Export;
 use turbo_train_recipes::treebank::{TREEBANKS, Treebank, TreebankText};
 use turbo_train_recipes::ud::{UD_RECIPES, UdRecipe, run_ud};
 use turbo_train_recipes::ud_card::write_ud_model_dir;
 use turbo_train_recipes::{Error, RECIPES, Recipe, Reference, run};
+use turbo_zoo::Index;
 
 const USAGE: &str = "usage:
   turbo-train-recipes masc --corpus <dir> --references <dir> --out <dir> [--unrecorded-corpus] [--recipe <model id>]...
   turbo-train-recipes fetch-masc --home <dir>
   turbo-train-recipes ud --treebanks <dir> --references <dir> --out <dir> [--recipe <model id>]...
   turbo-train-recipes fetch-ud --home <dir>
+  turbo-train-recipes zoo-index --models <dir> --release <tag> [--check]
   turbo-train-recipes tatoeba --export <dir> --references <dir> --out <dir> [--unrecorded-export]";
 
 struct Args {
@@ -82,9 +95,12 @@ struct Args {
     references: Option<PathBuf>,
     out: Option<PathBuf>,
     home: Option<PathBuf>,
+    models: Option<PathBuf>,
+    release: Option<ModelsRelease>,
     export: Option<PathBuf>,
     unrecorded: bool,
     unrecorded_export: bool,
+    check: bool,
     /// The model ids `--recipe` names, resolved by the command.
     recipe_ids: Vec<String>,
 }
@@ -109,9 +125,12 @@ fn parse() -> Result<Args, String> {
         references: None,
         out: None,
         home: None,
+        models: None,
+        release: None,
         export: None,
         unrecorded: false,
         unrecorded_export: false,
+        check: false,
         recipe_ids: Vec::new(),
     };
     while let Some(flag) = it.next() {
@@ -122,7 +141,10 @@ fn parse() -> Result<Args, String> {
             "--references" => a.references = Some(value()?.into()),
             "--out" => a.out = Some(value()?.into()),
             "--home" => a.home = Some(value()?.into()),
+            "--models" => a.models = Some(value()?.into()),
+            "--release" => a.release = Some(ModelsRelease::tagged(&value()?).map_err(|e| e.to_string())?),
             "--unrecorded-corpus" => a.unrecorded = true,
+            "--check" => a.check = true,
             "--export" => a.export = Some(value()?.into()),
             "--unrecorded-export" => a.unrecorded_export = true,
             "--recipe" => a.recipe_ids.push(value()?),
@@ -299,6 +321,39 @@ fn fetch_ud_command(a: Args) -> Result<bool, String> {
     Ok(true)
 }
 
+fn zoo_index_command(a: Args) -> Result<bool, String> {
+    let models = need(a.models, "--models")?;
+    let release = a.release.ok_or_else(|| format!("--release is required\n{USAGE}"))?;
+    let tag = release.tag;
+    let entries = release::entries(&models, &release).map_err(|e| e.to_string())?;
+    let index = release::index_with(&Index::builtin(), &entries);
+    if !a.check {
+        print!("{index}");
+        return Ok(true);
+    }
+    if index == turbo_zoo::index::BUILTIN {
+        println!("the zoo's built-in index lists the {} models at their addresses in release {tag}", entries.len());
+        return Ok(true);
+    }
+    let builtin = Index::builtin();
+    for entry in &entries {
+        match builtin.get(entry.id.as_str()) {
+            Ok(listed) if listed == entry => {}
+            Ok(listed) => {
+                let (l, m) = (&listed.files[0], &entry.files[0]);
+                println!(
+                    "{}: the built-in index lists another entry ({} bytes, SHA-256 {}, at {}; the model has {} bytes, \
+                     SHA-256 {}, at {})",
+                    entry.id, l.size, l.sha256, l.url, m.size, m.sha256, m.url
+                );
+            }
+            Err(_) => println!("{}: the built-in index does not list it", entry.id),
+        }
+    }
+    println!("the zoo's built-in index is not the one these models and release {tag} give");
+    Ok(false)
+}
+
 fn tatoeba_command(a: Args) -> Result<bool, String> {
     let export_dir = need(a.export, "--export")?;
     let references = need(a.references, "--references")?;
@@ -346,6 +401,7 @@ fn main() -> ExitCode {
         "fetch-masc" => fetch_command(a),
         "ud" => ud_command(a),
         "fetch-ud" => fetch_ud_command(a),
+        "zoo-index" => zoo_index_command(a),
         "tatoeba" => tatoeba_command(a),
         _ => Err(USAGE.to_owned()),
     });

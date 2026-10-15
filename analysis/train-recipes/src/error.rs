@@ -84,6 +84,9 @@ pub enum Error {
     /// ([`crate::ud::ReferenceClasses`]): `left_out`, by tag as written, of
     /// `of` tokens.
     ClassesOutsideReference { reference: String, left_out: Vec<TagCount>, of: u64, limit: Limit },
+    /// A tag that names none of the releases of the recipes' models
+    /// ([`crate::release::MODELS_RELEASES`]), with the tags that do.
+    UnknownRelease { tag: String, known: Vec<&'static str> },
 }
 
 /// What a recipe leaves out, and [`Error::TooManyLeftOut`] counts.
@@ -187,6 +190,9 @@ impl fmt::Display for Error {
                     write!(f, " {} ({})", t.tag, t.tokens)?;
                 }
                 Ok(())
+            }
+            Error::UnknownRelease { tag, known } => {
+                write!(f, "no release of the models is tagged {tag:?}; the releases are {}", known.join(", "))
             }
         }
     }

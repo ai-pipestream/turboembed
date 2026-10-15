@@ -2586,6 +2586,15 @@ each model follows MASC's chunk conventions as well as how well it
 chunks. Two runs write the same model bytes. The crate's README has the counts, the
 models' digests and the rest.
 
+The four models go out as the assets of this repository's release
+`models-masc-3.0.0-1`, and the zoo's built-in index lists them there as
+permissive models. `.github/workflows/models.yml` trains them in CI,
+checks with `turbo-train-recipes zoo-index --check` that they are the
+bytes the index lists, and only then, run by hand on main, creates the
+release with each model's card and gate record beside it; until it has,
+fetching them through the zoo fails. A release names the models it
+publishes, so a recipe added later goes out in a release of its own.
+
 ### The UD treebanks
 
 The UD recipes (#415) train the sentence detector, tokenizer, tagger

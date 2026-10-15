@@ -60,8 +60,11 @@ cargo run -p turbo-goldens-tool --features fuzz -- fuzz [--seed <n>] [--count <n
   (`LOCAL_MODELS` in `src/recipe.rs`) from opennlp.sourceforge.net, which
   publishes no hash beside them: the recipe has the SHA-512 of the files
   whose SHA-256 the sequence crate's README lists. Their training corpora
-  are LDC corpora or undocumented, so CI does not fetch them; `generate`,
-  `verify` and `fuzz` always do, since the generator runs them.
+  are LDC corpora or undocumented, so the `ci` workflow does not fetch
+  them (the `models` workflow fetches `en-pos-maxent.bin` and
+  `en-chunker.bin`, only to score them in the MASC release's gates);
+  `generate`, `verify` and `fuzz` always do, since the generator runs
+  them.
   It also fetches the MeCab dictionaries (`DICTIONARIES` in `src/recipe.rs`)
   as archives, checks each archive's SHA-512 (neither project publishes
   one; these are the hashes OpenNLP's dictionary catalog test resource
