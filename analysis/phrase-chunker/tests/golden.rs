@@ -8,10 +8,12 @@
 //! is compared is the chunking alone: tags and phrases exactly and
 //! probabilities bit for bit.
 //!
-//! The runs are the fixture chunker model as it is and rebuilt with a beam
-//! of one. The dumps are checked too: every context the beam search asked
-//! the model about, feature by feature in the JVM's order, with the
-//! probability of every chunk tag.
+//! The runs are the fixture chunker model as it is, the same model rebuilt
+//! with a beam of one, and `chunker-fixture-rust.bin`, the model
+//! `turbo-train-components` trained from `inputs/tagged/chunks.txt`. The
+//! dumps are checked too: every context the beam search asked the model
+//! about, feature by feature in the JVM's order, with the probability of
+//! every chunk tag.
 //!
 //! `en/emoji-split` has a token that is half of a surrogate pair, which
 //! cannot be loaded onto the Rust text; that golden is counted and skipped.
@@ -211,4 +213,19 @@ fn fixture_with_a_beam_of_one() {
     // One context per token: the beam keeps one path.
     assert_eq!(counts.tokens, counts.points, "{counts:?}");
     assert_eq!((counts.tokens, counts.phrases), (496, 292), "{counts:?}");
+}
+
+/// The chunker model `turbo-train-components` wrote from
+/// `inputs/tagged/chunks.txt` (`analysis/train-components/tests/fixtures.rs`
+/// trains it again and checks it is this file byte for byte), which the JVM
+/// loaded and chunked with like the fixture above.
+#[test]
+fn rust_fixture() {
+    let path = common::fixtures_dir().join("chunker-fixture-rust.bin");
+    let model = Arc::new(ChunkerModel::read(&path).unwrap());
+    assert_eq!((model.language(), model.beam_size()), ("en", 10));
+    let counts = check_run("chunker-fixture-rust", &model, &path, None);
+    assert_eq!(counts.files, [("edge".into(), 34), ("en".into(), 10), ("multi".into(), 11)]);
+    assert_eq!(counts.skipped, 1);
+    assert_eq!((counts.tokens, counts.points, counts.phrases), (1304, 11102, 586), "{counts:?}");
 }
