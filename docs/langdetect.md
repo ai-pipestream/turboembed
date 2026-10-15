@@ -179,7 +179,11 @@ per sample (`LanguageDetectorEventStream`), whose predicates are the
 n-grams in the iteration order of the first hash map the generator fills
 (`ContextGenerator::training_features`), where `predictLanguages` uses
 the second map's order, which differs from it only when a bucket has
-become a tree; the `OnePass` indexer when the parameters name none; the
+become a tree (test
+`a_tree_bucket_can_give_training_and_prediction_different_orders` in
+`analysis/langdetect/tests/context.rs`, with JDK 21's orders, and the
+`tree-bucket` training goldens below); the `OnePass` indexer when the
+parameters name none; the
 event trainer the parameters name; and the model file `new
 LanguageDetectorModel(model, entries, factory)` writes, with the
 language `und` and the `langdetect.model` entry.
@@ -194,20 +198,30 @@ JVM's training (goldens-tool `LanguageTrainGolden`) in two runs,
 `default` (cutoff 5) and `cutoff1`, on samples written for them
 (`inputs/langdetect/samples.txt`: nine languages, and lines in
 capitals, with a tab or many spaces in the text, empty text, a backslash,
-CR LF, no final newline, and lines the sample stream skips) and on the
-language format input. `analysis/train-components/tests/langdetect.rs`
-compares the events, their checksum, the index, the log likelihood and a
-digest of every parameter after each GIS iteration, every weight after
-the first and the last iteration bit for bit, the written model's
-SHA-256 and length, the manifest and the zip entries.
+CR LF, no final newline, and lines the sample stream skips;
+`inputs/langdetect/tree-bucket.txt`: six lines whose unigrams share a
+bucket that becomes a tree, so training's n-gram order differs from
+prediction's) and on the language format input.
+`analysis/train-components/tests/langdetect.rs` compares the events,
+their checksum, the index, the log likelihood and a digest of every
+parameter after each GIS iteration, every weight after the first and the
+last iteration bit for bit, the written model's SHA-256 and length, the
+manifest and the zip entries. Bit for bit holds for events in the JVM's
+predicate order; an event with equal-hash n-grams in a tree bucket is
+not (`inexact_events`), and its weights can differ in the last bits. The
+goldens hold no such event, which the test checks.
 
 `analysis/goldens/data/fixtures/langdetect-fixture-rust.bin` is a model
 trained here from the same samples (`analysis/train-components/tests/fixtures.rs`
 checks that it is the file this crate writes). The goldens and dumps
 under `langdetect/langdetect-fixture-rust` are OpenNLP running it on the
-22 texts, which shows that the JVM reads it, and
+22 texts of the `langdetect-183` goldens (the 11 `en` and 11 `multi`
+inputs), which shows that the JVM reads it, and
 `analysis/langdetect/tests/fixture.rs` compares turbo-langdetect's
-probabilities with them bit for bit and its rankings exactly; the
+probabilities with them, each text's nine (one per language of the
+fixture), bit for bit, and its rankings exactly (none of the 22 texts
+reaches a tree bucket, where equal-hash n-grams could change the last
+bits); the
 annotator declines the two texts in which the model knows no n-gram
 (Japanese and Chinese), where the JVM ranks every language equal.
 

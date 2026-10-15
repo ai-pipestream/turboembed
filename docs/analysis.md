@@ -1750,9 +1750,13 @@ The language detector is trained as `LanguageDetectorME.train` does (the
 `analysis/goldens/data/train-langdetect/<run>/<set>/<id>.golden`: the
 events, the index, the GIS training iteration by iteration, and the
 manifest and zip entries of the model file, with cutoff 5 and 1, on
-`inputs/langdetect/samples.txt` and the language format input.
-`analysis/train-components/tests/langdetect.rs` compares all of it, the
-weights bit for bit, and `analysis/train-components/tests/fixtures.rs`
+`inputs/langdetect/samples.txt`, `inputs/langdetect/tree-bucket.txt`
+(where training's n-gram order differs from prediction's) and the
+language format input. `analysis/train-components/tests/langdetect.rs`
+compares all of it, the weights bit for bit (as for any event in the
+JVM's predicate order; one with equal-hash n-grams in a tree bucket can
+differ in the last bits, and the goldens hold none), and
+`analysis/train-components/tests/fixtures.rs`
 checks that `langdetect-fixture-rust.bin` is the file the Rust trainer
 writes from the samples; the generator loads it in the JVM
 (`langdetect/langdetect-fixture-rust`) for
@@ -2187,10 +2191,13 @@ out) of the languages `langdetect-183.bin` also covers, through an
 explicit table of Tatoeba's and the model's ISO 639-3 codes, with the
 command line trainer's default parameters, and gates it against
 `langdetect-183.bin` on 500 held-out sentences per language, one unit
-each (`Task::LanguageDetector`, `Scoring::Labels`). Tatoeba's download
-host refused the machine it was written on, so no export is recorded
-and no full run has been made; the README has the commands, the split,
-the thresholds and which way the gate leans.
+each (`Task::LanguageDetector`, `Scoring::Labels`). The model's
+directory lists the ids of the sentences it was trained on
+(`training-sentences.txt`), the credit CC BY 2.0 FR asks for, as
+Tatoeba's sentence addresses. Tatoeba's download host refused the
+machine it was written on, so no export is recorded and no full run has
+been made; the README has the commands, the split, the thresholds and
+which way the gate leans.
 
 ## Differential fuzzing
 
