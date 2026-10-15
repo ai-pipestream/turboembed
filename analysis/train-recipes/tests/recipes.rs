@@ -234,6 +234,23 @@ fn the_recipes_train_score_gate_and_write_their_cards() {
         assert_eq!(entry.computed_class(), LicenceClass::Permissive);
         assert_eq!(index.shippable().count(), 1);
         assert_eq!(entry.trained_on[0].name, masc::NAME);
+        // A model also trained on non-commercial data is local-only: it
+        // makes no zoo entry, whatever its gate says. Nor does a card
+        // whose class is not the one its licences give.
+        let mut local = released.clone();
+        local.trained_on.push(turbo_zoo::TrainingData {
+            name: "UD_English-GUM r2.16".to_owned(),
+            license: turbo_zoo::Licence::CcByNcSa40,
+            license_terms: "https://github.com/UniversalDependencies/UD_English-GUM/blob/r2.16/README.md"
+                .parse()
+                .unwrap(),
+        });
+        assert!(matches!(local.artifact(&url), Err(Error::InvalidCard { field: "class", .. })));
+        local.class = LicenceClass::LocalOnly;
+        assert!(matches!(local.artifact(&url), Err(Error::NotShippable { .. })));
+        let mut mislabelled = released.clone();
+        mislabelled.class = LicenceClass::ShareAlike;
+        assert!(matches!(mislabelled.artifact(&url), Err(Error::InvalidCard { field: "class", .. })));
     }
     // A tagger trained on the plain corpus gives only `NN` and `.`: as the
     // reference it could never be right on most held-out tokens, and the

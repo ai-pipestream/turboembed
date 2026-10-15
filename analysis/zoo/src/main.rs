@@ -4,14 +4,18 @@ use std::path::PathBuf;
 use std::process::ExitCode;
 use std::time::{SystemTime, UNIX_EPOCH};
 
-use turbo_zoo::{Acceptances, Http, Index, Licence, Policy, Requirement, Sha256, Sha512, UserId, Zoo, ZooError};
+use turbo_zoo::{
+    Acceptances, Http, Index, Licence, LicenceClass, LocalOnlyReason, Policy, Requirement, Sha256, Sha512, UserId, Zoo,
+    ZooError,
+};
 
 const USAGE: &str = "usage: turbo-zoo [--index <zoo.json>] <command>
   list                 the artifacts the zoo may fetch, with class and licences
   show <id>            one artifact: licences, training data, files
   accept <licence> [<terms>] [--yes]
-                       show the text of a licence (SPDX id, as `show` prints it) and,
-                       with --yes after you have read it, record that you accept it;
+                       show the text of a licence (SPDX id, as `show` prints it), and
+                       for local-only terms what they allow, and, with --yes after you
+                       have read it, record that you accept it;
                        LicenseRef-RestrictedPublic also takes the host's terms address
   revoke <licence> [<terms>]
                        withdraw an acceptance
@@ -52,8 +56,7 @@ fn user() -> Result<UserId, String> {
 /// The terms `accept` and `revoke` name: a licence with its own text, or
 /// one without (LicenseRef-RestrictedPublic) and the terms address `show`
 /// prints for it.
-fn requirement(licence: &str, terms: Option<&str>) -> Result<Requirement, String> {
-    let licence: Licence = licence.parse()?;
+fn requirement(licence: Licence, terms: Option<&str>) -> Result<Requirement, String> {
     match (Requirement::of(licence), terms) {
         (Some(r), None) => Ok(r),
         (Some(_), Some(_)) => Err(format!("{licence} has its own text; give no terms address")),
@@ -103,7 +106,15 @@ fn run(mut args: Vec<String>) -> Result<(), String> {
                 println!("accept first: {} {}", r.licence, r.text);
             }
             if let Some(o) = &a.origin {
-                println!("origin: {o} (fetched from there only; for local training and evaluation only)");
+                println!("origin: {o} (every file is fetched from under it, nowhere else)");
+            }
+            let mut reasons: Vec<LocalOnlyReason> = Vec::new();
+            for reason in a.licences().filter_map(Licence::local_only) {
+                if !reasons.contains(&reason) {
+                    println!("local only: {}", reason.terms());
+                    println!("local only: {}", reason.policy());
+                    reasons.push(reason);
+                }
             }
             for f in &a.files {
                 println!("file: {} {} bytes sha256 {} from {}", f.path, f.size, f.sha256, f.url);
@@ -116,13 +127,21 @@ fn run(mut args: Vec<String>) -> Result<(), String> {
             if terms.len() > 1 {
                 return Err(USAGE.into());
             }
+            // A refused or permissive licence is named as such before
+            // anything about its text, which a refused `LicenseRef-` one
+            // does not have.
+            let licence: Licence = licence.parse()?;
+            if let Some(reason) = licence.refusal() {
+                return Err(format!("{licence}: refused ({reason}); the zoo fetches nothing under it"));
+            }
+            if licence.class() == LicenceClass::Permissive {
+                return Err(format!("{licence} is {}: there is nothing to accept", LicenceClass::Permissive));
+            }
             let r = requirement(licence, terms.first().copied())?;
             println!("{}: read the text at {}", r.licence, r.text);
-            if r.licence.class() == turbo_zoo::LicenceClass::LocalOnly {
-                println!(
-                    "These are the host's own terms. Data under them is fetched only from its host, used only for \
-                     local training and evaluation, and nothing made from it may be shared or shipped."
-                );
+            if let Some(reason) = r.licence.local_only() {
+                println!("{}", reason.terms());
+                println!("{}", reason.policy());
             }
             if !yes {
                 return Err("nothing recorded: once you have read the text and accept it, run the same command \
@@ -138,7 +157,7 @@ fn run(mut args: Vec<String>) -> Result<(), String> {
             Ok(())
         }
         ["revoke", licence, rest @ ..] if rest.len() <= 1 => {
-            let r = requirement(licence, rest.first().copied())?;
+            let r = requirement(licence.parse()?, rest.first().copied())?;
             let user = user()?;
             let mut acc = Acceptances::load(&accept_path).map_err(e)?;
             if acc.revoke(&user, &r) {
