@@ -38,6 +38,27 @@ RUN git init -q . \
 # -DskipITs is needed as well: the integration tests download models.
 RUN ./mvnw -q -DskipTests -DskipITs -Dforbiddenapis.skip=true -pl opennlp-core/opennlp-runtime,opennlp-core/opennlp-formats -am install
 
+# The code point StringPattern of the fork's ready/string-pattern-unicode
+# branch: its StringPattern and FeatureGeneratorUtil, and its ParamChecks,
+# which the commit above does not have, compiled against the runtime installed
+# above into a jar of their own. The generator loads the jar in a class loader
+# of its own for the code point pattern goldens (StringPatternGolden.java) and
+# checks the commit written beside it.
+ARG STRING_PATTERN_COMMIT=b2473ca80d65ae2ef10a24b08b1d0ae6a9231109
+WORKDIR /string-pattern
+RUN git -C /opennlp fetch -q --depth 1 origin "$STRING_PATTERN_COMMIT" \
+ && mkdir src classes \
+ && git -C /opennlp show "$STRING_PATTERN_COMMIT:opennlp-api/src/main/java/opennlp/tools/util/ParamChecks.java" > src/ParamChecks.java \
+ && for f in StringPattern FeatureGeneratorUtil; do \
+      git -C /opennlp show "$STRING_PATTERN_COMMIT:opennlp-core/opennlp-runtime/src/main/java/opennlp/tools/util/featuregen/$f.java" > "src/$f.java"; \
+    done \
+ && m2=/root/.m2/repository/org/apache/opennlp \
+ && javac -encoding UTF-8 -d classes \
+      -cp "$m2/opennlp-api/3.0.0-SNAPSHOT/opennlp-api-3.0.0-SNAPSHOT.jar:$m2/opennlp-runtime/3.0.0-SNAPSHOT/opennlp-runtime-3.0.0-SNAPSHOT.jar" \
+      src/*.java \
+ && jar cf string-pattern.jar -C classes . \
+ && echo "$STRING_PATTERN_COMMIT" > commit
+
 # The numeric module of the OpenNLP addons (NumberScan), built against the
 # runtime installed above. -am installs the addons' parent pom with it. Its
 # tests are skipped; they are the addons' own. Git LFS files are not needed.
@@ -57,7 +78,7 @@ RUN /opennlp/mvnw -q -f /generator/pom.xml package
 # generator; the driver passes --dumps so the decision point dumps are written
 # beside the goldens.
 RUN printf '%s\n' '#!/bin/sh' \
-      'exec java -jar /generator/target/turbo-goldens-java.jar /inputs /models /fixtures /out "$(cat /opennlp.commit)" "$@"' \
+      'exec java -Dturbo.goldens.stringPatternJar=/string-pattern/string-pattern.jar -jar /generator/target/turbo-goldens-java.jar /inputs /models /fixtures /out "$(cat /opennlp.commit)" "$@"' \
       > /usr/local/bin/turbo-goldens-java \
  && chmod 0755 /usr/local/bin/turbo-goldens-java
 

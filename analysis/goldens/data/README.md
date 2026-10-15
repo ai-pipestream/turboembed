@@ -223,6 +223,25 @@ are not taken from any corpus.
   1,002, one above the `int` range and one below 2, more and fewer tags
   than the count, and a missing direction.
 
+- `inputs/sequence/`, `inputs/descriptor-errors/`, `inputs/codec/`,
+  `inputs/tag-format/`: the inputs of the `turbo-sequence` goldens, written
+  for this project: 16 tokenized sentences, tokens for `StringPattern`
+  (escaped, lone surrogates among them), 16 malformed feature generator
+  descriptors, the label alphabets of the BIO and BILOU codecs and lists of
+  part-of-speech outcomes; `analysis/sequence/README.md` describes them.
+- `inputs/namefind/`: 31 tokenized sentences with phone numbers, emails,
+  URLs, MGRS references, coordinates and the name finder dictionaries'
+  entries, written for this project (`analysis/namefind/README.md`).
+- `inputs/stem/`: the words the stemmers get: samples of Snowball's
+  reference vocabularies for the 16 languages whose snowball-data files are
+  under its BSD license (`voc.txt` at snowball-data commit
+  `da07690d20ce69ee16b5fb95796f92090cc9b4a1`, every n-th line), 135 edge
+  case words and 1,000 generated words per language
+  (`analysis/stem/README.md`).
+- `inputs/stopword/`: words and language codes the stopword lookup is asked
+  about besides the lists' own, written for this project
+  (`analysis/stopword/README.md`).
+
 `analysis/goldens-tool/README.md` ("Runs") lists which run reads which set.
 
 ## Fixtures
@@ -238,12 +257,16 @@ that differs.
 | `en-plain-rust.bin` | the `.bin` the Rust trainer writes when it trains `en-plain`'s events again (`analysis/train/tests/roundtrip.rs`, which checks that the fixture is that file): the `sent.model` entry and the manifest of `en-plain.bin`, byte for byte, in an archive written here (entries stored, manifest first); the JVM loads it so the goldens of the two files can be compared |
 | `en-plain-qn-rust.bin` | the `.bin` the Rust trainer writes when it trains `en-plain`'s events with `MAXENT_QN` (cutoff 1, the trainer's defaults; `analysis/train/tests/roundtrip.rs` checks that the fixture is that file and that its `sent.model` entry has the bytes the training golden `train/sentdetect-twopass-cutoff1-qn/train/sentences` recorded from the JVM's `QNTrainer`); the JVM loads it so the goldens show how it splits the fixture inputs |
 | `en-plain-perceptron-rust.bin` | the same for `PERCEPTRON` (cutoff 1, the trainer's defaults), checked against the training golden `train/sentdetect-twopass-cutoff1-unsorted-perceptron/train/sentences` |
-| `pos-fixture.bin` | a copy of `analysis/sequence/golden/models/pos-fixture.bin`, a part-of-speech model OpenNLP trained by GIS on 15 sentences with Penn Treebank tags, the default descriptor and the case-insensitive tag dictionary `tags.tagdict` (`the`, `Run`, `fell`, `Paris`; `analysis/sequence/README.md`); `analysis/train-components/tests/fixtures.rs` trains it again byte for byte |
-| `tags.tagdict` | a copy of `analysis/sequence/golden/resources/tags.tagdict`, the case-insensitive tag dictionary above, as the generator reads it for the `postag-wordtag-tagdict` run and the Rust trainer for `pos-fixture-rust.bin` |
+| `pos-fixture.bin` | a part-of-speech model OpenNLP trained by GIS on 15 sentences with Penn Treebank tags (`train-fixtures/train-pos.txt`, by `FixtureModels.java` in `analysis/goldens-tool`), the default descriptor and the case-insensitive tag dictionary `tags.tagdict` (`the`, `Run`, `fell`, `Paris`; `analysis/sequence/README.md`); `analysis/train-components/tests/fixtures.rs` trains it again byte for byte |
+| `tags.tagdict` | the case-insensitive tag dictionary above, as the generator reads it for the `postag-wordtag-tagdict` run and the Rust trainer for `pos-fixture-rust.bin` |
 | `pos-fixture-rust.bin` | the `.bin` the Rust trainer writes from `inputs/tagged/wordtag.txt` with the default descriptor and `tags.tagdict` (GIS, 100 iterations, cutoff 1, one thread; `analysis/train-components/tests/fixtures.rs`, which checks that the fixture is that file); the JVM loads it with `POSModel` so the goldens of the two taggers can be compared |
 | `lemma-fixture-rust.bin` | the `.bin` the Rust trainer writes from `inputs/tagged/lemmas.txt` (GIS, 100 iterations, cutoff 1, one thread; the same test); the JVM loads it with `LemmatizerModel` |
 | `lemmatizer-dictionary.txt` | a `DictionaryLemmatizer` dictionary written for this project: 48 `word<tab>tag<tab>lemma` lines with Universal Dependencies tags for words of the `en` and `multi` inputs, among them entries with several lemmas (`leave#leaf`), a word listed twice with one tag (the last wins), a word with two tags, an empty lemma field (`#`), fields after the lemma and a trailing tab (both ignored), entries with a capital letter (never found, since a lookup lowercases the token) and non-ASCII words |
-| `chunker-fixture.bin` | a copy of `analysis/sequence/golden/models/chunker-fixture.bin`, a chunker model OpenNLP trained by perceptron on 8 sentences with Penn Treebank tags and `B-`, `I-` and `O` chunk tags for `NP`, `VP`, `PP`, `ADJP` and `SBAR` (`analysis/sequence/golden/inputs/train-chunk.txt`, `analysis/sequence/README.md`); the only chunker model here, since the published chunker models are OpenNLP 1.5 models, which this project does not use |
+| `chunker-fixture.bin` | a chunker model OpenNLP trained by perceptron on 8 sentences with Penn Treebank tags and `B-`, `I-` and `O` chunk tags for `NP`, `VP`, `PP`, `ADJP` and `SBAR` (`train-fixtures/train-chunk.txt`, by `FixtureModels.java`; `analysis/sequence/README.md`); the only chunker model the `chunk` runs use, since the published chunker models are OpenNLP 1.5 models, which only the sequence crate's beam search goldens run |
+| `ner-bio-fixture.bin`, `ner-bilou-fixture.bin`, `ner-qn-fixture.bin` | name finder models OpenNLP trained on the names in 14 sentences (`train-fixtures/train-names.txt`, by `FixtureModels.java`): perceptron with `featuregen/everything.xml` and BIO, GIS with `featuregen/nesting.xml` and BILOU, QN with the default descriptor and BIO (`analysis/sequence/README.md`) |
+| `tags-cases.tagdict`, `tags-exact.tagdict` | the same 40 entries case-insensitive and case sensitive, with words that lowercase to the same word, a word listed twice, and tags separated by two spaces or ending in one, written for this project |
+| `featuregen/` | feature generator descriptors (OpenNLP's default part-of-speech and name finder ones, and two written for this project) with a Brown cluster file, a word cluster file and a names dictionary, written for this project (`analysis/sequence/README.md`) |
+| `namefind/` | the name finder's dictionaries (`places`, `people`, `overlap`, `empty`) and 114 Java patterns with their flags, written for this project (`analysis/namefind/README.md`) |
 | `tokenizer-abbreviations.bin` | a copy of `analysis/maxent/tests/fixtures/models/tokenizer.bin`, a tokenizer model OpenNLP trained on six sentences with the case-insensitive dictionary `Dr.`, `U.S.`, `e.g.` (`analysis/maxent/tests/fixtures/README.md`) |
 | `english-dictionary.xml` | an abbreviation dictionary written for this project, added to the English tokenizer model |
 | `latin-detokenizer.xml` | Apache OpenNLP's test resource of `DictionaryDetokenizerTest`, unchanged (license header kept) |
@@ -259,6 +282,11 @@ that differs.
 | `en-head-rules.txt` | Apache OpenNLP's English head rules (`opennlp-tools/lang/en/parser/en-head_rules` at the goldens' OpenNLP commit, the same bytes as the test resource `opennlp-core/opennlp-runtime/src/test/resources/opennlp/tools/parser/en_head_rules`; Apache License 2.0, rules after Collins and Magerman), unchanged |
 | `es-head-rules.txt` | Apache OpenNLP's AnCora Spanish head rules (`opennlp-tools/lang/es/parser/es-head-rules` at the same commit, Apache License 2.0), unchanged; its tags double their backslashes, so OpenNLP never matches those |
 | `es-regex-head-rules.txt` | AnCora head rules written for this project whose tags use classes, ranges, negation, `?`, `+`, `^`, `$` and escapes, for the patterns OpenNLP's file does not reach |
+
+`train-fixtures/` beside `fixtures/` holds the training data of the fixture
+models above (tagged sentences, chunks and names, written for this project);
+`FixtureModels.java` in `analysis/goldens-tool` trains them from it (the
+goldens-tool README says how).
 
 `jieba-dict-subset.txt` was written from the repository root with
 
