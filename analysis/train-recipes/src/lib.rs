@@ -30,8 +30,8 @@
 //!   which a treebank whose text rights are not settled (Porttinari) never
 //!   gets.
 //! - [`release`]: the releases of this repository that publish the MASC
-//!   models, each naming the models it publishes, and their entries in
-//!   the zoo's built-in index.
+//!   and UD models, each naming the models it publishes, and their entries
+//!   in the zoo's built-in index.
 //! - [`tatoeba`]: Tatoeba's sentence exports read with each sentence's
 //!   licence (issue #429).
 //! - [`langdetect`]: the language detector trained on Tatoeba's CC BY

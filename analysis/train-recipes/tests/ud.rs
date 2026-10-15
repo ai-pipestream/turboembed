@@ -1,26 +1,28 @@
 //! The UD recipes end to end on a treebank written for the tests: the
 //! samples, training, scoring on the `test` file, the gate, the tokens
 //! left out of a tagger's and a lemmatizer's gate, the data checks run
-//! before training, the card, the model's directory and its zoo entry;
+//! before training, the card, the model's directory and its zoo entry,
+//! the release's zoo entries made from its models' directories;
 //! the published reference models where they are present; and the
 //! binary's refusals. The sentences are written for the project and are
 //! not treebank text.
 
 use std::path::{Path, PathBuf};
 
-use turbo_eval::model_gate::{Measure, ModelGateRecord, Scoring, TagScoring};
+use turbo_eval::model_gate::{Measure, ModelGateRecord, ModelId, Scoring, TagScoring};
 use turbo_train_components::lemmatize::lemma_class;
 use turbo_train_components::ud::Component;
 use turbo_train_recipes::card::{CARD_FILE, GATE_FILE, MODEL_VERSION, TagCount, TagFormat, TokenCoverage};
 use turbo_train_recipes::postag::{HeldOutTags, ReferenceTags};
-use turbo_train_recipes::treebank::{Grant, TextRights, Treebank, TreebankFile};
+use turbo_train_recipes::release::{self, UD_MODELS};
+use turbo_train_recipes::treebank::{Grant, SPANISH_ANCORA, TextRights, Treebank, TreebankFile};
 use turbo_train_recipes::ud::{
     IT_UD_VIT_POS, MAX_TOKENS_LEFT_OUT, ReferenceClasses, UD_RECIPES, UdRecipe, UdSamples, lemma_samples,
     lemma_samples_sha256, pos_samples, run_ud, score_lemmas,
 };
-use turbo_train_recipes::ud_card::{UD_CARD_VERSION, UdModelCard, write_ud_model_dir};
+use turbo_train_recipes::ud_card::{TreebankCard, UD_CARD_VERSION, UdModelCard, write_ud_model_dir};
 use turbo_train_recipes::{Error, LeftOut, Reference};
-use turbo_zoo::{LicenceClass, Sha256, Sha512};
+use turbo_zoo::{Index, LicenceClass, Sha256, Sha512};
 
 /// Sentences written for the tests, in CoNLL-U, with a multiword token
 /// (`del`, `al`), an empty node (`1.1`), `SpaceAfter=No`, an abbreviation
@@ -557,6 +559,15 @@ fn a_card_is_shippable_only_when_gated_against_its_recipe_s_reference_and_passed
     card.gate.pass = false;
     assert!(refused(&card, "it failed its gate"));
     card.gate.pass = true;
+    // The card names the recipe's model, but the model was trained and
+    // gated on the test treebank.
+    assert!(refused(&card, "it was not trained and gated on its recipe's treebank"));
+    card.trained_on = vec![SPANISH_ANCORA.training_data()];
+    assert!(refused(&card, "it was not trained and gated on its recipe's treebank"));
+    card.treebank = TreebankCard::of(&SPANISH_ANCORA);
+    card.treebank.test.sha256 = treebank.test.sha256.to_owned();
+    assert!(refused(&card, "it was not trained and gated on its recipe's treebank"));
+    card.treebank = TreebankCard::of(&SPANISH_ANCORA);
     let artifact = card.artifact("https://example.org/m.bin").unwrap();
     assert_eq!(artifact.version, MODEL_VERSION);
     assert_eq!(artifact.class, LicenceClass::Permissive);
@@ -590,6 +601,114 @@ fn a_card_is_shippable_only_when_gated_against_its_recipe_s_reference_and_passed
     let path = dir.join("card.json");
     std::fs::write(&path, r#"{"card_version": 1, "id": "x"}"#).unwrap();
     assert!(matches!(UdModelCard::read(&path), Err(Error::CardVersion { found: 1, expected: UD_CARD_VERSION, .. })));
+    // So is a card of version 3, without the chunk counts of the MASC
+    // card's parts.
+    let mut three: serde_json::Value = serde_json::from_str(&card.to_json()).unwrap();
+    three["card_version"] = 3.into();
+    three["training"].as_object_mut().unwrap().remove("chunks");
+    three["held_out"].as_object_mut().unwrap().remove("chunks");
+    std::fs::write(&path, serde_json::to_string_pretty(&three).unwrap()).unwrap();
+    assert!(matches!(UdModelCard::read(&path), Err(Error::CardVersion { found: 3, .. })));
+    std::fs::remove_dir_all(dir).unwrap();
+}
+
+/// The zoo entries of release `models-ud-2.16-1` come from the
+/// directories of its models. The models here are trained on the test
+/// treebank, each gated against itself, and their cards and gate records
+/// rewritten to name a recipe of the release, its treebank and its
+/// reference; a card left naming the test treebank makes no entry.
+#[test]
+fn the_ud_release_s_zoo_entries_come_from_its_models_directories() {
+    let dir = temp_dir("release");
+    let all: Vec<usize> = (0..POOL.len()).collect();
+    let train = conllu(&all, 100, "train");
+    let treebank = write_treebank(&dir, &train, &conllu(&all, TEST_SENTENCES, "test"));
+    let text = treebank.read(&dir).unwrap();
+    let out = dir.join("models");
+    let mut released = Vec::new();
+    for component in COMPONENTS {
+        let r = recipe(treebank, component, spanish(component));
+        let model = r.train(&train).unwrap().bytes;
+        let outcome = run_ud(&r, &text, &model).unwrap();
+        assert!(outcome.gate.result.pass, "{}", outcome.gate);
+        for u in UD_MODELS.ud_recipes().into_iter().filter(|u| u.component == component) {
+            let (mut card, mut gate) = (outcome.card.clone(), outcome.gate.clone());
+            card.id = u.model_id.to_owned();
+            card.file.name = format!("{}.bin", u.model_id);
+            card.language = u.treebank.language.to_owned();
+            card.trained_on = vec![u.treebank.training_data()];
+            card.treebank = TreebankCard::of(&u.treebank);
+            gate.candidate.id = u.model_id.to_owned();
+            gate.reference = ModelId { id: u.reference.id().to_owned(), sha256: u.reference.sha256().unwrap() };
+            (card.gate.reference, card.gate.reference_sha256) =
+                (gate.reference.id.clone(), gate.reference.sha256.clone());
+            write_ud_model_dir(&out, &card, &outcome.trained.bytes, &gate).unwrap();
+            released.push(card);
+        }
+    }
+    assert_eq!(released.len(), UD_MODELS.models.len());
+
+    let entries = release::entries(&out, &UD_MODELS).unwrap();
+    let ids: Vec<&str> = entries.iter().map(|a| a.id.as_str()).collect();
+    assert_eq!(ids, UD_MODELS.models);
+    for entry in &entries {
+        let card = released.iter().find(|c| c.id == entry.id.as_str()).unwrap();
+        assert_eq!(*entry, card.artifact(&UD_MODELS.url(&card.file.name)).unwrap());
+    }
+    // Added to the built-in index, which lists the release's models, each
+    // replaces the entry of its id where it is.
+    let builtin = Index::builtin();
+    let index = release::index_with(&builtin, &entries);
+    let replaced = Index::parse(index.as_bytes()).unwrap();
+    let listed = |i: &Index| i.list().iter().map(|a| a.id.to_string()).collect::<Vec<_>>();
+    assert_eq!(listed(&replaced), listed(&builtin));
+    for entry in &entries {
+        assert_eq!(replaced.get(entry.id.as_str()).unwrap(), entry);
+    }
+
+    // A card of the release's model that names the test treebank makes no
+    // entry.
+    let first = &released[0];
+    let card_file = out.join(&first.id).join(CARD_FILE);
+    let mut unmoved = first.clone();
+    unmoved.treebank = TreebankCard::of(&treebank);
+    std::fs::write(&card_file, unmoved.to_json()).unwrap();
+    match release::entries(&out, &UD_MODELS) {
+        Err(Error::NotShippable { id, reason }) => {
+            assert_eq!(id, first.id);
+            assert_eq!(reason, "it was not trained and gated on its recipe's treebank");
+        }
+        other => panic!("{other:?}"),
+    }
+    std::fs::write(&card_file, first.to_json()).unwrap();
+
+    // The binary: the test's models are not the ones the zoo lists, so
+    // `--check` exits with 1 and names each; without it the index with
+    // them is printed.
+    let zoo_index = |extra: &[&str]| {
+        std::process::Command::new(env!("CARGO_BIN_EXE_turbo-train-recipes"))
+            .args(["zoo-index", "--models"])
+            .arg(&out)
+            .args(["--release", UD_MODELS.tag])
+            .args(extra)
+            .output()
+            .unwrap()
+    };
+    let checked = zoo_index(&["--check"]);
+    assert_eq!(checked.status.code(), Some(1));
+    let stdout = String::from_utf8(checked.stdout).unwrap();
+    let lines: Vec<&str> = stdout.lines().collect();
+    assert_eq!(lines.len(), UD_MODELS.models.len() + 1, "{stdout}");
+    for (line, id) in lines.iter().zip(UD_MODELS.models) {
+        assert!(line.starts_with(&format!("{id}: the built-in index lists another entry (")), "{line}");
+    }
+    assert_eq!(
+        lines[UD_MODELS.models.len()],
+        "the zoo's built-in index is not the one these models and release models-ud-2.16-1 give"
+    );
+    let printed = zoo_index(&[]);
+    assert_eq!(printed.status.code(), Some(0));
+    assert_eq!(String::from_utf8(printed.stdout).unwrap(), index);
     std::fs::remove_dir_all(dir).unwrap();
 }
 

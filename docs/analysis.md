@@ -2612,6 +2612,17 @@ articles that its README says are on Kaggle, with no licence from Folha
 shown, so no Porttinari model is shipped (`UdModelCard::artifact`
 refuses one whatever its gate says).
 
+The ten models that may ship, Spanish and Catalan AnCora's four and
+Finnish FTB's tagger and lemmatizer, go out as the assets of this
+repository's release `models-ud-2.16-1`, as the MASC models go out in
+theirs, and the zoo's built-in index lists them there as permissive
+models. `.github/workflows/models-ud.yml` trains them in CI, checks with
+`turbo-train-recipes zoo-index --check` that they are the bytes the
+index lists, and only then, run by hand on main, creates the release.
+`UdModelCard::artifact` makes an entry only for a card that names its
+recipe's treebank at release 2.16, with the sizes and digests of its
+files.
+
 - The data: each treebank's `LICENSE.txt`, README and UD `train`, `dev`
   and `test` files, with sizes, SHA-256 and SHA-512 recorded in
   `treebank`, fetched through the zoo by digest from the repository's

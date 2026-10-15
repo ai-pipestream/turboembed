@@ -46,8 +46,9 @@
 //! files at the release through the zoo into
 //! `<home>/artifacts/<dataset id>/`.
 //!
-//! `zoo-index` reads the directories `masc` wrote into `--models` of the
-//! models release `--release` publishes (`release::MODELS_RELEASES`),
+//! `zoo-index` reads the directories `masc` or `ud` wrote into `--models`
+//! for the models the release `--release` publishes
+//! (`release::MODELS_RELEASES`),
 //! checks each model file and gate record against its card, and prints
 //! the zoo's built-in index with each model's entry at its address in the
 //! release (`release::index_with`). With `--check` it prints nothing of

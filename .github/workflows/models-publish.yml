@@ -1,0 +1,63 @@
+name: models-publish
+
+# Publishes a models release (analysis/train-recipes/README.md, "The
+# models releases"): called by the models and models-ud workflows, run by
+# hand on main, after their training job has checked the models against
+# the zoo's index and uploaded them as the artifact named by the tag. It
+# publishes exactly those files, from a job of its own, the only one that
+# may write to the repository.
+
+on:
+  workflow_call:
+    inputs:
+      tag:
+        description: The release's tag, also the name of the artifact holding its files.
+        type: string
+        required: true
+      summary:
+        description: The first sentence of the release notes, saying what the models are.
+        type: string
+        required: true
+
+permissions:
+  contents: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: ${{ inputs.tag }}
+          path: dist
+      - name: publish
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          TAG: ${{ inputs.tag }}
+          SUMMARY: ${{ inputs.summary }}
+        run: |
+          set -euo pipefail
+          (cd dist && sha256sum -c SHA256SUMS)
+          # gh would put the release on a tag of this name that exists,
+          # whatever its commit, so an existing tag stops the run: models
+          # trained otherwise go out under a new tag.
+          if gh api "repos/$GH_REPO/git/ref/tags/$TAG" --silent 2> /dev/null; then
+            echo "the tag $TAG exists" >&2
+            exit 1
+          fi
+          # Each card's attribution, once each: MASC's for the MASC models,
+          # each treebank's for the UD models.
+          jq -ers 'if all(.[]; .attribution | type == "string" and length > 0)
+                   then [.[].attribution] | unique | join("\n\n") else error("a card has no attribution") end' \
+            dist/*.card.json > attributions
+          {
+            echo "${SUMMARY} Built from commit ${GITHUB_SHA}."
+            echo
+            echo "Each model passed its gate against the OpenNLP model for the same task; the gate records and the README give the scores: https://github.com/${GITHUB_REPOSITORY}/blob/${GITHUB_SHA}/analysis/train-recipes/README.md"
+            echo
+            echo "The models are under Apache-2.0. Each model's card (\`<model id>.card.json\`) gives the data it was trained on and its attribution:"
+            echo
+            cat attributions
+          } > notes
+          gh release create "$TAG" --target "$GITHUB_SHA" --title "$TAG" --notes-file notes --latest=false dist/*
