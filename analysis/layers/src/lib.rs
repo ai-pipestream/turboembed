@@ -23,6 +23,7 @@ pub use abbreviations::{AbbreviationForm, Abbreviations, DEFINITION, MENTION, ab
 pub use date::{Date, write_year};
 pub use language_spans::{LanguageSpan, LanguageSpans, UNDETERMINED};
 pub use levels::{Level, Levels, Unit, VectorKind};
+pub use matches::Matches;
 pub use money::{CONVERTED_MONEY, Currency, Money, MoneyMention};
 pub use numbers::{DecimalRef, Multiplier, NumberMention, NumberNotation, Numbers, ScaleMarker};
 pub use ordinals::{OrdinalBase, OrdinalMention, Ordinals};
@@ -89,6 +90,7 @@ mod abbreviations;
 mod date;
 mod language_spans;
 mod levels;
+mod matches;
 mod money;
 mod numbers;
 mod ordinals;
