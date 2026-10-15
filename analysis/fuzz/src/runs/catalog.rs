@@ -27,8 +27,10 @@ use crate::resources::{Resources, Unavailable};
 /// turbo-sequence, turbo-namefind, turbo-stem, turbo-stopword,
 /// turbo-glossary and turbo-doccat compare with; the other
 /// `namefind` runs train name finders from name samples and find names in
-/// them, which turbo-train-components compares with.
-pub const NOT_COVERED: [&str; 24] = [
+/// them, which turbo-train-components compares with; the PII rewrites
+/// (`pii-rewrite`) compare whole rewritten texts, labels and audit reports
+/// rather than layers, which turbo-pii compares with.
+pub const NOT_COVERED: [&str; 25] = [
     "train",
     "train-events",
     "train-langdetect",
@@ -53,6 +55,7 @@ pub const NOT_COVERED: [&str; 24] = [
     "stopword",
     "glossary",
     "svm-doccat",
+    "pii-rewrite",
 ];
 
 /// Every run the differential covers, as `(annotator, run)`: the golden
