@@ -551,7 +551,7 @@ pub const FIXTURES: [Fixture; 62] = [
 ];
 
 /// The input sets under `analysis/goldens/data/inputs`.
-pub const INPUT_SETS: [&str; 35] = [
+pub const INPUT_SETS: [&str; 36] = [
     "en",
     "multi",
     "norm",
@@ -559,6 +559,7 @@ pub const INPUT_SETS: [&str; 35] = [
     "money",
     "quantity",
     "temporal",
+    "pii",
     "edge",
     "surrogate",
     "abbreviations",
@@ -600,7 +601,7 @@ pub const GENERATOR_ARGS: [&str; 1] = ["--dumps"];
 /// replaces and `verify` compares. The data directory holds other things
 /// (the inputs, the fixtures, the rate snapshot, a README) that neither
 /// touches.
-pub const ANNOTATORS: [&str; 38] = [
+pub const ANNOTATORS: [&str; 39] = [
     "sentdetect",
     "tokenize",
     "postag",
@@ -614,6 +615,7 @@ pub const ANNOTATORS: [&str; 38] = [
     "money-convert",
     "quantity",
     "temporal",
+    "pii",
     "detokenize",
     "subwords",
     "unigram",
@@ -645,9 +647,9 @@ pub const ANNOTATORS: [&str; 38] = [
 /// each golden of theirs whose header names a model has a decision point
 /// dump beside it. Their runs without a model (the simple, whitespace and
 /// UAX #29 tokenizers and the newline detector) have none, nor do the
-/// normalizers, the number scan, the money, quantity and temporal annotators,
-/// the detokenizer, the WordPiece encoder, the unigram segmenter, the
-/// BPE trainer and the lattice tokenizer, which ask no model.
+/// normalizers, the number scan, the money, quantity, temporal and PII
+/// annotators, the detokenizer, the WordPiece encoder, the unigram
+/// segmenter, the BPE trainer and the lattice tokenizer, which ask no model.
 pub const DUMPED_ANNOTATORS: [&str; 6] = ["sentdetect", "tokenize", "postag", "lemmatize", "chunk", "langdetect"];
 
 /// The input set the normalizers run on. They run on no other set, and the
@@ -675,6 +677,10 @@ pub const TEMPORAL_INPUT_SET: &str = "temporal";
 /// on them.
 pub const SVM_DOCCAT_INPUT_SET: &str = "svm-doccat";
 pub const SVM_DOCCAT_TRAIN_SET: &str = "svm-doccat-train";
+
+/// The input set the PII packs run on. They run on no other set, and the
+/// other annotators do not run on this one.
+pub const PII_INPUT_SET: &str = "pii";
 
 /// The rate snapshot the money conversion reads: a directory beside the
 /// inputs directory under `analysis/goldens/data`, which the container gets
@@ -806,6 +812,7 @@ mod tests {
                 TEMPORAL_INPUT_SET,
                 SVM_DOCCAT_INPUT_SET,
                 SVM_DOCCAT_TRAIN_SET,
+                PII_INPUT_SET,
             ]
             .contains(s)
         }) {

@@ -1,0 +1,158 @@
+name: models-tatoeba
+
+# The full run of the language detector recipe (analysis/train-recipes
+# README, "The language detector recipe", "Full run"): fetches Tatoeba's
+# current weekly export and langdetect-183.bin, trains on the export twice
+# and checks that both runs write the same bytes, gates the model, and
+# keeps the model directories, the archives' file listings and the
+# archives as artifacts, so the run can be recorded. No export is
+# recorded yet (langdetect::EXPORT), so the runs are given
+# --unrecorded-export and their models are not a release; nothing is
+# published.
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - ".github/workflows/models-tatoeba.yml"
+      - "analysis/train-recipes/**"
+      - "analysis/train-components/**"
+      - "analysis/train/**"
+      - "analysis/eval/**"
+      - "analysis/langdetect/**"
+
+permissions:
+  contents: read
+
+env:
+  CARGO_TERM_COLOR: always
+  # tatoeba::DETAILED_ARCHIVE_URL and tatoeba::CC0_ARCHIVE_URL, and the
+  # reference langdetect::LANGDETECT_183 (a test checks all three).
+  DETAILED: https://downloads.tatoeba.org/exports/sentences_detailed.tar.bz2
+  CC0: https://downloads.tatoeba.org/exports/sentences_CC0.tar.bz2
+  REFERENCE: https://downloads.apache.org/opennlp/models/langdetect/1.8.3/langdetect-183.bin
+  REFERENCE_SHA256: 2ddf585fac2e02a9dcfb9a4a9cc9417562eaac351be2efb506a2eaa87f19e9d4
+
+jobs:
+  tatoeba:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 300
+    steps:
+      - uses: actions/checkout@v7
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      # Every download is cached. Tatoeba replaces the export each week at
+      # the same addresses and publishes no digest, so the archives are
+      # cached under the size, time and ETag the server gives for each
+      # (from the response that serves the file, after any redirect): a
+      # new week's export gets a new key. A response with neither a time
+      # nor an ETag could not tell two weeks apart, so it fails the step.
+      # The digest the recipe records is printed by the runs below.
+      - id: export
+        name: the export's headers
+        run: |
+          set -euo pipefail
+          for u in "$DETAILED" "$CC0"; do
+            h=$(curl -fsSIL --retry 3 -o /dev/null \
+              -w '%header{content-length}|%header{last-modified}|%header{etag}' "$u")
+            IFS='|' read -r size time etag <<< "$h"
+            [ -n "$size" ] && { [ -n "$time" ] || [ -n "$etag" ]; } || { echo "$u: no size, or neither time nor ETag" >&2; exit 1; }
+            printf '%s\t%s\t%s\t%s\n' "$u" "$size" "$time" "$etag"
+          done | tee "$RUNNER_TEMP/export-headers"
+          echo "key=$(sha256sum < "$RUNNER_TEMP/export-headers" | cut -c1-16)" >> "$GITHUB_OUTPUT"
+      - id: export-cache
+        uses: actions/cache/restore@v4
+        with:
+          path: ${{ runner.temp }}/tatoeba/archives
+          key: tatoeba-export-${{ steps.export.outputs.key }}
+      # A file of another size than the headers gave (an export replaced
+      # between the two requests) fails here, before it is cached under
+      # those headers.
+      - name: fetch the export
+        if: steps.export-cache.outputs.cache-hit != 'true'
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/tatoeba/archives"
+          while IFS=$'\t' read -r u size _; do
+            f="$RUNNER_TEMP/tatoeba/archives/${u##*/}"
+            curl -fsSL --retry 3 -o "$f" "$u"
+            [ "$(stat -c %s "$f")" = "$size" ] || { echo "$u: $(stat -c %s "$f") bytes, the headers gave $size" >&2; exit 1; }
+          done < "$RUNNER_TEMP/export-headers"
+      # A truncated or damaged archive fails here, before it is cached.
+      - name: list and extract the archives
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/tatoeba/export" listings
+          cd "$RUNNER_TEMP/tatoeba/archives"
+          sha256sum -- * | tee "$GITHUB_WORKSPACE/listings/archives.sha256"
+          for a in *.tar.bz2; do
+            tar -tvjf "$a" | tee "$GITHUB_WORKSPACE/listings/${a%.tar.bz2}.listing"
+            tar -xjf "$a" -C "$RUNNER_TEMP/tatoeba/export"
+          done
+          cp "$RUNNER_TEMP/export-headers" "$GITHUB_WORKSPACE/listings/"
+      - if: steps.export-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: ${{ runner.temp }}/tatoeba/archives
+          key: ${{ steps.export-cache.outputs.cache-primary-key }}
+      # The reference, checked against the SHA-256 the recipe records
+      # before it is cached; `tatoeba` checks its size and SHA-256 again.
+      - id: reference-cache
+        uses: actions/cache/restore@v4
+        with:
+          path: ${{ runner.temp }}/references
+          key: langdetect-183-${{ env.REFERENCE_SHA256 }}
+      - name: fetch the reference model
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/references"
+          f="$RUNNER_TEMP/references/${REFERENCE##*/}"
+          [ -f "$f" ] || curl -fsSL --retry 3 -o "$f" "$REFERENCE"
+          echo "$REFERENCE_SHA256  $f" | sha256sum -c -
+      - if: steps.reference-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: ${{ runner.temp }}/references
+          key: ${{ steps.reference-cache.outputs.cache-primary-key }}
+      - run: cargo build -q --release -p turbo-train-recipes
+      # Two runs on the same export must write the same bytes. `tatoeba`
+      # exits with 1 when the gate fails and 2 on an error; both runs are
+      # kept either way.
+      - name: train and gate, twice
+        run: |
+          set -uo pipefail
+          mkdir -p runs
+          status=0
+          for r in a b; do
+            start=$SECONDS
+            target/release/turbo-train-recipes tatoeba --export "$RUNNER_TEMP/tatoeba/export" \
+              --references "$RUNNER_TEMP/references" --out "runs/run-$r" --unrecorded-export \
+              > "runs/run-$r.log" 2>&1
+            s=$?
+            cat "runs/run-$r.log"
+            echo "run $r: exit status $s, $((SECONDS - start)) s" | tee -a "runs/run-$r.log"
+            [ "$s" -gt "$status" ] && status=$s
+          done
+          id=turbo-mul-tatoeba-langdetect-1
+          for f in "$id.bin" training-sentences.txt card.json gate.json; do
+            cmp "runs/run-a/$id/$f" "runs/run-b/$id/$f" || status=2
+          done
+          sha256sum runs/run-*/"$id"/* | tee runs/SHA256SUMS
+          exit "$status"
+      - if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: tatoeba-runs
+          path: |
+            runs
+            listings
+          if-no-files-found: ignore
+      # The export the runs read, kept so the run can be recorded and its
+      # export kept after Tatoeba replaces it.
+      - if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: tatoeba-export
+          path: ${{ runner.temp }}/tatoeba/archives
+          if-no-files-found: ignore
+          compression-level: 0

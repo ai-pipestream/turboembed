@@ -1,0 +1,12 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	pii/phone-international	52	52	e110664e2b49ee0998125fac3495d6367dd86780bb3dbbd748238eac2decaeae
+annotator	opennlp.tools.pii.PiiPacks	contact
+config	pack	contact
+layer	turbo:pii	text	2	start:u32	end:u32	type:str	normalized:str
+5	21	phone	+442079460958
+25	39	phone	+440207946
+end	turbo:pii

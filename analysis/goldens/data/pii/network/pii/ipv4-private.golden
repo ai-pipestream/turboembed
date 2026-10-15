@@ -1,0 +1,12 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	pii/ipv4-private	42	42	d94c6e4c4ca88dde1b9d0a67ba8b3820de8e2d7f209572101e378eac6b52767f
+annotator	opennlp.tools.pii.PiiPacks	network
+config	pack	network
+layer	turbo:pii	text	2	start:u32	end:u32	type:str	normalized:str
+8	20	ipv4	192.168.1.20
+27	35	ipv4	10.0.0.5
+end	turbo:pii

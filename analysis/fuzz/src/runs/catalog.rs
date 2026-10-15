@@ -3,6 +3,7 @@
 use super::language::Detector;
 use super::normalize::{NormalizerRun, RUN_NAMES as NORMALIZERS};
 use super::numeric::{MoneyLayer, Numeric};
+use super::pii::PiiRun;
 use super::sentences::{MaxentSentences, NewlineSentences};
 use super::subwords::{VOCABULARY, WordPiece};
 use super::tagging::{Chunker, FIXTURE_CHUNKERS, Lemmatizer, Tagger};
@@ -156,6 +157,16 @@ pub const RUNS: &[(&str, &str)] = &[
     ("quantity", "latin-us"),
     ("temporal", "dateline"),
     ("temporal", "fixed"),
+    ("pii", "payment"),
+    ("pii", "contact"),
+    ("pii", "network"),
+    ("pii", "secrets"),
+    ("pii", "crypto"),
+    ("pii", "us-identity"),
+    ("pii", "eu-identity"),
+    ("pii", "ca-identity"),
+    ("pii", "device"),
+    ("pii", "all-structured"),
     ("subwords", VOCABULARY),
 ];
 
@@ -185,6 +196,7 @@ pub fn open(annotator: &str, run: &str, res: &Resources) -> Result<Box<dyn Run>,
         "money-convert" => Numeric::open_money(run, MoneyLayer::Converted, res),
         "quantity" => Numeric::open_quantities(run),
         "temporal" => Temporal::open(run),
+        "pii" => PiiRun::open(run),
         "subwords" if run == VOCABULARY => WordPiece::open(res),
         _ => Err(not_covered()),
     }
@@ -216,6 +228,11 @@ mod tests {
         on_disk.sort();
         let mut listed: Vec<(String, String)> = RUNS.iter().map(|(a, r)| (a.to_string(), r.to_string())).collect();
         listed.sort();
+        // The PII goldens come with the first `generate` that knows the
+        // packs; until they are on disk, their runs have nothing to match.
+        if !data.join("pii").is_dir() {
+            listed.retain(|(a, _)| a != "pii");
+        }
         // One run has goldens the differential leaves out: the Turkish
         // locale case fold, which the port has no counterpart of.
         on_disk.retain(|(a, r)| !(a == "normalize" && r == "case-fold-tr"));
@@ -233,6 +250,7 @@ mod tests {
             ("money-convert", "latin-eu"),
             ("chunk", "chunker-fixture+beam1"),
             ("chunk", "chunker-fixture-rust"),
+            ("pii", "all-structured"),
         ] {
             open(annotator, run, &res).unwrap_or_else(|e| panic!("{annotator}/{run}: {e}"));
         }
