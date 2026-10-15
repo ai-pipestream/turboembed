@@ -20,6 +20,7 @@ nothing here is in the C header or the gRPC server.
 | `turbo-analysis-layers` | `analysis/layers/` | The layers add-ons share (below) |
 | `turbo-chunker` | `analysis/chunker/` | The chunker, and term statistics and BM25 per chunk, section and document |
 | `turbo-structure` | `analysis/structure/` | Document structure (`turbo:structure`) from plain text and Markdown |
+| `turbo-abbrev` | `analysis/abbrev/` | Abbreviation and acronym definitions found with the Schwartz and Hearst algorithm, and the later mentions of each short form, as `turbo:abbreviations` and the edges from each short form to its long form; the reader and scoring of Ab3P's MED1250 set (Abbreviations, below) |
 | `turbo-analysis-embed` | `analysis/embed/` | The embedding model as analysis steps: the subwords of a text view from the bundle's tokenizer, and a vector per sentence and per chunk |
 | `turbo-numeric` | `analysis/numeric/` | The number scanner, which writes `turbo:numbers` ([numbers.md](numbers.md)); the money extractor, which writes `turbo:money`, the ECB rate table and the conversion step, which writes the `converted` instance of `turbo:money` ([money.md](money.md)); the quantity extractor, which writes `turbo:quantities` ([quantities.md](quantities.md)) |
 | `turbo-jvm` | `analysis/jvm/` | JVM behaviour the OpenNLP ports must reproduce bit for bit |
@@ -369,6 +370,7 @@ fields mean bumps its `SCHEMA`.
 | `Numbers` | `turbo:numbers` | text | `turbo-analysis-layers` |
 | `Money` | `turbo:money` (and the instance `converted`) | text | `turbo-analysis-layers` |
 | `Quantities` | `turbo:quantities` | text | `turbo-analysis-layers` |
+| `Abbreviations` | `turbo:abbreviations` | text | `turbo-analysis-layers` |
 | `Stopwords` | `turbo:stopwords` | tokens | `turbo-stopword-layers` |
 | `Vectors<L>` | `opennlp:embeddings<L>` | `L` | `turbo-analysis-layers` |
 | `Confidence<L>` | `turbo:confidence<L>` | `L` | `turbo-analysis-layers` |
@@ -723,6 +725,136 @@ underline under a paragraph of several lines ends the paragraph and is
 no heading. There are no `#` headings, no code, no tables and no front
 matter, so an indented line is text.
 Tables of aligned columns in plain text are not detected.
+
+## Abbreviations
+
+`AbbreviationAnnotator` in `turbo-abbrev` finds abbreviation and acronym
+definitions with the algorithm of Schwartz and Hearst (2003), "A simple
+algorithm for identifying abbreviation definitions in biomedical text",
+and links every later use of a defined short form to its long form, so
+a chunk that only says "WHO" can still be matched with "World Health
+Organization". It reads a `View`, its `opennlp:sentences` and, when the
+document has them, its `opennlp:tokens`, and writes two layers:
+
+- `Abbreviations` (`turbo:abbreviations`, in `turbo-analysis-layers`): a
+  span and a form per item, `Short` (the short form where it is
+  defined), `Long` (its long form) or `Mention` (a later use of the
+  short form), in text order by start and then end. Spans may nest: a
+  long form can hold a mention of an earlier abbreviation ("the WHO
+  Regional Office (WRO)"). The check refuses an empty span, two items
+  with one span, and items out of order.
+- `Edges<Abbreviations, Abbreviations>`
+  (`turbo:edges<turbo:abbreviations, turbo:abbreviations>`): one edge
+  from every short form and every mention to the long form it stands
+  for, of kind `definition` or `mention` (`abbreviation_links()`), with
+  score 1. `Abbreviations::long_form` follows it.
+
+`detect` does the same outside a pipeline, from a text, its sentence
+spans and, optionally, the token columns. There is no OpenNLP original
+and no model; the rules are the paper's and its authors' reference
+implementation's (`ExtractAbbrev.java`), and scispaCy's
+`AbbreviationDetector` (Apache-2.0) supplied edge cases for the tests.
+
+Within a sentence, each `(` after whitespace is a candidate. The text
+inside, to the matching `)` (the next `)` when the inside opens another
+parenthesis), cut at the first `, ` and then the first `; `, is the
+short form candidate; the text before it, back to the end of the
+previous candidate or to the last `.` or `,` followed by whitespace, is
+the long form candidate. When the inside has more than two words or is
+longer than the text before, they swap: the word just before the
+parenthesis is the short form and must hold an uppercase letter (the
+reverse form, "WHO (World Health Organization)"). A short form holds a
+letter and starts with a letter, a digit or `(`. Its letters and digits
+are then matched against the long form candidate from the right,
+case-insensitively, the first of them at the start of a word, and the
+long form runs from the start of that word to the parenthesis. A pair is
+kept when the short form has two characters or more and at most ten
+letters and digits (`n`), and the long form is at least as long, neither
+ends with the short form nor holds it followed by a space, and has at
+most `min(n + 5, 2n)` words, split at whitespace and hyphens.
+Characters are compared as `Character.isLetterOrDigit` and
+`Character.toLowerCase` see them (`turbo-unicode`), and an uppercase
+letter is general category Lu. Where it departs from the Java: any
+whitespace counts where the Java looks for a space, the candidates are
+read per sentence of the document where the Java reads a line at a
+time, and the long
+form loses the punctuation its word boundary can leave at its ends
+(leading characters that are neither letters nor digits, unless an
+opening bracket the long form closes, and trailing quotation marks),
+so "[genioglossus (GG)" gives "genioglossus" and "(FEV1)/forced vital
+capacity (FVC)" gives "forced vital capacity".
+
+A mention is an exact, case-sensitive occurrence of a short form after
+its definition's closing parenthesis, with no letter or digit right
+before or after it ("WHOLE" holds none), that overlaps no defining short
+form, is not itself a long form and is not inside a longer mention ("IL"
+in a later "IL-2" when both are defined). With tokens, a mention must
+also start and end on token boundaries, so "WHO's" as one token holds
+none. A mention refers to the latest definition of its short form
+before it, so a short form defined again takes its new long form from
+there on; uses before the first definition are not linked. Finding them
+is a substring search per definition over the rest of the view, so its
+cost is the number of definitions times the text length.
+
+### Measured on MED1250
+
+`analysis/abbrev/examples/med1250.rs` measures the detector on MED1250,
+the 1250 MEDLINE titles and abstracts Ab3P's authors annotated by hand
+(Sohn, Comeau, Kim and Wilbur 2008), from the Ab3P repository
+(`github.com/ncbi-nlp/Ab3P`, commit
+`41130cddfcba1449ba612905d4a51274f8f565a8`, file `MED1250_labeled`,
+SHA-256
+`5093fa8f130ee250add0d0fbde7fc736478e18fbcc4447b00b4179db47f4cf53`,
+which the example checks):
+
+```bash
+git clone https://github.com/ncbi-nlp/Ab3P <dir>
+git -C <dir> checkout 41130cddfcba1449ba612905d4a51274f8f565a8
+cargo run --release -p turbo-abbrev --example med1250 -- <dir>/MED1250_labeled
+```
+
+Each line of a record (title, abstract) is one sentence, as the
+reference implementation reads a line at a time. A detected pair is the
+text of its two spans, compared exactly with the gold pairs after
+whitespace runs are made one space; the file's synonyms (`//*` lines,
+which its authors leave out of the gold standard) count neither way.
+The 1221 gold lines are 1203 distinct pairs per record.
+
+| Long form punctuation dropped | True positives | False positives | False negatives | Precision | Recall | F1 |
+|---|---|---|---|---|---|---|
+| yes (as shipped) | 956 | 45 | 247 | 0.9550 | 0.7947 | 0.8675 |
+| no (as the Java) | 950 | 51 | 253 | 0.9491 | 0.7897 | 0.8621 |
+
+Among the misses are pairs the algorithm cannot find by design: a long
+form whose letters are out of order or missing ("cAMP" for "adenosine
+3',5'-cyclic monophosphate"), a long form in another sentence, a short
+form of one character, and a gold long form that starts before the
+shortest match ("PPIs" gives "pump inhibitors", where the gold is
+"proton pump inhibitors"). The mentions are not scored: the set marks
+definitions only. Two other rules were tried and measured worse:
+bounding a long form candidate by the candidate before it only when that
+one defined something (precision 0.9401, recall 0.7963), and starting a
+long form at a hyphen as well as at whitespace (0.9332, 0.7781).
+
+On licences: the Ab3P repository's README carries a public domain notice
+(a United States Government Work, with no restriction placed on its use
+or reproduction), so MED1250 is used. The abstracts themselves are
+MEDLINE records, whose text may be under the publishers' copyright, so
+the file is not committed; the example reads a local clone. The
+Medstract gold standard and Schwartz and Hearst's own evaluation corpus
+(BioText) could not be fetched from here, and no licence for them was
+confirmed, so neither is used. PLOS-derived sets were not tried.
+
+`cargo test -p turbo-abbrev` holds the candidate and matching rules on
+small texts worked out by hand (scispaCy's cases among them),
+`analysis/abbrev/tests/pipeline.rs` runs the step in an analyzer and
+checks every span's start and end against the source bytes (ASCII and
+non-ASCII), the links and their kinds, mentions with and without tokens,
+redefinition, nested short forms and named instances, and
+`analysis/abbrev/tests/gold.rs` reads a small sample in MED1250's format
+with its quirks (carriage returns, a record split in two, synonyms,
+comments in Windows-1252) and checks the scoring. None needs the
+network.
 
 ## The chunker
 

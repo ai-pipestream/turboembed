@@ -1742,6 +1742,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "turbo-abbrev"
+version = "0.1.0"
+dependencies = [
+ "turbo-analysis",
+ "turbo-analysis-layers",
+ "turbo-goldens",
+ "turbo-unicode",
+]
+
+[[package]]
 name = "turbo-analysis"
 version = "0.1.0"
 dependencies = [
