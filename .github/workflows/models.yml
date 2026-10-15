@@ -1,0 +1,97 @@
+name: models
+
+# Trains the MASC recipes' models (analysis/train-recipes) on MASC 3.0.0,
+# gates them, checks that they are the bytes the zoo's built-in index
+# lists at their addresses in release $TAG, and, run by hand on main,
+# publishes them with their cards and gate records as that release's
+# assets (analysis/train-recipes/README.md, "The models release"). A pull
+# request that changes this file trains and checks, and keeps the files
+# as an artifact; nothing is published.
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths: [".github/workflows/models.yml"]
+
+permissions:
+  contents: write
+
+env:
+  CARGO_TERM_COLOR: always
+  # The release the zoo's index points at (release::MASC_MODELS).
+  TAG: models-masc-3.0.0-1
+
+jobs:
+  masc:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      # Every download is cached. The archive is cached under its
+      # SHA-256 (masc::RELEASE); the zoo checks the cached file's size
+      # and digests and fetches it again only when they differ.
+      - uses: actions/cache@v4
+        with:
+          path: .zoo/artifacts
+          key: masc-3.0.0-0b300d96016233c7c79b43559b477a6bb0ed16bb416d5c517eccb108a6228493
+      - name: fetch MASC 3.0.0
+        run: cargo run -q --release -p turbo-train-recipes -- fetch-masc --home .zoo
+      # The models the gates score beside the trained ones. The run checks
+      # each against the SHA-256 the zoo's index or the recipe records
+      # before it trains anything, and a job that fails saves no cache,
+      # so a wrong file is never kept. Bump the key when a recipe's
+      # reference changes.
+      - uses: actions/cache@v4
+        with:
+          path: .masc-references
+          key: masc-references-1
+      - name: fetch the reference models
+        run: |
+          mkdir -p .masc-references
+          cd .masc-references
+          for url in \
+              https://archive.apache.org/dist/opennlp/models/ud-models-1.3/opennlp-en-ud-ewt-sentence-1.3-2.5.4.bin \
+              https://archive.apache.org/dist/opennlp/models/ud-models-1.3/opennlp-en-ud-ewt-tokens-1.3-2.5.4.bin \
+              https://opennlp.sourceforge.net/models-1.5/en-pos-maxent.bin; do
+            f="${url##*/}"
+            [ -f "$f" ] || curl -fsSL --retry 3 -o "$f" "$url"
+          done
+          ls -l
+      - name: train and gate
+        run: |
+          unzip -q .zoo/artifacts/masc-3.0.0/MASC-3.0.0.zip -d "$RUNNER_TEMP/masc"
+          cargo run -q --release -p turbo-train-recipes -- masc --corpus "$RUNNER_TEMP/masc/MASC-3.0.0" \
+            --references .masc-references --out models
+      - name: the models are the bytes the zoo's index lists
+        run: cargo run -q --release -p turbo-train-recipes -- zoo-index --models models --release "$TAG" --check
+      - name: the release's files
+        run: |
+          mkdir dist
+          for d in models/*/; do
+            id="$(basename "$d")"
+            cp "$d/$id.bin" dist/
+            cp "$d/card.json" "dist/$id.card.json"
+            cp "$d/gate.json" "dist/$id.gate.json"
+          done
+          cd dist
+          sha256sum -- * > SHA256SUMS
+          cat SHA256SUMS
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.TAG }}
+          path: dist
+      - name: publish
+        if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          {
+            echo "The English sentence detector, tokenizer and part-of-speech tagger the MASC recipes train, built from commit ${GITHUB_SHA}."
+            echo
+            echo "Each model passed its gate against the OpenNLP model for the same task; the gate records and the README give the scores: https://github.com/${GITHUB_REPOSITORY}/blob/${GITHUB_SHA}/analysis/train-recipes/README.md"
+            echo
+            echo "The models are under Apache-2.0. $(jq -r .attribution dist/turbo-en-masc-3.0.0-sentence-1.card.json)"
+          } > notes
+          gh release create "$TAG" --target "$GITHUB_SHA" --title "$TAG" --notes-file notes dist/*

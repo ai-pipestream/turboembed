@@ -2236,6 +2236,13 @@ them the lead is +2.39 (+2.18 to +2.63), and the gate still passes. Two
 runs write the same model bytes. The crate's README has the counts, the
 models' digests and the rest.
 
+The models go out as the assets of this repository's release
+`models-masc-3.0.0-1`, and the zoo's built-in index lists them there as
+permissive models. `.github/workflows/models.yml` trains them in CI,
+checks with `turbo-train-recipes zoo-index --check` that they are the
+bytes the index lists, and only then, run by hand on main, creates the
+release with each model's card and gate record beside it.
+
 ## Differential fuzzing
 
 The golden tests compare the ports with what OpenNLP wrote for a few

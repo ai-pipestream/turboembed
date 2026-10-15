@@ -10,11 +10,13 @@ accuracy gate each model passes before it ships (#401). docs/analysis.md
 | `segmentation` | The English sentence detector and tokenizer recipes: training on the split's training documents, the held-out samples, scoring a model with OpenNLP's evaluators, the gate against the OpenNLP English UD model |
 | `postag` | The English part-of-speech tagger recipe, the same way: training on MASC's Penn tags, the held-out samples, scoring with `POSEvaluator`, the gate against OpenNLP's English Penn tagger (`en-pos-maxent.bin`, OpenNLP 1.5) |
 | `card` | The model card, the model's directory (model, `card.json`, `gate.json`) and its permissive zoo entry, made only for a card whose gate against its recipe's reference (by id and SHA-256) passed on the recorded release |
+| `release` | The release of this repository that publishes the models (`models-masc-3.0.0-1`), and their entries in the zoo's built-in index at their addresses there |
 
 ```
 cargo run --release -p turbo-train-recipes -- masc --corpus <masc-dir> \
     --references <dir> --out <dir> [--unrecorded-corpus] [--recipe <model id>]...
 cargo run --release -p turbo-train-recipes -- fetch-masc --home <zoo-home>
+cargo run --release -p turbo-train-recipes -- zoo-index --models <dir> --release <tag> [--check]
 ```
 
 `--references` is a directory holding the reference models under their
@@ -230,8 +232,8 @@ held-out sentences skipped are skipped for both.
 | `turbo-en-masc-3.0.0-tokens-1` | 24,957 | 1 | 1,408,312 | 1 | |
 | `turbo-en-masc-3.0.0-pos-1` | 24,958 | 0 | 431,637 | 1 | 6 of 85,292: `"` (2), `PRN` (1), ``UH` `` (3) |
 
-The trained models are not checked in or published. A second run into
-another directory wrote the same bytes:
+The trained models are not checked in; the release below publishes
+them. A second run into another directory wrote the same bytes:
 
 | Model | Size | SHA-256 |
 |---|---|---|
@@ -273,6 +275,37 @@ rows also hold words that are not nouns, such as `pray`, `make`,
 verbs such as `do`, `think` and `have`, and the `IN` rows words such as
 `so`, `around`, `on`, `out` and `up`.
 
+## The models release
+
+The models go out as the assets of this repository's release
+`models-masc-3.0.0-1` (`release::MASC_MODELS`), as Kristian Rickert
+decided on 2026-10-15, and the zoo's built-in index lists each at its
+address there, `https://github.com/ai-pipestream/turboembed/releases/download/models-masc-3.0.0-1/<model id>.bin`,
+with the size, SHA-256 and SHA-512 its card records.
+
+`zoo-index --models <dir> --release <tag>` reads the model directories
+`masc` wrote into `<dir>`, one for every recipe, checks each model file
+against its card, makes each card's zoo entry at its address in release
+`<tag>` (`ModelCard::artifact`, which refuses a model that failed its
+gate or was not trained on the recorded release), and prints the zoo's
+built-in index with those entries added or replaced. That is how
+`analysis/zoo/index/zoo.json` got them. With `--check` it prints no
+index and exits with 1 unless the built-in index is already that one,
+naming the entries that differ.
+
+`.github/workflows/models.yml` makes the release. It fetches MASC
+through the zoo and the three references from their published addresses
+(`en-pos-maxent.bin` from SourceForge, used only to be scored), caching
+both in the repository's Actions cache, runs `masc` on
+the recorded release, runs `zoo-index --check`, and uploads each model
+with its card and gate record (`<model id>.bin`, `<model id>.card.json`,
+`<model id>.gate.json`) and a `SHA256SUMS` file. On a pull request that
+changes the workflow it stops there and keeps the files as an artifact;
+run by hand on main, it creates the release at that commit with the
+files as its assets, and the notes give the models' licence and MASC's
+attribution. Creating a release that exists fails, so models trained
+otherwise need a new model version and tag.
+
 ## Tests
 
 `tests/recipes.rs` writes corpora in MASC's layout (`tests/common`, no
@@ -280,7 +313,10 @@ MASC text, Penn tags written for the tests) and runs everything on
 them: the split in the reader's order; the Twitter genre left out of
 both sides without moving another document; the three recipes trained,
 scored and gated; the same bytes from a second training; the card, the
-model's directory and its zoo entry; the skipped sentences recorded and
+model's directory and its zoo entry; the zoo entries of a release made
+from every recipe's directory and the built-in index with them added,
+and their refusal of a missing directory, a card in another model's
+directory and a changed model file; the skipped sentences recorded and
 bounded on both sides; a sentence with a token inside another skipped
 by the token recipe alone; the tagger's tags compared as written and
 the reference's through the mapping of its tags, with the tokens of a
@@ -291,7 +327,8 @@ existing model directory and of held-out data with too many skipped
 sentences before it trains anything, and its output, with the lines it
 prints of each card (`ModelCard::summary`: the samples and skipped
 sentences of both sides, and the held-out tokens left out with their
-tags) checked word for word. It
+tags) checked word for word, and `zoo-index`'s refusal of models
+trained on a corpus that is not the recorded release. It
 also reads the MASC corpora checked in for the goldens
 (`analysis/goldens/data/inputs/formats/masc-*.txt`) with the tagger
 recipe's reader: it reads every sample OpenNLP's `MascPOSSampleStream`
@@ -319,7 +356,9 @@ requires the published models.
 
 The tagger's reference, `en-pos-maxent.bin`, is local-only, as in
 turbo-sequence's tests of the 1.5 models: its training data is not
-published, so CI does not fetch it. The parts that need it run when
+published, so CI's test job does not fetch it (the models workflow
+does, to run the release gate; see "The models release"). The parts
+that need it run when
 `TURBO_TEST_OPENNLP_MODELS` names a directory holding it (a missing file
 there fails), and skip without it even with
 `TURBO_TEST_REQUIRE_OPENNLP_MODELS=1`. With it, it is checked against the

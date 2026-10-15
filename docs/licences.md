@@ -4,8 +4,9 @@ The datasets and published checkpoints the analysis add-ons may use, with
 their licences, their class under the policy on #326 and where the terms
 are stated. The classes and what the zoo does with each are in
 docs/zoo.md. The zoo's built-in index (`analysis/zoo/index/zoo.json`)
-lists the checkpoints of the first table below; the refused checkpoints,
-and the local-only ones the index does not list, are only here.
+lists the checkpoints of the first two tables below; the refused
+checkpoints, and the local-only ones the index does not list, are only
+here.
 Restricted but public data and non-commercial data, requested only at
 addresses under their original sources and never shipped by this
 project, have sections of their own at the end.
@@ -84,6 +85,22 @@ list them. The small fixture models trained for this project
 (`analysis/goldens/data/fixtures`, listed in `analysis/goldens/data/README.md`)
 stay checked in.
 
+## Models trained by this project (fetchable)
+
+Trained by the recipes in `analysis/train-recipes` only on permissive
+data, each gated against the OpenNLP model for the same task, under
+Apache-2.0. The index lists each at its address in this repository's
+release `models-masc-3.0.0-1`, which `.github/workflows/models.yml`
+publishes with each model's card and gate record. Every file's size,
+SHA-256 and SHA-512 in the index are the ones its card records, and the
+workflow publishes nothing unless the models it trains have them.
+
+| Model | Trained on | Licence of the data | Class | Checked |
+|---|---|---|---|---|
+| `turbo-en-masc-3.0.0-sentence-1` | MASC 3.0.0, its Twitter genre left out | CC BY 3.0 US | permissive | here |
+| `turbo-en-masc-3.0.0-tokens-1` | MASC 3.0.0, its Twitter genre left out | CC BY 3.0 US | permissive | here |
+| `turbo-en-masc-3.0.0-pos-1` | MASC 3.0.0, its Twitter genre left out | CC BY 3.0 US | permissive | here |
+
 ## OpenNLP models (refused)
 
 | Model | Trained on | Licence of the data | Reason | Checked |
@@ -95,10 +112,14 @@ stay checked in.
 | 1.5 English NER, sentence and token models | no corpus named | none stated | no licence | plan |
 
 `en-pos-maxent.bin` is used only as a reference whose output is scored
-or compared. Nothing ships, bundles, mirrors or trains on it, the zoo
-does not list it, and CI does not fetch it. It is downloaded by hand
-from <https://opennlp.sourceforge.net/models-1.5/en-pos-maxent.bin> into
-a directory the user names. Its SHA-256 is
+or compared. Nothing ships, bundles, mirrors or trains on it, and the
+zoo does not list it. CI's test job does not fetch it. The models
+workflow (`.github/workflows/models.yml`), which runs the recipes' gates
+before it publishes their models, downloads it from
+<https://opennlp.sourceforge.net/models-1.5/en-pos-maxent.bin> and keeps
+it in the repository's Actions cache, which only the repository's
+workflows read. Anywhere else it is downloaded by hand from that address
+into a directory the user names. Its SHA-256 is
 `645a094f45a866687a617385233fd23ae8b0f5fa8b1b76996781a50c17bdcf3d`. The
 JVM goldens (`PosGolden`, `BeamGolden`) record its tags for the test
 sentences and that digest; turbo-sequence's tests check the digest and
