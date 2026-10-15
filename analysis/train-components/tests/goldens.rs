@@ -475,6 +475,10 @@ fn events_with_every_factory_option_are_the_jvms_over_every_train_events_golden(
     let (mut with_errors, mut cases, mut tagdict_cases, mut lone_surrogates) = (0, 0, 0, 0);
     for path in &files {
         let g = common::read(path);
+        // the chunker runs train models; tests/chunker.rs compares them
+        if common::config(&g, "source") == Some("chunk") {
+            continue;
+        }
         runs.insert(common::config(&g, "run").unwrap().to_owned());
         assert!(g.header.error.is_none(), "{}: the generator failed", path.display());
         let text = g.input_text(data_dir()).unwrap();

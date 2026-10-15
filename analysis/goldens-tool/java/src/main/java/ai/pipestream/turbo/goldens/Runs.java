@@ -60,6 +60,8 @@ final class Runs {
   /** The tag dictionary the tagger fixtures were trained with, a copy of analysis/sequence/golden/resources/tags.tagdict. */
   static final String TAG_DICTIONARY = "tags.tagdict";
   static final String CHUNKER_FIXTURE = "chunker-fixture.bin";
+  /** The chunker model the Rust trainer wrote from inputs/tagged/chunks.txt. */
+  static final String CHUNKER_FIXTURE_RUST = "chunker-fixture-rust.bin";
   static final String LEMMA_DICTIONARY = "lemmatizer-dictionary.txt";
   static final String ENGLISH_ABBREVIATIONS = "english-dictionary.xml";
   static final List<String> DETOKENIZER_DICTIONARIES = List.of("en-detokenizer.xml", "fr-detokenizer.xml",
@@ -236,12 +238,14 @@ final class Runs {
     annotators.add(DictionaryLemmaGolden.load(fixtures.resolve(LEMMA_DICTIONARY), taggedEnglish, Set.of(EN, MULTI, EDGE)));
 
     // Phrase chunking, on the sentences and tokens of the English models and the Penn Treebank
-    // tags the English part-of-speech model is asked for, since the fixture chunker was trained
-    // on Penn Treebank tags: the fixture model as it is, and rebuilt with a beam of one.
+    // tags the English part-of-speech model is asked for, since the fixture chunkers were trained
+    // on Penn Treebank tags: the fixture model as it is, rebuilt with a beam of one, and the model
+    // the Rust trainer wrote.
     ChunkGolden.Pipeline pennEnglish = ChunkGolden.Pipeline.load(models.resolve(SENTENCE_MODEL_EN),
         models.resolve(TOKEN_MODEL_EN), models.resolve(POS_MODEL_EN), POSTagFormat.PENN);
     for (ChunkGolden c : List.of(ChunkGolden.load(fixtures.resolve(CHUNKER_FIXTURE), pennEnglish, Set.of(EN, MULTI, EDGE)),
-        ChunkGolden.withBeamSize(fixtures.resolve(CHUNKER_FIXTURE), pennEnglish, 1, Set.of(EN)))) {
+        ChunkGolden.withBeamSize(fixtures.resolve(CHUNKER_FIXTURE), pennEnglish, 1, Set.of(EN)),
+        ChunkGolden.load(fixtures.resolve(CHUNKER_FIXTURE_RUST), pennEnglish, Set.of(EN, MULTI, EDGE)))) {
       annotators.add(c);
       recorders.add(ChunkDump.of(c));
     }
@@ -268,6 +272,8 @@ final class Runs {
     annotators.addAll(EventGolden.all(fixtures.resolve(ENGLISH_ABBREVIATIONS)));
     // The tagger's and the lemmatizer's event streams, and the model files around them.
     annotators.addAll(TaggerEventGolden.all(fixtures.resolve(TAG_DICTIONARY)));
+    // The chunker's event stream and ChunkerME.train with each kind of event trainer.
+    annotators.addAll(ChunkerTrainGolden.all(Set.of(TAGGED, FORMATS)));
     // The sample streams of OpenNLP's native formats, and the conversion streams, which
     // detokenize with the English dictionary.
     annotators.addAll(FormatGolden.all(fixtures.resolve(FORMAT_DETOKENIZER)));

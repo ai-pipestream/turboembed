@@ -188,7 +188,7 @@ pub struct Fixture {
 /// file names are the ones the generator's `Runs` class opens there; a
 /// fixture in a subdirectory is a file of a dictionary directory, and
 /// `Runs` opens the directory.
-pub const FIXTURES: [Fixture; 38] = [
+pub const FIXTURES: [Fixture; 39] = [
     Fixture {
         file: "en-abbrev.bin",
         sha512: "759ab1defc61351f53cdd82a26e708789a225feb6e1ec0cfd6e2e54f35f67c14\
@@ -248,6 +248,11 @@ pub const FIXTURES: [Fixture; 38] = [
         file: "chunker-fixture.bin",
         sha512: "be8e0bfd341644705a652b85b978e4138056922ddb9caea1ac9a2395f0648e55\
                  ad1f1b035d90f6febc0f057f832cecac377f397552fdbdfefadaa27cfa232d6a",
+    },
+    Fixture {
+        file: "chunker-fixture-rust.bin",
+        sha512: "71caec6c87065f0872d0ef255ed95443b0c675acf273c2d19a1aefd6c006f1ab\
+                 99846bbb28b56d2e78abcb3f78074d00b1135a6dffc4e14ed3957101cf80ee44",
     },
     Fixture {
         file: "english-dictionary.xml",

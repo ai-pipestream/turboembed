@@ -1,0 +1,272 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	formats/chunk-phrases	207	201	09875bb6dbd5b3225ffecee865cba97e9905772fe2dc2e1a6eab1c12cc2f2a3c
+annotator	opennlp.tools.chunker.ChunkerME	train
+config	Algorithm	MAXENT
+config	Cutoff	5
+config	Iterations	100
+config	TrainerType	Event
+config	language	en
+config	run	chunker-defaults
+config	source	chunk
+layer	turbo:events	document	20	outcome:str	context:str	values:str
+I-NP	w_2=bos w_1=bos w0=a w1=b w2=c w_1=bosw0=a w0=aw1=b t_2=bos t_1=bos t0=DT t1=NN t2=VB t_2=bost_1=bos t_1=bost0=DT t0=DTt1=NN t1=NNt2=VB t_2=bost_1=bost0=DT t_1=bost0=DTt1=NN t0=DTt1=NNt2=VB p_2=bos p_1=bos p_2=bosp_1=bos p_1=bost_2=bos p_1=bost_1=bos p_1=bost0=DT p_1=bost1=NN p_1=bost2=VB p_1=bost_2=bost_1=bos p_1=bost_1=bost0=DT p_1=bost0=DTt1=NN p_1=bost1=NNt2=VB p_1=bost_2=bost_1=bost0=DT p_1=bost_1=bost0=DTt1=NN p_1=bost0=DTt1=NNt2=VB p_1=bosw_2=bos p_1=bosw_1=bos p_1=bosw0=a p_1=bosw1=b p_1=bosw2=c p_1=bosw_1=bosw0=a p_1=bosw0=aw1=b	
+I-NP	w_2=bos w_1=a w0=b w1=c w2=d w_1=aw0=b w0=bw1=c t_2=bos t_1=DT t0=NN t1=VB t2=IN t_2=bost_1=DT t_1=DTt0=NN t0=NNt1=VB t1=VBt2=IN t_2=bost_1=DTt0=NN t_1=DTt0=NNt1=VB t0=NNt1=VBt2=IN p_2=bos p_1=I-NP p_2=bosp_1=I-NP p_1=I-NPt_2=bos p_1=I-NPt_1=DT p_1=I-NPt0=NN p_1=I-NPt1=VB p_1=I-NPt2=IN p_1=I-NPt_2=bost_1=DT p_1=I-NPt_1=DTt0=NN p_1=I-NPt0=NNt1=VB p_1=I-NPt1=VBt2=IN p_1=I-NPt_2=bost_1=DTt0=NN p_1=I-NPt_1=DTt0=NNt1=VB p_1=I-NPt0=NNt1=VBt2=IN p_1=I-NPw_2=bos p_1=I-NPw_1=a p_1=I-NPw0=b p_1=I-NPw1=c p_1=I-NPw2=d p_1=I-NPw_1=aw0=b p_1=I-NPw0=bw1=c	
+I-VP	w_2=a w_1=b w0=c w1=d w2=e w_1=bw0=c w0=cw1=d t_2=DT t_1=NN t0=VB t1=IN t2=NN t_2=DTt_1=NN t_1=NNt0=VB t0=VBt1=IN t1=INt2=NN t_2=DTt_1=NNt0=VB t_1=NNt0=VBt1=IN t0=VBt1=INt2=NN p_2=I-NP p_1=I-NP p_2=I-NPp_1=I-NP p_1=I-NPt_2=DT p_1=I-NPt_1=NN p_1=I-NPt0=VB p_1=I-NPt1=IN p_1=I-NPt2=NN p_1=I-NPt_2=DTt_1=NN p_1=I-NPt_1=NNt0=VB p_1=I-NPt0=VBt1=IN p_1=I-NPt1=INt2=NN p_1=I-NPt_2=DTt_1=NNt0=VB p_1=I-NPt_1=NNt0=VBt1=IN p_1=I-NPt0=VBt1=INt2=NN p_1=I-NPw_2=a p_1=I-NPw_1=b p_1=I-NPw0=c p_1=I-NPw1=d p_1=I-NPw2=e p_1=I-NPw_1=bw0=c p_1=I-NPw0=cw1=d	
+O	w_2=b w_1=c w0=d w1=e w2=f w_1=cw0=d w0=dw1=e t_2=NN t_1=VB t0=IN t1=NN t2=NN t_2=NNt_1=VB t_1=VBt0=IN t0=INt1=NN t1=NNt2=NN t_2=NNt_1=VBt0=IN t_1=VBt0=INt1=NN t0=INt1=NNt2=NN p_2=I-NP p_1=I-VP p_2=I-NPp_1=I-VP p_1=I-VPt_2=NN p_1=I-VPt_1=VB p_1=I-VPt0=IN p_1=I-VPt1=NN p_1=I-VPt2=NN p_1=I-VPt_2=NNt_1=VB p_1=I-VPt_1=VBt0=IN p_1=I-VPt0=INt1=NN p_1=I-VPt1=NNt2=NN p_1=I-VPt_2=NNt_1=VBt0=IN p_1=I-VPt_1=VBt0=INt1=NN p_1=I-VPt0=INt1=NNt2=NN p_1=I-VPw_2=b p_1=I-VPw_1=c p_1=I-VPw0=d p_1=I-VPw1=e p_1=I-VPw2=f p_1=I-VPw_1=cw0=d p_1=I-VPw0=dw1=e	
+I-	w_2=c w_1=d w0=e w1=f w2=g w_1=dw0=e w0=ew1=f t_2=VB t_1=IN t0=NN t1=NN t2=NN t_2=VBt_1=IN t_1=INt0=NN t0=NNt1=NN t1=NNt2=NN t_2=VBt_1=INt0=NN t_1=INt0=NNt1=NN t0=NNt1=NNt2=NN p_2=I-VP p_1=O p_2=I-VPp_1=O p_1=Ot_2=VB p_1=Ot_1=IN p_1=Ot0=NN p_1=Ot1=NN p_1=Ot2=NN p_1=Ot_2=VBt_1=IN p_1=Ot_1=INt0=NN p_1=Ot0=NNt1=NN p_1=Ot1=NNt2=NN p_1=Ot_2=VBt_1=INt0=NN p_1=Ot_1=INt0=NNt1=NN p_1=Ot0=NNt1=NNt2=NN p_1=Ow_2=c p_1=Ow_1=d p_1=Ow0=e p_1=Ow1=f p_1=Ow2=g p_1=Ow_1=dw0=e p_1=Ow0=ew1=f	
+I-	w_2=d w_1=e w0=f w1=g w2=h w_1=ew0=f w0=fw1=g t_2=IN t_1=NN t0=NN t1=NN t2=NN t_2=INt_1=NN t_1=NNt0=NN t0=NNt1=NN t1=NNt2=NN t_2=INt_1=NNt0=NN t_1=NNt0=NNt1=NN t0=NNt1=NNt2=NN p_2=O p_1=I- p_2=Op_1=I- p_1=I-t_2=IN p_1=I-t_1=NN p_1=I-t0=NN p_1=I-t1=NN p_1=I-t2=NN p_1=I-t_2=INt_1=NN p_1=I-t_1=NNt0=NN p_1=I-t0=NNt1=NN p_1=I-t1=NNt2=NN p_1=I-t_2=INt_1=NNt0=NN p_1=I-t_1=NNt0=NNt1=NN p_1=I-t0=NNt1=NNt2=NN p_1=I-w_2=d p_1=I-w_1=e p_1=I-w0=f p_1=I-w1=g p_1=I-w2=h p_1=I-w_1=ew0=f p_1=I-w0=fw1=g	
+B-	w_2=e w_1=f w0=g w1=h w2=i w_1=fw0=g w0=gw1=h t_2=NN t_1=NN t0=NN t1=NN t2=NN t_2=NNt_1=NN t_1=NNt0=NN t0=NNt1=NN t1=NNt2=NN t_2=NNt_1=NNt0=NN t_1=NNt0=NNt1=NN t0=NNt1=NNt2=NN p_2=I- p_1=I- p_2=I-p_1=I- p_1=I-t_2=NN p_1=I-t_1=NN p_1=I-t0=NN p_1=I-t1=NN p_1=I-t2=NN p_1=I-t_2=NNt_1=NN p_1=I-t_1=NNt0=NN p_1=I-t0=NNt1=NN p_1=I-t1=NNt2=NN p_1=I-t_2=NNt_1=NNt0=NN p_1=I-t_1=NNt0=NNt1=NN p_1=I-t0=NNt1=NNt2=NN p_1=I-w_2=e p_1=I-w_1=f p_1=I-w0=g p_1=I-w1=h p_1=I-w2=i p_1=I-w_1=fw0=g p_1=I-w0=gw1=h	
+XY	w_2=f w_1=g w0=h w1=i w2=j w_1=gw0=h w0=hw1=i t_2=NN t_1=NN t0=NN t1=NN t2=NN t_2=NNt_1=NN t_1=NNt0=NN t0=NNt1=NN t1=NNt2=NN t_2=NNt_1=NNt0=NN t_1=NNt0=NNt1=NN t0=NNt1=NNt2=NN p_2=I- p_1=B- p_2=I-p_1=B- p_1=B-t_2=NN p_1=B-t_1=NN p_1=B-t0=NN p_1=B-t1=NN p_1=B-t2=NN p_1=B-t_2=NNt_1=NN p_1=B-t_1=NNt0=NN p_1=B-t0=NNt1=NN p_1=B-t1=NNt2=NN p_1=B-t_2=NNt_1=NNt0=NN p_1=B-t_1=NNt0=NNt1=NN p_1=B-t0=NNt1=NNt2=NN p_1=B-w_2=f p_1=B-w_1=g p_1=B-w0=h p_1=B-w1=i p_1=B-w2=j p_1=B-w_1=gw0=h p_1=B-w0=hw1=i	
+XYZ	w_2=g w_1=h w0=i w1=j w2=eos w_1=hw0=i w0=iw1=j t_2=NN t_1=NN t0=NN t1=NN t2=eos t_2=NNt_1=NN t_1=NNt0=NN t0=NNt1=NN t1=NNt2=eos t_2=NNt_1=NNt0=NN t_1=NNt0=NNt1=NN t0=NNt1=NNt2=eos p_2=B- p_1=XY p_2=B-p_1=XY p_1=XYt_2=NN p_1=XYt_1=NN p_1=XYt0=NN p_1=XYt1=NN p_1=XYt2=eos p_1=XYt_2=NNt_1=NN p_1=XYt_1=NNt0=NN p_1=XYt0=NNt1=NN p_1=XYt1=NNt2=eos p_1=XYt_2=NNt_1=NNt0=NN p_1=XYt_1=NNt0=NNt1=NN p_1=XYt0=NNt1=NNt2=eos p_1=XYw_2=g p_1=XYw_1=h p_1=XYw0=i p_1=XYw1=j p_1=XYw2=eos p_1=XYw_1=hw0=i p_1=XYw0=iw1=j	
+O	w_2=h w_1=i w0=j w1=eos w2=eos w_1=iw0=j w0=jw1=eos t_2=NN t_1=NN t0=NN t1=eos t2=eos t_2=NNt_1=NN t_1=NNt0=NN t0=NNt1=eos t1=eost2=eos t_2=NNt_1=NNt0=NN t_1=NNt0=NNt1=eos t0=NNt1=eost2=eos p_2=XY p_1=XYZ p_2=XYp_1=XYZ p_1=XYZt_2=NN p_1=XYZt_1=NN p_1=XYZt0=NN p_1=XYZt1=eos p_1=XYZt2=eos p_1=XYZt_2=NNt_1=NN p_1=XYZt_1=NNt0=NN p_1=XYZt0=NNt1=eos p_1=XYZt1=eost2=eos p_1=XYZt_2=NNt_1=NNt0=NN p_1=XYZt_1=NNt0=NNt1=eos p_1=XYZt0=NNt1=eost2=eos p_1=XYZw_2=h p_1=XYZw_1=i p_1=XYZw0=j p_1=XYZw1=eos p_1=XYZw2=eos p_1=XYZw_1=iw0=j p_1=XYZw0=jw1=eos	
+B-NP	w_2=bos w_1=bos w0=a w1=b w2=eos w_1=bosw0=a w0=aw1=b t_2=bos t_1=bos t0=DT t1=NN t2=eos t_2=bost_1=bos t_1=bost0=DT t0=DTt1=NN t1=NNt2=eos t_2=bost_1=bost0=DT t_1=bost0=DTt1=NN t0=DTt1=NNt2=eos p_2=bos p_1=bos p_2=bosp_1=bos p_1=bost_2=bos p_1=bost_1=bos p_1=bost0=DT p_1=bost1=NN p_1=bost2=eos p_1=bost_2=bost_1=bos p_1=bost_1=bost0=DT p_1=bost0=DTt1=NN p_1=bost1=NNt2=eos p_1=bost_2=bost_1=bost0=DT p_1=bost_1=bost0=DTt1=NN p_1=bost0=DTt1=NNt2=eos p_1=bosw_2=bos p_1=bosw_1=bos p_1=bosw0=a p_1=bosw1=b p_1=bosw2=eos p_1=bosw_1=bosw0=a p_1=bosw0=aw1=b	
+X	w_2=bos w_1=a w0=b w1=eos w2=eos w_1=aw0=b w0=bw1=eos t_2=bos t_1=DT t0=NN t1=eos t2=eos t_2=bost_1=DT t_1=DTt0=NN t0=NNt1=eos t1=eost2=eos t_2=bost_1=DTt0=NN t_1=DTt0=NNt1=eos t0=NNt1=eost2=eos p_2=bos p_1=B-NP p_2=bosp_1=B-NP p_1=B-NPt_2=bos p_1=B-NPt_1=DT p_1=B-NPt0=NN p_1=B-NPt1=eos p_1=B-NPt2=eos p_1=B-NPt_2=bost_1=DT p_1=B-NPt_1=DTt0=NN p_1=B-NPt0=NNt1=eos p_1=B-NPt1=eost2=eos p_1=B-NPt_2=bost_1=DTt0=NN p_1=B-NPt_1=DTt0=NNt1=eos p_1=B-NPt0=NNt1=eost2=eos p_1=B-NPw_2=bos p_1=B-NPw_1=a p_1=B-NPw0=b p_1=B-NPw1=eos p_1=B-NPw2=eos p_1=B-NPw_1=aw0=b p_1=B-NPw0=bw1=eos	
+O	w_2=bos w_1=bos w0=a w1=b w2=eos w_1=bosw0=a w0=aw1=b t_2=bos t_1=bos t0=NN t1=NN t2=eos t_2=bost_1=bos t_1=bost0=NN t0=NNt1=NN t1=NNt2=eos t_2=bost_1=bost0=NN t_1=bost0=NNt1=NN t0=NNt1=NNt2=eos p_2=bos p_1=bos p_2=bosp_1=bos p_1=bost_2=bos p_1=bost_1=bos p_1=bost0=NN p_1=bost1=NN p_1=bost2=eos p_1=bost_2=bost_1=bos p_1=bost_1=bost0=NN p_1=bost0=NNt1=NN p_1=bost1=NNt2=eos p_1=bost_2=bost_1=bost0=NN p_1=bost_1=bost0=NNt1=NN p_1=bost0=NNt1=NNt2=eos p_1=bosw_2=bos p_1=bosw_1=bos p_1=bosw0=a p_1=bosw1=b p_1=bosw2=eos p_1=bosw_1=bosw0=a p_1=bosw0=aw1=b	
+I-	w_2=bos w_1=a w0=b w1=eos w2=eos w_1=aw0=b w0=bw1=eos t_2=bos t_1=NN t0=NN t1=eos t2=eos t_2=bost_1=NN t_1=NNt0=NN t0=NNt1=eos t1=eost2=eos t_2=bost_1=NNt0=NN t_1=NNt0=NNt1=eos t0=NNt1=eost2=eos p_2=bos p_1=O p_2=bosp_1=O p_1=Ot_2=bos p_1=Ot_1=NN p_1=Ot0=NN p_1=Ot1=eos p_1=Ot2=eos p_1=Ot_2=bost_1=NN p_1=Ot_1=NNt0=NN p_1=Ot0=NNt1=eos p_1=Ot1=eost2=eos p_1=Ot_2=bost_1=NNt0=NN p_1=Ot_1=NNt0=NNt1=eos p_1=Ot0=NNt1=eost2=eos p_1=Ow_2=bos p_1=Ow_1=a p_1=Ow0=b p_1=Ow1=eos p_1=Ow2=eos p_1=Ow_1=aw0=b p_1=Ow0=bw1=eos	
+B-😀	w_2=bos w_1=bos w0=a w1=b w2=c w_1=bosw0=a w0=aw1=b t_2=bos t_1=bos t0=NN t1=NN t2=NN t_2=bost_1=bos t_1=bost0=NN t0=NNt1=NN t1=NNt2=NN t_2=bost_1=bost0=NN t_1=bost0=NNt1=NN t0=NNt1=NNt2=NN p_2=bos p_1=bos p_2=bosp_1=bos p_1=bost_2=bos p_1=bost_1=bos p_1=bost0=NN p_1=bost1=NN p_1=bost2=NN p_1=bost_2=bost_1=bos p_1=bost_1=bost0=NN p_1=bost0=NNt1=NN p_1=bost1=NNt2=NN p_1=bost_2=bost_1=bost0=NN p_1=bost_1=bost0=NNt1=NN p_1=bost0=NNt1=NNt2=NN p_1=bosw_2=bos p_1=bosw_1=bos p_1=bosw0=a p_1=bosw1=b p_1=bosw2=c p_1=bosw_1=bosw0=a p_1=bosw0=aw1=b	
+I-😀	w_2=bos w_1=a w0=b w1=c w2=eos w_1=aw0=b w0=bw1=c t_2=bos t_1=NN t0=NN t1=NN t2=eos t_2=bost_1=NN t_1=NNt0=NN t0=NNt1=NN t1=NNt2=eos t_2=bost_1=NNt0=NN t_1=NNt0=NNt1=NN t0=NNt1=NNt2=eos p_2=bos p_1=B-😀 p_2=bosp_1=B-😀 p_1=B-😀t_2=bos p_1=B-😀t_1=NN p_1=B-😀t0=NN p_1=B-😀t1=NN p_1=B-😀t2=eos p_1=B-😀t_2=bost_1=NN p_1=B-😀t_1=NNt0=NN p_1=B-😀t0=NNt1=NN p_1=B-😀t1=NNt2=eos p_1=B-😀t_2=bost_1=NNt0=NN p_1=B-😀t_1=NNt0=NNt1=NN p_1=B-😀t0=NNt1=NNt2=eos p_1=B-😀w_2=bos p_1=B-😀w_1=a p_1=B-😀w0=b p_1=B-😀w1=c p_1=B-😀w2=eos p_1=B-😀w_1=aw0=b p_1=B-😀w0=bw1=c	
+😀x	w_2=a w_1=b w0=c w1=eos w2=eos w_1=bw0=c w0=cw1=eos t_2=NN t_1=NN t0=NN t1=eos t2=eos t_2=NNt_1=NN t_1=NNt0=NN t0=NNt1=eos t1=eost2=eos t_2=NNt_1=NNt0=NN t_1=NNt0=NNt1=eos t0=NNt1=eost2=eos p_2=B-😀 p_1=I-😀 p_2=B-😀p_1=I-😀 p_1=I-😀t_2=NN p_1=I-😀t_1=NN p_1=I-😀t0=NN p_1=I-😀t1=eos p_1=I-😀t2=eos p_1=I-😀t_2=NNt_1=NN p_1=I-😀t_1=NNt0=NN p_1=I-😀t0=NNt1=eos p_1=I-😀t1=eost2=eos p_1=I-😀t_2=NNt_1=NNt0=NN p_1=I-😀t_1=NNt0=NNt1=eos p_1=I-😀t0=NNt1=eost2=eos p_1=I-😀w_2=a p_1=I-😀w_1=b p_1=I-😀w0=c p_1=I-😀w1=eos p_1=I-😀w2=eos p_1=I-😀w_1=bw0=c p_1=I-😀w0=cw1=eos	
+O	w_2=bos w_1=bos w0=c w1=e\tf w2=h w_1=bosw0=c w0=cw1=e\tf t_2=bos t_1=bos t0=d t1=g t2=i t_2=bost_1=bos t_1=bost0=d t0=dt1=g t1=gt2=i t_2=bost_1=bost0=d t_1=bost0=dt1=g t0=dt1=gt2=i p_2=bos p_1=bos p_2=bosp_1=bos p_1=bost_2=bos p_1=bost_1=bos p_1=bost0=d p_1=bost1=g p_1=bost2=i p_1=bost_2=bost_1=bos p_1=bost_1=bost0=d p_1=bost0=dt1=g p_1=bost1=gt2=i p_1=bost_2=bost_1=bost0=d p_1=bost_1=bost0=dt1=g p_1=bost0=dt1=gt2=i p_1=bosw_2=bos p_1=bosw_1=bos p_1=bosw0=c p_1=bosw1=e\tf p_1=bosw2=h p_1=bosw_1=bosw0=c p_1=bosw0=cw1=e\tf	
+O	w_2=bos w_1=c w0=e\tf w1=h w2=eos w_1=cw0=e\tf w0=e\tfw1=h t_2=bos t_1=d t0=g t1=i t2=eos t_2=bost_1=d t_1=dt0=g t0=gt1=i t1=it2=eos t_2=bost_1=dt0=g t_1=dt0=gt1=i t0=gt1=it2=eos p_2=bos p_1=O p_2=bosp_1=O p_1=Ot_2=bos p_1=Ot_1=d p_1=Ot0=g p_1=Ot1=i p_1=Ot2=eos p_1=Ot_2=bost_1=d p_1=Ot_1=dt0=g p_1=Ot0=gt1=i p_1=Ot1=it2=eos p_1=Ot_2=bost_1=dt0=g p_1=Ot_1=dt0=gt1=i p_1=Ot0=gt1=it2=eos p_1=Ow_2=bos p_1=Ow_1=c p_1=Ow0=e\tf p_1=Ow1=h p_1=Ow2=eos p_1=Ow_1=cw0=e\tf p_1=Ow0=e\tfw1=h	
+B-NP	w_2=c w_1=e\tf w0=h w1=eos w2=eos w_1=e\tfw0=h w0=hw1=eos t_2=d t_1=g t0=i t1=eos t2=eos t_2=dt_1=g t_1=gt0=i t0=it1=eos t1=eost2=eos t_2=dt_1=gt0=i t_1=gt0=it1=eos t0=it1=eost2=eos p_2=O p_1=O p_2=Op_1=O p_1=Ot_2=d p_1=Ot_1=g p_1=Ot0=i p_1=Ot1=eos p_1=Ot2=eos p_1=Ot_2=dt_1=g p_1=Ot_1=gt0=i p_1=Ot0=it1=eos p_1=Ot1=eost2=eos p_1=Ot_2=dt_1=gt0=i p_1=Ot_1=gt0=it1=eos p_1=Ot0=it1=eost2=eos p_1=Ow_2=c p_1=Ow_1=e\tf p_1=Ow0=h p_1=Ow1=eos p_1=Ow2=eos p_1=Ow_1=e\tfw0=h p_1=Ow0=hw1=eos	
+end	turbo:events
+layer	turbo:stream-errors	document	0	after:u32	class:str	message:str
+end	turbo:stream-errors
+layer	turbo:event-checksum	document	1	crc32c:u32
+3675733308
+end	turbo:event-checksum
+layer	turbo:model-entry	document	1	type:str	length:u32	sha256:str
+MAXENT	2023	adac72a750a2e2ce27870f4cef5a776e8bfba6731b3f99d4b38d7987324f5ed2
+end	turbo:model-entry
+layer	turbo:model-outcomes	document	12	label:str
+I-NP
+I-VP
+O
+I-
+B-
+XY
+XYZ
+B-NP
+X
+B-😀
+I-😀
+😀x
+end	turbo:model-outcomes
+layer	turbo:model-predicates	document	30	label:str
+p_1=bos
+p_1=bost_1=bos
+p_1=bost_2=bos
+p_1=bost_2=bost_1=bos
+p_1=bosw_1=bos
+p_1=bosw_2=bos
+p_2=bos
+p_2=bosp_1=bos
+t0=NN
+t0=NNt1=NN
+t0=NNt1=NNt2=NN
+t1=NN
+t1=NNt2=NN
+t1=eos
+t1=eost2=eos
+t2=NN
+t2=eos
+t_1=NN
+t_1=NNt0=NN
+t_1=NNt0=NNt1=NN
+t_1=bos
+t_2=NN
+t_2=NNt_1=NN
+t_2=NNt_1=NNt0=NN
+t_2=bos
+t_2=bost_1=bos
+w1=eos
+w2=eos
+w_1=bos
+w_2=bos
+end	turbo:model-predicates
+layer	turbo:model-parameters	document	166	predicate:u32	outcome:u32	value:f64
+0	0	3fd07144ff6c8e70 0.2569134230018113
+0	2	3fdcdb68643ace35 0.4508915880971672
+0	7	3fe4e1db0d9df908 0.6525702730139367
+0	9	3fe0ea423d284528 0.5285960382917994
+1	0	3fd07144ff6c8e70 0.2569134230018113
+1	2	3fdcdb68643ace35 0.4508915880971672
+1	7	3fe4e1db0d9df908 0.6525702730139367
+1	9	3fe0ea423d284528 0.5285960382917994
+2	0	3fd07144ff6c8e70 0.2569134230018113
+2	2	3fdcdb68643ace35 0.4508915880971672
+2	7	3fe4e1db0d9df908 0.6525702730139367
+2	9	3fe0ea423d284528 0.5285960382917994
+3	0	3fd07144ff6c8e70 0.2569134230018113
+3	2	3fdcdb68643ace35 0.4508915880971672
+3	7	3fe4e1db0d9df908 0.6525702730139367
+3	9	3fe0ea423d284528 0.5285960382917994
+4	0	3fd07144ff6c8e70 0.2569134230018113
+4	2	3fdcdb68643ace35 0.4508915880971672
+4	7	3fe4e1db0d9df908 0.6525702730139367
+4	9	3fe0ea423d284528 0.5285960382917994
+5	0	3fd07144ff6c8e70 0.2569134230018113
+5	2	3fdcdb68643ace35 0.4508915880971672
+5	7	3fe4e1db0d9df908 0.6525702730139367
+5	9	3fe0ea423d284528 0.5285960382917994
+6	0	3ff1071e4f467146 1.0642378899274987
+6	2	3fe58647808937ed 0.6726415167302072
+6	3	3fd798cc117af005 0.3687009974198648
+6	7	bfe3de12a7f8c755 -0.6208585053156904
+6	8	3fe2b5bbb55961e6 0.5846842329001987
+6	9	bf76bb3f5a285138 -0.005549666852420913
+6	10	3fe0e391cb0dbe0f 0.527779480542394
+7	0	3fd07144ff6c8e70 0.2569134230018113
+7	2	3fdcdb68643ace35 0.4508915880971672
+7	7	3fe4e1db0d9df908 0.6525702730139367
+7	9	3fe0ea423d284528 0.5285960382917994
+8	0	3fec86f51bc3d514 0.8914742986950466
+8	2	3fc00ef86f9c0e7d 0.12545686196982678
+8	3	3ff00e23c22ec8b8 1.0034520707381898
+8	4	bf94afb7b341f1a0 -0.020201559368148048
+8	5	bf94afb7b341f1a0 -0.020201559368148048
+8	6	bfa74139ecf6a3e1 -0.045419511963082256
+8	8	3fe4e8fc519a56ce 0.6534406274610889
+8	9	3fdf63a563dfa6b5 0.49045691254887497
+8	10	3f930d5010dd4007 0.018605471638977657
+8	11	3fc966c677c788da 0.19844895218472552
+9	2	3fc40bcb7330801f 0.1566099464844237
+9	3	3ff036bbd7f36b1c 1.013362735326786
+9	4	3fe3702e7558ec0b 0.6074440280857528
+9	5	3fe3702e7558ec0b 0.6074440280857528
+9	6	3ff18311435cbb3c 1.0944988852822481
+9	9	3fed4d949d717caf 0.9157202792229294
+9	10	3ff2f0d35146281a 1.1837952780501895
+10	3	3ff990a2681931f9 1.5978111330360873
+10	4	3ff66a99ffa73615 1.4010257708026803
+10	5	3ff66a99ffa73615 1.4010257708026803
+10	9	3ff9ca6dd91a1e13 1.6119211655185424
+11	0	3fee52ac54f3fb52 0.9475919398536041
+11	2	bfd94d6988cc88d2 -0.3953498683860178
+11	3	3fe30783f18c7221 0.5946674077745834
+11	4	3fad888de8e04bf4 0.057682451894059655
+11	5	3fad888de8e04bf4 0.057682451894059655
+11	6	3fe59737a73e1735 0.67470915474471
+11	7	3fe72c21bb050168 0.7241371777272834
+11	9	bfd40853f713a515 -0.3130083001002089
+11	10	3fe9239e19642922 0.7855978485033897
+12	2	3ff52e13905ebb8f 1.3237491263823562
+12	3	3ff3362d9efeb168 1.2007271013963763
+12	4	3feaa3ebce040b5d 0.8325099014040053
+12	5	3feaa3ebce040b5d 0.8325099014040053
+12	9	3ff322c8e92d5a00 1.1959923847658729
+13	2	3fd0f858827481a3 0.2651578210807434
+13	3	3ff2a4a37905b248 1.165194962256594
+13	7	3ff0d09680b21423 1.0509247805760047
+13	8	3ff39fd533e2b6b9 1.2265216852933192
+13	11	3fec3affacaf9ba4 0.8822019932530236
+14	2	3fd0f858827481a3 0.2651578210807434
+14	3	3ff2a4a37905b248 1.165194962256594
+14	7	3ff0d09680b21423 1.0509247805760047
+14	8	3ff39fd533e2b6b9 1.2265216852933192
+14	11	3fec3affacaf9ba4 0.8822019932530236
+15	1	4000d4efbf5f4006 2.1039729071562787
+15	2	3ff0332c02c9c545 1.012493143931651
+15	3	3fed3c98fa99bd87 0.9136471647779424
+15	4	3fe0b9d8cdd9d0a5 0.5226863880657403
+15	5	3fe0b9d8cdd9d0a5 0.5226863880657403
+15	9	3febf67fe82360b3 0.8738402875851733
+16	2	3ff3c9c7efdb27a9 1.23676294034747
+16	3	bfb1bdae6f4acb1d -0.06930055825322907
+16	6	3fec5bb835019166 0.8861962352062107
+16	7	3ff8a8a434418ef6 1.541172222256987
+16	8	3fd1830946d3d28b 0.27362281719914766
+16	10	3fe0080d4b66d4eb 0.500982901829642
+16	11	3fcb6e3d13da3d16 0.2143017146049508
+17	1	40033561fdf3e0e3 2.4010658111620713
+17	2	bfc6705ec91ece73 -0.17530426807717311
+17	3	3fec931f482f7359 0.8929592523451034
+17	4	3fd7f0597a31e082 0.37404477055634555
+17	5	3fd7f0597a31e082 0.37404477055634555
+17	6	3fccf0a703bdf196 0.2260941284438444
+17	10	3fe7a6bcef5e565b 0.7391037631193272
+17	11	3fe106a7e7f59e5e 0.5320624857385601
+18	2	3faf5d5833bb12cf 0.061259037318028946
+18	3	3ff2bc9be3242038 1.171047103185641
+18	4	3fe5515f9e7af92d 0.6661832900352117
+18	5	3fe5515f9e7af92d 0.6661832900352117
+18	6	3fdba2ccad4f63cc 0.43181149411026065
+18	10	3ff05750c50d3e88 1.0213172623952307
+18	11	3fe8b22536feade2 0.7717462610357269
+19	3	bfc9e36df60039f1 -0.2022530986000244
+19	4	3ff295518ab77710 1.1614547175044585
+19	5	3ff295518ab77710 1.1614547175044585
+19	6	3ff662dd8be89048 1.399137064473523
+19	10	3ffa129a0d2c5b42 1.6295414461689721
+20	0	3fd07144ff6c8e70 0.2569134230018113
+20	2	3fdcdb68643ace35 0.4508915880971672
+20	7	3fe4e1db0d9df908 0.6525702730139367
+20	9	3fe0ea423d284528 0.5285960382917994
+21	2	40061943040cd46c 2.7623348537841164
+21	4	3fed2f58079ef525 0.9120292805525066
+21	5	3fed2f58079ef525 0.9120292805525066
+21	6	3fef9da88ac9d06d 0.9879954062185
+21	11	3ff1778cfaafe637 1.0916871826615429
+22	2	3ff1a9a48c94cdaa 1.1039166919189065
+22	4	3ff7d37618e83aa7 1.4891262982306814
+22	5	3ff7d37618e83aa7 1.4891262982306814
+22	6	3ff5644331c7f716 1.3369781441283002
+22	11	3ff5d415855deb86 1.3642783364909703
+23	2	3ff1a9a48c94cdaa 1.1039166919189065
+23	4	3ff7d37618e83aa7 1.4891262982306814
+23	5	3ff7d37618e83aa7 1.4891262982306814
+23	6	3ff5644331c7f716 1.3369781441283002
+23	11	3ff5d415855deb86 1.3642783364909703
+24	0	3ff1071e4f467146 1.0642378899274987
+24	2	3fe58647808937ed 0.6726415167302072
+24	3	3fd798cc117af005 0.3687009974198648
+24	7	bfe3de12a7f8c755 -0.6208585053156904
+24	8	3fe2b5bbb55961e6 0.5846842329001987
+24	9	bf76bb3f5a285138 -0.005549666852420913
+24	10	3fe0e391cb0dbe0f 0.527779480542394
+25	0	3fd07144ff6c8e70 0.2569134230018113
+25	2	3fdcdb68643ace35 0.4508915880971672
+25	7	3fe4e1db0d9df908 0.6525702730139367
+25	9	3fe0ea423d284528 0.5285960382917994
+26	2	3fd0f858827481a3 0.2651578210807434
+26	3	3ff2a4a37905b248 1.165194962256594
+26	7	3ff0d09680b21423 1.0509247805760047
+26	8	3ff39fd533e2b6b9 1.2265216852933192
+26	11	3fec3affacaf9ba4 0.8822019932530236
+27	2	3ff3c9c7efdb27a9 1.23676294034747
+27	3	bfb1bdae6f4acb1d -0.06930055825322907
+27	6	3fec5bb835019166 0.8861962352062107
+27	7	3ff8a8a434418ef6 1.541172222256987
+27	8	3fd1830946d3d28b 0.27362281719914766
+27	10	3fe0080d4b66d4eb 0.500982901829642
+27	11	3fcb6e3d13da3d16 0.2143017146049508
+28	0	3fd07144ff6c8e70 0.2569134230018113
+28	2	3fdcdb68643ace35 0.4508915880971672
+28	7	3fe4e1db0d9df908 0.6525702730139367
+28	9	3fe0ea423d284528 0.5285960382917994
+29	0	3ff1071e4f467146 1.0642378899274987
+29	2	3fe58647808937ed 0.6726415167302072
+29	3	3fd798cc117af005 0.3687009974198648
+29	7	bfe3de12a7f8c755 -0.6208585053156904
+29	8	3fe2b5bbb55961e6 0.5846842329001987
+29	9	bf76bb3f5a285138 -0.005549666852420913
+29	10	3fe0e391cb0dbe0f 0.527779480542394
+end	turbo:model-parameters
+layer	turbo:manifest	document	8	key:str	value:str
+BeamSize	10
+Component-Name	ChunkerME
+Language	en
+Manifest-Version	1.0
+OpenNLP-Version	3.0.0-SNAPSHOT
+TrainerType	Event
+Training-Eventhash	3675733308
+factory	opennlp.tools.chunker.ChunkerFactory
+end	turbo:manifest
+layer	turbo:package-entries	document	2	name:str	length:u32
+chunker.model	2023
+manifest.properties	250
+end	turbo:package-entries

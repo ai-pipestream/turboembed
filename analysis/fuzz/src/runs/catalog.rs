@@ -5,7 +5,7 @@ use super::normalize::{NormalizerRun, RUN_NAMES as NORMALIZERS};
 use super::numeric::{MoneyLayer, Numeric};
 use super::sentences::{MaxentSentences, NewlineSentences};
 use super::subwords::{VOCABULARY, WordPiece};
-use super::tagging::{Chunker, Lemmatizer, Tagger};
+use super::tagging::{Chunker, FIXTURE_CHUNKERS, Lemmatizer, Tagger};
 use super::tokens::{Lattice, Maxent, Plain, Uax29, Unigram};
 use super::{Run, split_options};
 use crate::resources::{Resources, Unavailable};
@@ -84,6 +84,7 @@ pub const RUNS: &[(&str, &str)] = &[
     ("lemmatize-dictionary", "lemmatizer-dictionary"),
     ("chunk", "chunker-fixture"),
     ("chunk", "chunker-fixture+beam1"),
+    ("chunk", "chunker-fixture-rust"),
     ("langdetect", "langdetect-183"),
     ("normalize", "whitespace"),
     ("normalize", "whitespace-keep-lines"),
@@ -142,7 +143,7 @@ pub fn open(annotator: &str, run: &str, res: &Resources) -> Result<Box<dyn Run>,
         "postag" => Tagger::open(base, &options, res),
         "lemmatize" if options.is_empty() => Lemmatizer::open_maxent(base, res),
         "lemmatize-dictionary" if run == "lemmatizer-dictionary" => Lemmatizer::open_dictionary(res),
-        "chunk" if base == "chunker-fixture" => Chunker::open(&options, res),
+        "chunk" if FIXTURE_CHUNKERS.contains(&base) => Chunker::open(base, &options, res),
         "langdetect" if options.is_empty() => Detector::open(base, res),
         "normalize" if NORMALIZERS.contains(&run) => NormalizerRun::open(run),
         "numbers" => Numeric::open_numbers(run),
@@ -195,6 +196,7 @@ mod tests {
             ("normalize", "default-chain"),
             ("money-convert", "latin-eu"),
             ("chunk", "chunker-fixture+beam1"),
+            ("chunk", "chunker-fixture-rust"),
         ] {
             open(annotator, run, &res).unwrap_or_else(|e| panic!("{annotator}/{run}: {e}"));
         }

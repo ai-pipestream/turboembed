@@ -110,7 +110,12 @@ are not taken from any corpus.
   fixture tag dictionary `tags.tagdict` occurs in them. The fixtures
   `pos-fixture-rust.bin` and `lemma-fixture-rust.bin` were trained on
   them, and the `train-events` goldens of the tagger and the lemmatizer
-  run on them.
+  run on them. `chunks.txt` holds 30 other English sentences written for
+  this project as word, Penn Treebank tag and chunk tag lines with a
+  blank line between sentences, in the layout of CoNLL-2000, with `NP`,
+  `VP`, `PP`, `ADJP`, `ADVP`, `SBAR` and `PRT` chunks; the fixture
+  `chunker-fixture-rust.bin` was trained on it, and the chunker's
+  `train-events` goldens run on it.
 
 - `inputs/formats/`: 41 small files in OpenNLP's native sample formats,
   in CoNLL-U, CoNLL-2002, CoNLL-2003, CoNLL-X and in MASC's layout, written for this project except as
@@ -243,7 +248,8 @@ that differs.
 | `pos-fixture-rust.bin` | the `.bin` the Rust trainer writes from `inputs/tagged/wordtag.txt` with the default descriptor and `tags.tagdict` (GIS, 100 iterations, cutoff 1, one thread; `analysis/train-components/tests/fixtures.rs`, which checks that the fixture is that file); the JVM loads it with `POSModel` so the goldens of the two taggers can be compared |
 | `lemma-fixture-rust.bin` | the `.bin` the Rust trainer writes from `inputs/tagged/lemmas.txt` (GIS, 100 iterations, cutoff 1, one thread; the same test); the JVM loads it with `LemmatizerModel` |
 | `lemmatizer-dictionary.txt` | a `DictionaryLemmatizer` dictionary written for this project: 48 `word<tab>tag<tab>lemma` lines with Universal Dependencies tags for words of the `en` and `multi` inputs, among them entries with several lemmas (`leave#leaf`), a word listed twice with one tag (the last wins), a word with two tags, an empty lemma field (`#`), fields after the lemma and a trailing tab (both ignored), entries with a capital letter (never found, since a lookup lowercases the token) and non-ASCII words |
-| `chunker-fixture.bin` | a copy of `analysis/sequence/golden/models/chunker-fixture.bin`, a chunker model OpenNLP trained by perceptron on 8 sentences with Penn Treebank tags and `B-`, `I-` and `O` chunk tags for `NP`, `VP`, `PP`, `ADJP` and `SBAR` (`analysis/sequence/golden/inputs/train-chunk.txt`, `analysis/sequence/README.md`); the only chunker model here, since the published chunker models are OpenNLP 1.5 models, which this project does not use |
+| `chunker-fixture.bin` | a copy of `analysis/sequence/golden/models/chunker-fixture.bin`, a chunker model OpenNLP trained by perceptron on 8 sentences with Penn Treebank tags and `B-`, `I-` and `O` chunk tags for `NP`, `VP`, `PP`, `ADJP` and `SBAR` (`analysis/sequence/golden/inputs/train-chunk.txt`, `analysis/sequence/README.md`); the only chunker model OpenNLP trained here, since the published chunker models are OpenNLP 1.5 models, which this project does not use for goldens; `analysis/train-components/tests/fixtures.rs` trains it again byte for byte |
+| `chunker-fixture-rust.bin` | the `.bin` the Rust trainer writes from `inputs/tagged/chunks.txt` (GIS, 100 iterations, cutoff 1, one thread, beam size 10; `analysis/train-components/tests/fixtures.rs`, which checks that the fixture is that file); the JVM loads it with `ChunkerModel` and chunks with it (`chunk/chunker-fixture-rust`) |
 | `tokenizer-abbreviations.bin` | a copy of `analysis/maxent/tests/fixtures/models/tokenizer.bin`, a tokenizer model OpenNLP trained on six sentences with the case-insensitive dictionary `Dr.`, `U.S.`, `e.g.` (`analysis/maxent/tests/fixtures/README.md`) |
 | `english-dictionary.xml` | an abbreviation dictionary written for this project, added to the English tokenizer model |
 | `latin-detokenizer.xml` | Apache OpenNLP's test resource of `DictionaryDetokenizerTest`, unchanged (license header kept) |
@@ -450,7 +456,13 @@ entries and dictionary entry of a model file built from the factory
 (docs/analysis.md, "Training goldens"). The `postag-*` and `lemma-*` runs
 are the same for the tagger's and the lemmatizer's event streams, with
 the tag dictionary entry and `POSDictionary.serialize` cases.
-`analysis/train-components/tests/goldens.rs` compares with them.
+`analysis/train-components/tests/goldens.rs` compares with them. The
+`chunker-*` runs are `ChunkerME.train` itself on the chunk inputs, one
+run per set of training parameters: the events, the checksum, what the
+sample stream threw, and what training threw or the model it trained
+(outcomes, predicates, every parameter, the `chunker.model` entry's
+length and SHA-256, the manifest and the zip entries);
+`analysis/train-components/tests/chunker.rs` compares with them.
 
 ## Normalizer goldens
 
