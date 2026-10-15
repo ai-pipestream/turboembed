@@ -1,6 +1,8 @@
 //! The readers of the sets' own file formats, one per format, and what
-//! they share: reading a set's files while hashing them, and parsing JSON
-//! and JSON Lines with errors that name the file and line.
+//! they share: reading a set's files while hashing them, parsing JSON
+//! and JSON Lines with errors that name the file and line, and reading
+//! Parquet tables ([`parquet`]) with errors that name the file, column
+//! and row.
 //!
 //! A reader takes the set's directory and returns a [`LoadedSet`]; it
 //! knows nothing of fetching or licences, which are the
@@ -14,6 +16,7 @@ pub mod gutenqa;
 pub mod hicbench;
 pub mod legalbench_rag;
 pub mod offsets;
+pub mod parquet;
 pub mod pyrandom;
 pub mod qasper;
 pub mod tar;
