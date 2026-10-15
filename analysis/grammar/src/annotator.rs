@@ -79,7 +79,7 @@ impl GrammarAnnotator {
         parser.select(text, Output::Number, &mut mentions);
         for m in &mentions {
             if let Value::Num(n) = m.value {
-                push_number(&mut found.numbers, m, n.value, &mut digits);
+                push_number(&mut found.numbers, m, n.value, self.grammar.notation(), &mut digits);
             }
         }
         mentions.clear();
@@ -114,7 +114,7 @@ impl GrammarAnnotator {
     }
 }
 
-fn push_number(numbers: &mut Numbers, m: &Mention, value: Dec, digits: &mut String) {
+fn push_number(numbers: &mut Numbers, m: &Mention, value: Dec, notation: NumberNotation, digits: &mut String) {
     digits.clear();
     let scale = value.write_coefficient(digits);
     numbers.push(NumberMention {
@@ -125,7 +125,7 @@ fn push_number(numbers: &mut Numbers, m: &Mention, value: Dec, digits: &mut Stri
         scale,
         multiplier: Multiplier::One,
         marker: ScaleMarker::None,
-        notation: NumberNotation::LatinUs,
+        notation,
     });
 }
 

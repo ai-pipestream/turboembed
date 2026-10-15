@@ -107,7 +107,7 @@ impl Grammar for English {
     }
 
     fn style(&self) -> NumeralStyle {
-        NumeralStyle { mixed_separators: true, space_groups: true, indian_groups: true }
+        NumeralStyle { mixed_separators: true, space_groups: true, indian_groups: true, decimal_comma: false }
     }
 
     fn output(&self, dim: Dim) -> Option<Output> {
