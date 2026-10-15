@@ -30,7 +30,7 @@ use std::fmt;
 
 use turbo_analysis::{Document, Key, Layer, Span, View, ViewId};
 use turbo_analysis_layers::{
-    Chunks, Entities, Money, Numbers, PhraseChunks, Quantities, Sentences, Structure, Subwords, Temporals, Tokens,
+    Chunks, Entities, Money, Numbers, PhraseChunks, Pii, Quantities, Sentences, Structure, Subwords, Temporals, Tokens,
 };
 use turbo_unicode::utf16::{byte_to_utf16, utf16_to_byte};
 
@@ -255,6 +255,7 @@ fn known_layers() -> Vec<(TypeId, Check)> {
         checker::<Money>(),
         checker::<Quantities>(),
         checker::<Temporals>(),
+        checker::<Pii>(),
         checker::<Structure>(),
         checker::<Chunks>(),
     ]

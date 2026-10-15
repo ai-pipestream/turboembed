@@ -1,0 +1,10 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	glossary/text-empty	0	0	e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855
+annotator	opennlp.tools.glossary.AhoCorasickGlossaryMatcher	match
+config	ignoreCase	true
+layer	turbo:glossary-terms	text	0	start:u32	end:u32	entry:u32
+end	turbo:glossary-terms

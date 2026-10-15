@@ -22,6 +22,7 @@ turbo-phrase-chunker = { path = "../phrase-chunker" }
 turbo-langdetect = { path = "../langdetect" }
 turbo-normalize = { path = "../normalize" }
 turbo-numeric = { path = "../numeric" }
+turbo-pii = { path = "../pii" }
 # The WordPiece encoder, which brings the core crate with it: the one
 # heavy dependency, kept so the subword goldens take part.
 turbo-analysis-embed = { path = "../embed" }

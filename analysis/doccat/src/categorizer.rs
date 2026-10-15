@@ -175,9 +175,12 @@ impl DocumentCategorizerME {
 impl Annotator for DocumentCategorizerME {
     const ID: &'static str = "opennlp:doccat";
     type Reads = (View, Tokens);
-    type Writes = (Categories<View>,);
+    type Writes = (turbo_analysis_layers::Categories, Categories<View>);
 
-    fn annotate(&self, (view, tokens): Refs<'_, Self>) -> Result<(Categories<View>,), Error> {
+    fn annotate(&self, (view, tokens): Refs<'_, Self>) -> Result<Self::Writes, Error> {
+        if tokens.spans.view() != view.id() {
+            return Err(Error::Annotator { annotator: Self::ID, detail: "tokens are not in the given view".into() });
+        }
         let text = view.text();
         let n_tokens = tokens.spans.len();
         let mut tok_strs = Vec::with_capacity(n_tokens);
@@ -190,9 +193,22 @@ impl Annotator for DocumentCategorizerME {
         let extra = BTreeMap::new();
         self.categorize_into(&tok_strs, &extra, &mut scratch, &mut probs);
         let best_idx = self.best_index(&probs);
-        let mut out = Categories::<View>::with_capacity(Arc::clone(self.model.categories()), 1);
-        out.push(Tag(best_idx as u16), &probs);
-        Ok((out,))
+
+        let mut order: Vec<usize> = (0..probs.len()).collect();
+        order.sort_by(|&a, &b| crate::java::double_compare(probs[b], probs[a]));
+        let mut category = turbo_analysis_layers::Strs::default();
+        let mut score = Vec::with_capacity(order.len());
+        for &i in &order {
+            if let Some(cat) = self.get_category(i) {
+                category.push(cat);
+                score.push(probs[i]);
+            }
+        }
+        let doc_categories = turbo_analysis_layers::Categories { category, score };
+
+        let mut view_categories = Categories::<View>::with_capacity(Arc::clone(self.model.categories()), 1);
+        view_categories.push(Tag(best_idx as u16), &probs);
+        Ok((doc_categories, view_categories))
     }
 
     fn model(&self) -> Option<ModelRef> {
@@ -227,6 +243,12 @@ impl<L: SpanCategorizable> Annotator for SpanCategorizer<L> {
     type Writes = (Categories<L>,);
 
     fn annotate(&self, (view, tokens, units): Refs<'_, Self>) -> Result<(Categories<L>,), Error> {
+        if tokens.spans.view() != view.id() {
+            return Err(Error::Annotator { annotator: Self::ID, detail: "tokens are not in the given view".into() });
+        }
+        if units.layer_spans().view() != view.id() {
+            return Err(Error::Annotator { annotator: Self::ID, detail: "spans are not in the given view".into() });
+        }
         let text = view.text();
         let n_units = units.len();
         let n_tokens = tokens.spans.len();

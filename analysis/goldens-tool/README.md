@@ -15,7 +15,8 @@ everything that makes them:
   `CursorMoneyExtractor` and `MoneyConversionAnnotator` with `EcbFxRates`,
   for the `quantity` set `QuantityAnnotator` with
   `CursorQuantityExtractor`, and for the `temporal` set `TemporalAnnotator`
-  with `CursorTemporalExtractor` and `DocumentDateAnnotator` (see below). With `--dumps` it also writes a decision point dump
+  with `CursorTemporalExtractor` and `DocumentDateAnnotator`, and for the
+  `pii` set `PiiAnnotator` with each extractor of `PiiPacks` (see below). With `--dumps` it also writes a decision point dump
   beside each golden of a run that asks a maxent model (the sentence
   detector, the tokenizer, the part-of-speech tagger, the maxent
   lemmatizer, the chunker and the language detector): every context the annotator gave
@@ -89,8 +90,8 @@ cargo run -p turbo-goldens-tool --features fuzz -- fuzz [--seed <n>] [--count <n
   whose header parses, except a golden with an error record (the annotator
   threw on that input), which must have none. A golden that names no model
   (a tokenizer or sentence detector without one, a normalizer) has no dump,
-  and neither has a detokenizer, number, money, quantity, temporal, unigram
-  or lattice golden.
+  and neither has a detokenizer, number, money, quantity, temporal, PII,
+  unigram or lattice golden.
 - `verify` generates into a scratch directory and compares every golden
   and dump byte for byte with the checked in ones. It lists each file that
   differs, is missing or is extra, and exits non zero if there is any. It
@@ -144,6 +145,7 @@ a directory with the same model run without them, and its options are
 | `money`, `money-convert` (`MoneyAnnotator`, `MoneyConversionAnnotator`) | `latin-us`, `latin-eu` | `money` | `notation`; for conversions also `target`, `as_of`, `snapshot` |
 | `quantity` (`QuantityAnnotator`) | `latin-us`, `latin-eu` | `quantity` | `notation` |
 | `temporal` (`TemporalAnnotator`, `DocumentDateAnnotator`) | `dateline`, `fixed` | `temporal` | `reference` |
+| `pii` (`PiiAnnotator` over a `PiiPacks` extractor) | `payment`, `contact`, `network`, `secrets`, `crypto`, `us-identity`, `eu-identity`, `ca-identity`, `device`, `all-structured` | `pii` | `pack` |
 | `subwords` (`WordpieceEncoder`) | `all-minilm-l6-v2-vocab` (fixture) | `en`, `multi`, `edge`, `surrogate`, `subwords` | `lowerCase true`, `maxWordCodePoints 100` |
 | `bpe` (`BPETokenizerTrainer`, `BPETokenizer`) | `merges-40`, `merges-400` | `bpe` | `languageCode en`, `numMerges` |
 | `train` (the data indexers and `GISTrainer`) | `<source>-<indexer>-cutoff<n>`, with `-unsorted` when sorting is off, then `-threads2`, `-smoothing`, `-smoothing0.5`, `-gaussian` or `-gaussian0.5` when the trainer is given that: nineteen runs over the sources `sentdetect`, `tokenize`, `realvalue` and `postag` | `en`, `multi`, `edge`; `sentdetect` and `postag` also `train` | `source`, `DataIndexer`, `Cutoff`, `sort`, `Iterations`, and when set `Threads`, `Smoothing`, `SmoothingObservation`, `GaussianSmoothing`, `GaussianSmoothingSigma` |
@@ -174,6 +176,7 @@ a directory with the same model run without them, and its options are
 | `parse` (`ParseSampleStream`, `Parse.parseParse`) | `treebank`, `treebank+function-tags`; `en-head-rules`, `en-head-rules+possessives`, `es-head-rules`, `es-regex-head-rules` (fixtures) | `parse` | `useFunctionTags true`; `rules`, `fixPossesives true` |
 | `head-rules` (`HeadRules`, `AncoraSpanishHeadRules`) | `en`, `es` | `head-rules` | |
 | `gazetteer` (the addons `geo` module) | `naturalearth-populated-places` (the bundled table), `gazetteer-geonames`, `gazetteer-overture`, `gazetteer-user`, `overlay` (fixtures); `load-geonames`, `load-overture`, `load-user`, `load-suppressions` | `gazetteer`: the `names`, `ids` and `regions` inputs for the first five, the `table-<kind>-` inputs for the load runs | `source sites` for the user table |
+| `place-profiles` (`PlaceProfiles` of the addons `geo` module) | `place-profiles` | `place-profiles` | `profilesCommit` |
 | `string-pattern` (`StringPattern`, `FeatureGeneratorUtil.tokenFeature`) | `utf16-units`, `code-points` | `sequence` | `mode`; `branchCommit` for `code-points` |
 | `features` (`GeneratorFactory`, `DefaultPOSContextGenerator`) | `pos-default`, `ner-default`, `everything`, `nesting` (fixtures, `featuregen/`), `default-pos-context`, `default-pos-context+names-dictionary`; `errors` | `sequence` (the `sentences` input); `errors` on `descriptor-errors` | `adaptiveData` for the descriptors |
 | `codec` (`BioCodec`, `BilouCodec`) | `bio`, `bilou` | `codec`, the input of the codec's name | `compatibleOutcomes` |
@@ -183,6 +186,8 @@ a directory with the same model run without them, and its options are
 | `namefind` (`DictionaryNameFinder`, `RegexNameFinder`, `NameFinderME.dropOverlappingSpans`) | `generated`, `dictionary`, `regex-builtin`, `regex-factory`, `regex-user`, `merge`, with the fixtures in `namefind/` | `namefind` | |
 | `stem` (`PorterStemmer`, `SnowballStemmer`, the light and minimal stemmers) | `porter`, `snowball-<language>`, `snowball-<language>-repeat2`, `<language>-light`, `<language>-minimal`, and the Norwegian ones by variety | `stem`: `edge`, the stemmer's language and `generated-<language>` | `stemmer` |
 | `stopword` (`StopwordLists`, `StopwordFilter`, `StopwordFilteringTokenizer`) | `lists`, `codes`, `words`, `filter`, `letters` | `stopword`: `codes` for `codes`, `words` for the others | |
+| `glossary` (`AhoCorasickGlossaryMatcher`, `TermAnalyzingGlossaryMatcher`, `CompositeGlossaryMatcher`, `CsvGlossaryReader`, `TbxGlossaryReader`) | `exact`, `ignore-case`, `whitespace+ignore-case`, `analyzed`, `composite` (the fixture `glossary-terms.tsv`); `csv`, `tsv-header`, `tbx-en`, `tbx-de` | `glossary`: the `text-` inputs for the matchers, the `csv-`, `tsv-` and `tbx-` inputs for the readers | `ignoreCase`, `normalizer`, `analyzer`; `delimiter`, `skipHeader`; `languageTag` |
+| `svm-doccat` (`DocumentCategorizerSVM.train`, `categorize`) | `topics-linear-<weighting>-<selection>` for the four weightings (`binary`, `tf`, `tfidf`, `lognorm`) and five selections (`none`, `ig`, `chi2`, `tf`, `df`); `topics-rbf-tfidf`, `topics-poly-tf`, `topics-sigmoid-binary`, `topics-nu-linear-tfidf`, `topics-nu-rbf-lognorm`, `topics-linear-tfidf-noscale`, `topics-rbf-tfidf-scale-1`, `topics-linear-lognorm-ngram`, `topics-linear-binary-c10`, `pair-linear-tfidf`, `pair-rbf-binary` | `svm-doccat`; the run's corpus in `svm-doccat-train` | `run`, `corpus`, `language`, `seed`, `weighting`, `selection`, `max-features`, `svm-type`, `kernel`, `degree`, `gamma`, `coef0`, `cost`, `scaling`, `generators` |
 
 - `+english-dictionary` is the English model rebuilt through
   `TokenizerModel(MaxentModel, Map, TokenizerFactory)` with the
@@ -633,6 +638,24 @@ The OpenNLP commit of the recipe has no `StringUtil.stripByteOrderMark`, which
 two readers of the module call; the Dockerfile replaces both calls with
 the expression the method returns before building the module.
 
+## Place profile goldens
+
+`place-profiles/place-profiles/place-profiles/<id>.golden` is what
+`PlaceProfiles.load` made of the table `inputs/place-profiles/<id>.txt`.
+The class is not in the addons commit the rest of the `geo` module is built
+from, so the Dockerfile takes `PlaceProfiles.java` from
+`PLACE_PROFILES_COMMIT` (`src/recipe.rs`, on the addons'
+`ready/geo-place-profiles` branch) and compiles it into the module; the
+golden's `profilesCommit` record names that commit. The layers are
+`turbo:profiles-load` (whether it loaded, or the exception),
+`turbo:profiles-metrics`, `turbo:profiles-places` (the ids sorted by
+`String.compareTo`, since the class keeps them in a map),
+`turbo:profiles-values` (the standardized profiles, read from the class's
+private map by reflection), `turbo:profiles-similarity` (every ordered pair)
+and `turbo:profiles-neighbors` (`mostSimilar` of every place with the
+counts 1, 2 and the number of places). `analysis/geo/tests/profile_goldens.rs`
+rebuilds every layer and compares the doubles bit for bit.
+
 ## Evaluator goldens
 
 `evaluate/<evaluator>/formats/<id>.golden` is what one of OpenNLP's
@@ -770,6 +793,56 @@ Each golden has two layers. `turbo:temporal` has one row per mention with
 The `temporal` inputs are written for the project. Only the temporal
 annotators run on them, and they have no dumps.
 
+## SVM document categorizer goldens
+
+These runs are the parity test of `turbo-doccat`
+(`analysis/doccat/tests/goldens.rs`, described in `docs/doccat.md`). Each
+run trains a model with `DocumentCategorizerSVM.train` on one corpus of
+`inputs/svm-doccat-train` (one sample per line: the category, a space and
+the text), with its own term weighting, feature selection, scaling, SVM
+type and kernel and probability estimates on, seeding LIBSVM's random
+numbers first so the model is the same on every run of the generator. The
+`config` records name all of it.
+
+`svm-doccat/<run>/svm-doccat-train/<corpus>.golden` holds the model as the
+two files `turbo-doccat` reads, one line per row: `turbo:svm-model`, the
+LIBSVM model as `svm.svm_save_model` writes it, and `turbo:svm-sidecar`, the
+vocabulary, inverse document frequencies, feature ranges, weighting,
+scaling, generators and categories (`SvmDoccatExport.java`).
+
+`svm-doccat/<run>/svm-doccat/<id>.golden` holds, for one document,
+`opennlp:tokens` (the `WhitespaceTokenizer` tokens the categorizer is
+given) and, anchored on the document, `turbo:svm-vector` (the feature
+vector `categorize` hands LIBSVM), `turbo:svm-decisions` (the
+`svm_predict_values` decision value of each class pair, in LIBSVM's
+order), `turbo:svm-vote` (the category the pairwise vote picks) and
+`turbo:categories` (every category with its probability, best first).
+
+The corpora and documents are written for the project. Only these runs read
+them, and they have no dumps. The goldens are not checked in; the parity
+test skips, naming the `generate` command, while
+`analysis/goldens/data/svm-doccat` is absent.
+
+## PII goldens
+
+`pii/<pack>/pii/<id>.golden` is what `PiiAnnotator` found in
+`inputs/pii/<id>.txt` with the extractor the `PiiPacks` factory of that
+pack builds (`payment()`, `usIdentity()`, `allStructured()` and so on).
+The header names `opennlp.tools.pii.PiiPacks` and the factory method, and
+the `config pack` record is the pack's directory name, which takes the
+model's place in the path.
+
+Each golden has one layer, `turbo:pii`, with one row per mention in the
+order `PiiAnnotator` writes them: `start`, `end` (UTF-8 byte offsets),
+`type` (`PiiMention.type()`: `email`, `card`, `us-ssn` and so on) and
+`normalized`, the value as the extractor normalized it.
+
+The `pii` inputs are written for the project and hold no real personal
+data: documented test IBANs and card numbers, `example.com` addresses,
+fictional phone ranges, documentation IP ranges and made up crypto
+addresses. Only the PII annotator runs on them, and it has no dumps.
+`analysis/pii/tests/goldens.rs` compares them with `turbo-pii`.
+
 ## Fuzzing against the Rust ports
 
 `turbo-goldens fuzz` compares the JVM and the Rust ports on generated
@@ -788,7 +861,7 @@ The command:
 1. writes the first `<count>` texts of the seed's corpus
    (`turbo_goldens::fuzz::corpus`) as `<out>/inputs/<set>/s<seed>-<index>.txt`
    for each set named by `--sets`, `en`, `edge`, `norm`, `num`, `money`,
-   `quantity`, `temporal` and `sentence-fixture` by default, so that every run the
+   `quantity`, `temporal`, `pii` and `sentence-fixture` by default, so that every run the
    differential covers reads each text; `<out>` is
    `target/turbo-goldens/fuzz/s<seed>-<count>` unless `--out` names a
    directory; the inputs and the `jvm` directory of an earlier run there
@@ -798,7 +871,7 @@ The command:
    the rate snapshot mounted as `generate` mounts them, and with
    `--skip-annotators` set to `turbo_fuzz::runs::NOT_COVERED` (the training,
    format reader, evaluator, detokenizer, BPE, parse, sequence, name finder,
-   stemmer and stopword annotators),
+   stemmer, stopword and glossary annotators),
    the annotators the differential does not cover; the goldens go under
    `<out>/jvm/`;
 3. compares every golden with the Rust side (`turbo_fuzz::compare_tree`),
@@ -852,13 +925,15 @@ The generator's two options behind this are general: `--skip-annotators
 follow the five positional arguments, in any order with `--dumps`, and
 the inputs directory may hold any subset of the sets.
 
-## Sequence, name finder, stemmer and stopword goldens
+## Sequence, name finder, stemmer, stopword and glossary goldens
 
 These runs are the parity tests of `turbo-sequence`, `turbo-namefind`,
-`turbo-stem` and `turbo-stopword`; each crate's README describes its inputs,
-fixtures and layers, and the Java class of each run says what it records. All
-their layers are anchored to the document, and a string that can hold half of
-a surrogate pair is written as `TrainGolden.lossless` writes it.
+`turbo-stem`, `turbo-stopword` and `turbo-glossary`; each crate's README
+describes its inputs, fixtures and layers, and the Java class of each run says
+what it records. Their layers are anchored to the document, but for the
+glossary matchers' matches and analyzed terms, which are spans of the text;
+a string that can hold half of a surrogate pair is written as
+`TrainGolden.lossless` writes it.
 
 The `code-points` run of `string-pattern` runs the code point
 `StringPattern` of the fork's `ready/string-pattern-unicode` branch
@@ -913,7 +988,7 @@ git init opennlp && cd opennlp
 git remote add origin https://github.com/ai-pipestream/opennlp.git
 git fetch --depth 1 origin cdf33c653d5d61d5af7d37ffee189a83bd8392ea
 git checkout FETCH_HEAD
-./mvnw -q -DskipTests -DskipITs -Dforbiddenapis.skip=true -pl opennlp-core/opennlp-runtime,opennlp-core/opennlp-formats -am install
+./mvnw -q -DskipTests -DskipITs -Dforbiddenapis.skip=true -pl opennlp-core/opennlp-runtime,opennlp-core/opennlp-formats,opennlp-core/opennlp-ml/opennlp-ml-libsvm -am install
 cd ..
 git init opennlp-addons && cd opennlp-addons
 git remote add origin https://github.com/ai-pipestream/opennlp-addons.git

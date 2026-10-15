@@ -1,0 +1,1 @@
+<martif xmlns:x="urn:x"><text><body><termEntry x:id="Q1"><langSet xml:lang="en"><tig><term>t</term></tig></langSet></termEntry></body></text></martif>

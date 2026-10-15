@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE martif SYSTEM "TBXBasiccoreStructV02.dtd">
+<martif type="TBX-Basic" xml:lang="en">
+  <martifHeader>
+    <fileDesc><sourceDesc><p>A termbase written for these tests.</p></sourceDesc></fileDesc>
+  </martifHeader>
+  <text>
+    <body>
+      <termEntry id="c1">
+        <descrip type="subjectField">food</descrip>
+        <langSet xml:lang="en-US">
+          <tig><term>hot dog</term><termNote type="partOfSpeech">noun</termNote></tig>
+          <tig>
+            <term>
+              frankfurter
+            </term>
+          </tig>
+        </langSet>
+        <langSet xml:lang="de">
+          <tig><term>Wiener W&#252;rstchen</term></tig>
+        </langSet>
+        <langSet xml:lang="DE-at"><tig><term>Frankfurter</term></tig></langSet>
+      </termEntry>
+      <termEntry id="c2">
+        <langSet xml:lang="EN">
+          <ntig><termGrp><term>New <hi type="entailedTerm">York</hi> City</term></termGrp></ntig>
+        </langSet>
+        <langSet xml:lang="english"><tig><term>not English by tag</term></tig></langSet>
+      </termEntry>
+    </body>
+  </text>
+</martif>

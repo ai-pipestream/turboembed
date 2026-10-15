@@ -55,6 +55,12 @@
       <artifactId>opennlp-ml-perceptron</artifactId>
       <version>${opennlp.version}</version>
     </dependency>
+    <!-- The SVM document categorizer and the zlibsvm and LIBSVM jars it trains with (SvmDoccatGolden). -->
+    <dependency>
+      <groupId>org.apache.opennlp</groupId>
+      <artifactId>opennlp-ml-libsvm</artifactId>
+      <version>${opennlp.version}</version>
+    </dependency>
     <!-- The sample conversion streams and the CoNLL-U readers (FormatGolden). -->
     <dependency>
       <groupId>org.apache.opennlp</groupId>

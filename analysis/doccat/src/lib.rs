@@ -1,42 +1,53 @@
 //! Document categorization (`DocumentCategorizerME`, `DoccatModel`,
-//! `DoccatFactory`, feature generators, and `Categories<L>`), ported from
-//! OpenNLP 3.x (`opennlp.tools.doccat.*`) onto the analysis API.
+//! `DoccatFactory`, `SvmCategorizer`, `SvmDoccatModel`, feature generators,
+//! and `Categories<L>`), ported from OpenNLP 3.x (`opennlp.tools.doccat.*`
+//! and `opennlp.tools.ml.libsvm.doccat.*`) onto the analysis API.
 //!
 //! # Overview
 //!
 //! - [`Categories`]: layer `turbo:categories<L>` aligned to `View` (whole
 //!   document), `Sentences` (sentence-level), `Structure` (paragraph/section),
-//!   or `Chunks` (chunk-level).
-//! - [`FeatureGenerator`]: trait for extracting document features from
-//!   tokenized text, with built-in implementations
+//!   or `Chunks` (chunk-level), alongside the document-scoped
+//!   [`turbo_analysis_layers::Categories`] (`turbo:categories`).
+//! - [`DoccatFeatureGenerator`] and [`FeatureGenerator`]: feature extraction
+//!   from tokenized text, with built-in implementations
 //!   [`BagOfWordsFeatureGenerator`], [`NGramFeatureGenerator`], and
 //!   [`EmojiFeatureGenerator`], chained by [`DoccatContextGenerator`].
 //! - [`DoccatModel`]: loads and validates OpenNLP `DocumentCategorizerME`
 //!   `.bin` model archives (`doccat.model` and `manifest.properties`).
 //! - [`DocumentCategorizerME`] and [`SpanCategorizer`]: categorize tokenized
 //!   text or run in an [`turbo_analysis::Analyzer`] pipeline to write
-//!   `Categories<View>`, `Categories<Sentences>`, `Categories<Structure>`, or
-//!   `Categories<Chunks>`.
+//!   `turbo:categories`, `Categories<View>`, `Categories<Sentences>`,
+//!   `Categories<Structure>`, or `Categories<Chunks>`.
 //! - [`train_doccat`], [`DoccatFactory`], and [`DoccatEventStream`]: train and
 //!   package `DoccatModel` archives from `DocumentSample`s.
+//! - [`svm`]: the SVM categorizer of `opennlp-ml-libsvm`
+//!   (`DocumentCategorizerSVM`): [`SvmDoccatModel`] opens a model exported
+//!   as a LIBSVM text model and a sidecar, and [`SvmCategorizer`] runs
+//!   `categorize` and, as an annotator, reads `opennlp:tokens` and writes
+//!   `turbo:categories`.
 
 pub mod categorizer;
 pub mod error;
 pub mod features;
+mod hash;
+pub mod java;
 pub mod layer;
 pub mod model;
+pub mod svm;
 pub mod train;
 
 pub use categorizer::{DocumentCategorizerME, SpanCategorizer};
 pub use error::DoccatError;
 pub use features::{
-    BAG_OF_WORDS_CLASS, BagOfWordsFeatureGenerator, BuiltinFeatureGenerator, DoccatContextGenerator, EMOJI_CLASS,
-    EmojiFeatureGenerator, FeatureGenerator, NGRAM_CLASS, NGramFeatureGenerator,
+    BAG_OF_WORDS_CLASS, BagOfWordsFeatureGenerator, BuiltinFeatureGenerator, DoccatContextGenerator,
+    DoccatFeatureGenerator, EMOJI_CLASS, EmojiFeatureGenerator, FeatureGenerator, NGRAM_CLASS, NGramFeatureGenerator,
 };
 pub use layer::{Categories, CategoryRow, SpanCategorizable};
 pub use model::{
     COMPONENT_NAME, DoccatModel, FACTORY_NAME, FEATURE_GENERATORS_KEY, MODEL_ENTRY, parse_feature_generators,
 };
+pub use svm::{ModelError, Scratch, SvmCategorizer, SvmDoccatModel};
 pub use train::{
     DoccatEventStream, DoccatFactory, TrainedDoccatModel, doccat_events, doccat_index, package_doccat_model,
     train_doccat, train_doccat_from_events,
@@ -438,5 +449,10 @@ tech\trust kernel thread allocator latency
         assert_eq!(chunk_cats.best_category(1), "tech");
         assert!(chunk_cats.score_of(0, "sports").unwrap() > 0.7);
         assert!(chunk_cats.score_of(1, "tech").unwrap() > 0.7);
+
+        // 5. Document-scoped turbo_analysis_layers::Categories
+        let doc_cats = doc.get::<turbo_analysis_layers::Categories>().unwrap();
+        assert_eq!(doc_cats.len(), 2);
+        assert_eq!(doc_cats.best().unwrap().0, view_cats.best_category(0));
     }
 }

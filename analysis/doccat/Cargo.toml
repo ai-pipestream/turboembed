@@ -3,18 +3,26 @@ name = "turbo-doccat"
 version = "0.1.0"
 edition.workspace = true
 license.workspace = true
-description = "Document categorization ported from OpenNLP 3.x DocumentCategorizerME onto the analysis API"
+publish = false
+description = "Document categorization ported from OpenNLP 3.x onto the analysis API"
+
+[lib]
+name = "turbo_doccat"
 
 [dependencies]
 turbo-analysis = { path = "../core" }
 turbo-analysis-layers = { path = "../layers" }
+turbo-formats = { path = "../formats" }
+# Java's Double.toString, parseDouble and parseInt, and Math.log.
+turbo-jvm = { path = "../jvm" }
+# MaxEnt evaluation and SHA-256 of the model files, for the layers' model reference.
 turbo-maxent = { path = "../maxent" }
 turbo-normalize = { path = "../normalize" }
 turbo-sequence = { path = "../sequence" }
 turbo-train = { path = "../train" }
 turbo-train-components = { path = "../train-components" }
-turbo-formats = { path = "../formats" }
 
 [dev-dependencies]
-turbo-tokenize = { path = "../tokenize" }
+turbo-goldens = { path = "../goldens" }
 turbo-sentdetect = { path = "../sentdetect" }
+turbo-tokenize = { path = "../tokenize" }

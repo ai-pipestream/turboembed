@@ -19,6 +19,10 @@
 
 #[path = "spec/datetime.rs"]
 mod datetime;
+#[path = "spec/dutch.rs"]
+mod dutch;
+#[path = "spec/spanish.rs"]
+mod spanish;
 
 use std::collections::BTreeSet;
 use std::fmt::Write as _;
@@ -26,7 +30,7 @@ use std::path::PathBuf;
 
 use serde::Deserialize;
 use turbo_analysis::{OffsetTable, Utf16Offset};
-use turbo_grammar::{ENGLISH, Mention, Output, Parser, Value};
+use turbo_grammar::{ENGLISH, Grammar, Mention, Output, Parser, Value};
 
 #[derive(Deserialize)]
 struct Case {
@@ -174,14 +178,21 @@ fn ratchet(language: &str, file: &str, passing: &BTreeSet<usize>, bless: bool) {
     }
 }
 
-/// Checks one file against its pass list, or with `bless` and `BLESS`
-/// set rewrites the list; returns (eligible, passing).
+/// Checks one English file against its pass list, or with `bless` and
+/// `BLESS` set rewrites the list; returns (eligible, passing).
 fn check(spec: &Spec, bless: bool) -> (usize, usize) {
     let dir = data().join("recognizers-text").join(spec.language).join(spec.kind);
     let json = std::fs::read_to_string(dir.join(spec.file)).expect("a specification file");
     let cases: Vec<Case> = serde_json::from_str(&json).expect("a specification parses");
+    check_cases(&ENGLISH, spec, &cases, bless)
+}
+
+/// Runs `grammar` on the cases of one file and checks them against its
+/// pass list, or with `bless` and `BLESS` set rewrites the list; returns
+/// (eligible, passing).
+fn check_cases(grammar: &'static dyn Grammar, spec: &Spec, cases: &[Case], bless: bool) -> (usize, usize) {
     let show = std::env::var_os("SPEC_SHOW").is_some();
-    let mut parser = Parser::new(&ENGLISH);
+    let mut parser = Parser::new(grammar);
     let mut passing = BTreeSet::new();
     let mut eligible = 0;
     for (i, case) in cases.iter().enumerate() {

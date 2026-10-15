@@ -20,12 +20,12 @@ use super::{
 };
 
 /// A child's date when it names one day: `tomorrow`, `May 5`, `Friday`.
-fn day_of(c: &Ctx<'_>, v: &Value) -> Option<DateSpec> {
+pub(crate) fn day_of(c: &Ctx<'_>, v: &Value) -> Option<DateSpec> {
     date_of(c, v).filter(|d| d.is_day())
 }
 
 /// A part of the day and its modifier: `in the morning`, `late evening`.
-fn part_of(c: &Ctx<'_>, v: &Value) -> Option<(Part, Modifier)> {
+pub(crate) fn part_of(c: &Ctx<'_>, v: &Value) -> Option<(Part, Modifier)> {
     match tval(c, v)? {
         TimeValue::Point {
             point: Point { date: DateSpec::None, time: TimeOfDay::Part(p), shift }, modifier, ..
@@ -35,87 +35,87 @@ fn part_of(c: &Ctx<'_>, v: &Value) -> Option<(Part, Modifier)> {
 }
 
 /// A day with a part of the day: `tomorrow night`, `tonight`.
-fn day_part_of(c: &Ctx<'_>, v: &Value) -> Option<(DateSpec, Part)> {
+pub(crate) fn day_part_of(c: &Ctx<'_>, v: &Value) -> Option<(DateSpec, Part)> {
     match plain(c, v)? {
         Point { date, time: TimeOfDay::Part(p), shift } if shift.is_zero() && date.is_day() => Some((date, p)),
         _ => None,
     }
 }
 
-fn at(c: &Ctx<'_>, date: DateSpec, k: Clock) -> Option<Value> {
+pub(crate) fn at(c: &Ctx<'_>, date: DateSpec, k: Clock) -> Option<Value> {
     emit_point(c, Point { date, time: TimeOfDay::Clock(k), shift: Duration::ZERO })
 }
 
-fn b_date_clock(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
+pub(crate) fn b_date_clock(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
     at(c, day_of(c, &v[0])?, clock_of(c, v.last()?)?)
 }
 
-fn b_clock_date(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
+pub(crate) fn b_clock_date(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
     at(c, day_of(c, v.last()?)?, clock_of(c, &v[0])?)
 }
 
 /// A date and an hour with minutes, which stands as a time with no `at`:
 /// `march eighteenth nine thirty`.
-fn b_date_bare_minutes(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
+pub(crate) fn b_date_bare_minutes(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
     let k = clock_of(c, &v[1])?;
     (k.shown != Shown::Hour).then(|| at(c, day_of(c, &v[0])?, k))?
 }
 
 /// A clock in a day's part: `tonight at 1am`, `five-thirty tomorrow
 /// evening`, `10, tonight`.
-fn clock_in_day_part(c: &Ctx<'_>, dp: &Value, clock: &Value) -> Option<Value> {
+pub(crate) fn clock_in_day_part(c: &Ctx<'_>, dp: &Value, clock: &Value) -> Option<Value> {
     let (date, p) = day_part_of(c, dp)?;
     let k = clock_of(c, clock)?;
     at(c, date, k.with(p.meridiem(k.hour)))
 }
 
-fn b_dtp_clock(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
+pub(crate) fn b_dtp_clock(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
     clock_in_day_part(c, &v[0], v.last()?)
 }
 
-fn b_clock_dtp(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
+pub(crate) fn b_clock_dtp(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
     clock_in_day_part(c, v.last()?, &v[0])
 }
 
 /// An hour before a day's part needs a comma (`10, tonight`); a time
 /// with minutes does not (`five-thirty tomorrow evening`).
-fn b_bare_dtp(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
+pub(crate) fn b_bare_dtp(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
     let comma = c.word(c.start + 1) == ",";
     (comma || clock_of(c, &v[0])?.shown != Shown::Hour).then(|| b_clock_dtp(v, c))?
 }
 
-fn day_part(c: &Ctx<'_>, date: DateSpec, p: Part, modifier: Modifier) -> Option<Value> {
+pub(crate) fn day_part(c: &Ctx<'_>, date: DateSpec, p: Part, modifier: Modifier) -> Option<Value> {
     let point = Point { date, time: TimeOfDay::Part(p), shift: Duration::ZERO };
     emit(c, TimeValue::Point { point, modifier, clip: false })
 }
 
-fn b_date_part(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
+pub(crate) fn b_date_part(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
     let (p, m) = part_of(c, v.last()?)?;
     day_part(c, day_of(c, &v[0])?, p, m)
 }
 
-fn b_part_date(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
+pub(crate) fn b_part_date(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
     let (p, m) = part_of(c, &v[0])?;
     day_part(c, day_of(c, v.last()?)?, p, m)
 }
 
-fn rel_day(rel_v: &Value) -> Option<DateSpec> {
+pub(crate) fn rel_day(rel_v: &Value) -> Option<DateSpec> {
     let (n, kind) = term(rel_v);
     matches!(kind, rel::THIS | rel::NEXT | rel::LAST).then_some(DateSpec::Rel { grain: TimeGrain::Day, n: n as i16 })
 }
 
 /// A part of the day that a date or `this` can take: not a plural, not
 /// a meal.
-fn single_part(v: &Value) -> Option<Part> {
+pub(crate) fn single_part(v: &Value) -> Option<Part> {
     (term(v).1 & super::PLURAL == 0).then(|| part(v).filter(|&p| !is_meal(p)))?
 }
 
 /// `this evening`, `last night`, `next morning`.
-fn b_rel_part(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
+pub(crate) fn b_rel_part(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
     day_part(c, rel_day(&v[0])?, single_part(&v[1])?, Modifier::NONE)
 }
 
-fn portion(c: &Ctx<'_>, v: &[Value], p: Portion) -> Option<Value> {
+pub(crate) fn portion(c: &Ctx<'_>, v: &[Value], p: Portion) -> Option<Value> {
     let part = single_part(&v[1])?;
     if !matches!(part, Part::Morning | Part::Afternoon | Part::Evening | Part::Night) {
         return None;
@@ -124,21 +124,21 @@ fn portion(c: &Ctx<'_>, v: &[Value], p: Portion) -> Option<Value> {
 }
 
 /// `early this evening`, `late this morning`.
-fn b_early_rel_part(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
+pub(crate) fn b_early_rel_part(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
     portion(c, v, Portion::Start)
 }
 
-fn b_late_rel_part(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
+pub(crate) fn b_late_rel_part(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
     portion(c, v, Portion::End)
 }
 
-fn b_tonight(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
+pub(crate) fn b_tonight(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
     (term(&v[0]).1 & TONIGHT != 0)
         .then(|| day_part(c, DateSpec::Rel { grain: TimeGrain::Day, n: 0 }, Part::Night, Modifier::NONE))?
 }
 
 /// `today pm`, `tomorrow am`: the afternoon or the morning.
-fn b_day_ampm(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
+pub(crate) fn b_day_ampm(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
     if !matches!(day_of(c, &v[0])?, DateSpec::Rel { .. }) {
         return None;
     }
@@ -151,7 +151,7 @@ fn b_day_ampm(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
 }
 
 /// `Wednesday evening next week`.
-fn b_weekday_part_week(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
+pub(crate) fn b_weekday_part_week(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
     let (wd, flags) = term(&v[0]);
     if flags & super::PLURAL != 0 {
         return None;
@@ -164,19 +164,19 @@ fn b_weekday_part_week(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
     day_part(c, DateSpec::WeekdayRel { weekday: wd as u8, weeks }, single_part(&v[1])?, Modifier::NONE)
 }
 
-fn b_now(_: &[Value], c: &Ctx<'_>) -> Option<Value> {
+pub(crate) fn b_now(_: &[Value], c: &Ctx<'_>) -> Option<Value> {
     emit_point(c, Point::time(TimeOfDay::Now))
 }
 
 // Shifts.
 
-fn today() -> DateSpec {
+pub(crate) fn today() -> DateSpec {
     DateSpec::Rel { grain: TimeGrain::Day, n: 0 }
 }
 
 /// The reference moved by `d`: a clock duration from now, a longer one
 /// from today.
-fn from_now(c: &Ctx<'_>, d: Duration) -> Option<Value> {
+pub(crate) fn from_now(c: &Ctx<'_>, d: Duration) -> Option<Value> {
     let clock = d.parts().iter().any(|(u, _)| u.is_clock());
     let point = if clock {
         Point { time: TimeOfDay::Now, shift: d, ..Point::default() }
@@ -186,21 +186,21 @@ fn from_now(c: &Ctx<'_>, d: Duration) -> Option<Value> {
     emit_point(c, point)
 }
 
-fn b_in(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
+pub(crate) fn b_in(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
     from_now(c, duration_of(c, v.last()?)?)
 }
 
-fn b_later(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
+pub(crate) fn b_later(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
     from_now(c, duration_of(c, &v[0])?)
 }
 
-fn b_ago(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
+pub(crate) fn b_ago(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
     from_now(c, duration_of(c, &v[0])?.negated())
 }
 
 /// A point moved from another: `3 days after January 12th`, `two weeks
 /// before Christmas`.
-fn shifted(c: &Ctx<'_>, d: Duration, base: &Value) -> Option<Value> {
+pub(crate) fn shifted(c: &Ctx<'_>, d: Duration, base: &Value) -> Option<Value> {
     let p = plain(c, base)?;
     // A day moves by days or longer: `3 minutes from today` is two
     // mentions.
@@ -211,11 +211,11 @@ fn shifted(c: &Ctx<'_>, d: Duration, base: &Value) -> Option<Value> {
     emit_point(c, Point { shift: d, ..p })
 }
 
-fn b_after(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
+pub(crate) fn b_after(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
     shifted(c, duration_of(c, &v[0])?, v.last()?)
 }
 
-fn b_before(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
+pub(crate) fn b_before(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
     shifted(c, duration_of(c, &v[0])?.negated(), v.last()?)
 }
 

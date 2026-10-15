@@ -105,9 +105,14 @@ const UD_RECIPE_MODELS: [&str; 10] = [
     "turbo-fi-ud-ftb-2.16-lemmas-1",
 ];
 
+/// The language detector the Tatoeba recipe trains (analysis/train-recipes),
+/// listed with the ids of its training sentences at their addresses in a
+/// third release of this repository.
+const TATOEBA_MODEL: &str = "turbo-mul-tatoeba-langdetect-1";
+
 /// A model this repository's recipes train.
 fn trained_here(id: &str) -> bool {
-    MASC_MODELS.contains(&id) || UD_RECIPE_MODELS.contains(&id)
+    MASC_MODELS.contains(&id) || UD_RECIPE_MODELS.contains(&id) || id == TATOEBA_MODEL
 }
 
 #[test]
@@ -142,6 +147,7 @@ fn the_ud_models_carry_their_treebank_licences() {
     }
     expected.extend(MASC_MODELS.map(str::to_owned));
     expected.extend(UD_RECIPE_MODELS.map(str::to_owned));
+    expected.insert(TATOEBA_MODEL.to_owned());
     let listed: BTreeSet<String> = index.list().iter().map(|a| a.id.to_string()).collect();
     assert_eq!(listed, expected);
     for (lang, tb) in NON_COMMERCIAL_TREEBANKS {
@@ -194,8 +200,8 @@ fn fetched_test_models_match_the_index() {
 
 /// Fetches every artifact of the built-in index from its address and
 /// checks it: `cargo test -p turbo-zoo -- --ignored`. Needs the network.
-/// The addresses of the models trained here answer only once the `models`
-/// and `models-ud` workflows have published their releases
+/// The addresses of the models trained here answer only once the `models`,
+/// `models-ud` and `models-tatoeba` workflows have published their releases
 /// (analysis/train-recipes/README.md, "The models releases"); until then
 /// this test fails on them.
 #[test]
@@ -212,9 +218,12 @@ fn every_builtin_artifact_fetches_and_verifies() {
     let zoo = turbo_zoo::Zoo::new(index, cache.clone(), Policy::default(), &turbo_zoo::Http);
     for id in &ids {
         let f = zoo.fetch(id, &user, &acc).unwrap();
-        let bytes = std::fs::read(f.single().unwrap()).unwrap();
-        assert_eq!(turbo_zoo::Sha256::of(&bytes), f.artifact.files[0].sha256);
-        assert_eq!(turbo_zoo::Sha512::of(&bytes), f.artifact.files[0].sha512);
+        assert_eq!(f.files.len(), f.artifact.files.len(), "{id}");
+        for (path, file) in f.files.iter().zip(&f.artifact.files) {
+            let bytes = std::fs::read(path).unwrap();
+            assert_eq!(turbo_zoo::Sha256::of(&bytes), file.sha256, "{id}");
+            assert_eq!(turbo_zoo::Sha512::of(&bytes), file.sha512, "{id}");
+        }
     }
     std::fs::remove_dir_all(&cache).unwrap();
 }
