@@ -15,6 +15,7 @@
 //! [`PosContext::for_model`] makes the same choice.
 
 use std::collections::VecDeque;
+use std::fmt::Write as _;
 use std::sync::Arc;
 
 use turbo_jvm::chars::utf16_len;
@@ -143,8 +144,10 @@ impl ConfigurablePosContext {
         ConfigurablePosContext {
             generator,
             cache_size,
-            cache: VecDeque::with_capacity(cache_size),
-            spare: Vec::with_capacity(cache_size),
+            // Grown as keys arrive, as Java's `Cache` is: a manifest's
+            // `BeamSize` can be any int, so it is not reserved up front.
+            cache: VecDeque::new(),
+            spare: Vec::new(),
             key: String::new(),
         }
     }
@@ -171,7 +174,6 @@ impl<'a> ContextGenerator<&'a str> for ConfigurablePosContext {
         let tag_prev = index.checked_sub(1).map(|i| prior[i]);
         let tag_prev_prev = index.checked_sub(2).map(|i| prior[i]);
         self.key.clear();
-        use std::fmt::Write as _;
         let _ = write!(self.key, "{index}");
         self.key.push_str(tag_prev.unwrap_or("null"));
         self.key.push_str(tag_prev_prev.unwrap_or("null"));

@@ -114,4 +114,44 @@ mod tests {
         cached.create_features(&mut out, &s2, 0, &[]);
         assert_eq!(out.get(0), b"w=gamma");
     }
+
+    #[test]
+    fn a_slot_of_the_last_sentence_is_not_served_in_the_next() {
+        let mut cached = Cached::new(Box::new(TokenGenerator::new(true)));
+        let mut out = Features::new();
+        cached.create_features(&mut out, &["Alpha"], 0, &[]);
+        assert_eq!(out.get(0), b"w=alpha");
+        cached.start_sequence();
+        out.clear();
+        cached.create_features(&mut out, &["Gamma"], 0, &[]);
+        assert_eq!(out.get(0), b"w=gamma");
+        // Within a sentence the slot is served again, as Java's cache does,
+        // whatever the tokens now say.
+        out.clear();
+        cached.create_features(&mut out, &["Delta"], 0, &[]);
+        assert_eq!(out.get(0), b"w=gamma");
+    }
+
+    #[test]
+    fn the_oldest_slot_beyond_the_capacity_is_evicted() {
+        let mut cached = Cached::new(Box::new(TokenGenerator::new(true)));
+        let tokens: Vec<String> = (0..=CAPACITY).map(|i| format!("T{i}")).collect();
+        let tokens: Vec<&str> = tokens.iter().map(String::as_str).collect();
+        let mut out = Features::new();
+        for i in 0..=CAPACITY {
+            out.clear();
+            cached.create_features(&mut out, &tokens, i, &[]);
+        }
+        // Index 0 was the oldest of CAPACITY + 1 entries, so it is computed
+        // again; index 1 is still held.
+        assert_eq!(cached.slots[0].0, 0);
+        assert_eq!(cached.slots[1].0, cached.generation);
+        let changed: Vec<&str> = tokens.iter().map(|_| "x").collect();
+        out.clear();
+        cached.create_features(&mut out, &changed, 1, &[]);
+        assert_eq!(out.get(0), b"w=t1");
+        out.clear();
+        cached.create_features(&mut out, &changed, 0, &[]);
+        assert_eq!(out.get(0), b"w=x");
+    }
 }

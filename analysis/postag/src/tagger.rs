@@ -61,13 +61,29 @@ impl PosTagger {
         tags: &mut Vec<Tag>,
         probs: &mut Vec<f64>,
     ) -> bool {
-        let model = &self.model;
-        let search = BeamSearch::new(model.beam_size(), model.maxent())
-            .expect("the outcomes were checked to be text when the model was opened");
-        let Some(best) = search.best_sequence(words, context, &model.validator()) else {
+        self.tag_sentence(&self.search(), words, context, tags, probs)
+    }
+
+    /// The search over the model, built once per call of `tag` and once
+    /// per document of `annotate`.
+    fn search(&self) -> BeamSearch<'_> {
+        BeamSearch::new(self.model.beam_size(), self.model.maxent())
+            .expect("the outcomes were checked to be text when the model was opened")
+    }
+
+    /// One sentence through `search`: what `tag_with` appends.
+    fn tag_sentence(
+        &self,
+        search: &BeamSearch<'_>,
+        words: &[&str],
+        context: &mut PosContext,
+        tags: &mut Vec<Tag>,
+        probs: &mut Vec<f64>,
+    ) -> bool {
+        let Some(best) = search.best_sequence(words, context, &self.model.validator()) else {
             return false;
         };
-        tags.extend(best.outcomes().iter().map(|o| model.tag_of(o).expect("an outcome of the classifier")));
+        tags.extend(best.outcomes().iter().map(|o| self.model.tag_of(o).expect("an outcome of the classifier")));
         probs.extend_from_slice(best.probs());
         true
     }
@@ -107,10 +123,7 @@ impl Annotator for PosTagger {
         let mut probs = Vec::with_capacity(n);
         let mut words: Vec<&str> = Vec::new();
         let mut context = self.take_context()?;
-        let model = &self.model;
-        let search = BeamSearch::new(model.beam_size(), model.maxent())
-            .expect("the outcomes were checked to be text when the model was opened");
-        let validator = model.validator();
+        let search = self.search();
         let mut from = 0;
         while from < n {
             let to = match &tokens.sentence {
@@ -119,14 +132,12 @@ impl Annotator for PosTagger {
             };
             words.clear();
             words.extend((from..to).map(|i| &text[starts[i] as usize..ends[i] as usize]));
-            let Some(best) = search.best_sequence(&words, &mut context, &validator) else {
+            if !self.tag_sentence(&search, &words, &mut context, &mut tags, &mut probs) {
                 return Err(Error::Annotator {
                     annotator: Self::ID,
                     detail: format!("no tag sequence of tokens {from}..{to} scored above the minimum"),
                 });
-            };
-            tags.extend(best.outcomes().iter().map(|o| model.tag_of(o).expect("an outcome of the classifier")));
-            probs.extend_from_slice(best.probs());
+            }
             from = to;
         }
         self.contexts.lock().unwrap_or_else(|e| e.into_inner()).push(context);

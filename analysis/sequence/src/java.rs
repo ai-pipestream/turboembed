@@ -23,9 +23,12 @@ use turbo_unicode::modified_utf8::push_modified_utf8;
 /// throws `StringIndexOutOfBoundsException`.
 pub(crate) fn push_units(out: &mut Vec<u8>, s: &str, start: usize, end: usize) {
     assert!(start <= end, "substring({start}, {end})");
-    if s.is_ascii() {
-        assert!(end <= s.len(), "substring({start}, {end}) of a string of fewer units");
-        let slice = &s.as_bytes()[start..end];
+    // Up to `end`, ASCII bytes are the units, so the slice is the substring
+    // unless it holds a NUL, which modified UTF-8 writes as two bytes.
+    if let Some(prefix) = s.as_bytes().get(..end)
+        && prefix.is_ascii()
+    {
+        let slice = &prefix[start..];
         if !slice.contains(&0) {
             out.extend_from_slice(slice);
             return;

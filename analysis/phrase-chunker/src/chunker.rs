@@ -7,7 +7,7 @@ use std::sync::Arc;
 use turbo_analysis::{Annotator, Error, IxRange, ModelRef, Refs, Span, Spans, View};
 use turbo_analysis_layers::{ChunkTags, PhraseChunks, PosTags, Tag, Tokens};
 use turbo_sequence::BeamSearch;
-use turbo_sequence::chunker::TokenTag;
+use turbo_sequence::chunker::{ChunkerValidator, DefaultChunkerContext, TokenTag};
 
 use crate::model::ChunkerModel;
 use crate::phrases::phrases;
@@ -42,9 +42,26 @@ impl PhraseChunker {
     /// nothing and returns false when no sequence scored above the
     /// search's minimum (where `chunk` returns an array of nulls).
     pub fn outcomes<'m>(&'m self, words: &[TokenTag<'_>], outcomes: &mut Vec<&'m str>, probs: &mut Vec<f64>) -> bool {
-        let search = BeamSearch::new(self.model.beam_size(), self.model.maxent())
-            .expect("the outcomes were checked to be text when the model was opened");
-        let Some(best) = search.best_sequence(words, &mut self.model.context(), &self.model.validator()) else {
+        Self::outcomes_with(&self.search(), words, &mut self.model.context(), &self.model.validator(), outcomes, probs)
+    }
+
+    /// The search over the model, built once per call of `outcomes` and
+    /// once per document of `annotate`.
+    fn search(&self) -> BeamSearch<'_> {
+        BeamSearch::new(self.model.beam_size(), self.model.maxent())
+            .expect("the outcomes were checked to be text when the model was opened")
+    }
+
+    /// One sentence through `search`: what `outcomes` appends.
+    fn outcomes_with<'m>(
+        search: &BeamSearch<'m>,
+        words: &[TokenTag<'_>],
+        context: &mut DefaultChunkerContext,
+        validator: &ChunkerValidator,
+        outcomes: &mut Vec<&'m str>,
+        probs: &mut Vec<f64>,
+    ) -> bool {
+        let Some(best) = search.best_sequence(words, context, validator) else {
             return false;
         };
         outcomes.extend_from_slice(best.outcomes());
@@ -117,26 +134,25 @@ impl Annotator for PhraseChunker {
         let mut ranges = Vec::new();
         let mut kind = Vec::new();
         let mut words: Vec<TokenTag<'_>> = Vec::new();
-        let search = BeamSearch::new(self.model.beam_size(), self.model.maxent())
-            .expect("the outcomes were checked to be text when the model was opened");
+        let search = self.search();
         let mut context = self.model.context();
         let validator = self.model.validator();
+        let mut outcomes: Vec<&str> = Vec::new();
         for (from, to) in sentence_ranges(tokens) {
             words.clear();
             words.extend((from..to).map(|i| TokenTag {
                 token: &text[starts[i] as usize..ends[i] as usize],
                 tag: tags.tagset.label(tags.tags[i]),
             }));
-            let Some(best) = search.best_sequence(&words, &mut context, &validator) else {
+            outcomes.clear();
+            if !Self::outcomes_with(&search, &words, &mut context, &validator, &mut outcomes, &mut probs) {
                 return Err(Error::Annotator {
                     annotator: Self::ID,
                     detail: format!("no chunk tag sequence of tokens {from}..{to} scored above the minimum"),
                 });
-            };
-            probs.extend_from_slice(best.probs());
-            let outcomes = best.outcomes();
+            }
             chunk_tags.extend(outcomes.iter().map(|o| self.model.tag_of(o).expect("an outcome of the classifier")));
-            let found = phrases(outcomes)
+            let found = phrases(&outcomes)
                 .map_err(|e| Error::Annotator { annotator: Self::ID, detail: format!("tokens {from}..{to}: {e}") })?;
             for p in found {
                 spans.push(Span::new(starts[from + p.start], ends[from + p.end - 1]));
