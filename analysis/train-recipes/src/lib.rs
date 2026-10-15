@@ -29,16 +29,17 @@
 //!   treebank's licence, attribution and citation, and its zoo entry,
 //!   which a treebank whose text rights are not settled (Porttinari) never
 //!   gets.
-//! - [`release`]: the release of this repository that publishes the MASC
-//!   models, and their entries in the zoo's built-in index.
+//! - [`release`]: the releases of this repository that publish the MASC
+//!   models, each naming the models it publishes, and their entries in
+//!   the zoo's built-in index.
 //!
 //! [`run`] runs one MASC recipe from a split corpus to the model, the
 //! card and the gate record, and [`ud::run_ud`] one UD recipe from a
 //! treebank; the `turbo-train-recipes` binary runs the recipes of
 //! [`RECIPES`] on a MASC directory, or those of [`ud::UD_RECIPES`] on the
 //! treebanks, and writes each model's directory, and its `zoo-index`
-//! command makes the zoo's entries for the release that publishes the
-//! MASC models ([`release`]).
+//! command makes the zoo's entries for a release of the MASC models
+//! ([`release`]).
 
 pub mod card;
 pub mod chunk;

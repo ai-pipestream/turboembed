@@ -17,7 +17,7 @@ CC BY 4.0 Universal Dependencies treebanks are under "The UD recipes".
 | `treebank` | The CC BY 4.0 UD treebanks at release 2.16: each repository's `LICENSE.txt`, `README.md` and `train`, `dev` and `test` files with their sizes and digests, the licence check, the zoo dataset entry and fetch |
 | `ud` | The UD recipes: the samples, training on `train`, the checks run before training, and the gate on `test` against the OpenNLP UD 1.3 model (the zoo's, or the Italian ones recorded by digest), by the `segmentation` and `postag` gates and, for the lemmatizer, `LemmatizerEvaluator` |
 | `ud_card` | The UD model card, with the treebank's licence, attribution and citation and the MASC card's held-out and gate parts, the model's directory and its zoo entry |
-| `release` | The release of this repository that publishes the MASC models (`models-masc-3.0.0-1`), and their entries in the zoo's built-in index at their addresses there |
+| `release` | The releases of this repository that publish the recipes' models (`models-masc-3.0.0-1`, the four MASC models), each naming the models it publishes, their entries in the zoo's built-in index at their addresses there, and the references the `models` workflow fetches (`masc-references.txt`) |
 
 ```
 cargo run --release -p turbo-train-recipes -- masc --corpus <masc-dir> \
@@ -326,8 +326,9 @@ held-out sentences skipped are skipped for both.
 | `turbo-en-masc-3.0.0-pos-1` | 24,958 | 0 | 431,637 | 1 | 6 of 85,292: `"` (2), `PRN` (1), ``UH` `` (3) |
 | `turbo-en-masc-3.0.0-chunks-1` | 23,086 | 1,872 | 384,930 | 349 | |
 
-The trained models are not checked in; the release below publishes
-them. A second run into another directory wrote the same bytes:
+The trained models are not checked in; "The models release" below says
+where they are published. A second run into another directory wrote the
+same bytes:
 
 | Model | Size | SHA-256 |
 |---|---|---|
@@ -459,29 +460,46 @@ The models go out as the assets of this repository's release
 `models-masc-3.0.0-1` (`release::MASC_MODELS`), as Kristian Rickert
 decided on 2026-10-15, and the zoo's built-in index lists each at its
 address there, `https://github.com/ai-pipestream/turboembed/releases/download/models-masc-3.0.0-1/<model id>.bin`,
-with the size, SHA-256 and SHA-512 its card records.
+with the size, SHA-256 and SHA-512 its card records. The release does
+not exist until the `models` workflow below has been run by hand on
+main; until then those addresses answer 404 and fetching the models
+through the zoo fails.
 
-`zoo-index --models <dir> --release <tag>` reads the model directories
-`masc` wrote into `<dir>`, one for every recipe, checks each model file
-against its card, makes each card's zoo entry at its address in release
-`<tag>` (`ModelCard::artifact`, which refuses a model that failed its
-gate or was not trained on the recorded release), and prints the zoo's
-built-in index with those entries added or replaced. That is how
+A release names the models it publishes, here the sentence detector,
+tokenizer, tagger and chunker. A recipe added later is not in it: its
+model goes out in a release of its own, with its own tag, and a
+release once published keeps its assets.
+
+`zoo-index --models <dir> --release <tag>` reads the directories `masc`
+wrote into `<dir>` of the models release `<tag>` publishes, checks each
+model file against its card and each card's gate against its gate
+record, makes each card's zoo entry at its address in the release
+(`ModelCard::artifact`, which refuses a model that failed its gate or
+was not trained on the recorded release), and prints the zoo's built-in
+index with those entries added or replaced. That is how
 `analysis/zoo/index/zoo.json` got them. With `--check` it prints no
 index and exits with 1 unless the built-in index is already that one,
-naming the entries that differ.
+naming the entries that differ with the size, SHA-256 and address the
+index lists and the model's.
 
 `.github/workflows/models.yml` makes the release. It fetches MASC
-through the zoo and the three references from their published addresses
-(`en-pos-maxent.bin` from SourceForge, used only to be scored), caching
-both in the repository's Actions cache, runs `masc` on
-the recorded release, runs `zoo-index --check`, and uploads each model
-with its card and gate record (`<model id>.bin`, `<model id>.card.json`,
-`<model id>.gate.json`) and a `SHA256SUMS` file. On a pull request that
-changes the workflow it stops there and keeps the files as an artifact;
-run by hand on main, it creates the release at that commit with the
-files as its assets, and the notes give the models' licence and MASC's
-attribution. Creating a release that exists fails, so models trained
+through the zoo, and the four references from the addresses
+`masc-references.txt` lists, each checked against the SHA-256 listed
+with it (`en-pos-maxent.bin` and `en-chunker.bin` from SourceForge, read
+only to be scored). It saves each download in the repository's Actions
+cache as soon as it is checked, so a run that fails later does not
+fetch it again. It then runs `masc` on the recorded release for the
+models the zoo's index lists at the release's addresses, runs
+`zoo-index --check`, and uploads each model with its card and gate
+record (`<model id>.bin`, `<model id>.card.json`, `<model id>.gate.json`)
+and a `SHA256SUMS` file as an artifact. A pull request that changes the
+workflow, this crate or the zoo's index runs it that far. Run by hand on
+main, a second job, the only one that may write to the repository,
+publishes exactly those files: it checks `SHA256SUMS`, stops if the tag
+exists, and creates the release at the run's commit, not marked as the
+repository's latest release, with notes that give the models' licence
+and MASC's attribution. Each `.card.json` asset carries the attribution
+as well. A release whose tag exists is not made again, so models trained
 otherwise need a new model version and tag.
 
 ## The UD recipes
@@ -764,9 +782,10 @@ them: the split in the reader's order; the Twitter genre left out of
 both sides without moving another document; the four recipes trained,
 scored and gated; the same bytes from a second training; the card, the
 model's directory and its zoo entry; the zoo entries of a release made
-from every recipe's directory and the built-in index with them added,
+from its models' directories and the built-in index with them added,
 and their refusal of a missing directory, a card in another model's
-directory and a changed model file; the skipped sentences recorded and
+directory, a gate record of another model or with another outcome than
+the card's and a changed model file; the skipped sentences recorded and
 bounded on both sides; a sentence with a token inside another skipped
 by the token recipe alone; the tagger's tags compared as written and
 the reference's through the mapping of its tags, with the tokens of a
@@ -788,9 +807,12 @@ existing model directory and of held-out data with too many skipped
 sentences before it trains anything, and its output, with the lines it
 prints of each card (`ModelCard::summary`: the samples and skipped
 sentences of both sides, the held-out tokens left out with their tags,
-and the chunker's chunks in no sentence) checked word for word, and
-`zoo-index`'s refusal of models trained on a corpus that is not the
-recorded release. It
+and the chunker's chunks in no sentence) checked word for word; and
+`zoo-index` on those directories, which with `--check` exits with 1
+and names each model with the size and SHA-256 the index lists and the
+model's, and without it prints the index with them, and its refusal of
+a tag that names no release, of a missing `--release` and of models
+trained on a corpus that is not the recorded release. It
 also reads the MASC corpora checked in for the goldens
 (`analysis/goldens/data/inputs/formats/masc-*.txt`) with the tagger
 recipe's reader: it reads every sample OpenNLP's `MascPOSSampleStream`
@@ -818,9 +840,10 @@ makes them fail. CI runs the test with both set, in the step that
 requires the published models.
 
 The tagger's reference, `en-pos-maxent.bin`, and the chunker's,
-`en-chunker.bin`, are local-only, as in turbo-sequence's tests of the
-1.5 models: their training data is not published, so CI does not fetch
-them. The parts that need them run when `TURBO_TEST_OPENNLP_MODELS`
+`en-chunker.bin`, are not in the zoo, as in turbo-sequence's tests of
+the 1.5 models: their training data is not published, so the `ci`
+workflow (`ci.yml`) does not fetch them (the `models` workflow does, to
+run the release's gates; see "The models release"). The parts that need them run when `TURBO_TEST_OPENNLP_MODELS`
 names a directory holding them (a missing file there fails), and skip
 without it even with `TURBO_TEST_REQUIRE_OPENNLP_MODELS=1`. With it, the
 tagger's reference is checked against the recorded digest, shown to

@@ -85,42 +85,56 @@ list them. The small fixture models trained for this project
 (`analysis/goldens/data/fixtures`, listed in `analysis/goldens/data/README.md`)
 stay checked in.
 
-## Models trained by this project (fetchable)
+## Models trained by this project (fetchable once released)
 
 Trained by the recipes in `analysis/train-recipes` only on permissive
 data, each gated against the OpenNLP model for the same task, under
 Apache-2.0. The index lists each at its address in this repository's
 release `models-masc-3.0.0-1`, which `.github/workflows/models.yml`
-publishes with each model's card and gate record. Every file's size,
-SHA-256 and SHA-512 in the index are the ones its card records, and the
-workflow publishes nothing unless the models it trains have them.
+creates, with each model's card and gate record, when it is run by hand
+on main. Until it has been, those addresses answer 404 and fetching
+these models through the zoo fails. Every file's size, SHA-256 and
+SHA-512 in the index are the ones its card records, and the workflow
+publishes nothing unless the models it trains have them. MASC's CC BY
+attribution is in each model's card (the `attribution` field, published
+as `<model id>.card.json` beside the model) and in the release notes;
+the zoo's entries have no field for it.
 
 | Model | Trained on | Licence of the data | Class | Checked |
 |---|---|---|---|---|
-| `turbo-en-masc-3.0.0-sentence-1` | MASC 3.0.0, its Twitter genre left out | CC BY 3.0 US | permissive | here |
-| `turbo-en-masc-3.0.0-tokens-1` | MASC 3.0.0, its Twitter genre left out | CC BY 3.0 US | permissive | here |
-| `turbo-en-masc-3.0.0-pos-1` | MASC 3.0.0, its Twitter genre left out | CC BY 3.0 US | permissive | here |
+| `turbo-en-masc-3.0.0-sentence-1` | [MASC](https://anc.org/data/masc/) 3.0.0, its Twitter genre left out | CC BY 3.0 US | permissive | as MASC's row under Datasets |
+| `turbo-en-masc-3.0.0-tokens-1` | [MASC](https://anc.org/data/masc/) 3.0.0, its Twitter genre left out | CC BY 3.0 US | permissive | as MASC's row under Datasets |
+| `turbo-en-masc-3.0.0-pos-1` | [MASC](https://anc.org/data/masc/) 3.0.0, its Twitter genre left out | CC BY 3.0 US | permissive | as MASC's row under Datasets |
+| `turbo-en-masc-3.0.0-chunks-1` | [MASC](https://anc.org/data/masc/) 3.0.0, its Twitter genre left out | CC BY 3.0 US | permissive | as MASC's row under Datasets |
 
 ## OpenNLP models (refused)
 
 | Model | Trained on | Licence of the data | Reason | Checked |
 |---|---|---|---|---|
 | `langdetect-183.bin` | Leipzig corpora ([model README](https://archive.apache.org/dist/opennlp/models/langdetect/1.8.3/README.txt), [corpora](https://wortschatz.uni-leipzig.de/en/download)) | conflicting: one source says CC BY, another CC BY-NC | terms not confirmed (`LicenseRef-Unconfirmed`) | plan; README here |
-| 1.5 `en-chunker` | CoNLL-2000 (Wall Street Journal, LDC) ([1.5 models](http://opennlp.sourceforge.net/models-1.5/)) | LDC | proprietary | plan |
+| 1.5 `en-chunker` | CoNLL-2000 (Wall Street Journal, LDC) ([1.5 models](http://opennlp.sourceforge.net/models-1.5/)) | LDC | proprietary: refused for shipping, bundling and training; allowed only as a reference that is scored (below) | plan |
 | 1.5 `en-pos-maxent` | not published (the OpenNLP 1.5.1 test plan heads its regression-training section "(private) English data", which may not describe these models) | none stated | proprietary: refused for shipping, bundling and training; allowed only as a reference that is scored (below) | plan |
 | 1.5 `en-pos-perceptron` | not published (as `en-pos-maxent`) | none stated | proprietary | plan |
 | 1.5 English NER, sentence and token models | no corpus named | none stated | no licence | plan |
 
-`en-pos-maxent.bin` is used only as a reference whose output is scored
-or compared. Nothing ships, bundles, mirrors or trains on it, and the
-zoo does not list it. CI's test job does not fetch it. The models
-workflow (`.github/workflows/models.yml`), which runs the recipes' gates
-before it publishes their models, downloads it from
-<https://opennlp.sourceforge.net/models-1.5/en-pos-maxent.bin> and keeps
-it in the repository's Actions cache, which only the repository's
-workflows read. Anywhere else it is downloaded by hand from that address
-into a directory the user names. Its SHA-256 is
-`645a094f45a866687a617385233fd23ae8b0f5fa8b1b76996781a50c17bdcf3d`. The
+`en-pos-maxent.bin` and `en-chunker.bin` are used only as references
+whose output is scored or compared. Nothing ships, bundles, mirrors or
+trains on them, and the zoo does not list them. The `ci` workflow
+(`ci.yml`) does not fetch them. The `models` workflow
+(`.github/workflows/models.yml`), which runs the recipes' gates before
+it publishes their models, downloads them from
+<https://opennlp.sourceforge.net/models-1.5/>, checks them against the
+SHA-256s `analysis/train-recipes/masc-references.txt` lists, and keeps
+them in the repository's GitHub Actions cache. GitHub restores that
+cache only in this repository's workflow runs, and it cannot be
+downloaded. Anywhere else they are downloaded by hand from that address
+into a directory the user names. The SHA-256 of `en-pos-maxent.bin` is
+`645a094f45a866687a617385233fd23ae8b0f5fa8b1b76996781a50c17bdcf3d`, and
+that of `en-chunker.bin` is
+`7861a0c2f134d9c12a022a1ba501e88bc7039f6db72b4140e1bafd1fb5ef76cc`
+(`chunk::EN_CHUNKER`, 2,560,304 bytes); the turbo-train-recipes chunker
+gate scores it on MASC's held-out documents as the tagger gate scores
+`en-pos-maxent.bin`. The
 JVM goldens (`PosGolden`, `BeamGolden`) record its tags for the test
 sentences and that digest; turbo-sequence's tests check the digest and
 compare what turbo-sequence makes of the model with the goldens; and the

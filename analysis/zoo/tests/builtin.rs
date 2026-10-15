@@ -81,8 +81,12 @@ const BASE: &str = "https://archive.apache.org/dist/opennlp/models/ud-models-1.3
 
 /// The models the MASC recipes train (analysis/train-recipes), listed at
 /// their addresses in a release of this repository.
-const MASC_MODELS: [&str; 3] =
-    ["turbo-en-masc-3.0.0-sentence-1", "turbo-en-masc-3.0.0-tokens-1", "turbo-en-masc-3.0.0-pos-1"];
+const MASC_MODELS: [&str; 4] = [
+    "turbo-en-masc-3.0.0-sentence-1",
+    "turbo-en-masc-3.0.0-tokens-1",
+    "turbo-en-masc-3.0.0-pos-1",
+    "turbo-en-masc-3.0.0-chunks-1",
+];
 
 #[test]
 fn the_ud_models_carry_their_treebank_licences() {
@@ -167,6 +171,9 @@ fn fetched_test_models_match_the_index() {
 
 /// Fetches every artifact of the built-in index from its address and
 /// checks it: `cargo test -p turbo-zoo -- --ignored`. Needs the network.
+/// The MASC models' addresses answer only once the `models` workflow has
+/// published their release (analysis/train-recipes/README.md, "The
+/// models release"); until then this test fails on them.
 #[test]
 #[ignore]
 #[cfg(feature = "http")]

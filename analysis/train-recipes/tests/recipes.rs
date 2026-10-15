@@ -16,7 +16,7 @@ use common::{
     GATED_DOCUMENTS, SENTENCES, add_chunk, nest_token, rewrite_document, set_text_class, temp_dir, with_chunks_rotated,
     with_tags_rotated, write_corpus,
 };
-use turbo_eval::model_gate::{Measure, ModelGateRecord, Scoring, Task};
+use turbo_eval::model_gate::{Measure, ModelGateRecord, ModelId, Scoring, Task};
 use turbo_formats::masc::{MascCorpus, MascTokenReader};
 use turbo_postag::PosTagFormat;
 use turbo_train_components::{TokSpanEventStream, TokenizerFactory};
@@ -27,7 +27,7 @@ use turbo_train_recipes::card::{
 use turbo_train_recipes::chunk::{self, CHUNKS, SPAN_TYPES, Skipped};
 use turbo_train_recipes::masc::{self, ExcludedDocument, Exclusion, RELEASE, SPLIT, SplitCorpus};
 use turbo_train_recipes::postag::{self, POS, PosRecipe, ReferenceTags, Scored};
-use turbo_train_recipes::release::{self, MASC_MODELS, ReleaseTag};
+use turbo_train_recipes::release::{self, MASC_MODELS};
 use turbo_train_recipes::segmentation::{SENTENCE, TOKENS, in_text_order, read_token_samples};
 use turbo_train_recipes::{Error, LeftOut, RECIPES, Recipe, Reference, held_out_name, run};
 use turbo_zoo::{Index, LicenceClass};
@@ -353,7 +353,14 @@ fn the_recipes_train_score_gate_and_write_their_cards() {
         assert_eq!(refused(&named_only), "it was not gated against its recipe's reference");
         let mut released = named_only.clone();
         released.gate.reference_sha256 = recipe.reference().sha256().unwrap();
-        released_models.push((released.clone(), outcome.trained.bytes.clone()));
+        let mut released_gate = outcome.gate.clone();
+        released_gate.reference =
+            ModelId { id: recipe.reference_id().to_owned(), sha256: recipe.reference().sha256().unwrap() };
+        released_models.push(Released {
+            card: released.clone(),
+            gate: released_gate,
+            model: outcome.trained.bytes.clone(),
+        });
         let mut unknown = released.clone();
         unknown.id = "turbo-en-masc-3.0.0-unknown-1".to_owned();
         assert_eq!(refused(&unknown), "no recipe trains it");
@@ -414,30 +421,39 @@ fn the_recipes_train_score_gate_and_write_their_cards() {
     }
 }
 
+/// A model directory as `turbo-train-recipes masc` writes it for a card
+/// that may become a zoo entry.
+struct Released {
+    card: ModelCard,
+    gate: ModelGateRecord,
+    model: Vec<u8>,
+}
+
 /// The model directories of `models` (every recipe's card that may become
-/// a zoo entry, with its model) make the zoo entries of a release, in the
-/// recipes' order and each at its address there, and the built-in index
-/// with them added; a missing directory, a card in another model's
-/// directory or a model file that is not its card's makes none.
-fn released_models_make_the_release_s_zoo_entries(dir: &std::path::Path, models: &[(ModelCard, Vec<u8>)]) {
-    let tag: ReleaseTag = MASC_MODELS.parse().unwrap();
-    let write = |card: &ModelCard, bytes: &[u8]| {
-        let d = dir.join(&card.id);
+/// a zoo entry, with its gate record and model) make the zoo entries of a
+/// release, in the recipes' order and each at its address there, and the
+/// built-in index with them added; a missing directory, a card in another
+/// model's directory, a gate record that is not the card's or a model
+/// file that is not its card's makes none. The binary's `zoo-index` reads
+/// the same directories: with `--check` it fails, since the test's models
+/// are not the ones the zoo lists, and without it prints the index.
+fn released_models_make_the_release_s_zoo_entries(dir: &std::path::Path, models: &[Released]) {
+    let write = |r: &Released| {
+        let d = dir.join(&r.card.id);
         std::fs::create_dir_all(&d).unwrap();
-        std::fs::write(d.join(CARD_FILE), card.to_json()).unwrap();
-        std::fs::write(d.join(&card.file.name), bytes).unwrap();
+        std::fs::write(d.join(CARD_FILE), r.card.to_json()).unwrap();
+        std::fs::write(d.join(GATE_FILE), r.gate.to_json()).unwrap();
+        std::fs::write(d.join(&r.card.file.name), &r.model).unwrap();
     };
     let (first, rest) = models.split_first().unwrap();
-    for (card, bytes) in rest {
-        write(card, bytes);
-    }
-    assert!(matches!(release::entries(dir, &tag), Err(Error::Io { .. })), "a recipe's directory is missing");
-    write(&first.0, &first.1);
-    let entries = release::entries(dir, &tag).unwrap();
+    rest.iter().for_each(write);
+    assert!(matches!(release::entries(dir, &MASC_MODELS), Err(Error::Io { .. })), "a recipe's directory is missing");
+    write(first);
+    let entries = release::entries(dir, &MASC_MODELS).unwrap();
     let ids: Vec<&str> = entries.iter().map(|a| a.id.as_str()).collect();
-    assert_eq!(ids, RECIPES.map(|r| r.model_id()));
-    for (entry, (card, _)) in entries.iter().zip(models) {
-        assert_eq!(*entry, card.artifact(&tag.url(&card.file.name)).unwrap());
+    assert_eq!(ids, MASC_MODELS.models);
+    for (entry, r) in entries.iter().zip(models) {
+        assert_eq!(*entry, r.card.artifact(&MASC_MODELS.url(&r.card.file.name)).unwrap());
         assert!(entry.files[0].url.as_str().starts_with(release::RELEASES));
     }
 
@@ -460,19 +476,81 @@ fn released_models_make_the_release_s_zoo_entries(dir: &std::path::Path, models:
         }
     }
 
-    // A card in another model's directory, or a model file changed after
-    // its card was written, makes no entries.
-    let (card, bytes) = &models[1];
-    let moved_to = dir.join(models[0].0.id.as_str()).join(CARD_FILE);
-    std::fs::write(&moved_to, card.to_json()).unwrap();
-    assert!(matches!(release::entries(dir, &tag), Err(Error::InvalidCard { field: "id", .. })));
-    write(&first.0, &first.1);
-    let mut changed = bytes.clone();
+    let refused_field = |expected: &str| match release::entries(dir, &MASC_MODELS) {
+        Err(Error::InvalidCard { field, .. }) if field == expected => {}
+        other => panic!("{expected}: {other:?}"),
+    };
+    // A card in another model's directory makes no entries; nor does a
+    // gate record of another model, or one with another outcome than the
+    // card's.
+    let (second, first_dir) = (&models[1], dir.join(first.card.id.as_str()));
+    std::fs::write(first_dir.join(CARD_FILE), second.card.to_json()).unwrap();
+    refused_field("id");
+    write(first);
+    std::fs::write(first_dir.join(GATE_FILE), second.gate.to_json()).unwrap();
+    refused_field("gate");
+    let mut other_reference = first.gate.clone();
+    other_reference.reference = ModelId { id: "weak".to_owned(), sha256: first.gate.reference.sha256.clone() };
+    std::fs::write(first_dir.join(GATE_FILE), other_reference.to_json()).unwrap();
+    refused_field("gate");
+    write(first);
+    // Nor does a model file changed after its card was written.
+    let mut changed = second.model.clone();
     *changed.last_mut().unwrap() ^= 1;
-    write(card, &changed);
-    match release::entries(dir, &tag) {
-        Err(Error::Zoo(turbo_zoo::ZooError::Integrity { id, .. })) => assert_eq!(id.as_str(), card.id),
+    write(&Released { card: second.card.clone(), gate: second.gate.clone(), model: changed });
+    match release::entries(dir, &MASC_MODELS) {
+        Err(Error::Zoo(turbo_zoo::ZooError::Integrity { id, .. })) => assert_eq!(id.as_str(), second.card.id),
         other => panic!("{other:?}"),
+    }
+    write(second);
+
+    // The binary: the test's models are not the ones the zoo lists, so
+    // `--check` exits with 1 and names each, with the size and SHA-256 of
+    // both; without it the index with them is printed. A tag that names
+    // no release is refused.
+    let zoo_index = |extra: &[&str]| {
+        std::process::Command::new(env!("CARGO_BIN_EXE_turbo-train-recipes"))
+            .arg("zoo-index")
+            .arg("--models")
+            .arg(dir)
+            .args(extra)
+            .output()
+            .unwrap()
+    };
+    let checked = zoo_index(&["--release", MASC_MODELS.tag, "--check"]);
+    assert_eq!(checked.status.code(), Some(1), "{checked:?}");
+    assert!(checked.stderr.is_empty(), "{checked:?}");
+    let stdout = String::from_utf8(checked.stdout).unwrap();
+    let lines: Vec<&str> = stdout.lines().collect();
+    assert_eq!(lines.len(), entries.len() + 1, "{stdout}");
+    for (line, entry) in lines.iter().zip(&entries) {
+        let listed = &builtin.get(entry.id.as_str()).unwrap().files[0];
+        let model = &entry.files[0];
+        assert_eq!(
+            *line,
+            format!(
+                "{}: the built-in index lists another entry ({} bytes, SHA-256 {}, at {}; the model has {} bytes, \
+                 SHA-256 {}, at {})",
+                entry.id, listed.size, listed.sha256, listed.url, model.size, model.sha256, model.url
+            )
+        );
+    }
+    assert_eq!(
+        lines[entries.len()],
+        format!("the zoo's built-in index is not the one these models and release {} give", MASC_MODELS.tag)
+    );
+    let printed = zoo_index(&["--release", MASC_MODELS.tag]);
+    assert_eq!(printed.status.code(), Some(0), "{printed:?}");
+    assert_eq!(String::from_utf8(printed.stdout).unwrap(), release::index_with(&builtin, &entries));
+    for (extra, message) in [
+        (&["--release", "../x", "--check"][..], "no release of the models is tagged \"../x\""),
+        (&["--release", "--check"][..], "no release of the models is tagged \"--check\""),
+        (&["--check"][..], "--release is required"),
+    ] {
+        let refused = zoo_index(extra);
+        assert_eq!(refused.status.code(), Some(2), "{extra:?}: {refused:?}");
+        assert!(String::from_utf8_lossy(&refused.stderr).contains(message), "{extra:?}: {refused:?}");
+        assert!(refused.stdout.is_empty(), "{extra:?}: {refused:?}");
     }
 }
 
@@ -1405,12 +1483,13 @@ fn the_binary_refuses_an_unrecorded_corpus_and_writes_each_model_s_directory() {
         // Models trained on a corpus that is not the recorded release make
         // no zoo entries, so the index is neither printed nor checked.
         let index = std::process::Command::new(bin)
-            .args(["zoo-index", "--release", MASC_MODELS, "--models"])
+            .args(["zoo-index", "--release", MASC_MODELS.tag, "--models"])
             .arg(out.join("models"))
             .output()
             .unwrap();
         assert_eq!(index.status.code(), Some(2), "{index:?}");
-        let expected = if present.len() == RECIPES.len() { "not the recorded release" } else { CARD_FILE };
+        let all_released = MASC_MODELS.recipes().iter().all(|r| present.contains(r));
+        let expected = if all_released { "not the recorded release" } else { CARD_FILE };
         assert!(String::from_utf8_lossy(&index.stderr).contains(expected), "{index:?}");
         assert!(index.stdout.is_empty(), "{index:?}");
     }

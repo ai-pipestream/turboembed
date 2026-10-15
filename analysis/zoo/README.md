@@ -26,12 +26,12 @@ let model_path = fetched.single().unwrap();
 ```
 
 `index/zoo.json` is the built-in index: the 112 OpenNLP 1.3 UD models
-trained on permissive and share-alike treebanks, and the three English
+trained on permissive and share-alike treebanks, and the four English
 models the MASC recipes train (`analysis/train-recipes`), at their
 addresses in this repository's release `models-masc-3.0.0-1`, which
-`.github/workflows/models.yml` publishes. The recipes write their
-entries: `turbo-train-recipes zoo-index` prints this index with them
-added. The 32 models trained
+`.github/workflows/models.yml` creates when it is run by hand on main;
+until then fetching those four fails. The recipes write their entries:
+`turbo-train-recipes zoo-index` prints this index with them added. The 32 models trained
 on the eight non-commercial treebanks (four per treebank) are
 local-only, which the policy allows the zoo to fetch, but the index does
 not list them; docs/licences.md does, with the models the policy

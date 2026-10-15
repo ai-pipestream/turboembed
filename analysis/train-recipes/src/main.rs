@@ -45,12 +45,14 @@
 //! files at the release through the zoo into
 //! `<home>/artifacts/<dataset id>/`.
 //!
-//! `zoo-index` reads the model directories `masc` wrote into `--models`,
-//! checks each model file against its card, and prints the zoo's
-//! built-in index with each model's entry at its address in release
-//! `--release` (`release::index_with`). With `--check` it prints nothing
-//! of the index and exits with 1 unless the built-in index is already
-//! that one, naming the entries that differ.
+//! `zoo-index` reads the directories `masc` wrote into `--models` of the
+//! models release `--release` publishes (`release::MODELS_RELEASES`),
+//! checks each model file and gate record against its card, and prints
+//! the zoo's built-in index with each model's entry at its address in the
+//! release (`release::index_with`). With `--check` it prints nothing of
+//! the index and exits with 1 unless the built-in index is already that
+//! one, naming the entries that differ with the size and SHA-256 the
+//! index lists and the ones the model has.
 
 use std::path::{Path, PathBuf};
 use std::process::ExitCode;
@@ -58,7 +60,7 @@ use std::process::ExitCode;
 use turbo_formats::masc::MascCorpus;
 use turbo_train_recipes::card::write_model_dir;
 use turbo_train_recipes::masc::{self, RELEASE, SplitCorpus};
-use turbo_train_recipes::release::{self, ReleaseTag};
+use turbo_train_recipes::release::{self, ModelsRelease};
 use turbo_train_recipes::treebank::{TREEBANKS, Treebank, TreebankText};
 use turbo_train_recipes::ud::{UD_RECIPES, UdRecipe, run_ud};
 use turbo_train_recipes::ud_card::write_ud_model_dir;
@@ -80,7 +82,7 @@ struct Args {
     out: Option<PathBuf>,
     home: Option<PathBuf>,
     models: Option<PathBuf>,
-    release: Option<ReleaseTag>,
+    release: Option<ModelsRelease>,
     unrecorded: bool,
     check: bool,
     /// The model ids `--recipe` names, resolved by the command.
@@ -122,7 +124,7 @@ fn parse() -> Result<Args, String> {
             "--out" => a.out = Some(value()?.into()),
             "--home" => a.home = Some(value()?.into()),
             "--models" => a.models = Some(value()?.into()),
-            "--release" => a.release = Some(value()?.parse().map_err(|e: Error| e.to_string())?),
+            "--release" => a.release = Some(ModelsRelease::tagged(&value()?).map_err(|e| e.to_string())?),
             "--unrecorded-corpus" => a.unrecorded = true,
             "--check" => a.check = true,
             "--recipe" => a.recipe_ids.push(value()?),
@@ -301,8 +303,9 @@ fn fetch_ud_command(a: Args) -> Result<bool, String> {
 
 fn zoo_index_command(a: Args) -> Result<bool, String> {
     let models = need(a.models, "--models")?;
-    let tag = a.release.ok_or_else(|| format!("--release is required\n{USAGE}"))?;
-    let entries = release::entries(&models, &tag).map_err(|e| e.to_string())?;
+    let release = a.release.ok_or_else(|| format!("--release is required\n{USAGE}"))?;
+    let tag = release.tag;
+    let entries = release::entries(&models, &release).map_err(|e| e.to_string())?;
     let index = release::index_with(&Index::builtin(), &entries);
     if !a.check {
         print!("{index}");
@@ -316,7 +319,14 @@ fn zoo_index_command(a: Args) -> Result<bool, String> {
     for entry in &entries {
         match builtin.get(entry.id.as_str()) {
             Ok(listed) if listed == entry => {}
-            Ok(_) => println!("{}: the built-in index lists another entry", entry.id),
+            Ok(listed) => {
+                let (l, m) = (&listed.files[0], &entry.files[0]);
+                println!(
+                    "{}: the built-in index lists another entry ({} bytes, SHA-256 {}, at {}; the model has {} bytes, \
+                     SHA-256 {}, at {})",
+                    entry.id, l.size, l.sha256, l.url, m.size, m.sha256, m.url
+                );
+            }
             Err(_) => println!("{}: the built-in index does not list it", entry.id),
         }
     }

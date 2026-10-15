@@ -3105,6 +3105,33 @@
           "sha512": "2987b6cca8b204e455099306b53be01958f7335f7d8eb18318b27ceeb495cba1fedfc928a0c2902ad1fe57f1edb1dd66cd38952cd79e051e1d14eed1abc22523"
         }
       ]
+    },
+    {
+      "id": "turbo-en-masc-3.0.0-chunks-1",
+      "kind": "KIND_MODEL",
+      "component": "COMPONENT_CHUNKER",
+      "language": "en",
+      "format": "FORMAT_OPENNLP_MODEL",
+      "version": "1",
+      "license": "Apache-2.0",
+      "license_terms": "https://github.com/ai-pipestream/turboembed/blob/main/LICENSE",
+      "trained_on": [
+        {
+          "name": "MASC 3.0.0",
+          "license": "CC-BY-3.0-US",
+          "license_terms": "https://anc.org/data/masc/"
+        }
+      ],
+      "class": "CLASS_PERMISSIVE",
+      "files": [
+        {
+          "path": "turbo-en-masc-3.0.0-chunks-1.bin",
+          "url": "https://github.com/ai-pipestream/turboembed/releases/download/models-masc-3.0.0-1/turbo-en-masc-3.0.0-chunks-1.bin",
+          "size": 6042700,
+          "sha256": "8629b99af79f4cac2f997f3f9042ecb0739776f1e49f1b01c713877a1f997e09",
+          "sha512": "93947c20b3e34d6c757644653a70eeb7fb5fc6e3fa5c2a283e87e7cdbf124616ff8b65ff398b5c16d66af179790de5dd427c6a0483d9da99cb859ab740190675"
+        }
+      ]
     }
   ]
 }
