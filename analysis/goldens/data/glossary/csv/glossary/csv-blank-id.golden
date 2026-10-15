@@ -1,0 +1,10 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	glossary/csv-blank-id	12	12	4bb3e6ddc736ee789c09f4749be99f3f232e4472f6e0777b9732cb6e5b3f152a
+annotator	opennlp.tools.formats.glossary.CsvGlossaryReader	read
+config	delimiter	,
+config	skipHeader	false
+error	opennlp.tools.util.InvalidFormatException	blank id on line 2

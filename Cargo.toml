@@ -8,6 +8,8 @@ members = [
     "analysis/core",
     "analysis/abbrev",
     "analysis/matcher",
+    "analysis/glossary",
+    "analysis/glossary-layers",
     "analysis/bpe-trainer",
     "analysis/layers",
     "analysis/chunker",

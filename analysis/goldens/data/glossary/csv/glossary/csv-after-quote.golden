@@ -1,0 +1,10 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	glossary/csv-after-quote	11	11	7370c728312ea9542fef708f81c529fbba02785b75049c4d113291c048c85218
+annotator	opennlp.tools.formats.glossary.CsvGlossaryReader	read
+config	delimiter	,
+config	skipHeader	false
+error	opennlp.tools.util.InvalidFormatException	unexpected character after closing quote on line 2

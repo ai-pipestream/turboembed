@@ -237,7 +237,7 @@ pub struct Fixture {
 /// the feature generator descriptors and their resources (`featuregen`) or
 /// of the name finder's dictionaries and patterns (`namefind`), and `Runs`
 /// opens the directory.
-pub const FIXTURES: [Fixture; 62] = [
+pub const FIXTURES: [Fixture; 63] = [
     Fixture {
         file: "en-abbrev.bin",
         sha512: "759ab1defc61351f53cdd82a26e708789a225feb6e1ec0cfd6e2e54f35f67c14\
@@ -352,6 +352,11 @@ pub const FIXTURES: [Fixture; 62] = [
         file: "gazetteer-suppressions.txt",
         sha512: "50db213abd6c0dab3409a1e8ad77aee22bd05920f2fb23c393fccec01f342d12\
                  8a336761acb8bb3df401549ad319cd6551ba3b06558e4d4cf0604025d1ef39d6",
+    },
+    Fixture {
+        file: "glossary-terms.tsv",
+        sha512: "9356e730339664c7fcbf3cd6c0aef6287ac07f0db2e13d03927a9c5f05730596\
+                 5cb13a1b0df0d5f5e5072a9dded43c07f406cfad9fcad5416d07fef80fb0623a",
     },
     Fixture {
         file: "en-detokenizer.xml",
@@ -586,6 +591,7 @@ pub const INPUT_SETS: [&str; 34] = [
     "namefind",
     "stem",
     "stopword",
+    "glossary",
 ];
 
 /// The arguments the driver passes to the generator after the fixed ones
@@ -638,6 +644,7 @@ pub const ANNOTATORS: [&str; 38] = [
     "namefind",
     "stem",
     "stopword",
+    "glossary",
 ];
 
 /// The annotators with runs that ask a maxent model for their decisions:
@@ -734,6 +741,7 @@ mod tests {
                     f.file.ends_with(".bin")
                         || f.file.ends_with(".xml")
                         || f.file.ends_with(".txt")
+                        || f.file.ends_with(".tsv")
                         || f.file.ends_with(".tagdict"),
                     "{}",
                     f.file

@@ -1,0 +1,1 @@
+<martif><text><body><termEntry id="  "><langSet xml:lang="de"><tig><term>t</term></tig></langSet></termEntry></body></text></martif>

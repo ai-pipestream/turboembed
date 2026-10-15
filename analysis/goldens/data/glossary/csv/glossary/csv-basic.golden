@@ -1,0 +1,16 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	glossary/csv-basic	86	83	6a2a4fd1e5b8514d597aed528051a54e7490a7a279f8eeed274da398c8c87828
+annotator	opennlp.tools.formats.glossary.CsvGlossaryReader	read
+config	delimiter	,
+config	skipHeader	false
+layer	turbo:glossary-entries	document	5	id:str	term:str
+c1	hot dog
+c2	New, "York"\nCity
+c3	naïve
+c4	"q"
+c5	 padded 
+end	turbo:glossary-entries

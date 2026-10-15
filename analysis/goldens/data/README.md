@@ -286,6 +286,9 @@ are not taken from any corpus.
 - `inputs/stopword/`: words and language codes the stopword lookup is asked
   about besides the lists' own, written for this project
   (`analysis/stopword/README.md`).
+- `inputs/glossary/`: texts for the glossary matchers and comma separated,
+  tab separated and TBX glossaries, well formed and malformed, for the
+  glossary readers, written for this project (`analysis/glossary/README.md`).
 
 `analysis/goldens-tool/README.md` ("Runs") lists which run reads which set.
 
@@ -344,6 +347,7 @@ that differs.
 | `gazetteer-overture.txt` | a table in the format of the addons' `OvertureGenerator` output written for this project: 10 divisions of several subtypes, comment and blank lines, and an alternate that folds to nothing |
 | `gazetteer-user.txt` | a user gazetteer table written for this project, with every column: alternates with a blank element, a bounding box with and without coordinates (one across the antimeridian), containment, attributes with padding, a feature class in lower case and a population with a plus sign |
 | `gazetteer-suppressions.txt` | suppression rules written for this project for the overlay: by name alone, with a country in either case and with a feature class in either case |
+| `glossary-terms.tsv` | a glossary of 40 entries written for this project, tab separated with an `id`, `term` header: terms of several words, case and spacing variants, punctuation, accented, Greek, Turkish, CJK, Korean and emoji terms and characters outside the BMP; the glossary matchers' goldens match with it (`analysis/glossary/README.md`) |
 
 `train-fixtures/` beside `fixtures/` holds the training data of the fixture
 models above (tagged sentences, chunks and names, written for this project);

@@ -1,0 +1,9 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	glossary/tbx-two-roots	48	48	605b0f59b7e009820c46fc83dff85c8263ed8c79535b1610f11350c958b4acc1
+annotator	opennlp.tools.formats.glossary.TbxGlossaryReader	read
+config	languageTag	de
+error	opennlp.tools.util.InvalidFormatException	malformed TBX content: ParseError at [row,col]:[2,2]\nMessage: The markup in the document following the root element must be well-formed.

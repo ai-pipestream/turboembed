@@ -30,6 +30,7 @@ const FED: &[&str] = &[
     "edge",
     "en",
     "formats",
+    "glossary",
     "head-rules",
     "ja",
     "ko",
