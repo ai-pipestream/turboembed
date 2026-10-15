@@ -1,13 +1,17 @@
 name: models-tatoeba
 
-# The full run of the language detector recipe (analysis/train-recipes
-# README, "The language detector recipe", "Full run"): fetches Tatoeba's
-# current weekly export and langdetect-183.bin, trains on the export twice
-# and checks that both runs write the same bytes, gates the model, and
-# keeps the model directories, the archives' file listings and the
-# archives as artifacts, so the run can be recorded. No export is
-# recorded yet (langdetect::EXPORT), so the runs are given
-# --unrecorded-export and their models are not a release; nothing is
+# Trains the language detector of release $TAG (release::TATOEBA_MODELS
+# in analysis/train-recipes) on the recorded Tatoeba export
+# (langdetect::EXPORT), twice, and checks that both runs write the same
+# bytes; gates it; checks that its files are the bytes the zoo's built-in
+# index lists at their addresses in the release; and, run by hand on main,
+# publishes the export's two archives as release $DATA_TAG (once) and the
+# model with the ids of its training sentences, its card and its gate
+# record as the assets of release $TAG through models-publish.yml
+# (analysis/train-recipes/README.md, "The models releases" and "The
+# language detector recipe"). A pull request that changes the workflow,
+# the recipes, the crates the run mostly rests on or the zoo's index
+# trains and checks, and keeps the files as an artifact; nothing is
 # published.
 
 on:
@@ -15,109 +19,133 @@ on:
   pull_request:
     paths:
       - ".github/workflows/models-tatoeba.yml"
+      - ".github/workflows/models-publish.yml"
       - "analysis/train-recipes/**"
       - "analysis/train-components/**"
       - "analysis/train/**"
       - "analysis/eval/**"
       - "analysis/langdetect/**"
+      - "analysis/zoo/index/zoo.json"
 
 permissions:
   contents: read
 
 env:
   CARGO_TERM_COLOR: always
-  # tatoeba::DETAILED_ARCHIVE_URL and tatoeba::CC0_ARCHIVE_URL, and the
-  # reference langdetect::LANGDETECT_183 (a test checks all three).
-  DETAILED: https://downloads.tatoeba.org/exports/sentences_detailed.tar.bz2
-  CC0: https://downloads.tatoeba.org/exports/sentences_CC0.tar.bz2
-  REFERENCE: https://downloads.apache.org/opennlp/models/langdetect/1.8.3/langdetect-183.bin
-  REFERENCE_SHA256: 2ddf585fac2e02a9dcfb9a4a9cc9417562eaac351be2efb506a2eaa87f19e9d4
+  # The release's tag and where its assets are published
+  # (release::TATOEBA_MODELS and release::RELEASES), and the release that
+  # keeps the export (release::TATOEBA_EXPORT_RELEASE); tests check all
+  # three.
+  TAG: models-tatoeba-2026-10-10-1
+  RELEASES: https://github.com/ai-pipestream/turboembed/releases/download/
+  DATA_TAG: data-tatoeba-2026-10-10
+  # The run of this workflow, from pull request #455, that downloaded the
+  # export from Tatoeba. Its artifact `tatoeba-export` holds the two
+  # archives until 2027-01-13, and is where they are fetched from until
+  # release $DATA_TAG is published.
+  EXPORT_RUN: "38769842277"
 
 jobs:
   tatoeba:
     runs-on: ubuntu-24.04
-    timeout-minutes: 300
+    timeout-minutes: 120
+    permissions:
+      contents: read
+      actions: read
+    outputs:
+      tag: ${{ env.TAG }}
     steps:
       - uses: actions/checkout@v7
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
-      # Every download is cached. Tatoeba replaces the export each week at
-      # the same addresses and publishes no digest, so the archives are
-      # cached under the size, time and ETag the server gives for each
-      # (from the response that serves the file, after any redirect): a
-      # new week's export gets a new key. A response with neither a time
-      # nor an ETag could not tell two weeks apart, so it fails the step.
-      # The digest the recipe records is printed by the runs below.
-      - id: export
-        name: the export's headers
-        run: |
-          set -euo pipefail
-          for u in "$DETAILED" "$CC0"; do
-            h=$(curl -fsSIL --retry 3 -o /dev/null \
-              -w '%header{content-length}|%header{last-modified}|%header{etag}' "$u")
-            IFS='|' read -r size time etag <<< "$h"
-            [ -n "$size" ] && { [ -n "$time" ] || [ -n "$etag" ]; } || { echo "$u: no size, or neither time nor ETag" >&2; exit 1; }
-            printf '%s\t%s\t%s\t%s\n' "$u" "$size" "$time" "$etag"
-          done | tee "$RUNNER_TEMP/export-headers"
-          echo "key=$(sha256sum < "$RUNNER_TEMP/export-headers" | cut -c1-16)" >> "$GITHUB_OUTPUT"
+      # Every download is cached, and saved as soon as it is checked, so a
+      # run that fails later does not fetch it again. The archives come
+      # from release $DATA_TAG, or from run $EXPORT_RUN's artifact while
+      # that release is not published (an address of a release that does
+      # not exist answers 404). The cache's key changes with the list.
       - id: export-cache
         uses: actions/cache/restore@v4
         with:
           path: ${{ runner.temp }}/tatoeba/archives
-          key: tatoeba-export-${{ steps.export.outputs.key }}
-      # A file of another size than the headers gave (an export replaced
-      # between the two requests) fails here, before it is cached under
-      # those headers.
-      - name: fetch the export
+          key: tatoeba-export-${{ hashFiles('analysis/train-recipes/tatoeba-export.txt') }}
+      - id: release
+        name: fetch the export from its release
         if: steps.export-cache.outputs.cache-hit != 'true'
         run: |
           set -euo pipefail
           mkdir -p "$RUNNER_TEMP/tatoeba/archives"
-          while IFS=$'\t' read -r u size _; do
-            f="$RUNNER_TEMP/tatoeba/archives/${u##*/}"
-            curl -fsSL --retry 3 -o "$f" "$u"
-            [ "$(stat -c %s "$f")" = "$size" ] || { echo "$u: $(stat -c %s "$f") bytes, the headers gave $size" >&2; exit 1; }
-          done < "$RUNNER_TEMP/export-headers"
-      # A truncated or damaged archive fails here, before it is cached.
-      - name: list and extract the archives
+          while read -r sha256 url; do
+            case "$sha256" in ''|'#'*) continue ;; esac
+            f="$RUNNER_TEMP/tatoeba/archives/${url##*/}"
+            code=$(curl -sSL --retry 3 -o "$f" -w '%{http_code}' "$url")
+            if [ "$code" = 404 ]; then
+              echo "$url: 404, so release $DATA_TAG is not published; the archives come from run $EXPORT_RUN"
+              rm -f "$RUNNER_TEMP"/tatoeba/archives/*
+              echo "missing=true" >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+            [ "$code" = 200 ] || { echo "$url: HTTP $code" >&2; exit 1; }
+          done < analysis/train-recipes/tatoeba-export.txt
+      - if: steps.release.outputs.missing == 'true'
+        uses: actions/download-artifact@v4
+        with:
+          name: tatoeba-export
+          path: ${{ runner.temp }}/tatoeba/archives
+          run-id: ${{ env.EXPORT_RUN }}
+          github-token: ${{ github.token }}
+      # The archives, from whichever source, are checked against the list
+      # before they are cached, and a file the list does not name fails the
+      # step. `tatoeba` checks the extracted files against the export's
+      # digest.
+      - name: check, list and extract the archives
         run: |
           set -euo pipefail
           mkdir -p "$RUNNER_TEMP/tatoeba/export" listings
+          while read -r sha256 url; do
+            case "$sha256" in ''|'#'*) continue ;; esac
+            echo "$sha256  ${url##*/}"
+          done < analysis/train-recipes/tatoeba-export.txt > "$RUNNER_TEMP/export.sha256"
           cd "$RUNNER_TEMP/tatoeba/archives"
-          sha256sum -- * | tee "$GITHUB_WORKSPACE/listings/archives.sha256"
+          sha256sum -c "$RUNNER_TEMP/export.sha256"
+          ls -l
+          [ "$(ls | sort)" = "$(cut -c67- "$RUNNER_TEMP/export.sha256" | sort)" ]
           for a in *.tar.bz2; do
             tar -tvjf "$a" | tee "$GITHUB_WORKSPACE/listings/${a%.tar.bz2}.listing"
             tar -xjf "$a" -C "$RUNNER_TEMP/tatoeba/export"
           done
-          cp "$RUNNER_TEMP/export-headers" "$GITHUB_WORKSPACE/listings/"
       - if: steps.export-cache.outputs.cache-hit != 'true'
         uses: actions/cache/save@v4
         with:
           path: ${{ runner.temp }}/tatoeba/archives
           key: ${{ steps.export-cache.outputs.cache-primary-key }}
-      # The reference, checked against the SHA-256 the recipe records
-      # before it is cached; `tatoeba` checks its size and SHA-256 again.
-      - id: reference-cache
+      # The model the gate scores beside the trained one, from the address
+      # tatoeba-references.txt lists, checked against the SHA-256 listed
+      # with it before it is cached. `tatoeba` checks its size and SHA-256
+      # again.
+      - id: references-cache
         uses: actions/cache/restore@v4
         with:
           path: ${{ runner.temp }}/references
-          key: langdetect-183-${{ env.REFERENCE_SHA256 }}
+          key: tatoeba-references-${{ hashFiles('analysis/train-recipes/tatoeba-references.txt') }}
       - name: fetch the reference model
         run: |
           set -euo pipefail
           mkdir -p "$RUNNER_TEMP/references"
-          f="$RUNNER_TEMP/references/${REFERENCE##*/}"
-          [ -f "$f" ] || curl -fsSL --retry 3 -o "$f" "$REFERENCE"
-          echo "$REFERENCE_SHA256  $f" | sha256sum -c -
-      - if: steps.reference-cache.outputs.cache-hit != 'true'
+          while read -r sha256 url; do
+            case "$sha256" in ''|'#'*) continue ;; esac
+            f="$RUNNER_TEMP/references/${url##*/}"
+            [ -f "$f" ] || curl -fsSL --retry 3 -o "$f" "$url"
+            echo "$sha256  $f" | sha256sum -c -
+          done < analysis/train-recipes/tatoeba-references.txt
+      - if: steps.references-cache.outputs.cache-hit != 'true'
         uses: actions/cache/save@v4
         with:
           path: ${{ runner.temp }}/references
-          key: ${{ steps.reference-cache.outputs.cache-primary-key }}
+          key: ${{ steps.references-cache.outputs.cache-primary-key }}
       - run: cargo build -q --release -p turbo-train-recipes
-      # Two runs on the same export must write the same bytes. `tatoeba`
-      # exits with 1 when the gate fails and 2 on an error; both runs are
-      # kept either way.
+      # Two runs on the export must write the same bytes. `tatoeba` exits
+      # with 1 when the gate fails and 2 on an error; both runs are kept
+      # either way.
       - name: train and gate, twice
         run: |
           set -uo pipefail
@@ -126,8 +154,7 @@ jobs:
           for r in a b; do
             start=$SECONDS
             target/release/turbo-train-recipes tatoeba --export "$RUNNER_TEMP/tatoeba/export" \
-              --references "$RUNNER_TEMP/references" --out "runs/run-$r" --unrecorded-export \
-              > "runs/run-$r.log" 2>&1
+              --references "$RUNNER_TEMP/references" --out "runs/run-$r" > "runs/run-$r.log" 2>&1
             s=$?
             cat "runs/run-$r.log"
             echo "run $r: exit status $s, $((SECONDS - start)) s" | tee -a "runs/run-$r.log"
@@ -139,20 +166,119 @@ jobs:
           done
           sha256sum runs/run-*/"$id"/* | tee runs/SHA256SUMS
           exit "$status"
-      - if: always()
+      # What the README records of the run: each language's counts, the
+      # languages left out, and the records of other languages.
+      - name: the card's languages
+        run: |
+          set -euo pipefail
+          card=runs/run-a/turbo-mul-tatoeba-langdetect-1/card.json
+          jq -r '["language", "sentences", "licence_left_out", "duplicates", "training", "held_out",
+                  "candidate_correct", "reference_correct"],
+                 (.per_language[] | [.tatoeba, .sentences, .licence_left_out, .duplicates, .training,
+                  .held_out, .candidate_correct, .reference_correct])
+                 | @tsv' "$card"
+          jq -r '.excluded_languages[] | "left out: \(.tatoeba), \(.sentences) sentences, \(.usable) usable"' "$card"
+          jq -r '.export | "records: \(.records); no language: \(.no_language); other languages: \(.other_languages)"' "$card"
+      # On a mismatch, the entry the run gives is printed to compare with
+      # the index.
+      - name: the model is the bytes the zoo's index lists
+        run: |
+          set -euo pipefail
+          recipes=target/release/turbo-train-recipes
+          if ! "$recipes" zoo-index --models runs/run-a --release "$TAG" --check; then
+            "$recipes" zoo-index --models runs/run-a --release "$TAG" \
+              | jq --arg p "$RELEASES$TAG/" '.artifacts[] | select(.files[0].url | startswith($p))'
+            exit 1
+          fi
+      # A run that fails keeps what it wrote, to compare with the index.
+      - if: failure()
         uses: actions/upload-artifact@v4
         with:
-          name: tatoeba-runs
+          name: ${{ env.TAG }}-failed-run
           path: |
             runs
             listings
           if-no-files-found: ignore
-      # The export the runs read, kept so the run can be recorded and its
-      # export kept after Tatoeba replaces it.
-      - if: always()
+          retention-days: 7
+      - name: the release's files
+        run: |
+          set -euo pipefail
+          id=turbo-mul-tatoeba-langdetect-1
+          d="runs/run-a/$id"
+          mkdir dist
+          cp "$d/$id.bin" "$d/training-sentences.txt" dist/
+          cp "$d/card.json" "dist/$id.card.json"
+          cp "$d/gate.json" "dist/$id.gate.json"
+          cd dist
+          sha256sum -- * > SHA256SUMS
+          cat SHA256SUMS
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.TAG }}
+          path: dist
+          if-no-files-found: error
+      # The archives the runs read, for publish-data; only a run that may
+      # publish uploads them.
+      - if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main'
         uses: actions/upload-artifact@v4
         with:
-          name: tatoeba-export
+          name: ${{ env.DATA_TAG }}
           path: ${{ runner.temp }}/tatoeba/archives
-          if-no-files-found: ignore
+          if-no-files-found: error
           compression-level: 0
+          retention-days: 7
+
+  # Publishes the archives the tatoeba job checked as release $DATA_TAG.
+  # When that release exists, it checks that its assets are the listed
+  # archives and publishes nothing.
+  publish-data:
+    needs: tatoeba
+    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/download-artifact@v4
+        with:
+          name: ${{ env.DATA_TAG }}
+          path: archives
+      - name: publish
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          while read -r sha256 url; do
+            case "$sha256" in ''|'#'*) continue ;; esac
+            echo "$sha256  archives/${url##*/}"
+          done < analysis/train-recipes/tatoeba-export.txt | sort > expected
+          sha256sum -c expected
+          if gh api "repos/$GH_REPO/git/ref/tags/$DATA_TAG" --silent 2> /dev/null; then
+            gh api "repos/$GH_REPO/releases/tags/$DATA_TAG" \
+              --jq '.assets[] | "\(.digest | ltrimstr("sha256:"))  archives/\(.name)"' | sort > published
+            diff expected published
+            echo "release $DATA_TAG exists, with the listed archives"
+            exit 0
+          fi
+          {
+            echo "Tatoeba's weekly export of 2026-10-10: the archives \`sentences_detailed.tar.bz2\` and \`sentences_CC0.tar.bz2\` as Tatoeba published them at https://downloads.tatoeba.org/exports/, unchanged. Tatoeba replaces its export every week at the same addresses; this release keeps the one the language detector of release ${TAG} was trained on, so that it can be trained again. Published from commit ${GITHUB_SHA}."
+            echo
+            echo "The sentences are by Tatoeba's contributors (https://tatoeba.org). Each is under CC BY 2.0 FR (https://creativecommons.org/licenses/by/2.0/fr/), or under CC0 1.0 (https://creativecommons.org/publicdomain/zero/1.0/) when \`sentences_CC0.csv\` lists it. \`sentences_detailed.csv\` names each sentence's author, and https://tatoeba.org/sentences/show/<id> shows each sentence with its author. Tatoeba's terms of use: https://tatoeba.org/en/terms_of_use."
+            echo
+            echo "How the recipe reads the export: https://github.com/${GITHUB_REPOSITORY}/blob/${GITHUB_SHA}/analysis/train-recipes/README.md"
+          } > notes
+          gh release create "$DATA_TAG" --target "$GITHUB_SHA" --title "$DATA_TAG" --notes-file notes --latest=false \
+            archives/*
+
+  # Publishes exactly the files the tatoeba job checked and uploaded, once
+  # the export they were trained on is published.
+  publish:
+    needs: [tatoeba, publish-data]
+    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main'
+    permissions:
+      contents: write
+    uses: ./.github/workflows/models-publish.yml
+    with:
+      tag: ${{ needs.tatoeba.outputs.tag }}
+      summary: The language detector the Tatoeba recipe trains on Tatoeba's export of 2026-10-10 (kept as release data-tatoeba-2026-10-10), with the ids of the sentences it was trained on (training-sentences.txt).

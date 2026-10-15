@@ -2968,9 +2968,16 @@ each (`Task::LanguageDetector`, `Scoring::Labels`). The model's
 directory lists the ids of the sentences it was trained on
 (`training-sentences.txt`), the credit CC BY 2.0 FR asks for, as
 Tatoeba's sentence addresses. Tatoeba's download host refused the
-machine it was written on, so no export is recorded and no full run has
-been made; the README has the commands, the split, the thresholds and
-which way the gate leans.
+machine it was written on, so the full run was made on GitHub's runners
+(`.github/workflows/models-tatoeba.yml`) on Tatoeba's export of
+2026-10-10, which the recipe records: 71 languages with at least 1,500
+sentences, 321,026 sentences trained on and 35,500 held out, and the
+trained model right on 92.19% of them against 83.91% for
+`langdetect-183.bin`, a pass. The model and `training-sentences.txt` go
+out as release `models-tatoeba-2026-10-10-1`, and the export's archives,
+which Tatoeba replaces every week, as release `data-tatoeba-2026-10-10`.
+The README has the record, the split, the thresholds and which way the
+gate leans.
 
 ## Differential fuzzing
 

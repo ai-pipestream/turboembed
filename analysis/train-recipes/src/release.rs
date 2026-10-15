@@ -8,11 +8,12 @@
 //! ([`ModelsRelease`]), so a recipe added later goes out in a later
 //! release and a published release keeps its assets. [`entries`] makes
 //! a release's entries from the model directories `turbo-train-recipes
-//! masc` or `ud` writes, after checking each model file and gate record
-//! against its card, and [`index_with`] is the built-in index with them
-//! added. `turbo-train-recipes zoo-index` prints that index, and with
-//! `--check` fails unless the zoo already carries it, which the `models`
-//! and `models-ud` workflows check before they publish anything.
+//! masc`, `ud` or `tatoeba` writes, after checking each file and gate
+//! record against its card, and [`index_with`] is the built-in index with
+//! them added. `turbo-train-recipes zoo-index` prints that index, and with
+//! `--check` fails unless the zoo already carries it, which the `models`,
+//! `models-ud` and `models-tatoeba` workflows check before they publish
+//! anything.
 
 use std::path::Path;
 
@@ -21,6 +22,7 @@ use turbo_zoo::{Artifact, Index, verify};
 
 use crate::card::{CARD_FILE, GATE_FILE, GateCard, ModelCard, ModelFileCard};
 use crate::error::{Error, Result, io};
+use crate::langdetect::{LANGDETECT, LanguageCard, LanguageRecipe};
 use crate::ud::{UD_RECIPES, UdRecipe};
 use crate::ud_card::UdModelCard;
 use crate::{RECIPES, Recipe, Reference};
@@ -30,7 +32,8 @@ use crate::{RECIPES, Recipe, Reference};
 pub const RELEASES: &str = "https://github.com/ai-pipestream/turboembed/releases/download/";
 
 /// A release of this repository whose assets are models the recipes of
-/// [`RECIPES`] and [`UD_RECIPES`] train.
+/// [`RECIPES`] and [`UD_RECIPES`] or the language detector recipe
+/// ([`LANGDETECT`]) train.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct ModelsRelease {
     /// The release's tag: ASCII letters, digits, `.`, `_` and `-`,
@@ -38,7 +41,8 @@ pub struct ModelsRelease {
     /// and a valid git tag.
     pub tag: &'static str,
     /// The ids of the models it publishes: those of [`RECIPES`] in its
-    /// order, then those of [`UD_RECIPES`] in its order.
+    /// order, then those of [`UD_RECIPES`] in its order, then the language
+    /// detector's.
     pub models: &'static [&'static str],
 }
 
@@ -75,8 +79,22 @@ pub const UD_MODELS: ModelsRelease = ModelsRelease {
     ],
 };
 
+/// The release that publishes the language detector the Tatoeba recipe
+/// trains on the export of 2026-10-10 (`langdetect::EXPORT`), with the ids
+/// of the sentences it was trained on.
+pub const TATOEBA_MODELS: ModelsRelease =
+    ModelsRelease { tag: "models-tatoeba-2026-10-10-1", models: &[crate::langdetect::MODEL_ID] };
+
 /// Every release of the recipes' models.
-pub const MODELS_RELEASES: [ModelsRelease; 2] = [MASC_MODELS, UD_MODELS];
+pub const MODELS_RELEASES: [ModelsRelease; 3] = [MASC_MODELS, UD_MODELS, TATOEBA_MODELS];
+
+/// The release of this repository that keeps the Tatoeba export the
+/// language detector is trained on (`langdetect::EXPORT`): its two
+/// archives as Tatoeba published them, which Tatoeba replaces every week
+/// at the same addresses. `analysis/train-recipes/tatoeba-export.txt`
+/// lists their SHA-256s and addresses, which the `models-tatoeba`
+/// workflow fetches them from.
+pub const TATOEBA_EXPORT_RELEASE: &str = "data-tatoeba-2026-10-10";
 
 impl ModelsRelease {
     /// The release of [`MODELS_RELEASES`] tagged `tag`.
@@ -107,16 +125,30 @@ impl ModelsRelease {
     pub fn ud_recipes(&self) -> Vec<UdRecipe> {
         UD_RECIPES.into_iter().filter(|r| self.models.contains(&r.model_id)).collect()
     }
+
+    /// The language detector recipe, when it publishes its model.
+    pub fn language_recipes(&self) -> Vec<LanguageRecipe> {
+        [LANGDETECT].into_iter().filter(|r| self.models.contains(&r.model_id)).collect()
+    }
+
+    /// The references of the recipes that train its models, in the order
+    /// of its models.
+    fn recipe_references(&self) -> Vec<Reference> {
+        let masc = self.recipes().into_iter().map(|r| r.reference());
+        let ud = self.ud_recipes().into_iter().map(|r| r.reference);
+        masc.chain(ud).chain(self.language_recipes().into_iter().map(|r| r.reference)).collect()
+    }
 }
 
-/// What [`entries`] reads of a model's card: the MASC recipes' card or
-/// the UD recipes' one.
+/// What [`entries`] reads of a model's card: the MASC recipes' card, the
+/// UD recipes' one or the language detector's.
 trait Card: Sized {
     fn read(path: &Path) -> Result<Self>;
     fn id(&self) -> &str;
     fn file(&self) -> &ModelFileCard;
     fn gate(&self) -> &GateCard;
-    fn artifact(&self, url: &str) -> Result<Artifact>;
+    /// The model's zoo entry, its files at their addresses in `release`.
+    fn artifact(&self, release: &ModelsRelease) -> Result<Artifact>;
 }
 
 impl Card for ModelCard {
@@ -132,8 +164,8 @@ impl Card for ModelCard {
     fn gate(&self) -> &GateCard {
         &self.gate
     }
-    fn artifact(&self, url: &str) -> Result<Artifact> {
-        ModelCard::artifact(self, url)
+    fn artifact(&self, release: &ModelsRelease) -> Result<Artifact> {
+        ModelCard::artifact(self, &release.url(&self.file.name))
     }
 }
 
@@ -150,30 +182,52 @@ impl Card for UdModelCard {
     fn gate(&self) -> &GateCard {
         &self.gate
     }
-    fn artifact(&self, url: &str) -> Result<Artifact> {
-        UdModelCard::artifact(self, url)
+    fn artifact(&self, release: &ModelsRelease) -> Result<Artifact> {
+        UdModelCard::artifact(self, &release.url(&self.file.name))
+    }
+}
+
+impl Card for LanguageCard {
+    fn read(path: &Path) -> Result<Self> {
+        LanguageCard::read(path)
+    }
+    fn id(&self) -> &str {
+        &self.id
+    }
+    fn file(&self) -> &ModelFileCard {
+        &self.file
+    }
+    fn gate(&self) -> &GateCard {
+        &self.gate
+    }
+    fn artifact(&self, release: &ModelsRelease) -> Result<Artifact> {
+        LanguageCard::artifact(self, &release.url(&self.file.name), &release.url(&self.training_sentences.name))
     }
 }
 
 /// The zoo entries of `release`'s models, in its order, made from the
-/// model directories in `models` as `turbo-train-recipes masc` and `ud`
-/// write them: each model file is checked against its card's size and
-/// digests, and the card's gate against the gate record beside it.
+/// model directories in `models` as `turbo-train-recipes masc`, `ud` and
+/// `tatoeba` write them: each file of an entry (the model, and for the
+/// language detector the ids of the sentences it was trained on) is
+/// checked against its card's size and digests, and the card's gate
+/// against the gate record beside it.
 ///
 /// # Errors
 ///
-/// A model directory, card, gate record or model file that is missing or
-/// cannot be read; a card in another model's directory, or a gate record
-/// of another model or with another outcome than the card's
+/// A model directory, card, gate record or file that is missing or cannot
+/// be read; a card in another model's directory, or a gate record of
+/// another model or with another outcome than the card's
 /// ([`Error::InvalidCard`]); a card that may not become a zoo entry
-/// ([`ModelCard::artifact`], [`UdModelCard::artifact`]); or a model file
-/// that is not the one its card describes ([`Error::Zoo`]).
+/// ([`ModelCard::artifact`], [`UdModelCard::artifact`],
+/// [`LanguageCard::artifact`]); or a file that is not the one its card
+/// describes ([`Error::Zoo`]).
 pub fn entries(models: &Path, release: &ModelsRelease) -> Result<Vec<Artifact>> {
     release
         .models
         .iter()
         .map(|id| match Recipe::trains(id) {
             Some(_) => entry::<ModelCard>(models, id, release),
+            None if *id == LANGDETECT.model_id => entry::<LanguageCard>(models, id, release),
             None => entry::<UdModelCard>(models, id, release),
         })
         .collect()
@@ -188,10 +242,12 @@ fn entry<C: Card>(models: &Path, id: &str, release: &ModelsRelease) -> Result<Ar
         return Err(Error::InvalidCard { field: "id", message: format!("{} in the directory of {id}", card.id()) });
     }
     check_gate(card.id(), card.file(), card.gate(), &ModelGateRecord::read(&dir.join(GATE_FILE))?)?;
-    let artifact = card.artifact(&release.url(&card.file().name))?;
-    let path = dir.join(&card.file().name);
-    let bytes = std::fs::read(&path).map_err(io(&path))?;
-    verify(&artifact, &artifact.files[0], &bytes)?;
+    let artifact = card.artifact(release)?;
+    for file in &artifact.files {
+        let path = dir.join(file.path.as_str());
+        let bytes = std::fs::read(&path).map_err(io(&path))?;
+        verify(&artifact, file, &bytes)?;
+    }
     Ok(artifact)
 }
 
@@ -240,20 +296,26 @@ pub fn listed_at(index: &Index, release: &ModelsRelease) -> Vec<String> {
 
 /// Where `index` differs from the index `entries` of `release`'s models
 /// give: a line for each entry that `index` lists otherwise, with the
-/// size, SHA-256 and address of both, or does not list, and one for each
-/// artifact `index` lists at an address of the release that is not one of
-/// its models. None when `index` lists `entries` and nothing else there.
+/// size, SHA-256 and address of each file of both, or does not list, and
+/// one for each artifact `index` lists at an address of the release that
+/// is not one of its models. None when `index` lists `entries` and
+/// nothing else there.
 pub fn differences(index: &Index, entries: &[Artifact], release: &ModelsRelease) -> Vec<String> {
+    let files = |a: &Artifact| {
+        let files: Vec<String> =
+            a.files.iter().map(|f| format!("{} bytes, SHA-256 {}, at {}", f.size, f.sha256, f.url)).collect();
+        files.join("; ")
+    };
     let mut lines = Vec::new();
     for entry in entries {
         match index.get(entry.id.as_str()) {
             Ok(listed) if listed == entry => {}
             Ok(listed) => {
-                let (l, m) = (&listed.files[0], &entry.files[0]);
                 lines.push(format!(
-                    "{}: the built-in index lists another entry ({} bytes, SHA-256 {}, at {}; the model has {} bytes, \
-                     SHA-256 {}, at {})",
-                    entry.id, l.size, l.sha256, l.url, m.size, m.sha256, m.url
+                    "{}: the built-in index lists another entry ({}; the model has {})",
+                    entry.id,
+                    files(listed),
+                    files(entry)
                 ));
             }
             Err(_) => lines.push(format!("{}: the built-in index does not list it", entry.id)),
@@ -272,16 +334,16 @@ pub fn differences(index: &Index, entries: &[Artifact], release: &ModelsRelease)
 
 /// The reference models a run of `release`'s recipes reads, as
 /// `(SHA-256, address)` pairs in the order of its models, each once: what
-/// `analysis/train-recipes/masc-references.txt` and `ud-references.txt`
-/// list for the `models` and `models-ud` workflows to fetch and check.
+/// `analysis/train-recipes/masc-references.txt`, `ud-references.txt` and
+/// `tatoeba-references.txt` list for the `models`, `models-ud` and
+/// `models-tatoeba` workflows to fetch and check.
 ///
 /// # Errors
 ///
 /// A zoo reference the built-in index does not list.
 pub fn references(release: &ModelsRelease) -> Result<Vec<(String, String)>> {
-    let masc = release.recipes().into_iter().map(|r| r.reference());
     let mut pairs: Vec<(String, String)> = Vec::new();
-    for reference in masc.chain(release.ud_recipes().into_iter().map(|r| r.reference)) {
+    for reference in release.recipe_references() {
         let url = match reference {
             Reference::Zoo(id) => Index::builtin().get(id)?.files[0].url.as_str().to_owned(),
             Reference::Recorded(r) => r.url.to_owned(),
@@ -302,8 +364,9 @@ mod tests {
 
     use super::*;
     use crate::card::{MODEL_LICENCE, MODEL_LICENCE_TERMS, MODEL_VERSION};
-    use crate::masc;
+    use crate::langdetect::{self, MODEL_ID, SENTENCES_FILE, ZOO_LANGUAGE};
     use crate::treebank::TextRights;
+    use crate::{masc, tatoeba};
 
     #[test]
     fn every_release_is_tagged_once_and_names_recipes_in_their_order() {
@@ -315,7 +378,9 @@ mod tests {
             assert!(tag.chars().all(|c| c.is_ascii_alphanumeric() || matches!(c, '.' | '_' | '-')), "{tag}");
             assert!(!tag.contains("..") && !tag.ends_with('.') && !tag.ends_with(".lock"), "{tag}");
             let masc = release.recipes().into_iter().map(|r| r.model_id());
-            let ids: Vec<&str> = masc.chain(release.ud_recipes().into_iter().map(|r| r.model_id)).collect();
+            let ud = release.ud_recipes().into_iter().map(|r| r.model_id);
+            let ids: Vec<&str> =
+                masc.chain(ud).chain(release.language_recipes().into_iter().map(|r| r.model_id)).collect();
             assert_eq!(ids, release.models, "{tag}: a model no recipe trains, or out of order");
             assert_eq!(ModelsRelease::tagged(tag).unwrap(), release);
         }
@@ -328,7 +393,7 @@ mod tests {
             match ModelsRelease::tagged(unknown) {
                 Err(Error::UnknownRelease { tag, known }) => {
                     assert_eq!(tag, unknown);
-                    assert_eq!(known, [MASC_MODELS.tag, UD_MODELS.tag]);
+                    assert_eq!(known, [MASC_MODELS.tag, UD_MODELS.tag, TATOEBA_MODELS.tag]);
                 }
                 other => panic!("{unknown:?}: {other:?}"),
             }
@@ -350,7 +415,8 @@ mod tests {
 
     /// The zoo lists `id`'s model at its address in `release`, as its card
     /// makes the entry: permissive, needing no acceptance, trained on
-    /// `trained_on` alone.
+    /// `trained_on` alone, its files the model and then `extra`, each at
+    /// its address in the release.
     fn listed(
         index: &Index,
         release: &ModelsRelease,
@@ -358,6 +424,7 @@ mod tests {
         component: Component,
         language: &str,
         trained_on: TrainingData,
+        extra: &[&str],
     ) {
         let entry = index.get(id).unwrap();
         assert_eq!(entry.kind, Kind::Model, "{id}");
@@ -370,10 +437,13 @@ mod tests {
         assert_eq!(entry.class, LicenceClass::Permissive, "{id}");
         assert!(entry.licences_to_accept(turbo_zoo::Policy::default()).is_empty(), "{id}");
         assert_eq!(entry.trained_on, [trained_on], "{id}");
-        assert_eq!(entry.files.len(), 1, "{id}");
-        let file = format!("{id}.bin");
-        assert_eq!(entry.files[0].path.as_str(), file);
-        assert_eq!(entry.files[0].url.as_str(), release.url(&file));
+        let files: Vec<String> =
+            std::iter::once(format!("{id}.bin")).chain(extra.iter().map(|f| (*f).to_owned())).collect();
+        assert_eq!(entry.files.len(), files.len(), "{id}");
+        for (listed, file) in entry.files.iter().zip(&files) {
+            assert_eq!(listed.path.as_str(), file, "{id}");
+            assert_eq!(listed.url.as_str(), release.url(file), "{id}");
+        }
         assert!(index.shippable().any(|a| a.id.as_str() == id), "{id}");
     }
 
@@ -385,12 +455,21 @@ mod tests {
     fn the_builtin_index_lists_every_model_at_its_release_address() {
         let index = Index::builtin();
         for recipe in MASC_MODELS.recipes() {
-            listed(&index, &MASC_MODELS, recipe.model_id(), recipe.component(), "en", masc::training_data());
+            listed(&index, &MASC_MODELS, recipe.model_id(), recipe.component(), "en", masc::training_data(), &[]);
         }
         for recipe in UD_MODELS.ud_recipes() {
             let (language, trained_on) = (recipe.treebank.language, recipe.treebank.training_data());
-            listed(&index, &UD_MODELS, recipe.model_id, recipe.zoo_component(), language, trained_on);
+            listed(&index, &UD_MODELS, recipe.model_id, recipe.zoo_component(), language, trained_on, &[]);
         }
+        let export = langdetect::EXPORT.digest().unwrap();
+        let tatoeba = TrainingData {
+            name: format!("Tatoeba export {}", &export[..16]),
+            license: turbo_zoo::Licence::CcBy20Fr,
+            license_terms: tatoeba::TERMS_URL.parse().unwrap(),
+        };
+        assert_eq!(langdetect::training_data(export), tatoeba);
+        let (id, component) = (MODEL_ID, Component::LanguageDetector);
+        listed(&index, &TATOEBA_MODELS, id, component, ZOO_LANGUAGE, tatoeba, &[SENTENCES_FILE]);
         for release in MODELS_RELEASES {
             assert_eq!(listed_at(&index, &release), release.models, "{}", release.tag);
         }
@@ -455,8 +534,7 @@ mod tests {
         assert_eq!(listed, references(release).unwrap(), "{references_file}");
         // The workflow saves each file under the address's last segment,
         // the name a run reads it by.
-        let masc = release.recipes().into_iter().map(|r| r.reference());
-        for reference in masc.chain(release.ud_recipes().into_iter().map(|r| r.reference)) {
+        for reference in release.recipe_references() {
             let (sha256, file) = (reference.sha256().unwrap(), reference.file().unwrap());
             assert!(
                 listed.iter().any(|(s, url)| *s == sha256 && url.rsplit('/').next() == Some(file.as_str())),
@@ -470,5 +548,41 @@ mod tests {
     fn the_models_workflows_publish_the_releases_and_fetch_their_references() {
         published_by(&MASC_MODELS, "models.yml", "masc-references.txt");
         published_by(&UD_MODELS, "models-ud.yml", "ud-references.txt");
+        published_by(&TATOEBA_MODELS, "models-tatoeba.yml", "tatoeba-references.txt");
+    }
+
+    /// The `models-tatoeba` workflow fetches the recorded export's two
+    /// archives from the release that keeps them, at the addresses and
+    /// with the SHA-256s `tatoeba-export.txt` lists, each under the name
+    /// Tatoeba publishes it by, and checks that both of its runs write the
+    /// same files.
+    #[test]
+    fn the_tatoeba_workflow_trains_on_the_kept_export() {
+        let tag = TATOEBA_EXPORT_RELEASE;
+        assert!(tag.starts_with(|c: char| c.is_ascii_alphanumeric()), "{tag}");
+        assert!(tag.chars().all(|c| c.is_ascii_alphanumeric() || matches!(c, '.' | '_' | '-')), "{tag}");
+        assert!(MODELS_RELEASES.iter().all(|r| r.tag != tag));
+
+        let crate_dir = Path::new(env!("CARGO_MANIFEST_DIR"));
+        let workflow = std::fs::read_to_string(crate_dir.join("../../.github/workflows/models-tatoeba.yml")).unwrap();
+        let lines: Vec<&str> = workflow.lines().map(str::trim).collect();
+        assert!(lines.contains(&format!("DATA_TAG: {tag}").as_str()));
+        assert!(workflow.contains("analysis/train-recipes/tatoeba-export.txt"));
+        let listed = std::fs::read_to_string(crate_dir.join("tatoeba-export.txt")).unwrap();
+        let listed: Vec<(&str, &str)> = listed
+            .lines()
+            .filter(|l| !l.is_empty() && !l.starts_with('#'))
+            .map(|l| l.split_once(' ').unwrap())
+            .collect();
+        let urls: Vec<String> = [tatoeba::DETAILED_ARCHIVE_URL, tatoeba::CC0_ARCHIVE_URL]
+            .map(|u| format!("{RELEASES}{tag}/{}", u.rsplit('/').next().unwrap()))
+            .to_vec();
+        assert_eq!(listed.iter().map(|(_, url)| (*url).to_owned()).collect::<Vec<_>>(), urls);
+        for (sha256, url) in listed {
+            assert!(sha256.len() == 64 && sha256.bytes().all(|b| matches!(b, b'0'..=b'9' | b'a'..=b'f')), "{url}");
+        }
+        // The runs write the model's directory under its id.
+        assert!(lines.contains(&format!("id={MODEL_ID}").as_str()));
+        assert!(workflow.contains(&format!("\"$id.bin\" {SENTENCES_FILE} {CARD_FILE} {GATE_FILE}")));
     }
 }
