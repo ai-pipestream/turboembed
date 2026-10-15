@@ -53,8 +53,11 @@ struct QueryRow {
 
 /// Reads the set in `dir` as `name`.
 pub fn read(name: &str, dir: &Path) -> Result<LoadedSet> {
-    let mut files = SetDir::new(dir);
+    read_in(name, SetDir::new(dir))
+}
 
+/// Reads the set from `files` as `name`.
+pub fn read_in(name: &str, mut files: SetDir) -> Result<LoadedSet> {
     let docs: Vec<Doc> = json_lines::<CorpusRow>(CORPUS, &files.text(CORPUS)?)?
         .into_iter()
         .map(|(_, r)| Doc { id: r.id, title: (!r.title.is_empty()).then_some(r.title), text: r.text })

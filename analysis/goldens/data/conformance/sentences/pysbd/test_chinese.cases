@@ -1,0 +1,21 @@
+# Converted from tests/lang/test_chinese.py of pySBD
+# (github.com/nipunsadvilkar/pySBD, commit 5905f13be4fc95f407b98392e0ec303617a33d86),
+# MIT License, Copyright (c) 2019 Nipun Sadvilkar (LICENSE in this directory).
+# One case per entry of each test list, in file order; `name` is the list's name and,
+# for the regression tests, the issue number; `option` the segmenter options its test uses.
+
+case pysbd/test_chinese/001
+lang zh
+name GOLDEN_ZH_RULES_TEST_CASES
+text 安永已聯繫周怡安親屬，協助辦理簽證相關事宜，周怡安家屬1月1日晚間搭乘東方航空班機抵達上海，他們步入入境大廳時神情落寞、不發一語。周怡安來自台中，去年剛從元智大學畢業，同年9月加入安永。
+sentence 安永已聯繫周怡安親屬，協助辦理簽證相關事宜，周怡安家屬1月1日晚間搭乘東方航空班機抵達上海，他們步入入境大廳時神情落寞、不發一語。
+sentence 周怡安來自台中，去年剛從元智大學畢業，同年9月加入安永。
+end
+
+case pysbd/test_chinese/002
+lang zh
+name GOLDEN_ZH_RULES_TEST_CASES
+text 我们明天一起去看《摔跤吧！爸爸》好吗？好！
+sentence 我们明天一起去看《摔跤吧！爸爸》好吗？
+sentence 好！
+end

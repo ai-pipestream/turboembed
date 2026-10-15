@@ -4,9 +4,11 @@ mod case;
 mod category;
 mod confusables;
 mod emoji;
+mod grapheme_break;
 mod normalize;
 mod props;
 mod script;
+mod sentence_break;
 mod word_break;
 
 use std::fmt::Display;
@@ -48,6 +50,9 @@ pub fn render_all(dir: &Path) -> Vec<GeneratedFile> {
         "PropList.txt",
         "DerivedNormalizationProps.txt",
         "WordBreakProperty.txt",
+        "SentenceBreakProperty.txt",
+        "GraphemeBreakProperty.txt",
+        "LineBreak.txt",
     ] {
         let file = UcdFile::read(dir, name);
         if file.header_version() != version {
@@ -71,6 +76,8 @@ pub fn render_all(dir: &Path) -> Vec<GeneratedFile> {
         GeneratedFile { name: "confusables.rs", contents: confusables::render(&inputs) },
         GeneratedFile { name: "emoji.rs", contents: emoji::render(&inputs) },
         GeneratedFile { name: "word_break.rs", contents: word_break::render(&inputs) },
+        GeneratedFile { name: "sentence_break.rs", contents: sentence_break::render(&inputs) },
+        GeneratedFile { name: "grapheme_break.rs", contents: grapheme_break::render(&inputs) },
     ]
 }
 
@@ -83,7 +90,18 @@ fn render_mod(version: (u8, u8, u8)) -> String {
         version,
     );
     file.blank();
-    for module in ["case", "category", "confusables", "emoji", "normalize", "props", "script", "word_break"] {
+    for module in [
+        "case",
+        "category",
+        "confusables",
+        "emoji",
+        "grapheme_break",
+        "normalize",
+        "props",
+        "script",
+        "sentence_break",
+        "word_break",
+    ] {
         file.line(&format!("pub(crate) mod {module};"));
     }
     file.blank();

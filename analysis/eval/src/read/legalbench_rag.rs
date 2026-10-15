@@ -65,7 +65,11 @@ struct Snippet {
 
 /// Reads the mini subset of the set in `dir` as `name`.
 pub fn read(name: &str, dir: &Path) -> Result<LoadedSet> {
-    let mut files = SetDir::new(dir);
+    read_in(name, SetDir::new(dir))
+}
+
+/// Reads the set from `files` as `name`.
+pub fn read_in(name: &str, mut files: SetDir) -> Result<LoadedSet> {
     let mut kept: Vec<(String, Test)> = Vec::new();
     for b in BENCHMARKS {
         let file = format!("benchmarks/{b}.json");

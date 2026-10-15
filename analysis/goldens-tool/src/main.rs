@@ -10,7 +10,8 @@ const USAGE: &str = "\
 usage: turbo-goldens <command>
 
   image                          build the generator's container image and print its id
-  fetch-models <dir>             download the models into <dir> and check their SHA-512
+  fetch-models <dir> [--local]   download the models into <dir> and check their SHA-512; --local also
+                                 downloads the OpenNLP 1.5 models, which CI does not fetch
   generate [--out <dir>] [--models <dir>]
                                  run the generator in the container; write the goldens and their decision
                                  point dumps into analysis/goldens/data or <dir>
@@ -25,7 +26,7 @@ usage: turbo-goldens <command>
                                  again without the container (see this crate's README); the command
                                  is behind the crate's fuzz feature (--features fuzz)
 
---models defaults to target/turbo-goldens/models, fetched as by fetch-models.";
+--models defaults to target/turbo-goldens/models, fetched as by fetch-models --local.";
 
 fn main() -> ExitCode {
     let args: Vec<String> = std::env::args().skip(1).collect();
@@ -48,7 +49,11 @@ fn run(args: &[String]) -> Result<ExitCode, String> {
             Ok(ExitCode::SUCCESS)
         }
         "fetch-models" if rest.len() == 1 => {
-            models::fetch(Path::new(&rest[0]))?;
+            models::fetch(Path::new(&rest[0]), models::Models::Published)?;
+            Ok(ExitCode::SUCCESS)
+        }
+        "fetch-models" if rest.len() == 2 && rest[1] == "--local" => {
+            models::fetch(Path::new(&rest[0]), models::Models::WithLocal)?;
             Ok(ExitCode::SUCCESS)
         }
         "generate" => {
@@ -113,7 +118,7 @@ impl Options {
 /// container into a fresh scratch directory, which the caller installs or
 /// compares.
 fn generate(models_dir: &Path) -> Result<output::RunDir, String> {
-    models::fetch(models_dir)?;
+    models::fetch(models_dir, models::Models::WithLocal)?;
     models::check_fixtures(&paths::fixtures_dir())?;
     check_input_sets(&paths::inputs_dir())?;
     let scratch = paths::scratch_dir();

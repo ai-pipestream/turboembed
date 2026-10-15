@@ -1,0 +1,8 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	descriptor-errors/length-of-wrong-type	156	156	77344d30a6ef60828b8d88724590be55eafb5b7412be6d9217d92bcbd6fce076
+annotator	opennlp.tools.util.featuregen.GeneratorFactory	create
+error	opennlp.tools.util.InvalidFormatException	parameter length must be integer!

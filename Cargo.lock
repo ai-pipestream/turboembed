@@ -1849,6 +1849,7 @@ name = "turbo-formats"
 version = "0.1.0"
 dependencies = [
  "turbo-analysis",
+ "turbo-analysis-layers",
  "turbo-goldens",
  "turbo-jvm",
  "turbo-maxent",
@@ -1972,6 +1973,7 @@ dependencies = [
  "regex",
  "turbo-analysis",
  "turbo-analysis-layers",
+ "turbo-goldens",
  "turbo-jvm",
  "turbo-maxent",
  "turbo-unicode",
@@ -2070,6 +2072,7 @@ version = "0.1.0"
 dependencies = [
  "turbo-analysis",
  "turbo-analysis-layers",
+ "turbo-goldens",
  "turbo-stem-layers",
  "turbo-unicode",
 ]
@@ -2088,6 +2091,7 @@ version = "0.1.0"
 dependencies = [
  "turbo-analysis",
  "turbo-analysis-layers",
+ "turbo-goldens",
  "turbo-stopword-layers",
  "turbo-unicode",
 ]

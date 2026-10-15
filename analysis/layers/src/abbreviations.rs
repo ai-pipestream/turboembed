@@ -7,7 +7,7 @@
 
 use std::sync::Arc;
 
-use turbo_analysis::{Edges, Ix, Layer, Span, Spans, TagSet, ViewId};
+use turbo_analysis::{Edges, Ix, Layer, Overlap, Span, Spans, TagSet, ViewId};
 
 /// What one span of an abbreviation layer is.
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
@@ -69,6 +69,7 @@ impl Abbreviations {
 
 impl Layer for Abbreviations {
     const ID: &'static str = "turbo:abbreviations";
+    const OVERLAP: Overlap = Overlap::Nesting;
     positional!(Abbreviations);
 
     fn check(&self) -> Result<(), String> {

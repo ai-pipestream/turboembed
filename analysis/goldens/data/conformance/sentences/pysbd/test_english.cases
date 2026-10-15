@@ -1,0 +1,374 @@
+# Converted from tests/lang/test_english.py of pySBD
+# (github.com/nipunsadvilkar/pySBD, commit 5905f13be4fc95f407b98392e0ec303617a33d86),
+# MIT License, Copyright (c) 2019 Nipun Sadvilkar (LICENSE in this directory).
+# One case per entry of each test list, in file order; `name` is the list's name and,
+# for the regression tests, the issue number; `option` the segmenter options its test uses.
+
+case pysbd/test_english/001
+lang en
+name GOLDEN_EN_RULES_TEST_CASES
+text Hello World. My name is Jonas.
+sentence Hello World.
+sentence My name is Jonas.
+end
+
+case pysbd/test_english/002
+lang en
+name GOLDEN_EN_RULES_TEST_CASES
+text What is your name? My name is Jonas.
+sentence What is your name?
+sentence My name is Jonas.
+end
+
+case pysbd/test_english/003
+lang en
+name GOLDEN_EN_RULES_TEST_CASES
+text There it is! I found it.
+sentence There it is!
+sentence I found it.
+end
+
+case pysbd/test_english/004
+lang en
+name GOLDEN_EN_RULES_TEST_CASES
+text My name is Jonas E. Smith.
+sentence My name is Jonas E. Smith.
+end
+
+case pysbd/test_english/005
+lang en
+name GOLDEN_EN_RULES_TEST_CASES
+text Please turn to p. 55.
+sentence Please turn to p. 55.
+end
+
+case pysbd/test_english/006
+lang en
+name GOLDEN_EN_RULES_TEST_CASES
+text Were Jane and co. at the party?
+sentence Were Jane and co. at the party?
+end
+
+case pysbd/test_english/007
+lang en
+name GOLDEN_EN_RULES_TEST_CASES
+text They closed the deal with Pitt, Briggs & Co. at noon.
+sentence They closed the deal with Pitt, Briggs & Co. at noon.
+end
+
+case pysbd/test_english/008
+lang en
+name GOLDEN_EN_RULES_TEST_CASES
+text Let's ask Jane and co. They should know.
+sentence Let's ask Jane and co.
+sentence They should know.
+end
+
+case pysbd/test_english/009
+lang en
+name GOLDEN_EN_RULES_TEST_CASES
+text They closed the deal with Pitt, Briggs & Co. It closed yesterday.
+sentence They closed the deal with Pitt, Briggs & Co.
+sentence It closed yesterday.
+end
+
+case pysbd/test_english/010
+lang en
+name GOLDEN_EN_RULES_TEST_CASES
+text I can see Mt. Fuji from here.
+sentence I can see Mt. Fuji from here.
+end
+
+case pysbd/test_english/011
+lang en
+name GOLDEN_EN_RULES_TEST_CASES
+text St. Michael's Church is on 5th st. near the light.
+sentence St. Michael's Church is on 5th st. near the light.
+end
+
+case pysbd/test_english/012
+lang en
+name GOLDEN_EN_RULES_TEST_CASES
+text That is JFK Jr.'s book.
+sentence That is JFK Jr.'s book.
+end
+
+case pysbd/test_english/013
+lang en
+name GOLDEN_EN_RULES_TEST_CASES
+text I visited the U.S.A. last year.
+sentence I visited the U.S.A. last year.
+end
+
+case pysbd/test_english/014
+lang en
+name GOLDEN_EN_RULES_TEST_CASES
+text I live in the E.U. How about you?
+sentence I live in the E.U.
+sentence How about you?
+end
+
+case pysbd/test_english/015
+lang en
+name GOLDEN_EN_RULES_TEST_CASES
+text I live in the U.S. How about you?
+sentence I live in the U.S.
+sentence How about you?
+end
+
+case pysbd/test_english/016
+lang en
+name GOLDEN_EN_RULES_TEST_CASES
+text I work for the U.S. Government in Virginia.
+sentence I work for the U.S. Government in Virginia.
+end
+
+case pysbd/test_english/017
+lang en
+name GOLDEN_EN_RULES_TEST_CASES
+text I have lived in the U.S. for 20 years.
+sentence I have lived in the U.S. for 20 years.
+end
+
+case pysbd/test_english/018
+lang en
+name GOLDEN_EN_RULES_TEST_CASES
+option xfail-upstream
+text At 5 a.m. Mr. Smith went to the bank. He left the bank at 6 P.M. Mr. Smith then went to the store.
+sentence At 5 a.m. Mr. Smith went to the bank.
+sentence He left the bank at 6 P.M.
+sentence Mr. Smith then went to the store.
+end
+
+case pysbd/test_english/019
+lang en
+name GOLDEN_EN_RULES_TEST_CASES
+text She has $100.00 in her bag.
+sentence She has $100.00 in her bag.
+end
+
+case pysbd/test_english/020
+lang en
+name GOLDEN_EN_RULES_TEST_CASES
+text She has $100.00. It is in her bag.
+sentence She has $100.00.
+sentence It is in her bag.
+end
+
+case pysbd/test_english/021
+lang en
+name GOLDEN_EN_RULES_TEST_CASES
+text He teaches science (He previously worked for 5 years as an engineer.) at the local University.
+sentence He teaches science (He previously worked for 5 years as an engineer.) at the local University.
+end
+
+case pysbd/test_english/022
+lang en
+name GOLDEN_EN_RULES_TEST_CASES
+text Her email is Jane.Doe@example.com. I sent her an email.
+sentence Her email is Jane.Doe@example.com.
+sentence I sent her an email.
+end
+
+case pysbd/test_english/023
+lang en
+name GOLDEN_EN_RULES_TEST_CASES
+text The site is: https://www.example.50.com/new-site/awesome_content.html. Please check it out.
+sentence The site is: https://www.example.50.com/new-site/awesome_content.html.
+sentence Please check it out.
+end
+
+case pysbd/test_english/024
+lang en
+name GOLDEN_EN_RULES_TEST_CASES
+text She turned to him, 'This is great.' she said.
+sentence She turned to him, 'This is great.' she said.
+end
+
+case pysbd/test_english/025
+lang en
+name GOLDEN_EN_RULES_TEST_CASES
+text She turned to him, "This is great." she said.
+sentence She turned to him, "This is great." she said.
+end
+
+case pysbd/test_english/026
+lang en
+name GOLDEN_EN_RULES_TEST_CASES
+text She turned to him, "This is great." She held the book out to show him.
+sentence She turned to him, "This is great."
+sentence She held the book out to show him.
+end
+
+case pysbd/test_english/027
+lang en
+name GOLDEN_EN_RULES_TEST_CASES
+text Hello!! Long time no see.
+sentence Hello!!
+sentence Long time no see.
+end
+
+case pysbd/test_english/028
+lang en
+name GOLDEN_EN_RULES_TEST_CASES
+text Hello?? Who is there?
+sentence Hello??
+sentence Who is there?
+end
+
+case pysbd/test_english/029
+lang en
+name GOLDEN_EN_RULES_TEST_CASES
+text Hello!? Is that you?
+sentence Hello!?
+sentence Is that you?
+end
+
+case pysbd/test_english/030
+lang en
+name GOLDEN_EN_RULES_TEST_CASES
+text Hello?! Is that you?
+sentence Hello?!
+sentence Is that you?
+end
+
+case pysbd/test_english/031
+lang en
+name GOLDEN_EN_RULES_TEST_CASES
+text 1.) The first item 2.) The second item
+sentence 1.) The first item
+sentence 2.) The second item
+end
+
+case pysbd/test_english/032
+lang en
+name GOLDEN_EN_RULES_TEST_CASES
+text 1.) The first item. 2.) The second item.
+sentence 1.) The first item.
+sentence 2.) The second item.
+end
+
+case pysbd/test_english/033
+lang en
+name GOLDEN_EN_RULES_TEST_CASES
+text 1) The first item 2) The second item
+sentence 1) The first item
+sentence 2) The second item
+end
+
+case pysbd/test_english/034
+lang en
+name GOLDEN_EN_RULES_TEST_CASES
+text 1) The first item. 2) The second item.
+sentence 1) The first item.
+sentence 2) The second item.
+end
+
+case pysbd/test_english/035
+lang en
+name GOLDEN_EN_RULES_TEST_CASES
+text 1. The first item 2. The second item
+sentence 1. The first item
+sentence 2. The second item
+end
+
+case pysbd/test_english/036
+lang en
+name GOLDEN_EN_RULES_TEST_CASES
+text 1. The first item. 2. The second item.
+sentence 1. The first item.
+sentence 2. The second item.
+end
+
+case pysbd/test_english/037
+lang en
+name GOLDEN_EN_RULES_TEST_CASES
+text • 9. The first item • 10. The second item
+sentence • 9. The first item
+sentence • 10. The second item
+end
+
+case pysbd/test_english/038
+lang en
+name GOLDEN_EN_RULES_TEST_CASES
+text ⁃9. The first item ⁃10. The second item
+sentence ⁃9. The first item
+sentence ⁃10. The second item
+end
+
+case pysbd/test_english/039
+lang en
+name GOLDEN_EN_RULES_TEST_CASES
+text a. The first item b. The second item c. The third list item
+sentence a. The first item
+sentence b. The second item
+sentence c. The third list item
+end
+
+case pysbd/test_english/040
+lang en
+name GOLDEN_EN_RULES_TEST_CASES
+text You can find it at N°. 1026.253.553. That is where the treasure is.
+sentence You can find it at N°. 1026.253.553.
+sentence That is where the treasure is.
+end
+
+case pysbd/test_english/041
+lang en
+name GOLDEN_EN_RULES_TEST_CASES
+text She works at Yahoo! in the accounting department.
+sentence She works at Yahoo! in the accounting department.
+end
+
+case pysbd/test_english/042
+lang en
+name GOLDEN_EN_RULES_TEST_CASES
+text We make a good team, you and I. Did you see Albert I. Jones yesterday?
+sentence We make a good team, you and I.
+sentence Did you see Albert I. Jones yesterday?
+end
+
+case pysbd/test_english/043
+lang en
+name GOLDEN_EN_RULES_TEST_CASES
+text Thoreau argues that by simplifying one’s life, “the laws of the universe will appear less complex. . . .”
+sentence Thoreau argues that by simplifying one’s life, “the laws of the universe will appear less complex. . . .”
+end
+
+case pysbd/test_english/044
+lang en
+name GOLDEN_EN_RULES_TEST_CASES
+text "Bohr [...] used the analogy of parallel stairways [...]" (Smith 55).
+sentence "Bohr [...] used the analogy of parallel stairways [...]" (Smith 55).
+end
+
+case pysbd/test_english/045
+lang en
+name GOLDEN_EN_RULES_TEST_CASES
+text If words are left off at the end of a sentence, and that is all that is omitted, indicate the omission with ellipsis marks (preceded and followed by a space) and then indicate the end of the sentence with a period . . . . Next sentence.
+sentence If words are left off at the end of a sentence, and that is all that is omitted, indicate the omission with ellipsis marks (preceded and followed by a space) and then indicate the end of the sentence with a period . . . .
+sentence Next sentence.
+end
+
+case pysbd/test_english/046
+lang en
+name GOLDEN_EN_RULES_TEST_CASES
+text I never meant that.... She left the store.
+sentence I never meant that....
+sentence She left the store.
+end
+
+case pysbd/test_english/047
+lang en
+name GOLDEN_EN_RULES_TEST_CASES
+text I wasn’t really ... well, what I mean...see . . . what I'm saying, the thing is . . . I didn’t mean it.
+sentence I wasn’t really ... well, what I mean...see . . . what I'm saying, the thing is . . . I didn’t mean it.
+end
+
+case pysbd/test_english/048
+lang en
+name GOLDEN_EN_RULES_TEST_CASES
+text One further habit which was somewhat weakened . . . was that of combining words into self-interpreting compounds. . . . The practice was not abandoned. . . .
+sentence One further habit which was somewhat weakened . . . was that of combining words into self-interpreting compounds.
+sentence . . . The practice was not abandoned. . . .
+end

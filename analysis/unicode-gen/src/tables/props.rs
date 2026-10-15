@@ -59,6 +59,14 @@ pub fn render(inputs: &Inputs) -> String {
         let bit = add_bit(&mut constants, constant, doc);
         set_bits(&mut values, bit, has);
     }
+    // Line_Break=SA (Complex_Context), the one Line_Break value the
+    // segmenters need: the characters of the scripts written without
+    // spaces whose words a dictionary has to find. It comes after the
+    // mapping bits, which were assigned first.
+    let line_break = inputs.file("LineBreak.txt");
+    let complex = &binary(&line_break, &["SA"])[0];
+    let bit = add_bit(&mut constants, "COMPLEX_CONTEXT", "Line_Break=SA, Complex_Context (LineBreak.txt).");
+    set_bits(&mut values, bit, |cp| complex[cp as usize]);
     let trie = Trie::build(&values);
     let mut file = RustFile::new(
         "Binary character properties, one bit each, and one bit per mapping table of case.rs and confusables.rs \
@@ -71,6 +79,7 @@ pub fn render(inputs: &Inputs) -> String {
             "SpecialCasing.txt",
             "CaseFolding.txt",
             "confusables.txt",
+            "LineBreak.txt",
         ],
         inputs.version,
     );

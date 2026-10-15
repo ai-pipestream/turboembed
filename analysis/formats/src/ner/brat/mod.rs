@@ -51,8 +51,96 @@ mod document;
 mod samples;
 
 pub use annotation::{AnnotationClass, AnnotationConfiguration, AnnotationValue, BratAnnotation, BratCause, Fragment};
-pub use document::{BratDocument, brat_documents, read_brat_corpus};
+pub use document::{BratDocument, brat_documents, read_brat_corpus, write_brat_entities};
 pub use samples::{BratParser, BratSamples};
 
 #[cfg(doc)]
 use super::NerError;
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use turbo_analysis::{Ix, Span, Spans, ViewId};
+    use turbo_analysis_layers::Tokens;
+    use turbo_unicode::WhitespaceMode;
+
+    #[test]
+    fn brat_standoff_round_trips_nested_and_discontinuous_entities() {
+        let text = "Bank of New York took the fees off today";
+        let mut tok_spans = Spans::new(ViewId::SOURCE);
+        let mut pos = 0u32;
+        for w in text.split(' ') {
+            let end = pos + w.len() as u32;
+            tok_spans.push(Span::new(pos, end));
+            pos = end + 1;
+        }
+        let tokens = Tokens { spans: tok_spans, sentence: None };
+
+        let ann = concat!(
+            "T1\tOrg 0 16\tBank of New York\n",
+            "T2\tLoc 8 16\tNew York\n",
+            "T3\tPhrasalVerb 17 21;31 34\ttook off\n",
+        );
+        let doc = BratDocument::parse("doc1", text.as_bytes(), ann.as_bytes(), WhitespaceMode::Unicode).unwrap();
+        let entities = doc.to_entities(&tokens).unwrap();
+        assert_eq!(entities.spans.len(), 3);
+        assert_eq!(entities.spans.get(Ix::new(0)), Span::new(0, 16));
+        assert!(!entities.spans.is_discontinuous(Ix::new(0)));
+        assert_eq!(entities.spans.get(Ix::new(1)), Span::new(8, 16));
+        assert!(!entities.spans.is_discontinuous(Ix::new(1)));
+        assert_eq!(entities.spans.get(Ix::new(2)), Span::new(17, 34));
+        assert!(entities.spans.is_discontinuous(Ix::new(2)));
+        assert_eq!(entities.spans.fragments(Ix::new(2)).collect::<Vec<_>>(), [Span::new(17, 21), Span::new(31, 34)],);
+
+        let written = write_brat_entities(text, &entities);
+        assert_eq!(written, ann);
+
+        let reparsed =
+            BratDocument::parse("doc1", text.as_bytes(), written.as_bytes(), WhitespaceMode::Unicode).unwrap();
+        let round_tripped = reparsed.to_entities(&tokens).unwrap();
+        assert_eq!(round_tripped.spans.len(), 3);
+        assert_eq!(
+            round_tripped.spans.fragments(Ix::new(2)).collect::<Vec<_>>(),
+            [Span::new(17, 21), Span::new(31, 34)],
+        );
+    }
+
+    #[test]
+    fn brat_offsets_are_utf16_units_and_line_breaks_are_written_as_spaces() {
+        // "é" is one unit of two bytes, the emoji two units of four bytes.
+        let text = "café 😀 New\nYork took it off";
+        let mut tok_spans = Spans::new(ViewId::SOURCE);
+        let mut pos = 0u32;
+        for w in text.split([' ', '\n']) {
+            let end = pos + w.len() as u32;
+            tok_spans.push(Span::new(pos, end));
+            pos = end + 1;
+        }
+        let tokens = Tokens { spans: tok_spans, sentence: None };
+        // "New\nYork" is units 8..16, bytes 11..19; "took" 17..21 and "off"
+        // 25..28 in units, 20..24 and 28..31 in bytes; the touching
+        // fragments "took" and " it" are one span once read.
+        let ann = concat!(
+            "T1\tLoc 8 16\tNew York\n",
+            "T2\tVerb 17 21;25 28\ttook off\n",
+            "T3\tVerb 17 21;21 24\ttook  it\n",
+        );
+        let doc = BratDocument::parse("doc1", text.as_bytes(), ann.as_bytes(), WhitespaceMode::Unicode).unwrap();
+        let entities = doc.to_entities(&tokens).unwrap();
+        assert_eq!(entities.spans.get(Ix::new(0)), Span::new(11, 19));
+        assert_eq!(entities.spans.fragments(Ix::new(1)).collect::<Vec<_>>(), [Span::new(20, 24), Span::new(28, 31)]);
+        assert_eq!(entities.spans.get(Ix::new(2)), Span::new(20, 27));
+        assert!(!entities.spans.is_discontinuous(Ix::new(2)));
+
+        let written = write_brat_entities(text, &entities);
+        assert_eq!(
+            written,
+            concat!("T1\tLoc 8 16\tNew York\n", "T2\tVerb 17 21;25 28\ttook off\n", "T3\tVerb 17 24\ttook it\n",)
+        );
+        let reparsed =
+            BratDocument::parse("doc1", text.as_bytes(), written.as_bytes(), WhitespaceMode::Unicode).unwrap();
+        let again = reparsed.to_entities(&tokens).unwrap();
+        assert_eq!(again.spans.get(Ix::new(0)), Span::new(11, 19));
+        assert_eq!(again.spans.fragments(Ix::new(1)).collect::<Vec<_>>(), [Span::new(20, 24), Span::new(28, 31)]);
+    }
+}
