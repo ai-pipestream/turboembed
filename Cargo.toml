@@ -45,6 +45,7 @@ members = [
     "analysis/geo",
     "analysis/fuzz",
     "analysis/grammar",
+    "analysis/wordnet",
     "analysis/zoo",
 ]
 resolver = "3"
