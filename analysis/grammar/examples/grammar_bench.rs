@@ -1,4 +1,4 @@
-//! Times the English grammar over a 100 KB text:
+//! Times the English number and time grammars over a 100 KB text:
 //! `cargo run --release -p turbo-grammar --example grammar_bench`.
 
 #[path = "../tests/common/sample.rs"]
@@ -7,8 +7,9 @@ mod sample;
 use std::time::Instant;
 
 use turbo_analysis::{Layer, ViewId};
+use turbo_analysis_layers::DateTime;
 use turbo_grammar::engine::Lexed;
-use turbo_grammar::{ENGLISH, Grammar, GrammarAnnotator, Output, Parser};
+use turbo_grammar::{ENGLISH, Grammar, GrammarAnnotator, Output, Parser, TimeAnnotator};
 
 fn main() {
     let text = sample::sample(100 * 1024);
@@ -46,6 +47,19 @@ fn main() {
     );
     println!(
         "lex {lex:?}, lex and parse {parse:?}, both and all three layers {per:?} per run ({:.1} MB/s)",
+        text.len() as f64 / per.as_secs_f64() / 1e6
+    );
+    let times = TimeAnnotator::english();
+    let at = DateTime::parse("2016-11-07T00:00:00");
+    let found = times.find(&text, ViewId::SOURCE, at);
+    let t = Instant::now();
+    for _ in 0..runs {
+        std::hint::black_box(times.find(&text, ViewId::SOURCE, at));
+    }
+    let per = t.elapsed() / runs;
+    println!(
+        "times: {} mentions, {per:?} per run ({:.1} MB/s)",
+        found.len(),
         text.len() as f64 / per.as_secs_f64() / 1e6
     );
 }
