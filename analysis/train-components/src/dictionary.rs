@@ -1,13 +1,15 @@
-//! The abbreviation dictionary as a training run holds and writes it:
-//! OpenNLP's `Dictionary`, a `HashSet<StringList>`, and
-//! `Dictionary.serialize`, which `DictionarySerializer` calls to write the
-//! `abbreviations.dictionary` entry of a model file.
+//! The token n-gram dictionary as a training run or dictionary builder tool
+//! holds and writes it: OpenNLP's `Dictionary`, a `HashSet<StringList>`,
+//! `Dictionary.parseOneEntryPerLine` (`DictionaryBuilderTool`),
+//! `CensusDictionaryCreatorTool.createDictionary`, and `Dictionary.serialize`,
+//! which `DictionarySerializer` calls to write the `abbreviations.dictionary`
+//! entry of a model file or a standalone dictionary XML file.
 //!
 //! `turbo_maxent::Dictionary` is the lookup side, and a case-insensitive
 //! one keeps its entries lowercased; the JVM writes each entry as it was
 //! read, in the order its hash set iterates. This type keeps both: the
 //! entries with their casing, in insertion order, and the lookup
-//! dictionary the context generators are given.
+//! dictionary the context generators and `DictionaryNameFinder` are given.
 //!
 //! The XML is what the JDK's XSLT serializer (`com.sun.org.apache.xml.
 //! internal.serializer.ToStream`) writes for the SAX events
@@ -23,6 +25,8 @@
 use std::collections::{HashMap, HashSet};
 use std::fmt::Write as _;
 
+use turbo_formats::Lines;
+use turbo_formats::ner::CensusReader;
 use turbo_maxent::{Dictionary, Entries};
 use turbo_unicode::java::code_point::to_lower_case;
 
@@ -89,6 +93,35 @@ impl AbbreviationDictionary {
         AbbreviationDictionary::assemble(case_sensitive, kept)
     }
 
+    /// `Dictionary.parseOneEntryPerLine(Reader)` (`DictionaryBuilderTool`):
+    /// reads a case-insensitive dictionary with one entry per line (`\n`,
+    /// `\r\n` or `\r`), tokens inside each line delimited by ASCII `' '`
+    /// (`new StringTokenizer(line, " ")`), and lines with no tokens skipped.
+    /// Non-space whitespace such as `\t` is kept inside tokens.
+    pub fn parse_one_entry_per_line(source: &str) -> Result<AbbreviationDictionary> {
+        let mut entries: Vec<Vec<String>> = Vec::new();
+        for line in Lines::new(source)? {
+            let tokens: Vec<String> = line.text().split(' ').filter(|s| !s.is_empty()).map(str::to_string).collect();
+            if !tokens.is_empty() {
+                entries.push(tokens);
+            }
+        }
+        AbbreviationDictionary::new(false, entries)
+    }
+
+    /// `CensusDictionaryCreatorTool.createDictionary(new NameFinderCensus90NameStream(...))`:
+    /// reads a 1990 US Census name list with [`CensusReader`] and builds a
+    /// case-sensitive dictionary of single-token recased names, stopping at
+    /// the first empty line or line without a space.
+    pub fn from_census_names(source: &str) -> Result<AbbreviationDictionary> {
+        let mut entries: Vec<Vec<String>> = Vec::new();
+        for field in CensusReader::new(source)? {
+            let field = field?;
+            entries.push(vec![field.as_str().to_string()]);
+        }
+        AbbreviationDictionary::new(true, entries)
+    }
+
     /// The lookup side of these entries. A token the JDK serializer could
     /// not write is refused here, so a dictionary that exists can always
     /// be written into a model file.
@@ -137,6 +170,20 @@ impl AbbreviationDictionary {
     pub fn serialize(&self) -> Result<Vec<u8>> {
         write_xml(self.case_sensitive, self.java_order()?)
     }
+}
+
+/// `DictionaryBuilderTool`: reads one entry per line with
+/// [`AbbreviationDictionary::parse_one_entry_per_line`] and serializes the
+/// dictionary to XML bytes identical to `Dictionary.serialize`.
+pub fn build_dictionary_xml(source: &str) -> Result<Vec<u8>> {
+    AbbreviationDictionary::parse_one_entry_per_line(source)?.serialize()
+}
+
+/// `CensusDictionaryCreatorTool`: reads a 1990 US Census name list with
+/// [`AbbreviationDictionary::from_census_names`] and serializes the
+/// dictionary to XML bytes identical to `Dictionary.serialize`.
+pub fn build_census_dictionary_xml(source: &str) -> Result<Vec<u8>> {
+    AbbreviationDictionary::from_census_names(source)?.serialize()
 }
 
 /// The key two entries share when `StringList.compareToIgnoreCase` says
@@ -387,5 +434,90 @@ mod tests {
             order,
             ["Dr.", "Inc.", "U.S.", "a.m.", "Mr.", "Prof.", "St.", "p.m.", "Mrs.", "etc.", "et al.", "e.g.", "i.e."]
         );
+    }
+
+    #[test]
+    fn parse_one_entry_per_line_matches_jvm_dictionary_builder_tool() {
+        let lines = "New York\n  Los   Angeles \n\n   \r\nnew york\rSt.\tLouis\nSan Francisco\n";
+        let dict = AbbreviationDictionary::parse_one_entry_per_line(lines).unwrap();
+        assert!(!dict.is_case_sensitive());
+        assert_eq!(
+            dict.entries(),
+            &[
+                vec!["New".to_string(), "York".to_string()],
+                vec!["Los".to_string(), "Angeles".to_string()],
+                vec!["St.\tLouis".to_string()],
+                vec!["San".to_string(), "Francisco".to_string()],
+            ][..]
+        );
+        let xml = build_dictionary_xml(lines).unwrap();
+        let expected = concat!(
+            "<?xml version=\"1.0\" encoding=\"UTF-8\"?><dictionary case_sensitive=\"false\">\n",
+            "    <entry>\n",
+            "        <token>Los</token>\n",
+            "        <token>Angeles</token>\n",
+            "    </entry>\n",
+            "    <entry>\n",
+            "        <token>San</token>\n",
+            "        <token>Francisco</token>\n",
+            "    </entry>\n",
+            "    <entry>\n",
+            "        <token>St.\tLouis</token>\n",
+            "    </entry>\n",
+            "    <entry>\n",
+            "        <token>New</token>\n",
+            "        <token>York</token>\n",
+            "    </entry>\n",
+            "</dictionary>\n",
+        );
+        assert_eq!(String::from_utf8(xml.clone()).unwrap(), expected);
+        // Byte-for-byte round-trip through XML read + serialize.
+        let round_trip = AbbreviationDictionary::read(&xml).unwrap().serialize().unwrap();
+        assert_eq!(round_trip, xml);
+    }
+
+    #[test]
+    fn from_census_names_matches_jvm_census_dictionary_creator_tool() {
+        let census = concat!(
+            "SMITH          1.006  1.006      1\n",
+            "JOHNSON        0.810  1.816      2\n",
+            "MCDONALD       0.140 32.149    101\n",
+            "SMITH          0.500 32.649    102\n",
+            "MC             0.010 32.659    103\n",
+            "\u{00C9}LAN           0.005 32.664    104\n",
+            "\n",
+            "WILLIAMS       0.699  2.515      3\n",
+        );
+        let dict = AbbreviationDictionary::from_census_names(census).unwrap();
+        assert!(dict.is_case_sensitive());
+        assert_eq!(dict.entries(), &entries(&["Smith", "Johnson", "McDonald", "Mc", "\u{00C9}lan"])[..]);
+        let xml = build_census_dictionary_xml(census).unwrap();
+        let expected = concat!(
+            "<?xml version=\"1.0\" encoding=\"UTF-8\"?><dictionary case_sensitive=\"true\">\n",
+            "    <entry>\n",
+            "        <token>McDonald</token>\n",
+            "    </entry>\n",
+            "    <entry>\n",
+            "        <token>Smith</token>\n",
+            "    </entry>\n",
+            "    <entry>\n",
+            "        <token>Mc</token>\n",
+            "    </entry>\n",
+            "    <entry>\n",
+            "        <token>\u{00C9}lan</token>\n",
+            "    </entry>\n",
+            "    <entry>\n",
+            "        <token>Johnson</token>\n",
+            "    </entry>\n",
+            "</dictionary>\n",
+        );
+        assert_eq!(String::from_utf8(xml.clone()).unwrap(), expected);
+        let round_trip = AbbreviationDictionary::read(&xml).unwrap().serialize().unwrap();
+        assert_eq!(round_trip, xml);
+    }
+
+    #[test]
+    fn from_census_names_reports_leading_space_error() {
+        assert!(matches!(AbbreviationDictionary::from_census_names(" SMITH 1.006\n"), Err(Error::Format(_))));
     }
 }
