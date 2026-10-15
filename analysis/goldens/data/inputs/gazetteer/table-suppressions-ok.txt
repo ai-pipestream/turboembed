@@ -1,0 +1,6 @@
+﻿Paris	FR	CITY
+# comment
+London
+Sao Paulo	br
+Springfield		city
+Tiny	 	 
