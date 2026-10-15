@@ -11,16 +11,19 @@ mod common;
 
 use std::path::PathBuf;
 
-use common::{GATED_DOCUMENTS, SENTENCES, rewrite_document, temp_dir, with_tags_rotated, write_corpus};
-use turbo_eval::model_gate::{Measure, ModelGateRecord, Task};
-use turbo_formats::masc::MascCorpus;
-use turbo_postag::PosTagFormat;
-use turbo_train_recipes::card::{
-    CARD_FILE, GATE_FILE, HeldOutCard, ModelCard, SpellingCard, TagCount, TagFormat, TokenCoverage, write_model_dir,
+use common::{
+    GATED_DOCUMENTS, SENTENCES, nest_token, rewrite_document, set_text_class, temp_dir, with_tags_rotated, write_corpus,
 };
-use turbo_train_recipes::masc::{self, RELEASE, SPLIT, SplitCorpus};
-use turbo_train_recipes::postag::{self, CANDIDATE_FORMAT, POS, PosRecipe, ReferenceTags};
-use turbo_train_recipes::segmentation::{SENTENCE, TOKENS};
+use turbo_eval::model_gate::{Measure, ModelGateRecord, Scoring, Task};
+use turbo_formats::masc::{MascCorpus, MascTokenReader};
+use turbo_postag::PosTagFormat;
+use turbo_train_components::{TokSpanEventStream, TokenizerFactory};
+use turbo_train_recipes::card::{
+    CARD_FILE, CARD_VERSION, GATE_FILE, HeldOutCard, ModelCard, TagCount, TagFormat, TokenCoverage, write_model_dir,
+};
+use turbo_train_recipes::masc::{self, ExcludedDocument, Exclusion, RELEASE, SPLIT, SplitCorpus};
+use turbo_train_recipes::postag::{self, POS, PosRecipe, ReferenceTags, Scored};
+use turbo_train_recipes::segmentation::{SENTENCE, TOKENS, in_text_order, read_token_samples};
 use turbo_train_recipes::{Error, LeftOut, RECIPES, Recipe, Reference, held_out_name, run};
 use turbo_zoo::{Index, LicenceClass};
 
@@ -51,10 +54,23 @@ fn the_split_holds_out_every_tenth_document_in_read_order() {
         [9, 19].iter().map(|&i| all[i].strip_prefix(&root).unwrap().to_string_lossy().into_owned()).collect();
     assert_eq!(split.held_out_paths, held);
     assert!(split.held_out_paths.iter().all(|p| !p.starts_with('/')), "{:?}", split.held_out_paths);
-    assert!(split.skipped_paths.is_empty());
     // The read order is the reader's: each directory's entries by name,
     // a directory's subdirectories after its files, the last pushed first.
     assert!(split.held_out_paths[0].starts_with("written/news/"), "{:?}", split.held_out_paths);
+
+    // A document the read skips (here, its header names no sentence
+    // file) would move the documents after it: the split refuses the
+    // corpus.
+    let header = root.join(&split.held_out_paths[1]);
+    let xml = std::fs::read_to_string(&header).unwrap();
+    let without = xml.lines().filter(|l| !l.contains("f.id=\"f.s\"")).collect::<Vec<_>>().join("\n");
+    assert_ne!(without, xml);
+    std::fs::write(&header, without).unwrap();
+    let corpus = MascCorpus::read(&root).unwrap();
+    assert_eq!(corpus.skipped().len(), 1);
+    let err = SPLIT.apply(corpus, &root).unwrap_err();
+    assert!(matches!(&err, Error::SkippedDocuments { documents } if documents.len() == 1), "{err:?}");
+    assert!(err.to_string().contains(&split.held_out_paths[1]), "{err}");
     std::fs::remove_dir_all(&root).unwrap();
 }
 
@@ -157,16 +173,29 @@ fn the_recipes_train_score_gate_and_write_their_cards() {
         assert_eq!(card.corpus.held_out_documents, split.held_out_paths);
         assert_eq!(card.training.seed, None);
         let tokens = match recipe {
-            Recipe::Pos(p) => Some(TokenCoverage {
-                tokens: p.held_out(&split.held_out).unwrap().tokens(),
-                spellings: postag::REFERENCE_SPELLINGS
-                    .iter()
-                    .map(|s| SpellingCard { masc: s.masc.to_owned(), reference: s.reference.to_owned() })
-                    .collect(),
-                left_out: Vec::new(),
-            }),
+            Recipe::Pos(p) => {
+                // The weak reference's mismatches, most frequent first.
+                let mismatches = card.held_out.tokens.as_ref().unwrap().reference_mismatches.clone();
+                assert!(!mismatches.is_empty() && mismatches.len() <= postag::MISMATCHES_LISTED);
+                assert!(mismatches.windows(2).all(|w| w[0].tokens >= w[1].tokens), "{mismatches:?}");
+                Some(TokenCoverage {
+                    tokens: p.held_out(&split.held_out).unwrap().tokens(),
+                    reference_mappings: postag::tag_mappings(&postag::REFERENCE_MAPPINGS),
+                    left_out: Vec::new(),
+                    reference_mismatches: mismatches,
+                })
+            }
             Recipe::Segmentation(_) => None,
         };
+        // The gate record holds the skipped sentences and the scoring too.
+        assert_eq!(gate.set.skipped_sentences, 0);
+        match (&gate.set.scoring, &tokens) {
+            (Scoring::Tags(t), Some(c)) => {
+                assert_eq!((t.tokens, t.left_out, &t.reference_mappings), (c.tokens, 0, &c.reference_mappings));
+            }
+            (Scoring::Spans, None) => {}
+            other => panic!("{other:?}"),
+        }
         assert_eq!(card.held_out, HeldOutCard { samples: gate.units.len(), skipped_sentences: 0, tokens });
         assert_eq!(card.training.sentences_per_sample.is_some(), recipe.task() == Task::SentenceDetector);
         assert_eq!(card.gate.pass, gate.result.pass);
@@ -182,12 +211,52 @@ fn the_recipes_train_score_gate_and_write_their_cards() {
             }
         }
 
+        // What the binary prints of the card, with the counts of a run.
+        let mut counted = card.clone();
+        (counted.training.samples, counted.training.skipped_sentences, counted.training.events) = (27149, 1, 1495034);
+        (counted.held_out.samples, counted.held_out.skipped_sentences) = (6384, 2);
+        let trained = format!(
+            "{}: trained on 27149 samples, 1 sentences skipped, 1495034 events; held out 6384 samples, 2 sentences \
+             skipped",
+            recipe.model_id()
+        );
+        if counted.held_out.tokens.is_none() {
+            assert_eq!(counted.summary().to_string(), trained);
+        } else {
+            let id = recipe.model_id();
+            fn coverage(card: &mut ModelCard) -> &mut TokenCoverage {
+                card.held_out.tokens.as_mut().unwrap()
+            }
+            coverage(&mut counted).tokens = 85292;
+            let none = format!("{id}: 0 of 85292 held-out tokens left out, their tags not the reference's: none");
+            assert_eq!(counted.summary().to_string(), format!("{trained}\n{none}"));
+            coverage(&mut counted).left_out =
+                vec![TagCount { tag: "\"".to_owned(), tokens: 2 }, TagCount { tag: "UH`".to_owned(), tokens: 3 }];
+            let some =
+                format!("{id}: 5 of 85292 held-out tokens left out, their tags not the reference's: \" (2), UH` (3)");
+            assert_eq!(counted.summary().to_string(), format!("{trained}\n{some}"));
+        }
+
         write_model_dir(&out, card, &outcome.trained.bytes, gate).unwrap();
         let dir = out.join(recipe.model_id());
         assert_eq!(ModelCard::read(&dir.join(CARD_FILE)).unwrap(), *card);
         let other = dir.join("other-card.json");
-        std::fs::write(&other, card.to_json().replace("\"card_version\": 2,", "\"card_version\": 1,")).unwrap();
+        let current = format!("\"card_version\": {CARD_VERSION},");
+        assert!(card.to_json().contains(&current));
+        std::fs::write(&other, card.to_json().replace(&current, "\"card_version\": 1,")).unwrap();
         assert!(matches!(ModelCard::read(&other), Err(Error::CardVersion { found: 1, .. })));
+        // A card of version 2, without the fields version 3 added, is of
+        // another version, not a card missing fields.
+        let mut old: serde_json::Value = serde_json::from_str(&card.to_json()).unwrap();
+        old["card_version"] = 2.into();
+        old.as_object_mut().unwrap().remove("held_out");
+        old["gate"].as_object_mut().unwrap().remove("reference_sha256");
+        std::fs::write(&other, serde_json::to_string_pretty(&old).unwrap()).unwrap();
+        assert!(matches!(ModelCard::read(&other), Err(Error::CardVersion { found: 2, .. })));
+        // A card of this version with a field missing is not a card.
+        old["card_version"] = CARD_VERSION.into();
+        std::fs::write(&other, serde_json::to_string_pretty(&old).unwrap()).unwrap();
+        assert!(matches!(ModelCard::read(&other), Err(Error::Json { .. })));
         std::fs::write(&other, "{}").unwrap();
         assert!(matches!(ModelCard::read(&other), Err(Error::Json { .. })));
         let bad_split = card.to_json().replace("\"every\": 10,", "\"every\": 0,");
@@ -330,6 +399,7 @@ fn skipped_sentences_are_recorded_and_bounded() {
             .gate(&trained.bytes, "itself", &trained.bytes, &split.held_out, &held_out_name(), &digest.sha256)
             .unwrap();
         assert_eq!((gated.held_out.samples, gated.held_out.skipped_sentences), (999, 1), "{}", recipe.model_id());
+        assert_eq!(gated.record.set.skipped_sentences, 1);
         assert_eq!(gated.record.units.len(), 999);
     }
 
@@ -357,6 +427,103 @@ fn skipped_sentences_are_recorded_and_bounded() {
     }
 }
 
+/// The documents of MASC's Twitter genre, those whose header's
+/// `textClass` names the category `TW`, are left out of both sides
+/// wherever the split puts them; every other document keeps its side,
+/// and the card and the gate record say what was left out.
+#[test]
+fn the_twitter_genre_is_left_out_of_both_sides_and_moves_no_other_document() {
+    let root = temp_dir("twitter");
+    // 90 documents: 9 held out, 8 once one is left out, 32 sentence
+    // detector samples.
+    write_corpus(&root, 90, SENTENCES);
+    let corpus = || MascCorpus::read(&root).unwrap();
+    let rel = |p: &std::path::Path| p.strip_prefix(&root).unwrap().to_string_lossy().into_owned();
+    let all: Vec<String> = corpus().documents().iter().map(|d| rel(d.path())).collect();
+    let (tweets_trained, tweets_held_out) = (all[0].clone(), all[19].clone());
+    set_text_class(&root, &tweets_trained, "WR TW");
+    set_text_class(&root, &tweets_held_out, "WR TW");
+    set_text_class(&root, &all[1], "WR BL");
+    set_text_class(&root, &all[9], "WR TWX");
+
+    let kept = SPLIT.apply_excluding(corpus(), &root, &[]).unwrap();
+    assert!(kept.excluded.is_empty());
+    let (split, digest) = split_of(&root);
+    let excluded = |path: &str| ExcludedDocument { path: path.to_owned(), exclusion: Exclusion::TwitterGenre };
+    assert_eq!(split.excluded, [excluded(&tweets_trained), excluded(&tweets_held_out)]);
+    let paths = |c: &MascCorpus| c.documents().iter().map(|d| rel(d.path())).collect::<Vec<_>>();
+    let without = |paths: Vec<String>, left_out: &str| paths.into_iter().filter(|p| p != left_out).collect::<Vec<_>>();
+    assert_eq!(paths(&split.train), without(paths(&kept.train), &tweets_trained));
+    assert_eq!(split.held_out_paths, without(kept.held_out_paths.clone(), &tweets_held_out));
+    assert_eq!((split.train.documents().len(), split.held_out.documents().len()), (80, 8));
+
+    let trained = SENTENCE.train(&split.train).unwrap();
+    let outcome = run(&Recipe::Segmentation(SENTENCE), &split, &digest, false, "itself", &trained.bytes).unwrap();
+    assert_eq!(outcome.card.corpus.excluded_documents, split.excluded);
+    assert_eq!(outcome.card.corpus.held_out_documents, split.held_out_paths);
+    assert_eq!(
+        outcome.gate.set.name,
+        "MASC 3.0.0 held out (every 10th document from the 10th, the Twitter genre left out)"
+    );
+    let json = outcome.card.to_json();
+    assert!(
+        json.contains(&format!("\"path\": \"{tweets_held_out}\",\n        \"exclusion\": \"twitter_genre\"")),
+        "{json}"
+    );
+    std::fs::remove_dir_all(&root).unwrap();
+}
+
+/// A sentence whose tokens are out of text order (a token inside the one
+/// before it) is skipped alone by the token recipe's reader, on both
+/// sides, and counted with the other skipped sentences, where
+/// `TokSpanEventStream` would refuse it; the tagger's reader reads it.
+#[test]
+fn a_sentence_with_a_token_inside_another_is_skipped_by_the_token_recipe() {
+    // 250 documents of 40 sentences: 1,000 held-out sentences.
+    let root = temp_dir("nested");
+    write_corpus(&root, 250, SENTENCES);
+    let (split, _) = split_of(&root);
+    nest_token(&root, &split.held_out_paths[0], 0);
+    let (split, _) = split_of(&root);
+    let tokens = TOKENS.held_out(&split.held_out).unwrap();
+    assert_eq!((tokens.len(), tokens.skipped()), (999, 1));
+    let tags = POS.held_out(&split.held_out).unwrap();
+    assert_eq!((tags.len(), tags.skipped()), (1000, 0));
+
+    let mut refused = 0;
+    let skipped = read_token_samples(&split.held_out, |sample| {
+        assert!(in_text_order(sample.tokens()));
+        Ok(())
+    })
+    .unwrap();
+    assert_eq!(skipped, 1);
+    let factory = TokenizerFactory::new("en", None, false, None).unwrap();
+    let mut stream = TokSpanEventStream::new(&factory, turbo_train_recipes::segmentation::WHITESPACE);
+    for read in MascTokenReader::new(&split.held_out).unwrap() {
+        let sample = read.unwrap().sample;
+        if !in_text_order(sample.tokens()) {
+            let err = stream.events(&sample, &mut Vec::new()).unwrap_err();
+            assert!(matches!(err, turbo_train_components::Error::TokensOutOfOrder { token: 1 }), "{err}");
+            refused += 1;
+        }
+    }
+    assert_eq!(refused, 1);
+
+    // A training sentence is skipped the same way, and training goes on.
+    let small = temp_dir("nested-train");
+    write_corpus(&small, GATED_DOCUMENTS, SENTENCES);
+    let (split, _) = split_of(&small);
+    let first = split.train.documents()[0].path().strip_prefix(&small).unwrap().to_string_lossy().into_owned();
+    let all = split.train.documents().len() * common::SENTENCES_PER_DOCUMENT;
+    nest_token(&small, &first, 0);
+    let (split, _) = split_of(&small);
+    let trained = TOKENS.train(&split.train).unwrap();
+    assert_eq!((trained.samples, trained.skipped_sentences), (all - 1, 1));
+    for dir in [root, small] {
+        std::fs::remove_dir_all(dir).unwrap();
+    }
+}
+
 #[test]
 fn a_held_out_set_of_another_component_is_refused() {
     let root = temp_dir("component");
@@ -373,38 +540,43 @@ fn a_held_out_set_of_another_component_is_refused() {
     // A sentence model is not a part-of-speech model, in any format, and
     // a part-of-speech model is not a tokenizer model.
     let tags = POS.held_out(&split.held_out).unwrap();
-    let penn = ReferenceTags::of(&turbo_analysis::TagSet::new("penn", &["NN", "."]));
-    assert!(matches!(POS.score(&model.bytes, CANDIDATE_FORMAT, &tags, &penn), Err(Error::Model(_))));
-    assert!(matches!(POS.score(&model.bytes, POS.reference_format, &tags, &penn), Err(Error::Model(_))));
+    let penn = ReferenceTags::of(&turbo_analysis::TagSet::new("penn", &["NN", "."]), &postag::REFERENCE_MAPPINGS);
+    assert!(matches!(POS.score(&model.bytes, Scored::Candidate, &tags, &penn), Err(Error::Model(_))));
+    assert!(matches!(POS.score(&model.bytes, Scored::Reference, &tags, &penn), Err(Error::Model(_))));
     let tagger = POS.train(&split.train).unwrap();
     assert!(TOKENS.score(&tagger.bytes, &tokens_again).is_err());
     std::fs::remove_dir_all(&root).unwrap();
 }
 
-/// A sentence tagged as MASC tags brackets, a hyphen, an ellipsis and a
-/// semicolon, and the same sentence as the reference tags them.
-const MASC_SPELLED: &str = "Wait/VB .../... he/PRP said/VBD -/- no/DT ~;/; then/RB (/( yes/UH ~)/) ~./.";
-const REFERENCE_SPELLED: &str = "Wait/VB .../: he/PRP said/VBD -/: no/DT ~;/: then/RB (/-LRB- yes/UH ~)/-RRB- ~./.";
+/// A sentence tagged as MASC tags brackets, a hyphen, an ellipsis, a
+/// semicolon and an opening quotation mark, and the same sentence as the
+/// reference tags them.
+const MASC_SPELLED: &str =
+    "Wait/VB .../... he/PRP said/VBD -/- no/DT ~;/; then/RB (/( yes/UH ~)/) and/CC \"/'' ~fine/JJ ~\"/'' ~./.";
+const REFERENCE_SPELLED: &str =
+    "Wait/VB .../: he/PRP said/VBD -/: no/DT ~;/: then/RB (/-LRB- yes/UH ~)/-RRB- and/CC \"/`` ~fine/JJ ~\"/'' ~./.";
 /// A tag no Penn tagger gives, as MASC 3.0.0 has a few.
 const ODD_TAG: &str = "Agh/UH` ~!/.";
 
-/// The tagger is scored in the reference's spelling, over the held-out
-/// tokens whose tag the reference can give: a candidate trained on MASC's
-/// spellings and a reference trained on the same sentences in its own
-/// both score every token, the token of a tag neither can give is left
-/// out and counted, and more such tokens than one in a thousand are an
-/// error that names their tags.
+/// The tagger's gate scores the held-out tokens whose tag the reference
+/// can give, as written or through the mapping of its tags: a candidate
+/// trained on MASC's tags is compared with the held-out tags as written,
+/// and a reference trained on the same sentences in its own conventions
+/// through the mapping, so both are right on every token; the reference's
+/// tags are not counted right for the candidate. The token of a tag
+/// neither can give is left out and counted, and more such tokens than
+/// one in a thousand are an error that names their tags.
 #[test]
-fn the_tagger_is_scored_in_the_reference_s_spelling_over_the_tags_it_can_give() {
+fn the_tagger_is_scored_over_the_tags_the_reference_can_give_mapping_only_the_reference_s() {
     let pool = |extra: &'static str| {
         let mut pool = SENTENCES.to_vec();
         pool.extend([extra, ODD_TAG]);
         pool
     };
     let (masc_pool, reference_pool) = (pool(MASC_SPELLED), pool(REFERENCE_SPELLED));
-    let root = temp_dir("spellings");
+    let root = temp_dir("mappings");
     write_corpus(&root, GATED_DOCUMENTS, &masc_pool[..=SENTENCES.len()]);
-    let reference_root = temp_dir("spellings-reference");
+    let reference_root = temp_dir("mappings-reference");
     write_corpus(&reference_root, GATED_DOCUMENTS, &reference_pool[..=SENTENCES.len()]);
     let (split, digest) = split_of(&root);
     let (reference_split, _) = split_of(&reference_root);
@@ -422,16 +594,39 @@ fn the_tagger_is_scored_in_the_reference_s_spelling_over_the_tags_it_can_give() 
     let coverage = run.held_out.tokens.unwrap();
     assert_eq!(coverage.tokens, tags.tokens());
     assert_eq!(coverage.left_out, [TagCount { tag: "UH`".to_owned(), tokens: 1 }]);
+    assert_eq!(coverage.reference_mismatches, []);
     let scored: u64 = run.record.units.iter().map(|u| u.reference.target).sum();
     assert_eq!(scored, tags.tokens() - 1);
-    // The reference gives `-LRB-` and `:` where MASC has `(` and `-`, and
-    // is right on every scored token, as the candidate is.
+    // The reference gives `-LRB-`, `:` and ``` `` ``` where MASC has `(`, `-`
+    // and `''`, and is right on every scored token, as the candidate is.
     assert_eq!(
         (run.record.result.candidate.score, run.record.result.reference.score),
         (100.0, 100.0),
         "{}",
         run.record
     );
+    // Scored as the candidate, the reference's tags are compared as
+    // written, and its `-LRB-`, `:` and ``` `` ``` are wrong.
+    let reference_tags = POS.reference_tags(&reference.bytes).unwrap();
+    let as_candidate: u64 = POS
+        .score(&reference.bytes, Scored::Candidate, &tags, &reference_tags)
+        .unwrap()
+        .iter()
+        .map(|c| c.true_positives)
+        .sum();
+    let mapped: u64 = POS
+        .score(&reference.bytes, Scored::Reference, &tags, &reference_tags)
+        .unwrap()
+        .iter()
+        .map(|c| c.true_positives)
+        .sum();
+    // Each held-out copy of the sentence has six such tokens: the
+    // brackets, the hyphen, the ellipsis, the semicolon and the opening
+    // quotation mark (the closing one is `''` in both).
+    let copies = tags.samples().iter().filter(|s| s.tokens()[0].as_str() == "Wait").count() as u64;
+    assert!(copies > 0);
+    assert_eq!(mapped, scored);
+    assert_eq!(mapped - as_candidate, 6 * copies);
 
     // Five such tokens are more than one in a thousand.
     rewrite_document(&root, &split.held_out_paths[0], &masc_pool, &sentences_after(&[odd; 5]));
@@ -452,6 +647,11 @@ fn the_tagger_is_scored_in_the_reference_s_spelling_over_the_tags_it_can_give() 
              1 in 1000: UH` (5)"
         )
     );
+    // The check made before training finds the same, given the
+    // reference; without it, it checks only the samples.
+    let checked = Recipe::Pos(POS).check_data(&split, "reference", Some(&reference.bytes)).unwrap_err();
+    assert_eq!(checked.to_string(), err.to_string());
+    Recipe::Pos(POS).check_data(&split, "reference", None).unwrap();
     for dir in [root, reference_root] {
         std::fs::remove_dir_all(dir).unwrap();
     }
@@ -596,9 +796,10 @@ fn the_ud_tagger_asked_for_penn_tags_gives_one_penn_tag_per_ud_tag() {
 
 /// The tagger recipe's reference, asked for Penn tags, returns its own
 /// outcomes: Penn tags, unconverted, among them the inflected verbs,
-/// plural nouns and punctuation the UD tagger cannot give. It writes the
-/// tags of `postag::REFERENCE_SPELLINGS` as that list says: brackets
-/// `-LRB-` and `-RRB-`, hyphens, dashes, ellipses and semicolons `:`.
+/// plural nouns and punctuation the UD tagger cannot give. It tags the
+/// tokens of `postag::REFERENCE_MAPPINGS` as that list says: brackets
+/// `-LRB-` and `-RRB-`, hyphens, ellipses and semicolons `:`, and an
+/// opening quotation mark ``` `` ```.
 #[test]
 fn the_penn_reference_returns_its_own_outcomes() {
     let Some(path) = reference_path(&Recipe::Pos(POS)) else { return };
@@ -620,18 +821,22 @@ fn the_penn_reference_returns_its_own_outcomes() {
             "UH", "VB", "VBD", "VBG", "VBN", "VBP", "VBZ", "WDT", "WP", "WP$", "WRB", "``"
         ]
     );
-    for spelling in postag::REFERENCE_SPELLINGS {
-        assert!(!tags.contains(&spelling.masc) && tags.contains(&spelling.reference), "{spelling:?}");
+    for mapping in postag::REFERENCE_MAPPINGS {
+        // The held-out tag is one the reference does not give, but for
+        // `''`, which it gives a closing quotation mark.
+        assert_eq!(tags.contains(&mapping.held_out), mapping.held_out == "''", "{mapping:?}");
+        assert!(tags.contains(&mapping.reference), "{mapping:?}");
     }
     let tagger = turbo_postag::PosTagger::new(model);
-    let words = ["Wait", "...", "he", "said", "-", "no", ";", "then", "(", "yes", ")", "."];
+    let words = ["Wait", "...", "he", "said", "-", "no", ";", "then", "(", "yes", ")", "and", "\"", "fine", "\"", "."];
     let (mut found, mut probs) = (Vec::new(), Vec::new());
     assert!(tagger.tag(&words, &mut found, &mut probs).unwrap());
     let given: Vec<&str> = found.iter().map(|&t| tagger.pos_model().tagset().label(t)).collect();
-    for (word, masc) in [("...", "..."), ("-", "-"), (";", ";"), ("(", "("), (")", ")")] {
-        let at = words.iter().position(|w| *w == word).unwrap();
-        assert_eq!(given[at], postag::in_reference_spelling(masc), "{word} in {given:?}");
+    for (at, held_out) in [(1, "..."), (4, "-"), (6, ";"), (8, "("), (10, ")"), (12, "''")] {
+        let mapping = postag::REFERENCE_MAPPINGS.iter().find(|m| m.held_out == held_out).unwrap();
+        assert_eq!(given[at], mapping.reference, "{} in {given:?}", words[at]);
     }
+    assert_eq!(given[14], "''", "{given:?}");
 }
 
 fn labels(tagset: &turbo_analysis::TagSet) -> Vec<&str> {
@@ -678,7 +883,7 @@ fn the_published_references_are_checked_and_scored_when_present() {
 /// is, in the order the recipes run, `RECIPES`'s, whatever the order of
 /// `--recipe`.
 #[test]
-fn the_binary_checks_every_reference_and_model_directory_before_training() {
+fn the_binary_checks_every_reference_model_directory_and_recipe_s_samples_before_training() {
     let root = temp_dir("binary-checks");
     write_corpus(&root, GATED_DOCUMENTS, SENTENCES);
     let out = temp_dir("binary-checks-out");
@@ -718,6 +923,22 @@ fn the_binary_checks_every_reference_and_model_directory_before_training() {
     assert!(stderr.contains(&format!("{}: the model directory exists", tokens.model_id())), "{stderr}");
     let written: Vec<_> = std::fs::read_dir(&models).unwrap().map(|e| e.unwrap().file_name()).collect();
     assert_eq!(written, [tokens.model_id()], "nothing else is written");
+
+    // A held-out sentence of no tokens, which the token and tagger
+    // recipes skip: one of 320 is more than one in a thousand, and both
+    // are named with the other problems, before anything is trained.
+    let (split, _) = split_of(&root);
+    let no_tokens = SENTENCES.len() + 1;
+    rewrite_document(&root, &split.held_out_paths[0], &with_skipped_sentences(), &sentences_after(&[no_tokens]));
+    let stderr = run(&[]);
+    assert_eq!(stderr.lines().count(), 6, "{stderr}");
+    for r in [tokens, pos] {
+        let line = format!("{}: 1 of 320 held-out sentences skipped, more than the limit of 1 in 1000", r.model_id());
+        assert!(stderr.contains(&line), "{stderr}");
+    }
+    assert!(!stderr.contains(&format!("{}: 1 of", sentence.model_id())), "{stderr}");
+    let written: Vec<_> = std::fs::read_dir(&models).unwrap().map(|e| e.unwrap().file_name()).collect();
+    assert_eq!(written, [tokens.model_id()], "nothing else is written");
     for dir in [root, out] {
         std::fs::remove_dir_all(dir).unwrap();
     }
@@ -748,7 +969,7 @@ fn the_binary_refuses_an_unrecorded_corpus_and_writes_each_model_s_directory() {
     };
     let refused = args(&[]);
     assert_eq!(refused.status.code(), Some(2));
-    assert!(String::from_utf8_lossy(&refused.stderr).contains("no recorded digest"), "{refused:?}");
+    assert!(String::from_utf8_lossy(&refused.stderr).contains("not the recorded release's"), "{refused:?}");
     assert!(!out.join("models").exists());
     let unknown = args(&["--unrecorded-corpus", "--recipe", "turbo-en-masc-3.0.0-chunks-1"]);
     assert_eq!(unknown.status.code(), Some(2));
@@ -784,10 +1005,12 @@ fn the_binary_refuses_an_unrecorded_corpus_and_writes_each_model_s_directory() {
                 continue;
             }
             let card = ModelCard::read(&dir.join(CARD_FILE)).unwrap();
+            let stdout = String::from_utf8_lossy(&ran.stdout);
+            let gate = ModelGateRecord::read(&dir.join(GATE_FILE)).unwrap();
+            assert!(stdout.contains(&format!("{}\n{gate}\n", card.summary())), "{stdout}");
             assert!(!card.corpus.release_recorded);
             assert_eq!(card.gate.reference, r.reference_id());
             assert_eq!(card.gate.reference_sha256, r.reference().sha256().unwrap());
-            ModelGateRecord::read(&dir.join(GATE_FILE)).unwrap();
         }
     }
     for dir in [root, out] {

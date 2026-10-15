@@ -27,22 +27,29 @@
 //! The reference is OpenNLP's English maxent tagger from the 1.5 models
 //! ([`EN_POS_MAXENT`]). OpenNLP's only English taggers trained on Penn
 //! tags are that one and the 1.5 perceptron tagger, and the maxent one is
-//! trained with the algorithm the recipe uses. Both models are scored in
-//! the reference's tag set. The reference is asked for Penn tags, which
-//! are its own outcomes and come out unconverted, and the trained model
-//! gives its outcomes as they are ([`CANDIDATE_FORMAT`]), MASC's tags.
-//! Where MASC writes a tag the reference writes another way
-//! ([`REFERENCE_SPELLINGS`]), the held-out tags and both models' tags are
-//! compared in the reference's spelling. A held-out token whose tag the
-//! reference cannot give even so would count against the reference
+//! trained with the algorithm the recipe uses. The reference is asked for
+//! Penn tags, which are its own outcomes and come out unconverted, and the
+//! trained model gives its outcomes as they are ([`CANDIDATE_FORMAT`]),
+//! MASC's tags. The trained model's tag is compared with the held-out tag
+//! as written. The reference's tag is compared with it through a mapping
+//! of the reference's tags ([`REFERENCE_MAPPINGS`]): where MASC and the
+//! reference follow different conventions (brackets, hyphens, ellipses,
+//! semicolons, quotation marks), the reference's tag for the convention
+//! is counted right too. The mapping is by tag, not by token, so it is
+//! lenient: the reference's ``` `` ```, its tag for an opening quotation
+//! mark, counts right on every held-out `''`, closing quotation marks
+//! too. It only ever favours the reference. A held-out token whose tag the reference cannot
+//! give, as written or through the mapping, would count against it
 //! whatever it did, so it is left out of both models' scores
 //! ([`ReferenceTags`]); the card records those tokens by tag, and the
 //! recipe fails when they are more than [`crate::MAX_TOKENS_LEFT_OUT`] of
-//! the held-out tokens. The reference's training data is not published,
-//! and the zoo does not list it: a run reads it from its
-//! references directory, checks it against the recorded size and SHA-256,
-//! and only scores it. It is never shipped or bundled, and the trained
-//! model is trained on MASC alone.
+//! the held-out tokens. The card also lists the reference's most frequent
+//! mismatches on the scored tokens ([`MISMATCHES_LISTED`]), so a gap of
+//! convention the mapping does not cover shows. The reference's training
+//! data is not published, and the zoo does not list it: a run reads it
+//! from its references directory, checks it against the recorded size
+//! and SHA-256, and only scores it. It is never shipped or bundled, and
+//! the trained model is trained on MASC alone.
 //!
 //! The English UD tagger, `opennlp-en-ud-ewt-pos-1.3-2.5.4`, is not the
 //! reference: it was trained on UD tags, and asked for Penn tags
@@ -52,13 +59,20 @@
 //!
 //! Both models are scored on the same held-out samples, one unit per
 //! sentence: OpenNLP's `POSEvaluator` reads each sentence's tags, and the
-//! unit counts the scored tokens tagged right. The units are gated by
-//! [`turbo_eval::model_gate`].
+//! unit counts the scored tokens each model tags right. The units are
+//! gated by [`turbo_eval::model_gate`].
+//!
+//! The UD taggers ([`crate::ud`]) are scored and gated by the same code,
+//! each as a [`PosRecipe`] of its own with no mapping and the UD limit on
+//! the tokens left out ([`PosRecipe::reference_mappings`],
+//! [`PosRecipe::max_left_out`]).
 
 use std::collections::{BTreeMap, HashSet};
 
 use turbo_analysis::{Tag, TagSet};
-use turbo_eval::model_gate::{Counts, HeldOutSet, ModelGateRecord, ModelId, PairedUnit, Task};
+use turbo_eval::model_gate::{
+    Counts, HeldOutSet, ModelGateRecord, ModelId, PairedUnit, Scoring, TagMapping, TagScoring, Task,
+};
 use turbo_formats::evaluate::PosEvaluator;
 use turbo_formats::masc::{MascCorpus, MascError, MascPosReader};
 use turbo_formats::sample::PosSample;
@@ -68,10 +82,10 @@ use turbo_train::TrainingConfiguration;
 use turbo_train_components::{PosTaggerFactory, Stamp, postag, ud};
 use turbo_zoo::Sha256;
 
-use crate::card::{HeldOutCard, SpellingCard, TagCount, TokenCoverage};
+use crate::card::{HeldOutCard, Mismatch, TagCount, TokenCoverage};
 use crate::error::{Error, LeftOut, Result};
 use crate::segmentation::{LANGUAGE, TIMESTAMP_MS};
-use crate::{GateRun, MAX_TOKENS_LEFT_OUT, RecordedReference, Reference, Trained, check_skipped};
+use crate::{GateRun, Limit, MAX_TOKENS_LEFT_OUT, RecordedReference, Reference, Trained, check_skipped};
 
 /// The format the trained model's tags are scored in: its outcomes as
 /// they are, MASC's Penn tags.
@@ -87,63 +101,128 @@ pub const EN_POS_MAXENT: RecordedReference = RecordedReference {
     sha256: "645a094f45a866687a617385233fd23ae8b0f5fa8b1b76996781a50c17bdcf3d",
 };
 
-/// A tag MASC writes one way and the reference another.
+/// A held-out tag for which the reference's tag is another: a convention
+/// in which MASC 3.0.0 and the reference differ. Only the reference's
+/// tag is compared through it.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct Spelling {
-    /// The tag as MASC, and so the trained model, writes it.
-    pub masc: &'static str,
-    /// The tag the reference gives the same tokens.
+pub struct ReferenceMapping {
+    /// The held-out tag, as MASC writes it.
+    pub held_out: &'static str,
+    /// The reference's tag counted right for it.
     pub reference: &'static str,
 }
 
-/// The MASC tags [`EN_POS_MAXENT`] writes another way. MASC 3.0.0 tags
-/// brackets (`(`, `)`, `{`, `}`) `(` and `)`, where the reference has the
-/// Penn Treebank's `-LRB-` and `-RRB-`, and has tags of its own for
-/// hyphens and dashes (`-`), ellipses (`...`) and semicolons (`;`), tokens
-/// the reference tags `:`. The tests check the reference's side when the
-/// reference is present.
-pub const REFERENCE_SPELLINGS: [Spelling; 5] = [
-    Spelling { masc: "(", reference: "-LRB-" },
-    Spelling { masc: ")", reference: "-RRB-" },
-    Spelling { masc: "-", reference: ":" },
-    Spelling { masc: "...", reference: ":" },
-    Spelling { masc: ";", reference: ":" },
+/// The reference's tags counted right for another held-out tag
+/// ([`EN_POS_MAXENT`] against MASC 3.0.0). Counted with the recipe's
+/// reader over the 390 documents the split reads from the recorded
+/// release, the Twitter genre left out (corpus digest
+/// `445449f535cac62e74b2712ad975d7b727e72b8276720dd27492266565ae0afd`):
+///
+/// - Brackets: MASC tags `(` and `{` as `(`, and `)` and `}` as `)`,
+///   where the reference has the Penn Treebank's `-LRB-` and `-RRB-`.
+/// - Hyphens: MASC tags a `-` token `-` (1,108 times) or `:` (1,243
+///   times), where the reference tags it `:`. MASC tags an en dash `–`
+///   `NN` (91 times) or `-` (9 times), and the reference tags none of the
+///   25 held-out en dashes `:`, so the mapping is for hyphens, not dashes.
+/// - Ellipses: MASC tags `...` (and its spaced forms) `...`, 425 tokens;
+///   the reference `:`.
+/// - Semicolons: MASC tags them `:` as the reference does (725 tokens),
+///   and twice `;`.
+/// - Double quotation marks: MASC tags a `"` token `''` whether it opens
+///   or closes a quotation. Of the 4,785 `"` tokens, 4,777 are tagged
+///   `''` (2,054 opening, 2,389 closing and 334 neither) and 8 are tagged
+///   `"`, a tag the reference cannot give. A mark counts as opening when
+///   the character before it is none, whitespace, `(`, `[` or `{` and the
+///   one after it is not whitespace; as closing when the character after
+///   it is none, whitespace or one of `.,;:!?)]}` and the one before it
+///   is not whitespace; and as neither when both or none of these hold.
+///   MASC gives ``` `` ``` only to a token that is a backtick (80 tokens,
+///   in 13 documents). The reference tags an opening quotation mark
+///   ``` `` ``` and a closing one `''`. The mapping is by tag, so it also
+///   counts the reference's ``` `` ``` right on a closing mark: of the 336
+///   held-out `"` tokens it credits, 272 open a quotation, 34 close one
+///   and 30 are neither. It only ever favours the reference, and the 64
+///   that do not open a quotation are at most 0.08 points of its score.
+///
+/// The tests check the reference's side when the reference is present.
+pub const REFERENCE_MAPPINGS: [ReferenceMapping; 6] = [
+    ReferenceMapping { held_out: "(", reference: "-LRB-" },
+    ReferenceMapping { held_out: ")", reference: "-RRB-" },
+    ReferenceMapping { held_out: "-", reference: ":" },
+    ReferenceMapping { held_out: "...", reference: ":" },
+    ReferenceMapping { held_out: ";", reference: ":" },
+    ReferenceMapping { held_out: "''", reference: "``" },
 ];
 
-/// `tag` as the reference writes it: its [`REFERENCE_SPELLINGS`] entry's
-/// reference spelling, or `tag` itself.
-pub fn in_reference_spelling(tag: &str) -> &str {
-    REFERENCE_SPELLINGS.iter().find(|s| s.masc == tag).map_or(tag, |s| s.reference)
+/// Whether the reference's tag `given` is right for the held-out tag
+/// `held_out` under `mappings`: the same tag, or the tag a mapping maps it
+/// to ([`REFERENCE_MAPPINGS`] for the MASC tagger).
+pub fn reference_is_right(mappings: &[ReferenceMapping], held_out: &str, given: &str) -> bool {
+    given == held_out || mappings.iter().any(|m| m.held_out == held_out && m.reference == given)
 }
 
-/// The tags a reference tagger can give, which decide the held-out
-/// tokens the gate scores: those whose tag, in the reference's spelling,
-/// is one of them.
+/// `mappings` as the gate record and the card write them.
+pub fn tag_mappings(mappings: &[ReferenceMapping]) -> Vec<TagMapping> {
+    mappings.iter().map(|m| TagMapping { held_out: m.held_out.to_owned(), reference: m.reference.to_owned() }).collect()
+}
+
+/// Which model a tagger's tags are scored as, which decides the format
+/// its tags are asked for and how they are compared with the held-out
+/// tags.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Scored {
+    /// The trained model: its outcomes as they are ([`CANDIDATE_FORMAT`]),
+    /// compared with the held-out tag as written.
+    Candidate,
+    /// The reference: its tags in the recipe's reference format, compared
+    /// through the recipe's mappings ([`reference_is_right`]).
+    Reference,
+}
+
+impl Scored {
+    /// Whether `given` is right for the held-out tag `held_out`, the
+    /// reference's tags compared through `mappings`.
+    pub fn is_right(self, mappings: &[ReferenceMapping], held_out: &str, given: &str) -> bool {
+        match self {
+            Scored::Candidate => given == held_out,
+            Scored::Reference => reference_is_right(mappings, held_out, given),
+        }
+    }
+}
+
+/// How many of the reference's most frequent mismatches the card lists.
+pub const MISMATCHES_LISTED: usize = 10;
+
+/// The tags a reference tagger can give, and the mappings its tags are
+/// compared through, which decide the held-out tokens the gate scores:
+/// those whose tag is one of them, as written or through a mapping.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ReferenceTags {
     tags: HashSet<String>,
+    mappings: &'static [ReferenceMapping],
 }
 
 impl ReferenceTags {
-    /// The tags of the reference's tag set, as it gives them.
-    pub fn of(tagset: &TagSet) -> ReferenceTags {
+    /// The tags of the reference's tag set, as it gives them, compared
+    /// through `mappings` ([`REFERENCE_MAPPINGS`] for the MASC tagger).
+    pub fn of(tagset: &TagSet, mappings: &'static [ReferenceMapping]) -> ReferenceTags {
         let tags = (0..tagset.len()).map(|i| tagset.label(Tag(i as u16)).to_owned()).collect();
-        ReferenceTags { tags }
+        ReferenceTags { tags, mappings }
     }
 
     /// Whether a held-out token tagged `tag` is scored.
     pub fn scores(&self, tag: &str) -> bool {
-        self.tags.contains(in_reference_spelling(tag))
+        self.tags.contains(tag) || self.mappings.iter().any(|m| m.held_out == tag && self.tags.contains(m.reference))
     }
 
-    /// The held-out tokens left out of the scores, by tag in the
-    /// reference's spelling, sorted by tag.
+    /// The held-out tokens left out of the scores, by their tag as
+    /// written, sorted by tag.
     pub fn left_out(&self, held_out: &HeldOutTags<'_>) -> Vec<TagCount> {
         let mut counts: BTreeMap<&str, u64> = BTreeMap::new();
         for sample in held_out.samples() {
             for tag in sample.tags() {
                 if !self.scores(tag.as_str()) {
-                    *counts.entry(in_reference_spelling(tag.as_str())).or_default() += 1;
+                    *counts.entry(tag.as_str()).or_default() += 1;
                 }
             }
         }
@@ -159,12 +238,19 @@ pub struct PosRecipe {
     pub reference: Reference,
     /// The format the reference's tags are asked for.
     pub reference_format: PosTagFormat,
+    /// The reference's tags counted right for another held-out tag.
+    pub reference_mappings: &'static [ReferenceMapping],
+    /// The most held-out tokens the gate may leave out because the
+    /// reference cannot give their tag.
+    pub max_left_out: Limit,
 }
 
 pub const POS: PosRecipe = PosRecipe {
     model_id: "turbo-en-masc-3.0.0-pos-1",
     reference: Reference::Recorded(EN_POS_MAXENT),
     reference_format: PosTagFormat::Penn,
+    reference_mappings: &REFERENCE_MAPPINGS,
+    max_left_out: MAX_TOKENS_LEFT_OUT,
 };
 
 /// Reads the part-of-speech samples of `corpus` as `MascPOSSampleStream`
@@ -198,6 +284,12 @@ pub struct HeldOutTags<'c> {
 }
 
 impl<'c> HeldOutTags<'c> {
+    /// The held-out samples `samples`, read with `skipped` sentences
+    /// skipped.
+    pub fn new(samples: Vec<PosSample<'c>>, skipped: usize) -> HeldOutTags<'c> {
+        HeldOutTags { samples, skipped }
+    }
+
     /// The samples scored.
     pub fn samples(&self) -> &[PosSample<'c>] {
         &self.samples
@@ -221,11 +313,17 @@ impl<'c> HeldOutTags<'c> {
         self.samples.iter().map(|s| s.len() as u64).sum()
     }
 
-    /// The SHA-256 of the samples as scored: for each, its number of
-    /// tokens as a little endian `u64`, then for each token its text's
-    /// length in bytes as a little endian `u64`, the text, its tag's length
-    /// and the tag.
-    pub fn sha256(&self) -> String {
+    /// The SHA-256 of the samples as scored with a reference of the tags
+    /// `reference`: for each sample, its number of tokens as a little
+    /// endian `u64`, then for each token its text's length in bytes as a
+    /// little endian `u64`, the text, its tag's length and the tag, and a
+    /// byte, 1 when the token is scored ([`ReferenceTags::scores`]) and 0
+    /// when it is left out; after the samples, the number of the
+    /// reference's mappings as a `u64` (0 for none) and each one's held-out
+    /// tag and reference tag, each as its length and its bytes. Two gates
+    /// whose references leave out other tokens, or that map other tags,
+    /// have other digests.
+    pub fn sha256(&self, reference: &ReferenceTags) -> String {
         let mut bytes = Vec::new();
         let put = |bytes: &mut Vec<u8>, s: &str| {
             bytes.extend_from_slice(&(s.len() as u64).to_le_bytes());
@@ -236,7 +334,13 @@ impl<'c> HeldOutTags<'c> {
             for (token, tag) in sample.tokens().iter().zip(sample.tags()) {
                 put(&mut bytes, token.as_str());
                 put(&mut bytes, tag.as_str());
+                bytes.push(u8::from(reference.scores(tag.as_str())));
             }
+        }
+        bytes.extend_from_slice(&(reference.mappings.len() as u64).to_le_bytes());
+        for m in reference.mappings {
+            put(&mut bytes, m.held_out);
+            put(&mut bytes, m.reference);
         }
         Sha256::of(&bytes).to_string()
     }
@@ -287,6 +391,21 @@ impl PosRecipe {
         })
     }
 
+    /// Reads the training samples as [`PosRecipe::train`] does, without
+    /// making events, and checks them as it does.
+    ///
+    /// # Errors
+    ///
+    /// As [`PosRecipe::train`], but for training.
+    pub fn check_training(&self, train: &MascCorpus) -> Result<()> {
+        let mut samples = 0;
+        let skipped = read_samples(train, |_| samples += 1)?;
+        if samples == 0 {
+            return Err(Error::EmptySplit { what: "training part-of-speech sample" });
+        }
+        check_skipped(LeftOut::TrainingSentences, skipped, samples)
+    }
+
     /// The held-out samples, read as the training samples are.
     ///
     /// # Errors
@@ -305,10 +424,10 @@ impl PosRecipe {
         Ok(out)
     }
 
-    /// Each held-out sample's counts for the tagger in `bytes`, its tags
-    /// asked for in `format`: of the tokens `reference` scores, those
-    /// tagged as the sample tags them, compared in the reference's
-    /// spelling.
+    /// Each held-out sample's counts for the tagger in `bytes`, scored as
+    /// `scored` ([`Scored`]: its tags asked for in that model's format, and
+    /// compared with the held-out tags as that model's are), over the
+    /// tokens `reference` scores.
     ///
     /// # Errors
     ///
@@ -318,24 +437,70 @@ impl PosRecipe {
     pub fn score(
         &self,
         bytes: &[u8],
-        format: PosTagFormat,
+        scored: Scored,
         held_out: &HeldOutTags<'_>,
         reference: &ReferenceTags,
     ) -> Result<Vec<Counts>> {
-        score_with(&open(bytes, format)?, held_out, reference)
+        Ok(score_with(&open(bytes, self.format(scored))?, scored, held_out, reference)?.units)
     }
 
-    /// Scores the trained model (in [`CANDIDATE_FORMAT`]) and the reference
-    /// (in the recipe's reference format) on the same held-out tokens, those
-    /// whose tag the reference can give ([`ReferenceTags`]), and runs the
-    /// gate. `reference_id` names the reference in the record
-    /// ([`Reference::id`] of [`PosRecipe::reference`] for the published
-    /// model), and `set_name` and `corpus_sha256` the held-out set.
+    /// The format a model scored as `scored` is asked for its tags in.
+    pub fn format(&self, scored: Scored) -> PosTagFormat {
+        match scored {
+            Scored::Candidate => CANDIDATE_FORMAT,
+            Scored::Reference => self.reference_format,
+        }
+    }
+
+    /// The held-out tokens the reference, of the tags `tags`, cannot give
+    /// the tag of, by tag ([`ReferenceTags::left_out`]).
+    ///
+    /// # Errors
+    ///
+    /// More of them than [`PosRecipe::max_left_out`] allows
+    /// ([`Error::TagsOutsideReference`], naming the reference
+    /// `reference_id`).
+    pub fn check_coverage(
+        &self,
+        reference_id: &str,
+        tags: &ReferenceTags,
+        held_out: &HeldOutTags<'_>,
+    ) -> Result<Vec<TagCount>> {
+        let left_out = tags.left_out(held_out);
+        let tokens = held_out.tokens();
+        if self.max_left_out.allows(left_out.iter().map(|t| t.tokens).sum(), tokens) {
+            Ok(left_out)
+        } else {
+            Err(Error::TagsOutsideReference {
+                reference: reference_id.to_owned(),
+                left_out,
+                of: tokens,
+                limit: self.max_left_out,
+            })
+        }
+    }
+
+    /// The tags of the reference model in `reference`, asked for in the
+    /// recipe's reference format, compared through the recipe's mappings.
+    ///
+    /// # Errors
+    ///
+    /// A model file that is not a part-of-speech model.
+    pub fn reference_tags(&self, reference: &[u8]) -> Result<ReferenceTags> {
+        Ok(ReferenceTags::of(open(reference, self.reference_format)?.pos_model().tagset(), self.reference_mappings))
+    }
+
+    /// Scores the trained model ([`Scored::Candidate`]) and the reference
+    /// ([`Scored::Reference`]) on the same held-out tokens, those whose tag
+    /// the reference can give ([`ReferenceTags`]), and runs the gate.
+    /// `reference_id` names the reference in the record ([`Reference::id`]
+    /// of [`PosRecipe::reference`] for the published model), and
+    /// `set_name` and `corpus_sha256` the held-out set.
     ///
     /// # Errors
     ///
     /// What [`PosRecipe::score`] fails on, a reference that cannot give the
-    /// tags of more than [`MAX_TOKENS_LEFT_OUT`] of the held-out tokens
+    /// tags of more than [`PosRecipe::max_left_out`] of the held-out tokens
     /// ([`Error::TagsOutsideReference`]), or the gate's errors.
     pub fn gate(
         &self,
@@ -347,41 +512,40 @@ impl PosRecipe {
         corpus_sha256: &str,
     ) -> Result<GateRun> {
         let reference_tagger = open(reference, self.reference_format)?;
-        let tags = ReferenceTags::of(reference_tagger.pos_model().tagset());
-        let left_out = tags.left_out(held_out);
-        let tokens = held_out.tokens();
-        if !MAX_TOKENS_LEFT_OUT.allows(left_out.iter().map(|t| t.tokens).sum(), tokens) {
-            return Err(Error::TagsOutsideReference {
-                reference: reference_id.to_owned(),
-                left_out,
-                of: tokens,
-                limit: MAX_TOKENS_LEFT_OUT,
-            });
-        }
-        let candidate = self.score(trained, CANDIDATE_FORMAT, held_out, &tags)?;
-        let baseline = score_with(&reference_tagger, held_out, &tags)?;
+        let tags = ReferenceTags::of(reference_tagger.pos_model().tagset(), self.reference_mappings);
+        let left_out = self.check_coverage(reference_id, &tags, held_out)?;
+        let candidate = self.score(trained, Scored::Candidate, held_out, &tags)?;
+        let baseline = score_with(&reference_tagger, Scored::Reference, held_out, &tags)?;
         let units = candidate
             .into_iter()
-            .zip(baseline)
+            .zip(baseline.units)
             .map(|(candidate, reference)| PairedUnit { candidate, reference })
             .collect();
+        let reference_mappings = tag_mappings(self.reference_mappings);
         let set = HeldOutSet {
             name: set_name.to_owned(),
             corpus_sha256: corpus_sha256.to_owned(),
-            samples_sha256: held_out.sha256(),
+            samples_sha256: held_out.sha256(&tags),
+            skipped_sentences: held_out.skipped() as u64,
+            scoring: Scoring::Tags(TagScoring {
+                tokens: held_out.tokens(),
+                left_out: left_out.iter().map(|t| t.tokens).sum(),
+                reference_mappings: reference_mappings.clone(),
+            }),
         };
         let id = |id: &str, bytes: &[u8]| ModelId { id: id.to_owned(), sha256: Sha256::of(bytes).to_string() };
         let record =
             ModelGateRecord::new(self.task(), set, id(self.model_id, trained), id(reference_id, reference), units)
                 .map_err(Error::Gate)?;
-        let spellings = REFERENCE_SPELLINGS
-            .iter()
-            .map(|s| SpellingCard { masc: s.masc.to_owned(), reference: s.reference.to_owned() })
-            .collect();
         let held_out = HeldOutCard {
             samples: held_out.len(),
             skipped_sentences: held_out.skipped(),
-            tokens: Some(TokenCoverage { tokens, spellings, left_out }),
+            tokens: Some(TokenCoverage {
+                tokens: held_out.tokens(),
+                reference_mappings,
+                left_out,
+                reference_mismatches: baseline.mismatches,
+            }),
         };
         Ok(GateRun { record, held_out })
     }
@@ -394,10 +558,24 @@ fn open(bytes: &[u8], format: PosTagFormat) -> Result<PosTagger> {
     Ok(PosTagger::new(model))
 }
 
+/// A tagger's counts on the held-out samples, and its most frequent
+/// mismatches on the scored tokens.
+struct Scores {
+    units: Vec<Counts>,
+    /// At most [`MISMATCHES_LISTED`], most frequent first.
+    mismatches: Vec<Mismatch>,
+}
+
 /// [`PosRecipe::score`] with a tagger already open.
-fn score_with(tagger: &PosTagger, held_out: &HeldOutTags<'_>, reference: &ReferenceTags) -> Result<Vec<Counts>> {
+fn score_with(
+    tagger: &PosTagger,
+    scored_as: Scored,
+    held_out: &HeldOutTags<'_>,
+    reference: &ReferenceTags,
+) -> Result<Scores> {
     let tagset = tagger.pos_model().tagset().clone();
-    let mut out = Vec::with_capacity(held_out.len());
+    let mut units = Vec::with_capacity(held_out.len());
+    let mut mismatches: BTreeMap<(&str, &str), u64> = BTreeMap::new();
     let (mut tags, mut probs) = (Vec::new(), Vec::new());
     let mut words: Vec<&str> = Vec::new();
     let mut labels: Vec<&str> = Vec::new();
@@ -419,16 +597,32 @@ fn score_with(tagger: &PosTagger, held_out: &HeldOutTags<'_>, reference: &Refere
             right_as_written += u64::from(expected.as_str() == given);
             if reference.scores(expected.as_str()) {
                 scored += 1;
-                right += u64::from(in_reference_spelling(expected.as_str()) == in_reference_spelling(given));
+                if scored_as.is_right(reference.mappings, expected.as_str(), given) {
+                    right += 1;
+                } else {
+                    *mismatches.entry((expected.as_str(), given)).or_default() += 1;
+                }
             }
         }
         // The tags as written, counted over every token, are what
         // `POSEvaluator` counts.
         debug_assert_eq!(evaluator.word_count(), sample.len() as u64);
         debug_assert_eq!(right_as_written as f64 / sample.len() as f64, evaluator.word_accuracy());
-        out.push(Counts::accuracy(right, scored));
+        units.push(Counts::accuracy(right, scored));
     }
-    Ok(out)
+    Ok(Scores { units, mismatches: most_frequent(mismatches) })
+}
+
+/// The [`MISMATCHES_LISTED`] most frequent mismatches, most frequent
+/// first, then by held-out tag and given tag.
+fn most_frequent(mismatches: BTreeMap<(&str, &str), u64>) -> Vec<Mismatch> {
+    let mut all: Vec<((&str, &str), u64)> = mismatches.into_iter().collect();
+    // Stable, so equal counts keep the map's order of the tags.
+    all.sort_by_key(|a| std::cmp::Reverse(a.1));
+    all.into_iter()
+        .take(MISMATCHES_LISTED)
+        .map(|((held_out, given), tokens)| Mismatch { held_out: held_out.to_owned(), given: given.to_owned(), tokens })
+        .collect()
 }
 
 #[cfg(test)]
@@ -445,40 +639,78 @@ mod tests {
     }
 
     #[test]
-    fn the_held_out_digest_covers_tokens_tags_and_their_boundaries() {
+    fn the_held_out_digest_covers_tokens_tags_what_is_scored_and_the_mapping() {
         let text = "Dogs ran.";
+        let reference = ReferenceTags::of(&TagSet::new("reference", &["NNS", "VBD", "VBN", "."]), &REFERENCE_MAPPINGS);
         let one =
             HeldOutTags { samples: vec![sample(text, &[(0, 4), (5, 8), (8, 9)], &["NNS", "VBD", "."])], skipped: 0 };
         let mut bytes = Vec::new();
-        bytes.extend_from_slice(&3u64.to_le_bytes());
-        for s in ["Dogs", "NNS", "ran", "VBD", ".", "."] {
+        let put = |bytes: &mut Vec<u8>, s: &str| {
             bytes.extend_from_slice(&(s.len() as u64).to_le_bytes());
             bytes.extend_from_slice(s.as_bytes());
+        };
+        bytes.extend_from_slice(&3u64.to_le_bytes());
+        for (token, tag) in [("Dogs", "NNS"), ("ran", "VBD"), (".", ".")] {
+            put(&mut bytes, token);
+            put(&mut bytes, tag);
+            bytes.push(1);
         }
-        assert_eq!(one.sha256(), Sha256::of(&bytes).to_string());
-        // Another tag, or the same text cut into other tokens, is another set.
+        bytes.extend_from_slice(&(REFERENCE_MAPPINGS.len() as u64).to_le_bytes());
+        for m in REFERENCE_MAPPINGS {
+            put(&mut bytes, m.held_out);
+            put(&mut bytes, m.reference);
+        }
+        assert_eq!(one.sha256(&reference), Sha256::of(&bytes).to_string());
+        // Another tag, the same text cut into other tokens, or a reference
+        // that leaves another token out, is another set.
         let tag =
             HeldOutTags { samples: vec![sample(text, &[(0, 4), (5, 8), (8, 9)], &["NNS", "VBN", "."])], skipped: 0 };
         let cut = HeldOutTags { samples: vec![sample(text, &[(0, 4), (5, 9)], &["NNS", "VBD"])], skipped: 0 };
-        assert_ne!(one.sha256(), tag.sha256());
-        assert_ne!(one.sha256(), cut.sha256());
+        let no_dot = ReferenceTags::of(&TagSet::new("reference", &["NNS", "VBD", "VBN"]), &REFERENCE_MAPPINGS);
+        assert_ne!(one.sha256(&reference), tag.sha256(&reference));
+        assert_ne!(one.sha256(&reference), cut.sha256(&reference));
+        assert_ne!(one.sha256(&reference), one.sha256(&no_dot));
+        // With no mapping, the digest ends with a count of 0 mappings.
+        let unmapped = ReferenceTags::of(&TagSet::new("reference", &["NNS", "VBD", "VBN", "."]), &[]);
+        let mut bytes = Vec::new();
+        bytes.extend_from_slice(&3u64.to_le_bytes());
+        for (token, tag) in [("Dogs", "NNS"), ("ran", "VBD"), (".", ".")] {
+            put(&mut bytes, token);
+            put(&mut bytes, tag);
+            bytes.push(1);
+        }
+        bytes.extend_from_slice(&0u64.to_le_bytes());
+        assert_eq!(one.sha256(&unmapped), Sha256::of(&bytes).to_string());
     }
 
     #[test]
-    fn held_out_tags_are_scored_in_the_reference_s_spelling_when_it_can_give_them() {
-        assert_eq!(in_reference_spelling("("), "-LRB-");
-        assert_eq!(in_reference_spelling(")"), "-RRB-");
-        for colon in ["-", "...", ";", ":"] {
-            assert_eq!(in_reference_spelling(colon), ":");
+    fn only_the_reference_s_tags_are_compared_through_the_mapping() {
+        let m = &REFERENCE_MAPPINGS;
+        for (held_out, given) in [("(", "-LRB-"), (")", "-RRB-"), ("-", ":"), ("...", ":"), (";", ":"), ("''", "``")] {
+            assert!(Scored::Reference.is_right(m, held_out, given), "{held_out} {given}");
+            assert!(!Scored::Candidate.is_right(m, held_out, given), "{held_out} {given}");
+            // With no mapping, as the UD taggers are gated, the reference's
+            // tags are compared as written too.
+            assert!(!Scored::Reference.is_right(&[], held_out, given), "{held_out} {given}");
         }
-        assert_eq!(in_reference_spelling("-LRB-"), "-LRB-");
-        assert_eq!(in_reference_spelling("NN"), "NN");
+        for same in ["(", ":", "''", "``", "NN"] {
+            assert!(Scored::Reference.is_right(m, same, same) && Scored::Candidate.is_right(m, same, same));
+            assert!(Scored::Reference.is_right(&[], same, same));
+        }
+        // The mapping goes one way, from the held-out tag to the reference's.
+        for (held_out, given) in [("-LRB-", "("), (":", "-"), (":", "..."), ("``", "''"), ("-", "..."), ("NN", "NNS")] {
+            assert!(!Scored::Reference.is_right(m, held_out, given), "{held_out} {given}");
+        }
+        assert_eq!(MISMATCHES_LISTED, 10);
+    }
 
-        let tags = ReferenceTags::of(&TagSet::new("reference", &["-LRB-", ":", "NN", "UH"]));
-        for scored in ["(", "-LRB-", "-", "...", ";", ":", "NN"] {
+    #[test]
+    fn held_out_tokens_are_scored_when_the_reference_can_give_their_tag_as_written_or_mapped() {
+        let tags = ReferenceTags::of(&TagSet::new("reference", &["-LRB-", ":", "NN", "UH", "``"]), &REFERENCE_MAPPINGS);
+        for scored in ["(", "-LRB-", "-", "...", ";", ":", "NN", "``", "''"] {
             assert!(tags.scores(scored), "{scored}");
         }
-        for left_out in [")", "-RRB-", "PRN", "UH`", "nn"] {
+        for left_out in [")", "-RRB-", "PRN", "UH`", "nn", "\""] {
             assert!(!tags.scores(left_out), "{left_out}");
         }
         let text = "( Agh ) they ; Agh";
@@ -491,7 +723,42 @@ mod tests {
         };
         assert_eq!(held_out.tokens(), 6);
         let count = |tag: &str, tokens| TagCount { tag: tag.to_owned(), tokens };
-        // Sorted by tag, a bracket under the reference's spelling.
-        assert_eq!(tags.left_out(&held_out), [count("-RRB-", 1), count("PRN", 1), count("UH`", 2)]);
+        // Sorted by the tag as written.
+        assert_eq!(tags.left_out(&held_out), [count(")", 1), count("PRN", 1), count("UH`", 2)]);
+        // With no mapping, a held-out tag is scored only when the reference
+        // gives it as written.
+        let unmapped = ReferenceTags::of(&TagSet::new("reference", &["-LRB-", ":", "NN", "UH", "``"]), &[]);
+        assert!(unmapped.scores(":") && unmapped.scores("-LRB-") && !unmapped.scores("(") && !unmapped.scores(";"));
+        assert_eq!(
+            unmapped.left_out(&held_out),
+            [count("(", 1), count(")", 1), count(";", 1), count("PRN", 1), count("UH`", 2)]
+        );
+    }
+
+    #[test]
+    fn the_most_frequent_mismatches_come_first_and_are_at_most_ten() {
+        let mut counts = BTreeMap::new();
+        let held: Vec<String> = (0..12).map(|i| format!("T{i:02}")).collect();
+        for (i, tag) in held.iter().enumerate() {
+            counts.insert((tag.as_str(), "NN"), (i % 4) as u64 + 1);
+        }
+        let top = most_frequent(counts);
+        assert_eq!(top.len(), MISMATCHES_LISTED);
+        let got: Vec<(&str, u64)> = top.iter().map(|m| (m.held_out.as_str(), m.tokens)).collect();
+        assert_eq!(
+            got,
+            [
+                ("T03", 4),
+                ("T07", 4),
+                ("T11", 4),
+                ("T02", 3),
+                ("T06", 3),
+                ("T10", 3),
+                ("T01", 2),
+                ("T05", 2),
+                ("T09", 2),
+                ("T00", 1)
+            ]
+        );
     }
 }

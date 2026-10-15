@@ -8,15 +8,25 @@
 //! the trained model and the reference differ in their data, not their
 //! settings. Training uses no randomness, so the recipe has no seed.
 //!
-//! The samples are what OpenNLP's MASC streams read, with one change: the
-//! token stream skips a sentence without a sample alone
-//! ([`EmptySentence::Skipped`]) instead of ending the corpus there, so one
-//! such sentence does not lose the rest of the training data. It skips
-//! held-out sentences the same way; the card records both counts, and a
-//! recipe fails when either is more than [`crate::MAX_SKIPPED_SENTENCES`]
-//! of the sentences read. The sentence stream joins
-//! [`SENTENCES_PER_SAMPLE`] sentences with a space, as
+//! The samples are what OpenNLP's MASC streams read, with two changes
+//! ([`read_token_samples`]): the token stream skips a sentence without a
+//! sample alone ([`EmptySentence::Skipped`]) instead of ending the corpus
+//! there, so one such sentence does not lose the rest of the training
+//! data; and it skips a sentence whose tokens are out of text order
+//! ([`in_text_order`]), which [`tokenize::TokSpanEventStream`] refuses. It
+//! skips held-out sentences the same way; the card records both counts,
+//! and a recipe fails when either is more than
+//! [`crate::MAX_SKIPPED_SENTENCES`] of the sentences read. The sentence
+//! stream joins [`SENTENCES_PER_SAMPLE`] sentences with a space, as
 //! `SentenceDetectorTrainer` reads MASC.
+//!
+//! MASC 3.0.0 has one sentence whose tokens are out of text order, in
+//! `data/spoken/face-to-face/Bed012`: its Penn layer has a token
+//! `non-deterministic` over three quarks and a token `-` over the second
+//! of them, inside the first. OpenNLP's `TokSpanEventStream` makes events
+//! of such a sentence (for the inner token's end, a split inside the
+//! outer token where it also gave no-split events); the port refuses it
+//! (`TokensOutOfOrder`), and the recipe skips it.
 //!
 //! Both models are scored on the same held-out samples with OpenNLP's
 //! evaluators (`SentenceDetectorEvaluator`, `TokenizerEvaluator`), one
@@ -25,7 +35,7 @@
 use std::sync::Arc;
 
 use turbo_analysis::Span;
-use turbo_eval::model_gate::{Counts, HeldOutSet, ModelGateRecord, ModelId, PairedUnit, Task};
+use turbo_eval::model_gate::{Counts, HeldOutSet, ModelGateRecord, ModelId, PairedUnit, Scoring, Task};
 use turbo_formats::evaluate::{SentenceDetectorEvaluator, TokenizerEvaluator};
 use turbo_formats::masc::{EmptySentence, MascCorpus, MascSentenceReader, MascTokenReader};
 use turbo_formats::sample::{SentenceSample, TokenSample};
@@ -92,8 +102,7 @@ pub enum HeldOut<'c> {
     Sentences(Vec<SentenceSample<'c>>),
     Tokens {
         samples: Vec<TokenSample<'c>>,
-        /// The held-out sentences the token stream skipped for having no
-        /// sample.
+        /// The held-out sentences [`read_token_samples`] skipped.
         skipped: usize,
     },
 }
@@ -142,6 +151,39 @@ impl HeldOut<'_> {
     }
 }
 
+/// Whether every token starts and ends at or after the token before it,
+/// as [`tokenize::TokSpanEventStream`] asks of a sample: a token inside
+/// the one before it, or before it, is out of text order.
+pub fn in_text_order(tokens: &[Span]) -> bool {
+    tokens.windows(2).all(|w| w[1].start >= w[0].start && w[1].end >= w[0].end)
+}
+
+/// Reads the token samples of `corpus` as `MascTokenSampleStream` reads
+/// them, giving each to `each`, except that a sentence without a sample
+/// ([`EmptySentence::Skipped`]) is skipped alone, and so is a sentence
+/// whose tokens are out of text order ([`in_text_order`]). Returns how
+/// many were skipped.
+///
+/// # Errors
+///
+/// Any other error of the stream, which ends the read, or what `each`
+/// fails on.
+pub fn read_token_samples<'c>(
+    corpus: &'c MascCorpus,
+    mut each: impl FnMut(TokenSample<'c>) -> Result<()>,
+) -> Result<usize> {
+    let mut reader = MascTokenReader::with_empty_sentences(corpus, EmptySentence::Skipped)?;
+    let mut out_of_order = 0;
+    while let Some(read) = reader.read()? {
+        if in_text_order(read.sample.tokens()) {
+            each(read.sample)?;
+        } else {
+            out_of_order += 1;
+        }
+    }
+    Ok(reader.skipped() + out_of_order)
+}
+
 /// The factories of the recipes: the language, every other setting at its
 /// default, as the trainer tools build them.
 fn sentence_factory() -> Result<SentenceDetectorFactory> {
@@ -150,55 +192,6 @@ fn sentence_factory() -> Result<SentenceDetectorFactory> {
 
 fn tokenizer_factory() -> Result<TokenizerFactory> {
     Ok(TokenizerFactory::new(LANGUAGE, None, false, None)?)
-}
-
-/// Each sample's counts for the model in `bytes`: a sentence detector for
-/// sentence samples, a tokenizer for token samples, scored with OpenNLP's
-/// evaluator for the component, one unit per sample.
-///
-/// # Errors
-///
-/// A model file that is not a model of the samples' component, or a
-/// prediction the evaluator throws on.
-pub fn score_segments(bytes: &[u8], held_out: &HeldOut<'_>) -> Result<Vec<Counts>> {
-    let file = ModelFile::open(bytes.to_vec()).map_err(|e| Error::Model(e.to_string()))?;
-    let counts = |f: &turbo_formats::evaluate::FMeasure| Counts {
-        true_positives: f.true_positives(),
-        selected: f.selected(),
-        target: f.target(),
-    };
-    let mut out = Vec::with_capacity(held_out.len());
-    let mut predicted = Vec::new();
-    let mut spans: Vec<Span> = Vec::new();
-    match held_out {
-        HeldOut::Sentences(samples) => {
-            let model = SentenceModel::open(file).map_err(|e| Error::Model(e.to_string()))?;
-            let detector = SentenceDetector::new(Arc::new(model), WHITESPACE);
-            for sample in samples {
-                predicted.clear();
-                detector.detect(sample.document(), &mut predicted);
-                spans.clear();
-                spans.extend(predicted.iter().map(|&(s, _)| s));
-                let mut evaluator = SentenceDetectorEvaluator::new(WHITESPACE);
-                evaluator.evaluate(sample, &spans)?;
-                out.push(counts(evaluator.fmeasure()));
-            }
-        }
-        HeldOut::Tokens { samples, .. } => {
-            let model = TokenizerModel::open(file).map_err(|e| Error::Model(e.to_string()))?;
-            let tokenizer = TokenizerMe::new(model, TokenizerOptions { whitespace: WHITESPACE, keep_newlines: false });
-            for sample in samples {
-                predicted.clear();
-                tokenizer.tokenize(sample.text(), &mut predicted);
-                spans.clear();
-                spans.extend(predicted.iter().map(|&(s, _)| s));
-                let mut evaluator = TokenizerEvaluator::default();
-                evaluator.evaluate(sample, &spans)?;
-                out.push(counts(evaluator.fmeasure()));
-            }
-        }
-    }
-    Ok(out)
 }
 
 impl SegmentationRecipe {
@@ -241,18 +234,18 @@ impl SegmentationRecipe {
             Component::Tokens => {
                 let factory = tokenizer_factory()?;
                 let mut stream = tokenize::TokSpanEventStream::new(&factory, WHITESPACE);
-                let mut reader = MascTokenReader::with_empty_sentences(train, EmptySentence::Skipped)?;
                 let mut samples = 0;
-                while let Some(sample) = reader.read()? {
-                    stream.events(&sample.sample, &mut events)?;
+                let skipped = read_token_samples(train, |sample| {
+                    stream.events(&sample, &mut events)?;
                     samples += 1;
-                }
+                    Ok(())
+                })?;
                 if samples == 0 {
                     return Err(Error::EmptySplit { what: "training token sample" });
                 }
-                check_skipped(LeftOut::TrainingSentences, reader.skipped(), samples)?;
+                check_skipped(LeftOut::TrainingSentences, skipped, samples)?;
                 let t = tokenize::train_tokenizer_model_from_events(&events, &factory, &params, &mut config, stamp)?;
-                (samples, reader.skipped(), t.package, t.report)
+                (samples, skipped, t.package, t.report)
             }
         };
         Ok(Trained {
@@ -262,6 +255,39 @@ impl SegmentationRecipe {
             events: events.len(),
             event_hash: report.event_hash.expect("trained from events"),
         })
+    }
+
+    /// Reads the training samples as [`SegmentationRecipe::train`] does,
+    /// without making events, and checks them as it does.
+    ///
+    /// # Errors
+    ///
+    /// As [`SegmentationRecipe::train`], but for training.
+    pub fn check_training(&self, train: &MascCorpus) -> Result<()> {
+        match self.component {
+            Component::Sentence => {
+                let mut samples = 0;
+                for sample in MascSentenceReader::new(train, SENTENCES_PER_SAMPLE) {
+                    sample?;
+                    samples += 1;
+                }
+                if samples == 0 {
+                    return Err(Error::EmptySplit { what: "training sentence" });
+                }
+                Ok(())
+            }
+            Component::Tokens => {
+                let mut samples = 0;
+                let skipped = read_token_samples(train, |_| {
+                    samples += 1;
+                    Ok(())
+                })?;
+                if samples == 0 {
+                    return Err(Error::EmptySplit { what: "training token sample" });
+                }
+                check_skipped(LeftOut::TrainingSentences, skipped, samples)
+            }
+        }
     }
 
     /// The held-out samples, read as the training samples are.
@@ -279,12 +305,12 @@ impl SegmentationRecipe {
                     .collect::<std::result::Result<_, _>>()?,
             ),
             Component::Tokens => {
-                let mut reader = MascTokenReader::with_empty_sentences(held_out, EmptySentence::Skipped)?;
                 let mut tokens = Vec::new();
-                while let Some(s) = reader.read()? {
-                    tokens.push(s.sample);
-                }
-                HeldOut::Tokens { samples: tokens, skipped: reader.skipped() }
+                let skipped = read_token_samples(held_out, |s| {
+                    tokens.push(s);
+                    Ok(())
+                })?;
+                HeldOut::Tokens { samples: tokens, skipped }
             }
         };
         if samples.is_empty() {
@@ -294,18 +320,49 @@ impl SegmentationRecipe {
         Ok(samples)
     }
 
-    /// Each held-out sample's counts for the model in `bytes`
-    /// ([`score_segments`]).
+    /// Each held-out sample's counts for the model in `bytes`.
     ///
     /// # Errors
     ///
-    /// Held-out samples of the other component, a model file that is not a
-    /// model of the recipe's component, or a prediction the evaluator
-    /// throws on.
+    /// A model file that is not a model of the recipe's component, or a
+    /// prediction the evaluator throws on.
     pub fn score(&self, bytes: &[u8], held_out: &HeldOut<'_>) -> Result<Vec<Counts>> {
+        let file = ModelFile::open(bytes.to_vec()).map_err(|e| Error::Model(e.to_string()))?;
+        let counts = |f: &turbo_formats::evaluate::FMeasure| Counts {
+            true_positives: f.true_positives(),
+            selected: f.selected(),
+            target: f.target(),
+        };
+        let mut out = Vec::with_capacity(held_out.len());
+        let mut predicted = Vec::new();
+        let mut spans: Vec<Span> = Vec::new();
         match (self.component, held_out) {
-            (Component::Sentence, HeldOut::Sentences(_)) | (Component::Tokens, HeldOut::Tokens { .. }) => {
-                score_segments(bytes, held_out)
+            (Component::Sentence, HeldOut::Sentences(samples)) => {
+                let model = SentenceModel::open(file).map_err(|e| Error::Model(e.to_string()))?;
+                let detector = SentenceDetector::new(Arc::new(model), WHITESPACE);
+                for sample in samples {
+                    predicted.clear();
+                    detector.detect(sample.document(), &mut predicted);
+                    spans.clear();
+                    spans.extend(predicted.iter().map(|&(s, _)| s));
+                    let mut evaluator = SentenceDetectorEvaluator::new(WHITESPACE);
+                    evaluator.evaluate(sample, &spans)?;
+                    out.push(counts(evaluator.fmeasure()));
+                }
+            }
+            (Component::Tokens, HeldOut::Tokens { samples, .. }) => {
+                let model = TokenizerModel::open(file).map_err(|e| Error::Model(e.to_string()))?;
+                let tokenizer =
+                    TokenizerMe::new(model, TokenizerOptions { whitespace: WHITESPACE, keep_newlines: false });
+                for sample in samples {
+                    predicted.clear();
+                    tokenizer.tokenize(sample.text(), &mut predicted);
+                    spans.clear();
+                    spans.extend(predicted.iter().map(|&(s, _)| s));
+                    let mut evaluator = TokenizerEvaluator::default();
+                    evaluator.evaluate(sample, &spans)?;
+                    out.push(counts(evaluator.fmeasure()));
+                }
             }
             (component, samples) => {
                 let name = |c: Component| match c {
@@ -316,9 +373,10 @@ impl SegmentationRecipe {
                     HeldOut::Sentences(_) => "sentence",
                     HeldOut::Tokens { .. } => "token",
                 };
-                Err(Error::ComponentMismatch { recipe: name(component), samples })
+                return Err(Error::ComponentMismatch { recipe: name(component), samples });
             }
         }
+        Ok(out)
     }
 
     /// Scores the trained model and the reference on the same held-out
@@ -349,6 +407,8 @@ impl SegmentationRecipe {
             name: set_name.to_owned(),
             corpus_sha256: corpus_sha256.to_owned(),
             samples_sha256: held_out.sha256(),
+            skipped_sentences: held_out.skipped() as u64,
+            scoring: Scoring::Spans,
         };
         let id = |id: &str, bytes: &[u8]| ModelId { id: id.to_owned(), sha256: Sha256::of(bytes).to_string() };
         let record =
@@ -388,5 +448,19 @@ mod tests {
         }
         assert_eq!(SENTENCE.task(), Task::SentenceDetector);
         assert_eq!(TOKENS.task(), Task::Tokenizer);
+    }
+
+    #[test]
+    fn tokens_are_in_text_order_unless_one_starts_or_ends_before_the_one_before_it() {
+        let spans = |s: &[(u32, u32)]| s.iter().map(|&(a, b)| Span::new(a, b)).collect::<Vec<_>>();
+        assert!(in_text_order(&[]));
+        assert!(in_text_order(&spans(&[(0, 3)])));
+        assert!(in_text_order(&spans(&[(0, 3), (4, 5), (5, 5), (5, 6)])));
+        // Overlapping tokens in order are taken, as the event stream takes them.
+        assert!(in_text_order(&spans(&[(0, 3), (2, 5)])));
+        // MASC 3.0.0's `non-deterministic` and the `-` inside it.
+        assert!(!in_text_order(&spans(&[(45, 62), (48, 49), (62, 63)])));
+        assert!(!in_text_order(&spans(&[(4, 5), (0, 3)])));
+        assert!(!in_text_order(&spans(&[(3, 6), (2, 7)])));
     }
 }

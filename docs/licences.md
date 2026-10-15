@@ -6,9 +6,9 @@ are stated. The classes and what the zoo does with each are in
 docs/zoo.md. The zoo's built-in index (`analysis/zoo/index/zoo.json`)
 lists the checkpoints of the first table below; the refused checkpoints,
 and the local-only ones the index does not list, are only here.
-Restricted but public data and non-commercial data, fetched only from
-their original sources and never shipped by this project, have sections
-of their own at the end.
+Restricted but public data and non-commercial data, requested only at
+addresses under their original sources and never shipped by this
+project, have sections of their own at the end.
 
 A checkpoint's class is the most restrictive of its own licence and the
 licences of the data it was trained on. The OpenNLP UD models are
@@ -121,7 +121,7 @@ not list it.
 | [UD_Portuguese-DANTEStocks r2.16](https://github.com/UniversalDependencies/UD_Portuguese-DANTEStocks/blob/r2.16/README.md) | POS, lemma | CC BY 4.0 | permissive, pending | its text is tweets, so platform terms need a look before it is used, as for WNUT-17; no recipe trains on it. Its tweets are not split into sentences | here |
 | [UD_Finnish-FTB r2.16](https://github.com/UniversalDependencies/UD_Finnish-FTB/blob/r2.16/README.md) | POS, lemma | CC BY 4.0 | permissive | `LICENSE.txt` offers LGPLv3 or later or, at the user's option, CC BY 4.0; the recipes take CC BY 4.0 (#415). Its text is grammar examples from VISK with a space between every two tokens, so it has no sentence or token recipe | here |
 | [UD_Italian-MarkIT r2.16](https://github.com/UniversalDependencies/UD_Italian-MarkIT/blob/r2.16/README.md) | POS, lemma | CC BY 4.0 | permissive | the recipes train on it (#415), gated against OpenNLP's Italian UD models, which are local-only (below) and only scored. Its text has a space between every two tokens, so it has no sentence or token recipe | here |
-| [MASC](https://anc.org/data/masc/) | English sentences, tokens, Penn POS, noun and verb chunks, named entities | CC BY 3.0 US | permissive | 500K words, manually validated; the recipes in `analysis/train-recipes` train on it, release digest not recorded yet. Its Twitter genre (`data/written/twitter`, two documents, 24,180 words, from 2008, source given as "unknown" in their headers) has no terms of its own: the 3.0.0 release's README has no licence text, and anc.org states CC BY 3.0 US for MASC with no exception. Whether Twitter's terms reach the tweets' text is not settled here; the recipes do not leave the genre out | here |
+| [MASC](https://anc.org/data/masc/) | English sentences, tokens, Penn POS, noun and verb chunks, named entities | CC BY 3.0 US | permissive | 500K words, manually validated; the recipes in `analysis/train-recipes` train on it, from the 3.0.0 archive published as a release asset of github.com/nancyide/anc-website (tag `datasets-2026-09-25`), recorded by size and digest (`masc::RELEASE`); that anc.org's download page links to it was reported but not checked, as anc.org could not be reached from the machine the recipes were run on. Its Twitter genre (`data/written/twitter`, two documents, 24,180 words, from 2008, source given as "unknown" in their headers) has no terms of its own: the 3.0.0 release's README has no licence text, and anc.org states CC BY 3.0 US for MASC with no exception. Whether Twitter's terms reach the tweets' text is not settled here, and the policy refuses platform-terms data, so the recipes leave the genre out of training and of the held-out set (`masc::Exclusion::TwitterGenre`), as Kristian Rickert decided on 2026-10-15 | here |
 | [Open English WordNet](https://github.com/globalwordnet/english-wordnet/blob/main/LICENSE.md) | English lemmas | CC BY 4.0 | permissive | derived from Princeton WordNet; attribute both | here |
 | [Princeton WordNet](https://wordnet.princeton.edu/license-and-commercial-use) | English lemmas | WordNet licence (BSD-like) | permissive | | plan |
 | [PoliMorf / Morfologik](https://github.com/morfologik/polimorf) | Polish lemmas | BSD-2-Clause | permissive | | plan |
@@ -152,7 +152,7 @@ not list it.
 | [NorNE](https://github.com/ltgoslo/norne) | NER | annotations CC0, text restricted | refused | | plan |
 | [OpenLID, GlotLID corpora](https://github.com/cisnlp/GlotLID) | language detection | mixed, parts non-commercial | refused | as a whole | plan |
 | [FLORES+](https://huggingface.co/datasets/openlanguagedata/flores_plus) | language detection | its card allows evaluation only | refused for training | evaluation runs may use it; numbers recorded, files not kept | plan |
-| [Leipzig corpora](https://wortschatz.uni-leipzig.de/en/download) | language detection | conflicting (CC BY or CC BY-NC) | refused | until the terms are confirmed; under the 2026-10-14 decision either reading is fetchable (CC BY permissive, CC BY-NC local-only), and an entry would take the stricter one, CC-BY-NC-4.0 (local-only); no entry is made | plan |
+| [Leipzig corpora](https://wortschatz.uni-leipzig.de/en/download) | language detection | conflicting (CC BY or CC BY-NC) | refused | stays refused as unconfirmed terms (`LicenseRef-Unconfirmed`) until the terms are confirmed; confirmed as CC BY it would be permissive, as CC BY-NC local-only | plan |
 | [AG News](http://groups.di.unipi.it/~gulli/AG_corpus_of_news_articles.html) | document categorizer | non-commercial | refused | not a CC licence: the host's own non-commercial terms, outside the 2026-10-14 decision on non-commercial data | plan |
 | [20 Newsgroups](http://qwone.com/~jason/20Newsgroups/) | document categorizer | none stated | refused | no licence | plan |
 | [Europarl](https://www.statmt.org/europarl/) | | none stated; its makers know of no restrictions | refused | no licence, unless decided otherwise | plan |
@@ -173,11 +173,11 @@ here is used.
 Data anyone can download from its publisher, under the publisher's own
 terms rather than an open licence. Under Kristian's 2026-10-12 comment
 on #326 it is `CLASS_LOCAL_ONLY` (docs/zoo.md, "Restricted but public
-data"): fetched only from the original host after the user accepts that
-host's terms, used for local training and evaluation only, and never
-carried, mirrored or checked in. Any model trained on it is local-only
-too and is never shipped; evaluation numbers on it may be recorded, the
-files not.
+data"): requested only at addresses on the original host after the user
+accepts that host's terms, used for local training and evaluation only,
+and never carried, mirrored or checked in. Any model trained on it is
+local-only too and is never shipped; evaluation numbers on it may be
+recorded, the files not.
 
 An index entry for one of these names `LicenseRef-RestrictedPublic`,
 the host's terms page as `license_terms`, and the publisher's own
@@ -200,19 +200,21 @@ here places it in this class, with the reason.
 Data under CC BY-NC or CC BY-NC-SA. Under Kristian's 2026-10-14 decision
 it is `CLASS_LOCAL_ONLY` (docs/zoo.md, "Non-commercial data"), the way
 OpenNLP handles data it cannot distribute: our code reads it from files
-the user supplies, with nothing to accept; the zoo fetches it only from
-its original source, after the user accepts the licence; and neither the
-data nor any model trained on it is shipped, bundled, mirrored or
-checked in. By accepting, the user agrees to treat a model they train
-on it as non-commercial and keep it on their machine. These rules are
-this project's policy; the licences themselves allow sharing the data
-and adapted material for non-commercial purposes.
+the user supplies, with nothing to accept; the zoo requests it only at
+addresses under its original source, after the user accepts the
+licence; and neither the data nor any model trained on it is shipped,
+bundled, mirrored or checked in. By accepting, the user agrees to treat
+a model they train on it as non-commercial and keep it on their machine.
+These rules are this project's policy; the licences themselves allow
+sharing the data and adapted material for non-commercial purposes.
 
-Data that is also no-derivatives (CC BY-NC-ND) stays refused, as CC
-BY-ND data does. That is this project's default (2026-10-14), not what
-the licences require: they allow producing adapted material and forbid
-only sharing it, so they would allow a model trained on the data and
-kept on the user's machine.
+Data that is also no-derivatives (CC BY-NC-ND 4.0) stays refused, as
+CC BY-ND 4.0 data does. That is this project's default (2026-10-14), not
+what the licences require: version 4.0 of each allows producing adapted
+material (CC BY-NC-ND 4.0 for non-commercial purposes) and forbids only
+sharing it, so they would allow a model trained on the data and kept on
+the user's machine. Earlier versions differ: CC BY-ND 3.0 grants no
+right to make adaptations (its section 3).
 
 The non-commercial datasets are in the datasets table above, marked
 local-only. The built-in index lists none of them, and none of the
@@ -224,8 +226,10 @@ under: for a UD treebank its repository path on
 (`https://raw.githubusercontent.com/UniversalDependencies/UD_English-GUM/`),
 not the whole host, and for a model the model publisher's.
 
-The OpenNLP UD 1.3 models trained on non-commercial treebanks are
-local-only by the class rule (Apache-2.0 models, non-commercial data):
+The 32 OpenNLP UD 1.3 models trained on the eight non-commercial
+treebanks below, four per treebank (sentence, tokens, POS and lemmas),
+are local-only by the class rule (Apache-2.0 models, non-commercial
+data):
 
 | Model | Trained on | Licence of the data | Checked |
 |---|---|---|---|

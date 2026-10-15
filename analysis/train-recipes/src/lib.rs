@@ -38,7 +38,7 @@ pub mod treebank;
 pub mod ud;
 pub mod ud_card;
 
-use std::fmt;
+use std::fmt::{self, Write as _};
 
 use turbo_eval::model_gate::{ModelGateRecord, Task};
 use turbo_formats::masc::MascCorpus;
@@ -59,8 +59,9 @@ pub struct Trained {
     /// The samples read from the training documents.
     pub samples: usize,
     /// Sentences left out of training: by the token stream for having no
-    /// sample, by the tagger's for a token without a tag or for having no
-    /// token (always 0 for the sentence detector). At most
+    /// sample or tokens out of text order, by the tagger's for a token
+    /// without a tag or for having no token (always 0 for the sentence
+    /// detector). At most
     /// [`MAX_SKIPPED_SENTENCES`] of those read.
     pub skipped_sentences: usize,
     pub events: usize,
@@ -102,15 +103,20 @@ impl fmt::Display for Limit {
 /// the training documents and, apart, of those it reads from the held-out
 /// documents: one in a thousand, so the gate cannot lose a held-out
 /// document of more than a few sentences. Read with the recipes' readers
-/// and split by [`masc::SPLIT`], MASC 3.0.0 has no training sentence to
-/// skip and one held-out sentence (a sentence of no tokens) of 6,385.
+/// and split by [`masc::SPLIT`] (the Twitter genre left out), the recorded
+/// release (corpus digest `445449f5...`) has one training sentence the
+/// token recipe skips, of 24,958 (a token inside another, in
+/// `data/spoken/face-to-face/Bed012`), and none the tagger or the
+/// sentence detector skips; and one held-out sentence the token and
+/// tagger recipes skip (a sentence of no tokens), of 6,385.
 pub const MAX_SKIPPED_SENTENCES: Limit = Limit { count: 1, of: 1000 };
 
 /// The most held-out tokens the tagger's gate may leave out of both
-/// models' scores because the reference cannot give their tag, even in
-/// its spelling ([`postag::ReferenceTags`]): one in a thousand. Read with
-/// the recipe's reader and split by [`masc::SPLIT`], MASC 3.0.0's
-/// held-out documents have 6 such tokens of 85,292: ``UH` `` (3), `"`
+/// models' scores because the reference cannot give their tag, as
+/// written or through the mapping of its tags ([`postag::ReferenceTags`]):
+/// one in a thousand. Read with the recipe's reader and split by
+/// [`masc::SPLIT`], the recorded release's held-out documents (corpus
+/// digest `445449f5...`) have 6 such tokens of 85,292: ``UH` `` (3), `"`
 /// (2) and `PRN` (1).
 pub const MAX_TOKENS_LEFT_OUT: Limit = Limit { count: 1, of: 1000 };
 
@@ -302,6 +308,38 @@ impl Recipe {
         }
     }
 
+    /// Reads the training and held-out samples the recipe reads from
+    /// `split`, without training or scoring, and checks what [`run`]
+    /// checks of them: each side has a sample, and the recipe's reader
+    /// skips at most [`MAX_SKIPPED_SENTENCES`] of the sentences of either
+    /// side; and for the tagger, given the bytes of its reference (named
+    /// `reference_id`), that the reference can give the tags of all but
+    /// [`MAX_TOKENS_LEFT_OUT`] of the held-out tokens. The binary runs it
+    /// for every recipe before it trains any, so a run that would fail on
+    /// its data writes nothing.
+    ///
+    /// # Errors
+    ///
+    /// [`Error::EmptySplit`], [`Error::TooManyLeftOut`],
+    /// [`Error::TagsOutsideReference`], a sample the corpus fails on, or a
+    /// reference that is not a part-of-speech model.
+    pub fn check_data(&self, split: &SplitCorpus, reference_id: &str, reference: Option<&[u8]>) -> Result<()> {
+        match self {
+            Recipe::Segmentation(r) => {
+                r.check_training(&split.train)?;
+                r.held_out(&split.held_out)?;
+            }
+            Recipe::Pos(r) => {
+                r.check_training(&split.train)?;
+                let held_out = r.held_out(&split.held_out)?;
+                if let Some(reference) = reference {
+                    r.check_coverage(reference_id, &r.reference_tags(reference)?, &held_out)?;
+                }
+            }
+        }
+        Ok(())
+    }
+
     /// The reference model's file name ([`Reference::file`]).
     ///
     /// # Errors
@@ -336,9 +374,16 @@ pub struct Outcome {
     pub card: ModelCard,
 }
 
-/// The name of the held-out set in the gate records.
+/// The name of the held-out set in the gate records: the split, and what
+/// [`masc::EXCLUSIONS`] leaves out.
 pub fn held_out_name() -> String {
-    format!("{} held out (every {}th document from the {}th)", masc::NAME, SPLIT.every(), SPLIT.held_out_at() + 1)
+    let mut name =
+        format!("{} held out (every {}th document from the {}th", masc::NAME, SPLIT.every(), SPLIT.held_out_at() + 1);
+    for exclusion in masc::EXCLUSIONS {
+        write!(name, ", {exclusion} left out").expect("writing to a String");
+    }
+    name.push(')');
+    name
 }
 
 /// Trains `recipe` on the training documents of `split`, scores it and
@@ -370,7 +415,7 @@ pub fn run(
         split: SPLIT,
         training_documents: split.train.documents().len(),
         held_out_documents: split.held_out_paths.clone(),
-        skipped_documents: split.skipped_paths.clone(),
+        excluded_documents: split.excluded.clone(),
     };
     let card = ModelCard::new(recipe, &trained, corpus, held_out, &gate);
     Ok(Outcome { trained, gate, card })

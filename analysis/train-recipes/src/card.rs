@@ -8,10 +8,11 @@
 //! whether it passed its gate. Like the gate record it is strict JSON: every
 //! field is required and an unknown field is an error.
 
+use std::fmt;
 use std::path::Path;
 
 use serde::{Deserialize, Serialize};
-use turbo_eval::model_gate::ModelGateRecord;
+use turbo_eval::model_gate::{ModelGateRecord, TagMapping};
 use turbo_postag::PosTagFormat;
 use turbo_train_components::ud;
 use turbo_zoo::{Artifact, File, Kind, Licence, LicenceClass, Sha256, Sha512, TrainingData, class_of, index::Format};
@@ -21,8 +22,10 @@ use crate::masc::{self, Split};
 use crate::segmentation::{Component, LANGUAGE, SENTENCES_PER_SAMPLE, TIMESTAMP_MS};
 use crate::{Recipe, Trained, postag};
 
-/// The card's schema version.
-pub const CARD_VERSION: u32 = 2;
+/// The card's schema version: 3, with the held-out counts, the tag
+/// formats and the reference's digest, the documents the split leaves
+/// out, and how a tagger's held-out tokens were scored.
+pub const CARD_VERSION: u32 = 3;
 /// The card's file name in the model's directory.
 pub const CARD_FILE: &str = "card.json";
 /// The gate record's file name in the model's directory.
@@ -52,14 +55,15 @@ pub struct CorpusCard {
     /// [`masc::corpus_digest`] of the directory read.
     pub corpus_sha256: String,
     /// Whether that digest is the recorded release's ([`masc::RELEASE`]).
-    /// A model trained on an unrecorded copy is not a release.
+    /// A model trained on another corpus is not a release.
     pub release_recorded: bool,
     pub split: Split,
     pub training_documents: usize,
     /// The held-out documents, relative to the corpus directory.
     pub held_out_documents: Vec<String>,
-    /// Documents the corpus read logged and left out.
-    pub skipped_documents: Vec<String>,
+    /// Documents left out of both training and the held-out set by an
+    /// exclusion ([`masc::EXCLUSIONS`]), with the exclusion.
+    pub excluded_documents: Vec<masc::ExcludedDocument>,
 }
 
 /// The trainer's parameters, as the parameters file gives them.
@@ -110,31 +114,42 @@ pub struct HeldOutCard {
     pub tokens: Option<TokenCoverage>,
 }
 
-/// How a tagger's held-out tokens were scored: both models' tags and the
-/// held-out tags compared in the reference's spelling, over the tokens
-/// whose tag the reference can give ([`postag::ReferenceTags`]).
+/// How a tagger's held-out tokens were scored: over the tokens whose tag
+/// the reference can give, as written or through the mapping of its tags
+/// ([`postag::ReferenceTags`]), the trained model's tag compared with the
+/// held-out tag as written and the reference's through the recipe's
+/// mappings ([`postag::PosRecipe::reference_mappings`]:
+/// [`postag::REFERENCE_MAPPINGS`] for the MASC tagger, none for the UD
+/// taggers).
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct TokenCoverage {
     /// The tokens of the held-out samples.
     pub tokens: u64,
-    /// The tags scored as the reference writes them
-    /// ([`postag::REFERENCE_SPELLINGS`]).
-    pub spellings: Vec<SpellingCard>,
+    /// The reference's tags counted right for another held-out tag
+    /// ([`postag::PosRecipe::reference_mappings`]).
+    pub reference_mappings: Vec<TagMapping>,
     /// The tokens left out of both models' scores because the reference
-    /// cannot give their tag, by that tag in the reference's spelling,
-    /// sorted by tag; at most [`crate::MAX_TOKENS_LEFT_OUT`] of `tokens`.
+    /// cannot give their tag, by that tag as written, sorted by tag; at
+    /// most the recipe's limit ([`postag::PosRecipe::max_left_out`]) of
+    /// `tokens`.
     pub left_out: Vec<TagCount>,
+    /// The reference's most frequent mismatches on the scored tokens, at
+    /// most [`postag::MISMATCHES_LISTED`], most frequent first: where it
+    /// and the held-out data differ by convention or by its tag
+    /// dictionary as much as where it errs.
+    pub reference_mismatches: Vec<Mismatch>,
 }
 
-/// A tag scored as the reference writes it.
+/// How many scored held-out tokens of a tag a model gave another tag.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
-pub struct SpellingCard {
-    /// The tag as MASC, and so the trained model, writes it.
-    pub masc: String,
-    /// The tag the reference gives the same tokens.
-    pub reference: String,
+pub struct Mismatch {
+    /// The held-out tag, as written.
+    pub held_out: String,
+    /// The tag the model gave.
+    pub given: String,
+    pub tokens: u64,
 }
 
 /// How many held-out tokens have a tag.
@@ -195,6 +210,30 @@ pub struct GateCard {
     pub pass: bool,
 }
 
+impl GateCard {
+    /// The card of the gate `record`, for a tagger with the formats its
+    /// two models' tags were scored in.
+    pub(crate) fn of(
+        record: &ModelGateRecord,
+        candidate_tag_format: Option<TagFormat>,
+        reference_tag_format: Option<TagFormat>,
+    ) -> GateCard {
+        let r = &record.result;
+        GateCard {
+            record: GATE_FILE.to_owned(),
+            reference: record.reference.id.clone(),
+            reference_sha256: record.reference.sha256.clone(),
+            candidate_tag_format,
+            reference_tag_format,
+            candidate_score: r.candidate.score,
+            reference_score: r.reference.score,
+            difference_low: r.difference.low,
+            difference_high: r.difference.high,
+            pass: r.pass,
+        }
+    }
+}
+
 /// The model card.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -229,7 +268,6 @@ impl ModelCard {
     ) -> ModelCard {
         let trained_on = vec![masc::training_data()];
         let class = class_of(std::iter::once(MODEL_LICENCE).chain(trained_on.iter().map(|t| t.license)));
-        let r = &gate.result;
         let (sentences_per_sample, whitespace, candidate_tag_format, reference_tag_format) = match recipe {
             Recipe::Segmentation(s) => (
                 (s.component == Component::Sentence).then_some(SENTENCES_PER_SAMPLE),
@@ -273,18 +311,7 @@ impl ModelCard {
                 event_hash: trained.event_hash,
             },
             held_out,
-            gate: GateCard {
-                record: GATE_FILE.to_owned(),
-                reference: gate.reference.id.clone(),
-                reference_sha256: gate.reference.sha256.clone(),
-                candidate_tag_format,
-                reference_tag_format,
-                candidate_score: r.candidate.score,
-                reference_score: r.reference.score,
-                difference_low: r.difference.low,
-                difference_high: r.difference.high,
-                pass: r.pass,
-            },
+            gate: GateCard::of(gate, candidate_tag_format, reference_tag_format),
         }
     }
 
@@ -352,14 +379,89 @@ impl ModelCard {
         s
     }
 
+    /// Reads a card written by [`write_model_dir`]. Its `card_version` is
+    /// read first, alone, so a card of another schema version is
+    /// [`Error::CardVersion`] whatever fields it has.
+    ///
+    /// # Errors
+    ///
+    /// A file that cannot be read, is not JSON with a `card_version`, is of
+    /// another version, or is not a card of this version.
     pub fn read(path: &Path) -> Result<ModelCard> {
-        let bytes = std::fs::read(path).map_err(io(path))?;
-        let card: ModelCard = serde_json::from_slice(&bytes)
-            .map_err(|e| Error::Json { path: path.to_owned(), message: e.to_string() })?;
-        if card.card_version != CARD_VERSION {
-            return Err(Error::CardVersion { path: path.to_owned(), found: card.card_version, expected: CARD_VERSION });
+        read_card(path, CARD_VERSION)
+    }
+
+    /// The card's [`Summary`].
+    pub fn summary(&self) -> Summary<'_> {
+        Summary::new(&self.id, &self.training, &self.held_out)
+    }
+}
+
+/// Reads a card of the schema version `expected` from `path`: its
+/// `card_version` first, alone, so a card of another version is
+/// [`Error::CardVersion`] whatever fields it has, then the card.
+///
+/// # Errors
+///
+/// A file that cannot be read, is not JSON with a `card_version`, is of
+/// another version, or is not a card of this version.
+pub(crate) fn read_card<T: serde::de::DeserializeOwned>(path: &Path, expected: u32) -> Result<T> {
+    /// The one field every version of a card has.
+    #[derive(Deserialize)]
+    struct Version {
+        card_version: u32,
+    }
+    let bytes = std::fs::read(path).map_err(io(path))?;
+    let json = |e: serde_json::Error| Error::Json { path: path.to_owned(), message: e.to_string() };
+    let Version { card_version } = serde_json::from_slice(&bytes).map_err(json)?;
+    if card_version != expected {
+        return Err(Error::CardVersion { path: path.to_owned(), found: card_version, expected });
+    }
+    serde_json::from_slice(&bytes).map_err(json)
+}
+
+/// What a run prints of a card before its gate record
+/// ([`ModelCard::summary`], and [`crate::ud_card::UdModelCard::summary`]):
+/// a line of the training and held-out samples and the sentences each
+/// side skipped, and for a tagger a second line of the held-out tokens
+/// left out of the scores, with their tags as written.
+#[derive(Clone, Copy, Debug)]
+pub struct Summary<'c> {
+    id: &'c str,
+    training: &'c TrainingCard,
+    held_out: &'c HeldOutCard,
+}
+
+impl<'c> Summary<'c> {
+    /// The summary of the card of the model `id`.
+    pub(crate) fn new(id: &'c str, training: &'c TrainingCard, held_out: &'c HeldOutCard) -> Summary<'c> {
+        Summary { id, training, held_out }
+    }
+}
+
+impl fmt::Display for Summary<'_> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let Summary { id, training, held_out } = *self;
+        write!(
+            f,
+            "{id}: trained on {} samples, {} sentences skipped, {} events; held out {} samples, {} sentences skipped",
+            training.samples, training.skipped_sentences, training.events, held_out.samples, held_out.skipped_sentences,
+        )?;
+        if let Some(tokens) = &held_out.tokens {
+            let count: u64 = tokens.left_out.iter().map(|t| t.tokens).sum();
+            write!(
+                f,
+                "\n{id}: {count} of {} held-out tokens left out, their tags not the reference's:",
+                tokens.tokens
+            )?;
+            if tokens.left_out.is_empty() {
+                f.write_str(" none")?;
+            }
+            for (i, t) in tokens.left_out.iter().enumerate() {
+                write!(f, "{} {} ({})", if i == 0 { "" } else { "," }, t.tag, t.tokens)?;
+            }
         }
-        Ok(card)
+        Ok(())
     }
 }
 
@@ -395,13 +497,26 @@ pub fn publishable_class(id: &str, license: Licence, trained_on: &[TrainingData]
 ///
 /// An existing directory, or a write that fails.
 pub fn write_model_dir(dir: &Path, card: &ModelCard, model: &[u8], gate: &ModelGateRecord) -> Result<()> {
-    let out = dir.join(&card.id);
+    write_dir(dir, &card.id, (&card.file.name, model), &card.to_json(), gate)
+}
+
+/// Writes `dir/<id>/` with the model file (its name and bytes),
+/// [`CARD_FILE`] (`card_json`) and [`GATE_FILE`]; the directory must not
+/// exist yet.
+pub(crate) fn write_dir(
+    dir: &Path,
+    id: &str,
+    (model_name, model): (&str, &[u8]),
+    card_json: &str,
+    gate: &ModelGateRecord,
+) -> Result<()> {
+    let out = dir.join(id);
     std::fs::create_dir_all(dir).map_err(io(dir))?;
     std::fs::create_dir(&out).map_err(io(&out))?;
-    let model_path = out.join(&card.file.name);
+    let model_path = out.join(model_name);
     std::fs::write(&model_path, model).map_err(io(&model_path))?;
     let card_path = out.join(CARD_FILE);
-    std::fs::write(&card_path, card.to_json()).map_err(io(&card_path))?;
+    std::fs::write(&card_path, card_json).map_err(io(&card_path))?;
     Ok(gate.write(&out.join(GATE_FILE))?)
 }
 
