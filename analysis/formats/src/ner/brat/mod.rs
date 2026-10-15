@@ -117,13 +117,13 @@ mod tests {
             pos = end + 1;
         }
         let tokens = Tokens { spans: tok_spans, sentence: None };
-        // "New\nYork" is units 7..15, bytes 11..19; "took" 16..20 and "off"
-        // 24..27 in units, 20..24 and 28..31 in bytes; the touching
+        // "New\nYork" is units 8..16, bytes 11..19; "took" 17..21 and "off"
+        // 25..28 in units, 20..24 and 28..31 in bytes; the touching
         // fragments "took" and " it" are one span once read.
         let ann = concat!(
-            "T1\tLoc 7 15\tNew York\n",
-            "T2\tVerb 16 20;24 27\ttook off\n",
-            "T3\tVerb 16 20;20 23\ttook  it\n",
+            "T1\tLoc 8 16\tNew York\n",
+            "T2\tVerb 17 21;25 28\ttook off\n",
+            "T3\tVerb 17 21;21 24\ttook  it\n",
         );
         let doc = BratDocument::parse("doc1", text.as_bytes(), ann.as_bytes(), WhitespaceMode::Unicode).unwrap();
         let entities = doc.to_entities(&tokens).unwrap();
@@ -135,7 +135,7 @@ mod tests {
         let written = write_brat_entities(text, &entities);
         assert_eq!(
             written,
-            concat!("T1\tLoc 7 15\tNew York\n", "T2\tVerb 16 20;24 27\ttook off\n", "T3\tVerb 16 23\ttook it\n",)
+            concat!("T1\tLoc 8 16\tNew York\n", "T2\tVerb 17 21;25 28\ttook off\n", "T3\tVerb 17 24\ttook it\n",)
         );
         let reparsed =
             BratDocument::parse("doc1", text.as_bytes(), written.as_bytes(), WhitespaceMode::Unicode).unwrap();
