@@ -295,8 +295,37 @@ mod tests {
     fn permissive_and_refused_licences_cannot_be_accepted() {
         let mut a = Acceptances::default();
         assert!(a.accept(&user("alice"), Licence::Apache2, 0).is_err());
-        assert!(a.accept(&user("alice"), Licence::CcByNcSa40, 0).is_err());
+        assert!(a.accept(&user("alice"), Licence::CcByNcNd40, 0).is_err());
+        assert!(a.accept(&user("alice"), Licence::CcByNd40, 0).is_err());
         assert!(a.accept(&user("alice"), Licence::Unconfirmed, 0).is_err());
+        assert_eq!(a, Acceptances::default());
+        let nd = r#"{"acceptances_version":1,"accepted":[{"user":"a","license":"CC-BY-NC-ND-4.0","license_text":"https://creativecommons.org/licenses/by-nc-nd/4.0/legalcode","accepted_at":1}]}"#;
+        assert!(Acceptances::parse(nd.as_bytes()).is_err());
+    }
+
+    /// A non-commercial licence is accepted as one text, its legal code,
+    /// for every host, and each licence on its own.
+    #[test]
+    fn non_commercial_licences_are_accepted_by_their_legal_code() {
+        let mut a = Acceptances::default();
+        a.accept(&user("alice"), Licence::CcByNcSa40, 9).unwrap();
+        assert!(a.has(&user("alice"), &req(Licence::CcByNcSa40)));
+        assert!(!a.has(&user("alice"), &req(Licence::CcByNcSa30)));
+        assert!(!a.has(&user("alice"), &req(Licence::CcByNc40)));
+        assert!(!a.has(&user("bob"), &req(Licence::CcByNcSa40)));
+        let back = Acceptances::parse(a.to_canonical_json().as_bytes()).unwrap();
+        assert_eq!(back, a);
+        assert!(
+            a.to_canonical_json()
+                .contains("\"license_text\": \"https://creativecommons.org/licenses/by-nc-sa/4.0/legalcode\"")
+        );
+        // A host's page in place of the legal code is not the licence's text.
+        let host = Requirement {
+            licence: Licence::CcByNcSa40,
+            text: "https://github.com/UniversalDependencies/UD_English-GUM/blob/r2.16/README.md".into(),
+        };
+        assert!(a.accept_terms(&user("alice"), &host, 0).is_err());
+        assert!(a.revoke(&user("alice"), &req(Licence::CcByNcSa40)));
         assert_eq!(a, Acceptances::default());
     }
 

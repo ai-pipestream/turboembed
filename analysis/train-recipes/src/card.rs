@@ -292,11 +292,21 @@ impl ModelCard {
     ///
     /// # Errors
     ///
-    /// [`Error::NotShippable`] when no recipe trains the model, the gate
-    /// was not run against the recipe's reference (its id and SHA-256),
-    /// the gate failed, or the corpus is not the recorded release; or an
-    /// address or field the index refuses.
+    /// [`Error::NotShippable`] when the model may not leave the machine it
+    /// was trained on ([`publishable_class`]), no recipe trains the model,
+    /// the gate was not run against the recipe's reference (its id and
+    /// SHA-256), the gate failed, or the corpus is not the recorded
+    /// release; [`Error::InvalidCard`] for a `class` other than the one
+    /// the licences give, or an address or field the index refuses.
     pub fn artifact(&self, url: &str) -> Result<Artifact> {
+        let class = class_of(std::iter::once(self.license).chain(self.trained_on.iter().map(|t| t.license)));
+        if class != self.class {
+            return Err(Error::InvalidCard {
+                field: "class",
+                message: format!("{} is not {class}, the class its licences give", self.class),
+            });
+        }
+        publishable_class(&self.id, self.license, &self.trained_on)?;
         let not = |reason| Error::NotShippable { id: self.id.clone(), reason };
         let recipe = Recipe::trains(&self.id).ok_or(not("no recipe trains it"))?;
         let reference = recipe.reference();
@@ -353,6 +363,30 @@ impl ModelCard {
     }
 }
 
+/// The class of a model under `license` trained on `trained_on`, computed
+/// from the licences ([`class_of`]), when that class lets the model leave
+/// the machine it was trained on ([`LicenceClass::may_redistribute`]). A
+/// model trained on non-commercial or restricted data is
+/// `CLASS_LOCAL_ONLY`: it may be trained, written and evaluated locally
+/// ([`write_model_dir`]), but it is never published, so it gets no zoo
+/// entry.
+///
+/// # Errors
+///
+/// [`Error::NotShippable`] for a local-only or refused class.
+pub fn publishable_class(id: &str, license: Licence, trained_on: &[TrainingData]) -> Result<LicenceClass> {
+    let class = class_of(std::iter::once(license).chain(trained_on.iter().map(|t| t.license)));
+    if class.may_redistribute() {
+        return Ok(class);
+    }
+    let reason = if class == LicenceClass::LocalOnly {
+        "it was trained on non-commercial or restricted data, so it stays on the machine it was trained on"
+    } else {
+        "it was trained on data under terms the zoo refuses"
+    };
+    Err(Error::NotShippable { id: id.to_owned(), reason })
+}
+
 /// Writes a trained model's directory `dir/<model id>/`: the model file,
 /// [`CARD_FILE`] and [`GATE_FILE`]. The directory must not exist yet, so
 /// nothing is replaced.
@@ -369,4 +403,45 @@ pub fn write_model_dir(dir: &Path, card: &ModelCard, model: &[u8], gate: &ModelG
     let card_path = out.join(CARD_FILE);
     std::fs::write(&card_path, card.to_json()).map_err(io(&card_path))?;
     Ok(gate.write(&out.join(GATE_FILE))?)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn data(name: &str, license: Licence) -> TrainingData {
+        TrainingData { name: name.to_owned(), license, license_terms: "https://example.org/terms".parse().unwrap() }
+    }
+
+    #[test]
+    fn a_model_trained_on_non_commercial_data_is_local_only_and_gets_no_zoo_entry() {
+        let gum = data("UD_English-GUM r2.16", Licence::CcByNcSa40);
+        let trained_on = [masc::training_data(), gum];
+        // The card's class, as `ModelCard::new` computes it.
+        let class = class_of(std::iter::once(MODEL_LICENCE).chain(trained_on.iter().map(|t| t.license)));
+        assert_eq!(class, LicenceClass::LocalOnly);
+        assert!(!class.may_bundle() && !class.may_redistribute());
+        match publishable_class("m", MODEL_LICENCE, &trained_on) {
+            Err(Error::NotShippable { id, reason }) => {
+                assert_eq!(id, "m");
+                assert!(reason.contains("non-commercial"), "{reason}");
+            }
+            other => panic!("{other:?}"),
+        }
+        let nc = [data("non-commercial", Licence::CcByNc40)];
+        assert!(matches!(publishable_class("m", MODEL_LICENCE, &nc), Err(Error::NotShippable { .. })));
+    }
+
+    #[test]
+    fn models_that_may_leave_the_machine_keep_their_class() {
+        assert_eq!(publishable_class("m", MODEL_LICENCE, &[masc::training_data()]).unwrap(), LicenceClass::Permissive);
+        let ewt = data("UD_English-EWT r2.16", Licence::CcBySa40);
+        assert_eq!(publishable_class("m", MODEL_LICENCE, &[ewt]).unwrap(), LicenceClass::ShareAlike);
+        // No-derivatives data is refused, not local-only.
+        let nd = [data("no-derivatives", Licence::CcByNcNd40)];
+        match publishable_class("m", MODEL_LICENCE, &nd) {
+            Err(Error::NotShippable { reason, .. }) => assert!(reason.contains("refuses"), "{reason}"),
+            other => panic!("{other:?}"),
+        }
+    }
 }
