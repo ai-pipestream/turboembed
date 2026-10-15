@@ -13,8 +13,14 @@ turbo-analysis = { path = "../core" }
 turbo-analysis-layers = { path = "../layers" }
 # Java's Double.toString, parseDouble and parseInt, and Math.log.
 turbo-jvm = { path = "../jvm" }
-# SHA-256 of the model files, for the layers' model reference.
+# SHA-256 of the model files, for the layers' model reference; the
+# sentiment model file and its maxent classifier.
 turbo-maxent = { path = "../maxent" }
+# OpenNLP's emoji annotation features, which the emoji sentiment context
+# appends to the tokens.
+turbo-normalize = { path = "../normalize" }
 
 [dev-dependencies]
 turbo-goldens = { path = "../goldens" }
+# Trains and packages the small maxent models the sentiment tests open.
+turbo-train = { path = "../train" }

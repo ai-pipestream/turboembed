@@ -1834,6 +1834,8 @@ dependencies = [
  "turbo-goldens",
  "turbo-jvm",
  "turbo-maxent",
+ "turbo-normalize",
+ "turbo-train",
 ]
 
 [[package]]
@@ -2245,6 +2247,8 @@ name = "turbo-train-components"
 version = "0.1.0"
 dependencies = [
  "turbo-analysis",
+ "turbo-analysis-layers",
+ "turbo-doccat",
  "turbo-formats",
  "turbo-goldens",
  "turbo-jvm",
