@@ -1,0 +1,38 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	hunspell/fixture-raw-flags	222	216	3573eefbd3073c0a0290a478e88ae4c98706a6a787d66a76046d495b1edb824c
+model	raw-flags.aff	4c0b7dac00021063f7f7ec1653e56a3973fad794317f130ce62e2e15110587be18c6e5aba46644120e66fb8941bc6a2b886c1b6b259f8d7cc734c44ed4efade0
+model	raw-flags.dic	c9e6cb2c59506cc6cc191a029a243a946803943fe58187b768ce464a9309b4f82e7751f149b5d6661a1795c1506f91529b8654fa558592109fd8033ff6cabf33
+annotator	opennlp.tools.stemmer.hunspell.HunspellStemmer	stemAll
+config	branchCommit	fb299cf32ccf6f5dbc81b39448d2d7bea1cf66dc
+config	mode	STRICT
+layer	turbo:hunspell-load	document	1	thrown:str	message:str
+	
+end	turbo:hunspell-load
+layer	turbo:hunspell-unsupported	document	0	directive:str	line:u32
+end	turbo:hunspell-unsupported
+layer	turbo:hunspell-words	document	6	word:str	stem:str	thrown:str
+café	café	
+cafés	cafés	
+caféx	café	
+cafésx	cafésx	
+naïve	naïve	
+naïvex	naïve	
+end	turbo:hunspell-words
+layer	turbo:hunspell-stems	document	6	word:u32	stem:str
+0	café
+1	cafés
+2	café
+3	cafésx
+4	naïve
+5	naïve
+end	turbo:hunspell-stems
+layer	turbo:hunspell-analyses	document	4	word:u32	analysis:str
+0	st:café
+2	st:café fl:ñ
+4	st:naïve
+5	st:naïve fl:ñ
+end	turbo:hunspell-analyses

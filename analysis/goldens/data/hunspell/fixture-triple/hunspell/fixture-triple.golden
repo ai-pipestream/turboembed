@@ -1,0 +1,42 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	hunspell/fixture-triple	240	240	893ca9b1af15182ad1b06fd8f4de3a4024fa6a8fbd49c9d58c7fda179ba65535
+model	triple.aff	9e7cb401f60d478df635d86196da743cc325019e6115f1a9ada63e8e7b5668aa66bae9cee8e330b22ecef903a8c29fa9cbb2ba976019d2e5a40587744b0628de
+model	triple.dic	063cab07493fdab849751570d4a5c3eb4f67122143e936cf9f30d2571aa7f01d9e8a19c4e69ed0c05686b44499214d151fd2569b5f0125fcf1ce89da6df78411
+annotator	opennlp.tools.stemmer.hunspell.HunspellStemmer	stemAll
+config	branchCommit	fb299cf32ccf6f5dbc81b39448d2d7bea1cf66dc
+config	mode	STRICT
+layer	turbo:hunspell-load	document	1	thrown:str	message:str
+	
+end	turbo:hunspell-load
+layer	turbo:hunspell-unsupported	document	0	directive:str	line:u32
+end	turbo:hunspell-unsupported
+layer	turbo:hunspell-words	document	7	word:str	stem:str	thrown:str
+schiffahrt	schiff	
+schifffahrt	schifffahrt	
+bettuch	bettuch	
+betttuch	betttuch	
+schiff	schiff	
+fahrt	fahrt	
+Schiffahrt	schiff	
+end	turbo:hunspell-words
+layer	turbo:hunspell-stems	document	9	word:u32	stem:str
+0	schiff
+0	fahrt
+1	schifffahrt
+2	bettuch
+3	betttuch
+4	schiff
+5	fahrt
+6	schiff
+6	fahrt
+end	turbo:hunspell-stems
+layer	turbo:hunspell-analyses	document	4	word:u32	analysis:str
+0	pa:schiff st:schiff pa:fahrt
+4	st:schiff
+5	st:fahrt
+6	pa:schiff st:schiff pa:fahrt
+end	turbo:hunspell-analyses

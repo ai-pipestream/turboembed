@@ -1,0 +1,30 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	hunspell/fixture-unsupported-directives	201	201	fb11e7da98c06bf12400a2feb1ac1afd4cb2d63202cfb7c32a5138aaf15eaa80
+model	unsupported-directives.aff	4af39d97f627aacb95cb7b1d55c4aea7cdaae411d79cbd36c6fa524b58e66f8fec532bee524d2bbe30917cec2bc7d8a9cd59569a572c8b5e94874e9299ea639d
+model	unsupported-directives.dic	21e28574e31224641376918eac322f33935dcdc06c36ece9a191b18c20eb366d76d0e3e928be63d4c8278952cd6486a4a088d1b7c06d4d8704cfc0b432dd6ea5
+annotator	opennlp.tools.stemmer.hunspell.HunspellStemmer	stemAll
+config	branchCommit	fb299cf32ccf6f5dbc81b39448d2d7bea1cf66dc
+config	mode	ALLOW_PARTIAL
+layer	turbo:hunspell-load	document	1	thrown:str	message:str
+	
+end	turbo:hunspell-load
+layer	turbo:hunspell-unsupported	document	2	directive:str	line:u32
+FOO	3
+BAR	6
+end	turbo:hunspell-unsupported
+layer	turbo:hunspell-words	document	2	word:str	stem:str	thrown:str
+cat	cat	
+cats	cat	
+end	turbo:hunspell-words
+layer	turbo:hunspell-stems	document	2	word:u32	stem:str
+0	cat
+1	cat
+end	turbo:hunspell-stems
+layer	turbo:hunspell-analyses	document	2	word:u32	analysis:str
+0	st:cat
+1	st:cat fl:S
+end	turbo:hunspell-analyses

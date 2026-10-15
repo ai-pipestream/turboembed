@@ -1,0 +1,22 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	hunspell/edge	592	560	28bc4140f764c243f0010d2a37035fa7d91b6074d15e74968b0e7c41e6a9b2bb
+model	unsupported-directives.aff	4af39d97f627aacb95cb7b1d55c4aea7cdaae411d79cbd36c6fa524b58e66f8fec532bee524d2bbe30917cec2bc7d8a9cd59569a572c8b5e94874e9299ea639d
+model	unsupported-directives.dic	21e28574e31224641376918eac322f33935dcdc06c36ece9a191b18c20eb366d76d0e3e928be63d4c8278952cd6486a4a088d1b7c06d4d8704cfc0b432dd6ea5
+annotator	opennlp.tools.stemmer.hunspell.HunspellStemmer	stemAll
+config	branchCommit	fb299cf32ccf6f5dbc81b39448d2d7bea1cf66dc
+config	mode	STRICT
+layer	turbo:hunspell-load	document	1	thrown:str	message:str
+java.io.IOException	unsupported affix directive FOO in affix stream at line 3; use LoadMode.ALLOW_PARTIAL to load without this behavior
+end	turbo:hunspell-load
+layer	turbo:hunspell-unsupported	document	0	directive:str	line:u32
+end	turbo:hunspell-unsupported
+layer	turbo:hunspell-words	document	0	word:str	stem:str	thrown:str
+end	turbo:hunspell-words
+layer	turbo:hunspell-stems	document	0	word:u32	stem:str
+end	turbo:hunspell-stems
+layer	turbo:hunspell-analyses	document	0	word:u32	analysis:str
+end	turbo:hunspell-analyses

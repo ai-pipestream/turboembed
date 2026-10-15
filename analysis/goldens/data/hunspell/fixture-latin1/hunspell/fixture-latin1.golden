@@ -1,0 +1,67 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	hunspell/fixture-latin1	306	293	d56aa6a94f4a7dd8adb409e9ac150a5bbfd50185b0c2e62ace6d73ee5dba1a21
+model	latin1.aff	c66022c6e5938d378fb808b2e34a40eea804229e5ab8238674eeb8b0f6eaec2ba0e6e41d95e6bb8e0d6bbabb2f5baed0c943791bb3bc57bdb762eca0569b29c8
+model	latin1.dic	98f7c364ed1ccc66e1ef6d77f0692a791f6a165dc0f5cfb999c68cb74a5abb9294cb0a2962b6a2e1f207022206c33549e7949ba619b9eb079002720f850714d7
+annotator	opennlp.tools.stemmer.hunspell.HunspellStemmer	stemAll
+config	branchCommit	fb299cf32ccf6f5dbc81b39448d2d7bea1cf66dc
+config	mode	STRICT
+layer	turbo:hunspell-load	document	1	thrown:str	message:str
+	
+end	turbo:hunspell-load
+layer	turbo:hunspell-unsupported	document	0	directive:str	line:u32
+end	turbo:hunspell-unsupported
+layer	turbo:hunspell-words	document	17	word:str	stem:str	thrown:str
+Straße	Straße	
+STRASSE	Straße	
+Strasse	Strasse	
+straße	straße	
+STRAẞE	STRAẞE	
+Straßee	Straßee	
+groß	groß	
+große	groß	
+GROSS	groß	
+GROSSE	groß	
+Groß	groß	
+Füße	Füße	
+FÜSSE	Füße	
+Füsse	Füsse	
+Maßstab	Maßstab	
+MASSSTAB	Maßstab	
+Massstab	Massstab	
+end	turbo:hunspell-words
+layer	turbo:hunspell-stems	document	17	word:u32	stem:str
+0	Straße
+1	Straße
+2	Strasse
+3	straße
+4	STRAẞE
+5	Straßee
+6	groß
+7	groß
+8	groß
+9	groß
+10	groß
+11	Füße
+12	Füße
+13	Füsse
+14	Maßstab
+15	Maßstab
+16	Massstab
+end	turbo:hunspell-stems
+layer	turbo:hunspell-analyses	document	11	word:u32	analysis:str
+0	st:Straße
+1	st:Straße
+6	st:groß
+7	st:groß fl:e
+8	st:groß
+9	st:groß fl:e
+10	st:groß
+11	st:Füße
+12	st:Füße
+14	st:Maßstab
+15	st:Maßstab
+end	turbo:hunspell-analyses

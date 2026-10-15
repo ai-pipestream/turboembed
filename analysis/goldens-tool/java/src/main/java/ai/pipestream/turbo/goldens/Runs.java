@@ -146,6 +146,8 @@ final class Runs {
   static final String STEM = "stem";
   /** The words and language codes of the stopword goldens. */
   static final String STOPWORD = "stopword";
+  /** The words the Hunspell goldens stem with the published and the fixture dictionaries. */
+  static final String HUNSPELL = "hunspell";
 
   /** The numbers of merges the BPE trainer runs with: few, so the tokens are pieces of words, and many. */
   static final List<Integer> BPE_MERGES = List.of(40, 400);
@@ -362,6 +364,9 @@ final class Runs {
     annotators.addAll(NameFindGolden.all(fixtures));
     annotators.addAll(StemGolden.all());
     annotators.addAll(StopwordGolden.all());
+    // The Hunspell stemmer of the compatibility branch over the published and the fixture
+    // dictionaries (turbo-hunspell).
+    annotators.addAll(HunspellGolden.all(models, fixtures));
     return new All(annotators, recorders);
   }
 }
