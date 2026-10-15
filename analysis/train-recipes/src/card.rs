@@ -112,31 +112,49 @@ pub struct HeldOutCard {
     pub tokens: Option<TokenCoverage>,
 }
 
-/// How a tagger's held-out tokens were scored: both models' tags and the
-/// held-out tags compared in the reference's spelling, over the tokens
-/// whose tag the reference can give ([`postag::ReferenceTags`]).
+/// How a tagger's held-out tokens were scored: over the tokens whose tag
+/// the reference can give, as written or through the mapping of its tags
+/// ([`postag::ReferenceTags`]), the trained model's tag compared with the
+/// held-out tag as written and the reference's through
+/// [`postag::REFERENCE_MAPPINGS`].
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct TokenCoverage {
     /// The tokens of the held-out samples.
     pub tokens: u64,
-    /// The tags scored as the reference writes them
-    /// ([`postag::REFERENCE_SPELLINGS`]).
-    pub spellings: Vec<SpellingCard>,
+    /// The reference's tags counted right for another held-out tag
+    /// ([`postag::REFERENCE_MAPPINGS`]).
+    pub reference_mappings: Vec<TagMappingCard>,
     /// The tokens left out of both models' scores because the reference
-    /// cannot give their tag, by that tag in the reference's spelling,
-    /// sorted by tag; at most [`crate::MAX_TOKENS_LEFT_OUT`] of `tokens`.
+    /// cannot give their tag, by that tag as written, sorted by tag; at
+    /// most [`crate::MAX_TOKENS_LEFT_OUT`] of `tokens`.
     pub left_out: Vec<TagCount>,
+    /// The reference's most frequent mismatches on the scored tokens, at
+    /// most [`postag::MISMATCHES_LISTED`], most frequent first: where it
+    /// and MASC differ by convention or by its tag dictionary as much as
+    /// where it errs.
+    pub reference_mismatches: Vec<Mismatch>,
 }
 
-/// A tag scored as the reference writes it.
+/// A held-out tag and a reference tag counted right for it.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
-pub struct SpellingCard {
-    /// The tag as MASC, and so the trained model, writes it.
-    pub masc: String,
-    /// The tag the reference gives the same tokens.
+pub struct TagMappingCard {
+    /// The held-out tag, as MASC writes it.
+    pub held_out: String,
+    /// The reference's tag counted right for it.
     pub reference: String,
+}
+
+/// How many scored held-out tokens of a tag a model gave another tag.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct Mismatch {
+    /// The held-out tag, as written.
+    pub held_out: String,
+    /// The tag the model gave.
+    pub given: String,
+    pub tokens: u64,
 }
 
 /// How many held-out tokens have a tag.

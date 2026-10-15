@@ -95,8 +95,9 @@ impl fmt::Display for Limit {
 pub const MAX_SKIPPED_SENTENCES: Limit = Limit { count: 1, of: 1000 };
 
 /// The most held-out tokens the tagger's gate may leave out of both
-/// models' scores because the reference cannot give their tag, even in
-/// its spelling ([`postag::ReferenceTags`]): one in a thousand. Read with
+/// models' scores because the reference cannot give their tag, as
+/// written or through the mapping of its tags ([`postag::ReferenceTags`]):
+/// one in a thousand. Read with
 /// the recipe's reader and split by [`masc::SPLIT`], MASC 3.0.0's
 /// held-out documents have 6 such tokens of 85,292: ``UH` `` (3), `"`
 /// (2) and `PRN` (1).

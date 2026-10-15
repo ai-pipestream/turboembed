@@ -52,8 +52,8 @@ pub enum Error {
     /// A recipe left out more than its limit allows.
     TooManyLeftOut { what: LeftOut, count: u64, of: u64, limit: Limit },
     /// The tagger's reference cannot give the tags of more held-out tokens
-    /// than [`crate::MAX_TOKENS_LEFT_OUT`] allows (`left_out`, by tag in
-    /// the reference's spelling, of `of` tokens).
+    /// than [`crate::MAX_TOKENS_LEFT_OUT`] allows (`left_out`, by tag as
+    /// written, of `of` tokens).
     TagsOutsideReference { reference: String, left_out: Vec<TagCount>, of: u64, limit: Limit },
 }
 

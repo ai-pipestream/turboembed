@@ -80,22 +80,30 @@ error.
   OpenNLP's English maxent tagger of the 1.5 models, `en-pos-maxent.bin`.
   OpenNLP's only English taggers trained on Penn tags are that one and
   the 1.5 perceptron tagger; the maxent one is trained with the
-  algorithm the recipe uses. Both models are scored in the reference's
-  tag set: the reference asked for Penn tags (`PosTagFormat::Penn`), its
-  own outcomes, which come out unconverted, and the trained model with its
-  outcomes as they are, MASC's tags. The card records both formats.
-  MASC 3.0.0 writes some tags another way than the reference: brackets
-  `(` and `)` where the reference has `-LRB-` and `-RRB-`, and tags of its
-  own for hyphens and dashes (`-`), ellipses (`...`) and semicolons
-  (`;`), tokens the reference tags `:`. The held-out tags and both
-  models' tags are compared in the reference's spelling
-  (`postag::REFERENCE_SPELLINGS`). A held-out token whose tag the
-  reference cannot give even so would count against it whatever it did,
-  so it is left out of both models' scores; the card lists those tokens
-  by tag (`held_out.tokens.left_out`), and the recipe fails when they are
-  more than one in a thousand of the held-out tokens
-  (`MAX_TOKENS_LEFT_OUT`). MASC 3.0.0's held-out documents have 6 of
-  85,292: ``UH` `` (3), `"` (2) and `PRN` (1). The reference's
+  algorithm the recipe uses. The reference is asked for Penn tags
+  (`PosTagFormat::Penn`), its own outcomes, which come out unconverted,
+  and the trained model for its outcomes as they are, MASC's tags; the
+  card records both formats. The trained model's tag is compared with
+  the held-out tag as written. The reference's tag is compared through a
+  mapping of its tags (`postag::REFERENCE_MAPPINGS`), where MASC 3.0.0
+  follows another convention than the reference: brackets, which MASC
+  tags `(` and `)` and the reference `-LRB-` and `-RRB-`; hyphens and
+  dashes, which MASC tags `-` or `:` and the reference `:`; ellipses,
+  `...` in MASC and `:` in the reference; the two semicolons MASC tags
+  `;` (it tags the other 759 `:`, as the reference does); and opening
+  quotation marks, which MASC tags `''` as it tags closing ones (``` `` ```
+  only for a backtick), and the reference ``` `` ```. For those held-out
+  tags the reference's tag of the other convention counts as right too;
+  the trained model is not given that. A held-out token whose tag the
+  reference cannot give, as written or through the mapping, would count
+  against it whatever it did, so it is left out of both models' scores;
+  the card lists those tokens by tag (`held_out.tokens.left_out`), and
+  the recipe fails when they are more than one in a thousand of the
+  held-out tokens (`MAX_TOKENS_LEFT_OUT`). The card also lists the
+  reference's ten most frequent mismatches on the scored tokens
+  (`held_out.tokens.reference_mismatches`), so a gap of convention the
+  mapping does not cover, or an effect of the reference's tag
+  dictionary, shows. The reference's
   training data is not published, and the zoo does not list it: the
   recipe records its
   address, size and SHA-256 (`postag::EN_POS_MAXENT`), a run reads it
@@ -169,8 +177,9 @@ them: the split in the reader's order; the three recipes trained,
 scored and gated; the same bytes from a second training; the card, the
 model's directory and its zoo entry; the skipped sentences recorded and
 bounded on both sides; a sentence with a token inside another skipped
-by the token recipe alone; the tagger scored in the reference's spelling
-with the tokens of a tag the reference cannot give left out, and a
+by the token recipe alone; the tagger's tags compared as written and
+the reference's through the mapping of its tags, with the tokens of a
+tag the reference cannot give left out, and a
 reference that cannot give most tags refused; and the binary's refusal
 of an unrecorded corpus, of a missing or wrong reference and of an
 existing model directory before it trains anything, and its output. It
@@ -207,7 +216,7 @@ there fails), and skip without it even with
 `TURBO_TEST_REQUIRE_OPENNLP_MODELS=1`. With it, it is checked against the
 recorded digest, shown to return its 45 Penn outcomes unconverted and
 to tag brackets, hyphens, ellipses and semicolons as
-`postag::REFERENCE_SPELLINGS` says, scored and gated, and the binary
+`postag::REFERENCE_MAPPINGS` says, scored and gated, and the binary
 runs all three recipes.
 
 On the test corpus, with both directories set, the published references

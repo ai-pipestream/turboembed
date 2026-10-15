@@ -2104,11 +2104,15 @@ trained on MASC 3.0.0 (CC BY 3.0 US), gated against
   gated by `turbo_eval::model_gate`. MASC's tags are Penn tags, so the
   tagger's reference is OpenNLP's English maxent tagger trained on Penn
   tags, `en-pos-maxent.bin` of the 1.5 models, scored in its own
-  outcomes. The tags are compared in its spelling where MASC writes them
-  another way (`(` and `)` for `-LRB-` and `-RRB-`; `-`, `...` and `;`
-  for `:`), over the held-out tokens whose tag it can give: the others,
-  6 of the 85,292 tokens of MASC 3.0.0's held-out documents, are left
-  out of both models' scores and listed on the card, and more than one
+  outcomes. The trained model's tags are compared with the held-out
+  tags as written; the reference's through a mapping of its tags
+  (`postag::REFERENCE_MAPPINGS`) where MASC follows another convention
+  (`-LRB-` and `-RRB-` for MASC's `(` and `)`; `:` for MASC's `-`,
+  `...` and `;`; ``` `` ``` for an opening quotation mark, which MASC tags
+  `''`). Only the held-out tokens whose tag it can give, as written or
+  through the mapping, are scored: the others are left out of both
+  models' scores and listed on the card, with the reference's ten most
+  frequent mismatches, and more than one
   in a thousand fails the recipe. Its training data is not published
   and the zoo does not list it; the recipe records its size and
   SHA-256, reads it only to score it, and never ships or bundles it. The

@@ -17,11 +17,11 @@ use turbo_formats::masc::{MascCorpus, MascTokenReader};
 use turbo_postag::PosTagFormat;
 use turbo_train_components::{TokSpanEventStream, TokenizerFactory};
 use turbo_train_recipes::card::{
-    CARD_FILE, CARD_VERSION, GATE_FILE, HeldOutCard, ModelCard, SpellingCard, TagCount, TagFormat, TokenCoverage,
+    CARD_FILE, CARD_VERSION, GATE_FILE, HeldOutCard, ModelCard, TagCount, TagFormat, TagMappingCard, TokenCoverage,
     write_model_dir,
 };
 use turbo_train_recipes::masc::{self, RELEASE, SPLIT, SplitCorpus};
-use turbo_train_recipes::postag::{self, CANDIDATE_FORMAT, POS, PosRecipe, ReferenceTags};
+use turbo_train_recipes::postag::{self, POS, PosRecipe, ReferenceTags, Scored};
 use turbo_train_recipes::segmentation::{SENTENCE, TOKENS, in_text_order, read_token_samples};
 use turbo_train_recipes::{Error, LeftOut, RECIPES, Recipe, Reference, held_out_name, run};
 use turbo_zoo::{Index, LicenceClass};
@@ -159,14 +159,21 @@ fn the_recipes_train_score_gate_and_write_their_cards() {
         assert_eq!(card.corpus.held_out_documents, split.held_out_paths);
         assert_eq!(card.training.seed, None);
         let tokens = match recipe {
-            Recipe::Pos(p) => Some(TokenCoverage {
-                tokens: p.held_out(&split.held_out).unwrap().tokens(),
-                spellings: postag::REFERENCE_SPELLINGS
-                    .iter()
-                    .map(|s| SpellingCard { masc: s.masc.to_owned(), reference: s.reference.to_owned() })
-                    .collect(),
-                left_out: Vec::new(),
-            }),
+            Recipe::Pos(p) => {
+                // The weak reference's mismatches, most frequent first.
+                let mismatches = card.held_out.tokens.as_ref().unwrap().reference_mismatches.clone();
+                assert!(!mismatches.is_empty() && mismatches.len() <= postag::MISMATCHES_LISTED);
+                assert!(mismatches.windows(2).all(|w| w[0].tokens >= w[1].tokens), "{mismatches:?}");
+                Some(TokenCoverage {
+                    tokens: p.held_out(&split.held_out).unwrap().tokens(),
+                    reference_mappings: postag::REFERENCE_MAPPINGS
+                        .iter()
+                        .map(|m| TagMappingCard { held_out: m.held_out.to_owned(), reference: m.reference.to_owned() })
+                        .collect(),
+                    left_out: Vec::new(),
+                    reference_mismatches: mismatches,
+                })
+            }
             Recipe::Segmentation(_) => None,
         };
         assert_eq!(card.held_out, HeldOutCard { samples: gate.units.len(), skipped_sentences: 0, tokens });
@@ -441,37 +448,42 @@ fn a_held_out_set_of_another_component_is_refused() {
     // a part-of-speech model is not a tokenizer model.
     let tags = POS.held_out(&split.held_out).unwrap();
     let penn = ReferenceTags::of(&turbo_analysis::TagSet::new("penn", &["NN", "."]));
-    assert!(matches!(POS.score(&model.bytes, CANDIDATE_FORMAT, &tags, &penn), Err(Error::Model(_))));
-    assert!(matches!(POS.score(&model.bytes, POS.reference_format, &tags, &penn), Err(Error::Model(_))));
+    assert!(matches!(POS.score(&model.bytes, Scored::Candidate, &tags, &penn), Err(Error::Model(_))));
+    assert!(matches!(POS.score(&model.bytes, Scored::Reference, &tags, &penn), Err(Error::Model(_))));
     let tagger = POS.train(&split.train).unwrap();
     assert!(TOKENS.score(&tagger.bytes, &tokens_again).is_err());
     std::fs::remove_dir_all(&root).unwrap();
 }
 
-/// A sentence tagged as MASC tags brackets, a hyphen, an ellipsis and a
-/// semicolon, and the same sentence as the reference tags them.
-const MASC_SPELLED: &str = "Wait/VB .../... he/PRP said/VBD -/- no/DT ~;/; then/RB (/( yes/UH ~)/) ~./.";
-const REFERENCE_SPELLED: &str = "Wait/VB .../: he/PRP said/VBD -/: no/DT ~;/: then/RB (/-LRB- yes/UH ~)/-RRB- ~./.";
+/// A sentence tagged as MASC tags brackets, a hyphen, an ellipsis, a
+/// semicolon and an opening quotation mark, and the same sentence as the
+/// reference tags them.
+const MASC_SPELLED: &str =
+    "Wait/VB .../... he/PRP said/VBD -/- no/DT ~;/; then/RB (/( yes/UH ~)/) and/CC \"/'' ~fine/JJ ~\"/'' ~./.";
+const REFERENCE_SPELLED: &str =
+    "Wait/VB .../: he/PRP said/VBD -/: no/DT ~;/: then/RB (/-LRB- yes/UH ~)/-RRB- and/CC \"/`` ~fine/JJ ~\"/'' ~./.";
 /// A tag no Penn tagger gives, as MASC 3.0.0 has a few.
 const ODD_TAG: &str = "Agh/UH` ~!/.";
 
-/// The tagger is scored in the reference's spelling, over the held-out
-/// tokens whose tag the reference can give: a candidate trained on MASC's
-/// spellings and a reference trained on the same sentences in its own
-/// both score every token, the token of a tag neither can give is left
-/// out and counted, and more such tokens than one in a thousand are an
-/// error that names their tags.
+/// The tagger's gate scores the held-out tokens whose tag the reference
+/// can give, as written or through the mapping of its tags: a candidate
+/// trained on MASC's tags is compared with the held-out tags as written,
+/// and a reference trained on the same sentences in its own conventions
+/// through the mapping, so both are right on every token; the reference's
+/// tags are not counted right for the candidate. The token of a tag
+/// neither can give is left out and counted, and more such tokens than
+/// one in a thousand are an error that names their tags.
 #[test]
-fn the_tagger_is_scored_in_the_reference_s_spelling_over_the_tags_it_can_give() {
+fn the_tagger_is_scored_over_the_tags_the_reference_can_give_mapping_only_the_reference_s() {
     let pool = |extra: &'static str| {
         let mut pool = SENTENCES.to_vec();
         pool.extend([extra, ODD_TAG]);
         pool
     };
     let (masc_pool, reference_pool) = (pool(MASC_SPELLED), pool(REFERENCE_SPELLED));
-    let root = temp_dir("spellings");
+    let root = temp_dir("mappings");
     write_corpus(&root, GATED_DOCUMENTS, &masc_pool[..=SENTENCES.len()]);
-    let reference_root = temp_dir("spellings-reference");
+    let reference_root = temp_dir("mappings-reference");
     write_corpus(&reference_root, GATED_DOCUMENTS, &reference_pool[..=SENTENCES.len()]);
     let (split, digest) = split_of(&root);
     let (reference_split, _) = split_of(&reference_root);
@@ -489,16 +501,39 @@ fn the_tagger_is_scored_in_the_reference_s_spelling_over_the_tags_it_can_give() 
     let coverage = run.held_out.tokens.unwrap();
     assert_eq!(coverage.tokens, tags.tokens());
     assert_eq!(coverage.left_out, [TagCount { tag: "UH`".to_owned(), tokens: 1 }]);
+    assert_eq!(coverage.reference_mismatches, []);
     let scored: u64 = run.record.units.iter().map(|u| u.reference.target).sum();
     assert_eq!(scored, tags.tokens() - 1);
-    // The reference gives `-LRB-` and `:` where MASC has `(` and `-`, and
-    // is right on every scored token, as the candidate is.
+    // The reference gives `-LRB-`, `:` and ``` `` ``` where MASC has `(`, `-`
+    // and `''`, and is right on every scored token, as the candidate is.
     assert_eq!(
         (run.record.result.candidate.score, run.record.result.reference.score),
         (100.0, 100.0),
         "{}",
         run.record
     );
+    // Scored as the candidate, the reference's tags are compared as
+    // written, and its `-LRB-`, `:` and ``` `` ``` are wrong.
+    let reference_tags = POS.reference_tags(&reference.bytes).unwrap();
+    let as_candidate: u64 = POS
+        .score(&reference.bytes, Scored::Candidate, &tags, &reference_tags)
+        .unwrap()
+        .iter()
+        .map(|c| c.true_positives)
+        .sum();
+    let mapped: u64 = POS
+        .score(&reference.bytes, Scored::Reference, &tags, &reference_tags)
+        .unwrap()
+        .iter()
+        .map(|c| c.true_positives)
+        .sum();
+    // Each held-out copy of the sentence has six such tokens: the
+    // brackets, the hyphen, the ellipsis, the semicolon and the opening
+    // quotation mark (the closing one is `''` in both).
+    let copies = tags.samples().iter().filter(|s| s.tokens()[0].as_str() == "Wait").count() as u64;
+    assert!(copies > 0);
+    assert_eq!(mapped, scored);
+    assert_eq!(mapped - as_candidate, 6 * copies);
 
     // Five such tokens are more than one in a thousand.
     rewrite_document(&root, &split.held_out_paths[0], &masc_pool, &sentences_after(&[odd; 5]));
@@ -663,9 +698,10 @@ fn the_ud_tagger_asked_for_penn_tags_gives_one_penn_tag_per_ud_tag() {
 
 /// The tagger recipe's reference, asked for Penn tags, returns its own
 /// outcomes: Penn tags, unconverted, among them the inflected verbs,
-/// plural nouns and punctuation the UD tagger cannot give. It writes the
-/// tags of `postag::REFERENCE_SPELLINGS` as that list says: brackets
-/// `-LRB-` and `-RRB-`, hyphens, dashes, ellipses and semicolons `:`.
+/// plural nouns and punctuation the UD tagger cannot give. It tags the
+/// tokens of `postag::REFERENCE_MAPPINGS` as that list says: brackets
+/// `-LRB-` and `-RRB-`, hyphens, ellipses and semicolons `:`, and an
+/// opening quotation mark ``` `` ```.
 #[test]
 fn the_penn_reference_returns_its_own_outcomes() {
     let Some(path) = reference_path(&Recipe::Pos(POS)) else { return };
@@ -687,18 +723,22 @@ fn the_penn_reference_returns_its_own_outcomes() {
             "UH", "VB", "VBD", "VBG", "VBN", "VBP", "VBZ", "WDT", "WP", "WP$", "WRB", "``"
         ]
     );
-    for spelling in postag::REFERENCE_SPELLINGS {
-        assert!(!tags.contains(&spelling.masc) && tags.contains(&spelling.reference), "{spelling:?}");
+    for mapping in postag::REFERENCE_MAPPINGS {
+        // The held-out tag is one the reference does not give, but for
+        // `''`, which it gives a closing quotation mark.
+        assert_eq!(tags.contains(&mapping.held_out), mapping.held_out == "''", "{mapping:?}");
+        assert!(tags.contains(&mapping.reference), "{mapping:?}");
     }
     let tagger = turbo_postag::PosTagger::new(model);
-    let words = ["Wait", "...", "he", "said", "-", "no", ";", "then", "(", "yes", ")", "."];
+    let words = ["Wait", "...", "he", "said", "-", "no", ";", "then", "(", "yes", ")", "and", "\"", "fine", "\"", "."];
     let (mut found, mut probs) = (Vec::new(), Vec::new());
     assert!(tagger.tag(&words, &mut found, &mut probs).unwrap());
     let given: Vec<&str> = found.iter().map(|&t| tagger.pos_model().tagset().label(t)).collect();
-    for (word, masc) in [("...", "..."), ("-", "-"), (";", ";"), ("(", "("), (")", ")")] {
-        let at = words.iter().position(|w| *w == word).unwrap();
-        assert_eq!(given[at], postag::in_reference_spelling(masc), "{word} in {given:?}");
+    for (at, held_out) in [(1, "..."), (4, "-"), (6, ";"), (8, "("), (10, ")"), (12, "''")] {
+        let mapping = postag::REFERENCE_MAPPINGS.iter().find(|m| m.held_out == held_out).unwrap();
+        assert_eq!(given[at], mapping.reference, "{} in {given:?}", words[at]);
     }
+    assert_eq!(given[14], "''", "{given:?}");
 }
 
 fn labels(tagset: &turbo_analysis::TagSet) -> Vec<&str> {
