@@ -39,3 +39,5 @@ turbo-analysis = { path = "../core" }
 # The JVM's events over the golden inputs, which the event streams are
 # compared with, and the fixture models.
 turbo-goldens = { path = "../goldens" }
+# Opens the chunker models trained here as the chunker opens them.
+turbo-phrase-chunker = { path = "../phrase-chunker" }

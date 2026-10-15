@@ -13,8 +13,9 @@ everything that makes them:
   per run and input; for the `num` set it runs `NumberScan` of the addons
   module, and for the `money` set `MoneyAnnotator` with
   `CursorMoneyExtractor` and `MoneyConversionAnnotator` with `EcbFxRates`,
-  and for the `quantity` set `QuantityAnnotator` with
-  `CursorQuantityExtractor` (see below). With `--dumps` it also writes a decision point dump
+  for the `quantity` set `QuantityAnnotator` with
+  `CursorQuantityExtractor`, and for the `temporal` set `TemporalAnnotator`
+  with `CursorTemporalExtractor` and `DocumentDateAnnotator` (see below). With `--dumps` it also writes a decision point dump
   beside each golden of a run that asks a maxent model (the sentence
   detector, the tokenizer, the part-of-speech tagger, the maxent
   lemmatizer, the chunker and the language detector): every context the annotator gave
@@ -85,8 +86,8 @@ cargo run -p turbo-goldens-tool --features fuzz -- fuzz [--seed <n>] [--count <n
   whose header parses, except a golden with an error record (the annotator
   threw on that input), which must have none. A golden that names no model
   (a tokenizer or sentence detector without one, a normalizer) has no dump,
-  and neither has a detokenizer, number, money, quantity, unigram or
-  lattice golden.
+  and neither has a detokenizer, number, money, quantity, temporal, unigram
+  or lattice golden.
 - `verify` generates into a scratch directory and compares every golden
   and dump byte for byte with the checked in ones. It lists each file that
   differs, is missing or is extra, and exits non zero if there is any. It
@@ -133,11 +134,13 @@ a directory with the same model run without them, and its options are
 | `lemmatize-dictionary` (`DictionaryLemmatizer`) | `lemmatizer-dictionary` (fixture) | `en`, `multi`, `edge` | |
 | `chunk` (`ChunkerME`) | `chunker-fixture` (fixture) | `en`, `multi`, `edge` | |
 | | `chunker-fixture+beam1` | `en` | `beamSize 1` |
+| | `chunker-fixture-rust` (fixture) | `en`, `multi`, `edge` | |
 | `langdetect` (`LanguageDetectorME`) | `langdetect-183` | `en`, `multi` | |
 | `normalize` (each normalizer) | the normalizer's name | `norm` | see below |
 | `numbers` (`NumberScan` of the addons `numeric` module) | `latin-us`, `latin-eu` | `num` | `notation` |
 | `money`, `money-convert` (`MoneyAnnotator`, `MoneyConversionAnnotator`) | `latin-us`, `latin-eu` | `money` | `notation`; for conversions also `target`, `as_of`, `snapshot` |
 | `quantity` (`QuantityAnnotator`) | `latin-us`, `latin-eu` | `quantity` | `notation` |
+| `temporal` (`TemporalAnnotator`, `DocumentDateAnnotator`) | `dateline`, `fixed` | `temporal` | `reference` |
 | `subwords` (`WordpieceEncoder`) | `all-minilm-l6-v2-vocab` (fixture) | `en`, `multi`, `edge`, `surrogate`, `subwords` | `lowerCase true`, `maxWordCodePoints 100` |
 | `bpe` (`BPETokenizerTrainer`, `BPETokenizer`) | `merges-40`, `merges-400` | `bpe` | `languageCode en`, `numMerges` |
 | `train` (the data indexers and `GISTrainer`) | `<source>-<indexer>-cutoff<n>`, with `-unsorted` when sorting is off, then `-threads2`, `-smoothing`, `-smoothing0.5`, `-gaussian` or `-gaussian0.5` when the trainer is given that: nineteen runs over the sources `sentdetect`, `tokenize`, `realvalue` and `postag` | `en`, `multi`, `edge`; `sentdetect` and `postag` also `train` | `source`, `DataIndexer`, `Cutoff`, `sort`, `Iterations`, and when set `Threads`, `Smoothing`, `SmoothingObservation`, `GaussianSmoothing`, `GaussianSmoothingSigma` |
@@ -146,6 +149,7 @@ a directory with the same model run without them, and its options are
 | `train` (`SimplePerceptronSequenceTrainer`) | the same, with `-perceptron-sequence` appended, then `-raw` without averaging: three runs over sequences of five events of `sentdetect` and `postag` | `en`, `multi`, `edge`; one `sentdetect` run also `train` | `source`, `DataIndexer`, `Cutoff`, `sort`, `Algorithm`, `Iterations`, `UseAverage` |
 | `train-events` (`SDEventStream`, `TokSpanEventStream` with factory options) | `sentdetect-dictionary-pt`, `sentdetect-th`, `sentdetect-conllu`, `tokenize-dictionary-alnum-de`, `tokenize-conllu` | `en`, `multi`, `edge`, `train`, `abbreviations`, `alphanumeric`, `formats` by run | `run`, `source`, `language`, `format`, and when given `abbreviations`, `useTokenEnd`, `eosCharacters`, `useAlphaNumericOptimization`, `alphaNumericPattern`, `sentencesPerSample` |
 | `train-events` (`POSSampleEventStream`, `LemmaSampleEventStream`) | `postag-wordtag`, `postag-wordtag-tagdict`, `postag-conllu-u`, `postag-conllu-x`, `lemma-text`, `lemma-conllu-u` | `tagged`, `formats` by run; the `wordtag`, `lemma` or `conllu` inputs by source and format | `run`, `source`, `language`, `format`, and when given `tagset`, `tagDictionary` |
+| `train-events` (`ChunkerEventStream`, `ChunkerME.train`) | `chunker-defaults`, `chunker-perceptron`, `chunker-qn`, `chunker-perceptron-sequence` | `tagged`, `formats`; the `chunk` inputs | `run`, `source`, `language`, and every training parameter the run puts (`Algorithm`, `Iterations`, `Cutoff`, `TrainerType`, `BeamSize`) |
 | `unigram` (`UnigramSegmenter`) | `zh-unigram-fixture` (fixture), also `+legacy` | `zh`, `multi`, `edge`, `surrogate` | `whitespace legacy` |
 | | `jieba-dict-subset` (fixture), also `+legacy` | `zh`, `multi`, `edge` | `whitespace legacy` |
 | | `zh-unigram-modes` (fixture), also `+legacy` | `zh` | `whitespace legacy` |
@@ -254,6 +258,24 @@ a directory with the same model run without them, and its options are
   A predicate of these sources holds a token, which the sample streams
   never let hold a space; the generator stops if one does, so the space
   separated `context` field is never ambiguous.
+- A `train-events` run of `ChunkerTrainGolden` is `ChunkerME.train` with
+  `new ChunkerFactory()` over the input read with `ChunkSampleStream`, as
+  the trainer tool reads it: the events of `ChunkerEventStream` over the
+  factory's `DefaultChunkerContextGenerator`, then the model trained. The
+  runs are the training parameters: `TrainingParameters.defaultParams()`
+  (`chunker-defaults`: `MAXENT`, 100 iterations, cutoff 5), the
+  perceptron with cutoff 1 and a beam size of 5 (`chunker-perceptron`),
+  `MAXENT_QN` with cutoff 1 (`chunker-qn`), and the sequence perceptron
+  (`chunker-perceptron-sequence`), which `ChunkerME.train` refuses. It
+  records the events, `turbo:stream-errors` and the checksum as the
+  tagger's runs do, then either `turbo:train-error` (the class and
+  message of what training threw) or the model: `turbo:model-entry`
+  (the algorithm, and the `chunker.model` entry's length and SHA-256),
+  `turbo:model-outcomes` and `turbo:model-predicates` (the labels in the
+  model's order), `turbo:model-parameters` (every parameter with its
+  predicate and outcome index), and `turbo:manifest` and
+  `turbo:package-entries` of the model file.
+  `analysis/train-components/tests/chunker.rs` compares with them.
 - `en-plain-rust.bin` is the `.bin` the Rust trainer writes when it trains
   `en-plain.bin`'s events again (`analysis/train/tests/roundtrip.rs`), and
   `en-plain-qn-rust.bin` and `en-plain-perceptron-rust.bin` the ones it
@@ -263,11 +285,13 @@ a directory with the same model run without them, and its options are
   of the same). The JVM loads all three with `SentenceModel` like the other
   fixtures, so their goldens show what the JVM makes of a model file
   written here.
-  `pos-fixture-rust.bin` and `lemma-fixture-rust.bin` are the `.bin` files
-  the Rust trainer writes from `inputs/tagged/wordtag.txt` (with
-  `tags.tagdict`) and `inputs/tagged/lemmas.txt`
+  `pos-fixture-rust.bin`, `lemma-fixture-rust.bin` and
+  `chunker-fixture-rust.bin` are the `.bin` files the Rust trainer writes
+  from `inputs/tagged/wordtag.txt` (with `tags.tagdict`),
+  `inputs/tagged/lemmas.txt` and `inputs/tagged/chunks.txt`
   (`analysis/train-components/tests/fixtures.rs`); the JVM loads them with
-  `POSModel` and `LemmatizerModel` and tags with them.
+  `POSModel`, `LemmatizerModel` and `ChunkerModel` and tags, lemmatizes or
+  chunks with them.
 - A `postag` run cuts the input with the English (or, for the German
   model, German) sentence and tokenizer models, which are its second and
   third `model` records, and tags each sentence with `tag`; its golden has
@@ -651,6 +675,27 @@ value with a negative scale is written with scale 0, as for money.
 The `quantity` inputs are written for the project. Only the quantity
 annotator runs on them, and it has no dumps.
 
+## Temporal goldens
+
+`temporal/<mode>/temporal/<id>.golden` is what `TemporalAnnotator` over
+`CursorTemporalExtractor`, followed by `DocumentDateAnnotator`, found in
+`inputs/temporal/<id>.txt`. In the `dateline` mode the annotator takes the
+reference date of relative mentions from the text's first absolute day,
+and a text without one has no relative mentions; in the `fixed` mode the
+reference date is 2026-03-15. The `config reference` record is `dateline`
+or `2026-03-15`; the mode takes the model's place in the path.
+
+Each golden has two layers. `turbo:temporal` has one row per mention with
+`start`, `end` (UTF-8 byte offsets), `value` (`TemporalExpression.value()`:
+`2026-07-14`, `2026-W29`, `2026-07`, `2024-Q3` or `2026`), and
+`granularity` and `origin`, the names of the enum constants.
+`turbo:document-date` is anchored on the document and has no row or one:
+`date`, the chosen `LocalDate`, and `mention`, the index in
+`turbo:temporal` of the mention the date annotation spans.
+
+The `temporal` inputs are written for the project. Only the temporal
+annotators run on them, and they have no dumps.
+
 ## Fuzzing against the Rust ports
 
 `turbo-goldens fuzz` compares the JVM and the Rust ports on generated
@@ -669,7 +714,7 @@ The command:
 1. writes the first `<count>` texts of the seed's corpus
    (`turbo_goldens::fuzz::corpus`) as `<out>/inputs/<set>/s<seed>-<index>.txt`
    for each set named by `--sets`, `en`, `edge`, `norm`, `num`, `money`,
-   `quantity` and `sentence-fixture` by default, so that every run the
+   `quantity`, `temporal` and `sentence-fixture` by default, so that every run the
    differential covers reads each text; `<out>` is
    `target/turbo-goldens/fuzz/s<seed>-<count>` unless `--out` names a
    directory; the inputs and the `jvm` directory of an earlier run there

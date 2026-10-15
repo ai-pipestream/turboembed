@@ -20,11 +20,14 @@ pub use turbo_analysis::{
 use turbo_analysis::{Anchor, Ix, IxRange, Key, KeyId, Layer, LayerName, ModelRef, Span, Spans};
 
 pub use abbreviations::{AbbreviationForm, Abbreviations, DEFINITION, MENTION, abbreviation_links};
+pub use date::{Date, write_year};
+pub use language_spans::{LanguageSpan, LanguageSpans, UNDETERMINED};
 pub use levels::{Level, Levels, Unit, VectorKind};
 pub use matches::Matches;
 pub use money::{CONVERTED_MONEY, Currency, Money, MoneyMention};
 pub use numbers::{DecimalRef, Multiplier, NumberMention, NumberNotation, Numbers, ScaleMarker};
 pub use quantities::{PERCENT, Quantities, QuantityMention};
+pub use temporal::{DocumentDate, Granularity, Origin, TemporalMention, TemporalValue, Temporals};
 pub use words::{
     MorphFeatures, MwtLanguage, RuleMwtExpander, TokenExpansion, Word, WordLemmas, WordOrTokenAnchor, WordPosTags,
     Words,
@@ -83,11 +86,14 @@ macro_rules! positional {
 }
 
 mod abbreviations;
+mod date;
+mod language_spans;
 mod levels;
 mod matches;
 mod money;
 mod numbers;
 mod quantities;
+mod temporal;
 mod words;
 
 /// Document structure from the parser upstream or a structure annotator:
@@ -775,8 +781,10 @@ impl<L: Layer> Layer for Utf16Spans<L> {
 }
 
 /// The document's language: a document-scoped layer holding every
-/// language the detector ranked, best first, each with its score (the
-/// detector's probability). Item 0 is the best language.
+/// language the detector ranked, best first, each with its score. Item 0
+/// is the best language. OpenNLP's detector scores each language with
+/// its probability; a step that finds the language by span
+/// ([`LanguageSpans`]) scores each with its share of the text.
 ///
 /// Schema 2: schema 1 held the best language alone.
 pub struct Language {
