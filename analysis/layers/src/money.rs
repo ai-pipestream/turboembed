@@ -145,9 +145,7 @@ impl Layer for Money {
         if columns.iter().any(|&l| l != n) {
             return Err("every column as long as the spans".into());
         }
-        if !self.spans.is_ordered() {
-            return Err("money mentions in text order, not overlapping".into());
-        }
+        self.spans.check(Self::OVERLAP).map_err(|_| "money mentions in text order, not overlapping")?;
         for (i, span) in self.spans.iter() {
             let i = i.get();
             if span.is_empty() {
@@ -203,8 +201,8 @@ mod tests {
         assert_eq!(m.amount(Ix::new(0)).to_plain_string(), "-1200000.0");
         assert_eq!(m.get(Ix::new(1)).currency.as_str(), "EUR");
         assert_eq!(m.get(Ix::new(1)).span, Span::new(11, 17));
-        let (view, start, end) = m.text_spans().unwrap();
-        assert_eq!((view, start, end), (ViewId::SOURCE, &[0, 11][..], &[6, 17][..]));
+        let ts = m.text_spans().unwrap();
+        assert_eq!((ts.view, ts.start, ts.end), (ViewId::SOURCE, &[0, 11][..], &[6, 17][..]));
     }
 
     #[test]

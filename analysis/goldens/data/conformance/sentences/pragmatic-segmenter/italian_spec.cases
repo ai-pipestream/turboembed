@@ -1,0 +1,266 @@
+# Converted from spec/pragmatic_segmenter/languages/italian_spec.rb of Pragmatic Segmenter
+# (github.com/diasks2/pragmatic_segmenter, commit 358fe97e62902cd86fa6b85063c3bf91aa6c156a),
+# MIT License, Copyright (c) 2015 Kevin S. Dias (LICENSE in this directory).
+# One case per expectation, in file order; `name` is the spec's context and test name,
+# `option` the segmenter options the spec passes, `skipped-upstream` a test the spec skips.
+
+case pragmatic-segmenter/italian_spec/001
+lang it
+name Golden Rules: Abbreviations #001
+text Salve Sig.ra Mengoni! Come sta oggi?
+sentence Salve Sig.ra Mengoni!
+sentence Come sta oggi?
+end
+
+case pragmatic-segmenter/italian_spec/002
+lang it
+name Golden Rules: Quotations #002
+text Una lettera si può iniziare in questo modo «Il/la sottoscritto/a.».
+sentence Una lettera si può iniziare in questo modo «Il/la sottoscritto/a.».
+end
+
+case pragmatic-segmenter/italian_spec/003
+lang it
+name Golden Rules: Numbers #003
+text La casa costa 170.500.000,00€!
+sentence La casa costa 170.500.000,00€!
+end
+
+case pragmatic-segmenter/italian_spec/004
+lang it
+name #segment: correctly segments text #001
+text Salve Sig.ra Mengoni! Come sta oggi?
+sentence Salve Sig.ra Mengoni!
+sentence Come sta oggi?
+end
+
+case pragmatic-segmenter/italian_spec/005
+lang it
+name #segment: correctly segments text #002
+text Buongiorno! Sono l'Ing. Mengozzi. È presente l'Avv. Cassioni?
+sentence Buongiorno!
+sentence Sono l'Ing. Mengozzi.
+sentence È presente l'Avv. Cassioni?
+end
+
+case pragmatic-segmenter/italian_spec/006
+lang it
+name #segment: correctly segments text #003
+text Mi fissi un appuntamento per mar. 23 Nov.. Grazie.
+sentence Mi fissi un appuntamento per mar. 23 Nov..
+sentence Grazie.
+end
+
+case pragmatic-segmenter/italian_spec/007
+lang it
+name #segment: correctly segments text #004
+text Ecco il mio tel.:01234567. Mi saluti la Sig.na Manelli. Arrivederci.
+sentence Ecco il mio tel.:01234567.
+sentence Mi saluti la Sig.na Manelli.
+sentence Arrivederci.
+end
+
+case pragmatic-segmenter/italian_spec/008
+lang it
+name #segment: correctly segments text #005
+text La centrale meteor. si è guastata. Gli idraul. son dovuti andare a sistemarla.
+sentence La centrale meteor. si è guastata.
+sentence Gli idraul. son dovuti andare a sistemarla.
+end
+
+case pragmatic-segmenter/italian_spec/009
+lang it
+name #segment: correctly segments text #006
+text Hanno creato un algoritmo allo st. d. arte. Si ringrazia lo psicol. Serenti.
+sentence Hanno creato un algoritmo allo st. d. arte.
+sentence Si ringrazia lo psicol. Serenti.
+end
+
+case pragmatic-segmenter/italian_spec/010
+lang it
+name #segment: correctly segments text #007
+text Chiamate il V.Cte. delle F.P., adesso!
+sentence Chiamate il V.Cte. delle F.P., adesso!
+end
+
+case pragmatic-segmenter/italian_spec/011
+lang it
+name #segment: correctly segments text #008
+text Giancarlo ha sostenuto l'esame di econ. az..
+sentence Giancarlo ha sostenuto l'esame di econ. az..
+end
+
+case pragmatic-segmenter/italian_spec/012
+lang it
+name #segment: correctly segments text #009
+text Stava viaggiando a 90 km/h verso la provincia di TR quando il Dott. Mesini ha sentito un rumore e si fermò!
+sentence Stava viaggiando a 90 km/h verso la provincia di TR quando il Dott. Mesini ha sentito un rumore e si fermò!
+end
+
+case pragmatic-segmenter/italian_spec/013
+lang it
+name #segment: correctly segments text #010
+text Egregio Dir. Amm., le faccio sapere che l'ascensore non funziona.
+sentence Egregio Dir. Amm., le faccio sapere che l'ascensore non funziona.
+end
+
+case pragmatic-segmenter/italian_spec/014
+lang it
+name #segment: correctly segments text #011
+text Stava mangiando e/o dormendo.
+sentence Stava mangiando e/o dormendo.
+end
+
+case pragmatic-segmenter/italian_spec/015
+lang it
+name #segment: correctly segments text #012
+text Ricordatevi che dom 25 Set. sarà il compleanno di Maria; dovremo darle un regalo.
+sentence Ricordatevi che dom 25 Set. sarà il compleanno di Maria; dovremo darle un regalo.
+end
+
+case pragmatic-segmenter/italian_spec/016
+lang it
+name #segment: correctly segments text #013
+text La politica è quella della austerità; quindi verranno fatti tagli agli sprechi.
+sentence La politica è quella della austerità; quindi verranno fatti tagli agli sprechi.
+end
+
+case pragmatic-segmenter/italian_spec/017
+lang it
+name #segment: correctly segments text #014
+text Nel tribunale, l'Avv. Fabrizi ha urlato "Io, l'illustrissimo Fabrizi, vi si oppone!".
+sentence Nel tribunale, l'Avv. Fabrizi ha urlato "Io, l'illustrissimo Fabrizi, vi si oppone!".
+end
+
+case pragmatic-segmenter/italian_spec/018
+lang it
+name #segment: correctly segments text #015
+text Le parti fisiche di un computer (ad es. RAM, CPU, tastiera, mouse, etc.) sono definiti HW.
+sentence Le parti fisiche di un computer (ad es. RAM, CPU, tastiera, mouse, etc.) sono definiti HW.
+end
+
+case pragmatic-segmenter/italian_spec/019
+lang it
+name #segment: correctly segments text #016
+text La parola 'casa' è sinonimo di abitazione.
+sentence La parola 'casa' è sinonimo di abitazione.
+end
+
+case pragmatic-segmenter/italian_spec/020
+lang it
+name #segment: correctly segments text #017
+text La "Mulino Bianco" fa alimentari pre-confezionati.
+sentence La "Mulino Bianco" fa alimentari pre-confezionati.
+end
+
+case pragmatic-segmenter/italian_spec/021
+lang it
+name #segment: correctly segments text #018
+text "Ei fu. Siccome immobile / dato il mortal sospiro / stette la spoglia immemore / orba di tanto spiro / [...]" (Manzoni).
+sentence "Ei fu. Siccome immobile / dato il mortal sospiro / stette la spoglia immemore / orba di tanto spiro / [...]" (Manzoni).
+end
+
+case pragmatic-segmenter/italian_spec/022
+lang it
+name #segment: correctly segments text #019
+text Una lettera si può iniziare in questo modo «Il/la sottoscritto/a ... nato/a a ...».
+sentence Una lettera si può iniziare in questo modo «Il/la sottoscritto/a ... nato/a a ...».
+end
+
+case pragmatic-segmenter/italian_spec/023
+lang it
+name #segment: correctly segments text #020
+text Per casa, in uno degli esercizi per i bambini c'era "3 + (14/7) = 5"
+sentence Per casa, in uno degli esercizi per i bambini c'era "3 + (14/7) = 5"
+end
+
+case pragmatic-segmenter/italian_spec/024
+lang it
+name #segment: correctly segments text #021
+text Ai bambini è stato chiesto di fare "4:2*2"
+sentence Ai bambini è stato chiesto di fare "4:2*2"
+end
+
+case pragmatic-segmenter/italian_spec/025
+lang it
+name #segment: correctly segments text #022
+text La maestra esclamò: "Bambini, quanto fa '2/3 + 4/3?'".
+sentence La maestra esclamò: "Bambini, quanto fa '2/3 + 4/3?'".
+end
+
+case pragmatic-segmenter/italian_spec/026
+lang it
+name #segment: correctly segments text #023
+text Il motore misurava 120°C.
+sentence Il motore misurava 120°C.
+end
+
+case pragmatic-segmenter/italian_spec/027
+lang it
+name #segment: correctly segments text #024
+text Il volume era di 3m³.
+sentence Il volume era di 3m³.
+end
+
+case pragmatic-segmenter/italian_spec/028
+lang it
+name #segment: correctly segments text #025
+text La stanza misurava 20m².
+sentence La stanza misurava 20m².
+end
+
+case pragmatic-segmenter/italian_spec/029
+lang it
+name #segment: correctly segments text #026
+text 1°C corrisponde a 33.8°F.
+sentence 1°C corrisponde a 33.8°F.
+end
+
+case pragmatic-segmenter/italian_spec/030
+lang it
+name #segment: correctly segments text #027
+text Oggi è il 27-10-14.
+sentence Oggi è il 27-10-14.
+end
+
+case pragmatic-segmenter/italian_spec/031
+lang it
+name #segment: correctly segments text #028
+text La casa costa 170.500.000,00€!
+sentence La casa costa 170.500.000,00€!
+end
+
+case pragmatic-segmenter/italian_spec/032
+lang it
+name #segment: correctly segments text #029
+text Il corridore 103 è arrivato 4°.
+sentence Il corridore 103 è arrivato 4°.
+end
+
+case pragmatic-segmenter/italian_spec/033
+lang it
+name #segment: correctly segments text #030
+text Oggi è il 27/10/2014.
+sentence Oggi è il 27/10/2014.
+end
+
+case pragmatic-segmenter/italian_spec/034
+lang it
+name #segment: correctly segments text #031
+text Ecco l'elenco: 1.gelato, 2.carne, 3.riso.
+sentence Ecco l'elenco: 1.gelato, 2.carne, 3.riso.
+end
+
+case pragmatic-segmenter/italian_spec/035
+lang it
+name #segment: correctly segments text #032
+text Devi comprare : 1)pesce 2)sale.
+sentence Devi comprare : 1)pesce 2)sale.
+end
+
+case pragmatic-segmenter/italian_spec/036
+lang it
+name #segment: correctly segments text #033
+text La macchina viaggiava a 100 km/h.
+sentence La macchina viaggiava a 100 km/h.
+end

@@ -1,9 +1,11 @@
-//! The tokenizers' own layer: the word type of each token the UAX #29
-//! word tokenizer writes. It lives in this small crate so a consumer of
-//! word types does not depend on the tokenizers that make them.
+//! The tokenizers' own layers: the word type of each token the UAX #29
+//! word tokenizer writes, and the readings, pronunciations and lemmas of
+//! the tokens a MeCab dictionary tokenizer writes. They live in this small
+//! crate so a consumer of them does not depend on the tokenizers that make
+//! them.
 
 use turbo_analysis::{Anchor, Layer};
-use turbo_analysis_layers::Tokens;
+use turbo_analysis_layers::{Strs, Tokens};
 
 /// What kind of word a token is, as OpenNLP's
 /// `opennlp.tools.tokenize.uax29.WordType` defines it. The variants are
@@ -80,6 +82,53 @@ impl Layer for WordTypes {
     }
 }
 
+/// What a MeCab dictionary says of each token, from the feature columns of
+/// the token's entry: item i is token i's. A column is `None` when the
+/// dictionary's format has no such column (mecab-ko-dic has no lemma), and
+/// an empty string where the token's entry leaves it out: an unknown word,
+/// whose `unk.def` template has fewer columns, or the dictionary's `*`.
+pub struct Readings {
+    /// How the token is read: katakana for a Japanese dictionary, Hangul
+    /// for a Korean one.
+    pub reading: Option<Strs>,
+    /// How the token is pronounced, in katakana, where it differs from the
+    /// reading by long vowels (`ー`) and the like.
+    pub pronunciation: Option<Strs>,
+    /// The base form of an inflected token, as written.
+    pub lemma: Option<Strs>,
+}
+
+impl Readings {
+    fn columns(&self) -> impl Iterator<Item = &Strs> {
+        [&self.reading, &self.pronunciation, &self.lemma].into_iter().flatten()
+    }
+}
+
+impl Layer for Readings {
+    const ID: &'static str = "turbo:readings";
+
+    fn anchor() -> Anchor {
+        Anchor::aligned::<Tokens>()
+    }
+
+    /// The length of the first column present.
+    fn len(&self) -> usize {
+        self.columns().next().map_or(0, Strs::len)
+    }
+
+    /// At least one column, all of one length.
+    fn check(&self) -> Result<(), String> {
+        let n = self.len();
+        if self.columns().next().is_none() {
+            return Err("a reading, pronunciation or lemma column".into());
+        }
+        if self.columns().any(|c| c.len() != n) {
+            return Err("the reading, pronunciation and lemma columns of one length".into());
+        }
+        Ok(())
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -101,5 +150,25 @@ mod tests {
         let types = WordTypes { kind: vec![WordType::Numeric, WordType::Emoji] };
         assert_eq!(types.len(), 2);
         assert_eq!(WordTypes::ID, "turbo:word-types");
+    }
+
+    fn strs(items: &[&str]) -> Strs {
+        let mut s = Strs::default();
+        items.iter().for_each(|i| s.push(i));
+        s
+    }
+
+    #[test]
+    fn readings_are_aligned_to_tokens_and_checked() {
+        assert_eq!(Readings::ID, "turbo:readings");
+        assert_eq!(Readings::anchor(), Anchor::aligned::<Tokens>());
+        let r = Readings { reading: None, pronunciation: Some(strs(&["a", ""])), lemma: Some(strs(&["x", "y"])) };
+        assert_eq!(r.len(), 2);
+        assert!(r.check().is_ok());
+        let r = Readings { reading: Some(strs(&["a"])), pronunciation: None, lemma: Some(strs(&["x", "y"])) };
+        assert!(r.check().is_err());
+        let r = Readings { reading: None, pronunciation: None, lemma: None };
+        assert_eq!(r.len(), 0);
+        assert!(r.check().is_err());
     }
 }

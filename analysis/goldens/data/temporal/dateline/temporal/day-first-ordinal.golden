@@ -1,0 +1,17 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	temporal/day-first-ordinal	81	81	b182df8f952b20dc27971e43f272a0c642686732cdfc30e69efd384085852458
+annotator	opennlp.tools.temporal.CursorTemporalExtractor	extract
+config	reference	dateline
+layer	turbo:temporal	text	4	start:u32	end:u32	value:str	granularity:str	origin:str
+4	18	2025-03-01	DAY	ABSOLUTE
+24	38	2025-04-02	DAY	ABSOLUTE
+44	57	2025-05-23	DAY	ABSOLUTE
+66	80	2026-07-14	DAY	ABSOLUTE
+end	turbo:temporal
+layer	turbo:document-date	document	1	date:str	mention:u32
+2025-03-01	0
+end	turbo:document-date

@@ -1,21 +1,28 @@
 //! Compares every stemmer with what OpenNLP returned for the same words
-//! (`golden/expected/`, written by `golden/generate.sh`), and the Snowball
-//! stemmers with the samples of the Snowball reference vocabularies in
-//! `golden/snowball/`. `README.md` describes the files.
+//! (the goldens of `StemGolden.java` in `analysis/goldens-tool`, under
+//! `analysis/goldens/data/stem`), and the Snowball stemmers with the
+//! samples of the Snowball reference vocabularies in `tests/snowball/`.
+//! `README.md` describes the files.
 
 use std::fs;
 use std::num::NonZeroU32;
 use std::path::{Path, PathBuf};
 
+use turbo_goldens::{ColumnSpec, ColumnType, Golden, GoldenAnchor, Shape};
 use turbo_stem::{Algorithm, LightStemmer, NorwegianStandard, SnowballAlgorithm, SnowballStemmer, Stemmer};
 
-const PIN: &str = "cdf33c653d5d61d5af7d37ffee189a83bd8392ea";
-
-fn golden() -> PathBuf {
-    Path::new(env!("CARGO_MANIFEST_DIR")).join("golden")
+/// The goldens' directory: one directory per stemmer, holding one golden
+/// per input it read.
+fn goldens() -> PathBuf {
+    turbo_goldens::data_dir().join("stem")
 }
 
-/// The stemmer each file of `expected/` was written by.
+/// The words the stemmers read, `analysis/goldens/data/inputs/stem`.
+fn inputs() -> PathBuf {
+    turbo_goldens::data_dir().join("inputs/stem")
+}
+
+/// The stemmer each directory of goldens was written by.
 fn configs() -> Vec<(String, Algorithm)> {
     let mut out = vec![("porter".to_string(), Algorithm::Porter)];
     for a in SnowballAlgorithm::ALL {
@@ -57,7 +64,7 @@ fn configs() -> Vec<(String, Algorithm)> {
     out
 }
 
-/// A word or stem as the golden files write it: the backslash, tab, line
+/// A word or stem as the stem inputs write it: the backslash, tab, line
 /// feed, carriage return, other C0 controls, lone surrogates and a leading
 /// `#` are escaped.
 fn escape(units: &[u16]) -> String {
@@ -88,6 +95,7 @@ fn escape(units: &[u16]) -> String {
     out
 }
 
+/// The UTF-16 units of a line of an input file.
 fn unescape(line: &str) -> Vec<u16> {
     let mut out = Vec::new();
     let mut chars = line.chars();
@@ -110,6 +118,41 @@ fn unescape(line: &str) -> Vec<u16> {
         }
     }
     out
+}
+
+/// The UTF-16 units of a string `TrainGolden.lossless` wrote: a doubled
+/// backslash is one, `\uXXXX` is one unit (half a surrogate pair where the
+/// string held one), everything else is itself.
+fn lossless_units(field: &str) -> Vec<u16> {
+    let mut units: Vec<u16> = Vec::with_capacity(field.len());
+    let mut chars = field.chars();
+    while let Some(c) = chars.next() {
+        if c != '\\' {
+            let mut buf = [0u16; 2];
+            units.extend_from_slice(c.encode_utf16(&mut buf));
+            continue;
+        }
+        match chars.next() {
+            Some('\\') => units.push(u16::from(b'\\')),
+            Some('u') => {
+                let hex: String = chars.by_ref().take(4).collect();
+                units.push(u16::from_str_radix(&hex, 16).unwrap_or_else(|_| panic!("{field:?}: bad escape")));
+            }
+            other => panic!("{field:?}: unexpected {other:?} after a backslash"),
+        }
+    }
+    units
+}
+
+/// The columns of `turbo:stems`, a stem golden's one layer.
+const STEMS: &[ColumnSpec] = &[
+    ColumnSpec::new("word", ColumnType::Str),
+    ColumnSpec::new("stem", ColumnType::Str),
+    ColumnSpec::new("thrown", ColumnType::Str),
+];
+
+fn shapes() -> [Shape; 1] {
+    [Shape { id: "turbo:stems".into(), anchor: GoldenAnchor::Document, columns: STEMS }]
 }
 
 /// The words of an input file; a line starting with # is a comment.
@@ -136,37 +179,46 @@ fn escapes_round_trip() {
 
 #[test]
 fn stemmers_match_opennlp() {
-    let golden = golden();
     let configs = configs();
-    let mut files: Vec<String> =
-        fs::read_dir(golden.join("expected")).unwrap().map(|e| e.unwrap().file_name().into_string().unwrap()).collect();
-    files.sort();
-    let mut names: Vec<String> = configs.iter().map(|(n, _)| format!("{n}.txt")).collect();
+    let mut dirs: Vec<String> =
+        fs::read_dir(goldens()).unwrap().map(|e| e.unwrap().file_name().into_string().unwrap()).collect();
+    dirs.sort();
+    let mut names: Vec<String> = configs.iter().map(|(n, _)| n.clone()).collect();
     names.sort();
-    assert_eq!(files, names, "every expected file has a stemmer and every stemmer a file");
+    assert_eq!(dirs, names, "every directory of goldens has a stemmer and every stemmer a directory");
 
+    let shapes = shapes();
     let mut failures = Vec::new();
     let mut compared = 0;
     for (name, algorithm) in &configs {
-        let text = fs::read_to_string(golden.join("expected").join(format!("{name}.txt"))).unwrap();
-        let mut lines = text.lines();
-        let header = lines.next().unwrap();
-        let (_, inputs) = header.split_once(" over ").unwrap();
-        assert!(header.contains(&format!(" at OpenNLP {PIN} ")), "{name}: {header}");
-        let mut expected = lines;
+        let dir = goldens().join(name).join("stem");
+        let mut files: Vec<PathBuf> = fs::read_dir(&dir).unwrap().map(|e| e.unwrap().path()).collect();
+        files.sort();
+        assert!(files.iter().any(|f| f.ends_with("edge.golden")), "{name}: no edge golden");
         let mut out = Vec::new();
-        for input in inputs.split(' ') {
-            for word in words(&golden.join("inputs").join(input)) {
-                let want = expected.next().unwrap_or_else(|| panic!("{name}: fewer stems than words"));
-                algorithm.stem_utf16(&word, &mut out);
-                let got = escape(&out);
+        for file in files {
+            let g = Golden::read_with(&file, &shapes).unwrap_or_else(|e| panic!("{e}"));
+            let input = &g.header.input.id;
+            let words = words(&inputs().join(format!("{input}.txt")));
+            let l = g.layer("turbo:stems").unwrap();
+            let (word, stem, thrown) = (l.strs("word").unwrap(), l.strs("stem").unwrap(), l.strs("thrown").unwrap());
+            assert_eq!(words.len(), l.len(), "{name} ({input}): a stem per word");
+            for (i, w) in words.iter().enumerate() {
+                assert_eq!(&lossless_units(word.get(i)), w, "{name} ({input}): word {i}");
+                assert_eq!(thrown.get(i), "", "{name} ({input}): OpenNLP threw on {}", escape(w));
+                algorithm.stem_utf16(w, &mut out);
+                let want = lossless_units(stem.get(i));
                 compared += 1;
-                if got != want {
-                    failures.push(format!("{name} ({input}): {} -> {got}, OpenNLP {want}", escape(&word)));
+                if out != want {
+                    failures.push(format!(
+                        "{name} ({input}): {} -> {}, OpenNLP {}",
+                        escape(w),
+                        escape(&out),
+                        escape(&want)
+                    ));
                 }
             }
         }
-        assert!(expected.next().is_none(), "{name}: more stems than words");
     }
     assert!(
         failures.is_empty(),
@@ -178,23 +230,23 @@ fn stemmers_match_opennlp() {
 }
 
 /// The Snowball algorithm whose reference vocabulary is in each directory
-/// of snowball-data.
+/// of snowball-data, and the name of its sample.
 fn snowball_directory(a: SnowballAlgorithm) -> String {
     a.java_name().to_lowercase()
 }
 
 #[test]
 fn snowball_matches_the_reference_samples() {
-    let golden = golden();
+    let samples = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/snowball");
     let mut sampled = 0;
     for a in SnowballAlgorithm::ALL {
         let dir = snowball_directory(a);
-        let reference = golden.join("snowball").join(format!("{dir}.txt"));
+        let reference = samples.join(format!("{dir}.txt"));
         if !reference.exists() {
             continue;
         }
         sampled += 1;
-        let voc = words(&golden.join("inputs").join(format!("{dir}.txt")));
+        let voc = words(&inputs().join(format!("{dir}.txt")));
         let output = fs::read_to_string(&reference).unwrap();
         let output: Vec<&str> = output.lines().collect();
         assert_eq!(voc.len(), output.len(), "{dir}");
