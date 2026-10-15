@@ -287,8 +287,8 @@ fn the_rust_lemma_fixture_is_the_bin_written_here() {
 
 #[test]
 fn the_rust_language_fixture_is_the_bin_written_here() {
-    // The parameters langdetect-183 is reproduced with: those of the
-    // command line trainer when it is given none.
+    // The parameters langdetect-183 was most likely trained with: those
+    // of the command line trainer when it is given none.
     let text = read_text(&data_dir().join("inputs/langdetect/samples.txt"));
     let samples: Vec<_> = LanguageReader::new(&text).unwrap().map(|s| s.unwrap()).collect();
     assert_eq!(samples.len(), 56);

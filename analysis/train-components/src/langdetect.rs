@@ -77,8 +77,8 @@ impl LanguageDetectorFactory {
 /// `ModelUtil.createDefaultTrainingParameters()`: `Algorithm=MAXENT`,
 /// `Iterations=100` and `Cutoff=5`, without a `TrainerType`. The
 /// manifest of the published `langdetect-183.bin` records no training
-/// parameters (only `TrainerType=Event` and the event hash), so these are
-/// the parameters it is reproduced with.
+/// parameters (only `TrainerType=Event` and the event hash); these are
+/// most likely the parameters it was trained with.
 pub fn default_training_parameters() -> TrainingParameters {
     let mut p = TrainingParameters::new();
     p.put(Key::ALGORITHM, turbo_train::Algorithm::Maxent.name());

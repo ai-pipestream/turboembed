@@ -4,7 +4,10 @@
 //! index, the GIS training iteration by iteration, the weights bit for bit,
 //! the written model, the manifest and the zip entries. The runs are
 //! `default` (the command line trainer's parameters, cutoff 5) and
-//! `cutoff1`.
+//! `cutoff1`. Bit for bit holds for events in the JVM's predicate order:
+//! an event with equal-hash n-grams in a tree bucket can differ in the
+//! last bits (`inexact_events`), and the test checks the goldens hold
+//! none.
 
 mod common;
 
@@ -98,6 +101,9 @@ struct Coverage {
     stopped_early: usize,
     empty_events: usize,
     tab_predicates: usize,
+    /// Events whose n-grams `getContext` gives in another order than
+    /// `predict` counts them in (a bucket that became a tree).
+    reordered: usize,
     merged: usize,
     runs: [usize; 2],
 }
@@ -306,6 +312,14 @@ fn check(path: &Path, cov: &mut Coverage) {
     cov.empty_events += events.iter().filter(|e| e.context().is_empty()).count();
     cov.tab_predicates +=
         events.iter().flat_map(|e| e.context()).filter(|p| p.to_string_lossy().contains('\t')).count();
+    let mut generator = LanguageDetectorFactory::new().context_generator();
+    cov.reordered += samples
+        .iter()
+        .filter(|s| {
+            generator.generate(s.context.as_str());
+            !generator.training_features().eq(generator.features())
+        })
+        .count();
     cov.goldens += 1;
 
     let index = language_index(&events, &params);
@@ -352,11 +366,14 @@ fn language_detector_training_is_the_jvms_over_every_golden() {
         check(path, &mut cov);
     }
     eprintln!("{cov:?}");
-    // Two runs over the samples written for these goldens and the
+    // Two runs over the two inputs written for these goldens and the
     // language format input.
-    assert_eq!(cov.goldens, 4, "{cov:?}");
-    assert_eq!(cov.runs, [2, 2], "{cov:?}");
+    assert_eq!(cov.goldens, 6, "{cov:?}");
+    assert_eq!(cov.runs, [3, 3], "{cov:?}");
     // The language format input has too few events for cutoff 5.
-    assert_eq!((cov.trained, cov.indexer_errors), (3, 1), "{cov:?}");
+    assert_eq!((cov.trained, cov.indexer_errors), (5, 1), "{cov:?}");
     assert!(cov.empty_events > 0 && cov.tab_predicates > 0 && cov.merged > 0, "{cov:?}");
+    // The six lines of `inputs/langdetect/tree-bucket.txt`, in both runs,
+    // are in the order training reads, not prediction's.
+    assert_eq!(cov.reordered, 12, "{cov:?}");
 }

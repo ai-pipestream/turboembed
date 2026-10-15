@@ -1,12 +1,13 @@
 # turbo-train-components
 
 Training OpenNLP's components in Rust: the event streams
-`SDEventStream`, `TokSpanEventStream`, `POSSampleEventStream` and
-`LemmaSampleEventStream`, the factories that set them up, the model
-files `SentenceDetectorME.train`, `TokenizerME.train`,
-`POSTaggerME.train` and `LemmatizerME.train` return, with every manifest
-entry and artifact the JVM writes, and the reproduction of the published
-UD 1.3 models from their treebanks.
+`SDEventStream`, `TokSpanEventStream`, `POSSampleEventStream`,
+`LemmaSampleEventStream` and `LanguageDetectorEventStream`, the
+factories that set them up, the model files `SentenceDetectorME.train`,
+`TokenizerME.train`, `POSTaggerME.train`, `LemmatizerME.train` and
+`LanguageDetectorME.train` return, with every manifest entry and
+artifact the JVM writes, and the reproduction of the published UD 1.3
+models from their treebanks.
 
 | Module | OpenNLP |
 |---|---|
@@ -14,6 +15,7 @@ UD 1.3 models from their treebanks.
 | `tokenize` | `TokenizerFactory` (with the language's alphanumeric pattern), `TokSpanEventStream`, `TokenizerME.train`, `TokenizerModel` |
 | `postag` | `POSTaggerFactory` (the default feature generator descriptor or a given one, a tag dictionary or none), `POSSampleEventStream` over `ConfigurablePOSContextGenerator`, `POSTaggerME.train`, `POSModel` with its `generator.featuregen` and `tags.tagdict` entries |
 | `lemmatize` | `LemmatizerFactory`, `LemmatizerME.encodeLemmas`, `LemmaSampleEventStream` over `DefaultLemmatizerContextGenerator`, `LemmatizerME.train`, `LemmatizerModel` |
+| `langdetect` | `LanguageDetectorFactory`, `LanguageDetectorEventStream` over `DefaultLanguageDetectorContextGenerator` (the n-grams in `getContext`'s order, which differs from `predictLanguages`' when a bucket became a tree), `LanguageDetectorME.train`, `LanguageDetectorModel` |
 | `dictionary` | `Dictionary` as `new Dictionary(InputStream)` reads it and `Dictionary.serialize` writes it, through the JDK's `ToStream` with indentation |
 | `tagdict` | `POSDictionary` as `POSDictionary.create` reads it (a case-insensitive one is lowercased into a second map in the first map's order) and `POSDictionary.serialize` writes it |
 | `java_hash` | `String.hashCode`, `StringList.hashCode`, and the iteration order of a `java.util.HashMap` |
@@ -22,7 +24,8 @@ UD 1.3 models from their treebanks.
 
 The samples come from `turbo-formats` (native and CoNLL-U readers), the
 context generators from `turbo-sentdetect`, `turbo-tokenize`,
-`turbo-sequence` (the tagger's) and `turbo-lemmatizer`, so that training
+`turbo-sequence` (the tagger's), `turbo-lemmatizer` and
+`turbo-langdetect`, so that training
 and inference share one implementation of each, and the trainer, model
 writer and `.bin` packaging from `turbo-train`. This crate connects them,
 as the `train` methods do. It is a crate of its own
@@ -141,6 +144,14 @@ this crate wrote from `analysis/goldens/data/inputs/tagged/`, which the
 golden generator loads in the JVM and tags with
 (`analysis/postag/tests/golden.rs`, `analysis/lemmatizer/tests/golden.rs`
 compare the Rust annotators with those goldens).
+`tests/langdetect.rs` compares the language detector's training with the
+`train-langdetect` goldens (the events, the index, every GIS iteration
+and the model file; docs/langdetect.md, "Training"), among them
+`inputs/langdetect/tree-bucket.txt`, whose events hold their n-grams in
+`getContext`'s order where it differs from `predictLanguages`'; and
+`tests/fixtures.rs` also trains `langdetect-fixture-rust.bin` from
+`inputs/langdetect/samples.txt`, which the JVM loads and detects with
+(`analysis/langdetect/tests/fixture.rs`).
 
 ## Reproducing the UD 1.3 models
 
