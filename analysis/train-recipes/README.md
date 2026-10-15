@@ -749,9 +749,10 @@ than its recipe's reference; the first also refuses one not trained on
 the recorded MASC release, and the second one whose card does not give
 its recipe's treebank at release 2.16, with the sizes and digests of its
 files, and one of Porttinari. With `--check` it prints no index and
-exits with 1 unless the built-in index is already that one, naming the
-entries that differ with the size, SHA-256 and address the index lists
-and the model's.
+exits with 1 unless the built-in index is already that one and lists no
+other model at the release's addresses, naming the entries that differ
+with the size, SHA-256 and address the index lists and the model's, and
+each other model listed there.
 
 Each workflow makes its release. Its training job fetches the data
 through the zoo (MASC, or the UD treebanks), and the references from the

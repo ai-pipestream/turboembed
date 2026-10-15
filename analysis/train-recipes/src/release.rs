@@ -226,6 +226,50 @@ pub fn index_with(index: &Index, entries: &[Artifact]) -> String {
     Index::to_canonical_json(&artifacts)
 }
 
+/// The ids of the artifacts of `index` with a file at an address of
+/// `release`, in the index's order.
+pub fn listed_at(index: &Index, release: &ModelsRelease) -> Vec<String> {
+    let prefix = release.url("");
+    index
+        .list()
+        .iter()
+        .filter(|a| a.files.iter().any(|f| f.url.as_str().starts_with(&prefix)))
+        .map(|a| a.id.to_string())
+        .collect()
+}
+
+/// Where `index` differs from the index `entries` of `release`'s models
+/// give: a line for each entry that `index` lists otherwise, with the
+/// size, SHA-256 and address of both, or does not list, and one for each
+/// artifact `index` lists at an address of the release that is not one of
+/// its models. None when `index` lists `entries` and nothing else there.
+pub fn differences(index: &Index, entries: &[Artifact], release: &ModelsRelease) -> Vec<String> {
+    let mut lines = Vec::new();
+    for entry in entries {
+        match index.get(entry.id.as_str()) {
+            Ok(listed) if listed == entry => {}
+            Ok(listed) => {
+                let (l, m) = (&listed.files[0], &entry.files[0]);
+                lines.push(format!(
+                    "{}: the built-in index lists another entry ({} bytes, SHA-256 {}, at {}; the model has {} bytes, \
+                     SHA-256 {}, at {})",
+                    entry.id, l.size, l.sha256, l.url, m.size, m.sha256, m.url
+                ));
+            }
+            Err(_) => lines.push(format!("{}: the built-in index does not list it", entry.id)),
+        }
+    }
+    for id in listed_at(index, release) {
+        if !release.models.contains(&id.as_str()) {
+            lines.push(format!(
+                "{id}: the built-in index lists it at an address of release {}, which does not publish it",
+                release.tag
+            ));
+        }
+    }
+    lines
+}
+
 /// The reference models a run of `release`'s recipes reads, as
 /// `(SHA-256, address)` pairs in the order of its models, each once: what
 /// `analysis/train-recipes/masc-references.txt` and `ud-references.txt`
@@ -348,22 +392,48 @@ mod tests {
             listed(&index, &UD_MODELS, recipe.model_id, recipe.zoo_component(), language, trained_on);
         }
         for release in MODELS_RELEASES {
-            let prefix = release.url("");
-            let at_release: Vec<&str> = index
-                .list()
-                .iter()
-                .filter(|a| a.files.iter().any(|f| f.url.as_str().starts_with(&prefix)))
-                .map(|a| a.id.as_str())
-                .collect();
-            assert_eq!(at_release, release.models, "{}", release.tag);
+            assert_eq!(listed_at(&index, &release), release.models, "{}", release.tag);
         }
         assert!(MASC_MODELS.recipes().iter().any(|r| r.component() == Component::Chunker));
     }
 
+    /// The built-in index with its own entries of a release has no
+    /// differences; one with an entry changed, missing or added at the
+    /// release's addresses has one line for each.
+    #[test]
+    fn differences_name_every_entry_listed_otherwise_and_every_other_model_at_the_release() {
+        let builtin = Index::builtin();
+        let entries: Vec<Artifact> = MASC_MODELS.models.iter().map(|id| builtin.get(id).unwrap().clone()).collect();
+        assert!(differences(&builtin, &entries, &MASC_MODELS).is_empty());
+
+        let mut changed = entries.clone();
+        changed[1].files[0].size += 1;
+        let lines = differences(&builtin, &changed, &MASC_MODELS);
+        assert_eq!(lines.len(), 1);
+        assert!(lines[0].starts_with(&format!("{}: the built-in index lists another entry (", entries[1].id)));
+
+        let mut extra = entries[0].clone();
+        extra.id = "turbo-en-masc-3.0.0-extra-1".parse().unwrap();
+        extra.files[0].path = "turbo-en-masc-3.0.0-extra-1.bin".parse().unwrap();
+        extra.files[0].url = MASC_MODELS.url("turbo-en-masc-3.0.0-extra-1.bin").parse().unwrap();
+        let listed: Vec<Artifact> =
+            builtin.list().iter().filter(|a| a.id != entries[0].id).cloned().chain([extra]).collect();
+        let index = Index::parse(Index::to_canonical_json(&listed).as_bytes()).unwrap();
+        assert_eq!(
+            differences(&index, &entries, &MASC_MODELS),
+            [
+                format!("{}: the built-in index does not list it", entries[0].id),
+                "turbo-en-masc-3.0.0-extra-1: the built-in index lists it at an address of release \
+                 models-masc-3.0.0-1, which does not publish it"
+                    .to_owned(),
+            ]
+        );
+    }
+
     /// The workflow that publishes `release` names its tag and [`RELEASES`],
-    /// publishes through models-publish.yml, and fetches the references the release's recipes read from the
-    /// addresses `references_file` lists, checked against the SHA-256s it
-    /// lists.
+    /// publishes through models-publish.yml, and fetches the references the
+    /// release's recipes read from the addresses `references_file` lists,
+    /// checked against the SHA-256s it lists.
     fn published_by(release: &ModelsRelease, workflow_file: &str, references_file: &str) {
         let crate_dir = Path::new(env!("CARGO_MANIFEST_DIR"));
         let workflow = std::fs::read_to_string(crate_dir.join("../../.github/workflows").join(workflow_file)).unwrap();
