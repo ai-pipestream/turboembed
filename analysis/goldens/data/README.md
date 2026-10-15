@@ -268,6 +268,11 @@ are not taken from any corpus.
   letter code and malformed ones, and the `table-<kind>-<case>.txt` files
   small GeoNames, Overture, user and suppression tables, most with one
   error each loader reports.
+- `inputs/place-profiles/`: profile tables for `PlaceProfiles`, written
+  for this project with made up places and numbers: tables that load (a
+  ten town table, a 40 place generated one, extreme and subnormal values,
+  constant columns, ties between ids in different scripts, every kind of
+  skipped line and padding) and tables with one error each.
 - `inputs/sequence/`, `inputs/descriptor-errors/`, `inputs/codec/`,
   `inputs/tag-format/`: the inputs of the `turbo-sequence` goldens, written
   for this project: 16 tokenized sentences, tokens for `StringPattern`

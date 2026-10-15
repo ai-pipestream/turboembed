@@ -41,6 +41,7 @@ const FED: &[&str] = &[
     "norm",
     "num",
     "parse",
+    "place-profiles",
     "quantity",
     "sentence-fixture",
     "sequence",
