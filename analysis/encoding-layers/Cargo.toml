@@ -1,0 +1,12 @@
+[package]
+name = "turbo-encoding-layers"
+version = "0.1.0"
+edition.workspace = true
+license.workspace = true
+publish = false
+
+[lib]
+name = "turbo_encoding_layers"
+
+[dependencies]
+turbo-analysis = { path = "../core" }

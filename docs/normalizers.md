@@ -18,6 +18,7 @@ implementation differs on purpose, the difference is listed under
 | `turbo-unicode` | `analysis/unicode/` | Unicode 18.0 character data: general category, properties, scripts, case mapping and folding, normalization forms, confusables, emoji sequences. Tables generated from the UCD files in `analysis/unicode/ucd/` by `turbo-unicode-gen`. |
 | `turbo-unicode-gen` | `analysis/unicode-gen/` | The table generator. |
 | `turbo-normalize` | `analysis/normalize/` | The normalizers, the `Normalizer` trait, the pipeline step adapter and the chain. |
+| `turbo-encoding` | `analysis/encoding/` | Decoders, encoding detection and the mojibake repair under `Mojibake` (docs/analysis.md, "Source bytes"). |
 | `turbo-normalize-layers` | `analysis/normalize-layers/` | The layers normalizers write besides views: `Placeholders` (`turbo:placeholders`), `Emoji` (`turbo:emoji`), `Artifacts` (`turbo:artifacts`), `Noise` (`turbo:noise`), `Corrections` (`turbo:corrections`). |
 | `turbo-normalize-layers` | `analysis/normalize-layers/` | The layers normalizers write besides views: `Placeholders` (`turbo:placeholders`), `Emoji` (`turbo:emoji`), `Artifacts` (`turbo:artifacts`), `Noise` (`turbo:noise`). |
 | `turbo-normalize-layers` | `analysis/normalize-layers/` | The layers normalizers write besides views: `Placeholders` (`turbo:placeholders`), `Emoji` (`turbo:emoji`), `Assets` (`turbo:assets`). |
@@ -1974,6 +1975,44 @@ checked as UTF-8 bytes: output 1..3 maps to source 1..4), the
 uppercase-aware cases, and 4000 generated texts compared with a
 per-character reference in both modes, each edit checked to be one
 character's expansion.
+
+### Mojibake repair (`analysis/normalize/src/mojibake.rs`)
+
+`Mojibake` (id `turbo:normalize:mojibake`) undoes text that was encoded
+in one encoding and decoded in another: "cafÃ©" becomes "café",
+"donâ€™t" becomes "don’t", and text encoded twice is undone
+twice. The work is done by `turbo_encoding::repair`, a port of the
+encoding fix of ftfy 6.3.1, by Robyn Speer (Apache-2.0; see NOTICE):
+ftfy's badness heuristic decides whether a line looks like mojibake, and
+the line is then encoded back with each of ftfy's single-byte code pages
+(Latin-1, the sloppy windows-1252, 1251, 1250, 1253, 1254 and 1257,
+ISO-8859-2, Mac OS Roman, code page 437) and decoded as UTF-8, with
+ftfy's byte repairs in between. The text is split into lines as ftfy's
+`fix_text` splits it, so one damaged line is fixed beside a fine one.
+
+Every character of the result carries the span of the source characters
+it came from, through every encode and decode. A fix is one edit over the
+source characters it replaces ("Ã©", four bytes, to "é", two bytes); a
+U+FFFD written for a UTF-8 sequence that lost a byte maps to the whole
+damaged sequence; unchanged text is kept as it is.
+
+The heuristic can be wrong in both directions, as ftfy's is: rare
+mojibake goes unfixed, and rare legitimate text that looks like mojibake
+is changed. `ArtifactDetector` with `Mojibake` or `MojibakeSequence`
+reports suspect spans without changing them.
+
+No OpenNLP counterpart. The rest of ftfy's `fix_text` (HTML entities,
+quotes, width, ligatures, line breaks, control characters,
+normalization) is not part of this normalizer; other normalizers here
+cover most of it.
+
+Tests: `analysis/encoding/tests/repair.rs` runs all 161 cases of ftfy's
+`test_cases.json` (and 151 variants with an extra layer of mojibake),
+checking the repaired text and the plan of steps against what ftfy
+itself returns, every alignment edit against the source, and that every
+character maps back to its source characters. The normalizer's own tests
+check one edit per fix and that fine text in several scripts is left
+unchanged.
 
 ### Confusable skeleton (`analysis/normalize/src/confusables.rs`)
 
