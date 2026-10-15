@@ -2339,8 +2339,11 @@ view, the span and what failed.
 
 The differential runs them on every document the Rust side makes.
 Without a container, `analysis/fuzz/tests/invariants.rs` runs every run
-over the first forty inputs of seed 7 and every checked in golden input,
-and `analysis/fuzz/tests/checked_in.rs` runs the differential itself over
+over the first forty inputs of seed 7 and every checked in golden input
+of the sets some covered run reads (the sets read only by annotators the
+differential does not cover, such as the stemmers' word lists, are left
+out, and a set no golden was made from fails the test), and
+`analysis/fuzz/tests/checked_in.rs` runs the differential itself over
 the checked in goldens, which must show no divergence and no broken
 invariant, only the documented differences and the known skips. Both
 run in an ordinary `cargo test -p turbo-fuzz`; they skip the runs whose
@@ -2807,7 +2810,8 @@ runs them on any machine:
   lies, and a broken span in a named instance of any layer type.
 - `analysis/fuzz/tests/invariants.rs` runs every run of the
   differential over forty generated inputs and every checked in golden
-  input and holds every layer to the offset invariants;
+  input of the sets the covered runs read, and holds every layer to the
+  offset invariants;
   `analysis/fuzz/tests/checked_in.rs` runs the differential over the
   checked in goldens, which must show no divergence
   (["Differential fuzzing"](#differential-fuzzing)). The unit tests of
