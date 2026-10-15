@@ -343,13 +343,24 @@ impl Artifact {
     }
 }
 
-/// An `https://` address split after its host: the host, lowercased, and
-/// the rest, from the first `/`, `?` or `#` on (empty for a bare host).
+/// An `https://` address split after its host: the host and the rest,
+/// from the first `/`, `?` or `#` on (empty for a bare host).
 /// The scheme is always `https`, which [`Url`] checks.
-fn split_host(url: &Url) -> (String, &str) {
+fn split_host(url: &Url) -> (&str, &str) {
     let rest = &url.as_str()["https://".len()..];
     let end = rest.find(['/', '?', '#']).unwrap_or(rest.len());
-    (rest[..end].to_ascii_lowercase(), &rest[end..])
+    (&rest[..end], &rest[end..])
+}
+
+/// Strips one `.` or `%2e` (case-insensitive) from the front of `s`.
+fn strip_dot(s: &[u8]) -> Option<&[u8]> {
+    if let Some(rest) = s.strip_prefix(b".") {
+        Some(rest)
+    } else if s.len() >= 3 && s[..3].eq_ignore_ascii_case(b"%2e") {
+        Some(&s[3..])
+    } else {
+        None
+    }
 }
 
 /// Whether the path of `rest` (what [`split_host`] leaves, up to a `?` or
@@ -357,13 +368,17 @@ fn split_host(url: &Url) -> (String, &str) {
 /// `.` or `..` segment, plain or with its dots percent-encoded, no
 /// backslash, and no percent-encoded `/` or `\`.
 fn plain_path(rest: &str) -> bool {
-    let path = rest[..rest.find(['?', '#']).unwrap_or(rest.len())].to_ascii_lowercase();
-    if path.contains('\\') || path.contains("%2f") || path.contains("%5c") {
+    let path = &rest[..rest.find(['?', '#']).unwrap_or(rest.len())];
+    let bytes = path.as_bytes();
+    if bytes.contains(&b'\\')
+        || bytes.windows(3).any(|w| w.eq_ignore_ascii_case(b"%2f") || w.eq_ignore_ascii_case(b"%5c"))
+    {
         return false;
     }
-    path.split('/').all(|segment| {
-        let dots = segment.replace("%2e", ".");
-        dots != "." && dots != ".."
+    path.split('/').all(|segment| match strip_dot(segment.as_bytes()) {
+        None => true,
+        Some(b"") => false,
+        Some(after_first) => strip_dot(after_first) != Some(b""),
     })
 }
 
@@ -383,7 +398,7 @@ fn under_origin(origin: &Url, file: &Url) -> bool {
     let (origin_host, origin_rest) = split_host(origin);
     let (file_host, file_rest) = split_host(file);
     let prefix = origin_rest.trim_end_matches('/');
-    origin_host == file_host
+    origin_host.eq_ignore_ascii_case(file_host)
         && plain_path(file_rest)
         && file_rest.strip_prefix(prefix).is_some_and(|after| after.is_empty() || after.starts_with('/'))
 }
