@@ -33,8 +33,9 @@ jobs:
       # downloads.apache.org and checked against their published SHA-512
       # (analysis/goldens-tool/src/recipe.rs). With them present and
       # required, the language detector's probability and ranking parity
-      # tests and the sentence detector and tokenizer tests over the
-      # published UD models compare instead of skipping.
+      # tests, the language by span fixture scores, and the sentence
+      # detector and tokenizer tests over the published UD models compare
+      # instead of skipping.
       - uses: actions/cache@v4
         with:
           path: .opennlp-models
@@ -74,7 +75,7 @@ jobs:
           TURBO_GOLDENS_MODELS: ${{ github.workspace }}/.opennlp-models
           TURBO_TEST_REQUIRE_OPENNLP_MODELS: "1"
         run: |
-          cargo test -p turbo-maxent -p turbo-sequence -p turbo-langdetect -p turbo-sentdetect -p turbo-tokenize -p turbo-postag -p turbo-lemmatizer
+          cargo test -p turbo-maxent -p turbo-sequence -p turbo-langdetect -p turbo-langspan -p turbo-sentdetect -p turbo-tokenize -p turbo-postag -p turbo-lemmatizer
           cargo test -p turbo-zoo --test builtin
           cargo test -p turbo-eval --lib
           cargo test -p turbo-train-recipes --test recipes

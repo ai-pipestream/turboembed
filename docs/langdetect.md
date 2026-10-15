@@ -4,7 +4,8 @@
 `LanguageDetectorME` onto the analysis API (docs/analysis.md). It reads
 OpenNLP's language detector models unchanged, such as
 `langdetect-183.bin` with its 103 languages, and finds the language of a
-whole document. Per-span language (code switching) is not built.
+whole document. `turbo-langspan` (`analysis/langspan/`) builds language by
+span (code switching) on it; see "Language by span" below.
 
 It depends on `turbo-analysis`, `turbo-analysis-layers`, `turbo-maxent`
 (the model file and its GIS classifier), `turbo-normalize` (the
@@ -184,3 +185,184 @@ difference to record.
 - `predictLanguages` gives no sign that a text had no n-gram the model
   knows; such a text is ranked like any other, with the model's first
   outcome first.
+
+## Language by span
+
+`turbo-langspan` (`analysis/langspan/`) finds the language of each part
+of a document that changes language part way: a German e-mail quoting
+English, a chat that switches between Spanish and English, a bilingual
+notice. It uses the detector above for every score and adds no model.
+
+### Layers
+
+`opennlp:language` stays the document-level layer it is in OpenNLP, and
+the spans are a new layer, `turbo:language-spans` (`LanguageSpans` in
+`turbo-analysis-layers`). Giving `opennlp:language` spans instead would
+change what every reader of it gets, and OpenNLP has no per-span layer
+to follow. Each span has a language code (a tag in the layer's tag set:
+the model's codes and `und`), the script most of its letters are in (a
+`turbo_unicode::Script`) and a confidence. Spans are in text order and
+touch: together they cover the text from the first word to the last.
+
+The step (`SpanDetector`, annotator id `turbo-langspan:script-ngram`)
+reads a `View` and, when the document has them, `opennlp:sentences` and
+`opennlp:tokens`, and writes `turbo:language-spans` and
+`opennlp:language`. Its `opennlp:language` is a summary of the spans:
+every language of a span, with its share of the letters, largest first
+(a tie goes to the language that comes first in the text). A pipeline
+that wants OpenNLP's own ranking (every language of the model with its
+probability) runs `LanguageDetector` instead; a document has one writer
+of `opennlp:language`.
+
+### How it works
+
+1. Words: the letters of the text cut into words, each in one script
+   group (Hiragana, Katakana and Bopomofo go with Han). Without a token
+   layer a word ends at whitespace, at punctuation (except an
+   apostrophe, hyphen, middle dot or full stop between two letters) and
+   where the script group changes; with one, words also stay inside
+   tokens. A whitespace-separated chunk (or token) that the detector's
+   normalizers remove, such as a URL, an e-mail address, a hashtag or a
+   mention, makes no word.
+2. Script first: consecutive words of one script group are a segment,
+   and a segment can only be a language written in that script. The
+   table of scripts per language (`turbo_langspan::scripts`) covers the
+   103 languages of `langdetect-183.bin`; it comes from the writing
+   systems of the languages, not from the model, whose weights give Han
+   and Hangul letters small positive weights for nearly every language.
+   A script with one language (Greek, Hebrew, Thai, Hangul, Georgian,
+   Armenian and the Indic scripts other than Devanagari) needs no
+   scoring and gets confidence 1; a script with none is `und` with
+   confidence 0. A code the table does not know is allowed in every
+   script.
+3. Shortlist: the detector scores the whole segment and every clause
+   (the words between two gaps with punctuation or a sentence break) of
+   at least `clause_letters` letters (10); the best of the script's
+   languages for each joins the shortlist. A segment with a shortlist of
+   one is that language.
+4. Labelling: each word, with a space either side, is scored against
+   the shortlist (the natural log of the model's probability), and a
+   Viterbi search finds the labelling with the best total less a cost
+   for each switch: 0.20 between two words with only whitespace between
+   them, 0.10 across punctuation, 0.05 across a sentence boundary or a
+   line break. With a sentence layer its starts are the sentence
+   boundaries; without one, sentence-final punctuation is.
+5. Runs: each stretch of one label is scored again as a whole and given
+   its best shortlisted language, and neighbours with the same language
+   merge. A run's confidence is the model's probability of its language
+   for the run's whole text, normalized over the languages of its
+   script. The published model's probabilities are flat (a clear
+   French sentence gets around 0.07 over the 65 Latin-script languages),
+   so the confidence ranks runs against each other rather than reading
+   as a calibrated probability.
+6. Spans: a run starts at a sentence start between the word before it
+   and its first word, when there is one (snapped to the sentence layer);
+   otherwise at its first word less the punctuation attached before it
+   (an opening quotation mark or bracket), moved back to the start of the
+   token it falls in (snapped to the token layer). The last run ends
+   after its last word and the punctuation attached after it.
+
+Steps 3 to 5 exist because the model scores single words badly: a short
+word's probabilities favour a few languages (Waray and Minangkabau most)
+whatever the word, so summing word scores over all the script's
+languages labels most English and Spanish text as those. Ablation on the
+development set: word scores over every Latin language alone get 18 of
+30 documents exactly right; adding the whole-run rescoring gets 27; the
+shortlist gets 30.
+
+### Fixtures and scores
+
+`analysis/langspan/tests/data/` holds mixed-language documents with gold
+spans, written for this crate: `mixed-dev.txt` (30 documents, 67 spans)
+was used to choose the switch costs and `clause_letters`, and
+`mixed-test.txt` (40 documents, 87 spans, including single-language
+documents, three-language documents and one-word quotations) was
+written before that and scored once with the chosen settings. Together
+they hold 28 languages in 11 scripts. A boundary counts as found when
+no letter lies between it and the gold one (where the whitespace and
+punctuation between two words go is convention); a span counts as right
+when most of its letters get its gold language.
+
+| Set | Detector | Documents exactly right | Span accuracy | Boundary precision | Boundary recall | Letter accuracy |
+|---|---|---|---|---|---|---|
+| dev | turbo-langspan, `langdetect-183.bin` | 30/30 | 67/67 | 37/37 | 37/37 | 1.000 |
+| test | turbo-langspan, `langdetect-183.bin` | 33/40 | 81/87 (0.931) | 41/42 (0.976) | 41/47 (0.872) | 0.956 |
+| dev | lingua 1.8.0 `detect_multiple_languages_of` | 12/30 | 60/67 (0.896) | 26/47 (0.553) | 26/37 (0.703) | 0.866 |
+| test | lingua 1.8.0 `detect_multiple_languages_of` | 16/40 | 70/87 (0.805) | 27/56 (0.482) | 27/47 (0.574) | 0.854 |
+
+The development numbers are what the settings were chosen to get, not
+a measure of accuracy. The seven test documents not exactly right: a
+short English stretch next to Japanese or Hindi, and a French clause
+of three words, read as Waray (the model's bias on few words, which a
+run that short cannot outweigh); a one-word quotation
+(`Schadenfreude`) and two short quotations, French inside English and
+English inside Dutch, stay with the surrounding language; and
+Indonesian reads as Sundanese. `analysis/langspan/tests/published.rs` records these scores
+and fails when they change. Lingua ran outside this repository, from
+crates.io, restricted to the 68 languages it shares with the model (its
+own option); turbo-langspan used all 103 of the model's languages.
+
+### Short texts against lingua
+
+lingua's own test sets (single words, word pairs and sentences, up to
+1000 of each per language, from the lingua-rs repository at commit
+74eed3045bec53ba4feda2ac1780283f76fa302e) for the 68 languages lingua
+and `langdetect-183.bin` share, with every detector restricted to those
+68 languages. The model's two codes for Estonian (`est`, `ekk`),
+Latvian (`lav`, `lvs`) and Persian (`fas`, `pes`) both count as right.
+Accuracy is the mean over the languages of each language's share right.
+
+| Set | OpenNLP document detector | turbo-langspan summary | lingua 1.8.0 (high accuracy) |
+|---|---|---|---|
+| single words | 0.617 | 0.629 | 0.760 |
+| word pairs | 0.803 | 0.805 | 0.894 |
+| sentences | 0.959 | 0.954 | 0.958 |
+
+On whole sentences the span detector's best language is a little worse
+than OpenNLP's ranking of the whole text, because a sentence it splits
+in two can give the larger share to the wrong language. On single words
+and word pairs the script filter helps a little; lingua's models are
+better at short text than OpenNLP's. The weakest languages are the close
+pairs for all three: Bosnian and Croatian with Serbian, Malay with
+Indonesian. The test sets are not in this repository: run
+`cargo run --release -p turbo-langspan --example short_text --
+<langdetect-183.bin> <lingua-rs>/language-models`. Lingua 1.7.2 resolves
+to language model crates of the 1.8 format and then detects nothing,
+so the comparison used lingua 1.8.0.
+
+### Differences from the references
+
+- lingua builds its candidate set from the whole text and every word of
+  five or more characters, labels each word on its own and merges
+  single-word results into their neighbours. Here the candidates come
+  from the whole segment and from clauses, words are labelled jointly
+  with a cost per switch that depends on the punctuation between them,
+  and each run is scored again as a whole. Tests:
+  `two_sentences_in_two_languages_are_two_spans_that_touch`,
+  `a_quotation_takes_its_opening_mark_and_leaves_the_colon`
+  (`analysis/langspan/tests/synthetic.rs`), the `decode` unit tests.
+- whatlang and CLD3 filter by script before scoring; so does this, by a
+  table of the model's languages instead of their per-script alphabets.
+  A script the model has no language for is `und`, not a guess. Test:
+  `scripts_with_one_language_need_no_scoring_and_scripts_with_none_are_und`.
+- The `opennlp:language` this step writes lists only the languages of
+  its spans, scored by share of letters, where OpenNLP's detector lists
+  every language of the model with its probability. A text whose words
+  are all in scripts the model has no language for gets an empty
+  `opennlp:language` and `und` spans; a text with no words at all is
+  declined, as `LanguageDetector` declines it. Test:
+  `a_text_with_no_language_evidence_is_skipped_and_one_of_unknown_scripts_is_und`.
+
+### Tests
+
+`analysis/langspan/tests/synthetic.rs` runs the step on a model written
+by the test (`x` is German, `y` English): spans and their summary,
+quotations, snapping to sentences and tokens, single-language and
+unknown scripts, declined texts, views and provenance. The unit tests
+cover the script table, words, gaps, snapping, the Viterbi search and
+the fixture format and scoring. `analysis/langspan/tests/published.rs`
+checks that the script table covers every language of
+`langdetect-183.bin` and records the fixture scores above; it needs the
+model and skips without it, unless `TURBO_TEST_REQUIRE_OPENNLP_MODELS=1`,
+which the CI step "parity against the JVM with the published models,
+models required" sets.
