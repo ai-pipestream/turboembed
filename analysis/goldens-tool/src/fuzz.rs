@@ -28,7 +28,7 @@ use crate::{docker, models, paths, recipe};
 /// English sentence and token models; `edge` every tokenizer, segmenter,
 /// sentence detector and the WordPiece encoder; the others their own
 /// annotators.
-pub const DEFAULT_SETS: [&str; 7] = ["en", "edge", "norm", "num", "money", "quantity", "sentence-fixture"];
+pub const DEFAULT_SETS: [&str; 8] = ["en", "edge", "norm", "num", "money", "quantity", "temporal", "sentence-fixture"];
 
 /// The annotators the container is told to skip: the differential does
 /// not cover them (`turbo_fuzz::runs::NOT_COVERED`).

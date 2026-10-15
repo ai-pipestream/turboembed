@@ -382,13 +382,14 @@ pub const FIXTURES: [Fixture; 38] = [
 ];
 
 /// The input sets under `analysis/goldens/data/inputs`.
-pub const INPUT_SETS: [&str; 23] = [
+pub const INPUT_SETS: [&str; 24] = [
     "en",
     "multi",
     "norm",
     "num",
     "money",
     "quantity",
+    "temporal",
     "edge",
     "surrogate",
     "abbreviations",
@@ -419,7 +420,7 @@ pub const GENERATOR_ARGS: [&str; 1] = ["--dumps"];
 /// replaces and `verify` compares. The data directory holds other things
 /// (the inputs, the fixtures, the rate snapshot, a README) that neither
 /// touches.
-pub const ANNOTATORS: [&str; 25] = [
+pub const ANNOTATORS: [&str; 26] = [
     "sentdetect",
     "tokenize",
     "postag",
@@ -432,6 +433,7 @@ pub const ANNOTATORS: [&str; 25] = [
     "money",
     "money-convert",
     "quantity",
+    "temporal",
     "detokenize",
     "subwords",
     "unigram",
@@ -451,7 +453,7 @@ pub const ANNOTATORS: [&str; 25] = [
 /// each golden of theirs whose header names a model has a decision point
 /// dump beside it. Their runs without a model (the simple, whitespace and
 /// UAX #29 tokenizers and the newline detector) have none, nor do the
-/// normalizers, the number scan, the money and quantity annotators,
+/// normalizers, the number scan, the money, quantity and temporal annotators,
 /// the detokenizer, the WordPiece encoder, the unigram segmenter, the
 /// BPE trainer and the lattice tokenizer, which ask no model.
 pub const DUMPED_ANNOTATORS: [&str; 6] = ["sentdetect", "tokenize", "postag", "lemmatize", "chunk", "langdetect"];
@@ -471,6 +473,10 @@ pub const MONEY_INPUT_SET: &str = "money";
 /// The input set the quantity extractor runs on. It runs on no other set,
 /// and the other annotators do not run on this one.
 pub const QUANTITY_INPUT_SET: &str = "quantity";
+
+/// The input set the temporal extractor runs on. It runs on no other set,
+/// and the other annotators do not run on this one.
+pub const TEMPORAL_INPUT_SET: &str = "temporal";
 
 /// The rate snapshot the money conversion reads: a directory beside the
 /// inputs directory under `analysis/goldens/data`, which the container gets
@@ -580,10 +586,10 @@ mod tests {
     #[test]
     fn the_generator_names_the_same_input_sets() {
         let runs = include_str!("../java/src/main/java/ai/pipestream/turbo/goldens/Runs.java");
-        for set in INPUT_SETS
-            .iter()
-            .filter(|s| ![NORMALIZER_INPUT_SET, NUMBER_INPUT_SET, MONEY_INPUT_SET, QUANTITY_INPUT_SET].contains(s))
-        {
+        for set in INPUT_SETS.iter().filter(|s| {
+            ![NORMALIZER_INPUT_SET, NUMBER_INPUT_SET, MONEY_INPUT_SET, QUANTITY_INPUT_SET, TEMPORAL_INPUT_SET]
+                .contains(s)
+        }) {
             assert!(runs.contains(&format!("= \"{set}\";")), "Runs.java does not name the input set {set}");
         }
     }
@@ -638,6 +644,16 @@ mod tests {
         assert!(!DUMPED_ANNOTATORS.contains(&"quantity"));
         let quantity = include_str!("../java/src/main/java/ai/pipestream/turbo/goldens/QuantityGolden.java");
         assert!(quantity.contains(&format!("INPUT_SET = \"{QUANTITY_INPUT_SET}\"")));
+    }
+
+    #[test]
+    fn the_temporal_extractor_has_its_own_input_set_and_no_dumps() {
+        assert!(INPUT_SETS.contains(&TEMPORAL_INPUT_SET));
+        assert!(ANNOTATORS.contains(&"temporal"));
+        assert!(!DUMPED_ANNOTATORS.contains(&"temporal"));
+        let temporal = include_str!("../java/src/main/java/ai/pipestream/turbo/goldens/TemporalGolden.java");
+        assert!(temporal.contains(&format!("INPUT_SET = \"{TEMPORAL_INPUT_SET}\"")));
+        assert!(temporal.contains("ANNOTATOR = \"temporal\""));
     }
 
     #[test]
