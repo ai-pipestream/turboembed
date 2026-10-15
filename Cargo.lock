@@ -1891,6 +1891,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "turbo-glossary"
+version = "0.1.0"
+dependencies = [
+ "turbo-analysis",
+ "turbo-analysis-layers",
+ "turbo-normalize",
+ "turbo-stem",
+ "turbo-tokenize",
+ "turbo-unicode",
+]
+
+[[package]]
 name = "turbo-goldens"
 version = "0.1.0"
 dependencies = [

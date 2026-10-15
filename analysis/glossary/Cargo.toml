@@ -1,0 +1,13 @@
+[package]
+name = "turbo-glossary"
+version = "0.1.0"
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+turbo-analysis = { path = "../core" }
+turbo-analysis-layers = { path = "../layers" }
+turbo-normalize = { path = "../normalize" }
+turbo-stem = { path = "../stem" }
+turbo-tokenize = { path = "../tokenize" }
+turbo-unicode = { path = "../unicode" }
