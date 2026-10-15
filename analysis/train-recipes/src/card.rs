@@ -21,8 +21,10 @@ use crate::masc::{self, Split};
 use crate::segmentation::{Component, LANGUAGE, SENTENCES_PER_SAMPLE, TIMESTAMP_MS};
 use crate::{Recipe, Trained, postag};
 
-/// The card's schema version.
-pub const CARD_VERSION: u32 = 2;
+/// The card's schema version: 3, with the held-out counts, the tag
+/// formats and the reference's digest, the documents the split leaves
+/// out, and how a tagger's held-out tokens were scored.
+pub const CARD_VERSION: u32 = 3;
 /// The card's file name in the model's directory.
 pub const CARD_FILE: &str = "card.json";
 /// The gate record's file name in the model's directory.
@@ -352,14 +354,27 @@ impl ModelCard {
         s
     }
 
+    /// Reads a card written by [`write_model_dir`]. Its `card_version` is
+    /// read first, alone, so a card of another schema version is
+    /// [`Error::CardVersion`] whatever fields it has.
+    ///
+    /// # Errors
+    ///
+    /// A file that cannot be read, is not JSON with a `card_version`, is of
+    /// another version, or is not a card of this version.
     pub fn read(path: &Path) -> Result<ModelCard> {
-        let bytes = std::fs::read(path).map_err(io(path))?;
-        let card: ModelCard = serde_json::from_slice(&bytes)
-            .map_err(|e| Error::Json { path: path.to_owned(), message: e.to_string() })?;
-        if card.card_version != CARD_VERSION {
-            return Err(Error::CardVersion { path: path.to_owned(), found: card.card_version });
+        /// The one field every version of the card has.
+        #[derive(Deserialize)]
+        struct Version {
+            card_version: u32,
         }
-        Ok(card)
+        let bytes = std::fs::read(path).map_err(io(path))?;
+        let json = |e: serde_json::Error| Error::Json { path: path.to_owned(), message: e.to_string() };
+        let Version { card_version } = serde_json::from_slice(&bytes).map_err(json)?;
+        if card_version != CARD_VERSION {
+            return Err(Error::CardVersion { path: path.to_owned(), found: card_version });
+        }
+        serde_json::from_slice(&bytes).map_err(json)
     }
 }
 

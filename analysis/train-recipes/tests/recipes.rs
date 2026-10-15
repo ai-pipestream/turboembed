@@ -17,7 +17,8 @@ use turbo_formats::masc::{MascCorpus, MascTokenReader};
 use turbo_postag::PosTagFormat;
 use turbo_train_components::{TokSpanEventStream, TokenizerFactory};
 use turbo_train_recipes::card::{
-    CARD_FILE, GATE_FILE, HeldOutCard, ModelCard, SpellingCard, TagCount, TagFormat, TokenCoverage, write_model_dir,
+    CARD_FILE, CARD_VERSION, GATE_FILE, HeldOutCard, ModelCard, SpellingCard, TagCount, TagFormat, TokenCoverage,
+    write_model_dir,
 };
 use turbo_train_recipes::masc::{self, RELEASE, SPLIT, SplitCorpus};
 use turbo_train_recipes::postag::{self, CANDIDATE_FORMAT, POS, PosRecipe, ReferenceTags};
@@ -187,8 +188,22 @@ fn the_recipes_train_score_gate_and_write_their_cards() {
         let dir = out.join(recipe.model_id());
         assert_eq!(ModelCard::read(&dir.join(CARD_FILE)).unwrap(), *card);
         let other = dir.join("other-card.json");
-        std::fs::write(&other, card.to_json().replace("\"card_version\": 2,", "\"card_version\": 1,")).unwrap();
+        let current = format!("\"card_version\": {CARD_VERSION},");
+        assert!(card.to_json().contains(&current));
+        std::fs::write(&other, card.to_json().replace(&current, "\"card_version\": 1,")).unwrap();
         assert!(matches!(ModelCard::read(&other), Err(Error::CardVersion { found: 1, .. })));
+        // A card of version 2, without the fields version 3 added, is of
+        // another version, not a card missing fields.
+        let mut old: serde_json::Value = serde_json::from_str(&card.to_json()).unwrap();
+        old["card_version"] = 2.into();
+        old.as_object_mut().unwrap().remove("held_out");
+        old["gate"].as_object_mut().unwrap().remove("reference_sha256");
+        std::fs::write(&other, serde_json::to_string_pretty(&old).unwrap()).unwrap();
+        assert!(matches!(ModelCard::read(&other), Err(Error::CardVersion { found: 2, .. })));
+        // A card of this version with a field missing is not a card.
+        old["card_version"] = CARD_VERSION.into();
+        std::fs::write(&other, serde_json::to_string_pretty(&old).unwrap()).unwrap();
+        assert!(matches!(ModelCard::read(&other), Err(Error::Json { .. })));
         std::fs::write(&other, "{}").unwrap();
         assert!(matches!(ModelCard::read(&other), Err(Error::Json { .. })));
         let bad_split = card.to_json().replace("\"every\": 10,", "\"every\": 0,");
