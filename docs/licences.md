@@ -120,7 +120,7 @@ not list it.
 | [UD_Portuguese-Porttinari r2.16](https://github.com/UniversalDependencies/UD_Portuguese-Porttinari/blob/r2.16/README.md) | sentence, token, POS, lemma | CC BY 4.0 | permissive | the recipes train on it (#415); its README says the texts are Folha de São Paulo articles taken from a Kaggle dataset | here |
 | [UD_Portuguese-DANTEStocks r2.16](https://github.com/UniversalDependencies/UD_Portuguese-DANTEStocks/blob/r2.16/README.md) | POS, lemma | CC BY 4.0 | permissive, pending | its text is tweets, so platform terms need a look before it is used, as for WNUT-17; no recipe trains on it. Its tweets are not split into sentences | here |
 | [UD_Finnish-FTB r2.16](https://github.com/UniversalDependencies/UD_Finnish-FTB/blob/r2.16/README.md) | POS, lemma | CC BY 4.0 | permissive | `LICENSE.txt` offers LGPLv3 or later or, at the user's option, CC BY 4.0; the recipes take CC BY 4.0 (#415). Its text is grammar examples from VISK with a space between every two tokens, so it has no sentence or token recipe | here |
-| [UD_Italian-MarkIT r2.16](https://github.com/UniversalDependencies/UD_Italian-MarkIT/blob/r2.16/README.md) | POS, lemma | CC BY 4.0 | permissive | the recipes train on it (#415), scored alone: OpenNLP's Italian UD models are trained on UD_Italian-VIT (CC BY-NC-SA 3.0). Its text has a space between every two tokens, so it has no sentence or token recipe | here |
+| [UD_Italian-MarkIT r2.16](https://github.com/UniversalDependencies/UD_Italian-MarkIT/blob/r2.16/README.md) | POS, lemma | CC BY 4.0 | permissive | the recipes train on it (#415), gated against OpenNLP's Italian UD models, which are local-only (below) and only scored. Its text has a space between every two tokens, so it has no sentence or token recipe | here |
 | [MASC](https://anc.org/data/masc/) | English sentences, tokens, Penn POS, noun and verb chunks, named entities | CC BY 3.0 US | permissive | 500K words, manually validated; the recipes in `analysis/train-recipes` train on it, release digest not recorded yet. Its Twitter genre (`data/written/twitter`, two documents, 24,180 words, from 2008, source given as "unknown" in their headers) has no terms of its own: the 3.0.0 release's README has no licence text, and anc.org states CC BY 3.0 US for MASC with no exception. Whether Twitter's terms reach the tweets' text is not settled here; the recipes do not leave the genre out | here |
 | [Open English WordNet](https://github.com/globalwordnet/english-wordnet/blob/main/LICENSE.md) | English lemmas | CC BY 4.0 | permissive | derived from Princeton WordNet; attribute both | here |
 | [Princeton WordNet](https://wordnet.princeton.edu/license-and-commercial-use) | English lemmas | WordNet licence (BSD-like) | permissive | | plan |
@@ -237,3 +237,12 @@ local-only by the class rule (Apache-2.0 models, non-commercial data):
 | UD 1.3 `it-ud-vit-*` | [UD_Italian-VIT r2.16](https://github.com/UniversalDependencies/UD_Italian-VIT/blob/r2.16/README.md) | CC BY-NC-SA 3.0 | here |
 | UD 1.3 `pl-ud-pdb-*` | [UD_Polish-PDB r2.16](https://github.com/UniversalDependencies/UD_Polish-PDB/blob/r2.16/README.md) | CC BY-NC-SA 4.0 | here |
 | UD 1.3 `uk-ud-iu-*` | [UD_Ukrainian-IU r2.16](https://github.com/UniversalDependencies/UD_Ukrainian-IU/blob/r2.16/README.md) | CC BY-NC-SA 4.0 | here |
+
+`opennlp-it-ud-vit-pos-1.3-2.5.4.bin` and
+`opennlp-it-ud-vit-lemmas-1.3-2.5.4.bin` are used only as the references
+of the Italian UD recipes' gates in `turbo-train-recipes` (#415). They
+are read from a directory the user names, checked against the size and
+SHA-256 the recipes record (`ud::IT_UD_VIT_POS`, `ud::IT_UD_VIT_LEMMAS`),
+and scored on UD_Italian-MarkIT's `test` file beside the model trained on
+MarkIT. Nothing ships, bundles, mirrors or trains on them, the zoo does
+not list them, and CI does not fetch them.

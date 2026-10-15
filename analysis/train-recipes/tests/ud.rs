@@ -384,9 +384,10 @@ fn references_dir() -> Option<PathBuf> {
 }
 
 /// Each UD recipe's reference, where present: it matches the zoo's digest
-/// and is scored on the test treebank's held-out samples of its component.
-/// The text is the tests' Spanish for every language, so the scores say
-/// nothing; this checks that every reference loads and is scored.
+/// (the recorded size and digest for the Italian ones) and is scored on
+/// the test treebank's held-out samples of its component. The text is the
+/// tests' Spanish for every language, so the scores say nothing; this
+/// checks that every reference loads and is scored.
 #[test]
 fn the_published_references_are_checked_and_scored_when_present() {
     let Some(refs) = references_dir() else { return };
@@ -395,10 +396,7 @@ fn the_published_references_are_checked_and_scored_when_present() {
     let treebank = write_treebank(&dir, &conllu(&all, 10, "train"), &conllu(&all, TEST_SENTENCES, "test"));
     let text = treebank.read(&dir).unwrap();
     for r in UD_RECIPES {
-        let Some(reference) = r.reference_model() else {
-            assert_eq!(r.treebank.language, "it");
-            continue;
-        };
+        let reference = r.reference_model().expect("every UD recipe has a reference");
         let path = refs.join(reference.file().unwrap());
         if !path.is_file() {
             assert!(!models_required(), "{} not found and TURBO_TEST_REQUIRE_OPENNLP_MODELS=1", path.display());
@@ -419,36 +417,61 @@ fn the_published_references_are_checked_and_scored_when_present() {
     std::fs::remove_dir_all(dir).unwrap();
 }
 
+/// The `ud` command reads and checks every reference a run needs, and
+/// checks that none of its model directories exists, then reads every
+/// treebank, before it trains anything, and says what every problem with
+/// the references and directories is, in the order of `UD_RECIPES`.
 #[test]
 fn the_ud_command_checks_every_reference_and_treebank_before_training() {
     let out = temp_dir("binary");
+    let models = out.join("models");
     let bin = env!("CARGO_BIN_EXE_turbo-train-recipes");
     let run = |references: &Path, extra: &[&str]| {
         let mut c = std::process::Command::new(bin);
         c.arg("ud").arg("--treebanks").arg(out.join("treebanks")).arg("--references").arg(references);
-        c.arg("--out").arg(out.join("models")).args(extra);
-        c.output().unwrap()
+        c.arg("--out").arg(&models).args(extra);
+        let output = c.output().unwrap();
+        assert_eq!(output.status.code(), Some(2), "{output:?}");
+        String::from_utf8_lossy(&output.stderr).into_owned()
     };
-    let unknown = run(&out, &["--recipe", "turbo-en-ud-ewt-2.16-pos-1"]);
-    assert_eq!(unknown.status.code(), Some(2));
-    assert!(String::from_utf8_lossy(&unknown.stderr).contains("no recipe trains"), "{unknown:?}");
-    // No reference in the directory: refused before any treebank is read.
-    let no_reference = run(&out, &[]);
-    assert_eq!(no_reference.status.code(), Some(2));
-    assert!(String::from_utf8_lossy(&no_reference.stderr).contains("opennlp-es-ud-gsd-sentence"), "{no_reference:?}");
-    // A wrong file under a reference's name is refused by its digest.
+    assert!(run(&out, &["--recipe", "turbo-en-ud-ewt-2.16-pos-1"]).contains("no recipe trains"));
+    // No reference in the directory: every one is named, in the recipes'
+    // order, and no treebank is read.
+    let stderr =
+        run(&out, &["--recipe", "turbo-it-ud-markit-2.16-lemmas-1", "--recipe", "turbo-es-ud-ancora-2.16-pos-1"]);
+    let (spanish, italian) =
+        (stderr.find("opennlp-es-ud-gsd-pos").unwrap(), stderr.find("opennlp-it-ud-vit-lemmas").unwrap());
+    assert!(spanish < italian, "{stderr}");
+    assert!(!stderr.contains("treebank"), "{stderr}");
+    // Wrong files under the references' names are refused by their digests,
+    // the zoo's or the recorded one, and a model directory already there
+    // is named too.
     let refs = out.join("references");
     std::fs::create_dir_all(&refs).unwrap();
-    std::fs::write(refs.join("opennlp-fi-ud-tdt-pos-1.3-2.5.4.bin"), "not the model").unwrap();
-    let wrong = run(&refs, &["--recipe", "turbo-fi-ud-ftb-2.16-pos-1"]);
-    assert_eq!(wrong.status.code(), Some(2));
-    assert!(String::from_utf8_lossy(&wrong.stderr).contains("SHA-256"), "{wrong:?}");
-    // A recipe without a reference needs none, and the missing treebank is
-    // refused before training.
-    let no_treebank = run(&refs, &["--recipe", "turbo-it-ud-markit-2.16-pos-1"]);
-    assert_eq!(no_treebank.status.code(), Some(2));
-    let stderr = String::from_utf8_lossy(&no_treebank.stderr);
-    assert!(stderr.contains("ud-italian-markit-r2.16") && stderr.contains("LICENSE.txt"), "{no_treebank:?}");
-    assert!(!out.join("models").exists(), "nothing is written before every check passes");
+    for file in ["opennlp-fi-ud-tdt-pos-1.3-2.5.4.bin", "opennlp-it-ud-vit-pos-1.3-2.5.4.bin"] {
+        std::fs::write(refs.join(file), "not the model").unwrap();
+    }
+    std::fs::create_dir_all(models.join("turbo-it-ud-markit-2.16-pos-1")).unwrap();
+    let stderr = run(&refs, &["--recipe", "turbo-fi-ud-ftb-2.16-pos-1", "--recipe", "turbo-it-ud-markit-2.16-pos-1"]);
+    assert_eq!(stderr.lines().count(), 3, "{stderr}");
+    assert!(stderr.contains("reference model opennlp-fi-ud-tdt-pos-1.3-2.5.4: SHA-256"), "{stderr}");
+    assert!(stderr.contains("reference model opennlp-it-ud-vit-pos-1.3-2.5.4: SHA-256"), "{stderr}");
+    assert!(stderr.contains("turbo-it-ud-markit-2.16-pos-1: the model directory exists"), "{stderr}");
+    std::fs::remove_dir_all(&models).unwrap();
+    // With the reference in place, the missing treebank is refused before
+    // training.
+    match references_dir().map(|d| d.join("opennlp-it-ud-vit-pos-1.3-2.5.4.bin")) {
+        Some(path) if path.is_file() => {
+            std::fs::copy(&path, refs.join("opennlp-it-ud-vit-pos-1.3-2.5.4.bin")).unwrap();
+            let stderr = run(&refs, &["--recipe", "turbo-it-ud-markit-2.16-pos-1"]);
+            assert!(stderr.contains("ud-italian-markit-r2.16") && stderr.contains("LICENSE.txt"), "{stderr}");
+            assert!(!models.exists(), "nothing is written before every check passes");
+        }
+        Some(path) => {
+            assert!(!models_required(), "{} not found and TURBO_TEST_REQUIRE_OPENNLP_MODELS=1", path.display());
+            eprintln!("{} not found: the missing treebank's refusal is not checked", path.display());
+        }
+        None => {}
+    }
     std::fs::remove_dir_all(out).unwrap();
 }

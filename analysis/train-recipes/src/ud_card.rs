@@ -15,9 +15,7 @@ use std::path::Path;
 
 use serde::{Deserialize, Serialize};
 use turbo_train_components::ud as published;
-use turbo_zoo::{
-    Artifact, File, Index, Kind, Licence, LicenceClass, Sha256, Sha512, TrainingData, class_of, index::Format,
-};
+use turbo_zoo::{Artifact, File, Kind, Licence, LicenceClass, Sha256, Sha512, TrainingData, class_of, index::Format};
 
 use crate::Trained;
 use crate::card::{
@@ -27,7 +25,7 @@ use crate::card::{
 use crate::error::{Error, Result, io};
 use crate::segmentation::TIMESTAMP_MS;
 use crate::treebank::{Grant, RELEASE, TreebankFile};
-use crate::ud::{SENTENCES_PER_SAMPLE, TAG_FORMAT, UdGate, UdRecipe, UdReference};
+use crate::ud::{SENTENCES_PER_SAMPLE, TAG_FORMAT, UdGate, UdRecipe};
 
 /// The schema version of [`UdModelCard`].
 pub const UD_CARD_VERSION: u32 = 1;
@@ -229,28 +227,28 @@ impl UdModelCard {
     /// # Errors
     ///
     /// [`Error::NotShippable`] when the card is not `recipe`'s, the gate
-    /// failed, the gate's reference is not the recipe's or not the zoo's
-    /// file, or the model was scored alone while the recipe has a
-    /// reference; or an address or field the index refuses.
+    /// failed, the gate's reference is not the recipe's (by id, and by the
+    /// SHA-256 the zoo lists or the recipe records), or the model was
+    /// scored alone while the recipe has a reference; or an address or
+    /// field the index refuses.
     pub fn artifact(&self, recipe: &UdRecipe, url: &str) -> Result<Artifact> {
         let refuse = |reason: &'static str| Error::NotShippable { id: self.id.clone(), reason };
         if self.id != recipe.model_id {
             return Err(refuse("the card is not the recipe's"));
         }
-        let version = match (&self.gate, recipe.reference) {
+        let version = match (&self.gate, recipe.reference_model()) {
             (UdGateCard::Gated { pass: false, .. }, _) => return Err(refuse("it failed its gate")),
-            (UdGateCard::Gated { reference, reference_sha256, .. }, UdReference::Zoo(id)) => {
-                let zoo_sha256 = Index::builtin().get(id)?.files[0].sha256.to_string();
-                if reference != id || *reference_sha256 != zoo_sha256 {
+            (UdGateCard::Gated { reference, reference_sha256, .. }, Some(expected)) => {
+                if reference != expected.id() || *reference_sha256 != expected.sha256()? {
                     return Err(refuse("its gate's reference is not the recipe's"));
                 }
                 MODEL_VERSION
             }
-            (UdGateCard::Ungated { .. }, UdReference::NoReference(_)) => EXPERIMENTAL_VERSION,
-            (UdGateCard::Gated { .. }, UdReference::NoReference(_)) => {
+            (UdGateCard::Ungated { .. }, None) => EXPERIMENTAL_VERSION,
+            (UdGateCard::Gated { .. }, None) => {
                 return Err(refuse("it was gated though the recipe has no reference"));
             }
-            (UdGateCard::Ungated { .. }, UdReference::Zoo(_)) => {
+            (UdGateCard::Ungated { .. }, Some(_)) => {
                 return Err(refuse("it was not gated though the recipe has a reference"));
             }
         };

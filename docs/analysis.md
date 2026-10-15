@@ -2135,8 +2135,8 @@ Catalan AnCora and Portuguese Porttinari (all four components), and
 Finnish FTB and Italian MarkIT (tagger and lemmatizer; their `text`
 comments put a space between every two tokens, so they hold no sentence
 ends or tokenization of running text). Portuguese DANTEStocks is CC BY
-4.0 too, but its text is tweets, which the data policy keeps out with
-other data under a platform's terms, so it has no recipe.
+4.0 too, but its text is tweets, and platform terms need a look before
+it is used, as for WNUT-17 (docs/licences.md), so it has no recipe.
 
 - The data: each treebank's `LICENSE.txt`, README and UD `train`, `dev`
   and `test` files, with sizes, SHA-256 and SHA-512 recorded in
@@ -2153,13 +2153,17 @@ other data under a platform's terms, so it has no recipe.
   that the tagger's and lemmatizer's leave out empty nodes, which are
   not words of the text.
 - The gate: against the OpenNLP UD 1.3 model for the language and
-  component (`es-ud-gsd`, `ca-ud-ancora`, `pt-ud-gsd`, `fi-ud-tdt`) on the
-  `test` samples. A tagger's tokens whose tag the reference has no
-  outcome for are left out of both models' counts and listed on the card
-  (FTB's `DET` and `PART`, which the Finnish reference never gives); over
-  5 percent and the gate refuses. OpenNLP's Italian models are trained
-  on UD_Italian-VIT, which is non-commercial, so the Italian models are
-  scored alone (`UngatedRecord`) and listed as experimental.
+  component (`es-ud-gsd`, `ca-ud-ancora`, `pt-ud-gsd`, `fi-ud-tdt`,
+  `it-ud-vit`) on the `test` samples. A tagger's tokens whose tag the
+  reference has no outcome for are left out of both models' counts and
+  listed on the card (FTB's `DET` and `PART`, which the Finnish
+  reference never gives); over 5 percent and the gate refuses. OpenNLP's Italian models are trained
+  on UD_Italian-VIT, which is non-commercial, so they are local-only and
+  not in the zoo: the Italian recipes record each one's size and
+  SHA-256, read it from the references directory and only score it, as
+  the MASC tagger's gate does `en-pos-maxent.bin`. A recipe with no
+  reference would be scored alone (`UngatedRecord`) and listed as
+  experimental; none is.
 - The output: `<out>/<model id>/` with the model, `card.json` (the
   treebank, its files and licence, the attribution and the citation its
   README asks for, the parameters, the counts, and the gate's outcome)
@@ -2171,7 +2175,7 @@ cargo run --release -p turbo-train-recipes -- ud --treebanks <zoo-home>/artifact
     --references <dir with the OpenNLP UD models> --out <dir> [--recipe <model id>]...
 ```
 
-Results of one release-mode run of all sixteen recipes, in points
+Results of a release-mode run of all sixteen recipes, in points
 (F-measure for sentences and tokens, accuracy for tags and lemmas),
 with the 95 percent interval of the difference from the gate's paired
 bootstrap; the README has every interval and the times:
@@ -2181,16 +2185,19 @@ bootstrap; the README has every interval and the times:
 | Spanish AnCora vs `es-ud-gsd` | 97.99 vs 96.27, +0.85 to +2.72 | 99.96 vs 99.89, +0.04 to +0.11 | 97.40 vs 92.73, +4.44 to +4.91 | 91.32 vs 90.54, +0.67 to +0.87 |
 | Catalan AnCora vs `ca-ud-ancora` | 99.16 vs 99.16, +0.00 to +0.00 | 99.92 vs 99.92, +0.00 to +0.00 | 97.28 vs 97.24, -0.01 to +0.08 | 89.74 vs 89.74, -0.01 to +0.01 |
 | Portuguese Porttinari vs `pt-ud-gsd` | 99.11 vs 98.26, +0.06 to +1.70 | 99.84 vs 99.20, +0.52 to +0.77 | 95.82 vs 91.49, +3.99 to +4.68 | 91.28 vs 81.12, +9.76 to +10.55 |
-| Finnish FTB vs `fi-ud-tdt` | | | 89.25 vs 87.25, +1.47 to +2.53 | 88.24 vs 83.06, +4.62 to +5.74 |
-| Italian MarkIT, scored alone | | | 89.93 (89.19 to 90.67) | 82.39 (81.48 to 83.27) |
+| Finnish FTB vs `fi-ud-tdt` |  |  | 89.25 vs 87.25, +1.47 to +2.53 | 88.24 vs 83.06, +4.62 to +5.74 |
+| Italian MarkIT vs `it-ud-vit` |  |  | 89.96 vs 92.17, -2.92 to -1.49, fail | 82.39 vs 83.26, -1.34 to -0.41, fail |
 
-Every gated model passes. The Finnish tagger's gate leaves out 635 of
-16,261 test tokens (3.91 percent: `DET`, `PART` and `SCONJ+VERB`) and
-the Portuguese one 6 of 31,451. The Catalan references are OpenNLP's
-models of the same treebank, so that gate checks the recipes against a
-model of the same data; the others are trained on another treebank of
-the language, so a gap there can come from the treebanks' annotation as
-well as from the models.
+The fourteen models gated against references of the zoo pass, and the
+two Italian models fail: they lose 2.21 points (tagger) and 0.87
+(lemmatizer) to OpenNLP's Italian models, so they get no zoo entry. The
+Finnish tagger's gate leaves out 635 of 16,261 test tokens (3.91
+percent: `DET`, `PART` and `SCONJ+VERB`), the Portuguese one 6 of
+31,451 and the Italian one 3 of 9,654. The Catalan references are
+OpenNLP's models of the same treebank, so that gate checks the recipes
+against a model of the same data; the others are trained on another
+treebank of the language, so a gap there can come from the treebanks'
+annotation as well as from the models.
 
 ## Differential fuzzing
 

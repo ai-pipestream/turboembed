@@ -18,8 +18,8 @@
 //!   that reads `LICENSE.txt` and the README.
 //! - [`ud`]: the sentence detector, tokenizer, tagger and lemmatizer
 //!   trained on those treebanks' `train` files, gated on their `test`
-//!   files against the OpenNLP UD 1.3 models, or scored alone where there
-//!   is no reference the recipes may use.
+//!   files against the OpenNLP UD 1.3 models (the Italian ones local-only,
+//!   recorded by digest and only scored).
 //! - [`ud_card`]: the card of a model a UD recipe trained, with the
 //!   treebank's licence, attribution and citation, and its zoo entry.
 //!

@@ -28,8 +28,9 @@
 //! running text.
 //!
 //! Each model is gated against the OpenNLP UD 1.3 model for its language
-//! and component ([`UdReference::Zoo`]), both scored on the same `test`
-//! samples with OpenNLP's evaluators. Except for Catalan, the reference
+//! and component, both scored on the same `test` samples with OpenNLP's
+//! evaluators: a model of the zoo's built-in index ([`UdReference::Zoo`]),
+//! or for Italian a model the recipe records ([`UdReference::Recorded`]). Except for Catalan, the reference
 //! was trained on another treebank, whose tagger may not have every tag
 //! the `test` file uses: FTB tags determiners `DET` and particles `PART`,
 //! and the Finnish reference has neither. A token with a tag the
@@ -47,11 +48,18 @@
 //! or the held-out sentences skipped are more than
 //! [`crate::MAX_SKIPPED_SENTENCES`] of those read.
 //!
-//! For Italian there is no reference the recipes may use
-//! ([`UdReference::NoReference`]): OpenNLP's Italian UD models are trained
-//! on UD_Italian-VIT, which is CC BY-NC-SA 3.0, the data policy uses no
-//! non-commercial data, and the zoo refuses those models. Such a model gets
-//! an [`UngatedRecord`] and ships only as experimental.
+//! OpenNLP's Italian UD models are trained on UD_Italian-VIT, which is
+//! CC BY-NC-SA 3.0, so they are local-only (`docs/licences.md`,
+//! "Non-commercial data") and the zoo's built-in index does not list them.
+//! The Italian recipes record each one's file, size and SHA-256
+//! ([`IT_UD_VIT_POS`], [`IT_UD_VIT_LEMMAS`]); a run reads it from its
+//! references directory, checks it, and only scores it. It is never
+//! shipped, bundled or trained on, and the trained model is trained on
+//! MarkIT alone, so its class is permissive.
+//!
+//! A recipe with no reference it may be gated against
+//! ([`UdReference::NoReference`]) gets an [`UngatedRecord`] instead, and its
+//! model ships only as experimental. No recipe of [`UD_RECIPES`] is one.
 
 use std::collections::BTreeMap;
 use std::sync::Arc;
@@ -80,7 +88,7 @@ use crate::treebank::{
     CATALAN_ANCORA, FINNISH_FTB, ITALIAN_MARKIT, PORTUGUESE_PORTTINARI, RELEASE, SPANISH_ANCORA, Treebank,
 };
 use crate::ud_card::UdModelCard;
-use crate::{Limit, Reference, Trained, check_skipped};
+use crate::{Limit, RecordedReference, Reference, Trained, check_skipped};
 
 /// Sentences per sentence detector sample.
 pub const SENTENCES_PER_SAMPLE: usize = published::SENTENCES_PER_SAMPLE;
@@ -178,16 +186,35 @@ pub fn score_tags_where(
 pub enum UdReference {
     /// An OpenNLP UD 1.3 model of the zoo's built-in index, by its id.
     Zoo(&'static str),
-    /// No model the recipe may be gated against, and why: OpenNLP
-    /// publishes none, or the one it publishes is trained on data the
-    /// policy does not use.
+    /// An OpenNLP UD 1.3 model the zoo does not list, recorded by the
+    /// recipe, read only to score it.
+    Recorded(RecordedReference),
+    /// No model the recipe may be gated against, and why.
     NoReference(&'static str),
 }
 
-/// Why the Italian recipes have no reference.
-pub const NO_ITALIAN_REFERENCE: &str = "OpenNLP's Italian UD 1.3 models are trained on UD_Italian-VIT, which is CC \
-     BY-NC-SA 3.0; the data policy uses no non-commercial data and the zoo refuses those models, so the model is \
-     scored alone and ships only as experimental";
+/// OpenNLP's Italian UD 1.3 tagger, trained on UD_Italian-VIT (CC
+/// BY-NC-SA 3.0), as published. Its SHA-512 is the one Apache publishes
+/// beside it, and it is the file in Maven Central's
+/// `org.apache.opennlp:opennlp-models-pos-it:1.3.0`.
+pub const IT_UD_VIT_POS: RecordedReference = RecordedReference {
+    id: "opennlp-it-ud-vit-pos-1.3-2.5.4",
+    file: "opennlp-it-ud-vit-pos-1.3-2.5.4.bin",
+    url: "https://archive.apache.org/dist/opennlp/models/ud-models-1.3/opennlp-it-ud-vit-pos-1.3-2.5.4.bin",
+    size: 1_149_395,
+    sha256: "d38e645dc81289c035f2f126f813092ea657ae704769bd65a26f6da89fdd18f1",
+};
+
+/// OpenNLP's Italian UD 1.3 lemmatizer, trained on UD_Italian-VIT, as
+/// [`IT_UD_VIT_POS`] is (Maven Central's
+/// `org.apache.opennlp:opennlp-models-lemmatizer-it:1.3.0`).
+pub const IT_UD_VIT_LEMMAS: RecordedReference = RecordedReference {
+    id: "opennlp-it-ud-vit-lemmas-1.3-2.5.4",
+    file: "opennlp-it-ud-vit-lemmas-1.3-2.5.4.bin",
+    url: "https://archive.apache.org/dist/opennlp/models/ud-models-1.3/opennlp-it-ud-vit-lemmas-1.3-2.5.4.bin",
+    size: 704_996,
+    sha256: "10b25bc4506af3a5f06e56b9e1058aecccb3021e5d08902a1fa1ee33606510c7",
+};
 
 /// One model trained on a treebank and its reference.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -204,7 +231,7 @@ const fn recipe(model_id: &'static str, treebank: Treebank, component: Component
 }
 
 use Component::{Lemmas, Pos, Sentence as Sentences, Tokens};
-use UdReference::{NoReference, Zoo};
+use UdReference::{Recorded, Zoo};
 
 /// The recipes, by treebank, in the order the binary runs them.
 pub const UD_RECIPES: [UdRecipe; 16] = [
@@ -247,8 +274,8 @@ pub const UD_RECIPES: [UdRecipe; 16] = [
     ),
     recipe("turbo-fi-ud-ftb-2.16-pos-1", FINNISH_FTB, Pos, Zoo("opennlp-fi-ud-tdt-pos-1.3-2.5.4")),
     recipe("turbo-fi-ud-ftb-2.16-lemmas-1", FINNISH_FTB, Lemmas, Zoo("opennlp-fi-ud-tdt-lemmas-1.3-2.5.4")),
-    recipe("turbo-it-ud-markit-2.16-pos-1", ITALIAN_MARKIT, Pos, NoReference(NO_ITALIAN_REFERENCE)),
-    recipe("turbo-it-ud-markit-2.16-lemmas-1", ITALIAN_MARKIT, Lemmas, NoReference(NO_ITALIAN_REFERENCE)),
+    recipe("turbo-it-ud-markit-2.16-pos-1", ITALIAN_MARKIT, Pos, Recorded(IT_UD_VIT_POS)),
+    recipe("turbo-it-ud-markit-2.16-lemmas-1", ITALIAN_MARKIT, Lemmas, Recorded(IT_UD_VIT_LEMMAS)),
 ];
 
 /// The words of a sentence the tagger and the lemmatizer read: its word
@@ -445,6 +472,7 @@ impl UdRecipe {
     pub fn reference_model(&self) -> Option<Reference> {
         match self.reference {
             UdReference::Zoo(id) => Some(Reference::Zoo(id)),
+            UdReference::Recorded(r) => Some(Reference::Recorded(r)),
             UdReference::NoReference(_) => None,
         }
     }
@@ -602,7 +630,10 @@ impl UdRecipe {
         };
         let id = |id: &str, bytes: &[u8]| ModelId { id: id.to_owned(), sha256: Sha256::of(bytes).to_string() };
         match (self.reference, reference) {
-            (UdReference::Zoo(reference_id), Some(reference)) => {
+            (
+                UdReference::Zoo(reference_id) | UdReference::Recorded(RecordedReference { id: reference_id, .. }),
+                Some(reference),
+            ) => {
                 let (candidate, baseline, tags_left_out) = match held_out {
                     UdSamples::Tags(samples) => {
                         let (left_out, tokens) = tags_left_out(reference, samples)?;
@@ -641,7 +672,9 @@ impl UdRecipe {
                 why.to_owned(),
                 self.score(trained, held_out)?,
             )?)),
-            (UdReference::Zoo(id), None) => Err(Error::Model(format!("{}: no file given for {id}", self.model_id))),
+            (UdReference::Zoo(id) | UdReference::Recorded(RecordedReference { id, .. }), None) => {
+                Err(Error::Model(format!("{}: no file given for {id}", self.model_id)))
+            }
             (UdReference::NoReference(_), Some(_)) => {
                 Err(Error::Model(format!("{}: a reference given to a recipe that has none", self.model_id)))
             }
@@ -746,13 +779,16 @@ mod tests {
                     assert!(reference.ends_with(&format!("-{}-1.3-2.5.4", r.component.name())));
                     assert_eq!(r.reference_model(), Some(Reference::Zoo(reference)));
                 }
-                UdReference::NoReference(why) => {
+                UdReference::Recorded(reference) => {
+                    // OpenNLP's Italian models are local-only and not in the zoo.
                     assert_eq!(t.language, "it");
-                    assert!(why.contains("CC BY-NC-SA 3.0"));
-                    assert_eq!(r.reference_model(), None);
-                    // OpenNLP's Italian models are not in the zoo.
+                    assert_eq!(reference.file, format!("{}.bin", reference.id));
+                    assert_eq!(reference.id, format!("opennlp-it-ud-vit-{}-1.3-2.5.4", r.component.name()));
+                    assert!(reference.url.ends_with(reference.file));
                     assert_eq!(turbo_zoo::Index::builtin().find("it", r.zoo_component()).count(), 0);
+                    assert_eq!(r.reference_model(), Some(Reference::Recorded(reference)));
                 }
+                UdReference::NoReference(why) => panic!("{}: no reference ({why})", r.model_id),
             }
         }
         // Every treebank has a tagger and a lemmatizer; the ones whose text
