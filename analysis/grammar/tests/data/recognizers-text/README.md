@@ -12,5 +12,9 @@ Corporation.
 | `English/Number/OrdinalModel.json` | `Specs/Number/English/OrdinalModel.json` |
 | `English/Number/PercentModel.json` | `Specs/Number/English/PercentModel.json` |
 | `English/DateTime/DateTimeModel.json` | `Specs/DateTime/English/DateTimeModel.json` |
+| `Spanish/Number/NumberModel.json` | `Specs/Number/Spanish/NumberModel.json` |
+| `Spanish/Number/OrdinalModel.json` | `Specs/Number/Spanish/OrdinalModel.json` |
+| `Spanish/Number/PercentModel.json` | `Specs/Number/Spanish/PercentModel.json` |
+| `Spanish/DateTime/DateTimeModel.json` | `Specs/DateTime/Spanish/DateTimeModel.json` |
 
 `tests/spec.rs` reads them; docs/grammar.md says how a case is judged.
