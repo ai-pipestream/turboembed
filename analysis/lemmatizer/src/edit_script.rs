@@ -160,8 +160,15 @@ fn push_index(out: &mut Vec<u16>, index: usize) {
 /// skipped. The word is used as given: `LemmatizerME` lowercases it
 /// first, [`decode_lemma`] does that.
 pub fn decode_units(word: &[u16], script: &[u16]) -> Result<Vec<u16>, EditScriptError> {
-    let mut lemma = word.to_vec();
-    java_reverse(&mut lemma);
+    let mut lemma = Vec::with_capacity(word.len());
+    decode_units_into(word, script, &mut lemma)?;
+    Ok(lemma)
+}
+
+fn decode_units_into(word: &[u16], script: &[u16], lemma: &mut Vec<u16>) -> Result<(), EditScriptError> {
+    lemma.clear();
+    lemma.extend_from_slice(word);
+    java_reverse(lemma);
     let at = |i: usize| script.get(i).copied().ok_or(EditScriptError::Truncated);
     let index = |i: usize| -> Result<usize, EditScriptError> {
         let unit = at(i)?;
@@ -177,7 +184,9 @@ pub fn decode_units(word: &[u16], script: &[u16]) -> Result<Vec<u16>, EditScript
                 let replace = at(p + 1)?;
                 let with = at(p + 2)?;
                 if lemma.len() <= i {
-                    return Ok(word.to_vec());
+                    lemma.clear();
+                    lemma.extend_from_slice(word);
+                    return Ok(());
                 }
                 if lemma[i] == replace {
                     lemma[i] = with;
@@ -188,7 +197,9 @@ pub fn decode_units(word: &[u16], script: &[u16]) -> Result<Vec<u16>, EditScript
                 let i = index(p)?;
                 let unit = at(p + 1)?;
                 if lemma.len() < i {
-                    return Ok(word.to_vec());
+                    lemma.clear();
+                    lemma.extend_from_slice(word);
+                    return Ok(());
                 }
                 lemma.insert(i, unit);
                 p += 2;
@@ -196,7 +207,9 @@ pub fn decode_units(word: &[u16], script: &[u16]) -> Result<Vec<u16>, EditScript
             0x44 => {
                 let i = index(p)?;
                 if lemma.len() <= i {
-                    return Ok(word.to_vec());
+                    lemma.clear();
+                    lemma.extend_from_slice(word);
+                    return Ok(());
                 }
                 lemma.remove(i);
                 p += 2;
@@ -204,8 +217,53 @@ pub fn decode_units(word: &[u16], script: &[u16]) -> Result<Vec<u16>, EditScript
             _ => {}
         }
     }
-    java_reverse(&mut lemma);
-    Ok(lemma)
+    java_reverse(lemma);
+    Ok(())
+}
+
+/// Reusable scratch buffers for decoding lemma edit scripts across tokens
+/// without per-token heap allocations.
+#[derive(Default)]
+pub(crate) struct DecodeScratch {
+    lower: String,
+    word_units: Vec<u16>,
+    script: Vec<u16>,
+    lemma_units: Vec<u16>,
+    decoded: String,
+}
+
+impl DecodeScratch {
+    pub(crate) fn decode<'a>(&'a mut self, word: &'a str, class: &JavaString) -> Result<&'a str, EditScriptError> {
+        if class.as_bytes() == SAME.as_bytes() {
+            if word.is_empty() {
+                return Ok("_");
+            }
+            if word.bytes().all(|b| b.is_ascii() && !b.is_ascii_uppercase()) {
+                return Ok(word);
+            }
+            self.lower.clear();
+            to_lowercase(word, &mut self.lower);
+            if self.lower.is_empty() {
+                return Ok("_");
+            }
+            return Ok(&self.lower);
+        }
+        self.lower.clear();
+        to_lowercase(word, &mut self.lower);
+        self.word_units.clear();
+        self.word_units.extend(self.lower.encode_utf16());
+        self.script.clear();
+        self.script.extend(class.utf16_units());
+        decode_units_into(&self.word_units, &self.script, &mut self.lemma_units)?;
+        if self.lemma_units.is_empty() {
+            return Ok("_");
+        }
+        self.decoded.clear();
+        for c in char::decode_utf16(self.lemma_units.iter().copied()) {
+            self.decoded.push(c.unwrap_or(char::REPLACEMENT_CHARACTER));
+        }
+        Ok(&self.decoded)
+    }
 }
 
 /// `LemmatizerME.decodeLemmas` for one token: the class applied to the
@@ -214,12 +272,8 @@ pub fn decode_units(word: &[u16], script: &[u16]) -> Result<Vec<u16>, EditScript
 /// outside the Basic Multilingual Plane can give, has that half replaced
 /// by U+FFFD, since a lemma is a string here.
 pub fn decode_lemma(word: &str, class: &JavaString) -> Result<String, EditScriptError> {
-    let script: Vec<u16> = class.utf16_units().collect();
-    let units = decode_units(&lowercase_units(word), &script)?;
-    if units.is_empty() {
-        return Ok("_".to_string());
-    }
-    Ok(String::from_utf16_lossy(&units))
+    let mut scratch = DecodeScratch::default();
+    scratch.decode(word, class).map(str::to_owned)
 }
 
 #[cfg(test)]

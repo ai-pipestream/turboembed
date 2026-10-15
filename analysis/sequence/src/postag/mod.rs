@@ -134,12 +134,19 @@ pub struct ConfigurablePosContext {
     generator: BoxedGenerator,
     cache_size: usize,
     cache: VecDeque<(String, Features)>,
+    spare: Vec<(String, Features)>,
     key: String,
 }
 
 impl ConfigurablePosContext {
     pub fn new(generator: BoxedGenerator, cache_size: usize) -> ConfigurablePosContext {
-        ConfigurablePosContext { generator, cache_size, cache: VecDeque::new(), key: String::new() }
+        ConfigurablePosContext {
+            generator,
+            cache_size,
+            cache: VecDeque::with_capacity(cache_size),
+            spare: Vec::with_capacity(cache_size),
+            key: String::new(),
+        }
     }
 
     /// The generator, for `update_adaptive_data` and the like.
@@ -150,7 +157,9 @@ impl ConfigurablePosContext {
 
 impl<'a> ContextGenerator<&'a str> for ConfigurablePosContext {
     fn start_sequence(&mut self) {
-        self.cache.clear();
+        while let Some(entry) = self.cache.pop_front() {
+            self.spare.push(entry);
+        }
         self.generator.start_sequence();
     }
 
@@ -162,20 +171,25 @@ impl<'a> ContextGenerator<&'a str> for ConfigurablePosContext {
         let tag_prev = index.checked_sub(1).map(|i| prior[i]);
         let tag_prev_prev = index.checked_sub(2).map(|i| prior[i]);
         self.key.clear();
-        self.key.push_str(&index.to_string());
+        use std::fmt::Write as _;
+        let _ = write!(self.key, "{index}");
         self.key.push_str(tag_prev.unwrap_or("null"));
         self.key.push_str(tag_prev_prev.unwrap_or("null"));
         if let Some((_, cached)) = self.cache.iter().find(|(k, _)| *k == self.key) {
             out.extend_from(cached);
             return;
         }
-        let mut features = Features::new();
+        let (mut key, mut features) = if self.cache.len() == self.cache_size {
+            self.cache.pop_front().expect("cache_size > 0")
+        } else {
+            self.spare.pop().unwrap_or_else(|| (String::new(), Features::new()))
+        };
+        key.clear();
+        key.push_str(&self.key);
+        features.clear();
         self.generator.create_features(&mut features, sequence, index, prior);
         out.extend_from(&features);
-        self.cache.push_back((self.key.clone(), features));
-        if self.cache.len() > self.cache_size {
-            self.cache.pop_front();
-        }
+        self.cache.push_back((key, features));
     }
 }
 

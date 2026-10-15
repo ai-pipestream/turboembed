@@ -23,20 +23,29 @@ const CAPACITY: usize = 100;
 /// `opennlp.featuregen.cache.disabled` is not read.
 pub struct Cached {
     inner: BoxedGenerator,
-    /// The cached features by token index.
-    slots: Vec<Option<Features>>,
+    /// The cached features by token index, paired with the generation in
+    /// which the slot was populated (`0` when empty or evicted). Keeping
+    /// the `Features` buffers across sentences avoids reallocating them on
+    /// every token.
+    slots: Vec<(u64, Features)>,
     /// The cached indexes, oldest first.
     order: std::collections::VecDeque<usize>,
+    /// The current sentence generation (always >= 1).
+    generation: u64,
 }
 
 impl Cached {
     pub fn new(inner: BoxedGenerator) -> Cached {
-        Cached { inner, slots: Vec::new(), order: std::collections::VecDeque::new() }
+        Cached { inner, slots: Vec::new(), order: std::collections::VecDeque::new(), generation: 1 }
     }
 
     fn clear_cache(&mut self) {
-        for &i in &self.order {
-            self.slots[i] = None;
+        self.generation = self.generation.wrapping_add(1);
+        if self.generation == 0 {
+            for (at, _) in &mut self.slots {
+                *at = 0;
+            }
+            self.generation = 1;
         }
         self.order.clear();
     }
@@ -44,21 +53,24 @@ impl Cached {
 
 impl FeatureGenerator for Cached {
     fn create_features(&mut self, out: &mut Features, tokens: &[&str], index: usize, previous: &[&str]) {
-        if let Some(Some(cached)) = self.slots.get(index) {
+        if let Some((at, cached)) = self.slots.get(index)
+            && *at == self.generation
+        {
             out.extend_from(cached);
             return;
         }
-        let mut features = Features::new();
-        self.inner.create_features(&mut features, tokens, index, previous);
-        out.extend_from(&features);
         if self.slots.len() <= index {
-            self.slots.resize_with(index + 1, || None);
+            self.slots.resize_with(index + 1, || (0, Features::new()));
         }
-        self.slots[index] = Some(features);
+        let (at, features) = &mut self.slots[index];
+        features.clear();
+        self.inner.create_features(features, tokens, index, previous);
+        out.extend_from(features);
+        *at = self.generation;
         self.order.push_back(index);
         if self.order.len() > CAPACITY {
             let oldest = self.order.pop_front().expect("the cache is not empty");
-            self.slots[oldest] = None;
+            self.slots[oldest].0 = 0;
         }
     }
 
@@ -77,5 +89,29 @@ impl FeatureGenerator for Cached {
 
     fn set_additional_context(&mut self, context: &[Vec<String>]) {
         self.inner.set_additional_context(context);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::super::TokenGenerator;
+    use super::*;
+
+    #[test]
+    fn cached_reuses_slots_across_sequences_and_wraps_generation_cleanly() {
+        let mut cached = Cached::new(Box::new(TokenGenerator::new(true)));
+        cached.generation = u64::MAX;
+        let s1 = ["Alpha", "Beta"];
+        let mut out = Features::new();
+        cached.create_features(&mut out, &s1, 0, &[]);
+        assert_eq!(out.get(0), b"w=alpha");
+
+        // `start_sequence` wraps `u64::MAX` -> 0 -> resets slot generations and sets `generation = 1`.
+        cached.start_sequence();
+        assert_eq!(cached.generation, 1);
+        out.clear();
+        let s2 = ["Gamma", "Delta"];
+        cached.create_features(&mut out, &s2, 0, &[]);
+        assert_eq!(out.get(0), b"w=gamma");
     }
 }

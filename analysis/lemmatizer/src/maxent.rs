@@ -10,7 +10,7 @@ use turbo_maxent::JavaString;
 use turbo_sequence::{AcceptAll, BeamSearch, TokenTag};
 
 use crate::context::LemmaContext;
-use crate::edit_script::decode_lemma;
+use crate::edit_script::DecodeScratch;
 use crate::model::LemmatizerModel;
 
 /// Lemmatizes the tokens of each sentence with a maxent model, given
@@ -73,13 +73,14 @@ impl MaxentLemmatizer {
         if !self.classes(words, &mut classes, probs) {
             return Ok(false);
         }
+        let mut scratch = DecodeScratch::default();
         for (item, class) in words.iter().zip(&classes) {
             let word = item.token;
-            let lemma = decode_lemma(word, class).map_err(|e| Error::Annotator {
+            let lemma = scratch.decode(word, class).map_err(|e| Error::Annotator {
                 annotator: Self::ID,
                 detail: format!("{word:?} with the class {class:?}: {e}"),
             })?;
-            lemmas.push(&lemma);
+            lemmas.push(lemma);
         }
         Ok(true)
     }
@@ -145,14 +146,25 @@ impl Annotator for MaxentLemmatizer {
         let mut lemmas = Strs::default();
         let mut probs = Vec::with_capacity(words.len());
         let mut tagged: Vec<TokenTag<'_>> = Vec::new();
+        let mut scratch = DecodeScratch::default();
+        let Ok(search) = BeamSearch::<JavaString>::new(self.model.beam_size(), self.model.maxent());
         for (from, to) in sentence_ranges(tokens) {
             tagged.clear();
             tagged.extend((from..to).map(|i| TokenTag { token: words[i], tag: tags.tagset.label(tags.tags[i]) }));
-            if !self.lemmatize(&tagged, &mut lemmas, &mut probs)? {
+            let Some(best) = search.best_sequence(&tagged, &mut LemmaContext, &AcceptAll) else {
                 return Err(Error::Annotator {
                     annotator: Self::ID,
                     detail: format!("no lemma class sequence of tokens {from}..{to} scored above the minimum"),
                 });
+            };
+            probs.extend_from_slice(best.probs());
+            for (item, class) in tagged.iter().zip(best.outcomes()) {
+                let word = item.token;
+                let lemma = scratch.decode(word, class).map_err(|e| Error::Annotator {
+                    annotator: Self::ID,
+                    detail: format!("{word:?} with the class {class:?}: {e}"),
+                })?;
+                lemmas.push(lemma);
             }
         }
         Ok((Lemmas { lemma: lemmas }, Confidence::new(probs)))

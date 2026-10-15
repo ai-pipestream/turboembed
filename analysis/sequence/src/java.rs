@@ -23,6 +23,14 @@ use turbo_unicode::modified_utf8::push_modified_utf8;
 /// throws `StringIndexOutOfBoundsException`.
 pub(crate) fn push_units(out: &mut Vec<u8>, s: &str, start: usize, end: usize) {
     assert!(start <= end, "substring({start}, {end})");
+    if s.is_ascii() {
+        assert!(end <= s.len(), "substring({start}, {end}) of a string of fewer units");
+        let slice = &s.as_bytes()[start..end];
+        if !slice.contains(&0) {
+            out.extend_from_slice(slice);
+            return;
+        }
+    }
     let mut n = 0;
     for unit in Utf16Units::new(s).skip(start).take(end - start) {
         push_modified_utf8(out, u32::from(unit.unit));
@@ -179,6 +187,9 @@ mod tests {
     #[test]
     fn substrings_count_utf16_units() {
         assert_eq!(units("abc", 1, 3), b"bc");
+        // ASCII containing a NUL byte encodes NUL as two bytes (C0 80) in
+        // modified UTF-8 rather than taking the raw memcpy path.
+        assert_eq!(units("a\0b", 0, 3), b"a\xC0\x80b");
         // U+1F600 is the two units D83D DE00; the first alone is three
         // bytes of modified UTF-8.
         assert_eq!(units("a\u{1F600}", 0, 2), b"a\xED\xA0\xBD");

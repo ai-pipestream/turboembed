@@ -107,6 +107,10 @@ impl Annotator for PosTagger {
         let mut probs = Vec::with_capacity(n);
         let mut words: Vec<&str> = Vec::new();
         let mut context = self.take_context()?;
+        let model = &self.model;
+        let search = BeamSearch::new(model.beam_size(), model.maxent())
+            .expect("the outcomes were checked to be text when the model was opened");
+        let validator = model.validator();
         let mut from = 0;
         while from < n {
             let to = match &tokens.sentence {
@@ -115,12 +119,14 @@ impl Annotator for PosTagger {
             };
             words.clear();
             words.extend((from..to).map(|i| &text[starts[i] as usize..ends[i] as usize]));
-            if !self.tag_with(&words, &mut context, &mut tags, &mut probs) {
+            let Some(best) = search.best_sequence(&words, &mut context, &validator) else {
                 return Err(Error::Annotator {
                     annotator: Self::ID,
                     detail: format!("no tag sequence of tokens {from}..{to} scored above the minimum"),
                 });
-            }
+            };
+            tags.extend(best.outcomes().iter().map(|o| model.tag_of(o).expect("an outcome of the classifier")));
+            probs.extend_from_slice(best.probs());
             from = to;
         }
         self.contexts.lock().unwrap_or_else(|e| e.into_inner()).push(context);

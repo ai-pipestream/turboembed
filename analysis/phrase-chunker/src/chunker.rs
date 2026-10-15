@@ -117,22 +117,26 @@ impl Annotator for PhraseChunker {
         let mut ranges = Vec::new();
         let mut kind = Vec::new();
         let mut words: Vec<TokenTag<'_>> = Vec::new();
-        let mut outcomes = Vec::new();
+        let search = BeamSearch::new(self.model.beam_size(), self.model.maxent())
+            .expect("the outcomes were checked to be text when the model was opened");
+        let mut context = self.model.context();
+        let validator = self.model.validator();
         for (from, to) in sentence_ranges(tokens) {
             words.clear();
             words.extend((from..to).map(|i| TokenTag {
                 token: &text[starts[i] as usize..ends[i] as usize],
                 tag: tags.tagset.label(tags.tags[i]),
             }));
-            outcomes.clear();
-            if !self.outcomes(&words, &mut outcomes, &mut probs) {
+            let Some(best) = search.best_sequence(&words, &mut context, &validator) else {
                 return Err(Error::Annotator {
                     annotator: Self::ID,
                     detail: format!("no chunk tag sequence of tokens {from}..{to} scored above the minimum"),
                 });
-            }
+            };
+            probs.extend_from_slice(best.probs());
+            let outcomes = best.outcomes();
             chunk_tags.extend(outcomes.iter().map(|o| self.model.tag_of(o).expect("an outcome of the classifier")));
-            let found = phrases(&outcomes)
+            let found = phrases(outcomes)
                 .map_err(|e| Error::Annotator { annotator: Self::ID, detail: format!("tokens {from}..{to}: {e}") })?;
             for p in found {
                 spans.push(Span::new(starts[from + p.start], ends[from + p.end - 1]));
