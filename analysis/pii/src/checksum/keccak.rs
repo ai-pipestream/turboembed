@@ -41,12 +41,11 @@ const RATE: usize = 136;
 /// The Keccak-256 digest of `message`.
 pub fn digest(message: &[u8]) -> [u8; 32] {
     let mut state = [0u64; 25];
-    let mut blocks = message.chunks_exact(RATE);
-    for block in &mut blocks {
+    let (blocks, rest) = message.as_chunks::<RATE>();
+    for block in blocks {
         absorb(&mut state, block);
         permute(&mut state);
     }
-    let rest = blocks.remainder();
     let mut last = [0u8; RATE];
     last[..rest.len()].copy_from_slice(rest);
     last[rest.len()] = 0x01;
@@ -54,15 +53,15 @@ pub fn digest(message: &[u8]) -> [u8; 32] {
     absorb(&mut state, &last);
     permute(&mut state);
     let mut out = [0u8; 32];
-    for (o, w) in out.chunks_exact_mut(8).zip(state) {
-        o.copy_from_slice(&w.to_le_bytes());
+    for (o, w) in out.as_chunks_mut::<8>().0.iter_mut().zip(state) {
+        *o = w.to_le_bytes();
     }
     out
 }
 
-fn absorb(state: &mut [u64; 25], block: &[u8]) {
-    for (s, c) in state.iter_mut().zip(block.chunks_exact(8)) {
-        *s ^= u64::from_le_bytes([c[0], c[1], c[2], c[3], c[4], c[5], c[6], c[7]]);
+fn absorb(state: &mut [u64; 25], block: &[u8; RATE]) {
+    for (s, c) in state.iter_mut().zip(block.as_chunks::<8>().0) {
+        *s ^= u64::from_le_bytes(*c);
     }
 }
 
