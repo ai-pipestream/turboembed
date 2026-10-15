@@ -6,7 +6,7 @@ accuracy gate each model passes before it ships (#401). docs/analysis.md
 
 | Module | What it holds |
 |---|---|
-| `masc` | MASC 3.0.0 (CC BY 3.0 US): the release record, its zoo dataset entry and fetch, the digest of an extracted copy, the fixed split |
+| `masc` | MASC 3.0.0 (CC BY 3.0 US): the release record, its zoo dataset entry and fetch, the digest of an extracted copy, the fixed split, and the Twitter genre left out of it |
 | `segmentation` | The English sentence detector and tokenizer recipes: training on the split's training documents, the held-out samples, scoring a model with OpenNLP's evaluators, the gate against the OpenNLP English UD model |
 | `postag` | The English part-of-speech tagger recipe, the same way: training on MASC's Penn tags, the held-out samples, scoring with `POSEvaluator`, the gate against OpenNLP's English Penn tagger (`en-pos-maxent.bin`, OpenNLP 1.5) |
 | `card` | The model card, the model's directory (model, `card.json`, `gate.json`) and its permissive zoo entry, made only for a card whose gate against its recipe's reference (by id and SHA-256) passed on the recorded release |
@@ -51,7 +51,16 @@ error.
   error and leaves the document out, as OpenNLP's `MascDocumentStream`
   does) would move every document after it to the next position, so a
   corpus with one is refused (`Error::SkippedDocuments`); MASC 3.0.0
-  has none.
+  has none. MASC's Twitter genre is left out of both sides
+  (`masc::EXCLUSIONS`, `Exclusion::TwitterGenre`), as Kristian Rickert
+  decided on 2026-10-15: a document whose header's `textClass` names
+  the category `TW` of MASC's taxonomy (`catRef="WR TW"`, "tweets"),
+  which in MASC 3.0.0 are the two documents of `data/written/twitter`
+  and no other. The positions are counted over every document read, so
+  leaving the genre out moves no other document from one side to the
+  other. The card lists the documents left out
+  (`corpus.excluded_documents`), and the gate record's held-out set is
+  named with the exclusion.
 - Parameters: those the UD 1.3 models were trained with
   (`ud::training_parameters`: GIS, 300 iterations, cutoff 5, 4 threads),
   the factory defaults for English (for the tagger: the default feature
@@ -128,8 +137,11 @@ error.
   their zoo class is permissive; the card carries the attribution CC BY
   asks for, which ships with the model: MASC 3.0.0, by the American
   National Corpus project (anc.org), its address and its licence.
-  MASC's Twitter genre (two documents, 24,180 words) is trained on with
-  the rest: neither the release nor anc.org gives it terms of its own
+  MASC's Twitter genre (two documents, 24,180 words, tweets from 2008
+  whose headers give their source as unknown) is neither trained on nor
+  scored, as Kristian Rickert decided on 2026-10-15: the licence policy
+  refuses data under a platform's terms, and neither the release nor
+  anc.org says whether Twitter's terms reach the tweets' text
   (docs/licences.md, "Datasets").
   Whether the ANC asks for a particular citation is to be confirmed on
   their site, which could not be reached when the recipes were written.
@@ -183,7 +195,8 @@ tests run the binary on their own corpora that way).
 
 `tests/recipes.rs` writes corpora in MASC's layout (`tests/common`, no
 MASC text, Penn tags written for the tests) and runs everything on
-them: the split in the reader's order; the three recipes trained,
+them: the split in the reader's order; the Twitter genre left out of
+both sides without moving another document; the three recipes trained,
 scored and gated; the same bytes from a second training; the card, the
 model's directory and its zoo entry; the skipped sentences recorded and
 bounded on both sides; a sentence with a token inside another skipped

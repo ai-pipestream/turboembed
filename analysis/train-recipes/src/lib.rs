@@ -25,7 +25,7 @@ pub mod masc;
 pub mod postag;
 pub mod segmentation;
 
-use std::fmt;
+use std::fmt::{self, Write as _};
 
 use turbo_eval::model_gate::{ModelGateRecord, Task};
 use turbo_formats::masc::MascCorpus;
@@ -357,9 +357,16 @@ pub struct Outcome {
     pub card: ModelCard,
 }
 
-/// The name of the held-out set in the gate records.
+/// The name of the held-out set in the gate records: the split, and what
+/// [`masc::EXCLUSIONS`] leaves out.
 pub fn held_out_name() -> String {
-    format!("{} held out (every {}th document from the {}th)", masc::NAME, SPLIT.every(), SPLIT.held_out_at() + 1)
+    let mut name =
+        format!("{} held out (every {}th document from the {}th", masc::NAME, SPLIT.every(), SPLIT.held_out_at() + 1);
+    for exclusion in masc::EXCLUSIONS {
+        write!(name, ", {exclusion} left out").expect("writing to a String");
+    }
+    name.push(')');
+    name
 }
 
 /// Trains `recipe` on the training documents of `split`, scores it and
@@ -391,6 +398,7 @@ pub fn run(
         split: SPLIT,
         training_documents: split.train.documents().len(),
         held_out_documents: split.held_out_paths.clone(),
+        excluded_documents: split.excluded.clone(),
     };
     let card = ModelCard::new(recipe, &trained, corpus, held_out, &gate);
     Ok(Outcome { trained, gate, card })

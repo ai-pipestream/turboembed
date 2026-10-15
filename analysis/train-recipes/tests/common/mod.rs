@@ -188,3 +188,14 @@ pub fn nest_token(root: &Path, header: &str, quark: usize) {
     assert_eq!(xml.matches(&one).count(), 1, "{}", penn.display());
     std::fs::write(&penn, xml.replace(&one, &three)).unwrap();
 }
+
+/// Gives the header `header` (relative to `root`) a `textClass` naming the
+/// categories `cat_ref` of MASC's taxonomy, as MASC's headers do (`WR TW`
+/// for a document of the Twitter genre).
+pub fn set_text_class(root: &Path, header: &str, cat_ref: &str) {
+    let path = root.join(header);
+    let xml = std::fs::read_to_string(&path).unwrap();
+    let text_class = format!("<profileDesc>\n    <textClass catRef=\"{cat_ref}\"><domain>Test</domain></textClass>");
+    assert_eq!(xml.matches("<profileDesc>").count(), 1, "{}", path.display());
+    std::fs::write(&path, xml.replace("<profileDesc>", &text_class)).unwrap();
+}

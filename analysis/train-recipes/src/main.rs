@@ -95,7 +95,15 @@ fn masc_command(a: Args) -> Result<bool, String> {
     let recipes: Vec<Recipe> = RECIPES.into_iter().filter(|r| a.recipes.is_empty() || a.recipes.contains(r)).collect();
     let corpus = MascCorpus::read(&corpus_dir).map_err(|e| Error::from(e).to_string())?;
     let split = masc::SPLIT.apply(corpus, &corpus_dir).map_err(|e| e.to_string())?;
-    println!("{} training documents, {} held out", split.train.documents().len(), split.held_out.documents().len());
+    println!(
+        "{} training documents, {} held out, {} excluded",
+        split.train.documents().len(),
+        split.held_out.documents().len(),
+        split.excluded.len()
+    );
+    for e in &split.excluded {
+        println!("excluded {} ({}: {})", e.path, e.exclusion, e.exclusion.reason());
+    }
     let reference_bytes = check_before_training(&recipes, &references, &out, &split)?;
     let mut all_pass = true;
     for (recipe, reference) in recipes.iter().zip(&reference_bytes) {

@@ -61,6 +61,9 @@ pub struct CorpusCard {
     pub training_documents: usize,
     /// The held-out documents, relative to the corpus directory.
     pub held_out_documents: Vec<String>,
+    /// Documents left out of both training and the held-out set by an
+    /// exclusion ([`masc::EXCLUSIONS`]), with the exclusion.
+    pub excluded_documents: Vec<masc::ExcludedDocument>,
 }
 
 /// The trainer's parameters, as the parameters file gives them.

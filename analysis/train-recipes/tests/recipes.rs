@@ -11,7 +11,9 @@ mod common;
 
 use std::path::PathBuf;
 
-use common::{GATED_DOCUMENTS, SENTENCES, nest_token, rewrite_document, temp_dir, with_tags_rotated, write_corpus};
+use common::{
+    GATED_DOCUMENTS, SENTENCES, nest_token, rewrite_document, set_text_class, temp_dir, with_tags_rotated, write_corpus,
+};
 use turbo_eval::model_gate::{Measure, ModelGateRecord, Scoring, Task};
 use turbo_formats::masc::{MascCorpus, MascTokenReader};
 use turbo_postag::PosTagFormat;
@@ -19,7 +21,7 @@ use turbo_train_components::{TokSpanEventStream, TokenizerFactory};
 use turbo_train_recipes::card::{
     CARD_FILE, CARD_VERSION, GATE_FILE, HeldOutCard, ModelCard, TagCount, TagFormat, TokenCoverage, write_model_dir,
 };
-use turbo_train_recipes::masc::{self, RELEASE, SPLIT, SplitCorpus};
+use turbo_train_recipes::masc::{self, ExcludedDocument, Exclusion, RELEASE, SPLIT, SplitCorpus};
 use turbo_train_recipes::postag::{self, POS, PosRecipe, ReferenceTags, Scored};
 use turbo_train_recipes::segmentation::{SENTENCE, TOKENS, in_text_order, read_token_samples};
 use turbo_train_recipes::{Error, LeftOut, RECIPES, Recipe, Reference, held_out_name, run};
@@ -423,6 +425,52 @@ fn skipped_sentences_are_recorded_and_bounded() {
     for dir in [root, small] {
         std::fs::remove_dir_all(dir).unwrap();
     }
+}
+
+/// The documents of MASC's Twitter genre, those whose header's
+/// `textClass` names the category `TW`, are left out of both sides
+/// wherever the split puts them; every other document keeps its side,
+/// and the card and the gate record say what was left out.
+#[test]
+fn the_twitter_genre_is_left_out_of_both_sides_and_moves_no_other_document() {
+    let root = temp_dir("twitter");
+    // 90 documents: 9 held out, 8 once one is left out, 32 sentence
+    // detector samples.
+    write_corpus(&root, 90, SENTENCES);
+    let corpus = || MascCorpus::read(&root).unwrap();
+    let rel = |p: &std::path::Path| p.strip_prefix(&root).unwrap().to_string_lossy().into_owned();
+    let all: Vec<String> = corpus().documents().iter().map(|d| rel(d.path())).collect();
+    let (tweets_trained, tweets_held_out) = (all[0].clone(), all[19].clone());
+    set_text_class(&root, &tweets_trained, "WR TW");
+    set_text_class(&root, &tweets_held_out, "WR TW");
+    set_text_class(&root, &all[1], "WR BL");
+    set_text_class(&root, &all[9], "WR TWX");
+
+    let kept = SPLIT.apply_excluding(corpus(), &root, &[]).unwrap();
+    assert!(kept.excluded.is_empty());
+    let (split, digest) = split_of(&root);
+    let excluded = |path: &str| ExcludedDocument { path: path.to_owned(), exclusion: Exclusion::TwitterGenre };
+    assert_eq!(split.excluded, [excluded(&tweets_trained), excluded(&tweets_held_out)]);
+    let paths = |c: &MascCorpus| c.documents().iter().map(|d| rel(d.path())).collect::<Vec<_>>();
+    let without = |paths: Vec<String>, left_out: &str| paths.into_iter().filter(|p| p != left_out).collect::<Vec<_>>();
+    assert_eq!(paths(&split.train), without(paths(&kept.train), &tweets_trained));
+    assert_eq!(split.held_out_paths, without(kept.held_out_paths.clone(), &tweets_held_out));
+    assert_eq!((split.train.documents().len(), split.held_out.documents().len()), (80, 8));
+
+    let trained = SENTENCE.train(&split.train).unwrap();
+    let outcome = run(&Recipe::Segmentation(SENTENCE), &split, &digest, false, "itself", &trained.bytes).unwrap();
+    assert_eq!(outcome.card.corpus.excluded_documents, split.excluded);
+    assert_eq!(outcome.card.corpus.held_out_documents, split.held_out_paths);
+    assert_eq!(
+        outcome.gate.set.name,
+        "MASC 3.0.0 held out (every 10th document from the 10th, the Twitter genre left out)"
+    );
+    let json = outcome.card.to_json();
+    assert!(
+        json.contains(&format!("\"path\": \"{tweets_held_out}\",\n        \"exclusion\": \"twitter_genre\"")),
+        "{json}"
+    );
+    std::fs::remove_dir_all(&root).unwrap();
 }
 
 /// A sentence whose tokens are out of text order (a token inside the one

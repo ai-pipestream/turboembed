@@ -2081,7 +2081,13 @@ trained on MASC 3.0.0 (CC BY 3.0 US), gated against
 - The split: the documents in the order the reader reads them; every
   tenth, from the tenth, is held out. No randomness, so no seed. A
   corpus with a document the reader skips is refused, since the skip
-  would move the documents after it.
+  would move the documents after it. MASC's Twitter genre (the
+  documents whose header's `textClass` names the category `TW`, the two
+  of `data/written/twitter`) is left out of both sides, as Kristian
+  Rickert decided on 2026-10-15: whether Twitter's terms reach the
+  tweets is not settled, and the licence policy refuses data under a
+  platform's terms. The places count every document read, so no other
+  document changes side, and the card lists the documents left out.
 - The training: the factory defaults and the settings of the UD 1.3
   models (GIS, 300 iterations, cutoff 5, 4 threads, OpenNLP 2.5.4's
   whitespace, 10 sentences per sentence detector sample, the default

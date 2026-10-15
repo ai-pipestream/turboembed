@@ -30,6 +30,9 @@ pub enum Error {
     /// Documents the corpus read skipped, each with its error, which
     /// would move the documents after them to other places of the split.
     SkippedDocuments { documents: Vec<String> },
+    /// A document header that could not be read again for its categories
+    /// ([`crate::masc::Categories`]).
+    Header { path: PathBuf, message: String },
     /// A card that may not become a zoo entry: no recipe trains it, it was
     /// not gated against its recipe's reference, its gate failed, or its
     /// corpus is not the recorded release.
@@ -102,6 +105,7 @@ impl fmt::Display for Error {
                 documents.len(),
                 documents.join("; ")
             ),
+            Error::Header { path, message } => write!(f, "{}: the document header: {message}", path.display()),
             Error::NotShippable { id, reason } => write!(f, "{id} is not shippable: {reason}"),
             Error::Json { path, message } => write!(f, "{}: {message}", path.display()),
             Error::CardVersion { path, found } => {
