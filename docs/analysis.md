@@ -2225,10 +2225,11 @@ cargo run --release -p turbo-train-recipes -- ud --treebanks <zoo-home>/artifact
     --references <dir with the OpenNLP UD models> --out <dir> [--recipe <model id>]...
 ```
 
-Results of a release-mode run of all sixteen recipes, in points
-(F-measure for sentences and tokens, accuracy for tags and lemmas),
-with the 95 percent interval of the difference from the gate's paired
-bootstrap; the README has every interval and the times:
+Results of two release-mode runs of all sixteen recipes, which wrote
+byte-identical models, cards and gate records, in points (F-measure for
+sentences and tokens, accuracy for tags and lemmas), with the 95
+percent interval of the difference from the gate's paired bootstrap;
+the README has every interval and the times:
 
 | Treebank | Sentences | Tokens | Tags | Lemmas |
 |---|---|---|---|---|
