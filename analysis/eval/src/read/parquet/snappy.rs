@@ -5,6 +5,9 @@
 
 use crate::Result;
 
+/// The most a Snappy stream expands, per input byte.
+const MAX_RATIO: usize = 22;
+
 /// Decompresses `src`, which must expand to exactly `want` bytes.
 pub fn decompress(src: &[u8], want: usize) -> Result<Vec<u8>> {
     let mut pos = 0;
@@ -22,6 +25,12 @@ pub fn decompress(src: &[u8], want: usize) -> Result<Vec<u8>> {
     }
     if len != want as u64 {
         return Err(format!("snappy: the stream holds {len} bytes, the page header says {want}"));
+    }
+    // The densest element, a 3-byte copy of 64 bytes, expands about 22
+    // times, so a longer length is damage and is refused before the
+    // output is allocated.
+    if want > src.len().saturating_mul(MAX_RATIO).saturating_add(64) {
+        return Err(format!("snappy: {} bytes cannot expand to {want}", src.len()));
     }
     let mut out = Vec::with_capacity(want);
     while pos < src.len() {
@@ -117,5 +126,9 @@ mod tests {
         assert!(decompress(&[4, 0x0c, b'a'], 4).is_err());
         // Too short.
         assert!(decompress(&[4, 0x04, b'a', b'b'], 4).is_err());
+        // A length no stream of this size can expand to, refused before
+        // the output is allocated.
+        let e = decompress(&[0x80, 0x80, 0x80, 0x80, 0x0f], 0xf000_0000).unwrap_err();
+        assert_eq!(e, "snappy: 5 bytes cannot expand to 4026531840");
     }
 }

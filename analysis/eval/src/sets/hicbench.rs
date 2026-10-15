@@ -26,9 +26,11 @@ pub const SET: Set = Set {
     name: "hicbench",
     license: "",
     source: Source::Unpublished {
-        note: "HiChunk's README names dataset/doc/HiCBench/<doc_id>.txt and dataset/qas/HiCBench.jsonl \
-               and the paper names huggingface.co/datasets/Youtu-RAG/HiCBench, which the hub does not list",
+        note: "HiChunk's README names dataset/doc/HiCBench/<doc_id>.txt \
+               and dataset/qas/HiCBench.jsonl, and the paper names \
+               huggingface.co/datasets/Youtu-RAG/HiCBench, which the \
+               hub does not list",
     },
     span_unit: Some(SpanUnit::QuotedText),
-    read: hicbench::read,
+    read: hicbench::read_in,
 };

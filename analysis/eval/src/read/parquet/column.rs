@@ -2,6 +2,7 @@
 //! pages of both versions, definition levels in the RLE and bit packed
 //! hybrid, and values PLAIN or as dictionary indices.
 
+use std::borrow::Cow;
 use std::io::Read;
 
 use flate2::read::MultiGzDecoder;
@@ -114,9 +115,12 @@ pub fn rle_hybrid(buf: &[u8], width: u32, count: usize) -> Result<Vec<u32>> {
     if width > 32 {
         return Err(format!("a bit width of {width}"));
     }
-    let mut out = Vec::with_capacity(count);
+    // A run can stand for many values, so the count is not trusted for
+    // the allocation beyond what the bytes could hold bit packed.
+    let mut out = Vec::with_capacity(count.min(buf.len().saturating_mul(8)));
     let mut pos = 0;
     let bytes = width.div_ceil(8) as usize;
+    let mask = if width == 32 { u32::MAX } else { (1u32 << width) - 1 };
     while out.len() < count {
         let mut header = 0u64;
         for shift in (0..35).step_by(7) {
@@ -126,19 +130,24 @@ pub fn rle_hybrid(buf: &[u8], width: u32, count: usize) -> Result<Vec<u32>> {
             if b & 0x80 == 0 {
                 break;
             }
+            if shift == 28 {
+                return Err("a run header longer than 5 bytes".into());
+            }
         }
         if header & 1 == 0 {
             let run = (header >> 1) as usize;
             let b = buf.get(pos..pos + bytes).ok_or("levels or indices end early")?;
             pos += bytes;
             let v = b.iter().rev().fold(0u32, |a, &x| a << 8 | u32::from(x));
+            if v > mask {
+                return Err(format!("a run of {v}, wider than {width} bits"));
+            }
             out.extend(std::iter::repeat_n(v, run.min(count - out.len())));
         } else {
             let groups = (header >> 1) as usize;
             let len = groups * width as usize;
             let packed = buf.get(pos..pos + len).ok_or("levels or indices end early")?;
             pos += len;
-            let mask = if width == 32 { u32::MAX } else { (1u32 << width) - 1 };
             let total = (groups * 8).min(count - out.len());
             for i in 0..total {
                 let bit = i * width as usize;
@@ -153,14 +162,27 @@ pub fn rle_hybrid(buf: &[u8], width: u32, count: usize) -> Result<Vec<u32>> {
     Ok(out)
 }
 
-fn decompress(codec: Codec, src: &[u8], want: usize) -> Result<Vec<u8>> {
+/// The most deflate expands its input, per byte (about 1032:1), and a
+/// little room for the gzip header and trailer. Snappy's limit is in
+/// [`snappy`].
+const DEFLATE_MAX_RATIO: usize = 1032;
+const EXPANSION_SLACK: usize = 1024;
+
+/// `src` expanded to `want` bytes. A size past what the codec can expand
+/// `src` to is refused before anything is allocated.
+fn decompress(codec: Codec, src: &[u8], want: usize) -> Result<Cow<'_, [u8]>> {
     let out = match codec {
-        Codec::Uncompressed => src.to_vec(),
-        Codec::Snappy => snappy::decompress(src, want)?,
+        Codec::Uncompressed => Cow::Borrowed(src),
+        Codec::Snappy => Cow::Owned(snappy::decompress(src, want)?),
         Codec::Gzip => {
+            if want > src.len().saturating_mul(DEFLATE_MAX_RATIO).saturating_add(EXPANSION_SLACK) {
+                return Err(format!("a page of {} bytes cannot inflate to the {want} its header says", src.len()));
+            }
             let mut out = Vec::with_capacity(want);
-            MultiGzDecoder::new(src).read_to_end(&mut out).map_err(|e| format!("gzip: {e}"))?;
-            out
+            // One byte past the size is enough to tell a page that is too
+            // long, without inflating the rest of it.
+            MultiGzDecoder::new(src).take(want as u64 + 1).read_to_end(&mut out).map_err(|e| format!("gzip: {e}"))?;
+            Cow::Owned(out)
         }
         c => return Err(format!("the {c} codec is not read; SNAPPY, GZIP and UNCOMPRESSED are")),
     };
@@ -195,6 +217,14 @@ pub fn read_chunk(file: &[u8], meta: &ColumnMeta, optional: bool, out: &mut Valu
             file.get(body_start..body_start + h.compressed_size).filter(|_| body_start + h.compressed_size <= end);
         let body = body.ok_or_else(|| page("runs past its column chunk".into()))?;
         pos = body_start + h.compressed_size;
+        let left = meta.num_values - seen;
+        let check_count = |n: usize| {
+            if n as u64 > left {
+                Err(page(format!("{n} values where the column chunk has {left} left")))
+            } else {
+                Ok(())
+            }
+        };
         match h.kind {
             PageKind::Dictionary { num_values, encoding } => {
                 if !matches!(encoding, Encoding::Plain | Encoding::PlainDictionary) {
@@ -209,6 +239,7 @@ pub fn read_chunk(file: &[u8], meta: &ColumnMeta, optional: bool, out: &mut Valu
                 dict = Some(d);
             }
             PageKind::Data { num_values, encoding, def_encoding } => {
+                check_count(num_values)?;
                 let raw = decompress(meta.codec, body, h.uncompressed_size).map_err(page)?;
                 let (defs, values) = if optional {
                     if def_encoding != Encoding::Rle {
@@ -225,6 +256,7 @@ pub fn read_chunk(file: &[u8], meta: &ColumnMeta, optional: bool, out: &mut Valu
                 seen += num_values as u64;
             }
             PageKind::DataV2 { num_values, encoding, def_len, rep_len, compressed } => {
+                check_count(num_values)?;
                 if rep_len != 0 {
                     return Err(page("repetition levels in a flat column".into()));
                 }
@@ -233,7 +265,13 @@ pub fn read_chunk(file: &[u8], meta: &ColumnMeta, optional: bool, out: &mut Valu
                 let rest = &body[def_len..];
                 let want =
                     h.uncompressed_size.checked_sub(def_len).ok_or_else(|| page("levels past its size".into()))?;
-                let raw = if compressed { decompress(meta.codec, rest, want).map_err(page)? } else { rest.to_vec() };
+                let raw = if compressed {
+                    decompress(meta.codec, rest, want).map_err(page)?
+                } else if rest.len() == want {
+                    Cow::Borrowed(rest)
+                } else {
+                    return Err(page(format!("an uncompressed page of {} bytes, its header says {want}", rest.len())));
+                };
                 page_values(meta.physical, encoding, defs, num_values, &raw, dict.as_ref(), out).map_err(page)?;
                 seen += num_values as u64;
             }
@@ -256,6 +294,9 @@ fn page_values(
     dict: Option<&Values>,
     out: &mut Values,
 ) -> Result<()> {
+    if let Some(l) = defs.as_ref().and_then(|d| d.iter().find(|&&l| l > 1)) {
+        return Err(format!("a definition level of {l} in a column whose maximum is 1"));
+    }
     let present = defs.as_ref().map_or(num_values, |d| d.iter().filter(|&&l| l == 1).count());
     let is_present = |i: usize| defs.as_ref().is_none_or(|d| d[i] == 1);
     match encoding {
@@ -318,5 +359,119 @@ mod tests {
         buf.extend(packed);
         let got = rle_hybrid(&buf, 17, 8).unwrap();
         assert_eq!(got.iter().map(|&v| u64::from(v)).collect::<Vec<_>>(), vals);
+    }
+
+    #[test]
+    fn hybrid_damage_is_an_error() {
+        // A run value wider than the bit width: a definition level of 2
+        // where the maximum is 1.
+        assert_eq!(rle_hybrid(&[6, 2], 1, 3).unwrap_err(), "a run of 2, wider than 1 bits");
+        // A run header longer than 5 bytes.
+        assert_eq!(rle_hybrid(&[0x80; 6], 1, 1).unwrap_err(), "a run header longer than 5 bytes");
+        // A huge count over a short buffer fails on the buffer, without
+        // allocating for the count.
+        assert_eq!(rle_hybrid(&[6, 1], 1, 1 << 40).unwrap_err(), "levels or indices end early");
+    }
+
+    #[test]
+    fn a_definition_level_past_the_maximum_is_an_error() {
+        let mut out = Values::new(Physical::Int32).unwrap();
+        let e = page_values(Physical::Int32, Encoding::Plain, Some(vec![1, 2]), 2, &[0; 8], None, &mut out);
+        assert_eq!(e.unwrap_err(), "a definition level of 2 in a column whose maximum is 1");
+    }
+
+    #[test]
+    fn gzip_sizes_are_bounded() {
+        use std::io::Write;
+        // A size no deflate stream of this length can inflate to is
+        // refused before the output is allocated.
+        let e = decompress(Codec::Gzip, &[0; 10], 1 << 40).unwrap_err();
+        assert_eq!(e, "a page of 10 bytes cannot inflate to the 1099511627776 its header says");
+        // A stream longer than the header says is cut one byte past it.
+        let mut gz = flate2::write::GzEncoder::new(Vec::new(), flate2::Compression::default());
+        gz.write_all(&[7; 1000]).unwrap();
+        let gz = gz.finish().unwrap();
+        assert_eq!(decompress(Codec::Gzip, &gz, 10).unwrap_err(), "a page expands to 11 bytes, its header says 10");
+        assert_eq!(decompress(Codec::Gzip, &gz, 1000).unwrap().as_ref(), &[7; 1000][..]);
+    }
+
+    /// Compact protocol bytes of a page header, every field in the long
+    /// form: the type, then the id as a zigzag varint.
+    struct Header(Vec<u8>);
+
+    impl Header {
+        fn zigzag(&mut self, v: i64) {
+            let mut v = ((v << 1) ^ (v >> 63)) as u64;
+            while v >= 0x80 {
+                self.0.push(v as u8 | 0x80);
+                v >>= 7;
+            }
+            self.0.push(v as u8);
+        }
+
+        fn field(&mut self, id: i64, ty: u8) {
+            self.0.push(ty);
+            self.zigzag(id);
+        }
+
+        fn int(&mut self, id: i64, v: i64) {
+            self.field(id, 5);
+            self.zigzag(v);
+        }
+
+        /// A page header of `kind` with its sub-header `sub` (field id
+        /// `sub_id`) of i32 fields, and a boolean field 7 when given.
+        fn page(kind: i64, sizes: (usize, usize), sub_id: i64, sub: &[(i64, i64)], flag: Option<bool>) -> Vec<u8> {
+            let mut h = Header(Vec::new());
+            h.int(1, kind);
+            h.int(2, sizes.0 as i64);
+            h.int(3, sizes.1 as i64);
+            h.field(sub_id, 12);
+            for &(id, v) in sub {
+                h.int(id, v);
+            }
+            if let Some(b) = flag {
+                h.field(7, if b { 1 } else { 2 });
+            }
+            h.0.extend([0, 0]);
+            h.0
+        }
+    }
+
+    fn chunk_of(file: &[u8], num_values: u64) -> ColumnMeta {
+        ColumnMeta {
+            physical: Physical::Int32,
+            path: vec!["n".into()],
+            codec: Codec::Uncompressed,
+            num_values,
+            total_compressed_size: file.len() as u64,
+            data_page_offset: 0,
+            dictionary_page_offset: None,
+        }
+    }
+
+    #[test]
+    fn a_page_with_more_values_than_its_chunk_is_refused() {
+        // A version 1 page of three PLAIN INT32 values in a chunk of two.
+        let mut file = Header::page(0, (12, 12), 5, &[(1, 3), (2, 0), (3, 3), (4, 3)], None);
+        file.extend([0; 12]);
+        let mut out = Values::new(Physical::Int32).unwrap();
+        let e = read_chunk(&file, &chunk_of(&file, 2), false, &mut out).unwrap_err();
+        assert_eq!(e, "page at byte 0: 3 values where the column chunk has 2 left");
+        let mut out = Values::new(Physical::Int32).unwrap();
+        read_chunk(&file, &chunk_of(&file, 3), false, &mut out).unwrap();
+        assert_eq!(out.len(), 3);
+    }
+
+    #[test]
+    fn an_uncompressed_v2_page_is_checked_against_its_size() {
+        // A version 2 page, not compressed, whose header says 8 bytes of
+        // values where it holds 4.
+        let sub = [(1, 1), (2, 0), (3, 1), (4, 0), (5, 0), (6, 0)];
+        let mut file = Header::page(3, (8, 4), 8, &sub, Some(false));
+        file.extend([1, 0, 0, 0]);
+        let mut out = Values::new(Physical::Int32).unwrap();
+        let e = read_chunk(&file, &chunk_of(&file, 1), false, &mut out).unwrap_err();
+        assert_eq!(e, "page at byte 0: an uncompressed page of 4 bytes, its header says 8");
     }
 }

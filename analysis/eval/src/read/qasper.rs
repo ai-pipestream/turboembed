@@ -68,7 +68,11 @@ struct Answer {
 
 /// Reads the archive in `dir` as `name`.
 pub fn read(name: &str, dir: &Path) -> Result<LoadedSet> {
-    let mut files = SetDir::new(dir);
+    read_in(name, SetDir::new(dir))
+}
+
+/// Reads the set from `files` as `name`.
+pub fn read_in(name: &str, mut files: SetDir) -> Result<LoadedSet> {
     let archive = files.bytes(ARCHIVE)?;
     let member = tar::gzip_member(ARCHIVE, &archive, MEMBER)?;
     let label = format!("{ARCHIVE}:{MEMBER}");

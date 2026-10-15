@@ -27,11 +27,9 @@
 //! ConTEB's card says. ConTEB's SQuAD set replaces it
 //! ([`conteb_squad`](super::conteb_squad)).
 
-use std::path::Path;
-
 use super::{Digest, RemoteFile, Set, Source, SpanUnit};
 use crate::Result;
-use crate::read::conteb;
+use crate::read::{SetDir, conteb};
 use crate::set::LoadedSet;
 
 const DOCUMENTS: &str = "documents/train-00000-of-00001.parquet";
@@ -56,6 +54,6 @@ pub const SET: Set = Set {
     read,
 };
 
-fn read(name: &str, dir: &Path) -> Result<LoadedSet> {
-    conteb::read(name, dir, DOCUMENTS, QUERIES)
+fn read(name: &str, files: SetDir) -> Result<LoadedSet> {
+    conteb::read_in(name, files, DOCUMENTS, QUERIES)
 }

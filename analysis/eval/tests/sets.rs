@@ -9,6 +9,7 @@ use std::path::Path;
 use common::{copy_dir, data, scratch};
 use turbo_eval::fetch::{cache_root, fetch};
 use turbo_eval::read;
+use turbo_eval::read::SetDir;
 use turbo_eval::sets::{ALL, Digest, Source, conteb_squad, find, gutenqa, hicbench, legalbench_rag_mini, qasper};
 
 #[test]
@@ -87,10 +88,10 @@ fn the_cache_root_given_wins() {
 }
 
 #[test]
-fn verify_names_a_missing_file() {
+fn a_missing_file_is_named() {
     let cache = scratch("sets-verify");
     fs::create_dir_all(cache.join("qasper")).unwrap();
-    let e = qasper::SET.verify(&cache.join("qasper")).unwrap_err();
+    let e = qasper::SET.load(&cache).unwrap_err();
     assert!(e.contains("qasper-test-and-evaluator-v0.3.tgz"), "{e}");
 }
 
@@ -131,7 +132,7 @@ fn conteb_squad_reads_the_validation_files_fetch_writes() {
         fs::create_dir_all(dir.join(to).parent().unwrap()).unwrap();
         fs::copy(data("conteb").join(from), dir.join(to)).unwrap();
     }
-    let s = (conteb_squad::SET.read)("conteb-squad", &dir).unwrap();
+    let s = (conteb_squad::SET.read)("conteb-squad", SetDir::new(&dir)).unwrap();
     assert_eq!(s.queries.len(), 2);
     let e = conteb_squad::SET.load(&cache).unwrap_err();
     assert!(

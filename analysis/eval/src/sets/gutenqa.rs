@@ -24,5 +24,5 @@ pub const SET: Set = Set {
         },
     ]),
     span_unit: Some(SpanUnit::QuotedText),
-    read: gutenqa::read,
+    read: gutenqa::read_in,
 };

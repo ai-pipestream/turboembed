@@ -16,11 +16,9 @@
 //! published as Parquet, whose digests two downloads and the repository's
 //! LFS object ids agree on. The reader reads the files as fetched.
 
-use std::path::Path;
-
 use super::{Digest, RemoteFile, Set, Source, SpanUnit};
 use crate::Result;
-use crate::read::conteb;
+use crate::read::{SetDir, conteb};
 use crate::set::LoadedSet;
 
 pub const DOCUMENTS: &str = "documents/validation-00000-of-00001.parquet";
@@ -28,8 +26,8 @@ pub const QUERIES: &str = "queries/validation-00000-of-00001.parquet";
 
 pub const SET: Set = Set {
     name: "conteb-squad",
-    license: "CC BY-SA 4.0, as SQuAD states it for its Wikipedia passages, which ConTEB's chunks reproduce; \
-              ConTEB's card states none",
+    license: "CC BY-SA 4.0, as SQuAD states it for its questions and Wikipedia passages, which ConTEB's \
+              chunks reproduce; ConTEB's card states none",
     source: Source::Files(&[
         RemoteFile {
             path: DOCUMENTS,
@@ -46,6 +44,6 @@ pub const SET: Set = Set {
     read,
 };
 
-fn read(name: &str, dir: &Path) -> Result<LoadedSet> {
-    conteb::read(name, dir, DOCUMENTS, QUERIES)
+fn read(name: &str, files: SetDir) -> Result<LoadedSet> {
+    conteb::read_in(name, files, DOCUMENTS, QUERIES)
 }

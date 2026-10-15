@@ -2571,7 +2571,11 @@ integer columns, PLAIN and dictionary pages in data page versions 1 and
 already in the build) and UNCOMPRESSED codecs, which is what pyarrow
 writes by default. Other encodings and codecs (ZSTD among them) are
 refused with an error naming them, and a column is read by name, so a
-reader reads only the columns it uses. Chunked sets are joined into
+reader reads only the columns it uses. Each file with a recorded digest
+is checked on the bytes the reader parses, so it is read and hashed
+once. Dropping quotation marks in GutenQA's loose match can join words
+(“Yes”“No” matches "YesNo", "its" matches "it's"), which is unlikely
+to misplace a GutenQA passage. Chunked sets are joined into
 documents with a line break between chunks. Evidence a reader cannot
 place in its document is listed in `LoadedSet.unplaced` rather than
 dropped silently. A BEIR judgement naming a document the corpus does
@@ -2645,9 +2649,10 @@ non-ASCII text, and errors with file and line (or row, for Parquet).
 The Parquet reader is checked on small files pyarrow wrote (SNAPPY and
 dictionary pages in version 1 pages, GZIP in version 2 pages, a
 dictionary that fills up and falls back to PLAIN, several row groups,
-nulls, PLAIN and uncompressed, and a ZSTD file it refuses; the script is
-in `analysis/eval/tests/parquet.rs`), and on files a writer in the tests makes, for
-damaged values. None needs the network.
+nulls, PLAIN and uncompressed, and a ZSTD file it refuses; the script
+is in `analysis/eval/tests/parquet.rs`), on files a writer in the tests
+makes, for damaged values, and on hand made pages and footers for
+damaged sizes, counts and levels. None needs the network.
 
 ## Tests
 

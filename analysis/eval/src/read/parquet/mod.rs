@@ -16,7 +16,7 @@ mod snappy;
 mod thrift;
 
 use column::{Kind, Values, read_chunk};
-use meta::{FileMeta, Physical, Repetition};
+use meta::{FileMeta, Physical, Repetition, RowGroup};
 
 use crate::Result;
 
@@ -49,6 +49,11 @@ pub struct Ints {
     nulls: Vec<bool>,
 }
 
+/// The rows of all `groups`; `None` when the sum overflows.
+fn rows_in(groups: &[RowGroup]) -> Option<u64> {
+    groups.iter().try_fold(0u64, |n, g| n.checked_add(g.num_rows))
+}
+
 impl<'a> Parquet<'a> {
     /// Reads the footer of `bytes`, the file `file` (named in errors).
     pub fn open(file: &'a str, bytes: &'a [u8]) -> Result<Parquet<'a>> {
@@ -63,7 +68,8 @@ impl<'a> Parquet<'a> {
         let start =
             (n - 8).checked_sub(len).filter(|&s| s >= 4).ok_or_else(|| format!("{file}: footer length {len}"))?;
         let meta = FileMeta::read(&bytes[start..n - 8]).map_err(|e| format!("{file}: footer: {e}"))?;
-        let in_groups: u64 = meta.row_groups.iter().map(|g| g.num_rows).sum();
+        let in_groups =
+            rows_in(&meta.row_groups).ok_or_else(|| format!("{file}: the row groups' row counts overflow"))?;
         if in_groups != meta.num_rows {
             return Err(format!("{file}: the row groups hold {in_groups} rows, the footer says {}", meta.num_rows));
         }
@@ -78,22 +84,25 @@ impl<'a> Parquet<'a> {
     /// The top level column `name`: its index among the leaves and
     /// whether it may be null.
     fn leaf(&self, name: &str) -> Result<(usize, bool, Physical)> {
-        let root = self.meta.schema.first().ok_or_else(|| format!("{}: the schema is empty", self.file))?;
+        let schema = &self.meta.schema;
+        let early = || format!("{}: the schema ends early", self.file);
+        let root = schema.first().ok_or_else(|| format!("{}: the schema is empty", self.file))?;
         let mut leaf = 0;
         let mut at = 1;
         for _ in 0..root.num_children {
-            let e = self.meta.schema.get(at).ok_or_else(|| format!("{}: the schema ends early", self.file))?;
-            if e.num_children > 0 || e.physical.is_none() {
+            let e = schema.get(at).ok_or_else(early)?;
+            if e.is_group() {
                 if e.name == name {
                     return Err(format!("{}: column {name} is nested, which is not read", self.file));
                 }
-                // A group: step over its subtree, counting its leaves.
+                // Step over the group's subtree, counting its leaves by
+                // the same rule.
                 let mut pending = e.num_children;
                 at += 1;
                 while pending > 0 {
-                    let c = self.meta.schema.get(at).ok_or_else(|| format!("{}: the schema ends early", self.file))?;
-                    pending = pending - 1 + c.num_children;
-                    if c.num_children == 0 {
+                    let c = schema.get(at).ok_or_else(early)?;
+                    pending = (pending - 1).checked_add(c.num_children).ok_or_else(early)?;
+                    if !c.is_group() {
                         leaf += 1;
                     }
                     at += 1;
@@ -212,5 +221,18 @@ impl Ints {
     pub fn at_u32(&self, row: usize) -> Result<u32> {
         let v = self.at(row)?;
         u32::try_from(v).map_err(|_| format!("{}: column {} row {row} is {v}, not a u32", self.file, self.column))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn row_counts_that_overflow_are_refused() {
+        let group = |num_rows| RowGroup { num_rows, columns: Vec::new() };
+        assert_eq!(rows_in(&[group(2), group(3)]), Some(5));
+        let max = i64::MAX as u64;
+        assert_eq!(rows_in(&[group(max), group(max), group(max)]), None);
     }
 }

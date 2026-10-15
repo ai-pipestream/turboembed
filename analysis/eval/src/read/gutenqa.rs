@@ -41,7 +41,11 @@ struct Book<'a> {
 
 /// Reads the set in `dir` as `name`.
 pub fn read(name: &str, dir: &Path) -> Result<LoadedSet> {
-    let mut files = SetDir::new(dir);
+    read_in(name, SetDir::new(dir))
+}
+
+/// Reads the set from `files` as `name`.
+pub fn read_in(name: &str, mut files: SetDir) -> Result<LoadedSet> {
     let bytes = files.bytes(CHUNKS)?;
     let t = Parquet::open(CHUNKS, &bytes)?;
     let (names, ids, chunk_ids, chunk_texts) =
@@ -115,6 +119,11 @@ pub fn read(name: &str, dir: &Path) -> Result<LoadedSet> {
 /// The byte range of `passage` in `chunk`: its first occurrence as
 /// written, else its first occurrence with both texts [`loose`]. `None`
 /// when neither finds it, or the passage is empty.
+///
+/// The two paths treat a passage's own leading and trailing whitespace
+/// differently: as written, the span keeps it; loose, it is trimmed and
+/// the span runs from the first to the last character matched. The
+/// exact path is left as it is because the recorded spans come from it.
 pub fn locate(chunk: &str, passage: &str) -> Option<(usize, usize)> {
     if passage.is_empty() {
         return None;

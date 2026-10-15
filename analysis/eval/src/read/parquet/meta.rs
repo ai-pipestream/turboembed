@@ -140,6 +140,14 @@ pub struct SchemaElement {
     pub num_children: usize,
 }
 
+impl SchemaElement {
+    /// A group has children, or no physical type; every other element is
+    /// a leaf, which is a column.
+    pub fn is_group(&self) -> bool {
+        self.num_children > 0 || self.physical.is_none()
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ColumnMeta {
     pub physical: Physical,
@@ -187,9 +195,20 @@ impl FileMeta {
             }
             Ok(true)
         })?;
+        let schema: Vec<SchemaElement> = schema.ok_or("the footer has no schema")?;
+        // Every child is an element of its own, so no element has as
+        // many children as the schema has elements.
+        if let Some(e) = schema.iter().find(|e| e.num_children >= schema.len()) {
+            return Err(format!(
+                "schema element {} has {} children in a schema of {}",
+                e.name,
+                e.num_children,
+                schema.len()
+            ));
+        }
         Ok(FileMeta {
             num_rows: num_rows.ok_or("the footer has no row count")?,
-            schema: schema.ok_or("the footer has no schema")?,
+            schema,
             row_groups: row_groups.ok_or("the footer has no row groups")?,
         })
     }
@@ -247,6 +266,8 @@ fn column_chunk(c: &mut Compact) -> Result<ColumnMeta> {
         match id {
             1 => elsewhere = !c.binary()?.is_empty(),
             3 => meta = Some(column_meta(c)?),
+            // crypto_metadata and encrypted_column_metadata.
+            8 | 9 => return Err("an encrypted column is not read".into()),
             _ => return Ok(false),
         }
         Ok(true)
@@ -413,4 +434,30 @@ fn data_page_v2(c: &mut Compact) -> Result<PageKind> {
         rep_len: rep_len.ok_or("a data page has no level length")?,
         compressed,
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn a_child_count_past_the_schema_is_refused() {
+        // Field 2, a list of one schema element named "schema" with 5
+        // children; field 3, 0 rows; field 4, no row groups.
+        let mut b = vec![0x29, 0x1c, 0x48, 6];
+        b.extend(b"schema");
+        b.extend([0x15, 10, 0x00, 0x16, 0, 0x19, 0x0c, 0x00]);
+        assert_eq!(FileMeta::read(&b).unwrap_err(), "schema element schema has 5 children in a schema of 1");
+        // With no children it reads.
+        let at = b.iter().position(|&x| x == 10).unwrap();
+        b[at] = 0;
+        assert_eq!(FileMeta::read(&b).unwrap().schema[0].num_children, 0);
+    }
+
+    #[test]
+    fn an_encrypted_column_is_refused() {
+        // A column chunk with field 8 (crypto_metadata), an empty struct.
+        let e = column_chunk(&mut Compact::new(&[0x8c, 0x00, 0x00])).unwrap_err();
+        assert_eq!(e, "an encrypted column is not read");
+    }
 }

@@ -34,7 +34,11 @@ fn parse_id(file: &str, row: usize, id: &str) -> Result<(String, u64)> {
 /// Reads the tables `documents` and `queries` (paths under `dir`) as
 /// `name`.
 pub fn read(name: &str, dir: &Path, documents: &str, queries: &str) -> Result<LoadedSet> {
-    let mut files = SetDir::new(dir);
+    read_in(name, SetDir::new(dir), documents, queries)
+}
+
+/// Reads the tables `documents` and `queries` from `files` as `name`.
+pub fn read_in(name: &str, mut files: SetDir, documents: &str, queries: &str) -> Result<LoadedSet> {
     let bytes = files.bytes(documents)?;
     let t = Parquet::open(documents, &bytes)?;
     let (ids, chunks) = (t.strings("chunk_id")?, t.strings("chunk")?);
