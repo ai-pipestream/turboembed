@@ -562,7 +562,7 @@ pub const FIXTURES: [Fixture; 63] = [
 ];
 
 /// The input sets under `analysis/goldens/data/inputs`.
-pub const INPUT_SETS: [&str; 38] = [
+pub const INPUT_SETS: [&str; 40] = [
     "en",
     "multi",
     "norm",
@@ -601,6 +601,8 @@ pub const INPUT_SETS: [&str; 38] = [
     "glossary",
     "svm-doccat",
     "svm-doccat-train",
+    "sentiment",
+    "sentiment-train",
 ];
 
 /// The arguments the driver passes to the generator after the fixed ones
@@ -614,7 +616,7 @@ pub const GENERATOR_ARGS: [&str; 1] = ["--dumps"];
 /// replaces and `verify` compares. The data directory holds other things
 /// (the inputs, the fixtures, the rate snapshot, a README) that neither
 /// touches.
-pub const ANNOTATORS: [&str; 41] = [
+pub const ANNOTATORS: [&str; 42] = [
     "sentdetect",
     "tokenize",
     "postag",
@@ -656,6 +658,7 @@ pub const ANNOTATORS: [&str; 41] = [
     "stopword",
     "glossary",
     "svm-doccat",
+    "sentiment",
 ];
 
 /// The annotators with runs that ask a maxent model for their decisions:
@@ -692,6 +695,12 @@ pub const TEMPORAL_INPUT_SET: &str = "temporal";
 /// on them.
 pub const SVM_DOCCAT_INPUT_SET: &str = "svm-doccat";
 pub const SVM_DOCCAT_TRAIN_SET: &str = "svm-doccat-train";
+
+/// The input sets of the sentiment detector: the documents its models
+/// score, and the corpus they are trained on. No other annotator runs on
+/// them.
+pub const SENTIMENT_INPUT_SET: &str = "sentiment";
+pub const SENTIMENT_TRAIN_SET: &str = "sentiment-train";
 
 /// The input set the PII packs run on. They run on no other set, and the
 /// other annotators do not run on this one.
@@ -832,6 +841,8 @@ mod tests {
                 TEMPORAL_INPUT_SET,
                 SVM_DOCCAT_INPUT_SET,
                 SVM_DOCCAT_TRAIN_SET,
+                SENTIMENT_INPUT_SET,
+                SENTIMENT_TRAIN_SET,
                 PII_INPUT_SET,
             ]
             .contains(s)
@@ -912,6 +923,20 @@ mod tests {
         assert!(svm.contains(&format!("INPUT_SET = \"{SVM_DOCCAT_INPUT_SET}\"")));
         assert!(svm.contains(&format!("TRAIN_SET = \"{SVM_DOCCAT_TRAIN_SET}\"")));
         assert!(svm.contains("ANNOTATOR = \"svm-doccat\""));
+    }
+
+    #[test]
+    fn the_sentiment_detector_has_its_own_input_sets_and_no_dumps() {
+        assert!(INPUT_SETS.contains(&SENTIMENT_INPUT_SET));
+        assert!(INPUT_SETS.contains(&SENTIMENT_TRAIN_SET));
+        assert!(ANNOTATORS.contains(&"sentiment"));
+        assert!(!DUMPED_ANNOTATORS.contains(&"sentiment"));
+        let golden = include_str!("../java/src/main/java/ai/pipestream/turbo/goldens/SentimentGolden.java");
+        assert!(golden.contains(&format!("INPUT_SET = \"{SENTIMENT_INPUT_SET}\"")));
+        assert!(golden.contains(&format!("TRAIN_SET = \"{SENTIMENT_TRAIN_SET}\"")));
+        assert!(golden.contains("ANNOTATOR = \"sentiment\""));
+        let runs = include_str!("../java/src/main/java/ai/pipestream/turbo/goldens/Runs.java");
+        assert!(runs.contains("SentimentGolden.all(inputs)"));
     }
 
     #[test]

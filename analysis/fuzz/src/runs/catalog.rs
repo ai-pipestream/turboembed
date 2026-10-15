@@ -27,8 +27,10 @@ use crate::resources::{Resources, Unavailable};
 /// turbo-sequence, turbo-namefind, turbo-stem, turbo-stopword,
 /// turbo-glossary and turbo-doccat compare with; the other
 /// `namefind` runs train name finders from name samples and find names in
-/// them, which turbo-train-components compares with.
-pub const NOT_COVERED: [&str; 24] = [
+/// them, and the sentiment runs (`sentiment`) train models on a corpus of
+/// their own and score their own documents, which turbo-train-components
+/// compares with.
+pub const NOT_COVERED: [&str; 25] = [
     "train",
     "train-events",
     "train-langdetect",
@@ -53,6 +55,7 @@ pub const NOT_COVERED: [&str; 24] = [
     "stopword",
     "glossary",
     "svm-doccat",
+    "sentiment",
 ];
 
 /// Every run the differential covers, as `(annotator, run)`: the golden

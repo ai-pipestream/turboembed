@@ -304,6 +304,20 @@ are not taken from any corpus.
   corpus has, whitespace alone, punctuation, a long text, accents, an
   ellipsis and emoji, and one word without a line end
   (`docs/doccat.md`).
+- `inputs/sentiment-train/`: the corpus the sentiment goldens train their
+  models on, written for this project, one sample per line in OpenNLP's
+  sentiment sample format (the sentiment, a space and the tokens):
+  `feedback.txt`, 56 short invented remarks about everyday things, 20
+  `positive`, 20 `negative` and 16 `neutral`, each with one or two emoji,
+  among them hearts with and without the presentation selector, a skin
+  tone, a ZWJ sequence, country flags, a subdivision flag, and a word that
+  starts outside the Basic Multilingual Plane.
+- `inputs/sentiment/`: 12 documents those models score, written for this
+  project: one per sentiment, a mixed one, emoji alone, emoji joined to a
+  word and to each other, two flags in one token, accents and a character
+  outside the Basic Multilingual Plane, repeated words, words no corpus
+  has, whitespace alone, several lines, and one word without a line end
+  (`docs/sentiment.md`).
 
 `analysis/goldens-tool/README.md` ("Runs") lists which run reads which set.
 

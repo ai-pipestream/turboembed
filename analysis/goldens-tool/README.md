@@ -188,6 +188,7 @@ a directory with the same model run without them, and its options are
 | `stopword` (`StopwordLists`, `StopwordFilter`, `StopwordFilteringTokenizer`) | `lists`, `codes`, `words`, `filter`, `letters` | `stopword`: `codes` for `codes`, `words` for the others | |
 | `glossary` (`AhoCorasickGlossaryMatcher`, `TermAnalyzingGlossaryMatcher`, `CompositeGlossaryMatcher`, `CsvGlossaryReader`, `TbxGlossaryReader`) | `exact`, `ignore-case`, `whitespace+ignore-case`, `analyzed`, `composite` (the fixture `glossary-terms.tsv`); `csv`, `tsv-header`, `tbx-en`, `tbx-de` | `glossary`: the `text-` inputs for the matchers, the `csv-`, `tsv-` and `tbx-` inputs for the readers | `ignoreCase`, `normalizer`, `analyzer`; `delimiter`, `skipHeader`; `languageTag` |
 | `svm-doccat` (`DocumentCategorizerSVM.train`, `categorize`) | `topics-linear-<weighting>-<selection>` for the four weightings (`binary`, `tf`, `tfidf`, `lognorm`) and five selections (`none`, `ig`, `chi2`, `tf`, `df`); `topics-rbf-tfidf`, `topics-poly-tf`, `topics-sigmoid-binary`, `topics-nu-linear-tfidf`, `topics-nu-rbf-lognorm`, `topics-linear-tfidf-noscale`, `topics-rbf-tfidf-scale-1`, `topics-linear-lognorm-ngram`, `topics-linear-binary-c10`, `pair-linear-tfidf`, `pair-rbf-binary` | `svm-doccat`; the run's corpus in `svm-doccat-train` | `run`, `corpus`, `language`, `seed`, `weighting`, `selection`, `max-features`, `svm-type`, `kernel`, `degree`, `gamma`, `coef0`, `cost`, `scaling`, `generators` |
+| `sentiment` (`SentimentME.train`, `probabilities`) | `tokens-maxent`, `emoji-maxent`, `emoji-default`, `emoji-qn`, `emoji-perceptron` | `sentiment`; the corpus `feedback` in `sentiment-train` | `run`, `corpus`, `language`, `factory`, `Algorithm`, `Iterations`, `Cutoff` |
 
 - `+english-dictionary` is the English model rebuilt through
   `TokenizerModel(MaxentModel, Map, TokenizerFactory)` with the
@@ -822,6 +823,39 @@ The corpora and documents are written for the project. Only these runs read
 them, and they have no dumps. The goldens are not checked in; the parity
 test skips, naming the `generate` command, while
 `analysis/goldens/data/svm-doccat` is absent.
+
+## Sentiment goldens
+
+These runs are the parity test of the sentiment detector
+(`analysis/train-components/tests/sentiment.rs`, described in
+`docs/sentiment.md`). Each run trains a model with `SentimentME.train` on
+`inputs/sentiment-train/feedback.txt` (one sample per line: the
+sentiment, a space and the tokens) with its factory and parameters:
+`tokens-maxent` (`SentimentFactory`, GIS, 100 iterations, cutoff 1),
+`emoji-maxent` (`EmojiSentimentFactory`, the same parameters),
+`emoji-default` (`EmojiSentimentFactory`,
+`ModelUtil.createDefaultTrainingParameters()`, cutoff 5), `emoji-qn`
+(`MAXENT_QN`) and `emoji-perceptron` (`PERCEPTRON`), each with 100
+iterations and cutoff 1. The `config` records name all of it.
+
+`sentiment/<run>/sentiment-train/feedback.golden` holds the events of
+`SentimentEventStream` (`turbo:sentiment-events`, a row per event, and
+`turbo:sentiment-predicates`, a row per predicate), the SHA-256 and length
+of the `sentiment.model` entry (`turbo:sentiment-model`), and the manifest
+without `Timestamp` and the zip entries of the serialized model
+(`turbo:manifest`, `turbo:package-entries`).
+
+`sentiment/<run>/sentiment/<id>.golden` holds, for one document,
+`opennlp:tokens` (the `WhitespaceTokenizer` tokens the detector is given)
+and, anchored on the document, `turbo:sentiment-context` (the factory's
+context for those tokens, a feature per row) and `turbo:categories` (every
+outcome with its probability, best first), scored by the model read back
+from its serialized bytes.
+
+The corpus and documents are written for the project. Only these runs
+read them, and they have no dumps. The goldens are not checked in; the
+parity test skips, naming the `generate` command, while
+`analysis/goldens/data/sentiment` is absent.
 
 ## PII goldens
 

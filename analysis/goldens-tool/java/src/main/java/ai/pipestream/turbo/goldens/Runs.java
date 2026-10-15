@@ -169,8 +169,9 @@ final class Runs {
   private Runs() {}
 
   /**
-   * The runs, with the inputs directory, which the SVM document categorizer runs train their
-   * models from ({@link SvmDoccatGolden}), and the models and fixtures directories.
+   * The runs, with the inputs directory, which the SVM document categorizer and sentiment runs
+   * train their models from ({@link SvmDoccatGolden}, {@link SentimentGolden}), and the models and
+   * fixtures directories.
    */
   static All load(Path inputs, Path models, Path fixtures, Path moneySnapshot) throws IOException {
     List<AnnotatorGolden> annotators = new ArrayList<>();
@@ -381,6 +382,9 @@ final class Runs {
     // The SVM document categorizer (turbo-doccat): models trained on the svm-doccat-train corpora,
     // exported, and run on the svm-doccat documents.
     annotators.addAll(SvmDoccatGolden.all(inputs));
+    // The sentiment detector (turbo-doccat, turbo-train-components): models trained on the
+    // sentiment-train corpus with each factory and trainer, and run on the sentiment documents.
+    annotators.addAll(SentimentGolden.all(inputs));
     return new All(annotators, recorders);
   }
 }
