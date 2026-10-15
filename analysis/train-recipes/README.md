@@ -1224,10 +1224,15 @@ cmp run-a/turbo-mul-tatoeba-langdetect-1/turbo-mul-tatoeba-langdetect-1.bin \
 
 The `models-tatoeba` workflow (`.github/workflows/models-tatoeba.yml`)
 makes the same two runs on GitHub's runners, which can reach Tatoeba,
-when it is run by hand or a pull request changes it or the recipe. It
-caches the archives under the size, time and ETag Tatoeba's server gives
-for them (a new week's export gets a new key) and the reference under its
-SHA-256. It keeps as artifacts the runs' model directories and output,
+when it is run by hand or a pull request changes it or the crates the
+run mostly rests on: this one, the trainers (`analysis/train`,
+`analysis/train-components`), the gate (`analysis/eval`) and
+`turbo-langdetect`. Both runs must write the same model, sentence file,
+card and gate record. It caches the archives under the size, time and
+ETag Tatoeba's server gives for them (a new week's export gets a new key;
+a file of another size than its headers gave is refused before it is
+cached) and the reference under its SHA-256. It keeps as artifacts the
+runs' model directories and output,
 the archives' SHA-256 and `tar -tvjf` listings (step 2 below), and the
 archives themselves, so the export a run read can still be had after
 Tatoeba replaces it, for as long as GitHub keeps the run's artifacts.

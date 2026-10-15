@@ -15,9 +15,11 @@ on:
   pull_request:
     paths:
       - ".github/workflows/models-tatoeba.yml"
-      - "analysis/train-recipes/src/langdetect.rs"
-      - "analysis/train-recipes/src/tatoeba.rs"
-      - "analysis/train-components/src/langdetect.rs"
+      - "analysis/train-recipes/**"
+      - "analysis/train-components/**"
+      - "analysis/train/**"
+      - "analysis/eval/**"
+      - "analysis/langdetect/**"
 
 permissions:
   contents: read
@@ -41,16 +43,21 @@ jobs:
       - uses: Swatinem/rust-cache@v2
       # Every download is cached. Tatoeba replaces the export each week at
       # the same addresses and publishes no digest, so the archives are
-      # cached under the size, time and ETag the server gives for each:
-      # a new week's export gets a new key. The digest the recipe records
-      # is printed by the runs below.
+      # cached under the size, time and ETag the server gives for each
+      # (from the response that serves the file, after any redirect): a
+      # new week's export gets a new key. A response with neither a time
+      # nor an ETag could not tell two weeks apart, so it fails the step.
+      # The digest the recipe records is printed by the runs below.
       - id: export
         name: the export's headers
         run: |
           set -euo pipefail
           for u in "$DETAILED" "$CC0"; do
-            echo "$u"
-            curl -fsSIL --retry 3 "$u" | tr -d '\r' | grep -i -E '^(content-length|last-modified|etag):' | tail -n 3
+            h=$(curl -fsSIL --retry 3 -o /dev/null \
+              -w '%header{content-length}|%header{last-modified}|%header{etag}' "$u")
+            IFS='|' read -r size time etag <<< "$h"
+            [ -n "$size" ] && { [ -n "$time" ] || [ -n "$etag" ]; } || { echo "$u: no size, or neither time nor ETag" >&2; exit 1; }
+            printf '%s\t%s\t%s\t%s\n' "$u" "$size" "$time" "$etag"
           done | tee "$RUNNER_TEMP/export-headers"
           echo "key=$(sha256sum < "$RUNNER_TEMP/export-headers" | cut -c1-16)" >> "$GITHUB_OUTPUT"
       - id: export-cache
@@ -58,14 +65,19 @@ jobs:
         with:
           path: ${{ runner.temp }}/tatoeba/archives
           key: tatoeba-export-${{ steps.export.outputs.key }}
+      # A file of another size than the headers gave (an export replaced
+      # between the two requests) fails here, before it is cached under
+      # those headers.
       - name: fetch the export
         if: steps.export-cache.outputs.cache-hit != 'true'
         run: |
           set -euo pipefail
           mkdir -p "$RUNNER_TEMP/tatoeba/archives"
-          for u in "$DETAILED" "$CC0"; do
-            curl -fsSL --retry 3 -o "$RUNNER_TEMP/tatoeba/archives/${u##*/}" "$u"
-          done
+          while IFS=$'\t' read -r u size _; do
+            f="$RUNNER_TEMP/tatoeba/archives/${u##*/}"
+            curl -fsSL --retry 3 -o "$f" "$u"
+            [ "$(stat -c %s "$f")" = "$size" ] || { echo "$u: $(stat -c %s "$f") bytes, the headers gave $size" >&2; exit 1; }
+          done < "$RUNNER_TEMP/export-headers"
       # A truncated or damaged archive fails here, before it is cached.
       - name: list and extract the archives
         run: |
@@ -122,7 +134,7 @@ jobs:
             [ "$s" -gt "$status" ] && status=$s
           done
           id=turbo-mul-tatoeba-langdetect-1
-          for f in "$id.bin" training-sentences.txt; do
+          for f in "$id.bin" training-sentences.txt card.json gate.json; do
             cmp "runs/run-a/$id/$f" "runs/run-b/$id/$f" || status=2
           done
           sha256sum runs/run-*/"$id"/* | tee runs/SHA256SUMS

@@ -924,7 +924,7 @@ mod tests {
         // segment, and write the model's directory under its id.
         assert_eq!(LANGDETECT_183.url.rsplit('/').next(), Some(LANGDETECT_183.file));
         assert!(lines.contains(&format!("id={MODEL_ID}").as_str()));
-        assert!(workflow.contains(&format!("\"$id.bin\" {SENTENCES_FILE}")));
+        assert!(workflow.contains(&format!("\"$id.bin\" {SENTENCES_FILE} {CARD_FILE} {GATE_FILE}")));
     }
 
     #[test]
