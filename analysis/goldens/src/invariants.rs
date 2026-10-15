@@ -197,11 +197,19 @@ fn touches_an_edit(edits: &[Span], span: Span) -> bool {
 pub fn check_layer<L: Layer>(doc: &Document, key: &Key<L>) -> Vec<Violation> {
     let Some(layer) = doc.get_key(key) else { return Vec::new() };
     let mut out = check_contract(layer, &key.id().to_string());
-    if let Some((view, starts, ends)) = layer.text_spans() {
-        out.extend(check_spans(doc, &key.id().to_string(), view, starts, ends));
-    }
-    if let Some((view, starts, ends)) = layer.fragment_spans() {
-        out.extend(check_spans(doc, &format!("{} (fragments)", key.id()), view, starts, ends));
+    if let Some(ts) = layer.text_spans() {
+        out.extend(check_spans(doc, &key.id().to_string(), ts.view, ts.start, ts.end));
+        if !ts.frag_item_end.is_empty() {
+            let mut frag_violations =
+                check_spans(doc, &format!("{} (fragments)", key.id()), ts.view, ts.frag_start, ts.frag_end);
+            for v in &mut frag_violations {
+                let item = ts.frag_item_end.partition_point(|&end| (end as usize) <= v.index);
+                if item < ts.frag_item_end.len() {
+                    v.index = item;
+                }
+            }
+            out.extend(frag_violations);
+        }
     }
     out
 }
@@ -216,7 +224,7 @@ pub fn check_contract<L: Layer>(layer: &L, name: &str) -> Vec<Violation> {
     match layer.check() {
         Ok(()) => Vec::new(),
         Err(what) => {
-            let view = layer.text_spans().map_or(ViewId::SOURCE, |(view, _, _)| view);
+            let view = layer.text_spans().map_or(ViewId::SOURCE, |ts| ts.view);
             vec![Violation {
                 layer: name.into(),
                 view,
@@ -443,27 +451,68 @@ mod tests {
         use turbo_analysis::IxRange;
         use turbo_analysis_layers::{Tag, TagSet};
 
-        let source = "take  this  off";
+        // Includes 2-byte ('é'), 3-byte ('中'), and 4-byte non-BMP ('😀') characters
+        // so per-fragment UTF-8 <-> UTF-16 and code-point round-trips are exercised.
+        let source = "take  é中😀  off  soon";
         let mut doc = Document::new(source);
         let mut b = ViewBuilder::new(source);
         b.keep(4);
         b.replace(6, " ");
-        b.keep(10);
-        b.replace(12, " ");
         b.keep(15);
+        b.replace(17, " ");
+        b.keep(20);
+        b.replace(22, " ");
+        b.keep(26);
         let (text, alignment) = b.finish();
-        assert_eq!(text, "take this off");
+        assert_eq!(text, "take é中😀 off soon");
         let view = View::derived(doc.get::<View>().unwrap(), text, alignment);
         doc.add(&Key::<View>::named("norm"), view, Provenance::by("test")).unwrap();
         let id = doc.get_key(&Key::<View>::named("norm")).unwrap().id();
-        doc.add(&Key::DEFAULT, tokens(id, &[(0, 4), (5, 9), (10, 13)]), Provenance::by("test")).unwrap();
+        doc.add(&Key::DEFAULT, tokens(id, &[(0, 4), (5, 14), (15, 18), (19, 23)]), Provenance::by("test")).unwrap();
 
-        let kinds = TagSet::new("phrasal", &["verb"]);
+        let kinds = TagSet::new("phrasal", &["verb", "adv"]);
         let mut spans = Spans::new(id);
-        spans.push_fragments(&[Span::new(0, 4), Span::new(10, 13)]);
-        let entities =
-            Entities { spans, tokens: vec![IxRange::new(0, 3)], kind: vec![Tag(0)], kinds, score: vec![0.9] };
+        spans.push(Span::new(0, 4));
+        spans.push_fragments(&[Span::new(5, 14), Span::new(15, 18)]);
+        let entities = Entities {
+            spans,
+            tokens: vec![IxRange::new(0, 1), IxRange::new(1, 3)],
+            kind: vec![Tag(0), Tag(1)],
+            kinds: kinds.clone(),
+            score: vec![0.8, 0.9],
+        };
         doc.add(&Key::DEFAULT, entities, Provenance::by("test")).unwrap();
         assert_eq!(assert_invariants(&doc, "discontinuous"), 2);
+
+        // A lying view whose second entity's second fragment (flat fragment 2,
+        // belonging to item 1) mismatches parent text reports index == 1 (the
+        // owning item index, not flat fragment index 2).
+        let lie = View::derived(
+            doc.get_key(&Key::<View>::named("norm")).unwrap(),
+            "take é中😀 Xff soon".to_string(),
+            Alignment::identity(),
+        );
+        doc.add(&Key::<View>::named("lie"), lie, Provenance::by("test")).unwrap();
+        let lie_id = doc.get_key(&Key::<View>::named("lie")).unwrap().id();
+        doc.add(
+            &Key::<Tokens>::named("lied"),
+            tokens(lie_id, &[(0, 4), (5, 14), (15, 18), (19, 23)]),
+            Provenance::by("test"),
+        )
+        .unwrap();
+        let mut lie_spans = Spans::new(lie_id);
+        lie_spans.push(Span::new(0, 4));
+        lie_spans.push_fragments(&[Span::new(5, 14), Span::new(15, 18)]);
+        let lie_entities = Entities {
+            spans: lie_spans,
+            tokens: vec![IxRange::new(0, 1), IxRange::new(1, 3)],
+            kind: vec![Tag(0), Tag(1)],
+            kinds,
+            score: vec![0.8, 0.9],
+        };
+        doc.add(&Key::<Entities>::named("lied"), lie_entities, Provenance::by("test")).unwrap();
+        let v = check_layer(&doc, &Key::<Entities>::named("lied"));
+        let frag_v = v.iter().find(|v| v.layer.contains("(fragments)")).expect("fragment violation reported");
+        assert_eq!(frag_v.index, 1, "expected item index 1, got {frag_v}");
     }
 }

@@ -95,7 +95,13 @@ pub fn merge(layers: &[&Entities]) -> Result<Entities, String> {
     };
     for (l, e) in kept.into_iter().map(|i| items[i]) {
         let layer = layers[l];
-        out.spans.push(layer.spans.get(turbo_analysis::Ix::new(e as u32)));
+        let ix = turbo_analysis::Ix::new(e as u32);
+        if layer.spans.is_discontinuous(ix) {
+            let frags: Vec<turbo_analysis::Span> = layer.spans.fragments(ix).collect();
+            out.spans.push_fragments(&frags);
+        } else {
+            out.spans.push(layer.spans.get(ix));
+        }
         out.tokens.push(layer.tokens[e]);
         out.kind.push(kinds.tag(layer.kinds.label(layer.kind[e])).expect("every label is in the union"));
         out.score.push(layer.score[e]);
@@ -125,6 +131,14 @@ impl Annotator for FilterEntities {
 
     fn annotate(&self, (entities,): Refs<'_, Self>) -> Result<(Entities,), Error> {
         Ok((entities.filter(self.rule),))
+    }
+
+    fn config_hash(&self) -> u64 {
+        match self.rule {
+            FilterRule::LongestFirst => 1,
+            FilterRule::HighestScore => 2,
+            FilterRule::LeftmostLongest => 3,
+        }
     }
 }
 

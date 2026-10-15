@@ -6,8 +6,7 @@ use std::fmt;
 use std::marker::PhantomData;
 use std::sync::Arc;
 
-use crate::span::Overlap;
-use crate::text::ViewId;
+use crate::span::{Overlap, TextSpans};
 
 /// A closed set of labels (a POS tag set, entity kinds, dependency
 /// relations, edge kinds), interned: a layer stores a u16 per item,
@@ -87,18 +86,12 @@ pub trait Layer: Any + Send + Sync + Sized {
         self.len() == 0
     }
 
-    /// For a layer anchored to text: the view its spans are in and the
-    /// span columns, `[start]` and `[end]`, so the container can check
-    /// every offset before it takes the layer.
-    fn text_spans(&self) -> Option<(ViewId, &[u32], &[u32])> {
-        None
-    }
-
-    /// For a layer anchored to text that holds discontinuous items: the
-    /// view and the fragment columns, `[frag_start]` and `[frag_end]`, so
-    /// the container and offset-invariant checker check every fragment's
-    /// bounds and character boundaries.
-    fn fragment_spans(&self) -> Option<(ViewId, &[u32], &[u32])> {
+    /// For a layer anchored to text: the view its spans are in, the
+    /// envelope columns (`[start]` and `[end]`), and the fragment columns
+    /// (`[frag_start]`, `[frag_end]` and `[frag_item_end]`), so the
+    /// container can check `Self::OVERLAP`, every envelope and every
+    /// fragment before it takes the layer.
+    fn text_spans(&self) -> Option<TextSpans<'_>> {
         None
     }
 

@@ -190,6 +190,7 @@ impl Layer for Numbers {
         if !self.spans.is_ordered() {
             return Err("numbers in text order, not overlapping".into());
         }
+        self.spans.check(Self::OVERLAP)?;
         for (i, span) in self.spans.iter() {
             let i = i.get();
             let numeral_start = span.start + u32::from(self.negative[i]);
@@ -480,7 +481,7 @@ mod tests {
         assert_eq!(Numbers::ID, "turbo:numbers");
         let mut n = Numbers::new(ViewId::SOURCE);
         n.push(mention(3, 5, "12"));
-        let (view, start, end) = n.text_spans().unwrap();
-        assert_eq!((view, start, end), (ViewId::SOURCE, &[3][..], &[5][..]));
+        let ts = n.text_spans().unwrap();
+        assert_eq!((ts.view, ts.start, ts.end), (ViewId::SOURCE, &[3][..], &[5][..]));
     }
 }

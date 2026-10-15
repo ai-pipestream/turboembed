@@ -13,8 +13,10 @@
 use std::marker::PhantomData;
 use std::sync::Arc;
 
-use turbo_analysis::{Anchor, Ix, IxRange, Key, KeyId, Layer, LayerName, ModelRef, Span, Spans, ViewId};
-pub use turbo_analysis::{Edge, Edges, FilterRule, Fragments, Groups, Overlap, Tag, TagSet, filter_spans};
+use turbo_analysis::{Anchor, Ix, IxRange, Key, KeyId, Layer, LayerName, ModelRef, Span, Spans};
+pub use turbo_analysis::{
+    Edge, Edges, FilterRule, FragmentError, Fragments, Groups, Overlap, Tag, TagSet, TextSpans, filter_spans,
+};
 
 pub use levels::{Level, Levels, Unit, VectorKind};
 pub use money::{CONVERTED_MONEY, Currency, Money, MoneyMention};
@@ -67,13 +69,8 @@ macro_rules! positional {
         fn len(&self) -> usize {
             self.spans.len()
         }
-        fn text_spans(&self) -> Option<(ViewId, &[u32], &[u32])> {
-            let (start, end) = self.spans.columns();
-            Some((self.spans.view(), start, end))
-        }
-        fn fragment_spans(&self) -> Option<(ViewId, &[u32], &[u32])> {
-            let (start, end, _) = self.spans.fragment_columns()?;
-            Some((self.spans.view(), start, end))
+        fn text_spans(&self) -> Option<turbo_analysis::TextSpans<'_>> {
+            Some(self.spans.text_spans())
         }
     };
 }
@@ -147,6 +144,7 @@ impl Layer for Structure {
             }
             *sibling_end = end[i];
         }
+        self.spans.check(Self::OVERLAP)?;
         Ok(())
     }
 }
@@ -159,11 +157,13 @@ impl Layer for Sentences {
     const ID: &'static str = "opennlp:sentences";
     positional!(Sentences);
     fn check(&self) -> Result<(), String> {
-        if self.spans.check(Self::OVERLAP).is_ok() {
-            Ok(())
-        } else {
-            Err("sentences in text order, not overlapping".into())
-        }
+        self.spans.check(Self::OVERLAP).map_err(|e| {
+            if e == "spans in text order, not overlapping" {
+                "sentences in text order, not overlapping".into()
+            } else {
+                e
+            }
+        })
     }
 }
 
@@ -186,6 +186,10 @@ impl Tokens {
 
 impl Layer for Tokens {
     const ID: &'static str = "opennlp:tokens";
+    /// A character outside the Basic Multilingual Plane split between two
+    /// UTF-16 tokens (`Utf16Spans`) widens both UTF-8 spans to that 4-byte
+    /// character.
+    const OVERLAP: Overlap = Overlap::Any;
     positional!(Tokens);
     fn indexes(&self) -> Vec<(KeyId, usize)> {
         let Some(s) = &self.sentence else { return Vec::new() };
@@ -195,7 +199,7 @@ impl Layer for Tokens {
         match &self.sentence {
             Some(s) if s.len() != self.spans.len() => Err("a sentence for every token".into()),
             Some(s) if !s.windows(2).all(|w| w[0] <= w[1]) => Err("tokens in sentence order".into()),
-            _ => Ok(()),
+            _ => self.spans.check(Self::OVERLAP),
         }
     }
 }
@@ -241,10 +245,13 @@ impl Layer for Subwords {
         if !start.windows(2).all(|w| w[0] <= w[1]) || !end.windows(2).all(|w| w[0] <= w[1]) {
             return Err("subwords in text order".into());
         }
+        if self.spans.has_discontinuous() {
+            return Err("discontinuous spans are not allowed in subwords".into());
+        }
         match &self.token {
             Some(t) if t.len() != start.len() => Err("a token for every subword".into()),
             Some(t) if !t.windows(2).all(|w| w[0] <= w[1]) => Err("subwords in token order".into()),
-            _ => Ok(()),
+            _ => self.spans.check(Self::OVERLAP),
         }
     }
 }
@@ -306,6 +313,9 @@ impl Layer for Dependencies {
 
 pub struct Entities {
     pub spans: Spans<Entities>,
+    /// The bounding token range of each entity (for a discontinuous entity,
+    /// from the first fragment's start token to the last fragment's end
+    /// token, gap tokens included).
     pub tokens: Vec<IxRange<Tokens>>,
     pub kind: Vec<Tag>,
     pub kinds: Arc<TagSet>,
@@ -313,8 +323,9 @@ pub struct Entities {
 }
 
 impl Entities {
-    /// Resolves overlapping or nested entities into a non-overlapping
-    /// [`Entities`] layer in text order according to `rule`.
+    /// Resolves overlapping, nested or crossing entities into an
+    /// [`Entities`] layer whose bounding envelopes do not overlap, in text
+    /// order, according to `rule`.
     pub fn filter(&self, rule: FilterRule) -> Entities {
         let kept = self.spans.filter(Some(&self.score), rule);
         let mut spans = Spans::with_capacity(self.spans.view(), kept.len());
@@ -341,7 +352,7 @@ impl Entities {
 
 impl Layer for Entities {
     const ID: &'static str = "opennlp:entities";
-    const OVERLAP: Overlap = Overlap::Nesting;
+    const OVERLAP: Overlap = Overlap::Any;
     positional!(Entities);
     fn indexes(&self) -> Vec<(KeyId, usize)> {
         vec![(Key::<Tokens>::DEFAULT.id(), self.tokens.iter().map(|r| r.end.get()).max().unwrap_or(0))]
@@ -356,6 +367,9 @@ impl Layer for Entities {
         }
         if self.kind.iter().any(|k| k.0 as usize >= self.kinds.len()) {
             return Err(format!("a kind outside {}", self.kinds.name));
+        }
+        if self.score.iter().any(|s| s.is_nan()) {
+            return Err("a score that is not NaN".into());
         }
         self.spans.check(Self::OVERLAP)?;
         Ok(())
@@ -417,6 +431,7 @@ impl Layer for PhraseChunks {
         if self.kind.iter().any(|k| k.0 as usize >= self.kinds.len()) {
             return Err(format!("a kind outside {}", self.kinds.name));
         }
+        self.spans.check(Self::OVERLAP)?;
         Ok(())
     }
 }
@@ -542,6 +557,7 @@ impl Layer for Chunks {
                 return Err(format!("chunk {i} is outside its parent"));
             }
         }
+        self.spans.check(Overlap::Any)?;
         Ok(())
     }
 }
@@ -729,6 +745,7 @@ impl Layer for Language {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use turbo_analysis::ViewId;
 
     #[test]
     fn utf16_spans_are_named_after_their_layer_and_aligned_to_it() {
@@ -842,7 +859,7 @@ mod tests {
     }
 
     #[test]
-    fn entities_allow_nesting_and_discontinuous_fragments_and_refuse_crossing() {
+    fn entities_allow_nesting_crossing_and_discontinuous_fragments() {
         use turbo_analysis::{Document, Provenance};
 
         let kinds = TagSet::new("ner", &["org", "loc", "verb"]);
@@ -857,9 +874,9 @@ mod tests {
             kinds: Arc::clone(&kinds),
             score: vec![0.6, 0.9, 0.8],
         };
-        assert_eq!(Entities::OVERLAP, Overlap::Nesting);
+        assert_eq!(Entities::OVERLAP, Overlap::Any);
         assert_eq!(entities.check(), Ok(()));
-        assert!(entities.fragment_spans().is_some());
+        assert!(!entities.text_spans().unwrap().frag_item_end.is_empty());
 
         let longest = entities.filter(FilterRule::LongestFirst);
         assert_eq!(longest.len(), 2);
@@ -872,7 +889,9 @@ mod tests {
         assert_eq!(highest.spans.get(Ix::new(0)), Span::new(8, 16));
         assert_eq!(highest.spans.get(Ix::new(1)), Span::new(17, 30));
 
-        // Partially crossing entities (0..10 and 6..16) are refused.
+        // Partially crossing entities (0..10 and 6..16) are allowed on Entities
+        // (Overlap::Any) so unmerged finders or crossing patterns can coexist,
+        // and filter resolves them to a disjoint subset.
         let mut crossing_spans = Spans::new(ViewId::SOURCE);
         crossing_spans.push(Span::new(0, 10));
         crossing_spans.push(Span::new(6, 16));
@@ -881,9 +900,17 @@ mod tests {
             tokens: vec![IxRange::new(0, 2), IxRange::new(1, 4)],
             kind: vec![Tag(0), Tag(1)],
             kinds: Arc::clone(&kinds),
-            score: vec![0.5, 0.5],
+            score: vec![0.5, 0.9],
         };
-        assert!(crossing.check().unwrap_err().contains("partially crosses"));
+        assert_eq!(crossing.check(), Ok(()));
+        let resolved = crossing.filter(FilterRule::HighestScore);
+        assert_eq!(resolved.len(), 1);
+        assert_eq!(resolved.spans.get(Ix::new(0)), Span::new(6, 16));
+
+        // NaN scores are refused so HighestScore has a total order.
+        let mut nan_score = crossing;
+        nan_score.score[0] = f64::NAN;
+        assert!(nan_score.check().unwrap_err().contains("NaN"));
 
         // Document::add checks fragment boundaries against the view's text:
         // in "café ok" ("é" is bytes 3..5), a fragment ending at byte 4

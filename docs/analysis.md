@@ -28,7 +28,7 @@ nothing here is in the C header or the gRPC server.
 | `turbo-postag` | `analysis/postag/` | OpenNLP's `POSTaggerME`: `PosModel` opens a `POSModel` file with its descriptor, tag dictionary, beam size and tag format, and `PosTagger` writes `opennlp:pos` (a tag and its probability per token, aligned to `opennlp:tokens`, one beam search per sentence). Tags and probabilities are the JVM's bit for bit; the crate documentation lists the OpenNLP behaviour that is surprising, and `analysis/postag/README.md` describes its goldens and its accuracy on UD English EWT |
 | `turbo-lemmatizer` | `analysis/lemmatizer/` | OpenNLP's `LemmatizerME` (`LemmatizerModel`, `MaxentLemmatizer`: a beam search per sentence over the tagged tokens whose outcomes are lemma classes, shortest edit scripts applied to the lowercased token) and `DictionaryLemmatizer` (a `word<tab>tag<tab>lemma` lookup). Both read `opennlp:tokens` and `opennlp:pos` and write `opennlp:lemmas`; the maxent one also writes `turbo:confidence<opennlp:lemmas>`. Lemmas and probabilities are the JVM's bit for bit; the crate documentation lists the OpenNLP behaviour that is surprising, and `analysis/lemmatizer/README.md` describes its goldens |
 | `turbo-phrase-chunker` | `analysis/phrase-chunker/` | OpenNLP's `ChunkerME`: `ChunkerModel` opens a `ChunkerModel` file and `PhraseChunker` writes `opennlp:chunk-tags` (a chunk tag and its probability per token, aligned to `opennlp:tokens`, one beam search per sentence over the tokens and their part-of-speech tags) and `opennlp:chunks` (the phrases those tags make, as `chunkAsSpans` returns them). Tags and probabilities are the JVM's bit for bit; the crate documentation lists the OpenNLP behaviour that is surprising, and `analysis/phrase-chunker/README.md` describes its goldens. It is not `turbo-chunker`, which cuts retrieval units |
-| `turbo-namefind` | `analysis/namefind/` | OpenNLP's `DictionaryNameFinder`, `RegexNameFinder` and the patterns of `RegexNameFinderFactory`, which write `opennlp:entities` from `opennlp:tokens`, `FilterEntities` to resolve overlapping or nested entities by `FilterRule`, and the merge of several entity layers by `dropOverlappingSpans`. Built-in patterns use hand-written UTF-8 scanners and user patterns in Java syntax are compiled by `JavaRegex` to a cursor bytecode VM or refused with a typed error; the crate documentation lists what is refused and the OpenNLP behaviour that is surprising, and `analysis/namefind/README.md` describes its JVM golden files |
+| `turbo-namefind` | `analysis/namefind/` | OpenNLP's `DictionaryNameFinder`, `RegexNameFinder` and the patterns of `RegexNameFinderFactory`, which write `opennlp:entities` from `opennlp:tokens`, `FilterEntities` to resolve overlapping or nested entities by `FilterRule`, and the merge of several entity layers by `dropOverlappingSpans`. Built-in patterns use hand-written UTF-8 scanners and user patterns in Java syntax are compiled by `JavaRegex` to a direct bytecode matcher or refused with a typed error; the crate documentation lists what is refused and the OpenNLP behaviour that is surprising, and `analysis/namefind/README.md` describes its JVM golden files |
 | `turbo-stem` | `analysis/stem/` | OpenNLP's stemmers: `PorterStemmer`, the 21 Snowball stemmers (generated from the Snowball sources OpenNLP's classes come from, over UTF-16 code units as in Java), the light and minimal stemmers, `CachingStemmer`, and `StemAnnotator` (OpenNLP's `StemmerAnnotator`), which writes `turbo:stems` from `opennlp:tokens`. Its crate documentation lists the OpenNLP behaviour that is surprising; `analysis/stem/README.md` describes its JVM golden files and how OpenNLP's Snowball stems differ from current Snowball's |
 | `turbo-stem-layers` | `analysis/stem-layers/` | The stemmers' layer, `turbo:stems` |
 | `turbo-stopword` | `analysis/stopword/` | OpenNLP's eleven bundled stopword lists (Bulgarian, Danish, German, English, Spanish, Finnish, French, Italian, Dutch, Portuguese, Russian) and `StopwordFilter.isStopword`, and the step that reads `opennlp:tokens` and, optionally, `opennlp:language` and writes `turbo:stopwords`, a flag per token; it flags and never removes. `analysis/stopword/data/README.md` gives each list's origin and license, the crate documentation lists the OpenNLP behaviour that is surprising, and `analysis/stopword/README.md` describes its JVM golden files |
@@ -37,14 +37,13 @@ nothing here is in the C header or the gRPC server.
 | `turbo-train` | `analysis/train/` | Training OpenNLP maxent models, the event side: `Event`, the `FileEventStream` and `RealValueFileEventStream` formats, the CRC-32C event checksum, the three data indexers with their cutoffs, sorting and merging, `TrainingParameters` with typed values and OpenNLP's parameters file, `AlgorithmType` and the trainer types, the progress monitors and stop criteria, the GIS trainer (`GISTrainer`, parameters bit for bit the JVM's after every iteration), the binary model writer (`GenericModelWriter`, bytes the JVM's) and the `.bin` packaging with its manifest (`BaseModel.serialize`; the entries are the JVM's bytes, the archive around them is written here and loads in both). Sample types belong to the formats crate; this one starts at events. Its crate documentation lists the OpenNLP behaviour that is surprising, and "Training goldens" below describes its JVM reference |
 | `turbo-train-components` | `analysis/train-components/` | Training the sentence detector, the tokenizer, the part-of-speech tagger and the lemmatizer: `SDEventStream`, `TokSpanEventStream`, `POSSampleEventStream` and `LemmaSampleEventStream` with their factories (end characters, alphanumeric pattern, abbreviation dictionary, feature generator descriptor, tag dictionary), the `SentenceModel`, `TokenizerModel`, `POSModel` and `LemmatizerModel` files with every manifest entry and artifact the JVM writes (the dictionaries as `Dictionary.serialize` and `POSDictionary.serialize` write them, zip entries in the JVM's order), and the recipes that train the eighteen published UD 1.3 models again from their treebanks and compare them with the published files. Its own crate because `turbo-formats` depends on `turbo-tokenize`; "Training the components" below |
 | `turbo-train-recipes` | `analysis/train-recipes/` | Recipes that train models on permissive data and gate them: MASC 3.0.0 (CC BY 3.0 US) with the record of its release and fixed split, the English sentence detector, tokenizer and part-of-speech tagger trained on it, their gates against the OpenNLP English UD models and OpenNLP 1.5's Penn tagger (`en-pos-maxent.bin`), the model card and the permissive zoo entry, and the `turbo-train-recipes` binary ("Models trained on permissive data", below) |
-| `turbo-formats` | `analysis/formats/` | OpenNLP's training samples (name, part-of-speech, lemma, chunk, token, sentence, document category and language samples), a reader per native format that reproduces OpenNLP's sample stream over the same text, the conversion of name and part-of-speech samples into token and sentence samples, the CoNLL-U readers of part-of-speech, lemma, sentence and token samples, the CoNLL-2002 and CoNLL-2003 name readers and the CoNLL-X part-of-speech reader, the MASC corpus reader and its part-of-speech, token, sentence and name samples, the named entity corpus readers (GermEval 2014, BioNLP 2004, Evalita, the 1990 census names, MUC-6 and brat), the format registry, and the evaluators and cross-validation folds (`FMeasure`, `Mean`, an evaluator per component). Every token and tag keeps its byte span in the source; the crate documentation lists the OpenNLP behaviour that is surprising, and its tests compare with the `formats`, `masc`, `ner` and `evaluate` goldens |
+| `turbo-formats` | `analysis/formats/` | OpenNLP's training samples (name, part-of-speech, lemma, chunk, token, sentence, document category and language samples), a reader per native format that reproduces OpenNLP's sample stream over the same text, the conversion of name and part-of-speech samples into token and sentence samples, the CoNLL-U readers of part-of-speech, lemma, sentence and token samples, the CoNLL-2002 and CoNLL-2003 name readers and the CoNLL-X part-of-speech reader, the MASC corpus reader and its part-of-speech, token, sentence and name samples, the named entity corpus readers (GermEval 2014, BioNLP 2004, Evalita, the 1990 census names, MUC-6 and brat, including discontinuous entity standoff round-tripping), the format registry, and the evaluators and cross-validation folds (`FMeasure`, `Mean`, an evaluator per component). Every token and tag keeps its byte span in the source; the crate documentation lists the OpenNLP behaviour that is surprising, and its tests compare with the `formats`, `masc`, `ner` and `evaluate` goldens |
 | `turbo-parser` | `analysis/parser/` | OpenNLP's constituency `Parse` tree and Penn Treebank bracket I/O (`Parse::parse`, `Parse::show`, `ParseSampleStream`, `ParserPosSample`, `ParserChunkSample`, `space_untokenized_parens`), the `HeadRules` and `GapLabeler` traits, `EnglishHeadRules` (`opennlp.tools.parser.lang.en.HeadRules`), and `AncoraSpanishHeadRules` (`opennlp.tools.parser.lang.es.AncoraSpanishHeadRules`), whose tags are Java regular expressions (`TagPattern`). `analysis/parser/README.md` describes where it differs from OpenNLP and its JVM golden files |
 | `turbo-eval` | `analysis/eval/` | The evaluation harness: the evaluation sets with their fetch by checksum and typed readers, the pipeline, the baseline chunkers, measures, significance tests, records, the gate and the `turbo-eval` binary (Evaluation, below) |
 
 They need nothing beyond the standard library and each other, except
 `turbo-analysis-embed`, which runs the embedding model and so depends on
-the core crate, `turbo`; `turbo-namefind`, which matches its patterns
-with the `regex` crate; and `turbo-eval`, which uses serde for its
+the core crate, `turbo`; and `turbo-eval`, which uses serde for its
 records and set files, the core for turbo-bench's provenance types,
 `turbo-analysis-embed` for the embedder, `ureq` to fetch the sets, and
 `flate2` (already in the build through `ureq`) for the one set published
@@ -178,29 +177,47 @@ layer, or both made a view, is refused and changes nothing.
 
 A positional layer (`Anchor::Text`) stores its spans in `Spans<L>` and
 declares what overlap its items may have through `Layer::OVERLAP`
-(`Overlap` in `turbo-analysis`):
+(`Overlap` in `turbo-analysis`), which `Document::add` checks on
+`Layer::text_spans()` (`TextSpans`):
 
-- `Overlap::None` (the default, used by `Sentences` and `Tokens`):
-  continuous spans in text order (`start` non-decreasing) that do not
-  overlap (`end[i - 1] <= start[i]`).
-- `Overlap::Nesting` (`Entities`, `Structure`, `Chunks`): spans may nest
-  (`a.contains(b)` or `b.contains(a)` whenever `a` and `b` overlap, such
-  as `"New York"` inside `"Bank of New York"`), and never partially
-  cross (`a.start < b.start && b.start < a.end && a.end < b.end`).
-- `Overlap::Any` (`Subwords`, or multi-tagger candidate layers): any
-  valid spans in the view, including partially crossing spans.
+- `Overlap::None` (the default, used by `Sentences`, `Tokens`,
+  `PhraseChunks`, `Numbers`, `Money`, `Quantities` and the normalizer
+  layers): continuous spans in text order (`start` non-decreasing) that
+  do not overlap (`end[i - 1] <= start[i]`).
+- `Overlap::Nesting` (`Structure`, `Chunks`, `Levels`): spans are in
+  text start order and may nest (`a.contains(b)` or `b.contains(a)`
+  whenever `a` and `b` share covered bytes), and never partially cross
+  (`a.start < b.start && b.start < a.end && a.end < b.end`), neither at
+  the envelope level nor across discontinuous fragments.
+- `Overlap::Any` (`Entities`, `Subwords`, or multi-tagger candidate
+  layers): spans in text start order that may nest or partially cross
+  (for example `"New York"` inside `"Bank of New York"`, or overlapping
+  matches from a multi-pattern `RegexNameFinder` before `MergeEntities`
+  or `FilterEntities` resolves them).
 
-For discontinuous spans (such as split verbs `"take ... off"` or
-clinical mentions `"pain in the left ... and right knee"`),
-`Spans::push_fragments` stores the item's bounding envelope
+For discontinuous spans (such as split verbs `"take ... off"`, clinical
+mentions `"pain in the left ... and right knee"`, or brat standoff
+`T1\tEntity 0 4;10 13\t...`), `Spans::push_fragments`
+(`Spans::try_push_fragments`) stores the item's bounding envelope
 (`first.start..last.end`) in `start` and `end` and populates three flat
 columns (`frag_start: Vec<u32>`, `frag_end: Vec<u32>`,
 `frag_item_end: Vec<u32>`). Layers whose items are all continuous keep
 those three vectors empty and pay no allocation overhead. When a layer
-holds any discontinuous item, `Layer::fragment_spans` exposes the
-fragment columns so `Document::add` and `turbo_goldens::invariants`
-check every fragment's bounds, character boundaries, UTF-16 and code
-point round-trips, and view-to-source alignment.
+holds any discontinuous item, `TextSpans` exposes the fragment columns
+alongside the envelope columns so `Document::add` and
+`turbo_goldens::invariants` check every fragment's bounds, character
+boundaries, UTF-16 and code point round-trips, and view-to-source
+alignment. Projecting a discontinuous item across views maps each
+fragment individually (`spans.fragments(i).map(|f| doc.to_source(view, f))`)
+rather than mapping the bounding envelope alone, because an edit inside
+the gap between fragments would otherwise shift or widen the gap.
+
+Retrieval chunking (`turbo-chunker`) cuts only at sentence boundaries
+and clauses, never reading `Entities` as a hard split constraint:
+named entities (continuous or discontinuous) stay inside their
+containing sentence, and if a long sentence is cut by the clause
+splitter, `Spans::overlapping` and `Spans::covering` identify any entity
+whose fragments touch a chunk.
 
 `Spans<L>` provides lookup and conflict-resolution helpers that work
 across continuous, nested, overlapping and discontinuous spans:
@@ -214,9 +231,10 @@ across continuous, nested, overlapping and discontinuous spans:
   inside `outer`, narrowed by binary search on both ends when `start` is
   ordered.
 - `Spans::filter(scores, rule)` (`filter_spans`), `Entities::filter` and
-  `FilterEntities` resolve overlapping or nested items to a
-  non-overlapping subset in text order (`Overlap::None`) under
-  `FilterRule::LongestFirst`, `FilterRule::HighestScore` or
+  `FilterEntities` resolve overlapping or nested items in $O(n \log n)$
+  time to a non-overlapping subset in text order (`!a.overlaps(b)`)
+  under `FilterRule::LongestFirst` (matching spaCy's
+  `spacy.util.filter_spans`), `FilterRule::HighestScore` or
   `FilterRule::LeftmostLongest`.
 
 ### Edges and groups

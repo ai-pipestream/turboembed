@@ -124,4 +124,68 @@ fn filter_entities_step_resolves_nested_entities() {
     let pair = |a: &str, b: &str| (a.to_string(), b.to_string());
     assert_eq!(names(d, &Key::named("longest")), [pair("Bank of New York", "org"), pair("Boston", "loc")]);
     assert_eq!(names(d, &Key::named("highest")), [pair("New York", "loc"), pair("Boston", "loc")]);
+    assert_ne!(
+        d.provenance(Key::<Entities>::named("longest").id()).unwrap().config,
+        d.provenance(Key::<Entities>::named("highest").id()).unwrap().config,
+    );
+}
+
+#[test]
+fn regex_finder_with_crossing_patterns_is_accepted_and_filtered() {
+    use turbo_analysis_layers::FilterRule;
+    use turbo_namefind::{FilterEntities, JavaRegex, Pattern};
+
+    let regex = RegexNameFinder::new(
+        vec![Pattern::Java(JavaRegex::compile("a b").unwrap()), Pattern::Java(JavaRegex::compile("b c").unwrap())],
+        "x",
+    )
+    .unwrap();
+    let analyzer = Analyzer::builder()
+        .given(Key::<Tokens>::DEFAULT)
+        .step(Bound::new(regex).write(0, "raw"))
+        .step(Bound::new(FilterEntities::new(FilterRule::LeftmostLongest)).read(0, "raw"))
+        .build()
+        .unwrap();
+
+    let text = "a b c";
+    let mut doc = Document::new(text);
+    let mut sentences = Spans::new(ViewId::SOURCE);
+    sentences.push(Span::new(0, text.len() as u32));
+    doc.add(&Key::DEFAULT, Sentences { spans: sentences }, Provenance::by("test")).unwrap();
+    doc.add(&Key::DEFAULT, tokens(text), Provenance::by("test")).unwrap();
+
+    let mut docs = vec![doc];
+    let results = analyzer.run(&mut docs);
+    assert!(results.iter().all(Result::is_ok), "{results:?}");
+    let d = &docs[0];
+    let pair = |a: &str, b: &str| (a.to_string(), b.to_string());
+    assert_eq!(names(d, &Key::named("raw")), [pair("a b", "x"), pair("b c", "x")]);
+    assert_eq!(names(d, &Key::DEFAULT), [pair("a b", "x")]);
+}
+
+#[test]
+fn merge_preserves_discontinuous_fragments() {
+    use std::sync::Arc;
+    use turbo_analysis::IxRange;
+    use turbo_analysis_layers::{Tag, TagSet};
+    use turbo_namefind::merge;
+
+    let kinds = TagSet::new("ner", &["verb", "loc"]);
+    let mut s1 = Spans::new(ViewId::SOURCE);
+    s1.push_fragments(&[Span::new(0, 4), Span::new(10, 13)]);
+    let e1 = Entities {
+        spans: s1,
+        tokens: vec![IxRange::new(0, 3)],
+        kind: vec![Tag(0)],
+        kinds: Arc::clone(&kinds),
+        score: vec![0.9],
+    };
+    let mut s2 = Spans::new(ViewId::SOURCE);
+    s2.push(Span::new(14, 20));
+    let e2 = Entities { spans: s2, tokens: vec![IxRange::new(3, 4)], kind: vec![Tag(1)], kinds, score: vec![0.8] };
+    let merged = merge(&[&e1, &e2]).unwrap();
+    assert_eq!(merged.spans.len(), 2);
+    assert!(merged.spans.is_discontinuous(Ix::new(0)));
+    assert_eq!(merged.spans.fragments(Ix::new(0)).collect::<Vec<_>>(), [Span::new(0, 4), Span::new(10, 13)]);
+    assert!(!merged.spans.is_discontinuous(Ix::new(1)));
 }

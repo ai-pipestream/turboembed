@@ -75,19 +75,241 @@ pub enum Overlap {
     Any,
 }
 
-/// How overlapping spans are resolved to a non-overlapping subset in text
-/// order (`Overlap::None`).
+/// How overlapping or duplicate spans are resolved into a subset whose
+/// bounding envelopes do not overlap (`!a.overlaps(b)`), returned in text
+/// order.
+///
+/// Conflicts and span lengths (`end - start`) are evaluated on each item's
+/// bounding envelope (`first.start..last.end`), so for a discontinuous item
+/// the gap between fragments is counted in its length and treated as covered
+/// when checking conflicts. When every kept item is continuous, the result
+/// satisfies [`Overlap::None`].
+///
+/// Scores are compared with [`f64::total_cmp`] (layers such as `Entities`
+/// refuse `NaN` scores in [`crate::Layer::check`]).
+///
+/// Compared with OpenNLP's `NameFinderME.dropOverlappingSpans`:
+/// - [`FilterRule::LeftmostLongest`] matches `dropOverlappingSpans` on all
+///   non-empty, distinct spans.
+/// - On empty spans, [`Span::overlaps`] treats an empty span at the end of a
+///   non-empty span (`[3, 3)` after `[1, 3)`) as non-overlapping, whereas
+///   OpenNLP's `Span.intersects` counts containment.
+/// - On identical spans of different entity types, `dropOverlappingSpans`
+///   keeps the UTF-16-first type (`String.compareTo`), whereas `filter_spans`
+///   breaks ties by higher score and then earlier item index.
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub enum FilterRule {
-    /// Longer span (`end - start`) wins; ties broken by higher score, then
-    /// earlier start, then earlier item index.
+    /// Longer envelope (`end - start`) wins; ties broken by higher score,
+    /// then earlier start, then earlier item index. Matches spaCy's
+    /// `util.filter_spans` when scores are equal.
     LongestFirst,
-    /// Higher score wins; ties broken by longer span (`end - start`), then
-    /// earlier start, then earlier item index.
+    /// Higher score wins; ties broken by longer envelope (`end - start`),
+    /// then earlier start, then earlier item index.
     HighestScore,
-    /// Earlier start (`start`) wins; at the same start, longer span
+    /// Earlier start (`start`) wins; at the same start, longer envelope
     /// (`end - start`) wins, then higher score, then earlier item index.
     LeftmostLongest,
+}
+
+/// Why [`Spans::try_push_fragments`] refused a slice of fragments.
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+pub enum FragmentError {
+    /// `fragments` is empty.
+    Empty,
+    /// A fragment's `start` is greater than its `end`.
+    EndsBeforeStart { start: u32, end: u32 },
+    /// A discontinuous item (`fragments.len() > 1`) has an empty fragment.
+    EmptyFragment { start: u32 },
+    /// Two adjacent fragments are not strictly separated (`first.end >= second.start`).
+    NotSeparated { first: Span, second: Span },
+}
+
+impl fmt::Display for FragmentError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match *self {
+            FragmentError::Empty => f.write_str("a span needs at least one fragment"),
+            FragmentError::EndsBeforeStart { start, end } => {
+                write!(f, "fragment {start}..{end} ends before it starts")
+            }
+            FragmentError::EmptyFragment { start } => {
+                write!(f, "discontinuous span has an empty fragment at {start}..{start}")
+            }
+            FragmentError::NotSeparated { first, second } => write!(
+                f,
+                "fragments {}..{} and {}..{} are not separated in text order",
+                first.start, first.end, second.start, second.end
+            ),
+        }
+    }
+}
+
+impl std::error::Error for FragmentError {}
+
+/// A borrowed view of a [`Spans<L>`]'s envelope columns and optional
+/// fragment columns, returned by [`Spans::text_spans`] and
+/// [`crate::Layer::text_spans`].
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+pub struct TextSpans<'a> {
+    pub view: ViewId,
+    pub start: &'a [u32],
+    pub end: &'a [u32],
+    pub frag_start: &'a [u32],
+    pub frag_end: &'a [u32],
+    pub frag_item_end: &'a [u32],
+}
+
+impl<'a> TextSpans<'a> {
+    /// Whether the `start` column is in non-decreasing text order.
+    pub fn is_start_ordered(&self) -> bool {
+        self.start.windows(2).all(|w| w[0] <= w[1])
+    }
+
+    /// Whether the envelope spans are in text order and do not overlap.
+    pub fn is_ordered(&self) -> bool {
+        self.is_start_ordered() && (1..self.start.len()).all(|i| self.end[i - 1] <= self.start[i])
+    }
+
+    /// The flat fragment index range `start_f..end_f` for item `idx` when
+    /// `!self.frag_item_end.is_empty()`.
+    pub fn item_frag_range(&self, idx: usize) -> Range<usize> {
+        let start = if idx == 0 { 0 } else { self.frag_item_end[idx - 1] as usize };
+        let end = self.frag_item_end[idx] as usize;
+        start..end
+    }
+
+    /// Checks the span columns, the fragment table (when present), and the
+    /// layer's [`Overlap`] rule.
+    pub fn check(&self, overlap: Overlap) -> Result<(), String> {
+        if self.start.len() != self.end.len() {
+            return Err(format!("{} starts and {} ends", self.start.len(), self.end.len()));
+        }
+        for i in 0..self.start.len() {
+            if self.start[i] > self.end[i] {
+                return Err(format!("span {i} ends before it starts: {}..{}", self.start[i], self.end[i]));
+            }
+        }
+        if !self.frag_item_end.is_empty() {
+            if self.frag_item_end.len() != self.start.len() {
+                return Err(format!("{} fragment item ends for {} spans", self.frag_item_end.len(), self.start.len()));
+            }
+            if self.frag_start.len() != self.frag_end.len() {
+                return Err(format!(
+                    "{} fragment starts and {} fragment ends",
+                    self.frag_start.len(),
+                    self.frag_end.len()
+                ));
+            }
+            let total_frags = self.frag_item_end.last().copied().unwrap_or(0) as usize;
+            if total_frags != self.frag_start.len() {
+                return Err(format!(
+                    "fragment item ends reach {total_frags}, fragment columns have {}",
+                    self.frag_start.len()
+                ));
+            }
+            for i in 0..self.start.len() {
+                let r = self.item_frag_range(i);
+                let (start_f, end_f) = (r.start, r.end);
+                if start_f >= end_f || end_f > self.frag_start.len() {
+                    return Err(format!("item {i} has an empty or out-of-bounds fragment range"));
+                }
+                let multi = end_f - start_f > 1;
+                for f in start_f..end_f {
+                    if self.frag_start[f] > self.frag_end[f] {
+                        return Err(format!(
+                            "item {i} fragment ends before it starts: {}..{}",
+                            self.frag_start[f], self.frag_end[f]
+                        ));
+                    }
+                    if multi && self.frag_start[f] == self.frag_end[f] {
+                        return Err(format!(
+                            "item {i} has an empty fragment in a discontinuous span: {}..{}",
+                            self.frag_start[f], self.frag_end[f]
+                        ));
+                    }
+                    if f > start_f && self.frag_end[f - 1] >= self.frag_start[f] {
+                        return Err(format!(
+                            "item {i} fragments {}..{} and {}..{} are not separated in text order",
+                            self.frag_start[f - 1],
+                            self.frag_end[f - 1],
+                            self.frag_start[f],
+                            self.frag_end[f]
+                        ));
+                    }
+                }
+                if self.start[i] != self.frag_start[start_f] || self.end[i] != self.frag_end[end_f - 1] {
+                    return Err(format!(
+                        "item {i} envelope {}..{} does not match its fragments {}..{}",
+                        self.start[i],
+                        self.end[i],
+                        self.frag_start[start_f],
+                        self.frag_end[end_f - 1]
+                    ));
+                }
+            }
+        }
+        match overlap {
+            Overlap::None => {
+                if !self.frag_item_end.is_empty() && (0..self.start.len()).any(|i| self.item_frag_range(i).len() > 1) {
+                    return Err("discontinuous spans are not allowed when overlap is None".into());
+                }
+                if !self.is_ordered() {
+                    return Err("spans in text order, not overlapping".into());
+                }
+                Ok(())
+            }
+            Overlap::Nesting => {
+                check_no_crossing(self.start, self.end, "span")?;
+                if !self.frag_item_end.is_empty() {
+                    check_no_crossing(self.frag_start, self.frag_end, "fragment")?;
+                    self.check_fragment_nesting()?;
+                }
+                Ok(())
+            }
+            Overlap::Any => Ok(()),
+        }
+    }
+
+    /// When any item is discontinuous under [`Overlap::Nesting`], verifies
+    /// that whenever two items share covered bytes (a fragment of one
+    /// overlaps a fragment of the other), one item contains the other
+    /// (every fragment of the inner item lies inside a fragment of the
+    /// outer item).
+    fn check_fragment_nesting(&self) -> Result<(), String> {
+        let n = self.start.len();
+        let frags_of = |i: usize| -> (&[u32], &[u32]) {
+            let r = self.item_frag_range(i);
+            (&self.frag_start[r.clone()], &self.frag_end[r])
+        };
+        let contains_item = |outer: usize, inner: usize| -> bool {
+            let (os, oe) = frags_of(outer);
+            let (is, ie) = frags_of(inner);
+            is.iter().zip(ie).all(|(&cs, &ce)| {
+                let child = Span { start: cs, end: ce };
+                os.iter().zip(oe).any(|(&ps, &pe)| Span { start: ps, end: pe }.contains(child))
+            })
+        };
+        let shares_bytes = |a: usize, b: usize| -> bool {
+            let (as_, ae) = frags_of(a);
+            let (bs, be) = frags_of(b);
+            as_.iter().zip(ae).any(|(&s1, &e1)| {
+                let f1 = Span { start: s1, end: e1 };
+                bs.iter().zip(be).any(|(&s2, &e2)| f1.overlaps(Span { start: s2, end: e2 }))
+            })
+        };
+        for a in 0..n {
+            let env_a = Span { start: self.start[a], end: self.end[a] };
+            for b in (a + 1)..n {
+                let env_b = Span { start: self.start[b], end: self.end[b] };
+                if env_a.overlaps(env_b) && shares_bytes(a, b) && !contains_item(a, b) && !contains_item(b, a) {
+                    return Err(format!(
+                        "item {b} ({}..{}) partially crosses item {a} ({}..{}) across fragments",
+                        env_b.start, env_b.end, env_a.start, env_a.end
+                    ));
+                }
+            }
+        }
+        Ok(())
+    }
 }
 
 /// A position in layer `L`: item `i` of that layer and of no other. An
@@ -242,6 +464,7 @@ pub struct Spans<L> {
     frag_start: Vec<u32>,
     frag_end: Vec<u32>,
     frag_item_end: Vec<u32>,
+    start_ordered: bool,
     _l: PhantomData<fn() -> L>,
 }
 
@@ -254,6 +477,7 @@ impl<L> Spans<L> {
             frag_start: Vec::new(),
             frag_end: Vec::new(),
             frag_item_end: Vec::new(),
+            start_ordered: true,
             _l: PhantomData,
         }
     }
@@ -266,6 +490,7 @@ impl<L> Spans<L> {
             frag_start: Vec::new(),
             frag_end: Vec::new(),
             frag_item_end: Vec::new(),
+            start_ordered: true,
             _l: PhantomData,
         }
     }
@@ -275,7 +500,25 @@ impl<L> Spans<L> {
         self.view
     }
 
+    /// A borrowed view of the span columns and fragment columns, for
+    /// [`crate::Layer::text_spans`].
+    pub fn text_spans(&self) -> TextSpans<'_> {
+        TextSpans {
+            view: self.view,
+            start: &self.start,
+            end: &self.end,
+            frag_start: &self.frag_start,
+            frag_end: &self.frag_end,
+            frag_item_end: &self.frag_item_end,
+        }
+    }
+
     pub fn push(&mut self, s: Span) -> Ix<L> {
+        if let Some(&prev) = self.start.last()
+            && s.start < prev
+        {
+            self.start_ordered = false;
+        }
         let i = self.start.len() as u32;
         self.start.push(s.start);
         self.end.push(s.end);
@@ -290,26 +533,33 @@ impl<L> Spans<L> {
     /// Adds an item made of one or more ordered, separated fragments.
     /// Its bounding envelope (`first.start..last.end`) is stored in
     /// `start` and `end`; when `fragments` has two or more spans, the
-    /// fragment columns are populated.
-    pub fn try_push_fragments(&mut self, fragments: &[Span]) -> Result<Ix<L>, String> {
+    /// fragment columns are populated. When `fragments` has two or more
+    /// spans, every fragment must be non-empty.
+    pub fn try_push_fragments(&mut self, fragments: &[Span]) -> Result<Ix<L>, FragmentError> {
         let Some(first) = fragments.first() else {
-            return Err("a span needs at least one fragment".into());
+            return Err(FragmentError::Empty);
         };
+        let multi = fragments.len() > 1;
         for f in fragments {
             if f.start > f.end {
-                return Err(format!("fragment {}..{} ends before it starts", f.start, f.end));
+                return Err(FragmentError::EndsBeforeStart { start: f.start, end: f.end });
+            }
+            if multi && f.start == f.end {
+                return Err(FragmentError::EmptyFragment { start: f.start });
             }
         }
         for w in fragments.windows(2) {
             if w[0].end >= w[1].start {
-                return Err(format!(
-                    "fragments {}..{} and {}..{} are not separated in text order",
-                    w[0].start, w[0].end, w[1].start, w[1].end
-                ));
+                return Err(FragmentError::NotSeparated { first: w[0], second: w[1] });
             }
         }
-        if fragments.len() == 1 && self.frag_item_end.is_empty() {
+        if !multi && self.frag_item_end.is_empty() {
             return Ok(self.push(*first));
+        }
+        if let Some(&prev) = self.start.last()
+            && first.start < prev
+        {
+            self.start_ordered = false;
         }
         if self.frag_item_end.is_empty() && !self.start.is_empty() {
             let n = self.start.len();
@@ -333,8 +583,8 @@ impl<L> Spans<L> {
     }
 
     /// Adds an item made of one or more ordered, separated fragments,
-    /// panicking if `fragments` is empty or not strictly separated in
-    /// text order.
+    /// panicking if `fragments` is empty, has an empty fragment in a
+    /// multi-fragment item, or is not strictly separated in text order.
     pub fn push_fragments(&mut self, fragments: &[Span]) -> Ix<L> {
         self.try_push_fragments(fragments).expect("ordered, separated fragments")
     }
@@ -401,11 +651,17 @@ impl<L> Spans<L> {
         if self.frag_item_end.is_empty() { None } else { Some((&self.frag_start, &self.frag_end, &self.frag_item_end)) }
     }
 
+    /// Iterates over `(Ix<L>, Span)` for each item's bounding envelope
+    /// (`first.start..last.end`). For individual fragments of a
+    /// discontinuous item, use [`Spans::fragments`].
     pub fn iter(&self) -> impl Iterator<Item = (Ix<L>, Span)> + '_ {
         self.start.iter().zip(&self.end).enumerate().map(|(i, (&s, &e))| (Ix::new(i as u32), Span { start: s, end: e }))
     }
 
-    /// The raw columns, for a kernel or the wire: `[start]` and `[end]`.
+    /// The raw envelope columns, for a kernel or the wire: `[start]` and
+    /// `[end]`. When any item is discontinuous, these hold each item's
+    /// bounding envelope (`first.start..last.end`); see
+    /// [`Spans::fragment_columns`] for the per-fragment columns.
     pub fn columns(&self) -> (&[u32], &[u32]) {
         (&self.start, &self.end)
     }
@@ -420,106 +676,29 @@ impl<L> Spans<L> {
         IxRange::new(a as u32, b as u32)
     }
 
-    /// Whether the `start` column is in non-decreasing text order.
+    /// Whether the `start` column is in non-decreasing text order ($O(1)$,
+    /// maintained as spans are pushed).
     pub fn is_start_ordered(&self) -> bool {
-        self.start.windows(2).all(|w| w[0] <= w[1])
+        self.start_ordered
     }
 
-    /// Whether the spans are in text order and do not overlap.
+    /// Whether the envelope spans are in text order and do not overlap.
     pub fn is_ordered(&self) -> bool {
-        self.is_start_ordered() && self.iter().zip(self.iter().skip(1)).all(|((_, a), (_, b))| a.end <= b.start)
+        self.start_ordered && (1..self.start.len()).all(|i| self.end[i - 1] <= self.start[i])
     }
 
     /// Checks the fragment table (when present) and the layer's [`Overlap`]
     /// rule.
     pub fn check(&self, overlap: Overlap) -> Result<(), String> {
-        if self.start.len() != self.end.len() {
-            return Err(format!("{} starts and {} ends", self.start.len(), self.end.len()));
-        }
-        for i in 0..self.start.len() {
-            if self.start[i] > self.end[i] {
-                return Err(format!("span {i} ends before it starts: {}..{}", self.start[i], self.end[i]));
-            }
-        }
-        if !self.frag_item_end.is_empty() {
-            if self.frag_item_end.len() != self.start.len() {
-                return Err(format!("{} fragment item ends for {} spans", self.frag_item_end.len(), self.start.len()));
-            }
-            if self.frag_start.len() != self.frag_end.len() {
-                return Err(format!(
-                    "{} fragment starts and {} fragment ends",
-                    self.frag_start.len(),
-                    self.frag_end.len()
-                ));
-            }
-            let total_frags = self.frag_item_end.last().copied().unwrap_or(0) as usize;
-            if total_frags != self.frag_start.len() {
-                return Err(format!(
-                    "fragment item ends reach {total_frags}, fragment columns have {}",
-                    self.frag_start.len()
-                ));
-            }
-            for i in 0..self.start.len() {
-                let start_f = if i == 0 { 0 } else { self.frag_item_end[i - 1] as usize };
-                let end_f = self.frag_item_end[i] as usize;
-                if start_f >= end_f || end_f > self.frag_start.len() {
-                    return Err(format!("item {i} has an empty or out-of-bounds fragment range"));
-                }
-                for f in start_f..end_f {
-                    if self.frag_start[f] > self.frag_end[f] {
-                        return Err(format!(
-                            "item {i} fragment ends before it starts: {}..{}",
-                            self.frag_start[f], self.frag_end[f]
-                        ));
-                    }
-                    if f > start_f && self.frag_end[f - 1] >= self.frag_start[f] {
-                        return Err(format!(
-                            "item {i} fragments {}..{} and {}..{} are not separated in text order",
-                            self.frag_start[f - 1],
-                            self.frag_end[f - 1],
-                            self.frag_start[f],
-                            self.frag_end[f]
-                        ));
-                    }
-                }
-                if self.start[i] != self.frag_start[start_f] || self.end[i] != self.frag_end[end_f - 1] {
-                    return Err(format!(
-                        "item {i} envelope {}..{} does not match its fragments {}..{}",
-                        self.start[i],
-                        self.end[i],
-                        self.frag_start[start_f],
-                        self.frag_end[end_f - 1]
-                    ));
-                }
-            }
-        }
-        match overlap {
-            Overlap::None => {
-                if !self.frag_item_end.is_empty() && (0..self.start.len()).any(|i| self.frag_range(i).len() > 1) {
-                    return Err("discontinuous spans are not allowed when overlap is None".into());
-                }
-                if !self.is_ordered() {
-                    return Err("spans in text order, not overlapping".into());
-                }
-                Ok(())
-            }
-            Overlap::Nesting => {
-                check_no_crossing(&self.start, &self.end, "span")?;
-                if !self.frag_item_end.is_empty() {
-                    check_no_crossing(&self.frag_start, &self.frag_end, "fragment")?;
-                }
-                Ok(())
-            }
-            Overlap::Any => Ok(()),
-        }
+        self.text_spans().check(overlap)
     }
 
     /// Every item that covers byte `offset` (for a discontinuous item, only
     /// when one of its fragments covers `offset`, never the gap between
-    /// fragments). Uses binary search when `start` is ordered.
+    /// fragments). Uses binary search on the upper bound when `start` is
+    /// ordered ($O(1)$ flag check).
     pub fn covering(&self, offset: u32) -> Vec<Ix<L>> {
-        let upper =
-            if self.is_start_ordered() { self.start.partition_point(|&s| s <= offset) } else { self.start.len() };
+        let upper = if self.start_ordered { self.start.partition_point(|&s| s <= offset) } else { self.start.len() };
         let mut out = Vec::new();
         for i in 0..upper {
             let env = Span { start: self.start[i], end: self.end[i] };
@@ -535,15 +714,16 @@ impl<L> Spans<L> {
 
     /// Every item that overlaps `span` (for a discontinuous item, only when
     /// one of its fragments overlaps `span`, never the gap between
-    /// fragments). Uses binary search when `start` is ordered.
+    /// fragments). Uses binary search on the upper bound when `start` is
+    /// ordered ($O(1)$ flag check).
     pub fn overlapping(&self, span: Span) -> Vec<Ix<L>> {
-        let upper = if self.is_start_ordered() {
+        let upper = if self.start_ordered {
             self.start.partition_point(|&s| if span.is_empty() { s <= span.end } else { s < span.end })
         } else {
             self.start.len()
         };
         let mut out = Vec::new();
-        for i in 0..upper {
+        for i in range_to(upper) {
             let env = Span { start: self.start[i], end: self.end[i] };
             if env.overlaps(span) {
                 let ix = Ix::new(i as u32);
@@ -557,9 +737,9 @@ impl<L> Spans<L> {
 
     /// Every item whose bounding span lies inside `outer`, even when spans
     /// nest or overlap. Narrowed by binary search on both ends when `start`
-    /// is ordered.
+    /// is ordered ($O(1)$ flag check).
     pub fn in_range(&self, outer: Span) -> Vec<Ix<L>> {
-        let range = if self.is_start_ordered() {
+        let range = if self.start_ordered {
             let a = self.start.partition_point(|&s| s < outer.start);
             let b = a + self.start[a..].partition_point(|&s| s <= outer.end);
             a..b
@@ -576,11 +756,17 @@ impl<L> Spans<L> {
         out
     }
 
-    /// Resolves overlapping or duplicate items into a non-overlapping
-    /// subset in text order (`Overlap::None`) according to `rule`.
+    /// Resolves overlapping or duplicate items into a subset whose bounding
+    /// envelopes do not overlap (`!a.overlaps(b)`), in text order,
+    /// according to `rule`.
     pub fn filter(&self, scores: Option<&[f64]>, rule: FilterRule) -> Vec<Ix<L>> {
         filter_spans(self, scores, rule)
     }
+}
+
+#[inline]
+const fn range_to(upper: usize) -> Range<usize> {
+    0..upper
 }
 
 /// Checks that no two non-empty intervals `[start[i], end[i])` partially
@@ -627,9 +813,17 @@ fn check_no_crossing(starts: &[u32], ends: &[u32], kind: &str) -> Result<(), Str
     Ok(())
 }
 
-/// Resolves overlapping or duplicate items in `spans` to a non-overlapping
-/// subset (`Overlap::None`), returning the kept indices in text order.
+/// Resolves overlapping or duplicate items in `spans` into a subset whose
+/// bounding envelopes do not overlap (`!a.overlaps(b)`), returning the kept
+/// indices in text order in $O(n \log n)$ time.
+///
+/// Conflicts and lengths (`end - start`) are computed on each item's
+/// bounding envelope (`first.start..last.end`). When every kept item is
+/// continuous, the kept spans satisfy [`Overlap::None`].
 pub fn filter_spans<L>(spans: &Spans<L>, scores: Option<&[f64]>, rule: FilterRule) -> Vec<Ix<L>> {
+    use std::collections::BTreeMap;
+    use std::ops::Bound::{Excluded, Unbounded};
+
     let n = spans.len();
     if let Some(s) = scores {
         assert_eq!(s.len(), n, "a score for every span");
@@ -651,16 +845,31 @@ pub fn filter_spans<L>(spans: &Spans<L>, scores: Option<&[f64]>, rule: FilterRul
             FilterRule::LeftmostLongest => start_cmp.then(len_cmp).then(score_cmp).then(a.cmp(&b)),
         }
     });
-    let conflicts = |a: Span, b: Span| a == b || (a.end > b.start && b.end > a.start);
-    let mut kept: Vec<usize> = Vec::with_capacity(n);
+    // Kept envelopes never overlap (`!a.overlaps(b)`), so no two kept
+    // envelopes can share a `start` offset and their `end` offsets are
+    // non-decreasing with `start`. Checking the predecessor (`<= sc.start`)
+    // and successor (`> sc.start`) in a BTreeMap is therefore necessary and
+    // sufficient to detect any overlap in O(log k) time.
+    let mut kept_by_start: BTreeMap<u32, (u32, usize)> = BTreeMap::new();
     for cand in order {
         let sc = Span { start: spans.start[cand], end: spans.end[cand] };
-        if !kept.iter().any(|&k| conflicts(sc, Span { start: spans.start[k], end: spans.end[k] })) {
-            kept.push(cand);
+        let hits_prev = kept_by_start
+            .range(..=sc.start)
+            .next_back()
+            .is_some_and(|(&ks, &(ke, _))| sc.overlaps(Span { start: ks, end: ke }));
+        if hits_prev {
+            continue;
         }
+        let hits_next = kept_by_start
+            .range((Excluded(sc.start), Unbounded))
+            .next()
+            .is_some_and(|(&ks, &(ke, _))| sc.overlaps(Span { start: ks, end: ke }));
+        if hits_next {
+            continue;
+        }
+        kept_by_start.insert(sc.start, (sc.end, cand));
     }
-    kept.sort_by(|&a, &b| spans.start[a].cmp(&spans.start[b]).then(spans.end[a].cmp(&spans.end[b])).then(a.cmp(&b)));
-    kept.into_iter().map(|i| Ix::new(i as u32)).collect()
+    kept_by_start.into_values().map(|(_, idx)| Ix::new(idx as u32)).collect()
 }
 
 impl<L> Clone for Spans<L> {
@@ -672,6 +881,7 @@ impl<L> Clone for Spans<L> {
             frag_start: self.frag_start.clone(),
             frag_end: self.frag_end.clone(),
             frag_item_end: self.frag_item_end.clone(),
+            start_ordered: self.start_ordered,
             _l: PhantomData,
         }
     }
@@ -711,10 +921,20 @@ mod tests {
         assert_eq!(nested.check(Overlap::Nesting), Ok(()));
         assert_eq!(nested.check(Overlap::Any), Ok(()));
 
-        // Out-of-order nested and disjoint spans still satisfy Nesting.
+        // Out-of-order nested and disjoint spans fail Overlap::None and
+        // pass Overlap::Nesting and Overlap::Any (e.g. RegexNameFinder emits
+        // entities grouped by type rather than text start order).
         let unsorted_nested = spans_of(&[(8, 16), (17, 22), (0, 16), (0, 4)]);
+        assert!(!unsorted_nested.is_start_ordered());
         assert!(unsorted_nested.check(Overlap::None).is_err());
         assert_eq!(unsorted_nested.check(Overlap::Nesting), Ok(()));
+        assert_eq!(unsorted_nested.check(Overlap::Any), Ok(()));
+
+        // Two identical spans (0..5, 0..5) and 0..10 containing 0..5 and 5..10
+        // satisfy Overlap::Nesting; 0..6 and 4..10 partially cross.
+        assert_eq!(spans_of(&[(0, 5), (0, 5)]).check(Overlap::Nesting), Ok(()));
+        assert_eq!(spans_of(&[(0, 10), (0, 5), (5, 10)]).check(Overlap::Nesting), Ok(()));
+        assert!(spans_of(&[(0, 6), (4, 10)]).check(Overlap::Nesting).unwrap_err().contains("partially crosses"));
 
         // Partially crossing spans: 0..10 and 6..14 fail Nesting and pass Any.
         let crossing = spans_of(&[(0, 10), (6, 14)]);
@@ -752,11 +972,109 @@ mod tests {
         assert_eq!(s.check(Overlap::Nesting), Ok(()));
         assert_eq!(s.check(Overlap::Any), Ok(()));
 
-        // Refuses empty, touching, overlapping or out-of-order fragments.
-        assert!(s.try_push_fragments(&[]).is_err());
-        assert!(s.try_push_fragments(&[Span::new(20, 24), Span::new(24, 28)]).is_err());
-        assert!(s.try_push_fragments(&[Span::new(20, 25), Span::new(24, 28)]).is_err());
-        assert!(s.try_push_fragments(&[Span::new(24, 28), Span::new(20, 22)]).is_err());
+        // Refuses empty input, backwards fragment, empty fragment in
+        // multi-fragment, and touching/overlapping/out-of-order fragments.
+        assert_eq!(s.try_push_fragments(&[]), Err(FragmentError::Empty));
+        assert_eq!(
+            s.try_push_fragments(&[Span { start: 25, end: 20 }]),
+            Err(FragmentError::EndsBeforeStart { start: 25, end: 20 }),
+        );
+        assert_eq!(
+            s.try_push_fragments(&[Span::new(20, 20), Span::new(24, 28)]),
+            Err(FragmentError::EmptyFragment { start: 20 }),
+        );
+        assert_eq!(
+            s.try_push_fragments(&[Span::new(20, 24), Span::new(24, 28)]),
+            Err(FragmentError::NotSeparated { first: Span::new(20, 24), second: Span::new(24, 28) }),
+        );
+        assert_eq!(
+            s.try_push_fragments(&[Span::new(20, 25), Span::new(24, 28)]),
+            Err(FragmentError::NotSeparated { first: Span::new(20, 25), second: Span::new(24, 28) }),
+        );
+        assert_eq!(
+            s.try_push_fragments(&[Span::new(24, 28), Span::new(20, 22)]),
+            Err(FragmentError::NotSeparated { first: Span::new(24, 28), second: Span::new(20, 22) }),
+        );
+    }
+
+    #[test]
+    fn with_capacity_followed_by_push_fragments_preserves_first_item_offsets() {
+        let mut s = Spans::<Dummy>::with_capacity(ViewId::SOURCE, 4);
+        let i0 = s.push_fragments(&[Span::new(2, 5), Span::new(10, 14)]);
+        let i1 = s.push(Span::new(15, 20));
+        assert_eq!(s.get(i0), Span::new(2, 14));
+        assert_eq!(s.fragments(i0).collect::<Vec<_>>(), [Span::new(2, 5), Span::new(10, 14)]);
+        assert_eq!(s.fragments(i1).collect::<Vec<_>>(), [Span::new(15, 20)]);
+        assert_eq!(s.check(Overlap::Nesting), Ok(()));
+    }
+
+    #[test]
+    fn discontinuous_fragment_nesting_rejects_crossing_fragments_and_gap_splits() {
+        // Valid: outer 0..20 contains discontinuous 2..5; 10..15.
+        let mut ok = Spans::<Dummy>::new(ViewId::SOURCE);
+        ok.push(Span::new(0, 20));
+        ok.push_fragments(&[Span::new(2, 5), Span::new(10, 15)]);
+        assert_eq!(ok.check(Overlap::Nesting), Ok(()));
+
+        // Invalid: item 0 has fragments 0..6 and 15..20 (envelope 0..20),
+        // item 1 is 4..10 (inside envelope 0..20, but partially crosses
+        // fragment 0..6 and is not contained by item 0's fragments).
+        let mut bad = Spans::<Dummy>::new(ViewId::SOURCE);
+        bad.push_fragments(&[Span::new(0, 6), Span::new(15, 20)]);
+        bad.push(Span::new(4, 10));
+        let err = bad.check(Overlap::Nesting).unwrap_err();
+        assert!(err.contains("partially crosses") || err.contains("shares covered bytes"), "{err}");
+        // Under Overlap::Any, the same spans are accepted.
+        assert_eq!(bad.check(Overlap::Any), Ok(()));
+
+        // Invalid: item 0 has fragments 0..5 and 10..20, item 1 is 2..15
+        // (shares bytes with both fragments of item 0 without either item
+        // containing the other).
+        let mut bad2 = Spans::<Dummy>::new(ViewId::SOURCE);
+        bad2.push_fragments(&[Span::new(0, 5), Span::new(10, 20)]);
+        bad2.push(Span::new(2, 15));
+        assert!(bad2.check(Overlap::Nesting).is_err());
+    }
+
+    #[test]
+    fn text_spans_check_detects_corrupted_fragment_columns() {
+        let start = [0u32, 10];
+        let end = [8u32, 20];
+        let frag_start = [0u32, 5, 10];
+        let frag_end = [3u32, 8, 20];
+        let frag_item_end = [2u32, 3];
+        let base = TextSpans {
+            view: ViewId::SOURCE,
+            start: &start,
+            end: &end,
+            frag_start: &frag_start,
+            frag_end: &frag_end,
+            frag_item_end: &frag_item_end,
+        };
+        assert_eq!(base.check(Overlap::Nesting), Ok(()));
+
+        // 1. Unequal frag_start / frag_end length.
+        let bad_frag_len = TextSpans { frag_end: &frag_end[..2], ..base };
+        assert!(bad_frag_len.check(Overlap::Any).unwrap_err().contains("fragment starts"));
+
+        // 2. frag_item_end.len() != start.len().
+        let bad_item_end_len = TextSpans { frag_item_end: &frag_item_end[..1], ..base };
+        assert!(bad_item_end_len.check(Overlap::Any).unwrap_err().contains("fragment item ends"));
+
+        // 3. frag_item_end.last() != Some(frag_start.len()).
+        let bad_total = [1u32, 2];
+        let bad_last = TextSpans { frag_item_end: &bad_total, ..base };
+        assert!(bad_last.check(Overlap::Any).unwrap_err().contains("fragment item ends reach"));
+
+        // 4. 0-fragment item / non-monotonic frag_item_end.
+        let zero_frag = [0u32, 3];
+        let bad_zero = TextSpans { frag_item_end: &zero_frag, ..base };
+        assert!(bad_zero.check(Overlap::Any).unwrap_err().contains("empty or out-of-bounds fragment range"));
+
+        // 5. Envelope mismatch with first/last fragment.
+        let wrong_env_start = [1u32, 10];
+        let bad_env = TextSpans { start: &wrong_env_start, ..base };
+        assert!(bad_env.check(Overlap::Any).unwrap_err().contains("envelope"));
     }
 
     #[test]
@@ -783,6 +1101,23 @@ mod tests {
         assert_eq!(s.in_range(Span::new(0, 16)), [outer, inner]);
         assert_eq!(s.in_range(Span::new(6, 18)), [inner]);
         assert_eq!(s.in_range(Span::new(20, 33)), [disc, gap_word]);
+
+        // Empty Spans, out-of-order Spans, zero-width spans at query boundary,
+        // and duplicate spans.
+        let empty = Spans::<Dummy>::new(ViewId::SOURCE);
+        assert_eq!(empty.covering(0), []);
+        assert_eq!(empty.overlapping(Span::new(0, 5)), []);
+        assert_eq!(empty.in_range(Span::new(0, 5)), []);
+
+        let unsorted = spans_of(&[(10, 15), (5, 5), (0, 8), (0, 8)]);
+        assert!(!unsorted.is_start_ordered());
+        assert_eq!(unsorted.covering(5), [Ix::new(1), Ix::new(2), Ix::new(3)]);
+        assert_eq!(unsorted.overlapping(Span::new(5, 10)), [Ix::new(1), Ix::new(2), Ix::new(3)]);
+        assert_eq!(unsorted.in_range(Span::new(0, 10)), [Ix::new(1), Ix::new(2), Ix::new(3)]);
+
+        let boundary = spans_of(&[(0, 5), (5, 5), (5, 10), (10, 10)]);
+        assert_eq!(boundary.overlapping(Span::new(5, 10)), [Ix::new(1), Ix::new(2)]);
+        assert_eq!(boundary.overlapping(Span::new(5, 5)), [Ix::new(1), Ix::new(2)]);
     }
 
     #[test]
@@ -810,6 +1145,12 @@ mod tests {
         let leftmost = filter_spans(&spans, Some(&scores), FilterRule::LeftmostLongest);
         assert_eq!(leftmost, [Ix::new(0), Ix::new(4)]);
 
+        // Difference between LongestFirst and LeftmostLongest when an earlier
+        // shorter span crosses a later longer span: 0..6 (len 6) vs 4..14 (len 10).
+        let cross = spans_of(&[(0, 6), (4, 14)]);
+        assert_eq!(filter_spans(&cross, None, FilterRule::LongestFirst), [Ix::new(1)]);
+        assert_eq!(filter_spans(&cross, None, FilterRule::LeftmostLongest), [Ix::new(0)]);
+
         for rule in [FilterRule::LongestFirst, FilterRule::HighestScore, FilterRule::LeftmostLongest] {
             let kept = spans.filter(Some(&scores), rule);
             let mut resolved = Spans::<Dummy>::new(ViewId::SOURCE);
@@ -817,6 +1158,33 @@ mod tests {
                 resolved.push(spans.get(ix));
             }
             assert_eq!(resolved.check(Overlap::None), Ok(()));
+        }
+    }
+
+    /// Parity fixture against spaCy's `spacy.util.filter_spans`: sorts by
+    /// `(span.end - span.start)` descending, then `span.start` ascending,
+    /// keeping non-overlapping spans and returning them in text order.
+    #[test]
+    fn filter_spans_longest_first_matches_spacy_util_filter_spans() {
+        type Case<'a> = (&'a [(u32, u32)], &'a [u32]);
+        let fixtures: &[Case<'_>] = &[
+            // Nested and crossing spans from spaCy's test_filter_spans.
+            (&[(1, 4), (2, 3), (5, 8), (6, 9), (1, 2)], &[0, 2]),
+            // Equal-length overlapping spans: earlier start wins (2..6 over 4..8).
+            (&[(4, 8), (2, 6)], &[1]),
+            // Identical duplicate spans: earlier input index wins (index 0 over index 1).
+            (&[(2, 6), (2, 6), (6, 10)], &[0, 2]),
+            // Touching spans do not overlap and are all kept.
+            (&[(0, 3), (3, 7), (7, 10)], &[0, 1, 2]),
+            // Chain of crossing spans where the middle longest span unblocks both ends.
+            (&[(0, 4), (2, 10), (8, 12)], &[1]),
+            (&[(0, 3), (2, 5), (4, 10), (9, 12)], &[0, 2]),
+        ];
+        for &(input, expected) in fixtures {
+            let s = spans_of(input);
+            let got: Vec<u32> =
+                filter_spans(&s, None, FilterRule::LongestFirst).into_iter().map(|ix| ix.get() as u32).collect();
+            assert_eq!(got, expected, "input: {input:?}");
         }
     }
 }

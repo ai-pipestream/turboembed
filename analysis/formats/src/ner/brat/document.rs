@@ -94,6 +94,135 @@ impl BratDocument {
     pub fn annotation(&self, id: &str) -> Option<&BratAnnotation> {
         self.annotations.iter().find(|a| a.id == id)
     }
+
+    /// Converts the text-bound (`T`) annotations of this brat document into
+    /// an [`turbo_analysis_layers::Entities`] layer over `tokens`, keeping
+    /// multi-fragment annotations as discontinuous items in `Spans<Entities>`
+    /// and preserving nested or overlapping entities.
+    pub fn to_entities(
+        &self,
+        tokens: &turbo_analysis_layers::Tokens,
+    ) -> Result<turbo_analysis_layers::Entities, String> {
+        use std::fmt::Write as _;
+        use std::sync::Arc;
+        use turbo_analysis::{IxRange, Layer, Span, Spans};
+        use turbo_analysis_layers::{Entities, TagSet};
+        use turbo_unicode::utf16::utf16_to_byte;
+
+        let text = &self.text;
+        let view = tokens.spans.view();
+        let (tok_starts, tok_ends) = tokens.spans.columns();
+
+        struct RawEntity<'a> {
+            kind: &'a str,
+            frags: Vec<Span>,
+        }
+
+        let mut raw: Vec<RawEntity<'_>> = Vec::new();
+        let mut labels: Vec<&str> = Vec::new();
+        for a in &self.annotations {
+            let super::annotation::AnnotationValue::Span { fragments, .. } = &a.value else {
+                continue;
+            };
+            if fragments.is_empty() {
+                continue;
+            }
+            if !labels.contains(&a.kind.as_str()) {
+                labels.push(a.kind.as_str());
+            }
+            let mut frags: Vec<Span> = Vec::with_capacity(fragments.len());
+            for f in fragments {
+                let start_u16 = usize::try_from(f.start)
+                    .map_err(|_| format!("annotation {} has negative start {}", a.id, f.start))?;
+                let end_u16 =
+                    usize::try_from(f.end).map_err(|_| format!("annotation {} has negative end {}", a.id, f.end))?;
+                let start_b = utf16_to_byte(text, start_u16).ok_or_else(|| {
+                    let mut msg = String::new();
+                    let _ = write!(msg, "annotation {} start {} is not on a character boundary", a.id, f.start);
+                    msg
+                })? as u32;
+                let end_b = utf16_to_byte(text, end_u16).ok_or_else(|| {
+                    let mut msg = String::new();
+                    let _ = write!(msg, "annotation {} end {} is not on a character boundary", a.id, f.end);
+                    msg
+                })? as u32;
+                frags.push(Span::new(start_b, end_b));
+            }
+            frags.sort_by(|x, y| x.start.cmp(&y.start).then(x.end.cmp(&y.end)));
+            // Coalesce touching or overlapping fragments within the same annotation.
+            let mut merged: Vec<Span> = Vec::with_capacity(frags.len());
+            for f in frags {
+                if let Some(last) = merged.last_mut()
+                    && f.start <= last.end
+                {
+                    last.end = last.end.max(f.end);
+                } else {
+                    merged.push(f);
+                }
+            }
+            raw.push(RawEntity { kind: a.kind.as_str(), frags: merged });
+        }
+
+        // Order entities by envelope start so `Entities::check` holds.
+        raw.sort_by(|a, b| {
+            a.frags[0].start.cmp(&b.frags[0].start).then(b.frags.last().unwrap().end.cmp(&a.frags.last().unwrap().end))
+        });
+
+        let kinds = TagSet::new("brat", &labels);
+        let mut spans = Spans::with_capacity(view, raw.len());
+        let mut tok_ranges = Vec::with_capacity(raw.len());
+        let mut kind_col = Vec::with_capacity(raw.len());
+        let mut score_col = Vec::with_capacity(raw.len());
+
+        for item in raw {
+            let first_start = item.frags[0].start;
+            let last_end = item.frags.last().unwrap().end;
+            let t_start = tok_ends.partition_point(|&e| e <= first_start) as u32;
+            let t_end = tok_starts.partition_point(|&s| s < last_end).max(t_start as usize) as u32;
+            spans.try_push_fragments(&item.frags).map_err(|e| e.to_string())?;
+            tok_ranges.push(IxRange::new(t_start, t_end));
+            kind_col.push(kinds.tag(item.kind).expect("label collected above"));
+            score_col.push(1.0);
+        }
+
+        let entities =
+            Entities { spans, tokens: tok_ranges, kind: kind_col, kinds: Arc::clone(&kinds), score: score_col };
+        entities.check()?;
+        Ok(entities)
+    }
+}
+
+/// Formats an [`turbo_analysis_layers::Entities`] layer over `text` in brat
+/// standoff `.ann` syntax (`T1\t<kind> <start> <end>[;<start> <end>]\t<covered>\n`),
+/// converting UTF-8 byte spans to UTF-16 code-unit offsets and joining
+/// discontinuous fragments' covered text with a single space.
+pub fn write_brat_entities(text: &str, entities: &turbo_analysis_layers::Entities) -> String {
+    use std::fmt::Write as _;
+    use turbo_unicode::utf16::byte_to_utf16;
+
+    let mut out = String::new();
+    for (ix, _) in entities.spans.iter() {
+        let i = ix.get();
+        let label = entities.kinds.label(entities.kind[i]);
+        let _ = write!(out, "T{}\t{label} ", i + 1);
+        for (f_idx, frag) in entities.spans.fragments(ix).enumerate() {
+            if f_idx > 0 {
+                out.push(';');
+            }
+            let u_start = byte_to_utf16(text, frag.start as usize).expect("fragment start on char boundary");
+            let u_end = byte_to_utf16(text, frag.end as usize).expect("fragment end on char boundary");
+            let _ = write!(out, "{u_start} {u_end}");
+        }
+        out.push('\t');
+        for (f_idx, frag) in entities.spans.fragments(ix).enumerate() {
+            if f_idx > 0 {
+                out.push(' ');
+            }
+            out.push_str(&text[frag.range()]);
+        }
+        out.push('\n');
+    }
+    out
 }
 
 /// The ids of the documents of the brat corpus directory `dir`, in the
