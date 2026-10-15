@@ -1,0 +1,20 @@
+[package]
+name = "turbo-doccat"
+version = "0.1.0"
+edition.workspace = true
+license.workspace = true
+description = "Document categorization ported from OpenNLP 3.x DocumentCategorizerME onto the analysis API"
+
+[dependencies]
+turbo-analysis = { path = "../core" }
+turbo-analysis-layers = { path = "../layers" }
+turbo-maxent = { path = "../maxent" }
+turbo-normalize = { path = "../normalize" }
+turbo-sequence = { path = "../sequence" }
+turbo-train = { path = "../train" }
+turbo-train-components = { path = "../train-components" }
+turbo-formats = { path = "../formats" }
+
+[dev-dependencies]
+turbo-tokenize = { path = "../tokenize" }
+turbo-sentdetect = { path = "../sentdetect" }

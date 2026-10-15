@@ -11,6 +11,7 @@ members = [
     "analysis/bpe-trainer",
     "analysis/layers",
     "analysis/chunker",
+    "analysis/doccat",
     "analysis/embed",
     "analysis/goldens",
     "analysis/goldens-tool",
