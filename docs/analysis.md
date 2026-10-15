@@ -2120,13 +2120,17 @@ trained on MASC 3.0.0 (CC BY 3.0 US), gated against
   (`postag::REFERENCE_MAPPINGS`) where MASC follows another convention
   (`-LRB-` and `-RRB-` for MASC's `(` and `)`; `:` for MASC's `-`,
   `...` and `;`; ``` `` ``` for an opening quotation mark, which MASC tags
-  `''`). Only the held-out tokens whose tag it can give, as written or
+  `''`). The mapping is by tag, so it also counts the reference's
+  ``` `` ``` right on a closing quotation mark MASC tags `''` (34
+  held-out tokens, and 30 neither opening nor closing plainly); it only
+  ever favours the reference, by at most 0.08 points. Only the held-out
+  tokens whose tag it can give, as written or
   through the mapping, are scored: the others are left out of both
   models' scores and listed on the card, with the reference's ten most
   frequent mismatches, and more than one in a thousand fails the
-  recipe. Its training data is not published
-  and the zoo does not list it; the recipe records its size and
-  SHA-256, reads it only to score it, and never ships or bundles it. The
+  recipe. Its training data is not published and the zoo does not list
+  it; the recipe records its size and SHA-256, reads it only to score
+  it, and never ships or bundles it. The
   English UD tagger asked for Penn tags would be no reference: it gives
   one Penn tag per UD tag, never `VBD`, `NNS` or `,`.
 - The output: `<out>/<model id>/` with the model, `card.json` (the

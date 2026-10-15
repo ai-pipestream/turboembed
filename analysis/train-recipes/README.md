@@ -108,14 +108,20 @@ status is 1 when a gate fails and 2 on an error.
   the held-out tag as written. The reference's tag is compared through a
   mapping of its tags (`postag::REFERENCE_MAPPINGS`), where MASC 3.0.0
   follows another convention than the reference: brackets, which MASC
-  tags `(` and `)` and the reference `-LRB-` and `-RRB-`; hyphens and
-  dashes, which MASC tags `-` or `:` and the reference `:`; ellipses,
-  `...` in MASC and `:` in the reference; the two semicolons MASC tags
-  `;` (it tags the other 725 `:`, as the reference does); and opening
-  quotation marks, which MASC tags `''` as it tags closing ones (``` `` ```
-  only for a backtick), and the reference ``` `` ```. For those held-out
-  tags the reference's tag of the other convention counts as right too;
-  the trained model is not given that. A held-out token whose tag the
+  tags `(` and `)` and the reference `-LRB-` and `-RRB-`; hyphens,
+  which MASC tags `-` or `:` and the reference `:` (MASC tags most en
+  and em dashes `NN`, which the mapping does not touch); ellipses, `...`
+  in MASC and `:` in the reference; the two semicolons MASC tags `;` (it
+  tags the other 725 `:`, as the reference does); and opening quotation
+  marks, which MASC tags `''` as it tags closing ones (``` `` ``` only
+  for a backtick), and the reference ``` `` ```. For those held-out tags
+  the reference's tag of the other convention counts as right too; the
+  trained model is not given that. The mapping is by tag, not by token,
+  so it is lenient: the reference's ``` `` ``` counts right on every
+  held-out `''`, also on a closing quotation mark (34 of the held-out
+  `"` tokens it credits close a quotation and 30 are neither opening
+  nor closing plainly). It only ever favours the reference, and those
+  64 tokens are at most 0.08 points. A held-out token whose tag the
   reference cannot give, as written or through the mapping, would count
   against it whatever it did, so it is left out of both models' scores;
   the card lists those tokens by tag (`held_out.tokens.left_out`), and
@@ -232,10 +238,13 @@ another directory wrote the same bytes:
 | `turbo-en-masc-3.0.0-tokens-1.bin` | 916,027 bytes | `2c5fe73121c41300e6eae4a3c4d7a2247ade20a1e182d8e36d7781124aa9b7db` |
 | `turbo-en-masc-3.0.0-pos-1.bin` | 3,671,103 bytes | `391d7f79c7246e9e56ed9d8849fde129c5bed8683fa33af31e532cb0c37f96ea` |
 
-The tagger's reference is right on 336 more held-out tokens through the
-mapping of ``` `` ``` to MASC's `''`, 0.39 points: of the 644 held-out
-`"` tokens MASC tags `''`, it tags 336 ``` `` ``` (272 that open a
-quotation, 34 that close one and 30 neither plainly). Its ten most
+The mapping of ``` `` ``` to MASC's `''` makes the tagger's reference
+right on 336 more held-out tokens, 0.39 points: of the 644 held-out `"`
+tokens MASC tags `''`, it tags 336 ``` `` ``` (272 that open a
+quotation, 34 that close one and 30 neither plainly). The mapping is
+lenient, by tag and not by token: a rule that knew which marks open
+would not credit the 64 that do not, 0.08 points that only ever favour
+the reference. Its ten most
 frequent mismatches on the scored tokens, as the card lists them
 (held-out tag, then the reference's): `NN` as `JJ` 446, `NN` as `NNP`
 333, `NN` as `VB` 263, `JJ` as `NN` 230, `VBP` as `VB` 225, `NNP` as

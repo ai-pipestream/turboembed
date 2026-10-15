@@ -33,9 +33,12 @@
 //! MASC's tags. The trained model's tag is compared with the held-out tag
 //! as written. The reference's tag is compared with it through a mapping
 //! of the reference's tags ([`REFERENCE_MAPPINGS`]): where MASC and the
-//! reference follow different conventions (brackets, dashes, ellipses,
-//! opening quotation marks), the reference's tag for the convention is
-//! counted right too. A held-out token whose tag the reference cannot
+//! reference follow different conventions (brackets, hyphens, ellipses,
+//! semicolons, quotation marks), the reference's tag for the convention
+//! is counted right too. The mapping is by tag, not by token, so it is
+//! lenient: the reference's ``` `` ```, its tag for an opening quotation
+//! mark, counts right on every held-out `''`, closing quotation marks
+//! too. It only ever favours the reference. A held-out token whose tag the reference cannot
 //! give, as written or through the mapping, would count against it
 //! whatever it did, so it is left out of both models' scores
 //! ([`ReferenceTags`]); the card records those tokens by tag, and the
@@ -112,18 +115,29 @@ pub struct ReferenceMapping {
 ///
 /// - Brackets: MASC tags `(` and `{` as `(`, and `)` and `}` as `)`,
 ///   where the reference has the Penn Treebank's `-LRB-` and `-RRB-`.
-/// - Hyphens and dashes: MASC tags a `-` token `-` (1,108 times) or `:`
-///   (1,243 times), and en dashes `-` (9 times); the reference tags them
-///   `:`.
+/// - Hyphens: MASC tags a `-` token `-` (1,108 times) or `:` (1,243
+///   times), where the reference tags it `:`. MASC tags an en dash `–`
+///   `NN` (91 times) or `-` (9 times), and the reference tags none of the
+///   25 held-out en dashes `:`, so the mapping is for hyphens, not dashes.
 /// - Ellipses: MASC tags `...` (and its spaced forms) `...`, 425 tokens;
 ///   the reference `:`.
 /// - Semicolons: MASC tags them `:` as the reference does (725 tokens),
 ///   and twice `;`.
 /// - Double quotation marks: MASC tags a `"` token `''` whether it opens
-///   or closes a quotation (2,054 opening, 2,389 closing, 334 neither
-///   plainly, of 4,785 `"` tokens), and gives ``` `` ``` only to a token
-///   that is a backtick (80 tokens, in 13 documents); the reference tags
-///   an opening quotation mark ``` `` ``` and a closing one `''`.
+///   or closes a quotation. Of the 4,785 `"` tokens, 4,777 are tagged
+///   `''` (2,054 opening, 2,389 closing and 334 neither) and 8 are tagged
+///   `"`, a tag the reference cannot give. A mark counts as opening when
+///   the character before it is none, whitespace, `(`, `[` or `{` and the
+///   one after it is not whitespace; as closing when the character after
+///   it is none, whitespace or one of `.,;:!?)]}` and the one before it
+///   is not whitespace; and as neither when both or none of these hold.
+///   MASC gives ``` `` ``` only to a token that is a backtick (80 tokens,
+///   in 13 documents). The reference tags an opening quotation mark
+///   ``` `` ``` and a closing one `''`. The mapping is by tag, so it also
+///   counts the reference's ``` `` ``` right on a closing mark: of the 336
+///   held-out `"` tokens it credits, 272 open a quotation, 34 close one
+///   and 30 are neither. It only ever favours the reference, and the 64
+///   that do not open a quotation are at most 0.08 points of its score.
 ///
 /// The tests check the reference's side when the reference is present.
 pub const REFERENCE_MAPPINGS: [ReferenceMapping; 6] = [
