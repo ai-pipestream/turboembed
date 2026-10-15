@@ -1872,6 +1872,7 @@ dependencies = [
  "turbo-normalize",
  "turbo-numeric",
  "turbo-phrase-chunker",
+ "turbo-pii",
  "turbo-postag",
  "turbo-sentdetect",
  "turbo-tokenize",
