@@ -35,7 +35,7 @@
 use std::sync::Arc;
 
 use turbo_analysis::Span;
-use turbo_eval::model_gate::{Counts, HeldOutSet, ModelGateRecord, ModelId, PairedUnit, Scoring, Task};
+use turbo_eval::model_gate::{Counts, HeldOutSet, ModelGateRecord, ModelId, Scoring, Task};
 use turbo_formats::evaluate::{SentenceDetectorEvaluator, TokenizerEvaluator};
 use turbo_formats::masc::{EmptySentence, MascCorpus, MascSentenceReader, MascTokenReader};
 use turbo_formats::sample::{SentenceSample, TokenSample};
@@ -51,7 +51,7 @@ use turbo_zoo::Sha256;
 
 use crate::card::HeldOutCard;
 use crate::error::{Error, LeftOut, Result};
-use crate::{GateRun, Trained, check_skipped};
+use crate::{GateRun, Trained, check_skipped, spans};
 
 /// The segmentation component a recipe trains.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -328,11 +328,6 @@ impl SegmentationRecipe {
     /// prediction the evaluator throws on.
     pub fn score(&self, bytes: &[u8], held_out: &HeldOut<'_>) -> Result<Vec<Counts>> {
         let file = ModelFile::open(bytes.to_vec()).map_err(|e| Error::Model(e.to_string()))?;
-        let counts = |f: &turbo_formats::evaluate::FMeasure| Counts {
-            true_positives: f.true_positives(),
-            selected: f.selected(),
-            target: f.target(),
-        };
         let mut out = Vec::with_capacity(held_out.len());
         let mut predicted = Vec::new();
         let mut spans: Vec<Span> = Vec::new();
@@ -347,7 +342,7 @@ impl SegmentationRecipe {
                     spans.extend(predicted.iter().map(|&(s, _)| s));
                     let mut evaluator = SentenceDetectorEvaluator::new(WHITESPACE);
                     evaluator.evaluate(sample, &spans)?;
-                    out.push(counts(evaluator.fmeasure()));
+                    out.push(spans::counts(evaluator.fmeasure()));
                 }
             }
             (Component::Tokens, HeldOut::Tokens { samples, .. }) => {
@@ -361,7 +356,7 @@ impl SegmentationRecipe {
                     spans.extend(predicted.iter().map(|&(s, _)| s));
                     let mut evaluator = TokenizerEvaluator::default();
                     evaluator.evaluate(sample, &spans)?;
-                    out.push(counts(evaluator.fmeasure()));
+                    out.push(spans::counts(evaluator.fmeasure()));
                 }
             }
             (component, samples) => {
@@ -396,13 +391,7 @@ impl SegmentationRecipe {
         set_name: &str,
         corpus_sha256: &str,
     ) -> Result<GateRun> {
-        let candidate = self.score(trained, held_out)?;
-        let baseline = self.score(reference, held_out)?;
-        let units = candidate
-            .into_iter()
-            .zip(baseline)
-            .map(|(candidate, reference)| PairedUnit { candidate, reference })
-            .collect();
+        let units = spans::pair(self.score(trained, held_out)?, self.score(reference, held_out)?);
         let set = HeldOutSet {
             name: set_name.to_owned(),
             corpus_sha256: corpus_sha256.to_owned(),

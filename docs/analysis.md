@@ -2525,16 +2525,37 @@ mean of per sample differences. Each model's own interval is reported
 beside the difference. The F-measure is 0 where precision and recall are
 both 0 (OpenNLP's is -1).
 
+For an F-measure the bootstrap resamples whole units (the sentences or
+documents a recipe scores) and scores each draw as OpenNLP's `FMeasure`
+scores a set: it sums the drawn units' true positives, predictions and
+references and computes precision, recall and F from those sums. It
+never averages per unit F values, which would weigh a sentence of one
+name as much as one of ten, would not be the score OpenNLP's evaluators
+report, and do not exist for a sentence with neither a reference nor a
+predicted span. The tasks scored this way are the sentence detector and
+tokenizer (untyped spans), and the name finder and chunker (typed spans,
+`TokenNameFinderEvaluator` and `ChunkerEvaluator`). A gate of typed spans
+scores only the types its record lists, on both sides: held-out spans of
+other types are left out of the references (as `NameSampleTypeFilter`
+leaves them out of a name sample) and predicted spans of other types out
+of the predictions; a held-out type the models name otherwise is renamed
+first (MASC's `org` is OpenNLP's `organization`). `turbo-train-recipes`'
+`spans` module makes a unit's counts from its evaluator's `FMeasure`.
+
 `ModelGateRecord` is the record kept beside the model card: the task
 and measure, the held-out set (its name, the corpus digest, the SHA-256
 of the samples as scored, the held-out sentences the recipe's reader
-skipped, and how the units were scored: spans, or tags with the tokens,
-the tokens left out and the mapping of the reference's tags), both
+skipped, and how the units were scored: spans; typed spans with the
+types scored, the held-out types renamed, the spans scored and those
+left out; or tags with the tokens, the tokens left out and the mapping
+of the reference's tags), both
 models by id and SHA-256, the resamples and seed, the result, and both
 models' counts per sample. `check` refuses empty names, digests that
 are not 64 lower case hex, resamples or a seed other than the gate's, a
-scoring that does not fit the measure, and a tag scoring whose tokens
-less those left out are not what each model's units count, then
+scoring that is not the task's, a tag scoring whose tokens less those
+left out are not what each model's units count, and a typed span
+scoring with no type, a renaming to a type it does not score, or spans
+scored that are not the references each model's units count, then
 recomputes the result from the counts. It is strict JSON, as
 the evaluation record is, and is never replaced once written.
 
