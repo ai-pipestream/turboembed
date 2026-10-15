@@ -209,6 +209,32 @@ fn the_recipes_train_score_gate_and_write_their_cards() {
             }
         }
 
+        // What the binary prints of the card, with the counts of a run.
+        let mut counted = card.clone();
+        (counted.training.samples, counted.training.skipped_sentences, counted.training.events) = (27149, 1, 1495034);
+        (counted.held_out.samples, counted.held_out.skipped_sentences) = (6384, 2);
+        let trained = format!(
+            "{}: trained on 27149 samples, 1 sentences skipped, 1495034 events; held out 6384 samples, 2 sentences \
+             skipped",
+            recipe.model_id()
+        );
+        if counted.held_out.tokens.is_none() {
+            assert_eq!(counted.summary().to_string(), trained);
+        } else {
+            let id = recipe.model_id();
+            fn coverage(card: &mut ModelCard) -> &mut TokenCoverage {
+                card.held_out.tokens.as_mut().unwrap()
+            }
+            coverage(&mut counted).tokens = 85292;
+            let none = format!("{id}: 0 of 85292 held-out tokens left out, their tags not the reference's: none");
+            assert_eq!(counted.summary().to_string(), format!("{trained}\n{none}"));
+            coverage(&mut counted).left_out =
+                vec![TagCount { tag: "\"".to_owned(), tokens: 2 }, TagCount { tag: "UH`".to_owned(), tokens: 3 }];
+            let some =
+                format!("{id}: 5 of 85292 held-out tokens left out, their tags not the reference's: \" (2), UH` (3)");
+            assert_eq!(counted.summary().to_string(), format!("{trained}\n{some}"));
+        }
+
         write_model_dir(&out, card, &outcome.trained.bytes, gate).unwrap();
         let dir = out.join(recipe.model_id());
         assert_eq!(ModelCard::read(&dir.join(CARD_FILE)).unwrap(), *card);
@@ -930,10 +956,12 @@ fn the_binary_refuses_an_unrecorded_corpus_and_writes_each_model_s_directory() {
                 continue;
             }
             let card = ModelCard::read(&dir.join(CARD_FILE)).unwrap();
+            let stdout = String::from_utf8_lossy(&ran.stdout);
+            let gate = ModelGateRecord::read(&dir.join(GATE_FILE)).unwrap();
+            assert!(stdout.contains(&format!("{}\n{gate}\n", card.summary())), "{stdout}");
             assert!(!card.corpus.release_recorded);
             assert_eq!(card.gate.reference, r.reference_id());
             assert_eq!(card.gate.reference_sha256, r.reference().sha256().unwrap());
-            ModelGateRecord::read(&dir.join(GATE_FILE)).unwrap();
         }
     }
     for dir in [root, out] {

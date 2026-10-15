@@ -8,6 +8,7 @@
 //! whether it passed its gate. Like the gate record it is strict JSON: every
 //! field is required and an unknown field is an error.
 
+use std::fmt;
 use std::path::Path;
 
 use serde::{Deserialize, Serialize};
@@ -381,6 +382,51 @@ impl ModelCard {
             return Err(Error::CardVersion { path: path.to_owned(), found: card_version });
         }
         serde_json::from_slice(&bytes).map_err(json)
+    }
+}
+
+/// What a run prints of a card before its gate record
+/// ([`ModelCard::summary`]): a line of the training and held-out samples
+/// and the sentences each side skipped, and for a tagger a second line of
+/// the held-out tokens left out of the scores, with their tags as written.
+#[derive(Clone, Copy, Debug)]
+pub struct Summary<'c>(&'c ModelCard);
+
+impl ModelCard {
+    /// The card's [`Summary`].
+    pub fn summary(&self) -> Summary<'_> {
+        Summary(self)
+    }
+}
+
+impl fmt::Display for Summary<'_> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let Summary(card) = *self;
+        write!(
+            f,
+            "{}: trained on {} samples, {} sentences skipped, {} events; held out {} samples, {} sentences skipped",
+            card.id,
+            card.training.samples,
+            card.training.skipped_sentences,
+            card.training.events,
+            card.held_out.samples,
+            card.held_out.skipped_sentences,
+        )?;
+        if let Some(tokens) = &card.held_out.tokens {
+            let count: u64 = tokens.left_out.iter().map(|t| t.tokens).sum();
+            write!(
+                f,
+                "\n{}: {count} of {} held-out tokens left out, their tags not the reference's:",
+                card.id, tokens.tokens
+            )?;
+            if tokens.left_out.is_empty() {
+                f.write_str(" none")?;
+            }
+            for (i, t) in tokens.left_out.iter().enumerate() {
+                write!(f, "{} {} ({})", if i == 0 { "" } else { "," }, t.tag, t.tokens)?;
+            }
+        }
+        Ok(())
     }
 }
 

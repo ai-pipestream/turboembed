@@ -193,7 +193,10 @@ tag the reference cannot give left out, and a
 reference that cannot give most tags refused; and the binary's refusal
 of an unrecorded corpus, of a missing or wrong reference, of an
 existing model directory and of held-out data with too many skipped
-sentences before it trains anything, and its output. It
+sentences before it trains anything, and its output, with the lines it
+prints of each card (`ModelCard::summary`: the samples and skipped
+sentences of both sides, and the held-out tokens left out with their
+tags) checked word for word. It
 also reads the MASC corpora checked in for the goldens
 (`analysis/goldens/data/inputs/formats/masc-*.txt`) with the tagger
 recipe's reader: it reads every sample OpenNLP's `MascPOSSampleStream`
