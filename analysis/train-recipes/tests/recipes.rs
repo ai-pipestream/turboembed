@@ -1,7 +1,8 @@
 //! The MASC recipes end to end on corpora written in MASC's layout: the
 //! split, training, scoring both models on the held-out samples, the
-//! gate, the card and the model's directory; and the part-of-speech
-//! recipe's samples on the MASC corpora checked in for the goldens.
+//! gate, the card, the model's directory and the zoo entries of a
+//! release; and the part-of-speech recipe's samples on the MASC corpora
+//! checked in for the goldens.
 
 /// The bundles the MASC goldens' inputs are written in, read as the
 /// `turbo-formats` tests read them.
@@ -13,19 +14,20 @@ use std::path::PathBuf;
 
 use common::{
     GATED_DOCUMENTS, SENTENCES, add_chunk, nest_token, rewrite_document, set_text_class, temp_dir, with_chunks_rotated,
-    with_tags_rotated, write_corpus,
+    with_names_shifted, with_tags_rotated, write_corpus,
 };
-use turbo_eval::model_gate::{Measure, ModelGateRecord, Scoring, Task};
+use turbo_eval::model_gate::{Measure, ModelGateRecord, ModelId, Scoring, Task};
 use turbo_formats::masc::{MascCorpus, MascTokenReader};
 use turbo_postag::PosTagFormat;
 use turbo_train_components::{TokSpanEventStream, TokenizerFactory};
 use turbo_train_recipes::card::{
-    CARD_FILE, CARD_VERSION, ChunksCard, GATE_FILE, HeldOutCard, ModelCard, TagCount, TagFormat, TokenCoverage,
-    write_model_dir,
+    CARD_FILE, CARD_VERSION, ChunksCard, GATE_FILE, HeldOutCard, ModelCard, NamesCard, TagCount, TagFormat,
+    TokenCoverage, write_model_dir,
 };
 use turbo_train_recipes::chunk::{self, CHUNKS, SPAN_TYPES, Skipped};
 use turbo_train_recipes::masc::{self, ExcludedDocument, Exclusion, RELEASE, SPLIT, SplitCorpus};
 use turbo_train_recipes::postag::{self, POS, PosRecipe, ReferenceTags, Scored};
+use turbo_train_recipes::release::{self, MASC_MODELS};
 use turbo_train_recipes::segmentation::{SENTENCE, TOKENS, in_text_order, read_token_samples};
 use turbo_train_recipes::{Error, LeftOut, RECIPES, Recipe, Reference, held_out_name, run};
 use turbo_zoo::{Index, LicenceClass};
@@ -53,9 +55,9 @@ fn the_split_holds_out_every_tenth_document_in_read_order() {
     write_corpus(&root, 25, SENTENCES);
     let all: Vec<PathBuf> = MascCorpus::read(&root).unwrap().documents().iter().map(|d| d.path().to_owned()).collect();
     let (split, digest) = split_of(&root);
-    // A header, the text, and the quark, sentence, Penn, noun chunk and
-    // verb chunk files.
-    assert_eq!(digest.files, 25 * 7);
+    // A header, the text, and the quark, sentence, Penn, named entity,
+    // noun chunk and verb chunk files.
+    assert_eq!(digest.files, 25 * 8);
     assert_eq!(split.train.documents().len(), 23);
     let held: Vec<String> =
         [9, 19].iter().map(|&i| all[i].strip_prefix(&root).unwrap().to_string_lossy().into_owned()).collect();
@@ -96,7 +98,9 @@ fn the_recipes_train_score_gate_and_write_their_cards() {
     // the same sentences with their tags moved one token along, so it can
     // give every tag but has learned the wrong one for nearly every word;
     // for the chunker, on the same sentences with their chunk tags moved
-    // one token along, so its chunks start and end a token late.
+    // one token along, so its chunks start and end a token late; for a
+    // name finder, on the same sentences with each name moved one token
+    // along.
     // The check that tells the gate's rule apart from one that passes
     // everything is the swapped one below, where the weaker model is the
     // candidate.
@@ -109,15 +113,17 @@ fn the_recipes_train_score_gate_and_write_their_cards() {
     let (rotated, _) = split_of(&rotated_root);
     let shifted_root = temp_dir("shifted");
     let shifted_pool = with_chunks_rotated(SENTENCES);
+    let shifted_pool = with_names_shifted(&shifted_pool.iter().map(String::as_str).collect::<Vec<_>>());
     write_corpus(&shifted_root, 30, &shifted_pool.iter().map(String::as_str).collect::<Vec<_>>());
     let (shifted, _) = split_of(&shifted_root);
 
     let out = temp_dir("out");
+    let mut released_models = Vec::new();
     for recipe in RECIPES {
         let weak = match recipe {
             Recipe::Pos(_) => recipe.train(&rotated.train).unwrap(),
             Recipe::Segmentation(_) => recipe.train(&plain.train).unwrap(),
-            Recipe::Chunk(_) => recipe.train(&shifted.train).unwrap(),
+            Recipe::Chunk(_) | Recipe::Name(_) => recipe.train(&shifted.train).unwrap(),
         };
         println!(
             "{}: the weak reference was trained on {} samples, {} events",
@@ -199,16 +205,20 @@ fn the_recipes_train_score_gate_and_write_their_cards() {
                     reference_mismatches: mismatches,
                 })
             }
-            Recipe::Segmentation(_) | Recipe::Chunk(_) => None,
+            Recipe::Segmentation(_) | Recipe::Chunk(_) | Recipe::Name(_) => None,
+        };
+        let names = match recipe {
+            Recipe::Name(n) => Some(n.held_out(&split.held_out).unwrap().counts().clone()),
+            Recipe::Segmentation(_) | Recipe::Pos(_) | Recipe::Chunk(_) => None,
         };
         // The gate record holds the skipped sentences and the scoring too.
         assert_eq!(gate.set.skipped_sentences, 0);
-        match (&gate.set.scoring, &tokens) {
-            (Scoring::Tags(t), Some(c)) => {
+        match (&gate.set.scoring, &tokens, &names, recipe) {
+            (Scoring::Tags(t), Some(c), None, Recipe::Pos(_)) => {
                 assert_eq!((t.tokens, t.left_out, &t.reference_mappings), (c.tokens, 0, &c.reference_mappings));
             }
-            (Scoring::Spans, None) => assert!(matches!(recipe, Recipe::Segmentation(_))),
-            (Scoring::TypedSpans(t), None) => {
+            (Scoring::Spans, None, None, Recipe::Segmentation(_)) => {}
+            (Scoring::TypedSpans(t), None, None, Recipe::Chunk(_)) => {
                 let held_out = CHUNKS.held_out(&split.held_out).unwrap();
                 assert_eq!(t.types, ["NP", "VP"]);
                 assert!(t.renamed.is_empty());
@@ -220,6 +230,13 @@ fn the_recipes_train_score_gate_and_write_their_cards() {
                     t.reference_inputs.iter().map(|m| (m.held_out.as_str(), m.reference.as_str())).collect();
                 assert_eq!(inputs, [("-", ":"), ("...", ":"), (";", ":")]);
                 assert_eq!(t.reference_inputs, chunk::reference_inputs());
+            }
+            (Scoring::TypedSpans(t), None, Some(n), Recipe::Name(r)) => {
+                assert_eq!(t.types, [r.kind()]);
+                assert_eq!((t.spans, t.left_out), (n.names, n.other_types));
+                assert!(n.names > 0 && n.other_types > 0, "{n:?}");
+                assert_eq!(n.documents, split.held_out.documents().len());
+                assert_eq!(card.training.names.as_ref().unwrap().documents, split.train.documents().len());
             }
             other => panic!("{other:?}"),
         }
@@ -237,8 +254,13 @@ fn the_recipes_train_score_gate_and_write_their_cards() {
         };
         assert_eq!(card.training.chunks, training_chunks);
         assert_eq!(outcome.trained.chunks, training_chunks);
-        let held_out =
-            HeldOutCard { samples: gate.units.len(), skipped_sentences: 0, tokens, chunks: held_out_chunks.clone() };
+        let held_out = HeldOutCard {
+            samples: gate.units.len(),
+            skipped_sentences: 0,
+            tokens,
+            names,
+            chunks: held_out_chunks.clone(),
+        };
         assert_eq!(card.held_out, held_out);
         assert_eq!(card.training.sentences_per_sample.is_some(), recipe.task() == Task::SentenceDetector);
         assert_eq!(card.gate.pass, gate.result.pass);
@@ -252,7 +274,7 @@ fn the_recipes_train_score_gate_and_write_their_cards() {
                 assert_eq!(card.training.whitespace.as_deref(), Some("legacy"));
                 assert_eq!((card.gate.candidate_tag_format, card.gate.reference_tag_format), (None, None));
             }
-            Recipe::Chunk(_) => {
+            Recipe::Chunk(_) | Recipe::Name(_) => {
                 assert_eq!(card.training.whitespace, None);
                 assert_eq!((card.gate.candidate_tag_format, card.gate.reference_tag_format), (None, None));
             }
@@ -268,7 +290,35 @@ fn the_recipes_train_score_gate_and_write_their_cards() {
              skipped",
             recipe.model_id()
         );
-        if let (Some(training), Some(held_out)) = (&mut counted.training.chunks, &mut counted.held_out.chunks) {
+        if let (Some(training), Some(held_out)) = (&mut counted.training.names, &mut counted.held_out.names) {
+            *training = NamesCard {
+                documents: 351,
+                names: 2934,
+                gapped: 1,
+                overlapping: 36,
+                other_types: 11622,
+                outside_sentences: 192,
+                in_dropped_sentences: 143,
+            };
+            *held_out = NamesCard {
+                documents: 39,
+                names: 321,
+                gapped: 0,
+                overlapping: 0,
+                other_types: 2157,
+                outside_sentences: 18,
+                in_dropped_sentences: 25,
+            };
+            let id = recipe.model_id();
+            let names = format!(
+                "{id}: 2934 names in the training samples of 351 documents, 1 with a gap; 36 overlapping and 11622 of \
+                 other types left out; 192 outside every sentence region and 143 in sentence regions the reader \
+                 drops, in no sample\n{id}: 321 names in the held-out samples of 39 documents, 0 with a gap; 0 \
+                 overlapping and 2157 of other types left out; 18 outside every sentence region and 25 in sentence \
+                 regions the reader drops, in no sample"
+            );
+            assert_eq!(counted.summary().to_string(), format!("{trained}\n{names}"));
+        } else if let (Some(training), Some(held_out)) = (&mut counted.training.chunks, &mut counted.held_out.chunks) {
             (training.chunks, training.outside_sentences, training.across_sentences, training.without_tokens) =
                 (183681, 13509, 83, 2);
             (held_out.chunks, held_out.outside_sentences, held_out.across_sentences, held_out.without_tokens) =
@@ -320,6 +370,17 @@ fn the_recipes_train_score_gate_and_write_their_cards() {
         three["held_out"].as_object_mut().unwrap().remove("chunks");
         std::fs::write(&other, serde_json::to_string_pretty(&three).unwrap()).unwrap();
         assert!(matches!(ModelCard::read(&other), Err(Error::CardVersion { found: 3, .. })));
+        // Nor is a card of version 4, with the chunk counts or the name
+        // counts but not both.
+        for kept in ["chunks", "names"] {
+            let mut four: serde_json::Value = serde_json::from_str(&card.to_json()).unwrap();
+            four["card_version"] = 4.into();
+            let dropped = if kept == "chunks" { "names" } else { "chunks" };
+            four["training"].as_object_mut().unwrap().remove(dropped);
+            four["held_out"].as_object_mut().unwrap().remove(dropped);
+            std::fs::write(&other, serde_json::to_string_pretty(&four).unwrap()).unwrap();
+            assert!(matches!(ModelCard::read(&other), Err(Error::CardVersion { found: 4, .. })));
+        }
         // A card of this version with a field missing is not a card.
         old["card_version"] = CARD_VERSION.into();
         std::fs::write(&other, serde_json::to_string_pretty(&old).unwrap()).unwrap();
@@ -350,6 +411,14 @@ fn the_recipes_train_score_gate_and_write_their_cards() {
         assert_eq!(refused(&named_only), "it was not gated against its recipe's reference");
         let mut released = named_only.clone();
         released.gate.reference_sha256 = recipe.reference().sha256().unwrap();
+        let mut released_gate = outcome.gate.clone();
+        released_gate.reference =
+            ModelId { id: recipe.reference_id().to_owned(), sha256: recipe.reference().sha256().unwrap() };
+        released_models.push(Released {
+            card: released.clone(),
+            gate: released_gate,
+            model: outcome.trained.bytes.clone(),
+        });
         let mut unknown = released.clone();
         unknown.id = "turbo-en-masc-3.0.0-unknown-1".to_owned();
         assert_eq!(refused(&unknown), "no recipe trains it");
@@ -388,6 +457,7 @@ fn the_recipes_train_score_gate_and_write_their_cards() {
         mislabelled.class = LicenceClass::ShareAlike;
         assert!(matches!(mislabelled.artifact(&url), Err(Error::InvalidCard { field: "class", .. })));
     }
+    released_models_make_the_release_s_zoo_entries(&out.join("release"), &released_models);
     // A tagger trained on the plain corpus gives only `NN` and `.`: as the
     // reference it could never be right on most held-out tokens, and the
     // gate refuses it.
@@ -406,6 +476,142 @@ fn the_recipes_train_score_gate_and_write_their_cards() {
     }
     for dir in [root, plain_root, rotated_root, shifted_root, out] {
         std::fs::remove_dir_all(dir).unwrap();
+    }
+}
+
+/// A model directory as `turbo-train-recipes masc` writes it for a card
+/// that may become a zoo entry.
+struct Released {
+    card: ModelCard,
+    gate: ModelGateRecord,
+    model: Vec<u8>,
+}
+
+/// The model directories of `models` (every recipe's card that may become
+/// a zoo entry, with its gate record and model) make the zoo entries of
+/// [`MASC_MODELS`] from the directories of its models, in the recipes'
+/// order and each at its address there, and the
+/// built-in index with them added; a missing directory, a card in another
+/// model's directory, a gate record that is not the card's or a model
+/// file that is not its card's makes none. The binary's `zoo-index` reads
+/// the same directories: with `--check` it fails, since the test's models
+/// are not the ones the zoo lists, and without it prints the index.
+fn released_models_make_the_release_s_zoo_entries(dir: &std::path::Path, models: &[Released]) {
+    let models: Vec<&Released> = models.iter().filter(|r| MASC_MODELS.models.contains(&r.card.id.as_str())).collect();
+    assert_eq!(models.len(), MASC_MODELS.models.len());
+    let write = |r: &Released| {
+        let d = dir.join(&r.card.id);
+        std::fs::create_dir_all(&d).unwrap();
+        std::fs::write(d.join(CARD_FILE), r.card.to_json()).unwrap();
+        std::fs::write(d.join(GATE_FILE), r.gate.to_json()).unwrap();
+        std::fs::write(d.join(&r.card.file.name), &r.model).unwrap();
+    };
+    let (first, rest) = models.split_first().unwrap();
+    rest.iter().for_each(|r| write(r));
+    assert!(matches!(release::entries(dir, &MASC_MODELS), Err(Error::Io { .. })), "a recipe's directory is missing");
+    write(first);
+    let entries = release::entries(dir, &MASC_MODELS).unwrap();
+    let ids: Vec<&str> = entries.iter().map(|a| a.id.as_str()).collect();
+    assert_eq!(ids, MASC_MODELS.models);
+    for (entry, r) in entries.iter().zip(&models) {
+        assert_eq!(*entry, r.card.artifact(&MASC_MODELS.url(&r.card.file.name)).unwrap());
+        assert!(entry.files[0].url.as_str().starts_with(release::RELEASES));
+    }
+
+    // Added to an index without them, they follow its artifacts; added to
+    // the built-in index, which lists the MASC models trained on the
+    // recorded release, each replaces the entry of its id where it is.
+    let builtin = Index::builtin();
+    let one = Index::parse(Index::to_canonical_json(&builtin.list()[..1]).as_bytes()).unwrap();
+    let added = Index::parse(release::index_with(&one, &entries).as_bytes()).unwrap();
+    let added_ids: Vec<&str> = added.list().iter().map(|a| a.id.as_str()).collect();
+    assert_eq!(added_ids[0], builtin.list()[0].id.as_str());
+    assert_eq!(added_ids[1..], ids);
+    let replaced = Index::parse(release::index_with(&builtin, &entries).as_bytes()).unwrap();
+    assert_eq!(replaced.list().len(), builtin.list().len());
+    for (now, before) in replaced.list().iter().zip(builtin.list()) {
+        assert_eq!(now.id, before.id);
+        match entries.iter().find(|e| e.id == now.id) {
+            Some(entry) => assert_eq!(now, entry),
+            None => assert_eq!(now, before),
+        }
+    }
+
+    let refused_field = |expected: &str| match release::entries(dir, &MASC_MODELS) {
+        Err(Error::InvalidCard { field, .. }) if field == expected => {}
+        other => panic!("{expected}: {other:?}"),
+    };
+    // A card in another model's directory makes no entries; nor does a
+    // gate record of another model, or one with another outcome than the
+    // card's.
+    let (second, first_dir) = (models[1], dir.join(first.card.id.as_str()));
+    std::fs::write(first_dir.join(CARD_FILE), second.card.to_json()).unwrap();
+    refused_field("id");
+    write(first);
+    std::fs::write(first_dir.join(GATE_FILE), second.gate.to_json()).unwrap();
+    refused_field("gate");
+    let mut other_reference = first.gate.clone();
+    other_reference.reference = ModelId { id: "weak".to_owned(), sha256: first.gate.reference.sha256.clone() };
+    std::fs::write(first_dir.join(GATE_FILE), other_reference.to_json()).unwrap();
+    refused_field("gate");
+    write(first);
+    // Nor does a model file changed after its card was written.
+    let mut changed = second.model.clone();
+    *changed.last_mut().unwrap() ^= 1;
+    write(&Released { card: second.card.clone(), gate: second.gate.clone(), model: changed });
+    match release::entries(dir, &MASC_MODELS) {
+        Err(Error::Zoo(turbo_zoo::ZooError::Integrity { id, .. })) => assert_eq!(id.as_str(), second.card.id),
+        other => panic!("{other:?}"),
+    }
+    write(second);
+
+    // The binary: the test's models are not the ones the zoo lists, so
+    // `--check` exits with 1 and names each, with the size and SHA-256 of
+    // both; without it the index with them is printed. A tag that names
+    // no release is refused.
+    let zoo_index = |extra: &[&str]| {
+        std::process::Command::new(env!("CARGO_BIN_EXE_turbo-train-recipes"))
+            .arg("zoo-index")
+            .arg("--models")
+            .arg(dir)
+            .args(extra)
+            .output()
+            .unwrap()
+    };
+    let checked = zoo_index(&["--release", MASC_MODELS.tag, "--check"]);
+    assert_eq!(checked.status.code(), Some(1), "{checked:?}");
+    assert!(checked.stderr.is_empty(), "{checked:?}");
+    let stdout = String::from_utf8(checked.stdout).unwrap();
+    let lines: Vec<&str> = stdout.lines().collect();
+    assert_eq!(lines.len(), entries.len() + 1, "{stdout}");
+    for (line, entry) in lines.iter().zip(&entries) {
+        let listed = &builtin.get(entry.id.as_str()).unwrap().files[0];
+        let model = &entry.files[0];
+        assert_eq!(
+            *line,
+            format!(
+                "{}: the built-in index lists another entry ({} bytes, SHA-256 {}, at {}; the model has {} bytes, \
+                 SHA-256 {}, at {})",
+                entry.id, listed.size, listed.sha256, listed.url, model.size, model.sha256, model.url
+            )
+        );
+    }
+    assert_eq!(
+        lines[entries.len()],
+        format!("the zoo's built-in index is not the one these models and release {} give", MASC_MODELS.tag)
+    );
+    let printed = zoo_index(&["--release", MASC_MODELS.tag]);
+    assert_eq!(printed.status.code(), Some(0), "{printed:?}");
+    assert_eq!(String::from_utf8(printed.stdout).unwrap(), release::index_with(&builtin, &entries));
+    for (extra, message) in [
+        (&["--release", "../x", "--check"][..], "no release of the models is tagged \"../x\""),
+        (&["--release", "--check"][..], "no release of the models is tagged \"--check\""),
+        (&["--check"][..], "--release is required"),
+    ] {
+        let refused = zoo_index(extra);
+        assert_eq!(refused.status.code(), Some(2), "{extra:?}: {refused:?}");
+        assert!(String::from_utf8_lossy(&refused.stderr).contains(message), "{extra:?}: {refused:?}");
+        assert!(refused.stdout.is_empty(), "{extra:?}: {refused:?}");
     }
 }
 
@@ -1029,7 +1235,7 @@ fn the_tagger_recipe_reads_the_jvm_s_samples_from_the_checked_in_masc_corpora() 
 /// test may skip. The OpenNLP UD models come from `TURBO_GOLDENS_MODELS`
 /// (`cargo run -p turbo-goldens-tool -- fetch-models <dir>` writes them),
 /// and are required when `TURBO_TEST_REQUIRE_OPENNLP_MODELS=1`, as CI sets
-/// it. The OpenNLP 1.5 tagger and chunker come from
+/// it. The OpenNLP 1.5 tagger, chunker and name finders come from
 /// `TURBO_TEST_OPENNLP_MODELS` and are local-only, as in turbo-sequence's
 /// tests (their training data is not published, so CI does not fetch
 /// them): without that variable they are skipped even when the models are
@@ -1127,6 +1333,30 @@ fn the_penn_reference_returns_its_own_outcomes() {
     assert_eq!(given[14], "''", "{given:?}");
 }
 
+/// Each name recipe's reference finds names of the recipe's type, and
+/// only those: its outcomes are `other` and that type's start and
+/// continuation, so the gate scores both models on the same type.
+#[test]
+fn each_name_reference_finds_the_type_of_its_recipe() {
+    for recipe in &RECIPES[4..] {
+        let Recipe::Name(r) = recipe else { panic!("{} is not a name recipe", recipe.model_id()) };
+        let Some(path) = reference_path(recipe) else { continue };
+        let bytes = std::fs::read(&path).unwrap();
+        recipe.check_reference(&bytes).unwrap();
+        let file = turbo_maxent::ModelFile::open(bytes).unwrap();
+        let model = file.maxent(turbo_sequence::namefind::MODEL_ENTRY_NAME).unwrap();
+        let kind = r.kind();
+        assert_eq!(
+            model.outcome_texts().unwrap(),
+            ["other".to_owned(), format!("{kind}-start"), format!("{kind}-cont")]
+        );
+        // A 1.5 model: no descriptor, so it runs with the feature
+        // generators OpenNLP gives a model without one.
+        assert!(file.entry("generator.featuregen").is_err());
+        assert_eq!(file.manifest().get("OpenNLP-Version"), Some("1.5.0"));
+    }
+}
+
 /// The chunker recipe's reference gives CoNLL-2000's chunk types, of
 /// which the gate scores `NP` and `VP`, and its features name the tags of
 /// its training data: brackets `(` and `)`, as MASC writes them, and `:`,
@@ -1188,9 +1418,14 @@ fn the_published_references_are_checked_and_scored_when_present() {
             Task::Tokenizer => "94.34",
             Task::PartOfSpeechTagger => "92.41",
             Task::Chunker => "93.33",
-            task @ (Task::NameFinder | Task::Lemmatizer | Task::LanguageDetector) => {
-                panic!("no recipe of the task {task:?}")
-            }
+            // The 1.5 name finders find none of the test corpus's persons,
+            // locations and organizations; the date finder finds `Monday`,
+            // `May` and `June` but not `that week` or `10 a.m.`.
+            Task::NameFinder => match recipe {
+                Recipe::Name(n) if n.kind() == "date" => "75.00",
+                _ => "0.00",
+            },
+            task @ (Task::Lemmatizer | Task::LanguageDetector) => panic!("no recipe of the task {task:?}"),
         };
         let scores = (outcome.gate.result.candidate.score, outcome.gate.result.reference.score);
         assert_eq!(format!("{:.2} {:.2}", scores.0, scores.1), format!("100.00 {expected}"), "{}", outcome.gate);
@@ -1245,17 +1480,18 @@ fn the_binary_checks_every_reference_model_directory_and_recipe_s_samples_before
     let written: Vec<_> = std::fs::read_dir(&models).unwrap().map(|e| e.unwrap().file_name()).collect();
     assert_eq!(written, [tokens.model_id()], "nothing else is written");
 
-    // A held-out sentence of no tokens, which the token, tagger and
-    // chunker recipes skip: one of 320 is more than one in a thousand,
-    // the token and tagger recipes are named with the other problems,
-    // before anything is trained, and the chunker, whose limit is one in
-    // ten, is not.
+    // A held-out sentence of no tokens, which the token, tagger, chunker
+    // and name recipes skip: one of 320 is more than one in a thousand,
+    // the token, tagger and name recipes are named with the other
+    // problems, before anything is trained, and the chunker, whose limit
+    // is one in ten, is not.
     let (split, _) = split_of(&root);
     let no_tokens = SENTENCES.len() + 1;
     rewrite_document(&root, &split.held_out_paths[0], &with_skipped_sentences(), &sentences_after(&[no_tokens]));
     let stderr = run(&[]);
-    assert_eq!(stderr.lines().count(), RECIPES.len() + 3, "{stderr}");
-    for r in [tokens, pos] {
+    let names = &RECIPES[4..];
+    assert_eq!(stderr.lines().count(), RECIPES.len() + 3 + names.len(), "{stderr}");
+    for r in [tokens, pos].into_iter().chain(names.iter().copied()) {
         let line = format!("{}: 1 of 320 held-out sentences skipped, more than the limit of 1 in 1000", r.model_id());
         assert!(stderr.contains(&line), "{stderr}");
     }
@@ -1337,6 +1573,21 @@ fn the_binary_refuses_an_unrecorded_corpus_and_writes_each_model_s_directory() {
             assert_eq!(card.gate.reference, r.reference_id());
             assert_eq!(card.gate.reference_sha256, r.reference().sha256().unwrap());
         }
+        // Models trained on a corpus that is not the recorded release make
+        // no zoo entries, so the index is neither printed nor checked.
+        let index = std::process::Command::new(bin)
+            .args(["zoo-index", "--release", MASC_MODELS.tag, "--models"])
+            .arg(out.join("models"))
+            .output()
+            .unwrap();
+        assert_eq!(index.status.code(), Some(2), "{index:?}");
+        // The release's models are read in order: the first one's card,
+        // when its reference was present and it ran, is refused for the
+        // corpus, and otherwise its missing card is.
+        let first_ran = present.contains(&MASC_MODELS.recipes()[0]);
+        let expected = if first_ran { "not the recorded release" } else { CARD_FILE };
+        assert!(String::from_utf8_lossy(&index.stderr).contains(expected), "{index:?}");
+        assert!(index.stdout.is_empty(), "{index:?}");
     }
     for dir in [root, out] {
         std::fs::remove_dir_all(dir).unwrap();

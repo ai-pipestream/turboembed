@@ -116,6 +116,12 @@ are not taken from any corpus.
   `VP`, `PP`, `ADJP`, `ADVP`, `SBAR` and `PRT` chunks; the fixture
   `chunker-fixture-rust.bin` was trained on it, and the chunker's
   `train-events` goldens run on it.
+  `names.txt` holds 23 English sentences written for this project in
+  OpenNLP's name format, in five documents separated by empty lines, with
+  `person`, `organization`, `location` and `date` names, one name without
+  a type, and non-ASCII names and an emoji; the fixture
+  `ner-fixture-rust.bin` was trained on it, and the `namefind` training
+  and fixture goldens run on it.
 
 - `inputs/langdetect/samples.txt`: 56 language samples written for this
   project, a language code, a tab and the text per line: six to nine
@@ -310,6 +316,7 @@ that differs.
 | `tags.tagdict` | the case-insensitive tag dictionary above, as the generator reads it for the `postag-wordtag-tagdict` run and the Rust trainer for `pos-fixture-rust.bin` |
 | `pos-fixture-rust.bin` | the `.bin` the Rust trainer writes from `inputs/tagged/wordtag.txt` with the default descriptor and `tags.tagdict` (GIS, 100 iterations, cutoff 1, one thread; `analysis/train-components/tests/fixtures.rs`, which checks that the fixture is that file); the JVM loads it with `POSModel` so the goldens of the two taggers can be compared |
 | `lemma-fixture-rust.bin` | the `.bin` the Rust trainer writes from `inputs/tagged/lemmas.txt` (GIS, 100 iterations, cutoff 1, one thread; the same test); the JVM loads it with `LemmatizerModel` |
+| `ner-fixture-rust.bin` | the `.bin` the Rust trainer writes from `inputs/tagged/names.txt` as `NameFinderME.train` does with no parameters file (the default descriptor, the BIO codec, GIS, 300 iterations, cutoff 0, one thread, beam size 3; the same test); the JVM loads it with `TokenNameFinderModel` and finds names with it |
 | `langdetect-fixture-rust.bin` | the `.bin` the Rust trainer writes from `inputs/langdetect/samples.txt` as `LanguageDetectorME.train` does with the command line trainer's defaults (GIS, 100 iterations, cutoff 5, one thread; the same test); the JVM loads it with `LanguageDetectorModel`, and its `langdetect` goldens are compared by `analysis/langdetect/tests/fixture.rs` |
 | `lemmatizer-dictionary.txt` | a `DictionaryLemmatizer` dictionary written for this project: 48 `word<tab>tag<tab>lemma` lines with Universal Dependencies tags for words of the `en` and `multi` inputs, among them entries with several lemmas (`leave#leaf`), a word listed twice with one tag (the last wins), a word with two tags, an empty lemma field (`#`), fields after the lemma and a trailing tab (both ignored), entries with a capital letter (never found, since a lookup lowercases the token) and non-ASCII words |
 | `chunker-fixture.bin` | a chunker model OpenNLP trained by perceptron on 8 sentences with Penn Treebank tags and `B-`, `I-` and `O` chunk tags for `NP`, `VP`, `PP`, `ADJP` and `SBAR` (`train-fixtures/train-chunk.txt`, by `FixtureModels.java`; `analysis/sequence/README.md`); the only chunker model OpenNLP trained here, since the published chunker models are OpenNLP 1.5 models, which only the sequence crate's beam search goldens run; `analysis/train-components/tests/fixtures.rs` trains it again byte for byte |
@@ -540,6 +547,22 @@ sample stream threw, and what training threw or the model it trained
 (outcomes, predicates, every parameter, the `chunker.model` entry's
 length and SHA-256, the manifest and the zip entries);
 `analysis/train-components/tests/chunker.rs` compares with them.
+
+`namefind/train-<run>/<set>/<id>.golden` is what `NameFinderEventStream`
+and `NameFinderME.train` did with the name inputs (`inputs/tagged/names`
+and the `name-` inputs of `inputs/formats/`): the events, the checksum,
+the exceptions the sample stream or the event stream threw, the exception
+that ended training if one did, the parameters after training, and of the
+trained model the manifest without `Timestamp`, the zip entries, the
+SHA-256 of `nameFinder.model` and every weight as the JVM reads the
+entry back. The runs are `train-bio` and `train-bilou` (the codecs),
+`train-type` (BIO with the type `person` given to every name),
+`train-perceptron` (BIO, `PERCEPTRON`) and `train-qn` (BILOU,
+`MAXENT_QN`). `namefind/ner-fixture-rust/<set>/<id>.golden` holds the
+names and the probabilities of every outcome of each best sequence the
+JVM's `NameFinderME` finds over the same inputs with
+`ner-fixture-rust.bin`. `analysis/train-components/tests/namefind.rs`
+compares with them.
 
 `train-langdetect/<run>/<set>/<id>.golden` is what
 `LanguageDetectorME.train` did on `inputs/<set>/<id>.txt` with cutoff 5

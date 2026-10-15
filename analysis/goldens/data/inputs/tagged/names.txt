@@ -1,0 +1,27 @@
+<START:person> Maria Lindqvist <END> joined <START:organization> Harbor Light Systems <END> in <START:date> March 2019 <END> .
+She moved from <START:location> Uppsala <END> to <START:location> Portland <END> the same year .
+<START:person> Lindqvist <END> said the move was easy .
+The company opened a second office in <START:location> Boise <END> on <START:date> June 4 <END> .
+
+<START:person> Dr. Okafor <END> spoke at <START:organization> St. Agnes Hospital <END> on <START:date> Tuesday <END> .
+<START:person> Chidi Okafor <END> has worked there since <START:date> 2011 <END> .
+Patients from <START:location> Lagos <END> and <START:location> Accra <END> visit the clinic .
+<START:organization> WHO <END> officials praised the program .
+Nobody else was named in the report .
+
+<START:person> José Álvarez <END> , 42 , runs a café in <START:location> São Paulo <END> .
+<START:person> Álvarez <END> buys beans from <START:organization> Café Monte Verde S.A. <END> every <START:date> Monday <END> .
+His sister <START:person> Inês <END> lives in <START:location> Lisbon <END> .
+On <START:date> 12 October 2023 <END> the café won a prize 🏆 from <START:organization> Bean & Leaf <END> .
+
+<START:organization> IBM <END> and <START:organization> Red Hat <END> announced the deal in <START:location> New York <END> .
+<START:person> J. R. Smith-Jones <END> , a spokesman , confirmed it on <START:date> Friday <END> .
+Shares rose 3.5 % in early trading .
+<START:person> Smith-Jones <END> declined to comment on the price .
+The deal closes in <START:date> the second quarter <END> .
+Analysts in <START:location> London <END> and <START:location> Tokyo <END> expect more deals .
+
+<START> Untyped <END> names still train with the default type .
+<START:person> Ann <END> met <START:person> Bo <END> in <START:location> Oslo <END> .
+<START:person> Bo <END> gave <START:person> Ann <END> a map of <START:location> Bergen <END> .
+They flew home on <START:date> Sunday <END> .

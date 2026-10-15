@@ -160,6 +160,7 @@ impl UdModelCard {
                 skipped_sentences: trained.skipped_sentences,
                 events: trained.events,
                 event_hash: trained.event_hash,
+                names: None,
                 chunks: None,
             },
             held_out,
