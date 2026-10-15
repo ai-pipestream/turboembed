@@ -3,7 +3,7 @@ generator	turbo-goldens-java	1
 opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
 jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
 unicode	15.0
-input	formats/name-edge	420	408	ef594ec59eb49dc9e4bf1e1819c596c164edb9ccb5ec6e80349236624e5d7ff6
+input	formats/name-edge	438	426	bdf19a4c216647138610a91432bddb582445ae5a5e761b554856b3501c5a3f34
 annotator	opennlp.tools.namefind.NameFinderEventStream	read
 config	codec	bio
 config	language	en
@@ -57,8 +57,9 @@ other	wc=lc w&c=a,lc p1wc=lc p1w&c=without,lc p2wc=lc p2w&c=line,lc n1wc=lc n1w&
 other	wc=lc w&c=line,lc p1wc=lc p1w&c=a,lc p2wc=lc p2w&c=without,lc n1wc=lc n1w&c=feed,lc w=line p1w=a p2w=without n1w=feed def pd=null pw,w=a,line pwc,wc=lc,lc w,nw=line,feed wc,nc=lc,lc po=other pow=other,line powf=other,lc ppo=other	
 other	wc=lc w&c=feed,lc p1wc=lc p1w&c=line,lc p2wc=lc p2w&c=a,lc w=feed p1w=line p2w=a def pd=null pw,w=line,feed pwc,wc=lc,lc po=other pow=other,feed powf=other,lc ppo=other	
 end	turbo:events
-layer	turbo:stream-errors	document	1	after:u32	class:str	message:str
+layer	turbo:stream-errors	document	2	after:u32	class:str	message:str
 2	java.lang.ArrayIndexOutOfBoundsException	Index 0 out of bounds for length 0
+3	java.lang.ArrayIndexOutOfBoundsException	Index 1 out of bounds for length 1
 end	turbo:stream-errors
 layer	turbo:event-checksum	document	1	crc32c:u32
 3870665631

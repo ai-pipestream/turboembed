@@ -3,15 +3,16 @@ generator	turbo-goldens-java	1
 opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
 jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
 unicode	15.0
-input	formats/name-edge	420	408	ef594ec59eb49dc9e4bf1e1819c596c164edb9ccb5ec6e80349236624e5d7ff6
+input	formats/name-edge	438	426	bdf19a4c216647138610a91432bddb582445ae5a5e761b554856b3501c5a3f34
 annotator	opennlp.tools.namefind.NameFinderEventStream	read
 config	codec	bilou
 config	language	en
 config	run	train-bilou
-layer	turbo:events	document	46	outcome:str	context:str	values:str
+layer	turbo:events	document	47	outcome:str	context:str	values:str
 other	wc=lc w&c=single,lc w=single def pd=null S=begin po=other pow=other,single powf=other,lc ppo=other	
 t-unit	wc=lc w&c=single,lc w=single def pd=other S=begin po=other pow=other,single powf=other,lc ppo=other	
-other	wc=lc w&c=a,lc n1wc=lc n1w&c=b,lc n2wc=lc n2w&c=c,lc w=a n1w=b n2w=c def pd=null w,nw=a,b wc,nc=lc,lc S=begin po=other pow=other,a powf=other,lc ppo=other	
+x-unit	wc=lc w&c=a,lc w=a def pd=null S=begin po=other pow=other,a powf=other,lc ppo=other	
+other	wc=lc w&c=a,lc n1wc=lc n1w&c=b,lc n2wc=lc n2w&c=c,lc w=a n1w=b n2w=c def pd=x-unit w,nw=a,b wc,nc=lc,lc S=begin po=other pow=other,a powf=other,lc ppo=other	
 other	wc=lc w&c=b,lc p1wc=lc p1w&c=a,lc n1wc=lc n1w&c=c,lc w=b p1w=a n1w=c def pd=null pw,w=a,b pwc,wc=lc,lc w,nw=b,c wc,nc=lc,lc po=other pow=other,b powf=other,lc ppo=other	
 other	wc=lc w&c=c,lc p1wc=lc p1w&c=b,lc p2wc=lc p2w&c=a,lc w=c p1w=b p2w=a def pd=null pw,w=b,c pwc,wc=lc,lc po=other pow=other,c powf=other,lc ppo=other	
 other	wc=other w&c=<start:a:b>,other n1wc=lc n1w&c=x,lc n2wc=other n2w&c=<end:y>,other w=<start:a:b> n1w=x n2w=<end:y> def pd=null w,nw=<START:a:b>,x wc,nc=other,lc S=begin po=other pow=other,<START:a:b> powf=other,other ppo=other	
@@ -61,7 +62,7 @@ layer	turbo:stream-errors	document	2	after:u32	class:str	message:str
 2	java.lang.ArrayIndexOutOfBoundsException	Index -1 out of bounds for length 1
 end	turbo:stream-errors
 layer	turbo:event-checksum	document	1	crc32c:u32
-1993925714
+3152131289
 end	turbo:event-checksum
 layer	turbo:name-training	document	1	class:str	message:str
 java.lang.ArrayIndexOutOfBoundsException	Index -1 out of bounds for length 0

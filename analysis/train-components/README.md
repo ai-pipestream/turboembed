@@ -134,8 +134,10 @@ All of these are kept and tested (`src/`, `tests/goldens.rs`,
   sentence with BIO, or at its start with BILOU, that place is outside
   the array and the JVM throws `ArrayIndexOutOfBoundsException` (for a
   line holding only an empty name, "Index 0 out of bounds for length 0"
-  with BIO and "Index -1 out of bounds for length 0" with BILOU), which
-  ends training (`Error::UnencodableName`).
+  with BIO and "Index -1 out of bounds for length 0" with BILOU; for
+  `a <START:x> <END>`, "Index 1 out of bounds for length 1" with BIO),
+  which ends training (`Error::UnencodableName`). The goldens of
+  `name-edge` hold all three.
 - `TokenNameFinderModel` refuses outcomes its codec's
   `areOutcomesCompatible` rejects ("Model not compatible with name
   finder!", `Error::IncompatibleOutcomes`). With BILOU an empty name right
