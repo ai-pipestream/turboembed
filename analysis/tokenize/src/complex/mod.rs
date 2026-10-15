@@ -87,6 +87,9 @@ impl<'a> ComplexSegmenter<'a> {
         let mut clusters = grapheme_boundaries(text);
         let mut cluster = 0usize;
         let mut stretch = 0usize;
+        // Where the run before ended inside a grapheme cluster, because the
+        // cluster went on into a run of another script.
+        let mut cut = usize::MAX;
         let mut i = 0usize;
         while i < bytes.len() {
             let lead = bytes[i];
@@ -115,16 +118,26 @@ impl<'a> ComplexSegmenter<'a> {
             // cluster at the edges of the run. Marks at its start that
             // belong to the cluster before it join the segment before, and
             // marks or joiners after its end that belong to the cluster of
-            // its last letter join its last word.
+            // its last letter join its last word, with any letters of the
+            // same script among them. The one exception: a cluster that
+            // goes on into a run of another script (GB9c joins a Khmer
+            // COENG to a Myanmar consonant) is cut where that run starts,
+            // so each dictionary sees its own run.
             let run_end = end;
             while cluster < i {
                 cluster = clusters.next().unwrap_or(bytes.len());
             }
-            let start = cluster;
+            let start = if i == cut { i } else { cluster };
             while cluster < run_end {
                 cluster = clusters.next().unwrap_or(bytes.len());
             }
-            let end = cluster;
+            let end = match text[run_end..cluster].char_indices().find(|&(_, c)| self.starts_other_run(c, run_script)) {
+                Some((k, _)) => {
+                    cut = run_end + k;
+                    cut
+                }
+                None => cluster,
+            };
             if stretch < i {
                 // The UAX #29 segments before the run; the last one takes
                 // the marks between `i` and `start`.
@@ -162,6 +175,12 @@ impl<'a> ComplexSegmenter<'a> {
         if stretch < bytes.len() {
             uax29_stretch(text, stretch, bytes.len(), &mut segment);
         }
+    }
+
+    /// Whether `c` starts a run of a script other than `script` that a
+    /// dictionary segments.
+    fn starts_other_run(&self, c: char, script: ComplexScript) -> bool {
+        complex_script(c).is_some_and(|s| s != script && self.dictionary(s).is_some())
     }
 
     /// Appends the word boundaries of `text` to `out`: 0, then the end of
@@ -234,6 +253,25 @@ mod tests {
         // A Thai SARA AM after a Latin letter: UAX #29 alone would break
         // before it, inside the cluster.
         assert_eq!(segments("a\u{0E4B}\u{0E33}"), ["a\u{0E4B}\u{0E33}"]);
+    }
+
+    #[test]
+    fn a_cluster_across_two_runs_is_cut_where_the_second_starts() {
+        // GB9c makes KHMER SIGN COENG and MYANMAR LETTER KA one cluster.
+        // Taking the cluster's end as the end of the Khmer run would give
+        // the Khmer word the Myanmar letter; the Burmese dictionary sees
+        // its whole run instead.
+        let text = "\u{1780}\u{17D2}\u{1000}\u{1001}";
+        assert_eq!(turbo_unicode::grapheme_boundaries(text).collect::<Vec<_>>(), [0, 9, 12]);
+        let burmese = bundled().dictionary(ComplexScript::Myanmar).unwrap();
+        let mut words = vec!["\u{1780}\u{17D2}"];
+        let mut from = 0;
+        burmese.segment("\u{1000}\u{1001}", |end| {
+            words.push(&"\u{1000}\u{1001}"[from..end]);
+            from = end;
+        });
+        assert_eq!(segments(text), words);
+        assert_eq!(segments(text), ["\u{1780}\u{17D2}", "\u{1000}", "\u{1001}"]);
     }
 
     #[test]

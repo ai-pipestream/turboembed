@@ -155,9 +155,18 @@ impl<'a> Cursor<'a> {
 
 /// Calls `visit` with every string of `trie` and its value, in the order
 /// the trie stores them. For tests and for checking a dictionary file.
+///
+/// The walk keeps its own stack of the branch edges still to visit, so a
+/// trie nested arbitrarily deep (a malformed one included) cannot overflow
+/// the call stack.
 pub(crate) fn for_each_string(trie: &[u8], visit: &mut impl FnMut(&[u8], usize)) {
-    fn walk(mut trie: &[u8], prefix: &mut Vec<u8>, visit: &mut impl FnMut(&[u8], usize)) {
-        let depth = prefix.len();
+    let mut prefix = Vec::new();
+    // Each entry: a subtrie, the length of the prefix above its edge, and
+    // the edge's byte (none for the root).
+    let mut stack: Vec<(&[u8], usize, Option<u8>)> = vec![(trie, 0, None)];
+    while let Some((mut trie, depth, key)) = stack.pop() {
+        prefix.truncate(depth);
+        prefix.extend(key);
         while let Some((&b, rest)) = trie.split_first() {
             match node(b) {
                 Node::Ascii => {
@@ -166,7 +175,7 @@ pub(crate) fn for_each_string(trie: &[u8], visit: &mut impl FnMut(&[u8], usize))
                 }
                 Node::Value => {
                     let (value, rest) = varint(b, rest, 3);
-                    visit(prefix, value);
+                    visit(&prefix, value);
                     trie = rest;
                 }
                 Node::Span => break,
@@ -175,18 +184,16 @@ pub(crate) fn for_each_string(trie: &[u8], visit: &mut impl FnMut(&[u8], usize))
                     let (n, w) = if x >= 256 { (x & 0xFF, (x >> 8) & 0x3) } else { (x, 0) };
                     let n = if n == 0 { 256 } else { n };
                     let Some((keys, rest)) = rest.split_at_checked(n) else { break };
-                    for (i, &key) in keys.iter().enumerate() {
-                        prefix.push(key);
-                        walk(branch(rest, i, n, w), prefix, visit);
-                        prefix.pop();
+                    // Pushed last edge first, so the first edge comes off
+                    // the stack first.
+                    for (i, &key) in keys.iter().enumerate().rev() {
+                        stack.push((branch(rest, i, n, w), prefix.len(), Some(key)));
                     }
                     break;
                 }
             }
         }
-        prefix.truncate(depth);
     }
-    walk(trie, &mut Vec::new(), visit);
 }
 
 #[cfg(test)]
@@ -274,6 +281,24 @@ mod tests {
         ];
         let expected: Vec<(String, usize)> = expected.iter().map(|&(s, v)| (s.to_owned(), v)).collect();
         assert_eq!(all, expected);
+    }
+
+    #[test]
+    fn deep_nesting_does_not_overflow_the_stack() {
+        // 200 000 nested branches of one edge each (`0b110_0_0001`, the
+        // byte `a`, no offset table), then a value node: the string of
+        // 200 000 `a`s with the value 0.
+        const DEPTH: usize = 200_000;
+        let mut trie = [0b1100_0001, b'a'].repeat(DEPTH);
+        trie.push(0b1000_0000);
+        let mut strings = Vec::new();
+        for_each_string(&trie, &mut |s, v| strings.push((s.len(), s.iter().all(|&b| b == b'a'), v)));
+        assert_eq!(strings, [(DEPTH, true, 0)]);
+        let mut cursor = Cursor::new(&trie);
+        for _ in 0..DEPTH {
+            cursor.step(b'a');
+        }
+        assert!(cursor.take_value());
     }
 
     #[test]

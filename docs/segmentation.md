@@ -363,7 +363,8 @@ The proofs: every line of ICU4X's `WordBreakDictionary.txt` without CJK
 dictionary, which this tokenizer leaves to `UnigramSegmenter` and
 `LatticeTokenizer`) gives the same boundaries byte for byte
 (`analysis/tokenize/tests/complex_icu4x.rs`); every boundary is an extended grapheme
-cluster boundary by the Unicode 18.0 rules, including GB9c, in 200 000
+cluster boundary by the Unicode 18.0 rules, including GB9c (except where
+one cluster spans runs of two scripts, deviation 3), in 200 000
 random texts of the four scripts' characters and 200 000 runs of
 dictionary words with letters dropped, doubled or inserted (`analysis/tokenize/tests/complex_graphemes.rs`).
 The grapheme cluster boundaries are those of `turbo_unicode::grapheme`,
@@ -390,25 +391,42 @@ Deviations from ICU4X, each with a test:
    ` `, `b`, where ICU4X makes the mark a segment of its own. The
    dictionary still sees the run alone, so the words do not change
    (`runs_are_trimmed_to_grapheme_clusters` in `analysis/tokenize/src/complex/mod.rs`).
+   The one place a boundary still falls inside a cluster: GB9c joins a
+   consonant to the linker before it whatever their scripts, so a Khmer
+   COENG followed by a Myanmar letter is one cluster. Extending the
+   Khmer run to the cluster's end would give its last word the Myanmar
+   letter, so the run stops where the Myanmar run starts and the Burmese
+   dictionary sees its whole run: `ក្កខ` (U+1780 U+17D2 U+1000 U+1001)
+   gives `ក្`, `က`, `ခ`
+   (`a_cluster_across_two_runs_is_cut_where_the_second_starts`).
 4. ICU4X's older (1.x) segmenter hardcoded the script ranges and left out
    U+0EA3 LAO LETTER LO LING; the sets here come from the Unicode 18.0
    `Script` and `Line_Break` properties, and a test counts them (73 Thai,
    73 Lao, 87 Khmer, 187 Myanmar characters).
 5. The other `SA` scripts (Tai Tham, Tai Viet, New Tai Lue, Ahom and
-   others) have no dictionary and keep the UAX #29 rules, as in ICU4X
-   (`a_script_without_a_dictionary_keeps_the_uax29_rules`).
+   others) have no dictionary here, and ICU4X has none for them either.
+   Here their characters keep their `Word_Break` values and the UAX #29
+   rules segment them like any other text
+   (`a_script_without_a_dictionary_keeps_the_uax29_rules`). ICU4X's
+   rule data treats `Line_Break=SA` characters apart (it takes them out
+   of `Extend`), so its boundaries in these scripts can differ from
+   these.
 
-Accuracy. ICU4X also has an LSTM model for these scripts. It was run
-outside the repository (a port checked against ICU4X's
-`WordBreakLstm.txt`, all 71 runs identical) and compared with the
-dictionary on gold segmentations, scoring the words inside complex runs
-only (a word is correct when the gold has a word over the same
+Accuracy. ICU4X also has an LSTM model for these scripts. It was
+compared with the dictionary on gold segmentations, scoring the words
+inside complex runs only (a word is correct when the gold has a word over the same
 characters): UD Thai PUD (commit
 `670083cd185a2ae215ce7aef1127c2b63640217d`, 1000 sentences, 21640 gold
 words in Thai runs) and myPOS 3.0 for Burmese (commit
 `f1a620ba271cae3d8658441eb626450fca09cdfa`, 43196 sentences, 468105 gold
-words). `analysis/tokenize/tests/complex_eval.rs` (ignored; neither corpus can be bundled)
-gives the dictionary's numbers.
+words). The dictionary rows come from
+`analysis/tokenize/tests/complex_eval.rs` (ignored, since neither corpus
+can be bundled), which asserts them. The LSTM rows and the newmm numbers
+below cannot be reproduced from the repository: the LSTM rows came from
+a scratch port of ICU4X's LSTM (checked against ICU4X's
+`WordBreakLstm.txt`, all 71 runs identical) and newmm from a run
+outside the repository, and both were used only to decide whether to
+port the LSTM.
 
 | Segmenter | Corpus | Precision | Recall | F1 |
 |---|---|---|---|---|
@@ -423,7 +441,7 @@ over the dictionary, and it would add a second model format and a
 floating point evaluation to keep deterministic.
 
 For reference, PyThaiNLP's newmm (nlpo3 1.4.0 with the PyThaiNLP 5.4.0
-word list, run outside the repository; neither is bundled) scores
+word list; neither is bundled) scores
 precision 0.698, recall 0.645, F1 0.671 on the same Thai PUD runs.
 Scored against newmm as if it were the gold, the dictionary segmenter
 has precision 0.583, recall 0.722 and F1 0.645; the two give the same
