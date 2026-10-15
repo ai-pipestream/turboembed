@@ -20,7 +20,7 @@ pub use turbo_analysis::{
 use turbo_analysis::{Anchor, Ix, IxRange, Key, KeyId, Layer, LayerName, ModelRef, Span, Spans};
 
 pub use abbreviations::{AbbreviationForm, Abbreviations, DEFINITION, MENTION, abbreviation_links};
-pub use date::{Date, write_year};
+pub use date::{DAY_SECONDS, Date, DateTime, write_year};
 pub use language_spans::{LanguageSpan, LanguageSpans, UNDETERMINED};
 pub use levels::{Level, Levels, Unit, VectorKind};
 pub use money::{CONVERTED_MONEY, Currency, Money, MoneyMention};
@@ -28,6 +28,7 @@ pub use numbers::{DecimalRef, Multiplier, NumberMention, NumberNotation, Numbers
 pub use ordinals::{OrdinalBase, OrdinalMention, Ordinals};
 pub use quantities::{PERCENT, Quantities, QuantityMention};
 pub use temporal::{DocumentDate, Granularity, Origin, TemporalMention, TemporalValue, Temporals};
+pub use times::{Modifier, Portion, Relation, TimeGrain, TimeKind, TimeMention, Times};
 pub use words::{
     MorphFeatures, MwtLanguage, RuleMwtExpander, TokenExpansion, Word, WordLemmas, WordOrTokenAnchor, WordPosTags,
     Words,
@@ -94,6 +95,7 @@ mod numbers;
 mod ordinals;
 mod quantities;
 mod temporal;
+mod times;
 mod words;
 
 /// Document structure from the parser upstream or a structure annotator:
