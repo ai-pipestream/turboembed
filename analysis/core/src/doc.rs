@@ -272,11 +272,23 @@ impl Document {
         let mut on = Vec::new();
         match L::anchor() {
             Anchor::Text => {
-                if let Some((view, starts, ends)) = layer.text_spans() {
-                    let Some(v) = self.views.get(view.0 as usize) else {
-                        return Err(Error::Bounds { layer: id, view, detail: "no such view".into() });
+                if let Some(ts) = layer.text_spans() {
+                    ts.check(L::OVERLAP).map_err(|detail| Error::Invalid { layer: id, detail })?;
+                    let Some(v) = self.views.get(ts.view.0 as usize) else {
+                        return Err(Error::Bounds { layer: id, view: ts.view, detail: "no such view".into() });
                     };
-                    check_spans(&v.text, starts, ends).map_err(|detail| Error::Bounds { layer: id, view, detail })?;
+                    check_spans(&v.text, ts.start, ts.end).map_err(|detail| Error::Bounds {
+                        layer: id,
+                        view: ts.view,
+                        detail,
+                    })?;
+                    if !ts.frag_item_end.is_empty() {
+                        check_spans(&v.text, ts.frag_start, ts.frag_end).map_err(|detail| Error::Bounds {
+                            layer: id,
+                            view: ts.view,
+                            detail,
+                        })?;
+                    }
                 }
             }
             Anchor::Aligned { ty, layer: of } => {
