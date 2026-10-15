@@ -1,0 +1,9 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	glossary/tbx-external-entity	226	226	de79e461cbbbb48f64a29fb2fd58cda24f7cd4bd93cd198c9647fa5e61d42200
+annotator	opennlp.tools.formats.glossary.TbxGlossaryReader	read
+config	languageTag	en
+error	opennlp.tools.util.InvalidFormatException	external entity declarations are not supported: ext

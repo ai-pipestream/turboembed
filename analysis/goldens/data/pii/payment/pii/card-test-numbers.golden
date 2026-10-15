@@ -1,0 +1,14 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	pii/card-test-numbers	87	87	00e4b7eeae5f81a0b30f8e372ce9c3d6c9499042b3a6a6e526713a164419aba2
+annotator	opennlp.tools.pii.PiiPacks	payment
+config	pack	payment
+layer	turbo:pii	text	4	start:u32	end:u32	type:str	normalized:str
+7	26	card	4111111111111111
+28	47	card	5555555555554444
+49	64	card	378282246310005
+69	85	card	6011111111111117
+end	turbo:pii

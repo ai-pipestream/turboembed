@@ -1,0 +1,3 @@
+o1	Alpha		1	2	DE	locality	5
+
+o1	Beta		1	2	DE	locality	5

@@ -253,6 +253,26 @@ are not taken from any corpus.
   1,002, one above the `int` range and one below 2, more and fewer tags
   than the count, and a missing direction.
 
+- `inputs/gazetteer/`: names, record ids, region codes and whole tables
+  for the gazetteers, written with a script for this project:
+  `names-bundled.txt` holds every distinct name and alternate name of the
+  bundled Natural Earth table (public domain) once, `names-variants.txt`
+  every seventh of them upper cased, lower cased, with doubled spaces and
+  a full stop, and every 29th with accents added, and `names-edge.txt`
+  the names of the fixture tables with their spellings in other scripts,
+  case, accent and composition variants, punctuation, whitespace other
+  than spaces, a soft hyphen, ligatures, title case letters, emoji,
+  supplementary characters and words longer than the token limit.
+  `ids.txt` holds a source and record id per line (every bundled record,
+  then hits and misses in the fixture tables), `regions.txt` every two
+  letter code and malformed ones, and the `table-<kind>-<case>.txt` files
+  small GeoNames, Overture, user and suppression tables, most with one
+  error each loader reports.
+- `inputs/place-profiles/`: profile tables for `PlaceProfiles`, written
+  for this project with made up places and numbers: tables that load (a
+  ten town table, a 40 place generated one, extreme and subnormal values,
+  constant columns, ties between ids in different scripts, every kind of
+  skipped line and padding) and tables with one error each.
 - `inputs/sequence/`, `inputs/descriptor-errors/`, `inputs/codec/`,
   `inputs/tag-format/`: the inputs of the `turbo-sequence` goldens, written
   for this project: 16 tokenized sentences, tokens for `StringPattern`
@@ -271,6 +291,9 @@ are not taken from any corpus.
 - `inputs/stopword/`: words and language codes the stopword lookup is asked
   about besides the lists' own, written for this project
   (`analysis/stopword/README.md`).
+- `inputs/glossary/`: texts for the glossary matchers and comma separated,
+  tab separated and TBX glossaries, well formed and malformed, for the
+  glossary readers, written for this project (`analysis/glossary/README.md`).
 
 `analysis/goldens-tool/README.md` ("Runs") lists which run reads which set.
 
@@ -325,6 +348,11 @@ that differs.
 | `en-head-rules.txt` | Apache OpenNLP's English head rules (`opennlp-tools/lang/en/parser/en-head_rules` at the goldens' OpenNLP commit, the same bytes as the test resource `opennlp-core/opennlp-runtime/src/test/resources/opennlp/tools/parser/en_head_rules`; Apache License 2.0, rules after Collins and Magerman), unchanged |
 | `es-head-rules.txt` | Apache OpenNLP's AnCora Spanish head rules (`opennlp-tools/lang/es/parser/es-head-rules` at the same commit, Apache License 2.0), unchanged; its tags double their backslashes, so OpenNLP never matches those |
 | `es-regex-head-rules.txt` | AnCora head rules written for this project whose tags use classes, ranges, negation, `?`, `+`, `^`, `$` and escapes, for the patterns OpenNLP's file does not reach |
+| `gazetteer-geonames.txt` | a table in the GeoNames main format written for this project: 32 rows with a byte order mark, some CRLF line ends, names and alternate names in several scripts, padding with a no-break and an ideographic space, a soft hyphen, a coordinate with Java's `d` suffix, a population with spaces around it, an alternate that folds to nothing and records that share a name. The rows were written by hand; some record ids, coordinates and populations are those GeoNames gives for the places (GeoNames, CC BY 4.0) |
+| `gazetteer-overture.txt` | a table in the format of the addons' `OvertureGenerator` output written for this project: 10 divisions of several subtypes, comment and blank lines, and an alternate that folds to nothing |
+| `gazetteer-user.txt` | a user gazetteer table written for this project, with every column: alternates with a blank element, a bounding box with and without coordinates (one across the antimeridian), containment, attributes with padding, a feature class in lower case and a population with a plus sign |
+| `gazetteer-suppressions.txt` | suppression rules written for this project for the overlay: by name alone, with a country in either case and with a feature class in either case |
+| `glossary-terms.tsv` | a glossary of 40 entries written for this project, tab separated with an `id`, `term` header: terms of several words, case and spacing variants, punctuation, accented, Greek, Turkish, CJK, Korean and emoji terms and characters outside the BMP; the glossary matchers' goldens match with it (`analysis/glossary/README.md`) |
 
 `train-fixtures/` beside `fixtures/` holds the training data of the fixture
 models above (tagged sentences, chunks and names, written for this project);
@@ -619,6 +647,26 @@ read, amounts that money extraction takes first, and non-ASCII text around
 the values. `quantity/<notation>/quantity/<id>.golden` holds the layer
 `turbo:quantities`; see `analysis/goldens-tool/README.md`. Only the
 quantity annotator runs on the set, and it has no dumps.
+
+## PII goldens
+
+`inputs/pii/` holds 61 short texts written for the PII packs: e-mail
+addresses in every case and with sub domains, tags, brackets and
+`mailto:`, phone numbers in international and national forms, grouped,
+compact and lower case IBANs, test card numbers with and without
+separators, ABA routing numbers, IPv4, IPv6 (compressed, with an IPv4
+tail) and MAC addresses, AWS keys, GitHub tokens, a JWT and URL
+credentials, Bitcoin and Ethereum addresses, SSNs, ITINs, NHS numbers, a
+Steuer-ID, a labelled SIN and IMEIs; for each, near misses (a wrong check
+digit, a reserved value, a missing label, letters running into the value)
+and non-ASCII text around the values (German, Japanese, emoji, letters
+outside the Basic Multilingual Plane, no-break spaces, fullwidth and
+Arabic-Indic digits). Every value is a documented test value, in a range
+set aside for examples (`example.com`, `192.0.2.0/24`, `2001:db8::/32`,
+555 and Ofcom drama numbers) or made up; none is real personal data.
+`pii/<pack>/pii/<id>.golden` holds the layer `turbo:pii`; see
+`analysis/goldens-tool/README.md`. Only the PII annotator runs on the
+set, and it has no dumps.
 
 ## Decision point dumps
 

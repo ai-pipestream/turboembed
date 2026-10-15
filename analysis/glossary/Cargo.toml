@@ -1,0 +1,26 @@
+[package]
+name = "turbo-glossary"
+version = "0.1.0"
+edition.workspace = true
+license.workspace = true
+publish = false
+
+[lib]
+name = "turbo_glossary"
+
+[dependencies]
+turbo-analysis = { path = "../core" }
+turbo-analysis-layers = { path = "../layers" }
+turbo-glossary-layers = { path = "../glossary-layers" }
+# The phrase matcher the token matcher is built on.
+turbo-matcher = { path = "../matcher" }
+turbo-stem-layers = { path = "../stem-layers" }
+# Java's per character lowercase mapping.
+turbo-unicode = { path = "../unicode" }
+
+[dev-dependencies]
+turbo-goldens = { path = "../goldens" }
+turbo-normalize = { path = "../normalize" }
+turbo-stem = { path = "../stem" }
+# The UAX #29 word boundaries and word tokenizer OpenNLP's matchers use.
+turbo-tokenize = { path = "../tokenize" }

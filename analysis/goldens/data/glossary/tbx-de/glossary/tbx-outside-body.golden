@@ -1,0 +1,10 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	glossary/tbx-outside-body	496	496	59d0f35ac335375575ff5ec10603e5740963f96e4c168cf1dd0d606baa2bf044
+annotator	opennlp.tools.formats.glossary.TbxGlossaryReader	read
+config	languageTag	de
+layer	turbo:glossary-entries	document	0	id:str	term:str
+end	turbo:glossary-entries

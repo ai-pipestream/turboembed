@@ -1,0 +1,9 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	glossary/tbx-blank-id	133	133	f61a14182cccc9ab4df8aa93dc1344864eb136de11979877509f631e6130475b
+annotator	opennlp.tools.formats.glossary.TbxGlossaryReader	read
+config	languageTag	de
+error	opennlp.tools.util.InvalidFormatException	term entry must have a nonblank id attribute

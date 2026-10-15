@@ -76,6 +76,24 @@ Copyright (c) 2001-2024 Unicode, Inc. The full license text is in
 analysis/unicode/ucd/LICENSE.
 
 ------------------------------------------------------------------------
+Natural Earth
+------------------------------------------------------------------------
+
+The bundled gazetteer table in analysis/geo/data/ is Apache OpenNLP's
+derivation of the Natural Earth "Populated Places" dataset. Natural
+Earth is in the public domain; made with Natural Earth.
+
+------------------------------------------------------------------------
+GeoNames
+------------------------------------------------------------------------
+
+Some record ids, coordinates and populations in the hand written test
+table analysis/goldens/data/fixtures/gazetteer-geonames.txt are those
+GeoNames (https://www.geonames.org/) gives for the places, used under
+the Creative Commons Attribution 4.0 License. No GeoNames data is
+bundled with the gazetteers; callers supply GeoNames tables themselves.
+
+------------------------------------------------------------------------
 spaCy
 ------------------------------------------------------------------------
 

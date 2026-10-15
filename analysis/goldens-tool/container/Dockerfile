@@ -1,5 +1,5 @@
 # The container that makes the golden layer files: a pinned JDK, OpenNLP built
-# from a pinned commit of the fork, the numeric module of the OpenNLP addons
+# from a pinned commit of the fork, the numeric and geo modules of the OpenNLP addons
 # built from a pinned commit, and the generator in ../java.
 #
 # Build it with `turbo-goldens image` (analysis/goldens-tool/README.md), which
@@ -69,6 +69,27 @@ RUN git init -q . \
  && GIT_LFS_SKIP_SMUDGE=1 git checkout -q --detach FETCH_HEAD \
  && test "$(git rev-parse HEAD)" = "$ADDONS_COMMIT"
 RUN /opennlp/mvnw -q -DskipTests -f /addons/pom.xml -pl numeric -am install
+
+# The geo module of the same addons commit (the gazetteers), installed the
+# same way. Two of its readers drop a byte order mark from the first line with
+# StringUtil.stripByteOrderMark, which the OpenNLP fork added after the commit
+# above; the sed writes out what that method does at both calls, and the grep
+# checks that no call is left. Its tests are not compiled: they need DuckDB and
+# Jackson for the addons' data tooling.
+#
+# PlaceProfiles (PlaceProfilesGolden.java) is not in that commit. Its source
+# is taken from the commit below, on the ready/geo-place-profiles branch, and
+# compiled into the module; every other class stays that of the commit above.
+# It calls stripByteOrderMark once, which the sed replaces as well.
+ARG PLACE_PROFILES_COMMIT=07e1f670818917d74e9a94367080f51ae6365bfa
+RUN GIT_LFS_SKIP_SMUDGE=1 git fetch -q --depth 1 origin "$PLACE_PROFILES_COMMIT" \
+ && git show "$PLACE_PROFILES_COMMIT:geo/src/main/java/opennlp/geo/PlaceProfiles.java" \
+      > geo/src/main/java/opennlp/geo/PlaceProfiles.java \
+ && sed -i 's/StringUtil\.stripByteOrderMark(line)/(line.startsWith("\\uFEFF") ? line.substring(1) : line)/' \
+      geo/src/main/java/opennlp/geo/GazetteerIndex.java geo/src/main/java/opennlp/geo/UserGazetteer.java \
+      geo/src/main/java/opennlp/geo/PlaceProfiles.java \
+ && ! grep -rq stripByteOrderMark geo/src/main \
+ && /opennlp/mvnw -q -Dmaven.test.skip=true -f /addons/pom.xml -pl geo install
 
 # The generator, built with the same Maven as OpenNLP. Its tests run here.
 COPY . /generator

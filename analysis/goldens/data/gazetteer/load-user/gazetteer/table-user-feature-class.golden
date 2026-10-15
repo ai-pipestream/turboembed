@@ -1,0 +1,13 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	gazetteer/table-user-feature-class	27	27	bcf88534c02b767da538c863895df5511c437df1ace485eaf10d58bf469f6b91
+annotator	opennlp.geo.UserGazetteer	load
+config	source	sites
+layer	turbo:gazetteer-load	document	1	loaded:u32	error-class:str	error-message:str
+1		
+end	turbo:gazetteer-load
+layer	turbo:gazetteer-suppressions	document	0	name:str	has-country:u32	country:str	has-feature-class:u32	feature-class:str
+end	turbo:gazetteer-suppressions

@@ -1,0 +1,348 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	gazetteer/names-edge	3555	3106	f71855175cc07e6d48d452d4e2fcef03c16477834ca440cc71fc56c2873816ea
+model	gazetteer-overture.txt	851543d2634344f6764f3210f18a8da8f1e5400a637b312960e4c0eb1e3e6419af3c22f4b2917753f4b141158d15a1500e5cf0491b1f7211f13ecc352171db57
+annotator	opennlp.geo.OvertureGazetteer	lookup
+layer	turbo:gazetteer-sources	document	1	source:str
+overture
+end	turbo:gazetteer-sources
+layer	turbo:gazetteer-queries	document	275	found:u32	error-class:str	error-message:str
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+1		
+1		
+1		
+1		
+1		
+1		
+1		
+1		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+1		
+2		
+1		
+0		
+0		
+0		
+0		
+2		
+2		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+1		
+1		
+1		
+1		
+1		
+1		
+1		
+1		
+1		
+1		
+1		
+1		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+end	turbo:gazetteer-queries
+layer	turbo:gazetteer-candidates	document	28	query:u32	entry:u32
+18	0
+19	0
+20	0
+21	0
+22	0
+23	0
+24	0
+25	0
+136	1
+137	1
+137	2
+138	1
+143	3
+143	4
+144	3
+144	4
+160	5
+161	5
+162	5
+163	6
+164	6
+165	7
+166	7
+167	8
+168	8
+169	8
+170	9
+171	0
+end	turbo:gazetteer-candidates
+layer	turbo:gazetteer-entries	document	10	source:str	record-id:str	name:str	latitude:f64	longitude:f64	has-box:u32	west:f64	south:f64	east:f64	north:f64	has-country:u32	country:str	population:str	has-feature-class:u32	feature-class:str
+overture	ov-sp	São Paulo	c0378ccccccccccd -23.55	c04750a3d70a3d71 -46.63	0	0000000000000000 0.0	0000000000000000 0.0	0000000000000000 0.0	0000000000000000 0.0	1	BR	11451999	1	CITY
+overture	ov-by	Bavaria	4048733333333333 48.9	4026cccccccccccd 11.4	0	0000000000000000 0.0	0000000000000000 0.0	0000000000000000 0.0	0000000000000000 0.0	1	DE	13140000	1	ADMIN
+overture	ov-bavaria-county	Bavaria	4043666666666666 38.8	c05879999999999a -97.9	0	0000000000000000 0.0	0000000000000000 0.0	0000000000000000 0.0	0000000000000000 0.0	1	US	0	1	ADMIN
+overture	ov-springfield-il	Springfield	4043e66666666666 39.8	c05668f5c28f5c29 -89.64	0	0000000000000000 0.0	0000000000000000 0.0	0000000000000000 0.0	0000000000000000 0.0	1	US	114394	1	CITY
+overture	ov-springfield-co	Springfield	4042b33333333333 37.4	c059a7ae147ae148 -102.62	0	0000000000000000 0.0	0000000000000000 0.0	0000000000000000 0.0	0000000000000000 0.0	1	US	1300	1	ADMIN
+overture	ov-au	Australia	c039000000000000 -25.0	4060c00000000000 134.0	0	0000000000000000 0.0	0000000000000000 0.0	0000000000000000 0.0	0000000000000000 0.0	1	AU	25690000	1	ADMIN
+overture	ov-brooklyn	Brooklyn	4044533333333333 40.65	c0527ccccccccccd -73.95	0	0000000000000000 0.0	0000000000000000 0.0	0000000000000000 0.0	0000000000000000 0.0	1	US	2736074	1	POI
+overture	ov-mitte	Mitte	404a428f5c28f5c3 52.52	402acccccccccccd 13.4	0	0000000000000000 0.0	0000000000000000 0.0	0000000000000000 0.0	0000000000000000 0.0	1	DE	102000	1	POI
+overture	ov-noord	Noord-Holland	404a4ccccccccccd 52.6	4013666666666666 4.85	0	0000000000000000 0.0	0000000000000000 0.0	0000000000000000 0.0	0000000000000000 0.0	1	NL	2952000	1	ADMIN
+overture	ov-x	Nowhere	0000000000000000 0.0	0000000000000000 0.0	0	0000000000000000 0.0	0000000000000000 0.0	0000000000000000 0.0	0000000000000000 0.0	0		0	1	ADMIN
+end	turbo:gazetteer-entries
+layer	turbo:gazetteer-alternates	document	12	entry:u32	name:str
+0	Sao Paulo
+0	Sampa
+1	Bayern
+1	Freistaat Bayern
+1	!!!
+5	Commonwealth of Australia
+5	Australien
+5	Австралия
+6	Kings County
+7	Berlin-Mitte
+8	North Holland
+8	Hollande-Septentrionale
+end	turbo:gazetteer-alternates
+layer	turbo:gazetteer-containment	document	0	entry:u32	name:str
+end	turbo:gazetteer-containment
+layer	turbo:gazetteer-attributes	document	0	entry:u32	key:str	value:str	source:str	notes:str
+end	turbo:gazetteer-attributes

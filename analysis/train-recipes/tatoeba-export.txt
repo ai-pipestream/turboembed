@@ -1,0 +1,10 @@
+# The two archives of Tatoeba's weekly export of 2026-10-10, the export
+# the language detector is trained on (langdetect::EXPORT): each one's
+# SHA-256 and its address in the release of this repository that keeps
+# them (release::TATOEBA_EXPORT_RELEASE), as Tatoeba published them at
+# https://downloads.tatoeba.org/exports/. The models-tatoeba workflow
+# fetches them from there, checks them against these SHA-256s before it
+# caches them, and extracts them; `tatoeba` then checks the extracted
+# files against the export's digest. A test checks the addresses.
+776e298918d984b0e6ea3c8c48eb32ca6f79df624827025d463ce16e019a749f https://github.com/ai-pipestream/turboembed/releases/download/data-tatoeba-2026-10-10/sentences_detailed.tar.bz2
+74a1577f35d9f11134b281be3125cf17e5531b8a29054f68b3e858418387e17f https://github.com/ai-pipestream/turboembed/releases/download/data-tatoeba-2026-10-10/sentences_CC0.tar.bz2

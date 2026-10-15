@@ -27,6 +27,7 @@ pub use matches::Matches;
 pub use money::{CONVERTED_MONEY, Currency, Money, MoneyMention};
 pub use numbers::{DecimalRef, Multiplier, NumberMention, NumberNotation, Numbers, ScaleMarker};
 pub use ordinals::{OrdinalBase, OrdinalMention, Ordinals};
+pub use pii::{Pii, PiiConfidence, PiiKind, PiiKinds, PiiMention};
 pub use quantities::{PERCENT, Quantities, QuantityMention};
 pub use sentiment::{
     Aspect, AspectTarget, Aspects, Incivility, IncivilityItem, IncivilityLabel, IncivilityScores, IncivilityTarget,
@@ -99,6 +100,7 @@ mod matches;
 mod money;
 mod numbers;
 mod ordinals;
+mod pii;
 mod quantities;
 mod sentiment;
 mod temporal;

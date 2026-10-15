@@ -1,0 +1,24 @@
+[package]
+name = "turbo-geo"
+version = "0.1.0"
+edition.workspace = true
+license.workspace = true
+publish = false
+
+[lib]
+name = "turbo_geo"
+
+[dependencies]
+# Span, which the UAX #29 word tokenizer writes.
+turbo-analysis = { path = "../core" }
+# Double.parseDouble and String.compareTo.
+turbo-jvm = { path = "../jvm" }
+# The accent fold's stroke letters and fold scripts.
+turbo-normalize = { path = "../normalize" }
+# The UAX #29 word tokens a name is folded by.
+turbo-tokenize = { path = "../tokenize" }
+# NFC, String.toLowerCase(Locale.ROOT), general category, script, Character.digit.
+turbo-unicode = { path = "../unicode" }
+
+[dev-dependencies]
+turbo-goldens = { path = "../goldens" }

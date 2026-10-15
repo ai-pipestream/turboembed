@@ -1,0 +1,12 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	pii/aba-routing	59	59	e499e8922bf7c7c4d07411d368be0362f7a5286003dcfd57102dc1131605e4ef
+annotator	opennlp.tools.pii.PiiPacks	payment
+config	pack	payment
+layer	turbo:pii	text	2	start:u32	end:u32	type:str	normalized:str
+8	17	aba-routing	021000021
+44	53	aba-routing	123456780
+end	turbo:pii

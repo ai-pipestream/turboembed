@@ -4,8 +4,9 @@
 //! docs/grammar.md lists what the rules read and how a reading is chosen.
 
 mod lexicon;
-mod rules;
+pub(crate) mod rules;
 pub(crate) mod time;
+pub(crate) mod unit;
 
 pub use time::{ENGLISH_TIMES, EnglishTimes};
 
@@ -107,7 +108,7 @@ impl Grammar for English {
     }
 
     fn style(&self) -> NumeralStyle {
-        NumeralStyle { mixed_separators: true, space_groups: true, indian_groups: true }
+        NumeralStyle { mixed_separators: true, space_groups: true, indian_groups: true, decimal_comma: false }
     }
 
     fn output(&self, dim: Dim) -> Option<Output> {
@@ -137,7 +138,7 @@ impl Grammar for English {
                 }
                 _ => true,
             },
-            Output::Percent | Output::Time => true,
+            Output::Percent | Output::Quantity | Output::Time => true,
         }
     }
 

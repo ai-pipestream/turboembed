@@ -4,7 +4,7 @@
 use crate::value::Value;
 
 use super::interned::Interned;
-use super::lexer::{Kind, Lexed, Lexeme};
+use super::lexer::{Kind, Lexed, Lexeme, PlainWords, WordForms};
 use super::numeral::NumeralStyle;
 
 /// A category of chart nodes: a class of lexicon words (`UNIT`, `SCALE`)
@@ -119,6 +119,15 @@ impl Lexicon {
         &bucket[lo..hi]
     }
 
+    /// Whether some word starts with `prefix`, which is in lowercase: a
+    /// compound splitter stops extending a piece when none does.
+    pub fn has_prefix(&self, prefix: &str) -> bool {
+        let Some(&k) = prefix.as_bytes().first() else { return !self.entries.is_empty() };
+        let bucket = &self.entries[self.first[usize::from(k)] as usize..self.first[usize::from(k) + 1] as usize];
+        let lo = bucket.partition_point(|e| e.word < prefix);
+        bucket.get(lo).is_some_and(|e| e.word.starts_with(prefix))
+    }
+
     pub fn len(&self) -> usize {
         self.entries.len()
     }
@@ -134,6 +143,8 @@ pub enum Output {
     Number,
     Ordinal,
     Percent,
+    /// Amounts with a unit, money included, and units named alone.
+    Quantity,
     Time,
 }
 
@@ -218,6 +229,17 @@ pub trait Grammar: Send + Sync + 'static {
 
     fn style(&self) -> NumeralStyle;
 
+    /// How the lexer forms the grammar's words. The default leaves them
+    /// whole and keeps their accents.
+    fn words(&self) -> &dyn WordForms {
+        &PlainWords
+    }
+
+    /// How the grammar's numbers are written, for the numbers layer.
+    fn notation(&self) -> turbo_analysis_layers::NumberNotation {
+        turbo_analysis_layers::NumberNotation::LatinUs
+    }
+
     /// Which output a node of `dim` goes to, if any.
     fn output(&self, dim: Dim) -> Option<Output>;
 
@@ -255,11 +277,14 @@ mod tests {
         assert!(lex.lookup("seconds").is_empty());
         assert!(lex.lookup("").is_empty());
         assert!(lex.lookup("zzz").is_empty());
+        assert!(lex.has_prefix("sec") && lex.has_prefix("second") && lex.has_prefix("t"));
+        assert!(!lex.has_prefix("seconds") && !lex.has_prefix("x") && !lex.has_prefix("tx"));
     }
 
     #[test]
     fn context_reads_the_neighbours() {
-        let style = NumeralStyle { mixed_separators: true, space_groups: false, indian_groups: false };
+        let style =
+            NumeralStyle { mixed_separators: true, space_groups: false, indian_groups: false, decimal_comma: false };
         let mut lexed = Lexed::default();
         let text = "$2000 over 3";
         lexed.lex(text, &style);

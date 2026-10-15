@@ -1,10 +1,11 @@
-//! `turbo-train-recipes`: runs the MASC recipes and the UD recipes.
+//! `turbo-train-recipes`: runs the MASC recipes, the UD recipes and the
+//! language detector recipe.
 //!
 //! ```text
 //! turbo-train-recipes masc --corpus <dir> --references <dir> --out <dir> [--unrecorded-corpus] [--recipe <model id>]...
 //! turbo-train-recipes fetch-masc --home <dir>
 //! turbo-train-recipes ud --treebanks <dir> --references <dir> --out <dir> [--recipe <model id>]...
-//! turbo-train-recipes fetch-ud --home <dir>
+//! turbo-train-recipes fetch-ud --home <dir> [--recipe <model id>]...
 //! turbo-train-recipes zoo-index --models <dir> --release <tag> [--check]
 //! turbo-train-recipes tatoeba --export <dir> --references <dir> --out <dir> [--unrecorded-export]
 //! ```
@@ -42,18 +43,22 @@
 //! then trains each model, gates it, writes `<out>/<model id>/` with the
 //! model, `card.json` and `gate.json`, and prints the card's summary, the
 //! gate record and the seconds the recipe took. The exit status is 1 when
-//! a gate fails and 2 on an error. `fetch-ud` fetches the treebanks'
-//! files at the release through the zoo into
+//! a gate fails and 2 on an error. `fetch-ud` fetches the files at the
+//! release of the treebanks the recipes `--recipe` names read (of every
+//! treebank without `--recipe`) through the zoo into
 //! `<home>/artifacts/<dataset id>/`.
 //!
-//! `zoo-index` reads the directories `masc` wrote into `--models` of the
-//! models release `--release` publishes (`release::MODELS_RELEASES`),
-//! checks each model file and gate record against its card, and prints
-//! the zoo's built-in index with each model's entry at its address in the
-//! release (`release::index_with`). With `--check` it prints nothing of
-//! the index and exits with 1 unless the built-in index is already that
-//! one, naming the entries that differ with the size and SHA-256 the
-//! index lists and the ones the model has.
+//! `zoo-index` reads the directories `masc`, `ud` or `tatoeba` wrote into
+//! `--models` for the models the release `--release` publishes
+//! (`release::MODELS_RELEASES`), checks each file (the model, and the
+//! language detector's `training-sentences.txt`) and gate record against
+//! its card, and prints the zoo's built-in index with each model's entry
+//! at its address in the release (`release::index_with`). With `--check`
+//! it prints nothing of the index and exits with 1 unless the built-in
+//! index is already that one and lists nothing else at the release's
+//! addresses, naming each entry that differs with the size and SHA-256 of
+//! each file the index lists and the model has, and each other model
+//! listed there (`release::differences`).
 //!
 //! `tatoeba` runs the language detector recipe (`langdetect::LANGDETECT`)
 //! on the Tatoeba export extracted into `--export` (`sentences_detailed.csv`
@@ -61,9 +66,11 @@
 //! from `--references` and checked against its recorded size and digest,
 //! and writes `<out>/<model id>/` with the model,
 //! `training-sentences.txt` (the ids of the sentences trained on),
-//! `card.json` and `gate.json`. No export is recorded, so it needs
-//! `--unrecorded-export`, and its card is marked `recorded: false`. The
-//! exit status is 1 when the gate fails and 2 on an error.
+//! `card.json` and `gate.json`. It refuses any export but the recorded
+//! one (`langdetect::EXPORT`) unless given `--unrecorded-export`; the
+//! card of another export is marked `recorded: false`, so its model is
+//! not a release. The exit status is 1 when the gate fails and 2 on an
+//! error.
 
 use std::path::{Path, PathBuf};
 use std::process::ExitCode;
@@ -84,7 +91,7 @@ const USAGE: &str = "usage:
   turbo-train-recipes masc --corpus <dir> --references <dir> --out <dir> [--unrecorded-corpus] [--recipe <model id>]...
   turbo-train-recipes fetch-masc --home <dir>
   turbo-train-recipes ud --treebanks <dir> --references <dir> --out <dir> [--recipe <model id>]...
-  turbo-train-recipes fetch-ud --home <dir>
+  turbo-train-recipes fetch-ud --home <dir> [--recipe <model id>]...
   turbo-train-recipes zoo-index --models <dir> --release <tag> [--check]
   turbo-train-recipes tatoeba --export <dir> --references <dir> --out <dir> [--unrecorded-export]";
 
@@ -312,9 +319,10 @@ fn ud_command(a: Args) -> Result<bool, String> {
 }
 
 fn fetch_ud_command(a: Args) -> Result<bool, String> {
+    let recipes = chosen(&UD_RECIPES, &a.recipe_ids, |r: &UdRecipe| r.model_id)?;
     let home = need(a.home, "--home")?;
     let user = user()?;
-    for t in TREEBANKS {
+    for t in TREEBANKS.iter().filter(|t| recipes.iter().any(|r| r.treebank == **t)) {
         let dir = t.fetch(&home, &user).map_err(|e| e.to_string())?;
         println!("{}", dir.display());
     }
@@ -331,24 +339,13 @@ fn zoo_index_command(a: Args) -> Result<bool, String> {
         print!("{index}");
         return Ok(true);
     }
-    if index == turbo_zoo::index::BUILTIN {
+    let lines = release::differences(&Index::builtin(), &entries, &release);
+    if lines.is_empty() && index == turbo_zoo::index::BUILTIN {
         println!("the zoo's built-in index lists the {} models at their addresses in release {tag}", entries.len());
         return Ok(true);
     }
-    let builtin = Index::builtin();
-    for entry in &entries {
-        match builtin.get(entry.id.as_str()) {
-            Ok(listed) if listed == entry => {}
-            Ok(listed) => {
-                let (l, m) = (&listed.files[0], &entry.files[0]);
-                println!(
-                    "{}: the built-in index lists another entry ({} bytes, SHA-256 {}, at {}; the model has {} bytes, \
-                     SHA-256 {}, at {})",
-                    entry.id, l.size, l.sha256, l.url, m.size, m.sha256, m.url
-                );
-            }
-            Err(_) => println!("{}: the built-in index does not list it", entry.id),
-        }
+    for line in lines {
+        println!("{line}");
     }
     println!("the zoo's built-in index is not the one these models and release {tag} give");
     Ok(false)
