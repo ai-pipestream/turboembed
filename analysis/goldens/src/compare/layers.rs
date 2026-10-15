@@ -4,8 +4,8 @@
 
 use turbo_analysis::{Layer, ViewId};
 use turbo_analysis_layers::{
-    ChunkTags, Confidence, DocumentDate, Entities, Language, Lemmas, Money, Numbers, PhraseChunks, Pii, PosTags,
-    Quantities, Sentences, Strs, Subwords, Temporals, Tokens, Utf16Spans,
+    Categories, ChunkTags, Confidence, DocumentDate, Entities, Language, Lemmas, Money, Numbers, PhraseChunks, Pii,
+    PosTags, Quantities, Sentences, Strs, Subwords, Temporals, Tokens, Utf16Spans,
 };
 
 use super::{CutCol, Items, Labels, Names, SpanCols, TokenCols, UnitCols, compare_items};
@@ -328,6 +328,34 @@ impl GoldenCompare for Language {
             values: Some(f64s(golden, "confidence")),
         };
         compare_items(cx, &rust, &golden, Names { label: Some("code"), value: Some("confidence") }, tol)
+    }
+}
+
+impl GoldenCompare for Categories {
+    const COLUMNS: &'static [ColumnSpec] = &[ColumnSpec::new("category", Str), ColumnSpec::new("score", F64)];
+
+    /// Row by row, best first: the category, then its score, so the
+    /// ranking must be the golden's.
+    fn compare(&self, cx: &Cx<'_>, golden: &GoldenLayer, tol: Tolerance) -> Result<(), Mismatch> {
+        let rust = Items {
+            len: self.category.len(),
+            spans: None,
+            context: None,
+            tokens: None,
+            units: None,
+            labels: Some(Labels::Strs(&self.category)),
+            values: Some(&self.score),
+        };
+        let golden = Items {
+            len: golden.len(),
+            spans: None,
+            context: None,
+            tokens: None,
+            units: None,
+            labels: Some(strs(golden, "category")),
+            values: Some(f64s(golden, "score")),
+        };
+        compare_items(cx, &rust, &golden, Names { label: Some("category"), value: Some("score") }, tol)
     }
 }
 

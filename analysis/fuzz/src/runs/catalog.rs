@@ -22,12 +22,13 @@ use crate::resources::{Resources, Unavailable};
 /// place profiles load whole tables; the
 /// sequence runs (`string-pattern`, `features`, `codec`, `beam`,
 /// `tag-dictionary`, `tag-format`), the name finders, the stemmers, the
-/// stopword lists and the glossary matchers and readers read input sets of
-/// their own, which turbo-sequence, turbo-namefind, turbo-stem,
-/// turbo-stopword and turbo-glossary compare with; the other
+/// stopword lists, the glossary matchers and readers and the SVM document
+/// categorizer (`svm-doccat`) read input sets of their own, which
+/// turbo-sequence, turbo-namefind, turbo-stem, turbo-stopword,
+/// turbo-glossary and turbo-doccat compare with; the other
 /// `namefind` runs train name finders from name samples and find names in
 /// them, which turbo-train-components compares with.
-pub const NOT_COVERED: [&str; 22] = [
+pub const NOT_COVERED: [&str; 24] = [
     "train",
     "train-events",
     "train-langdetect",
@@ -51,6 +52,7 @@ pub const NOT_COVERED: [&str; 22] = [
     "stem",
     "stopword",
     "glossary",
+    "svm-doccat",
 ];
 
 /// Every run the differential covers, as `(annotator, run)`: the golden

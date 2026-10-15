@@ -1826,6 +1826,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "turbo-doccat"
+version = "0.1.0"
+dependencies = [
+ "turbo-analysis",
+ "turbo-analysis-layers",
+ "turbo-goldens",
+ "turbo-jvm",
+ "turbo-maxent",
+]
+
+[[package]]
 name = "turbo-eval"
 version = "0.1.0"
 dependencies = [
