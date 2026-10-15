@@ -68,9 +68,10 @@ fn every_dump_reads_and_has_its_goldens_header() {
             points += d.points.len();
         }
     }
-    // 473 tokenize, 294 sentdetect and 22 langdetect dumps.
-    assert_eq!(dumps, 789);
-    assert_eq!(points, 25085, "every point of every dump");
+    // 473 tokenize, 294 sentdetect and 44 langdetect dumps (22 each of
+    // langdetect-183 and the Rust fixture).
+    assert_eq!(dumps, 811);
+    assert_eq!(points, 25107, "every point of every dump");
 }
 
 #[test]

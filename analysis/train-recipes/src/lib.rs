@@ -29,20 +29,29 @@
 //!   treebank's licence, attribution and citation, and its zoo entry,
 //!   which a treebank whose text rights are not settled (Porttinari) never
 //!   gets.
+//! - [`tatoeba`]: Tatoeba's sentence exports read with each sentence's
+//!   licence (issue #429).
+//! - [`langdetect`]: the language detector trained on Tatoeba's CC BY
+//!   2.0 FR sentences and gated against OpenNLP's `langdetect-183.bin`
+//!   on held-out sentences of the languages both cover, with its own
+//!   card.
 //!
 //! [`run`] runs one MASC recipe from a split corpus to the model, the
 //! card and the gate record, and [`ud::run_ud`] one UD recipe from a
 //! treebank; the `turbo-train-recipes` binary runs the recipes of
 //! [`RECIPES`] on a MASC directory, or those of [`ud::UD_RECIPES`] on the
-//! treebanks, and writes each model's directory.
+//! treebanks, and writes each model's directory, and runs
+//! [`langdetect::run`] on a Tatoeba export.
 
 pub mod card;
 pub mod chunk;
 pub mod error;
+pub mod langdetect;
 pub mod masc;
 pub mod postag;
 pub mod segmentation;
 pub mod spans;
+pub mod tatoeba;
 pub mod treebank;
 pub mod ud;
 pub mod ud_card;

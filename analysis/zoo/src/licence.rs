@@ -306,6 +306,9 @@ licences! {
     Bsd2 => "BSD-2-Clause", Permissive, Some("https://opensource.org/license/bsd-2-clause");
     Bsd3 => "BSD-3-Clause", Permissive, Some("https://opensource.org/license/bsd-3-clause");
     Cc0 => "CC0-1.0", Permissive, Some("https://creativecommons.org/publicdomain/zero/1.0/legalcode");
+    // SPDX has no identifier for the French port of CC BY 2.0, the licence
+    // of most Tatoeba sentences.
+    CcBy20Fr => "LicenseRef-CC-BY-2.0-FR", Permissive, Some("https://creativecommons.org/licenses/by/2.0/fr/legalcode");
     CcBy25 => "CC-BY-2.5", Permissive, Some("https://creativecommons.org/licenses/by/2.5/legalcode");
     CcBy30 => "CC-BY-3.0", Permissive, Some("https://creativecommons.org/licenses/by/3.0/legalcode");
     CcBy30Us => "CC-BY-3.0-US", Permissive, Some("https://creativecommons.org/licenses/by/3.0/us/legalcode");
@@ -467,6 +470,8 @@ mod tests {
         assert_eq!(Licence::CcBy40.class(), Permissive);
         assert_eq!(Licence::OdcBy10.class(), Permissive);
         assert_eq!(Licence::Cc0.class(), Permissive);
+        assert_eq!(Licence::CcBy20Fr.class(), Permissive);
+        assert_eq!("LicenseRef-CC-BY-2.0-FR".parse::<Licence>(), Ok(Licence::CcBy20Fr));
         assert_eq!(Licence::CcBySa40.class(), ShareAlike);
         assert_eq!(Licence::CcBySa30.class(), ShareAlike);
         assert_eq!(Licence::Lgpl21Only.class(), Lgpl);
