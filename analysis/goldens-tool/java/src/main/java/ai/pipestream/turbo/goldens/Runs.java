@@ -88,6 +88,11 @@ final class Runs {
   static final String EN_HEAD_RULES = "en-head-rules.txt";
   static final String ES_HEAD_RULES = "es-head-rules.txt";
   static final String ES_REGEX_HEAD_RULES = "es-regex-head-rules.txt";
+  /** The gazetteer tables: GeoNames and Overture formats, a user table and its suppression rules. */
+  static final String GAZETTEER_GEONAMES = "gazetteer-geonames.txt";
+  static final String GAZETTEER_OVERTURE = "gazetteer-overture.txt";
+  static final String GAZETTEER_USER = "gazetteer-user.txt";
+  static final String GAZETTEER_SUPPRESSIONS = "gazetteer-suppressions.txt";
   /** The glossary the glossary matchers are built from, tab separated with a header. */
   static final String GLOSSARY_TERMS = "glossary-terms.tsv";
   /** The name finder models OpenNLP trained for the beam search goldens. */
@@ -125,6 +130,8 @@ final class Runs {
   static final String NER = "ner";
   static final String PARSE = "parse";
   static final String HEAD_RULES = "head-rules";
+  /** Names, record ids, region codes and whole tables for the gazetteers of the addons geo module. */
+  static final String GAZETTEER = "gazetteer";
   /** Texts for the glossary matchers, and delimited lists and TBX termbases for the readers. */
   static final String GLOSSARY = "glossary";
   /** The language samples the Rust language detector fixture was trained on. */
@@ -340,6 +347,9 @@ final class Runs {
     annotators.addAll(ParserGolden.all(fixtures.resolve(EN_HEAD_RULES), fixtures.resolve(ES_HEAD_RULES),
         fixtures.resolve(ES_REGEX_HEAD_RULES)));
     annotators.addAll(ParserGolden.Rules.all());
+    // The gazetteers: the bundled table, the fixture tables and an overlay, asked for names,
+    // record ids and regions, and the fixture loaders on whole tables.
+    annotators.addAll(GazetteerGolden.all(fixtures));
     // The sequence machinery turbo-sequence ports: StringPattern in both versions, the feature
     // generators and malformed descriptors, the BIO and BILOU codecs, the beam search of the
     // tagger, chunker and name finder over the fixture and published models, and the tag

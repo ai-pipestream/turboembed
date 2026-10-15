@@ -17,6 +17,7 @@ use crate::resources::{Resources, Unavailable};
 /// the parse and head rule readers (`parse`, `head-rules`) compare files,
 /// not layers of a text; the evaluators compare scores; the detokenizer
 /// runs on token lists; the BPE trainer learns merges from a whole set; the
+/// gazetteers answer queries line by line and load whole tables; the
 /// sequence runs (`string-pattern`, `features`, `codec`, `beam`,
 /// `tag-dictionary`, `tag-format`), the name finders, the stemmers, the
 /// stopword lists and the glossary matchers and readers read input sets of
@@ -24,7 +25,7 @@ use crate::resources::{Resources, Unavailable};
 /// turbo-stopword and turbo-glossary compare with; the other
 /// `namefind` runs train name finders from name samples and find names in
 /// them, which turbo-train-components compares with.
-pub const NOT_COVERED: [&str; 21] = [
+pub const NOT_COVERED: [&str; 22] = [
     "train",
     "train-events",
     "train-langdetect",
@@ -36,6 +37,7 @@ pub const NOT_COVERED: [&str; 21] = [
     "ner",
     "parse",
     "head-rules",
+    "gazetteer",
     "string-pattern",
     "features",
     "codec",

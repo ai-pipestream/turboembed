@@ -1,0 +1,6 @@
+# Suppression rules for the gazetteer overlay goldens: name, country, feature class.
+Springfield	US	CITY
+London		city
+Sao Paulo	br
+Paris	FR
+Tiny Place

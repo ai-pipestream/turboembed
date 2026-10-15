@@ -13,13 +13,13 @@
 //! duration, a range, a set or a modified reading. docs/grammar.md lists
 //! what they read.
 
-mod clock;
-mod compose;
-mod date;
-mod duration;
-mod lexicon;
-mod range;
-mod set;
+pub(crate) mod clock;
+pub(crate) mod compose;
+pub(crate) mod date;
+pub(crate) mod duration;
+pub(crate) mod lexicon;
+pub(crate) mod range;
+pub(crate) mod set;
 
 use std::sync::OnceLock;
 

@@ -237,7 +237,7 @@ pub struct Fixture {
 /// the feature generator descriptors and their resources (`featuregen`) or
 /// of the name finder's dictionaries and patterns (`namefind`), and `Runs`
 /// opens the directory.
-pub const FIXTURES: [Fixture; 59] = [
+pub const FIXTURES: [Fixture; 63] = [
     Fixture {
         file: "en-abbrev.bin",
         sha512: "759ab1defc61351f53cdd82a26e708789a225feb6e1ec0cfd6e2e54f35f67c14\
@@ -332,6 +332,26 @@ pub const FIXTURES: [Fixture; 59] = [
         file: "es-regex-head-rules.txt",
         sha512: "d75363b131a71c1b6fd243e9f339ee97393fe36a9ed89d857c49d89da793dc9b\
                  1e48b92ca0e67fb65c04305fba81d17754b896b2cba90a166348c00feff19a6b",
+    },
+    Fixture {
+        file: "gazetteer-geonames.txt",
+        sha512: "69e2ef02c7ae86751635496c5b46895854cd95977fb4e6a6756df9aa69dc6bbf\
+                 8487983af8803650627067167e3f5212ef0c9adb6a9b225e3a99837cfeb9a95d",
+    },
+    Fixture {
+        file: "gazetteer-overture.txt",
+        sha512: "851543d2634344f6764f3210f18a8da8f1e5400a637b312960e4c0eb1e3e6419\
+                 af3c22f4b2917753f4b141158d15a1500e5cf0491b1f7211f13ecc352171db57",
+    },
+    Fixture {
+        file: "gazetteer-user.txt",
+        sha512: "68f44c6be8bbc9c3d3d697681eb121f0593087066eaf3dba7b5e6a44780f0c05\
+                 bcfe79894c8cc26d609459c8362ab1f65d8540ba4799468d69356746e72aac49",
+    },
+    Fixture {
+        file: "gazetteer-suppressions.txt",
+        sha512: "50db213abd6c0dab3409a1e8ad77aee22bd05920f2fb23c393fccec01f342d12\
+                 8a336761acb8bb3df401549ad319cd6551ba3b06558e4d4cf0604025d1ef39d6",
     },
     Fixture {
         file: "glossary-terms.tsv",
@@ -536,7 +556,7 @@ pub const FIXTURES: [Fixture; 59] = [
 ];
 
 /// The input sets under `analysis/goldens/data/inputs`.
-pub const INPUT_SETS: [&str; 33] = [
+pub const INPUT_SETS: [&str; 34] = [
     "en",
     "multi",
     "norm",
@@ -561,6 +581,7 @@ pub const INPUT_SETS: [&str; 33] = [
     "ner",
     "parse",
     "head-rules",
+    "gazetteer",
     "langdetect",
     "sequence",
     "descriptor-errors",
@@ -583,7 +604,7 @@ pub const GENERATOR_ARGS: [&str; 1] = ["--dumps"];
 /// replaces and `verify` compares. The data directory holds other things
 /// (the inputs, the fixtures, the rate snapshot, a README) that neither
 /// touches.
-pub const ANNOTATORS: [&str; 37] = [
+pub const ANNOTATORS: [&str; 38] = [
     "sentdetect",
     "tokenize",
     "postag",
@@ -611,6 +632,7 @@ pub const ANNOTATORS: [&str; 37] = [
     "ner",
     "parse",
     "head-rules",
+    "gazetteer",
     "string-pattern",
     "features",
     "codec",

@@ -22,7 +22,7 @@
 //!   and TBX 2 or 3 termbases, read into a [`Glossary`] with each term's
 //!   byte span in the file; [`write_tbx`] writes a glossary back as TBX.
 //!
-//! # Why two automata
+//! # Why two matchers
 //!
 //! OpenNLP's character matcher compares the separators inside a term, so
 //! "hot dog" does not match "hot  dog" or "hot-dog"; that is a property

@@ -18,7 +18,7 @@ pub(crate) const ARTICLE_AMOUNT: u8 = 1;
 /// An amount said vaguely: `a few`, `some`, `several`.
 pub(crate) const VAGUE: u8 = 1 << 1;
 
-const UNITS: [Unit; 10] = [
+pub(crate) const UNITS: [Unit; 10] = [
     Unit::Year,
     Unit::Month,
     Unit::Week,
@@ -59,7 +59,7 @@ pub(crate) fn emit_duration(c: &Ctx<'_>, length: Duration, modifier: Modifier) -
 
 // Amounts, in thousandths.
 
-fn b_amount_num(v: &[Value], _: &Ctx<'_>) -> Option<Value> {
+pub(crate) fn b_amount_num(v: &[Value], _: &Ctx<'_>) -> Option<Value> {
     let n = v[0].num()?.value;
     if n.is_negative() || n.is_zero() {
         return None;
@@ -67,31 +67,31 @@ fn b_amount_num(v: &[Value], _: &Ctx<'_>) -> Option<Value> {
     term_value(n.shift(3)?.to_i64()?, 0)
 }
 
-fn b_amount_article(_: &[Value], _: &Ctx<'_>) -> Option<Value> {
+pub(crate) fn b_amount_article(_: &[Value], _: &Ctx<'_>) -> Option<Value> {
     term_value(i64::from(MILLI), ARTICLE_AMOUNT)
 }
 
-fn b_amount_three(_: &[Value], _: &Ctx<'_>) -> Option<Value> {
+pub(crate) fn b_amount_three(_: &[Value], _: &Ctx<'_>) -> Option<Value> {
     term_value(3000, VAGUE)
 }
 
-fn b_amount_two(_: &[Value], _: &Ctx<'_>) -> Option<Value> {
+pub(crate) fn b_amount_two(_: &[Value], _: &Ctx<'_>) -> Option<Value> {
     term_value(2000, VAGUE)
 }
 
-fn b_amount_half(_: &[Value], _: &Ctx<'_>) -> Option<Value> {
+pub(crate) fn b_amount_half(_: &[Value], _: &Ctx<'_>) -> Option<Value> {
     term_value(500, ARTICLE_AMOUNT)
 }
 
 /// `one and half`: a number and a half the number rules leave apart.
-fn b_amount_and_half(v: &[Value], _: &Ctx<'_>) -> Option<Value> {
+pub(crate) fn b_amount_and_half(v: &[Value], _: &Ctx<'_>) -> Option<Value> {
     let (n, _) = term(&v[0]);
     (n % 1000 == 0).then(|| term_value(n + 500, 0))?
 }
 
 // Durations.
 
-fn b_dur(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
+pub(crate) fn b_dur(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
     let (amount, flags) = term(&v[0]);
     let (unit, _) = unit_of(&v[1])?;
     // `a second` is an ordinal more often than a duration.
@@ -106,7 +106,7 @@ fn b_dur(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
 }
 
 /// `3h`, `10d`, `2w`, `3y`: a number and a unit letter.
-fn b_dur_letter(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
+pub(crate) fn b_dur_letter(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
     let (amount, _) = term(&v[0]);
     let unit = match c.word(c.end - 1) {
         "h" => Unit::Hour,
@@ -119,7 +119,7 @@ fn b_dur_letter(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
 }
 
 /// `all day`, `another day`: one of the unit.
-fn b_dur_one(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
+pub(crate) fn b_dur_one(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
     if term(v.last()?).1 & PLURAL != 0 {
         return None;
     }
@@ -127,11 +127,11 @@ fn b_dur_one(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
 }
 
 /// `for the hour`.
-fn b_dur_the_hour(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
+pub(crate) fn b_dur_the_hour(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
     (term(&v[0]).0 == lexicon::unit(lexicon::HOUR, 1)).then(|| b_dur_one(v, c))?
 }
 
-fn b_dur_sum(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
+pub(crate) fn b_dur_sum(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
     let (a, b) = (duration_of(c, &v[0])?, duration_of(c, &v[1])?);
     // Largest unit first: `1 hour and 30 minutes`, not `30 minutes 1 hour`.
     if a.finest()? >= b.parts().first()?.0 {
@@ -141,34 +141,34 @@ fn b_dur_sum(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
 }
 
 /// `one hour and a half`: a fraction more of the duration's one unit.
-fn and_fraction(c: &Ctx<'_>, v: &Value, milli: i32) -> Option<Value> {
+pub(crate) fn and_fraction(c: &Ctx<'_>, v: &Value, milli: i32) -> Option<Value> {
     let d = duration_of(c, v)?;
     let &[(unit, n)] = d.parts() else { return None };
     emit_duration(c, Duration::of(unit, n.checked_add(milli)?), Modifier::NONE)
 }
 
-fn b_dur_and_half(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
+pub(crate) fn b_dur_and_half(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
     and_fraction(c, &v[0], 500)
 }
 
-fn b_dur_and_quarter(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
+pub(crate) fn b_dur_and_quarter(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
     and_fraction(c, &v[0], 250)
 }
 
-fn modified(c: &Ctx<'_>, v: &Value, relation: Relation) -> Option<Value> {
+pub(crate) fn modified(c: &Ctx<'_>, v: &Value, relation: Relation) -> Option<Value> {
     emit_duration(c, duration_of(c, v)?, Modifier::relation(relation))
 }
 
-fn b_more(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
+pub(crate) fn b_more(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
     modified(c, v.last()?, Relation::More)
 }
 
-fn b_less(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
+pub(crate) fn b_less(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
     modified(c, v.last()?, Relation::Less)
 }
 
 /// `business day`: a working day.
-fn b_business(v: &[Value], _: &Ctx<'_>) -> Option<Value> {
+pub(crate) fn b_business(v: &[Value], _: &Ctx<'_>) -> Option<Value> {
     let (u, f) = term(&v[0]);
     (u == lexicon::unit(lexicon::DAY, 1)).then(|| term_value(lexicon::unit(lexicon::BUSINESS_DAY, 1), f))?
 }

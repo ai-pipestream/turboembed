@@ -44,6 +44,7 @@ members = [
     "analysis/train-components",
     "analysis/train-recipes",
     "analysis/formats",
+    "analysis/geo",
     "analysis/fuzz",
     "analysis/grammar",
     "analysis/zoo",
