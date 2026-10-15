@@ -28,7 +28,8 @@ pub mod temporal;
 
 pub use annotator::NumberScanner;
 pub use money::{
-    CONVERTED_MONEY, Currency, Date, Decimal, EcbRates, FxRates, Money, MoneyConverter, MoneyExtractor, ScaleRangeError,
+    CONVERTED_MONEY, Currency, Date, DatedMoneyConverter, Decimal, EcbRates, FxRates, Money, MoneyConverter,
+    MoneyExtractor, ScaleRangeError,
 };
 pub use quantity::{DEFAULT_UNITS, QuantityExtractor, UnitError};
 pub use scan::{ScanResult, parse};

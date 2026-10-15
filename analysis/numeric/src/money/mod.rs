@@ -7,7 +7,8 @@
 //! - [`EcbRates`] reads the ECB's euro reference history and gives rates
 //!   and converted amounts as of a date: `EcbFxRates`.
 //! - [`MoneyConverter`] restates the money layer in one currency under
-//!   [`CONVERTED_MONEY`]: `MoneyConversionAnnotator`.
+//!   [`CONVERTED_MONEY`] as of a fixed date, and [`DatedMoneyConverter`]
+//!   as of each document's date: `MoneyConversionAnnotator`.
 //!
 //! Amounts are exact decimals throughout; the arithmetic follows Java's
 //! `BigDecimal` digit for digit. docs/money.md describes the rules.
@@ -23,7 +24,7 @@ mod tables;
 
 use std::fmt;
 
-pub use convert::MoneyConverter;
+pub use convert::{DatedMoneyConverter, MoneyConverter};
 pub use decimal::{Decimal, DecimalParseError, cmp_values};
 pub use ecb::{EcbError, EcbRates, MAX_STALENESS_DAYS};
 pub use extract::{MoneyExtractor, SymbolError};
