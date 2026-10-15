@@ -1,0 +1,266 @@
+# Converted from tests/lang/test_italian.py of pySBD
+# (github.com/nipunsadvilkar/pySBD, commit 5905f13be4fc95f407b98392e0ec303617a33d86),
+# MIT License, Copyright (c) 2019 Nipun Sadvilkar (LICENSE in this directory).
+# One case per entry of each test list, in file order; `name` is the list's name and,
+# for the regression tests, the issue number; `option` the segmenter options its test uses.
+
+case pysbd/test_italian/001
+lang it
+name GOLDEN_IT_RULES_TEST_CASES
+text Salve Sig.ra Mengoni! Come sta oggi?
+sentence Salve Sig.ra Mengoni!
+sentence Come sta oggi?
+end
+
+case pysbd/test_italian/002
+lang it
+name GOLDEN_IT_RULES_TEST_CASES
+text Una lettera si può iniziare in questo modo «Il/la sottoscritto/a.».
+sentence Una lettera si può iniziare in questo modo «Il/la sottoscritto/a.».
+end
+
+case pysbd/test_italian/003
+lang it
+name GOLDEN_IT_RULES_TEST_CASES
+text La casa costa 170.500.000,00€!
+sentence La casa costa 170.500.000,00€!
+end
+
+case pysbd/test_italian/004
+lang it
+name IT_MORE_TEST_CASES
+text Salve Sig.ra Mengoni! Come sta oggi?
+sentence Salve Sig.ra Mengoni!
+sentence Come sta oggi?
+end
+
+case pysbd/test_italian/005
+lang it
+name IT_MORE_TEST_CASES
+text Buongiorno! Sono l'Ing. Mengozzi. È presente l'Avv. Cassioni?
+sentence Buongiorno!
+sentence Sono l'Ing. Mengozzi.
+sentence È presente l'Avv. Cassioni?
+end
+
+case pysbd/test_italian/006
+lang it
+name IT_MORE_TEST_CASES
+text Mi fissi un appuntamento per mar. 23 Nov.. Grazie.
+sentence Mi fissi un appuntamento per mar. 23 Nov..
+sentence Grazie.
+end
+
+case pysbd/test_italian/007
+lang it
+name IT_MORE_TEST_CASES
+text Ecco il mio tel.:01234567. Mi saluti la Sig.na Manelli. Arrivederci.
+sentence Ecco il mio tel.:01234567.
+sentence Mi saluti la Sig.na Manelli.
+sentence Arrivederci.
+end
+
+case pysbd/test_italian/008
+lang it
+name IT_MORE_TEST_CASES
+text La centrale meteor. si è guastata. Gli idraul. son dovuti andare a sistemarla.
+sentence La centrale meteor. si è guastata.
+sentence Gli idraul. son dovuti andare a sistemarla.
+end
+
+case pysbd/test_italian/009
+lang it
+name IT_MORE_TEST_CASES
+text Hanno creato un algoritmo allo st. d. arte. Si ringrazia lo psicol. Serenti.
+sentence Hanno creato un algoritmo allo st. d. arte.
+sentence Si ringrazia lo psicol. Serenti.
+end
+
+case pysbd/test_italian/010
+lang it
+name IT_MORE_TEST_CASES
+text Chiamate il V.Cte. delle F.P., adesso!
+sentence Chiamate il V.Cte. delle F.P., adesso!
+end
+
+case pysbd/test_italian/011
+lang it
+name IT_MORE_TEST_CASES
+text Giancarlo ha sostenuto l'esame di econ. az..
+sentence Giancarlo ha sostenuto l'esame di econ. az..
+end
+
+case pysbd/test_italian/012
+lang it
+name IT_MORE_TEST_CASES
+text Stava viaggiando a 90 km/h verso la provincia di TR quando il Dott. Mesini ha sentito un rumore e si fermò!
+sentence Stava viaggiando a 90 km/h verso la provincia di TR quando il Dott. Mesini ha sentito un rumore e si fermò!
+end
+
+case pysbd/test_italian/013
+lang it
+name IT_MORE_TEST_CASES
+text Egregio Dir. Amm., le faccio sapere che l'ascensore non funziona.
+sentence Egregio Dir. Amm., le faccio sapere che l'ascensore non funziona.
+end
+
+case pysbd/test_italian/014
+lang it
+name IT_MORE_TEST_CASES
+text Stava mangiando e/o dormendo.
+sentence Stava mangiando e/o dormendo.
+end
+
+case pysbd/test_italian/015
+lang it
+name IT_MORE_TEST_CASES
+text Ricordatevi che dom 25 Set. sarà il compleanno di Maria; dovremo darle un regalo.
+sentence Ricordatevi che dom 25 Set. sarà il compleanno di Maria; dovremo darle un regalo.
+end
+
+case pysbd/test_italian/016
+lang it
+name IT_MORE_TEST_CASES
+text La politica è quella della austerità; quindi verranno fatti tagli agli sprechi.
+sentence La politica è quella della austerità; quindi verranno fatti tagli agli sprechi.
+end
+
+case pysbd/test_italian/017
+lang it
+name IT_MORE_TEST_CASES
+text Nel tribunale, l'Avv. Fabrizi ha urlato "Io, l'illustrissimo Fabrizi, vi si oppone!".
+sentence Nel tribunale, l'Avv. Fabrizi ha urlato "Io, l'illustrissimo Fabrizi, vi si oppone!".
+end
+
+case pysbd/test_italian/018
+lang it
+name IT_MORE_TEST_CASES
+text Le parti fisiche di un computer (ad es. RAM, CPU, tastiera, mouse, etc.) sono definiti HW.
+sentence Le parti fisiche di un computer (ad es. RAM, CPU, tastiera, mouse, etc.) sono definiti HW.
+end
+
+case pysbd/test_italian/019
+lang it
+name IT_MORE_TEST_CASES
+text La parola 'casa' è sinonimo di abitazione.
+sentence La parola 'casa' è sinonimo di abitazione.
+end
+
+case pysbd/test_italian/020
+lang it
+name IT_MORE_TEST_CASES
+text La "Mulino Bianco" fa alimentari pre-confezionati.
+sentence La "Mulino Bianco" fa alimentari pre-confezionati.
+end
+
+case pysbd/test_italian/021
+lang it
+name IT_MORE_TEST_CASES
+text "Ei fu. Siccome immobile / dato il mortal sospiro / stette la spoglia immemore / orba di tanto spiro / [...]" (Manzoni).
+sentence "Ei fu. Siccome immobile / dato il mortal sospiro / stette la spoglia immemore / orba di tanto spiro / [...]" (Manzoni).
+end
+
+case pysbd/test_italian/022
+lang it
+name IT_MORE_TEST_CASES
+text Una lettera si può iniziare in questo modo «Il/la sottoscritto/a ... nato/a a ...».
+sentence Una lettera si può iniziare in questo modo «Il/la sottoscritto/a ... nato/a a ...».
+end
+
+case pysbd/test_italian/023
+lang it
+name IT_MORE_TEST_CASES
+text Per casa, in uno degli esercizi per i bambini c'era "3 + (14/7) = 5"
+sentence Per casa, in uno degli esercizi per i bambini c'era "3 + (14/7) = 5"
+end
+
+case pysbd/test_italian/024
+lang it
+name IT_MORE_TEST_CASES
+text Ai bambini è stato chiesto di fare "4:2*2"
+sentence Ai bambini è stato chiesto di fare "4:2*2"
+end
+
+case pysbd/test_italian/025
+lang it
+name IT_MORE_TEST_CASES
+text La maestra esclamò: "Bambini, quanto fa '2/3 + 4/3?'".
+sentence La maestra esclamò: "Bambini, quanto fa '2/3 + 4/3?'".
+end
+
+case pysbd/test_italian/026
+lang it
+name IT_MORE_TEST_CASES
+text Il motore misurava 120°C.
+sentence Il motore misurava 120°C.
+end
+
+case pysbd/test_italian/027
+lang it
+name IT_MORE_TEST_CASES
+text Il volume era di 3m³.
+sentence Il volume era di 3m³.
+end
+
+case pysbd/test_italian/028
+lang it
+name IT_MORE_TEST_CASES
+text La stanza misurava 20m².
+sentence La stanza misurava 20m².
+end
+
+case pysbd/test_italian/029
+lang it
+name IT_MORE_TEST_CASES
+text 1°C corrisponde a 33.8°F.
+sentence 1°C corrisponde a 33.8°F.
+end
+
+case pysbd/test_italian/030
+lang it
+name IT_MORE_TEST_CASES
+text Oggi è il 27-10-14.
+sentence Oggi è il 27-10-14.
+end
+
+case pysbd/test_italian/031
+lang it
+name IT_MORE_TEST_CASES
+text La casa costa 170.500.000,00€!
+sentence La casa costa 170.500.000,00€!
+end
+
+case pysbd/test_italian/032
+lang it
+name IT_MORE_TEST_CASES
+text Il corridore 103 è arrivato 4°.
+sentence Il corridore 103 è arrivato 4°.
+end
+
+case pysbd/test_italian/033
+lang it
+name IT_MORE_TEST_CASES
+text Oggi è il 27/10/2014.
+sentence Oggi è il 27/10/2014.
+end
+
+case pysbd/test_italian/034
+lang it
+name IT_MORE_TEST_CASES
+text Ecco l'elenco: 1.gelato, 2.carne, 3.riso.
+sentence Ecco l'elenco: 1.gelato, 2.carne, 3.riso.
+end
+
+case pysbd/test_italian/035
+lang it
+name IT_MORE_TEST_CASES
+text Devi comprare : 1)pesce 2)sale.
+sentence Devi comprare : 1)pesce 2)sale.
+end
+
+case pysbd/test_italian/036
+lang it
+name IT_MORE_TEST_CASES
+text La macchina viaggiava a 100 km/h.
+sentence La macchina viaggiava a 100 km/h.
+end

@@ -48,6 +48,7 @@ const FED: &[&str] = &[
     "surrogate",
     "tag-format",
     "tagged",
+    "temporal",
     "train",
     "zh",
 ];

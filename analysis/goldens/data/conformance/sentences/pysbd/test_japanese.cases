@@ -1,0 +1,45 @@
+# Converted from tests/lang/test_japanese.py of pySBD
+# (github.com/nipunsadvilkar/pySBD, commit 5905f13be4fc95f407b98392e0ec303617a33d86),
+# MIT License, Copyright (c) 2019 Nipun Sadvilkar (LICENSE in this directory).
+# One case per entry of each test list, in file order; `name` is the list's name and,
+# for the regression tests, the issue number; `option` the segmenter options its test uses.
+
+case pysbd/test_japanese/001
+lang ja
+name GOLDEN_JA_RULES_TEST_CASES
+text これはペンです。それはマーカーです。
+sentence これはペンです。
+sentence それはマーカーです。
+end
+
+case pysbd/test_japanese/002
+lang ja
+name GOLDEN_JA_RULES_TEST_CASES
+text それは何ですか？ペンですか？
+sentence それは何ですか？
+sentence ペンですか？
+end
+
+case pysbd/test_japanese/003
+lang ja
+name GOLDEN_JA_RULES_TEST_CASES
+text 良かったね！すごい！
+sentence 良かったね！
+sentence すごい！
+end
+
+case pysbd/test_japanese/004
+lang ja
+name GOLDEN_JA_RULES_TEST_CASES
+text 自民党税制調査会の幹部は、「引き下げ幅は３．２９％以上を目指すことになる」と指摘していて、今後、公明党と合意したうえで、３０日に決定する与党税制改正大綱に盛り込むことにしています。２％台後半を目指すとする方向で最終調整に入りました。
+sentence 自民党税制調査会の幹部は、「引き下げ幅は３．２９％以上を目指すことになる」と指摘していて、今後、公明党と合意したうえで、３０日に決定する与党税制改正大綱に盛り込むことにしています。
+sentence ２％台後半を目指すとする方向で最終調整に入りました。
+end
+
+case pysbd/test_japanese/005
+lang ja
+name JA_TEST_CASES_CLEAN
+option clean=true
+text これは父の\n家です。
+sentence これは父の家です。
+end

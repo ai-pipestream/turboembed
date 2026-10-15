@@ -10,7 +10,7 @@ the Unicode 18.0.0 release and are used under the Unicode License v3
 | `UnicodeData.txt`, `CaseFolding.txt`, `SpecialCasing.txt`, `DerivedNormalizationProps.txt`, `DerivedCoreProperties.txt`, `NormalizationTest.txt`, `PropList.txt`, `Scripts.txt`, `CompositionExclusions.txt`, `LineBreak.txt` | UCD 18.0.0, `https://www.unicode.org/Public/18.0.0/ucd/` |
 | `DerivedGeneralCategory.txt`, `DerivedCombiningClass.txt` | UCD 18.0.0, `ucd/extracted/` |
 | `emoji-data.txt`, `emoji-variation-sequences.txt` | UCD 18.0.0, `ucd/emoji/` |
-| `WordBreakProperty.txt`, `GraphemeBreakProperty.txt`, `GraphemeBreakTest.txt` | UCD 18.0.0, `ucd/auxiliary/` |
+| `WordBreakProperty.txt`, `SentenceBreakProperty.txt`, `GraphemeBreakProperty.txt`, `GraphemeBreakTest.txt` | UCD 18.0.0, `ucd/auxiliary/` |
 | `emoji-sequences.txt`, `emoji-zwj-sequences.txt`, `emoji-test.txt` | Unicode Emoji 18.0, `https://www.unicode.org/Public/emoji/18.0/` |
 | `confusables.txt` | Unicode Security Mechanisms 18.0.0 (UTS #39), `https://www.unicode.org/Public/security/18.0.0/` |
 

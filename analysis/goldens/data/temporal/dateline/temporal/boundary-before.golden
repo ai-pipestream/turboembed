@@ -1,0 +1,12 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	temporal/boundary-before	54	54	138e024366646dbac04c5107bc004eedc858d78befe691e7e4b846bb8c326b27
+annotator	opennlp.tools.temporal.CursorTemporalExtractor	extract
+config	reference	dateline
+layer	turbo:temporal	text	0	start:u32	end:u32	value:str	granularity:str	origin:str
+end	turbo:temporal
+layer	turbo:document-date	document	0	date:str	mention:u32
+end	turbo:document-date

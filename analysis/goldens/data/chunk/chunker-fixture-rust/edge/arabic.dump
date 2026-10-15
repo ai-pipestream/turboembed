@@ -1,0 +1,4061 @@
+dump 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	edge/arabic	82	48	5aeeaa567149bf3362840f0155ba9116a1a099afc184f13bb0255bee8c6e8879
+model	chunker-fixture-rust.bin	71caec6c87065f0872d0ef255ed95443b0c675acf273c2d19a1aefd6c006f1ab99846bbb28b56d2e78abcb3f78074d00b1135a6dffc4e14ed3957101cf80ee44
+model	opennlp-en-ud-ewt-sentence-1.3-2.5.4.bin	fed5d53ea87bf66afeb08c084f89ca9b95a96de0920dca40487b2ab9972ee6b7ef211e477db480b7253431de079fd66dfd14329cd7d19ad1f565155eb0cf5191
+model	opennlp-en-ud-ewt-tokens-1.3-2.5.4.bin	147d1cdcb89ca5d9bd0ead8fddf2cc14ae543a9151803fe56b3c1fa152b986605e34fb6dda4819c68aa22fc9bffa6bfab14f916b7d0bf4892d452686af34778a
+model	opennlp-en-ud-ewt-pos-1.3-2.5.4.bin	fca85b38d996b7c422401054feedeb0f748cbc03856893cb27670da5d207315ec9af0c0f818c3107a741a2effca2499b5097ac0b46edf4a5ac10bf77a351ac3e
+annotator	opennlp.tools.chunker.ChunkerME	chunk
+point	0	0	41	11	0	none
+context	w_2=bos
+context	w_1=bos
+context	w0=مرحبا
+context	w1=بالعالم
+context	w2=!
+context	w_1=bosw0=مرحبا
+context	w0=مرحباw1=بالعالم
+context	t_2=bos
+context	t_1=bos
+context	t0=VB
+context	t1=NN
+context	t2=.
+context	t_2=bost_1=bos
+context	t_1=bost0=VB
+context	t0=VBt1=NN
+context	t1=NNt2=.
+context	t_2=bost_1=bost0=VB
+context	t_1=bost0=VBt1=NN
+context	t0=VBt1=NNt2=.
+context	p_2=bos
+context	p_1=bos
+context	p_2=bosp_1=bos
+context	p_1=bost_2=bos
+context	p_1=bost_1=bos
+context	p_1=bost0=VB
+context	p_1=bost1=NN
+context	p_1=bost2=.
+context	p_1=bost_2=bost_1=bos
+context	p_1=bost_1=bost0=VB
+context	p_1=bost0=VBt1=NN
+context	p_1=bost1=NNt2=.
+context	p_1=bost_2=bost_1=bost0=VB
+context	p_1=bost_1=bost0=VBt1=NN
+context	p_1=bost0=VBt1=NNt2=.
+context	p_1=bosw_2=bos
+context	p_1=bosw_1=bos
+context	p_1=bosw0=مرحبا
+context	p_1=bosw1=بالعالم
+context	p_1=bosw2=!
+context	p_1=bosw_1=bosw0=مرحبا
+context	p_1=bosw0=مرحباw1=بالعالم
+outcome	B-NP	3fe3466e2c14ca91 0.6023474560700653
+outcome	I-NP	3fb552a46261fcf0 0.08329226877139084
+outcome	B-PP	3f98d45fe2ab35c1 0.024247644624485924
+outcome	B-VP	3fa8d41852ad76bb 0.048493156521300894
+outcome	I-VP	3fa5ef373a5d3918 0.04284069621518166
+outcome	O	3fa5cf2ade1d19d0 0.042596187222944004
+outcome	B-ADVP	3f9673b29918568c 0.021925726503545337
+outcome	B-PRT	3fa5cf2ade1d19d0 0.042596187222944004
+outcome	B-ADJP	3fa34c1aa19b2ceb 0.037690002658189524
+outcome	I-ADJP	3fa2e3c14a22a322 0.03689388303729958
+outcome	B-SBAR	3f917c940e15c6dc 0.017076791152652912
+end	0
+point	1	11	41	11	0	none
+context	w_2=bos
+context	w_1=مرحبا
+context	w0=بالعالم
+context	w1=!
+context	w2=eos
+context	w_1=مرحباw0=بالعالم
+context	w0=بالعالمw1=!
+context	t_2=bos
+context	t_1=VB
+context	t0=NN
+context	t1=.
+context	t2=eos
+context	t_2=bost_1=VB
+context	t_1=VBt0=NN
+context	t0=NNt1=.
+context	t1=.t2=eos
+context	t_2=bost_1=VBt0=NN
+context	t_1=VBt0=NNt1=.
+context	t0=NNt1=.t2=eos
+context	p_2=bos
+context	p_1=B-NP
+context	p_2=bosp_1=B-NP
+context	p_1=B-NPt_2=bos
+context	p_1=B-NPt_1=VB
+context	p_1=B-NPt0=NN
+context	p_1=B-NPt1=.
+context	p_1=B-NPt2=eos
+context	p_1=B-NPt_2=bost_1=VB
+context	p_1=B-NPt_1=VBt0=NN
+context	p_1=B-NPt0=NNt1=.
+context	p_1=B-NPt1=.t2=eos
+context	p_1=B-NPt_2=bost_1=VBt0=NN
+context	p_1=B-NPt_1=VBt0=NNt1=.
+context	p_1=B-NPt0=NNt1=.t2=eos
+context	p_1=B-NPw_2=bos
+context	p_1=B-NPw_1=مرحبا
+context	p_1=B-NPw0=بالعالم
+context	p_1=B-NPw1=!
+context	p_1=B-NPw2=eos
+context	p_1=B-NPw_1=مرحباw0=بالعالم
+context	p_1=B-NPw0=بالعالمw1=!
+outcome	B-NP	3fac6a5cdc65bbc1 0.05549898329160597
+outcome	I-NP	3fe64c68fff178d4 0.6968274115459061
+outcome	B-PP	3f95c988e989c302 0.021276606802021376
+outcome	B-VP	3fa798ec4561a0a1 0.04608858439388653
+outcome	I-VP	3f8b4cd3d3e96c27 0.01333013048604499
+outcome	O	3fac68843e2c9245 0.05548489817582384
+outcome	B-ADVP	3f925d9b1298d077 0.01793520260817202
+outcome	B-PRT	3f9e603b35a559a9 0.029663968228612756
+outcome	B-ADJP	3f98dd6f3f1e0a5d 0.024282205798508694
+outcome	I-ADJP	3f9723eb09674603 0.02259795422452805
+outcome	B-SBAR	3f916c21dda71489 0.0170140544448896
+end	1
+point	2	11	41	11	0	none
+context	w_2=bos
+context	w_1=مرحبا
+context	w0=بالعالم
+context	w1=!
+context	w2=eos
+context	w_1=مرحباw0=بالعالم
+context	w0=بالعالمw1=!
+context	t_2=bos
+context	t_1=VB
+context	t0=NN
+context	t1=.
+context	t2=eos
+context	t_2=bost_1=VB
+context	t_1=VBt0=NN
+context	t0=NNt1=.
+context	t1=.t2=eos
+context	t_2=bost_1=VBt0=NN
+context	t_1=VBt0=NNt1=.
+context	t0=NNt1=.t2=eos
+context	p_2=bos
+context	p_1=B-VP
+context	p_2=bosp_1=B-VP
+context	p_1=B-VPt_2=bos
+context	p_1=B-VPt_1=VB
+context	p_1=B-VPt0=NN
+context	p_1=B-VPt1=.
+context	p_1=B-VPt2=eos
+context	p_1=B-VPt_2=bost_1=VB
+context	p_1=B-VPt_1=VBt0=NN
+context	p_1=B-VPt0=NNt1=.
+context	p_1=B-VPt1=.t2=eos
+context	p_1=B-VPt_2=bost_1=VBt0=NN
+context	p_1=B-VPt_1=VBt0=NNt1=.
+context	p_1=B-VPt0=NNt1=.t2=eos
+context	p_1=B-VPw_2=bos
+context	p_1=B-VPw_1=مرحبا
+context	p_1=B-VPw0=بالعالم
+context	p_1=B-VPw1=!
+context	p_1=B-VPw2=eos
+context	p_1=B-VPw_1=مرحباw0=بالعالم
+context	p_1=B-VPw0=بالعالمw1=!
+outcome	B-NP	3fc14c751875f2f6 0.13514579481479644
+outcome	I-NP	3fd0d6a9af9acfe1 0.2631019797220216
+outcome	B-PP	3fa6536dbd67fce4 0.043605260249018035
+outcome	B-VP	3fb2e4f80df30435 0.07380628910597482
+outcome	I-VP	3fae83c76771281c 0.05959914338798475
+outcome	O	3fb36830bc8cca37 0.0758085689856579
+outcome	B-ADVP	3fb121cf58d5431f 0.06692214888358848
+outcome	B-PRT	3fb0d8730b5480ee 0.06580275560964186
+outcome	B-ADJP	3fc04ac324e7dd1c 0.12728156377827637
+outcome	I-ADJP	3faa6737e73aa29f 0.051568743683053635
+outcome	B-SBAR	3fa3208e244b5410 0.037357751779986015
+end	2
+point	3	11	41	11	0	none
+context	w_2=bos
+context	w_1=مرحبا
+context	w0=بالعالم
+context	w1=!
+context	w2=eos
+context	w_1=مرحباw0=بالعالم
+context	w0=بالعالمw1=!
+context	t_2=bos
+context	t_1=VB
+context	t0=NN
+context	t1=.
+context	t2=eos
+context	t_2=bost_1=VB
+context	t_1=VBt0=NN
+context	t0=NNt1=.
+context	t1=.t2=eos
+context	t_2=bost_1=VBt0=NN
+context	t_1=VBt0=NNt1=.
+context	t0=NNt1=.t2=eos
+context	p_2=bos
+context	p_1=B-PRT
+context	p_2=bosp_1=B-PRT
+context	p_1=B-PRTt_2=bos
+context	p_1=B-PRTt_1=VB
+context	p_1=B-PRTt0=NN
+context	p_1=B-PRTt1=.
+context	p_1=B-PRTt2=eos
+context	p_1=B-PRTt_2=bost_1=VB
+context	p_1=B-PRTt_1=VBt0=NN
+context	p_1=B-PRTt0=NNt1=.
+context	p_1=B-PRTt1=.t2=eos
+context	p_1=B-PRTt_2=bost_1=VBt0=NN
+context	p_1=B-PRTt_1=VBt0=NNt1=.
+context	p_1=B-PRTt0=NNt1=.t2=eos
+context	p_1=B-PRTw_2=bos
+context	p_1=B-PRTw_1=مرحبا
+context	p_1=B-PRTw0=بالعالم
+context	p_1=B-PRTw1=!
+context	p_1=B-PRTw2=eos
+context	p_1=B-PRTw_1=مرحباw0=بالعالم
+context	p_1=B-PRTw0=بالعالمw1=!
+outcome	B-NP	3fc5138a03d38d45 0.16465878664812741
+outcome	I-NP	3fd268af409ac0ea 0.28763943966897776
+outcome	B-PP	3faa4ef2bd7e3bfc 0.05138357699535587
+outcome	B-VP	3fb4a8133d59cf05 0.0806896233351005
+outcome	I-VP	3fa106fdf38dbf0e 0.03325646970813355
+outcome	O	3fbaadce2288c6e7 0.10421455710527604
+outcome	B-ADVP	3fa6e8dd3a1f58b6 0.0447453626108411
+outcome	B-PRT	3fb2f21a41b3acdc 0.07400669197129467
+outcome	B-ADJP	3faf045a5a193d77 0.060580085275996724
+outcome	I-ADJP	3facdd9903180cc0 0.05637815630691412
+outcome	B-SBAR	3fa5bba56052a019 0.04244725037398229
+end	3
+point	4	11	41	11	0	none
+context	w_2=bos
+context	w_1=مرحبا
+context	w0=بالعالم
+context	w1=!
+context	w2=eos
+context	w_1=مرحباw0=بالعالم
+context	w0=بالعالمw1=!
+context	t_2=bos
+context	t_1=VB
+context	t0=NN
+context	t1=.
+context	t2=eos
+context	t_2=bost_1=VB
+context	t_1=VBt0=NN
+context	t0=NNt1=.
+context	t1=.t2=eos
+context	t_2=bost_1=VBt0=NN
+context	t_1=VBt0=NNt1=.
+context	t0=NNt1=.t2=eos
+context	p_2=bos
+context	p_1=O
+context	p_2=bosp_1=O
+context	p_1=Ot_2=bos
+context	p_1=Ot_1=VB
+context	p_1=Ot0=NN
+context	p_1=Ot1=.
+context	p_1=Ot2=eos
+context	p_1=Ot_2=bost_1=VB
+context	p_1=Ot_1=VBt0=NN
+context	p_1=Ot0=NNt1=.
+context	p_1=Ot1=.t2=eos
+context	p_1=Ot_2=bost_1=VBt0=NN
+context	p_1=Ot_1=VBt0=NNt1=.
+context	p_1=Ot0=NNt1=.t2=eos
+context	p_1=Ow_2=bos
+context	p_1=Ow_1=مرحبا
+context	p_1=Ow0=بالعالم
+context	p_1=Ow1=!
+context	p_1=Ow2=eos
+context	p_1=Ow_1=مرحباw0=بالعالم
+context	p_1=Ow0=بالعالمw1=!
+outcome	B-NP	3fc4264996514740 0.1574184402439247
+outcome	I-NP	3fd22478580d0d27 0.2834759578583594
+outcome	B-PP	3fa9ed764f5e482e 0.05063981741763289
+outcome	B-VP	3fb7494c40d486b9 0.09096218664901813
+outcome	I-VP	3fa0c7e5a7aee490 0.032775093764436325
+outcome	O	3fbc5018fb88a3c2 0.11059719220123923
+outcome	B-ADVP	3fa693f8e74eb319 0.044097688899773675
+outcome	B-PRT	3fb2abe624eea0d5 0.07293547059692014
+outcome	B-ADJP	3fae916b47c0cafa 0.05970320940868663
+outcome	I-ADJP	3fac72a2c53c5e22 0.05556210191405976
+outcome	B-SBAR	3fa56b1d3861da3c 0.04183284104594917
+end	4
+point	5	11	41	11	0	none
+context	w_2=bos
+context	w_1=مرحبا
+context	w0=بالعالم
+context	w1=!
+context	w2=eos
+context	w_1=مرحباw0=بالعالم
+context	w0=بالعالمw1=!
+context	t_2=bos
+context	t_1=VB
+context	t0=NN
+context	t1=.
+context	t2=eos
+context	t_2=bost_1=VB
+context	t_1=VBt0=NN
+context	t0=NNt1=.
+context	t1=.t2=eos
+context	t_2=bost_1=VBt0=NN
+context	t_1=VBt0=NNt1=.
+context	t0=NNt1=.t2=eos
+context	p_2=bos
+context	p_1=B-ADJP
+context	p_2=bosp_1=B-ADJP
+context	p_1=B-ADJPt_2=bos
+context	p_1=B-ADJPt_1=VB
+context	p_1=B-ADJPt0=NN
+context	p_1=B-ADJPt1=.
+context	p_1=B-ADJPt2=eos
+context	p_1=B-ADJPt_2=bost_1=VB
+context	p_1=B-ADJPt_1=VBt0=NN
+context	p_1=B-ADJPt0=NNt1=.
+context	p_1=B-ADJPt1=.t2=eos
+context	p_1=B-ADJPt_2=bost_1=VBt0=NN
+context	p_1=B-ADJPt_1=VBt0=NNt1=.
+context	p_1=B-ADJPt0=NNt1=.t2=eos
+context	p_1=B-ADJPw_2=bos
+context	p_1=B-ADJPw_1=مرحبا
+context	p_1=B-ADJPw0=بالعالم
+context	p_1=B-ADJPw1=!
+context	p_1=B-ADJPw2=eos
+context	p_1=B-ADJPw_1=مرحباw0=بالعالم
+context	p_1=B-ADJPw0=بالعالمw1=!
+outcome	B-NP	3fbf80298940365c 0.12304935074663476
+outcome	I-NP	3fd05c2330f744fb 0.2556236246283132
+outcome	B-PP	3fa7614ff1d5cde9 0.045664308806319394
+outcome	B-VP	3fb25b7be6091e7f 0.07170843473533671
+outcome	I-VP	3f9e43a023356346 0.029554845951995
+outcome	O	3fc267d2c6642dcb 0.14379343688083987
+outcome	B-ADVP	3fa45c12c2368a9e 0.039764963348053003
+outcome	B-PRT	3fb0d64295581a95 0.06576934953782605
+outcome	B-ADJP	3fab908c8ae09806 0.053837196305082144
+outcome	I-ADJP	3fc116ea89799fe3 0.13351184570933503
+outcome	B-SBAR	3fa35061df04205e 0.03772264335026486
+end	5
+point	6	11	41	11	0	none
+context	w_2=bos
+context	w_1=مرحبا
+context	w0=بالعالم
+context	w1=!
+context	w2=eos
+context	w_1=مرحباw0=بالعالم
+context	w0=بالعالمw1=!
+context	t_2=bos
+context	t_1=VB
+context	t0=NN
+context	t1=.
+context	t2=eos
+context	t_2=bost_1=VB
+context	t_1=VBt0=NN
+context	t0=NNt1=.
+context	t1=.t2=eos
+context	t_2=bost_1=VBt0=NN
+context	t_1=VBt0=NNt1=.
+context	t0=NNt1=.t2=eos
+context	p_2=bos
+context	p_1=B-PP
+context	p_2=bosp_1=B-PP
+context	p_1=B-PPt_2=bos
+context	p_1=B-PPt_1=VB
+context	p_1=B-PPt0=NN
+context	p_1=B-PPt1=.
+context	p_1=B-PPt2=eos
+context	p_1=B-PPt_2=bost_1=VB
+context	p_1=B-PPt_1=VBt0=NN
+context	p_1=B-PPt0=NNt1=.
+context	p_1=B-PPt1=.t2=eos
+context	p_1=B-PPt_2=bost_1=VBt0=NN
+context	p_1=B-PPt_1=VBt0=NNt1=.
+context	p_1=B-PPt0=NNt1=.t2=eos
+context	p_1=B-PPw_2=bos
+context	p_1=B-PPw_1=مرحبا
+context	p_1=B-PPw0=بالعالم
+context	p_1=B-PPw1=!
+context	p_1=B-PPw2=eos
+context	p_1=B-PPw_1=مرحباw0=بالعالم
+context	p_1=B-PPw0=بالعالمw1=!
+outcome	B-NP	3fdc90258f404390 0.4462980174003457
+outcome	I-NP	3fc8678fbd61dc6f 0.1906604456632723
+outcome	B-PP	3fa1703a887f2e55 0.03405936161251747
+outcome	B-VP	3fab6259f173753a 0.05348473617935175
+outcome	I-VP	3f9692acb044c633 0.02204389406069236
+outcome	O	3fb1af1aaab3db17 0.069078127551489
+outcome	B-ADVP	3f9e5efebe7135e1 0.02965925252310864
+outcome	B-PRT	3fa91dbc36beb6e9 0.049054986651169426
+outcome	B-ADJP	3fa48f39b979631b 0.04015522374237986
+outcome	I-ADJP	3fa32228f44d8de2 0.037369994947564114
+outcome	B-SBAR	3f9ccfac4a76e447 0.02813595966810947
+end	6
+point	7	11	41	11	0	none
+context	w_2=bos
+context	w_1=مرحبا
+context	w0=بالعالم
+context	w1=!
+context	w2=eos
+context	w_1=مرحباw0=بالعالم
+context	w0=بالعالمw1=!
+context	t_2=bos
+context	t_1=VB
+context	t0=NN
+context	t1=.
+context	t2=eos
+context	t_2=bost_1=VB
+context	t_1=VBt0=NN
+context	t0=NNt1=.
+context	t1=.t2=eos
+context	t_2=bost_1=VBt0=NN
+context	t_1=VBt0=NNt1=.
+context	t0=NNt1=.t2=eos
+context	p_2=bos
+context	p_1=B-ADVP
+context	p_2=bosp_1=B-ADVP
+context	p_1=B-ADVPt_2=bos
+context	p_1=B-ADVPt_1=VB
+context	p_1=B-ADVPt0=NN
+context	p_1=B-ADVPt1=.
+context	p_1=B-ADVPt2=eos
+context	p_1=B-ADVPt_2=bost_1=VB
+context	p_1=B-ADVPt_1=VBt0=NN
+context	p_1=B-ADVPt0=NNt1=.
+context	p_1=B-ADVPt1=.t2=eos
+context	p_1=B-ADVPt_2=bost_1=VBt0=NN
+context	p_1=B-ADVPt_1=VBt0=NNt1=.
+context	p_1=B-ADVPt0=NNt1=.t2=eos
+context	p_1=B-ADVPw_2=bos
+context	p_1=B-ADVPw_1=مرحبا
+context	p_1=B-ADVPw0=بالعالم
+context	p_1=B-ADVPw1=!
+context	p_1=B-ADVPw2=eos
+context	p_1=B-ADVPw_1=مرحباw0=بالعالم
+context	p_1=B-ADVPw0=بالعالمw1=!
+outcome	B-NP	3fca927c331cb6bb 0.20759537215911003
+outcome	I-NP	3fcfe7ff463fb646 0.24926749162789202
+outcome	B-PP	3fa904b965b180fc 0.04886416784643363
+outcome	B-VP	3fb2c67cc4498785 0.07334117691200788
+outcome	I-VP	3f9d82fab11e52d9 0.028819958744480487
+outcome	O	3fc301abff62990f 0.14848852128961496
+outcome	B-ADVP	3fa3da795987bf30 0.03877619951151556
+outcome	B-PRT	3fb06b15a8a42d6a 0.06413398139209439
+outcome	B-ADJP	3faae1162387bcfa 0.052498523556886625
+outcome	I-ADJP	3fa903cdb9bcf658 0.04885714428244786
+outcome	B-SBAR	3fa426a94e1b610c 0.03935746267751669
+end	7
+point	8	25	41	11	0	none
+context	w_2=مرحبا
+context	w_1=بالعالم
+context	w0=!
+context	w1=eos
+context	w2=eos
+context	w_1=بالعالمw0=!
+context	w0=!w1=eos
+context	t_2=VB
+context	t_1=NN
+context	t0=.
+context	t1=eos
+context	t2=eos
+context	t_2=VBt_1=NN
+context	t_1=NNt0=.
+context	t0=.t1=eos
+context	t1=eost2=eos
+context	t_2=VBt_1=NNt0=.
+context	t_1=NNt0=.t1=eos
+context	t0=.t1=eost2=eos
+context	p_2=B-NP
+context	p_1=I-NP
+context	p_2=B-NPp_1=I-NP
+context	p_1=I-NPt_2=VB
+context	p_1=I-NPt_1=NN
+context	p_1=I-NPt0=.
+context	p_1=I-NPt1=eos
+context	p_1=I-NPt2=eos
+context	p_1=I-NPt_2=VBt_1=NN
+context	p_1=I-NPt_1=NNt0=.
+context	p_1=I-NPt0=.t1=eos
+context	p_1=I-NPt1=eost2=eos
+context	p_1=I-NPt_2=VBt_1=NNt0=.
+context	p_1=I-NPt_1=NNt0=.t1=eos
+context	p_1=I-NPt0=.t1=eost2=eos
+context	p_1=I-NPw_2=مرحبا
+context	p_1=I-NPw_1=بالعالم
+context	p_1=I-NPw0=!
+context	p_1=I-NPw1=eos
+context	p_1=I-NPw2=eos
+context	p_1=I-NPw_1=بالعالمw0=!
+context	p_1=I-NPw0=!w1=eos
+outcome	B-NP	3f83cf8360f17b73 0.009673143764471459
+outcome	I-NP	3fa0a9cbd3cefc52 0.03254544220498502
+outcome	B-PP	3f95f953b57b4f78 0.021458919479143884
+outcome	B-VP	3f9a3017f5a01f7c 0.025574087492742134
+outcome	I-VP	3f7e80267f636c14 0.007446432477276072
+outcome	O	3feb8c164a107069 0.8608504721228317
+outcome	B-ADVP	3f7a7b5b03f7f047 0.006465297250084551
+outcome	B-PRT	3f8753b73a87a09a 0.011390143846213886
+outcome	B-ADJP	3f733c802334fea2 0.004696369683472009
+outcome	I-ADJP	3f868c405c6ec27c 0.011009695835896276
+outcome	B-SBAR	3f8234eb0b410acf 0.008889995842883107
+end	8
+point	9	25	41	11	0	none
+context	w_2=مرحبا
+context	w_1=بالعالم
+context	w0=!
+context	w1=eos
+context	w2=eos
+context	w_1=بالعالمw0=!
+context	w0=!w1=eos
+context	t_2=VB
+context	t_1=NN
+context	t0=.
+context	t1=eos
+context	t2=eos
+context	t_2=VBt_1=NN
+context	t_1=NNt0=.
+context	t0=.t1=eos
+context	t1=eost2=eos
+context	t_2=VBt_1=NNt0=.
+context	t_1=NNt0=.t1=eos
+context	t0=.t1=eost2=eos
+context	p_2=B-NP
+context	p_1=B-NP
+context	p_2=B-NPp_1=B-NP
+context	p_1=B-NPt_2=VB
+context	p_1=B-NPt_1=NN
+context	p_1=B-NPt0=.
+context	p_1=B-NPt1=eos
+context	p_1=B-NPt2=eos
+context	p_1=B-NPt_2=VBt_1=NN
+context	p_1=B-NPt_1=NNt0=.
+context	p_1=B-NPt0=.t1=eos
+context	p_1=B-NPt1=eost2=eos
+context	p_1=B-NPt_2=VBt_1=NNt0=.
+context	p_1=B-NPt_1=NNt0=.t1=eos
+context	p_1=B-NPt0=.t1=eost2=eos
+context	p_1=B-NPw_2=مرحبا
+context	p_1=B-NPw_1=بالعالم
+context	p_1=B-NPw0=!
+context	p_1=B-NPw1=eos
+context	p_1=B-NPw2=eos
+context	p_1=B-NPw_1=بالعالمw0=!
+context	p_1=B-NPw0=!w1=eos
+outcome	B-NP	3f90e11230220a6f 0.01648357790737481
+outcome	I-NP	3fa501587bf940e3 0.041025891431333304
+outcome	B-PP	3f94e31807a7344a 0.020397544352637
+outcome	B-VP	3f986fd3b0704e59 0.023864085811580036
+outcome	I-VP	3f804ca3c805c88a 0.007958678762154631
+outcome	O	3feacc6924bf28f2 0.8374524800977083
+outcome	B-ADVP	3f8539bc3878de3a 0.010364027474778149
+outcome	B-PRT	3f88ee83d906d912 0.0121736813169773
+outcome	B-ADJP	3f827494f72f0873 0.009011424821327751
+outcome	I-ADJP	3f88195452b3acac 0.011767061971531177
+outcome	B-SBAR	3f83758bec7570fe 0.009501546052597561
+end	9
+point	10	25	41	11	0	none
+context	w_2=مرحبا
+context	w_1=بالعالم
+context	w0=!
+context	w1=eos
+context	w2=eos
+context	w_1=بالعالمw0=!
+context	w0=!w1=eos
+context	t_2=VB
+context	t_1=NN
+context	t0=.
+context	t1=eos
+context	t2=eos
+context	t_2=VBt_1=NN
+context	t_1=NNt0=.
+context	t0=.t1=eos
+context	t1=eost2=eos
+context	t_2=VBt_1=NNt0=.
+context	t_1=NNt0=.t1=eos
+context	t0=.t1=eost2=eos
+context	p_2=B-NP
+context	p_1=O
+context	p_2=B-NPp_1=O
+context	p_1=Ot_2=VB
+context	p_1=Ot_1=NN
+context	p_1=Ot0=.
+context	p_1=Ot1=eos
+context	p_1=Ot2=eos
+context	p_1=Ot_2=VBt_1=NN
+context	p_1=Ot_1=NNt0=.
+context	p_1=Ot0=.t1=eos
+context	p_1=Ot1=eost2=eos
+context	p_1=Ot_2=VBt_1=NNt0=.
+context	p_1=Ot_1=NNt0=.t1=eos
+context	p_1=Ot0=.t1=eost2=eos
+context	p_1=Ow_2=مرحبا
+context	p_1=Ow_1=بالعالم
+context	p_1=Ow0=!
+context	p_1=Ow1=eos
+context	p_1=Ow2=eos
+context	p_1=Ow_1=بالعالمw0=!
+context	p_1=Ow0=!w1=eos
+outcome	B-NP	3fb2105bf814c5e1 0.07056212240856709
+outcome	I-NP	3fb570f26348259f 0.08375468181488664
+outcome	B-PP	3fb275d93c21ba92 0.07211072652874354
+outcome	B-VP	3fb53b29744c55b1 0.08293398942290399
+outcome	I-VP	3f9e3dc3f78f26f1 0.029532491669477193
+outcome	O	3fddc46c545aea8b 0.4651137183933904
+outcome	B-ADVP	3fa3b0c73e461799 0.03845808634927934
+outcome	B-PRT	3fa720f1b83286c7 0.04517321942809143
+outcome	B-ADJP	3fa11ee8d600646b 0.033438945887788694
+outcome	I-ADJP	3fa65b2cfd074666 0.043664365660913515
+outcome	B-SBAR	3fa20d4a804ad792 0.03525765243595837
+end	10
+point	11	25	41	11	0	none
+context	w_2=مرحبا
+context	w_1=بالعالم
+context	w0=!
+context	w1=eos
+context	w2=eos
+context	w_1=بالعالمw0=!
+context	w0=!w1=eos
+context	t_2=VB
+context	t_1=NN
+context	t0=.
+context	t1=eos
+context	t2=eos
+context	t_2=VBt_1=NN
+context	t_1=NNt0=.
+context	t0=.t1=eos
+context	t1=eost2=eos
+context	t_2=VBt_1=NNt0=.
+context	t_1=NNt0=.t1=eos
+context	t0=.t1=eost2=eos
+context	p_2=B-NP
+context	p_1=B-VP
+context	p_2=B-NPp_1=B-VP
+context	p_1=B-VPt_2=VB
+context	p_1=B-VPt_1=NN
+context	p_1=B-VPt0=.
+context	p_1=B-VPt1=eos
+context	p_1=B-VPt2=eos
+context	p_1=B-VPt_2=VBt_1=NN
+context	p_1=B-VPt_1=NNt0=.
+context	p_1=B-VPt0=.t1=eos
+context	p_1=B-VPt1=eost2=eos
+context	p_1=B-VPt_2=VBt_1=NNt0=.
+context	p_1=B-VPt_1=NNt0=.t1=eos
+context	p_1=B-VPt0=.t1=eost2=eos
+context	p_1=B-VPw_2=مرحبا
+context	p_1=B-VPw_1=بالعالم
+context	p_1=B-VPw0=!
+context	p_1=B-VPw1=eos
+context	p_1=B-VPw2=eos
+context	p_1=B-VPw_1=بالعالمw0=!
+context	p_1=B-VPw0=!w1=eos
+outcome	B-NP	3fb24f0c9b0f6302 0.07151869569441874
+outcome	I-NP	3fb76c0adfd6e7b5 0.09149234738188634
+outcome	B-PP	3fb2b58bc4ce1b51 0.07308267168819539
+outcome	B-VP	3fb4468ae6d8adac 0.0792013944234699
+outcome	I-VP	3fad06eb0afa9dc3 0.056693406191068905
+outcome	O	3fd803d1af163aee 0.37523309801410576
+outcome	B-ADVP	3fabcbe22df185f0 0.054289882763224884
+outcome	B-PRT	3fac132c0bd266f1 0.05483377117452715
+outcome	B-ADJP	3facbd59b66bb93d 0.05613212920967434
+outcome	I-ADJP	3fa86be91cb48ea7 0.04769829249769702
+outcome	B-SBAR	3fa463da22552e96 0.03982431096173149
+end	11
+point	12	25	41	11	0	none
+context	w_2=مرحبا
+context	w_1=بالعالم
+context	w0=!
+context	w1=eos
+context	w2=eos
+context	w_1=بالعالمw0=!
+context	w0=!w1=eos
+context	t_2=VB
+context	t_1=NN
+context	t0=.
+context	t1=eos
+context	t2=eos
+context	t_2=VBt_1=NN
+context	t_1=NNt0=.
+context	t0=.t1=eos
+context	t1=eost2=eos
+context	t_2=VBt_1=NNt0=.
+context	t_1=NNt0=.t1=eos
+context	t0=.t1=eost2=eos
+context	p_2=B-NP
+context	p_1=B-PRT
+context	p_2=B-NPp_1=B-PRT
+context	p_1=B-PRTt_2=VB
+context	p_1=B-PRTt_1=NN
+context	p_1=B-PRTt0=.
+context	p_1=B-PRTt1=eos
+context	p_1=B-PRTt2=eos
+context	p_1=B-PRTt_2=VBt_1=NN
+context	p_1=B-PRTt_1=NNt0=.
+context	p_1=B-PRTt0=.t1=eos
+context	p_1=B-PRTt1=eost2=eos
+context	p_1=B-PRTt_2=VBt_1=NNt0=.
+context	p_1=B-PRTt_1=NNt0=.t1=eos
+context	p_1=B-PRTt0=.t1=eost2=eos
+context	p_1=B-PRTw_2=مرحبا
+context	p_1=B-PRTw_1=بالعالم
+context	p_1=B-PRTw0=!
+context	p_1=B-PRTw1=eos
+context	p_1=B-PRTw2=eos
+context	p_1=B-PRTw_1=بالعالمw0=!
+context	p_1=B-PRTw0=!w1=eos
+outcome	B-NP	3fb36d1f57805841 0.0758838261247954
+outcome	I-NP	3fb65e3d4d4340b4 0.08737548004433188
+outcome	B-PP	3fb34226d673b45f 0.0752281449856169
+outcome	B-VP	3fb35cfc09c62d46 0.07563758123994999
+outcome	I-VP	3f9f8c7320f365da 0.030809210668712207
+outcome	O	3fdcd6a3ac86bba4 0.4506005463435321
+outcome	B-ADVP	3fa48ab23738c095 0.040120667687348156
+outcome	B-PRT	3fa820e99b583834 0.04712610265060882
+outcome	B-ADJP	3fa1dc631603fcbd 0.03488454478974166
+outcome	I-ADJP	3fa75298253010d3 0.045552019633790096
+outcome	B-SBAR	3fa2d512f3907487 0.036781875831573045
+end	12
+point	13	25	41	11	0	none
+context	w_2=مرحبا
+context	w_1=بالعالم
+context	w0=!
+context	w1=eos
+context	w2=eos
+context	w_1=بالعالمw0=!
+context	w0=!w1=eos
+context	t_2=VB
+context	t_1=NN
+context	t0=.
+context	t1=eos
+context	t2=eos
+context	t_2=VBt_1=NN
+context	t_1=NNt0=.
+context	t0=.t1=eos
+context	t1=eost2=eos
+context	t_2=VBt_1=NNt0=.
+context	t_1=NNt0=.t1=eos
+context	t0=.t1=eost2=eos
+context	p_2=B-NP
+context	p_1=B-ADJP
+context	p_2=B-NPp_1=B-ADJP
+context	p_1=B-ADJPt_2=VB
+context	p_1=B-ADJPt_1=NN
+context	p_1=B-ADJPt0=.
+context	p_1=B-ADJPt1=eos
+context	p_1=B-ADJPt2=eos
+context	p_1=B-ADJPt_2=VBt_1=NN
+context	p_1=B-ADJPt_1=NNt0=.
+context	p_1=B-ADJPt0=.t1=eos
+context	p_1=B-ADJPt1=eost2=eos
+context	p_1=B-ADJPt_2=VBt_1=NNt0=.
+context	p_1=B-ADJPt_1=NNt0=.t1=eos
+context	p_1=B-ADJPt0=.t1=eost2=eos
+context	p_1=B-ADJPw_2=مرحبا
+context	p_1=B-ADJPw_1=بالعالم
+context	p_1=B-ADJPw0=!
+context	p_1=B-ADJPw1=eos
+context	p_1=B-ADJPw2=eos
+context	p_1=B-ADJPw_1=بالعالمw0=!
+context	p_1=B-ADJPw0=!w1=eos
+outcome	B-NP	3f988a5baeda2c9c 0.02396529440606497
+outcome	I-NP	3fa0cd3721f42f91 0.03281566895938604
+outcome	B-PP	3f9cee7b597de772 0.02825348600115469
+outcome	B-VP	3f9d16cad4b6b547 0.028407258255972036
+outcome	I-VP	3f87b28e369ee970 0.01157103637875842
+outcome	O	3fe92ba03b7caf96 0.7865754281860855
+outcome	B-ADVP	3f8edc0c6980c725 0.015068146676728464
+outcome	B-PRT	3f921fbc0b47035f 0.017699182689969613
+outcome	B-ADJP	3f8ad504a695493a 0.013101612409319164
+outcome	I-ADJP	3f9d6b0ddd596482 0.028728691706735983
+outcome	B-SBAR	3f8c4a9dc6efffa7 0.01381419432982496
+end	13
+point	14	25	41	11	0	none
+context	w_2=مرحبا
+context	w_1=بالعالم
+context	w0=!
+context	w1=eos
+context	w2=eos
+context	w_1=بالعالمw0=!
+context	w0=!w1=eos
+context	t_2=VB
+context	t_1=NN
+context	t0=.
+context	t1=eos
+context	t2=eos
+context	t_2=VBt_1=NN
+context	t_1=NNt0=.
+context	t0=.t1=eos
+context	t1=eost2=eos
+context	t_2=VBt_1=NNt0=.
+context	t_1=NNt0=.t1=eos
+context	t0=.t1=eost2=eos
+context	p_2=B-NP
+context	p_1=B-PP
+context	p_2=B-NPp_1=B-PP
+context	p_1=B-PPt_2=VB
+context	p_1=B-PPt_1=NN
+context	p_1=B-PPt0=.
+context	p_1=B-PPt1=eos
+context	p_1=B-PPt2=eos
+context	p_1=B-PPt_2=VBt_1=NN
+context	p_1=B-PPt_1=NNt0=.
+context	p_1=B-PPt0=.t1=eos
+context	p_1=B-PPt1=eost2=eos
+context	p_1=B-PPt_2=VBt_1=NNt0=.
+context	p_1=B-PPt_1=NNt0=.t1=eos
+context	p_1=B-PPt0=.t1=eost2=eos
+context	p_1=B-PPw_2=مرحبا
+context	p_1=B-PPw_1=بالعالم
+context	p_1=B-PPw0=!
+context	p_1=B-PPw1=eos
+context	p_1=B-PPw2=eos
+context	p_1=B-PPw_1=بالعالمw0=!
+context	p_1=B-PPw0=!w1=eos
+outcome	B-NP	3fc00d31e5643a84 0.1254026765895625
+outcome	I-NP	3fb52b65fce6f35c 0.08269345688218038
+outcome	B-PP	3fb239f815534e76 0.07119703789367712
+outcome	B-VP	3fb2535d327115e3 0.07158453446853445
+outcome	I-VP	3f9ddbac23931c56 0.029158296271614446
+outcome	O	3fdb4b0a398711f9 0.4264550744813103
+outcome	B-ADVP	3fa370e88f484129 0.037970798006542524
+outcome	B-PRT	3fa6d5ec0eaadf38 0.04460084609075782
+outcome	B-ADJP	3fa0e76011d988cc 0.033015253237651615
+outcome	I-ADJP	3fa612a8d30515de 0.04311111045766912
+outcome	B-SBAR	3fa1d2bc80448991 0.03481091562049977
+end	14
+point	15	25	41	11	0	none
+context	w_2=مرحبا
+context	w_1=بالعالم
+context	w0=!
+context	w1=eos
+context	w2=eos
+context	w_1=بالعالمw0=!
+context	w0=!w1=eos
+context	t_2=VB
+context	t_1=NN
+context	t0=.
+context	t1=eos
+context	t2=eos
+context	t_2=VBt_1=NN
+context	t_1=NNt0=.
+context	t0=.t1=eos
+context	t1=eost2=eos
+context	t_2=VBt_1=NNt0=.
+context	t_1=NNt0=.t1=eos
+context	t0=.t1=eost2=eos
+context	p_2=B-PP
+context	p_1=B-NP
+context	p_2=B-PPp_1=B-NP
+context	p_1=B-NPt_2=VB
+context	p_1=B-NPt_1=NN
+context	p_1=B-NPt0=.
+context	p_1=B-NPt1=eos
+context	p_1=B-NPt2=eos
+context	p_1=B-NPt_2=VBt_1=NN
+context	p_1=B-NPt_1=NNt0=.
+context	p_1=B-NPt0=.t1=eos
+context	p_1=B-NPt1=eost2=eos
+context	p_1=B-NPt_2=VBt_1=NNt0=.
+context	p_1=B-NPt_1=NNt0=.t1=eos
+context	p_1=B-NPt0=.t1=eost2=eos
+context	p_1=B-NPw_2=مرحبا
+context	p_1=B-NPw_1=بالعالم
+context	p_1=B-NPw0=!
+context	p_1=B-NPw1=eos
+context	p_1=B-NPw2=eos
+context	p_1=B-NPw_1=بالعالمw0=!
+context	p_1=B-NPw0=!w1=eos
+outcome	B-NP	3f8b9d1e89cbd2b8 0.013483275013166249
+outcome	I-NP	3fa58d8566321c26 0.04209534523493401
+outcome	B-PP	3f909e7e3a597b1f 0.01622960311066912
+outcome	B-VP	3f92390a327ababc 0.01779571469404105
+outcome	I-VP	3f7c3b4a426981e2 0.006892480922573859
+outcome	O	3feb2273667b1da1 0.8479554177837835
+outcome	B-ADVP	3f847bccdabc5f86 0.010001755166328296
+outcome	B-PRT	3f8a4b7617e0e36a 0.012839243510926319
+outcome	B-ADJP	3f84e92be41750a8 0.01021036424473494
+outcome	I-ADJP	3f83c7575531b144 0.009657556807916585
+outcome	B-SBAR	3f8a4b7617e0e36a 0.012839243510926319
+end	15
+point	16	25	41	11	0	none
+context	w_2=مرحبا
+context	w_1=بالعالم
+context	w0=!
+context	w1=eos
+context	w2=eos
+context	w_1=بالعالمw0=!
+context	w0=!w1=eos
+context	t_2=VB
+context	t_1=NN
+context	t0=.
+context	t1=eos
+context	t2=eos
+context	t_2=VBt_1=NN
+context	t_1=NNt0=.
+context	t0=.t1=eos
+context	t1=eost2=eos
+context	t_2=VBt_1=NNt0=.
+context	t_1=NNt0=.t1=eos
+context	t0=.t1=eost2=eos
+context	p_2=B-NP
+context	p_1=B-ADVP
+context	p_2=B-NPp_1=B-ADVP
+context	p_1=B-ADVPt_2=VB
+context	p_1=B-ADVPt_1=NN
+context	p_1=B-ADVPt0=.
+context	p_1=B-ADVPt1=eos
+context	p_1=B-ADVPt2=eos
+context	p_1=B-ADVPt_2=VBt_1=NN
+context	p_1=B-ADVPt_1=NNt0=.
+context	p_1=B-ADVPt0=.t1=eos
+context	p_1=B-ADVPt1=eost2=eos
+context	p_1=B-ADVPt_2=VBt_1=NNt0=.
+context	p_1=B-ADVPt_1=NNt0=.t1=eos
+context	p_1=B-ADVPt0=.t1=eost2=eos
+context	p_1=B-ADVPw_2=مرحبا
+context	p_1=B-ADVPw_1=بالعالم
+context	p_1=B-ADVPw0=!
+context	p_1=B-ADVPw1=eos
+context	p_1=B-ADVPw2=eos
+context	p_1=B-ADVPw_1=بالعالمw0=!
+context	p_1=B-ADVPw0=!w1=eos
+outcome	B-NP	3f94a62d8b20c087 0.020165168396659296
+outcome	I-NP	3f9b91cd57222ff0 0.026923378413400145
+outcome	B-PP	3f9a0c359130fa2d 0.025437199579977744
+outcome	B-VP	3f99081e40c701ac 0.02444503088349996
+outcome	I-VP	3f837142fa25d31c 0.009493373164084988
+outcome	O	3fea8d3bc0b574d7 0.8297404064029718
+outcome	B-ADVP	3f895189a55eea0b 0.012362552031722115
+outcome	B-PRT	3f8dbd45fa28adb1 0.014521166512244972
+outcome	B-ADJP	3f8603a2e5087bb8 0.01074912320569675
+outcome	I-ADJP	3f8cbefa8027afe9 0.014036137615185811
+outcome	B-SBAR	3f88d5c26b4f5b1f 0.01212646379455645
+end	16
+point	17	25	41	11	0	none
+context	w_2=مرحبا
+context	w_1=بالعالم
+context	w0=!
+context	w1=eos
+context	w2=eos
+context	w_1=بالعالمw0=!
+context	w0=!w1=eos
+context	t_2=VB
+context	t_1=NN
+context	t0=.
+context	t1=eos
+context	t2=eos
+context	t_2=VBt_1=NN
+context	t_1=NNt0=.
+context	t0=.t1=eos
+context	t1=eost2=eos
+context	t_2=VBt_1=NNt0=.
+context	t_1=NNt0=.t1=eos
+context	t0=.t1=eost2=eos
+context	p_2=B-NP
+context	p_1=B-SBAR
+context	p_2=B-NPp_1=B-SBAR
+context	p_1=B-SBARt_2=VB
+context	p_1=B-SBARt_1=NN
+context	p_1=B-SBARt0=.
+context	p_1=B-SBARt1=eos
+context	p_1=B-SBARt2=eos
+context	p_1=B-SBARt_2=VBt_1=NN
+context	p_1=B-SBARt_1=NNt0=.
+context	p_1=B-SBARt0=.t1=eos
+context	p_1=B-SBARt1=eost2=eos
+context	p_1=B-SBARt_2=VBt_1=NNt0=.
+context	p_1=B-SBARt_1=NNt0=.t1=eos
+context	p_1=B-SBARt0=.t1=eost2=eos
+context	p_1=B-SBARw_2=مرحبا
+context	p_1=B-SBARw_1=بالعالم
+context	p_1=B-SBARw0=!
+context	p_1=B-SBARw1=eos
+context	p_1=B-SBARw2=eos
+context	p_1=B-SBARw_1=بالعالمw0=!
+context	p_1=B-SBARw0=!w1=eos
+outcome	B-NP	3fb6e995fdafca2e 0.08950173800966674
+outcome	I-NP	3fb609db542c0b1f 0.08608790211659965
+outcome	B-PP	3fb2f980119f86ce 0.07411957197430327
+outcome	B-VP	3fb313f00b346f74 0.07452297471576036
+outcome	I-VP	3f9f156f18adbcd8 0.030355201607957877
+outcome	O	3fdc69d90253a18f 0.4439604304048083
+outcome	B-ADVP	3fa43d340734f4ef 0.039529443626159615
+outcome	B-PRT	3fa7c5e37d946375 0.046431645469232764
+outcome	B-ADJP	3fa19901f7bc63be 0.03437048100585781
+outcome	I-ADJP	3fa6fa9c5ad953dd 0.04488075837131309
+outcome	B-SBAR	3fa28e07ac4d6e08 0.03623985269834057
+end	17
+point	18	27	41	11	0	none
+context	w_2=bos
+context	w_1=bos
+context	w0=هذا
+context	w1=اختبار،
+context	w2=١٢٣
+context	w_1=bosw0=هذا
+context	w0=هذاw1=اختبار،
+context	t_2=bos
+context	t_1=bos
+context	t0=PRP
+context	t1=.
+context	t2=NNP
+context	t_2=bost_1=bos
+context	t_1=bost0=PRP
+context	t0=PRPt1=.
+context	t1=.t2=NNP
+context	t_2=bost_1=bost0=PRP
+context	t_1=bost0=PRPt1=.
+context	t0=PRPt1=.t2=NNP
+context	p_2=bos
+context	p_1=bos
+context	p_2=bosp_1=bos
+context	p_1=bost_2=bos
+context	p_1=bost_1=bos
+context	p_1=bost0=PRP
+context	p_1=bost1=.
+context	p_1=bost2=NNP
+context	p_1=bost_2=bost_1=bos
+context	p_1=bost_1=bost0=PRP
+context	p_1=bost0=PRPt1=.
+context	p_1=bost1=.t2=NNP
+context	p_1=bost_2=bost_1=bost0=PRP
+context	p_1=bost_1=bost0=PRPt1=.
+context	p_1=bost0=PRPt1=.t2=NNP
+context	p_1=bosw_2=bos
+context	p_1=bosw_1=bos
+context	p_1=bosw0=هذا
+context	p_1=bosw1=اختبار،
+context	p_1=bosw2=١٢٣
+context	p_1=bosw_1=bosw0=هذا
+context	p_1=bosw0=هذاw1=اختبار،
+outcome	B-NP	3fe6f548ab6e312a 0.7174418781519638
+outcome	I-NP	3fac3bb678a64b59 0.055143072345478834
+outcome	B-PP	3f95bb46f022b0da 0.021222217947681844
+outcome	B-VP	3f9ff0261a855840 0.03118953263159363
+outcome	I-VP	3f9d352742690635 0.028523076465950054
+outcome	O	3f9d4afa6d5c4cb4 0.028606331753576256
+outcome	B-ADVP	3f917a4fe14b013f 0.017068145871918402
+outcome	B-PRT	3f9d4afa6d5c4cb4 0.028606331753576256
+outcome	B-ADJP	3f9db82d71cf35c8 0.029022893973708525
+outcome	I-ADJP	3f9d7ab7c5834c25 0.028788443975667505
+outcome	B-SBAR	3f8d777ec10c3027 0.014388075128884804
+end	18
+point	19	34	41	11	0	none
+context	w_2=bos
+context	w_1=هذا
+context	w0=اختبار،
+context	w1=١٢٣
+context	w2=و
+context	w_1=هذاw0=اختبار،
+context	w0=اختبار،w1=١٢٣
+context	t_2=bos
+context	t_1=PRP
+context	t0=.
+context	t1=NNP
+context	t2=NNP
+context	t_2=bost_1=PRP
+context	t_1=PRPt0=.
+context	t0=.t1=NNP
+context	t1=NNPt2=NNP
+context	t_2=bost_1=PRPt0=.
+context	t_1=PRPt0=.t1=NNP
+context	t0=.t1=NNPt2=NNP
+context	p_2=bos
+context	p_1=B-NP
+context	p_2=bosp_1=B-NP
+context	p_1=B-NPt_2=bos
+context	p_1=B-NPt_1=PRP
+context	p_1=B-NPt0=.
+context	p_1=B-NPt1=NNP
+context	p_1=B-NPt2=NNP
+context	p_1=B-NPt_2=bost_1=PRP
+context	p_1=B-NPt_1=PRPt0=.
+context	p_1=B-NPt0=.t1=NNP
+context	p_1=B-NPt1=NNPt2=NNP
+context	p_1=B-NPt_2=bost_1=PRPt0=.
+context	p_1=B-NPt_1=PRPt0=.t1=NNP
+context	p_1=B-NPt0=.t1=NNPt2=NNP
+context	p_1=B-NPw_2=bos
+context	p_1=B-NPw_1=هذا
+context	p_1=B-NPw0=اختبار،
+context	p_1=B-NPw1=١٢٣
+context	p_1=B-NPw2=و
+context	p_1=B-NPw_1=هذاw0=اختبار،
+context	p_1=B-NPw0=اختبار،w1=١٢٣
+outcome	B-NP	3fb792b524aa8086 0.09208233018080322
+outcome	I-NP	3fcb062e7d6f4a10 0.21112614750616432
+outcome	B-PP	3fb579cc0cd0dd8b 0.08388972580802638
+outcome	B-VP	3fcac8282890fe92 0.20923330288677683
+outcome	I-VP	3fb1fde66ffa0bb2 0.07028045877272751
+outcome	O	3fb6338dcc2c35f8 0.08672415003476164
+outcome	B-ADVP	3fa18e898b2d9bb7 0.034290598144074584
+outcome	B-PRT	3faedf64eb52093e 0.06029811260761385
+outcome	B-ADJP	3faedf64eb52093e 0.06029811260761385
+outcome	I-ADJP	3faedf64eb52093e 0.06029811260761385
+outcome	B-SBAR	3fa01e023f97e698 0.03147894884382402
+end	19
+point	20	34	41	11	0	none
+context	w_2=bos
+context	w_1=هذا
+context	w0=اختبار،
+context	w1=١٢٣
+context	w2=و
+context	w_1=هذاw0=اختبار،
+context	w0=اختبار،w1=١٢٣
+context	t_2=bos
+context	t_1=PRP
+context	t0=.
+context	t1=NNP
+context	t2=NNP
+context	t_2=bost_1=PRP
+context	t_1=PRPt0=.
+context	t0=.t1=NNP
+context	t1=NNPt2=NNP
+context	t_2=bost_1=PRPt0=.
+context	t_1=PRPt0=.t1=NNP
+context	t0=.t1=NNPt2=NNP
+context	p_2=bos
+context	p_1=B-VP
+context	p_2=bosp_1=B-VP
+context	p_1=B-VPt_2=bos
+context	p_1=B-VPt_1=PRP
+context	p_1=B-VPt0=.
+context	p_1=B-VPt1=NNP
+context	p_1=B-VPt2=NNP
+context	p_1=B-VPt_2=bost_1=PRP
+context	p_1=B-VPt_1=PRPt0=.
+context	p_1=B-VPt0=.t1=NNP
+context	p_1=B-VPt1=NNPt2=NNP
+context	p_1=B-VPt_2=bost_1=PRPt0=.
+context	p_1=B-VPt_1=PRPt0=.t1=NNP
+context	p_1=B-VPt0=.t1=NNPt2=NNP
+context	p_1=B-VPw_2=bos
+context	p_1=B-VPw_1=هذا
+context	p_1=B-VPw0=اختبار،
+context	p_1=B-VPw1=١٢٣
+context	p_1=B-VPw2=و
+context	p_1=B-VPw_1=هذاw0=اختبار،
+context	p_1=B-VPw0=اختبار،w1=١٢٣
+outcome	B-NP	3fc082d851762223 0.12899307229624055
+outcome	I-NP	3fbfc3b399a6f04a 0.12407991887352057
+outcome	B-PP	3fb6b3f917f74050 0.08868367037871505
+outcome	B-VP	3fc07e3221c8e60d 0.1288511910404825
+outcome	I-VP	3fbebd9603c754aa 0.12008035270931097
+outcome	O	3fb3838e84552443 0.07622614603782644
+outcome	B-ADVP	3fac97612b3b065e 0.0558424344321906
+outcome	B-PRT	3fb3b2cac36b64f9 0.0769469000910198
+outcome	B-ADJP	3fb4d51b30c53838 0.08137674275096252
+outcome	I-ADJP	3fb443af86e819b2 0.0791578010904235
+outcome	B-SBAR	3fa45ba79e22180c 0.03976177029930747
+end	20
+point	21	34	41	11	0	none
+context	w_2=bos
+context	w_1=هذا
+context	w0=اختبار،
+context	w1=١٢٣
+context	w2=و
+context	w_1=هذاw0=اختبار،
+context	w0=اختبار،w1=١٢٣
+context	t_2=bos
+context	t_1=PRP
+context	t0=.
+context	t1=NNP
+context	t2=NNP
+context	t_2=bost_1=PRP
+context	t_1=PRPt0=.
+context	t0=.t1=NNP
+context	t1=NNPt2=NNP
+context	t_2=bost_1=PRPt0=.
+context	t_1=PRPt0=.t1=NNP
+context	t0=.t1=NNPt2=NNP
+context	p_2=bos
+context	p_1=B-ADJP
+context	p_2=bosp_1=B-ADJP
+context	p_1=B-ADJPt_2=bos
+context	p_1=B-ADJPt_1=PRP
+context	p_1=B-ADJPt0=.
+context	p_1=B-ADJPt1=NNP
+context	p_1=B-ADJPt2=NNP
+context	p_1=B-ADJPt_2=bost_1=PRP
+context	p_1=B-ADJPt_1=PRPt0=.
+context	p_1=B-ADJPt0=.t1=NNP
+context	p_1=B-ADJPt1=NNPt2=NNP
+context	p_1=B-ADJPt_2=bost_1=PRPt0=.
+context	p_1=B-ADJPt_1=PRPt0=.t1=NNP
+context	p_1=B-ADJPt0=.t1=NNPt2=NNP
+context	p_1=B-ADJPw_2=bos
+context	p_1=B-ADJPw_1=هذا
+context	p_1=B-ADJPw0=اختبار،
+context	p_1=B-ADJPw1=١٢٣
+context	p_1=B-ADJPw2=و
+context	p_1=B-ADJPw_1=هذاw0=اختبار،
+context	p_1=B-ADJPw0=اختبار،w1=١٢٣
+outcome	B-NP	3fbdf8d8d3d25678 0.11707835360933838
+outcome	I-NP	3fbec3bf2119bae0 0.12017435606115212
+outcome	B-PP	3fb7b34b365ca416 0.09257955624765687
+outcome	B-VP	3fbff2982a9114de 0.12479544676996876
+outcome	I-VP	3fb6e02f7c596861 0.08935829912062011
+outcome	O	3fc026bb5e6c6550 0.12618200407522773
+outcome	B-ADVP	3fa65297c4868a06 0.043598883380827444
+outcome	B-PRT	3fb3a065a75e9685 0.07666621528786706
+outcome	B-ADJP	3fb3a065a75e9685 0.07666621528786706
+outcome	I-ADJP	3fb7c6c3e5ee90fc 0.09287666667529842
+outcome	B-SBAR	3fa47e06b409ff3e 0.04002400348417588
+end	21
+point	22	34	41	11	0	none
+context	w_2=bos
+context	w_1=هذا
+context	w0=اختبار،
+context	w1=١٢٣
+context	w2=و
+context	w_1=هذاw0=اختبار،
+context	w0=اختبار،w1=١٢٣
+context	t_2=bos
+context	t_1=PRP
+context	t0=.
+context	t1=NNP
+context	t2=NNP
+context	t_2=bost_1=PRP
+context	t_1=PRPt0=.
+context	t0=.t1=NNP
+context	t1=NNPt2=NNP
+context	t_2=bost_1=PRPt0=.
+context	t_1=PRPt0=.t1=NNP
+context	t0=.t1=NNPt2=NNP
+context	p_2=bos
+context	p_1=B-PRT
+context	p_2=bosp_1=B-PRT
+context	p_1=B-PRTt_2=bos
+context	p_1=B-PRTt_1=PRP
+context	p_1=B-PRTt0=.
+context	p_1=B-PRTt1=NNP
+context	p_1=B-PRTt2=NNP
+context	p_1=B-PRTt_2=bost_1=PRP
+context	p_1=B-PRTt_1=PRPt0=.
+context	p_1=B-PRTt0=.t1=NNP
+context	p_1=B-PRTt1=NNPt2=NNP
+context	p_1=B-PRTt_2=bost_1=PRPt0=.
+context	p_1=B-PRTt_1=PRPt0=.t1=NNP
+context	p_1=B-PRTt0=.t1=NNPt2=NNP
+context	p_1=B-PRTw_2=bos
+context	p_1=B-PRTw_1=هذا
+context	p_1=B-PRTw0=اختبار،
+context	p_1=B-PRTw1=١٢٣
+context	p_1=B-PRTw2=و
+context	p_1=B-PRTw_1=هذاw0=اختبار،
+context	p_1=B-PRTw0=اختبار،w1=١٢٣
+outcome	B-NP	3fc252dff9a7764a 0.1431541413320921
+outcome	I-NP	3fbfa1af7c7a7b73 0.12356087483429494
+outcome	B-PP	3fb85e4539a941fd 0.09518845231765023
+outcome	B-VP	3fc06c88a5c1e41c 0.12831218808767708
+outcome	I-VP	3fb785368b41e1b9 0.09187642001950892
+outcome	O	3fb86f50775890d2 0.09544852174491616
+outcome	B-ADVP	3fa6f3a15d13c817 0.04482750188061873
+outcome	B-PRT	3fb42dfc1d43bcbd 0.07882667269199124
+outcome	B-ADJP	3fb42dfc1d43bcbd 0.07882667269199124
+outcome	I-ADJP	3fb42dfc1d43bcbd 0.07882667269199124
+outcome	B-SBAR	3fa511dc043401e1 0.04115188170726803
+end	22
+point	23	34	41	11	0	none
+context	w_2=bos
+context	w_1=هذا
+context	w0=اختبار،
+context	w1=١٢٣
+context	w2=و
+context	w_1=هذاw0=اختبار،
+context	w0=اختبار،w1=١٢٣
+context	t_2=bos
+context	t_1=PRP
+context	t0=.
+context	t1=NNP
+context	t2=NNP
+context	t_2=bost_1=PRP
+context	t_1=PRPt0=.
+context	t0=.t1=NNP
+context	t1=NNPt2=NNP
+context	t_2=bost_1=PRPt0=.
+context	t_1=PRPt0=.t1=NNP
+context	t0=.t1=NNPt2=NNP
+context	p_2=bos
+context	p_1=O
+context	p_2=bosp_1=O
+context	p_1=Ot_2=bos
+context	p_1=Ot_1=PRP
+context	p_1=Ot0=.
+context	p_1=Ot1=NNP
+context	p_1=Ot2=NNP
+context	p_1=Ot_2=bost_1=PRP
+context	p_1=Ot_1=PRPt0=.
+context	p_1=Ot0=.t1=NNP
+context	p_1=Ot1=NNPt2=NNP
+context	p_1=Ot_2=bost_1=PRPt0=.
+context	p_1=Ot_1=PRPt0=.t1=NNP
+context	p_1=Ot0=.t1=NNPt2=NNP
+context	p_1=Ow_2=bos
+context	p_1=Ow_1=هذا
+context	p_1=Ow0=اختبار،
+context	p_1=Ow1=١٢٣
+context	p_1=Ow2=و
+context	p_1=Ow_1=هذاw0=اختبار،
+context	p_1=Ow0=اختبار،w1=١٢٣
+outcome	B-NP	3fc166a94986eff7 0.1359454735774077
+outcome	I-NP	3fbef72ea9388877 0.12095920211189247
+outcome	B-PP	3fb7daeb2cefda0d 0.09318418356983944
+outcome	B-VP	3fc26428e609b748 0.1436816333038513
+outcome	I-VP	3fb7066e7ebb0e90 0.08994188875208864
+outcome	O	3fb9c217844c1ce0 0.10061785678782398
+outcome	B-ADVP	3fa677ea0c053d8b 0.04388362309202439
+outcome	B-PRT	3fb3c135fd120f79 0.07716691425781431
+outcome	B-ADJP	3fb3c135fd120f79 0.07716691425781431
+outcome	I-ADJP	3fb3c135fd120f79 0.07716691425781431
+outcome	B-SBAR	3fa4a04994ecacb4 0.04028539603162909
+end	23
+point	24	34	41	11	0	none
+context	w_2=bos
+context	w_1=هذا
+context	w0=اختبار،
+context	w1=١٢٣
+context	w2=و
+context	w_1=هذاw0=اختبار،
+context	w0=اختبار،w1=١٢٣
+context	t_2=bos
+context	t_1=PRP
+context	t0=.
+context	t1=NNP
+context	t2=NNP
+context	t_2=bost_1=PRP
+context	t_1=PRPt0=.
+context	t0=.t1=NNP
+context	t1=NNPt2=NNP
+context	t_2=bost_1=PRPt0=.
+context	t_1=PRPt0=.t1=NNP
+context	t0=.t1=NNPt2=NNP
+context	p_2=bos
+context	p_1=B-PP
+context	p_2=bosp_1=B-PP
+context	p_1=B-PPt_2=bos
+context	p_1=B-PPt_1=PRP
+context	p_1=B-PPt0=.
+context	p_1=B-PPt1=NNP
+context	p_1=B-PPt2=NNP
+context	p_1=B-PPt_2=bost_1=PRP
+context	p_1=B-PPt_1=PRPt0=.
+context	p_1=B-PPt0=.t1=NNP
+context	p_1=B-PPt1=NNPt2=NNP
+context	p_1=B-PPt_2=bost_1=PRPt0=.
+context	p_1=B-PPt_1=PRPt0=.t1=NNP
+context	p_1=B-PPt0=.t1=NNPt2=NNP
+context	p_1=B-PPw_2=bos
+context	p_1=B-PPw_1=هذا
+context	p_1=B-PPw0=اختبار،
+context	p_1=B-PPw1=١٢٣
+context	p_1=B-PPw2=و
+context	p_1=B-PPw_1=هذاw0=اختبار،
+context	p_1=B-PPw0=اختبار،w1=١٢٣
+outcome	B-NP	3fc535d54bcfab28 0.1657053585216428
+outcome	I-NP	3fbecc90440de450 0.12030889188271598
+outcome	B-PP	3fb7ba160ef08176 0.09268319954617774
+outcome	B-VP	3fbffbc018d38795 0.12493515592680489
+outcome	I-VP	3fb6e6bdd45ac8ab 0.08945833620490144
+outcome	O	3fb7caae76b6fd75 0.09293642423926037
+outcome	B-ADVP	3fa658fd882d1f7d 0.04364769255931742
+outcome	B-PRT	3fb3a6059ccf5a61 0.07675204351776578
+outcome	B-ADJP	3fb3a6059ccf5a61 0.07675204351776578
+outcome	I-ADJP	3fb3a6059ccf5a61 0.07675204351776578
+outcome	B-SBAR	3fa483e62df0aead 0.04006881056588205
+end	24
+point	25	34	41	11	0	none
+context	w_2=bos
+context	w_1=هذا
+context	w0=اختبار،
+context	w1=١٢٣
+context	w2=و
+context	w_1=هذاw0=اختبار،
+context	w0=اختبار،w1=١٢٣
+context	t_2=bos
+context	t_1=PRP
+context	t0=.
+context	t1=NNP
+context	t2=NNP
+context	t_2=bost_1=PRP
+context	t_1=PRPt0=.
+context	t0=.t1=NNP
+context	t1=NNPt2=NNP
+context	t_2=bost_1=PRPt0=.
+context	t_1=PRPt0=.t1=NNP
+context	t0=.t1=NNPt2=NNP
+context	p_2=bos
+context	p_1=B-ADVP
+context	p_2=bosp_1=B-ADVP
+context	p_1=B-ADVPt_2=bos
+context	p_1=B-ADVPt_1=PRP
+context	p_1=B-ADVPt0=.
+context	p_1=B-ADVPt1=NNP
+context	p_1=B-ADVPt2=NNP
+context	p_1=B-ADVPt_2=bost_1=PRP
+context	p_1=B-ADVPt_1=PRPt0=.
+context	p_1=B-ADVPt0=.t1=NNP
+context	p_1=B-ADVPt1=NNPt2=NNP
+context	p_1=B-ADVPt_2=bost_1=PRPt0=.
+context	p_1=B-ADVPt_1=PRPt0=.t1=NNP
+context	p_1=B-ADVPt0=.t1=NNPt2=NNP
+context	p_1=B-ADVPw_2=bos
+context	p_1=B-ADVPw_1=هذا
+context	p_1=B-ADVPw0=اختبار،
+context	p_1=B-ADVPw1=١٢٣
+context	p_1=B-ADVPw2=و
+context	p_1=B-ADVPw_1=هذاw0=اختبار،
+context	p_1=B-ADVPw0=اختبار،w1=١٢٣
+outcome	B-NP	3fc75f8bcbf1b14e 0.18260333498200015
+outcome	I-NP	3fbbbbddabf55028 0.1083353562183339
+outcome	B-PP	3fbc5b817915d892 0.11077126699624021
+outcome	B-VP	3fbe3509581bdf3d 0.11799677277656158
+outcome	I-VP	3fb49f4322c2330b 0.08055514906500265
+outcome	O	3fbd4f2ed6258c67 0.11448948600950502
+outcome	B-ADVP	3fa41f9e5e5f6ba2 0.03930373098383845
+outcome	B-PRT	3fb1b16aea558881 0.06911342831657132
+outcome	B-ADJP	3fb1b16aea558881 0.06911342831657132
+outcome	I-ADJP	3fb1b16aea558881 0.06911342831657132
+outcome	B-SBAR	3fa3c3fc07bb0d62 0.03860461801880423
+end	25
+point	26	49	41	11	0	none
+context	w_2=هذا
+context	w_1=اختبار،
+context	w0=١٢٣
+context	w1=و
+context	w2=456
+context	w_1=اختبار،w0=١٢٣
+context	w0=١٢٣w1=و
+context	t_2=PRP
+context	t_1=.
+context	t0=NNP
+context	t1=NNP
+context	t2=CD
+context	t_2=PRPt_1=.
+context	t_1=.t0=NNP
+context	t0=NNPt1=NNP
+context	t1=NNPt2=CD
+context	t_2=PRPt_1=.t0=NNP
+context	t_1=.t0=NNPt1=NNP
+context	t0=NNPt1=NNPt2=CD
+context	p_2=B-NP
+context	p_1=I-NP
+context	p_2=B-NPp_1=I-NP
+context	p_1=I-NPt_2=PRP
+context	p_1=I-NPt_1=.
+context	p_1=I-NPt0=NNP
+context	p_1=I-NPt1=NNP
+context	p_1=I-NPt2=CD
+context	p_1=I-NPt_2=PRPt_1=.
+context	p_1=I-NPt_1=.t0=NNP
+context	p_1=I-NPt0=NNPt1=NNP
+context	p_1=I-NPt1=NNPt2=CD
+context	p_1=I-NPt_2=PRPt_1=.t0=NNP
+context	p_1=I-NPt_1=.t0=NNPt1=NNP
+context	p_1=I-NPt0=NNPt1=NNPt2=CD
+context	p_1=I-NPw_2=هذا
+context	p_1=I-NPw_1=اختبار،
+context	p_1=I-NPw0=١٢٣
+context	p_1=I-NPw1=و
+context	p_1=I-NPw2=456
+context	p_1=I-NPw_1=اختبار،w0=١٢٣
+context	p_1=I-NPw0=١٢٣w1=و
+outcome	B-NP	3fb4fefe63ccaee8 0.08201589523803998
+outcome	I-NP	3fbb01d11e0c6681 0.10549647315601797
+outcome	B-PP	3fc9351af8e1e0d9 0.19693314697702283
+outcome	B-VP	3fc1737f5b4f88cd 0.13633720358399729
+outcome	I-VP	3fb9afe83e8a477c 0.10034038092478953
+outcome	O	3fb72150b753df14 0.09035210109493291
+outcome	B-ADVP	3faab54cc657dc2e 0.052164458476845574
+outcome	B-PRT	3fb1b81714acfef8 0.06921524290828163
+outcome	B-ADJP	3fa0816c4b2847da 0.032237419294815786
+outcome	I-ADJP	3fb47455181f1ab6 0.07990009154228059
+outcome	B-SBAR	3fac29f454b38a14 0.05500758680297593
+end	26
+point	27	49	41	11	0	none
+context	w_2=هذا
+context	w_1=اختبار،
+context	w0=١٢٣
+context	w1=و
+context	w2=456
+context	w_1=اختبار،w0=١٢٣
+context	w0=١٢٣w1=و
+context	t_2=PRP
+context	t_1=.
+context	t0=NNP
+context	t1=NNP
+context	t2=CD
+context	t_2=PRPt_1=.
+context	t_1=.t0=NNP
+context	t0=NNPt1=NNP
+context	t1=NNPt2=CD
+context	t_2=PRPt_1=.t0=NNP
+context	t_1=.t0=NNPt1=NNP
+context	t0=NNPt1=NNPt2=CD
+context	p_2=B-NP
+context	p_1=B-VP
+context	p_2=B-NPp_1=B-VP
+context	p_1=B-VPt_2=PRP
+context	p_1=B-VPt_1=.
+context	p_1=B-VPt0=NNP
+context	p_1=B-VPt1=NNP
+context	p_1=B-VPt2=CD
+context	p_1=B-VPt_2=PRPt_1=.
+context	p_1=B-VPt_1=.t0=NNP
+context	p_1=B-VPt0=NNPt1=NNP
+context	p_1=B-VPt1=NNPt2=CD
+context	p_1=B-VPt_2=PRPt_1=.t0=NNP
+context	p_1=B-VPt_1=.t0=NNPt1=NNP
+context	p_1=B-VPt0=NNPt1=NNPt2=CD
+context	p_1=B-VPw_2=هذا
+context	p_1=B-VPw_1=اختبار،
+context	p_1=B-VPw0=١٢٣
+context	p_1=B-VPw1=و
+context	p_1=B-VPw2=456
+context	p_1=B-VPw_1=اختبار،w0=١٢٣
+context	p_1=B-VPw0=١٢٣w1=و
+outcome	B-NP	3fc2f60f0225bb8a 0.148134113358051
+outcome	I-NP	3fb57951f11a5610 0.08388244758892704
+outcome	B-PP	3fbb695caecd8f46 0.10707644717836926
+outcome	B-VP	3fb85f01943e401c 0.09519967908113397
+outcome	I-VP	3fc31b6ade5e70b1 0.1492742143426589
+outcome	O	3fb023ce7aa9f7b9 0.06304636473393445
+outcome	B-ADVP	3fb160baec6edee9 0.06788223526279648
+outcome	B-PRT	3fb5ccc1836116ba 0.0851555772543077
+outcome	B-ADJP	3fadcbf2106fab1e 0.05819660616528764
+outcome	I-ADJP	3fb401c38aa4003e 0.07815191397458052
+outcome	B-SBAR	3fb062548d7bbef4 0.06400040105995314
+end	27
+point	28	49	41	11	0	none
+context	w_2=هذا
+context	w_1=اختبار،
+context	w0=١٢٣
+context	w1=و
+context	w2=456
+context	w_1=اختبار،w0=١٢٣
+context	w0=١٢٣w1=و
+context	t_2=PRP
+context	t_1=.
+context	t0=NNP
+context	t1=NNP
+context	t2=CD
+context	t_2=PRPt_1=.
+context	t_1=.t0=NNP
+context	t0=NNPt1=NNP
+context	t1=NNPt2=CD
+context	t_2=PRPt_1=.t0=NNP
+context	t_1=.t0=NNPt1=NNP
+context	t0=NNPt1=NNPt2=CD
+context	p_2=B-NP
+context	p_1=B-NP
+context	p_2=B-NPp_1=B-NP
+context	p_1=B-NPt_2=PRP
+context	p_1=B-NPt_1=.
+context	p_1=B-NPt0=NNP
+context	p_1=B-NPt1=NNP
+context	p_1=B-NPt2=CD
+context	p_1=B-NPt_2=PRPt_1=.
+context	p_1=B-NPt_1=.t0=NNP
+context	p_1=B-NPt0=NNPt1=NNP
+context	p_1=B-NPt1=NNPt2=CD
+context	p_1=B-NPt_2=PRPt_1=.t0=NNP
+context	p_1=B-NPt_1=.t0=NNPt1=NNP
+context	p_1=B-NPt0=NNPt1=NNPt2=CD
+context	p_1=B-NPw_2=هذا
+context	p_1=B-NPw_1=اختبار،
+context	p_1=B-NPw0=١٢٣
+context	p_1=B-NPw1=و
+context	p_1=B-NPw2=456
+context	p_1=B-NPw_1=اختبار،w0=١٢٣
+context	p_1=B-NPw0=١٢٣w1=و
+outcome	B-NP	3fc127db086e23a4 0.134028796306919
+outcome	I-NP	3fc06dd456b01fa1 0.12835172875224735
+outcome	B-PP	3fbcc144020f5886 0.11232399988452543
+outcome	B-VP	3fba3aea22584fd4 0.10246146524906347
+outcome	I-VP	3fba599980a43249 0.1029296816888713
+outcome	O	3fb4d937c400865b 0.08143948111730863
+outcome	B-ADVP	3fb1d82f4b4d9b42 0.0697049673886854
+outcome	B-PRT	3fb22d250e00983f 0.07100135413983909
+outcome	B-ADJP	3fae65aee6c330e4 0.05936953131603831
+outcome	I-ADJP	3fb4fb74f4883909 0.0819619271280524
+outcome	B-SBAR	3face4022efe26fd 0.056427067028449664
+end	28
+point	29	49	41	11	0	none
+context	w_2=هذا
+context	w_1=اختبار،
+context	w0=١٢٣
+context	w1=و
+context	w2=456
+context	w_1=اختبار،w0=١٢٣
+context	w0=١٢٣w1=و
+context	t_2=PRP
+context	t_1=.
+context	t0=NNP
+context	t1=NNP
+context	t2=CD
+context	t_2=PRPt_1=.
+context	t_1=.t0=NNP
+context	t0=NNPt1=NNP
+context	t1=NNPt2=CD
+context	t_2=PRPt_1=.t0=NNP
+context	t_1=.t0=NNPt1=NNP
+context	t0=NNPt1=NNPt2=CD
+context	p_2=B-NP
+context	p_1=O
+context	p_2=B-NPp_1=O
+context	p_1=Ot_2=PRP
+context	p_1=Ot_1=.
+context	p_1=Ot0=NNP
+context	p_1=Ot1=NNP
+context	p_1=Ot2=CD
+context	p_1=Ot_2=PRPt_1=.
+context	p_1=Ot_1=.t0=NNP
+context	p_1=Ot0=NNPt1=NNP
+context	p_1=Ot1=NNPt2=CD
+context	p_1=Ot_2=PRPt_1=.t0=NNP
+context	p_1=Ot_1=.t0=NNPt1=NNP
+context	p_1=Ot0=NNPt1=NNPt2=CD
+context	p_1=Ow_2=هذا
+context	p_1=Ow_1=اختبار،
+context	p_1=Ow0=١٢٣
+context	p_1=Ow1=و
+context	p_1=Ow2=456
+context	p_1=Ow_1=اختبار،w0=١٢٣
+context	p_1=Ow0=١٢٣w1=و
+outcome	B-NP	3fc39e86aacea3ac 0.15327533092684342
+outcome	I-NP	3fb65344ddf63277 0.08720808428751946
+outcome	B-PP	3fbeb79624e837ec 0.11998880768825843
+outcome	B-VP	3fbcfb8805cdb42a 0.11321306363761666
+outcome	I-VP	3fba1f094009f119 0.10203607381294368
+outcome	O	3fb6b877bac16743 0.08875225362262733
+outcome	B-ADVP	3fb1b08665a8a658 0.06909980756668099
+outcome	B-PRT	3fb204bf55021f8f 0.07038493943593792
+outcome	B-ADJP	3fae221feddc15e9 0.05885410097657113
+outcome	I-ADJP	3fb4ccd2c464d4c7 0.0812503556706644
+outcome	B-SBAR	3faca3cc61db383c 0.05593718237433662
+end	29
+point	30	49	41	11	0	none
+context	w_2=هذا
+context	w_1=اختبار،
+context	w0=١٢٣
+context	w1=و
+context	w2=456
+context	w_1=اختبار،w0=١٢٣
+context	w0=١٢٣w1=و
+context	t_2=PRP
+context	t_1=.
+context	t0=NNP
+context	t1=NNP
+context	t2=CD
+context	t_2=PRPt_1=.
+context	t_1=.t0=NNP
+context	t0=NNPt1=NNP
+context	t1=NNPt2=CD
+context	t_2=PRPt_1=.t0=NNP
+context	t_1=.t0=NNPt1=NNP
+context	t0=NNPt1=NNPt2=CD
+context	p_2=B-NP
+context	p_1=B-PP
+context	p_2=B-NPp_1=B-PP
+context	p_1=B-PPt_2=PRP
+context	p_1=B-PPt_1=.
+context	p_1=B-PPt0=NNP
+context	p_1=B-PPt1=NNP
+context	p_1=B-PPt2=CD
+context	p_1=B-PPt_2=PRPt_1=.
+context	p_1=B-PPt_1=.t0=NNP
+context	p_1=B-PPt0=NNPt1=NNP
+context	p_1=B-PPt1=NNPt2=CD
+context	p_1=B-PPt_2=PRPt_1=.t0=NNP
+context	p_1=B-PPt_1=.t0=NNPt1=NNP
+context	p_1=B-PPt0=NNPt1=NNPt2=CD
+context	p_1=B-PPw_2=هذا
+context	p_1=B-PPw_1=اختبار،
+context	p_1=B-PPw0=١٢٣
+context	p_1=B-PPw1=و
+context	p_1=B-PPw2=456
+context	p_1=B-PPw_1=اختبار،w0=١٢٣
+context	p_1=B-PPw0=١٢٣w1=و
+outcome	B-NP	3fd42c311b140996 0.3151972546039813
+outcome	I-NP	3fb2816abf3c380b 0.07228724640683042
+outcome	B-PP	3fb9762b3727eedd 0.09945936295110465
+outcome	B-VP	3fb5009421f08699 0.08204007938959491
+outcome	I-VP	3fb5a6eb80b8e032 0.08457824604636313
+outcome	O	3fb17d4d2dd70237 0.0683181988633884
+outcome	B-ADVP	3fad536fe2ce16f1 0.057277199207460223
+outcome	B-PRT	3faddf0fd582fa44 0.05834245187132983
+outcome	B-ADJP	3fa8fa4776146b95 0.04878447834399605
+outcome	I-ADJP	3fb13dc642a145d1 0.0673488533659772
+outcome	B-SBAR	3fa7bd5de5ee8b2f 0.04636662894997411
+end	30
+point	31	49	41	11	0	none
+context	w_2=هذا
+context	w_1=اختبار،
+context	w0=١٢٣
+context	w1=و
+context	w2=456
+context	w_1=اختبار،w0=١٢٣
+context	w0=١٢٣w1=و
+context	t_2=PRP
+context	t_1=.
+context	t0=NNP
+context	t1=NNP
+context	t2=CD
+context	t_2=PRPt_1=.
+context	t_1=.t0=NNP
+context	t0=NNPt1=NNP
+context	t1=NNPt2=CD
+context	t_2=PRPt_1=.t0=NNP
+context	t_1=.t0=NNPt1=NNP
+context	t0=NNPt1=NNPt2=CD
+context	p_2=B-NP
+context	p_1=B-ADJP
+context	p_2=B-NPp_1=B-ADJP
+context	p_1=B-ADJPt_2=PRP
+context	p_1=B-ADJPt_1=.
+context	p_1=B-ADJPt0=NNP
+context	p_1=B-ADJPt1=NNP
+context	p_1=B-ADJPt2=CD
+context	p_1=B-ADJPt_2=PRPt_1=.
+context	p_1=B-ADJPt_1=.t0=NNP
+context	p_1=B-ADJPt0=NNPt1=NNP
+context	p_1=B-ADJPt1=NNPt2=CD
+context	p_1=B-ADJPt_2=PRPt_1=.t0=NNP
+context	p_1=B-ADJPt_1=.t0=NNPt1=NNP
+context	p_1=B-ADJPt0=NNPt1=NNPt2=CD
+context	p_1=B-ADJPw_2=هذا
+context	p_1=B-ADJPw_1=اختبار،
+context	p_1=B-ADJPw0=١٢٣
+context	p_1=B-ADJPw1=و
+context	p_1=B-ADJPw2=456
+context	p_1=B-ADJPw_1=اختبار،w0=١٢٣
+context	p_1=B-ADJPw0=١٢٣w1=و
+outcome	B-NP	3fc13aa4ad7a389c 0.13460215063645797
+outcome	I-NP	3fb69dfc3229b502 0.08834816193276043
+outcome	B-PP	3fbf1e6342f48a80 0.121557430120939
+outcome	B-VP	3fb9ab282cef3fd2 0.1002678975776228
+outcome	I-VP	3fba7674cc6ef3c9 0.10336999884653077
+outcome	O	3fb833988e3e7f09 0.09453729126698475
+outcome	B-ADVP	3fb1ebba0ab8a823 0.07000315438986653
+outcome	B-PRT	3fb2410cd83213d8 0.07130508688176407
+outcome	B-ADJP	3fae86f8d77f67d0 0.05962350493037116
+outcome	I-ADJP	3fb9870b784650d5 0.09971687017815907
+outcome	B-SBAR	3fad03a5c2bfb7c8 0.05666845323854336
+end	31
+point	32	49	41	11	0	none
+context	w_2=هذا
+context	w_1=اختبار،
+context	w0=١٢٣
+context	w1=و
+context	w2=456
+context	w_1=اختبار،w0=١٢٣
+context	w0=١٢٣w1=و
+context	t_2=PRP
+context	t_1=.
+context	t0=NNP
+context	t1=NNP
+context	t2=CD
+context	t_2=PRPt_1=.
+context	t_1=.t0=NNP
+context	t0=NNPt1=NNP
+context	t1=NNPt2=CD
+context	t_2=PRPt_1=.t0=NNP
+context	t_1=.t0=NNPt1=NNP
+context	t0=NNPt1=NNPt2=CD
+context	p_2=B-NP
+context	p_1=B-PRT
+context	p_2=B-NPp_1=B-PRT
+context	p_1=B-PRTt_2=PRP
+context	p_1=B-PRTt_1=.
+context	p_1=B-PRTt0=NNP
+context	p_1=B-PRTt1=NNP
+context	p_1=B-PRTt2=CD
+context	p_1=B-PRTt_2=PRPt_1=.
+context	p_1=B-PRTt_1=.t0=NNP
+context	p_1=B-PRTt0=NNPt1=NNP
+context	p_1=B-PRTt1=NNPt2=CD
+context	p_1=B-PRTt_2=PRPt_1=.t0=NNP
+context	p_1=B-PRTt_1=.t0=NNPt1=NNP
+context	p_1=B-PRTt0=NNPt1=NNPt2=CD
+context	p_1=B-PRTw_2=هذا
+context	p_1=B-PRTw_1=اختبار،
+context	p_1=B-PRTw0=١٢٣
+context	p_1=B-PRTw1=و
+context	p_1=B-PRTw2=456
+context	p_1=B-PRTw_1=اختبار،w0=١٢٣
+context	p_1=B-PRTw0=١٢٣w1=و
+outcome	B-NP	3fc48cd5a7e4a573 0.16054793069751447
+outcome	I-NP	3fb6af452354e913 0.08861190903272513
+outcome	B-PP	3fbf362b7fbc6df3 0.12192031734996771
+outcome	B-VP	3fb9bec61eef570e 0.10056722884413835
+outcome	I-VP	3fba8aae1d0d031b 0.10367859086273905
+outcome	O	3fb570699de844f3 0.0837465296283602
+outcome	B-ADVP	3fb1f96c2b4f7a4c 0.07021213586220049
+outcome	B-PRT	3fb24f002df15250 0.07151795503279712
+outcome	B-ADJP	3fae9e4d5c76134d 0.05980149987866543
+outcome	I-ADJP	3fb5228a0915d29e 0.08255827638442745
+outcome	B-SBAR	3fad19d2455e2c33 0.05683762642646464
+end	32
+point	33	49	41	11	0	none
+context	w_2=هذا
+context	w_1=اختبار،
+context	w0=١٢٣
+context	w1=و
+context	w2=456
+context	w_1=اختبار،w0=١٢٣
+context	w0=١٢٣w1=و
+context	t_2=PRP
+context	t_1=.
+context	t0=NNP
+context	t1=NNP
+context	t2=CD
+context	t_2=PRPt_1=.
+context	t_1=.t0=NNP
+context	t0=NNPt1=NNP
+context	t1=NNPt2=CD
+context	t_2=PRPt_1=.t0=NNP
+context	t_1=.t0=NNPt1=NNP
+context	t0=NNPt1=NNPt2=CD
+context	p_2=B-NP
+context	p_1=B-ADVP
+context	p_2=B-NPp_1=B-ADVP
+context	p_1=B-ADVPt_2=PRP
+context	p_1=B-ADVPt_1=.
+context	p_1=B-ADVPt0=NNP
+context	p_1=B-ADVPt1=NNP
+context	p_1=B-ADVPt2=CD
+context	p_1=B-ADVPt_2=PRPt_1=.
+context	p_1=B-ADVPt_1=.t0=NNP
+context	p_1=B-ADVPt0=NNPt1=NNP
+context	p_1=B-ADVPt1=NNPt2=CD
+context	p_1=B-ADVPt_2=PRPt_1=.t0=NNP
+context	p_1=B-ADVPt_1=.t0=NNPt1=NNP
+context	p_1=B-ADVPt0=NNPt1=NNPt2=CD
+context	p_1=B-ADVPw_2=هذا
+context	p_1=B-ADVPw_1=اختبار،
+context	p_1=B-ADVPw0=١٢٣
+context	p_1=B-ADVPw1=و
+context	p_1=B-ADVPw2=456
+context	p_1=B-ADVPw_1=اختبار،w0=١٢٣
+context	p_1=B-ADVPw0=١٢٣w1=و
+outcome	B-NP	3fc111b538efac26 0.13335290222252744
+outcome	I-NP	3fb5d928970e0105 0.08534482658251726
+outcome	B-PP	3fc3f2fca4e446f7 0.15585287143090173
+outcome	B-VP	3fba01db87f7a802 0.10159084386364728
+outcome	I-VP	3fb99029c9e50ade 0.09985600642270806
+outcome	O	3fb78142f303a954 0.09181612427679414
+outcome	B-ADVP	3fb14fc524d4a8ae 0.06762344502627357
+outcome	B-PRT	3fb1a2316a555c75 0.06888111921340274
+outcome	B-ADJP	3fad7d4eb24827de 0.0575966446522924
+outcome	I-ADJP	3fb45b0e1328b1b3 0.07951438873050769
+outcome	B-SBAR	3fadfcfed9e5e39c 0.05857082757842777
+end	33
+point	34	49	41	11	0	none
+context	w_2=هذا
+context	w_1=اختبار،
+context	w0=١٢٣
+context	w1=و
+context	w2=456
+context	w_1=اختبار،w0=١٢٣
+context	w0=١٢٣w1=و
+context	t_2=PRP
+context	t_1=.
+context	t0=NNP
+context	t1=NNP
+context	t2=CD
+context	t_2=PRPt_1=.
+context	t_1=.t0=NNP
+context	t0=NNPt1=NNP
+context	t1=NNPt2=CD
+context	t_2=PRPt_1=.t0=NNP
+context	t_1=.t0=NNPt1=NNP
+context	t0=NNPt1=NNPt2=CD
+context	p_2=O
+context	p_1=B-VP
+context	p_2=Op_1=B-VP
+context	p_1=B-VPt_2=PRP
+context	p_1=B-VPt_1=.
+context	p_1=B-VPt0=NNP
+context	p_1=B-VPt1=NNP
+context	p_1=B-VPt2=CD
+context	p_1=B-VPt_2=PRPt_1=.
+context	p_1=B-VPt_1=.t0=NNP
+context	p_1=B-VPt0=NNPt1=NNP
+context	p_1=B-VPt1=NNPt2=CD
+context	p_1=B-VPt_2=PRPt_1=.t0=NNP
+context	p_1=B-VPt_1=.t0=NNPt1=NNP
+context	p_1=B-VPt0=NNPt1=NNPt2=CD
+context	p_1=B-VPw_2=هذا
+context	p_1=B-VPw_1=اختبار،
+context	p_1=B-VPw0=١٢٣
+context	p_1=B-VPw1=و
+context	p_1=B-VPw2=456
+context	p_1=B-VPw_1=اختبار،w0=١٢٣
+context	p_1=B-VPw0=١٢٣w1=و
+outcome	B-NP	3fc5da723fb4045e 0.170728951554369
+outcome	I-NP	3fb333d016cf05df 0.0750093513188612
+outcome	B-PP	3fbf7008e5f464ba 0.12280326475265016
+outcome	B-VP	3fb4c50637f40757 0.08113135210080934
+outcome	I-VP	3fbe1bd136acbaea 0.11761195740539745
+outcome	O	3fabdc2d612a51a2 0.05441419421291306
+outcome	B-ADVP	3fb1e3c2eb03d31a 0.06988161313695365
+outcome	B-PRT	3fb5749225861e9d 0.08380998054610207
+outcome	B-ADJP	3fb201d352d669b6 0.07034035465623031
+outcome	I-ADJP	3fb18420827eb6a0 0.06842234788811163
+outcome	B-SBAR	3fb5fa0b7ebf8f98 0.08584663242760227
+end	34
+point	35	49	41	11	0	none
+context	w_2=هذا
+context	w_1=اختبار،
+context	w0=١٢٣
+context	w1=و
+context	w2=456
+context	w_1=اختبار،w0=١٢٣
+context	w0=١٢٣w1=و
+context	t_2=PRP
+context	t_1=.
+context	t0=NNP
+context	t1=NNP
+context	t2=CD
+context	t_2=PRPt_1=.
+context	t_1=.t0=NNP
+context	t0=NNPt1=NNP
+context	t1=NNPt2=CD
+context	t_2=PRPt_1=.t0=NNP
+context	t_1=.t0=NNPt1=NNP
+context	t0=NNPt1=NNPt2=CD
+context	p_2=B-PRT
+context	p_1=B-NP
+context	p_2=B-PRTp_1=B-NP
+context	p_1=B-NPt_2=PRP
+context	p_1=B-NPt_1=.
+context	p_1=B-NPt0=NNP
+context	p_1=B-NPt1=NNP
+context	p_1=B-NPt2=CD
+context	p_1=B-NPt_2=PRPt_1=.
+context	p_1=B-NPt_1=.t0=NNP
+context	p_1=B-NPt0=NNPt1=NNP
+context	p_1=B-NPt1=NNPt2=CD
+context	p_1=B-NPt_2=PRPt_1=.t0=NNP
+context	p_1=B-NPt_1=.t0=NNPt1=NNP
+context	p_1=B-NPt0=NNPt1=NNPt2=CD
+context	p_1=B-NPw_2=هذا
+context	p_1=B-NPw_1=اختبار،
+context	p_1=B-NPw0=١٢٣
+context	p_1=B-NPw1=و
+context	p_1=B-NPw2=456
+context	p_1=B-NPw_1=اختبار،w0=١٢٣
+context	p_1=B-NPw0=١٢٣w1=و
+outcome	B-NP	3fbe86fdb750c6d0 0.11924730039097686
+outcome	I-NP	3fc2ef171a415fc8 0.14792145521164302
+outcome	B-PP	3fb8e2ba43713f15 0.09720958849470336
+outcome	B-VP	3fb5468079d83c98 0.08310702299808026
+outcome	I-VP	3fb8d2363a3ce061 0.09695757791348704
+outcome	O	3fb258ef30610f69 0.07166953021174795
+outcome	B-ADVP	3fb2bb1a1f68aca1 0.07316745058840236
+outcome	B-PRT	3fb4d9e6ecf7faf4 0.0814499214684295
+outcome	B-ADJP	3fb2bb1a1f68aca1 0.07316745058840236
+outcome	I-ADJP	3fb2bb1a1f68aca1 0.07316745058840236
+outcome	B-SBAR	3fb53b3ea1130d5d 0.08293525154572508
+end	35
+point	36	56	41	11	0	none
+context	w_2=اختبار،
+context	w_1=١٢٣
+context	w0=و
+context	w1=456
+context	w2=.
+context	w_1=١٢٣w0=و
+context	w0=وw1=456
+context	t_2=.
+context	t_1=NNP
+context	t0=NNP
+context	t1=CD
+context	t2=.
+context	t_2=.t_1=NNP
+context	t_1=NNPt0=NNP
+context	t0=NNPt1=CD
+context	t1=CDt2=.
+context	t_2=.t_1=NNPt0=NNP
+context	t_1=NNPt0=NNPt1=CD
+context	t0=NNPt1=CDt2=.
+context	p_2=I-NP
+context	p_1=B-PP
+context	p_2=I-NPp_1=B-PP
+context	p_1=B-PPt_2=.
+context	p_1=B-PPt_1=NNP
+context	p_1=B-PPt0=NNP
+context	p_1=B-PPt1=CD
+context	p_1=B-PPt2=.
+context	p_1=B-PPt_2=.t_1=NNP
+context	p_1=B-PPt_1=NNPt0=NNP
+context	p_1=B-PPt0=NNPt1=CD
+context	p_1=B-PPt1=CDt2=.
+context	p_1=B-PPt_2=.t_1=NNPt0=NNP
+context	p_1=B-PPt_1=NNPt0=NNPt1=CD
+context	p_1=B-PPt0=NNPt1=CDt2=.
+context	p_1=B-PPw_2=اختبار،
+context	p_1=B-PPw_1=١٢٣
+context	p_1=B-PPw0=و
+context	p_1=B-PPw1=456
+context	p_1=B-PPw2=.
+context	p_1=B-PPw_1=١٢٣w0=و
+context	p_1=B-PPw0=وw1=456
+outcome	B-NP	3fd6648ee3a9a8d7 0.34988758309067464
+outcome	I-NP	3fb5787bbb9cf0fc 0.08386967974087506
+outcome	B-PP	3fbd92ad2479a0a5 0.1155193532991939
+outcome	B-VP	3fb4db09eb898e25 0.08146726608679751
+outcome	I-VP	3fa7379271ae00f7 0.04534585607234647
+outcome	O	3fb4322233cb23f1 0.0788899780701653
+outcome	B-ADVP	3faee716ea9004cf 0.06035682309448875
+outcome	B-PRT	3fb0507d71529662 0.06372818009057249
+outcome	B-ADJP	3fa833a4adab0171 0.047269006919580366
+outcome	I-ADJP	3fa002e2986fdef7 0.03127201185992406
+outcome	B-SBAR	3fa5b4b35ede1ee8 0.04239426167538146
+end	36
+point	37	56	41	11	0	none
+context	w_2=اختبار،
+context	w_1=١٢٣
+context	w0=و
+context	w1=456
+context	w2=.
+context	w_1=١٢٣w0=و
+context	w0=وw1=456
+context	t_2=.
+context	t_1=NNP
+context	t0=NNP
+context	t1=CD
+context	t2=.
+context	t_2=.t_1=NNP
+context	t_1=NNPt0=NNP
+context	t0=NNPt1=CD
+context	t1=CDt2=.
+context	t_2=.t_1=NNPt0=NNP
+context	t_1=NNPt0=NNPt1=CD
+context	t0=NNPt1=CDt2=.
+context	p_2=B-VP
+context	p_1=I-VP
+context	p_2=B-VPp_1=I-VP
+context	p_1=I-VPt_2=.
+context	p_1=I-VPt_1=NNP
+context	p_1=I-VPt0=NNP
+context	p_1=I-VPt1=CD
+context	p_1=I-VPt2=.
+context	p_1=I-VPt_2=.t_1=NNP
+context	p_1=I-VPt_1=NNPt0=NNP
+context	p_1=I-VPt0=NNPt1=CD
+context	p_1=I-VPt1=CDt2=.
+context	p_1=I-VPt_2=.t_1=NNPt0=NNP
+context	p_1=I-VPt_1=NNPt0=NNPt1=CD
+context	p_1=I-VPt0=NNPt1=CDt2=.
+context	p_1=I-VPw_2=اختبار،
+context	p_1=I-VPw_1=١٢٣
+context	p_1=I-VPw0=و
+context	p_1=I-VPw1=456
+context	p_1=I-VPw2=.
+context	p_1=I-VPw_1=١٢٣w0=و
+context	p_1=I-VPw0=وw1=456
+outcome	B-NP	3fd319b130f4c4ba 0.29844312458869704
+outcome	I-NP	3fb57a62c02e093a 0.0838987082661661
+outcome	B-PP	3fc6999c8a9e3e5d 0.176562850651396
+outcome	B-VP	3fb340f0d41c8266 0.07520966700077167
+outcome	I-VP	3fac8b1799fc508a 0.055748689219542305
+outcome	O	3fb3b0e2f03cdb97 0.07691782345942354
+outcome	B-ADVP	3fa6945152e7a085 0.04410032403012657
+outcome	B-PRT	3fae76758e6a94cc 0.059497522005850095
+outcome	B-ADJP	3fa7d97a6c9c3dfc 0.046581102140518
+outcome	I-ADJP	3fa56f54282a2e31 0.04186499586384363
+outcome	B-SBAR	3fa514ea34bd2054 0.04117519277366513
+end	37
+point	38	56	41	11	0	none
+context	w_2=اختبار،
+context	w_1=١٢٣
+context	w0=و
+context	w1=456
+context	w2=.
+context	w_1=١٢٣w0=و
+context	w0=وw1=456
+context	t_2=.
+context	t_1=NNP
+context	t0=NNP
+context	t1=CD
+context	t2=.
+context	t_2=.t_1=NNP
+context	t_1=NNPt0=NNP
+context	t0=NNPt1=CD
+context	t1=CDt2=.
+context	t_2=.t_1=NNPt0=NNP
+context	t_1=NNPt0=NNPt1=CD
+context	t0=NNPt1=CDt2=.
+context	p_2=B-VP
+context	p_1=B-NP
+context	p_2=B-VPp_1=B-NP
+context	p_1=B-NPt_2=.
+context	p_1=B-NPt_1=NNP
+context	p_1=B-NPt0=NNP
+context	p_1=B-NPt1=CD
+context	p_1=B-NPt2=.
+context	p_1=B-NPt_2=.t_1=NNP
+context	p_1=B-NPt_1=NNPt0=NNP
+context	p_1=B-NPt0=NNPt1=CD
+context	p_1=B-NPt1=CDt2=.
+context	p_1=B-NPt_2=.t_1=NNPt0=NNP
+context	p_1=B-NPt_1=NNPt0=NNPt1=CD
+context	p_1=B-NPt0=NNPt1=CDt2=.
+context	p_1=B-NPw_2=اختبار،
+context	p_1=B-NPw_1=١٢٣
+context	p_1=B-NPw0=و
+context	p_1=B-NPw1=456
+context	p_1=B-NPw2=.
+context	p_1=B-NPw_1=١٢٣w0=و
+context	p_1=B-NPw0=وw1=456
+outcome	B-NP	3fbf5aa7bbe2a387 0.12247703873675962
+outcome	I-NP	3fd04ff8e97cefea 0.25488112260404583
+outcome	B-PP	3fc0e7026befd2aa 0.13204984922744717
+outcome	B-VP	3fb87868d146ce1c 0.09558730229655804
+outcome	I-VP	3fa7dd609a381a2d 0.04661085016782738
+outcome	O	3fb6b5548d617a67 0.08870438052825023
+outcome	B-ADVP	3faa418271a23430 0.05128104817513479
+outcome	B-PRT	3fb06c3bc9096ee9 0.0641515127003306
+outcome	B-ADJP	3fa9b70ef4fec79e 0.05022474995293112
+outcome	I-ADJP	3fa71c8e6a4b2a41 0.045139742350859276
+outcome	B-SBAR	3fa9086cd20c3fe7 0.048892403259855936
+end	38
+point	39	56	41	11	0	none
+context	w_2=اختبار،
+context	w_1=١٢٣
+context	w0=و
+context	w1=456
+context	w2=.
+context	w_1=١٢٣w0=و
+context	w0=وw1=456
+context	t_2=.
+context	t_1=NNP
+context	t0=NNP
+context	t1=CD
+context	t2=.
+context	t_2=.t_1=NNP
+context	t_1=NNPt0=NNP
+context	t0=NNPt1=CD
+context	t1=CDt2=.
+context	t_2=.t_1=NNPt0=NNP
+context	t_1=NNPt0=NNPt1=CD
+context	t0=NNPt1=CDt2=.
+context	p_2=I-NP
+context	p_1=B-VP
+context	p_2=I-NPp_1=B-VP
+context	p_1=B-VPt_2=.
+context	p_1=B-VPt_1=NNP
+context	p_1=B-VPt0=NNP
+context	p_1=B-VPt1=CD
+context	p_1=B-VPt2=.
+context	p_1=B-VPt_2=.t_1=NNP
+context	p_1=B-VPt_1=NNPt0=NNP
+context	p_1=B-VPt0=NNPt1=CD
+context	p_1=B-VPt1=CDt2=.
+context	p_1=B-VPt_2=.t_1=NNPt0=NNP
+context	p_1=B-VPt_1=NNPt0=NNPt1=CD
+context	p_1=B-VPt0=NNPt1=CDt2=.
+context	p_1=B-VPw_2=اختبار،
+context	p_1=B-VPw_1=١٢٣
+context	p_1=B-VPw0=و
+context	p_1=B-VPw1=456
+context	p_1=B-VPw2=.
+context	p_1=B-VPw_1=١٢٣w0=و
+context	p_1=B-VPw0=وw1=456
+outcome	B-NP	3fc32cd1a522d0fe 0.14980526507645914
+outcome	I-NP	3fb7231e94c87cdd 0.09037963039780857
+outcome	B-PP	3fcf7316cf6aa933 0.2456997406746467
+outcome	B-VP	3fb679743ce52a21 0.08779074179361902
+outcome	I-VP	3fb3ae836e548fdc 0.07688161319362002
+outcome	O	3faf10b9ac4dcc7d 0.06067447880095587
+outcome	B-ADVP	3fb264876082405d 0.07184644800349944
+outcome	B-PRT	3fb116f6a55864b3 0.06675664459943924
+outcome	B-ADJP	3fb3779fc1a0ce62 0.07604406811952338
+outcome	I-ADJP	3fa1410a387c13a9 0.033699340243436744
+outcome	B-SBAR	3fa4b2323a04e29d 0.040422029096992086
+end	39
+point	40	56	41	11	0	none
+context	w_2=اختبار،
+context	w_1=١٢٣
+context	w0=و
+context	w1=456
+context	w2=.
+context	w_1=١٢٣w0=و
+context	w0=وw1=456
+context	t_2=.
+context	t_1=NNP
+context	t0=NNP
+context	t1=CD
+context	t2=.
+context	t_2=.t_1=NNP
+context	t_1=NNPt0=NNP
+context	t0=NNPt1=CD
+context	t1=CDt2=.
+context	t_2=.t_1=NNPt0=NNP
+context	t_1=NNPt0=NNPt1=CD
+context	t0=NNPt1=CDt2=.
+context	p_2=B-PP
+context	p_1=B-NP
+context	p_2=B-PPp_1=B-NP
+context	p_1=B-NPt_2=.
+context	p_1=B-NPt_1=NNP
+context	p_1=B-NPt0=NNP
+context	p_1=B-NPt1=CD
+context	p_1=B-NPt2=.
+context	p_1=B-NPt_2=.t_1=NNP
+context	p_1=B-NPt_1=NNPt0=NNP
+context	p_1=B-NPt0=NNPt1=CD
+context	p_1=B-NPt1=CDt2=.
+context	p_1=B-NPt_2=.t_1=NNPt0=NNP
+context	p_1=B-NPt_1=NNPt0=NNPt1=CD
+context	p_1=B-NPt0=NNPt1=CDt2=.
+context	p_1=B-NPw_2=اختبار،
+context	p_1=B-NPw_1=١٢٣
+context	p_1=B-NPw0=و
+context	p_1=B-NPw1=456
+context	p_1=B-NPw2=.
+context	p_1=B-NPw_1=١٢٣w0=و
+context	p_1=B-NPw0=وw1=456
+outcome	B-NP	3fbb069cb090f7ca 0.1055696421690008
+outcome	I-NP	3fd0d96607bee0e9 0.2632689548149885
+outcome	B-PP	3fbd7e462c3a7c5f 0.11520804004475015
+outcome	B-VP	3fb78820aa9f744e 0.09192089238736509
+outcome	I-VP	3fa5725f55a5ca0e 0.04188821716788392
+outcome	O	3fba3d09faf04a31 0.1024938810008187
+outcome	B-ADVP	3faf95f2432ec5dc 0.06169087476827048
+outcome	B-PRT	3faf95f2432ec5dc 0.06169087476827048
+outcome	B-ADJP	3fa8ba8de4eeda94 0.048298296161580684
+outcome	I-ADJP	3fa7b1f0b9319d45 0.04627945194880082
+outcome	B-SBAR	3faf95f2432ec5dc 0.06169087476827048
+end	40
+point	41	56	41	11	0	none
+context	w_2=اختبار،
+context	w_1=١٢٣
+context	w0=و
+context	w1=456
+context	w2=.
+context	w_1=١٢٣w0=و
+context	w0=وw1=456
+context	t_2=.
+context	t_1=NNP
+context	t0=NNP
+context	t1=CD
+context	t2=.
+context	t_2=.t_1=NNP
+context	t_1=NNPt0=NNP
+context	t0=NNPt1=CD
+context	t1=CDt2=.
+context	t_2=.t_1=NNPt0=NNP
+context	t_1=NNPt0=NNPt1=CD
+context	t0=NNPt1=CDt2=.
+context	p_2=B-VP
+context	p_1=B-PP
+context	p_2=B-VPp_1=B-PP
+context	p_1=B-PPt_2=.
+context	p_1=B-PPt_1=NNP
+context	p_1=B-PPt0=NNP
+context	p_1=B-PPt1=CD
+context	p_1=B-PPt2=.
+context	p_1=B-PPt_2=.t_1=NNP
+context	p_1=B-PPt_1=NNPt0=NNP
+context	p_1=B-PPt0=NNPt1=CD
+context	p_1=B-PPt1=CDt2=.
+context	p_1=B-PPt_2=.t_1=NNPt0=NNP
+context	p_1=B-PPt_1=NNPt0=NNPt1=CD
+context	p_1=B-PPt0=NNPt1=CDt2=.
+context	p_1=B-PPw_2=اختبار،
+context	p_1=B-PPw_1=١٢٣
+context	p_1=B-PPw0=و
+context	p_1=B-PPw1=456
+context	p_1=B-PPw2=.
+context	p_1=B-PPw_1=١٢٣w0=و
+context	p_1=B-PPw0=وw1=456
+outcome	B-NP	3fd63482899771c1 0.34695495068242727
+outcome	I-NP	3fb60988bde908ea 0.08608297955018754
+outcome	B-PP	3fbfdf69ace52c02 0.12450275870394026
+outcome	B-VP	3fb3c1438bdf1e6a 0.07716772236664729
+outcome	I-VP	3fa6b5ad76dcda52 0.04435484004936953
+outcome	O	3fb2e5a392dffc0a 0.0738165124493976
+outcome	B-ADVP	3fa8fc2e9783aced 0.04879899596729751
+outcome	B-PRT	3faf417d392f44a4 0.06104651759199811
+outcome	B-ADJP	3fa8786e9a9c1fc9 0.047793823598169256
+outcome	I-ADJP	3fa5fe30745f9f4b 0.0429549352700734
+outcome	B-SBAR	3fa7d240499e4851 0.04652596377049235
+end	41
+point	42	56	41	11	0	none
+context	w_2=اختبار،
+context	w_1=١٢٣
+context	w0=و
+context	w1=456
+context	w2=.
+context	w_1=١٢٣w0=و
+context	w0=وw1=456
+context	t_2=.
+context	t_1=NNP
+context	t0=NNP
+context	t1=CD
+context	t2=.
+context	t_2=.t_1=NNP
+context	t_1=NNPt0=NNP
+context	t0=NNPt1=CD
+context	t1=CDt2=.
+context	t_2=.t_1=NNPt0=NNP
+context	t_1=NNPt0=NNPt1=CD
+context	t0=NNPt1=CDt2=.
+context	p_2=I-NP
+context	p_1=I-NP
+context	p_2=I-NPp_1=I-NP
+context	p_1=I-NPt_2=.
+context	p_1=I-NPt_1=NNP
+context	p_1=I-NPt0=NNP
+context	p_1=I-NPt1=CD
+context	p_1=I-NPt2=.
+context	p_1=I-NPt_2=.t_1=NNP
+context	p_1=I-NPt_1=NNPt0=NNP
+context	p_1=I-NPt0=NNPt1=CD
+context	p_1=I-NPt1=CDt2=.
+context	p_1=I-NPt_2=.t_1=NNPt0=NNP
+context	p_1=I-NPt_1=NNPt0=NNPt1=CD
+context	p_1=I-NPt0=NNPt1=CDt2=.
+context	p_1=I-NPw_2=اختبار،
+context	p_1=I-NPw_1=١٢٣
+context	p_1=I-NPw0=و
+context	p_1=I-NPw1=456
+context	p_1=I-NPw2=.
+context	p_1=I-NPw_1=١٢٣w0=و
+context	p_1=I-NPw0=وw1=456
+outcome	B-NP	3fc47a7b65a31980 0.15998785460233123
+outcome	I-NP	3fb9887279153a7e 0.09973826843381947
+outcome	B-PP	3fc7311cee04552b 0.1811863100234999
+outcome	B-VP	3fc4cb127632d8f0 0.16244726916710972
+outcome	I-VP	3fa96ea737a2b027 0.049672341863100926
+outcome	O	3fbae287850a6a7b 0.10501906393111853
+outcome	B-ADVP	3fac65920cced576 0.05546242147776585
+outcome	B-PRT	3fb1def8eea0c92c 0.06980853868370634
+outcome	B-ADJP	3fa26c6069b74148 0.03598309793926774
+outcome	I-ADJP	3fa189f69291e0dc 0.034255700485063406
+outcome	B-SBAR	3fa7c6debe5b5d77 0.04643913339321675
+end	42
+point	43	56	41	11	0	none
+context	w_2=اختبار،
+context	w_1=١٢٣
+context	w0=و
+context	w1=456
+context	w2=.
+context	w_1=١٢٣w0=و
+context	w0=وw1=456
+context	t_2=.
+context	t_1=NNP
+context	t0=NNP
+context	t1=CD
+context	t2=.
+context	t_2=.t_1=NNP
+context	t_1=NNPt0=NNP
+context	t0=NNPt1=CD
+context	t1=CDt2=.
+context	t_2=.t_1=NNPt0=NNP
+context	t_1=NNPt0=NNPt1=CD
+context	t0=NNPt1=CDt2=.
+context	p_2=B-VP
+context	p_1=B-VP
+context	p_2=B-VPp_1=B-VP
+context	p_1=B-VPt_2=.
+context	p_1=B-VPt_1=NNP
+context	p_1=B-VPt0=NNP
+context	p_1=B-VPt1=CD
+context	p_1=B-VPt2=.
+context	p_1=B-VPt_2=.t_1=NNP
+context	p_1=B-VPt_1=NNPt0=NNP
+context	p_1=B-VPt0=NNPt1=CD
+context	p_1=B-VPt1=CDt2=.
+context	p_1=B-VPt_2=.t_1=NNPt0=NNP
+context	p_1=B-VPt_1=NNPt0=NNPt1=CD
+context	p_1=B-VPt0=NNPt1=CDt2=.
+context	p_1=B-VPw_2=اختبار،
+context	p_1=B-VPw_1=١٢٣
+context	p_1=B-VPw0=و
+context	p_1=B-VPw1=456
+context	p_1=B-VPw2=.
+context	p_1=B-VPw_1=١٢٣w0=و
+context	p_1=B-VPw0=وw1=456
+outcome	B-NP	3fc0c911062818f2 0.1311360626279519
+outcome	I-NP	3fb73c8b042e5686 0.0907675633628405
+outcome	B-PP	3fd2bd149c15e68a 0.2927905582688274
+outcome	B-VP	3fb4d47a23477ebb 0.08136714326200949
+outcome	I-VP	3fb09c7afa6ab262 0.06488770116511369
+outcome	O	3fafb12ddb8a7649 0.06189864449445943
+outcome	B-ADVP	3faae81866970866 0.0525519967300319
+outcome	B-PRT	3fb004a3c76f53a8 0.0625707971478976
+outcome	B-ADJP	3fb1cd04f5dcdf18 0.06953459742078072
+outcome	I-ADJP	3fa73094adf4f3e0 0.04529251693245562
+outcome	B-SBAR	3fa82aea5840808a 0.0472024185876317
+end	43
+point	44	56	41	11	0	none
+context	w_2=اختبار،
+context	w_1=١٢٣
+context	w0=و
+context	w1=456
+context	w2=.
+context	w_1=١٢٣w0=و
+context	w0=وw1=456
+context	t_2=.
+context	t_1=NNP
+context	t0=NNP
+context	t1=CD
+context	t2=.
+context	t_2=.t_1=NNP
+context	t_1=NNPt0=NNP
+context	t0=NNPt1=CD
+context	t1=CDt2=.
+context	t_2=.t_1=NNPt0=NNP
+context	t_1=NNPt0=NNPt1=CD
+context	t0=NNPt1=CDt2=.
+context	p_2=I-NP
+context	p_1=O
+context	p_2=I-NPp_1=O
+context	p_1=Ot_2=.
+context	p_1=Ot_1=NNP
+context	p_1=Ot0=NNP
+context	p_1=Ot1=CD
+context	p_1=Ot2=.
+context	p_1=Ot_2=.t_1=NNP
+context	p_1=Ot_1=NNPt0=NNP
+context	p_1=Ot0=NNPt1=CD
+context	p_1=Ot1=CDt2=.
+context	p_1=Ot_2=.t_1=NNPt0=NNP
+context	p_1=Ot_1=NNPt0=NNPt1=CD
+context	p_1=Ot0=NNPt1=CDt2=.
+context	p_1=Ow_2=اختبار،
+context	p_1=Ow_1=١٢٣
+context	p_1=Ow0=و
+context	p_1=Ow1=456
+context	p_1=Ow2=.
+context	p_1=Ow_1=١٢٣w0=و
+context	p_1=Ow0=وw1=456
+outcome	B-NP	3fc55bac59af38c0 0.16686014536975868
+outcome	I-NP	3fb99dac081d31b1 0.1000621337709109
+outcome	B-PP	3fc1a4295498ad78 0.13782230978663867
+outcome	B-VP	3fc0f7192369d5e9 0.13254083851977264
+outcome	I-VP	3fabb31426fcc827 0.05410063720627561
+outcome	O	3fbdc512ee6663cc 0.11628835983573466
+outcome	B-ADVP	3fb26f3ab26967a4 0.07200972419505419
+outcome	B-PRT	3fb376d4ecd15b49 0.07603197843250799
+outcome	B-ADJP	3facdfd108f895e3 0.05639508471021395
+outcome	I-ADJP	3fa31a3e72cdac93 0.037309600366676986
+outcome	B-SBAR	3fa9e583eaf95415 0.050579187806455796
+end	44
+point	45	56	41	11	0	none
+context	w_2=اختبار،
+context	w_1=١٢٣
+context	w0=و
+context	w1=456
+context	w2=.
+context	w_1=١٢٣w0=و
+context	w0=وw1=456
+context	t_2=.
+context	t_1=NNP
+context	t0=NNP
+context	t1=CD
+context	t2=.
+context	t_2=.t_1=NNP
+context	t_1=NNPt0=NNP
+context	t0=NNPt1=CD
+context	t1=CDt2=.
+context	t_2=.t_1=NNPt0=NNP
+context	t_1=NNPt0=NNPt1=CD
+context	t0=NNPt1=CDt2=.
+context	p_2=B-VP
+context	p_1=B-PRT
+context	p_2=B-VPp_1=B-PRT
+context	p_1=B-PRTt_2=.
+context	p_1=B-PRTt_1=NNP
+context	p_1=B-PRTt0=NNP
+context	p_1=B-PRTt1=CD
+context	p_1=B-PRTt2=.
+context	p_1=B-PRTt_2=.t_1=NNP
+context	p_1=B-PRTt_1=NNPt0=NNP
+context	p_1=B-PRTt0=NNPt1=CD
+context	p_1=B-PRTt1=CDt2=.
+context	p_1=B-PRTt_2=.t_1=NNPt0=NNP
+context	p_1=B-PRTt_1=NNPt0=NNPt1=CD
+context	p_1=B-PRTt0=NNPt1=CDt2=.
+context	p_1=B-PRTw_2=اختبار،
+context	p_1=B-PRTw_1=١٢٣
+context	p_1=B-PRTw0=و
+context	p_1=B-PRTw1=456
+context	p_1=B-PRTw2=.
+context	p_1=B-PRTw_1=١٢٣w0=و
+context	p_1=B-PRTw0=وw1=456
+outcome	B-NP	3fd0e4d477b3422c 0.2639666718432945
+outcome	I-NP	3fb8d674524d6903 0.0970223141606859
+outcome	B-PP	3fc1f626b511eec6 0.14032443848906534
+outcome	B-VP	3fb643ef857f948c 0.086974115459798
+outcome	I-VP	3fa99879403c5d8b 0.049991406527790515
+outcome	O	3fb54c66aa5b4415 0.0831970373067324
+outcome	B-ADVP	3fac290088e2411f 0.0550003211111536
+outcome	B-PRT	3fb19d27adbf7d47 0.06880424491781865
+outcome	B-ADJP	3fab94826df52c01 0.05386741249329675
+outcome	I-ADJP	3fa8c9aaf5e13384 0.04841360331975067
+outcome	B-SBAR	3faad935e159b78e 0.05243843437061378
+end	45
+point	46	59	41	11	0	none
+context	w_2=١٢٣
+context	w_1=و
+context	w0=456
+context	w1=.
+context	w2=eos
+context	w_1=وw0=456
+context	w0=456w1=.
+context	t_2=NNP
+context	t_1=NNP
+context	t0=CD
+context	t1=.
+context	t2=eos
+context	t_2=NNPt_1=NNP
+context	t_1=NNPt0=CD
+context	t0=CDt1=.
+context	t1=.t2=eos
+context	t_2=NNPt_1=NNPt0=CD
+context	t_1=NNPt0=CDt1=.
+context	t0=CDt1=.t2=eos
+context	p_2=B-PP
+context	p_1=B-NP
+context	p_2=B-PPp_1=B-NP
+context	p_1=B-NPt_2=NNP
+context	p_1=B-NPt_1=NNP
+context	p_1=B-NPt0=CD
+context	p_1=B-NPt1=.
+context	p_1=B-NPt2=eos
+context	p_1=B-NPt_2=NNPt_1=NNP
+context	p_1=B-NPt_1=NNPt0=CD
+context	p_1=B-NPt0=CDt1=.
+context	p_1=B-NPt1=.t2=eos
+context	p_1=B-NPt_2=NNPt_1=NNPt0=CD
+context	p_1=B-NPt_1=NNPt0=CDt1=.
+context	p_1=B-NPt0=CDt1=.t2=eos
+context	p_1=B-NPw_2=١٢٣
+context	p_1=B-NPw_1=و
+context	p_1=B-NPw0=456
+context	p_1=B-NPw1=.
+context	p_1=B-NPw2=eos
+context	p_1=B-NPw_1=وw0=456
+context	p_1=B-NPw0=456w1=.
+outcome	B-NP	3fbdfc68eab24de2 0.11713271837134401
+outcome	I-NP	3fd714ed379d16b7 0.36065226012247414
+outcome	B-PP	3fa7e4526dd11a4f 0.0466638335279198
+outcome	B-VP	3fb519281d7d2916 0.08241511077827499
+outcome	I-VP	3f95f17384de70a7 0.02142887590854117
+outcome	O	3fc255301ec8e0ba 0.14322473052175672
+outcome	B-ADVP	3fab7e14dc5815ce 0.053696300408812556
+outcome	B-PRT	3faac2ed240c686e 0.05226841988606244
+outcome	B-ADJP	3fa40f1e28791f0e 0.03917783969933285
+outcome	I-ADJP	3fa2845551c764f4 0.036165872795843074
+outcome	B-SBAR	3fa827320caf84a5 0.04717403797963841
+end	46
+point	47	59	41	11	0	none
+context	w_2=١٢٣
+context	w_1=و
+context	w0=456
+context	w1=.
+context	w2=eos
+context	w_1=وw0=456
+context	w0=456w1=.
+context	t_2=NNP
+context	t_1=NNP
+context	t0=CD
+context	t1=.
+context	t2=eos
+context	t_2=NNPt_1=NNP
+context	t_1=NNPt0=CD
+context	t0=CDt1=.
+context	t1=.t2=eos
+context	t_2=NNPt_1=NNPt0=CD
+context	t_1=NNPt0=CDt1=.
+context	t0=CDt1=.t2=eos
+context	p_2=I-VP
+context	p_1=B-NP
+context	p_2=I-VPp_1=B-NP
+context	p_1=B-NPt_2=NNP
+context	p_1=B-NPt_1=NNP
+context	p_1=B-NPt0=CD
+context	p_1=B-NPt1=.
+context	p_1=B-NPt2=eos
+context	p_1=B-NPt_2=NNPt_1=NNP
+context	p_1=B-NPt_1=NNPt0=CD
+context	p_1=B-NPt0=CDt1=.
+context	p_1=B-NPt1=.t2=eos
+context	p_1=B-NPt_2=NNPt_1=NNPt0=CD
+context	p_1=B-NPt_1=NNPt0=CDt1=.
+context	p_1=B-NPt0=CDt1=.t2=eos
+context	p_1=B-NPw_2=١٢٣
+context	p_1=B-NPw_1=و
+context	p_1=B-NPw0=456
+context	p_1=B-NPw1=.
+context	p_1=B-NPw2=eos
+context	p_1=B-NPw_1=وw0=456
+context	p_1=B-NPw0=456w1=.
+outcome	B-NP	3fc1da6d0b09cfdf 0.1394783309839331
+outcome	I-NP	3fd761cad8dfeea0 0.36534377268956497
+outcome	B-PP	3fa9f35e099c844c 0.05068487040831168
+outcome	B-VP	3fb5cad44fed4b78 0.0851261801847566
+outcome	I-VP	3f96aa3d2cbaa4f8 0.02213378510956418
+outcome	O	3fbab69114ec065f 0.10434824715414369
+outcome	B-ADVP	3fac6599ebeafb59 0.05546265606743956
+outcome	B-PRT	3faba44a21a8552c 0.05398780499323616
+outcome	B-ADJP	3fa4b809fd533aca 0.04046660630557637
+outcome	I-ADJP	3fa3204497db47ef 0.03735555986135341
+outcome	B-SBAR	3fa75a7b006afdc8 0.04561218624212021
+end	47
+point	48	59	41	11	0	none
+context	w_2=١٢٣
+context	w_1=و
+context	w0=456
+context	w1=.
+context	w2=eos
+context	w_1=وw0=456
+context	w0=456w1=.
+context	t_2=NNP
+context	t_1=NNP
+context	t0=CD
+context	t1=.
+context	t2=eos
+context	t_2=NNPt_1=NNP
+context	t_1=NNPt0=CD
+context	t0=CDt1=.
+context	t1=.t2=eos
+context	t_2=NNPt_1=NNPt0=CD
+context	t_1=NNPt0=CDt1=.
+context	t0=CDt1=.t2=eos
+context	p_2=B-NP
+context	p_1=I-NP
+context	p_2=B-NPp_1=I-NP
+context	p_1=I-NPt_2=NNP
+context	p_1=I-NPt_1=NNP
+context	p_1=I-NPt0=CD
+context	p_1=I-NPt1=.
+context	p_1=I-NPt2=eos
+context	p_1=I-NPt_2=NNPt_1=NNP
+context	p_1=I-NPt_1=NNPt0=CD
+context	p_1=I-NPt0=CDt1=.
+context	p_1=I-NPt1=.t2=eos
+context	p_1=I-NPt_2=NNPt_1=NNPt0=CD
+context	p_1=I-NPt_1=NNPt0=CDt1=.
+context	p_1=I-NPt0=CDt1=.t2=eos
+context	p_1=I-NPw_2=١٢٣
+context	p_1=I-NPw_1=و
+context	p_1=I-NPw0=456
+context	p_1=I-NPw1=.
+context	p_1=I-NPw2=eos
+context	p_1=I-NPw_1=وw0=456
+context	p_1=I-NPw0=456w1=.
+outcome	B-NP	3fb5205c506e1eae 0.08252503360392424
+outcome	I-NP	3fd44cb5b08febb0 0.3171819900741708
+outcome	B-PP	3fafba576fbb465f 0.06196854819212371
+outcome	B-VP	3fc7dda620a97c30 0.18645168871714324
+outcome	I-VP	3f9743218378e761 0.0227170216078102
+outcome	O	3fc07b049f28aa80 0.12875421306064894
+outcome	B-ADVP	3fb090f57ce6945b 0.06471189784368063
+outcome	B-PRT	3fa74bbc57428d5f 0.045499692584850086
+outcome	B-ADJP	3f921b54c61436da 0.01768238505342521
+outcome	I-ADJP	3fa4b6b0a86ebab3 0.040456314621555654
+outcome	B-SBAR	3fa069044d5b8426 0.03205121464066733
+end	48
+point	49	59	41	11	0	none
+context	w_2=١٢٣
+context	w_1=و
+context	w0=456
+context	w1=.
+context	w2=eos
+context	w_1=وw0=456
+context	w0=456w1=.
+context	t_2=NNP
+context	t_1=NNP
+context	t0=CD
+context	t1=.
+context	t2=eos
+context	t_2=NNPt_1=NNP
+context	t_1=NNPt0=CD
+context	t0=CDt1=.
+context	t1=.t2=eos
+context	t_2=NNPt_1=NNPt0=CD
+context	t_1=NNPt0=CDt1=.
+context	t0=CDt1=.t2=eos
+context	p_2=B-PP
+context	p_1=B-NP
+context	p_2=B-PPp_1=B-NP
+context	p_1=B-NPt_2=NNP
+context	p_1=B-NPt_1=NNP
+context	p_1=B-NPt0=CD
+context	p_1=B-NPt1=.
+context	p_1=B-NPt2=eos
+context	p_1=B-NPt_2=NNPt_1=NNP
+context	p_1=B-NPt_1=NNPt0=CD
+context	p_1=B-NPt0=CDt1=.
+context	p_1=B-NPt1=.t2=eos
+context	p_1=B-NPt_2=NNPt_1=NNPt0=CD
+context	p_1=B-NPt_1=NNPt0=CDt1=.
+context	p_1=B-NPt0=CDt1=.t2=eos
+context	p_1=B-NPw_2=١٢٣
+context	p_1=B-NPw_1=و
+context	p_1=B-NPw0=456
+context	p_1=B-NPw1=.
+context	p_1=B-NPw2=eos
+context	p_1=B-NPw_1=وw0=456
+context	p_1=B-NPw0=456w1=.
+outcome	B-NP	3fbdfc68eab24de2 0.11713271837134401
+outcome	I-NP	3fd714ed379d16b7 0.36065226012247414
+outcome	B-PP	3fa7e4526dd11a4f 0.0466638335279198
+outcome	B-VP	3fb519281d7d2916 0.08241511077827499
+outcome	I-VP	3f95f17384de70a7 0.02142887590854117
+outcome	O	3fc255301ec8e0ba 0.14322473052175672
+outcome	B-ADVP	3fab7e14dc5815ce 0.053696300408812556
+outcome	B-PRT	3faac2ed240c686e 0.05226841988606244
+outcome	B-ADJP	3fa40f1e28791f0e 0.03917783969933285
+outcome	I-ADJP	3fa2845551c764f4 0.036165872795843074
+outcome	B-SBAR	3fa827320caf84a5 0.04717403797963841
+end	49
+point	50	59	41	11	0	none
+context	w_2=١٢٣
+context	w_1=و
+context	w0=456
+context	w1=.
+context	w2=eos
+context	w_1=وw0=456
+context	w0=456w1=.
+context	t_2=NNP
+context	t_1=NNP
+context	t0=CD
+context	t1=.
+context	t2=eos
+context	t_2=NNPt_1=NNP
+context	t_1=NNPt0=CD
+context	t0=CDt1=.
+context	t1=.t2=eos
+context	t_2=NNPt_1=NNPt0=CD
+context	t_1=NNPt0=CDt1=.
+context	t0=CDt1=.t2=eos
+context	p_2=B-VP
+context	p_1=B-PP
+context	p_2=B-VPp_1=B-PP
+context	p_1=B-PPt_2=NNP
+context	p_1=B-PPt_1=NNP
+context	p_1=B-PPt0=CD
+context	p_1=B-PPt1=.
+context	p_1=B-PPt2=eos
+context	p_1=B-PPt_2=NNPt_1=NNP
+context	p_1=B-PPt_1=NNPt0=CD
+context	p_1=B-PPt0=CDt1=.
+context	p_1=B-PPt1=.t2=eos
+context	p_1=B-PPt_2=NNPt_1=NNPt0=CD
+context	p_1=B-PPt_1=NNPt0=CDt1=.
+context	p_1=B-PPt0=CDt1=.t2=eos
+context	p_1=B-PPw_2=١٢٣
+context	p_1=B-PPw_1=و
+context	p_1=B-PPw0=456
+context	p_1=B-PPw1=.
+context	p_1=B-PPw2=eos
+context	p_1=B-PPw_1=وw0=456
+context	p_1=B-PPw0=456w1=.
+outcome	B-NP	3fe55a9b099b83f4 0.6673102557798516
+outcome	I-NP	3fafa16a371cffd0 0.061778372981734386
+outcome	B-PP	3fa0a28c44d41814 0.03249014225188787
+outcome	B-VP	3fa6d2b1fcfc193d 0.04457622731392739
+outcome	I-VP	3f8df0ab84f9af15 0.014619197841248469
+outcome	O	3fa917b9e756b296 0.04900914143522532
+outcome	B-ADVP	3f9c05ccc479300f 0.02736587475946811
+outcome	B-PRT	3fa10fd0beab9ee6 0.033323786997980595
+outcome	B-ADJP	3f9993ccb8f0ec69 0.024977873599919685
+outcome	I-ADJP	3f96256be79a9630 0.021627126704194477
+outcome	B-SBAR	3f9778dd672ef1ea 0.022922000334561966
+end	50
+point	51	59	41	11	0	none
+context	w_2=١٢٣
+context	w_1=و
+context	w0=456
+context	w1=.
+context	w2=eos
+context	w_1=وw0=456
+context	w0=456w1=.
+context	t_2=NNP
+context	t_1=NNP
+context	t0=CD
+context	t1=.
+context	t2=eos
+context	t_2=NNPt_1=NNP
+context	t_1=NNPt0=CD
+context	t0=CDt1=.
+context	t1=.t2=eos
+context	t_2=NNPt_1=NNPt0=CD
+context	t_1=NNPt0=CDt1=.
+context	t0=CDt1=.t2=eos
+context	p_2=B-NP
+context	p_1=I-NP
+context	p_2=B-NPp_1=I-NP
+context	p_1=I-NPt_2=NNP
+context	p_1=I-NPt_1=NNP
+context	p_1=I-NPt0=CD
+context	p_1=I-NPt1=.
+context	p_1=I-NPt2=eos
+context	p_1=I-NPt_2=NNPt_1=NNP
+context	p_1=I-NPt_1=NNPt0=CD
+context	p_1=I-NPt0=CDt1=.
+context	p_1=I-NPt1=.t2=eos
+context	p_1=I-NPt_2=NNPt_1=NNPt0=CD
+context	p_1=I-NPt_1=NNPt0=CDt1=.
+context	p_1=I-NPt0=CDt1=.t2=eos
+context	p_1=I-NPw_2=١٢٣
+context	p_1=I-NPw_1=و
+context	p_1=I-NPw0=456
+context	p_1=I-NPw1=.
+context	p_1=I-NPw2=eos
+context	p_1=I-NPw_1=وw0=456
+context	p_1=I-NPw0=456w1=.
+outcome	B-NP	3fb5205c506e1eae 0.08252503360392424
+outcome	I-NP	3fd44cb5b08febb0 0.3171819900741708
+outcome	B-PP	3fafba576fbb465f 0.06196854819212371
+outcome	B-VP	3fc7dda620a97c30 0.18645168871714324
+outcome	I-VP	3f9743218378e761 0.0227170216078102
+outcome	O	3fc07b049f28aa80 0.12875421306064894
+outcome	B-ADVP	3fb090f57ce6945b 0.06471189784368063
+outcome	B-PRT	3fa74bbc57428d5f 0.045499692584850086
+outcome	B-ADJP	3f921b54c61436da 0.01768238505342521
+outcome	I-ADJP	3fa4b6b0a86ebab3 0.040456314621555654
+outcome	B-SBAR	3fa069044d5b8426 0.03205121464066733
+end	51
+point	52	59	41	11	0	none
+context	w_2=١٢٣
+context	w_1=و
+context	w0=456
+context	w1=.
+context	w2=eos
+context	w_1=وw0=456
+context	w0=456w1=.
+context	t_2=NNP
+context	t_1=NNP
+context	t0=CD
+context	t1=.
+context	t2=eos
+context	t_2=NNPt_1=NNP
+context	t_1=NNPt0=CD
+context	t0=CDt1=.
+context	t1=.t2=eos
+context	t_2=NNPt_1=NNPt0=CD
+context	t_1=NNPt0=CDt1=.
+context	t0=CDt1=.t2=eos
+context	p_2=B-VP
+context	p_1=B-PP
+context	p_2=B-VPp_1=B-PP
+context	p_1=B-PPt_2=NNP
+context	p_1=B-PPt_1=NNP
+context	p_1=B-PPt0=CD
+context	p_1=B-PPt1=.
+context	p_1=B-PPt2=eos
+context	p_1=B-PPt_2=NNPt_1=NNP
+context	p_1=B-PPt_1=NNPt0=CD
+context	p_1=B-PPt0=CDt1=.
+context	p_1=B-PPt1=.t2=eos
+context	p_1=B-PPt_2=NNPt_1=NNPt0=CD
+context	p_1=B-PPt_1=NNPt0=CDt1=.
+context	p_1=B-PPt0=CDt1=.t2=eos
+context	p_1=B-PPw_2=١٢٣
+context	p_1=B-PPw_1=و
+context	p_1=B-PPw0=456
+context	p_1=B-PPw1=.
+context	p_1=B-PPw2=eos
+context	p_1=B-PPw_1=وw0=456
+context	p_1=B-PPw0=456w1=.
+outcome	B-NP	3fe55a9b099b83f4 0.6673102557798516
+outcome	I-NP	3fafa16a371cffd0 0.061778372981734386
+outcome	B-PP	3fa0a28c44d41814 0.03249014225188787
+outcome	B-VP	3fa6d2b1fcfc193d 0.04457622731392739
+outcome	I-VP	3f8df0ab84f9af15 0.014619197841248469
+outcome	O	3fa917b9e756b296 0.04900914143522532
+outcome	B-ADVP	3f9c05ccc479300f 0.02736587475946811
+outcome	B-PRT	3fa10fd0beab9ee6 0.033323786997980595
+outcome	B-ADJP	3f9993ccb8f0ec69 0.024977873599919685
+outcome	I-ADJP	3f96256be79a9630 0.021627126704194477
+outcome	B-SBAR	3f9778dd672ef1ea 0.022922000334561966
+end	52
+point	53	59	41	11	0	none
+context	w_2=١٢٣
+context	w_1=و
+context	w0=456
+context	w1=.
+context	w2=eos
+context	w_1=وw0=456
+context	w0=456w1=.
+context	t_2=NNP
+context	t_1=NNP
+context	t0=CD
+context	t1=.
+context	t2=eos
+context	t_2=NNPt_1=NNP
+context	t_1=NNPt0=CD
+context	t0=CDt1=.
+context	t1=.t2=eos
+context	t_2=NNPt_1=NNPt0=CD
+context	t_1=NNPt0=CDt1=.
+context	t0=CDt1=.t2=eos
+context	p_2=I-VP
+context	p_1=B-PP
+context	p_2=I-VPp_1=B-PP
+context	p_1=B-PPt_2=NNP
+context	p_1=B-PPt_1=NNP
+context	p_1=B-PPt0=CD
+context	p_1=B-PPt1=.
+context	p_1=B-PPt2=eos
+context	p_1=B-PPt_2=NNPt_1=NNP
+context	p_1=B-PPt_1=NNPt0=CD
+context	p_1=B-PPt0=CDt1=.
+context	p_1=B-PPt1=.t2=eos
+context	p_1=B-PPt_2=NNPt_1=NNPt0=CD
+context	p_1=B-PPt_1=NNPt0=CDt1=.
+context	p_1=B-PPt0=CDt1=.t2=eos
+context	p_1=B-PPw_2=١٢٣
+context	p_1=B-PPw_1=و
+context	p_1=B-PPw0=456
+context	p_1=B-PPw1=.
+context	p_1=B-PPw2=eos
+context	p_1=B-PPw_1=وw0=456
+context	p_1=B-PPw0=456w1=.
+outcome	B-NP	3fe538bf97f40562 0.663177296432121
+outcome	I-NP	3fb09cc72c5bb358 0.0648922427460098
+outcome	B-PP	3f9f196a3c5ae67b 0.030370387967855166
+outcome	B-VP	3fa6a3a103557758 0.044217139870609656
+outcome	I-VP	3f8bc11f961d05f4 0.013551947373005448
+outcome	O	3fa5186069a4afad 0.04120160379019864
+outcome	B-ADVP	3fa162fd691eb0b4 0.03395835788919169
+outcome	B-PRT	3fa0eca14f3c5ae3 0.03305534450753613
+outcome	B-ADJP	3f995f0da914c56b 0.024776662297147405
+outcome	I-ADJP	3f976bb7c6726d08 0.022871848571054648
+outcome	B-SBAR	3f9c98f08e75855f 0.02792716855527055
+end	53
+point	54	59	41	11	0	none
+context	w_2=١٢٣
+context	w_1=و
+context	w0=456
+context	w1=.
+context	w2=eos
+context	w_1=وw0=456
+context	w0=456w1=.
+context	t_2=NNP
+context	t_1=NNP
+context	t0=CD
+context	t1=.
+context	t2=eos
+context	t_2=NNPt_1=NNP
+context	t_1=NNPt0=CD
+context	t0=CDt1=.
+context	t1=.t2=eos
+context	t_2=NNPt_1=NNPt0=CD
+context	t_1=NNPt0=CDt1=.
+context	t0=CDt1=.t2=eos
+context	p_2=B-PP
+context	p_1=B-PP
+context	p_2=B-PPp_1=B-PP
+context	p_1=B-PPt_2=NNP
+context	p_1=B-PPt_1=NNP
+context	p_1=B-PPt0=CD
+context	p_1=B-PPt1=.
+context	p_1=B-PPt2=eos
+context	p_1=B-PPt_2=NNPt_1=NNP
+context	p_1=B-PPt_1=NNPt0=CD
+context	p_1=B-PPt0=CDt1=.
+context	p_1=B-PPt1=.t2=eos
+context	p_1=B-PPt_2=NNPt_1=NNPt0=CD
+context	p_1=B-PPt_1=NNPt0=CDt1=.
+context	p_1=B-PPt0=CDt1=.t2=eos
+context	p_1=B-PPw_2=١٢٣
+context	p_1=B-PPw_1=و
+context	p_1=B-PPw0=456
+context	p_1=B-PPw1=.
+context	p_1=B-PPw2=eos
+context	p_1=B-PPw_1=وw0=456
+context	p_1=B-PPw0=456w1=.
+outcome	B-NP	3fe283b502d344f4 0.5785775237256119
+outcome	I-NP	3fb49e201343825c 0.08053780050568932
+outcome	B-PP	3fa2b7d5c06129f3 0.03655879948981413
+outcome	B-VP	3fab12d92ce1ec5c 0.0528781764305328
+outcome	I-VP	3f90986b88ed5d15 0.01620643637883486
+outcome	O	3faff87159345a24 0.062442342890950436
+outcome	B-ADVP	3fa4cad3f53a85d2 0.04060995453370321
+outcome	B-PRT	3fa43d48d2527ea8 0.03953006331835002
+outcome	B-ADJP	3f9e5745c70747da 0.029629793427211705
+outcome	I-ADJP	3f9c02213373f7c5 0.02735187412780939
+outcome	B-SBAR	3fa244495c8be8ca 0.03567723517149231
+end	54
+point	55	59	41	11	0	none
+context	w_2=١٢٣
+context	w_1=و
+context	w0=456
+context	w1=.
+context	w2=eos
+context	w_1=وw0=456
+context	w0=456w1=.
+context	t_2=NNP
+context	t_1=NNP
+context	t0=CD
+context	t1=.
+context	t2=eos
+context	t_2=NNPt_1=NNP
+context	t_1=NNPt0=CD
+context	t0=CDt1=.
+context	t1=.t2=eos
+context	t_2=NNPt_1=NNPt0=CD
+context	t_1=NNPt0=CDt1=.
+context	t0=CDt1=.t2=eos
+context	p_2=B-PRT
+context	p_1=B-NP
+context	p_2=B-PRTp_1=B-NP
+context	p_1=B-NPt_2=NNP
+context	p_1=B-NPt_1=NNP
+context	p_1=B-NPt0=CD
+context	p_1=B-NPt1=.
+context	p_1=B-NPt2=eos
+context	p_1=B-NPt_2=NNPt_1=NNP
+context	p_1=B-NPt_1=NNPt0=CD
+context	p_1=B-NPt0=CDt1=.
+context	p_1=B-NPt1=.t2=eos
+context	p_1=B-NPt_2=NNPt_1=NNPt0=CD
+context	p_1=B-NPt_1=NNPt0=CDt1=.
+context	p_1=B-NPt0=CDt1=.t2=eos
+context	p_1=B-NPw_2=١٢٣
+context	p_1=B-NPw_1=و
+context	p_1=B-NPw0=456
+context	p_1=B-NPw1=.
+context	p_1=B-NPw2=eos
+context	p_1=B-NPw_1=وw0=456
+context	p_1=B-NPw0=456w1=.
+outcome	B-NP	3fbe813da499c263 0.11915955799646265
+outcome	I-NP	3fd83f593552956f 0.37886648375782433
+outcome	B-PP	3fa84e28535ae642 0.047471294570141
+outcome	B-VP	3fb5769dfe939225 0.08384120431180316
+outcome	I-VP	3f9652a788833cba 0.021799676615782394
+outcome	O	3fbdce131da8466d 0.11642569994025971
+outcome	B-ADVP	3fabf7ddf0815abf 0.054625449760967275
+outcome	B-PRT	3fab39792a55771b 0.053172861497598777
+outcome	B-ADJP	3fa467f98bde65ff 0.03985576469785811
+outcome	I-ADJP	3fa2d65be73bed5c 0.03679167936021585
+outcome	B-SBAR	3fa892302e3274e6 0.047990327491086934
+end	55
+point	56	62	41	11	0	none
+context	w_2=و
+context	w_1=456
+context	w0=.
+context	w1=eos
+context	w2=eos
+context	w_1=456w0=.
+context	w0=.w1=eos
+context	t_2=NNP
+context	t_1=CD
+context	t0=.
+context	t1=eos
+context	t2=eos
+context	t_2=NNPt_1=CD
+context	t_1=CDt0=.
+context	t0=.t1=eos
+context	t1=eost2=eos
+context	t_2=NNPt_1=CDt0=.
+context	t_1=CDt0=.t1=eos
+context	t0=.t1=eost2=eos
+context	p_2=B-NP
+context	p_1=I-NP
+context	p_2=B-NPp_1=I-NP
+context	p_1=I-NPt_2=NNP
+context	p_1=I-NPt_1=CD
+context	p_1=I-NPt0=.
+context	p_1=I-NPt1=eos
+context	p_1=I-NPt2=eos
+context	p_1=I-NPt_2=NNPt_1=CD
+context	p_1=I-NPt_1=CDt0=.
+context	p_1=I-NPt0=.t1=eos
+context	p_1=I-NPt1=eost2=eos
+context	p_1=I-NPt_2=NNPt_1=CDt0=.
+context	p_1=I-NPt_1=CDt0=.t1=eos
+context	p_1=I-NPt0=.t1=eost2=eos
+context	p_1=I-NPw_2=و
+context	p_1=I-NPw_1=456
+context	p_1=I-NPw0=.
+context	p_1=I-NPw1=eos
+context	p_1=I-NPw2=eos
+context	p_1=I-NPw_1=456w0=.
+context	p_1=I-NPw0=.w1=eos
+outcome	B-NP	3f80c17ec85a64df 0.008181562890330727
+outcome	I-NP	3fa185cccb268e30 0.034223937796266646
+outcome	B-PP	3f8b7d99d7fbe4b4 0.013423158553893401
+outcome	B-VP	3f94d989b41b4f7c 0.020361091249312832
+outcome	I-VP	3f7c88cb9e194ff0 0.006966395741603279
+outcome	O	3fec27dead557538 0.8798669228960199
+outcome	B-ADVP	3f7d78056abc7804 0.007194539222636468
+outcome	B-PRT	3f84aef53a95976f 0.010099330759384377
+outcome	B-ADJP	3f6ec9b031374ef3 0.003758281827438975
+outcome	I-ADJP	3f820b4248f5c9b3 0.008810537196698975
+outcome	B-SBAR	3f7d23d2c26eef31 0.007114241866414337
+end	56
+point	57	62	41	11	0	none
+context	w_2=و
+context	w_1=456
+context	w0=.
+context	w1=eos
+context	w2=eos
+context	w_1=456w0=.
+context	w0=.w1=eos
+context	t_2=NNP
+context	t_1=CD
+context	t0=.
+context	t1=eos
+context	t2=eos
+context	t_2=NNPt_1=CD
+context	t_1=CDt0=.
+context	t0=.t1=eos
+context	t1=eost2=eos
+context	t_2=NNPt_1=CDt0=.
+context	t_1=CDt0=.t1=eos
+context	t0=.t1=eost2=eos
+context	p_2=B-PP
+context	p_1=B-NP
+context	p_2=B-PPp_1=B-NP
+context	p_1=B-NPt_2=NNP
+context	p_1=B-NPt_1=CD
+context	p_1=B-NPt0=.
+context	p_1=B-NPt1=eos
+context	p_1=B-NPt2=eos
+context	p_1=B-NPt_2=NNPt_1=CD
+context	p_1=B-NPt_1=CDt0=.
+context	p_1=B-NPt0=.t1=eos
+context	p_1=B-NPt1=eost2=eos
+context	p_1=B-NPt_2=NNPt_1=CDt0=.
+context	p_1=B-NPt_1=CDt0=.t1=eos
+context	p_1=B-NPt0=.t1=eost2=eos
+context	p_1=B-NPw_2=و
+context	p_1=B-NPw_1=456
+context	p_1=B-NPw0=.
+context	p_1=B-NPw1=eos
+context	p_1=B-NPw2=eos
+context	p_1=B-NPw_1=456w0=.
+context	p_1=B-NPw0=.w1=eos
+outcome	B-NP	3f7dbc41e86fc392 0.007259614422751153
+outcome	I-NP	3f966515cb5249ce 0.021869984183078554
+outcome	B-PP	3f78e1ab05b81b21 0.006074588829057232
+outcome	B-VP	3f7d2bd2e59a4fa4 0.007121871772728303
+outcome	I-VP	3f70d3a7736ff165 0.004108099084075033
+outcome	O	3fed8deeb885bdd6 0.9235757450059576
+outcome	B-ADVP	3f78d4592f3b8425 0.0060618861932378075
+outcome	B-PRT	3f7db52834cd3e75 0.007252842956247831
+outcome	B-ADJP	3f75528122f395f6 0.005205635490005181
+outcome	I-ADJP	3f742af8a1ae9a70 0.00492379304606648
+outcome	B-SBAR	3f7acfea1ffadaf1 0.006545939016794775
+end	57
+point	58	62	41	11	0	none
+context	w_2=و
+context	w_1=456
+context	w0=.
+context	w1=eos
+context	w2=eos
+context	w_1=456w0=.
+context	w0=.w1=eos
+context	t_2=NNP
+context	t_1=CD
+context	t0=.
+context	t1=eos
+context	t2=eos
+context	t_2=NNPt_1=CD
+context	t_1=CDt0=.
+context	t0=.t1=eos
+context	t1=eost2=eos
+context	t_2=NNPt_1=CDt0=.
+context	t_1=CDt0=.t1=eos
+context	t0=.t1=eost2=eos
+context	p_2=B-PP
+context	p_1=B-NP
+context	p_2=B-PPp_1=B-NP
+context	p_1=B-NPt_2=NNP
+context	p_1=B-NPt_1=CD
+context	p_1=B-NPt0=.
+context	p_1=B-NPt1=eos
+context	p_1=B-NPt2=eos
+context	p_1=B-NPt_2=NNPt_1=CD
+context	p_1=B-NPt_1=CDt0=.
+context	p_1=B-NPt0=.t1=eos
+context	p_1=B-NPt1=eost2=eos
+context	p_1=B-NPt_2=NNPt_1=CDt0=.
+context	p_1=B-NPt_1=CDt0=.t1=eos
+context	p_1=B-NPt0=.t1=eost2=eos
+context	p_1=B-NPw_2=و
+context	p_1=B-NPw_1=456
+context	p_1=B-NPw0=.
+context	p_1=B-NPw1=eos
+context	p_1=B-NPw2=eos
+context	p_1=B-NPw_1=456w0=.
+context	p_1=B-NPw0=.w1=eos
+outcome	B-NP	3f7dbc41e86fc392 0.007259614422751153
+outcome	I-NP	3f966515cb5249ce 0.021869984183078554
+outcome	B-PP	3f78e1ab05b81b21 0.006074588829057232
+outcome	B-VP	3f7d2bd2e59a4fa4 0.007121871772728303
+outcome	I-VP	3f70d3a7736ff165 0.004108099084075033
+outcome	O	3fed8deeb885bdd6 0.9235757450059576
+outcome	B-ADVP	3f78d4592f3b8425 0.0060618861932378075
+outcome	B-PRT	3f7db52834cd3e75 0.007252842956247831
+outcome	B-ADJP	3f75528122f395f6 0.005205635490005181
+outcome	I-ADJP	3f742af8a1ae9a70 0.00492379304606648
+outcome	B-SBAR	3f7acfea1ffadaf1 0.006545939016794775
+end	58
+point	59	62	41	11	0	none
+context	w_2=و
+context	w_1=456
+context	w0=.
+context	w1=eos
+context	w2=eos
+context	w_1=456w0=.
+context	w0=.w1=eos
+context	t_2=NNP
+context	t_1=CD
+context	t0=.
+context	t1=eos
+context	t2=eos
+context	t_2=NNPt_1=CD
+context	t_1=CDt0=.
+context	t0=.t1=eos
+context	t1=eost2=eos
+context	t_2=NNPt_1=CDt0=.
+context	t_1=CDt0=.t1=eos
+context	t0=.t1=eost2=eos
+context	p_2=B-PP
+context	p_1=B-NP
+context	p_2=B-PPp_1=B-NP
+context	p_1=B-NPt_2=NNP
+context	p_1=B-NPt_1=CD
+context	p_1=B-NPt0=.
+context	p_1=B-NPt1=eos
+context	p_1=B-NPt2=eos
+context	p_1=B-NPt_2=NNPt_1=CD
+context	p_1=B-NPt_1=CDt0=.
+context	p_1=B-NPt0=.t1=eos
+context	p_1=B-NPt1=eost2=eos
+context	p_1=B-NPt_2=NNPt_1=CDt0=.
+context	p_1=B-NPt_1=CDt0=.t1=eos
+context	p_1=B-NPt0=.t1=eost2=eos
+context	p_1=B-NPw_2=و
+context	p_1=B-NPw_1=456
+context	p_1=B-NPw0=.
+context	p_1=B-NPw1=eos
+context	p_1=B-NPw2=eos
+context	p_1=B-NPw_1=456w0=.
+context	p_1=B-NPw0=.w1=eos
+outcome	B-NP	3f7dbc41e86fc392 0.007259614422751153
+outcome	I-NP	3f966515cb5249ce 0.021869984183078554
+outcome	B-PP	3f78e1ab05b81b21 0.006074588829057232
+outcome	B-VP	3f7d2bd2e59a4fa4 0.007121871772728303
+outcome	I-VP	3f70d3a7736ff165 0.004108099084075033
+outcome	O	3fed8deeb885bdd6 0.9235757450059576
+outcome	B-ADVP	3f78d4592f3b8425 0.0060618861932378075
+outcome	B-PRT	3f7db52834cd3e75 0.007252842956247831
+outcome	B-ADJP	3f75528122f395f6 0.005205635490005181
+outcome	I-ADJP	3f742af8a1ae9a70 0.00492379304606648
+outcome	B-SBAR	3f7acfea1ffadaf1 0.006545939016794775
+end	59
+point	60	62	41	11	0	none
+context	w_2=و
+context	w_1=456
+context	w0=.
+context	w1=eos
+context	w2=eos
+context	w_1=456w0=.
+context	w0=.w1=eos
+context	t_2=NNP
+context	t_1=CD
+context	t0=.
+context	t1=eos
+context	t2=eos
+context	t_2=NNPt_1=CD
+context	t_1=CDt0=.
+context	t0=.t1=eos
+context	t1=eost2=eos
+context	t_2=NNPt_1=CDt0=.
+context	t_1=CDt0=.t1=eos
+context	t0=.t1=eost2=eos
+context	p_2=B-NP
+context	p_1=I-NP
+context	p_2=B-NPp_1=I-NP
+context	p_1=I-NPt_2=NNP
+context	p_1=I-NPt_1=CD
+context	p_1=I-NPt0=.
+context	p_1=I-NPt1=eos
+context	p_1=I-NPt2=eos
+context	p_1=I-NPt_2=NNPt_1=CD
+context	p_1=I-NPt_1=CDt0=.
+context	p_1=I-NPt0=.t1=eos
+context	p_1=I-NPt1=eost2=eos
+context	p_1=I-NPt_2=NNPt_1=CDt0=.
+context	p_1=I-NPt_1=CDt0=.t1=eos
+context	p_1=I-NPt0=.t1=eost2=eos
+context	p_1=I-NPw_2=و
+context	p_1=I-NPw_1=456
+context	p_1=I-NPw0=.
+context	p_1=I-NPw1=eos
+context	p_1=I-NPw2=eos
+context	p_1=I-NPw_1=456w0=.
+context	p_1=I-NPw0=.w1=eos
+outcome	B-NP	3f80c17ec85a64df 0.008181562890330727
+outcome	I-NP	3fa185cccb268e30 0.034223937796266646
+outcome	B-PP	3f8b7d99d7fbe4b4 0.013423158553893401
+outcome	B-VP	3f94d989b41b4f7c 0.020361091249312832
+outcome	I-VP	3f7c88cb9e194ff0 0.006966395741603279
+outcome	O	3fec27dead557538 0.8798669228960199
+outcome	B-ADVP	3f7d78056abc7804 0.007194539222636468
+outcome	B-PRT	3f84aef53a95976f 0.010099330759384377
+outcome	B-ADJP	3f6ec9b031374ef3 0.003758281827438975
+outcome	I-ADJP	3f820b4248f5c9b3 0.008810537196698975
+outcome	B-SBAR	3f7d23d2c26eef31 0.007114241866414337
+end	60
+point	61	62	41	11	0	none
+context	w_2=و
+context	w_1=456
+context	w0=.
+context	w1=eos
+context	w2=eos
+context	w_1=456w0=.
+context	w0=.w1=eos
+context	t_2=NNP
+context	t_1=CD
+context	t0=.
+context	t1=eos
+context	t2=eos
+context	t_2=NNPt_1=CD
+context	t_1=CDt0=.
+context	t0=.t1=eos
+context	t1=eost2=eos
+context	t_2=NNPt_1=CDt0=.
+context	t_1=CDt0=.t1=eos
+context	t0=.t1=eost2=eos
+context	p_2=B-NP
+context	p_1=I-NP
+context	p_2=B-NPp_1=I-NP
+context	p_1=I-NPt_2=NNP
+context	p_1=I-NPt_1=CD
+context	p_1=I-NPt0=.
+context	p_1=I-NPt1=eos
+context	p_1=I-NPt2=eos
+context	p_1=I-NPt_2=NNPt_1=CD
+context	p_1=I-NPt_1=CDt0=.
+context	p_1=I-NPt0=.t1=eos
+context	p_1=I-NPt1=eost2=eos
+context	p_1=I-NPt_2=NNPt_1=CDt0=.
+context	p_1=I-NPt_1=CDt0=.t1=eos
+context	p_1=I-NPt0=.t1=eost2=eos
+context	p_1=I-NPw_2=و
+context	p_1=I-NPw_1=456
+context	p_1=I-NPw0=.
+context	p_1=I-NPw1=eos
+context	p_1=I-NPw2=eos
+context	p_1=I-NPw_1=456w0=.
+context	p_1=I-NPw0=.w1=eos
+outcome	B-NP	3f80c17ec85a64df 0.008181562890330727
+outcome	I-NP	3fa185cccb268e30 0.034223937796266646
+outcome	B-PP	3f8b7d99d7fbe4b4 0.013423158553893401
+outcome	B-VP	3f94d989b41b4f7c 0.020361091249312832
+outcome	I-VP	3f7c88cb9e194ff0 0.006966395741603279
+outcome	O	3fec27dead557538 0.8798669228960199
+outcome	B-ADVP	3f7d78056abc7804 0.007194539222636468
+outcome	B-PRT	3f84aef53a95976f 0.010099330759384377
+outcome	B-ADJP	3f6ec9b031374ef3 0.003758281827438975
+outcome	I-ADJP	3f820b4248f5c9b3 0.008810537196698975
+outcome	B-SBAR	3f7d23d2c26eef31 0.007114241866414337
+end	61
+point	62	62	41	11	0	none
+context	w_2=و
+context	w_1=456
+context	w0=.
+context	w1=eos
+context	w2=eos
+context	w_1=456w0=.
+context	w0=.w1=eos
+context	t_2=NNP
+context	t_1=CD
+context	t0=.
+context	t1=eos
+context	t2=eos
+context	t_2=NNPt_1=CD
+context	t_1=CDt0=.
+context	t0=.t1=eos
+context	t1=eost2=eos
+context	t_2=NNPt_1=CDt0=.
+context	t_1=CDt0=.t1=eos
+context	t0=.t1=eost2=eos
+context	p_2=B-PP
+context	p_1=B-NP
+context	p_2=B-PPp_1=B-NP
+context	p_1=B-NPt_2=NNP
+context	p_1=B-NPt_1=CD
+context	p_1=B-NPt0=.
+context	p_1=B-NPt1=eos
+context	p_1=B-NPt2=eos
+context	p_1=B-NPt_2=NNPt_1=CD
+context	p_1=B-NPt_1=CDt0=.
+context	p_1=B-NPt0=.t1=eos
+context	p_1=B-NPt1=eost2=eos
+context	p_1=B-NPt_2=NNPt_1=CDt0=.
+context	p_1=B-NPt_1=CDt0=.t1=eos
+context	p_1=B-NPt0=.t1=eost2=eos
+context	p_1=B-NPw_2=و
+context	p_1=B-NPw_1=456
+context	p_1=B-NPw0=.
+context	p_1=B-NPw1=eos
+context	p_1=B-NPw2=eos
+context	p_1=B-NPw_1=456w0=.
+context	p_1=B-NPw0=.w1=eos
+outcome	B-NP	3f7dbc41e86fc392 0.007259614422751153
+outcome	I-NP	3f966515cb5249ce 0.021869984183078554
+outcome	B-PP	3f78e1ab05b81b21 0.006074588829057232
+outcome	B-VP	3f7d2bd2e59a4fa4 0.007121871772728303
+outcome	I-VP	3f70d3a7736ff165 0.004108099084075033
+outcome	O	3fed8deeb885bdd6 0.9235757450059576
+outcome	B-ADVP	3f78d4592f3b8425 0.0060618861932378075
+outcome	B-PRT	3f7db52834cd3e75 0.007252842956247831
+outcome	B-ADJP	3f75528122f395f6 0.005205635490005181
+outcome	I-ADJP	3f742af8a1ae9a70 0.00492379304606648
+outcome	B-SBAR	3f7acfea1ffadaf1 0.006545939016794775
+end	62
+point	63	62	41	11	0	none
+context	w_2=و
+context	w_1=456
+context	w0=.
+context	w1=eos
+context	w2=eos
+context	w_1=456w0=.
+context	w0=.w1=eos
+context	t_2=NNP
+context	t_1=CD
+context	t0=.
+context	t1=eos
+context	t2=eos
+context	t_2=NNPt_1=CD
+context	t_1=CDt0=.
+context	t0=.t1=eos
+context	t1=eost2=eos
+context	t_2=NNPt_1=CDt0=.
+context	t_1=CDt0=.t1=eos
+context	t0=.t1=eost2=eos
+context	p_2=I-NP
+context	p_1=I-NP
+context	p_2=I-NPp_1=I-NP
+context	p_1=I-NPt_2=NNP
+context	p_1=I-NPt_1=CD
+context	p_1=I-NPt0=.
+context	p_1=I-NPt1=eos
+context	p_1=I-NPt2=eos
+context	p_1=I-NPt_2=NNPt_1=CD
+context	p_1=I-NPt_1=CDt0=.
+context	p_1=I-NPt0=.t1=eos
+context	p_1=I-NPt1=eost2=eos
+context	p_1=I-NPt_2=NNPt_1=CDt0=.
+context	p_1=I-NPt_1=CDt0=.t1=eos
+context	p_1=I-NPt0=.t1=eost2=eos
+context	p_1=I-NPw_2=و
+context	p_1=I-NPw_1=456
+context	p_1=I-NPw0=.
+context	p_1=I-NPw1=eos
+context	p_1=I-NPw2=eos
+context	p_1=I-NPw_1=456w0=.
+context	p_1=I-NPw0=.w1=eos
+outcome	B-NP	3f877f5b2dbf5999 0.011473381360627853
+outcome	I-NP	3f9b73e347b7cef5 0.026809264423675
+outcome	B-PP	3f85e1aef9e2767f 0.01068436336600631
+outcome	B-VP	3f904951cd604d72 0.015904691848914472
+outcome	I-VP	3f7be7928fee34e8 0.006812641628937778
+outcome	O	3fec88ac57ced4c5 0.8916837420462335
+outcome	B-ADVP	3f7fb70080498c1f 0.007742883641728176
+outcome	B-PRT	3f8781859feb2ba7 0.011477512305097038
+outcome	B-ADJP	3f76371e5ae9e580 0.005423658919079144
+outcome	I-ADJP	3f74e05dcbb1b19f 0.005096784963012273
+outcome	B-SBAR	3f7c39d0fe47db7f 0.006891075496688325
+end	63
+point	64	62	41	11	0	none
+context	w_2=و
+context	w_1=456
+context	w0=.
+context	w1=eos
+context	w2=eos
+context	w_1=456w0=.
+context	w0=.w1=eos
+context	t_2=NNP
+context	t_1=CD
+context	t0=.
+context	t1=eos
+context	t2=eos
+context	t_2=NNPt_1=CD
+context	t_1=CDt0=.
+context	t0=.t1=eos
+context	t1=eost2=eos
+context	t_2=NNPt_1=CDt0=.
+context	t_1=CDt0=.t1=eos
+context	t0=.t1=eost2=eos
+context	p_2=I-NP
+context	p_1=I-NP
+context	p_2=I-NPp_1=I-NP
+context	p_1=I-NPt_2=NNP
+context	p_1=I-NPt_1=CD
+context	p_1=I-NPt0=.
+context	p_1=I-NPt1=eos
+context	p_1=I-NPt2=eos
+context	p_1=I-NPt_2=NNPt_1=CD
+context	p_1=I-NPt_1=CDt0=.
+context	p_1=I-NPt0=.t1=eos
+context	p_1=I-NPt1=eost2=eos
+context	p_1=I-NPt_2=NNPt_1=CDt0=.
+context	p_1=I-NPt_1=CDt0=.t1=eos
+context	p_1=I-NPt0=.t1=eost2=eos
+context	p_1=I-NPw_2=و
+context	p_1=I-NPw_1=456
+context	p_1=I-NPw0=.
+context	p_1=I-NPw1=eos
+context	p_1=I-NPw2=eos
+context	p_1=I-NPw_1=456w0=.
+context	p_1=I-NPw0=.w1=eos
+outcome	B-NP	3f877f5b2dbf5999 0.011473381360627853
+outcome	I-NP	3f9b73e347b7cef5 0.026809264423675
+outcome	B-PP	3f85e1aef9e2767f 0.01068436336600631
+outcome	B-VP	3f904951cd604d72 0.015904691848914472
+outcome	I-VP	3f7be7928fee34e8 0.006812641628937778
+outcome	O	3fec88ac57ced4c5 0.8916837420462335
+outcome	B-ADVP	3f7fb70080498c1f 0.007742883641728176
+outcome	B-PRT	3f8781859feb2ba7 0.011477512305097038
+outcome	B-ADJP	3f76371e5ae9e580 0.005423658919079144
+outcome	I-ADJP	3f74e05dcbb1b19f 0.005096784963012273
+outcome	B-SBAR	3f7c39d0fe47db7f 0.006891075496688325
+end	64
+point	65	62	41	11	0	none
+context	w_2=و
+context	w_1=456
+context	w0=.
+context	w1=eos
+context	w2=eos
+context	w_1=456w0=.
+context	w0=.w1=eos
+context	t_2=NNP
+context	t_1=CD
+context	t0=.
+context	t1=eos
+context	t2=eos
+context	t_2=NNPt_1=CD
+context	t_1=CDt0=.
+context	t0=.t1=eos
+context	t1=eost2=eos
+context	t_2=NNPt_1=CDt0=.
+context	t_1=CDt0=.t1=eos
+context	t0=.t1=eost2=eos
+context	p_2=B-NP
+context	p_1=O
+context	p_2=B-NPp_1=O
+context	p_1=Ot_2=NNP
+context	p_1=Ot_1=CD
+context	p_1=Ot0=.
+context	p_1=Ot1=eos
+context	p_1=Ot2=eos
+context	p_1=Ot_2=NNPt_1=CD
+context	p_1=Ot_1=CDt0=.
+context	p_1=Ot0=.t1=eos
+context	p_1=Ot1=eost2=eos
+context	p_1=Ot_2=NNPt_1=CDt0=.
+context	p_1=Ot_1=CDt0=.t1=eos
+context	p_1=Ot0=.t1=eost2=eos
+context	p_1=Ow_2=و
+context	p_1=Ow_1=456
+context	p_1=Ow0=.
+context	p_1=Ow1=eos
+context	p_1=Ow2=eos
+context	p_1=Ow_1=456w0=.
+context	p_1=Ow0=.w1=eos
+outcome	B-NP	3fafea771d5296fc 0.062335703210278454
+outcome	I-NP	3fb3161a0d819582 0.0745559962247935
+outcome	B-PP	3fa9a55a3d1e2b28 0.050089664421724855
+outcome	B-VP	3fb0977dc703968f 0.06481157406559589
+outcome	I-VP	3f9d92fc4a75019a 0.02888101772737315
+outcome	O	3fe17270164634e7 0.5452194628757326
+outcome	B-ADVP	3fa394c08526dc18 0.038244262937432605
+outcome	B-PRT	3fa56fe89d0f8a4b 0.04186942021603509
+outcome	B-ADJP	3f9ca4d681978e1f 0.027972556743305895
+outcome	I-ADJP	3fa2b3963c9d1826 0.036526389025809444
+outcome	B-SBAR	3f9e33a9a68fa192 0.029493952551918286
+end	65
+point	66	64	41	11	0	none
+context	w_2=bos
+context	w_1=bos
+context	w0=كيف
+context	w1=حالك؟
+context	w2=eos
+context	w_1=bosw0=كيف
+context	w0=كيفw1=حالك؟
+context	t_2=bos
+context	t_1=bos
+context	t0=PRP
+context	t1=.
+context	t2=eos
+context	t_2=bost_1=bos
+context	t_1=bost0=PRP
+context	t0=PRPt1=.
+context	t1=.t2=eos
+context	t_2=bost_1=bost0=PRP
+context	t_1=bost0=PRPt1=.
+context	t0=PRPt1=.t2=eos
+context	p_2=bos
+context	p_1=bos
+context	p_2=bosp_1=bos
+context	p_1=bost_2=bos
+context	p_1=bost_1=bos
+context	p_1=bost0=PRP
+context	p_1=bost1=.
+context	p_1=bost2=eos
+context	p_1=bost_2=bost_1=bos
+context	p_1=bost_1=bost0=PRP
+context	p_1=bost0=PRPt1=.
+context	p_1=bost1=.t2=eos
+context	p_1=bost_2=bost_1=bost0=PRP
+context	p_1=bost_1=bost0=PRPt1=.
+context	p_1=bost0=PRPt1=.t2=eos
+context	p_1=bosw_2=bos
+context	p_1=bosw_1=bos
+context	p_1=bosw0=كيف
+context	p_1=bosw1=حالك؟
+context	p_1=bosw2=eos
+context	p_1=bosw_1=bosw0=كيف
+context	p_1=bosw0=كيفw1=حالك؟
+outcome	B-NP	3fe80d65e28f82a0 0.7516354966174568
+outcome	I-NP	3faefb60ed7a7fa1 0.06051161669643013
+outcome	B-PP	3f928fd87d598e99 0.01812685265612277
+outcome	B-VP	3f9d2601eb3452be 0.02846529958795218
+outcome	I-VP	3f8723b44e2c739e 0.011298569331808225
+outcome	O	3fa20388bafbe3da 0.03518321306723467
+outcome	B-ADVP	3f8d3ec7a3193f59 0.01427989927756783
+outcome	B-PRT	3f9abbfbe6b3ef7f 0.026107727008806144
+outcome	B-ADJP	3f95e251cadba4fd 0.02137115288397683
+outcome	I-ADJP	3f945dbbe12b01f8 0.019888816469348897
+outcome	B-SBAR	3f8ae49cd26f274c 0.013131356403295456
+end	66
+point	67	71	41	11	0	none
+context	w_2=bos
+context	w_1=كيف
+context	w0=حالك؟
+context	w1=eos
+context	w2=eos
+context	w_1=كيفw0=حالك؟
+context	w0=حالك؟w1=eos
+context	t_2=bos
+context	t_1=PRP
+context	t0=.
+context	t1=eos
+context	t2=eos
+context	t_2=bost_1=PRP
+context	t_1=PRPt0=.
+context	t0=.t1=eos
+context	t1=eost2=eos
+context	t_2=bost_1=PRPt0=.
+context	t_1=PRPt0=.t1=eos
+context	t0=.t1=eost2=eos
+context	p_2=bos
+context	p_1=B-NP
+context	p_2=bosp_1=B-NP
+context	p_1=B-NPt_2=bos
+context	p_1=B-NPt_1=PRP
+context	p_1=B-NPt0=.
+context	p_1=B-NPt1=eos
+context	p_1=B-NPt2=eos
+context	p_1=B-NPt_2=bost_1=PRP
+context	p_1=B-NPt_1=PRPt0=.
+context	p_1=B-NPt0=.t1=eos
+context	p_1=B-NPt1=eost2=eos
+context	p_1=B-NPt_2=bost_1=PRPt0=.
+context	p_1=B-NPt_1=PRPt0=.t1=eos
+context	p_1=B-NPt0=.t1=eost2=eos
+context	p_1=B-NPw_2=bos
+context	p_1=B-NPw_1=كيف
+context	p_1=B-NPw0=حالك؟
+context	p_1=B-NPw1=eos
+context	p_1=B-NPw2=eos
+context	p_1=B-NPw_1=كيفw0=حالك؟
+context	p_1=B-NPw0=حالك؟w1=eos
+outcome	B-NP	3fa91b84e75a9a8e 0.049038079492040074
+outcome	I-NP	3fbfafe767de08cd 0.123777830942376
+outcome	B-PP	3f9c08fb646c161c 0.02737801361492674
+outcome	B-VP	3fbbdc670ecf3b9a 0.10883182632026803
+outcome	I-VP	3f913db897ea36df 0.016837009689473766
+outcome	O	3fe200d6d04126fb 0.5626024310560916
+outcome	B-ADVP	3f8f42a4d9f6c0d5 0.015263831998567326
+outcome	B-PRT	3fa00eeadb145e06 0.03136381077109367
+outcome	B-ADJP	3f998a62c77b564e 0.024941962647821385
+outcome	I-ADJP	3f982862cb7045df 0.023591560046105072
+outcome	B-SBAR	3f90c4409c0ad485 0.0163736434212365
+end	67
+point	68	71	41	11	0	none
+context	w_2=bos
+context	w_1=كيف
+context	w0=حالك؟
+context	w1=eos
+context	w2=eos
+context	w_1=كيفw0=حالك؟
+context	w0=حالك؟w1=eos
+context	t_2=bos
+context	t_1=PRP
+context	t0=.
+context	t1=eos
+context	t2=eos
+context	t_2=bost_1=PRP
+context	t_1=PRPt0=.
+context	t0=.t1=eos
+context	t1=eost2=eos
+context	t_2=bost_1=PRPt0=.
+context	t_1=PRPt0=.t1=eos
+context	t0=.t1=eost2=eos
+context	p_2=bos
+context	p_1=O
+context	p_2=bosp_1=O
+context	p_1=Ot_2=bos
+context	p_1=Ot_1=PRP
+context	p_1=Ot0=.
+context	p_1=Ot1=eos
+context	p_1=Ot2=eos
+context	p_1=Ot_2=bost_1=PRP
+context	p_1=Ot_1=PRPt0=.
+context	p_1=Ot0=.t1=eos
+context	p_1=Ot1=eost2=eos
+context	p_1=Ot_2=bost_1=PRPt0=.
+context	p_1=Ot_1=PRPt0=.t1=eos
+context	p_1=Ot0=.t1=eost2=eos
+context	p_1=Ow_2=bos
+context	p_1=Ow_1=كيف
+context	p_1=Ow0=حالك؟
+context	p_1=Ow1=eos
+context	p_1=Ow2=eos
+context	p_1=Ow_1=كيفw0=حالك؟
+context	p_1=Ow0=حالك؟w1=eos
+outcome	B-NP	3fbf6393e7ae74bd 0.12261318594251498
+outcome	I-NP	3fbc325ef8c6814d 0.11014360021227283
+outcome	B-PP	3faa5ee1fa596811 0.05150514775296256
+outcome	B-VP	3fc0338ca73bcb5a 0.12657316365911236
+outcome	I-VP	3fa2af307b57f747 0.036492838913530216
+outcome	O	3fd3e644dcf55728 0.3109295041843887
+outcome	B-ADVP	3fa0f044cd858a9b 0.03308310517129095
+outcome	B-PRT	3fb16709cf390c07 0.06797848996306764
+outcome	B-ADJP	3fabadb532752fa4 0.05405966034831458
+outcome	I-ADJP	3faa2e132aa78372 0.051132773358182684
+outcome	B-SBAR	3fa22b8d7bb67835 0.03548853049436255
+end	68
+point	69	71	41	11	0	none
+context	w_2=bos
+context	w_1=كيف
+context	w0=حالك؟
+context	w1=eos
+context	w2=eos
+context	w_1=كيفw0=حالك؟
+context	w0=حالك؟w1=eos
+context	t_2=bos
+context	t_1=PRP
+context	t0=.
+context	t1=eos
+context	t2=eos
+context	t_2=bost_1=PRP
+context	t_1=PRPt0=.
+context	t0=.t1=eos
+context	t1=eost2=eos
+context	t_2=bost_1=PRPt0=.
+context	t_1=PRPt0=.t1=eos
+context	t0=.t1=eost2=eos
+context	p_2=bos
+context	p_1=B-VP
+context	p_2=bosp_1=B-VP
+context	p_1=B-VPt_2=bos
+context	p_1=B-VPt_1=PRP
+context	p_1=B-VPt0=.
+context	p_1=B-VPt1=eos
+context	p_1=B-VPt2=eos
+context	p_1=B-VPt_2=bost_1=PRP
+context	p_1=B-VPt_1=PRPt0=.
+context	p_1=B-VPt0=.t1=eos
+context	p_1=B-VPt1=eost2=eos
+context	p_1=B-VPt_2=bost_1=PRPt0=.
+context	p_1=B-VPt_1=PRPt0=.t1=eos
+context	p_1=B-VPt0=.t1=eost2=eos
+context	p_1=B-VPw_2=bos
+context	p_1=B-VPw_1=كيف
+context	p_1=B-VPw0=حالك؟
+context	p_1=B-VPw1=eos
+context	p_1=B-VPw2=eos
+context	p_1=B-VPw_1=كيفw0=حالك؟
+context	p_1=B-VPw0=حالك؟w1=eos
+outcome	B-NP	3fbec5eb4ab7b685 0.12020750593338832
+outcome	I-NP	3fbde2956191306d 0.11673864013681774
+outcome	B-PP	3fa9ee44a6c33cd2 0.05064596687008706
+outcome	B-VP	3fbe06052bf90db0 0.11727936099582936
+outcome	I-VP	3fadae0f35595233 0.0579685928939039
+outcome	O	3fcf270d68a46942 0.2433792839954752
+outcome	B-ADVP	3fa7333042752475 0.0453124123692498
+outcome	B-PRT	3fb1ede9136d66cf 0.07003647541332757
+outcome	B-ADJP	3fb68a369986e900 0.08804646728723142
+outcome	I-ADJP	3fabbf5f8f13ad12 0.05419443723243424
+outcome	B-SBAR	3fa2879ba55c717d 0.036190856872255296
+end	69
+point	70	71	41	11	0	none
+context	w_2=bos
+context	w_1=كيف
+context	w0=حالك؟
+context	w1=eos
+context	w2=eos
+context	w_1=كيفw0=حالك؟
+context	w0=حالك؟w1=eos
+context	t_2=bos
+context	t_1=PRP
+context	t0=.
+context	t1=eos
+context	t2=eos
+context	t_2=bost_1=PRP
+context	t_1=PRPt0=.
+context	t0=.t1=eos
+context	t1=eost2=eos
+context	t_2=bost_1=PRPt0=.
+context	t_1=PRPt0=.t1=eos
+context	t0=.t1=eost2=eos
+context	p_2=bos
+context	p_1=B-PRT
+context	p_2=bosp_1=B-PRT
+context	p_1=B-PRTt_2=bos
+context	p_1=B-PRTt_1=PRP
+context	p_1=B-PRTt0=.
+context	p_1=B-PRTt1=eos
+context	p_1=B-PRTt2=eos
+context	p_1=B-PRTt_2=bost_1=PRP
+context	p_1=B-PRTt_1=PRPt0=.
+context	p_1=B-PRTt0=.t1=eos
+context	p_1=B-PRTt1=eost2=eos
+context	p_1=B-PRTt_2=bost_1=PRPt0=.
+context	p_1=B-PRTt_1=PRPt0=.t1=eos
+context	p_1=B-PRTt0=.t1=eost2=eos
+context	p_1=B-PRTw_2=bos
+context	p_1=B-PRTw_1=كيف
+context	p_1=B-PRTw0=حالك؟
+context	p_1=B-PRTw1=eos
+context	p_1=B-PRTw2=eos
+context	p_1=B-PRTw_1=كيفw0=حالك؟
+context	p_1=B-PRTw0=حالك؟w1=eos
+outcome	B-NP	3fc0c0f4720d567f 0.1308885151762986
+outcome	I-NP	3fbd32eb1fd0a543 0.1140582039521592
+outcome	B-PP	3fab4ed0b38214f8 0.05333568755399115
+outcome	B-VP	3fbd558a9e15b736 0.11458650931828349
+outcome	I-VP	3fa35930335a3dd4 0.03778982760297436
+outcome	O	3fd322ee083dbb67 0.2990069466094866
+outcome	B-ADVP	3fa18a6239f9638b 0.03425890882198875
+outcome	B-PRT	3fb2055fdacd9db7 0.07039450733065321
+outcome	B-ADJP	3faca98a51364def 0.055980989850606615
+outcome	I-ADJP	3fab1c45d01c9466 0.052950078634503225
+outcome	B-SBAR	3fa2d0df824c3dc6 0.036749825149054824
+end	70
+point	71	71	41	11	0	none
+context	w_2=bos
+context	w_1=كيف
+context	w0=حالك؟
+context	w1=eos
+context	w2=eos
+context	w_1=كيفw0=حالك؟
+context	w0=حالك؟w1=eos
+context	t_2=bos
+context	t_1=PRP
+context	t0=.
+context	t1=eos
+context	t2=eos
+context	t_2=bost_1=PRP
+context	t_1=PRPt0=.
+context	t0=.t1=eos
+context	t1=eost2=eos
+context	t_2=bost_1=PRPt0=.
+context	t_1=PRPt0=.t1=eos
+context	t0=.t1=eost2=eos
+context	p_2=bos
+context	p_1=B-ADJP
+context	p_2=bosp_1=B-ADJP
+context	p_1=B-ADJPt_2=bos
+context	p_1=B-ADJPt_1=PRP
+context	p_1=B-ADJPt0=.
+context	p_1=B-ADJPt1=eos
+context	p_1=B-ADJPt2=eos
+context	p_1=B-ADJPt_2=bost_1=PRP
+context	p_1=B-ADJPt_1=PRPt0=.
+context	p_1=B-ADJPt0=.t1=eos
+context	p_1=B-ADJPt1=eost2=eos
+context	p_1=B-ADJPt_2=bost_1=PRPt0=.
+context	p_1=B-ADJPt_1=PRPt0=.t1=eos
+context	p_1=B-ADJPt0=.t1=eost2=eos
+context	p_1=B-ADJPw_2=bos
+context	p_1=B-ADJPw_1=كيف
+context	p_1=B-ADJPw0=حالك؟
+context	p_1=B-ADJPw1=eos
+context	p_1=B-ADJPw2=eos
+context	p_1=B-ADJPw_1=كيفw0=حالك؟
+context	p_1=B-ADJPw0=حالك؟w1=eos
+outcome	B-NP	3faac26d9b6b5d2b 0.05226461908540111
+outcome	I-NP	3fabbb0f574b24fc 0.05416152897448431
+outcome	B-PP	3f99ef4c770b9c89 0.025326914564086898
+outcome	B-VP	3fabdbf1278e6886 0.05441239936699653
+outcome	I-VP	3f926021042d0a3a 0.01794482791889094
+outcome	O	3fe51e34b6d6e156 0.6599372454721031
+outcome	B-ADVP	3f90a8986d0354d0 0.016268140462518954
+outcome	B-PRT	3fa11d66dfbeb3d6 0.03342744332562801
+outcome	B-ADJP	3f9b3896e9f67068 0.02658305933947283
+outcome	I-ADJP	3fa59e3baca4bded 0.04222284777130967
+outcome	B-SBAR	3f91deab05a0b088 0.017450973719107782
+end	71
+point	72	71	41	11	0	none
+context	w_2=bos
+context	w_1=كيف
+context	w0=حالك؟
+context	w1=eos
+context	w2=eos
+context	w_1=كيفw0=حالك؟
+context	w0=حالك؟w1=eos
+context	t_2=bos
+context	t_1=PRP
+context	t0=.
+context	t1=eos
+context	t2=eos
+context	t_2=bost_1=PRP
+context	t_1=PRPt0=.
+context	t0=.t1=eos
+context	t1=eost2=eos
+context	t_2=bost_1=PRPt0=.
+context	t_1=PRPt0=.t1=eos
+context	t0=.t1=eost2=eos
+context	p_2=bos
+context	p_1=B-PP
+context	p_2=bosp_1=B-PP
+context	p_1=B-PPt_2=bos
+context	p_1=B-PPt_1=PRP
+context	p_1=B-PPt0=.
+context	p_1=B-PPt1=eos
+context	p_1=B-PPt2=eos
+context	p_1=B-PPt_2=bost_1=PRP
+context	p_1=B-PPt_1=PRPt0=.
+context	p_1=B-PPt0=.t1=eos
+context	p_1=B-PPt1=eost2=eos
+context	p_1=B-PPt_2=bost_1=PRPt0=.
+context	p_1=B-PPt_1=PRPt0=.t1=eos
+context	p_1=B-PPt0=.t1=eost2=eos
+context	p_1=B-PPw_2=bos
+context	p_1=B-PPw_1=كيف
+context	p_1=B-PPw0=حالك؟
+context	p_1=B-PPw1=eos
+context	p_1=B-PPw2=eos
+context	p_1=B-PPw_1=كيفw0=حالك؟
+context	p_1=B-PPw0=حالك؟w1=eos
+outcome	B-NP	3fc720ba49bb4de5 0.1806862697618349
+outcome	I-NP	3fbb86a02da2aa1b 0.1075229751028605
+outcome	B-PP	3fa9be42a2bc7930 0.050279695859205
+outcome	B-VP	3fbba743d1301288 0.10802100998996356
+outcome	I-VP	3fa23d6246ddeb77 0.035624571943990206
+outcome	O	3fd20a3bfa4f7ec9 0.2818746513785127
+outcome	B-ADVP	3fa08918c5c2cc0c 0.0322959653289204
+outcome	B-PRT	3fb0fd0a5bd9065c 0.06636109106423177
+outcome	B-ADJP	3fab051e730e6cca 0.0527734294366496
+outcome	I-ADJP	3fa98e9d1c691932 0.04991618129547461
+outcome	B-SBAR	3fa1bce1126a957f 0.0346441588383568
+end	72
+point	73	71	41	11	0	none
+context	w_2=bos
+context	w_1=كيف
+context	w0=حالك؟
+context	w1=eos
+context	w2=eos
+context	w_1=كيفw0=حالك؟
+context	w0=حالك؟w1=eos
+context	t_2=bos
+context	t_1=PRP
+context	t0=.
+context	t1=eos
+context	t2=eos
+context	t_2=bost_1=PRP
+context	t_1=PRPt0=.
+context	t0=.t1=eos
+context	t1=eost2=eos
+context	t_2=bost_1=PRPt0=.
+context	t_1=PRPt0=.t1=eos
+context	t0=.t1=eost2=eos
+context	p_2=bos
+context	p_1=B-ADVP
+context	p_2=bosp_1=B-ADVP
+context	p_1=B-ADVPt_2=bos
+context	p_1=B-ADVPt_1=PRP
+context	p_1=B-ADVPt0=.
+context	p_1=B-ADVPt1=eos
+context	p_1=B-ADVPt2=eos
+context	p_1=B-ADVPt_2=bost_1=PRP
+context	p_1=B-ADVPt_1=PRPt0=.
+context	p_1=B-ADVPt0=.t1=eos
+context	p_1=B-ADVPt1=eost2=eos
+context	p_1=B-ADVPt_2=bost_1=PRPt0=.
+context	p_1=B-ADVPt_1=PRPt0=.t1=eos
+context	p_1=B-ADVPt0=.t1=eost2=eos
+context	p_1=B-ADVPw_2=bos
+context	p_1=B-ADVPw_1=كيف
+context	p_1=B-ADVPw0=حالك؟
+context	p_1=B-ADVPw1=eos
+context	p_1=B-ADVPw2=eos
+context	p_1=B-ADVPw_1=كيفw0=حالك؟
+context	p_1=B-ADVPw0=حالك؟w1=eos
+outcome	B-NP	3fb59d7708ffa927 0.08443397493070802
+outcome	I-NP	3fa9e4d362d7e1d5 0.05057392675002218
+outcome	B-PP	3f9a9319e76d7d89 0.02595177149794162
+outcome	B-VP	3fab48d75bfb8f5f 0.053290109613753904
+outcome	I-VP	3f9128884f1cce86 0.016756181553502468
+outcome	O	3fe504f4ad4a1b03 0.656854952293401
+outcome	B-ADVP	3f8f1c39ed1bfd13 0.015190556095602525
+outcome	B-PRT	3f9ff65d68df6952 0.031213244939729386
+outcome	B-ADJP	3f996aff5e2e18cb 0.024822225688262017
+outcome	I-ADJP	3f980ab26f57adfa 0.02347830586033515
+outcome	B-SBAR	3f91da6a51999de6 0.017434750776741746
+end	73
+point	74	71	41	11	0	none
+context	w_2=bos
+context	w_1=كيف
+context	w0=حالك؟
+context	w1=eos
+context	w2=eos
+context	w_1=كيفw0=حالك؟
+context	w0=حالك؟w1=eos
+context	t_2=bos
+context	t_1=PRP
+context	t0=.
+context	t1=eos
+context	t2=eos
+context	t_2=bost_1=PRP
+context	t_1=PRPt0=.
+context	t0=.t1=eos
+context	t1=eost2=eos
+context	t_2=bost_1=PRPt0=.
+context	t_1=PRPt0=.t1=eos
+context	t0=.t1=eost2=eos
+context	p_2=bos
+context	p_1=B-SBAR
+context	p_2=bosp_1=B-SBAR
+context	p_1=B-SBARt_2=bos
+context	p_1=B-SBARt_1=PRP
+context	p_1=B-SBARt0=.
+context	p_1=B-SBARt1=eos
+context	p_1=B-SBARt2=eos
+context	p_1=B-SBARt_2=bost_1=PRP
+context	p_1=B-SBARt_1=PRPt0=.
+context	p_1=B-SBARt0=.t1=eos
+context	p_1=B-SBARt1=eost2=eos
+context	p_1=B-SBARt_2=bost_1=PRPt0=.
+context	p_1=B-SBARt_1=PRPt0=.t1=eos
+context	p_1=B-SBARt0=.t1=eost2=eos
+context	p_1=B-SBARw_2=bos
+context	p_1=B-SBARw_1=كيف
+context	p_1=B-SBARw0=حالك؟
+context	p_1=B-SBARw1=eos
+context	p_1=B-SBARw2=eos
+context	p_1=B-SBARw_1=كيفw0=حالك؟
+context	p_1=B-SBARw0=حالك؟w1=eos
+outcome	B-NP	3fc9bb29801307f2 0.2010242343295086
+outcome	I-NP	3fbad7b4c33a7be1 0.10485391393966338
+outcome	B-PP	3fa91aab4cb9f0bc 0.049031594387061145
+outcome	B-VP	3fbaf788fcf00895 0.10533958602175837
+outcome	I-VP	3fa1c9799851e331 0.03474025711415719
+outcome	O	3fd1979856854d0a 0.2748776287964608
+outcome	B-ADVP	3fa02004940c06a4 0.031494277069225945
+outcome	B-PRT	3fb091155f9de31e 0.06471379837411148
+outcome	B-ADJP	3faa596a03b3640d 0.05146342559027781
+outcome	I-ADJP	3fa8ec348e65c378 0.048677103407391564
+outcome	B-SBAR	3fa14c2900c7a6a4 0.03378418097038363
+end	74

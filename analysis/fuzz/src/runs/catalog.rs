@@ -5,7 +5,8 @@ use super::normalize::{NormalizerRun, RUN_NAMES as NORMALIZERS};
 use super::numeric::{MoneyLayer, Numeric};
 use super::sentences::{MaxentSentences, NewlineSentences};
 use super::subwords::{VOCABULARY, WordPiece};
-use super::tagging::{Chunker, Lemmatizer, Tagger};
+use super::tagging::{Chunker, FIXTURE_CHUNKERS, Lemmatizer, Tagger};
+use super::temporal::Temporal;
 use super::tokens::{Lattice, Maxent, Plain, Uax29, Unigram};
 use super::{Run, split_options};
 use crate::resources::{Resources, Unavailable};
@@ -109,6 +110,7 @@ pub const RUNS: &[(&str, &str)] = &[
     ("lemmatize-dictionary", "lemmatizer-dictionary"),
     ("chunk", "chunker-fixture"),
     ("chunk", "chunker-fixture+beam1"),
+    ("chunk", "chunker-fixture-rust"),
     ("langdetect", "langdetect-183"),
     ("normalize", "whitespace"),
     ("normalize", "whitespace-keep-lines"),
@@ -146,6 +148,8 @@ pub const RUNS: &[(&str, &str)] = &[
     ("money-convert", "latin-us"),
     ("quantity", "latin-eu"),
     ("quantity", "latin-us"),
+    ("temporal", "dateline"),
+    ("temporal", "fixed"),
     ("subwords", VOCABULARY),
 ];
 
@@ -167,13 +171,14 @@ pub fn open(annotator: &str, run: &str, res: &Resources) -> Result<Box<dyn Run>,
         "postag" => Tagger::open(base, &options, res),
         "lemmatize" if options.is_empty() => Lemmatizer::open_maxent(base, res),
         "lemmatize-dictionary" if run == "lemmatizer-dictionary" => Lemmatizer::open_dictionary(res),
-        "chunk" if base == "chunker-fixture" => Chunker::open(&options, res),
+        "chunk" if FIXTURE_CHUNKERS.contains(&base) => Chunker::open(base, &options, res),
         "langdetect" if options.is_empty() => Detector::open(base, res),
         "normalize" if NORMALIZERS.contains(&run) => NormalizerRun::open(run),
         "numbers" => Numeric::open_numbers(run),
         "money" => Numeric::open_money(run, MoneyLayer::Extracted, res),
         "money-convert" => Numeric::open_money(run, MoneyLayer::Converted, res),
         "quantity" => Numeric::open_quantities(run),
+        "temporal" => Temporal::open(run),
         "subwords" if run == VOCABULARY => WordPiece::open(res),
         _ => Err(not_covered()),
     }
@@ -193,7 +198,8 @@ mod tests {
             if !annotator.file_type().unwrap().is_dir() || NOT_COVERED.contains(&name.as_str()) {
                 continue;
             }
-            if ["inputs", "fixtures", "train-fixtures", "rates"].contains(&name.as_str()) {
+            // Inputs and test data, not golden runs.
+            if ["inputs", "fixtures", "train-fixtures", "rates", "conformance"].contains(&name.as_str()) {
                 continue;
             }
             for run in std::fs::read_dir(annotator.path()).unwrap() {
@@ -220,6 +226,7 @@ mod tests {
             ("normalize", "default-chain"),
             ("money-convert", "latin-eu"),
             ("chunk", "chunker-fixture+beam1"),
+            ("chunk", "chunker-fixture-rust"),
         ] {
             open(annotator, run, &res).unwrap_or_else(|e| panic!("{annotator}/{run}: {e}"));
         }
