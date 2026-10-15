@@ -1,0 +1,192 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	formats/language-basic	136	132	dae62e87cf76bfa1f42acaa16e22e6771d3ef49179f16e13290421e7c25da0a1
+annotator	opennlp.tools.langdetect.LanguageDetectorME	train
+config	Algorithm	MAXENT
+config	Cutoff	5
+config	DataIndexer	OnePass
+config	Iterations	100
+config	run	default
+layer	turbo:language-events	document	6	outcome:str	predicates:u32
+eng	54
+deu	62
+fra	0
+por	22
+ spa 	20
+last	9
+end	turbo:language-events
+layer	turbo:language-predicates	document	167	event:u32	predicate:str
+0	b
+0	c
+0	e
+0	f
+0	ox.
+0	e 
+0	h
+0	i
+0	k
+0	wn
+0	 fo
+0	k 
+0	n
+0	k b
+0	o
+0	n 
+0	q
+0	 q
+0	r
+0	the
+0	n f
+0	t
+0	u
+0	w
+0	x
+0	fo
+0	ck
+0	ow
+0	he 
+0	ro
+0	qui
+0	ic
+0	own
+0	fox
+0	uic
+0	ox
+0	 f
+0	bro
+0	 
+0	 b
+0	wn 
+0	x.
+0	.
+0	th
+0	 br
+0	e q
+0	ck 
+0	qu
+0	 qu
+0	he
+0	ui
+0	br
+0	ick
+0	row
+1	a
+1	b
+1	c
+1	d
+1	e
+1	f
+1	lle
+1	e 
+1	h
+1	un
+1	l
+1	e f
+1	 fu
+1	n
+1	 sc
+1	chs
+1	r
+1	s
+1	fuc
+1	r 
+1	u
+1	hs
+1	\t
+1	\tb
+1	ne 
+1	sc
+1	bra
+1	er 
+1	uc
+1	sch
+1	el
+1	\tbr
+1	 f
+1	uch
+1	ch
+1	e\tb
+1	e\t
+1	 
+1	hne
+1	ll
+1	s.
+1	ell
+1	rau
+1	chn
+1	une
+1	.
+1	au
+1	 s
+1	le\t
+1	fu
+1	aun
+1	de
+1	hs.
+1	r s
+1	le
+1	ne
+1	br
+1	ra
+1	der
+1	er
+1	nel
+1	hn
+3	a
+3	 a
+3	ss
+3	so 
+3	so
+3	é
+3	i
+3	 aí
+3	é 
+3	iss
+3	 is
+3	í
+3	sso
+3	o
+3	o a
+3	o 
+3	s
+3	é i
+3	aí
+3	is
+3	 i
+3	 
+4	a
+4	c
+4	spa
+4	esp
+4	e
+4	sp
+4	aci
+4	i
+4	cio
+4	o
+4	ios
+4	p
+4	pa
+4	pac
+4	s
+4	es
+4	ci
+4	io
+4	os
+4	ac
+5	lin
+5	e
+5	li
+5	i
+5	ne
+5	l
+5	in
+5	n
+5	ine
+end	turbo:language-predicates
+layer	turbo:indexer-error	document	1	class:str	message:str
+opennlp.tools.util.InsufficientTrainingDataException	Insufficient training data to create model.
+end	turbo:indexer-error

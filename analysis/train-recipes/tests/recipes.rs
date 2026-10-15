@@ -1336,7 +1336,9 @@ fn the_published_references_are_checked_and_scored_when_present() {
             Task::Tokenizer => "94.34",
             Task::PartOfSpeechTagger => "92.41",
             Task::Chunker => "93.33",
-            task @ (Task::NameFinder | Task::Lemmatizer) => panic!("no recipe of the task {task:?}"),
+            task @ (Task::NameFinder | Task::Lemmatizer | Task::LanguageDetector) => {
+                panic!("no recipe of the task {task:?}")
+            }
         };
         let scores = (outcome.gate.result.candidate.score, outcome.gate.result.reference.score);
         assert_eq!(format!("{:.2} {:.2}", scores.0, scores.1), format!("100.00 {expected}"), "{}", outcome.gate);

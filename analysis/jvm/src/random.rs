@@ -213,6 +213,21 @@ mod tests {
     }
 
     #[test]
+    fn shuffle_gives_the_jdk_s_permutations() {
+        // Collections.shuffle of the lists 0..10, 0..20 and 0..5 with
+        // new Random(42), new Random(429) and new Random(9) on JDK 21.
+        for (seed, len, jdk) in [
+            (42, 10, &[4, 6, 2, 1, 7, 9, 8, 5, 3, 0][..]),
+            (429, 20, &[17, 0, 6, 8, 7, 1, 13, 9, 16, 2, 15, 3, 5, 12, 14, 4, 11, 19, 10, 18][..]),
+            (9, 5, &[0, 2, 3, 1, 4][..]),
+        ] {
+            let mut items: Vec<u32> = (0..len).collect();
+            JavaRandom::new(seed).shuffle(&mut items);
+            assert_eq!(items, jdk, "seed {seed}");
+        }
+    }
+
+    #[test]
     fn shuffle_is_a_permutation_and_leaves_short_lists() {
         let mut items: Vec<u32> = (0..50).collect();
         JavaRandom::new(9).shuffle(&mut items);

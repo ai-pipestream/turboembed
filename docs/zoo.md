@@ -24,7 +24,7 @@ Apache-2.0 but trained on a CC BY-SA treebank is `CLASS_SHARE_ALIKE`.
 
 | Class | Licences | Bundled, checked in, shipped | Fetched |
 |---|---|---|---|
-| `CLASS_PERMISSIVE` | Apache-2.0, MIT, BSD-2-Clause, BSD-3-Clause, CC0-1.0, CC-BY-2.5, CC-BY-3.0, CC-BY-3.0-US, CC-BY-4.0, ODC-By-1.0, PDDL-1.0, LicenseRef-PublicDomain | yes, with the attribution the licence asks for | yes |
+| `CLASS_PERMISSIVE` | Apache-2.0, MIT, BSD-2-Clause, BSD-3-Clause, CC0-1.0, LicenseRef-CC-BY-2.0-FR, CC-BY-2.5, CC-BY-3.0, CC-BY-3.0-US, CC-BY-4.0, ODC-By-1.0, PDDL-1.0, LicenseRef-PublicDomain | yes, with the attribution the licence asks for | yes |
 | `CLASS_LGPL` | LGPL-2.1-only, LGPL-2.1-or-later, LGPL-3.0-only, LGPL-3.0-or-later | no, and not attributed to this project | after the user accepts the licence |
 | `CLASS_SHARE_ALIKE` | CC-BY-SA-3.0, CC-BY-SA-4.0, ODbL-1.0 | no | after the user accepts the licence (decided 2026-10-14) |
 | `CLASS_GPL` | GPL-2.0-only, GPL-2.0-or-later, GPL-3.0-only, GPL-3.0-or-later | no | yes; by default after the user accepts the licence |

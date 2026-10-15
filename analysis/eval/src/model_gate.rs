@@ -1,9 +1,10 @@
 //! The gate a trained model passes against a reference model: the
 //! OpenNLP model for the same task, scored on the same held-out samples.
 //!
-//! Each held-out unit (a sentence, or a sample of sentences) is scored
-//! by both models as counts: true positives, predictions and references
-//! for an F-measure, or correct and total tokens for an accuracy. The
+//! Each held-out unit (a sentence, a sample of sentences, or a text whose
+//! language is known) is scored by both models as counts: true positives,
+//! predictions and references for an F-measure, or correct and total
+//! tokens or texts for an accuracy. The
 //! score of a set of units is that of their summed counts, as OpenNLP's
 //! `FMeasure` and `Mean` add them up. A paired bootstrap draws the units
 //! with replacement, [`RESAMPLES`] times with `java.util.Random` seeded
@@ -55,9 +56,13 @@ use crate::record::is_hex;
 use crate::significance::{Bootstrap, percentile};
 pub use crate::significance::{RESAMPLES, SEED};
 
-/// The schema version of [`ModelGateRecord`]: 3, with the name finder
-/// and chunker tasks and the scoring of typed spans
-/// ([`Scoring::TypedSpans`]).
+/// The schema version of [`ModelGateRecord`]: 3, with the name finder,
+/// chunker and language detector tasks and their scorings
+/// ([`Scoring::TypedSpans`], [`Scoring::Labels`]). Version 2 added the
+/// held-out sentences skipped and how the units were scored ([`HeldOutSet`]).
+/// [`ModelGateRecord::read`] reads the version before the rest, so a record
+/// of another version is refused for its version, not for a task or scoring
+/// this build does not know.
 pub const MODEL_GATE_RECORD_VERSION: u32 = 3;
 
 /// The loss, in points, the candidate may be shown not to exceed: the low
@@ -118,7 +123,8 @@ pub enum ModelGateError {
     ResultMismatch,
     /// A record whose scoring is not its task's ([`Task::scoring`]):
     /// spans for a sentence detector or tokenizer, typed spans for a name
-    /// finder or chunker, tags for a tagger.
+    /// finder or chunker, tags for a tagger or lemmatizer, labels for a
+    /// language detector.
     ScoringMismatch {
         task: Task,
         scoring: ScoringKind,
@@ -129,6 +135,24 @@ pub enum ModelGateError {
         tokens: u64,
         left_out: u64,
         scored: u64,
+    },
+    /// A label scoring whose samples are not the record's units, or a unit
+    /// that does not score one sample (`unit`, when one is the cause).
+    ScoredSamples {
+        samples: u64,
+        units: usize,
+        unit: Option<usize>,
+    },
+    /// A label scoring with held-out sentences skipped: every held-out
+    /// sample is a unit.
+    SkippedSamples {
+        skipped: u64,
+    },
+    /// A label mapping with an empty label, mapping a label to itself, or
+    /// listed twice.
+    LabelMapping {
+        held_out: String,
+        reference: String,
     },
     /// A typed span scoring whose held-out spans are not the references a
     /// model's units count (`scored`).
@@ -226,6 +250,19 @@ impl fmt::Display for ModelGateError {
             ModelGateError::ScoredTokens { tokens, left_out, scored } => {
                 write!(f, "{tokens} held-out tokens, {left_out} of them left out, but the units count {scored} tokens")
             }
+            ModelGateError::ScoredSamples { samples, units, unit: None } => {
+                write!(f, "{samples} held-out samples scored, but {units} units")
+            }
+            ModelGateError::ScoredSamples { unit: Some(unit), .. } => {
+                write!(f, "unit {unit} does not score one held-out sample")
+            }
+            ModelGateError::SkippedSamples { skipped } => {
+                write!(f, "a label scoring with {skipped} held-out sentences skipped")
+            }
+            ModelGateError::LabelMapping { held_out, reference } => write!(
+                f,
+                "the label mapping {held_out:?} to {reference:?} is empty, maps a label to itself, or is listed twice"
+            ),
             ModelGateError::ScoredSpans { spans, scored } => {
                 write!(f, "{spans} held-out spans scored, but the units count {scored} references")
             }
@@ -268,9 +305,9 @@ pub enum Measure {
     /// `selected` the predictions and `target` the references; the score
     /// is the harmonic mean of precision and recall.
     FMeasure,
-    /// `true_positives` are the tokens given the reference's value and
-    /// `target` the tokens; `selected` equals `target`. The score is their
-    /// ratio.
+    /// `true_positives` are the tokens (or texts) given the reference's
+    /// value and `target` the tokens; `selected` equals `target`. The
+    /// score is their ratio.
     Accuracy,
 }
 
@@ -288,6 +325,9 @@ pub enum Task {
     NameFinder,
     /// Phrase chunks, scored by `ChunkerEvaluator`.
     Chunker,
+    /// One label per text, as `LanguageDetectorEvaluator` scores
+    /// `predictLanguage`.
+    LanguageDetector,
 }
 
 /// What a task's units are scored on, and so which [`Scoring`] its
@@ -301,6 +341,8 @@ pub enum ScoringKind {
     TypedSpans,
     /// Tags of tokens: [`Scoring::Tags`].
     Tags,
+    /// One label per sample: [`Scoring::Labels`].
+    Labels,
 }
 
 impl Task {
@@ -308,7 +350,7 @@ impl Task {
     pub fn measure(self) -> Measure {
         match self {
             Task::SentenceDetector | Task::Tokenizer | Task::NameFinder | Task::Chunker => Measure::FMeasure,
-            Task::PartOfSpeechTagger | Task::Lemmatizer => Measure::Accuracy,
+            Task::PartOfSpeechTagger | Task::Lemmatizer | Task::LanguageDetector => Measure::Accuracy,
         }
     }
 
@@ -318,6 +360,7 @@ impl Task {
             Task::SentenceDetector | Task::Tokenizer => ScoringKind::Spans,
             Task::NameFinder | Task::Chunker => ScoringKind::TypedSpans,
             Task::PartOfSpeechTagger | Task::Lemmatizer => ScoringKind::Tags,
+            Task::LanguageDetector => ScoringKind::Labels,
         }
     }
 }
@@ -502,6 +545,8 @@ pub enum Scoring {
     TypedSpans(TypedSpanScoring),
     /// Tags of tokens, or a lemmatizer's lemmas: an accuracy.
     Tags(TagScoring),
+    /// One label per sample, a unit each: an accuracy.
+    Labels(LabelScoring),
 }
 
 impl Scoring {
@@ -511,6 +556,7 @@ impl Scoring {
             Scoring::Spans => ScoringKind::Spans,
             Scoring::TypedSpans(_) => ScoringKind::TypedSpans,
             Scoring::Tags(_) => ScoringKind::Tags,
+            Scoring::Labels(_) => ScoringKind::Labels,
         }
     }
 }
@@ -586,6 +632,36 @@ pub struct TagMapping {
     pub reference: String,
 }
 
+/// How a language detector's held-out samples were scored: one unit per
+/// sample, with the counts `Counts::accuracy(1, 1)` when the model's best
+/// label is right and `Counts::accuracy(0, 1)` when not. The candidate's
+/// label is compared with the held-out label as written, and the
+/// reference's also counted right where `reference_mappings` maps the
+/// held-out label to it.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct LabelScoring {
+    /// The held-out samples, each a unit of the gate.
+    pub samples: u64,
+    /// The reference's labels counted right for another held-out label.
+    pub reference_mappings: Vec<LabelMapping>,
+}
+
+/// A held-out label and a reference label counted right for it.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct LabelMapping {
+    pub held_out: String,
+    pub reference: String,
+}
+
+/// A record's version, read before the rest of it; its other fields are
+/// ignored.
+#[derive(Deserialize)]
+struct RecordVersion {
+    record_version: u32,
+}
+
 /// The record of one gate run, kept beside the model card.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -634,13 +710,15 @@ impl ModelGateRecord {
     /// record was drawn with [`RESAMPLES`] and [`SEED`]; that the scoring
     /// is the task's ([`Task::scoring`]); for tags, that each model's
     /// units count the held-out tokens less those left out, and that a
-    /// lemmatizer's record has no mapping; for typed
-    /// spans, that a type is scored and none twice, that each renaming
-    /// renames a type not scored as written, once, to a type scored, that
-    /// each reference input maps a held-out tag, once, to another tag, and
-    /// that each model's units count the held-out spans scored as
-    /// references; and that the result is what the gate gives on the
-    /// recorded units, to the bit.
+    /// lemmatizer's record has no mapping; for typed spans, that a type is
+    /// scored and none twice, that each renaming renames a type not scored
+    /// as written, once, to a type scored, that each reference input maps a
+    /// held-out tag, once, to another tag, and that each model's units
+    /// count the held-out spans scored as references; for labels, that no
+    /// sentence was skipped, that there is one unit per held-out sample
+    /// and each scores one sample, and that each mapping has two labels
+    /// that differ and is listed once; and that the result is what the
+    /// gate gives on the recorded units, to the bit.
     pub fn check(&self) -> Result<()> {
         if self.record_version != MODEL_GATE_RECORD_VERSION {
             return Err(ModelGateError::Version { found: self.record_version });
@@ -714,6 +792,35 @@ impl ModelGateRecord {
                     return Err(ModelGateError::LemmatizerMappings { mappings: t.reference_mappings.len() });
                 }
             }
+            Scoring::Labels(l) => {
+                if self.set.skipped_sentences != 0 {
+                    return Err(ModelGateError::SkippedSamples { skipped: self.set.skipped_sentences });
+                }
+                let mut seen = std::collections::HashSet::new();
+                for m in &l.reference_mappings {
+                    let bad = m.held_out.is_empty() || m.reference.is_empty() || m.held_out == m.reference;
+                    if bad || !seen.insert((&m.held_out, &m.reference)) {
+                        return Err(ModelGateError::LabelMapping {
+                            held_out: m.held_out.clone(),
+                            reference: m.reference.clone(),
+                        });
+                    }
+                }
+                if l.samples != self.units.len() as u64 {
+                    return Err(ModelGateError::ScoredSamples {
+                        samples: l.samples,
+                        units: self.units.len(),
+                        unit: None,
+                    });
+                }
+                if let Some(unit) = self.units.iter().position(|u| u.candidate.target != 1 || u.reference.target != 1) {
+                    return Err(ModelGateError::ScoredSamples {
+                        samples: l.samples,
+                        units: self.units.len(),
+                        unit: Some(unit),
+                    });
+                }
+            }
         }
         let again = gate_models(self.measure, &self.units, self.resamples, self.seed)?;
         if again != self.result {
@@ -729,17 +836,19 @@ impl ModelGateRecord {
         s
     }
 
-    /// Reads and checks a record.
+    /// Reads and checks a record. The version is read first, alone, so a
+    /// record of another version is refused with
+    /// [`ModelGateError::Version`] whatever its other fields hold.
     pub fn read(path: &Path) -> Result<ModelGateRecord> {
-        let named = |message: String| (path.display().to_string(), message);
-        let bytes = fs::read(path).map_err(|e| {
-            let (path, message) = named(e.to_string());
-            ModelGateError::Io { path, message }
-        })?;
-        let record: ModelGateRecord = serde_json::from_slice(&bytes).map_err(|e| {
-            let (path, message) = named(e.to_string());
-            ModelGateError::Json { path, message }
-        })?;
+        let json =
+            |e: serde_json::Error| ModelGateError::Json { path: path.display().to_string(), message: e.to_string() };
+        let bytes = fs::read(path)
+            .map_err(|e| ModelGateError::Io { path: path.display().to_string(), message: e.to_string() })?;
+        let version: RecordVersion = serde_json::from_slice(&bytes).map_err(json)?;
+        if version.record_version != MODEL_GATE_RECORD_VERSION {
+            return Err(ModelGateError::Version { found: version.record_version });
+        }
+        let record: ModelGateRecord = serde_json::from_slice(&bytes).map_err(json)?;
         record.check()?;
         Ok(record)
     }
@@ -1208,6 +1317,139 @@ mod tests {
         // The tagger's record with its mapping passes; as a lemmatizer's it
         // is refused.
         assert_eq!(lemmatizer(tags_of(&units, 3)).check(), Err(ModelGateError::LemmatizerMappings { mappings: 1 }));
+    }
+
+    /// `n` held-out texts, the reference right on all but every tenth and
+    /// the candidate on all but every `miss`th.
+    fn labels(n: usize, miss: usize) -> Vec<PairedUnit> {
+        (0..n)
+            .map(|i| PairedUnit {
+                candidate: Counts::accuracy(u64::from(i % miss != 0), 1),
+                reference: Counts::accuracy(u64::from(i % 10 != 0), 1),
+            })
+            .collect()
+    }
+
+    fn language_record(units: Vec<PairedUnit>, scoring: Scoring) -> ModelGateRecord {
+        let model = |id: &str| ModelId { id: id.into(), sha256: "c".repeat(64) };
+        ModelGateRecord::new(Task::LanguageDetector, set("s", scoring), model("t"), model("r"), units).unwrap()
+    }
+
+    fn labels_of(units: &[PairedUnit]) -> Scoring {
+        let mapping = LabelMapping { held_out: "est".into(), reference: "ekk".into() };
+        Scoring::Labels(LabelScoring { samples: units.len() as u64, reference_mappings: vec![mapping] })
+    }
+
+    #[test]
+    fn a_language_detector_is_scored_one_unit_per_text() {
+        assert_eq!(Task::LanguageDetector.measure(), Measure::Accuracy);
+        // 2,000 texts: the reference wrong on one in ten, the candidate on
+        // one in twenty, so the candidate is 5 points ahead.
+        let units = labels(2000, 20);
+        let r = language_record(units.clone(), labels_of(&units));
+        r.check().unwrap();
+        assert!((r.result.candidate.score - 95.0).abs() < 1e-9, "{:?}", r.result);
+        assert!((r.result.reference.score - 90.0).abs() < 1e-9, "{:?}", r.result);
+        assert!(r.result.pass);
+        let json = r.to_json();
+        assert!(json.contains("\"task\": \"language_detector\""), "{json}");
+        assert!(json.contains("\"labels\": {\n        \"samples\": 2000,"), "{json}");
+        let back: ModelGateRecord = serde_json::from_str(&json).unwrap();
+        assert_eq!(back, r);
+
+        // One unit per sample, each of one sample.
+        let mut more = r.clone();
+        let Scoring::Labels(l) = &mut more.set.scoring else { unreachable!() };
+        l.samples += 1;
+        assert_eq!(more.check(), Err(ModelGateError::ScoredSamples { samples: 2001, units: 2000, unit: None }));
+        let mut two = units.clone();
+        two[7] = PairedUnit { candidate: Counts::accuracy(2, 2), reference: Counts::accuracy(1, 2) };
+        let two = language_record(two.clone(), labels_of(&two));
+        assert_eq!(two.check(), Err(ModelGateError::ScoredSamples { samples: 2000, units: 2000, unit: Some(7) }));
+        // Labels are a language detector's scoring, and tags a tagger's.
+        let tags = language_record(units.clone(), tags_of(&units, 0));
+        assert_eq!(
+            tags.check(),
+            Err(ModelGateError::ScoringMismatch { task: Task::LanguageDetector, scoring: ScoringKind::Tags })
+        );
+        let model = |id: &str| ModelId { id: id.into(), sha256: "c".repeat(64) };
+        let tagger =
+            ModelGateRecord::new(Task::PartOfSpeechTagger, set("s", labels_of(&units)), model("t"), model("r"), units)
+                .unwrap();
+        assert_eq!(
+            tagger.check(),
+            Err(ModelGateError::ScoringMismatch { task: Task::PartOfSpeechTagger, scoring: ScoringKind::Labels })
+        );
+        let mut spans = record();
+        spans.set.scoring = labels_of(&spans.units);
+        assert_eq!(
+            spans.check(),
+            Err(ModelGateError::ScoringMismatch { task: Task::Tokenizer, scoring: ScoringKind::Labels })
+        );
+    }
+
+    #[test]
+    fn a_label_scoring_skips_nothing_and_maps_each_label_once_to_another() {
+        let units = labels(40, 20);
+        let r = language_record(units.clone(), labels_of(&units));
+        r.check().unwrap();
+        let mut skipped = r.clone();
+        skipped.set.skipped_sentences = 2;
+        assert_eq!(skipped.check(), Err(ModelGateError::SkippedSamples { skipped: 2 }));
+        let mapping =
+            |held_out: &str, reference: &str| LabelMapping { held_out: held_out.into(), reference: reference.into() };
+        let with = |mappings: Vec<LabelMapping>| {
+            let mut m = r.clone();
+            let Scoring::Labels(l) = &mut m.set.scoring else { unreachable!() };
+            l.reference_mappings = mappings;
+            m.check()
+        };
+        assert_eq!(with(vec![]), Ok(()));
+        assert_eq!(with(vec![mapping("est", "ekk"), mapping("est", "et"), mapping("lvs", "lav")]), Ok(()));
+        let refused = |held_out: &str, reference: &str| {
+            Err(ModelGateError::LabelMapping { held_out: held_out.into(), reference: reference.into() })
+        };
+        assert_eq!(with(vec![mapping("", "ekk")]), refused("", "ekk"));
+        assert_eq!(with(vec![mapping("est", "")]), refused("est", ""));
+        assert_eq!(with(vec![mapping("lvs", "lav"), mapping("est", "est")]), refused("est", "est"));
+        assert_eq!(
+            with(vec![mapping("est", "ekk"), mapping("lvs", "lav"), mapping("est", "ekk")]),
+            refused("est", "ekk")
+        );
+    }
+
+    #[test]
+    fn a_record_of_another_version_is_refused_for_its_version_before_its_fields_are_read() {
+        assert_eq!(MODEL_GATE_RECORD_VERSION, 3);
+        let units = labels(40, 20);
+        let r = language_record(units.clone(), labels_of(&units));
+        let json = r.to_json();
+        assert!(json.starts_with("{\n  \"record_version\": 3,\n"), "{json}");
+        let dir = std::env::temp_dir().join(format!("turbo-eval-model-gate-version-{}", std::process::id()));
+        fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("gate.json");
+        let read = |text: &str| {
+            fs::write(&path, text).unwrap();
+            ModelGateRecord::read(&path)
+        };
+        assert_eq!(read(&json).unwrap(), r);
+        // A record of version 2 holds no language detector; a later one
+        // may hold a task this build does not know. Both are refused for
+        // their version, not as JSON this build cannot parse.
+        let two = json.replacen("\"record_version\": 3", "\"record_version\": 2", 1);
+        assert_eq!(read(&two), Err(ModelGateError::Version { found: 2 }));
+        let later = json
+            .replacen("\"record_version\": 3", "\"record_version\": 4", 1)
+            .replacen("\"language_detector\"", "\"a_later_task\"", 1)
+            .replacen("\"labels\": {", "\"a_later_scoring\": {", 1);
+        assert_eq!(read(&later), Err(ModelGateError::Version { found: 4 }));
+        // At this version, the same values are refused as JSON.
+        let unknown = later.replacen("\"record_version\": 4", "\"record_version\": 3", 1);
+        let Err(ModelGateError::Json { message, .. }) = read(&unknown) else { panic!("{unknown}") };
+        assert!(message.contains("unknown variant `a_later_task`"), "{message}");
+        // No version at all is not a record.
+        assert!(matches!(read("{\"task\": \"tokenizer\"}"), Err(ModelGateError::Json { .. })));
+        fs::remove_dir_all(&dir).unwrap();
     }
 
     #[test]

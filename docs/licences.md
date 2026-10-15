@@ -144,7 +144,10 @@ and compares that score with the trained model's.
 
 The goldens tool fetches `langdetect-183.bin` to make the language
 detector's goldens (`analysis/goldens-tool/src/recipe.rs`); the zoo does
-not list it.
+not list it. The language detector recipe (`analysis/train-recipes`, #429)
+scores it as its gate's reference: it reads the file from a directory the
+user names and checks its size and SHA-256 (`langdetect::LANGDETECT_183`),
+and ships, bundles and trains on nothing of it.
 
 ## Datasets
 
@@ -161,8 +164,8 @@ not list it.
 | [PoliMorf / Morfologik](https://github.com/morfologik/polimorf) | Polish lemmas | BSD-2-Clause | permissive | | plan |
 | [GermEval 2014](https://sites.google.com/site/germeval2014ner/) | German NER | CC BY 4.0 | permissive | | plan |
 | [MultiCoNER v2](https://registry.opendata.aws/multiconer/) | NER, 12 languages | CC BY 4.0 | permissive | | plan |
-| [FineWeb-2](https://huggingface.co/datasets/HuggingFaceFW/fineweb-2) | language detection | ODC-By 1.0 | permissive | also subject to Common Crawl's terms of use | plan |
-| [Tatoeba](https://tatoeba.org/en/downloads) | language detection | CC BY 2.0 FR | permissive | by default; some sentences carry other licences, check per item | plan |
+| [FineWeb-2](https://huggingface.co/datasets/HuggingFaceFW/fineweb-2) | language detection | ODC-By 1.0 | permissive | also subject to Common Crawl's terms of use; not used by the language detector recipe, as Hugging Face could not be reached | plan |
+| [Tatoeba](https://tatoeba.org/en/downloads) | language detection | CC BY 2.0 FR | permissive | by default; a sentence is CC BY 2.0 FR, CC0 1.0 or has no licence (tatoeba2 at commit 0fbb4506: `docs/database/tables/sentences.sql`, `src/Lib/Licenses.php`). `sentences_detailed.csv` holds the sentences with a licence and `sentences_CC0.csv` the CC0 1.0 ones, so each sentence's licence is read from the two, which relies on Tatoeba having exactly these two sentence licences (recording a run re-checks it); the language detector recipe (`analysis/train-recipes`, #429) keeps the CC BY 2.0 FR ones only and leaves out the CC0 ones, as #429 asks. CC BY 2.0 FR asks for the authors to be credited, and Tatoeba's terms accept the addresses of the sentences used: the model ships with `training-sentences.txt`, the ids of the sentences it was trained on, each at `https://tatoeba.org/sentences/show/<id>`. The zoo names the licence `LicenseRef-CC-BY-2.0-FR` (SPDX has no identifier for it). The exports could not be fetched from the machine the recipe was written on (downloads.tatoeba.org refused it) | here, the licence rules; no export checked |
 | [WNUT-17](https://noisy-text.github.io/2017/emerging-rare-entities.html) | NER | CC BY 4.0 | permissive, pending | its text comes from Twitter, Reddit and YouTube; platform terms need a look before it is used | plan |
 | Other UD treebanks (the plan counts 280 of 359 in UD 2.18; not recounted here), including English EWT, German GSD and HDT, French GSD, Dutch Alpino | sentence, token, POS, lemma | CC BY-SA (3.0 or 4.0) | share-alike | check each treebank's README at the release used | plan; the ones above here |
 | [UniMorph](https://unimorph.github.io/) | lemmas | mostly CC BY-SA 3.0, some LGPL-LR | share-alike | check per language | plan |
