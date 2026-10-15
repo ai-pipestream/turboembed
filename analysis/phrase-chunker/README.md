@@ -17,8 +17,9 @@ OpenNLP fork.
 The chunker models Apache OpenNLP publishes are OpenNLP 1.5 models, which this
 project does not use. The tests run `chunker-fixture.bin`, a small perceptron
 model trained for this project on eight sentences with Penn Treebank tags
-(`analysis/sequence/golden/inputs/train-chunk.txt`, `analysis/sequence/README.md`),
-copied to `analysis/goldens/data/fixtures` for the golden generator. Its
+(`analysis/goldens/data/train-fixtures/train-chunk.txt`,
+`analysis/sequence/README.md`), checked in as
+`analysis/goldens/data/fixtures/chunker-fixture.bin`. Its
 features name Penn Treebank tags (`t0=NN`), so it runs on the Penn Treebank
 tags the English part-of-speech model is asked for (`POSTagFormat.PENN`,
 `PosModel::with_format`); on Universal Dependencies tags it chunks nothing

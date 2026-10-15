@@ -1,0 +1,28 @@
+# Converted from tests/lang/test_dutch.py of pySBD
+# (github.com/nipunsadvilkar/pySBD, commit 5905f13be4fc95f407b98392e0ec303617a33d86),
+# MIT License, Copyright (c) 2019 Nipun Sadvilkar (LICENSE in this directory).
+# One case per entry of each test list, in file order; `name` is the list's name and,
+# for the regression tests, the issue number; `option` the segmenter options its test uses.
+
+case pysbd/test_dutch/001
+lang nl
+name GOLDEN_NL_RULES_TEST_CASES
+text Hij schoot op de JP8-brandstof toen de Surface-to-Air (sam)-missiles op hem af kwamen. 81 procent van de schoten was raak.
+sentence Hij schoot op de JP8-brandstof toen de Surface-to-Air (sam)-missiles op hem af kwamen.
+sentence 81 procent van de schoten was raak.
+end
+
+case pysbd/test_dutch/002
+lang nl
+name GOLDEN_NL_RULES_TEST_CASES
+text 81 procent van de schoten was raak. ...en toen barste de hel los.
+sentence 81 procent van de schoten was raak.
+sentence ...en toen barste de hel los.
+end
+
+case pysbd/test_dutch/003
+lang nl
+name GOLDEN_NL_RULES_TEST_CASES
+text Afkorting aanw. vnw.
+sentence Afkorting aanw. vnw.
+end

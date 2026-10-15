@@ -1,0 +1,21 @@
+# Converted from spec/pragmatic_segmenter/languages/burmese_spec.rb of Pragmatic Segmenter
+# (github.com/diasks2/pragmatic_segmenter, commit 358fe97e62902cd86fa6b85063c3bf91aa6c156a),
+# MIT License, Copyright (c) 2015 Kevin S. Dias (LICENSE in this directory).
+# One case per expectation, in file order; `name` is the spec's context and test name,
+# `option` the segmenter options the spec passes, `skipped-upstream` a test the spec skips.
+
+case pragmatic-segmenter/burmese_spec/001
+lang my
+name Golden Rules: Sentence ending punctuation #001
+text ခင္ဗ်ားနာမည္ဘယ္လိုေခၚလဲ။၇ွင္ေနေကာင္းလား။
+sentence ခင္ဗ်ားနာမည္ဘယ္လိုေခၚလဲ။
+sentence ၇ွင္ေနေကာင္းလား။
+end
+
+case pragmatic-segmenter/burmese_spec/002
+lang my
+name #segment: correctly segments text #001
+text ခင္ဗ်ားနာမည္ဘယ္လိုေခၚလဲ။၇ွင္ေနေကာင္းလား။
+sentence ခင္ဗ်ားနာမည္ဘယ္လိုေခၚလဲ။
+sentence ၇ွင္ေနေကာင္းလား။
+end

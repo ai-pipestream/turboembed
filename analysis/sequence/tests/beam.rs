@@ -1,21 +1,23 @@
 //! The beam search of the part-of-speech tagger, the chunker and the name
-//! finder against the JVM (`golden/src/BeamGolden.java`): every context
-//! the search asks for in the recorded sentences, and for every sentence
-//! the sequences of the final beam with their outcomes, probabilities and
-//! scores, compared bit for bit, and the names the codec decodes.
+//! finder against the JVM (the goldens of `BeamGolden.java` in
+//! `analysis/goldens-tool`): every context the search asks for in the
+//! recorded sentences, and for every sentence the sequences of the final
+//! beam with their outcomes, probabilities and scores, compared bit for
+//! bit, and the names the codec decodes.
 //!
-//! The fixture models in `golden/models` are always run. The published
-//! English UD model comes from `turbo-goldens fetch-models`
+//! The fixture models in `analysis/goldens/data/fixtures` are always run.
+//! The published English UD model comes from `turbo-goldens fetch-models`
 //! (`turbo_goldens::published_model`). The OpenNLP 1.5 models are
 //! local-only: set `TURBO_TEST_OPENNLP_MODELS` to a directory holding
-//! them (see the crate README) to run those tests.
+//! them (`turbo-goldens fetch-models <dir> --local` fetches them) to run
+//! those tests.
 
 mod common;
 
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
-use common::{body, escape, escaped, field, unescape_list};
+use common::{escape, escaped, f64s, featuregen, grouped, layer, lossless_escaped, strs, u32s};
 use turbo_maxent::{Dictionary, ModelFile};
 use turbo_sequence::chunker::{ChunkerValidator, DefaultChunkerContext, TokenTag};
 use turbo_sequence::namefind::{DefaultNameContext, NameCodec};
@@ -33,12 +35,13 @@ struct Call {
     features: Vec<String>,
 }
 
-/// One sequence of the final beam.
+/// One sequence of the final beam, its score and probabilities as the
+/// bits of the `f64`s.
 #[derive(Debug, PartialEq)]
 struct Seq {
-    score: String,
+    score: u64,
     outcomes: Vec<String>,
-    probs: Vec<String>,
+    probs: Vec<u64>,
 }
 
 struct Sentence {
@@ -46,59 +49,82 @@ struct Sentence {
     tags: Vec<String>,
     calls: Vec<Call>,
     sequences: Vec<Seq>,
-    spans: Option<String>,
+    /// The names decoded from the best sequence, `start end type`, for a
+    /// name finder.
+    spans: Option<Vec<String>>,
 }
 
 struct Golden {
-    model: String,
-    sha256: String,
+    /// The run, the golden's directory.
+    run: String,
+    model: turbo_goldens::format::Model,
     kind: String,
     beam: usize,
     codec: Option<String>,
     sentences: Vec<Sentence>,
 }
 
-fn read_golden(name: &str) -> Golden {
-    let text = common::read(&format!("expected/beam-{name}.txt"));
-    let mut lines = body(&text, "beam").peekable();
-    let model = field(lines.next().unwrap(), "model").to_string();
-    let sha256 = field(lines.next().unwrap(), "sha256").to_string();
-    let kind = field(lines.next().unwrap(), "kind").to_string();
-    let beam = field(lines.next().unwrap(), "beam").parse().unwrap();
-    let codec = lines.next_if(|l| l.starts_with("codec:")).map(|l| field(l, "codec").to_string());
-    let mut sentences = Vec::new();
-    while let Some(line) = lines.next() {
-        field(line, "sentence");
-        let tokens = unescape_list(field(lines.next().unwrap(), "tokens"));
-        let tags =
-            lines.next_if(|l| l.starts_with("tags:")).map(|l| unescape_list(field(l, "tags"))).unwrap_or_default();
-        let mut calls = Vec::new();
-        while let Some(call) = lines.next_if(|l| l.starts_with("call:")) {
-            let call = field(call, "call");
-            let (index, prior) = call.split_once('\t').unwrap_or((call, ""));
-            let features = field(lines.next().unwrap(), "features");
-            calls.push(Call {
-                index: index.parse().unwrap(),
-                prior: unescape_list(prior),
-                features: if features.is_empty() {
-                    Vec::new()
-                } else {
-                    features.split('\t').map(str::to_string).collect()
-                },
-            });
+fn span_text(start: usize, end: usize, kind: Option<&str>) -> String {
+    format!("{start} {end} {}", escape(kind.unwrap_or("null")))
+}
+
+fn read_golden(run: &str) -> Golden {
+    let g = common::read("beam", run, "sequence", "sentences");
+    let model = g.header.models[0].clone();
+    let kind = g.header.config.iter().find(|c| c.key == "kind").expect("a kind").value.clone();
+    let config = layer(&g, "turbo:beam-config");
+    let beam = u32s(config, "beam-size")[0] as usize;
+    let codec = strs(config, "codec").remove(0);
+    let mut sentences: Vec<Sentence> = common::sentences(&g)
+        .into_iter()
+        .map(|s| Sentence { tokens: s.tokens, tags: Vec::new(), calls: Vec::new(), sequences: Vec::new(), spans: None })
+        .collect();
+    if let Some(tags) = g.layer("turbo:sentence-tags") {
+        let mut tags = strs(tags, "tag").into_iter();
+        for s in &mut sentences {
+            s.tags = tags.by_ref().take(s.tokens.len()).collect();
         }
-        let mut sequences = Vec::new();
-        while let Some(seq) = lines.next_if(|l| l.starts_with("sequence:")) {
-            let score = field(seq, "sequence").to_string();
-            let outcomes = unescape_list(field(lines.next().unwrap(), "outcomes"));
-            let probs = field(lines.next().unwrap(), "probs");
-            let probs = if probs.is_empty() { Vec::new() } else { probs.split('\t').map(str::to_string).collect() };
-            sequences.push(Seq { score, outcomes, probs });
-        }
-        let spans = lines.next_if(|l| l.starts_with("spans:")).map(|l| field(l, "spans").to_string());
-        sentences.push(Sentence { tokens, tags, calls, sequences, spans });
     }
-    Golden { model, sha256, kind, beam, codec, sentences }
+    let calls = layer(&g, "turbo:beam-calls");
+    let priors = layer(&g, "turbo:beam-call-priors");
+    let prior_outcomes = strs(priors, "outcome");
+    let prior_rows = grouped(priors, "call", calls.len());
+    let features = layer(&g, "turbo:beam-call-features");
+    let feature_strings = strs(features, "feature");
+    let feature_rows = grouped(features, "call", calls.len());
+    let (sentence, index) = (u32s(calls, "sentence"), u32s(calls, "index"));
+    for c in 0..calls.len() {
+        sentences[sentence[c] as usize].calls.push(Call {
+            index: index[c] as usize,
+            prior: prior_rows[c].iter().map(|&r| prior_outcomes[r].clone()).collect(),
+            features: feature_rows[c].iter().map(|&r| lossless_escaped(&feature_strings[r])).collect(),
+        });
+    }
+    let seqs = layer(&g, "turbo:beam-sequences");
+    let outcomes = layer(&g, "turbo:beam-outcomes");
+    let (outcome, probability) = (strs(outcomes, "outcome"), f64s(outcomes, "probability"));
+    let outcome_rows = grouped(outcomes, "sequence", seqs.len());
+    let (sentence, score) = (u32s(seqs, "sentence"), f64s(seqs, "score"));
+    for q in 0..seqs.len() {
+        sentences[sentence[q] as usize].sequences.push(Seq {
+            score: score[q].to_bits(),
+            outcomes: outcome_rows[q].iter().map(|&r| outcome[r].clone()).collect(),
+            probs: outcome_rows[q].iter().map(|&r| probability[r].to_bits()).collect(),
+        });
+    }
+    if let Some(names) = g.layer("turbo:beam-names") {
+        for s in &mut sentences {
+            s.spans = Some(Vec::new());
+        }
+        let (sentence, start, end, typed) =
+            (u32s(names, "sentence"), u32s(names, "start"), u32s(names, "end"), u32s(names, "typed"));
+        let kind = strs(names, "type");
+        for r in 0..names.len() {
+            let text = span_text(start[r] as usize, end[r] as usize, (typed[r] == 1).then_some(kind[r].as_str()));
+            sentences[sentence[r] as usize].spans.as_mut().unwrap().push(text);
+        }
+    }
+    Golden { run: run.to_string(), model, kind, beam, codec: (!codec.is_empty()).then_some(codec), sentences }
 }
 
 /// Passes contexts through, keeping them while `calls` is set.
@@ -120,31 +146,27 @@ impl<T, C: ContextGenerator<T>> ContextGenerator<T> for Recorder<'_, C> {
     }
 }
 
-fn bits(d: f64) -> String {
-    format!("{:016x}", d.to_bits())
-}
-
 fn sequences(found: &[Sequence<'_>]) -> Vec<Seq> {
     found
         .iter()
         .map(|s| Seq {
-            score: bits(s.score()),
+            score: s.score().to_bits(),
             outcomes: s.outcomes().iter().map(|o| o.to_string()).collect(),
-            probs: s.probs().iter().map(|&p| bits(p)).collect(),
+            probs: s.probs().iter().map(|p| p.to_bits()).collect(),
         })
         .collect()
 }
 
-/// Runs the search on every sentence of the golden file and compares.
-/// `after` gets each sentence's best outcomes and returns the spans line
-/// for a name finder.
+/// Runs the search on every sentence of the golden and compares.
+/// `after` gets each sentence's best outcomes and returns the names for a
+/// name finder.
 fn run<'g, T, C, V>(
     golden: &'g Golden,
     search: &BeamSearch<'_>,
     items: impl Fn(&'g Sentence) -> Vec<T>,
     context: &mut C,
     validator: &V,
-    mut after: impl FnMut(&mut C, &Sentence, &[&str]) -> Option<String>,
+    mut after: impl FnMut(&mut C, &Sentence, &[&str]) -> Option<Vec<String>>,
 ) where
     C: ContextGenerator<T>,
     V: SequenceValidator<T>,
@@ -176,19 +198,19 @@ fn run<'g, T, C, V>(
             failures.push(format!("sentence {k} spans: expected {:?}, got {spans:?}", s.spans));
         }
     }
-    assert!(failures.is_empty(), "{}: {} differences:\n{}", golden.model, failures.len(), failures.join("\n"));
+    assert!(failures.is_empty(), "{}: {} differences:\n{}", golden.run, failures.len(), failures.join("\n"));
 }
 
 fn open(dir: &Path, golden: &Golden) -> ModelFile {
-    let path = dir.join(&golden.model);
-    let file = ModelFile::read(&path).unwrap_or_else(|e| panic!("{}: {e}", path.display()));
+    let path = dir.join(&golden.model.file);
+    let bytes = std::fs::read(&path).unwrap_or_else(|e| panic!("{}: {e}", path.display()));
     assert_eq!(
-        file.sha256().to_hex(),
-        golden.sha256,
-        "{} is not the model the golden file was made with",
+        turbo_goldens::sha512(&bytes),
+        golden.model.sha512,
+        "{} is not the model the golden was made with",
         path.display()
     );
-    file
+    ModelFile::read(&path).unwrap_or_else(|e| panic!("{}: {e}", path.display()))
 }
 
 fn tokens(s: &Sentence) -> Vec<&str> {
@@ -245,17 +267,12 @@ fn check_names_kind(dir: &Path, name: &str, kind: &str) {
     context.set_additional_context(&[]);
     run(&golden, &search, tokens, &mut context, &codec, |context, s, best| {
         context.update_adaptive_data(&tokens(s), best);
-        let spans: Vec<String> = codec
-            .decode(best)
-            .iter()
-            .map(|span| format!("{} {} {}", span.start, span.end, escape(span.kind.as_deref().unwrap_or("null"))))
-            .collect();
-        Some(spans.join("\t"))
+        Some(codec.decode(best).iter().map(|span| span_text(span.start, span.end, span.kind.as_deref())).collect())
     });
 }
 
 fn fixtures() -> PathBuf {
-    common::golden().join("models")
+    common::fixtures()
 }
 
 #[test]
@@ -267,12 +284,12 @@ fn pos_fixture() {
 /// from before OpenNLP 1.8 has, run over the fixture's classifier.
 #[test]
 fn pos_fixture_default_context() {
-    let golden = read_golden("pos-fixture-default-context");
+    let golden = read_golden("pos-fixture+default-context");
     assert_eq!(golden.kind, "pos-default-context");
     let file = open(&fixtures(), &golden);
     let model = file.maxent(postag::MODEL_ENTRY_NAME).unwrap();
     let search = BeamSearch::new(golden.beam, &model).unwrap();
-    let xml = std::fs::read(common::golden().join("resources/names.dictionary")).unwrap();
+    let xml = std::fs::read(featuregen().join("names.dictionary")).unwrap();
     let mut context = DefaultPosContext::new(Some(Arc::new(Dictionary::read(&xml).unwrap())));
     let validator = PosValidator::new(TagDictionary::for_model(&file).unwrap().map(Arc::new));
     run(&golden, &search, tokens, &mut context, &validator, |_, _, _| None);
@@ -299,7 +316,7 @@ fn ner_bilou_fixture() {
 /// that evaluates every context into a new array (see the next test).
 #[test]
 fn ner_qn_fixture_fresh_sums() {
-    check_names_kind(&fixtures(), "ner-qn-fixture-fresh-sums", "names-fresh-sums");
+    check_names_kind(&fixtures(), "ner-qn-fixture+fresh-sums", "names-fresh-sums");
 }
 
 /// The same model as OpenNLP runs it. At commit cdf33c6
@@ -315,8 +332,8 @@ fn ner_qn_fixture() {
 }
 
 /// The directory of the OpenNLP 1.5 English models (local-only: their
-/// training corpora are LDC or undocumented, so CI does not fetch them),
-/// or `None` after saying the test is skipped.
+/// training corpora are LDC corpora or undocumented, so CI does not fetch
+/// them), or `None` after saying the test is skipped.
 fn models_15(test: &str) -> Option<PathBuf> {
     let Some(dir) = std::env::var_os("TURBO_TEST_OPENNLP_MODELS") else {
         println!("{test}: skipped: TURBO_TEST_OPENNLP_MODELS is not set");
@@ -325,13 +342,15 @@ fn models_15(test: &str) -> Option<PathBuf> {
     Some(PathBuf::from(dir))
 }
 
+const RUN_EN_UD_EWT_POS: &str = "opennlp-en-ud-ewt-pos-1.3-2.5.4";
+
 #[test]
 fn en_ud_ewt_pos() {
     // The file name comes from the golden, so the lookup and `open` read
     // the same file.
-    let golden = read_golden("en-ud-ewt-pos");
-    if let Some(path) = turbo_goldens::published_model(&golden.model) {
-        check_pos(path.parent().unwrap(), "en-ud-ewt-pos");
+    let golden = read_golden(RUN_EN_UD_EWT_POS);
+    if let Some(path) = turbo_goldens::published_model(&golden.model.file) {
+        check_pos(path.parent().unwrap(), RUN_EN_UD_EWT_POS);
     }
 }
 

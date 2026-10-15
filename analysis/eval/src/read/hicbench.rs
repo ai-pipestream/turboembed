@@ -35,7 +35,11 @@ struct Qa {
 
 /// Reads the set in `dir` as `name`.
 pub fn read(name: &str, dir: &Path) -> Result<LoadedSet> {
-    let mut files = SetDir::new(dir);
+    read_in(name, SetDir::new(dir))
+}
+
+/// Reads the set from `files` as `name`.
+pub fn read_in(name: &str, mut files: SetDir) -> Result<LoadedSet> {
     let mut docs = Vec::new();
     for f in files.list(DOCS, "txt")? {
         let text = files.text(&format!("{DOCS}/{f}"))?;

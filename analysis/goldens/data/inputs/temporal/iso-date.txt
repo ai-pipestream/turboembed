@@ -1,0 +1,1 @@
+The release shipped on 2026-07-14 after a long freeze.

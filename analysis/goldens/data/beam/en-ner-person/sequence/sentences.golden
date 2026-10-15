@@ -1,0 +1,3309 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	sequence/sentences	905	851	32c8499cf1eb96c7d4c6e4c0c6ffc47a9e576be450d48537c36b2362c94e67d8
+model	en-ner-person.bin	c62b3460527f103ea1e9b8e0b794822ceb0536b03a843e0ca86f9ae559c1cca0a4fa03e81ecfec468628be3ee09c17adef08cd460214bd10bb089326427eb04c
+annotator	opennlp.tools.ml.BeamSearch	bestSequences
+config	kind	names
+layer	turbo:sentence-tokens	document	176	sentence:u32	token:str
+0	Pierre
+0	Vinken
+0	,
+0	61
+0	years
+0	old
+0	,
+0	will
+0	join
+0	the
+0	board
+0	as
+0	a
+0	nonexecutive
+0	director
+0	Nov.
+0	29
+0	.
+1	Mr.
+1	Smith
+1	went
+1	to
+1	Washington
+1	,
+1	D.C.
+1	,
+1	on
+1	1999-04-12
+1	with
+1	$
+1	1,000
+1	.
+2	The
+2	co-op
+2	's
+2	CEO
+2	,
+2	John
+2	O'Neil
+2	,
+2	said
+2	3.5
+2	%
+2	of
+2	U.S.
+2	sales
+2	fell
+2	.
+3	She
+3	paid
+3	12/31/2020
+3	invoices
+3	at
+3	4:30
+3	p.m.
+3	in
+3	New
+3	York
+3	City
+3	.
+4	Angela
+4	Merkel
+4	met
+4	Emmanuel
+4	Macron
+4	in
+4	Berlin
+4	and
+4	Paris
+4	last
+4	week
+4	.
+5	IBM
+5	and
+5	Microsoft
+5	Corp.
+5	reported
+5	earnings
+5	;
+5	A.
+5	B.
+5	Smith
+5	disagreed
+5	.
+6	Ünal
+6	Özdemir
+6	lives
+6	in
+6	Köln
+6	,
+6	not
+6	München
+6	.
+7	東京
+7	は
+7	ひらがな
+7	と
+7	カタカナ
+7	を
+7	使う
+7	。
+8	The
+8	𝐀𝐁𝐂
+8	index
+8	rose
+8	😀
+8	while
+8	café
+8	prices
+8	fell
+8	.
+9	e-mail
+9	me
+9	at
+9	john@example.com
+9	or
+9	visit
+9	www.example.com/a?b=1
+9	!
+10	Barack
+10	Obama
+10	was
+10	born
+10	in
+10	Honolulu
+10	,
+10	Hawaii
+10	.
+11	He
+11	said
+11	:
+11	"
+11	I
+11	'm
+11	not
+11	going
+11	to
+11	London
+11	.
+11	"
+12	ŁÓDŹ
+12	and
+12	ΑΘΗΝΑ
+12	are
+12	cities
+12	;
+12	ǅ
+12	is
+12	a
+12	titlecase
+12	letter
+12	.
+13	One
+13	more
+13	sentence
+13	about
+13	Dr.
+13	Jane
+13	Doe
+13	of
+13	Acme
+13	Inc.
+13	in
+13	Chicago
+13	.
+14	Smith
+14	said
+14	Smith
+14	would
+14	visit
+14	Paris
+14	again
+14	in
+14	2024
+14	.
+15	a
+end	turbo:sentence-tokens
+layer	turbo:beam-config	document	1	beam-size:u32	codec:str
+3	opennlp.tools.namefind.BioCodec
+end	turbo:beam-config
+layer	turbo:beam-calls	document	78	call:u32	sentence:u32	index:u32
+0	0	0
+1	0	1
+2	0	1
+3	0	2
+4	0	2
+5	0	2
+6	0	3
+7	0	3
+8	0	3
+9	0	4
+10	0	4
+11	0	4
+12	0	5
+13	0	5
+14	0	5
+15	0	6
+16	0	6
+17	0	6
+18	0	7
+19	0	7
+20	0	7
+21	0	8
+22	0	8
+23	0	8
+24	0	9
+25	0	9
+26	0	9
+27	0	10
+28	0	10
+29	0	10
+30	0	11
+31	0	11
+32	0	11
+33	0	12
+34	0	12
+35	0	12
+36	0	13
+37	0	13
+38	0	13
+39	0	14
+40	0	14
+41	0	14
+42	0	15
+43	0	15
+44	0	15
+45	0	16
+46	0	16
+47	0	16
+48	0	17
+49	0	17
+50	0	17
+51	8	0
+52	8	1
+53	8	1
+54	8	2
+55	8	2
+56	8	2
+57	8	3
+58	8	3
+59	8	3
+60	8	4
+61	8	4
+62	8	4
+63	8	5
+64	8	5
+65	8	5
+66	8	6
+67	8	6
+68	8	6
+69	8	7
+70	8	7
+71	8	7
+72	8	8
+73	8	8
+74	8	8
+75	8	9
+76	8	9
+77	8	9
+end	turbo:beam-calls
+layer	turbo:beam-call-priors	document	592	call:u32	outcome:str
+1	person-start
+2	other
+3	person-start
+3	person-cont
+4	other
+4	other
+5	person-start
+5	person-start
+6	person-start
+6	person-cont
+6	other
+7	other
+7	other
+7	other
+8	person-start
+8	person-start
+8	other
+9	person-start
+9	person-cont
+9	other
+9	other
+10	other
+10	other
+10	other
+10	other
+11	person-start
+11	person-start
+11	other
+11	other
+12	person-start
+12	person-cont
+12	other
+12	other
+12	other
+13	other
+13	other
+13	other
+13	other
+13	other
+14	person-start
+14	person-start
+14	other
+14	other
+14	other
+15	person-start
+15	person-cont
+15	other
+15	other
+15	other
+15	other
+16	other
+16	other
+16	other
+16	other
+16	other
+16	other
+17	person-start
+17	person-start
+17	other
+17	other
+17	other
+17	other
+18	person-start
+18	person-cont
+18	other
+18	other
+18	other
+18	other
+18	other
+19	other
+19	other
+19	other
+19	other
+19	other
+19	other
+19	other
+20	person-start
+20	person-start
+20	other
+20	other
+20	other
+20	other
+20	other
+21	person-start
+21	person-cont
+21	other
+21	other
+21	other
+21	other
+21	other
+21	other
+22	other
+22	other
+22	other
+22	other
+22	other
+22	other
+22	other
+22	other
+23	person-start
+23	person-start
+23	other
+23	other
+23	other
+23	other
+23	other
+23	other
+24	person-start
+24	person-cont
+24	other
+24	other
+24	other
+24	other
+24	other
+24	other
+24	other
+25	other
+25	other
+25	other
+25	other
+25	other
+25	other
+25	other
+25	other
+25	other
+26	person-start
+26	person-start
+26	other
+26	other
+26	other
+26	other
+26	other
+26	other
+26	other
+27	person-start
+27	person-cont
+27	other
+27	other
+27	other
+27	other
+27	other
+27	other
+27	other
+27	other
+28	other
+28	other
+28	other
+28	other
+28	other
+28	other
+28	other
+28	other
+28	other
+28	other
+29	person-start
+29	person-start
+29	other
+29	other
+29	other
+29	other
+29	other
+29	other
+29	other
+29	other
+30	person-start
+30	person-cont
+30	other
+30	other
+30	other
+30	other
+30	other
+30	other
+30	other
+30	other
+30	other
+31	other
+31	other
+31	other
+31	other
+31	other
+31	other
+31	other
+31	other
+31	other
+31	other
+31	other
+32	person-start
+32	person-start
+32	other
+32	other
+32	other
+32	other
+32	other
+32	other
+32	other
+32	other
+32	other
+33	person-start
+33	person-cont
+33	other
+33	other
+33	other
+33	other
+33	other
+33	other
+33	other
+33	other
+33	other
+33	other
+34	other
+34	other
+34	other
+34	other
+34	other
+34	other
+34	other
+34	other
+34	other
+34	other
+34	other
+34	other
+35	person-start
+35	person-start
+35	other
+35	other
+35	other
+35	other
+35	other
+35	other
+35	other
+35	other
+35	other
+35	other
+36	person-start
+36	person-cont
+36	other
+36	other
+36	other
+36	other
+36	other
+36	other
+36	other
+36	other
+36	other
+36	other
+36	other
+37	other
+37	other
+37	other
+37	other
+37	other
+37	other
+37	other
+37	other
+37	other
+37	other
+37	other
+37	other
+37	other
+38	person-start
+38	person-start
+38	other
+38	other
+38	other
+38	other
+38	other
+38	other
+38	other
+38	other
+38	other
+38	other
+38	other
+39	person-start
+39	person-cont
+39	other
+39	other
+39	other
+39	other
+39	other
+39	other
+39	other
+39	other
+39	other
+39	other
+39	other
+39	other
+40	other
+40	other
+40	other
+40	other
+40	other
+40	other
+40	other
+40	other
+40	other
+40	other
+40	other
+40	other
+40	other
+40	other
+41	person-start
+41	person-start
+41	other
+41	other
+41	other
+41	other
+41	other
+41	other
+41	other
+41	other
+41	other
+41	other
+41	other
+41	other
+42	person-start
+42	person-cont
+42	other
+42	other
+42	other
+42	other
+42	other
+42	other
+42	other
+42	other
+42	other
+42	other
+42	other
+42	other
+42	other
+43	other
+43	other
+43	other
+43	other
+43	other
+43	other
+43	other
+43	other
+43	other
+43	other
+43	other
+43	other
+43	other
+43	other
+43	other
+44	person-start
+44	person-start
+44	other
+44	other
+44	other
+44	other
+44	other
+44	other
+44	other
+44	other
+44	other
+44	other
+44	other
+44	other
+44	other
+45	person-start
+45	person-cont
+45	other
+45	other
+45	other
+45	other
+45	other
+45	other
+45	other
+45	other
+45	other
+45	other
+45	other
+45	other
+45	other
+45	other
+46	other
+46	other
+46	other
+46	other
+46	other
+46	other
+46	other
+46	other
+46	other
+46	other
+46	other
+46	other
+46	other
+46	other
+46	other
+46	other
+47	person-start
+47	person-cont
+47	other
+47	other
+47	other
+47	other
+47	other
+47	other
+47	other
+47	other
+47	other
+47	other
+47	other
+47	other
+47	other
+47	person-start
+48	person-start
+48	person-cont
+48	other
+48	other
+48	other
+48	other
+48	other
+48	other
+48	other
+48	other
+48	other
+48	other
+48	other
+48	other
+48	other
+48	other
+48	other
+49	other
+49	other
+49	other
+49	other
+49	other
+49	other
+49	other
+49	other
+49	other
+49	other
+49	other
+49	other
+49	other
+49	other
+49	other
+49	other
+49	other
+50	person-start
+50	person-cont
+50	other
+50	other
+50	other
+50	other
+50	other
+50	other
+50	other
+50	other
+50	other
+50	other
+50	other
+50	other
+50	other
+50	person-start
+50	other
+52	other
+53	person-start
+54	other
+54	other
+55	person-start
+55	other
+56	other
+56	person-start
+57	other
+57	other
+57	other
+58	person-start
+58	other
+58	other
+59	other
+59	person-start
+59	other
+60	other
+60	other
+60	other
+60	other
+61	person-start
+61	other
+61	other
+61	other
+62	other
+62	other
+62	other
+62	person-start
+63	other
+63	other
+63	other
+63	other
+63	other
+64	person-start
+64	other
+64	other
+64	other
+64	other
+65	other
+65	other
+65	other
+65	person-start
+65	other
+66	other
+66	other
+66	other
+66	other
+66	other
+66	other
+67	person-start
+67	other
+67	other
+67	other
+67	other
+67	other
+68	other
+68	other
+68	other
+68	person-start
+68	other
+68	other
+69	other
+69	other
+69	other
+69	other
+69	other
+69	other
+69	other
+70	person-start
+70	other
+70	other
+70	other
+70	other
+70	other
+70	other
+71	other
+71	other
+71	other
+71	person-start
+71	other
+71	other
+71	other
+72	other
+72	other
+72	other
+72	other
+72	other
+72	other
+72	other
+72	other
+73	person-start
+73	other
+73	other
+73	other
+73	other
+73	other
+73	other
+73	other
+74	other
+74	other
+74	other
+74	person-start
+74	other
+74	other
+74	other
+74	other
+75	other
+75	other
+75	other
+75	other
+75	other
+75	other
+75	other
+75	other
+75	other
+76	person-start
+76	other
+76	other
+76	other
+76	other
+76	other
+76	other
+76	other
+76	other
+77	other
+77	other
+77	other
+77	person-start
+77	other
+77	other
+77	other
+77	other
+77	other
+end	turbo:beam-call-priors
+layer	turbo:beam-call-features	document	1858	call:u32	feature:str
+0	wc=ic
+0	w&c=pierre,ic
+0	n1wc=ic
+0	n1w&c=vinken,ic
+0	n2wc=other
+0	n2w&c=,,other
+0	w=pierre
+0	n1w=vinken
+0	n2w=,
+0	def
+0	pd=null
+0	w,nw=Pierre,Vinken
+0	wc,nc=ic,ic
+0	S=begin
+0	po=other
+0	pow=other,Pierre
+0	powf=other,ic
+0	ppo=other
+1	wc=ic
+1	w&c=vinken,ic
+1	p1wc=ic
+1	p1w&c=pierre,ic
+1	n1wc=other
+1	n1w&c=,,other
+1	n2wc=2d
+1	n2w&c=61,2d
+1	w=vinken
+1	p1w=pierre
+1	n1w=,
+1	n2w=61
+1	def
+1	pd=null
+1	pw,w=Pierre,Vinken
+1	pwc,wc=ic,ic
+1	w,nw=Vinken,,
+1	wc,nc=ic,other
+1	po=person-start
+1	pow=person-start,Vinken
+1	powf=person-start,ic
+1	ppo=other
+2	wc=ic
+2	w&c=vinken,ic
+2	p1wc=ic
+2	p1w&c=pierre,ic
+2	n1wc=other
+2	n1w&c=,,other
+2	n2wc=2d
+2	n2w&c=61,2d
+2	w=vinken
+2	p1w=pierre
+2	n1w=,
+2	n2w=61
+2	def
+2	pd=null
+2	pw,w=Pierre,Vinken
+2	pwc,wc=ic,ic
+2	w,nw=Vinken,,
+2	wc,nc=ic,other
+2	po=other
+2	pow=other,Vinken
+2	powf=other,ic
+2	ppo=other
+3	wc=other
+3	w&c=,,other
+3	p1wc=ic
+3	p1w&c=vinken,ic
+3	p2wc=ic
+3	p2w&c=pierre,ic
+3	n1wc=2d
+3	n1w&c=61,2d
+3	n2wc=lc
+3	n2w&c=years,lc
+3	w=,
+3	p1w=vinken
+3	p2w=pierre
+3	n1w=61
+3	n2w=years
+3	def
+3	pd=null
+3	pw,w=Vinken,,
+3	pwc,wc=ic,other
+3	w,nw=,,61
+3	wc,nc=other,2d
+3	po=person-cont
+3	pow=person-cont,,
+3	powf=person-cont,other
+3	ppo=person-start
+4	wc=other
+4	w&c=,,other
+4	p1wc=ic
+4	p1w&c=vinken,ic
+4	p2wc=ic
+4	p2w&c=pierre,ic
+4	n1wc=2d
+4	n1w&c=61,2d
+4	n2wc=lc
+4	n2w&c=years,lc
+4	w=,
+4	p1w=vinken
+4	p2w=pierre
+4	n1w=61
+4	n2w=years
+4	def
+4	pd=null
+4	pw,w=Vinken,,
+4	pwc,wc=ic,other
+4	w,nw=,,61
+4	wc,nc=other,2d
+4	po=other
+4	pow=other,,
+4	powf=other,other
+4	ppo=other
+5	wc=other
+5	w&c=,,other
+5	p1wc=ic
+5	p1w&c=vinken,ic
+5	p2wc=ic
+5	p2w&c=pierre,ic
+5	n1wc=2d
+5	n1w&c=61,2d
+5	n2wc=lc
+5	n2w&c=years,lc
+5	w=,
+5	p1w=vinken
+5	p2w=pierre
+5	n1w=61
+5	n2w=years
+5	def
+5	pd=null
+5	pw,w=Vinken,,
+5	pwc,wc=ic,other
+5	w,nw=,,61
+5	wc,nc=other,2d
+5	po=person-start
+5	pow=person-start,,
+5	powf=person-start,other
+5	ppo=person-start
+6	wc=2d
+6	w&c=61,2d
+6	p1wc=other
+6	p1w&c=,,other
+6	p2wc=ic
+6	p2w&c=vinken,ic
+6	n1wc=lc
+6	n1w&c=years,lc
+6	n2wc=lc
+6	n2w&c=old,lc
+6	w=61
+6	p1w=,
+6	p2w=vinken
+6	n1w=years
+6	n2w=old
+6	def
+6	pd=null
+6	pw,w=,,61
+6	pwc,wc=other,2d
+6	w,nw=61,years
+6	wc,nc=2d,lc
+6	po=other
+6	pow=other,61
+6	powf=other,2d
+6	ppo=person-cont
+7	wc=2d
+7	w&c=61,2d
+7	p1wc=other
+7	p1w&c=,,other
+7	p2wc=ic
+7	p2w&c=vinken,ic
+7	n1wc=lc
+7	n1w&c=years,lc
+7	n2wc=lc
+7	n2w&c=old,lc
+7	w=61
+7	p1w=,
+7	p2w=vinken
+7	n1w=years
+7	n2w=old
+7	def
+7	pd=null
+7	pw,w=,,61
+7	pwc,wc=other,2d
+7	w,nw=61,years
+7	wc,nc=2d,lc
+7	po=other
+7	pow=other,61
+7	powf=other,2d
+7	ppo=other
+8	wc=2d
+8	w&c=61,2d
+8	p1wc=other
+8	p1w&c=,,other
+8	p2wc=ic
+8	p2w&c=vinken,ic
+8	n1wc=lc
+8	n1w&c=years,lc
+8	n2wc=lc
+8	n2w&c=old,lc
+8	w=61
+8	p1w=,
+8	p2w=vinken
+8	n1w=years
+8	n2w=old
+8	def
+8	pd=null
+8	pw,w=,,61
+8	pwc,wc=other,2d
+8	w,nw=61,years
+8	wc,nc=2d,lc
+8	po=other
+8	pow=other,61
+8	powf=other,2d
+8	ppo=person-start
+9	wc=lc
+9	w&c=years,lc
+9	p1wc=2d
+9	p1w&c=61,2d
+9	p2wc=other
+9	p2w&c=,,other
+9	n1wc=lc
+9	n1w&c=old,lc
+9	n2wc=other
+9	n2w&c=,,other
+9	w=years
+9	p1w=61
+9	p2w=,
+9	n1w=old
+9	n2w=,
+9	def
+9	pd=null
+9	pw,w=61,years
+9	pwc,wc=2d,lc
+9	w,nw=years,old
+9	wc,nc=lc,lc
+9	po=other
+9	pow=other,years
+9	powf=other,lc
+9	ppo=other
+10	wc=lc
+10	w&c=years,lc
+10	p1wc=2d
+10	p1w&c=61,2d
+10	p2wc=other
+10	p2w&c=,,other
+10	n1wc=lc
+10	n1w&c=old,lc
+10	n2wc=other
+10	n2w&c=,,other
+10	w=years
+10	p1w=61
+10	p2w=,
+10	n1w=old
+10	n2w=,
+10	def
+10	pd=null
+10	pw,w=61,years
+10	pwc,wc=2d,lc
+10	w,nw=years,old
+10	wc,nc=lc,lc
+10	po=other
+10	pow=other,years
+10	powf=other,lc
+10	ppo=other
+11	wc=lc
+11	w&c=years,lc
+11	p1wc=2d
+11	p1w&c=61,2d
+11	p2wc=other
+11	p2w&c=,,other
+11	n1wc=lc
+11	n1w&c=old,lc
+11	n2wc=other
+11	n2w&c=,,other
+11	w=years
+11	p1w=61
+11	p2w=,
+11	n1w=old
+11	n2w=,
+11	def
+11	pd=null
+11	pw,w=61,years
+11	pwc,wc=2d,lc
+11	w,nw=years,old
+11	wc,nc=lc,lc
+11	po=other
+11	pow=other,years
+11	powf=other,lc
+11	ppo=other
+12	wc=lc
+12	w&c=old,lc
+12	p1wc=lc
+12	p1w&c=years,lc
+12	p2wc=2d
+12	p2w&c=61,2d
+12	n1wc=other
+12	n1w&c=,,other
+12	n2wc=lc
+12	n2w&c=will,lc
+12	w=old
+12	p1w=years
+12	p2w=61
+12	n1w=,
+12	n2w=will
+12	def
+12	pd=null
+12	pw,w=years,old
+12	pwc,wc=lc,lc
+12	w,nw=old,,
+12	wc,nc=lc,other
+12	po=other
+12	pow=other,old
+12	powf=other,lc
+12	ppo=other
+13	wc=lc
+13	w&c=old,lc
+13	p1wc=lc
+13	p1w&c=years,lc
+13	p2wc=2d
+13	p2w&c=61,2d
+13	n1wc=other
+13	n1w&c=,,other
+13	n2wc=lc
+13	n2w&c=will,lc
+13	w=old
+13	p1w=years
+13	p2w=61
+13	n1w=,
+13	n2w=will
+13	def
+13	pd=null
+13	pw,w=years,old
+13	pwc,wc=lc,lc
+13	w,nw=old,,
+13	wc,nc=lc,other
+13	po=other
+13	pow=other,old
+13	powf=other,lc
+13	ppo=other
+14	wc=lc
+14	w&c=old,lc
+14	p1wc=lc
+14	p1w&c=years,lc
+14	p2wc=2d
+14	p2w&c=61,2d
+14	n1wc=other
+14	n1w&c=,,other
+14	n2wc=lc
+14	n2w&c=will,lc
+14	w=old
+14	p1w=years
+14	p2w=61
+14	n1w=,
+14	n2w=will
+14	def
+14	pd=null
+14	pw,w=years,old
+14	pwc,wc=lc,lc
+14	w,nw=old,,
+14	wc,nc=lc,other
+14	po=other
+14	pow=other,old
+14	powf=other,lc
+14	ppo=other
+15	wc=other
+15	w&c=,,other
+15	p1wc=lc
+15	p1w&c=old,lc
+15	p2wc=lc
+15	p2w&c=years,lc
+15	n1wc=lc
+15	n1w&c=will,lc
+15	n2wc=lc
+15	n2w&c=join,lc
+15	w=,
+15	p1w=old
+15	p2w=years
+15	n1w=will
+15	n2w=join
+15	def
+15	pd=null
+15	pw,w=old,,
+15	pwc,wc=lc,other
+15	w,nw=,,will
+15	wc,nc=other,lc
+15	po=other
+15	pow=other,,
+15	powf=other,other
+15	ppo=other
+16	wc=other
+16	w&c=,,other
+16	p1wc=lc
+16	p1w&c=old,lc
+16	p2wc=lc
+16	p2w&c=years,lc
+16	n1wc=lc
+16	n1w&c=will,lc
+16	n2wc=lc
+16	n2w&c=join,lc
+16	w=,
+16	p1w=old
+16	p2w=years
+16	n1w=will
+16	n2w=join
+16	def
+16	pd=null
+16	pw,w=old,,
+16	pwc,wc=lc,other
+16	w,nw=,,will
+16	wc,nc=other,lc
+16	po=other
+16	pow=other,,
+16	powf=other,other
+16	ppo=other
+17	wc=other
+17	w&c=,,other
+17	p1wc=lc
+17	p1w&c=old,lc
+17	p2wc=lc
+17	p2w&c=years,lc
+17	n1wc=lc
+17	n1w&c=will,lc
+17	n2wc=lc
+17	n2w&c=join,lc
+17	w=,
+17	p1w=old
+17	p2w=years
+17	n1w=will
+17	n2w=join
+17	def
+17	pd=null
+17	pw,w=old,,
+17	pwc,wc=lc,other
+17	w,nw=,,will
+17	wc,nc=other,lc
+17	po=other
+17	pow=other,,
+17	powf=other,other
+17	ppo=other
+18	wc=lc
+18	w&c=will,lc
+18	p1wc=other
+18	p1w&c=,,other
+18	p2wc=lc
+18	p2w&c=old,lc
+18	n1wc=lc
+18	n1w&c=join,lc
+18	n2wc=lc
+18	n2w&c=the,lc
+18	w=will
+18	p1w=,
+18	p2w=old
+18	n1w=join
+18	n2w=the
+18	def
+18	pd=null
+18	pw,w=,,will
+18	pwc,wc=other,lc
+18	w,nw=will,join
+18	wc,nc=lc,lc
+18	po=other
+18	pow=other,will
+18	powf=other,lc
+18	ppo=other
+19	wc=lc
+19	w&c=will,lc
+19	p1wc=other
+19	p1w&c=,,other
+19	p2wc=lc
+19	p2w&c=old,lc
+19	n1wc=lc
+19	n1w&c=join,lc
+19	n2wc=lc
+19	n2w&c=the,lc
+19	w=will
+19	p1w=,
+19	p2w=old
+19	n1w=join
+19	n2w=the
+19	def
+19	pd=null
+19	pw,w=,,will
+19	pwc,wc=other,lc
+19	w,nw=will,join
+19	wc,nc=lc,lc
+19	po=other
+19	pow=other,will
+19	powf=other,lc
+19	ppo=other
+20	wc=lc
+20	w&c=will,lc
+20	p1wc=other
+20	p1w&c=,,other
+20	p2wc=lc
+20	p2w&c=old,lc
+20	n1wc=lc
+20	n1w&c=join,lc
+20	n2wc=lc
+20	n2w&c=the,lc
+20	w=will
+20	p1w=,
+20	p2w=old
+20	n1w=join
+20	n2w=the
+20	def
+20	pd=null
+20	pw,w=,,will
+20	pwc,wc=other,lc
+20	w,nw=will,join
+20	wc,nc=lc,lc
+20	po=other
+20	pow=other,will
+20	powf=other,lc
+20	ppo=other
+21	wc=lc
+21	w&c=join,lc
+21	p1wc=lc
+21	p1w&c=will,lc
+21	p2wc=other
+21	p2w&c=,,other
+21	n1wc=lc
+21	n1w&c=the,lc
+21	n2wc=lc
+21	n2w&c=board,lc
+21	w=join
+21	p1w=will
+21	p2w=,
+21	n1w=the
+21	n2w=board
+21	def
+21	pd=null
+21	pw,w=will,join
+21	pwc,wc=lc,lc
+21	w,nw=join,the
+21	wc,nc=lc,lc
+21	po=other
+21	pow=other,join
+21	powf=other,lc
+21	ppo=other
+22	wc=lc
+22	w&c=join,lc
+22	p1wc=lc
+22	p1w&c=will,lc
+22	p2wc=other
+22	p2w&c=,,other
+22	n1wc=lc
+22	n1w&c=the,lc
+22	n2wc=lc
+22	n2w&c=board,lc
+22	w=join
+22	p1w=will
+22	p2w=,
+22	n1w=the
+22	n2w=board
+22	def
+22	pd=null
+22	pw,w=will,join
+22	pwc,wc=lc,lc
+22	w,nw=join,the
+22	wc,nc=lc,lc
+22	po=other
+22	pow=other,join
+22	powf=other,lc
+22	ppo=other
+23	wc=lc
+23	w&c=join,lc
+23	p1wc=lc
+23	p1w&c=will,lc
+23	p2wc=other
+23	p2w&c=,,other
+23	n1wc=lc
+23	n1w&c=the,lc
+23	n2wc=lc
+23	n2w&c=board,lc
+23	w=join
+23	p1w=will
+23	p2w=,
+23	n1w=the
+23	n2w=board
+23	def
+23	pd=null
+23	pw,w=will,join
+23	pwc,wc=lc,lc
+23	w,nw=join,the
+23	wc,nc=lc,lc
+23	po=other
+23	pow=other,join
+23	powf=other,lc
+23	ppo=other
+24	wc=lc
+24	w&c=the,lc
+24	p1wc=lc
+24	p1w&c=join,lc
+24	p2wc=lc
+24	p2w&c=will,lc
+24	n1wc=lc
+24	n1w&c=board,lc
+24	n2wc=lc
+24	n2w&c=as,lc
+24	w=the
+24	p1w=join
+24	p2w=will
+24	n1w=board
+24	n2w=as
+24	def
+24	pd=null
+24	pw,w=join,the
+24	pwc,wc=lc,lc
+24	w,nw=the,board
+24	wc,nc=lc,lc
+24	po=other
+24	pow=other,the
+24	powf=other,lc
+24	ppo=other
+25	wc=lc
+25	w&c=the,lc
+25	p1wc=lc
+25	p1w&c=join,lc
+25	p2wc=lc
+25	p2w&c=will,lc
+25	n1wc=lc
+25	n1w&c=board,lc
+25	n2wc=lc
+25	n2w&c=as,lc
+25	w=the
+25	p1w=join
+25	p2w=will
+25	n1w=board
+25	n2w=as
+25	def
+25	pd=null
+25	pw,w=join,the
+25	pwc,wc=lc,lc
+25	w,nw=the,board
+25	wc,nc=lc,lc
+25	po=other
+25	pow=other,the
+25	powf=other,lc
+25	ppo=other
+26	wc=lc
+26	w&c=the,lc
+26	p1wc=lc
+26	p1w&c=join,lc
+26	p2wc=lc
+26	p2w&c=will,lc
+26	n1wc=lc
+26	n1w&c=board,lc
+26	n2wc=lc
+26	n2w&c=as,lc
+26	w=the
+26	p1w=join
+26	p2w=will
+26	n1w=board
+26	n2w=as
+26	def
+26	pd=null
+26	pw,w=join,the
+26	pwc,wc=lc,lc
+26	w,nw=the,board
+26	wc,nc=lc,lc
+26	po=other
+26	pow=other,the
+26	powf=other,lc
+26	ppo=other
+27	wc=lc
+27	w&c=board,lc
+27	p1wc=lc
+27	p1w&c=the,lc
+27	p2wc=lc
+27	p2w&c=join,lc
+27	n1wc=lc
+27	n1w&c=as,lc
+27	n2wc=lc
+27	n2w&c=a,lc
+27	w=board
+27	p1w=the
+27	p2w=join
+27	n1w=as
+27	n2w=a
+27	def
+27	pd=null
+27	pw,w=the,board
+27	pwc,wc=lc,lc
+27	w,nw=board,as
+27	wc,nc=lc,lc
+27	po=other
+27	pow=other,board
+27	powf=other,lc
+27	ppo=other
+28	wc=lc
+28	w&c=board,lc
+28	p1wc=lc
+28	p1w&c=the,lc
+28	p2wc=lc
+28	p2w&c=join,lc
+28	n1wc=lc
+28	n1w&c=as,lc
+28	n2wc=lc
+28	n2w&c=a,lc
+28	w=board
+28	p1w=the
+28	p2w=join
+28	n1w=as
+28	n2w=a
+28	def
+28	pd=null
+28	pw,w=the,board
+28	pwc,wc=lc,lc
+28	w,nw=board,as
+28	wc,nc=lc,lc
+28	po=other
+28	pow=other,board
+28	powf=other,lc
+28	ppo=other
+29	wc=lc
+29	w&c=board,lc
+29	p1wc=lc
+29	p1w&c=the,lc
+29	p2wc=lc
+29	p2w&c=join,lc
+29	n1wc=lc
+29	n1w&c=as,lc
+29	n2wc=lc
+29	n2w&c=a,lc
+29	w=board
+29	p1w=the
+29	p2w=join
+29	n1w=as
+29	n2w=a
+29	def
+29	pd=null
+29	pw,w=the,board
+29	pwc,wc=lc,lc
+29	w,nw=board,as
+29	wc,nc=lc,lc
+29	po=other
+29	pow=other,board
+29	powf=other,lc
+29	ppo=other
+30	wc=lc
+30	w&c=as,lc
+30	p1wc=lc
+30	p1w&c=board,lc
+30	p2wc=lc
+30	p2w&c=the,lc
+30	n1wc=lc
+30	n1w&c=a,lc
+30	n2wc=lc
+30	n2w&c=nonexecutive,lc
+30	w=as
+30	p1w=board
+30	p2w=the
+30	n1w=a
+30	n2w=nonexecutive
+30	def
+30	pd=null
+30	pw,w=board,as
+30	pwc,wc=lc,lc
+30	w,nw=as,a
+30	wc,nc=lc,lc
+30	po=other
+30	pow=other,as
+30	powf=other,lc
+30	ppo=other
+31	wc=lc
+31	w&c=as,lc
+31	p1wc=lc
+31	p1w&c=board,lc
+31	p2wc=lc
+31	p2w&c=the,lc
+31	n1wc=lc
+31	n1w&c=a,lc
+31	n2wc=lc
+31	n2w&c=nonexecutive,lc
+31	w=as
+31	p1w=board
+31	p2w=the
+31	n1w=a
+31	n2w=nonexecutive
+31	def
+31	pd=null
+31	pw,w=board,as
+31	pwc,wc=lc,lc
+31	w,nw=as,a
+31	wc,nc=lc,lc
+31	po=other
+31	pow=other,as
+31	powf=other,lc
+31	ppo=other
+32	wc=lc
+32	w&c=as,lc
+32	p1wc=lc
+32	p1w&c=board,lc
+32	p2wc=lc
+32	p2w&c=the,lc
+32	n1wc=lc
+32	n1w&c=a,lc
+32	n2wc=lc
+32	n2w&c=nonexecutive,lc
+32	w=as
+32	p1w=board
+32	p2w=the
+32	n1w=a
+32	n2w=nonexecutive
+32	def
+32	pd=null
+32	pw,w=board,as
+32	pwc,wc=lc,lc
+32	w,nw=as,a
+32	wc,nc=lc,lc
+32	po=other
+32	pow=other,as
+32	powf=other,lc
+32	ppo=other
+33	wc=lc
+33	w&c=a,lc
+33	p1wc=lc
+33	p1w&c=as,lc
+33	p2wc=lc
+33	p2w&c=board,lc
+33	n1wc=lc
+33	n1w&c=nonexecutive,lc
+33	n2wc=lc
+33	n2w&c=director,lc
+33	w=a
+33	p1w=as
+33	p2w=board
+33	n1w=nonexecutive
+33	n2w=director
+33	def
+33	pd=null
+33	pw,w=as,a
+33	pwc,wc=lc,lc
+33	w,nw=a,nonexecutive
+33	wc,nc=lc,lc
+33	po=other
+33	pow=other,a
+33	powf=other,lc
+33	ppo=other
+34	wc=lc
+34	w&c=a,lc
+34	p1wc=lc
+34	p1w&c=as,lc
+34	p2wc=lc
+34	p2w&c=board,lc
+34	n1wc=lc
+34	n1w&c=nonexecutive,lc
+34	n2wc=lc
+34	n2w&c=director,lc
+34	w=a
+34	p1w=as
+34	p2w=board
+34	n1w=nonexecutive
+34	n2w=director
+34	def
+34	pd=null
+34	pw,w=as,a
+34	pwc,wc=lc,lc
+34	w,nw=a,nonexecutive
+34	wc,nc=lc,lc
+34	po=other
+34	pow=other,a
+34	powf=other,lc
+34	ppo=other
+35	wc=lc
+35	w&c=a,lc
+35	p1wc=lc
+35	p1w&c=as,lc
+35	p2wc=lc
+35	p2w&c=board,lc
+35	n1wc=lc
+35	n1w&c=nonexecutive,lc
+35	n2wc=lc
+35	n2w&c=director,lc
+35	w=a
+35	p1w=as
+35	p2w=board
+35	n1w=nonexecutive
+35	n2w=director
+35	def
+35	pd=null
+35	pw,w=as,a
+35	pwc,wc=lc,lc
+35	w,nw=a,nonexecutive
+35	wc,nc=lc,lc
+35	po=other
+35	pow=other,a
+35	powf=other,lc
+35	ppo=other
+36	wc=lc
+36	w&c=nonexecutive,lc
+36	p1wc=lc
+36	p1w&c=a,lc
+36	p2wc=lc
+36	p2w&c=as,lc
+36	n1wc=lc
+36	n1w&c=director,lc
+36	n2wc=ic
+36	n2w&c=nov.,ic
+36	w=nonexecutive
+36	p1w=a
+36	p2w=as
+36	n1w=director
+36	n2w=nov.
+36	def
+36	pd=null
+36	pw,w=a,nonexecutive
+36	pwc,wc=lc,lc
+36	w,nw=nonexecutive,director
+36	wc,nc=lc,lc
+36	po=other
+36	pow=other,nonexecutive
+36	powf=other,lc
+36	ppo=other
+37	wc=lc
+37	w&c=nonexecutive,lc
+37	p1wc=lc
+37	p1w&c=a,lc
+37	p2wc=lc
+37	p2w&c=as,lc
+37	n1wc=lc
+37	n1w&c=director,lc
+37	n2wc=ic
+37	n2w&c=nov.,ic
+37	w=nonexecutive
+37	p1w=a
+37	p2w=as
+37	n1w=director
+37	n2w=nov.
+37	def
+37	pd=null
+37	pw,w=a,nonexecutive
+37	pwc,wc=lc,lc
+37	w,nw=nonexecutive,director
+37	wc,nc=lc,lc
+37	po=other
+37	pow=other,nonexecutive
+37	powf=other,lc
+37	ppo=other
+38	wc=lc
+38	w&c=nonexecutive,lc
+38	p1wc=lc
+38	p1w&c=a,lc
+38	p2wc=lc
+38	p2w&c=as,lc
+38	n1wc=lc
+38	n1w&c=director,lc
+38	n2wc=ic
+38	n2w&c=nov.,ic
+38	w=nonexecutive
+38	p1w=a
+38	p2w=as
+38	n1w=director
+38	n2w=nov.
+38	def
+38	pd=null
+38	pw,w=a,nonexecutive
+38	pwc,wc=lc,lc
+38	w,nw=nonexecutive,director
+38	wc,nc=lc,lc
+38	po=other
+38	pow=other,nonexecutive
+38	powf=other,lc
+38	ppo=other
+39	wc=lc
+39	w&c=director,lc
+39	p1wc=lc
+39	p1w&c=nonexecutive,lc
+39	p2wc=lc
+39	p2w&c=a,lc
+39	n1wc=ic
+39	n1w&c=nov.,ic
+39	n2wc=2d
+39	n2w&c=29,2d
+39	w=director
+39	p1w=nonexecutive
+39	p2w=a
+39	n1w=nov.
+39	n2w=29
+39	def
+39	pd=null
+39	pw,w=nonexecutive,director
+39	pwc,wc=lc,lc
+39	w,nw=director,Nov.
+39	wc,nc=lc,ic
+39	po=other
+39	pow=other,director
+39	powf=other,lc
+39	ppo=other
+40	wc=lc
+40	w&c=director,lc
+40	p1wc=lc
+40	p1w&c=nonexecutive,lc
+40	p2wc=lc
+40	p2w&c=a,lc
+40	n1wc=ic
+40	n1w&c=nov.,ic
+40	n2wc=2d
+40	n2w&c=29,2d
+40	w=director
+40	p1w=nonexecutive
+40	p2w=a
+40	n1w=nov.
+40	n2w=29
+40	def
+40	pd=null
+40	pw,w=nonexecutive,director
+40	pwc,wc=lc,lc
+40	w,nw=director,Nov.
+40	wc,nc=lc,ic
+40	po=other
+40	pow=other,director
+40	powf=other,lc
+40	ppo=other
+41	wc=lc
+41	w&c=director,lc
+41	p1wc=lc
+41	p1w&c=nonexecutive,lc
+41	p2wc=lc
+41	p2w&c=a,lc
+41	n1wc=ic
+41	n1w&c=nov.,ic
+41	n2wc=2d
+41	n2w&c=29,2d
+41	w=director
+41	p1w=nonexecutive
+41	p2w=a
+41	n1w=nov.
+41	n2w=29
+41	def
+41	pd=null
+41	pw,w=nonexecutive,director
+41	pwc,wc=lc,lc
+41	w,nw=director,Nov.
+41	wc,nc=lc,ic
+41	po=other
+41	pow=other,director
+41	powf=other,lc
+41	ppo=other
+42	wc=ic
+42	w&c=nov.,ic
+42	p1wc=lc
+42	p1w&c=director,lc
+42	p2wc=lc
+42	p2w&c=nonexecutive,lc
+42	n1wc=2d
+42	n1w&c=29,2d
+42	n2wc=other
+42	n2w&c=.,other
+42	w=nov.
+42	p1w=director
+42	p2w=nonexecutive
+42	n1w=29
+42	n2w=.
+42	def
+42	pd=null
+42	pw,w=director,Nov.
+42	pwc,wc=lc,ic
+42	w,nw=Nov.,29
+42	wc,nc=ic,2d
+42	po=other
+42	pow=other,Nov.
+42	powf=other,ic
+42	ppo=other
+43	wc=ic
+43	w&c=nov.,ic
+43	p1wc=lc
+43	p1w&c=director,lc
+43	p2wc=lc
+43	p2w&c=nonexecutive,lc
+43	n1wc=2d
+43	n1w&c=29,2d
+43	n2wc=other
+43	n2w&c=.,other
+43	w=nov.
+43	p1w=director
+43	p2w=nonexecutive
+43	n1w=29
+43	n2w=.
+43	def
+43	pd=null
+43	pw,w=director,Nov.
+43	pwc,wc=lc,ic
+43	w,nw=Nov.,29
+43	wc,nc=ic,2d
+43	po=other
+43	pow=other,Nov.
+43	powf=other,ic
+43	ppo=other
+44	wc=ic
+44	w&c=nov.,ic
+44	p1wc=lc
+44	p1w&c=director,lc
+44	p2wc=lc
+44	p2w&c=nonexecutive,lc
+44	n1wc=2d
+44	n1w&c=29,2d
+44	n2wc=other
+44	n2w&c=.,other
+44	w=nov.
+44	p1w=director
+44	p2w=nonexecutive
+44	n1w=29
+44	n2w=.
+44	def
+44	pd=null
+44	pw,w=director,Nov.
+44	pwc,wc=lc,ic
+44	w,nw=Nov.,29
+44	wc,nc=ic,2d
+44	po=other
+44	pow=other,Nov.
+44	powf=other,ic
+44	ppo=other
+45	wc=2d
+45	w&c=29,2d
+45	p1wc=ic
+45	p1w&c=nov.,ic
+45	p2wc=lc
+45	p2w&c=director,lc
+45	n1wc=other
+45	n1w&c=.,other
+45	w=29
+45	p1w=nov.
+45	p2w=director
+45	n1w=.
+45	def
+45	pd=null
+45	pw,w=Nov.,29
+45	pwc,wc=ic,2d
+45	w,nw=29,.
+45	wc,nc=2d,other
+45	po=other
+45	pow=other,29
+45	powf=other,2d
+45	ppo=other
+46	wc=2d
+46	w&c=29,2d
+46	p1wc=ic
+46	p1w&c=nov.,ic
+46	p2wc=lc
+46	p2w&c=director,lc
+46	n1wc=other
+46	n1w&c=.,other
+46	w=29
+46	p1w=nov.
+46	p2w=director
+46	n1w=.
+46	def
+46	pd=null
+46	pw,w=Nov.,29
+46	pwc,wc=ic,2d
+46	w,nw=29,.
+46	wc,nc=2d,other
+46	po=other
+46	pow=other,29
+46	powf=other,2d
+46	ppo=other
+47	wc=2d
+47	w&c=29,2d
+47	p1wc=ic
+47	p1w&c=nov.,ic
+47	p2wc=lc
+47	p2w&c=director,lc
+47	n1wc=other
+47	n1w&c=.,other
+47	w=29
+47	p1w=nov.
+47	p2w=director
+47	n1w=.
+47	def
+47	pd=null
+47	pw,w=Nov.,29
+47	pwc,wc=ic,2d
+47	w,nw=29,.
+47	wc,nc=2d,other
+47	po=person-start
+47	pow=person-start,29
+47	powf=person-start,2d
+47	ppo=other
+48	wc=other
+48	w&c=.,other
+48	p1wc=2d
+48	p1w&c=29,2d
+48	p2wc=ic
+48	p2w&c=nov.,ic
+48	w=.
+48	p1w=29
+48	p2w=nov.
+48	def
+48	pd=null
+48	pw,w=29,.
+48	pwc,wc=2d,other
+48	po=other
+48	pow=other,.
+48	powf=other,other
+48	ppo=other
+49	wc=other
+49	w&c=.,other
+49	p1wc=2d
+49	p1w&c=29,2d
+49	p2wc=ic
+49	p2w&c=nov.,ic
+49	w=.
+49	p1w=29
+49	p2w=nov.
+49	def
+49	pd=null
+49	pw,w=29,.
+49	pwc,wc=2d,other
+49	po=other
+49	pow=other,.
+49	powf=other,other
+49	ppo=other
+50	wc=other
+50	w&c=.,other
+50	p1wc=2d
+50	p1w&c=29,2d
+50	p2wc=ic
+50	p2w&c=nov.,ic
+50	w=.
+50	p1w=29
+50	p2w=nov.
+50	def
+50	pd=null
+50	pw,w=29,.
+50	pwc,wc=2d,other
+50	po=other
+50	pow=other,.
+50	powf=other,other
+50	ppo=person-start
+51	wc=ic
+51	w&c=the,ic
+51	n1wc=other
+51	n1w&c=𝐀𝐁𝐂,other
+51	n2wc=lc
+51	n2w&c=index,lc
+51	w=the
+51	n1w=𝐀𝐁𝐂
+51	n2w=index
+51	def
+51	pd=other
+51	w,nw=The,𝐀𝐁𝐂
+51	wc,nc=ic,other
+51	S=begin
+51	po=other
+51	pow=other,The
+51	powf=other,ic
+51	ppo=other
+52	wc=other
+52	w&c=𝐀𝐁𝐂,other
+52	p1wc=ic
+52	p1w&c=the,ic
+52	n1wc=lc
+52	n1w&c=index,lc
+52	n2wc=lc
+52	n2w&c=rose,lc
+52	w=𝐀𝐁𝐂
+52	p1w=the
+52	n1w=index
+52	n2w=rose
+52	def
+52	pd=null
+52	pw,w=The,𝐀𝐁𝐂
+52	pwc,wc=ic,other
+52	w,nw=𝐀𝐁𝐂,index
+52	wc,nc=other,lc
+52	po=other
+52	pow=other,𝐀𝐁𝐂
+52	powf=other,other
+52	ppo=other
+53	wc=other
+53	w&c=𝐀𝐁𝐂,other
+53	p1wc=ic
+53	p1w&c=the,ic
+53	n1wc=lc
+53	n1w&c=index,lc
+53	n2wc=lc
+53	n2w&c=rose,lc
+53	w=𝐀𝐁𝐂
+53	p1w=the
+53	n1w=index
+53	n2w=rose
+53	def
+53	pd=null
+53	pw,w=The,𝐀𝐁𝐂
+53	pwc,wc=ic,other
+53	w,nw=𝐀𝐁𝐂,index
+53	wc,nc=other,lc
+53	po=person-start
+53	pow=person-start,𝐀𝐁𝐂
+53	powf=person-start,other
+53	ppo=other
+54	wc=lc
+54	w&c=index,lc
+54	p1wc=other
+54	p1w&c=𝐀𝐁𝐂,other
+54	p2wc=ic
+54	p2w&c=the,ic
+54	n1wc=lc
+54	n1w&c=rose,lc
+54	n2wc=other
+54	n2w&c=😀,other
+54	w=index
+54	p1w=𝐀𝐁𝐂
+54	p2w=the
+54	n1w=rose
+54	n2w=😀
+54	def
+54	pd=null
+54	pw,w=𝐀𝐁𝐂,index
+54	pwc,wc=other,lc
+54	w,nw=index,rose
+54	wc,nc=lc,lc
+54	po=other
+54	pow=other,index
+54	powf=other,lc
+54	ppo=other
+55	wc=lc
+55	w&c=index,lc
+55	p1wc=other
+55	p1w&c=𝐀𝐁𝐂,other
+55	p2wc=ic
+55	p2w&c=the,ic
+55	n1wc=lc
+55	n1w&c=rose,lc
+55	n2wc=other
+55	n2w&c=😀,other
+55	w=index
+55	p1w=𝐀𝐁𝐂
+55	p2w=the
+55	n1w=rose
+55	n2w=😀
+55	def
+55	pd=null
+55	pw,w=𝐀𝐁𝐂,index
+55	pwc,wc=other,lc
+55	w,nw=index,rose
+55	wc,nc=lc,lc
+55	po=other
+55	pow=other,index
+55	powf=other,lc
+55	ppo=person-start
+56	wc=lc
+56	w&c=index,lc
+56	p1wc=other
+56	p1w&c=𝐀𝐁𝐂,other
+56	p2wc=ic
+56	p2w&c=the,ic
+56	n1wc=lc
+56	n1w&c=rose,lc
+56	n2wc=other
+56	n2w&c=😀,other
+56	w=index
+56	p1w=𝐀𝐁𝐂
+56	p2w=the
+56	n1w=rose
+56	n2w=😀
+56	def
+56	pd=null
+56	pw,w=𝐀𝐁𝐂,index
+56	pwc,wc=other,lc
+56	w,nw=index,rose
+56	wc,nc=lc,lc
+56	po=person-start
+56	pow=person-start,index
+56	powf=person-start,lc
+56	ppo=other
+57	wc=lc
+57	w&c=rose,lc
+57	p1wc=lc
+57	p1w&c=index,lc
+57	p2wc=other
+57	p2w&c=𝐀𝐁𝐂,other
+57	n1wc=other
+57	n1w&c=😀,other
+57	n2wc=lc
+57	n2w&c=while,lc
+57	w=rose
+57	p1w=index
+57	p2w=𝐀𝐁𝐂
+57	n1w=😀
+57	n2w=while
+57	def
+57	pd=null
+57	pw,w=index,rose
+57	pwc,wc=lc,lc
+57	w,nw=rose,😀
+57	wc,nc=lc,other
+57	po=other
+57	pow=other,rose
+57	powf=other,lc
+57	ppo=other
+58	wc=lc
+58	w&c=rose,lc
+58	p1wc=lc
+58	p1w&c=index,lc
+58	p2wc=other
+58	p2w&c=𝐀𝐁𝐂,other
+58	n1wc=other
+58	n1w&c=😀,other
+58	n2wc=lc
+58	n2w&c=while,lc
+58	w=rose
+58	p1w=index
+58	p2w=𝐀𝐁𝐂
+58	n1w=😀
+58	n2w=while
+58	def
+58	pd=null
+58	pw,w=index,rose
+58	pwc,wc=lc,lc
+58	w,nw=rose,😀
+58	wc,nc=lc,other
+58	po=other
+58	pow=other,rose
+58	powf=other,lc
+58	ppo=other
+59	wc=lc
+59	w&c=rose,lc
+59	p1wc=lc
+59	p1w&c=index,lc
+59	p2wc=other
+59	p2w&c=𝐀𝐁𝐂,other
+59	n1wc=other
+59	n1w&c=😀,other
+59	n2wc=lc
+59	n2w&c=while,lc
+59	w=rose
+59	p1w=index
+59	p2w=𝐀𝐁𝐂
+59	n1w=😀
+59	n2w=while
+59	def
+59	pd=null
+59	pw,w=index,rose
+59	pwc,wc=lc,lc
+59	w,nw=rose,😀
+59	wc,nc=lc,other
+59	po=other
+59	pow=other,rose
+59	powf=other,lc
+59	ppo=person-start
+60	wc=other
+60	w&c=😀,other
+60	p1wc=lc
+60	p1w&c=rose,lc
+60	p2wc=lc
+60	p2w&c=index,lc
+60	n1wc=lc
+60	n1w&c=while,lc
+60	n2wc=lc
+60	n2w&c=café,lc
+60	w=😀
+60	p1w=rose
+60	p2w=index
+60	n1w=while
+60	n2w=café
+60	def
+60	pd=null
+60	pw,w=rose,😀
+60	pwc,wc=lc,other
+60	w,nw=😀,while
+60	wc,nc=other,lc
+60	po=other
+60	pow=other,😀
+60	powf=other,other
+60	ppo=other
+61	wc=other
+61	w&c=😀,other
+61	p1wc=lc
+61	p1w&c=rose,lc
+61	p2wc=lc
+61	p2w&c=index,lc
+61	n1wc=lc
+61	n1w&c=while,lc
+61	n2wc=lc
+61	n2w&c=café,lc
+61	w=😀
+61	p1w=rose
+61	p2w=index
+61	n1w=while
+61	n2w=café
+61	def
+61	pd=null
+61	pw,w=rose,😀
+61	pwc,wc=lc,other
+61	w,nw=😀,while
+61	wc,nc=other,lc
+61	po=other
+61	pow=other,😀
+61	powf=other,other
+61	ppo=other
+62	wc=other
+62	w&c=😀,other
+62	p1wc=lc
+62	p1w&c=rose,lc
+62	p2wc=lc
+62	p2w&c=index,lc
+62	n1wc=lc
+62	n1w&c=while,lc
+62	n2wc=lc
+62	n2w&c=café,lc
+62	w=😀
+62	p1w=rose
+62	p2w=index
+62	n1w=while
+62	n2w=café
+62	def
+62	pd=null
+62	pw,w=rose,😀
+62	pwc,wc=lc,other
+62	w,nw=😀,while
+62	wc,nc=other,lc
+62	po=person-start
+62	pow=person-start,😀
+62	powf=person-start,other
+62	ppo=other
+63	wc=lc
+63	w&c=while,lc
+63	p1wc=other
+63	p1w&c=😀,other
+63	p2wc=lc
+63	p2w&c=rose,lc
+63	n1wc=lc
+63	n1w&c=café,lc
+63	n2wc=lc
+63	n2w&c=prices,lc
+63	w=while
+63	p1w=😀
+63	p2w=rose
+63	n1w=café
+63	n2w=prices
+63	def
+63	pd=null
+63	pw,w=😀,while
+63	pwc,wc=other,lc
+63	w,nw=while,café
+63	wc,nc=lc,lc
+63	po=other
+63	pow=other,while
+63	powf=other,lc
+63	ppo=other
+64	wc=lc
+64	w&c=while,lc
+64	p1wc=other
+64	p1w&c=😀,other
+64	p2wc=lc
+64	p2w&c=rose,lc
+64	n1wc=lc
+64	n1w&c=café,lc
+64	n2wc=lc
+64	n2w&c=prices,lc
+64	w=while
+64	p1w=😀
+64	p2w=rose
+64	n1w=café
+64	n2w=prices
+64	def
+64	pd=null
+64	pw,w=😀,while
+64	pwc,wc=other,lc
+64	w,nw=while,café
+64	wc,nc=lc,lc
+64	po=other
+64	pow=other,while
+64	powf=other,lc
+64	ppo=other
+65	wc=lc
+65	w&c=while,lc
+65	p1wc=other
+65	p1w&c=😀,other
+65	p2wc=lc
+65	p2w&c=rose,lc
+65	n1wc=lc
+65	n1w&c=café,lc
+65	n2wc=lc
+65	n2w&c=prices,lc
+65	w=while
+65	p1w=😀
+65	p2w=rose
+65	n1w=café
+65	n2w=prices
+65	def
+65	pd=null
+65	pw,w=😀,while
+65	pwc,wc=other,lc
+65	w,nw=while,café
+65	wc,nc=lc,lc
+65	po=other
+65	pow=other,while
+65	powf=other,lc
+65	ppo=person-start
+66	wc=lc
+66	w&c=café,lc
+66	p1wc=lc
+66	p1w&c=while,lc
+66	p2wc=other
+66	p2w&c=😀,other
+66	n1wc=lc
+66	n1w&c=prices,lc
+66	n2wc=lc
+66	n2w&c=fell,lc
+66	w=café
+66	p1w=while
+66	p2w=😀
+66	n1w=prices
+66	n2w=fell
+66	def
+66	pd=null
+66	pw,w=while,café
+66	pwc,wc=lc,lc
+66	w,nw=café,prices
+66	wc,nc=lc,lc
+66	po=other
+66	pow=other,café
+66	powf=other,lc
+66	ppo=other
+67	wc=lc
+67	w&c=café,lc
+67	p1wc=lc
+67	p1w&c=while,lc
+67	p2wc=other
+67	p2w&c=😀,other
+67	n1wc=lc
+67	n1w&c=prices,lc
+67	n2wc=lc
+67	n2w&c=fell,lc
+67	w=café
+67	p1w=while
+67	p2w=😀
+67	n1w=prices
+67	n2w=fell
+67	def
+67	pd=null
+67	pw,w=while,café
+67	pwc,wc=lc,lc
+67	w,nw=café,prices
+67	wc,nc=lc,lc
+67	po=other
+67	pow=other,café
+67	powf=other,lc
+67	ppo=other
+68	wc=lc
+68	w&c=café,lc
+68	p1wc=lc
+68	p1w&c=while,lc
+68	p2wc=other
+68	p2w&c=😀,other
+68	n1wc=lc
+68	n1w&c=prices,lc
+68	n2wc=lc
+68	n2w&c=fell,lc
+68	w=café
+68	p1w=while
+68	p2w=😀
+68	n1w=prices
+68	n2w=fell
+68	def
+68	pd=null
+68	pw,w=while,café
+68	pwc,wc=lc,lc
+68	w,nw=café,prices
+68	wc,nc=lc,lc
+68	po=other
+68	pow=other,café
+68	powf=other,lc
+68	ppo=other
+69	wc=lc
+69	w&c=prices,lc
+69	p1wc=lc
+69	p1w&c=café,lc
+69	p2wc=lc
+69	p2w&c=while,lc
+69	n1wc=lc
+69	n1w&c=fell,lc
+69	n2wc=other
+69	n2w&c=.,other
+69	w=prices
+69	p1w=café
+69	p2w=while
+69	n1w=fell
+69	n2w=.
+69	def
+69	pd=null
+69	pw,w=café,prices
+69	pwc,wc=lc,lc
+69	w,nw=prices,fell
+69	wc,nc=lc,lc
+69	po=other
+69	pow=other,prices
+69	powf=other,lc
+69	ppo=other
+70	wc=lc
+70	w&c=prices,lc
+70	p1wc=lc
+70	p1w&c=café,lc
+70	p2wc=lc
+70	p2w&c=while,lc
+70	n1wc=lc
+70	n1w&c=fell,lc
+70	n2wc=other
+70	n2w&c=.,other
+70	w=prices
+70	p1w=café
+70	p2w=while
+70	n1w=fell
+70	n2w=.
+70	def
+70	pd=null
+70	pw,w=café,prices
+70	pwc,wc=lc,lc
+70	w,nw=prices,fell
+70	wc,nc=lc,lc
+70	po=other
+70	pow=other,prices
+70	powf=other,lc
+70	ppo=other
+71	wc=lc
+71	w&c=prices,lc
+71	p1wc=lc
+71	p1w&c=café,lc
+71	p2wc=lc
+71	p2w&c=while,lc
+71	n1wc=lc
+71	n1w&c=fell,lc
+71	n2wc=other
+71	n2w&c=.,other
+71	w=prices
+71	p1w=café
+71	p2w=while
+71	n1w=fell
+71	n2w=.
+71	def
+71	pd=null
+71	pw,w=café,prices
+71	pwc,wc=lc,lc
+71	w,nw=prices,fell
+71	wc,nc=lc,lc
+71	po=other
+71	pow=other,prices
+71	powf=other,lc
+71	ppo=other
+72	wc=lc
+72	w&c=fell,lc
+72	p1wc=lc
+72	p1w&c=prices,lc
+72	p2wc=lc
+72	p2w&c=café,lc
+72	n1wc=other
+72	n1w&c=.,other
+72	w=fell
+72	p1w=prices
+72	p2w=café
+72	n1w=.
+72	def
+72	pd=other
+72	pw,w=prices,fell
+72	pwc,wc=lc,lc
+72	w,nw=fell,.
+72	wc,nc=lc,other
+72	po=other
+72	pow=other,fell
+72	powf=other,lc
+72	ppo=other
+73	wc=lc
+73	w&c=fell,lc
+73	p1wc=lc
+73	p1w&c=prices,lc
+73	p2wc=lc
+73	p2w&c=café,lc
+73	n1wc=other
+73	n1w&c=.,other
+73	w=fell
+73	p1w=prices
+73	p2w=café
+73	n1w=.
+73	def
+73	pd=other
+73	pw,w=prices,fell
+73	pwc,wc=lc,lc
+73	w,nw=fell,.
+73	wc,nc=lc,other
+73	po=other
+73	pow=other,fell
+73	powf=other,lc
+73	ppo=other
+74	wc=lc
+74	w&c=fell,lc
+74	p1wc=lc
+74	p1w&c=prices,lc
+74	p2wc=lc
+74	p2w&c=café,lc
+74	n1wc=other
+74	n1w&c=.,other
+74	w=fell
+74	p1w=prices
+74	p2w=café
+74	n1w=.
+74	def
+74	pd=other
+74	pw,w=prices,fell
+74	pwc,wc=lc,lc
+74	w,nw=fell,.
+74	wc,nc=lc,other
+74	po=other
+74	pow=other,fell
+74	powf=other,lc
+74	ppo=other
+75	wc=other
+75	w&c=.,other
+75	p1wc=lc
+75	p1w&c=fell,lc
+75	p2wc=lc
+75	p2w&c=prices,lc
+75	w=.
+75	p1w=fell
+75	p2w=prices
+75	def
+75	pd=other
+75	pw,w=fell,.
+75	pwc,wc=lc,other
+75	po=other
+75	pow=other,.
+75	powf=other,other
+75	ppo=other
+76	wc=other
+76	w&c=.,other
+76	p1wc=lc
+76	p1w&c=fell,lc
+76	p2wc=lc
+76	p2w&c=prices,lc
+76	w=.
+76	p1w=fell
+76	p2w=prices
+76	def
+76	pd=other
+76	pw,w=fell,.
+76	pwc,wc=lc,other
+76	po=other
+76	pow=other,.
+76	powf=other,other
+76	ppo=other
+77	wc=other
+77	w&c=.,other
+77	p1wc=lc
+77	p1w&c=fell,lc
+77	p2wc=lc
+77	p2w&c=prices,lc
+77	w=.
+77	p1w=fell
+77	p2w=prices
+77	def
+77	pd=other
+77	pw,w=fell,.
+77	pwc,wc=lc,other
+77	po=other
+77	pow=other,.
+77	powf=other,other
+77	ppo=other
+end	turbo:beam-call-features
+layer	turbo:beam-sequences	document	47	sequence:u32	sentence:u32	score:f64
+0	0	bfc11a52a304bf80 -0.13361580810441964
+1	0	c00c55f3029a7ff0 -3.5419674113654693
+2	0	c0132e8de2990981 -4.795463123884816
+3	1	bfefadb0999157df -0.9899523734445629
+4	1	bfff2c6c934c30ee -1.9483457330525726
+5	1	bfff88ff1398dffc -1.9709463849558224
+6	2	bfd372e16abc91b7 -0.3038867513990015
+7	2	c001ee8bba713329 -2.241477448062501
+8	2	c0089453566a454c -3.072424578779339
+9	3	bfb9067845527331 -0.09775497143205027
+10	3	c009d4197dd05d58 -3.2285642461026036
+11	3	c0103812f91ef8df -4.054759876742735
+12	4	bfe38b99c8469d18 -0.6107911025655168
+13	4	c0006bf624ddd9ff -2.052715576191303
+14	4	c003eca8aeb9dbcc -2.490556111380533
+15	5	bfeba2f035d54865 -0.8636399318149982
+16	5	c003a8f388becfad -2.4574957545500724
+17	5	c003e323e610d56f -2.4859083150756116
+18	6	bfd1e09523bded82 -0.27933243265552943
+19	6	c00825211587a563 -3.0181295091648948
+20	6	c009455b8537c435 -3.158865967525822
+21	7	c002f88407b41327 -2.3713455774144623
+22	7	c00df3bfed586657 -3.7440184156992404
+23	7	c00f78367bfc963c -3.9336976705988302
+24	8	bf944ed50219fa1a -0.019831970456374838
+25	8	c00fb9825725fb44 -3.965580635878185
+26	8	c026ec2967aea14a -11.461253395144599
+27	9	bfbdcb93d3094b0f -0.11638759519818741
+28	9	c00a2296efde0b79 -3.266889451946039
+29	9	c01c8ffd5129cb65 -7.1406147653350205
+30	10	bfec04350f54da5b -0.8755135821764485
+31	10	bffaae5da424d909 -1.6675697719452407
+32	10	bfff49a3bf1704aa -1.9554784264039804
+33	11	bfb5034e7f516636 -0.08208170517300392
+34	11	c007521e9db944e1 -2.9150974580921774
+35	11	c016b5c168c78f90 -5.677495610408997
+36	12	bfb87dad8eb9ebb9 -0.09566769346740402
+37	12	c00f7c4b97d8e87c -3.935691057497989
+38	12	c0100269d68d138e -4.0023568652731125
+39	13	bfdc0bc3c5183aac -0.4382180619003673
+40	13	c0025fe89727c54c -2.296830349827962
+41	13	c006fa367495b7d5 -2.872174177950891
+42	14	bff4225571cf17dd -1.2583822675383012
+43	14	bff6d54356c837fe -1.4270661725927307
+44	14	bff7dc5cb772a372 -1.4912993589334431
+45	15	bf855e85ed2aac8e -0.010434194851163061
+46	15	c01fd23fb19dbffa -7.955321097615519
+end	turbo:beam-sequences
+layer	turbo:beam-outcomes	document	527	sequence:u32	outcome:str	probability:f64
+0	person-start	3fecc84dbb8650ae 0.8994511282530959
+0	person-cont	3fefaba08132fc7c 0.9897005580350107
+0	other	3fefffe74522828f 0.9999882078446535
+0	other	3feff1fb52c565d5 0.9982887856123691
+0	other	3feffff360838e1f 0.9999939808880675
+0	other	3feffff957ec556d 0.9999968259095745
+0	other	3fefff97ba8b2a25 0.9999502795629424
+0	other	3feffff9c7862930 0.9999970337824262
+0	other	3fefffffe5291878 0.9999999500075907
+0	other	3feffffbb6573e82 0.999997955450411
+0	other	3fefffff8f1d26f8 0.9999997897332085
+0	other	3fefffffd99ff69c 0.9999999285207255
+0	other	3fefffff34c71742 0.9999996214689661
+0	other	3feffffd149ecfc6 0.999998607896935
+0	other	3fefffdcfbe08815 0.9999833030199193
+0	other	3fefb1fb64112a87 0.9904763178286239
+0	other	3fefd39a087cd021 0.9945802846691586
+0	other	3feffc0e9eeb1ef9 0.9995186904788788
+1	other	3fb863e0a4c351b3 0.09527400991948447
+1	other	3fd3c81040b4da6f 0.3090859062098507
+1	other	3fefffa9eab05de8 0.9999589523094388
+1	other	3feff5fa45ac8cc0 0.9987765656300311
+1	other	3feffff360838e1f 0.9999939808880675
+1	other	3feffff957ec556d 0.9999968259095745
+1	other	3fefff97ba8b2a25 0.9999502795629424
+1	other	3feffff9c7862930 0.9999970337824262
+1	other	3fefffffe5291878 0.9999999500075907
+1	other	3feffffbb6573e82 0.999997955450411
+1	other	3fefffff8f1d26f8 0.9999997897332085
+1	other	3fefffffd99ff69c 0.9999999285207255
+1	other	3fefffff34c71742 0.9999996214689661
+1	other	3feffffd149ecfc6 0.999998607896935
+1	other	3fefffdcfbe08815 0.9999833030199193
+1	other	3fefb1fb64112a87 0.9904763178286239
+1	other	3fefd39a087cd021 0.9945802846691586
+1	other	3feffc0e9eeb1ef9 0.9995186904788788
+2	person-start	3fecc84dbb8650ae 0.8994511282530959
+2	person-cont	3fefaba08132fc7c 0.9897005580350107
+2	other	3fefffe74522828f 0.9999882078446535
+2	other	3feff1fb52c565d5 0.9982887856123691
+2	other	3feffff360838e1f 0.9999939808880675
+2	other	3feffff957ec556d 0.9999968259095745
+2	other	3fefff97ba8b2a25 0.9999502795629424
+2	other	3feffff9c7862930 0.9999970337824262
+2	other	3fefffffe5291878 0.9999999500075907
+2	other	3feffffbb6573e82 0.999997955450411
+2	other	3fefffff8f1d26f8 0.9999997897332085
+2	other	3fefffffd99ff69c 0.9999999285207255
+2	other	3fefffff34c71742 0.9999996214689661
+2	other	3feffffd149ecfc6 0.999998607896935
+2	other	3fefffdcfbe08815 0.9999833030199193
+2	person-start	3f836bcf02c2ce57 0.009482972404249041
+2	other	3fef6c50fd865615 0.9819722129493039
+2	other	3feff8c57be3faee 0.9991176051842936
+3	other	3fe7814e5767813a 0.7345344264140643
+3	other	3fe489ed857920bc 0.6418368918321202
+3	other	3feffff2609dfb65 0.9999935042431899
+3	other	3fefffea5d75bec6 0.9999896836652276
+3	other	3fefe567f53bcc97 0.9967536725729528
+3	other	3fefff4b0b971c87 0.9999137140629423
+3	other	3feaa49dc979ba6a 0.832594769961202
+3	other	3fefffbc93b0399d 0.9999678501642851
+3	other	3feff89fa1408f1c 0.999099554963752
+3	other	3fefd597820a677b 0.9948232211929587
+3	other	3fefff69963ecf35 0.9999282774428823
+3	other	3feffc2e38ff9e25 0.9995337594272696
+3	other	3feeff921972b590 0.9686975953133459
+3	other	3fef964ebdfd0216 0.9870980940541496
+4	person-start	3fcd5b994bf2119e 0.22935787399559343
+4	person-cont	3fe93a6062f9da33 0.7883760388493272
+4	other	3fefff6a48f86245 0.9999286103439508
+4	other	3fefffc88cff7759 0.9999735597482228
+4	other	3fefe567f53bcc97 0.9967536725729528
+4	other	3fefff4b0b971c87 0.9999137140629423
+4	other	3feaa49dc979ba6a 0.832594769961202
+4	other	3fefffbc93b0399d 0.9999678501642851
+4	other	3feff89fa1408f1c 0.999099554963752
+4	other	3fefd597820a677b 0.9948232211929587
+4	other	3fefff69963ecf35 0.9999282774428823
+4	other	3feffc2e38ff9e25 0.9995337594272696
+4	other	3feeff921972b590 0.9686975953133459
+4	other	3fef964ebdfd0216 0.9870980940541496
+5	other	3fe7814e5767813a 0.7345344264140643
+5	person-start	3fcecdcb6db24526 0.24065535408275557
+5	other	3fefffd972de3e70 0.9999816173094143
+5	other	3fefffcd8281afcc 0.999975924392396
+5	other	3fefe567f53bcc97 0.9967536725729528
+5	other	3fefff4b0b971c87 0.9999137140629423
+5	other	3feaa49dc979ba6a 0.832594769961202
+5	other	3fefffbc93b0399d 0.9999678501642851
+5	other	3feff89fa1408f1c 0.999099554963752
+5	other	3fefd597820a677b 0.9948232211929587
+5	other	3fefff69963ecf35 0.9999282774428823
+5	other	3feffc2e38ff9e25 0.9995337594272696
+5	other	3feeff921972b590 0.9686975953133459
+5	other	3fef964ebdfd0216 0.9870980940541496
+6	other	3fee11c78b2793d3 0.9396703451026219
+6	other	3feffe786a6a46b6 0.9998132780476314
+6	other	3feffc351bdf77bc 0.9995370430367454
+6	other	3feee427e2186a3d 0.9653510490346161
+6	other	3feff9ddf74bcf88 0.99925134944941
+6	person-start	3feee308870f5a46 0.9652140272035659
+6	person-cont	3feef28f934bd3fa 0.9671094776991815
+6	other	3feffb5e833d7858 0.9994347155841394
+6	other	3fefffc7c1650bc8 0.9999731805077028
+6	other	3febf7dabf83a8e6 0.8740056744111626
+6	other	3feffe6141f6a5fe 0.9998022354458838
+6	other	3fefff74bbd2ca24 0.9999335926461907
+6	other	3feffc2db18262df 0.9995335070589951
+6	other	3fefffdea2e83352 0.999984090974616
+6	other	3fefffe5d732c17f 0.999987526234733
+6	other	3feffef05491ac34 0.9998704578150694
+7	other	3fee11c78b2793d3 0.9396703451026219
+7	other	3feffe786a6a46b6 0.9998132780476314
+7	other	3feffc351bdf77bc 0.9995370430367454
+7	other	3feee427e2186a3d 0.9653510490346161
+7	other	3feff9ddf74bcf88 0.99925134944941
+7	person-start	3feee308870f5a46 0.9652140272035659
+7	person-cont	3feef28f934bd3fa 0.9671094776991815
+7	other	3feffb5e833d7858 0.9994347155841394
+7	other	3fefffc7c1650bc8 0.9999731805077028
+7	person-start	3fc0208c40897967 0.12599328185292366
+7	other	3feff88bc5cf87a0 0.9990900863160626
+7	other	3fefff4b101cff3a 0.9999137224876684
+7	other	3feffc2db18262df 0.9995335070589951
+7	other	3fefffdea2e83352 0.999984090974616
+7	other	3fefffe5d732c17f 0.999987526234733
+7	other	3feffef05491ac34 0.9998704578150694
+8	person-start	3fae3a786a2ec603 0.059039843522793255
+8	other	3feff94fee82e960 0.999183622210051
+8	other	3feff75e11ca9b34 0.9989462230194932
+8	other	3feee427e2186a3d 0.9653510490346161
+8	other	3feff9ddf74bcf88 0.99925134944941
+8	person-start	3feee308870f5a46 0.9652140272035659
+8	person-cont	3feef28f934bd3fa 0.9671094776991815
+8	other	3feffb5e833d7858 0.9994347155841394
+8	other	3fefffc7c1650bc8 0.9999731805077028
+8	other	3febf7dabf83a8e6 0.8740056744111626
+8	other	3feffe6141f6a5fe 0.9998022354458838
+8	other	3fefff74bbd2ca24 0.9999335926461907
+8	other	3feffc2db18262df 0.9995335070589951
+8	other	3fefffdea2e83352 0.999984090974616
+8	other	3fefffe5d732c17f 0.999987526234733
+8	other	3feffef05491ac34 0.9998704578150694
+9	other	3fee23e18dabeeb4 0.9418800131820348
+9	other	3fefc10a175b3817 0.9923143821886268
+9	other	3fef4c20cccfaf50 0.9780429840297789
+9	other	3feffe830533892b 0.9998183347309227
+9	other	3fefff9a604142e6 0.9999515418986362
+9	other	3fefdd46b99fc068 0.9957612634152726
+9	other	3fefffa6e68e5be8 0.9999575140999442
+9	other	3feffff33fb4abe9 0.9999939197781461
+9	other	3fefffebe2fc747f 0.9999904092143338
+9	other	3fefff418140b094 0.9999091648546874
+9	other	3feff70b7f8a55f7 0.9989068499586996
+9	other	3fefedaba8be322c 0.9977625175247957
+10	person-start	3fa593f407309b2f 0.042144418599767135
+10	other	3fef51925c653289 0.9787074856372594
+10	other	3feefa9c1db5d4c6 0.9680920200613847
+10	other	3feffe830533892b 0.9998183347309227
+10	other	3fefff9a604142e6 0.9999515418986362
+10	other	3fefdd46b99fc068 0.9957612634152726
+10	other	3fefffa6e68e5be8 0.9999575140999442
+10	other	3feffff33fb4abe9 0.9999939197781461
+10	other	3fefffebe2fc747f 0.9999904092143338
+10	other	3fefff418140b094 0.9999091648546874
+10	other	3feff70b7f8a55f7 0.9989068499586996
+10	other	3fefedaba8be322c 0.9977625175247957
+11	other	3fee23e18dabeeb4 0.9418800131820348
+11	other	3fefc10a175b3817 0.9923143821886268
+11	person-start	3f9328151b6f00f0 0.018707589911856226
+11	other	3feffb9480b0f562 0.9994604600430359
+11	other	3fefff6afb585e20 0.9999289425931615
+11	other	3fefdd46b99fc068 0.9957612634152726
+11	other	3fefffa6e68e5be8 0.9999575140999442
+11	other	3feffff33fb4abe9 0.9999939197781461
+11	other	3fefffebe2fc747f 0.9999904092143338
+11	other	3fefff418140b094 0.9999091648546874
+11	other	3feff70b7f8a55f7 0.9989068499586996
+11	other	3fefedaba8be322c 0.9977625175247957
+12	person-start	3fe8347c46532a3d 0.7564069150478826
+12	person-cont	3fee11737ec057f8 0.9396302676784662
+12	other	3fef03d5bec8f940 0.9692181326170513
+12	other	3fea49f1d3375f86 0.821526443988646
+12	other	3fef98bf11ebd59d 0.9873957967781056
+12	other	3fefff8aa4c63157 0.9999440401311784
+12	other	3fef5e5f0e03712f 0.9802699350071061
+12	other	3feffef9ab8b69b6 0.9998749113540757
+12	other	3fefba5353ced2f4 0.9914948117135212
+12	other	3fefff73efc55301 0.9999332125686068
+12	other	3fefffe30482488a 0.9999861801209289
+12	other	3fefff62e7018f95 0.9999250900113902
+13	other	3fcd48440a4ae9c5 0.22876787664956857
+13	other	3fe5ad6e068704df 0.677420628308166
+13	other	3fefe8743e2bb9e9 0.9971257414125009
+13	other	3febb6820ac131c8 0.8660288057376926
+13	other	3fef98bf11ebd59d 0.9873957967781056
+13	other	3fefff8aa4c63157 0.9999440401311784
+13	other	3fef5e5f0e03712f 0.9802699350071061
+13	other	3feffef9ab8b69b6 0.9998749113540757
+13	other	3fefba5353ced2f4 0.9914948117135212
+13	other	3fefff73efc55301 0.9999332125686068
+13	other	3fefffe30482488a 0.9999861801209289
+13	other	3fefff62e7018f95 0.9999250900113902
+14	person-start	3fe8347c46532a3d 0.7564069150478826
+14	person-cont	3fee11737ec057f8 0.9396302676784662
+14	other	3fef03d5bec8f940 0.9692181326170513
+14	person-start	3fc6ad2271f8817c 0.1771586472032246
+14	person-cont	3fe68d47008e5961 0.7047457705364587
+14	other	3feffb1b81a4e66e 0.999402764521802
+14	other	3fef1f6916de3a1e 0.972584290184219
+14	other	3feffef9ab8b69b6 0.9998749113540757
+14	other	3fefba5353ced2f4 0.9914948117135212
+14	other	3fefff73efc55301 0.9999332125686068
+14	other	3fefffe30482488a 0.9999861801209289
+14	other	3fefff62e7018f95 0.9999250900113902
+15	other	3fef4263c65a3d86 0.9768542169639864
+15	other	3feff9459d6ddaaf 0.9991787028109992
+15	other	3fef4b5aedcc80cc 0.9779486317165946
+15	other	3fef0d46ea25ae8a 0.9703707287967103
+15	other	3fefff9efe7c1638 0.9999537439732142
+15	other	3fefffe2d679949d 0.9999860943759306
+15	other	3feffd91d0af66e3 0.9997033191568473
+15	other	3fe84fef440b8084 0.7597576455118689
+15	other	3fe84eafbf953df8 0.759605287728788
+15	other	3fe9418fd172ee30 0.7892531481551881
+15	other	3feffebae6284994 0.9998449797879396
+15	other	3feffee90ef5db68 0.9998669902987389
+16	other	3fef4263c65a3d86 0.9768542169639864
+16	other	3feff9459d6ddaaf 0.9991787028109992
+16	other	3fef4b5aedcc80cc 0.9779486317165946
+16	other	3fef0d46ea25ae8a 0.9703707287967103
+16	other	3fefff9efe7c1638 0.9999537439732142
+16	other	3fefffe2d679949d 0.9999860943759306
+16	other	3feffd91d0af66e3 0.9997033191568473
+16	person-start	3fc93a07b0bc3ef5 0.19708343629508077
+16	other	3fe585cdc3bea925 0.6725834677829751
+16	other	3fe65657e05defeb 0.69803994962376
+16	other	3feffebae6284994 0.9998449797879396
+16	other	3feffee90ef5db68 0.9998669902987389
+17	other	3fef4263c65a3d86 0.9768542169639864
+17	other	3feff9459d6ddaaf 0.9991787028109992
+17	other	3fef4b5aedcc80cc 0.9779486317165946
+17	other	3fef0d46ea25ae8a 0.9703707287967103
+17	other	3fefff9efe7c1638 0.9999537439732142
+17	other	3fefffe2d679949d 0.9999860943759306
+17	other	3feffd91d0af66e3 0.9997033191568473
+17	other	3fe84fef440b8084 0.7597576455118689
+17	person-start	3fc4b61f7c437cfa 0.161807952571486
+17	person-cont	3fe773826f4f5fa8 0.7328502820991973
+17	other	3feff14faf895e3e 0.9982069424103839
+17	other	3feffe2363586b68 0.9997727337207438
+18	other	3fec156a42bc5990 0.8776141456062749
+18	other	3feded3097f63594 0.9352038352969196
+18	other	3fefff8460116964 0.9999410511330038
+18	other	3fefff8cd6e143ce 0.999945087134728
+18	other	3fefa6bb4ede1e2a 0.9891029873260255
+18	other	3fefffff5ee22323 0.9999996998968509
+18	other	3feffb99a0db4a36 0.9994629041414729
+18	other	3fedee0c5af1103a 0.9353086258129288
+18	other	3fefe4f54aa6c171 0.9966989954028077
+19	other	3fec156a42bc5990 0.8776141456062749
+19	other	3feded3097f63594 0.9352038352969196
+19	other	3fefff8460116964 0.9999410511330038
+19	other	3fefff8cd6e143ce 0.999945087134728
+19	other	3fefa6bb4ede1e2a 0.9891029873260255
+19	other	3fefffff5ee22323 0.9999996998968509
+19	other	3feffb99a0db4a36 0.9994629041414729
+19	person-start	3fafd95cd51b7f58 0.062205220235908854
+19	other	3fef00a8344e25a0 0.96883020606872
+20	other	3fec156a42bc5990 0.8776141456062749
+20	person-start	3faae5008e85fdff 0.052528397939564535
+20	other	3feffea5ebc2270a 0.9998349766403589
+20	other	3fefff6974678043 0.9999282144090177
+20	other	3fefa6bb4ede1e2a 0.9891029873260255
+20	other	3fefffff5ee22323 0.9999996998968509
+20	other	3feffb99a0db4a36 0.9994629041414729
+20	other	3fedee0c5af1103a 0.9353086258129288
+20	other	3fefe4f54aa6c171 0.9966989954028077
+21	other	3fec89e4f01d1bd6 0.8918327989312
+21	other	3fe4bcbe23d36605 0.6480398845407654
+21	other	3fe435efb7fff982 0.6315840333698335
+21	other	3fe3e288841b0ba7 0.6214029865444574
+21	other	3fe4b747e51c4bd5 0.6473731493773537
+21	other	3fe62142740bf1f0 0.6915600077186905
+21	other	3fee203e23f8ceb4 0.9414358809067012
+21	other	3fef3f7f47e81cc0 0.9765011219432367
+22	other	3fec89e4f01d1bd6 0.8918327989312
+22	other	3fe4bcbe23d36605 0.6480398845407654
+22	other	3fe435efb7fff982 0.6315840333698335
+22	other	3fe3e288841b0ba7 0.6214029865444574
+22	person-start	3fcb1ba755b65074 0.21178142247356713
+22	other	3fe2a2bce820ea00 0.5823654683838981
+22	other	3febb6c1cd644771 0.866059209018415
+22	other	3fef3f7f47e81cc0 0.9765011219432367
+23	other	3fec89e4f01d1bd6 0.8918327989312
+23	other	3fe4bcbe23d36605 0.6480398845407654
+23	other	3fe435efb7fff982 0.6315840333698335
+23	other	3fe3e288841b0ba7 0.6214029865444574
+23	other	3fe4b747e51c4bd5 0.6473731493773537
+23	person-start	3fc6f3932930627a 0.17930831443006295
+23	other	3fe92f2b10341a53 0.7870078388667231
+23	other	3fee392f1e5c98cc 0.9444804757120209
+24	other	3fef611d79c14205 0.9806048753762872
+24	other	3fefffe4ca60c172 0.9999870255178804
+24	other	3fefffe26c0baad7 0.9999858961358211
+24	other	3fefffdf53044266 0.9999844190043177
+24	other	3fefffda0c460561 0.9999819030492
+24	other	3fefff1bc2a7c94c 0.9998911668647366
+24	other	3feffffe874fcc6b 0.9999992983633893
+24	other	3feffffd8c0a2ef4 0.9999988303329403
+24	other	3feffff4d5ccf0d1 0.9999946761886581
+24	other	3fefff6e3fee63cf 0.9999305008560614
+25	person-start	3f936b0e4e34993c 0.01896307327583567
+25	other	3fefff76ec1a90ca 0.9999346362497132
+25	other	3fefffb7f5037a8d 0.9999656472608237
+25	other	3fefffdf53044266 0.9999844190043177
+25	other	3fefffda0c460561 0.9999819030492
+25	other	3fefff1bc2a7c94c 0.9998911668647366
+25	other	3feffffe874fcc6b 0.9999992983633893
+25	other	3feffffd8c0a2ef4 0.9999988303329403
+25	other	3feffff4d5ccf0d1 0.9999946761886581
+25	other	3fefff6e3fee63cf 0.9999305008560614
+26	other	3fef611d79c14205 0.9806048753762872
+26	other	3fefffe4ca60c172 0.9999870255178804
+26	other	3fefffe26c0baad7 0.9999858961358211
+26	person-start	3ee687d88a915761 1.0743450120791623E-5
+26	other	3fefff59595c84e8 0.9999205346431639
+26	other	3feffdc970ad4b38 0.999729843208434
+26	other	3feffffe874fcc6b 0.9999992983633893
+26	other	3feffffd8c0a2ef4 0.9999988303329403
+26	other	3feffff4d5ccf0d1 0.9999946761886581
+26	other	3fefff6e3fee63cf 0.9999305008560614
+27	other	3fefbfc75d052d10 0.9921604935456418
+27	other	3fefff02161bcd0b 0.9998789245422882
+27	other	3fefffd670cf3641 0.9999801829632774
+27	other	3fefff8565766f57 0.9999415380184286
+27	other	3fefffabc0731e49 0.9999598273070173
+27	other	3fefff1168b54f06 0.9998862309534793
+27	other	3fefd0186d9521b0 0.9941522732051933
+27	other	3fece36815587980 0.9027595917612388
+28	other	3fefbfc75d052d10 0.9921604935456418
+28	other	3fefff02161bcd0b 0.9998789245422882
+28	other	3fefffd670cf3641 0.9999801829632774
+28	other	3fefff8565766f57 0.9999415380184286
+28	other	3fefffabc0731e49 0.9999598273070173
+28	other	3fefff1168b54f06 0.9998862309534793
+28	other	3fefd0186d9521b0 0.9941522732051933
+28	person-start	3fa3cbff94e27fe2 0.03866575901452031
+29	other	3fefbfc75d052d10 0.9921604935456418
+29	other	3fefff02161bcd0b 0.9998789245422882
+29	other	3fefffd670cf3641 0.9999801829632774
+29	other	3fefff8565766f57 0.9999415380184286
+29	other	3fefffabc0731e49 0.9999598273070173
+29	other	3fefff1168b54f06 0.9998862309534793
+29	person-start	3f530524f894a0d3 0.0011608944935890722
+29	other	3fe604e25bd4fb9a 0.6880962174981164
+30	person-start	3fe43e99fb0eea86 0.6326417830926665
+30	person-cont	3fe5f1e689f20053 0.6857788748020631
+30	other	3feffc1751274794 0.9995228371646925
+30	other	3feffffbee17d0ef 0.9999980592970398
+30	other	3fefff3670469431 0.9999038880238286
+30	other	3fefd4f835c6c02c 0.9947472620315287
+30	other	3fefffe29201d606 0.9999859668448046
+30	other	3fef086ae43cf782 0.9697775323654556
+30	other	3fefdff74065089d 0.9960895784099822
+31	person-start	3fe43e99fb0eea86 0.6326417830926665
+31	person-start	3fd3dff4f94a360d 0.3105442461463504
+31	other	3feffd80e70412fc 0.9996952545194229
+31	other	3feffffc4990870f 0.9999982296760396
+31	other	3fefff3670469431 0.9999038880238286
+31	other	3fefd4f835c6c02c 0.9947472620315287
+31	other	3fefffe29201d606 0.9999859668448046
+31	other	3fef086ae43cf782 0.9697775323654556
+31	other	3fefdff74065089d 0.9960895784099822
+32	other	3fd568cba8a432b6 0.3345212122810993
+32	other	3fdc2d2d36c472e1 0.440257361873405
+32	other	3fefffa50aedd01c 0.9999566281753718
+32	other	3feffffe3447628b 0.9999991437026251
+32	other	3fefff3670469431 0.9999038880238286
+32	other	3fefd4f835c6c02c 0.9947472620315287
+32	other	3fefffe29201d606 0.9999859668448046
+32	other	3fef086ae43cf782 0.9697775323654556
+32	other	3fefdff74065089d 0.9960895784099822
+33	other	3feddb2840de2bb3 0.9330025927496223
+33	other	3fefff5b794b5bd6 0.9999215477972665
+33	other	3fefff6ecce172d3 0.9999307633948668
+33	other	3feff29afef90832 0.9983649234711776
+33	other	3fefddd7b96b203c 0.9958304044203099
+33	other	3feffd6432b502d7 0.9996815672276068
+33	other	3fefffd08ec07ec8 0.9999773777126046
+33	other	3fefffff3e03b924 0.9999996386739309
+33	other	3fefffe317d4d394 0.999986216111767
+33	other	3feff969b80059d5 0.999195918443372
+33	other	3feffc8061d0125f 0.9995729360967508
+33	other	3fefd5a20c2fdd0d 0.9948282468821233
+34	person-start	3fac1c398cc04ec9 0.054902838164847596
+34	other	3feffe1ee250e6e5 0.9997705860361888
+34	other	3fefff4104b0c4ea 0.999908932839529
+34	other	3feff29afef90832 0.9983649234711776
+34	other	3fefddd7b96b203c 0.9958304044203099
+34	other	3feffd6432b502d7 0.9996815672276068
+34	other	3fefffd08ec07ec8 0.9999773777126046
+34	other	3fefffff3e03b924 0.9999996386739309
+34	other	3fefffe317d4d394 0.999986216111767
+34	other	3feff969b80059d5 0.999195918443372
+34	other	3feffc8061d0125f 0.9995729360967508
+34	other	3fefd5a20c2fdd0d 0.9948282468821233
+35	other	3feddb2840de2bb3 0.9330025927496223
+35	other	3fefff5b794b5bd6 0.9999215477972665
+35	other	3fefff6ecce172d3 0.9999307633948668
+35	other	3feff29afef90832 0.9983649234711776
+35	person-start	3f6e56975f68ac0d 0.0037033993242139352
+35	other	3feff4c347449a40 0.9986282722428044
+35	other	3fefff897e83438b 0.9999434920265328
+35	other	3fefffff3e03b924 0.9999996386739309
+35	other	3fefffe317d4d394 0.999986216111767
+35	other	3feff969b80059d5 0.999195918443372
+35	other	3feffc8061d0125f 0.9995729360967508
+35	other	3fefd5a20c2fdd0d 0.9948282468821233
+36	other	3fedbc07aabdbdf8 0.929202874640338
+36	other	3feffae43975b912 0.9993764040243909
+36	other	3fef5830b56dba4b 0.9795154136207399
+36	other	3feffe5abfdbd3d8 0.9997991320839175
+36	other	3fefffe680a09327 0.9999878418208014
+36	other	3feffffced821db4 0.9999985350449863
+36	other	3fefff3aff163bde 0.9999060613789614
+36	other	3fefffffa6aa706f 0.9999998336020449
+36	other	3fefffff2ab63151 0.999999602719564
+36	other	3feffffeb0251110 0.9999993744209252
+36	other	3feffff80d9206c2 0.9999962105796032
+36	other	3feffb0ba60c7489 0.9993952029359586
+37	person-start	3f94b6afa4159d17 0.020228142156523434
+37	other	3fefca776753ab32 0.9934651392080467
+37	other	3fef2180e7485e41 0.9728397862663273
+37	other	3feffe5abfdbd3d8 0.9997991320839175
+37	other	3fefffe680a09327 0.9999878418208014
+37	other	3feffffced821db4 0.9999985350449863
+37	other	3fefff3aff163bde 0.9999060613789614
+37	other	3fefffffa6aa706f 0.9999998336020449
+37	other	3fefffff2ab63151 0.999999602719564
+37	other	3feffffeb0251110 0.9999993744209252
+37	other	3feffff80d9206c2 0.9999962105796032
+37	other	3feffb0ba60c7489 0.9993952029359586
+38	other	3fedbc07aabdbdf8 0.929202874640338
+38	other	3feffae43975b912 0.9993764040243909
+38	person-start	3f942d0765388f52 0.019703021576915454
+38	other	3feffb26d340d74c 0.9994081617394186
+38	other	3fefffcd2d3c02f5 0.9999757655606049
+38	other	3feffffced821db4 0.9999985350449863
+38	other	3fefff3aff163bde 0.9999060613789614
+38	other	3fefffffa6aa706f 0.9999998336020449
+38	other	3fefffff2ab63151 0.999999602719564
+38	other	3feffffeb0251110 0.9999993744209252
+38	other	3feffff80d9206c2 0.9999962105796032
+38	other	3feffb0ba60c7489 0.9993952029359586
+39	other	3feffcaf95eacb18 0.9995954444951591
+39	other	3fefffb73c4ff40a 0.9999653032278968
+39	other	3feffffcb64386c4 0.9999984321441038
+39	other	3fefff959decbb47 0.9999492725818094
+39	other	3feb5ff2b21641bb 0.855462405992561
+39	other	3feb6f85832e11a5 0.8573634683712511
+39	other	3fed8e93f409938a 0.9236545339923492
+39	other	3fefffcf1b2245f9 0.9999766855200384
+39	other	3feeea0149dc51a3 0.966065067538285
+39	other	3fefa177db0f8ba1 0.9884604719667217
+39	other	3fefff99d2cb2834 0.9999512784063485
+39	other	3feff1e158cc2bfd 0.9982763990714144
+39	other	3feffcedc7ef9786 0.9996251015661393
+40	other	3feffcaf95eacb18 0.9995954444951591
+40	other	3fefffb73c4ff40a 0.9999653032278968
+40	other	3feffffcb64386c4 0.9999984321441038
+40	other	3fefff959decbb47 0.9999492725818094
+40	person-start	3fc263c250d517f1 0.1436694044770657
+40	person-cont	3fe8e19d1b7dd528 0.7775407349533099
+40	person-cont	3feeab3c1f5bafaf 0.9584026920760972
+40	other	3feffe2801c672a8 0.9997749361678716
+40	other	3fee7ffbce91b0d6 0.9531230005791496
+40	other	3fefa177db0f8ba1 0.9884604719667217
+40	other	3fefff99d2cb2834 0.9999512784063485
+40	other	3feff1e158cc2bfd 0.9982763990714144
+40	other	3feffcedc7ef9786 0.9996251015661393
+41	other	3feffcaf95eacb18 0.9995954444951591
+41	other	3fefffb73c4ff40a 0.9999653032278968
+41	other	3feffffcb64386c4 0.9999984321441038
+41	other	3fefff959decbb47 0.9999492725818094
+41	other	3feb5ff2b21641bb 0.855462405992561
+41	person-start	3fb3c497604a121f 0.07721849537671986
+41	person-cont	3fed2c5e0fd9d98e 0.9116659459676144
+41	other	3feffe5297e25188 0.9997952429280739
+41	other	3fee7ffbce91b0d6 0.9531230005791496
+41	other	3fefa177db0f8ba1 0.9884604719667217
+41	other	3fefff99d2cb2834 0.9999512784063485
+41	other	3feff1e158cc2bfd 0.9982763990714144
+41	other	3feffcedc7ef9786 0.9996251015661393
+42	other	3fe0db6d682bd385 0.5267855677217176
+42	other	3feffe0a658d2b11 0.9997608169008761
+42	person-start	3fe158b5563d3bfc 0.5420786556586559
+42	other	3fefff7c3884a592 0.9999371627683777
+42	other	3fefffc399614087 0.9999711986256593
+42	other	3feffa3bdabc59e9 0.999296118944412
+42	other	3fefffb967e6a711 0.9999663380924365
+42	other	3feffcde8c0d7d2f 0.9996178374675874
+42	other	3fefef71ce49c730 0.9979790715280838
+42	other	3feff2e1eacdabd2 0.9983987413410154
+43	other	3fe0db6d682bd385 0.5267855677217176
+43	other	3feffe0a658d2b11 0.9997608169008761
+43	other	3fdd4e6fa569a8dc 0.4579123607023925
+43	other	3fefffd14ce9123a 0.999977731910412
+43	other	3fefffd619cf4ceb 0.9999800209137936
+43	other	3feffa3bdabc59e9 0.999296118944412
+43	other	3fefffb967e6a711 0.9999663380924365
+43	other	3feffcde8c0d7d2f 0.9996178374675874
+43	other	3fefef71ce49c730 0.9979790715280838
+43	other	3feff2e1eacdabd2 0.9983987413410154
+44	person-start	3fd7fac345c03f82 0.3746803456460769
+44	other	3feffa81cc587619 0.9993294707416595
+44	person-start	3fe354529dda559a 0.6040433009208528
+44	other	3fefff7c3884a592 0.9999371627683777
+44	other	3fefffc399614087 0.9999711986256593
+44	other	3feffa3bdabc59e9 0.999296118944412
+44	other	3fefffb967e6a711 0.9999663380924365
+44	other	3feffcde8c0d7d2f 0.9996178374675874
+44	other	3fefef71ce49c730 0.9979790715280838
+44	other	3feff2e1eacdabd2 0.9983987413410154
+45	other	3fefaaf7ac214502 0.9896200525201098
+46	person-start	3f36fd4a261cb6b7 3.5079059863361454E-4
+end	turbo:beam-outcomes
+layer	turbo:beam-names	document	5	sentence:u32	start:u32	end:u32	type:str	typed:u32
+0	0	2	person	1
+2	5	7	person	1
+4	0	2	person	1
+10	0	2	person	1
+14	2	3	person	1
+end	turbo:beam-names

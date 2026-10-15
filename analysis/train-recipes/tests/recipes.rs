@@ -183,7 +183,7 @@ fn the_recipes_train_score_gate_and_write_their_cards() {
                 assert!(mismatches.windows(2).all(|w| w[0].tokens >= w[1].tokens), "{mismatches:?}");
                 Some(TokenCoverage {
                     tokens: p.held_out(&split.held_out).unwrap().tokens(),
-                    reference_mappings: postag::tag_mappings(),
+                    reference_mappings: postag::tag_mappings(&postag::REFERENCE_MAPPINGS),
                     left_out: Vec::new(),
                     reference_mismatches: mismatches,
                 })
@@ -607,7 +607,7 @@ fn a_held_out_set_of_another_component_is_refused() {
     // A sentence model is not a part-of-speech model, in any format, and
     // a part-of-speech model is not a tokenizer model.
     let tags = POS.held_out(&split.held_out).unwrap();
-    let penn = ReferenceTags::of(&turbo_analysis::TagSet::new("penn", &["NN", "."]));
+    let penn = ReferenceTags::of(&turbo_analysis::TagSet::new("penn", &["NN", "."]), &postag::REFERENCE_MAPPINGS);
     assert!(matches!(POS.score(&model.bytes, Scored::Candidate, &tags, &penn), Err(Error::Model(_))));
     assert!(matches!(POS.score(&model.bytes, Scored::Reference, &tags, &penn), Err(Error::Model(_))));
     let tagger = POS.train(&split.train).unwrap();
@@ -936,6 +936,7 @@ fn the_published_references_are_checked_and_scored_when_present() {
             Task::SentenceDetector => "63.16",
             Task::Tokenizer => "94.34",
             Task::PartOfSpeechTagger => "92.41",
+            Task::Lemmatizer => unreachable!("no MASC recipe trains a lemmatizer"),
         };
         let scores = (outcome.gate.result.candidate.score, outcome.gate.result.reference.score);
         assert_eq!(format!("{:.2} {:.2}", scores.0, scores.1), format!("100.00 {expected}"), "{}", outcome.gate);

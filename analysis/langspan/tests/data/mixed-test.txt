@@ -1,0 +1,125 @@
+# Mixed-language fixtures with gold spans, held-out test set: written
+# before the settings were chosen on mixed-dev.txt, and not used to
+# choose them. Written for this crate. The format is mixed-dev.txt's.
+
+## test-deu-eng-reply
+[deu]Vielen Dank für Ihre schnelle Antwort. Wir werden die Unterlagen bis Freitag prüfen und uns dann wieder melden.
+[eng]On Tue, the project manager wrote: Could you please send us the signed copy of the agreement as soon as possible?
+
+## test-eng-deu-fra
+[eng]The museum guide explained everything in three languages. [deu]Dieses Gemälde wurde im siebzehnten Jahrhundert in Amsterdam gemalt. [fra]Ce tableau a été peint au dix-septième siècle à Amsterdam.
+
+## test-spa-eng-code-switch
+[spa]Ayer fui al supermercado y compré todo lo que necesitábamos para la cena, [eng]but I totally forgot the wine, [spa]así que tuve que volver otra vez.
+
+## test-fra-eng-tech
+[fra]Pour installer le logiciel, il faut d'abord télécharger le fichier depuis le site officiel. [eng]Then run the installer and follow the instructions on the screen. [fra]En cas de problème, contactez le support technique.
+
+## test-eng-only
+[eng]The weather forecast says it will rain all weekend, so we decided to stay at home and finally clean the garage.
+
+## test-deu-only
+[deu]Der Zug hatte wieder einmal Verspätung, und so kamen wir erst nach Mitternacht in München an.
+
+## test-fra-only
+[fra]Nous avons passé une semaine magnifique en Bretagne, entre les plages, les crêpes et les promenades le long de la côte.
+
+## test-rus-ukr
+[rus]Мы долго ждали этого дня и наконец-то собрались все вместе за одним столом. [ukr]Дякуємо всім, хто допоміг організувати цю зустріч.
+
+## test-jpn-eng-mixed
+[eng]Our office in Osaka sent this message: [jpn]来週の月曜日に新しい製品の説明会を行います。参加を希望される方は金曜日までにご連絡ください。
+
+## test-cmn-eng-mixed
+[eng]The label on the box was in Chinese: [cmn]请勿倒置，小心轻放，保持干燥。[eng]It means keep upright, handle with care and keep dry.
+
+## test-ita-deu
+[ita]Siamo arrivati a Bolzano nel pomeriggio e abbiamo fatto una lunga passeggiata in centro. [deu]Am Abend haben wir in einem kleinen Gasthaus Knödel gegessen.
+
+## test-nld-fra
+[nld]De vergadering van vanmiddag is verplaatst naar de grote zaal op de tweede verdieping. [fra]La réunion de cet après-midi a été déplacée dans la grande salle au deuxième étage.
+
+## test-eng-por-inline
+[eng]When we landed in Lisbon, the first thing the taxi driver told us was [por]"bem-vindos a Portugal, a cidade mais bonita do mundo" [eng]and then he drove much too fast.
+
+## test-swe-fin
+[swe]Mötet hålls på svenska och finska, så alla kan delta utan problem. [fin]Kokous pidetään ruotsiksi ja suomeksi, joten kaikki voivat osallistua ilman ongelmia.
+
+## test-pol-eng
+[pol]Dziękujemy za udział w naszym badaniu. Wyniki zostaną opublikowane w przyszłym miesiącu. [eng]If you have any questions, please contact the research team.
+
+## test-ell-eng-deu
+[ell]Καλώς ήρθατε στο ξενοδοχείο μας. [eng]Breakfast is served from seven to ten in the main restaurant. [deu]Das Frühstück wird von sieben bis zehn Uhr im Hauptrestaurant serviert.
+
+## test-ara-fra
+[ara]يسعدنا أن نعلن عن افتتاح فرعنا الجديد في وسط المدينة. [fra]Nous sommes heureux d'annoncer l'ouverture de notre nouvelle agence au centre-ville.
+
+## test-heb-rus
+[heb]הספרייה העירונית תהיה סגורה בשבוע הבא בגלל שיפוצים. [rus]Городская библиотека будет закрыта на следующей неделе из-за ремонта.
+
+## test-kor-jpn
+[kor]이번 주말에 가족들과 함께 부산으로 여행을 갈 예정입니다. [jpn]今週末は家族と一緒に釜山へ旅行に行く予定です。
+
+## test-tur-deu
+[tur]Annem her pazar sabahı bize kahvaltı hazırlar ve hep birlikte uzun uzun sohbet ederiz. [deu]Meine Mutter macht uns jeden Sonntagmorgen Frühstück.
+
+## test-hin-eng-short
+[eng]The banner at the entrance read [hin]"आपका स्वागत है" [eng]in bright orange letters.
+
+## test-ces-eng
+[ces]Děkujeme, že jste si vybrali naši restauraci. [eng]We hope you enjoyed your meal and will visit us again soon.
+
+## test-eng-deu-word
+[eng]After the meeting there was the usual feeling of [deu]Schadenfreude [eng]among the people who had warned against the plan.
+
+## test-spa-cat
+[spa]La exposición estará abierta al público desde el lunes hasta el domingo por la tarde. [cat]L'exposició estarà oberta al públic des de dilluns fins diumenge a la tarda.
+
+## test-por-spa
+[por]Eu não sabia que você também gostava de música clássica, que surpresa agradável. [spa]Yo tampoco sabía que te gustaba tanto la música clásica.
+
+## test-ind-eng
+[ind]Terima kasih atas kunjungan Anda ke toko kami hari ini. [eng]Please leave a review if you were happy with our service.
+
+## test-vie-fra
+[vie]Chúng tôi rất vui được chào đón các bạn đến với lễ hội âm nhạc năm nay. [fra]Nous sommes très heureux de vous accueillir au festival de musique cette année.
+
+## test-ukr-eng
+[ukr]Наступного тижня у нас буде відкрита лекція про історію міста. [eng]Everyone is welcome and the entrance is free.
+
+## test-hun-deu
+[hun]Köszönjük, hogy részt vettek a tegnapi előadáson. [deu]Wir danken Ihnen für die Teilnahme am gestrigen Vortrag.
+
+## test-dan-eng
+[dan]Butikken holder lukket i morgen på grund af helligdagen. [eng]We will be open again on Wednesday at nine.
+
+## test-eng-fra-phrase
+[eng]She shrugged and said [fra]"c'est la vie, on verra bien demain" [eng]before closing her laptop for the night.
+
+## test-cmn-only
+[cmn]今天下午我们在公园里散步，看到很多人在放风筝，天气非常好。
+
+## test-rus-only
+[rus]Сегодня вечером в городском парке состоится большой концерт под открытым небом.
+
+## test-tha-eng
+[eng]The menu had one line in English and the rest in Thai: [tha]ข้าวผัดกุ้งและต้มยำกุ้งเป็นอาหารที่ขายดีที่สุดของร้านเรา
+
+## test-ita-fra
+[ita]Il museo resterà chiuso lunedì per lavori di manutenzione. [fra]Le musée restera fermé lundi pour des travaux d'entretien.
+
+## test-nld-eng-inline
+[nld]Mijn baas zei vanochtend gewoon [eng]"let's keep it simple" [nld]en daarna ging hij weer naar zijn kamer.
+
+## test-fin-swe-eng
+[fin]Tervetuloa Helsinkiin! [swe]Välkommen till Helsingfors! [eng]Welcome to Helsinki, the capital of Finland.
+
+## test-ron-eng
+[ron]Vom organiza o întâlnire cu toți părinții la începutul anului școlar. [eng]Details about the time and place will follow by email.
+
+## test-deu-eng-list
+[deu]Für die Reise brauchen wir noch folgende Dinge:
+[eng]sunscreen, a travel adapter, two beach towels and a good book for the flight.
+
+## test-eng-jpn-word
+[eng]At the end of the dinner everyone said [jpn]ごちそうさまでした [eng]and thanked the chef.

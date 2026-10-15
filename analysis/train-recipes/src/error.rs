@@ -39,8 +39,8 @@ pub enum Error {
     NotShippable { id: String, reason: &'static str },
     /// A card file that is not a card.
     Json { path: PathBuf, message: String },
-    /// A card of another schema version.
-    CardVersion { path: PathBuf, found: u32 },
+    /// A card of another schema version than the `expected` one.
+    CardVersion { path: PathBuf, found: u32, expected: u32 },
     /// Held-out samples of one component given to a recipe of another.
     ComponentMismatch { recipe: &'static str, samples: &'static str },
     /// The release has no digest recorded, so it cannot be fetched or
@@ -55,12 +55,26 @@ pub enum Error {
     ReferenceDigest { id: String, expected: String, found: String },
     /// The split leaves one side without a sample for the recipe.
     EmptySplit { what: &'static str },
+    /// A treebank whose licence check refuses it.
+    Licence { treebank: &'static str, reason: &'static str },
+    /// A treebank file that is not the recorded one.
+    TreebankFile { treebank: &'static str, file: &'static str, expected: String, found: String },
+    /// A sentence of a treebank file the CoNLL-U reader refuses.
+    Conllu { treebank: &'static str, file: &'static str, error: Box<turbo_formats::FormatError> },
     /// A recipe left out more than its limit allows.
     TooManyLeftOut { what: LeftOut, count: u64, of: u64, limit: Limit },
     /// The tagger's reference cannot give the tags of more held-out tokens
-    /// than [`crate::MAX_TOKENS_LEFT_OUT`] allows (`left_out`, by tag as
-    /// written, of `of` tokens).
+    /// than the recipe's limit allows ([`crate::postag::PosRecipe::max_left_out`]:
+    /// [`crate::MAX_TOKENS_LEFT_OUT`] for the MASC tagger,
+    /// [`crate::ud::MAX_TOKENS_LEFT_OUT`] for the UD taggers): `left_out`,
+    /// by tag as written, of `of` tokens.
     TagsOutsideReference { reference: String, left_out: Vec<TagCount>, of: u64, limit: Limit },
+    /// A lemmatizer's reference cannot give the lemmas of more held-out
+    /// tokens than [`crate::ud::MAX_TOKENS_LEFT_OUT`] allows, counting the
+    /// tokens whose gold lemma class gives their lemma
+    /// ([`crate::ud::ReferenceClasses`]): `left_out`, by tag as written, of
+    /// `of` tokens.
+    ClassesOutsideReference { reference: String, left_out: Vec<TagCount>, of: u64, limit: Limit },
     /// A release tag that is not one segment of an address
     /// ([`crate::release::ReleaseTag`]).
     ReleaseTag { tag: String },
@@ -111,8 +125,8 @@ impl fmt::Display for Error {
             Error::Header { path, message } => write!(f, "{}: the document header: {message}", path.display()),
             Error::NotShippable { id, reason } => write!(f, "{id} is not shippable: {reason}"),
             Error::Json { path, message } => write!(f, "{}: {message}", path.display()),
-            Error::CardVersion { path, found } => {
-                write!(f, "{}: card version {found}, this build reads {}", path.display(), crate::card::CARD_VERSION)
+            Error::CardVersion { path, found, expected } => {
+                write!(f, "{}: card version {found}, this build reads {expected}", path.display())
             }
             Error::ComponentMismatch { recipe, samples } => {
                 write!(f, "{samples} samples given to the {recipe} recipe")
@@ -129,6 +143,13 @@ impl fmt::Display for Error {
                 write!(f, "reference model {id}: SHA-256 {found}, expected {expected}")
             }
             Error::EmptySplit { what } => write!(f, "the split leaves no {what}"),
+            Error::Licence { treebank, reason } => {
+                write!(f, "{treebank} is refused: {reason}; the recipes train only on CC BY 4.0 data")
+            }
+            Error::TreebankFile { treebank, file, expected, found } => {
+                write!(f, "{treebank} {file}: {found}, the recorded file {expected}")
+            }
+            Error::Conllu { treebank, file, error } => write!(f, "{treebank} {file}: {error}"),
             Error::TooManyLeftOut { what, count, of, limit } => {
                 write!(f, "{count} of {of} {what}, more than the limit of {limit}")
             }
@@ -138,6 +159,18 @@ impl fmt::Display for Error {
                     f,
                     "the reference {reference} cannot give the tags of {count} of {of} held-out tokens, more than the \
                      limit of {limit}:"
+                )?;
+                for t in left_out {
+                    write!(f, " {} ({})", t.tag, t.tokens)?;
+                }
+                Ok(())
+            }
+            Error::ClassesOutsideReference { reference, left_out, of, limit } => {
+                let count: u64 = left_out.iter().map(|t| t.tokens).sum();
+                write!(
+                    f,
+                    "the reference {reference} cannot give the lemmas of {count} of {of} held-out tokens that \
+                     their gold lemma classes give, more than the limit of {limit}; by tag:"
                 )?;
                 for t in left_out {
                     write!(f, " {} ({})", t.tag, t.tokens)?;

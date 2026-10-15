@@ -13,15 +13,24 @@
 use std::marker::PhantomData;
 use std::sync::Arc;
 
-use turbo_analysis::{Anchor, Ix, IxRange, Key, KeyId, Layer, LayerName, ModelRef, Span, Spans};
 pub use turbo_analysis::{
-    Edge, Edges, FilterRule, FragmentError, Fragments, Groups, Overlap, Tag, TagSet, TextSpans, filter_spans,
+    Alternative, Alternatives, Edge, Edges, FilterRule, FragmentError, Fragments, Groups, ModeSet, NBest, Overlap,
+    SplitMode, Tag, TagSet, TextSpans, filter_spans,
 };
+use turbo_analysis::{Anchor, Ix, IxRange, Key, KeyId, Layer, LayerName, ModelRef, Span, Spans};
 
+pub use abbreviations::{AbbreviationForm, Abbreviations, DEFINITION, MENTION, abbreviation_links};
+pub use date::{Date, write_year};
+pub use language_spans::{LanguageSpan, LanguageSpans, UNDETERMINED};
 pub use levels::{Level, Levels, Unit, VectorKind};
 pub use money::{CONVERTED_MONEY, Currency, Money, MoneyMention};
 pub use numbers::{DecimalRef, Multiplier, NumberMention, NumberNotation, Numbers, ScaleMarker};
 pub use quantities::{PERCENT, Quantities, QuantityMention};
+pub use temporal::{DocumentDate, Granularity, Origin, TemporalMention, TemporalValue, Temporals};
+pub use words::{
+    MorphFeatures, MwtLanguage, RuleMwtExpander, TokenExpansion, Word, WordLemmas, WordOrTokenAnchor, WordPosTags,
+    Words,
+};
 
 /// Strings by column: one buffer and an end offset per item, never a
 /// `String` per item. Lemmas, normalized forms, glosses.
@@ -75,10 +84,15 @@ macro_rules! positional {
     };
 }
 
+mod abbreviations;
+mod date;
+mod language_spans;
 mod levels;
 mod money;
 mod numbers;
 mod quantities;
+mod temporal;
+mod words;
 
 /// Document structure from the parser upstream or a structure annotator:
 /// sections, headings, lists, tables, code, as a tree.
@@ -181,6 +195,19 @@ impl Tokens {
         let a = col.partition_point(|&x| x < s);
         let b = a + col[a..].partition_point(|&x| x == s);
         IxRange::new(a as u32, b as u32)
+    }
+
+    /// The tokens of `mode`'s path through `alt`
+    /// (`Alternatives::path_for_mode`): each alternative's raw byte span,
+    /// so an alternative's `form` is not carried over. `None` when `mode`
+    /// has no complete path from position `0` to `alt.num_positions`.
+    pub fn from_alternatives(alt: &Alternatives<Tokens>, mode: SplitMode) -> Option<Tokens> {
+        let path = alt.path_for_mode(mode)?;
+        let mut spans = Spans::new(alt.spans.view());
+        for &ix in &path {
+            spans.push(alt.spans.get(ix));
+        }
+        Some(Tokens { spans, sentence: None })
     }
 }
 
@@ -294,20 +321,62 @@ impl Layer for Lemmas {
     }
 }
 
-/// A head and a relation per token: the tree is the columns, no nodes.
-pub struct Dependencies {
-    pub head: Vec<Option<Ix<Tokens>>>,
+/// A head and a relation per token or syntactic word (`A = Tokens` by
+/// default: `opennlp:dependencies`; `A = Words`:
+/// `opennlp:dependencies<turbo:words>`): the tree is the columns, no nodes.
+pub struct Dependencies<A: WordOrTokenAnchor = Tokens> {
+    pub head: Vec<Option<Ix<A>>>,
     pub relation: Vec<Tag>,
     pub relations: Arc<TagSet>,
 }
 
-impl Layer for Dependencies {
+impl<A: WordOrTokenAnchor> Clone for Dependencies<A> {
+    fn clone(&self) -> Self {
+        Dependencies { head: self.head.clone(), relation: self.relation.clone(), relations: self.relations.clone() }
+    }
+}
+
+impl<A: WordOrTokenAnchor> std::fmt::Debug for Dependencies<A> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Dependencies")
+            .field("head", &self.head)
+            .field("relation", &self.relation)
+            .field("relations", &self.relations.name)
+            .finish()
+    }
+}
+
+/// Dependencies anchored on syntactic [`Words`] (`opennlp:dependencies<turbo:words>`).
+pub type WordDependencies = Dependencies<Words>;
+
+impl<A: WordOrTokenAnchor> Layer for Dependencies<A> {
     const ID: &'static str = "opennlp:dependencies";
+    const OF: Option<&'static LayerName> = A::TARGET_OF;
     fn anchor() -> Anchor {
-        Anchor::aligned::<Tokens>()
+        Anchor::aligned::<A>()
     }
     fn len(&self) -> usize {
         self.head.len()
+    }
+    fn check(&self) -> Result<(), String> {
+        let n = self.head.len();
+        if self.relation.len() != n {
+            return Err("a relation for every dependency head".into());
+        }
+        if self.relation.iter().any(|r| r.0 as usize >= self.relations.len()) {
+            return Err(format!("a relation outside {}", self.relations.name));
+        }
+        for (i, &h) in self.head.iter().enumerate() {
+            if let Some(h) = h {
+                if h.get() >= n {
+                    return Err(format!("dependency head {} at {i} is out of bounds ({n})", h.get()));
+                }
+                if h.get() == i {
+                    return Err(format!("dependency item {i} is its own head"));
+                }
+            }
+        }
+        Ok(())
     }
 }
 
@@ -710,8 +779,10 @@ impl<L: Layer> Layer for Utf16Spans<L> {
 }
 
 /// The document's language: a document-scoped layer holding every
-/// language the detector ranked, best first, each with its score (the
-/// detector's probability). Item 0 is the best language.
+/// language the detector ranked, best first, each with its score. Item 0
+/// is the best language. OpenNLP's detector scores each language with
+/// its probability; a step that finds the language by span
+/// ([`LanguageSpans`]) scores each with its share of the text.
 ///
 /// Schema 2: schema 1 held the best language alone.
 pub struct Language {
@@ -863,6 +934,25 @@ mod tests {
         assert!(three(vec![0]).check().unwrap_err().contains("zeros for every item"));
         let v = Vectors::<Sentences>::new(2, vec![0.0; 3], Vec::new(), toy());
         assert!(v.check().unwrap_err().contains("whole number"));
+    }
+
+    #[test]
+    fn tokens_from_alternatives_materializes_split_modes() {
+        let s = |a: u32, b: u32| turbo_analysis::Span::new(a, b);
+        let mut alt = Alternatives::<Tokens>::new(ViewId::SOURCE);
+        alt.push(s(0, 6), 0, 1, SplitMode::A | SplitMode::B);
+        alt.push(s(0, 18), 0, 3, SplitMode::C | SplitMode::Best);
+        alt.push(s(6, 12), 1, 1, ModeSet::A);
+        alt.push(s(6, 18), 1, 2, ModeSet::B);
+        alt.push(s(12, 18), 2, 1, ModeSet::A);
+        assert_eq!(alt.check(), Ok(()));
+
+        let tok_a = Tokens::from_alternatives(&alt, SplitMode::A).unwrap();
+        assert_eq!(tok_a.spans.len(), 3);
+        let tok_b = Tokens::from_alternatives(&alt, SplitMode::B).unwrap();
+        assert_eq!(tok_b.spans.len(), 2);
+        let tok_c = Tokens::from_alternatives(&alt, SplitMode::C).unwrap();
+        assert_eq!(tok_c.spans.len(), 1);
     }
 
     #[test]
