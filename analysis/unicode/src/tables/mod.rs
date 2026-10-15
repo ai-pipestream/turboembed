@@ -15,6 +15,7 @@ pub(crate) mod grapheme_break;
 pub(crate) mod normalize;
 pub(crate) mod props;
 pub(crate) mod script;
+pub(crate) mod sentence_break;
 pub(crate) mod word_break;
 
 /// The Unicode version of the files the tables were generated from.

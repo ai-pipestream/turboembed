@@ -244,6 +244,16 @@ are not taken from any corpus.
 
 `analysis/goldens-tool/README.md` ("Runs") lists which run reads which set.
 
+## Conformance suites
+
+`conformance/sentences/` holds sentence segmentation test data from
+other projects: the Pragmatic Segmenter specs and the pySBD tests (both
+MIT), converted to typed `.cases` files, and Unicode's
+`SentenceBreakTest.txt` (Unicode License v3). They are not goldens: no
+JVM run made them. `conformance/sentences/README.md` names the sources,
+commits and format, and `analysis/sentdetect/tests/conformance.rs` runs
+the sentence detectors over them.
+
 ## Fixtures
 
 `fixtures/` holds the models and dictionaries that are not published

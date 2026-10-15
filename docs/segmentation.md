@@ -5,9 +5,10 @@ sentences (`opennlp:sentences`) and the word tokens (`opennlp:tokens`).
 They are ports of the OpenNLP 3.x sentence detectors and tokenizers onto
 the analysis API (docs/analysis.md), reading OpenNLP's own models. A
 model-free tokenizer gives tokens before any model is loaded, the
-UAX #29 tokenizer handles text in any script, and the dictionary word
-tokenizer adds the words of Thai, Lao, Khmer and Burmese, which are
-written without spaces.
+UAX #29 tokenizer handles text in any script, the dictionary word
+tokenizer adds the words of Thai, Lao, Khmer and Burmese (which are
+written without spaces), and a rule sentence splitter gives sentences in
+languages that have no sentence model.
 
 OpenNLP is the reference. Where the Rust side matches it, a golden file
 made by the JVM proves it. Where it differs on purpose, this page says
@@ -17,10 +18,10 @@ where and why.
 
 | Crate | Path | Contents |
 |---|---|---|
-| `turbo-unicode` | `analysis/unicode/` | Character data: Java's character classes, the Unicode `White_Space` set, `Word_Break` and `Extended_Pictographic` properties, extended grapheme cluster boundaries, `Line_Break=SA`, a UTF-16 code unit cursor over UTF-8 text |
+| `turbo-unicode` | `analysis/unicode/` | Character data: Java's character classes, the Unicode `White_Space` set, `Word_Break`, `Sentence_Break` and `Extended_Pictographic` properties, extended grapheme cluster boundaries, `Line_Break=SA`, a UTF-16 code unit cursor over UTF-8 text |
 | `turbo-jvm` | `analysis/jvm/` | JDK routines ported bit for bit; `turbo-maxent` uses `strict_math::exp` and `strict_math::log`, the fdlibm functions behind `StrictMath.exp` and `StrictMath.log`; `math::log` is a correctly rounded logarithm, which matched `Math.log` of the JVM the goldens are made with on the integers compared (its documentation says which) |
 | `turbo-maxent` | `analysis/maxent/` | OpenNLP model files: the zip container, the manifest, maxent and perceptron models and their evaluation, the dictionary XML |
-| `turbo-sentdetect` | `analysis/sentdetect/` | The newline detector, the paragraph detector and the maxent sentence detector |
+| `turbo-sentdetect` | `analysis/sentdetect/` | The newline detector, the paragraph detector, the maxent sentence detector and the rule sentence splitter (UAX #29 with per-language tailorings) |
 | `turbo-tokenize` | `analysis/tokenize/` | The simple, whitespace and UAX #29 word tokenizers, the dictionary word tokenizer for Thai, Lao, Khmer and Burmese, the maxent tokenizer, the unigram frequency segmenter for Chinese, the MeCab dictionary lattice tokenizer for Japanese and Korean, and the dictionary detokenizer |
 | `turbo-tokenize-layers` | `analysis/tokenize-layers/` | The tokenizers' own layer: the word type of each token |
 
@@ -227,6 +228,217 @@ models trained on the JVM (`en-abbrev.bin` and `en-plain.bin` in
 source and the commands are in `analysis/sentdetect/tests/fixtures`)
 cover the dictionary, `useTokenEnd=false` and both whitespace modes,
 with every context of their dumps compared feature by feature.
+
+### `RuleSentenceDetector` (rules)
+
+Reads a `View`, writes `Sentences`. A sentence splitter that needs no
+model, for the many languages OpenNLP has no sentence model for, and for
+text the published models were not trained on. Its annotator id is
+`turbo-sentdetect:rules`; the configuration hash covers the language
+whose rules it resolved to, the tailorings switched on and the line
+break mode, so `de-AT` and `de` share one. `RuleSplitter` gives the
+same spans outside a pipeline (`split`, and `split_with` with a
+`RuleScratch` that a caller reuses so that repeated calls allocate
+nothing once its buffers have grown).
+
+It is the UAX #29 sentence algorithm (Unicode 18.0) with tailorings in
+the manner of Wikimedia's sentencex: conservative, aware of quotations
+and brackets, with list items and numbered references kept whole. Its
+steps, each but the first of which `Rules` can switch off:
+
+1. Every character gets its `Sentence_Break` value
+   (`turbo_unicode::sentence_break`, generated from
+   `SentenceBreakProperty.txt`). The language can make more characters
+   end a sentence or fewer (below), and U+2026 HORIZONTAL ELLIPSIS ends
+   one as a full stop does. The full stops of an ellipsis in brackets
+   (`[...]`, `[…]`, `(...)`), which marks words left out of a quotation,
+   end none (`terminators`).
+2. Line breaks (`LineBreaks`). With `Paragraph`, the default, a line
+   break inside a paragraph is a space, and only a blank line (a line
+   holding only spaces) or U+2029 separates paragraphs; text wrapped at
+   a fixed width then keeps its sentences whole. With `Sentence` every
+   line break ends a sentence, as UAX #29 rule SB4 has it.
+3. The rules SB1 to SB998 place the boundaries, in one pass: the
+   `SATerm Close* Sp*` pattern that SB8 to SB11 share is tracked as a
+   state, and the look-ahead of SB8 remembers where its last scan
+   stopped. `RuleSplitter::uax29()` (no tailoring, `LineBreaks::Sentence`)
+   places every break of Unicode's `SentenceBreakTest.txt` exactly.
+4. Numbered references after a terminator stay with their sentence:
+   `It is big.[1][2] Next` and `It is big. [3] Next` break before `Next`
+   (`references`).
+5. A lower case word after `!` or `?` continues the sentence (`Yahoo! in
+   the department`, `"Why?" she asked`), as one after a full stop already
+   does by SB8 (`continuation`).
+6. A full stop after one of the language's abbreviations ends no
+   sentence (`abbreviations`), nor does one after a run of initials
+   before a capitalized word (`J. Smith`, `Л.Н. Толстой`, `U.S.
+   Government`; `initials`). The CLDR suppressions match case-sensitively
+   with their full stop, as ICU matches them; the sentencex lists match
+   the word lowercased. Only the 64 characters before the full stop are
+   looked at, so a text without spaces stays linear; no abbreviation is
+   that long. If the next word is one of the language's sentence
+   starters (English only: `The`, `It`, `He`, ...), the full stop ends
+   the sentence after all (`Pitt, Briggs & Co. It closed`), unless the
+   abbreviation is a single lower case letter (`p. The`). In German a
+   number of one to three digits with a full stop before a capital
+   letter, a digit or a dash is an ordinal (`am 12. Juni`, `1. -3.
+   Jahrhundert`) and ends no sentence.
+7. List item markers start sentences (`lists`): numbers and single ASCII
+   letters with `.`, `)`, `.)` or in parentheses, and bullets. A bullet
+   counts at the start of a line, or inside a line when its paragraph
+   holds another of the same bullet; a number or letter right after a
+   counted bullet counts with it. A marker with `)`, `.)` or
+   parentheses counts at the start of a line, or inside a line next to
+   the previous or next marker of its sequence. A number or letter with
+   a bare full stop is also prose (`plan A. Then plan B.`, `I was 7.
+   Then I turned 8.`, `Der 1. und 2. Platz`, `John A. Smith and Mary B.
+   Jones`), so it counts only as part of a list: at the start of a line
+   unless a single letter with a full stop or the end of the text
+   follows (`J. K. Rowling`, `x. A`); inside a line when it continues
+   by one a counted marker of its sequence in the same paragraph (`1. The
+   first item 2. The second item`), or when it is a `1.` or `a.` with
+   its `2.` or `b.` later in the paragraph and it follows a sentence end,
+   a colon or an earlier counted marker of the paragraph (`Finally,
+   this. 1. The first item 2. The second item`). A full stop inside a
+   marker ends nothing.
+   `-`, `*`, `+` and `–` are bullets only at the start of a line.
+8. No boundary falls between an opening bracket or quotation mark and
+   the mark that closes it (`He said "Stop. Go." Then` is two
+   sentences; `brackets`). A mark that also serves as an apostrophe
+   (`'`, `’`) opens only before a word and closes only after one, and
+   counts as neither inside a word. A closer that matches none of the
+   eight innermost open marks is ignored, and a paragraph break closes
+   everything, so a stray quotation mark cannot join paragraphs.
+
+The spans are then trimmed of Unicode `White_Space` and empty ones
+dropped, as the other detectors' spans are, and are UTF-8 byte offsets
+on character boundaries.
+
+**Languages.** `rules::LANGUAGES` lists 304 languages by BCP 47 code,
+with their English names. Seventeen have rules of their own: `am ar bg
+da de el en es fr hy it kk my pl pt ru uk`. Every other language names
+a fallback chain, the languages whose rules suit its text best, in
+order: a language of the same script and region whose abbreviations
+appear in its texts (Russian for the Cyrillic-script languages of
+Russia, French for the languages of francophone Africa), or one it is a
+variety of (Swiss German, Western Armenian). Chains are at most three
+steps; 186 languages reach rules that way or have their own, and the
+rest get the root rules: the UAX #29 rules with every tailoring but no
+abbreviations. A tag is matched by its longest known prefix (`de-AT`
+uses `de`, `zh-Hant-TW` uses `zh`), case and `_` do not matter, and a
+tag the table does not know gets the root rules. The table and the
+chains were written for this project.
+
+| Language | Terminators | Abbreviations | Other |
+|---|---|---|---|
+| de, en, es, fr, it, pt, ru | Unicode | CLDR 48.2 suppressions | en: sentencex sentence starters; de: ordinal full stops |
+| am, ar, bg, da, kk, pl, uk | Unicode | sentencex | |
+| el | also `;` and U+037E GREEK QUESTION MARK | none | |
+| hy | also `:` (Armenian full stop); `.` and U+2024 end none | none | |
+| my | also U+104F | none | |
+
+The data is under `analysis/sentdetect/data/rules` with its licences
+and a README naming the sources. It is compiled into Rust tables
+(`analysis/sentdetect/src/rules/tables.rs`, generated by the test `analysis/sentdetect/tests/rules_tables.rs`,
+which fails when the committed tables differ from the data); nothing is
+read at run time. sentencex's abbreviation lists for `bn de el en es fi
+fr gu hi it kn ml nl pa pt ru sk ta te` are not used: they share much
+of their content with the Moses nonbreaking prefix lists, which are
+LGPL. LanguageTool's `segment.srx` (LGPL) and MediaWiki's language
+fallbacks (GPL) are not used either.
+
+**Where it differs from its references.** Each difference has a test
+in `analysis/sentdetect/src/rules/tests.rs` or the module that makes it, and shows in the
+conformance results below.
+
+- From UAX #29: `LineBreaks::Paragraph` is the default, so a single line
+  break is not SB4's break (`line_breaks`; six lines of
+  `SentenceBreakTest.txt` break at a single LF and fail for the rules
+  detector). A lower case word after `!` or `?` continues the sentence,
+  where SB11 breaks (`continuation_after_exclamation_and_question`; two
+  lines of the test). The other tailorings remove UAX breaks, move them
+  past references, or add them at list markers and after a language's
+  own terminators; on the other 504 lines of the test the rules detector
+  agrees with UAX #29.
+- U+2026 ends a sentence (`language_terminators`); in UAX #29 it is
+  `Other`. A bracketed ellipsis ends none (`bracketed_ellipsis`).
+- From sentencex: the abbreviation data is CLDR's for the seven
+  languages above instead of sentencex's own, so an abbreviation CLDR
+  does not list (`p.`, `St.` in English) ends a sentence here.
+  Brackets protect what they enclose up to a paragraph break, with no
+  length limit. List markers need a line start, a bullet or a sequence
+  that reaches back to one, or a sentence end before a `1.` or `a.`.
+  A single newline is a space by default.
+- From ICU's suppressions: they are applied to the word before any full
+  stop that UAX #29 breaks after, and a sentence starter after the
+  abbreviation restores the break in English; ICU has no starters.
+- Thai, Lao, Khmer and other languages written without sentence
+  punctuation get one sentence per paragraph: UAX #29 has nothing to
+  break at, and there is no rule here that finds sentence ends in
+  unpunctuated text.
+
+**Conformance.** `analysis/sentdetect/tests/conformance.rs` runs three detectors over three
+suites stored as typed test data in
+`analysis/goldens/data/conformance/sentences` (its README names the
+sources, commits and licences): the Pragmatic Segmenter specs (MIT; 585
+cases in 23 languages, the first 52 English cases being its Golden
+Rules), the pySBD tests (MIT; 471 cases) and `SentenceBreakTest.txt`
+(Unicode 18.0; 512 lines). A text case passes when the detector's
+sentences equal the expected ones once runs of whitespace are made one
+space; a break test line passes when the spans equal the UAX segments
+trimmed of whitespace. The detectors are `rules` (every tailoring, the
+case's language), `uax29` (no tailoring) and the maxent detector with
+the published UD model of each language that has one, on the cases in
+that language. The CI step "sentence conformance and agreement, models
+required" prints the pass counts. Every failing case is listed with what differs in
+`analysis/sentdetect/tests/conformance/<detector>.<suite>.failures`, and for `rules` with
+the tailoring without which it would pass; the test fails when the
+lists change. 34 text cases expect sentences that the reference's
+cleaning step rewrote, and fail for every detector that runs them.
+
+| Detector | Pragmatic Segmenter | Golden Rules (English) | pySBD | `SentenceBreakTest.txt` |
+|---|---|---|---|---|
+| `rules` | 429 of 585 | 44 of 52 | 372 of 471 | 504 of 512 |
+| `uax29` | 305 of 585 | 29 of 52 | 264 of 471 | 512 of 512 |
+| maxent, English UD model | 133 of 289 (English cases) | 31 of 52 | 98 of 193 (English) | 467 of 512 |
+| maxent, German UD model | 22 of 37 (German cases) | | 20 of 35 (German) | |
+
+The Portuguese model has no case in its language. Among the rules
+detector's failures are abbreviations it has no data for (there is no
+list for Dutch or Slovak, and CLDR's lists are short), a sentence that
+starts with a lower case letter after a full stop (the Greek cases,
+which SB8 keeps together), `:` as a sentence end in Arabic, and the
+references' document cleaning. By language, the rules detector passes
+all cases of `am bg fa fr hi hy mr my pl ur zh`, and 329 of 482 English,
+61 of 72 German, 86 of 109 Danish, 78 of 84 Russian, 60 of 72 Italian
+and 54 of 72 Spanish cases, against 234, 29, 63, 72, 56 and 41 for
+plain UAX #29.
+
+**Agreement with the maxent detector.** `analysis/sentdetect/tests/agreement.rs` runs the
+rule splitter and the maxent detector with the published model on the
+same texts, for the three languages with a model: the golden inputs in
+that language and the texts of the conformance cases in it (not their
+expected sentences). Boundaries are the starts of the sentences after
+the first; precision is the share of the rule splitter's boundaries
+that the model also places, recall the share of the model's boundaries
+that the rule splitter places.
+
+| Language, texts | Texts | Split alike | Sentences (maxent, rules, same span) | Boundaries (maxent, rules, same) | Precision | Recall |
+|---|---|---|---|---|---|---|
+| English, golden inputs | 45 | 31 | 125, 123, 93 | 82, 80, 69 | 86.2% | 84.1% |
+| English, conformance texts | 482 | 258 | 3253, 2673, 1773 | 2771, 2191, 1950 | 89.0% | 70.4% |
+| German, golden inputs | 2 | 1 | 7, 6, 5 | 5, 4, 4 | 100% | 80.0% |
+| German, conformance texts | 72 | 42 | 194, 179, 100 | 122, 107, 76 | 71.0% | 62.3% |
+| Portuguese, golden inputs | 1 | 1 | 5, 5, 5 | 4, 4, 4 | 100% | 100% |
+
+The maxent detector places more boundaries than the rule splitter on
+every set but the Portuguese one. The numbers are asserted by the
+test.
+
+Both tests need the models for the maxent rows and skip those rows
+without them; the CI job fetches the models and runs both with
+`TURBO_TEST_REQUIRE_OPENNLP_MODELS=1`, so that there a missing model
+fails.
 
 ## Tokenization
 

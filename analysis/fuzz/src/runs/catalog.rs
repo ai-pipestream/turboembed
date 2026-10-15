@@ -191,7 +191,8 @@ mod tests {
             if !annotator.file_type().unwrap().is_dir() || NOT_COVERED.contains(&name.as_str()) {
                 continue;
             }
-            if ["inputs", "fixtures", "train-fixtures", "rates"].contains(&name.as_str()) {
+            // Inputs and test data, not golden runs.
+            if ["inputs", "fixtures", "train-fixtures", "rates", "conformance"].contains(&name.as_str()) {
                 continue;
             }
             for run in std::fs::read_dir(annotator.path()).unwrap() {

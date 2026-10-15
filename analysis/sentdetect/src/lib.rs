@@ -8,14 +8,17 @@
 //! - [`SentenceDetector`] splits a view into sentences with an OpenNLP
 //!   maxent model ([`SentenceModel`]), as `SentenceDetectorME` does, and
 //!   writes a probability per sentence.
+//! - [`RuleSentenceDetector`] splits a view into sentences with the UAX #29
+//!   sentence rules tailored per language ([`rules`]), for the languages
+//!   that have no model.
 //!
-//! The first two are rule based and need no model. Each detector takes
+//! The newline, paragraph and rule detectors need no model. Each detector takes
 //! OpenNLP's whitespace mode as a parameter, never a global, and works on
 //! the bytes of the view it reads: every offset it writes is a UTF-8 byte
 //! offset into that view, on a character boundary. Each has a plain
 //! function underneath ([`newline_spans`], [`paragraph_spans`],
-//! [`SentenceDetector::detect`]) for callers outside a pipeline.
-//! docs/segmentation.md describes all three.
+//! [`SentenceDetector::detect`], [`RuleSplitter::split`]) for callers
+//! outside a pipeline. docs/segmentation.md describes them all.
 
 pub mod eos;
 pub mod error;
@@ -23,6 +26,7 @@ pub mod features;
 pub mod me;
 pub mod newline;
 pub mod paragraph;
+pub mod rules;
 
 mod abbreviation;
 pub mod context;
@@ -35,6 +39,7 @@ pub use features::Features;
 pub use me::{Candidate, Decision, Scratch, SentenceDetector, SentenceModel};
 pub use newline::{NewlineDetector, newline_spans};
 pub use paragraph::{ParagraphDetector, paragraph_spans};
+pub use rules::{LineBreaks, RuleScratch, RuleSentenceDetector, RuleSplitter, Rules};
 pub use turbo_unicode::WhitespaceMode;
 
 use turbo_analysis::Error;
