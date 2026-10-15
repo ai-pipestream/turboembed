@@ -741,9 +741,10 @@ record, makes each card's zoo entry at its address in the release
 was not trained on the recorded release), and prints the zoo's built-in
 index with those entries added or replaced. That is how
 `analysis/zoo/index/zoo.json` got them. With `--check` it prints no
-index and exits with 1 unless the built-in index is already that one,
-naming the entries that differ with the size, SHA-256 and address the
-index lists and the model's.
+index and exits with 1 unless the built-in index is already that one
+and lists no other model at the release's addresses, naming the entries
+that differ with the size, SHA-256 and address the index lists and the
+model's, and each other model listed there.
 
 `.github/workflows/models.yml` makes the release. It fetches MASC
 through the zoo, and the four references from the addresses

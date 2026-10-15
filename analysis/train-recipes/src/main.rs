@@ -52,8 +52,10 @@
 //! the zoo's built-in index with each model's entry at its address in the
 //! release (`release::index_with`). With `--check` it prints nothing of
 //! the index and exits with 1 unless the built-in index is already that
-//! one, naming the entries that differ with the size and SHA-256 the
-//! index lists and the ones the model has.
+//! one and lists nothing else at the release's addresses, naming each
+//! entry that differs with the size and SHA-256 the index lists and the
+//! ones the model has, and each other model listed there
+//! (`release::differences`).
 //!
 //! `tatoeba` runs the language detector recipe (`langdetect::LANGDETECT`)
 //! on the Tatoeba export extracted into `--export` (`sentences_detailed.csv`
@@ -331,24 +333,13 @@ fn zoo_index_command(a: Args) -> Result<bool, String> {
         print!("{index}");
         return Ok(true);
     }
-    if index == turbo_zoo::index::BUILTIN {
+    let lines = release::differences(&Index::builtin(), &entries, &release);
+    if lines.is_empty() && index == turbo_zoo::index::BUILTIN {
         println!("the zoo's built-in index lists the {} models at their addresses in release {tag}", entries.len());
         return Ok(true);
     }
-    let builtin = Index::builtin();
-    for entry in &entries {
-        match builtin.get(entry.id.as_str()) {
-            Ok(listed) if listed == entry => {}
-            Ok(listed) => {
-                let (l, m) = (&listed.files[0], &entry.files[0]);
-                println!(
-                    "{}: the built-in index lists another entry ({} bytes, SHA-256 {}, at {}; the model has {} bytes, \
-                     SHA-256 {}, at {})",
-                    entry.id, l.size, l.sha256, l.url, m.size, m.sha256, m.url
-                );
-            }
-            Err(_) => println!("{}: the built-in index does not list it", entry.id),
-        }
+    for line in lines {
+        println!("{line}");
     }
     println!("the zoo's built-in index is not the one these models and release {tag} give");
     Ok(false)
