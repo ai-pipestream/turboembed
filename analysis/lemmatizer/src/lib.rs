@@ -28,6 +28,11 @@
 //!   classes. The decoder here reads one unit as Java does.
 //! - The decoder works on the lowercased token, so every lemma is
 //!   lowercase, and a token whose class deletes everything gets `_`.
+//! - A deletion removes the character at its index without checking that
+//!   it is the one the class names, and a replacement whose character is
+//!   not there is skipped, so classes that differ in those characters can
+//!   give the same lemma: the UD 1.3 models hold such classes as separate
+//!   outcomes.
 //! - A class whose index is beyond the word gives the lowercased word
 //!   back unchanged and the rest of the class is not read; an operation
 //!   letter other than `R`, `I` and `D` is skipped.
