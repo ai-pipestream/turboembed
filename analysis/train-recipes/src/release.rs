@@ -551,11 +551,11 @@ mod tests {
         published_by(&TATOEBA_MODELS, "models-tatoeba.yml", "tatoeba-references.txt");
     }
 
-    /// The `models-tatoeba` workflow fetches the recorded export's two
-    /// archives from the release that keeps them, at the addresses and
-    /// with the SHA-256s `tatoeba-export.txt` lists, each under the name
-    /// Tatoeba publishes it by, and checks that both of its runs write the
-    /// same files.
+    /// The `models-tatoeba` workflow names the release that keeps the
+    /// recorded export and reads `tatoeba-export.txt`, which lists the
+    /// export's two archives at their addresses in that release, each
+    /// under the name Tatoeba publishes it by, with a SHA-256 each; and it
+    /// compares the model's four files between its two runs.
     #[test]
     fn the_tatoeba_workflow_trains_on_the_kept_export() {
         let tag = TATOEBA_EXPORT_RELEASE;

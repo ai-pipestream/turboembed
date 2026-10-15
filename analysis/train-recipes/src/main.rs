@@ -67,9 +67,10 @@
 //! and writes `<out>/<model id>/` with the model,
 //! `training-sentences.txt` (the ids of the sentences trained on),
 //! `card.json` and `gate.json`. It refuses any export but the recorded
-//! one (`langdetect::EXPORT`) unless given `--unrecorded-export`, which
-//! marks the card `recorded: false`, so the model is not a release. The
-//! exit status is 1 when the gate fails and 2 on an error.
+//! one (`langdetect::EXPORT`) unless given `--unrecorded-export`; the
+//! card of another export is marked `recorded: false`, so its model is
+//! not a release. The exit status is 1 when the gate fails and 2 on an
+//! error.
 
 use std::path::{Path, PathBuf};
 use std::process::ExitCode;

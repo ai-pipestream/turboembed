@@ -108,7 +108,8 @@ jobs:
           cd "$RUNNER_TEMP/tatoeba/archives"
           sha256sum -c "$RUNNER_TEMP/export.sha256"
           ls -l
-          [ "$(ls | sort)" = "$(cut -c67- "$RUNNER_TEMP/export.sha256" | sort)" ]
+          [ "$(ls | sort)" = "$(cut -c67- "$RUNNER_TEMP/export.sha256" | sort)" ] \
+            || { echo "the archives are not the files tatoeba-export.txt lists" >&2; exit 1; }
           for a in *.tar.bz2; do
             tar -tvjf "$a" | tee "$GITHUB_WORKSPACE/listings/${a%.tar.bz2}.listing"
             tar -xjf "$a" -C "$RUNNER_TEMP/tatoeba/export"
@@ -228,9 +229,10 @@ jobs:
           compression-level: 0
           retention-days: 7
 
-  # Publishes the archives the tatoeba job checked as release $DATA_TAG.
-  # When that release exists, it checks that its assets are the listed
-  # archives and publishes nothing.
+  # Publishes the archives the tatoeba job checked as release $DATA_TAG,
+  # with the licence notice of the release notes as NOTICE.md beside them.
+  # When that release exists, it checks that its archives are the listed
+  # ones and publishes nothing.
   publish-data:
     needs: tatoeba
     if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main'
@@ -256,7 +258,8 @@ jobs:
           sha256sum -c expected
           if gh api "repos/$GH_REPO/git/ref/tags/$DATA_TAG" --silent 2> /dev/null; then
             gh api "repos/$GH_REPO/releases/tags/$DATA_TAG" \
-              --jq '.assets[] | "\(.digest | ltrimstr("sha256:"))  archives/\(.name)"' | sort > published
+              --jq '.assets[] | select(.name | endswith(".tar.bz2"))
+                    | "\(.digest | ltrimstr("sha256:"))  archives/\(.name)"' | sort > published
             diff expected published
             echo "release $DATA_TAG exists, with the listed archives"
             exit 0
@@ -264,12 +267,12 @@ jobs:
           {
             echo "Tatoeba's weekly export of 2026-10-10: the archives \`sentences_detailed.tar.bz2\` and \`sentences_CC0.tar.bz2\` as Tatoeba published them at https://downloads.tatoeba.org/exports/, unchanged. Tatoeba replaces its export every week at the same addresses; this release keeps the one the language detector of release ${TAG} was trained on, so that it can be trained again. Published from commit ${GITHUB_SHA}."
             echo
-            echo "The sentences are by Tatoeba's contributors (https://tatoeba.org). Each is under CC BY 2.0 FR (https://creativecommons.org/licenses/by/2.0/fr/), or under CC0 1.0 (https://creativecommons.org/publicdomain/zero/1.0/) when \`sentences_CC0.csv\` lists it. \`sentences_detailed.csv\` names each sentence's author, and https://tatoeba.org/sentences/show/<id> shows each sentence with its author. Tatoeba's terms of use: https://tatoeba.org/en/terms_of_use."
+            echo "The sentences are by Tatoeba's contributors (https://tatoeba.org). Each is under CC BY 2.0 FR (https://creativecommons.org/licenses/by/2.0/fr/), or under CC0 1.0 (https://creativecommons.org/publicdomain/zero/1.0/) when \`sentences_CC0.csv\` lists it. \`sentences_detailed.csv\` names the author of each sentence that has one, and \`https://tatoeba.org/sentences/show/<id>\` shows each sentence with its author. Tatoeba's terms of use: https://tatoeba.org/en/terms_of_use."
             echo
             echo "How the recipe reads the export: https://github.com/${GITHUB_REPOSITORY}/blob/${GITHUB_SHA}/analysis/train-recipes/README.md"
-          } > notes
-          gh release create "$DATA_TAG" --target "$GITHUB_SHA" --title "$DATA_TAG" --notes-file notes --latest=false \
-            archives/*
+          } > NOTICE.md
+          gh release create "$DATA_TAG" --target "$GITHUB_SHA" --title "$DATA_TAG" --notes-file NOTICE.md \
+            --latest=false archives/* NOTICE.md
 
   # Publishes exactly the files the tatoeba job checked and uploaded, once
   # the export they were trained on is published.

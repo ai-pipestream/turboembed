@@ -3402,6 +3402,40 @@
           "sha512": "743e5a701239ce46229eb76cd24a305e643414e5b14f639ca68e1efa0133d76d94df7286ce0de6555310f17bf8e851f6ac0624172d41be222c9b3757271ce6c3"
         }
       ]
+    },
+    {
+      "id": "turbo-mul-tatoeba-langdetect-1",
+      "kind": "KIND_MODEL",
+      "component": "COMPONENT_LANGUAGE_DETECTOR",
+      "language": "mul",
+      "format": "FORMAT_OPENNLP_MODEL",
+      "version": "1",
+      "license": "Apache-2.0",
+      "license_terms": "https://github.com/ai-pipestream/turboembed/blob/main/LICENSE",
+      "trained_on": [
+        {
+          "name": "Tatoeba export 4421126b36dc0ce2",
+          "license": "LicenseRef-CC-BY-2.0-FR",
+          "license_terms": "https://tatoeba.org/en/terms_of_use"
+        }
+      ],
+      "class": "CLASS_PERMISSIVE",
+      "files": [
+        {
+          "path": "turbo-mul-tatoeba-langdetect-1.bin",
+          "url": "https://github.com/ai-pipestream/turboembed/releases/download/models-tatoeba-2026-10-10-1/turbo-mul-tatoeba-langdetect-1.bin",
+          "size": 4755070,
+          "sha256": "89f8e570f2f27184267de91ce26433e848ee341b94b7ef9fe623a56236e4e64e",
+          "sha512": "38cd9cf63e0fab021478e6bbf76ab5f9f72bc67c7613158e75851ae3fed97cf4472e0f0cc26c843b0b28327e1a12550bb35c649d5f6b1a3686ce224895bf6185"
+        },
+        {
+          "path": "training-sentences.txt",
+          "url": "https://github.com/ai-pipestream/turboembed/releases/download/models-tatoeba-2026-10-10-1/training-sentences.txt",
+          "size": 2648398,
+          "sha256": "423b88e8ac2af4f7bd57ef286e019c1b151accf3f50ec0c43618113a64d76ab9",
+          "sha512": "13775667c8f521b297f4d35e2af7d8f116036c6101de2a94662952d6f13522cf3ce1de6e376b031f09860eb19a6f0c6fe0fade79ca5ca8cfcd8a49831287373a"
+        }
+      ]
     }
   ]
 }

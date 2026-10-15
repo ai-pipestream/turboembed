@@ -127,7 +127,7 @@ the second for failing their gates).
 | `turbo-ca-ud-ancora-2.16-lemmas-1` | [UD_Catalan-AnCora r2.16](https://github.com/UniversalDependencies/UD_Catalan-AnCora/blob/r2.16/README.md) | CC BY 4.0 | permissive | as UD_Catalan-AnCora's row under Datasets |
 | `turbo-fi-ud-ftb-2.16-pos-1` | [UD_Finnish-FTB r2.16](https://github.com/UniversalDependencies/UD_Finnish-FTB/blob/r2.16/README.md) | CC BY 4.0 | permissive | as UD_Finnish-FTB's row under Datasets |
 | `turbo-fi-ud-ftb-2.16-lemmas-1` | [UD_Finnish-FTB r2.16](https://github.com/UniversalDependencies/UD_Finnish-FTB/blob/r2.16/README.md) | CC BY 4.0 | permissive | as UD_Finnish-FTB's row under Datasets |
-| `turbo-mul-tatoeba-langdetect-1` | the CC BY 2.0 FR sentences of [Tatoeba](https://tatoeba.org)'s export of 2026-10-10, in the 71 languages with 1,500 of them | CC BY 2.0 FR | permissive | as Tatoeba's row under Datasets |
+| `turbo-mul-tatoeba-langdetect-1` | the CC BY 2.0 FR sentences of [Tatoeba](https://tatoeba.org)'s export of 2026-10-10, in the 71 languages with at least 1,500 of them after the licence check and de-duplication | CC BY 2.0 FR | permissive | as Tatoeba's row under Datasets |
 
 ## OpenNLP models (refused)
 

@@ -2971,7 +2971,8 @@ Tatoeba's sentence addresses. Tatoeba's download host refused the
 machine it was written on, so the full run was made on GitHub's runners
 (`.github/workflows/models-tatoeba.yml`) on Tatoeba's export of
 2026-10-10, which the recipe records: 71 languages with at least 1,500
-sentences, 321,026 sentences trained on and 35,500 held out, and the
+sentences after the licence check and de-duplication, 321,026 sentences
+trained on and 35,500 held out, and the
 trained model right on 92.19% of them against 83.91% for
 `langdetect-183.bin`, a pass. The model and `training-sentences.txt` go
 out as release `models-tatoeba-2026-10-10-1`, and the export's archives,
