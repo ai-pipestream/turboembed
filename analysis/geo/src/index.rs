@@ -188,9 +188,14 @@ pub(crate) struct IndexBuilder {
     /// order.
     pair_key: Vec<u32>,
     pair_record: Vec<u32>,
+    /// The last record paired with each key of `names`, so a record whose
+    /// names fold to the same key is paired with it once.
+    key_last: Vec<u32>,
     ids: HashSlots,
     regions: Vec<u32>,
     sources: Vec<u16>,
+    /// Whether each code is in `sources`.
+    source_seen: Vec<bool>,
 }
 
 impl IndexBuilder {
@@ -201,9 +206,11 @@ impl IndexBuilder {
             name_hashes: Vec::new(),
             pair_key: Vec::new(),
             pair_record: Vec::new(),
+            key_last: Vec::new(),
             ids: HashSlots::default(),
             regions: vec![NONE32; REGIONS],
             sources: Vec::new(),
+            source_seen: Vec::new(),
         }
     }
 
@@ -228,6 +235,7 @@ impl IndexBuilder {
         self.store.append(store)?;
         let mut ranks = code_ranks(&self.store);
         ranks.resize(self.store.codes.len(), 3);
+        self.source_seen.resize(self.store.codes.len(), false);
         let mut unmatchable = unmatchable.iter().peekable();
         for r in 0..rows {
             let record = base + r as u32;
@@ -248,14 +256,18 @@ impl IndexBuilder {
                 });
             }
             let source = self.store.source[record as usize];
-            if !self.sources.contains(&source) {
+            if !self.source_seen[usize::from(source)] {
+                self.source_seen[usize::from(source)] = true;
                 self.sources.push(source);
             }
-            let first_pair = self.pair_key.len();
             for k in row_keys[r]..row_keys[r + 1] {
                 let key = self.names.find_or_insert(key_of(k), key_hashes[k as usize], &mut self.name_hashes)?;
+                if key as usize == self.key_last.len() {
+                    self.key_last.push(NONE32);
+                }
                 // A record whose names fold to the same key is listed once.
-                if !self.pair_key[first_pair..].contains(&key) {
+                if self.key_last[key as usize] != record {
+                    self.key_last[key as usize] = record;
                     self.pair_key.push(key);
                     self.pair_record.push(record);
                 }
@@ -289,7 +301,19 @@ impl IndexBuilder {
 
     /// Ranks every key's records and freezes the index.
     pub(crate) fn build(self) -> GazetteerIndex {
-        let IndexBuilder { mut store, mut names, pair_key, pair_record, ids, regions, sources, .. } = self;
+        let IndexBuilder {
+            mut store,
+            mut names,
+            name_hashes,
+            pair_key,
+            pair_record,
+            key_last,
+            ids,
+            regions,
+            sources,
+            ..
+        } = self;
+        drop((name_hashes, key_last));
         let n = names.len();
         let mut postings_start = vec![0u32; n + 1];
         for &k in &pair_key {

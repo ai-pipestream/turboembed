@@ -546,7 +546,7 @@ each `table-<kind>-` input as a table of that kind and write
 `analysis/geo/tests/jvm_goldens.rs` asks the Rust gazetteers the same and
 compares every cell.
 
-The pinned OpenNLP commit has no `StringUtil.stripByteOrderMark`, which
+The OpenNLP commit of the recipe has no `StringUtil.stripByteOrderMark`, which
 two readers of the module call; the Dockerfile replaces both calls with
 the expression the method returns before building the module.
 

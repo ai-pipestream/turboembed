@@ -176,6 +176,37 @@ fn user_rows_are_refused_with_their_lines() {
     assert!(matches!(problem, RowProblem::Unmatchable { name, .. } if name == "--"));
 }
 
+/// Rows with thousands of names or attributes: repeats are found past the
+/// first few, the order of first appearance is kept, and the load takes
+/// linear time (a quadratic search would take minutes here).
+#[test]
+fn long_name_and_attribute_lists_keep_their_order_and_drop_repeats() {
+    let names: Vec<String> = (0..50_000).map(|i| format!("n{}", i % 40_000)).collect();
+    let row = geonames_row(["1", "X", "n3", &names.join(","), "1", "1", "P", "DE", "5"]);
+    let g = GeoNamesGazetteer::from_bytes(row.as_bytes()).unwrap();
+    let alternates: Vec<&str> = g.by_id("geonames", "1").unwrap().alternate_names().collect();
+    assert_eq!(alternates.len(), 40_000);
+    assert_eq!(alternates[..3], ["n3", "n0", "n1"]);
+    assert_eq!(alternates[39_999], "n39999");
+    assert_eq!(ids(&g.lookup("N39999")), ["1"]);
+
+    let user = format!("1\tX\t{}\t1\t1", names.join("|"));
+    let g = UserGazetteer::from_bytes(user.as_bytes(), "s").unwrap();
+    // The user table keeps repeated names; the index lists the record once.
+    assert_eq!(g.by_id("s", "1").unwrap().alternate_names().len(), 50_000);
+    assert_eq!(ids(&g.lookup("n5")), ["1"]);
+
+    let attributes: Vec<String> = (0..30_000).map(|i| format!("k{i}=v")).collect();
+    let row = format!("1\tX\t\t1\t1\t\t\t\t\t\t{}", attributes.join("\t"));
+    assert_eq!(
+        UserGazetteer::from_bytes(row.as_bytes(), "s").unwrap().by_id("s", "1").unwrap().attributes().len(),
+        30_000
+    );
+    let repeated = format!("{row}\tk29999=w");
+    let (line, problem) = row_problem(UserGazetteer::from_bytes(repeated.as_bytes(), "s").err().unwrap());
+    assert_eq!((line, problem), (1, RowProblem::DuplicateAttribute("k29999".into())));
+}
+
 #[test]
 fn suppression_files_give_rules_in_order() {
     let rules = UserGazetteer::load_suppressions(fixture("gazetteer-suppressions.txt")).unwrap();

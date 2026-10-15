@@ -355,10 +355,9 @@ impl GazetteerEntry {
             attributes: &attributes,
         }
         .check()?;
-        for (i, (key, _)) in parts.attributes.iter().enumerate() {
-            if parts.attributes[..i].iter().any(|(k, _)| k == key) {
-                return Err(EntryError::DuplicateAttribute(key.clone()));
-            }
+        let mut keys = std::collections::HashSet::with_capacity(parts.attributes.len());
+        if let Some((key, _)) = parts.attributes.iter().find(|(key, _)| !keys.insert(key.as_str())) {
+            return Err(EntryError::DuplicateAttribute(key.clone()));
         }
         Ok(GazetteerEntry { parts, country })
     }

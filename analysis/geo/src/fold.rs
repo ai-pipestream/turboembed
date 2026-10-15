@@ -234,6 +234,34 @@ mod tests {
         }
     }
 
+    /// Keys that `GazetteerIndex.foldKey` gave on JDK 21 at the goldens'
+    /// commits, for case mappings the golden inputs do not reach: Georgian
+    /// Mtavruli, Cherokee and Deseret capitals, the JDK's final sigma
+    /// condition, U+0130 with a combining dot, the Kelvin sign, the DŽ
+    /// digraphs and the capital sharp s.
+    #[test]
+    fn case_mappings_fold_as_on_the_jvm() {
+        let cases = [
+            ("ᲗᲑᲘᲚᲘᲡᲘ", "თბილისი"),
+            ("Ꮳ ᏣᎳᎩ", "ꮳ ꮳꮃꭹ"),
+            ("𐐔𐐯𐑅𐐨𐑉𐐯𐐻", "𐐼𐐯𐑅𐐨𐑉𐐯𐐻"),
+            ("Ꭰ𐐀ꭰ", "ꭰ𐐨ꭰ"),
+            ("ΟΔΟΣ", "οδος"),
+            ("ΣΟΦΙΑ", "σοφια"),
+            ("ΑΣ1", "ας1"),
+            ("ΑΣ1Α", "ασ1α"),
+            ("Σ", "σ"),
+            ("ΑΣ.Β", "ασ.β"),
+            ("İSTANBUL İ\u{307}", "istanbul i"),
+            ("Kelvin \u{212A}", "kelvin k"),
+            ("ǄǅǆD\u{17D}", "ǆǆǆdz"),
+            ("ẞTRASSE", "sstrasse"),
+        ];
+        for (name, jvm) in cases {
+            assert_eq!(key(name), jvm, "{name}");
+        }
+    }
+
     #[test]
     fn a_name_without_word_tokens_has_the_empty_key() {
         assert_eq!(key(""), "");

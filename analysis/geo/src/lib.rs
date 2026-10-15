@@ -71,11 +71,18 @@
 //!   compares the two sides' representatives by population alone, the
 //!   additions winning a tie, and when a rule hides the base's
 //!   representative the base offers no other.
-//! - **Unicode version.** The folding uses `turbo-unicode`'s tables, newer
-//!   than JDK 21's Unicode 15.0; a name with characters assigned after
-//!   15.0 can fold differently.
+//! - **Unicode version.** The folding uses `turbo-unicode`'s Unicode 18.0
+//!   tables, where JDK 21 has Unicode 15.0. A name with characters
+//!   assigned after 15.0 can fold differently, and so can one with the few
+//!   older characters whose properties changed since: U+1171E AHOM
+//!   CONSONANT SIGN MEDIAL RA is a non-spacing mark in 15.0, which the
+//!   accent fold drops after a Latin letter, and a spacing mark in 18.0,
+//!   which it keeps. A comparison with `GazetteerIndex.foldKey` on JDK 21
+//!   over every character Unicode 15.0 assigns, alone and between letters,
+//!   and over 400,000 random names found no other difference.
 
 mod bundled;
+mod checksum;
 mod entry;
 mod error;
 mod fold;

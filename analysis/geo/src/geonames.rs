@@ -1,6 +1,7 @@
 //! A gazetteer over a file in the GeoNames main table format
 //! (`opennlp.geo.GeoNamesGazetteer`).
 
+use std::collections::HashSet;
 use std::path::Path;
 
 use turbo_jvm::text::parse_double;
@@ -90,15 +91,35 @@ pub(crate) fn population(cell: &str) -> Result<i64, NumberFormat> {
 
 /// Adds the trimmed alternate names of a comma separated cell to `names`,
 /// leaving out the empty ones, the ones equal to `name` and repeats, as
-/// OpenNLP's `LinkedHashSet` does.
-pub(crate) fn push_alternates<'t>(cell: &'t str, name: &str, names: &mut Vec<&'t str>) {
+/// OpenNLP's `LinkedHashSet` does. `seen` holds the names of a long list;
+/// the caller clears both for each row.
+pub(crate) fn push_alternates<'t>(cell: &'t str, name: &str, names: &mut Vec<&'t str>, seen: &mut HashSet<&'t str>) {
     for alternate in cell.split(',') {
-        push_alternate(trim(alternate), name, names);
+        push_alternate(trim(alternate), name, names, seen);
     }
 }
 
-pub(crate) fn push_alternate<'t>(alternate: &'t str, name: &str, names: &mut Vec<&'t str>) {
-    if !alternate.is_empty() && alternate != name && !names.contains(&alternate) {
+/// A list this long is searched for repeats; a longer one is looked up in
+/// a set, so a row with many thousands of alternates loads in linear time.
+const SEARCHED_NAMES: usize = 16;
+
+pub(crate) fn push_alternate<'t>(
+    alternate: &'t str,
+    name: &str,
+    names: &mut Vec<&'t str>,
+    seen: &mut HashSet<&'t str>,
+) {
+    if alternate.is_empty() || alternate == name {
+        return;
+    }
+    if names.len() < SEARCHED_NAMES {
+        if !names.contains(&alternate) {
+            names.push(alternate);
+            if names.len() == SEARCHED_NAMES {
+                seen.extend(names.iter().copied());
+            }
+        }
+    } else if seen.insert(alternate) {
         names.push(alternate);
     }
 }
@@ -115,8 +136,9 @@ impl<'t> RowParser<'t> for GeoNamesRows {
         let f = &s.fields;
         let name = trim(f[1]);
         s.names.clear();
-        push_alternate(trim(f[2]), name, &mut s.names);
-        push_alternates(f[3], name, &mut s.names);
+        s.seen.clear();
+        push_alternate(trim(f[2]), name, &mut s.names, &mut s.seen);
+        push_alternates(f[3], name, &mut s.names, &mut s.seen);
         let location = GeoPoint::new(double(f[4])?, double(f[5])?)?;
         let country = trim(f[8]);
         let population = population(f[14])?;

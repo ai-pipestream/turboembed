@@ -1,17 +1,24 @@
 //! A loaded gazetteer written to bytes and read back without parsing or
 //! folding anything: every column and table of the index as a
-//! little-endian array, prefixed by its length. Reading copies the arrays
-//! and checks every offset and code the lookups follow, so a damaged or
-//! foreign file is refused rather than read out of bounds.
+//! little-endian array, prefixed by its length, and a checksum of all the
+//! bytes before it at the end. Reading compares the checksum, which
+//! refuses a file damaged on disk or cut short, copies the arrays and
+//! checks every offset, code and record field the lookups and accessors
+//! follow, so even a file altered with a matching checksum is refused or
+//! answers queries without reading out of bounds or panicking. Nothing
+//! checks that such a file answers them as the gazetteer it was written
+//! from did.
 //!
 //! The layout: the eight bytes `TURBOGEO`, the format version as a `u32`,
 //! the kind of gazetteer as a `u8`, the dataset identifier (for a user
-//! table), then the arrays in the order [`write_index`] writes them.
+//! table), the arrays in the order [`write_body`] writes them, then the
+//! checksum as a `u64` (`checksum.rs`).
 
 use std::fmt;
 use std::io::{self, Write};
 use std::path::Path;
 
+use crate::checksum::{Summing, checksum};
 use crate::entry::{GeoBoundingBox, GeoPoint};
 use crate::geonames::GeoNamesGazetteer;
 use crate::in_memory::InMemoryGazetteer;
@@ -19,6 +26,7 @@ use crate::index::{GazetteerIndex, KeyTable, REGIONS};
 use crate::overture::OvertureGazetteer;
 use crate::store::{Codes, EntryStore, NONE16, NONE32};
 use crate::table::HashSlots;
+use crate::text::is_blank;
 use crate::user::UserGazetteer;
 
 const MAGIC: &[u8; 8] = b"TURBOGEO";
@@ -142,8 +150,16 @@ fn put_slots(out: &mut impl Write, s: &HashSlots) -> io::Result<()> {
     put_len(out, s.len)
 }
 
-/// Writes the header and the index.
+/// Writes the header, the index and the checksum.
 fn write_index(out: &mut impl Write, kind: SnapshotKind, source: &str, index: &GazetteerIndex) -> io::Result<()> {
+    let mut summing = Summing::new(&mut *out);
+    write_body(&mut summing, kind, source, index)?;
+    let (sum, out) = summing.finish();
+    out.write_all(&sum.to_le_bytes())
+}
+
+/// Writes the header and the index.
+fn write_body(out: &mut impl Write, kind: SnapshotKind, source: &str, index: &GazetteerIndex) -> io::Result<()> {
     out.write_all(MAGIC)?;
     out.write_all(&VERSION.to_le_bytes())?;
     out.write_all(&[kind.byte()])?;
@@ -259,6 +275,15 @@ fn read_index(bytes: &[u8], expected: SnapshotKind) -> Result<(String, Gazetteer
     if found != Some(expected) {
         return Err(SnapshotError::Kind { expected, found });
     }
+    let Some(body_len) = bytes.len().checked_sub(8) else { return Err(SnapshotError::Truncated) };
+    let (body, sum) = bytes.split_at(body_len);
+    if body_len < MAGIC.len() + 5 {
+        return Err(SnapshotError::Truncated);
+    }
+    if checksum(body) != u64::from_le_bytes(sum.try_into().expect("eight bytes")) {
+        return Err(SnapshotError::Corrupt("the checksum does not match"));
+    }
+    r.bytes = &r.bytes[..r.bytes.len() - 8];
     let source = r.string()?;
     let code_count = r.len()?;
     let mut names = Vec::with_capacity(code_count.min(1 << 16));
@@ -361,6 +386,12 @@ fn check(index: &GazetteerIndex) -> Result<(), SnapshotError> {
         "attribute strings",
     )?;
     ensure(s.attribute_source.iter().all(|&c| usize::from(c) < codes), "attribute sources")?;
+    ensure(s.codes.names().iter().all(|name| !is_blank(name)), "blank sources or feature classes")?;
+    ensure(
+        s.attribute_key.iter().chain(&s.attribute_value).all(|&i| !is_blank(s.string(i))),
+        "blank attribute keys or values",
+    )?;
+    ensure((0..n).all(|i| record_strings_hold(s, i)), "blank record strings or repeated attribute keys")?;
     ensure(s.source.iter().all(|&c| usize::from(c) < codes), "sources")?;
     ensure(s.feature.iter().all(|&c| c == NONE16 || usize::from(c) < codes), "feature classes")?;
     ensure(s.country.iter().all(|c| *c == [0, 0] || c.iter().all(u8::is_ascii_uppercase)), "country codes")?;
@@ -381,6 +412,23 @@ fn check(index: &GazetteerIndex) -> Result<(), SnapshotError> {
         "regions",
     )?;
     ensure(index.sources.iter().all(|&c| usize::from(c) < codes), "source list")
+}
+
+/// Whether record `i` has what `GazetteerEntry` requires of the strings it
+/// stores: a record id, name, alternate names and containment that are not
+/// blank, and no attribute key twice. The offsets are checked already.
+fn record_strings_hold(s: &EntryStore, i: usize) -> bool {
+    let attributes = s.attributes[i] as usize..s.attributes[i + 1] as usize;
+    let end = s.strings[i + 1] - 3 * attributes.len() as u32;
+    if !(s.strings[i]..end).all(|k| !is_blank(s.string(k))) {
+        return false;
+    }
+    let keys = &s.attribute_key[attributes];
+    if keys.len() < 2 {
+        return true;
+    }
+    let mut seen = std::collections::HashSet::with_capacity(keys.len());
+    keys.iter().all(|&k| seen.insert(s.string(k)))
 }
 
 fn slot_values_below(slots: &HashSlots, n: usize) -> bool {
@@ -420,3 +468,98 @@ snapshot_methods!(UserGazetteer, SnapshotKind::User, |g| g.source(), |source, in
     }
     UserGazetteer::from_index(source, index)
 });
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::entry::RegionCode;
+    use crate::gazetteer::Gazetteer;
+
+    const TABLE: &str = "q1\tQ\tAlt One|Alt Two\t1\t2\tDE\tCITY\t10\t\tBY\tka=1\tkb=2\n\
+                         q2\tBerlin\t\t52.5\t13.4\tDE\tCITY\t3000000\n";
+
+    fn snapshot() -> Vec<u8> {
+        let g = UserGazetteer::from_bytes(TABLE.as_bytes(), "sites").unwrap();
+        let mut bytes = Vec::new();
+        g.write_snapshot(&mut bytes).unwrap();
+        bytes
+    }
+
+    /// `bytes` with its checksum written again, as an altered file whose
+    /// author fixed the checksum would be.
+    fn resum(mut bytes: Vec<u8>) -> Vec<u8> {
+        let body = bytes.len() - 8;
+        let sum = checksum(&bytes[..body]);
+        bytes[body..].copy_from_slice(&sum.to_le_bytes());
+        bytes
+    }
+
+    /// Replaces the only occurrence of `from` in `bytes` by `to`.
+    fn replace(bytes: &[u8], from: &[u8], to: &[u8]) -> Vec<u8> {
+        let at = bytes.windows(from.len()).position(|w| w == from).unwrap();
+        assert!(bytes[at + 1..].windows(from.len()).all(|w| w != from), "{from:?} occurs once");
+        let mut out = bytes.to_vec();
+        out[at..at + from.len()].copy_from_slice(to);
+        out
+    }
+
+    #[test]
+    fn a_damaged_byte_fails_the_checksum() {
+        let bytes = snapshot();
+        assert!(UserGazetteer::from_snapshot(&bytes).is_ok());
+        let mut damaged = bytes.clone();
+        damaged[bytes.len() / 2] ^= 1;
+        assert!(matches!(UserGazetteer::from_snapshot(&damaged), Err(SnapshotError::Corrupt(_))));
+        assert!(matches!(UserGazetteer::from_snapshot(&bytes[..20]), Err(SnapshotError::Truncated)));
+    }
+
+    #[test]
+    fn records_a_gazetteer_entry_could_not_hold_are_refused() {
+        let bytes = snapshot();
+        let blank_name = resum(replace(&bytes, b"q1Q", b"q1 "));
+        assert!(matches!(
+            UserGazetteer::from_snapshot(&blank_name),
+            Err(SnapshotError::Corrupt("blank record strings or repeated attribute keys"))
+        ));
+        let blank_alternate = resum(replace(&bytes, b"Alt Two", b"       "));
+        assert!(UserGazetteer::from_snapshot(&blank_alternate).is_err());
+        let repeated_key = resum(replace(&bytes, b"kb", b"ka"));
+        assert!(matches!(
+            UserGazetteer::from_snapshot(&repeated_key),
+            Err(SnapshotError::Corrupt("blank record strings or repeated attribute keys"))
+        ));
+        let blank_value = resum(replace(&bytes, b"ka1", b"ka "));
+        assert!(matches!(
+            UserGazetteer::from_snapshot(&blank_value),
+            Err(SnapshotError::Corrupt("blank attribute keys or values"))
+        ));
+        let blank_class = resum(replace(&bytes, b"CITY", b"    "));
+        assert!(matches!(
+            UserGazetteer::from_snapshot(&blank_class),
+            Err(SnapshotError::Corrupt("blank sources or feature classes"))
+        ));
+    }
+
+    /// Every single byte change with a matching checksum is refused or
+    /// gives a gazetteer whose queries and records read without panicking.
+    #[test]
+    fn altered_bytes_with_a_matching_checksum_never_panic() {
+        let bytes = snapshot();
+        for i in 13..bytes.len() - 8 {
+            for flip in [0x01, 0x5A, 0xFF] {
+                let mut altered = bytes.clone();
+                altered[i] ^= flip;
+                let Ok(g) = UserGazetteer::from_snapshot(&resum(altered)) else { continue };
+                for q in ["Q", "alt one", "Berlin", "nowhere"] {
+                    for e in g.lookup(q) {
+                        let _ = e.to_entry();
+                    }
+                }
+                for id in ["q1", "q2"] {
+                    let _ = g.by_id("sites", id).map(|e| e.to_entry());
+                }
+                let _ = g.by_region(RegionCode::parse("DE").unwrap()).map(|e| e.to_entry());
+            }
+        }
+    }
+}

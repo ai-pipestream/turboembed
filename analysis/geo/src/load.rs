@@ -7,6 +7,7 @@
 //! the first problem reported is the one on the earliest line, as when
 //! OpenNLP reads the table from top to bottom.
 
+use std::collections::HashSet;
 use std::path::Path;
 
 use crate::error::{LoadError, RowProblem, TableKind};
@@ -20,6 +21,10 @@ use crate::text::{BYTE_ORDER_MARK, Lines, is_blank};
 pub(crate) struct Scratch<'t> {
     pub(crate) fields: Vec<&'t str>,
     pub(crate) names: Vec<&'t str>,
+    /// The names of a long alternate name list, for finding repeats.
+    pub(crate) seen: HashSet<&'t str>,
+    /// The keys of a long attribute list, for finding repeats.
+    pub(crate) attribute_keys: HashSet<&'t str>,
     pub(crate) containment: Vec<&'t str>,
     pub(crate) attributes: Vec<RowAttribute<'t>>,
 }

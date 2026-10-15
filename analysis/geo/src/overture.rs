@@ -86,7 +86,8 @@ impl<'t> RowParser<'t> for OvertureRows {
         let f = &s.fields;
         let name = trim(f[1]);
         s.names.clear();
-        push_alternates(f[2], name, &mut s.names);
+        s.seen.clear();
+        push_alternates(f[2], name, &mut s.names, &mut s.seen);
         let location = GeoPoint::new(double(f[3])?, double(f[4])?)?;
         let country = trim(f[5]);
         let population = population(f[7])?;

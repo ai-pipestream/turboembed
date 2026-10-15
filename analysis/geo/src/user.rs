@@ -140,6 +140,10 @@ fn parse_box(cell: &str) -> Result<GeoBoundingBox, RowProblem> {
     Ok(GeoBoundingBox::new(double(w)?, double(s)?, double(e)?, double(n)?)?)
 }
 
+/// An attribute list this long is searched for a repeated key; a longer
+/// one is looked up in a set.
+const SEARCHED_KEYS: usize = 16;
+
 struct UserRows<'a> {
     source: &'a str,
 }
@@ -154,6 +158,7 @@ impl<'t, 'a: 't> RowParser<'t> for UserRows<'a> {
         }
         let bounding_box = if absent(f, 8) { None } else { Some(parse_box(trim(f[8]))?) };
         s.attributes.clear();
+        s.attribute_keys.clear();
         for cell in &f[f.len().min(10)..] {
             let cell = trim(cell);
             let separator = cell.find('=').filter(|&i| i >= 1).ok_or_else(|| RowProblem::AttributePair(cell.into()))?;
@@ -162,7 +167,16 @@ impl<'t, 'a: 't> RowParser<'t> for UserRows<'a> {
             if is_blank(value) {
                 return Err(RowProblem::Entry(crate::entry::EntryError::Attribute("value")));
             }
-            if s.attributes.iter().any(|a| a.key == key) {
+            // A short list is searched; a long one is looked up in a set.
+            let repeated = if s.attributes.len() < SEARCHED_KEYS {
+                s.attributes.iter().any(|a| a.key == key)
+            } else {
+                if s.attribute_keys.is_empty() {
+                    s.attribute_keys.extend(s.attributes.iter().map(|a| a.key));
+                }
+                !s.attribute_keys.insert(key)
+            };
+            if repeated {
                 return Err(RowProblem::DuplicateAttribute(key.into()));
             }
             s.attributes.push(RowAttribute { key, value, source: self.source, notes: "" });

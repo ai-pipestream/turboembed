@@ -1,5 +1,5 @@
 //! Snapshots: a loaded gazetteer written and read back answers every query
-//! as before, and damaged bytes are refused, never read out of bounds.
+//! as before, and damaged bytes are refused.
 
 use std::path::PathBuf;
 
@@ -85,14 +85,11 @@ fn a_snapshot_is_refused_by_the_wrong_kind_and_when_damaged() {
     let mut longer = bytes.clone();
     longer.push(0);
     assert!(matches!(UserGazetteer::from_snapshot(&longer), Err(SnapshotError::Corrupt(_))));
-    // Flip each byte in turn: every result is a refusal or a gazetteer
-    // whose queries run without panicking.
+    // Flip each byte in turn: the checksum refuses every one. The unit
+    // tests of the snapshot module alter bytes and write the checksum again.
     for i in 13..bytes.len() {
         let mut damaged = bytes.clone();
         damaged[i] ^= 0x5A;
-        if let Ok(g) = UserGazetteer::from_snapshot(&damaged) {
-            let _ = answers(&g, QUERIES);
-            let _ = g.by_id("sites", "hq").map(|e| e.to_entry());
-        }
+        assert!(matches!(UserGazetteer::from_snapshot(&damaged), Err(SnapshotError::Corrupt(_))), "byte {i}");
     }
 }
