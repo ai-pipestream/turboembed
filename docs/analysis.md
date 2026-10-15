@@ -2159,8 +2159,13 @@ the sentence detector scores 79.94 against 77.67 (F-measure, 639 units,
 difference +2.28, 95% interval +1.66 to +2.92), the tokenizer 98.83
 against 94.61 (F-measure, 6,384 units, +4.21, +3.97 to +4.47), and the
 tagger 95.16 against 91.70 (accuracy over 85,286 tokens of 6,384
-units, +3.46, +3.21 to +3.71). Two runs write the same model bytes. The
-crate's README has the counts, the models' digests and the rest.
+units, +3.46, +3.21 to +3.71). About 1.10 points of the tagger's lead
+come from 1,309 held-out punctuation tokens MASC tags `NN` (`[`, `]`,
+curly quotation marks, dashes, `*`), on which the reference, which does
+not know punctuation outside ASCII, is mostly wrong; scored without
+them the lead is +2.39 (+2.18 to +2.63), and the gate still passes. Two
+runs write the same model bytes. The crate's README has the counts, the
+models' digests and the rest.
 
 ## Differential fuzzing
 

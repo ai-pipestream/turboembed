@@ -208,11 +208,12 @@ tests run the binary on their own corpora that way).
 `445449f535cac62e74b2712ad975d7b727e72b8276720dd27492266565ae0afd`: 351
 training documents and 39 held out, the two of the Twitter genre left
 out) with the three references from `--references`. Every gate passed.
-The scores are in points, rounded to two places from the cards' values
-(`gate.candidate_score`, `gate.reference_score`, `gate.difference_low`
-and `gate.difference_high`); the difference is the paired bootstrap's
-mean with its 95% interval (10,000 resamples, seed 154), and a gate
-passes when the interval does not start below -0.5.
+The scores are in points, rounded to two places from the gate records'
+values (`result.candidate.score`, `result.reference.score` and
+`result.difference.mean`, `low` and `high` in `gate.json`; the card
+repeats all of them but the difference's mean); the difference is the
+paired bootstrap's mean with its 95% interval (10,000 resamples, seed
+154), and a gate passes when the interval does not start below -0.5.
 
 | Model | Units | Measure | Model's score | Reference's score | Difference (95% interval) | Gate |
 |---|---|---|---|---|---|---|
@@ -249,16 +250,28 @@ frequent mismatches on the scored tokens, as the card lists them
 (held-out tag, then the reference's): `NN` as `JJ` 446, `NN` as `NNP`
 333, `NN` as `VB` 263, `JJ` as `NN` 230, `VBP` as `VB` 225, `NNP` as
 `NN` 187, `NN` as `RB` 178, `IN` as `RB` 169, `NN` as `.` 146 and `NN`
-as `VBP` 137. Most of the `NN` rows come from a few held-out documents
+as `VBP` 137.
+
+Many of the `NN` rows are punctuation, which MASC tags `NN`: over the
+split's documents it tags `[` (301) and `]` (312) `NN` every time, and
+mostly `NN` the curly quotation marks (`“` 993 of 1,010 times, `”`
+1,031 of 1,047, `‘` all 100, `’` 1,259 of 1,264), en dashes (91 of
+100), em dashes (114 of 120) and `*` (all 307). On the held-out set
+these are 1,309 `NN` tokens. The reference is wrong on 947 of them,
+mostly because it does not know punctuation outside ASCII (it tags `”`
+`.` 100 times and `''` 118 times), and the trained model, which learned
+MASC's tags, on 7, so about 1.10 points of the 3.46-point lead come
+from these tokens. Of them, only `”` as `''` is a Penn convention a rule
+that looked at the token could credit; the recipe adds no mapping for
+them. Scored without the 1,309 tokens, the gate still passes: 95.09
+against 92.70, a lead of +2.39 (95% interval +2.18 to +2.63). The `NN`
+rows also hold words that are not nouns, such as `pray`, `make`,
+`right` and `fine`, many of them from a few held-out documents
 (`data/written/fiction/Nathans_Bylichka`,
 `data/written/movie-script/pirates`, `data/written/ficlets/1402` and
-`data/spoken/debate-transcript/3rd_Bush-Kerry`) whose Penn layer tags
-`NN` tokens that are not nouns: typographic quotation marks (`”` is
-100 of the 146 `NN` as `.`), `*`, `]` and verbs and adjectives. The
-`VBP` rows are verbs such as `do`, `think` and `have`, and the `IN`
-rows words such as `so`, `around`, `on`, `out` and `up`. None of them
-is a convention of punctuation or brackets that the mapping could take
-in.
+`data/spoken/debate-transcript/3rd_Bush-Kerry`). The `VBP` rows are
+verbs such as `do`, `think` and `have`, and the `IN` rows words such as
+`so`, `around`, `on`, `out` and `up`.
 
 ## Tests
 
@@ -311,9 +324,9 @@ published, so CI does not fetch it. The parts that need it run when
 there fails), and skip without it even with
 `TURBO_TEST_REQUIRE_OPENNLP_MODELS=1`. With it, it is checked against the
 recorded digest, shown to return its 45 Penn outcomes unconverted and
-to tag brackets, hyphens, ellipses and semicolons as
-`postag::REFERENCE_MAPPINGS` says, scored and gated, and the binary
-runs all three recipes.
+to tag brackets, hyphens, ellipses, semicolons and an opening quotation
+mark as `postag::REFERENCE_MAPPINGS` says, and a closing quotation mark
+`''`, scored and gated, and the binary runs all three recipes.
 
 On the test corpus, with both directories set, the published references
 score 63.16 (sentences, F-measure), 94.34 (tokens, F-measure) and 92.41
