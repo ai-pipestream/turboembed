@@ -7,20 +7,29 @@
 //! entities are never loaded, and declaring one is an error. Parameter
 //! entity references in the internal subset are skipped, not expanded,
 //! and attribute defaults declared there are not applied. An entity whose
-//! replacement text holds markup is refused rather than parsed.
+//! replacement text holds markup is refused rather than parsed. Entity
+//! expansion is limited in count, nesting and the bytes it adds.
 
 use std::borrow::Cow;
-use std::collections::HashMap;
+use std::cell::Cell;
+use std::collections::{HashMap, HashSet};
+use std::hash::Hash;
 
 use crate::error::ReadError;
 
 /// The namespace `xml:` is bound to.
 const XML_NS: &str = "http://www.w3.org/XML/1998/namespace";
+/// The namespace `xmlns` stands for, which no prefix may be bound to.
+const XMLNS_NS: &str = "http://www.w3.org/2000/xmlns/";
 /// The most entity expansions one document may make, as the JDK's
 /// `jdk.xml.entityExpansionLimit` default.
 const MAX_EXPANSIONS: u32 = 64_000;
 /// The deepest one entity may nest others.
 const MAX_ENTITY_DEPTH: usize = 64;
+/// The most bytes entity expansions may add to one document, the number
+/// of the JDK 21 `jdk.xml.totalEntitySizeLimit` default (which counts
+/// UTF-16 units).
+const MAX_EXPANDED_BYTES: usize = 50_000_000;
 
 /// A start tag: its local name, whether its namespace is none or the one
 /// the parser was given, its qualified name, its unqualified `id` and its
@@ -53,9 +62,11 @@ pub(super) struct Xml<'a> {
     /// Bytes before `src` in the caller's input, for spans.
     base: usize,
     known_ns: &'static str,
-    /// Namespace bindings in scope, innermost last, and how many there
-    /// were when each open element started.
-    ns: Vec<(&'a str, String)>,
+    /// The namespaces bound to each prefix in scope, innermost last; the
+    /// prefixes the open elements bound, in order; and how many of those
+    /// there were when each open element started.
+    bindings: HashMap<&'a str, Vec<String>>,
+    bound: Vec<&'a str>,
     marks: Vec<usize>,
     open: Vec<&'a str>,
     entities: HashMap<String, String>,
@@ -64,6 +75,10 @@ pub(super) struct Xml<'a> {
     finished: bool,
     pending_end: bool,
     expansions: u32,
+    expanded_bytes: usize,
+    /// A byte of `src` and how many line ends lie before it, so that
+    /// [`Xml::line_at`] counts on from there for a later byte.
+    counted: Cell<(usize, u32)>,
 }
 
 fn is_xml_char(c: char) -> bool {
@@ -96,7 +111,8 @@ impl<'a> Xml<'a> {
             pos: 0,
             base,
             known_ns,
-            ns: Vec::new(),
+            bindings: HashMap::new(),
+            bound: Vec::new(),
             marks: Vec::new(),
             open: Vec::new(),
             entities: HashMap::new(),
@@ -105,22 +121,31 @@ impl<'a> Xml<'a> {
             finished: false,
             pending_end: false,
             expansions: 0,
+            expanded_bytes: 0,
+            counted: Cell::new((0, 0)),
         }
     }
 
-    /// The line byte `at` is on, counting from 1.
+    /// The line byte `at` is on, counting from 1; a carriage return just
+    /// before `at` ends a line. The parser asks about later and later
+    /// bytes, so the count goes on from the byte asked about before and
+    /// reading a document counts each line end once.
     pub fn line_at(&self, at: usize) -> u32 {
         let at = at.min(self.src.len());
-        let b = &self.src.as_bytes()[..at];
-        let mut line = 1u32;
-        let mut i = 0;
-        while i < b.len() {
-            if b[i] == b'\n' || (b[i] == b'\r' && b.get(i + 1) != Some(&b'\n')) {
-                line += 1;
-            }
-            i += 1;
+        let b = self.src.as_bytes();
+        let (mut from, mut ends) = self.counted.get();
+        if at < from {
+            (from, ends) = (0, 0);
         }
-        line
+        // A carriage return followed by a line feed is counted at the line feed.
+        for i in from..at {
+            if b[i] == b'\n' || (b[i] == b'\r' && b.get(i + 1) != Some(&b'\n')) {
+                ends += 1;
+            }
+        }
+        self.counted.set((at, ends));
+        let split_pair = at > 0 && b[at - 1] == b'\r' && b.get(at) == Some(&b'\n');
+        ends + 1 + u32::from(split_pair)
     }
 
     pub fn line(&self) -> u32 {
@@ -441,7 +466,7 @@ impl<'a> Xml<'a> {
         let mut out = String::with_capacity(raw.len());
         let mut rest = raw;
         while let Some(i) = rest.find(['&', '%']) {
-            out.push_str(&rest[..i]);
+            out.push_str(&normalize_line_ends(&rest[..i]));
             rest = &rest[i..];
             if rest.starts_with('%') {
                 return self.err("a parameter entity reference in an entity value");
@@ -458,7 +483,7 @@ impl<'a> Xml<'a> {
             }
             rest = &rest[semi + 1..];
         }
-        out.push_str(rest);
+        out.push_str(&normalize_line_ends(rest));
         Ok(out)
     }
 
@@ -510,19 +535,41 @@ impl<'a> Xml<'a> {
         self.expand(&value, out, depth + 1, in_attribute)
     }
 
-    /// Appends `s`, an entity's replacement text, with its references
-    /// expanded; in an attribute value, its whitespace becomes spaces.
+    /// Appends `s` with its references expanded: text as written when
+    /// `depth` is 0, else an entity's replacement text. In an attribute
+    /// value, its whitespace becomes spaces.
     fn expand(&mut self, s: &str, out: &mut String, depth: usize, in_attribute: bool) -> Result<(), ReadError> {
         let mut rest = s;
         while let Some(i) = rest.find('&') {
-            push_text(out, &rest[..i], in_attribute);
+            self.push_text(out, &rest[..i], depth, in_attribute)?;
             rest = &rest[i..];
             let Some(semi) = rest.find(';') else { return self.err("an unterminated reference") };
             let body = &rest[1..semi];
             self.reference(body, out, depth, in_attribute)?;
             rest = &rest[semi + 1..];
         }
-        push_text(out, rest, in_attribute);
+        self.push_text(out, rest, depth, in_attribute)
+    }
+
+    /// Appends `s`, text between references. Line ends are normalized in
+    /// text as written; an entity's replacement text had its line ends
+    /// normalized when it was declared, so a carriage return in it came
+    /// from a character reference and stays. In an attribute value each
+    /// tab, line feed or carriage return becomes a space. The text that
+    /// entities add counts against [`MAX_EXPANDED_BYTES`].
+    fn push_text(&mut self, out: &mut String, s: &str, depth: usize, in_attribute: bool) -> Result<(), ReadError> {
+        if depth > 0 {
+            self.expanded_bytes += s.len();
+            if self.expanded_bytes > MAX_EXPANDED_BYTES {
+                return self.err(format!("entity expansions add more than {MAX_EXPANDED_BYTES} bytes"));
+            }
+        }
+        let s = if depth == 0 { normalize_line_ends(s) } else { Cow::Borrowed(s) };
+        if in_attribute {
+            out.extend(s.chars().map(|c| if matches!(c, '\t' | '\n' | '\r') { ' ' } else { c }));
+        } else {
+            out.push_str(&s);
+        }
         Ok(())
     }
 
@@ -561,6 +608,7 @@ impl<'a> Xml<'a> {
         self.pos += 1;
         let qname = self.name()?;
         let mut attributes: Vec<(&'a str, String)> = Vec::new();
+        let mut names = Distinct::default();
         let empty = loop {
             let spaced = self.skip_space();
             if self.starts("/>") {
@@ -579,21 +627,30 @@ impl<'a> Xml<'a> {
             self.expect("=")?;
             self.skip_space();
             let value = self.attribute_value()?;
-            if attributes.iter().any(|(n, _)| *n == name) {
+            if !names.insert(name) {
                 return self.err(format!("attribute {name} appears twice"));
             }
             attributes.push((name, value));
         };
-        self.marks.push(self.ns.len());
+        self.marks.push(self.bound.len());
         for (name, value) in &attributes {
-            if *name == "xmlns" {
-                self.ns.push(("", value.clone()));
+            let prefix = if *name == "xmlns" {
+                ""
             } else if let Some(prefix) = name.strip_prefix("xmlns:") {
                 if value.is_empty() {
                     return self.err(format!("prefix {prefix} is bound to no namespace"));
                 }
-                self.ns.push((prefix, value.clone()));
+                prefix
+            } else {
+                continue;
+            };
+            // Namespaces in XML: `xml` is bound to its namespace only and
+            // only it is, `xmlns` and its namespace are bound to nothing.
+            if prefix == "xmlns" || value == XMLNS_NS || (prefix == "xml") != (value == XML_NS) {
+                return self.err(format!("{name} binds a reserved prefix or namespace"));
             }
+            self.bindings.entry(prefix).or_default().push(value.clone());
+            self.bound.push(prefix);
         }
         let (prefix, local) = self.split(qname)?;
         if prefix == Some("xmlns") {
@@ -609,7 +666,7 @@ impl<'a> Xml<'a> {
         let known = ns.as_deref().is_none_or(|n| n.is_empty() || n == self.known_ns);
         let mut id = None;
         let mut lang = None;
-        let mut expanded: Vec<(Option<String>, &str)> = Vec::new();
+        let mut expanded = Distinct::default();
         for (name, value) in attributes {
             if name == "xmlns" || name.starts_with("xmlns:") {
                 continue;
@@ -618,19 +675,18 @@ impl<'a> Xml<'a> {
             let uri = match p {
                 None => None,
                 Some(p) => match self.resolve(p) {
-                    Some(u) => Some(u.to_string()),
+                    Some(u) => Some(u),
                     None => return self.err(format!("the prefix {p} of attribute {name} is not bound")),
                 },
             };
-            if expanded.iter().any(|(u, n)| *u == uri && *n == l) {
+            if !expanded.insert((uri, l)) {
                 return self.err(format!("attribute {name} appears twice"));
             }
-            match (uri.as_deref(), l) {
+            match (uri, l) {
                 (None, "id") => id = Some(value),
                 (Some(XML_NS), "lang") => lang = Some(value),
                 _ => {}
             }
-            expanded.push((uri, l));
         }
         self.open.push(qname);
         self.pending_end = empty;
@@ -649,7 +705,7 @@ impl<'a> Xml<'a> {
         if prefix == "xml" {
             return Some(XML_NS);
         }
-        self.ns.iter().rev().find(|(p, _)| *p == prefix).map(|(_, u)| u.as_str())
+        self.bindings.get(prefix).and_then(|uris| uris.last()).map(String::as_str)
     }
 
     fn end_tag(&mut self) -> Result<Event<'a>, ReadError> {
@@ -667,12 +723,50 @@ impl<'a> Xml<'a> {
     fn close(&mut self, at: usize) -> Event<'a> {
         self.open.pop();
         if let Some(mark) = self.marks.pop() {
-            self.ns.truncate(mark);
+            for prefix in self.bound.drain(mark..) {
+                if let Some(uris) = self.bindings.get_mut(prefix) {
+                    uris.pop();
+                }
+            }
         }
         if self.open.is_empty() {
             self.finished = true;
         }
         Event::End { at: self.base + at }
+    }
+}
+
+/// The names of one tag's attributes, to find one given twice: a scan
+/// while there are few, a hash set once there are many, so a tag with
+/// thousands of attributes is not checked in quadratic time.
+struct Distinct<T> {
+    list: Vec<T>,
+    set: HashSet<T>,
+}
+
+impl<T> Default for Distinct<T> {
+    fn default() -> Distinct<T> {
+        Distinct { list: Vec::new(), set: HashSet::new() }
+    }
+}
+
+impl<T: Copy + Eq + Hash> Distinct<T> {
+    /// The most names checked by a scan.
+    const SCAN: usize = 16;
+
+    /// Adds `name`; false when it was there already.
+    fn insert(&mut self, name: T) -> bool {
+        if self.list.len() < Self::SCAN {
+            if self.list.contains(&name) {
+                return false;
+            }
+            self.list.push(name);
+            return true;
+        }
+        if self.set.is_empty() {
+            self.set.extend(self.list.iter().copied());
+        }
+        self.set.insert(name)
     }
 }
 
@@ -688,17 +782,6 @@ fn normalize_line_ends(s: &str) -> Cow<'_, str> {
         return Cow::Borrowed(s);
     }
     Cow::Owned(s.replace("\r\n", "\n").replace('\r', "\n"))
-}
-
-/// Appends `s` with line ends normalized; in an attribute value, each
-/// tab, line feed or carriage return (a pair as one) becomes a space.
-fn push_text(out: &mut String, s: &str, in_attribute: bool) {
-    let s = normalize_line_ends(s);
-    if in_attribute {
-        out.extend(s.chars().map(|c| if matches!(c, '\t' | '\n') { ' ' } else { c }));
-    } else {
-        out.push_str(&s);
-    }
 }
 
 #[cfg(test)]
@@ -762,14 +845,106 @@ mod tests {
             "<!DOCTYPE a [<!ENTITY e '<b/>'>]><a>&e;</a>",
             "<!DOCTYPE a [<!ENTITY e '&e;'>]><a>&e;</a>",
             "<a xmlns:p='u' p:x='1' xmlns:q='u' q:x='2'/>",
+            "<a xmlns:xml='urn:x'/>",
+            "<a xmlns:p='http://www.w3.org/XML/1998/namespace'/>",
+            "<a xmlns='http://www.w3.org/XML/1998/namespace'/>",
+            "<a xmlns:xmlns='urn:x'/>",
+            "<a xmlns:p='http://www.w3.org/2000/xmlns/'/>",
             "text<a/>",
             "<a/>text",
         ];
         for src in bad {
             assert!(events(src).is_err(), "{src:?}");
         }
+        assert!(events("<a xmlns:xml='http://www.w3.org/XML/1998/namespace'/>").is_ok());
         let err = events("<!DOCTYPE a [\n<!ENTITY e SYSTEM 'file:///etc/passwd'>]><a/>").unwrap_err();
         assert_eq!(err, ReadError::ExternalEntity { line: 2, name: "e".into() });
+    }
+
+    #[test]
+    fn lines_count_on_and_back() {
+        let src = "<a>\r\n<b/>\r<c/>\n\n<d/></a>";
+        let x = Xml::new(src, 0, NS);
+        let want = |at: usize| {
+            let b = &src.as_bytes()[..at];
+            1 + (0..at).filter(|&i| b[i] == b'\n' || (b[i] == b'\r' && b.get(i + 1) != Some(&b'\n'))).count() as u32
+        };
+        for at in (0..=src.len()).chain([4, 0, src.len(), 3, 5]) {
+            assert_eq!(x.line_at(at), want(at), "{at}");
+        }
+        let mut x = Xml::new(src, 0, NS);
+        let mut lines = Vec::new();
+        loop {
+            match x.next().unwrap() {
+                Event::Start(s) => lines.push((s.local, s.line)),
+                Event::Eof => break,
+                _ => {}
+            }
+        }
+        assert_eq!(lines, [("a", 1), ("b", 2), ("c", 3), ("d", 5)]);
+    }
+
+    #[test]
+    fn many_attributes_and_nested_bindings() {
+        let mut src = String::from("<a");
+        for i in 0..40 {
+            src.push_str(&format!(" x{i}='{i}'"));
+        }
+        assert!(events(&format!("{src}/>")).is_ok());
+        let err = events(&format!("{src} x17='again'/>")).unwrap_err();
+        assert!(err.to_string().contains("x17 appears twice"), "{err}");
+        let mut src = String::from("<a");
+        for i in 0..40 {
+            src.push_str(&format!(" xmlns:p{i}='u' p{i}:x='{i}'"));
+        }
+        let err = events(&format!("{src}/>")).unwrap_err();
+        assert!(err.to_string().contains("p1:x appears twice"), "{err}");
+        // A prefix bound again inside, then out of scope again.
+        let src = "<a xmlns:p='urn:test'><p:b xmlns:p='urn:other'><p:c/></p:b><p:d/></a>";
+        assert_eq!(
+            events(src).unwrap(),
+            [
+                "<a true None None>",
+                "<b false None None>",
+                "<c false None None>",
+                "</>",
+                "</>",
+                "<d true None None>",
+                "</>",
+                "</>"
+            ]
+        );
+        assert!(events("<a><p:b xmlns:p='u'/><p:c/></a>").is_err());
+    }
+
+    #[test]
+    fn carriage_returns_from_references_stay() {
+        let src = "<!DOCTYPE a [<!ENTITY e 'x&#13;y\r\nz'>]><a v='&e;'>&e;&#13;\r\n</a>";
+        let mut x = Xml::new(src, 0, NS);
+        let Event::Start(start) = x.next().unwrap() else { panic!() };
+        assert!(start.id.is_none());
+        let mut text = String::new();
+        while let Event::Text(t) = x.next().unwrap() {
+            text.push_str(&t);
+        }
+        assert_eq!(text, "x\ry\nz\r\n");
+        let mut x = Xml::new("<!DOCTYPE a [<!ENTITY e 'x&#13;&#10;y'>]><a id='&e;&#13;'/>", 0, NS);
+        let Event::Start(start) = x.next().unwrap() else { panic!() };
+        assert_eq!(start.id.as_deref(), Some("x  y\r"));
+    }
+
+    #[test]
+    fn expansions_stop_at_a_total_size() {
+        let big = "x".repeat(1 << 20);
+        let mut src = format!("<!DOCTYPE a [<!ENTITY b '{big}'>]><a>");
+        for _ in 0..60 {
+            src.push_str("&b;");
+        }
+        src.push_str("</a>");
+        let err = events(&src).unwrap_err();
+        assert!(err.to_string().contains("entity expansions add more than"), "{err}");
+        src.replace_range(src.len() - 4 - 3 * 20.., "</a>");
+        assert!(events(&src).is_ok());
     }
 
     #[test]
