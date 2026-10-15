@@ -2408,7 +2408,7 @@ record.
 chunker is to be measured with (#154). It holds the evaluation sets, the
 pipeline, the baseline chunkers, the measures, the significance tests,
 the record, the gate and the `turbo-eval` binary. The baseline records
-under `analysis/eval/records` come next.
+are under `analysis/eval/records/<pipeline>/<set>.json`.
 
 ### The pipeline
 
@@ -2872,10 +2872,9 @@ runs them on any machine:
   `SentenceVectorsDL` on golden inputs, which needs the JVM container,
   and a measurement of documents per second through the vector steps.
   The tests build their layers by hand or with toy annotators.
-- The rest of the evaluation harness: the committed baseline records,
-  the digests of the sets not fetched yet, a Parquet reader or a fetched
-  JSON copy for ConTEB and GutenQA, a published copy and licence for
-  HiCBench, and the chunker's records on it. It is also where the BM25 only baseline
+- The rest of the evaluation harness: baseline records for
+  `legalbench-rag-mini`, which is placed by hand, a published copy and
+  licence for HiCBench, and the chunker's records on it. It is also where the BM25 only baseline
   is to be reported, from the term statistics above, and what each
   level and each kind of level vector adds.
 - A gRPC surface, to be shared with the OpenNLP standard.
