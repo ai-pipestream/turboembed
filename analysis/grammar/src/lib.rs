@@ -23,5 +23,5 @@ pub mod value;
 pub use annotator::{Found, GRAMMAR, GRAMMAR_NUMBERS, GRAMMAR_PERCENTS, GrammarAnnotator};
 pub use dec::Dec;
 pub use engine::{Grammar, Mention, Output, Parser};
-pub use lang::en::{ENGLISH, English};
+pub use lang::en::{ENGLISH, ENGLISH_TIMES, English, EnglishTimes};
 pub use value::{Num, NumKind, Ordinal, Relative, Value, flag};
