@@ -32,6 +32,7 @@ members = [
     "analysis/langdetect",
     "analysis/langspan",
     "analysis/lemmatizer",
+    "analysis/morfologik",
     "analysis/phrase-chunker",
     "analysis/stem",
     "analysis/stem-layers",
