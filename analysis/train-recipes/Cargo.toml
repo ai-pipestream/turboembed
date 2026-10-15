@@ -24,6 +24,10 @@ turbo-sentdetect = { path = "../sentdetect" }
 turbo-tokenize = { path = "../tokenize" }
 turbo-postag = { path = "../postag" }
 turbo-maxent = { path = "../maxent" }
+# Running the trained language detector and the reference over held-out
+# text, and java.util.Random for the language detector's split.
+turbo-langdetect = { path = "../langdetect" }
+turbo-jvm = { path = "../jvm" }
 # The span type the samples and models share.
 turbo-analysis = { path = "../core" }
 # The gate and its record.

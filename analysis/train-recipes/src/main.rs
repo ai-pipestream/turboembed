@@ -3,6 +3,7 @@
 //! ```text
 //! turbo-train-recipes masc --corpus <dir> --references <dir> --out <dir> [--unrecorded-corpus] [--recipe <model id>]...
 //! turbo-train-recipes fetch-masc --home <dir>
+//! turbo-train-recipes tatoeba --export <dir> --references <dir> --out <dir> [--unrecorded-export]
 //! ```
 //!
 //! `masc` checks the extracted corpus against the recorded release, splits
@@ -26,18 +27,30 @@
 //!
 //! `fetch-masc` fetches the release archive through the zoo into
 //! `<home>/artifacts/`, checked against its recorded size and digests.
+//!
+//! `tatoeba` runs the language detector recipe (`langdetect::LANGDETECT`)
+//! on the Tatoeba export extracted into `--export` (`sentences_detailed.csv`
+//! and `sentences_CC0.csv`), gates it against `langdetect-183.bin` read
+//! from `--references` and checked against its recorded size and digest,
+//! and writes `<out>/<model id>/` with the model, `card.json` and
+//! `gate.json`. No export is recorded yet, so it needs
+//! `--unrecorded-export`, and its card is marked `recorded: false`. The
+//! exit status is 1 when the gate fails and 2 on an error.
 
 use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 
 use turbo_formats::masc::MascCorpus;
 use turbo_train_recipes::card::write_model_dir;
+use turbo_train_recipes::langdetect::{self, LANGDETECT, write_language_dir};
 use turbo_train_recipes::masc::{self, RELEASE, SplitCorpus};
+use turbo_train_recipes::tatoeba::Export;
 use turbo_train_recipes::{Error, RECIPES, Recipe, run};
 
 const USAGE: &str = "usage:
   turbo-train-recipes masc --corpus <dir> --references <dir> --out <dir> [--unrecorded-corpus] [--recipe <model id>]...
-  turbo-train-recipes fetch-masc --home <dir>";
+  turbo-train-recipes fetch-masc --home <dir>
+  turbo-train-recipes tatoeba --export <dir> --references <dir> --out <dir> [--unrecorded-export]";
 
 struct Args {
     command: String,
@@ -45,15 +58,26 @@ struct Args {
     references: Option<PathBuf>,
     out: Option<PathBuf>,
     home: Option<PathBuf>,
+    export: Option<PathBuf>,
     unrecorded: bool,
+    unrecorded_export: bool,
     recipes: Vec<Recipe>,
 }
 
 fn parse() -> Result<Args, String> {
     let mut it = std::env::args().skip(1);
     let command = it.next().ok_or(USAGE)?;
-    let mut a =
-        Args { command, corpus: None, references: None, out: None, home: None, unrecorded: false, recipes: Vec::new() };
+    let mut a = Args {
+        command,
+        corpus: None,
+        references: None,
+        out: None,
+        home: None,
+        export: None,
+        unrecorded: false,
+        unrecorded_export: false,
+        recipes: Vec::new(),
+    };
     while let Some(flag) = it.next() {
         let mut value = || it.next().ok_or(format!("{flag} needs a value"));
         match flag.as_str() {
@@ -62,6 +86,8 @@ fn parse() -> Result<Args, String> {
             "--out" => a.out = Some(value()?.into()),
             "--home" => a.home = Some(value()?.into()),
             "--unrecorded-corpus" => a.unrecorded = true,
+            "--export" => a.export = Some(value()?.into()),
+            "--unrecorded-export" => a.unrecorded_export = true,
             "--recipe" => {
                 let id = value()?;
                 let recipe = Recipe::trains(&id).ok_or_else(|| {
@@ -168,10 +194,47 @@ fn fetch_command(a: Args) -> Result<bool, String> {
     Ok(true)
 }
 
+fn tatoeba_command(a: Args) -> Result<bool, String> {
+    let export_dir = need(a.export, "--export")?;
+    let references = need(a.references, "--references")?;
+    let out = need(a.out, "--out")?;
+    let recipe = LANGDETECT;
+    let model_dir = out.join(recipe.model_id);
+    if model_dir.exists() {
+        return Err(format!("{}: the model directory exists", model_dir.display()));
+    }
+    let path = references.join(recipe.reference.file().map_err(|e| e.to_string())?);
+    let reference = std::fs::read(&path).map_err(|e| format!("{}: {e}", path.display()))?;
+    recipe.reference.check(&reference).map_err(|e| e.to_string())?;
+    let export = Export::read(&export_dir).map_err(|e| e.to_string())?;
+    println!(
+        "export {}: {} {} bytes, SHA-256 {}; {} {} bytes, SHA-256 {}; digest {}",
+        export_dir.display(),
+        export.detailed.name,
+        export.detailed.size,
+        export.detailed.sha256,
+        export.cc0.name,
+        export.cc0.size,
+        export.cc0.sha256,
+        export.digest()
+    );
+    let recorded =
+        langdetect::check_export(&export, langdetect::EXPORT, a.unrecorded_export).map_err(|e| e.to_string())?;
+    if !recorded {
+        println!("the export is not the recorded one: this run is not a release of the model");
+    }
+    let outcome = langdetect::run(&recipe, &export, recorded, &reference).map_err(|e| e.to_string())?;
+    write_language_dir(&out, &outcome.card, &outcome.trained.bytes, &outcome.gate).map_err(|e| e.to_string())?;
+    println!("{}", outcome.card.summary());
+    println!("{}", outcome.gate);
+    Ok(outcome.gate.result.pass)
+}
+
 fn main() -> ExitCode {
     let result = parse().and_then(|a| match a.command.as_str() {
         "masc" => masc_command(a),
         "fetch-masc" => fetch_command(a),
+        "tatoeba" => tatoeba_command(a),
         _ => Err(USAGE.to_owned()),
     });
     match result {

@@ -10,6 +10,8 @@ accuracy gate each model passes before it ships (#401). docs/analysis.md
 | `segmentation` | The English sentence detector and tokenizer recipes: training on the split's training documents, the held-out samples, scoring a model with OpenNLP's evaluators, the gate against the OpenNLP English UD model |
 | `postag` | The English part-of-speech tagger recipe, the same way: training on MASC's Penn tags, the held-out samples, scoring with `POSEvaluator`, the gate against OpenNLP's English Penn tagger (`en-pos-maxent.bin`, OpenNLP 1.5) |
 | `card` | The model card, the model's directory (model, `card.json`, `gate.json`) and its permissive zoo entry, made only for a card whose gate against its recipe's reference (by id and SHA-256) passed on the recorded release |
+| `tatoeba` | Tatoeba's sentence exports: the strict reader of `sentences_detailed.csv` and `sentences_CC0.csv`, each sentence's licence from the two files, and the export's digest |
+| `langdetect` | The language detector recipe: the licence check, the table of Tatoeba's and `langdetect-183.bin`'s language codes, the split, training, the gate against `langdetect-183.bin`, its card and the model's directory |
 
 ```
 cargo run --release -p turbo-train-recipes -- masc --corpus <masc-dir> \
@@ -273,6 +275,158 @@ rows also hold words that are not nouns, such as `pray`, `make`,
 verbs such as `do`, `think` and `have`, and the `IN` rows words such as
 `so`, `around`, `on`, `out` and `up`.
 
+## The language detector recipe
+
+| Model | Reference | Data | Measure |
+|---|---|---|---|
+| `turbo-mul-tatoeba-langdetect-1` | `opennlp-langdetect-183` (`langdetect-183.bin`) | Tatoeba's CC BY 2.0 FR sentences of the languages both models cover, one sample per sentence | accuracy, one unit per held-out sentence |
+
+```
+cargo run --release -p turbo-train-recipes -- tatoeba --export <dir> \
+    --references <dir> --out <dir> [--unrecorded-export]
+```
+
+`--export` names a directory holding `sentences_detailed.csv` and
+`sentences_CC0.csv`, extracted from Tatoeba's weekly exports
+(`tatoeba::DETAILED_ARCHIVE_URL` and `tatoeba::CC0_ARCHIVE_URL`).
+`--references` names a directory holding `langdetect-183.bin` (`cargo run
+-p turbo-goldens-tool -- fetch-models <dir>` writes it), checked against
+the size and SHA-256 the recipe records (`langdetect::LANGDETECT_183`:
+10,568,188 bytes,
+`2ddf585fac2e02a9dcfb9a4a9cc9417562eaac351be2efb506a2eaa87f19e9d4`). The
+model directory, the reference and the export are checked before
+anything is trained. The exit status is 1 when the gate fails
+and 2 on an error.
+
+- Data and licence check. Tatoeba gives each sentence one of three
+  licences: none, CC BY 2.0 FR or CC0 1.0 (tatoeba2's
+  `src/Lib/Licenses.php`). `sentences_detailed.csv` holds every
+  sentence with a licence that is not marked incorrect;
+  `sentences_CC0.csv` holds the CC0 1.0 ones. So a sentence of the
+  detailed file is CC0 1.0 when the CC0 file lists it and CC BY 2.0 FR
+  otherwise, and a sentence with no licence is in neither file. The
+  reader (`tatoeba`) reads the MySQL `OUTFILE` layout strictly (tab
+  between fields, a backslash before a backslash, tab or newline, `\0`
+  for NUL, `\N` for NULL) and refuses any other escape, a wrong number of
+  fields, a repeated id, and a CC0 sentence that is missing from the
+  detailed file or has another language or text there (the two files
+  of different weeks). The licence check keeps CC BY 2.0 FR only
+  (`langdetect::ACCEPTED_LICENCES`), as #429 asks; the CC0 sentences,
+  which the policy would also allow, are left out and counted per
+  language (`licence_left_out` in the card). CC BY 2.0 FR is
+  permissive (`LicenseRef-CC-BY-2.0-FR` in the zoo, as SPDX has no
+  identifier for it); the card carries the attribution it asks for.
+- The export's record. The exports are replaced each week at the same
+  addresses, so an export is recorded by its digest
+  (`Export::digest`: the SHA-256 of a `sha256sum` manifest of the two
+  files), not by address. `langdetect::EXPORT` records none yet (see
+  "Full run" below), so `tatoeba` refuses every export unless given
+  `--unrecorded-export`, and then writes a card with `recorded: false`,
+  which is not a release of the model.
+- Languages. `langdetect::LANGUAGES` is the explicit table of the 100
+  Tatoeba languages the recipe reads and the codes of
+  `langdetect-183.bin` (ISO 639-3) counted right for each. 93 use the
+  same code on both sides. Seven pairs are a macrolanguage and one of
+  its individual languages: Tatoeba's `est`, `lvs` and `pes` are
+  counted right as `est` or `ekk`, `lvs` or `lav`, and `pes` or `fas`
+  (the reference has both codes of each pair; the largest confusion in
+  its own evaluation report is `fas` taken for `pes`, 1,205 of 3,982
+  samples), and Tatoeba's
+  `zsm`, `npi`, `mlg` and `swh` as the reference's `msa`, `nep`, `plt`
+  and `swa`. The reference's 103 codes are each in exactly one pair; a
+  test checks the table against the model's outcomes. The Tatoeba codes
+  are those of Tatoeba's language list; tatoeba.org could not be reached
+  from the machine the recipe was written on, so they are not yet
+  checked against an export. A code the export does not use leaves its
+  language with no sentences, listed in the card's
+  `excluded_languages`; the card also counts the export's sentences of
+  languages outside the table (`other_languages`). The trained model's
+  outcomes are Tatoeba's codes. The mapping is lenient and can only
+  favour the reference.
+- Split (`langdetect::SPLIT`). Per language, after the licence check, a
+  text that occurs again is left out (the sentence with the smallest id
+  is kept), so no text is both trained on and held out. The sentences in
+  id order are shuffled as `Collections.shuffle(list, new
+  Random(429))` does, each language with its own `Random`; the first
+  500 are held out and the next ones, at most 5,000, trained on. A
+  language with fewer than 1,500 sentences left (500 held out and at
+  least 1,000 to train on) is left out of training and of the gate, and
+  listed in the card with its count. 500 sentences per language keep
+  the interval of the gate narrow beside its half-point margin over up
+  to 50,000 units; the cap of 5,000 keeps the events of 100 languages in
+  memory on one machine.
+- Training: `LanguageDetectorME.train` with the default factory and the
+  parameters `langdetect-183.bin` was most likely trained with. Its
+  manifest records only `TrainerType=Event` and an event hash, and the
+  command line trainer given no parameters uses
+  `ModelUtil.createDefaultTrainingParameters()`: `MAXENT`, 100
+  iterations, cutoff 5, one thread; `train` adds the `OnePass` indexer.
+  The training script in OpenNLP's corpus repository could not be read
+  to confirm this (svn.apache.org could not be reached). The manifest's
+  `Timestamp` is fixed, so a run gives the same bytes.
+- Gate: every held-out sentence is a unit, right for the trained model
+  when its best language (`predictLanguage`) is the sentence's Tatoeba
+  code and right for the reference when its best language is one of the
+  codes the table gives. Both models are run by turbo-langdetect, whose
+  probabilities are the JVM's bit for bit. 10,000 resamples, seed 154; a
+  gate passes when the difference's interval does not start below -0.5.
+- Not used: FineWeb-2 (ODC-By 1.0, permissive), as Hugging Face could
+  not be reached; FLORES+ (evaluation only), for the same reason; the
+  Leipzig corpora, whose terms are not confirmed (docs/licences.md). The
+  gate uses only the Tatoeba held-out split, which neither model trained
+  on, so no evaluation-only data is fetched or kept.
+
+### Which way the gate leans
+
+The held-out units are single Tatoeba sentences, which are short (#429
+says so; the full run will give their lengths). The
+reference was trained on the Leipzig corpora's news and web text, and
+its own evaluation (`report.txt` in `langdetect-183.bin`) scored samples
+of 123 to 1,668 characters, 533 on average, at 98.81% accuracy over its
+103 languages. A detector given one short sentence sees few n-grams,
+so both models can be expected to score lower here, and the trained model, which
+learned from sentences of the same kind and source as the held-out ones,
+has the advantage. It also chooses among fewer languages (only those
+with 1,500 sentences), so it has fewer to confuse; the reference keeps
+all 103. The table's lenient mapping leans the other way, but only on
+the seven pairs. A pass therefore says the trained model is not worse
+than `langdetect-183.bin` on short Tatoeba sentences of the shared
+languages; it says nothing about longer text, where the reference was
+tuned.
+
+### Full run
+
+Not done: downloads.tatoeba.org, tatoeba.org and Hugging Face refused
+the connection (403) from the machine the recipe was written on, so the
+export could not be fetched, and no export is recorded, no model
+trained and no gate run on Tatoeba. On a machine that can reach them:
+
+```
+mkdir -p tatoeba/archives tatoeba/export models
+curl -fL -o tatoeba/archives/sentences_detailed.tar.bz2 https://downloads.tatoeba.org/exports/sentences_detailed.tar.bz2
+curl -fL -o tatoeba/archives/sentences_CC0.tar.bz2 https://downloads.tatoeba.org/exports/sentences_CC0.tar.bz2
+tar -xjf tatoeba/archives/sentences_detailed.tar.bz2 -C tatoeba/export
+tar -xjf tatoeba/archives/sentences_CC0.tar.bz2 -C tatoeba/export
+cargo run -p turbo-goldens-tool -- fetch-models models
+cargo run --release -p turbo-train-recipes -- tatoeba --export tatoeba/export \
+    --references models --out run-a --unrecorded-export
+cargo run --release -p turbo-train-recipes -- tatoeba --export tatoeba/export \
+    --references models --out run-b --unrecorded-export
+cmp run-a/turbo-mul-tatoeba-langdetect-1/turbo-mul-tatoeba-langdetect-1.bin \
+    run-b/turbo-mul-tatoeba-langdetect-1/turbo-mul-tatoeba-langdetect-1.bin
+```
+
+Each run prints the export's digest, the languages trained on and left
+out, and the gate. To record the run: set `langdetect::EXPORT` to the
+digest; check the card's `other_languages` and `excluded_languages` for
+a Tatoeba code the table spells differently; and record here, from
+`card.json` and `gate.json`, the export's digest and file sizes, the
+languages and sentences on each side (`per_language`: `sentences`,
+`licence_left_out`, `duplicates`, `training`, `held_out`, and each
+model's correct count), the languages left out with their counts, the
+gate's scores and interval, and the model's size and SHA-256 from both
+runs.
+
 ## Tests
 
 `tests/recipes.rs` writes corpora in MASC's layout (`tests/common`, no
@@ -333,3 +487,27 @@ score 63.16 (sentences, F-measure), 94.34 (tokens, F-measure) and 92.41
 (`en-pos-maxent.bin`, accuracy), against 100 for the trained models,
 which have seen every held-out sentence; the test checks these numbers,
 which show the gate is wired through, not how the recipes do on MASC.
+
+`tests/langdetect.rs` runs the language detector recipe on an export
+written for the project (`tests/data/tatoeba`: 90 records in the
+layout of the two files, not in id order, with ten CC BY 2.0 FR
+sentences in each of eight languages, two English CC0 sentences, a
+second copy of a German text, three Turkish sentences, two Cantonese
+ones and one record with no language), with a split scaled to it (four
+held out and five trained on per language, eight needed) and the Rust
+language fixture (`analysis/goldens/data/fixtures/langdetect-fixture-rust.bin`)
+as the reference. It checks the escapes and each sentence's licence; the
+licence check, de-duplication and per-language counts; that the split
+is the documented shuffle, that the records' order in the file does not
+change it and that another seed does; the languages left out under a
+threshold; the same bytes from a second training; the gate over 32
+held-out sentences (too few to pass, which the test also checks), a
+reference code the reference does not have refused and a two-code
+mapping counted; the card, the model's directory, and each condition a
+zoo entry needs; the export record; and the binary's refusal of a
+missing reference. With
+`TURBO_GOLDENS_MODELS` naming a directory holding `langdetect-183.bin`
+(required with `TURBO_TEST_REQUIRE_OPENNLP_MODELS=1`), it checks the
+table's codes against the model's 103 outcomes, and that the binary
+refuses the export as unrecorded and, given `--unrecorded-export`,
+refuses it for having no language with 1,500 sentences.

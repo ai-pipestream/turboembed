@@ -2159,6 +2159,8 @@ dependencies = [
  "turbo-analysis",
  "turbo-eval",
  "turbo-formats",
+ "turbo-jvm",
+ "turbo-langdetect",
  "turbo-maxent",
  "turbo-postag",
  "turbo-sentdetect",

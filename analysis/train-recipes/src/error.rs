@@ -57,6 +57,9 @@ pub enum Error {
     EmptySplit { what: &'static str },
     /// A recipe left out more than its limit allows.
     TooManyLeftOut { what: LeftOut, count: u64, of: u64, limit: Limit },
+    /// A Tatoeba export could not be read, or its two files are not of one
+    /// export.
+    Tatoeba(crate::tatoeba::TatoebaError),
     /// The tagger's reference cannot give the tags of more held-out tokens
     /// than [`crate::MAX_TOKENS_LEFT_OUT`] allows (`left_out`, by tag as
     /// written, of `of` tokens).
@@ -129,6 +132,7 @@ impl fmt::Display for Error {
             Error::TooManyLeftOut { what, count, of, limit } => {
                 write!(f, "{count} of {of} {what}, more than the limit of {limit}")
             }
+            Error::Tatoeba(e) => write!(f, "Tatoeba: {e}"),
             Error::TagsOutsideReference { reference, left_out, of, limit } => {
                 let count: u64 = left_out.iter().map(|t| t.tokens).sum();
                 write!(
@@ -168,6 +172,12 @@ impl From<turbo_train_components::Error> for Error {
 impl From<turbo_eval::model_gate::ModelGateError> for Error {
     fn from(e: turbo_eval::model_gate::ModelGateError) -> Error {
         Error::Gate(e)
+    }
+}
+
+impl From<crate::tatoeba::TatoebaError> for Error {
+    fn from(e: crate::tatoeba::TatoebaError) -> Error {
+        Error::Tatoeba(e)
     }
 }
 

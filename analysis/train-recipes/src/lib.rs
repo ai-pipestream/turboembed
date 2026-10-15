@@ -13,17 +13,25 @@
 //!   (`en-pos-maxent.bin`).
 //! - [`card`]: the model card kept beside the gate record, and the
 //!   model's permissive zoo entry with its licence and attribution.
+//! - [`tatoeba`]: Tatoeba's sentence exports read with each sentence's
+//!   licence (issue #429).
+//! - [`langdetect`]: the language detector trained on Tatoeba's CC BY
+//!   2.0 FR sentences and gated against OpenNLP's `langdetect-183.bin`
+//!   on held-out sentences of the languages both cover, with its own
+//!   card.
 //!
-//! [`run`] runs one recipe from a split corpus to the model, the card
-//! and the gate record; the `turbo-train-recipes` binary runs every
+//! [`run`] runs one MASC recipe from a split corpus to the model, the
+//! card and the gate record; the `turbo-train-recipes` binary runs every
 //! recipe of [`RECIPES`] on a MASC directory and writes each model's
-//! directory.
+//! directory, and runs [`langdetect::run`] on a Tatoeba export.
 
 pub mod card;
 pub mod error;
+pub mod langdetect;
 pub mod masc;
 pub mod postag;
 pub mod segmentation;
+pub mod tatoeba;
 
 use std::fmt::{self, Write as _};
 
