@@ -80,7 +80,10 @@ pub struct ParametersCard {
 }
 
 /// What a name finder's reader counted of the named entities of one side
-/// of the split ([`crate::namefind::read_samples`]).
+/// of the split ([`crate::namefind::read_samples`]). `names`,
+/// `overlapping` and `other_types` count an entity once for each sentence
+/// it has a token in; `outside_sentences` and `in_dropped_sentences`
+/// count the entities of the recipe's type in no sentence, once each.
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct NamesCard {
@@ -95,8 +98,16 @@ pub struct NamesCard {
     /// before them in `Span.compareTo` order, a repeat of the same tokens
     /// among them.
     pub overlapping: u64,
-    /// Entities of other types, left out.
+    /// Entities of other types in the sentences, left out.
     pub other_types: u64,
+    /// Entities of the recipe's type none of whose tokens is in a region
+    /// of the sentence file, so in no sample
+    /// ([`turbo_formats::masc::Unplaced::OutsideSentences`]).
+    pub outside_sentences: u64,
+    /// Entities of the recipe's type whose tokens are in regions of the
+    /// sentence file the reader drops, so in no sample
+    /// ([`turbo_formats::masc::Unplaced::DroppedSentence`]).
+    pub in_dropped_sentences: u64,
 }
 
 /// What training read and made.
@@ -459,9 +470,17 @@ impl fmt::Display for Summary<'_> {
             if let Some(n) = names {
                 write!(
                     f,
-                    "\n{}: {} {side} names in {} documents, {} with a gap; {} overlapping and {} of other types left \
-                     out",
-                    card.id, n.names, n.documents, n.gapped, n.overlapping, n.other_types
+                    "\n{}: {} names in the {side} samples of {} documents, {} with a gap; {} overlapping and {} of \
+                     other types left out; {} outside every sentence region and {} in sentence regions the reader \
+                     drops, in no sample",
+                    card.id,
+                    n.names,
+                    n.documents,
+                    n.gapped,
+                    n.overlapping,
+                    n.other_types,
+                    n.outside_sentences,
+                    n.in_dropped_sentences
                 )?;
             }
         }

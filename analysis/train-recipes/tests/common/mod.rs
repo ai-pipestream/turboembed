@@ -26,7 +26,9 @@ pub struct Token {
 ///
 /// After the tokens, each ` | ` starts a named entity, as MASC's named
 /// entity file links one to Penn tokens: its label, then the places of
-/// its tokens among the sentence's tokens. The labels are MASC's
+/// its tokens among the sentence's tokens, in the order the file's edges
+/// list them (these sentences list them first to last; MASC lists most
+/// entities of several tokens last to first). The labels are MASC's
 /// (`person`, `location`, `org`, `date`), and like MASC the sentences
 /// label pronouns that refer to a person `person`. An entity may overlap
 /// another, as `St. Louis` (a location) is inside `St. Louis team` (an

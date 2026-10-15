@@ -246,13 +246,31 @@ fn the_recipes_train_score_gate_and_write_their_cards() {
             recipe.model_id()
         );
         if let (Some(training), Some(held_out)) = (&mut counted.training.names, &mut counted.held_out.names) {
-            *training = NamesCard { documents: 351, names: 2934, gapped: 1, overlapping: 36, other_types: 11622 };
-            *held_out = NamesCard { documents: 39, names: 321, gapped: 0, overlapping: 0, other_types: 2157 };
+            *training = NamesCard {
+                documents: 351,
+                names: 2934,
+                gapped: 1,
+                overlapping: 36,
+                other_types: 11622,
+                outside_sentences: 192,
+                in_dropped_sentences: 143,
+            };
+            *held_out = NamesCard {
+                documents: 39,
+                names: 321,
+                gapped: 0,
+                overlapping: 0,
+                other_types: 2157,
+                outside_sentences: 18,
+                in_dropped_sentences: 25,
+            };
             let id = recipe.model_id();
             let names = format!(
-                "{id}: 2934 training names in 351 documents, 1 with a gap; 36 overlapping and 11622 of other types \
-                 left out\n{id}: 321 held-out names in 39 documents, 0 with a gap; 0 overlapping and 2157 of other \
-                 types left out"
+                "{id}: 2934 names in the training samples of 351 documents, 1 with a gap; 36 overlapping and 11622 of \
+                 other types left out; 192 outside every sentence region and 143 in sentence regions the reader \
+                 drops, in no sample\n{id}: 321 names in the held-out samples of 39 documents, 0 with a gap; 0 \
+                 overlapping and 2157 of other types left out; 18 outside every sentence region and 25 in sentence \
+                 regions the reader drops, in no sample"
             );
             assert_eq!(counted.summary().to_string(), format!("{trained}\n{names}"));
         } else if counted.held_out.tokens.is_none() {

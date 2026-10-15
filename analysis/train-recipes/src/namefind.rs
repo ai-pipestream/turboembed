@@ -17,10 +17,11 @@
 //! Penn tokens, and the named entities of the recipe's type
 //! ([`read_samples`]). The names are MASC's entities as the named entity
 //! file links them to Penn tokens ([`MascSentence::entities`]), not the
-//! names OpenNLP's `MascNamedEntitySampleStream` reads, which drop the
-//! last token of every name of two or more tokens, make a name of one
-//! token at a sentence's start empty, and keep only a sentence's first
-//! name in its overlap removal (see [`turbo_formats::masc`]). An entity is the span from its first token
+//! names OpenNLP's `MascNamedEntitySampleStream` reads, which make a name
+//! of one token at a sentence's start empty, mostly keep one name of a
+//! sentence or none in its overlap removal, and lose the last token of a
+//! name whose tokens the file lists in some orders (see
+//! [`turbo_formats::masc`]). An entity is the span from its first token
 //! to one past its last; one whose tokens have a gap is kept as that span
 //! and counted ([`crate::card::NamesCard::gapped`]). Entities of other
 //! types are left out, as OpenNLP's `NameSampleTypeFilter` leaves them out
@@ -30,12 +31,21 @@
 //! longer first) is kept and the other left out and counted
 //! ([`crate::card::NamesCard::overlapping`]), since a sample's names may
 //! not overlap. A sentence of no tokens is skipped: it gives no event,
-//! and as a held-out unit it would count nothing. A document's first
-//! sample clears the feature generators' adaptive data, as an empty line
-//! does in OpenNLP's name format, so what the previous-map feature
+//! and as a held-out unit it would count nothing. An entity in no
+//! sentence of the reader's ([`MascDocument::unplaced_entities`]: outside
+//! every region of the sentence file, or in a region the reader drops) is
+//! in no sample, and counted
+//! ([`crate::card::NamesCard::outside_sentences`],
+//! [`crate::card::NamesCard::in_dropped_sentences`]); its tokens are in no
+//! sample either, so it is not a name the training samples mark as
+//! other. A document's first sample clears the feature generators'
+//! adaptive data, as an empty line does in OpenNLP's name format and in
+//! what `TokenNameFinderTool` reads, so what the previous-map feature
 //! generator learns of a document's names reaches only that document's
 //! later sentences; `MascNamedEntitySampleStream` clears it on every
-//! sentence. Held-out documents are read the same way.
+//! sentence. This was chosen before any result; the crate's README
+//! records how the gates move when every sentence clears it instead.
+//! Held-out documents are read the same way.
 //!
 //! # The gate
 //!
@@ -57,14 +67,14 @@
 //! each draw from its summed counts. A name is right only with the
 //! held-out name's tokens and type.
 //!
-//! MASC's conventions are not those the references were trained on, and
-//! the differences count against the references; the crate's README
-//! lists them.
+//! MASC's conventions are not those the references were trained on; the
+//! crate's README lists the differences and which model each counts
+//! against.
 
 use turbo_analysis::Span;
 use turbo_eval::model_gate::{Counts, HeldOutSet, ModelGateRecord, ModelId, Task};
 use turbo_formats::evaluate::NameFinderEvaluator;
-use turbo_formats::masc::{MascCorpus, MascDocument, MascSentence};
+use turbo_formats::masc::{MascCorpus, MascDocument, MascSentence, Unplaced};
 use turbo_formats::{Field, Name, NameSample};
 use turbo_maxent::ModelFile;
 use turbo_sequence::PatternMode;
@@ -252,6 +262,14 @@ pub fn read_samples<'c>(
     let mut skipped = 0;
     for doc in corpus.documents().iter().filter(|d| d.has_named_entities()) {
         counts.documents += 1;
+        for entity in doc.unplaced_entities() {
+            if entity.kind.as_deref().and_then(|k| types.held_out(k)).is_some() {
+                match entity.cause {
+                    Unplaced::OutsideSentences => counts.outside_sentences += 1,
+                    Unplaced::DroppedSentence => counts.in_dropped_sentences += 1,
+                }
+            }
+        }
         let mut first = true;
         for sentence in doc.sentences() {
             match sample(doc, sentence, types, first, &mut counts)? {

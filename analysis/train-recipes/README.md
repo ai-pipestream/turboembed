@@ -177,24 +177,60 @@ status is 1 when a gate fails and 2 on an error.
   tokens, and the entities of the recipe's type as the entity file links
   them to Penn tokens (`MascSentence::entities`), each the span from its
   first token to one past its last. OpenNLP's
-  `MascNamedEntitySampleStream` is not used: it drops the last token of
-  every name of two or more tokens, reads a name of one token at a
-  sentence's start as empty, keeps only the first name of a sentence of
-  two or more (its removal of overlapping names compares a name with
-  itself) and marks every sentence to clear the adaptive data
+  `MascNamedEntitySampleStream` is not used. It reads a name of one
+  token at a sentence's start as empty, and a sentence of two or more
+  names mostly keeps one of them or none (its removal of overlapping
+  names compares a name with itself, and can also keep names that
+  overlap, which `NameSample` then refuses). What it keeps of a name of
+  several tokens depends on the order the entity file lists them
+  (`MascSentence.java:217` moves the end to one past a token only when
+  the token is past the end so far, which is already one past a token):
+  listed last to first, a name is whole; listed first to last, a name of
+  an even number of tokens loses its last token and one of an odd number
+  is whole, the other way round at a sentence's start. MASC 3.0.0 lists
+  8,770 of its 9,068 entities of several tokens last to first, 98 first
+  to last (all of an even number of tokens) and 200 in another order, so
+  the rule costs few of MASC's names; the test corpus lists them first
+  to last. It also marks every sentence to clear the adaptive data
   (`turbo_formats::masc` documents each; `tests/names.rs` shows them).
   Entities of other types are left out of the sample, as
   `NameSampleTypeFilter` leaves them out, and MASC's `org` is renamed
   `organization`, the type the reference finds. Where two entities of the
   type overlap, the first in `Span.compareTo` order (by start, the longer
   first) is kept and the other left out; an entity whose tokens had a
-  gap would be kept as its covering span. A document's first sample
-  clears the adaptive data, so what the previous-map feature generator
-  learns of a document's names reaches only that document's later
-  sentences. A sentence of no tokens is skipped, within
-  `MAX_SKIPPED_SENTENCES`. The card records for each side the documents
-  read, the names, those with a gap, the overlapping entities and the
-  entities of other types left out (`training.names`, `held_out.names`).
+  gap would be kept as its covering span. A sentence of no tokens is
+  skipped, within `MAX_SKIPPED_SENTENCES`.
+
+  Some entities reach no sample, for one of two reasons
+  (`MascDocument::unplaced_entities`). MASC marks no sentence over some
+  text, such as most of the movie script's speaker labels (91 of the
+  93 `ELIZABETH SWANN:`), so an entity there is outside every region of
+  the sentence file. And the reader drops a sentence region that does
+  not end before the next starts, as OpenNLP's `MascDocument` does, so
+  an entity whose tokens are in such a region is in no sentence either.
+  The Penn tokens of both are in no sample, so these entities are not
+  names the training samples mark as `other`: they make no false
+  negatives in training, and a held-out one is scored for neither
+  model. The card counts them for the recipe's type
+  (`outside_sentences`, `in_dropped_sentences`) beside the documents
+  read, the names in the samples, those with a gap, the overlapping
+  entities and the entities of other types left out (`training.names`,
+  `held_out.names`).
+
+  A document's first sample clears the adaptive data, as an empty line
+  does in OpenNLP's name format, so what the previous-map feature
+  generator learns of a document's names reaches only that document's
+  later sentences. This was chosen before any result, and the recipes
+  keep it: choosing it from the gates below would tune on the held-out
+  set. It is how OpenNLP's `TokenNameFinderTool` runs a name finder over
+  text, clearing at each empty line, which starts a document. No
+  annotator in this repository runs a trained name finder, so there is
+  no annotator's clearing for the gate to match: turbo-namefind's
+  dictionary and regex finders keep no adaptive data, and
+  turbo-sequence's `NameFinder` carries it from one `find` to the next
+  until its caller clears it. `MascNamedEntitySampleStream` clears it at
+  every sentence instead; the gates under that setting are recorded
+  below as a diagnostic, and the person gate passes with it.
 - The name finders' gate: both models are scored on the same held-out
   samples with `TokenNameFinderEvaluator`, one unit per sentence, over
   the names of the recipe's type; a name is right only with the held-out
@@ -204,11 +240,13 @@ status is 1 when a gate fails and 2 on an error.
   from each draw's summed counts; it never averages the sentences' own
   F-measures. The sentences of a document are not independent: the
   adaptive data links them, a document repeats its names, and a few
-  documents hold most of the held-out names (the movie script
-  `data/written/movie-script/pirates` holds 787 of the 1,363 held-out
-  persons), so an interval from resampling documents would be wider. The
-  references' training data is not published, and the zoo does not list
-  them: the recipes record their addresses, sizes and SHA-256
+  documents hold most of the held-out names (787 of the 1,363 persons in
+  the held-out samples are in the movie script
+  `data/written/movie-script/pirates`, whose entity file labels 1,580
+  persons, 791 of them outside every sentence region), so an interval
+  from resampling documents is wider (below). The references' training
+  data is not published, and the zoo does not list them: the recipes
+  record their addresses, sizes and SHA-256
   (`namefind::EN_NER_*`), a run reads them from `--references` and checks
   them, and they are only scored. They are never shipped, bundled or
   trained on.
@@ -232,7 +270,9 @@ status is 1 when a gate fails and 2 on an error.
     `government`, `commission`) and government bodies (`Congress`,
     `Senate`), and is not given to every mention (the held-out e-mail
     `data/written/email/enron/175841` has `Enron` 26 times, 13 of them
-    labelled an organization on their own).
+    labelled an organization on their own). In the training documents a
+    mention left unlabelled is `other` in its sample, which pushes the
+    trained model to leave such names out and can cost it recall.
   - `location` in MASC includes regions, facilities and the like
     (`type` is `country`, `city`, `region`, `province`, `facility`,
     `us_region`, `highway_street`, `continent`, `attraction` and
@@ -242,10 +282,13 @@ status is 1 when a gate fails and 2 on an error.
     own Penn tokens, and the held-out names are concentrated in a few
     documents (above).
 
-  Each of these counts against the reference wherever it does not
-  follow MASC, and the trained model learned MASC's conventions, so the
-  differences lean the gate towards the trained model. That the trained
-  models still lose (below) makes the result firmer, not weaker.
+  Most of these count against the reference wherever it does not follow
+  MASC, since the trained model learned MASC's conventions; the
+  mentions MASC leaves unlabelled count against the trained model, which
+  learned to leave them out. Neither effect is measured, and the losses
+  below are not evidence that the trained models are worse: resampled
+  by document, none of the four differences is clear of zero, and the
+  person result turns on how the adaptive data is cleared (below).
 - Licence: the models are Apache-2.0, trained on CC BY 3.0 US data, so
   their zoo class is permissive; the card carries the attribution CC BY
   asks for, which ships with the model: MASC 3.0.0, by the American
@@ -342,14 +385,27 @@ held-out sentences skipped are skipped for both.
 | each `turbo-en-masc-3.0.0-ner-*-1` | 24,958 | 0 | 431,637 | 1 | |
 
 The names each name finder's card records (`training.names` and
-`held_out.names`); no entity had a gap:
+`held_out.names`). The first three counts are of the samples, an entity
+counted once for each sentence it has a token in; no entity had a gap.
+The last two count the entities of the type in no sample, once each:
+those outside every region of the sentence file, and those in sentence
+regions the reader drops.
 
-| Type | Training names | Overlapping, left out | Of other types, left out | Held-out names | Overlapping, left out | Of other types, left out |
+| Type | Side | Names in the samples | Overlapping, left out | Of other types, left out | Outside every sentence region | In dropped sentence regions |
 |---|---|---|---|---|---|---|
-| `person` | 4,894 | 6 | 9,692 | 1,363 | 0 | 1,115 |
-| `location` | 3,944 | 63 | 10,585 | 436 | 0 | 2,042 |
-| `organization` | 2,934 | 36 | 11,622 | 321 | 0 | 2,157 |
-| `date` | 2,714 | 1 | 11,877 | 358 | 0 | 2,120 |
+| `person` | training | 4,894 | 6 | 9,692 | 831 | 427 |
+| `person` | held-out | 1,363 | 0 | 1,115 | 844 | 56 |
+| `location` | training | 3,944 | 63 | 10,585 | 199 | 114 |
+| `location` | held-out | 436 | 0 | 2,042 | 43 | 30 |
+| `organization` | training | 2,934 | 36 | 11,622 | 192 | 143 |
+| `organization` | held-out | 321 | 0 | 2,157 | 18 | 25 |
+| `date` | training | 2,714 | 1 | 11,877 | 454 | 101 |
+| `date` | held-out | 358 | 0 | 2,120 | 71 | 14 |
+
+So 1,258 persons of the training documents and 900 of the held-out ones
+are in no sample, 793 of the held-out ones in the movie script
+`data/written/movie-script/pirates` (791 outside every sentence region,
+2 in dropped ones), whose entity file labels 1,580 persons.
 
 The four name finders failed their gates, so they are not a release:
 the run wrote their directories, with cards that record the failed gate,
@@ -365,12 +421,12 @@ gate records' units (names right, names found, held-out names):
 | `date` | 68.89 (93 of 135) | 25.98 (93 of 358) | 54.11 (125 of 231) | 34.92 (125 of 358) |
 
 The trained models are more precise than the references and find far
-fewer names. In the movie script that holds 787 of the held-out persons,
-the trained model finds 319 of them and the reference 400. The
-organization model leads by 2.29 points, but the interval does not rule
-out a loss of 6.41, and the date model's does not rule out one of 12.64,
-so neither passes. The parameters are `NameFinderME.train`'s defaults,
-chosen before the run; MASC's 351 training documents give about 2,700
+fewer names. In the movie script, which holds 787 of the persons in the
+held-out samples, the trained model finds 319 of them and the reference
+400. The organization model leads by 2.29 points, but the interval does
+not rule out a loss of 6.41, and the date model's does not rule out one
+of 12.64, so neither passes. The parameters are `NameFinderME.train`'s
+defaults, chosen before the run; the training samples hold about 2,700
 to 4,900 names a type, and with cutoff 0 and 300 iterations GIS fits
 the training documents closely (the date model scores 98.50 on them).
 The recipes keep the defaults: a recipe's parameters chosen by looking
@@ -383,6 +439,52 @@ gated them the same way. Every gate still failed: person 56.84 against
 60.82, -3.98 (-6.80 to -1.12); location 63.26 against 64.10, -0.84
 (-5.43 to +3.75); organization 44.44 against 42.54, +1.90 (-6.28 to
 +9.75); date 47.53 against 42.44, +5.08 (-1.92 to +12.05).
+
+As a second check made after the run, and not a recipe, the same code
+trained and scored the four models with every sample clearing the
+adaptive data, as `MascNamedEntitySampleStream` marks its samples, the
+references scored with the same clearing and nothing else changed:
+
+| Type | Model's score (95% interval) | Reference's score (95% interval) | Difference (95% interval) | Gate |
+|---|---|---|---|---|
+| `person` | 57.32 (54.35 to 60.24) | 54.59 (51.80 to 57.29) | +2.73 (-0.30 to +5.86) | pass |
+| `location` | 58.30 (53.18 to 63.32) | 62.86 (58.31 to 67.20) | -4.56 (-9.24 to +0.13) | fail |
+| `organization` | 40.99 (34.11 to 47.52) | 40.19 (34.85 to 45.59) | +0.80 (-7.47 to +8.78) | fail |
+| `date` | 43.97 (38.19 to 49.46) | 42.91 (37.46 to 48.19) | +1.06 (-6.60 to +8.79) | fail |
+
+The person gate turns on this choice: its difference moves 8.21 points,
+from -5.48 to +2.73, and the gate passes; the other differences move
+1.49 to 5.78 points. Clearing per document helps the reference more than
+the trained model: the reference's person recall is 47.54 cleared per
+document and 40.57 cleared at every sentence, the trained model's 39.77
+and 41.23. With the recipes' clearing, per document, the scores are
+person 55.33 (52.32 to 58.30) against 60.82 (58.06 to 63.46), location 56.39 (50.90 to 61.66)
+against 64.10 (59.63 to 68.35), organization 44.83 (37.58 to 51.59)
+against 42.54 (37.11 to 48.00), date 37.73 (31.82 to 43.46) against
+42.44 (37.05 to 47.67).
+
+Two held-out documents account for the whole person loss. In the movie
+script `data/written/movie-script/pirates` (787 of the persons in the
+held-out samples) the trained model finds 319 (P 91.93, R 40.53, F
+56.26) and the reference 400 (P 89.89, R 50.83, F 64.94); in the story
+`data/written/fiction/Nathans_Bylichka` (151 persons) the trained model
+finds 12 (P 92.31, R 7.95, F 14.63) and the reference 54 (P 91.53, R
+35.76, F 51.43). On the other 37 held-out documents' 425 persons the
+trained model scores P 89.41 (211 of 236), R 49.65, F 63.84, and the
+reference P 73.48 (194 of 264), R 45.65, F 56.31; by the gate's
+bootstrap over those 3,441 sentences, a subset chosen after seeing the
+results, the difference is +7.53 (+1.84 to +13.16).
+
+The gate resamples sentences, as every recipe's gate does. Resampled by
+document instead, with the gate's own bootstrap over the 39 held-out
+documents as units, each a document's summed counts (10,000 resamples,
+seed 154), the person difference is -5.48 (-13.71 to +12.65) cleared
+per document and +2.73 (-1.93 to +20.16) cleared at every sentence. The
+held-out set is too small to tell the two models apart on person: it is
+39 documents, and two of them hold 938 of its 1,363 persons. Resampled
+by document, cleared per document, the other types' differences are
+location -7.72 (-24.74 to +3.67), organization +2.29 (-17.81 to +30.18)
+and date -4.72 (-16.19 to +13.49); none of the four is clear of zero.
 
 The trained models are not checked in or published. A second run into
 another directory wrote the same bytes (for the name finders, the same
@@ -475,10 +577,14 @@ passes everything. A model against itself passes with no difference.
 for it: an entity with a gap kept as its covering span, overlapping
 entities and entities of other types left out and counted, `org` read as
 `organization`, a sentence of no tokens skipped, a document's first
-sample clearing the adaptive data, a side with no name of the recipe's
-type or too many skipped sentences refused, and, on the same document,
-the names OpenNLP's `MascNamedEntitySampleStream` reads (each of its
-differences above) against the whole names the recipes read.
+sample clearing the adaptive data, entities outside every sentence
+region and in a region the reader drops counted, a side with no name of
+the recipe's type or too many skipped sentences refused, and, on the
+same documents, the names OpenNLP's `MascNamedEntitySampleStream` reads
+(each of its differences above, with names listed last to first as MASC
+lists them, and first to last with an even and an odd number of tokens,
+in a sentence and at its start) against the whole names the recipes
+read.
 
 The OpenNLP UD references need `TURBO_GOLDENS_MODELS` naming a
 directory that holds them (`cargo run -p turbo-goldens-tool --
