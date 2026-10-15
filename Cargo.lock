@@ -2121,7 +2121,11 @@ dependencies = [
  "turbo-analysis",
  "turbo-analysis-layers",
  "turbo-goldens",
+ "turbo-langdetect",
+ "turbo-lemmatizer",
+ "turbo-normalize",
  "turbo-stem-layers",
+ "turbo-tokenize",
  "turbo-unicode",
 ]
 

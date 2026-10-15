@@ -11,7 +11,11 @@ name = "turbo_stem"
 [dependencies]
 turbo-analysis = { path = "../core" }
 turbo-analysis-layers = { path = "../layers" }
+turbo-langdetect = { path = "../langdetect" }
+turbo-lemmatizer = { path = "../lemmatizer" }
+turbo-normalize = { path = "../normalize" }
 turbo-stem-layers = { path = "../stem-layers" }
+turbo-tokenize = { path = "../tokenize" }
 # Character.isLetter, for the French light and minimal stemmers.
 turbo-unicode = { path = "../unicode" }
 
