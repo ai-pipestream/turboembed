@@ -28,18 +28,32 @@ impl Transport for Offline {
     }
 }
 
-/// HTTPS through `ureq`, as the bundle tool fetches. Reads at most one
-/// byte more than the index expects, enough for the size check to fail
-/// on a longer body without holding all of it.
+/// HTTPS through `ureq`. Redirects the server issues are followed, up to
+/// 10, over HTTPS only: a redirect to a plain `http://` address is an
+/// error. Where a redirect leads is not checked against the index (a
+/// GitHub release, for one, redirects to another host). The zoo checks
+/// the bytes by size, SHA-256 and SHA-512 ([`verify`]), so a file it keeps
+/// holds the bytes the index records wherever a redirect led. Reads at most one byte more
+/// than the index expects, enough for the size check to fail on a longer
+/// body without holding all of it.
 #[cfg(feature = "http")]
 pub struct Http;
 
 #[cfg(feature = "http")]
 impl Transport for Http {
     fn get(&self, url: &Url, size: u64) -> Result<Vec<u8>, String> {
-        let mut resp = ureq::get(url.as_str()).call().map_err(|e| e.to_string())?;
+        let mut resp = agent().get(url.as_str()).call().map_err(|e| e.to_string())?;
         resp.body_mut().with_config().limit(size.saturating_add(1)).read_to_vec().map_err(|e| e.to_string())
     }
+}
+
+/// The agent [`Http`] fetches through: `ureq`'s defaults, with every
+/// request and every redirect restricted to HTTPS and at most 10
+/// redirects followed.
+#[cfg(feature = "http")]
+fn agent() -> &'static ureq::Agent {
+    static AGENT: std::sync::OnceLock<ureq::Agent> = std::sync::OnceLock::new();
+    AGENT.get_or_init(|| ureq::Agent::config_builder().https_only(true).max_redirects(10).build().into())
 }
 
 /// An artifact whose files are all on disk and verified.
@@ -260,4 +274,25 @@ pub(crate) fn write_atomic(dest: &Path, bytes: &[u8]) -> Result<(), ZooError> {
         return Err(io(&tmp, e));
     }
     fs::rename(&tmp, dest).map_err(|e| io(dest, e))
+}
+
+#[cfg(all(test, feature = "http"))]
+mod tests {
+    use super::agent;
+
+    #[test]
+    fn the_http_agent_is_https_only_and_follows_at_most_10_redirects() {
+        assert!(agent().config().https_only());
+        assert_eq!(agent().config().max_redirects(), 10);
+    }
+
+    #[test]
+    fn the_http_agent_refuses_a_plain_http_address_before_connecting() {
+        // The check runs before any connection is made, so the test needs
+        // no network.
+        match agent().get("http://127.0.0.1:9/x").call() {
+            Err(ureq::Error::RequireHttpsOnly(_)) => {}
+            other => panic!("expected the https-only refusal, got {other:?}"),
+        }
+    }
 }

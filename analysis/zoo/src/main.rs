@@ -65,6 +65,21 @@ fn requirement(licence: Licence, terms: Option<&str>) -> Result<Requirement, Str
     }
 }
 
+/// The licence `accept` or `revoke` names, if it is one a user can accept.
+/// A refused or permissive licence is named as such before anything about
+/// its text, which a refused `LicenseRef-` one does not have; `verb` is the
+/// command, for the message about a permissive one.
+fn acceptable(licence: &str, verb: &str) -> Result<Licence, String> {
+    let licence: Licence = licence.parse()?;
+    if let Some(reason) = licence.refusal() {
+        return Err(format!("{licence}: refused ({reason}); the zoo fetches nothing under it"));
+    }
+    if licence.class() == LicenceClass::Permissive {
+        return Err(format!("{licence} is {}: there is nothing to {verb}", LicenceClass::Permissive));
+    }
+    Ok(licence)
+}
+
 fn run(mut args: Vec<String>) -> Result<(), String> {
     let index = if args.first().map(String::as_str) == Some("--index") {
         if args.len() < 2 {
@@ -106,7 +121,7 @@ fn run(mut args: Vec<String>) -> Result<(), String> {
                 println!("accept first: {} {}", r.licence, r.text);
             }
             if let Some(o) = &a.origin {
-                println!("origin: {o} (every file is fetched from under it, nowhere else)");
+                println!("origin: {o} (every file's address lies under it; redirects are followed over HTTPS only)");
             }
             let mut reasons: Vec<LocalOnlyReason> = Vec::new();
             for reason in a.licences().filter_map(Licence::local_only) {
@@ -127,17 +142,7 @@ fn run(mut args: Vec<String>) -> Result<(), String> {
             if terms.len() > 1 {
                 return Err(USAGE.into());
             }
-            // A refused or permissive licence is named as such before
-            // anything about its text, which a refused `LicenseRef-` one
-            // does not have.
-            let licence: Licence = licence.parse()?;
-            if let Some(reason) = licence.refusal() {
-                return Err(format!("{licence}: refused ({reason}); the zoo fetches nothing under it"));
-            }
-            if licence.class() == LicenceClass::Permissive {
-                return Err(format!("{licence} is {}: there is nothing to accept", LicenceClass::Permissive));
-            }
-            let r = requirement(licence, terms.first().copied())?;
+            let r = requirement(acceptable(licence, "accept")?, terms.first().copied())?;
             println!("{}: read the text at {}", r.licence, r.text);
             if let Some(reason) = r.licence.local_only() {
                 println!("{}", reason.terms());
@@ -157,7 +162,7 @@ fn run(mut args: Vec<String>) -> Result<(), String> {
             Ok(())
         }
         ["revoke", licence, rest @ ..] if rest.len() <= 1 => {
-            let r = requirement(licence.parse()?, rest.first().copied())?;
+            let r = requirement(acceptable(licence, "revoke")?, rest.first().copied())?;
             let user = user()?;
             let mut acc = Acceptances::load(&accept_path).map_err(e)?;
             if acc.revoke(&user, &r) {
