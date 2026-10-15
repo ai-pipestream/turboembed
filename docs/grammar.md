@@ -14,7 +14,9 @@ parts:
 - `lang/`, one module per language, each a `Grammar`: its lexicon, its
   rules, how it writes numerals and which categories become output.
   English (`lang/en/`, the `ENGLISH` static) is the one there is.
-  `ENGLISH_TIMES` holds the same number rules and adds the time rules.
+  `ENGLISH_TIMES` holds the same number rules and adds the time rules;
+  `ENGLISH_UNITS` adds the rules for amounts in units and money
+  (`docs/grammar-units.md`).
 
 `GrammarAnnotator` runs a grammar over a text view and writes layers
 ([below](#layers)). It is separate from `turbo-numeric`, which ports
@@ -247,6 +249,12 @@ digits, so `one third` holds 34 threes.
 | Numbers | `Numbers` (`turbo:numbers`) | `grammar` (`GRAMMAR_NUMBERS`) |
 | Percentages | `Quantities` (`turbo:quantities`), unit `%` | `grammar` (`GRAMMAR_PERCENTS`) |
 | Ordinals | `Ordinals` (`turbo:ordinals`) | default |
+| Quantities with units | `Quantities` (`turbo:quantities`), unit symbol | `grammar` (`GRAMMAR_PERCENTS`) |
+| Money | `Money` (`turbo:money`) | `grammar` (`GRAMMAR_MONEY`) |
+
+The unit rows come from `ENGLISH_UNITS`, which `GrammarAnnotator::english`
+runs; `docs/grammar-units.md` describes the unit grammar, its layers and
+its conformance.
 
 The numbers and percentages use the existing layers under the instance
 `grammar`, never the default instances `turbo-numeric` writes. A number's
@@ -343,10 +351,10 @@ tests in `analysis/grammar/src/lang/en/tests.rs` cover them.
 English grammar over a generated 100 KB text (the sentences are in
 `analysis/grammar/tests/common/sample.rs`), and `analysis/grammar/tests/timing.rs` runs
 the same text in the test build, checks the layers and prints the time.
-The benchmark also times `TimeAnnotator` over the same text.
+The benchmark also times the parse with the unit rules and
+`TimeAnnotator` over the same text.
 
 ## Not yet done
 
-Planned on #388: numbers with units (currency, dimension, temperature,
-age), and Spanish and Dutch grammars. The time grammar reads no time
+Planned on #388: Spanish and Dutch grammars. The time grammar reads no time
 zones.
