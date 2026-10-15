@@ -55,8 +55,7 @@ fn varint(lead: u8, mut rest: &[u8], meta: u32) -> (usize, &[u8]) {
     let mut value = usize::from(lead & ((1 << value_bits) - 1) as u8);
     if lead & (1 << value_bits) != 0 {
         let latent = 1usize << value_bits;
-        loop {
-            let Some((&next, tail)) = rest.split_first() else { break };
+        while let Some((&next, tail)) = rest.split_first() {
             rest = tail;
             value = (value << 7).wrapping_add(usize::from(next & 0x7F)).wrapping_add(latent);
             if next & 0x80 == 0 {
@@ -278,6 +277,8 @@ mod tests {
     }
 
     #[test]
+    // The digits are grouped as metadata, continuation flag and value.
+    #[allow(clippy::unusual_byte_groupings)]
     fn varints_follow_the_documented_examples() {
         // Three bits of metadata.
         assert_eq!(varint(0b000_0_1010, &[], 3).0, 10);
