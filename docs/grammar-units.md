@@ -22,6 +22,15 @@ unit name (`Square meter`, `Kilometer per hour`, `C`) and is used only to
 compare with the specifications; `Unit::write_symbol` writes the symbol
 the layers hold (`km`, `m²`, `km/h`, `°C`).
 
+Units that share a name but differ in size are separate variants. A
+tonne, `t` and a `metric ton` are `Weight::MetricTon` (symbol `t`); an
+unqualified `ton`, a `short ton` and a `US ton` are `Weight::ShortTon`
+(`sh tn`); a `long ton`, `British ton` or `UK ton` is `Weight::LongTon`
+(`long tn`). An unqualified gallon, quart, pint or fluid ounce is the US
+measure; with `imperial`, `UK` or `British` before it, it is the
+imperial one (`Volume::ImperialGallon`, symbol `imp gal`, and so on).
+`nautical miles` and `nmi` are `Length::NauticalMile`.
+
 Money units are in `analysis/grammar/src/unit/currency.rs`:
 
 - `CurrencyUnit::Code` holds an ISO 4217 `Currency` from
@@ -113,7 +122,9 @@ case passes when they and the expected results are equal sets: the same
 spans, type names, unit names, values (within a relative 1e-12, or both
 absent for a unit named alone), a dimension's subtype, and the ISO code
 where the case gives one. The specification files gallons under weight;
-the harness takes that subtype as volume.
+the harness takes that subtype as volume. It names a tonne, `t` and an
+unqualified ton all `Ton`; the harness accepts a metric or a short ton
+for that name.
 
 | File | Cases | Eligible | Passing |
 |---|---|---|---|

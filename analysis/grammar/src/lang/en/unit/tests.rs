@@ -52,7 +52,36 @@ fn areas_and_volumes() {
 fn weights() {
     check("a 20 kg bag", &["20 kg = 20 Kilogram"]);
     check("2 pounds of apples", &["2 pounds = 2 Pound"]);
-    check("five tonnes of steel", &["five tonnes = 5 Ton"]);
+    check("five tonnes of steel", &["five tonnes = 5 Metric ton"]);
+}
+
+#[test]
+fn tons_say_which_ton() {
+    check("3.5 tonnes of grain", &["3.5 tonnes = 3.5 Metric ton"]);
+    check("a 100t crane", &["100t = 100 Metric ton"]);
+    check("16,000 metric tons", &["16,000 metric tons = 16000 Metric ton"]);
+    check("a three-ton truck", &["three-ton = 3 Short ton (US)"]);
+    check("2 short tons", &["2 short tons = 2 Short ton (US)"]);
+    check("2 US tons", &["2 US tons = 2 Short ton (US)"]);
+    check("2 long tons", &["2 long tons = 2 Long ton (British)"]);
+    check("2 British tons", &["2 British tons = 2 Long ton (British)"]);
+}
+
+#[test]
+fn imperial_measures_when_the_text_says_so() {
+    check("5 gallons", &["5 gallons = 5 Gallon"]);
+    check("5 US gallons", &["5 US gallons = 5 Gallon"]);
+    check("5 imperial gallons", &["5 imperial gallons = 5 Imperial gallon"]);
+    check("2 UK pints", &["2 UK pints = 2 Imperial pint"]);
+    check("10 imperial fluid ounces", &["10 imperial fluid ounces = 10 Imperial fluid ounce"]);
+    check("give us 2 pints", &["2 pints = 2 Pint"]);
+}
+
+#[test]
+fn nautical_miles() {
+    check("12 nautical miles offshore", &["12 nautical miles = 12 Nautical mile"]);
+    check("12 nmi", &["12 nmi = 12 Nautical mile"]);
+    check("12 miles", &["12 miles = 12 Mile"]);
 }
 
 #[test]

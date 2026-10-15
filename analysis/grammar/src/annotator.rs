@@ -335,6 +335,14 @@ mod tests {
     }
 
     #[test]
+    fn tonnes_and_tons_have_their_own_symbols() {
+        let text = "3.5 tonnes, 2 tons and 1 long ton";
+        let f = GrammarAnnotator::english().find(text, ViewId::SOURCE);
+        let units: Vec<&str> = (0..f.quantities.len()).map(|i| f.quantities.unit(Ix::new(i as u32))).collect();
+        assert_eq!(units, ["t", "sh tn", "long tn"]);
+    }
+
+    #[test]
     fn money_is_stated_in_its_currency() {
         let text = "it costs $3.5m, 50 cents or 20 francs";
         let f = GrammarAnnotator::english().find(text, ViewId::SOURCE);

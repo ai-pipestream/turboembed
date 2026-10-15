@@ -26,6 +26,7 @@ pub enum Length {
     Nanometer,
     Picometer,
     Mile,
+    NauticalMile,
     Yard,
     Foot,
     Inch,
@@ -46,6 +47,7 @@ impl Length {
             Length::Nanometer => "Nanometer",
             Length::Picometer => "Picometer",
             Length::Mile => "Mile",
+            Length::NauticalMile => "Nautical mile",
             Length::Yard => "Yard",
             Length::Foot => "Foot",
             Length::Inch => "Inch",
@@ -66,6 +68,7 @@ impl Length {
             Length::Nanometer => "nm",
             Length::Picometer => "pm",
             Length::Mile => "mi",
+            Length::NauticalMile => "nmi",
             Length::Yard => "yd",
             Length::Foot => "ft",
             Length::Inch => "in",
@@ -82,7 +85,9 @@ pub enum Area {
     Acre,
 }
 
-/// A volume.
+/// A volume. `Gallon`, `Quart`, `Pint` and `FluidOunce` are the US
+/// measures, which an unqualified name is taken to mean; the imperial ones
+/// are their own units.
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
 pub enum Volume {
     Cubic(Length),
@@ -108,6 +113,10 @@ pub enum Volume {
     Bushel,
     Hogshead,
     Gallon,
+    ImperialGallon,
+    ImperialQuart,
+    ImperialPint,
+    ImperialFluidOunce,
 }
 
 impl Volume {
@@ -136,6 +145,10 @@ impl Volume {
             Volume::Bushel => "Bushel",
             Volume::Hogshead => "Hogshead",
             Volume::Gallon => "Gallon",
+            Volume::ImperialGallon => "Imperial gallon",
+            Volume::ImperialQuart => "Imperial quart",
+            Volume::ImperialPint => "Imperial pint",
+            Volume::ImperialFluidOunce => "Imperial fluid ounce",
         }
     }
 
@@ -164,11 +177,16 @@ impl Volume {
             Volume::Bushel => "bu",
             Volume::Hogshead => "hhd",
             Volume::Gallon => "gal",
+            Volume::ImperialGallon => "imp gal",
+            Volume::ImperialQuart => "imp qt",
+            Volume::ImperialPint => "imp pt",
+            Volume::ImperialFluidOunce => "imp fl oz",
         }
     }
 }
 
-/// A weight (a mass, as English speaks of it).
+/// A weight (a mass, as English speaks of it). A metric ton (a tonne) is
+/// 1000 kg, a short ton 2000 lb and a long ton 2240 lb.
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
 pub enum Weight {
     Kilogram,
@@ -176,7 +194,6 @@ pub enum Weight {
     Milligram,
     Microgram,
     MetricTon,
-    Ton,
     Pound,
     Ounce,
     Grain,
@@ -195,7 +212,6 @@ impl Weight {
             Weight::Milligram => "Milligram",
             Weight::Microgram => "Microgram",
             Weight::MetricTon => "Metric ton",
-            Weight::Ton => "Ton",
             Weight::Pound => "Pound",
             Weight::Ounce => "Ounce",
             Weight::Grain => "Grain",
@@ -214,13 +230,12 @@ impl Weight {
             Weight::Milligram => "mg",
             Weight::Microgram => "µg",
             Weight::MetricTon => "t",
-            Weight::Ton => "ton",
             Weight::Pound => "lb",
             Weight::Ounce => "oz",
             Weight::Grain => "gr",
             Weight::Pennyweight => "dwt",
-            Weight::LongTon => "long ton",
-            Weight::ShortTon => "short ton",
+            Weight::LongTon => "long tn",
+            Weight::ShortTon => "sh tn",
             Weight::Stone => "st",
             Weight::Dram => "dr",
         }
@@ -604,6 +619,20 @@ mod tests {
         assert_eq!(symbol(Unit::Age(Age::Year)), "years old");
         assert_eq!(symbol(Unit::Information(Information::Gigabyte)), "GB");
         assert_eq!(symbol(Unit::Currency(CurrencyUnit::Generic(Generic::Dollar))), "dollar");
+    }
+
+    #[test]
+    fn tons_and_imperial_measures_are_their_own_units() {
+        assert_eq!(symbol(Unit::Weight(Weight::MetricTon)), "t");
+        assert_eq!(symbol(Unit::Weight(Weight::ShortTon)), "sh tn");
+        assert_eq!(symbol(Unit::Weight(Weight::LongTon)), "long tn");
+        assert_eq!(Unit::Weight(Weight::ShortTon).to_string(), "Short ton (US)");
+        assert_eq!(Unit::Weight(Weight::LongTon).to_string(), "Long ton (British)");
+        assert_eq!(symbol(Unit::Volume(Volume::Gallon)), "gal");
+        assert_eq!(symbol(Unit::Volume(Volume::ImperialGallon)), "imp gal");
+        assert_eq!(symbol(Unit::Volume(Volume::ImperialFluidOunce)), "imp fl oz");
+        assert_eq!(symbol(Unit::Length(Length::NauticalMile)), "nmi");
+        assert_eq!(Unit::Volume(Volume::ImperialPint).dimension(), Some(Dimension::Volume));
     }
 
     #[test]

@@ -9,13 +9,15 @@
 //! and, where the case gives one, the ISO currency code.
 //!
 //! Recognizers-Text files gallons under weight; the comparison takes its
-//! subtype for a gallon as volume, which is what the grammar says.
+//! subtype for a gallon as volume, which is what the grammar says. Its
+//! `Ton` covers both a metric ton and a short ton (see [`spec_unit`]).
 
 use std::collections::BTreeSet;
 use std::fmt::Write as _;
 
 use serde::Deserialize;
 use turbo_analysis::{OffsetTable, Utf16Offset};
+use turbo_grammar::unit::Weight;
 use turbo_grammar::{CurrencyUnit, ENGLISH_UNITS, Measure, Mention, Output, Parser, Unit, Value};
 
 use super::{data, same_number};
@@ -69,6 +71,17 @@ fn spec_subtype(unit: &str, subtype: &str) -> String {
     }
 }
 
+/// Whether the expected unit name is `unit`'s. Recognizers-Text names
+/// a tonne, `t` and an unqualified ton all `Ton`; the grammar reads the
+/// first two as a metric ton and the last as a short ton.
+fn spec_unit(want: Option<&str>, unit: Unit, name: &str) -> bool {
+    match want {
+        Some("Ton") => matches!(unit, Unit::Weight(Weight::MetricTon | Weight::ShortTon)),
+        Some(w) => w == name,
+        None => false,
+    }
+}
+
 /// A mention's unit and value, if it is a quantity or a unit alone.
 fn reading(m: &Mention) -> Option<(Unit, Option<f64>)> {
     match m.value {
@@ -97,7 +110,7 @@ fn matches(want: &UnitExpected, unit: Unit, value: Option<f64>) -> bool {
         _ => false,
     });
     want.type_name == unit.measure().name()
-        && res.unit.as_deref() == Some(name.as_str())
+        && spec_unit(res.unit.as_deref(), unit, &name)
         && value_ok
         && subtype_ok
         && iso_ok

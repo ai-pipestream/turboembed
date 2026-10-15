@@ -67,7 +67,23 @@ fn length(v: &Value) -> bool {
 }
 
 fn ton(v: &Value) -> bool {
-    is_unit(v, |u| u == Unit::Weight(Weight::Ton))
+    is_unit(v, |u| matches!(u, Unit::Weight(Weight::ShortTon | Weight::MetricTon)))
+}
+
+fn mile(v: &Value) -> bool {
+    is_unit(v, |u| u == Unit::Length(Length::Mile))
+}
+
+/// A US customary measure that has an imperial namesake: `gallon`,
+/// `quart`, `pint`, `fluid ounce`, `ton`.
+fn customary(v: &Value) -> bool {
+    is_unit(v, |u| {
+        matches!(
+            u,
+            Unit::Volume(Volume::Gallon | Volume::Quart | Volume::Pint | Volume::FluidOunce)
+                | Unit::Weight(Weight::ShortTon)
+        )
+    })
 }
 
 fn fluid(v: &Value) -> bool {
@@ -286,6 +302,27 @@ fn b_long_ton(_: &[Value], _: &Ctx<'_>) -> Option<Value> {
 
 fn b_short_ton(_: &[Value], _: &Ctx<'_>) -> Option<Value> {
     Some(Value::Unit(Unit::Weight(Weight::ShortTon)))
+}
+
+fn b_nautical(_: &[Value], _: &Ctx<'_>) -> Option<Value> {
+    Some(Value::Unit(Unit::Length(Length::NauticalMile)))
+}
+
+/// `imperial gallons`, `UK pints`, `British tons`.
+fn b_imperial(v: &[Value], _: &Ctx<'_>) -> Option<Value> {
+    Some(Value::Unit(match unit(&v[0]) {
+        Unit::Volume(Volume::Gallon) => Unit::Volume(Volume::ImperialGallon),
+        Unit::Volume(Volume::Quart) => Unit::Volume(Volume::ImperialQuart),
+        Unit::Volume(Volume::Pint) => Unit::Volume(Volume::ImperialPint),
+        Unit::Volume(Volume::FluidOunce) => Unit::Volume(Volume::ImperialFluidOunce),
+        _ => Unit::Weight(Weight::LongTon),
+    }))
+}
+
+/// `US gallons`, `US tons`: the unit an unqualified name means, with the
+/// country written in capitals so `give us pints` is not read.
+fn b_us(v: &[Value], ctx: &Ctx<'_>) -> Option<Value> {
+    (ctx.raw(ctx.start) == "US").then(|| Value::Unit(unit(&v[0])))
 }
 
 fn b_fluid(v: &[Value], _: &Ctx<'_>) -> Option<Value> {
@@ -557,6 +594,11 @@ pub static RULES: &[Rule] = &[
     r("unit_metric_ton", UNIT, 0, &[word("metric"), node_if(UNIT, ton)], b_metric),
     r("unit_long_ton", UNIT, 0, &[word("long"), node_if(UNIT, ton)], b_long_ton),
     r("unit_short_ton", UNIT, 0, &[word("short"), node_if(UNIT, ton)], b_short_ton),
+    r("unit_nautical_mile", UNIT, 0, &[word("nautical"), node_if(UNIT, mile)], b_nautical),
+    r("unit_imperial", UNIT, 0, &[word("imperial"), node_if(UNIT, customary)], b_imperial),
+    r("unit_uk", UNIT, 0, &[word("uk"), node_if(UNIT, customary)], b_imperial),
+    r("unit_british", UNIT, 0, &[word("british"), node_if(UNIT, customary)], b_imperial),
+    r("unit_us", UNIT, 0, &[word("us"), node_if(UNIT, customary)], b_us),
     r("unit_fluid", UNIT, 0, &[word("fluid"), node_if(UNIT, fluid)], b_fluid),
     r("unit_fl", UNIT, 0, &[word("fl"), OPT_DOT, node_if(UNIT, fluid)], b_fluid),
     r("unit_light_year", UNIT, 0, &[word("light"), node_if(TIMEW, is_year)], b_light_year),
