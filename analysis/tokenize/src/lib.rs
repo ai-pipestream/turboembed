@@ -12,6 +12,8 @@
 //!   also writes the word type of each token.
 //! - [`unigram`]: `UnigramSegmenter`, the frequency lexicon segmenter
 //!   for Chinese and other text written without spaces.
+//! - [`complex`]: the UAX #29 word tokenizer with dictionaries for Thai,
+//!   Lao, Khmer and Burmese runs, from ICU4X's segmenter data.
 //! - [`lattice`]: `LatticeTokenizer`, the Viterbi segmenter over a MeCab
 //!   dictionary for Japanese and Korean, which also writes the part of
 //!   speech of each token.
@@ -28,6 +30,7 @@
 //! docs/segmentation.md describes the design and every place the ports
 //! differ from OpenNLP on purpose.
 
+pub mod complex;
 pub mod detok;
 pub mod lattice;
 pub mod me;
@@ -40,6 +43,9 @@ pub mod whitespace;
 mod lines;
 mod utf8;
 
+pub use complex::{
+    ComplexScript, ComplexSegmenter, DictionaryWordTokenizer, UntypedDictionaryWordTokenizer, dictionary_word_tokens,
+};
 pub use detok::{Detokenizer, DetokenizerDictionary, DictionaryError, DictionaryOperation, Operation};
 pub use lattice::{LatticeTokenizer, MecabDictionary};
 pub use simple::{SimpleTokenizer, simple_spans};
