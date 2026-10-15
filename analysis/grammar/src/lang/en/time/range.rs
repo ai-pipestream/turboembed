@@ -21,23 +21,23 @@ use super::{
 
 // Connectors.
 
-fn b_empty(_: &[Value], _: &Ctx<'_>) -> Option<Value> {
+pub(crate) fn b_empty(_: &[Value], _: &Ctx<'_>) -> Option<Value> {
     Some(Value::Empty)
 }
 
 /// A child that is a point, carried up as it is.
-fn b_point(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
+pub(crate) fn b_point(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
     any_point(c, &v[0]).map(|_| v[0])
 }
 
 /// A clock time or an hour, as a bound of a clock range.
-fn b_tpoint(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
+pub(crate) fn b_tpoint(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
     clock_of(c, &v[0]).map(|_| v[0])
 }
 
 /// A point modified only by a portion, which a range bound reads as its
 /// edge: `the end of 2008`.
-fn b_edge_point(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
+pub(crate) fn b_edge_point(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
     let (_, m) = any_point(c, &v[0])?;
     (m.relation == Relation::None && matches!(m.portion, Portion::Start | Portion::Mid | Portion::End)).then_some(v[0])
 }
@@ -45,13 +45,13 @@ fn b_edge_point(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
 // Date ranges.
 
 /// A day of an open month, `the 21st`, which is a time only after `on`.
-fn open_day(d: DateSpec) -> bool {
+pub(crate) fn open_day(d: DateSpec) -> bool {
     matches!(d, DateSpec::Cal { month: 0, day: 1.., weekday: 0, .. })
 }
 
 /// A range bound that names a date or a period: the point and the edge
 /// it takes.
-fn date_bound(c: &Ctx<'_>, v: &Value) -> Option<(Point, Edge)> {
+pub(crate) fn date_bound(c: &Ctx<'_>, v: &Value) -> Option<(Point, Edge)> {
     let TimeValue::Point { point, modifier, clip: false } = tval(c, v)? else { return None };
     if !point.shift.is_zero() || modifier.relation != Relation::None {
         return None;
@@ -74,7 +74,7 @@ fn date_bound(c: &Ctx<'_>, v: &Value) -> Option<(Point, Edge)> {
 
 /// The start's year, when the text gives it only with the end: `May to
 /// Oct 2020`, `Nov-Feb 2017` (the November before).
-fn with_end_year(start: DateSpec, end: DateSpec) -> DateSpec {
+pub(crate) fn with_end_year(start: DateSpec, end: DateSpec) -> DateSpec {
     let (DateSpec::Cal { year: YearRef::Any, month, day, weekday }, DateSpec::Cal { year, month: em, day: ed, .. }) =
         (start, end)
     else {
@@ -94,7 +94,7 @@ fn with_end_year(start: DateSpec, end: DateSpec) -> DateSpec {
 
 /// A weekday that ends a range falls in the start's week: `from next
 /// Monday to Friday`.
-fn in_start_week(start: DateSpec, end: DateSpec) -> DateSpec {
+pub(crate) fn in_start_week(start: DateSpec, end: DateSpec) -> DateSpec {
     match (start, end) {
         (DateSpec::WeekdayRel { weeks, .. }, DateSpec::Cal { year: YearRef::Any, month: 0, day: 0, weekday })
             if weekday > 0 =>
@@ -107,13 +107,13 @@ fn in_start_week(start: DateSpec, end: DateSpec) -> DateSpec {
 
 /// A clock time or the present, as a bound of a range with the other:
 /// `between now and eight o'clock`.
-fn time_bound(c: &Ctx<'_>, v: &Value) -> Option<Point> {
+pub(crate) fn time_bound(c: &Ctx<'_>, v: &Value) -> Option<Point> {
     let TimeValue::Point { point, modifier, clip: false } = tval(c, v)? else { return None };
     let fits = modifier.is_none() && point.shift.is_zero() && point.date == DateSpec::None;
     (fits && matches!(point.time, TimeOfDay::Clock(_) | TimeOfDay::Now)).then_some(point)
 }
 
-fn between(c: &Ctx<'_>, a: &Value, b: &Value) -> Option<Value> {
+pub(crate) fn between(c: &Ctx<'_>, a: &Value, b: &Value) -> Option<Value> {
     if let (Some(s), Some(e)) = (time_bound(c, a), time_bound(c, b))
         && (s.time == TimeOfDay::Now) != (e.time == TimeOfDay::Now)
     {
@@ -128,13 +128,13 @@ fn between(c: &Ctx<'_>, a: &Value, b: &Value) -> Option<Value> {
     emit(c, TimeValue::range(range))
 }
 
-fn b_range(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
+pub(crate) fn b_range(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
     between(c, &v[0], v.last()?)
 }
 
 /// `from 4-23 in next month`, `between 3 and 12 of Sept`: two days of
 /// the month that follows.
-fn days_of(c: &Ctx<'_>, d1: &Value, d2: &Value, month: &Value) -> Option<Value> {
+pub(crate) fn days_of(c: &Ctx<'_>, d1: &Value, d2: &Value, month: &Value) -> Option<Value> {
     let (year, m) = month_of(c, month)?;
     let day = |d: &Value| -> Option<DateSpec> {
         let d = u8::try_from(term(d).0).ok()?;
@@ -147,13 +147,13 @@ fn days_of(c: &Ctx<'_>, d1: &Value, d2: &Value, month: &Value) -> Option<Value> 
     emit(c, TimeValue::range(Range::Between { start: s, start_edge: Edge::Start, end: e, end_edge: Edge::Start }))
 }
 
-fn b_days_of(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
+pub(crate) fn b_days_of(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
     // The connector is a child unless it is `and`.
     days_of(c, &v[0], &v[v.len() - 2], v.last()?)
 }
 
 /// `November 18-19`, `april 9th through 17th`, with a year after.
-fn b_month_days(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
+pub(crate) fn b_month_days(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
     let month = u8::try_from(term(&v[0]).0).ok()?;
     let year = match v.get(4) {
         Some(y) => year_ref(y),
@@ -167,11 +167,11 @@ fn b_month_days(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
 
 // Clock ranges.
 
-fn known(k: &Clock) -> bool {
+pub(crate) fn known(k: &Clock) -> bool {
     k.meridiem != Meridiem::Unknown
 }
 
-fn clock_range(c: &Ctx<'_>, date: DateSpec, s: Clock, e: Clock) -> Option<Value> {
+pub(crate) fn clock_range(c: &Ctx<'_>, date: DateSpec, s: Clock, e: Clock) -> Option<Value> {
     let p = |k| Point { date, time: TimeOfDay::Clock(k), ..Point::default() };
     emit(c, TimeValue::range(Range::Between { start: p(s), start_edge: Edge::Start, end: p(e), end_edge: Edge::Start }))
 }
@@ -181,14 +181,14 @@ fn clock_range(c: &Ctx<'_>, date: DateSpec, s: Clock, e: Clock) -> Option<Value>
 /// (`3-8`).
 /// Whether the match holds a hyphen inside a spelled number: `seven
 /// twenty-seven` is a time, not a range.
-fn spelled_hyphen(c: &Ctx<'_>) -> bool {
+pub(crate) fn spelled_hyphen(c: &Ctx<'_>) -> bool {
     (c.start + 1..c.end.saturating_sub(1)).any(|i| {
         let (a, h, b) = (c.lexeme(i - 1), c.lexeme(i), c.lexeme(i + 1));
         c.word(i) == "-" && h.glued && b.glued && a.kind == Kind::Word && b.kind == Kind::Word
     })
 }
 
-fn b_trange(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
+pub(crate) fn b_trange(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
     if spelled_hyphen(c) {
         return None;
     }
@@ -196,7 +196,7 @@ fn b_trange(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
     stands(&s, &e).then(|| clock_range(c, DateSpec::None, s, e))?
 }
 
-fn b_lrange(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
+pub(crate) fn b_lrange(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
     if spelled_hyphen(c) {
         return None;
     }
@@ -206,27 +206,27 @@ fn b_lrange(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
 
 /// Whether two clock times make a range by themselves: one says its
 /// half of the day or has minutes (`9 to 10:30`).
-fn stands(s: &Clock, e: &Clock) -> bool {
+pub(crate) fn stands(s: &Clock, e: &Clock) -> bool {
     known(s) || known(e) || s.shown != Shown::Hour || e.shown != Shown::Hour
 }
 
 /// `from 9 for 2.5 hrs`, `for 2.5 hours from 9`.
-fn clock_for(c: &Ctx<'_>, clock: &Value, dur: &Value) -> Option<Value> {
+pub(crate) fn clock_for(c: &Ctx<'_>, clock: &Value, dur: &Value) -> Option<Value> {
     let k = clock_of(c, clock)?;
     let length = duration_of(c, dur)?;
     emit(c, TimeValue::range(Range::For { start: Point::time(TimeOfDay::Clock(k)), length }))
 }
 
-fn b_from_clock_for(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
+pub(crate) fn b_from_clock_for(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
     clock_for(c, &v[0], &v[1])
 }
 
-fn b_for_from_clock(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
+pub(crate) fn b_for_from_clock(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
     clock_for(c, &v[1], &v[0])
 }
 
 /// A clock range from a clock time for a duration.
-fn clock_length(c: &Ctx<'_>, v: &Value) -> Option<(Clock, Duration)> {
+pub(crate) fn clock_length(c: &Ctx<'_>, v: &Value) -> Option<(Clock, Duration)> {
     match tval(c, v)? {
         TimeValue::Range {
             range: Range::For { start: Point { date: DateSpec::None, time: TimeOfDay::Clock(k), .. }, length },
@@ -237,7 +237,7 @@ fn clock_length(c: &Ctx<'_>, v: &Value) -> Option<(Clock, Duration)> {
 }
 
 /// The clocks of a clock range.
-fn clocks(c: &Ctx<'_>, v: &Value) -> Option<(Clock, Clock)> {
+pub(crate) fn clocks(c: &Ctx<'_>, v: &Value) -> Option<(Clock, Clock)> {
     match tval(c, v)? {
         TimeValue::Range {
             range:
@@ -253,7 +253,7 @@ fn clocks(c: &Ctx<'_>, v: &Value) -> Option<(Clock, Clock)> {
 }
 
 /// A day, or a day and a part of it, as a clock range's date.
-fn day_and_part(c: &Ctx<'_>, v: &Value) -> Option<(DateSpec, Option<crate::time::spec::Part>)> {
+pub(crate) fn day_and_part(c: &Ctx<'_>, v: &Value) -> Option<(DateSpec, Option<crate::time::spec::Part>)> {
     let TimeValue::Point { point, modifier, clip: false } = tval(c, v)? else { return None };
     if !modifier.is_none() || !point.shift.is_zero() {
         return None;
@@ -265,7 +265,7 @@ fn day_and_part(c: &Ctx<'_>, v: &Value) -> Option<(DateSpec, Option<crate::time:
     }
 }
 
-fn dated_clocks(c: &Ctx<'_>, day: &Value, range: &Value) -> Option<Value> {
+pub(crate) fn dated_clocks(c: &Ctx<'_>, day: &Value, range: &Value) -> Option<Value> {
     let (date, part) = day_and_part(c, day)?;
     if let Some((k, length)) = clock_length(c, range) {
         let start = Point { date, time: TimeOfDay::Clock(k), ..Point::default() };
@@ -279,17 +279,17 @@ fn dated_clocks(c: &Ctx<'_>, day: &Value, range: &Value) -> Option<Value> {
     clock_range(c, date, s, e)
 }
 
-fn b_date_trange(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
+pub(crate) fn b_date_trange(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
     dated_clocks(c, &v[0], v.last()?)
 }
 
-fn b_trange_date(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
+pub(crate) fn b_trange_date(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
     dated_clocks(c, v.last()?, &v[0])
 }
 
 // Stretches from the reference.
 
-fn direction(rel_v: &Value) -> Option<bool> {
+pub(crate) fn direction(rel_v: &Value) -> Option<bool> {
     match term(rel_v).1 {
         rel::NEXT | rel::COMING | rel::UPCOMING => Some(true),
         rel::LAST | rel::PAST => Some(false),
@@ -297,12 +297,12 @@ fn direction(rel_v: &Value) -> Option<bool> {
     }
 }
 
-fn next(c: &Ctx<'_>, forward: bool, d: Duration, align: TimeGrain) -> Option<Value> {
+pub(crate) fn next(c: &Ctx<'_>, forward: bool, d: Duration, align: TimeGrain) -> Option<Value> {
     let length = if forward { d } else { d.negated() };
     emit(c, TimeValue::range(Range::Next { length, align }))
 }
 
-fn align_of(unit: &Value, d: &Duration) -> Option<TimeGrain> {
+pub(crate) fn align_of(unit: &Value, d: &Duration) -> Option<TimeGrain> {
     match unit_grain(unit) {
         Some(g @ (TimeGrain::Quarter | TimeGrain::Decade)) => Some(g),
         _ => d.finest().map(crate::time::resolve::unit_grain),
@@ -310,13 +310,13 @@ fn align_of(unit: &Value, d: &Duration) -> Option<TimeGrain> {
 }
 
 /// `next 3 days`, `last 2 quarters`, `past two quarters`.
-fn b_next_n(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
+pub(crate) fn b_next_n(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
     let d = length(term(&v[1]).0, &v[2])?;
     next(c, direction(&v[0])?, d, align_of(&v[2], &d)?)
 }
 
 /// `5 coming minutes`, `10 previous weeks`.
-fn b_n_next(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
+pub(crate) fn b_n_next(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
     if term(&v[2]).1 & super::PLURAL == 0 {
         return None;
     }
@@ -324,13 +324,13 @@ fn b_n_next(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
     next(c, direction(&v[1])?, d, align_of(&v[2], &d)?)
 }
 
-fn b_next_dur(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
+pub(crate) fn b_next_dur(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
     let d = duration_of(c, &v[1])?;
     next(c, direction(&v[0])?, d, crate::time::resolve::unit_grain(d.finest()?))
 }
 
 /// `next hour`, `last minute`.
-fn b_next_unit(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
+pub(crate) fn b_next_unit(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
     let d = length(i64::from(MILLI), &v[1])?;
     if term(&v[1]).1 & super::PLURAL != 0 || !d.parts().iter().all(|(u, _)| u.is_clock()) {
         return None;
@@ -338,12 +338,12 @@ fn b_next_unit(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
     next(c, direction(&v[0])?, d, crate::time::resolve::unit_grain(d.finest()?))
 }
 
-fn b_within(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
+pub(crate) fn b_within(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
     emit(c, TimeValue::range(Range::Within { length: duration_of(c, v.last()?)? }))
 }
 
 /// `2 weeks starting May 20th`, `for 3 days from today`.
-fn b_for(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
+pub(crate) fn b_for(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
     let length = duration_of(c, &v[0])?;
     let TimeValue::Point { point, modifier, clip: false } = tval(c, v.last()?)? else { return None };
     if !modifier.is_none() || !point.shift.is_zero() {
@@ -354,7 +354,7 @@ fn b_for(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
 
 // Modifiers.
 
-fn relate(c: &Ctx<'_>, v: &Value, relation: Relation) -> Option<Value> {
+pub(crate) fn relate(c: &Ctx<'_>, v: &Value, relation: Relation) -> Option<Value> {
     let TimeValue::Point { point, modifier, clip } = tval(c, v)? else { return None };
     if modifier.relation != Relation::None || clip || modifier.portion == Portion::Undefined || open_day(point.date) {
         return None;
@@ -366,32 +366,32 @@ fn relate(c: &Ctx<'_>, v: &Value, relation: Relation) -> Option<Value> {
     emit(c, TimeValue::Point { point, modifier: Modifier { relation, portion }, clip: false })
 }
 
-fn b_before(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
+pub(crate) fn b_before(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
     relate(c, v.last()?, Relation::Before)
 }
 
-fn b_after(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
+pub(crate) fn b_after(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
     relate(c, v.last()?, Relation::After)
 }
 
-fn b_since(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
+pub(crate) fn b_since(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
     relate(c, v.last()?, Relation::Since)
 }
 
-fn b_until(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
+pub(crate) fn b_until(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
     relate(c, v.last()?, Relation::Until)
 }
 
-fn b_since_after(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
+pub(crate) fn b_since_after(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
     relate(c, &v[0], Relation::Since)
 }
 
-fn b_approx(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
+pub(crate) fn b_approx(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
     relate(c, v.last()?, Relation::Approx)
 }
 
 /// `before around 2pm`: a bound said loosely.
-fn approx_bound(c: &Ctx<'_>, v: &Value, relation: Relation) -> Option<Value> {
+pub(crate) fn approx_bound(c: &Ctx<'_>, v: &Value, relation: Relation) -> Option<Value> {
     let TimeValue::Point { point, modifier, clip: false } = tval(c, v)? else { return None };
     if !modifier.is_none() {
         return None;
@@ -399,17 +399,17 @@ fn approx_bound(c: &Ctx<'_>, v: &Value, relation: Relation) -> Option<Value> {
     emit(c, TimeValue::Point { point, modifier: Modifier { relation, portion: Portion::Approx }, clip: false })
 }
 
-fn b_before_around(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
+pub(crate) fn b_before_around(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
     approx_bound(c, v.last()?, Relation::Before)
 }
 
-fn b_after_around(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
+pub(crate) fn b_after_around(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
     approx_bound(c, v.last()?, Relation::After)
 }
 
 /// A date with a bounded clock time: `today before 4pm`, `1/1/2015
 /// after 2:00`.
-fn b_date_moded(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
+pub(crate) fn b_date_moded(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
     let (date, part) = day_and_part(c, &v[0])?;
     if part.is_some() {
         return None;
@@ -424,7 +424,7 @@ fn b_date_moded(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
 
 /// A part of a period: `the end of 2008`, `mid-November`; `later this
 /// week`, said of the reference's own period, stops at the reference.
-fn portion(c: &Ctx<'_>, v: &Value, portion: Portion, clip: bool) -> Option<Value> {
+pub(crate) fn portion(c: &Ctx<'_>, v: &Value, portion: Portion, clip: bool) -> Option<Value> {
     let TimeValue::Point { point, modifier, clip: false } = tval(c, v)? else { return None };
     if !modifier.is_none() || !point.shift.is_zero() || point.date == DateSpec::None || point.time != TimeOfDay::None {
         return None;
@@ -439,29 +439,29 @@ fn portion(c: &Ctx<'_>, v: &Value, portion: Portion, clip: bool) -> Option<Value
     emit(c, TimeValue::Point { point, modifier: Modifier::portion(portion), clip })
 }
 
-fn b_start(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
+pub(crate) fn b_start(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
     portion(c, v.last()?, Portion::Start, false)
 }
 
-fn b_mid(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
+pub(crate) fn b_mid(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
     portion(c, v.last()?, Portion::Mid, false)
 }
 
-fn b_end(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
+pub(crate) fn b_end(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
     portion(c, v.last()?, Portion::End, false)
 }
 
-fn b_earlier(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
+pub(crate) fn b_earlier(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
     portion(c, v.last()?, Portion::Start, true)
 }
 
-fn b_later(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
+pub(crate) fn b_later(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
     portion(c, v.last()?, Portion::End, true)
 }
 
 /// `later in the week`, `earlier in the year`, `end of month`: the
 /// reference's period.
-fn this_period(c: &Ctx<'_>, unit: &Value, p: Portion, clip: bool) -> Option<Value> {
+pub(crate) fn this_period(c: &Ctx<'_>, unit: &Value, p: Portion, clip: bool) -> Option<Value> {
     if term(unit).1 & super::PLURAL != 0 {
         return None;
     }
@@ -471,38 +471,38 @@ fn this_period(c: &Ctx<'_>, unit: &Value, p: Portion, clip: bool) -> Option<Valu
     emit(c, TimeValue::Point { point, modifier: Modifier::portion(p), clip })
 }
 
-fn b_earlier_in_the(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
+pub(crate) fn b_earlier_in_the(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
     this_period(c, &v[0], Portion::Start, true)
 }
 
-fn b_later_in_the(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
+pub(crate) fn b_later_in_the(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
     this_period(c, &v[0], Portion::End, true)
 }
 
-fn b_end_of_unit(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
+pub(crate) fn b_end_of_unit(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
     if unit_grain(&v[0]) == Some(TimeGrain::Day) {
         return None;
     }
     this_period(c, &v[0], Portion::End, false)
 }
 
-fn today_portion(c: &Ctx<'_>, p: Portion) -> Option<Value> {
+pub(crate) fn today_portion(c: &Ctx<'_>, p: Portion) -> Option<Value> {
     let point = Point::date(DateSpec::Rel { grain: TimeGrain::Day, n: 0 });
     emit(c, TimeValue::Point { point, modifier: Modifier::portion(p), clip: false })
 }
 
-fn b_end_of_day(_: &[Value], c: &Ctx<'_>) -> Option<Value> {
+pub(crate) fn b_end_of_day(_: &[Value], c: &Ctx<'_>) -> Option<Value> {
     today_portion(c, Portion::End)
 }
 
-fn b_eoy(_: &[Value], c: &Ctx<'_>) -> Option<Value> {
+pub(crate) fn b_eoy(_: &[Value], c: &Ctx<'_>) -> Option<Value> {
     let point = Point::date(DateSpec::Rel { grain: TimeGrain::Year, n: 0 });
     emit(c, TimeValue::Point { point, modifier: Modifier::portion(Portion::End), clip: false })
 }
 
 /// `more than 2 weeks before today`: before the shifted day; `less than
 /// 3 days after tomorrow`: the days between.
-fn shifted(c: &Ctx<'_>, v: &[Value], more: bool, after: bool) -> Option<Value> {
+pub(crate) fn shifted(c: &Ctx<'_>, v: &[Value], more: bool, after: bool) -> Option<Value> {
     let d = duration_of(c, &v[0])?;
     let TimeValue::Point { point, modifier, clip: false } = tval(c, v.last()?)? else { return None };
     if !modifier.is_none() || !point.shift.is_zero() || !point.date.is_day() || point.time != TimeOfDay::None {
@@ -520,15 +520,15 @@ fn shifted(c: &Ctx<'_>, v: &[Value], more: bool, after: bool) -> Option<Value> {
     emit(c, TimeValue::range(Range::For { start: point, length: d }))
 }
 
-fn b_more_before(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
+pub(crate) fn b_more_before(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
     shifted(c, v, true, false)
 }
 
-fn b_more_after(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
+pub(crate) fn b_more_after(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
     shifted(c, v, true, true)
 }
 
-fn b_less_after(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
+pub(crate) fn b_less_after(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
     shifted(c, v, false, true)
 }
 
@@ -711,10 +711,10 @@ pub(super) static RULES: &[Rule] = &[
     rr("moded_eoy", MODED, &[word("eoy")], b_eoy),
 ];
 
-fn b_since_ge(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
+pub(crate) fn b_since_ge(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
     b_since(v, c)
 }
 
-fn b_until_le(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
+pub(crate) fn b_until_le(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
     b_until(v, c)
 }
