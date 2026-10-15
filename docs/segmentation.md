@@ -652,11 +652,134 @@ fixture runs always run. The IPADIC and mecab-ko-dic tests are ignored
 by default and read the dictionaries `turbo-goldens fetch-models`
 fetched, from `TURBO_MECAB_DICTIONARIES` or
 `target/turbo-goldens/models`. CI runs them after `fetch-models`, with
-the dictionaries required. UniDic is not in the goldens: the
-package checked (unidic-lite 1.0.8) holds only a compiled dictionary,
-which neither reader reads.
+the dictionaries required. UniDic is not in the goldens. The package
+checked first (unidic-lite 1.0.8) holds only a compiled dictionary,
+which neither reader reads; the UniDic source distribution, which both
+read, is not fetched (see "Compiled dictionaries" below).
 
-Speed is not measured here, so this section makes no speed claim.
+#### Readings
+
+OpenNLP leaves an entry's features as one string. `LatticeAnalyzer` is
+the lattice tokenizer together with the dictionary's format
+(`DictionaryFormat`), and writes a third layer beside `Tokens` and
+`PosTags`: `Readings` (`turbo:readings`, in `turbo-tokenize-layers`),
+aligned to the tokens, so its offsets are the tokens' own. It has three
+columns, each `None` where the format has no such column:
+
+| Format | Reading | Pronunciation | Lemma | Columns |
+|---|---|---|---|---|
+| `Ipadic` | 読み | 発音 | 原形 | 9 |
+| `MecabKoDic` | 읽기 | none | none | 8 |
+| `Unidic(Source17)` | none | `pron` | `orthBase` | 17 |
+| `Unidic(Full26)` | `kana` (column 17) | `pron` | `orthBase` | 26 |
+| `Unidic(Full29)` | `kana` (column 20) | `pron` | `orthBase` | 29 |
+
+Each format's columns are an enum in file order (`IpadicColumn`,
+`KoDicColumn`, and `UnidicColumn` for the 17 columns every UniDic
+layout starts with), and `DictionaryFormat::map` names the three columns
+from them, so no column is looked up by a string. The UniDic layouts are
+the 2.1.2 source distribution (17 columns), the 2.1.2 binary
+distribution and unidic-lite (26, as unidic-lite's `dicrc` lists them),
+and 2.2.0 and later (29). The format is given, not guessed:
+`LatticeAnalyzer::new` checks that every lexicon entry has the format's
+number of columns and refuses the dictionary otherwise (`FormatError`).
+The `unk.def` templates are not checked, since they usually have fewer
+columns (IPADIC's have seven).
+
+An item is an empty string where the token's entry leaves the column
+out: an unknown word whose template lacks it, or a value that is empty
+or `*`, which the published dictionaries write for none (mecab-ko-dic's
+symbols have `*` for 읽기). `FeatureMap::reading`, `pronunciation` and
+`lemma` give the same values for one entry, as `Option<&str>`, outside a
+pipeline. For UniDic the lemma is `orthBase`, the base form as written,
+which is what IPADIC's 原形 holds. UniDic's own `lemma` column is the
+lexeme in a standard spelling with an English gloss on some loanwords
+(為る for する, `テスト-test`), and stays in the features.
+
+`analysis/tokenize/tests/lattice_readings.rs` runs the analyzer on every
+golden of `mecab-fixture-ko` (in mecab-ko-dic's layout),
+`mecab-ipadic-2.7.0-20070801` and `mecab-ko-dic-2.1.1-20180720`, and
+checks each token's three items against the columns of the feature
+string the JVM printed for it. The fetched dictionaries' tests run in CI
+with the lattice goldens. No UniDic is fetched, so the UniDic layouts are
+tested on entries written in each layout
+(`analysis/tokenize/src/lattice/format.rs`):
+
+| Dictionary | Tokens | With a reading | With a pronunciation | With a lemma |
+|---|---|---|---|---|
+| `mecab-fixture-ko` | 1310 | 46 | none | none |
+| `mecab-ipadic-2.7.0-20070801` | 1512 | 444 | 444 | 444 |
+| `mecab-ko-dic-2.1.1-20180720` | 1360 | 211 | none | none |
+
+On IPADIC the 444 are the tokens that are not unknown words. On the
+Korean dictionaries the other known tokens are mostly punctuation.
+
+#### Compiled dictionaries, lindera and vibrato
+
+Two Rust MeCab-style tokenizers were read for this comparison: lindera
+6.2.0 with lindera-dictionary 6.2.0 (MIT) and vibrato 0.5.2 (MIT or
+Apache-2.0). Neither is a dependency, and no code was taken from either.
+
+| | turbo `lattice` | lindera 6.2.0 | vibrato 0.5.2 |
+|---|---|---|---|
+| Input | MeCab source directory: `*.csv`, `matrix.def`, `char.def`, `unk.def` | MeCab source directory, with a `metadata.json` per dictionary that names its columns, encoding and options | MeCab source files, given as readers (the lexicon as one concatenated `lex.csv`) |
+| Encodings | UTF-8 only (IPADIC from a UTF-8 copy) | any `encoding_rs` encoding the metadata names | UTF-8 |
+| MeCab's compiled `sys.dic`, `matrix.bin`, `char.bin`, `unk.dic` | not read | not read | not read |
+| Own compiled format | none: the source is parsed at load | yes (built with `rkyv`) | yes (built with `bincode`) |
+| Dictionaries packaged | none | IPADIC, IPADIC-NEologd, UniDic 2.1.2 (from the source distribution), mecab-ko-dic, CC-CEDICT, Jieba, SudachiDict | none in the crate |
+| Feature columns | the string; typed readings via `DictionaryFormat` | the string, and named fields from `metadata.json` (`token.get("reading")`) | the string |
+| Origin | a port of OpenNLP's `LatticeTokenizer`, checked against JVM goldens | a fork of kuromoji-rs | its own, with options for MeCab-compatible output |
+
+Neither reads MeCab's compiled files: both build from the source
+distribution into a format of their own. UniDic is published in source
+form as well as compiled: lindera-unidic builds from
+`unidic-mecab-2.1.2.tar.gz`, the 17-column source distribution, under
+UniDic's BSD licence (UniDic is offered under BSD, GPL or LGPL). Only
+unidic-lite was found to ship compiled files alone. So every dictionary
+this reader is meant for can be read from source, and reading compiled
+dictionaries is not added. What reading one would take, from unidic-lite's
+files:
+
+- `sys.dic` and `unk.dic`: a 72-byte header (ten little-endian `u32`,
+  the first the file size XOR `0xEF718F77`, the second the
+  version, 102, then the entry count, the left and right id counts and
+  the sizes of the next three parts, and a 32-byte charset name), then a
+  Darts double array mapping each surface to a run of entries, the
+  entries (16 bytes each: left id, right id, part-of-speech id, cost,
+  feature offset, compound), and the NUL-terminated features.
+  unidic-lite's has 756264 entries and 5981 context ids each side.
+- `matrix.bin`: two `u16` dimensions and the costs as `i16`.
+- `char.bin`: the category count, 32-byte category names and a packed
+  `u32` per code point from U+0000 to U+FFFE. It has no entry for a
+  supplementary character, where `char.def` can map one.
+
+That is a Darts reader and four small parsers, a few hundred lines with
+tests, but with no reference to check them against: OpenNLP reads only
+the source, so no golden covers the compiled path. The entries of one
+surface are in the order `mecab-dict-index` wrote them, and that order
+decides ties, so a compiled dictionary could segment differently from
+its source here without any test noticing. The source distributions
+remain the input; adding UniDic's to `turbo-goldens fetch-models` and to
+the lattice goldens is the way to cover UniDic.
+
+#### Throughput
+
+No speed is claimed here: no benchmark record of the lattice tokenizer is
+committed. `turbo-bench` records embedding runs only. The command for a
+lattice run is
+
+```text
+cargo run --release -p turbo-tokenize --example lattice_throughput [ipadic|ko-dic] [readings]
+```
+
+with the dictionaries in `TURBO_MECAB_DICTIONARIES` or
+`target/turbo-goldens/models`. It reads the golden inputs of the
+language (`inputs/ja` or `inputs/ko`) repeated to 10 MiB and prints the
+dictionary's manifest digest, the text's SHA-256 and size, the morpheme
+count, and the best of five timed runs after a warm one, and with
+`readings` also the analyzer through a document. lindera and vibrato are
+not part of it; a matched run of them reads the same text and the same
+dictionary directory (IPADIC's UTF-8 copy) outside the workspace.
 
 ### `Detokenizer`
 

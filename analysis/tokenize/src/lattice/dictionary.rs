@@ -318,6 +318,18 @@ impl MecabDictionary {
         self.features.columns(self.entries[entry.0 as usize].features)
     }
 
+    /// Feature column `i` of `entry` (counted from 0, the first after the
+    /// cost), if it has one.
+    #[inline]
+    pub fn feature(&self, entry: EntryId, i: usize) -> Option<&str> {
+        self.features.column(self.entries[entry.0 as usize].features, i)
+    }
+
+    /// The number of feature columns of `entry`.
+    pub fn feature_count(&self, entry: EntryId) -> usize {
+        self.features.len(self.entries[entry.0 as usize].features)
+    }
+
     /// The left and right context ids and the cost of `entry`.
     pub fn costs(&self, entry: EntryId) -> (u32, u32, i16) {
         let e = self.entries[entry.0 as usize];
