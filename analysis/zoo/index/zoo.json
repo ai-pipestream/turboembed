@@ -3024,6 +3024,87 @@
           "sha512": "2455272134cc9dc7be2a69ce9fe3e504edc5630395848bb30e1e26118a60f0a32b5577cbf6f6d87d70753ff497a6908e156fe3ce7ac3b4a109cc4936f26fe5a9"
         }
       ]
+    },
+    {
+      "id": "turbo-en-masc-3.0.0-sentence-1",
+      "kind": "KIND_MODEL",
+      "component": "COMPONENT_SENTENCE_DETECTOR",
+      "language": "en",
+      "format": "FORMAT_OPENNLP_MODEL",
+      "version": "1",
+      "license": "Apache-2.0",
+      "license_terms": "https://github.com/ai-pipestream/turboembed/blob/main/LICENSE",
+      "trained_on": [
+        {
+          "name": "MASC 3.0.0",
+          "license": "CC-BY-3.0-US",
+          "license_terms": "https://anc.org/data/masc/"
+        }
+      ],
+      "class": "CLASS_PERMISSIVE",
+      "files": [
+        {
+          "path": "turbo-en-masc-3.0.0-sentence-1.bin",
+          "url": "https://github.com/ai-pipestream/turboembed/releases/download/models-masc-3.0.0-1/turbo-en-masc-3.0.0-sentence-1.bin",
+          "size": 44601,
+          "sha256": "d03253a5559a230d1f42e1cf881119204302fbb7fefb613ff1af11bcbd3c261e",
+          "sha512": "874eeadaecdf8d864ca983143bf2aec560a1d874115ffe284234643e39e6e83a1c9a85affdacdf4b9a5c716e7c50d0bf57ce32f9bbc48ec46bf09c236f4b0b08"
+        }
+      ]
+    },
+    {
+      "id": "turbo-en-masc-3.0.0-tokens-1",
+      "kind": "KIND_MODEL",
+      "component": "COMPONENT_TOKENIZER",
+      "language": "en",
+      "format": "FORMAT_OPENNLP_MODEL",
+      "version": "1",
+      "license": "Apache-2.0",
+      "license_terms": "https://github.com/ai-pipestream/turboembed/blob/main/LICENSE",
+      "trained_on": [
+        {
+          "name": "MASC 3.0.0",
+          "license": "CC-BY-3.0-US",
+          "license_terms": "https://anc.org/data/masc/"
+        }
+      ],
+      "class": "CLASS_PERMISSIVE",
+      "files": [
+        {
+          "path": "turbo-en-masc-3.0.0-tokens-1.bin",
+          "url": "https://github.com/ai-pipestream/turboembed/releases/download/models-masc-3.0.0-1/turbo-en-masc-3.0.0-tokens-1.bin",
+          "size": 916027,
+          "sha256": "2c5fe73121c41300e6eae4a3c4d7a2247ade20a1e182d8e36d7781124aa9b7db",
+          "sha512": "a6c0731cf1d9e5c2578830ea6b544d999e475a35f0a20abdcadaed3ae0dc91a6157c8fa458bcbc06173c7419ffb6f64e4e634340340b8c7e59b64af95b5619c3"
+        }
+      ]
+    },
+    {
+      "id": "turbo-en-masc-3.0.0-pos-1",
+      "kind": "KIND_MODEL",
+      "component": "COMPONENT_POS",
+      "language": "en",
+      "format": "FORMAT_OPENNLP_MODEL",
+      "version": "1",
+      "license": "Apache-2.0",
+      "license_terms": "https://github.com/ai-pipestream/turboembed/blob/main/LICENSE",
+      "trained_on": [
+        {
+          "name": "MASC 3.0.0",
+          "license": "CC-BY-3.0-US",
+          "license_terms": "https://anc.org/data/masc/"
+        }
+      ],
+      "class": "CLASS_PERMISSIVE",
+      "files": [
+        {
+          "path": "turbo-en-masc-3.0.0-pos-1.bin",
+          "url": "https://github.com/ai-pipestream/turboembed/releases/download/models-masc-3.0.0-1/turbo-en-masc-3.0.0-pos-1.bin",
+          "size": 3671103,
+          "sha256": "391d7f79c7246e9e56ed9d8849fde129c5bed8683fa33af31e532cb0c37f96ea",
+          "sha512": "2987b6cca8b204e455099306b53be01958f7335f7d8eb18318b27ceeb495cba1fedfc928a0c2902ad1fe57f1edb1dd66cd38952cd79e051e1d14eed1abc22523"
+        }
+      ]
     }
   ]
 }

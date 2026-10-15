@@ -1,6 +1,7 @@
 //! The index the crate carries: canonical, nothing refused, every class
 //! the one docs/licences.md gives, and in agreement with the model files
-//! the repository checks in.
+//! the repository checks in. Beside the UD models it lists the models the
+//! MASC recipes train, which turbo-train-recipes checks (`release`).
 
 use std::collections::BTreeSet;
 
@@ -78,6 +79,11 @@ const MODELS: &[(&str, Component)] = &[
 
 const BASE: &str = "https://archive.apache.org/dist/opennlp/models/ud-models-1.3/";
 
+/// The models the MASC recipes train (analysis/train-recipes), listed at
+/// their addresses in a release of this repository.
+const MASC_MODELS: [&str; 3] =
+    ["turbo-en-masc-3.0.0-sentence-1", "turbo-en-masc-3.0.0-tokens-1", "turbo-en-masc-3.0.0-pos-1"];
+
 #[test]
 fn the_ud_models_carry_their_treebank_licences() {
     let index = Index::builtin();
@@ -103,10 +109,12 @@ fn the_ud_models_carry_their_treebank_licences() {
             assert_eq!(a.files.len(), 1);
             assert_eq!(a.files[0].path.as_str(), format!("{id}.bin"));
             assert_eq!(a.files[0].url.as_str(), format!("{BASE}{id}.bin"));
-            let found: Vec<_> = index.find(lang, *component).map(|a| a.id.as_str()).collect();
+            let found: Vec<_> =
+                index.find(lang, *component).map(|a| a.id.as_str()).filter(|id| id.starts_with("opennlp-")).collect();
             assert_eq!(found, [id.as_str()]);
         }
     }
+    expected.extend(MASC_MODELS.map(str::to_owned));
     let listed: BTreeSet<String> = index.list().iter().map(|a| a.id.to_string()).collect();
     assert_eq!(listed, expected);
     for (lang, tb) in NON_COMMERCIAL_TREEBANKS {
@@ -115,11 +123,11 @@ fn the_ud_models_carry_their_treebank_licences() {
 }
 
 #[test]
-fn only_catalan_needs_no_acceptance() {
+fn only_catalan_and_the_masc_models_need_no_acceptance() {
     let index = Index::builtin();
     for a in index.list() {
         let needs = a.licences_to_accept(Policy::default());
-        if a.id.as_str().starts_with("opennlp-ca-ud-ancora-") {
+        if a.id.as_str().starts_with("opennlp-ca-ud-ancora-") || MASC_MODELS.contains(&a.id.as_str()) {
             assert!(needs.is_empty(), "{}", a.id);
         } else if a.id.as_str().starts_with("opennlp-ga-") {
             assert_eq!(needs, [turbo_zoo::Requirement::of(Licence::CcBySa30).unwrap()], "{}", a.id);
