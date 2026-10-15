@@ -6,6 +6,7 @@
 mod lexicon;
 pub(crate) mod rules;
 pub(crate) mod time;
+pub(crate) mod unit;
 
 pub use time::{ENGLISH_TIMES, EnglishTimes};
 
@@ -137,7 +138,7 @@ impl Grammar for English {
                 }
                 _ => true,
             },
-            Output::Percent | Output::Time => true,
+            Output::Percent | Output::Quantity | Output::Time => true,
         }
     }
 
