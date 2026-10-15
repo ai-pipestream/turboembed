@@ -1,0 +1,9 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	glossary/tbx-wrong-namespace	58	58	d8b11c8c54b1ce5564cf7012a799d1927ed603ea17925c52eed803f018323450
+annotator	opennlp.tools.formats.glossary.TbxGlossaryReader	read
+config	languageTag	en
+error	opennlp.tools.util.InvalidFormatException	expected a TBX martif or tbx root element, found: {urn:example:other}tbx

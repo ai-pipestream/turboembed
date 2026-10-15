@@ -1,0 +1,5 @@
+<t:tbx xmlns:t="urn:iso:std:iso:30042:ed-2" type="TBX-Core" style="dca">
+<t:text><t:body>
+<t:conceptEntry id="Q1"><t:langSec xml:lang="en"><t:termSec><t:term>actual</t:term></t:termSec></t:langSec></t:conceptEntry>
+</t:body></t:text>
+</t:tbx>

@@ -4,8 +4,8 @@
 
 use turbo_analysis::{Layer, ViewId};
 use turbo_analysis_layers::{
-    ChunkTags, Confidence, DocumentDate, Entities, Language, Lemmas, Money, Numbers, PhraseChunks, PosTags, Quantities,
-    Sentences, Strs, Subwords, Temporals, Tokens, Utf16Spans,
+    ChunkTags, Confidence, DocumentDate, Entities, Language, Lemmas, Money, Numbers, PhraseChunks, Pii, PosTags,
+    Quantities, Sentences, Strs, Subwords, Temporals, Tokens, Utf16Spans,
 };
 
 use super::{CutCol, Items, Labels, Names, SpanCols, TokenCols, UnitCols, compare_items};
@@ -585,6 +585,32 @@ impl GoldenCompare for Temporals {
         let mut golden = golden_spans_only(golden);
         golden.labels = Some(Labels::Strs(&theirs));
         compare_items(cx, &rust, &golden, Names { label: Some("value"), value: None }, tol)
+    }
+}
+
+impl GoldenCompare for Pii {
+    const COLUMNS: &'static [ColumnSpec] =
+        &[SPAN[0], SPAN[1], ColumnSpec::new("type", Str), ColumnSpec::new("normalized", Str)];
+
+    /// The span first, then the kind by its OpenNLP type name and the
+    /// normalized form as one label. OpenNLP has no confidence, so the
+    /// goldens hold none.
+    fn compare(&self, cx: &Cx<'_>, golden: &GoldenLayer, tol: Tolerance) -> Result<(), Mismatch> {
+        let mut ours = Strs::default();
+        for m in self.mentions() {
+            ours.push(&format!("{} {}", m.kind.name(), m.normalized));
+        }
+        let (kind, normalized) = (golden.strs("type"), golden.strs("normalized"));
+        let (kind, normalized) = (kind.expect("a str column"), normalized.expect("a str column"));
+        let mut theirs = Strs::default();
+        for i in 0..golden.len() {
+            theirs.push(&format!("{} {}", kind.get(i), normalized.get(i)));
+        }
+        let mut rust = spans_only(self);
+        rust.labels = Some(Labels::Strs(&ours));
+        let mut golden = golden_spans_only(golden);
+        golden.labels = Some(Labels::Strs(&theirs));
+        compare_items(cx, &rust, &golden, Names { label: Some("mention"), value: None }, tol)
     }
 }
 

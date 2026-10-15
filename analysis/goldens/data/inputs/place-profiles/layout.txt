@@ -1,0 +1,9 @@
+﻿# a made up table with every kind of line OpenNLP skips
+
+  # an indented comment　id 	 density 	 income
+	
+north	10	20 south　	 30 	 40 
+# east	1	2
+west	50	 60
+   
+centre	30	40

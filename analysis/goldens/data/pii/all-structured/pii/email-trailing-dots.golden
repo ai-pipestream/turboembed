@@ -1,0 +1,11 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	pii/email-trailing-dots	48	48	7e269704188dbb93598e111464f9c68f7b84779c408b8ffa89d61b5100dd4acb
+annotator	opennlp.tools.pii.PiiPacks	allStructured
+config	pack	all-structured
+layer	turbo:pii	text	1	start:u32	end:u32	type:str	normalized:str
+11	33	email	first.last@example.com
+end	turbo:pii

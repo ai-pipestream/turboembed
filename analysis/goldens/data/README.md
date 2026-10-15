@@ -268,6 +268,11 @@ are not taken from any corpus.
   letter code and malformed ones, and the `table-<kind>-<case>.txt` files
   small GeoNames, Overture, user and suppression tables, most with one
   error each loader reports.
+- `inputs/place-profiles/`: profile tables for `PlaceProfiles`, written
+  for this project with made up places and numbers: tables that load (a
+  ten town table, a 40 place generated one, extreme and subnormal values,
+  constant columns, ties between ids in different scripts, every kind of
+  skipped line and padding) and tables with one error each.
 - `inputs/sequence/`, `inputs/descriptor-errors/`, `inputs/codec/`,
   `inputs/tag-format/`: the inputs of the `turbo-sequence` goldens, written
   for this project: 16 tokenized sentences, tokens for `StringPattern`
@@ -286,6 +291,9 @@ are not taken from any corpus.
 - `inputs/stopword/`: words and language codes the stopword lookup is asked
   about besides the lists' own, written for this project
   (`analysis/stopword/README.md`).
+- `inputs/glossary/`: texts for the glossary matchers and comma separated,
+  tab separated and TBX glossaries, well formed and malformed, for the
+  glossary readers, written for this project (`analysis/glossary/README.md`).
 
 `analysis/goldens-tool/README.md` ("Runs") lists which run reads which set.
 
@@ -344,6 +352,7 @@ that differs.
 | `gazetteer-overture.txt` | a table in the format of the addons' `OvertureGenerator` output written for this project: 10 divisions of several subtypes, comment and blank lines, and an alternate that folds to nothing |
 | `gazetteer-user.txt` | a user gazetteer table written for this project, with every column: alternates with a blank element, a bounding box with and without coordinates (one across the antimeridian), containment, attributes with padding, a feature class in lower case and a population with a plus sign |
 | `gazetteer-suppressions.txt` | suppression rules written for this project for the overlay: by name alone, with a country in either case and with a feature class in either case |
+| `glossary-terms.tsv` | a glossary of 40 entries written for this project, tab separated with an `id`, `term` header: terms of several words, case and spacing variants, punctuation, accented, Greek, Turkish, CJK, Korean and emoji terms and characters outside the BMP; the glossary matchers' goldens match with it (`analysis/glossary/README.md`) |
 
 `train-fixtures/` beside `fixtures/` holds the training data of the fixture
 models above (tagged sentences, chunks and names, written for this project);
@@ -638,6 +647,26 @@ read, amounts that money extraction takes first, and non-ASCII text around
 the values. `quantity/<notation>/quantity/<id>.golden` holds the layer
 `turbo:quantities`; see `analysis/goldens-tool/README.md`. Only the
 quantity annotator runs on the set, and it has no dumps.
+
+## PII goldens
+
+`inputs/pii/` holds 61 short texts written for the PII packs: e-mail
+addresses in every case and with sub domains, tags, brackets and
+`mailto:`, phone numbers in international and national forms, grouped,
+compact and lower case IBANs, test card numbers with and without
+separators, ABA routing numbers, IPv4, IPv6 (compressed, with an IPv4
+tail) and MAC addresses, AWS keys, GitHub tokens, a JWT and URL
+credentials, Bitcoin and Ethereum addresses, SSNs, ITINs, NHS numbers, a
+Steuer-ID, a labelled SIN and IMEIs; for each, near misses (a wrong check
+digit, a reserved value, a missing label, letters running into the value)
+and non-ASCII text around the values (German, Japanese, emoji, letters
+outside the Basic Multilingual Plane, no-break spaces, fullwidth and
+Arabic-Indic digits). Every value is a documented test value, in a range
+set aside for examples (`example.com`, `192.0.2.0/24`, `2001:db8::/32`,
+555 and Ofcom drama numbers) or made up; none is real personal data.
+`pii/<pack>/pii/<id>.golden` holds the layer `turbo:pii`; see
+`analysis/goldens-tool/README.md`. Only the PII annotator runs on the
+set, and it has no dumps.
 
 ## Decision point dumps
 

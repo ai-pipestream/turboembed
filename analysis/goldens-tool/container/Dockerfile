@@ -97,8 +97,18 @@ RUN /opennlp/mvnw -q -DskipTests -f /addons/pom.xml -pl numeric -am install
 # above; the sed writes out what that method does at both calls, and the grep
 # checks that no call is left. Its tests are not compiled: they need DuckDB and
 # Jackson for the addons' data tooling.
-RUN sed -i 's/StringUtil\.stripByteOrderMark(line)/(line.startsWith("\\uFEFF") ? line.substring(1) : line)/' \
+#
+# PlaceProfiles (PlaceProfilesGolden.java) is not in that commit. Its source
+# is taken from the commit below, on the ready/geo-place-profiles branch, and
+# compiled into the module; every other class stays that of the commit above.
+# It calls stripByteOrderMark once, which the sed replaces as well.
+ARG PLACE_PROFILES_COMMIT=07e1f670818917d74e9a94367080f51ae6365bfa
+RUN GIT_LFS_SKIP_SMUDGE=1 git fetch -q --depth 1 origin "$PLACE_PROFILES_COMMIT" \
+ && git show "$PLACE_PROFILES_COMMIT:geo/src/main/java/opennlp/geo/PlaceProfiles.java" \
+      > geo/src/main/java/opennlp/geo/PlaceProfiles.java \
+ && sed -i 's/StringUtil\.stripByteOrderMark(line)/(line.startsWith("\\uFEFF") ? line.substring(1) : line)/' \
       geo/src/main/java/opennlp/geo/GazetteerIndex.java geo/src/main/java/opennlp/geo/UserGazetteer.java \
+      geo/src/main/java/opennlp/geo/PlaceProfiles.java \
  && ! grep -rq stripByteOrderMark geo/src/main \
  && /opennlp/mvnw -q -Dmaven.test.skip=true -f /addons/pom.xml -pl geo install
 

@@ -1,0 +1,9 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	glossary/tbx-malformed	78	78	5ba3436c5979323ded0fbd2bf9af88db806a2a94c7934a517600a4066cb9e9ff
+annotator	opennlp.tools.formats.glossary.TbxGlossaryReader	read
+config	languageTag	de
+error	opennlp.tools.util.InvalidFormatException	malformed TBX content: ParseError at [row,col]:[1,36]\nMessage: The element type "p" must be terminated by the matching end-tag "</p>".

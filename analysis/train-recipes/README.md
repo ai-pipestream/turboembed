@@ -730,6 +730,14 @@ the models it publishes (`release::MODELS_RELEASES`):
 |---|---|---|---|
 | `models-masc-3.0.0-1` (`release::MASC_MODELS`) | the MASC sentence detector, tokenizer, tagger and chunker | `.github/workflows/models.yml` | `masc-references.txt` |
 | `models-ud-2.16-1` (`release::UD_MODELS`) | the Spanish and Catalan sentence detectors, tokenizers, taggers and lemmatizers, and the Finnish tagger and lemmatizer: every UD recipe's model but Porttinari's, whose text rights are not settled, and the Italian ones, which fail their gates | `.github/workflows/models-ud.yml` | `ud-references.txt` |
+| `models-tatoeba-2026-10-10-1` (`release::TATOEBA_MODELS`) | the language detector, with `training-sentences.txt`, the ids of the sentences it was trained on | `.github/workflows/models-tatoeba.yml` | `tatoeba-references.txt` |
+
+The Tatoeba export the language detector is trained on is kept as well,
+as release `data-tatoeba-2026-10-10` (`release::TATOEBA_EXPORT_RELEASE`):
+Tatoeba replaces its export every week at the same addresses, so its
+two archives, unchanged, are the assets of that release, which
+`models-tatoeba.yml` publishes before the model's
+(`tatoeba-export.txt` lists their SHA-256s and addresses).
 
 A release does not exist until its workflow has been run by hand on
 main; until then its addresses answer 404 and fetching its models
@@ -737,18 +745,21 @@ through the zoo fails. A recipe added later is in neither release: its
 model goes out in a release of its own, with its own tag, and a release
 once published keeps its assets.
 
-`zoo-index --models <dir> --release <tag>` reads the directories `masc`
-or `ud` wrote into `<dir>` for the models the release `<tag>` publishes,
-checks each model file against its card and each card's gate against its
-gate record, makes each card's zoo entry at its address in the release,
-and prints the zoo's built-in index with those entries added or
-replaced. That is how `analysis/zoo/index/zoo.json` got them. The entry
-is made by `ModelCard::artifact` or `UdModelCard::artifact`, which
-refuse a model that failed its gate or was gated against another model
-than its recipe's reference. The first also refuses one not trained on
-the recorded MASC release; the second refuses one of Porttinari, and a
-card that does not give its recipe's treebank at release 2.16, with the
-sizes and digests of its files, or its recipe's component and language.
+`zoo-index --models <dir> --release <tag>` reads the directories
+`masc`, `ud` or `tatoeba` wrote into `<dir>` for the models the release
+`<tag>` publishes, checks each file of an entry (the model, and the
+language detector's `training-sentences.txt`) against its card and each
+card's gate against its gate record, makes each card's zoo entry at its
+address in the release, and prints the zoo's built-in index with those
+entries added or replaced. That is how `analysis/zoo/index/zoo.json` got
+them. The entry is made by `ModelCard::artifact`,
+`UdModelCard::artifact` or `LanguageCard::artifact`, which refuse a
+model that failed its gate or was gated against another model than its
+recipe's reference. The first also refuses one not trained on the
+recorded MASC release, and the third one not trained on the recorded
+Tatoeba export; the second refuses one of Porttinari, and a card that
+does not give its recipe's treebank at release 2.16, with the sizes and
+digests of its files, or its recipe's component and language.
 With `--check` it prints no index and exits with 1 unless the built-in
 index is already that one and lists no other model at the release's
 addresses, naming the entries that differ with the size, SHA-256 and
@@ -757,29 +768,40 @@ there.
 
 Each workflow makes its release. Its training job fetches the data
 through the zoo (MASC, or the treebanks the release's UD models are
-trained on), and the references from the addresses its list gives, each
-checked against the SHA-256 listed with it: for MASC, OpenNLP's UD 1.3
-English sentence and token models from `archive.apache.org` and
-`en-pos-maxent.bin` and `en-chunker.bin` from SourceForge; for UD,
-OpenNLP's UD 1.3 models from `archive.apache.org`. The references are
-only scored, never shipped: the English, Spanish and Finnish UD models
-are trained on CC BY-SA treebanks, and the licences of the two 1.5
-models are refused. It saves each download in the repository's Actions
-cache as soon as it is checked, so a run that fails later does not fetch
-it again. It then runs `masc` or `ud` for the models the zoo's index
-lists at the release's addresses, runs `zoo-index --check`, and uploads
-each model with its card and gate record (`<model id>.bin`, `<model
-id>.card.json`, `<model id>.gate.json`) and a `SHA256SUMS` file as an
-artifact. A pull request that changes the workflow, this crate or the
-zoo's index runs it that far. Run by hand on main, a second job, the
-only one that may write to the repository, runs
-`.github/workflows/models-publish.yml`, which publishes exactly those
-files: it checks `SHA256SUMS`, stops if the tag exists, and creates the
-release at the run's commit, not marked as the repository's latest
-release, with notes that give the models' licence and the attribution of
-each card (MASC's, or each treebank's). Each `.card.json` asset carries
-its attribution as well. A release whose tag exists is not made again,
-so models trained otherwise need a new model version and tag.
+trained on) or, for the language detector, from the release that keeps
+the Tatoeba export ("Full run" below), and the references from the
+addresses its list gives, each checked against the SHA-256 listed with
+it: for MASC, OpenNLP's UD 1.3 English sentence and token models from
+`archive.apache.org` and `en-pos-maxent.bin` and `en-chunker.bin` from
+SourceForge; for UD, OpenNLP's UD 1.3 models from `archive.apache.org`;
+for the language detector, `langdetect-183.bin` from
+`downloads.apache.org`. The references are only scored, never shipped:
+the English, Spanish and Finnish UD models are trained on CC BY-SA
+treebanks, the licences of the two 1.5 models are refused, and the
+terms of the Leipzig corpora `langdetect-183.bin` was trained on are not
+confirmed. It saves each download in the repository's Actions cache as
+soon as it is checked, so a run that fails later does not fetch it
+again. It then runs `masc` or `ud` for the models the zoo's index lists
+at the release's addresses, or `tatoeba` twice, checking that both runs
+write the same files, runs `zoo-index --check`, and uploads each model
+with its card and gate record (`<model id>.bin`, `<model id>.card.json`,
+`<model id>.gate.json`; the language detector also with
+`training-sentences.txt`) and a `SHA256SUMS` file as an artifact. A pull
+request that changes the workflow, this crate or the zoo's index runs it
+that far. Run by hand on main, a job of its own, which unlike the
+training job may write to the repository, runs
+`.github/workflows/models-publish.yml`,
+which publishes exactly those files: it checks `SHA256SUMS`, stops if
+the tag exists, and creates the release at the run's commit, not marked
+as the repository's latest release, with notes that give the models'
+licence and the attribution of each card (MASC's, each treebank's, or
+Tatoeba's). Each `.card.json` asset carries its attribution as well. A
+release whose tag exists is not made again, so models trained otherwise
+need a new model version and tag. `models-tatoeba.yml` first publishes
+the export's release, from another job that may write, with the archives
+its run read and `NOTICE.md`, the licence notice of its release notes;
+when that release exists, it checks that its archives are the listed
+ones instead.
 
 ## The UD recipes
 
@@ -1123,10 +1145,10 @@ and 2 on an error.
 - The export's record. The exports are replaced each week at the same
   addresses, so an export is recorded by its digest
   (`Export::digest`: the SHA-256 of a `sha256sum` manifest of the two
-  files), not by address. `langdetect::EXPORT` records none (see
-  "Full run" below), so `tatoeba` refuses every export unless given
-  `--unrecorded-export`, and then writes a card with `recorded: false`,
-  which is not a release of the model.
+  files), not by address. `langdetect::EXPORT` records Tatoeba's export
+  of 2026-10-10 ("Full run" below), so `tatoeba` refuses any other
+  export unless given `--unrecorded-export`, and then writes a card with
+  `recorded: false`, which is not a release of the model.
 - Languages. `langdetect::LANGUAGES` is the explicit table of the 100
   Tatoeba languages the recipe reads and the codes of
   `langdetect-183.bin` (ISO 639-3) counted right for each. 93 use the
@@ -1139,11 +1161,10 @@ and 2 on an error.
   `zsm`, `npi`, `mlg` and `swh` as the reference's `msa`, `nep`, `plt`
   and `swa`. The reference's 103 codes are each in exactly one pair; a
   test checks the table against the model's outcomes. The Tatoeba codes
-  are those of Tatoeba's language list; tatoeba.org could not be reached
-  from the machine the recipe was written on, so they are not checked
-  against an export. A code the export does not use leaves its
-  language with no sentences, listed in the card's
-  `excluded_languages`; the card also counts the export's sentences of
+  are those of Tatoeba's language list. A code the export does not use
+  leaves its language with no sentences, listed in the card's
+  `excluded_languages`; in the recorded export every one of the 100
+  codes has sentences. The card also counts the export's sentences of
   languages outside the table (`other_languages`). The trained model's
   outcomes are Tatoeba's codes. The mapping is lenient and can only
   favour the reference.
@@ -1185,7 +1206,7 @@ and 2 on an error.
 ### Which way the gate leans
 
 The held-out units are single Tatoeba sentences, which are short (#429
-says so; the full run will give their lengths). The
+says so). The
 reference was trained on the Leipzig corpora's news and web text, and
 its own evaluation (`report.txt` in `langdetect-183.bin`) scored samples
 of 123 to 1,668 characters, 533 on average, at 98.81% accuracy over its
@@ -1202,10 +1223,163 @@ tuned.
 
 ### Full run
 
-Not done: downloads.tatoeba.org, tatoeba.org and Hugging Face refused
-the connection (403) from the machine the recipe was written on, so the
-export could not be fetched, and no export is recorded, no model
-trained and no gate run on Tatoeba. On a machine that can reach them:
+Made on 2026-10-15 on GitHub's runners, since downloads.tatoeba.org,
+tatoeba.org and Hugging Face refused the connection (403) from the
+machine the recipe was written on: run 38769842277 of the
+`models-tatoeba` workflow, from pull request #455, fetched that week's
+export and trained on it twice with `--unrecorded-export`. Both runs
+wrote the same model, sentence file, card and gate record, in about 190
+seconds each. The export was then recorded with the steps below, and the
+workflow now trains on it alone.
+
+The record:
+
+- tatoeba2, checked on 2026-10-15: the default branch `dev` was still
+  at commit 0fbb4506, and `master` (c3235bf9, 2026-07-16) has the same
+  three files. `docs/database/tables/sentences.sql` last changed in
+  2019, `src/Lib/Licenses.php` on 2025-10-28 and
+  `docs/database/scripts/weekly_exports.sql` in 2022, all before the
+  export, so it was written with the two sentence licences the reader
+  assumes.
+- The export of 2026-10-10. `sentences_detailed.tar.bz2` (303,565,606 bytes,
+  SHA-256 `776e298918d984b0e6ea3c8c48eb32ca6f79df624827025d463ce16e019a749f`)
+  holds `sentences_detailed.csv`: 1,409,238,272 bytes, SHA-256
+  `8ce364127cf6f1ab0387fe75bfa98f7ea767c9a406d39e1d25f66c4d435f58be`,
+  written at 06:02. `sentences_CC0.tar.bz2` (7,959,741 bytes, SHA-256
+  `74a1577f35d9f11134b281be3125cf17e5531b8a29054f68b3e858418387e17f`)
+  holds `sentences_CC0.csv`: 41,860,119 bytes, SHA-256
+  `7aa76236dba7c78a4841b7041737c91ef6670bb4fda031e98446d0a52e773198`,
+  written at 06:11 the same day. The times are the archives' tar
+  headers, so the two files are of one export. Its digest
+  (`langdetect::EXPORT`) is
+  `4421126b36dc0ce206b222296d696aff04a399620f1ca5dbefbfa50a1890aa92`.
+- Records: the detailed file has 13,606,084, 528 of them with no
+  language and 2,203,399 of languages outside the table. The CC0 file has 562,242, none
+  with another language or text than the detailed file gives and none
+  missing from it (`cc0_differing` and `cc0_not_in_detailed` are 0).
+- Languages: 71 trained on and held out, with 321,026 training
+  sentences and 35,500 held out (500 each). 29 are left out with fewer
+  than 1,500 sentences after the licence check and de-duplication, with
+  that count: ast 824, bak 434, che 47, fao 427, fry 713, gsw 566,
+  guj 168, kan 311, kir 809, lim 47, ltz 1,041, mal 884, min 121,
+  mlg 74, mlt 696, mri 503, nan 604, pan 217, pnb 77, pus 66, san 167,
+  sin 75, som 164, sun 765, tam 597, tel 318, tgk 81, uzb 1,235,
+  zul 89. Every code of the table has sentences in the export.
+- Gate, over the 35,500 held-out sentences: the trained model 92.19%
+  (91.91 to 92.46), `langdetect-183.bin` 83.91% (83.53 to 84.29), a
+  difference of +8.28 points (+7.94 to +8.63): pass.
+- Files, the same from both runs: the model, 4,755,070 bytes, SHA-256
+  `89f8e570f2f27184267de91ce26433e848ee341b94b7ef9fe623a56236e4e64e`;
+  `training-sentences.txt`, 2,648,398 bytes (321,026 ids), SHA-256
+  `423b88e8ac2af4f7bd57ef286e019c1b151accf3f50ec0c43618113a64d76ab9`.
+
+Per language (`per_language` in the card), each with 500 sentences held
+out; no language has a text twice, so none is left out as a duplicate.
+The trained model is right on more held-out sentences than the
+reference in 56 languages, as often in 8 and less often in 7: Bosnian
+(1 against 58), Norwegian Bokmål (376 against 400), Portuguese (469
+against 479), Bengali (497 against 499), and Mandarin, Hebrew and
+Albanian (one sentence each). Bosnian is the clear weak spot: the model
+was trained on 1,259 Bosnian sentences beside 5,000 each of Croatian and
+Serbian, which are written much alike.
+
+<details>
+<summary>The 71 languages</summary>
+
+| Language | Sentences | Licence left out | Trained on | Trained model right | `langdetect-183.bin` right |
+|---|---:|---:|---:|---:|---:|
+| `afr` | 4,940 | 0 | 4,440 | 484 | 482 |
+| `ara` | 68,575 | 2 | 5,000 | 500 | 451 |
+| `aze` | 13,531 | 0 | 5,000 | 486 | 450 |
+| `bel` | 14,427 | 1,929 | 5,000 | 490 | 488 |
+| `ben` | 15,812 | 7,151 | 5,000 | 497 | 499 |
+| `bos` | 1,759 | 0 | 1,259 | 1 | 58 |
+| `bre` | 8,000 | 0 | 5,000 | 468 | 412 |
+| `bul` | 25,719 | 0 | 5,000 | 466 | 463 |
+| `cat` | 10,963 | 5 | 5,000 | 458 | 386 |
+| `ceb` | 1,893 | 0 | 1,393 | 221 | 98 |
+| `ces` | 89,990 | 3 | 5,000 | 459 | 447 |
+| `cmn` | 89,179 | 1 | 5,000 | 499 | 500 |
+| `cym` | 1,803 | 5 | 1,298 | 468 | 460 |
+| `dan` | 66,540 | 34 | 5,000 | 431 | 323 |
+| `deu` | 783,551 | 46 | 5,000 | 492 | 469 |
+| `ell` | 42,774 | 0 | 5,000 | 500 | 500 |
+| `eng` | 2,038,719 | 41,512 | 5,000 | 479 | 467 |
+| `epo` | 822,798 | 370 | 5,000 | 489 | 484 |
+| `est` | 6,358 | 0 | 5,000 | 484 | 451 |
+| `eus` | 6,433 | 0 | 5,000 | 491 | 485 |
+| `fin` | 154,926 | 1,561 | 5,000 | 493 | 478 |
+| `fra` | 728,438 | 14,202 | 5,000 | 489 | 454 |
+| `gle` | 2,989 | 0 | 2,489 | 492 | 487 |
+| `glg` | 8,212 | 0 | 5,000 | 459 | 396 |
+| `heb` | 212,732 | 27 | 5,000 | 499 | 500 |
+| `hin` | 16,475 | 57 | 5,000 | 494 | 488 |
+| `hrv` | 6,551 | 0 | 5,000 | 457 | 321 |
+| `hun` | 442,121 | 1 | 5,000 | 492 | 468 |
+| `hye` | 51,922 | 0 | 5,000 | 500 | 500 |
+| `ind` | 28,339 | 0 | 5,000 | 342 | 261 |
+| `isl` | 13,387 | 0 | 5,000 | 498 | 480 |
+| `ita` | 988,826 | 19 | 5,000 | 491 | 447 |
+| `jav` | 1,732 | 0 | 1,232 | 390 | 252 |
+| `jpn` | 248,924 | 2 | 5,000 | 500 | 500 |
+| `kat` | 7,697 | 0 | 5,000 | 500 | 500 |
+| `kaz` | 4,575 | 0 | 4,075 | 489 | 479 |
+| `kor` | 15,941 | 0 | 5,000 | 500 | 500 |
+| `lat` | 56,575 | 31 | 5,000 | 483 | 435 |
+| `lit` | 158,709 | 0 | 5,000 | 486 | 479 |
+| `lvs` | 19,816 | 0 | 5,000 | 496 | 488 |
+| `mar` | 87,415 | 0 | 5,000 | 499 | 495 |
+| `mkd` | 78,259 | 0 | 5,000 | 471 | 382 |
+| `mon` | 2,791 | 0 | 2,291 | 496 | 488 |
+| `nds` | 18,233 | 0 | 5,000 | 473 | 402 |
+| `nld` | 201,295 | 50 | 5,000 | 464 | 422 |
+| `nno` | 12,493 | 0 | 5,000 | 410 | 359 |
+| `nob` | 18,892 | 5 | 5,000 | 376 | 400 |
+| `npi` | 4,504 | 0 | 4,004 | 497 | 491 |
+| `oci` | 25,170 | 0 | 5,000 | 452 | 382 |
+| `pes` | 31,797 | 0 | 5,000 | 496 | 489 |
+| `pol` | 137,180 | 57 | 5,000 | 494 | 475 |
+| `por` | 445,215 | 17 | 5,000 | 469 | 479 |
+| `ron` | 41,613 | 0 | 5,000 | 490 | 478 |
+| `rus` | 1,229,481 | 23,075 | 5,000 | 477 | 384 |
+| `slk` | 33,264 | 0 | 5,000 | 466 | 390 |
+| `slv` | 3,586 | 0 | 3,086 | 393 | 393 |
+| `spa` | 442,544 | 37 | 5,000 | 455 | 405 |
+| `sqi` | 2,634 | 0 | 2,134 | 460 | 461 |
+| `srp` | 52,103 | 0 | 5,000 | 262 | 230 |
+| `swe` | 56,846 | 208 | 5,000 | 472 | 453 |
+| `swh` | 4,583 | 0 | 4,083 | 487 | 467 |
+| `tat` | 100,088 | 0 | 5,000 | 486 | 136 |
+| `tgl` | 79,131 | 0 | 5,000 | 493 | 462 |
+| `tha` | 6,851 | 0 | 5,000 | 500 | 500 |
+| `tur` | 749,693 | 0 | 5,000 | 489 | 482 |
+| `ukr` | 188,849 | 393 | 5,000 | 485 | 440 |
+| `urd` | 2,851 | 0 | 2,351 | 494 | 447 |
+| `vie` | 33,223 | 0 | 5,000 | 498 | 498 |
+| `vol` | 6,620 | 3 | 5,000 | 497 | 321 |
+| `war` | 2,391 | 0 | 1,891 | 399 | 16 |
+| `zsm` | 7,791 | 0 | 5,000 | 414 | 275 |
+
+</details>
+
+The `models-tatoeba` workflow (`.github/workflows/models-tatoeba.yml`)
+trains the release's model on the recorded export when it is run by hand
+or a pull request changes it or the crates the run mostly rests on: this
+one, the trainers (`analysis/train`, `analysis/train-components`), the
+gate (`analysis/eval`), `turbo-langdetect` and the zoo's index. It
+fetches the two archives from release `data-tatoeba-2026-10-10`, or,
+until that release is published, from the artifact run 38769842277 kept
+(until 2027-01-13), checks them against `tatoeba-export.txt` before it
+caches them, and prints their `tar -tvjf` listings. It trains twice and
+fails unless both runs write the same files, prints the card's
+per-language counts, and checks with `zoo-index --check` that the
+model and `training-sentences.txt` are the bytes the zoo's index lists
+("The models releases" above).
+
+A later export gives another model, which needs a model id, a release
+and an export release of its own, since a published release keeps its
+assets. The recipe trains on one with `--unrecorded-export`; on a
+machine that can reach Tatoeba:
 
 ```
 mkdir -p tatoeba/archives tatoeba/export models
@@ -1222,21 +1396,6 @@ cmp run-a/turbo-mul-tatoeba-langdetect-1/turbo-mul-tatoeba-langdetect-1.bin \
     run-b/turbo-mul-tatoeba-langdetect-1/turbo-mul-tatoeba-langdetect-1.bin
 ```
 
-The `models-tatoeba` workflow (`.github/workflows/models-tatoeba.yml`)
-makes the same two runs on GitHub's runners, which can reach Tatoeba,
-when it is run by hand or a pull request changes it or the crates the
-run mostly rests on: this one, the trainers (`analysis/train`,
-`analysis/train-components`), the gate (`analysis/eval`) and
-`turbo-langdetect`. Both runs must write the same model, sentence file,
-card and gate record. It caches the archives under the size, time and
-ETag Tatoeba's server gives for them (a new week's export gets a new key;
-a file of another size than its headers gave is refused before it is
-cached) and the reference under its SHA-256. It keeps as artifacts the
-runs' model directories and output,
-the archives' SHA-256 and `tar -tvjf` listings (step 2 below), and the
-archives themselves, so the export a run read can still be had after
-Tatoeba replaces it, for as long as GitHub keeps the run's artifacts.
-
 Each run prints the export's digest, the CC0 file's counts, the
 languages trained on and left out, and the gate. To record the run:
 
@@ -1246,9 +1405,8 @@ languages trained on and left out, and the gate. To record the run:
    `src/Lib/Licenses.php` lists no other sentence licence, and
    `docs/database/scripts/weekly_exports.sql` still selects the detailed
    file with `license != ''` and the CC0 file with `license = 'CC0 1.0'`,
-   in the same columns. They were checked at commit 0fbb4506. If any of
-   them changed, the reader's licence classification (`tatoeba`) must be
-   revised before a run is recorded.
+   in the same columns. If any of them changed, the reader's licence
+   classification (`tatoeba`) must be revised before a run is recorded.
 2. Check that both files are of one weekly export: `tar -tvjf` on each
    archive gives its file's time, and the two must be of one run of
    Tatoeba's export (written one after the other, not days apart).
@@ -1263,6 +1421,9 @@ languages trained on and left out, and the gate. To record the run:
    languages left out with their counts, the gate's scores and
    interval, and the model's size and SHA-256 and the size and SHA-256
    of `training-sentences.txt` from both runs.
+5. Keep the archives in a release of their own, list them in
+   `tatoeba-export.txt`, and name the model's release in
+   `release::MODELS_RELEASES`.
 
 ## Tests
 
@@ -1430,10 +1591,12 @@ gate over 32 held-out sentences (too few to pass, which the test also
 checks), a reference code the reference does not have refused and a
 two-code mapping counted; the card, the model's directory, that
 `training-sentences.txt` lists exactly the ids trained on, and each
-condition a zoo entry needs; the export record; and the binary's
-refusal of a missing reference. With
+condition a zoo entry needs; the release's entry, made from the model's
+directory with both files checked, and refused when
+`training-sentences.txt` is changed or missing; the export record; and
+the binary's refusal of a missing reference. With
 `TURBO_GOLDENS_MODELS` naming a directory holding `langdetect-183.bin`
 (required with `TURBO_TEST_REQUIRE_OPENNLP_MODELS=1`), it checks the
 table's codes against the model's 103 outcomes, and that the binary
-refuses the export as unrecorded and, given `--unrecorded-export`,
+refuses the export as not the recorded one and, given `--unrecorded-export`,
 refuses it for having no language with 1,500 sentences.
