@@ -252,7 +252,7 @@ tests in `analysis/grammar/src/lang/en/tests.rs` cover them.
 
 `cargo run --release -p turbo-grammar --example grammar_bench` times the
 English grammar over a generated 100 KB text (the sentences are in
-`analysis/grammar/tests/common/sample.rs`), and `tests/timing.rs` runs
+`analysis/grammar/tests/common/sample.rs`), and `analysis/grammar/tests/timing.rs` runs
 the same text in the test build, checks the layers and prints the time.
 
 ## Not yet done
