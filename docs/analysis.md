@@ -37,6 +37,8 @@ nothing here is in the C header or the gRPC server.
 | `turbo-stem-layers` | `analysis/stem-layers/` | The stemmers' layer, `turbo:stems` |
 | `turbo-stopword` | `analysis/stopword/` | OpenNLP's eleven bundled stopword lists (Bulgarian, Danish, German, English, Spanish, Finnish, French, Italian, Dutch, Portuguese, Russian) and `StopwordFilter.isStopword`, and the step that reads `opennlp:tokens` and, optionally, `opennlp:language` and writes `turbo:stopwords`, a flag per token; it flags and never removes. `analysis/stopword/data/README.md` gives each list's origin and license, the crate documentation lists the OpenNLP behaviour that is surprising, and `analysis/stopword/README.md` describes its JVM golden files |
 | `turbo-stopword-layers` | `analysis/stopword-layers/` | The `turbo:stopwords` layer and the languages that have a list (`StopwordLanguage`) |
+| `turbo-glossary` | `analysis/glossary/` | OpenNLP's glossary matchers and readers: `TextMatcher` (`AhoCorasickGlossaryMatcher`, an Aho-Corasick automaton over code points whose matches must start and end on given boundaries), `TokenMatcher` (`TermAnalyzingGlossaryMatcher`, on turbo-matcher's phrase matcher, over token text or stems), their composite (`CompositeGlossaryMatcher`), `GlossaryAnnotator`, which reads a view, its `opennlp:tokens` and optionally `turbo:stems` and writes `turbo:glossary-terms`, and the comma or tab separated and TBX 2 and 3 readers (`CsvGlossaryReader`, `TbxGlossaryReader`, with a small XML parser of its own) and a TBX writer. The crate documentation lists where it differs from OpenNLP and the OpenNLP behaviour that is surprising; `analysis/glossary/README.md` describes its JVM golden files and the timing of the two matchers |
+| `turbo-glossary-layers` | `analysis/glossary-layers/` | The glossary (`Glossary`, an entry's id and term) and the `turbo:glossary-terms` layer, so a consumer of the matches does not depend on the matchers |
 | `turbo-doccat` | `analysis/doccat/` | OpenNLP's SVM document categorizer (`DocumentCategorizerSVM` of `opennlp-ml-libsvm`) at prediction: the LIBSVM text model reader and LIBSVM's prediction (C-SVC and nu-SVC, the linear, polynomial, RBF and sigmoid kernels, probability estimates), the sidecar that holds the rest of the model, the feature generators and term weightings, and the step that reads `opennlp:tokens` and writes `turbo:categories` ([doccat.md](doccat.md)) |
 | `turbo-langspan` | `analysis/langspan/` | Language by span (code switching): script runs, then OpenNLP's language detector model scoring words and clauses, written as `turbo:language-spans` with the document summary in `opennlp:language` ([langdetect.md](langdetect.md), "Language by span") |
 | `turbo-bpe-trainer` | `analysis/bpe-trainer/` | BPE trainers, a tool and not an annotator: byte-level BPE as upstream `tokenizers` trains it, SentencePiece BPE as the sentencepiece library trains it, and OpenNLP's `BPETokenizerTrainer` with its `BPETokenizer` ([bpe-trainer.md](bpe-trainer.md)) |
@@ -522,6 +524,7 @@ fields mean bumps its `SCHEMA`.
 | `Abbreviations` | `turbo:abbreviations` | text | `turbo-analysis-layers` |
 | `Matches` | `turbo:matches` | text | `turbo-analysis-layers` |
 | `Stopwords` | `turbo:stopwords` | tokens | `turbo-stopword-layers` |
+| `GlossaryTerms` | `turbo:glossary-terms` | text (indexes `Tokens`) | `turbo-glossary-layers` |
 | `Vectors<L>` | `opennlp:embeddings<L>` | `L` | `turbo-analysis-layers` |
 | `Confidence<L>` | `turbo:confidence<L>` | `L` | `turbo-analysis-layers` |
 | `Utf16Spans<L>` | `turbo:utf16<L>` | `L` | `turbo-analysis-layers` |
@@ -1192,9 +1195,9 @@ flag, each phrase token's flag comes from its text, and the flags that
 come from a layer or the context are refused for phrases. Phrases are
 tokenized by the caller, the same way the documents are, or they will
 not line up with the tokens. `find` reports every occurrence, overlapping
-ones too, in token order; `remove` drops a label's phrases. The
-glossary matcher (#202) is meant to sit on this: a glossary entry keeps
-the `PhraseId` of each of its terms, and a match names the phrase.
+ones too, in token order; `remove` drops a label's phrases. The token
+matcher of `turbo-glossary` sits on this: it keeps the glossary entry of
+each `PhraseId`, and a match names the entry.
 
 The phrase list is a trie over token ids, written here rather than taken
 from daachorse, aho-corasick or fst. The root's edges are an array
@@ -2987,9 +2990,17 @@ each (`Task::LanguageDetector`, `Scoring::Labels`). The model's
 directory lists the ids of the sentences it was trained on
 (`training-sentences.txt`), the credit CC BY 2.0 FR asks for, as
 Tatoeba's sentence addresses. Tatoeba's download host refused the
-machine it was written on, so no export is recorded and no full run has
-been made; the README has the commands, the split, the thresholds and
-which way the gate leans.
+machine it was written on, so the full run was made on GitHub's runners
+(`.github/workflows/models-tatoeba.yml`) on Tatoeba's export of
+2026-10-10, which the recipe records: 71 languages with at least 1,500
+sentences after the licence check and de-duplication, 321,026 sentences
+trained on and 35,500 held out, and the
+trained model right on 92.19% of them against 83.91% for
+`langdetect-183.bin`, a pass. The model and `training-sentences.txt` go
+out as release `models-tatoeba-2026-10-10-1`, and the export's archives,
+which Tatoeba replaces every week, as release `data-tatoeba-2026-10-10`.
+The README has the record, the split, the thresholds and which way the
+gate leans.
 
 ## Differential fuzzing
 

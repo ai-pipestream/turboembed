@@ -25,6 +25,12 @@ pub const ADDONS_COMMIT: &str = "33e95a4956f1535cdc074056b29246fe88b3c81a";
 /// the two it needs from this commit into a jar of their own.
 pub const STRING_PATTERN_COMMIT: &str = "b2473ca80d65ae2ef10a24b08b1d0ae6a9231109";
 
+/// The commit of the OpenNLP addons fork, on its `ready/geo-place-profiles`
+/// branch, whose `PlaceProfiles` the generator runs. The class is not in
+/// [`ADDONS_COMMIT`]; the container compiles its source from this commit
+/// into the `geo` module built from that one.
+pub const PLACE_PROFILES_COMMIT: &str = "07e1f670818917d74e9a94367080f51ae6365bfa";
+
 /// The tag `turbo-goldens image` gives the image it builds. It names the
 /// OpenNLP and addons commits, so an image built from other commits has
 /// another tag.
@@ -237,7 +243,7 @@ pub struct Fixture {
 /// the feature generator descriptors and their resources (`featuregen`) or
 /// of the name finder's dictionaries and patterns (`namefind`), and `Runs`
 /// opens the directory.
-pub const FIXTURES: [Fixture; 62] = [
+pub const FIXTURES: [Fixture; 63] = [
     Fixture {
         file: "en-abbrev.bin",
         sha512: "759ab1defc61351f53cdd82a26e708789a225feb6e1ec0cfd6e2e54f35f67c14\
@@ -352,6 +358,11 @@ pub const FIXTURES: [Fixture; 62] = [
         file: "gazetteer-suppressions.txt",
         sha512: "50db213abd6c0dab3409a1e8ad77aee22bd05920f2fb23c393fccec01f342d12\
                  8a336761acb8bb3df401549ad319cd6551ba3b06558e4d4cf0604025d1ef39d6",
+    },
+    Fixture {
+        file: "glossary-terms.tsv",
+        sha512: "9356e730339664c7fcbf3cd6c0aef6287ac07f0db2e13d03927a9c5f05730596\
+                 5cb13a1b0df0d5f5e5072a9dded43c07f406cfad9fcad5416d07fef80fb0623a",
     },
     Fixture {
         file: "en-detokenizer.xml",
@@ -551,7 +562,7 @@ pub const FIXTURES: [Fixture; 62] = [
 ];
 
 /// The input sets under `analysis/goldens/data/inputs`.
-pub const INPUT_SETS: [&str; 36] = [
+pub const INPUT_SETS: [&str; 38] = [
     "en",
     "multi",
     "norm",
@@ -578,6 +589,7 @@ pub const INPUT_SETS: [&str; 36] = [
     "parse",
     "head-rules",
     "gazetteer",
+    "place-profiles",
     "langdetect",
     "sequence",
     "descriptor-errors",
@@ -586,6 +598,7 @@ pub const INPUT_SETS: [&str; 36] = [
     "namefind",
     "stem",
     "stopword",
+    "glossary",
     "svm-doccat",
     "svm-doccat-train",
 ];
@@ -601,7 +614,7 @@ pub const GENERATOR_ARGS: [&str; 1] = ["--dumps"];
 /// replaces and `verify` compares. The data directory holds other things
 /// (the inputs, the fixtures, the rate snapshot, a README) that neither
 /// touches.
-pub const ANNOTATORS: [&str; 39] = [
+pub const ANNOTATORS: [&str; 41] = [
     "sentdetect",
     "tokenize",
     "postag",
@@ -631,6 +644,7 @@ pub const ANNOTATORS: [&str; 39] = [
     "parse",
     "head-rules",
     "gazetteer",
+    "place-profiles",
     "string-pattern",
     "features",
     "codec",
@@ -640,6 +654,7 @@ pub const ANNOTATORS: [&str; 39] = [
     "namefind",
     "stem",
     "stopword",
+    "glossary",
     "svm-doccat",
 ];
 
@@ -701,6 +716,7 @@ mod tests {
         assert!(is_lower_hex(OPENNLP_COMMIT, 40), "{OPENNLP_COMMIT}");
         assert!(is_lower_hex(ADDONS_COMMIT, 40), "{ADDONS_COMMIT}");
         assert!(is_lower_hex(STRING_PATTERN_COMMIT, 40), "{STRING_PATTERN_COMMIT}");
+        assert!(is_lower_hex(PLACE_PROFILES_COMMIT, 40), "{PLACE_PROFILES_COMMIT}");
         assert!(IMAGE_TAG.contains(&format!("opennlp-{}", &OPENNLP_COMMIT[..12])));
         assert!(IMAGE_TAG.ends_with(&format!("addons-{}", &ADDONS_COMMIT[..12])));
     }
@@ -732,6 +748,9 @@ mod tests {
         assert!(dockerfile.contains(&format!("\nARG STRING_PATTERN_COMMIT={STRING_PATTERN_COMMIT}\n")));
         let patterns = include_str!("../java/src/main/java/ai/pipestream/turbo/goldens/StringPatternGolden.java");
         assert!(patterns.contains(&format!("BRANCH_COMMIT = \"{STRING_PATTERN_COMMIT}\";")));
+        assert!(dockerfile.contains(&format!("\nARG PLACE_PROFILES_COMMIT={PLACE_PROFILES_COMMIT}\n")));
+        let profiles = include_str!("../java/src/main/java/ai/pipestream/turbo/goldens/PlaceProfilesGolden.java");
+        assert!(profiles.contains(&format!("PROFILES_COMMIT = \"{PLACE_PROFILES_COMMIT}\";")));
     }
 
     #[test]
@@ -743,6 +762,7 @@ mod tests {
                     f.file.ends_with(".bin")
                         || f.file.ends_with(".xml")
                         || f.file.ends_with(".txt")
+                        || f.file.ends_with(".tsv")
                         || f.file.ends_with(".tagdict"),
                     "{}",
                     f.file

@@ -1,0 +1,1 @@
+<tbx xmlns="urn:example:other"><text><body/></text></tbx>

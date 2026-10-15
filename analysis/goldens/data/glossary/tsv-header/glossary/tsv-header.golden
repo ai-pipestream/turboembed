@@ -1,0 +1,14 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	glossary/tsv-header	60	60	c76d0d2127c47918a8039ce0bbb6c925db17f34a45edc9edcd300710bee7785e
+annotator	opennlp.tools.formats.glossary.CsvGlossaryReader	read
+config	delimiter	\\t
+config	skipHeader	true
+layer	turbo:glossary-entries	document	3	id:str	term:str
+c1	hot dog
+c,2	tab\there
+c3	comma, inside
+end	turbo:glossary-entries

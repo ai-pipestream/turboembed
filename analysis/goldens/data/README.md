@@ -268,6 +268,11 @@ are not taken from any corpus.
   letter code and malformed ones, and the `table-<kind>-<case>.txt` files
   small GeoNames, Overture, user and suppression tables, most with one
   error each loader reports.
+- `inputs/place-profiles/`: profile tables for `PlaceProfiles`, written
+  for this project with made up places and numbers: tables that load (a
+  ten town table, a 40 place generated one, extreme and subnormal values,
+  constant columns, ties between ids in different scripts, every kind of
+  skipped line and padding) and tables with one error each.
 - `inputs/sequence/`, `inputs/descriptor-errors/`, `inputs/codec/`,
   `inputs/tag-format/`: the inputs of the `turbo-sequence` goldens, written
   for this project: 16 tokenized sentences, tokens for `StringPattern`
@@ -286,6 +291,9 @@ are not taken from any corpus.
 - `inputs/stopword/`: words and language codes the stopword lookup is asked
   about besides the lists' own, written for this project
   (`analysis/stopword/README.md`).
+- `inputs/glossary/`: texts for the glossary matchers and comma separated,
+  tab separated and TBX glossaries, well formed and malformed, for the
+  glossary readers, written for this project (`analysis/glossary/README.md`).
 - `inputs/svm-doccat-train/`: the corpora the SVM document categorizer
   goldens train their models on, written for this project, one sample per
   line (the category, a space and the text): `topics.txt`, 48 sentences,
@@ -354,6 +362,7 @@ that differs.
 | `gazetteer-overture.txt` | a table in the format of the addons' `OvertureGenerator` output written for this project: 10 divisions of several subtypes, comment and blank lines, and an alternate that folds to nothing |
 | `gazetteer-user.txt` | a user gazetteer table written for this project, with every column: alternates with a blank element, a bounding box with and without coordinates (one across the antimeridian), containment, attributes with padding, a feature class in lower case and a population with a plus sign |
 | `gazetteer-suppressions.txt` | suppression rules written for this project for the overlay: by name alone, with a country in either case and with a feature class in either case |
+| `glossary-terms.tsv` | a glossary of 40 entries written for this project, tab separated with an `id`, `term` header: terms of several words, case and spacing variants, punctuation, accented, Greek, Turkish, CJK, Korean and emoji terms and characters outside the BMP; the glossary matchers' goldens match with it (`analysis/glossary/README.md`) |
 
 `train-fixtures/` beside `fixtures/` holds the training data of the fixture
 models above (tagged sentences, chunks and names, written for this project);

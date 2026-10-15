@@ -1,0 +1,9 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	glossary/tbx-undeclared-entity	138	138	78ec6a941658a4c7a70bec5b33050cbd3ad0a0a760c2a646c501da3b0830269e
+annotator	opennlp.tools.formats.glossary.TbxGlossaryReader	read
+config	languageTag	de
+error	opennlp.tools.util.InvalidFormatException	malformed TBX content: ParseError at [row,col]:[1,79]\nMessage: The entity "nbsp" was referenced, but not declared.

@@ -176,6 +176,7 @@ a directory with the same model run without them, and its options are
 | `parse` (`ParseSampleStream`, `Parse.parseParse`) | `treebank`, `treebank+function-tags`; `en-head-rules`, `en-head-rules+possessives`, `es-head-rules`, `es-regex-head-rules` (fixtures) | `parse` | `useFunctionTags true`; `rules`, `fixPossesives true` |
 | `head-rules` (`HeadRules`, `AncoraSpanishHeadRules`) | `en`, `es` | `head-rules` | |
 | `gazetteer` (the addons `geo` module) | `naturalearth-populated-places` (the bundled table), `gazetteer-geonames`, `gazetteer-overture`, `gazetteer-user`, `overlay` (fixtures); `load-geonames`, `load-overture`, `load-user`, `load-suppressions` | `gazetteer`: the `names`, `ids` and `regions` inputs for the first five, the `table-<kind>-` inputs for the load runs | `source sites` for the user table |
+| `place-profiles` (`PlaceProfiles` of the addons `geo` module) | `place-profiles` | `place-profiles` | `profilesCommit` |
 | `string-pattern` (`StringPattern`, `FeatureGeneratorUtil.tokenFeature`) | `utf16-units`, `code-points` | `sequence` | `mode`; `branchCommit` for `code-points` |
 | `features` (`GeneratorFactory`, `DefaultPOSContextGenerator`) | `pos-default`, `ner-default`, `everything`, `nesting` (fixtures, `featuregen/`), `default-pos-context`, `default-pos-context+names-dictionary`; `errors` | `sequence` (the `sentences` input); `errors` on `descriptor-errors` | `adaptiveData` for the descriptors |
 | `codec` (`BioCodec`, `BilouCodec`) | `bio`, `bilou` | `codec`, the input of the codec's name | `compatibleOutcomes` |
@@ -185,6 +186,7 @@ a directory with the same model run without them, and its options are
 | `namefind` (`DictionaryNameFinder`, `RegexNameFinder`, `NameFinderME.dropOverlappingSpans`) | `generated`, `dictionary`, `regex-builtin`, `regex-factory`, `regex-user`, `merge`, with the fixtures in `namefind/` | `namefind` | |
 | `stem` (`PorterStemmer`, `SnowballStemmer`, the light and minimal stemmers) | `porter`, `snowball-<language>`, `snowball-<language>-repeat2`, `<language>-light`, `<language>-minimal`, and the Norwegian ones by variety | `stem`: `edge`, the stemmer's language and `generated-<language>` | `stemmer` |
 | `stopword` (`StopwordLists`, `StopwordFilter`, `StopwordFilteringTokenizer`) | `lists`, `codes`, `words`, `filter`, `letters` | `stopword`: `codes` for `codes`, `words` for the others | |
+| `glossary` (`AhoCorasickGlossaryMatcher`, `TermAnalyzingGlossaryMatcher`, `CompositeGlossaryMatcher`, `CsvGlossaryReader`, `TbxGlossaryReader`) | `exact`, `ignore-case`, `whitespace+ignore-case`, `analyzed`, `composite` (the fixture `glossary-terms.tsv`); `csv`, `tsv-header`, `tbx-en`, `tbx-de` | `glossary`: the `text-` inputs for the matchers, the `csv-`, `tsv-` and `tbx-` inputs for the readers | `ignoreCase`, `normalizer`, `analyzer`; `delimiter`, `skipHeader`; `languageTag` |
 | `svm-doccat` (`DocumentCategorizerSVM.train`, `categorize`) | `topics-linear-<weighting>-<selection>` for the four weightings (`binary`, `tf`, `tfidf`, `lognorm`) and five selections (`none`, `ig`, `chi2`, `tf`, `df`); `topics-rbf-tfidf`, `topics-poly-tf`, `topics-sigmoid-binary`, `topics-nu-linear-tfidf`, `topics-nu-rbf-lognorm`, `topics-linear-tfidf-noscale`, `topics-rbf-tfidf-scale-1`, `topics-linear-lognorm-ngram`, `topics-linear-binary-c10`, `pair-linear-tfidf`, `pair-rbf-binary` | `svm-doccat`; the run's corpus in `svm-doccat-train` | `run`, `corpus`, `language`, `seed`, `weighting`, `selection`, `max-features`, `svm-type`, `kernel`, `degree`, `gamma`, `coef0`, `cost`, `scaling`, `generators` |
 
 - `+english-dictionary` is the English model rebuilt through
@@ -636,6 +638,24 @@ The OpenNLP commit of the recipe has no `StringUtil.stripByteOrderMark`, which
 two readers of the module call; the Dockerfile replaces both calls with
 the expression the method returns before building the module.
 
+## Place profile goldens
+
+`place-profiles/place-profiles/place-profiles/<id>.golden` is what
+`PlaceProfiles.load` made of the table `inputs/place-profiles/<id>.txt`.
+The class is not in the addons commit the rest of the `geo` module is built
+from, so the Dockerfile takes `PlaceProfiles.java` from
+`PLACE_PROFILES_COMMIT` (`src/recipe.rs`, on the addons'
+`ready/geo-place-profiles` branch) and compiles it into the module; the
+golden's `profilesCommit` record names that commit. The layers are
+`turbo:profiles-load` (whether it loaded, or the exception),
+`turbo:profiles-metrics`, `turbo:profiles-places` (the ids sorted by
+`String.compareTo`, since the class keeps them in a map),
+`turbo:profiles-values` (the standardized profiles, read from the class's
+private map by reflection), `turbo:profiles-similarity` (every ordered pair)
+and `turbo:profiles-neighbors` (`mostSimilar` of every place with the
+counts 1, 2 and the number of places). `analysis/geo/tests/profile_goldens.rs`
+rebuilds every layer and compares the doubles bit for bit.
+
 ## Evaluator goldens
 
 `evaluate/<evaluator>/formats/<id>.golden` is what one of OpenNLP's
@@ -851,7 +871,7 @@ The command:
    the rate snapshot mounted as `generate` mounts them, and with
    `--skip-annotators` set to `turbo_fuzz::runs::NOT_COVERED` (the training,
    format reader, evaluator, detokenizer, BPE, parse, sequence, name finder,
-   stemmer and stopword annotators),
+   stemmer, stopword and glossary annotators),
    the annotators the differential does not cover; the goldens go under
    `<out>/jvm/`;
 3. compares every golden with the Rust side (`turbo_fuzz::compare_tree`),
@@ -905,13 +925,15 @@ The generator's two options behind this are general: `--skip-annotators
 follow the five positional arguments, in any order with `--dumps`, and
 the inputs directory may hold any subset of the sets.
 
-## Sequence, name finder, stemmer and stopword goldens
+## Sequence, name finder, stemmer, stopword and glossary goldens
 
 These runs are the parity tests of `turbo-sequence`, `turbo-namefind`,
-`turbo-stem` and `turbo-stopword`; each crate's README describes its inputs,
-fixtures and layers, and the Java class of each run says what it records. All
-their layers are anchored to the document, and a string that can hold half of
-a surrogate pair is written as `TrainGolden.lossless` writes it.
+`turbo-stem`, `turbo-stopword` and `turbo-glossary`; each crate's README
+describes its inputs, fixtures and layers, and the Java class of each run says
+what it records. Their layers are anchored to the document, but for the
+glossary matchers' matches and analyzed terms, which are spans of the text;
+a string that can hold half of a surrogate pair is written as
+`TrainGolden.lossless` writes it.
 
 The `code-points` run of `string-pattern` runs the code point
 `StringPattern` of the fork's `ready/string-pattern-unicode` branch
