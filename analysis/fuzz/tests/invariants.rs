@@ -33,6 +33,7 @@ const FED: &[&str] = &[
     "head-rules",
     "ja",
     "ko",
+    "langdetect",
     "money",
     "multi",
     "namefind",

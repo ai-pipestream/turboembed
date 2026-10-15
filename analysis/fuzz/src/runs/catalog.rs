@@ -12,19 +12,20 @@ use super::{Run, split_options};
 use crate::resources::{Resources, Unavailable};
 
 /// The annotator directories the generator writes that the differential
-/// does not cover: the training stack (`train`, `train-events`), the
-/// format readers (`formats`, `masc`, `ner`) and the parse and head rule
-/// readers (`parse`, `head-rules`) compare files, not layers of a text;
-/// the evaluators compare scores; the detokenizer runs on token lists;
-/// the BPE trainer learns merges from a whole set; the gazetteers answer
-/// queries line by line and load whole tables; the sequence runs
-/// (`string-pattern`, `features`, `codec`, `beam`, `tag-dictionary`,
-/// `tag-format`), the name finders, the stemmers and the stopword lists
-/// read input sets of their own, which turbo-sequence, turbo-namefind,
-/// turbo-stem and turbo-stopword compare with.
-pub const NOT_COVERED: [&str; 20] = [
+/// does not cover: the training stack (`train`, `train-events`,
+/// `train-langdetect`), the format readers (`formats`, `masc`, `ner`) and
+/// the parse and head rule readers (`parse`, `head-rules`) compare files,
+/// not layers of a text; the evaluators compare scores; the detokenizer
+/// runs on token lists; the BPE trainer learns merges from a whole set; the
+/// gazetteers answer queries line by line and load whole tables; the
+/// sequence runs (`string-pattern`, `features`, `codec`, `beam`,
+/// `tag-dictionary`, `tag-format`), the name finders, the stemmers and the
+/// stopword lists read input sets of their own, which turbo-sequence,
+/// turbo-namefind, turbo-stem and turbo-stopword compare with.
+pub const NOT_COVERED: [&str; 21] = [
     "train",
     "train-events",
+    "train-langdetect",
     "formats",
     "evaluate",
     "detokenize",
@@ -112,6 +113,7 @@ pub const RUNS: &[(&str, &str)] = &[
     ("chunk", "chunker-fixture+beam1"),
     ("chunk", "chunker-fixture-rust"),
     ("langdetect", "langdetect-183"),
+    ("langdetect", "langdetect-fixture-rust"),
     ("normalize", "whitespace"),
     ("normalize", "whitespace-keep-lines"),
     ("normalize", "whitespace-keep-paragraphs"),

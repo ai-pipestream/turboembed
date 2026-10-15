@@ -135,7 +135,7 @@ a directory with the same model run without them, and its options are
 | `chunk` (`ChunkerME`) | `chunker-fixture` (fixture) | `en`, `multi`, `edge` | |
 | | `chunker-fixture+beam1` | `en` | `beamSize 1` |
 | | `chunker-fixture-rust` (fixture) | `en`, `multi`, `edge` | |
-| `langdetect` (`LanguageDetectorME`) | `langdetect-183` | `en`, `multi` | |
+| `langdetect` (`LanguageDetectorME`) | `langdetect-183`, `langdetect-fixture-rust` (fixture) | `en`, `multi` | |
 | `normalize` (each normalizer) | the normalizer's name | `norm` | see below |
 | `numbers` (`NumberScan` of the addons `numeric` module) | `latin-us`, `latin-eu` | `num` | `notation` |
 | `money`, `money-convert` (`MoneyAnnotator`, `MoneyConversionAnnotator`) | `latin-us`, `latin-eu` | `money` | `notation`; for conversions also `target`, `as_of`, `snapshot` |
@@ -150,6 +150,7 @@ a directory with the same model run without them, and its options are
 | `train-events` (`SDEventStream`, `TokSpanEventStream` with factory options) | `sentdetect-dictionary-pt`, `sentdetect-th`, `sentdetect-conllu`, `tokenize-dictionary-alnum-de`, `tokenize-conllu` | `en`, `multi`, `edge`, `train`, `abbreviations`, `alphanumeric`, `formats` by run | `run`, `source`, `language`, `format`, and when given `abbreviations`, `useTokenEnd`, `eosCharacters`, `useAlphaNumericOptimization`, `alphaNumericPattern`, `sentencesPerSample` |
 | `train-events` (`POSSampleEventStream`, `LemmaSampleEventStream`) | `postag-wordtag`, `postag-wordtag-tagdict`, `postag-conllu-u`, `postag-conllu-x`, `lemma-text`, `lemma-conllu-u` | `tagged`, `formats` by run; the `wordtag`, `lemma` or `conllu` inputs by source and format | `run`, `source`, `language`, `format`, and when given `tagset`, `tagDictionary` |
 | `train-events` (`ChunkerEventStream`, `ChunkerME.train`) | `chunker-defaults`, `chunker-perceptron`, `chunker-qn`, `chunker-perceptron-sequence` | `tagged`, `formats`; the `chunk` inputs | `run`, `source`, `language`, and every training parameter the run puts (`Algorithm`, `Iterations`, `Cutoff`, `TrainerType`, `BeamSize`) |
+| `train-langdetect` (`LanguageDetectorME.train`) | `default`, `cutoff1` | `langdetect`, and the `formats` inputs whose id starts with `language-` | `run`, `Algorithm`, `Cutoff`, `DataIndexer`, `Iterations` |
 | `unigram` (`UnigramSegmenter`) | `zh-unigram-fixture` (fixture), also `+legacy` | `zh`, `multi`, `edge`, `surrogate` | `whitespace legacy` |
 | | `jieba-dict-subset` (fixture), also `+legacy` | `zh`, `multi`, `edge` | `whitespace legacy` |
 | | `zh-unigram-modes` (fixture), also `+legacy` | `zh` | `whitespace legacy` |
@@ -277,6 +278,19 @@ a directory with the same model run without them, and its options are
   predicate and outcome index), and `turbo:manifest` and
   `turbo:package-entries` of the model file.
   `analysis/train-components/tests/chunker.rs` compares with them.
+- A `train-langdetect` run (`LanguageTrainGolden`) trains a language
+  detector as `LanguageDetectorME.train` does, on the samples
+  `LanguageDetectorSampleStream` reads from the input, with the
+  parameters the command line trainer uses when given none (`MAXENT`, 100
+  iterations) and the run's cutoff (5 for `default`, 1 for `cutoff1`).
+  It records the events in `turbo:language-events` (outcome and number
+  of predicates, a row each) and `turbo:language-predicates` (a row per
+  predicate, since an n-gram can hold a space or a tab), then the
+  checksum, the index and the GIS training as a `train` run does, and the
+  manifest without `Timestamp` and the zip entries of the model
+  `LanguageDetectorME.train` returns, after checking that its weights and
+  its `langdetect.model` entry are those of the monitored training.
+  `analysis/train-components/tests/langdetect.rs` compares with them.
 - `en-plain-rust.bin` is the `.bin` the Rust trainer writes when it trains
   `en-plain.bin`'s events again (`analysis/train/tests/roundtrip.rs`), and
   `en-plain-qn-rust.bin` and `en-plain-perceptron-rust.bin` the ones it
@@ -293,6 +307,11 @@ a directory with the same model run without them, and its options are
   (`analysis/train-components/tests/fixtures.rs`); the JVM loads them with
   `POSModel`, `LemmatizerModel` and `ChunkerModel` and tags, lemmatizes or
   chunks with them.
+  `langdetect-fixture-rust.bin` is the one it writes from
+  `inputs/langdetect/samples.txt` with the default parameters (the same
+  test); the JVM loads it with `LanguageDetectorModel` and detects with
+  it, and `analysis/langdetect/tests/fixture.rs` compares with those
+  goldens.
 - A `postag` run cuts the input with the English (or, for the German
   model, German) sentence and tokenizer models, which are its second and
   third `model` records, and tags each sentence with `tag`; its golden has

@@ -63,6 +63,9 @@ pub enum Error {
     Conllu { treebank: &'static str, file: &'static str, error: Box<turbo_formats::FormatError> },
     /// A recipe left out more than its limit allows.
     TooManyLeftOut { what: LeftOut, count: u64, of: u64, limit: Limit },
+    /// A Tatoeba export could not be read, or its two files are not of one
+    /// export.
+    Tatoeba(crate::tatoeba::TatoebaError),
     /// A run on the recorded release whose reader skipped `count`
     /// sentences, not the `recorded` count the recipe records for it
     /// ([`crate::chunk::RECORDED_SKIPPED_SENTENCES`]).
@@ -154,6 +157,7 @@ impl fmt::Display for Error {
             Error::TooManyLeftOut { what, count, of, limit } => {
                 write!(f, "{count} of {of} {what}, more than the limit of {limit}")
             }
+            Error::Tatoeba(e) => write!(f, "Tatoeba: {e}"),
             Error::SkippedNotRecorded { what, count, recorded } => {
                 write!(f, "{count} {what}, not the recorded release's {recorded}")
             }
@@ -208,6 +212,12 @@ impl From<turbo_train_components::Error> for Error {
 impl From<turbo_eval::model_gate::ModelGateError> for Error {
     fn from(e: turbo_eval::model_gate::ModelGateError) -> Error {
         Error::Gate(e)
+    }
+}
+
+impl From<crate::tatoeba::TatoebaError> for Error {
+    fn from(e: crate::tatoeba::TatoebaError) -> Error {
+        Error::Tatoeba(e)
     }
 }
 

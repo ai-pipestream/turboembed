@@ -29,6 +29,10 @@ turbo-phrase-chunker = { path = "../phrase-chunker" }
 turbo-maxent = { path = "../maxent" }
 # The tokens and tags a chunker reads.
 turbo-sequence = { path = "../sequence" }
+# Running the trained language detector and the reference over held-out
+# text, and java.util.Random for the language detector's split.
+turbo-langdetect = { path = "../langdetect" }
+turbo-jvm = { path = "../jvm" }
 # The span type the samples and models share.
 turbo-analysis = { path = "../core" }
 # The gate and its record.
