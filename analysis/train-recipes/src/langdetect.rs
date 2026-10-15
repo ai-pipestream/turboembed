@@ -26,10 +26,10 @@
 //!   `Random` with the same seed, so a language's split depends on its
 //!   own sentences alone.
 //! - Training: `LanguageDetectorME.train` with the default factory and the
-//!   parameters `langdetect-183.bin` is reproduced with, those of the
-//!   command line trainer given none (`MAXENT`, 100 iterations, cutoff 5,
-//!   one thread, the `OnePass` indexer `train` puts in), and a fixed
-//!   manifest `Timestamp`, so a run gives the same bytes.
+//!   parameters `langdetect-183.bin` was most likely trained with, those
+//!   of the command line trainer given none (`MAXENT`, 100 iterations,
+//!   cutoff 5, one thread, the `OnePass` indexer `train` puts in), and a
+//!   fixed manifest `Timestamp`, so a run gives the same bytes.
 //! - Gate: every held-out sentence is a unit of `turbo_eval::model_gate`
 //!   ([`Task::LanguageDetector`], [`Scoring::Labels`]), right when the
 //!   model's best language (`predictLanguage`) is its language: as written
@@ -70,6 +70,13 @@ pub const ZOO_LANGUAGE: &str = "mul";
 pub const CARD_VERSION: u32 = 1;
 /// The card's file name in the model's directory.
 pub const CARD_FILE: &str = "card.json";
+/// The file of the model's directory that lists the ids of the sentences
+/// it was trained on ([`sentences_file`]): the credit the card's
+/// attribution points at.
+pub const SENTENCES_FILE: &str = "training-sentences.txt";
+/// Where Tatoeba shows a sentence, with its author: this address followed
+/// by the sentence's id.
+pub const SENTENCE_URL: &str = "https://tatoeba.org/sentences/show/";
 
 /// OpenNLP's language detector, trained on the Leipzig corpora: the
 /// reference the trained model is gated against. The zoo does not list
@@ -168,8 +175,8 @@ impl ExportRecord {
     }
 }
 
-/// The export the recipe ships from. No full run has been made yet (see
-/// the crate's README), so none is recorded, and every card is marked
+/// The export the recipe ships from. No full run has been made (see the
+/// crate's README), so none is recorded, and every card is marked
 /// `recorded: false`.
 pub const EXPORT: ExportRecord = ExportRecord::NotRecorded;
 
@@ -275,16 +282,12 @@ pub struct Plan<'a> {
     pub no_language: usize,
     /// Its records of a language the recipe does not read.
     pub other_languages: usize,
-}
-
-/// `Collections.shuffle(list, rnd)` for a list that allows random access:
-/// from the last position down to the second, each element swapped with
-/// one at `rnd.nextInt(i)`.
-pub fn java_shuffle<T>(list: &mut [T], random: &mut JavaRandom) {
-    for i in (2..=list.len()).rev() {
-        let n = i32::try_from(i).expect("a list java.util.Random can index");
-        list.swap(i - 1, random.next_int_bounded(n) as usize);
-    }
+    /// The records of the CC0 export, those whose id the detailed export
+    /// holds with another language or text, and those whose id it does
+    /// not hold ([`Sentences`]).
+    pub cc0_records: usize,
+    pub cc0_differing: usize,
+    pub cc0_not_in_detailed: usize,
 }
 
 /// A model the recipe trained.
@@ -299,6 +302,22 @@ pub struct TrainedLanguages {
     /// Events whose predicates are not in the JVM's order
     /// (`turbo_train_components::langdetect`).
     pub inexact_events: usize,
+    /// [`SENTENCES_FILE`] of the samples trained on.
+    pub sentences: Vec<u8>,
+}
+
+/// The contents of [`SENTENCES_FILE`] for `plan`: the id of each training
+/// sentence in ascending order, a line each, every line ending in a line
+/// feed. No username is stored: each sentence's page names its author.
+pub fn sentences_file(plan: &Plan<'_>) -> Vec<u8> {
+    let mut ids: Vec<u32> = plan.training.iter().map(|s| s.id).collect();
+    ids.sort_unstable();
+    let mut out = String::with_capacity(ids.len() * 9);
+    for id in ids {
+        out.push_str(&id.to_string());
+        out.push('\n');
+    }
+    out.into_bytes()
 }
 
 impl LanguageRecipe {
@@ -349,6 +368,9 @@ impl LanguageRecipe {
             records: sentences.records,
             no_language: sentences.no_language,
             other_languages: sentences.records - sentences.no_language - kept,
+            cc0_records: sentences.cc0_records,
+            cc0_differing: sentences.cc0_differing,
+            cc0_not_in_detailed: sentences.cc0_not_in_detailed,
         };
         for (language, mut all) in by_language.into_iter().enumerate() {
             let pair = self.languages[language];
@@ -372,7 +394,7 @@ impl LanguageRecipe {
                 });
                 continue;
             }
-            java_shuffle(&mut usable, &mut JavaRandom::new(self.split.seed));
+            JavaRandom::new(self.split.seed).shuffle(&mut usable);
             let held_out = self.split.held_out.min(usable.len());
             let training = self.split.max_training.min(usable.len() - held_out);
             let mut it = usable.into_iter();
@@ -423,6 +445,7 @@ impl LanguageRecipe {
             events: events.len(),
             event_hash: trained.report.event_hash.expect("trained from events"),
             inexact_events: stream.inexact_events(),
+            sentences: sentences_file(plan),
         })
     }
 
@@ -572,6 +595,14 @@ pub struct ExportCard {
     pub records: usize,
     pub no_language: usize,
     pub other_languages: usize,
+    /// The records of the CC0 export.
+    pub cc0_records: usize,
+    /// Its records whose id the detailed export holds with another
+    /// language or text: sentences changed between the two files' writes,
+    /// still left out as CC0.
+    pub cc0_differing: usize,
+    /// Its records whose id the detailed export does not hold, ignored.
+    pub cc0_not_in_detailed: usize,
     pub accepted_licences: Vec<SentenceLicence>,
 }
 
@@ -590,6 +621,18 @@ pub struct LanguageTrainingCard {
     pub events: usize,
     pub event_hash: u32,
     pub inexact_events: usize,
+}
+
+/// [`SENTENCES_FILE`] as the card lists it.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct SentencesFileCard {
+    pub name: String,
+    /// The ids it lists, one per training sentence.
+    pub sentences: usize,
+    pub size: u64,
+    pub sha256: String,
+    pub sha512: String,
 }
 
 /// What the gate scored.
@@ -617,8 +660,10 @@ pub struct LanguageCard {
     pub license_terms: String,
     pub trained_on: Vec<TrainingData>,
     pub class: LicenceClass,
-    /// The credit CC BY 2.0 FR asks for, to be shipped with the model.
+    /// The credit CC BY 2.0 FR and Tatoeba's terms ask for, shipped with
+    /// the model: it points at [`SENTENCES_FILE`].
     pub attribution: String,
+    pub training_sentences: SentencesFileCard,
     pub export: ExportCard,
     pub split: Split,
     pub per_language: Vec<LanguageCount>,
@@ -667,10 +712,19 @@ impl LanguageCard {
             trained_on,
             class,
             attribution: format!(
-                "Trained on sentences from Tatoeba (https://tatoeba.org), the export of digest {digest}, licensed \
-                 under CC BY 2.0 FR (https://creativecommons.org/licenses/by/2.0/fr/); the export's username column \
-                 names each sentence's contributor."
+                "Trained on {} sentences from Tatoeba (https://tatoeba.org), licensed under CC BY 2.0 FR \
+                 (https://creativecommons.org/licenses/by/2.0/fr/), from its export of digest {digest}. \
+                 {SENTENCES_FILE}, shipped with the model, lists their ids: the sentence of id N, with its author, \
+                 is at {SENTENCE_URL}N.",
+                trained.samples
             ),
+            training_sentences: SentencesFileCard {
+                name: SENTENCES_FILE.to_owned(),
+                sentences: trained.samples,
+                size: trained.sentences.len() as u64,
+                sha256: Sha256::of(&trained.sentences).to_string(),
+                sha512: Sha512::of(&trained.sentences).to_string(),
+            },
             export: ExportCard {
                 detailed: export.detailed.clone(),
                 cc0: export.cc0.clone(),
@@ -679,6 +733,9 @@ impl LanguageCard {
                 records: plan.records,
                 no_language: plan.no_language,
                 other_languages: plan.other_languages,
+                cc0_records: plan.cc0_records,
+                cc0_differing: plan.cc0_differing,
+                cc0_not_in_detailed: plan.cc0_not_in_detailed,
                 accepted_licences: ACCEPTED_LICENCES.to_vec(),
             },
             split: recipe.split,
@@ -715,7 +772,8 @@ impl LanguageCard {
         }
     }
 
-    /// The model's zoo entry once the file is published at `url`.
+    /// The model's zoo entry once the model file is published at
+    /// `model_url` and [`SENTENCES_FILE`] at `sentences_url`.
     ///
     /// # Errors
     ///
@@ -724,7 +782,7 @@ impl LanguageCard {
     /// against the recipe's reference, the gate failed, or the export is
     /// not the recorded one; [`Error::InvalidCard`] for a `class` other
     /// than its licences give, or a field the index refuses.
-    pub fn artifact(&self, url: &str) -> Result<Artifact> {
+    pub fn artifact(&self, model_url: &str, sentences_url: &str) -> Result<Artifact> {
         let class = class_of(std::iter::once(self.license).chain(self.trained_on.iter().map(|t| t.license)));
         if class != self.class {
             return Err(Error::InvalidCard {
@@ -760,13 +818,22 @@ impl LanguageCard {
             trained_on: self.trained_on.clone(),
             class: self.class,
             origin: None,
-            files: vec![File {
-                path: self.file.name.parse().map_err(|e| bad("file name", e))?,
-                url: url.parse().map_err(|e| bad("url", e))?,
-                size: self.file.size,
-                sha256: self.file.sha256.parse().map_err(|e| bad("sha256", e))?,
-                sha512: self.file.sha512.parse().map_err(|e| bad("sha512", e))?,
-            }],
+            files: vec![
+                File {
+                    path: self.file.name.parse().map_err(|e| bad("file name", e))?,
+                    url: model_url.parse().map_err(|e| bad("url", e))?,
+                    size: self.file.size,
+                    sha256: self.file.sha256.parse().map_err(|e| bad("sha256", e))?,
+                    sha512: self.file.sha512.parse().map_err(|e| bad("sha512", e))?,
+                },
+                File {
+                    path: self.training_sentences.name.parse().map_err(|e| bad("sentences file name", e))?,
+                    url: sentences_url.parse().map_err(|e| bad("sentences url", e))?,
+                    size: self.training_sentences.size,
+                    sha256: self.training_sentences.sha256.parse().map_err(|e| bad("sentences sha256", e))?,
+                    sha512: self.training_sentences.sha512.parse().map_err(|e| bad("sentences sha512", e))?,
+                },
+            ],
         })
     }
 
@@ -816,20 +883,24 @@ impl LanguageCard {
 }
 
 /// Writes the model's directory `dir/<model id>/`: the model file,
-/// [`CARD_FILE`] and [`GATE_FILE`]. The directory must not exist yet.
+/// [`SENTENCES_FILE`], [`CARD_FILE`] and [`GATE_FILE`]. The directory
+/// must not exist.
 ///
 /// # Errors
 ///
 /// An existing directory, or a write that fails.
-pub fn write_language_dir(dir: &Path, card: &LanguageCard, model: &[u8], gate: &ModelGateRecord) -> Result<()> {
+pub fn write_language_dir(dir: &Path, outcome: &LanguageOutcome) -> Result<()> {
+    let card = &outcome.card;
     let out = dir.join(&card.id);
     std::fs::create_dir_all(dir).map_err(io(dir))?;
     std::fs::create_dir(&out).map_err(io(&out))?;
     let model_path = out.join(&card.file.name);
-    std::fs::write(&model_path, model).map_err(io(&model_path))?;
+    std::fs::write(&model_path, &outcome.trained.bytes).map_err(io(&model_path))?;
+    let sentences_path = out.join(&card.training_sentences.name);
+    std::fs::write(&sentences_path, &outcome.trained.sentences).map_err(io(&sentences_path))?;
     let card_path = out.join(CARD_FILE);
     std::fs::write(&card_path, card.to_json()).map_err(io(&card_path))?;
-    Ok(gate.write(&out.join(GATE_FILE))?)
+    Ok(outcome.gate.write(&out.join(GATE_FILE))?)
 }
 
 #[cfg(test)]
@@ -876,7 +947,7 @@ mod tests {
     }
 
     #[test]
-    fn the_recipe_trains_with_the_parameters_langdetect_183_is_reproduced_with() {
+    fn the_recipe_trains_with_the_parameters_langdetect_183_was_most_likely_trained_with() {
         let ours = LANGDETECT.parameters();
         let theirs = turbo_train_components::langdetect::default_training_parameters();
         assert_eq!(ours, theirs);
@@ -885,25 +956,5 @@ mod tests {
         let id: turbo_zoo::ArtifactId = MODEL_ID.parse().unwrap();
         assert_eq!(id.as_str(), MODEL_ID);
         assert!(ZOO_LANGUAGE.parse::<turbo_zoo::Language>().is_ok());
-    }
-
-    #[test]
-    fn the_shuffle_is_collections_shuffle() {
-        // Collections.shuffle swaps positions 4, 3, 2 and 1 of a list of
-        // five with nextInt(5), nextInt(4), nextInt(3) and nextInt(2) of
-        // its Random, in that order (turbo-jvm's tests check the draws
-        // against the JDK's).
-        let mut r = JavaRandom::new(42);
-        let draws: Vec<i32> = (2..=5).rev().map(|n| r.next_int_bounded(n)).collect();
-        let mut list = [0, 1, 2, 3, 4];
-        java_shuffle(&mut list, &mut JavaRandom::new(42));
-        let mut expected = [0, 1, 2, 3, 4];
-        for (i, d) in (2..=5usize).rev().zip(draws) {
-            expected.swap(i - 1, d as usize);
-        }
-        assert_eq!(list, expected);
-        let mut one = [7];
-        java_shuffle(&mut one, &mut JavaRandom::new(42));
-        assert_eq!(one, [7]);
     }
 }

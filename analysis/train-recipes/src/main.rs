@@ -32,8 +32,9 @@
 //! on the Tatoeba export extracted into `--export` (`sentences_detailed.csv`
 //! and `sentences_CC0.csv`), gates it against `langdetect-183.bin` read
 //! from `--references` and checked against its recorded size and digest,
-//! and writes `<out>/<model id>/` with the model, `card.json` and
-//! `gate.json`. No export is recorded yet, so it needs
+//! and writes `<out>/<model id>/` with the model,
+//! `training-sentences.txt` (the ids of the sentences trained on),
+//! `card.json` and `gate.json`. No export is recorded, so it needs
 //! `--unrecorded-export`, and its card is marked `recorded: false`. The
 //! exit status is 1 when the gate fails and 2 on an error.
 
@@ -224,7 +225,12 @@ fn tatoeba_command(a: Args) -> Result<bool, String> {
         println!("the export is not the recorded one: this run is not a release of the model");
     }
     let outcome = langdetect::run(&recipe, &export, recorded, &reference).map_err(|e| e.to_string())?;
-    write_language_dir(&out, &outcome.card, &outcome.trained.bytes, &outcome.gate).map_err(|e| e.to_string())?;
+    write_language_dir(&out, &outcome).map_err(|e| e.to_string())?;
+    let e = &outcome.card.export;
+    println!(
+        "{}: {} records, {} of them with another language or text than {} gives, {} not in it",
+        export.cc0.name, e.cc0_records, e.cc0_differing, export.detailed.name, e.cc0_not_in_detailed
+    );
     println!("{}", outcome.card.summary());
     println!("{}", outcome.gate);
     Ok(outcome.gate.result.pass)

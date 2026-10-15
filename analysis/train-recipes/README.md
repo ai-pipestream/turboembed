@@ -298,28 +298,53 @@ model directory, the reference and the export are checked before
 anything is trained. The exit status is 1 when the gate fails
 and 2 on an error.
 
-- Data and licence check. Tatoeba gives each sentence one of three
-  licences: none, CC BY 2.0 FR or CC0 1.0 (tatoeba2's
-  `src/Lib/Licenses.php`). `sentences_detailed.csv` holds every
-  sentence with a licence that is not marked incorrect;
+- Data and licence check. Tatoeba's `sentences.license` column is
+  `enum('CC BY 2.0 FR', 'CC0 1.0') DEFAULT NULL`, and both export
+  queries keep a sentence only when its `license` is not empty, which
+  leaves out `NULL` too (tatoeba2 at commit 0fbb4506:
+  `docs/database/tables/sentences.sql`, `src/Lib/Licenses.php` and
+  `docs/database/scripts/weekly_exports.sql`). `sentences_detailed.csv`
+  holds every sentence with a licence that is not marked incorrect;
   `sentences_CC0.csv` holds the CC0 1.0 ones. So a sentence of the
-  detailed file is CC0 1.0 when the CC0 file lists it and CC BY 2.0 FR
-  otherwise, and a sentence with no licence is in neither file. The
-  reader (`tatoeba`) reads the MySQL `OUTFILE` layout strictly (tab
-  between fields, a backslash before a backslash, tab or newline, `\0`
-  for NUL, `\N` for NULL) and refuses any other escape, a wrong number of
-  fields, a repeated id, and a CC0 sentence that is missing from the
-  detailed file or has another language or text there (the two files
-  of different weeks). The licence check keeps CC BY 2.0 FR only
+  detailed file is CC0 1.0 when the CC0 file lists its id and CC BY 2.0
+  FR otherwise. This relies on Tatoeba having exactly these two
+  sentence licences: a third would be read as CC BY 2.0 FR, and nothing
+  in the files would show it, so recording a run re-checks those three
+  files ("Full run" below). The reader (`tatoeba`) reads the MySQL
+  `OUTFILE` layout strictly (tab between fields, a backslash before a
+  backslash, tab or newline, `\0` for NUL, `\N` for NULL) and refuses
+  any other escape, a wrong number of fields and a repeated id.
+- The two files are not one snapshot: each is written by its own
+  statement on the live database, the CC0 file 14 statements after the
+  detailed one, so a sentence added, edited or deleted in between can be
+  in one file only, or in both with other values. A sentence is
+  classified by its id alone. The CC0 rows whose language or text
+  differ from the detailed file's are counted (`cc0_differing` in the
+  card) and still make the sentence CC0; the CC0 ids the detailed file
+  does not hold are counted (`cc0_not_in_detailed`) and otherwise
+  ignored. A misread licence is never one the recipe may not use: a
+  sentence read as CC0 is left out, and one read as CC BY 2.0 FR is
+  under it or under CC0, which allows any use. The files carry no export
+  date and no header, so the reader cannot tell the files of two
+  different weeks apart and does not refuse them; the archives' tar
+  headers give each file's time, which recording a run checks.
+- The licence check keeps CC BY 2.0 FR only
   (`langdetect::ACCEPTED_LICENCES`), as #429 asks; the CC0 sentences,
   which the policy would also allow, are left out and counted per
-  language (`licence_left_out` in the card). CC BY 2.0 FR is
-  permissive (`LicenseRef-CC-BY-2.0-FR` in the zoo, as SPDX has no
-  identifier for it); the card carries the attribution it asks for.
+  language (`licence_left_out` in the card). CC BY 2.0 FR is permissive
+  (`LicenseRef-CC-BY-2.0-FR` in the zoo, as SPDX has no identifier for
+  it) and asks for the authors to be credited; Tatoeba's terms accept
+  the addresses of the sentences used for that. The model's directory
+  holds `training-sentences.txt` (`langdetect::SENTENCES_FILE`): the id
+  of each sentence trained on, one per line in ascending order, each
+  sentence shown with its author at `https://tatoeba.org/sentences/show/<id>`.
+  The card lists the file (`training_sentences`: the count, size and
+  digests) and its `attribution` points at it, and the zoo entry ships it
+  beside the model. No username is stored.
 - The export's record. The exports are replaced each week at the same
   addresses, so an export is recorded by its digest
   (`Export::digest`: the SHA-256 of a `sha256sum` manifest of the two
-  files), not by address. `langdetect::EXPORT` records none yet (see
+  files), not by address. `langdetect::EXPORT` records none (see
   "Full run" below), so `tatoeba` refuses every export unless given
   `--unrecorded-export`, and then writes a card with `recorded: false`,
   which is not a release of the model.
@@ -336,8 +361,8 @@ and 2 on an error.
   and `swa`. The reference's 103 codes are each in exactly one pair; a
   test checks the table against the model's outcomes. The Tatoeba codes
   are those of Tatoeba's language list; tatoeba.org could not be reached
-  from the machine the recipe was written on, so they are not yet
-  checked against an export. A code the export does not use leaves its
+  from the machine the recipe was written on, so they are not checked
+  against an export. A code the export does not use leaves its
   language with no sentences, listed in the card's
   `excluded_languages`; the card also counts the export's sentences of
   languages outside the table (`other_languages`). The trained model's
@@ -368,7 +393,9 @@ and 2 on an error.
   when its best language (`predictLanguage`) is the sentence's Tatoeba
   code and right for the reference when its best language is one of the
   codes the table gives. Both models are run by turbo-langdetect, whose
-  probabilities are the JVM's bit for bit. 10,000 resamples, seed 154; a
+  probabilities are the JVM's bit for bit, except for a text with
+  equal-hash n-grams in a bucket that became a tree, where they can
+  differ in the last bits (docs/langdetect.md). 10,000 resamples, seed 154; a
   gate passes when the difference's interval does not start below -0.5.
 - Not used: FineWeb-2 (ODC-By 1.0, permissive), as Hugging Face could
   not be reached; FLORES+ (evaluation only), for the same reason; the
@@ -416,16 +443,32 @@ cmp run-a/turbo-mul-tatoeba-langdetect-1/turbo-mul-tatoeba-langdetect-1.bin \
     run-b/turbo-mul-tatoeba-langdetect-1/turbo-mul-tatoeba-langdetect-1.bin
 ```
 
-Each run prints the export's digest, the languages trained on and left
-out, and the gate. To record the run: set `langdetect::EXPORT` to the
-digest; check the card's `other_languages` and `excluded_languages` for
-a Tatoeba code the table spells differently; and record here, from
-`card.json` and `gate.json`, the export's digest and file sizes, the
-languages and sentences on each side (`per_language`: `sentences`,
-`licence_left_out`, `duplicates`, `training`, `held_out`, and each
-model's correct count), the languages left out with their counts, the
-gate's scores and interval, and the model's size and SHA-256 from both
-runs.
+Each run prints the export's digest, the CC0 file's counts, the
+languages trained on and left out, and the gate. To record the run:
+
+1. Re-check the licence values in tatoeba2's current source and record
+   the commit checked: `docs/database/tables/sentences.sql` still gives
+   `license` the values `CC BY 2.0 FR` and `CC0 1.0` and no other,
+   `src/Lib/Licenses.php` lists no other sentence licence, and
+   `docs/database/scripts/weekly_exports.sql` still selects the detailed
+   file with `license != ''` and the CC0 file with `license = 'CC0 1.0'`,
+   in the same columns. They were checked at commit 0fbb4506. If any of
+   them changed, the reader's licence classification (`tatoeba`) must be
+   revised before a run is recorded.
+2. Check that both files are of one weekly export: `tar -tvjf` on each
+   archive gives its file's time, and the two must be of one run of
+   Tatoeba's export (written one after the other, not days apart).
+3. Set `langdetect::EXPORT` to the digest, and check the card's
+   `other_languages` and `excluded_languages` for a Tatoeba code the
+   table spells differently.
+4. Record here, from `card.json` and `gate.json`, the export's digest
+   and file sizes, the CC0 file's `cc0_records`, `cc0_differing` and
+   `cc0_not_in_detailed`, the languages and sentences on each side
+   (`per_language`: `sentences`, `licence_left_out`, `duplicates`,
+   `training`, `held_out`, and each model's correct count), the
+   languages left out with their counts, the gate's scores and
+   interval, and the model's size and SHA-256 and the size and SHA-256
+   of `training-sentences.txt` from both runs.
 
 ## Tests
 
@@ -490,22 +533,26 @@ which show the gate is wired through, not how the recipes do on MASC.
 
 `tests/langdetect.rs` runs the language detector recipe on an export
 written for the project (`tests/data/tatoeba`: 90 records in the
-layout of the two files, not in id order, with ten CC BY 2.0 FR
+layout of the detailed file, not in id order, with ten CC BY 2.0 FR
 sentences in each of eight languages, two English CC0 sentences, a
 second copy of a German text, three Turkish sentences, two Cantonese
-ones and one record with no language), with a split scaled to it (four
+ones and one record with no language; and a CC0 file written as if
+after the detailed one, with one of the CC0 sentences edited and a
+sentence the detailed file does not hold), with a split scaled to it (four
 held out and five trained on per language, eight needed) and the Rust
 language fixture (`analysis/goldens/data/fixtures/langdetect-fixture-rust.bin`)
-as the reference. It checks the escapes and each sentence's licence; the
-licence check, de-duplication and per-language counts; that the split
-is the documented shuffle, that the records' order in the file does not
-change it and that another seed does; the languages left out under a
-threshold; the same bytes from a second training; the gate over 32
-held-out sentences (too few to pass, which the test also checks), a
-reference code the reference does not have refused and a two-code
-mapping counted; the card, the model's directory, and each condition a
-zoo entry needs; the export record; and the binary's refusal of a
-missing reference. With
+as the reference. It checks the escapes and each sentence's licence, by
+id, with the CC0 rows that differ or are not in the detailed file
+counted; the licence check, de-duplication and per-language counts;
+that the split is the documented shuffle, that the records' order in
+the file does not change it and that another seed does; the languages
+left out under a threshold; the same bytes from a second training; the
+gate over 32 held-out sentences (too few to pass, which the test also
+checks), a reference code the reference does not have refused and a
+two-code mapping counted; the card, the model's directory, that
+`training-sentences.txt` lists exactly the ids trained on, and each
+condition a zoo entry needs; the export record; and the binary's
+refusal of a missing reference. With
 `TURBO_GOLDENS_MODELS` naming a directory holding `langdetect-183.bin`
 (required with `TURBO_TEST_REQUIRE_OPENNLP_MODELS=1`), it checks the
 table's codes against the model's 103 outcomes, and that the binary

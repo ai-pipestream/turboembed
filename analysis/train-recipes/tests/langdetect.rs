@@ -9,7 +9,9 @@
 //! two English CC0 sentences, a second copy of a German text, three
 //! Turkish sentences, two Cantonese sentences, which the test recipe does
 //! not read, and one record with no language. Its records are not in id
-//! order.
+//! order. The CC0 file is written as if after the detailed one: it holds
+//! one of the two CC0 sentences with an edited text, and a third sentence
+//! the detailed file does not hold.
 
 use std::collections::HashSet;
 use std::path::{Path, PathBuf};
@@ -21,7 +23,8 @@ use turbo_langdetect::LanguageModel;
 use turbo_maxent::ModelFile;
 use turbo_train_recipes::langdetect::{
     CARD_FILE, EXPORT, ExcludedLanguage, ExportRecord, LANGDETECT, LANGDETECT_183, LANGUAGES, LanguageCard,
-    LanguagePair, LanguageRecipe, MODEL_ID, Split, check_export, java_shuffle, run, write_language_dir,
+    LanguagePair, LanguageRecipe, MODEL_ID, SENTENCE_URL, SENTENCES_FILE, Split, check_export, run, sentences_file,
+    write_language_dir,
 };
 use turbo_train_recipes::tatoeba::{Export, SentenceLicence, TatoebaError};
 use turbo_train_recipes::{Error, RecordedReference, Reference, card::GATE_FILE};
@@ -68,7 +71,7 @@ const TEST: LanguageRecipe = LanguageRecipe {
 };
 
 /// The digest of the export in `tests/data/tatoeba`.
-const EXPORT_DIGEST: &str = "4573e384134153d7b6979379227abc68e755011affe40d2407331b69501eefe3";
+const EXPORT_DIGEST: &str = "cfa990b0e2685037fc0561248ec1a388957370e45e50196bd1335634d780c2d3";
 
 fn data() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/data/tatoeba")
@@ -128,7 +131,10 @@ fn the_export_is_read_with_the_licence_of_each_sentence() {
     );
     assert_eq!(export.detailed.sha256.to_string(), "566a3dd8cd4404a833392b9bc3a4e88feb3a6f6e22c15187bd72c05dd11ce22d");
     let sentences = export.sentences(|_| true).unwrap();
-    assert_eq!((sentences.records, sentences.no_language, sentences.cc0_records), (90, 1, 2));
+    assert_eq!((sentences.records, sentences.no_language, sentences.cc0_records), (90, 1, 3));
+    // 1616 has another text in the CC0 file and is still CC0; 1651 is not
+    // in the detailed file.
+    assert_eq!((sentences.cc0_differing, sentences.cc0_not_in_detailed), (1, 1));
     assert_eq!(sentences.kept.len(), 89);
     // In the file's order.
     let cc0: Vec<u32> = sentences.kept.iter().filter(|s| s.licence == SentenceLicence::Cc0).map(|s| s.id).collect();
@@ -145,6 +151,7 @@ fn the_plan_keeps_cc_by_sentences_and_splits_each_language_in_id_order() {
     let export = export();
     let plan = TEST.plan(TEST.sentences(&export).unwrap()).unwrap();
     assert_eq!((plan.records, plan.no_language, plan.other_languages), (90, 1, 2));
+    assert_eq!((plan.cc0_records, plan.cc0_differing, plan.cc0_not_in_detailed), (3, 1, 1));
     let counts: Vec<(&str, usize, usize, usize, usize, usize)> = plan
         .languages
         .iter()
@@ -186,7 +193,7 @@ fn the_plan_keeps_cc_by_sentences_and_splits_each_language_in_id_order() {
             .map(|s| s.id)
             .collect();
         ids.sort_unstable();
-        java_shuffle(&mut ids, &mut JavaRandom::new(429));
+        JavaRandom::new(429).shuffle(&mut ids);
         let language = TEST_LANGUAGES.iter().position(|p| p.tatoeba == l.tatoeba).unwrap();
         let held: Vec<u32> = plan.held_out.iter().filter(|s| s.language == language).map(|s| s.id).collect();
         let trained: Vec<u32> = plan.training.iter().filter(|s| s.language == language).map(|s| s.id).collect();
@@ -317,12 +324,16 @@ fn the_card_records_the_run_and_is_shippable_only_from_the_recorded_export() {
     assert_eq!(card.trained_on[0].license, Licence::CcBy20Fr);
     assert_eq!(card.class, LicenceClass::Permissive);
     assert!(card.attribution.contains(&export.digest()));
+    assert!(card.attribution.starts_with("Trained on 40 sentences from Tatoeba"), "{}", card.attribution);
+    assert!(card.attribution.contains(&format!("{SENTENCES_FILE}, shipped with the model, lists their ids")));
+    assert!(card.attribution.contains("is at https://tatoeba.org/sentences/show/N."), "{}", card.attribution);
     let t = &card.training;
     assert_eq!((t.algorithm.as_str(), t.iterations, t.cutoff, t.threads), ("MAXENT", 30, 1, 1));
     assert_eq!((t.data_indexer.as_str(), t.samples, t.events, t.inexact_events), ("OnePass", 40, 40, 0));
     assert_eq!(t.event_hash, outcome.trained.event_hash);
     let e = &card.export;
     assert_eq!((e.recorded, e.records, e.no_language, e.other_languages), (false, 90, 1, 2));
+    assert_eq!((e.cc0_records, e.cc0_differing, e.cc0_not_in_detailed), (3, 1, 1));
     assert_eq!(e.accepted_licences, [SentenceLicence::CcBy20Fr]);
     assert_eq!(card.held_out.samples, 32);
     assert_eq!(card.gate.pass, outcome.gate.result.pass);
@@ -333,14 +344,36 @@ fn the_card_records_the_run_and_is_shippable_only_from_the_recorded_export() {
     );
     assert!(card.summary().contains("tur (3)"), "{}", card.summary());
 
-    // The directory: the model, the card and the gate record, read back.
+    // The directory: the model, the training sentences' ids, the card and
+    // the gate record, read back.
     let out = temp_dir("card");
-    write_language_dir(&out, card, &outcome.trained.bytes, &outcome.gate).unwrap();
+    write_language_dir(&out, &outcome).unwrap();
     let dir = out.join(TEST.model_id);
     assert_eq!(std::fs::read(dir.join(&card.file.name)).unwrap(), outcome.trained.bytes);
     assert_eq!(&LanguageCard::read(&dir.join(CARD_FILE)).unwrap(), card);
     assert_eq!(ModelGateRecord::read(&dir.join(GATE_FILE)).unwrap(), outcome.gate);
-    assert!(write_language_dir(&out, card, &outcome.trained.bytes, &outcome.gate).is_err(), "the directory exists");
+    assert!(write_language_dir(&out, &outcome).is_err(), "the directory exists");
+
+    // The ids file lists exactly the sentences trained on, in ascending
+    // order, as the card describes it; it holds digits and line feeds only,
+    // so no username.
+    let ids_file = std::fs::read(dir.join(SENTENCES_FILE)).unwrap();
+    assert_eq!(card.training_sentences.name, SENTENCES_FILE);
+    assert_eq!(ids_file, outcome.trained.sentences);
+    assert!(ids_file.iter().all(|b| b.is_ascii_digit() || *b == b'\n') && ids_file.ends_with(b"\n"));
+    let listed: Vec<u32> = std::str::from_utf8(&ids_file).unwrap().lines().map(|l| l.parse().unwrap()).collect();
+    let plan = TEST.plan(TEST.sentences(&export).unwrap()).unwrap();
+    let mut trained: Vec<u32> = plan.training.iter().map(|s| s.id).collect();
+    trained.sort_unstable();
+    assert_eq!(listed, trained);
+    assert_eq!(sentences_file(&plan), ids_file);
+    assert_eq!((card.training_sentences.sentences, listed.len()), (40, 40));
+    assert_eq!(card.training_sentences.size, ids_file.len() as u64);
+    assert_eq!(card.training_sentences.sha256, turbo_zoo::Sha256::of(&ids_file).to_string());
+    assert_eq!(card.training_sentences.sha512, turbo_zoo::Sha512::of(&ids_file).to_string());
+    let held_out: HashSet<u32> = plan.held_out.iter().map(|s| s.id).collect();
+    assert!(listed.iter().all(|id| !held_out.contains(id)), "held-out sentences are not trained on");
+    assert_eq!(SENTENCE_URL, "https://tatoeba.org/sentences/show/");
     let text = std::fs::read_to_string(dir.join(CARD_FILE)).unwrap();
     std::fs::write(dir.join(CARD_FILE), text.replacen("\"card_version\": 1", "\"card_version\": 2", 1)).unwrap();
     assert!(LanguageCard::read(&dir.join(CARD_FILE)).unwrap_err().to_string().contains("card version 2"));
@@ -350,7 +383,8 @@ fn the_card_records_the_run_and_is_shippable_only_from_the_recorded_export() {
 
     // Each condition of a release, in the order checked.
     let url = "https://example.org/turbo-mul-tatoeba-langdetect-1.bin";
-    let reason = |card: &LanguageCard| match card.artifact(url) {
+    let ids_url = "https://example.org/turbo-mul-tatoeba-langdetect-1/training-sentences.txt";
+    let reason = |card: &LanguageCard| match card.artifact(url, ids_url) {
         Err(Error::NotShippable { reason, .. }) => reason,
         other => panic!("{other:?}"),
     };
@@ -366,12 +400,17 @@ fn the_card_records_the_run_and_is_shippable_only_from_the_recorded_export() {
     card.gate.pass = true;
     assert_eq!(reason(&card), "it was trained on a Tatoeba export that is not the recorded one");
     card.export.recorded = true;
-    let artifact = card.artifact(url).unwrap();
+    let artifact = card.artifact(url, ids_url).unwrap();
     assert_eq!(artifact.id.as_str(), MODEL_ID);
     assert_eq!(artifact.class, LicenceClass::Permissive);
+    assert_eq!(artifact.files.len(), 2, "the model and the ids of its sentences");
     assert_eq!(artifact.files[0].size, outcome.trained.bytes.len() as u64);
+    assert_eq!(artifact.files[1].path.to_string(), SENTENCES_FILE);
+    assert_eq!(artifact.files[1].url.to_string(), ids_url);
+    assert_eq!(artifact.files[1].size, card.training_sentences.size);
+    assert_eq!(artifact.files[1].sha256.to_string(), card.training_sentences.sha256);
     card.class = LicenceClass::ShareAlike;
-    assert!(matches!(card.artifact(url), Err(Error::InvalidCard { field: "class", .. })));
+    assert!(matches!(card.artifact(url, ids_url), Err(Error::InvalidCard { field: "class", .. })));
 }
 
 #[test]
@@ -388,7 +427,7 @@ fn an_export_is_a_release_only_when_it_is_the_recorded_one() {
         "{err:?}"
     );
     assert!(!check_export(&export, other, true).unwrap());
-    // The recipe records none yet.
+    // The recipe records none.
     assert_eq!(EXPORT, ExportRecord::NotRecorded);
 }
 

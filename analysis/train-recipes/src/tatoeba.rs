@@ -4,7 +4,8 @@
 //! <https://downloads.tatoeba.org/exports/>, each export a tab separated
 //! file that MySQL's `SELECT ... INTO OUTFILE` writes
 //! (`docs/database/scripts/weekly_exports.sql` in Tatoeba's `tatoeba2`
-//! repository). Two of them are read here:
+//! repository; every `tatoeba2` file named here was read at commit
+//! 0fbb4506). Two of them are read here:
 //!
 //! - [`DETAILED_FILE`], `sentences_detailed.csv`: the `id`, `lang`,
 //!   `text`, `username`, `created` and `modified` of every sentence whose
@@ -13,15 +14,35 @@
 //!   `modified` of every sentence whose `correctness` is above -1 and whose
 //!   `license` is `CC0 1.0`.
 //!
-//! A sentence's `license` is one of the three values of the
-//! `sentences.license` column (`src/Lib/Licenses.php`, which keeps them in
-//! the column's order): empty, a licensing issue, which no export holds;
-//! `CC BY 2.0 FR`, the default; and `CC0 1.0`. So a sentence of the
-//! detailed export is under CC0 1.0 when the CC0 export lists it and
-//! under CC BY 2.0 FR otherwise ([`SentenceLicence`]). The reader checks
-//! that every sentence of the CC0 export is in the detailed export with
-//! the same language and text, so exports of two different weeks are
-//! refused rather than mixed.
+//! A sentence's `license` is the column
+//! `enum('CC BY 2.0 FR', 'CC0 1.0') DEFAULT NULL`
+//! (`docs/database/tables/sentences.sql`): `CC BY 2.0 FR`, the default;
+//! `CC0 1.0`; the empty value, which `src/Lib/Licenses.php` calls a
+//! licensing issue; or `NULL`. `license != ''` leaves out the last two,
+//! since `NULL != ''` is not true. So a sentence of the detailed export is
+//! under CC0 1.0 when the CC0 export lists its id and under CC BY 2.0 FR
+//! otherwise ([`SentenceLicence`]). This holds only while Tatoeba has
+//! exactly these two sentence licences, as `sentences.sql`,
+//! `Licenses.php` and `weekly_exports.sql` have them at 0fbb4506: a third
+//! would be in the detailed export and not in the CC0 one, read as
+//! CC BY 2.0 FR, and nothing in the files would show it. So recording a
+//! run re-checks those three files first (the crate's README).
+//!
+//! The two files are not one snapshot. `weekly_exports.sql` writes each
+//! with its own statement on the live database, the CC0 file 14
+//! statements after the detailed one, so a sentence added, edited or
+//! deleted in between can be in one file only, or in both with other
+//! values. A sentence is therefore classified by its id alone. The CC0
+//! export's rows whose id the detailed export holds with another language
+//! or text are counted ([`Sentences::cc0_differing`]) and still make the
+//! sentence CC0; its ids the detailed export does not hold are counted
+//! ([`Sentences::cc0_not_in_detailed`]) and otherwise ignored. A misread
+//! licence is never one the recipe may not use: a sentence read as CC0 is
+//! left out, and one read as CC BY 2.0 FR is under it or under CC0, which
+//! allows any use. The files carry no export date and no header, so the
+//! reader cannot tell the files of two weeks apart and does not refuse
+//! them; each archive's tar header gives its file's time, which recording
+//! a run checks (the crate's README).
 //!
 //! The files are in MySQL's default `OUTFILE` format: fields end at a tab
 //! and records at a line feed; a backslash, a tab or a line feed inside a
@@ -112,12 +133,6 @@ pub enum TatoebaError {
     Null { file: &'static str, line: usize, field: &'static str },
     /// Two records of one file with the same `id`.
     DuplicateId { file: &'static str, id: u32 },
-    /// A sentence of the CC0 export whose language or text is not the
-    /// detailed export's.
-    Mismatch { id: u32 },
-    /// Sentences of the CC0 export the detailed export does not hold:
-    /// how many, and the smallest id.
-    NotInDetailed { count: usize, first: u32 },
     /// No export is recorded, so a run must be told it runs on an
     /// unrecorded one.
     NotRecorded,
@@ -141,11 +156,6 @@ impl fmt::Display for TatoebaError {
             TatoebaError::Id { file, line, value } => write!(f, "{file}:{line}: the id {value:?} is not a number"),
             TatoebaError::Null { file, line, field } => write!(f, "{file}:{line}: the {field} is NULL"),
             TatoebaError::DuplicateId { file, id } => write!(f, "{file}: two sentences with the id {id}"),
-            TatoebaError::Mismatch { id } => write!(
-                f,
-                "sentence {id}: {CC0_FILE} gives it another language or text than {DETAILED_FILE}; the files are of \
-                 different exports"
-            ),
             TatoebaError::NotRecorded => f.write_str(
                 "no Tatoeba export is recorded (turbo_train_recipes::langdetect::EXPORT); --unrecorded-export runs on \
                  the one given, and its model is not a release",
@@ -153,11 +163,6 @@ impl fmt::Display for TatoebaError {
             TatoebaError::ExportDigest { expected, found } => write!(
                 f,
                 "the export's digest is {found}, not the recorded {expected}; --unrecorded-export runs on another export"
-            ),
-            TatoebaError::NotInDetailed { count, first } => write!(
-                f,
-                "{count} sentences of {CC0_FILE} are not in {DETAILED_FILE}, the first {first}; the files are of \
-                 different exports"
             ),
         }
     }
@@ -352,12 +357,12 @@ impl Export {
     }
 
     /// The sentences of the detailed export whose language `keep` accepts,
-    /// each with its licence, in the export's order.
+    /// each with its licence by whether the CC0 export lists its id, in
+    /// the export's order.
     ///
     /// # Errors
     ///
-    /// A record the format refuses, a duplicate id, or a CC0 sentence the
-    /// detailed export does not hold as it is.
+    /// A record the format refuses, or a duplicate id in one file.
     pub fn sentences(&self, keep: impl Fn(&str) -> bool) -> std::result::Result<Sentences<'_>, TatoebaError> {
         // Each CC0 sentence, and whether the detailed export holds it.
         let mut cc0: HashMap<u32, (Row<'_>, bool)> = HashMap::new();
@@ -368,7 +373,14 @@ impl Export {
                 return Err(TatoebaError::DuplicateId { file: CC0_FILE, id });
             }
         }
-        let mut out = Sentences { kept: Vec::new(), records: 0, no_language: 0, cc0_records: cc0.len() };
+        let mut out = Sentences {
+            kept: Vec::new(),
+            records: 0,
+            no_language: 0,
+            cc0_records: cc0.len(),
+            cc0_differing: 0,
+            cc0_not_in_detailed: 0,
+        };
         let mut seen: HashSet<u32> = HashSet::new();
         for record in Records::new(DETAILED_FILE, &self.detailed_text) {
             let Row { id, language: lang, text } = row(DETAILED_FILE, DETAILED_FIELDS, record?)?;
@@ -378,9 +390,7 @@ impl Export {
             out.records += 1;
             let licence = match cc0.get_mut(&id) {
                 Some((c, matched)) => {
-                    if c.language != lang || c.text != text {
-                        return Err(TatoebaError::Mismatch { id });
-                    }
+                    out.cc0_differing += usize::from(c.language != lang || c.text != text);
                     *matched = true;
                     SentenceLicence::Cc0
                 }
@@ -394,10 +404,7 @@ impl Export {
                 out.kept.push(Sentence { id, language: lang, text, licence });
             }
         }
-        let missing: Vec<u32> = cc0.iter().filter(|(_, (_, m))| !m).map(|(id, _)| *id).collect();
-        if let Some(&first) = missing.iter().min() {
-            return Err(TatoebaError::NotInDetailed { count: missing.len(), first });
-        }
+        out.cc0_not_in_detailed = cc0.values().filter(|(_, matched)| !matched).count();
         Ok(out)
     }
 }
@@ -446,6 +453,12 @@ pub struct Sentences<'a> {
     pub no_language: usize,
     /// The records of the CC0 export.
     pub cc0_records: usize,
+    /// The CC0 export's records whose id the detailed export holds with
+    /// another language or text. They are still CC0.
+    pub cc0_differing: usize,
+    /// The CC0 export's records whose id the detailed export does not
+    /// hold.
+    pub cc0_not_in_detailed: usize,
 }
 
 #[cfg(test)]
@@ -521,11 +534,36 @@ mod tests {
     }
 
     #[test]
-    fn exports_of_different_weeks_and_bad_records_are_refused() {
+    fn a_sentence_is_classified_by_its_id_and_the_cc0_rows_that_differ_are_counted() {
+        // The CC0 file is written after the detailed one: sentence 4 was
+        // edited in between, 2 had its language changed and was made CC0,
+        // and 7 and 9 were added.
+        let cc0 = "4\teng\tPublic domain!\t\\N\n2\tdeu\tSalut.\t\\N\n9\teng\tx\t\\N\n7\teng\ty\t\\N\n";
+        let e = export(D, cc0);
+        let s = e.sentences(|_| true).unwrap();
+        let kept: Vec<(u32, SentenceLicence)> = s.kept.iter().map(|s| (s.id, s.licence)).collect();
+        assert_eq!(
+            kept,
+            [(1, SentenceLicence::CcBy20Fr), (2, SentenceLicence::Cc0), (4, SentenceLicence::Cc0)],
+            "4 and 2 are CC0 by their ids, and 7 and 9 are not sentences of the detailed export"
+        );
+        assert_eq!((s.records, s.no_language, s.cc0_records), (4, 1, 4));
+        assert_eq!((s.cc0_differing, s.cc0_not_in_detailed), (2, 2));
+        // The same language and text in both files differ in nothing, even
+        // with another `modified`.
+        let counts = |cc0: &str| {
+            let e = export(D, cc0);
+            let s = e.sentences(|_| true).unwrap();
+            (s.cc0_records, s.cc0_differing, s.cc0_not_in_detailed, s.no_language)
+        };
+        assert_eq!(counts("4\teng\tPublic domain.\t2020-01-01 00:00:00\n"), (1, 0, 0, 1));
+        // A NULL language in one file and a language in the other differ.
+        assert_eq!(counts("3\teng\tNo language.\t\\N\n"), (1, 1, 0, 1));
+    }
+
+    #[test]
+    fn bad_records_are_refused() {
         let s = |d: &str, c: &str| export(d, c).sentences(|_| true).map(|s| s.kept.len());
-        assert_eq!(s(D, "4\teng\tPublic domain!\t\\N\n"), Err(TatoebaError::Mismatch { id: 4 }));
-        assert_eq!(s(D, "4\tdeu\tPublic domain.\t\\N\n"), Err(TatoebaError::Mismatch { id: 4 }));
-        assert_eq!(s(D, "9\teng\tx\t\\N\n7\teng\ty\t\\N\n"), Err(TatoebaError::NotInDetailed { count: 2, first: 7 }));
         assert_eq!(
             s("1\teng\tHi.\n", ""),
             Err(TatoebaError::Fields { file: DETAILED_FILE, line: 1, found: 3, expected: 6 })
