@@ -127,7 +127,8 @@ fn masc_command(a: Args) -> Result<bool, String> {
     if !recorded {
         println!("the corpus is not the recorded release: this run is not a release of the models");
     }
-    let corpus = MascCorpus::read(&corpus_dir).map_err(|e| Error::from(e).to_string())?;
+    let read = if recipes.iter().any(Recipe::reads_chunks) { MascCorpus::read_with_chunks } else { MascCorpus::read };
+    let corpus = read(&corpus_dir).map_err(|e| Error::from(e).to_string())?;
     let split = masc::SPLIT.apply(corpus, &corpus_dir).map_err(|e| e.to_string())?;
     println!(
         "{} training documents, {} held out, {} excluded",
@@ -138,7 +139,7 @@ fn masc_command(a: Args) -> Result<bool, String> {
     for e in &split.excluded {
         println!("excluded {} ({}: {})", e.path, e.exclusion, e.exclusion.reason());
     }
-    let reference_bytes = check_before_training(&recipes, &references, &out, &split)?;
+    let reference_bytes = check_before_training(&recipes, &references, &out, &split, recorded)?;
     let mut all_pass = true;
     for (recipe, reference) in recipes.iter().zip(&reference_bytes) {
         let outcome =
@@ -166,13 +167,15 @@ fn read_reference(reference: Reference, references: &Path, problems: &mut Vec<St
 /// Reads and checks the reference of each recipe from `references`,
 /// checks that `out` holds none of their model directories, and checks
 /// each recipe's data in `split` (`Recipe::check_data`, with the
-/// reference when it was read). Returns the references' bytes, in the
-/// recipes' order, or every problem found.
+/// reference when it was read, and `recorded` when the corpus is the
+/// recorded release). Returns the references' bytes, in the recipes'
+/// order, or every problem found.
 fn check_before_training(
     recipes: &[Recipe],
     references: &Path,
     out: &Path,
     split: &SplitCorpus,
+    recorded: bool,
 ) -> Result<Vec<Vec<u8>>, String> {
     let mut bytes = Vec::with_capacity(recipes.len());
     let mut problems = Vec::new();
@@ -182,7 +185,7 @@ fn check_before_training(
             problems.push(format!("{}: the model directory exists", dir.display()));
         }
         let reference = read_reference(recipe.reference(), references, &mut problems);
-        if let Err(e) = recipe.check_data(split, recipe.reference_id(), reference.as_deref()) {
+        if let Err(e) = recipe.check_data(split, recorded, recipe.reference_id(), reference.as_deref()) {
             problems.push(format!("{}: {e}", recipe.model_id()));
         }
         bytes.extend(reference);

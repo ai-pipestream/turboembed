@@ -160,6 +160,7 @@ impl UdModelCard {
                 skipped_sentences: trained.skipped_sentences,
                 events: trained.events,
                 event_hash: trained.event_hash,
+                chunks: None,
             },
             held_out,
             gate: GateCard::of(gate, candidate_tag_format, reference_tag_format),

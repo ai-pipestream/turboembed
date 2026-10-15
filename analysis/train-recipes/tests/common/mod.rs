@@ -1,34 +1,44 @@
-//! Corpora in MASC's layout (GrAF headers, text, quarks, sentence regions
-//! and Penn tokens), written for the tests. They hold no MASC text.
+//! Corpora in MASC's layout (GrAF headers, text, quarks, sentence regions,
+//! Penn tokens, and noun and verb chunks), written for the tests. They
+//! hold no MASC text.
 
 use std::fmt::Write as _;
 use std::path::{Path, PathBuf};
 
 /// A token: its text, whether a space comes before it, whether it is a
-/// Penn token, and its tag, if it has one.
+/// Penn token, its tag, if it has one, and its chunk tag, if it is in a
+/// chunk.
 pub struct Token {
     pub text: String,
     pub space_before: bool,
     pub penn: bool,
     pub tag: Option<String>,
+    pub chunk: Option<String>,
 }
 
 /// The sentences the corpora are made of. Tokens are written with a space
 /// before them unless they start with `~` (which is dropped), so `dog ~'s`
 /// is `dog's` in two tokens. A token that starts with `^` (after any `~`,
 /// and dropped too) is in the text but not a Penn token, so a sentence of
-/// such tokens has none. A token's Penn tag follows its last `/`, and a
-/// token that ends in `/` has no tag (no `msd` feature); a token without
-/// a `/` is tagged `.` when it is punctuation and `NN` otherwise.
+/// such tokens has none. A token's chunk tag follows a `|` at its end
+/// (`B-NP`, `I-VP`), and a token without one is outside every chunk; a
+/// document with a chunk tag has noun and verb chunk files. A token's
+/// Penn tag follows its last `/`, and a token that ends in `/` has no tag
+/// (no `msd` feature); a token without a `/` is tagged `.` when it is
+/// punctuation and `NN` otherwise.
 pub const SENTENCES: &[&str] = &[
-    "Dr./NNP Smith/NNP said/VBD that/IN the/DT dog/NN ~'s/POS food/NN costs/VBZ $/$ ~5.00/CD ~,/, not/RB more/JJR ~./.",
-    "Mr./NNP Jones/NNP left/VBD early/RB ~./.",
-    "It/PRP was/VBD cold/JJ in/IN the/DT U.S./NNP that/DT week/NN ~,/, and/CC it/PRP rained/VBD ~./.",
-    "Who/WP called/VBD ~?/. Nobody/NN did/VBD ~!/.",
-    "The/DT St./NNP Louis/NNP team/NN won/VBD 3/CD ~-/: ~1/CD ~./.",
-    "Prices/NNS rose/VBD 4/CD ~%/NN in/IN May/NNP ~;/: they/PRP fell/VBD in/IN June/NNP ~./.",
-    "She/PRP did/VBD n't/RB go/VB ~,/, did/VBD she/PRP ~?/.",
-    "Ms./NNP Brown/NNP met/VBD Prof./NNP White/NNP at/IN 10/CD a.m./RB on/IN Monday/NNP ~./.",
+    "Dr./NNP|B-NP Smith/NNP|I-NP said/VBD|B-VP that/IN the/DT|B-NP dog/NN|I-NP ~'s/POS|B-NP food/NN|I-NP \
+     costs/VBZ|B-VP $/$|B-NP ~5.00/CD|I-NP ~,/, not/RB more/JJR ~./.",
+    "Mr./NNP|B-NP Jones/NNP|I-NP left/VBD|B-VP early/RB ~./.",
+    "It/PRP|B-NP was/VBD|B-VP cold/JJ in/IN the/DT|B-NP U.S./NNP|I-NP that/DT|B-NP week/NN|I-NP ~,/, and/CC \
+     it/PRP|B-NP rained/VBD|B-VP ~./.",
+    "Who/WP|B-NP called/VBD|B-VP ~?/. Nobody/NN|B-NP did/VBD|B-VP ~!/.",
+    "The/DT|B-NP St./NNP|I-NP Louis/NNP|I-NP team/NN|I-NP won/VBD|B-VP 3/CD|B-NP ~-/: ~1/CD|B-NP ~./.",
+    "Prices/NNS|B-NP rose/VBD|B-VP 4/CD|B-NP ~%/NN|I-NP in/IN May/NNP|B-NP ~;/: they/PRP|B-NP fell/VBD|B-VP \
+     in/IN June/NNP|B-NP ~./.",
+    "She/PRP|B-NP did/VBD|B-VP n't/RB|I-VP go/VB|I-VP ~,/, did/VBD|B-VP she/PRP|B-NP ~?/.",
+    "Ms./NNP|B-NP Brown/NNP|I-NP met/VBD|B-VP Prof./NNP|B-NP White/NNP|I-NP at/IN 10/CD|B-NP a.m./RB|I-NP \
+     on/IN Monday/NNP|B-NP ~./.",
 ];
 
 pub fn tokens(sentence: &str) -> Vec<Token> {
@@ -43,20 +53,33 @@ pub fn tokens(sentence: &str) -> Vec<Token> {
                 Some(rest) => (rest, false),
                 None => (t, true),
             };
+            let (t, chunk) = match t.rsplit_once('|') {
+                Some((t, chunk)) => (t, Some(chunk.to_owned())),
+                None => (t, None),
+            };
             let (text, tag) = match t.rsplit_once('/') {
                 Some((text, "")) if !text.is_empty() => (text, None),
                 Some((text, tag)) if !text.is_empty() => (text, Some(tag.to_owned())),
                 _ if t.chars().all(|c| c.is_ascii_punctuation()) => (t, Some(".".to_owned())),
                 _ => (t, Some("NN".to_owned())),
             };
-            Token { text: text.to_owned(), space_before, penn, tag }
+            Token { text: text.to_owned(), space_before, penn, tag, chunk }
         })
         .collect()
 }
 
+/// A token written back in the pool's notation, with `tag` and `chunk`.
+fn written(t: &Token, tag: Option<&str>, chunk: Option<&str>) -> String {
+    let space = if t.space_before { "" } else { "~" };
+    let penn = if t.penn { "" } else { "^" };
+    let chunk = chunk.map(|c| format!("|{c}")).unwrap_or_default();
+    format!("{space}{penn}{}/{}{chunk}", t.text, tag.unwrap_or_default())
+}
+
 /// `pool` with each sentence's tags moved one token along, the last
 /// token's to the first: a tagger trained on it can give every tag of
-/// `pool` but has learned the wrong one for nearly every token.
+/// `pool` but has learned the wrong one for nearly every token. The chunk
+/// tags stay with their tokens.
 pub fn with_tags_rotated(pool: &[&str]) -> Vec<String> {
     pool.iter()
         .map(|sentence| {
@@ -65,21 +88,85 @@ pub fn with_tags_rotated(pool: &[&str]) -> Vec<String> {
             let written: Vec<String> = tokens
                 .iter()
                 .enumerate()
-                .map(|(i, t)| {
-                    let tag = tokens[(i + n - 1) % n].tag.as_deref().unwrap_or_default();
-                    let space = if t.space_before { "" } else { "~" };
-                    let penn = if t.penn { "" } else { "^" };
-                    format!("{space}{penn}{}/{tag}", t.text)
-                })
+                .map(|(i, t)| written(t, tokens[(i + n - 1) % n].tag.as_deref(), t.chunk.as_deref()))
                 .collect();
             written.join(" ")
         })
         .collect()
 }
 
+/// `pool` with each sentence's chunk tags moved one token along, the last
+/// token's to the first: a chunker trained on it has learned chunks that
+/// start and end one token late. The tags stay with their tokens.
+pub fn with_chunks_rotated(pool: &[&str]) -> Vec<String> {
+    pool.iter()
+        .map(|sentence| {
+            let tokens = tokens(sentence);
+            let n = tokens.len();
+            let written: Vec<String> = tokens
+                .iter()
+                .enumerate()
+                .map(|(i, t)| written(t, t.tag.as_deref(), tokens[(i + n - 1) % n].chunk.as_deref()))
+                .collect();
+            written.join(" ")
+        })
+        .collect()
+}
+
+/// The chunks of a sentence's tokens, each its kind's file prefix (`nc`
+/// or `vc`) and its tokens' Penn numbers, read from the chunk tags as
+/// `ChunkSample` reads phrases: `B-` starts a chunk, `I-` of the open
+/// chunk's type goes on with it, any other `I-` starts one, and a token
+/// without a chunk tag ends it.
+fn chunks_of(tokens: &[(usize, &Token)]) -> Vec<(&'static str, Vec<usize>)> {
+    let mut chunks: Vec<(&'static str, Vec<usize>)> = Vec::new();
+    let mut open: Option<&str> = None;
+    for &(q, t) in tokens {
+        let Some(tag) = t.chunk.as_deref() else {
+            open = None;
+            continue;
+        };
+        assert!(t.penn, "a chunk tag on a token that is not a Penn token: {}", t.text);
+        let (prefix, kind) = tag.split_at(2);
+        let file = match kind {
+            "NP" => "nc",
+            "VP" => "vc",
+            other => panic!("MASC has noun and verb chunks, not {other}"),
+        };
+        if prefix == "I-" && open == Some(kind) {
+            chunks.last_mut().expect("an open chunk").1.push(q);
+        } else {
+            chunks.push((file, vec![q]));
+            open = Some(kind);
+        }
+    }
+    chunks
+}
+
+/// A chunk file of the chunks of `file` (`nc` or `vc`), each a node with
+/// an `a` element and an edge to each of its Penn tokens, the edges last
+/// to first as MASC writes them.
+fn chunk_file(file: &str, chunks: &[(&'static str, Vec<usize>)]) -> String {
+    let label = if file == "nc" { "nchunk" } else { "vchunk" };
+    let mut xml = String::from("<graph xmlns=\"http://www.xces.org/ns/GrAF/1.0/\">\n");
+    let mine: Vec<&Vec<usize>> = chunks.iter().filter(|(f, _)| *f == file).map(|(_, t)| t).collect();
+    for n in 0..mine.len() {
+        writeln!(xml, "  <node xml:id=\"{file}-n{n}\"/>\n  <a label=\"{label}\" ref=\"{file}-n{n}\" as=\"anc\"/>")
+            .unwrap();
+    }
+    for (n, tokens) in mine.iter().enumerate().rev() {
+        for q in tokens.iter().rev() {
+            writeln!(xml, "  <edge from=\"{file}-n{n}\" to=\"penn-n{q}\"/>").unwrap();
+        }
+    }
+    xml.push_str("</graph>\n");
+    xml
+}
+
 /// Writes one document of `sentences` (indices into `pool`) under `dir`
 /// as `<name>.hdr`, `<name>.txt`, `<name>-seg.xml`, `<name>-s.xml` and
-/// `<name>-penn.xml`.
+/// `<name>-penn.xml`, and `<name>-nc.xml` and `<name>-vc.xml` when a token
+/// has a chunk tag.
 pub fn write_document(dir: &Path, name: &str, pool: &[&str], sentences: &[usize]) {
     std::fs::create_dir_all(dir).unwrap();
     let mut text = String::new();
@@ -87,12 +174,16 @@ pub fn write_document(dir: &Path, name: &str, pool: &[&str], sentences: &[usize]
     let mut s = seg.clone();
     let mut penn = seg.clone();
     let mut q = 0;
+    let mut chunks = Vec::new();
     for (n, &i) in sentences.iter().enumerate() {
         if n > 0 {
             text.push_str("  ");
         }
         let start = text.len();
-        for (k, t) in tokens(pool[i]).iter().enumerate() {
+        let sentence = tokens(pool[i]);
+        let numbered: Vec<(usize, &Token)> = sentence.iter().enumerate().map(|(k, t)| (q + k, t)).collect();
+        chunks.extend(chunks_of(&numbered));
+        for (k, t) in sentence.iter().enumerate() {
             if k > 0 && t.space_before {
                 text.push(' ');
             }
@@ -121,20 +212,37 @@ pub fn write_document(dir: &Path, name: &str, pool: &[&str], sentences: &[usize]
     for g in [&mut seg, &mut s, &mut penn] {
         g.push_str("</graph>\n");
     }
+    let chunked = sentences.iter().any(|&i| tokens(pool[i]).iter().any(|t| t.chunk.is_some()));
+    let chunk_annotations = if chunked {
+        format!(
+            "      <annotation loc=\"{name}-nc.xml\" f.id=\"f.nc\">Noun chunks</annotation>\n      \
+             <annotation loc=\"{name}-vc.xml\" f.id=\"f.vc\">Verb chunks</annotation>\n"
+        )
+    } else {
+        String::new()
+    };
     let header = format!(
         "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n\
          <documentHeader xmlns=\"http://www.xces.org/ns/GrAF/1.0/\" docId=\"TEST\" version=\"1.0.4\">\n  <profileDesc>\n    \
          <primaryData f.id=\"f.text\" loc=\"{name}.txt\"/>\n    <annotations>\n      \
          <annotation loc=\"{name}-s.xml\" f.id=\"f.s\">annotation</annotation>\n      \
          <annotation loc=\"{name}-seg.xml\" f.id=\"f.seg\">annotation</annotation>\n      \
-         <annotation loc=\"{name}-penn.xml\" f.id=\"f.penn\">annotation</annotation>\n    </annotations>\n  \
-         </profileDesc>\n</documentHeader>\n"
+         <annotation loc=\"{name}-penn.xml\" f.id=\"f.penn\">annotation</annotation>\n{chunk_annotations}    \
+         </annotations>\n  </profileDesc>\n</documentHeader>\n"
     );
     std::fs::write(dir.join(format!("{name}.hdr")), header).unwrap();
     std::fs::write(dir.join(format!("{name}.txt")), text).unwrap();
     std::fs::write(dir.join(format!("{name}-seg.xml")), seg).unwrap();
     std::fs::write(dir.join(format!("{name}-s.xml")), s).unwrap();
     std::fs::write(dir.join(format!("{name}-penn.xml")), penn).unwrap();
+    for file in ["nc", "vc"] {
+        let path = dir.join(format!("{name}-{file}.xml"));
+        if chunked {
+            std::fs::write(path, chunk_file(file, &chunks)).unwrap();
+        } else if path.exists() {
+            std::fs::remove_file(path).unwrap();
+        }
+    }
 }
 
 /// A fresh directory under the system's temporary directory.
@@ -198,4 +306,24 @@ pub fn set_text_class(root: &Path, header: &str, cat_ref: &str) {
     let text_class = format!("<profileDesc>\n    <textClass catRef=\"{cat_ref}\"><domain>Test</domain></textClass>");
     assert_eq!(xml.matches("<profileDesc>").count(), 1, "{}", path.display());
     std::fs::write(&path, xml.replace("<profileDesc>", &text_class)).unwrap();
+}
+
+/// Adds a chunk over the Penn tokens `penn` (their quark numbers) to the
+/// `file` chunk file (`nc` or `vc`) of the document whose header is
+/// `header` (relative to `root`), numbered 100,000 plus `id` so it does
+/// not clash with the chunks written.
+pub fn add_chunk(root: &Path, header: &str, file: &str, id: usize, penn: &[usize]) {
+    let header = root.join(header);
+    let name = header.file_stem().unwrap().to_str().unwrap();
+    let path = header.with_file_name(format!("{name}-{file}.xml"));
+    let xml = std::fs::read_to_string(&path).unwrap();
+    let label = if file == "nc" { "nchunk" } else { "vchunk" };
+    let n = 100_000 + id;
+    let mut chunk =
+        format!("  <node xml:id=\"{file}-n{n}\"/>\n  <a label=\"{label}\" ref=\"{file}-n{n}\" as=\"anc\"/>\n");
+    for q in penn {
+        writeln!(chunk, "  <edge from=\"{file}-n{n}\" to=\"penn-n{q}\"/>").unwrap();
+    }
+    assert_eq!(xml.matches("</graph>").count(), 1, "{}", path.display());
+    std::fs::write(&path, xml.replace("</graph>", &format!("{chunk}</graph>"))).unwrap();
 }

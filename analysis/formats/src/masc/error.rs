@@ -17,6 +17,10 @@ pub enum AnnotationFile {
     Penn,
     /// The named entities, `f.ne`.
     NamedEntities,
+    /// The noun chunks, `f.nc`, which OpenNLP does not read.
+    NounChunks,
+    /// The verb chunks, `f.vc`, which OpenNLP does not read.
+    VerbChunks,
 }
 
 impl AnnotationFile {
@@ -27,17 +31,22 @@ impl AnnotationFile {
             AnnotationFile::Sentences => "f.s",
             AnnotationFile::Penn => "f.penn",
             AnnotationFile::NamedEntities => "f.ne",
+            AnnotationFile::NounChunks => "f.nc",
+            AnnotationFile::VerbChunks => "f.vc",
         }
     }
 
     /// The message of the `IOException` `MascDocument` throws when the
-    /// file cannot be parsed, whatever was wrong in it.
+    /// file cannot be parsed, whatever was wrong in it, and a message in
+    /// the same words for the chunk files.
     fn failure(self) -> &'static str {
         match self {
             AnnotationFile::Segments => "Could not parse the region annotation file",
             AnnotationFile::Sentences => "Could not parse the sentence annotation file",
             AnnotationFile::Penn => "Could not parse the Penn tag annotation file",
             AnnotationFile::NamedEntities => "Could not parse the named entity annotation file",
+            AnnotationFile::NounChunks => "Could not parse the noun chunk annotation file",
+            AnnotationFile::VerbChunks => "Could not parse the verb chunk annotation file",
         }
     }
 }
@@ -83,7 +92,8 @@ pub enum MascError {
     NoAnnotationStream { file: AnnotationFile },
     /// An annotation file cannot be parsed: not XML, an element whose
     /// attributes the readers refuse, or a link the Penn or named entity
-    /// file breaks. `cause` says which; Java's message does not.
+    /// file breaks. `cause` says which; Java's message does not. For a
+    /// chunk file, which OpenNLP does not read, there is no Java class.
     Annotation { file: AnnotationFile, cause: turbo_maxent::Error },
     /// The quarks end inside a sentence that is not the last.
     QuarksEndInSentence { end: i32 },
@@ -117,6 +127,10 @@ pub enum MascError {
     NullTag,
     /// A sample could not be made (overlapping names).
     Sample(FormatError),
+    /// No document of the corpus has chunks: it was read without its
+    /// chunk files, or its documents have no Penn tokens. OpenNLP has no
+    /// chunk reader for MASC.
+    NoChunks,
 }
 
 impl MascError {
@@ -125,6 +139,7 @@ impl MascError {
     pub fn java_class(&self) -> Option<&'static str> {
         use MascError::*;
         match self {
+            Annotation { file: AnnotationFile::NounChunks | AnnotationFile::VerbChunks, .. } => None,
             NotADirectory { .. }
             | Header { .. }
             | MissingFile { .. }
@@ -140,7 +155,7 @@ impl MascError {
             Substring { .. } => Some("java.lang.StringIndexOutOfBoundsException"),
             NegativeTokenStart { .. } | TokenOutOfBounds { .. } | NullTag => Some("java.lang.IllegalArgumentException"),
             Sample(e) => e.java_class(),
-            Io { .. } | DirectoryCycle { .. } | SplitsSurrogatePair { .. } | TooLong { .. } => None,
+            Io { .. } | DirectoryCycle { .. } | SplitsSurrogatePair { .. } | TooLong { .. } | NoChunks => None,
         }
     }
 
@@ -210,6 +225,7 @@ impl fmt::Display for MascError {
             }
             NullTag => f.write_str("null elements are not allowed in tags!"),
             Sample(e) => e.fmt(f),
+            NoChunks => f.write_str("no document has chunks: read the corpus with its chunk files"),
         }
     }
 }
