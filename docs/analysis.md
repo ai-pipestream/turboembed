@@ -1131,7 +1131,17 @@ label matches a run once however many of its patterns do, and matches
 come in token order (start, end, label). `Matcher::set_greedy` keeps,
 per label, the first (`Greedy::First`) or longest (`Greedy::Longest`)
 matches that share no token, as spaCy's `greedy`. `find_in` matches
-inside a range of tokens only, as spaCy matches a `Span`. As in spaCy,
+inside a range of tokens only, as spaCy matches a `Span`.
+`Matcher::align(input, &match)` says which `Tok` of the match's pattern
+took each of its tokens, as spaCy's `with_alignments`. It is a pass of
+its own over a match already found, so matching keeps no paths: a
+table of which pattern tokens can take the rest of the match from
+where is filled from the end, then read forward, each `Tok` taking as
+many tokens as it can while the rest still fits (a backtracking
+regular expression's greedy choice). That is spaCy's alignment except
+in two of its test cases, where spaCy's state machine picks another
+valid one (`a+ a a?` over three `a`s, and a run of `a` under
+`a* b* a*`); the tests name both. As in spaCy,
 `find` does not stop at sentence ends, so a match can cross one;
 calling `find_in` with each sentence's tokens keeps matches inside
 sentences. `remove`
@@ -1218,7 +1228,10 @@ a word, a short quotation) at about 8 million tokens a second.
 
 `SpanRuler` holds token patterns (`add_pattern`) and phrases
 (`add_phrase`) under labels, each with a rule number in the order they
-were added, and runs as a step. It reads a `View` and its `Tokens`, and
+were added, and runs as a step. Phrases go to one phrase matcher per
+`Field`: `add_phrase` to the field the ruler was made with (spaCy's
+`phrase_matcher_attr`), `add_phrase_on(field, ...)` to any other, so
+one ruler can hold, say, phrases by lowercase and phrases by lemma. It reads a `View` and its `Tokens`, and
 whichever of `opennlp:pos`, `opennlp:lemmas`, `opennlp:entities`,
 `turbo:stopwords`, `turbo:numbers` and `turbo:stems` the document has,
 and writes `Matches` (`turbo:matches`, in `turbo-analysis-layers`): a
@@ -1230,8 +1243,12 @@ so several rule sets write side by side, as spaCy's `spans_key`. Its
 and nested ones too (the layer is `Overlap::Any`); `Filter(rule)` keeps
 a subset that does not overlap with `filter_spans`, where
 `FilterRule::LongestFirst` is spaCy's `filter_spans` except that it
-compares lengths in bytes rather than tokens. A label matches a run of
-tokens once, with the first rule added.
+compares lengths in bytes rather than tokens; `LongestTokens` is
+spaCy's `filter_spans` exactly, lengths in tokens, the earliest first
+among equally long matches, and of matches over the same tokens the
+label added first. The two differ where a long token meets several
+short ones ("Internationalization" against "New York City"). A label
+matches a run of tokens once, with the first rule added.
 
 ### Against spaCy's tests
 
@@ -1246,10 +1263,6 @@ document spaCy builds with its tokenizer is built here from the tokens
 that tokenizer makes, and a text spaCy shows with its own spacing shows
 here with the words joined by a space. Not ported:
 
-- `with_alignments` (`test_matcher_with_alignments_greedy_longest`,
-  `..._non_greedy`): the matcher keeps state sets, not the path that
-  reached a state, so it cannot say which pattern token took which
-  token.
 - Callbacks (`on_match`: `test_issue615`, `test_matcher_from_usage_docs`,
   `test_matcher_callback`, `test_phrase_matcher_callback` and the like):
   a caller acts on the returned matches instead.

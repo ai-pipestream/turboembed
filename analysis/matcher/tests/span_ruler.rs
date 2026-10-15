@@ -75,6 +75,54 @@ fn span_ruler_spans_filter() {
 }
 
 #[test]
+fn longest_in_tokens_as_spacy_filter_spans() {
+    // Byte lengths and token lengths disagree: "Internationalization" is
+    // one long token, "New York City" three short ones. spaCy's
+    // `filter_spans` counts tokens and keeps "New York City";
+    // `FilterRule::LongestFirst` counts bytes and keeps the long token.
+    let text = "Internationalization New York City";
+    let add = |r: &mut SpanRuler| {
+        r.add_pattern("WORD", &[Tok::text("Internationalization"), Tok::text("New")]).unwrap();
+        r.add_phrase("CITY", &["New", "York", "City"]).unwrap();
+    };
+    let mut tokens = ruler(Policy::LongestTokens);
+    add(&mut tokens);
+    assert_eq!(spans(&tokens, text), owned(&[("CITY", "New York City")]));
+    let mut bytes = ruler(Policy::Filter(FilterRule::LongestFirst));
+    add(&mut bytes);
+    assert_eq!(spans(&bytes, text), owned(&[("WORD", "Internationalization New")]));
+    // Equally long: the earliest; over the same tokens: the label added first.
+    let mut r = ruler(Policy::LongestTokens);
+    r.add_phrase("B", &["bar", "baz"]).unwrap();
+    r.add_phrase("A", &["foo", "bar"]).unwrap();
+    r.add_phrase("A", &["bar", "baz"]).unwrap();
+    assert_eq!(spans(&r, "foo bar baz"), owned(&[("A", "foo bar")]));
+    assert_eq!(spans(&r, "bar baz"), owned(&[("B", "bar baz")]));
+}
+
+#[test]
+fn phrases_over_several_fields() {
+    let doc = Doc::split("Ada wrote NOTES on engines").with_lemmas(&["Ada", "write", "note", "on", "engine"]);
+    let mut r = SpanRuler::new(Field::Attr(Attr::Lower), Policy::Keep);
+    let notes = r.add_phrase("TEXT", &["notes"]).unwrap();
+    let write = r.add_phrase_on(Field::Attr(Attr::Lemma), "ACT", &["write", "note"]).unwrap();
+    assert_eq!(r.add_phrase_on(Field::Attr(Attr::Lower), "TEXT", &["NOTES"]).unwrap(), notes);
+    assert_eq!(r.add_phrase_on(Field::Attr(Attr::Lemma), "ACT", &["write", "note"]).unwrap(), write);
+    let engine = r.add_phrase_on(Field::Attr(Attr::Lemma), "TEXT", &["engine"]).unwrap();
+    assert_eq!(r.phrases().len(), 2);
+    let m = r.matches(&doc.input(), ViewId::SOURCE).unwrap();
+    assert_eq!(m.check(), Ok(()));
+    let got: Vec<(&str, &str, u32)> =
+        m.spans.iter().map(|(i, s)| (m.label_of(i), &doc.text[s.range()], m.rule[i.get()])).collect();
+    assert_eq!(got, [("ACT", "wrote NOTES", write), ("TEXT", "NOTES", notes), ("TEXT", "engines", engine)]);
+    // Removing a label removes it from every phrase matcher.
+    r.remove("TEXT").unwrap();
+    let m = r.matches(&doc.input(), ViewId::SOURCE).unwrap();
+    assert_eq!(m.label.len(), 1);
+    assert_eq!(m.label_of(turbo_analysis::Ix::new(0)), "ACT");
+}
+
+#[test]
 fn span_ruler_remove_basic() {
     let mut r = person_org_date();
     r.remove("DATE").unwrap();

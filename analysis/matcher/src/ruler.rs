@@ -14,7 +14,7 @@ use crate::attr::Field;
 use crate::error::{MatchError, PatternError};
 use crate::hash::FoldHasher;
 use crate::input::Input;
-use crate::matcher::Matcher;
+use crate::matcher::{Greedy, Matcher, keep_greedy};
 use crate::pattern::Tok;
 use crate::phrase::PhraseMatcher;
 
@@ -28,10 +28,19 @@ pub enum Policy {
     /// `first_longest_spans_filter`), except that lengths are compared in
     /// bytes, not tokens.
     Filter(FilterRule),
+    /// Keeps a subset that does not overlap as spaCy's `filter_spans`
+    /// does, lengths counted in tokens: the longest first, the earliest
+    /// first among equally long ones, each kept when none of its tokens
+    /// is in one kept before. Of matches over the same tokens under
+    /// several labels, the label added first is kept.
+    LongestTokens,
 }
 
-/// Token patterns and phrases under labels. As a step it reads a text
-/// view and its tokens, and whichever of `opennlp:pos`, `opennlp:lemmas`,
+/// Token patterns and phrases under labels. Phrases go to one phrase
+/// matcher per [`Field`]: [`SpanRuler::add_phrase`] to the field the
+/// ruler was made with, [`SpanRuler::add_phrase_on`] to any, so one ruler
+/// can hold phrases by lowercase and phrases by lemma. As a step it reads
+/// a text view and its tokens, and whichever of `opennlp:pos`, `opennlp:lemmas`,
 /// `opennlp:entities`, `turbo:stopwords`, `turbo:numbers` and
 /// `turbo:stems` the document has, and writes [`Matches`]; bind it with
 /// [`SpanRuler::bound`] to write a named instance. A match's rule is the
@@ -40,12 +49,14 @@ pub enum Policy {
 /// with the first rule added.
 pub struct SpanRuler {
     matcher: Matcher,
-    phrases: PhraseMatcher,
+    /// The phrase matchers, one per field, the ruler's own field first.
+    phrases: Vec<PhraseMatcher>,
     /// Per rule, its label's name, and whether the label is still in use.
     rule_label: Vec<Box<str>>,
     rule_live: Vec<bool>,
     rule_of_pattern: Vec<u32>,
-    rule_of_phrase: Vec<u32>,
+    /// Per phrase matcher, the rule of each of its phrases.
+    rule_of_phrase: Vec<Vec<u32>>,
     /// The labels in use, in the order they were first added.
     labels: Arc<TagSet>,
     policy: Policy,
@@ -58,11 +69,11 @@ impl SpanRuler {
     pub fn new(phrase_field: Field, policy: Policy) -> SpanRuler {
         SpanRuler {
             matcher: Matcher::new(),
-            phrases: PhraseMatcher::new(phrase_field),
+            phrases: vec![PhraseMatcher::new(phrase_field)],
             rule_label: Vec::new(),
             rule_live: Vec::new(),
             rule_of_pattern: Vec::new(),
-            rule_of_phrase: Vec::new(),
+            rule_of_phrase: vec![Vec::new()],
             labels: TagSet::new("rules", &[]),
             policy,
             config: 0,
@@ -105,23 +116,47 @@ impl SpanRuler {
         Ok(rule)
     }
 
-    /// Adds a phrase under `label` and returns its rule number; a phrase
-    /// already under the label keeps its number.
+    /// Adds a phrase under `label`, matched over the ruler's own field,
+    /// and returns its rule number; a phrase already under the label keeps
+    /// its number.
     pub fn add_phrase(&mut self, label: &str, tokens: &[&str]) -> Result<u32, PatternError> {
-        let id = self.phrases.add(label, tokens)?;
-        if let Some(&rule) = self.rule_of_phrase.get(id.0 as usize) {
+        self.add_phrase_at(0, label, tokens)
+    }
+
+    /// Adds a phrase under `label`, matched over `field`, and returns its
+    /// rule number; a phrase already under the label and field keeps its
+    /// number. The first phrase over a field makes its phrase matcher.
+    pub fn add_phrase_on(&mut self, field: Field, label: &str, tokens: &[&str]) -> Result<u32, PatternError> {
+        let at = match self.phrases.iter().position(|p| p.field() == field) {
+            Some(at) => at,
+            None => {
+                self.phrases.push(PhraseMatcher::new(field));
+                self.rule_of_phrase.push(Vec::new());
+                self.phrases.len() - 1
+            }
+        };
+        self.add_phrase_at(at, label, tokens)
+    }
+
+    fn add_phrase_at(&mut self, at: usize, label: &str, tokens: &[&str]) -> Result<u32, PatternError> {
+        let id = self.phrases[at].add(label, tokens)?;
+        if let Some(&rule) = self.rule_of_phrase[at].get(id.0 as usize) {
             return Ok(rule);
         }
         let rule = self.new_rule(label);
-        self.rule_of_phrase.push(rule);
-        self.note("phrase", label, &tokens.join("\u{1f}"));
+        self.rule_of_phrase[at].push(rule);
+        let field = format!("{:?}", self.phrases[at].field());
+        self.note("phrase", label, &format!("{field}\u{1f}{}", tokens.join("\u{1f}")));
         Ok(rule)
     }
 
     /// Removes a label and all its patterns and phrases.
     pub fn remove(&mut self, label: &str) -> Result<(), MatchError> {
         let in_patterns = self.matcher.remove(label).is_ok();
-        let in_phrases = self.phrases.remove(label).is_ok();
+        let mut in_phrases = false;
+        for p in &mut self.phrases {
+            in_phrases |= p.remove(label).is_ok();
+        }
         if !in_patterns && !in_phrases {
             return Err(MatchError::NoLabel(label.into()));
         }
@@ -166,7 +201,8 @@ impl SpanRuler {
         &self.matcher
     }
 
-    pub fn phrases(&self) -> &PhraseMatcher {
+    /// The phrase matchers, one per field, the ruler's own field first.
+    pub fn phrases(&self) -> &[PhraseMatcher] {
         &self.phrases
     }
 
@@ -186,15 +222,13 @@ impl SpanRuler {
                 ));
             }
         }
-        if !self.phrases.is_empty() {
-            for m in self.phrases.find(input)? {
-                let label = tag(self.phrases.label_name(m.label));
-                found.push((
-                    m.tokens.start.get() as u32,
-                    m.tokens.end.get() as u32,
-                    label,
-                    self.rule_of_phrase[m.phrase.0 as usize],
-                ));
+        for (phrases, rules) in self.phrases.iter().zip(&self.rule_of_phrase) {
+            if phrases.is_empty() {
+                continue;
+            }
+            for m in phrases.find(input)? {
+                let label = tag(phrases.label_name(m.label));
+                found.push((m.tokens.start.get() as u32, m.tokens.end.get() as u32, label, rules[m.phrase.0 as usize]));
             }
         }
         found.sort_unstable();
@@ -208,6 +242,13 @@ impl SpanRuler {
                     spans.push(input.span(IxRange::new(m.0, m.1)));
                 }
                 let mut kept: Vec<usize> = filter_spans(&spans, None, rule).into_iter().map(|i| i.get()).collect();
+                kept.sort_unstable();
+                kept
+            }
+            Policy::LongestTokens => {
+                let order: Vec<usize> = (0..found.len()).collect();
+                let mut kept = Vec::new();
+                keep_greedy(&order, |&i| (found[i].0, found[i].1), Greedy::Longest, 0, &mut Vec::new(), &mut kept);
                 kept.sort_unstable();
                 kept
             }
@@ -274,7 +315,10 @@ impl Annotator for SpanRuler {
     fn config_hash(&self) -> u64 {
         let mut h = FoldHasher::default();
         h.write_u64(self.config);
-        h.write(format!("{:?}{:?}", self.policy, self.phrases.field()).as_bytes());
+        h.write(format!("{:?}", self.policy).as_bytes());
+        for p in &self.phrases {
+            h.write(format!("{:?}", p.field()).as_bytes());
+        }
         h.finish()
     }
 }

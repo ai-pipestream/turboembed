@@ -1,8 +1,9 @@
 //! The matcher against a direct reading of what a pattern means: random
 //! patterns over a three-word alphabet, random documents, and every run
 //! of tokens checked by a recursive matcher written from the operators'
-//! definitions, with spaCy's greedy filters written out again. The phrase
-//! matcher is checked against a search at every start.
+//! definitions, with spaCy's greedy filters written out again. The
+//! alignment of every match is checked to be a parse of its tokens by its
+//! pattern. The phrase matcher is checked against a search at every start.
 
 mod common;
 
@@ -110,6 +111,17 @@ fn accepts(p: &[Step], w: &[&str]) -> bool {
     (step.min..=max).any(|k| w[..k].iter().all(|x| step.ok(x)) && accepts(rest, &w[k..]))
 }
 
+/// Whether an alignment is a parse of the words by the pattern.
+fn parses(p: &[Step], w: &[&str], align: &[u32]) -> bool {
+    if align.len() != w.len() || !align.windows(2).all(|x| x[0] <= x[1]) {
+        return false;
+    }
+    p.iter().enumerate().all(|(i, step)| {
+        let taken: Vec<&str> = w.iter().zip(align).filter(|&(_, &a)| a as usize == i).map(|(x, _)| *x).collect();
+        taken.iter().all(|x| step.ok(x)) && taken.len() >= step.min && step.max.is_none_or(|m| taken.len() <= m)
+    })
+}
+
 /// spaCy's greedy filter, written out again.
 fn greedy(mut spans: Vec<(usize, usize)>, g: Greedy) -> Vec<(usize, usize)> {
     match g {
@@ -136,6 +148,7 @@ fn every_run_the_patterns_accept_and_nothing_else() {
     for round in 0..3000 {
         // One to three patterns under one label: a run is reported once.
         let mut m = Matcher::new();
+        // The patterns added, by `PatternId`.
         let mut references = Vec::new();
         for _ in 0..1 + rng.below(3) {
             let (pattern, reference) = random_pattern(&mut rng);
@@ -159,8 +172,16 @@ fn every_run_the_patterns_accept_and_nothing_else() {
             }
         }
         let want = greedy(want, filter);
-        let got: Vec<(usize, usize)> = Doc::words(&words).run(&m).iter().map(|x| (x.1, x.2)).collect();
+        let doc = Doc::words(&words);
+        let got: Vec<(usize, usize)> = doc.run(&m).iter().map(|x| (x.1, x.2)).collect();
         assert_eq!(got, want, "round {round}: {words:?}");
+        let input = doc.input();
+        for x in m.find(&input).unwrap() {
+            let a = m.align(&input, &x).unwrap().expect("an alignment for every match");
+            let (s, e) = (x.tokens.start.get(), x.tokens.end.get());
+            let reference = &references[x.pattern.0 as usize];
+            assert!(parses(reference, &words[s..e], &a), "round {round}: {words:?} {x:?} {a:?}");
+        }
         checked += 1;
     }
     assert!(checked > 2900, "{checked} rounds checked");

@@ -9,9 +9,13 @@
 //!   state set by state set, so no pattern can make matching exponential.
 //! - [`PhraseMatcher`]: a large list of phrases over one token attribute,
 //!   as a trie over token ids.
-//! - [`SpanRuler`]: both, under labels, as an analysis step that writes
-//!   `turbo:matches` ([`Matches`]) under a named instance, keeping every
-//!   match or resolving overlaps with `filter_spans`.
+//! - [`SpanRuler`]: both, under labels, with phrases over as many fields
+//!   as wanted, as an analysis step that writes `turbo:matches`
+//!   ([`Matches`]) under a named instance, keeping every match or
+//!   resolving overlaps with `filter_spans` or spaCy's own token-length
+//!   filter.
+//! - [`Matcher::align`]: which pattern token took each token of a match,
+//!   spaCy's `with_alignments`, as a pass over a match already found.
 //!
 //! A match is a range of tokens ([`IxRange<Tokens>`]); its bytes are the
 //! tokens' ([`Input::span`]), in the view the tokens were made in.
@@ -35,6 +39,7 @@
 //!   must be split as the document's tokenizer splits text, or it will
 //!   not line up with the tokens.
 
+mod align;
 mod attr;
 mod entries;
 mod error;

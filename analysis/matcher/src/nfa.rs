@@ -121,6 +121,18 @@ impl Nfa {
         self.states.len()
     }
 
+    /// How many pattern tokens have been compiled: the next one's number.
+    pub(crate) fn toks(&self) -> u32 {
+        self.toks.len() as u32
+    }
+
+    /// Whether token `abs` (at `rel` in the columns) passes compiled
+    /// pattern token `tok`, its negation applied.
+    #[inline]
+    pub(crate) fn passes(&self, tok: u32, cols: &Columns, input: &Input<'_>, rel: usize, abs: usize) -> bool {
+        self.toks[tok as usize].passes(cols, input, rel, abs)
+    }
+
     /// The values taking state `s` needs its token to have, when one of
     /// its tests says: the attribute and ids of its first `Is` test, or
     /// else of its first `In` test. `None` for a negated token or one
@@ -150,7 +162,9 @@ impl Nfa {
     }
 
     /// Adds pattern number `pattern` and returns its entry state, with what
-    /// it reads added to `needs`. Nothing is added when it is refused.
+    /// it reads added to `needs`. Nothing is added when it is refused. Its
+    /// tokens are compiled last to first, so pattern token `i` of `n` is
+    /// compiled token `toks() + n - 1 - i`, `toks()` taken before.
     pub(crate) fn add(
         &mut self,
         toks: &[Tok],

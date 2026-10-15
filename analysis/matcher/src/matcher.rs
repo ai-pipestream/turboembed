@@ -5,6 +5,7 @@ use std::sync::Mutex;
 use turbo_analysis::IxRange;
 use turbo_analysis_layers::Tokens;
 
+use crate::align::{Step, align};
 use crate::entries::Entries;
 use crate::error::{MatchError, PatternError};
 use crate::input::{Columns, Input, Needs};
@@ -43,6 +44,8 @@ pub struct Match {
 struct PatternEntry {
     label: Label,
     needs: Needs,
+    /// Its tokens, in order, for alignments.
+    steps: Box<[Step]>,
 }
 
 /// Token patterns under labels, matched over a document's tokens.
@@ -79,12 +82,20 @@ impl Matcher {
     pub fn add(&mut self, label: &str, pattern: &[Tok]) -> Result<PatternId, PatternError> {
         let id = self.patterns.len() as u32;
         let mut needs = Needs::default();
+        let first_tok = self.nfa.toks();
         let entry = self.nfa.add(pattern, id, Matcher::MAX_STATES, &mut self.vocab, &mut needs)?;
+        let n = pattern.len() as u32;
+        let steps = (0..n)
+            .map(|i| {
+                let t = &pattern[i as usize];
+                Step { tok: first_tok + n - 1 - i, min: t.min, max: t.max }
+            })
+            .collect();
         let label = self.labels.get_or_add(label);
         if self.greedy.len() <= label.0 as usize {
             self.greedy.resize(label.0 as usize + 1, Greedy::All);
         }
-        self.patterns.push(PatternEntry { label, needs });
+        self.patterns.push(PatternEntry { label, needs, steps });
         let sim = self.sim.get_mut().unwrap_or_else(|e| e.into_inner());
         let reached = sim.entry(&self.nfa, [entry]);
         self.entry.extend(&self.nfa, reached);
@@ -198,6 +209,28 @@ impl Matcher {
         Ok((matches, work))
     }
 
+    /// Which token of its pattern took each token of match `m`, as
+    /// spaCy's `with_alignments`: entry `i` is the index in the pattern
+    /// (as added) of the [`Tok`] that took token `m.tokens.start + i`.
+    /// Where the pattern can take the tokens more than one way, the way
+    /// is a backtracking regular expression's with greedy operators: each
+    /// `Tok`, from the first, takes as many tokens as it can while the
+    /// rest of the pattern can still take the rest. `None` when `m`'s
+    /// pattern cannot take exactly those tokens (a match made by hand).
+    ///
+    /// This is a pass of its own over one match, after [`Matcher::find`],
+    /// so matching itself keeps no paths; it costs a few words of memory
+    /// per pattern token and matched token.
+    pub fn align(&self, input: &Input<'_>, m: &Match) -> Result<Option<Vec<u32>>, MatchError> {
+        let range = input.range(m.tokens)?;
+        let Some(entry) = self.patterns.get(m.pattern.0 as usize) else { return Ok(None) };
+        if range.is_empty() {
+            return Ok(None);
+        }
+        let cols = Columns::build(input, &range, entry.needs, &self.vocab)?;
+        Ok(align(&self.nfa, &entry.steps, &cols, input, range.start, range.len()))
+    }
+
     /// Applies each label's [`Greedy`] to `found`, sorted by start, end
     /// and label, and keeps that order.
     fn filter_greedy(
@@ -209,28 +242,58 @@ impl Matcher {
         if found.iter().all(|m| greedy(m.2) == Greedy::All) {
             return found;
         }
-        let (mut kept, filtered): (Vec<_>, Vec<_>) = found.into_iter().partition(|m| greedy(m.2) == Greedy::All);
-        let mut labels: Vec<Label> = filtered.iter().map(|m| m.2).collect();
-        labels.sort_unstable();
-        labels.dedup();
-        let mut taken = vec![false; range.len()];
-        for label in labels {
-            let mut pairs: Vec<_> = filtered.iter().copied().filter(|m| m.2 == label).collect();
-            match greedy(label) {
-                Greedy::First => pairs.sort_by_key(|m| (m.0, std::cmp::Reverse(m.1))),
-                _ => pairs.sort_by_key(|m| (std::cmp::Reverse(m.1 - m.0), m.0)),
-            }
-            taken.fill(false);
-            for m in pairs {
-                let span = &mut taken[m.0 as usize - range.start..m.1 as usize - range.start];
-                if span.iter().all(|&t| !t) {
-                    span.fill(true);
-                    kept.push(m);
-                }
-            }
+        let (mut kept, mut filtered): (Vec<_>, Vec<_>) = found.into_iter().partition(|m| greedy(m.2) == Greedy::All);
+        // By label, keeping the order of start and end within each.
+        filtered.sort_by_key(|m| m.2);
+        let mut taken = Vec::new();
+        for group in filtered.chunk_by(|a, b| a.2 == b.2) {
+            keep_greedy(group, |m| (m.0, m.1), greedy(group[0].2), range.start, &mut taken, &mut kept);
         }
         kept.sort_unstable();
         kept
+    }
+}
+
+/// spaCy's greedy sweep over runs of tokens (`tokens(item)` is `(start,
+/// end)`, both at or after `base`): the items sorted by start, longest
+/// first (`First`), or longest, earliest first (`Longest`), each kept,
+/// appended to `out`, when none of its tokens is in one kept before it.
+/// The sort is stable, so of two items over the same tokens the earlier
+/// in `items` is kept, as spaCy's sorts keep their input order. `All`
+/// keeps every item. `taken` is working space.
+pub(crate) fn keep_greedy<T: Copy>(
+    items: &[T],
+    tokens: impl Fn(&T) -> (u32, u32),
+    greedy: Greedy,
+    base: usize,
+    taken: &mut Vec<bool>,
+    out: &mut Vec<T>,
+) {
+    let mut order: Vec<T> = items.to_vec();
+    match greedy {
+        Greedy::All => {
+            out.extend(order);
+            return;
+        }
+        Greedy::First => order.sort_by_key(|m| {
+            let (s, e) = tokens(m);
+            (s, std::cmp::Reverse(e))
+        }),
+        Greedy::Longest => order.sort_by_key(|m| {
+            let (s, e) = tokens(m);
+            (std::cmp::Reverse(e - s), s)
+        }),
+    }
+    let top = order.iter().map(|m| tokens(m).1 as usize).max().unwrap_or(base);
+    taken.clear();
+    taken.resize(top - base, false);
+    for m in order {
+        let (s, e) = tokens(&m);
+        let span = &mut taken[s as usize - base..e as usize - base];
+        if !span.contains(&true) {
+            span.fill(true);
+            out.push(m);
+        }
     }
 }
 
