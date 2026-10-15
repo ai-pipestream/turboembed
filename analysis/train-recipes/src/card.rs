@@ -21,11 +21,13 @@ use crate::masc::{self, Split};
 use crate::segmentation::{Component, LANGUAGE, SENTENCES_PER_SAMPLE, TIMESTAMP_MS};
 use crate::{Recipe, Trained, postag};
 
-/// The card's schema version: 4, with the held-out counts, the tag
+/// The card's schema version: 5, with the held-out counts, the tag
 /// formats and the reference's digest, the documents the split leaves
-/// out, how a tagger's held-out tokens were scored, and the chunks in no
-/// sentence a chunker's reader reads.
-pub const CARD_VERSION: u32 = 4;
+/// out, how a tagger's held-out tokens were scored, the parameters of
+/// each recipe, the chunks in no sentence a chunker's reader reads, and
+/// what a name finder's reader counted of the named entities. Version 4
+/// had either the chunks or the names.
+pub const CARD_VERSION: u32 = 5;
 /// The card's file name in the model's directory.
 pub const CARD_FILE: &str = "card.json";
 /// The gate record's file name in the model's directory.
@@ -66,7 +68,9 @@ pub struct CorpusCard {
     pub excluded_documents: Vec<masc::ExcludedDocument>,
 }
 
-/// The trainer's parameters, as the parameters file gives them.
+/// The trainer's parameters, as the parameters file gives them or, for a
+/// name finder, as `NameFinderME.train` puts its defaults into empty
+/// parameters (the trainer's default of one thread).
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct ParametersCard {
@@ -74,6 +78,37 @@ pub struct ParametersCard {
     pub iterations: i32,
     pub cutoff: i32,
     pub threads: i32,
+}
+
+/// What a name finder's reader counted of the named entities of one side
+/// of the split ([`crate::namefind::read_samples`]). `names`,
+/// `overlapping` and `other_types` count an entity once for each sentence
+/// it has a token in; `outside_sentences` and `in_dropped_sentences`
+/// count the entities of the recipe's type in no sentence, once each.
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct NamesCard {
+    /// The documents read: those with a named entity file.
+    pub documents: usize,
+    /// The names of the recipe's type in the samples.
+    pub names: u64,
+    /// Of those, names whose entity's tokens have a gap, kept as the span
+    /// from the first token to one past the last.
+    pub gapped: u64,
+    /// Entities of the recipe's type left out for overlapping a name kept
+    /// before them in `Span.compareTo` order, a repeat of the same tokens
+    /// among them.
+    pub overlapping: u64,
+    /// Entities of other types in the sentences, left out.
+    pub other_types: u64,
+    /// Entities of the recipe's type none of whose tokens is in a region
+    /// of the sentence file, so in no sample
+    /// ([`turbo_formats::masc::Unplaced::OutsideSentences`]).
+    pub outside_sentences: u64,
+    /// Entities of the recipe's type whose tokens are in regions of the
+    /// sentence file the reader drops, so in no sample
+    /// ([`turbo_formats::masc::Unplaced::DroppedSentence`]).
+    pub in_dropped_sentences: u64,
 }
 
 /// The chunks of one side of the split that are in no sentence the
@@ -122,6 +157,9 @@ pub struct TrainingCard {
     pub skipped_sentences: usize,
     pub events: usize,
     pub event_hash: u32,
+    /// For a name finder, what its reader counted of the training
+    /// documents' named entities; `null` for the other components.
+    pub names: Option<NamesCard>,
     /// For a chunker, the training documents' chunks in no sentence its
     /// reader reads; `null` for the other components.
     pub chunks: Option<ChunksCard>,
@@ -141,6 +179,9 @@ pub struct HeldOutCard {
     /// how its held-out tokens were scored; `null` for the other
     /// components.
     pub tokens: Option<TokenCoverage>,
+    /// For a name finder, what its reader counted of the held-out
+    /// documents' named entities; `null` for the other components.
+    pub names: Option<NamesCard>,
     /// For a chunker, the held-out documents' chunks in no sentence its
     /// reader reads; `null` for the other components.
     pub chunks: Option<ChunksCard>,
@@ -312,6 +353,7 @@ impl ModelCard {
                 None,
             ),
             Recipe::Pos(p) => (None, None, TagFormat::of(postag::CANDIDATE_FORMAT), TagFormat::of(p.reference_format)),
+            Recipe::Name(_) => (None, None, None, None),
             Recipe::Chunk(_) => (None, None, None, None),
         };
         ModelCard {
@@ -341,6 +383,7 @@ impl ModelCard {
                 skipped_sentences: trained.skipped_sentences,
                 events: trained.events,
                 event_hash: trained.event_hash,
+                names: trained.names.clone(),
                 chunks: trained.chunks.clone(),
             },
             held_out,
@@ -512,6 +555,23 @@ impl fmt::Display for Summary<'_> {
             }
             for (i, t) in tokens.left_out.iter().enumerate() {
                 write!(f, "{} {} ({})", if i == 0 { "" } else { "," }, t.tag, t.tokens)?;
+            }
+        }
+        for (side, names) in [("training", &training.names), ("held-out", &held_out.names)] {
+            if let Some(n) = names {
+                write!(
+                    f,
+                    "\n{id}: {} names in the {side} samples of {} documents, {} with a gap; {} overlapping and {} of \
+                     other types left out; {} outside every sentence region and {} in sentence regions the reader \
+                     drops, in no sample",
+                    n.names,
+                    n.documents,
+                    n.gapped,
+                    n.overlapping,
+                    n.other_types,
+                    n.outside_sentences,
+                    n.in_dropped_sentences
+                )?;
             }
         }
         for (side, chunks) in [("training", &training.chunks), ("held-out", &held_out.chunks)] {

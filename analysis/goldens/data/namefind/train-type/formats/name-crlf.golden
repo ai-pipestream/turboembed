@@ -1,0 +1,91 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	formats/name-crlf	31	31	eeaf6fd26f7504ce52f42b2653bc7ac31d9efd2fc21b0a01679319bb925ccaea
+annotator	opennlp.tools.namefind.NameFinderEventStream	read
+config	codec	bio
+config	language	en
+config	run	train-type
+config	type	person
+layer	turbo:events	document	5	outcome:str	context:str	values:str
+other	wc=lc w&c=a,lc n1wc=lc n1w&c=b,lc w=a n1w=b def pd=null w,nw=a,b wc,nc=lc,lc S=begin po=other pow=other,a powf=other,lc ppo=other	
+person-start	wc=lc w&c=b,lc p1wc=lc p1w&c=a,lc w=b p1w=a def pd=null pw,w=a,b pwc,wc=lc,lc po=other pow=other,b powf=other,lc ppo=other	
+other	wc=lc w&c=c,lc w=c def pd=null S=begin po=other pow=other,c powf=other,lc ppo=other	
+other	wc=lc w&c=d,lc w=d def pd=null S=begin po=other pow=other,d powf=other,lc ppo=other	
+other	wc=lc w&c=e,lc w=e def pd=null S=begin po=other pow=other,e powf=other,lc ppo=other	
+end	turbo:events
+layer	turbo:stream-errors	document	0	after:u32	class:str	message:str
+end	turbo:stream-errors
+layer	turbo:event-checksum	document	1	crc32c:u32
+1339349496
+end	turbo:event-checksum
+layer	turbo:name-training	document	1	class:str	message:str
+	
+end	turbo:name-training
+layer	turbo:name-parameters	document	4	key:str	class:str	value:str
+Cutoff	java.lang.Integer	0
+sort	java.lang.Boolean	true
+Iterations	java.lang.Integer	300
+Algorithm	java.lang.String	MAXENT
+end	turbo:name-parameters
+layer	turbo:manifest	document	9	key:str	value:str
+BeamSize	3
+Component-Name	NameFinderME
+Language	en
+Manifest-Version	1.0
+OpenNLP-Version	3.0.0-SNAPSHOT
+TrainerType	Event
+Training-Eventhash	1339349496
+factory	opennlp.tools.namefind.TokenNameFinderFactory
+sequenceCodecImplName	opennlp.tools.namefind.BioCodec
+end	turbo:manifest
+layer	turbo:package-entries	document	3	name:str	length:u32
+manifest.properties	315
+nameFinder.model	681
+generator.featuregen	1906
+end	turbo:package-entries
+layer	turbo:name-model	document	1	sha256:str	length:u32
+226b74c3c8d6b02f732f6e4b44916b98478e6fbf81c555d18c5982371d69c04a	681
+end	turbo:name-model
+layer	turbo:name-weights	document	38	predicate:str	outcome:str	value:f64
+S=begin	other	3fd8e95648b292a8 0.38924176310892245
+n1w&c=b,lc	other	3fd0dc8946f75dfa 0.2634604638128334
+n1w=b	other	3fd0dc8946f75dfa 0.2634604638128334
+n1wc=lc	other	3fd0dc8946f75dfa 0.2634604638128334
+pow=other,a	other	3fd0dc8946f75dfa 0.2634604638128334
+pow=other,c	other	3fdba03ca0ec0061 0.4316550799849264
+pow=other,d	other	3fdba03ca0ec0061 0.4316550799849264
+pow=other,e	other	3fdba03ca0ec0061 0.4316550799849264
+w&c=a,lc	other	3fd0dc8946f75dfa 0.2634604638128334
+w&c=c,lc	other	3fdba03ca0ec0061 0.4316550799849264
+w&c=d,lc	other	3fdba03ca0ec0061 0.4316550799849264
+w&c=e,lc	other	3fdba03ca0ec0061 0.4316550799849264
+w,nw=a,b	other	3fd0dc8946f75dfa 0.2634604638128334
+w=a	other	3fd0dc8946f75dfa 0.2634604638128334
+w=c	other	3fdba03ca0ec0061 0.4316550799849264
+w=d	other	3fdba03ca0ec0061 0.4316550799849264
+w=e	other	3fdba03ca0ec0061 0.4316550799849264
+wc,nc=lc,lc	other	3fd0dc8946f75dfa 0.2634604638128334
+def	other	3fc24e4bd1f2a66f 0.14301440955505337
+def	person-start	bfde25fd4b3873d4 -0.4710686907363286
+pd=null	other	3fc24e4bd1f2a66f 0.14301440955505337
+pd=null	person-start	bfde25fd4b3873d4 -0.4710686907363286
+po=other	other	3fc24e4bd1f2a66f 0.14301440955505337
+po=other	person-start	bfde25fd4b3873d4 -0.4710686907363286
+powf=other,lc	other	3fc24e4bd1f2a66f 0.14301440955505337
+powf=other,lc	person-start	bfde25fd4b3873d4 -0.4710686907363286
+ppo=other	other	3fc24e4bd1f2a66f 0.14301440955505337
+ppo=other	person-start	bfde25fd4b3873d4 -0.4710686907363286
+wc=lc	other	3fc24e4bd1f2a66f 0.14301440955505337
+wc=lc	person-start	bfde25fd4b3873d4 -0.4710686907363286
+p1w&c=a,lc	person-start	3ff05466ad2882c2 1.0206057323450044
+p1w=a	person-start	3ff05466ad2882c2 1.0206057323450044
+p1wc=lc	person-start	3ff05466ad2882c2 1.0206057323450044
+pow=other,b	person-start	3ff05466ad2882c2 1.0206057323450044
+pw,w=a,b	person-start	3ff05466ad2882c2 1.0206057323450044
+pwc,wc=lc,lc	person-start	3ff05466ad2882c2 1.0206057323450044
+w&c=b,lc	person-start	3ff05466ad2882c2 1.0206057323450044
+w=b	person-start	3ff05466ad2882c2 1.0206057323450044
+end	turbo:name-weights

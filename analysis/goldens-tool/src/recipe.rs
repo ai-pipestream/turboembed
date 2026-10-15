@@ -237,7 +237,7 @@ pub struct Fixture {
 /// the feature generator descriptors and their resources (`featuregen`) or
 /// of the name finder's dictionaries and patterns (`namefind`), and `Runs`
 /// opens the directory.
-pub const FIXTURES: [Fixture; 57] = [
+pub const FIXTURES: [Fixture; 58] = [
     Fixture {
         file: "en-abbrev.bin",
         sha512: "759ab1defc61351f53cdd82a26e708789a225feb6e1ec0cfd6e2e54f35f67c14\
@@ -282,6 +282,11 @@ pub const FIXTURES: [Fixture; 57] = [
         file: "lemma-fixture-rust.bin",
         sha512: "4fa4c03da55e729af919a2d76a67db49ac0269d073ac05a5af3da9fd8d67ea82\
                  61765d97a3c5e4ca0d22b251e4dc01401f432d6a394d6a6d3fd4b06fecb41402",
+    },
+    Fixture {
+        file: "ner-fixture-rust.bin",
+        sha512: "c9e30b48571cd106396a9f84c0692216b5934cd7cae4ec277ceb867b93a5b9ed\
+                 4285349d48c2e3d7c508bb824697a2e68055b54817b0f9fbc06e011c510ef070",
     },
     Fixture {
         file: "langdetect-fixture-rust.bin",
