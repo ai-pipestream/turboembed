@@ -90,6 +90,8 @@ fn money_with_signs_and_codes() {
 #[test]
 fn money_in_two_units() {
     check("it was 5 dollars and 50 cents", &["5 dollars and 50 cents = 5.5 Dollar"]);
+    check("pay 15 USD 50.", &["15 USD 50 = 15.5 United States dollar"]);
+    check("from 5 $10 bills", &["$10 = 10 Dollar"]);
 }
 
 #[test]

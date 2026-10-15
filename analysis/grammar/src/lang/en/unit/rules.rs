@@ -455,12 +455,15 @@ fn b_major_minor(v: &[Value], _: &Ctx<'_>) -> Option<Value> {
 /// `each`, so `15 dollars 3 times` is no 15.03.
 fn b_major_hundredths(v: &[Value], ctx: &Ctx<'_>) -> Option<Value> {
     let (major, n) = (qty(&v[0]), num(&v[1]));
+    let sign = |i: usize| ctx.punct(i).is_some_and(is_currency_sign);
+    // `5 $10` is 5 and $10, not 5.10.
+    if (ctx.start + 2..ctx.end).any(|i| ctx.lexeme(i).kind == Kind::Numeral && ctx.lexeme(i).glued && sign(i - 1)) {
+        return None;
+    }
     let ends = match ctx.after() {
         None => true,
         Some(a) => match ctx.lexeme(a).kind {
-            Kind::Punct => ctx.punct(a).is_some_and(|c| {
-                turbo_unicode::category::general_category(c) != turbo_unicode::category::GeneralCategory::Sc
-            }),
+            Kind::Punct => !sign(a),
             Kind::Word => matches!(ctx.word(a), "and" | "or" | "but" | "more" | "less" | "extra" | "each"),
             Kind::Numeral => false,
         },
@@ -469,6 +472,10 @@ fn b_major_hundredths(v: &[Value], ctx: &Ctx<'_>) -> Option<Value> {
         return None;
     }
     quantity(major.value().checked_add(n.value.shift(-2)?)?, major.unit())
+}
+
+fn is_currency_sign(c: char) -> bool {
+    turbo_unicode::category::general_category(c) == turbo_unicode::category::GeneralCategory::Sc
 }
 
 /// `5 ft 2 in`, `5 feet and 2 inches`.
