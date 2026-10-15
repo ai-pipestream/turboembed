@@ -7,9 +7,7 @@
 use turbo_analysis_layers::OrdinalBase;
 
 use crate::dec::Dec;
-use crate::engine::{
-    Ctx, Grammar, Item, Rule, exact, glued, glued_if, glued_word, node, node_if, opt_word, word,
-};
+use crate::engine::{Ctx, Grammar, Item, Rule, exact, glued, glued_if, glued_word, node, node_if, opt_word, word};
 use crate::lang::en::rules::{
     after_currency, b_caret, b_digit_fraction, b_digit_word, b_end_minus_one, b_fraction_of_scale, b_minus, b_mixed,
     b_more_digits, b_neg_sign, b_neg_word, b_numeral_int, b_numeral_scale, b_percent_after, b_percent_before, b_plus,
@@ -22,8 +20,8 @@ use crate::value::flag::{DIGITS, PLURAL, SPELLED};
 use crate::value::{Num, NumKind, Ordinal, Value};
 
 use super::{
-    DEN, DIGSEQ, DOZEN, DUTCH, FRAC_WORD, GLUED, RATIO, HUNDRED, INT, NEG_WORD, NUM, NUMERAL, ONE_HALF, ORD, ORD_SCALE,
-    ORD_SUFFIX, ORD_TENS, ORD_WORD, PCT, PCT_WORD, REL, REL_WORD, SCALE, SIGN, SIMPLE, TEEN, TENS, TO_END, UNIT,
+    DEN, DIGSEQ, DOZEN, DUTCH, FRAC_WORD, GLUED, HUNDRED, INT, NEG_WORD, NUM, NUMERAL, ONE_HALF, ORD, ORD_SCALE,
+    ORD_SUFFIX, ORD_TENS, ORD_WORD, PCT, PCT_WORD, RATIO, REL, REL_WORD, SCALE, SIGN, SIMPLE, TEEN, TENS, TO_END, UNIT,
     VULGAR,
 };
 
@@ -389,7 +387,13 @@ pub static RULES: &[Rule] = &[
         b_mixed,
     ),
     r("frac_vulgar", NUM, 0, &[node(VULGAR)], b_vulgar),
-    r("frac_op", NUM, 0, &[node_if(INT, integer), word("op"), opt_word("de"), node_if(INT, positive_integer)], b_part_of),
+    r(
+        "frac_op",
+        NUM,
+        0,
+        &[node_if(INT, integer), word("op"), opt_word("de"), node_if(INT, positive_integer)],
+        b_part_of,
+    ),
     r(
         "frac_uit",
         NUM,
@@ -428,13 +432,7 @@ pub static RULES: &[Rule] = &[
     // Ordinals.
     r("ord_word", ORD, 0, &[node(ORD_WORD)], b_ordinal_word),
     r("ord_tens", ORD, 0, &[node(ORD_TENS)], b_ordinal_word),
-    r(
-        "ord_compound",
-        ORD,
-        1,
-        &[node_if(UNIT, unit_1_to_9), glued_word("en"), glued(ORD_TENS)],
-        b_ordinal_compound,
-    ),
+    r("ord_compound", ORD, 1, &[node_if(UNIT, unit_1_to_9), glued_word("en"), glued(ORD_TENS)], b_ordinal_compound),
     r("ord_scale", ORD, 0, &[node_if(INT, spelled_positive_integer), node(ORD_SCALE)], b_ordinal_scale),
     r("ord_scale_bare", ORD, 0, &[node(ORD_SCALE)], b_ordinal_scale_bare),
     r(

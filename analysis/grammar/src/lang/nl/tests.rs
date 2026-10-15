@@ -114,7 +114,10 @@ fn ordinals_in_words_and_digits() {
     // The suffix has to be the one Dutch gives the number.
     assert!(ordinals("2ste 1de 11ste").is_empty());
     assert_eq!(ordinals("100ste 102de 8ste"), [pair("100ste", "#100"), pair("102de", "#102"), pair("8ste", "#8")]);
-    assert_eq!(ordinals("vier miljoen vierhonderdduizendste"), [pair("vier miljoen vierhonderdduizendste", "#4400000")]);
+    assert_eq!(
+        ordinals("vier miljoen vierhonderdduizendste"),
+        [pair("vier miljoen vierhonderdduizendste", "#4400000")]
+    );
     // `een miljoenste` is a fraction.
     assert!(ordinals("een miljoenste").is_empty());
 }
