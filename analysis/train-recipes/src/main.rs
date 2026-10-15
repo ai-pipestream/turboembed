@@ -13,13 +13,17 @@
 //! `--unrecorded-corpus` runs on a copy whose digest is not recorded yet,
 //! prints that digest, and marks the cards `release_recorded: false`.
 //! `--recipe` runs only the recipes named, by the trained model's id;
-//! without it every recipe runs. The exit status is 1 when a gate fails
+//! without it every recipe runs. The recipes run in the order of
+//! `RECIPES`, whatever the order they are named in. Before anything is
+//! trained, every reference the run needs is read and checked and every
+//! model directory it would write is checked not to exist, so a run that
+//! fails on one writes nothing. The exit status is 1 when a gate fails
 //! and 2 on an error.
 //!
 //! `fetch-masc` fetches the release archive through the zoo into
 //! `<home>/artifacts/`, once its digests are recorded.
 
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 
 use turbo_formats::masc::MascCorpus;
@@ -56,7 +60,7 @@ fn parse() -> Result<Args, String> {
             "--unrecorded-corpus" => a.unrecorded = true,
             "--recipe" => {
                 let id = value()?;
-                let recipe = RECIPES.into_iter().find(|r| r.model_id() == id).ok_or_else(|| {
+                let recipe = Recipe::trains(&id).ok_or_else(|| {
                     let ids: Vec<&str> = RECIPES.iter().map(Recipe::model_id).collect();
                     format!("no recipe trains {id}; the recipes train {}", ids.join(", "))
                 })?;
@@ -84,6 +88,8 @@ fn masc_command(a: Args) -> Result<bool, String> {
     if !recorded {
         println!("the release is not recorded: this run is not a release of the models");
     }
+    let recipes: Vec<Recipe> = RECIPES.into_iter().filter(|r| a.recipes.is_empty() || a.recipes.contains(r)).collect();
+    let reference_bytes = check_before_training(&recipes, &references, &out)?;
     let corpus = MascCorpus::read(&corpus_dir).map_err(|e| Error::from(e).to_string())?;
     let split = masc::SPLIT.apply(corpus, &corpus_dir).map_err(|e| e.to_string())?;
     println!(
@@ -92,27 +98,59 @@ fn masc_command(a: Args) -> Result<bool, String> {
         split.held_out.documents().len(),
         split.skipped_paths.len()
     );
-    let recipes = if a.recipes.is_empty() { RECIPES.to_vec() } else { a.recipes };
     let mut all_pass = true;
-    for recipe in &recipes {
-        let file = recipe.reference_file().map_err(|e| e.to_string())?;
-        let path = references.join(&file);
-        let reference = std::fs::read(&path).map_err(|e| format!("{}: {e}", path.display()))?;
-        recipe.check_reference(&reference).map_err(|e| e.to_string())?;
+    for (recipe, reference) in recipes.iter().zip(&reference_bytes) {
         let outcome =
-            run(recipe, &split, &digest, recorded, recipe.reference_id(), &reference).map_err(|e| e.to_string())?;
+            run(recipe, &split, &digest, recorded, recipe.reference_id(), reference).map_err(|e| e.to_string())?;
         write_model_dir(&out, &outcome.card, &outcome.trained.bytes, &outcome.gate).map_err(|e| e.to_string())?;
         println!(
-            "{}: {} samples, {} sentences skipped, {} events",
+            "{}: trained on {} samples, {} sentences skipped, {} events; held out {} samples, {} sentences skipped",
             recipe.model_id(),
             outcome.trained.samples,
             outcome.trained.skipped_sentences,
-            outcome.trained.events
+            outcome.trained.events,
+            outcome.card.held_out.samples,
+            outcome.card.held_out.skipped_sentences,
         );
+        if let Some(tokens) = &outcome.card.held_out.tokens {
+            let left_out: Vec<String> = tokens.left_out.iter().map(|t| format!("{} ({})", t.tag, t.tokens)).collect();
+            let count: u64 = tokens.left_out.iter().map(|t| t.tokens).sum();
+            println!(
+                "{}: {count} of {} held-out tokens left out, their tags not the reference's: {}",
+                recipe.model_id(),
+                tokens.tokens,
+                if left_out.is_empty() { "none".to_owned() } else { left_out.join(", ") }
+            );
+        }
         println!("{}", outcome.gate);
         all_pass &= outcome.gate.result.pass;
     }
     Ok(all_pass)
+}
+
+/// Reads and checks the reference of each recipe from `references`, and
+/// checks that `out` holds none of their model directories. Returns
+/// the references' bytes, in the recipes' order, or every problem found.
+fn check_before_training(recipes: &[Recipe], references: &Path, out: &Path) -> Result<Vec<Vec<u8>>, String> {
+    let mut bytes = Vec::with_capacity(recipes.len());
+    let mut problems = Vec::new();
+    for recipe in recipes {
+        let dir = out.join(recipe.model_id());
+        if dir.exists() {
+            problems.push(format!("{}: the model directory exists", dir.display()));
+        }
+        let read = recipe.reference_file().map_err(|e| e.to_string()).and_then(|file| {
+            let path = references.join(file);
+            let reference = std::fs::read(&path).map_err(|e| format!("{}: {e}", path.display()))?;
+            recipe.check_reference(&reference).map_err(|e| e.to_string())?;
+            Ok(reference)
+        });
+        match read {
+            Ok(reference) => bytes.push(reference),
+            Err(problem) => problems.push(problem),
+        }
+    }
+    if problems.is_empty() { Ok(bytes) } else { Err(problems.join("\n")) }
 }
 
 fn fetch_command(a: Args) -> Result<bool, String> {

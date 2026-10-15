@@ -25,13 +25,15 @@ pub mod masc;
 pub mod postag;
 pub mod segmentation;
 
+use std::fmt;
+
 use turbo_eval::model_gate::{ModelGateRecord, Task};
 use turbo_formats::masc::MascCorpus;
 use turbo_zoo::{Index, Sha256};
 
-pub use error::{Error, Result};
+pub use error::{Error, LeftOut, Result};
 
-use card::{CorpusCard, ModelCard};
+use card::{CorpusCard, HeldOutCard, ModelCard};
 use masc::{CorpusDigest, SPLIT, SplitCorpus};
 use postag::PosRecipe;
 use segmentation::{Component, SegmentationRecipe};
@@ -45,11 +47,64 @@ pub struct Trained {
     pub samples: usize,
     /// Sentences left out of training: by the token stream for having no
     /// sample, by the tagger's for a token without a tag or for having no
-    /// token (always 0 for the sentence detector).
+    /// token (always 0 for the sentence detector). At most
+    /// [`MAX_SKIPPED_SENTENCES`] of those read.
     pub skipped_sentences: usize,
     pub events: usize,
     /// `Training-Eventhash`.
     pub event_hash: u32,
+}
+
+/// A bound on how much a recipe may leave out: at most `count` in every
+/// `of`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Limit {
+    pub count: u64,
+    pub of: u64,
+}
+
+impl Limit {
+    /// Whether leaving out `left_out` of `total` is within the limit.
+    pub fn allows(&self, left_out: u64, total: u64) -> bool {
+        u128::from(left_out) * u128::from(self.of) <= u128::from(total) * u128::from(self.count)
+    }
+
+    /// Checks that leaving out `count` of `of` is within the limit.
+    ///
+    /// # Errors
+    ///
+    /// [`Error::TooManyLeftOut`] when it is not.
+    pub fn check(&self, what: LeftOut, count: u64, of: u64) -> Result<()> {
+        if self.allows(count, of) { Ok(()) } else { Err(Error::TooManyLeftOut { what, count, of, limit: *self }) }
+    }
+}
+
+impl fmt::Display for Limit {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{} in {}", self.count, self.of)
+    }
+}
+
+/// The most sentences a recipe's reader may skip, of those it reads from
+/// the training documents and, apart, of those it reads from the held-out
+/// documents: one in a thousand, so the gate cannot lose a held-out
+/// document of more than a few sentences. Read with the recipes' readers
+/// and split by [`masc::SPLIT`], MASC 3.0.0 has no training sentence to
+/// skip and one held-out sentence (a sentence of no tokens) of 6,385.
+pub const MAX_SKIPPED_SENTENCES: Limit = Limit { count: 1, of: 1000 };
+
+/// The most held-out tokens the tagger's gate may leave out of both
+/// models' scores because the reference cannot give their tag, even in
+/// its spelling ([`postag::ReferenceTags`]): one in a thousand. Read with
+/// the recipe's reader and split by [`masc::SPLIT`], MASC 3.0.0's
+/// held-out documents have 6 such tokens of 85,292: ``UH` `` (3), `"`
+/// (2) and `PRN` (1).
+pub const MAX_TOKENS_LEFT_OUT: Limit = Limit { count: 1, of: 1000 };
+
+/// Checks the sentences a reader skipped against [`MAX_SKIPPED_SENTENCES`]:
+/// `skipped` of `skipped + read`.
+pub(crate) fn check_skipped(what: LeftOut, skipped: usize, read: usize) -> Result<()> {
+    MAX_SKIPPED_SENTENCES.check(what, skipped as u64, (skipped + read) as u64)
 }
 
 /// The OpenNLP model a recipe's model is gated against.
@@ -100,6 +155,19 @@ impl Reference {
         }
     }
 
+    /// The model file's SHA-256: the one the zoo's built-in index lists, or
+    /// the recorded one.
+    ///
+    /// # Errors
+    ///
+    /// A zoo id the index does not list.
+    pub fn sha256(&self) -> Result<String> {
+        match self {
+            Reference::Zoo(id) => Ok(Index::builtin().get(id)?.files[0].sha256.to_string()),
+            Reference::Recorded(r) => Ok(r.sha256.to_owned()),
+        }
+    }
+
     /// Checks that `bytes` are the model: the SHA-256 the zoo's built-in
     /// index lists, or the recorded size and SHA-256.
     ///
@@ -108,9 +176,10 @@ impl Reference {
     /// [`Error::ReferenceDigest`] for other bytes, or a zoo id the index
     /// does not list.
     pub fn check(&self, bytes: &[u8]) -> Result<()> {
-        let (expected, size) = match self {
-            Reference::Zoo(id) => (Index::builtin().get(id)?.files[0].sha256.to_string(), None),
-            Reference::Recorded(r) => (r.sha256.to_owned(), Some(r.size)),
+        let expected = self.sha256()?;
+        let size = match self {
+            Reference::Zoo(_) => None,
+            Reference::Recorded(r) => Some(r.size),
         };
         let found = Sha256::of(bytes).to_string();
         if found == expected && size.is_none_or(|n| n == bytes.len() as u64) {
@@ -138,6 +207,11 @@ pub const RECIPES: [Recipe; 3] = [
 ];
 
 impl Recipe {
+    /// The recipe of [`RECIPES`] that trains the model `id`.
+    pub fn trains(id: &str) -> Option<Recipe> {
+        RECIPES.into_iter().find(|r| r.model_id() == id)
+    }
+
     /// The trained model's zoo id, also its file name without `.bin`.
     pub fn model_id(&self) -> &'static str {
         match self {
@@ -206,7 +280,7 @@ impl Recipe {
         held_out: &MascCorpus,
         set_name: &str,
         corpus_sha256: &str,
-    ) -> Result<ModelGateRecord> {
+    ) -> Result<GateRun> {
         match self {
             Recipe::Segmentation(r) => {
                 r.gate(trained, reference_id, reference, &r.held_out(held_out)?, set_name, corpus_sha256)
@@ -234,6 +308,13 @@ impl Recipe {
     }
 }
 
+/// A gate run: its record, and what it read from the held-out documents.
+#[derive(Debug)]
+pub struct GateRun {
+    pub record: ModelGateRecord,
+    pub held_out: HeldOutCard,
+}
+
 /// What one recipe made.
 #[derive(Debug)]
 pub struct Outcome {
@@ -255,7 +336,9 @@ pub fn held_out_name() -> String {
 ///
 /// # Errors
 ///
-/// What training, reading the samples, scoring or the gate fail on.
+/// What training, reading the samples, scoring or the gate fail on, and
+/// [`Error::TooManyLeftOut`] when the recipe's reader skips more than
+/// [`MAX_SKIPPED_SENTENCES`] of the training or of the held-out sentences.
 pub fn run(
     recipe: &Recipe,
     split: &SplitCorpus,
@@ -265,7 +348,7 @@ pub fn run(
     reference: &[u8],
 ) -> Result<Outcome> {
     let trained = recipe.train(&split.train)?;
-    let gate =
+    let GateRun { record: gate, held_out } =
         recipe.gate(&trained.bytes, reference_id, reference, &split.held_out, &held_out_name(), &digest.sha256)?;
     let corpus = CorpusCard {
         name: masc::NAME.to_owned(),
@@ -276,7 +359,7 @@ pub fn run(
         held_out_documents: split.held_out_paths.clone(),
         skipped_documents: split.skipped_paths.clone(),
     };
-    let card = ModelCard::new(recipe, &trained, corpus, &gate);
+    let card = ModelCard::new(recipe, &trained, corpus, held_out, &gate);
     Ok(Outcome { trained, gate, card })
 }
 
@@ -313,6 +396,11 @@ mod tests {
         assert_eq!(RECIPES[2].task(), Task::PartOfSpeechTagger);
         assert_eq!(RECIPES[2].component(), turbo_zoo::Component::Pos);
         assert_eq!(RECIPES[2].reference_id(), "opennlp-en-pos-maxent-1.5");
+        assert_eq!(RECIPES[2].reference().sha256().unwrap(), postag::EN_POS_MAXENT.sha256);
+        for r in RECIPES {
+            assert_eq!(Recipe::trains(r.model_id()), Some(r));
+        }
+        assert_eq!(Recipe::trains("turbo-en-masc-3.0.0-chunks-1"), None);
         assert!(Reference::Zoo("not-in-the-zoo").file().is_err());
     }
 
@@ -327,7 +415,13 @@ mod tests {
             sha256: "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad",
         };
         Reference::Recorded(rec).check(bytes).unwrap();
+        assert_eq!(Reference::Recorded(rec).sha256().unwrap(), rec.sha256);
         assert!(Reference::Recorded(RecordedReference { size: 4, ..rec }).check(bytes).is_err());
-        assert!(Reference::Recorded(rec).check(b"abd").is_err());
+        let other = Reference::Recorded(rec).check(b"abd").unwrap_err();
+        // The message says what was recorded, not where.
+        assert_eq!(
+            other.to_string(),
+            format!("reference model x: SHA-256 {}, expected {}", Sha256::of(b"abd"), rec.sha256)
+        );
     }
 }

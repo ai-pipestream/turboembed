@@ -96,8 +96,22 @@ stay checked in.
 | UD 1.3 `uk-ud-iu-*` | [UD_Ukrainian-IU r2.16](https://github.com/UniversalDependencies/UD_Ukrainian-IU/blob/r2.16/README.md) | CC BY-NC-SA 4.0 | non-commercial | here |
 | `langdetect-183.bin` | Leipzig corpora ([model README](https://archive.apache.org/dist/opennlp/models/langdetect/1.8.3/README.txt), [corpora](https://wortschatz.uni-leipzig.de/en/download)) | conflicting: one source says CC BY, another CC BY-NC | terms not confirmed (`LicenseRef-Unconfirmed`) | plan; README here |
 | 1.5 `en-chunker` | CoNLL-2000 (Wall Street Journal, LDC) ([1.5 models](http://opennlp.sourceforge.net/models-1.5/)) | LDC | proprietary | plan |
-| 1.5 `en-pos-maxent`, `en-pos-perceptron` | "(private) English data" | none stated | proprietary | plan |
+| 1.5 `en-pos-maxent` | not published (the OpenNLP 1.5.1 test plan heads its regression-training section "(private) English data", which may not describe these models) | none stated | proprietary: refused for shipping, bundling and training; allowed only as a reference that is scored (below) | plan |
+| 1.5 `en-pos-perceptron` | not published (as `en-pos-maxent`) | none stated | proprietary | plan |
 | 1.5 English NER, sentence and token models | no corpus named | none stated | no licence | plan |
+
+`en-pos-maxent.bin` is used only as a reference whose output is scored
+or compared. Nothing ships, bundles, mirrors or trains on it, the zoo
+does not list it, and CI does not fetch it. It is downloaded by hand
+from <https://opennlp.sourceforge.net/models-1.5/en-pos-maxent.bin> into
+a directory the user names. Its SHA-256 is
+`645a094f45a866687a617385233fd23ae8b0f5fa8b1b76996781a50c17bdcf3d`. The
+JVM goldens (`PosGolden`, `BeamGolden`) record its tags for the test
+sentences and that digest; turbo-sequence's tests check the digest and
+compare what turbo-sequence makes of the model with the goldens; and the
+turbo-train-recipes tagger gate checks its size and SHA-256 (5,696,197
+bytes, `postag::EN_POS_MAXENT`), scores it on MASC's held-out documents
+and compares that score with the trained model's.
 
 The goldens tool fetches `langdetect-183.bin` to make the language
 detector's goldens (`analysis/goldens-tool/src/recipe.rs`); the zoo does
@@ -113,7 +127,7 @@ not list it.
 | [UD_Portuguese-DanteStocks r2.16](https://github.com/UniversalDependencies/UD_Portuguese-DanteStocks/blob/r2.16/README.md) | sentence, token, POS, lemma | CC BY 4.0 | permissive | | here |
 | [UD_Finnish-FTB r2.16](https://github.com/UniversalDependencies/UD_Finnish-FTB/blob/r2.16/README.md) | sentence, token, POS, lemma | CC BY 4.0 | permissive | | here |
 | [UD_Italian-MarkIT r2.16](https://github.com/UniversalDependencies/UD_Italian-MarkIT/blob/r2.16/README.md) | sentence, token, POS, lemma | CC BY 4.0 | permissive | | here |
-| [MASC](https://anc.org/data/masc/) | English sentences, tokens, Penn POS, noun and verb chunks, named entities | CC BY 3.0 US | permissive | 500K words, manually validated; the recipes in `analysis/train-recipes` train on it, release digest not recorded yet | plan |
+| [MASC](https://anc.org/data/masc/) | English sentences, tokens, Penn POS, noun and verb chunks, named entities | CC BY 3.0 US | permissive | 500K words, manually validated; the recipes in `analysis/train-recipes` train on it, release digest not recorded yet. Its Twitter genre (`data/written/twitter`, two documents, 24,180 words, from 2008, source given as "unknown" in their headers) has no terms of its own: the 3.0.0 release's README has no licence text, and anc.org states CC BY 3.0 US for MASC with no exception. Whether Twitter's terms reach the tweets' text is not settled here; the recipes do not leave the genre out | here |
 | [Open English WordNet](https://github.com/globalwordnet/english-wordnet/blob/main/LICENSE.md) | English lemmas | CC BY 4.0 | permissive | derived from Princeton WordNet; attribute both | here |
 | [Princeton WordNet](https://wordnet.princeton.edu/license-and-commercial-use) | English lemmas | WordNet licence (BSD-like) | permissive | | plan |
 | [PoliMorf / Morfologik](https://github.com/morfologik/polimorf) | Polish lemmas | BSD-2-Clause | permissive | | plan |
