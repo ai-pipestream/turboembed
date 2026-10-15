@@ -13,10 +13,11 @@ parts:
   readings.
 - `lang/`, one module per language, each a `Grammar`: its lexicon, its
   rules, how it writes numerals and which categories become output.
-  English (`lang/en/`, the `ENGLISH` static) and Spanish (`lang/es/`,
-  `SPANISH`, [below](#spanish)). `ENGLISH_TIMES` and `SPANISH_TIMES`
-  hold the same number rules and add the time rules; `ENGLISH_UNITS`
-  adds the English rules for amounts in units and money
+  English (`lang/en/`, the `ENGLISH` static), Spanish (`lang/es/`,
+  `SPANISH`, [below](#spanish)) and Dutch (`analysis/grammar/src/lang/nl/`,
+  `DUTCH`, [below](#dutch)). `ENGLISH_TIMES`, `SPANISH_TIMES` and
+  `DUTCH_TIMES` hold the same number rules and add the time rules;
+  `ENGLISH_UNITS` adds the rules for amounts in units and money
   (`docs/grammar-units.md`).
 
 `GrammarAnnotator` runs a grammar over a text view and writes layers
@@ -37,6 +38,13 @@ starts and ends on character boundaries a tokenizer may not cut at
   start of the text opens one too (`.25`);
 - any other character that is not `White_Space`: a punctuation lexeme of
   its own, so a lexicon can hold `%` or `½`.
+
+A grammar's `WordForms` can ask the lexer for two more things: that a
+word's lowercase form drop its accents for lookup (`tweeëntwintig` is
+looked up as `tweeentwintig`), and that a word be cut into glued words
+(`tweeentwintig` into `twee`, `en` and `twintig`). The spans stay those
+of the text as written. `Lexicon::has_prefix` tells a splitter whether a
+piece can still grow into a word.
 
 Each lexeme records whether whitespace comes before it ("glued" when
 none does). A whitespace-delimited chunk that contains `://` or starts
@@ -60,6 +68,11 @@ decides what the chain is. With the English style (`mixed_separators`,
 | `192.168.1.2`, `22,24,26,31` | no single number: each digit run is an integer of its own |
 
 A separator not followed by a digit ends the chain (`192.` is 192).
+
+With `decimal_comma` (Dutch), a lone comma is the decimal point and a
+dot groups before three digits (`1.234,56`, `4.800` is 4800). A grammar
+names the notation of its numbers for the numbers layer through
+`Grammar::notation`.
 
 ## Rules and the chart
 
@@ -234,6 +247,66 @@ an empty timex; `2016-11-07`, `at 5` and `3 hours` resolve as usual. The
 preferred reading is written, and `ambiguous` says whether there was
 more than one.
 
+## Dutch
+
+`DUTCH` reads numbers, ordinals and percentages, and `DUTCH_TIMES` adds
+the time rules. The lexer folds accents, so the lexicon holds `een` for
+`één` and `en` for `ën`, and cuts compound number words into glued
+pieces (`analysis/grammar/src/lang/nl/split.rs`): a word the lexicon does
+not hold is cut when every piece is a number word, `en` stands only
+between two of them and an ordinal or fraction word comes last; the cut
+with the fewest pieces wins. Builders that read the same as in English
+are the English ones.
+
+- Integers: units, teens, tens, compounds with `en` (`tweeëntwintig`,
+  `vijfentwintig`), `honderd` and `duizend` with or without a count,
+  hundreds of a count (`vijfentwintighonderd`), `miljoen`, `miljard`,
+  `biljoen` and their plurals, written as one word or apart
+  (`driehonderdvijftig`, `twee miljoen driehonderdduizend`), digits with
+  a scale word (`3 miljoen`, `1,5 miljard`), and `dozijn`.
+- Digits with a decimal comma (above); a lone `een` written without
+  accents is the article, `één` is the number unless a determiner makes
+  it a pronoun (`de één`).
+- Fractions: `drie vijfde`, `een derde`, `driekwart`, `half`,
+  `anderhalf`, `tweeënhalf`, `3/4`, `1 op 5`, `2 uit 10`; spoken decimals
+  (`vijf komma vijf`); negatives (`min 5`).
+- Ordinals: `eerste` to the scale ordinals, compounds
+  (`honderdvijfentwintigste`), digits with the suffix Dutch gives them
+  (`1e`, `1ste`, `2de`, `8ste`, `100ste`); relative ordinals (`laatste`,
+  `voorlaatste`, `volgende`, `vorige`, `huidige`, `op twee na laatste`). A
+  plural ordinal is a denominator and `een miljoenste` a fraction.
+- Percentages: a number with `%`, `procent` or `percent`.
+
+The time rules use the categories, values and most builders of the
+English time grammar, which the crate shares
+(`analysis/grammar/src/lang/en/time/`); the words, their order and the
+readings of their own are Dutch:
+
+- Clock times: `7.15 uur`, `om 8 uur`, `om 14u`, `half acht` (7:30),
+  `kwart over drie`, `kwart voor drie`, `tien over half vijf` (4:40),
+  `middaguur`, `middernacht`, with a part of the day (`'s avonds`, `in de
+  ochtend`). A bare hour needs `om`, `rond`, `omstreeks` or `tegen`
+  before it, or opens a range of hours ending in `uur` (`tussen 3 en 5
+  uur`).
+- Days and their parts written as one word are cut into glued words by
+  the lexer (`zaterdagochtend`, `morgenavond`, `gisterochtend`,
+  `vanmiddag`), and read like the words apart.
+- Dates day first (`12-03-1985`, `3 maart`, `dinsdag 4 mei`, `op de
+  18e`), relative days (`vandaag`, `morgen`, `overmorgen`, `gisteren`,
+  `eergisteren`), relative weeks, months and years (`volgende week`,
+  `vorig jaar`), seasons, decades and Dutch holidays (`kerst`, `pasen`,
+  `koningsdag`).
+- Durations (`twee uur en een kwartier`, `anderhalf jaar`, `een paar
+  dagen`), shifts (`over een kwartier`, `drie jaar geleden`, `twee weken
+  na pasen`), sets (`elke dinsdag om half tien`, `dinsdagen`, `om de twee
+  weken`, `wekelijks`), ranges (`van 1 tot en met 5 juli`, `tussen 3 en 5
+  uur`, `de komende drie dagen`) and modifiers (`voor`, `na`, `rond`,
+  `sinds`, `begin`, `medio`, `eind van de maand`).
+
+The short forms of months and weekdays that are also words (`zo`, `di`,
+`jan`, `vrij`) need a cue before them (`op`, `van`, `tot`, `elke`) or an
+abbreviation dot.
+
 ## Values
 
 Values are `Dec` decimals: an `i128` mantissa and a power of ten. Sums,
@@ -346,6 +419,38 @@ English forms, not for single cases, and read forms the specifications
 do not test (`third to last`, a U+2212 minus, `3 in 2009`); the unit
 tests in `analysis/grammar/src/lang/en/tests.rs` cover them.
 
+`analysis/grammar/tests/spec/dutch.rs` runs the Dutch models the same
+way, with the lists in `analysis/grammar/tests/data/pass/Dutch/`:
+
+| File | Eligible | Passing |
+|---|---|---|
+| `NumberModel.json` | 161 | 159 |
+| `OrdinalModel.json` | 48 | 48 |
+| `PercentModel.json` | 13 | 13 |
+| `DateTimeModel.json` | 605 | 561 |
+
+| Date-time type | Eligible | Passing |
+|---|---|---|
+| `date` | 126 | 117 |
+| `daterange` | 205 | 188 |
+| `datetime` | 51 | 47 |
+| `datetimerange` | 74 | 66 |
+| `duration` | 28 | 28 |
+| `set` | 23 | 21 |
+| `time` | 23 | 21 |
+| `timerange` | 24 | 22 |
+| none | 51 | 51 |
+
+The two number cases that fail are `192.168.1.2`, which the
+specification reads as 192168, 1 and 2, and a lone `een` the
+specification counts as 1. The date-time cases that fail include `op`
+taken into some spans and not others, `voor` meaning for, ranges across
+two dates, the year up to a date, leap days, and a few readings the
+specification gives in a form it does not give for the same words
+elsewhere. The unit tests in `analysis/grammar/src/lang/nl/tests.rs` and
+`analysis/grammar/src/lang/nl/time/tests.rs` cover forms the
+specifications do not test.
+
 ## Spanish
 
 `analysis/grammar/src/lang/es/` is the Spanish grammar. It differs from
@@ -422,5 +527,4 @@ The benchmark also times the parse with the unit rules and
 
 ## Not yet done
 
-Planned on #388: a Dutch grammar. The time grammar reads no time
-zones.
+The time grammar reads no time zones.
