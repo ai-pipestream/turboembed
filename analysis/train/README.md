@@ -17,8 +17,9 @@ starts at events.
 | `gis` | `GISTrainer`, `GISModel`'s data structures, `UniformPrior`, `AbstractEventTrainer.train` |
 | `qn` | `QNTrainer`, `QNMinimizer`, `LineSearch`, `NegLogLikelihood`, `ParallelNegLogLikelihood`, `QNModel`'s data structures |
 | `perceptron` | `PerceptronTrainer`, `SimplePerceptronSequenceTrainer`, `SequenceStream.updateContext`, `PerceptronModel`'s data structures and `eval` |
+| `naive_bayes` | `NaiveBayesTrainer`, `NaiveBayesModel`'s data structures and Lidstone-smoothed log-probability evaluation |
 | `trainer` | `TrainerFactory.getEventTrainer` and `getEventModelSequenceTrainer`: the trainer `Algorithm` names |
-| `writer` | `GenericModelWriter`, `BinaryGISModelWriter`, `BinaryQNModelWriter`, `BinaryPerceptronModelWriter`, `GISModelWriter.persist`, `QNModelWriter.persist`, `PerceptronModelWriter.persist`, `ComparablePredicate`, `ModelParameterChunker` |
+| `writer` | `GenericModelWriter`, `BinaryGISModelWriter`, `BinaryQNModelWriter`, `BinaryPerceptronModelWriter`, `BinaryNaiveBayesModelWriter`, `GISModelWriter.persist`, `QNModelWriter.persist`, `PerceptronModelWriter.persist`, `NaiveBayesModelWriter.persist`, `ComparablePredicate`, `ModelParameterChunker` |
 | `package` | `BaseModel.serialize`, the manifest `BaseModel` builds and `PropertiesSerializer` writes, `SentenceModel`'s entries |
 | `context` | `BasicContextGenerator` |
 | `crc32c` | `java.util.zip.CRC32C` |
@@ -334,7 +335,13 @@ the spans and probabilities the JVM recorded with it.
 - The tokenizer's event stream over the golden inputs has one outcome (no
   text carries a split mark), so no trainer golden trains on it.
 
-Not ported: the abbreviation dictionary entry of a sentence or tokenizer model
-(`abbreviations.dictionary`, `DictionarySerializer`) has no writer here
-yet; `ModelPackage::add_entry` takes its bytes. Nor is the naive Bayes
-trainer (`Error::NotPorted`).
+- `NaiveBayesTrainer` defaults to `SORT = false` and sums raw counts (or
+  real values when `events` is a `OnePassRealValueDataIndexer`) per
+  `(predicate, outcome)`. `NaiveBayesModel` computes empirical outcome priors
+  and evaluates contexts with Lidstone smoothing (`delta = 0.05`,
+  `3 * delta` in the denominator) using `LogProbabilities` (`StrictMath.log`
+  and `StrictMath.exp`).
+
+The abbreviation dictionary entry of a sentence or tokenizer model
+(`abbreviations.dictionary`, `DictionarySerializer`) is written by
+`turbo-train-components::dictionary`; `ModelPackage::add_entry` takes its bytes.

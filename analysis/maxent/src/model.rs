@@ -15,6 +15,12 @@ use turbo_unicode::modified_utf8::push_str_modified_utf8;
 use crate::hash::BuildFoldHasher;
 use crate::java_string::{JavaString, utf8_is_modified_utf8};
 
+/// `NaiveBayesModel.getSmoothedProbability`: Lidstone smoothing delta.
+const LIDSTONE_DELTA: f64 = 0.05;
+/// `java.lang.Double.MIN_VALUE` (`2^-1074`), the smallest positive subnormal
+/// `double`.
+const JAVA_DOUBLE_MIN_VALUE: f64 = f64::from_bits(1);
+
 /// Which trainer made a model, which decides how its sums become
 /// probabilities. The names are the type strings at the start of the
 /// model data.
@@ -29,6 +35,9 @@ pub enum ModelKind {
     /// `Perceptron`: sums start from zero, are divided by the largest
     /// magnitude when it is above one, then `exp` and normalize.
     Perceptron,
+    /// `NaiveBayes`: multinomial naive Bayes with Lidstone smoothing
+    /// (`delta = 0.05`) and empirical outcome priors in `LogProbabilities`.
+    NaiveBayes,
 }
 
 impl ModelKind {
@@ -38,6 +47,7 @@ impl ModelKind {
             ModelKind::Gis => "GIS",
             ModelKind::Qn => "QN",
             ModelKind::Perceptron => "Perceptron",
+            ModelKind::NaiveBayes => "NaiveBayes",
         }
     }
 }
@@ -65,6 +75,13 @@ pub struct MaxentModel {
     /// What every sum starts from: the uniform log prior for GIS, zero
     /// otherwise.
     pub(crate) start: f64,
+    /// For `NaiveBayes`: the sum of parameters per outcome across all
+    /// predicates (`NaiveBayesModel.initOutcomeTotals`). Empty for other
+    /// model kinds.
+    pub(crate) outcome_totals: Vec<f64>,
+    /// For `NaiveBayes`: the number of listed predicates (`predLabels.length`),
+    /// used in Lidstone smoothing. Zero for other model kinds.
+    pub(crate) vocabulary: f64,
 }
 
 impl MaxentModel {
@@ -226,8 +243,28 @@ impl MaxentModel {
         if let Some(&p) = self.predicates.get(feature) {
             let p = p as usize;
             let range = self.pred_start[p] as usize..self.pred_start[p + 1] as usize;
-            for (&o, &w) in self.pred_outcome[range.clone()].iter().zip(&self.pred_param[range]) {
-                out[o as usize] += w;
+            if self.kind == ModelKind::NaiveBayes {
+                let active_outcomes = &self.pred_outcome[range.clone()];
+                let active_parameters = &self.pred_param[range];
+                let mut ai = 0;
+                for (i, (&denominator, sum)) in self.outcome_totals.iter().zip(out.iter_mut()).enumerate() {
+                    if ai >= active_outcomes.len() {
+                        break;
+                    }
+                    let numerator = if active_outcomes[ai] as usize == i {
+                        let v = active_parameters[ai];
+                        ai += 1;
+                        v
+                    } else {
+                        0.0
+                    };
+                    let prob = (numerator + LIDSTONE_DELTA) / (denominator + LIDSTONE_DELTA * self.vocabulary);
+                    *sum += strict_math::log(prob);
+                }
+            } else {
+                for (&o, &w) in self.pred_outcome[range.clone()].iter().zip(&self.pred_param[range]) {
+                    out[o as usize] += w;
+                }
             }
         }
     }
@@ -250,6 +287,38 @@ impl MaxentModel {
                     }
                 }
                 exp_normalize(out, max);
+            }
+            ModelKind::NaiveBayes => {
+                let mut total = 0.0;
+                for &outcome_total in &self.outcome_totals {
+                    total += outcome_total;
+                }
+                for (x, &numerator) in out.iter_mut().zip(&self.outcome_totals) {
+                    *x += strict_math::log(numerator / total);
+                }
+                let mut highest_log_probability = f64::NEG_INFINITY;
+                for &p in out.iter() {
+                    if p > highest_log_probability {
+                        highest_log_probability = p;
+                    }
+                }
+                let mut sum = 0.0;
+                for p in out.iter_mut() {
+                    let temp_p = strict_math::exp(*p - highest_log_probability);
+                    if !temp_p.is_nan() {
+                        sum += temp_p;
+                        *p = temp_p;
+                    } else {
+                        *p = f64::NAN;
+                    }
+                }
+                for p in out.iter_mut() {
+                    if p.is_nan() {
+                        *p = 0.0;
+                    } else if sum > JAVA_DOUBLE_MIN_VALUE {
+                        *p /= sum;
+                    }
+                }
             }
         }
     }
@@ -347,6 +416,8 @@ mod tests {
             pred_outcome: vec![0, 1, 2, 0, 1],
             pred_param: vec![1.0, 2.0, -0.5, 3.0, 3.0],
             start: if kind == ModelKind::Gis { log(1.0 / 3.0) } else { 0.0 },
+            outcome_totals: if kind == ModelKind::NaiveBayes { vec![4.0, 5.0, -0.5] } else { Vec::new() },
+            vocabulary: if kind == ModelKind::NaiveBayes { 4.0 } else { 0.0 },
         }
     }
 
