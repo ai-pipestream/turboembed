@@ -12,8 +12,9 @@ use std::fmt;
 pub enum ProfileError {
     Io(std::io::Error),
     /// The bytes are not UTF-8; `line` is the line of the first bad byte.
-    /// OpenNLP reads up to that line first, so a problem on an earlier line
-    /// is reported instead.
+    /// OpenNLP decodes the table a block of 8192 UTF-16 units at a time and
+    /// reads the lines of the blocks before the bad byte first, so a
+    /// problem on one of those lines is reported instead.
     Utf8 {
         line: usize,
     },

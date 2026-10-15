@@ -45,15 +45,19 @@ fn is_ignored(line: &str) -> bool {
     t.is_empty() || t.starts_with('#')
 }
 
-/// The lines of the decodable start of `bytes`, and the line of the first
-/// byte that is not UTF-8, if there is one. Java's reader hands out every
-/// line that ends before that byte and fails on the next read, so the line
-/// running into it is never seen.
+/// The lines of `bytes` as OpenNLP's reader hands them out when the bytes
+/// are not all UTF-8. Java decodes the table a block of characters at a
+/// time and fails as soon as its decoder reaches the bad bytes, before
+/// any line of that block is returned. So only the lines whose ends lie in
+/// earlier blocks are seen, and a table of less than 8 KiB fails before
+/// its first line, unless it ends inside a character: then the decoder
+/// waits for the rest, and the failure comes on the read after the last
+/// whole character.
 struct Reader<'t> {
     lines: Lines<'t>,
-    /// The length of the valid prefix, when the bytes stop being UTF-8.
-    bad: Option<usize>,
-    text: &'t str,
+    /// The byte offset from which no line end is seen, and the one-based
+    /// line of the first bad byte, when the bytes are not all UTF-8.
+    bad: Option<(usize, usize)>,
 }
 
 impl<'t> Reader<'t> {
@@ -62,21 +66,125 @@ impl<'t> Reader<'t> {
             Ok(text) => (text, None),
             Err(e) => {
                 let valid = e.valid_up_to();
-                (std::str::from_utf8(&bytes[..valid]).expect("the valid prefix"), Some(valid))
+                let text = std::str::from_utf8(&bytes[..valid]).expect("the valid prefix");
+                let line = crate::load::line_of(bytes, valid);
+                (text, Some((decoded_before_failure(text, &bytes[valid..]), line)))
             }
         };
-        Reader { lines: Lines::new(text), bad, text }
+        Reader { lines: Lines::new(text), bad }
     }
 
     /// The next line as `(number, offset, line)`, `Ok(None)` at the end, or
     /// the UTF-8 failure where Java's reader would report it.
     fn next(&mut self) -> Result<Option<(usize, usize, &'t str)>, ProfileError> {
         let next = self.lines.next();
-        let Some(bad) = self.bad else { return Ok(next) };
+        let Some((seen, line)) = self.bad else { return Ok(next) };
         match next {
-            Some((number, offset, line)) if offset + line.len() < self.text.len() => Ok(Some((number, offset, line))),
-            Some((number, ..)) => Err(ProfileError::Utf8 { line: number }),
-            None => Err(ProfileError::Utf8 { line: crate::load::line_of(self.text.as_bytes(), bad) }),
+            // The line is returned once its end, at offset + len, is decoded.
+            Some((number, offset, text)) if offset + text.len() < seen => Ok(Some((number, offset, text))),
+            _ => Err(ProfileError::Utf8 { line }),
+        }
+    }
+}
+
+/// The UTF-16 units `BufferedReader` asks its decoder for at a time.
+const CHAR_BLOCK: usize = 8192;
+/// The bytes `StreamDecoder` reads from the stream at a time.
+const BYTE_BLOCK: usize = 8192;
+
+/// What JDK 21's UTF-8 decoder (`decodeArrayLoop` of `sun.nio.cs.UTF_8`)
+/// makes of a bad sequence at the start of `bytes`, the part of it read
+/// so far, with `room` UTF-16 units left in the block.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum AtBadBytes {
+    /// It reports the bytes, failing the read.
+    Malformed,
+    /// It ends the block without looking further.
+    Full,
+    /// It waits for more bytes.
+    Short,
+}
+
+fn at_bad_bytes(bytes: &[u8], room: usize) -> AtBadBytes {
+    use AtBadBytes::{Full, Malformed, Short};
+    let continuation = |b: u8| b & 0xC0 == 0x80;
+    let Some(&b1) = bytes.first() else { return Short };
+    let avail = bytes.len();
+    match b1 {
+        0xC2..=0xDF if avail < 2 => Short,
+        0xC2..=0xDF if room < 1 => Full,
+        0xE0..=0xEF if avail < 3 || room < 1 => {
+            let b2 = bytes.get(1).copied();
+            match b2 {
+                Some(b2) if (b1 == 0xE0 && b2 & 0xE0 == 0x80) || !continuation(b2) => Malformed,
+                _ if avail < 3 => Short,
+                _ => Full,
+            }
+        }
+        0xF0..=0xF7 if avail < 4 || room < 2 => {
+            let malformed_2 = |b2: u8| {
+                (b1 == 0xF0 && !(0x90..=0xBF).contains(&b2)) || (b1 == 0xF4 && b2 & 0xF0 != 0x80) || !continuation(b2)
+            };
+            if b1 > 0xF4
+                || bytes.get(1).is_some_and(|&b2| malformed_2(b2))
+                || bytes.get(2).is_some_and(|&b3| !continuation(b3))
+            {
+                Malformed
+            } else if avail < 4 {
+                Short
+            } else {
+                Full
+            }
+        }
+        // A lead byte that cannot start a character, or a whole sequence
+        // the decoder has room for: either way it is refused.
+        _ => Malformed,
+    }
+}
+
+/// The byte offset where Java's reader starts the block of characters
+/// whose read fails, for a table that is `text` up to the first bad byte
+/// and `bad` from there. It follows `BufferedReader`, which reads 8192
+/// UTF-16 units at a time, `StreamDecoder`, which reads 8192 bytes at a
+/// time and reads again while its block is not full, and the decoder of
+/// [`at_bad_bytes`]; a stream whose reads return all the bytes asked for,
+/// as `ByteArrayInputStream` does, is assumed.
+fn decoded_before_failure(text: &str, bad: &[u8]) -> usize {
+    let total = text.len() + bad.len();
+    let mut read = 0;
+    let mut block = 0;
+    let mut units = 0;
+    let mut chars = text.char_indices().peekable();
+    loop {
+        let (at, need, width) = match chars.peek() {
+            Some(&(at, c)) => (at, c.len_utf8(), c.len_utf16()),
+            None => (text.len(), 0, 0),
+        };
+        let room = CHAR_BLOCK - units;
+        let short = if at == text.len() {
+            match at_bad_bytes(&bad[..read - at], room) {
+                AtBadBytes::Malformed => return block,
+                AtBadBytes::Full => false,
+                // Nothing more to read: the decoder fails at the end of
+                // the stream, on the read after this one if this block
+                // holds characters.
+                AtBadBytes::Short if read == total => return at,
+                AtBadBytes::Short => true,
+            }
+        } else if read - at < need {
+            true
+        } else if room >= width {
+            chars.next();
+            units += width;
+            continue;
+        } else {
+            false
+        };
+        if short && room > 0 {
+            read = (at + BYTE_BLOCK).min(total);
+        } else {
+            block = at;
+            units = 0;
         }
     }
 }
@@ -237,16 +345,53 @@ mod tests {
 
     #[test]
     fn bad_utf8_is_reported_where_the_reader_reaches_it() {
-        // A bad row before the bad byte is reported first.
-        assert_eq!(error(b"id\tm\na\tz\nb\t\xFF\n"), "malformed value in row 2: z");
-        match read(b"id\tm\na\t1\nb\t\xFF\n") {
+        // Java decodes the first 8192 characters before returning a line,
+        // so a short table with a bad byte fails before its bad row.
+        match read(b"id\tm\na\tz\nb\t\xFF\n") {
             Err(ProfileError::Utf8 { line }) => assert_eq!(line, 3),
             other => panic!("{:?}", other.err()),
         }
-        // A line ended by a carriage return just before the byte is read.
-        assert_eq!(error(b"id\tm\na\tz\r\xFF"), "malformed value in row 2: z");
-        // The byte in the line itself stops the read before the line is seen.
-        assert_eq!(error(b"id\tm\na\tz\xFF"), "profile table is not valid UTF-8");
+        assert_eq!(error(b"id\tm\na\tz\r\xFF"), "profile table is not valid UTF-8");
         assert_eq!(error(b"\xFF"), "profile table is not valid UTF-8");
+        // A table that ends inside a character is decoded up to it first.
+        assert_eq!(error(b"id\tm\na\tz\n\xE2\x82"), "malformed value in row 2: z");
+        assert_eq!(error(b"id\tm\na\tz\n\xED\xA0"), "malformed value in row 2: z");
+        assert_eq!(error(b"id\tm\na\tz\xE2"), "profile table is not valid UTF-8");
+        // The bad byte after the first block: the rows of that block are read.
+        let mut long = b"id\tm\na\tz\n".to_vec();
+        for _ in 0..90 {
+            long.extend_from_slice(b"#");
+            long.extend_from_slice(&[b'y'; 100]);
+            long.extend_from_slice(b"\n");
+        }
+        long.extend_from_slice(b"\xFF\n");
+        assert_eq!(error(&long), "malformed value in row 2: z");
+    }
+
+    /// The table `id m / a z / # ...` padded with a comment to exactly
+    /// `units` UTF-16 units, with an `é` in the comment when `wide`, then
+    /// `tail`.
+    fn padded(units: usize, wide: bool, tail: &[u8]) -> Vec<u8> {
+        let mut t = b"id\tm\na\tz\n#".to_vec();
+        if wide {
+            t.extend_from_slice("\u{e9}".as_bytes());
+        }
+        t.resize(units - 1 + usize::from(wide), b'x');
+        t.push(b'\n');
+        t.extend_from_slice(tail);
+        t
+    }
+
+    #[test]
+    fn bad_bytes_at_the_end_of_a_block_follow_the_decoder() {
+        // Right after 8192 units of ASCII the decoder has not read the bad
+        // byte when the block is full, so the block's rows are read.
+        assert_eq!(error(&padded(8192, false, b"\x80\n")), "malformed value in row 2: z");
+        // With a two-byte character in the block it has, and fails at once.
+        assert_eq!(error(&padded(8192, true, b"\x80\n")), "profile table is not valid UTF-8");
+        // One unit left and a four-byte sequence whose last byte is bad: the
+        // decoder needs two units, ends the block, and fails in the next.
+        assert_eq!(error(&padded(8191, false, b"\xF0\x9F\x98\x41")), "malformed value in row 2: z");
+        assert_eq!(error(&padded(8190, false, b"\xF0\x9F\x98\x41")), "profile table is not valid UTF-8");
     }
 }

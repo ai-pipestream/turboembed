@@ -79,6 +79,7 @@ impl Place {
 pub struct Similarity(f64);
 
 impl Similarity {
+    /// The cosine as a double.
     pub fn get(self) -> f64 {
         self.0
     }
@@ -87,7 +88,9 @@ impl Similarity {
 /// A place and its similarity to a query place.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Neighbor {
+    /// The neighboring place, never the query place itself.
     pub place: Place,
+    /// The cosine of its profile with the query place's profile.
     pub similarity: Similarity,
 }
 
@@ -104,6 +107,11 @@ impl PlaceProfiles {
     /// `White_Space`; ids and metric names must be unique and not empty,
     /// and every value a finite decimal number (exponents allowed,
     /// hexadecimal numbers and Java type suffixes not).
+    ///
+    /// # Panics
+    ///
+    /// When the table has 2^32 lines or more, or its ids and metric names
+    /// add up to more than 4 GiB.
     pub fn from_bytes(bytes: &[u8]) -> Result<PlaceProfiles, ProfileError> {
         let table::RawTable { names, metrics, rows, mut values } = table::read(bytes)?;
         standardize::standardize(&mut values, metrics.len());

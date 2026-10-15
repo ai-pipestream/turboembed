@@ -9,8 +9,10 @@
 //! are all zero (a constant column, or a table of one place) becomes zero.
 //! Each profile is then divided by its largest absolute value, rounded to
 //! 34 digits and converted to the nearest double; a profile of zeros stays
-//! zero. The last step changes no cosine but keeps the doubles away from
-//! overflow and underflow.
+//! zero. The last step leaves each cosine the same up to rounding, and
+//! with the largest value of every profile at 1 no double overflows; a
+//! value much smaller than the largest of its profile can still round to
+//! zero.
 //!
 //! The doubles are exact binary fractions `m * 2^e`, so a column is held
 //! as integers over its smallest `2^e`, and the sums and squares are exact
