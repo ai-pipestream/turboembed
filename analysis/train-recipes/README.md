@@ -103,7 +103,10 @@ error.
   reference's ten most frequent mismatches on the scored tokens
   (`held_out.tokens.reference_mismatches`), so a gap of convention the
   mapping does not cover, or an effect of the reference's tag
-  dictionary, shows. The reference's
+  dictionary, shows. The gate record (`gate.json`) holds the skipped
+  held-out sentences and the scoring too (the tokens, those left out and
+  the mapping), and its samples digest covers which tokens were scored
+  and the mapping as well as the tokens and their tags. The reference's
   training data is not published, and the zoo does not list it: the
   recipe records its
   address, size and SHA-256 (`postag::EN_POS_MAXENT`), a run reads it

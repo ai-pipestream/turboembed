@@ -35,7 +35,7 @@
 use std::sync::Arc;
 
 use turbo_analysis::Span;
-use turbo_eval::model_gate::{Counts, HeldOutSet, ModelGateRecord, ModelId, PairedUnit, Task};
+use turbo_eval::model_gate::{Counts, HeldOutSet, ModelGateRecord, ModelId, PairedUnit, Scoring, Task};
 use turbo_formats::evaluate::{SentenceDetectorEvaluator, TokenizerEvaluator};
 use turbo_formats::masc::{EmptySentence, MascCorpus, MascSentenceReader, MascTokenReader};
 use turbo_formats::sample::{SentenceSample, TokenSample};
@@ -374,6 +374,8 @@ impl SegmentationRecipe {
             name: set_name.to_owned(),
             corpus_sha256: corpus_sha256.to_owned(),
             samples_sha256: held_out.sha256(),
+            skipped_sentences: held_out.skipped() as u64,
+            scoring: Scoring::Spans,
         };
         let id = |id: &str, bytes: &[u8]| ModelId { id: id.to_owned(), sha256: Sha256::of(bytes).to_string() };
         let record =

@@ -11,7 +11,7 @@
 use std::path::Path;
 
 use serde::{Deserialize, Serialize};
-use turbo_eval::model_gate::ModelGateRecord;
+use turbo_eval::model_gate::{ModelGateRecord, TagMapping};
 use turbo_postag::PosTagFormat;
 use turbo_train_components::ud;
 use turbo_zoo::{Artifact, File, Kind, Licence, LicenceClass, Sha256, Sha512, TrainingData, class_of, index::Format};
@@ -124,7 +124,7 @@ pub struct TokenCoverage {
     pub tokens: u64,
     /// The reference's tags counted right for another held-out tag
     /// ([`postag::REFERENCE_MAPPINGS`]).
-    pub reference_mappings: Vec<TagMappingCard>,
+    pub reference_mappings: Vec<TagMapping>,
     /// The tokens left out of both models' scores because the reference
     /// cannot give their tag, by that tag as written, sorted by tag; at
     /// most [`crate::MAX_TOKENS_LEFT_OUT`] of `tokens`.
@@ -134,16 +134,6 @@ pub struct TokenCoverage {
     /// and MASC differ by convention or by its tag dictionary as much as
     /// where it errs.
     pub reference_mismatches: Vec<Mismatch>,
-}
-
-/// A held-out tag and a reference tag counted right for it.
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
-pub struct TagMappingCard {
-    /// The held-out tag, as MASC writes it.
-    pub held_out: String,
-    /// The reference's tag counted right for it.
-    pub reference: String,
 }
 
 /// How many scored held-out tokens of a tag a model gave another tag.

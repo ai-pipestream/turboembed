@@ -62,7 +62,9 @@
 use std::collections::{BTreeMap, HashSet};
 
 use turbo_analysis::{Tag, TagSet};
-use turbo_eval::model_gate::{Counts, HeldOutSet, ModelGateRecord, ModelId, PairedUnit, Task};
+use turbo_eval::model_gate::{
+    Counts, HeldOutSet, ModelGateRecord, ModelId, PairedUnit, Scoring, TagMapping, TagScoring, Task,
+};
 use turbo_formats::evaluate::PosEvaluator;
 use turbo_formats::masc::{MascCorpus, MascError, MascPosReader};
 use turbo_formats::sample::PosSample;
@@ -72,7 +74,7 @@ use turbo_train::TrainingConfiguration;
 use turbo_train_components::{PosTaggerFactory, Stamp, postag, ud};
 use turbo_zoo::Sha256;
 
-use crate::card::{HeldOutCard, Mismatch, TagCount, TagMappingCard, TokenCoverage};
+use crate::card::{HeldOutCard, Mismatch, TagCount, TokenCoverage};
 use crate::error::{Error, LeftOut, Result};
 use crate::segmentation::{LANGUAGE, TIMESTAMP_MS};
 use crate::{GateRun, MAX_TOKENS_LEFT_OUT, RecordedReference, Reference, Trained, check_skipped};
@@ -135,6 +137,14 @@ pub const REFERENCE_MAPPINGS: [ReferenceMapping; 6] = [
 /// `held_out`: the same tag, or the tag [`REFERENCE_MAPPINGS`] maps it to.
 pub fn reference_is_right(held_out: &str, given: &str) -> bool {
     given == held_out || REFERENCE_MAPPINGS.iter().any(|m| m.held_out == held_out && m.reference == given)
+}
+
+/// [`REFERENCE_MAPPINGS`] as the gate record and the card write them.
+pub fn tag_mappings() -> Vec<TagMapping> {
+    REFERENCE_MAPPINGS
+        .iter()
+        .map(|m| TagMapping { held_out: m.held_out.to_owned(), reference: m.reference.to_owned() })
+        .collect()
 }
 
 /// Which model a tagger's tags are scored as, which decides the format
@@ -269,11 +279,17 @@ impl<'c> HeldOutTags<'c> {
         self.samples.iter().map(|s| s.len() as u64).sum()
     }
 
-    /// The SHA-256 of the samples as scored: for each, its number of
-    /// tokens as a little endian `u64`, then for each token its text's
-    /// length in bytes as a little endian `u64`, the text, its tag's length
-    /// and the tag.
-    pub fn sha256(&self) -> String {
+    /// The SHA-256 of the samples as scored with a reference of the tags
+    /// `reference`: for each sample, its number of tokens as a little
+    /// endian `u64`, then for each token its text's length in bytes as a
+    /// little endian `u64`, the text, its tag's length and the tag, and a
+    /// byte, 1 when the token is scored ([`ReferenceTags::scores`]) and 0
+    /// when it is left out; after the samples, the number of
+    /// [`REFERENCE_MAPPINGS`] as a `u64` and each one's held-out tag and
+    /// reference tag, each as its length and its bytes. Two gates whose
+    /// references leave out other tokens, or that map other tags, have
+    /// other digests.
+    pub fn sha256(&self, reference: &ReferenceTags) -> String {
         let mut bytes = Vec::new();
         let put = |bytes: &mut Vec<u8>, s: &str| {
             bytes.extend_from_slice(&(s.len() as u64).to_le_bytes());
@@ -284,7 +300,13 @@ impl<'c> HeldOutTags<'c> {
             for (token, tag) in sample.tokens().iter().zip(sample.tags()) {
                 put(&mut bytes, token.as_str());
                 put(&mut bytes, tag.as_str());
+                bytes.push(u8::from(reference.scores(tag.as_str())));
             }
+        }
+        bytes.extend_from_slice(&(REFERENCE_MAPPINGS.len() as u64).to_le_bytes());
+        for m in REFERENCE_MAPPINGS {
+            put(&mut bytes, m.held_out);
+            put(&mut bytes, m.reference);
         }
         Sha256::of(&bytes).to_string()
     }
@@ -450,19 +472,22 @@ impl PosRecipe {
             .zip(baseline.units)
             .map(|(candidate, reference)| PairedUnit { candidate, reference })
             .collect();
+        let reference_mappings = tag_mappings();
         let set = HeldOutSet {
             name: set_name.to_owned(),
             corpus_sha256: corpus_sha256.to_owned(),
-            samples_sha256: held_out.sha256(),
+            samples_sha256: held_out.sha256(&tags),
+            skipped_sentences: held_out.skipped() as u64,
+            scoring: Scoring::Tags(TagScoring {
+                tokens: held_out.tokens(),
+                left_out: left_out.iter().map(|t| t.tokens).sum(),
+                reference_mappings: reference_mappings.clone(),
+            }),
         };
         let id = |id: &str, bytes: &[u8]| ModelId { id: id.to_owned(), sha256: Sha256::of(bytes).to_string() };
         let record =
             ModelGateRecord::new(self.task(), set, id(self.model_id, trained), id(reference_id, reference), units)
                 .map_err(Error::Gate)?;
-        let reference_mappings = REFERENCE_MAPPINGS
-            .iter()
-            .map(|m| TagMappingCard { held_out: m.held_out.to_owned(), reference: m.reference.to_owned() })
-            .collect();
         let held_out = HeldOutCard {
             samples: held_out.len(),
             skipped_sentences: held_out.skipped(),
@@ -565,23 +590,37 @@ mod tests {
     }
 
     #[test]
-    fn the_held_out_digest_covers_tokens_tags_and_their_boundaries() {
+    fn the_held_out_digest_covers_tokens_tags_what_is_scored_and_the_mapping() {
         let text = "Dogs ran.";
+        let reference = ReferenceTags::of(&TagSet::new("reference", &["NNS", "VBD", "VBN", "."]));
         let one =
             HeldOutTags { samples: vec![sample(text, &[(0, 4), (5, 8), (8, 9)], &["NNS", "VBD", "."])], skipped: 0 };
         let mut bytes = Vec::new();
-        bytes.extend_from_slice(&3u64.to_le_bytes());
-        for s in ["Dogs", "NNS", "ran", "VBD", ".", "."] {
+        let put = |bytes: &mut Vec<u8>, s: &str| {
             bytes.extend_from_slice(&(s.len() as u64).to_le_bytes());
             bytes.extend_from_slice(s.as_bytes());
+        };
+        bytes.extend_from_slice(&3u64.to_le_bytes());
+        for (token, tag) in [("Dogs", "NNS"), ("ran", "VBD"), (".", ".")] {
+            put(&mut bytes, token);
+            put(&mut bytes, tag);
+            bytes.push(1);
         }
-        assert_eq!(one.sha256(), Sha256::of(&bytes).to_string());
-        // Another tag, or the same text cut into other tokens, is another set.
+        bytes.extend_from_slice(&(REFERENCE_MAPPINGS.len() as u64).to_le_bytes());
+        for m in REFERENCE_MAPPINGS {
+            put(&mut bytes, m.held_out);
+            put(&mut bytes, m.reference);
+        }
+        assert_eq!(one.sha256(&reference), Sha256::of(&bytes).to_string());
+        // Another tag, the same text cut into other tokens, or a reference
+        // that leaves another token out, is another set.
         let tag =
             HeldOutTags { samples: vec![sample(text, &[(0, 4), (5, 8), (8, 9)], &["NNS", "VBN", "."])], skipped: 0 };
         let cut = HeldOutTags { samples: vec![sample(text, &[(0, 4), (5, 9)], &["NNS", "VBD"])], skipped: 0 };
-        assert_ne!(one.sha256(), tag.sha256());
-        assert_ne!(one.sha256(), cut.sha256());
+        let no_dot = ReferenceTags::of(&TagSet::new("reference", &["NNS", "VBD", "VBN"]));
+        assert_ne!(one.sha256(&reference), tag.sha256(&reference));
+        assert_ne!(one.sha256(&reference), cut.sha256(&reference));
+        assert_ne!(one.sha256(&reference), one.sha256(&no_dot));
     }
 
     #[test]

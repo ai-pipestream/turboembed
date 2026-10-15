@@ -2495,12 +2495,16 @@ beside the difference. The F-measure is 0 where precision and recall are
 both 0 (OpenNLP's is -1).
 
 `ModelGateRecord` is the record kept beside the model card: the task
-and measure, the held-out set (its name, the corpus digest and the
-SHA-256 of the samples as scored), both models by id and SHA-256, the
-resamples and seed, the result, and both models' counts per sample.
-`check` refuses empty names, digests that are not 64 lower case hex,
-and resamples or a seed other than the gate's, then recomputes the
-result from the counts. It is strict JSON, as
+and measure, the held-out set (its name, the corpus digest, the SHA-256
+of the samples as scored, the held-out sentences the recipe's reader
+skipped, and how the units were scored: spans, or tags with the tokens,
+the tokens left out and the mapping of the reference's tags), both
+models by id and SHA-256, the resamples and seed, the result, and both
+models' counts per sample. `check` refuses empty names, digests that
+are not 64 lower case hex, resamples or a seed other than the gate's, a
+scoring that does not fit the measure, and a tag scoring whose tokens
+less those left out are not what each model's units count, then
+recomputes the result from the counts. It is strict JSON, as
 the evaluation record is, and is never replaced once written.
 
 ### The sets

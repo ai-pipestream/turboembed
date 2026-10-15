@@ -12,13 +12,12 @@ mod common;
 use std::path::PathBuf;
 
 use common::{GATED_DOCUMENTS, SENTENCES, nest_token, rewrite_document, temp_dir, with_tags_rotated, write_corpus};
-use turbo_eval::model_gate::{Measure, ModelGateRecord, Task};
+use turbo_eval::model_gate::{Measure, ModelGateRecord, Scoring, Task};
 use turbo_formats::masc::{MascCorpus, MascTokenReader};
 use turbo_postag::PosTagFormat;
 use turbo_train_components::{TokSpanEventStream, TokenizerFactory};
 use turbo_train_recipes::card::{
-    CARD_FILE, CARD_VERSION, GATE_FILE, HeldOutCard, ModelCard, TagCount, TagFormat, TagMappingCard, TokenCoverage,
-    write_model_dir,
+    CARD_FILE, CARD_VERSION, GATE_FILE, HeldOutCard, ModelCard, TagCount, TagFormat, TokenCoverage, write_model_dir,
 };
 use turbo_train_recipes::masc::{self, RELEASE, SPLIT, SplitCorpus};
 use turbo_train_recipes::postag::{self, POS, PosRecipe, ReferenceTags, Scored};
@@ -166,16 +165,22 @@ fn the_recipes_train_score_gate_and_write_their_cards() {
                 assert!(mismatches.windows(2).all(|w| w[0].tokens >= w[1].tokens), "{mismatches:?}");
                 Some(TokenCoverage {
                     tokens: p.held_out(&split.held_out).unwrap().tokens(),
-                    reference_mappings: postag::REFERENCE_MAPPINGS
-                        .iter()
-                        .map(|m| TagMappingCard { held_out: m.held_out.to_owned(), reference: m.reference.to_owned() })
-                        .collect(),
+                    reference_mappings: postag::tag_mappings(),
                     left_out: Vec::new(),
                     reference_mismatches: mismatches,
                 })
             }
             Recipe::Segmentation(_) => None,
         };
+        // The gate record holds the skipped sentences and the scoring too.
+        assert_eq!(gate.set.skipped_sentences, 0);
+        match (&gate.set.scoring, &tokens) {
+            (Scoring::Tags(t), Some(c)) => {
+                assert_eq!((t.tokens, t.left_out, &t.reference_mappings), (c.tokens, 0, &c.reference_mappings));
+            }
+            (Scoring::Spans, None) => {}
+            other => panic!("{other:?}"),
+        }
         assert_eq!(card.held_out, HeldOutCard { samples: gate.units.len(), skipped_sentences: 0, tokens });
         assert_eq!(card.training.sentences_per_sample.is_some(), recipe.task() == Task::SentenceDetector);
         assert_eq!(card.gate.pass, gate.result.pass);
@@ -353,6 +358,7 @@ fn skipped_sentences_are_recorded_and_bounded() {
             .gate(&trained.bytes, "itself", &trained.bytes, &split.held_out, &held_out_name(), &digest.sha256)
             .unwrap();
         assert_eq!((gated.held_out.samples, gated.held_out.skipped_sentences), (999, 1), "{}", recipe.model_id());
+        assert_eq!(gated.record.set.skipped_sentences, 1);
         assert_eq!(gated.record.units.len(), 999);
     }
 
