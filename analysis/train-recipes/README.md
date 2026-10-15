@@ -34,8 +34,8 @@ held-out samples are read and checked as training and the gate check
 them (the skipped sentences of each side, and the held-out tokens whose
 tag the tagger's reference cannot give): a run with a reference missing
 or wrong, a model directory already there, or a recipe whose data fails
-those checks names every such problem and writes nothing. The exit status is 1 when a gate fails and 2 on an
-error.
+those checks names every such problem and writes nothing. The exit
+status is 1 when a gate fails and 2 on an error.
 
 ## The recipes
 
@@ -95,8 +95,8 @@ error.
   missing cannot drop out of the gate. In the recorded release (corpus
   digest `445449f5...`, the Twitter genre left out), the token recipe
   skips that one training sentence of 24,958 and the tagger none; of
-  the 6,385 held-out sentences both skip one, a sentence of no tokens;
-  the sentence detector skips none.
+  the 6,385 held-out sentences the token and tagger recipes each skip
+  one, a sentence of no tokens; the sentence detector skips none.
 - The tagger's gate: MASC's tags are Penn tags, so the reference is
   OpenNLP's English maxent tagger of the 1.5 models, `en-pos-maxent.bin`.
   OpenNLP's only English taggers trained on Penn tags are that one and
@@ -192,10 +192,60 @@ given `--unrecorded-corpus`, and then writes cards with
 `release_recorded: false`, which are not a release of the models (the
 tests run the binary on their own corpora that way).
 
-## Not here yet
+## Gates on the recorded release
 
-- Scores on MASC: none are recorded until the recipes are run on the
-  recorded release.
+`masc` run on the recorded release (corpus digest
+`445449f535cac62e74b2712ad975d7b727e72b8276720dd27492266565ae0afd`: 351
+training documents and 39 held out, the two of the Twitter genre left
+out) with the three references from `--references`. Every gate passed.
+The scores are in points, rounded to two places from the cards' values
+(`gate.candidate_score`, `gate.reference_score`, `gate.difference_low`
+and `gate.difference_high`); the difference is the paired bootstrap's
+mean with its 95% interval (10,000 resamples, seed 154), and a gate
+passes when the interval does not start below -0.5.
+
+| Model | Units | Measure | Model's score | Reference's score | Difference (95% interval) | Gate |
+|---|---|---|---|---|---|---|
+| `turbo-en-masc-3.0.0-sentence-1` | 639 samples of 10 sentences | F-measure | 79.94 | 77.67 | +2.28 (+1.66 to +2.92) | pass |
+| `turbo-en-masc-3.0.0-tokens-1` | 6,384 sentences | F-measure | 98.83 | 94.61 | +4.21 (+3.97 to +4.47) | pass |
+| `turbo-en-masc-3.0.0-pos-1` | 6,384 sentences, 85,286 tokens scored | accuracy | 95.16 | 91.70 | +3.46 (+3.21 to +3.71) | pass |
+
+Both models of a gate are scored on the same held-out samples, so the
+held-out sentences skipped are skipped for both.
+
+| Model | Training samples | Training sentences skipped | Events | Held-out sentences skipped | Held-out tokens left out |
+|---|---|---|---|---|---|
+| `turbo-en-masc-3.0.0-sentence-1` | 2,496 | 0 | 25,490 | 0 | |
+| `turbo-en-masc-3.0.0-tokens-1` | 24,957 | 1 | 1,408,312 | 1 | |
+| `turbo-en-masc-3.0.0-pos-1` | 24,958 | 0 | 431,637 | 1 | 6 of 85,292: `"` (2), `PRN` (1), ``UH` `` (3) |
+
+The trained models are not checked in or published. A second run into
+another directory wrote the same bytes:
+
+| Model | Size | SHA-256 |
+|---|---|---|
+| `turbo-en-masc-3.0.0-sentence-1.bin` | 44,601 bytes | `d03253a5559a230d1f42e1cf881119204302fbb7fefb613ff1af11bcbd3c261e` |
+| `turbo-en-masc-3.0.0-tokens-1.bin` | 916,027 bytes | `2c5fe73121c41300e6eae4a3c4d7a2247ade20a1e182d8e36d7781124aa9b7db` |
+| `turbo-en-masc-3.0.0-pos-1.bin` | 3,671,103 bytes | `391d7f79c7246e9e56ed9d8849fde129c5bed8683fa33af31e532cb0c37f96ea` |
+
+The tagger's reference is right on 336 more held-out tokens through the
+mapping of ``` `` ``` to MASC's `''`, 0.39 points: of the 644 held-out
+`"` tokens MASC tags `''`, it tags 336 ``` `` ``` (272 that open a
+quotation, 34 that close one and 30 neither plainly). Its ten most
+frequent mismatches on the scored tokens, as the card lists them
+(held-out tag, then the reference's): `NN` as `JJ` 446, `NN` as `NNP`
+333, `NN` as `VB` 263, `JJ` as `NN` 230, `VBP` as `VB` 225, `NNP` as
+`NN` 187, `NN` as `RB` 178, `IN` as `RB` 169, `NN` as `.` 146 and `NN`
+as `VBP` 137. Most of the `NN` rows come from a few held-out documents
+(`data/written/fiction/Nathans_Bylichka`,
+`data/written/movie-script/pirates`, `data/written/ficlets/1402` and
+`data/spoken/debate-transcript/3rd_Bush-Kerry`) whose Penn layer tags
+`NN` tokens that are not nouns: typographic quotation marks (`”` is
+100 of the 146 `NN` as `.`), `*`, `]` and verbs and adjectives. The
+`VBP` rows are verbs such as `do`, `think` and `have`, and the `IN`
+rows words such as `so`, `around`, `on`, `out` and `up`. None of them
+is a convention of punctuation or brackets that the mapping could take
+in.
 
 ## Tests
 
