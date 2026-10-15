@@ -614,14 +614,21 @@ fn score_with(
 }
 
 /// The [`MISMATCHES_LISTED`] most frequent mismatches, most frequent
-/// first, then by held-out tag and given tag.
-fn most_frequent(mismatches: BTreeMap<(&str, &str), u64>) -> Vec<Mismatch> {
-    let mut all: Vec<((&str, &str), u64)> = mismatches.into_iter().collect();
-    // Stable, so equal counts keep the map's order of the tags.
+/// first, then by held-out value and given value: tags, or a lemmatizer's
+/// lemmas ([`crate::ud`]).
+pub(crate) fn most_frequent<H: AsRef<str> + Ord, G: AsRef<str> + Ord>(
+    mismatches: BTreeMap<(H, G), u64>,
+) -> Vec<Mismatch> {
+    let mut all: Vec<((H, G), u64)> = mismatches.into_iter().collect();
+    // Stable, so equal counts keep the map's order of the values.
     all.sort_by_key(|a| std::cmp::Reverse(a.1));
     all.into_iter()
         .take(MISMATCHES_LISTED)
-        .map(|((held_out, given), tokens)| Mismatch { held_out: held_out.to_owned(), given: given.to_owned(), tokens })
+        .map(|((held_out, given), tokens)| Mismatch {
+            held_out: held_out.as_ref().to_owned(),
+            given: given.as_ref().to_owned(),
+            tokens,
+        })
         .collect()
 }
 

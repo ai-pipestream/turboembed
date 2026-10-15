@@ -18,18 +18,20 @@ use turbo_zoo::{Artifact, File, Kind, Licence, LicenceClass, Sha256, Sha512, Tra
 
 use crate::Trained;
 use crate::card::{
-    GateCard, HeldOutCard, MODEL_LICENCE, MODEL_LICENCE_TERMS, MODEL_VERSION, ModelFileCard, ParametersCard, Summary,
-    TagFormat, TrainingCard, publishable_class, read_card, write_dir,
+    GateCard, HeldOutCard, LeftOutFor, MODEL_LICENCE, MODEL_LICENCE_TERMS, MODEL_VERSION, ModelFileCard,
+    ParametersCard, Summary, TagFormat, TrainingCard, publishable_class, read_card, write_dir,
 };
 use crate::error::{Error, Result};
 use crate::postag::CANDIDATE_FORMAT;
 use crate::segmentation::TIMESTAMP_MS;
-use crate::treebank::{Grant, RELEASE, TreebankFile};
+use crate::treebank::{Grant, RELEASE, TextRights, TreebankFile};
 use crate::ud::{SENTENCES_PER_SAMPLE, TAG_FORMAT, UdRecipe};
 
-/// The schema version of [`UdModelCard`]: 2, with the held-out counts and
-/// the gate of the MASC card's version 3 ([`HeldOutCard`], [`GateCard`]).
-pub const UD_CARD_VERSION: u32 = 2;
+/// The schema version of [`UdModelCard`]: 3, with the held-out counts and
+/// the gate of the MASC card's version 3 ([`HeldOutCard`], [`GateCard`]),
+/// and a lemmatizer's held-out tokens counted as a tagger's are
+/// ([`crate::ud::ReferenceClasses`]).
+pub const UD_CARD_VERSION: u32 = 3;
 
 /// One file of the treebank as read.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -59,7 +61,7 @@ pub struct TreebankCard {
     pub license_terms: String,
     /// Another licence `LICENSE.txt` offers beside CC BY 4.0, which the
     /// recipe did not take; `null` when it offers CC BY 4.0 alone.
-    pub other_licence_offered: Option<String>,
+    pub other_licence_offered: Option<Licence>,
     pub licence_file: TreebankFileCard,
     pub readme: TreebankFileCard,
     /// UD's own split: the model is trained on `train` and gated on
@@ -92,7 +94,8 @@ pub struct UdModelCard {
     /// What the gate read from `test`: the sentences of a tagger's or a
     /// lemmatizer's samples with no word once empty nodes are left out are
     /// the ones skipped (none for the sentence detector and the
-    /// tokenizer), and for a tagger, how its tokens were scored.
+    /// tokenizer), and for a tagger or a lemmatizer, how its tokens were
+    /// scored.
     pub held_out: HeldOutCard,
     pub gate: GateCard,
 }
@@ -133,7 +136,7 @@ impl UdModelCard {
                 license_terms: t.licence_terms(),
                 other_licence_offered: match t.grant {
                     Grant::CcBy40 => None,
-                    Grant::CcBy40OrOther { other } => Some(other.to_owned()),
+                    Grant::CcBy40OrOther { other } => Some(other),
                 },
                 licence_file: TreebankFileCard::of(&t.licence_file),
                 readme: TreebankFileCard::of(&t.readme),
@@ -169,10 +172,12 @@ impl UdModelCard {
     ///
     /// [`Error::NotShippable`] when the model may not leave the machine it
     /// was trained on ([`publishable_class`]), no recipe of
-    /// [`crate::ud::UD_RECIPES`] trains the model, the gate was not run
-    /// against the recipe's reference (its id and SHA-256), or the gate
-    /// failed; [`Error::InvalidCard`] for a `class` other than the one the
-    /// licences give, or an address or field the index refuses.
+    /// [`crate::ud::UD_RECIPES`] trains the model, the rights to its
+    /// treebank's text are not settled ([`TextRights::NotSettled`], whatever
+    /// its gate says), the gate was not run against the recipe's reference
+    /// (its id and SHA-256), or the gate failed; [`Error::InvalidCard`] for
+    /// a `class` other than the one the licences give, or an address or
+    /// field the index refuses.
     pub fn artifact(&self, url: &str) -> Result<Artifact> {
         let class = class_of(std::iter::once(self.license).chain(self.trained_on.iter().map(|t| t.license)));
         if class != self.class {
@@ -184,6 +189,9 @@ impl UdModelCard {
         publishable_class(&self.id, self.license, &self.trained_on)?;
         let not = |reason| Error::NotShippable { id: self.id.clone(), reason };
         let recipe = UdRecipe::trains(&self.id).ok_or(not("no recipe trains it"))?;
+        if let TextRights::NotSettled { .. } = recipe.treebank.text_rights {
+            return Err(not("the rights to its treebank's text are not settled"));
+        }
         if self.gate.reference != recipe.reference.id() || self.gate.reference_sha256 != recipe.reference.sha256()? {
             return Err(not("it was not gated against its recipe's reference"));
         }
@@ -235,7 +243,11 @@ impl UdModelCard {
     /// What a run prints of the card before its gate record, as for a MASC
     /// card ([`Summary`]).
     pub fn summary(&self) -> Summary<'_> {
-        Summary::new(&self.id, &self.training, &self.held_out)
+        let left_out_for = match self.component {
+            turbo_zoo::Component::Lemmatizer => LeftOutFor::Lemma,
+            _ => LeftOutFor::Tag,
+        };
+        Summary::new(&self.id, &self.training, &self.held_out, left_out_for)
     }
 }
 

@@ -1,20 +1,22 @@
 //! The UD recipes end to end on a treebank written for the tests: the
-//! samples, training, scoring on the `test` file, the gate, the tags left
-//! out of a tagger's gate, the data checks run before training, the card,
-//! the model's directory and its zoo entry; the published reference
-//! models where they are present; and the binary's refusals. The
-//! sentences are written for the project and are not treebank text.
+//! samples, training, scoring on the `test` file, the gate, the tokens
+//! left out of a tagger's and a lemmatizer's gate, the data checks run
+//! before training, the card, the model's directory and its zoo entry;
+//! the published reference models where they are present; and the
+//! binary's refusals. The sentences are written for the project and are
+//! not treebank text.
 
 use std::path::{Path, PathBuf};
 
 use turbo_eval::model_gate::{Measure, ModelGateRecord, Scoring, TagScoring};
+use turbo_train_components::lemmatize::lemma_class;
 use turbo_train_components::ud::Component;
 use turbo_train_recipes::card::{CARD_FILE, GATE_FILE, MODEL_VERSION, TagCount, TagFormat, TokenCoverage};
 use turbo_train_recipes::postag::{HeldOutTags, ReferenceTags};
-use turbo_train_recipes::treebank::{Grant, Treebank, TreebankFile};
+use turbo_train_recipes::treebank::{Grant, TextRights, Treebank, TreebankFile};
 use turbo_train_recipes::ud::{
-    IT_UD_VIT_POS, MAX_TOKENS_LEFT_OUT, UD_RECIPES, UdRecipe, UdSamples, lemma_samples, lemma_samples_sha256,
-    pos_samples, run_ud,
+    IT_UD_VIT_POS, MAX_TOKENS_LEFT_OUT, ReferenceClasses, UD_RECIPES, UdRecipe, UdSamples, lemma_samples,
+    lemma_samples_sha256, pos_samples, run_ud, score_lemmas,
 };
 use turbo_train_recipes::ud_card::{UD_CARD_VERSION, UdModelCard, write_ud_model_dir};
 use turbo_train_recipes::{Error, LeftOut, Reference};
@@ -144,6 +146,8 @@ fn write_treebank(dir: &Path, train: &str, test: &str) -> Treebank {
         language: "es",
         name: "test",
         grant: Grant::CcBy40,
+        text_rights: TextRights::Granted,
+        copyright: None,
         licence_file: file("LICENSE.txt", LICENCE),
         readme: file("README.md", README),
         train: file("es_test-ud-train.conllu", train),
@@ -166,6 +170,16 @@ fn spanish(component: Component) -> Reference {
 }
 
 const COMPONENTS: [Component; 4] = [Component::Sentence, Component::Tokens, Component::Pos, Component::Lemmas];
+
+/// The sentences a weaker lemmatizer than the candidate is trained on,
+/// from [`NO_INTJ`].
+const WEAK_LEMMAS: usize = 28;
+
+/// The tokens of held-out lemma samples.
+fn held_out_tokens(held_out: &turbo_train_recipes::ud::ReadSamples<'_>) -> u64 {
+    let UdSamples::Lemmas(samples) = &held_out.samples else { panic!("not lemma samples") };
+    samples.iter().map(|s| s.len() as u64).sum()
+}
 
 #[test]
 fn the_tagger_s_samples_leave_out_empty_nodes_and_join_multiword_tokens() {
@@ -190,7 +204,8 @@ fn put(bytes: &mut Vec<u8>, s: &str) {
 
 /// A tagger's held-out digest is the MASC tagger's, with no mapping: each
 /// token's text, tag and whether it is scored, then a count of 0
-/// mappings. A lemmatizer's covers each token's text, tag and lemma.
+/// mappings. A lemmatizer's covers each token's text, tag and lemma and
+/// whether it is scored.
 #[test]
 fn the_held_out_digests_cover_tags_what_is_scored_and_lemmas() {
     let tags = HeldOutTags::new(pos_samples(POOL[3]).unwrap().0, 0);
@@ -207,15 +222,29 @@ fn the_held_out_digests_cover_tags_what_is_scored_and_lemmas() {
     assert_eq!(tags.sha256(&reference), Sha256::of(&bytes).to_string());
 
     let lemmas = lemma_samples(POOL[3]).unwrap().0;
+    let lemma = ["el", "niño", "comer", "manzana", "rojo", "."];
+    let tokens = words.into_iter().chain([(".", "PUNCT")]).zip(lemma);
+    // A reference with every class of the sentence but that of "rojas" to
+    // "rojo".
+    let classes = ReferenceClasses::new(
+        tokens.clone().filter(|&((token, _), _)| token != "rojas").map(|((token, _), lemma)| lemma_class(token, lemma)),
+    );
     let mut bytes = Vec::new();
     bytes.extend_from_slice(&6u64.to_le_bytes());
-    let lemma = ["el", "niño", "comer", "manzana", "rojo", "."];
-    for ((token, tag), lemma) in words.into_iter().chain([(".", "PUNCT")]).zip(lemma) {
+    for ((token, tag), lemma) in tokens.clone() {
         put(&mut bytes, token);
         put(&mut bytes, tag);
         put(&mut bytes, lemma);
+        bytes.push(u8::from(token != "rojas"));
     }
-    assert_eq!(lemma_samples_sha256(&lemmas), Sha256::of(&bytes).to_string());
+    assert_eq!(lemma_samples_sha256(&lemmas, &classes), Sha256::of(&bytes).to_string());
+    assert_eq!(classes.left_out(&lemmas), [TagCount { tag: "ADJ".to_owned(), tokens: 1 }]);
+    // "niños" to "niño" and "manzanas" to "manzana" are one class, and
+    // "Los" to "el" and the identity of "." others.
+    assert!(classes.scores("manzanas", "manzana") && classes.scores("Los", "el") && !classes.scores("rojas", "rojo"));
+    let all = ReferenceClasses::new(tokens.map(|((token, _), lemma)| lemma_class(token, lemma)));
+    assert_ne!(lemma_samples_sha256(&lemmas, &classes), lemma_samples_sha256(&lemmas, &all));
+    assert!(all.left_out(&lemmas).is_empty());
 }
 
 #[test]
@@ -231,17 +260,29 @@ fn the_ud_recipes_train_score_gate_and_write_their_cards() {
     let out = temp_dir("recipes-out");
     for component in COMPONENTS {
         let r = recipe(treebank, component, spanish(component));
-        let weak_model = r.train(&weak).unwrap().bytes;
-        // The weak tagger has no outcome for most held-out tags, so the
-        // check before training and the gate both refuse to compare the two.
-        if component == Component::Pos {
-            let refused = |result: Result<(), Error>| {
-                matches!(result, Err(Error::TagsOutsideReference { left_out, of, limit, .. })
-                    if limit == MAX_TOKENS_LEFT_OUT && !limit.allows(left_out.iter().map(|t| t.tokens).sum(), of))
+        let mut weak_model = r.train(&weak).unwrap().bytes;
+        // The weak tagger has no outcome for most held-out tags, and the
+        // weak lemmatizer none for most held-out lemma classes, so the check
+        // before training and the gate both refuse to compare the two.
+        if component == Component::Pos || component == Component::Lemmas {
+            let refused = |result: Result<(), Error>| match result {
+                Err(Error::TagsOutsideReference { left_out, of, limit, .. }) if component == Component::Pos => {
+                    limit == MAX_TOKENS_LEFT_OUT && !limit.allows(left_out.iter().map(|t| t.tokens).sum(), of)
+                }
+                Err(Error::ClassesOutsideReference { left_out, of, limit, .. }) if component == Component::Lemmas => {
+                    limit == MAX_TOKENS_LEFT_OUT && !limit.allows(left_out.iter().map(|t| t.tokens).sum(), of)
+                }
+                _ => false,
             };
             assert!(refused(r.check_data(&text, &weak_model)));
             assert!(refused(run_ud(&r, &text, &weak_model).map(|_| ())));
-            continue;
+            if component == Component::Pos {
+                continue;
+            }
+            // A lemmatizer trained on few copies of the sentences without the
+            // interjection has every held-out class but gets fewer lemmas
+            // right.
+            weak_model = r.train(&conllu(NO_INTJ, WEAK_LEMMAS, "no-intj")).unwrap().bytes;
         }
         r.check_data(&text, &weak_model).unwrap();
         let outcome = run_ud(&r, &text, &weak_model).unwrap();
@@ -266,7 +307,14 @@ fn the_ud_recipes_train_score_gate_and_write_their_cards() {
                 let tokens = samples.iter().map(|s| s.len() as u64).sum();
                 let scoring = TagScoring { tokens, left_out: 0, reference_mappings: Vec::new() };
                 assert_eq!(record.set.scoring, Scoring::Tags(scoring));
-                assert_eq!(record.set.samples_sha256, lemma_samples_sha256(samples));
+                let classes = ReferenceClasses::of_model(&weak_model).unwrap();
+                assert_eq!(record.set.samples_sha256, lemma_samples_sha256(samples, &classes));
+                // Each model's units are its own lemmas' counts, the
+                // reference's from the reference's file.
+                let units = |bytes: &[u8]| score_lemmas(bytes, samples, &classes).unwrap();
+                assert_eq!(units(&outcome.trained.bytes), record.units.iter().map(|u| u.candidate).collect::<Vec<_>>());
+                assert_eq!(units(&weak_model), record.units.iter().map(|u| u.reference).collect::<Vec<_>>());
+                assert!(record.result.candidate.score > record.result.reference.score, "{record}");
             }
             UdSamples::Tags(_) => unreachable!(),
         }
@@ -275,6 +323,10 @@ fn the_ud_recipes_train_score_gate_and_write_their_cards() {
         assert_eq!(
             r.score(&outcome.trained.bytes, &held_out).unwrap(),
             record.units.iter().map(|u| u.candidate).collect::<Vec<_>>()
+        );
+        assert_eq!(
+            r.score(&weak_model, &held_out).unwrap(),
+            record.units.iter().map(|u| u.reference).collect::<Vec<_>>()
         );
 
         let card = &outcome.card;
@@ -288,7 +340,16 @@ fn the_ud_recipes_train_score_gate_and_write_their_cards() {
         assert_eq!(card.treebank.test.sha256, treebank.test.sha256);
         assert_eq!(card.treebank.dev.name, "es_test-ud-dev.conllu");
         assert_eq!(card.treebank.other_licence_offered, None);
-        assert_eq!((card.held_out.samples, card.held_out.skipped_sentences, &card.held_out.tokens), (units, 0, &None));
+        assert_eq!((card.held_out.samples, card.held_out.skipped_sentences), (units, 0));
+        match &card.held_out.tokens {
+            None => assert!(segmentation),
+            Some(TokenCoverage { tokens, reference_mappings, left_out, reference_mismatches }) => {
+                assert_eq!(component, Component::Lemmas);
+                assert_eq!(*tokens, held_out_tokens(&held_out));
+                assert!(reference_mappings.is_empty() && left_out.is_empty());
+                assert!(!reference_mismatches.is_empty(), "the reference errs: {reference_mismatches:?}");
+            }
+        }
         assert_eq!(card.training.parameters.iterations, 300);
         assert_eq!(card.training.sentences_per_sample.is_some(), component == Component::Sentence);
         assert_eq!(card.training.whitespace.is_some(), segmentation);
@@ -305,7 +366,18 @@ fn the_ud_recipes_train_score_gate_and_write_their_cards() {
             )),
             "{summary}"
         );
-        assert!(summary.ends_with(&format!("held out {units} samples, 0 sentences skipped")), "{summary}");
+        let held_out_line = format!("held out {units} samples, 0 sentences skipped");
+        if segmentation {
+            assert!(summary.ends_with(&held_out_line), "{summary}");
+        } else {
+            let tokens = held_out_tokens(&held_out);
+            let left_out = format!(
+                "{held_out_line}\n{}: 0 of {tokens} held-out tokens left out, their lemmas not the reference's, \
+                 by tag: none",
+                r.model_id
+            );
+            assert!(summary.ends_with(&left_out), "{summary}");
+        }
         // The test recipe is not one of the recipes, so its card is not
         // shippable.
         assert!(matches!(
@@ -379,6 +451,67 @@ fn a_tagger_s_gate_leaves_out_the_tags_the_reference_cannot_give() {
     std::fs::remove_dir_all(dir).unwrap();
 }
 
+#[test]
+fn a_lemmatizer_s_gate_leaves_out_the_lemma_classes_the_reference_cannot_give() {
+    let dir = temp_dir("left-out-lemmas");
+    let all: Vec<usize> = (0..POOL.len()).collect();
+    let treebank = write_treebank(&dir, &conllu(&all, 400, "train"), &conllu(&all, TEST_SENTENCES, "test"));
+    let text = treebank.read(&dir).unwrap();
+    let r = recipe(treebank, Component::Lemmas, spanish(Component::Lemmas));
+    // A reference trained without the second sentence has no class for
+    // "Vamos" to "ir" nor for "al" to "a+el".
+    let without_second: Vec<usize> = (0..POOL.len()).filter(|&i| i != 1).collect();
+    let reference = r.train(&conllu(&without_second, 200, "no-second")).unwrap();
+    let classes = ReferenceClasses::of_model(&reference.bytes).unwrap();
+    assert!(!classes.scores("Vamos", "ir") && !classes.scores("al", "a+el") && classes.scores("del", "de+el"));
+    let held_out = r.held_out(&text).unwrap();
+    let UdSamples::Lemmas(samples) = &held_out.samples else { panic!() };
+    let tokens = held_out_tokens(&held_out);
+    // One of each in each of the 40 copies of the second sentence.
+    let count = |tag: &str| TagCount { tag: tag.to_owned(), tokens: 40 };
+    assert_eq!(classes.left_out(samples), [count("ADP+DET"), count("VERB")]);
+    r.check_data(&text, &reference.bytes).unwrap();
+
+    let outcome = run_ud(&r, &text, &reference.bytes).unwrap();
+    let record = &outcome.gate;
+    record.check().unwrap();
+    assert_eq!(record.set.scoring, Scoring::Tags(TagScoring { tokens, left_out: 80, reference_mappings: Vec::new() }));
+    assert_eq!(record.set.samples_sha256, lemma_samples_sha256(samples, &classes));
+    // Both models are counted on the same tokens: every one but those two.
+    let counted: u64 = record.units.iter().map(|u| u.reference.target).sum();
+    assert_eq!(counted, tokens - 80);
+    assert!(record.units.iter().all(|u| u.candidate.target == u.reference.target));
+    assert_eq!(
+        score_lemmas(&outcome.trained.bytes, samples, &classes).unwrap(),
+        record.units.iter().map(|u| u.candidate).collect::<Vec<_>>()
+    );
+    // Scored alone, the candidate has every class, so every token counts.
+    let alone = r.score(&outcome.trained.bytes, &held_out).unwrap();
+    assert_eq!(alone.iter().map(|u| u.target).sum::<u64>(), tokens);
+    let card = &outcome.card;
+    let Some(TokenCoverage { tokens: on_card, reference_mappings, left_out, reference_mismatches }) =
+        &card.held_out.tokens
+    else {
+        panic!("{:?}", card.held_out)
+    };
+    assert_eq!(
+        (*on_card, reference_mappings.is_empty(), left_out),
+        (tokens, true, &vec![count("ADP+DET"), count("VERB")])
+    );
+    assert!(reference_mismatches.len() <= 10, "{reference_mismatches:?}");
+    assert!(reference_mismatches.iter().all(|m| m.held_out != "ir" && m.held_out != "a+el"), "left out, not scored");
+    let summary = card.summary().to_string();
+    assert!(
+        summary.ends_with(&format!(
+            "{}: 80 of {tokens} held-out tokens left out, their lemmas not the reference's, by tag: ADP+DET (40), \
+             VERB (40)",
+            r.model_id
+        )),
+        "{summary}"
+    );
+    std::fs::remove_dir_all(dir).unwrap();
+}
+
 /// More held-out sentences skipped than `MAX_SKIPPED_SENTENCES` allows
 /// fail the check the binary runs before training, and the run.
 #[test]
@@ -401,8 +534,10 @@ fn skipped_sentences_beyond_the_limit_are_refused_before_training() {
 }
 
 /// A card's zoo entry: only for a recipe of `UD_RECIPES`, gated against
-/// that recipe's reference, and passed. The Italian models, gated against
-/// the recorded local-only references, fail their gates, so they get none.
+/// that recipe's reference, and passed, and never for a treebank whose
+/// text rights are not settled. The Italian models, gated against the
+/// recorded local-only references, fail their gates, so they get none;
+/// the Portuguese ones get none whatever their gates say.
 #[test]
 fn a_card_is_shippable_only_when_gated_against_its_recipe_s_reference_and_passed() {
     let dir = temp_dir("shippable");
@@ -410,7 +545,7 @@ fn a_card_is_shippable_only_when_gated_against_its_recipe_s_reference_and_passed
     let treebank = write_treebank(&dir, &conllu(&all, 100, "train"), &conllu(&all, 40, "test"));
     let text = treebank.read(&dir).unwrap();
     let r = recipe(treebank, Component::Lemmas, spanish(Component::Lemmas));
-    let weak = r.train(&conllu(&[0, 4], 40, "weak")).unwrap().bytes;
+    let weak = r.train(&conllu(NO_INTJ, WEAK_LEMMAS, "weak")).unwrap().bytes;
     let mut card = run_ud(&r, &text, &weak).unwrap().card;
     card.id = "turbo-es-ud-ancora-2.16-lemmas-1".to_owned();
     let refused = |card: &UdModelCard, why: &str| matches!(card.artifact("https://example.org/m.bin"), Err(Error::NotShippable { reason, .. }) if reason == why);
@@ -435,6 +570,21 @@ fn a_card_is_shippable_only_when_gated_against_its_recipe_s_reference_and_passed
         (IT_UD_VIT_POS.id.to_owned(), IT_UD_VIT_POS.sha256.to_owned());
     italian.gate.pass = false;
     assert!(refused(&italian, "it failed its gate"));
+
+    // Porttinari's text is Folha de São Paulo's, with no licence shown: a
+    // Portuguese model gated against its reference and passed is refused,
+    // and so is one that failed.
+    let mut portuguese = card.clone();
+    portuguese.class = LicenceClass::Permissive;
+    portuguese.id = "turbo-pt-ud-porttinari-2.16-lemmas-1".to_owned();
+    let pt = &zoo.get("opennlp-pt-ud-gsd-lemmas-1.3-2.5.4").unwrap().files[0];
+    (portuguese.gate.reference, portuguese.gate.reference_sha256) =
+        ("opennlp-pt-ud-gsd-lemmas-1.3-2.5.4".to_owned(), pt.sha256.to_string());
+    assert!(portuguese.gate.pass);
+    let unsettled = "the rights to its treebank's text are not settled";
+    assert!(refused(&portuguese, unsettled));
+    portuguese.gate.pass = false;
+    assert!(refused(&portuguese, unsettled));
 
     // A card of another schema version is refused by its version alone.
     let path = dir.join("card.json");

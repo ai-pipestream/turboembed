@@ -15,18 +15,30 @@
 //! - Spanish AnCora, Catalan AnCora, Portuguese Porttinari and Italian
 //!   MarkIT: UD's CC BY 4.0 statement, and `License: CC BY 4.0` in the
 //!   README's metadata. Both AnCora READMEs still have a paragraph that
-//!   says a GNU licence is inherited from AnCora; their changelogs say the
-//!   licence became CC BY 4.0 in release 2.9, and `LICENSE.txt` and the
-//!   metadata say CC BY 4.0.
-//! - Finnish FTB: `LICENSE.txt` offers LGPLv3 or later or, "at your
-//!   option", CC BY 4.0, followed by the GPL's text, and the README's
-//!   metadata says CC BY 4.0 ([`Grant::CcBy40OrOther`]). The recipes take
-//!   CC BY 4.0.
+//!   says "The GNU license is inherited from the original dataset"; their
+//!   changelogs' entry "2021-11-15 v2.9" says "The license changed to CC
+//!   BY 4.0 (<https://doi.org/10.5281/zenodo.4762030>).", and `LICENSE.txt`
+//!   and the metadata say CC BY 4.0.
+//! - Finnish FTB: `LICENSE.txt` says "FTB1U is Copyright 2014 FIN-CLARIN"
+//!   and offers LGPLv3 or later or, "at your option", CC BY 4.0, followed
+//!   by the texts of the GPL 3 and the LGPL 3, and the README's metadata
+//!   says CC BY 4.0 ([`Grant::CcBy40OrOther`]). The recipes take CC BY
+//!   4.0, and the attribution keeps the copyright notice
+//!   ([`Treebank::copyright`]).
+//!
+//! Porttinari's CC BY 4.0 grant is its authors', and its README says
+//! "The texts in the treebank are from Folha de São Paulo newspaper,
+//! which are publicly available at Kaggle website." The repository shows
+//! no licence from Folha for the articles' text (the Kaggle dataset's own
+//! terms were not read), so the rights to the text are not settled
+//! ([`TextRights::NotSettled`]): the recipes stay, so a user can train the
+//! models locally, and no Porttinari model is shipped
+//! ([`crate::ud_card::UdModelCard::artifact`] refuses one).
 //!
 //! Portuguese DANTEStocks is CC BY 4.0 too, but its text is tweets
-//! (`README.md`: "a collection of Brazilian Portuguese tweets"), which
-//! the data policy keeps out with other data under a platform's terms, so
-//! it has no recipe.
+//! (`README.md`: "a collection of Brazilian Portuguese tweets"), and the
+//! data policy refuses data under a platform's terms, as it does MASC's
+//! Twitter genre, so it is refused and has no recipe.
 
 use std::path::{Path, PathBuf};
 
@@ -81,8 +93,22 @@ pub enum Grant {
     /// text names no other licence.
     CcBy40,
     /// Another licence or, at the user's option, CC BY 4.0; the recipes
-    /// take CC BY 4.0. `other` names the other licence.
-    CcBy40OrOther { other: &'static str },
+    /// take CC BY 4.0. `other` is the other licence.
+    CcBy40OrOther { other: Licence },
+}
+
+/// Whether a treebank's licence reaches the text it annotates, as far as
+/// its repository shows.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum TextRights {
+    /// The repository names no owner of the text whose terms are other
+    /// than the treebank's licence.
+    Granted,
+    /// The licence is the annotators' grant, and the repository says the
+    /// text is another's (`source`) and shows no licence from its owner. A
+    /// recipe may train a model for local use, and the model is not
+    /// shipped ([`crate::ud_card::UdModelCard::artifact`] refuses it).
+    NotSettled { source: &'static str },
 }
 
 /// One CC BY 4.0 treebank at the release.
@@ -95,6 +121,10 @@ pub struct Treebank {
     /// The treebank's name in model ids (`ancora`).
     pub name: &'static str,
     pub grant: Grant,
+    pub text_rights: TextRights,
+    /// The copyright notice `LICENSE.txt` gives, which the attribution
+    /// keeps as CC BY asks; `None` when it gives none.
+    pub copyright: Option<&'static str>,
     pub licence_file: TreebankFile,
     pub readme: TreebankFile,
     pub train: TreebankFile,
@@ -219,13 +249,15 @@ impl Treebank {
 
     /// What a model trained on the treebank credits, as CC BY asks: the
     /// treebank and its release, its contributors, where it is, its
-    /// licence, and that the model is made from it.
+    /// licence, its copyright notice where `LICENSE.txt` gives one, and
+    /// that the model is made from it.
     pub fn attribution(&self) -> String {
+        let copyright = self.copyright.map(|c| format!(" {c}.")).unwrap_or_default();
         format!(
             "Trained on {} of Universal Dependencies (https://github.com/UniversalDependencies/{}/tree/{RELEASE}), \
              by {}, under the Creative Commons Attribution 4.0 International licence \
-             (https://creativecommons.org/licenses/by/4.0/). The model is derived from the treebank; the treebank \
-             itself is not included.",
+             (https://creativecommons.org/licenses/by/4.0/).{copyright} The model is derived from the treebank; the \
+             treebank itself is not included.",
             self.release_name(),
             self.repository,
             self.contributors
@@ -331,6 +363,8 @@ pub const SPANISH_ANCORA: Treebank = Treebank {
     language: "es",
     name: "ancora",
     grant: Grant::CcBy40,
+    text_rights: TextRights::Granted,
+    copyright: None,
     licence_file: TreebankFile {
         name: "LICENSE.txt",
         size: 189,
@@ -372,6 +406,8 @@ pub const CATALAN_ANCORA: Treebank = Treebank {
     language: "ca",
     name: "ancora",
     grant: Grant::CcBy40,
+    text_rights: TextRights::Granted,
+    copyright: None,
     licence_file: TreebankFile {
         name: "LICENSE.txt",
         size: 189,
@@ -413,6 +449,10 @@ pub const PORTUGUESE_PORTTINARI: Treebank = Treebank {
     language: "pt",
     name: "porttinari",
     grant: Grant::CcBy40,
+    text_rights: TextRights::NotSettled {
+        source: "articles of the Folha de São Paulo newspaper, which the README says are on Kaggle",
+    },
+    copyright: None,
     licence_file: TreebankFile {
         name: "LICENSE.txt",
         size: 188,
@@ -454,7 +494,9 @@ pub const FINNISH_FTB: Treebank = Treebank {
     repository: "UD_Finnish-FTB",
     language: "fi",
     name: "ftb",
-    grant: Grant::CcBy40OrOther { other: "LGPL-3.0-or-later" },
+    grant: Grant::CcBy40OrOther { other: Licence::Lgpl30OrLater },
+    text_rights: TextRights::Granted,
+    copyright: Some("FTB1U is Copyright 2014 FIN-CLARIN"),
     licence_file: TreebankFile {
         name: "LICENSE.txt",
         size: 44134,
@@ -497,6 +539,8 @@ pub const ITALIAN_MARKIT: Treebank = Treebank {
     language: "it",
     name: "markit",
     grant: Grant::CcBy40,
+    text_rights: TextRights::Granted,
+    copyright: None,
     licence_file: TreebankFile {
         name: "LICENSE.txt",
         size: 188,
@@ -579,7 +623,7 @@ mod tests {
                     Alternatively, at your option, it is available under the Creative Commons Attribution 4.0 \
                     International (CC BY 4.0) license. See <http://creativecommons.org/licenses/by/4.0/>.\n\n\
                     GNU GENERAL PUBLIC LICENSE ... only occasionally and noncommercially ...";
-        let option = Grant::CcBy40OrOther { other: "LGPL-3.0-or-later" };
+        let option = Grant::CcBy40OrOther { other: Licence::Lgpl30OrLater };
         assert_eq!(check_licence_text(option, dual, README), Ok(()));
         assert!(check_licence_text(Grant::CcBy40, dual, README).is_err());
         let both = dual.replace("Alternatively, at your option, it", "It");
@@ -616,8 +660,103 @@ mod tests {
             assert_eq!(t.training_data().license, Licence::CcBy40);
             assert!(t.attribution().contains(t.repository) && t.attribution().contains("by/4.0"));
             assert!(!t.citation.is_empty() && !t.contributors.is_empty());
+            // Only Porttinari's text is another's with no licence shown.
+            let settled = t.text_rights == TextRights::Granted;
+            assert_eq!(settled, t.repository != "UD_Portuguese-Porttinari", "{}", t.repository);
+            // Only FTB's LICENSE.txt gives a copyright notice, which the
+            // attribution keeps.
+            assert_eq!(t.copyright.is_some(), t.repository == "UD_Finnish-FTB", "{}", t.repository);
         }
         assert_eq!(SPANISH_ANCORA.dataset_id(), "ud-spanish-ancora-r2.16");
+        assert!(FINNISH_FTB.attribution().contains(
+            "(https://creativecommons.org/licenses/by/4.0/). FTB1U is Copyright 2014 FIN-CLARIN. The model is derived"
+        ));
+        assert!(SPANISH_ANCORA.attribution().contains("(https://creativecommons.org/licenses/by/4.0/). The model"));
+        assert_eq!(FINNISH_FTB.grant, Grant::CcBy40OrOther { other: Licence::Lgpl30OrLater });
+        assert!(
+            matches!(PORTUGUESE_PORTTINARI.text_rights, TextRights::NotSettled { source } if source.contains("Folha"))
+        );
+    }
+
+    /// UD's CC BY 4.0 statement as Porttinari's and MarkIT's
+    /// `LICENSE.txt` have it at r2.16, with an `http` address.
+    const UD_STATEMENT_HTTP: &str = "The treebank is licensed under the Creative Commons License Attribution 4.0 \
+                                     International.\n\nThe complete license text is available at:\n\
+                                     http://creativecommons.org/licenses/by/4.0/legalcode\n";
+
+    /// FTB's `LICENSE.txt` at r2.16, up to the GPL 3's text: its own
+    /// statement. The texts of the GPL 3 and the LGPL 3 follow it in the
+    /// file (44,134 bytes in all), and are not quoted.
+    const FTB_STATEMENT: &str = "FTB1U is derived from FinnTreeBank 1 2014 by automated mapping of
+labels and some restructuring in an attempt to conform to the new
+Universal Dependency Finnish model.
+
+FTB1U is Copyright 2014 FIN-CLARIN
+
+FTB1U is Free Software. You may use, study, modify, and distribute it
+under the conditions of the GNU Lesser General Public License as
+published by the Free Software Foundation, either version 3 of the
+License, or (at your option) any later version (LGPLv3+). You should
+have received a copy of the license with FTB1U. See
+<http://www.gnu.org/licenses/>.
+
+Alternatively, at your option, FTB1U is a Free Cultural Work which you
+are free to share and adapt for any purpose, even commercially, under
+the Creative Commons Attribution 4.0 International (CC BY 4.0) license
+as long as you give proper attribution and apply no additional legal
+restrictions. See the human-readable deed and actual license at
+<http://creativecommons.org/licenses/by/4.0/>.
+
+Unannotated linguistic material in FinnTreeBank 1 2014 was adapted
+from the examples in Ison suomen kieliopin verkkoversio (The Web
+Version of the Large Grammar of Finnish, VISK), available on-line as
+<http://scripta.kotus.fi/visk>, and annotations originally produced
+and further revised in FIN-CLARIN projects in the Department of Modern
+Languages, University of Helsinki.
+";
+
+    /// The licence lines of both AnCora READMEs at r2.16: the paragraph
+    /// left from before release 2.9, the changelog's entry for it, and the
+    /// metadata line.
+    const ANCORA_README: &str = "The GNU license is inherited from the original dataset, downloaded from
+the AnCora website. Any license-related questions have to be directed to
+the original data providers at the University of Barcelona (that is, not
+to the UD contact address listed at the end of this README file).
+
+* 2021-11-15 v2.9
+  * The license changed to CC BY 4.0 (https://doi.org/10.5281/zenodo.4762030).
+
+License: CC BY 4.0
+";
+
+    /// Each treebank's `LICENSE.txt` and README licence lines at r2.16,
+    /// quoted as they are, pass the licence check with the recorded grant.
+    /// The four whole `LICENSE.txt` files quoted are the recorded ones, by
+    /// size and SHA-256. The AnCora READMEs' GNU paragraph does not fail
+    /// the check: the check reads licence names in `LICENSE.txt` and only
+    /// the metadata line in the README.
+    #[test]
+    fn the_treebanks_real_licence_texts_pass_with_their_recorded_grants() {
+        let metadata = "License: CC BY 4.0\n";
+        let texts = [
+            (SPANISH_ANCORA, UD_STATEMENT, ANCORA_README),
+            (CATALAN_ANCORA, UD_STATEMENT, ANCORA_README),
+            (PORTUGUESE_PORTTINARI, UD_STATEMENT_HTTP, metadata),
+            (FINNISH_FTB, FTB_STATEMENT, metadata),
+            (ITALIAN_MARKIT, UD_STATEMENT_HTTP, metadata),
+        ];
+        assert_eq!(texts.map(|(t, ..)| t), TREEBANKS);
+        for (t, licence, readme) in texts {
+            assert_eq!(check_licence_text(t.grant, licence, readme), Ok(()), "{}", t.repository);
+            if t.grant == Grant::CcBy40 {
+                assert_eq!(licence.len() as u64, t.licence_file.size, "{}", t.repository);
+                assert_eq!(Sha256::of(licence.as_bytes()).to_string(), t.licence_file.sha256, "{}", t.repository);
+            }
+        }
+        // FTB's statement names the GNU licence, so it passes only as the
+        // option it is.
+        assert!(check_licence_text(Grant::CcBy40, FTB_STATEMENT, metadata).is_err());
+        assert!(FTB_STATEMENT.len() < FINNISH_FTB.licence_file.size as usize);
     }
 
     #[test]

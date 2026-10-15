@@ -69,6 +69,12 @@ pub enum Error {
     /// [`crate::ud::MAX_TOKENS_LEFT_OUT`] for the UD taggers): `left_out`,
     /// by tag as written, of `of` tokens.
     TagsOutsideReference { reference: String, left_out: Vec<TagCount>, of: u64, limit: Limit },
+    /// A lemmatizer's reference cannot give the lemmas of more held-out
+    /// tokens than [`crate::ud::MAX_TOKENS_LEFT_OUT`] allows, counting the
+    /// tokens whose gold lemma class gives their lemma
+    /// ([`crate::ud::ReferenceClasses`]): `left_out`, by tag as written, of
+    /// `of` tokens.
+    ClassesOutsideReference { reference: String, left_out: Vec<TagCount>, of: u64, limit: Limit },
 }
 
 /// What a recipe leaves out, and [`Error::TooManyLeftOut`] counts.
@@ -150,6 +156,18 @@ impl fmt::Display for Error {
                     f,
                     "the reference {reference} cannot give the tags of {count} of {of} held-out tokens, more than the \
                      limit of {limit}:"
+                )?;
+                for t in left_out {
+                    write!(f, " {} ({})", t.tag, t.tokens)?;
+                }
+                Ok(())
+            }
+            Error::ClassesOutsideReference { reference, left_out, of, limit } => {
+                let count: u64 = left_out.iter().map(|t| t.tokens).sum();
+                write!(
+                    f,
+                    "the reference {reference} cannot give the lemmas of {count} of {of} held-out tokens that \
+                     their gold lemma classes give, more than the limit of {limit}; by tag:"
                 )?;
                 for t in left_out {
                     write!(f, " {} ({})", t.tag, t.tokens)?;

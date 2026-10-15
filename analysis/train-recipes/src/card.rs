@@ -109,8 +109,9 @@ pub struct HeldOutCard {
     /// skips training sentences ([`TrainingCard::skipped_sentences`]);
     /// at most [`crate::MAX_SKIPPED_SENTENCES`] of those read.
     pub skipped_sentences: usize,
-    /// For a tagger, how its held-out tokens were scored; `null` for the
-    /// other components.
+    /// For a tagger, or a UD lemmatizer ([`crate::ud::ReferenceClasses`]),
+    /// how its held-out tokens were scored; `null` for the other
+    /// components.
     pub tokens: Option<TokenCoverage>,
 }
 
@@ -120,7 +121,9 @@ pub struct HeldOutCard {
 /// held-out tag as written and the reference's through the recipe's
 /// mappings ([`postag::PosRecipe::reference_mappings`]:
 /// [`postag::REFERENCE_MAPPINGS`] for the MASC tagger, none for the UD
-/// taggers).
+/// taggers). A UD lemmatizer's are scored the same way, with no mapping,
+/// leaving out the tokens whose gold lemma class gives their lemma and no
+/// class of the reference's does ([`crate::ud::ReferenceClasses`]).
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct TokenCoverage {
@@ -130,24 +133,26 @@ pub struct TokenCoverage {
     /// ([`postag::PosRecipe::reference_mappings`]).
     pub reference_mappings: Vec<TagMapping>,
     /// The tokens left out of both models' scores because the reference
-    /// cannot give their tag, by that tag as written, sorted by tag; at
-    /// most the recipe's limit ([`postag::PosRecipe::max_left_out`]) of
-    /// `tokens`.
+    /// cannot give their tag (for a lemmatizer, cannot give the lemma their
+    /// gold lemma class gives), by their tag as written, sorted by tag; at most
+    /// the recipe's limit ([`postag::PosRecipe::max_left_out`],
+    /// [`crate::ud::MAX_TOKENS_LEFT_OUT`]) of `tokens`.
     pub left_out: Vec<TagCount>,
     /// The reference's most frequent mismatches on the scored tokens, at
     /// most [`postag::MISMATCHES_LISTED`], most frequent first: where it
     /// and the held-out data differ by convention or by its tag
-    /// dictionary as much as where it errs.
+    /// dictionary as much as where it errs. A lemmatizer's are of lemmas.
     pub reference_mismatches: Vec<Mismatch>,
 }
 
-/// How many scored held-out tokens of a tag a model gave another tag.
+/// How many scored held-out tokens of a tag a model gave another tag, or
+/// for a lemmatizer, of a lemma another lemma.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Mismatch {
-    /// The held-out tag, as written.
+    /// The held-out tag or lemma, as written.
     pub held_out: String,
-    /// The tag the model gave.
+    /// The tag or lemma the model gave.
     pub given: String,
     pub tokens: u64,
 }
@@ -393,7 +398,7 @@ impl ModelCard {
 
     /// The card's [`Summary`].
     pub fn summary(&self) -> Summary<'_> {
-        Summary::new(&self.id, &self.training, &self.held_out)
+        Summary::new(&self.id, &self.training, &self.held_out, LeftOutFor::Tag)
     }
 }
 
@@ -420,28 +425,46 @@ pub(crate) fn read_card<T: serde::de::DeserializeOwned>(path: &Path, expected: u
     serde_json::from_slice(&bytes).map_err(json)
 }
 
+/// Why the held-out tokens a card lists were left out of the scores.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum LeftOutFor {
+    /// The reference tagger cannot give their tag.
+    Tag,
+    /// The reference lemmatizer cannot give the lemma their gold lemma
+    /// class gives ([`crate::ud::ReferenceClasses`]); they are listed by
+    /// tag.
+    Lemma,
+}
+
 /// What a run prints of a card before its gate record
 /// ([`ModelCard::summary`], and [`crate::ud_card::UdModelCard::summary`]):
 /// a line of the training and held-out samples and the sentences each
-/// side skipped, and for a tagger a second line of the held-out tokens
-/// left out of the scores, with their tags as written.
+/// side skipped, and for a tagger or a UD lemmatizer a second line of the
+/// held-out tokens left out of the scores, by their tags as written.
 #[derive(Clone, Copy, Debug)]
 pub struct Summary<'c> {
     id: &'c str,
     training: &'c TrainingCard,
     held_out: &'c HeldOutCard,
+    left_out_for: LeftOutFor,
 }
 
 impl<'c> Summary<'c> {
-    /// The summary of the card of the model `id`.
-    pub(crate) fn new(id: &'c str, training: &'c TrainingCard, held_out: &'c HeldOutCard) -> Summary<'c> {
-        Summary { id, training, held_out }
+    /// The summary of the card of the model `id`, whose held-out tokens
+    /// are left out for `left_out_for`.
+    pub(crate) fn new(
+        id: &'c str,
+        training: &'c TrainingCard,
+        held_out: &'c HeldOutCard,
+        left_out_for: LeftOutFor,
+    ) -> Summary<'c> {
+        Summary { id, training, held_out, left_out_for }
     }
 }
 
 impl fmt::Display for Summary<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let Summary { id, training, held_out } = *self;
+        let Summary { id, training, held_out, left_out_for } = *self;
         write!(
             f,
             "{id}: trained on {} samples, {} sentences skipped, {} events; held out {} samples, {} sentences skipped",
@@ -449,11 +472,11 @@ impl fmt::Display for Summary<'_> {
         )?;
         if let Some(tokens) = &held_out.tokens {
             let count: u64 = tokens.left_out.iter().map(|t| t.tokens).sum();
-            write!(
-                f,
-                "\n{id}: {count} of {} held-out tokens left out, their tags not the reference's:",
-                tokens.tokens
-            )?;
+            let why = match left_out_for {
+                LeftOutFor::Tag => "their tags not the reference's",
+                LeftOutFor::Lemma => "their lemmas not the reference's, by tag",
+            };
+            write!(f, "\n{id}: {count} of {} held-out tokens left out, {why}:", tokens.tokens)?;
             if tokens.left_out.is_empty() {
                 f.write_str(" none")?;
             }

@@ -114,6 +114,11 @@ pub enum ModelGateError {
         left_out: u64,
         scored: u64,
     },
+    /// A lemmatizer's record with tag mappings: its lemmas are compared as
+    /// written.
+    LemmatizerMappings {
+        mappings: usize,
+    },
     /// A record file that could not be read or written.
     Io {
         path: String,
@@ -166,6 +171,9 @@ impl fmt::Display for ModelGateError {
             ModelGateError::ScoredTokens { tokens, left_out, scored } => {
                 write!(f, "{tokens} held-out tokens, {left_out} of them left out, but the units count {scored} tokens")
             }
+            ModelGateError::LemmatizerMappings { mappings } => {
+                write!(f, "a lemmatizer's record with {mappings} tag mappings; its lemmas are compared as written")
+            }
             ModelGateError::Io { path, message } | ModelGateError::Json { path, message } => {
                 write!(f, "{path}: {message}")
             }
@@ -199,7 +207,7 @@ pub enum Task {
     Tokenizer,
     PartOfSpeechTagger,
     /// A lemmatizer given the held-out tags, scored on its lemmas as a
-    /// tagger is on its tags.
+    /// tagger is on its tags ([`TagScoring`]).
     Lemmatizer,
 }
 
@@ -396,15 +404,20 @@ pub enum Scoring {
 /// tag the reference can give, as written or through `reference_mappings`;
 /// the candidate's tag compared with the held-out tag as written, and the
 /// reference's also counted right where `reference_mappings` maps the
-/// held-out tag to it. A lemmatizer's lemmas are scored as tags, with no
-/// token left out and no mapping.
+/// held-out tag to it. A lemmatizer's lemmas are scored the same way, with
+/// no mapping: both models' lemmas are compared with the held-out lemma as
+/// written, over the tokens the reference can get right or the candidate
+/// cannot be taught (a token is left out when its gold lemma class, the
+/// edit script from the token to its held-out lemma, gives that lemma and
+/// none of the reference's classes does).
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct TagScoring {
     /// The tokens of the held-out samples.
     pub tokens: u64,
     /// The tokens left out of both models' scores: the reference cannot
-    /// give their tag.
+    /// give their tag, or for a lemmatizer, cannot give the lemma their
+    /// gold lemma class gives.
     pub left_out: u64,
     /// The reference's tags counted right for another held-out tag.
     pub reference_mappings: Vec<TagMapping>,
@@ -465,8 +478,9 @@ impl ModelGateRecord {
     /// are 64 lower case hex; that the measure is the task's; that the
     /// record was drawn with [`RESAMPLES`] and [`SEED`]; that the scoring
     /// fits the measure, and for tags, that each model's units count the
-    /// held-out tokens less those left out; and that the result is what
-    /// the gate gives on the recorded units, to the bit.
+    /// held-out tokens less those left out, and that a lemmatizer's record
+    /// has no mapping; and that the result is what the gate gives on the
+    /// recorded units, to the bit.
     pub fn check(&self) -> Result<()> {
         if self.record_version != MODEL_GATE_RECORD_VERSION {
             return Err(ModelGateError::Version { found: self.record_version });
@@ -500,6 +514,9 @@ impl ModelGateRecord {
                     if t.left_out > t.tokens || scored != t.tokens - t.left_out {
                         return Err(ModelGateError::ScoredTokens { tokens: t.tokens, left_out: t.left_out, scored });
                     }
+                }
+                if self.task == Task::Lemmatizer && !t.reference_mappings.is_empty() {
+                    return Err(ModelGateError::LemmatizerMappings { mappings: t.reference_mappings.len() });
                 }
             }
             (_, measure) => return Err(ModelGateError::ScoringMismatch { measure }),
@@ -808,21 +825,27 @@ mod tests {
         spans.set.scoring = tags_of(&spans.units, 0);
         assert_eq!(spans.check(), Err(ModelGateError::ScoringMismatch { measure: Measure::FMeasure }));
         assert_eq!(serde_json::to_string(&Scoring::Spans).unwrap(), "\"spans\"");
-        // A lemmatizer is scored as a tagger, with nothing left out or mapped.
+        // A lemmatizer is scored as a tagger, tokens left out and counted
+        // the same way, with no mapping.
         let lemmas = TagScoring {
-            tokens: units.iter().map(|u| u.candidate.target).sum(),
-            left_out: 0,
+            tokens: units.iter().map(|u| u.candidate.target).sum::<u64>() + 3,
+            left_out: 3,
             reference_mappings: vec![],
         };
         let lemmatizer = |scoring| {
             ModelGateRecord::new(Task::Lemmatizer, set("s", scoring), model("t"), model("r"), units.clone()).unwrap()
         };
         assert_eq!(Task::Lemmatizer.measure(), Measure::Accuracy);
-        lemmatizer(Scoring::Tags(lemmas)).check().unwrap();
+        lemmatizer(Scoring::Tags(lemmas.clone())).check().unwrap();
         assert_eq!(
             lemmatizer(Scoring::Spans).check(),
             Err(ModelGateError::ScoringMismatch { measure: Measure::Accuracy })
         );
+        let miscounted = TagScoring { left_out: 2, ..lemmas.clone() };
+        assert!(matches!(lemmatizer(Scoring::Tags(miscounted)).check(), Err(ModelGateError::ScoredTokens { .. })));
+        // The tagger's record with its mapping passes; as a lemmatizer's it
+        // is refused.
+        assert_eq!(lemmatizer(tags_of(&units, 3)).check(), Err(ModelGateError::LemmatizerMappings { mappings: 1 }));
     }
 
     #[test]

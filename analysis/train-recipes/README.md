@@ -286,18 +286,24 @@ read on 2026-10-14 (#415):
 
 | Treebank | Components | Reference | Notes |
 |---|---|---|---|
-| `UD_Spanish-AnCora` | sentence, tokens, pos, lemmas | `opennlp-es-ud-gsd-*-1.3-2.5.4` | a README paragraph still says a GNU licence is inherited; `LICENSE.txt`, the metadata and the changelog (release 2.9) say CC BY 4.0 |
-| `UD_Catalan-AnCora` | sentence, tokens, pos, lemmas | `opennlp-ca-ud-ancora-*-1.3-2.5.4` | the same README note; the references are trained on this treebank's `train` file |
-| `UD_Portuguese-Porttinari` | sentence, tokens, pos, lemmas | `opennlp-pt-ud-gsd-*-1.3-2.5.4` | |
-| `UD_Finnish-FTB` | pos, lemmas | `opennlp-fi-ud-tdt-*-1.3-2.5.4` | `LICENSE.txt` offers LGPLv3 or later or, at the user's option, CC BY 4.0; the recipes take CC BY 4.0 |
+| `UD_Spanish-AnCora` | sentence, tokens, pos, lemmas | `opennlp-es-ud-gsd-*-1.3-2.5.4` | a README paragraph still says "The GNU license is inherited from the original dataset"; `LICENSE.txt` and the metadata say CC BY 4.0, and the changelog's entry "2021-11-15 v2.9" says "The license changed to CC BY 4.0 (https://doi.org/10.5281/zenodo.4762030)." |
+| `UD_Catalan-AnCora` | sentence, tokens, pos, lemmas | `opennlp-ca-ud-ancora-*-1.3-2.5.4` | the same README paragraph and changelog entry; the references are trained on this treebank's `train` file |
+| `UD_Portuguese-Porttinari` | sentence, tokens, pos, lemmas | `opennlp-pt-ud-gsd-*-1.3-2.5.4` | recipe only, no model shipped: the CC BY 4.0 grant is the treebank authors', for their annotations, and the README says the texts are from the Folha de São Paulo newspaper, "publicly available at Kaggle website", with no licence from Folha shown |
+| `UD_Finnish-FTB` | pos, lemmas | `opennlp-fi-ud-tdt-*-1.3-2.5.4` | `LICENSE.txt` says "FTB1U is Copyright 2014 FIN-CLARIN" and offers LGPLv3 or later or, at the user's option, CC BY 4.0; the recipes take CC BY 4.0, and the attribution keeps the copyright notice |
 | `UD_Italian-MarkIT` | pos, lemmas | `opennlp-it-ud-vit-*-1.3-2.5.4`, recorded by size and SHA-256 | the references are trained on UD_Italian-VIT, CC BY-NC-SA 3.0, so they are local-only: read from `--references`, only scored, not in the zoo |
 
 - Left out: `UD_Portuguese-DANTEStocks` is CC BY 4.0 too, but its text
-  is tweets, and platform terms need a look before it is used, as for
-  WNUT-17 (`docs/licences.md`), so it has no recipe. FTB and MarkIT
-  have no sentence detector or tokenizer: their `text` comments put a
-  space between every two tokens and no word has `SpaceAfter=No`, so they
-  hold no sentence ends or tokenization of running text.
+  is tweets, and the policy refuses platform-terms data, as it does
+  MASC's Twitter genre (`docs/licences.md`), so it is refused and has no
+  recipe. FTB and MarkIT have no sentence detector or tokenizer: their
+  `text` comments put a space between almost every two tokens, and
+  almost no word has `SpaceAfter=No` (none in FTB; in MarkIT, 2 in
+  `train`, on "1,9", 7 in `dev` and none in `test`), so they hold no
+  sentence ends or tokenization of running text.
+- Porttinari: the recipes stay, so a user can train the Portuguese
+  models locally, but the rights to the treebank's text are not settled
+  (`treebank::TextRights::NotSettled`), and `UdModelCard::artifact`
+  refuses a Porttinari model whatever its gate says, so none is shipped.
 - Files: each treebank's `LICENSE.txt`, `README.md` and UD's `train`,
   `dev` and `test` files, with their sizes, SHA-256 and SHA-512 recorded
   in `treebank`, fetched through the zoo by digest from
@@ -333,27 +339,63 @@ read on 2026-10-14 (#415):
   `postag::PosRecipe` of its own (`UdRecipe::tagger`), with both models'
   tags asked for as their outcomes, the universal tags, and compared
   with the held-out tag as written: no mapping of the reference's tags,
-  so the record's and card's `reference_mappings` are empty. A tagger's
-  tokens whose gold tag the reference has no outcome for are left out of
-  both models' scores, and the card lists them by tag with the
-  reference's most frequent mismatches; more than 5 in 100 of the tokens
-  (`ud::MAX_TOKENS_LEFT_OUT`) and the recipe fails. The MASC tagger's
+  so the record's and card's `reference_mappings` are empty. A
+  lemmatizer is gated the same way on its lemmas, compared with the
+  held-out lemma as written.
+- Tokens left out: a tagger's tokens whose gold tag the reference has no
+  outcome for, and a lemmatizer's tokens whose gold lemma class (the edit
+  script from the token to its lemma, as training makes it) gives the
+  lemma while no class of the reference does (`ud::ReferenceClasses`),
+  are tokens the reference cannot get right and the candidate can be
+  taught, so they are left out of both models' scores. Lacking the gold
+  class is not enough: OpenNLP's decoder deletes a character without
+  checking the letter the class names, so a reference without a token's
+  gold class can give its lemma through another class. Of the test
+  tokens whose gold class the references lack, they can give the lemma of
+  33 of 90 (Spanish), 16 of 34 (Catalan), 8 of 108 (Portuguese), 323 of
+  500 (Finnish) and 10 of 43 (Italian), and those are scored. The card
+  lists the tokens left out by tag, with the reference's most frequent
+  mismatches (tags, or lemmas), and the record counts them; more than 5
+  in 100 of the tokens (`ud::MAX_TOKENS_LEFT_OUT`) and the recipe fails.
+  A token whose gold class gives another string than its lemma stays in
+  the scores, as `LemmatizerEvaluator` counts it (below).
+- The limit: one, 5 in 100, for every UD tagger and lemmatizer, a floor
+  on how much of the `test` file the gate covers. The MASC tagger's
   limit, 1 in 1,000 (`MAX_TOKENS_LEFT_OUT`), would refuse FTB, where the
-  Finnish reference cannot give 3.9 in 100. The lemmatizer's units are
-  recorded as a tag scoring with nothing left out and no mapping.
+  Finnish reference tagger cannot give 3.9 in 100. Every token left out
+  is one the reference gets wrong.
+  So when the candidate trails, leaving tokens out always lowers its lead
+  on the point estimate, and in each of the gate's resamples, which draw
+  the same sentences either way; when the two resamples the interval's
+  low end is read from have the candidate trailing, the low end is no
+  higher with the tokens left out, so leaving them out cannot turn a
+  failing gate into a passing one (`ud`'s documentation has the
+  arithmetic). When the candidate leads, leaving tokens out raises its
+  lead only when its accuracy on them is below its lead on the scored
+  tokens (as fractions), and then by at most the left-out share times
+  that lead, so at most 5 in 100 of it. The results below give each
+  such gate's lead both ways.
+- Cross-treebank gates: except for Catalan, the reference was trained
+  on another treebank, so it is scored against annotation conventions
+  it was not trained on, which favours the candidate (the Finnish TDT
+  reference tags 303 of FTB's scored `VERB` tokens `AUX`). The Catalan
+  gates are the only ones that compare models trained on the same
+  treebank.
 - Checks before training: the run reads and checks every reference
   (the zoo's digest, or the recorded size and digest) and checks that no
   model directory exists, then reads every treebank against its record,
   then checks every recipe's samples (`UdRecipe::check_data`, as
   `Recipe::check_data`: each file has a sample, at most 1 in 1,000
-  sentences skipped on either side, and the tagger's left-out tokens
-  within the limit), naming every problem, before any model is trained.
-- Card and record: `card.json` is a `UdModelCard` (version 2): the
+  sentences skipped on either side, and the tagger's or lemmatizer's
+  left-out tokens within the limit), naming every problem, before any
+  model is trained.
+- Card and record: `card.json` is a `UdModelCard` (version 3): the
   treebank and its files, licence, attribution and citation where the
   MASC card has the corpus, and the MASC card's `training`, `held_out`
   and `gate` parts; it is read version first, as the MASC card is.
   `gate.json` is the MASC recipes' `ModelGateRecord` (version 2, with the
-  held-out sentences skipped and the scoring). The run prints each
+  held-out sentences skipped and the scoring; `check` refuses a
+  lemmatizer's record with a mapping). The run prints each
   card's summary (`UdModelCard::summary`, the lines
   `ModelCard::summary` prints), its gate record and the seconds the
   recipe took.
@@ -370,13 +412,17 @@ read on 2026-10-14 (#415):
   `en-pos-maxent.bin`; the trained models are trained on MarkIT alone.
 - Licence: the models are Apache-2.0 trained on CC BY 4.0 data, so their
   zoo class is permissive. The card carries the attribution (the
-  treebank, its release, its contributors, its address and the licence)
-  and the citation the treebank's README asks for. `UdModelCard::artifact`
-  refuses a card as `ModelCard::artifact` does: one no recipe of
-  `UD_RECIPES` trains, one whose class is not the one its licences give,
-  one whose gate's reference is not the recipe's (by id and by the
-  SHA-256 the zoo lists or the recipe records), and one whose gate
-  failed, as the Italian models' do.
+  treebank, its release, its contributors, its address, the licence and
+  the copyright notice `LICENSE.txt` gives, FTB's) and the citation the
+  treebank's README asks for, and the other licence a treebank offers
+  (FTB's `LGPL-3.0-or-later`, a `turbo_zoo::Licence`).
+  `UdModelCard::artifact` refuses a card as `ModelCard::artifact` does:
+  one no recipe of `UD_RECIPES` trains, one whose class is not the one
+  its licences give, one whose gate's reference is not the recipe's (by
+  id and by the SHA-256 the zoo lists or the recipe records), and one
+  whose gate failed, as the Italian models' do; and also one trained on
+  a treebank whose text rights are not settled, Porttinari, whatever its
+  gate says.
 
 ```
 cargo run --release -p turbo-train-recipes -- fetch-ud --home <zoo-home>
@@ -392,75 +438,117 @@ SHA-256.
 
 ### Results
 
-All sixteen recipes were run twice in release mode on 2026-10-15 on the
-code of the merge of main at `eecd1eec` (`ud` with every recipe, 4
-training threads on a 4-core machine), with the references checked
-against the zoo's SHA-256 (the Italian ones against the recorded size
-and SHA-256). The two runs wrote byte-identical model files, cards and
-gate records. Every score and interval as printed, and every unit,
-sample and event count, is the one the run before the merge
-(`ecc524c1`) gave; what differs is the
-format: the gate records are version 2, with the held-out sentences
-skipped (0 for every recipe) and the scoring, the cards are version 2,
-with the MASC card's held-out and gate parts, and a tagger's samples
-digest is the MASC tagger's, which adds a byte per token for whether it
-is scored and a count of 0 mappings, so the taggers' `samples_sha256`
-differ from that run's. The fourteen models gated against references of
-the zoo pass; the two Italian models fail. Scores are in points:
-F-measure for the sentence detector and tokenizer, accuracy for the
-tagger and lemmatizer, with 95 percent intervals from 10,000 paired
+All sixteen recipes were run in release mode on 2026-10-15 on the code
+of this change (`ud` with every recipe, 4 training threads on a 4-core
+machine), with the references checked against the zoo's SHA-256 (the
+Italian ones against the recorded size and SHA-256), and the five
+lemmatizer recipes were run again after the last change to which of
+their tokens are left out. Every model file has the SHA-256 that the
+two runs before the review (on the merge of main at `eecd1eec`)
+recorded, and the sentence detectors', tokenizers' and taggers' gate
+records are byte-identical to theirs, so their scores are too. The cards are
+version 3. The lemmatizers' gates leave out the tokens whose lemma the
+reference cannot give (above), so their scores are over fewer tokens
+than that run's; the table after this one gives each gate that leaves
+tokens out with its lead both ways. The fourteen models gated against
+references of the zoo pass; the two Italian models fail. Scores are in
+points: F-measure for the sentence detector and tokenizer, accuracy for
+the tagger and lemmatizer, with 95 percent intervals from 10,000 paired
 bootstrap draws (seed 154). A unit is a held-out sample: 10 sentences
 for the sentence detector, one sentence otherwise. Time is the
-wall-clock time of a recipe in the second run: training, scoring both
-models and the gate. The trained models are not checked in.
+wall-clock time of a recipe (for a lemmatizer, in the second run):
+training, scoring both models and the gate. The trained models are not
+checked in.
 
 | Model (`turbo-…-1`) | Reference (`opennlp-…-1.3-2.5.4`) | Units | Candidate | Reference | Difference | Gate | Time |
 |---|---|---|---|---|---|---|---|
 | `es-ud-ancora-2.16-sentence` | `es-ud-gsd-sentence` | 173 | 97.99 (97.06 to 98.79) | 96.27 (94.93 to 97.50) | +1.73 (+0.85 to +2.72) | pass | 1 s |
 | `es-ud-ancora-2.16-tokens` | `es-ud-gsd-tokens` | 1721 | 99.96 (99.94 to 99.98) | 99.89 (99.85 to 99.92) | +0.07 (+0.04 to +0.11) | pass | 18 s |
-| `es-ud-ancora-2.16-pos` | `es-ud-gsd-pos` | 1721 | 97.40 (97.22 to 97.57) | 92.73 (92.49 to 92.97) | +4.67 (+4.44 to +4.91) | pass | 97 s |
-| `es-ud-ancora-2.16-lemmas` | `es-ud-gsd-lemmas` | 1721 | 91.32 (90.93 to 91.70) | 90.54 (90.16 to 90.92) | +0.77 (+0.67 to +0.87) | pass | 242 s |
+| `es-ud-ancora-2.16-pos` | `es-ud-gsd-pos` | 1721 | 97.40 (97.22 to 97.57) | 92.73 (92.49 to 92.97) | +4.67 (+4.44 to +4.91) | pass | 96 s |
+| `es-ud-ancora-2.16-lemmas` | `es-ud-gsd-lemmas` | 1721 | 91.37 (90.98 to 91.75) | 90.64 (90.26 to 91.02) | +0.73 (+0.63 to +0.82) | pass | 241 s |
 | `ca-ud-ancora-2.16-sentence` | `ca-ud-ancora-sentence` | 185 | 99.16 (98.57 to 99.68) | 99.16 (98.57 to 99.68) | +0.00 (+0.00 to +0.00) | pass | 1 s |
 | `ca-ud-ancora-2.16-tokens` | `ca-ud-ancora-tokens` | 1846 | 99.92 (99.89 to 99.95) | 99.92 (99.89 to 99.95) | +0.00 (+0.00 to +0.00) | pass | 16 s |
-| `ca-ud-ancora-2.16-pos` | `ca-ud-ancora-pos` | 1846 | 97.28 (97.09 to 97.47) | 97.24 (97.05 to 97.43) | +0.04 (-0.01 to +0.08) | pass | 86 s |
-| `ca-ud-ancora-2.16-lemmas` | `ca-ud-ancora-lemmas` | 1846 | 89.74 (89.27 to 90.21) | 89.74 (89.26 to 90.21) | +0.00 (-0.01 to +0.01) | pass | 197 s |
+| `ca-ud-ancora-2.16-pos` | `ca-ud-ancora-pos` | 1846 | 97.28 (97.09 to 97.47) | 97.24 (97.05 to 97.43) | +0.04 (-0.01 to +0.08) | pass | 84 s |
+| `ca-ud-ancora-2.16-lemmas` | `ca-ud-ancora-lemmas` | 1846 | 89.77 (89.29 to 90.24) | 89.77 (89.29 to 90.24) | +0.00 (-0.01 to +0.01) | pass | 197 s |
 | `pt-ud-porttinari-2.16-sentence` | `pt-ud-gsd-sentence` | 169 | 99.11 (98.57 to 99.64) | 98.26 (97.43 to 98.96) | +0.85 (+0.06 to +1.70) | pass | 0 s |
 | `pt-ud-porttinari-2.16-tokens` | `pt-ud-gsd-tokens` | 1683 | 99.84 (99.78 to 99.90) | 99.20 (99.06 to 99.33) | +0.64 (+0.52 to +0.77) | pass | 5 s |
-| `pt-ud-porttinari-2.16-pos` | `pt-ud-gsd-pos` | 1683 | 95.82 (95.55 to 96.10) | 91.49 (91.14 to 91.84) | +4.33 (+3.99 to +4.68) | pass | 22 s |
-| `pt-ud-porttinari-2.16-lemmas` | `pt-ud-gsd-lemmas` | 1683 | 91.28 (90.85 to 91.71) | 81.12 (80.61 to 81.62) | +10.16 (+9.76 to +10.55) | pass | 132 s |
-| `fi-ud-ftb-2.16-pos` | `fi-ud-tdt-pos` | 1867 | 89.25 (88.71 to 89.78) | 87.25 (86.67 to 87.83) | +2.00 (+1.47 to +2.53) | pass | 27 s |
-| `fi-ud-ftb-2.16-lemmas` | `fi-ud-tdt-lemmas` | 1867 | 88.24 (87.70 to 88.77) | 83.06 (82.41 to 83.71) | +5.18 (+4.62 to +5.74) | pass | 1551 s |
+| `pt-ud-porttinari-2.16-pos` | `pt-ud-gsd-pos` | 1683 | 95.82 (95.55 to 96.10) | 91.49 (91.14 to 91.84) | +4.33 (+3.99 to +4.68) | pass | 24 s |
+| `pt-ud-porttinari-2.16-lemmas` | `pt-ud-gsd-lemmas` | 1683 | 91.37 (90.94 to 91.81) | 81.38 (80.88 to 81.88) | +9.99 (+9.59 to +10.39) | pass | 137 s |
+| `fi-ud-ftb-2.16-pos` | `fi-ud-tdt-pos` | 1867 | 89.25 (88.71 to 89.78) | 87.25 (86.67 to 87.83) | +2.00 (+1.47 to +2.53) | pass | 28 s |
+| `fi-ud-ftb-2.16-lemmas` | `fi-ud-tdt-lemmas` | 1867 | 88.87 (88.36 to 89.38) | 83.97 (83.36 to 84.61) | +4.90 (+4.35 to +5.45) | pass | 1602 s |
 | `it-ud-markit-2.16-pos` | `it-ud-vit-pos` | 340 | 89.96 (89.22 to 90.70) | 92.17 (91.55 to 92.78) | -2.21 (-2.92 to -1.49) | **fail** | 3 s |
-| `it-ud-markit-2.16-lemmas` | `it-ud-vit-lemmas` | 340 | 82.39 (81.48 to 83.27) | 83.26 (82.37 to 84.11) | -0.87 (-1.34 to -0.41) | **fail** | 10 s |
+| `it-ud-markit-2.16-lemmas` | `it-ud-vit-lemmas` | 340 | 82.57 (81.66 to 83.44) | 83.55 (82.67 to 84.40) | -0.98 (-1.44 to -0.53) | **fail** | 11 s |
 
-- Tags left out of the taggers' gates, counted in the tagger's tokens
-  of the `test` file whose gold tag the reference has no outcome for:
-  Porttinari 6 of 31,451 (0.02 percent: `INTJ` 5, `ADP+ADP` 1), FTB 635
-  of 16,261 (3.91 percent: `DET` 398, `PART` 234, `SCONJ+VERB` 3, tags
-  the Finnish TDT reference never gives) and MarkIT 3 of 9,654 (0.03
-  percent: `NOUN+PRON` 2, `DET+DET` 1); none for Spanish and Catalan. The
-  taggers' scores above are over the other tokens, and each card lists
-  the reference's ten most frequent mismatches on them (for FTB, `VERB`
-  tagged `AUX` 303 times comes first). The lemmatizers' gates leave
-  nothing out.
+The tokens of the `test` file each gate leaves out, and the lead, in
+points, with them left out (the gate's) and with them counted (both
+models scored on every token):
+
+| Gate | Left out | Candidate right on them | Lead, left out | Lead, counted |
+|---|---|---|---|---|
+| `pt-ud-porttinari-2.16-pos` | 6 of 31,451 (0.02 percent) | 2 | +4.33 | +4.34 |
+| `fi-ud-ftb-2.16-pos` | 635 of 16,261 (3.91 percent) | 428 | +2.00 | +4.55 |
+| `it-ud-markit-2.16-pos` | 3 of 9,654 (0.03 percent) | 0 | -2.21 | -2.21 |
+| `es-ud-ancora-2.16-lemmas` | 57 of 52,454 (0.11 percent) | 26 | +0.73 | +0.77 |
+| `ca-ud-ancora-2.16-lemmas` | 18 of 57,894 (0.03 percent) | 0 | +0.00 | +0.00 |
+| `pt-ud-porttinari-2.16-lemmas` | 100 of 31,451 (0.32 percent) | 62 | +9.99 | +10.16 |
+| `fi-ud-ftb-2.16-lemmas` | 177 of 16,261 (1.09 percent) | 54 | +4.90 | +5.18 |
+| `it-ud-markit-2.16-lemmas` | 33 of 9,654 (0.34 percent) | 10 | -0.98 | -0.87 |
+
+- A tagger's tokens are left out by their gold tag: Porttinari's `INTJ`
+  5 and `ADP+ADP` 1, FTB's `DET` 398, `PART` 234 and `SCONJ+VERB` 3
+  (tags the Finnish TDT reference never gives), and MarkIT's `NOUN+PRON`
+  2 and `DET+DET` 1. A lemmatizer's are listed by tag on its card. The
+  reference gets none of them right, and the candidate gets a larger
+  share of them right than its lead on the scored tokens in every gate
+  but the Catalan lemmatizer's (0 of 18, and no lead), so leaving them
+  out lowers each lead (the limit's note above), or leaves it the same
+  to two places; FTB's tagger moves most, +2.00 against +4.55. Each card
+  lists the reference's ten most frequent mismatches on the scored
+  tokens (for FTB's tagger, `VERB` tagged `AUX` 303 times comes first).
+- No model gives a lemma with a capital letter: OpenNLP's `decodeLemmas`
+  applies a class to the lowercased token, and training makes every
+  class from the lowercased lemma. The `test` tokens whose lemma has one
+  are 4,093 of 52,454 for Spanish (7.80 percent), 5,323 of 57,894 for
+  Catalan (9.19), 2,247 of 31,451 for Portuguese (7.14), 1 of 16,261 for
+  Finnish, and 1,170 of 9,654 for Italian (12.12; 927 of them
+  `[PUNCT]`, MarkIT's lemma for most punctuation). Without a capital, a
+  gold class gives another string than the lemma for 1 Spanish, 2
+  Portuguese and 8 Finnish tokens (the Finnish ones through an index of
+  ten or more, which OpenNLP reads as one digit). Both models get all of
+  these wrong, so they stay in the scores, as `LemmatizerEvaluator`
+  counts them, and cap both models' accuracy. Making classes from the
+  lemma as written and applying them to the token as written would let
+  a model give capitalised lemmas: an improvement over OpenNLP found
+  here and not made, so that the recipes train and score as OpenNLP
+  does. The Spanish reference's five most frequent mismatches are such
+  lemmas (`Gobierno` given as `gobierno` 67 times, `España` 43).
 - The Italian models lose to OpenNLP's: the tagger by 2.21 points
-  (interval -2.92 to -1.49) and the lemmatizer by 0.87 (-1.34 to -0.41),
-  so a loss of more than 0.5 points is not ruled out for either, and
-  `UdModelCard::artifact` makes no zoo entry for them. MarkIT's `train`
-  file has 611 sentences.
-- The Catalan references are OpenNLP's models of this treebank (the
-  zoo records them as trained on `UD_Catalan-AnCora r2.16`), made with
-  the settings the recipes take from the UD 1.3 models. The sentence
-  detectors and tokenizers agree on every unit. The taggers differ on
-  127 of the 1,846 units and the lemmatizers on 6. One difference in the
-  data is known: the recipes leave the treebank's 4,999 empty nodes out
-  of the tagger's and lemmatizer's training samples, and OpenNLP's
-  streams keep them. Whether that accounts for all of it was not
-  checked.
+  (interval -2.92 to -1.49) and the lemmatizer by 0.98 (-1.44 to
+  -0.53), so a loss of more than 0.5 points is not ruled out for
+  either, and `UdModelCard::artifact` makes no zoo entry for them.
+  MarkIT's `train` file has 611 sentences.
+- The Catalan references are OpenNLP's models of this treebank's
+  `train` file (the zoo records them as trained on `UD_Catalan-AnCora
+  r2.16`), made with the settings the recipes take from the UD 1.3
+  models. The recipes make OpenNLP's sentence detector and tokenizer
+  events exactly: each trained model's `Training-Eventhash` is its
+  reference's (2275230916, from 14,747 events, and 289028499, from
+  1,432,196), the model entries are the same byte for byte up to the
+  parameters, and the parameters differ only in their last bits (1,107
+  of 1,237 in `sent.model` and 39,509 of 55,744 in `token.model`, by at
+  most 4.8e-13 of their value). So those two gates check that the
+  recipes reproduce OpenNLP's models rather than compare two models, and
+  the models agree on every unit. With the empty nodes kept, the recipes
+  make OpenNLP's tagger and lemmatizer events exactly too (event hashes
+  4145769459, from 422,116 events, and 896960108); the recipes leave the
+  treebank's 4,999 empty nodes out (417,117 events), so the tagger and
+  lemmatizer are trained on what OpenNLP's were less those nodes. The
+  taggers differ on 127 of the 1,846 units and the lemmatizers on 6.
 - The other references are trained on another treebank of the language
   (Spanish GSD, Portuguese GSD, Finnish TDT, Italian VIT), so a gap can
-  come from the two treebanks' annotation as well as from the models;
-  the widest is the Portuguese lemmatizer's 10.16 points.
+  come from the two treebanks' annotation as well as from the models,
+  and that favours the candidate (above); the widest is the Portuguese
+  lemmatizer's 9.99 points.
 
 ## Tests
 

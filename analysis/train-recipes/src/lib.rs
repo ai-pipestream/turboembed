@@ -21,7 +21,9 @@
 //!   files against the OpenNLP UD 1.3 models (the Italian ones local-only,
 //!   recorded by digest and only scored).
 //! - [`ud_card`]: the card of a model a UD recipe trained, with the
-//!   treebank's licence, attribution and citation, and its zoo entry.
+//!   treebank's licence, attribution and citation, and its zoo entry,
+//!   which a treebank whose text rights are not settled (Porttinari) never
+//!   gets.
 //!
 //! [`run`] runs one MASC recipe from a split corpus to the model, the
 //! card and the gate record, and [`ud::run_ud`] one UD recipe from a

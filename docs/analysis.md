@@ -2174,10 +2174,17 @@ and lemmatizer on the Universal Dependencies treebanks of release 2.16
 whose own `LICENSE.txt` and README say CC BY 4.0: Spanish AnCora,
 Catalan AnCora and Portuguese Porttinari (all four components), and
 Finnish FTB and Italian MarkIT (tagger and lemmatizer; their `text`
-comments put a space between every two tokens, so they hold no sentence
-ends or tokenization of running text). Portuguese DANTEStocks is CC BY
-4.0 too, but its text is tweets, and platform terms need a look before
-it is used, as for WNUT-17 (docs/licences.md), so it has no recipe.
+comments put a space between almost every two tokens, and MarkIT's
+files have 9 `SpaceAfter=No`, FTB's none, so they hold no sentence ends
+or tokenization of running text). Portuguese DANTEStocks is CC BY
+4.0 too, but its text is tweets, and the policy refuses platform-terms
+data, as it does MASC's Twitter genre (docs/licences.md), so it is
+refused and has no recipe. Porttinari's recipes stay, so a user can
+train its models locally, but its CC BY 4.0 grant is the treebank
+authors', for their annotations, and its text is Folha de São Paulo
+articles that its README says are on Kaggle, with no licence from Folha
+shown, so no Porttinari model is shipped (`UdModelCard::artifact`
+refuses one whatever its gate says).
 
 - The data: each treebank's `LICENSE.txt`, README and UD `train`, `dev`
   and `test` files, with sizes, SHA-256 and SHA-512 recorded in
@@ -2199,15 +2206,31 @@ it is used, as for WNUT-17 (docs/licences.md), so it has no recipe.
   sentence detector's and tokenizer's as the MASC ones', and each
   tagger's as the MASC tagger's, both models' tags (their outcomes, the
   universal tags) compared with the held-out tag as written, with no
-  mapping of the reference's tags. A tagger's tokens whose tag the
-  reference has no outcome for are left out of both models' scores and
-  listed on the card (FTB's `DET` and `PART`, which the Finnish
-  reference never gives); over 5 in 100 and the recipe fails. The MASC
-  tagger's limit, 1 in 1,000, would refuse FTB, where 3.9 in 100 are
-  left out. The lemmatizer, given the held-out tags, is scored on its
-  lemmas. Before any model is trained, the run checks every reference,
-  every treebank and every recipe's samples (the skipped sentences and
-  the tagger's left-out tokens), as the MASC run does. OpenNLP's Italian
+  mapping of the reference's tags. The lemmatizer, given the held-out
+  tags, is scored on its lemmas the same way. A tagger's tokens whose
+  tag the reference has no outcome for (FTB's `DET` and `PART`, which the
+  Finnish reference never gives), and a lemmatizer's tokens whose gold
+  lemma class (the edit script from the token to its lemma) gives the
+  lemma while no class of the reference does, are tokens it cannot get
+  right, so they are left out of both models' scores and listed on the
+  card; over 5 in 100 and the recipe fails. The limit is one for every UD
+  tagger and lemmatizer, a floor on how much of the `test` file the gate
+  covers; the MASC tagger's limit, 1 in 1,000, would refuse FTB, where
+  3.9 in 100 (tagger) and 1.1 in 100 (lemmatizer) are left out. Every token left
+  out is one the reference gets wrong: when the candidate trails, leaving
+  tokens out always lowers its lead, in the point estimate and in each
+  resample, so it cannot make a failing gate pass whenever the resamples
+  the interval's low end is read from have the candidate trailing; when
+  it leads, it raises its lead only when the candidate's accuracy on the
+  left-out tokens is below its lead, and by at most 5 in 100 of that
+  lead. Except for Catalan, the reference was trained on another
+  treebank and is scored against conventions it was not trained on,
+  which favours the candidate (the Finnish TDT reference tags 303 of
+  FTB's scored `VERB` tokens `AUX`); the Catalan gates are the only ones
+  that compare models trained on the same treebank. Before any model is
+  trained, the run checks every reference, every treebank and every
+  recipe's samples (the skipped sentences and the tagger's and
+  lemmatizer's left-out tokens), as the MASC run does. OpenNLP's Italian
   models are trained on UD_Italian-VIT, which is non-commercial, so
   they are local-only and not in the zoo: the Italian recipes record
   each one's size and SHA-256, read it from the references directory
@@ -2225,30 +2248,45 @@ cargo run --release -p turbo-train-recipes -- ud --treebanks <zoo-home>/artifact
     --references <dir with the OpenNLP UD models> --out <dir> [--recipe <model id>]...
 ```
 
-Results of two release-mode runs of all sixteen recipes, which wrote
-byte-identical models, cards and gate records, in points (F-measure for
-sentences and tokens, accuracy for tags and lemmas), with the 95
-percent interval of the difference from the gate's paired bootstrap;
-the README has every interval and the times:
+Results of a release-mode run of all sixteen recipes, with the five
+lemmatizers run again after the last change to the tokens their gates
+leave out (each model file is the one the runs before the review wrote,
+by SHA-256), in points (F-measure for sentences and tokens, accuracy for
+tags and lemmas), with the 95 percent interval of the difference from
+the gate's paired bootstrap; the README has every interval, the times
+and each gate's lead with its left-out tokens counted:
 
 | Treebank | Sentences | Tokens | Tags | Lemmas |
 |---|---|---|---|---|
-| Spanish AnCora vs `es-ud-gsd` | 97.99 vs 96.27, +0.85 to +2.72 | 99.96 vs 99.89, +0.04 to +0.11 | 97.40 vs 92.73, +4.44 to +4.91 | 91.32 vs 90.54, +0.67 to +0.87 |
-| Catalan AnCora vs `ca-ud-ancora` | 99.16 vs 99.16, +0.00 to +0.00 | 99.92 vs 99.92, +0.00 to +0.00 | 97.28 vs 97.24, -0.01 to +0.08 | 89.74 vs 89.74, -0.01 to +0.01 |
-| Portuguese Porttinari vs `pt-ud-gsd` | 99.11 vs 98.26, +0.06 to +1.70 | 99.84 vs 99.20, +0.52 to +0.77 | 95.82 vs 91.49, +3.99 to +4.68 | 91.28 vs 81.12, +9.76 to +10.55 |
-| Finnish FTB vs `fi-ud-tdt` |  |  | 89.25 vs 87.25, +1.47 to +2.53 | 88.24 vs 83.06, +4.62 to +5.74 |
-| Italian MarkIT vs `it-ud-vit` |  |  | 89.96 vs 92.17, -2.92 to -1.49, fail | 82.39 vs 83.26, -1.34 to -0.41, fail |
+| Spanish AnCora vs `es-ud-gsd` | 97.99 vs 96.27, +0.85 to +2.72 | 99.96 vs 99.89, +0.04 to +0.11 | 97.40 vs 92.73, +4.44 to +4.91 | 91.37 vs 90.64, +0.63 to +0.82 |
+| Catalan AnCora vs `ca-ud-ancora` | 99.16 vs 99.16, +0.00 to +0.00 | 99.92 vs 99.92, +0.00 to +0.00 | 97.28 vs 97.24, -0.01 to +0.08 | 89.77 vs 89.77, -0.01 to +0.01 |
+| Portuguese Porttinari vs `pt-ud-gsd` | 99.11 vs 98.26, +0.06 to +1.70 | 99.84 vs 99.20, +0.52 to +0.77 | 95.82 vs 91.49, +3.99 to +4.68 | 91.37 vs 81.38, +9.59 to +10.39 |
+| Finnish FTB vs `fi-ud-tdt` |  |  | 89.25 vs 87.25, +1.47 to +2.53 | 88.87 vs 83.97, +4.35 to +5.45 |
+| Italian MarkIT vs `it-ud-vit` |  |  | 89.96 vs 92.17, -2.92 to -1.49, fail | 82.57 vs 83.55, -1.44 to -0.53, fail |
 
 The fourteen models gated against references of the zoo pass, and the
-two Italian models fail: they lose 2.21 points (tagger) and 0.87
+two Italian models fail: they lose 2.21 points (tagger) and 0.98
 (lemmatizer) to OpenNLP's Italian models, so they get no zoo entry. The
-Finnish tagger's gate leaves out 635 of 16,261 test tokens (3.91
-percent: `DET`, `PART` and `SCONJ+VERB`), the Portuguese one 6 of
-31,451 and the Italian one 3 of 9,654. The Catalan references are
-OpenNLP's models of the same treebank, so that gate checks the recipes
-against a model of the same data; the others are trained on another
-treebank of the language, so a gap there can come from the treebanks'
-annotation as well as from the models.
+gates leave out the test tokens the reference cannot get right: the
+Finnish tagger's 635 of 16,261 (3.91 percent: `DET`, `PART` and
+`SCONJ+VERB`), the Portuguese one's 6 of 31,451 and the Italian one's 3
+of 9,654, and the lemmatizers' 57 (Spanish), 18 (Catalan), 100
+(Portuguese), 177 (Finnish) and 33 (Italian). Every such gate's lead is
+lower with them left out than with them counted, or the same: most for
+the Finnish tagger, +2.00 against +4.55. No model gives a lemma with a
+capital letter, as no OpenNLP lemmatizer does (it applies a class to the
+lowercased token), so both models get wrong the test tokens whose lemma
+has one: from 7.14 percent of the Portuguese ones to 12.12 percent of
+the Italian ones, and 1 Finnish token. Giving them would be an
+improvement over OpenNLP, found here and not made. The Catalan references are OpenNLP's models of the same
+treebank: the sentence detector and tokenizer recipes make OpenNLP's
+events exactly and their models differ from the references only in the
+last bits of some parameters, so those gates check that the recipes
+reproduce OpenNLP's models, and the tagger and lemmatizer are trained on
+OpenNLP's samples less the treebank's 4,999 empty nodes. The others are
+trained on another treebank of the language, so a gap there can come
+from the treebanks' annotation as well as from the models, which favours
+the candidate.
 
 ## Differential fuzzing
 
@@ -2616,16 +2654,19 @@ the tokens left out and the mapping of the reference's tags), both
 models by id and SHA-256, the resamples and seed, the result, and both
 models' counts per sample. `check` refuses empty names, digests that
 are not 64 lower case hex, resamples or a seed other than the gate's, a
-scoring that does not fit the measure, and a tag scoring whose tokens
-less those left out are not what each model's units count, then
-recomputes the result from the counts. It is strict JSON, as
+scoring that does not fit the measure, a tag scoring whose tokens
+less those left out are not what each model's units count, and a
+lemmatizer's record with a mapping, then recomputes the result from the
+counts. It is strict JSON, as
 the evaluation record is, and is never replaced once written.
 
 The tasks are the sentence detector and the tokenizer, scored by
 F-measure, and the part-of-speech tagger and the lemmatizer, scored by
 accuracy as `POSEvaluator` and `LemmatizerEvaluator` count it (#415). A
-lemmatizer's lemmas are recorded as a tag scoring with no token left
-out and no mapping.
+lemmatizer's lemmas are recorded as a tag scoring with no mapping: the
+tokens left out are those whose gold lemma class (the edit script from
+the token to its lemma) gives the lemma while no class of the reference
+does, and `check` refuses a lemmatizer's record with tag mappings.
 
 ### The sets
 
