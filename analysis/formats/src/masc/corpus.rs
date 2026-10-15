@@ -3,8 +3,21 @@
 use std::ffi::OsString;
 use std::path::{Path, PathBuf};
 
+use super::chunks::MascChunkFiles;
 use super::document::{HeaderFile, MascDocument, MascFiles, parse_header};
 use super::error::{AnnotationFile, MascError};
+
+/// Whether a read takes the noun and verb chunk files a header names
+/// (`f.nc` and `f.vc`), which OpenNLP does not read.
+#[derive(Copy, Clone, Debug, Default, PartialEq, Eq, Hash)]
+pub enum ChunkFiles {
+    /// As OpenNLP: the chunk files are not read.
+    #[default]
+    Ignored,
+    /// The chunk files are read and their chunks added to the document
+    /// ([`MascDocument::add_chunks`]).
+    Read,
+}
 
 /// A document `MascDocumentStream` logged and left out, with what its
 /// parse threw.
@@ -65,9 +78,28 @@ impl MascCorpus {
     pub fn read_with(
         dir: impl AsRef<Path>,
         recursive: bool,
-        mut filter: impl FnMut(&Path) -> bool,
+        filter: impl FnMut(&Path) -> bool,
     ) -> Result<MascCorpus, MascError> {
-        let dir = dir.as_ref();
+        MascCorpus::walk(dir.as_ref(), recursive, filter, ChunkFiles::Ignored)
+    }
+
+    /// Reads every document under `dir` as [`MascCorpus::read`] does, and
+    /// each document's noun and verb chunks ([`ChunkFiles::Read`]).
+    ///
+    /// # Errors
+    ///
+    /// As [`MascCorpus::read_with`]. A chunk file that cannot be parsed
+    /// skips its document, as a file OpenNLP reads does.
+    pub fn read_with_chunks(dir: impl AsRef<Path>) -> Result<MascCorpus, MascError> {
+        MascCorpus::walk(dir.as_ref(), true, |_| true, ChunkFiles::Read)
+    }
+
+    fn walk(
+        dir: &Path,
+        recursive: bool,
+        mut filter: impl FnMut(&Path) -> bool,
+        chunks: ChunkFiles,
+    ) -> Result<MascCorpus, MascError> {
         if !dir.is_dir() {
             return Err(MascError::NotADirectory { path: dir.to_owned() });
         }
@@ -93,7 +125,7 @@ impl MascCorpus {
                 }
                 if path.is_file() {
                     if name.as_encoded_bytes().ends_with(b".hdr") {
-                        match read_document(&path) {
+                        match read_document_with(&path, chunks) {
                             Ok(doc) => corpus.documents.push(doc),
                             Err(error) if error.skips_document() => {
                                 corpus.skipped.push(SkippedDocument { path, error })
@@ -140,6 +172,16 @@ impl MascCorpus {
 ///
 /// What the constructor and `parseDocument` throw for the document.
 pub fn read_document(hdr: &Path) -> Result<MascDocument, MascError> {
+    read_document_with(hdr, ChunkFiles::Ignored)
+}
+
+/// [`read_document`], and then, under [`ChunkFiles::Read`], the chunk
+/// files the header names ([`MascDocument::add_chunks`]).
+///
+/// # Errors
+///
+/// As [`read_document`], and what [`MascDocument::add_chunks`] fails on.
+pub fn read_document_with(hdr: &Path, chunks: ChunkFiles) -> Result<MascDocument, MascError> {
     let bytes = read(hdr)?;
     let header = |cause| MascError::Header { path: hdr.to_owned(), cause };
     let text = turbo_maxent::xml::decode(&bytes).map_err(header)?;
@@ -161,7 +203,7 @@ pub fn read_document(hdr: &Path) -> Result<MascDocument, MascError> {
     let penn = load(AnnotationFile::Penn)?;
     let sentences = load(AnnotationFile::Sentences)?;
     let named_entities = load(AnnotationFile::NamedEntities)?;
-    MascDocument::parse(
+    let mut doc = MascDocument::parse(
         hdr,
         MascFiles {
             text: &text,
@@ -170,7 +212,13 @@ pub fn read_document(hdr: &Path) -> Result<MascDocument, MascError> {
             penn: penn.as_deref(),
             named_entities: named_entities.as_deref(),
         },
-    )
+    )?;
+    if chunks == ChunkFiles::Read {
+        let noun = load(AnnotationFile::NounChunks)?;
+        let verb = load(AnnotationFile::VerbChunks)?;
+        doc.add_chunks(MascChunkFiles { noun: noun.as_deref(), verb: verb.as_deref() })?;
+    }
+    Ok(doc)
 }
 
 fn read(path: &Path) -> Result<Vec<u8>, MascError> {
