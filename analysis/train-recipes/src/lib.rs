@@ -11,6 +11,8 @@
 //! - [`postag`]: the English part-of-speech tagger trained on MASC's Penn
 //!   tags, gated the same way against OpenNLP 1.5's Penn tagger
 //!   (`en-pos-maxent.bin`).
+//! - [`spans`]: a held-out unit's counts from OpenNLP's `FMeasure`, both
+//!   models' counts paired, and the types a gate of typed spans scores.
 //! - [`card`]: the model card kept beside the gate record, and the
 //!   model's permissive zoo entry with its licence and attribution.
 //!
@@ -24,6 +26,7 @@ pub mod error;
 pub mod masc;
 pub mod postag;
 pub mod segmentation;
+pub mod spans;
 
 use std::fmt::{self, Write as _};
 
