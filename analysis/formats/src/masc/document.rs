@@ -66,6 +66,33 @@ pub struct MascName {
     pub kind: Option<String>,
 }
 
+/// A named entity of a sentence as the named entity file gives it, which
+/// OpenNLP does not compute: the sentence's Penn tokens the entity links
+/// to (places in the sentence's tokens, ascending, each once), the span
+/// from its first token to one past its last, and its label.
+///
+/// This is the reading a corpus user would expect where OpenNLP's names
+/// ([`MascSentence::names`]) lose tokens and whole names (see the module
+/// documentation). An entity that links to tokens of several sentences
+/// is an entity of each, with the tokens in that sentence.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct MascEntity {
+    /// The first token.
+    pub start: u32,
+    /// One past the last token.
+    pub end: u32,
+    pub kind: Option<String>,
+    pub tokens: Vec<u32>,
+}
+
+impl MascEntity {
+    /// Whether the entity's tokens are every token from its start to its
+    /// end, with no gap.
+    pub fn is_contiguous(&self) -> bool {
+        self.tokens.len() as u32 == self.end - self.start
+    }
+}
+
 /// A sentence (`MascSentence`): a region of the sentence file and the
 /// quarks that overlap it.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -81,12 +108,22 @@ pub struct MascSentence {
     /// Token id to its place in `tokens`.
     token_places: HashMap<i32, usize>,
     names: Vec<MascName>,
+    entities: Vec<MascEntity>,
 }
 
 impl MascSentence {
     fn new(start: i32, end: i32, quarks: Vec<usize>, all: &[Quark]) -> MascSentence {
         let quark_places = quarks.iter().map(|&q| (all[q].id, q)).collect();
-        MascSentence { start, end, quarks, quark_places, tokens: None, token_places: HashMap::new(), names: Vec::new() }
+        MascSentence {
+            start,
+            end,
+            quarks,
+            quark_places,
+            tokens: None,
+            token_places: HashMap::new(),
+            names: Vec::new(),
+            entities: Vec::new(),
+        }
     }
 
     /// The quarks that overlap the region, as places in
@@ -100,9 +137,16 @@ impl MascSentence {
         self.tokens.as_deref()
     }
 
-    /// The named entities.
+    /// The named entities as OpenNLP computes them, which is what
+    /// [`MascNameReader`](super::MascNameReader) reads.
     pub fn names(&self) -> &[MascName] {
         &self.names
+    }
+
+    /// The named entities as the named entity file gives them, in the
+    /// order of their first edge in the file; see [`MascEntity`].
+    pub fn entities(&self) -> &[MascEntity] {
+        &self.entities
     }
 }
 
@@ -337,6 +381,19 @@ impl MascDocument {
                 names = kept;
             }
             sentence.names = names;
+            let mut entities = Vec::new();
+            for entity in &ne.entities {
+                let mut tokens: Vec<u32> =
+                    entity.tokens.iter().filter_map(|t| sentence.token_places.get(t)).map(|&i| i as u32).collect();
+                tokens.sort_unstable();
+                tokens.dedup();
+                let (Some(&first), Some(&last)) = (tokens.first(), tokens.last()) else {
+                    continue;
+                };
+                let kind = ne.types.get(&entity.id).cloned().flatten();
+                entities.push(MascEntity { start: first, end: last + 1, kind, tokens });
+            }
+            sentence.entities = entities;
         }
         self.has_named_entities = true;
     }
@@ -358,8 +415,14 @@ impl MascDocument {
         }
     }
 
-    /// `getTokenStrings`: the bytes of each token.
-    pub(crate) fn token_spans(&self, sentence: &MascSentence) -> Result<Vec<Span>, MascError> {
+    /// `getTokenStrings`: the bytes of each Penn token of `sentence`, a
+    /// sentence of this document, in [`MascDocument::text`].
+    ///
+    /// # Errors
+    ///
+    /// [`MascError::Untokenized`] for a document without a Penn file, and
+    /// what an offset outside the text or inside a surrogate pair gives.
+    pub fn token_spans(&self, sentence: &MascSentence) -> Result<Vec<Span>, MascError> {
         let tokens = sentence.tokens.as_deref().ok_or(MascError::Untokenized { method: "iterator" })?;
         tokens.iter().map(|t| self.span(i64::from(t.start), i64::from(t.end))).collect()
     }
@@ -926,5 +989,58 @@ mod tests {
         // the first token alone is empty
         assert_eq!(names(&[0]), [(0, 0)]);
         assert_eq!(names(&[4, 2]), [(2, 5)]);
+    }
+
+    #[test]
+    fn an_entity_spans_its_first_token_to_one_past_its_last_and_none_is_removed() {
+        let text = b"a b c d e. f g";
+        let mut seg = String::from("<graph>");
+        let mut penn = String::from("<graph>");
+        for (i, at) in [0, 2, 4, 6, 8, 11, 13].iter().enumerate() {
+            seg.push_str(&format!(r#"<region xml:id="seg-r{i}" anchors="{at} {}"/>"#, at + 1));
+            penn.push_str(&format!(r#"<node xml:id="penn-n{i}"><link targets="seg-r{i}"/></node>"#));
+        }
+        seg.push_str("</graph>");
+        penn.push_str("</graph>");
+        let s = br#"<graph><region anchors="0 10"/><region anchors="11 14"/></graph>"#;
+        // ne-n0: tokens 0 and 1; ne-n1: token 0, inside ne-n0; ne-n2: tokens
+        // 4 and 2, with a gap; ne-n3: tokens 4 and 5, across the sentence
+        // end; ne-n4: no label.
+        let ne = r#"<graph><a ref="ne-n0" label="person"/><a ref="ne-n1" label="org"/><a ref="ne-n2" label="date"/>
+            <a ref="ne-n3" label="location"/>
+            <edge from="ne-n0" to="penn-n1"/><edge from="ne-n0" to="penn-n0"/><edge from="ne-n1" to="penn-n0"/>
+            <edge from="ne-n2" to="penn-n4"/><edge from="ne-n2" to="penn-n2"/>
+            <edge from="ne-n3" to="penn-n4"/><edge from="ne-n3" to="penn-n5"/><edge from="ne-n4" to="penn-n6"/></graph>"#;
+        let doc = MascDocument::parse(
+            "t.hdr",
+            MascFiles {
+                text,
+                segments: Some(seg.as_bytes()),
+                sentences: Some(s),
+                penn: Some(penn.as_bytes()),
+                named_entities: Some(ne.as_bytes()),
+            },
+        )
+        .unwrap();
+        let entity = |start, end, kind: Option<&str>, tokens: &[u32]| MascEntity {
+            start,
+            end,
+            kind: kind.map(str::to_owned),
+            tokens: tokens.to_vec(),
+        };
+        let first = doc.sentences()[0].entities();
+        assert_eq!(
+            first,
+            [
+                entity(0, 2, Some("person"), &[0, 1]),
+                entity(0, 1, Some("org"), &[0]),
+                entity(2, 5, Some("date"), &[2, 4]),
+                entity(4, 5, Some("location"), &[4]),
+            ]
+        );
+        assert!(first[0].is_contiguous() && !first[2].is_contiguous());
+        // OpenNLP's names of the same sentence lose most of this.
+        assert_ne!(spans(doc.sentences()[0].names()), [(0, 2), (0, 1), (2, 5), (4, 5)]);
+        assert_eq!(doc.sentences()[1].entities(), [entity(0, 1, Some("location"), &[0]), entity(1, 2, None, &[1])]);
     }
 }

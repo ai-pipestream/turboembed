@@ -74,6 +74,12 @@
 //!
 //! - The documents of a directory are read in the order of their names,
 //!   not the file system's.
+//! - Each sentence also keeps its named entities as the named entity file
+//!   gives them ([`MascSentence::entities`]): the tokens each links to and
+//!   the span from the first to one past the last, with no overlap
+//!   removed. OpenNLP computes no such thing; [`MascNameReader`] reads
+//!   OpenNLP's names, and a trainer that wants the corpus's names builds
+//!   its samples from the entities.
 //! - The token reader can skip a sentence without a sample alone
 //!   ([`EmptySentence::Skipped`]) rather than end the corpus there; the
 //!   default is OpenNLP's.
@@ -94,7 +100,7 @@ pub(crate) mod java;
 pub mod samples;
 
 pub use corpus::{MascCorpus, SkippedDocument, read_document};
-pub use document::{MascDocument, MascFiles, MascName, MascSentence, MascToken, MascWarning, Quark};
+pub use document::{MascDocument, MascEntity, MascFiles, MascName, MascSentence, MascToken, MascWarning, Quark};
 pub use error::{AnnotationFile, MascError, MascStream};
 pub use samples::{
     EmptySentence, MascNameReader, MascPosReader, MascSample, MascSentenceReader, MascSentenceSample, MascTokenReader,
