@@ -2559,6 +2559,7 @@ a `sha256sum` style manifest of the files read, sorted by path.
 | `scifact`, `nfcorpus`, `arguana` | BEIR layout, from MTEB's plain copies at a recorded revision | CC BY-SA 4.0 (BEIR dataset cards) | none | recorded |
 | `legalbench-rag-mini` | a shared folder, placed by hand | MIT for the benchmark; the documents under their sources' terms | code points, converted after Python's newline translation; the mini subset is chosen with a port of CPython's `random` | none (no stable file URLs) |
 | `conteb-covid-qa` | Parquet | none for the article text, so refused (below) | the judged chunk | not recorded yet |
+| `conteb-squad` | Parquet, ConTEB's SQuAD set (`illuin-conteb/squad-conteb-eval`, revision 8f81cbd), validation split | CC BY-SA 4.0 (SQuAD over Wikipedia; downloaded at use, never bundled) | the judged chunk | recorded |
 | `gutenqa` | Parquet | MIT (dataset card) | the quoted passage, located in its chunk | recorded |
 | `hicbench` | no copy that can be fetched | none stated, so refused (below) | quoted sentences, located in the document | none |
 | `qasper` | gzip tar, test split | CC BY 4.0 | quoted evidence, located by paragraph or text | recorded |
@@ -2587,14 +2588,14 @@ links):
   COVID-QA, is Apache 2.0 for its annotations, but its contexts are the
   full text of 147 CORD-19 articles, and CORD-19 passes each article on
   under the article's own licence, some of which restrict
-  redistribution or commercial use. The proposed replacement is
-  ConTEB's SQuAD set (`illuin-conteb/squad-conteb-eval`, revision
-  8f81cbd, validation split, same tables plus an `offset` column): the
-  card states no licence either, but its source states one: SQuAD
-  (`rajpurkar/squad`) is CC BY-SA 4.0, and its passages are Wikipedia
-  text under the same licence, which ConTEB's chunks reproduce. It
-  takes the same reader; adding it is one set file and its digests, and
-  is for the project to decide.
+  redistribution or commercial use. Its replacement is
+  ConTEB's SQuAD set, `conteb-squad` (`illuin-conteb/squad-conteb-eval`,
+  revision 8f81cbd, validation split, same tables plus an `offset`
+  column): the card states no licence either, but its source states
+  one: SQuAD (`rajpurkar/squad`) is CC BY-SA 4.0, and its passages are
+  Wikipedia text under the same licence, which ConTEB's chunks
+  reproduce. It takes the same reader, and its data is downloaded at use
+  and never bundled.
 - `hicbench`: HiChunk's repository links no copy of the data, and the
   copy the paper names (`Youtu-RAG/HiCBench` on the hub) cannot be
   opened; neither states a licence. Its documents come from OHR-Bench

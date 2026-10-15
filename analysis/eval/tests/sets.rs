@@ -9,7 +9,7 @@ use std::path::Path;
 use common::{copy_dir, data, scratch};
 use turbo_eval::fetch::{cache_root, fetch};
 use turbo_eval::read;
-use turbo_eval::sets::{ALL, Digest, Source, find, gutenqa, hicbench, legalbench_rag_mini, qasper};
+use turbo_eval::sets::{ALL, Digest, Source, conteb_squad, find, gutenqa, hicbench, legalbench_rag_mini, qasper};
 
 #[test]
 fn names_are_unique_and_found() {
@@ -108,6 +108,35 @@ fn gutenqa_reads_the_files_fetch_writes() {
     assert!(
         e.contains("gutenqa_chunks.parquet: SHA-256 is ")
             && e.ends_with("set gutenqa records ee544a9c7e046464c3ff9329b33e848a9d7a29d7936d4cff92ed1b984549397d"),
+        "{e}"
+    );
+}
+
+#[test]
+fn conteb_squad_reads_the_validation_files_fetch_writes() {
+    let Source::Files(files) = conteb_squad::SET.source else { panic!("conteb-squad is fetched file by file") };
+    let paths: Vec<&str> = files.iter().map(|f| f.path).collect();
+    assert_eq!(paths, [conteb_squad::DOCUMENTS, conteb_squad::QUERIES]);
+    assert!(files.iter().all(|f| matches!(f.sha256, Digest::Recorded(_))));
+    assert!(conteb_squad::SET.check_license().is_ok());
+    // The ConTEB sample under the validation file names: the reader takes
+    // it, and the digest check refuses it because it is not the published
+    // files.
+    let cache = scratch("sets-conteb-squad");
+    let dir = cache.join("conteb-squad");
+    for (from, to) in [
+        ("documents/train-00000-of-00001.parquet", conteb_squad::DOCUMENTS),
+        ("queries/train-00000-of-00001.parquet", conteb_squad::QUERIES),
+    ] {
+        fs::create_dir_all(dir.join(to).parent().unwrap()).unwrap();
+        fs::copy(data("conteb").join(from), dir.join(to)).unwrap();
+    }
+    let s = (conteb_squad::SET.read)("conteb-squad", &dir).unwrap();
+    assert_eq!(s.queries.len(), 2);
+    let e = conteb_squad::SET.load(&cache).unwrap_err();
+    assert!(
+        e.contains("validation-00000-of-00001.parquet: SHA-256 is ")
+            && e.ends_with("set conteb-squad records 5be7bf8e9fa2c1aebf30107f878c4e6104c65dd825df2673bc39eb0c78b341b3"),
         "{e}"
     );
 }

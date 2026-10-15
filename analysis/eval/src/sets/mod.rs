@@ -9,6 +9,7 @@
 
 pub mod arguana;
 pub mod conteb_covid_qa;
+pub mod conteb_squad;
 pub mod gutenqa;
 pub mod hicbench;
 pub mod legalbench_rag_mini;
@@ -25,12 +26,13 @@ use crate::Result;
 use crate::set::LoadedSet;
 
 /// Every set, in the order a full run takes them.
-pub const ALL: [&Set; 8] = [
+pub const ALL: [&Set; 9] = [
     &scifact::SET,
     &nfcorpus::SET,
     &arguana::SET,
     &legalbench_rag_mini::SET,
     &conteb_covid_qa::SET,
+    &conteb_squad::SET,
     &gutenqa::SET,
     &hicbench::SET,
     &qasper::SET,

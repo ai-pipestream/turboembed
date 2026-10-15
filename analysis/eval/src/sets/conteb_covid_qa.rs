@@ -24,8 +24,8 @@
 //!
 //! So Apache 2.0 covers deepset's annotations, but the article text that
 //! ConTEB chunks stays under its authors' and publishers' terms, as
-//! ConTEB's card says. docs/analysis.md ("The sets") proposes a
-//! replacement.
+//! ConTEB's card says. ConTEB's SQuAD set replaces it
+//! ([`conteb_squad`](super::conteb_squad)).
 
 use std::path::Path;
 
