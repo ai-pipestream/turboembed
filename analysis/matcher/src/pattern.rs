@@ -36,7 +36,8 @@ pub enum Test {
     /// The attribute is one of the strings: spaCy's `IN`.
     In(Attr, Box<[Box<str>]>),
     /// The attribute is none of the strings: spaCy's `NOT_IN`. A token
-    /// with no value for the attribute (no entity covers it) passes.
+    /// no entity covers has the empty string as its [`Attr::Entity`], so
+    /// it passes unless `""` is one of them.
     NotIn(Attr, Box<[Box<str>]>),
     /// The flag is set (`true`) or not (`false`).
     Flag(Flag, bool),

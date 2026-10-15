@@ -39,8 +39,9 @@ pub enum Attr {
     /// (one tag set per layer here).
     Pos,
     /// The kind of the entity that covers the token, from
-    /// `opennlp:entities`: spaCy's `ENT_TYPE`. When entities overlap, the
-    /// first one in the layer that covers the token gives it.
+    /// `opennlp:entities`, or the empty string where none does: spaCy's
+    /// `ENT_TYPE`. When entities overlap, the first one in the layer that
+    /// covers the token gives it.
     Entity,
 }
 
@@ -181,14 +182,18 @@ impl Cmp {
 }
 
 /// `text` in lowercase, written over `out`. ASCII text is lowered byte by
-/// byte; other text goes through `str::to_lowercase`, which maps a final
-/// sigma as Python's `str.lower` does.
+/// byte and other text character by character, without a new string;
+/// text with a capital sigma goes through `str::to_lowercase`, which maps
+/// a final sigma as Python's `str.lower` does (the only place the two
+/// differ).
 pub(crate) fn lower_into(text: &str, out: &mut String) {
     out.clear();
     if text.is_ascii() {
         out.extend(text.bytes().map(|b| b.to_ascii_lowercase() as char));
-    } else {
+    } else if text.contains('\u{3a3}') {
         out.push_str(&text.to_lowercase());
+    } else {
+        out.extend(text.chars().flat_map(char::to_lowercase));
     }
 }
 
@@ -436,5 +441,9 @@ mod tests {
         assert_eq!(out, "οδος");
         lower_into("MiXeD", &mut out);
         assert_eq!(out, "mixed");
+        lower_into("ÜBER İSTANBUL", &mut out);
+        assert_eq!(out, "ÜBER İSTANBUL".to_lowercase());
+        lower_into("ΣΑΣ Σ", &mut out);
+        assert_eq!(out, "σας σ");
     }
 }

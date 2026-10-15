@@ -5,6 +5,7 @@ use std::sync::Mutex;
 use turbo_analysis::IxRange;
 use turbo_analysis_layers::Tokens;
 
+use crate::entries::Entries;
 use crate::error::{MatchError, PatternError};
 use crate::input::{Columns, Input, Needs};
 use crate::nfa::{Nfa, Sim};
@@ -58,7 +59,7 @@ pub struct Matcher {
     nfa: Nfa,
     patterns: Vec<PatternEntry>,
     /// The taking states the active patterns' entries reach.
-    entry: Vec<u32>,
+    entry: Entries,
     needs: Needs,
     /// Working sets reused between calls; a call that finds it in use
     /// makes its own.
@@ -86,7 +87,7 @@ impl Matcher {
         self.patterns.push(PatternEntry { label, needs });
         let sim = self.sim.get_mut().unwrap_or_else(|e| e.into_inner());
         let reached = sim.entry(&self.nfa, [entry]);
-        self.entry.extend(reached);
+        self.entry.extend(&self.nfa, reached);
         self.needs = union(self.needs, needs);
         Ok(PatternId(id))
     }
@@ -100,7 +101,7 @@ impl Matcher {
     pub fn remove(&mut self, label: &str) -> Result<(), MatchError> {
         self.labels.remove(label)?;
         let Matcher { patterns, nfa, entry, labels, .. } = self;
-        entry.retain(|&s| labels.is_active(patterns[nfa.owner[s as usize] as usize].label));
+        entry.retain(|s| labels.is_active(patterns[nfa.owner[s as usize] as usize].label));
         self.needs = self
             .patterns
             .iter()
@@ -172,11 +173,16 @@ impl Matcher {
         };
         sim.work = 0;
         let mut ends = Vec::new();
+        let mut entry = Vec::new();
         let mut found: Vec<(u32, u32, Label, u32)> = Vec::new();
         let n = range.len();
         for start in 0..n {
+            self.entry.at(&cols, start, &mut entry);
+            if entry.is_empty() {
+                continue;
+            }
             ends.clear();
-            sim.run(&self.nfa, &self.entry, &cols, input, range.start, start, n, &mut ends);
+            sim.run(&self.nfa, &entry, &cols, input, range.start, start, n, &mut ends);
             let s = (range.start + start) as u32;
             found.extend(ends.iter().map(|&(e, p)| (s, e, self.patterns[p as usize].label, p)));
         }

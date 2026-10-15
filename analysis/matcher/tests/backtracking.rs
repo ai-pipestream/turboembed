@@ -90,3 +90,26 @@ fn work_grows_linearly_with_one_start() {
     assert!(w2 <= 2 * w1 + 2 * m.states() as u64, "{w1} then {w2}");
     assert!(w1 <= 2 * 2001 * m.states() as u64 + 2001, "{w1}");
 }
+
+#[test]
+fn starts_test_only_the_patterns_their_token_can_begin() {
+    // A thousand patterns, each beginning with its own word: a start tests
+    // the patterns its token begins (none here), not every pattern.
+    let mut m = Matcher::new();
+    for i in 0..1000 {
+        m.add("W", &[Tok::lower(&format!("w{i}")), Tok::text("x")]).unwrap();
+    }
+    m.add("ANY", &[Tok::flag(turbo_matcher::Flag::Digit, true)]).unwrap();
+    m.add("IN", &[Tok::attr_in(turbo_matcher::Attr::Text, ["q", "r"]), Tok::text("y")]).unwrap();
+    let words: Vec<String> = (0..2000).map(|i| format!("v{i}")).collect();
+    let words: Vec<&str> = words.iter().map(String::as_str).collect();
+    let (found, work) = run(&m, &Doc::words(&words));
+    assert_eq!(found, 0);
+    // One visit per start, for the pattern whose first token has no set value.
+    assert_eq!(work, 2000);
+    // The patterns are still found, and after a removal the rest are.
+    let doc = Doc::split("w7 x 5 r y W7 x");
+    assert_eq!(doc.texts(&m), ["w7 x", "5", "r y", "W7 x"]);
+    m.remove("W").unwrap();
+    assert_eq!(doc.texts(&m), ["5", "r y"]);
+}

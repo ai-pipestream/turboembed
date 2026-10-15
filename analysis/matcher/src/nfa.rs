@@ -121,6 +121,28 @@ impl Nfa {
         self.states.len()
     }
 
+    /// The values taking state `s` needs its token to have, when one of
+    /// its tests says: the attribute and ids of its first `Is` test, or
+    /// else of its first `In` test. `None` for a negated token or one
+    /// with neither test.
+    pub(crate) fn required_values(&self, s: u32) -> Option<(Attr, &[u32])> {
+        let State::Take { tok, .. } = self.states[s as usize] else { return None };
+        let tests = &self.toks[tok as usize];
+        if tests.negated {
+            return None;
+        }
+        let is = tests.tests.iter().find_map(|t| match t {
+            Compiled::Is(a, id) => Some((*a, std::slice::from_ref(id))),
+            _ => None,
+        });
+        is.or_else(|| {
+            tests.tests.iter().find_map(|t| match t {
+                Compiled::In(a, ids) => Some((*a, &ids[..])),
+                _ => None,
+            })
+        })
+    }
+
     fn push(&mut self, s: State, pattern: u32) -> u32 {
         self.states.push(s);
         self.owner.push(pattern);

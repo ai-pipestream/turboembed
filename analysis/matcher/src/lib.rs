@@ -36,6 +36,7 @@
 //!   not line up with the tokens.
 
 mod attr;
+mod entries;
 mod error;
 mod hash;
 mod input;

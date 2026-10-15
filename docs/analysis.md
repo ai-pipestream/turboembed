@@ -1086,7 +1086,7 @@ token. A test reads one string attribute (`Attr`) or one flag (`Flag`):
 | `Norm` | a string column the caller aligns to the tokens | `NORM` |
 | `Lemma`, `Stem` | `opennlp:lemmas`, `turbo:stems` | `LEMMA` |
 | `Pos` | the tag in `opennlp:pos` | `TAG`, `POS` |
-| `Entity` | the kind of the first entity in `opennlp:entities` covering the token | `ENT_TYPE` |
+| `Entity` | the kind of the first entity in `opennlp:entities` covering the token, or the empty string where none does | `ENT_TYPE` |
 
 The flags are spaCy's lexical flags, defined as its `lex_attrs.py`
 defines them with Python's `str` methods (`Alpha`, `Ascii`, `Digit`,
@@ -1119,7 +1119,9 @@ holds tests that must all pass (`Tok::text("a")`, `Tok::lower("a")`,
 `and`; `Tok::any()` is spaCy's `{}`), and the operators: `!tok` (spaCy's `!`,
 one token that fails the tests), `.opt()` (`?`), `.star()` (`*`),
 `.plus()` (`+`) and `.repeat(min, max)` (`{n}`, `{n,m}`, `{n,}`,
-`{,m}`). Values are compared as written: `Tok::attr(Attr::Lower,
+`{,m}`). A repeat whose most is zero, or below its least, is refused
+(`PatternError::Repeat`), where spaCy drops a `{0}` token from the
+pattern. Values are compared as written: `Tok::attr(Attr::Lower,
 "Boston")` matches nothing, as in spaCy.
 
 `Matcher::find` reports every run of tokens the whole pattern matches,
@@ -1129,7 +1131,10 @@ label matches a run once however many of its patterns do, and matches
 come in token order (start, end, label). `Matcher::set_greedy` keeps,
 per label, the first (`Greedy::First`) or longest (`Greedy::Longest`)
 matches that share no token, as spaCy's `greedy`. `find_in` matches
-inside a range of tokens only, as spaCy matches a `Span`. `remove`
+inside a range of tokens only, as spaCy matches a `Span`. As in spaCy,
+`find` does not stop at sentence ends, so a match can cross one;
+calling `find_in` with each sentence's tokens keeps matches inside
+sentences. `remove`
 drops a label and its patterns; adding the name again starts afresh.
 
 The patterns compile to one Thompson automaton: a state takes one token
@@ -1148,7 +1153,13 @@ start runs, a pattern that can run to the end of the document (`{}*`)
 costs time quadratic in the tokens, as the matches it reports can be. A
 call looks up each token's values in the matcher's vocabulary once
 (one hash of each attribute the patterns read), so the tests themselves
-compare `u32` ids.
+compare `u32` ids. The states a pattern can start in are indexed by the
+value their token must have (the first `Tok::text`, `Tok::lower`,
+`Tok::attr` or `Tok::attr_in` test of a token that is not negated), so a
+start tests only the patterns its token can begin, plus those whose
+first token has no such test. A token that does begin many patterns
+still tests each of their next tokens: thousands of patterns that share
+a first token are cheaper as phrases.
 
 ### Phrase lists
 

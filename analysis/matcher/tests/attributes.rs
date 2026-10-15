@@ -36,9 +36,15 @@ fn entities_lemmas_and_norms() {
         .with_lemmas(&["Ada", "Lovelace", "write", "note"])
         .with_norms(&["ada", "lovelace", "wrote", "note"]);
     assert_eq!(doc.texts(&one("P", &[Tok::attr(Attr::Entity, "PERSON").plus()])), ["Ada", "Ada Lovelace", "Lovelace"]);
-    // A token no entity covers has no entity value: `NotIn` passes it.
+    // A token no entity covers has the empty kind, as spaCy's `ENT_TYPE`
+    // is "" there: `NotIn` passes it unless "" is listed, and `""` names it.
     let not_person = one("N", &[Tok::attr_not_in(Attr::Entity, ["PERSON"])]);
     assert_eq!(doc.texts(&not_person), ["wrote", "notes"]);
+    assert!(doc.texts(&one("N", &[Tok::attr_not_in(Attr::Entity, ["PERSON", ""])])).is_empty());
+    assert_eq!(doc.texts(&one("O", &[Tok::attr(Attr::Entity, "").plus()])), ["wrote", "wrote notes", "notes"]);
+    let mut m = PhraseMatcher::new(Field::Attr(Attr::Entity));
+    m.add("PO", &["PERSON", ""]).unwrap();
+    assert_eq!(doc.run_phrases(&m).len(), 1);
     assert_eq!(
         doc.texts(&one("W", &[Tok::attr(Attr::Lemma, "write"), Tok::attr(Attr::Norm, "note")])),
         ["wrote notes"]
@@ -110,6 +116,12 @@ fn the_input_checks_what_it_is_given() {
     assert_eq!(
         input.with_stopwords(&[true]).err(),
         Some(MatchError::Misaligned { layer: "turbo:stopwords", len: 1, tokens: 3 })
+    );
+    // A sentence column that is not one per token.
+    let short = Tokens { spans: doc.tokens.spans.clone(), sentence: Some(vec![Ix::new(0); 2]) };
+    assert_eq!(
+        Input::new(&doc.text, &short).err(),
+        Some(MatchError::Misaligned { layer: "sentence column", len: 2, tokens: 3 })
     );
     // A token past the text, or cutting a character.
     let mut spans = Spans::new(ViewId::SOURCE);

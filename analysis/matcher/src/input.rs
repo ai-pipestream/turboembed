@@ -8,7 +8,7 @@ use turbo_analysis_layers::{Entities, Numbers, PosTags, Sentences, Strs, Tokens}
 
 use crate::attr::{Attr, Flag, Iob, text_flags};
 use crate::error::MatchError;
-use crate::vocab::{NONE, Vocab};
+use crate::vocab::Vocab;
 
 /// One document's tokens, the text they are in, and whichever token
 /// layers the patterns read. The tokens' spans index `text`, the text of
@@ -34,6 +34,11 @@ impl<'a> Input<'a> {
     /// must lie inside it on character boundaries.
     pub fn new(text: &'a str, tokens: &'a Tokens) -> Result<Input<'a>, MatchError> {
         let (starts, ends) = tokens.spans.columns();
+        if let Some(sentence) = &tokens.sentence
+            && sentence.len() != starts.len()
+        {
+            return Err(MatchError::Misaligned { layer: "sentence column", len: sentence.len(), tokens: starts.len() });
+        }
         for (index, (&start, &end)) in starts.iter().zip(ends).enumerate() {
             if start > end
                 || end as usize > text.len()
@@ -252,8 +257,11 @@ impl Columns {
                         .map(|t| vocab.get(entities.kinds.label(turbo_analysis::Tag(t as u16))))
                         .collect();
                     let of = entity_of.as_deref().expect("built above");
+                    // A token no entity covers has the empty kind, as
+                    // spaCy's `ENT_TYPE` is "" there.
+                    let outside = vocab.get("");
                     of.iter()
-                        .map(|&e| if e == u32::MAX { NONE } else { ids[entities.kind[e as usize].0 as usize] })
+                        .map(|&e| if e == u32::MAX { outside } else { ids[entities.kind[e as usize].0 as usize] })
                         .collect()
                 }
             };
