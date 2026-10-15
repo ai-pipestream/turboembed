@@ -11,7 +11,7 @@ name = "turbo_formats"
 [dependencies]
 # Span, the byte offsets every sample keeps into its source text.
 turbo-analysis = { path = "../core" }
-# Entities and Tokens layers for brat standoff round-tripping.
+# Tokens, Words, Entities and the word-anchored layers for CoNLL-U and brat conversion.
 turbo-analysis-layers = { path = "../layers" }
 # OpenNLP's two whitespace definitions, which split the lines of the
 # whitespace separated formats.

@@ -87,6 +87,18 @@ pub enum FormatError {
     /// A CoNLL-U sentence with no `# text = ...` comment, which
     /// `ConlluTokenSampleStream` needs.
     NoSentenceText { line: u32 },
+    /// A CoNLL-U `HEAD` that is not `0`, `_` or the id of another word of
+    /// the sentence, which the word-preserving converter refuses rather
+    /// than reading as a root. `head` is the column.
+    ConlluHead { line: u32, head: String },
+    /// A layer the CoNLL-U converter built that the document refused.
+    /// `detail` is the document's reason.
+    ConlluDocument { line: u32, detail: String },
+    /// A dependency head in another sentence than its word, which a
+    /// CoNLL-U sentence cannot hold. Both are word indexes.
+    HeadOutsideSentence { word: usize, head: usize },
+    /// A document with no `Tokens` layer to write as CoNLL-U.
+    NoTokens,
     /// A CoNLL-2002 line without exactly three space-separated fields
     /// (after `StringUtil.split` drops the empty fields at its end).
     /// `count` is the number of fields and `text` the line.
@@ -135,6 +147,7 @@ impl FormatError {
             | MissingMultiwordLine { .. } => Some("opennlp.tools.util.InvalidFormatException"),
             MultiwordRemoval { .. } => Some("java.lang.IndexOutOfBoundsException"),
             TokenNotInText { .. } | NoSentenceText { .. } => Some("java.io.IOException"),
+            ConlluHead { .. } | ConlluDocument { .. } | HeadOutsideSentence { .. } | NoTokens => None,
             Conll02Fields { .. } | Conll03Fields { .. } | InvalidNameTag { .. } | DocstartNotFollowedByEmpty { .. } => {
                 Some("java.io.IOException")
             }
@@ -162,6 +175,8 @@ impl FormatError {
             | MultiwordRemoval { line, .. }
             | TokenNotInText { line, .. }
             | NoSentenceText { line }
+            | ConlluHead { line, .. }
+            | ConlluDocument { line, .. }
             | Conll02Fields { line, .. }
             | Conll03Fields { line, .. }
             | InvalidNameTag { line, .. }
@@ -221,6 +236,12 @@ impl fmt::Display for FormatError {
                 sentence.as_deref().unwrap_or("null")
             ),
             NoSentenceText { .. } => f.write_str("Sentence is missing raw text sample!"),
+            ConlluHead { head, .. } => write!(f, "a HEAD [{head}] that is not 0, _ or another word of the sentence"),
+            ConlluDocument { detail, .. } => write!(f, "the document refused the sentence's layers: {detail}"),
+            HeadOutsideSentence { word, head } => {
+                write!(f, "word {word} has its head {head} in another sentence")
+            }
+            NoTokens => f.write_str("the document has no tokens to write"),
             Conll02Fields { count, text, .. } => {
                 write!(f, "Expected three fields per line in training data, got {count} for line '{text}'!")
             }

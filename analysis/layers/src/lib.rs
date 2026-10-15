@@ -23,6 +23,10 @@ pub use levels::{Level, Levels, Unit, VectorKind};
 pub use money::{CONVERTED_MONEY, Currency, Money, MoneyMention};
 pub use numbers::{DecimalRef, Multiplier, NumberMention, NumberNotation, Numbers, ScaleMarker};
 pub use quantities::{PERCENT, Quantities, QuantityMention};
+pub use words::{
+    MorphFeatures, MwtLanguage, RuleMwtExpander, TokenExpansion, Word, WordLemmas, WordOrTokenAnchor, WordPosTags,
+    Words,
+};
 
 /// Strings by column: one buffer and an end offset per item, never a
 /// `String` per item. Lemmas, normalized forms, glosses.
@@ -80,6 +84,7 @@ mod levels;
 mod money;
 mod numbers;
 mod quantities;
+mod words;
 
 /// Document structure from the parser upstream or a structure annotator:
 /// sections, headings, lists, tables, code, as a tree.
@@ -308,20 +313,62 @@ impl Layer for Lemmas {
     }
 }
 
-/// A head and a relation per token: the tree is the columns, no nodes.
-pub struct Dependencies {
-    pub head: Vec<Option<Ix<Tokens>>>,
+/// A head and a relation per token or syntactic word (`A = Tokens` by
+/// default: `opennlp:dependencies`; `A = Words`:
+/// `opennlp:dependencies<turbo:words>`): the tree is the columns, no nodes.
+pub struct Dependencies<A: WordOrTokenAnchor = Tokens> {
+    pub head: Vec<Option<Ix<A>>>,
     pub relation: Vec<Tag>,
     pub relations: Arc<TagSet>,
 }
 
-impl Layer for Dependencies {
+impl<A: WordOrTokenAnchor> Clone for Dependencies<A> {
+    fn clone(&self) -> Self {
+        Dependencies { head: self.head.clone(), relation: self.relation.clone(), relations: self.relations.clone() }
+    }
+}
+
+impl<A: WordOrTokenAnchor> std::fmt::Debug for Dependencies<A> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Dependencies")
+            .field("head", &self.head)
+            .field("relation", &self.relation)
+            .field("relations", &self.relations.name)
+            .finish()
+    }
+}
+
+/// Dependencies anchored on syntactic [`Words`] (`opennlp:dependencies<turbo:words>`).
+pub type WordDependencies = Dependencies<Words>;
+
+impl<A: WordOrTokenAnchor> Layer for Dependencies<A> {
     const ID: &'static str = "opennlp:dependencies";
+    const OF: Option<&'static LayerName> = A::TARGET_OF;
     fn anchor() -> Anchor {
-        Anchor::aligned::<Tokens>()
+        Anchor::aligned::<A>()
     }
     fn len(&self) -> usize {
         self.head.len()
+    }
+    fn check(&self) -> Result<(), String> {
+        let n = self.head.len();
+        if self.relation.len() != n {
+            return Err("a relation for every dependency head".into());
+        }
+        if self.relation.iter().any(|r| r.0 as usize >= self.relations.len()) {
+            return Err(format!("a relation outside {}", self.relations.name));
+        }
+        for (i, &h) in self.head.iter().enumerate() {
+            if let Some(h) = h {
+                if h.get() >= n {
+                    return Err(format!("dependency head {} at {i} is out of bounds ({n})", h.get()));
+                }
+                if h.get() == i {
+                    return Err(format!("dependency item {i} is its own head"));
+                }
+            }
+        }
+        Ok(())
     }
 }
 

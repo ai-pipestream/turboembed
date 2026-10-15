@@ -490,13 +490,17 @@ fields mean bumps its `SCHEMA`.
 | `Structure` | `turbo:structure` | text | `turbo-analysis-layers` |
 | `Sentences` | `opennlp:sentences` | text | `turbo-analysis-layers` |
 | `Tokens` | `opennlp:tokens` | text | `turbo-analysis-layers` |
+| `Words` | `turbo:words` | the document (indexes `Tokens`) | `turbo-analysis-layers` |
 | `Subwords` | `opennlp:subwords` | text | `turbo-analysis-layers` |
 | `PosTags` | `opennlp:pos` | tokens | `turbo-analysis-layers` |
+| `WordPosTags` | `opennlp:pos<turbo:words>` | words | `turbo-analysis-layers` |
 | `Lemmas` | `opennlp:lemmas` | tokens | `turbo-analysis-layers` |
+| `WordLemmas` | `opennlp:lemmas<turbo:words>` | words | `turbo-analysis-layers` |
+| `MorphFeatures<A>` | `turbo:feats<turbo:words>` / `turbo:feats` | `Words` or `Tokens` | `turbo-analysis-layers` |
 | `ChunkTags` | `opennlp:chunk-tags` | tokens | `turbo-analysis-layers` |
 | `PhraseChunks` | `opennlp:chunks` | text | `turbo-analysis-layers` |
 | `Stems` | `turbo:stems` | tokens | `turbo-stem-layers` |
-| `Dependencies` | `opennlp:dependencies` | tokens | `turbo-analysis-layers` |
+| `Dependencies<A>` | `opennlp:dependencies` / `opennlp:dependencies<turbo:words>` | `Tokens` or `Words` | `turbo-analysis-layers` |
 | `Entities` | `opennlp:entities` | text | `turbo-analysis-layers` |
 | `Boundaries` | `turbo:boundaries` | sentences | `turbo-analysis-layers` |
 | `Chunks` | `turbo:chunks` | text | `turbo-analysis-layers` |
@@ -520,6 +524,58 @@ fields mean bumps its `SCHEMA`.
 `Chunks` are retrieval chunks. The standard's `opennlp:chunks` are
 phrase chunks (noun and verb groups), a different layer, which a phrase
 chunker will write under that id.
+
+## Syntactic words and multi-word tokens (`turbo:words`)
+
+In Universal Dependencies, a single surface token can hold two or more
+syntactic words whose forms are not substrings of the text: Spanish
+`"del"` is `"de"` + `"el"`, Catalan `"pels"` is `"per"` + `"els"`,
+French `"au"` is `"à"` + `"le"`, Portuguese `"pelos"` is `"por"` +
+`"os"`, Italian `"nella"` is `"in"` + `"la"`, and German `"zum"` is
+`"zu"` + `"dem"`.
+
+`Words` (`turbo:words` in `turbo-analysis-layers`) sits beside
+`Tokens`:
+
+- Each syntactic word points at a non-empty `IxRange<Tokens>` (normally
+  one surface token `t..t + 1`) in non-decreasing token order, so
+  `Words::of_token` and `Words::of_sentence` find a token's or
+  sentence's syntactic words by binary search.
+- When a language or document has no multi-word tokens,
+  `Words::from_tokens(&tokens)` sets `form: None` and `subspan: None`,
+  costing only the single `Vec<IxRange<Tokens>>` column (`8` bytes per
+  word) and slicing each word's surface form directly from the view.
+- When a word's form is not a substring of the surface token (`"del"` ->
+  `"de"` + `"el"`), `Words.form` carries the explicit form and `subspan`
+  is `None`. When a split word is a contiguous substring of the surface
+  token (`"can't"` -> `"ca"` + `"n't"`), `Words.subspan` carries
+  `Some(Span)` and `form` stays `None`.
+- Every word maps to its surface token's span (`Words::token_span`), so
+  UTF-16 and code-point conversions at the edge (`Words::utf16_span`,
+  `Words::code_point_span`) never split a surface token between words.
+- Word-based layers (`WordPosTags` as `opennlp:pos<turbo:words>`,
+  `WordLemmas` as `opennlp:lemmas<turbo:words>`, `MorphFeatures<Words>`
+  as `turbo:feats<turbo:words>`, and `WordDependencies` /
+  `Dependencies<Words>` as `opennlp:dependencies<turbo:words>`) anchor
+  on `Words`, while token-based layers (`PosTags`, `Lemmas`,
+  `Dependencies<Tokens>`) keep anchoring on `Tokens`; both can coexist
+  on the same `Document`.
+- The ids are `turbo:words` and `turbo:feats`, as the rule at the top of
+  `analysis/layers/src/lib.rs` asks of a layer the OpenNLP gRPC standard
+  does not have yet.
+- `RuleMwtExpander` (`turbo:mwt-expander`) expands Spanish, Catalan,
+  French, Portuguese, Italian, German and English contractions from
+  `Tokens` into `Words`: closed-class tables written from each language's
+  grammar, which split a homograph too (Portuguese `nos`, Italian `dai`).
+  `ConlluWordReader` and `SyntacticSentence::write_conllu` in
+  `turbo-formats::conllu` read and write CoNLL-U with its multi-word
+  token ranges (`1-2 del`), empty nodes, comments and `MISC` kept, so a
+  file in the format's own shape (LF line ends, one blank line per
+  sentence) comes back as the same bytes. `SyntacticSentence::to_document`
+  and `write_document_conllu` go through a `Document`, which keeps the
+  form, lemma, part of speech, features, head and relation of each word
+  and the spacing between tokens (`SpaceAfter=No`, `SpacesAfter=...`),
+  not `XPOS`, `DEPS`, the rest of `MISC` or the comments.
 
 ## Subwords
 
