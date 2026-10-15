@@ -6,7 +6,6 @@
 //! run from `tests/data`:
 //!
 //! ```text
-//! import json, os
 //! import pyarrow as pa, pyarrow.parquet as pq
 //! names = ["alpha", "beta", "alpha", "gamma", "beta", "alpha", "delta", "alpha", "beta", "epsilon"]
 //! texts = ["row %d: %s" % (i, "Zürich " * i) for i in range(10)]
@@ -24,10 +23,37 @@
 //! req = table.set_column(2, "text", pa.array([t or "" for t in texts], pa.string())).cast(required)
 //! pq.write_table(req, "parquet/plain-uncompressed.parquet", compression="none", use_dictionary=False)
 //! pq.write_table(table.slice(0, 2), "parquet/zstd.parquet", compression="zstd")
-//! # Each sample's rows, one JSON object per line in the order below,
-//! # written as a table with pyarrow's defaults (SNAPPY, dictionary pages,
-//! # data page version 1), as the published sets are.
-//! for rel, rows in samples:
+//! # The samples: each table's rows, written with pyarrow's defaults
+//! # (SNAPPY, dictionary pages, data page version 1), as the published
+//! # sets are. Columns a row lacks are null.
+//! book = "A_Made_Up_Tale_-_Nobody"
+//! other = "Another_Tale_-_Nobody"
+//! samples = {
+//!     "gutenqa/gutenqa_chunks": [
+//!         {"Book Name": book, "Book ID": 0, "Chunk ID": 1, "Chapter": "CHAPTER II.",
+//!          "Chunk": "Señor Ruiz rowed across the lake at dawn."},
+//!         {"Book Name": book, "Book ID": 0, "Chunk ID": 0, "Chapter": "CHAPTER I.",
+//!          "Chunk": "It was a cold night in the village."},
+//!         {"Book Name": other, "Book ID": 1, "Chunk ID": 0, "Chapter": "CHAPTER I.",
+//!          "Chunk": "The lighthouse keeper trimmed his lamp."},
+//!     ],
+//!     "gutenqa/questions": [
+//!         {"Book Name": book, "Book ID": 0, "Chunk ID": 1, "Question": "Who rowed across the lake?",
+//!          "Answer": "Señor Ruiz did.", "Chunk Must Contain": "Señor Ruiz rowed across the lake"},
+//!         {"Book Name": other, "Book ID": 1, "Chunk ID": 0, "Question": "What did the keeper trim?",
+//!          "Answer": "His lamp.", "Chunk Must Contain": "a passage the chunk does not have"},
+//!     ],
+//!     "conteb/documents/train-00000-of-00001": [
+//!         {"chunk_id": "paperA_1", "chunk": "The trial enrolled 120 patients in Zürich.", "og_chunk": "unused"},
+//!         {"chunk_id": "paperA_0", "chunk": "Remdesivir was tested against a placebo."},
+//!         {"chunk_id": "paperB_0", "chunk": "Masks reduced transmission in households."},
+//!     ],
+//!     "conteb/queries/train-00000-of-00001": [
+//!         {"chunk_id": "paperA_1", "query": "How many patients were enrolled?", "answer": "120"},
+//!         {"chunk_id": "paperB_0", "query": "Did masks reduce transmission?", "answer": "yes"},
+//!     ],
+//! }
+//! for rel, rows in samples.items():
 //!     pq.write_table(pa.Table.from_pylist(rows), rel + ".parquet")
 //! ```
 //!

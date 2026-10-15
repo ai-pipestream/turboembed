@@ -2645,7 +2645,7 @@ The Parquet reader is checked on small files pyarrow wrote (SNAPPY and
 dictionary pages in version 1 pages, GZIP in version 2 pages, a
 dictionary that fills up and falls back to PLAIN, several row groups,
 nulls, PLAIN and uncompressed, and a ZSTD file it refuses; the script is
-in `tests/parquet.rs`), and on files a writer in the tests makes, for
+in `analysis/eval/tests/parquet.rs`), and on files a writer in the tests makes, for
 damaged values. None needs the network.
 
 ## Tests
