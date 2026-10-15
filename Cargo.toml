@@ -42,6 +42,7 @@ members = [
     "analysis/train-recipes",
     "analysis/formats",
     "analysis/fuzz",
+    "analysis/grammar",
     "analysis/zoo",
 ]
 resolver = "3"
