@@ -1,0 +1,18 @@
+[package]
+name = "turbo-matcher"
+version = "0.1.0"
+edition.workspace = true
+license.workspace = true
+publish = false
+
+[lib]
+name = "turbo_matcher"
+
+[dependencies]
+turbo-analysis = { path = "../core" }
+turbo-analysis-layers = { path = "../layers" }
+turbo-stem-layers = { path = "../stem-layers" }
+turbo-stopword-layers = { path = "../stopword-layers" }
+# General categories and the Lowercase, Uppercase and White_Space
+# properties, for the lexical flags and token shapes.
+turbo-unicode = { path = "../unicode" }

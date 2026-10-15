@@ -21,6 +21,7 @@ use turbo_analysis::{Anchor, Ix, IxRange, Key, KeyId, Layer, LayerName, ModelRef
 
 pub use abbreviations::{AbbreviationForm, Abbreviations, DEFINITION, MENTION, abbreviation_links};
 pub use levels::{Level, Levels, Unit, VectorKind};
+pub use matches::Matches;
 pub use money::{CONVERTED_MONEY, Currency, Money, MoneyMention};
 pub use numbers::{DecimalRef, Multiplier, NumberMention, NumberNotation, Numbers, ScaleMarker};
 pub use quantities::{PERCENT, Quantities, QuantityMention};
@@ -83,6 +84,7 @@ macro_rules! positional {
 
 mod abbreviations;
 mod levels;
+mod matches;
 mod money;
 mod numbers;
 mod quantities;
