@@ -20,61 +20,61 @@ use super::{
 
 // Years.
 
-fn b_year_digits(v: &[Value], _: &Ctx<'_>) -> Option<Value> {
+pub(crate) fn b_year_digits(v: &[Value], _: &Ctx<'_>) -> Option<Value> {
     let (y, _) = term(&v[0]);
     (dig_len(&v[0]) == 4 && !dig_zero(&v[0]) && (1000..3000).contains(&y)).then(|| term_value(y, 0))?
 }
 
-fn b_year_short(v: &[Value], _: &Ctx<'_>) -> Option<Value> {
+pub(crate) fn b_year_short(v: &[Value], _: &Ctx<'_>) -> Option<Value> {
     (dig_len(&v[0]) == 2).then(|| term_value(term(&v[0]).0, SHORT))?
 }
 
-fn spelled(v: &Value) -> Option<i64> {
+pub(crate) fn spelled(v: &Value) -> Option<i64> {
     let n = v.num()?;
     (n.has(crate::value::flag::SPELLED) && !n.has(crate::value::flag::DIGITS) && n.value.is_integer()).then_some(())?;
     n.value.to_i64()
 }
 
-fn b_year_spelled(v: &[Value], _: &Ctx<'_>) -> Option<Value> {
+pub(crate) fn b_year_spelled(v: &[Value], _: &Ctx<'_>) -> Option<Value> {
     let y = spelled(&v[0])?;
     (1000..3000).contains(&y).then(|| term_value(y, SPELLED))?
 }
 
 /// `nineteen ninety six`: two spelled pairs of digits.
-fn b_year_pairs(v: &[Value], _: &Ctx<'_>) -> Option<Value> {
+pub(crate) fn b_year_pairs(v: &[Value], _: &Ctx<'_>) -> Option<Value> {
     let (a, b) = (spelled(&v[0])?, spelled(&v[1])?);
     ((10..30).contains(&a) && (10..100).contains(&b)).then(|| term_value(a * 100 + b, SPELLED))?
 }
 
 /// A year that stands for itself: four digits, or words after `in`.
-fn full_year(v: &Value) -> Option<YearRef> {
+pub(crate) fn full_year(v: &Value) -> Option<YearRef> {
     (term(v).1 & SHORT == 0).then(|| year_ref(v))
 }
 
 // Days of the month.
 
-fn b_mday_digits(v: &[Value], _: &Ctx<'_>) -> Option<Value> {
+pub(crate) fn b_mday_digits(v: &[Value], _: &Ctx<'_>) -> Option<Value> {
     let d = term(&v[0]).0;
     (dig_len(&v[0]) <= 2 && (1..=31).contains(&d)).then(|| term_value(d, 0))?
 }
 
-fn b_mday_ordinal(v: &[Value], _: &Ctx<'_>) -> Option<Value> {
+pub(crate) fn b_mday_ordinal(v: &[Value], _: &Ctx<'_>) -> Option<Value> {
     let d = v[0].ordinal()?.value;
     (1..=31).contains(&d).then(|| term_value(d, ORDINAL))?
 }
 
 /// `2th`, `21th`: digits and any ordinal ending.
-fn b_mday_suffix(v: &[Value], _: &Ctx<'_>) -> Option<Value> {
+pub(crate) fn b_mday_suffix(v: &[Value], _: &Ctx<'_>) -> Option<Value> {
     let d = term(&v[0]).0;
     (dig_len(&v[0]) <= 2 && (1..=31).contains(&d)).then(|| term_value(d, ORDINAL))?
 }
 
-fn b_mday_spelled(v: &[Value], _: &Ctx<'_>) -> Option<Value> {
+pub(crate) fn b_mday_spelled(v: &[Value], _: &Ctx<'_>) -> Option<Value> {
     let d = spelled(&v[0])?;
     (1..=31).contains(&d).then(|| term_value(d, SPELLED))?
 }
 
-fn day_fits(month: i64, day: i64) -> bool {
+pub(crate) fn day_fits(month: i64, day: i64) -> bool {
     let max = match month {
         2 => 30,
         4 | 6 | 9 | 11 => 30,
@@ -84,23 +84,23 @@ fn day_fits(month: i64, day: i64) -> bool {
     (1..=max).contains(&day)
 }
 
-fn cal(year: YearRef, month: i64, day: i64, weekday: u8) -> Option<DateSpec> {
+pub(crate) fn cal(year: YearRef, month: i64, day: i64, weekday: u8) -> Option<DateSpec> {
     (month == 0 || day == 0 || day_fits(month, day)).then_some(())?;
     Some(DateSpec::Cal { year, month: u8::try_from(month).ok()?, day: u8::try_from(day).ok()?, weekday })
 }
 
-fn md(c: &Ctx<'_>, month: i64, day: i64) -> Option<Value> {
+pub(crate) fn md(c: &Ctx<'_>, month: i64, day: i64) -> Option<Value> {
     emit_date(c, cal(YearRef::Any, month, day, 0)?)
 }
 
 /// `one may` is no date: a month with another sense after a day takes
 /// the day in digits or as an ordinal.
-fn plain_words(month: &Value, day: &Value) -> bool {
+pub(crate) fn plain_words(month: &Value, day: &Value) -> bool {
     term(month).1 & super::AMBIG != 0 && term(day).1 & SPELLED != 0
 }
 
 /// `Apr. 1st`; a dot after a full month name ends a sentence.
-fn b_md_month_day(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
+pub(crate) fn b_md_month_day(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
     let (month, flags) = term(&v[0]);
     if flags & ABBR == 0 && (c.start..c.end).any(|i| c.is_punct(i, '.')) {
         return None;
@@ -108,20 +108,20 @@ fn b_md_month_day(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
     md(c, month, term(&v[1]).0)
 }
 
-fn b_md_day_month(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
+pub(crate) fn b_md_day_month(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
     if plain_words(&v[1], &v[0]) {
         return None;
     }
     md(c, term(&v[1]).0, term(&v[0]).0)
 }
 
-fn b_md_month_digits(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
+pub(crate) fn b_md_month_digits(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
     (dig_len(&v[1]) <= 2).then(|| md(c, term(&v[0]).0, term(&v[1]).0))?
 }
 
 /// `11/20`, or `22/04` when the first number cannot be a month. After a
 /// number or before `of` it is a fraction: `21 1/4`, `3/4 of a point`.
-fn b_md_slash(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
+pub(crate) fn b_md_slash(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
     let fraction =
         c.before().is_some_and(|p| c.lexeme(p).kind == Kind::Numeral) || c.after().is_some_and(|a| c.word(a) == "of");
     if fraction || dig_len(&v[0]) > 2 || dig_len(&v[1]) > 2 {
@@ -132,7 +132,7 @@ fn b_md_slash(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
 }
 
 /// `5.12`, `7.6`: a month and a day written as a decimal.
-fn dot_md(raw: &str) -> Option<(i64, i64)> {
+pub(crate) fn dot_md(raw: &str) -> Option<(i64, i64)> {
     let (m, d) = raw.split_once('.')?;
     if m.is_empty()
         || m.len() > 2
@@ -146,23 +146,23 @@ fn dot_md(raw: &str) -> Option<(i64, i64)> {
     ((1..=12).contains(&m) && day_fits(m, d)).then_some((m, d))
 }
 
-fn b_md_dot(_: &[Value], c: &Ctx<'_>) -> Option<Value> {
+pub(crate) fn b_md_dot(_: &[Value], c: &Ctx<'_>) -> Option<Value> {
     let (m, d) = dot_md(c.raw(c.start))?;
     md(c, m, d)
 }
 
-fn b_weekday_dot(_: &[Value], c: &Ctx<'_>) -> Option<Value> {
+pub(crate) fn b_weekday_dot(_: &[Value], c: &Ctx<'_>) -> Option<Value> {
     let (m, d) = dot_md(c.raw(c.end - 1))?;
     md(c, m, d)
 }
 
 /// The child that holds the value, the rule's others being words.
-fn b_same(v: &[Value], _: &Ctx<'_>) -> Option<Value> {
+pub(crate) fn b_same(v: &[Value], _: &Ctx<'_>) -> Option<Value> {
     Some(v[0])
 }
 
 /// A month and day with the year from the last child.
-fn b_md_year(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
+pub(crate) fn b_md_year(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
     let DateSpec::Cal { year: YearRef::Any, month, day, weekday } = date_of(c, &v[0])? else { return None };
     // `11/20, 12 of Nov` lists two days.
     let comma = (c.start..c.end).any(|i| c.word(i) == ",");
@@ -172,7 +172,7 @@ fn b_md_year(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
     emit_date(c, DateSpec::Cal { year: year_ref(v.last()?), month, day, weekday })
 }
 
-fn numeric_year(v: &Value) -> Option<YearRef> {
+pub(crate) fn numeric_year(v: &Value) -> Option<YearRef> {
     match dig_len(v) {
         4 => Some(YearRef::Abs(i16::try_from(term(v).0).ok()?)),
         2 => Some(year_ref(&Value::Term { value: term(v).0, flags: SHORT })),
@@ -182,7 +182,7 @@ fn numeric_year(v: &Value) -> Option<YearRef> {
 
 /// `5/3/18`, `01/22/2016`, or `13/04/21` when the first number cannot be
 /// a month.
-fn b_mdy(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
+pub(crate) fn b_mdy(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
     if dig_len(&v[0]) > 2 || dig_len(&v[1]) > 2 {
         return None;
     }
@@ -192,7 +192,7 @@ fn b_mdy(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
 }
 
 /// `23.04.2022`: day first.
-fn b_dmy(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
+pub(crate) fn b_dmy(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
     if dig_len(&v[0]) > 2 || dig_len(&v[1]) > 2 {
         return None;
     }
@@ -201,7 +201,7 @@ fn b_dmy(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
     emit_date(c, cal(numeric_year(&v[2])?, m, d, 0)?)
 }
 
-fn b_ymd(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
+pub(crate) fn b_ymd(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
     if dig_len(&v[0]) != 4 || dig_len(&v[1]) > 2 || dig_len(&v[2]) > 2 {
         return None;
     }
@@ -209,7 +209,7 @@ fn b_ymd(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
 }
 
 /// `20161016`.
-fn b_yyyymmdd(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
+pub(crate) fn b_yyyymmdd(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
     if dig_len(&v[0]) != 8 {
         return None;
     }
@@ -221,42 +221,42 @@ fn b_yyyymmdd(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
     emit_date(c, cal(YearRef::Abs(y as i16), n / 100 % 100, n % 100, 0)?)
 }
 
-fn year_digits(v: &Value) -> Option<YearRef> {
+pub(crate) fn year_digits(v: &Value) -> Option<YearRef> {
     (dig_len(v) == 4).then(|| YearRef::Abs(term(v).0 as i16))
 }
 
-fn small(v: &Value) -> Option<i64> {
+pub(crate) fn small(v: &Value) -> Option<i64> {
     (dig_len(v) <= 2).then(|| term(v).0)
 }
 
 // `2019/aug/01`, `05-aug-2016`, `sep-23-2020` and the other orders of a
 // year, a month name and a day.
-fn b_y_mon_d(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
+pub(crate) fn b_y_mon_d(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
     emit_date(c, cal(year_digits(&v[0])?, term(&v[2]).0, small(&v[4])?, 0)?)
 }
 
-fn b_d_mon_y(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
+pub(crate) fn b_d_mon_y(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
     emit_date(c, cal(year_digits(&v[4])?, term(&v[2]).0, small(&v[0])?, 0)?)
 }
 
-fn b_mon_d_y(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
+pub(crate) fn b_mon_d_y(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
     emit_date(c, cal(year_digits(&v[4])?, term(&v[0]).0, small(&v[2])?, 0)?)
 }
 
-fn b_mon_y_d(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
+pub(crate) fn b_mon_y_d(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
     emit_date(c, cal(year_digits(&v[2])?, term(&v[0]).0, small(&v[4])?, 0)?)
 }
 
-fn b_y_d_mon(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
+pub(crate) fn b_y_d_mon(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
     emit_date(c, cal(year_digits(&v[0])?, term(&v[4]).0, small(&v[2])?, 0)?)
 }
 
-fn b_d_y_mon(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
+pub(crate) fn b_d_y_mon(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
     emit_date(c, cal(year_digits(&v[2])?, term(&v[4]).0, small(&v[0])?, 0)?)
 }
 
 /// `2016 10 16`.
-fn b_ymd_spaced(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
+pub(crate) fn b_ymd_spaced(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
     if dig_len(&v[1]) != 2 || dig_len(&v[2]) != 2 {
         return None;
     }
@@ -264,7 +264,7 @@ fn b_ymd_spaced(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
 }
 
 /// A weekday before a full date says nothing more: `Tue May 9`.
-fn b_weekday_date(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
+pub(crate) fn b_weekday_date(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
     if term(&v[0]).1 & PLURAL != 0 {
         return None;
     }
@@ -276,16 +276,16 @@ fn b_weekday_date(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
 
 // Weekdays.
 
-fn weekday(v: &Value) -> Option<u8> {
+pub(crate) fn weekday(v: &Value) -> Option<u8> {
     let (w, f) = term(v);
     (f & PLURAL == 0).then_some(w as u8)
 }
 
-fn b_wd(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
+pub(crate) fn b_wd(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
     emit_date(c, DateSpec::Cal { year: YearRef::Any, month: 0, day: 0, weekday: weekday(&v[0])? })
 }
 
-fn rel_weekday(c: &Ctx<'_>, rel_v: &Value, wd: u8) -> Option<Value> {
+pub(crate) fn rel_weekday(c: &Ctx<'_>, rel_v: &Value, wd: u8) -> Option<Value> {
     let (n, kind) = term(rel_v);
     emit_date(
         c,
@@ -297,26 +297,26 @@ fn rel_weekday(c: &Ctx<'_>, rel_v: &Value, wd: u8) -> Option<Value> {
     )
 }
 
-fn b_wd_rel(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
+pub(crate) fn b_wd_rel(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
     rel_weekday(c, &v[0], weekday(&v[1])?)
 }
 
-fn b_wd_this_rel(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
+pub(crate) fn b_wd_this_rel(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
     if !matches!(term(&v[0]).1, rel::PAST | rel::UPCOMING) {
         return None;
     }
     rel_weekday(c, &v[0], weekday(&v[1])?)
 }
 
-fn b_wd_day(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
+pub(crate) fn b_wd_day(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
     emit_date(c, DateSpec::WeekdayDay { weekday: weekday(&v[0])?, day: term(&v[1]).0 as u8, this_month: false })
 }
 
-fn b_wd_the_day(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
+pub(crate) fn b_wd_the_day(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
     emit_date(c, DateSpec::WeekdayDay { weekday: weekday(&v[0])?, day: term(&v[1]).0 as u8, this_month: true })
 }
 
-fn weeks(v: &Value) -> i8 {
+pub(crate) fn weeks(v: &Value) -> i8 {
     match term(v).1 {
         rel::THIS | rel::UPCOMING => 0,
         _ => term(v).0 as i8,
@@ -324,35 +324,35 @@ fn weeks(v: &Value) -> i8 {
 }
 
 /// `next week Wednesday`.
-fn b_week_wd(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
+pub(crate) fn b_week_wd(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
     emit_date(c, DateSpec::WeekdayRel { weekday: weekday(&v[1])?, weeks: weeks(&v[0]) })
 }
 
 /// `Tuesday of next week`.
-fn b_wd_of_week(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
+pub(crate) fn b_wd_of_week(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
     emit_date(c, DateSpec::WeekdayRel { weekday: weekday(&v[0])?, weeks: weeks(&v[1]) })
 }
 
-fn b_dom(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
+pub(crate) fn b_dom(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
     emit_date(c, cal(YearRef::Any, 0, term(&v[0]).0, 0)?)
 }
 
-fn b_dom_ordinal(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
+pub(crate) fn b_dom_ordinal(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
     (term(&v[0]).1 & ORDINAL != 0).then(|| b_dom(v, c))?
 }
 
 // Days named from the reference.
 
-fn b_dayword(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
+pub(crate) fn b_dayword(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
     let (n, f) = term(&v[0]);
     (f & TONIGHT == 0).then(|| emit_date(c, DateSpec::Rel { grain: TimeGrain::Day, n: n as i16 }))?
 }
 
-fn day_rel(c: &Ctx<'_>, n: i16) -> Option<Value> {
+pub(crate) fn day_rel(c: &Ctx<'_>, n: i16) -> Option<Value> {
     emit_date(c, DateSpec::Rel { grain: TimeGrain::Day, n })
 }
 
-fn b_rel_month_day(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
+pub(crate) fn b_rel_month_day(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
     let months = match v.get(1) {
         Some(r) => weeks(r),
         None => 0,
@@ -379,36 +379,36 @@ pub(crate) fn year_of(c: &Ctx<'_>, v: &Value) -> Option<YearRef> {
     }
 }
 
-fn nth(v: &Value) -> Option<u8> {
+pub(crate) fn nth(v: &Value) -> Option<u8> {
     match v {
         Value::Ordinal(o) => u8::try_from(o.value).ok(),
         _ => None,
     }
 }
 
-fn b_nth_weekday(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
+pub(crate) fn b_nth_weekday(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
     let (year, month) = month_of(c, &v[2])?;
     emit_date(c, DateSpec::NthWeekday { year, month, weekday: weekday(&v[1])?, n: nth(&v[0])? })
 }
 
-fn b_last_weekday(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
+pub(crate) fn b_last_weekday(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
     let (year, month) = month_of(c, &v[1])?;
     emit_date(c, DateSpec::NthWeekday { year, month, weekday: weekday(&v[0])?, n: 0 })
 }
 
 /// `1st week of Oct. on Friday`.
-fn b_nth_week_weekday(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
+pub(crate) fn b_nth_week_weekday(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
     let month = MonthRef::Abs(term(&v[1]).0 as u8);
     emit_date(c, DateSpec::NthWeekday { year: YearRef::Any, month, weekday: weekday(&v[2])?, n: nth(&v[0])? })
 }
 
 // Months.
 
-fn b_month(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
+pub(crate) fn b_month(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
     emit_date(c, cal(YearRef::Any, term(&v[0]).0, 0, 0)?)
 }
 
-fn b_rel_month(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
+pub(crate) fn b_rel_month(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
     let (n, kind) = term(&v[0]);
     if !matches!(kind, rel::THIS | rel::NEXT | rel::LAST) {
         return None;
@@ -418,7 +418,7 @@ fn b_rel_month(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
 
 /// `April 2017`, `June of 1992`, `April of 87`: two digits only after
 /// `of`.
-fn b_month_year(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
+pub(crate) fn b_month_year(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
     let y = v.last()?;
     if term(y).1 & SHORT != 0 && c.word(c.start + 1) != "of" {
         return None;
@@ -426,49 +426,49 @@ fn b_month_year(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
     emit_date(c, cal(year_ref(y), term(&v[0]).0, 0, 0)?)
 }
 
-fn b_month_sep_year(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
+pub(crate) fn b_month_sep_year(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
     emit_date(c, cal(full_year(&v[2])?, term(&v[0]).0, 0, 0)?)
 }
 
-fn b_year_month(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
+pub(crate) fn b_year_month(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
     emit_date(c, cal(full_year(&v[0])?, term(&v[1]).0, 0, 0)?)
 }
 
 /// `2015-3`, `2015-12`.
-fn b_ym_digits(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
+pub(crate) fn b_ym_digits(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
     let m = small(&v[2])?;
     ((1..=12).contains(&m)).then(|| emit_date(c, cal(year_digits(&v[0])?, m, 0, 0)?))?
 }
 
 /// `12-2015`.
-fn b_my_digits(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
+pub(crate) fn b_my_digits(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
     let m = small(&v[0])?;
     ((1..=12).contains(&m)).then(|| emit_date(c, cal(year_digits(&v[1])?, m, 0, 0)?))?
 }
 
 /// `the third month of 2021`.
-fn b_nth_month(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
+pub(crate) fn b_nth_month(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
     let m = i64::from(nth(&v[0])?);
     emit_date(c, cal(year_of(c, &v[1])?, m, 0, 0)?)
 }
 
 // Periods.
 
-fn b_period_year(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
+pub(crate) fn b_period_year(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
     if term(&v[0]).1 & (SHORT | SPELLED) != 0 {
         return None;
     }
     emit_date(c, cal(year_ref(&v[0]), 0, 0, 0)?)
 }
 
-fn b_period_year_spelled(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
+pub(crate) fn b_period_year_spelled(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
     if term(&v[0]).1 & SPELLED == 0 {
         return None;
     }
     emit_date(c, cal(year_ref(&v[0]), 0, 0, 0)?)
 }
 
-fn b_year_word(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
+pub(crate) fn b_year_word(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
     emit_date(c, cal(full_year(&v[0])?, 0, 0, 0)?)
 }
 
@@ -488,11 +488,11 @@ pub(crate) fn unit_grain(v: &Value) -> Option<TimeGrain> {
     })
 }
 
-fn is_fortnight(v: &Value) -> bool {
+pub(crate) fn is_fortnight(v: &Value) -> bool {
     term(v).0 == lexicon::unit(lexicon::WEEK, 2)
 }
 
-fn period(c: &Ctx<'_>, unit: &Value, n: i16) -> Option<Value> {
+pub(crate) fn period(c: &Ctx<'_>, unit: &Value, n: i16) -> Option<Value> {
     if term(unit).1 & PLURAL != 0 {
         return None;
     }
@@ -503,7 +503,7 @@ fn period(c: &Ctx<'_>, unit: &Value, n: i16) -> Option<Value> {
     emit_date(c, DateSpec::Rel { grain, n })
 }
 
-fn b_period_rel(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
+pub(crate) fn b_period_rel(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
     let n = term(&v[0]).0 as i16;
     if unit_grain(&v[1]) == Some(TimeGrain::Day) {
         return None;
@@ -511,20 +511,20 @@ fn b_period_rel(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
     period(c, &v[1], n)
 }
 
-fn b_period_the(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
+pub(crate) fn b_period_the(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
     period(c, &v[0], 0)
 }
 
-fn b_weekend(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
+pub(crate) fn b_weekend(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
     (unit_grain(&v[0]) == Some(TimeGrain::Weekend)).then(|| period(c, &v[0], 0))?
 }
 
-fn b_week_after_next(_: &[Value], c: &Ctx<'_>) -> Option<Value> {
+pub(crate) fn b_week_after_next(_: &[Value], c: &Ctx<'_>) -> Option<Value> {
     emit_date(c, DateSpec::Rel { grain: TimeGrain::Week, n: 2 })
 }
 
 /// `the same week`, `that weekend`: a period the text does not place.
-fn b_undefined(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
+pub(crate) fn b_undefined(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
     if term(&v[0]).1 & PLURAL != 0 {
         return None;
     }
@@ -538,7 +538,7 @@ fn b_undefined(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
     emit(c, TimeValue::Point { point, modifier: Modifier::portion(Portion::Undefined), clip: false })
 }
 
-fn b_week_n(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
+pub(crate) fn b_week_n(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
     let w = small(&v[0])?;
     let year = match v.get(1) {
         Some(y) => year_of(c, y)?,
@@ -547,7 +547,7 @@ fn b_week_n(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
     ((1..=53).contains(&w)).then(|| emit_date(c, DateSpec::Week { year, week: w as u8 }))?
 }
 
-fn week_of(c: &Ctx<'_>, n: u8, of: &Value) -> Option<Value> {
+pub(crate) fn week_of(c: &Ctx<'_>, n: u8, of: &Value) -> Option<Value> {
     if let Some(year) = year_of(c, of) {
         return emit_date(c, DateSpec::Week { year, week: n });
     }
@@ -555,51 +555,51 @@ fn week_of(c: &Ctx<'_>, n: u8, of: &Value) -> Option<Value> {
     emit_date(c, DateSpec::MonthWeek { year, month, week: n })
 }
 
-fn b_nth_week(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
+pub(crate) fn b_nth_week(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
     let n = nth(&v[0])?;
     (1..=5).contains(&n).then(|| week_of(c, n, &v[1]))?
 }
 
-fn b_last_week(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
+pub(crate) fn b_last_week(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
     week_of(c, 0, &v[0])
 }
 
 // Quarters, halves, decades, centuries.
 
-fn b_qtr(v: &[Value], _: &Ctx<'_>) -> Option<Value> {
+pub(crate) fn b_qtr(v: &[Value], _: &Ctx<'_>) -> Option<Value> {
     let q = small(&v[0])?;
     ((1..=4).contains(&q)).then(|| term_value(q, 0))?
 }
 
-fn quarter(c: &Ctx<'_>, year: YearRef, q: i64) -> Option<Value> {
+pub(crate) fn quarter(c: &Ctx<'_>, year: YearRef, q: i64) -> Option<Value> {
     emit_date(c, DateSpec::Quarter { year, quarter: q as u8 })
 }
 
-fn b_quarter(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
+pub(crate) fn b_quarter(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
     quarter(c, YearRef::Any, term(&v[0]).0)
 }
 
-fn b_year_quarter(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
+pub(crate) fn b_year_quarter(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
     quarter(c, full_year(&v[0])?, term(v.last()?).0)
 }
 
-fn b_quarter_year(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
+pub(crate) fn b_quarter_year(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
     quarter(c, full_year(v.last()?)?, term(&v[0]).0)
 }
 
-fn nth_quarter(v: &Value) -> Option<i64> {
+pub(crate) fn nth_quarter(v: &Value) -> Option<i64> {
     let q = i64::from(nth(v)?);
     (1..=4).contains(&q).then_some(q)
 }
 
-fn b_nth_quarter_of(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
+pub(crate) fn b_nth_quarter_of(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
     if term(&v[1]).0 != lexicon::unit(lexicon::MONTH_U, 3) {
         return None;
     }
     quarter(c, year_of(c, &v[2])?, nth_quarter(&v[0])?)
 }
 
-fn b_nth_quarter_the_year(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
+pub(crate) fn b_nth_quarter_the_year(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
     if term(&v[1]).0 != lexicon::unit(lexicon::MONTH_U, 3) {
         return None;
     }
@@ -607,19 +607,19 @@ fn b_nth_quarter_the_year(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
 }
 
 /// `next year's first quarter`.
-fn b_years_quarter(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
+pub(crate) fn b_years_quarter(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
     if term(&v[2]).0 != lexicon::unit(lexicon::MONTH_U, 3) {
         return None;
     }
     quarter(c, year_of(c, &v[0])?, nth_quarter(&v[1])?)
 }
 
-fn b_year_half(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
+pub(crate) fn b_year_half(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
     let h = small(v.last()?)?;
     ((1..=2).contains(&h)).then(|| emit_date(c, DateSpec::Half { year: full_year(&v[0])?, half: h as u8 }))?
 }
 
-fn b_decade(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
+pub(crate) fn b_decade(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
     let y = term(&v[0]).0;
     if y % 10 != 0 {
         return None;
@@ -632,50 +632,50 @@ fn b_decade(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
     emit_date(c, DateSpec::Decade { year })
 }
 
-fn b_decade_word(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
+pub(crate) fn b_decade_word(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
     emit_date(c, DateSpec::Decade { year: YearRef::Short(term(&v[0]).0 as u8) })
 }
 
 /// `nineteen eighties`: a spelled century and a decade word.
-fn b_century_decade(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
+pub(crate) fn b_century_decade(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
     let century = spelled(&v[0])?;
     let year = century * 100 + term(&v[1]).0;
     ((10..30).contains(&century)).then(|| emit_date(c, DateSpec::Decade { year: YearRef::Abs(year as i16) }))?
 }
 
-fn b_century(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
+pub(crate) fn b_century(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
     let n = nth(&v[0])?;
     (1..=30).contains(&n).then(|| emit_date(c, DateSpec::Century { n }))?
 }
 
 // Seasons and other years.
 
-const SEASONS: [Season; 4] = [Season::Spring, Season::Summer, Season::Fall, Season::Winter];
+pub(crate) const SEASONS: [Season; 4] = [Season::Spring, Season::Summer, Season::Fall, Season::Winter];
 
-fn season(v: &Value) -> Option<Season> {
+pub(crate) fn season(v: &Value) -> Option<Season> {
     SEASONS.get(usize::try_from(term(v).0).ok()?).copied()
 }
 
-fn b_season(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
+pub(crate) fn b_season(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
     if term(&v[0]).1 & super::AMBIG != 0 {
         return None;
     }
     emit_date(c, DateSpec::Season { year: YearRef::Any, season: season(&v[0])? })
 }
 
-fn b_rel_season(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
+pub(crate) fn b_rel_season(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
     emit_date(c, DateSpec::Season { year: YearRef::Rel(term(&v[0]).0 as i16), season: season(&v[1])? })
 }
 
-fn b_season_year(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
+pub(crate) fn b_season_year(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
     emit_date(c, DateSpec::Season { year: full_year(v.last()?)?, season: season(&v[0])? })
 }
 
-fn other(c: &Ctx<'_>, kind: YearKind, year: YearRef) -> Option<Value> {
+pub(crate) fn other(c: &Ctx<'_>, kind: YearKind, year: YearRef) -> Option<Value> {
     emit_date(c, DateSpec::OtherYear { kind, year })
 }
 
-fn year_kind(c: &Ctx<'_>, i: usize) -> Option<YearKind> {
+pub(crate) fn year_kind(c: &Ctx<'_>, i: usize) -> Option<YearKind> {
     match c.word(i) {
         "fiscal" | "fy" => Some(YearKind::Fiscal),
         "school" | "sy" => Some(YearKind::School),
@@ -683,65 +683,65 @@ fn year_kind(c: &Ctx<'_>, i: usize) -> Option<YearKind> {
     }
 }
 
-fn b_other_year(_: &[Value], c: &Ctx<'_>) -> Option<Value> {
+pub(crate) fn b_other_year(_: &[Value], c: &Ctx<'_>) -> Option<Value> {
     other(c, year_kind(c, c.start)?, YearRef::Any)
 }
 
-fn b_other_year_n(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
+pub(crate) fn b_other_year_n(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
     other(c, year_kind(c, c.start)?, full_year(&v[0])?)
 }
 
-fn b_rel_other_year(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
+pub(crate) fn b_rel_other_year(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
     other(c, year_kind(c, c.start + 1)?, YearRef::Rel(term(&v[0]).0 as i16))
 }
 
 /// `sy18`, `cy18`: two digits glued to the letters.
-fn short_year(v: &Value) -> Option<YearRef> {
+pub(crate) fn short_year(v: &Value) -> Option<YearRef> {
     (dig_len(v) == 2).then(|| year_ref(&Value::Term { value: term(v).0, flags: SHORT }))
 }
 
-fn b_other_year_glued(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
+pub(crate) fn b_other_year_glued(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
     other(c, year_kind(c, c.start)?, short_year(&v[0])?)
 }
 
-fn b_calendar_year_glued(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
+pub(crate) fn b_calendar_year_glued(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
     emit_date(c, cal(short_year(&v[0])?, 0, 0, 0)?)
 }
 
-fn b_rel_calendar_year(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
+pub(crate) fn b_rel_calendar_year(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
     emit_date(c, DateSpec::Rel { grain: TimeGrain::Year, n: term(&v[0]).0 as i16 })
 }
 
 // Holidays.
 
-fn holiday(i: i64) -> Option<Holiday> {
+pub(crate) fn holiday(i: i64) -> Option<Holiday> {
     lexicon::HOLIDAYS.get(usize::try_from(i).ok()?).copied()
 }
 
-fn hol(c: &Ctx<'_>, i: i64) -> Option<Value> {
+pub(crate) fn hol(c: &Ctx<'_>, i: i64) -> Option<Value> {
     emit_date(c, DateSpec::Holiday { holiday: holiday(i)?, year: YearRef::Any })
 }
 
-fn b_holiday(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
+pub(crate) fn b_holiday(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
     hol(c, term(&v[0]).0)
 }
 
-fn holiday_of(c: &Ctx<'_>, v: &Value) -> Option<Holiday> {
+pub(crate) fn holiday_of(c: &Ctx<'_>, v: &Value) -> Option<Holiday> {
     match date_of(c, v)? {
         DateSpec::Holiday { holiday, year: YearRef::Any } => Some(holiday),
         _ => None,
     }
 }
 
-fn b_holiday_year(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
+pub(crate) fn b_holiday_year(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
     emit_date(c, DateSpec::Holiday { holiday: holiday_of(c, &v[0])?, year: full_year(v.last()?)? })
 }
 
-fn b_holiday_of_year(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
+pub(crate) fn b_holiday_of_year(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
     emit_date(c, DateSpec::Holiday { holiday: holiday_of(c, &v[0])?, year: year_of(c, &v[1])? })
 }
 
-fn b_holiday_near(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
+pub(crate) fn b_holiday_near(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
     let (n, kind) = term(&v[0]);
     if !matches!(kind, rel::NEXT | rel::LAST) {
         return None;
@@ -750,7 +750,7 @@ fn b_holiday_near(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
 }
 
 /// `the week of April 10th`, `w/c Feb 4`.
-fn b_week_of(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
+pub(crate) fn b_week_of(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
     match date_of(c, v.last()?)? {
         DateSpec::Cal { year: YearRef::Any, month, day, weekday: 0 } if day > 0 => {
             emit_date(c, DateSpec::WeekOf { month, day })
@@ -759,7 +759,7 @@ fn b_week_of(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
     }
 }
 
-fn b_sep(_: &[Value], _: &Ctx<'_>) -> Option<Value> {
+pub(crate) fn b_sep(_: &[Value], _: &Ctx<'_>) -> Option<Value> {
     Some(Value::Empty)
 }
 

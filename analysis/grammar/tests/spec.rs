@@ -19,6 +19,8 @@
 
 #[path = "spec/datetime.rs"]
 mod datetime;
+#[path = "spec/spanish.rs"]
+mod spanish;
 
 use std::collections::BTreeSet;
 use std::fmt::Write as _;

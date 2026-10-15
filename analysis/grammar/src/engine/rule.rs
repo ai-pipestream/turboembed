@@ -4,7 +4,7 @@
 use crate::value::Value;
 
 use super::interned::Interned;
-use super::lexer::{Kind, Lexed, Lexeme};
+use super::lexer::{Kind, Lexed, Lexeme, PlainWords, WordForms};
 use super::numeral::NumeralStyle;
 
 /// A category of chart nodes: a class of lexicon words (`UNIT`, `SCALE`)
@@ -220,6 +220,17 @@ pub trait Grammar: Send + Sync + 'static {
 
     fn style(&self) -> NumeralStyle;
 
+    /// How the lexer forms the grammar's words. The default leaves them
+    /// whole and keeps their accents.
+    fn words(&self) -> &dyn WordForms {
+        &PlainWords
+    }
+
+    /// How the grammar's numbers are written, for the numbers layer.
+    fn notation(&self) -> turbo_analysis_layers::NumberNotation {
+        turbo_analysis_layers::NumberNotation::LatinUs
+    }
+
     /// Which output a node of `dim` goes to, if any.
     fn output(&self, dim: Dim) -> Option<Output>;
 
@@ -261,7 +272,8 @@ mod tests {
 
     #[test]
     fn context_reads_the_neighbours() {
-        let style = NumeralStyle { mixed_separators: true, space_groups: false, indian_groups: false };
+        let style =
+            NumeralStyle { mixed_separators: true, space_groups: false, indian_groups: false, decimal_comma: false };
         let mut lexed = Lexed::default();
         let text = "$2000 over 3";
         lexed.lex(text, &style);

@@ -13,9 +13,10 @@ parts:
   readings.
 - `lang/`, one module per language, each a `Grammar`: its lexicon, its
   rules, how it writes numerals and which categories become output.
-  English (`lang/en/`, the `ENGLISH` static) is the one there is.
-  `ENGLISH_TIMES` holds the same number rules and adds the time rules;
-  `ENGLISH_UNITS` adds the rules for amounts in units and money
+  English (`lang/en/`, the `ENGLISH` static) and Spanish (`lang/es/`,
+  `SPANISH`, [below](#spanish)). `ENGLISH_TIMES` and `SPANISH_TIMES`
+  hold the same number rules and add the time rules; `ENGLISH_UNITS`
+  adds the English rules for amounts in units and money
   (`docs/grammar-units.md`).
 
 `GrammarAnnotator` runs a grammar over a text view and writes layers
@@ -345,6 +346,71 @@ English forms, not for single cases, and read forms the specifications
 do not test (`third to last`, a U+2212 minus, `3 in 2009`); the unit
 tests in `analysis/grammar/src/lang/en/tests.rs` cover them.
 
+## Spanish
+
+`analysis/grammar/src/lang/es/` is the Spanish grammar. It differs from
+the English one in four places the engine leaves to a grammar:
+
+- Its numeral style sets `decimal_comma`: a lone comma always marks the
+  fraction (`3,5`), a lone dot groups three digits after one to three
+  digits that do not start with 0 (`1.234`), and `1.234,56` is
+  1234.56. Its layers write the `LatinEu` notation.
+- Its `WordForms` fold accents for lookup (`dieciséis` is looked up as
+  `dieciseis`, `ñ` stays), keeping the spans of the text as written.
+- Its `WordForms` cut a compound number word the lexicon does not hold
+  into glued pieces (`analysis/grammar/src/lang/es/split.rs`):
+  `tresmillonésimo`, `doscientosavos`, `treintaicincoavos`,
+  `vigesimoprimero`.
+- Its `keep` and `shadows` drop `cien` of `por ciento` and the ordinal
+  of a fraction (`un quinto`, `tres quintos`).
+
+The number rules read the long scale (`billón` is 10^12, `mil
+millones` 10^9), gender (`veintiuna`, `doscientas una`), `-avo`
+denominators, spoken decimals (`siete coma cinco`, `cinco con un
+cuarto`), `menos` as a sign only where it opens a number (not `al menos
+cinco`), ordinals in words and digits (`decimotercero`, `1.º`, `2da`),
+relative ordinals (`penúltimo`, `antes del último`) and percentages (`por
+ciento`, `por cien`, `%`). They reuse the English builders for the
+values.
+
+The time rules (`analysis/grammar/src/lang/es/time/`) have the English
+categories and builders, with Spanish words and orders: day before month
+(`27/11`, `3 de enero del 2019`), the relative word after its noun (`el
+lunes que viene`, `la semana pasada`), `a las` before an hour, `y media`
+and `menos cuarto`, `de la tarde`. A clock range with `a las` in the
+middle wants its start said alike (`de las 5 a las 7`), so `martes 4 a
+las siete` is a day and a time.
+
+`analysis/grammar/tests/spec/spanish.rs` runs the Spanish models as the
+English ones are run, reading a decimal comma in an expected value as a
+dot. The pass lists are under `analysis/grammar/tests/data/pass/Spanish/`.
+
+| File | Eligible | Passing |
+|---|---|---|
+| `NumberModel.json` | 206 | 204 |
+| `OrdinalModel.json` | 82 | 82 |
+| `PercentModel.json` | 66 | 66 |
+| `DateTimeModel.json` | 744 | 686 |
+
+`DateTimeModel.json` by the first expected type: `date` 147 of 160,
+`daterange` 269 of 295, `datetime` 62 of 68, `datetimerange` 57 of 64,
+`duration` 29 of 29, `set` 18 of 18, `time` 33 of 33, `timerange` 18
+of 22, none 53 of 55.
+
+The number cases that fail are `192.168.1.2` (the specification reads
+192168, 1 and 2) and `un cientocincoavos` (a singular numerator with a
+plural denominator). The time cases that fail include a date said with
+`este` or `próximo` (`el próximo 6 de abril`) that the specification
+resolves to one year, `madrugada`, `las primeras 2 semanas de 2021`,
+`el resto de la semana`, an article the specification takes for some
+units and not others (`la semana pasada` but `próximo trimestre`), and a
+few misspellings.
+
+In a release build, a 100 KB text made of the Spanish date-time inputs
+parsed and selected with `SPANISH` at about 13 MB/s and with
+`SPANISH_TIMES` at about 4 MB/s, where `grammar_bench` gave 15.5 and 4.4
+MB/s for English on the same machine.
+
 ## Speed
 
 `cargo run --release -p turbo-grammar --example grammar_bench` times the
@@ -356,5 +422,5 @@ The benchmark also times the parse with the unit rules and
 
 ## Not yet done
 
-Planned on #388: Spanish and Dutch grammars. The time grammar reads no time
+Planned on #388: a Dutch grammar. The time grammar reads no time
 zones.
