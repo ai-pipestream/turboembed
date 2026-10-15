@@ -255,6 +255,9 @@ fn keep(rules: &[Rule], node: &Node, ctx: &Ctx<'_>) -> bool {
         // `in the year 2008` names `year 2008`; `before the year 2019`
         // takes the article.
         "period_the_year_word" => false,
+        // `the late eighties` stands only after a word such as `by`; alone
+        // the mention starts at `late`.
+        "moded_the_early" | "moded_the_mid" | "moded_the_late" => false,
         // `at 6.45`, not `at 6.45 percent`.
         "clock_at_dot" | "clock_at_dot_ampm" => !matches!(after, Some("%" | "percent" | "per")),
         // `30 minutes later`, but `30 minutes` and `later this week`.

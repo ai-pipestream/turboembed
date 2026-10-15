@@ -95,6 +95,19 @@ fn modifiers_bound_and_cut() {
         (r.kind, r.modifier, show(&r)),
         (TimeKind::DateTime, Modifier::NONE, vec!["2018-05-29T23:59:59 2018-05-29 23:59:59".to_string()])
     );
+    // `mid 1989` is May to August, as Recognizers-Text gives it.
+    let mid = TimeValue::Point { point: year(1989), modifier: Modifier::portion(Portion::Mid), clip: false };
+    assert_eq!(show(&resolve(&mid, n).unwrap()), ["1989 1989-05-01..1989-09-01"]);
+    // A decade splits as 4, 3 and 3 years.
+    let decade = |portion| TimeValue::Point {
+        point: Point::date(DateSpec::Decade { year: YearRef::Abs(1980) }),
+        modifier: Modifier::portion(portion),
+        clip: false,
+    };
+    let eighties = "(1980-01-01,1990-01-01,P10Y)";
+    assert_eq!(show(&resolve(&decade(Portion::Start), n).unwrap()), [format!("{eighties} 1980-01-01..1984-01-01")]);
+    assert_eq!(show(&resolve(&decade(Portion::Mid), n).unwrap()), [format!("{eighties} 1984-01-01..1987-01-01")]);
+    assert_eq!(show(&resolve(&decade(Portion::End), n).unwrap()), [format!("{eighties} 1987-01-01..1990-01-01")]);
     // `around 1pm` keeps its point.
     let around = TimeValue::Point {
         point: Point::time(clock(1, 0, Shown::Hour, Meridiem::Pm)),

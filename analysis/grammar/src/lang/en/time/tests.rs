@@ -87,6 +87,7 @@ fn periods() {
     assert_eq!(one("in 2016"), "2016|daterange|2016|");
     assert_eq!(one("Q3 2019"), "Q3 2019|daterange|(2019-07-01,2019-10-01,P3M)|");
     assert_eq!(one("in the 1990s"), "1990s|daterange|(1990-01-01,2000-01-01,P10Y)|");
+    assert_eq!(one("in the nineteen eighties"), "nineteen eighties|daterange|(1980-01-01,1990-01-01,P10Y)|");
     assert_eq!(one("this summer"), "this summer|daterange|2016-SU|");
     assert_eq!(one("the same week"), "same week|daterange|XXXX-WXX|ref_undef");
 }
@@ -124,6 +125,14 @@ fn sets() {
     assert_eq!(one("3pm each day"), "3pm each day|set|T15|");
     assert_eq!(one("tuesday afternoons"), "tuesday afternoons|set|XXXX-WXX-2TAF|");
     assert_eq!(one("semi-annually"), "semi-annually|set|P0.5Y|");
+    assert_eq!(one("every other Friday"), "every other Friday|set|XXXX-WXX-5|");
+    assert_eq!(
+        one("The board meets every second Thursday at 9 a.m."),
+        "every second Thursday at 9 a.m.|set|XXXX-WXX-4T09|"
+    );
+    assert_eq!(one("every alternate week"), "every alternate week|set|P2W|");
+    assert_eq!(one("every second day"), "every second day|set|P2D|");
+    assert_eq!(one("it beeps every second"), "every second|set|PT1S|");
 }
 
 #[test]
@@ -150,6 +159,10 @@ fn modifiers() {
     assert_eq!(one("2018 or later"), "2018 or later|daterange|2018|since");
     assert_eq!(one("later this week"), "later this week|daterange|2016-W45|");
     assert_eq!(one("mid-November"), "mid-November|daterange|XXXX-11|mid");
+    assert_eq!(one("late 1980s"), "late 1980s|daterange|(1980-01-01,1990-01-01,P10Y)|end");
+    assert_eq!(one("in the early seventies"), "early seventies|daterange|(XX70-01-01,XX80-01-01,P10Y)|start");
+    assert_eq!(one("by the late eighties"), "by the late eighties|daterange|(XX80-01-01,XX90-01-01,P10Y)|before-end");
+    assert_eq!(one("mid-2015"), "mid-2015|daterange|2015|mid");
     assert_eq!(one("end of tomorrow"), "end of tomorrow|datetime|2016-11-08T23:59:59|");
 }
 

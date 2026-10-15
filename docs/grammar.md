@@ -213,6 +213,12 @@ where they choose a reading:
 - `around` keeps the point and marks it approximate; `later this week`
   is clipped at the reference and shows no modifier; `end of tomorrow` is
   its last second.
+- `early`, `mid` and `late` split a year into four-month thirds (`mid
+  1989` is May to August), and a decade into 4, 3 and 3 years (`the late
+  eighties` is 1987 to 1989), a split the specifications do not test.
+- `every other Friday` and `every second Thursday` are sets with the
+  weekday's value (`XXXX-WXX-5`), as Recognizers-Text writes them;
+  `every other day` and `every second week` double the unit (`P2D`).
 
 `TimeAnnotator` reads `turbo:view` and, when the pipeline has one, the
 `DocumentDate`. The reference is the document's date at midnight, else

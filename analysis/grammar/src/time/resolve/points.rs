@@ -243,6 +243,18 @@ fn portion_of(
                 _ => return None,
             }
         }
+        // A decade splits by years as a year does by months: `the early
+        // eighties` is 1980 to 1983, the middle 1984 to 1986, the late
+        // 1987 to 1989.
+        TimeGrain::Decade => {
+            let at = |n: i32| Date::new(ds.year() + n, 1, 1);
+            match portion {
+                Portion::Start => (ds, early(at(4)?)),
+                Portion::Mid => (at(4)?, at(7)?),
+                Portion::End => (late(at(7)?), de),
+                _ => return None,
+            }
+        }
         TimeGrain::Year => {
             let at = |m: u8| Date::new(ds.year(), m, 1);
             match portion {

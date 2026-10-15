@@ -90,6 +90,7 @@ fn b_every_n_unit(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
     every(c, length(term(&v[0]).0, &v[1])?)
 }
 
+/// `every other day`, `every second week`: twice the unit.
 fn b_every_other_unit(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
     every(c, length(i64::from(2 * MILLI), &v[0])?)
 }
@@ -100,6 +101,8 @@ fn b_weekends(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
     (flags & PLURAL != 0 && unit == Unit::Weekend).then(|| every(c, Duration::of(Unit::Weekend, MILLI)))?
 }
 
+/// `every Friday`; `every other Friday` has the same TIMEX3 value in
+/// Recognizers-Text, which writes no interval for a weekday.
 fn b_every_weekday(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
     at(c, weekday_point(term(&v[0]).0 as u8))
 }
@@ -181,10 +184,15 @@ pub(super) static RULES: &[Rule] = &[
     rr("set_every_n_unit", SET, &[word("every"), node(AMOUNT), node(UNIT)], b_every_n_unit),
     rr("set_each_n_unit", SET, &[word("each"), node(AMOUNT), node(UNIT)], b_every_n_unit),
     rr("set_every_other_unit", SET, &[word("every"), word("other"), node(UNIT)], b_every_other_unit),
+    rr("set_every_alternate_unit", SET, &[word("every"), word("alternate"), node(UNIT)], b_every_other_unit),
+    rr("set_every_second_unit", SET, &[word("every"), word("second"), node(UNIT)], b_every_other_unit),
     rr("set_once_a", SET, &[word("once"), word("a"), node(UNIT)], b_every_unit),
     rr("set_one_a", SET, &[word("one"), word("a"), node(UNIT)], b_every_unit),
     rr("set_weekends", SET, &[node(UNIT)], b_weekends),
-    rr("set_every_weekday", SET, &[word("every"), opt_word("other"), node(WEEKDAY)], b_every_weekday),
+    rr("set_every_weekday", SET, &[word("every"), node(WEEKDAY)], b_every_weekday),
+    rr("set_every_other_weekday", SET, &[word("every"), word("other"), node(WEEKDAY)], b_every_weekday),
+    rr("set_every_alternate_weekday", SET, &[word("every"), word("alternate"), node(WEEKDAY)], b_every_weekday),
+    rr("set_every_second_weekday", SET, &[word("every"), word("second"), node(WEEKDAY)], b_every_weekday),
     rr("set_each_weekday", SET, &[word("each"), node(WEEKDAY)], b_every_weekday),
     rr("set_weekdays", SET, &[node(WEEKDAY)], b_weekdays),
     rr("set_weekdays_clock", SET, &[node(WEEKDAY), opt_word("at"), node(CLOCK)], b_weekdays_clock),

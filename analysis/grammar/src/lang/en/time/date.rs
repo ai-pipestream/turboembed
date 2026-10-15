@@ -636,6 +636,13 @@ fn b_decade_word(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
     emit_date(c, DateSpec::Decade { year: YearRef::Short(term(&v[0]).0 as u8) })
 }
 
+/// `nineteen eighties`: a spelled century and a decade word.
+fn b_century_decade(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
+    let century = spelled(&v[0])?;
+    let year = century * 100 + term(&v[1]).0;
+    ((10..30).contains(&century)).then(|| emit_date(c, DateSpec::Decade { year: YearRef::Abs(year as i16) }))?
+}
+
 fn b_century(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
     let n = nth(&v[0])?;
     (1..=30).contains(&n).then(|| emit_date(c, DateSpec::Century { n }))?
@@ -978,6 +985,7 @@ pub(super) static RULES: &[Rule] = &[
     rr("period_year_sep_half", PERIOD, &[node(YEAR), glued_word("-"), glued_word("h"), glued(DIG)], b_year_half),
     rr("period_decade", PERIOD, &[node(DIG), word("s")], b_decade),
     rr("period_decade_word", PERIOD, &[node(DECADEW)], b_decade_word),
+    rr("period_century_decade", PERIOD, &[node(INT), node(DECADEW)], b_century_decade),
     rr("period_century", PERIOD, &[node(ORD), opt_word("-"), word("century")], b_century),
     rr("period_season", PERIOD, &[node(SEASON)], b_season),
     rr("period_rel_season", PERIOD, &[node(RELW), node(SEASON)], b_rel_season),
