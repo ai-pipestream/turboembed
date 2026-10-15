@@ -586,7 +586,7 @@ fn score_with(
 fn most_frequent(mismatches: BTreeMap<(&str, &str), u64>) -> Vec<Mismatch> {
     let mut all: Vec<((&str, &str), u64)> = mismatches.into_iter().collect();
     // Stable, so equal counts keep the map's order of the tags.
-    all.sort_by(|a, b| b.1.cmp(&a.1));
+    all.sort_by_key(|a| std::cmp::Reverse(a.1));
     all.into_iter()
         .take(MISMATCHES_LISTED)
         .map(|((held_out, given), tokens)| Mismatch { held_out: held_out.to_owned(), given: given.to_owned(), tokens })
