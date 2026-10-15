@@ -238,55 +238,68 @@ same name as `Groups<Edges<Tokens, Tokens>>`.
 ### Alternatives, lattices and n-best sequences
 
 Two generic layers in `turbo-analysis` hold lattice alternatives and
-top-$k$ sequence hypotheses without changing the flat column layout of
+top-k sequence hypotheses without changing the flat column layout of
 ordinary single-path layers:
 
 - `Alternatives<L>` (`turbo:alternatives<L>`, anchored to `Text`) holds a
-  position-indexed word lattice or synonym graph for any layer type `L`
-  (most commonly `Alternatives<Tokens>`).
+  position-indexed word lattice for any layer type `L` (most commonly
+  `Alternatives<Tokens>`).
   - **Positions and position length**: Positions are integer lattice nodes
     `0..=num_positions` (for an empty lattice, `num_positions == 0`). Each
     arc `i` has a byte `Span` in the view, a starting `position[i]`, a
     `position_length[i] >= 1` so it lands at `position[i] +
-    position_length[i]`, an optional `mode` bitset (`ModeSet` over
-    `SplitMode::{Best, A, B, C}`), an optional `score` (`f64`), and an
-    optional `form` (the normalized or expanded surface string when a
-    synonym or decompounded arc differs from its source slice). Rows are
-    stored in non-decreasing `position` order (`Alternatives::new`, `push`,
-    `push_full`), so `at_position(p)` finds all arcs leaving node `p` by
-    binary search.
+    position_length[i]`, a `mode` bitset (`ModeSet` over
+    `SplitMode::{Best, A, B, C}`), an optional `score` (`f64`, finite), and
+    an optional `form` (the normalized or expanded surface string when a
+    synonym or decompounded arc differs from its source slice). A producer
+    pushes rows in non-decreasing `position` order (`push`, `push_full`
+    append as given, and `Layer::check` refuses any other order), so
+    `at_position(p)` finds all arcs leaving node `p` by binary search.
   - **Coexistence with a flat layer**: An annotator that produces a
     lattice (such as a morphological analyzer with Sudachi/Kuromoji A/B/C
-    split modes, a compound splitter, or a query-time synonym graph) can
-    write the single chosen segmentation (`Best`, or a configured split
-    mode) to `Key::<Tokens>::DEFAULT` and the full lattice to
+    split modes, or a compound splitter) can write the single chosen
+    segmentation (`Best`, or a configured split mode) to
+    `Key::<Tokens>::DEFAULT` and the full lattice to
     `Key::<Alternatives<Tokens>>::DEFAULT` on the same document. Readers
     that want one path keep reading `Tokens` directly, or call
     `Alternatives::best_path`, `Alternatives::path_for_mode(SplitMode::A)`,
     or `Tokens::from_alternatives(&alt, mode)` to materialize a linear
-    `Tokens` layer from any mode without re-running the tokenizer.
-    Indexers and query builders that want every decomposition or synonym
-    walk `Alternatives::at_position` or `Alternatives::all_paths`.
+    `Tokens` layer from any mode without re-running the tokenizer; a mode
+    with several complete paths gives the one with the highest sum of
+    scores. Indexers and query builders that want every decomposition
+    walk `Alternatives::at_position`; `all_paths` enumerates a sentence's
+    paths and grows exponentially with the lattice's length.
   - **Byte-tiling and reachability invariant (`Layer::check`)**: Every arc
     must lie on a path from position `0` to `num_positions`; every
-    position `0..=num_positions` must be visited; every internal position
-    `0 < p < num_positions` must have a single byte offset `boundary[p]`
-    where every arc ending at `p` ends and every arc starting at `p`
-    starts; and every path from `0` to `num_positions` must cover the
-    exact same contiguous byte range without gaps or overlaps inside a
-    path.
-- `NBest<L>` (`turbo:nbest<L>`, anchored `Aligned` to `L`) holds top-$k$
-  ranked sequences over an existing layer `L` of length `n` (such as
-  `NBest<PosTags>`, `NBest<Lemmas>`, or `NBest<ChunkTags>` from a beam
-  search).
+    position `0..=num_positions` must be visited; every position `p` has
+    one start byte `start_at[p]` shared by every arc leaving it and one
+    end byte `end_at[p]` shared by every arc entering it, with
+    `end_at[p] <= start_at[p]` at each internal position (the gap between
+    two words) and `start_at[p] <= end_at[p + 1]` over each unit position.
+    So every path from `0` to `num_positions` covers the same unit
+    position bytes; an arc over several positions also covers the gaps
+    between them.
+  - **What fits**: a reading where each position starts and ends at one
+    byte, such as split modes, compounds beside their parts, and a
+    contraction beside the words it stands for (`"ny"` over `"new york"`,
+    the synonym on the longer arc). A Lucene synonym expansion that gives
+    every output token the input's offsets (`"nyc"` as `"new"` plus
+    `"york"`, all at bytes `0..3`) does not fit as such: the second word
+    takes an empty span at the end of the first (`"york"` as `3..3` with
+    `form: Some("york")`), and `Tokens::from_alternatives` then yields an
+    empty token without the form. A position no arc reaches (a removed
+    stop word) is not representable; the positions are renumbered.
+- `NBest<L>` (`turbo:nbest<L>`, anchored `Aligned` to `L`) holds top-k
+  ranked sequences over an existing tagged layer `L` of length `n` (such as
+  `NBest<PosTags>` or `NBest<ChunkTags>` from a beam search).
   - **Columnar `[candidates, n]` layout**: `tags: Vec<Tag>` (interned
     against `tagset: Arc<TagSet>`) and optional per-token `prob:
     Option<Vec<f64>>` have length `candidates * n`, where candidate `k`'s
-    slice is `k * n .. (k + 1) * n` (`candidate_tags(k)`,
-    `candidate_probs(k)`). `score: Vec<f64>` holds the sequence-level
-    score for each of the `candidates` hypotheses in non-increasing order
-    (best first). `Layer::len` returns `n` so `Document::add` verifies
-    alignment against the `n` items of `L`.
+    slice is `k * n .. (k + 1) * n` (`tags_of(k)`, `probs_of(k)`).
+    `score: Vec<f64>` holds the sequence-level score for each of the
+    `candidates` hypotheses in non-increasing order (best first).
+    `Layer::len` returns `n` so `Document::add` verifies alignment
+    against the `n` items of `L`.
 
 ## Keys
 

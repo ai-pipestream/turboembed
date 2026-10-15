@@ -174,9 +174,10 @@ impl Tokens {
         IxRange::new(a as u32, b as u32)
     }
 
-    /// Materializes a linear `Tokens` layer from the single path of `mode` in
-    /// `alt`, or `None` if `mode` does not form a single contiguous path from
-    /// position `0` to `alt.num_positions()`.
+    /// The tokens of `mode`'s path through `alt`
+    /// (`Alternatives::path_for_mode`): each alternative's raw byte span,
+    /// so an alternative's `form` is not carried over. `None` when `mode`
+    /// has no complete path from position `0` to `alt.num_positions`.
     pub fn from_alternatives(alt: &Alternatives<Tokens>, mode: SplitMode) -> Option<Tokens> {
         let path = alt.path_for_mode(mode)?;
         let mut spans = Spans::new(alt.spans.view());

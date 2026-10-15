@@ -49,8 +49,10 @@ impl SplitMode {
     }
 }
 
-/// A compact bitset of [`SplitMode`]s (plus up to four custom mode bits `4..8`)
-/// indicating which readings include a lattice alternative.
+/// A compact bitset of [`SplitMode`]s naming the readings that include a
+/// lattice alternative. Bits `4..8` are free for a producer's own readings;
+/// they are carried and compared, and `path_for_mode` queries only the four
+/// named modes.
 #[derive(Copy, Clone, Default, PartialEq, Eq, Hash)]
 pub struct ModeSet(pub u8);
 
@@ -170,6 +172,17 @@ pub struct Alternative<'a> {
 ///    to `num_positions` covers the exact same unit position bytes (and, when
 ///    positions abut with `end_at[p] == start_at[p]`, partitions the byte range
 ///    `start_at[0]..end_at[num_positions]` with zero gaps and zero overlaps).
+///
+/// Between abutting positions there may be a gap (`end_at[p] < start_at[p]`,
+/// the whitespace between two words), and an alternative spanning several
+/// positions covers the gaps between them. Only the unit position bytes are
+/// the same along every path.
+///
+/// The queries (`at_position`, `path_for_mode`, `best_path`, `all_paths`,
+/// `covered_bytes`) assume a layer that passed `check`, which `Document::add`
+/// runs; a hand-built layer that did not pass it gives no meaningful answer.
+/// `push` and `push_full` append in the order given, so a producer pushes in
+/// non-decreasing position order.
 pub struct Alternatives<L> {
     pub spans: Spans<Alternatives<L>>,
     pub position: Vec<u32>,
@@ -227,7 +240,8 @@ impl<L> Alternatives<L> {
 
     /// Appends an alternative with its span, start position, position length
     /// and mode set, updating `num_positions` to at least
-    /// `position + position_length`.
+    /// `position + position_length`. When the layer already carries scores,
+    /// the alternative's score is `0.0`.
     pub fn push(&mut self, span: Span, position: u32, position_length: u32, mode: ModeSet) -> Ix<Self> {
         let ix = self.spans.push(span);
         self.position.push(position);
@@ -308,146 +322,131 @@ impl<L> Alternatives<L> {
         IxRange::new(a as u32, b as u32)
     }
 
-    /// Recovers the single path from position `0` to `num_positions` for
-    /// `mode`. At each position `p`, among the alternatives at `p` whose
-    /// [`ModeSet`] contains `mode` and that can reach `num_positions` within
-    /// `mode`, picks the highest-scored one (when `score` is present),
-    /// breaking ties by mode granularity (`SplitMode::A` prefers the shortest
-    /// `position_length`, `SplitMode::C` the longest, and `Best`/`B` the
-    /// earliest row). Returns `None` if `mode` does not form a complete path
-    /// from `0` to `num_positions`.
+    /// The path from position `0` to `num_positions` through the alternatives
+    /// whose [`ModeSet`] contains `mode`: when the mode holds several such
+    /// paths, the one with the highest sum of `score` (every path, when
+    /// there are no scores). Two paths with the same sum are told apart at
+    /// the first position where they differ, by mode granularity
+    /// (`SplitMode::A` prefers the shorter `position_length`, `SplitMode::C`
+    /// the longer, `Best` and `B` the earlier row), then by the earlier row.
+    /// `None` when `mode` has no complete path.
     pub fn path_for_mode(&self, mode: SplitMode) -> Option<Vec<Ix<Self>>> {
-        let p_len = self.num_positions as usize;
-        if p_len == 0 {
-            return Some(Vec::new());
-        }
-        // Backward reachability within `mode` so we never step into a dead end.
-        let mut can_reach_end = vec![false; p_len + 1];
-        can_reach_end[p_len] = true;
-        for i in (0..self.spans.len()).rev() {
-            if !self.mode[i].contains(mode) {
-                continue;
-            }
-            let u = self.position[i] as usize;
-            let v = u.saturating_add(self.position_length[i] as usize);
-            if v <= p_len && can_reach_end[v] {
-                can_reach_end[u] = true;
-            }
-        }
-        if !can_reach_end[0] {
-            return None;
-        }
-        let mut out = Vec::new();
-        let mut pos = 0u32;
-        while pos < self.num_positions {
-            let candidates = self.at_position(pos);
-            let mut chosen: Option<Ix<Self>> = None;
-            for ix in candidates.iter() {
-                let r = ix.get();
-                if !self.mode[r].contains(mode) {
-                    continue;
-                }
-                let next_pos = pos + self.position_length[r];
-                if (next_pos as usize) > p_len || !can_reach_end[next_pos as usize] {
-                    continue;
-                }
-                chosen = Some(match chosen {
-                    None => ix,
-                    Some(prev) => {
-                        if self.prefer_in_mode(r, prev.get(), mode) {
-                            ix
-                        } else {
-                            prev
-                        }
-                    }
-                });
-            }
-            let step = chosen?;
-            pos += self.position_length[step.get()];
-            out.push(step);
-        }
-        Some(out)
+        self.best_path_through(
+            |r| self.mode[r].contains(mode),
+            |r| self.score.as_ref().map_or(0.0, |s| s[r]),
+            Some(mode),
+        )
     }
 
-    fn prefer_in_mode(&self, cand: usize, current: usize, mode: SplitMode) -> bool {
-        if let Some(scores) = &self.score {
-            let cmp = scores[cand].total_cmp(&scores[current]);
-            if cmp != std::cmp::Ordering::Equal {
-                return cmp.is_gt();
-            }
-        }
-        let (len_c, len_cur) = (self.position_length[cand], self.position_length[current]);
-        match mode {
-            SplitMode::A if len_c != len_cur => len_c < len_cur,
-            SplitMode::C if len_c != len_cur => len_c > len_cur,
-            _ => cand < current,
-        }
-    }
-
-    /// Returns the single best path from `0` to `num_positions`:
-    /// - If `SplitMode::Best` forms a complete path, returns that path.
-    /// - Otherwise finds the path from `0` to `num_positions` maximizing the
-    ///   sum of `score` (or minimizing the number of steps, breaking ties by
-    ///   earliest row index, when `score` is `None`).
+    /// The single best path from `0` to `num_positions`: the path of
+    /// `SplitMode::Best` ([`path_for_mode`](Self::path_for_mode)) when it
+    /// has one, else the path over all alternatives with the highest sum of
+    /// `score`, or with the fewest steps when there are no scores, ties
+    /// going to the earlier row at the first position that differs. Empty
+    /// when the lattice is empty.
     pub fn best_path(&self) -> Vec<Ix<Self>> {
         if let Some(path) = self.path_for_mode(SplitMode::Best) {
             return path;
         }
+        let weight = |r: usize| self.score.as_ref().map_or(-1.0, |s| s[r]);
+        self.best_path_through(|_| true, weight, None).unwrap_or_default()
+    }
+
+    /// The path from `0` to `num_positions` over the alternatives `allowed`
+    /// maximizing the sum of `weight`: one pass over the rows from the last
+    /// position back, so each position's best continuation is known before
+    /// the alternatives leaving it are weighed. `None` when no path exists.
+    fn best_path_through(
+        &self,
+        allowed: impl Fn(usize) -> bool,
+        weight: impl Fn(usize) -> f64,
+        mode: Option<SplitMode>,
+    ) -> Option<Vec<Ix<Self>>> {
         let p_len = self.num_positions as usize;
         if p_len == 0 {
-            return Vec::new();
+            return Some(Vec::new());
         }
-        let mut best_score = vec![f64::NEG_INFINITY; p_len + 1];
-        let mut best_edge: Vec<Option<Ix<Self>>> = vec![None; p_len + 1];
-        best_score[p_len] = 0.0;
-        for i in (0..self.spans.len()).rev() {
-            let u = self.position[i] as usize;
-            let v = u.saturating_add(self.position_length[i] as usize);
-            if v > p_len || best_score[v] == f64::NEG_INFINITY {
+        // The best sum from each position to the end, and the row that
+        // starts it; `None` while no allowed path reaches the end.
+        let mut best: Vec<Option<(f64, usize)>> = vec![None; p_len + 1];
+        best[p_len] = Some((0.0, usize::MAX));
+        for r in (0..self.spans.len()).rev() {
+            if !allowed(r) {
                 continue;
             }
-            let edge_score = self.score.as_ref().map_or(0.0, |s| s[i]);
-            let cand_score = edge_score + best_score[v];
-            if cand_score >= best_score[u] {
-                best_score[u] = cand_score;
-                best_edge[u] = Some(Ix::new(i as u32));
+            let u = self.position[r] as usize;
+            let v = u.saturating_add(self.position_length[r] as usize);
+            let Some(Some((rest, _))) = best.get(v) else { continue };
+            let total = weight(r) + rest;
+            let better = match best[u] {
+                None => true,
+                Some((cur, cur_row)) => match total.total_cmp(&cur) {
+                    std::cmp::Ordering::Greater => true,
+                    std::cmp::Ordering::Less => false,
+                    std::cmp::Ordering::Equal => self.prefer(r, cur_row, mode),
+                },
+            };
+            if better {
+                best[u] = Some((total, r));
             }
         }
         let mut out = Vec::new();
         let mut pos = 0usize;
         while pos < p_len {
-            let Some(edge) = best_edge[pos] else { break };
-            out.push(edge);
-            pos += self.position_length[edge.get()] as usize;
+            let (_, r) = best[pos]?;
+            out.push(Ix::new(r as u32));
+            pos += self.position_length[r] as usize;
         }
-        out
+        Some(out)
     }
 
-    /// Enumerates every valid path from position `0` to `num_positions` in
-    /// row order.
+    /// Whether row `cand` is taken over row `current` when both start the
+    /// same position with the same sum: by granularity under `mode`, then
+    /// the earlier row.
+    fn prefer(&self, cand: usize, current: usize, mode: Option<SplitMode>) -> bool {
+        let (len_c, len_cur) = (self.position_length[cand], self.position_length[current]);
+        match mode {
+            Some(SplitMode::A) if len_c != len_cur => len_c < len_cur,
+            Some(SplitMode::C) if len_c != len_cur => len_c > len_cur,
+            _ => cand < current,
+        }
+    }
+
+    /// Every path from position `0` to `num_positions`, each in row order
+    /// and the paths in the order of their first differing row. The count
+    /// grows exponentially with the lattice's length (a lattice with a
+    /// one-position and a two-position alternative at every position has
+    /// a Fibonacci number of paths), so this suits one sentence's lattice;
+    /// an indexer walks [`at_position`](Self::at_position) instead.
     pub fn all_paths(&self) -> Vec<Vec<Ix<Self>>> {
-        if self.num_positions == 0 {
-            return vec![Vec::new()];
-        }
         let mut out = Vec::new();
-        let mut current = Vec::new();
-        self.collect_paths(0, &mut current, &mut out);
-        out
-    }
-
-    fn collect_paths(&self, pos: u32, current: &mut Vec<Ix<Self>>, out: &mut Vec<Vec<Ix<Self>>>) {
-        if pos == self.num_positions {
-            out.push(current.clone());
-            return;
+        if self.num_positions == 0 {
+            out.push(Vec::new());
+            return out;
         }
-        for ix in self.at_position(pos).iter() {
-            let next = pos + self.position_length[ix.get()];
-            if next <= self.num_positions {
-                current.push(ix);
-                self.collect_paths(next, current, out);
+        // A depth-first walk with its own stack: the path so far, and for
+        // each step the rows still to try at the position it left from.
+        let mut current: Vec<Ix<Self>> = Vec::new();
+        let mut pending: Vec<std::ops::Range<u32>> = vec![rows(self.at_position(0))];
+        while let Some(range) = pending.last_mut() {
+            let Some(r) = range.next() else {
+                pending.pop();
                 current.pop();
+                continue;
+            };
+            let next = self.position[r as usize] + self.position_length[r as usize];
+            if next > self.num_positions {
+                continue;
+            }
+            current.push(Ix::new(r));
+            if next == self.num_positions {
+                out.push(current.clone());
+                current.pop();
+            } else {
+                pending.push(rows(self.at_position(next)));
             }
         }
+        out
     }
 
     /// The spans of `path`, in path order.
@@ -491,6 +490,11 @@ impl<L> Alternatives<L> {
     }
 }
 
+/// The row numbers of a range of alternatives.
+fn rows<L>(r: IxRange<L>) -> std::ops::Range<u32> {
+    r.start.get() as u32..r.end.get() as u32
+}
+
 impl<L: Layer> Layer for Alternatives<L> {
     const ID: &'static str = "turbo:alternatives";
     const OF: Option<&'static LayerName> = Some(L::NAME);
@@ -517,8 +521,8 @@ impl<L: Layer> Layer for Alternatives<L> {
             if scores.len() != n {
                 return Err("a score for every alternative".into());
             }
-            if scores.iter().any(|s| s.is_nan()) {
-                return Err("no NaN alternative score".into());
+            if scores.iter().any(|s| !s.is_finite()) {
+                return Err("a finite score for every alternative".into());
             }
         }
         if let Some(forms) = &self.form
@@ -534,6 +538,12 @@ impl<L: Layer> Layer for Alternatives<L> {
         }
         if self.num_positions == 0 {
             return Err("a positive number of positions when alternatives are present".into());
+        }
+        // Every position needs an alternative leaving it, so there are at
+        // most as many positions as alternatives; checked before anything
+        // is allocated per position.
+        if self.num_positions as usize > n {
+            return Err(format!("{} positions for {n} alternatives", self.num_positions));
         }
         let (starts, ends) = self.spans.columns();
         for i in 0..n {
@@ -650,7 +660,6 @@ impl<L: Layer> Layer for Alternatives<L> {
 /// `items` (the length of `L`), so `Document::add` verifies that every
 /// candidate sequence has one tag per item of `L`. Candidate sequences are
 /// stored best-first in non-increasing order of `score`.
-#[derive(Clone, Debug)]
 pub struct NBest<L> {
     pub tagset: Arc<TagSet>,
     /// The number of items in `L` (the length of each candidate sequence).
@@ -665,6 +674,31 @@ pub struct NBest<L> {
     /// `0.0..=1.0`.
     pub prob: Option<Vec<f64>>,
     _of: PhantomData<fn() -> L>,
+}
+
+impl<L> Clone for NBest<L> {
+    fn clone(&self) -> Self {
+        NBest {
+            tagset: self.tagset.clone(),
+            items: self.items,
+            score: self.score.clone(),
+            tags: self.tags.clone(),
+            prob: self.prob.clone(),
+            _of: PhantomData,
+        }
+    }
+}
+
+impl<L> fmt::Debug for NBest<L> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("NBest")
+            .field("tagset", &self.tagset.name)
+            .field("items", &self.items)
+            .field("score", &self.score)
+            .field("tags", &self.tags)
+            .field("prob", &self.prob)
+            .finish()
+    }
 }
 
 impl<L> NBest<L> {
@@ -685,25 +719,28 @@ impl<L> NBest<L> {
             return Err(format!("expected {} probabilities for candidate sequence, got {}", self.items, p.len()));
         }
         let rank = self.score.len();
+        // Nothing is appended until every refusal is past, so a refused
+        // candidate leaves the table as it was.
+        match (&self.prob, probs) {
+            (Some(_), None) => {
+                return Err("cannot mix candidates with and without per-item probabilities".into());
+            }
+            (None, Some(_)) if rank > 0 => {
+                return Err("cannot mix candidates without and with per-item probabilities".into());
+            }
+            _ => {}
+        }
         self.score.push(score);
         self.tags.extend_from_slice(tags);
         match (&mut self.prob, probs) {
             (Some(table), Some(p)) => table.extend_from_slice(p),
-            (Some(_), None) => {
-                return Err("cannot mix candidates with and without per-item probabilities".into());
-            }
-            (None, Some(p)) => {
-                if rank > 0 {
-                    return Err("cannot mix candidates without and with per-item probabilities".into());
-                }
-                self.prob = Some(p.to_vec());
-            }
-            (None, None) => {}
+            (None, Some(p)) => self.prob = Some(p.to_vec()),
+            _ => {}
         }
         Ok(rank)
     }
 
-    /// The number of candidate sequences ($k$).
+    /// The number of candidate sequences.
     pub fn candidates(&self) -> usize {
         self.score.len()
     }
@@ -725,6 +762,7 @@ impl<L> NBest<L> {
 
     /// The tag and optional probability assigned to `item` in candidate `rank`.
     pub fn at(&self, rank: usize, item: Ix<L>) -> (Tag, Option<f64>) {
+        assert!(item.get() < self.items, "item {} of {}", item.get(), self.items);
         let idx = rank * self.items + item.get();
         (self.tags[idx], self.prob.as_ref().map(|p| p[idx]))
     }
@@ -945,7 +983,7 @@ mod tests {
                 lat.push_full(Span::new(pos_start[p], pos_end[p]), p as u32, 1, ModeSet::A, Some(score), None);
                 // Randomly add multi-position edges of length 2..=4.
                 for span_len in 2..=4 {
-                    if p + span_len <= num_pos && (next_u32() % 3 == 0) {
+                    if p + span_len <= num_pos && next_u32().is_multiple_of(3) {
                         let score = f64::from(next_u32() % 250) * 0.01;
                         let mode = if span_len == 2 { ModeSet::B } else { ModeSet::C };
                         lat.push_full(
@@ -966,13 +1004,103 @@ mod tests {
             let want_bytes = lat.covered_bytes(&best);
             let paths = lat.all_paths();
             assert!(!paths.is_empty());
+            // The unit spans every path must cover, from the generator's
+            // own bookkeeping, not from the lattice.
+            let units: Vec<Span> = (0..num_pos).map(|p| Span::new(pos_start[p], pos_end[p])).collect();
+            let sum =
+                |path: &[Ix<Alternatives<Tok>>]| -> f64 { path.iter().map(|&ix| lat.get(ix).score.unwrap()).sum() };
             for path in &paths {
                 assert_eq!(lat.covered_bytes(path), want_bytes, "case {case} path {path:?}");
+                let spans = lat.path_spans(path);
+                assert_eq!(spans.first().unwrap().start, 0, "case {case}");
+                assert_eq!(spans.last().unwrap().end, pos_end[num_pos - 1], "case {case}");
+                assert!(spans.windows(2).all(|w| w[0].end <= w[1].start), "case {case}: {spans:?}");
+                // Each arc's bytes are the unit spans it covers, gaps included.
+                for &ix in path {
+                    let a = lat.get(ix);
+                    let (u, v) = (a.position as usize, (a.position + a.position_length) as usize);
+                    assert_eq!(a.span, Span::new(units[u].start, units[v - 1].end), "case {case} row {ix:?}");
+                }
                 if contiguous {
                     assert_eq!(lat.covered_bytes(path), [Span::new(0, cursor)]);
                 }
+                assert!(sum(path) <= sum(&best) + 1e-9, "case {case}: {path:?} outscores the best path");
             }
+            // Mode A has only unit arcs, so its path is the unit tiling.
+            assert_eq!(lat.path_spans(&lat.path_for_mode(SplitMode::A).unwrap()), units);
+
+            // A damaged copy is refused: a shifted start byte, a shifted end
+            // byte, a dropped unit arc, and a position no arc reaches.
+            let last = lat.spans.len() - 1;
+            let victim = lat.at_position((num_pos - 1) as u32).start.get();
+            let damaged = |skip: Option<usize>, edit: &dyn Fn(usize, Span) -> Span| {
+                let mut out = Alternatives::<Tok>::new(ViewId::SOURCE);
+                for r in 0..lat.spans.len() {
+                    if Some(r) != skip {
+                        let a = lat.get(Ix::new(r as u32));
+                        out.push_full(edit(r, a.span), a.position, a.position_length, a.mode, a.score, a.form);
+                    }
+                }
+                out
+            };
+            // The first unit arc running into the next position's bytes,
+            // and the last one starting before the position before it ends.
+            let shifted = damaged(None, &|r, s| if r == 0 { Span::new(s.start, cursor) } else { s });
+            assert!(shifted.check().is_err(), "case {case}: an end byte past the next position passed");
+            let shifted = damaged(None, &|r, s| if r == last { Span::new(0, s.end) } else { s });
+            assert!(shifted.check().is_err(), "case {case}: a start byte before the previous position passed");
+            let mut gapped = lat.clone();
+            gapped.num_positions += 1;
+            assert!(gapped.check().is_err(), "case {case}: a position with no arc passed");
+            let mut dropped = damaged(Some(victim), &|_, s| s);
+            dropped.num_positions = lat.num_positions;
+            assert!(dropped.check().is_err(), "case {case}: a dropped last unit arc passed");
         }
+    }
+
+    #[test]
+    fn the_path_of_a_mode_is_the_highest_sum_not_the_greedy_pick() {
+        // Three readings of "abc", all in Best: "a" then "bc" scores 1.0
+        // locally at position 0, but the whole "abc" scores more in sum.
+        let mut lat = Alternatives::<Tok>::new(ViewId::SOURCE);
+        lat.push_full(Span::new(0, 1), 0, 1, ModeSet::BEST, Some(1.0), None);
+        lat.push_full(Span::new(0, 3), 0, 2, ModeSet::BEST, Some(0.9), None);
+        lat.push_full(Span::new(1, 3), 1, 1, ModeSet::BEST, Some(-10.0), None);
+        assert_eq!(lat.check(), Ok(()));
+        assert_eq!(lat.path_for_mode(SplitMode::Best).unwrap(), [Ix::new(1)]);
+        assert_eq!(lat.best_path(), [Ix::new(1)]);
+
+        // Without scores, the best path takes the fewest steps, and a mode
+        // path is decided by granularity: A keeps the units, C the compound.
+        let mut lat = Alternatives::<Tok>::new(ViewId::SOURCE);
+        lat.push(Span::new(0, 1), 0, 1, ModeSet::A | SplitMode::C);
+        lat.push(Span::new(0, 3), 0, 2, ModeSet::A | SplitMode::C);
+        lat.push(Span::new(1, 3), 1, 1, ModeSet::A | SplitMode::C);
+        assert_eq!(lat.check(), Ok(()));
+        assert_eq!(lat.best_path(), [Ix::new(1)]);
+        assert_eq!(lat.path_for_mode(SplitMode::A).unwrap(), [Ix::new(0), Ix::new(2)]);
+        assert_eq!(lat.path_for_mode(SplitMode::C).unwrap(), [Ix::new(1)]);
+
+        // An infinite score is refused, and so are more positions than
+        // alternatives.
+        let mut lat = Alternatives::<Tok>::new(ViewId::SOURCE);
+        lat.push_full(Span::new(0, 1), 0, 1, ModeSet::A, Some(f64::NEG_INFINITY), None);
+        assert!(lat.check().unwrap_err().contains("finite"));
+        let mut lat = Alternatives::<Tok>::new(ViewId::SOURCE);
+        lat.push(Span::new(0, 1), 0, 1, ModeSet::A);
+        lat.num_positions = u32::MAX;
+        assert!(lat.check().unwrap_err().contains("positions for 1 alternatives"));
+    }
+
+    #[test]
+    fn a_refused_candidate_leaves_the_n_best_as_it_was() {
+        let tagset = TagSet::new("ud", &["NOUN", "VERB"]);
+        let mut nbest = NBest::<Tok>::new(tagset, 2);
+        nbest.push(-1.0, &[Tag(0), Tag(1)], Some(&[0.5, 0.5])).unwrap();
+        assert!(nbest.push(-2.0, &[Tag(1), Tag(0)], None).is_err());
+        assert_eq!(nbest.candidates(), 1);
+        assert_eq!(nbest.tags.len(), 2);
+        assert_eq!(nbest.check(), Ok(()));
     }
 
     #[test]
@@ -995,10 +1123,15 @@ mod tests {
         bad.push(Span::new(3, 6), 1, 1, ModeSet::A);
         assert!(bad.check().unwrap_err().contains("overlaps in bytes"));
 
-        // 4. Unanchored internal boundary (num_positions = 2, only a single len=2 edge).
+        // 4. Unanchored internal boundary: two len=2 edges over num_positions = 2.
         let mut bad = Alternatives::<Tok>::new(ViewId::SOURCE);
         bad.push(Span::new(0, 6), 0, 2, ModeSet::C);
+        bad.push(Span::new(0, 6), 0, 2, ModeSet::B);
         assert!(bad.check().unwrap_err().contains("position boundary 1 has no path"));
+        // With one edge, there are more positions than alternatives.
+        let mut bad = Alternatives::<Tok>::new(ViewId::SOURCE);
+        bad.push(Span::new(0, 6), 0, 2, ModeSet::C);
+        assert!(bad.check().unwrap_err().contains("2 positions for 1 alternatives"));
 
         // 5. Dead-end edge that cannot reach num_positions.
         let mut bad = Alternatives::<Tok>::new(ViewId::SOURCE);
