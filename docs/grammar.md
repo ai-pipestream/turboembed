@@ -1,10 +1,12 @@
-# Number grammar
+# Number and time grammar
 
 `turbo-grammar` (`analysis/grammar/`) reads numbers, ordinals and
 percentages written in words or digits, with exact values: `one hundred
 and three and two thirds`, `1,674.5 million`, `minus 5`, `twenty-first`,
-`the second to last`, `per cent of 210`. It is a rule grammar over a
-chart parser, in two parts:
+`the second to last`, `per cent of 210`. It also reads dates, times,
+durations and sets, resolved against a reference date-time
+([below](#times)). It is a rule grammar over a chart parser, in two
+parts:
 
 - `engine/`, which knows no language: a lexer, a numeral reader, rules
   over categories, the chart parser, and the ranking and selection of
@@ -12,6 +14,7 @@ chart parser, in two parts:
 - `lang/`, one module per language, each a `Grammar`: its lexicon, its
   rules, how it writes numerals and which categories become output.
   English (`lang/en/`, the `ENGLISH` static) is the one there is.
+  `ENGLISH_TIMES` holds the same number rules and adds the time rules.
 
 `GrammarAnnotator` runs a grammar over a text view and writes layers
 ([below](#layers)). It is separate from `turbo-numeric`, which ports
@@ -169,6 +172,65 @@ A number's subtype is `fraction` for every fraction, `power` for an
 exponent, `decimal` for a spoken decimal, and otherwise `integer` or
 `decimal` by whether the value has a fraction (`5.00` is an integer).
 
+## Times
+
+`ENGLISH_TIMES` reads dates, times, date-times, durations, sets and
+ranges of them, and `TimeAnnotator` writes them as the `turbo:times`
+layer (`analysis/layers/src/times.rs`). The code is in two parts:
+
+- `analysis/grammar/src/time/` knows no language. `spec.rs` holds what a
+  text states (a date such as the next Friday or May 29 of an unnamed
+  year, a time of day, a part of the day, a shift, a range, a
+  recurrence); `duration.rs` a length in calendar units; `calendar.rs`
+  the date arithmetic; `timex.rs` the TIMEX3 text; and `resolve/` turns
+  a value and a reference date-time into a kind, a grain, a modifier and
+  one or more readings, each with its timex and its start and end.
+- `analysis/grammar/src/lang/en/time/` holds the English rules, one file
+  per family: `clock.rs` (`7:56:30 pm`, `half past seven`, `in the
+  morning`), `date.rs` (`04th Jan 2019`, `next Monday`, `the first Monday
+  of next month`, `Q3 2019`, holidays), `duration.rs` (`3.5 years`, `an
+  hour and a half`, `a few minutes`), `set.rs` (`weekly`, `every two
+  days`, `tuesday afternoons`), `compose.rs` (a date with a time, `in 5
+  minutes`, `2 days ago`, `now`) and `range.rs` (`from May to Oct 2020`,
+  `5 to 6pm`, `next 3 days`, `within 9 months`, `before 2018`, `since the
+  end of 1989`, `mid-November`). `lexicon.rs` holds the words and
+  `analysis/grammar/src/lang/en/time/mod.rs` the checks that drop a
+  candidate in its context.
+
+Time values are interned in the parse, so a rule's value is a small id.
+
+The rules follow the conventions of the Recognizers-Text specifications
+where they choose a reading:
+
+- A clock with no `am` or `pm` reads in both halves of the day; the first
+  is preferred. A weekday or a day of an unnamed year reads before and
+  after the reference; the later reading is preferred. A decade without
+  its century (`the eighties`) prefers the last one that starts by the
+  reference.
+- `may`, `sun` and a few other words with a common sense need a cue to
+  be a date (`in May`, `on Sun`); `last` after `will` or `to` is a verb.
+- A date with a dot after a full month name (`April. One`) is two
+  sentences, and a slash pair after a number or before `of` (`21 1/4`,
+  `3/4 of`) is a fraction.
+- `around` keeps the point and marks it approximate; `later this week`
+  is clipped at the reference and shows no modifier; `end of tomorrow` is
+  its last second.
+- `early`, `mid` and `late` split a year into four-month thirds (`mid
+  1989` is May to August), and a decade into 4, 3 and 3 years (`the late
+  eighties` is 1987 to 1989), a split the specifications do not test.
+- `every other Friday` and `every second Thursday` are sets with the
+  weekday's value (`XXXX-WXX-5`), as Recognizers-Text writes them;
+  `every other day` and `every second week` double the unit (`P2D`).
+
+`TimeAnnotator` reads `turbo:view` and, when the pipeline has one, the
+`DocumentDate`. The reference is the document's date at midnight, else
+the one given to `TimeAnnotator::with_reference`. There is no clock: with
+no reference, a mention whose value depends on one (`tomorrow`, `next
+week`) is written with its kind and grain and with no start, no end and
+an empty timex; `2016-11-07`, `at 5` and `3 hours` resolve as usual. The
+preferred reading is written, and `ambiguous` says whether there was
+more than one.
+
 ## Values
 
 Values are `Dec` decimals: an `i128` mantissa and a power of ten. Sums,
@@ -243,7 +305,34 @@ The cases that fail:
   without a value. The layer holds a value for every percentage, so the
   grammar reports none.
 
-Every other case of the three files passes. The rules are written for
+Every other case of the three files passes.
+
+`analysis/grammar/tests/spec/datetime.rs` runs `DateTimeModel.json`
+the same way, with `analysis/grammar/tests/data/pass/English/DateTimeModel.txt`
+as its list. Each case is resolved against its `ReferenceDateTime`. A
+found mention matches when its span and type name are equal and its
+alternatives, each with its `timex`, `type`, `Mod`, `value`, `start` and
+`end`, are the same set. The test also prints the cases whose spans
+match and whose values do not, and the counts by the first expected
+type (`none` for a case that expects no mention):
+
+| Type | Eligible | Passing |
+|---|---|---|
+| `date` | 198 | 175 |
+| `daterange` | 357 | 325 |
+| `datetime` | 82 | 78 |
+| `datetimerange` | 96 | 85 |
+| `duration` | 46 | 46 |
+| `set` | 46 | 46 |
+| `time` | 34 | 34 |
+| `timerange` | 47 | 43 |
+| none | 64 | 61 |
+| All | 970 | 893 |
+
+The cases that fail include time zones, a weekday after a shift,
+`year to date`, holiday weekends, `the first
+N weeks of`, leap-day ranges and a few readings the specification gives
+in a form the rules do not produce for the same words elsewhere. The rules are written for
 English forms, not for single cases, and read forms the specifications
 do not test (`third to last`, a U+2212 minus, `3 in 2009`); the unit
 tests in `analysis/grammar/src/lang/en/tests.rs` cover them.
@@ -254,9 +343,10 @@ tests in `analysis/grammar/src/lang/en/tests.rs` cover them.
 English grammar over a generated 100 KB text (the sentences are in
 `analysis/grammar/tests/common/sample.rs`), and `analysis/grammar/tests/timing.rs` runs
 the same text in the test build, checks the layers and prints the time.
+The benchmark also times `TimeAnnotator` over the same text.
 
 ## Not yet done
 
-Planned on #388: dates, times, durations and sets (the `turbo:times`
-layer), numbers with units (currency, dimension, temperature, age), and
-Spanish and Dutch grammars.
+Planned on #388: numbers with units (currency, dimension, temperature,
+age), and Spanish and Dutch grammars. The time grammar reads no time
+zones.

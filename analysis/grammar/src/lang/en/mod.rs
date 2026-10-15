@@ -5,6 +5,9 @@
 
 mod lexicon;
 mod rules;
+pub(crate) mod time;
+
+pub use time::{ENGLISH_TIMES, EnglishTimes};
 
 use std::sync::OnceLock;
 
@@ -45,7 +48,7 @@ pub(crate) const SIGN: Dim = Dim(21);
 pub(crate) const ORD: Dim = Dim(22);
 pub(crate) const REL: Dim = Dim(23);
 pub(crate) const PCT: Dim = Dim(24);
-const DIMS: u16 = 25;
+pub(crate) const DIMS: u16 = 25;
 
 /// An ordinal word that is only `first` or `second`, which never names a
 /// denominator (`a second` is no half).
@@ -134,7 +137,7 @@ impl Grammar for English {
                 }
                 _ => true,
             },
-            Output::Percent => true,
+            Output::Percent | Output::Time => true,
         }
     }
 
