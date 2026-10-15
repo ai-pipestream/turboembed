@@ -48,10 +48,12 @@ fn item(column: &Option<Strs>, i: usize) -> Option<Option<&str>> {
 }
 
 /// Runs the analyzer on every golden of `run_name` and compares each
-/// token's readings with the JVM's feature columns.
-fn matches(run_name: &str, analyzer: &LatticeAnalyzer) -> Counts {
+/// token's readings with the JVM's feature columns. A column map naming a
+/// column that is always `*` would match the JVM everywhere; the counts
+/// the tests assert are what catch it.
+fn matches(run_name: &str, analyzer: LatticeAnalyzer) -> Counts {
     let map = analyzer.format().map();
-    let pipeline = Analyzer::builder().add(analyzer.clone()).build().unwrap();
+    let pipeline = Analyzer::builder().add(analyzer).build().unwrap();
     let mut counts = Counts::default();
     for case in run("lattice", run_name) {
         if case.golden.header.error.is_some() {
@@ -94,7 +96,7 @@ fn counts(tokens: usize, reading: usize, pronunciation: usize, lemma: usize) -> 
 #[test]
 fn korean_fixture() {
     let a = analyzer(&fixtures_dir().join("mecab-fixture-ko"), DictionaryFormat::MecabKoDic);
-    let got = matches("mecab-fixture-ko", &a);
+    let got = matches("mecab-fixture-ko", a);
     assert_eq!(got, counts(1310, 46, 0, 0));
 }
 
@@ -148,7 +150,23 @@ impl Annotator for Sentencer {
 fn readings_follow_the_tokens_through_a_pipeline() {
     let a = analyzer(&fixtures_dir().join("mecab-fixture-ko"), DictionaryFormat::MecabKoDic);
     let text = "학교에 갔다。학생이 왔다";
-    let pipeline = Analyzer::builder().add(a.clone()).add(Sentencer).build().unwrap();
+    // What each sentence gives alone, the second at its offset in the text,
+    // and each token's 읽기.
+    let second = "학교에 갔다。".len();
+    let mut want: Vec<((u32, u32), String)> = Vec::new();
+    for (base, sentence) in [(0, &text[..second]), (second, &text[second..])] {
+        let mut out = Vec::new();
+        a.tokenizer().analyze(sentence, &mut out).unwrap();
+        let d = a.tokenizer().dictionary();
+        for m in &out {
+            let reading = a.format().map().reading(d, m.entry).unwrap_or("").to_string();
+            want.push(((m.span.start + base as u32, m.span.end + base as u32), reading));
+        }
+    }
+    let config = a.config_hash();
+    assert_ne!(config, a.tokenizer().config_hash());
+
+    let pipeline = Analyzer::builder().add(a).add(Sentencer).build().unwrap();
     let mut docs = vec![Document::new(text)];
     pipeline.run(&mut docs)[0].clone().unwrap();
     let doc = &docs[0];
@@ -157,23 +175,14 @@ fn readings_follow_the_tokens_through_a_pipeline() {
     assert!(tokens.sentence.is_some());
     assert!(readings.pronunciation.is_none() && readings.lemma.is_none());
     let reading = readings.reading.as_ref().unwrap();
-    let pairs: Vec<(&str, &str)> =
-        tokens.spans.iter().enumerate().map(|(i, (_, s))| (&text[s.range()], reading.get(i))).collect();
-    let mut direct = Vec::new();
-    a.tokenizer().analyze("학교에 갔다", &mut direct).unwrap();
-    // The first sentence's tokens are the ones it has alone, at the same
-    // offsets, each with its entry's 읽기.
-    for (m, (surface, r)) in direct.iter().zip(&pairs) {
-        assert_eq!(*surface, &text[m.span.range()]);
-        let want = a.format().map().reading(a.tokenizer().dictionary(), m.entry).unwrap_or("");
-        assert_eq!(*r, want);
-    }
+    let got: Vec<((u32, u32), String)> =
+        tokens.spans.iter().enumerate().map(|(i, (_, s))| ((s.start, s.end), reading.get(i).to_string())).collect();
+    assert_eq!(got, want);
+    assert!(want.iter().any(|(s, r)| s.0 as usize >= second && !r.is_empty()));
     let p = doc.provenance(Key::<Readings>::DEFAULT.id()).unwrap();
     assert_eq!(p.annotator, "turbo-tokenize:lattice-readings");
     assert_eq!(p.model.as_ref().unwrap().id, "opennlp:MecabDictionary");
-    let same_format = LatticeAnalyzer::new(a.tokenizer().clone(), DictionaryFormat::MecabKoDic).unwrap().config_hash();
-    assert_eq!(p.config, same_format);
-    assert_ne!(a.config_hash(), a.tokenizer().config_hash());
+    assert_eq!(p.config, config);
 }
 
 /// IPADIC, from its UTF-8 copy: every lexicon entry has 読み, 発音 and
@@ -182,8 +191,6 @@ fn readings_follow_the_tokens_through_a_pipeline() {
 #[ignore = "needs IPADIC from turbo-goldens fetch-models"]
 fn ipadic() {
     let a = analyzer(&dictionaries_dir().join("mecab-ipadic-2.7.0-20070801.utf8"), DictionaryFormat::Ipadic);
-    let got = matches("mecab-ipadic-2.7.0-20070801", &a);
-    assert_eq!(got, counts(1512, 444, 444, 444));
     // Spot checks against the dictionary's own lines.
     let d = a.tokenizer().dictionary();
     let map = a.format().map();
@@ -200,6 +207,8 @@ fn ipadic() {
             (Some("タ"), Some("タ"), Some("た")),
         ]
     );
+    let got = matches("mecab-ipadic-2.7.0-20070801", a);
+    assert_eq!(got, counts(1512, 444, 444, 444));
 }
 
 /// mecab-ko-dic: 읽기 only, `*` for symbols and unknown words.
@@ -207,8 +216,6 @@ fn ipadic() {
 #[ignore = "needs mecab-ko-dic from turbo-goldens fetch-models"]
 fn mecab_ko_dic() {
     let a = analyzer(&dictionaries_dir().join("mecab-ko-dic-2.1.1-20180720"), DictionaryFormat::MecabKoDic);
-    let got = matches("mecab-ko-dic-2.1.1-20180720", &a);
-    assert_eq!(got, counts(1360, 211, 0, 0));
     // A Hanja entry is read in Hangul.
     let d = a.tokenizer().dictionary();
     let mut out = Vec::new();
@@ -216,6 +223,8 @@ fn mecab_ko_dic() {
     let readings: Vec<_> = out.iter().map(|m| a.format().map().reading(d, m.entry)).collect();
     assert_eq!(readings, [Some("학교")]);
     // IPADIC's column count refuses it.
-    let err = LatticeAnalyzer::new(a.tokenizer().clone(), DictionaryFormat::Ipadic).unwrap_err();
+    let err = DictionaryFormat::Ipadic.check(d).unwrap_err();
     assert_eq!(err.found, 8);
+    let got = matches("mecab-ko-dic-2.1.1-20180720", a);
+    assert_eq!(got, counts(1360, 211, 0, 0));
 }

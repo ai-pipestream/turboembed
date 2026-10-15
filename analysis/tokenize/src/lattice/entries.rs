@@ -56,13 +56,16 @@ impl FeatureStore {
         Columns { store: self, next: self.first[r] as usize, end: self.first[r + 1] as usize }
     }
 
+    /// Record `r`, for reading several of its columns by index.
+    #[inline]
+    pub(crate) fn record(&self, r: u32) -> Record<'_> {
+        Record { store: self, first: self.first[r as usize] as usize, end: self.first[r as usize + 1] as usize }
+    }
+
     /// Column `i` of record `r`, if it has one.
     #[inline]
     pub(crate) fn column(&self, r: u32, i: usize) -> Option<&str> {
-        let (first, end) = (self.first[r as usize] as usize, self.first[r as usize + 1] as usize);
-        let at = first.checked_add(i).filter(|&at| at < end)?;
-        let start = if at == 0 { 0 } else { self.ends[at - 1] as usize };
-        Some(&self.text[start..self.ends[at] as usize])
+        self.record(r).column(i)
     }
 
     /// The number of columns of record `r`.
@@ -75,6 +78,24 @@ impl FeatureStore {
         self.text.shrink_to_fit();
         self.ends.shrink_to_fit();
         self.first.shrink_to_fit();
+    }
+}
+
+/// One record of a [`FeatureStore`], with its bounds looked up once.
+#[derive(Copy, Clone, Debug)]
+pub(crate) struct Record<'a> {
+    store: &'a FeatureStore,
+    first: usize,
+    end: usize,
+}
+
+impl<'a> Record<'a> {
+    /// Column `i`, if the record has one.
+    #[inline]
+    pub(crate) fn column(&self, i: usize) -> Option<&'a str> {
+        let at = self.first.checked_add(i).filter(|&at| at < self.end)?;
+        let start = if at == 0 { 0 } else { self.store.ends[at - 1] as usize };
+        Some(&self.store.text[start..self.store.ends[at] as usize])
     }
 }
 

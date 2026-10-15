@@ -172,9 +172,10 @@ impl Annotator for LatticeAnalyzer {
         let mut tags = Vec::new();
         let tokens = t.segment(Self::ID, view, sentences, |entry| {
             tags.push(d.tag(entry));
+            let record = d.feature_record(entry);
             let push = |out: &mut Option<Strs>, c: Option<usize>| {
                 if let Some(out) = out {
-                    out.push(format::value(d, entry, c).unwrap_or(""));
+                    out.push(format::value(&record, c).unwrap_or(""));
                 }
             };
             push(&mut reading, map.reading);

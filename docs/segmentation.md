@@ -679,12 +679,14 @@ Each format's columns are an enum in file order (`IpadicColumn`,
 layout starts with), and `DictionaryFormat::map` names the three columns
 from them, so no column is looked up by a string. The UniDic layouts are
 the 2.1.2 source distribution (17 columns), the 2.1.2 binary
-distribution and unidic-lite (26, as unidic-lite's `dicrc` lists them),
+distribution and unidic-lite (as the 26 fields of unidic-lite's `bos-feature`),
 and 2.2.0 and later (29). The format is given, not guessed:
 `LatticeAnalyzer::new` checks that every lexicon entry has the format's
 number of columns and refuses the dictionary otherwise (`FormatError`).
 The `unk.def` templates are not checked, since they usually have fewer
-columns (IPADIC's have seven).
+columns (IPADIC's have seven). For a dictionary known to be UniDic,
+`UnidicLayout::of` picks the layout whose column count a lexicon entry
+has, and returns it only if every lexicon entry passes that check.
 
 An item is an empty string where the token's entry leaves the column
 out: an unknown word whose template lacks it, or a value that is empty

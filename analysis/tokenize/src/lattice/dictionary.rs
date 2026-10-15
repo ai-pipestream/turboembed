@@ -13,7 +13,7 @@ use turbo_maxent::{Digest, sha256};
 use turbo_unicode::WhitespaceMode;
 
 use super::chardef::{AssignmentId, Category, CategoryId, CharDef, CharDefSource};
-use super::entries::{Columns, Dimensions, Entry, FeatureStore, read_entries};
+use super::entries::{Columns, Dimensions, Entry, FeatureStore, Record, read_entries};
 use super::error::{DictionaryError, DictionaryFile};
 use super::limits::DictionaryLimits;
 use super::matrix::Matrix;
@@ -323,6 +323,13 @@ impl MecabDictionary {
     #[inline]
     pub fn feature(&self, entry: EntryId, i: usize) -> Option<&str> {
         self.features.column(self.entries[entry.0 as usize].features, i)
+    }
+
+    /// The feature record of `entry`, for reading several of its columns
+    /// with one lookup of the entry.
+    #[inline]
+    pub(crate) fn feature_record(&self, entry: EntryId) -> Record<'_> {
+        self.features.record(self.entries[entry.0 as usize].features)
     }
 
     /// The number of feature columns of `entry`.

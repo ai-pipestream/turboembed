@@ -13,6 +13,7 @@
 use std::fmt;
 
 use super::dictionary::{EntryId, MecabDictionary};
+use super::entries::Record;
 
 /// The feature columns of IPADIC (mecab-ipadic 2.7.0), in file order.
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
@@ -139,6 +140,17 @@ impl UnidicLayout {
         }
     }
 
+    /// The layout of `dictionary`, if it is one of UniDic's: the layout
+    /// with the column count of one lexicon entry, when every lexicon
+    /// entry has that count ([`DictionaryFormat::check`]).
+    pub fn of(dictionary: &MecabDictionary) -> Option<UnidicLayout> {
+        let n = dictionary.feature_count(EntryId(0));
+        let layout = [UnidicLayout::Source17, UnidicLayout::Full26, UnidicLayout::Full29]
+            .into_iter()
+            .find(|l| l.count() == n)?;
+        DictionaryFormat::Unidic(layout).check(dictionary).ok().map(|()| layout)
+    }
+
     /// The `kana` column: the surface as read, in katakana.
     pub const fn kana(self) -> Option<usize> {
         match self {
@@ -248,29 +260,29 @@ impl fmt::Display for FormatError {
 
 impl std::error::Error for FormatError {}
 
-/// The value of column `column` of `entry`: `None` when the format has no
-/// such column, the entry has fewer columns (an `unk.def` template), or
-/// the value is empty or `*`, which the published dictionaries write for
-/// none.
+/// The value of column `column` of an entry's feature record: `None` when
+/// the format has no such column, the entry has fewer columns (an
+/// `unk.def` template), or the value is empty or `*`, which the published
+/// dictionaries write for none.
 #[inline]
-pub(crate) fn value(dictionary: &MecabDictionary, entry: EntryId, column: Option<usize>) -> Option<&str> {
-    dictionary.feature(entry, column?).filter(|v| !v.is_empty() && *v != "*")
+pub(crate) fn value<'d>(record: &Record<'d>, column: Option<usize>) -> Option<&'d str> {
+    record.column(column?).filter(|v| !v.is_empty() && *v != "*")
 }
 
 impl FeatureMap {
     /// The reading of `entry`, if the format and the entry have one.
     pub fn reading<'d>(&self, dictionary: &'d MecabDictionary, entry: EntryId) -> Option<&'d str> {
-        value(dictionary, entry, self.reading)
+        value(&dictionary.feature_record(entry), self.reading)
     }
 
     /// The pronunciation of `entry`, if the format and the entry have one.
     pub fn pronunciation<'d>(&self, dictionary: &'d MecabDictionary, entry: EntryId) -> Option<&'d str> {
-        value(dictionary, entry, self.pronunciation)
+        value(&dictionary.feature_record(entry), self.pronunciation)
     }
 
     /// The lemma of `entry`, if the format and the entry have one.
     pub fn lemma<'d>(&self, dictionary: &'d MecabDictionary, entry: EntryId) -> Option<&'d str> {
-        value(dictionary, entry, self.lemma)
+        value(&dictionary.feature_record(entry), self.lemma)
     }
 }
 
@@ -293,6 +305,9 @@ mod tests {
         };
         MecabDictionary::from_files(files, WhitespaceMode::Unicode, DictionaryLimits::default()).unwrap()
     }
+
+    // The tests assert the values themselves, not only that they match the
+    // features: that is what catches a map naming a column that is always `*`.
 
     /// Each morpheme of `text` as its surface, reading, pronunciation and
     /// lemma.
@@ -416,7 +431,19 @@ mod tests {
             for other in [UnidicLayout::Source17, UnidicLayout::Full26, UnidicLayout::Full29] {
                 assert_eq!(DictionaryFormat::Unidic(other).check(t.dictionary()).is_ok(), other == layout);
             }
+            assert_eq!(UnidicLayout::of(t.dictionary()), Some(layout));
         }
+    }
+
+    /// A dictionary is no UniDic layout when its first entry's column
+    /// count is none of theirs, or when a later entry's differs.
+    #[test]
+    fn the_unidic_layout_of_a_dictionary() {
+        let ipadic = dictionary("a,0,0,1,名詞,*,*,*,*,*,a,ア,ア\n", "DEFAULT,0,0,5,記号\n");
+        assert_eq!(UnidicLayout::of(&ipadic), None);
+        let mixed = unidic_entry("a", "a", "ア", "a", "ア", UnidicLayout::Full26)
+            + &unidic_entry("b", "b", "ビ", "b", "ビ", UnidicLayout::Full29);
+        assert_eq!(UnidicLayout::of(&dictionary(&mixed, "DEFAULT,0,0,5,記号\n")), None);
     }
 
     #[test]
