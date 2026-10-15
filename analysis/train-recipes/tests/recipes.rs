@@ -430,14 +430,17 @@ struct Released {
 }
 
 /// The model directories of `models` (every recipe's card that may become
-/// a zoo entry, with its gate record and model) make the zoo entries of a
-/// release, in the recipes' order and each at its address there, and the
+/// a zoo entry, with its gate record and model) make the zoo entries of
+/// [`MASC_MODELS`] from the directories of its models, in the recipes'
+/// order and each at its address there, and the
 /// built-in index with them added; a missing directory, a card in another
 /// model's directory, a gate record that is not the card's or a model
 /// file that is not its card's makes none. The binary's `zoo-index` reads
 /// the same directories: with `--check` it fails, since the test's models
 /// are not the ones the zoo lists, and without it prints the index.
 fn released_models_make_the_release_s_zoo_entries(dir: &std::path::Path, models: &[Released]) {
+    let models: Vec<&Released> = models.iter().filter(|r| MASC_MODELS.models.contains(&r.card.id.as_str())).collect();
+    assert_eq!(models.len(), MASC_MODELS.models.len());
     let write = |r: &Released| {
         let d = dir.join(&r.card.id);
         std::fs::create_dir_all(&d).unwrap();
@@ -446,13 +449,13 @@ fn released_models_make_the_release_s_zoo_entries(dir: &std::path::Path, models:
         std::fs::write(d.join(&r.card.file.name), &r.model).unwrap();
     };
     let (first, rest) = models.split_first().unwrap();
-    rest.iter().for_each(write);
+    rest.iter().for_each(|r| write(r));
     assert!(matches!(release::entries(dir, &MASC_MODELS), Err(Error::Io { .. })), "a recipe's directory is missing");
     write(first);
     let entries = release::entries(dir, &MASC_MODELS).unwrap();
     let ids: Vec<&str> = entries.iter().map(|a| a.id.as_str()).collect();
     assert_eq!(ids, MASC_MODELS.models);
-    for (entry, r) in entries.iter().zip(models) {
+    for (entry, r) in entries.iter().zip(&models) {
         assert_eq!(*entry, r.card.artifact(&MASC_MODELS.url(&r.card.file.name)).unwrap());
         assert!(entry.files[0].url.as_str().starts_with(release::RELEASES));
     }
@@ -483,7 +486,7 @@ fn released_models_make_the_release_s_zoo_entries(dir: &std::path::Path, models:
     // A card in another model's directory makes no entries; nor does a
     // gate record of another model, or one with another outcome than the
     // card's.
-    let (second, first_dir) = (&models[1], dir.join(first.card.id.as_str()));
+    let (second, first_dir) = (models[1], dir.join(first.card.id.as_str()));
     std::fs::write(first_dir.join(CARD_FILE), second.card.to_json()).unwrap();
     refused_field("id");
     write(first);

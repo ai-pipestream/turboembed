@@ -843,9 +843,10 @@ The tagger's reference, `en-pos-maxent.bin`, and the chunker's,
 `en-chunker.bin`, are not in the zoo, as in turbo-sequence's tests of
 the 1.5 models: their training data is not published, so the `ci`
 workflow (`ci.yml`) does not fetch them (the `models` workflow does, to
-run the release's gates; see "The models release"). The parts that need them run when `TURBO_TEST_OPENNLP_MODELS`
-names a directory holding them (a missing file there fails), and skip
-without it even with `TURBO_TEST_REQUIRE_OPENNLP_MODELS=1`. With it, the
+run the release's gates; see "The models release"). The parts that
+need them run when `TURBO_TEST_OPENNLP_MODELS` names a directory holding
+them (a missing file there fails), and skip without it even with
+`TURBO_TEST_REQUIRE_OPENNLP_MODELS=1`. With it, the
 tagger's reference is checked against the recorded digest, shown to
 return its 45 Penn outcomes unconverted and to tag brackets, hyphens,
 ellipses, semicolons and an opening quotation mark as
