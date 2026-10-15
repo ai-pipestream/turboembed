@@ -1947,6 +1947,27 @@ dependencies = [
 ]
 
 [[package]]
+name = "turbo-matcher"
+version = "0.1.0"
+dependencies = [
+ "regex",
+ "turbo-analysis",
+ "turbo-analysis-layers",
+ "turbo-matcher-layers",
+ "turbo-stem-layers",
+ "turbo-stopword-layers",
+ "turbo-unicode",
+]
+
+[[package]]
+name = "turbo-matcher-layers"
+version = "0.1.0"
+dependencies = [
+ "turbo-analysis",
+ "turbo-analysis-layers",
+]
+
+[[package]]
 name = "turbo-maxent"
 version = "0.1.0"
 dependencies = [

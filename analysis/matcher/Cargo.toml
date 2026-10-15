@@ -1,0 +1,20 @@
+[package]
+name = "turbo-matcher"
+version = "0.1.0"
+edition.workspace = true
+license.workspace = true
+publish = false
+
+[lib]
+name = "turbo_matcher"
+
+[dependencies]
+turbo-analysis = { path = "../core" }
+turbo-analysis-layers = { path = "../layers" }
+turbo-matcher-layers = { path = "../matcher-layers" }
+turbo-stem-layers = { path = "../stem-layers" }
+turbo-stopword-layers = { path = "../stopword-layers" }
+# Lowercasing, case folding, normalization and character classes.
+turbo-unicode = { path = "../unicode" }
+# The REGEX token test, as turbo-namefind matches its patterns.
+regex = "1"

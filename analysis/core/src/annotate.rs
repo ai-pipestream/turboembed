@@ -128,6 +128,10 @@ tuples!(A 0, B 1, C 2);
 tuples!(A 0, B 1, C 2, D 3);
 tuples!(A 0, B 1, C 2, D 3, E 4);
 tuples!(A 0, B 1, C 2, D 3, E 4, F 5);
+tuples!(A 0, B 1, C 2, D 3, E 4, F 5, G 6);
+tuples!(A 0, B 1, C 2, D 3, E 4, F 5, G 6, H 7);
+tuples!(A 0, B 1, C 2, D 3, E 4, F 5, G 6, H 7, I 8);
+tuples!(A 0, B 1, C 2, D 3, E 4, F 5, G 6, H 7, I 8, J 9);
 
 pub type Refs<'d, A> = <<A as Annotator>::Reads as Reads>::Refs<'d>;
 

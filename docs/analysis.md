@@ -39,12 +39,14 @@ nothing here is in the C header or the gRPC server.
 | `turbo-train-recipes` | `analysis/train-recipes/` | Recipes that train models on permissive data and gate them: MASC 3.0.0 (CC BY 3.0 US) with the record of its release and fixed split, the English sentence detector, tokenizer and part-of-speech tagger trained on it, their gates against the OpenNLP English UD models and OpenNLP 1.5's Penn tagger (`en-pos-maxent.bin`), the model card and the permissive zoo entry, and the `turbo-train-recipes` binary ("Models trained on permissive data", below) |
 | `turbo-formats` | `analysis/formats/` | OpenNLP's training samples (name, part-of-speech, lemma, chunk, token, sentence, document category and language samples), a reader per native format that reproduces OpenNLP's sample stream over the same text, the conversion of name and part-of-speech samples into token and sentence samples, the CoNLL-U readers of part-of-speech, lemma, sentence and token samples, the CoNLL-2002 and CoNLL-2003 name readers and the CoNLL-X part-of-speech reader, the MASC corpus reader and its part-of-speech, token, sentence and name samples, the named entity corpus readers (GermEval 2014, BioNLP 2004, Evalita, the 1990 census names, MUC-6 and brat), the format registry, and the evaluators and cross-validation folds (`FMeasure`, `Mean`, an evaluator per component). Every token and tag keeps its byte span in the source; the crate documentation lists the OpenNLP behaviour that is surprising, and its tests compare with the `formats`, `masc`, `ner` and `evaluate` goldens |
 | `turbo-parser` | `analysis/parser/` | OpenNLP's constituency `Parse` tree and Penn Treebank bracket I/O (`Parse::parse`, `Parse::show`, `ParseSampleStream`, `ParserPosSample`, `ParserChunkSample`, `space_untokenized_parens`), the `HeadRules` and `GapLabeler` traits, `EnglishHeadRules` (`opennlp.tools.parser.lang.en.HeadRules`), and `AncoraSpanishHeadRules` (`opennlp.tools.parser.lang.es.AncoraSpanishHeadRules`), whose tags are Java regular expressions (`TagPattern`). `analysis/parser/README.md` describes where it differs from OpenNLP and its JVM golden files |
+| `turbo-matcher` | `analysis/matcher/` | One rule engine over the token layers: spaCy's `Matcher` (token patterns with `?`, `*`, `+`, `!` and counted repeats over text, lowercase and folded forms, shape, lemma, stem, tag, entity kind, caller columns and flags, with literal, set, regular expression, fuzzy and length tests, and spaCy's `FIRST` and `LONGEST` filters), `PhraseMatcher` (phrase lists of any size compiled into one Aho-Corasick automaton over token symbols), and the ruler that runs both and writes `turbo:matches` under a named instance with an overlap policy. Its crate documentation lists where it differs from spaCy; its tests port spaCy's matcher tests |
+| `turbo-matcher-layers` | `analysis/matcher-layers/` | The matcher's layer, `turbo:matches` |
 | `turbo-eval` | `analysis/eval/` | The evaluation harness: the evaluation sets with their fetch by checksum and typed readers, the pipeline, the baseline chunkers, measures, significance tests, records, the gate and the `turbo-eval` binary (Evaluation, below) |
 
 They need nothing beyond the standard library and each other, except
 `turbo-analysis-embed`, which runs the embedding model and so depends on
 the core crate, `turbo`; `turbo-namefind`, which matches its patterns
-with the `regex` crate; and `turbo-eval`, which uses serde for its
+with the `regex` crate; `turbo-matcher`, which runs its regular expression tests with the same crate; and `turbo-eval`, which uses serde for its
 records and set files, the core for turbo-bench's provenance types,
 `turbo-analysis-embed` for the embedder, `ureq` to fetch the sets, and
 `flate2` (already in the build through `ureq`) for the one set published
@@ -370,6 +372,7 @@ fields mean bumps its `SCHEMA`.
 | `Money` | `turbo:money` (and the instance `converted`) | text | `turbo-analysis-layers` |
 | `Quantities` | `turbo:quantities` | text | `turbo-analysis-layers` |
 | `Stopwords` | `turbo:stopwords` | tokens | `turbo-stopword-layers` |
+| `Matches` | `turbo:matches` (an instance per rule set) | text (indexes tokens) | `turbo-matcher-layers` |
 | `Vectors<L>` | `opennlp:embeddings<L>` | `L` | `turbo-analysis-layers` |
 | `Confidence<L>` | `turbo:confidence<L>` | `L` | `turbo-analysis-layers` |
 | `Utf16Spans<L>` | `turbo:utf16<L>` | `L` | `turbo-analysis-layers` |
