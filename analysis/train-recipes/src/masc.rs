@@ -44,8 +44,9 @@ pub const AUTHOR_URL: &str = "https://anc.org/";
 /// What a model trained on MASC credits, as CC BY asks: the work, its
 /// author and publisher, where it is, and its licence. Whether the ANC
 /// asks for a particular citation beyond this is not confirmed: their
-/// site, where it would say so, could not be reached when this was
-/// written, and the text is to be checked against it.
+/// site, where it would say so, could not be reached from the machine
+/// the recipes were written and run on, and the text is to be checked
+/// against it.
 pub const ATTRIBUTION: &str = "Trained on MASC 3.0.0, the Manually Annotated Sub-Corpus of the American National \
      Corpus, by the American National Corpus project (https://anc.org/), published at https://anc.org/data/masc/ \
      under the Creative Commons Attribution 3.0 United States licence \
@@ -75,7 +76,9 @@ pub struct RecordedRelease {
 /// Whether the release's digests are known.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Release {
-    /// Not yet: the release has not been downloaded and checked.
+    /// A release whose archive has not been downloaded and checked: it
+    /// can be neither fetched nor taken as the recorded corpus.
+    /// [`RELEASE`] is recorded.
     NotRecorded,
     Recorded(RecordedRelease),
 }

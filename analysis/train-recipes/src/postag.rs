@@ -106,21 +106,23 @@ pub struct ReferenceMapping {
 
 /// The reference's tags counted right for another held-out tag
 /// ([`EN_POS_MAXENT`] against MASC 3.0.0). Counted with the recipe's
-/// reader over every document of the recorded release (corpus digest
-/// `445449f5...`):
+/// reader over the 390 documents the split reads from the recorded
+/// release, the Twitter genre left out (corpus digest
+/// `445449f535cac62e74b2712ad975d7b727e72b8276720dd27492266565ae0afd`):
 ///
 /// - Brackets: MASC tags `(` and `{` as `(`, and `)` and `}` as `)`,
 ///   where the reference has the Penn Treebank's `-LRB-` and `-RRB-`.
 /// - Hyphens and dashes: MASC tags a `-` token `-` (1,108 times) or `:`
-///   (1,422 times), and en dashes `-`; the reference tags them `:`.
-/// - Ellipses: MASC tags `...` (and its spaced forms) `...`, 614 tokens;
+///   (1,243 times), and en dashes `-` (9 times); the reference tags them
+///   `:`.
+/// - Ellipses: MASC tags `...` (and its spaced forms) `...`, 425 tokens;
 ///   the reference `:`.
-/// - Semicolons: MASC tags them `:` as the reference does (759 tokens),
+/// - Semicolons: MASC tags them `:` as the reference does (725 tokens),
 ///   and twice `;`.
 /// - Double quotation marks: MASC tags a `"` token `''` whether it opens
-///   or closes a quotation (2,145 opening, 2,483 closing, 339 neither
-///   plainly, of 4,976 `"` tokens), and gives ``` `` ``` only to a token
-///   that is a backtick (81 tokens, in 14 documents); the reference tags
+///   or closes a quotation (2,054 opening, 2,389 closing, 334 neither
+///   plainly, of 4,785 `"` tokens), and gives ``` `` ``` only to a token
+///   that is a backtick (80 tokens, in 13 documents); the reference tags
 ///   an opening quotation mark ``` `` ``` and a closing one `''`.
 ///
 /// The tests check the reference's side when the reference is present.

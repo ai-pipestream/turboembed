@@ -90,16 +90,20 @@ impl fmt::Display for Limit {
 /// the training documents and, apart, of those it reads from the held-out
 /// documents: one in a thousand, so the gate cannot lose a held-out
 /// document of more than a few sentences. Read with the recipes' readers
-/// and split by [`masc::SPLIT`], MASC 3.0.0 has no training sentence to
-/// skip and one held-out sentence (a sentence of no tokens) of 6,385.
+/// and split by [`masc::SPLIT`] (the Twitter genre left out), the recorded
+/// release (corpus digest `445449f5...`) has one training sentence the
+/// token recipe skips, of 24,958 (a token inside another, in
+/// `data/spoken/face-to-face/Bed012`), and none the tagger or the
+/// sentence detector skips; and one held-out sentence the token and
+/// tagger recipes skip (a sentence of no tokens), of 6,385.
 pub const MAX_SKIPPED_SENTENCES: Limit = Limit { count: 1, of: 1000 };
 
 /// The most held-out tokens the tagger's gate may leave out of both
 /// models' scores because the reference cannot give their tag, as
 /// written or through the mapping of its tags ([`postag::ReferenceTags`]):
-/// one in a thousand. Read with
-/// the recipe's reader and split by [`masc::SPLIT`], MASC 3.0.0's
-/// held-out documents have 6 such tokens of 85,292: ``UH` `` (3), `"`
+/// one in a thousand. Read with the recipe's reader and split by
+/// [`masc::SPLIT`], the recorded release's held-out documents (corpus
+/// digest `445449f5...`) have 6 such tokens of 85,292: ``UH` `` (3), `"`
 /// (2) and `PRN` (1).
 pub const MAX_TOKENS_LEFT_OUT: Limit = Limit { count: 1, of: 1000 };
 

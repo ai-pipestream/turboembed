@@ -43,8 +43,8 @@ pub enum Error {
     CardVersion { path: PathBuf, found: u32 },
     /// Held-out samples of one component given to a recipe of another.
     ComponentMismatch { recipe: &'static str, samples: &'static str },
-    /// The release has no digest recorded yet, so it cannot be fetched
-    /// or checked ([`crate::masc::RELEASE`]).
+    /// The release has no digest recorded, so it cannot be fetched or
+    /// checked ([`crate::masc::Release::NotRecorded`]).
     NotRecorded,
     /// The corpus directory is not the recorded release, the directory
     /// `corpus_dir` its archive extracts to.
@@ -115,7 +115,7 @@ impl fmt::Display for Error {
                 write!(f, "{samples} samples given to the {recipe} recipe")
             }
             Error::NotRecorded => {
-                f.write_str("the MASC release has no recorded digest yet; see turbo_train_recipes::masc::RELEASE")
+                f.write_str("the MASC release has no recorded digest; see turbo_train_recipes::masc::RELEASE")
             }
             Error::CorpusDigest { expected, corpus_dir, found } => write!(
                 f,

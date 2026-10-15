@@ -86,12 +86,17 @@ error.
   token `non-deterministic` over three quarks and a token `-` over the
   second, inside it. OpenNLP's `TokSpanEventStream` would make events of
   it, among them a split inside `non-deterministic` after `non-`, where
-  it also gave a no-split. Held-out sentences are skipped the same way. The card
-  records how many training sentences (`training.skipped_sentences`) and
-  how many held-out sentences (`held_out.skipped_sentences`) were
-  skipped, and a recipe fails when its reader skips more than one in a
-  thousand of either (`MAX_SKIPPED_SENTENCES`), so a held-out document
-  whose tags are missing cannot drop out of the gate.
+  it also gave a no-split. Held-out sentences are skipped the same way.
+  The card records how many training sentences
+  (`training.skipped_sentences`) and how many held-out sentences
+  (`held_out.skipped_sentences`) were skipped, and a recipe fails when
+  its reader skips more than one in a thousand of either
+  (`MAX_SKIPPED_SENTENCES`), so a held-out document whose tags are
+  missing cannot drop out of the gate. In the recorded release (corpus
+  digest `445449f5...`, the Twitter genre left out), the token recipe
+  skips that one training sentence of 24,958 and the tagger none; of
+  the 6,385 held-out sentences both skip one, a sentence of no tokens;
+  the sentence detector skips none.
 - The tagger's gate: MASC's tags are Penn tags, so the reference is
   OpenNLP's English maxent tagger of the 1.5 models, `en-pos-maxent.bin`.
   OpenNLP's only English taggers trained on Penn tags are that one and
@@ -106,7 +111,7 @@ error.
   tags `(` and `)` and the reference `-LRB-` and `-RRB-`; hyphens and
   dashes, which MASC tags `-` or `:` and the reference `:`; ellipses,
   `...` in MASC and `:` in the reference; the two semicolons MASC tags
-  `;` (it tags the other 759 `:`, as the reference does); and opening
+  `;` (it tags the other 725 `:`, as the reference does); and opening
   quotation marks, which MASC tags `''` as it tags closing ones (``` `` ```
   only for a backtick), and the reference ``` `` ```. For those held-out
   tags the reference's tag of the other convention counts as right too;
@@ -144,7 +149,8 @@ error.
   anc.org says whether Twitter's terms reach the tweets' text
   (docs/licences.md, "Datasets").
   Whether the ANC asks for a particular citation is to be confirmed on
-  their site, which could not be reached when the recipes were written.
+  their site, which could not be reached from the machine the recipes
+  were written and run on.
 
 ## The release record
 
