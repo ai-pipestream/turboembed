@@ -148,8 +148,8 @@ pub fn shape_of<L: GoldenCompare>() -> Shape {
 pub fn known_shapes() -> Vec<Shape> {
     use turbo_analysis::View;
     use turbo_analysis_layers::{
-        ChunkTags, Confidence, DocumentDate, Entities, Language, Lemmas, Money, Numbers, PhraseChunks, PosTags,
-        Quantities, Sentences, Subwords, Temporals, Tokens, Utf16Spans,
+        Categories, ChunkTags, Confidence, DocumentDate, Entities, Language, Lemmas, Money, Numbers, PhraseChunks,
+        PosTags, Quantities, Sentences, Subwords, Temporals, Tokens, Utf16Spans,
     };
     vec![
         shape_of::<Sentences>(),
@@ -166,6 +166,7 @@ pub fn known_shapes() -> Vec<Shape> {
         shape_of::<PhraseChunks>(),
         shape_of::<Utf16Spans<PhraseChunks>>(),
         shape_of::<Language>(),
+        shape_of::<Categories>(),
         shape_of::<Numbers>(),
         shape_of::<Money>(),
         shape_of::<Quantities>(),
@@ -360,6 +361,7 @@ mod tests {
                 "opennlp:chunks",
                 "turbo:utf16<opennlp:chunks>",
                 "opennlp:language",
+                "turbo:categories",
                 "turbo:numbers",
                 "turbo:money",
                 "turbo:quantities",
