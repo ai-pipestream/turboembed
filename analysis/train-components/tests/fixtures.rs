@@ -2,23 +2,26 @@
 //! parts the JVM wrote come out byte for byte: the manifest, the
 //! dictionary entries, the descriptor and the model entry. The fixtures
 //! the Rust trainer wrote (`pos-fixture-rust.bin`, `lemma-fixture-rust.bin`,
-//! `chunker-fixture-rust.bin`) are trained here too and must be the checked
-//! in files byte for byte; the golden generator loads them in the JVM and
-//! tags, lemmatizes or chunks with them (`analysis/postag/tests/golden.rs`,
+//! `chunker-fixture-rust.bin`, `langdetect-fixture-rust.bin`) are trained
+//! here too and must be the checked in files byte for byte; the golden
+//! generator loads them in the JVM and tags, lemmatizes, chunks or detects
+//! with them (`analysis/postag/tests/golden.rs`,
 //! `analysis/lemmatizer/tests/golden.rs`,
-//! `analysis/phrase-chunker/tests/golden.rs`).
+//! `analysis/phrase-chunker/tests/golden.rs`,
+//! `analysis/langdetect/tests/fixture.rs`).
 //!
 //! With `TURBO_TRAIN_OUT` set to a directory, the Rust fixtures trained
 //! here are written there, which is how they were made.
 
 use std::path::{Path, PathBuf};
 
-use turbo_formats::native::{ChunkReader, LemmaReader, WordTagReader};
+use turbo_formats::native::{ChunkReader, LanguageReader, LemmaReader, WordTagReader};
 use turbo_goldens::data_dir;
 use turbo_maxent::{JavaString, ModelFile};
 use turbo_train::package::MANIFEST_ENTRY;
 use turbo_train::{Algorithm, Key, TimeZone, TrainingConfiguration, TrainingParameters};
 use turbo_train_components::chunk::{self, ChunkerFactory, train_chunker_model};
+use turbo_train_components::langdetect::{self, LanguageDetectorFactory, train_language_model};
 use turbo_train_components::lemmatize::{self, LemmatizerFactory, train_lemmatizer_model};
 use turbo_train_components::postag::{self, PosTaggerFactory, train_pos_model};
 use turbo_train_components::sentdetect::{self, SentenceDetectorFactory, train_sentence_model};
@@ -342,3 +345,37 @@ fn the_rust_chunker_fixture_is_the_bin_written_here() {
 
 /// The samples of `inputs/tagged/chunks.txt`.
 const CHUNK_SAMPLES: usize = 30;
+
+#[test]
+fn the_rust_language_fixture_is_the_bin_written_here() {
+    // The parameters langdetect-183 was most likely trained with: those
+    // of the command line trainer when it is given none.
+    let text = read_text(&data_dir().join("inputs/langdetect/samples.txt"));
+    let samples: Vec<_> = LanguageReader::new(&text).unwrap().map(|s| s.unwrap()).collect();
+    assert_eq!(samples.len(), 56);
+    let ours = train_language_model(
+        &samples,
+        &LanguageDetectorFactory::new(),
+        &langdetect::default_training_parameters(),
+        &mut TrainingConfiguration::default(),
+        Stamp::at(RUST_FIXTURE_TIMESTAMP),
+    )
+    .unwrap();
+    assert_eq!(ours.inexact_events, 0);
+    let bin = ours.package.to_bytes();
+    check_rust_fixture("langdetect-fixture-rust.bin", &bin);
+    let file = ModelFile::open(bin).unwrap();
+    assert_eq!(entry_names(&file), ["manifest.properties", "langdetect.model"]);
+    assert_eq!(file.manifest().get("Component-Name"), Some("LanguageDetectorME"));
+    assert_eq!(file.manifest().get("Language"), Some("und"));
+    assert_eq!(file.manifest().get("factory"), Some("opennlp.tools.langdetect.LanguageDetectorFactory"));
+    assert_eq!(file.manifest().get("TrainerType"), Some("Event"));
+    let model = file.maxent(langdetect::MODEL_ENTRY).unwrap();
+    let outcomes: Vec<&str> = model.outcome_texts().unwrap();
+    for code in ["eng", "deu", "fra", "spa", "ita", "nld", "rus", "ell", "tur"] {
+        assert!(outcomes.contains(&code), "{code} is not an outcome of {outcomes:?}");
+    }
+    // turbo-langdetect opens it.
+    let detector = turbo_langdetect::LanguageModel::open(file).unwrap();
+    assert_eq!(detector.supported_languages().count(), 9);
+}

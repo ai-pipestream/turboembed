@@ -22,6 +22,9 @@ turbo-tokenize = { path = "../tokenize" }
 turbo-sequence = { path = "../sequence" }
 # The lemmatizer's context generator and the edit scripts its classes are.
 turbo-lemmatizer = { path = "../lemmatizer" }
+# The language detector's context generator: the n-grams of a text in the
+# JVM's hash map order.
+turbo-langdetect = { path = "../langdetect" }
 # The abbreviation dictionary the context generators look up, dictionary
 # XML, and the published model files the reproduction is compared with.
 turbo-maxent = { path = "../maxent" }

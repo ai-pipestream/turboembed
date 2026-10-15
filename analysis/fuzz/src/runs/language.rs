@@ -1,4 +1,5 @@
-//! The language detector run with the published model.
+//! The language detector runs: the published model and the fixture the
+//! Rust trainer wrote.
 
 use turbo_analysis::{Analyzer, Document, Key};
 use turbo_analysis_layers::Language;
@@ -9,13 +10,18 @@ use turbo_maxent::ModelFile;
 use super::{Outcome, Run, RustError, analyze, outcome};
 use crate::resources::{Resources, Unavailable};
 
+/// The checked in model the Rust trainer wrote from
+/// `inputs/langdetect/samples.txt`.
+const FIXTURE: &str = "langdetect-fixture-rust";
+
 pub(crate) struct Detector {
     analyzer: Analyzer,
 }
 
 impl Detector {
     pub(crate) fn open(model: &str, res: &Resources) -> Result<Box<dyn Run>, Unavailable> {
-        let path = res.model(&format!("{model}.bin"))?;
+        let name = format!("{model}.bin");
+        let path = if model == FIXTURE { res.fixture(&name)? } else { res.model(&name)? };
         let broken = |e: &dyn std::fmt::Display| Unavailable::Broken(format!("{}: {e}", path.display()));
         let file = ModelFile::read(&path).map_err(|e| broken(&e))?;
         let model = LanguageModel::open(file).map_err(|e| broken(&e))?;
