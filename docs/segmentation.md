@@ -362,10 +362,10 @@ The proofs: every line of ICU4X's `WordBreakDictionary.txt` without CJK
 (81 of 88; ICU4X segments Chinese and Japanese with a different
 dictionary, which this tokenizer leaves to `UnigramSegmenter` and
 `LatticeTokenizer`) gives the same boundaries byte for byte
-(`tests/complex_icu4x.rs`); every boundary is an extended grapheme
+(`analysis/tokenize/tests/complex_icu4x.rs`); every boundary is an extended grapheme
 cluster boundary by the Unicode 18.0 rules, including GB9c, in 200 000
 random texts of the four scripts' characters and 200 000 runs of
-dictionary words with letters dropped, doubled or inserted (`tests/complex_graphemes.rs`).
+dictionary words with letters dropped, doubled or inserted (`analysis/tokenize/tests/complex_graphemes.rs`).
 The grapheme cluster boundaries are those of `turbo_unicode::grapheme`,
 checked against every case of `GraphemeBreakTest.txt`.
 
@@ -378,7 +378,7 @@ Deviations from ICU4X, each with a test:
    keeps together). Here such a boundary moves forward to the end of its
    cluster and the next word is looked for from there
    (`a_boundary_never_splits_a_grapheme_cluster` and
-   `a_word_inside_a_grapheme_cluster_is_not_taken` in `dictionary.rs`).
+   `a_word_inside_a_grapheme_cluster_is_not_taken` in `analysis/tokenize/src/complex/dictionary.rs`).
    Where ICU4X's boundary is on a cluster boundary, the two agree.
 2. A run that starts with marks belonging to the cluster before it (a
    Thai vowel sign after a Latin letter) starts at the next cluster
@@ -389,7 +389,7 @@ Deviations from ICU4X, each with a test:
    cluster and join the last word: `ภาษา\u{0300} b` gives `ภาษา\u{0300}`,
    ` `, `b`, where ICU4X makes the mark a segment of its own. The
    dictionary still sees the run alone, so the words do not change
-   (`runs_are_trimmed_to_grapheme_clusters` in `complex/mod.rs`).
+   (`runs_are_trimmed_to_grapheme_clusters` in `analysis/tokenize/src/complex/mod.rs`).
 4. ICU4X's older (1.x) segmenter hardcoded the script ranges and left out
    U+0EA3 LAO LETTER LO LING; the sets here come from the Unicode 18.0
    `Script` and `Line_Break` properties, and a test counts them (73 Thai,
@@ -407,7 +407,7 @@ characters): UD Thai PUD (commit
 `670083cd185a2ae215ce7aef1127c2b63640217d`, 1000 sentences, 21640 gold
 words in Thai runs) and myPOS 3.0 for Burmese (commit
 `f1a620ba271cae3d8658441eb626450fca09cdfa`, 43196 sentences, 468105 gold
-words). `tests/complex_eval.rs` (ignored; neither corpus can be bundled)
+words). `analysis/tokenize/tests/complex_eval.rs` (ignored; neither corpus can be bundled)
 gives the dictionary's numbers.
 
 | Segmenter | Corpus | Precision | Recall | F1 |
