@@ -112,9 +112,7 @@ impl Layer for Quantities {
         if columns.iter().any(|&l| l != n) {
             return Err("every column as long as the spans".into());
         }
-        if !self.spans.is_ordered() {
-            return Err("quantity mentions in text order, not overlapping".into());
-        }
+        self.spans.check(Self::OVERLAP).map_err(|_| "quantity mentions in text order, not overlapping")?;
         for (i, span) in self.spans.iter() {
             let i = i.get();
             if span.is_empty() {
@@ -161,8 +159,8 @@ mod tests {
         assert!(!q.is_percent(Ix::new(0)));
         assert!(q.is_percent(Ix::new(1)));
         assert_eq!(q.get(Ix::new(1)), mention(11, 14, "45", "%"));
-        let (view, start, end) = q.text_spans().unwrap();
-        assert_eq!((view, start, end), (ViewId::SOURCE, &[0, 11][..], &[6, 14][..]));
+        let ts = q.text_spans().unwrap();
+        assert_eq!((ts.view, ts.start, ts.end), (ViewId::SOURCE, &[0, 11][..], &[6, 14][..]));
     }
 
     #[test]

@@ -112,8 +112,8 @@ impl<'a> Cx<'a> {
         let doc: &'a Document = self.doc;
         let target = Key::<A>::DEFAULT.id();
         let name = doc.made_on(self.key).iter().find(|k| k.ty == target.ty).map_or("", |k| k.name);
-        let (view, start, end) = doc.get_key(&Key::<A>::named(name))?.text_spans()?;
-        Some(SpanCols { view, start, end })
+        let ts = doc.get_key(&Key::<A>::named(name))?.text_spans()?;
+        Some(SpanCols { view: ts.view, start: ts.start, end: ts.end })
     }
 
     /// The spans of a golden layer of this file, when it has them.
