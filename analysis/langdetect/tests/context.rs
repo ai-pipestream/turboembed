@@ -13,6 +13,12 @@ fn grams(generator: &mut ContextGenerator, text: &str) -> Vec<Vec<u8>> {
     generator.features().map(<[u8]>::to_vec).collect()
 }
 
+/// The n-grams of the text last generated in the order training sees
+/// them, `getContext`'s.
+fn training(generator: &ContextGenerator) -> Vec<Vec<u8>> {
+    generator.training_features().map(<[u8]>::to_vec).collect()
+}
+
 fn strs(items: &[&str]) -> Vec<Vec<u8>> {
     items.iter().map(|s| mutf8(s)).collect()
 }
@@ -27,6 +33,25 @@ fn n_grams_come_in_the_jvm_hash_map_order() {
     assert_eq!(grams(&mut g, "abab"), strs(&["a", "ab", "b", "ba", "bab", "aba"]));
     assert!(g.exact_order());
     assert_eq!(g.len(), 6);
+    // `getContext` lists the first map, which was put in the order the
+    // n-grams were first seen (a, b, ab, ba, aba, bab); its iteration order
+    // is by bucket, the same as the second map's. A map's buckets keep the
+    // order their keys were put in, and a resize keeps it too, so the two
+    // orders differ only where a bucket became a tree.
+    assert_eq!(training(&g), strs(&["a", "ab", "b", "ba", "bab", "aba"]));
+    assert!(g.training_exact_order());
+}
+
+#[test]
+fn training_sees_the_first_map_s_order_which_a_resize_does_not_change() {
+    // Forty distinct unigrams grow both maps from 16 buckets to 64; the
+    // first map's buckets keep the order the n-grams were first seen in,
+    // and the second map, put in the first one's order, ends the same.
+    let text: String = (0..40u32).map(|i| char::from_u32(0x430 + i * 17 % 64).unwrap()).collect();
+    let mut g = ContextGenerator::new(1, 1);
+    let found = grams(&mut g, &text);
+    assert_eq!(training(&g), found);
+    assert!(g.training_exact_order() && g.exact_order());
 }
 
 #[test]
@@ -194,6 +219,8 @@ fn a_bucket_that_java_turns_into_a_tree_comes_in_the_jvms_order() {
         ["\u{E1}", "!", "a", "\u{A1}", "\u{121}", "\u{161}", "\u{1A1}", "\u{1E1}", "\u{221}", "\u{261}", "\u{2A1}"];
     assert_eq!(grams(&mut unigrams, text), strs(&jvm));
     assert!(unigrams.exact_order());
+    assert_eq!(training(&unigrams), strs(&jvm));
+    assert!(unigrams.training_exact_order());
     // Ten of them stay a list, in put order.
     let shorter: String = text.chars().take(10).collect();
     assert_eq!(
