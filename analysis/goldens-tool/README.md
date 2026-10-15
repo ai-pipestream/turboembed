@@ -191,6 +191,7 @@ a directory with the same model run without them, and its options are
 | `hunspell` (`HunspellDictionary`, `HunspellStemmer` of the `OPENNLP-1927-hunspell-compatibility` branch) | `en_US`, `de_DE_frami`, `hu_HU` (downloaded); `fixture-<name>` for each fixture in `hunspell/`, and `fixture-unsupported-directives+partial` | `hunspell`: `edge` and the run's own; `stem`: the Snowball sample of the dictionary's language | `mode`, `branchCommit` |
 | `stopword` (`StopwordLists`, `StopwordFilter`, `StopwordFilteringTokenizer`) | `lists`, `codes`, `words`, `filter`, `letters` | `stopword`: `codes` for `codes`, `words` for the others | |
 | `glossary` (`AhoCorasickGlossaryMatcher`, `TermAnalyzingGlossaryMatcher`, `CompositeGlossaryMatcher`, `CsvGlossaryReader`, `TbxGlossaryReader`) | `exact`, `ignore-case`, `whitespace+ignore-case`, `analyzed`, `composite` (the fixture `glossary-terms.tsv`); `csv`, `tsv-header`, `tbx-en`, `tbx-de` | `glossary`: the `text-` inputs for the matchers, the `csv-`, `tsv-` and `tbx-` inputs for the readers | `ignoreCase`, `normalizer`, `analyzer`; `delimiter`, `skipHeader`; `languageTag` |
+| `svm-doccat` (`DocumentCategorizerSVM.train`, `categorize`) | `topics-linear-<weighting>-<selection>` for the four weightings (`binary`, `tf`, `tfidf`, `lognorm`) and five selections (`none`, `ig`, `chi2`, `tf`, `df`); `topics-rbf-tfidf`, `topics-poly-tf`, `topics-sigmoid-binary`, `topics-nu-linear-tfidf`, `topics-nu-rbf-lognorm`, `topics-linear-tfidf-noscale`, `topics-rbf-tfidf-scale-1`, `topics-linear-lognorm-ngram`, `topics-linear-binary-c10`, `pair-linear-tfidf`, `pair-rbf-binary` | `svm-doccat`; the run's corpus in `svm-doccat-train` | `run`, `corpus`, `language`, `seed`, `weighting`, `selection`, `max-features`, `svm-type`, `kernel`, `degree`, `gamma`, `coef0`, `cost`, `scaling`, `generators` |
 
 - `+english-dictionary` is the English model rebuilt through
   `TokenizerModel(MaxentModel, Map, TokenizerFactory)` with the
@@ -796,6 +797,36 @@ Each golden has two layers. `turbo:temporal` has one row per mention with
 The `temporal` inputs are written for the project. Only the temporal
 annotators run on them, and they have no dumps.
 
+## SVM document categorizer goldens
+
+These runs are the parity test of `turbo-doccat`
+(`analysis/doccat/tests/goldens.rs`, described in `docs/doccat.md`). Each
+run trains a model with `DocumentCategorizerSVM.train` on one corpus of
+`inputs/svm-doccat-train` (one sample per line: the category, a space and
+the text), with its own term weighting, feature selection, scaling, SVM
+type and kernel and probability estimates on, seeding LIBSVM's random
+numbers first so the model is the same on every run of the generator. The
+`config` records name all of it.
+
+`svm-doccat/<run>/svm-doccat-train/<corpus>.golden` holds the model as the
+two files `turbo-doccat` reads, one line per row: `turbo:svm-model`, the
+LIBSVM model as `svm.svm_save_model` writes it, and `turbo:svm-sidecar`, the
+vocabulary, inverse document frequencies, feature ranges, weighting,
+scaling, generators and categories (`SvmDoccatExport.java`).
+
+`svm-doccat/<run>/svm-doccat/<id>.golden` holds, for one document,
+`opennlp:tokens` (the `WhitespaceTokenizer` tokens the categorizer is
+given) and, anchored on the document, `turbo:svm-vector` (the feature
+vector `categorize` hands LIBSVM), `turbo:svm-decisions` (the
+`svm_predict_values` decision value of each class pair, in LIBSVM's
+order), `turbo:svm-vote` (the category the pairwise vote picks) and
+`turbo:categories` (every category with its probability, best first).
+
+The corpora and documents are written for the project. Only these runs read
+them, and they have no dumps. The goldens are not checked in; the parity
+test skips, naming the `generate` command, while
+`analysis/goldens/data/svm-doccat` is absent.
+
 ## PII goldens
 
 `pii/<pack>/pii/<id>.golden` is what `PiiAnnotator` found in
@@ -974,7 +1005,7 @@ git init opennlp && cd opennlp
 git remote add origin https://github.com/ai-pipestream/opennlp.git
 git fetch --depth 1 origin cdf33c653d5d61d5af7d37ffee189a83bd8392ea
 git checkout FETCH_HEAD
-./mvnw -q -DskipTests -DskipITs -Dforbiddenapis.skip=true -pl opennlp-core/opennlp-runtime,opennlp-core/opennlp-formats -am install
+./mvnw -q -DskipTests -DskipITs -Dforbiddenapis.skip=true -pl opennlp-core/opennlp-runtime,opennlp-core/opennlp-formats,opennlp-core/opennlp-ml/opennlp-ml-libsvm -am install
 cd ..
 git init opennlp-addons && cd opennlp-addons
 git remote add origin https://github.com/ai-pipestream/opennlp-addons.git

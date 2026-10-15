@@ -171,7 +171,11 @@ final class Runs {
 
   private Runs() {}
 
-  static All load(Path models, Path fixtures, Path moneySnapshot) throws IOException {
+  /**
+   * The runs, with the inputs directory, which the SVM document categorizer runs train their
+   * models from ({@link SvmDoccatGolden}), and the models and fixtures directories.
+   */
+  static All load(Path inputs, Path models, Path fixtures, Path moneySnapshot) throws IOException {
     List<AnnotatorGolden> annotators = new ArrayList<>();
     List<AnnotatorDump> recorders = new ArrayList<>();
 
@@ -379,6 +383,10 @@ final class Runs {
     annotators.addAll(HunspellGolden.all(models, fixtures));
     // The glossary matchers over the fixture glossary, and the glossary readers.
     annotators.addAll(GlossaryGolden.all(fixtures.resolve(GLOSSARY_TERMS)));
+
+    // The SVM document categorizer (turbo-doccat): models trained on the svm-doccat-train corpora,
+    // exported, and run on the svm-doccat documents.
+    annotators.addAll(SvmDoccatGolden.all(inputs));
     return new All(annotators, recorders);
   }
 }
