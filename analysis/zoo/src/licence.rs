@@ -22,7 +22,7 @@ use serde::{Deserialize, Deserializer, Serialize, Serializer};
 /// | `Lgpl` | no | after the user accepts the licence |
 /// | `ShareAlike` | no | after the user accepts the licence |
 /// | `Gpl` | no | yes; by default only after the user accepts the licence ([`GplAcceptance`]) |
-/// | `LocalOnly` | no, nor any model trained on it | only from addresses under its original source ([`crate::Artifact::origin`]), after the user accepts its terms (the host's own, or the non-commercial licence), under every policy; by this project's policy neither it nor any model trained on it is shipped, and such a model stays on the user's machine |
+/// | `LocalOnly` | no, nor any model trained on it | requested only at addresses under its original source ([`crate::Artifact::origin`]), after the user accepts its terms (the host's own, or the non-commercial licence), under every policy; by this project's policy neither it nor any model trained on it is shipped, and such a model stays on the user's machine |
 /// | `Refused` | no | never; the zoo does not list it either |
 ///
 /// LGPL sits below CC BY-SA because its copyleft is weaker; GPL sits
@@ -196,15 +196,16 @@ impl LocalOnlyReason {
     pub const fn policy(self) -> &'static str {
         match self {
             LocalOnlyReason::HostTerms => {
-                "This project's policy: the zoo fetches data under them only from that host, for local training \
-                 and evaluation, and the project never ships, bundles or redistributes the data or anything made \
-                 from it. By accepting, you agree to keep the data and any model you train on it on your machine."
+                "This project's policy: the zoo requests data under them only at addresses on that host, for local \
+                 training and evaluation, and the project never ships, bundles or redistributes the data or \
+                 anything made from it. By accepting, you agree to keep the data and any model you train on it on \
+                 your machine."
             }
             LocalOnlyReason::NonCommercial => {
-                "This project's policy: the zoo fetches data under this licence only from its original source, \
-                 and the project never ships, bundles or redistributes the data or any model trained on it. By \
-                 accepting, you agree to treat any model you train on it as non-commercial and to keep that model \
-                 on your machine."
+                "This project's policy: the zoo requests data under this licence only at addresses under its \
+                 original source, and the project never ships, bundles or redistributes the data or any model \
+                 trained on it. By accepting, you agree to treat any model you train on it as non-commercial and \
+                 to keep that model on your machine."
             }
         }
     }
@@ -507,9 +508,10 @@ mod tests {
         );
         assert_eq!(
             LocalOnlyReason::NonCommercial.policy(),
-            "This project's policy: the zoo fetches data under this licence only from its original source, and the \
-             project never ships, bundles or redistributes the data or any model trained on it. By accepting, you \
-             agree to treat any model you train on it as non-commercial and to keep that model on your machine."
+            "This project's policy: the zoo requests data under this licence only at addresses under its original \
+             source, and the project never ships, bundles or redistributes the data or any model trained on it. By \
+             accepting, you agree to treat any model you train on it as non-commercial and to keep that model on \
+             your machine."
         );
         assert_eq!(
             LocalOnlyReason::HostTerms.terms(),
@@ -517,9 +519,9 @@ mod tests {
         );
         assert_eq!(
             LocalOnlyReason::HostTerms.policy(),
-            "This project's policy: the zoo fetches data under them only from that host, for local training and \
-             evaluation, and the project never ships, bundles or redistributes the data or anything made from it. \
-             By accepting, you agree to keep the data and any model you train on it on your machine."
+            "This project's policy: the zoo requests data under them only at addresses on that host, for local \
+             training and evaluation, and the project never ships, bundles or redistributes the data or anything \
+             made from it. By accepting, you agree to keep the data and any model you train on it on your machine."
         );
         for r in [LocalOnlyReason::NonCommercial, LocalOnlyReason::HostTerms] {
             assert!(!r.terms().contains("policy") && !r.terms().contains("project"), "{r}");

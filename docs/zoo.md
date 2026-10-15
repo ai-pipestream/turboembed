@@ -28,7 +28,7 @@ Apache-2.0 but trained on a CC BY-SA treebank is `CLASS_SHARE_ALIKE`.
 | `CLASS_LGPL` | LGPL-2.1-only, LGPL-2.1-or-later, LGPL-3.0-only, LGPL-3.0-or-later | no, and not attributed to this project | after the user accepts the licence |
 | `CLASS_SHARE_ALIKE` | CC-BY-SA-3.0, CC-BY-SA-4.0, ODbL-1.0 | no | after the user accepts the licence (decided 2026-10-14) |
 | `CLASS_GPL` | GPL-2.0-only, GPL-2.0-or-later, GPL-3.0-only, GPL-3.0-or-later | no | yes; by default after the user accepts the licence |
-| `CLASS_LOCAL_ONLY` | LicenseRef-RestrictedPublic, CC-BY-NC-4.0, CC-BY-NC-SA-3.0, CC-BY-NC-SA-4.0 | no, and no model trained on it is either | only from addresses under its original source (`origin`), after the user accepts the host's terms (restricted data) or the licence (non-commercial data), under every policy; by this project's policy neither the data nor any model trained on it is shipped, and such a model stays on the user's machine |
+| `CLASS_LOCAL_ONLY` | LicenseRef-RestrictedPublic, CC-BY-NC-4.0, CC-BY-NC-SA-3.0, CC-BY-NC-SA-4.0 | no, and no model trained on it is either | requested only at addresses under its original source (`origin`), after the user accepts the host's terms (restricted data) or the licence (non-commercial data), under every policy; by this project's policy neither the data nor any model trained on it is shipped, and such a model stays on the user's machine |
 | `CLASS_REFUSED` | CC-BY-ND-4.0, CC-BY-NC-ND-4.0, LicenseRef-ResearchOnly, LicenseRef-PlatformTerms, LicenseRef-NoLicence, LicenseRef-Proprietary, LicenseRef-Unconfirmed | no | never; not listed |
 
 The order, least to most restrictive, is permissive, LGPL, share-alike,
@@ -49,7 +49,7 @@ publisher but that carries terms of its own: IMDB (no stated licence),
 Sentiment140 and the SemEval Twitter sets (Twitter's terms). The rule is
 Kristian's, from his 2026-10-12 comment on #326:
 
-- The zoo fetches it only from addresses at the original host, after the
+- The zoo requests it only at addresses on the original host, after the
   user accepts that host's terms, so the user takes on the terms. The
   project never carries, mirrors or checks in the data. The index
   enforces this: an artifact of the class must name its `origin`, the
@@ -87,7 +87,7 @@ non-commercial purposes:
 
 - Our code reads such data when the user supplies the files. A format
   reader needs no acceptance, as OpenNLP's need none.
-- The zoo fetches it only from addresses under its original source
+- The zoo requests it only at addresses under its original source
   (`origin`, checked as for restricted data), after the user accepts the
   licence, under every policy.
 - The project never ships, bundles, mirrors or checks in the data, or
@@ -107,10 +107,10 @@ of terms whose text is different at each host. The entry's
 `turbo-zoo show` print the address of the text and two statements kept
 apart: what the licence itself allows, its rights for non-commercial
 purposes only (`LocalOnlyReason::terms`), and this project's policy,
-which accepting agrees to (`LocalOnlyReason::policy`): the zoo fetches
-the data only from its original source, the project never ships the
-data or any model trained on it, and the user treats any model they
-train on it as non-commercial and keeps it on their machine.
+which accepting agrees to (`LocalOnlyReason::policy`): the zoo requests
+the data only at addresses under its original source, the project never
+ships the data or any model trained on it, and the user treats any model
+they train on it as non-commercial and keeps it on their machine.
 
 Non-commercial terms with no-derivatives (CC BY-NC-ND 4.0) stay
 `CLASS_REFUSED`, as CC BY-ND 4.0 does. That is this project's default
@@ -195,13 +195,20 @@ is in that form and a test keeps it there.
 | `.trained_on[].license` | SPDX string | yes | The dataset's licence. |
 | `.trained_on[].license_terms` | https URL | yes | Where the dataset's publisher states it, at the release used. |
 | `.class` | enum | yes | The class `license` and every `trained_on[].license` give. Written out so a reader that does not know a licence still sees the class; a value that differs from the computed one rejects the index. |
-| `.origin` | https URL | for `CLASS_LOCAL_ONLY`, and only for it | The original publisher's own location: for a dataset the data's own place on its host (a treebank's repository path on `raw.githubusercontent.com`), for a model the model publisher's. Its path has at least one non-empty segment, so it is never a whole host (`https://raw.githubusercontent.com/` is rejected); a file at the root of a host is named as the origin by its own address. Every `files[].url` must lie under it: the same host, compared without regard to case, and a path that is the origin's or continues it after a `/`, so `.../UD_English-GUM` holds `.../UD_English-GUM/r2.16/...` but not `.../UD_English-GUM-copy/...`; a trailing `/` on the origin makes no difference. No user information, query or fragment in the origin, and in its path or a file's no `.` or `..` segment (plain or percent-encoded), no backslash, no `;` (some servers strip `;` parameters, so `..;` reads as `..`), no encoded `/`, `\` or `%` (`%2f`, `%5c`, `%25`, in either case) and no start of an overlong UTF-8 form (`%c0`, `%c1`, `%e0%8`, `%e0%9`, `%f0%8`). The rule covers the addresses the index names; fetch rule 4 says how redirects are treated. |
+| `.origin` | https URL | for `CLASS_LOCAL_ONLY`, and only for it | The original publisher's own location: for a dataset the data's own place on its host (a treebank's repository path on `raw.githubusercontent.com`), for a model the model publisher's. Its path has at least one non-empty segment, so it is never a whole host (`https://raw.githubusercontent.com/` is rejected); a file at the root of a host is named as the origin by its own address. Every `files[].url` must lie under it: the same host, compared without regard to case, and a path that is the origin's or continues it after a `/`, so `.../UD_English-GUM` holds `.../UD_English-GUM/r2.16/...` but not `.../UD_English-GUM-copy/...`; a trailing `/` on the origin makes no difference. No user information, query or fragment in the origin. In its path and a file's: no `.` or `..` segment (plain or percent-encoded); no `\` or `;`, plain or percent-encoded (some servers read `\` as `/`, and strip a `;` with what follows it, so `..;` reads as `..`); no percent-encoded `/`, `%` or NUL (`%2f`, `%25`, `%00`, in either case); every `%` followed by two hex digits, so malformed escapes such as `%%32%65` and IIS's `%u002e` are rejected; and percent-encoded bytes that decode to valid UTF-8 (RFC 3629), so no overlong form (`%c0%ae`), surrogate, five- or six-byte form, byte from `%f5` up, or lone or missing continuation byte. A query or fragment on a file's address is not checked. The rule covers the addresses the index names; fetch rule 4 says how redirects are treated. |
 | `.files[]` | message | yes | At least one. |
 | `.files[].path` | path | yes | Where the file goes in the artifact's directory: relative, `/` separated, no empty, `.` or `..` component, no backslash, no control character. Unique in the artifact. |
-| `.files[].url` | https URL | yes | Where it is fetched from: an `https://` address with a host, in printable ASCII with no backslash. The address must serve the same bytes for as long as the entry exists: a release archive (`archive.apache.org/dist`, not the mirror network, which drops old releases), or a repository path at a commit. |
+| `.files[].url` | https URL | yes | Where it is fetched from. The address must serve the same bytes for as long as the entry exists: a release archive (`archive.apache.org/dist`, not the mirror network, which drops old releases), or a repository path at a commit. |
 | `.files[].size` | uint64 | yes | Bytes. |
 | `.files[].sha256` | 64 lowercase hex | yes | Checked as the bundle tool checks files. |
 | `.files[].sha512` | 128 lowercase hex | yes | Checked as OpenNLP's `DownloadUtil` checks files. |
+
+Every field of type https URL (`.license_terms`,
+`.trained_on[].license_terms`, `.origin` and `.files[].url` here, and
+`accepted[].license_text` in the acceptance file) is an `https://`
+address that names a host, in printable ASCII with no space and no
+backslash. `https:///x`, `https://user@/x` and `https://:443/x` name no
+host and are rejected.
 
 An artifact whose class is `CLASS_REFUSED` is set aside when the index
 is read: it is not listed, and asking for it is an error naming the
@@ -335,10 +342,11 @@ The index is meant to replace that page for OpenNLP 3.1 too:
   (unlike share-alike data, whose derived models may be shared under
   the same licence).
 - Non-commercial data shares that class rather than having one of its
-  own because this project applies the same rules to it: fetched from
-  addresses under its origin after acceptance, and nothing made from it
-  leaves the user's machine. `LocalOnlyReason` says which kind of terms
-  put a licence there, which decides what the user accepts and is told.
+  own because this project applies the same rules to it: requested only
+  at addresses under its origin, after acceptance, and nothing made from
+  it leaves the user's machine. `LocalOnlyReason` says which kind of
+  terms put a licence there, which decides what the user accepts and is
+  told.
 - Both digests are required. SHA-256 is what the bundle tool and the
   repository's model READMEs use; SHA-512 is what OpenNLP and the Apache
   distribution publish.

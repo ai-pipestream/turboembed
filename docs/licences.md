@@ -6,9 +6,9 @@ are stated. The classes and what the zoo does with each are in
 docs/zoo.md. The zoo's built-in index (`analysis/zoo/index/zoo.json`)
 lists the checkpoints of the first table below; the refused checkpoints,
 and the local-only ones the index does not list, are only here.
-Restricted but public data and non-commercial data, fetched only from
-their original sources and never shipped by this project, have sections
-of their own at the end.
+Restricted but public data and non-commercial data, requested only at
+addresses under their original sources and never shipped by this
+project, have sections of their own at the end.
 
 A checkpoint's class is the most restrictive of its own licence and the
 licences of the data it was trained on. The OpenNLP UD models are
@@ -173,11 +173,11 @@ here is used.
 Data anyone can download from its publisher, under the publisher's own
 terms rather than an open licence. Under Kristian's 2026-10-12 comment
 on #326 it is `CLASS_LOCAL_ONLY` (docs/zoo.md, "Restricted but public
-data"): fetched only from the original host after the user accepts that
-host's terms, used for local training and evaluation only, and never
-carried, mirrored or checked in. Any model trained on it is local-only
-too and is never shipped; evaluation numbers on it may be recorded, the
-files not.
+data"): requested only at addresses on the original host after the user
+accepts that host's terms, used for local training and evaluation only,
+and never carried, mirrored or checked in. Any model trained on it is
+local-only too and is never shipped; evaluation numbers on it may be
+recorded, the files not.
 
 An index entry for one of these names `LicenseRef-RestrictedPublic`,
 the host's terms page as `license_terms`, and the publisher's own
@@ -200,13 +200,13 @@ here places it in this class, with the reason.
 Data under CC BY-NC or CC BY-NC-SA. Under Kristian's 2026-10-14 decision
 it is `CLASS_LOCAL_ONLY` (docs/zoo.md, "Non-commercial data"), the way
 OpenNLP handles data it cannot distribute: our code reads it from files
-the user supplies, with nothing to accept; the zoo fetches it only from
-its original source, after the user accepts the licence; and neither the
-data nor any model trained on it is shipped, bundled, mirrored or
-checked in. By accepting, the user agrees to treat a model they train
-on it as non-commercial and keep it on their machine. These rules are
-this project's policy; the licences themselves allow sharing the data
-and adapted material for non-commercial purposes.
+the user supplies, with nothing to accept; the zoo requests it only at
+addresses under its original source, after the user accepts the
+licence; and neither the data nor any model trained on it is shipped,
+bundled, mirrored or checked in. By accepting, the user agrees to treat
+a model they train on it as non-commercial and keep it on their machine.
+These rules are this project's policy; the licences themselves allow
+sharing the data and adapted material for non-commercial purposes.
 
 Data that is also no-derivatives (CC BY-NC-ND 4.0) stays refused, as
 CC BY-ND 4.0 data does. That is this project's default (2026-10-14), not

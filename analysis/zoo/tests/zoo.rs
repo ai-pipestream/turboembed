@@ -581,21 +581,38 @@ fn a_whole_host_is_not_an_origin() {
 }
 
 /// Forms a server may decode or strip into a step out of a directory: a
-/// `%` encoded again, a `;` that starts segment parameters, and overlong
-/// UTF-8 forms of `.`, `/` and `\`. None is accepted in a file's address
-/// or in an origin, in upper or lower case.
+/// `%` encoded again, a malformed escape a lenient decoder may repair, a
+/// `;` that starts segment parameters, plain or encoded, and encoded bytes
+/// that are not UTF-8, overlong forms of `.`, `/` and `\` among them. None
+/// is accepted in a file's address or in an origin, in upper or lower
+/// case.
 #[test]
 fn encoded_and_parameter_steps_are_refused() {
     const REPO: &str = "https://raw.githubusercontent.com/UniversalDependencies/UD_English-GUM";
     let file = format!("{REPO}/r2.16/en_gum-ud-train.conllu");
     let parses = |origin: &str, url: &str| Index::parse(index_of(&[gum(origin, url)]).as_bytes());
     let forms = [
+        // An encoded `%`.
         "%252e%252e",
         "%252E%252E",
         "..%252f",
+        // Malformed escapes, and IIS's `%u` form.
+        "%%32%65%%32%65",
+        "%2%65%2%65",
+        "..%%35%63",
+        "%u002e%u002e",
+        "..%",
+        "..%2",
+        "%zz",
+        // A `;`, plain or encoded.
         "..;",
         ".;x",
         "r2.16;jsessionid=1",
+        "..%3b",
+        "..%3B",
+        // An encoded NUL.
+        "..%00",
+        // Overlong forms.
         "%c0%ae%c0%ae",
         "%C0%AE%C0%AE",
         "..%c0%af",
@@ -603,6 +620,20 @@ fn encoded_and_parameter_steps_are_refused() {
         "%e0%80%ae%e0%80%ae",
         "%E0%9F%BF",
         "%f0%80%80%ae%f0%80%80%ae",
+        "%f0%8f%bf%bf",
+        // Five- and six-byte forms, and bytes no UTF-8 holds.
+        "%f8%80%80%80%ae",
+        "%fc%80%80%80%80%ae",
+        "%f5%80%80%80",
+        "%ff",
+        // A surrogate, and a value past U+10FFFF.
+        "%ed%a0%80",
+        "%f4%90%80%80",
+        // A bad, lone or missing continuation byte.
+        "%e0%00%ae",
+        "%c3a",
+        "%80",
+        "%c3",
     ];
     for form in forms {
         let bad = format!("{REPO}/{form}/UD_English-GUM-copy/en_gum-ud-train.conllu");
@@ -616,11 +647,44 @@ fn encoded_and_parameter_steps_are_refused() {
             other => panic!("{origin}: {other:?}"),
         }
     }
-    // Percent-encoding that cannot make a step is kept: a space, and a
-    // well-formed non-ASCII letter.
-    for ok in [format!("{REPO}/r2.16/a%20b.conllu"), format!("{REPO}/r2.16/%c3%a9.conllu")] {
+    // Percent-encoding that cannot make a step is kept: a space, and
+    // well-formed UTF-8 at the edges of each length, U+0800, U+0FFF,
+    // U+10000, U+1F600 and U+10FFFF among them.
+    for encoded in [
+        "a%20b",
+        "%c3%a9",
+        "%c2%80",
+        "%DF%BF",
+        "%e0%a0%80",
+        "%E0%BF%BF",
+        "%ed%9f%bf",
+        "%ee%80%80",
+        "%f0%90%80%80",
+        "%F0%9F%98%80",
+        "%f4%8f%bf%bf",
+    ] {
+        let ok = format!("{REPO}/r2.16/{encoded}.conllu");
         assert!(parses(REPO, &ok).is_ok(), "{ok}");
+        let origin = format!("{REPO}/{encoded}/");
+        assert!(parses(&origin, &format!("{origin}x.conllu")).is_ok(), "{origin}");
     }
+    // A character cut off by the end of the path.
+    for cut in ["%c3", "%f0%9f%98"] {
+        let bad = format!("{REPO}/r2.16/x{cut}");
+        match parses(REPO, &bad) {
+            Err(ZooError::Index(m)) => assert!(m.contains("not under its origin"), "{bad}: {m}"),
+            other => panic!("{bad}: {other:?}"),
+        }
+        let origin = format!("{REPO}/x{cut}");
+        match parses(&origin, &origin) {
+            Err(ZooError::Index(m)) => assert!(m.contains("is not a location"), "{origin}: {m}"),
+            other => panic!("{origin}: {other:?}"),
+        }
+    }
+    // A `;` in the query is not in the path.
+    assert!(parses(REPO, &format!("{REPO}/r2.16/x.conllu?a;b")).is_ok());
+    // An origin with empty segments after a non-empty one is a location.
+    assert!(parses("https://example.org/a//", "https://example.org/a//x.conllu").is_ok());
 }
 
 /// An address names a host and holds no backslash.

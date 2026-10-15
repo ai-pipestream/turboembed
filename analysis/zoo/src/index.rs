@@ -316,8 +316,9 @@ pub struct Artifact {
     /// a trailing `/` on the origin makes no difference. The origin has no
     /// user information, query or fragment, and neither its path nor a
     /// file's holds a `.` or `..` segment (plain or percent-encoded), a
-    /// backslash, a `;`, a percent-encoded `/`, `\` or `%`, or the start of
-    /// an overlong percent-encoded UTF-8 form.
+    /// `\` or `;` (plain or percent-encoded), a percent-encoded `/`, `%` or
+    /// NUL, a `%` not followed by two hex digits, or percent-encoded bytes
+    /// that are not valid UTF-8, such as an overlong form.
     ///
     /// The rule covers the addresses the index names. The zoo's HTTP
     /// transport requests each file at its `url` and follows a redirect
@@ -384,35 +385,92 @@ fn strip_dot(s: &[u8]) -> Option<&[u8]> {
     }
 }
 
-/// Percent-encoded forms [`plain_path`] refuses anywhere in a path, each
-/// compared without regard to case: an encoded `/` or `\`; `%25`, an
-/// encoded `%`, which a server that decodes twice turns into one of the
-/// other forms (`%252e%252e` into `..`); and the lead bytes of overlong
-/// UTF-8 forms of ASCII (`%c0`, `%c1`, and `%e0` or `%f0` before a
-/// continuation byte that makes the form overlong), which a lax decoder
-/// reads as the ASCII character they encode (`%c0%ae%c0%ae` as `..`).
-const ENCODED_REFUSED: [&[u8]; 8] = [b"%2f", b"%5c", b"%25", b"%c0", b"%c1", b"%e0%8", b"%e0%9", b"%f0%8"];
+/// The byte a `%` escape's two hex digits give, in either case; `None`
+/// unless both are hex digits.
+fn hex_byte(digits: &[u8]) -> Option<u8> {
+    let [high, low] = digits else { return None };
+    let value = |c: u8| (c as char).to_digit(16);
+    Some((value(*high)? * 16 + value(*low)?) as u8)
+}
+
+/// Whether `path` is free of the bytes and escapes this check knows a
+/// server may turn into a step out of a directory, and decodes to valid
+/// UTF-8. Scans once, without allocating:
+///
+/// - every `%` starts an escape of two hex digits, so a malformed escape
+///   a lenient decoder might repair into another escape (`%%32%65` or
+///   `%2%65` into `%2e`) and IIS's `%u002e` form are refused;
+/// - no `\` or `;` is in the path, plain or escaped (`%5c`, `%3b`): some
+///   servers read `\` as `/` and strip a `;` with what follows it from a
+///   segment (`..;` as `..`);
+/// - no escape gives `/`, `%` (`%252e` decodes twice to `.`) or NUL;
+/// - the decoded bytes are valid UTF-8 as RFC 3629 defines it, so there
+///   is no overlong form (`%c0%ae` for `.`), no surrogate (`%ed%a0%80`),
+///   no five- or six-byte form, no byte from `%f5` up, no lone or
+///   missing continuation byte, and nothing past U+10FFFF. A lax decoder
+///   reads an overlong form as the ASCII character it encodes; the other
+///   forms are not UTF-8 at all.
+///
+/// A `.` or `..` segment is [`plain_path`]'s to refuse.
+fn decodes_plainly(path: &[u8]) -> bool {
+    // Continuation bytes the character being decoded still needs, and the
+    // range the next one must fall in.
+    let mut needed = 0u8;
+    let (mut low, mut high) = (0x80u8, 0xBFu8);
+    let mut i = 0;
+    while i < path.len() {
+        let byte = match path[i] {
+            b'\\' | b';' => return false,
+            b'%' => match path.get(i + 1..i + 3).and_then(hex_byte) {
+                Some(b'/' | b'\\' | b'%' | b';' | 0) | None => return false,
+                Some(decoded) => {
+                    i += 3;
+                    decoded
+                }
+            },
+            plain => {
+                i += 1;
+                plain
+            }
+        };
+        if needed > 0 {
+            if !(low..=high).contains(&byte) {
+                return false;
+            }
+            needed -= 1;
+            (low, high) = (0x80, 0xBF);
+            continue;
+        }
+        (needed, low, high) = match byte {
+            0x00..=0x7F => (0, 0x80, 0xBF),
+            0xC2..=0xDF => (1, 0x80, 0xBF),
+            0xE0 => (2, 0xA0, 0xBF),
+            0xE1..=0xEC | 0xEE..=0xEF => (2, 0x80, 0xBF),
+            0xED => (2, 0x80, 0x9F),
+            0xF0 => (3, 0x90, 0xBF),
+            0xF1..=0xF3 => (3, 0x80, 0xBF),
+            0xF4 => (3, 0x80, 0x8F),
+            // A continuation byte with no lead, `%c0` and `%c1` (always
+            // overlong), and `%f5` to `%ff`.
+            _ => return false,
+        };
+    }
+    needed == 0
+}
 
 /// Whether the path of `rest` (what [`split_host`] leaves, up to a `?` or
 /// `#`) is free of the forms this check knows a server may read as a step
 /// out of the directory the path names: a `.` or `..` segment, plain or
-/// with its dots percent-encoded; a backslash; a `;`, which some servers
-/// read as the start of segment parameters and strip (`..;` as `..`); and
-/// the encoded forms in [`ENCODED_REFUSED`].
+/// with its dots percent-encoded, and whatever [`decodes_plainly`]
+/// refuses. A query or fragment is not checked.
 fn plain_path(rest: &str) -> bool {
     let path = &rest[..rest.find(['?', '#']).unwrap_or(rest.len())];
-    let bytes = path.as_bytes();
-    let encoded_refused = |i: usize| {
-        ENCODED_REFUSED.iter().any(|form| bytes[i..].get(..form.len()).is_some_and(|b| b.eq_ignore_ascii_case(form)))
-    };
-    if bytes.contains(&b'\\') || bytes.contains(&b';') || (0..bytes.len()).any(encoded_refused) {
-        return false;
-    }
-    path.split('/').all(|segment| match strip_dot(segment.as_bytes()) {
-        None => true,
-        Some(b"") => false,
-        Some(after_first) => strip_dot(after_first) != Some(b""),
-    })
+    decodes_plainly(path.as_bytes())
+        && path.split('/').all(|segment| match strip_dot(segment.as_bytes()) {
+            None => true,
+            Some(b"") => false,
+            Some(after_first) => strip_dot(after_first) != Some(b""),
+        })
 }
 
 /// Whether `origin` names a location a file can lie under: no user
@@ -510,7 +568,7 @@ impl Index {
                         return Err(ZooError::Index(format!(
                             "{}: origin {origin} is not a location: it is a whole host, or it has user \
                              information, a query or fragment, or a path form the zoo refuses (a `.` or `..` \
-                             segment, a backslash, a `;` or a refused percent-encoding)",
+                             segment, a backslash, a `;`, or a malformed or refused percent-encoding)",
                             a.id
                         )));
                     }
@@ -597,5 +655,95 @@ impl Index {
         let mut s = serde_json::to_string_pretty(&file).expect("an index always serializes");
         s.push('\n');
         s
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::plain_path;
+
+    /// The percent-encoding of every byte of `bytes`, between `/a/x` and
+    /// `y`, so no segment is a dot segment.
+    fn encoded<'a>(bytes: &[u8], into: &'a mut String) -> &'a str {
+        into.clear();
+        into.push_str("/a/x");
+        for b in bytes {
+            const HEX: &[u8; 16] = b"0123456789abcdef";
+            into.extend(['%', HEX[usize::from(b >> 4)] as char, HEX[usize::from(b & 15)] as char]);
+        }
+        into.push('y');
+        into
+    }
+
+    /// What the path check should say of these decoded bytes: valid UTF-8
+    /// holding no `/`, `\`, `%`, `;` or NUL.
+    fn expected(bytes: &[u8]) -> bool {
+        std::str::from_utf8(bytes).is_ok() && !bytes.iter().any(|b| matches!(b, b'/' | b'\\' | b'%' | b';' | 0))
+    }
+
+    /// Every scalar value's UTF-8, percent-encoded, is accepted, except
+    /// the five characters a path may not hold escaped.
+    #[test]
+    fn every_scalar_value_is_accepted_but_five() {
+        let mut path = String::new();
+        let mut utf8 = [0u8; 4];
+        for c in (0..=0x10FFFF).filter_map(char::from_u32) {
+            let bytes = c.encode_utf8(&mut utf8).as_bytes();
+            let refused = matches!(c, '/' | '\\' | '%' | ';' | '\0');
+            assert_eq!(plain_path(encoded(bytes, &mut path)), !refused, "U+{:04X}", c as u32);
+        }
+    }
+
+    /// The check agrees with the standard library's UTF-8 validation on
+    /// every sequence of one or two bytes, every three-byte sequence with
+    /// a three-byte lead, and four-byte sequences over every lead and
+    /// second byte with a few third and fourth bytes at the edges of the
+    /// continuation range.
+    #[test]
+    fn decoded_bytes_are_checked_as_strictly_as_utf8() {
+        let mut path = String::new();
+        let mut check = |bytes: &[u8]| {
+            assert_eq!(plain_path(encoded(bytes, &mut path)), expected(bytes), "{bytes:02x?}");
+        };
+        for a in 0..=255u8 {
+            check(&[a]);
+            for b in 0..=255u8 {
+                check(&[a, b]);
+                for c in [0x7F, 0x80, 0x8F, 0x90, 0x9F, 0xA0, 0xBF, 0xC0] {
+                    check(&[a, b, c, 0x80]);
+                    check(&[a, b, 0x80, c]);
+                }
+            }
+        }
+        for a in 0xE0..=0xEFu8 {
+            for b in 0..=255u8 {
+                for c in 0..=255u8 {
+                    check(&[a, b, c]);
+                }
+            }
+        }
+    }
+
+    /// A character cut off by the end of the path, or by its query, is
+    /// refused.
+    #[test]
+    fn a_character_cut_off_at_the_end_is_refused() {
+        for path in ["/a/x%c3", "/a/x%e0%a0", "/a/x%f0%90%80", "/a/x%c3?%a9", "/a/x%c3#%a9"] {
+            assert!(!plain_path(path), "{path}");
+        }
+        assert!(plain_path("/a/x%c3%a9?%c3"));
+    }
+
+    /// Escapes must be well formed: a `%` with fewer than two hex digits
+    /// after it is refused, whatever a lenient decoder would make of it.
+    #[test]
+    fn malformed_escapes_are_refused() {
+        for path in ["/a/%", "/a/%2", "/a/%zz", "/a/%2g", "/a/%%32%65", "/a/%2%65", "/a/%%35%63", "/a/%u002e", "/a/x%"]
+        {
+            assert!(!plain_path(path), "{path}");
+        }
+        for path in ["/a/%2E%2e.x", "/a/%41%7e", "/a/%3F", "/a/%23"] {
+            assert!(plain_path(path), "{path}");
+        }
     }
 }

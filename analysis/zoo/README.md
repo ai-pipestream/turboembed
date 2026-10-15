@@ -48,8 +48,11 @@ checks it.
   index must lie under the entry's origin, a path on a host rather than
   the whole host, so an address on another host, elsewhere on the same
   host or at a sibling path is refused, as is a path with a `.` or `..`
-  step, a `;` or a refused percent-encoding; they are never shippable;
-  the most restrictive licence decides the class;
+  step, a `\` or `;` (plain or encoded), an encoded `/`, `%` or NUL, a
+  malformed escape, or encoded bytes that are not valid UTF-8 (overlong
+  forms, surrogates, five- and six-byte forms, bad continuation bytes),
+  while well-formed UTF-8 at the edge of each length is kept; they are
+  never shippable; the most restrictive licence decides the class;
   GPL acceptance can be turned off;
   a size, SHA-256 or SHA-512 mismatch fails and writes nothing; a corrupt
   cached file is fetched again; a symlink in the cache is refused; the
@@ -61,9 +64,15 @@ checks it.
   one included, and offers nothing to accept, and `turbo-zoo revoke`
   names them the same way; `turbo-zoo show` gives the same two
   statements for a local-only artifact.
-- `src/fetch.rs`, with the `http` feature: the HTTPS transport refuses a
-  plain `http://` address before connecting, the check `ureq` applies to
-  every redirect too.
+- `src/fetch.rs`, with the `http` feature: the HTTPS transport follows
+  at most 10 redirects and refuses a plain `http://` address before
+  connecting, the check `ureq` applies to every redirect too.
+- `src/index.rs`: the path check accepts the percent-encoded UTF-8 of
+  every scalar value except `/`, `\`, `%`, `;` and NUL, agrees with the
+  standard library's UTF-8 validation on every one- and two-byte
+  sequence, every sequence after a three-byte lead and four-byte
+  sequences over every lead and second byte, refuses a character cut
+  off at the end of the path, and refuses malformed escapes.
 - `tests/builtin.rs`: the built-in index is canonical, holds nothing
   refused, gives each UD model its treebank's licence and class, and
   matches the model files the repository checks in.

@@ -46,9 +46,9 @@ fn text(bytes: &[u8]) -> String {
 const NON_COMMERCIAL_SHOWN: &str = "\
 CC-BY-NC-SA-4.0: read the text at https://creativecommons.org/licenses/by-nc-sa/4.0/legalcode
 The licence grants its rights for non-commercial purposes only.
-This project's policy: the zoo fetches data under this licence only from its original source, and the project \
-never ships, bundles or redistributes the data or any model trained on it. By accepting, you agree to treat any \
-model you train on it as non-commercial and to keep that model on your machine.
+This project's policy: the zoo requests data under this licence only at addresses under its original source, and \
+the project never ships, bundles or redistributes the data or any model trained on it. By accepting, you agree to \
+treat any model you train on it as non-commercial and to keep that model on your machine.
 ";
 
 #[test]
