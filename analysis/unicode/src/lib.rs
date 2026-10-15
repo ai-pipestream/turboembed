@@ -26,6 +26,7 @@
 //!   [`WhitespaceMode`] value.
 //! - [`word_break`]: the UAX #29 `Word_Break` and `Extended_Pictographic`
 //!   properties.
+//! - [`sentence_break`]: the UAX #29 `Sentence_Break` property.
 //! - [`utf16`]: a cursor that steps over UTF-8 text one UTF-16 code unit
 //!   at a time, the unit Java's algorithms work in.
 //! - [`modified_utf8`]: Java's modified UTF-8, the encoding OpenNLP model
@@ -41,6 +42,7 @@ pub mod modified_utf8;
 pub mod normalize;
 pub mod props;
 pub mod script;
+pub mod sentence_break;
 pub mod utf16;
 pub mod whitespace;
 pub mod word_break;
@@ -51,6 +53,7 @@ mod trie;
 
 pub use category::GeneralCategory;
 pub use script::Script;
+pub use sentence_break::SentenceBreak;
 pub use utf16::Utf16Cursor;
 pub use whitespace::WhitespaceMode;
 pub use word_break::WordBreak;
