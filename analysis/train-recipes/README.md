@@ -18,7 +18,7 @@ CC BY 4.0 Universal Dependencies treebanks are under "The UD recipes".
 | `treebank` | The CC BY 4.0 UD treebanks at release 2.16: each repository's `LICENSE.txt`, `README.md` and `train`, `dev` and `test` files with their sizes and digests, the licence check, the zoo dataset entry and fetch |
 | `ud` | The UD recipes: the samples, training on `train`, the checks run before training, and the gate on `test` against the OpenNLP UD 1.3 model (the zoo's, or the Italian ones recorded by digest), by the `segmentation` and `postag` gates and, for the lemmatizer, `LemmatizerEvaluator` |
 | `ud_card` | The UD model card, with the treebank's licence, attribution and citation and the MASC card's held-out and gate parts, the model's directory and its zoo entry |
-| `release` | The releases of this repository that publish the recipes' models (`models-masc-3.0.0-1`, the four MASC models), each naming the models it publishes, their entries in the zoo's built-in index at their addresses there, and the references the `models` workflow fetches (`masc-references.txt`) |
+| `release` | The releases of this repository that publish the recipes' models (`models-masc-3.0.0-1`, the four MASC models, and `models-ud-2.16-1`, ten UD models), each naming the models it publishes, their entries in the zoo's built-in index at their addresses there, and the references its workflow fetches (`masc-references.txt`, `ud-references.txt`) |
 | `tatoeba` | Tatoeba's sentence exports: the strict reader of `sentences_detailed.csv` and `sentences_CC0.csv`, each sentence's licence from the two files, and the export's digest |
 | `langdetect` | The language detector recipe: the licence check, the table of Tatoeba's and `langdetect-183.bin`'s language codes, the split, training, the gate against `langdetect-183.bin`, its card and the model's directory |
 
@@ -583,7 +583,7 @@ by document, cleared per document, the other types' differences are
 location -7.72 (-24.74 to +3.67), organization +2.29 (-17.81 to +30.18)
 and date -4.72 (-16.19 to +13.49); none of the four is clear of zero.
 
-The trained models are not checked in. "The models release" below says
+The trained models are not checked in. "The models releases" below says
 where the sentence detector, tokenizer, tagger and chunker are
 published; the name finders, which fail their gates, are not published.
 A second run into another directory wrote the same bytes (for the name
@@ -717,53 +717,69 @@ Where they differ, with held-out examples:
 The reference is given `:` for MASC's `-`, `...` and `;`, and nothing
 else is mapped; its chunks of other types are left out, not renamed.
 
-## The models release
+## The models releases
 
-The models go out as the assets of this repository's release
-`models-masc-3.0.0-1` (`release::MASC_MODELS`), as Kristian Rickert
-decided on 2026-10-15, and the zoo's built-in index lists each at its
-address there, `https://github.com/ai-pipestream/turboembed/releases/download/models-masc-3.0.0-1/<model id>.bin`,
-with the size, SHA-256 and SHA-512 its card records. The release does
-not exist until the `models` workflow below has been run by hand on
-main; until then those addresses answer 404 and fetching the models
-through the zoo fails.
+The models go out as the assets of releases of this repository, as
+Kristian Rickert decided on 2026-10-15, and the zoo's built-in index
+lists each at its address in its release,
+`https://github.com/ai-pipestream/turboembed/releases/download/<tag>/<model id>.bin`,
+with the size, SHA-256 and SHA-512 its card records. A release names
+the models it publishes (`release::MODELS_RELEASES`):
 
-A release names the models it publishes, here the sentence detector,
-tokenizer, tagger and chunker. A recipe added later is not in it: its
-model goes out in a release of its own, with its own tag, and a
-release once published keeps its assets.
+| Release | Models | Workflow | References |
+|---|---|---|---|
+| `models-masc-3.0.0-1` (`release::MASC_MODELS`) | the MASC sentence detector, tokenizer, tagger and chunker | `.github/workflows/models.yml` | `masc-references.txt` |
+| `models-ud-2.16-1` (`release::UD_MODELS`) | the Spanish and Catalan sentence detectors, tokenizers, taggers and lemmatizers, and the Finnish tagger and lemmatizer: every UD recipe's model but Porttinari's, whose text rights are not settled, and the Italian ones, which fail their gates | `.github/workflows/models-ud.yml` | `ud-references.txt` |
+
+A release does not exist until its workflow has been run by hand on
+main; until then its addresses answer 404 and fetching its models
+through the zoo fails. A recipe added later is in neither release: its
+model goes out in a release of its own, with its own tag, and a release
+once published keeps its assets.
 
 `zoo-index --models <dir> --release <tag>` reads the directories `masc`
-wrote into `<dir>` of the models release `<tag>` publishes, checks each
-model file against its card and each card's gate against its gate
-record, makes each card's zoo entry at its address in the release
-(`ModelCard::artifact`, which refuses a model that failed its gate or
-was not trained on the recorded release), and prints the zoo's built-in
-index with those entries added or replaced. That is how
-`analysis/zoo/index/zoo.json` got them. With `--check` it prints no
-index and exits with 1 unless the built-in index is already that one,
-naming the entries that differ with the size, SHA-256 and address the
-index lists and the model's.
+or `ud` wrote into `<dir>` for the models the release `<tag>` publishes,
+checks each model file against its card and each card's gate against its
+gate record, makes each card's zoo entry at its address in the release,
+and prints the zoo's built-in index with those entries added or
+replaced. That is how `analysis/zoo/index/zoo.json` got them. The entry
+is made by `ModelCard::artifact` or `UdModelCard::artifact`, which
+refuse a model that failed its gate or was gated against another model
+than its recipe's reference. The first also refuses one not trained on
+the recorded MASC release; the second refuses one of Porttinari, and a
+card that does not give its recipe's treebank at release 2.16, with the
+sizes and digests of its files, or its recipe's component and language.
+With `--check` it prints no index and exits with 1 unless the built-in
+index is already that one and lists no other model at the release's
+addresses, naming the entries that differ with the size, SHA-256 and
+address the index lists and the model's, and each other model listed
+there.
 
-`.github/workflows/models.yml` makes the release. It fetches MASC
-through the zoo, and the four references from the addresses
-`masc-references.txt` lists, each checked against the SHA-256 listed
-with it (`en-pos-maxent.bin` and `en-chunker.bin` from SourceForge, read
-only to be scored). It saves each download in the repository's Actions
-cache as soon as it is checked, so a run that fails later does not
-fetch it again. It then runs `masc` on the recorded release for the
-models the zoo's index lists at the release's addresses, runs
-`zoo-index --check`, and uploads each model with its card and gate
-record (`<model id>.bin`, `<model id>.card.json`, `<model id>.gate.json`)
-and a `SHA256SUMS` file as an artifact. A pull request that changes the
-workflow, this crate or the zoo's index runs it that far. Run by hand on
-main, a second job, the only one that may write to the repository,
-publishes exactly those files: it checks `SHA256SUMS`, stops if the tag
-exists, and creates the release at the run's commit, not marked as the
-repository's latest release, with notes that give the models' licence
-and MASC's attribution. Each `.card.json` asset carries the attribution
-as well. A release whose tag exists is not made again, so models trained
-otherwise need a new model version and tag.
+Each workflow makes its release. Its training job fetches the data
+through the zoo (MASC, or the treebanks the release's UD models are
+trained on), and the references from the addresses its list gives, each
+checked against the SHA-256 listed with it: for MASC, OpenNLP's UD 1.3
+English sentence and token models from `archive.apache.org` and
+`en-pos-maxent.bin` and `en-chunker.bin` from SourceForge; for UD,
+OpenNLP's UD 1.3 models from `archive.apache.org`. The references are
+only scored, never shipped: the English, Spanish and Finnish UD models
+are trained on CC BY-SA treebanks, and the licences of the two 1.5
+models are refused. It saves each download in the repository's Actions
+cache as soon as it is checked, so a run that fails later does not fetch
+it again. It then runs `masc` or `ud` for the models the zoo's index
+lists at the release's addresses, runs `zoo-index --check`, and uploads
+each model with its card and gate record (`<model id>.bin`, `<model
+id>.card.json`, `<model id>.gate.json`) and a `SHA256SUMS` file as an
+artifact. A pull request that changes the workflow, this crate or the
+zoo's index runs it that far. Run by hand on main, a second job, the
+only one that may write to the repository, runs
+`.github/workflows/models-publish.yml`, which publishes exactly those
+files: it checks `SHA256SUMS`, stops if the tag exists, and creates the
+release at the run's commit, not marked as the repository's latest
+release, with notes that give the models' licence and the attribution of
+each card (MASC's, or each treebank's). Each `.card.json` asset carries
+its attribution as well. A release whose tag exists is not made again,
+so models trained otherwise need a new model version and tag.
 
 ## The UD recipes
 
@@ -795,7 +811,8 @@ read on 2026-10-14 (#415):
   `dev` and `test` files, with their sizes, SHA-256 and SHA-512 recorded
   in `treebank`, fetched through the zoo by digest from
   `raw.githubusercontent.com/UniversalDependencies/<repository>/r2.16/`
-  (`fetch-ud`) as permissive datasets (`ud-<language>-<name>-r2.16`).
+  (`fetch-ud`, which with `--recipe` fetches only the treebanks the named
+  recipes read) as permissive datasets (`ud-<language>-<name>-r2.16`).
   They are not checked in.
 - Licence check: `LICENSE.txt` must name the Creative Commons
   Attribution 4.0 International licence and its address, name no
@@ -876,13 +893,13 @@ read on 2026-10-14 (#415):
   sentences skipped on either side, and the tagger's or lemmatizer's
   left-out tokens within the limit), naming every problem, before any
   model is trained.
-- Card and record: `card.json` is a `UdModelCard` (version 3): the
+- Card and record: `card.json` is a `UdModelCard` (version 4): the
   treebank and its files, licence, attribution and citation where the
   MASC card has the corpus, and the MASC card's `training`, `held_out`
-  and `gate` parts; it is read version first, as the MASC card is.
-  `gate.json` is the MASC recipes' `ModelGateRecord` (version 2, with the
-  held-out sentences skipped and the scoring; `check` refuses a
-  lemmatizer's record with a mapping). The run prints each
+  and `gate` parts, their chunk and name counts `null`; it is read
+  version first, as the MASC card is. `gate.json` is the MASC recipes'
+  `ModelGateRecord` (version 3; `check` refuses a lemmatizer's record
+  with a mapping). The run prints each
   card's summary (`UdModelCard::summary`, the lines
   `ModelCard::summary` prints), its gate record and the seconds the
   recipe took.
@@ -912,7 +929,7 @@ read on 2026-10-14 (#415):
   gate says.
 
 ```
-cargo run --release -p turbo-train-recipes -- fetch-ud --home <zoo-home>
+cargo run --release -p turbo-train-recipes -- fetch-ud --home <zoo-home> [--recipe <model id>]...
 cargo run --release -p turbo-train-recipes -- ud --treebanks <zoo-home>/artifacts \
     --references <dir> --out <dir> [--recipe <model id>]...
 ```
@@ -933,8 +950,8 @@ lemmatizer recipes were run again after the last change to which of
 their tokens are left out. Every model file has the SHA-256 that the
 two runs before the review (on the merge of main at `eecd1eec`)
 recorded, and the sentence detectors', tokenizers' and taggers' gate
-records are byte-identical to theirs, so their scores are too. The cards are
-version 3. The lemmatizers' gates leave out the tokens whose lemma the
+records are byte-identical to theirs, so their scores are too. The cards were
+version 3 then. The lemmatizers' gates leave out the tokens whose lemma the
 reference cannot give (above), so their scores are over fewer tokens
 than that run's; the table after this one gives each gate that leaves
 tokens out with its lead both ways. The fourteen models gated against
@@ -1320,7 +1337,7 @@ The tagger's reference, `en-pos-maxent.bin`, the chunker's,
 not in the zoo, as in turbo-sequence's tests of the 1.5 models: their
 training data is not published, so the `ci` workflow (`ci.yml`) does not
 fetch them (the `models` workflow fetches the tagger's and the
-chunker's, to run the release's gates; see "The models release"). The
+chunker's, to run the release's gates; see "The models releases"). The
 parts that need them run when `TURBO_TEST_OPENNLP_MODELS` names a
 directory holding them (a missing file there fails), and skip without it
 even with `TURBO_TEST_REQUIRE_OPENNLP_MODELS=1`. With it, each is
