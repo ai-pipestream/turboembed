@@ -1742,6 +1742,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "turbo-abbrev"
+version = "0.1.0"
+dependencies = [
+ "turbo-analysis",
+ "turbo-analysis-layers",
+ "turbo-goldens",
+ "turbo-unicode",
+]
+
+[[package]]
 name = "turbo-analysis"
 version = "0.1.0"
 dependencies = [
@@ -1767,6 +1777,7 @@ name = "turbo-analysis-layers"
 version = "0.1.0"
 dependencies = [
  "turbo-analysis",
+ "turbo-unicode",
 ]
 
 [[package]]
@@ -1839,6 +1850,7 @@ name = "turbo-formats"
 version = "0.1.0"
 dependencies = [
  "turbo-analysis",
+ "turbo-analysis-layers",
  "turbo-goldens",
  "turbo-jvm",
  "turbo-maxent",
@@ -1935,6 +1947,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "turbo-langspan"
+version = "0.1.0"
+dependencies = [
+ "turbo-analysis",
+ "turbo-analysis-layers",
+ "turbo-goldens",
+ "turbo-langdetect",
+ "turbo-maxent",
+ "turbo-normalize",
+ "turbo-unicode",
+]
+
+[[package]]
 name = "turbo-lemmatizer"
 version = "0.1.0"
 dependencies = [
@@ -1962,6 +1987,7 @@ dependencies = [
  "regex",
  "turbo-analysis",
  "turbo-analysis-layers",
+ "turbo-goldens",
  "turbo-jvm",
  "turbo-maxent",
  "turbo-unicode",
@@ -2060,6 +2086,7 @@ version = "0.1.0"
 dependencies = [
  "turbo-analysis",
  "turbo-analysis-layers",
+ "turbo-goldens",
  "turbo-stem-layers",
  "turbo-unicode",
 ]
@@ -2078,6 +2105,7 @@ version = "0.1.0"
 dependencies = [
  "turbo-analysis",
  "turbo-analysis-layers",
+ "turbo-goldens",
  "turbo-stopword-layers",
  "turbo-unicode",
 ]
@@ -2139,8 +2167,10 @@ dependencies = [
  "turbo-formats",
  "turbo-goldens",
  "turbo-jvm",
+ "turbo-langdetect",
  "turbo-lemmatizer",
  "turbo-maxent",
+ "turbo-phrase-chunker",
  "turbo-sentdetect",
  "turbo-sequence",
  "turbo-tokenize",
@@ -2158,7 +2188,11 @@ dependencies = [
  "turbo-analysis",
  "turbo-eval",
  "turbo-formats",
+ "turbo-jvm",
+ "turbo-langdetect",
+ "turbo-lemmatizer",
  "turbo-maxent",
+ "turbo-phrase-chunker",
  "turbo-postag",
  "turbo-sentdetect",
  "turbo-sequence",

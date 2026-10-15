@@ -7,6 +7,7 @@ use turbo_analysis::Span;
 use turbo_jvm::hash_map::put_order;
 use turbo_maxent::xml::{self, Attribute, Handler, Names};
 
+use super::chunks::{MascChunk, MascChunkKind};
 use super::error::{AnnotationFile, MascError};
 use super::java::{decode_utf8, equals_ignore_case_ascii, parse_int, split_on_spaces, split_space};
 
@@ -129,11 +130,15 @@ pub struct MascSentence {
     /// Quark id to its place in the document, for the quarks of this
     /// sentence; a repeated id keeps its last quark, as `HashMap.put` does.
     quark_places: HashMap<i32, usize>,
-    tokens: Option<Vec<MascToken>>,
+    pub(super) tokens: Option<Vec<MascToken>>,
     /// Token id to its place in `tokens`.
-    token_places: HashMap<i32, usize>,
+    pub(super) token_places: HashMap<i32, usize>,
     names: Vec<MascName>,
     entities: Vec<MascEntity>,
+    /// The noun and verb chunks, when they were read.
+    pub(super) chunks: Vec<MascChunk>,
+    /// The chunks of which the sentence has some tokens but not all.
+    pub(super) partial_chunks: Vec<MascChunk>,
 }
 
 impl MascSentence {
@@ -148,6 +153,8 @@ impl MascSentence {
             token_places: HashMap::new(),
             names: Vec::new(),
             entities: Vec::new(),
+            chunks: Vec::new(),
+            partial_chunks: Vec::new(),
         }
     }
 
@@ -173,6 +180,20 @@ impl MascSentence {
     pub fn entities(&self) -> &[MascEntity] {
         &self.entities
     }
+
+    /// The noun and verb chunks whose tokens are all tokens of this
+    /// sentence, ordered by their first token; empty unless the
+    /// document's chunks were read ([`MascDocument::add_chunks`]).
+    pub fn chunks(&self) -> &[MascChunk] {
+        &self.chunks
+    }
+
+    /// The chunks of which this sentence has some tokens but not all
+    /// (the chunk is in another sentence, or in none), each with the
+    /// places of the tokens this sentence has.
+    pub fn partial_chunks(&self) -> &[MascChunk] {
+        &self.partial_chunks
+    }
 }
 
 /// Something OpenNLP logs as a warning and reads on.
@@ -190,6 +211,16 @@ pub enum MascWarning {
     /// The document has named entities and no Penn tokens, so it has no
     /// names.
     NamesWithoutTokens,
+    /// A chunk has no edge to a Penn token, so it is left out. MASC 3.0.0
+    /// has two such noun chunks, each linked to a region of the text
+    /// instead.
+    ChunkWithoutTokens { kind: MascChunkKind, chunk: i32 },
+    /// A chunk names a Penn token that no sentence has, so it is left out.
+    ChunkOutsideSentences { kind: MascChunkKind, chunk: i32, token: i32 },
+    /// No one sentence has all of a chunk's tokens, so it is left out.
+    ChunkCrossesSentences { kind: MascChunkKind, chunk: i32 },
+    /// The document has chunks and no Penn tokens, so it has no chunks.
+    ChunksWithoutTokens,
 }
 
 /// The UTF-16 offsets of a text: the byte offset of each unit.
@@ -241,10 +272,11 @@ pub struct MascDocument {
     text: String,
     index: TextIndex,
     quarks: Vec<Quark>,
-    sentences: Vec<MascSentence>,
-    has_penn_tags: bool,
+    pub(super) sentences: Vec<MascSentence>,
+    pub(super) has_penn_tags: bool,
     has_named_entities: bool,
-    warnings: Vec<MascWarning>,
+    pub(super) has_chunks: bool,
+    pub(super) warnings: Vec<MascWarning>,
     unplaced: Vec<MascUnplacedEntity>,
 }
 
@@ -279,6 +311,7 @@ impl MascDocument {
             sentences,
             has_penn_tags: false,
             has_named_entities: false,
+            has_chunks: false,
             warnings: Vec::new(),
             unplaced: Vec::new(),
         };
@@ -641,17 +674,17 @@ fn combine(regions: &[(i32, i32)], quarks: &[Quark]) -> Result<Vec<MascSentence>
 
 // ---- the annotation files ----
 
-fn bad(offset: usize, message: &'static str) -> turbo_maxent::Error {
+pub(super) fn bad(offset: usize, message: &'static str) -> turbo_maxent::Error {
     turbo_maxent::Error::Xml { offset, message }
 }
 
-fn attr<'x>(attributes: &'x [Attribute<'_>], name: &str) -> Option<&'x str> {
+pub(super) fn attr<'x>(attributes: &'x [Attribute<'_>], name: &str) -> Option<&'x str> {
     attributes.iter().find(|a| a.name == name).map(|a| a.value.as_ref())
 }
 
 /// `MascIdentifiers.parseId`: `prefix` and one or more ASCII digits, in
 /// the `int` range.
-fn parse_id(id: Option<&str>, prefix: &str) -> Option<i32> {
+pub(super) fn parse_id(id: Option<&str>, prefix: &str) -> Option<i32> {
     let digits = id?.strip_prefix(prefix)?;
     if digits.is_empty() || !digits.bytes().all(|b| b.is_ascii_digit()) {
         return None;
@@ -673,7 +706,7 @@ fn valid_span(start: i32, end: i32) -> bool {
     start >= 0 && end >= 0 && start <= end
 }
 
-fn read_xml(bytes: &[u8], file: AnnotationFile, handler: &mut impl Handler) -> Result<(), MascError> {
+pub(super) fn read_xml(bytes: &[u8], file: AnnotationFile, handler: &mut impl Handler) -> Result<(), MascError> {
     let fail = |cause| MascError::Annotation { file, cause };
     let text = xml::decode(bytes).map_err(fail)?;
     xml::parse_with(&text, Names::Qualified, handler).map_err(fail)

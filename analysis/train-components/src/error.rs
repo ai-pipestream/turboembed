@@ -74,6 +74,11 @@ pub enum Error {
     /// events (`PERCEPTRON_SEQUENCE`), which `NameFinderME.train` feeds
     /// with `NameSampleSequenceStream`; not ported.
     NameSequenceTraining(turbo_train::TrainerType),
+    /// `ChunkerME.train` given parameters that name no event trainer:
+    /// `IllegalArgumentException("Trainer type is not supported: " +
+    /// trainerType)`, the type `TrainerFactory.getTrainerType` gave, `null`
+    /// for an algorithm it cannot resolve.
+    UnsupportedTrainerType(Option<turbo_train::TrainerType>),
     /// The treebank or a published model could not be fetched or verified.
     Zoo(turbo_zoo::ZooError),
     /// A published model file could not be read.
@@ -119,6 +124,15 @@ impl fmt::Display for Error {
             Error::IncompatibleOutcomes => f.write_str(crate::namefind::INCOMPATIBLE_MESSAGE),
             Error::NameSequenceTraining(t) => {
                 write!(f, "training a name finder with a {} trainer is not ported", t.value())
+            }
+            Error::UnsupportedTrainerType(t) => {
+                let name = match t {
+                    Some(turbo_train::TrainerType::Event) => "EVENT_MODEL_TRAINER",
+                    Some(turbo_train::TrainerType::EventModelSequence) => "EVENT_MODEL_SEQUENCE_TRAINER",
+                    Some(turbo_train::TrainerType::Sequence) => "SEQUENCE_TRAINER",
+                    None => "null",
+                };
+                write!(f, "Trainer type is not supported: {name}")
             }
             Error::Zoo(e) => write!(f, "zoo: {e}"),
             Error::Model(e) => write!(f, "model file: {e}"),

@@ -1,0 +1,23 @@
+# Converted from spec/pragmatic_segmenter/languages/urdu_spec.rb of Pragmatic Segmenter
+# (github.com/diasks2/pragmatic_segmenter, commit 358fe97e62902cd86fa6b85063c3bf91aa6c156a),
+# MIT License, Copyright (c) 2015 Kevin S. Dias (LICENSE in this directory).
+# One case per expectation, in file order; `name` is the spec's context and test name,
+# `option` the segmenter options the spec passes, `skipped-upstream` a test the spec skips.
+
+case pragmatic-segmenter/urdu_spec/001
+lang ur
+name Golden Rules: Sentence ending punctuation #001
+text کیا حال ہے؟ ميرا نام ___ ەے۔ میں حالا تاوان دےدوں؟
+sentence کیا حال ہے؟
+sentence ميرا نام ___ ەے۔
+sentence میں حالا تاوان دےدوں؟
+end
+
+case pragmatic-segmenter/urdu_spec/002
+lang ur
+name #segment: correctly segments text #001
+text کیا حال ہے؟ ميرا نام ___ ەے۔ میں حالا تاوان دےدوں؟
+sentence کیا حال ہے؟
+sentence ميرا نام ___ ەے۔
+sentence میں حالا تاوان دےدوں؟
+end

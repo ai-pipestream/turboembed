@@ -21,6 +21,12 @@
 //! as Java modified UTF-8 (the form the model keys its predicates by, in
 //! which a lone surrogate is three bytes) into one buffer. The order and
 //! `CharBuffer.hashCode` come from [`turbo_jvm::hash_map`].
+//!
+//! Training sees the first order, not the second: `LanguageDetectorEventStream`
+//! makes each event's context from `getContext` directly, so its predicates
+//! are in the first map's iteration order
+//! ([`ContextGenerator::training_features`]), while `predictLanguages`
+//! hands the model the second map's ([`ContextGenerator::features`]).
 
 use turbo_jvm::hash_map::{HashMapOrder, Insert, char_buffer_hash, spread};
 use turbo_normalize::language_detection::prepare;
@@ -65,7 +71,10 @@ pub struct ContextGenerator {
     /// Each gram's modified UTF-8, by gram index, and where it ends.
     bytes: Vec<u8>,
     ends: Vec<u32>,
-    exact: bool,
+    /// Whether `counted` is exactly the first map's order.
+    first_exact: bool,
+    /// Whether `order` is exactly the second map's order, given `counted`.
+    second_exact: bool,
     order_scratch: HashMapOrder,
 }
 
@@ -96,7 +105,8 @@ impl ContextGenerator {
             order: Vec::new(),
             bytes: Vec::new(),
             ends: Vec::new(),
-            exact: true,
+            first_exact: true,
+            second_exact: true,
             order_scratch: HashMapOrder::default(),
         }
     }
@@ -117,10 +127,9 @@ impl ContextGenerator {
         self.spread.clear();
         self.spread.extend(self.grams.iter().map(|g| spread(g.hash)));
         self.order_scratch.reset();
-        let first = self.order_scratch.order(&self.spread, Insert::Put, &mut self.counted);
+        self.first_exact = self.order_scratch.order(&self.spread, Insert::Put, &mut self.counted);
         self.order_scratch.reset();
-        let second = self.order_scratch.order_keys(&self.spread, &self.counted, Insert::Put, &mut self.order);
-        self.exact = first && second;
+        self.second_exact = self.order_scratch.order_keys(&self.spread, &self.counted, Insert::Put, &mut self.order);
 
         self.bytes.clear();
         self.ends.clear();
@@ -144,11 +153,20 @@ impl ContextGenerator {
     /// The n-grams as Java modified UTF-8, in the order the JVM hands them
     /// to the model.
     pub fn features(&self) -> impl ExactSizeIterator<Item = &[u8]> + Clone + '_ {
-        self.order.iter().map(move |&g| {
-            let g = g as usize;
-            let start = if g == 0 { 0 } else { self.ends[g - 1] as usize };
-            &self.bytes[start..self.ends[g] as usize]
-        })
+        self.order.iter().map(move |&g| self.gram_bytes(g))
+    }
+
+    /// The n-grams as Java modified UTF-8 in the order `getContext` returns
+    /// them, the first map's iteration order: the predicates of the event
+    /// `LanguageDetectorEventStream` makes of the text for training.
+    pub fn training_features(&self) -> impl ExactSizeIterator<Item = &[u8]> + Clone + '_ {
+        self.counted.iter().map(move |&g| self.gram_bytes(g))
+    }
+
+    fn gram_bytes(&self, g: u32) -> &[u8] {
+        let g = g as usize;
+        let start = if g == 0 { 0 } else { self.ends[g - 1] as usize };
+        &self.bytes[start..self.ends[g] as usize]
     }
 
     /// Whether [`features`](Self::features) is exactly the JVM's order.
@@ -159,7 +177,18 @@ impl ContextGenerator {
     /// the same, and the sums the model makes over them can differ in the
     /// last bits.
     pub fn exact_order(&self) -> bool {
-        self.exact
+        self.first_exact && self.second_exact
+    }
+
+    /// Whether [`training_features`](Self::training_features) is exactly
+    /// the JVM's order, for the same reason as
+    /// [`exact_order`](Self::exact_order) but for the first map alone. A
+    /// trainer given the n-grams in another order indexes the same
+    /// predicates, but sorts and merges the event among the others by its
+    /// predicates in that order, and sums the parameters of its predicates
+    /// in that order.
+    pub fn training_exact_order(&self) -> bool {
+        self.first_exact
     }
 
     /// `StringUtil.toLowerCaseCharBuffer`: each code point through

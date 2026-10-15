@@ -62,14 +62,17 @@ fn the_checked_in_goldens_show_no_divergence() {
     // The documented differences are exactly the ones the golden tests
     // list, run by run: the inputs of each normalizer with a "Differences
     // from OpenNLP" section that show it, the WordPiece inputs of
-    // `analysis/embed/tests/goldens.rs` and the two keep new lines defects
-    // of `SimpleTokenizer`. A new golden input that shows a documented
+    // `analysis/embed/tests/goldens.rs`, the two keep new lines defects
+    // of `SimpleTokenizer`, and the two texts the Rust language fixture
+    // knows no n-gram of, which the annotator declines
+    // (`analysis/langdetect/tests/fixture.rs`). A new golden input that shows a documented
     // difference is added here with its rule.
     let mut by_run: BTreeMap<String, usize> = BTreeMap::new();
     for f in report.findings.iter().filter(|f| matches!(f.outcome, Outcome::Documented(_))) {
         *by_run.entry(f.run_name()).or_default() += 1;
     }
     let expected: BTreeMap<String, usize> = [
+        ("langdetect/langdetect-fixture-rust", 2),
         ("normalize/bounded-url", 1),
         ("normalize/bullet", 1),
         ("normalize/confusable-skeleton", 16),

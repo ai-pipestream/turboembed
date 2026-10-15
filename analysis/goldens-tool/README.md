@@ -13,8 +13,9 @@ everything that makes them:
   per run and input; for the `num` set it runs `NumberScan` of the addons
   module, and for the `money` set `MoneyAnnotator` with
   `CursorMoneyExtractor` and `MoneyConversionAnnotator` with `EcbFxRates`,
-  and for the `quantity` set `QuantityAnnotator` with
-  `CursorQuantityExtractor` (see below). With `--dumps` it also writes a decision point dump
+  for the `quantity` set `QuantityAnnotator` with
+  `CursorQuantityExtractor`, and for the `temporal` set `TemporalAnnotator`
+  with `CursorTemporalExtractor` and `DocumentDateAnnotator` (see below). With `--dumps` it also writes a decision point dump
   beside each golden of a run that asks a maxent model (the sentence
   detector, the tokenizer, the part-of-speech tagger, the maxent
   lemmatizer, the chunker and the language detector): every context the annotator gave
@@ -44,7 +45,7 @@ Run from the repository's root. Each needs Docker except `fetch-models`.
 
 ```
 cargo run -p turbo-goldens-tool -- image
-cargo run -p turbo-goldens-tool -- fetch-models <dir>
+cargo run -p turbo-goldens-tool -- fetch-models <dir> [--local]
 cargo run -p turbo-goldens-tool -- generate [--out <dir>] [--models <dir>]
 cargo run -p turbo-goldens-tool -- verify [--models <dir>]
 cargo run -p turbo-goldens-tool --features fuzz -- fuzz [--seed <n>] [--count <n>] [--sets <a,b>] [--out <dir>] [--models <dir>] [--image <tag>] [--reduce <n>] [--no-reduce] [--reduce-documented] [--rounds <n>] [--reuse]
@@ -55,6 +56,12 @@ cargo run -p turbo-goldens-tool --features fuzz -- fuzz [--seed <n>] [--count <n
 - `fetch-models <dir>` downloads the published models into `<dir>` with `curl`
   and checks each one's SHA-512 against the value published beside it on
   downloads.apache.org. A model already there with the right hash is kept.
+  With `--local` it also downloads the OpenNLP 1.5 English models
+  (`LOCAL_MODELS` in `src/recipe.rs`) from opennlp.sourceforge.net, which
+  publishes no hash beside them: the recipe has the SHA-512 of the files
+  whose SHA-256 the sequence crate's README lists. Their training corpora
+  are LDC corpora or undocumented, so CI does not fetch them; `generate`,
+  `verify` and `fuzz` always do, since the generator runs them.
   It also fetches the MeCab dictionaries (`DICTIONARIES` in `src/recipe.rs`)
   as archives, checks each archive's SHA-512 (neither project publishes
   one; these are the hashes OpenNLP's dictionary catalog test resource
@@ -79,8 +86,8 @@ cargo run -p turbo-goldens-tool --features fuzz -- fuzz [--seed <n>] [--count <n
   whose header parses, except a golden with an error record (the annotator
   threw on that input), which must have none. A golden that names no model
   (a tokenizer or sentence detector without one, a normalizer) has no dump,
-  and neither has a detokenizer, number, money, quantity, unigram or
-  lattice golden.
+  and neither has a detokenizer, number, money, quantity, temporal, unigram
+  or lattice golden.
 - `verify` generates into a scratch directory and compares every golden
   and dump byte for byte with the checked in ones. It lists each file that
   differs, is missing or is extra, and exits non zero if there is any. It
@@ -127,11 +134,13 @@ a directory with the same model run without them, and its options are
 | `lemmatize-dictionary` (`DictionaryLemmatizer`) | `lemmatizer-dictionary` (fixture) | `en`, `multi`, `edge` | |
 | `chunk` (`ChunkerME`) | `chunker-fixture` (fixture) | `en`, `multi`, `edge` | |
 | | `chunker-fixture+beam1` | `en` | `beamSize 1` |
-| `langdetect` (`LanguageDetectorME`) | `langdetect-183` | `en`, `multi` | |
+| | `chunker-fixture-rust` (fixture) | `en`, `multi`, `edge` | |
+| `langdetect` (`LanguageDetectorME`) | `langdetect-183`, `langdetect-fixture-rust` (fixture) | `en`, `multi` | |
 | `normalize` (each normalizer) | the normalizer's name | `norm` | see below |
 | `numbers` (`NumberScan` of the addons `numeric` module) | `latin-us`, `latin-eu` | `num` | `notation` |
 | `money`, `money-convert` (`MoneyAnnotator`, `MoneyConversionAnnotator`) | `latin-us`, `latin-eu` | `money` | `notation`; for conversions also `target`, `as_of`, `snapshot` |
 | `quantity` (`QuantityAnnotator`) | `latin-us`, `latin-eu` | `quantity` | `notation` |
+| `temporal` (`TemporalAnnotator`, `DocumentDateAnnotator`) | `dateline`, `fixed` | `temporal` | `reference` |
 | `subwords` (`WordpieceEncoder`) | `all-minilm-l6-v2-vocab` (fixture) | `en`, `multi`, `edge`, `surrogate`, `subwords` | `lowerCase true`, `maxWordCodePoints 100` |
 | `bpe` (`BPETokenizerTrainer`, `BPETokenizer`) | `merges-40`, `merges-400` | `bpe` | `languageCode en`, `numMerges` |
 | `train` (the data indexers and `GISTrainer`) | `<source>-<indexer>-cutoff<n>`, with `-unsorted` when sorting is off, then `-threads2`, `-smoothing`, `-smoothing0.5`, `-gaussian` or `-gaussian0.5` when the trainer is given that: nineteen runs over the sources `sentdetect`, `tokenize`, `realvalue` and `postag` | `en`, `multi`, `edge`; `sentdetect` and `postag` also `train` | `source`, `DataIndexer`, `Cutoff`, `sort`, `Iterations`, and when set `Threads`, `Smoothing`, `SmoothingObservation`, `GaussianSmoothing`, `GaussianSmoothingSigma` |
@@ -142,6 +151,8 @@ a directory with the same model run without them, and its options are
 | `train-events` (`POSSampleEventStream`, `LemmaSampleEventStream`) | `postag-wordtag`, `postag-wordtag-tagdict`, `postag-conllu-u`, `postag-conllu-x`, `lemma-text`, `lemma-conllu-u` | `tagged`, `formats` by run; the `wordtag`, `lemma` or `conllu` inputs by source and format | `run`, `source`, `language`, `format`, and when given `tagset`, `tagDictionary` |
 | `namefind` (`NameFinderEventStream`, `NameFinderME.train`) | `train-bio`, `train-bilou`, `train-type`, `train-perceptron`, `train-qn` | `tagged`, `formats`: the inputs whose id starts with `name` | `run`, `language`, `codec`, and when given `type`, `algorithm` |
 | `namefind` (`NameFinderME`) | `ner-fixture-rust` (fixture) | the same | `run find` |
+| `train-events` (`ChunkerEventStream`, `ChunkerME.train`) | `chunker-defaults`, `chunker-perceptron`, `chunker-qn`, `chunker-perceptron-sequence` | `tagged`, `formats`; the `chunk` inputs | `run`, `source`, `language`, and every training parameter the run puts (`Algorithm`, `Iterations`, `Cutoff`, `TrainerType`, `BeamSize`) |
+| `train-langdetect` (`LanguageDetectorME.train`) | `default`, `cutoff1` | `langdetect`, and the `formats` inputs whose id starts with `language-` | `run`, `Algorithm`, `Cutoff`, `DataIndexer`, `Iterations` |
 | `unigram` (`UnigramSegmenter`) | `zh-unigram-fixture` (fixture), also `+legacy` | `zh`, `multi`, `edge`, `surrogate` | `whitespace legacy` |
 | | `jieba-dict-subset` (fixture), also `+legacy` | `zh`, `multi`, `edge` | `whitespace legacy` |
 | | `zh-unigram-modes` (fixture), also `+legacy` | `zh` | `whitespace legacy` |
@@ -159,6 +170,15 @@ a directory with the same model run without them, and its options are
 | `ner` (the named entity corpus streams) | `germeval-outer`, `germeval-inner`, `germeval-outer-loc-misc`, `bionlp`, `bionlp-cell-line`, `bionlp-dna-cell-type`, `evalita`, `evalita-per-gpe`, `census`, `muc6-whitespace` (also `+legacy`), `muc6-simple`, `brat-whitespace` (also `+legacy`), `brat-simple`, `brat-recursive-person-location`, `brat-config` | `ner`, the inputs whose id starts with the corpus's prefix (`germeval-`, `bionlp-`, `evalita-`, `census-`, `muc-`, `brat-`) | `types`, `layer`, `lang it`, `tokenizer`, `recursive true`, `nameTypes`, `whitespace legacy` |
 | `parse` (`ParseSampleStream`, `Parse.parseParse`) | `treebank`, `treebank+function-tags`; `en-head-rules`, `en-head-rules+possessives`, `es-head-rules`, `es-regex-head-rules` (fixtures) | `parse` | `useFunctionTags true`; `rules`, `fixPossesives true` |
 | `head-rules` (`HeadRules`, `AncoraSpanishHeadRules`) | `en`, `es` | `head-rules` | |
+| `string-pattern` (`StringPattern`, `FeatureGeneratorUtil.tokenFeature`) | `utf16-units`, `code-points` | `sequence` | `mode`; `branchCommit` for `code-points` |
+| `features` (`GeneratorFactory`, `DefaultPOSContextGenerator`) | `pos-default`, `ner-default`, `everything`, `nesting` (fixtures, `featuregen/`), `default-pos-context`, `default-pos-context+names-dictionary`; `errors` | `sequence` (the `sentences` input); `errors` on `descriptor-errors` | `adaptiveData` for the descriptors |
+| `codec` (`BioCodec`, `BilouCodec`) | `bio`, `bilou` | `codec`, the input of the codec's name | `compatibleOutcomes` |
+| `beam` (`BeamSearch` as `POSTaggerME`, `ChunkerME` and `NameFinderME` wire it) | `pos-fixture`, `pos-fixture+default-context`, `chunker-fixture`, `ner-bio-fixture`, `ner-bilou-fixture`, `ner-qn-fixture`, `ner-qn-fixture+fresh-sums` (fixtures); `opennlp-en-ud-ewt-pos-1.3-2.5.4`; `en-pos-maxent`, `en-pos-perceptron`, `en-chunker`, `en-ner-person`, `en-ner-location` (OpenNLP 1.5) | `sequence` (the `sentences` input) | `kind` |
+| `tag-dictionary` (`POSDictionary`) | `tags`, `tags-cases`, `tags-exact`, `pos-fixture` (fixtures); `opennlp-en-ud-ewt-pos-1.3-2.5.4`, `en-pos-maxent`, `en-pos-perceptron` | `sequence` (the `sentences` input) | |
+| `tag-format` (`POSTagFormatMapper`) | `pos-fixture` (fixture), `opennlp-en-ud-ewt-pos-1.3-2.5.4`, `en-pos-maxent`, `en-pos-perceptron`; `guesses` | `sequence` (the `sentences` input); `guesses` on `tag-format` | |
+| `namefind` (`DictionaryNameFinder`, `RegexNameFinder`, `NameFinderME.dropOverlappingSpans`) | `generated`, `dictionary`, `regex-builtin`, `regex-factory`, `regex-user`, `merge`, with the fixtures in `namefind/` | `namefind` | |
+| `stem` (`PorterStemmer`, `SnowballStemmer`, the light and minimal stemmers) | `porter`, `snowball-<language>`, `snowball-<language>-repeat2`, `<language>-light`, `<language>-minimal`, and the Norwegian ones by variety | `stem`: `edge`, the stemmer's language and `generated-<language>` | `stemmer` |
+| `stopword` (`StopwordLists`, `StopwordFilter`, `StopwordFilteringTokenizer`) | `lists`, `codes`, `words`, `filter`, `letters` | `stopword`: `codes` for `codes`, `words` for the others | |
 
 - `+english-dictionary` is the English model rebuilt through
   `TokenizerModel(MaxentModel, Map, TokenizerFactory)` with the
@@ -241,6 +261,37 @@ a directory with the same model run without them, and its options are
   A predicate of these sources holds a token, which the sample streams
   never let hold a space; the generator stops if one does, so the space
   separated `context` field is never ambiguous.
+- A `train-events` run of `ChunkerTrainGolden` is `ChunkerME.train` with
+  `new ChunkerFactory()` over the input read with `ChunkSampleStream`, as
+  the trainer tool reads it: the events of `ChunkerEventStream` over the
+  factory's `DefaultChunkerContextGenerator`, then the model trained. The
+  runs are the training parameters: `TrainingParameters.defaultParams()`
+  (`chunker-defaults`: `MAXENT`, 100 iterations, cutoff 5), the
+  perceptron with cutoff 1 and a beam size of 5 (`chunker-perceptron`),
+  `MAXENT_QN` with cutoff 1 (`chunker-qn`), and the sequence perceptron
+  (`chunker-perceptron-sequence`), which `ChunkerME.train` refuses. It
+  records the events, `turbo:stream-errors` and the checksum as the
+  tagger's runs do, then either `turbo:train-error` (the class and
+  message of what training threw) or the model: `turbo:model-entry`
+  (the algorithm, and the `chunker.model` entry's length and SHA-256),
+  `turbo:model-outcomes` and `turbo:model-predicates` (the labels in the
+  model's order), `turbo:model-parameters` (every parameter with its
+  predicate and outcome index), and `turbo:manifest` and
+  `turbo:package-entries` of the model file.
+  `analysis/train-components/tests/chunker.rs` compares with them.
+- A `train-langdetect` run (`LanguageTrainGolden`) trains a language
+  detector as `LanguageDetectorME.train` does, on the samples
+  `LanguageDetectorSampleStream` reads from the input, with the
+  parameters the command line trainer uses when given none (`MAXENT`, 100
+  iterations) and the run's cutoff (5 for `default`, 1 for `cutoff1`).
+  It records the events in `turbo:language-events` (outcome and number
+  of predicates, a row each) and `turbo:language-predicates` (a row per
+  predicate, since an n-gram can hold a space or a tab), then the
+  checksum, the index and the GIS training as a `train` run does, and the
+  manifest without `Timestamp` and the zip entries of the model
+  `LanguageDetectorME.train` returns, after checking that its weights and
+  its `langdetect.model` entry are those of the monitored training.
+  `analysis/train-components/tests/langdetect.rs` compares with them.
 - `en-plain-rust.bin` is the `.bin` the Rust trainer writes when it trains
   `en-plain.bin`'s events again (`analysis/train/tests/roundtrip.rs`), and
   `en-plain-qn-rust.bin` and `en-plain-perceptron-rust.bin` the ones it
@@ -250,11 +301,18 @@ a directory with the same model run without them, and its options are
   of the same). The JVM loads all three with `SentenceModel` like the other
   fixtures, so their goldens show what the JVM makes of a model file
   written here.
-  `pos-fixture-rust.bin` and `lemma-fixture-rust.bin` are the `.bin` files
-  the Rust trainer writes from `inputs/tagged/wordtag.txt` (with
-  `tags.tagdict`) and `inputs/tagged/lemmas.txt`
+  `pos-fixture-rust.bin`, `lemma-fixture-rust.bin` and
+  `chunker-fixture-rust.bin` are the `.bin` files the Rust trainer writes
+  from `inputs/tagged/wordtag.txt` (with `tags.tagdict`),
+  `inputs/tagged/lemmas.txt` and `inputs/tagged/chunks.txt`
   (`analysis/train-components/tests/fixtures.rs`); the JVM loads them with
-  `POSModel` and `LemmatizerModel` and tags with them.
+  `POSModel`, `LemmatizerModel` and `ChunkerModel` and tags, lemmatizes or
+  chunks with them.
+  `langdetect-fixture-rust.bin` is the one it writes from
+  `inputs/langdetect/samples.txt` with the default parameters (the same
+  test); the JVM loads it with `LanguageDetectorModel` and detects with
+  it, and `analysis/langdetect/tests/fixture.rs` compares with those
+  goldens.
 - A `namefind` training run (`NameEventGolden`) reads the input with
   `NameSampleDataStream` and makes the events of `NameFinderEventStream`
   over the context generator and codec of a `TokenNameFinderFactory` with
@@ -270,7 +328,7 @@ a directory with the same model run without them, and its options are
   `nameFinder.model`) and `turbo:name-weights` (every predicate, outcome
   and weight as `GenericModelReader` reads the entry back).
   `ner-fixture-rust.bin` is the `.bin` the Rust trainer writes from
-  `inputs/tagged/names.txt`; `NameFindGolden` loads it with
+  `inputs/tagged/names.txt`; `NameFinderFixtureGolden` loads it with
   `TokenNameFinderModel` and records `turbo:name-found` and
   `turbo:name-probs`, the names `find` returns and `probs()` for each
   sample, clearing the adaptive data where a sample follows an empty
@@ -658,6 +716,27 @@ value with a negative scale is written with scale 0, as for money.
 The `quantity` inputs are written for the project. Only the quantity
 annotator runs on them, and it has no dumps.
 
+## Temporal goldens
+
+`temporal/<mode>/temporal/<id>.golden` is what `TemporalAnnotator` over
+`CursorTemporalExtractor`, followed by `DocumentDateAnnotator`, found in
+`inputs/temporal/<id>.txt`. In the `dateline` mode the annotator takes the
+reference date of relative mentions from the text's first absolute day,
+and a text without one has no relative mentions; in the `fixed` mode the
+reference date is 2026-03-15. The `config reference` record is `dateline`
+or `2026-03-15`; the mode takes the model's place in the path.
+
+Each golden has two layers. `turbo:temporal` has one row per mention with
+`start`, `end` (UTF-8 byte offsets), `value` (`TemporalExpression.value()`:
+`2026-07-14`, `2026-W29`, `2026-07`, `2024-Q3` or `2026`), and
+`granularity` and `origin`, the names of the enum constants.
+`turbo:document-date` is anchored on the document and has no row or one:
+`date`, the chosen `LocalDate`, and `mention`, the index in
+`turbo:temporal` of the mention the date annotation spans.
+
+The `temporal` inputs are written for the project. Only the temporal
+annotators run on them, and they have no dumps.
+
 ## Fuzzing against the Rust ports
 
 `turbo-goldens fuzz` compares the JVM and the Rust ports on generated
@@ -676,7 +755,7 @@ The command:
 1. writes the first `<count>` texts of the seed's corpus
    (`turbo_goldens::fuzz::corpus`) as `<out>/inputs/<set>/s<seed>-<index>.txt`
    for each set named by `--sets`, `en`, `edge`, `norm`, `num`, `money`,
-   `quantity` and `sentence-fixture` by default, so that every run the
+   `quantity`, `temporal` and `sentence-fixture` by default, so that every run the
    differential covers reads each text; `<out>` is
    `target/turbo-goldens/fuzz/s<seed>-<count>` unless `--out` names a
    directory; the inputs and the `jvm` directory of an earlier run there
@@ -684,7 +763,9 @@ The command:
 2. runs the generator in the container (`--image`, the recipe's tag by
    default) over that inputs directory with the models, the fixtures and
    the rate snapshot mounted as `generate` mounts them, and with
-   `--skip-annotators train,train-events,formats,evaluate,detokenize,bpe,masc,ner,parse,head-rules`,
+   `--skip-annotators` set to `turbo_fuzz::runs::NOT_COVERED` (the training,
+   format reader, evaluator, detokenizer, BPE, parse, sequence, name finder,
+   stemmer and stopword annotators),
    the annotators the differential does not cover; the goldens go under
    `<out>/jvm/`;
 3. compares every golden with the Rust side (`turbo_fuzz::compare_tree`),
@@ -738,6 +819,43 @@ The generator's two options behind this are general: `--skip-annotators
 follow the five positional arguments, in any order with `--dumps`, and
 the inputs directory may hold any subset of the sets.
 
+## Sequence, name finder, stemmer and stopword goldens
+
+These runs are the parity tests of `turbo-sequence`, `turbo-namefind`,
+`turbo-stem` and `turbo-stopword`; each crate's README describes its inputs,
+fixtures and layers, and the Java class of each run says what it records. All
+their layers are anchored to the document, and a string that can hold half of
+a surrogate pair is written as `TrainGolden.lossless` writes it.
+
+The `code-points` run of `string-pattern` runs the code point
+`StringPattern` of the fork's `ready/string-pattern-unicode` branch
+(`STRING_PATTERN_COMMIT` in `src/recipe.rs`). The image compiles that commit's
+`StringPattern`, `FeatureGeneratorUtil` and `ParamChecks` against the
+generator's OpenNLP build into `/string-pattern/string-pattern.jar`, and the
+entrypoint names the jar in the system property
+`turbo.goldens.stringPatternJar`; the run loads the three classes from it in a
+class loader that looks there first, beside the generator's own. Run outside
+the container, the generator needs that property.
+
+The fixture models `pos-fixture.bin`, `chunker-fixture.bin` and
+`ner-{bio,bilou,qn}-fixture.bin` are trained by `FixtureModels.java` from
+`analysis/goldens/data/train-fixtures/`. It is not one of the runs; it is run
+by hand in the image, and the models it writes have a new manifest timestamp,
+so the recipe's SHA-512 of each and every golden made from it change:
+
+```
+docker run --rm --network none --entrypoint java \
+    -v "$PWD/analysis/goldens/data/train-fixtures:/train:ro" \
+    -v "$PWD/analysis/goldens/data/fixtures:/fixtures" \
+    <image> -cp /generator/target/turbo-goldens-java.jar \
+    ai.pipestream.turbo.goldens.FixtureModels /train /fixtures
+```
+
+`ner-bio-fixture.bin` stores its cluster resources through
+`golden.StoredClusters`, whose serializers its manifest names, so OpenNLP loads
+it only with that class on the class path and its package registered with
+`ExtensionLoader`; the generator does both.
+
 ## How the checked in goldens and dumps were made
 
 The goldens and dumps checked in now were made in the container, with
@@ -771,8 +889,8 @@ GIT_LFS_SKIP_SMUDGE=1 git checkout FETCH_HEAD
 ../opennlp/mvnw -q -DskipTests -pl numeric -am install
 cd <repository>/analysis/goldens-tool/java
 mvn -q package
-cargo run -p turbo-goldens-tool -- fetch-models <models dir>
-java -jar target/turbo-goldens-java.jar ../../goldens/data/inputs <models dir> ../../goldens/data/fixtures \
+cargo run -p turbo-goldens-tool -- fetch-models <models dir> --local
+java -Dturbo.goldens.stringPatternJar=<string-pattern.jar> -jar target/turbo-goldens-java.jar ../../goldens/data/inputs <models dir> ../../goldens/data/fixtures \
     <empty out dir> cdf33c653d5d61d5af7d37ffee189a83bd8392ea --dumps
 ```
 

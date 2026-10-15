@@ -33,8 +33,8 @@
 //! sequences with bit-identical probabilities and scores. Features are
 //! built as Java modified UTF-8 ([`Features`]), so a feature cut inside a
 //! surrogate pair, as Java's `substring` can cut it, is the same bytes the
-//! model was trained with. The tests compare against files a JVM running
-//! OpenNLP wrote (`golden/`, see the crate README).
+//! model was trained with. The tests compare against goldens a JVM running
+//! OpenNLP wrote (`analysis/goldens/data`, see the crate README).
 //!
 //! # Where OpenNLP's behaviour is surprising
 //!
@@ -93,7 +93,8 @@
 //! search here evaluates every context from zero, which matches OpenNLP
 //! for GIS and perceptron models but not for QN models; matching QN needs
 //! an evaluation in `turbo-maxent` that starts from the caller's sums
-//! (`tests/beam.rs` holds the ignored test and its golden file).
+//! (`tests/beam.rs` holds the ignored test, and `beam/ner-qn-fixture` its
+//! golden).
 
 pub mod beam;
 pub mod chunker;

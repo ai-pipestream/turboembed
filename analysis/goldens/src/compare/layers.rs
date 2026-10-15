@@ -4,8 +4,8 @@
 
 use turbo_analysis::{Layer, ViewId};
 use turbo_analysis_layers::{
-    ChunkTags, Confidence, Entities, Language, Lemmas, Money, Numbers, PhraseChunks, PosTags, Quantities, Sentences,
-    Strs, Subwords, Tokens, Utf16Spans,
+    ChunkTags, Confidence, DocumentDate, Entities, Language, Lemmas, Money, Numbers, PhraseChunks, PosTags, Quantities,
+    Sentences, Strs, Subwords, Temporals, Tokens, Utf16Spans,
 };
 
 use super::{CutCol, Items, Labels, Names, SpanCols, TokenCols, UnitCols, compare_items};
@@ -35,7 +35,7 @@ fn golden_spans(g: &GoldenLayer) -> SpanCols<'_> {
 
 /// The items of a layer that is nothing but spans.
 fn spans_only<'a, L: Layer>(layer: &'a L) -> Items<'a> {
-    let spans = layer.text_spans().map(|(view, start, end)| SpanCols { view, start, end });
+    let spans = layer.text_spans().map(|ts| SpanCols { view: ts.view, start: ts.start, end: ts.end });
     Items { len: layer.len(), spans, context: None, tokens: None, units: None, labels: None, values: None }
 }
 
@@ -551,5 +551,65 @@ impl GoldenCompare for Quantities {
             values: None,
         };
         compare_items(cx, &rust, &golden, Names { label: Some("value"), value: None }, tol)
+    }
+}
+
+impl GoldenCompare for Temporals {
+    const COLUMNS: &'static [ColumnSpec] = &[
+        SPAN[0],
+        SPAN[1],
+        ColumnSpec::new("value", Str),
+        ColumnSpec::new("granularity", Str),
+        ColumnSpec::new("origin", Str),
+    ];
+
+    /// The span first, then the rest of each row as one label: the value
+    /// as OpenNLP's `TemporalExpression.value()` writes it, written here
+    /// from the layer's calendar fields, then the granularity and origin
+    /// by their Java names.
+    fn compare(&self, cx: &Cx<'_>, golden: &GoldenLayer, tol: Tolerance) -> Result<(), Mismatch> {
+        let mut ours = Strs::default();
+        for i in 0..self.len() {
+            let ix = turbo_analysis::Ix::new(i as u32);
+            ours.push(&format!("{} {} {}", self.value(ix), self.granularity[i].name(), self.origin[i].name()));
+        }
+        let (value, granularity, origin) = (golden.strs("value"), golden.strs("granularity"), golden.strs("origin"));
+        let (value, granularity, origin) =
+            (value.expect("a str column"), granularity.expect("a str column"), origin.expect("a str column"));
+        let mut theirs = Strs::default();
+        for i in 0..golden.len() {
+            theirs.push(&format!("{} {} {}", value.get(i), granularity.get(i), origin.get(i)));
+        }
+        let mut rust = spans_only(self);
+        rust.labels = Some(Labels::Strs(&ours));
+        let mut golden = golden_spans_only(golden);
+        golden.labels = Some(Labels::Strs(&theirs));
+        compare_items(cx, &rust, &golden, Names { label: Some("value"), value: None }, tol)
+    }
+}
+
+impl GoldenCompare for DocumentDate {
+    const COLUMNS: &'static [ColumnSpec] = &[ColumnSpec::new("date", Str), ColumnSpec::new("mention", U32)];
+
+    /// No row, or one: the date as `LocalDate.toString` writes it and the
+    /// index of the temporal mention it was read from in the file's
+    /// `turbo:temporal` layer, compared as one label. A date with no
+    /// mention behind it, which only a caller can give, has none to write
+    /// and is compared with `-`.
+    fn compare(&self, cx: &Cx<'_>, golden: &GoldenLayer, tol: Tolerance) -> Result<(), Mismatch> {
+        let mut ours = Strs::default();
+        if let Some(date) = self.date {
+            ours.push(&format!("{date} mention {}", self.mention.map_or("-".into(), |m| m.get().to_string())));
+        }
+        let (date, mention) = (golden.strs("date").expect("a str column"), u32s(golden, "mention"));
+        let mut theirs = Strs::default();
+        for (i, m) in mention.iter().enumerate().take(golden.len()) {
+            theirs.push(&format!("{} mention {m}", date.get(i)));
+        }
+        let items =
+            |len, labels| Items { len, spans: None, context: None, tokens: None, units: None, labels, values: None };
+        let rust = items(self.len(), Some(Labels::Strs(&ours)));
+        let golden = items(golden.len(), Some(Labels::Strs(&theirs)));
+        compare_items(cx, &rust, &golden, Names { label: Some("date"), value: None }, tol)
     }
 }

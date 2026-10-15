@@ -386,6 +386,7 @@ impl NameRecipe {
             events: events.len(),
             event_hash: t.report.event_hash.expect("trained from events"),
             names: Some(counts),
+            chunks: None,
         })
     }
 
@@ -491,7 +492,7 @@ impl NameRecipe {
             corpus_sha256: corpus_sha256.to_owned(),
             samples_sha256: held_out.sha256(&self.types),
             skipped_sentences: held_out.skipped() as u64,
-            scoring: self.types.scoring(counts.names, counts.other_types),
+            scoring: self.types.scoring(counts.names, counts.other_types, Vec::new()),
         };
         let id = |id: &str, bytes: &[u8]| ModelId { id: id.to_owned(), sha256: Sha256::of(bytes).to_string() };
         let record =
@@ -502,6 +503,7 @@ impl NameRecipe {
             skipped_sentences: held_out.skipped(),
             tokens: None,
             names: Some(counts.clone()),
+            chunks: None,
         };
         Ok(GateRun { record, held_out })
     }

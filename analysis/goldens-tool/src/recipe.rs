@@ -19,13 +19,21 @@ pub const OPENNLP_COMMIT: &str = "cdf33c653d5d61d5af7d37ffee189a83bd8392ea";
 pub const ADDONS_REPO: &str = "https://github.com/ai-pipestream/opennlp-addons";
 pub const ADDONS_COMMIT: &str = "33e95a4956f1535cdc074056b29246fe88b3c81a";
 
+/// The commit of the OpenNLP fork whose code point `StringPattern` the
+/// generator runs beside the one of [`OPENNLP_COMMIT`], for the sequence
+/// crate's string pattern goldens. The container compiles that class and
+/// the two it needs from this commit into a jar of their own.
+pub const STRING_PATTERN_COMMIT: &str = "b2473ca80d65ae2ef10a24b08b1d0ae6a9231109";
+
 /// The tag `turbo-goldens image` gives the image it builds. It names the
 /// OpenNLP and addons commits, so an image built from other commits has
 /// another tag.
 pub const IMAGE_TAG: &str = "turbo-goldens-java:opennlp-cdf33c653d5d-addons-33e95a4956f1";
 
-/// A model file the generator loads, where it is published and the SHA-512
-/// published beside it.
+/// A model file the generator loads, where it is published and its
+/// SHA-512: the one published beside it, or for the OpenNLP 1.5 models,
+/// which are published with no hash, the hash of the download, whose
+/// SHA-256 matched the one the sequence crate's README lists.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Model {
     pub file: &'static str,
@@ -117,6 +125,45 @@ pub const MODELS: [Model; 13] = [
     },
 ];
 
+/// The OpenNLP 1.5 English models the sequence crate's beam search, tag
+/// dictionary and tag format goldens run, which the generator also loads
+/// from the models directory. Their training corpora are LDC corpora or
+/// undocumented, so CI does not fetch them: `fetch-models` fetches them
+/// only when asked (`--local`), and `generate`, `verify` and `fuzz`
+/// always do, since the generator runs them.
+pub const LOCAL_MODELS: [Model; 5] = [
+    Model {
+        file: "en-pos-maxent.bin",
+        url: "https://opennlp.sourceforge.net/models-1.5/en-pos-maxent.bin",
+        sha512: "7810d7e7c24ed1c6a202dad64ed021310ee62cf324ee866e2e63bf8054199716\
+                 2bb5fa2da91fdcfddda39ee275efcdbde738647274d586ba8896940a0467d6cc",
+    },
+    Model {
+        file: "en-pos-perceptron.bin",
+        url: "https://opennlp.sourceforge.net/models-1.5/en-pos-perceptron.bin",
+        sha512: "01d296d8dc7fdc5e7e93ef8c415e9af752e04d7ce77008b5a864f14cd1a5e53b\
+                 2d22fc9b7cbd37ecaa814c6b7a83f2f22fdf531dac2a6784fae723d6ab173e03",
+    },
+    Model {
+        file: "en-chunker.bin",
+        url: "https://opennlp.sourceforge.net/models-1.5/en-chunker.bin",
+        sha512: "43e83ac9b1b9b0e52d7813e6f4ed2fb3b94dd4146d9b36028795c273ad6ef191\
+                 68f1ad5ced3ca11f1b91f81f6fa1324d2070c96342cf538eccadc957a0721730",
+    },
+    Model {
+        file: "en-ner-person.bin",
+        url: "https://opennlp.sourceforge.net/models-1.5/en-ner-person.bin",
+        sha512: "c62b3460527f103ea1e9b8e0b794822ceb0536b03a843e0ca86f9ae559c1cca0\
+                 a4fa03e81ecfec468628be3ee09c17adef08cd460214bd10bb089326427eb04c",
+    },
+    Model {
+        file: "en-ner-location.bin",
+        url: "https://opennlp.sourceforge.net/models-1.5/en-ner-location.bin",
+        sha512: "f75be6fb88a18ad3bb6f196a72931fa259091cf22e4c05230aace4aa990a6340\
+                 d83937c00431165704fe6762a030fe944bae157f4d4a914c4a01deefc52f61b3",
+    },
+];
+
 /// A MeCab dictionary the generator loads from the models directory: the
 /// archive it is published in, the SHA-512 of the archive, the directory
 /// the archive unpacks to (where the dictionary's files are) and the
@@ -186,9 +233,11 @@ pub struct Fixture {
 
 /// The fixtures, which are all the files of the fixtures directory. The
 /// file names are the ones the generator's `Runs` class opens there; a
-/// fixture in a subdirectory is a file of a dictionary directory, and
-/// `Runs` opens the directory.
-pub const FIXTURES: [Fixture; 39] = [
+/// fixture in a subdirectory is a file of a MeCab dictionary directory, of
+/// the feature generator descriptors and their resources (`featuregen`) or
+/// of the name finder's dictionaries and patterns (`namefind`), and `Runs`
+/// opens the directory.
+pub const FIXTURES: [Fixture; 58] = [
     Fixture {
         file: "en-abbrev.bin",
         sha512: "759ab1defc61351f53cdd82a26e708789a225feb6e1ec0cfd6e2e54f35f67c14\
@@ -240,6 +289,11 @@ pub const FIXTURES: [Fixture; 39] = [
                  4285349d48c2e3d7c508bb824697a2e68055b54817b0f9fbc06e011c510ef070",
     },
     Fixture {
+        file: "langdetect-fixture-rust.bin",
+        sha512: "631c804500a2a2cbd3c1b88febdf21332487760abc40efcee217159e3e694a01\
+                 dbbc82ee9d5102dccc9f5a889775aad4c93efedf3621df9d4622448a1d58ae99",
+    },
+    Fixture {
         file: "tags.tagdict",
         sha512: "cbd3dee98987711b48b42967df8e6e3e8400dcba70336fa2c83bfdba03a8c42b\
                  3bd7d5f6f0c80c2f35dc01173795792e117489f11fd23f03f9fcba3fa453417d",
@@ -253,6 +307,11 @@ pub const FIXTURES: [Fixture; 39] = [
         file: "chunker-fixture.bin",
         sha512: "be8e0bfd341644705a652b85b978e4138056922ddb9caea1ac9a2395f0648e55\
                  ad1f1b035d90f6febc0f057f832cecac377f397552fdbdfefadaa27cfa232d6a",
+    },
+    Fixture {
+        file: "chunker-fixture-rust.bin",
+        sha512: "71caec6c87065f0872d0ef255ed95443b0c675acf273c2d19a1aefd6c006f1ab\
+                 99846bbb28b56d2e78abcb3f78074d00b1135a6dffc4e14ed3957101cf80ee44",
     },
     Fixture {
         file: "english-dictionary.xml",
@@ -384,16 +443,102 @@ pub const FIXTURES: [Fixture; 39] = [
         sha512: "7a0d6be9beaf23fec933e7142dc79c20508e9ef7414181996203be9f3ab5b1cd\
                  5cca26be772b523e0ff4d0bf0e895f2c33ec9c615957b9d85cfd271257614d20",
     },
+    Fixture {
+        file: "ner-bio-fixture.bin",
+        sha512: "429f451debd80c724c96cc08e7fc83ecc56047a9ca604f3ae98e9a61a5d55c97\
+                 2b786448dc6c5650130117144488adc61edc31994b9d8b8f84072ce6f01ebe89",
+    },
+    Fixture {
+        file: "ner-bilou-fixture.bin",
+        sha512: "b19000b06acefcfd6a1293f91353412f679d3499ef12ce4c909e92d15179dc1b\
+                 51931796a4b6e50ac8eff7c45bc8a2c3cb838516ae0acaca289e0e8dc8e221a4",
+    },
+    Fixture {
+        file: "ner-qn-fixture.bin",
+        sha512: "26740433be9cb394e721cda1422e25b4daa25f13b0a2b9bfe66c2aacd0b35291\
+                 0c46f99e26377d2c0b46c3a14253b6ea8f34fa7bcc4c00c9711fcc7bfe469b85",
+    },
+    Fixture {
+        file: "tags-cases.tagdict",
+        sha512: "5ea821ccd9d28e5d10fbf3c05a56847f61c59c50f5dd52b9bf037e5612ab72c0\
+                 79d5b988180ee64ad95dc0a0dce0750457aa020b74a6287240bb69e1673cd64d",
+    },
+    Fixture {
+        file: "tags-exact.tagdict",
+        sha512: "6f0d506cb466377bc9e583c25365ad11a9dfd14dafc5cc0d3c6ac18d3442374e\
+                 697c313cc0fdec7df62a7306671baac2e6da35c4ee969c04e795f167be109eba",
+    },
+    Fixture {
+        file: "featuregen/pos-default.xml",
+        sha512: "dc3dfbfaefc8ef5ddc096a0b64605a5ab3af873fb9f5fc8fca94e9a781e35153\
+                 732fb47558a8cf276bf198ba008103a8981a770870ca701e2284322e5e0ed314",
+    },
+    Fixture {
+        file: "featuregen/ner-default.xml",
+        sha512: "ebf4d1eb4746ee7644c58ef01730facbe4354cfdf52708c6acfb431d238a553d\
+                 153839f53a5f1f40fdfbe659fb01b025a2c08be3784af63ef09edff27e354105",
+    },
+    Fixture {
+        file: "featuregen/everything.xml",
+        sha512: "383fa7feb02a3d443f50f046358fcb520dd909271c681ed601ef3d0e845df94c\
+                 b128304ae0855460ba521739c48164ba5270fae3f7e7bc47f0c29bc81dd955b8",
+    },
+    Fixture {
+        file: "featuregen/nesting.xml",
+        sha512: "ca01053da8a8ca8f27b52dc7d7199b9813f4987baa294032ae983fb5b1212250\
+                 b61268162902c3bb8d4974f6cf496557642f91afdf8e90575a766779d3a21f0d",
+    },
+    Fixture {
+        file: "featuregen/brown.cluster",
+        sha512: "0e250a649cfd9444563e76085d999081ea97d359d2e861d3f8d4f955a555338e\
+                 cf3d9a9fca91d88eecb0366a237207d484e27ab5898ee814d7c34e1f31202c28",
+    },
+    Fixture {
+        file: "featuregen/word.cluster",
+        sha512: "f6d195f9f881b735fad37d3477a11fe3c5eebc6263ec62c2f833ed8b0c0211ed\
+                 973f03746077085426fe6c7e37079c1bb8b5fa6cab9a356bf40eb8a56c25ff27",
+    },
+    Fixture {
+        file: "featuregen/names.dictionary",
+        sha512: "d1d6630c2689154da78e901d4b3b0849ae20859e8948c66e9851576aa5ec3f72\
+                 ffffbae34518516740a345e6afa31734bac58c44469766f62bc1156c8d78c57d",
+    },
+    Fixture {
+        file: "namefind/places.xml",
+        sha512: "8aeff78b3dd35b9dc064a9968b7ab98e99f9b312ce615e23ff1c2424d466c6b6\
+                 6d7bf8a4651c6f8996fa69c0443276f8ca6a68467dc9b848bced0919f9a788b8",
+    },
+    Fixture {
+        file: "namefind/people.xml",
+        sha512: "38baf8b0ce7d9d4bf4e27d985e02110823f60b38362a945963cc7dfde74ebd7c\
+                 871e32260b536338337b8629a04526fee57760bb45bbb9972404f2b8f1e44bde",
+    },
+    Fixture {
+        file: "namefind/overlap.xml",
+        sha512: "9257b73ff0e915c78d641174e1ecc75b5f76077ac8a77831745b5fb89b3b4767\
+                 2aefb307f45c954da43490962f3e212687aaef5b970009a92cd2b78eeaad1086",
+    },
+    Fixture {
+        file: "namefind/empty.xml",
+        sha512: "a2f1d40b1336f5d68bc719625b38aebf9d4c0264b5b4e605699fcba812e2c585\
+                 1bc1d54e9a7d87ef3ba1a8875c6d116baa7f0bd714cd7869d58d15b18b706d25",
+    },
+    Fixture {
+        file: "namefind/patterns.txt",
+        sha512: "b725f09c0bd409be2bb5f9b19ade0a3bc658b78bdc09532ffde7cf62dab0c9a5\
+                 9f9a1378df7dcbcf5db66f2dbd6132437f4d9c2693bc8c6879b5066a635163fd",
+    },
 ];
 
 /// The input sets under `analysis/goldens/data/inputs`.
-pub const INPUT_SETS: [&str; 23] = [
+pub const INPUT_SETS: [&str; 32] = [
     "en",
     "multi",
     "norm",
     "num",
     "money",
     "quantity",
+    "temporal",
     "edge",
     "surrogate",
     "abbreviations",
@@ -411,6 +556,14 @@ pub const INPUT_SETS: [&str; 23] = [
     "ner",
     "parse",
     "head-rules",
+    "langdetect",
+    "sequence",
+    "descriptor-errors",
+    "codec",
+    "tag-format",
+    "namefind",
+    "stem",
+    "stopword",
 ];
 
 /// The arguments the driver passes to the generator after the fixed ones
@@ -424,7 +577,7 @@ pub const GENERATOR_ARGS: [&str; 1] = ["--dumps"];
 /// replaces and `verify` compares. The data directory holds other things
 /// (the inputs, the fixtures, the rate snapshot, a README) that neither
 /// touches.
-pub const ANNOTATORS: [&str; 26] = [
+pub const ANNOTATORS: [&str; 36] = [
     "sentdetect",
     "tokenize",
     "postag",
@@ -437,6 +590,7 @@ pub const ANNOTATORS: [&str; 26] = [
     "money",
     "money-convert",
     "quantity",
+    "temporal",
     "detokenize",
     "subwords",
     "unigram",
@@ -444,20 +598,29 @@ pub const ANNOTATORS: [&str; 26] = [
     "lattice",
     "train",
     "train-events",
-    "namefind",
+    "train-langdetect",
     "formats",
     "evaluate",
     "masc",
     "ner",
     "parse",
     "head-rules",
+    "string-pattern",
+    "features",
+    "codec",
+    "beam",
+    "tag-dictionary",
+    "tag-format",
+    "namefind",
+    "stem",
+    "stopword",
 ];
 
 /// The annotators with runs that ask a maxent model for their decisions:
 /// each golden of theirs whose header names a model has a decision point
 /// dump beside it. Their runs without a model (the simple, whitespace and
 /// UAX #29 tokenizers and the newline detector) have none, nor do the
-/// normalizers, the number scan, the money and quantity annotators,
+/// normalizers, the number scan, the money, quantity and temporal annotators,
 /// the detokenizer, the WordPiece encoder, the unigram segmenter, the
 /// BPE trainer and the lattice tokenizer, which ask no model.
 pub const DUMPED_ANNOTATORS: [&str; 6] = ["sentdetect", "tokenize", "postag", "lemmatize", "chunk", "langdetect"];
@@ -478,6 +641,10 @@ pub const MONEY_INPUT_SET: &str = "money";
 /// and the other annotators do not run on this one.
 pub const QUANTITY_INPUT_SET: &str = "quantity";
 
+/// The input set the temporal extractor runs on. It runs on no other set,
+/// and the other annotators do not run on this one.
+pub const TEMPORAL_INPUT_SET: &str = "temporal";
+
 /// The rate snapshot the money conversion reads: a directory beside the
 /// inputs directory under `analysis/goldens/data`, which the container gets
 /// at `/rates`, and the file in it.
@@ -496,6 +663,7 @@ mod tests {
     fn the_commit_is_forty_hex_digits() {
         assert!(is_lower_hex(OPENNLP_COMMIT, 40), "{OPENNLP_COMMIT}");
         assert!(is_lower_hex(ADDONS_COMMIT, 40), "{ADDONS_COMMIT}");
+        assert!(is_lower_hex(STRING_PATTERN_COMMIT, 40), "{STRING_PATTERN_COMMIT}");
         assert!(IMAGE_TAG.contains(&format!("opennlp-{}", &OPENNLP_COMMIT[..12])));
         assert!(IMAGE_TAG.ends_with(&format!("addons-{}", &ADDONS_COMMIT[..12])));
     }
@@ -508,7 +676,7 @@ mod tests {
 
     #[test]
     fn every_model_has_a_file_an_https_url_and_a_sha512() {
-        for m in MODELS {
+        for m in MODELS.iter().chain(&LOCAL_MODELS) {
             assert!(is_lower_hex(m.sha512, 128), "{}: {}", m.file, m.sha512);
             assert!(m.url.starts_with("https://"), "{}", m.url);
             assert!(m.url.ends_with(&format!("/{}", m.file)), "{} does not end in {}", m.url, m.file);
@@ -524,6 +692,9 @@ mod tests {
         assert!(dockerfile.contains(&format!("\nARG OPENNLP_REPO={OPENNLP_REPO}\n")));
         assert!(dockerfile.contains(&format!("\nARG ADDONS_COMMIT={ADDONS_COMMIT}\n")));
         assert!(dockerfile.contains(&format!("\nARG ADDONS_REPO={ADDONS_REPO}\n")));
+        assert!(dockerfile.contains(&format!("\nARG STRING_PATTERN_COMMIT={STRING_PATTERN_COMMIT}\n")));
+        let patterns = include_str!("../java/src/main/java/ai/pipestream/turbo/goldens/StringPatternGolden.java");
+        assert!(patterns.contains(&format!("BRANCH_COMMIT = \"{STRING_PATTERN_COMMIT}\";")));
     }
 
     #[test]
@@ -540,8 +711,16 @@ mod tests {
                     f.file
                 ),
                 Some((dir, file)) => {
-                    assert!(dir.starts_with("mecab-") && !file.contains('/'), "{}", f.file);
-                    assert!(file.ends_with(".csv") || file.ends_with(".def"), "{}", f.file);
+                    assert!(!file.contains('/'), "{}", f.file);
+                    let extensions: &[&str] = match dir {
+                        "featuregen" => &[".xml", ".cluster", ".dictionary"],
+                        "namefind" => &[".xml", ".txt"],
+                        _ => {
+                            assert!(dir.starts_with("mecab-"), "{}", f.file);
+                            &[".csv", ".def"]
+                        }
+                    };
+                    assert!(extensions.iter().any(|e| file.ends_with(e)), "{}", f.file);
                 }
             }
         }
@@ -557,8 +736,8 @@ mod tests {
         }
     }
 
-    /// The name of a fixture as `Runs` opens it: the directory of a
-    /// dictionary's file, the file itself otherwise.
+    /// The name of a fixture as `Runs` opens it: the directory of a file in
+    /// a subdirectory, the file itself otherwise.
     fn opened(file: &str) -> &str {
         file.split_once('/').map_or(file, |(dir, _)| dir)
     }
@@ -574,6 +753,7 @@ mod tests {
             .collect();
         for file in MODELS
             .iter()
+            .chain(&LOCAL_MODELS)
             .map(|m| m.file)
             .chain(FIXTURES.iter().map(|f| opened(f.file)))
             .chain(dictionaries)
@@ -586,10 +766,10 @@ mod tests {
     #[test]
     fn the_generator_names_the_same_input_sets() {
         let runs = include_str!("../java/src/main/java/ai/pipestream/turbo/goldens/Runs.java");
-        for set in INPUT_SETS
-            .iter()
-            .filter(|s| ![NORMALIZER_INPUT_SET, NUMBER_INPUT_SET, MONEY_INPUT_SET, QUANTITY_INPUT_SET].contains(s))
-        {
+        for set in INPUT_SETS.iter().filter(|s| {
+            ![NORMALIZER_INPUT_SET, NUMBER_INPUT_SET, MONEY_INPUT_SET, QUANTITY_INPUT_SET, TEMPORAL_INPUT_SET]
+                .contains(s)
+        }) {
             assert!(runs.contains(&format!("= \"{set}\";")), "Runs.java does not name the input set {set}");
         }
     }
@@ -644,6 +824,16 @@ mod tests {
         assert!(!DUMPED_ANNOTATORS.contains(&"quantity"));
         let quantity = include_str!("../java/src/main/java/ai/pipestream/turbo/goldens/QuantityGolden.java");
         assert!(quantity.contains(&format!("INPUT_SET = \"{QUANTITY_INPUT_SET}\"")));
+    }
+
+    #[test]
+    fn the_temporal_extractor_has_its_own_input_set_and_no_dumps() {
+        assert!(INPUT_SETS.contains(&TEMPORAL_INPUT_SET));
+        assert!(ANNOTATORS.contains(&"temporal"));
+        assert!(!DUMPED_ANNOTATORS.contains(&"temporal"));
+        let temporal = include_str!("../java/src/main/java/ai/pipestream/turbo/goldens/TemporalGolden.java");
+        assert!(temporal.contains(&format!("INPUT_SET = \"{TEMPORAL_INPUT_SET}\"")));
+        assert!(temporal.contains("ANNOTATOR = \"temporal\""));
     }
 
     #[test]

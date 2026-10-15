@@ -1,0 +1,40 @@
+# Converted from tests/lang/test_slovak.py of pySBD
+# (github.com/nipunsadvilkar/pySBD, commit 5905f13be4fc95f407b98392e0ec303617a33d86),
+# MIT License, Copyright (c) 2019 Nipun Sadvilkar (LICENSE in this directory).
+# One case per entry of each test list, in file order; `name` is the list's name and,
+# for the regression tests, the issue number; `option` the segmenter options its test uses.
+
+case pysbd/test_slovak/001
+lang sk
+name GOLDEN_SK_RULES_TEST_CASES
+text Ide o majiteľov firmy ABTrade s. r. o., ktorí stoja aj za ďalšími spoločnosťami, napr. XYZCorp a.s.
+sentence Ide o majiteľov firmy ABTrade s. r. o., ktorí stoja aj za ďalšími spoločnosťami, napr. XYZCorp a.s.
+end
+
+case pysbd/test_slovak/002
+lang sk
+name GOLDEN_SK_RULES_TEST_CASES
+text „Prieskumy beriem na ľahkú váhu. V podstate ma to nezaujíma,“ reagoval Matovič na prieskum agentúry Focus.
+sentence „Prieskumy beriem na ľahkú váhu. V podstate ma to nezaujíma,“ reagoval Matovič na prieskum agentúry Focus.
+end
+
+case pysbd/test_slovak/003
+lang sk
+name GOLDEN_SK_RULES_TEST_CASES
+text Toto sa mi podarilo až na 10. pokus, ale stálo to za to.
+sentence Toto sa mi podarilo až na 10. pokus, ale stálo to za to.
+end
+
+case pysbd/test_slovak/004
+lang sk
+name GOLDEN_SK_RULES_TEST_CASES
+text Ide o príslušníkov XII. Pluku špeciálneho určenia.
+sentence Ide o príslušníkov XII. Pluku špeciálneho určenia.
+end
+
+case pysbd/test_slovak/005
+lang sk
+name GOLDEN_SK_RULES_TEST_CASES
+text Spoločnosť bola založená 7. Apríla 2020, na zmluve však figuruje dátum 20. marec 2020.
+sentence Spoločnosť bola založená 7. Apríla 2020, na zmluve však figuruje dátum 20. marec 2020.
+end

@@ -374,7 +374,7 @@ final class NameEventGolden implements AnnotatorGolden {
     runs.add(new NameEventGolden("train-type", Codec.BIO, "person", null, sets));
     runs.add(new NameEventGolden("train-perceptron", Codec.BIO, null, "PERCEPTRON", sets));
     runs.add(new NameEventGolden("train-qn", Codec.BILOU, null, "MAXENT_QN", sets));
-    runs.add(NameFindGolden.load(rustFixture, sets));
+    runs.add(NameFinderFixtureGolden.load(rustFixture, sets));
     return runs;
   }
 }

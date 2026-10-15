@@ -8,7 +8,8 @@
 //! `cdf33c653d5d61d5af7d37ffee189a83bd8392ea` (the light and minimal
 //! stemmers there are the same as on the `ready/light-stemmers` branch of
 //! opennlp-addons), and the tests compare it with what the Java classes
-//! return (`golden/`, see `README.md`).
+//! return (the goldens under `analysis/goldens/data/stem`, see
+//! `README.md`).
 //!
 //! # Modules
 //!
@@ -32,7 +33,7 @@
 //! does, lone surrogates included; [`Stemmer::stem`] and the annotator
 //! hold UTF-8 and would put U+FFFD in place of a lone surrogate in a stem.
 //! None of the stemmers returned a lone surrogate for a well-formed word in
-//! the golden files or in a run over two million random words mixing
+//! the goldens or in a run over two million random words mixing
 //! letters and supplementary characters.
 //!
 //! # OpenNLP behaviour worth knowing

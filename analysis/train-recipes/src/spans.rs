@@ -10,7 +10,7 @@
 //! each draw from its summed counts; it never averages the units' own
 //! F-measures.
 
-use turbo_eval::model_gate::{Counts, PairedUnit, Scoring, TypeMapping, TypedSpanScoring};
+use turbo_eval::model_gate::{Counts, PairedUnit, Scoring, TagMapping, TypeMapping, TypedSpanScoring};
 use turbo_formats::evaluate::FMeasure;
 
 /// A unit's counts from the `FMeasure` its evaluator kept for it: the
@@ -64,8 +64,11 @@ impl SpanTypes {
     }
 
     /// The record's scoring: `spans` held-out spans scored, after
-    /// renaming, and `left_out` held-out spans of other types.
-    pub fn scoring(&self, spans: u64, left_out: u64) -> Scoring {
+    /// renaming, `left_out` held-out spans of other types, and
+    /// `reference_inputs`, the held-out input tags the reference is given
+    /// another tag for (empty when both models read the held-out input as
+    /// written).
+    pub fn scoring(&self, spans: u64, left_out: u64, reference_inputs: Vec<TagMapping>) -> Scoring {
         Scoring::TypedSpans(TypedSpanScoring {
             types: self.types.iter().map(|t| (*t).to_owned()).collect(),
             renamed: self
@@ -73,6 +76,7 @@ impl SpanTypes {
                 .iter()
                 .map(|&(held_out, scored)| TypeMapping { held_out: held_out.to_owned(), scored: scored.to_owned() })
                 .collect(),
+            reference_inputs,
             spans,
             left_out,
         })
@@ -122,9 +126,13 @@ mod tests {
         assert_eq!(types.held_out("date"), None);
         assert!(types.predicted("organization") && types.predicted("person"));
         assert!(!types.predicted("org") && !types.predicted("date"));
-        let Scoring::TypedSpans(s) = types.scoring(12, 3) else { panic!("typed spans") };
+        let Scoring::TypedSpans(s) = types.scoring(12, 3, Vec::new()) else { panic!("typed spans") };
         assert_eq!(s.types, ["organization", "person"]);
         assert_eq!(s.renamed, [TypeMapping { held_out: "org".into(), scored: "organization".into() }]);
         assert_eq!((s.spans, s.left_out), (12, 3));
+        assert!(s.reference_inputs.is_empty());
+        let input = TagMapping { held_out: "-".into(), reference: ":".into() };
+        let Scoring::TypedSpans(s) = types.scoring(12, 3, vec![input.clone()]) else { panic!("typed spans") };
+        assert_eq!(s.reference_inputs, [input]);
     }
 }

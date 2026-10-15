@@ -255,6 +255,7 @@ impl SegmentationRecipe {
             events: events.len(),
             event_hash: report.event_hash.expect("trained from events"),
             names: None,
+            chunks: None,
         })
     }
 
@@ -331,7 +332,7 @@ impl SegmentationRecipe {
         let file = ModelFile::open(bytes.to_vec()).map_err(|e| Error::Model(e.to_string()))?;
         let mut out = Vec::with_capacity(held_out.len());
         let mut predicted = Vec::new();
-        let mut spans: Vec<Span> = Vec::new();
+        let mut predicted_spans: Vec<Span> = Vec::new();
         match (self.component, held_out) {
             (Component::Sentence, HeldOut::Sentences(samples)) => {
                 let model = SentenceModel::open(file).map_err(|e| Error::Model(e.to_string()))?;
@@ -339,10 +340,10 @@ impl SegmentationRecipe {
                 for sample in samples {
                     predicted.clear();
                     detector.detect(sample.document(), &mut predicted);
-                    spans.clear();
-                    spans.extend(predicted.iter().map(|&(s, _)| s));
+                    predicted_spans.clear();
+                    predicted_spans.extend(predicted.iter().map(|&(s, _)| s));
                     let mut evaluator = SentenceDetectorEvaluator::new(WHITESPACE);
-                    evaluator.evaluate(sample, &spans)?;
+                    evaluator.evaluate(sample, &predicted_spans)?;
                     out.push(spans::counts(evaluator.fmeasure()));
                 }
             }
@@ -353,10 +354,10 @@ impl SegmentationRecipe {
                 for sample in samples {
                     predicted.clear();
                     tokenizer.tokenize(sample.text(), &mut predicted);
-                    spans.clear();
-                    spans.extend(predicted.iter().map(|&(s, _)| s));
+                    predicted_spans.clear();
+                    predicted_spans.extend(predicted.iter().map(|&(s, _)| s));
                     let mut evaluator = TokenizerEvaluator::default();
-                    evaluator.evaluate(sample, &spans)?;
+                    evaluator.evaluate(sample, &predicted_spans)?;
                     out.push(spans::counts(evaluator.fmeasure()));
                 }
             }
@@ -404,8 +405,13 @@ impl SegmentationRecipe {
         let record =
             ModelGateRecord::new(self.task(), set, id(self.model_id, trained), id(reference_id, reference), units)
                 .map_err(Error::Gate)?;
-        let held_out =
-            HeldOutCard { samples: held_out.len(), skipped_sentences: held_out.skipped(), tokens: None, names: None };
+        let held_out = HeldOutCard {
+            samples: held_out.len(),
+            skipped_sentences: held_out.skipped(),
+            tokens: None,
+            names: None,
+            chunks: None,
+        };
         Ok(GateRun { record, held_out })
     }
 

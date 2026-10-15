@@ -15,6 +15,16 @@
 //! streams. Their samples' tokens are fields of the document's text, so
 //! they map back to its bytes.
 //!
+//! The header also names the noun and verb chunks, `f.nc` and `f.vc`,
+//! which OpenNLP does not read. [`MascCorpus::read_with_chunks`] reads
+//! them too, [`MascDocument::add_chunks`] places each chunk in its
+//! sentence as places of the sentence's Penn tokens, and
+//! [`MascChunkReader`] makes a chunk sample of each sentence (`B-NP`,
+//! `I-NP`, `B-VP`, `I-VP` and `O`), skipping a sentence with chunks that
+//! chunk tags cannot express ([`ChunkSkip`]). This part is the port's own,
+//! so there are no goldens for it; what MASC 3.0.0's chunk layers hold,
+//! and so what the reader skips, is in turbo-train-recipes' README.
+//!
 //! MASC is licensed CC BY 3.0 US. The test corpora here hold no MASC
 //! text: they are written for the tests in its layout, and one is the
 //! corpus OpenNLP's own MASC tests read (Apache License 2.0).
@@ -113,13 +123,15 @@
 //!   `turbo_maxent::xml::decode` does; Xerces also reads UTF-16 and other
 //!   encodings. A namespace prefix with no declaration is not refused.
 
+mod chunks;
 mod corpus;
 mod document;
 mod error;
 pub(crate) mod java;
 pub mod samples;
 
-pub use corpus::{MascCorpus, SkippedDocument, read_document};
+pub use chunks::{ChunkSkip, MascChunk, MascChunkFiles, MascChunkKind, MascChunkRead, MascChunkReader};
+pub use corpus::{ChunkFiles, MascCorpus, SkippedDocument, read_document, read_document_with};
 pub use document::{
     MascDocument, MascEntity, MascFiles, MascName, MascSentence, MascToken, MascUnplacedEntity, MascWarning, Quark,
     Unplaced,

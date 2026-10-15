@@ -1,6 +1,6 @@
 //! The name finder's training against the JVM: the goldens of
 //! `analysis/goldens/data/namefind/` (`NameEventGolden` and
-//! `NameFindGolden` of the generator).
+//! `NameFinderFixtureGolden` of the generator).
 //!
 //! - The `train-` runs: `NameFinderEventStream`'s events over the name
 //!   inputs with each codec, a type given to every name and the other

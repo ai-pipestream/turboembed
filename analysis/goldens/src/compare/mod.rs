@@ -112,8 +112,8 @@ impl<'a> Cx<'a> {
         let doc: &'a Document = self.doc;
         let target = Key::<A>::DEFAULT.id();
         let name = doc.made_on(self.key).iter().find(|k| k.ty == target.ty).map_or("", |k| k.name);
-        let (view, start, end) = doc.get_key(&Key::<A>::named(name))?.text_spans()?;
-        Some(SpanCols { view, start, end })
+        let ts = doc.get_key(&Key::<A>::named(name))?.text_spans()?;
+        Some(SpanCols { view: ts.view, start: ts.start, end: ts.end })
     }
 
     /// The spans of a golden layer of this file, when it has them.
@@ -148,8 +148,8 @@ pub fn shape_of<L: GoldenCompare>() -> Shape {
 pub fn known_shapes() -> Vec<Shape> {
     use turbo_analysis::View;
     use turbo_analysis_layers::{
-        ChunkTags, Confidence, Entities, Language, Lemmas, Money, Numbers, PhraseChunks, PosTags, Quantities,
-        Sentences, Subwords, Tokens, Utf16Spans,
+        ChunkTags, Confidence, DocumentDate, Entities, Language, Lemmas, Money, Numbers, PhraseChunks, PosTags,
+        Quantities, Sentences, Subwords, Temporals, Tokens, Utf16Spans,
     };
     vec![
         shape_of::<Sentences>(),
@@ -169,6 +169,8 @@ pub fn known_shapes() -> Vec<Shape> {
         shape_of::<Numbers>(),
         shape_of::<Money>(),
         shape_of::<Quantities>(),
+        shape_of::<Temporals>(),
+        shape_of::<DocumentDate>(),
         shape_of::<Subwords>(),
         shape_of::<View>(),
     ]
@@ -361,6 +363,8 @@ mod tests {
                 "turbo:numbers",
                 "turbo:money",
                 "turbo:quantities",
+                "turbo:temporal",
+                "turbo:document-date",
                 "opennlp:subwords",
                 "turbo:view"
             ]

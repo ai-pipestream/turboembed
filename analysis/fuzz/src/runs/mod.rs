@@ -20,6 +20,7 @@ mod numeric;
 mod sentences;
 mod subwords;
 mod tagging;
+mod temporal;
 mod tokens;
 
 use std::fmt;

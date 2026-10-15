@@ -1,0 +1,2652 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	sequence/sentences	905	851	32c8499cf1eb96c7d4c6e4c0c6ffc47a9e576be450d48537c36b2362c94e67d8
+model	en-pos-maxent.bin	7810d7e7c24ed1c6a202dad64ed021310ee62cf324ee866e2e63bf80541997162bb5fa2da91fdcfddda39ee275efcdbde738647274d586ba8896940a0467d6cc
+annotator	opennlp.tools.ml.BeamSearch	bestSequences
+config	kind	pos
+layer	turbo:sentence-tokens	document	176	sentence:u32	token:str
+0	Pierre
+0	Vinken
+0	,
+0	61
+0	years
+0	old
+0	,
+0	will
+0	join
+0	the
+0	board
+0	as
+0	a
+0	nonexecutive
+0	director
+0	Nov.
+0	29
+0	.
+1	Mr.
+1	Smith
+1	went
+1	to
+1	Washington
+1	,
+1	D.C.
+1	,
+1	on
+1	1999-04-12
+1	with
+1	$
+1	1,000
+1	.
+2	The
+2	co-op
+2	's
+2	CEO
+2	,
+2	John
+2	O'Neil
+2	,
+2	said
+2	3.5
+2	%
+2	of
+2	U.S.
+2	sales
+2	fell
+2	.
+3	She
+3	paid
+3	12/31/2020
+3	invoices
+3	at
+3	4:30
+3	p.m.
+3	in
+3	New
+3	York
+3	City
+3	.
+4	Angela
+4	Merkel
+4	met
+4	Emmanuel
+4	Macron
+4	in
+4	Berlin
+4	and
+4	Paris
+4	last
+4	week
+4	.
+5	IBM
+5	and
+5	Microsoft
+5	Corp.
+5	reported
+5	earnings
+5	;
+5	A.
+5	B.
+5	Smith
+5	disagreed
+5	.
+6	Ünal
+6	Özdemir
+6	lives
+6	in
+6	Köln
+6	,
+6	not
+6	München
+6	.
+7	東京
+7	は
+7	ひらがな
+7	と
+7	カタカナ
+7	を
+7	使う
+7	。
+8	The
+8	𝐀𝐁𝐂
+8	index
+8	rose
+8	😀
+8	while
+8	café
+8	prices
+8	fell
+8	.
+9	e-mail
+9	me
+9	at
+9	john@example.com
+9	or
+9	visit
+9	www.example.com/a?b=1
+9	!
+10	Barack
+10	Obama
+10	was
+10	born
+10	in
+10	Honolulu
+10	,
+10	Hawaii
+10	.
+11	He
+11	said
+11	:
+11	"
+11	I
+11	'm
+11	not
+11	going
+11	to
+11	London
+11	.
+11	"
+12	ŁÓDŹ
+12	and
+12	ΑΘΗΝΑ
+12	are
+12	cities
+12	;
+12	ǅ
+12	is
+12	a
+12	titlecase
+12	letter
+12	.
+13	One
+13	more
+13	sentence
+13	about
+13	Dr.
+13	Jane
+13	Doe
+13	of
+13	Acme
+13	Inc.
+13	in
+13	Chicago
+13	.
+14	Smith
+14	said
+14	Smith
+14	would
+14	visit
+14	Paris
+14	again
+14	in
+14	2024
+14	.
+15	a
+end	turbo:sentence-tokens
+layer	turbo:beam-config	document	1	beam-size:u32	codec:str
+3	
+end	turbo:beam-config
+layer	turbo:beam-calls	document	76	call:u32	sentence:u32	index:u32
+0	0	0
+1	0	1
+2	0	2
+3	0	2
+4	0	2
+5	0	3
+6	0	3
+7	0	3
+8	0	4
+9	0	4
+10	0	4
+11	0	5
+12	0	5
+13	0	5
+14	0	6
+15	0	6
+16	0	6
+17	0	7
+18	0	7
+19	0	7
+20	0	8
+21	0	8
+22	0	8
+23	0	9
+24	0	9
+25	0	9
+26	0	10
+27	0	10
+28	0	10
+29	0	11
+30	0	11
+31	0	11
+32	0	12
+33	0	12
+34	0	12
+35	0	13
+36	0	13
+37	0	13
+38	0	14
+39	0	14
+40	0	14
+41	0	15
+42	0	15
+43	0	15
+44	0	16
+45	0	16
+46	0	16
+47	0	17
+48	0	17
+49	0	17
+50	8	0
+51	8	1
+52	8	2
+53	8	2
+54	8	2
+55	8	3
+56	8	3
+57	8	3
+58	8	4
+59	8	4
+60	8	4
+61	8	5
+62	8	5
+63	8	5
+64	8	6
+65	8	6
+66	8	6
+67	8	7
+68	8	7
+69	8	7
+70	8	8
+71	8	8
+72	8	8
+73	8	9
+74	8	9
+75	8	9
+end	turbo:beam-calls
+layer	turbo:beam-call-priors	document	590	call:u32	outcome:str
+1	NNP
+2	NNP
+2	NNP
+3	NNP
+3	VB
+4	NNP
+4	JJ
+5	NNP
+5	NNP
+5	,
+6	NNP
+6	VB
+6	,
+7	NNP
+7	JJ
+7	,
+8	NNP
+8	NNP
+8	,
+8	CD
+9	NNP
+9	VB
+9	,
+9	CD
+10	NNP
+10	JJ
+10	,
+10	CD
+11	NNP
+11	NNP
+11	,
+11	CD
+11	NNS
+12	NNP
+12	VB
+12	,
+12	CD
+12	NNS
+13	NNP
+13	JJ
+13	,
+13	CD
+13	NNS
+14	NNP
+14	NNP
+14	,
+14	CD
+14	NNS
+14	JJ
+15	NNP
+15	VB
+15	,
+15	CD
+15	NNS
+15	JJ
+16	NNP
+16	JJ
+16	,
+16	CD
+16	NNS
+16	JJ
+17	NNP
+17	NNP
+17	,
+17	CD
+17	NNS
+17	JJ
+17	,
+18	NNP
+18	VB
+18	,
+18	CD
+18	NNS
+18	JJ
+18	,
+19	NNP
+19	JJ
+19	,
+19	CD
+19	NNS
+19	JJ
+19	,
+20	NNP
+20	NNP
+20	,
+20	CD
+20	NNS
+20	JJ
+20	,
+20	MD
+21	NNP
+21	VB
+21	,
+21	CD
+21	NNS
+21	JJ
+21	,
+21	MD
+22	NNP
+22	NNP
+22	,
+22	CD
+22	NNS
+22	JJ
+22	,
+22	NN
+23	NNP
+23	NNP
+23	,
+23	CD
+23	NNS
+23	JJ
+23	,
+23	MD
+23	VB
+24	NNP
+24	VB
+24	,
+24	CD
+24	NNS
+24	JJ
+24	,
+24	MD
+24	VB
+25	NNP
+25	NNP
+25	,
+25	CD
+25	NNS
+25	JJ
+25	,
+25	NN
+25	VB
+26	NNP
+26	NNP
+26	,
+26	CD
+26	NNS
+26	JJ
+26	,
+26	MD
+26	VB
+26	DT
+27	NNP
+27	VB
+27	,
+27	CD
+27	NNS
+27	JJ
+27	,
+27	MD
+27	VB
+27	DT
+28	NNP
+28	NNP
+28	,
+28	CD
+28	NNS
+28	JJ
+28	,
+28	NN
+28	VB
+28	DT
+29	NNP
+29	NNP
+29	,
+29	CD
+29	NNS
+29	JJ
+29	,
+29	MD
+29	VB
+29	DT
+29	NN
+30	NNP
+30	VB
+30	,
+30	CD
+30	NNS
+30	JJ
+30	,
+30	MD
+30	VB
+30	DT
+30	NN
+31	NNP
+31	NNP
+31	,
+31	CD
+31	NNS
+31	JJ
+31	,
+31	NN
+31	VB
+31	DT
+31	NN
+32	NNP
+32	NNP
+32	,
+32	CD
+32	NNS
+32	JJ
+32	,
+32	MD
+32	VB
+32	DT
+32	NN
+32	IN
+33	NNP
+33	NNP
+33	,
+33	CD
+33	NNS
+33	JJ
+33	,
+33	MD
+33	VB
+33	DT
+33	NN
+33	RB
+34	NNP
+34	VB
+34	,
+34	CD
+34	NNS
+34	JJ
+34	,
+34	MD
+34	VB
+34	DT
+34	NN
+34	IN
+35	NNP
+35	NNP
+35	,
+35	CD
+35	NNS
+35	JJ
+35	,
+35	MD
+35	VB
+35	DT
+35	NN
+35	IN
+35	DT
+36	NNP
+36	NNP
+36	,
+36	CD
+36	NNS
+36	JJ
+36	,
+36	MD
+36	VB
+36	DT
+36	NN
+36	RB
+36	DT
+37	NNP
+37	VB
+37	,
+37	CD
+37	NNS
+37	JJ
+37	,
+37	MD
+37	VB
+37	DT
+37	NN
+37	IN
+37	DT
+38	NNP
+38	NNP
+38	,
+38	CD
+38	NNS
+38	JJ
+38	,
+38	MD
+38	VB
+38	DT
+38	NN
+38	IN
+38	DT
+38	JJ
+39	NNP
+39	NNP
+39	,
+39	CD
+39	NNS
+39	JJ
+39	,
+39	MD
+39	VB
+39	DT
+39	NN
+39	IN
+39	DT
+39	NN
+40	NNP
+40	NNP
+40	,
+40	CD
+40	NNS
+40	JJ
+40	,
+40	MD
+40	VB
+40	DT
+40	NN
+40	RB
+40	DT
+40	JJ
+41	NNP
+41	NNP
+41	,
+41	CD
+41	NNS
+41	JJ
+41	,
+41	MD
+41	VB
+41	DT
+41	NN
+41	IN
+41	DT
+41	JJ
+41	NN
+42	NNP
+42	NNP
+42	,
+42	CD
+42	NNS
+42	JJ
+42	,
+42	MD
+42	VB
+42	DT
+42	NN
+42	IN
+42	DT
+42	NN
+42	NN
+43	NNP
+43	NNP
+43	,
+43	CD
+43	NNS
+43	JJ
+43	,
+43	MD
+43	VB
+43	DT
+43	NN
+43	RB
+43	DT
+43	JJ
+43	NN
+44	NNP
+44	NNP
+44	,
+44	CD
+44	NNS
+44	JJ
+44	,
+44	MD
+44	VB
+44	DT
+44	NN
+44	IN
+44	DT
+44	JJ
+44	NN
+44	NNP
+45	NNP
+45	NNP
+45	,
+45	CD
+45	NNS
+45	JJ
+45	,
+45	MD
+45	VB
+45	DT
+45	NN
+45	IN
+45	DT
+45	NN
+45	NN
+45	NNP
+46	NNP
+46	NNP
+46	,
+46	CD
+46	NNS
+46	JJ
+46	,
+46	MD
+46	VB
+46	DT
+46	NN
+46	RB
+46	DT
+46	JJ
+46	NN
+46	NNP
+47	NNP
+47	NNP
+47	,
+47	CD
+47	NNS
+47	JJ
+47	,
+47	MD
+47	VB
+47	DT
+47	NN
+47	IN
+47	DT
+47	JJ
+47	NN
+47	NNP
+47	CD
+48	NNP
+48	NNP
+48	,
+48	CD
+48	NNS
+48	JJ
+48	,
+48	MD
+48	VB
+48	DT
+48	NN
+48	IN
+48	DT
+48	NN
+48	NN
+48	NNP
+48	CD
+49	NNP
+49	NNP
+49	,
+49	CD
+49	NNS
+49	JJ
+49	,
+49	MD
+49	VB
+49	DT
+49	NN
+49	IN
+49	DT
+49	JJ
+49	NN
+49	NNP
+49	NNP
+51	DT
+52	DT
+52	JJ
+53	DT
+53	NN
+54	DT
+54	NNP
+55	DT
+55	JJ
+55	NN
+56	DT
+56	NN
+56	NN
+57	DT
+57	NNP
+57	NN
+58	DT
+58	JJ
+58	NN
+58	VBD
+59	DT
+59	NN
+59	NN
+59	VBD
+60	DT
+60	NNP
+60	NN
+60	VBD
+61	DT
+61	JJ
+61	NN
+61	VBD
+61	RB
+62	DT
+62	JJ
+62	NN
+62	VBD
+62	VBN
+63	DT
+63	NN
+63	NN
+63	VBD
+63	RB
+64	DT
+64	JJ
+64	NN
+64	VBD
+64	RB
+64	IN
+65	DT
+65	JJ
+65	NN
+65	VBD
+65	VBN
+65	IN
+66	DT
+66	NN
+66	NN
+66	VBD
+66	RB
+66	IN
+67	DT
+67	JJ
+67	NN
+67	VBD
+67	RB
+67	IN
+67	NN
+68	DT
+68	JJ
+68	NN
+68	VBD
+68	VBN
+68	IN
+68	NN
+69	DT
+69	NN
+69	NN
+69	VBD
+69	RB
+69	IN
+69	NN
+70	DT
+70	JJ
+70	NN
+70	VBD
+70	RB
+70	IN
+70	NN
+70	NNS
+71	DT
+71	JJ
+71	NN
+71	VBD
+71	VBN
+71	IN
+71	NN
+71	NNS
+72	DT
+72	NN
+72	NN
+72	VBD
+72	RB
+72	IN
+72	NN
+72	NNS
+73	DT
+73	JJ
+73	NN
+73	VBD
+73	RB
+73	IN
+73	NN
+73	NNS
+73	VBD
+74	DT
+74	JJ
+74	NN
+74	VBD
+74	VBN
+74	IN
+74	NN
+74	NNS
+74	VBD
+75	DT
+75	NN
+75	NN
+75	VBD
+75	RB
+75	IN
+75	NN
+75	NNS
+75	VBD
+end	turbo:beam-call-priors
+layer	turbo:beam-call-features	document	1214	call:u32	feature:str
+0	default
+0	w=Pierre
+0	suf=e
+0	suf=re
+0	suf=rre
+0	suf=erre
+0	pre=P
+0	pre=Pi
+0	pre=Pie
+0	pre=Pier
+0	c
+0	p=*SB*
+0	n=Vinken
+0	nn=,
+1	default
+1	w=Vinken
+1	suf=n
+1	suf=en
+1	suf=ken
+1	suf=nken
+1	pre=V
+1	pre=Vi
+1	pre=Vin
+1	pre=Vink
+1	c
+1	p=Pierre
+1	t=NNP
+1	pp=*SB*
+1	n=,
+1	nn=61
+2	default
+2	w=,
+2	suf=,
+2	suf=,
+2	suf=,
+2	suf=,
+2	pre=,
+2	pre=,
+2	pre=,
+2	pre=,
+2	p=Vinken
+2	t=NNP
+2	pp=Pierre
+2	t2=NNP,NNP
+2	n=61
+2	nn=years
+3	default
+3	w=,
+3	suf=,
+3	suf=,
+3	suf=,
+3	suf=,
+3	pre=,
+3	pre=,
+3	pre=,
+3	pre=,
+3	p=Vinken
+3	t=VB
+3	pp=Pierre
+3	t2=NNP,VB
+3	n=61
+3	nn=years
+4	default
+4	w=,
+4	suf=,
+4	suf=,
+4	suf=,
+4	suf=,
+4	pre=,
+4	pre=,
+4	pre=,
+4	pre=,
+4	p=Vinken
+4	t=JJ
+4	pp=Pierre
+4	t2=NNP,JJ
+4	n=61
+4	nn=years
+5	default
+5	w=61
+5	suf=1
+5	suf=61
+5	suf=61
+5	suf=61
+5	pre=6
+5	pre=61
+5	pre=61
+5	pre=61
+5	d
+5	p=,
+5	t=,
+5	pp=Vinken
+5	t2=NNP,,
+5	n=years
+5	nn=old
+6	default
+6	w=61
+6	suf=1
+6	suf=61
+6	suf=61
+6	suf=61
+6	pre=6
+6	pre=61
+6	pre=61
+6	pre=61
+6	d
+6	p=,
+6	t=,
+6	pp=Vinken
+6	t2=VB,,
+6	n=years
+6	nn=old
+7	default
+7	w=61
+7	suf=1
+7	suf=61
+7	suf=61
+7	suf=61
+7	pre=6
+7	pre=61
+7	pre=61
+7	pre=61
+7	d
+7	p=,
+7	t=,
+7	pp=Vinken
+7	t2=JJ,,
+7	n=years
+7	nn=old
+8	default
+8	w=years
+8	suf=s
+8	suf=rs
+8	suf=ars
+8	suf=ears
+8	pre=y
+8	pre=ye
+8	pre=yea
+8	pre=year
+8	p=61
+8	t=CD
+8	pp=,
+8	t2=,,CD
+8	n=old
+8	nn=,
+9	default
+9	w=years
+9	suf=s
+9	suf=rs
+9	suf=ars
+9	suf=ears
+9	pre=y
+9	pre=ye
+9	pre=yea
+9	pre=year
+9	p=61
+9	t=CD
+9	pp=,
+9	t2=,,CD
+9	n=old
+9	nn=,
+10	default
+10	w=years
+10	suf=s
+10	suf=rs
+10	suf=ars
+10	suf=ears
+10	pre=y
+10	pre=ye
+10	pre=yea
+10	pre=year
+10	p=61
+10	t=CD
+10	pp=,
+10	t2=,,CD
+10	n=old
+10	nn=,
+11	default
+11	w=old
+11	suf=d
+11	suf=ld
+11	suf=old
+11	suf=old
+11	pre=o
+11	pre=ol
+11	pre=old
+11	pre=old
+11	p=years
+11	t=NNS
+11	pp=61
+11	t2=CD,NNS
+11	n=,
+11	nn=will
+12	default
+12	w=old
+12	suf=d
+12	suf=ld
+12	suf=old
+12	suf=old
+12	pre=o
+12	pre=ol
+12	pre=old
+12	pre=old
+12	p=years
+12	t=NNS
+12	pp=61
+12	t2=CD,NNS
+12	n=,
+12	nn=will
+13	default
+13	w=old
+13	suf=d
+13	suf=ld
+13	suf=old
+13	suf=old
+13	pre=o
+13	pre=ol
+13	pre=old
+13	pre=old
+13	p=years
+13	t=NNS
+13	pp=61
+13	t2=CD,NNS
+13	n=,
+13	nn=will
+14	default
+14	w=,
+14	suf=,
+14	suf=,
+14	suf=,
+14	suf=,
+14	pre=,
+14	pre=,
+14	pre=,
+14	pre=,
+14	p=old
+14	t=JJ
+14	pp=years
+14	t2=NNS,JJ
+14	n=will
+14	nn=join
+15	default
+15	w=,
+15	suf=,
+15	suf=,
+15	suf=,
+15	suf=,
+15	pre=,
+15	pre=,
+15	pre=,
+15	pre=,
+15	p=old
+15	t=JJ
+15	pp=years
+15	t2=NNS,JJ
+15	n=will
+15	nn=join
+16	default
+16	w=,
+16	suf=,
+16	suf=,
+16	suf=,
+16	suf=,
+16	pre=,
+16	pre=,
+16	pre=,
+16	pre=,
+16	p=old
+16	t=JJ
+16	pp=years
+16	t2=NNS,JJ
+16	n=will
+16	nn=join
+17	default
+17	w=will
+17	suf=l
+17	suf=ll
+17	suf=ill
+17	suf=will
+17	pre=w
+17	pre=wi
+17	pre=wil
+17	pre=will
+17	p=,
+17	t=,
+17	pp=old
+17	t2=JJ,,
+17	n=join
+17	nn=the
+18	default
+18	w=will
+18	suf=l
+18	suf=ll
+18	suf=ill
+18	suf=will
+18	pre=w
+18	pre=wi
+18	pre=wil
+18	pre=will
+18	p=,
+18	t=,
+18	pp=old
+18	t2=JJ,,
+18	n=join
+18	nn=the
+19	default
+19	w=will
+19	suf=l
+19	suf=ll
+19	suf=ill
+19	suf=will
+19	pre=w
+19	pre=wi
+19	pre=wil
+19	pre=will
+19	p=,
+19	t=,
+19	pp=old
+19	t2=JJ,,
+19	n=join
+19	nn=the
+20	default
+20	w=join
+20	suf=n
+20	suf=in
+20	suf=oin
+20	suf=join
+20	pre=j
+20	pre=jo
+20	pre=joi
+20	pre=join
+20	p=will
+20	t=MD
+20	pp=,
+20	t2=,,MD
+20	n=the
+20	nn=board
+21	default
+21	w=join
+21	suf=n
+21	suf=in
+21	suf=oin
+21	suf=join
+21	pre=j
+21	pre=jo
+21	pre=joi
+21	pre=join
+21	p=will
+21	t=MD
+21	pp=,
+21	t2=,,MD
+21	n=the
+21	nn=board
+22	default
+22	w=join
+22	suf=n
+22	suf=in
+22	suf=oin
+22	suf=join
+22	pre=j
+22	pre=jo
+22	pre=joi
+22	pre=join
+22	p=will
+22	t=NN
+22	pp=,
+22	t2=,,NN
+22	n=the
+22	nn=board
+23	default
+23	w=the
+23	suf=e
+23	suf=he
+23	suf=the
+23	suf=the
+23	pre=t
+23	pre=th
+23	pre=the
+23	pre=the
+23	p=join
+23	t=VB
+23	pp=will
+23	t2=MD,VB
+23	n=board
+23	nn=as
+24	default
+24	w=the
+24	suf=e
+24	suf=he
+24	suf=the
+24	suf=the
+24	pre=t
+24	pre=th
+24	pre=the
+24	pre=the
+24	p=join
+24	t=VB
+24	pp=will
+24	t2=MD,VB
+24	n=board
+24	nn=as
+25	default
+25	w=the
+25	suf=e
+25	suf=he
+25	suf=the
+25	suf=the
+25	pre=t
+25	pre=th
+25	pre=the
+25	pre=the
+25	p=join
+25	t=VB
+25	pp=will
+25	t2=NN,VB
+25	n=board
+25	nn=as
+26	default
+26	w=board
+26	suf=d
+26	suf=rd
+26	suf=ard
+26	suf=oard
+26	pre=b
+26	pre=bo
+26	pre=boa
+26	pre=boar
+26	p=the
+26	t=DT
+26	pp=join
+26	t2=VB,DT
+26	n=as
+26	nn=a
+27	default
+27	w=board
+27	suf=d
+27	suf=rd
+27	suf=ard
+27	suf=oard
+27	pre=b
+27	pre=bo
+27	pre=boa
+27	pre=boar
+27	p=the
+27	t=DT
+27	pp=join
+27	t2=VB,DT
+27	n=as
+27	nn=a
+28	default
+28	w=board
+28	suf=d
+28	suf=rd
+28	suf=ard
+28	suf=oard
+28	pre=b
+28	pre=bo
+28	pre=boa
+28	pre=boar
+28	p=the
+28	t=DT
+28	pp=join
+28	t2=VB,DT
+28	n=as
+28	nn=a
+29	default
+29	w=as
+29	suf=s
+29	suf=as
+29	suf=as
+29	suf=as
+29	pre=a
+29	pre=as
+29	pre=as
+29	pre=as
+29	p=board
+29	t=NN
+29	pp=the
+29	t2=DT,NN
+29	n=a
+29	nn=nonexecutive
+30	default
+30	w=as
+30	suf=s
+30	suf=as
+30	suf=as
+30	suf=as
+30	pre=a
+30	pre=as
+30	pre=as
+30	pre=as
+30	p=board
+30	t=NN
+30	pp=the
+30	t2=DT,NN
+30	n=a
+30	nn=nonexecutive
+31	default
+31	w=as
+31	suf=s
+31	suf=as
+31	suf=as
+31	suf=as
+31	pre=a
+31	pre=as
+31	pre=as
+31	pre=as
+31	p=board
+31	t=NN
+31	pp=the
+31	t2=DT,NN
+31	n=a
+31	nn=nonexecutive
+32	default
+32	w=a
+32	suf=a
+32	suf=a
+32	suf=a
+32	suf=a
+32	pre=a
+32	pre=a
+32	pre=a
+32	pre=a
+32	p=as
+32	t=IN
+32	pp=board
+32	t2=NN,IN
+32	n=nonexecutive
+32	nn=director
+33	default
+33	w=a
+33	suf=a
+33	suf=a
+33	suf=a
+33	suf=a
+33	pre=a
+33	pre=a
+33	pre=a
+33	pre=a
+33	p=as
+33	t=RB
+33	pp=board
+33	t2=NN,RB
+33	n=nonexecutive
+33	nn=director
+34	default
+34	w=a
+34	suf=a
+34	suf=a
+34	suf=a
+34	suf=a
+34	pre=a
+34	pre=a
+34	pre=a
+34	pre=a
+34	p=as
+34	t=IN
+34	pp=board
+34	t2=NN,IN
+34	n=nonexecutive
+34	nn=director
+35	default
+35	w=nonexecutive
+35	suf=e
+35	suf=ve
+35	suf=ive
+35	suf=tive
+35	pre=n
+35	pre=no
+35	pre=non
+35	pre=none
+35	p=a
+35	t=DT
+35	pp=as
+35	t2=IN,DT
+35	n=director
+35	nn=Nov.
+36	default
+36	w=nonexecutive
+36	suf=e
+36	suf=ve
+36	suf=ive
+36	suf=tive
+36	pre=n
+36	pre=no
+36	pre=non
+36	pre=none
+36	p=a
+36	t=DT
+36	pp=as
+36	t2=RB,DT
+36	n=director
+36	nn=Nov.
+37	default
+37	w=nonexecutive
+37	suf=e
+37	suf=ve
+37	suf=ive
+37	suf=tive
+37	pre=n
+37	pre=no
+37	pre=non
+37	pre=none
+37	p=a
+37	t=DT
+37	pp=as
+37	t2=IN,DT
+37	n=director
+37	nn=Nov.
+38	default
+38	w=director
+38	suf=r
+38	suf=or
+38	suf=tor
+38	suf=ctor
+38	pre=d
+38	pre=di
+38	pre=dir
+38	pre=dire
+38	p=nonexecutive
+38	t=JJ
+38	pp=a
+38	t2=DT,JJ
+38	n=Nov.
+38	nn=29
+39	default
+39	w=director
+39	suf=r
+39	suf=or
+39	suf=tor
+39	suf=ctor
+39	pre=d
+39	pre=di
+39	pre=dir
+39	pre=dire
+39	p=nonexecutive
+39	t=NN
+39	pp=a
+39	t2=DT,NN
+39	n=Nov.
+39	nn=29
+40	default
+40	w=director
+40	suf=r
+40	suf=or
+40	suf=tor
+40	suf=ctor
+40	pre=d
+40	pre=di
+40	pre=dir
+40	pre=dire
+40	p=nonexecutive
+40	t=JJ
+40	pp=a
+40	t2=DT,JJ
+40	n=Nov.
+40	nn=29
+41	default
+41	w=Nov.
+41	suf=.
+41	suf=v.
+41	suf=ov.
+41	suf=Nov.
+41	pre=N
+41	pre=No
+41	pre=Nov
+41	pre=Nov.
+41	c
+41	p=director
+41	t=NN
+41	pp=nonexecutive
+41	t2=JJ,NN
+41	n=29
+41	nn=.
+42	default
+42	w=Nov.
+42	suf=.
+42	suf=v.
+42	suf=ov.
+42	suf=Nov.
+42	pre=N
+42	pre=No
+42	pre=Nov
+42	pre=Nov.
+42	c
+42	p=director
+42	t=NN
+42	pp=nonexecutive
+42	t2=NN,NN
+42	n=29
+42	nn=.
+43	default
+43	w=Nov.
+43	suf=.
+43	suf=v.
+43	suf=ov.
+43	suf=Nov.
+43	pre=N
+43	pre=No
+43	pre=Nov
+43	pre=Nov.
+43	c
+43	p=director
+43	t=NN
+43	pp=nonexecutive
+43	t2=JJ,NN
+43	n=29
+43	nn=.
+44	default
+44	w=29
+44	suf=9
+44	suf=29
+44	suf=29
+44	suf=29
+44	pre=2
+44	pre=29
+44	pre=29
+44	pre=29
+44	d
+44	p=Nov.
+44	t=NNP
+44	pp=director
+44	t2=NN,NNP
+44	n=.
+44	nn=*SE*
+45	default
+45	w=29
+45	suf=9
+45	suf=29
+45	suf=29
+45	suf=29
+45	pre=2
+45	pre=29
+45	pre=29
+45	pre=29
+45	d
+45	p=Nov.
+45	t=NNP
+45	pp=director
+45	t2=NN,NNP
+45	n=.
+45	nn=*SE*
+46	default
+46	w=29
+46	suf=9
+46	suf=29
+46	suf=29
+46	suf=29
+46	pre=2
+46	pre=29
+46	pre=29
+46	pre=29
+46	d
+46	p=Nov.
+46	t=NNP
+46	pp=director
+46	t2=NN,NNP
+46	n=.
+46	nn=*SE*
+47	default
+47	w=.
+47	suf=.
+47	suf=.
+47	suf=.
+47	suf=.
+47	pre=.
+47	pre=.
+47	pre=.
+47	pre=.
+47	p=29
+47	t=CD
+47	pp=Nov.
+47	t2=NNP,CD
+47	n=*SE*
+48	default
+48	w=.
+48	suf=.
+48	suf=.
+48	suf=.
+48	suf=.
+48	pre=.
+48	pre=.
+48	pre=.
+48	pre=.
+48	p=29
+48	t=CD
+48	pp=Nov.
+48	t2=NNP,CD
+48	n=*SE*
+49	default
+49	w=.
+49	suf=.
+49	suf=.
+49	suf=.
+49	suf=.
+49	pre=.
+49	pre=.
+49	pre=.
+49	pre=.
+49	p=29
+49	t=NNP
+49	pp=Nov.
+49	t2=NNP,NNP
+49	n=*SE*
+50	default
+50	w=The
+50	suf=e
+50	suf=he
+50	suf=The
+50	suf=The
+50	pre=T
+50	pre=Th
+50	pre=The
+50	pre=The
+50	c
+50	p=*SB*
+50	n=𝐀𝐁𝐂
+50	nn=index
+51	default
+51	w=𝐀𝐁𝐂
+51	suf=\\udc02
+51	suf=𝐂
+51	suf=\\udc01𝐂
+51	suf=𝐁𝐂
+51	pre=\\ud835
+51	pre=𝐀
+51	pre=𝐀\\ud835
+51	pre=𝐀𝐁
+51	p=The
+51	t=DT
+51	pp=*SB*
+51	n=index
+51	nn=rose
+52	default
+52	w=index
+52	suf=x
+52	suf=ex
+52	suf=dex
+52	suf=ndex
+52	pre=i
+52	pre=in
+52	pre=ind
+52	pre=inde
+52	p=𝐀𝐁𝐂
+52	t=JJ
+52	pp=The
+52	t2=DT,JJ
+52	n=rose
+52	nn=😀
+53	default
+53	w=index
+53	suf=x
+53	suf=ex
+53	suf=dex
+53	suf=ndex
+53	pre=i
+53	pre=in
+53	pre=ind
+53	pre=inde
+53	p=𝐀𝐁𝐂
+53	t=NN
+53	pp=The
+53	t2=DT,NN
+53	n=rose
+53	nn=😀
+54	default
+54	w=index
+54	suf=x
+54	suf=ex
+54	suf=dex
+54	suf=ndex
+54	pre=i
+54	pre=in
+54	pre=ind
+54	pre=inde
+54	p=𝐀𝐁𝐂
+54	t=NNP
+54	pp=The
+54	t2=DT,NNP
+54	n=rose
+54	nn=😀
+55	default
+55	w=rose
+55	suf=e
+55	suf=se
+55	suf=ose
+55	suf=rose
+55	pre=r
+55	pre=ro
+55	pre=ros
+55	pre=rose
+55	p=index
+55	t=NN
+55	pp=𝐀𝐁𝐂
+55	t2=JJ,NN
+55	n=😀
+55	nn=while
+56	default
+56	w=rose
+56	suf=e
+56	suf=se
+56	suf=ose
+56	suf=rose
+56	pre=r
+56	pre=ro
+56	pre=ros
+56	pre=rose
+56	p=index
+56	t=NN
+56	pp=𝐀𝐁𝐂
+56	t2=NN,NN
+56	n=😀
+56	nn=while
+57	default
+57	w=rose
+57	suf=e
+57	suf=se
+57	suf=ose
+57	suf=rose
+57	pre=r
+57	pre=ro
+57	pre=ros
+57	pre=rose
+57	p=index
+57	t=NN
+57	pp=𝐀𝐁𝐂
+57	t2=NNP,NN
+57	n=😀
+57	nn=while
+58	default
+58	w=😀
+58	suf=\\ude00
+58	suf=😀
+58	suf=😀
+58	suf=😀
+58	pre=\\ud83d
+58	pre=😀
+58	pre=😀
+58	pre=😀
+58	p=rose
+58	t=VBD
+58	pp=index
+58	t2=NN,VBD
+58	n=while
+58	nn=café
+59	default
+59	w=😀
+59	suf=\\ude00
+59	suf=😀
+59	suf=😀
+59	suf=😀
+59	pre=\\ud83d
+59	pre=😀
+59	pre=😀
+59	pre=😀
+59	p=rose
+59	t=VBD
+59	pp=index
+59	t2=NN,VBD
+59	n=while
+59	nn=café
+60	default
+60	w=😀
+60	suf=\\ude00
+60	suf=😀
+60	suf=😀
+60	suf=😀
+60	pre=\\ud83d
+60	pre=😀
+60	pre=😀
+60	pre=😀
+60	p=rose
+60	t=VBD
+60	pp=index
+60	t2=NN,VBD
+60	n=while
+60	nn=café
+61	default
+61	w=while
+61	suf=e
+61	suf=le
+61	suf=ile
+61	suf=hile
+61	pre=w
+61	pre=wh
+61	pre=whi
+61	pre=whil
+61	p=😀
+61	t=RB
+61	pp=rose
+61	t2=VBD,RB
+61	n=café
+61	nn=prices
+62	default
+62	w=while
+62	suf=e
+62	suf=le
+62	suf=ile
+62	suf=hile
+62	pre=w
+62	pre=wh
+62	pre=whi
+62	pre=whil
+62	p=😀
+62	t=VBN
+62	pp=rose
+62	t2=VBD,VBN
+62	n=café
+62	nn=prices
+63	default
+63	w=while
+63	suf=e
+63	suf=le
+63	suf=ile
+63	suf=hile
+63	pre=w
+63	pre=wh
+63	pre=whi
+63	pre=whil
+63	p=😀
+63	t=RB
+63	pp=rose
+63	t2=VBD,RB
+63	n=café
+63	nn=prices
+64	default
+64	w=café
+64	suf=é
+64	suf=fé
+64	suf=afé
+64	suf=café
+64	pre=c
+64	pre=ca
+64	pre=caf
+64	pre=café
+64	p=while
+64	t=IN
+64	pp=😀
+64	t2=RB,IN
+64	n=prices
+64	nn=fell
+65	default
+65	w=café
+65	suf=é
+65	suf=fé
+65	suf=afé
+65	suf=café
+65	pre=c
+65	pre=ca
+65	pre=caf
+65	pre=café
+65	p=while
+65	t=IN
+65	pp=😀
+65	t2=VBN,IN
+65	n=prices
+65	nn=fell
+66	default
+66	w=café
+66	suf=é
+66	suf=fé
+66	suf=afé
+66	suf=café
+66	pre=c
+66	pre=ca
+66	pre=caf
+66	pre=café
+66	p=while
+66	t=IN
+66	pp=😀
+66	t2=RB,IN
+66	n=prices
+66	nn=fell
+67	default
+67	w=prices
+67	suf=s
+67	suf=es
+67	suf=ces
+67	suf=ices
+67	pre=p
+67	pre=pr
+67	pre=pri
+67	pre=pric
+67	p=café
+67	t=NN
+67	pp=while
+67	t2=IN,NN
+67	n=fell
+67	nn=.
+68	default
+68	w=prices
+68	suf=s
+68	suf=es
+68	suf=ces
+68	suf=ices
+68	pre=p
+68	pre=pr
+68	pre=pri
+68	pre=pric
+68	p=café
+68	t=NN
+68	pp=while
+68	t2=IN,NN
+68	n=fell
+68	nn=.
+69	default
+69	w=prices
+69	suf=s
+69	suf=es
+69	suf=ces
+69	suf=ices
+69	pre=p
+69	pre=pr
+69	pre=pri
+69	pre=pric
+69	p=café
+69	t=NN
+69	pp=while
+69	t2=IN,NN
+69	n=fell
+69	nn=.
+70	default
+70	w=fell
+70	suf=l
+70	suf=ll
+70	suf=ell
+70	suf=fell
+70	pre=f
+70	pre=fe
+70	pre=fel
+70	pre=fell
+70	p=prices
+70	t=NNS
+70	pp=café
+70	t2=NN,NNS
+70	n=.
+70	nn=*SE*
+71	default
+71	w=fell
+71	suf=l
+71	suf=ll
+71	suf=ell
+71	suf=fell
+71	pre=f
+71	pre=fe
+71	pre=fel
+71	pre=fell
+71	p=prices
+71	t=NNS
+71	pp=café
+71	t2=NN,NNS
+71	n=.
+71	nn=*SE*
+72	default
+72	w=fell
+72	suf=l
+72	suf=ll
+72	suf=ell
+72	suf=fell
+72	pre=f
+72	pre=fe
+72	pre=fel
+72	pre=fell
+72	p=prices
+72	t=NNS
+72	pp=café
+72	t2=NN,NNS
+72	n=.
+72	nn=*SE*
+73	default
+73	w=.
+73	suf=.
+73	suf=.
+73	suf=.
+73	suf=.
+73	pre=.
+73	pre=.
+73	pre=.
+73	pre=.
+73	p=fell
+73	t=VBD
+73	pp=prices
+73	t2=NNS,VBD
+73	n=*SE*
+74	default
+74	w=.
+74	suf=.
+74	suf=.
+74	suf=.
+74	suf=.
+74	pre=.
+74	pre=.
+74	pre=.
+74	pre=.
+74	p=fell
+74	t=VBD
+74	pp=prices
+74	t2=NNS,VBD
+74	n=*SE*
+75	default
+75	w=.
+75	suf=.
+75	suf=.
+75	suf=.
+75	suf=.
+75	pre=.
+75	pre=.
+75	pre=.
+75	pre=.
+75	p=fell
+75	t=VBD
+75	pp=prices
+75	t2=NNS,VBD
+75	n=*SE*
+end	turbo:beam-call-features
+layer	turbo:beam-sequences	document	46	sequence:u32	sentence:u32	score:f64
+0	0	bfe83c0061b1ca92 -0.7573244007201814
+1	0	bffc1c6bfd194703 -1.7569389235181354
+2	0	c00f949f9bfea2f8 -3.94757005568351
+3	1	bfd3f52d272196f7 -0.3118393785610886
+4	1	c0129017cf1b9ce1 -4.6407158241847535
+5	1	c012f36e50c7a060 -4.737725507911904
+6	2	bfe3576ddf893b9a -0.6044225088061126
+7	2	bffbb40f4edc165e -1.7314599113900822
+8	2	c0093cc955434ec4 -3.1546808873334573
+9	3	bff9a9309a67670a -1.6038061171915978
+10	3	bfffc49ebb59599e -1.9855029409714926
+11	3	c00f920f7ef1f778 -3.9463186185448045
+12	4	bfee2b60863487d7 -0.9427950497813481
+13	4	bfffae23bb139c00 -1.980014544265714
+14	4	c00a7bd3bed69ddb -3.3104624661680027
+15	5	bff044c232edae2c -1.0167867650406022
+16	5	bff1fc31ee6e25f3 -1.1240710557634628
+17	5	c0155d5aae5e5381 -5.341166233546461
+18	6	c009d274ba6b1080 -3.227761703865383
+19	6	c00d0f4002b2153b -3.6324463091465566
+20	6	c00d1e26fd8632b6 -3.6397228056506163
+21	7	c02e0e74188925e9 -15.028229490987501
+22	7	c02f086d7b6dd19c -15.51646028247415
+23	7	c02f13a132781de3 -15.53833921161908
+24	8	c00aeaf368e7955c -3.3647220798181205
+25	8	c00d665c8b36a28b -3.6749812007950076
+26	8	c00dfcaf6c38e7ca -3.7483814673296125
+27	9	c0109bcbbf875271 -4.152144425043489
+28	9	c011b6729f5e4b55 -4.42817162526156
+29	9	c011dcc00c6fcddb -4.465576357196791
+30	10	bfd89e29de5e9ee1 -0.38465353694708254
+31	10	c004dfbc8dad85ab -2.609246355874992
+32	10	c00b492ca3b3b9a1 -3.4107296742651703
+33	11	bfd563e417dbb88f -0.33422186212454447
+34	11	c0112ee135226665 -4.295780973648651
+35	11	c01197539fba2cde -4.397779937494503
+36	12	c013013a7fde4926 -4.751199720327611
+37	12	c0138c53adfa56dd -4.887037962345599
+38	12	c013b50036bf4e77 -4.9267586282982085
+39	13	bfe6349b44f0e908 -0.6939216944222446
+40	13	c002f136afebd633 -2.367780088791528
+41	13	c00cb636fbc90517 -3.5889720602723503
+42	14	bfdc04f746d9ca5d -0.43780309599893547
+43	14	c011dcd1d22aa5dc -4.4656441534548
+44	14	c011e211e5c20cc5 -4.470771398514619
+45	15	c0008c50c7a0138e -2.0685134502149998
+end	turbo:beam-sequences
+layer	turbo:beam-outcomes	document	526	sequence:u32	outcome:str	probability:f64
+0	NNP	3fee531223563820 0.9476404848262554
+0	NNP	3fef04600a6eb8c9 0.9692840770492462
+0	,	3fefa15669088982 0.988444523947962
+0	CD	3fefc426db2d9bf9 0.9926943093131505
+0	NNS	3fefa8bef857420f 0.9893488741309414
+0	JJ	3fef052fd61ae7c2 0.9693831617107593
+0	,	3fef9869e525052e 0.9873551822167081
+0	MD	3fee45b7e8129fdf 0.9460105450316368
+0	VB	3fef91deb665ec0e 0.986556392904619
+0	DT	3fef0457a3c6b745 0.9692800711397714
+0	NN	3fefc5933e890f9b 0.9928680631060048
+0	IN	3feeb2279fc63709 0.9592474098769525
+0	DT	3fefa621a9639f5d 0.9890297230131001
+0	JJ	3fe71583c1cc0098 0.7213763032050506
+0	NN	3fef982ed74e0a75 0.9873270230458063
+0	NNP	3feea92f13735c9a 0.9581523303885604
+0	CD	3fee6836e5591f30 0.9502214889007288
+0	.	3fefd1a8ef8437a0 0.9943432500892762
+1	NNP	3fee531223563820 0.9476404848262554
+1	NNP	3fef04600a6eb8c9 0.9692840770492462
+1	,	3fefa15669088982 0.988444523947962
+1	CD	3fefc426db2d9bf9 0.9926943093131505
+1	NNS	3fefa8bef857420f 0.9893488741309414
+1	JJ	3fef052fd61ae7c2 0.9693831617107593
+1	,	3fef9869e525052e 0.9873551822167081
+1	MD	3fee45b7e8129fdf 0.9460105450316368
+1	VB	3fef91deb665ec0e 0.986556392904619
+1	DT	3fef0457a3c6b745 0.9692800711397714
+1	NN	3fefc5933e890f9b 0.9928680631060048
+1	IN	3feeb2279fc63709 0.9592474098769525
+1	DT	3fefa621a9639f5d 0.9890297230131001
+1	NN	3fd164849f089107 0.27176013498889556
+1	NN	3fee97a80a3e5428 0.9560127449100309
+1	NNP	3feeef02959bf65d 0.9666760370307191
+1	CD	3fee6836e5591f30 0.9502214889007288
+1	.	3fefd1a8ef8437a0 0.9943432500892762
+2	NNP	3fee531223563820 0.9476404848262554
+2	NNP	3fef04600a6eb8c9 0.9692840770492462
+2	,	3fefa15669088982 0.988444523947962
+2	CD	3fefc426db2d9bf9 0.9926943093131505
+2	NNS	3fefa8bef857420f 0.9893488741309414
+2	JJ	3fef052fd61ae7c2 0.9693831617107593
+2	,	3fef9869e525052e 0.9873551822167081
+2	MD	3fee45b7e8129fdf 0.9460105450316368
+2	VB	3fef91deb665ec0e 0.986556392904619
+2	DT	3fef0457a3c6b745 0.9692800711397714
+2	NN	3fefc5933e890f9b 0.9928680631060048
+2	IN	3feeb2279fc63709 0.9592474098769525
+2	DT	3fefa621a9639f5d 0.9890297230131001
+2	JJ	3fe71583c1cc0098 0.7213763032050506
+2	NN	3fef982ed74e0a75 0.9873270230458063
+2	NNP	3feea92f13735c9a 0.9581523303885604
+2	NNP	3fa4217002ddfa4c 0.0393176082134131
+2	.	3fefa739d4f74f51 0.989163318585705
+3	NNP	3fef6e73c611126c 0.9822329395761478
+3	NNP	3fefc7e26b403f4e 0.9931499571557454
+3	VBD	3fefcb64940ed1d5 0.9935782329326296
+3	TO	3fef835dae3e00ce 0.9847858813446011
+3	NNP	3fefbbb652d73d54 0.9916640871032691
+3	,	3fefabf7fe65d318 0.9897422760683154
+3	NNP	3fefa1a3b146bdd6 0.988481374972191
+3	,	3fefaab3800ae1bf 0.9895875454740731
+3	IN	3fed9feccb044bf5 0.9257720914050639
+3	CD	3fee5e4afec32614 0.9490103698564689
+3	IN	3fef668b3f1cc56e 0.9812675697959727
+3	$	3fee47c1650beb15 0.9462592099729102
+3	CD	3fefe525183152ba 0.9967217895997103
+3	.	3fef70ca711d7843 0.9825184067992797
+4	NNP	3fef6e73c611126c 0.9822329395761478
+4	NNP	3fefc7e26b403f4e 0.9931499571557454
+4	VBD	3fefcb64940ed1d5 0.9935782329326296
+4	TO	3fef835dae3e00ce 0.9847858813446011
+4	NNP	3fefbbb652d73d54 0.9916640871032691
+4	,	3fefabf7fe65d318 0.9897422760683154
+4	NNP	3fefa1a3b146bdd6 0.988481374972191
+4	,	3fefaab3800ae1bf 0.9895875454740731
+4	IN	3fed9feccb044bf5 0.9257720914050639
+4	DT	3f8994f585c39461 0.012491148132946774
+4	IN	3fef944d946c5e5a 0.9868533991711488
+4	$	3fee27a080190009 0.9423372747332915
+4	CD	3fefe525183152ba 0.9967217895997103
+4	.	3fef70ca711d7843 0.9825184067992797
+5	NNP	3fef6e73c611126c 0.9822329395761478
+5	NNP	3fefc7e26b403f4e 0.9931499571557454
+5	VBD	3fefcb64940ed1d5 0.9935782329326296
+5	TO	3fef835dae3e00ce 0.9847858813446011
+5	NNP	3fefbbb652d73d54 0.9916640871032691
+5	,	3fefabf7fe65d318 0.9897422760683154
+5	NNP	3fefa1a3b146bdd6 0.988481374972191
+5	,	3fefaab3800ae1bf 0.9895875454740731
+5	RB	3f8635a9bcf9438e 0.010844541625518091
+5	CD	3feed11598801943 0.9630229929469255
+5	IN	3fef9a5675e2da16 0.9875900557006527
+5	$	3fee47c1650beb15 0.9462592099729102
+5	CD	3fefe525183152ba 0.9967217895997103
+5	.	3fef70ca711d7843 0.9825184067992797
+6	DT	3fef3bf98cea9f21 0.9760711433673103
+6	NN	3fef7d71a31c9940 0.9840629754806187
+6	POS	3fedb7f11e742dc2 0.928703841667293
+6	NNP	3fe7c794b0e2bb41 0.7431128935621488
+6	,	3fef64c79eccc774 0.9810522176323802
+6	NNP	3fefd604c4bff008 0.9948753206986121
+6	NNP	3fefca2222b6220f 0.9934244802435063
+6	,	3fef9b35c12b92c7 0.9876965306144364
+6	VBD	3fef7145215e11d6 0.9825769092281529
+6	CD	3fef3ade5790ab97 0.9759360990768638
+6	NN	3fefb6e4ed656a52 0.9910759579318642
+6	IN	3fef97a16a69b000 0.9872595861793343
+6	NNP	3fef9cb9f226e54c 0.9878816346673971
+6	NNS	3fef8afce329b5ed 0.985716289212801
+6	VBD	3fef2db35961c99b 0.9743286844007345
+6	.	3feef06c973ced94 0.9668486551158133
+7	DT	3fef3bf98cea9f21 0.9760711433673103
+7	NN	3fef7d71a31c9940 0.9840629754806187
+7	POS	3fedb7f11e742dc2 0.928703841667293
+7	NN	3fcec64642f0acee 0.2404258562904497
+7	,	3fef7be83309cd6a 0.9838753697244276
+7	NNP	3fefca022a59d530 0.993409235684032
+7	NNP	3fefca2222b6220f 0.9934244802435063
+7	,	3fef9b35c12b92c7 0.9876965306144364
+7	VBD	3fef7145215e11d6 0.9825769092281529
+7	CD	3fef3ade5790ab97 0.9759360990768638
+7	NN	3fefb6e4ed656a52 0.9910759579318642
+7	IN	3fef97a16a69b000 0.9872595861793343
+7	NNP	3fef9cb9f226e54c 0.9878816346673971
+7	NNS	3fef8afce329b5ed 0.985716289212801
+7	VBD	3fef2db35961c99b 0.9743286844007345
+7	.	3feef06c973ced94 0.9668486551158133
+8	DT	3fef3bf98cea9f21 0.9760711433673103
+8	NN	3fef7d71a31c9940 0.9840629754806187
+8	VBZ	3fae59dc1b76d222 0.05927932582145369
+8	NNP	3fed041d0d5db1ac 0.9067521344236886
+8	,	3fef76e181d93cf0 0.9832618270974347
+8	NNP	3fefd604c4bff008 0.9948753206986121
+8	NNP	3fefca2222b6220f 0.9934244802435063
+8	,	3fef9b35c12b92c7 0.9876965306144364
+8	VBD	3fef7145215e11d6 0.9825769092281529
+8	CD	3fef3ade5790ab97 0.9759360990768638
+8	NN	3fefb6e4ed656a52 0.9910759579318642
+8	IN	3fef97a16a69b000 0.9872595861793343
+8	NNP	3fef9cb9f226e54c 0.9878816346673971
+8	NNS	3fef8afce329b5ed 0.985716289212801
+8	VBD	3fef2db35961c99b 0.9743286844007345
+8	.	3feef06c973ced94 0.9668486551158133
+9	PRP	3feeda07f44662ee 0.9641151209826526
+9	VBD	3fec4cc5252983a1 0.8843713498900919
+9	CD	3fe39adb98ad5459 0.6126535398458471
+9	NNS	3fe96c1a88f0f387 0.7944462465890049
+9	IN	3feedc289fdab973 0.9643748399883364
+9	CD	3fedd7e8ee15f764 0.932606186877575
+9	RB	3fe2b59d0bd03ea1 0.5846696120006137
+9	IN	3fef479cf3d0a044 0.9774918329249052
+9	NNP	3fefd6ad396c8f1a 0.9949556466640133
+9	NNP	3fefeb6f5b4dc0b2 0.9974896224284946
+9	NNP	3feeda54de324d82 0.964151796319513
+9	.	3fef884d70708cb2 0.9853884883963444
+10	PRP	3feeda07f44662ee 0.9641151209826526
+10	VBD	3fec4cc5252983a1 0.8843713498900919
+10	CD	3fe39adb98ad5459 0.6126535398458471
+10	NNS	3fe96c1a88f0f387 0.7944462465890049
+10	IN	3feedc289fdab973 0.9643748399883364
+10	CD	3fedd7e8ee15f764 0.932606186877575
+10	NN	3fd95f98fdd7231c 0.3964598158750492
+10	IN	3fef79f97746b397 0.9836394624340866
+10	NNP	3fefdacd1f50bde7 0.9954591380719052
+10	NNP	3fefeb6f5b4dc0b2 0.9974896224284946
+10	NNP	3feeda54de324d82 0.964151796319513
+10	.	3fef884d70708cb2 0.9853884883963444
+11	PRP	3feeda07f44662ee 0.9641151209826526
+11	VBD	3fec4cc5252983a1 0.8843713498900919
+11	DT	3fb25ae68394a8e7 0.07169953071994294
+11	NNS	3fe53a702e28a9c8 0.6633835698642594
+11	IN	3fee57ba559f5007 0.9482089683829152
+11	CD	3fedd7e8ee15f764 0.932606186877575
+11	RB	3fe2b59d0bd03ea1 0.5846696120006137
+11	IN	3fef479cf3d0a044 0.9774918329249052
+11	NNP	3fefd6ad396c8f1a 0.9949556466640133
+11	NNP	3fefeb6f5b4dc0b2 0.9974896224284946
+11	NNP	3feeda54de324d82 0.964151796319513
+11	.	3fef884d70708cb2 0.9853884883963444
+12	NNP	3fe9fad10890c730 0.8118672530456248
+12	NNP	3fe70fd9ae77cd8c 0.720684853322767
+12	VBD	3fedda416842b272 0.9328925167406636
+12	NNP	3feee21cdee48621 0.9651016572353833
+12	NNP	3fee350708e4f753 0.9439730809897163
+12	IN	3fef5eb2293ad14e 0.9803095631855656
+12	NNP	3feef0b3e07928e8 0.9668826469653853
+12	CC	3fef77502adc20b2 0.9833145939928924
+12	NNP	3fefc59af086971c 0.9928717324989722
+12	JJ	3feb795ed4640747 0.8585657261139453
+12	NN	3fefc7b8df476be5 0.9931301461141372
+12	.	3fefc4d6f0e8886e 0.992778273128591
+13	NNP	3fe9fad10890c730 0.8118672530456248
+13	NNPS	3fd116a8282d1f20 0.2670078651758434
+13	VBD	3fecfc6444c1ada5 0.9058095305348856
+13	NNP	3fee6db18448a1cc 0.9508903106371291
+13	NNP	3fee350708e4f753 0.9439730809897163
+13	IN	3fef5eb2293ad14e 0.9803095631855656
+13	NNP	3feef0b3e07928e8 0.9668826469653853
+13	CC	3fef77502adc20b2 0.9833145939928924
+13	NNP	3fefc59af086971c 0.9928717324989722
+13	JJ	3feb795ed4640747 0.8585657261139453
+13	NN	3fefc7b8df476be5 0.9931301461141372
+13	.	3fefc4d6f0e8886e 0.992778273128591
+14	NNP	3fe9fad10890c730 0.8118672530456248
+14	NNP	3fe70fd9ae77cd8c 0.720684853322767
+14	VBD	3fedda416842b272 0.9328925167406636
+14	NNP	3feee21cdee48621 0.9651016572353833
+14	NNP	3fee350708e4f753 0.9439730809897163
+14	IN	3fef5eb2293ad14e 0.9803095631855656
+14	NNP	3feef0b3e07928e8 0.9668826469653853
+14	CC	3fef77502adc20b2 0.9833145939928924
+14	NNP	3fefc59af086971c 0.9928717324989722
+14	VB	3fb5dccce78f357a 0.08540039685541059
+14	NN	3fedfae259461d21 0.9368755096083171
+14	.	3fefb91b7ada26f5 0.9913461112457457
+15	NNP	3fefbedd95e51cd3 0.9920490195881037
+15	CC	3fee970eaa51caa6 0.9559396101525024
+15	NNP	3fefe0037947ca51 0.9960954064138808
+15	NNP	3fefc0c095f7c706 0.9922793320713204
+15	VBD	3fef559f411e77f7 0.9792019149642773
+15	NNS	3feae1cf3c0d2e01 0.840064637458852
+15	:	3feeea860e4d55de 0.9661283759439205
+15	NN	3fe0c273627c77ff 0.5237366603430472
+15	NNP	3fee976467f3e868 0.9559804945304338
+15	NNP	3fefce1994e45cad 0.9939086826369895
+15	VBD	3fef8776977b02b6 0.9852860411266053
+15	.	3fefb1a4fc8a2759 0.9904351169982234
+16	NNP	3fefbedd95e51cd3 0.9920490195881037
+16	CC	3fee970eaa51caa6 0.9559396101525024
+16	NNP	3fefe0037947ca51 0.9960954064138808
+16	NNP	3fefc0c095f7c706 0.9922793320713204
+16	VBD	3fef559f411e77f7 0.9792019149642773
+16	NNS	3feae1cf3c0d2e01 0.840064637458852
+16	:	3feeea860e4d55de 0.9661283759439205
+16	NNP	3fdce829519c23dd 0.45167000741690605
+16	NNP	3fefeac0520df676 0.9974061586978695
+16	NNP	3fefc08862bc5177 0.9922525337629357
+16	VBD	3fef8776977b02b6 0.9852860411266053
+16	.	3fefb1a4fc8a2759 0.9904351169982234
+17	NNP	3fefbedd95e51cd3 0.9920490195881037
+17	CC	3fee970eaa51caa6 0.9559396101525024
+17	NNP	3fefe0037947ca51 0.9960954064138808
+17	NNP	3fefc0c095f7c706 0.9922793320713204
+17	VBD	3fef559f411e77f7 0.9792019149642773
+17	NNS	3feae1cf3c0d2e01 0.840064637458852
+17	:	3feeea860e4d55de 0.9661283759439205
+17	JJ	3f7b81a80b03cb45 0.0067154468708732805
+17	NNP	3fef97b7e70c942e 0.9872703087500037
+17	NNP	3fefce0a90a53cd5 0.9939015221697455
+17	VBD	3fef8776977b02b6 0.9852860411266053
+17	.	3fefb1a4fc8a2759 0.9904351169982234
+18	JJ	3fd8afa651e86480 0.3857208061104487
+18	NNP	3fd8ed19c0b2a4f7 0.3894714719595664
+18	NNS	3fe31b30859a9774 0.5970690354777006
+18	IN	3fef3504cb391844 0.9752220124435174
+18	NNP	3febf4b64c593332 0.8736220828228396
+18	,	3fefad5114ed351d 0.989906826851129
+18	RB	3fef1ad811695e6a 0.9720268573827984
+18	RB	3fe16bd22b88988e 0.5444117403283302
+18	.	3fefb12abfed2fc3 0.9903768299641275
+19	JJ	3fd8afa651e86480 0.3857208061104487
+19	NN	3fd1ff14c573f357 0.28119391710770486
+19	NNS	3fe1a53990185e2b 0.5514190496787185
+19	IN	3fef39ce9b87809b 0.9758065259629974
+19	NNP	3febf4b64c593332 0.8736220828228396
+19	,	3fefad5114ed351d 0.989906826851129
+19	RB	3fef1ad811695e6a 0.9720268573827984
+19	RB	3fe16bd22b88988e 0.5444117403283302
+19	.	3fefb12abfed2fc3 0.9903768299641275
+20	JJ	3fd8afa651e86480 0.3857208061104487
+20	NNP	3fd8ed19c0b2a4f7 0.3894714719595664
+20	NNS	3fe31b30859a9774 0.5970690354777006
+20	IN	3fef3504cb391844 0.9752220124435174
+20	NNP	3febf4b64c593332 0.8736220828228396
+20	,	3fefad5114ed351d 0.989906826851129
+20	RB	3fef1ad811695e6a 0.9720268573827984
+20	NNP	3fd72c68737477ec 0.3620854499330324
+20	.	3fef8faf2cd2a679 0.9862895846792546
+21	JJ	3fb59b00cfaf1e08 0.084396410659899
+21	NN	3fc650acb84f8ccb 0.17433699607418016
+21	IN	3fbb8ce27b89fd63 0.10761847988213939
+21	NNP	3fbfdb8f67a9c576 0.1244439724048528
+21	NNP	3fc4dfa76ab0bfc9 0.16307537755483129
+21	NNP	3fc4288257f62575 0.15748624129291114
+21	NNP	3fd00895ad9f4e8b 0.25052396731664633
+21	.	3fce0650f4f7c831 0.234567756283981
+22	JJ	3fb59b00cfaf1e08 0.084396410659899
+22	NN	3fc650acb84f8ccb 0.17433699607418016
+22	IN	3fbb8ce27b89fd63 0.10761847988213939
+22	JJ	3fbd6d4eb374f8e5 0.11494914895317583
+22	NN	3fcb02e45efc770d 0.21102575910565982
+22	NN	3fbcb159120e6dca 0.11208111468152207
+22	NN	3fc8d15af1268125 0.19388901495859404
+22	.	3fcbfce41ac95ac3 0.21865512187897282
+23	JJ	3fb59b00cfaf1e08 0.084396410659899
+23	NN	3fc650acb84f8ccb 0.17433699607418016
+23	IN	3fbb8ce27b89fd63 0.10761847988213939
+23	NNP	3fbfdb8f67a9c576 0.1244439724048528
+23	NNP	3fc4dfa76ab0bfc9 0.16307537755483129
+23	NNP	3fc4288257f62575 0.15748624129291114
+23	NNP	3fd00895ad9f4e8b 0.25052396731664633
+23	CC	3fc20717af5cdd5b 0.1408414465201798
+24	DT	3fef3340826af635 0.9750063464377435
+24	JJ	3fd47de4a765b74d 0.32018390986819584
+24	NN	3fefd3ec9978c66b 0.9946196553702981
+24	VBD	3fee969ac2228fe7 0.9558843414019947
+24	RB	3fd23266a78d25bc 0.28432623255192957
+24	IN	3fee252b202f6268 0.9420371655097144
+24	NN	3fde282332a49ba3 0.47119979806523754
+24	NNS	3fefc1e91d1a0fb9 0.9924207275766924
+24	VBD	3fef0943697ba5f5 0.9698807773794998
+24	.	3feeaed176ec13c2 0.9588401148508796
+25	DT	3fef3340826af635 0.9750063464377435
+25	JJ	3fd47de4a765b74d 0.32018390986819584
+25	NN	3fefd3ec9978c66b 0.9946196553702981
+25	VBD	3fee969ac2228fe7 0.9558843414019947
+25	VBN	3fca7e3e27b01413 0.20697762430077712
+25	IN	3fee32635d6d23b8 0.9436508965237556
+25	NN	3fde53086887b4de 0.473817922668628
+25	NNS	3fefc1e91d1a0fb9 0.9924207275766924
+25	VBD	3fef0943697ba5f5 0.9698807773794998
+25	.	3feeaed176ec13c2 0.9588401148508796
+26	DT	3fef3340826af635 0.9750063464377435
+26	NN	3fccb9525d0d0784 0.22440557044506815
+26	NN	3feec532ee2f481e 0.9615721370739754
+26	VBD	3feec25bbace0b36 0.9612253807575601
+26	RB	3fd23266a78d25bc 0.28432623255192957
+26	IN	3fee252b202f6268 0.9420371655097144
+26	NN	3fde282332a49ba3 0.47119979806523754
+26	NNS	3fefc1e91d1a0fb9 0.9924207275766924
+26	VBD	3fef0943697ba5f5 0.9698807773794998
+26	.	3feeaed176ec13c2 0.9588401148508796
+27	VB	3fceec59fb2f8431 0.2415878750316849
+27	PRP	3feeb3e01a27c9c6 0.9594574461792085
+27	IN	3fef4bdf26ad7523 0.9780116801663649
+27	NN	3fe0307cfe75adb7 0.5059189767757094
+27	CC	3feee715a9787f83 0.9657085714315915
+27	VB	3fe439733b3dca45 0.6320129544313394
+27	.	3fcd148d2e252277 0.22718968156029337
+27	.	3fefa713dfbed3af 0.9891452188518225
+28	VB	3fceec59fb2f8431 0.2415878750316849
+28	PRP	3feeb3e01a27c9c6 0.9594574461792085
+28	IN	3fef4bdf26ad7523 0.9780116801663649
+28	NNP	3fd3149a8ead43db 0.29813255246432185
+28	CC	3feedc3eae054e2c 0.9643853567926661
+28	VB	3fea13d6e6ba8114 0.8149218088547365
+28	.	3fcd148d2e252277 0.22718968156029337
+28	.	3fefa713dfbed3af 0.9891452188518225
+29	NN	3fc9c06da4acff9b 0.20118494549569452
+29	PRP	3fed04562f7f8a40 0.9067793777179034
+29	IN	3fed10bcb69ceadf 0.9082931105288842
+29	NN	3fe0307cfe75adb7 0.5059189767757094
+29	CC	3feee715a9787f83 0.9657085714315915
+29	VB	3fe439733b3dca45 0.6320129544313394
+29	.	3fcd148d2e252277 0.22718968156029337
+29	.	3fefa713dfbed3af 0.9891452188518225
+30	NNP	3fe8a15f9aaa82b8 0.7696989079305103
+30	NNP	3fef1c2a24083c32 0.9721880630257884
+30	VBD	3fefa4c6c7a0884e 0.9888643168417361
+30	VBN	3feff11b99f71c19 0.9981821066984394
+30	IN	3fef9c21bbb4aab1 0.9878090540053873
+30	NNP	3fefb339141309ad 0.9906278030469388
+30	,	3fef4bfd2fa72719 0.9780260019990435
+30	NNP	3fef46c720472c62 0.9773898725919816
+30	.	3fef86d1d5220570 0.9852074778320183
+31	NN	3fb675b1ea6f2190 0.08773338292588151
+31	NNP	3fed7a4f6610e9a6 0.9211804383733593
+31	VBD	3fefacdc518e1813 0.989851149832932
+31	VBN	3feff11b99f71c19 0.9981821066984394
+31	IN	3fef9c21bbb4aab1 0.9878090540053873
+31	NNP	3fefb339141309ad 0.9906278030469388
+31	,	3fef4bfd2fa72719 0.9780260019990435
+31	NNP	3fef46c720472c62 0.9773898725919816
+31	.	3fef86d1d5220570 0.9852074778320183
+32	CC	3fa36c6afb1c11ce 0.03793653788855843
+32	NNP	3fee99a68469d1be 0.9562561594198582
+32	VBD	3fefa91657cf2c38 0.9893905367874885
+32	VBN	3feff11b99f71c19 0.9981821066984394
+32	IN	3fef9c21bbb4aab1 0.9878090540053873
+32	NNP	3fefb339141309ad 0.9906278030469388
+32	,	3fef4bfd2fa72719 0.9780260019990435
+32	NNP	3fef46c720472c62 0.9773898725919816
+32	.	3fef86d1d5220570 0.9852074778320183
+33	PRP	3fef9a4faea0ce23 0.987586823530766
+33	VBD	3fef8a86b03b49bc 0.9856599275611226
+33	:	3fef32e12ef6c402 0.974960891462729
+33	``	3fef553a1a83ba17 0.9791536825048891
+33	PRP	3fefcda50f993458 0.99385312124799
+33	VBP	3fefe27e035215cc 0.9963979782921171
+33	RB	3fefb70195de8cfe 0.9910896231780553
+33	VBG	3fefb454471a8855 0.9907628430121443
+33	TO	3fefbafe408921c8 0.9915763149702395
+33	NNP	3feaa74252f202c6 0.8329173679377042
+33	.	3fefa97e875ca977 0.9894402164257333
+33	''	3fef063fad63a84d 0.9695127855786808
+34	PRP	3fef9a4faea0ce23 0.987586823530766
+34	VBD	3fef8a86b03b49bc 0.9856599275611226
+34	:	3fef32e12ef6c402 0.974960891462729
+34	``	3fef553a1a83ba17 0.9791536825048891
+34	PRP	3fefcda50f993458 0.99385312124799
+34	VBP	3fefe27e035215cc 0.9963979782921171
+34	RB	3fefb70195de8cfe 0.9910896231780553
+34	VBG	3fefb454471a8855 0.9907628430121443
+34	TO	3fefbafe408921c8 0.9915763149702395
+34	NNP	3feaa74252f202c6 0.8329173679377042
+34	.	3fefa97e875ca977 0.9894402164257333
+34	``	3f92e56144df8cb8 0.018453140095414183
+35	PRP	3fef9a4faea0ce23 0.987586823530766
+35	VBD	3fef8a86b03b49bc 0.9856599275611226
+35	:	3fef32e12ef6c402 0.974960891462729
+35	''	3f915624110f634a 0.016930163899675756
+35	PRP	3fef9d224ab6461a 0.9879313906878366
+35	VBP	3fefe292902b1fcc 0.996407777384769
+35	RB	3fefb70195de8cfe 0.9910896231780553
+35	VBG	3fefb454471a8855 0.9907628430121443
+35	TO	3fefbafe408921c8 0.9915763149702395
+35	NNP	3feaa74252f202c6 0.8329173679377042
+35	.	3fefa97e875ca977 0.9894402164257333
+35	''	3fef063fad63a84d 0.9695127855786808
+36	NN	3fcd06185c5cf346 0.22674850950161324
+36	CC	3fef0d535eb16392 0.9703766679259493
+36	NN	3fd1b33b67a6592b 0.2765644561963138
+36	VBP	3fee9697fa714c4d 0.9558830157715278
+36	NNS	3feedcc1934577b5 0.9644477726358135
+36	:	3fec1fd998edee13 0.8788879382040612
+36	NNP	3fcedcfe4ef03d4b 0.24111918310561928
+36	VBZ	3fefa006288959d5 0.9882841865281146
+36	DT	3fefbe27c3365e67 0.9919623196355588
+36	NN	3fe90f8cbb28c253 0.7831481605008527
+36	NN	3feed07162ccae6c 0.9629446916273543
+36	.	3fef761e0349ff36 0.98316860811608
+37	NNS	3fc3b226e244c069 0.1538742642237623
+37	CC	3fef186b9482a0fa 0.9717309856978595
+37	NNS	3fd5f66aa5e42a69 0.34316507530517143
+37	VBP	3fef91928e563064 0.9865200786603165
+37	NNS	3feef5bce359286a 0.9674972954173999
+37	:	3fec1fd998edee13 0.8788879382040612
+37	NNP	3fcedcfe4ef03d4b 0.24111918310561928
+37	VBZ	3fefa006288959d5 0.9882841865281146
+37	DT	3fefbe27c3365e67 0.9919623196355588
+37	NN	3fe90f8cbb28c253 0.7831481605008527
+37	NN	3feed07162ccae6c 0.9629446916273543
+37	.	3fef761e0349ff36 0.98316860811608
+38	NN	3fcd06185c5cf346 0.22674850950161324
+38	CC	3fef0d535eb16392 0.9703766679259493
+38	NNS	3fccaff39b2f0052 0.22411961629223015
+38	VBP	3fef91928e563064 0.9865200786603165
+38	NNS	3feef5bce359286a 0.9674972954173999
+38	:	3fec1fd998edee13 0.8788879382040612
+38	NNP	3fcedcfe4ef03d4b 0.24111918310561928
+38	VBZ	3fefa006288959d5 0.9882841865281146
+38	DT	3fefbe27c3365e67 0.9919623196355588
+38	NN	3fe90f8cbb28c253 0.7831481605008527
+38	NN	3feed07162ccae6c 0.9629446916273543
+38	.	3fef761e0349ff36 0.98316860811608
+39	CD	3fed42974eee21a7 0.9143787900548447
+39	JJR	3feab1e6fc72ef10 0.8342165880817181
+39	NN	3fef932947ba622a 0.98671401986491
+39	IN	3feecda21da82e9d 0.9626017169225239
+39	NNP	3fef96f7df3b6020 0.987178741454958
+39	NNP	3fef938a5a59ebb2 0.9867603077576546
+39	NNP	3fef95a9fb34ae92 0.9870195299494802
+39	IN	3feecd184fb3eb80 0.9625360066123534
+39	NNP	3fe8d4724d8e18c5 0.7759334101436016
+39	NNP	3fef82167f4b58ea 0.9846298681466383
+39	IN	3fefa2f32b493491 0.9886413426808237
+39	NNP	3fefe896d1b86dd1 0.997142228708464
+39	.	3fefa8b433e67d8a 0.9893437398604175
+40	CD	3fed42974eee21a7 0.9143787900548447
+40	JJR	3feab1e6fc72ef10 0.8342165880817181
+40	NN	3fef932947ba622a 0.98671401986491
+40	IN	3feecda21da82e9d 0.9626017169225239
+40	NNP	3fef96f7df3b6020 0.987178741454958
+40	NNP	3fef938a5a59ebb2 0.9867603077576546
+40	NNP	3fef95a9fb34ae92 0.9870195299494802
+40	IN	3feecd184fb3eb80 0.9625360066123534
+40	DT	3fc2e2b3256821cc 0.14754332853796226
+40	NNP	3fef21b3a19cd0e2 0.9728639751906736
+40	IN	3fef93a40a4e1050 0.9867725564258851
+40	NNP	3fefe896d1b86dd1 0.997142228708464
+40	.	3fefa8b433e67d8a 0.9893437398604175
+41	CD	3fed42974eee21a7 0.9143787900548447
+41	RBR	3fb5154f822a2311 0.08235642364355679
+41	NN	3fe1aa89c7498ca2 0.5520676510172005
+41	IN	3feed647a4b09208 0.9636572090717559
+41	NNP	3fef96f7df3b6020 0.987178741454958
+41	NNP	3fef938a5a59ebb2 0.9867603077576546
+41	NNP	3fef95a9fb34ae92 0.9870195299494802
+41	IN	3feecd184fb3eb80 0.9625360066123534
+41	NNP	3fe8d4724d8e18c5 0.7759334101436016
+41	NNP	3fef82167f4b58ea 0.9846298681466383
+41	IN	3fefa2f32b493491 0.9886413426808237
+41	NNP	3fefe896d1b86dd1 0.997142228708464
+41	.	3fefa8b433e67d8a 0.9893437398604175
+42	NNP	3fef3049db951c61 0.9746445931167608
+42	VBD	3fefa325308849ae 0.988665194310945
+42	NNP	3fef647c4a5b1f4e 0.9810162975563601
+42	MD	3fef7eca820a23a3 0.9842274226985989
+42	VB	3fefa1765131fa99 0.9884597383350694
+42	NNP	3fef7c17a7073336 0.9838979971187658
+42	RB	3fea004eea8d2092 0.8125376301841405
+42	IN	3fef4f33cfc28d77 0.9784182603656707
+42	CD	3fecd92076793a32 0.901504737275735
+42	.	3fefd976cd074e43 0.9952959064925796
+43	NNP	3fef3049db951c61 0.9746445931167608
+43	VBD	3fefa325308849ae 0.988665194310945
+43	NNP	3fef647c4a5b1f4e 0.9810162975563601
+43	MD	3fef7eca820a23a3 0.9842274226985989
+43	VB	3fefa1765131fa99 0.9884597383350694
+43	NNP	3fef7c17a7073336 0.9838979971187658
+43	RB	3fea004eea8d2092 0.8125376301841405
+43	IN	3fef4f33cfc28d77 0.9784182603656707
+43	NNP	3f908e75d2b4b16c 0.016168442712272066
+43	.	3fefa1e871451f99 0.9885141575150441
+44	NNP	3fef3049db951c61 0.9746445931167608
+44	VBD	3fefa325308849ae 0.988665194310945
+44	NNP	3fef647c4a5b1f4e 0.9810162975563601
+44	MD	3fef7eca820a23a3 0.9842274226985989
+44	VB	3fefa1765131fa99 0.9884597383350694
+44	NNP	3fef7c17a7073336 0.9838979971187658
+44	RB	3fea004eea8d2092 0.8125376301841405
+44	IN	3fef4f33cfc28d77 0.9784182603656707
+44	VBG	3f90a4e460a481e9 0.01625401344165481
+44	.	3fef4e1483a8c5c4 0.9782812663526603
+45	DT	3fc02d01c678b249 0.12637350264539496
+end	turbo:beam-outcomes

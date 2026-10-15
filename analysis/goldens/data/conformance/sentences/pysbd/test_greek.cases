@@ -1,0 +1,14 @@
+# Converted from tests/lang/test_greek.py of pySBD
+# (github.com/nipunsadvilkar/pySBD, commit 5905f13be4fc95f407b98392e0ec303617a33d86),
+# MIT License, Copyright (c) 2019 Nipun Sadvilkar (LICENSE in this directory).
+# One case per entry of each test list, in file order; `name` is the list's name and,
+# for the regression tests, the issue number; `option` the segmenter options its test uses.
+
+case pysbd/test_greek/001
+lang el
+name GOLDEN_EL_RULES_TEST_CASES
+text Με συγχωρείτε· πού είναι οι τουαλέτες; Τις Κυριακές δε δούλευε κανένας. το κόστος του σπιτιού ήταν £260.950,00.
+sentence Με συγχωρείτε· πού είναι οι τουαλέτες;
+sentence Τις Κυριακές δε δούλευε κανένας.
+sentence το κόστος του σπιτιού ήταν £260.950,00.
+end

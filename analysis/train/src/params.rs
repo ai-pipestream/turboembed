@@ -464,7 +464,7 @@ pub enum Algorithm {
     MaxentQn,
     /// `PERCEPTRON`: `PerceptronTrainer`, model type `Perceptron`.
     Perceptron,
-    /// `PERCEPTRON_SEQUENCE`: `SimplePerceptronSequenceTrainer`, a sequence
+    /// `PERCEPTRON_SEQUENCE`: `SimplePerceptronSequenceTrainer`, an event model sequence
     /// trainer, model type `Perceptron`.
     PerceptronSequence,
     /// `NAIVEBAYES`: `NaiveBayesTrainer`, model type `NaiveBayes`.
@@ -512,10 +512,14 @@ impl Algorithm {
         Algorithm::ALL.into_iter().find(|a| a.model_type() == model_type)
     }
 
-    /// Which kind of trainer the algorithm's trainer class is.
+    /// Which kind of trainer the algorithm's trainer class is, as
+    /// `TrainerFactory.getTrainerType` finds it: `SimplePerceptronSequenceTrainer`
+    /// extends `AbstractEventModelSequenceTrainer`, an
+    /// `EventModelSequenceTrainer`, and every other built in trainer is an
+    /// `EventTrainer`. No built in trainer is a `SequenceTrainer`.
     pub fn trainer_type(self) -> TrainerType {
         match self {
-            Algorithm::PerceptronSequence => TrainerType::Sequence,
+            Algorithm::PerceptronSequence => TrainerType::EventModelSequence,
             _ => TrainerType::Event,
         }
     }
@@ -719,7 +723,7 @@ mod tests {
         assert_eq!(Algorithm::Maxent.model_type(), "GIS");
         assert_eq!(Algorithm::from_model_type("Perceptron"), Some(Algorithm::Perceptron));
         assert_eq!(Algorithm::from_model_type("gis"), None);
-        assert_eq!(Algorithm::PerceptronSequence.trainer_type(), TrainerType::Sequence);
+        assert_eq!(Algorithm::PerceptronSequence.trainer_type(), TrainerType::EventModelSequence);
         assert_eq!(Algorithm::NaiveBayes.trainer_type(), TrainerType::Event);
         for a in Algorithm::ALL {
             assert_eq!(Algorithm::from_name(a.name()).unwrap(), a);
@@ -733,7 +737,7 @@ mod tests {
         assert_eq!(trainer_type(&p).unwrap(), Some(TrainerType::Event));
         assert!(is_valid(&p).unwrap());
         p.put(Key::ALGORITHM, "PERCEPTRON_SEQUENCE");
-        assert_eq!(trainer_type(&p).unwrap(), Some(TrainerType::Sequence));
+        assert_eq!(trainer_type(&p).unwrap(), Some(TrainerType::EventModelSequence));
         p.put(Key::ALGORITHM, "com.example.MyTrainer");
         assert_eq!(trainer_type(&p).unwrap(), None);
         assert!(!is_valid(&p).unwrap());
