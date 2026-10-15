@@ -58,7 +58,7 @@ mod vocab;
 pub use annotate::RulerAnnotator;
 pub use attr::{Attr, Flag};
 pub use matcher::{Greedy, Match, MatchError, Matcher, MatcherBuilder};
-pub use pattern::{Cmp, Op, Pattern, PatternError, Tok};
+pub use pattern::{Cmp, MAX_ELEMENTS, Op, Pattern, PatternError, Tok};
 pub use phrase::{PhraseError, PhraseMatcher, PhraseMatcherBuilder, PhraseOn};
 pub use ruler::{Overlap, Ruler};
 pub use seq::{Sequence, SequenceError};

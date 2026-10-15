@@ -11,6 +11,7 @@
 //! found by binary search; the root's, where the walk returns after every
 //! mismatch, are a table indexed by symbol, one load per token.
 
+use std::collections::HashMap;
 use std::sync::Arc;
 
 use turbo_analysis::{Tag, TagSet};
@@ -34,10 +35,12 @@ pub struct PhraseMatcherBuilder {
     on: PhraseOn,
     vocab: Vocab,
     labels: Vec<String>,
+    index: HashMap<String, u32>,
     removed: Vec<bool>,
     /// Every phrase's symbols, one after another.
     syms: Vec<Sym>,
-    /// Per phrase: its label and its end in `syms`.
+    /// Per phrase: its label, `u32::MAX` once removed, and its end in
+    /// `syms`.
     phrases: Vec<(u32, u32)>,
 }
 
@@ -47,6 +50,7 @@ impl PhraseMatcherBuilder {
             on,
             vocab: Vocab::default(),
             labels: Vec::new(),
+            index: HashMap::new(),
             removed: Vec::new(),
             syms: Vec::new(),
             phrases: Vec::new(),
@@ -57,22 +61,27 @@ impl PhraseMatcherBuilder {
         if label.is_empty() {
             return Err(PatternError::EmptyLabel);
         }
-        if let Some(i) = self.labels.iter().position(|l| l == label) {
-            self.removed[i] = false;
-            return Ok(i as u32);
+        if let Some(&i) = self.index.get(label) {
+            self.removed[i as usize] = false;
+            return Ok(i);
         }
+        let i = self.labels.len() as u32;
         self.labels.push(label.into());
+        self.index.insert(label.into(), i);
         self.removed.push(false);
-        Ok((self.labels.len() - 1) as u32)
+        Ok(i)
     }
 
     fn push(&mut self, label: &str, syms: impl IntoIterator<Item = Sym>) -> Result<(), PatternError> {
-        let l = self.label(label)?;
+        if label.is_empty() {
+            return Err(PatternError::EmptyLabel);
+        }
         let before = self.syms.len();
         self.syms.extend(syms);
         if self.syms.len() == before {
             return Err(PatternError::EmptyPhrase);
         }
+        let l = self.label(label)?;
         self.phrases.push((l, self.syms.len() as u32));
         Ok(())
     }
@@ -119,9 +128,14 @@ impl PhraseMatcherBuilder {
 
     /// Removes a label and its phrases; false when there was none.
     pub fn remove(&mut self, label: &str) -> bool {
-        match self.labels.iter().position(|l| l == label) {
-            Some(i) if !self.removed[i] => {
-                self.removed[i] = true;
+        match self.index.get(label) {
+            Some(&i) if !self.removed[i as usize] => {
+                self.removed[i as usize] = true;
+                for p in &mut self.phrases {
+                    if p.0 == i {
+                        p.0 = u32::MAX;
+                    }
+                }
                 true
             }
             _ => false,
@@ -129,7 +143,7 @@ impl PhraseMatcherBuilder {
     }
 
     pub fn contains(&self, label: &str) -> bool {
-        self.labels.iter().zip(&self.removed).any(|(l, &r)| l == label && !r)
+        self.index.get(label).is_some_and(|&i| !self.removed[i as usize])
     }
 
     /// How many labels have phrases.
@@ -157,7 +171,7 @@ impl PhraseMatcherBuilder {
         let mut phrases: Vec<(&[Sym], u16)> = Vec::new();
         let mut from = 0usize;
         for &(l, end) in &self.phrases {
-            if renumber[l as usize] != u32::MAX {
+            if l != u32::MAX && renumber[l as usize] != u32::MAX {
                 phrases.push((&self.syms[from..end as usize], renumber[l as usize] as u16));
             }
             from = end as usize;

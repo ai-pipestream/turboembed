@@ -221,7 +221,14 @@ pub enum PatternError {
     Labels,
     /// A label that is the empty string.
     EmptyLabel,
+    /// A pattern that, with its repeats written out, has more than
+    /// `MAX_ELEMENTS` steps.
+    TooLong,
 }
+
+/// The most steps a compiled pattern may have, counting each step of a
+/// repeat: `a{2,5}` is five.
+pub const MAX_ELEMENTS: usize = 65536;
 
 impl fmt::Display for PatternError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -233,6 +240,9 @@ impl fmt::Display for PatternError {
             PatternError::PhraseValue => f.write_str("a phrase's values must be of the kind its matcher compares"),
             PatternError::Labels => f.write_str("more than 65536 labels"),
             PatternError::EmptyLabel => f.write_str("a label must not be empty"),
+            PatternError::TooLong => {
+                write!(f, "a pattern with its repeats written out has more than {MAX_ELEMENTS} steps")
+            }
         }
     }
 }

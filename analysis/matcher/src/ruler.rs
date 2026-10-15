@@ -2,6 +2,7 @@
 //! together, their labels merged, overlaps settled by one policy, written
 //! as a `turbo:matches` layer (spaCy's `SpanRuler`).
 
+use std::collections::HashMap;
 use std::sync::Arc;
 
 use turbo_analysis::{IxRange, Tag, TagSet, ViewId};
@@ -46,15 +47,17 @@ impl Ruler {
     /// numbered where it first appears, token matcher first.
     pub fn new(matcher: Option<Matcher>, phrases: Vec<PhraseMatcher>, overlap: Overlap) -> Result<Ruler, PatternError> {
         let mut names: Vec<String> = Vec::new();
+        let mut index: HashMap<String, usize> = HashMap::new();
         let mut maps = Vec::new();
         let sources = matcher.iter().map(Matcher::labels).chain(phrases.iter().map(PhraseMatcher::labels));
         for set in sources {
             let mut map = Vec::with_capacity(set.len());
             for i in 0..set.len() {
                 let name = set.label(Tag(i as u16));
-                let at = match names.iter().position(|n| n == name) {
-                    Some(at) => at,
+                let at = match index.get(name) {
+                    Some(&at) => at,
                     None => {
+                        index.insert(name.into(), names.len());
                         names.push(name.into());
                         names.len() - 1
                     }

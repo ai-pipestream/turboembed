@@ -14,6 +14,7 @@
 use std::collections::HashMap;
 use std::fmt;
 use std::hash::BuildHasherDefault;
+use std::ops::Range;
 use std::sync::Arc;
 
 use regex::Regex;
@@ -21,7 +22,7 @@ use turbo_analysis::{Tag, TagSet};
 
 use crate::attr::{Attr, Flag};
 use crate::fuzzy;
-use crate::pattern::{Cmp, Op, Pattern, PatternError, Test, Tok};
+use crate::pattern::{Cmp, MAX_ELEMENTS, Op, Pattern, PatternError, Test, Tok};
 use crate::seq::{Buf, Sequence};
 use crate::vocab::{Fnv, FoldHasher, NONE, Sym, Vocab};
 
@@ -75,6 +76,8 @@ struct Rule {
 #[derive(Default)]
 pub struct MatcherBuilder {
     rules: Vec<Rule>,
+    /// Each rule's position in `rules`, by label.
+    index: HashMap<String, usize>,
 }
 
 impl MatcherBuilder {
@@ -92,25 +95,32 @@ impl MatcherBuilder {
             // Checked here so a bad pattern is reported where it is added.
             compile(p, &mut Vocab::default(), &mut Vec::new(), &mut Vec::new())?;
         }
-        match self.rules.iter_mut().find(|r| r.label == label) {
-            Some(r) => {
+        match self.index.get(label) {
+            Some(&i) => {
+                let r = &mut self.rules[i];
                 r.patterns.extend(patterns);
                 r.greedy = greedy;
             }
-            None => self.rules.push(Rule { label: label.into(), patterns, greedy }),
+            None => {
+                self.index.insert(label.into(), self.rules.len());
+                self.rules.push(Rule { label: label.into(), patterns, greedy });
+            }
         }
         Ok(())
     }
 
     /// Removes a label and its patterns; false when there was none.
     pub fn remove(&mut self, label: &str) -> bool {
-        let n = self.rules.len();
-        self.rules.retain(|r| r.label != label);
-        self.rules.len() != n
+        let Some(i) = self.index.remove(label) else { return false };
+        self.rules.remove(i);
+        for r in &self.rules[i..] {
+            *self.index.get_mut(&r.label).unwrap() -= 1;
+        }
+        true
     }
 
     pub fn contains(&self, label: &str) -> bool {
-        self.rules.iter().any(|r| r.label == label)
+        self.index.contains_key(label)
     }
 
     /// How many labels have patterns.
@@ -183,6 +193,7 @@ enum Quant {
 }
 
 /// A test compiled against the matcher's symbol columns.
+#[derive(Clone)]
 enum Check {
     Eq {
         col: u16,
@@ -215,6 +226,7 @@ impl Slow {
     }
 }
 
+#[derive(Clone)]
 struct Elem {
     quant: Quant,
     checks: Vec<Check>,
@@ -269,30 +281,38 @@ fn compile(
     cols: &mut Vec<Attr>,
     slow: &mut Vec<Slow>,
 ) -> Result<Vec<Elem>, PatternError> {
-    let mut elems = Vec::new();
+    let mut elems: Vec<Elem> = Vec::new();
     for (origin, tok) in pattern.iter().enumerate() {
-        let quants: Vec<Quant> = match tok.op {
-            Op::One => vec![Quant::One],
-            Op::Optional => vec![Quant::Opt],
-            Op::ZeroOrMore => vec![Quant::Star],
-            Op::OneOrMore => vec![Quant::One, Quant::Star],
-            Op::Not => vec![Quant::Not],
+        // (quantifier, count): the steps this token writes out.
+        let quants: [(Quant, usize); 2] = match tok.op {
+            Op::One => [(Quant::One, 1), (Quant::One, 0)],
+            Op::Optional => [(Quant::Opt, 1), (Quant::One, 0)],
+            Op::ZeroOrMore => [(Quant::Star, 1), (Quant::One, 0)],
+            Op::OneOrMore => [(Quant::One, 1), (Quant::Star, 1)],
+            Op::Not => [(Quant::Not, 1), (Quant::One, 0)],
             Op::Repeat { min, max } => {
                 if let Some(max) = max
                     && (max == 0 || max < min)
                 {
                     return Err(PatternError::Repeat { min, max });
                 }
-                let mut q = vec![Quant::One; min as usize];
                 match max {
-                    Some(max) => q.extend(std::iter::repeat_n(Quant::Opt, (max - min) as usize)),
-                    None => q.push(Quant::Star),
+                    Some(max) => [(Quant::One, min as usize), (Quant::Opt, (max - min) as usize)],
+                    None => [(Quant::One, min as usize), (Quant::Star, 1)],
                 }
-                q
             }
         };
-        for quant in quants {
-            elems.push(compile_tok(tok, quant, origin as u16, vocab, cols, slow)?);
+        let steps = quants[0].1.saturating_add(quants[1].1);
+        if elems.len().saturating_add(steps) > MAX_ELEMENTS {
+            return Err(PatternError::TooLong);
+        }
+        // The tests are compiled once and shared by the token's steps, so
+        // a regex or fuzzy test in a repeat runs once per token.
+        let compiled = compile_tok(tok, Quant::One, origin as u16, vocab, cols, slow)?;
+        for (quant, count) in quants {
+            for _ in 0..count {
+                elems.push(Elem { quant, ..compiled.clone() });
+            }
         }
     }
     // A pattern must be able to take a token: one with no elements, or
@@ -396,6 +416,11 @@ fn key(col: u16, sym: Sym) -> u64 {
 /// kept results of slow tests.
 struct Ctx<'s, 'a> {
     seq: &'s Sequence<'a>,
+    /// The first token the columns, flags and slow results cover; they
+    /// are indexed by token minus `base`.
+    base: usize,
+    /// How many tokens they cover.
+    width: usize,
     cols: Vec<Vec<Sym>>,
     flags: Vec<u32>,
     /// Per slow test and token: 0 not yet run, 1 failed, 2 passed.
@@ -498,16 +523,18 @@ impl Matcher {
         Ok(())
     }
 
-    fn ctx<'s, 'a>(&self, seq: &'s Sequence<'a>) -> Result<Ctx<'s, 'a>, MatchError> {
+    /// The values the tests read, for the tokens in `range`.
+    fn ctx<'s, 'a>(&self, seq: &'s Sequence<'a>, range: Range<usize>) -> Result<Ctx<'s, 'a>, MatchError> {
         self.check_inputs(seq)?;
         let mut buf = Buf::default();
         let cols = self
             .cols
             .iter()
-            .map(|&a| (0..seq.len()).map(|i| seq.with_value(a, i, &mut buf, |v| self.vocab.get(v))).collect())
+            .map(|&a| range.clone().map(|i| seq.with_value(a, i, &mut buf, |v| self.vocab.get(v))).collect())
             .collect();
-        let flags = if self.flags != 0 { seq.flags() } else { Vec::new() };
-        Ok(Ctx { seq, cols, flags, slow: vec![0; self.slow.len() * seq.len()], buf, row: Vec::new() })
+        let flags = if self.flags != 0 { seq.flags_in(range.clone()) } else { Vec::new() };
+        let slow = vec![0; self.slow.len() * range.len()];
+        Ok(Ctx { seq, base: range.start, width: range.len(), cols, flags, slow, buf, row: Vec::new() })
     }
 
     /// Every match of every rule in the sequence, after each rule's
@@ -515,8 +542,8 @@ impl Matcher {
     /// over one run of tokens is reported once, however many of its
     /// patterns or paths through a pattern reach it.
     pub fn find(&self, seq: &Sequence<'_>) -> Result<Vec<Match>, MatchError> {
-        let mut ctx = self.ctx(seq)?;
         let n = seq.len();
+        let mut ctx = self.ctx(seq, 0..n)?;
         let mut found = Vec::new();
         let mut stamp = vec![u32::MAX; self.programs.len()];
         let words = self.programs.iter().map(|p| p.words).max().unwrap_or(1);
@@ -603,14 +630,15 @@ impl Matcher {
         if e.never {
             return false;
         }
-        if e.flag_mask != 0 && ctx.flags[j] & e.flag_mask != e.flag_want {
+        let at = j - ctx.base;
+        if e.flag_mask != 0 && ctx.flags[at] & e.flag_mask != e.flag_want {
             return false;
         }
         for c in &e.checks {
             let ok = match c {
-                Check::Eq { col, sym } => ctx.cols[*col as usize][j] == *sym,
-                Check::In { col, syms } => syms.binary_search(&ctx.cols[*col as usize][j]).is_ok(),
-                Check::NotIn { col, syms } => syms.binary_search(&ctx.cols[*col as usize][j]).is_err(),
+                Check::Eq { col, sym } => ctx.cols[*col as usize][at] == *sym,
+                Check::In { col, syms } => syms.binary_search(&ctx.cols[*col as usize][at]).is_ok(),
+                Check::NotIn { col, syms } => syms.binary_search(&ctx.cols[*col as usize][at]).is_err(),
                 Check::Length(cmp, n) => cmp.holds(ctx.seq.text(j).chars().count() as u32, *n),
                 Check::Slow(s) => self.slow_test(*s as usize, j, ctx),
             };
@@ -622,7 +650,7 @@ impl Matcher {
     }
 
     fn slow_test(&self, s: usize, j: usize, ctx: &mut Ctx) -> bool {
-        let slot = s * ctx.seq.len() + j;
+        let slot = s * ctx.width + (j - ctx.base);
         if ctx.slow[slot] != 0 {
             return ctx.slow[slot] == 2;
         }
@@ -668,71 +696,65 @@ impl Matcher {
     /// as it can while the rest still matches, the earliest first. None
     /// when no pattern of the rule matches that run.
     pub fn align(&self, seq: &Sequence<'_>, m: &Match) -> Result<Option<Vec<u16>>, MatchError> {
-        let mut ctx = self.ctx(seq)?;
         let (start, end) = (m.start as usize, m.end as usize);
-        for prog in self.programs.iter().filter(|p| p.label == m.label.0) {
-            let mut path = Vec::with_capacity(end - start);
-            let mut dead = vec![false; (prog.elems.len() + 1) * (end - start + 1)];
-            if self.walk(prog, 0, start, start, end, &mut ctx, &mut path, &mut dead) {
-                return Ok(Some(path));
-            }
-        }
-        Ok(None)
+        let mut ctx = self.ctx(seq, start..end)?;
+        Ok(self.programs.iter().filter(|p| p.label == m.label.0).find_map(|p| self.walk(p, start, end, &mut ctx)))
     }
 
-    #[allow(clippy::too_many_arguments)]
-    fn walk(
-        &self,
-        prog: &Program,
-        k: usize,
-        j: usize,
-        start: usize,
-        end: usize,
-        ctx: &mut Ctx,
-        path: &mut Vec<u16>,
-        dead: &mut [bool],
-    ) -> bool {
+    /// The first parse of tokens `[start, end)` by one program, in the
+    /// order a backtracking matcher tries the ways: take the token, then
+    /// skip the element. A table of which states (element, token) can
+    /// still reach the end is filled from the last token back, then the
+    /// path is read forward, taking the first way whose state can.
+    fn walk(&self, prog: &Program, start: usize, end: usize, ctx: &mut Ctx) -> Option<Vec<u16>> {
         let m = prog.elems.len();
-        let slot = k * (end - start + 1) + (j - start);
-        if dead[slot] {
-            return false;
-        }
-        if j == end && (k == m || (k..m).all(|i| prog.skippable(i))) {
-            return true;
-        }
-        if k < m {
-            let e = &prog.elems[k];
-            let pass = j < end && self.passes(e, j, ctx);
-            let took = match e.quant {
-                Quant::Star if pass => {
-                    path.push(e.origin);
-                    self.walk(prog, k, j + 1, start, end, ctx, path, dead) || {
-                        path.pop();
-                        false
-                    }
+        let width = end - start + 1;
+        // live[j * (m + 1) + k]: from element k at token start + j, the
+        // rest of the run can be taken.
+        let mut live = vec![false; width * (m + 1)];
+        let at = |j: usize, k: usize| j * (m + 1) + k;
+        let mut step = vec![None; width * (m + 1)];
+        for j in (0..width).rev() {
+            for k in (0..=m).rev() {
+                if k == m {
+                    live[at(j, k)] = j + 1 == width;
+                    continue;
                 }
-                Quant::One | Quant::Opt if pass => {
-                    path.push(e.origin);
-                    self.walk(prog, k + 1, j + 1, start, end, ctx, path, dead) || {
-                        path.pop();
-                        false
+                let e = &prog.elems[k];
+                let token = start + j;
+                let next = if token < end {
+                    let pass = self.passes(e, token, ctx);
+                    match e.quant {
+                        Quant::Star if pass => Some(k),
+                        Quant::One | Quant::Opt if pass => Some(k + 1),
+                        Quant::Not if !pass => Some(k + 1),
+                        _ => None,
                     }
+                } else {
+                    None
+                };
+                if let Some(n) = next.filter(|&n| live[at(j + 1, n)]) {
+                    live[at(j, k)] = true;
+                    step[at(j, k)] = Some((n, true));
+                } else if prog.skippable(k) && live[at(j, k + 1)] {
+                    live[at(j, k)] = true;
+                    step[at(j, k)] = Some((k + 1, false));
                 }
-                Quant::Not if j < end && !pass => {
-                    path.push(e.origin);
-                    self.walk(prog, k + 1, j + 1, start, end, ctx, path, dead) || {
-                        path.pop();
-                        false
-                    }
-                }
-                _ => false,
-            };
-            if took || (prog.skippable(k) && self.walk(prog, k + 1, j, start, end, ctx, path, dead)) {
-                return true;
             }
         }
-        dead[slot] = true;
-        false
+        if !live[at(0, 0)] {
+            return None;
+        }
+        let (mut j, mut k) = (0, 0);
+        let mut path = Vec::with_capacity(end - start);
+        while let Some((n, took)) = step[at(j, k)] {
+            if took {
+                path.push(prog.elems[k].origin);
+                j += 1;
+            }
+            k = n;
+        }
+        Some(path)
     }
 }
 
@@ -745,9 +767,15 @@ pub(crate) fn keep_greedy(group: &[Match], g: Greedy) -> Vec<Match> {
         Greedy::First => order.sort_by_key(|m| (m.start, std::cmp::Reverse(m.end))),
         Greedy::Longest => order.sort_by_key(|m| (std::cmp::Reverse(m.end - m.start), m.start)),
     }
+    // Tokens already covered by a kept match, from the first start on.
+    let base = order.iter().map(|m| m.start).min().unwrap_or(0);
+    let top = order.iter().map(|m| m.end).max().unwrap_or(0);
+    let mut taken = vec![false; (top - base) as usize];
     let mut kept: Vec<Match> = Vec::new();
     for m in order {
-        if kept.iter().all(|k| k.end <= m.start || m.end <= k.start) {
+        let run = &mut taken[(m.start - base) as usize..(m.end - base) as usize];
+        if !run.contains(&true) {
+            run.fill(true);
             kept.push(m);
         }
     }

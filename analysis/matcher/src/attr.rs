@@ -21,10 +21,13 @@ pub enum Attr {
     /// have one form. Not spaCy's `NORM`, which is the lowercase form with
     /// per-language exceptions.
     Norm,
-    /// The word shape as spaCy's `word_shape` writes it: `x` for a
-    /// lowercase letter, `X` for an uppercase one, `d` for a decimal digit,
-    /// any other character as itself, a run of one symbol cut after four,
-    /// and `LONG` for text of 100 characters or more. `Apple3` is `Xxxxxd`.
+    /// The word shape after spaCy's `word_shape`: `x` for a lowercase
+    /// letter, `X` for an uppercase one, `d` for a decimal digit, any
+    /// other character as itself, a run of one symbol cut after four, and
+    /// `LONG` for text of 100 characters or more. `Apple3` is `Xxxxxd`.
+    /// spaCy tests digits with Python's `isdigit`, which also takes
+    /// superscripts and circled digits such as `²` and `①`; here only
+    /// decimal digits (Nd) are `d`, as for `Flag::Digit`.
     Shape,
     /// The token's lemma, from `opennlp:lemmas`.
     Lemma,

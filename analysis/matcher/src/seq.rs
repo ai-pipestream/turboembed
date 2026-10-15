@@ -284,7 +284,12 @@ impl<'a> Sequence<'a> {
 
     /// The flags of every token, a bit per `Flag`.
     pub(crate) fn flags(&self) -> Vec<u32> {
-        (0..self.len())
+        self.flags_in(0..self.len())
+    }
+
+    /// The flags of the tokens in `range`.
+    pub(crate) fn flags_in(&self, range: std::ops::Range<usize>) -> Vec<u32> {
+        range
             .map(|i| {
                 let text = self.text(i);
                 let mut bits = attr::lexical_flags(text);

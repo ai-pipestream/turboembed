@@ -191,3 +191,19 @@ fn bad_phrases_are_refused() {
     let mut b = PhraseMatcher::builder(PhraseOn::Flag(Flag::Punct));
     assert_eq!(b.add("TEST", &["x"]), Err(PatternError::PhraseValue));
 }
+
+#[test]
+fn a_label_added_again_after_remove_has_only_its_new_phrases() {
+    let mut b = PhraseMatcher::builder(PhraseOn::Attr(Attr::Text));
+    b.add("A", &["x"]).unwrap();
+    assert!(b.remove("A"));
+    b.add("A", &["y"]).unwrap();
+    assert_eq!(phrase_found(&b.build().unwrap(), &doc(&["x", "y"])), labelled(&[("A", 1, 2)]));
+    // A refused phrase does not bring a removed label back.
+    let mut b = PhraseMatcher::builder(PhraseOn::Attr(Attr::Text));
+    b.add("A", &["x"]).unwrap();
+    assert!(b.remove("A"));
+    assert_eq!(b.add("A", &[]), Err(PatternError::EmptyPhrase));
+    assert!(!b.contains("A"));
+    assert_eq!(b.len(), 0);
+}

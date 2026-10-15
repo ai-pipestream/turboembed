@@ -15,7 +15,7 @@
 mod common;
 
 use common::{doc, find, found, spans, split};
-use turbo_matcher::{Attr, Cmp, Flag, Greedy, MatchError, Matcher, Op, Pattern, Tok};
+use turbo_matcher::{Attr, Cmp, Flag, Greedy, Match, MatchError, Matcher, Op, Pattern, PatternError, Tok};
 
 fn matcher(rules: &[(&str, Vec<Pattern>)]) -> Matcher {
     let mut b = Matcher::builder();
@@ -749,4 +749,43 @@ fn min_max_operators() {
         let m = matcher(&[("TEST", vec![vec![Tok::text("foo").op(op)]])]);
         assert_eq!(find(&m, &d).len(), n, "{op:?}");
     }
+}
+
+#[test]
+fn long_matches_align_without_deep_recursion() {
+    // One token per step of the walk: a recursive walk would overflow the
+    // stack here.
+    let mut words = vec!["a"; 200_000];
+    words.push("b");
+    let d = doc(&words);
+    let mut b = Matcher::builder();
+    b.add("R", vec![vec![Tok::text("a").one_or_more(), Tok::text("b")]], Some(Greedy::Longest)).unwrap();
+    let m = b.build().unwrap();
+    // Built directly: finding it runs the pattern from every start to the
+    // end of the document, which is slow in a debug build.
+    let x = Match { start: 0, end: 200_001, label: m.labels().tag("R").unwrap() };
+    let a = m.align(&d.seq(), &x).unwrap().unwrap();
+    assert_eq!(a.len(), 200_001);
+    assert!(a[..200_000].iter().all(|&x| x == 0) && a[200_000] == 1);
+}
+
+#[test]
+fn the_greedy_filter_keeps_many_matches_quickly() {
+    // Every token a match: the filter keeps them all without comparing
+    // each with every kept one.
+    let words = vec!["a"; 400_000];
+    let d = doc(&words);
+    let mut b = Matcher::builder();
+    b.add("R", vec![vec![Tok::text("a")]], Some(Greedy::First)).unwrap();
+    let t = std::time::Instant::now();
+    assert_eq!(b.build().unwrap().find(&d.seq()).unwrap().len(), 400_000);
+    assert!(t.elapsed().as_secs() < 20, "{:?}", t.elapsed());
+}
+
+#[test]
+fn repeats_too_long_to_write_out_are_refused() {
+    let mut b = Matcher::builder();
+    assert_eq!(b.add("R", vec![vec![Tok::text("a").repeat(0, Some(5_000_000))]], None), Err(PatternError::TooLong));
+    assert_eq!(b.add("R", vec![vec![Tok::text("a").repeat(u32::MAX, None)]], None), Err(PatternError::TooLong));
+    assert!(b.add("R", vec![vec![Tok::text("a").repeat(0, Some(1000))]], None).is_ok());
 }
