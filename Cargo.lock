@@ -1872,6 +1872,7 @@ dependencies = [
  "turbo-normalize",
  "turbo-numeric",
  "turbo-phrase-chunker",
+ "turbo-pii",
  "turbo-postag",
  "turbo-sentdetect",
  "turbo-tokenize",
@@ -2076,6 +2077,16 @@ dependencies = [
  "turbo-maxent",
  "turbo-sequence",
  "turbo-train",
+ "turbo-unicode",
+]
+
+[[package]]
+name = "turbo-pii"
+version = "0.1.0"
+dependencies = [
+ "turbo-analysis",
+ "turbo-analysis-layers",
+ "turbo-goldens",
  "turbo-unicode",
 ]
 

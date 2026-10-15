@@ -639,6 +639,26 @@ the values. `quantity/<notation>/quantity/<id>.golden` holds the layer
 `turbo:quantities`; see `analysis/goldens-tool/README.md`. Only the
 quantity annotator runs on the set, and it has no dumps.
 
+## PII goldens
+
+`inputs/pii/` holds 61 short texts written for the PII packs: e-mail
+addresses in every case and with sub domains, tags, brackets and
+`mailto:`, phone numbers in international and national forms, grouped,
+compact and lower case IBANs, test card numbers with and without
+separators, ABA routing numbers, IPv4, IPv6 (compressed, with an IPv4
+tail) and MAC addresses, AWS keys, GitHub tokens, a JWT and URL
+credentials, Bitcoin and Ethereum addresses, SSNs, ITINs, NHS numbers, a
+Steuer-ID, a labelled SIN and IMEIs; for each, near misses (a wrong check
+digit, a reserved value, a missing label, letters running into the value)
+and non-ASCII text around the values (German, Japanese, emoji, letters
+outside the Basic Multilingual Plane, no-break spaces, fullwidth and
+Arabic-Indic digits). Every value is a documented test value, in a range
+set aside for examples (`example.com`, `192.0.2.0/24`, `2001:db8::/32`,
+555 and Ofcom drama numbers) or made up; none is real personal data.
+`pii/<pack>/pii/<id>.golden` holds the layer `turbo:pii`; see
+`analysis/goldens-tool/README.md`. Only the PII annotator runs on the
+set, and it has no dumps.
+
 ## Decision point dumps
 
 `<annotator>/<model>/<set>/<id>.dump`, beside each golden of
