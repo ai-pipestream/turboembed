@@ -119,6 +119,15 @@ impl Lexicon {
         &bucket[lo..hi]
     }
 
+    /// Whether some word starts with `prefix`, which is in lowercase: a
+    /// compound splitter stops extending a piece when none does.
+    pub fn has_prefix(&self, prefix: &str) -> bool {
+        let Some(&k) = prefix.as_bytes().first() else { return !self.entries.is_empty() };
+        let bucket = &self.entries[self.first[usize::from(k)] as usize..self.first[usize::from(k) + 1] as usize];
+        let lo = bucket.partition_point(|e| e.word < prefix);
+        bucket.get(lo).is_some_and(|e| e.word.starts_with(prefix))
+    }
+
     pub fn len(&self) -> usize {
         self.entries.len()
     }
@@ -266,6 +275,8 @@ mod tests {
         assert!(lex.lookup("seconds").is_empty());
         assert!(lex.lookup("").is_empty());
         assert!(lex.lookup("zzz").is_empty());
+        assert!(lex.has_prefix("sec") && lex.has_prefix("second") && lex.has_prefix("t"));
+        assert!(!lex.has_prefix("seconds") && !lex.has_prefix("x") && !lex.has_prefix("tx"));
     }
 
     #[test]
