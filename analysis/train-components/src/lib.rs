@@ -1,7 +1,8 @@
 //! Training OpenNLP's components: the event streams, the factories that
 //! set them up, the model files the `train` methods of `SentenceDetectorME`,
-//! `TokenizerME`, `POSTaggerME`, `LemmatizerME` and `LanguageDetectorME`
-//! return, and the reproduction of the published UD 1.3 models.
+//! `TokenizerME`, `POSTaggerME`, `LemmatizerME`, `ChunkerME` and
+//! `LanguageDetectorME` return, and the reproduction of the published
+//! UD 1.3 models.
 //!
 //! - [`sentdetect`][]: `SentenceDetectorFactory`, the events of
 //!   `SDEventStream`, and the `SentenceModel` file.
@@ -12,6 +13,10 @@
 //!   dictionary.
 //! - [`lemmatize`][]: `LemmatizerFactory`, the events of
 //!   `LemmaSampleEventStream`, and the `LemmatizerModel` file.
+//! - [`chunk`][]: `ChunkerFactory`, the events of `ChunkerEventStream`,
+//!   and the `ChunkerModel` file, trained with `MAXENT`, `MAXENT_QN` or
+//!   `PERCEPTRON`; `NAIVEBAYES`, which `ChunkerME.train` also takes, is
+//!   not ported and fails with `turbo_train::Error::NotPorted`.
 //! - [`langdetect`][]: `LanguageDetectorFactory`, the events of
 //!   `LanguageDetectorEventStream`, and the `LanguageDetectorModel` file.
 //! - [`dictionary`][]: the abbreviation dictionary as `Dictionary.serialize`
@@ -26,13 +31,13 @@
 //!   with, as typed recipes, and the comparison with the published files.
 //!
 //! The samples come from `turbo-formats`, the context generators from
-//! `turbo-sentdetect`, `turbo-tokenize`, `turbo-sequence`,
-//! `turbo-lemmatizer` and `turbo-langdetect`, and the trainer, writer and
-//! packaging from `turbo-train`; this crate connects them as the `train`
-//! methods do, so training and inference share one implementation of each
-//! context generator. It is a crate of its own because `turbo-formats`
-//! depends on `turbo-tokenize`, so a training module inside the annotator
-//! crates would close a cycle.
+//! `turbo-sentdetect`, `turbo-tokenize`, `turbo-sequence` (the tagger's
+//! and the chunker's), `turbo-lemmatizer` and `turbo-langdetect`, and the
+//! trainer, writer and packaging from `turbo-train`; this crate connects
+//! them as the `train` methods do, so training and inference share one
+//! implementation of each context generator. It is a crate of its own
+//! because `turbo-formats` depends on `turbo-tokenize`, so a training
+//! module inside the annotator crates would close a cycle.
 //!
 //! OpenNLP behaviour a reader may not expect, all kept and tested:
 //!
@@ -95,6 +100,12 @@
 //!   as the JVM's modified UTF-8.
 //! - The published UD 1.3 models were trained with 300 iterations, not
 //!   the 150 their training configuration file says ([`ud`][]).
+//! - `ChunkerME.train` takes only event trainers: the sequence perceptron,
+//!   which the tagger and the name finder train with, is refused with
+//!   `Trainer type is not supported: EVENT_MODEL_SEQUENCE_TRAINER`
+//!   ([`Error::UnsupportedTrainerType`]). The chunker model file has
+//!   `chunker.model` before `manifest.properties`, the order of the JVM's
+//!   artifact map.
 //! - A language detector event's predicates are the n-grams in the
 //!   iteration order of the `HashMap` `getContext` counts them in, not the
 //!   order `predictLanguages` hands the model; the two differ only where a
@@ -104,6 +115,7 @@
 //!   its manifest, only `TrainerType=Event` and the event hash
 //!   ([`langdetect::default_training_parameters`]).
 
+pub mod chunk;
 pub mod dictionary;
 pub mod error;
 pub mod java_hash;
@@ -116,6 +128,7 @@ pub mod tagdict;
 pub mod tokenize;
 pub mod ud;
 
+pub use chunk::{ChunkerEventStream, ChunkerFactory, chunk_events, train_chunker_model};
 pub use dictionary::AbbreviationDictionary;
 pub use error::{Error, Result};
 pub use langdetect::{LanguageDetectorFactory, LanguageEventStream, language_events, train_language_model};

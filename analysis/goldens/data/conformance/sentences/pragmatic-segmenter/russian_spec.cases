@@ -1,0 +1,305 @@
+# Converted from spec/pragmatic_segmenter/languages/russian_spec.rb of Pragmatic Segmenter
+# (github.com/diasks2/pragmatic_segmenter, commit 358fe97e62902cd86fa6b85063c3bf91aa6c156a),
+# MIT License, Copyright (c) 2015 Kevin S. Dias (LICENSE in this directory).
+# One case per expectation, in file order; `name` is the spec's context and test name,
+# `option` the segmenter options the spec passes, `skipped-upstream` a test the spec skips.
+
+case pragmatic-segmenter/russian_spec/001
+lang ru
+name Golden Rules: Abbreviations #001
+text Объем составляет 5 куб.м.
+sentence Объем составляет 5 куб.м.
+end
+
+case pragmatic-segmenter/russian_spec/002
+lang ru
+name Golden Rules: Quotations #002
+text Маленькая девочка бежала и кричала: «Не видали маму?».
+sentence Маленькая девочка бежала и кричала: «Не видали маму?».
+end
+
+case pragmatic-segmenter/russian_spec/003
+lang ru
+name Golden Rules: Numbers #003
+text Сегодня 27.10.14
+sentence Сегодня 27.10.14
+end
+
+case pragmatic-segmenter/russian_spec/004
+lang ru
+name #segment: correctly segments text #001
+text Маленькая девочка бежала и кричала: «Не видали маму?».
+sentence Маленькая девочка бежала и кричала: «Не видали маму?».
+end
+
+case pragmatic-segmenter/russian_spec/005
+lang ru
+name #segment: correctly segments text #002
+text «Я приду поздно»,  — сказал Андрей.
+sentence «Я приду поздно»,  — сказал Андрей.
+end
+
+case pragmatic-segmenter/russian_spec/006
+lang ru
+name #segment: correctly segments text #003
+text «К чему ты готовишься? – спросила мама. – Завтра ведь выходной».
+sentence «К чему ты готовишься? – спросила мама. – Завтра ведь выходной».
+end
+
+case pragmatic-segmenter/russian_spec/007
+lang ru
+name #segment: correctly segments text #004
+text По словам Пушкина, «Привычка свыше дана, замена счастью она».
+sentence По словам Пушкина, «Привычка свыше дана, замена счастью она».
+end
+
+case pragmatic-segmenter/russian_spec/008
+lang ru
+name #segment: correctly segments text #005
+text Он сказал: «Я очень устал», и сразу же замолчал.
+sentence Он сказал: «Я очень устал», и сразу же замолчал.
+end
+
+case pragmatic-segmenter/russian_spec/009
+lang ru
+name #segment: correctly segments text #006
+text Мне стало как-то ужасно грустно в это мгновение; однако что-то похожее на смех зашевелилось в душе моей.
+sentence Мне стало как-то ужасно грустно в это мгновение; однако что-то похожее на смех зашевелилось в душе моей.
+end
+
+case pragmatic-segmenter/russian_spec/010
+lang ru
+name #segment: correctly segments text #007
+text Шухов как был в ватных брюках, не снятых на ночь (повыше левого колена их тоже был пришит затасканный, погрязневший лоскут, и на нем выведен черной, уже поблекшей краской номер Щ-854), надел телогрейку…
+sentence Шухов как был в ватных брюках, не снятых на ночь (повыше левого колена их тоже был пришит затасканный, погрязневший лоскут, и на нем выведен черной, уже поблекшей краской номер Щ-854), надел телогрейку…
+end
+
+case pragmatic-segmenter/russian_spec/011
+lang ru
+name #segment: correctly segments text #008
+text Слово «дом» является синонимом жилища
+sentence Слово «дом» является синонимом жилища
+end
+
+case pragmatic-segmenter/russian_spec/012
+lang ru
+name #segment: correctly segments text #009
+text В Санкт-Петербург на гастроли приехал театр «Современник»
+sentence В Санкт-Петербург на гастроли приехал театр «Современник»
+end
+
+case pragmatic-segmenter/russian_spec/013
+lang ru
+name #segment: correctly segments text #010
+text Машина едет со скоростью 100 км/ч.
+sentence Машина едет со скоростью 100 км/ч.
+end
+
+case pragmatic-segmenter/russian_spec/014
+lang ru
+name #segment: correctly segments text #011
+text Я поем и/или лягу спать.
+sentence Я поем и/или лягу спать.
+end
+
+case pragmatic-segmenter/russian_spec/015
+lang ru
+name #segment: correctly segments text #012
+text Он не мог справиться с примером "3 + (14:7) = 5"
+sentence Он не мог справиться с примером "3 + (14:7) = 5"
+end
+
+case pragmatic-segmenter/russian_spec/016
+lang ru
+name #segment: correctly segments text #013
+text Вот список: 1.мороженое, 2.мясо, 3.рис.
+sentence Вот список: 1.мороженое, 2.мясо, 3.рис.
+end
+
+case pragmatic-segmenter/russian_spec/017
+lang ru
+name #segment: correctly segments text #014
+text Квартира 234 находится на 4-ом этаже.
+sentence Квартира 234 находится на 4-ом этаже.
+end
+
+case pragmatic-segmenter/russian_spec/018
+lang ru
+name #segment: correctly segments text #015
+text В это время года температура может подниматься до 40°C.
+sentence В это время года температура может подниматься до 40°C.
+end
+
+case pragmatic-segmenter/russian_spec/019
+lang ru
+name #segment: correctly segments text #016
+text Объем составляет 5м³.
+sentence Объем составляет 5м³.
+end
+
+case pragmatic-segmenter/russian_spec/020
+lang ru
+name #segment: correctly segments text #017
+text Объем составляет 5 куб.м.
+sentence Объем составляет 5 куб.м.
+end
+
+case pragmatic-segmenter/russian_spec/021
+lang ru
+name #segment: correctly segments text #018
+text Площадь комнаты 14м².
+sentence Площадь комнаты 14м².
+end
+
+case pragmatic-segmenter/russian_spec/022
+lang ru
+name #segment: correctly segments text #019
+text Площадь комнаты 14 кв.м.
+sentence Площадь комнаты 14 кв.м.
+end
+
+case pragmatic-segmenter/russian_spec/023
+lang ru
+name #segment: correctly segments text #020
+text 1°C соответствует 33.8°F.
+sentence 1°C соответствует 33.8°F.
+end
+
+case pragmatic-segmenter/russian_spec/024
+lang ru
+name #segment: correctly segments text #021
+text Сегодня 27.10.14
+sentence Сегодня 27.10.14
+end
+
+case pragmatic-segmenter/russian_spec/025
+lang ru
+name #segment: correctly segments text #022
+text Сегодня 27 октября 2014 года.
+sentence Сегодня 27 октября 2014 года.
+end
+
+case pragmatic-segmenter/russian_spec/026
+lang ru
+name #segment: correctly segments text #023
+text Эта машина стоит 150 000 дол.!
+sentence Эта машина стоит 150 000 дол.!
+end
+
+case pragmatic-segmenter/russian_spec/027
+lang ru
+name #segment: correctly segments text #024
+text Эта машина стоит $150 000!
+sentence Эта машина стоит $150 000!
+end
+
+case pragmatic-segmenter/russian_spec/028
+lang ru
+name #segment: correctly segments text #025
+text Вот номер моего телефона: +39045969798. Передавайте привет г-ну Шапочкину. До свидания.
+sentence Вот номер моего телефона: +39045969798.
+sentence Передавайте привет г-ну Шапочкину.
+sentence До свидания.
+end
+
+case pragmatic-segmenter/russian_spec/029
+lang ru
+name #segment: correctly segments text #026
+text Постойте, разве можно указывать цены в у.е.!
+sentence Постойте, разве можно указывать цены в у.е.!
+end
+
+case pragmatic-segmenter/russian_spec/030
+lang ru
+name #segment: correctly segments text #027
+text Едем на скорости 90 км/ч в сторону пгт. Брагиновка, о котором мы так много слышали по ТВ!
+sentence Едем на скорости 90 км/ч в сторону пгт. Брагиновка, о котором мы так много слышали по ТВ!
+end
+
+case pragmatic-segmenter/russian_spec/031
+lang ru
+name #segment: correctly segments text #028
+text Д-р ветеринарных наук А. И. Семенов и пр. выступали на этом семинаре.
+sentence Д-р ветеринарных наук А. И. Семенов и пр. выступали на этом семинаре.
+end
+
+case pragmatic-segmenter/russian_spec/032
+lang ru
+name #segment: correctly segments text #029
+text Уважаемый проф. Семенов! Просьба до 20.10 сдать отчет на кафедру.
+sentence Уважаемый проф. Семенов!
+sentence Просьба до 20.10 сдать отчет на кафедру.
+end
+
+case pragmatic-segmenter/russian_spec/033
+lang ru
+name #segment: correctly segments text #030
+text Первоначальная стоимость этого комплекта 30 долл., но сейчас действует скидка. Предъявите дисконтную карту, пожалуйста!
+sentence Первоначальная стоимость этого комплекта 30 долл., но сейчас действует скидка.
+sentence Предъявите дисконтную карту, пожалуйста!
+end
+
+case pragmatic-segmenter/russian_spec/034
+lang ru
+name #segment: correctly segments text #031
+text Виктор съел пол-лимона и ушел по-английски из дома на ул. 1 Мая.
+sentence Виктор съел пол-лимона и ушел по-английски из дома на ул. 1 Мая.
+end
+
+case pragmatic-segmenter/russian_spec/035
+lang ru
+name #segment: correctly segments text #032
+text Напоминаю Вам, что 25.10 день рождения у Маши К., нужно будет купить ей подарок.
+sentence Напоминаю Вам, что 25.10 день рождения у Маши К., нужно будет купить ей подарок.
+end
+
+case pragmatic-segmenter/russian_spec/036
+lang ru
+name #segment: correctly segments text #033
+text В 2010-2012 гг. Виктор посещал г. Волгоград неоднократно.
+sentence В 2010-2012 гг. Виктор посещал г. Волгоград неоднократно.
+end
+
+case pragmatic-segmenter/russian_spec/037
+lang ru
+name #segment: correctly segments text #034
+text Маленькая девочка бежала и кричала: «Не видали маму?»
+sentence Маленькая девочка бежала и кричала: «Не видали маму?»
+end
+
+case pragmatic-segmenter/russian_spec/038
+lang ru
+name #segment: correctly segments text #035
+text Кв. 234 находится на 4 этаже.
+sentence Кв. 234 находится на 4 этаже.
+end
+
+case pragmatic-segmenter/russian_spec/039
+lang ru
+name #segment: correctly segments text #036
+text В это время года температура может подниматься до 40°C.
+sentence В это время года температура может подниматься до 40°C.
+end
+
+case pragmatic-segmenter/russian_spec/040
+lang ru
+name #segment: correctly segments text #037
+text Нужно купить 1)рыбу 2)соль.
+sentence Нужно купить 1)рыбу 2)соль.
+end
+
+case pragmatic-segmenter/russian_spec/041
+lang ru
+name #segment: correctly segments text #038
+text Машина едет со скоростью 100 км/ч.
+sentence Машина едет со скоростью 100 км/ч.
+end
+
+case pragmatic-segmenter/russian_spec/042
+lang ru
+name #segment: correctly segments text #039
+text Л.Н. Толстой написал "Войну и мир". Кроме Волконских, Л. Н. Толстой состоял в близком родстве с некоторыми другими аристократическими родами. Дом, где родился Л.Н.Толстой, 1898 г. В 1854 году дом продан по распоряжению писателя на вывоз в село Долгое.
+sentence Л.Н. Толстой написал "Войну и мир".
+sentence Кроме Волконских, Л. Н. Толстой состоял в близком родстве с некоторыми другими аристократическими родами.
+sentence Дом, где родился Л.Н.Толстой, 1898 г. В 1854 году дом продан по распоряжению писателя на вывоз в село Долгое.
+end

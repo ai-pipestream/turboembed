@@ -17,10 +17,18 @@ final class AnnotatorException extends Exception {
     super(cause);
   }
 
+  /**
+   * A checked exception the annotator's method declares and threw, such as the
+   * {@code InvalidFormatException} of {@code GeneratorFactory.create} on a malformed descriptor.
+   */
+  AnnotatorException(java.io.IOException cause) {
+    super(cause);
+  }
+
   /** The exception the annotator threw. */
   @Override
-  public synchronized RuntimeException getCause() {
-    return (RuntimeException) super.getCause();
+  public synchronized Exception getCause() {
+    return (Exception) super.getCause();
   }
 
   /** The thrown exception's fully qualified class, as the {@code error} record writes it. */

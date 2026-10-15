@@ -52,16 +52,17 @@ impl<L: Layer> Annotator for TermCounter<L> {
             return Err(fail("the tokens are not in text order".into()));
         }
         let ranges: Vec<Range<usize>> = match units.text_spans() {
-            Some((view, _, _)) if view != tokens.spans.view() => {
+            Some(ts) if ts.view != tokens.spans.view() => {
                 return Err(fail(format!(
                     "the units are in view {}, the tokens in view {}",
-                    view.0,
+                    ts.view.0,
                     tokens.spans.view().0
                 )));
             }
-            Some((_, a, b)) => a
+            Some(ts) => ts
+                .start
                 .iter()
-                .zip(b)
+                .zip(ts.end)
                 .map(|(&a, &b)| starts.partition_point(|&s| s < a)..starts.partition_point(|&s| s < b))
                 .collect(),
             None if units.len() == 1 => std::iter::once(0..starts.len()).collect(),

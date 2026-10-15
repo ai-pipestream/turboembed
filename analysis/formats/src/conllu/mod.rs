@@ -49,7 +49,9 @@
 //! - An error in a sentence discards the whole sentence, and reading goes
 //!   on with the next.
 
+pub mod document;
 pub mod samples;
+pub mod words;
 
 use std::collections::HashMap;
 
@@ -58,7 +60,12 @@ use turbo_analysis::Span;
 use crate::error::FormatError;
 use crate::source::{Field, Line, Lines, Piece, java_trim, split_fields};
 
+pub use document::write_document_conllu;
 pub use samples::{ConlluLemmaReader, ConlluPosReader, ConlluSentenceReader, ConlluTokenReader};
+pub use words::{
+    ConlluWordReader, MultiwordToken, SyntacticSentence, misc_spaces_in_token, misc_trailing_space,
+    write_conllu_sentences,
+};
 
 /// The tag column a sample takes its tags from: `ConlluTagset`.
 #[derive(Copy, Clone, Debug, Default, PartialEq, Eq, Hash)]

@@ -1,0 +1,20 @@
+[package]
+name = "turbo-abbrev"
+version = "0.1.0"
+edition.workspace = true
+license.workspace = true
+publish = false
+
+[lib]
+name = "turbo_abbrev"
+
+[dependencies]
+turbo-analysis = { path = "../core" }
+turbo-analysis-layers = { path = "../layers" }
+# `Character.isLetterOrDigit` and `Character.toLowerCase`, which the
+# Schwartz and Hearst reference implementation compares characters with.
+turbo-unicode = { path = "../unicode" }
+
+[dev-dependencies]
+# SHA-256, to check the MED1250 gold file the evaluation example reads.
+turbo-goldens = { path = "../goldens" }

@@ -14,5 +14,5 @@ pub const SET: Set = Set {
         sha256: Digest::Recorded("72a52a41193e2838b8074f80ac074b94f956b84886c36a61c58a7df4171bdd72"),
     }]),
     span_unit: Some(SpanUnit::QuotedText),
-    read: qasper::read,
+    read: qasper::read_in,
 };

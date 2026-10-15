@@ -37,4 +37,28 @@ record Input(String set, String id, byte[] bytes, String text, Utf8Offsets offse
   String inputId() {
     return set + "/" + id;
   }
+
+  /**
+   * The text's lines as {@code Files.readAllLines} reads them: split at {@code \n}, {@code \r} and
+   * {@code \r\n}, the line ends dropped, and no empty line after a final line end.
+   */
+  java.util.List<String> lines() {
+    java.util.List<String> out = new java.util.ArrayList<>();
+    int start = 0;
+    int i = 0;
+    while (i < text.length()) {
+      char c = text.charAt(i);
+      if (c == '\n' || c == '\r') {
+        out.add(text.substring(start, i));
+        i += c == '\r' && i + 1 < text.length() && text.charAt(i + 1) == '\n' ? 2 : 1;
+        start = i;
+      } else {
+        i++;
+      }
+    }
+    if (start < text.length()) {
+      out.add(text.substring(start));
+    }
+    return out;
+  }
 }

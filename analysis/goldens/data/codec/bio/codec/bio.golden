@@ -1,0 +1,9145 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	codec/bio	74	74	fbb8615c6d2eae677443a646c036947d87c93dec47ec34d34169a02edb21c7ce
+annotator	opennlp.tools.namefind.BioCodec	decode
+config	compatibleOutcomes	other a-start a-cont b-start b-cont c
+layer	turbo:decode	document	1111	case:u32	outcomes:u32
+0	0
+1	1
+2	1
+3	1
+4	1
+5	1
+6	1
+7	1
+8	1
+9	1
+10	1
+11	2
+12	2
+13	2
+14	2
+15	2
+16	2
+17	2
+18	2
+19	2
+20	2
+21	2
+22	2
+23	2
+24	2
+25	2
+26	2
+27	2
+28	2
+29	2
+30	2
+31	2
+32	2
+33	2
+34	2
+35	2
+36	2
+37	2
+38	2
+39	2
+40	2
+41	2
+42	2
+43	2
+44	2
+45	2
+46	2
+47	2
+48	2
+49	2
+50	2
+51	2
+52	2
+53	2
+54	2
+55	2
+56	2
+57	2
+58	2
+59	2
+60	2
+61	2
+62	2
+63	2
+64	2
+65	2
+66	2
+67	2
+68	2
+69	2
+70	2
+71	2
+72	2
+73	2
+74	2
+75	2
+76	2
+77	2
+78	2
+79	2
+80	2
+81	2
+82	2
+83	2
+84	2
+85	2
+86	2
+87	2
+88	2
+89	2
+90	2
+91	2
+92	2
+93	2
+94	2
+95	2
+96	2
+97	2
+98	2
+99	2
+100	2
+101	2
+102	2
+103	2
+104	2
+105	2
+106	2
+107	2
+108	2
+109	2
+110	2
+111	3
+112	3
+113	3
+114	3
+115	3
+116	3
+117	3
+118	3
+119	3
+120	3
+121	3
+122	3
+123	3
+124	3
+125	3
+126	3
+127	3
+128	3
+129	3
+130	3
+131	3
+132	3
+133	3
+134	3
+135	3
+136	3
+137	3
+138	3
+139	3
+140	3
+141	3
+142	3
+143	3
+144	3
+145	3
+146	3
+147	3
+148	3
+149	3
+150	3
+151	3
+152	3
+153	3
+154	3
+155	3
+156	3
+157	3
+158	3
+159	3
+160	3
+161	3
+162	3
+163	3
+164	3
+165	3
+166	3
+167	3
+168	3
+169	3
+170	3
+171	3
+172	3
+173	3
+174	3
+175	3
+176	3
+177	3
+178	3
+179	3
+180	3
+181	3
+182	3
+183	3
+184	3
+185	3
+186	3
+187	3
+188	3
+189	3
+190	3
+191	3
+192	3
+193	3
+194	3
+195	3
+196	3
+197	3
+198	3
+199	3
+200	3
+201	3
+202	3
+203	3
+204	3
+205	3
+206	3
+207	3
+208	3
+209	3
+210	3
+211	3
+212	3
+213	3
+214	3
+215	3
+216	3
+217	3
+218	3
+219	3
+220	3
+221	3
+222	3
+223	3
+224	3
+225	3
+226	3
+227	3
+228	3
+229	3
+230	3
+231	3
+232	3
+233	3
+234	3
+235	3
+236	3
+237	3
+238	3
+239	3
+240	3
+241	3
+242	3
+243	3
+244	3
+245	3
+246	3
+247	3
+248	3
+249	3
+250	3
+251	3
+252	3
+253	3
+254	3
+255	3
+256	3
+257	3
+258	3
+259	3
+260	3
+261	3
+262	3
+263	3
+264	3
+265	3
+266	3
+267	3
+268	3
+269	3
+270	3
+271	3
+272	3
+273	3
+274	3
+275	3
+276	3
+277	3
+278	3
+279	3
+280	3
+281	3
+282	3
+283	3
+284	3
+285	3
+286	3
+287	3
+288	3
+289	3
+290	3
+291	3
+292	3
+293	3
+294	3
+295	3
+296	3
+297	3
+298	3
+299	3
+300	3
+301	3
+302	3
+303	3
+304	3
+305	3
+306	3
+307	3
+308	3
+309	3
+310	3
+311	3
+312	3
+313	3
+314	3
+315	3
+316	3
+317	3
+318	3
+319	3
+320	3
+321	3
+322	3
+323	3
+324	3
+325	3
+326	3
+327	3
+328	3
+329	3
+330	3
+331	3
+332	3
+333	3
+334	3
+335	3
+336	3
+337	3
+338	3
+339	3
+340	3
+341	3
+342	3
+343	3
+344	3
+345	3
+346	3
+347	3
+348	3
+349	3
+350	3
+351	3
+352	3
+353	3
+354	3
+355	3
+356	3
+357	3
+358	3
+359	3
+360	3
+361	3
+362	3
+363	3
+364	3
+365	3
+366	3
+367	3
+368	3
+369	3
+370	3
+371	3
+372	3
+373	3
+374	3
+375	3
+376	3
+377	3
+378	3
+379	3
+380	3
+381	3
+382	3
+383	3
+384	3
+385	3
+386	3
+387	3
+388	3
+389	3
+390	3
+391	3
+392	3
+393	3
+394	3
+395	3
+396	3
+397	3
+398	3
+399	3
+400	3
+401	3
+402	3
+403	3
+404	3
+405	3
+406	3
+407	3
+408	3
+409	3
+410	3
+411	3
+412	3
+413	3
+414	3
+415	3
+416	3
+417	3
+418	3
+419	3
+420	3
+421	3
+422	3
+423	3
+424	3
+425	3
+426	3
+427	3
+428	3
+429	3
+430	3
+431	3
+432	3
+433	3
+434	3
+435	3
+436	3
+437	3
+438	3
+439	3
+440	3
+441	3
+442	3
+443	3
+444	3
+445	3
+446	3
+447	3
+448	3
+449	3
+450	3
+451	3
+452	3
+453	3
+454	3
+455	3
+456	3
+457	3
+458	3
+459	3
+460	3
+461	3
+462	3
+463	3
+464	3
+465	3
+466	3
+467	3
+468	3
+469	3
+470	3
+471	3
+472	3
+473	3
+474	3
+475	3
+476	3
+477	3
+478	3
+479	3
+480	3
+481	3
+482	3
+483	3
+484	3
+485	3
+486	3
+487	3
+488	3
+489	3
+490	3
+491	3
+492	3
+493	3
+494	3
+495	3
+496	3
+497	3
+498	3
+499	3
+500	3
+501	3
+502	3
+503	3
+504	3
+505	3
+506	3
+507	3
+508	3
+509	3
+510	3
+511	3
+512	3
+513	3
+514	3
+515	3
+516	3
+517	3
+518	3
+519	3
+520	3
+521	3
+522	3
+523	3
+524	3
+525	3
+526	3
+527	3
+528	3
+529	3
+530	3
+531	3
+532	3
+533	3
+534	3
+535	3
+536	3
+537	3
+538	3
+539	3
+540	3
+541	3
+542	3
+543	3
+544	3
+545	3
+546	3
+547	3
+548	3
+549	3
+550	3
+551	3
+552	3
+553	3
+554	3
+555	3
+556	3
+557	3
+558	3
+559	3
+560	3
+561	3
+562	3
+563	3
+564	3
+565	3
+566	3
+567	3
+568	3
+569	3
+570	3
+571	3
+572	3
+573	3
+574	3
+575	3
+576	3
+577	3
+578	3
+579	3
+580	3
+581	3
+582	3
+583	3
+584	3
+585	3
+586	3
+587	3
+588	3
+589	3
+590	3
+591	3
+592	3
+593	3
+594	3
+595	3
+596	3
+597	3
+598	3
+599	3
+600	3
+601	3
+602	3
+603	3
+604	3
+605	3
+606	3
+607	3
+608	3
+609	3
+610	3
+611	3
+612	3
+613	3
+614	3
+615	3
+616	3
+617	3
+618	3
+619	3
+620	3
+621	3
+622	3
+623	3
+624	3
+625	3
+626	3
+627	3
+628	3
+629	3
+630	3
+631	3
+632	3
+633	3
+634	3
+635	3
+636	3
+637	3
+638	3
+639	3
+640	3
+641	3
+642	3
+643	3
+644	3
+645	3
+646	3
+647	3
+648	3
+649	3
+650	3
+651	3
+652	3
+653	3
+654	3
+655	3
+656	3
+657	3
+658	3
+659	3
+660	3
+661	3
+662	3
+663	3
+664	3
+665	3
+666	3
+667	3
+668	3
+669	3
+670	3
+671	3
+672	3
+673	3
+674	3
+675	3
+676	3
+677	3
+678	3
+679	3
+680	3
+681	3
+682	3
+683	3
+684	3
+685	3
+686	3
+687	3
+688	3
+689	3
+690	3
+691	3
+692	3
+693	3
+694	3
+695	3
+696	3
+697	3
+698	3
+699	3
+700	3
+701	3
+702	3
+703	3
+704	3
+705	3
+706	3
+707	3
+708	3
+709	3
+710	3
+711	3
+712	3
+713	3
+714	3
+715	3
+716	3
+717	3
+718	3
+719	3
+720	3
+721	3
+722	3
+723	3
+724	3
+725	3
+726	3
+727	3
+728	3
+729	3
+730	3
+731	3
+732	3
+733	3
+734	3
+735	3
+736	3
+737	3
+738	3
+739	3
+740	3
+741	3
+742	3
+743	3
+744	3
+745	3
+746	3
+747	3
+748	3
+749	3
+750	3
+751	3
+752	3
+753	3
+754	3
+755	3
+756	3
+757	3
+758	3
+759	3
+760	3
+761	3
+762	3
+763	3
+764	3
+765	3
+766	3
+767	3
+768	3
+769	3
+770	3
+771	3
+772	3
+773	3
+774	3
+775	3
+776	3
+777	3
+778	3
+779	3
+780	3
+781	3
+782	3
+783	3
+784	3
+785	3
+786	3
+787	3
+788	3
+789	3
+790	3
+791	3
+792	3
+793	3
+794	3
+795	3
+796	3
+797	3
+798	3
+799	3
+800	3
+801	3
+802	3
+803	3
+804	3
+805	3
+806	3
+807	3
+808	3
+809	3
+810	3
+811	3
+812	3
+813	3
+814	3
+815	3
+816	3
+817	3
+818	3
+819	3
+820	3
+821	3
+822	3
+823	3
+824	3
+825	3
+826	3
+827	3
+828	3
+829	3
+830	3
+831	3
+832	3
+833	3
+834	3
+835	3
+836	3
+837	3
+838	3
+839	3
+840	3
+841	3
+842	3
+843	3
+844	3
+845	3
+846	3
+847	3
+848	3
+849	3
+850	3
+851	3
+852	3
+853	3
+854	3
+855	3
+856	3
+857	3
+858	3
+859	3
+860	3
+861	3
+862	3
+863	3
+864	3
+865	3
+866	3
+867	3
+868	3
+869	3
+870	3
+871	3
+872	3
+873	3
+874	3
+875	3
+876	3
+877	3
+878	3
+879	3
+880	3
+881	3
+882	3
+883	3
+884	3
+885	3
+886	3
+887	3
+888	3
+889	3
+890	3
+891	3
+892	3
+893	3
+894	3
+895	3
+896	3
+897	3
+898	3
+899	3
+900	3
+901	3
+902	3
+903	3
+904	3
+905	3
+906	3
+907	3
+908	3
+909	3
+910	3
+911	3
+912	3
+913	3
+914	3
+915	3
+916	3
+917	3
+918	3
+919	3
+920	3
+921	3
+922	3
+923	3
+924	3
+925	3
+926	3
+927	3
+928	3
+929	3
+930	3
+931	3
+932	3
+933	3
+934	3
+935	3
+936	3
+937	3
+938	3
+939	3
+940	3
+941	3
+942	3
+943	3
+944	3
+945	3
+946	3
+947	3
+948	3
+949	3
+950	3
+951	3
+952	3
+953	3
+954	3
+955	3
+956	3
+957	3
+958	3
+959	3
+960	3
+961	3
+962	3
+963	3
+964	3
+965	3
+966	3
+967	3
+968	3
+969	3
+970	3
+971	3
+972	3
+973	3
+974	3
+975	3
+976	3
+977	3
+978	3
+979	3
+980	3
+981	3
+982	3
+983	3
+984	3
+985	3
+986	3
+987	3
+988	3
+989	3
+990	3
+991	3
+992	3
+993	3
+994	3
+995	3
+996	3
+997	3
+998	3
+999	3
+1000	3
+1001	3
+1002	3
+1003	3
+1004	3
+1005	3
+1006	3
+1007	3
+1008	3
+1009	3
+1010	3
+1011	3
+1012	3
+1013	3
+1014	3
+1015	3
+1016	3
+1017	3
+1018	3
+1019	3
+1020	3
+1021	3
+1022	3
+1023	3
+1024	3
+1025	3
+1026	3
+1027	3
+1028	3
+1029	3
+1030	3
+1031	3
+1032	3
+1033	3
+1034	3
+1035	3
+1036	3
+1037	3
+1038	3
+1039	3
+1040	3
+1041	3
+1042	3
+1043	3
+1044	3
+1045	3
+1046	3
+1047	3
+1048	3
+1049	3
+1050	3
+1051	3
+1052	3
+1053	3
+1054	3
+1055	3
+1056	3
+1057	3
+1058	3
+1059	3
+1060	3
+1061	3
+1062	3
+1063	3
+1064	3
+1065	3
+1066	3
+1067	3
+1068	3
+1069	3
+1070	3
+1071	3
+1072	3
+1073	3
+1074	3
+1075	3
+1076	3
+1077	3
+1078	3
+1079	3
+1080	3
+1081	3
+1082	3
+1083	3
+1084	3
+1085	3
+1086	3
+1087	3
+1088	3
+1089	3
+1090	3
+1091	3
+1092	3
+1093	3
+1094	3
+1095	3
+1096	3
+1097	3
+1098	3
+1099	3
+1100	3
+1101	3
+1102	3
+1103	3
+1104	3
+1105	3
+1106	3
+1107	3
+1108	3
+1109	3
+1110	3
+end	turbo:decode
+layer	turbo:decode-outcomes	document	3210	case:u32	outcome:str
+1	other
+2	a-start
+3	a-cont
+4	b-start
+5	b-cont
+6	start
+7	cont
+8	x-other
+9	a-b-start
+10	a b-cont
+11	other
+11	other
+12	other
+12	a-start
+13	other
+13	a-cont
+14	other
+14	b-start
+15	other
+15	b-cont
+16	other
+16	start
+17	other
+17	cont
+18	other
+18	x-other
+19	other
+19	a-b-start
+20	other
+20	a b-cont
+21	a-start
+21	other
+22	a-start
+22	a-start
+23	a-start
+23	a-cont
+24	a-start
+24	b-start
+25	a-start
+25	b-cont
+26	a-start
+26	start
+27	a-start
+27	cont
+28	a-start
+28	x-other
+29	a-start
+29	a-b-start
+30	a-start
+30	a b-cont
+31	a-cont
+31	other
+32	a-cont
+32	a-start
+33	a-cont
+33	a-cont
+34	a-cont
+34	b-start
+35	a-cont
+35	b-cont
+36	a-cont
+36	start
+37	a-cont
+37	cont
+38	a-cont
+38	x-other
+39	a-cont
+39	a-b-start
+40	a-cont
+40	a b-cont
+41	b-start
+41	other
+42	b-start
+42	a-start
+43	b-start
+43	a-cont
+44	b-start
+44	b-start
+45	b-start
+45	b-cont
+46	b-start
+46	start
+47	b-start
+47	cont
+48	b-start
+48	x-other
+49	b-start
+49	a-b-start
+50	b-start
+50	a b-cont
+51	b-cont
+51	other
+52	b-cont
+52	a-start
+53	b-cont
+53	a-cont
+54	b-cont
+54	b-start
+55	b-cont
+55	b-cont
+56	b-cont
+56	start
+57	b-cont
+57	cont
+58	b-cont
+58	x-other
+59	b-cont
+59	a-b-start
+60	b-cont
+60	a b-cont
+61	start
+61	other
+62	start
+62	a-start
+63	start
+63	a-cont
+64	start
+64	b-start
+65	start
+65	b-cont
+66	start
+66	start
+67	start
+67	cont
+68	start
+68	x-other
+69	start
+69	a-b-start
+70	start
+70	a b-cont
+71	cont
+71	other
+72	cont
+72	a-start
+73	cont
+73	a-cont
+74	cont
+74	b-start
+75	cont
+75	b-cont
+76	cont
+76	start
+77	cont
+77	cont
+78	cont
+78	x-other
+79	cont
+79	a-b-start
+80	cont
+80	a b-cont
+81	x-other
+81	other
+82	x-other
+82	a-start
+83	x-other
+83	a-cont
+84	x-other
+84	b-start
+85	x-other
+85	b-cont
+86	x-other
+86	start
+87	x-other
+87	cont
+88	x-other
+88	x-other
+89	x-other
+89	a-b-start
+90	x-other
+90	a b-cont
+91	a-b-start
+91	other
+92	a-b-start
+92	a-start
+93	a-b-start
+93	a-cont
+94	a-b-start
+94	b-start
+95	a-b-start
+95	b-cont
+96	a-b-start
+96	start
+97	a-b-start
+97	cont
+98	a-b-start
+98	x-other
+99	a-b-start
+99	a-b-start
+100	a-b-start
+100	a b-cont
+101	a b-cont
+101	other
+102	a b-cont
+102	a-start
+103	a b-cont
+103	a-cont
+104	a b-cont
+104	b-start
+105	a b-cont
+105	b-cont
+106	a b-cont
+106	start
+107	a b-cont
+107	cont
+108	a b-cont
+108	x-other
+109	a b-cont
+109	a-b-start
+110	a b-cont
+110	a b-cont
+111	other
+111	other
+111	other
+112	other
+112	other
+112	a-start
+113	other
+113	other
+113	a-cont
+114	other
+114	other
+114	b-start
+115	other
+115	other
+115	b-cont
+116	other
+116	other
+116	start
+117	other
+117	other
+117	cont
+118	other
+118	other
+118	x-other
+119	other
+119	other
+119	a-b-start
+120	other
+120	other
+120	a b-cont
+121	other
+121	a-start
+121	other
+122	other
+122	a-start
+122	a-start
+123	other
+123	a-start
+123	a-cont
+124	other
+124	a-start
+124	b-start
+125	other
+125	a-start
+125	b-cont
+126	other
+126	a-start
+126	start
+127	other
+127	a-start
+127	cont
+128	other
+128	a-start
+128	x-other
+129	other
+129	a-start
+129	a-b-start
+130	other
+130	a-start
+130	a b-cont
+131	other
+131	a-cont
+131	other
+132	other
+132	a-cont
+132	a-start
+133	other
+133	a-cont
+133	a-cont
+134	other
+134	a-cont
+134	b-start
+135	other
+135	a-cont
+135	b-cont
+136	other
+136	a-cont
+136	start
+137	other
+137	a-cont
+137	cont
+138	other
+138	a-cont
+138	x-other
+139	other
+139	a-cont
+139	a-b-start
+140	other
+140	a-cont
+140	a b-cont
+141	other
+141	b-start
+141	other
+142	other
+142	b-start
+142	a-start
+143	other
+143	b-start
+143	a-cont
+144	other
+144	b-start
+144	b-start
+145	other
+145	b-start
+145	b-cont
+146	other
+146	b-start
+146	start
+147	other
+147	b-start
+147	cont
+148	other
+148	b-start
+148	x-other
+149	other
+149	b-start
+149	a-b-start
+150	other
+150	b-start
+150	a b-cont
+151	other
+151	b-cont
+151	other
+152	other
+152	b-cont
+152	a-start
+153	other
+153	b-cont
+153	a-cont
+154	other
+154	b-cont
+154	b-start
+155	other
+155	b-cont
+155	b-cont
+156	other
+156	b-cont
+156	start
+157	other
+157	b-cont
+157	cont
+158	other
+158	b-cont
+158	x-other
+159	other
+159	b-cont
+159	a-b-start
+160	other
+160	b-cont
+160	a b-cont
+161	other
+161	start
+161	other
+162	other
+162	start
+162	a-start
+163	other
+163	start
+163	a-cont
+164	other
+164	start
+164	b-start
+165	other
+165	start
+165	b-cont
+166	other
+166	start
+166	start
+167	other
+167	start
+167	cont
+168	other
+168	start
+168	x-other
+169	other
+169	start
+169	a-b-start
+170	other
+170	start
+170	a b-cont
+171	other
+171	cont
+171	other
+172	other
+172	cont
+172	a-start
+173	other
+173	cont
+173	a-cont
+174	other
+174	cont
+174	b-start
+175	other
+175	cont
+175	b-cont
+176	other
+176	cont
+176	start
+177	other
+177	cont
+177	cont
+178	other
+178	cont
+178	x-other
+179	other
+179	cont
+179	a-b-start
+180	other
+180	cont
+180	a b-cont
+181	other
+181	x-other
+181	other
+182	other
+182	x-other
+182	a-start
+183	other
+183	x-other
+183	a-cont
+184	other
+184	x-other
+184	b-start
+185	other
+185	x-other
+185	b-cont
+186	other
+186	x-other
+186	start
+187	other
+187	x-other
+187	cont
+188	other
+188	x-other
+188	x-other
+189	other
+189	x-other
+189	a-b-start
+190	other
+190	x-other
+190	a b-cont
+191	other
+191	a-b-start
+191	other
+192	other
+192	a-b-start
+192	a-start
+193	other
+193	a-b-start
+193	a-cont
+194	other
+194	a-b-start
+194	b-start
+195	other
+195	a-b-start
+195	b-cont
+196	other
+196	a-b-start
+196	start
+197	other
+197	a-b-start
+197	cont
+198	other
+198	a-b-start
+198	x-other
+199	other
+199	a-b-start
+199	a-b-start
+200	other
+200	a-b-start
+200	a b-cont
+201	other
+201	a b-cont
+201	other
+202	other
+202	a b-cont
+202	a-start
+203	other
+203	a b-cont
+203	a-cont
+204	other
+204	a b-cont
+204	b-start
+205	other
+205	a b-cont
+205	b-cont
+206	other
+206	a b-cont
+206	start
+207	other
+207	a b-cont
+207	cont
+208	other
+208	a b-cont
+208	x-other
+209	other
+209	a b-cont
+209	a-b-start
+210	other
+210	a b-cont
+210	a b-cont
+211	a-start
+211	other
+211	other
+212	a-start
+212	other
+212	a-start
+213	a-start
+213	other
+213	a-cont
+214	a-start
+214	other
+214	b-start
+215	a-start
+215	other
+215	b-cont
+216	a-start
+216	other
+216	start
+217	a-start
+217	other
+217	cont
+218	a-start
+218	other
+218	x-other
+219	a-start
+219	other
+219	a-b-start
+220	a-start
+220	other
+220	a b-cont
+221	a-start
+221	a-start
+221	other
+222	a-start
+222	a-start
+222	a-start
+223	a-start
+223	a-start
+223	a-cont
+224	a-start
+224	a-start
+224	b-start
+225	a-start
+225	a-start
+225	b-cont
+226	a-start
+226	a-start
+226	start
+227	a-start
+227	a-start
+227	cont
+228	a-start
+228	a-start
+228	x-other
+229	a-start
+229	a-start
+229	a-b-start
+230	a-start
+230	a-start
+230	a b-cont
+231	a-start
+231	a-cont
+231	other
+232	a-start
+232	a-cont
+232	a-start
+233	a-start
+233	a-cont
+233	a-cont
+234	a-start
+234	a-cont
+234	b-start
+235	a-start
+235	a-cont
+235	b-cont
+236	a-start
+236	a-cont
+236	start
+237	a-start
+237	a-cont
+237	cont
+238	a-start
+238	a-cont
+238	x-other
+239	a-start
+239	a-cont
+239	a-b-start
+240	a-start
+240	a-cont
+240	a b-cont
+241	a-start
+241	b-start
+241	other
+242	a-start
+242	b-start
+242	a-start
+243	a-start
+243	b-start
+243	a-cont
+244	a-start
+244	b-start
+244	b-start
+245	a-start
+245	b-start
+245	b-cont
+246	a-start
+246	b-start
+246	start
+247	a-start
+247	b-start
+247	cont
+248	a-start
+248	b-start
+248	x-other
+249	a-start
+249	b-start
+249	a-b-start
+250	a-start
+250	b-start
+250	a b-cont
+251	a-start
+251	b-cont
+251	other
+252	a-start
+252	b-cont
+252	a-start
+253	a-start
+253	b-cont
+253	a-cont
+254	a-start
+254	b-cont
+254	b-start
+255	a-start
+255	b-cont
+255	b-cont
+256	a-start
+256	b-cont
+256	start
+257	a-start
+257	b-cont
+257	cont
+258	a-start
+258	b-cont
+258	x-other
+259	a-start
+259	b-cont
+259	a-b-start
+260	a-start
+260	b-cont
+260	a b-cont
+261	a-start
+261	start
+261	other
+262	a-start
+262	start
+262	a-start
+263	a-start
+263	start
+263	a-cont
+264	a-start
+264	start
+264	b-start
+265	a-start
+265	start
+265	b-cont
+266	a-start
+266	start
+266	start
+267	a-start
+267	start
+267	cont
+268	a-start
+268	start
+268	x-other
+269	a-start
+269	start
+269	a-b-start
+270	a-start
+270	start
+270	a b-cont
+271	a-start
+271	cont
+271	other
+272	a-start
+272	cont
+272	a-start
+273	a-start
+273	cont
+273	a-cont
+274	a-start
+274	cont
+274	b-start
+275	a-start
+275	cont
+275	b-cont
+276	a-start
+276	cont
+276	start
+277	a-start
+277	cont
+277	cont
+278	a-start
+278	cont
+278	x-other
+279	a-start
+279	cont
+279	a-b-start
+280	a-start
+280	cont
+280	a b-cont
+281	a-start
+281	x-other
+281	other
+282	a-start
+282	x-other
+282	a-start
+283	a-start
+283	x-other
+283	a-cont
+284	a-start
+284	x-other
+284	b-start
+285	a-start
+285	x-other
+285	b-cont
+286	a-start
+286	x-other
+286	start
+287	a-start
+287	x-other
+287	cont
+288	a-start
+288	x-other
+288	x-other
+289	a-start
+289	x-other
+289	a-b-start
+290	a-start
+290	x-other
+290	a b-cont
+291	a-start
+291	a-b-start
+291	other
+292	a-start
+292	a-b-start
+292	a-start
+293	a-start
+293	a-b-start
+293	a-cont
+294	a-start
+294	a-b-start
+294	b-start
+295	a-start
+295	a-b-start
+295	b-cont
+296	a-start
+296	a-b-start
+296	start
+297	a-start
+297	a-b-start
+297	cont
+298	a-start
+298	a-b-start
+298	x-other
+299	a-start
+299	a-b-start
+299	a-b-start
+300	a-start
+300	a-b-start
+300	a b-cont
+301	a-start
+301	a b-cont
+301	other
+302	a-start
+302	a b-cont
+302	a-start
+303	a-start
+303	a b-cont
+303	a-cont
+304	a-start
+304	a b-cont
+304	b-start
+305	a-start
+305	a b-cont
+305	b-cont
+306	a-start
+306	a b-cont
+306	start
+307	a-start
+307	a b-cont
+307	cont
+308	a-start
+308	a b-cont
+308	x-other
+309	a-start
+309	a b-cont
+309	a-b-start
+310	a-start
+310	a b-cont
+310	a b-cont
+311	a-cont
+311	other
+311	other
+312	a-cont
+312	other
+312	a-start
+313	a-cont
+313	other
+313	a-cont
+314	a-cont
+314	other
+314	b-start
+315	a-cont
+315	other
+315	b-cont
+316	a-cont
+316	other
+316	start
+317	a-cont
+317	other
+317	cont
+318	a-cont
+318	other
+318	x-other
+319	a-cont
+319	other
+319	a-b-start
+320	a-cont
+320	other
+320	a b-cont
+321	a-cont
+321	a-start
+321	other
+322	a-cont
+322	a-start
+322	a-start
+323	a-cont
+323	a-start
+323	a-cont
+324	a-cont
+324	a-start
+324	b-start
+325	a-cont
+325	a-start
+325	b-cont
+326	a-cont
+326	a-start
+326	start
+327	a-cont
+327	a-start
+327	cont
+328	a-cont
+328	a-start
+328	x-other
+329	a-cont
+329	a-start
+329	a-b-start
+330	a-cont
+330	a-start
+330	a b-cont
+331	a-cont
+331	a-cont
+331	other
+332	a-cont
+332	a-cont
+332	a-start
+333	a-cont
+333	a-cont
+333	a-cont
+334	a-cont
+334	a-cont
+334	b-start
+335	a-cont
+335	a-cont
+335	b-cont
+336	a-cont
+336	a-cont
+336	start
+337	a-cont
+337	a-cont
+337	cont
+338	a-cont
+338	a-cont
+338	x-other
+339	a-cont
+339	a-cont
+339	a-b-start
+340	a-cont
+340	a-cont
+340	a b-cont
+341	a-cont
+341	b-start
+341	other
+342	a-cont
+342	b-start
+342	a-start
+343	a-cont
+343	b-start
+343	a-cont
+344	a-cont
+344	b-start
+344	b-start
+345	a-cont
+345	b-start
+345	b-cont
+346	a-cont
+346	b-start
+346	start
+347	a-cont
+347	b-start
+347	cont
+348	a-cont
+348	b-start
+348	x-other
+349	a-cont
+349	b-start
+349	a-b-start
+350	a-cont
+350	b-start
+350	a b-cont
+351	a-cont
+351	b-cont
+351	other
+352	a-cont
+352	b-cont
+352	a-start
+353	a-cont
+353	b-cont
+353	a-cont
+354	a-cont
+354	b-cont
+354	b-start
+355	a-cont
+355	b-cont
+355	b-cont
+356	a-cont
+356	b-cont
+356	start
+357	a-cont
+357	b-cont
+357	cont
+358	a-cont
+358	b-cont
+358	x-other
+359	a-cont
+359	b-cont
+359	a-b-start
+360	a-cont
+360	b-cont
+360	a b-cont
+361	a-cont
+361	start
+361	other
+362	a-cont
+362	start
+362	a-start
+363	a-cont
+363	start
+363	a-cont
+364	a-cont
+364	start
+364	b-start
+365	a-cont
+365	start
+365	b-cont
+366	a-cont
+366	start
+366	start
+367	a-cont
+367	start
+367	cont
+368	a-cont
+368	start
+368	x-other
+369	a-cont
+369	start
+369	a-b-start
+370	a-cont
+370	start
+370	a b-cont
+371	a-cont
+371	cont
+371	other
+372	a-cont
+372	cont
+372	a-start
+373	a-cont
+373	cont
+373	a-cont
+374	a-cont
+374	cont
+374	b-start
+375	a-cont
+375	cont
+375	b-cont
+376	a-cont
+376	cont
+376	start
+377	a-cont
+377	cont
+377	cont
+378	a-cont
+378	cont
+378	x-other
+379	a-cont
+379	cont
+379	a-b-start
+380	a-cont
+380	cont
+380	a b-cont
+381	a-cont
+381	x-other
+381	other
+382	a-cont
+382	x-other
+382	a-start
+383	a-cont
+383	x-other
+383	a-cont
+384	a-cont
+384	x-other
+384	b-start
+385	a-cont
+385	x-other
+385	b-cont
+386	a-cont
+386	x-other
+386	start
+387	a-cont
+387	x-other
+387	cont
+388	a-cont
+388	x-other
+388	x-other
+389	a-cont
+389	x-other
+389	a-b-start
+390	a-cont
+390	x-other
+390	a b-cont
+391	a-cont
+391	a-b-start
+391	other
+392	a-cont
+392	a-b-start
+392	a-start
+393	a-cont
+393	a-b-start
+393	a-cont
+394	a-cont
+394	a-b-start
+394	b-start
+395	a-cont
+395	a-b-start
+395	b-cont
+396	a-cont
+396	a-b-start
+396	start
+397	a-cont
+397	a-b-start
+397	cont
+398	a-cont
+398	a-b-start
+398	x-other
+399	a-cont
+399	a-b-start
+399	a-b-start
+400	a-cont
+400	a-b-start
+400	a b-cont
+401	a-cont
+401	a b-cont
+401	other
+402	a-cont
+402	a b-cont
+402	a-start
+403	a-cont
+403	a b-cont
+403	a-cont
+404	a-cont
+404	a b-cont
+404	b-start
+405	a-cont
+405	a b-cont
+405	b-cont
+406	a-cont
+406	a b-cont
+406	start
+407	a-cont
+407	a b-cont
+407	cont
+408	a-cont
+408	a b-cont
+408	x-other
+409	a-cont
+409	a b-cont
+409	a-b-start
+410	a-cont
+410	a b-cont
+410	a b-cont
+411	b-start
+411	other
+411	other
+412	b-start
+412	other
+412	a-start
+413	b-start
+413	other
+413	a-cont
+414	b-start
+414	other
+414	b-start
+415	b-start
+415	other
+415	b-cont
+416	b-start
+416	other
+416	start
+417	b-start
+417	other
+417	cont
+418	b-start
+418	other
+418	x-other
+419	b-start
+419	other
+419	a-b-start
+420	b-start
+420	other
+420	a b-cont
+421	b-start
+421	a-start
+421	other
+422	b-start
+422	a-start
+422	a-start
+423	b-start
+423	a-start
+423	a-cont
+424	b-start
+424	a-start
+424	b-start
+425	b-start
+425	a-start
+425	b-cont
+426	b-start
+426	a-start
+426	start
+427	b-start
+427	a-start
+427	cont
+428	b-start
+428	a-start
+428	x-other
+429	b-start
+429	a-start
+429	a-b-start
+430	b-start
+430	a-start
+430	a b-cont
+431	b-start
+431	a-cont
+431	other
+432	b-start
+432	a-cont
+432	a-start
+433	b-start
+433	a-cont
+433	a-cont
+434	b-start
+434	a-cont
+434	b-start
+435	b-start
+435	a-cont
+435	b-cont
+436	b-start
+436	a-cont
+436	start
+437	b-start
+437	a-cont
+437	cont
+438	b-start
+438	a-cont
+438	x-other
+439	b-start
+439	a-cont
+439	a-b-start
+440	b-start
+440	a-cont
+440	a b-cont
+441	b-start
+441	b-start
+441	other
+442	b-start
+442	b-start
+442	a-start
+443	b-start
+443	b-start
+443	a-cont
+444	b-start
+444	b-start
+444	b-start
+445	b-start
+445	b-start
+445	b-cont
+446	b-start
+446	b-start
+446	start
+447	b-start
+447	b-start
+447	cont
+448	b-start
+448	b-start
+448	x-other
+449	b-start
+449	b-start
+449	a-b-start
+450	b-start
+450	b-start
+450	a b-cont
+451	b-start
+451	b-cont
+451	other
+452	b-start
+452	b-cont
+452	a-start
+453	b-start
+453	b-cont
+453	a-cont
+454	b-start
+454	b-cont
+454	b-start
+455	b-start
+455	b-cont
+455	b-cont
+456	b-start
+456	b-cont
+456	start
+457	b-start
+457	b-cont
+457	cont
+458	b-start
+458	b-cont
+458	x-other
+459	b-start
+459	b-cont
+459	a-b-start
+460	b-start
+460	b-cont
+460	a b-cont
+461	b-start
+461	start
+461	other
+462	b-start
+462	start
+462	a-start
+463	b-start
+463	start
+463	a-cont
+464	b-start
+464	start
+464	b-start
+465	b-start
+465	start
+465	b-cont
+466	b-start
+466	start
+466	start
+467	b-start
+467	start
+467	cont
+468	b-start
+468	start
+468	x-other
+469	b-start
+469	start
+469	a-b-start
+470	b-start
+470	start
+470	a b-cont
+471	b-start
+471	cont
+471	other
+472	b-start
+472	cont
+472	a-start
+473	b-start
+473	cont
+473	a-cont
+474	b-start
+474	cont
+474	b-start
+475	b-start
+475	cont
+475	b-cont
+476	b-start
+476	cont
+476	start
+477	b-start
+477	cont
+477	cont
+478	b-start
+478	cont
+478	x-other
+479	b-start
+479	cont
+479	a-b-start
+480	b-start
+480	cont
+480	a b-cont
+481	b-start
+481	x-other
+481	other
+482	b-start
+482	x-other
+482	a-start
+483	b-start
+483	x-other
+483	a-cont
+484	b-start
+484	x-other
+484	b-start
+485	b-start
+485	x-other
+485	b-cont
+486	b-start
+486	x-other
+486	start
+487	b-start
+487	x-other
+487	cont
+488	b-start
+488	x-other
+488	x-other
+489	b-start
+489	x-other
+489	a-b-start
+490	b-start
+490	x-other
+490	a b-cont
+491	b-start
+491	a-b-start
+491	other
+492	b-start
+492	a-b-start
+492	a-start
+493	b-start
+493	a-b-start
+493	a-cont
+494	b-start
+494	a-b-start
+494	b-start
+495	b-start
+495	a-b-start
+495	b-cont
+496	b-start
+496	a-b-start
+496	start
+497	b-start
+497	a-b-start
+497	cont
+498	b-start
+498	a-b-start
+498	x-other
+499	b-start
+499	a-b-start
+499	a-b-start
+500	b-start
+500	a-b-start
+500	a b-cont
+501	b-start
+501	a b-cont
+501	other
+502	b-start
+502	a b-cont
+502	a-start
+503	b-start
+503	a b-cont
+503	a-cont
+504	b-start
+504	a b-cont
+504	b-start
+505	b-start
+505	a b-cont
+505	b-cont
+506	b-start
+506	a b-cont
+506	start
+507	b-start
+507	a b-cont
+507	cont
+508	b-start
+508	a b-cont
+508	x-other
+509	b-start
+509	a b-cont
+509	a-b-start
+510	b-start
+510	a b-cont
+510	a b-cont
+511	b-cont
+511	other
+511	other
+512	b-cont
+512	other
+512	a-start
+513	b-cont
+513	other
+513	a-cont
+514	b-cont
+514	other
+514	b-start
+515	b-cont
+515	other
+515	b-cont
+516	b-cont
+516	other
+516	start
+517	b-cont
+517	other
+517	cont
+518	b-cont
+518	other
+518	x-other
+519	b-cont
+519	other
+519	a-b-start
+520	b-cont
+520	other
+520	a b-cont
+521	b-cont
+521	a-start
+521	other
+522	b-cont
+522	a-start
+522	a-start
+523	b-cont
+523	a-start
+523	a-cont
+524	b-cont
+524	a-start
+524	b-start
+525	b-cont
+525	a-start
+525	b-cont
+526	b-cont
+526	a-start
+526	start
+527	b-cont
+527	a-start
+527	cont
+528	b-cont
+528	a-start
+528	x-other
+529	b-cont
+529	a-start
+529	a-b-start
+530	b-cont
+530	a-start
+530	a b-cont
+531	b-cont
+531	a-cont
+531	other
+532	b-cont
+532	a-cont
+532	a-start
+533	b-cont
+533	a-cont
+533	a-cont
+534	b-cont
+534	a-cont
+534	b-start
+535	b-cont
+535	a-cont
+535	b-cont
+536	b-cont
+536	a-cont
+536	start
+537	b-cont
+537	a-cont
+537	cont
+538	b-cont
+538	a-cont
+538	x-other
+539	b-cont
+539	a-cont
+539	a-b-start
+540	b-cont
+540	a-cont
+540	a b-cont
+541	b-cont
+541	b-start
+541	other
+542	b-cont
+542	b-start
+542	a-start
+543	b-cont
+543	b-start
+543	a-cont
+544	b-cont
+544	b-start
+544	b-start
+545	b-cont
+545	b-start
+545	b-cont
+546	b-cont
+546	b-start
+546	start
+547	b-cont
+547	b-start
+547	cont
+548	b-cont
+548	b-start
+548	x-other
+549	b-cont
+549	b-start
+549	a-b-start
+550	b-cont
+550	b-start
+550	a b-cont
+551	b-cont
+551	b-cont
+551	other
+552	b-cont
+552	b-cont
+552	a-start
+553	b-cont
+553	b-cont
+553	a-cont
+554	b-cont
+554	b-cont
+554	b-start
+555	b-cont
+555	b-cont
+555	b-cont
+556	b-cont
+556	b-cont
+556	start
+557	b-cont
+557	b-cont
+557	cont
+558	b-cont
+558	b-cont
+558	x-other
+559	b-cont
+559	b-cont
+559	a-b-start
+560	b-cont
+560	b-cont
+560	a b-cont
+561	b-cont
+561	start
+561	other
+562	b-cont
+562	start
+562	a-start
+563	b-cont
+563	start
+563	a-cont
+564	b-cont
+564	start
+564	b-start
+565	b-cont
+565	start
+565	b-cont
+566	b-cont
+566	start
+566	start
+567	b-cont
+567	start
+567	cont
+568	b-cont
+568	start
+568	x-other
+569	b-cont
+569	start
+569	a-b-start
+570	b-cont
+570	start
+570	a b-cont
+571	b-cont
+571	cont
+571	other
+572	b-cont
+572	cont
+572	a-start
+573	b-cont
+573	cont
+573	a-cont
+574	b-cont
+574	cont
+574	b-start
+575	b-cont
+575	cont
+575	b-cont
+576	b-cont
+576	cont
+576	start
+577	b-cont
+577	cont
+577	cont
+578	b-cont
+578	cont
+578	x-other
+579	b-cont
+579	cont
+579	a-b-start
+580	b-cont
+580	cont
+580	a b-cont
+581	b-cont
+581	x-other
+581	other
+582	b-cont
+582	x-other
+582	a-start
+583	b-cont
+583	x-other
+583	a-cont
+584	b-cont
+584	x-other
+584	b-start
+585	b-cont
+585	x-other
+585	b-cont
+586	b-cont
+586	x-other
+586	start
+587	b-cont
+587	x-other
+587	cont
+588	b-cont
+588	x-other
+588	x-other
+589	b-cont
+589	x-other
+589	a-b-start
+590	b-cont
+590	x-other
+590	a b-cont
+591	b-cont
+591	a-b-start
+591	other
+592	b-cont
+592	a-b-start
+592	a-start
+593	b-cont
+593	a-b-start
+593	a-cont
+594	b-cont
+594	a-b-start
+594	b-start
+595	b-cont
+595	a-b-start
+595	b-cont
+596	b-cont
+596	a-b-start
+596	start
+597	b-cont
+597	a-b-start
+597	cont
+598	b-cont
+598	a-b-start
+598	x-other
+599	b-cont
+599	a-b-start
+599	a-b-start
+600	b-cont
+600	a-b-start
+600	a b-cont
+601	b-cont
+601	a b-cont
+601	other
+602	b-cont
+602	a b-cont
+602	a-start
+603	b-cont
+603	a b-cont
+603	a-cont
+604	b-cont
+604	a b-cont
+604	b-start
+605	b-cont
+605	a b-cont
+605	b-cont
+606	b-cont
+606	a b-cont
+606	start
+607	b-cont
+607	a b-cont
+607	cont
+608	b-cont
+608	a b-cont
+608	x-other
+609	b-cont
+609	a b-cont
+609	a-b-start
+610	b-cont
+610	a b-cont
+610	a b-cont
+611	start
+611	other
+611	other
+612	start
+612	other
+612	a-start
+613	start
+613	other
+613	a-cont
+614	start
+614	other
+614	b-start
+615	start
+615	other
+615	b-cont
+616	start
+616	other
+616	start
+617	start
+617	other
+617	cont
+618	start
+618	other
+618	x-other
+619	start
+619	other
+619	a-b-start
+620	start
+620	other
+620	a b-cont
+621	start
+621	a-start
+621	other
+622	start
+622	a-start
+622	a-start
+623	start
+623	a-start
+623	a-cont
+624	start
+624	a-start
+624	b-start
+625	start
+625	a-start
+625	b-cont
+626	start
+626	a-start
+626	start
+627	start
+627	a-start
+627	cont
+628	start
+628	a-start
+628	x-other
+629	start
+629	a-start
+629	a-b-start
+630	start
+630	a-start
+630	a b-cont
+631	start
+631	a-cont
+631	other
+632	start
+632	a-cont
+632	a-start
+633	start
+633	a-cont
+633	a-cont
+634	start
+634	a-cont
+634	b-start
+635	start
+635	a-cont
+635	b-cont
+636	start
+636	a-cont
+636	start
+637	start
+637	a-cont
+637	cont
+638	start
+638	a-cont
+638	x-other
+639	start
+639	a-cont
+639	a-b-start
+640	start
+640	a-cont
+640	a b-cont
+641	start
+641	b-start
+641	other
+642	start
+642	b-start
+642	a-start
+643	start
+643	b-start
+643	a-cont
+644	start
+644	b-start
+644	b-start
+645	start
+645	b-start
+645	b-cont
+646	start
+646	b-start
+646	start
+647	start
+647	b-start
+647	cont
+648	start
+648	b-start
+648	x-other
+649	start
+649	b-start
+649	a-b-start
+650	start
+650	b-start
+650	a b-cont
+651	start
+651	b-cont
+651	other
+652	start
+652	b-cont
+652	a-start
+653	start
+653	b-cont
+653	a-cont
+654	start
+654	b-cont
+654	b-start
+655	start
+655	b-cont
+655	b-cont
+656	start
+656	b-cont
+656	start
+657	start
+657	b-cont
+657	cont
+658	start
+658	b-cont
+658	x-other
+659	start
+659	b-cont
+659	a-b-start
+660	start
+660	b-cont
+660	a b-cont
+661	start
+661	start
+661	other
+662	start
+662	start
+662	a-start
+663	start
+663	start
+663	a-cont
+664	start
+664	start
+664	b-start
+665	start
+665	start
+665	b-cont
+666	start
+666	start
+666	start
+667	start
+667	start
+667	cont
+668	start
+668	start
+668	x-other
+669	start
+669	start
+669	a-b-start
+670	start
+670	start
+670	a b-cont
+671	start
+671	cont
+671	other
+672	start
+672	cont
+672	a-start
+673	start
+673	cont
+673	a-cont
+674	start
+674	cont
+674	b-start
+675	start
+675	cont
+675	b-cont
+676	start
+676	cont
+676	start
+677	start
+677	cont
+677	cont
+678	start
+678	cont
+678	x-other
+679	start
+679	cont
+679	a-b-start
+680	start
+680	cont
+680	a b-cont
+681	start
+681	x-other
+681	other
+682	start
+682	x-other
+682	a-start
+683	start
+683	x-other
+683	a-cont
+684	start
+684	x-other
+684	b-start
+685	start
+685	x-other
+685	b-cont
+686	start
+686	x-other
+686	start
+687	start
+687	x-other
+687	cont
+688	start
+688	x-other
+688	x-other
+689	start
+689	x-other
+689	a-b-start
+690	start
+690	x-other
+690	a b-cont
+691	start
+691	a-b-start
+691	other
+692	start
+692	a-b-start
+692	a-start
+693	start
+693	a-b-start
+693	a-cont
+694	start
+694	a-b-start
+694	b-start
+695	start
+695	a-b-start
+695	b-cont
+696	start
+696	a-b-start
+696	start
+697	start
+697	a-b-start
+697	cont
+698	start
+698	a-b-start
+698	x-other
+699	start
+699	a-b-start
+699	a-b-start
+700	start
+700	a-b-start
+700	a b-cont
+701	start
+701	a b-cont
+701	other
+702	start
+702	a b-cont
+702	a-start
+703	start
+703	a b-cont
+703	a-cont
+704	start
+704	a b-cont
+704	b-start
+705	start
+705	a b-cont
+705	b-cont
+706	start
+706	a b-cont
+706	start
+707	start
+707	a b-cont
+707	cont
+708	start
+708	a b-cont
+708	x-other
+709	start
+709	a b-cont
+709	a-b-start
+710	start
+710	a b-cont
+710	a b-cont
+711	cont
+711	other
+711	other
+712	cont
+712	other
+712	a-start
+713	cont
+713	other
+713	a-cont
+714	cont
+714	other
+714	b-start
+715	cont
+715	other
+715	b-cont
+716	cont
+716	other
+716	start
+717	cont
+717	other
+717	cont
+718	cont
+718	other
+718	x-other
+719	cont
+719	other
+719	a-b-start
+720	cont
+720	other
+720	a b-cont
+721	cont
+721	a-start
+721	other
+722	cont
+722	a-start
+722	a-start
+723	cont
+723	a-start
+723	a-cont
+724	cont
+724	a-start
+724	b-start
+725	cont
+725	a-start
+725	b-cont
+726	cont
+726	a-start
+726	start
+727	cont
+727	a-start
+727	cont
+728	cont
+728	a-start
+728	x-other
+729	cont
+729	a-start
+729	a-b-start
+730	cont
+730	a-start
+730	a b-cont
+731	cont
+731	a-cont
+731	other
+732	cont
+732	a-cont
+732	a-start
+733	cont
+733	a-cont
+733	a-cont
+734	cont
+734	a-cont
+734	b-start
+735	cont
+735	a-cont
+735	b-cont
+736	cont
+736	a-cont
+736	start
+737	cont
+737	a-cont
+737	cont
+738	cont
+738	a-cont
+738	x-other
+739	cont
+739	a-cont
+739	a-b-start
+740	cont
+740	a-cont
+740	a b-cont
+741	cont
+741	b-start
+741	other
+742	cont
+742	b-start
+742	a-start
+743	cont
+743	b-start
+743	a-cont
+744	cont
+744	b-start
+744	b-start
+745	cont
+745	b-start
+745	b-cont
+746	cont
+746	b-start
+746	start
+747	cont
+747	b-start
+747	cont
+748	cont
+748	b-start
+748	x-other
+749	cont
+749	b-start
+749	a-b-start
+750	cont
+750	b-start
+750	a b-cont
+751	cont
+751	b-cont
+751	other
+752	cont
+752	b-cont
+752	a-start
+753	cont
+753	b-cont
+753	a-cont
+754	cont
+754	b-cont
+754	b-start
+755	cont
+755	b-cont
+755	b-cont
+756	cont
+756	b-cont
+756	start
+757	cont
+757	b-cont
+757	cont
+758	cont
+758	b-cont
+758	x-other
+759	cont
+759	b-cont
+759	a-b-start
+760	cont
+760	b-cont
+760	a b-cont
+761	cont
+761	start
+761	other
+762	cont
+762	start
+762	a-start
+763	cont
+763	start
+763	a-cont
+764	cont
+764	start
+764	b-start
+765	cont
+765	start
+765	b-cont
+766	cont
+766	start
+766	start
+767	cont
+767	start
+767	cont
+768	cont
+768	start
+768	x-other
+769	cont
+769	start
+769	a-b-start
+770	cont
+770	start
+770	a b-cont
+771	cont
+771	cont
+771	other
+772	cont
+772	cont
+772	a-start
+773	cont
+773	cont
+773	a-cont
+774	cont
+774	cont
+774	b-start
+775	cont
+775	cont
+775	b-cont
+776	cont
+776	cont
+776	start
+777	cont
+777	cont
+777	cont
+778	cont
+778	cont
+778	x-other
+779	cont
+779	cont
+779	a-b-start
+780	cont
+780	cont
+780	a b-cont
+781	cont
+781	x-other
+781	other
+782	cont
+782	x-other
+782	a-start
+783	cont
+783	x-other
+783	a-cont
+784	cont
+784	x-other
+784	b-start
+785	cont
+785	x-other
+785	b-cont
+786	cont
+786	x-other
+786	start
+787	cont
+787	x-other
+787	cont
+788	cont
+788	x-other
+788	x-other
+789	cont
+789	x-other
+789	a-b-start
+790	cont
+790	x-other
+790	a b-cont
+791	cont
+791	a-b-start
+791	other
+792	cont
+792	a-b-start
+792	a-start
+793	cont
+793	a-b-start
+793	a-cont
+794	cont
+794	a-b-start
+794	b-start
+795	cont
+795	a-b-start
+795	b-cont
+796	cont
+796	a-b-start
+796	start
+797	cont
+797	a-b-start
+797	cont
+798	cont
+798	a-b-start
+798	x-other
+799	cont
+799	a-b-start
+799	a-b-start
+800	cont
+800	a-b-start
+800	a b-cont
+801	cont
+801	a b-cont
+801	other
+802	cont
+802	a b-cont
+802	a-start
+803	cont
+803	a b-cont
+803	a-cont
+804	cont
+804	a b-cont
+804	b-start
+805	cont
+805	a b-cont
+805	b-cont
+806	cont
+806	a b-cont
+806	start
+807	cont
+807	a b-cont
+807	cont
+808	cont
+808	a b-cont
+808	x-other
+809	cont
+809	a b-cont
+809	a-b-start
+810	cont
+810	a b-cont
+810	a b-cont
+811	x-other
+811	other
+811	other
+812	x-other
+812	other
+812	a-start
+813	x-other
+813	other
+813	a-cont
+814	x-other
+814	other
+814	b-start
+815	x-other
+815	other
+815	b-cont
+816	x-other
+816	other
+816	start
+817	x-other
+817	other
+817	cont
+818	x-other
+818	other
+818	x-other
+819	x-other
+819	other
+819	a-b-start
+820	x-other
+820	other
+820	a b-cont
+821	x-other
+821	a-start
+821	other
+822	x-other
+822	a-start
+822	a-start
+823	x-other
+823	a-start
+823	a-cont
+824	x-other
+824	a-start
+824	b-start
+825	x-other
+825	a-start
+825	b-cont
+826	x-other
+826	a-start
+826	start
+827	x-other
+827	a-start
+827	cont
+828	x-other
+828	a-start
+828	x-other
+829	x-other
+829	a-start
+829	a-b-start
+830	x-other
+830	a-start
+830	a b-cont
+831	x-other
+831	a-cont
+831	other
+832	x-other
+832	a-cont
+832	a-start
+833	x-other
+833	a-cont
+833	a-cont
+834	x-other
+834	a-cont
+834	b-start
+835	x-other
+835	a-cont
+835	b-cont
+836	x-other
+836	a-cont
+836	start
+837	x-other
+837	a-cont
+837	cont
+838	x-other
+838	a-cont
+838	x-other
+839	x-other
+839	a-cont
+839	a-b-start
+840	x-other
+840	a-cont
+840	a b-cont
+841	x-other
+841	b-start
+841	other
+842	x-other
+842	b-start
+842	a-start
+843	x-other
+843	b-start
+843	a-cont
+844	x-other
+844	b-start
+844	b-start
+845	x-other
+845	b-start
+845	b-cont
+846	x-other
+846	b-start
+846	start
+847	x-other
+847	b-start
+847	cont
+848	x-other
+848	b-start
+848	x-other
+849	x-other
+849	b-start
+849	a-b-start
+850	x-other
+850	b-start
+850	a b-cont
+851	x-other
+851	b-cont
+851	other
+852	x-other
+852	b-cont
+852	a-start
+853	x-other
+853	b-cont
+853	a-cont
+854	x-other
+854	b-cont
+854	b-start
+855	x-other
+855	b-cont
+855	b-cont
+856	x-other
+856	b-cont
+856	start
+857	x-other
+857	b-cont
+857	cont
+858	x-other
+858	b-cont
+858	x-other
+859	x-other
+859	b-cont
+859	a-b-start
+860	x-other
+860	b-cont
+860	a b-cont
+861	x-other
+861	start
+861	other
+862	x-other
+862	start
+862	a-start
+863	x-other
+863	start
+863	a-cont
+864	x-other
+864	start
+864	b-start
+865	x-other
+865	start
+865	b-cont
+866	x-other
+866	start
+866	start
+867	x-other
+867	start
+867	cont
+868	x-other
+868	start
+868	x-other
+869	x-other
+869	start
+869	a-b-start
+870	x-other
+870	start
+870	a b-cont
+871	x-other
+871	cont
+871	other
+872	x-other
+872	cont
+872	a-start
+873	x-other
+873	cont
+873	a-cont
+874	x-other
+874	cont
+874	b-start
+875	x-other
+875	cont
+875	b-cont
+876	x-other
+876	cont
+876	start
+877	x-other
+877	cont
+877	cont
+878	x-other
+878	cont
+878	x-other
+879	x-other
+879	cont
+879	a-b-start
+880	x-other
+880	cont
+880	a b-cont
+881	x-other
+881	x-other
+881	other
+882	x-other
+882	x-other
+882	a-start
+883	x-other
+883	x-other
+883	a-cont
+884	x-other
+884	x-other
+884	b-start
+885	x-other
+885	x-other
+885	b-cont
+886	x-other
+886	x-other
+886	start
+887	x-other
+887	x-other
+887	cont
+888	x-other
+888	x-other
+888	x-other
+889	x-other
+889	x-other
+889	a-b-start
+890	x-other
+890	x-other
+890	a b-cont
+891	x-other
+891	a-b-start
+891	other
+892	x-other
+892	a-b-start
+892	a-start
+893	x-other
+893	a-b-start
+893	a-cont
+894	x-other
+894	a-b-start
+894	b-start
+895	x-other
+895	a-b-start
+895	b-cont
+896	x-other
+896	a-b-start
+896	start
+897	x-other
+897	a-b-start
+897	cont
+898	x-other
+898	a-b-start
+898	x-other
+899	x-other
+899	a-b-start
+899	a-b-start
+900	x-other
+900	a-b-start
+900	a b-cont
+901	x-other
+901	a b-cont
+901	other
+902	x-other
+902	a b-cont
+902	a-start
+903	x-other
+903	a b-cont
+903	a-cont
+904	x-other
+904	a b-cont
+904	b-start
+905	x-other
+905	a b-cont
+905	b-cont
+906	x-other
+906	a b-cont
+906	start
+907	x-other
+907	a b-cont
+907	cont
+908	x-other
+908	a b-cont
+908	x-other
+909	x-other
+909	a b-cont
+909	a-b-start
+910	x-other
+910	a b-cont
+910	a b-cont
+911	a-b-start
+911	other
+911	other
+912	a-b-start
+912	other
+912	a-start
+913	a-b-start
+913	other
+913	a-cont
+914	a-b-start
+914	other
+914	b-start
+915	a-b-start
+915	other
+915	b-cont
+916	a-b-start
+916	other
+916	start
+917	a-b-start
+917	other
+917	cont
+918	a-b-start
+918	other
+918	x-other
+919	a-b-start
+919	other
+919	a-b-start
+920	a-b-start
+920	other
+920	a b-cont
+921	a-b-start
+921	a-start
+921	other
+922	a-b-start
+922	a-start
+922	a-start
+923	a-b-start
+923	a-start
+923	a-cont
+924	a-b-start
+924	a-start
+924	b-start
+925	a-b-start
+925	a-start
+925	b-cont
+926	a-b-start
+926	a-start
+926	start
+927	a-b-start
+927	a-start
+927	cont
+928	a-b-start
+928	a-start
+928	x-other
+929	a-b-start
+929	a-start
+929	a-b-start
+930	a-b-start
+930	a-start
+930	a b-cont
+931	a-b-start
+931	a-cont
+931	other
+932	a-b-start
+932	a-cont
+932	a-start
+933	a-b-start
+933	a-cont
+933	a-cont
+934	a-b-start
+934	a-cont
+934	b-start
+935	a-b-start
+935	a-cont
+935	b-cont
+936	a-b-start
+936	a-cont
+936	start
+937	a-b-start
+937	a-cont
+937	cont
+938	a-b-start
+938	a-cont
+938	x-other
+939	a-b-start
+939	a-cont
+939	a-b-start
+940	a-b-start
+940	a-cont
+940	a b-cont
+941	a-b-start
+941	b-start
+941	other
+942	a-b-start
+942	b-start
+942	a-start
+943	a-b-start
+943	b-start
+943	a-cont
+944	a-b-start
+944	b-start
+944	b-start
+945	a-b-start
+945	b-start
+945	b-cont
+946	a-b-start
+946	b-start
+946	start
+947	a-b-start
+947	b-start
+947	cont
+948	a-b-start
+948	b-start
+948	x-other
+949	a-b-start
+949	b-start
+949	a-b-start
+950	a-b-start
+950	b-start
+950	a b-cont
+951	a-b-start
+951	b-cont
+951	other
+952	a-b-start
+952	b-cont
+952	a-start
+953	a-b-start
+953	b-cont
+953	a-cont
+954	a-b-start
+954	b-cont
+954	b-start
+955	a-b-start
+955	b-cont
+955	b-cont
+956	a-b-start
+956	b-cont
+956	start
+957	a-b-start
+957	b-cont
+957	cont
+958	a-b-start
+958	b-cont
+958	x-other
+959	a-b-start
+959	b-cont
+959	a-b-start
+960	a-b-start
+960	b-cont
+960	a b-cont
+961	a-b-start
+961	start
+961	other
+962	a-b-start
+962	start
+962	a-start
+963	a-b-start
+963	start
+963	a-cont
+964	a-b-start
+964	start
+964	b-start
+965	a-b-start
+965	start
+965	b-cont
+966	a-b-start
+966	start
+966	start
+967	a-b-start
+967	start
+967	cont
+968	a-b-start
+968	start
+968	x-other
+969	a-b-start
+969	start
+969	a-b-start
+970	a-b-start
+970	start
+970	a b-cont
+971	a-b-start
+971	cont
+971	other
+972	a-b-start
+972	cont
+972	a-start
+973	a-b-start
+973	cont
+973	a-cont
+974	a-b-start
+974	cont
+974	b-start
+975	a-b-start
+975	cont
+975	b-cont
+976	a-b-start
+976	cont
+976	start
+977	a-b-start
+977	cont
+977	cont
+978	a-b-start
+978	cont
+978	x-other
+979	a-b-start
+979	cont
+979	a-b-start
+980	a-b-start
+980	cont
+980	a b-cont
+981	a-b-start
+981	x-other
+981	other
+982	a-b-start
+982	x-other
+982	a-start
+983	a-b-start
+983	x-other
+983	a-cont
+984	a-b-start
+984	x-other
+984	b-start
+985	a-b-start
+985	x-other
+985	b-cont
+986	a-b-start
+986	x-other
+986	start
+987	a-b-start
+987	x-other
+987	cont
+988	a-b-start
+988	x-other
+988	x-other
+989	a-b-start
+989	x-other
+989	a-b-start
+990	a-b-start
+990	x-other
+990	a b-cont
+991	a-b-start
+991	a-b-start
+991	other
+992	a-b-start
+992	a-b-start
+992	a-start
+993	a-b-start
+993	a-b-start
+993	a-cont
+994	a-b-start
+994	a-b-start
+994	b-start
+995	a-b-start
+995	a-b-start
+995	b-cont
+996	a-b-start
+996	a-b-start
+996	start
+997	a-b-start
+997	a-b-start
+997	cont
+998	a-b-start
+998	a-b-start
+998	x-other
+999	a-b-start
+999	a-b-start
+999	a-b-start
+1000	a-b-start
+1000	a-b-start
+1000	a b-cont
+1001	a-b-start
+1001	a b-cont
+1001	other
+1002	a-b-start
+1002	a b-cont
+1002	a-start
+1003	a-b-start
+1003	a b-cont
+1003	a-cont
+1004	a-b-start
+1004	a b-cont
+1004	b-start
+1005	a-b-start
+1005	a b-cont
+1005	b-cont
+1006	a-b-start
+1006	a b-cont
+1006	start
+1007	a-b-start
+1007	a b-cont
+1007	cont
+1008	a-b-start
+1008	a b-cont
+1008	x-other
+1009	a-b-start
+1009	a b-cont
+1009	a-b-start
+1010	a-b-start
+1010	a b-cont
+1010	a b-cont
+1011	a b-cont
+1011	other
+1011	other
+1012	a b-cont
+1012	other
+1012	a-start
+1013	a b-cont
+1013	other
+1013	a-cont
+1014	a b-cont
+1014	other
+1014	b-start
+1015	a b-cont
+1015	other
+1015	b-cont
+1016	a b-cont
+1016	other
+1016	start
+1017	a b-cont
+1017	other
+1017	cont
+1018	a b-cont
+1018	other
+1018	x-other
+1019	a b-cont
+1019	other
+1019	a-b-start
+1020	a b-cont
+1020	other
+1020	a b-cont
+1021	a b-cont
+1021	a-start
+1021	other
+1022	a b-cont
+1022	a-start
+1022	a-start
+1023	a b-cont
+1023	a-start
+1023	a-cont
+1024	a b-cont
+1024	a-start
+1024	b-start
+1025	a b-cont
+1025	a-start
+1025	b-cont
+1026	a b-cont
+1026	a-start
+1026	start
+1027	a b-cont
+1027	a-start
+1027	cont
+1028	a b-cont
+1028	a-start
+1028	x-other
+1029	a b-cont
+1029	a-start
+1029	a-b-start
+1030	a b-cont
+1030	a-start
+1030	a b-cont
+1031	a b-cont
+1031	a-cont
+1031	other
+1032	a b-cont
+1032	a-cont
+1032	a-start
+1033	a b-cont
+1033	a-cont
+1033	a-cont
+1034	a b-cont
+1034	a-cont
+1034	b-start
+1035	a b-cont
+1035	a-cont
+1035	b-cont
+1036	a b-cont
+1036	a-cont
+1036	start
+1037	a b-cont
+1037	a-cont
+1037	cont
+1038	a b-cont
+1038	a-cont
+1038	x-other
+1039	a b-cont
+1039	a-cont
+1039	a-b-start
+1040	a b-cont
+1040	a-cont
+1040	a b-cont
+1041	a b-cont
+1041	b-start
+1041	other
+1042	a b-cont
+1042	b-start
+1042	a-start
+1043	a b-cont
+1043	b-start
+1043	a-cont
+1044	a b-cont
+1044	b-start
+1044	b-start
+1045	a b-cont
+1045	b-start
+1045	b-cont
+1046	a b-cont
+1046	b-start
+1046	start
+1047	a b-cont
+1047	b-start
+1047	cont
+1048	a b-cont
+1048	b-start
+1048	x-other
+1049	a b-cont
+1049	b-start
+1049	a-b-start
+1050	a b-cont
+1050	b-start
+1050	a b-cont
+1051	a b-cont
+1051	b-cont
+1051	other
+1052	a b-cont
+1052	b-cont
+1052	a-start
+1053	a b-cont
+1053	b-cont
+1053	a-cont
+1054	a b-cont
+1054	b-cont
+1054	b-start
+1055	a b-cont
+1055	b-cont
+1055	b-cont
+1056	a b-cont
+1056	b-cont
+1056	start
+1057	a b-cont
+1057	b-cont
+1057	cont
+1058	a b-cont
+1058	b-cont
+1058	x-other
+1059	a b-cont
+1059	b-cont
+1059	a-b-start
+1060	a b-cont
+1060	b-cont
+1060	a b-cont
+1061	a b-cont
+1061	start
+1061	other
+1062	a b-cont
+1062	start
+1062	a-start
+1063	a b-cont
+1063	start
+1063	a-cont
+1064	a b-cont
+1064	start
+1064	b-start
+1065	a b-cont
+1065	start
+1065	b-cont
+1066	a b-cont
+1066	start
+1066	start
+1067	a b-cont
+1067	start
+1067	cont
+1068	a b-cont
+1068	start
+1068	x-other
+1069	a b-cont
+1069	start
+1069	a-b-start
+1070	a b-cont
+1070	start
+1070	a b-cont
+1071	a b-cont
+1071	cont
+1071	other
+1072	a b-cont
+1072	cont
+1072	a-start
+1073	a b-cont
+1073	cont
+1073	a-cont
+1074	a b-cont
+1074	cont
+1074	b-start
+1075	a b-cont
+1075	cont
+1075	b-cont
+1076	a b-cont
+1076	cont
+1076	start
+1077	a b-cont
+1077	cont
+1077	cont
+1078	a b-cont
+1078	cont
+1078	x-other
+1079	a b-cont
+1079	cont
+1079	a-b-start
+1080	a b-cont
+1080	cont
+1080	a b-cont
+1081	a b-cont
+1081	x-other
+1081	other
+1082	a b-cont
+1082	x-other
+1082	a-start
+1083	a b-cont
+1083	x-other
+1083	a-cont
+1084	a b-cont
+1084	x-other
+1084	b-start
+1085	a b-cont
+1085	x-other
+1085	b-cont
+1086	a b-cont
+1086	x-other
+1086	start
+1087	a b-cont
+1087	x-other
+1087	cont
+1088	a b-cont
+1088	x-other
+1088	x-other
+1089	a b-cont
+1089	x-other
+1089	a-b-start
+1090	a b-cont
+1090	x-other
+1090	a b-cont
+1091	a b-cont
+1091	a-b-start
+1091	other
+1092	a b-cont
+1092	a-b-start
+1092	a-start
+1093	a b-cont
+1093	a-b-start
+1093	a-cont
+1094	a b-cont
+1094	a-b-start
+1094	b-start
+1095	a b-cont
+1095	a-b-start
+1095	b-cont
+1096	a b-cont
+1096	a-b-start
+1096	start
+1097	a b-cont
+1097	a-b-start
+1097	cont
+1098	a b-cont
+1098	a-b-start
+1098	x-other
+1099	a b-cont
+1099	a-b-start
+1099	a-b-start
+1100	a b-cont
+1100	a-b-start
+1100	a b-cont
+1101	a b-cont
+1101	a b-cont
+1101	other
+1102	a b-cont
+1102	a b-cont
+1102	a-start
+1103	a b-cont
+1103	a b-cont
+1103	a-cont
+1104	a b-cont
+1104	a b-cont
+1104	b-start
+1105	a b-cont
+1105	a b-cont
+1105	b-cont
+1106	a b-cont
+1106	a b-cont
+1106	start
+1107	a b-cont
+1107	a b-cont
+1107	cont
+1108	a b-cont
+1108	a b-cont
+1108	x-other
+1109	a b-cont
+1109	a b-cont
+1109	a-b-start
+1110	a b-cont
+1110	a b-cont
+1110	a b-cont
+end	turbo:decode-outcomes
+layer	turbo:decode-spans	document	1284	case:u32	start:u32	end:u32	type:str	typed:u32
+2	0	1	a	1
+4	0	1	b	1
+6	0	1		0
+9	0	1	a-b	1
+12	1	2	a	1
+14	1	2	b	1
+16	1	2		0
+19	1	2	a-b	1
+21	0	1	a	1
+22	0	1	a	1
+22	1	2	a	1
+23	0	2	a	1
+24	0	1	a	1
+24	1	2	b	1
+25	0	2	b	1
+26	0	1	a	1
+26	1	2		0
+27	0	2		0
+28	0	1	a	1
+29	0	1	a	1
+29	1	2	a-b	1
+30	0	2	a b	1
+32	1	2	a	1
+34	1	2	b	1
+36	1	2		0
+39	1	2	a-b	1
+41	0	1	b	1
+42	0	1	b	1
+42	1	2	a	1
+43	0	2	a	1
+44	0	1	b	1
+44	1	2	b	1
+45	0	2	b	1
+46	0	1	b	1
+46	1	2		0
+47	0	2		0
+48	0	1	b	1
+49	0	1	b	1
+49	1	2	a-b	1
+50	0	2	a b	1
+52	1	2	a	1
+54	1	2	b	1
+56	1	2		0
+59	1	2	a-b	1
+61	0	1		0
+62	0	1		0
+62	1	2	a	1
+63	0	2	a	1
+64	0	1		0
+64	1	2	b	1
+65	0	2	b	1
+66	0	1		0
+66	1	2		0
+67	0	2		0
+68	0	1		0
+69	0	1		0
+69	1	2	a-b	1
+70	0	2	a b	1
+72	1	2	a	1
+74	1	2	b	1
+76	1	2		0
+79	1	2	a-b	1
+82	1	2	a	1
+84	1	2	b	1
+86	1	2		0
+89	1	2	a-b	1
+91	0	1	a-b	1
+92	0	1	a-b	1
+92	1	2	a	1
+93	0	2	a	1
+94	0	1	a-b	1
+94	1	2	b	1
+95	0	2	b	1
+96	0	1	a-b	1
+96	1	2		0
+97	0	2		0
+98	0	1	a-b	1
+99	0	1	a-b	1
+99	1	2	a-b	1
+100	0	2	a b	1
+102	1	2	a	1
+104	1	2	b	1
+106	1	2		0
+109	1	2	a-b	1
+112	2	3	a	1
+114	2	3	b	1
+116	2	3		0
+119	2	3	a-b	1
+121	1	2	a	1
+122	1	2	a	1
+122	2	3	a	1
+123	1	3	a	1
+124	1	2	a	1
+124	2	3	b	1
+125	1	3	b	1
+126	1	2	a	1
+126	2	3		0
+127	1	3		0
+128	1	2	a	1
+129	1	2	a	1
+129	2	3	a-b	1
+130	1	3	a b	1
+132	2	3	a	1
+134	2	3	b	1
+136	2	3		0
+139	2	3	a-b	1
+141	1	2	b	1
+142	1	2	b	1
+142	2	3	a	1
+143	1	3	a	1
+144	1	2	b	1
+144	2	3	b	1
+145	1	3	b	1
+146	1	2	b	1
+146	2	3		0
+147	1	3		0
+148	1	2	b	1
+149	1	2	b	1
+149	2	3	a-b	1
+150	1	3	a b	1
+152	2	3	a	1
+154	2	3	b	1
+156	2	3		0
+159	2	3	a-b	1
+161	1	2		0
+162	1	2		0
+162	2	3	a	1
+163	1	3	a	1
+164	1	2		0
+164	2	3	b	1
+165	1	3	b	1
+166	1	2		0
+166	2	3		0
+167	1	3		0
+168	1	2		0
+169	1	2		0
+169	2	3	a-b	1
+170	1	3	a b	1
+172	2	3	a	1
+174	2	3	b	1
+176	2	3		0
+179	2	3	a-b	1
+182	2	3	a	1
+184	2	3	b	1
+186	2	3		0
+189	2	3	a-b	1
+191	1	2	a-b	1
+192	1	2	a-b	1
+192	2	3	a	1
+193	1	3	a	1
+194	1	2	a-b	1
+194	2	3	b	1
+195	1	3	b	1
+196	1	2	a-b	1
+196	2	3		0
+197	1	3		0
+198	1	2	a-b	1
+199	1	2	a-b	1
+199	2	3	a-b	1
+200	1	3	a b	1
+202	2	3	a	1
+204	2	3	b	1
+206	2	3		0
+209	2	3	a-b	1
+211	0	1	a	1
+212	0	1	a	1
+212	2	3	a	1
+213	0	1	a	1
+214	0	1	a	1
+214	2	3	b	1
+215	0	1	a	1
+216	0	1	a	1
+216	2	3		0
+217	0	1	a	1
+218	0	1	a	1
+219	0	1	a	1
+219	2	3	a-b	1
+220	0	1	a	1
+221	0	1	a	1
+221	1	2	a	1
+222	0	1	a	1
+222	1	2	a	1
+222	2	3	a	1
+223	0	1	a	1
+223	1	3	a	1
+224	0	1	a	1
+224	1	2	a	1
+224	2	3	b	1
+225	0	1	a	1
+225	1	3	b	1
+226	0	1	a	1
+226	1	2	a	1
+226	2	3		0
+227	0	1	a	1
+227	1	3		0
+228	0	1	a	1
+228	1	2	a	1
+229	0	1	a	1
+229	1	2	a	1
+229	2	3	a-b	1
+230	0	1	a	1
+230	1	3	a b	1
+231	0	2	a	1
+232	0	2	a	1
+232	2	3	a	1
+233	0	3	a	1
+234	0	2	a	1
+234	2	3	b	1
+235	0	3	b	1
+236	0	2	a	1
+236	2	3		0
+237	0	3		0
+238	0	2	a	1
+239	0	2	a	1
+239	2	3	a-b	1
+240	0	3	a b	1
+241	0	1	a	1
+241	1	2	b	1
+242	0	1	a	1
+242	1	2	b	1
+242	2	3	a	1
+243	0	1	a	1
+243	1	3	a	1
+244	0	1	a	1
+244	1	2	b	1
+244	2	3	b	1
+245	0	1	a	1
+245	1	3	b	1
+246	0	1	a	1
+246	1	2	b	1
+246	2	3		0
+247	0	1	a	1
+247	1	3		0
+248	0	1	a	1
+248	1	2	b	1
+249	0	1	a	1
+249	1	2	b	1
+249	2	3	a-b	1
+250	0	1	a	1
+250	1	3	a b	1
+251	0	2	b	1
+252	0	2	b	1
+252	2	3	a	1
+253	0	3	a	1
+254	0	2	b	1
+254	2	3	b	1
+255	0	3	b	1
+256	0	2	b	1
+256	2	3		0
+257	0	3		0
+258	0	2	b	1
+259	0	2	b	1
+259	2	3	a-b	1
+260	0	3	a b	1
+261	0	1	a	1
+261	1	2		0
+262	0	1	a	1
+262	1	2		0
+262	2	3	a	1
+263	0	1	a	1
+263	1	3	a	1
+264	0	1	a	1
+264	1	2		0
+264	2	3	b	1
+265	0	1	a	1
+265	1	3	b	1
+266	0	1	a	1
+266	1	2		0
+266	2	3		0
+267	0	1	a	1
+267	1	3		0
+268	0	1	a	1
+268	1	2		0
+269	0	1	a	1
+269	1	2		0
+269	2	3	a-b	1
+270	0	1	a	1
+270	1	3	a b	1
+271	0	2		0
+272	0	2		0
+272	2	3	a	1
+273	0	3	a	1
+274	0	2		0
+274	2	3	b	1
+275	0	3	b	1
+276	0	2		0
+276	2	3		0
+277	0	3		0
+278	0	2		0
+279	0	2		0
+279	2	3	a-b	1
+280	0	3	a b	1
+281	0	1	a	1
+282	0	1	a	1
+282	2	3	a	1
+283	0	1	a	1
+284	0	1	a	1
+284	2	3	b	1
+285	0	1	a	1
+286	0	1	a	1
+286	2	3		0
+287	0	1	a	1
+288	0	1	a	1
+289	0	1	a	1
+289	2	3	a-b	1
+290	0	1	a	1
+291	0	1	a	1
+291	1	2	a-b	1
+292	0	1	a	1
+292	1	2	a-b	1
+292	2	3	a	1
+293	0	1	a	1
+293	1	3	a	1
+294	0	1	a	1
+294	1	2	a-b	1
+294	2	3	b	1
+295	0	1	a	1
+295	1	3	b	1
+296	0	1	a	1
+296	1	2	a-b	1
+296	2	3		0
+297	0	1	a	1
+297	1	3		0
+298	0	1	a	1
+298	1	2	a-b	1
+299	0	1	a	1
+299	1	2	a-b	1
+299	2	3	a-b	1
+300	0	1	a	1
+300	1	3	a b	1
+301	0	2	a b	1
+302	0	2	a b	1
+302	2	3	a	1
+303	0	3	a	1
+304	0	2	a b	1
+304	2	3	b	1
+305	0	3	b	1
+306	0	2	a b	1
+306	2	3		0
+307	0	3		0
+308	0	2	a b	1
+309	0	2	a b	1
+309	2	3	a-b	1
+310	0	3	a b	1
+312	2	3	a	1
+314	2	3	b	1
+316	2	3		0
+319	2	3	a-b	1
+321	1	2	a	1
+322	1	2	a	1
+322	2	3	a	1
+323	1	3	a	1
+324	1	2	a	1
+324	2	3	b	1
+325	1	3	b	1
+326	1	2	a	1
+326	2	3		0
+327	1	3		0
+328	1	2	a	1
+329	1	2	a	1
+329	2	3	a-b	1
+330	1	3	a b	1
+332	2	3	a	1
+334	2	3	b	1
+336	2	3		0
+339	2	3	a-b	1
+341	1	2	b	1
+342	1	2	b	1
+342	2	3	a	1
+343	1	3	a	1
+344	1	2	b	1
+344	2	3	b	1
+345	1	3	b	1
+346	1	2	b	1
+346	2	3		0
+347	1	3		0
+348	1	2	b	1
+349	1	2	b	1
+349	2	3	a-b	1
+350	1	3	a b	1
+352	2	3	a	1
+354	2	3	b	1
+356	2	3		0
+359	2	3	a-b	1
+361	1	2		0
+362	1	2		0
+362	2	3	a	1
+363	1	3	a	1
+364	1	2		0
+364	2	3	b	1
+365	1	3	b	1
+366	1	2		0
+366	2	3		0
+367	1	3		0
+368	1	2		0
+369	1	2		0
+369	2	3	a-b	1
+370	1	3	a b	1
+372	2	3	a	1
+374	2	3	b	1
+376	2	3		0
+379	2	3	a-b	1
+382	2	3	a	1
+384	2	3	b	1
+386	2	3		0
+389	2	3	a-b	1
+391	1	2	a-b	1
+392	1	2	a-b	1
+392	2	3	a	1
+393	1	3	a	1
+394	1	2	a-b	1
+394	2	3	b	1
+395	1	3	b	1
+396	1	2	a-b	1
+396	2	3		0
+397	1	3		0
+398	1	2	a-b	1
+399	1	2	a-b	1
+399	2	3	a-b	1
+400	1	3	a b	1
+402	2	3	a	1
+404	2	3	b	1
+406	2	3		0
+409	2	3	a-b	1
+411	0	1	b	1
+412	0	1	b	1
+412	2	3	a	1
+413	0	1	b	1
+414	0	1	b	1
+414	2	3	b	1
+415	0	1	b	1
+416	0	1	b	1
+416	2	3		0
+417	0	1	b	1
+418	0	1	b	1
+419	0	1	b	1
+419	2	3	a-b	1
+420	0	1	b	1
+421	0	1	b	1
+421	1	2	a	1
+422	0	1	b	1
+422	1	2	a	1
+422	2	3	a	1
+423	0	1	b	1
+423	1	3	a	1
+424	0	1	b	1
+424	1	2	a	1
+424	2	3	b	1
+425	0	1	b	1
+425	1	3	b	1
+426	0	1	b	1
+426	1	2	a	1
+426	2	3		0
+427	0	1	b	1
+427	1	3		0
+428	0	1	b	1
+428	1	2	a	1
+429	0	1	b	1
+429	1	2	a	1
+429	2	3	a-b	1
+430	0	1	b	1
+430	1	3	a b	1
+431	0	2	a	1
+432	0	2	a	1
+432	2	3	a	1
+433	0	3	a	1
+434	0	2	a	1
+434	2	3	b	1
+435	0	3	b	1
+436	0	2	a	1
+436	2	3		0
+437	0	3		0
+438	0	2	a	1
+439	0	2	a	1
+439	2	3	a-b	1
+440	0	3	a b	1
+441	0	1	b	1
+441	1	2	b	1
+442	0	1	b	1
+442	1	2	b	1
+442	2	3	a	1
+443	0	1	b	1
+443	1	3	a	1
+444	0	1	b	1
+444	1	2	b	1
+444	2	3	b	1
+445	0	1	b	1
+445	1	3	b	1
+446	0	1	b	1
+446	1	2	b	1
+446	2	3		0
+447	0	1	b	1
+447	1	3		0
+448	0	1	b	1
+448	1	2	b	1
+449	0	1	b	1
+449	1	2	b	1
+449	2	3	a-b	1
+450	0	1	b	1
+450	1	3	a b	1
+451	0	2	b	1
+452	0	2	b	1
+452	2	3	a	1
+453	0	3	a	1
+454	0	2	b	1
+454	2	3	b	1
+455	0	3	b	1
+456	0	2	b	1
+456	2	3		0
+457	0	3		0
+458	0	2	b	1
+459	0	2	b	1
+459	2	3	a-b	1
+460	0	3	a b	1
+461	0	1	b	1
+461	1	2		0
+462	0	1	b	1
+462	1	2		0
+462	2	3	a	1
+463	0	1	b	1
+463	1	3	a	1
+464	0	1	b	1
+464	1	2		0
+464	2	3	b	1
+465	0	1	b	1
+465	1	3	b	1
+466	0	1	b	1
+466	1	2		0
+466	2	3		0
+467	0	1	b	1
+467	1	3		0
+468	0	1	b	1
+468	1	2		0
+469	0	1	b	1
+469	1	2		0
+469	2	3	a-b	1
+470	0	1	b	1
+470	1	3	a b	1
+471	0	2		0
+472	0	2		0
+472	2	3	a	1
+473	0	3	a	1
+474	0	2		0
+474	2	3	b	1
+475	0	3	b	1
+476	0	2		0
+476	2	3		0
+477	0	3		0
+478	0	2		0
+479	0	2		0
+479	2	3	a-b	1
+480	0	3	a b	1
+481	0	1	b	1
+482	0	1	b	1
+482	2	3	a	1
+483	0	1	b	1
+484	0	1	b	1
+484	2	3	b	1
+485	0	1	b	1
+486	0	1	b	1
+486	2	3		0
+487	0	1	b	1
+488	0	1	b	1
+489	0	1	b	1
+489	2	3	a-b	1
+490	0	1	b	1
+491	0	1	b	1
+491	1	2	a-b	1
+492	0	1	b	1
+492	1	2	a-b	1
+492	2	3	a	1
+493	0	1	b	1
+493	1	3	a	1
+494	0	1	b	1
+494	1	2	a-b	1
+494	2	3	b	1
+495	0	1	b	1
+495	1	3	b	1
+496	0	1	b	1
+496	1	2	a-b	1
+496	2	3		0
+497	0	1	b	1
+497	1	3		0
+498	0	1	b	1
+498	1	2	a-b	1
+499	0	1	b	1
+499	1	2	a-b	1
+499	2	3	a-b	1
+500	0	1	b	1
+500	1	3	a b	1
+501	0	2	a b	1
+502	0	2	a b	1
+502	2	3	a	1
+503	0	3	a	1
+504	0	2	a b	1
+504	2	3	b	1
+505	0	3	b	1
+506	0	2	a b	1
+506	2	3		0
+507	0	3		0
+508	0	2	a b	1
+509	0	2	a b	1
+509	2	3	a-b	1
+510	0	3	a b	1
+512	2	3	a	1
+514	2	3	b	1
+516	2	3		0
+519	2	3	a-b	1
+521	1	2	a	1
+522	1	2	a	1
+522	2	3	a	1
+523	1	3	a	1
+524	1	2	a	1
+524	2	3	b	1
+525	1	3	b	1
+526	1	2	a	1
+526	2	3		0
+527	1	3		0
+528	1	2	a	1
+529	1	2	a	1
+529	2	3	a-b	1
+530	1	3	a b	1
+532	2	3	a	1
+534	2	3	b	1
+536	2	3		0
+539	2	3	a-b	1
+541	1	2	b	1
+542	1	2	b	1
+542	2	3	a	1
+543	1	3	a	1
+544	1	2	b	1
+544	2	3	b	1
+545	1	3	b	1
+546	1	2	b	1
+546	2	3		0
+547	1	3		0
+548	1	2	b	1
+549	1	2	b	1
+549	2	3	a-b	1
+550	1	3	a b	1
+552	2	3	a	1
+554	2	3	b	1
+556	2	3		0
+559	2	3	a-b	1
+561	1	2		0
+562	1	2		0
+562	2	3	a	1
+563	1	3	a	1
+564	1	2		0
+564	2	3	b	1
+565	1	3	b	1
+566	1	2		0
+566	2	3		0
+567	1	3		0
+568	1	2		0
+569	1	2		0
+569	2	3	a-b	1
+570	1	3	a b	1
+572	2	3	a	1
+574	2	3	b	1
+576	2	3		0
+579	2	3	a-b	1
+582	2	3	a	1
+584	2	3	b	1
+586	2	3		0
+589	2	3	a-b	1
+591	1	2	a-b	1
+592	1	2	a-b	1
+592	2	3	a	1
+593	1	3	a	1
+594	1	2	a-b	1
+594	2	3	b	1
+595	1	3	b	1
+596	1	2	a-b	1
+596	2	3		0
+597	1	3		0
+598	1	2	a-b	1
+599	1	2	a-b	1
+599	2	3	a-b	1
+600	1	3	a b	1
+602	2	3	a	1
+604	2	3	b	1
+606	2	3		0
+609	2	3	a-b	1
+611	0	1		0
+612	0	1		0
+612	2	3	a	1
+613	0	1		0
+614	0	1		0
+614	2	3	b	1
+615	0	1		0
+616	0	1		0
+616	2	3		0
+617	0	1		0
+618	0	1		0
+619	0	1		0
+619	2	3	a-b	1
+620	0	1		0
+621	0	1		0
+621	1	2	a	1
+622	0	1		0
+622	1	2	a	1
+622	2	3	a	1
+623	0	1		0
+623	1	3	a	1
+624	0	1		0
+624	1	2	a	1
+624	2	3	b	1
+625	0	1		0
+625	1	3	b	1
+626	0	1		0
+626	1	2	a	1
+626	2	3		0
+627	0	1		0
+627	1	3		0
+628	0	1		0
+628	1	2	a	1
+629	0	1		0
+629	1	2	a	1
+629	2	3	a-b	1
+630	0	1		0
+630	1	3	a b	1
+631	0	2	a	1
+632	0	2	a	1
+632	2	3	a	1
+633	0	3	a	1
+634	0	2	a	1
+634	2	3	b	1
+635	0	3	b	1
+636	0	2	a	1
+636	2	3		0
+637	0	3		0
+638	0	2	a	1
+639	0	2	a	1
+639	2	3	a-b	1
+640	0	3	a b	1
+641	0	1		0
+641	1	2	b	1
+642	0	1		0
+642	1	2	b	1
+642	2	3	a	1
+643	0	1		0
+643	1	3	a	1
+644	0	1		0
+644	1	2	b	1
+644	2	3	b	1
+645	0	1		0
+645	1	3	b	1
+646	0	1		0
+646	1	2	b	1
+646	2	3		0
+647	0	1		0
+647	1	3		0
+648	0	1		0
+648	1	2	b	1
+649	0	1		0
+649	1	2	b	1
+649	2	3	a-b	1
+650	0	1		0
+650	1	3	a b	1
+651	0	2	b	1
+652	0	2	b	1
+652	2	3	a	1
+653	0	3	a	1
+654	0	2	b	1
+654	2	3	b	1
+655	0	3	b	1
+656	0	2	b	1
+656	2	3		0
+657	0	3		0
+658	0	2	b	1
+659	0	2	b	1
+659	2	3	a-b	1
+660	0	3	a b	1
+661	0	1		0
+661	1	2		0
+662	0	1		0
+662	1	2		0
+662	2	3	a	1
+663	0	1		0
+663	1	3	a	1
+664	0	1		0
+664	1	2		0
+664	2	3	b	1
+665	0	1		0
+665	1	3	b	1
+666	0	1		0
+666	1	2		0
+666	2	3		0
+667	0	1		0
+667	1	3		0
+668	0	1		0
+668	1	2		0
+669	0	1		0
+669	1	2		0
+669	2	3	a-b	1
+670	0	1		0
+670	1	3	a b	1
+671	0	2		0
+672	0	2		0
+672	2	3	a	1
+673	0	3	a	1
+674	0	2		0
+674	2	3	b	1
+675	0	3	b	1
+676	0	2		0
+676	2	3		0
+677	0	3		0
+678	0	2		0
+679	0	2		0
+679	2	3	a-b	1
+680	0	3	a b	1
+681	0	1		0
+682	0	1		0
+682	2	3	a	1
+683	0	1		0
+684	0	1		0
+684	2	3	b	1
+685	0	1		0
+686	0	1		0
+686	2	3		0
+687	0	1		0
+688	0	1		0
+689	0	1		0
+689	2	3	a-b	1
+690	0	1		0
+691	0	1		0
+691	1	2	a-b	1
+692	0	1		0
+692	1	2	a-b	1
+692	2	3	a	1
+693	0	1		0
+693	1	3	a	1
+694	0	1		0
+694	1	2	a-b	1
+694	2	3	b	1
+695	0	1		0
+695	1	3	b	1
+696	0	1		0
+696	1	2	a-b	1
+696	2	3		0
+697	0	1		0
+697	1	3		0
+698	0	1		0
+698	1	2	a-b	1
+699	0	1		0
+699	1	2	a-b	1
+699	2	3	a-b	1
+700	0	1		0
+700	1	3	a b	1
+701	0	2	a b	1
+702	0	2	a b	1
+702	2	3	a	1
+703	0	3	a	1
+704	0	2	a b	1
+704	2	3	b	1
+705	0	3	b	1
+706	0	2	a b	1
+706	2	3		0
+707	0	3		0
+708	0	2	a b	1
+709	0	2	a b	1
+709	2	3	a-b	1
+710	0	3	a b	1
+712	2	3	a	1
+714	2	3	b	1
+716	2	3		0
+719	2	3	a-b	1
+721	1	2	a	1
+722	1	2	a	1
+722	2	3	a	1
+723	1	3	a	1
+724	1	2	a	1
+724	2	3	b	1
+725	1	3	b	1
+726	1	2	a	1
+726	2	3		0
+727	1	3		0
+728	1	2	a	1
+729	1	2	a	1
+729	2	3	a-b	1
+730	1	3	a b	1
+732	2	3	a	1
+734	2	3	b	1
+736	2	3		0
+739	2	3	a-b	1
+741	1	2	b	1
+742	1	2	b	1
+742	2	3	a	1
+743	1	3	a	1
+744	1	2	b	1
+744	2	3	b	1
+745	1	3	b	1
+746	1	2	b	1
+746	2	3		0
+747	1	3		0
+748	1	2	b	1
+749	1	2	b	1
+749	2	3	a-b	1
+750	1	3	a b	1
+752	2	3	a	1
+754	2	3	b	1
+756	2	3		0
+759	2	3	a-b	1
+761	1	2		0
+762	1	2		0
+762	2	3	a	1
+763	1	3	a	1
+764	1	2		0
+764	2	3	b	1
+765	1	3	b	1
+766	1	2		0
+766	2	3		0
+767	1	3		0
+768	1	2		0
+769	1	2		0
+769	2	3	a-b	1
+770	1	3	a b	1
+772	2	3	a	1
+774	2	3	b	1
+776	2	3		0
+779	2	3	a-b	1
+782	2	3	a	1
+784	2	3	b	1
+786	2	3		0
+789	2	3	a-b	1
+791	1	2	a-b	1
+792	1	2	a-b	1
+792	2	3	a	1
+793	1	3	a	1
+794	1	2	a-b	1
+794	2	3	b	1
+795	1	3	b	1
+796	1	2	a-b	1
+796	2	3		0
+797	1	3		0
+798	1	2	a-b	1
+799	1	2	a-b	1
+799	2	3	a-b	1
+800	1	3	a b	1
+802	2	3	a	1
+804	2	3	b	1
+806	2	3		0
+809	2	3	a-b	1
+812	2	3	a	1
+814	2	3	b	1
+816	2	3		0
+819	2	3	a-b	1
+821	1	2	a	1
+822	1	2	a	1
+822	2	3	a	1
+823	1	3	a	1
+824	1	2	a	1
+824	2	3	b	1
+825	1	3	b	1
+826	1	2	a	1
+826	2	3		0
+827	1	3		0
+828	1	2	a	1
+829	1	2	a	1
+829	2	3	a-b	1
+830	1	3	a b	1
+832	2	3	a	1
+834	2	3	b	1
+836	2	3		0
+839	2	3	a-b	1
+841	1	2	b	1
+842	1	2	b	1
+842	2	3	a	1
+843	1	3	a	1
+844	1	2	b	1
+844	2	3	b	1
+845	1	3	b	1
+846	1	2	b	1
+846	2	3		0
+847	1	3		0
+848	1	2	b	1
+849	1	2	b	1
+849	2	3	a-b	1
+850	1	3	a b	1
+852	2	3	a	1
+854	2	3	b	1
+856	2	3		0
+859	2	3	a-b	1
+861	1	2		0
+862	1	2		0
+862	2	3	a	1
+863	1	3	a	1
+864	1	2		0
+864	2	3	b	1
+865	1	3	b	1
+866	1	2		0
+866	2	3		0
+867	1	3		0
+868	1	2		0
+869	1	2		0
+869	2	3	a-b	1
+870	1	3	a b	1
+872	2	3	a	1
+874	2	3	b	1
+876	2	3		0
+879	2	3	a-b	1
+882	2	3	a	1
+884	2	3	b	1
+886	2	3		0
+889	2	3	a-b	1
+891	1	2	a-b	1
+892	1	2	a-b	1
+892	2	3	a	1
+893	1	3	a	1
+894	1	2	a-b	1
+894	2	3	b	1
+895	1	3	b	1
+896	1	2	a-b	1
+896	2	3		0
+897	1	3		0
+898	1	2	a-b	1
+899	1	2	a-b	1
+899	2	3	a-b	1
+900	1	3	a b	1
+902	2	3	a	1
+904	2	3	b	1
+906	2	3		0
+909	2	3	a-b	1
+911	0	1	a-b	1
+912	0	1	a-b	1
+912	2	3	a	1
+913	0	1	a-b	1
+914	0	1	a-b	1
+914	2	3	b	1
+915	0	1	a-b	1
+916	0	1	a-b	1
+916	2	3		0
+917	0	1	a-b	1
+918	0	1	a-b	1
+919	0	1	a-b	1
+919	2	3	a-b	1
+920	0	1	a-b	1
+921	0	1	a-b	1
+921	1	2	a	1
+922	0	1	a-b	1
+922	1	2	a	1
+922	2	3	a	1
+923	0	1	a-b	1
+923	1	3	a	1
+924	0	1	a-b	1
+924	1	2	a	1
+924	2	3	b	1
+925	0	1	a-b	1
+925	1	3	b	1
+926	0	1	a-b	1
+926	1	2	a	1
+926	2	3		0
+927	0	1	a-b	1
+927	1	3		0
+928	0	1	a-b	1
+928	1	2	a	1
+929	0	1	a-b	1
+929	1	2	a	1
+929	2	3	a-b	1
+930	0	1	a-b	1
+930	1	3	a b	1
+931	0	2	a	1
+932	0	2	a	1
+932	2	3	a	1
+933	0	3	a	1
+934	0	2	a	1
+934	2	3	b	1
+935	0	3	b	1
+936	0	2	a	1
+936	2	3		0
+937	0	3		0
+938	0	2	a	1
+939	0	2	a	1
+939	2	3	a-b	1
+940	0	3	a b	1
+941	0	1	a-b	1
+941	1	2	b	1
+942	0	1	a-b	1
+942	1	2	b	1
+942	2	3	a	1
+943	0	1	a-b	1
+943	1	3	a	1
+944	0	1	a-b	1
+944	1	2	b	1
+944	2	3	b	1
+945	0	1	a-b	1
+945	1	3	b	1
+946	0	1	a-b	1
+946	1	2	b	1
+946	2	3		0
+947	0	1	a-b	1
+947	1	3		0
+948	0	1	a-b	1
+948	1	2	b	1
+949	0	1	a-b	1
+949	1	2	b	1
+949	2	3	a-b	1
+950	0	1	a-b	1
+950	1	3	a b	1
+951	0	2	b	1
+952	0	2	b	1
+952	2	3	a	1
+953	0	3	a	1
+954	0	2	b	1
+954	2	3	b	1
+955	0	3	b	1
+956	0	2	b	1
+956	2	3		0
+957	0	3		0
+958	0	2	b	1
+959	0	2	b	1
+959	2	3	a-b	1
+960	0	3	a b	1
+961	0	1	a-b	1
+961	1	2		0
+962	0	1	a-b	1
+962	1	2		0
+962	2	3	a	1
+963	0	1	a-b	1
+963	1	3	a	1
+964	0	1	a-b	1
+964	1	2		0
+964	2	3	b	1
+965	0	1	a-b	1
+965	1	3	b	1
+966	0	1	a-b	1
+966	1	2		0
+966	2	3		0
+967	0	1	a-b	1
+967	1	3		0
+968	0	1	a-b	1
+968	1	2		0
+969	0	1	a-b	1
+969	1	2		0
+969	2	3	a-b	1
+970	0	1	a-b	1
+970	1	3	a b	1
+971	0	2		0
+972	0	2		0
+972	2	3	a	1
+973	0	3	a	1
+974	0	2		0
+974	2	3	b	1
+975	0	3	b	1
+976	0	2		0
+976	2	3		0
+977	0	3		0
+978	0	2		0
+979	0	2		0
+979	2	3	a-b	1
+980	0	3	a b	1
+981	0	1	a-b	1
+982	0	1	a-b	1
+982	2	3	a	1
+983	0	1	a-b	1
+984	0	1	a-b	1
+984	2	3	b	1
+985	0	1	a-b	1
+986	0	1	a-b	1
+986	2	3		0
+987	0	1	a-b	1
+988	0	1	a-b	1
+989	0	1	a-b	1
+989	2	3	a-b	1
+990	0	1	a-b	1
+991	0	1	a-b	1
+991	1	2	a-b	1
+992	0	1	a-b	1
+992	1	2	a-b	1
+992	2	3	a	1
+993	0	1	a-b	1
+993	1	3	a	1
+994	0	1	a-b	1
+994	1	2	a-b	1
+994	2	3	b	1
+995	0	1	a-b	1
+995	1	3	b	1
+996	0	1	a-b	1
+996	1	2	a-b	1
+996	2	3		0
+997	0	1	a-b	1
+997	1	3		0
+998	0	1	a-b	1
+998	1	2	a-b	1
+999	0	1	a-b	1
+999	1	2	a-b	1
+999	2	3	a-b	1
+1000	0	1	a-b	1
+1000	1	3	a b	1
+1001	0	2	a b	1
+1002	0	2	a b	1
+1002	2	3	a	1
+1003	0	3	a	1
+1004	0	2	a b	1
+1004	2	3	b	1
+1005	0	3	b	1
+1006	0	2	a b	1
+1006	2	3		0
+1007	0	3		0
+1008	0	2	a b	1
+1009	0	2	a b	1
+1009	2	3	a-b	1
+1010	0	3	a b	1
+1012	2	3	a	1
+1014	2	3	b	1
+1016	2	3		0
+1019	2	3	a-b	1
+1021	1	2	a	1
+1022	1	2	a	1
+1022	2	3	a	1
+1023	1	3	a	1
+1024	1	2	a	1
+1024	2	3	b	1
+1025	1	3	b	1
+1026	1	2	a	1
+1026	2	3		0
+1027	1	3		0
+1028	1	2	a	1
+1029	1	2	a	1
+1029	2	3	a-b	1
+1030	1	3	a b	1
+1032	2	3	a	1
+1034	2	3	b	1
+1036	2	3		0
+1039	2	3	a-b	1
+1041	1	2	b	1
+1042	1	2	b	1
+1042	2	3	a	1
+1043	1	3	a	1
+1044	1	2	b	1
+1044	2	3	b	1
+1045	1	3	b	1
+1046	1	2	b	1
+1046	2	3		0
+1047	1	3		0
+1048	1	2	b	1
+1049	1	2	b	1
+1049	2	3	a-b	1
+1050	1	3	a b	1
+1052	2	3	a	1
+1054	2	3	b	1
+1056	2	3		0
+1059	2	3	a-b	1
+1061	1	2		0
+1062	1	2		0
+1062	2	3	a	1
+1063	1	3	a	1
+1064	1	2		0
+1064	2	3	b	1
+1065	1	3	b	1
+1066	1	2		0
+1066	2	3		0
+1067	1	3		0
+1068	1	2		0
+1069	1	2		0
+1069	2	3	a-b	1
+1070	1	3	a b	1
+1072	2	3	a	1
+1074	2	3	b	1
+1076	2	3		0
+1079	2	3	a-b	1
+1082	2	3	a	1
+1084	2	3	b	1
+1086	2	3		0
+1089	2	3	a-b	1
+1091	1	2	a-b	1
+1092	1	2	a-b	1
+1092	2	3	a	1
+1093	1	3	a	1
+1094	1	2	a-b	1
+1094	2	3	b	1
+1095	1	3	b	1
+1096	1	2	a-b	1
+1096	2	3		0
+1097	1	3		0
+1098	1	2	a-b	1
+1099	1	2	a-b	1
+1099	2	3	a-b	1
+1100	1	3	a b	1
+1102	2	3	a	1
+1104	2	3	b	1
+1106	2	3		0
+1109	2	3	a-b	1
+end	turbo:decode-spans
+layer	turbo:valid	document	1110	case:u32	priors:u32	outcome:str	valid:u32
+0	0	other	1
+1	0	a-start	1
+2	0	a-cont	0
+3	0	b-start	1
+4	0	b-cont	0
+5	0	start	1
+6	0	cont	0
+7	0	x-other	1
+8	0	a-b-start	1
+9	0	a b-cont	0
+10	1	other	1
+11	1	a-start	1
+12	1	a-cont	0
+13	1	b-start	1
+14	1	b-cont	0
+15	1	start	1
+16	1	cont	0
+17	1	x-other	1
+18	1	a-b-start	1
+19	1	a b-cont	0
+20	1	other	1
+21	1	a-start	1
+22	1	a-cont	1
+23	1	b-start	1
+24	1	b-cont	0
+25	1	start	1
+26	1	cont	0
+27	1	x-other	1
+28	1	a-b-start	1
+29	1	a b-cont	0
+30	1	other	1
+31	1	a-start	1
+32	1	a-cont	1
+33	1	b-start	1
+34	1	b-cont	0
+35	1	start	1
+36	1	cont	0
+37	1	x-other	1
+38	1	a-b-start	1
+39	1	a b-cont	0
+40	1	other	1
+41	1	a-start	1
+42	1	a-cont	0
+43	1	b-start	1
+44	1	b-cont	1
+45	1	start	1
+46	1	cont	0
+47	1	x-other	1
+48	1	a-b-start	1
+49	1	a b-cont	0
+50	1	other	1
+51	1	a-start	1
+52	1	a-cont	0
+53	1	b-start	1
+54	1	b-cont	1
+55	1	start	1
+56	1	cont	0
+57	1	x-other	1
+58	1	a-b-start	1
+59	1	a b-cont	0
+60	1	other	1
+61	1	a-start	1
+62	1	a-cont	0
+63	1	b-start	1
+64	1	b-cont	0
+65	1	start	1
+66	1	cont	1
+67	1	x-other	1
+68	1	a-b-start	1
+69	1	a b-cont	0
+70	1	other	1
+71	1	a-start	1
+72	1	a-cont	0
+73	1	b-start	1
+74	1	b-cont	0
+75	1	start	1
+76	1	cont	1
+77	1	x-other	1
+78	1	a-b-start	1
+79	1	a b-cont	0
+80	1	other	1
+81	1	a-start	1
+82	1	a-cont	0
+83	1	b-start	1
+84	1	b-cont	0
+85	1	start	1
+86	1	cont	0
+87	1	x-other	1
+88	1	a-b-start	1
+89	1	a b-cont	0
+90	1	other	1
+91	1	a-start	1
+92	1	a-cont	0
+93	1	b-start	1
+94	1	b-cont	0
+95	1	start	1
+96	1	cont	0
+97	1	x-other	1
+98	1	a-b-start	1
+99	1	a b-cont	0
+100	1	other	1
+101	1	a-start	1
+102	1	a-cont	0
+103	1	b-start	1
+104	1	b-cont	0
+105	1	start	1
+106	1	cont	0
+107	1	x-other	1
+108	1	a-b-start	1
+109	1	a b-cont	1
+110	2	other	1
+111	2	a-start	1
+112	2	a-cont	0
+113	2	b-start	1
+114	2	b-cont	0
+115	2	start	1
+116	2	cont	0
+117	2	x-other	1
+118	2	a-b-start	1
+119	2	a b-cont	0
+120	2	other	1
+121	2	a-start	1
+122	2	a-cont	1
+123	2	b-start	1
+124	2	b-cont	0
+125	2	start	1
+126	2	cont	0
+127	2	x-other	1
+128	2	a-b-start	1
+129	2	a b-cont	0
+130	2	other	1
+131	2	a-start	1
+132	2	a-cont	1
+133	2	b-start	1
+134	2	b-cont	0
+135	2	start	1
+136	2	cont	0
+137	2	x-other	1
+138	2	a-b-start	1
+139	2	a b-cont	0
+140	2	other	1
+141	2	a-start	1
+142	2	a-cont	0
+143	2	b-start	1
+144	2	b-cont	1
+145	2	start	1
+146	2	cont	0
+147	2	x-other	1
+148	2	a-b-start	1
+149	2	a b-cont	0
+150	2	other	1
+151	2	a-start	1
+152	2	a-cont	0
+153	2	b-start	1
+154	2	b-cont	1
+155	2	start	1
+156	2	cont	0
+157	2	x-other	1
+158	2	a-b-start	1
+159	2	a b-cont	0
+160	2	other	1
+161	2	a-start	1
+162	2	a-cont	0
+163	2	b-start	1
+164	2	b-cont	0
+165	2	start	1
+166	2	cont	1
+167	2	x-other	1
+168	2	a-b-start	1
+169	2	a b-cont	0
+170	2	other	1
+171	2	a-start	1
+172	2	a-cont	0
+173	2	b-start	1
+174	2	b-cont	0
+175	2	start	1
+176	2	cont	1
+177	2	x-other	1
+178	2	a-b-start	1
+179	2	a b-cont	0
+180	2	other	1
+181	2	a-start	1
+182	2	a-cont	0
+183	2	b-start	1
+184	2	b-cont	0
+185	2	start	1
+186	2	cont	0
+187	2	x-other	1
+188	2	a-b-start	1
+189	2	a b-cont	0
+190	2	other	1
+191	2	a-start	1
+192	2	a-cont	0
+193	2	b-start	1
+194	2	b-cont	0
+195	2	start	1
+196	2	cont	0
+197	2	x-other	1
+198	2	a-b-start	1
+199	2	a b-cont	0
+200	2	other	1
+201	2	a-start	1
+202	2	a-cont	0
+203	2	b-start	1
+204	2	b-cont	0
+205	2	start	1
+206	2	cont	0
+207	2	x-other	1
+208	2	a-b-start	1
+209	2	a b-cont	1
+210	2	other	1
+211	2	a-start	1
+212	2	a-cont	0
+213	2	b-start	1
+214	2	b-cont	0
+215	2	start	1
+216	2	cont	0
+217	2	x-other	1
+218	2	a-b-start	1
+219	2	a b-cont	0
+220	2	other	1
+221	2	a-start	1
+222	2	a-cont	1
+223	2	b-start	1
+224	2	b-cont	0
+225	2	start	1
+226	2	cont	0
+227	2	x-other	1
+228	2	a-b-start	1
+229	2	a b-cont	0
+230	2	other	1
+231	2	a-start	1
+232	2	a-cont	1
+233	2	b-start	1
+234	2	b-cont	0
+235	2	start	1
+236	2	cont	0
+237	2	x-other	1
+238	2	a-b-start	1
+239	2	a b-cont	0
+240	2	other	1
+241	2	a-start	1
+242	2	a-cont	0
+243	2	b-start	1
+244	2	b-cont	1
+245	2	start	1
+246	2	cont	0
+247	2	x-other	1
+248	2	a-b-start	1
+249	2	a b-cont	0
+250	2	other	1
+251	2	a-start	1
+252	2	a-cont	0
+253	2	b-start	1
+254	2	b-cont	1
+255	2	start	1
+256	2	cont	0
+257	2	x-other	1
+258	2	a-b-start	1
+259	2	a b-cont	0
+260	2	other	1
+261	2	a-start	1
+262	2	a-cont	0
+263	2	b-start	1
+264	2	b-cont	0
+265	2	start	1
+266	2	cont	1
+267	2	x-other	1
+268	2	a-b-start	1
+269	2	a b-cont	0
+270	2	other	1
+271	2	a-start	1
+272	2	a-cont	0
+273	2	b-start	1
+274	2	b-cont	0
+275	2	start	1
+276	2	cont	1
+277	2	x-other	1
+278	2	a-b-start	1
+279	2	a b-cont	0
+280	2	other	1
+281	2	a-start	1
+282	2	a-cont	0
+283	2	b-start	1
+284	2	b-cont	0
+285	2	start	1
+286	2	cont	0
+287	2	x-other	1
+288	2	a-b-start	1
+289	2	a b-cont	0
+290	2	other	1
+291	2	a-start	1
+292	2	a-cont	0
+293	2	b-start	1
+294	2	b-cont	0
+295	2	start	1
+296	2	cont	0
+297	2	x-other	1
+298	2	a-b-start	1
+299	2	a b-cont	0
+300	2	other	1
+301	2	a-start	1
+302	2	a-cont	0
+303	2	b-start	1
+304	2	b-cont	0
+305	2	start	1
+306	2	cont	0
+307	2	x-other	1
+308	2	a-b-start	1
+309	2	a b-cont	1
+310	2	other	1
+311	2	a-start	1
+312	2	a-cont	0
+313	2	b-start	1
+314	2	b-cont	0
+315	2	start	1
+316	2	cont	0
+317	2	x-other	1
+318	2	a-b-start	1
+319	2	a b-cont	0
+320	2	other	1
+321	2	a-start	1
+322	2	a-cont	1
+323	2	b-start	1
+324	2	b-cont	0
+325	2	start	1
+326	2	cont	0
+327	2	x-other	1
+328	2	a-b-start	1
+329	2	a b-cont	0
+330	2	other	1
+331	2	a-start	1
+332	2	a-cont	1
+333	2	b-start	1
+334	2	b-cont	0
+335	2	start	1
+336	2	cont	0
+337	2	x-other	1
+338	2	a-b-start	1
+339	2	a b-cont	0
+340	2	other	1
+341	2	a-start	1
+342	2	a-cont	0
+343	2	b-start	1
+344	2	b-cont	1
+345	2	start	1
+346	2	cont	0
+347	2	x-other	1
+348	2	a-b-start	1
+349	2	a b-cont	0
+350	2	other	1
+351	2	a-start	1
+352	2	a-cont	0
+353	2	b-start	1
+354	2	b-cont	1
+355	2	start	1
+356	2	cont	0
+357	2	x-other	1
+358	2	a-b-start	1
+359	2	a b-cont	0
+360	2	other	1
+361	2	a-start	1
+362	2	a-cont	0
+363	2	b-start	1
+364	2	b-cont	0
+365	2	start	1
+366	2	cont	1
+367	2	x-other	1
+368	2	a-b-start	1
+369	2	a b-cont	0
+370	2	other	1
+371	2	a-start	1
+372	2	a-cont	0
+373	2	b-start	1
+374	2	b-cont	0
+375	2	start	1
+376	2	cont	1
+377	2	x-other	1
+378	2	a-b-start	1
+379	2	a b-cont	0
+380	2	other	1
+381	2	a-start	1
+382	2	a-cont	0
+383	2	b-start	1
+384	2	b-cont	0
+385	2	start	1
+386	2	cont	0
+387	2	x-other	1
+388	2	a-b-start	1
+389	2	a b-cont	0
+390	2	other	1
+391	2	a-start	1
+392	2	a-cont	0
+393	2	b-start	1
+394	2	b-cont	0
+395	2	start	1
+396	2	cont	0
+397	2	x-other	1
+398	2	a-b-start	1
+399	2	a b-cont	0
+400	2	other	1
+401	2	a-start	1
+402	2	a-cont	0
+403	2	b-start	1
+404	2	b-cont	0
+405	2	start	1
+406	2	cont	0
+407	2	x-other	1
+408	2	a-b-start	1
+409	2	a b-cont	1
+410	2	other	1
+411	2	a-start	1
+412	2	a-cont	0
+413	2	b-start	1
+414	2	b-cont	0
+415	2	start	1
+416	2	cont	0
+417	2	x-other	1
+418	2	a-b-start	1
+419	2	a b-cont	0
+420	2	other	1
+421	2	a-start	1
+422	2	a-cont	1
+423	2	b-start	1
+424	2	b-cont	0
+425	2	start	1
+426	2	cont	0
+427	2	x-other	1
+428	2	a-b-start	1
+429	2	a b-cont	0
+430	2	other	1
+431	2	a-start	1
+432	2	a-cont	1
+433	2	b-start	1
+434	2	b-cont	0
+435	2	start	1
+436	2	cont	0
+437	2	x-other	1
+438	2	a-b-start	1
+439	2	a b-cont	0
+440	2	other	1
+441	2	a-start	1
+442	2	a-cont	0
+443	2	b-start	1
+444	2	b-cont	1
+445	2	start	1
+446	2	cont	0
+447	2	x-other	1
+448	2	a-b-start	1
+449	2	a b-cont	0
+450	2	other	1
+451	2	a-start	1
+452	2	a-cont	0
+453	2	b-start	1
+454	2	b-cont	1
+455	2	start	1
+456	2	cont	0
+457	2	x-other	1
+458	2	a-b-start	1
+459	2	a b-cont	0
+460	2	other	1
+461	2	a-start	1
+462	2	a-cont	0
+463	2	b-start	1
+464	2	b-cont	0
+465	2	start	1
+466	2	cont	1
+467	2	x-other	1
+468	2	a-b-start	1
+469	2	a b-cont	0
+470	2	other	1
+471	2	a-start	1
+472	2	a-cont	0
+473	2	b-start	1
+474	2	b-cont	0
+475	2	start	1
+476	2	cont	1
+477	2	x-other	1
+478	2	a-b-start	1
+479	2	a b-cont	0
+480	2	other	1
+481	2	a-start	1
+482	2	a-cont	0
+483	2	b-start	1
+484	2	b-cont	0
+485	2	start	1
+486	2	cont	0
+487	2	x-other	1
+488	2	a-b-start	1
+489	2	a b-cont	0
+490	2	other	1
+491	2	a-start	1
+492	2	a-cont	0
+493	2	b-start	1
+494	2	b-cont	0
+495	2	start	1
+496	2	cont	0
+497	2	x-other	1
+498	2	a-b-start	1
+499	2	a b-cont	0
+500	2	other	1
+501	2	a-start	1
+502	2	a-cont	0
+503	2	b-start	1
+504	2	b-cont	0
+505	2	start	1
+506	2	cont	0
+507	2	x-other	1
+508	2	a-b-start	1
+509	2	a b-cont	1
+510	2	other	1
+511	2	a-start	1
+512	2	a-cont	0
+513	2	b-start	1
+514	2	b-cont	0
+515	2	start	1
+516	2	cont	0
+517	2	x-other	1
+518	2	a-b-start	1
+519	2	a b-cont	0
+520	2	other	1
+521	2	a-start	1
+522	2	a-cont	1
+523	2	b-start	1
+524	2	b-cont	0
+525	2	start	1
+526	2	cont	0
+527	2	x-other	1
+528	2	a-b-start	1
+529	2	a b-cont	0
+530	2	other	1
+531	2	a-start	1
+532	2	a-cont	1
+533	2	b-start	1
+534	2	b-cont	0
+535	2	start	1
+536	2	cont	0
+537	2	x-other	1
+538	2	a-b-start	1
+539	2	a b-cont	0
+540	2	other	1
+541	2	a-start	1
+542	2	a-cont	0
+543	2	b-start	1
+544	2	b-cont	1
+545	2	start	1
+546	2	cont	0
+547	2	x-other	1
+548	2	a-b-start	1
+549	2	a b-cont	0
+550	2	other	1
+551	2	a-start	1
+552	2	a-cont	0
+553	2	b-start	1
+554	2	b-cont	1
+555	2	start	1
+556	2	cont	0
+557	2	x-other	1
+558	2	a-b-start	1
+559	2	a b-cont	0
+560	2	other	1
+561	2	a-start	1
+562	2	a-cont	0
+563	2	b-start	1
+564	2	b-cont	0
+565	2	start	1
+566	2	cont	1
+567	2	x-other	1
+568	2	a-b-start	1
+569	2	a b-cont	0
+570	2	other	1
+571	2	a-start	1
+572	2	a-cont	0
+573	2	b-start	1
+574	2	b-cont	0
+575	2	start	1
+576	2	cont	1
+577	2	x-other	1
+578	2	a-b-start	1
+579	2	a b-cont	0
+580	2	other	1
+581	2	a-start	1
+582	2	a-cont	0
+583	2	b-start	1
+584	2	b-cont	0
+585	2	start	1
+586	2	cont	0
+587	2	x-other	1
+588	2	a-b-start	1
+589	2	a b-cont	0
+590	2	other	1
+591	2	a-start	1
+592	2	a-cont	0
+593	2	b-start	1
+594	2	b-cont	0
+595	2	start	1
+596	2	cont	0
+597	2	x-other	1
+598	2	a-b-start	1
+599	2	a b-cont	0
+600	2	other	1
+601	2	a-start	1
+602	2	a-cont	0
+603	2	b-start	1
+604	2	b-cont	0
+605	2	start	1
+606	2	cont	0
+607	2	x-other	1
+608	2	a-b-start	1
+609	2	a b-cont	1
+610	2	other	1
+611	2	a-start	1
+612	2	a-cont	0
+613	2	b-start	1
+614	2	b-cont	0
+615	2	start	1
+616	2	cont	0
+617	2	x-other	1
+618	2	a-b-start	1
+619	2	a b-cont	0
+620	2	other	1
+621	2	a-start	1
+622	2	a-cont	1
+623	2	b-start	1
+624	2	b-cont	0
+625	2	start	1
+626	2	cont	0
+627	2	x-other	1
+628	2	a-b-start	1
+629	2	a b-cont	0
+630	2	other	1
+631	2	a-start	1
+632	2	a-cont	1
+633	2	b-start	1
+634	2	b-cont	0
+635	2	start	1
+636	2	cont	0
+637	2	x-other	1
+638	2	a-b-start	1
+639	2	a b-cont	0
+640	2	other	1
+641	2	a-start	1
+642	2	a-cont	0
+643	2	b-start	1
+644	2	b-cont	1
+645	2	start	1
+646	2	cont	0
+647	2	x-other	1
+648	2	a-b-start	1
+649	2	a b-cont	0
+650	2	other	1
+651	2	a-start	1
+652	2	a-cont	0
+653	2	b-start	1
+654	2	b-cont	1
+655	2	start	1
+656	2	cont	0
+657	2	x-other	1
+658	2	a-b-start	1
+659	2	a b-cont	0
+660	2	other	1
+661	2	a-start	1
+662	2	a-cont	0
+663	2	b-start	1
+664	2	b-cont	0
+665	2	start	1
+666	2	cont	1
+667	2	x-other	1
+668	2	a-b-start	1
+669	2	a b-cont	0
+670	2	other	1
+671	2	a-start	1
+672	2	a-cont	0
+673	2	b-start	1
+674	2	b-cont	0
+675	2	start	1
+676	2	cont	1
+677	2	x-other	1
+678	2	a-b-start	1
+679	2	a b-cont	0
+680	2	other	1
+681	2	a-start	1
+682	2	a-cont	0
+683	2	b-start	1
+684	2	b-cont	0
+685	2	start	1
+686	2	cont	0
+687	2	x-other	1
+688	2	a-b-start	1
+689	2	a b-cont	0
+690	2	other	1
+691	2	a-start	1
+692	2	a-cont	0
+693	2	b-start	1
+694	2	b-cont	0
+695	2	start	1
+696	2	cont	0
+697	2	x-other	1
+698	2	a-b-start	1
+699	2	a b-cont	0
+700	2	other	1
+701	2	a-start	1
+702	2	a-cont	0
+703	2	b-start	1
+704	2	b-cont	0
+705	2	start	1
+706	2	cont	0
+707	2	x-other	1
+708	2	a-b-start	1
+709	2	a b-cont	1
+710	2	other	1
+711	2	a-start	1
+712	2	a-cont	0
+713	2	b-start	1
+714	2	b-cont	0
+715	2	start	1
+716	2	cont	0
+717	2	x-other	1
+718	2	a-b-start	1
+719	2	a b-cont	0
+720	2	other	1
+721	2	a-start	1
+722	2	a-cont	1
+723	2	b-start	1
+724	2	b-cont	0
+725	2	start	1
+726	2	cont	0
+727	2	x-other	1
+728	2	a-b-start	1
+729	2	a b-cont	0
+730	2	other	1
+731	2	a-start	1
+732	2	a-cont	1
+733	2	b-start	1
+734	2	b-cont	0
+735	2	start	1
+736	2	cont	0
+737	2	x-other	1
+738	2	a-b-start	1
+739	2	a b-cont	0
+740	2	other	1
+741	2	a-start	1
+742	2	a-cont	0
+743	2	b-start	1
+744	2	b-cont	1
+745	2	start	1
+746	2	cont	0
+747	2	x-other	1
+748	2	a-b-start	1
+749	2	a b-cont	0
+750	2	other	1
+751	2	a-start	1
+752	2	a-cont	0
+753	2	b-start	1
+754	2	b-cont	1
+755	2	start	1
+756	2	cont	0
+757	2	x-other	1
+758	2	a-b-start	1
+759	2	a b-cont	0
+760	2	other	1
+761	2	a-start	1
+762	2	a-cont	0
+763	2	b-start	1
+764	2	b-cont	0
+765	2	start	1
+766	2	cont	1
+767	2	x-other	1
+768	2	a-b-start	1
+769	2	a b-cont	0
+770	2	other	1
+771	2	a-start	1
+772	2	a-cont	0
+773	2	b-start	1
+774	2	b-cont	0
+775	2	start	1
+776	2	cont	1
+777	2	x-other	1
+778	2	a-b-start	1
+779	2	a b-cont	0
+780	2	other	1
+781	2	a-start	1
+782	2	a-cont	0
+783	2	b-start	1
+784	2	b-cont	0
+785	2	start	1
+786	2	cont	0
+787	2	x-other	1
+788	2	a-b-start	1
+789	2	a b-cont	0
+790	2	other	1
+791	2	a-start	1
+792	2	a-cont	0
+793	2	b-start	1
+794	2	b-cont	0
+795	2	start	1
+796	2	cont	0
+797	2	x-other	1
+798	2	a-b-start	1
+799	2	a b-cont	0
+800	2	other	1
+801	2	a-start	1
+802	2	a-cont	0
+803	2	b-start	1
+804	2	b-cont	0
+805	2	start	1
+806	2	cont	0
+807	2	x-other	1
+808	2	a-b-start	1
+809	2	a b-cont	1
+810	2	other	1
+811	2	a-start	1
+812	2	a-cont	0
+813	2	b-start	1
+814	2	b-cont	0
+815	2	start	1
+816	2	cont	0
+817	2	x-other	1
+818	2	a-b-start	1
+819	2	a b-cont	0
+820	2	other	1
+821	2	a-start	1
+822	2	a-cont	1
+823	2	b-start	1
+824	2	b-cont	0
+825	2	start	1
+826	2	cont	0
+827	2	x-other	1
+828	2	a-b-start	1
+829	2	a b-cont	0
+830	2	other	1
+831	2	a-start	1
+832	2	a-cont	1
+833	2	b-start	1
+834	2	b-cont	0
+835	2	start	1
+836	2	cont	0
+837	2	x-other	1
+838	2	a-b-start	1
+839	2	a b-cont	0
+840	2	other	1
+841	2	a-start	1
+842	2	a-cont	0
+843	2	b-start	1
+844	2	b-cont	1
+845	2	start	1
+846	2	cont	0
+847	2	x-other	1
+848	2	a-b-start	1
+849	2	a b-cont	0
+850	2	other	1
+851	2	a-start	1
+852	2	a-cont	0
+853	2	b-start	1
+854	2	b-cont	1
+855	2	start	1
+856	2	cont	0
+857	2	x-other	1
+858	2	a-b-start	1
+859	2	a b-cont	0
+860	2	other	1
+861	2	a-start	1
+862	2	a-cont	0
+863	2	b-start	1
+864	2	b-cont	0
+865	2	start	1
+866	2	cont	1
+867	2	x-other	1
+868	2	a-b-start	1
+869	2	a b-cont	0
+870	2	other	1
+871	2	a-start	1
+872	2	a-cont	0
+873	2	b-start	1
+874	2	b-cont	0
+875	2	start	1
+876	2	cont	1
+877	2	x-other	1
+878	2	a-b-start	1
+879	2	a b-cont	0
+880	2	other	1
+881	2	a-start	1
+882	2	a-cont	0
+883	2	b-start	1
+884	2	b-cont	0
+885	2	start	1
+886	2	cont	0
+887	2	x-other	1
+888	2	a-b-start	1
+889	2	a b-cont	0
+890	2	other	1
+891	2	a-start	1
+892	2	a-cont	0
+893	2	b-start	1
+894	2	b-cont	0
+895	2	start	1
+896	2	cont	0
+897	2	x-other	1
+898	2	a-b-start	1
+899	2	a b-cont	0
+900	2	other	1
+901	2	a-start	1
+902	2	a-cont	0
+903	2	b-start	1
+904	2	b-cont	0
+905	2	start	1
+906	2	cont	0
+907	2	x-other	1
+908	2	a-b-start	1
+909	2	a b-cont	1
+910	2	other	1
+911	2	a-start	1
+912	2	a-cont	0
+913	2	b-start	1
+914	2	b-cont	0
+915	2	start	1
+916	2	cont	0
+917	2	x-other	1
+918	2	a-b-start	1
+919	2	a b-cont	0
+920	2	other	1
+921	2	a-start	1
+922	2	a-cont	1
+923	2	b-start	1
+924	2	b-cont	0
+925	2	start	1
+926	2	cont	0
+927	2	x-other	1
+928	2	a-b-start	1
+929	2	a b-cont	0
+930	2	other	1
+931	2	a-start	1
+932	2	a-cont	1
+933	2	b-start	1
+934	2	b-cont	0
+935	2	start	1
+936	2	cont	0
+937	2	x-other	1
+938	2	a-b-start	1
+939	2	a b-cont	0
+940	2	other	1
+941	2	a-start	1
+942	2	a-cont	0
+943	2	b-start	1
+944	2	b-cont	1
+945	2	start	1
+946	2	cont	0
+947	2	x-other	1
+948	2	a-b-start	1
+949	2	a b-cont	0
+950	2	other	1
+951	2	a-start	1
+952	2	a-cont	0
+953	2	b-start	1
+954	2	b-cont	1
+955	2	start	1
+956	2	cont	0
+957	2	x-other	1
+958	2	a-b-start	1
+959	2	a b-cont	0
+960	2	other	1
+961	2	a-start	1
+962	2	a-cont	0
+963	2	b-start	1
+964	2	b-cont	0
+965	2	start	1
+966	2	cont	1
+967	2	x-other	1
+968	2	a-b-start	1
+969	2	a b-cont	0
+970	2	other	1
+971	2	a-start	1
+972	2	a-cont	0
+973	2	b-start	1
+974	2	b-cont	0
+975	2	start	1
+976	2	cont	1
+977	2	x-other	1
+978	2	a-b-start	1
+979	2	a b-cont	0
+980	2	other	1
+981	2	a-start	1
+982	2	a-cont	0
+983	2	b-start	1
+984	2	b-cont	0
+985	2	start	1
+986	2	cont	0
+987	2	x-other	1
+988	2	a-b-start	1
+989	2	a b-cont	0
+990	2	other	1
+991	2	a-start	1
+992	2	a-cont	0
+993	2	b-start	1
+994	2	b-cont	0
+995	2	start	1
+996	2	cont	0
+997	2	x-other	1
+998	2	a-b-start	1
+999	2	a b-cont	0
+1000	2	other	1
+1001	2	a-start	1
+1002	2	a-cont	0
+1003	2	b-start	1
+1004	2	b-cont	0
+1005	2	start	1
+1006	2	cont	0
+1007	2	x-other	1
+1008	2	a-b-start	1
+1009	2	a b-cont	1
+1010	2	other	1
+1011	2	a-start	1
+1012	2	a-cont	0
+1013	2	b-start	1
+1014	2	b-cont	0
+1015	2	start	1
+1016	2	cont	0
+1017	2	x-other	1
+1018	2	a-b-start	1
+1019	2	a b-cont	0
+1020	2	other	1
+1021	2	a-start	1
+1022	2	a-cont	1
+1023	2	b-start	1
+1024	2	b-cont	0
+1025	2	start	1
+1026	2	cont	0
+1027	2	x-other	1
+1028	2	a-b-start	1
+1029	2	a b-cont	0
+1030	2	other	1
+1031	2	a-start	1
+1032	2	a-cont	1
+1033	2	b-start	1
+1034	2	b-cont	0
+1035	2	start	1
+1036	2	cont	0
+1037	2	x-other	1
+1038	2	a-b-start	1
+1039	2	a b-cont	0
+1040	2	other	1
+1041	2	a-start	1
+1042	2	a-cont	0
+1043	2	b-start	1
+1044	2	b-cont	1
+1045	2	start	1
+1046	2	cont	0
+1047	2	x-other	1
+1048	2	a-b-start	1
+1049	2	a b-cont	0
+1050	2	other	1
+1051	2	a-start	1
+1052	2	a-cont	0
+1053	2	b-start	1
+1054	2	b-cont	1
+1055	2	start	1
+1056	2	cont	0
+1057	2	x-other	1
+1058	2	a-b-start	1
+1059	2	a b-cont	0
+1060	2	other	1
+1061	2	a-start	1
+1062	2	a-cont	0
+1063	2	b-start	1
+1064	2	b-cont	0
+1065	2	start	1
+1066	2	cont	1
+1067	2	x-other	1
+1068	2	a-b-start	1
+1069	2	a b-cont	0
+1070	2	other	1
+1071	2	a-start	1
+1072	2	a-cont	0
+1073	2	b-start	1
+1074	2	b-cont	0
+1075	2	start	1
+1076	2	cont	1
+1077	2	x-other	1
+1078	2	a-b-start	1
+1079	2	a b-cont	0
+1080	2	other	1
+1081	2	a-start	1
+1082	2	a-cont	0
+1083	2	b-start	1
+1084	2	b-cont	0
+1085	2	start	1
+1086	2	cont	0
+1087	2	x-other	1
+1088	2	a-b-start	1
+1089	2	a b-cont	0
+1090	2	other	1
+1091	2	a-start	1
+1092	2	a-cont	0
+1093	2	b-start	1
+1094	2	b-cont	0
+1095	2	start	1
+1096	2	cont	0
+1097	2	x-other	1
+1098	2	a-b-start	1
+1099	2	a b-cont	0
+1100	2	other	1
+1101	2	a-start	1
+1102	2	a-cont	0
+1103	2	b-start	1
+1104	2	b-cont	0
+1105	2	start	1
+1106	2	cont	0
+1107	2	x-other	1
+1108	2	a-b-start	1
+1109	2	a b-cont	1
+end	turbo:valid
+layer	turbo:valid-priors	document	2100	case:u32	outcome:str
+10	other
+11	other
+12	other
+13	other
+14	other
+15	other
+16	other
+17	other
+18	other
+19	other
+20	a-start
+21	a-start
+22	a-start
+23	a-start
+24	a-start
+25	a-start
+26	a-start
+27	a-start
+28	a-start
+29	a-start
+30	a-cont
+31	a-cont
+32	a-cont
+33	a-cont
+34	a-cont
+35	a-cont
+36	a-cont
+37	a-cont
+38	a-cont
+39	a-cont
+40	b-start
+41	b-start
+42	b-start
+43	b-start
+44	b-start
+45	b-start
+46	b-start
+47	b-start
+48	b-start
+49	b-start
+50	b-cont
+51	b-cont
+52	b-cont
+53	b-cont
+54	b-cont
+55	b-cont
+56	b-cont
+57	b-cont
+58	b-cont
+59	b-cont
+60	start
+61	start
+62	start
+63	start
+64	start
+65	start
+66	start
+67	start
+68	start
+69	start
+70	cont
+71	cont
+72	cont
+73	cont
+74	cont
+75	cont
+76	cont
+77	cont
+78	cont
+79	cont
+80	x-other
+81	x-other
+82	x-other
+83	x-other
+84	x-other
+85	x-other
+86	x-other
+87	x-other
+88	x-other
+89	x-other
+90	a-b-start
+91	a-b-start
+92	a-b-start
+93	a-b-start
+94	a-b-start
+95	a-b-start
+96	a-b-start
+97	a-b-start
+98	a-b-start
+99	a-b-start
+100	a b-cont
+101	a b-cont
+102	a b-cont
+103	a b-cont
+104	a b-cont
+105	a b-cont
+106	a b-cont
+107	a b-cont
+108	a b-cont
+109	a b-cont
+110	other
+110	other
+111	other
+111	other
+112	other
+112	other
+113	other
+113	other
+114	other
+114	other
+115	other
+115	other
+116	other
+116	other
+117	other
+117	other
+118	other
+118	other
+119	other
+119	other
+120	other
+120	a-start
+121	other
+121	a-start
+122	other
+122	a-start
+123	other
+123	a-start
+124	other
+124	a-start
+125	other
+125	a-start
+126	other
+126	a-start
+127	other
+127	a-start
+128	other
+128	a-start
+129	other
+129	a-start
+130	other
+130	a-cont
+131	other
+131	a-cont
+132	other
+132	a-cont
+133	other
+133	a-cont
+134	other
+134	a-cont
+135	other
+135	a-cont
+136	other
+136	a-cont
+137	other
+137	a-cont
+138	other
+138	a-cont
+139	other
+139	a-cont
+140	other
+140	b-start
+141	other
+141	b-start
+142	other
+142	b-start
+143	other
+143	b-start
+144	other
+144	b-start
+145	other
+145	b-start
+146	other
+146	b-start
+147	other
+147	b-start
+148	other
+148	b-start
+149	other
+149	b-start
+150	other
+150	b-cont
+151	other
+151	b-cont
+152	other
+152	b-cont
+153	other
+153	b-cont
+154	other
+154	b-cont
+155	other
+155	b-cont
+156	other
+156	b-cont
+157	other
+157	b-cont
+158	other
+158	b-cont
+159	other
+159	b-cont
+160	other
+160	start
+161	other
+161	start
+162	other
+162	start
+163	other
+163	start
+164	other
+164	start
+165	other
+165	start
+166	other
+166	start
+167	other
+167	start
+168	other
+168	start
+169	other
+169	start
+170	other
+170	cont
+171	other
+171	cont
+172	other
+172	cont
+173	other
+173	cont
+174	other
+174	cont
+175	other
+175	cont
+176	other
+176	cont
+177	other
+177	cont
+178	other
+178	cont
+179	other
+179	cont
+180	other
+180	x-other
+181	other
+181	x-other
+182	other
+182	x-other
+183	other
+183	x-other
+184	other
+184	x-other
+185	other
+185	x-other
+186	other
+186	x-other
+187	other
+187	x-other
+188	other
+188	x-other
+189	other
+189	x-other
+190	other
+190	a-b-start
+191	other
+191	a-b-start
+192	other
+192	a-b-start
+193	other
+193	a-b-start
+194	other
+194	a-b-start
+195	other
+195	a-b-start
+196	other
+196	a-b-start
+197	other
+197	a-b-start
+198	other
+198	a-b-start
+199	other
+199	a-b-start
+200	other
+200	a b-cont
+201	other
+201	a b-cont
+202	other
+202	a b-cont
+203	other
+203	a b-cont
+204	other
+204	a b-cont
+205	other
+205	a b-cont
+206	other
+206	a b-cont
+207	other
+207	a b-cont
+208	other
+208	a b-cont
+209	other
+209	a b-cont
+210	a-start
+210	other
+211	a-start
+211	other
+212	a-start
+212	other
+213	a-start
+213	other
+214	a-start
+214	other
+215	a-start
+215	other
+216	a-start
+216	other
+217	a-start
+217	other
+218	a-start
+218	other
+219	a-start
+219	other
+220	a-start
+220	a-start
+221	a-start
+221	a-start
+222	a-start
+222	a-start
+223	a-start
+223	a-start
+224	a-start
+224	a-start
+225	a-start
+225	a-start
+226	a-start
+226	a-start
+227	a-start
+227	a-start
+228	a-start
+228	a-start
+229	a-start
+229	a-start
+230	a-start
+230	a-cont
+231	a-start
+231	a-cont
+232	a-start
+232	a-cont
+233	a-start
+233	a-cont
+234	a-start
+234	a-cont
+235	a-start
+235	a-cont
+236	a-start
+236	a-cont
+237	a-start
+237	a-cont
+238	a-start
+238	a-cont
+239	a-start
+239	a-cont
+240	a-start
+240	b-start
+241	a-start
+241	b-start
+242	a-start
+242	b-start
+243	a-start
+243	b-start
+244	a-start
+244	b-start
+245	a-start
+245	b-start
+246	a-start
+246	b-start
+247	a-start
+247	b-start
+248	a-start
+248	b-start
+249	a-start
+249	b-start
+250	a-start
+250	b-cont
+251	a-start
+251	b-cont
+252	a-start
+252	b-cont
+253	a-start
+253	b-cont
+254	a-start
+254	b-cont
+255	a-start
+255	b-cont
+256	a-start
+256	b-cont
+257	a-start
+257	b-cont
+258	a-start
+258	b-cont
+259	a-start
+259	b-cont
+260	a-start
+260	start
+261	a-start
+261	start
+262	a-start
+262	start
+263	a-start
+263	start
+264	a-start
+264	start
+265	a-start
+265	start
+266	a-start
+266	start
+267	a-start
+267	start
+268	a-start
+268	start
+269	a-start
+269	start
+270	a-start
+270	cont
+271	a-start
+271	cont
+272	a-start
+272	cont
+273	a-start
+273	cont
+274	a-start
+274	cont
+275	a-start
+275	cont
+276	a-start
+276	cont
+277	a-start
+277	cont
+278	a-start
+278	cont
+279	a-start
+279	cont
+280	a-start
+280	x-other
+281	a-start
+281	x-other
+282	a-start
+282	x-other
+283	a-start
+283	x-other
+284	a-start
+284	x-other
+285	a-start
+285	x-other
+286	a-start
+286	x-other
+287	a-start
+287	x-other
+288	a-start
+288	x-other
+289	a-start
+289	x-other
+290	a-start
+290	a-b-start
+291	a-start
+291	a-b-start
+292	a-start
+292	a-b-start
+293	a-start
+293	a-b-start
+294	a-start
+294	a-b-start
+295	a-start
+295	a-b-start
+296	a-start
+296	a-b-start
+297	a-start
+297	a-b-start
+298	a-start
+298	a-b-start
+299	a-start
+299	a-b-start
+300	a-start
+300	a b-cont
+301	a-start
+301	a b-cont
+302	a-start
+302	a b-cont
+303	a-start
+303	a b-cont
+304	a-start
+304	a b-cont
+305	a-start
+305	a b-cont
+306	a-start
+306	a b-cont
+307	a-start
+307	a b-cont
+308	a-start
+308	a b-cont
+309	a-start
+309	a b-cont
+310	a-cont
+310	other
+311	a-cont
+311	other
+312	a-cont
+312	other
+313	a-cont
+313	other
+314	a-cont
+314	other
+315	a-cont
+315	other
+316	a-cont
+316	other
+317	a-cont
+317	other
+318	a-cont
+318	other
+319	a-cont
+319	other
+320	a-cont
+320	a-start
+321	a-cont
+321	a-start
+322	a-cont
+322	a-start
+323	a-cont
+323	a-start
+324	a-cont
+324	a-start
+325	a-cont
+325	a-start
+326	a-cont
+326	a-start
+327	a-cont
+327	a-start
+328	a-cont
+328	a-start
+329	a-cont
+329	a-start
+330	a-cont
+330	a-cont
+331	a-cont
+331	a-cont
+332	a-cont
+332	a-cont
+333	a-cont
+333	a-cont
+334	a-cont
+334	a-cont
+335	a-cont
+335	a-cont
+336	a-cont
+336	a-cont
+337	a-cont
+337	a-cont
+338	a-cont
+338	a-cont
+339	a-cont
+339	a-cont
+340	a-cont
+340	b-start
+341	a-cont
+341	b-start
+342	a-cont
+342	b-start
+343	a-cont
+343	b-start
+344	a-cont
+344	b-start
+345	a-cont
+345	b-start
+346	a-cont
+346	b-start
+347	a-cont
+347	b-start
+348	a-cont
+348	b-start
+349	a-cont
+349	b-start
+350	a-cont
+350	b-cont
+351	a-cont
+351	b-cont
+352	a-cont
+352	b-cont
+353	a-cont
+353	b-cont
+354	a-cont
+354	b-cont
+355	a-cont
+355	b-cont
+356	a-cont
+356	b-cont
+357	a-cont
+357	b-cont
+358	a-cont
+358	b-cont
+359	a-cont
+359	b-cont
+360	a-cont
+360	start
+361	a-cont
+361	start
+362	a-cont
+362	start
+363	a-cont
+363	start
+364	a-cont
+364	start
+365	a-cont
+365	start
+366	a-cont
+366	start
+367	a-cont
+367	start
+368	a-cont
+368	start
+369	a-cont
+369	start
+370	a-cont
+370	cont
+371	a-cont
+371	cont
+372	a-cont
+372	cont
+373	a-cont
+373	cont
+374	a-cont
+374	cont
+375	a-cont
+375	cont
+376	a-cont
+376	cont
+377	a-cont
+377	cont
+378	a-cont
+378	cont
+379	a-cont
+379	cont
+380	a-cont
+380	x-other
+381	a-cont
+381	x-other
+382	a-cont
+382	x-other
+383	a-cont
+383	x-other
+384	a-cont
+384	x-other
+385	a-cont
+385	x-other
+386	a-cont
+386	x-other
+387	a-cont
+387	x-other
+388	a-cont
+388	x-other
+389	a-cont
+389	x-other
+390	a-cont
+390	a-b-start
+391	a-cont
+391	a-b-start
+392	a-cont
+392	a-b-start
+393	a-cont
+393	a-b-start
+394	a-cont
+394	a-b-start
+395	a-cont
+395	a-b-start
+396	a-cont
+396	a-b-start
+397	a-cont
+397	a-b-start
+398	a-cont
+398	a-b-start
+399	a-cont
+399	a-b-start
+400	a-cont
+400	a b-cont
+401	a-cont
+401	a b-cont
+402	a-cont
+402	a b-cont
+403	a-cont
+403	a b-cont
+404	a-cont
+404	a b-cont
+405	a-cont
+405	a b-cont
+406	a-cont
+406	a b-cont
+407	a-cont
+407	a b-cont
+408	a-cont
+408	a b-cont
+409	a-cont
+409	a b-cont
+410	b-start
+410	other
+411	b-start
+411	other
+412	b-start
+412	other
+413	b-start
+413	other
+414	b-start
+414	other
+415	b-start
+415	other
+416	b-start
+416	other
+417	b-start
+417	other
+418	b-start
+418	other
+419	b-start
+419	other
+420	b-start
+420	a-start
+421	b-start
+421	a-start
+422	b-start
+422	a-start
+423	b-start
+423	a-start
+424	b-start
+424	a-start
+425	b-start
+425	a-start
+426	b-start
+426	a-start
+427	b-start
+427	a-start
+428	b-start
+428	a-start
+429	b-start
+429	a-start
+430	b-start
+430	a-cont
+431	b-start
+431	a-cont
+432	b-start
+432	a-cont
+433	b-start
+433	a-cont
+434	b-start
+434	a-cont
+435	b-start
+435	a-cont
+436	b-start
+436	a-cont
+437	b-start
+437	a-cont
+438	b-start
+438	a-cont
+439	b-start
+439	a-cont
+440	b-start
+440	b-start
+441	b-start
+441	b-start
+442	b-start
+442	b-start
+443	b-start
+443	b-start
+444	b-start
+444	b-start
+445	b-start
+445	b-start
+446	b-start
+446	b-start
+447	b-start
+447	b-start
+448	b-start
+448	b-start
+449	b-start
+449	b-start
+450	b-start
+450	b-cont
+451	b-start
+451	b-cont
+452	b-start
+452	b-cont
+453	b-start
+453	b-cont
+454	b-start
+454	b-cont
+455	b-start
+455	b-cont
+456	b-start
+456	b-cont
+457	b-start
+457	b-cont
+458	b-start
+458	b-cont
+459	b-start
+459	b-cont
+460	b-start
+460	start
+461	b-start
+461	start
+462	b-start
+462	start
+463	b-start
+463	start
+464	b-start
+464	start
+465	b-start
+465	start
+466	b-start
+466	start
+467	b-start
+467	start
+468	b-start
+468	start
+469	b-start
+469	start
+470	b-start
+470	cont
+471	b-start
+471	cont
+472	b-start
+472	cont
+473	b-start
+473	cont
+474	b-start
+474	cont
+475	b-start
+475	cont
+476	b-start
+476	cont
+477	b-start
+477	cont
+478	b-start
+478	cont
+479	b-start
+479	cont
+480	b-start
+480	x-other
+481	b-start
+481	x-other
+482	b-start
+482	x-other
+483	b-start
+483	x-other
+484	b-start
+484	x-other
+485	b-start
+485	x-other
+486	b-start
+486	x-other
+487	b-start
+487	x-other
+488	b-start
+488	x-other
+489	b-start
+489	x-other
+490	b-start
+490	a-b-start
+491	b-start
+491	a-b-start
+492	b-start
+492	a-b-start
+493	b-start
+493	a-b-start
+494	b-start
+494	a-b-start
+495	b-start
+495	a-b-start
+496	b-start
+496	a-b-start
+497	b-start
+497	a-b-start
+498	b-start
+498	a-b-start
+499	b-start
+499	a-b-start
+500	b-start
+500	a b-cont
+501	b-start
+501	a b-cont
+502	b-start
+502	a b-cont
+503	b-start
+503	a b-cont
+504	b-start
+504	a b-cont
+505	b-start
+505	a b-cont
+506	b-start
+506	a b-cont
+507	b-start
+507	a b-cont
+508	b-start
+508	a b-cont
+509	b-start
+509	a b-cont
+510	b-cont
+510	other
+511	b-cont
+511	other
+512	b-cont
+512	other
+513	b-cont
+513	other
+514	b-cont
+514	other
+515	b-cont
+515	other
+516	b-cont
+516	other
+517	b-cont
+517	other
+518	b-cont
+518	other
+519	b-cont
+519	other
+520	b-cont
+520	a-start
+521	b-cont
+521	a-start
+522	b-cont
+522	a-start
+523	b-cont
+523	a-start
+524	b-cont
+524	a-start
+525	b-cont
+525	a-start
+526	b-cont
+526	a-start
+527	b-cont
+527	a-start
+528	b-cont
+528	a-start
+529	b-cont
+529	a-start
+530	b-cont
+530	a-cont
+531	b-cont
+531	a-cont
+532	b-cont
+532	a-cont
+533	b-cont
+533	a-cont
+534	b-cont
+534	a-cont
+535	b-cont
+535	a-cont
+536	b-cont
+536	a-cont
+537	b-cont
+537	a-cont
+538	b-cont
+538	a-cont
+539	b-cont
+539	a-cont
+540	b-cont
+540	b-start
+541	b-cont
+541	b-start
+542	b-cont
+542	b-start
+543	b-cont
+543	b-start
+544	b-cont
+544	b-start
+545	b-cont
+545	b-start
+546	b-cont
+546	b-start
+547	b-cont
+547	b-start
+548	b-cont
+548	b-start
+549	b-cont
+549	b-start
+550	b-cont
+550	b-cont
+551	b-cont
+551	b-cont
+552	b-cont
+552	b-cont
+553	b-cont
+553	b-cont
+554	b-cont
+554	b-cont
+555	b-cont
+555	b-cont
+556	b-cont
+556	b-cont
+557	b-cont
+557	b-cont
+558	b-cont
+558	b-cont
+559	b-cont
+559	b-cont
+560	b-cont
+560	start
+561	b-cont
+561	start
+562	b-cont
+562	start
+563	b-cont
+563	start
+564	b-cont
+564	start
+565	b-cont
+565	start
+566	b-cont
+566	start
+567	b-cont
+567	start
+568	b-cont
+568	start
+569	b-cont
+569	start
+570	b-cont
+570	cont
+571	b-cont
+571	cont
+572	b-cont
+572	cont
+573	b-cont
+573	cont
+574	b-cont
+574	cont
+575	b-cont
+575	cont
+576	b-cont
+576	cont
+577	b-cont
+577	cont
+578	b-cont
+578	cont
+579	b-cont
+579	cont
+580	b-cont
+580	x-other
+581	b-cont
+581	x-other
+582	b-cont
+582	x-other
+583	b-cont
+583	x-other
+584	b-cont
+584	x-other
+585	b-cont
+585	x-other
+586	b-cont
+586	x-other
+587	b-cont
+587	x-other
+588	b-cont
+588	x-other
+589	b-cont
+589	x-other
+590	b-cont
+590	a-b-start
+591	b-cont
+591	a-b-start
+592	b-cont
+592	a-b-start
+593	b-cont
+593	a-b-start
+594	b-cont
+594	a-b-start
+595	b-cont
+595	a-b-start
+596	b-cont
+596	a-b-start
+597	b-cont
+597	a-b-start
+598	b-cont
+598	a-b-start
+599	b-cont
+599	a-b-start
+600	b-cont
+600	a b-cont
+601	b-cont
+601	a b-cont
+602	b-cont
+602	a b-cont
+603	b-cont
+603	a b-cont
+604	b-cont
+604	a b-cont
+605	b-cont
+605	a b-cont
+606	b-cont
+606	a b-cont
+607	b-cont
+607	a b-cont
+608	b-cont
+608	a b-cont
+609	b-cont
+609	a b-cont
+610	start
+610	other
+611	start
+611	other
+612	start
+612	other
+613	start
+613	other
+614	start
+614	other
+615	start
+615	other
+616	start
+616	other
+617	start
+617	other
+618	start
+618	other
+619	start
+619	other
+620	start
+620	a-start
+621	start
+621	a-start
+622	start
+622	a-start
+623	start
+623	a-start
+624	start
+624	a-start
+625	start
+625	a-start
+626	start
+626	a-start
+627	start
+627	a-start
+628	start
+628	a-start
+629	start
+629	a-start
+630	start
+630	a-cont
+631	start
+631	a-cont
+632	start
+632	a-cont
+633	start
+633	a-cont
+634	start
+634	a-cont
+635	start
+635	a-cont
+636	start
+636	a-cont
+637	start
+637	a-cont
+638	start
+638	a-cont
+639	start
+639	a-cont
+640	start
+640	b-start
+641	start
+641	b-start
+642	start
+642	b-start
+643	start
+643	b-start
+644	start
+644	b-start
+645	start
+645	b-start
+646	start
+646	b-start
+647	start
+647	b-start
+648	start
+648	b-start
+649	start
+649	b-start
+650	start
+650	b-cont
+651	start
+651	b-cont
+652	start
+652	b-cont
+653	start
+653	b-cont
+654	start
+654	b-cont
+655	start
+655	b-cont
+656	start
+656	b-cont
+657	start
+657	b-cont
+658	start
+658	b-cont
+659	start
+659	b-cont
+660	start
+660	start
+661	start
+661	start
+662	start
+662	start
+663	start
+663	start
+664	start
+664	start
+665	start
+665	start
+666	start
+666	start
+667	start
+667	start
+668	start
+668	start
+669	start
+669	start
+670	start
+670	cont
+671	start
+671	cont
+672	start
+672	cont
+673	start
+673	cont
+674	start
+674	cont
+675	start
+675	cont
+676	start
+676	cont
+677	start
+677	cont
+678	start
+678	cont
+679	start
+679	cont
+680	start
+680	x-other
+681	start
+681	x-other
+682	start
+682	x-other
+683	start
+683	x-other
+684	start
+684	x-other
+685	start
+685	x-other
+686	start
+686	x-other
+687	start
+687	x-other
+688	start
+688	x-other
+689	start
+689	x-other
+690	start
+690	a-b-start
+691	start
+691	a-b-start
+692	start
+692	a-b-start
+693	start
+693	a-b-start
+694	start
+694	a-b-start
+695	start
+695	a-b-start
+696	start
+696	a-b-start
+697	start
+697	a-b-start
+698	start
+698	a-b-start
+699	start
+699	a-b-start
+700	start
+700	a b-cont
+701	start
+701	a b-cont
+702	start
+702	a b-cont
+703	start
+703	a b-cont
+704	start
+704	a b-cont
+705	start
+705	a b-cont
+706	start
+706	a b-cont
+707	start
+707	a b-cont
+708	start
+708	a b-cont
+709	start
+709	a b-cont
+710	cont
+710	other
+711	cont
+711	other
+712	cont
+712	other
+713	cont
+713	other
+714	cont
+714	other
+715	cont
+715	other
+716	cont
+716	other
+717	cont
+717	other
+718	cont
+718	other
+719	cont
+719	other
+720	cont
+720	a-start
+721	cont
+721	a-start
+722	cont
+722	a-start
+723	cont
+723	a-start
+724	cont
+724	a-start
+725	cont
+725	a-start
+726	cont
+726	a-start
+727	cont
+727	a-start
+728	cont
+728	a-start
+729	cont
+729	a-start
+730	cont
+730	a-cont
+731	cont
+731	a-cont
+732	cont
+732	a-cont
+733	cont
+733	a-cont
+734	cont
+734	a-cont
+735	cont
+735	a-cont
+736	cont
+736	a-cont
+737	cont
+737	a-cont
+738	cont
+738	a-cont
+739	cont
+739	a-cont
+740	cont
+740	b-start
+741	cont
+741	b-start
+742	cont
+742	b-start
+743	cont
+743	b-start
+744	cont
+744	b-start
+745	cont
+745	b-start
+746	cont
+746	b-start
+747	cont
+747	b-start
+748	cont
+748	b-start
+749	cont
+749	b-start
+750	cont
+750	b-cont
+751	cont
+751	b-cont
+752	cont
+752	b-cont
+753	cont
+753	b-cont
+754	cont
+754	b-cont
+755	cont
+755	b-cont
+756	cont
+756	b-cont
+757	cont
+757	b-cont
+758	cont
+758	b-cont
+759	cont
+759	b-cont
+760	cont
+760	start
+761	cont
+761	start
+762	cont
+762	start
+763	cont
+763	start
+764	cont
+764	start
+765	cont
+765	start
+766	cont
+766	start
+767	cont
+767	start
+768	cont
+768	start
+769	cont
+769	start
+770	cont
+770	cont
+771	cont
+771	cont
+772	cont
+772	cont
+773	cont
+773	cont
+774	cont
+774	cont
+775	cont
+775	cont
+776	cont
+776	cont
+777	cont
+777	cont
+778	cont
+778	cont
+779	cont
+779	cont
+780	cont
+780	x-other
+781	cont
+781	x-other
+782	cont
+782	x-other
+783	cont
+783	x-other
+784	cont
+784	x-other
+785	cont
+785	x-other
+786	cont
+786	x-other
+787	cont
+787	x-other
+788	cont
+788	x-other
+789	cont
+789	x-other
+790	cont
+790	a-b-start
+791	cont
+791	a-b-start
+792	cont
+792	a-b-start
+793	cont
+793	a-b-start
+794	cont
+794	a-b-start
+795	cont
+795	a-b-start
+796	cont
+796	a-b-start
+797	cont
+797	a-b-start
+798	cont
+798	a-b-start
+799	cont
+799	a-b-start
+800	cont
+800	a b-cont
+801	cont
+801	a b-cont
+802	cont
+802	a b-cont
+803	cont
+803	a b-cont
+804	cont
+804	a b-cont
+805	cont
+805	a b-cont
+806	cont
+806	a b-cont
+807	cont
+807	a b-cont
+808	cont
+808	a b-cont
+809	cont
+809	a b-cont
+810	x-other
+810	other
+811	x-other
+811	other
+812	x-other
+812	other
+813	x-other
+813	other
+814	x-other
+814	other
+815	x-other
+815	other
+816	x-other
+816	other
+817	x-other
+817	other
+818	x-other
+818	other
+819	x-other
+819	other
+820	x-other
+820	a-start
+821	x-other
+821	a-start
+822	x-other
+822	a-start
+823	x-other
+823	a-start
+824	x-other
+824	a-start
+825	x-other
+825	a-start
+826	x-other
+826	a-start
+827	x-other
+827	a-start
+828	x-other
+828	a-start
+829	x-other
+829	a-start
+830	x-other
+830	a-cont
+831	x-other
+831	a-cont
+832	x-other
+832	a-cont
+833	x-other
+833	a-cont
+834	x-other
+834	a-cont
+835	x-other
+835	a-cont
+836	x-other
+836	a-cont
+837	x-other
+837	a-cont
+838	x-other
+838	a-cont
+839	x-other
+839	a-cont
+840	x-other
+840	b-start
+841	x-other
+841	b-start
+842	x-other
+842	b-start
+843	x-other
+843	b-start
+844	x-other
+844	b-start
+845	x-other
+845	b-start
+846	x-other
+846	b-start
+847	x-other
+847	b-start
+848	x-other
+848	b-start
+849	x-other
+849	b-start
+850	x-other
+850	b-cont
+851	x-other
+851	b-cont
+852	x-other
+852	b-cont
+853	x-other
+853	b-cont
+854	x-other
+854	b-cont
+855	x-other
+855	b-cont
+856	x-other
+856	b-cont
+857	x-other
+857	b-cont
+858	x-other
+858	b-cont
+859	x-other
+859	b-cont
+860	x-other
+860	start
+861	x-other
+861	start
+862	x-other
+862	start
+863	x-other
+863	start
+864	x-other
+864	start
+865	x-other
+865	start
+866	x-other
+866	start
+867	x-other
+867	start
+868	x-other
+868	start
+869	x-other
+869	start
+870	x-other
+870	cont
+871	x-other
+871	cont
+872	x-other
+872	cont
+873	x-other
+873	cont
+874	x-other
+874	cont
+875	x-other
+875	cont
+876	x-other
+876	cont
+877	x-other
+877	cont
+878	x-other
+878	cont
+879	x-other
+879	cont
+880	x-other
+880	x-other
+881	x-other
+881	x-other
+882	x-other
+882	x-other
+883	x-other
+883	x-other
+884	x-other
+884	x-other
+885	x-other
+885	x-other
+886	x-other
+886	x-other
+887	x-other
+887	x-other
+888	x-other
+888	x-other
+889	x-other
+889	x-other
+890	x-other
+890	a-b-start
+891	x-other
+891	a-b-start
+892	x-other
+892	a-b-start
+893	x-other
+893	a-b-start
+894	x-other
+894	a-b-start
+895	x-other
+895	a-b-start
+896	x-other
+896	a-b-start
+897	x-other
+897	a-b-start
+898	x-other
+898	a-b-start
+899	x-other
+899	a-b-start
+900	x-other
+900	a b-cont
+901	x-other
+901	a b-cont
+902	x-other
+902	a b-cont
+903	x-other
+903	a b-cont
+904	x-other
+904	a b-cont
+905	x-other
+905	a b-cont
+906	x-other
+906	a b-cont
+907	x-other
+907	a b-cont
+908	x-other
+908	a b-cont
+909	x-other
+909	a b-cont
+910	a-b-start
+910	other
+911	a-b-start
+911	other
+912	a-b-start
+912	other
+913	a-b-start
+913	other
+914	a-b-start
+914	other
+915	a-b-start
+915	other
+916	a-b-start
+916	other
+917	a-b-start
+917	other
+918	a-b-start
+918	other
+919	a-b-start
+919	other
+920	a-b-start
+920	a-start
+921	a-b-start
+921	a-start
+922	a-b-start
+922	a-start
+923	a-b-start
+923	a-start
+924	a-b-start
+924	a-start
+925	a-b-start
+925	a-start
+926	a-b-start
+926	a-start
+927	a-b-start
+927	a-start
+928	a-b-start
+928	a-start
+929	a-b-start
+929	a-start
+930	a-b-start
+930	a-cont
+931	a-b-start
+931	a-cont
+932	a-b-start
+932	a-cont
+933	a-b-start
+933	a-cont
+934	a-b-start
+934	a-cont
+935	a-b-start
+935	a-cont
+936	a-b-start
+936	a-cont
+937	a-b-start
+937	a-cont
+938	a-b-start
+938	a-cont
+939	a-b-start
+939	a-cont
+940	a-b-start
+940	b-start
+941	a-b-start
+941	b-start
+942	a-b-start
+942	b-start
+943	a-b-start
+943	b-start
+944	a-b-start
+944	b-start
+945	a-b-start
+945	b-start
+946	a-b-start
+946	b-start
+947	a-b-start
+947	b-start
+948	a-b-start
+948	b-start
+949	a-b-start
+949	b-start
+950	a-b-start
+950	b-cont
+951	a-b-start
+951	b-cont
+952	a-b-start
+952	b-cont
+953	a-b-start
+953	b-cont
+954	a-b-start
+954	b-cont
+955	a-b-start
+955	b-cont
+956	a-b-start
+956	b-cont
+957	a-b-start
+957	b-cont
+958	a-b-start
+958	b-cont
+959	a-b-start
+959	b-cont
+960	a-b-start
+960	start
+961	a-b-start
+961	start
+962	a-b-start
+962	start
+963	a-b-start
+963	start
+964	a-b-start
+964	start
+965	a-b-start
+965	start
+966	a-b-start
+966	start
+967	a-b-start
+967	start
+968	a-b-start
+968	start
+969	a-b-start
+969	start
+970	a-b-start
+970	cont
+971	a-b-start
+971	cont
+972	a-b-start
+972	cont
+973	a-b-start
+973	cont
+974	a-b-start
+974	cont
+975	a-b-start
+975	cont
+976	a-b-start
+976	cont
+977	a-b-start
+977	cont
+978	a-b-start
+978	cont
+979	a-b-start
+979	cont
+980	a-b-start
+980	x-other
+981	a-b-start
+981	x-other
+982	a-b-start
+982	x-other
+983	a-b-start
+983	x-other
+984	a-b-start
+984	x-other
+985	a-b-start
+985	x-other
+986	a-b-start
+986	x-other
+987	a-b-start
+987	x-other
+988	a-b-start
+988	x-other
+989	a-b-start
+989	x-other
+990	a-b-start
+990	a-b-start
+991	a-b-start
+991	a-b-start
+992	a-b-start
+992	a-b-start
+993	a-b-start
+993	a-b-start
+994	a-b-start
+994	a-b-start
+995	a-b-start
+995	a-b-start
+996	a-b-start
+996	a-b-start
+997	a-b-start
+997	a-b-start
+998	a-b-start
+998	a-b-start
+999	a-b-start
+999	a-b-start
+1000	a-b-start
+1000	a b-cont
+1001	a-b-start
+1001	a b-cont
+1002	a-b-start
+1002	a b-cont
+1003	a-b-start
+1003	a b-cont
+1004	a-b-start
+1004	a b-cont
+1005	a-b-start
+1005	a b-cont
+1006	a-b-start
+1006	a b-cont
+1007	a-b-start
+1007	a b-cont
+1008	a-b-start
+1008	a b-cont
+1009	a-b-start
+1009	a b-cont
+1010	a b-cont
+1010	other
+1011	a b-cont
+1011	other
+1012	a b-cont
+1012	other
+1013	a b-cont
+1013	other
+1014	a b-cont
+1014	other
+1015	a b-cont
+1015	other
+1016	a b-cont
+1016	other
+1017	a b-cont
+1017	other
+1018	a b-cont
+1018	other
+1019	a b-cont
+1019	other
+1020	a b-cont
+1020	a-start
+1021	a b-cont
+1021	a-start
+1022	a b-cont
+1022	a-start
+1023	a b-cont
+1023	a-start
+1024	a b-cont
+1024	a-start
+1025	a b-cont
+1025	a-start
+1026	a b-cont
+1026	a-start
+1027	a b-cont
+1027	a-start
+1028	a b-cont
+1028	a-start
+1029	a b-cont
+1029	a-start
+1030	a b-cont
+1030	a-cont
+1031	a b-cont
+1031	a-cont
+1032	a b-cont
+1032	a-cont
+1033	a b-cont
+1033	a-cont
+1034	a b-cont
+1034	a-cont
+1035	a b-cont
+1035	a-cont
+1036	a b-cont
+1036	a-cont
+1037	a b-cont
+1037	a-cont
+1038	a b-cont
+1038	a-cont
+1039	a b-cont
+1039	a-cont
+1040	a b-cont
+1040	b-start
+1041	a b-cont
+1041	b-start
+1042	a b-cont
+1042	b-start
+1043	a b-cont
+1043	b-start
+1044	a b-cont
+1044	b-start
+1045	a b-cont
+1045	b-start
+1046	a b-cont
+1046	b-start
+1047	a b-cont
+1047	b-start
+1048	a b-cont
+1048	b-start
+1049	a b-cont
+1049	b-start
+1050	a b-cont
+1050	b-cont
+1051	a b-cont
+1051	b-cont
+1052	a b-cont
+1052	b-cont
+1053	a b-cont
+1053	b-cont
+1054	a b-cont
+1054	b-cont
+1055	a b-cont
+1055	b-cont
+1056	a b-cont
+1056	b-cont
+1057	a b-cont
+1057	b-cont
+1058	a b-cont
+1058	b-cont
+1059	a b-cont
+1059	b-cont
+1060	a b-cont
+1060	start
+1061	a b-cont
+1061	start
+1062	a b-cont
+1062	start
+1063	a b-cont
+1063	start
+1064	a b-cont
+1064	start
+1065	a b-cont
+1065	start
+1066	a b-cont
+1066	start
+1067	a b-cont
+1067	start
+1068	a b-cont
+1068	start
+1069	a b-cont
+1069	start
+1070	a b-cont
+1070	cont
+1071	a b-cont
+1071	cont
+1072	a b-cont
+1072	cont
+1073	a b-cont
+1073	cont
+1074	a b-cont
+1074	cont
+1075	a b-cont
+1075	cont
+1076	a b-cont
+1076	cont
+1077	a b-cont
+1077	cont
+1078	a b-cont
+1078	cont
+1079	a b-cont
+1079	cont
+1080	a b-cont
+1080	x-other
+1081	a b-cont
+1081	x-other
+1082	a b-cont
+1082	x-other
+1083	a b-cont
+1083	x-other
+1084	a b-cont
+1084	x-other
+1085	a b-cont
+1085	x-other
+1086	a b-cont
+1086	x-other
+1087	a b-cont
+1087	x-other
+1088	a b-cont
+1088	x-other
+1089	a b-cont
+1089	x-other
+1090	a b-cont
+1090	a-b-start
+1091	a b-cont
+1091	a-b-start
+1092	a b-cont
+1092	a-b-start
+1093	a b-cont
+1093	a-b-start
+1094	a b-cont
+1094	a-b-start
+1095	a b-cont
+1095	a-b-start
+1096	a b-cont
+1096	a-b-start
+1097	a b-cont
+1097	a-b-start
+1098	a b-cont
+1098	a-b-start
+1099	a b-cont
+1099	a-b-start
+1100	a b-cont
+1100	a b-cont
+1101	a b-cont
+1101	a b-cont
+1102	a b-cont
+1102	a b-cont
+1103	a b-cont
+1103	a b-cont
+1104	a b-cont
+1104	a b-cont
+1105	a b-cont
+1105	a b-cont
+1106	a b-cont
+1106	a b-cont
+1107	a b-cont
+1107	a b-cont
+1108	a b-cont
+1108	a b-cont
+1109	a b-cont
+1109	a b-cont
+end	turbo:valid-priors
+layer	turbo:encode	document	7	case:u32	length:u32
+0	3
+1	2
+2	6
+3	5
+4	4
+5	4
+6	5
+end	turbo:encode
+layer	turbo:encode-spans	document	10	case:u32	start:u32	end:u32	type:str	typed:u32
+1	0	1	person	1
+2	0	3	person	1
+2	4	5		0
+3	1	2		0
+3	2	4	location	1
+4	0	3	a	1
+4	1	2	b	1
+5	0	2	a	1
+5	1	3	b	1
+6	3	4	x-y	1
+end	turbo:encode-spans
+layer	turbo:encode-outcomes	document	29	case:u32	outcome:str
+0	other
+0	other
+0	other
+1	person-start
+1	other
+2	person-start
+2	person-cont
+2	person-cont
+2	other
+2	default-start
+2	other
+3	other
+3	default-start
+3	location-start
+3	location-cont
+3	other
+4	a-start
+4	b-start
+4	a-cont
+4	other
+5	a-start
+5	b-start
+5	b-cont
+5	other
+6	other
+6	other
+6	other
+6	x-y-start
+6	other
+end	turbo:encode-outcomes
+layer	turbo:compatible	document	64	case:u32	compatible:u32
+0	0
+1	0
+2	1
+3	1
+4	0
+5	0
+6	1
+7	1
+8	1
+9	1
+10	1
+11	1
+12	0
+13	0
+14	1
+15	1
+16	0
+17	0
+18	0
+19	0
+20	0
+21	0
+22	0
+23	0
+24	1
+25	1
+26	1
+27	1
+28	0
+29	0
+30	1
+31	1
+32	0
+33	0
+34	0
+35	0
+36	0
+37	0
+38	0
+39	0
+40	0
+41	0
+42	0
+43	0
+44	0
+45	0
+46	0
+47	0
+48	0
+49	0
+50	0
+51	0
+52	0
+53	0
+54	0
+55	0
+56	0
+57	0
+58	0
+59	0
+60	0
+61	0
+62	0
+63	0
+end	turbo:compatible
+layer	turbo:compatible-outcomes	document	192	case:u32	outcome:str
+1	other
+2	a-start
+3	other
+3	a-start
+4	a-cont
+5	other
+5	a-cont
+6	a-start
+6	a-cont
+7	other
+7	a-start
+7	a-cont
+8	b-start
+9	other
+9	b-start
+10	a-start
+10	b-start
+11	other
+11	a-start
+11	b-start
+12	a-cont
+12	b-start
+13	other
+13	a-cont
+13	b-start
+14	a-start
+14	a-cont
+14	b-start
+15	other
+15	a-start
+15	a-cont
+15	b-start
+16	b-cont
+17	other
+17	b-cont
+18	a-start
+18	b-cont
+19	other
+19	a-start
+19	b-cont
+20	a-cont
+20	b-cont
+21	other
+21	a-cont
+21	b-cont
+22	a-start
+22	a-cont
+22	b-cont
+23	other
+23	a-start
+23	a-cont
+23	b-cont
+24	b-start
+24	b-cont
+25	other
+25	b-start
+25	b-cont
+26	a-start
+26	b-start
+26	b-cont
+27	other
+27	a-start
+27	b-start
+27	b-cont
+28	a-cont
+28	b-start
+28	b-cont
+29	other
+29	a-cont
+29	b-start
+29	b-cont
+30	a-start
+30	a-cont
+30	b-start
+30	b-cont
+31	other
+31	a-start
+31	a-cont
+31	b-start
+31	b-cont
+32	c
+33	other
+33	c
+34	a-start
+34	c
+35	other
+35	a-start
+35	c
+36	a-cont
+36	c
+37	other
+37	a-cont
+37	c
+38	a-start
+38	a-cont
+38	c
+39	other
+39	a-start
+39	a-cont
+39	c
+40	b-start
+40	c
+41	other
+41	b-start
+41	c
+42	a-start
+42	b-start
+42	c
+43	other
+43	a-start
+43	b-start
+43	c
+44	a-cont
+44	b-start
+44	c
+45	other
+45	a-cont
+45	b-start
+45	c
+46	a-start
+46	a-cont
+46	b-start
+46	c
+47	other
+47	a-start
+47	a-cont
+47	b-start
+47	c
+48	b-cont
+48	c
+49	other
+49	b-cont
+49	c
+50	a-start
+50	b-cont
+50	c
+51	other
+51	a-start
+51	b-cont
+51	c
+52	a-cont
+52	b-cont
+52	c
+53	other
+53	a-cont
+53	b-cont
+53	c
+54	a-start
+54	a-cont
+54	b-cont
+54	c
+55	other
+55	a-start
+55	a-cont
+55	b-cont
+55	c
+56	b-start
+56	b-cont
+56	c
+57	other
+57	b-start
+57	b-cont
+57	c
+58	a-start
+58	b-start
+58	b-cont
+58	c
+59	other
+59	a-start
+59	b-start
+59	b-cont
+59	c
+60	a-cont
+60	b-start
+60	b-cont
+60	c
+61	other
+61	a-cont
+61	b-start
+61	b-cont
+61	c
+62	a-start
+62	a-cont
+62	b-start
+62	b-cont
+62	c
+63	other
+63	a-start
+63	a-cont
+63	b-start
+63	b-cont
+63	c
+end	turbo:compatible-outcomes

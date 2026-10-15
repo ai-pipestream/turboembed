@@ -1,0 +1,43 @@
+# Converted from tests/lang/test_marathi.py of pySBD
+# (github.com/nipunsadvilkar/pySBD, commit 5905f13be4fc95f407b98392e0ec303617a33d86),
+# MIT License, Copyright (c) 2019 Nipun Sadvilkar (LICENSE in this directory).
+# One case per entry of each test list, in file order; `name` is the list's name and,
+# for the regression tests, the issue number; `option` the segmenter options its test uses.
+
+case pysbd/test_marathi/001
+lang mr
+name GOLDEN_MR_RULES_TEST_CASES
+text आज दसरा आहे. आज खूप शुभ दिवस आहे.
+sentence आज दसरा आहे.
+sentence आज खूप शुभ दिवस आहे.
+end
+
+case pysbd/test_marathi/002
+lang mr
+name GOLDEN_MR_RULES_TEST_CASES
+text ढग खूप गर्जत होते; पण पाऊस पडत नव्हता.
+sentence ढग खूप गर्जत होते; पण पाऊस पडत नव्हता.
+end
+
+case pysbd/test_marathi/003
+lang mr
+name GOLDEN_MR_RULES_TEST_CASES
+text रमाची परीक्षा कधी आहे? अवकाश आहे अजून.
+sentence रमाची परीक्षा कधी आहे?
+sentence अवकाश आहे अजून.
+end
+
+case pysbd/test_marathi/004
+lang mr
+name GOLDEN_MR_RULES_TEST_CASES
+text शाब्बास, असाच अभ्यास कर! आणि मग तुला नक्की यश मिळणार.
+sentence शाब्बास, असाच अभ्यास कर!
+sentence आणि मग तुला नक्की यश मिळणार.
+end
+
+case pysbd/test_marathi/005
+lang mr
+name GOLDEN_MR_RULES_TEST_CASES
+text "आपली आपण करी स्तुती तो एक मूर्ख" असे समर्थ रामदासस्वामी म्हणतात.
+sentence "आपली आपण करी स्तुती तो एक मूर्ख" असे समर्थ रामदासस्वामी म्हणतात.
+end

@@ -13,13 +13,24 @@
 use std::marker::PhantomData;
 use std::sync::Arc;
 
-use turbo_analysis::{Anchor, Ix, IxRange, Key, KeyId, Layer, LayerName, ModelRef, Spans, ViewId};
-pub use turbo_analysis::{Edge, Edges, Groups, Tag, TagSet};
+pub use turbo_analysis::{
+    Alternative, Alternatives, Edge, Edges, FilterRule, FragmentError, Fragments, Groups, ModeSet, NBest, Overlap,
+    SplitMode, Tag, TagSet, TextSpans, filter_spans,
+};
+use turbo_analysis::{Anchor, Ix, IxRange, Key, KeyId, Layer, LayerName, ModelRef, Span, Spans};
 
+pub use abbreviations::{AbbreviationForm, Abbreviations, DEFINITION, MENTION, abbreviation_links};
+pub use date::{Date, write_year};
+pub use language_spans::{LanguageSpan, LanguageSpans, UNDETERMINED};
 pub use levels::{Level, Levels, Unit, VectorKind};
 pub use money::{CONVERTED_MONEY, Currency, Money, MoneyMention};
 pub use numbers::{DecimalRef, Multiplier, NumberMention, NumberNotation, Numbers, ScaleMarker};
 pub use quantities::{PERCENT, Quantities, QuantityMention};
+pub use temporal::{DocumentDate, Granularity, Origin, TemporalMention, TemporalValue, Temporals};
+pub use words::{
+    MorphFeatures, MwtLanguage, RuleMwtExpander, TokenExpansion, Word, WordLemmas, WordOrTokenAnchor, WordPosTags,
+    Words,
+};
 
 /// Strings by column: one buffer and an end offset per item, never a
 /// `String` per item. Lemmas, normalized forms, glosses.
@@ -67,17 +78,21 @@ macro_rules! positional {
         fn len(&self) -> usize {
             self.spans.len()
         }
-        fn text_spans(&self) -> Option<(ViewId, &[u32], &[u32])> {
-            let (start, end) = self.spans.columns();
-            Some((self.spans.view(), start, end))
+        fn text_spans(&self) -> Option<turbo_analysis::TextSpans<'_>> {
+            Some(self.spans.text_spans())
         }
     };
 }
 
+mod abbreviations;
+mod date;
+mod language_spans;
 mod levels;
 mod money;
 mod numbers;
 mod quantities;
+mod temporal;
+mod words;
 
 /// Document structure from the parser upstream or a structure annotator:
 /// sections, headings, lists, tables, code, as a tree.
@@ -110,6 +125,7 @@ pub enum Block {
 
 impl Layer for Structure {
     const ID: &'static str = "turbo:structure";
+    const OVERLAP: Overlap = Overlap::Nesting;
     positional!(Structure);
     fn check(&self) -> Result<(), String> {
         let n = self.spans.len();
@@ -142,6 +158,7 @@ impl Layer for Structure {
             }
             *sibling_end = end[i];
         }
+        self.spans.check(Self::OVERLAP)?;
         Ok(())
     }
 }
@@ -154,7 +171,13 @@ impl Layer for Sentences {
     const ID: &'static str = "opennlp:sentences";
     positional!(Sentences);
     fn check(&self) -> Result<(), String> {
-        if self.spans.is_ordered() { Ok(()) } else { Err("sentences in text order, not overlapping".into()) }
+        self.spans.check(Self::OVERLAP).map_err(|e| {
+            if e == "spans in text order, not overlapping" {
+                "sentences in text order, not overlapping".into()
+            } else {
+                e
+            }
+        })
     }
 }
 
@@ -173,10 +196,27 @@ impl Tokens {
         let b = a + col[a..].partition_point(|&x| x == s);
         IxRange::new(a as u32, b as u32)
     }
+
+    /// The tokens of `mode`'s path through `alt`
+    /// (`Alternatives::path_for_mode`): each alternative's raw byte span,
+    /// so an alternative's `form` is not carried over. `None` when `mode`
+    /// has no complete path from position `0` to `alt.num_positions`.
+    pub fn from_alternatives(alt: &Alternatives<Tokens>, mode: SplitMode) -> Option<Tokens> {
+        let path = alt.path_for_mode(mode)?;
+        let mut spans = Spans::new(alt.spans.view());
+        for &ix in &path {
+            spans.push(alt.spans.get(ix));
+        }
+        Some(Tokens { spans, sentence: None })
+    }
 }
 
 impl Layer for Tokens {
     const ID: &'static str = "opennlp:tokens";
+    /// A character outside the Basic Multilingual Plane split between two
+    /// UTF-16 tokens (`Utf16Spans`) widens both UTF-8 spans to that 4-byte
+    /// character.
+    const OVERLAP: Overlap = Overlap::Any;
     positional!(Tokens);
     fn indexes(&self) -> Vec<(KeyId, usize)> {
         let Some(s) = &self.sentence else { return Vec::new() };
@@ -186,7 +226,7 @@ impl Layer for Tokens {
         match &self.sentence {
             Some(s) if s.len() != self.spans.len() => Err("a sentence for every token".into()),
             Some(s) if !s.windows(2).all(|w| w[0] <= w[1]) => Err("tokens in sentence order".into()),
-            _ => Ok(()),
+            _ => self.spans.check(Self::OVERLAP),
         }
     }
 }
@@ -218,6 +258,7 @@ impl Subwords {
 
 impl Layer for Subwords {
     const ID: &'static str = "opennlp:subwords";
+    const OVERLAP: Overlap = Overlap::Any;
     positional!(Subwords);
     fn indexes(&self) -> Vec<(KeyId, usize)> {
         let Some(t) = &self.token else { return Vec::new() };
@@ -231,10 +272,13 @@ impl Layer for Subwords {
         if !start.windows(2).all(|w| w[0] <= w[1]) || !end.windows(2).all(|w| w[0] <= w[1]) {
             return Err("subwords in text order".into());
         }
+        if self.spans.has_discontinuous() {
+            return Err("discontinuous spans are not allowed in subwords".into());
+        }
         match &self.token {
             Some(t) if t.len() != start.len() => Err("a token for every subword".into()),
             Some(t) if !t.windows(2).all(|w| w[0] <= w[1]) => Err("subwords in token order".into()),
-            _ => Ok(()),
+            _ => self.spans.check(Self::OVERLAP),
         }
     }
 }
@@ -277,33 +321,107 @@ impl Layer for Lemmas {
     }
 }
 
-/// A head and a relation per token: the tree is the columns, no nodes.
-pub struct Dependencies {
-    pub head: Vec<Option<Ix<Tokens>>>,
+/// A head and a relation per token or syntactic word (`A = Tokens` by
+/// default: `opennlp:dependencies`; `A = Words`:
+/// `opennlp:dependencies<turbo:words>`): the tree is the columns, no nodes.
+pub struct Dependencies<A: WordOrTokenAnchor = Tokens> {
+    pub head: Vec<Option<Ix<A>>>,
     pub relation: Vec<Tag>,
     pub relations: Arc<TagSet>,
 }
 
-impl Layer for Dependencies {
+impl<A: WordOrTokenAnchor> Clone for Dependencies<A> {
+    fn clone(&self) -> Self {
+        Dependencies { head: self.head.clone(), relation: self.relation.clone(), relations: self.relations.clone() }
+    }
+}
+
+impl<A: WordOrTokenAnchor> std::fmt::Debug for Dependencies<A> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Dependencies")
+            .field("head", &self.head)
+            .field("relation", &self.relation)
+            .field("relations", &self.relations.name)
+            .finish()
+    }
+}
+
+/// Dependencies anchored on syntactic [`Words`] (`opennlp:dependencies<turbo:words>`).
+pub type WordDependencies = Dependencies<Words>;
+
+impl<A: WordOrTokenAnchor> Layer for Dependencies<A> {
     const ID: &'static str = "opennlp:dependencies";
+    const OF: Option<&'static LayerName> = A::TARGET_OF;
     fn anchor() -> Anchor {
-        Anchor::aligned::<Tokens>()
+        Anchor::aligned::<A>()
     }
     fn len(&self) -> usize {
         self.head.len()
+    }
+    fn check(&self) -> Result<(), String> {
+        let n = self.head.len();
+        if self.relation.len() != n {
+            return Err("a relation for every dependency head".into());
+        }
+        if self.relation.iter().any(|r| r.0 as usize >= self.relations.len()) {
+            return Err(format!("a relation outside {}", self.relations.name));
+        }
+        for (i, &h) in self.head.iter().enumerate() {
+            if let Some(h) = h {
+                if h.get() >= n {
+                    return Err(format!("dependency head {} at {i} is out of bounds ({n})", h.get()));
+                }
+                if h.get() == i {
+                    return Err(format!("dependency item {i} is its own head"));
+                }
+            }
+        }
+        Ok(())
     }
 }
 
 pub struct Entities {
     pub spans: Spans<Entities>,
+    /// The bounding token range of each entity (for a discontinuous entity,
+    /// from the first fragment's start token to the last fragment's end
+    /// token, gap tokens included).
     pub tokens: Vec<IxRange<Tokens>>,
     pub kind: Vec<Tag>,
     pub kinds: Arc<TagSet>,
     pub score: Vec<f64>,
 }
 
+impl Entities {
+    /// Resolves overlapping, nested or crossing entities into an
+    /// [`Entities`] layer whose bounding envelopes do not overlap, in text
+    /// order, according to `rule`.
+    pub fn filter(&self, rule: FilterRule) -> Entities {
+        let kept = self.spans.filter(Some(&self.score), rule);
+        let mut spans = Spans::with_capacity(self.spans.view(), kept.len());
+        let mut tokens = Vec::with_capacity(kept.len());
+        let mut kind = Vec::with_capacity(kept.len());
+        let mut score = Vec::with_capacity(kept.len());
+        let mut frag_buf: Vec<Span> = Vec::new();
+        for ix in kept {
+            let i = ix.get();
+            if self.spans.is_discontinuous(ix) {
+                frag_buf.clear();
+                frag_buf.extend(self.spans.fragments(ix));
+                spans.push_fragments(&frag_buf);
+            } else {
+                spans.push(self.spans.get(ix));
+            }
+            tokens.push(self.tokens[i]);
+            kind.push(self.kind[i]);
+            score.push(self.score[i]);
+        }
+        Entities { spans, tokens, kind, kinds: Arc::clone(&self.kinds), score }
+    }
+}
+
 impl Layer for Entities {
     const ID: &'static str = "opennlp:entities";
+    const OVERLAP: Overlap = Overlap::Any;
     positional!(Entities);
     fn indexes(&self) -> Vec<(KeyId, usize)> {
         vec![(Key::<Tokens>::DEFAULT.id(), self.tokens.iter().map(|r| r.end.get()).max().unwrap_or(0))]
@@ -319,6 +437,10 @@ impl Layer for Entities {
         if self.kind.iter().any(|k| k.0 as usize >= self.kinds.len()) {
             return Err(format!("a kind outside {}", self.kinds.name));
         }
+        if self.score.iter().any(|s| s.is_nan()) {
+            return Err("a score that is NaN".into());
+        }
+        self.spans.check(Self::OVERLAP)?;
         Ok(())
     }
 }
@@ -363,6 +485,10 @@ pub struct PhraseChunks {
 
 impl Layer for PhraseChunks {
     const ID: &'static str = "opennlp:chunks";
+    /// Phrases are runs of tokens, and two UTF-16 tokens that split a
+    /// character outside the Basic Multilingual Plane are both widened to
+    /// it, so two phrases meeting there share its bytes.
+    const OVERLAP: Overlap = Overlap::Any;
     positional!(PhraseChunks);
     fn indexes(&self) -> Vec<(KeyId, usize)> {
         vec![(Key::<Tokens>::DEFAULT.id(), self.tokens.iter().map(|r| r.end.get()).max().unwrap_or(0))]
@@ -378,6 +504,7 @@ impl Layer for PhraseChunks {
         if self.kind.iter().any(|k| k.0 as usize >= self.kinds.len()) {
             return Err(format!("a kind outside {}", self.kinds.name));
         }
+        self.spans.check(Self::OVERLAP)?;
         Ok(())
     }
 }
@@ -473,6 +600,10 @@ pub struct Chunks {
 impl Layer for Chunks {
     const ID: &'static str = "turbo:chunks";
     const SCHEMA: u16 = 2;
+    /// A chunk lies inside its parent, but two chunks at different levels
+    /// that are not parent and child can cross: a level 0 chunk under a
+    /// section row can run across the edge of a nested section's row.
+    const OVERLAP: Overlap = Overlap::Any;
     positional!(Chunks);
     fn indexes(&self) -> Vec<(KeyId, usize)> {
         vec![(Key::<Sentences>::DEFAULT.id(), self.sentences.iter().map(|r| r.end.get()).max().unwrap_or(0))]
@@ -502,6 +633,7 @@ impl Layer for Chunks {
                 return Err(format!("chunk {i} is outside its parent"));
             }
         }
+        self.spans.check(Self::OVERLAP)?;
         Ok(())
     }
 }
@@ -647,8 +779,10 @@ impl<L: Layer> Layer for Utf16Spans<L> {
 }
 
 /// The document's language: a document-scoped layer holding every
-/// language the detector ranked, best first, each with its score (the
-/// detector's probability). Item 0 is the best language.
+/// language the detector ranked, best first, each with its score. Item 0
+/// is the best language. OpenNLP's detector scores each language with
+/// its probability; a step that finds the language by span
+/// ([`LanguageSpans`]) scores each with its share of the text.
 ///
 /// Schema 2: schema 1 held the best language alone.
 pub struct Language {
@@ -689,6 +823,7 @@ impl Layer for Language {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use turbo_analysis::ViewId;
 
     #[test]
     fn utf16_spans_are_named_after_their_layer_and_aligned_to_it() {
@@ -799,5 +934,99 @@ mod tests {
         assert!(three(vec![0]).check().unwrap_err().contains("zeros for every item"));
         let v = Vectors::<Sentences>::new(2, vec![0.0; 3], Vec::new(), toy());
         assert!(v.check().unwrap_err().contains("whole number"));
+    }
+
+    #[test]
+    fn tokens_from_alternatives_materializes_split_modes() {
+        let s = |a: u32, b: u32| turbo_analysis::Span::new(a, b);
+        let mut alt = Alternatives::<Tokens>::new(ViewId::SOURCE);
+        alt.push(s(0, 6), 0, 1, SplitMode::A | SplitMode::B);
+        alt.push(s(0, 18), 0, 3, SplitMode::C | SplitMode::Best);
+        alt.push(s(6, 12), 1, 1, ModeSet::A);
+        alt.push(s(6, 18), 1, 2, ModeSet::B);
+        alt.push(s(12, 18), 2, 1, ModeSet::A);
+        assert_eq!(alt.check(), Ok(()));
+
+        let tok_a = Tokens::from_alternatives(&alt, SplitMode::A).unwrap();
+        assert_eq!(tok_a.spans.len(), 3);
+        let tok_b = Tokens::from_alternatives(&alt, SplitMode::B).unwrap();
+        assert_eq!(tok_b.spans.len(), 2);
+        let tok_c = Tokens::from_alternatives(&alt, SplitMode::C).unwrap();
+        assert_eq!(tok_c.spans.len(), 1);
+    }
+
+    #[test]
+    fn entities_allow_nesting_crossing_and_discontinuous_fragments() {
+        use turbo_analysis::{Document, Provenance};
+
+        let kinds = TagSet::new("ner", &["org", "loc", "verb"]);
+        let mut spans = Spans::new(ViewId::SOURCE);
+        spans.push(Span::new(0, 16)); // "Bank of New York"
+        spans.push(Span::new(8, 16)); // "New York"
+        spans.push_fragments(&[Span::new(17, 21), Span::new(27, 30)]); // "took ... off"
+        let entities = Entities {
+            spans,
+            tokens: vec![IxRange::new(0, 4), IxRange::new(2, 4), IxRange::new(4, 7)],
+            kind: vec![Tag(0), Tag(1), Tag(2)],
+            kinds: Arc::clone(&kinds),
+            score: vec![0.6, 0.9, 0.8],
+        };
+        assert_eq!(Entities::OVERLAP, Overlap::Any);
+        assert_eq!(entities.check(), Ok(()));
+        assert!(!entities.text_spans().unwrap().frag_item_end.is_empty());
+
+        let longest = entities.filter(FilterRule::LongestFirst);
+        assert_eq!(longest.len(), 2);
+        assert_eq!(longest.spans.get(Ix::new(0)), Span::new(0, 16));
+        assert_eq!(longest.spans.get(Ix::new(1)), Span::new(17, 30));
+        assert!(longest.spans.is_discontinuous(Ix::new(1)));
+
+        let highest = entities.filter(FilterRule::HighestScore);
+        assert_eq!(highest.len(), 2);
+        assert_eq!(highest.spans.get(Ix::new(0)), Span::new(8, 16));
+        assert_eq!(highest.spans.get(Ix::new(1)), Span::new(17, 30));
+
+        // Partially crossing entities (0..10 and 6..16) are allowed on Entities
+        // (Overlap::Any) so unmerged finders or crossing patterns can coexist,
+        // and filter resolves them to a disjoint subset.
+        let mut crossing_spans = Spans::new(ViewId::SOURCE);
+        crossing_spans.push(Span::new(0, 10));
+        crossing_spans.push(Span::new(6, 16));
+        let crossing = Entities {
+            spans: crossing_spans,
+            tokens: vec![IxRange::new(0, 2), IxRange::new(1, 4)],
+            kind: vec![Tag(0), Tag(1)],
+            kinds: Arc::clone(&kinds),
+            score: vec![0.5, 0.9],
+        };
+        assert_eq!(crossing.check(), Ok(()));
+        let resolved = crossing.filter(FilterRule::HighestScore);
+        assert_eq!(resolved.len(), 1);
+        assert_eq!(resolved.spans.get(Ix::new(0)), Span::new(6, 16));
+
+        // NaN scores are refused so HighestScore has a total order.
+        let mut nan_score = crossing;
+        nan_score.score[0] = f64::NAN;
+        assert!(nan_score.check().unwrap_err().contains("NaN"));
+
+        // Document::add checks fragment boundaries against the view's text:
+        // in "café ok" ("é" is bytes 3..5), a fragment ending at byte 4
+        // cuts the character even though the envelope 0..7 does not.
+        let mut doc = Document::new("café ok");
+        let mut t_spans = Spans::new(ViewId::SOURCE);
+        t_spans.push(Span::new(0, 5));
+        t_spans.push(Span::new(6, 8));
+        doc.add(&Key::DEFAULT, Tokens { spans: t_spans, sentence: None }, Provenance::by("test")).unwrap();
+        let mut bad_spans = Spans::new(ViewId::SOURCE);
+        bad_spans.push_fragments(&[Span::new(0, 4), Span::new(6, 8)]);
+        let bad = Entities {
+            spans: bad_spans,
+            tokens: vec![IxRange::new(0, 2)],
+            kind: vec![Tag(0)],
+            kinds,
+            score: vec![1.0],
+        };
+        let err = doc.add(&Key::DEFAULT, bad, Provenance::by("test")).unwrap_err();
+        assert!(err.to_string().contains("cuts a character"), "{err}");
     }
 }

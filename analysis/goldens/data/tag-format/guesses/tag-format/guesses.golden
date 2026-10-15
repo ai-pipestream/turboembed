@@ -1,0 +1,19 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	tag-format/guesses	171	171	05ec2a81554b491a8a5ab7d55c5c39521c92c0f3e27f8b97fd3435145080a32b
+annotator	opennlp.tools.postag.POSTagFormatMapper	getGuessedFormat
+layer	turbo:guessed-formats	document	10	line:u32	format:str
+0	UNKNOWN
+1	UNKNOWN
+2	UNKNOWN
+3	UD
+4	PENN
+5	UNKNOWN
+6	PENN
+7	UD
+8	PENN
+9	UNKNOWN
+end	turbo:guessed-formats

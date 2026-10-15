@@ -9,6 +9,7 @@
 
 pub mod arguana;
 pub mod conteb_covid_qa;
+pub mod conteb_squad;
 pub mod gutenqa;
 pub mod hicbench;
 pub mod legalbench_rag_mini;
@@ -16,21 +17,21 @@ pub mod nfcorpus;
 pub mod qasper;
 pub mod scifact;
 
+use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 
-use turbo_goldens::hex::to_hex;
-use turbo_goldens::sha::sha256;
-
 use crate::Result;
+use crate::read::SetDir;
 use crate::set::LoadedSet;
 
 /// Every set, in the order a full run takes them.
-pub const ALL: [&Set; 8] = [
+pub const ALL: [&Set; 9] = [
     &scifact::SET,
     &nfcorpus::SET,
     &arguana::SET,
     &legalbench_rag_mini::SET,
     &conteb_covid_qa::SET,
+    &conteb_squad::SET,
     &gutenqa::SET,
     &hicbench::SET,
     &qasper::SET,
@@ -54,8 +55,9 @@ pub struct Set {
     /// The unit of the set's own span judgements; `None` for a set with
     /// document judgements only.
     pub span_unit: Option<SpanUnit>,
-    /// The reader, given the set's name and directory.
-    pub read: fn(&str, &Path) -> Result<LoadedSet>,
+    /// The reader, given the set's name and its directory, which checks
+    /// each recorded digest as the file is read.
+    pub read: fn(&str, SetDir) -> Result<LoadedSet>,
 }
 
 /// Where a set's files come from.
@@ -114,35 +116,31 @@ impl Set {
         Ok(())
     }
 
-    /// Checks the licence and every recorded digest, then reads the set
-    /// from `cache`.
+    /// Checks the licence, then reads the set from `cache`, each file
+    /// with a recorded digest checked on the bytes read.
     pub fn load(&self, cache: &Path) -> Result<LoadedSet> {
         self.check_license()?;
         let dir = self.dir(cache);
         if !dir.is_dir() {
             return Err(format!("set {}: {} does not exist; fetch the set first", self.name, dir.display()));
         }
-        self.verify(&dir)?;
-        let set = (self.read)(self.name, &dir)?;
+        let set = (self.read)(self.name, SetDir::checked(&dir, self.name, self.recorded()))?;
         if set.spans.is_some() != self.span_unit.is_some() {
             return Err(format!("set {}: the reader's span judgements disagree with its span unit", self.name));
         }
         Ok(set)
     }
 
-    /// Checks each file with a recorded digest in `dir`.
-    pub fn verify(&self, dir: &Path) -> Result<()> {
-        let Source::Files(files) = self.source else { return Ok(()) };
-        for f in files {
-            if let Digest::Recorded(want) = f.sha256 {
-                let path = dir.join(f.path);
-                let bytes = std::fs::read(&path).map_err(|e| format!("{}: {e}", path.display()))?;
-                let have = to_hex(&sha256(&bytes));
-                if have != want {
-                    return Err(format!("{}: SHA-256 is {have}, set {} records {want}", path.display(), self.name));
-                }
-            }
-        }
-        Ok(())
+    /// Each file's recorded digest, by its path under the set's
+    /// directory.
+    pub fn recorded(&self) -> BTreeMap<String, String> {
+        let Source::Files(files) = self.source else { return BTreeMap::new() };
+        files
+            .iter()
+            .filter_map(|f| match f.sha256 {
+                Digest::Recorded(d) => Some((f.path.to_owned(), d.to_owned())),
+                Digest::NotRecorded => None,
+            })
+            .collect()
     }
 }

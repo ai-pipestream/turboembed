@@ -1,0 +1,99 @@
+# Converted from spec/pragmatic_segmenter/languages/kazakh_spec.rb of Pragmatic Segmenter
+# (github.com/diasks2/pragmatic_segmenter, commit 358fe97e62902cd86fa6b85063c3bf91aa6c156a),
+# MIT License, Copyright (c) 2015 Kevin S. Dias (LICENSE in this directory).
+# One case per expectation, in file order; `name` is the spec's context and test name,
+# `option` the segmenter options the spec passes, `skipped-upstream` a test the spec skips.
+
+case pragmatic-segmenter/kazakh_spec/001
+lang kk
+name Golden Rules: Simple period to end sentence #001
+text Мұхитқа тікелей шыға алмайтын мемлекеттердің ішінде Қазақстан - ең үлкені.
+sentence Мұхитқа тікелей шыға алмайтын мемлекеттердің ішінде Қазақстан - ең үлкені.
+end
+
+case pragmatic-segmenter/kazakh_spec/002
+lang kk
+name Golden Rules: Question mark to end sentence #002
+text Оқушылар үйі, Достық даңғылы, Абай даналығы, ауыл шаруашылығы – кім? не?
+sentence Оқушылар үйі, Достық даңғылы, Абай даналығы, ауыл шаруашылығы – кім?
+sentence не?
+end
+
+case pragmatic-segmenter/kazakh_spec/003
+lang kk
+name Golden Rules: Parenthetical inside sentence #003
+text Әр түрлі өлшемнің атауы болып табылатын м (метр), см (сантиметр), кг (киллограмм), т (тонна), га (гектар), ц (центнер), т. б. (тағы басқа), тәрізді белгілер де қысқарған сөздер болып табылады.
+sentence Әр түрлі өлшемнің атауы болып табылатын м (метр), см (сантиметр), кг (киллограмм), т (тонна), га (гектар), ц (центнер), т. б. (тағы басқа), тәрізді белгілер де қысқарған сөздер болып табылады.
+end
+
+case pragmatic-segmenter/kazakh_spec/004
+lang kk
+name Golden Rules: Two letter abbreviation to end sentence #004
+text Мысалы: обкомға (облыстық комитетке) барды, ауаткомда (аудандық атқару комитетінде) болды, педучилищеге (педагогтік училищеге) түсті, медпункттің (медициналық пункттің) алдында т. б.
+sentence Мысалы: обкомға (облыстық комитетке) барды, ауаткомда (аудандық атқару комитетінде) болды, педучилищеге (педагогтік училищеге) түсті, медпункттің (медициналық пункттің) алдында т. б.
+end
+
+case pragmatic-segmenter/kazakh_spec/005
+lang kk
+name Golden Rules: Number as non sentence boundary #005
+text Елдің жалпы ішкі өнімі ЖІӨ (номинал) = $225.619 млрд (2014)
+sentence Елдің жалпы ішкі өнімі ЖІӨ (номинал) = $225.619 млрд (2014)
+end
+
+case pragmatic-segmenter/kazakh_spec/006
+lang kk
+name Golden Rules: No whitespace between sentence boundary #006
+text Ресейдiң әлеуметтiк-экономикалық жағдайы.XVIII ғасырдың бiрiншi ширегiнде Ресейге тән нәрсе.
+sentence Ресейдiң әлеуметтiк-экономикалық жағдайы.
+sentence XVIII ғасырдың бiрiншi ширегiнде Ресейге тән нәрсе.
+end
+
+case pragmatic-segmenter/kazakh_spec/007
+lang kk
+name Golden Rules: Dates within sentence #007
+text («Егемен Қазақстан», 7 қыркүйек 2012 жыл. №590-591); Бұл туралы кеше санпедқадағалау комитетінің облыыстық департаменті хабарлады. («Айқын», 23 сəуір 2010 жыл. № 70).
+sentence («Егемен Қазақстан», 7 қыркүйек 2012 жыл. №590-591); Бұл туралы кеше санпедқадағалау комитетінің облыыстық департаменті хабарлады.
+sentence («Айқын», 23 сəуір 2010 жыл. № 70).
+end
+
+case pragmatic-segmenter/kazakh_spec/008
+lang kk
+name Golden Rules: Multi period abbreviation within sentence #008
+text Иран революциясы (1905 — 11) және азаматтық қозғалыс (1918 — 21) кезінде А. Фарахани, М. Кермани, М. Т. Бехар, т.б. ақындар демократиялық идеяның жыршысы болды.
+sentence Иран революциясы (1905 — 11) және азаматтық қозғалыс (1918 — 21) кезінде А. Фарахани, М. Кермани, М. Т. Бехар, т.б. ақындар демократиялық идеяның жыршысы болды.
+end
+
+case pragmatic-segmenter/kazakh_spec/009
+lang kk
+name Golden Rules: Web addresses #009
+text Владимир Федосеев: Аттар магиясы енді жоқ http://www.vremya.ru/2003/179/10/80980.html
+sentence Владимир Федосеев: Аттар магиясы енді жоқ http://www.vremya.ru/2003/179/10/80980.html
+end
+
+case pragmatic-segmenter/kazakh_spec/010
+lang kk
+name Golden Rules: Question mark not at end of sentence #010
+text Бірақ оның енді не керегі бар? — деді.
+sentence Бірақ оның енді не керегі бар? — деді.
+end
+
+case pragmatic-segmenter/kazakh_spec/011
+lang kk
+name Golden Rules: Exclamation mark not at end of sentence #011
+text Сондықтан шапаныма жегізіп отырғаным! - деп, жауап береді.
+sentence Сондықтан шапаныма жегізіп отырғаным! - деп, жауап береді.
+end
+
+case pragmatic-segmenter/kazakh_spec/012
+lang kk
+name #segment: correctly segments text #001
+text Б.з.б. 6 – 3 ғасырларда конфуцийшілдік, моизм, легизм мектептерінің қалыптасуы нәтижесінде Қытай философиясы пайда болды.
+sentence Б.з.б. 6 – 3 ғасырларда конфуцийшілдік, моизм, легизм мектептерінің қалыптасуы нәтижесінде Қытай философиясы пайда болды.
+end
+
+case pragmatic-segmenter/kazakh_spec/013
+lang kk
+name #segment: correctly segments text #002
+text 'Та марбута' тек сөз соңында екі түрде жазылады:
+sentence 'Та марбута' тек сөз соңында екі түрде жазылады:
+end

@@ -33,8 +33,9 @@ jobs:
       # downloads.apache.org and checked against their published SHA-512
       # (analysis/goldens-tool/src/recipe.rs). With them present and
       # required, the language detector's probability and ranking parity
-      # tests and the sentence detector and tokenizer tests over the
-      # published UD models compare instead of skipping.
+      # tests, the language by span fixture scores, and the sentence
+      # detector and tokenizer tests over the published UD models compare
+      # instead of skipping.
       - uses: actions/cache@v4
         with:
           path: .opennlp-models
@@ -74,18 +75,30 @@ jobs:
           TURBO_GOLDENS_MODELS: ${{ github.workspace }}/.opennlp-models
           TURBO_TEST_REQUIRE_OPENNLP_MODELS: "1"
         run: |
-          cargo test -p turbo-maxent -p turbo-sequence -p turbo-langdetect -p turbo-sentdetect -p turbo-tokenize -p turbo-postag -p turbo-lemmatizer
+          cargo test -p turbo-maxent -p turbo-sequence -p turbo-langdetect -p turbo-langspan -p turbo-sentdetect -p turbo-tokenize -p turbo-postag -p turbo-lemmatizer
           cargo test -p turbo-zoo --test builtin
           cargo test -p turbo-eval --lib
           cargo test -p turbo-train-recipes --test recipes
+      # The sentence detectors against the conformance suites (Pragmatic
+      # Segmenter, pySBD, UAX #29) and the rule splitter's agreement with
+      # the maxent detector, with the de, en and pt sentence models. The
+      # step above runs these tests too; this one names them, so that a
+      # change in a pass count or an agreement number shows as its own
+      # failing step. docs/segmentation.md, "RuleSentenceDetector".
+      - name: sentence conformance and agreement, models required
+        env:
+          TURBO_GOLDENS_MODELS: ${{ github.workspace }}/.opennlp-models
+          TURBO_TEST_REQUIRE_OPENNLP_MODELS: "1"
+        run: cargo test -p turbo-sentdetect --test conformance --test agreement -- --nocapture
       # fetch-models also unpacks the MeCab dictionaries into the same
       # directory (IPADIC with its UTF-8 copy). The lattice tokenizer's
-      # IPADIC and mecab-ko-dic golden tests are ignored by default; here
-      # they run, and a missing dictionary fails them.
+      # IPADIC and mecab-ko-dic golden tests, and the readings tests over
+      # the same goldens, are ignored by default; here they run, and a
+      # missing dictionary fails them.
       - name: lattice tokenizer parity against the JVM, dictionaries required
         env:
           TURBO_MECAB_DICTIONARIES: ${{ github.workspace }}/.opennlp-models
-        run: cargo test -p turbo-tokenize --test lattice_golden -- --ignored
+        run: cargo test -p turbo-tokenize --test lattice_golden --test lattice_readings -- --ignored
       # Host-only. This runner is ubuntu-24.04 and has no Intel NPU.
       # The job does not pass --include-ignored and does not set
       # TURBO_TEST_REQUIRE_NPU, so the device tests in core/tests/npu.rs

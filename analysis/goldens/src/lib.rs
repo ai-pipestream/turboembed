@@ -14,7 +14,8 @@
 //! `fuzz` makes a seeded corpus of texts that stress the annotators,
 //! `invariants` checks the offsets of every layer a document holds, and
 //! `expect` holds the JVM behaviours the golden tests of several crates
-//! allow for. docs/analysis.md, "Golden files" and "Decision point dumps", describes
+//! allow for. `sentences` reads the sentence segmentation conformance
+//! suites. docs/analysis.md, "Golden files" and "Decision point dumps", describes
 //! the formats.
 
 pub mod compare;
@@ -27,6 +28,7 @@ pub mod hex;
 pub mod invariants;
 pub mod load;
 pub mod read;
+pub mod sentences;
 pub mod sha;
 pub mod write;
 

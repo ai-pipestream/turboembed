@@ -59,6 +59,11 @@ pub enum Error {
     /// wrapping the `InvalidFormatException` of `validatePOSDictionary`,
     /// and writes no model.
     UnknownDictionaryTags(Vec<String>),
+    /// `ChunkerME.train` given parameters that name no event trainer:
+    /// `IllegalArgumentException("Trainer type is not supported: " +
+    /// trainerType)`, the type `TrainerFactory.getTrainerType` gave, `null`
+    /// for an algorithm it cannot resolve.
+    UnsupportedTrainerType(Option<turbo_train::TrainerType>),
     /// The treebank or a published model could not be fetched or verified.
     Zoo(turbo_zoo::ZooError),
     /// A published model file could not be read.
@@ -97,6 +102,15 @@ impl fmt::Display for Error {
                     write!(f, "{t} ")?;
                 }
                 Ok(())
+            }
+            Error::UnsupportedTrainerType(t) => {
+                let name = match t {
+                    Some(turbo_train::TrainerType::Event) => "EVENT_MODEL_TRAINER",
+                    Some(turbo_train::TrainerType::EventModelSequence) => "EVENT_MODEL_SEQUENCE_TRAINER",
+                    Some(turbo_train::TrainerType::Sequence) => "SEQUENCE_TRAINER",
+                    None => "null",
+                };
+                write!(f, "Trainer type is not supported: {name}")
             }
             Error::Zoo(e) => write!(f, "zoo: {e}"),
             Error::Model(e) => write!(f, "model file: {e}"),

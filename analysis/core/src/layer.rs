@@ -6,7 +6,7 @@ use std::fmt;
 use std::marker::PhantomData;
 use std::sync::Arc;
 
-use crate::text::ViewId;
+use crate::span::{Overlap, TextSpans};
 
 /// A closed set of labels (a POS tag set, entity kinds, dependency
 /// relations, edge kinds), interned: a layer stores a u16 per item,
@@ -71,6 +71,8 @@ pub trait Layer: Any + Send + Sync + Sized {
     const TO: Option<&'static LayerName> = None;
     /// The static name a `KeyId` points at.
     const NAME: &'static LayerName = &LayerName { id: Self::ID, of: Self::OF, to: Self::TO };
+    /// What overlap the layer's spans may have when anchored to text.
+    const OVERLAP: Overlap = Overlap::None;
 
     /// What the layer's items are anchored to.
     fn anchor() -> Anchor {
@@ -84,10 +86,12 @@ pub trait Layer: Any + Send + Sync + Sized {
         self.len() == 0
     }
 
-    /// For a layer anchored to text: the view its spans are in and the
-    /// span columns, `[start]` and `[end]`, so the container can check
-    /// every offset before it takes the layer.
-    fn text_spans(&self) -> Option<(ViewId, &[u32], &[u32])> {
+    /// For a layer anchored to text: the view its spans are in, the
+    /// envelope columns (`[start]` and `[end]`), and the fragment columns
+    /// (`[frag_start]`, `[frag_end]` and `[frag_item_end]`), so the
+    /// container can check `Self::OVERLAP`, every envelope and every
+    /// fragment before it takes the layer.
+    fn text_spans(&self) -> Option<TextSpans<'_>> {
         None
     }
 

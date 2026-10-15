@@ -2,9 +2,10 @@
 
 Training OpenNLP's components in Rust: the event streams
 `SDEventStream`, `TokSpanEventStream`, `POSSampleEventStream`,
-`LemmaSampleEventStream` and `LanguageDetectorEventStream`, the
-factories that set them up, the model files `SentenceDetectorME.train`,
-`TokenizerME.train`, `POSTaggerME.train`, `LemmatizerME.train` and
+`LemmaSampleEventStream`, `ChunkerEventStream` and
+`LanguageDetectorEventStream`, the factories that set them up, the model
+files `SentenceDetectorME.train`, `TokenizerME.train`,
+`POSTaggerME.train`, `LemmatizerME.train`, `ChunkerME.train` and
 `LanguageDetectorME.train` return, with every manifest entry and
 artifact the JVM writes, and the reproduction of the published UD 1.3
 models from their treebanks.
@@ -15,6 +16,7 @@ models from their treebanks.
 | `tokenize` | `TokenizerFactory` (with the language's alphanumeric pattern), `TokSpanEventStream`, `TokenizerME.train`, `TokenizerModel` |
 | `postag` | `POSTaggerFactory` (the default feature generator descriptor or a given one, a tag dictionary or none), `POSSampleEventStream` over `ConfigurablePOSContextGenerator`, `POSTaggerME.train`, `POSModel` with its `generator.featuregen` and `tags.tagdict` entries |
 | `lemmatize` | `LemmatizerFactory`, `LemmatizerME.encodeLemmas`, `LemmaSampleEventStream` over `DefaultLemmatizerContextGenerator`, `LemmatizerME.train`, `LemmatizerModel` |
+| `chunk` | `ChunkerFactory`, `ChunkerEventStream` over `DefaultChunkerContextGenerator`, `ChunkerME.train` with `MAXENT`, `MAXENT_QN` or `PERCEPTRON` (`NAIVEBAYES`, which `ChunkerME.train` also takes, is not ported and fails with `turbo_train::Error::NotPorted`), `ChunkerModel` |
 | `langdetect` | `LanguageDetectorFactory`, `LanguageDetectorEventStream` over `DefaultLanguageDetectorContextGenerator` (the n-grams in `getContext`'s order, which differs from `predictLanguages`' when a bucket became a tree), `LanguageDetectorME.train`, `LanguageDetectorModel` |
 | `dictionary` | `Dictionary` as `new Dictionary(InputStream)` reads it and `Dictionary.serialize` writes it, through the JDK's `ToStream` with indentation |
 | `tagdict` | `POSDictionary` as `POSDictionary.create` reads it (a case-insensitive one is lowercased into a second map in the first map's order) and `POSDictionary.serialize` writes it |
@@ -24,7 +26,7 @@ models from their treebanks.
 
 The samples come from `turbo-formats` (native and CoNLL-U readers), the
 context generators from `turbo-sentdetect`, `turbo-tokenize`,
-`turbo-sequence` (the tagger's), `turbo-lemmatizer` and
+`turbo-sequence` (the tagger's and the chunker's), `turbo-lemmatizer` and
 `turbo-langdetect`, so that training
 and inference share one implementation of each, and the trainer, model
 writer and `.bin` packaging from `turbo-train`. This crate connects them,
@@ -118,6 +120,12 @@ All of these are kept and tested (`src/`, `tests/goldens.rs`,
   over the Rust fixture, which the JVM reads.
 - The published UD 1.3 models were trained with 300 iterations, not the
   150 that `ud-train.conf` in `apache/opennlp-models` says (below).
+- `ChunkerME.train` takes only event trainers: the sequence perceptron
+  (`PERCEPTRON_SEQUENCE`), which the tagger and the name finder train
+  with, is refused with `IllegalArgumentException("Trainer type is not
+  supported: EVENT_MODEL_SEQUENCE_TRAINER")` (`Error::UnsupportedTrainerType`).
+  The chunker model file has `chunker.model` before
+  `manifest.properties`, the order of the JVM's artifact map.
 
 ## JVM reference
 
@@ -134,16 +142,32 @@ and tag lines, word, tag and lemma lines and CoNLL-U in both tag sets,
 with their model files, the `tags.tagdict` entry and
 `POSDictionary.serialize` of dictionaries built in the generator
 (`TaggerEventGolden`; docs/analysis.md, "Training the components").
-`tests/goldens.rs` compares this crate with every one of them.
+`tests/goldens.rs` compares this crate with every one of them but the
+chunker's. The `chunker-*` runs there (`ChunkerTrainGolden`) are
+`ChunkerME.train` itself over the chunk inputs of the `formats` and
+`tagged` sets: with OpenNLP's default parameters (GIS, 100 iterations,
+cutoff 5), the perceptron with cutoff 1 and a beam size of 5, `MAXENT_QN`
+with cutoff 1, and the sequence perceptron, which it refuses. Each
+holds the events, what the sample stream threw, the event checksum, and
+what training threw or the model it trained: its outcomes and
+predicates in order, every parameter, the `chunker.model` entry's length
+and SHA-256, the manifest and the zip entries. `tests/chunker.rs` trains
+on the same samples with the same parameters and compares all of it:
+every parameter must be the JVM's double, bit for bit (1,347 for the
+defaults, 94,545 each for the perceptron and `MAXENT_QN`), and the
+`chunker.model` entry's SHA-256 the JVM's, so the entries are the JVM's
+bytes.
 `tests/fixtures.rs` trains the fixture models `en-plain.bin`,
-`en-abbrev.bin`, `tokenizer-abbreviations.bin` and `pos-fixture.bin`
-again from their training texts and checks the manifest, the
-dictionaries, the descriptor and the model entries byte for byte, and
-trains `pos-fixture-rust.bin` and `lemma-fixture-rust.bin`, the fixtures
-this crate wrote from `analysis/goldens/data/inputs/tagged/`, which the
-golden generator loads in the JVM and tags with
+`en-abbrev.bin`, `tokenizer-abbreviations.bin`, `pos-fixture.bin` and
+`chunker-fixture.bin` again from their training texts and checks the
+manifest, the dictionaries, the descriptor and the model entries byte
+for byte, and trains `pos-fixture-rust.bin`, `lemma-fixture-rust.bin`
+and `chunker-fixture-rust.bin`, the fixtures this crate wrote from
+`analysis/goldens/data/inputs/tagged/`, which the golden generator loads
+in the JVM and tags, lemmatizes or chunks with
 (`analysis/postag/tests/golden.rs`, `analysis/lemmatizer/tests/golden.rs`
-compare the Rust annotators with those goldens).
+and `analysis/phrase-chunker/tests/golden.rs` compare the Rust
+annotators with those goldens).
 `tests/langdetect.rs` compares the language detector's training with the
 `train-langdetect` goldens (the events, the index, every GIS iteration
 and the model file; docs/langdetect.md, "Training"), among them
