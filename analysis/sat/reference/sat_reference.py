@@ -1,4 +1,4 @@
-"""The reference SaT run that analysis/sat is compared with, in the pinned
+"""The reference SaT run that analysis/sat is compared with, in the
 container of this directory (Dockerfile). Three commands:
 
   tiny <tokenizer.json> <out-dir>
@@ -18,23 +18,32 @@ container of this directory (Dockerfile). Three commands:
       states over each row, unnormalized, as POOLING_MEAN and
       NORMALIZE_NONE say. The report is what turbo-bundle seal reads.
 
-  segment <model-dir> <tokenizer-dir> <texts.jsonl> <out.jsonl> <threshold> <stride> <block-size>
+  segment <model-dir> <tokenizer.json> <texts.jsonl> <out.jsonl> <threshold> <stride> <block-size>
       For each text, wtpsplit's SaT.predict_proba (the boundary
       probability of every character) and SaT.split (the sentences),
       with those settings, one text at a time. The first line names
       the versions and the settings.
+
+      The tokenizer is the model's tokenizer.json as the file says
+      (PreTrainedTokenizerFast), which is how transformers 4, which SaT
+      was trained with, loads XLM-RoBERTa's. transformers 5 builds
+      XLMRobertaTokenizer from the vocabulary with a pipeline of its own
+      instead: no collapse of space runs, a split at every Unicode
+      whitespace character, so U+2028, U+2029 and U+0085 end words, and
+      no word start piece for whitespace at the end of a text.
 """
 
 import hashlib
 import json
 import sys
+import types
 
 import numpy as np
 import torch
 import transformers
 import wtpsplit
 from safetensors.numpy import save_file
-from transformers import XLMRobertaTokenizerFast
+from transformers import PreTrainedTokenizerFast, XLMRobertaTokenizerFast
 from wtpsplit import SaT
 from wtpsplit.configs import SubwordXLMConfig
 from wtpsplit.models import SubwordXLMForTokenClassification
@@ -110,10 +119,32 @@ def reference(model_dir, tokenizer_dir, recipe_path, out_path, report_path, cont
         json.dump({"tool": "wtpsplit", "tool_version": versions(), "args": sys.argv[2:], "container": container}, f)
 
 
-def segment(model_dir, tokenizer_dir, texts_path, out_path, threshold, stride, block_size):
+def file_tokenizer(tokenizer_json):
+    return PreTrainedTokenizerFast(
+        tokenizer_file=tokenizer_json,
+        bos_token="<s>",
+        eos_token="</s>",
+        sep_token="</s>",
+        cls_token="<s>",
+        unk_token="<unk>",
+        pad_token="<pad>",
+        mask_token="<mask>",
+    )
+
+
+def segment(model_dir, tokenizer_json, texts_path, out_path, threshold, stride, block_size):
     threshold, stride, block_size = float(threshold), int(stride), int(block_size)
     torch.use_deterministic_algorithms(True)
-    sat = SaT(model_dir, tokenizer_name_or_path=tokenizer_dir, hub_prefix=None)
+    tok = file_tokenizer(tokenizer_json)
+    # SaT.__init__ loads its tokenizer with AutoTokenizer; it is handed
+    # this one instead, and sets the rest from it as it would.
+    loader = wtpsplit.AutoTokenizer
+    wtpsplit.AutoTokenizer = types.SimpleNamespace(from_pretrained=lambda *_a, **_k: tok)
+    try:
+        sat = SaT(model_dir, tokenizer_name_or_path=tokenizer_json, hub_prefix=None)
+    finally:
+        wtpsplit.AutoTokenizer = loader
+    assert sat.tokenizer is tok
     with open(model_dir + "/model.safetensors", "rb") as f:
         weights = hashlib.sha256(f.read()).hexdigest()
     with open(texts_path, encoding="utf-8") as f:

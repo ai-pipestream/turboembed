@@ -71,6 +71,24 @@
   file it is under Apache-2.0, the licence of
   sentence-transformers/all-MiniLM-L6-v2.
 
+- `tiny-sat-recipe/`: the recipe of a small SaT model (wtpsplit's
+  `SubwordXLMForTokenClassification`, XLM-R with two layers of width 32,
+  four heads and one label) with random weights, which
+  `analysis/sat/reference/sat_reference.py tiny` writes over the
+  tokenizer file of `bge-m3/` above; the bundle's `FAMILY_ROBERTA`
+  encoder is its `roberta.` tensors, and the classifier
+  (`classifier.weight`, `classifier.bias`) is in the same file, where
+  `turbo-sat` reads it. Its reference cases are the bge-m3 recipe's,
+  with no prompt.
+- `tiny-sat-bundle/`: that bundle, sealed: the weights
+  (`weights/model.safetensors`, 3695516 bytes, SHA-256
+  `5eb6e13e665dd248b60afbc5594fa60130ce6de3d488802072335f2d9400b1c4`),
+  the tokenizer file of `bge-m3/` unchanged, and the reference file the
+  `reference` command wrote (the mean of wtpsplit's encoder states over
+  each case). `analysis/sat/README.md` says how both were made and
+  checked; `analysis/sat/tests` compare the SaT step with wtpsplit on
+  it. Under MIT, the licence of wtpsplit and of BAAI/bge-m3's tokenizer.
+
 - `tiny-static-recipe/`: the recipe `turbo-bundle distill` made the
   next bundle from: a 16-wide static model distilled from
   `tiny-bert-bundle/`, with the quality texts of

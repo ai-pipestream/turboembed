@@ -4,7 +4,7 @@
 #
 #   docker build -t turbo-sat-reference analysis/sat/reference
 #
-# The base image is pinned by digest; conda.lock pins every conda-forge
+# The base image is named by its digest; conda.lock names every conda-forge
 # package by URL and MD5 and requirements.txt every package from PyPI by
 # SHA-256. analysis/sat/README.md says how the fixtures are made.
 FROM mambaorg/micromamba@sha256:ce2026639d612fbe837a35ca9d513292a8d776a24a5e6c82cccf9dddf45ad3d2
