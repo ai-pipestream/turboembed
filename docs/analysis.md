@@ -21,6 +21,7 @@ nothing here is in the C header or the gRPC server.
 | `turbo-chunker` | `analysis/chunker/` | The chunker, and term statistics and BM25 per chunk, section and document |
 | `turbo-structure` | `analysis/structure/` | Document structure (`turbo:structure`) from plain text and Markdown |
 | `turbo-abbrev` | `analysis/abbrev/` | Abbreviation and acronym definitions found with the Schwartz and Hearst algorithm, and the later mentions of each short form, as `turbo:abbreviations` and the edges from each short form to its long form; the reader and scoring of Ab3P's MED1250 set (Abbreviations, below) |
+| `turbo-matcher` | `analysis/matcher/` | Rule matching after spaCy's `Matcher`, `PhraseMatcher` and `SpanRuler`: token patterns over any token layer, compiled to an automaton simulated without backtracking; phrase lists as a trie over token ids; and the span ruler step, which writes `turbo:matches` under a named instance (Rule matching, below) |
 | `turbo-analysis-embed` | `analysis/embed/` | The embedding model as analysis steps: the subwords of a text view from the bundle's tokenizer, and a vector per sentence and per chunk |
 | `turbo-numeric` | `analysis/numeric/` | The number scanner, which writes `turbo:numbers` ([numbers.md](numbers.md)); the money extractor, which writes `turbo:money`, the ECB rate table and the conversion step, which writes the `converted` instance of `turbo:money` ([money.md](money.md)); the quantity extractor, which writes `turbo:quantities` ([quantities.md](quantities.md)); the temporal extractor, which writes `turbo:temporal`, the document date selector, which writes `turbo:document-date`, and the conversion step that reads it ([temporal.md](temporal.md)) |
 | `turbo-grammar` | `analysis/grammar/` | A rule grammar with a chart parser for numbers, ordinals and percentages in words or digits (English), which writes the `grammar` instances of `turbo:numbers` and `turbo:quantities` and the `turbo:ordinals` layer, with its Recognizers-Text conformance tests ([grammar.md](grammar.md)) |
@@ -420,7 +421,7 @@ says why a layer is missing.
 ## Annotators
 
 An `Annotator` declares what it reads and writes as tuples of layer
-types, up to six of each. One that reads `(View, Tokens)` and writes
+types, up to eight of each. One that reads `(View, Tokens)` and writes
 `(PosTags,)` is handed a `&View` and a `&Tokens` and must return a
 `PosTags`. It is handed nothing else, not the document, so it cannot
 read a layer it did not declare and its provenance is complete; text
@@ -516,6 +517,7 @@ fields mean bumps its `SCHEMA`.
 | `Temporals` | `turbo:temporal` | text | `turbo-analysis-layers` |
 | `DocumentDate` | `turbo:document-date` | the document (indexes `Temporals`) | `turbo-analysis-layers` |
 | `Abbreviations` | `turbo:abbreviations` | text | `turbo-analysis-layers` |
+| `Matches` | `turbo:matches` | text | `turbo-analysis-layers` |
 | `Stopwords` | `turbo:stopwords` | tokens | `turbo-stopword-layers` |
 | `Vectors<L>` | `opennlp:embeddings<L>` | `L` | `turbo-analysis-layers` |
 | `Confidence<L>` | `turbo:confidence<L>` | `L` | `turbo-analysis-layers` |
@@ -1057,6 +1059,233 @@ definitions take one pass, and
 with its quirks (carriage returns, a record split in two, synonyms,
 comments in Windows-1252) and checks the scoring. None needs the
 network.
+
+## Rule matching
+
+`turbo-matcher` matches rules over a document's tokens and the layers
+aligned to them, after spaCy's `Matcher`, `PhraseMatcher` and
+`SpanRuler` (MIT): token patterns, large phrase lists, and a step that
+writes their matches as a span layer. Patterns are Rust values built
+with builders; there is no pattern language read at run time (a reader
+for spaCy's JSON pattern files could come later). A match is a range of
+tokens (`IxRange<Tokens>`), so its bytes are its tokens' bytes, in the
+view the tokens were made in, and `Document::to_source` takes them to
+the source.
+
+### What a pattern reads
+
+An `Input` is one document's tokens, the text of their view, and the
+token layers the caller has: `Input::new(text, &tokens)`, then
+`with_pos`, `with_lemmas`, `with_norms`, `with_stems`, `with_entities`,
+`with_stopwords` and `with_numbers`, each checked to be one item per
+token. A test reads one string attribute (`Attr`) or one flag (`Flag`):
+
+| `Attr` | Value | spaCy |
+|---|---|---|
+| `Text` | the token's text in its view | `ORTH`, `TEXT` |
+| `Lower` | the text lowercased (`str::to_lowercase`) | `LOWER` |
+| `Prefix`, `Suffix` | the first character, the last three | `PREFIX`, `SUFFIX` |
+| `Shape` | spaCy's `word_shape` ("Xxxxx", "dd.d") | `SHAPE` |
+| `Norm` | a string column the caller aligns to the tokens | `NORM` |
+| `Lemma`, `Stem` | `opennlp:lemmas`, `turbo:stems` | `LEMMA` |
+| `Pos` | the tag in `opennlp:pos` | `TAG`, `POS` |
+| `Entity` | the kind of the first entity in `opennlp:entities` covering the token, or the empty string where none does | `ENT_TYPE` |
+
+The flags are spaCy's lexical flags, defined as its `lex_attrs.py`
+defines them with Python's `str` methods (`Alpha`, `Ascii`, `Digit`,
+`Lower`, `Upper`, `Title`, `Punct`, `Space`, `Bracket`, `Quote`,
+`LeftPunct`, `RightPunct`, `Currency`, `LikeNum`), and four read from
+the token's context: `SpaceAfter` (whitespace follows it, spaCy's
+`SPACY`), `SentStart` (from the tokens' sentence column), `Stop` (from
+`turbo:stopwords`) and `Number` (it overlaps a `turbo:numbers` mention).
+`Digit` is general category Nd, where Python's `isdigit` also counts
+superscripts, and `LikeNum` is spaCy's language-neutral version, without
+any language's number words. A test can also read the entity position
+(`Iob`, spaCy's `ENT_IOB`), the length in characters (`Cmp`, spaCy's
+`LENGTH` with `==` and the other comparisons), or call the caller's own
+function on the token's text (`Tok::text_where`), which covers what
+spaCy's custom extension attributes and `REGEX` do.
+
+A pattern that reads a layer the input lacks fails the call with
+`MatchError::Missing`, naming the layer, as spaCy refuses a `POS` pattern
+on an untagged document. Normalized text is matched by making tokens on
+the normalized view (`nfkc`, `dehyphenated`) and binding the matcher's
+`View` and `Tokens` reads to that instance; `Text` is then the
+normalized form, and the offsets map back through the view's alignment.
+
+### Token patterns
+
+`Matcher::add(label, &[Tok])` adds one pattern under a label. A `Tok`
+holds tests that must all pass (`Tok::text("a")`, `Tok::lower("a")`,
+`Tok::attr(Attr::Pos, "NN")`, `Tok::attr_in`, `Tok::attr_not_in`,
+`Tok::flag`, `Tok::iob`, `Tok::length`, `Tok::text_where`, joined with
+`and`; `Tok::any()` is spaCy's `{}`), and the operators: `!tok` (spaCy's `!`,
+one token that fails the tests), `.opt()` (`?`), `.star()` (`*`),
+`.plus()` (`+`) and `.repeat(min, max)` (`{n}`, `{n,m}`, `{n,}`,
+`{,m}`). A repeat whose most is zero, or below its least, is refused
+(`PatternError::Repeat`), where spaCy drops a `{0}` token from the
+pattern. Values are compared as written: `Tok::attr(Attr::Lower,
+"Boston")` matches nothing, as in spaCy.
+
+`Matcher::find` reports every run of tokens the whole pattern matches,
+every start and every end, as spaCy's `Matcher` does: `a b*` over
+"a b b" gives "a", "a b" and "a b b". Empty runs are not reported, a
+label matches a run once however many of its patterns do, and matches
+come in token order (start, end, label). `Matcher::set_greedy` keeps,
+per label, the first (`Greedy::First`) or longest (`Greedy::Longest`)
+matches that share no token, as spaCy's `greedy`. `find_in` matches
+inside a range of tokens only, as spaCy matches a `Span`.
+`Matcher::align(input, &match)` says which `Tok` of the match's pattern
+took each of its tokens, as spaCy's `with_alignments`. It is a pass of
+its own over a match already found, so matching keeps no paths: a
+table of which pattern tokens can take the rest of the match from
+where is filled from the end, then read forward, each `Tok` taking as
+many tokens as it can while the rest still fits (a backtracking
+regular expression's greedy choice). That is spaCy's alignment except
+in two of its test cases, where spaCy's state machine picks another
+valid one (`a+ a a?` over three `a`s, and a run of `a` under
+`a* b* a*`); the tests name both. As in spaCy,
+`find` does not stop at sentence ends, so a match can cross one;
+calling `find_in` with each sentence's tokens keeps matches inside
+sentences. `remove`
+drops a label and its patterns; adding the name again starts afresh.
+
+The patterns compile to one Thompson automaton: a state takes one token
+that passes a `Tok`'s tests, split states branch without taking one,
+and each pattern has one accepting state. A repeat `{n,m}` is `n`
+copies and `m - n` nested optional ones, so a run of tokens has one path
+through it. Matching keeps the set of states the automaton can be in
+after each token, each state once, and never backs up: from one start,
+`k` tokens cost at most `2 * k * states` state visits whatever the
+operators. Patterns that make a backtracking matcher exponential (`a?`
+forty times then `a` forty times over forty `a`s; ten `a*` and a `b`
+the text never has) stay inside that bound, which
+`Matcher::find_in_counting` reports and `analysis/matcher/tests/backtracking.rs` checks,
+and doubling the tokens a start reads doubles its visits. Since every
+start runs, a pattern that can run to the end of the document (`{}*`)
+costs time quadratic in the tokens, as the matches it reports can be. A
+call looks up each token's values in the matcher's vocabulary once
+(one hash of each attribute the patterns read), so the tests themselves
+compare `u32` ids. The states a pattern can start in are indexed by the
+value their token must have (the first `Tok::text`, `Tok::lower`,
+`Tok::attr` or `Tok::attr_in` test of a token that is not negated), so a
+start tests only the patterns its token can begin, plus those whose
+first token has no such test. A token that does begin many patterns
+still tests each of their next tokens: thousands of patterns that share
+a first token are cheaper as phrases.
+
+### Phrase lists
+
+`PhraseMatcher::new(field)` matches phrases over one `Field`: an
+attribute or a flag. `add(label, tokens)` adds a phrase as its tokens
+and returns its `PhraseId`; a phrase added again under the same label
+keeps its id, and under another label it matches once for each, as in
+spaCy. Phrase tokens are turned into the field's value first: over
+`Lower`, `Prefix`, `Suffix` and `Shape` they are lowercased or shaped,
+as spaCy reads a pattern document's attributes; over `Norm`, `Lemma`,
+`Stem`, `Pos` and `Entity` they are the values (lemmas, tags); over a
+flag, each phrase token's flag comes from its text, and the flags that
+come from a layer or the context are refused for phrases. Phrases are
+tokenized by the caller, the same way the documents are, or they will
+not line up with the tokens. `find` reports every occurrence, overlapping
+ones too, in token order; `remove` drops a label's phrases. The
+glossary matcher (#202) is meant to sit on this: a glossary entry keeps
+the `PhraseId` of each of its terms, and a match names the phrase.
+
+The phrase list is a trie over token ids, written here rather than taken
+from daachorse, aho-corasick or fst. The root's edges are an array
+indexed by id; every other edge is a `(state, id)` pair packed into a
+`u64`, in one open addressing table with linear probing, kept below
+seven tenths full. Each state holds the head of a list of the phrases
+ending there. A call looks each token up once, then each start walks
+the trie as far as the tokens follow it, so it costs one lookup per
+token plus one edge per token a walk takes (at most the longest
+phrase's length per start). There are no failure links, as an
+Aho-Corasick automaton has: walks from most starts end after one or two
+tokens.
+
+Measured with `analysis/matcher/examples/phrase_bench.rs` (release build, one core of a
+4-core 2.1 GHz Xeon) on the Universal Dependencies English Web Treebank
+(CC BY-SA 4.0), cloned for the run and not in the repository: the
+phrases are the 479,356 distinct lowercased one- to four-token n-grams
+of the training file, topped up to 1,000,000 with 520,644 random
+two- to four-word phrases over its words from a fixed seed (3.05 million
+phrase tokens, 17,023 distinct values). Matched over `Attr::Lower`:
+
+| Measure | Value |
+|---|---|
+| Build | 1.2 s |
+| Trie states | 1.52 million |
+| Heap the matcher holds (`heap_bytes`) | 64.9 MiB |
+| Growth of the process's RSS over the build | 92.1 MiB |
+| Dev file (24,788 tokens, 0.13 MB): 41,544 matches | 2.8 ms, 8.9 million tokens/s, 45 MB/s |
+| Test file (24,740 tokens, 0.12 MB): 41,268 matches | 2.8 ms, 8.9 million tokens/s, 45 MB/s |
+
+Most of the heap is the edge table: 1.5 million edges in 4.2 million
+slots of twelve bytes, since the table had just doubled. Most of a
+call's time is lowercasing each token and looking it up. The same run
+reports three token patterns (a run of titlecase tokens, a number and
+a word, a short quotation) at about 8 million tokens a second.
+
+### The span ruler
+
+`SpanRuler` holds token patterns (`add_pattern`) and phrases
+(`add_phrase`) under labels, each with a rule number in the order they
+were added, and runs as a step. Phrases go to one phrase matcher per
+`Field`: `add_phrase` to the field the ruler was made with (spaCy's
+`phrase_matcher_attr`), `add_phrase_on(field, ...)` to any other, so
+one ruler can hold, say, phrases by lowercase and phrases by lemma. It reads a `View` and its `Tokens`, and
+whichever of `opennlp:pos`, `opennlp:lemmas`, `opennlp:entities`,
+`turbo:stopwords`, `turbo:numbers` and `turbo:stems` the document has,
+and writes `Matches` (`turbo:matches`, in `turbo-analysis-layers`): a
+span, a token range, a label (tag set `rules`, the labels in the order
+they were first added) and a rule number per match, in token order.
+`SpanRuler::bound(name)` binds it to write the instance `Key::named(name)`,
+so several rule sets write side by side, as spaCy's `spans_key`. Its
+`Policy` is the overlap policy: `Keep` writes every match, overlapping
+and nested ones too (the layer is `Overlap::Any`); `Filter(rule)` keeps
+a subset that does not overlap with `filter_spans`, where
+`FilterRule::LongestFirst` is spaCy's `filter_spans` except that it
+compares lengths in bytes rather than tokens; `LongestTokens` is
+spaCy's `filter_spans` exactly, lengths in tokens, the earliest first
+among equally long matches, and of matches over the same tokens the
+label added first. The two differ where a long token meets several
+short ones ("Internationalization" against "New York City"). A label
+matches a run of tokens once, with the first rule added.
+
+### Against spaCy's tests
+
+`analysis/matcher/tests/spacy_matcher.rs`,
+`analysis/matcher/tests/spacy_phrase_matcher.rs` and
+`analysis/matcher/tests/span_ruler.rs` port spaCy's matcher, phrase matcher and span
+ruler tests (from spaCy's main branch of 2026-09-30, commit
+`c2dabfce`) with the same expected matches; each test names the spaCy
+test it ports, beside a few of their own (bad repeats, the ruler as a
+pipeline step, a missing layer). A
+document spaCy builds with its tokenizer is built here from the tokens
+that tokenizer makes, and a text spaCy shows with its own spacing shows
+here with the words joined by a space. Not ported:
+
+- Callbacks (`on_match`: `test_issue615`, `test_matcher_from_usage_docs`,
+  `test_matcher_callback`, `test_phrase_matcher_callback` and the like):
+  a caller acts on the returned matches instead.
+- `MORPH`, `IS_SUBSET`, `IS_SUPERSET`, `INTERSECTS` and list-valued
+  extension attributes: morphological features and set-valued
+  attributes are not attributes here.
+- `REGEX` and `FUZZY`: no regular expression engine or edit distance is
+  built in; `Tok::text_where` takes the caller's own test.
+- `LIKE_URL`, `LIKE_EMAIL`, `DEP` and dependency patterns: the first two
+  are spaCy's heuristics, not ported; dependency-tree patterns are a
+  separate effort.
+- Pattern validation, unknown `greedy` values and passing a pattern for a
+  list of patterns (`test_issue3549`, `test_invalid_greediness`,
+  `test_matcher_basic_check`, `test_phrase_matcher_validation`): the types
+  rule these out at compile time.
+- Pickling, `pipe`, warnings, multiprocessing, the scorer, entity
+  annotation (`annotate_ents`, `ents_filter`) and pattern `id`s of the
+  span ruler: there is no serialization or Python pipeline here, the
+  ruler writes `turbo:matches` rather than entities, and a rule number
+  stands in for an `id`.
 
 ## The chunker
 
@@ -3486,3 +3715,5 @@ runs them on any machine:
   is to be reported, from the term statistics above, and what each
   level and each kind of level vector adds.
 - A gRPC surface, to be shared with the OpenNLP standard.
+- A reader for spaCy's JSON pattern files, building `Tok` patterns from
+  them.
