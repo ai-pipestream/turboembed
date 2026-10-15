@@ -168,7 +168,9 @@ impl fmt::Display for Language {
     }
 }
 
-/// An `https://` address of printable ASCII with no spaces.
+/// An `https://` address of printable ASCII with no spaces and no
+/// backslash, whose host is not empty: `https:///x` and
+/// `https://user@/x` are refused.
 #[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct Url(String);
 
@@ -181,8 +183,18 @@ impl Url {
 impl FromStr for Url {
     type Err = String;
     fn from_str(s: &str) -> Result<Self, String> {
-        let ok = s.len() > "https://".len() && s.starts_with("https://") && s.bytes().all(|c| c.is_ascii_graphic());
-        if ok { Ok(Url(s.to_owned())) } else { Err(format!("{s:?} is not an https:// address")) }
+        let Some(rest) = s.strip_prefix("https://") else {
+            return Err(format!("{s:?} is not an https:// address"));
+        };
+        if !s.bytes().all(|c| c.is_ascii_graphic() && c != b'\\') {
+            return Err(format!("{s:?} is not an https:// address of printable ASCII without a backslash"));
+        }
+        let authority = &rest[..rest.find(['/', '?', '#']).unwrap_or(rest.len())];
+        let host = authority.rsplit_once('@').map_or(authority, |(_, host)| host);
+        if host.is_empty() || host.starts_with(':') {
+            return Err(format!("{s:?} is not an https:// address: it names no host"));
+        }
+        Ok(Url(s.to_owned()))
     }
 }
 
@@ -294,17 +306,26 @@ pub struct Artifact {
     /// For a `CLASS_LOCAL_ONLY` artifact, and only for one: the original
     /// publisher's own location, which every file's `url` must lie under.
     /// For a dataset it is the data's own place on its host, such as a
-    /// treebank's repository path on `raw.githubusercontent.com`, not the
-    /// whole host; for a model, the model publisher's. The host is compared
-    /// without regard to case. A file's path must be the origin's path or
-    /// continue it after a `/`, so `.../UD_English-GUM` holds
+    /// treebank's repository path on `raw.githubusercontent.com`; for a
+    /// model, the model publisher's. It has a path of at least one
+    /// non-empty segment, so it is never a whole host; a file at the root
+    /// of a host is named as the origin by its own address. The host is
+    /// compared without regard to case. A file's path must be the origin's
+    /// path or continue it after a `/`, so `.../UD_English-GUM` holds
     /// `.../UD_English-GUM/r2.16/...` but not `.../UD_English-GUM-copy/...`;
     /// a trailing `/` on the origin makes no difference. The origin has no
     /// user information, query or fragment, and neither its path nor a
     /// file's holds a `.` or `..` segment (plain or percent-encoded), a
-    /// backslash or an encoded `/` or `\`. So the zoo fetches such an
-    /// artifact from its publisher only, never from a copy, whether on
-    /// another host or the same one.
+    /// backslash, a `;`, a percent-encoded `/`, `\` or `%`, or the start of
+    /// an overlong percent-encoded UTF-8 form.
+    ///
+    /// The rule covers the addresses the index names. The zoo's HTTP
+    /// transport requests each file at its `url` and follows a redirect
+    /// the server issues from there over HTTPS only, without checking it
+    /// against the origin (a GitHub release, for one, redirects to another
+    /// host). Every file's size, SHA-256 and SHA-512 are checked before it
+    /// is kept, so the bytes are the ones the index records wherever a
+    /// redirect leads.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub origin: Option<Url>,
     pub files: Vec<File>,
@@ -363,16 +384,28 @@ fn strip_dot(s: &[u8]) -> Option<&[u8]> {
     }
 }
 
+/// Percent-encoded forms [`plain_path`] refuses anywhere in a path, each
+/// compared without regard to case: an encoded `/` or `\`; `%25`, an
+/// encoded `%`, which a server that decodes twice turns into one of the
+/// other forms (`%252e%252e` into `..`); and the lead bytes of overlong
+/// UTF-8 forms of ASCII (`%c0`, `%c1`, and `%e0` or `%f0` before a
+/// continuation byte that makes the form overlong), which a lax decoder
+/// reads as the ASCII character they encode (`%c0%ae%c0%ae` as `..`).
+const ENCODED_REFUSED: [&[u8]; 8] = [b"%2f", b"%5c", b"%25", b"%c0", b"%c1", b"%e0%8", b"%e0%9", b"%f0%8"];
+
 /// Whether the path of `rest` (what [`split_host`] leaves, up to a `?` or
-/// `#`) has no step a server could take out of the directory it names: no
-/// `.` or `..` segment, plain or with its dots percent-encoded, no
-/// backslash, and no percent-encoded `/` or `\`.
+/// `#`) is free of the forms this check knows a server may read as a step
+/// out of the directory the path names: a `.` or `..` segment, plain or
+/// with its dots percent-encoded; a backslash; a `;`, which some servers
+/// read as the start of segment parameters and strip (`..;` as `..`); and
+/// the encoded forms in [`ENCODED_REFUSED`].
 fn plain_path(rest: &str) -> bool {
     let path = &rest[..rest.find(['?', '#']).unwrap_or(rest.len())];
     let bytes = path.as_bytes();
-    if bytes.contains(&b'\\')
-        || bytes.windows(3).any(|w| w.eq_ignore_ascii_case(b"%2f") || w.eq_ignore_ascii_case(b"%5c"))
-    {
+    let encoded_refused = |i: usize| {
+        ENCODED_REFUSED.iter().any(|form| bytes[i..].get(..form.len()).is_some_and(|b| b.eq_ignore_ascii_case(form)))
+    };
+    if bytes.contains(&b'\\') || bytes.contains(&b';') || (0..bytes.len()).any(encoded_refused) {
         return false;
     }
     path.split('/').all(|segment| match strip_dot(segment.as_bytes()) {
@@ -384,10 +417,15 @@ fn plain_path(rest: &str) -> bool {
 
 /// Whether `origin` names a location a file can lie under: no user
 /// information before its host (`https://a.org@b.net/` is on `b.net`), no
-/// query or fragment, and a plain path ([`plain_path`]).
+/// query or fragment, a plain path ([`plain_path`]), and at least one
+/// non-empty path segment, so not a whole host (`https://example.org` or
+/// `https://example.org/`).
 fn origin_is_a_location(origin: &Url) -> bool {
     let (host, rest) = split_host(origin);
-    !host.contains('@') && !rest.contains(['?', '#']) && plain_path(rest)
+    !host.contains('@')
+        && !rest.contains(['?', '#'])
+        && plain_path(rest)
+        && rest.split('/').any(|segment| !segment.is_empty())
 }
 
 /// Whether `file` lies under `origin` ([`Artifact::origin`]): the same
@@ -470,8 +508,9 @@ impl Index {
                 (Some(origin), true) => {
                     if !origin_is_a_location(origin) {
                         return Err(ZooError::Index(format!(
-                            "{}: origin {origin} is not a location: it has user information, a query or \
-                             fragment, a `.` or `..` segment, a backslash or an encoded separator",
+                            "{}: origin {origin} is not a location: it is a whole host, or it has user \
+                             information, a query or fragment, or a path form the zoo refuses (a `.` or `..` \
+                             segment, a backslash, a `;` or a refused percent-encoding)",
                             a.id
                         )));
                     }

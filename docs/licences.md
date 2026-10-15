@@ -152,7 +152,7 @@ not list it.
 | [NorNE](https://github.com/ltgoslo/norne) | NER | annotations CC0, text restricted | refused | | plan |
 | [OpenLID, GlotLID corpora](https://github.com/cisnlp/GlotLID) | language detection | mixed, parts non-commercial | refused | as a whole | plan |
 | [FLORES+](https://huggingface.co/datasets/openlanguagedata/flores_plus) | language detection | its card allows evaluation only | refused for training | evaluation runs may use it; numbers recorded, files not kept | plan |
-| [Leipzig corpora](https://wortschatz.uni-leipzig.de/en/download) | language detection | conflicting (CC BY or CC BY-NC) | refused | until the terms are confirmed; under the 2026-10-14 decision either reading is fetchable (CC BY permissive, CC BY-NC local-only), and an entry would take the stricter one, CC-BY-NC-4.0 (local-only); no entry is made | plan |
+| [Leipzig corpora](https://wortschatz.uni-leipzig.de/en/download) | language detection | conflicting (CC BY or CC BY-NC) | refused | stays refused as unconfirmed terms (`LicenseRef-Unconfirmed`) until the terms are confirmed; confirmed as CC BY it would be permissive, as CC BY-NC local-only | plan |
 | [AG News](http://groups.di.unipi.it/~gulli/AG_corpus_of_news_articles.html) | document categorizer | non-commercial | refused | not a CC licence: the host's own non-commercial terms, outside the 2026-10-14 decision on non-commercial data | plan |
 | [20 Newsgroups](http://qwone.com/~jason/20Newsgroups/) | document categorizer | none stated | refused | no licence | plan |
 | [Europarl](https://www.statmt.org/europarl/) | | none stated; its makers know of no restrictions | refused | no licence, unless decided otherwise | plan |
@@ -208,11 +208,13 @@ on it as non-commercial and keep it on their machine. These rules are
 this project's policy; the licences themselves allow sharing the data
 and adapted material for non-commercial purposes.
 
-Data that is also no-derivatives (CC BY-NC-ND) stays refused, as CC
-BY-ND data does. That is this project's default (2026-10-14), not what
-the licences require: they allow producing adapted material and forbid
-only sharing it, so they would allow a model trained on the data and
-kept on the user's machine.
+Data that is also no-derivatives (CC BY-NC-ND 4.0) stays refused, as
+CC BY-ND 4.0 data does. That is this project's default (2026-10-14), not
+what the licences require: version 4.0 of each allows producing adapted
+material (CC BY-NC-ND 4.0 for non-commercial purposes) and forbids only
+sharing it, so they would allow a model trained on the data and kept on
+the user's machine. Earlier versions differ: CC BY-ND 3.0 grants no
+right to make adaptations (its section 3).
 
 The non-commercial datasets are in the datasets table above, marked
 local-only. The built-in index lists none of them, and none of the
@@ -224,8 +226,10 @@ under: for a UD treebank its repository path on
 (`https://raw.githubusercontent.com/UniversalDependencies/UD_English-GUM/`),
 not the whole host, and for a model the model publisher's.
 
-The OpenNLP UD 1.3 models trained on non-commercial treebanks are
-local-only by the class rule (Apache-2.0 models, non-commercial data):
+The 32 OpenNLP UD 1.3 models trained on the eight non-commercial
+treebanks below, four per treebank (sentence, tokens, POS and lemmas),
+are local-only by the class rule (Apache-2.0 models, non-commercial
+data):
 
 | Model | Trained on | Licence of the data | Checked |
 |---|---|---|---|

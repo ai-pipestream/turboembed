@@ -45,7 +45,7 @@ fn text(bytes: &[u8]) -> String {
 /// this project's policy, which accepting agrees to.
 const NON_COMMERCIAL_SHOWN: &str = "\
 CC-BY-NC-SA-4.0: read the text at https://creativecommons.org/licenses/by-nc-sa/4.0/legalcode
-The licence permits non-commercial use only.
+The licence grants its rights for non-commercial purposes only.
 This project's policy: the zoo fetches data under this licence only from its original source, and the project \
 never ships, bundles or redistributes the data or any model trained on it. By accepting, you agree to treat any \
 model you train on it as non-commercial and to keep that model on your machine.
@@ -94,6 +94,8 @@ fn restricted_terms_show_the_hosts_terms_apart_from_the_policy() {
 #[test]
 fn refused_and_permissive_licences_are_not_offered_for_acceptance() {
     let home = TempDir::new("refused");
+    // `revoke` names them the same way, so a refused `LicenseRef-` licence
+    // is not asked for a terms address there either.
     for args in [
         &["accept", "CC-BY-NC-ND-4.0", "--yes"][..],
         &["accept", "CC-BY-ND-4.0", "--yes"],
@@ -103,10 +105,15 @@ fn refused_and_permissive_licences_are_not_offered_for_acceptance() {
         &["accept", "LicenseRef-ResearchOnly"],
         &["accept", "LicenseRef-Unconfirmed", "--yes"],
         &["accept", "LicenseRef-PlatformTerms", "https://example.org/terms", "--yes"],
+        &["revoke", "LicenseRef-ResearchOnly"],
+        &["revoke", "LicenseRef-Unconfirmed"],
+        &["revoke", "LicenseRef-PlatformTerms", "https://example.org/terms"],
+        &["revoke", "CC-BY-NC-ND-4.0"],
+        &["revoke", "Apache-2.0"],
     ] {
         let licence = args[1];
         let says = match licence {
-            "Apache-2.0" => "Apache-2.0 is CLASS_PERMISSIVE: there is nothing to accept".to_owned(),
+            "Apache-2.0" => format!("Apache-2.0 is CLASS_PERMISSIVE: there is nothing to {}", args[0]),
             _ => {
                 let reason = licence.parse::<Licence>().unwrap().refusal().unwrap();
                 format!("{licence}: refused ({reason}); the zoo fetches nothing under it")
@@ -152,7 +159,10 @@ fn show_gives_a_non_commercial_artifacts_terms_and_policy() {
         "{shown}"
     );
     assert!(
-        shown.contains("origin: https://example.org/models/m/ (every file is fetched from under it, nowhere else)"),
+        shown.contains(
+            "origin: https://example.org/models/m/ (every file's address lies under it; redirects are followed over \
+             HTTPS only)"
+        ),
         "{shown}"
     );
     let terms = format!("local only: {}\n", LocalOnlyReason::NonCommercial.terms());

@@ -61,7 +61,7 @@ fn entry(id: &str, license: Licence, trained_on: &[Licence], class: LicenceClass
       "class": "{class}",
       "files": [{{
         "path": "{id}.bin",
-        "url": "https://example.org/{id}.bin",
+        "url": "https://example.org/models/{id}.bin",
         "size": {size},
         "sha256": "{sha256}",
         "sha512": "{sha512}"
@@ -81,7 +81,7 @@ fn index_of(entries: &[String]) -> String {
 const BYTES: &[u8] = b"model bytes";
 
 fn url(id: &str) -> String {
-    format!("https://example.org/{id}.bin")
+    format!("https://example.org/models/{id}.bin")
 }
 
 /// One artifact per class, and the cases of a class coming from the
@@ -109,9 +109,9 @@ fn sample() -> String {
     ])
 }
 
-/// The entry with an origin on the host its files are fetched from.
+/// The entry with an origin its files lie under, `https://example.org/models/`.
 fn with_origin(entry: String) -> String {
-    entry.replace("\"files\": [", "\"origin\": \"https://example.org/\",\n      \"files\": [")
+    entry.replace("\"files\": [", "\"origin\": \"https://example.org/models/\",\n      \"files\": [")
 }
 
 /// The terms of licences with a single text.
@@ -418,7 +418,7 @@ fn local_only_data_and_models_trained_on_it_are_never_shippable() {
 }
 
 #[test]
-fn local_only_artifacts_are_fetched_from_their_origin_only() {
+fn local_only_artifacts_name_their_files_under_their_origin() {
     use Licence::*;
     use LicenceClass::*;
     let restricted = entry("r", RestrictedPublic, &[], LocalOnly, BYTES);
@@ -433,8 +433,10 @@ fn local_only_artifacts_are_fetched_from_their_origin_only() {
         non_commercial.clone(),
         trained_on_non_commercial.clone(),
         // A file on another host than the origin's.
-        with_origin(restricted.replace("https://example.org/r.bin", "https://mirror.example.net/r.bin")),
-        with_origin(non_commercial.replace("https://example.org/r.bin", "https://mirror.example.net/r.bin")),
+        with_origin(restricted.replace("https://example.org/models/r.bin", "https://mirror.example.net/models/r.bin")),
+        with_origin(
+            non_commercial.replace("https://example.org/models/r.bin", "https://mirror.example.net/models/r.bin"),
+        ),
         // An origin on an artifact that is not restricted.
         with_origin(entry("p", Apache2, &[], Permissive, BYTES)),
         with_origin(entry("s", Apache2, &[CcBySa40], ShareAlike, BYTES)),
@@ -451,9 +453,11 @@ fn local_only_artifacts_are_fetched_from_their_origin_only() {
     }
     // The host is compared without regard to case, but the path is not
     // ignored: a file must lie under the origin's path.
-    let upper = with_origin(restricted.clone()).replace("\"https://example.org/\"", "\"https://EXAMPLE.org/\"");
+    let upper =
+        with_origin(restricted.clone()).replace("\"https://example.org/models/\"", "\"https://EXAMPLE.org/models/\"");
     assert!(Index::parse(index_of(&[upper]).as_bytes()).is_ok());
-    let elsewhere = with_origin(restricted).replace("\"https://example.org/\"", "\"https://example.org/terms\"");
+    let elsewhere =
+        with_origin(restricted).replace("\"https://example.org/models/\"", "\"https://example.org/terms/\"");
     assert!(matches!(Index::parse(index_of(&[elsewhere]).as_bytes()), Err(ZooError::Index(_))));
 }
 
@@ -461,7 +465,7 @@ fn local_only_artifacts_are_fetched_from_their_origin_only() {
 /// whose only file is fetched from `url`.
 fn gum(origin: &str, url: &str) -> String {
     entry("gum", Licence::CcByNcSa40, &[], LicenceClass::LocalOnly, BYTES)
-        .replace("https://example.org/gum.bin", url)
+        .replace("https://example.org/models/gum.bin", url)
         .replace("\"files\": [", &format!("\"origin\": \"{origin}\",\n      \"files\": ["))
 }
 
@@ -499,8 +503,6 @@ fn an_origin_is_a_location_not_a_host() {
             format!("{REPO}/./en_gum-ud-train.conllu"),
             format!("{REPO}/..%2fUD_English-GUM-copy/en_gum-ud-train.conllu"),
             format!("{REPO}/..%5CUD_English-GUM-copy/en_gum-ud-train.conllu"),
-            // A backslash, escaped once for Rust and once for JSON.
-            format!("{REPO}/..\\\\UD_English-GUM-copy/en_gum-ud-train.conllu"),
             // A query on the origin's path is not a path under it.
             format!("{REPO}?file=en_gum-ud-train.conllu"),
         ] {
@@ -508,6 +510,13 @@ fn an_origin_is_a_location_not_a_host() {
                 Err(ZooError::Index(m)) => assert!(m.contains("not under its origin"), "{origin} {bad}: {m}"),
                 other => panic!("{origin} {bad}: {other:?}"),
             }
+        }
+        // A backslash, escaped once for Rust and once for JSON, is not in
+        // an address at all.
+        let backslash = format!("{REPO}/..\\\\UD_English-GUM-copy/en_gum-ud-train.conllu");
+        match parses(origin, &backslash) {
+            Err(ZooError::Index(m)) => assert!(m.contains("without a backslash"), "{origin} {backslash}: {m}"),
+            other => panic!("{origin} {backslash}: {other:?}"),
         }
     }
     // The host of the origin is compared without regard to case.
@@ -541,6 +550,113 @@ fn an_origin_is_a_location_not_a_host() {
     match Index::parse(index_of(&[two]).as_bytes()) {
         Err(ZooError::Index(m)) => assert!(m.contains("copy.conllu") && m.contains("not under its origin"), "{m}"),
         other => panic!("{other:?}"),
+    }
+}
+
+/// An origin names a path on its host, so a whole host is not one; a file
+/// at the root of a host is named by its own address.
+#[test]
+fn a_whole_host_is_not_an_origin() {
+    const FILE: &str = "https://raw.githubusercontent.com/UniversalDependencies/UD_English-GUM/r2.16/x.conllu";
+    let parses = |origin: &str, url: &str| Index::parse(index_of(&[gum(origin, url)]).as_bytes());
+    for origin in [
+        "https://raw.githubusercontent.com",
+        "https://raw.githubusercontent.com/",
+        "https://raw.githubusercontent.com//",
+        "https://RAW.githubusercontent.com/",
+    ] {
+        match parses(origin, FILE) {
+            Err(ZooError::Index(m)) => assert!(m.contains("is not a location"), "{origin}: {m}"),
+            other => panic!("{origin}: {other:?}"),
+        }
+    }
+    let root = "https://example.org/gum.bin";
+    assert!(parses(root, root).is_ok());
+    for origin in [root.to_owned(), format!("{root}/")] {
+        match parses(&origin, "https://example.org/other.bin") {
+            Err(ZooError::Index(m)) => assert!(m.contains("not under its origin"), "{origin}: {m}"),
+            other => panic!("{origin}: {other:?}"),
+        }
+    }
+}
+
+/// Forms a server may decode or strip into a step out of a directory: a
+/// `%` encoded again, a `;` that starts segment parameters, and overlong
+/// UTF-8 forms of `.`, `/` and `\`. None is accepted in a file's address
+/// or in an origin, in upper or lower case.
+#[test]
+fn encoded_and_parameter_steps_are_refused() {
+    const REPO: &str = "https://raw.githubusercontent.com/UniversalDependencies/UD_English-GUM";
+    let file = format!("{REPO}/r2.16/en_gum-ud-train.conllu");
+    let parses = |origin: &str, url: &str| Index::parse(index_of(&[gum(origin, url)]).as_bytes());
+    let forms = [
+        "%252e%252e",
+        "%252E%252E",
+        "..%252f",
+        "..;",
+        ".;x",
+        "r2.16;jsessionid=1",
+        "%c0%ae%c0%ae",
+        "%C0%AE%C0%AE",
+        "..%c0%af",
+        "..%c1%9c",
+        "%e0%80%ae%e0%80%ae",
+        "%E0%9F%BF",
+        "%f0%80%80%ae%f0%80%80%ae",
+    ];
+    for form in forms {
+        let bad = format!("{REPO}/{form}/UD_English-GUM-copy/en_gum-ud-train.conllu");
+        match parses(REPO, &bad) {
+            Err(ZooError::Index(m)) => assert!(m.contains("not under its origin"), "{bad}: {m}"),
+            other => panic!("{bad}: {other:?}"),
+        }
+        let origin = format!("{REPO}/{form}/");
+        match parses(&origin, &file) {
+            Err(ZooError::Index(m)) => assert!(m.contains("is not a location"), "{origin}: {m}"),
+            other => panic!("{origin}: {other:?}"),
+        }
+    }
+    // Percent-encoding that cannot make a step is kept: a space, and a
+    // well-formed non-ASCII letter.
+    for ok in [format!("{REPO}/r2.16/a%20b.conllu"), format!("{REPO}/r2.16/%c3%a9.conllu")] {
+        assert!(parses(REPO, &ok).is_ok(), "{ok}");
+    }
+}
+
+/// An address names a host and holds no backslash.
+#[test]
+fn an_address_has_a_host_and_no_backslash() {
+    for ok in ["https://example.org", "https://example.org/x", "https://a@example.org:8443/x?y#z"] {
+        assert!(ok.parse::<Url>().is_ok(), "{ok}");
+    }
+    for (bad, says) in [
+        ("https://", "names no host"),
+        ("https:///example.org/x", "names no host"),
+        ("https://@/x", "names no host"),
+        ("https://user@/x", "names no host"),
+        ("https://:443/x", "names no host"),
+        ("https://user@:443/x", "names no host"),
+        ("https://?x", "names no host"),
+        ("https://#x", "names no host"),
+        ("https://example.org\\x", "without a backslash"),
+        ("https://example.org/a\\b", "without a backslash"),
+        ("https://example.org/a b", "printable ASCII"),
+        ("http://example.org/x", "is not an https:// address"),
+    ] {
+        match bad.parse::<Url>() {
+            Err(m) => assert!(m.contains(says), "{bad}: {m}"),
+            Ok(u) => panic!("{bad}: {u}"),
+        }
+    }
+    // In an index too, for a file's address and for an origin.
+    let file_without_host = entry("m", Licence::Apache2, &[], LicenceClass::Permissive, BYTES)
+        .replace("https://example.org/models/m.bin", "https:///example.org/models/m.bin");
+    let origin_without_host = gum("https:///raw.githubusercontent.com/x/", "https://raw.githubusercontent.com/x/y");
+    for e in [file_without_host, origin_without_host] {
+        match Index::parse(index_of(&[e]).as_bytes()) {
+            Err(ZooError::Index(m)) => assert!(m.contains("names no host"), "{m}"),
+            other => panic!("{other:?}"),
+        }
     }
 }
 
@@ -735,7 +851,7 @@ fn the_index_is_parsed_strictly() {
         good.replace("\"m.bin\"", "\"../m.bin\""),
         good.replace("\"m.bin\"", "\"/m.bin\""),
         good.replace("\"m.bin\"", "\"a//m.bin\""),
-        good.replace("https://example.org/m.bin", "http://example.org/m.bin"),
+        good.replace("https://example.org/models/m.bin", "http://example.org/models/m.bin"),
         good.replace(&sha256, &sha256.to_uppercase()),
         good.replace("\"id\": \"m\"", "\"id\": \"M\""),
         good.replace("\"id\": \"m\"", "\"id\": \"..\""),
