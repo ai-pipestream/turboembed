@@ -1750,9 +1750,10 @@ The language detector is trained as `LanguageDetectorME.train` does (the
 `analysis/goldens/data/train-langdetect/<run>/<set>/<id>.golden`: the
 events, the index, the GIS training iteration by iteration, and the
 manifest and zip entries of the model file, with cutoff 5 and 1, on
-`inputs/langdetect/samples.txt`, `inputs/langdetect/tree-bucket.txt`
-(where training's n-gram order differs from prediction's) and the
-language format input. `analysis/train-components/tests/langdetect.rs`
+`analysis/goldens/data/inputs/langdetect/samples.txt`,
+`analysis/goldens/data/inputs/langdetect/tree-bucket.txt` (where
+training's n-gram order differs from prediction's) and the language
+format input. `analysis/train-components/tests/langdetect.rs`
 compares all of it, the weights bit for bit (as for any event in the
 JVM's predicate order; one with equal-hash n-grams in a tree bucket can
 differ in the last bits, and the goldens hold none), and

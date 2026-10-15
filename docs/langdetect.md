@@ -196,10 +196,10 @@ most likely trained with.
 The goldens under `analysis/goldens/data/train-langdetect/` are the
 JVM's training (goldens-tool `LanguageTrainGolden`) in two runs,
 `default` (cutoff 5) and `cutoff1`, on samples written for them
-(`inputs/langdetect/samples.txt`: nine languages, and lines in
+(`analysis/goldens/data/inputs/langdetect/samples.txt`: nine languages, and lines in
 capitals, with a tab or many spaces in the text, empty text, a backslash,
 CR LF, no final newline, and lines the sample stream skips;
-`inputs/langdetect/tree-bucket.txt`: six lines whose unigrams share a
+`analysis/goldens/data/inputs/langdetect/tree-bucket.txt`: six lines whose unigrams share a
 bucket that becomes a tree, so training's n-gram order differs from
 prediction's) and on the language format input.
 `analysis/train-components/tests/langdetect.rs` compares the events,
