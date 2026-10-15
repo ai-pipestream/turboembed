@@ -57,6 +57,10 @@ pub enum Error {
     EmptySplit { what: &'static str },
     /// A recipe left out more than its limit allows.
     TooManyLeftOut { what: LeftOut, count: u64, of: u64, limit: Limit },
+    /// A run on the recorded release whose reader skipped `count`
+    /// sentences, not the `recorded` count the recipe records for it
+    /// ([`crate::chunk::RECORDED_SKIPPED_SENTENCES`]).
+    SkippedNotRecorded { what: LeftOut, count: u64, recorded: u64 },
     /// The tagger's reference cannot give the tags of more held-out tokens
     /// than [`crate::MAX_TOKENS_LEFT_OUT`] allows (`left_out`, by tag as
     /// written, of `of` tokens).
@@ -128,6 +132,9 @@ impl fmt::Display for Error {
             Error::EmptySplit { what } => write!(f, "the split leaves no {what}"),
             Error::TooManyLeftOut { what, count, of, limit } => {
                 write!(f, "{count} of {of} {what}, more than the limit of {limit}")
+            }
+            Error::SkippedNotRecorded { what, count, recorded } => {
+                write!(f, "{count} {what}, not the recorded release's {recorded}")
             }
             Error::TagsOutsideReference { reference, left_out, of, limit } => {
                 let count: u64 = left_out.iter().map(|t| t.tokens).sum();

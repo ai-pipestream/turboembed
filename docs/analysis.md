@@ -1748,8 +1748,9 @@ probabilities with them against the Rust annotators'.
 The `chunk` module is `ChunkerME.train` with `ChunkerFactory`: the
 events of `ChunkerEventStream` over the default context generator of
 `turbo-sequence`, which `turbo-phrase-chunker` infers with, trained by
-any event trainer (`MAXENT`, the default, `MAXENT_QN` or `PERCEPTRON`),
-in a model file with `chunker.model` before `manifest.properties`, as
+`MAXENT` (the default), `MAXENT_QN` or `PERCEPTRON` (`ChunkerME.train`
+also takes `NAIVEBAYES`, an event trainer not ported here, which fails
+with `NotPorted`), in a model file with `chunker.model` before `manifest.properties`, as
 the JVM's artifact map orders them. `ChunkerME.train` refuses the
 sequence perceptron, an event model sequence trainer, with
 `IllegalArgumentException`, and so does the port. The goldens of
@@ -1758,8 +1759,8 @@ itself over the chunk inputs with OpenNLP's default parameters, the
 perceptron, `MAXENT_QN` and the sequence perceptron;
 `analysis/train-components/tests/chunker.rs` compares the events, the
 stream errors, what training threw, and the trained model's outcomes,
-predicates, every parameter (within 1e-9; every one is the JVM's
-double), the model entry, the manifest and the zip entries. The fixture
+predicates, every parameter (the JVM's double, bit for bit), the model
+entry's length and SHA-256, the manifest and the zip entries. The fixture
 `chunker-fixture.bin` is trained again byte for byte, and
 `chunker-fixture-rust.bin`, trained from
 `analysis/goldens/data/inputs/tagged/chunks.txt`, is loaded and run in
@@ -2137,7 +2138,15 @@ trained on MASC 3.0.0 (CC BY 3.0 US), gated against
   cannot express (part of a chunk that crosses sentences, or chunks that
   share a token, which MASC's chunk layers, made automatically and then
   validated, hold in about one sentence in fourteen) is skipped, with a
-  bound of one in ten of its own. The manifest's `Timestamp` is fixed, so a run gives the same
+  bound of one in ten of its own, and on the recorded release the
+  recipe checks the counts it records (1,872 training sentences, 349
+  held out). A chunk in no sentence the reader keeps is in no sample;
+  the card counts these on each side. In the recorded release 16,597 of
+  the 221,931 chunks the split reads are outside every kept sentence,
+  because MASC's sentence layer does not cover all of the text and the
+  reader drops a sentence region that overlaps the next, as OpenNLP's
+  does; the other MASC recipes read the same sentences and lose the same
+  text. The manifest's `Timestamp` is fixed, so a run gives the same
   bytes.
 - The gate: both models scored with OpenNLP's `SentenceDetectorEvaluator`,
   `TokenizerEvaluator` and `POSEvaluator` on the same held-out samples,
@@ -2168,15 +2177,17 @@ trained on MASC 3.0.0 (CC BY 3.0 US), gated against
   scored with `ChunkerEvaluator` on the chunk types both give, `NP` and
   `VP`, the only ones MASC has; the reference's chunks of its other
   types are made `O` before it is scored, and it is given `:` for MASC's
-  `-`, `...` and `;`. MASC's chunks follow other conventions than
+  `-`, `...` and `;` (the gate record's `reference_inputs`; worth 0.02
+  points to it on the held-out set). MASC's chunks follow other conventions than
   CoNLL-2000's (verb groups split where CoNLL-2000 keeps them whole,
   predicate adjectives inside verb chunks, coordinations of single nouns
   split), and every such difference counts against the reference, so
   this gate leans towards the trained model.
 - The output: `<out>/<model id>/` with the model, `card.json` (the
   data, its licence and attribution, the split, the parameters, the
-  training counts, the tag formats a tagger was scored in and the
-  gate's outcome) and `gate.json` (the gate record). `ModelCard::artifact`
+  training counts, the tag formats a tagger was scored in, a chunker's
+  chunks in no sentence its reader keeps and the gate's outcome) and
+  `gate.json` (the gate record). `ModelCard::artifact`
   is the model's permissive zoo entry once the file is published; it
   refuses a card not gated against its recipe's reference (its id and
   SHA-256), whose gate failed, or whose corpus is not the recorded
@@ -2582,23 +2593,28 @@ scores only the types its record lists, on both sides: held-out spans of
 other types are left out of the references (as `NameSampleTypeFilter`
 leaves them out of a name sample) and predicted spans of other types out
 of the predictions; a held-out type the models name otherwise is renamed
-first (MASC's `org` is OpenNLP's `organization`). `turbo-train-recipes`'
-`spans` module makes a unit's counts from its evaluator's `FMeasure`.
+first. `turbo-train-recipes`' `spans` module makes a unit's counts from
+its evaluator's `FMeasure`.
 
 `ModelGateRecord` is the record kept beside the model card: the task
 and measure, the held-out set (its name, the corpus digest, the SHA-256
 of the samples as scored, the held-out sentences the recipe's reader
 skipped, and how the units were scored: spans; typed spans with the
-types scored, the held-out types renamed, the spans scored and those
-left out; or tags with the tokens, the tokens left out and the mapping
-of the reference's tags), both
+types scored, the held-out types renamed, the held-out input tags the
+reference is given another tag for (a chunker's part-of-speech tags;
+empty for a model that reads no tags), the spans scored and those left
+out; or tags with the tokens, the tokens left out and the mapping of the
+reference's tags), both
 models by id and SHA-256, the resamples and seed, the result, and both
 models' counts per sample. `check` refuses empty names, digests that
 are not 64 lower case hex, resamples or a seed other than the gate's, a
 scoring that is not the task's, a tag scoring whose tokens less those
 left out are not what each model's units count, and a typed span
-scoring with no type, a renaming to a type it does not score, or spans
-scored that are not the references each model's units count, then
+scoring with no type, a type listed twice, a held-out type renamed
+twice, renamed to a type it does not score or renamed though it is
+scored as written, a held-out input tag given to the reference as
+another tag twice or as itself, or spans scored that are not the
+references each model's units count, then
 recomputes the result from the counts. It is strict JSON, as
 the evaluation record is, and is never replaced once written.
 

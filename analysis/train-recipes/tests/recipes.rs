@@ -20,7 +20,8 @@ use turbo_formats::masc::{MascCorpus, MascTokenReader};
 use turbo_postag::PosTagFormat;
 use turbo_train_components::{TokSpanEventStream, TokenizerFactory};
 use turbo_train_recipes::card::{
-    CARD_FILE, CARD_VERSION, GATE_FILE, HeldOutCard, ModelCard, TagCount, TagFormat, TokenCoverage, write_model_dir,
+    CARD_FILE, CARD_VERSION, ChunksCard, GATE_FILE, HeldOutCard, ModelCard, TagCount, TagFormat, TokenCoverage,
+    write_model_dir,
 };
 use turbo_train_recipes::chunk::{self, CHUNKS, SPAN_TYPES, Skipped};
 use turbo_train_recipes::masc::{self, ExcludedDocument, Exclusion, RELEASE, SPLIT, SplitCorpus};
@@ -213,10 +214,32 @@ fn the_recipes_train_score_gate_and_write_their_cards() {
                 assert!(t.renamed.is_empty());
                 assert_eq!((t.spans, t.left_out), (held_out.spans(), 0));
                 assert!(t.spans > held_out.len() as u64, "{t:?}");
+                // The reference is given `:` for MASC's `-`, `...` and `;`,
+                // and the record says so.
+                let inputs: Vec<(&str, &str)> =
+                    t.reference_inputs.iter().map(|m| (m.held_out.as_str(), m.reference.as_str())).collect();
+                assert_eq!(inputs, [("-", ":"), ("...", ":"), (";", ":")]);
+                assert_eq!(t.reference_inputs, chunk::reference_inputs());
             }
             other => panic!("{other:?}"),
         }
-        assert_eq!(card.held_out, HeldOutCard { samples: gate.units.len(), skipped_sentences: 0, tokens });
+        // The chunker's card counts the chunks in no sentence its reader
+        // reads, on both sides: here every chunk is in a sentence.
+        let (training_chunks, held_out_chunks) = match recipe {
+            Recipe::Chunk(_) => {
+                let (training, held_out) = (chunk::chunk_counts(&split.train), chunk::chunk_counts(&split.held_out));
+                assert!(training.chunks > 0 && held_out.chunks > 0);
+                assert_eq!(ChunksCard { chunks: 0, ..training.clone() }, ChunksCard::default());
+                assert_eq!(ChunksCard { chunks: 0, ..held_out.clone() }, ChunksCard::default());
+                (Some(training), Some(held_out))
+            }
+            _ => (None, None),
+        };
+        assert_eq!(card.training.chunks, training_chunks);
+        assert_eq!(outcome.trained.chunks, training_chunks);
+        let held_out =
+            HeldOutCard { samples: gate.units.len(), skipped_sentences: 0, tokens, chunks: held_out_chunks.clone() };
+        assert_eq!(card.held_out, held_out);
         assert_eq!(card.training.sentences_per_sample.is_some(), recipe.task() == Task::SentenceDetector);
         assert_eq!(card.gate.pass, gate.result.pass);
         match recipe {
@@ -245,7 +268,19 @@ fn the_recipes_train_score_gate_and_write_their_cards() {
              skipped",
             recipe.model_id()
         );
-        if counted.held_out.tokens.is_none() {
+        if let (Some(training), Some(held_out)) = (&mut counted.training.chunks, &mut counted.held_out.chunks) {
+            (training.chunks, training.outside_sentences, training.across_sentences, training.without_tokens) =
+                (183681, 13509, 83, 2);
+            (held_out.chunks, held_out.outside_sentences, held_out.across_sentences, held_out.without_tokens) =
+                (38250, 3088, 12, 0);
+            let id = recipe.model_id();
+            let lines = format!(
+                "{trained}\n{id}: of 183681 training chunks, 13509 outside every kept sentence, 83 across \
+                 sentences, 2 without tokens\n{id}: of 38250 held-out chunks, 3088 outside every kept sentence, 12 \
+                 across sentences, 0 without tokens"
+            );
+            assert_eq!(counted.summary().to_string(), lines);
+        } else if counted.held_out.tokens.is_none() {
             assert_eq!(counted.summary().to_string(), trained);
         } else {
             let id = recipe.model_id();
@@ -278,6 +313,13 @@ fn the_recipes_train_score_gate_and_write_their_cards() {
         old["gate"].as_object_mut().unwrap().remove("reference_sha256");
         std::fs::write(&other, serde_json::to_string_pretty(&old).unwrap()).unwrap();
         assert!(matches!(ModelCard::read(&other), Err(Error::CardVersion { found: 2, .. })));
+        // Nor is a card of version 3, without the chunk counts.
+        let mut three: serde_json::Value = serde_json::from_str(&card.to_json()).unwrap();
+        three["card_version"] = 3.into();
+        three["training"].as_object_mut().unwrap().remove("chunks");
+        three["held_out"].as_object_mut().unwrap().remove("chunks");
+        std::fs::write(&other, serde_json::to_string_pretty(&three).unwrap()).unwrap();
+        assert!(matches!(ModelCard::read(&other), Err(Error::CardVersion { found: 3, .. })));
         // A card of this version with a field missing is not a card.
         old["card_version"] = CARD_VERSION.into();
         std::fs::write(&other, serde_json::to_string_pretty(&old).unwrap()).unwrap();
@@ -467,8 +509,10 @@ fn sentence_starts(pool: &[&str], sentences: &[usize]) -> Vec<usize> {
 /// The chunker's reader skips a sentence with chunks that chunk tags
 /// cannot express: one with part of a chunk that crosses into another sentence,
 /// or with two chunks over a token. The same chunk given twice is one
-/// chunk. The gate run records the skipped sentences, and a recipe fails
-/// when either side skips more than one in ten, before any training.
+/// chunk. The gate run records the skipped sentences and the chunks in no
+/// sentence, and a recipe fails when either side skips more than one in
+/// ten, before any training, or on the recorded release skips other
+/// counts than the recorded ones.
 #[test]
 fn sentences_whose_chunks_cross_or_overlap_are_skipped_by_the_chunker_and_bounded() {
     let root = temp_dir("chunk-skips");
@@ -484,21 +528,60 @@ fn sentences_whose_chunks_cross_or_overlap_are_skipped_by_the_chunker_and_bounde
     let (split, _) = split_of(&root);
     let chunks = CHUNKS.held_out(&split.held_out).unwrap();
     assert_eq!((chunks.len(), chunks.skipped().total()), (320, 0));
+    let read = chunks.chunks().chunks;
+    assert_eq!(chunks.chunks(), &ChunksCard { chunks: read, ..ChunksCard::default() });
 
     // a noun chunk from the first sentence's last token into the second,
     // and a verb chunk over `Smith said` in the third
     add_chunk(&root, &held, "nc", 1, &[14, 15]);
     add_chunk(&root, &held, "vc", 2, &[21, 22]);
+    // a noun chunk of a Penn token no sentence has, and a verb chunk of
+    // no token: in no sentence, so no sentence is skipped for them
+    add_chunk(&root, &held, "nc", 3, &[99_999]);
+    add_chunk(&root, &held, "vc", 4, &[]);
     let (split, digest) = split_of(&root);
     let chunks = CHUNKS.held_out(&split.held_out).unwrap();
     assert_eq!(chunks.skipped(), Skipped { partial_chunk: 2, overlapping_chunks: 1, ..Skipped::default() });
     assert_eq!(chunks.len(), 317);
+    let left_out = ChunksCard { chunks: read + 4, outside_sentences: 1, across_sentences: 1, without_tokens: 1 };
+    assert_eq!(chunks.chunks(), &left_out);
     let trained = CHUNKS.train(&split.train).unwrap();
+    assert_eq!(trained.chunks, Some(chunk::chunk_counts(&split.train)));
     let gated = Recipe::Chunk(CHUNKS)
         .gate(&trained.bytes, "itself", &trained.bytes, &split.held_out, &held_out_name(), &digest.sha256)
         .unwrap();
     assert_eq!((gated.held_out.samples, gated.held_out.skipped_sentences), (317, 3));
     assert_eq!((gated.record.set.skipped_sentences, gated.record.units.len()), (3, 317));
+    assert_eq!(gated.held_out.chunks, Some(left_out));
+
+    // On the recorded release the sentences skipped must be the counts
+    // the recipe records (1,872 training, 349 held out), checked before
+    // training and after it; on another corpus only the bound applies.
+    let e = Recipe::Chunk(CHUNKS).check_data(&split, true, "reference", None).unwrap_err();
+    assert!(
+        matches!(e, Error::SkippedNotRecorded { what: LeftOut::TrainingSentences, count: 0, recorded: 1872 }),
+        "{e:?}"
+    );
+    assert_eq!(e.to_string(), "0 training sentences skipped, not the recorded release's 1872");
+    Recipe::Chunk(CHUNKS).check_data(&split, false, "reference", None).unwrap();
+    let e = run(&Recipe::Chunk(CHUNKS), &split, &digest, true, "itself", &trained.bytes).unwrap_err();
+    assert!(
+        matches!(e, Error::SkippedNotRecorded { what: LeftOut::TrainingSentences, count: 0, recorded: 1872 }),
+        "{e:?}"
+    );
+    chunk::check_recorded_skips(LeftOut::TrainingSentences, 1872).unwrap();
+    chunk::check_recorded_skips(LeftOut::HeldOutSentences, 349).unwrap();
+    let e = chunk::check_recorded_skips(LeftOut::HeldOutSentences, 350).unwrap_err();
+    assert!(
+        matches!(e, Error::SkippedNotRecorded { what: LeftOut::HeldOutSentences, count: 350, recorded: 349 }),
+        "{e:?}"
+    );
+    assert_eq!(e.to_string(), "350 held-out sentences skipped, not the recorded release's 349");
+    assert!(chunk::check_recorded_skips(LeftOut::TrainingSentences, 1871).is_err());
+    Recipe::Chunk(CHUNKS).check_recorded_skips(false, LeftOut::TrainingSentences, 0).unwrap();
+    for recipe in RECIPES.into_iter().filter(|r| !matches!(r, Recipe::Chunk(_))) {
+        recipe.check_recorded_skips(true, LeftOut::TrainingSentences, 0).unwrap();
+    }
 
     // A verb chunk over the first two tokens of each sentence of another
     // held-out document: 43 of 320 is more than one in ten.
@@ -521,7 +604,7 @@ fn sentences_whose_chunks_cross_or_overlap_are_skipped_by_the_chunker_and_bounde
     let message = CHUNKS.held_out(&split.held_out).unwrap_err().to_string();
     assert_eq!(message, "43 of 320 held-out sentences skipped, more than the limit of 1 in 10");
     // The check made before training finds it too.
-    let checked = Recipe::Chunk(CHUNKS).check_data(&split, "reference", None).unwrap_err();
+    let checked = Recipe::Chunk(CHUNKS).check_data(&split, false, "reference", None).unwrap_err();
     assert_eq!(checked.to_string(), message);
 
     // Training sentences are bounded the same way, before any training:
@@ -627,7 +710,7 @@ fn the_chunker_refuses_a_corpus_read_without_its_chunk_files() {
     let split = SPLIT.apply(MascCorpus::read(&root).unwrap(), &root).unwrap();
     let err = CHUNKS.held_out(&split.held_out).unwrap_err();
     assert!(matches!(err, Error::Masc(turbo_formats::masc::MascError::NoChunks)), "{err:?}");
-    assert!(Recipe::Chunk(CHUNKS).check_data(&split, "reference", None).is_err());
+    assert!(Recipe::Chunk(CHUNKS).check_data(&split, false, "reference", None).is_err());
     assert!(CHUNKS.train(&split.train).is_err());
     std::fs::remove_dir_all(&root).unwrap();
 }
@@ -854,9 +937,9 @@ fn the_tagger_is_scored_over_the_tags_the_reference_can_give_mapping_only_the_re
     );
     // The check made before training finds the same, given the
     // reference; without it, it checks only the samples.
-    let checked = Recipe::Pos(POS).check_data(&split, "reference", Some(&reference.bytes)).unwrap_err();
+    let checked = Recipe::Pos(POS).check_data(&split, false, "reference", Some(&reference.bytes)).unwrap_err();
     assert_eq!(checked.to_string(), err.to_string());
-    Recipe::Pos(POS).check_data(&split, "reference", None).unwrap();
+    Recipe::Pos(POS).check_data(&split, false, "reference", None).unwrap();
     for dir in [root, reference_root] {
         std::fs::remove_dir_all(dir).unwrap();
     }

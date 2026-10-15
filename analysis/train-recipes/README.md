@@ -126,7 +126,11 @@ status is 1 when a gate fails and 2 on an error.
   the recorded release it skips 1,872 of the 24,958 training sentences
   (1,537 with chunks that share a token, 335 with part of a chunk that
   crosses sentences) and 349 of the 6,385 held-out ones (280, 68, and
-  the one sentence of no tokens); no chunk in the release has a gap.
+  the one sentence of no tokens); no chunk in the release has a gap. On
+  the recorded release the recipe fails on any other count of skipped
+  sentences on either side (`chunk::RECORDED_SKIPPED_SENTENCES`), so a
+  change to the reader that skips more or fewer of them is not missed;
+  the one in ten bound is the check on any other corpus.
   Over the whole release, the pairs of chunks that share tokens are
   mostly a noun chunk and a verb chunk, one inside the other or over the
   same tokens (2,120 pairs, such as `all those dogs` and `dogs`, `to
@@ -134,6 +138,24 @@ status is 1 when a gate fails and 2 on an error.
   chunks (56) and chunks that cross (68). The same chunk listed twice in
   one layer is common too (1,793 pairs of verb chunks, 63 of noun
   chunks), and is read as one chunk.
+- What the chunker's samples do not have beyond the skipped sentences:
+  the chunks in no sentence the reader keeps. MASC's sentence layer does
+  not cover all of the text (in `data/written/essays/Ant_Robot` only
+  5,211 of the 10,064 quarks are inside a sentence region), and the
+  reader drops a sentence region that does not end before the next one
+  starts, as OpenNLP's MASC reader drops it (`data/written/jokes/jokes16`
+  keeps 77 of its 171 sentence regions and 1,111 of its 2,290 Penn
+  tokens), so a chunk can name a token no kept sentence has. The card
+  counts, on each side (`training.chunks` and `held_out.chunks`), the
+  chunks of the chunk files, those outside every kept sentence, those
+  whose tokens are in more than one sentence and those with no token.
+  In the recorded
+  release 16,597 of the 221,931 chunks the split reads are outside every
+  kept sentence (13,509 of 183,681 on the training side, 3,088 of 38,250
+  held out), about 7.5% of them, beside 95 whose tokens are in more than
+  one sentence (83 and 12) and 2 with no token (both training). The
+  sentence detector, token and tagger recipes read the same sentences,
+  so their samples do not have that text either.
 - The tagger's gate: MASC's tags are Penn tags, so the reference is
   OpenNLP's English maxent tagger of the 1.5 models, `en-pos-maxent.bin`.
   OpenNLP's only English taggers trained on Penn tags are that one and
@@ -200,9 +222,15 @@ status is 1 when a gate fails and 2 on an error.
   reference is given `:` for three tags MASC writes and its training
   data does not have (`chunk::REFERENCE_TAGS`: `-`, `...` and `;`), as
   the tagger recipe maps them; the trained model reads the tags as MASC
-  writes them. That mapping only ever helps the reference. How MASC's
-  chunks differ from CoNLL-2000's, and which way that leans the gate, is
-  under "The chunker's conventions" below.
+  writes them, and the gate record lists the mapping
+  (`set.scoring.typed_spans.reference_inputs`). The mapping is applied
+  to the reference only, and is worth 0.02 points to it on the held-out
+  set: it scores 82.46 with it and 82.44 without. The held-out samples
+  have 155 `-` and 173 `...` tokens and no `;`. Two more held-out tags
+  have no feature in the reference and are given as written: `LS` (9
+  tokens) and MASC's ``UH` `` (3). How MASC's chunks differ from
+  CoNLL-2000's, and which way that leans the gate, is under "The
+  chunker's conventions" below.
 - Licence: the models are Apache-2.0, trained on CC BY 3.0 US data, so
   their zoo class is permissive; the card carries the attribution CC BY
   asks for, which ships with the model: MASC 3.0.0, by the American
@@ -358,6 +386,14 @@ how well it chunks, and the gate cannot tell the two apart. A pass
 shows that the trained model reproduces MASC's chunks better than the
 reference does, not that it would beat the reference on CoNLL-2000's.
 
+The gate resamples sentences, as the other MASC recipes' gates do, so
+its interval reflects how chunks cluster in sentences but not how
+sentences cluster in documents and genres. Resampled by document (the
+39 held-out documents, with the same 10,000 resamples and seed), the
+difference's interval is +5.53 to +9.99, 4.46 points wide against the
+0.91 of the sentence interval (+6.84 to +7.75), about five times as
+wide, and the gate still passes.
+
 Counted over the gate's held-out samples, with the reference's chunks
 of other types made `O` as the gate scores them (a program written for
 the count, not part of the recipe; the pooled counts give the gate's
@@ -425,7 +461,11 @@ tag the reference cannot give left out, and a
 reference that cannot give most tags refused; the chunker's samples read
 from chunk layers written for the tests, a sentence with part of a chunk
 that crosses sentences or with chunks that share a token skipped and
-counted on both sides and bounded by its own limit, the reference's
+counted on both sides and bounded by its own limit, a chunk of a token
+no sentence has, one across sentences and one of no token counted on
+the card, the skipped sentences checked against the recorded counts
+when the corpus is taken as the recorded release, the gate record's
+`reference_inputs`, the reference's
 chunks of types the gate does not score left out (a reference trained
 with a `PP` chunk scores 100, and would score less if they were
 counted), and a corpus read without its chunk files refused; and the
@@ -434,8 +474,8 @@ of an unrecorded corpus, of a missing or wrong reference, of an
 existing model directory and of held-out data with too many skipped
 sentences before it trains anything, and its output, with the lines it
 prints of each card (`ModelCard::summary`: the samples and skipped
-sentences of both sides, and the held-out tokens left out with their
-tags) checked word for word. It
+sentences of both sides, the held-out tokens left out with their tags,
+and the chunker's chunks in no sentence) checked word for word. It
 also reads the MASC corpora checked in for the goldens
 (`analysis/goldens/data/inputs/formats/masc-*.txt`) with the tagger
 recipe's reader: it reads every sample OpenNLP's `MascPOSSampleStream`

@@ -40,7 +40,7 @@ use turbo_zoo::{Index, Sha256};
 
 pub use error::{Error, LeftOut, Result};
 
-use card::{CorpusCard, HeldOutCard, ModelCard, ParametersCard};
+use card::{ChunksCard, CorpusCard, HeldOutCard, ModelCard, ParametersCard};
 use chunk::ChunkRecipe;
 use masc::{CorpusDigest, SPLIT, SplitCorpus};
 use postag::PosRecipe;
@@ -63,6 +63,9 @@ pub struct Trained {
     pub events: usize,
     /// `Training-Eventhash`.
     pub event_hash: u32,
+    /// For the chunker, the training documents' chunks in no sentence its
+    /// reader reads ([`chunk::chunk_counts`]); `None` for the others.
+    pub chunks: Option<ChunksCard>,
 }
 
 /// A bound on how much a recipe may leave out: at most `count` in every
@@ -335,8 +338,10 @@ impl Recipe {
     /// `split`, without training or scoring, and checks what [`run`]
     /// checks of them: each side has a sample, and the recipe's reader
     /// skips at most [`MAX_SKIPPED_SENTENCES`] of the sentences of either
-    /// side; and for the tagger, given the bytes of its reference (named
-    /// `reference_id`), that the reference can give the tags of all but
+    /// side, and on the recorded release (`recorded`) the counts the
+    /// recipe records ([`Recipe::check_recorded_skips`]); and for the
+    /// tagger, given the bytes of its reference (named `reference_id`),
+    /// that the reference can give the tags of all but
     /// [`MAX_TOKENS_LEFT_OUT`] of the held-out tokens. The binary runs it
     /// for every recipe before it trains any, so a run that would fail on
     /// its data writes nothing.
@@ -344,9 +349,16 @@ impl Recipe {
     /// # Errors
     ///
     /// [`Error::EmptySplit`], [`Error::TooManyLeftOut`],
-    /// [`Error::TagsOutsideReference`], a sample the corpus fails on, or a
-    /// reference that is not a part-of-speech model.
-    pub fn check_data(&self, split: &SplitCorpus, reference_id: &str, reference: Option<&[u8]>) -> Result<()> {
+    /// [`Error::SkippedNotRecorded`], [`Error::TagsOutsideReference`], a
+    /// sample the corpus fails on, or a reference that is not a
+    /// part-of-speech model.
+    pub fn check_data(
+        &self,
+        split: &SplitCorpus,
+        recorded: bool,
+        reference_id: &str,
+        reference: Option<&[u8]>,
+    ) -> Result<()> {
         match self {
             Recipe::Segmentation(r) => {
                 r.check_training(&split.train)?;
@@ -360,11 +372,30 @@ impl Recipe {
                 }
             }
             Recipe::Chunk(r) => {
-                r.check_training(&split.train)?;
-                r.held_out(&split.held_out)?;
+                let skipped = r.check_training(&split.train)?;
+                self.check_recorded_skips(recorded, LeftOut::TrainingSentences, skipped.total())?;
+                let held_out = r.held_out(&split.held_out)?;
+                self.check_recorded_skips(recorded, LeftOut::HeldOutSentences, held_out.skipped().total())?;
             }
         }
         Ok(())
+    }
+
+    /// On the recorded release (`recorded`), checks `skipped`, the
+    /// sentences of `what` the recipe's reader skipped, against the count
+    /// the recipe records: the chunker's
+    /// ([`chunk::RECORDED_SKIPPED_SENTENCES`]). The other recipes record
+    /// none, and a corpus that is not the recorded release is checked by
+    /// the bound on skipped sentences alone.
+    ///
+    /// # Errors
+    ///
+    /// [`Error::SkippedNotRecorded`].
+    pub fn check_recorded_skips(&self, recorded: bool, what: LeftOut, skipped: usize) -> Result<()> {
+        match self {
+            Recipe::Chunk(_) if recorded => chunk::check_recorded_skips(what, skipped),
+            _ => Ok(()),
+        }
     }
 
     /// The reference model's file name ([`Reference::file`]).
@@ -421,9 +452,12 @@ pub fn held_out_name() -> String {
 ///
 /// # Errors
 ///
-/// What training, reading the samples, scoring or the gate fail on, and
+/// What training, reading the samples, scoring or the gate fail on,
 /// [`Error::TooManyLeftOut`] when the recipe's reader skips more than
-/// [`MAX_SKIPPED_SENTENCES`] of the training or of the held-out sentences.
+/// [`MAX_SKIPPED_SENTENCES`] of the training or of the held-out
+/// sentences, and [`Error::SkippedNotRecorded`] when, on the recorded
+/// release, it skips other counts than the recipe records
+/// ([`Recipe::check_recorded_skips`]).
 pub fn run(
     recipe: &Recipe,
     split: &SplitCorpus,
@@ -433,8 +467,10 @@ pub fn run(
     reference: &[u8],
 ) -> Result<Outcome> {
     let trained = recipe.train(&split.train)?;
+    recipe.check_recorded_skips(recorded, LeftOut::TrainingSentences, trained.skipped_sentences)?;
     let GateRun { record: gate, held_out } =
         recipe.gate(&trained.bytes, reference_id, reference, &split.held_out, &held_out_name(), &digest.sha256)?;
+    recipe.check_recorded_skips(recorded, LeftOut::HeldOutSentences, held_out.skipped_sentences)?;
     let corpus = CorpusCard {
         name: masc::NAME.to_owned(),
         corpus_sha256: digest.sha256.clone(),

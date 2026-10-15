@@ -15,17 +15,39 @@
 //! with chunks that chunk tags cannot express is skipped ([`ChunkSkip`]):
 //! it has part of a chunk that crosses into another sentence or names a
 //! token no sentence has, a chunk with a gap, or two chunks that share a
-//! token. MASC's chunk layers
-//! are marked `automatic-validated` in its resource header, and they hold
-//! such chunks: counted with the recipe's reader over the documents the
-//! split reads from the recorded release (the README has the counts), a
-//! noun chunk inside a verb chunk is the most common. A sentence with a
-//! token without a tag, or of no tokens, is skipped as the tagger recipe
-//! skips it. Held-out sentences are skipped the same way. The card
-//! records how many training and held-out sentences were skipped, and the
-//! recipe fails when either is more than [`MAX_SKIPPED_SENTENCES`] of the
-//! sentences read, a bound of its own, wider than the other recipes'
-//! because MASC's chunk layers have more such sentences.
+//! token. MASC's chunk layers are marked `automatic-validated` in its
+//! resource header, and they hold such chunks. Counted with the recipe's
+//! reader over the documents the split reads from the recorded release,
+//! in the sentences that hold no part of a chunk, the pair of chunks that
+//! share a token is most often a verb chunk inside a noun chunk (1,532
+//! pairs: 1,325 in the training documents, 207 in the held-out ones),
+//! mostly a participle or gerund inside a noun phrase (`the wounded
+//! sailor` with a verb chunk `wounded`, `running footsteps` with a verb
+//! chunk `running`); then a noun chunk and a verb chunk over the same
+//! tokens (295), a noun chunk inside a verb chunk (207), chunks that
+//! cross (65), a noun chunk inside a noun chunk (23) and a verb chunk
+//! inside a verb chunk (2). A sentence with a token without a tag, or of
+//! no tokens, is skipped as the tagger recipe skips it. Held-out
+//! sentences are skipped the same way. The card records how many
+//! training and held-out sentences were skipped. On the recorded release
+//! the recipe fails unless they are the counts it records
+//! ([`RECORDED_SKIPPED_SENTENCES`]); on any corpus it fails when either
+//! is more than [`MAX_SKIPPED_SENTENCES`] of the sentences read, a bound
+//! of its own, wider than the other recipes' because MASC's chunk layers
+//! have more such sentences.
+//!
+//! Some chunks are in no sentence the reader reads, so no sample has
+//! them: MASC's sentence layer does not cover all of the text, and a
+//! sentence region that does not end before the next one starts is
+//! dropped, as OpenNLP's MASC reader drops it, so a chunk can name a
+//! token no kept sentence has. The card counts these chunks on each side,
+//! with the chunks whose tokens are in more than one sentence and those
+//! with no token ([`ChunksCard`], [`chunk_counts`]). In the recorded
+//! release 16,597 of the 221,931 chunks of the documents the split reads
+//! are outside every kept sentence: 13,509 of 183,681 in the training
+//! documents and 3,088 of 38,250 in the held-out ones. The other MASC
+//! recipes read the same sentences, so their samples do not have that
+//! text either.
 //!
 //! The reference is OpenNLP's English chunker from the 1.5 models
 //! ([`EN_CHUNKER`]), OpenNLP's only English chunker. Its training data is
@@ -50,14 +72,15 @@
 //! side. The reference reads three tags MASC writes and its training
 //! data does not have (it has no feature for them) as the tag its data
 //! gives the same tokens ([`REFERENCE_TAGS`]); the trained model reads the
-//! tags as MASC writes them.
+//! tags as MASC writes them. The gate record lists that mapping
+//! (`reference_inputs`).
 //!
 //! How MASC's chunks differ from CoNLL-2000's, and which way that leans
 //! the gate, is in the crate's README.
 
-use turbo_eval::model_gate::{Counts, HeldOutSet, ModelGateRecord, ModelId, Task};
+use turbo_eval::model_gate::{Counts, HeldOutSet, ModelGateRecord, ModelId, TagMapping, Task};
 use turbo_formats::evaluate::ChunkerEvaluator;
-use turbo_formats::masc::{ChunkSkip, MascChunkRead, MascChunkReader, MascCorpus, MascError};
+use turbo_formats::masc::{ChunkSkip, MascChunkRead, MascChunkReader, MascCorpus, MascError, MascWarning};
 use turbo_formats::sample::ChunkSample;
 use turbo_formats::sample::chunk::phrase_spans;
 use turbo_formats::source::Field;
@@ -68,7 +91,7 @@ use turbo_train::{TrainingConfiguration, TrainingParameters};
 use turbo_train_components::{ChunkerFactory, Stamp, chunk};
 use turbo_zoo::Sha256;
 
-use crate::card::HeldOutCard;
+use crate::card::{ChunksCard, HeldOutCard};
 use crate::error::{Error, LeftOut, Result};
 use crate::postag::ReferenceMapping;
 use crate::segmentation::{LANGUAGE, TIMESTAMP_MS};
@@ -110,9 +133,14 @@ pub const SPAN_TYPES: SpanTypes = SpanTypes { types: &["NP", "VP"], renamed: &[]
 /// MASC tags some hyphens `-`, ellipses `...` and two semicolons `;`,
 /// which the Penn Treebank's tagged text, and so the reference's data,
 /// tags `:` (the tagger recipe's [`crate::postag::REFERENCE_MAPPINGS`]
-/// has the counts). MASC's brackets are `(` and `)`, as the reference's
-/// are, so they are not mapped. Only the reference's input goes through
-/// this; it only ever helps the reference.
+/// has the counts). The held-out samples have 155 `-` and 173 `...`
+/// tokens and no `;`. MASC's brackets are `(` and `)`, as the
+/// reference's are, so they are not mapped. Two more held-out tags have
+/// no feature in the reference and are given as written: `LS` (9 tokens)
+/// and MASC's ``UH` `` (3 tokens, a tag written with a backtick). The
+/// mapping is applied to the reference's input only, and
+/// the gate record lists it (`reference_inputs`). On the held-out set it
+/// is worth 0.02 points to the reference: 82.46 with it, 82.44 without.
 pub const REFERENCE_TAGS: [ReferenceMapping; 3] = [
     ReferenceMapping { held_out: "-", reference: ":" },
     ReferenceMapping { held_out: "...", reference: ":" },
@@ -125,6 +153,15 @@ pub fn reference_tag(tag: &str) -> &str {
     REFERENCE_TAGS.iter().find(|m| m.held_out == tag).map_or(tag, |m| m.reference)
 }
 
+/// [`REFERENCE_TAGS`] as the gate record writes them
+/// (`reference_inputs`).
+pub fn reference_inputs() -> Vec<TagMapping> {
+    REFERENCE_TAGS
+        .iter()
+        .map(|m| TagMapping { held_out: m.held_out.to_owned(), reference: m.reference.to_owned() })
+        .collect()
+}
+
 /// The most sentences the recipe's reader may skip, of those it reads
 /// from the training documents and, apart, of those it reads from the
 /// held-out documents: one in ten. The other recipes allow one in a
@@ -132,8 +169,44 @@ pub fn reference_tag(tag: &str) -> &str {
 /// more sentences with chunks that chunk tags cannot express (in the
 /// recorded release about one in thirteen of the training sentences and
 /// one in eighteen of the held-out ones; the README has the counts), and
-/// the bound is there to stop a reader that loses far more than that.
+/// the bound is there to stop a reader that loses far more than that on
+/// any corpus. On the recorded release the counts themselves are checked
+/// ([`RECORDED_SKIPPED_SENTENCES`]).
 pub const MAX_SKIPPED_SENTENCES: Limit = Limit { count: 1, of: 10 };
+
+/// The sentences the recipe's reader skips in the recorded release
+/// (corpus digest `445449f5...`, the Twitter genre left out): 1,872 of
+/// the 24,958 training sentences (1,537 with chunks that share a token
+/// and 335 with part of a chunk) and 349 of the 6,385 held-out ones (280,
+/// 68 and the one sentence of no tokens). A run on the recorded release
+/// fails on any other count ([`check_recorded_skips`]), so a change to the
+/// reader that skips more or fewer sentences of it is not missed.
+pub const RECORDED_SKIPPED_SENTENCES: RecordedSkipped = RecordedSkipped { training: 1_872, held_out: 349 };
+
+/// The sentences of each side of the split the reader skips.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct RecordedSkipped {
+    pub training: usize,
+    pub held_out: usize,
+}
+
+/// Checks `skipped`, the sentences of `what` the reader skipped in the
+/// recorded release, against [`RECORDED_SKIPPED_SENTENCES`].
+///
+/// # Errors
+///
+/// [`Error::SkippedNotRecorded`] for another count.
+pub fn check_recorded_skips(what: LeftOut, skipped: usize) -> Result<()> {
+    let recorded = match what {
+        LeftOut::TrainingSentences => RECORDED_SKIPPED_SENTENCES.training,
+        LeftOut::HeldOutSentences => RECORDED_SKIPPED_SENTENCES.held_out,
+    };
+    if skipped == recorded {
+        Ok(())
+    } else {
+        Err(Error::SkippedNotRecorded { what, count: skipped as u64, recorded: recorded as u64 })
+    }
+}
 
 /// `Iterations` of `TrainingParameters.defaultParams()`.
 pub const ITERATIONS: i32 = turbo_train::params::DEFAULT_ITERATIONS;
@@ -196,6 +269,31 @@ pub fn read_samples<'c>(corpus: &'c MascCorpus, mut each: impl FnMut(ChunkSample
     Ok(skipped)
 }
 
+/// The chunks of `corpus` in no sentence the reader reads, by why, as the
+/// documents warned of them when their chunks were placed
+/// (`MascDocument::add_chunks`), and every chunk of the documents' chunk
+/// files: those placed in a sentence and those left out. A document with
+/// chunk files and no Penn tokens (MASC 3.0.0 has none) has no chunks
+/// placed, and its chunks are not counted.
+pub fn chunk_counts(corpus: &MascCorpus) -> ChunksCard {
+    let mut counts = ChunksCard::default();
+    let mut placed = 0;
+    for doc in corpus.documents() {
+        placed += doc.sentences().iter().map(|s| s.chunks().len() as u64).sum::<u64>();
+        for warning in doc.warnings() {
+            let count = match warning {
+                MascWarning::ChunkOutsideSentences { .. } => &mut counts.outside_sentences,
+                MascWarning::ChunkCrossesSentences { .. } => &mut counts.across_sentences,
+                MascWarning::ChunkWithoutTokens { .. } => &mut counts.without_tokens,
+                _ => continue,
+            };
+            *count += 1;
+        }
+    }
+    counts.chunks = placed + counts.outside_sentences + counts.across_sentences + counts.without_tokens;
+    counts
+}
+
 /// Checks the sentences the reader skipped against
 /// [`MAX_SKIPPED_SENTENCES`]: `skipped` of `skipped + read`.
 fn check_skipped(what: LeftOut, skipped: usize, read: usize) -> Result<()> {
@@ -219,6 +317,8 @@ pub fn scored_tag<'t>(tag: &'t str, types: &SpanTypes) -> &'t str {
 pub struct HeldOutChunks<'c> {
     samples: Vec<ChunkSample<'c>>,
     skipped: Skipped,
+    /// The held-out documents' chunks in no sentence the reader reads.
+    chunks: ChunksCard,
     /// The held-out phrases of the types scored.
     spans: u64,
     /// The held-out phrases of other types, made `O`.
@@ -227,14 +327,22 @@ pub struct HeldOutChunks<'c> {
 
 impl<'c> HeldOutChunks<'c> {
     /// The held-out samples of `samples`, their phrases of other types
-    /// than `types` scores made `O` and the renamed ones renamed.
+    /// than `types` scores made `O` and the renamed ones renamed; the
+    /// reader skipped `skipped` sentences and placed `chunks` in no
+    /// sentence ([`chunk_counts`]).
     ///
     /// # Errors
     ///
     /// A chunk tag `ChunkSample` cannot read a phrase from
     /// ([`MascError::Sample`]).
-    pub fn new(samples: Vec<ChunkSample<'c>>, skipped: Skipped, types: &SpanTypes) -> Result<HeldOutChunks<'c>> {
-        let mut out = HeldOutChunks { samples: Vec::with_capacity(samples.len()), skipped, spans: 0, left_out: 0 };
+    pub fn new(
+        samples: Vec<ChunkSample<'c>>,
+        skipped: Skipped,
+        chunks: ChunksCard,
+        types: &SpanTypes,
+    ) -> Result<HeldOutChunks<'c>> {
+        let mut out =
+            HeldOutChunks { samples: Vec::with_capacity(samples.len()), skipped, chunks, spans: 0, left_out: 0 };
         for sample in samples {
             let tags: Vec<&str> = sample.chunks().iter().map(Field::as_str).collect();
             let phrases = phrase_spans(&tags).map_err(MascError::from)?;
@@ -274,6 +382,12 @@ impl<'c> HeldOutChunks<'c> {
     /// The held-out sentences [`read_samples`] skipped.
     pub fn skipped(&self) -> Skipped {
         self.skipped
+    }
+
+    /// The held-out documents' chunks in no sentence the reader reads
+    /// ([`chunk_counts`]).
+    pub fn chunks(&self) -> &ChunksCard {
+        &self.chunks
     }
 
     pub fn len(&self) -> usize {
@@ -402,26 +516,30 @@ impl ChunkRecipe {
             skipped_sentences: skipped.total(),
             events: events.len(),
             event_hash: t.report.event_hash.expect("trained from events"),
+            chunks: Some(chunk_counts(train)),
         })
     }
 
     /// Reads the training samples as [`ChunkRecipe::train`] does, without
-    /// making events, and checks them as it does.
+    /// making events, checks them as it does, and returns the sentences
+    /// the reader skipped.
     ///
     /// # Errors
     ///
     /// As [`ChunkRecipe::train`], but for training.
-    pub fn check_training(&self, train: &MascCorpus) -> Result<()> {
+    pub fn check_training(&self, train: &MascCorpus) -> Result<Skipped> {
         let mut samples = 0;
         let skipped = read_samples(train, |_| samples += 1)?;
         if samples == 0 {
             return Err(Error::EmptySplit { what: "training chunk sample" });
         }
-        check_skipped(LeftOut::TrainingSentences, skipped.total(), samples)
+        check_skipped(LeftOut::TrainingSentences, skipped.total(), samples)?;
+        Ok(skipped)
     }
 
     /// The held-out samples, read as the training samples are, their
-    /// chunk tags of the types scored ([`HeldOutChunks::new`]).
+    /// chunk tags of the types scored, with the held-out documents' chunks
+    /// in no sentence the reader reads ([`HeldOutChunks::new`]).
     ///
     /// # Errors
     ///
@@ -435,7 +553,7 @@ impl ChunkRecipe {
             return Err(Error::EmptySplit { what: "held-out chunk sample" });
         }
         check_skipped(LeftOut::HeldOutSentences, skipped.total(), samples.len())?;
-        HeldOutChunks::new(samples, skipped, &SPAN_TYPES)
+        HeldOutChunks::new(samples, skipped, chunk_counts(held_out), &SPAN_TYPES)
     }
 
     /// Each held-out sample's counts for the chunker in `bytes`, given the
@@ -503,14 +621,18 @@ impl ChunkRecipe {
             corpus_sha256: corpus_sha256.to_owned(),
             samples_sha256: held_out.sha256(&SPAN_TYPES),
             skipped_sentences: held_out.skipped().total() as u64,
-            scoring: SPAN_TYPES.scoring(held_out.spans(), held_out.left_out()),
+            scoring: SPAN_TYPES.scoring(held_out.spans(), held_out.left_out(), reference_inputs()),
         };
         let id = |id: &str, bytes: &[u8]| ModelId { id: id.to_owned(), sha256: Sha256::of(bytes).to_string() };
         let record =
             ModelGateRecord::new(self.task(), set, id(self.model_id, trained), id(reference_id, reference), units)
                 .map_err(Error::Gate)?;
-        let held_out =
-            HeldOutCard { samples: held_out.len(), skipped_sentences: held_out.skipped().total(), tokens: None };
+        let held_out = HeldOutCard {
+            samples: held_out.len(),
+            skipped_sentences: held_out.skipped().total(),
+            tokens: None,
+            chunks: Some(held_out.chunks().clone()),
+        };
         Ok(GateRun { record, held_out })
     }
 }
@@ -576,7 +698,7 @@ mod tests {
             &["B-NP", "I-NP", "B-PP", "B-X"],
         );
         let types = SpanTypes { types: &["NP", "Y"], renamed: &[("X", "Y")] };
-        let held = HeldOutChunks::new(vec![s], Skipped::default(), &types).unwrap();
+        let held = HeldOutChunks::new(vec![s], Skipped::default(), ChunksCard::default(), &types).unwrap();
         let chunks: Vec<&str> = held.samples()[0].chunks().iter().map(Field::as_str).collect();
         assert_eq!(chunks, ["B-NP", "I-NP", "O", "B-Y"]);
         assert_eq!((held.spans(), held.left_out(), held.tokens()), (2, 1, 4));
@@ -589,7 +711,7 @@ mod tests {
         let text = "Dogs ran";
         let one = |chunk: &str| {
             let s = sample(text, &[(0, 4), (5, 8)], &["NNS", "VBD"], &["B-NP", chunk]);
-            HeldOutChunks::new(vec![s], Skipped::default(), &SPAN_TYPES).unwrap()
+            HeldOutChunks::new(vec![s], Skipped::default(), ChunksCard::default(), &SPAN_TYPES).unwrap()
         };
         let mut bytes = Vec::new();
         let put = |bytes: &mut Vec<u8>, s: &str| {

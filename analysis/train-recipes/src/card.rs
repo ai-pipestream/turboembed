@@ -21,10 +21,11 @@ use crate::masc::{self, Split};
 use crate::segmentation::{Component, LANGUAGE, SENTENCES_PER_SAMPLE, TIMESTAMP_MS};
 use crate::{Recipe, Trained, postag};
 
-/// The card's schema version: 3, with the held-out counts, the tag
+/// The card's schema version: 4, with the held-out counts, the tag
 /// formats and the reference's digest, the documents the split leaves
-/// out, and how a tagger's held-out tokens were scored.
-pub const CARD_VERSION: u32 = 3;
+/// out, how a tagger's held-out tokens were scored, and the chunks in no
+/// sentence a chunker's reader reads.
+pub const CARD_VERSION: u32 = 4;
 /// The card's file name in the model's directory.
 pub const CARD_FILE: &str = "card.json";
 /// The gate record's file name in the model's directory.
@@ -75,6 +76,31 @@ pub struct ParametersCard {
     pub threads: i32,
 }
 
+/// The chunks of one side of the split that are in no sentence the
+/// chunker's reader reads, by why ([`crate::chunk::chunk_counts`]), and
+/// the chunks of that side's chunk files. A sentence the reader skips
+/// loses the chunks it holds too; those are not counted here.
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ChunksCard {
+    /// The noun and verb chunks of the chunk files of the documents read
+    /// with Penn tokens.
+    pub chunks: u64,
+    /// Chunks that name a Penn token no kept sentence has
+    /// (`MascWarning::ChunkOutsideSentences`): MASC's sentence layer does
+    /// not cover all of the text, and a sentence region that does not end
+    /// before the next one starts is dropped, as OpenNLP drops it. The
+    /// other MASC recipes read the same sentences, so the text of these
+    /// chunks is in none of their samples either.
+    pub outside_sentences: u64,
+    /// Chunks whose tokens are all in kept sentences but not all in one
+    /// (`MascWarning::ChunkCrossesSentences`).
+    pub across_sentences: u64,
+    /// Chunks with no edge to a Penn token
+    /// (`MascWarning::ChunkWithoutTokens`).
+    pub without_tokens: u64,
+}
+
 /// What training read and made.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -96,6 +122,9 @@ pub struct TrainingCard {
     pub skipped_sentences: usize,
     pub events: usize,
     pub event_hash: u32,
+    /// For a chunker, the training documents' chunks in no sentence its
+    /// reader reads; `null` for the other components.
+    pub chunks: Option<ChunksCard>,
 }
 
 /// What the gate read from the held-out documents.
@@ -111,6 +140,9 @@ pub struct HeldOutCard {
     /// For a tagger, how its held-out tokens were scored; `null` for the
     /// other components.
     pub tokens: Option<TokenCoverage>,
+    /// For a chunker, the held-out documents' chunks in no sentence its
+    /// reader reads; `null` for the other components.
+    pub chunks: Option<ChunksCard>,
 }
 
 /// How a tagger's held-out tokens were scored: over the tokens whose tag
@@ -278,6 +310,7 @@ impl ModelCard {
                 skipped_sentences: trained.skipped_sentences,
                 events: trained.events,
                 event_hash: trained.event_hash,
+                chunks: trained.chunks.clone(),
             },
             held_out,
             gate: GateCard {
@@ -385,8 +418,10 @@ impl ModelCard {
 
 /// What a run prints of a card before its gate record
 /// ([`ModelCard::summary`]): a line of the training and held-out samples
-/// and the sentences each side skipped, and for a tagger a second line of
-/// the held-out tokens left out of the scores, with their tags as written.
+/// and the sentences each side skipped; for a tagger a second line of
+/// the held-out tokens left out of the scores, with their tags as
+/// written; and for a chunker a line for each side of its chunks in no
+/// sentence its reader reads ([`ChunksCard`]).
 #[derive(Clone, Copy, Debug)]
 pub struct Summary<'c>(&'c ModelCard);
 
@@ -422,6 +457,15 @@ impl fmt::Display for Summary<'_> {
             }
             for (i, t) in tokens.left_out.iter().enumerate() {
                 write!(f, "{} {} ({})", if i == 0 { "" } else { "," }, t.tag, t.tokens)?;
+            }
+        }
+        for (side, chunks) in [("training", &card.training.chunks), ("held-out", &card.held_out.chunks)] {
+            if let Some(c) = chunks {
+                write!(
+                    f,
+                    "\n{}: of {} {side} chunks, {} outside every kept sentence, {} across sentences, {} without tokens",
+                    card.id, c.chunks, c.outside_sentences, c.across_sentences, c.without_tokens
+                )?;
             }
         }
         Ok(())
