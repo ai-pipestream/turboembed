@@ -17,6 +17,7 @@ pub mod annotator;
 pub mod dec;
 pub mod engine;
 pub mod lang;
+pub mod time;
 pub mod value;
 
 pub use annotator::{Found, GRAMMAR, GRAMMAR_NUMBERS, GRAMMAR_PERCENTS, GrammarAnnotator};

@@ -2,11 +2,13 @@
 //! chart parser with its ranking and selection.
 
 pub mod chart;
+pub mod interned;
 pub mod lexer;
 pub mod numeral;
 pub mod rule;
 
 pub use chart::{CELL, Chart, Mention, Node, Parser, TERMINAL};
+pub use interned::Interned;
 pub use lexer::{Kind, Lexed, Lexeme};
 pub use numeral::{NumeralStyle, Reading};
 pub use rule::{

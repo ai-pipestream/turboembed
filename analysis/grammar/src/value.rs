@@ -112,7 +112,14 @@ pub enum Value {
     Ordinal(Ordinal),
     Relative(Relative),
     Percent(Dec),
+    /// A time expression, kept in the parse's [`crate::engine::Interned`]
+    /// table.
+    Time(TimeId),
 }
+
+/// The index of a time value in its parse's table.
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
+pub struct TimeId(pub u32);
 
 impl Value {
     pub fn num(&self) -> Option<&Num> {
