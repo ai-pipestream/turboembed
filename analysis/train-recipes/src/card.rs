@@ -95,6 +95,56 @@ pub struct TrainingCard {
     pub event_hash: u32,
 }
 
+/// What the gate read from the held-out documents.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct HeldOutCard {
+    /// The samples scored, a unit of the gate each.
+    pub samples: usize,
+    /// Held-out sentences the recipe's reader skipped, for the reasons it
+    /// skips training sentences ([`TrainingCard::skipped_sentences`]);
+    /// at most [`crate::MAX_SKIPPED_SENTENCES`] of those read.
+    pub skipped_sentences: usize,
+    /// For a tagger, how its held-out tokens were scored; `null` for the
+    /// other components.
+    pub tokens: Option<TokenCoverage>,
+}
+
+/// How a tagger's held-out tokens were scored: both models' tags and the
+/// held-out tags compared in the reference's spelling, over the tokens
+/// whose tag the reference can give ([`postag::ReferenceTags`]).
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct TokenCoverage {
+    /// The tokens of the held-out samples.
+    pub tokens: u64,
+    /// The tags scored as the reference writes them
+    /// ([`postag::REFERENCE_SPELLINGS`]).
+    pub spellings: Vec<SpellingCard>,
+    /// The tokens left out of both models' scores because the reference
+    /// cannot give their tag, by that tag in the reference's spelling,
+    /// sorted by tag; at most [`crate::MAX_TOKENS_LEFT_OUT`] of `tokens`.
+    pub left_out: Vec<TagCount>,
+}
+
+/// A tag scored as the reference writes it.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct SpellingCard {
+    /// The tag as MASC, and so the trained model, writes it.
+    pub masc: String,
+    /// The tag the reference gives the same tokens.
+    pub reference: String,
+}
+
+/// How many held-out tokens have a tag.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct TagCount {
+    pub tag: String,
+    pub tokens: u64,
+}
+
 /// The tags a tagger was scored in, as `POSTaggerME` returns them for a
 /// `POSTagFormat`.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -128,7 +178,10 @@ impl TagFormat {
 #[serde(deny_unknown_fields)]
 pub struct GateCard {
     pub record: String,
+    /// The reference's id and the SHA-256 of its file, as the record
+    /// names them.
     pub reference: String,
+    pub reference_sha256: String,
     /// For a tagger, the tags the trained model was scored in; `null`
     /// for the other components.
     pub candidate_tag_format: Option<TagFormat>,
@@ -160,12 +213,20 @@ pub struct ModelCard {
     pub attribution: String,
     pub corpus: CorpusCard,
     pub training: TrainingCard,
+    pub held_out: HeldOutCard,
     pub gate: GateCard,
 }
 
 impl ModelCard {
-    /// The card of a model `recipe` trained, gated by `gate`.
-    pub fn new(recipe: &Recipe, trained: &Trained, corpus: CorpusCard, gate: &ModelGateRecord) -> ModelCard {
+    /// The card of a model `recipe` trained, gated by `gate` on what
+    /// `held_out` describes.
+    pub fn new(
+        recipe: &Recipe,
+        trained: &Trained,
+        corpus: CorpusCard,
+        held_out: HeldOutCard,
+        gate: &ModelGateRecord,
+    ) -> ModelCard {
         let trained_on = vec![masc::training_data()];
         let class = class_of(std::iter::once(MODEL_LICENCE).chain(trained_on.iter().map(|t| t.license)));
         let r = &gate.result;
@@ -211,9 +272,11 @@ impl ModelCard {
                 events: trained.events,
                 event_hash: trained.event_hash,
             },
+            held_out,
             gate: GateCard {
                 record: GATE_FILE.to_owned(),
                 reference: gate.reference.id.clone(),
+                reference_sha256: gate.reference.sha256.clone(),
                 candidate_tag_format,
                 reference_tag_format,
                 candidate_score: r.candidate.score,
@@ -230,11 +293,13 @@ impl ModelCard {
     /// # Errors
     ///
     /// [`Error::NotShippable`] when the model may not leave the machine it
-    /// was trained on ([`publishable_class`]), the gate failed or the
-    /// corpus is not the recorded release; [`Error::InvalidCard`] for a
-    /// `class` other than the one the licences give, or an address or
-    /// field the index refuses.
+    /// was trained on ([`publishable_class`]), no recipe trains the model,
+    /// the gate was not run against the recipe's reference (its id and
+    /// SHA-256), the gate failed, or the corpus is not the recorded
+    /// release; [`Error::InvalidCard`] for a `class` other than the one the
+    /// licences give, or an address or field the index refuses.
     pub fn artifact(&self, url: &str) -> Result<Artifact> {
+        let not = |reason| Error::NotShippable { id: self.id.clone(), reason };
         let class = publishable_class(&self.id, self.license, &self.trained_on)?;
         if class != self.class {
             return Err(Error::InvalidCard {
@@ -242,8 +307,13 @@ impl ModelCard {
                 message: format!("{} is not {class}, the class its licences give", self.class),
             });
         }
+        let recipe = Recipe::trains(&self.id).ok_or(not("no recipe trains it"))?;
+        let reference = recipe.reference();
+        if self.gate.reference != reference.id() || self.gate.reference_sha256 != reference.sha256()? {
+            return Err(not("it was not gated against its recipe's reference"));
+        }
         if !self.gate.pass {
-            return Err(Error::NotShippable { id: self.id.clone(), reason: "it failed its gate" });
+            return Err(not("it failed its gate"));
         }
         if !self.corpus.release_recorded {
             return Err(Error::NotShippable {
