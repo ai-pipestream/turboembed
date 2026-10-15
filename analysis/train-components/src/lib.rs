@@ -1,7 +1,7 @@
 //! Training OpenNLP's components: the event streams, the factories that
 //! set them up, the model files the `train` methods of `SentenceDetectorME`,
-//! `TokenizerME`, `POSTaggerME` and `LemmatizerME` return, and the
-//! reproduction of the published UD 1.3 models.
+//! `TokenizerME`, `POSTaggerME`, `LemmatizerME` and `LanguageDetectorME`
+//! return, and the reproduction of the published UD 1.3 models.
 //!
 //! - [`sentdetect`][]: `SentenceDetectorFactory`, the events of
 //!   `SDEventStream`, and the `SentenceModel` file.
@@ -12,6 +12,8 @@
 //!   dictionary.
 //! - [`lemmatize`][]: `LemmatizerFactory`, the events of
 //!   `LemmaSampleEventStream`, and the `LemmatizerModel` file.
+//! - [`langdetect`][]: `LanguageDetectorFactory`, the events of
+//!   `LanguageDetectorEventStream`, and the `LanguageDetectorModel` file.
 //! - [`dictionary`][]: the abbreviation dictionary as `Dictionary.serialize`
 //!   writes it, entries in Java's hash set order.
 //! - [`tagdict`][]: the tag dictionary as `POSDictionary.serialize` writes
@@ -24,13 +26,13 @@
 //!   with, as typed recipes, and the comparison with the published files.
 //!
 //! The samples come from `turbo-formats`, the context generators from
-//! `turbo-sentdetect`, `turbo-tokenize`, `turbo-sequence` and
-//! `turbo-lemmatizer`, and the trainer, writer and packaging from
-//! `turbo-train`; this crate connects them as the `train` methods do, so
-//! training and inference share one implementation of each context
-//! generator. It is a crate of its own because `turbo-formats` depends on
-//! `turbo-tokenize`, so a training module inside the annotator crates
-//! would close a cycle.
+//! `turbo-sentdetect`, `turbo-tokenize`, `turbo-sequence`,
+//! `turbo-lemmatizer` and `turbo-langdetect`, and the trainer, writer and
+//! packaging from `turbo-train`; this crate connects them as the `train`
+//! methods do, so training and inference share one implementation of each
+//! context generator. It is a crate of its own because `turbo-formats`
+//! depends on `turbo-tokenize`, so a training module inside the annotator
+//! crates would close a cycle.
 //!
 //! OpenNLP behaviour a reader may not expect, all kept and tested:
 //!
@@ -93,10 +95,19 @@
 //!   as the JVM's modified UTF-8.
 //! - The published UD 1.3 models were trained with 300 iterations, not
 //!   the 150 their training configuration file says ([`ud`][]).
+//! - A language detector event's predicates are the n-grams in the
+//!   iteration order of the `HashMap` `getContext` counts them in, not the
+//!   order `predictLanguages` hands the model; the two differ only where a
+//!   bucket became a red-black tree. A text the normalizers leave empty
+//!   gives an event with no predicates, which the indexer drops.
+//! - The published `langdetect-183.bin` records no training parameters in
+//!   its manifest, only `TrainerType=Event` and the event hash
+//!   ([`langdetect::default_training_parameters`]).
 
 pub mod dictionary;
 pub mod error;
 pub mod java_hash;
+pub mod langdetect;
 pub mod lemmatize;
 pub mod package;
 pub mod postag;
@@ -107,6 +118,7 @@ pub mod ud;
 
 pub use dictionary::AbbreviationDictionary;
 pub use error::{Error, Result};
+pub use langdetect::{LanguageDetectorFactory, LanguageEventStream, language_events, train_language_model};
 pub use lemmatize::{LemmaEventStream, LemmatizerFactory, lemma_events, train_lemmatizer_model};
 pub use package::Stamp;
 pub use postag::{PosEventStream, PosTaggerFactory, pos_events, train_pos_model};

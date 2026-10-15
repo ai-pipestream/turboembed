@@ -2139,6 +2139,7 @@ dependencies = [
  "turbo-formats",
  "turbo-goldens",
  "turbo-jvm",
+ "turbo-langdetect",
  "turbo-lemmatizer",
  "turbo-maxent",
  "turbo-sentdetect",
