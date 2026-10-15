@@ -2601,7 +2601,7 @@ record.
 chunker is to be measured with (#154). It holds the evaluation sets, the
 pipeline, the baseline chunkers, the measures, the significance tests,
 the record, the gate and the `turbo-eval` binary. The baseline records
-under `analysis/eval/records` come next.
+are under `analysis/eval/records/<pipeline>/<set>.json`.
 
 ### The pipeline
 
@@ -2751,20 +2751,52 @@ a `sha256sum` style manifest of the files read, sorted by path.
 |---|---|---|---|---|
 | `scifact`, `nfcorpus`, `arguana` | BEIR layout, from MTEB's plain copies at a recorded revision | CC BY-SA 4.0 (BEIR dataset cards) | none | recorded |
 | `legalbench-rag-mini` | a shared folder, placed by hand | MIT for the benchmark; the documents under their sources' terms | code points, converted after Python's newline translation; the mini subset is chosen with a port of CPython's `random` | none (no stable file URLs) |
-| `conteb-covid-qa` | Parquet, read as JSON Lines rows | none stated, so refused | the judged chunk | not recorded yet |
-| `gutenqa` | Parquet, read as JSON Lines rows | MIT (dataset card) | the quoted passage, located in its chunk | recorded |
-| `hicbench` | no published copy found | none stated, so refused | quoted sentences, located in the document | none |
+| `conteb-covid-qa` | Parquet | none for the article text, so refused (below) | the judged chunk | not recorded yet |
+| `conteb-squad` | Parquet, ConTEB's SQuAD set (`illuin-conteb/squad-conteb-eval`, revision 8f81cbd), validation split | CC BY-SA 4.0 (SQuAD over Wikipedia; downloaded at use, never bundled) | the judged chunk | recorded |
+| `gutenqa` | Parquet | MIT (dataset card) | the quoted passage, located in its chunk as written or, failing that, with quotation marks dropped and whitespace runs made one space in both texts | recorded |
+| `hicbench` | no copy that can be fetched | none stated, so refused (below) | quoted sentences, located in the document | none |
 | `qasper` | gzip tar, test split | CC BY 4.0 | quoted evidence, located by paragraph or text | recorded |
 
-The workspace has no Parquet reader, so ConTEB's and GutenQA's tables
-have to be converted to JSON Lines (one object per row, the column
-names as keys) outside the crate. Chunked sets are joined into
+ConTEB's and GutenQA's tables are read from the published Parquet files
+by the crate's own reader (`read::parquet`): flat tables of string and
+integer columns, PLAIN and dictionary pages in data page versions 1 and
+2, nulls, and the SNAPPY (a decompressor in the crate), GZIP (`flate2`,
+already in the build) and UNCOMPRESSED codecs, which is what pyarrow
+writes by default. Other encodings and codecs (ZSTD among them) are
+refused with an error naming them, and a column is read by name, so a
+reader reads only the columns it uses. Each file with a recorded digest
+is checked on the bytes the reader parses, so it is read and hashed
+once. Dropping quotation marks in GutenQA's loose match can join words
+(“Yes”“No” matches "YesNo", "its" matches "it's"), which is unlikely
+to misplace a GutenQA passage. Chunked sets are joined into
 documents with a line break between chunks. Evidence a reader cannot
 place in its document is listed in `LoadedSet.unplaced` rather than
 dropped silently. A BEIR judgement naming a document the corpus does
 not have (ArguAna's test split has 5) is kept and listed in
 `LoadedSet.absent`: it counts as relevant and is never retrieved, as
 `trec_eval` scores it, and `run` prints how many there were.
+
+Two sets stay refused (checked 2026-10-15; the set files carry the
+links):
+
+- `conteb-covid-qa`: ConTEB's card states no licence and reserves all
+  rights to the original document authors, and none of the
+  illuin-conteb datasets carries a licence. The source, deepset's
+  COVID-QA, is Apache 2.0 for its annotations, but its contexts are the
+  full text of 147 CORD-19 articles, and CORD-19 passes each article on
+  under the article's own licence, some of which restrict
+  redistribution or commercial use. Its replacement is
+  ConTEB's SQuAD set, `conteb-squad` (`illuin-conteb/squad-conteb-eval`,
+  revision 8f81cbd, validation split, same tables plus an `offset`
+  column): the card states no licence either, but its source states
+  one: SQuAD (`rajpurkar/squad`) is CC BY-SA 4.0, and its passages are
+  Wikipedia text under the same licence, which ConTEB's chunks
+  reproduce. It takes the same reader, and its data is downloaded at use
+  and never bundled.
+- `hicbench`: HiChunk's repository links no copy of the data, and the
+  copy the paper names (`Youtu-RAG/HiCBench` on the hub) cannot be
+  opened; neither states a licence. Its documents come from OHR-Bench
+  (CC BY 4.0), but its questions and evidence are its own.
 
 ### The binary
 
@@ -2806,7 +2838,14 @@ session path on the small BERT bundle in `testdata/tiny-bert-bundle`;
 no test runs all-MiniLM-L6-v2, which is not in the tree. Each reader
 is checked on a small sample made for the tests
 (`analysis/eval/tests/data/`): typed values, offset conversion on
-non-ASCII text, and errors with file and line. None needs the network.
+non-ASCII text, and errors with file and line (or row, for Parquet).
+The Parquet reader is checked on small files pyarrow wrote (SNAPPY and
+dictionary pages in version 1 pages, GZIP in version 2 pages, a
+dictionary that fills up and falls back to PLAIN, several row groups,
+nulls, PLAIN and uncompressed, and a ZSTD file it refuses; the script
+is in `analysis/eval/tests/parquet.rs`), on files a writer in the tests
+makes, for damaged values, and on hand made pages and footers for
+damaged sizes, counts and levels. None needs the network.
 
 ## Tests
 
@@ -3031,10 +3070,9 @@ runs them on any machine:
   `SentenceVectorsDL` on golden inputs, which needs the JVM container,
   and a measurement of documents per second through the vector steps.
   The tests build their layers by hand or with toy annotators.
-- The rest of the evaluation harness: the committed baseline records,
-  the digests of the sets not fetched yet, a Parquet reader or a fetched
-  JSON copy for ConTEB and GutenQA, a published copy and licence for
-  HiCBench, and the chunker's records on it. It is also where the BM25 only baseline
+- The rest of the evaluation harness: baseline records for
+  `legalbench-rag-mini`, which is placed by hand, a published copy and
+  licence for HiCBench, and the chunker's records on it. It is also where the BM25 only baseline
   is to be reported, from the term statistics above, and what each
   level and each kind of level vector adds.
 - A gRPC surface, to be shared with the OpenNLP standard.
