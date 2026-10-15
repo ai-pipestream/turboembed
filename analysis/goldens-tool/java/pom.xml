@@ -3,8 +3,8 @@
   The golden file generator: runs OpenNLP 3.x annotators over the input texts
   and writes what they produced in the golden layer format (docs/analysis.md).
   It depends on nothing but the OpenNLP runtime built from the pinned fork
-  commit and the numeric module of the OpenNLP addons built from a pinned
-  commit; JUnit is used for its tests only.
+  commit and the numeric and geo modules of the OpenNLP addons built from a
+  pinned commit; JUnit is used for its tests only.
 -->
 <project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
   <modelVersion>4.0.0</modelVersion>
@@ -32,6 +32,12 @@
     <dependency>
       <groupId>org.apache.opennlp.addons</groupId>
       <artifactId>numeric</artifactId>
+      <version>${opennlp.addons.version}</version>
+    </dependency>
+    <!-- The gazetteers (GazetteerGolden). -->
+    <dependency>
+      <groupId>org.apache.opennlp.addons</groupId>
+      <artifactId>geo</artifactId>
       <version>${opennlp.addons.version}</version>
     </dependency>
     <dependency>

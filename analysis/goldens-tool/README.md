@@ -173,6 +173,7 @@ a directory with the same model run without them, and its options are
 | `ner` (the named entity corpus streams) | `germeval-outer`, `germeval-inner`, `germeval-outer-loc-misc`, `bionlp`, `bionlp-cell-line`, `bionlp-dna-cell-type`, `evalita`, `evalita-per-gpe`, `census`, `muc6-whitespace` (also `+legacy`), `muc6-simple`, `brat-whitespace` (also `+legacy`), `brat-simple`, `brat-recursive-person-location`, `brat-config` | `ner`, the inputs whose id starts with the corpus's prefix (`germeval-`, `bionlp-`, `evalita-`, `census-`, `muc-`, `brat-`) | `types`, `layer`, `lang it`, `tokenizer`, `recursive true`, `nameTypes`, `whitespace legacy` |
 | `parse` (`ParseSampleStream`, `Parse.parseParse`) | `treebank`, `treebank+function-tags`; `en-head-rules`, `en-head-rules+possessives`, `es-head-rules`, `es-regex-head-rules` (fixtures) | `parse` | `useFunctionTags true`; `rules`, `fixPossesives true` |
 | `head-rules` (`HeadRules`, `AncoraSpanishHeadRules`) | `en`, `es` | `head-rules` | |
+| `gazetteer` (the addons `geo` module) | `naturalearth-populated-places` (the bundled table), `gazetteer-geonames`, `gazetteer-overture`, `gazetteer-user`, `overlay` (fixtures); `load-geonames`, `load-overture`, `load-user`, `load-suppressions` | `gazetteer`: the `names`, `ids` and `regions` inputs for the first five, the `table-<kind>-` inputs for the load runs | `source sites` for the user table |
 | `string-pattern` (`StringPattern`, `FeatureGeneratorUtil.tokenFeature`) | `utf16-units`, `code-points` | `sequence` | `mode`; `branchCommit` for `code-points` |
 | `features` (`GeneratorFactory`, `DefaultPOSContextGenerator`) | `pos-default`, `ner-default`, `everything`, `nesting` (fixtures, `featuregen/`), `default-pos-context`, `default-pos-context+names-dictionary`; `errors` | `sequence` (the `sentences` input); `errors` on `descriptor-errors` | `adaptiveData` for the descriptors |
 | `codec` (`BioCodec`, `BilouCodec`) | `bio`, `bilou` | `codec`, the input of the codec's name | `compatibleOutcomes` |
@@ -602,6 +603,35 @@ from the rule file `inputs/head-rules/<id>.txt`: `turbo:head-rules`, the
 lines `serialize` wrote, or `turbo:rules-errors`, what the reader threw.
 `analysis/parser/tests/goldens.rs` compares the Rust reader, writer and
 rule classes with both.
+
+## Gazetteer goldens
+
+`gazetteer/<run>/gazetteer/<id>.golden` is what a gazetteer of the addons
+`geo` module (built from the same addons commit as the `numeric` module)
+answered for each line of `inputs/gazetteer/<id>.txt`, the input split at
+line feeds: `lookup` for a `names` input, `byId` for an `ids` input (a
+source and a record id per line, split at the first tab) and `byRegion`
+for a `regions` input. `GazetteerGolden` asks the bundled gazetteer
+(`BundledGazetteer.getInstance()`, whose resource's SHA-512 is the
+golden's model record), the GeoNames, Overture and user gazetteers over
+the fixture tables, and an `OverlayGazetteer` with the bundled gazetteer
+as its base, the user table as additions and the fixture suppression
+rules. The layers are `turbo:gazetteer-sources` (sorted, since the
+module's sets have no order), `turbo:gazetteer-queries` (per line, how
+many entries came back, or the exception), `turbo:gazetteer-candidates`
+(the entries of each line in order, as indices into the next layer),
+`turbo:gazetteer-entries` (each entry found, once, with every field),
+`turbo:gazetteer-alternates`, `turbo:gazetteer-containment` and
+`turbo:gazetteer-attributes` (sorted by key). The `load-<kind>` runs load
+each `table-<kind>-` input as a table of that kind and write
+`turbo:gazetteer-load` (whether it loaded, or the exception) and
+`turbo:gazetteer-suppressions` (the rules of a suppression table).
+`analysis/geo/tests/jvm_goldens.rs` asks the Rust gazetteers the same and
+compares every cell.
+
+The OpenNLP commit of the recipe has no `StringUtil.stripByteOrderMark`, which
+two readers of the module call; the Dockerfile replaces both calls with
+the expression the method returns before building the module.
 
 ## Evaluator goldens
 
