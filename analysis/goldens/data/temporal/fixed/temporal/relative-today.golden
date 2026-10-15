@@ -1,0 +1,15 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	temporal/relative-today	69	69	dd2b6e7f7fc322fa05da26b97e646cb7d252f120d7e864011ce31468f8708917
+annotator	opennlp.tools.temporal.CursorTemporalExtractor	extract
+config	reference	2026-03-15
+layer	turbo:temporal	text	3	start:u32	end:u32	value:str	granularity:str	origin:str
+0	5	2026-03-15	DAY	RELATIVE
+25	34	2026-03-14	DAY	RELATIVE
+51	59	2026-03-16	DAY	RELATIVE
+end	turbo:temporal
+layer	turbo:document-date	document	0	date:str	mention:u32
+end	turbo:document-date

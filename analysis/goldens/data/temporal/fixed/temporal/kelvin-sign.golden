@@ -1,0 +1,14 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	temporal/kelvin-sign	41	37	d7c7372c62b0dd4dae64d287cdac93cc46372e563ca027145da615b62b4dc023
+annotator	opennlp.tools.temporal.CursorTemporalExtractor	extract
+config	reference	2026-03-15
+layer	turbo:temporal	text	2	start:u32	end:u32	value:str	granularity:str	origin:str
+0	11	2026-W12	WEEK	RELATIVE
+16	27	2026-W10	WEEK	RELATIVE
+end	turbo:temporal
+layer	turbo:document-date	document	0	date:str	mention:u32
+end	turbo:document-date
