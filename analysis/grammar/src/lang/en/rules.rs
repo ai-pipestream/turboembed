@@ -23,69 +23,69 @@ use super::{
 // category holds one kind of value, so these cannot fail on a rule's own
 // children.
 
-fn num(v: &Value) -> Num {
+pub(crate) fn num(v: &Value) -> Num {
     *v.num().expect("a number child")
 }
 
-fn term(v: &Value) -> (i64, u8) {
+pub(crate) fn term(v: &Value) -> (i64, u8) {
     v.term().expect("a lexicon child")
 }
 
-fn ord(v: &Value) -> Ordinal {
+pub(crate) fn ord(v: &Value) -> Ordinal {
     *v.ordinal().expect("an ordinal child")
 }
 
-fn pow10(e: i64) -> Dec {
+pub(crate) fn pow10(e: i64) -> Dec {
     Dec::ONE.shift(e as i32).expect("a power of ten of a scale word")
 }
 
-fn int(value: Dec, grain: i8, flags: u8) -> Option<Value> {
+pub(crate) fn int(value: Dec, grain: i8, flags: u8) -> Option<Value> {
     Some(Value::Num(Num { value, kind: NumKind::Integer, grain, flags }))
 }
 
-fn number(value: Dec, kind: NumKind, flags: u8) -> Option<Value> {
+pub(crate) fn number(value: Dec, kind: NumKind, flags: u8) -> Option<Value> {
     Some(Value::Num(Num::new(value, kind, flags)))
 }
 
-fn fraction(value: Dec, flags: u8) -> Option<Value> {
+pub(crate) fn fraction(value: Dec, flags: u8) -> Option<Value> {
     number(value, NumKind::Fraction, flags)
 }
 
 // Tests on children.
 
-fn is_num(v: &Value, f: impl Fn(&Num) -> bool) -> bool {
+pub(crate) fn is_num(v: &Value, f: impl Fn(&Num) -> bool) -> bool {
     v.num().is_some_and(f)
 }
 
-fn digits_only(n: &Num) -> bool {
+pub(crate) fn digits_only(n: &Num) -> bool {
     n.has(DIGITS) && !n.has(SPELLED)
 }
 
-fn spelled_only(n: &Num) -> bool {
+pub(crate) fn spelled_only(n: &Num) -> bool {
     n.has(SPELLED) && !n.has(DIGITS)
 }
 
-fn positive(n: &Num) -> bool {
+pub(crate) fn positive(n: &Num) -> bool {
     n.value > Dec::ZERO
 }
 
-fn integer(v: &Value) -> bool {
+pub(crate) fn integer(v: &Value) -> bool {
     is_num(v, |n| n.kind == NumKind::Integer)
 }
 
-fn not_integer(v: &Value) -> bool {
+pub(crate) fn not_integer(v: &Value) -> bool {
     is_num(v, |n| n.kind != NumKind::Integer)
 }
 
-fn positive_integer(v: &Value) -> bool {
+pub(crate) fn positive_integer(v: &Value) -> bool {
     is_num(v, |n| n.kind == NumKind::Integer && positive(n))
 }
 
-fn non_negative(v: &Value) -> bool {
+pub(crate) fn non_negative(v: &Value) -> bool {
     is_num(v, |n| !n.value.is_negative())
 }
 
-fn non_negative_integer(v: &Value) -> bool {
+pub(crate) fn non_negative_integer(v: &Value) -> bool {
     integer(v) && non_negative(v)
 }
 
@@ -107,7 +107,7 @@ fn grain_from_6(v: &Value) -> bool {
     is_num(v, |n| n.grain >= 6)
 }
 
-fn digits_non_negative(v: &Value) -> bool {
+pub(crate) fn digits_non_negative(v: &Value) -> bool {
     is_num(v, |n| digits_only(n) && !n.value.is_negative())
 }
 
@@ -128,23 +128,23 @@ fn spelled_two_digits(v: &Value) -> bool {
     is_num(v, |n| spelled_only(n) && n.grain == 0 && n.value >= Dec::from_i64(10) && n.value < Dec::from_i64(100))
 }
 
-fn proper_fraction(v: &Value) -> bool {
+pub(crate) fn proper_fraction(v: &Value) -> bool {
     is_num(v, |n| n.kind == NumKind::Fraction && positive(n) && n.value < Dec::ONE)
 }
 
-fn positive_fraction(v: &Value) -> bool {
+pub(crate) fn positive_fraction(v: &Value) -> bool {
     is_num(v, |n| n.kind == NumKind::Fraction && positive(n))
 }
 
-fn spelled_positive_fraction(v: &Value) -> bool {
+pub(crate) fn spelled_positive_fraction(v: &Value) -> bool {
     is_num(v, |n| n.kind == NumKind::Fraction && positive(n) && !n.has(DIGITS))
 }
 
-fn digit_proper_fraction(v: &Value) -> bool {
+pub(crate) fn digit_proper_fraction(v: &Value) -> bool {
     proper_fraction(v) && is_num(v, digits_only)
 }
 
-fn is_ten(v: &Value) -> bool {
+pub(crate) fn is_ten(v: &Value) -> bool {
     is_num(v, |n| n.value == Dec::from_i64(10))
 }
 
@@ -187,7 +187,7 @@ fn counts_from_current(v: &Value) -> bool {
 /// It does not right after a number (`5 - 10`, `5k -10`: a range), nor
 /// glued to what comes before unless that is an opening bracket or quote
 /// (`SCP-173`, `+1-222`).
-fn minus_opens(ctx: &Ctx<'_>) -> bool {
+pub(crate) fn minus_opens(ctx: &Ctx<'_>) -> bool {
     let Some(p) = ctx.before() else { return true };
     let prev = ctx.lexeme(p);
     let after_number = prev.kind == Kind::Numeral
@@ -200,7 +200,7 @@ fn minus_opens(ctx: &Ctx<'_>) -> bool {
 
 /// Whether a digit fraction stands alone, not inside a run such as a date
 /// (`5/17/2018`) or a phone number (`222-2222/2222`).
-fn slash_alone(ctx: &Ctx<'_>) -> bool {
+pub(crate) fn slash_alone(ctx: &Ctx<'_>) -> bool {
     if ctx.lexeme(ctx.start).glued
         && let Some(p) = ctx.before()
     {
@@ -217,7 +217,7 @@ fn slash_alone(ctx: &Ctx<'_>) -> bool {
 
 /// Whether a currency symbol comes just before the match: `$2000 over 3
 /// years` is money and a duration, not a fraction.
-fn after_currency(ctx: &Ctx<'_>) -> bool {
+pub(crate) fn after_currency(ctx: &Ctx<'_>) -> bool {
     ctx.before().and_then(|p| ctx.punct(p)).is_some_and(|c| general_category(c) == GeneralCategory::Sc)
 }
 
@@ -246,7 +246,7 @@ fn b_tens_unit(v: &[Value], _: &Ctx<'_>) -> Option<Value> {
     int(Dec::from_i64(term(&v[0]).0 + term(&v[1]).0), 0, SPELLED)
 }
 
-fn b_numeral_int(v: &[Value], _: &Ctx<'_>) -> Option<Value> {
+pub(crate) fn b_numeral_int(v: &[Value], _: &Ctx<'_>) -> Option<Value> {
     Some(v[0])
 }
 
@@ -279,7 +279,7 @@ fn b_sum(v: &[Value], ctx: &Ctx<'_>) -> Option<Value> {
     int(l.value.checked_add(r.value)?, r.grain, l.flags | r.flags)
 }
 
-fn b_dozen(v: &[Value], _: &Ctx<'_>) -> Option<Value> {
+pub(crate) fn b_dozen(v: &[Value], _: &Ctx<'_>) -> Option<Value> {
     let m = num(&v[0]);
     int(m.value.checked_mul(Dec::from_i64(12))?, 0, m.flags | SPELLED)
 }
@@ -289,27 +289,27 @@ fn b_a_dozen(_: &[Value], _: &Ctx<'_>) -> Option<Value> {
 }
 
 /// A number from its parts' sole child, unchanged.
-fn b_same(v: &[Value], _: &Ctx<'_>) -> Option<Value> {
+pub(crate) fn b_same(v: &[Value], _: &Ctx<'_>) -> Option<Value> {
     Some(v[0])
 }
 
-fn b_numeral_scale(v: &[Value], _: &Ctx<'_>) -> Option<Value> {
+pub(crate) fn b_numeral_scale(v: &[Value], _: &Ctx<'_>) -> Option<Value> {
     let (m, s) = (num(&v[0]), term(&v[1]).0);
     let value = m.value.checked_mul(pow10(s))?;
     number(value, NumKind::of(value), DIGITS | SPELLED)
 }
 
-fn suffix(v: &[Value], e: i64) -> Option<Value> {
+pub(crate) fn suffix(v: &[Value], e: i64) -> Option<Value> {
     let value = num(&v[0]).value.checked_mul(pow10(e))?;
     number(value, NumKind::of(value), DIGITS)
 }
 
-fn b_neg_word(v: &[Value], _: &Ctx<'_>) -> Option<Value> {
+pub(crate) fn b_neg_word(v: &[Value], _: &Ctx<'_>) -> Option<Value> {
     let n = num(&v[1]);
     Some(Value::Num(Num { value: n.value.negated(), flags: n.flags | SPELLED, ..n }))
 }
 
-fn b_neg_sign(v: &[Value], ctx: &Ctx<'_>) -> Option<Value> {
+pub(crate) fn b_neg_sign(v: &[Value], ctx: &Ctx<'_>) -> Option<Value> {
     if !minus_opens(ctx) {
         return None;
     }
@@ -345,20 +345,20 @@ fn b_half(_: &[Value], _: &Ctx<'_>) -> Option<Value> {
     fraction(Dec::ONE.checked_div(Dec::from_i64(2))?, SPELLED)
 }
 
-fn b_mixed(v: &[Value], _: &Ctx<'_>) -> Option<Value> {
+pub(crate) fn b_mixed(v: &[Value], _: &Ctx<'_>) -> Option<Value> {
     let (w, f) = (num(&v[0]), num(&v[1]));
     fraction(w.value.checked_add(f.value)?, w.flags | f.flags)
 }
 
 /// `one million and a half`: the fraction is of the scale.
-fn b_scale_and_fraction(v: &[Value], _: &Ctx<'_>) -> Option<Value> {
+pub(crate) fn b_scale_and_fraction(v: &[Value], _: &Ctx<'_>) -> Option<Value> {
     let (w, f) = (num(&v[0]), num(&v[1]));
     fraction(w.value.checked_add(f.value.checked_mul(pow10(i64::from(w.grain)))?)?, w.flags | f.flags)
 }
 
 /// `one billion and three quarters million`: a fractional part below the
 /// whole's last scale.
-fn b_scale_plus_fraction(v: &[Value], _: &Ctx<'_>) -> Option<Value> {
+pub(crate) fn b_scale_plus_fraction(v: &[Value], _: &Ctx<'_>) -> Option<Value> {
     let (w, f) = (num(&v[0]), num(&v[1]));
     if f.value >= pow10(i64::from(w.grain)) {
         return None;
@@ -367,7 +367,7 @@ fn b_scale_plus_fraction(v: &[Value], _: &Ctx<'_>) -> Option<Value> {
 }
 
 /// `two thirds of a million`, `five and a half million`.
-fn b_fraction_of_scale(v: &[Value], _: &Ctx<'_>) -> Option<Value> {
+pub(crate) fn b_fraction_of_scale(v: &[Value], _: &Ctx<'_>) -> Option<Value> {
     let (f, s) = (num(&v[0]), term(&v[1]).0);
     if f.value >= pow10(s) {
         return None;
@@ -388,7 +388,7 @@ fn of_dozen(value: Dec, flags: u8) -> Option<Value> {
     number(value, kind, flags)
 }
 
-fn b_fraction_of_dozen(v: &[Value], _: &Ctx<'_>) -> Option<Value> {
+pub(crate) fn b_fraction_of_dozen(v: &[Value], _: &Ctx<'_>) -> Option<Value> {
     let f = num(&v[0]);
     of_dozen(f.value, f.flags)
 }
@@ -397,19 +397,19 @@ fn b_word_of_dozen(v: &[Value], _: &Ctx<'_>) -> Option<Value> {
     of_dozen(Dec::ONE.checked_div(Dec::from_i64(term(&v[0]).0))?, SPELLED)
 }
 
-fn b_digit_fraction(v: &[Value], ctx: &Ctx<'_>) -> Option<Value> {
+pub(crate) fn b_digit_fraction(v: &[Value], ctx: &Ctx<'_>) -> Option<Value> {
     if !slash_alone(ctx) {
         return None;
     }
     fraction(num(&v[0]).value.checked_div(num(&v[1]).value)?, DIGITS)
 }
 
-fn b_vulgar(v: &[Value], _: &Ctx<'_>) -> Option<Value> {
+pub(crate) fn b_vulgar(v: &[Value], _: &Ctx<'_>) -> Option<Value> {
     let t = term(&v[0]).0;
     fraction(Dec::from_i64(t / 1000).checked_div(Dec::from_i64(t % 1000))?, DIGITS)
 }
 
-fn b_over(v: &[Value], ctx: &Ctx<'_>) -> Option<Value> {
+pub(crate) fn b_over(v: &[Value], ctx: &Ctx<'_>) -> Option<Value> {
     if after_currency(ctx) {
         return None;
     }
@@ -419,7 +419,7 @@ fn b_over(v: &[Value], ctx: &Ctx<'_>) -> Option<Value> {
 
 /// `one in three`, `two out of five`: only a part below the whole reads
 /// as a fraction, so `12 in six boxes` is two numbers.
-fn b_part_of(v: &[Value], ctx: &Ctx<'_>) -> Option<Value> {
+pub(crate) fn b_part_of(v: &[Value], ctx: &Ctx<'_>) -> Option<Value> {
     let (n, d) = (num(&v[0]), num(&v[1]));
     if n.value >= d.value {
         return None;
@@ -443,11 +443,11 @@ fn digits_value(value: Dec, count: i8) -> Option<Value> {
     Some(Value::Num(Num { value, kind: NumKind::Integer, grain: count, flags: SPELLED }))
 }
 
-fn b_digit_word(v: &[Value], _: &Ctx<'_>) -> Option<Value> {
+pub(crate) fn b_digit_word(v: &[Value], _: &Ctx<'_>) -> Option<Value> {
     digits_value(Dec::from_i64(term(&v[0]).0), 1)
 }
 
-fn b_more_digits(v: &[Value], _: &Ctx<'_>) -> Option<Value> {
+pub(crate) fn b_more_digits(v: &[Value], _: &Ctx<'_>) -> Option<Value> {
     let d = num(&v[0]);
     if d.grain >= 30 {
         return None;
@@ -459,7 +459,7 @@ fn b_two_digits(v: &[Value], _: &Ctx<'_>) -> Option<Value> {
     digits_value(num(&v[0]).value, 2)
 }
 
-fn b_point(v: &[Value], _: &Ctx<'_>) -> Option<Value> {
+pub(crate) fn b_point(v: &[Value], _: &Ctx<'_>) -> Option<Value> {
     let (w, d) = (num(&v[0]), num(&v[1]));
     let value = w.value.checked_add(d.value.shift(-i32::from(d.grain))?)?;
     number(value, NumKind::Decimal, SPELLED)
@@ -467,19 +467,19 @@ fn b_point(v: &[Value], _: &Ctx<'_>) -> Option<Value> {
 
 // Exponents.
 
-fn b_plus(_: &[Value], _: &Ctx<'_>) -> Option<Value> {
+pub(crate) fn b_plus(_: &[Value], _: &Ctx<'_>) -> Option<Value> {
     Some(Value::Term { value: 1, flags: 0 })
 }
 
-fn b_minus(_: &[Value], _: &Ctx<'_>) -> Option<Value> {
+pub(crate) fn b_minus(_: &[Value], _: &Ctx<'_>) -> Option<Value> {
     Some(Value::Term { value: -1, flags: 0 })
 }
 
-fn b_sign_plus(v: &[Value], _: &Ctx<'_>) -> Option<Value> {
+pub(crate) fn b_sign_plus(v: &[Value], _: &Ctx<'_>) -> Option<Value> {
     Some(v[0])
 }
 
-fn b_sign_minus(v: &[Value], _: &Ctx<'_>) -> Option<Value> {
+pub(crate) fn b_sign_minus(v: &[Value], _: &Ctx<'_>) -> Option<Value> {
     Some(Value::Term { value: -term(&v[0]).0, flags: 0 })
 }
 
@@ -494,17 +494,17 @@ fn power(value: Dec) -> Option<Value> {
     number(value, NumKind::Power, DIGITS)
 }
 
-fn b_ten_power(v: &[Value], _: &Ctx<'_>) -> Option<Value> {
+pub(crate) fn b_ten_power(v: &[Value], _: &Ctx<'_>) -> Option<Value> {
     power(num(&v[0]).value.shift(exponent(v)?)?)
 }
 
 /// `1.3x10^6`: the ten is a child too, before the optional sign.
-fn b_times_ten_power(v: &[Value], _: &Ctx<'_>) -> Option<Value> {
+pub(crate) fn b_times_ten_power(v: &[Value], _: &Ctx<'_>) -> Option<Value> {
     let e = exponent(&v[1..])?;
     power(num(&v[0]).value.shift(e)?)
 }
 
-fn b_caret(v: &[Value], _: &Ctx<'_>) -> Option<Value> {
+pub(crate) fn b_caret(v: &[Value], _: &Ctx<'_>) -> Option<Value> {
     let e = exponent(v)?;
     if e.unsigned_abs() > 64 {
         return None;
@@ -559,7 +559,7 @@ fn b_ordinal_digits(v: &[Value], _: &Ctx<'_>) -> Option<Value> {
     (term(&v[1]).0 == want).then_some(Value::Ordinal(Ordinal { value, flags: DIGITS }))
 }
 
-fn relative(offset: i64, to: OrdinalBase) -> Option<Value> {
+pub(crate) fn relative(offset: i64, to: OrdinalBase) -> Option<Value> {
     Some(Value::Relative(Relative { offset: i32::try_from(offset).ok()?, to }))
 }
 
@@ -573,17 +573,17 @@ fn b_to_last(v: &[Value], _: &Ctx<'_>) -> Option<Value> {
     relative(1 - ord(&v[0]).value, OrdinalBase::End)
 }
 
-fn b_end_minus_one(_: &[Value], _: &Ctx<'_>) -> Option<Value> {
+pub(crate) fn b_end_minus_one(_: &[Value], _: &Ctx<'_>) -> Option<Value> {
     relative(-1, OrdinalBase::End)
 }
 
 // Percentages.
 
-fn b_percent_after(v: &[Value], _: &Ctx<'_>) -> Option<Value> {
+pub(crate) fn b_percent_after(v: &[Value], _: &Ctx<'_>) -> Option<Value> {
     Some(Value::Percent(num(&v[0]).value))
 }
 
-fn b_percent_before(v: &[Value], _: &Ctx<'_>) -> Option<Value> {
+pub(crate) fn b_percent_before(v: &[Value], _: &Ctx<'_>) -> Option<Value> {
     Some(Value::Percent(num(v.last().expect("a number")).value))
 }
 
