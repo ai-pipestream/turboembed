@@ -12,8 +12,14 @@
 //! [`CHUNK_SEPARATOR`](crate::read::CHUNK_SEPARATOR). A question (id: its
 //! row number from 0) judges its book with grade 1. Its relevant span is
 //! "Chunk Must Contain", the passage the answer is in, at its first
-//! occurrence in the question's chunk; one the chunk does not contain is
-//! listed in `unplaced`.
+//! occurrence in the question's chunk. A passage not found as written is
+//! looked for again with both texts [`loose`]: quotation marks dropped
+//! and each run of whitespace one space, since the passages often swap
+//! the books' curly double quotes for straight single ones, add a closing
+//! quote, or have a plain space where the book has a line break or a
+//! no-break space. The span is then the original bytes of the chunk from
+//! the first to the last character matched. A passage not found either
+//! way is listed in `unplaced`.
 
 use std::collections::BTreeMap;
 use std::path::Path;
@@ -81,9 +87,9 @@ pub fn read(name: &str, dir: &Path) -> Result<LoadedSet> {
         let id = row.to_string();
         let doc = book.to_string();
         let text = &text_of[&doc][start..end];
-        match text.find(must_contain).filter(|_| !must_contain.is_empty()) {
-            Some(at) => {
-                let span = Span::new(start + at, start + at + must_contain.len())?;
+        match locate(text, must_contain) {
+            Some((from, to)) => {
+                let span = Span::new(start + from, start + to)?;
                 spans.push(SpanRel { query: id.clone(), doc: doc.clone(), span, grade: 1 });
             }
             None => unplaced.push(format!("query {id} book {doc} chunk {chunk}: {must_contain:?}")),
@@ -104,4 +110,57 @@ pub fn read(name: &str, dir: &Path) -> Result<LoadedSet> {
     };
     set.check()?;
     Ok(set)
+}
+
+/// The byte range of `passage` in `chunk`: its first occurrence as
+/// written, else its first occurrence with both texts [`loose`]. `None`
+/// when neither finds it, or the passage is empty.
+pub fn locate(chunk: &str, passage: &str) -> Option<(usize, usize)> {
+    if passage.is_empty() {
+        return None;
+    }
+    if let Some(at) = chunk.find(passage) {
+        return Some((at, at + passage.len()));
+    }
+    let (needle, _) = loose(passage);
+    let needle = needle.trim_matches(' ');
+    if needle.is_empty() {
+        return None;
+    }
+    let (hay, from) = loose(chunk);
+    let at = hay.find(needle)?;
+    Some((from[at].0, from[at + needle.len() - 1].1))
+}
+
+/// Quotation marks a GutenQA passage may have where its book has
+/// another, or none.
+fn is_quote(c: char) -> bool {
+    matches!(c, '\'' | '"' | '`' | '\u{2018}' | '\u{2019}' | '\u{201B}' | '\u{201C}' | '\u{201D}' | '\u{201F}')
+}
+
+/// `text` with every quotation mark dropped and each run of whitespace
+/// (no-break spaces and line breaks included) one space, and for each
+/// byte of the result the byte range of `text` it stands for. Apostrophes
+/// are dropped too, from both texts alike.
+pub fn loose(text: &str) -> (String, Vec<(usize, usize)>) {
+    let mut out = String::with_capacity(text.len());
+    let mut from: Vec<(usize, usize)> = Vec::with_capacity(text.len());
+    for (i, c) in text.char_indices() {
+        let end = i + c.len_utf8();
+        if is_quote(c) {
+            continue;
+        }
+        if c.is_whitespace() {
+            if out.ends_with(' ') {
+                from.last_mut().expect("a space was pushed").1 = end;
+            } else {
+                out.push(' ');
+                from.push((i, end));
+            }
+            continue;
+        }
+        out.push(c);
+        from.extend(std::iter::repeat_n((i, end), c.len_utf8()));
+    }
+    (out, from)
 }

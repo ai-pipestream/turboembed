@@ -2560,7 +2560,7 @@ a `sha256sum` style manifest of the files read, sorted by path.
 | `legalbench-rag-mini` | a shared folder, placed by hand | MIT for the benchmark; the documents under their sources' terms | code points, converted after Python's newline translation; the mini subset is chosen with a port of CPython's `random` | none (no stable file URLs) |
 | `conteb-covid-qa` | Parquet | none for the article text, so refused (below) | the judged chunk | not recorded yet |
 | `conteb-squad` | Parquet, ConTEB's SQuAD set (`illuin-conteb/squad-conteb-eval`, revision 8f81cbd), validation split | CC BY-SA 4.0 (SQuAD over Wikipedia; downloaded at use, never bundled) | the judged chunk | recorded |
-| `gutenqa` | Parquet | MIT (dataset card) | the quoted passage, located in its chunk | recorded |
+| `gutenqa` | Parquet | MIT (dataset card) | the quoted passage, located in its chunk as written or, failing that, with quotation marks dropped and whitespace runs made one space in both texts | recorded |
 | `hicbench` | no copy that can be fetched | none stated, so refused (below) | quoted sentences, located in the document | none |
 | `qasper` | gzip tar, test split | CC BY 4.0 | quoted evidence, located by paragraph or text | recorded |
 
