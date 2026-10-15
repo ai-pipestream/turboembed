@@ -21,6 +21,7 @@ use turbo_analysis::{Anchor, Ix, IxRange, Key, KeyId, Layer, LayerName, ModelRef
 
 pub use abbreviations::{AbbreviationForm, Abbreviations, DEFINITION, MENTION, abbreviation_links};
 pub use categories::Categories;
+pub use containment::{Containment, ContainmentChain, ContainmentError, PlaceAncestor, PlaceAncestorRef};
 pub use date::{DAY_SECONDS, Date, DateTime, write_year};
 pub use language_spans::{LanguageSpan, LanguageSpans, UNDETERMINED};
 pub use levels::{Level, Levels, Unit, VectorKind};
@@ -30,6 +31,7 @@ pub use numbers::{DecimalRef, Multiplier, NumberMention, NumberNotation, Numbers
 pub use ordinals::{OrdinalBase, OrdinalMention, Ordinals};
 pub use pii::{Pii, PiiConfidence, PiiKind, PiiKinds, PiiMention};
 pub use quantities::{PERCENT, Quantities, QuantityMention};
+pub use regions::{InvalidRegionCode, MarginError, RegionCode, RegionVote, Regions, VoteError};
 pub use temporal::{DocumentDate, Granularity, Origin, TemporalMention, TemporalValue, Temporals};
 pub use times::{Modifier, Portion, Relation, TimeGrain, TimeKind, TimeMention, Times};
 pub use words::{
@@ -91,6 +93,7 @@ macro_rules! positional {
 
 mod abbreviations;
 mod categories;
+mod containment;
 mod date;
 mod language_spans;
 mod levels;
@@ -100,6 +103,7 @@ mod numbers;
 mod ordinals;
 mod pii;
 mod quantities;
+mod regions;
 mod temporal;
 mod times;
 mod words;
