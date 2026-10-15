@@ -234,6 +234,33 @@ fn a_bucket_that_java_turns_into_a_tree_comes_in_the_jvms_order() {
     assert_eq!(g.len(), 11 + 10 + 9);
 }
 
+#[test]
+fn a_tree_bucket_can_give_training_and_prediction_different_orders() {
+    // Thirteen unigrams whose hashes (31 plus the code unit) are multiples
+    // of 64, so they share one bucket, which becomes a tree. The first map
+    // (`getContext`'s, which training reads) is filled in the text's order
+    // and the second (`predict`'s counts) in the first map's, so the two
+    // trees differ and so do the orders. Both orders are JDK 21's.
+    let text = "\u{A1}\u{221}\u{1A1}\u{321}!\u{4A1}\u{261}\u{661}\u{521}\u{E1}\u{2E1}\u{1E1}\u{5A1}";
+    for c in text.chars() {
+        assert!((31 + u32::from(c)).is_multiple_of(64), "{c:?}");
+    }
+    let mut g = ContextGenerator::new(1, 1);
+    let predict = grams(&mut g, text);
+    let get_context = [
+        "\u{261}", "\u{1A1}", "\u{A1}", "\u{221}", "\u{1E1}", "\u{321}", "!", "\u{4A1}", "\u{661}", "\u{5A1}",
+        "\u{521}", "\u{E1}", "\u{2E1}",
+    ];
+    assert_eq!(training(&g), strs(&get_context));
+    assert!(g.training_exact_order());
+    let jvm_predict = [
+        "\u{221}", "\u{261}", "\u{2E1}", "\u{1A1}", "\u{A1}", "\u{E1}", "\u{1E1}", "\u{321}", "!", "\u{4A1}",
+        "\u{661}", "\u{5A1}", "\u{521}",
+    ];
+    assert_eq!(predict, strs(&jvm_predict));
+    assert!(g.exact_order());
+}
+
 // Differences from OpenNLP
 
 #[test]
