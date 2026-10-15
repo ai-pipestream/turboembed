@@ -133,6 +133,8 @@ pub enum Output {
     Number,
     Ordinal,
     Percent,
+    /// Amounts with a unit, money included, and units named alone.
+    Quantity,
 }
 
 /// Where a match lies, for a rule's `build` or a grammar's filter that
