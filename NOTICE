@@ -74,3 +74,13 @@ The Unicode Character Database files in analysis/unicode/ucd/, and the
 tables generated from them, are used under the Unicode License v3.
 Copyright (c) 2001-2024 Unicode, Inc. The full license text is in
 analysis/unicode/ucd/LICENSE.
+
+------------------------------------------------------------------------
+Recognizers-Text specifications
+------------------------------------------------------------------------
+
+The test specification files in
+analysis/grammar/tests/data/recognizers-text/ are copied from the
+microsoft/Recognizers-Text repository and used under the MIT License.
+Copyright (c) Microsoft Corporation. The full license text is in
+analysis/grammar/tests/data/recognizers-text/LICENSE.

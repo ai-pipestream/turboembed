@@ -20,7 +20,9 @@ use crate::resources::{Resources, Unavailable};
 /// sequence runs (`string-pattern`, `features`, `codec`, `beam`,
 /// `tag-dictionary`, `tag-format`), the name finders, the stemmers and the
 /// stopword lists read input sets of their own, which turbo-sequence,
-/// turbo-namefind, turbo-stem and turbo-stopword compare with.
+/// turbo-namefind, turbo-stem and turbo-stopword compare with; the other
+/// `namefind` runs train name finders from name samples and find names in
+/// them, which turbo-train-components compares with.
 pub const NOT_COVERED: [&str; 20] = [
     "train",
     "train-events",

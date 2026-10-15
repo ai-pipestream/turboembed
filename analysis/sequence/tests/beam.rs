@@ -20,7 +20,7 @@ use std::sync::Arc;
 use common::{escape, escaped, f64s, featuregen, grouped, layer, lossless_escaped, strs, u32s};
 use turbo_maxent::{Dictionary, ModelFile};
 use turbo_sequence::chunker::{ChunkerValidator, DefaultChunkerContext, TokenTag};
-use turbo_sequence::namefind::{DefaultNameContext, NameCodec};
+use turbo_sequence::namefind::{DefaultNameContext, NameCodec, NameFinder};
 use turbo_sequence::postag::{DefaultPosContext, PosContext, PosValidator, TagDictionary};
 use turbo_sequence::{
     BeamSearch, ContextGenerator, Features, PatternMode, Sequence, SequenceValidator, chunker, manifest_beam_size,
@@ -312,6 +312,33 @@ fn ner_bilou_fixture() {
     check_names(&fixtures(), "ner-bilou-fixture");
 }
 
+/// `NameFinder::find`, sentence after sentence with the adaptive data
+/// carried over, gives the spans `NameFinderME.find` gave, over the GIS
+/// fixture (BILOU) and the published 1.5 models when present.
+fn check_name_finder(dir: &Path, name: &str) {
+    let golden = read_golden(name);
+    let file = open(dir, &golden);
+    let model = file.maxent(namefind::MODEL_ENTRY_NAME).unwrap();
+    let mut finder = NameFinder::new(&file, &model, PatternMode::Utf16Units).unwrap();
+    for (k, s) in golden.sentences.iter().enumerate() {
+        let found = finder.find(&tokens(s));
+        let spans: Vec<String> =
+            found.iter().map(|f| span_text(f.span.start, f.span.end, f.span.kind.as_deref())).collect();
+        assert_eq!(Some(spans), s.spans, "{name}: sentence {k}");
+        // The span's probability is the mean of its outcomes'.
+        if let (Some(f), Some(best)) = (found.first(), s.sequences.first()) {
+            let probs: Vec<f64> = best.probs.iter().map(|&p| f64::from_bits(p)).collect();
+            let mean = probs[f.span.start..f.span.end].iter().sum::<f64>() / f.span.len() as f64;
+            assert_eq!(f.prob.to_bits(), mean.to_bits(), "{name}: sentence {k}");
+        }
+    }
+}
+
+#[test]
+fn the_name_finder_finds_what_the_jvm_found_with_the_bilou_fixture() {
+    check_name_finder(&fixtures(), "ner-bilou-fixture");
+}
+
 /// QN maxent with the default descriptor, BIO, run in Java over a model
 /// that evaluates every context into a new array (see the next test).
 #[test]
@@ -379,6 +406,7 @@ fn en_chunker() {
 fn en_ner_person() {
     if let Some(dir) = models_15("en_ner_person") {
         check_names(&dir, "en-ner-person");
+        check_name_finder(&dir, "en-ner-person");
     }
 }
 
@@ -386,6 +414,7 @@ fn en_ner_person() {
 fn en_ner_location() {
     if let Some(dir) = models_15("en_ner_location") {
         check_names(&dir, "en-ner-location");
+        check_name_finder(&dir, "en-ner-location");
     }
 }
 

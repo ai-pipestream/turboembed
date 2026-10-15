@@ -662,6 +662,7 @@ impl UdRecipe {
             skipped_sentences: read.skipped,
             events: events.len(),
             event_hash: report.event_hash.expect("trained from events"),
+            names: None,
             chunks: None,
         })
     }
@@ -758,6 +759,7 @@ impl UdRecipe {
                         left_out,
                         reference_mismatches: baseline.mismatches,
                     }),
+                    names: None,
                     chunks: None,
                 };
                 Ok(GateRun { record, held_out })
