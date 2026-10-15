@@ -47,7 +47,8 @@ const F64: ColumnType = ColumnType::F64;
 /// the checksum and the `train-events` layers are read here; the
 /// indexer's and the trainers' (GIS, QN, perceptron) layers are listed
 /// so that the reader accepts the `train` files (`analysis/train/tests`
-/// compares those).
+/// compares those). The last five are the chunker runs' trained models
+/// (`tests/chunker.rs`).
 const LAYERS: &[(&str, &[ColumnSpec])] = &[
     ("turbo:events", &[col("outcome", STR), col("context", STR), col("values", STR)]),
     ("turbo:stream-errors", &[col("after", U32), col("class", STR), col("message", STR)]),
@@ -93,6 +94,11 @@ const LAYERS: &[(&str, &[ColumnSpec])] = &[
     ("turbo:dictionary-cases", &[col("name", STR), col("xml", STR)]),
     ("turbo:tagdict", &[col("xml", STR)]),
     ("turbo:tagdict-cases", &[col("name", STR), col("xml", STR)]),
+    ("turbo:train-error", &[col("class", STR), col("message", STR)]),
+    ("turbo:model-entry", &[col("type", STR), col("length", U32), col("sha256", STR)]),
+    ("turbo:model-outcomes", &[col("label", STR)]),
+    ("turbo:model-predicates", &[col("label", STR)]),
+    ("turbo:model-parameters", &[col("predicate", U32), col("outcome", U32), col("value", F64)]),
 ];
 
 pub fn shapes() -> Vec<Shape> {

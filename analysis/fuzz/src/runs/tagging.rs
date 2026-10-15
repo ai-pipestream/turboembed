@@ -24,6 +24,10 @@ const TOKENS: &str = "opennlp:tokens";
 /// JVM's and the one the Rust trainer wrote.
 const FIXTURE_TAGGERS: [&str; 2] = ["pos-fixture", "pos-fixture-rust"];
 
+/// The chunker models, both checked-in fixtures: the JVM's and the one the
+/// Rust trainer wrote.
+pub(crate) const FIXTURE_CHUNKERS: [&str; 2] = ["chunker-fixture", "chunker-fixture-rust"];
+
 fn broken(what: impl std::fmt::Display) -> Unavailable {
     Unavailable::Broken(what.to_string())
 }
@@ -193,21 +197,21 @@ impl Run for Lemmatizer {
     }
 }
 
-/// `ChunkerME` with the fixture model, as it is or with a beam of one, on
-/// Penn Treebank tags.
+/// `ChunkerME` with a fixture model ([`FIXTURE_CHUNKERS`]), as it is or,
+/// for the JVM's, with a beam of one, on Penn Treebank tags.
 pub(crate) struct Chunker {
     on_golden: Analyzer,
     plain: Analyzer,
 }
 
 impl Chunker {
-    pub(crate) fn open(options: &[&str], res: &Resources) -> Result<Box<dyn Run>, Unavailable> {
-        let path = res.fixture("chunker-fixture.bin")?;
+    pub(crate) fn open(model: &str, options: &[&str], res: &Resources) -> Result<Box<dyn Run>, Unavailable> {
+        let path = res.fixture(&format!("{model}.bin"))?;
         let mut m = ChunkerModel::read(&path).map_err(|e| broken(format!("{}: {e}", path.display())))?;
-        match options {
-            [] => {}
-            ["beam1"] => m = m.with_beam_size(1).map_err(broken)?,
-            other => return Err(Unavailable::NotCovered(format!("chunk/chunker-fixture with {other:?}"))),
+        match (model, options) {
+            (_, []) => {}
+            ("chunker-fixture", ["beam1"]) => m = m.with_beam_size(1).map_err(broken)?,
+            (_, other) => return Err(Unavailable::NotCovered(format!("chunk/{model} with {other:?}"))),
         }
         let m = Arc::new(m);
         let on_golden = Analyzer::builder()

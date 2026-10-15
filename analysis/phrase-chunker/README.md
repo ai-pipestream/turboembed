@@ -15,14 +15,16 @@ OpenNLP fork.
 ## Model
 
 The chunker models Apache OpenNLP publishes are OpenNLP 1.5 models, which this
-project does not use. The tests run `chunker-fixture.bin`, a small perceptron
+project does not ship; the chunker recipe of `turbo-train-recipes` loads
+`en-chunker.bin` only to score it as the reference of its gate. The tests run `chunker-fixture.bin`, a small perceptron
 model trained for this project on eight sentences with Penn Treebank tags
-(`analysis/goldens/data/train-fixtures/train-chunk.txt`,
-`analysis/sequence/README.md`), checked in as
-`analysis/goldens/data/fixtures/chunker-fixture.bin`. Its
-features name Penn Treebank tags (`t0=NN`), so it runs on the Penn Treebank
+(`analysis/goldens/data/train-fixtures/train-chunk.txt`, `analysis/sequence/README.md`),
+checked in as `analysis/goldens/data/fixtures/chunker-fixture.bin`, and
+`chunker-fixture-rust.bin`, the model `turbo-train-components` trains from 30
+sentences written for this project (`analysis/goldens/data/README.md`). Their
+features name Penn Treebank tags (`t0=NN`), so they run on the Penn Treebank
 tags the English part-of-speech model is asked for (`POSTagFormat.PENN`,
-`PosModel::with_format`); on Universal Dependencies tags it chunks nothing
+`PosModel::with_format`); on Universal Dependencies tags they chunk nothing
 useful. A `ChunkerME` model trained by OpenNLP 3.x on permissive data would be
 loaded the same way.
 
@@ -41,6 +43,7 @@ phrases exactly, probabilities bit for bit.
 |---|---|---|---|
 | `chunk/chunker-fixture` | the fixture, beam 10 | `en`, `multi`, `edge` | 1,304 tokens, 768 phrases, 10,936 contexts asked of the model |
 | `chunk/chunker-fixture+beam1` | the fixture rebuilt with a beam of 1 (`config beamSize 1`) | `en` | 496 tokens, 292 phrases, one context per token |
+| `chunk/chunker-fixture-rust` | `chunker-fixture-rust.bin`, the model `turbo-train-components` trained from `analysis/goldens/data/inputs/tagged/chunks.txt` (GIS, 100 iterations, cutoff 1, beam 10), which the JVM loads with `ChunkerModel` | `en`, `multi`, `edge` | 1,304 tokens, 586 phrases, 11,102 contexts asked of the model |
 
 Beside each golden is a decision point dump, every context the beam search
 asked the model about with the probability of every chunk tag; the test runs

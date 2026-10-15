@@ -1,0 +1,2465 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	tagged/names	1970	1960	03cfebe70e1c2f6877930171d19affbb1de9868f23f7bf55322e8097a0b43ffd
+annotator	opennlp.tools.namefind.NameFinderEventStream	read
+config	algorithm	PERCEPTRON
+config	codec	bio
+config	language	en
+config	run	train-perceptron
+layer	turbo:events	document	210	outcome:str	context:str	values:str
+person-start	wc=ic w&c=maria,ic n1wc=ic n1w&c=lindqvist,ic n2wc=lc n2w&c=joined,lc w=maria n1w=lindqvist n2w=joined def pd=null w,nw=Maria,Lindqvist wc,nc=ic,ic S=begin po=other pow=other,Maria powf=other,ic ppo=other	
+person-cont	wc=ic w&c=lindqvist,ic p1wc=ic p1w&c=maria,ic n1wc=lc n1w&c=joined,lc n2wc=ic n2w&c=harbor,ic w=lindqvist p1w=maria n1w=joined n2w=harbor def pd=null pw,w=Maria,Lindqvist pwc,wc=ic,ic w,nw=Lindqvist,joined wc,nc=ic,lc po=person-start pow=person-start,Lindqvist powf=person-start,ic ppo=other	
+other	wc=lc w&c=joined,lc p1wc=ic p1w&c=lindqvist,ic p2wc=ic p2w&c=maria,ic n1wc=ic n1w&c=harbor,ic n2wc=ic n2w&c=light,ic w=joined p1w=lindqvist p2w=maria n1w=harbor n2w=light def pd=null pw,w=Lindqvist,joined pwc,wc=ic,lc w,nw=joined,Harbor wc,nc=lc,ic po=person-cont pow=person-cont,joined powf=person-cont,lc ppo=person-start	
+organization-start	wc=ic w&c=harbor,ic p1wc=lc p1w&c=joined,lc p2wc=ic p2w&c=lindqvist,ic n1wc=ic n1w&c=light,ic n2wc=ic n2w&c=systems,ic w=harbor p1w=joined p2w=lindqvist n1w=light n2w=systems def pd=null pw,w=joined,Harbor pwc,wc=lc,ic w,nw=Harbor,Light wc,nc=ic,ic po=other pow=other,Harbor powf=other,ic ppo=person-cont	
+organization-cont	wc=ic w&c=light,ic p1wc=ic p1w&c=harbor,ic p2wc=lc p2w&c=joined,lc n1wc=ic n1w&c=systems,ic n2wc=lc n2w&c=in,lc w=light p1w=harbor p2w=joined n1w=systems n2w=in def pd=null pw,w=Harbor,Light pwc,wc=ic,ic w,nw=Light,Systems wc,nc=ic,ic po=organization-start pow=organization-start,Light powf=organization-start,ic ppo=other	
+organization-cont	wc=ic w&c=systems,ic p1wc=ic p1w&c=light,ic p2wc=ic p2w&c=harbor,ic n1wc=lc n1w&c=in,lc n2wc=ic n2w&c=march,ic w=systems p1w=light p2w=harbor n1w=in n2w=march def pd=null pw,w=Light,Systems pwc,wc=ic,ic w,nw=Systems,in wc,nc=ic,lc po=organization-cont pow=organization-cont,Systems powf=organization-cont,ic ppo=organization-start	
+other	wc=lc w&c=in,lc p1wc=ic p1w&c=systems,ic p2wc=ic p2w&c=light,ic n1wc=ic n1w&c=march,ic n2wc=4d n2w&c=2019,4d w=in p1w=systems p2w=light n1w=march n2w=2019 def pd=null pw,w=Systems,in pwc,wc=ic,lc w,nw=in,March wc,nc=lc,ic po=organization-cont pow=organization-cont,in powf=organization-cont,lc ppo=organization-cont	
+date-start	wc=ic w&c=march,ic p1wc=lc p1w&c=in,lc p2wc=ic p2w&c=systems,ic n1wc=4d n1w&c=2019,4d n2wc=other n2w&c=.,other w=march p1w=in p2w=systems n1w=2019 n2w=. def pd=null pw,w=in,March pwc,wc=lc,ic w,nw=March,2019 wc,nc=ic,4d po=other pow=other,March powf=other,ic ppo=organization-cont	
+date-cont	wc=4d w&c=2019,4d p1wc=ic p1w&c=march,ic p2wc=lc p2w&c=in,lc n1wc=other n1w&c=.,other w=2019 p1w=march p2w=in n1w=. def pd=null pw,w=March,2019 pwc,wc=ic,4d w,nw=2019,. wc,nc=4d,other po=date-start pow=date-start,2019 powf=date-start,4d ppo=other	
+other	wc=other w&c=.,other p1wc=4d p1w&c=2019,4d p2wc=ic p2w&c=march,ic w=. p1w=2019 p2w=march def pd=null pw,w=2019,. pwc,wc=4d,other po=date-cont pow=date-cont,. powf=date-cont,other ppo=date-start	
+other	wc=ic w&c=she,ic n1wc=lc n1w&c=moved,lc n2wc=lc n2w&c=from,lc w=she n1w=moved n2w=from def pd=null w,nw=She,moved wc,nc=ic,lc S=begin po=other pow=other,She powf=other,ic ppo=other	
+other	wc=lc w&c=moved,lc p1wc=ic p1w&c=she,ic n1wc=lc n1w&c=from,lc n2wc=ic n2w&c=uppsala,ic w=moved p1w=she n1w=from n2w=uppsala def pd=null pw,w=She,moved pwc,wc=ic,lc w,nw=moved,from wc,nc=lc,lc po=other pow=other,moved powf=other,lc ppo=other	
+other	wc=lc w&c=from,lc p1wc=lc p1w&c=moved,lc p2wc=ic p2w&c=she,ic n1wc=ic n1w&c=uppsala,ic n2wc=lc n2w&c=to,lc w=from p1w=moved p2w=she n1w=uppsala n2w=to def pd=null pw,w=moved,from pwc,wc=lc,lc w,nw=from,Uppsala wc,nc=lc,ic po=other pow=other,from powf=other,lc ppo=other	
+location-start	wc=ic w&c=uppsala,ic p1wc=lc p1w&c=from,lc p2wc=lc p2w&c=moved,lc n1wc=lc n1w&c=to,lc n2wc=ic n2w&c=portland,ic w=uppsala p1w=from p2w=moved n1w=to n2w=portland def pd=null pw,w=from,Uppsala pwc,wc=lc,ic w,nw=Uppsala,to wc,nc=ic,lc po=other pow=other,Uppsala powf=other,ic ppo=other	
+other	wc=lc w&c=to,lc p1wc=ic p1w&c=uppsala,ic p2wc=lc p2w&c=from,lc n1wc=ic n1w&c=portland,ic n2wc=lc n2w&c=the,lc w=to p1w=uppsala p2w=from n1w=portland n2w=the def pd=null pw,w=Uppsala,to pwc,wc=ic,lc w,nw=to,Portland wc,nc=lc,ic po=location-start pow=location-start,to powf=location-start,lc ppo=other	
+location-start	wc=ic w&c=portland,ic p1wc=lc p1w&c=to,lc p2wc=ic p2w&c=uppsala,ic n1wc=lc n1w&c=the,lc n2wc=lc n2w&c=same,lc w=portland p1w=to p2w=uppsala n1w=the n2w=same def pd=null pw,w=to,Portland pwc,wc=lc,ic w,nw=Portland,the wc,nc=ic,lc po=other pow=other,Portland powf=other,ic ppo=location-start	
+other	wc=lc w&c=the,lc p1wc=ic p1w&c=portland,ic p2wc=lc p2w&c=to,lc n1wc=lc n1w&c=same,lc n2wc=lc n2w&c=year,lc w=the p1w=portland p2w=to n1w=same n2w=year def pd=null pw,w=Portland,the pwc,wc=ic,lc w,nw=the,same wc,nc=lc,lc po=location-start pow=location-start,the powf=location-start,lc ppo=other	
+other	wc=lc w&c=same,lc p1wc=lc p1w&c=the,lc p2wc=ic p2w&c=portland,ic n1wc=lc n1w&c=year,lc n2wc=other n2w&c=.,other w=same p1w=the p2w=portland n1w=year n2w=. def pd=null pw,w=the,same pwc,wc=lc,lc w,nw=same,year wc,nc=lc,lc po=other pow=other,same powf=other,lc ppo=location-start	
+other	wc=lc w&c=year,lc p1wc=lc p1w&c=same,lc p2wc=lc p2w&c=the,lc n1wc=other n1w&c=.,other w=year p1w=same p2w=the n1w=. def pd=null pw,w=same,year pwc,wc=lc,lc w,nw=year,. wc,nc=lc,other po=other pow=other,year powf=other,lc ppo=other	
+other	wc=other w&c=.,other p1wc=lc p1w&c=year,lc p2wc=lc p2w&c=same,lc w=. p1w=year p2w=same def pd=other pw,w=year,. pwc,wc=lc,other po=other pow=other,. powf=other,other ppo=other	
+person-start	wc=ic w&c=lindqvist,ic n1wc=lc n1w&c=said,lc n2wc=lc n2w&c=the,lc w=lindqvist n1w=said n2w=the def pd=person-cont w,nw=Lindqvist,said wc,nc=ic,lc S=begin po=other pow=other,Lindqvist powf=other,ic ppo=other	
+other	wc=lc w&c=said,lc p1wc=ic p1w&c=lindqvist,ic n1wc=lc n1w&c=the,lc n2wc=lc n2w&c=move,lc w=said p1w=lindqvist n1w=the n2w=move def pd=null pw,w=Lindqvist,said pwc,wc=ic,lc w,nw=said,the wc,nc=lc,lc po=person-start pow=person-start,said powf=person-start,lc ppo=other	
+other	wc=lc w&c=the,lc p1wc=lc p1w&c=said,lc p2wc=ic p2w&c=lindqvist,ic n1wc=lc n1w&c=move,lc n2wc=lc n2w&c=was,lc w=the p1w=said p2w=lindqvist n1w=move n2w=was def pd=other pw,w=said,the pwc,wc=lc,lc w,nw=the,move wc,nc=lc,lc po=other pow=other,the powf=other,lc ppo=person-start	
+other	wc=lc w&c=move,lc p1wc=lc p1w&c=the,lc p2wc=lc p2w&c=said,lc n1wc=lc n1w&c=was,lc n2wc=lc n2w&c=easy,lc w=move p1w=the p2w=said n1w=was n2w=easy def pd=null pw,w=the,move pwc,wc=lc,lc w,nw=move,was wc,nc=lc,lc po=other pow=other,move powf=other,lc ppo=other	
+other	wc=lc w&c=was,lc p1wc=lc p1w&c=move,lc p2wc=lc p2w&c=the,lc n1wc=lc n1w&c=easy,lc n2wc=other n2w&c=.,other w=was p1w=move p2w=the n1w=easy n2w=. def pd=null pw,w=move,was pwc,wc=lc,lc w,nw=was,easy wc,nc=lc,lc po=other pow=other,was powf=other,lc ppo=other	
+other	wc=lc w&c=easy,lc p1wc=lc p1w&c=was,lc p2wc=lc p2w&c=move,lc n1wc=other n1w&c=.,other w=easy p1w=was p2w=move n1w=. def pd=null pw,w=was,easy pwc,wc=lc,lc w,nw=easy,. wc,nc=lc,other po=other pow=other,easy powf=other,lc ppo=other	
+other	wc=other w&c=.,other p1wc=lc p1w&c=easy,lc p2wc=lc p2w&c=was,lc w=. p1w=easy p2w=was def pd=other pw,w=easy,. pwc,wc=lc,other po=other pow=other,. powf=other,other ppo=other	
+other	wc=ic w&c=the,ic n1wc=lc n1w&c=company,lc n2wc=lc n2w&c=opened,lc w=the n1w=company n2w=opened def pd=null w,nw=The,company wc,nc=ic,lc S=begin po=other pow=other,The powf=other,ic ppo=other	
+other	wc=lc w&c=company,lc p1wc=ic p1w&c=the,ic n1wc=lc n1w&c=opened,lc n2wc=lc n2w&c=a,lc w=company p1w=the n1w=opened n2w=a def pd=null pw,w=The,company pwc,wc=ic,lc w,nw=company,opened wc,nc=lc,lc po=other pow=other,company powf=other,lc ppo=other	
+other	wc=lc w&c=opened,lc p1wc=lc p1w&c=company,lc p2wc=ic p2w&c=the,ic n1wc=lc n1w&c=a,lc n2wc=lc n2w&c=second,lc w=opened p1w=company p2w=the n1w=a n2w=second def pd=null pw,w=company,opened pwc,wc=lc,lc w,nw=opened,a wc,nc=lc,lc po=other pow=other,opened powf=other,lc ppo=other	
+other	wc=lc w&c=a,lc p1wc=lc p1w&c=opened,lc p2wc=lc p2w&c=company,lc n1wc=lc n1w&c=second,lc n2wc=lc n2w&c=office,lc w=a p1w=opened p2w=company n1w=second n2w=office def pd=null pw,w=opened,a pwc,wc=lc,lc w,nw=a,second wc,nc=lc,lc po=other pow=other,a powf=other,lc ppo=other	
+other	wc=lc w&c=second,lc p1wc=lc p1w&c=a,lc p2wc=lc p2w&c=opened,lc n1wc=lc n1w&c=office,lc n2wc=lc n2w&c=in,lc w=second p1w=a p2w=opened n1w=office n2w=in def pd=null pw,w=a,second pwc,wc=lc,lc w,nw=second,office wc,nc=lc,lc po=other pow=other,second powf=other,lc ppo=other	
+other	wc=lc w&c=office,lc p1wc=lc p1w&c=second,lc p2wc=lc p2w&c=a,lc n1wc=lc n1w&c=in,lc n2wc=ic n2w&c=boise,ic w=office p1w=second p2w=a n1w=in n2w=boise def pd=null pw,w=second,office pwc,wc=lc,lc w,nw=office,in wc,nc=lc,lc po=other pow=other,office powf=other,lc ppo=other	
+other	wc=lc w&c=in,lc p1wc=lc p1w&c=office,lc p2wc=lc p2w&c=second,lc n1wc=ic n1w&c=boise,ic n2wc=lc n2w&c=on,lc w=in p1w=office p2w=second n1w=boise n2w=on def pd=other pw,w=office,in pwc,wc=lc,lc w,nw=in,Boise wc,nc=lc,ic po=other pow=other,in powf=other,lc ppo=other	
+location-start	wc=ic w&c=boise,ic p1wc=lc p1w&c=in,lc p2wc=lc p2w&c=office,lc n1wc=lc n1w&c=on,lc n2wc=ic n2w&c=june,ic w=boise p1w=in p2w=office n1w=on n2w=june def pd=null pw,w=in,Boise pwc,wc=lc,ic w,nw=Boise,on wc,nc=ic,lc po=other pow=other,Boise powf=other,ic ppo=other	
+other	wc=lc w&c=on,lc p1wc=ic p1w&c=boise,ic p2wc=lc p2w&c=in,lc n1wc=ic n1w&c=june,ic n2wc=num n2w&c=4,num w=on p1w=boise p2w=in n1w=june n2w=4 def pd=null pw,w=Boise,on pwc,wc=ic,lc w,nw=on,June wc,nc=lc,ic po=location-start pow=location-start,on powf=location-start,lc ppo=other	
+date-start	wc=ic w&c=june,ic p1wc=lc p1w&c=on,lc p2wc=ic p2w&c=boise,ic n1wc=num n1w&c=4,num n2wc=other n2w&c=.,other w=june p1w=on p2w=boise n1w=4 n2w=. def pd=null pw,w=on,June pwc,wc=lc,ic w,nw=June,4 wc,nc=ic,num po=other pow=other,June powf=other,ic ppo=location-start	
+date-cont	wc=num w&c=4,num p1wc=ic p1w&c=june,ic p2wc=lc p2w&c=on,lc n1wc=other n1w&c=.,other w=4 p1w=june p2w=on n1w=. def pd=null pw,w=June,4 pwc,wc=ic,num w,nw=4,. wc,nc=num,other po=date-start pow=date-start,4 powf=date-start,num ppo=other	
+other	wc=other w&c=.,other p1wc=num p1w&c=4,num p2wc=ic p2w&c=june,ic w=. p1w=4 p2w=june def pd=other pw,w=4,. pwc,wc=num,other po=date-cont pow=date-cont,. powf=date-cont,other ppo=date-start	
+person-start	wc=ic w&c=dr.,ic n1wc=ic n1w&c=okafor,ic n2wc=lc n2w&c=spoke,lc w=dr. n1w=okafor n2w=spoke def pd=null w,nw=Dr.,Okafor wc,nc=ic,ic S=begin po=other pow=other,Dr. powf=other,ic ppo=other	
+person-cont	wc=ic w&c=okafor,ic p1wc=ic p1w&c=dr.,ic n1wc=lc n1w&c=spoke,lc n2wc=lc n2w&c=at,lc w=okafor p1w=dr. n1w=spoke n2w=at def pd=null pw,w=Dr.,Okafor pwc,wc=ic,ic w,nw=Okafor,spoke wc,nc=ic,lc po=person-start pow=person-start,Okafor powf=person-start,ic ppo=other	
+other	wc=lc w&c=spoke,lc p1wc=ic p1w&c=okafor,ic p2wc=ic p2w&c=dr.,ic n1wc=lc n1w&c=at,lc n2wc=ic n2w&c=st.,ic w=spoke p1w=okafor p2w=dr. n1w=at n2w=st. def pd=null pw,w=Okafor,spoke pwc,wc=ic,lc w,nw=spoke,at wc,nc=lc,lc po=person-cont pow=person-cont,spoke powf=person-cont,lc ppo=person-start	
+other	wc=lc w&c=at,lc p1wc=lc p1w&c=spoke,lc p2wc=ic p2w&c=okafor,ic n1wc=ic n1w&c=st.,ic n2wc=ic n2w&c=agnes,ic w=at p1w=spoke p2w=okafor n1w=st. n2w=agnes def pd=null pw,w=spoke,at pwc,wc=lc,lc w,nw=at,St. wc,nc=lc,ic po=other pow=other,at powf=other,lc ppo=person-cont	
+organization-start	wc=ic w&c=st.,ic p1wc=lc p1w&c=at,lc p2wc=lc p2w&c=spoke,lc n1wc=ic n1w&c=agnes,ic n2wc=ic n2w&c=hospital,ic w=st. p1w=at p2w=spoke n1w=agnes n2w=hospital def pd=null pw,w=at,St. pwc,wc=lc,ic w,nw=St.,Agnes wc,nc=ic,ic po=other pow=other,St. powf=other,ic ppo=other	
+organization-cont	wc=ic w&c=agnes,ic p1wc=ic p1w&c=st.,ic p2wc=lc p2w&c=at,lc n1wc=ic n1w&c=hospital,ic n2wc=lc n2w&c=on,lc w=agnes p1w=st. p2w=at n1w=hospital n2w=on def pd=null pw,w=St.,Agnes pwc,wc=ic,ic w,nw=Agnes,Hospital wc,nc=ic,ic po=organization-start pow=organization-start,Agnes powf=organization-start,ic ppo=other	
+organization-cont	wc=ic w&c=hospital,ic p1wc=ic p1w&c=agnes,ic p2wc=ic p2w&c=st.,ic n1wc=lc n1w&c=on,lc n2wc=ic n2w&c=tuesday,ic w=hospital p1w=agnes p2w=st. n1w=on n2w=tuesday def pd=null pw,w=Agnes,Hospital pwc,wc=ic,ic w,nw=Hospital,on wc,nc=ic,lc po=organization-cont pow=organization-cont,Hospital powf=organization-cont,ic ppo=organization-start	
+other	wc=lc w&c=on,lc p1wc=ic p1w&c=hospital,ic p2wc=ic p2w&c=agnes,ic n1wc=ic n1w&c=tuesday,ic n2wc=other n2w&c=.,other w=on p1w=hospital p2w=agnes n1w=tuesday n2w=. def pd=null pw,w=Hospital,on pwc,wc=ic,lc w,nw=on,Tuesday wc,nc=lc,ic po=organization-cont pow=organization-cont,on powf=organization-cont,lc ppo=organization-cont	
+date-start	wc=ic w&c=tuesday,ic p1wc=lc p1w&c=on,lc p2wc=ic p2w&c=hospital,ic n1wc=other n1w&c=.,other w=tuesday p1w=on p2w=hospital n1w=. def pd=null pw,w=on,Tuesday pwc,wc=lc,ic w,nw=Tuesday,. wc,nc=ic,other po=other pow=other,Tuesday powf=other,ic ppo=organization-cont	
+other	wc=other w&c=.,other p1wc=ic p1w&c=tuesday,ic p2wc=lc p2w&c=on,lc w=. p1w=tuesday p2w=on def pd=null pw,w=Tuesday,. pwc,wc=ic,other po=date-start pow=date-start,. powf=date-start,other ppo=other	
+person-start	wc=ic w&c=chidi,ic n1wc=ic n1w&c=okafor,ic n2wc=lc n2w&c=has,lc w=chidi n1w=okafor n2w=has def pd=null w,nw=Chidi,Okafor wc,nc=ic,ic S=begin po=other pow=other,Chidi powf=other,ic ppo=other	
+person-cont	wc=ic w&c=okafor,ic p1wc=ic p1w&c=chidi,ic n1wc=lc n1w&c=has,lc n2wc=lc n2w&c=worked,lc w=okafor p1w=chidi n1w=has n2w=worked def pd=person-cont pw,w=Chidi,Okafor pwc,wc=ic,ic w,nw=Okafor,has wc,nc=ic,lc po=person-start pow=person-start,Okafor powf=person-start,ic ppo=other	
+other	wc=lc w&c=has,lc p1wc=ic p1w&c=okafor,ic p2wc=ic p2w&c=chidi,ic n1wc=lc n1w&c=worked,lc n2wc=lc n2w&c=there,lc w=has p1w=okafor p2w=chidi n1w=worked n2w=there def pd=null pw,w=Okafor,has pwc,wc=ic,lc w,nw=has,worked wc,nc=lc,lc po=person-cont pow=person-cont,has powf=person-cont,lc ppo=person-start	
+other	wc=lc w&c=worked,lc p1wc=lc p1w&c=has,lc p2wc=ic p2w&c=okafor,ic n1wc=lc n1w&c=there,lc n2wc=lc n2w&c=since,lc w=worked p1w=has p2w=okafor n1w=there n2w=since def pd=null pw,w=has,worked pwc,wc=lc,lc w,nw=worked,there wc,nc=lc,lc po=other pow=other,worked powf=other,lc ppo=person-cont	
+other	wc=lc w&c=there,lc p1wc=lc p1w&c=worked,lc p2wc=lc p2w&c=has,lc n1wc=lc n1w&c=since,lc n2wc=4d n2w&c=2011,4d w=there p1w=worked p2w=has n1w=since n2w=2011 def pd=null pw,w=worked,there pwc,wc=lc,lc w,nw=there,since wc,nc=lc,lc po=other pow=other,there powf=other,lc ppo=other	
+other	wc=lc w&c=since,lc p1wc=lc p1w&c=there,lc p2wc=lc p2w&c=worked,lc n1wc=4d n1w&c=2011,4d n2wc=other n2w&c=.,other w=since p1w=there p2w=worked n1w=2011 n2w=. def pd=null pw,w=there,since pwc,wc=lc,lc w,nw=since,2011 wc,nc=lc,4d po=other pow=other,since powf=other,lc ppo=other	
+date-start	wc=4d w&c=2011,4d p1wc=lc p1w&c=since,lc p2wc=lc p2w&c=there,lc n1wc=other n1w&c=.,other w=2011 p1w=since p2w=there n1w=. def pd=null pw,w=since,2011 pwc,wc=lc,4d w,nw=2011,. wc,nc=4d,other po=other pow=other,2011 powf=other,4d ppo=other	
+other	wc=other w&c=.,other p1wc=4d p1w&c=2011,4d p2wc=lc p2w&c=since,lc w=. p1w=2011 p2w=since def pd=other pw,w=2011,. pwc,wc=4d,other po=date-start pow=date-start,. powf=date-start,other ppo=other	
+other	wc=ic w&c=patients,ic n1wc=lc n1w&c=from,lc n2wc=ic n2w&c=lagos,ic w=patients n1w=from n2w=lagos def pd=null w,nw=Patients,from wc,nc=ic,lc S=begin po=other pow=other,Patients powf=other,ic ppo=other	
+other	wc=lc w&c=from,lc p1wc=ic p1w&c=patients,ic n1wc=ic n1w&c=lagos,ic n2wc=lc n2w&c=and,lc w=from p1w=patients n1w=lagos n2w=and def pd=null pw,w=Patients,from pwc,wc=ic,lc w,nw=from,Lagos wc,nc=lc,ic po=other pow=other,from powf=other,lc ppo=other	
+location-start	wc=ic w&c=lagos,ic p1wc=lc p1w&c=from,lc p2wc=ic p2w&c=patients,ic n1wc=lc n1w&c=and,lc n2wc=ic n2w&c=accra,ic w=lagos p1w=from p2w=patients n1w=and n2w=accra def pd=null pw,w=from,Lagos pwc,wc=lc,ic w,nw=Lagos,and wc,nc=ic,lc po=other pow=other,Lagos powf=other,ic ppo=other	
+other	wc=lc w&c=and,lc p1wc=ic p1w&c=lagos,ic p2wc=lc p2w&c=from,lc n1wc=ic n1w&c=accra,ic n2wc=lc n2w&c=visit,lc w=and p1w=lagos p2w=from n1w=accra n2w=visit def pd=null pw,w=Lagos,and pwc,wc=ic,lc w,nw=and,Accra wc,nc=lc,ic po=location-start pow=location-start,and powf=location-start,lc ppo=other	
+location-start	wc=ic w&c=accra,ic p1wc=lc p1w&c=and,lc p2wc=ic p2w&c=lagos,ic n1wc=lc n1w&c=visit,lc n2wc=lc n2w&c=the,lc w=accra p1w=and p2w=lagos n1w=visit n2w=the def pd=null pw,w=and,Accra pwc,wc=lc,ic w,nw=Accra,visit wc,nc=ic,lc po=other pow=other,Accra powf=other,ic ppo=location-start	
+other	wc=lc w&c=visit,lc p1wc=ic p1w&c=accra,ic p2wc=lc p2w&c=and,lc n1wc=lc n1w&c=the,lc n2wc=lc n2w&c=clinic,lc w=visit p1w=accra p2w=and n1w=the n2w=clinic def pd=null pw,w=Accra,visit pwc,wc=ic,lc w,nw=visit,the wc,nc=lc,lc po=location-start pow=location-start,visit powf=location-start,lc ppo=other	
+other	wc=lc w&c=the,lc p1wc=lc p1w&c=visit,lc p2wc=ic p2w&c=accra,ic n1wc=lc n1w&c=clinic,lc n2wc=other n2w&c=.,other w=the p1w=visit p2w=accra n1w=clinic n2w=. def pd=null pw,w=visit,the pwc,wc=lc,lc w,nw=the,clinic wc,nc=lc,lc po=other pow=other,the powf=other,lc ppo=location-start	
+other	wc=lc w&c=clinic,lc p1wc=lc p1w&c=the,lc p2wc=lc p2w&c=visit,lc n1wc=other n1w&c=.,other w=clinic p1w=the p2w=visit n1w=. def pd=null pw,w=the,clinic pwc,wc=lc,lc w,nw=clinic,. wc,nc=lc,other po=other pow=other,clinic powf=other,lc ppo=other	
+other	wc=other w&c=.,other p1wc=lc p1w&c=clinic,lc p2wc=lc p2w&c=the,lc w=. p1w=clinic p2w=the def pd=other pw,w=clinic,. pwc,wc=lc,other po=other pow=other,. powf=other,other ppo=other	
+organization-start	wc=ac w&c=who,ac n1wc=lc n1w&c=officials,lc n2wc=lc n2w&c=praised,lc w=who n1w=officials n2w=praised def pd=null w,nw=WHO,officials wc,nc=ac,lc S=begin po=other pow=other,WHO powf=other,ac ppo=other	
+other	wc=lc w&c=officials,lc p1wc=ac p1w&c=who,ac n1wc=lc n1w&c=praised,lc n2wc=lc n2w&c=the,lc w=officials p1w=who n1w=praised n2w=the def pd=null pw,w=WHO,officials pwc,wc=ac,lc w,nw=officials,praised wc,nc=lc,lc po=organization-start pow=organization-start,officials powf=organization-start,lc ppo=other	
+other	wc=lc w&c=praised,lc p1wc=lc p1w&c=officials,lc p2wc=ac p2w&c=who,ac n1wc=lc n1w&c=the,lc n2wc=lc n2w&c=program,lc w=praised p1w=officials p2w=who n1w=the n2w=program def pd=null pw,w=officials,praised pwc,wc=lc,lc w,nw=praised,the wc,nc=lc,lc po=other pow=other,praised powf=other,lc ppo=organization-start	
+other	wc=lc w&c=the,lc p1wc=lc p1w&c=praised,lc p2wc=lc p2w&c=officials,lc n1wc=lc n1w&c=program,lc n2wc=other n2w&c=.,other w=the p1w=praised p2w=officials n1w=program n2w=. def pd=other pw,w=praised,the pwc,wc=lc,lc w,nw=the,program wc,nc=lc,lc po=other pow=other,the powf=other,lc ppo=other	
+other	wc=lc w&c=program,lc p1wc=lc p1w&c=the,lc p2wc=lc p2w&c=praised,lc n1wc=other n1w&c=.,other w=program p1w=the p2w=praised n1w=. def pd=null pw,w=the,program pwc,wc=lc,lc w,nw=program,. wc,nc=lc,other po=other pow=other,program powf=other,lc ppo=other	
+other	wc=other w&c=.,other p1wc=lc p1w&c=program,lc p2wc=lc p2w&c=the,lc w=. p1w=program p2w=the def pd=other pw,w=program,. pwc,wc=lc,other po=other pow=other,. powf=other,other ppo=other	
+other	wc=ic w&c=nobody,ic n1wc=lc n1w&c=else,lc n2wc=lc n2w&c=was,lc w=nobody n1w=else n2w=was def pd=null w,nw=Nobody,else wc,nc=ic,lc S=begin po=other pow=other,Nobody powf=other,ic ppo=other	
+other	wc=lc w&c=else,lc p1wc=ic p1w&c=nobody,ic n1wc=lc n1w&c=was,lc n2wc=lc n2w&c=named,lc w=else p1w=nobody n1w=was n2w=named def pd=null pw,w=Nobody,else pwc,wc=ic,lc w,nw=else,was wc,nc=lc,lc po=other pow=other,else powf=other,lc ppo=other	
+other	wc=lc w&c=was,lc p1wc=lc p1w&c=else,lc p2wc=ic p2w&c=nobody,ic n1wc=lc n1w&c=named,lc n2wc=lc n2w&c=in,lc w=was p1w=else p2w=nobody n1w=named n2w=in def pd=null pw,w=else,was pwc,wc=lc,lc w,nw=was,named wc,nc=lc,lc po=other pow=other,was powf=other,lc ppo=other	
+other	wc=lc w&c=named,lc p1wc=lc p1w&c=was,lc p2wc=lc p2w&c=else,lc n1wc=lc n1w&c=in,lc n2wc=lc n2w&c=the,lc w=named p1w=was p2w=else n1w=in n2w=the def pd=null pw,w=was,named pwc,wc=lc,lc w,nw=named,in wc,nc=lc,lc po=other pow=other,named powf=other,lc ppo=other	
+other	wc=lc w&c=in,lc p1wc=lc p1w&c=named,lc p2wc=lc p2w&c=was,lc n1wc=lc n1w&c=the,lc n2wc=lc n2w&c=report,lc w=in p1w=named p2w=was n1w=the n2w=report def pd=null pw,w=named,in pwc,wc=lc,lc w,nw=in,the wc,nc=lc,lc po=other pow=other,in powf=other,lc ppo=other	
+other	wc=lc w&c=the,lc p1wc=lc p1w&c=in,lc p2wc=lc p2w&c=named,lc n1wc=lc n1w&c=report,lc n2wc=other n2w&c=.,other w=the p1w=in p2w=named n1w=report n2w=. def pd=other pw,w=in,the pwc,wc=lc,lc w,nw=the,report wc,nc=lc,lc po=other pow=other,the powf=other,lc ppo=other	
+other	wc=lc w&c=report,lc p1wc=lc p1w&c=the,lc p2wc=lc p2w&c=in,lc n1wc=other n1w&c=.,other w=report p1w=the p2w=in n1w=. def pd=null pw,w=the,report pwc,wc=lc,lc w,nw=report,. wc,nc=lc,other po=other pow=other,report powf=other,lc ppo=other	
+other	wc=other w&c=.,other p1wc=lc p1w&c=report,lc p2wc=lc p2w&c=the,lc w=. p1w=report p2w=the def pd=other pw,w=report,. pwc,wc=lc,other po=other pow=other,. powf=other,other ppo=other	
+person-start	wc=ic w&c=josé,ic n1wc=ic n1w&c=álvarez,ic n2wc=other n2w&c=,,other w=josé n1w=álvarez n2w=, def pd=null w,nw=José,Álvarez wc,nc=ic,ic S=begin po=other pow=other,José powf=other,ic ppo=other	
+person-cont	wc=ic w&c=álvarez,ic p1wc=ic p1w&c=josé,ic n1wc=other n1w&c=,,other n2wc=2d n2w&c=42,2d w=álvarez p1w=josé n1w=, n2w=42 def pd=null pw,w=José,Álvarez pwc,wc=ic,ic w,nw=Álvarez,, wc,nc=ic,other po=person-start pow=person-start,Álvarez powf=person-start,ic ppo=other	
+other	wc=other w&c=,,other p1wc=ic p1w&c=álvarez,ic p2wc=ic p2w&c=josé,ic n1wc=2d n1w&c=42,2d n2wc=other n2w&c=,,other w=, p1w=álvarez p2w=josé n1w=42 n2w=, def pd=null pw,w=Álvarez,, pwc,wc=ic,other w,nw=,,42 wc,nc=other,2d po=person-cont pow=person-cont,, powf=person-cont,other ppo=person-start	
+other	wc=2d w&c=42,2d p1wc=other p1w&c=,,other p2wc=ic p2w&c=álvarez,ic n1wc=other n1w&c=,,other n2wc=lc n2w&c=runs,lc w=42 p1w=, p2w=álvarez n1w=, n2w=runs def pd=null pw,w=,,42 pwc,wc=other,2d w,nw=42,, wc,nc=2d,other po=other pow=other,42 powf=other,2d ppo=person-cont	
+other	wc=other w&c=,,other p1wc=2d p1w&c=42,2d p2wc=other p2w&c=,,other n1wc=lc n1w&c=runs,lc n2wc=lc n2w&c=a,lc w=, p1w=42 p2w=, n1w=runs n2w=a def pd=null pw,w=42,, pwc,wc=2d,other w,nw=,,runs wc,nc=other,lc po=other pow=other,, powf=other,other ppo=other	
+other	wc=lc w&c=runs,lc p1wc=other p1w&c=,,other p2wc=2d p2w&c=42,2d n1wc=lc n1w&c=a,lc n2wc=lc n2w&c=café,lc w=runs p1w=, p2w=42 n1w=a n2w=café def pd=null pw,w=,,runs pwc,wc=other,lc w,nw=runs,a wc,nc=lc,lc po=other pow=other,runs powf=other,lc ppo=other	
+other	wc=lc w&c=a,lc p1wc=lc p1w&c=runs,lc p2wc=other p2w&c=,,other n1wc=lc n1w&c=café,lc n2wc=lc n2w&c=in,lc w=a p1w=runs p2w=, n1w=café n2w=in def pd=null pw,w=runs,a pwc,wc=lc,lc w,nw=a,café wc,nc=lc,lc po=other pow=other,a powf=other,lc ppo=other	
+other	wc=lc w&c=café,lc p1wc=lc p1w&c=a,lc p2wc=lc p2w&c=runs,lc n1wc=lc n1w&c=in,lc n2wc=ic n2w&c=são,ic w=café p1w=a p2w=runs n1w=in n2w=são def pd=null pw,w=a,café pwc,wc=lc,lc w,nw=café,in wc,nc=lc,lc po=other pow=other,café powf=other,lc ppo=other	
+other	wc=lc w&c=in,lc p1wc=lc p1w&c=café,lc p2wc=lc p2w&c=a,lc n1wc=ic n1w&c=são,ic n2wc=ic n2w&c=paulo,ic w=in p1w=café p2w=a n1w=são n2w=paulo def pd=null pw,w=café,in pwc,wc=lc,lc w,nw=in,São wc,nc=lc,ic po=other pow=other,in powf=other,lc ppo=other	
+location-start	wc=ic w&c=são,ic p1wc=lc p1w&c=in,lc p2wc=lc p2w&c=café,lc n1wc=ic n1w&c=paulo,ic n2wc=other n2w&c=.,other w=são p1w=in p2w=café n1w=paulo n2w=. def pd=null pw,w=in,São pwc,wc=lc,ic w,nw=São,Paulo wc,nc=ic,ic po=other pow=other,São powf=other,ic ppo=other	
+location-cont	wc=ic w&c=paulo,ic p1wc=ic p1w&c=são,ic p2wc=lc p2w&c=in,lc n1wc=other n1w&c=.,other w=paulo p1w=são p2w=in n1w=. def pd=null pw,w=São,Paulo pwc,wc=ic,ic w,nw=Paulo,. wc,nc=ic,other po=location-start pow=location-start,Paulo powf=location-start,ic ppo=other	
+other	wc=other w&c=.,other p1wc=ic p1w&c=paulo,ic p2wc=ic p2w&c=são,ic w=. p1w=paulo p2w=são def pd=null pw,w=Paulo,. pwc,wc=ic,other po=location-cont pow=location-cont,. powf=location-cont,other ppo=location-start	
+person-start	wc=ic w&c=álvarez,ic n1wc=lc n1w&c=buys,lc n2wc=lc n2w&c=beans,lc w=álvarez n1w=buys n2w=beans def pd=person-cont w,nw=Álvarez,buys wc,nc=ic,lc S=begin po=other pow=other,Álvarez powf=other,ic ppo=other	
+other	wc=lc w&c=buys,lc p1wc=ic p1w&c=álvarez,ic n1wc=lc n1w&c=beans,lc n2wc=lc n2w&c=from,lc w=buys p1w=álvarez n1w=beans n2w=from def pd=null pw,w=Álvarez,buys pwc,wc=ic,lc w,nw=buys,beans wc,nc=lc,lc po=person-start pow=person-start,buys powf=person-start,lc ppo=other	
+other	wc=lc w&c=beans,lc p1wc=lc p1w&c=buys,lc p2wc=ic p2w&c=álvarez,ic n1wc=lc n1w&c=from,lc n2wc=ic n2w&c=café,ic w=beans p1w=buys p2w=álvarez n1w=from n2w=café def pd=null pw,w=buys,beans pwc,wc=lc,lc w,nw=beans,from wc,nc=lc,lc po=other pow=other,beans powf=other,lc ppo=person-start	
+other	wc=lc w&c=from,lc p1wc=lc p1w&c=beans,lc p2wc=lc p2w&c=buys,lc n1wc=ic n1w&c=café,ic n2wc=ic n2w&c=monte,ic w=from p1w=beans p2w=buys n1w=café n2w=monte def pd=null pw,w=beans,from pwc,wc=lc,lc w,nw=from,Café wc,nc=lc,ic po=other pow=other,from powf=other,lc ppo=other	
+organization-start	wc=ic w&c=café,ic p1wc=lc p1w&c=from,lc p2wc=lc p2w&c=beans,lc n1wc=ic n1w&c=monte,ic n2wc=ic n2w&c=verde,ic w=café p1w=from p2w=beans n1w=monte n2w=verde def pd=null pw,w=from,Café pwc,wc=lc,ic w,nw=Café,Monte wc,nc=ic,ic po=other pow=other,Café powf=other,ic ppo=other	
+organization-cont	wc=ic w&c=monte,ic p1wc=ic p1w&c=café,ic p2wc=lc p2w&c=from,lc n1wc=ic n1w&c=verde,ic n2wc=ic n2w&c=s.a.,ic w=monte p1w=café p2w=from n1w=verde n2w=s.a. def pd=null pw,w=Café,Monte pwc,wc=ic,ic w,nw=Monte,Verde wc,nc=ic,ic po=organization-start pow=organization-start,Monte powf=organization-start,ic ppo=other	
+organization-cont	wc=ic w&c=verde,ic p1wc=ic p1w&c=monte,ic p2wc=ic p2w&c=café,ic n1wc=ic n1w&c=s.a.,ic n2wc=lc n2w&c=every,lc w=verde p1w=monte p2w=café n1w=s.a. n2w=every def pd=null pw,w=Monte,Verde pwc,wc=ic,ic w,nw=Verde,S.A. wc,nc=ic,ic po=organization-cont pow=organization-cont,Verde powf=organization-cont,ic ppo=organization-start	
+organization-cont	wc=ic w&c=s.a.,ic p1wc=ic p1w&c=verde,ic p2wc=ic p2w&c=monte,ic n1wc=lc n1w&c=every,lc n2wc=ic n2w&c=monday,ic w=s.a. p1w=verde p2w=monte n1w=every n2w=monday def pd=null pw,w=Verde,S.A. pwc,wc=ic,ic w,nw=S.A.,every wc,nc=ic,lc po=organization-cont pow=organization-cont,S.A. powf=organization-cont,ic ppo=organization-cont	
+other	wc=lc w&c=every,lc p1wc=ic p1w&c=s.a.,ic p2wc=ic p2w&c=verde,ic n1wc=ic n1w&c=monday,ic n2wc=other n2w&c=.,other w=every p1w=s.a. p2w=verde n1w=monday n2w=. def pd=null pw,w=S.A.,every pwc,wc=ic,lc w,nw=every,Monday wc,nc=lc,ic po=organization-cont pow=organization-cont,every powf=organization-cont,lc ppo=organization-cont	
+date-start	wc=ic w&c=monday,ic p1wc=lc p1w&c=every,lc p2wc=ic p2w&c=s.a.,ic n1wc=other n1w&c=.,other w=monday p1w=every p2w=s.a. n1w=. def pd=null pw,w=every,Monday pwc,wc=lc,ic w,nw=Monday,. wc,nc=ic,other po=other pow=other,Monday powf=other,ic ppo=organization-cont	
+other	wc=other w&c=.,other p1wc=ic p1w&c=monday,ic p2wc=lc p2w&c=every,lc w=. p1w=monday p2w=every def pd=other pw,w=Monday,. pwc,wc=ic,other po=date-start pow=date-start,. powf=date-start,other ppo=other	
+other	wc=ic w&c=his,ic n1wc=lc n1w&c=sister,lc n2wc=ic n2w&c=inês,ic w=his n1w=sister n2w=inês def pd=null w,nw=His,sister wc,nc=ic,lc S=begin po=other pow=other,His powf=other,ic ppo=other	
+other	wc=lc w&c=sister,lc p1wc=ic p1w&c=his,ic n1wc=ic n1w&c=inês,ic n2wc=lc n2w&c=lives,lc w=sister p1w=his n1w=inês n2w=lives def pd=null pw,w=His,sister pwc,wc=ic,lc w,nw=sister,Inês wc,nc=lc,ic po=other pow=other,sister powf=other,lc ppo=other	
+person-start	wc=ic w&c=inês,ic p1wc=lc p1w&c=sister,lc p2wc=ic p2w&c=his,ic n1wc=lc n1w&c=lives,lc n2wc=lc n2w&c=in,lc w=inês p1w=sister p2w=his n1w=lives n2w=in def pd=null pw,w=sister,Inês pwc,wc=lc,ic w,nw=Inês,lives wc,nc=ic,lc po=other pow=other,Inês powf=other,ic ppo=other	
+other	wc=lc w&c=lives,lc p1wc=ic p1w&c=inês,ic p2wc=lc p2w&c=sister,lc n1wc=lc n1w&c=in,lc n2wc=ic n2w&c=lisbon,ic w=lives p1w=inês p2w=sister n1w=in n2w=lisbon def pd=null pw,w=Inês,lives pwc,wc=ic,lc w,nw=lives,in wc,nc=lc,lc po=person-start pow=person-start,lives powf=person-start,lc ppo=other	
+other	wc=lc w&c=in,lc p1wc=lc p1w&c=lives,lc p2wc=ic p2w&c=inês,ic n1wc=ic n1w&c=lisbon,ic n2wc=other n2w&c=.,other w=in p1w=lives p2w=inês n1w=lisbon n2w=. def pd=other pw,w=lives,in pwc,wc=lc,lc w,nw=in,Lisbon wc,nc=lc,ic po=other pow=other,in powf=other,lc ppo=person-start	
+location-start	wc=ic w&c=lisbon,ic p1wc=lc p1w&c=in,lc p2wc=lc p2w&c=lives,lc n1wc=other n1w&c=.,other w=lisbon p1w=in p2w=lives n1w=. def pd=null pw,w=in,Lisbon pwc,wc=lc,ic w,nw=Lisbon,. wc,nc=ic,other po=other pow=other,Lisbon powf=other,ic ppo=other	
+other	wc=other w&c=.,other p1wc=ic p1w&c=lisbon,ic p2wc=lc p2w&c=in,lc w=. p1w=lisbon p2w=in def pd=other pw,w=Lisbon,. pwc,wc=ic,other po=location-start pow=location-start,. powf=location-start,other ppo=other	
+other	wc=ic w&c=on,ic n1wc=2d n1w&c=12,2d n2wc=ic n2w&c=october,ic w=on n1w=12 n2w=october def pd=null w,nw=On,12 wc,nc=ic,2d S=begin po=other pow=other,On powf=other,ic ppo=other	
+date-start	wc=2d w&c=12,2d p1wc=ic p1w&c=on,ic n1wc=ic n1w&c=october,ic n2wc=4d n2w&c=2023,4d w=12 p1w=on n1w=october n2w=2023 def pd=null pw,w=On,12 pwc,wc=ic,2d w,nw=12,October wc,nc=2d,ic po=other pow=other,12 powf=other,2d ppo=other	
+date-cont	wc=ic w&c=october,ic p1wc=2d p1w&c=12,2d p2wc=ic p2w&c=on,ic n1wc=4d n1w&c=2023,4d n2wc=lc n2w&c=the,lc w=october p1w=12 p2w=on n1w=2023 n2w=the def pd=null pw,w=12,October pwc,wc=2d,ic w,nw=October,2023 wc,nc=ic,4d po=date-start pow=date-start,October powf=date-start,ic ppo=other	
+date-cont	wc=4d w&c=2023,4d p1wc=ic p1w&c=october,ic p2wc=2d p2w&c=12,2d n1wc=lc n1w&c=the,lc n2wc=lc n2w&c=café,lc w=2023 p1w=october p2w=12 n1w=the n2w=café def pd=null pw,w=October,2023 pwc,wc=ic,4d w,nw=2023,the wc,nc=4d,lc po=date-cont pow=date-cont,2023 powf=date-cont,4d ppo=date-start	
+other	wc=lc w&c=the,lc p1wc=4d p1w&c=2023,4d p2wc=ic p2w&c=october,ic n1wc=lc n1w&c=café,lc n2wc=lc n2w&c=won,lc w=the p1w=2023 p2w=october n1w=café n2w=won def pd=null pw,w=2023,the pwc,wc=4d,lc w,nw=the,café wc,nc=lc,lc po=date-cont pow=date-cont,the powf=date-cont,lc ppo=date-cont	
+other	wc=lc w&c=café,lc p1wc=lc p1w&c=the,lc p2wc=4d p2w&c=2023,4d n1wc=lc n1w&c=won,lc n2wc=lc n2w&c=a,lc w=café p1w=the p2w=2023 n1w=won n2w=a def pd=other pw,w=the,café pwc,wc=lc,lc w,nw=café,won wc,nc=lc,lc po=other pow=other,café powf=other,lc ppo=date-cont	
+other	wc=lc w&c=won,lc p1wc=lc p1w&c=café,lc p2wc=lc p2w&c=the,lc n1wc=lc n1w&c=a,lc n2wc=lc n2w&c=prize,lc w=won p1w=café p2w=the n1w=a n2w=prize def pd=null pw,w=café,won pwc,wc=lc,lc w,nw=won,a wc,nc=lc,lc po=other pow=other,won powf=other,lc ppo=other	
+other	wc=lc w&c=a,lc p1wc=lc p1w&c=won,lc p2wc=lc p2w&c=café,lc n1wc=lc n1w&c=prize,lc n2wc=other n2w&c=🏆,other w=a p1w=won p2w=café n1w=prize n2w=🏆 def pd=other pw,w=won,a pwc,wc=lc,lc w,nw=a,prize wc,nc=lc,lc po=other pow=other,a powf=other,lc ppo=other	
+other	wc=lc w&c=prize,lc p1wc=lc p1w&c=a,lc p2wc=lc p2w&c=won,lc n1wc=other n1w&c=🏆,other n2wc=lc n2w&c=from,lc w=prize p1w=a p2w=won n1w=🏆 n2w=from def pd=null pw,w=a,prize pwc,wc=lc,lc w,nw=prize,🏆 wc,nc=lc,other po=other pow=other,prize powf=other,lc ppo=other	
+other	wc=other w&c=🏆,other p1wc=lc p1w&c=prize,lc p2wc=lc p2w&c=a,lc n1wc=lc n1w&c=from,lc n2wc=ic n2w&c=bean,ic w=🏆 p1w=prize p2w=a n1w=from n2w=bean def pd=null pw,w=prize,🏆 pwc,wc=lc,other w,nw=🏆,from wc,nc=other,lc po=other pow=other,🏆 powf=other,other ppo=other	
+other	wc=lc w&c=from,lc p1wc=other p1w&c=🏆,other p2wc=lc p2w&c=prize,lc n1wc=ic n1w&c=bean,ic n2wc=other n2w&c=&,other w=from p1w=🏆 p2w=prize n1w=bean n2w=& def pd=other pw,w=🏆,from pwc,wc=other,lc w,nw=from,Bean wc,nc=lc,ic po=other pow=other,from powf=other,lc ppo=other	
+organization-start	wc=ic w&c=bean,ic p1wc=lc p1w&c=from,lc p2wc=other p2w&c=🏆,other n1wc=other n1w&c=&,other n2wc=ic n2w&c=leaf,ic w=bean p1w=from p2w=🏆 n1w=& n2w=leaf def pd=null pw,w=from,Bean pwc,wc=lc,ic w,nw=Bean,& wc,nc=ic,other po=other pow=other,Bean powf=other,ic ppo=other	
+organization-cont	wc=other w&c=&,other p1wc=ic p1w&c=bean,ic p2wc=lc p2w&c=from,lc n1wc=ic n1w&c=leaf,ic n2wc=other n2w&c=.,other w=& p1w=bean p2w=from n1w=leaf n2w=. def pd=null pw,w=Bean,& pwc,wc=ic,other w,nw=&,Leaf wc,nc=other,ic po=organization-start pow=organization-start,& powf=organization-start,other ppo=other	
+organization-cont	wc=ic w&c=leaf,ic p1wc=other p1w&c=&,other p2wc=ic p2w&c=bean,ic n1wc=other n1w&c=.,other w=leaf p1w=& p2w=bean n1w=. def pd=null pw,w=&,Leaf pwc,wc=other,ic w,nw=Leaf,. wc,nc=ic,other po=organization-cont pow=organization-cont,Leaf powf=organization-cont,ic ppo=organization-start	
+other	wc=other w&c=.,other p1wc=ic p1w&c=leaf,ic p2wc=other p2w&c=&,other w=. p1w=leaf p2w=& def pd=other pw,w=Leaf,. pwc,wc=ic,other po=organization-cont pow=organization-cont,. powf=organization-cont,other ppo=organization-cont	
+organization-start	wc=ac w&c=ibm,ac n1wc=lc n1w&c=and,lc n2wc=ic n2w&c=red,ic w=ibm n1w=and n2w=red def pd=null w,nw=IBM,and wc,nc=ac,lc S=begin po=other pow=other,IBM powf=other,ac ppo=other	
+other	wc=lc w&c=and,lc p1wc=ac p1w&c=ibm,ac n1wc=ic n1w&c=red,ic n2wc=ic n2w&c=hat,ic w=and p1w=ibm n1w=red n2w=hat def pd=null pw,w=IBM,and pwc,wc=ac,lc w,nw=and,Red wc,nc=lc,ic po=organization-start pow=organization-start,and powf=organization-start,lc ppo=other	
+organization-start	wc=ic w&c=red,ic p1wc=lc p1w&c=and,lc p2wc=ac p2w&c=ibm,ac n1wc=ic n1w&c=hat,ic n2wc=lc n2w&c=announced,lc w=red p1w=and p2w=ibm n1w=hat n2w=announced def pd=null pw,w=and,Red pwc,wc=lc,ic w,nw=Red,Hat wc,nc=ic,ic po=other pow=other,Red powf=other,ic ppo=organization-start	
+organization-cont	wc=ic w&c=hat,ic p1wc=ic p1w&c=red,ic p2wc=lc p2w&c=and,lc n1wc=lc n1w&c=announced,lc n2wc=lc n2w&c=the,lc w=hat p1w=red p2w=and n1w=announced n2w=the def pd=null pw,w=Red,Hat pwc,wc=ic,ic w,nw=Hat,announced wc,nc=ic,lc po=organization-start pow=organization-start,Hat powf=organization-start,ic ppo=other	
+other	wc=lc w&c=announced,lc p1wc=ic p1w&c=hat,ic p2wc=ic p2w&c=red,ic n1wc=lc n1w&c=the,lc n2wc=lc n2w&c=deal,lc w=announced p1w=hat p2w=red n1w=the n2w=deal def pd=null pw,w=Hat,announced pwc,wc=ic,lc w,nw=announced,the wc,nc=lc,lc po=organization-cont pow=organization-cont,announced powf=organization-cont,lc ppo=organization-start	
+other	wc=lc w&c=the,lc p1wc=lc p1w&c=announced,lc p2wc=ic p2w&c=hat,ic n1wc=lc n1w&c=deal,lc n2wc=lc n2w&c=in,lc w=the p1w=announced p2w=hat n1w=deal n2w=in def pd=null pw,w=announced,the pwc,wc=lc,lc w,nw=the,deal wc,nc=lc,lc po=other pow=other,the powf=other,lc ppo=organization-cont	
+other	wc=lc w&c=deal,lc p1wc=lc p1w&c=the,lc p2wc=lc p2w&c=announced,lc n1wc=lc n1w&c=in,lc n2wc=ic n2w&c=new,ic w=deal p1w=the p2w=announced n1w=in n2w=new def pd=null pw,w=the,deal pwc,wc=lc,lc w,nw=deal,in wc,nc=lc,lc po=other pow=other,deal powf=other,lc ppo=other	
+other	wc=lc w&c=in,lc p1wc=lc p1w&c=deal,lc p2wc=lc p2w&c=the,lc n1wc=ic n1w&c=new,ic n2wc=ic n2w&c=york,ic w=in p1w=deal p2w=the n1w=new n2w=york def pd=null pw,w=deal,in pwc,wc=lc,lc w,nw=in,New wc,nc=lc,ic po=other pow=other,in powf=other,lc ppo=other	
+location-start	wc=ic w&c=new,ic p1wc=lc p1w&c=in,lc p2wc=lc p2w&c=deal,lc n1wc=ic n1w&c=york,ic n2wc=other n2w&c=.,other w=new p1w=in p2w=deal n1w=york n2w=. def pd=null pw,w=in,New pwc,wc=lc,ic w,nw=New,York wc,nc=ic,ic po=other pow=other,New powf=other,ic ppo=other	
+location-cont	wc=ic w&c=york,ic p1wc=ic p1w&c=new,ic p2wc=lc p2w&c=in,lc n1wc=other n1w&c=.,other w=york p1w=new p2w=in n1w=. def pd=null pw,w=New,York pwc,wc=ic,ic w,nw=York,. wc,nc=ic,other po=location-start pow=location-start,York powf=location-start,ic ppo=other	
+other	wc=other w&c=.,other p1wc=ic p1w&c=york,ic p2wc=ic p2w&c=new,ic w=. p1w=york p2w=new def pd=null pw,w=York,. pwc,wc=ic,other po=location-cont pow=location-cont,. powf=location-cont,other ppo=location-start	
+person-start	wc=cp w&c=j.,cp n1wc=cp n1w&c=r.,cp n2wc=ic n2w&c=smith-jones,ic w=j. n1w=r. n2w=smith-jones def pd=null w,nw=J.,R. wc,nc=cp,cp S=begin po=other pow=other,J. powf=other,cp ppo=other	
+person-cont	wc=cp w&c=r.,cp p1wc=cp p1w&c=j.,cp n1wc=ic n1w&c=smith-jones,ic n2wc=other n2w&c=,,other w=r. p1w=j. n1w=smith-jones n2w=, def pd=null pw,w=J.,R. pwc,wc=cp,cp w,nw=R.,Smith-Jones wc,nc=cp,ic po=person-start pow=person-start,R. powf=person-start,cp ppo=other	
+person-cont	wc=ic w&c=smith-jones,ic p1wc=cp p1w&c=r.,cp p2wc=cp p2w&c=j.,cp n1wc=other n1w&c=,,other n2wc=lc n2w&c=a,lc w=smith-jones p1w=r. p2w=j. n1w=, n2w=a def pd=null pw,w=R.,Smith-Jones pwc,wc=cp,ic w,nw=Smith-Jones,, wc,nc=ic,other po=person-cont pow=person-cont,Smith-Jones powf=person-cont,ic ppo=person-start	
+other	wc=other w&c=,,other p1wc=ic p1w&c=smith-jones,ic p2wc=cp p2w&c=r.,cp n1wc=lc n1w&c=a,lc n2wc=lc n2w&c=spokesman,lc w=, p1w=smith-jones p2w=r. n1w=a n2w=spokesman def pd=null pw,w=Smith-Jones,, pwc,wc=ic,other w,nw=,,a wc,nc=other,lc po=person-cont pow=person-cont,, powf=person-cont,other ppo=person-cont	
+other	wc=lc w&c=a,lc p1wc=other p1w&c=,,other p2wc=ic p2w&c=smith-jones,ic n1wc=lc n1w&c=spokesman,lc n2wc=other n2w&c=,,other w=a p1w=, p2w=smith-jones n1w=spokesman n2w=, def pd=null pw,w=,,a pwc,wc=other,lc w,nw=a,spokesman wc,nc=lc,lc po=other pow=other,a powf=other,lc ppo=person-cont	
+other	wc=lc w&c=spokesman,lc p1wc=lc p1w&c=a,lc p2wc=other p2w&c=,,other n1wc=other n1w&c=,,other n2wc=lc n2w&c=confirmed,lc w=spokesman p1w=a p2w=, n1w=, n2w=confirmed def pd=null pw,w=a,spokesman pwc,wc=lc,lc w,nw=spokesman,, wc,nc=lc,other po=other pow=other,spokesman powf=other,lc ppo=other	
+other	wc=other w&c=,,other p1wc=lc p1w&c=spokesman,lc p2wc=lc p2w&c=a,lc n1wc=lc n1w&c=confirmed,lc n2wc=lc n2w&c=it,lc w=, p1w=spokesman p2w=a n1w=confirmed n2w=it def pd=null pw,w=spokesman,, pwc,wc=lc,other w,nw=,,confirmed wc,nc=other,lc po=other pow=other,, powf=other,other ppo=other	
+other	wc=lc w&c=confirmed,lc p1wc=other p1w&c=,,other p2wc=lc p2w&c=spokesman,lc n1wc=lc n1w&c=it,lc n2wc=lc n2w&c=on,lc w=confirmed p1w=, p2w=spokesman n1w=it n2w=on def pd=null pw,w=,,confirmed pwc,wc=other,lc w,nw=confirmed,it wc,nc=lc,lc po=other pow=other,confirmed powf=other,lc ppo=other	
+other	wc=lc w&c=it,lc p1wc=lc p1w&c=confirmed,lc p2wc=other p2w&c=,,other n1wc=lc n1w&c=on,lc n2wc=ic n2w&c=friday,ic w=it p1w=confirmed p2w=, n1w=on n2w=friday def pd=null pw,w=confirmed,it pwc,wc=lc,lc w,nw=it,on wc,nc=lc,lc po=other pow=other,it powf=other,lc ppo=other	
+other	wc=lc w&c=on,lc p1wc=lc p1w&c=it,lc p2wc=lc p2w&c=confirmed,lc n1wc=ic n1w&c=friday,ic n2wc=other n2w&c=.,other w=on p1w=it p2w=confirmed n1w=friday n2w=. def pd=null pw,w=it,on pwc,wc=lc,lc w,nw=on,Friday wc,nc=lc,ic po=other pow=other,on powf=other,lc ppo=other	
+date-start	wc=ic w&c=friday,ic p1wc=lc p1w&c=on,lc p2wc=lc p2w&c=it,lc n1wc=other n1w&c=.,other w=friday p1w=on p2w=it n1w=. def pd=null pw,w=on,Friday pwc,wc=lc,ic w,nw=Friday,. wc,nc=ic,other po=other pow=other,Friday powf=other,ic ppo=other	
+other	wc=other w&c=.,other p1wc=ic p1w&c=friday,ic p2wc=lc p2w&c=on,lc w=. p1w=friday p2w=on def pd=other pw,w=Friday,. pwc,wc=ic,other po=date-start pow=date-start,. powf=date-start,other ppo=other	
+other	wc=ic w&c=shares,ic n1wc=lc n1w&c=rose,lc n2wc=2d n2w&c=3.5,2d w=shares n1w=rose n2w=3.5 def pd=null w,nw=Shares,rose wc,nc=ic,lc S=begin po=other pow=other,Shares powf=other,ic ppo=other	
+other	wc=lc w&c=rose,lc p1wc=ic p1w&c=shares,ic n1wc=2d n1w&c=3.5,2d n2wc=other n2w&c=%,other w=rose p1w=shares n1w=3.5 n2w=% def pd=null pw,w=Shares,rose pwc,wc=ic,lc w,nw=rose,3.5 wc,nc=lc,2d po=other pow=other,rose powf=other,lc ppo=other	
+other	wc=2d w&c=3.5,2d p1wc=lc p1w&c=rose,lc p2wc=ic p2w&c=shares,ic n1wc=other n1w&c=%,other n2wc=lc n2w&c=in,lc w=3.5 p1w=rose p2w=shares n1w=% n2w=in def pd=null pw,w=rose,3.5 pwc,wc=lc,2d w,nw=3.5,% wc,nc=2d,other po=other pow=other,3.5 powf=other,2d ppo=other	
+other	wc=other w&c=%,other p1wc=2d p1w&c=3.5,2d p2wc=lc p2w&c=rose,lc n1wc=lc n1w&c=in,lc n2wc=lc n2w&c=early,lc w=% p1w=3.5 p2w=rose n1w=in n2w=early def pd=null pw,w=3.5,% pwc,wc=2d,other w,nw=%,in wc,nc=other,lc po=other pow=other,% powf=other,other ppo=other	
+other	wc=lc w&c=in,lc p1wc=other p1w&c=%,other p2wc=2d p2w&c=3.5,2d n1wc=lc n1w&c=early,lc n2wc=lc n2w&c=trading,lc w=in p1w=% p2w=3.5 n1w=early n2w=trading def pd=other pw,w=%,in pwc,wc=other,lc w,nw=in,early wc,nc=lc,lc po=other pow=other,in powf=other,lc ppo=other	
+other	wc=lc w&c=early,lc p1wc=lc p1w&c=in,lc p2wc=other p2w&c=%,other n1wc=lc n1w&c=trading,lc n2wc=other n2w&c=.,other w=early p1w=in p2w=% n1w=trading n2w=. def pd=null pw,w=in,early pwc,wc=lc,lc w,nw=early,trading wc,nc=lc,lc po=other pow=other,early powf=other,lc ppo=other	
+other	wc=lc w&c=trading,lc p1wc=lc p1w&c=early,lc p2wc=lc p2w&c=in,lc n1wc=other n1w&c=.,other w=trading p1w=early p2w=in n1w=. def pd=null pw,w=early,trading pwc,wc=lc,lc w,nw=trading,. wc,nc=lc,other po=other pow=other,trading powf=other,lc ppo=other	
+other	wc=other w&c=.,other p1wc=lc p1w&c=trading,lc p2wc=lc p2w&c=early,lc w=. p1w=trading p2w=early def pd=other pw,w=trading,. pwc,wc=lc,other po=other pow=other,. powf=other,other ppo=other	
+person-start	wc=ic w&c=smith-jones,ic n1wc=lc n1w&c=declined,lc n2wc=lc n2w&c=to,lc w=smith-jones n1w=declined n2w=to def pd=person-cont w,nw=Smith-Jones,declined wc,nc=ic,lc S=begin po=other pow=other,Smith-Jones powf=other,ic ppo=other	
+other	wc=lc w&c=declined,lc p1wc=ic p1w&c=smith-jones,ic n1wc=lc n1w&c=to,lc n2wc=lc n2w&c=comment,lc w=declined p1w=smith-jones n1w=to n2w=comment def pd=null pw,w=Smith-Jones,declined pwc,wc=ic,lc w,nw=declined,to wc,nc=lc,lc po=person-start pow=person-start,declined powf=person-start,lc ppo=other	
+other	wc=lc w&c=to,lc p1wc=lc p1w&c=declined,lc p2wc=ic p2w&c=smith-jones,ic n1wc=lc n1w&c=comment,lc n2wc=lc n2w&c=on,lc w=to p1w=declined p2w=smith-jones n1w=comment n2w=on def pd=null pw,w=declined,to pwc,wc=lc,lc w,nw=to,comment wc,nc=lc,lc po=other pow=other,to powf=other,lc ppo=person-start	
+other	wc=lc w&c=comment,lc p1wc=lc p1w&c=to,lc p2wc=lc p2w&c=declined,lc n1wc=lc n1w&c=on,lc n2wc=lc n2w&c=the,lc w=comment p1w=to p2w=declined n1w=on n2w=the def pd=null pw,w=to,comment pwc,wc=lc,lc w,nw=comment,on wc,nc=lc,lc po=other pow=other,comment powf=other,lc ppo=other	
+other	wc=lc w&c=on,lc p1wc=lc p1w&c=comment,lc p2wc=lc p2w&c=to,lc n1wc=lc n1w&c=the,lc n2wc=lc n2w&c=price,lc w=on p1w=comment p2w=to n1w=the n2w=price def pd=other pw,w=comment,on pwc,wc=lc,lc w,nw=on,the wc,nc=lc,lc po=other pow=other,on powf=other,lc ppo=other	
+other	wc=lc w&c=the,lc p1wc=lc p1w&c=on,lc p2wc=lc p2w&c=comment,lc n1wc=lc n1w&c=price,lc n2wc=other n2w&c=.,other w=the p1w=on p2w=comment n1w=price n2w=. def pd=other pw,w=on,the pwc,wc=lc,lc w,nw=the,price wc,nc=lc,lc po=other pow=other,the powf=other,lc ppo=other	
+other	wc=lc w&c=price,lc p1wc=lc p1w&c=the,lc p2wc=lc p2w&c=on,lc n1wc=other n1w&c=.,other w=price p1w=the p2w=on n1w=. def pd=null pw,w=the,price pwc,wc=lc,lc w,nw=price,. wc,nc=lc,other po=other pow=other,price powf=other,lc ppo=other	
+other	wc=other w&c=.,other p1wc=lc p1w&c=price,lc p2wc=lc p2w&c=the,lc w=. p1w=price p2w=the def pd=other pw,w=price,. pwc,wc=lc,other po=other pow=other,. powf=other,other ppo=other	
+other	wc=ic w&c=the,ic n1wc=lc n1w&c=deal,lc n2wc=lc n2w&c=closes,lc w=the n1w=deal n2w=closes def pd=null w,nw=The,deal wc,nc=ic,lc S=begin po=other pow=other,The powf=other,ic ppo=other	
+other	wc=lc w&c=deal,lc p1wc=ic p1w&c=the,ic n1wc=lc n1w&c=closes,lc n2wc=lc n2w&c=in,lc w=deal p1w=the n1w=closes n2w=in def pd=other pw,w=The,deal pwc,wc=ic,lc w,nw=deal,closes wc,nc=lc,lc po=other pow=other,deal powf=other,lc ppo=other	
+other	wc=lc w&c=closes,lc p1wc=lc p1w&c=deal,lc p2wc=ic p2w&c=the,ic n1wc=lc n1w&c=in,lc n2wc=lc n2w&c=the,lc w=closes p1w=deal p2w=the n1w=in n2w=the def pd=null pw,w=deal,closes pwc,wc=lc,lc w,nw=closes,in wc,nc=lc,lc po=other pow=other,closes powf=other,lc ppo=other	
+other	wc=lc w&c=in,lc p1wc=lc p1w&c=closes,lc p2wc=lc p2w&c=deal,lc n1wc=lc n1w&c=the,lc n2wc=lc n2w&c=second,lc w=in p1w=closes p2w=deal n1w=the n2w=second def pd=other pw,w=closes,in pwc,wc=lc,lc w,nw=in,the wc,nc=lc,lc po=other pow=other,in powf=other,lc ppo=other	
+date-start	wc=lc w&c=the,lc p1wc=lc p1w&c=in,lc p2wc=lc p2w&c=closes,lc n1wc=lc n1w&c=second,lc n2wc=lc n2w&c=quarter,lc w=the p1w=in p2w=closes n1w=second n2w=quarter def pd=other pw,w=in,the pwc,wc=lc,lc w,nw=the,second wc,nc=lc,lc po=other pow=other,the powf=other,lc ppo=other	
+date-cont	wc=lc w&c=second,lc p1wc=lc p1w&c=the,lc p2wc=lc p2w&c=in,lc n1wc=lc n1w&c=quarter,lc n2wc=other n2w&c=.,other w=second p1w=the p2w=in n1w=quarter n2w=. def pd=null pw,w=the,second pwc,wc=lc,lc w,nw=second,quarter wc,nc=lc,lc po=date-start pow=date-start,second powf=date-start,lc ppo=other	
+date-cont	wc=lc w&c=quarter,lc p1wc=lc p1w&c=second,lc p2wc=lc p2w&c=the,lc n1wc=other n1w&c=.,other w=quarter p1w=second p2w=the n1w=. def pd=null pw,w=second,quarter pwc,wc=lc,lc w,nw=quarter,. wc,nc=lc,other po=date-cont pow=date-cont,quarter powf=date-cont,lc ppo=date-start	
+other	wc=other w&c=.,other p1wc=lc p1w&c=quarter,lc p2wc=lc p2w&c=second,lc w=. p1w=quarter p2w=second def pd=other pw,w=quarter,. pwc,wc=lc,other po=date-cont pow=date-cont,. powf=date-cont,other ppo=date-cont	
+other	wc=ic w&c=analysts,ic n1wc=lc n1w&c=in,lc n2wc=ic n2w&c=london,ic w=analysts n1w=in n2w=london def pd=null w,nw=Analysts,in wc,nc=ic,lc S=begin po=other pow=other,Analysts powf=other,ic ppo=other	
+other	wc=lc w&c=in,lc p1wc=ic p1w&c=analysts,ic n1wc=ic n1w&c=london,ic n2wc=lc n2w&c=and,lc w=in p1w=analysts n1w=london n2w=and def pd=other pw,w=Analysts,in pwc,wc=ic,lc w,nw=in,London wc,nc=lc,ic po=other pow=other,in powf=other,lc ppo=other	
+location-start	wc=ic w&c=london,ic p1wc=lc p1w&c=in,lc p2wc=ic p2w&c=analysts,ic n1wc=lc n1w&c=and,lc n2wc=ic n2w&c=tokyo,ic w=london p1w=in p2w=analysts n1w=and n2w=tokyo def pd=null pw,w=in,London pwc,wc=lc,ic w,nw=London,and wc,nc=ic,lc po=other pow=other,London powf=other,ic ppo=other	
+other	wc=lc w&c=and,lc p1wc=ic p1w&c=london,ic p2wc=lc p2w&c=in,lc n1wc=ic n1w&c=tokyo,ic n2wc=lc n2w&c=expect,lc w=and p1w=london p2w=in n1w=tokyo n2w=expect def pd=other pw,w=London,and pwc,wc=ic,lc w,nw=and,Tokyo wc,nc=lc,ic po=location-start pow=location-start,and powf=location-start,lc ppo=other	
+location-start	wc=ic w&c=tokyo,ic p1wc=lc p1w&c=and,lc p2wc=ic p2w&c=london,ic n1wc=lc n1w&c=expect,lc n2wc=lc n2w&c=more,lc w=tokyo p1w=and p2w=london n1w=expect n2w=more def pd=null pw,w=and,Tokyo pwc,wc=lc,ic w,nw=Tokyo,expect wc,nc=ic,lc po=other pow=other,Tokyo powf=other,ic ppo=location-start	
+other	wc=lc w&c=expect,lc p1wc=ic p1w&c=tokyo,ic p2wc=lc p2w&c=and,lc n1wc=lc n1w&c=more,lc n2wc=lc n2w&c=deals,lc w=expect p1w=tokyo p2w=and n1w=more n2w=deals def pd=null pw,w=Tokyo,expect pwc,wc=ic,lc w,nw=expect,more wc,nc=lc,lc po=location-start pow=location-start,expect powf=location-start,lc ppo=other	
+other	wc=lc w&c=more,lc p1wc=lc p1w&c=expect,lc p2wc=ic p2w&c=tokyo,ic n1wc=lc n1w&c=deals,lc n2wc=other n2w&c=.,other w=more p1w=expect p2w=tokyo n1w=deals n2w=. def pd=null pw,w=expect,more pwc,wc=lc,lc w,nw=more,deals wc,nc=lc,lc po=other pow=other,more powf=other,lc ppo=location-start	
+other	wc=lc w&c=deals,lc p1wc=lc p1w&c=more,lc p2wc=lc p2w&c=expect,lc n1wc=other n1w&c=.,other w=deals p1w=more p2w=expect n1w=. def pd=null pw,w=more,deals pwc,wc=lc,lc w,nw=deals,. wc,nc=lc,other po=other pow=other,deals powf=other,lc ppo=other	
+other	wc=other w&c=.,other p1wc=lc p1w&c=deals,lc p2wc=lc p2w&c=more,lc w=. p1w=deals p2w=more def pd=other pw,w=deals,. pwc,wc=lc,other po=other pow=other,. powf=other,other ppo=other	
+default-start	wc=ic w&c=untyped,ic n1wc=lc n1w&c=names,lc n2wc=lc n2w&c=still,lc w=untyped n1w=names n2w=still def pd=null w,nw=Untyped,names wc,nc=ic,lc S=begin po=other pow=other,Untyped powf=other,ic ppo=other	
+other	wc=lc w&c=names,lc p1wc=ic p1w&c=untyped,ic n1wc=lc n1w&c=still,lc n2wc=lc n2w&c=train,lc w=names p1w=untyped n1w=still n2w=train def pd=null pw,w=Untyped,names pwc,wc=ic,lc w,nw=names,still wc,nc=lc,lc po=default-start pow=default-start,names powf=default-start,lc ppo=other	
+other	wc=lc w&c=still,lc p1wc=lc p1w&c=names,lc p2wc=ic p2w&c=untyped,ic n1wc=lc n1w&c=train,lc n2wc=lc n2w&c=with,lc w=still p1w=names p2w=untyped n1w=train n2w=with def pd=null pw,w=names,still pwc,wc=lc,lc w,nw=still,train wc,nc=lc,lc po=other pow=other,still powf=other,lc ppo=default-start	
+other	wc=lc w&c=train,lc p1wc=lc p1w&c=still,lc p2wc=lc p2w&c=names,lc n1wc=lc n1w&c=with,lc n2wc=lc n2w&c=the,lc w=train p1w=still p2w=names n1w=with n2w=the def pd=null pw,w=still,train pwc,wc=lc,lc w,nw=train,with wc,nc=lc,lc po=other pow=other,train powf=other,lc ppo=other	
+other	wc=lc w&c=with,lc p1wc=lc p1w&c=train,lc p2wc=lc p2w&c=still,lc n1wc=lc n1w&c=the,lc n2wc=lc n2w&c=default,lc w=with p1w=train p2w=still n1w=the n2w=default def pd=null pw,w=train,with pwc,wc=lc,lc w,nw=with,the wc,nc=lc,lc po=other pow=other,with powf=other,lc ppo=other	
+other	wc=lc w&c=the,lc p1wc=lc p1w&c=with,lc p2wc=lc p2w&c=train,lc n1wc=lc n1w&c=default,lc n2wc=lc n2w&c=type,lc w=the p1w=with p2w=train n1w=default n2w=type def pd=null pw,w=with,the pwc,wc=lc,lc w,nw=the,default wc,nc=lc,lc po=other pow=other,the powf=other,lc ppo=other	
+other	wc=lc w&c=default,lc p1wc=lc p1w&c=the,lc p2wc=lc p2w&c=with,lc n1wc=lc n1w&c=type,lc n2wc=other n2w&c=.,other w=default p1w=the p2w=with n1w=type n2w=. def pd=null pw,w=the,default pwc,wc=lc,lc w,nw=default,type wc,nc=lc,lc po=other pow=other,default powf=other,lc ppo=other	
+other	wc=lc w&c=type,lc p1wc=lc p1w&c=default,lc p2wc=lc p2w&c=the,lc n1wc=other n1w&c=.,other w=type p1w=default p2w=the n1w=. def pd=null pw,w=default,type pwc,wc=lc,lc w,nw=type,. wc,nc=lc,other po=other pow=other,type powf=other,lc ppo=other	
+other	wc=other w&c=.,other p1wc=lc p1w&c=type,lc p2wc=lc p2w&c=default,lc w=. p1w=type p2w=default def pd=null pw,w=type,. pwc,wc=lc,other po=other pow=other,. powf=other,other ppo=other	
+person-start	wc=ic w&c=ann,ic n1wc=lc n1w&c=met,lc n2wc=ic n2w&c=bo,ic w=ann n1w=met n2w=bo def pd=null w,nw=Ann,met wc,nc=ic,lc S=begin po=other pow=other,Ann powf=other,ic ppo=other	
+other	wc=lc w&c=met,lc p1wc=ic p1w&c=ann,ic n1wc=ic n1w&c=bo,ic n2wc=lc n2w&c=in,lc w=met p1w=ann n1w=bo n2w=in def pd=null pw,w=Ann,met pwc,wc=ic,lc w,nw=met,Bo wc,nc=lc,ic po=person-start pow=person-start,met powf=person-start,lc ppo=other	
+person-start	wc=ic w&c=bo,ic p1wc=lc p1w&c=met,lc p2wc=ic p2w&c=ann,ic n1wc=lc n1w&c=in,lc n2wc=ic n2w&c=oslo,ic w=bo p1w=met p2w=ann n1w=in n2w=oslo def pd=null pw,w=met,Bo pwc,wc=lc,ic w,nw=Bo,in wc,nc=ic,lc po=other pow=other,Bo powf=other,ic ppo=person-start	
+other	wc=lc w&c=in,lc p1wc=ic p1w&c=bo,ic p2wc=lc p2w&c=met,lc n1wc=ic n1w&c=oslo,ic n2wc=other n2w&c=.,other w=in p1w=bo p2w=met n1w=oslo n2w=. def pd=null pw,w=Bo,in pwc,wc=ic,lc w,nw=in,Oslo wc,nc=lc,ic po=person-start pow=person-start,in powf=person-start,lc ppo=other	
+location-start	wc=ic w&c=oslo,ic p1wc=lc p1w&c=in,lc p2wc=ic p2w&c=bo,ic n1wc=other n1w&c=.,other w=oslo p1w=in p2w=bo n1w=. def pd=null pw,w=in,Oslo pwc,wc=lc,ic w,nw=Oslo,. wc,nc=ic,other po=other pow=other,Oslo powf=other,ic ppo=person-start	
+other	wc=other w&c=.,other p1wc=ic p1w&c=oslo,ic p2wc=lc p2w&c=in,lc w=. p1w=oslo p2w=in def pd=other pw,w=Oslo,. pwc,wc=ic,other po=location-start pow=location-start,. powf=location-start,other ppo=other	
+person-start	wc=ic w&c=bo,ic n1wc=lc n1w&c=gave,lc n2wc=ic n2w&c=ann,ic w=bo n1w=gave n2w=ann def pd=person-start w,nw=Bo,gave wc,nc=ic,lc S=begin po=other pow=other,Bo powf=other,ic ppo=other	
+other	wc=lc w&c=gave,lc p1wc=ic p1w&c=bo,ic n1wc=ic n1w&c=ann,ic n2wc=lc n2w&c=a,lc w=gave p1w=bo n1w=ann n2w=a def pd=null pw,w=Bo,gave pwc,wc=ic,lc w,nw=gave,Ann wc,nc=lc,ic po=person-start pow=person-start,gave powf=person-start,lc ppo=other	
+person-start	wc=ic w&c=ann,ic p1wc=lc p1w&c=gave,lc p2wc=ic p2w&c=bo,ic n1wc=lc n1w&c=a,lc n2wc=lc n2w&c=map,lc w=ann p1w=gave p2w=bo n1w=a n2w=map def pd=person-start pw,w=gave,Ann pwc,wc=lc,ic w,nw=Ann,a wc,nc=ic,lc po=other pow=other,Ann powf=other,ic ppo=person-start	
+other	wc=lc w&c=a,lc p1wc=ic p1w&c=ann,ic p2wc=lc p2w&c=gave,lc n1wc=lc n1w&c=map,lc n2wc=lc n2w&c=of,lc w=a p1w=ann p2w=gave n1w=map n2w=of def pd=null pw,w=Ann,a pwc,wc=ic,lc w,nw=a,map wc,nc=lc,lc po=person-start pow=person-start,a powf=person-start,lc ppo=other	
+other	wc=lc w&c=map,lc p1wc=lc p1w&c=a,lc p2wc=ic p2w&c=ann,ic n1wc=lc n1w&c=of,lc n2wc=ic n2w&c=bergen,ic w=map p1w=a p2w=ann n1w=of n2w=bergen def pd=null pw,w=a,map pwc,wc=lc,lc w,nw=map,of wc,nc=lc,lc po=other pow=other,map powf=other,lc ppo=person-start	
+other	wc=lc w&c=of,lc p1wc=lc p1w&c=map,lc p2wc=lc p2w&c=a,lc n1wc=ic n1w&c=bergen,ic n2wc=other n2w&c=.,other w=of p1w=map p2w=a n1w=bergen n2w=. def pd=null pw,w=map,of pwc,wc=lc,lc w,nw=of,Bergen wc,nc=lc,ic po=other pow=other,of powf=other,lc ppo=other	
+location-start	wc=ic w&c=bergen,ic p1wc=lc p1w&c=of,lc p2wc=lc p2w&c=map,lc n1wc=other n1w&c=.,other w=bergen p1w=of p2w=map n1w=. def pd=null pw,w=of,Bergen pwc,wc=lc,ic w,nw=Bergen,. wc,nc=ic,other po=other pow=other,Bergen powf=other,ic ppo=other	
+other	wc=other w&c=.,other p1wc=ic p1w&c=bergen,ic p2wc=lc p2w&c=of,lc w=. p1w=bergen p2w=of def pd=other pw,w=Bergen,. pwc,wc=ic,other po=location-start pow=location-start,. powf=location-start,other ppo=other	
+other	wc=ic w&c=they,ic n1wc=lc n1w&c=flew,lc n2wc=lc n2w&c=home,lc w=they n1w=flew n2w=home def pd=null w,nw=They,flew wc,nc=ic,lc S=begin po=other pow=other,They powf=other,ic ppo=other	
+other	wc=lc w&c=flew,lc p1wc=ic p1w&c=they,ic n1wc=lc n1w&c=home,lc n2wc=lc n2w&c=on,lc w=flew p1w=they n1w=home n2w=on def pd=null pw,w=They,flew pwc,wc=ic,lc w,nw=flew,home wc,nc=lc,lc po=other pow=other,flew powf=other,lc ppo=other	
+other	wc=lc w&c=home,lc p1wc=lc p1w&c=flew,lc p2wc=ic p2w&c=they,ic n1wc=lc n1w&c=on,lc n2wc=ic n2w&c=sunday,ic w=home p1w=flew p2w=they n1w=on n2w=sunday def pd=null pw,w=flew,home pwc,wc=lc,lc w,nw=home,on wc,nc=lc,lc po=other pow=other,home powf=other,lc ppo=other	
+other	wc=lc w&c=on,lc p1wc=lc p1w&c=home,lc p2wc=lc p2w&c=flew,lc n1wc=ic n1w&c=sunday,ic n2wc=other n2w&c=.,other w=on p1w=home p2w=flew n1w=sunday n2w=. def pd=null pw,w=home,on pwc,wc=lc,lc w,nw=on,Sunday wc,nc=lc,ic po=other pow=other,on powf=other,lc ppo=other	
+date-start	wc=ic w&c=sunday,ic p1wc=lc p1w&c=on,lc p2wc=lc p2w&c=home,lc n1wc=other n1w&c=.,other w=sunday p1w=on p2w=home n1w=. def pd=null pw,w=on,Sunday pwc,wc=lc,ic w,nw=Sunday,. wc,nc=ic,other po=other pow=other,Sunday powf=other,ic ppo=other	
+other	wc=other w&c=.,other p1wc=ic p1w&c=sunday,ic p2wc=lc p2w&c=on,lc w=. p1w=sunday p2w=on def pd=other pw,w=Sunday,. pwc,wc=ic,other po=date-start pow=date-start,. powf=date-start,other ppo=other	
+end	turbo:events
+layer	turbo:stream-errors	document	0	after:u32	class:str	message:str
+end	turbo:stream-errors
+layer	turbo:event-checksum	document	1	crc32c:u32
+1947198213
+end	turbo:event-checksum
+layer	turbo:name-training	document	1	class:str	message:str
+	
+end	turbo:name-training
+layer	turbo:name-parameters	document	4	key:str	class:str	value:str
+Cutoff	java.lang.Integer	0
+sort	java.lang.Boolean	false
+Iterations	java.lang.Integer	300
+Algorithm	java.lang.String	PERCEPTRON
+end	turbo:name-parameters
+layer	turbo:manifest	document	9	key:str	value:str
+BeamSize	3
+Component-Name	NameFinderME
+Language	en
+Manifest-Version	1.0
+OpenNLP-Version	3.0.0-SNAPSHOT
+TrainerType	Event
+Training-Eventhash	1947198213
+factory	opennlp.tools.namefind.TokenNameFinderFactory
+sequenceCodecImplName	opennlp.tools.namefind.BioCodec
+end	turbo:manifest
+layer	turbo:package-entries	document	3	name:str	length:u32
+manifest.properties	315
+nameFinder.model	31780
+generator.featuregen	1906
+end	turbo:package-entries
+layer	turbo:name-model	document	1	sha256:str	length:u32
+7759dcdccc66f02636ba3a6b7f464d7c1d6440a1891fac11ccfd11a5ff300dbc	31780
+end	turbo:name-model
+layer	turbo:name-weights	document	2207	predicate:str	outcome:str	value:f64
+n1w&c=joined,lc	person-start	bff0000000000000 -1.0
+n1w&c=joined,lc	person-cont	3ff0000000000000 1.0
+n1w=joined	person-start	bff0000000000000 -1.0
+n1w=joined	person-cont	3ff0000000000000 1.0
+n2w&c=harbor,ic	person-start	bff0000000000000 -1.0
+n2w&c=harbor,ic	person-cont	3ff0000000000000 1.0
+n2w=harbor	person-start	bff0000000000000 -1.0
+n2w=harbor	person-cont	3ff0000000000000 1.0
+p1w&c=maria,ic	person-start	bff0000000000000 -1.0
+p1w&c=maria,ic	person-cont	3ff0000000000000 1.0
+p1w=maria	person-start	bff0000000000000 -1.0
+p1w=maria	person-cont	3ff0000000000000 1.0
+pow=person-start,Lindqvist	person-start	bff0000000000000 -1.0
+pow=person-start,Lindqvist	person-cont	3ff0000000000000 1.0
+pw,w=Maria,Lindqvist	person-start	bff0000000000000 -1.0
+pw,w=Maria,Lindqvist	person-cont	3ff0000000000000 1.0
+w,nw=Lindqvist,joined	person-start	bff0000000000000 -1.0
+w,nw=Lindqvist,joined	person-cont	3ff0000000000000 1.0
+ppo=person-cont	person-start	bff0000000000000 -1.0
+ppo=person-cont	person-cont	bff0000000000000 -1.0
+ppo=person-cont	other	3ff0000000000000 1.0
+ppo=person-cont	organization-start	3ff0000000000000 1.0
+ppo=other	person-start	3fc745d1745d1746 0.18181818181818182
+ppo=other	person-cont	4000000000000000 2.0
+ppo=other	other	3fea2e8ba2e8ba2f 0.8181818181818182
+ppo=other	organization-start	3fb745d1745d1746 0.09090909090909091
+ppo=other	organization-cont	bff1745d1745d174 -1.0909090909090908
+ppo=other	date-start	bfed1745d1745d17 -0.9090909090909091
+ppo=other	date-cont	bff745d1745d1746 -1.4545454545454546
+ppo=other	location-start	3fd745d1745d1746 0.36363636363636365
+wc,nc=ic,lc	person-start	bfe1745d1745d174 -0.5454545454545454
+wc,nc=ic,lc	person-cont	3ff0000000000000 1.0
+wc,nc=ic,lc	other	3ff0000000000000 1.0
+wc,nc=ic,lc	organization-start	bffe8ba2e8ba2e8c -1.9090909090909092
+wc,nc=ic,lc	organization-cont	3fea2e8ba2e8ba2f 0.8181818181818182
+wc,nc=ic,lc	date-start	bff0000000000000 -1.0
+wc,nc=ic,lc	date-cont	bff0000000000000 -1.0
+wc,nc=ic,lc	location-start	3ffa2e8ba2e8ba2f 1.6363636363636365
+p2wc=lc	person-start	c000000000000000 -2.0
+p2wc=lc	person-cont	bff0000000000000 -1.0
+p2wc=lc	other	bff1745d1745d174 -1.0909090909090908
+p2wc=lc	organization-start	bfea2e8ba2e8ba2f -0.8181818181818182
+p2wc=lc	organization-cont	3ffe8ba2e8ba2e8c 1.9090909090909092
+p2wc=lc	date-start	3fb745d1745d1746 0.09090909090909091
+p2wc=lc	date-cont	3fdd1745d1745d17 0.45454545454545453
+p2wc=lc	location-start	3ff745d1745d1746 1.4545454545454546
+p2wc=lc	location-cont	3ff0000000000000 1.0
+po=other	person-start	4001745d1745d174 2.1818181818181817
+po=other	person-cont	bff0000000000000 -1.0
+po=other	other	3ff0000000000000 1.0
+po=other	organization-start	3ff0000000000000 1.0
+po=other	organization-cont	bff0000000000000 -1.0
+po=other	date-start	4003a2e8ba2e8ba3 2.4545454545454546
+po=other	date-cont	c003a2e8ba2e8ba3 -2.4545454545454546
+po=other	location-start	bfd1745d1745d174 -0.2727272727272727
+po=other	location-cont	bffe8ba2e8ba2e8c -1.9090909090909092
+wc=ic	person-start	3fc745d1745d1746 0.18181818181818182
+wc=ic	person-cont	3ff0000000000000 1.0
+wc=ic	other	c005d1745d1745d1 -2.727272727272727
+wc=ic	organization-start	bff0000000000000 -1.0
+wc=ic	organization-cont	40068ba2e8ba2e8c 2.8181818181818183
+wc=ic	date-start	3fb745d1745d1746 0.09090909090909091
+wc=ic	date-cont	bff0000000000000 -1.0
+wc=ic	location-start	bfd1745d1745d174 -0.2727272727272727
+wc=ic	location-cont	3fed1745d1745d17 0.9090909090909091
+n2wc=lc	person-start	3ff0000000000000 1.0
+n2wc=lc	person-cont	3ff0000000000000 1.0
+n2wc=lc	other	3fdd1745d1745d17 0.45454545454545453
+n2wc=lc	organization-start	3fed1745d1745d17 0.9090909090909091
+n2wc=lc	organization-cont	bff0000000000000 -1.0
+n2wc=lc	date-start	bfdd1745d1745d17 -0.45454545454545453
+n2wc=lc	date-cont	bff0000000000000 -1.0
+n2wc=lc	location-start	bffe8ba2e8ba2e8c -1.9090909090909092
+n2wc=lc	default-start	3ff0000000000000 1.0
+pwc,wc=ic,ic	person-start	bff0000000000000 -1.0
+pwc,wc=ic,ic	person-cont	3ff0000000000000 1.0
+pwc,wc=ic,ic	other	bffd1745d1745d17 -1.8181818181818181
+pwc,wc=ic,ic	organization-start	bff0000000000000 -1.0
+pwc,wc=ic,ic	organization-cont	40068ba2e8ba2e8c 2.8181818181818183
+pwc,wc=ic,ic	date-start	bfed1745d1745d17 -0.9090909090909091
+pwc,wc=ic,ic	date-cont	bff0000000000000 -1.0
+pwc,wc=ic,ic	location-cont	3ffe8ba2e8ba2e8c 1.9090909090909092
+p2wc=ic	person-start	3fb745d1745d1746 0.09090909090909091
+p2wc=ic	person-cont	c000000000000000 -2.0
+p2wc=ic	other	3ff45d1745d1745d 1.2727272727272727
+p2wc=ic	organization-start	bff0000000000000 -1.0
+p2wc=ic	organization-cont	3ff0000000000000 1.0
+p2wc=ic	date-start	bfe1745d1745d174 -0.5454545454545454
+p2wc=ic	location-start	3ff2e8ba2e8ba2e9 1.1818181818181819
+n2wc=ic	person-start	3fd1745d1745d174 0.2727272727272727
+n2wc=ic	person-cont	bff0000000000000 -1.0
+n2wc=ic	other	3ff1745d1745d174 1.0909090909090908
+n2wc=ic	organization-start	4000ba2e8ba2e8ba 2.090909090909091
+n2wc=ic	organization-cont	3fed1745d1745d17 0.9090909090909091
+n2wc=ic	date-start	bff0000000000000 -1.0
+n2wc=ic	location-start	bfd745d1745d1746 -0.36363636363636365
+n2wc=ic	location-cont	bff0000000000000 -1.0
+n2wc=ic	default-start	bff0000000000000 -1.0
+p1wc=ic	person-start	bff0000000000000 -1.0
+p1wc=ic	person-cont	bff0000000000000 -1.0
+p1wc=ic	other	3fb745d1745d1746 0.09090909090909091
+p1wc=ic	organization-start	bff0000000000000 -1.0
+p1wc=ic	organization-cont	3fed1745d1745d17 0.9090909090909091
+p1wc=ic	date-start	3fb745d1745d1746 0.09090909090909091
+p1wc=ic	location-cont	3ffe8ba2e8ba2e8c 1.9090909090909092
+n2wc=other	person-start	3fed1745d1745d17 0.9090909090909091
+n2wc=other	person-cont	3ff0000000000000 1.0
+n2wc=other	other	bff5d1745d1745d1 -1.3636363636363635
+n2wc=other	organization-start	c000000000000000 -2.0
+n2wc=other	date-start	3fb745d1745d1746 0.09090909090909091
+n2wc=other	date-cont	3ff0000000000000 1.0
+n2wc=other	location-start	3fd745d1745d1746 0.36363636363636365
+n1w&c=.,other	person-start	bff0000000000000 -1.0
+n1w&c=.,other	person-cont	bff0000000000000 -1.0
+n1w&c=.,other	other	bff0000000000000 -1.0
+n1w&c=.,other	organization-start	bff0000000000000 -1.0
+n1w&c=.,other	date-start	3fed1745d1745d17 0.9090909090909091
+n1w&c=.,other	date-cont	3ff745d1745d1746 1.4545454545454546
+n1w&c=.,other	location-start	3fe45d1745d1745d 0.6363636363636364
+n1w&c=.,other	location-cont	3ff0000000000000 1.0
+n1w=.	person-start	bff0000000000000 -1.0
+n1w=.	person-cont	bff0000000000000 -1.0
+n1w=.	other	bff0000000000000 -1.0
+n1w=.	organization-start	bff0000000000000 -1.0
+n1w=.	date-start	3fed1745d1745d17 0.9090909090909091
+n1w=.	date-cont	3ff745d1745d1746 1.4545454545454546
+n1w=.	location-start	3fe45d1745d1745d 0.6363636363636364
+n1w=.	location-cont	3ff0000000000000 1.0
+S=begin	person-start	4008ba2e8ba2e8ba 3.090909090909091
+S=begin	person-cont	bff0000000000000 -1.0
+S=begin	other	3ff0000000000000 1.0
+S=begin	organization-start	bfb745d1745d1746 -0.09090909090909091
+S=begin	date-start	bff0000000000000 -1.0
+S=begin	location-start	c000000000000000 -2.0
+n2w&c=,,other	person-start	3fed1745d1745d17 0.9090909090909091
+n2w&c=,,other	person-cont	3ff0000000000000 1.0
+n2w&c=,,other	other	bfed1745d1745d17 -0.9090909090909091
+n2w&c=,,other	organization-cont	bff0000000000000 -1.0
+n2w=,	person-start	3fed1745d1745d17 0.9090909090909091
+n2w=,	person-cont	3ff0000000000000 1.0
+n2w=,	other	bfed1745d1745d17 -0.9090909090909091
+n2w=,	organization-cont	bff0000000000000 -1.0
+wc=cp	person-start	3ff0000000000000 1.0
+wc=cp	person-cont	3ff0000000000000 1.0
+wc=cp	other	bff0000000000000 -1.0
+wc=cp	organization-cont	bff0000000000000 -1.0
+pd=null	person-start	c00d1745d1745d17 -3.6363636363636362
+pd=null	person-cont	bff0000000000000 -1.0
+pd=null	other	4008ba2e8ba2e8ba 3.090909090909091
+pd=null	organization-cont	3fed1745d1745d17 0.9090909090909091
+pd=null	date-start	c002e8ba2e8ba2e9 -2.3636363636363638
+pd=null	date-cont	3ff745d1745d1746 1.4545454545454546
+pd=null	location-start	3ff8ba2e8ba2e8ba 1.5454545454545454
+powf=other,ic	person-start	4001745d1745d174 2.1818181818181817
+powf=other,ic	person-cont	bff0000000000000 -1.0
+powf=other,ic	other	bfed1745d1745d17 -0.9090909090909091
+powf=other,ic	organization-cont	bff0000000000000 -1.0
+powf=other,ic	date-start	3ff0000000000000 1.0
+powf=other,ic	location-start	3fe745d1745d1746 0.7272727272727273
+powf=other,ic	location-cont	bff0000000000000 -1.0
+pd=person-cont	person-start	4008000000000000 3.0
+pd=person-cont	person-cont	3ff0000000000000 1.0
+pd=person-cont	other	c000000000000000 -2.0
+pd=person-cont	organization-cont	bff0000000000000 -1.0
+pd=person-cont	location-start	bff0000000000000 -1.0
+n1w&c=,,other	person-start	bff0000000000000 -1.0
+n1w&c=,,other	person-cont	3ff0000000000000 1.0
+n1w&c=,,other	other	3ff0000000000000 1.0
+n1w&c=,,other	location-start	bff0000000000000 -1.0
+n1w&c=a,lc	person-start	3fea2e8ba2e8ba2f 0.8181818181818182
+n1w&c=a,lc	person-cont	bff0000000000000 -1.0
+n1w&c=a,lc	other	3ff0000000000000 1.0
+n1w&c=a,lc	location-start	bfea2e8ba2e8ba2f -0.8181818181818182
+n1w=,	person-start	bff0000000000000 -1.0
+n1w=,	person-cont	3ff0000000000000 1.0
+n1w=,	other	3ff0000000000000 1.0
+n1w=,	location-start	bff0000000000000 -1.0
+n1w=a	person-start	3fea2e8ba2e8ba2f 0.8181818181818182
+n1w=a	person-cont	bff0000000000000 -1.0
+n1w=a	other	3ff0000000000000 1.0
+n1w=a	location-start	bfea2e8ba2e8ba2f -0.8181818181818182
+w&c=smith-jones,ic	person-start	3ff0000000000000 1.0
+w&c=smith-jones,ic	person-cont	3ff0000000000000 1.0
+w&c=smith-jones,ic	other	bff0000000000000 -1.0
+w&c=smith-jones,ic	location-start	bff0000000000000 -1.0
+w=smith-jones	person-start	3ff0000000000000 1.0
+w=smith-jones	person-cont	3ff0000000000000 1.0
+w=smith-jones	other	bff0000000000000 -1.0
+w=smith-jones	location-start	bff0000000000000 -1.0
+po=person-start	person-start	bff0000000000000 -1.0
+po=person-start	person-cont	4010000000000000 4.0
+po=person-start	organization-cont	c000000000000000 -2.0
+po=person-start	date-cont	bff0000000000000 -1.0
+powf=person-start,ic	person-start	bff0000000000000 -1.0
+powf=person-start,ic	person-cont	4008000000000000 3.0
+powf=person-start,ic	organization-cont	bff0000000000000 -1.0
+powf=person-start,ic	date-cont	bff0000000000000 -1.0
+n1w&c=buys,lc	person-start	3ff0000000000000 1.0
+n1w&c=buys,lc	other	bff0000000000000 -1.0
+n1w&c=company,lc	person-start	bfed1745d1745d17 -0.9090909090909091
+n1w&c=company,lc	other	3fed1745d1745d17 0.9090909090909091
+n1w&c=deal,lc	person-start	bff0000000000000 -1.0
+n1w&c=deal,lc	other	3ff0000000000000 1.0
+n1w&c=declined,lc	person-start	3ff0000000000000 1.0
+n1w&c=declined,lc	other	bff0000000000000 -1.0
+n1w&c=else,lc	person-start	bfed1745d1745d17 -0.9090909090909091
+n1w&c=else,lc	other	3fed1745d1745d17 0.9090909090909091
+n1w&c=flew,lc	person-start	bff0000000000000 -1.0
+n1w&c=flew,lc	other	3ff0000000000000 1.0
+n1w&c=lindqvist,ic	person-start	3fed1745d1745d17 0.9090909090909091
+n1w&c=lindqvist,ic	other	bfed1745d1745d17 -0.9090909090909091
+n1w&c=r.,cp	person-start	3ff0000000000000 1.0
+n1w&c=r.,cp	other	bff0000000000000 -1.0
+n1w&c=rose,lc	person-start	bff0000000000000 -1.0
+n1w&c=rose,lc	other	3ff0000000000000 1.0
+n1w&c=sister,lc	person-start	bff0000000000000 -1.0
+n1w&c=sister,lc	other	3ff0000000000000 1.0
+n1w&c=álvarez,ic	person-start	3fed1745d1745d17 0.9090909090909091
+n1w&c=álvarez,ic	other	bfed1745d1745d17 -0.9090909090909091
+n1w=buys	person-start	3ff0000000000000 1.0
+n1w=buys	other	bff0000000000000 -1.0
+n1w=company	person-start	bfed1745d1745d17 -0.9090909090909091
+n1w=company	other	3fed1745d1745d17 0.9090909090909091
+n1w=deal	person-start	bff0000000000000 -1.0
+n1w=deal	other	3ff0000000000000 1.0
+n1w=declined	person-start	3ff0000000000000 1.0
+n1w=declined	other	bff0000000000000 -1.0
+n1w=else	person-start	bfed1745d1745d17 -0.9090909090909091
+n1w=else	other	3fed1745d1745d17 0.9090909090909091
+n1w=flew	person-start	bff0000000000000 -1.0
+n1w=flew	other	3ff0000000000000 1.0
+n1w=lindqvist	person-start	3fed1745d1745d17 0.9090909090909091
+n1w=lindqvist	other	bfed1745d1745d17 -0.9090909090909091
+n1w=r.	person-start	3ff0000000000000 1.0
+n1w=r.	other	bff0000000000000 -1.0
+n1w=rose	person-start	bff0000000000000 -1.0
+n1w=rose	other	3ff0000000000000 1.0
+n1w=sister	person-start	bff0000000000000 -1.0
+n1w=sister	other	3ff0000000000000 1.0
+n1w=álvarez	person-start	3fed1745d1745d17 0.9090909090909091
+n1w=álvarez	other	bfed1745d1745d17 -0.9090909090909091
+n1wc=cp	person-start	3ff0000000000000 1.0
+n1wc=cp	other	bff0000000000000 -1.0
+n2w&c=3.5,2d	person-start	bff0000000000000 -1.0
+n2w&c=3.5,2d	other	3ff0000000000000 1.0
+n2w&c=beans,lc	person-start	3ff0000000000000 1.0
+n2w&c=beans,lc	other	bff0000000000000 -1.0
+n2w&c=closes,lc	person-start	bff0000000000000 -1.0
+n2w&c=closes,lc	other	3ff0000000000000 1.0
+n2w&c=has,lc	person-start	3fed1745d1745d17 0.9090909090909091
+n2w&c=has,lc	other	bfed1745d1745d17 -0.9090909090909091
+n2w&c=home,lc	person-start	bff0000000000000 -1.0
+n2w&c=home,lc	other	3ff0000000000000 1.0
+n2w&c=inês,ic	person-start	bff0000000000000 -1.0
+n2w&c=inês,ic	other	3ff0000000000000 1.0
+n2w&c=joined,lc	person-start	3fed1745d1745d17 0.9090909090909091
+n2w&c=joined,lc	other	bfed1745d1745d17 -0.9090909090909091
+n2w&c=opened,lc	person-start	bfed1745d1745d17 -0.9090909090909091
+n2w&c=opened,lc	other	3fed1745d1745d17 0.9090909090909091
+n2w&c=runs,lc	person-start	bff0000000000000 -1.0
+n2w&c=runs,lc	other	3ff0000000000000 1.0
+n2w&c=smith-jones,ic	person-start	3ff0000000000000 1.0
+n2w&c=smith-jones,ic	other	bff0000000000000 -1.0
+n2w&c=to,lc	person-start	3ff0000000000000 1.0
+n2w&c=to,lc	other	bff0000000000000 -1.0
+n2w&c=was,lc	person-start	bfed1745d1745d17 -0.9090909090909091
+n2w&c=was,lc	other	3fed1745d1745d17 0.9090909090909091
+n2w=3.5	person-start	bff0000000000000 -1.0
+n2w=3.5	other	3ff0000000000000 1.0
+n2w=beans	person-start	3ff0000000000000 1.0
+n2w=beans	other	bff0000000000000 -1.0
+n2w=closes	person-start	bff0000000000000 -1.0
+n2w=closes	other	3ff0000000000000 1.0
+n2w=has	person-start	3fed1745d1745d17 0.9090909090909091
+n2w=has	other	bfed1745d1745d17 -0.9090909090909091
+n2w=home	person-start	bff0000000000000 -1.0
+n2w=home	other	3ff0000000000000 1.0
+n2w=inês	person-start	bff0000000000000 -1.0
+n2w=inês	other	3ff0000000000000 1.0
+n2w=joined	person-start	3fed1745d1745d17 0.9090909090909091
+n2w=joined	other	bfed1745d1745d17 -0.9090909090909091
+n2w=opened	person-start	bfed1745d1745d17 -0.9090909090909091
+n2w=opened	other	3fed1745d1745d17 0.9090909090909091
+n2w=runs	person-start	bff0000000000000 -1.0
+n2w=runs	other	3ff0000000000000 1.0
+n2w=smith-jones	person-start	3ff0000000000000 1.0
+n2w=smith-jones	other	bff0000000000000 -1.0
+n2w=to	person-start	3ff0000000000000 1.0
+n2w=to	other	bff0000000000000 -1.0
+n2w=was	person-start	bfed1745d1745d17 -0.9090909090909091
+n2w=was	other	3fed1745d1745d17 0.9090909090909091
+n2wc=2d	person-start	bff0000000000000 -1.0
+n2wc=2d	other	3ff0000000000000 1.0
+p1w&c=,,other	person-start	bff0000000000000 -1.0
+p1w&c=,,other	other	3ff0000000000000 1.0
+p1w=,	person-start	bff0000000000000 -1.0
+p1w=,	other	3ff0000000000000 1.0
+p2w&c=álvarez,ic	person-start	bff0000000000000 -1.0
+p2w&c=álvarez,ic	other	3ff0000000000000 1.0
+p2w=álvarez	person-start	bff0000000000000 -1.0
+p2w=álvarez	other	3ff0000000000000 1.0
+pow=other,42	person-start	bff0000000000000 -1.0
+pow=other,42	other	3ff0000000000000 1.0
+pow=other,Chidi	person-start	3fed1745d1745d17 0.9090909090909091
+pow=other,Chidi	other	bfed1745d1745d17 -0.9090909090909091
+pow=other,His	person-start	bff0000000000000 -1.0
+pow=other,His	other	3ff0000000000000 1.0
+pow=other,J.	person-start	3ff0000000000000 1.0
+pow=other,J.	other	bff0000000000000 -1.0
+pow=other,José	person-start	3fed1745d1745d17 0.9090909090909091
+pow=other,José	other	bfed1745d1745d17 -0.9090909090909091
+pow=other,Maria	person-start	3fed1745d1745d17 0.9090909090909091
+pow=other,Maria	other	bfed1745d1745d17 -0.9090909090909091
+pow=other,Nobody	person-start	bfed1745d1745d17 -0.9090909090909091
+pow=other,Nobody	other	3fed1745d1745d17 0.9090909090909091
+pow=other,Shares	person-start	bff0000000000000 -1.0
+pow=other,Shares	other	3ff0000000000000 1.0
+pow=other,Smith-Jones	person-start	3ff0000000000000 1.0
+pow=other,Smith-Jones	other	bff0000000000000 -1.0
+pow=other,The	person-start	bffe8ba2e8ba2e8c -1.9090909090909092
+pow=other,The	other	3ffe8ba2e8ba2e8c 1.9090909090909092
+pow=other,They	person-start	bff0000000000000 -1.0
+pow=other,They	other	3ff0000000000000 1.0
+pow=other,Álvarez	person-start	3ff0000000000000 1.0
+pow=other,Álvarez	other	bff0000000000000 -1.0
+powf=other,2d	person-start	bff0000000000000 -1.0
+powf=other,2d	other	3ff0000000000000 1.0
+powf=other,cp	person-start	3ff0000000000000 1.0
+powf=other,cp	other	bff0000000000000 -1.0
+pw,w=,,42	person-start	bff0000000000000 -1.0
+pw,w=,,42	other	3ff0000000000000 1.0
+pwc,wc=other,2d	person-start	bff0000000000000 -1.0
+pwc,wc=other,2d	other	3ff0000000000000 1.0
+w&c=42,2d	person-start	bff0000000000000 -1.0
+w&c=42,2d	other	3ff0000000000000 1.0
+w&c=chidi,ic	person-start	3fed1745d1745d17 0.9090909090909091
+w&c=chidi,ic	other	bfed1745d1745d17 -0.9090909090909091
+w&c=his,ic	person-start	bff0000000000000 -1.0
+w&c=his,ic	other	3ff0000000000000 1.0
+w&c=j.,cp	person-start	3ff0000000000000 1.0
+w&c=j.,cp	other	bff0000000000000 -1.0
+w&c=josé,ic	person-start	3fed1745d1745d17 0.9090909090909091
+w&c=josé,ic	other	bfed1745d1745d17 -0.9090909090909091
+w&c=maria,ic	person-start	3fed1745d1745d17 0.9090909090909091
+w&c=maria,ic	other	bfed1745d1745d17 -0.9090909090909091
+w&c=nobody,ic	person-start	bfed1745d1745d17 -0.9090909090909091
+w&c=nobody,ic	other	3fed1745d1745d17 0.9090909090909091
+w&c=shares,ic	person-start	bff0000000000000 -1.0
+w&c=shares,ic	other	3ff0000000000000 1.0
+w&c=the,ic	person-start	bffe8ba2e8ba2e8c -1.9090909090909092
+w&c=the,ic	other	3ffe8ba2e8ba2e8c 1.9090909090909092
+w&c=they,ic	person-start	bff0000000000000 -1.0
+w&c=they,ic	other	3ff0000000000000 1.0
+w&c=álvarez,ic	person-start	3ff0000000000000 1.0
+w&c=álvarez,ic	other	bff0000000000000 -1.0
+w,nw=42,,	person-start	bff0000000000000 -1.0
+w,nw=42,,	other	3ff0000000000000 1.0
+w,nw=Chidi,Okafor	person-start	3fed1745d1745d17 0.9090909090909091
+w,nw=Chidi,Okafor	other	bfed1745d1745d17 -0.9090909090909091
+w,nw=His,sister	person-start	bff0000000000000 -1.0
+w,nw=His,sister	other	3ff0000000000000 1.0
+w,nw=J.,R.	person-start	3ff0000000000000 1.0
+w,nw=J.,R.	other	bff0000000000000 -1.0
+w,nw=José,Álvarez	person-start	3fed1745d1745d17 0.9090909090909091
+w,nw=José,Álvarez	other	bfed1745d1745d17 -0.9090909090909091
+w,nw=Maria,Lindqvist	person-start	3fed1745d1745d17 0.9090909090909091
+w,nw=Maria,Lindqvist	other	bfed1745d1745d17 -0.9090909090909091
+w,nw=Nobody,else	person-start	bfed1745d1745d17 -0.9090909090909091
+w,nw=Nobody,else	other	3fed1745d1745d17 0.9090909090909091
+w,nw=Shares,rose	person-start	bff0000000000000 -1.0
+w,nw=Shares,rose	other	3ff0000000000000 1.0
+w,nw=Smith-Jones,declined	person-start	3ff0000000000000 1.0
+w,nw=Smith-Jones,declined	other	bff0000000000000 -1.0
+w,nw=The,company	person-start	bfed1745d1745d17 -0.9090909090909091
+w,nw=The,company	other	3fed1745d1745d17 0.9090909090909091
+w,nw=The,deal	person-start	bff0000000000000 -1.0
+w,nw=The,deal	other	3ff0000000000000 1.0
+w,nw=They,flew	person-start	bff0000000000000 -1.0
+w,nw=They,flew	other	3ff0000000000000 1.0
+w,nw=Álvarez,buys	person-start	3ff0000000000000 1.0
+w,nw=Álvarez,buys	other	bff0000000000000 -1.0
+w=42	person-start	bff0000000000000 -1.0
+w=42	other	3ff0000000000000 1.0
+w=chidi	person-start	3fed1745d1745d17 0.9090909090909091
+w=chidi	other	bfed1745d1745d17 -0.9090909090909091
+w=his	person-start	bff0000000000000 -1.0
+w=his	other	3ff0000000000000 1.0
+w=j.	person-start	3ff0000000000000 1.0
+w=j.	other	bff0000000000000 -1.0
+w=josé	person-start	3fed1745d1745d17 0.9090909090909091
+w=josé	other	bfed1745d1745d17 -0.9090909090909091
+w=maria	person-start	3fed1745d1745d17 0.9090909090909091
+w=maria	other	bfed1745d1745d17 -0.9090909090909091
+w=nobody	person-start	bfed1745d1745d17 -0.9090909090909091
+w=nobody	other	3fed1745d1745d17 0.9090909090909091
+w=shares	person-start	bff0000000000000 -1.0
+w=shares	other	3ff0000000000000 1.0
+w=they	person-start	bff0000000000000 -1.0
+w=they	other	3ff0000000000000 1.0
+w=álvarez	person-start	3ff0000000000000 1.0
+w=álvarez	other	bff0000000000000 -1.0
+wc,nc=cp,cp	person-start	3ff0000000000000 1.0
+wc,nc=cp,cp	other	bff0000000000000 -1.0
+wc=2d	person-start	bff0000000000000 -1.0
+wc=2d	other	3ff0000000000000 1.0
+n2w&c=london,ic	person-start	bfe745d1745d1746 -0.7272727272727273
+n2w&c=london,ic	other	3ffa2e8ba2e8ba2f 1.6363636363636365
+n2w&c=london,ic	organization-start	bfed1745d1745d17 -0.9090909090909091
+n2w=london	person-start	bfe745d1745d1746 -0.7272727272727273
+n2w=london	other	3ffa2e8ba2e8ba2f 1.6363636363636365
+n2w=london	organization-start	bfed1745d1745d17 -0.9090909090909091
+pow=other,Analysts	person-start	bfe745d1745d1746 -0.7272727272727273
+pow=other,Analysts	other	3ffa2e8ba2e8ba2f 1.6363636363636365
+pow=other,Analysts	organization-start	bfed1745d1745d17 -0.9090909090909091
+w&c=analysts,ic	person-start	bfe745d1745d1746 -0.7272727272727273
+w&c=analysts,ic	other	3ffa2e8ba2e8ba2f 1.6363636363636365
+w&c=analysts,ic	organization-start	bfed1745d1745d17 -0.9090909090909091
+w,nw=Analysts,in	person-start	bfe745d1745d1746 -0.7272727272727273
+w,nw=Analysts,in	other	3ffa2e8ba2e8ba2f 1.6363636363636365
+w,nw=Analysts,in	organization-start	bfed1745d1745d17 -0.9090909090909091
+w=analysts	person-start	bfe745d1745d1746 -0.7272727272727273
+w=analysts	other	3ffa2e8ba2e8ba2f 1.6363636363636365
+w=analysts	organization-start	bfed1745d1745d17 -0.9090909090909091
+wc,nc=ic,ic	person-start	4005d1745d1745d1 2.727272727272727
+wc,nc=ic,ic	other	c00dd1745d1745d1 -3.727272727272727
+wc,nc=ic,ic	organization-start	3ffe8ba2e8ba2e8c 1.9090909090909092
+wc,nc=ic,ic	organization-cont	3ff0000000000000 1.0
+wc,nc=ic,ic	date-start	bffe8ba2e8ba2e8c -1.9090909090909092
+p1wc=lc	person-start	3fb745d1745d1746 0.09090909090909091
+p1wc=lc	other	bffe8ba2e8ba2e8c -1.9090909090909092
+p1wc=lc	organization-start	3ff1745d1745d174 1.0909090909090908
+p1wc=lc	organization-cont	bff0000000000000 -1.0
+p1wc=lc	date-start	3ff745d1745d1746 1.4545454545454546
+p1wc=lc	date-cont	3fdd1745d1745d17 0.45454545454545453
+p1wc=lc	location-start	3ffba2e8ba2e8ba3 1.7272727272727273
+p1wc=lc	location-cont	bffe8ba2e8ba2e8c -1.9090909090909092
+n1wc=lc	person-start	bfe1745d1745d174 -0.5454545454545454
+n1wc=lc	other	3ff1745d1745d174 1.0909090909090908
+n1wc=lc	organization-start	bfb745d1745d1746 -0.09090909090909091
+n1wc=lc	organization-cont	bfb745d1745d1746 -0.09090909090909091
+n1wc=lc	date-start	bff0000000000000 -1.0
+n1wc=lc	location-start	3fe45d1745d1745d 0.6363636363636364
+pwc,wc=lc,ic	person-start	3fb745d1745d1746 0.09090909090909091
+pwc,wc=lc,ic	other	c012e8ba2e8ba2e9 -4.7272727272727275
+pwc,wc=lc,ic	organization-start	3ffe8ba2e8ba2e8c 1.9090909090909092
+pwc,wc=lc,ic	organization-cont	bff0000000000000 -1.0
+pwc,wc=lc,ic	date-start	4000000000000000 2.0
+pwc,wc=lc,ic	location-start	4005d1745d1745d1 2.727272727272727
+pwc,wc=lc,ic	location-cont	bff0000000000000 -1.0
+n1wc=ic	person-start	4005d1745d1745d1 2.727272727272727
+n1wc=ic	other	bffe8ba2e8ba2e8c -1.9090909090909092
+n1wc=ic	organization-start	3ff1745d1745d174 1.0909090909090908
+n1wc=ic	date-start	bfed1745d1745d17 -0.9090909090909091
+n1wc=ic	date-cont	bff0000000000000 -1.0
+n1w&c=and,lc	person-start	bfe45d1745d1745d -0.6363636363636364
+n1w&c=and,lc	other	bfea2e8ba2e8ba2f -0.8181818181818182
+n1w&c=and,lc	organization-start	3fea2e8ba2e8ba2f 0.8181818181818182
+n1w&c=and,lc	date-start	bff0000000000000 -1.0
+n1w&c=and,lc	location-start	3ffa2e8ba2e8ba2f 1.6363636363636365
+n1w=and	person-start	bfe45d1745d1745d -0.6363636363636364
+n1w=and	other	bfea2e8ba2e8ba2f -0.8181818181818182
+n1w=and	organization-start	3fea2e8ba2e8ba2f 0.8181818181818182
+n1w=and	date-start	bff0000000000000 -1.0
+n1w=and	location-start	3ffa2e8ba2e8ba2f 1.6363636363636365
+p1w&c=in,lc	person-start	bfe45d1745d1745d -0.6363636363636364
+p1w&c=in,lc	other	bffe8ba2e8ba2e8c -1.9090909090909092
+p1w&c=in,lc	organization-start	c000000000000000 -2.0
+p1w&c=in,lc	date-start	3fe1745d1745d174 0.5454545454545454
+p1w&c=in,lc	location-start	4010000000000000 4.0
+p1w=in	person-start	bfe45d1745d1745d -0.6363636363636364
+p1w=in	other	bffe8ba2e8ba2e8c -1.9090909090909092
+p1w=in	organization-start	c000000000000000 -2.0
+p1w=in	date-start	3fe1745d1745d174 0.5454545454545454
+p1w=in	location-start	4010000000000000 4.0
+def	person-start	3fc745d1745d1746 0.18181818181818182
+def	other	4001745d1745d174 2.1818181818181817
+def	organization-cont	bff1745d1745d174 -1.0909090909090908
+def	date-start	bfdd1745d1745d17 -0.45454545454545453
+def	date-cont	3fdd1745d1745d17 0.45454545454545453
+def	location-start	bff45d1745d1745d -1.2727272727272727
+p1wc=other	person-start	bff0000000000000 -1.0
+p1wc=other	other	3ff0000000000000 1.0
+p1wc=other	organization-cont	3ff0000000000000 1.0
+p1wc=other	date-cont	bff0000000000000 -1.0
+po=date-start	person-start	bff0000000000000 -1.0
+po=date-start	other	bff0000000000000 -1.0
+po=date-start	organization-cont	bff0000000000000 -1.0
+po=date-start	date-cont	4008000000000000 3.0
+n1w&c=the,lc	person-start	bfea2e8ba2e8ba2f -0.8181818181818182
+n1w&c=the,lc	other	bfb745d1745d1746 -0.09090909090909091
+n1w&c=the,lc	organization-cont	bfed1745d1745d17 -0.9090909090909091
+n1w&c=the,lc	date-cont	3ff0000000000000 1.0
+n1w&c=the,lc	location-start	3fea2e8ba2e8ba2f 0.8181818181818182
+n1w=the	person-start	bfea2e8ba2e8ba2f -0.8181818181818182
+n1w=the	other	bfb745d1745d1746 -0.09090909090909091
+n1w=the	organization-cont	bfed1745d1745d17 -0.9090909090909091
+n1w=the	date-cont	3ff0000000000000 1.0
+n1w=the	location-start	3fea2e8ba2e8ba2f 0.8181818181818182
+n2w&c=the,lc	person-start	bfe745d1745d1746 -0.7272727272727273
+n2w&c=the,lc	other	3fb745d1745d1746 0.09090909090909091
+n2w&c=the,lc	organization-cont	3fed1745d1745d17 0.9090909090909091
+n2w&c=the,lc	location-start	bfd1745d1745d174 -0.2727272727272727
+n2w=the	person-start	bfe745d1745d1746 -0.7272727272727273
+n2w=the	other	3fb745d1745d1746 0.09090909090909091
+n2w=the	organization-cont	3fed1745d1745d17 0.9090909090909091
+n2w=the	location-start	bfd1745d1745d174 -0.2727272727272727
+n1w&c=okafor,ic	person-start	3ffe8ba2e8ba2e8c 1.9090909090909092
+n1w&c=okafor,ic	other	bfed1745d1745d17 -0.9090909090909091
+n1w&c=okafor,ic	date-start	bff0000000000000 -1.0
+n1w=okafor	person-start	3ffe8ba2e8ba2e8c 1.9090909090909092
+n1w=okafor	other	bfed1745d1745d17 -0.9090909090909091
+n1w=okafor	date-start	bff0000000000000 -1.0
+wc,nc=2d,other	person-start	bff0000000000000 -1.0
+wc,nc=2d,other	other	4000000000000000 2.0
+wc,nc=2d,other	date-start	bff0000000000000 -1.0
+n1wc=other	person-start	c000000000000000 -2.0
+n1wc=other	other	3ff0000000000000 1.0
+n1wc=other	date-start	bfb745d1745d1746 -0.09090909090909091
+n1wc=other	date-cont	3ff745d1745d1746 1.4545454545454546
+n1wc=other	location-start	bfd745d1745d1746 -0.36363636363636365
+ppo=person-start	person-start	40045d1745d1745d 2.5454545454545454
+ppo=person-start	other	3fd1745d1745d174 0.2727272727272727
+ppo=person-start	date-start	bff0000000000000 -1.0
+ppo=person-start	location-start	bffd1745d1745d17 -1.8181818181818181
+w=the	person-start	bffe8ba2e8ba2e8c -1.9090909090909092
+w=the	other	3ffe8ba2e8ba2e8c 1.9090909090909092
+w=the	date-start	3ff0000000000000 1.0
+w=the	location-start	bff0000000000000 -1.0
+n1w&c=lives,lc	person-start	3ffba2e8ba2e8ba3 1.7272727272727273
+n1w&c=lives,lc	other	bff0000000000000 -1.0
+n1w&c=lives,lc	location-start	bfe745d1745d1746 -0.7272727272727273
+n1w=lives	person-start	3ffba2e8ba2e8ba3 1.7272727272727273
+n1w=lives	other	bff0000000000000 -1.0
+n1w=lives	location-start	bfe745d1745d1746 -0.7272727272727273
+n2w&c=oslo,ic	person-start	3ffba2e8ba2e8ba3 1.7272727272727273
+n2w&c=oslo,ic	other	bfe745d1745d1746 -0.7272727272727273
+n2w&c=oslo,ic	location-start	bff0000000000000 -1.0
+n2w=oslo	person-start	3ffba2e8ba2e8ba3 1.7272727272727273
+n2w=oslo	other	bfe745d1745d1746 -0.7272727272727273
+n2w=oslo	location-start	bff0000000000000 -1.0
+p1w&c=met,lc	person-start	3ffba2e8ba2e8ba3 1.7272727272727273
+p1w&c=met,lc	other	bfe745d1745d1746 -0.7272727272727273
+p1w&c=met,lc	location-start	bff0000000000000 -1.0
+p1w&c=sister,lc	person-start	3ffba2e8ba2e8ba3 1.7272727272727273
+p1w&c=sister,lc	other	bff0000000000000 -1.0
+p1w&c=sister,lc	location-start	bfe745d1745d1746 -0.7272727272727273
+p1w=met	person-start	3ffba2e8ba2e8ba3 1.7272727272727273
+p1w=met	other	bfe745d1745d1746 -0.7272727272727273
+p1w=met	location-start	bff0000000000000 -1.0
+p1w=sister	person-start	3ffba2e8ba2e8ba3 1.7272727272727273
+p1w=sister	other	bff0000000000000 -1.0
+p1w=sister	location-start	bfe745d1745d1746 -0.7272727272727273
+p2w&c=ann,ic	person-start	3ffba2e8ba2e8ba3 1.7272727272727273
+p2w&c=ann,ic	other	bfe745d1745d1746 -0.7272727272727273
+p2w&c=ann,ic	location-start	bff0000000000000 -1.0
+p2w&c=his,ic	person-start	3ffba2e8ba2e8ba3 1.7272727272727273
+p2w&c=his,ic	other	bff0000000000000 -1.0
+p2w&c=his,ic	location-start	bfe745d1745d1746 -0.7272727272727273
+p2w=ann	person-start	3ffba2e8ba2e8ba3 1.7272727272727273
+p2w=ann	other	bfe745d1745d1746 -0.7272727272727273
+p2w=ann	location-start	bff0000000000000 -1.0
+p2w=his	person-start	3ffba2e8ba2e8ba3 1.7272727272727273
+p2w=his	other	bff0000000000000 -1.0
+p2w=his	location-start	bfe745d1745d1746 -0.7272727272727273
+pow=other,Bo	person-start	3ffba2e8ba2e8ba3 1.7272727272727273
+pow=other,Bo	other	bfe745d1745d1746 -0.7272727272727273
+pow=other,Bo	location-start	bff0000000000000 -1.0
+pow=other,Inês	person-start	3ffba2e8ba2e8ba3 1.7272727272727273
+pow=other,Inês	other	bff0000000000000 -1.0
+pow=other,Inês	location-start	bfe745d1745d1746 -0.7272727272727273
+pw,w=met,Bo	person-start	3ffba2e8ba2e8ba3 1.7272727272727273
+pw,w=met,Bo	other	bfe745d1745d1746 -0.7272727272727273
+pw,w=met,Bo	location-start	bff0000000000000 -1.0
+pw,w=sister,Inês	person-start	3ffba2e8ba2e8ba3 1.7272727272727273
+pw,w=sister,Inês	other	bff0000000000000 -1.0
+pw,w=sister,Inês	location-start	bfe745d1745d1746 -0.7272727272727273
+w&c=bo,ic	person-start	3ffba2e8ba2e8ba3 1.7272727272727273
+w&c=bo,ic	other	bfe745d1745d1746 -0.7272727272727273
+w&c=bo,ic	location-start	bff0000000000000 -1.0
+w&c=inês,ic	person-start	3ffba2e8ba2e8ba3 1.7272727272727273
+w&c=inês,ic	other	bff0000000000000 -1.0
+w&c=inês,ic	location-start	bfe745d1745d1746 -0.7272727272727273
+w,nw=Bo,in	person-start	3ffba2e8ba2e8ba3 1.7272727272727273
+w,nw=Bo,in	other	bfe745d1745d1746 -0.7272727272727273
+w,nw=Bo,in	location-start	bff0000000000000 -1.0
+w,nw=Inês,lives	person-start	3ffba2e8ba2e8ba3 1.7272727272727273
+w,nw=Inês,lives	other	bff0000000000000 -1.0
+w,nw=Inês,lives	location-start	bfe745d1745d1746 -0.7272727272727273
+w=bo	person-start	3ffba2e8ba2e8ba3 1.7272727272727273
+w=bo	other	bfe745d1745d1746 -0.7272727272727273
+w=bo	location-start	bff0000000000000 -1.0
+w=inês	person-start	3ffba2e8ba2e8ba3 1.7272727272727273
+w=inês	other	bff0000000000000 -1.0
+w=inês	location-start	bfe745d1745d1746 -0.7272727272727273
+pow=other,Ann	person-start	4005d1745d1745d1 2.727272727272727
+pow=other,Ann	other	bfed1745d1745d17 -0.9090909090909091
+pow=other,Ann	location-start	bfea2e8ba2e8ba2f -0.8181818181818182
+pow=other,Ann	default-start	bff0000000000000 -1.0
+w&c=ann,ic	person-start	4005d1745d1745d1 2.727272727272727
+w&c=ann,ic	other	bfed1745d1745d17 -0.9090909090909091
+w&c=ann,ic	location-start	bfea2e8ba2e8ba2f -0.8181818181818182
+w&c=ann,ic	default-start	bff0000000000000 -1.0
+w=ann	person-start	4005d1745d1745d1 2.727272727272727
+w=ann	other	bfed1745d1745d17 -0.9090909090909091
+w=ann	location-start	bfea2e8ba2e8ba2f -0.8181818181818182
+w=ann	default-start	bff0000000000000 -1.0
+n1w&c=met,lc	person-start	3ffe8ba2e8ba2e8c 1.9090909090909092
+n1w&c=met,lc	other	bfed1745d1745d17 -0.9090909090909091
+n1w&c=met,lc	default-start	bff0000000000000 -1.0
+n1w=met	person-start	3ffe8ba2e8ba2e8c 1.9090909090909092
+n1w=met	other	bfed1745d1745d17 -0.9090909090909091
+n1w=met	default-start	bff0000000000000 -1.0
+n2w&c=bo,ic	person-start	3ffe8ba2e8ba2e8c 1.9090909090909092
+n2w&c=bo,ic	other	bfed1745d1745d17 -0.9090909090909091
+n2w&c=bo,ic	default-start	bff0000000000000 -1.0
+n2w=bo	person-start	3ffe8ba2e8ba2e8c 1.9090909090909092
+n2w=bo	other	bfed1745d1745d17 -0.9090909090909091
+n2w=bo	default-start	bff0000000000000 -1.0
+w,nw=Ann,met	person-start	3ffe8ba2e8ba2e8c 1.9090909090909092
+w,nw=Ann,met	other	bfed1745d1745d17 -0.9090909090909091
+w,nw=Ann,met	default-start	bff0000000000000 -1.0
+n1w&c=agnes,ic	person-start	bff0000000000000 -1.0
+n1w&c=agnes,ic	organization-start	3ff0000000000000 1.0
+n1w=agnes	person-start	bff0000000000000 -1.0
+n1w=agnes	organization-start	3ff0000000000000 1.0
+n2w&c=hospital,ic	person-start	bff0000000000000 -1.0
+n2w&c=hospital,ic	organization-start	3ff0000000000000 1.0
+n2w=hospital	person-start	bff0000000000000 -1.0
+n2w=hospital	organization-start	3ff0000000000000 1.0
+p1w&c=at,lc	person-start	bff0000000000000 -1.0
+p1w&c=at,lc	organization-start	3ff0000000000000 1.0
+p1w=at	person-start	bff0000000000000 -1.0
+p1w=at	organization-start	3ff0000000000000 1.0
+p2w&c=spoke,lc	person-start	bff0000000000000 -1.0
+p2w&c=spoke,lc	organization-start	3ff0000000000000 1.0
+p2w=spoke	person-start	bff0000000000000 -1.0
+p2w=spoke	organization-start	3ff0000000000000 1.0
+pow=other,St.	person-start	bff0000000000000 -1.0
+pow=other,St.	organization-start	3ff0000000000000 1.0
+pw,w=at,St.	person-start	bff0000000000000 -1.0
+pw,w=at,St.	organization-start	3ff0000000000000 1.0
+w&c=st.,ic	person-start	bff0000000000000 -1.0
+w&c=st.,ic	organization-start	3ff0000000000000 1.0
+w,nw=St.,Agnes	person-start	bff0000000000000 -1.0
+w,nw=St.,Agnes	organization-start	3ff0000000000000 1.0
+w=st.	person-start	bff0000000000000 -1.0
+w=st.	organization-start	3ff0000000000000 1.0
+n2w&c=in,lc	person-start	3ffba2e8ba2e8ba3 1.7272727272727273
+n2w&c=in,lc	organization-start	bff0000000000000 -1.0
+n2w&c=in,lc	organization-cont	3ff0000000000000 1.0
+n2w&c=in,lc	date-start	bff0000000000000 -1.0
+n2w&c=in,lc	location-start	bfe745d1745d1746 -0.7272727272727273
+n2w=in	person-start	3ffba2e8ba2e8ba3 1.7272727272727273
+n2w=in	organization-start	bff0000000000000 -1.0
+n2w=in	organization-cont	3ff0000000000000 1.0
+n2w=in	date-start	bff0000000000000 -1.0
+n2w=in	location-start	bfe745d1745d1746 -0.7272727272727273
+n1w&c=in,lc	person-start	3ff0000000000000 1.0
+n1w&c=in,lc	organization-start	bfed1745d1745d17 -0.9090909090909091
+n1w&c=in,lc	organization-cont	3fed1745d1745d17 0.9090909090909091
+n1w&c=in,lc	location-start	bff0000000000000 -1.0
+n1w=in	person-start	3ff0000000000000 1.0
+n1w=in	organization-start	bfed1745d1745d17 -0.9090909090909091
+n1w=in	organization-cont	3fed1745d1745d17 0.9090909090909091
+n1w=in	location-start	bff0000000000000 -1.0
+p1w&c=and,lc	person-start	bfe745d1745d1746 -0.7272727272727273
+p1w&c=and,lc	organization-start	3fed1745d1745d17 0.9090909090909091
+p1w&c=and,lc	organization-cont	bff0000000000000 -1.0
+p1w&c=and,lc	location-start	3fea2e8ba2e8ba2f 0.8181818181818182
+p1w=and	person-start	bfe745d1745d1746 -0.7272727272727273
+p1w=and	organization-start	3fed1745d1745d17 0.9090909090909091
+p1w=and	organization-cont	bff0000000000000 -1.0
+p1w=and	location-start	3fea2e8ba2e8ba2f 0.8181818181818182
+n1wc=4d	person-start	bff0000000000000 -1.0
+n1wc=4d	organization-start	bff0000000000000 -1.0
+n1wc=4d	date-start	3ff8ba2e8ba2e8ba 1.5454545454545454
+n1wc=4d	date-cont	3ff0000000000000 1.0
+n1wc=4d	location-start	bfe1745d1745d174 -0.5454545454545454
+wc,nc=ic,4d	person-start	bff0000000000000 -1.0
+wc,nc=ic,4d	organization-start	bff0000000000000 -1.0
+wc,nc=ic,4d	date-start	3ff8ba2e8ba2e8ba 1.5454545454545454
+wc,nc=ic,4d	date-cont	3ff0000000000000 1.0
+wc,nc=ic,4d	location-start	bfe1745d1745d174 -0.5454545454545454
+wc,nc=ic,other	person-start	bff0000000000000 -1.0
+wc,nc=ic,other	organization-cont	3ff0000000000000 1.0
+wc,nc=ic,other	date-start	3fdd1745d1745d17 0.45454545454545453
+wc,nc=ic,other	date-cont	bff0000000000000 -1.0
+wc,nc=ic,other	location-start	bfd745d1745d1746 -0.36363636363636365
+wc,nc=ic,other	location-cont	3fed1745d1745d17 0.9090909090909091
+ppo=location-start	person-start	bff8ba2e8ba2e8ba -1.5454545454545454
+ppo=location-start	organization-cont	bff0000000000000 -1.0
+ppo=location-start	location-start	40045d1745d1745d 2.5454545454545454
+n2w&c=spoke,lc	person-start	3ff0000000000000 1.0
+n2w&c=spoke,lc	date-start	bff0000000000000 -1.0
+n2w=spoke	person-start	3ff0000000000000 1.0
+n2w=spoke	date-start	bff0000000000000 -1.0
+pow=other,Dr.	person-start	3ff0000000000000 1.0
+pow=other,Dr.	date-start	bff0000000000000 -1.0
+w&c=dr.,ic	person-start	3ff0000000000000 1.0
+w&c=dr.,ic	date-start	bff0000000000000 -1.0
+w,nw=Dr.,Okafor	person-start	3ff0000000000000 1.0
+w,nw=Dr.,Okafor	date-start	bff0000000000000 -1.0
+w=dr.	person-start	3ff0000000000000 1.0
+w=dr.	date-start	bff0000000000000 -1.0
+p1w&c=of,lc	person-start	bff0000000000000 -1.0
+p1w&c=of,lc	date-start	bfe1745d1745d174 -0.5454545454545454
+p1w&c=of,lc	location-start	3ff8ba2e8ba2e8ba 1.5454545454545454
+p1w=of	person-start	bff0000000000000 -1.0
+p1w=of	date-start	bfe1745d1745d174 -0.5454545454545454
+p1w=of	location-start	3ff8ba2e8ba2e8ba 1.5454545454545454
+p2w&c=bo,ic	person-start	3fea2e8ba2e8ba2f 0.8181818181818182
+p2w&c=bo,ic	date-start	bff0000000000000 -1.0
+p2w&c=bo,ic	location-start	3fc745d1745d1746 0.18181818181818182
+p2w&c=map,lc	person-start	bff0000000000000 -1.0
+p2w&c=map,lc	date-start	bfe1745d1745d174 -0.5454545454545454
+p2w&c=map,lc	location-start	3ff8ba2e8ba2e8ba 1.5454545454545454
+p2w=bo	person-start	3fea2e8ba2e8ba2f 0.8181818181818182
+p2w=bo	date-start	bff0000000000000 -1.0
+p2w=bo	location-start	3fc745d1745d1746 0.18181818181818182
+p2w=map	person-start	bff0000000000000 -1.0
+p2w=map	date-start	bfe1745d1745d174 -0.5454545454545454
+p2w=map	location-start	3ff8ba2e8ba2e8ba 1.5454545454545454
+pow=other,Bergen	person-start	bff0000000000000 -1.0
+pow=other,Bergen	date-start	bfe1745d1745d174 -0.5454545454545454
+pow=other,Bergen	location-start	3ff8ba2e8ba2e8ba 1.5454545454545454
+pw,w=of,Bergen	person-start	bff0000000000000 -1.0
+pw,w=of,Bergen	date-start	bfe1745d1745d174 -0.5454545454545454
+pw,w=of,Bergen	location-start	3ff8ba2e8ba2e8ba 1.5454545454545454
+w&c=bergen,ic	person-start	bff0000000000000 -1.0
+w&c=bergen,ic	date-start	bfe1745d1745d174 -0.5454545454545454
+w&c=bergen,ic	location-start	3ff8ba2e8ba2e8ba 1.5454545454545454
+w,nw=Bergen,.	person-start	bff0000000000000 -1.0
+w,nw=Bergen,.	date-start	bfe1745d1745d174 -0.5454545454545454
+w,nw=Bergen,.	location-start	3ff8ba2e8ba2e8ba 1.5454545454545454
+w=bergen	person-start	bff0000000000000 -1.0
+w=bergen	date-start	bfe1745d1745d174 -0.5454545454545454
+w=bergen	location-start	3ff8ba2e8ba2e8ba 1.5454545454545454
+n1w&c=2023,4d	person-start	bff0000000000000 -1.0
+n1w&c=2023,4d	date-cont	3ff0000000000000 1.0
+n1w=2023	person-start	bff0000000000000 -1.0
+n1w=2023	date-cont	3ff0000000000000 1.0
+p1w&c=12,2d	person-start	bff0000000000000 -1.0
+p1w&c=12,2d	date-cont	3ff0000000000000 1.0
+p1w=12	person-start	bff0000000000000 -1.0
+p1w=12	date-cont	3ff0000000000000 1.0
+p1wc=2d	person-start	bff0000000000000 -1.0
+p1wc=2d	date-cont	3ff0000000000000 1.0
+p2w&c=on,ic	person-start	bff0000000000000 -1.0
+p2w&c=on,ic	date-cont	3ff0000000000000 1.0
+p2w=on	person-start	bff0000000000000 -1.0
+p2w=on	date-cont	3ff0000000000000 1.0
+pow=date-start,October	person-start	bff0000000000000 -1.0
+pow=date-start,October	date-cont	3ff0000000000000 1.0
+powf=date-start,ic	person-start	bff0000000000000 -1.0
+powf=date-start,ic	date-cont	3ff0000000000000 1.0
+pw,w=12,October	person-start	bff0000000000000 -1.0
+pw,w=12,October	date-cont	3ff0000000000000 1.0
+pwc,wc=2d,ic	person-start	bff0000000000000 -1.0
+pwc,wc=2d,ic	date-cont	3ff0000000000000 1.0
+w&c=october,ic	person-start	bff0000000000000 -1.0
+w&c=october,ic	date-cont	3ff0000000000000 1.0
+w,nw=October,2023	person-start	bff0000000000000 -1.0
+w,nw=October,2023	date-cont	3ff0000000000000 1.0
+w=october	person-start	bff0000000000000 -1.0
+w=october	date-cont	3ff0000000000000 1.0
+n1w&c=said,lc	person-start	3ff0000000000000 1.0
+n1w&c=said,lc	location-start	bff0000000000000 -1.0
+n1w&c=visit,lc	person-start	bfe745d1745d1746 -0.7272727272727273
+n1w&c=visit,lc	location-start	3fe745d1745d1746 0.7272727272727273
+n1w=said	person-start	3ff0000000000000 1.0
+n1w=said	location-start	bff0000000000000 -1.0
+n1w=visit	person-start	bfe745d1745d1746 -0.7272727272727273
+n1w=visit	location-start	3fe745d1745d1746 0.7272727272727273
+n2w&c=map,lc	person-start	3fea2e8ba2e8ba2f 0.8181818181818182
+n2w&c=map,lc	location-start	bfea2e8ba2e8ba2f -0.8181818181818182
+n2w&c=same,lc	person-start	bfea2e8ba2e8ba2f -0.8181818181818182
+n2w&c=same,lc	location-start	3fea2e8ba2e8ba2f 0.8181818181818182
+n2w&c=tokyo,ic	person-start	bfe45d1745d1745d -0.6363636363636364
+n2w&c=tokyo,ic	location-start	3fe45d1745d1745d 0.6363636363636364
+n2w=map	person-start	3fea2e8ba2e8ba2f 0.8181818181818182
+n2w=map	location-start	bfea2e8ba2e8ba2f -0.8181818181818182
+n2w=same	person-start	bfea2e8ba2e8ba2f -0.8181818181818182
+n2w=same	location-start	3fea2e8ba2e8ba2f 0.8181818181818182
+n2w=tokyo	person-start	bfe45d1745d1745d -0.6363636363636364
+n2w=tokyo	location-start	3fe45d1745d1745d 0.6363636363636364
+p1w&c=gave,lc	person-start	3fea2e8ba2e8ba2f 0.8181818181818182
+p1w&c=gave,lc	location-start	bfea2e8ba2e8ba2f -0.8181818181818182
+p1w&c=to,lc	person-start	bfea2e8ba2e8ba2f -0.8181818181818182
+p1w&c=to,lc	location-start	3fea2e8ba2e8ba2f 0.8181818181818182
+p1w=gave	person-start	3fea2e8ba2e8ba2f 0.8181818181818182
+p1w=gave	location-start	bfea2e8ba2e8ba2f -0.8181818181818182
+p1w=to	person-start	bfea2e8ba2e8ba2f -0.8181818181818182
+p1w=to	location-start	3fea2e8ba2e8ba2f 0.8181818181818182
+p2w&c=analysts,ic	person-start	bfe45d1745d1745d -0.6363636363636364
+p2w&c=analysts,ic	location-start	3fe45d1745d1745d 0.6363636363636364
+p2w&c=lagos,ic	person-start	bfe745d1745d1746 -0.7272727272727273
+p2w&c=lagos,ic	location-start	3fe745d1745d1746 0.7272727272727273
+p2w&c=uppsala,ic	person-start	bfea2e8ba2e8ba2f -0.8181818181818182
+p2w&c=uppsala,ic	location-start	3fea2e8ba2e8ba2f 0.8181818181818182
+p2w=analysts	person-start	bfe45d1745d1745d -0.6363636363636364
+p2w=analysts	location-start	3fe45d1745d1745d 0.6363636363636364
+p2w=lagos	person-start	bfe745d1745d1746 -0.7272727272727273
+p2w=lagos	location-start	3fe745d1745d1746 0.7272727272727273
+p2w=uppsala	person-start	bfea2e8ba2e8ba2f -0.8181818181818182
+p2w=uppsala	location-start	3fea2e8ba2e8ba2f 0.8181818181818182
+pd=person-start	person-start	3fea2e8ba2e8ba2f 0.8181818181818182
+pd=person-start	location-start	bfea2e8ba2e8ba2f -0.8181818181818182
+pow=other,Accra	person-start	bfe745d1745d1746 -0.7272727272727273
+pow=other,Accra	location-start	3fe745d1745d1746 0.7272727272727273
+pow=other,Lindqvist	person-start	3ff0000000000000 1.0
+pow=other,Lindqvist	location-start	bff0000000000000 -1.0
+pow=other,London	person-start	bfe45d1745d1745d -0.6363636363636364
+pow=other,London	location-start	3fe45d1745d1745d 0.6363636363636364
+pow=other,Portland	person-start	bfea2e8ba2e8ba2f -0.8181818181818182
+pow=other,Portland	location-start	3fea2e8ba2e8ba2f 0.8181818181818182
+pw,w=and,Accra	person-start	bfe745d1745d1746 -0.7272727272727273
+pw,w=and,Accra	location-start	3fe745d1745d1746 0.7272727272727273
+pw,w=gave,Ann	person-start	3fea2e8ba2e8ba2f 0.8181818181818182
+pw,w=gave,Ann	location-start	bfea2e8ba2e8ba2f -0.8181818181818182
+pw,w=in,London	person-start	bfe45d1745d1745d -0.6363636363636364
+pw,w=in,London	location-start	3fe45d1745d1745d 0.6363636363636364
+pw,w=to,Portland	person-start	bfea2e8ba2e8ba2f -0.8181818181818182
+pw,w=to,Portland	location-start	3fea2e8ba2e8ba2f 0.8181818181818182
+w&c=accra,ic	person-start	bfe745d1745d1746 -0.7272727272727273
+w&c=accra,ic	location-start	3fe745d1745d1746 0.7272727272727273
+w&c=london,ic	person-start	bfe45d1745d1745d -0.6363636363636364
+w&c=london,ic	location-start	3fe45d1745d1745d 0.6363636363636364
+w&c=portland,ic	person-start	bfea2e8ba2e8ba2f -0.8181818181818182
+w&c=portland,ic	location-start	3fea2e8ba2e8ba2f 0.8181818181818182
+w,nw=Accra,visit	person-start	bfe745d1745d1746 -0.7272727272727273
+w,nw=Accra,visit	location-start	3fe745d1745d1746 0.7272727272727273
+w,nw=Ann,a	person-start	3fea2e8ba2e8ba2f 0.8181818181818182
+w,nw=Ann,a	location-start	bfea2e8ba2e8ba2f -0.8181818181818182
+w,nw=Lindqvist,said	person-start	3ff0000000000000 1.0
+w,nw=Lindqvist,said	location-start	bff0000000000000 -1.0
+w,nw=London,and	person-start	bfe45d1745d1745d -0.6363636363636364
+w,nw=London,and	location-start	3fe45d1745d1745d 0.6363636363636364
+w,nw=Portland,the	person-start	bfea2e8ba2e8ba2f -0.8181818181818182
+w,nw=Portland,the	location-start	3fea2e8ba2e8ba2f 0.8181818181818182
+w=accra	person-start	bfe745d1745d1746 -0.7272727272727273
+w=accra	location-start	3fe745d1745d1746 0.7272727272727273
+w=london	person-start	bfe45d1745d1745d -0.6363636363636364
+w=london	location-start	3fe45d1745d1745d 0.6363636363636364
+w=portland	person-start	bfea2e8ba2e8ba2f -0.8181818181818182
+w=portland	location-start	3fea2e8ba2e8ba2f 0.8181818181818182
+n1w&c=harbor,ic	person-cont	bff0000000000000 -1.0
+n1w&c=harbor,ic	other	3ff0000000000000 1.0
+n1w&c=moved,lc	person-cont	bff0000000000000 -1.0
+n1w&c=moved,lc	other	3ff0000000000000 1.0
+n1w=harbor	person-cont	bff0000000000000 -1.0
+n1w=harbor	other	3ff0000000000000 1.0
+n1w=moved	person-cont	bff0000000000000 -1.0
+n1w=moved	other	3ff0000000000000 1.0
+n2w&c=from,lc	person-cont	bff0000000000000 -1.0
+n2w&c=from,lc	other	3ff0000000000000 1.0
+n2w&c=light,ic	person-cont	bff0000000000000 -1.0
+n2w&c=light,ic	other	3ff0000000000000 1.0
+n2w&c=spokesman,lc	person-cont	bff0000000000000 -1.0
+n2w&c=spokesman,lc	other	3ff0000000000000 1.0
+n2w=from	person-cont	bff0000000000000 -1.0
+n2w=from	other	3ff0000000000000 1.0
+n2w=light	person-cont	bff0000000000000 -1.0
+n2w=light	other	3ff0000000000000 1.0
+n2w=spokesman	person-cont	bff0000000000000 -1.0
+n2w=spokesman	other	3ff0000000000000 1.0
+p1w&c=lindqvist,ic	person-cont	bff0000000000000 -1.0
+p1w&c=lindqvist,ic	other	3ff0000000000000 1.0
+p1w&c=smith-jones,ic	person-cont	bff0000000000000 -1.0
+p1w&c=smith-jones,ic	other	3ff0000000000000 1.0
+p1w=lindqvist	person-cont	bff0000000000000 -1.0
+p1w=lindqvist	other	3ff0000000000000 1.0
+p1w=smith-jones	person-cont	bff0000000000000 -1.0
+p1w=smith-jones	other	3ff0000000000000 1.0
+p2w&c=maria,ic	person-cont	bff0000000000000 -1.0
+p2w&c=maria,ic	other	3ff0000000000000 1.0
+p2w&c=r.,cp	person-cont	bff0000000000000 -1.0
+p2w&c=r.,cp	other	3ff0000000000000 1.0
+p2w=maria	person-cont	bff0000000000000 -1.0
+p2w=maria	other	3ff0000000000000 1.0
+p2w=r.	person-cont	bff0000000000000 -1.0
+p2w=r.	other	3ff0000000000000 1.0
+pow=other,She	person-cont	bff0000000000000 -1.0
+pow=other,She	other	3ff0000000000000 1.0
+pow=person-cont,,	person-cont	bff0000000000000 -1.0
+pow=person-cont,,	other	3ff0000000000000 1.0
+pow=person-cont,joined	person-cont	bff0000000000000 -1.0
+pow=person-cont,joined	other	3ff0000000000000 1.0
+powf=person-cont,lc	person-cont	bff0000000000000 -1.0
+powf=person-cont,lc	other	3ff0000000000000 1.0
+powf=person-cont,other	person-cont	bff0000000000000 -1.0
+powf=person-cont,other	other	3ff0000000000000 1.0
+pw,w=Lindqvist,joined	person-cont	bff0000000000000 -1.0
+pw,w=Lindqvist,joined	other	3ff0000000000000 1.0
+pw,w=Smith-Jones,,	person-cont	bff0000000000000 -1.0
+pw,w=Smith-Jones,,	other	3ff0000000000000 1.0
+w&c=,,other	person-cont	bff0000000000000 -1.0
+w&c=,,other	other	3ff0000000000000 1.0
+w&c=joined,lc	person-cont	bff0000000000000 -1.0
+w&c=joined,lc	other	3ff0000000000000 1.0
+w&c=she,ic	person-cont	bff0000000000000 -1.0
+w&c=she,ic	other	3ff0000000000000 1.0
+w,nw=,,a	person-cont	bff0000000000000 -1.0
+w,nw=,,a	other	3ff0000000000000 1.0
+w,nw=She,moved	person-cont	bff0000000000000 -1.0
+w,nw=She,moved	other	3ff0000000000000 1.0
+w,nw=joined,Harbor	person-cont	bff0000000000000 -1.0
+w,nw=joined,Harbor	other	3ff0000000000000 1.0
+w=,	person-cont	bff0000000000000 -1.0
+w=,	other	3ff0000000000000 1.0
+w=joined	person-cont	bff0000000000000 -1.0
+w=joined	other	3ff0000000000000 1.0
+w=she	person-cont	bff0000000000000 -1.0
+w=she	other	3ff0000000000000 1.0
+wc,nc=other,lc	person-cont	bff0000000000000 -1.0
+wc,nc=other,lc	other	3ff0000000000000 1.0
+wc=lc	person-cont	bff0000000000000 -1.0
+wc=lc	other	401ae8ba2e8ba2e9 6.7272727272727275
+wc=lc	organization-start	bfea2e8ba2e8ba2f -0.8181818181818182
+wc=lc	organization-cont	bffe8ba2e8ba2e8c -1.9090909090909092
+wc=lc	date-start	bff0000000000000 -1.0
+wc=lc	date-cont	bfb745d1745d1746 -0.09090909090909091
+wc=lc	location-start	bff0000000000000 -1.0
+wc=lc	location-cont	bfed1745d1745d17 -0.9090909090909091
+wc,nc=lc,ic	person-cont	bff0000000000000 -1.0
+wc,nc=lc,ic	other	400e8ba2e8ba2e8c 3.8181818181818183
+wc,nc=lc,ic	organization-start	bfea2e8ba2e8ba2f -0.8181818181818182
+wc,nc=lc,ic	organization-cont	bff0000000000000 -1.0
+wc,nc=lc,ic	date-cont	bff0000000000000 -1.0
+p2w&c=in,lc	person-cont	bff0000000000000 -1.0
+p2w&c=in,lc	other	3fed1745d1745d17 0.9090909090909091
+p2w&c=in,lc	organization-cont	bff0000000000000 -1.0
+p2w&c=in,lc	date-start	bfed1745d1745d17 -0.9090909090909091
+p2w&c=in,lc	date-cont	3ff0000000000000 1.0
+p2w&c=in,lc	location-cont	3ff0000000000000 1.0
+p2w=in	person-cont	bff0000000000000 -1.0
+p2w=in	other	3fed1745d1745d17 0.9090909090909091
+p2w=in	organization-cont	bff0000000000000 -1.0
+p2w=in	date-start	bfed1745d1745d17 -0.9090909090909091
+p2w=in	date-cont	3ff0000000000000 1.0
+p2w=in	location-cont	3ff0000000000000 1.0
+po=organization-cont	person-cont	bff0000000000000 -1.0
+po=organization-cont	other	3ff0000000000000 1.0
+po=organization-cont	organization-cont	3ff0000000000000 1.0
+po=organization-cont	date-cont	bff0000000000000 -1.0
+powf=organization-cont,ic	person-cont	bff0000000000000 -1.0
+powf=organization-cont,ic	other	bfed1745d1745d17 -0.9090909090909091
+powf=organization-cont,ic	organization-cont	400745d1745d1746 2.909090909090909
+powf=organization-cont,ic	date-cont	bff0000000000000 -1.0
+pwc,wc=ic,lc	person-cont	bff0000000000000 -1.0
+pwc,wc=ic,lc	other	400745d1745d1746 2.909090909090909
+pwc,wc=ic,lc	organization-cont	bfed1745d1745d17 -0.9090909090909091
+pwc,wc=ic,lc	date-cont	bff0000000000000 -1.0
+wc=other	person-cont	bff0000000000000 -1.0
+wc=other	other	4008000000000000 3.0
+wc=other	date-start	bff0000000000000 -1.0
+wc=other	date-cont	bff0000000000000 -1.0
+po=location-start	person-cont	bff0000000000000 -1.0
+po=location-start	other	3ff0000000000000 1.0
+po=location-start	date-start	bfed1745d1745d17 -0.9090909090909091
+po=location-start	date-cont	bff0000000000000 -1.0
+po=location-start	location-cont	3ffe8ba2e8ba2e8c 1.9090909090909092
+pwc,wc=ic,other	person-cont	bff0000000000000 -1.0
+pwc,wc=ic,other	other	4000000000000000 2.0
+pwc,wc=ic,other	date-cont	bff0000000000000 -1.0
+po=person-cont	person-cont	bff0000000000000 -1.0
+po=person-cont	other	4000000000000000 2.0
+po=person-cont	location-start	bff0000000000000 -1.0
+ppo=organization-start	person-cont	bff0000000000000 -1.0
+ppo=organization-start	organization-start	3fed1745d1745d17 0.9090909090909091
+ppo=organization-start	organization-cont	4000000000000000 2.0
+ppo=organization-start	date-cont	bff0000000000000 -1.0
+ppo=organization-start	location-start	bfed1745d1745d17 -0.9090909090909091
+n1w&c=has,lc	person-cont	3ff0000000000000 1.0
+n1w&c=has,lc	organization-cont	bff0000000000000 -1.0
+n1w&c=on,lc	person-cont	bff0000000000000 -1.0
+n1w&c=on,lc	organization-cont	3ff0000000000000 1.0
+n1w&c=smith-jones,ic	person-cont	3ff0000000000000 1.0
+n1w&c=smith-jones,ic	organization-cont	bff0000000000000 -1.0
+n1w=has	person-cont	3ff0000000000000 1.0
+n1w=has	organization-cont	bff0000000000000 -1.0
+n1w=on	person-cont	bff0000000000000 -1.0
+n1w=on	organization-cont	3ff0000000000000 1.0
+n1w=smith-jones	person-cont	3ff0000000000000 1.0
+n1w=smith-jones	organization-cont	bff0000000000000 -1.0
+n2w&c=tuesday,ic	person-cont	bff0000000000000 -1.0
+n2w&c=tuesday,ic	organization-cont	3ff0000000000000 1.0
+n2w&c=worked,lc	person-cont	3ff0000000000000 1.0
+n2w&c=worked,lc	organization-cont	bff0000000000000 -1.0
+n2w=tuesday	person-cont	bff0000000000000 -1.0
+n2w=tuesday	organization-cont	3ff0000000000000 1.0
+n2w=worked	person-cont	3ff0000000000000 1.0
+n2w=worked	organization-cont	bff0000000000000 -1.0
+p1w&c=agnes,ic	person-cont	bff0000000000000 -1.0
+p1w&c=agnes,ic	organization-cont	3ff0000000000000 1.0
+p1w&c=chidi,ic	person-cont	3ff0000000000000 1.0
+p1w&c=chidi,ic	organization-cont	bff0000000000000 -1.0
+p1w&c=j.,cp	person-cont	3ff0000000000000 1.0
+p1w&c=j.,cp	organization-cont	bff0000000000000 -1.0
+p1w=agnes	person-cont	bff0000000000000 -1.0
+p1w=agnes	organization-cont	3ff0000000000000 1.0
+p1w=chidi	person-cont	3ff0000000000000 1.0
+p1w=chidi	organization-cont	bff0000000000000 -1.0
+p1w=j.	person-cont	3ff0000000000000 1.0
+p1w=j.	organization-cont	bff0000000000000 -1.0
+p2w&c=st.,ic	person-cont	bff0000000000000 -1.0
+p2w&c=st.,ic	organization-cont	3ff0000000000000 1.0
+p2w=st.	person-cont	bff0000000000000 -1.0
+p2w=st.	organization-cont	3ff0000000000000 1.0
+pow=organization-cont,Hospital	person-cont	bff0000000000000 -1.0
+pow=organization-cont,Hospital	organization-cont	3ff0000000000000 1.0
+pow=person-start,R.	person-cont	3ff0000000000000 1.0
+pow=person-start,R.	organization-cont	bff0000000000000 -1.0
+powf=person-start,cp	person-cont	3ff0000000000000 1.0
+powf=person-start,cp	organization-cont	bff0000000000000 -1.0
+pw,w=Agnes,Hospital	person-cont	bff0000000000000 -1.0
+pw,w=Agnes,Hospital	organization-cont	3ff0000000000000 1.0
+pw,w=Chidi,Okafor	person-cont	3ff0000000000000 1.0
+pw,w=Chidi,Okafor	organization-cont	bff0000000000000 -1.0
+pw,w=J.,R.	person-cont	3ff0000000000000 1.0
+pw,w=J.,R.	organization-cont	bff0000000000000 -1.0
+pwc,wc=cp,cp	person-cont	3ff0000000000000 1.0
+pwc,wc=cp,cp	organization-cont	bff0000000000000 -1.0
+w&c=hospital,ic	person-cont	bff0000000000000 -1.0
+w&c=hospital,ic	organization-cont	3ff0000000000000 1.0
+w&c=r.,cp	person-cont	3ff0000000000000 1.0
+w&c=r.,cp	organization-cont	bff0000000000000 -1.0
+w,nw=Hospital,on	person-cont	bff0000000000000 -1.0
+w,nw=Hospital,on	organization-cont	3ff0000000000000 1.0
+w,nw=Okafor,has	person-cont	3ff0000000000000 1.0
+w,nw=Okafor,has	organization-cont	bff0000000000000 -1.0
+w,nw=R.,Smith-Jones	person-cont	3ff0000000000000 1.0
+w,nw=R.,Smith-Jones	organization-cont	bff0000000000000 -1.0
+w=hospital	person-cont	bff0000000000000 -1.0
+w=hospital	organization-cont	3ff0000000000000 1.0
+w=r.	person-cont	3ff0000000000000 1.0
+w=r.	organization-cont	bff0000000000000 -1.0
+wc,nc=cp,ic	person-cont	3ff0000000000000 1.0
+wc,nc=cp,ic	organization-cont	bff0000000000000 -1.0
+pow=person-start,Okafor	person-cont	4000000000000000 2.0
+pow=person-start,Okafor	organization-cont	bff0000000000000 -1.0
+pow=person-start,Okafor	date-cont	bff0000000000000 -1.0
+w&c=okafor,ic	person-cont	4000000000000000 2.0
+w&c=okafor,ic	organization-cont	bff0000000000000 -1.0
+w&c=okafor,ic	date-cont	bff0000000000000 -1.0
+w=okafor	person-cont	4000000000000000 2.0
+w=okafor	organization-cont	bff0000000000000 -1.0
+w=okafor	date-cont	bff0000000000000 -1.0
+p1wc=cp	person-cont	4000000000000000 2.0
+p1wc=cp	organization-cont	bff0000000000000 -1.0
+p1wc=cp	location-start	bff0000000000000 -1.0
+powf=location-start,ic	person-cont	bff0000000000000 -1.0
+powf=location-start,ic	date-start	bfed1745d1745d17 -0.9090909090909091
+powf=location-start,ic	location-cont	3ffe8ba2e8ba2e8c 1.9090909090909092
+n1w&c=spoke,lc	person-cont	3ff0000000000000 1.0
+n1w&c=spoke,lc	date-cont	bff0000000000000 -1.0
+n1w=spoke	person-cont	3ff0000000000000 1.0
+n1w=spoke	date-cont	bff0000000000000 -1.0
+n2w&c=at,lc	person-cont	3ff0000000000000 1.0
+n2w&c=at,lc	date-cont	bff0000000000000 -1.0
+n2w=at	person-cont	3ff0000000000000 1.0
+n2w=at	date-cont	bff0000000000000 -1.0
+p1w&c=dr.,ic	person-cont	3ff0000000000000 1.0
+p1w&c=dr.,ic	date-cont	bff0000000000000 -1.0
+p1w=dr.	person-cont	3ff0000000000000 1.0
+p1w=dr.	date-cont	bff0000000000000 -1.0
+pw,w=Dr.,Okafor	person-cont	3ff0000000000000 1.0
+pw,w=Dr.,Okafor	date-cont	bff0000000000000 -1.0
+w,nw=Okafor,spoke	person-cont	3ff0000000000000 1.0
+w,nw=Okafor,spoke	date-cont	bff0000000000000 -1.0
+n2w&c=a,lc	person-cont	3ff0000000000000 1.0
+n2w&c=a,lc	location-start	bff0000000000000 -1.0
+n2w=a	person-cont	3ff0000000000000 1.0
+n2w=a	location-start	bff0000000000000 -1.0
+p1w&c=r.,cp	person-cont	3ff0000000000000 1.0
+p1w&c=r.,cp	location-start	bff0000000000000 -1.0
+p1w=r.	person-cont	3ff0000000000000 1.0
+p1w=r.	location-start	bff0000000000000 -1.0
+p2w&c=j.,cp	person-cont	3ff0000000000000 1.0
+p2w&c=j.,cp	location-start	bff0000000000000 -1.0
+p2w=j.	person-cont	3ff0000000000000 1.0
+p2w=j.	location-start	bff0000000000000 -1.0
+pow=person-cont,Smith-Jones	person-cont	3ff0000000000000 1.0
+pow=person-cont,Smith-Jones	location-start	bff0000000000000 -1.0
+powf=person-cont,ic	person-cont	3ff0000000000000 1.0
+powf=person-cont,ic	location-start	bff0000000000000 -1.0
+pw,w=R.,Smith-Jones	person-cont	3ff0000000000000 1.0
+pw,w=R.,Smith-Jones	location-start	bff0000000000000 -1.0
+pwc,wc=cp,ic	person-cont	3ff0000000000000 1.0
+pwc,wc=cp,ic	location-start	bff0000000000000 -1.0
+w&c=lindqvist,ic	person-cont	3ff0000000000000 1.0
+w&c=lindqvist,ic	location-start	bff0000000000000 -1.0
+w,nw=Smith-Jones,,	person-cont	3ff0000000000000 1.0
+w,nw=Smith-Jones,,	location-start	bff0000000000000 -1.0
+w=lindqvist	person-cont	3ff0000000000000 1.0
+w=lindqvist	location-start	bff0000000000000 -1.0
+p1w&c=são,ic	person-cont	bff0000000000000 -1.0
+p1w&c=são,ic	location-cont	3ff0000000000000 1.0
+p1w=são	person-cont	bff0000000000000 -1.0
+p1w=são	location-cont	3ff0000000000000 1.0
+pow=location-start,Paulo	person-cont	bff0000000000000 -1.0
+pow=location-start,Paulo	location-cont	3ff0000000000000 1.0
+pw,w=São,Paulo	person-cont	bff0000000000000 -1.0
+pw,w=São,Paulo	location-cont	3ff0000000000000 1.0
+w&c=paulo,ic	person-cont	bff0000000000000 -1.0
+w&c=paulo,ic	location-cont	3ff0000000000000 1.0
+w,nw=Paulo,.	person-cont	bff0000000000000 -1.0
+w,nw=Paulo,.	location-cont	3ff0000000000000 1.0
+w=paulo	person-cont	bff0000000000000 -1.0
+w=paulo	location-cont	3ff0000000000000 1.0
+n1w&c=from,lc	other	3ff0000000000000 1.0
+n1w&c=from,lc	organization-start	bff0000000000000 -1.0
+n1w&c=light,ic	other	bff0000000000000 -1.0
+n1w&c=light,ic	organization-start	3ff0000000000000 1.0
+n1w&c=new,ic	other	3fea2e8ba2e8ba2f 0.8181818181818182
+n1w&c=new,ic	organization-start	bfea2e8ba2e8ba2f -0.8181818181818182
+n1w&c=officials,lc	other	bff0000000000000 -1.0
+n1w&c=officials,lc	organization-start	3ff0000000000000 1.0
+n1w=from	other	3ff0000000000000 1.0
+n1w=from	organization-start	bff0000000000000 -1.0
+n1w=light	other	bff0000000000000 -1.0
+n1w=light	organization-start	3ff0000000000000 1.0
+n1w=new	other	3fea2e8ba2e8ba2f 0.8181818181818182
+n1w=new	organization-start	bfea2e8ba2e8ba2f -0.8181818181818182
+n1w=officials	other	bff0000000000000 -1.0
+n1w=officials	organization-start	3ff0000000000000 1.0
+n2w&c=lagos,ic	other	3ff0000000000000 1.0
+n2w&c=lagos,ic	organization-start	bff0000000000000 -1.0
+n2w&c=praised,lc	other	bff0000000000000 -1.0
+n2w&c=praised,lc	organization-start	3ff0000000000000 1.0
+n2w&c=red,ic	other	bfea2e8ba2e8ba2f -0.8181818181818182
+n2w&c=red,ic	organization-start	3fea2e8ba2e8ba2f 0.8181818181818182
+n2w&c=systems,ic	other	bff0000000000000 -1.0
+n2w&c=systems,ic	organization-start	3ff0000000000000 1.0
+n2w&c=york,ic	other	3fea2e8ba2e8ba2f 0.8181818181818182
+n2w&c=york,ic	organization-start	bfea2e8ba2e8ba2f -0.8181818181818182
+n2w=lagos	other	3ff0000000000000 1.0
+n2w=lagos	organization-start	bff0000000000000 -1.0
+n2w=praised	other	bff0000000000000 -1.0
+n2w=praised	organization-start	3ff0000000000000 1.0
+n2w=red	other	bfea2e8ba2e8ba2f -0.8181818181818182
+n2w=red	organization-start	3fea2e8ba2e8ba2f 0.8181818181818182
+n2w=systems	other	bff0000000000000 -1.0
+n2w=systems	organization-start	3ff0000000000000 1.0
+n2w=york	other	3fea2e8ba2e8ba2f 0.8181818181818182
+n2w=york	organization-start	bfea2e8ba2e8ba2f -0.8181818181818182
+p1w&c=deal,lc	other	3fea2e8ba2e8ba2f 0.8181818181818182
+p1w&c=deal,lc	organization-start	bfea2e8ba2e8ba2f -0.8181818181818182
+p1w&c=joined,lc	other	bff0000000000000 -1.0
+p1w&c=joined,lc	organization-start	3ff0000000000000 1.0
+p1w=deal	other	3fea2e8ba2e8ba2f 0.8181818181818182
+p1w=deal	organization-start	bfea2e8ba2e8ba2f -0.8181818181818182
+p1w=joined	other	bff0000000000000 -1.0
+p1w=joined	organization-start	3ff0000000000000 1.0
+p2w&c=lindqvist,ic	other	bff0000000000000 -1.0
+p2w&c=lindqvist,ic	organization-start	3ff0000000000000 1.0
+p2w=lindqvist	other	bff0000000000000 -1.0
+p2w=lindqvist	organization-start	3ff0000000000000 1.0
+pow=other,Harbor	other	bff0000000000000 -1.0
+pow=other,Harbor	organization-start	3ff0000000000000 1.0
+pow=other,IBM	other	bfea2e8ba2e8ba2f -0.8181818181818182
+pow=other,IBM	organization-start	3fea2e8ba2e8ba2f 0.8181818181818182
+pow=other,Patients	other	3ff0000000000000 1.0
+pow=other,Patients	organization-start	bff0000000000000 -1.0
+pow=other,WHO	other	bff0000000000000 -1.0
+pow=other,WHO	organization-start	3ff0000000000000 1.0
+pow=other,in	other	3fea2e8ba2e8ba2f 0.8181818181818182
+pow=other,in	organization-start	bfea2e8ba2e8ba2f -0.8181818181818182
+powf=other,ac	other	bffd1745d1745d17 -1.8181818181818181
+powf=other,ac	organization-start	3ffd1745d1745d17 1.8181818181818181
+pw,w=deal,in	other	3fea2e8ba2e8ba2f 0.8181818181818182
+pw,w=deal,in	organization-start	bfea2e8ba2e8ba2f -0.8181818181818182
+pw,w=joined,Harbor	other	bff0000000000000 -1.0
+pw,w=joined,Harbor	organization-start	3ff0000000000000 1.0
+w&c=harbor,ic	other	bff0000000000000 -1.0
+w&c=harbor,ic	organization-start	3ff0000000000000 1.0
+w&c=ibm,ac	other	bfea2e8ba2e8ba2f -0.8181818181818182
+w&c=ibm,ac	organization-start	3fea2e8ba2e8ba2f 0.8181818181818182
+w&c=in,lc	other	3fea2e8ba2e8ba2f 0.8181818181818182
+w&c=in,lc	organization-start	bfea2e8ba2e8ba2f -0.8181818181818182
+w&c=patients,ic	other	3ff0000000000000 1.0
+w&c=patients,ic	organization-start	bff0000000000000 -1.0
+w&c=who,ac	other	bff0000000000000 -1.0
+w&c=who,ac	organization-start	3ff0000000000000 1.0
+w,nw=Harbor,Light	other	bff0000000000000 -1.0
+w,nw=Harbor,Light	organization-start	3ff0000000000000 1.0
+w,nw=IBM,and	other	bfea2e8ba2e8ba2f -0.8181818181818182
+w,nw=IBM,and	organization-start	3fea2e8ba2e8ba2f 0.8181818181818182
+w,nw=Patients,from	other	3ff0000000000000 1.0
+w,nw=Patients,from	organization-start	bff0000000000000 -1.0
+w,nw=WHO,officials	other	bff0000000000000 -1.0
+w,nw=WHO,officials	organization-start	3ff0000000000000 1.0
+w,nw=in,New	other	3fea2e8ba2e8ba2f 0.8181818181818182
+w,nw=in,New	organization-start	bfea2e8ba2e8ba2f -0.8181818181818182
+w=harbor	other	bff0000000000000 -1.0
+w=harbor	organization-start	3ff0000000000000 1.0
+w=ibm	other	bfea2e8ba2e8ba2f -0.8181818181818182
+w=ibm	organization-start	3fea2e8ba2e8ba2f 0.8181818181818182
+w=in	other	3fea2e8ba2e8ba2f 0.8181818181818182
+w=in	organization-start	bfea2e8ba2e8ba2f -0.8181818181818182
+w=patients	other	3ff0000000000000 1.0
+w=patients	organization-start	bff0000000000000 -1.0
+w=who	other	bff0000000000000 -1.0
+w=who	organization-start	3ff0000000000000 1.0
+wc,nc=ac,lc	other	bffd1745d1745d17 -1.8181818181818181
+wc,nc=ac,lc	organization-start	3ffd1745d1745d17 1.8181818181818181
+wc=ac	other	bffd1745d1745d17 -1.8181818181818181
+wc=ac	organization-start	3ffd1745d1745d17 1.8181818181818181
+po=organization-start	other	bfed1745d1745d17 -0.9090909090909091
+po=organization-start	organization-start	bff0000000000000 -1.0
+po=organization-start	organization-cont	3ffe8ba2e8ba2e8c 1.9090909090909092
+powf=organization-start,ic	other	bfed1745d1745d17 -0.9090909090909091
+powf=organization-start,ic	organization-start	bff0000000000000 -1.0
+powf=organization-start,ic	organization-cont	3ffe8ba2e8ba2e8c 1.9090909090909092
+n2w&c=.,other	other	bfdd1745d1745d17 -0.45454545454545453
+n2w&c=.,other	organization-start	c000000000000000 -2.0
+n2w&c=.,other	organization-cont	3ff0000000000000 1.0
+n2w&c=.,other	date-start	3fb745d1745d1746 0.09090909090909091
+n2w&c=.,other	date-cont	3ff0000000000000 1.0
+n2w&c=.,other	location-start	3fd745d1745d1746 0.36363636363636365
+n2w=.	other	bfdd1745d1745d17 -0.45454545454545453
+n2w=.	organization-start	c000000000000000 -2.0
+n2w=.	organization-cont	3ff0000000000000 1.0
+n2w=.	date-start	3fb745d1745d1746 0.09090909090909091
+n2w=.	date-cont	3ff0000000000000 1.0
+n2w=.	location-start	3fd745d1745d1746 0.36363636363636365
+ppo=organization-cont	other	3ff0000000000000 1.0
+ppo=organization-cont	organization-start	c000000000000000 -2.0
+ppo=organization-cont	organization-cont	bff0000000000000 -1.0
+ppo=organization-cont	date-start	400ba2e8ba2e8ba3 3.4545454545454546
+ppo=organization-cont	location-start	bff745d1745d1746 -1.4545454545454546
+p2wc=other	other	3ff0000000000000 1.0
+p2wc=other	organization-start	3ff0000000000000 1.0
+p2wc=other	organization-cont	bff0000000000000 -1.0
+p2wc=other	location-cont	bff0000000000000 -1.0
+p2w&c=the,lc	other	3fed1745d1745d17 0.9090909090909091
+p2w&c=the,lc	organization-start	bfea2e8ba2e8ba2f -0.8181818181818182
+p2w&c=the,lc	date-start	bff0000000000000 -1.0
+p2w&c=the,lc	date-cont	3fed1745d1745d17 0.9090909090909091
+p2w=the	other	3fed1745d1745d17 0.9090909090909091
+p2w=the	organization-start	bfea2e8ba2e8ba2f -0.8181818181818182
+p2w=the	date-start	bff0000000000000 -1.0
+p2w=the	date-cont	3fed1745d1745d17 0.9090909090909091
+pwc,wc=lc,lc	other	40068ba2e8ba2e8c 2.8181818181818183
+pwc,wc=lc,lc	organization-start	bfea2e8ba2e8ba2f -0.8181818181818182
+pwc,wc=lc,lc	date-start	bff0000000000000 -1.0
+pwc,wc=lc,lc	date-cont	3fed1745d1745d17 0.9090909090909091
+pwc,wc=lc,lc	location-start	bff0000000000000 -1.0
+pwc,wc=lc,lc	location-cont	bfed1745d1745d17 -0.9090909090909091
+p1w&c=from,lc	other	bff0000000000000 -1.0
+p1w&c=from,lc	organization-start	4000000000000000 2.0
+p1w&c=from,lc	date-start	bff0000000000000 -1.0
+p1w&c=from,lc	location-start	3ff0000000000000 1.0
+p1w&c=from,lc	location-cont	bff0000000000000 -1.0
+p1w=from	other	bff0000000000000 -1.0
+p1w=from	organization-start	4000000000000000 2.0
+p1w=from	date-start	bff0000000000000 -1.0
+p1w=from	location-start	3ff0000000000000 1.0
+p1w=from	location-cont	bff0000000000000 -1.0
+powf=other,lc	other	4012e8ba2e8ba2e9 4.7272727272727275
+powf=other,lc	organization-start	bfea2e8ba2e8ba2f -0.8181818181818182
+powf=other,lc	date-cont	c000000000000000 -2.0
+powf=other,lc	location-start	bff0000000000000 -1.0
+powf=other,lc	location-cont	bfed1745d1745d17 -0.9090909090909091
+n1w&c=announced,lc	other	bfed1745d1745d17 -0.9090909090909091
+n1w&c=announced,lc	organization-cont	3fed1745d1745d17 0.9090909090909091
+n1w&c=leaf,ic	other	bff0000000000000 -1.0
+n1w&c=leaf,ic	organization-cont	3ff0000000000000 1.0
+n1w&c=red,ic	other	3ff0000000000000 1.0
+n1w&c=red,ic	organization-cont	bff0000000000000 -1.0
+n1w=announced	other	bfed1745d1745d17 -0.9090909090909091
+n1w=announced	organization-cont	3fed1745d1745d17 0.9090909090909091
+n1w=leaf	other	bff0000000000000 -1.0
+n1w=leaf	organization-cont	3ff0000000000000 1.0
+n1w=red	other	3ff0000000000000 1.0
+n1w=red	organization-cont	bff0000000000000 -1.0
+n2w&c=deal,lc	other	3fed1745d1745d17 0.9090909090909091
+n2w&c=deal,lc	organization-cont	bfed1745d1745d17 -0.9090909090909091
+n2w&c=hat,ic	other	3ff0000000000000 1.0
+n2w&c=hat,ic	organization-cont	bff0000000000000 -1.0
+n2w&c=march,ic	other	bfed1745d1745d17 -0.9090909090909091
+n2w&c=march,ic	organization-cont	3fed1745d1745d17 0.9090909090909091
+n2w=deal	other	3fed1745d1745d17 0.9090909090909091
+n2w=deal	organization-cont	bfed1745d1745d17 -0.9090909090909091
+n2w=hat	other	3ff0000000000000 1.0
+n2w=hat	organization-cont	bff0000000000000 -1.0
+n2w=march	other	bfed1745d1745d17 -0.9090909090909091
+n2w=march	organization-cont	3fed1745d1745d17 0.9090909090909091
+p1w&c=bean,ic	other	bff0000000000000 -1.0
+p1w&c=bean,ic	organization-cont	3ff0000000000000 1.0
+p1w&c=hat,ic	other	3fed1745d1745d17 0.9090909090909091
+p1w&c=hat,ic	organization-cont	bfed1745d1745d17 -0.9090909090909091
+p1w&c=ibm,ac	other	3ff0000000000000 1.0
+p1w&c=ibm,ac	organization-cont	bff0000000000000 -1.0
+p1w&c=leaf,ic	other	3ff0000000000000 1.0
+p1w&c=leaf,ic	organization-cont	bff0000000000000 -1.0
+p1w&c=light,ic	other	bfed1745d1745d17 -0.9090909090909091
+p1w&c=light,ic	organization-cont	3fed1745d1745d17 0.9090909090909091
+p1w&c=red,ic	other	bfed1745d1745d17 -0.9090909090909091
+p1w&c=red,ic	organization-cont	3fed1745d1745d17 0.9090909090909091
+p1w=bean	other	bff0000000000000 -1.0
+p1w=bean	organization-cont	3ff0000000000000 1.0
+p1w=hat	other	3fed1745d1745d17 0.9090909090909091
+p1w=hat	organization-cont	bfed1745d1745d17 -0.9090909090909091
+p1w=ibm	other	3ff0000000000000 1.0
+p1w=ibm	organization-cont	bff0000000000000 -1.0
+p1w=leaf	other	3ff0000000000000 1.0
+p1w=leaf	organization-cont	bff0000000000000 -1.0
+p1w=light	other	bfed1745d1745d17 -0.9090909090909091
+p1w=light	organization-cont	3fed1745d1745d17 0.9090909090909091
+p1w=red	other	bfed1745d1745d17 -0.9090909090909091
+p1w=red	organization-cont	3fed1745d1745d17 0.9090909090909091
+p1wc=ac	other	3ff0000000000000 1.0
+p1wc=ac	organization-cont	bff0000000000000 -1.0
+p2w&c=&,other	other	3ff0000000000000 1.0
+p2w&c=&,other	organization-cont	bff0000000000000 -1.0
+p2w&c=and,lc	other	bfed1745d1745d17 -0.9090909090909091
+p2w&c=and,lc	organization-cont	3fed1745d1745d17 0.9090909090909091
+p2w&c=from,lc	other	bff0000000000000 -1.0
+p2w&c=from,lc	organization-cont	3ff0000000000000 1.0
+p2w&c=harbor,ic	other	bfed1745d1745d17 -0.9090909090909091
+p2w&c=harbor,ic	organization-cont	3fed1745d1745d17 0.9090909090909091
+p2w&c=red,ic	other	3fed1745d1745d17 0.9090909090909091
+p2w&c=red,ic	organization-cont	bfed1745d1745d17 -0.9090909090909091
+p2w=&	other	3ff0000000000000 1.0
+p2w=&	organization-cont	bff0000000000000 -1.0
+p2w=and	other	bfed1745d1745d17 -0.9090909090909091
+p2w=and	organization-cont	3fed1745d1745d17 0.9090909090909091
+p2w=from	other	bff0000000000000 -1.0
+p2w=from	organization-cont	3ff0000000000000 1.0
+p2w=harbor	other	bfed1745d1745d17 -0.9090909090909091
+p2w=harbor	organization-cont	3fed1745d1745d17 0.9090909090909091
+p2w=red	other	3fed1745d1745d17 0.9090909090909091
+p2w=red	organization-cont	bfed1745d1745d17 -0.9090909090909091
+pow=organization-cont,.	other	3ff0000000000000 1.0
+pow=organization-cont,.	organization-cont	bff0000000000000 -1.0
+pow=organization-cont,Systems	other	bfed1745d1745d17 -0.9090909090909091
+pow=organization-cont,Systems	organization-cont	3fed1745d1745d17 0.9090909090909091
+pow=organization-cont,announced	other	3fed1745d1745d17 0.9090909090909091
+pow=organization-cont,announced	organization-cont	bfed1745d1745d17 -0.9090909090909091
+pow=organization-start,&	other	bff0000000000000 -1.0
+pow=organization-start,&	organization-cont	3ff0000000000000 1.0
+pow=organization-start,Hat	other	bfed1745d1745d17 -0.9090909090909091
+pow=organization-start,Hat	organization-cont	3fed1745d1745d17 0.9090909090909091
+pow=organization-start,and	other	3ff0000000000000 1.0
+pow=organization-start,and	organization-cont	bff0000000000000 -1.0
+powf=organization-cont,lc	other	3fed1745d1745d17 0.9090909090909091
+powf=organization-cont,lc	organization-cont	bfed1745d1745d17 -0.9090909090909091
+powf=organization-cont,other	other	3ff0000000000000 1.0
+powf=organization-cont,other	organization-cont	bff0000000000000 -1.0
+powf=organization-start,lc	other	3ff0000000000000 1.0
+powf=organization-start,lc	organization-cont	bff0000000000000 -1.0
+powf=organization-start,other	other	bff0000000000000 -1.0
+powf=organization-start,other	organization-cont	3ff0000000000000 1.0
+pw,w=Bean,&	other	bff0000000000000 -1.0
+pw,w=Bean,&	organization-cont	3ff0000000000000 1.0
+pw,w=Hat,announced	other	3fed1745d1745d17 0.9090909090909091
+pw,w=Hat,announced	organization-cont	bfed1745d1745d17 -0.9090909090909091
+pw,w=IBM,and	other	3ff0000000000000 1.0
+pw,w=IBM,and	organization-cont	bff0000000000000 -1.0
+pw,w=Leaf,.	other	3ff0000000000000 1.0
+pw,w=Leaf,.	organization-cont	bff0000000000000 -1.0
+pw,w=Light,Systems	other	bfed1745d1745d17 -0.9090909090909091
+pw,w=Light,Systems	organization-cont	3fed1745d1745d17 0.9090909090909091
+pw,w=Red,Hat	other	bfed1745d1745d17 -0.9090909090909091
+pw,w=Red,Hat	organization-cont	3fed1745d1745d17 0.9090909090909091
+pwc,wc=ac,lc	other	3ff0000000000000 1.0
+pwc,wc=ac,lc	organization-cont	bff0000000000000 -1.0
+w&c=&,other	other	bff0000000000000 -1.0
+w&c=&,other	organization-cont	3ff0000000000000 1.0
+w&c=announced,lc	other	3fed1745d1745d17 0.9090909090909091
+w&c=announced,lc	organization-cont	bfed1745d1745d17 -0.9090909090909091
+w&c=hat,ic	other	bfed1745d1745d17 -0.9090909090909091
+w&c=hat,ic	organization-cont	3fed1745d1745d17 0.9090909090909091
+w&c=systems,ic	other	bfed1745d1745d17 -0.9090909090909091
+w&c=systems,ic	organization-cont	3fed1745d1745d17 0.9090909090909091
+w,nw=&,Leaf	other	bff0000000000000 -1.0
+w,nw=&,Leaf	organization-cont	3ff0000000000000 1.0
+w,nw=Hat,announced	other	bfed1745d1745d17 -0.9090909090909091
+w,nw=Hat,announced	organization-cont	3fed1745d1745d17 0.9090909090909091
+w,nw=Systems,in	other	bfed1745d1745d17 -0.9090909090909091
+w,nw=Systems,in	organization-cont	3fed1745d1745d17 0.9090909090909091
+w,nw=and,Red	other	3ff0000000000000 1.0
+w,nw=and,Red	organization-cont	bff0000000000000 -1.0
+w,nw=announced,the	other	3fed1745d1745d17 0.9090909090909091
+w,nw=announced,the	organization-cont	bfed1745d1745d17 -0.9090909090909091
+w=&	other	bff0000000000000 -1.0
+w=&	organization-cont	3ff0000000000000 1.0
+w=announced	other	3fed1745d1745d17 0.9090909090909091
+w=announced	organization-cont	bfed1745d1745d17 -0.9090909090909091
+w=hat	other	bfed1745d1745d17 -0.9090909090909091
+w=hat	organization-cont	3fed1745d1745d17 0.9090909090909091
+w=systems	other	bfed1745d1745d17 -0.9090909090909091
+w=systems	organization-cont	3fed1745d1745d17 0.9090909090909091
+wc,nc=other,ic	other	bff0000000000000 -1.0
+wc,nc=other,ic	organization-cont	3ff0000000000000 1.0
+w&c=.,other	other	4008000000000000 3.0
+w&c=.,other	organization-cont	bff0000000000000 -1.0
+w&c=.,other	date-start	bff0000000000000 -1.0
+w&c=.,other	date-cont	bff0000000000000 -1.0
+w=.	other	4008000000000000 3.0
+w=.	organization-cont	bff0000000000000 -1.0
+w=.	date-start	bff0000000000000 -1.0
+w=.	date-cont	bff0000000000000 -1.0
+wc,nc=4d,other	other	bff0000000000000 -1.0
+wc,nc=4d,other	organization-cont	bff0000000000000 -1.0
+wc,nc=4d,other	date-start	3ff745d1745d1746 1.4545454545454546
+wc,nc=4d,other	date-cont	3fe1745d1745d174 0.5454545454545454
+wc=4d	other	c000000000000000 -2.0
+wc=4d	organization-cont	bff0000000000000 -1.0
+wc=4d	date-start	3ff745d1745d1746 1.4545454545454546
+wc=4d	date-cont	3ff8ba2e8ba2e8ba 1.5454545454545454
+pd=other	other	3ff1745d1745d174 1.0909090909090908
+pd=other	organization-cont	bff0000000000000 -1.0
+pd=other	date-start	3ffe8ba2e8ba2e8c 1.9090909090909092
+pd=other	date-cont	bff0000000000000 -1.0
+pd=other	location-start	bff0000000000000 -1.0
+pwc,wc=ic,4d	other	bff0000000000000 -1.0
+pwc,wc=ic,4d	organization-cont	bff0000000000000 -1.0
+pwc,wc=ic,4d	date-cont	4000000000000000 2.0
+w&c=and,lc	other	4000000000000000 2.0
+w&c=and,lc	organization-cont	bff0000000000000 -1.0
+w&c=and,lc	date-cont	bff0000000000000 -1.0
+w=and	other	4000000000000000 2.0
+w=and	organization-cont	bff0000000000000 -1.0
+w=and	date-cont	bff0000000000000 -1.0
+wc,nc=lc,lc	other	3ffe8ba2e8ba2e8c 1.9090909090909092
+wc,nc=lc,lc	organization-cont	bfed1745d1745d17 -0.9090909090909091
+wc,nc=lc,lc	location-start	bff0000000000000 -1.0
+n1w&c=%,other	other	3ff0000000000000 1.0
+n1w&c=%,other	date-start	bff0000000000000 -1.0
+n1w&c=4,num	other	bff0000000000000 -1.0
+n1w&c=4,num	date-start	3ff0000000000000 1.0
+n1w&c=default,lc	other	3fed1745d1745d17 0.9090909090909091
+n1w&c=default,lc	date-start	bfed1745d1745d17 -0.9090909090909091
+n1w&c=october,ic	other	bff0000000000000 -1.0
+n1w&c=october,ic	date-start	3ff0000000000000 1.0
+n1w&c=report,lc	other	3fe1745d1745d174 0.5454545454545454
+n1w&c=report,lc	date-start	bfe1745d1745d174 -0.5454545454545454
+n1w&c=second,lc	other	c003a2e8ba2e8ba3 -2.4545454545454546
+n1w&c=second,lc	date-start	4003a2e8ba2e8ba3 2.4545454545454546
+n1w&c=year,lc	other	3ff0000000000000 1.0
+n1w&c=year,lc	date-start	bff0000000000000 -1.0
+n1w=%	other	3ff0000000000000 1.0
+n1w=%	date-start	bff0000000000000 -1.0
+n1w=4	other	bff0000000000000 -1.0
+n1w=4	date-start	3ff0000000000000 1.0
+n1w=default	other	3fed1745d1745d17 0.9090909090909091
+n1w=default	date-start	bfed1745d1745d17 -0.9090909090909091
+n1w=october	other	bff0000000000000 -1.0
+n1w=october	date-start	3ff0000000000000 1.0
+n1w=report	other	3fe1745d1745d174 0.5454545454545454
+n1w=report	date-start	bfe1745d1745d174 -0.5454545454545454
+n1w=second	other	c003a2e8ba2e8ba3 -2.4545454545454546
+n1w=second	date-start	4003a2e8ba2e8ba3 2.4545454545454546
+n1w=year	other	3ff0000000000000 1.0
+n1w=year	date-start	bff0000000000000 -1.0
+n1wc=num	other	bff0000000000000 -1.0
+n1wc=num	date-start	3ff0000000000000 1.0
+n2w&c=2023,4d	other	bff0000000000000 -1.0
+n2w&c=2023,4d	date-start	3ff0000000000000 1.0
+n2w&c=quarter,lc	other	c003a2e8ba2e8ba3 -2.4545454545454546
+n2w&c=quarter,lc	date-start	4003a2e8ba2e8ba3 2.4545454545454546
+n2w&c=type,lc	other	3fed1745d1745d17 0.9090909090909091
+n2w&c=type,lc	date-start	bfed1745d1745d17 -0.9090909090909091
+n2w=2023	other	bff0000000000000 -1.0
+n2w=2023	date-start	3ff0000000000000 1.0
+n2w=quarter	other	c003a2e8ba2e8ba3 -2.4545454545454546
+n2w=quarter	date-start	4003a2e8ba2e8ba3 2.4545454545454546
+n2w=type	other	3fed1745d1745d17 0.9090909090909091
+n2w=type	date-start	bfed1745d1745d17 -0.9090909090909091
+n2wc=4d	other	bff0000000000000 -1.0
+n2wc=4d	date-start	3ff0000000000000 1.0
+p1w&c=2019,4d	other	3ff0000000000000 1.0
+p1w&c=2019,4d	date-start	bff0000000000000 -1.0
+p1w&c=on,ic	other	bff0000000000000 -1.0
+p1w&c=on,ic	date-start	3ff0000000000000 1.0
+p1w&c=rose,lc	other	3ff0000000000000 1.0
+p1w&c=rose,lc	date-start	bff0000000000000 -1.0
+p1w&c=with,lc	other	3fed1745d1745d17 0.9090909090909091
+p1w&c=with,lc	date-start	bfed1745d1745d17 -0.9090909090909091
+p1w=2019	other	3ff0000000000000 1.0
+p1w=2019	date-start	bff0000000000000 -1.0
+p1w=rose	other	3ff0000000000000 1.0
+p1w=rose	date-start	bff0000000000000 -1.0
+p1w=with	other	3fed1745d1745d17 0.9090909090909091
+p1w=with	date-start	bfed1745d1745d17 -0.9090909090909091
+p1wc=4d	other	3ff0000000000000 1.0
+p1wc=4d	date-start	bff0000000000000 -1.0
+p2w&c=boise,ic	other	bff0000000000000 -1.0
+p2w&c=boise,ic	date-start	3ff0000000000000 1.0
+p2w&c=closes,lc	other	c003a2e8ba2e8ba3 -2.4545454545454546
+p2w&c=closes,lc	date-start	4003a2e8ba2e8ba3 2.4545454545454546
+p2w&c=march,ic	other	3ff0000000000000 1.0
+p2w&c=march,ic	date-start	bff0000000000000 -1.0
+p2w&c=named,lc	other	3fe1745d1745d174 0.5454545454545454
+p2w&c=named,lc	date-start	bfe1745d1745d174 -0.5454545454545454
+p2w&c=portland,ic	other	3ff0000000000000 1.0
+p2w&c=portland,ic	date-start	bff0000000000000 -1.0
+p2w&c=shares,ic	other	3ff0000000000000 1.0
+p2w&c=shares,ic	date-start	bff0000000000000 -1.0
+p2w&c=train,lc	other	3fed1745d1745d17 0.9090909090909091
+p2w&c=train,lc	date-start	bfed1745d1745d17 -0.9090909090909091
+p2w=boise	other	bff0000000000000 -1.0
+p2w=boise	date-start	3ff0000000000000 1.0
+p2w=closes	other	c003a2e8ba2e8ba3 -2.4545454545454546
+p2w=closes	date-start	4003a2e8ba2e8ba3 2.4545454545454546
+p2w=march	other	3ff0000000000000 1.0
+p2w=march	date-start	bff0000000000000 -1.0
+p2w=named	other	3fe1745d1745d174 0.5454545454545454
+p2w=named	date-start	bfe1745d1745d174 -0.5454545454545454
+p2w=portland	other	3ff0000000000000 1.0
+p2w=portland	date-start	bff0000000000000 -1.0
+p2w=shares	other	3ff0000000000000 1.0
+p2w=shares	date-start	bff0000000000000 -1.0
+p2w=train	other	3fed1745d1745d17 0.9090909090909091
+p2w=train	date-start	bfed1745d1745d17 -0.9090909090909091
+pow=date-cont,.	other	3ff0000000000000 1.0
+pow=date-cont,.	date-start	bff0000000000000 -1.0
+pow=other,12	other	bff0000000000000 -1.0
+pow=other,12	date-start	3ff0000000000000 1.0
+pow=other,3.5	other	3ff0000000000000 1.0
+pow=other,3.5	date-start	bff0000000000000 -1.0
+pow=other,June	other	bff0000000000000 -1.0
+pow=other,June	date-start	3ff0000000000000 1.0
+pow=other,same	other	3ff0000000000000 1.0
+pow=other,same	date-start	bff0000000000000 -1.0
+powf=date-cont,other	other	3ff0000000000000 1.0
+powf=date-cont,other	date-start	bff0000000000000 -1.0
+pw,w=2019,.	other	3ff0000000000000 1.0
+pw,w=2019,.	date-start	bff0000000000000 -1.0
+pw,w=On,12	other	bff0000000000000 -1.0
+pw,w=On,12	date-start	3ff0000000000000 1.0
+pw,w=in,the	other	bffe8ba2e8ba2e8c -1.9090909090909092
+pw,w=in,the	date-start	3ffe8ba2e8ba2e8c 1.9090909090909092
+pw,w=on,June	other	bff0000000000000 -1.0
+pw,w=on,June	date-start	3ff0000000000000 1.0
+pw,w=rose,3.5	other	3ff0000000000000 1.0
+pw,w=rose,3.5	date-start	bff0000000000000 -1.0
+pw,w=the,same	other	3ff0000000000000 1.0
+pw,w=the,same	date-start	bff0000000000000 -1.0
+pw,w=with,the	other	3fed1745d1745d17 0.9090909090909091
+pw,w=with,the	date-start	bfed1745d1745d17 -0.9090909090909091
+pwc,wc=4d,other	other	3ff0000000000000 1.0
+pwc,wc=4d,other	date-start	bff0000000000000 -1.0
+pwc,wc=ic,2d	other	bff0000000000000 -1.0
+pwc,wc=ic,2d	date-start	3ff0000000000000 1.0
+pwc,wc=lc,2d	other	3ff0000000000000 1.0
+pwc,wc=lc,2d	date-start	bff0000000000000 -1.0
+w&c=12,2d	other	bff0000000000000 -1.0
+w&c=12,2d	date-start	3ff0000000000000 1.0
+w&c=3.5,2d	other	3ff0000000000000 1.0
+w&c=3.5,2d	date-start	bff0000000000000 -1.0
+w&c=june,ic	other	bff0000000000000 -1.0
+w&c=june,ic	date-start	3ff0000000000000 1.0
+w&c=same,lc	other	3ff0000000000000 1.0
+w&c=same,lc	date-start	bff0000000000000 -1.0
+w,nw=12,October	other	bff0000000000000 -1.0
+w,nw=12,October	date-start	3ff0000000000000 1.0
+w,nw=3.5,%	other	3ff0000000000000 1.0
+w,nw=3.5,%	date-start	bff0000000000000 -1.0
+w,nw=June,4	other	bff0000000000000 -1.0
+w,nw=June,4	date-start	3ff0000000000000 1.0
+w,nw=same,year	other	3ff0000000000000 1.0
+w,nw=same,year	date-start	bff0000000000000 -1.0
+w,nw=the,default	other	3fed1745d1745d17 0.9090909090909091
+w,nw=the,default	date-start	bfed1745d1745d17 -0.9090909090909091
+w,nw=the,report	other	3fe1745d1745d174 0.5454545454545454
+w,nw=the,report	date-start	bfe1745d1745d174 -0.5454545454545454
+w,nw=the,second	other	c003a2e8ba2e8ba3 -2.4545454545454546
+w,nw=the,second	date-start	4003a2e8ba2e8ba3 2.4545454545454546
+w=12	other	bff0000000000000 -1.0
+w=12	date-start	3ff0000000000000 1.0
+w=3.5	other	3ff0000000000000 1.0
+w=3.5	date-start	bff0000000000000 -1.0
+w=june	other	bff0000000000000 -1.0
+w=june	date-start	3ff0000000000000 1.0
+w=same	other	3ff0000000000000 1.0
+w=same	date-start	bff0000000000000 -1.0
+wc,nc=2d,ic	other	bff0000000000000 -1.0
+wc,nc=2d,ic	date-start	3ff0000000000000 1.0
+wc,nc=ic,num	other	bff0000000000000 -1.0
+wc,nc=ic,num	date-start	3ff0000000000000 1.0
+p1w&c=second,lc	other	bfed1745d1745d17 -0.9090909090909091
+p1w&c=second,lc	date-start	bff0000000000000 -1.0
+p1w&c=second,lc	date-cont	3ffe8ba2e8ba2e8c 1.9090909090909092
+p1w&c=since,lc	other	bff0000000000000 -1.0
+p1w&c=since,lc	date-start	3ff745d1745d1746 1.4545454545454546
+p1w&c=since,lc	date-cont	bfdd1745d1745d17 -0.45454545454545453
+p1w=second	other	bfed1745d1745d17 -0.9090909090909091
+p1w=second	date-start	bff0000000000000 -1.0
+p1w=second	date-cont	3ffe8ba2e8ba2e8c 1.9090909090909092
+p1w=since	other	bff0000000000000 -1.0
+p1w=since	date-start	3ff745d1745d1746 1.4545454545454546
+p1w=since	date-cont	bfdd1745d1745d17 -0.45454545454545453
+p2w&c=there,lc	other	bff0000000000000 -1.0
+p2w&c=there,lc	date-start	3ff745d1745d1746 1.4545454545454546
+p2w&c=there,lc	date-cont	bfdd1745d1745d17 -0.45454545454545453
+p2w=there	other	bff0000000000000 -1.0
+p2w=there	date-start	3ff745d1745d1746 1.4545454545454546
+p2w=there	date-cont	bfdd1745d1745d17 -0.45454545454545453
+po=date-cont	other	bfed1745d1745d17 -0.9090909090909091
+po=date-cont	date-start	c000000000000000 -2.0
+po=date-cont	date-cont	400745d1745d1746 2.909090909090909
+pow=date-cont,quarter	other	bfed1745d1745d17 -0.9090909090909091
+pow=date-cont,quarter	date-start	bff0000000000000 -1.0
+pow=date-cont,quarter	date-cont	3ffe8ba2e8ba2e8c 1.9090909090909092
+pow=other,2011	other	bff0000000000000 -1.0
+pow=other,2011	date-start	3ff745d1745d1746 1.4545454545454546
+pow=other,2011	date-cont	bfdd1745d1745d17 -0.45454545454545453
+powf=date-cont,lc	other	bfed1745d1745d17 -0.9090909090909091
+powf=date-cont,lc	date-start	bff0000000000000 -1.0
+powf=date-cont,lc	date-cont	3ffe8ba2e8ba2e8c 1.9090909090909092
+powf=other,4d	other	bff0000000000000 -1.0
+powf=other,4d	date-start	3ff745d1745d1746 1.4545454545454546
+powf=other,4d	date-cont	bfdd1745d1745d17 -0.45454545454545453
+ppo=date-start	other	bfed1745d1745d17 -0.9090909090909091
+ppo=date-start	date-start	c000000000000000 -2.0
+ppo=date-start	date-cont	400745d1745d1746 2.909090909090909
+pw,w=second,quarter	other	bfed1745d1745d17 -0.9090909090909091
+pw,w=second,quarter	date-start	bff0000000000000 -1.0
+pw,w=second,quarter	date-cont	3ffe8ba2e8ba2e8c 1.9090909090909092
+pw,w=since,2011	other	bff0000000000000 -1.0
+pw,w=since,2011	date-start	3ff745d1745d1746 1.4545454545454546
+pw,w=since,2011	date-cont	bfdd1745d1745d17 -0.45454545454545453
+pwc,wc=lc,4d	other	bff0000000000000 -1.0
+pwc,wc=lc,4d	date-start	3ff745d1745d1746 1.4545454545454546
+pwc,wc=lc,4d	date-cont	bfdd1745d1745d17 -0.45454545454545453
+w&c=2011,4d	other	bff0000000000000 -1.0
+w&c=2011,4d	date-start	3ff745d1745d1746 1.4545454545454546
+w&c=2011,4d	date-cont	bfdd1745d1745d17 -0.45454545454545453
+w&c=quarter,lc	other	bfed1745d1745d17 -0.9090909090909091
+w&c=quarter,lc	date-start	bff0000000000000 -1.0
+w&c=quarter,lc	date-cont	3ffe8ba2e8ba2e8c 1.9090909090909092
+w,nw=2011,.	other	bff0000000000000 -1.0
+w,nw=2011,.	date-start	3ff745d1745d1746 1.4545454545454546
+w,nw=2011,.	date-cont	bfdd1745d1745d17 -0.45454545454545453
+w,nw=quarter,.	other	bfed1745d1745d17 -0.9090909090909091
+w,nw=quarter,.	date-start	bff0000000000000 -1.0
+w,nw=quarter,.	date-cont	3ffe8ba2e8ba2e8c 1.9090909090909092
+w=2011	other	bff0000000000000 -1.0
+w=2011	date-start	3ff745d1745d1746 1.4545454545454546
+w=2011	date-cont	bfdd1745d1745d17 -0.45454545454545453
+w=quarter	other	bfed1745d1745d17 -0.9090909090909091
+w=quarter	date-start	bff0000000000000 -1.0
+w=quarter	date-cont	3ffe8ba2e8ba2e8c 1.9090909090909092
+wc,nc=lc,other	other	3ff0000000000000 1.0
+wc,nc=lc,other	date-start	bff0000000000000 -1.0
+wc,nc=lc,other	date-cont	3fed1745d1745d17 0.9090909090909091
+wc,nc=lc,other	location-cont	bfed1745d1745d17 -0.9090909090909091
+p1w&c=on,lc	other	bff0000000000000 -1.0
+p1w&c=on,lc	date-start	4008000000000000 3.0
+p1w&c=on,lc	location-start	c000000000000000 -2.0
+p1w=on	other	c000000000000000 -2.0
+p1w=on	date-start	4010000000000000 4.0
+p1w=on	location-start	c000000000000000 -2.0
+n1w&c=quarter,lc	other	bff0000000000000 -1.0
+n1w&c=quarter,lc	date-cont	3ff0000000000000 1.0
+n1w&c=tokyo,ic	other	3ff0000000000000 1.0
+n1w&c=tokyo,ic	date-cont	bff0000000000000 -1.0
+n1w&c=with,lc	other	3ff0000000000000 1.0
+n1w&c=with,lc	date-cont	bff0000000000000 -1.0
+n1w=quarter	other	bff0000000000000 -1.0
+n1w=quarter	date-cont	3ff0000000000000 1.0
+n1w=tokyo	other	3ff0000000000000 1.0
+n1w=tokyo	date-cont	bff0000000000000 -1.0
+n1w=with	other	3ff0000000000000 1.0
+n1w=with	date-cont	bff0000000000000 -1.0
+n2w&c=café,lc	other	bff0000000000000 -1.0
+n2w&c=café,lc	date-cont	3ff0000000000000 1.0
+n2w&c=expect,lc	other	3ff0000000000000 1.0
+n2w&c=expect,lc	date-cont	bff0000000000000 -1.0
+n2w=café	other	bff0000000000000 -1.0
+n2w=café	date-cont	3ff0000000000000 1.0
+n2w=expect	other	3ff0000000000000 1.0
+n2w=expect	date-cont	bff0000000000000 -1.0
+p1w&c=june,ic	other	bff0000000000000 -1.0
+p1w&c=june,ic	date-cont	3ff0000000000000 1.0
+p1w&c=london,ic	other	3ff0000000000000 1.0
+p1w&c=london,ic	date-cont	bff0000000000000 -1.0
+p1w&c=october,ic	other	bff0000000000000 -1.0
+p1w&c=october,ic	date-cont	3ff0000000000000 1.0
+p1w&c=same,lc	other	3ff0000000000000 1.0
+p1w&c=same,lc	date-cont	bff0000000000000 -1.0
+p1w&c=still,lc	other	3ff0000000000000 1.0
+p1w&c=still,lc	date-cont	bff0000000000000 -1.0
+p1w&c=tuesday,ic	other	3ff0000000000000 1.0
+p1w&c=tuesday,ic	date-cont	bff0000000000000 -1.0
+p1w=june	other	bff0000000000000 -1.0
+p1w=june	date-cont	3ff0000000000000 1.0
+p1w=london	other	3ff0000000000000 1.0
+p1w=london	date-cont	bff0000000000000 -1.0
+p1w=october	other	bff0000000000000 -1.0
+p1w=october	date-cont	3ff0000000000000 1.0
+p1w=same	other	3ff0000000000000 1.0
+p1w=same	date-cont	bff0000000000000 -1.0
+p1w=still	other	3ff0000000000000 1.0
+p1w=still	date-cont	bff0000000000000 -1.0
+p1w=tuesday	other	3ff0000000000000 1.0
+p1w=tuesday	date-cont	bff0000000000000 -1.0
+p2w&c=12,2d	other	bff0000000000000 -1.0
+p2w&c=12,2d	date-cont	3ff0000000000000 1.0
+p2w&c=names,lc	other	3ff0000000000000 1.0
+p2w&c=names,lc	date-cont	bff0000000000000 -1.0
+p2w=12	other	bff0000000000000 -1.0
+p2w=12	date-cont	3ff0000000000000 1.0
+p2w=names	other	3ff0000000000000 1.0
+p2w=names	date-cont	bff0000000000000 -1.0
+p2wc=2d	other	bff0000000000000 -1.0
+p2wc=2d	date-cont	3ff0000000000000 1.0
+pow=date-cont,2023	other	bff0000000000000 -1.0
+pow=date-cont,2023	date-cont	3ff0000000000000 1.0
+pow=date-start,.	other	3ff0000000000000 1.0
+pow=date-start,.	date-cont	bff0000000000000 -1.0
+pow=date-start,4	other	bff0000000000000 -1.0
+pow=date-start,4	date-cont	3ff0000000000000 1.0
+pow=date-start,second	other	bff0000000000000 -1.0
+pow=date-start,second	date-cont	3ff0000000000000 1.0
+pow=location-start,and	other	3ff0000000000000 1.0
+pow=location-start,and	date-cont	bff0000000000000 -1.0
+pow=other,train	other	3ff0000000000000 1.0
+pow=other,train	date-cont	bff0000000000000 -1.0
+pow=other,year	other	3ff0000000000000 1.0
+pow=other,year	date-cont	bff0000000000000 -1.0
+powf=date-cont,4d	other	bff0000000000000 -1.0
+powf=date-cont,4d	date-cont	3ff0000000000000 1.0
+powf=date-start,lc	other	bff0000000000000 -1.0
+powf=date-start,lc	date-cont	3ff0000000000000 1.0
+powf=date-start,num	other	bff0000000000000 -1.0
+powf=date-start,num	date-cont	3ff0000000000000 1.0
+powf=date-start,other	other	3ff0000000000000 1.0
+powf=date-start,other	date-cont	bff0000000000000 -1.0
+powf=location-start,lc	other	3ff0000000000000 1.0
+powf=location-start,lc	date-cont	bff0000000000000 -1.0
+pw,w=June,4	other	bff0000000000000 -1.0
+pw,w=June,4	date-cont	3ff0000000000000 1.0
+pw,w=London,and	other	3ff0000000000000 1.0
+pw,w=London,and	date-cont	bff0000000000000 -1.0
+pw,w=October,2023	other	bff0000000000000 -1.0
+pw,w=October,2023	date-cont	3ff0000000000000 1.0
+pw,w=Tuesday,.	other	3ff0000000000000 1.0
+pw,w=Tuesday,.	date-cont	bff0000000000000 -1.0
+pw,w=same,year	other	3ff0000000000000 1.0
+pw,w=same,year	date-cont	bff0000000000000 -1.0
+pw,w=still,train	other	3ff0000000000000 1.0
+pw,w=still,train	date-cont	bff0000000000000 -1.0
+pw,w=the,second	other	bff0000000000000 -1.0
+pw,w=the,second	date-cont	3ff0000000000000 1.0
+pwc,wc=ic,num	other	bff0000000000000 -1.0
+pwc,wc=ic,num	date-cont	3ff0000000000000 1.0
+w&c=2023,4d	other	bff0000000000000 -1.0
+w&c=2023,4d	date-cont	3ff0000000000000 1.0
+w&c=4,num	other	bff0000000000000 -1.0
+w&c=4,num	date-cont	3ff0000000000000 1.0
+w&c=second,lc	other	bff0000000000000 -1.0
+w&c=second,lc	date-cont	3ff0000000000000 1.0
+w&c=train,lc	other	3ff0000000000000 1.0
+w&c=train,lc	date-cont	bff0000000000000 -1.0
+w&c=year,lc	other	3ff0000000000000 1.0
+w&c=year,lc	date-cont	bff0000000000000 -1.0
+w,nw=2023,the	other	bff0000000000000 -1.0
+w,nw=2023,the	date-cont	3ff0000000000000 1.0
+w,nw=4,.	other	bff0000000000000 -1.0
+w,nw=4,.	date-cont	3ff0000000000000 1.0
+w,nw=and,Tokyo	other	3ff0000000000000 1.0
+w,nw=and,Tokyo	date-cont	bff0000000000000 -1.0
+w,nw=second,quarter	other	bff0000000000000 -1.0
+w,nw=second,quarter	date-cont	3ff0000000000000 1.0
+w,nw=train,with	other	3ff0000000000000 1.0
+w,nw=train,with	date-cont	bff0000000000000 -1.0
+w,nw=year,.	other	3ff0000000000000 1.0
+w,nw=year,.	date-cont	bff0000000000000 -1.0
+w=2023	other	bff0000000000000 -1.0
+w=2023	date-cont	3ff0000000000000 1.0
+w=4	other	bff0000000000000 -1.0
+w=4	date-cont	3ff0000000000000 1.0
+w=second	other	bff0000000000000 -1.0
+w=second	date-cont	3ff0000000000000 1.0
+w=train	other	3ff0000000000000 1.0
+w=train	date-cont	bff0000000000000 -1.0
+w=year	other	3ff0000000000000 1.0
+w=year	date-cont	bff0000000000000 -1.0
+wc,nc=4d,lc	other	bff0000000000000 -1.0
+wc,nc=4d,lc	date-cont	3ff0000000000000 1.0
+wc,nc=num,other	other	bff0000000000000 -1.0
+wc,nc=num,other	date-cont	3ff0000000000000 1.0
+wc=num	other	bff0000000000000 -1.0
+wc=num	date-cont	3ff0000000000000 1.0
+n1w&c=12,2d	other	3ff0000000000000 1.0
+n1w&c=12,2d	location-start	bff0000000000000 -1.0
+n1w&c=program,lc	other	3ff0000000000000 1.0
+n1w&c=program,lc	location-start	bff0000000000000 -1.0
+n1w&c=to,lc	other	bff0000000000000 -1.0
+n1w&c=to,lc	location-start	3ff0000000000000 1.0
+n1w=12	other	3ff0000000000000 1.0
+n1w=12	location-start	bff0000000000000 -1.0
+n1w=program	other	3ff0000000000000 1.0
+n1w=program	location-start	bff0000000000000 -1.0
+n1w=to	other	bff0000000000000 -1.0
+n1w=to	location-start	3ff0000000000000 1.0
+n1wc=2d	other	3ff0000000000000 1.0
+n1wc=2d	location-start	bff0000000000000 -1.0
+n2w&c=october,ic	other	3ff0000000000000 1.0
+n2w&c=october,ic	location-start	bff0000000000000 -1.0
+n2w&c=portland,ic	other	bff0000000000000 -1.0
+n2w&c=portland,ic	location-start	3ff0000000000000 1.0
+n2w=october	other	3ff0000000000000 1.0
+n2w=october	location-start	bff0000000000000 -1.0
+n2w=portland	other	bff0000000000000 -1.0
+n2w=portland	location-start	3ff0000000000000 1.0
+p1w&c=praised,lc	other	3ff0000000000000 1.0
+p1w&c=praised,lc	location-start	bff0000000000000 -1.0
+p1w=praised	other	3ff0000000000000 1.0
+p1w=praised	location-start	bff0000000000000 -1.0
+p2w&c=moved,lc	other	bff0000000000000 -1.0
+p2w&c=moved,lc	location-start	3ff0000000000000 1.0
+p2w&c=officials,lc	other	3ff0000000000000 1.0
+p2w&c=officials,lc	location-start	bff0000000000000 -1.0
+p2w=moved	other	bff0000000000000 -1.0
+p2w=moved	location-start	3ff0000000000000 1.0
+p2w=officials	other	3ff0000000000000 1.0
+p2w=officials	location-start	bff0000000000000 -1.0
+p2wc=cp	other	3ff0000000000000 1.0
+p2wc=cp	location-start	bff0000000000000 -1.0
+pow=other,On	other	3ff0000000000000 1.0
+pow=other,On	location-start	bff0000000000000 -1.0
+pow=other,Uppsala	other	bff0000000000000 -1.0
+pow=other,Uppsala	location-start	3ff0000000000000 1.0
+pw,w=from,Uppsala	other	bff0000000000000 -1.0
+pw,w=from,Uppsala	location-start	3ff0000000000000 1.0
+pw,w=praised,the	other	3ff0000000000000 1.0
+pw,w=praised,the	location-start	bff0000000000000 -1.0
+w&c=on,ic	other	3ff0000000000000 1.0
+w&c=on,ic	location-start	bff0000000000000 -1.0
+w&c=uppsala,ic	other	bff0000000000000 -1.0
+w&c=uppsala,ic	location-start	3ff0000000000000 1.0
+w,nw=On,12	other	3ff0000000000000 1.0
+w,nw=On,12	location-start	bff0000000000000 -1.0
+w,nw=Uppsala,to	other	bff0000000000000 -1.0
+w,nw=Uppsala,to	location-start	3ff0000000000000 1.0
+w,nw=the,program	other	3ff0000000000000 1.0
+w,nw=the,program	location-start	bff0000000000000 -1.0
+w=on	other	3ff0000000000000 1.0
+w=on	location-start	bff0000000000000 -1.0
+w=uppsala	other	bff0000000000000 -1.0
+w=uppsala	location-start	3ff0000000000000 1.0
+wc,nc=ic,2d	other	3ff0000000000000 1.0
+wc,nc=ic,2d	location-start	bff0000000000000 -1.0
+p1w&c=early,lc	other	3fed1745d1745d17 0.9090909090909091
+p1w&c=early,lc	location-cont	bfed1745d1745d17 -0.9090909090909091
+p1w=early	other	3fed1745d1745d17 0.9090909090909091
+p1w=early	location-cont	bfed1745d1745d17 -0.9090909090909091
+pow=other,trading	other	3fed1745d1745d17 0.9090909090909091
+pow=other,trading	location-cont	bfed1745d1745d17 -0.9090909090909091
+pw,w=early,trading	other	3fed1745d1745d17 0.9090909090909091
+pw,w=early,trading	location-cont	bfed1745d1745d17 -0.9090909090909091
+w&c=trading,lc	other	3fed1745d1745d17 0.9090909090909091
+w&c=trading,lc	location-cont	bfed1745d1745d17 -0.9090909090909091
+w,nw=trading,.	other	3fed1745d1745d17 0.9090909090909091
+w,nw=trading,.	location-cont	bfed1745d1745d17 -0.9090909090909091
+w=trading	other	3fed1745d1745d17 0.9090909090909091
+w=trading	location-cont	bfed1745d1745d17 -0.9090909090909091
+n1w&c=names,lc	other	bff0000000000000 -1.0
+n1w&c=names,lc	default-start	3ff0000000000000 1.0
+n1w=names	other	bff0000000000000 -1.0
+n1w=names	default-start	3ff0000000000000 1.0
+n2w&c=still,lc	other	bff0000000000000 -1.0
+n2w&c=still,lc	default-start	3ff0000000000000 1.0
+n2w=still	other	bff0000000000000 -1.0
+n2w=still	default-start	3ff0000000000000 1.0
+pow=other,Untyped	other	bff0000000000000 -1.0
+pow=other,Untyped	default-start	3ff0000000000000 1.0
+w&c=untyped,ic	other	bff0000000000000 -1.0
+w&c=untyped,ic	default-start	3ff0000000000000 1.0
+w,nw=Untyped,names	other	bff0000000000000 -1.0
+w,nw=Untyped,names	default-start	3ff0000000000000 1.0
+w=untyped	other	bff0000000000000 -1.0
+w=untyped	default-start	3ff0000000000000 1.0
+n1w&c=systems,ic	organization-start	bff0000000000000 -1.0
+n1w&c=systems,ic	organization-cont	3ff0000000000000 1.0
+n1w=systems	organization-start	bff0000000000000 -1.0
+n1w=systems	organization-cont	3ff0000000000000 1.0
+p1w&c=harbor,ic	organization-start	bff0000000000000 -1.0
+p1w&c=harbor,ic	organization-cont	3ff0000000000000 1.0
+p1w=harbor	organization-start	bff0000000000000 -1.0
+p1w=harbor	organization-cont	3ff0000000000000 1.0
+p2w&c=joined,lc	organization-start	bff0000000000000 -1.0
+p2w&c=joined,lc	organization-cont	3ff0000000000000 1.0
+p2w=joined	organization-start	bff0000000000000 -1.0
+p2w=joined	organization-cont	3ff0000000000000 1.0
+pow=organization-start,Light	organization-start	bff0000000000000 -1.0
+pow=organization-start,Light	organization-cont	3ff0000000000000 1.0
+pw,w=Harbor,Light	organization-start	bff0000000000000 -1.0
+pw,w=Harbor,Light	organization-cont	3ff0000000000000 1.0
+w&c=light,ic	organization-start	bff0000000000000 -1.0
+w&c=light,ic	organization-cont	3ff0000000000000 1.0
+w,nw=Light,Systems	organization-start	bff0000000000000 -1.0
+w,nw=Light,Systems	organization-cont	3ff0000000000000 1.0
+w=light	organization-start	bff0000000000000 -1.0
+w=light	organization-cont	3ff0000000000000 1.0
+n1w&c=2019,4d	organization-start	bff0000000000000 -1.0
+n1w&c=2019,4d	date-start	3ff8ba2e8ba2e8ba 1.5454545454545454
+n1w&c=2019,4d	location-start	bfe1745d1745d174 -0.5454545454545454
+n1w=2019	organization-start	bff0000000000000 -1.0
+n1w=2019	date-start	3ff8ba2e8ba2e8ba 1.5454545454545454
+n1w=2019	location-start	bfe1745d1745d174 -0.5454545454545454
+p1w&c=every,lc	organization-start	bff0000000000000 -1.0
+p1w&c=every,lc	date-start	3ffe8ba2e8ba2e8c 1.9090909090909092
+p1w&c=every,lc	location-start	bfed1745d1745d17 -0.9090909090909091
+p1w=every	organization-start	bff0000000000000 -1.0
+p1w=every	date-start	3ffe8ba2e8ba2e8c 1.9090909090909092
+p1w=every	location-start	bfed1745d1745d17 -0.9090909090909091
+p2w&c=s.a.,ic	organization-start	bff0000000000000 -1.0
+p2w&c=s.a.,ic	date-start	3ffe8ba2e8ba2e8c 1.9090909090909092
+p2w&c=s.a.,ic	location-start	bfed1745d1745d17 -0.9090909090909091
+p2w&c=systems,ic	organization-start	bff0000000000000 -1.0
+p2w&c=systems,ic	date-start	3ff8ba2e8ba2e8ba 1.5454545454545454
+p2w&c=systems,ic	location-start	bfe1745d1745d174 -0.5454545454545454
+p2w=s.a.	organization-start	bff0000000000000 -1.0
+p2w=s.a.	date-start	3ffe8ba2e8ba2e8c 1.9090909090909092
+p2w=s.a.	location-start	bfed1745d1745d17 -0.9090909090909091
+p2w=systems	organization-start	bff0000000000000 -1.0
+p2w=systems	date-start	3ff8ba2e8ba2e8ba 1.5454545454545454
+p2w=systems	location-start	bfe1745d1745d174 -0.5454545454545454
+pow=other,March	organization-start	bff0000000000000 -1.0
+pow=other,March	date-start	3ff8ba2e8ba2e8ba 1.5454545454545454
+pow=other,March	location-start	bfe1745d1745d174 -0.5454545454545454
+pow=other,Monday	organization-start	bff0000000000000 -1.0
+pow=other,Monday	date-start	3ffe8ba2e8ba2e8c 1.9090909090909092
+pow=other,Monday	location-start	bfed1745d1745d17 -0.9090909090909091
+pw,w=every,Monday	organization-start	bff0000000000000 -1.0
+pw,w=every,Monday	date-start	3ffe8ba2e8ba2e8c 1.9090909090909092
+pw,w=every,Monday	location-start	bfed1745d1745d17 -0.9090909090909091
+pw,w=in,March	organization-start	bff0000000000000 -1.0
+pw,w=in,March	date-start	3ff8ba2e8ba2e8ba 1.5454545454545454
+pw,w=in,March	location-start	bfe1745d1745d174 -0.5454545454545454
+w&c=march,ic	organization-start	bff0000000000000 -1.0
+w&c=march,ic	date-start	3ff8ba2e8ba2e8ba 1.5454545454545454
+w&c=march,ic	location-start	bfe1745d1745d174 -0.5454545454545454
+w&c=monday,ic	organization-start	bff0000000000000 -1.0
+w&c=monday,ic	date-start	3ffe8ba2e8ba2e8c 1.9090909090909092
+w&c=monday,ic	location-start	bfed1745d1745d17 -0.9090909090909091
+w,nw=March,2019	organization-start	bff0000000000000 -1.0
+w,nw=March,2019	date-start	3ff8ba2e8ba2e8ba 1.5454545454545454
+w,nw=March,2019	location-start	bfe1745d1745d174 -0.5454545454545454
+w,nw=Monday,.	organization-start	bff0000000000000 -1.0
+w,nw=Monday,.	date-start	3ffe8ba2e8ba2e8c 1.9090909090909092
+w,nw=Monday,.	location-start	bfed1745d1745d17 -0.9090909090909091
+w=march	organization-start	bff0000000000000 -1.0
+w=march	date-start	3ff8ba2e8ba2e8ba 1.5454545454545454
+w=march	location-start	bfe1745d1745d174 -0.5454545454545454
+w=monday	organization-start	bff0000000000000 -1.0
+w=monday	date-start	3ffe8ba2e8ba2e8c 1.9090909090909092
+w=monday	location-start	bfed1745d1745d17 -0.9090909090909091
+n1w&c=hat,ic	organization-start	3fed1745d1745d17 0.9090909090909091
+n1w&c=hat,ic	location-start	bfed1745d1745d17 -0.9090909090909091
+n1w&c=monte,ic	organization-start	3ff0000000000000 1.0
+n1w&c=monte,ic	location-start	bff0000000000000 -1.0
+n1w&c=york,ic	organization-start	bff0000000000000 -1.0
+n1w&c=york,ic	location-start	3ff0000000000000 1.0
+n1w=hat	organization-start	3fed1745d1745d17 0.9090909090909091
+n1w=hat	location-start	bfed1745d1745d17 -0.9090909090909091
+n1w=monte	organization-start	3ff0000000000000 1.0
+n1w=monte	location-start	bff0000000000000 -1.0
+n1w=york	organization-start	bff0000000000000 -1.0
+n1w=york	location-start	3ff0000000000000 1.0
+n2w&c=announced,lc	organization-start	3fed1745d1745d17 0.9090909090909091
+n2w&c=announced,lc	location-start	bfed1745d1745d17 -0.9090909090909091
+n2w&c=verde,ic	organization-start	3ff0000000000000 1.0
+n2w&c=verde,ic	location-start	bff0000000000000 -1.0
+n2w=announced	organization-start	3fed1745d1745d17 0.9090909090909091
+n2w=announced	location-start	bfed1745d1745d17 -0.9090909090909091
+n2w=verde	organization-start	3ff0000000000000 1.0
+n2w=verde	location-start	bff0000000000000 -1.0
+p2w&c=beans,lc	organization-start	3ff0000000000000 1.0
+p2w&c=beans,lc	location-start	bff0000000000000 -1.0
+p2w&c=deal,lc	organization-start	bff0000000000000 -1.0
+p2w&c=deal,lc	location-start	3ff0000000000000 1.0
+p2w&c=ibm,ac	organization-start	3fed1745d1745d17 0.9090909090909091
+p2w&c=ibm,ac	location-start	bfed1745d1745d17 -0.9090909090909091
+p2w=beans	organization-start	3ff0000000000000 1.0
+p2w=beans	location-start	bff0000000000000 -1.0
+p2w=deal	organization-start	bff0000000000000 -1.0
+p2w=deal	location-start	3ff0000000000000 1.0
+p2w=ibm	organization-start	3fed1745d1745d17 0.9090909090909091
+p2w=ibm	location-start	bfed1745d1745d17 -0.9090909090909091
+p2wc=ac	organization-start	3fed1745d1745d17 0.9090909090909091
+p2wc=ac	location-start	bfed1745d1745d17 -0.9090909090909091
+pow=other,Café	organization-start	3ff0000000000000 1.0
+pow=other,Café	location-start	bff0000000000000 -1.0
+pow=other,New	organization-start	bff0000000000000 -1.0
+pow=other,New	location-start	3ff0000000000000 1.0
+pow=other,Red	organization-start	3fed1745d1745d17 0.9090909090909091
+pow=other,Red	location-start	bfed1745d1745d17 -0.9090909090909091
+pw,w=and,Red	organization-start	3fed1745d1745d17 0.9090909090909091
+pw,w=and,Red	location-start	bfed1745d1745d17 -0.9090909090909091
+pw,w=from,Café	organization-start	3ff0000000000000 1.0
+pw,w=from,Café	location-start	bff0000000000000 -1.0
+pw,w=in,New	organization-start	bff0000000000000 -1.0
+pw,w=in,New	location-start	3ff0000000000000 1.0
+w&c=café,ic	organization-start	3ff0000000000000 1.0
+w&c=café,ic	location-start	bff0000000000000 -1.0
+w&c=new,ic	organization-start	bff0000000000000 -1.0
+w&c=new,ic	location-start	3ff0000000000000 1.0
+w&c=red,ic	organization-start	3fed1745d1745d17 0.9090909090909091
+w&c=red,ic	location-start	bfed1745d1745d17 -0.9090909090909091
+w,nw=Café,Monte	organization-start	3ff0000000000000 1.0
+w,nw=Café,Monte	location-start	bff0000000000000 -1.0
+w,nw=New,York	organization-start	bff0000000000000 -1.0
+w,nw=New,York	location-start	3ff0000000000000 1.0
+w,nw=Red,Hat	organization-start	3fed1745d1745d17 0.9090909090909091
+w,nw=Red,Hat	location-start	bfed1745d1745d17 -0.9090909090909091
+w=café	organization-start	3ff0000000000000 1.0
+w=café	location-start	bff0000000000000 -1.0
+w=new	organization-start	bff0000000000000 -1.0
+w=new	location-start	3ff0000000000000 1.0
+w=red	organization-start	3fed1745d1745d17 0.9090909090909091
+w=red	location-start	bfed1745d1745d17 -0.9090909090909091
+n1w&c=&,other	organization-start	3ff0000000000000 1.0
+n1w&c=&,other	location-cont	bff0000000000000 -1.0
+n1w=&	organization-start	3ff0000000000000 1.0
+n1w=&	location-cont	bff0000000000000 -1.0
+n2w&c=leaf,ic	organization-start	3ff0000000000000 1.0
+n2w&c=leaf,ic	location-cont	bff0000000000000 -1.0
+n2w=leaf	organization-start	3ff0000000000000 1.0
+n2w=leaf	location-cont	bff0000000000000 -1.0
+p2w&c=🏆,other	organization-start	3ff0000000000000 1.0
+p2w&c=🏆,other	location-cont	bff0000000000000 -1.0
+p2w=🏆	organization-start	3ff0000000000000 1.0
+p2w=🏆	location-cont	bff0000000000000 -1.0
+pow=other,Bean	organization-start	3ff0000000000000 1.0
+pow=other,Bean	location-cont	bff0000000000000 -1.0
+pw,w=from,Bean	organization-start	3ff0000000000000 1.0
+pw,w=from,Bean	location-cont	bff0000000000000 -1.0
+w&c=bean,ic	organization-start	3ff0000000000000 1.0
+w&c=bean,ic	location-cont	bff0000000000000 -1.0
+w,nw=Bean,&	organization-start	3ff0000000000000 1.0
+w,nw=Bean,&	location-cont	bff0000000000000 -1.0
+w=bean	organization-start	3ff0000000000000 1.0
+w=bean	location-cont	bff0000000000000 -1.0
+p1w&c=&,other	organization-cont	3ff0000000000000 1.0
+p1w&c=&,other	date-cont	bff0000000000000 -1.0
+p1w&c=march,ic	organization-cont	bff0000000000000 -1.0
+p1w&c=march,ic	date-cont	3ff0000000000000 1.0
+p1w=&	organization-cont	3ff0000000000000 1.0
+p1w=&	date-cont	bff0000000000000 -1.0
+p1w=march	organization-cont	bff0000000000000 -1.0
+p1w=march	date-cont	3ff0000000000000 1.0
+p2w&c=bean,ic	organization-cont	3ff0000000000000 1.0
+p2w&c=bean,ic	date-cont	bff0000000000000 -1.0
+p2w=bean	organization-cont	3ff0000000000000 1.0
+p2w=bean	date-cont	bff0000000000000 -1.0
+pow=date-start,2019	organization-cont	bff0000000000000 -1.0
+pow=date-start,2019	date-cont	3ff0000000000000 1.0
+pow=organization-cont,Leaf	organization-cont	3ff0000000000000 1.0
+pow=organization-cont,Leaf	date-cont	bff0000000000000 -1.0
+powf=date-start,4d	organization-cont	bff0000000000000 -1.0
+powf=date-start,4d	date-cont	3ff0000000000000 1.0
+pw,w=&,Leaf	organization-cont	3ff0000000000000 1.0
+pw,w=&,Leaf	date-cont	bff0000000000000 -1.0
+pw,w=March,2019	organization-cont	bff0000000000000 -1.0
+pw,w=March,2019	date-cont	3ff0000000000000 1.0
+pwc,wc=other,ic	organization-cont	3ff0000000000000 1.0
+pwc,wc=other,ic	date-cont	bff0000000000000 -1.0
+w&c=2019,4d	organization-cont	bff0000000000000 -1.0
+w&c=2019,4d	date-cont	3ff0000000000000 1.0
+w&c=leaf,ic	organization-cont	3ff0000000000000 1.0
+w&c=leaf,ic	date-cont	bff0000000000000 -1.0
+w,nw=2019,.	organization-cont	bff0000000000000 -1.0
+w,nw=2019,.	date-cont	3ff0000000000000 1.0
+w,nw=Leaf,.	organization-cont	3ff0000000000000 1.0
+w,nw=Leaf,.	date-cont	bff0000000000000 -1.0
+w=2019	organization-cont	bff0000000000000 -1.0
+w=2019	date-cont	3ff0000000000000 1.0
+w=leaf	organization-cont	3ff0000000000000 1.0
+w=leaf	date-cont	bff0000000000000 -1.0
+n1w&c=expect,lc	organization-cont	bff0000000000000 -1.0
+n1w&c=expect,lc	location-start	3ff0000000000000 1.0
+n1w=expect	organization-cont	bff0000000000000 -1.0
+n1w=expect	location-start	3ff0000000000000 1.0
+n2w&c=more,lc	organization-cont	bff0000000000000 -1.0
+n2w&c=more,lc	location-start	3ff0000000000000 1.0
+n2w=more	organization-cont	bff0000000000000 -1.0
+n2w=more	location-start	3ff0000000000000 1.0
+p2w&c=london,ic	organization-cont	bff0000000000000 -1.0
+p2w&c=london,ic	location-start	3ff0000000000000 1.0
+p2w=london	organization-cont	bff0000000000000 -1.0
+p2w=london	location-start	3ff0000000000000 1.0
+pow=other,Tokyo	organization-cont	bff0000000000000 -1.0
+pow=other,Tokyo	location-start	3ff0000000000000 1.0
+pw,w=and,Tokyo	organization-cont	bff0000000000000 -1.0
+pw,w=and,Tokyo	location-start	3ff0000000000000 1.0
+w&c=tokyo,ic	organization-cont	bff0000000000000 -1.0
+w&c=tokyo,ic	location-start	3ff0000000000000 1.0
+w,nw=Tokyo,expect	organization-cont	bff0000000000000 -1.0
+w,nw=Tokyo,expect	location-start	3ff0000000000000 1.0
+w=tokyo	organization-cont	bff0000000000000 -1.0
+w=tokyo	location-start	3ff0000000000000 1.0
+p1w&c=the,lc	date-start	bff0000000000000 -1.0
+p1w&c=the,lc	date-cont	3ff0000000000000 1.0
+p1w=the	date-start	bff0000000000000 -1.0
+p1w=the	date-cont	3ff0000000000000 1.0
+n1w&c=paulo,ic	date-start	bfed1745d1745d17 -0.9090909090909091
+n1w&c=paulo,ic	location-start	3fed1745d1745d17 0.9090909090909091
+n1w=paulo	date-start	bfed1745d1745d17 -0.9090909090909091
+n1w=paulo	location-start	3fed1745d1745d17 0.9090909090909091
+n2w&c=accra,ic	date-start	bff0000000000000 -1.0
+n2w&c=accra,ic	location-start	3ff0000000000000 1.0
+n2w=accra	date-start	bff0000000000000 -1.0
+n2w=accra	location-start	3ff0000000000000 1.0
+p2w&c=café,lc	date-start	bfed1745d1745d17 -0.9090909090909091
+p2w&c=café,lc	location-start	3fed1745d1745d17 0.9090909090909091
+p2w&c=home,lc	date-start	3ff0000000000000 1.0
+p2w&c=home,lc	location-start	bff0000000000000 -1.0
+p2w&c=it,lc	date-start	3ff0000000000000 1.0
+p2w&c=it,lc	location-start	bff0000000000000 -1.0
+p2w&c=lives,lc	date-start	bff0000000000000 -1.0
+p2w&c=lives,lc	location-start	3ff0000000000000 1.0
+p2w&c=patients,ic	date-start	bff0000000000000 -1.0
+p2w&c=patients,ic	location-start	3ff0000000000000 1.0
+p2w=café	date-start	bfed1745d1745d17 -0.9090909090909091
+p2w=café	location-start	3fed1745d1745d17 0.9090909090909091
+p2w=home	date-start	3ff0000000000000 1.0
+p2w=home	location-start	bff0000000000000 -1.0
+p2w=it	date-start	3ff0000000000000 1.0
+p2w=it	location-start	bff0000000000000 -1.0
+p2w=lives	date-start	bff0000000000000 -1.0
+p2w=lives	location-start	3ff0000000000000 1.0
+p2w=patients	date-start	bff0000000000000 -1.0
+p2w=patients	location-start	3ff0000000000000 1.0
+pow=other,Friday	date-start	3ff0000000000000 1.0
+pow=other,Friday	location-start	bff0000000000000 -1.0
+pow=other,Lagos	date-start	bff0000000000000 -1.0
+pow=other,Lagos	location-start	3ff0000000000000 1.0
+pow=other,Lisbon	date-start	bff0000000000000 -1.0
+pow=other,Lisbon	location-start	3ff0000000000000 1.0
+pow=other,Oslo	date-start	bff0000000000000 -1.0
+pow=other,Oslo	location-start	3ff0000000000000 1.0
+pow=other,Sunday	date-start	3ff0000000000000 1.0
+pow=other,Sunday	location-start	bff0000000000000 -1.0
+pow=other,São	date-start	bfed1745d1745d17 -0.9090909090909091
+pow=other,São	location-start	3fed1745d1745d17 0.9090909090909091
+pow=other,the	date-start	3ff0000000000000 1.0
+pow=other,the	location-start	bff0000000000000 -1.0
+pw,w=from,Lagos	date-start	bff0000000000000 -1.0
+pw,w=from,Lagos	location-start	3ff0000000000000 1.0
+pw,w=in,Lisbon	date-start	bff0000000000000 -1.0
+pw,w=in,Lisbon	location-start	3ff0000000000000 1.0
+pw,w=in,Oslo	date-start	bff0000000000000 -1.0
+pw,w=in,Oslo	location-start	3ff0000000000000 1.0
+pw,w=in,São	date-start	bfed1745d1745d17 -0.9090909090909091
+pw,w=in,São	location-start	3fed1745d1745d17 0.9090909090909091
+pw,w=on,Friday	date-start	3ff0000000000000 1.0
+pw,w=on,Friday	location-start	bff0000000000000 -1.0
+pw,w=on,Sunday	date-start	3ff0000000000000 1.0
+pw,w=on,Sunday	location-start	bff0000000000000 -1.0
+w&c=friday,ic	date-start	3ff0000000000000 1.0
+w&c=friday,ic	location-start	bff0000000000000 -1.0
+w&c=lagos,ic	date-start	bff0000000000000 -1.0
+w&c=lagos,ic	location-start	3ff0000000000000 1.0
+w&c=lisbon,ic	date-start	bff0000000000000 -1.0
+w&c=lisbon,ic	location-start	3ff0000000000000 1.0
+w&c=oslo,ic	date-start	bff0000000000000 -1.0
+w&c=oslo,ic	location-start	3ff0000000000000 1.0
+w&c=sunday,ic	date-start	3ff0000000000000 1.0
+w&c=sunday,ic	location-start	bff0000000000000 -1.0
+w&c=são,ic	date-start	bfed1745d1745d17 -0.9090909090909091
+w&c=são,ic	location-start	3fed1745d1745d17 0.9090909090909091
+w&c=the,lc	date-start	3ff0000000000000 1.0
+w&c=the,lc	location-start	bff0000000000000 -1.0
+w,nw=Friday,.	date-start	3ff0000000000000 1.0
+w,nw=Friday,.	location-start	bff0000000000000 -1.0
+w,nw=Lagos,and	date-start	bff0000000000000 -1.0
+w,nw=Lagos,and	location-start	3ff0000000000000 1.0
+w,nw=Lisbon,.	date-start	bff0000000000000 -1.0
+w,nw=Lisbon,.	location-start	3ff0000000000000 1.0
+w,nw=Oslo,.	date-start	bff0000000000000 -1.0
+w,nw=Oslo,.	location-start	3ff0000000000000 1.0
+w,nw=Sunday,.	date-start	3ff0000000000000 1.0
+w,nw=Sunday,.	location-start	bff0000000000000 -1.0
+w,nw=São,Paulo	date-start	bfed1745d1745d17 -0.9090909090909091
+w,nw=São,Paulo	location-start	3fed1745d1745d17 0.9090909090909091
+w=friday	date-start	3ff0000000000000 1.0
+w=friday	location-start	bff0000000000000 -1.0
+w=lagos	date-start	bff0000000000000 -1.0
+w=lagos	location-start	3ff0000000000000 1.0
+w=lisbon	date-start	bff0000000000000 -1.0
+w=lisbon	location-start	3ff0000000000000 1.0
+w=oslo	date-start	bff0000000000000 -1.0
+w=oslo	location-start	3ff0000000000000 1.0
+w=sunday	date-start	3ff0000000000000 1.0
+w=sunday	location-start	bff0000000000000 -1.0
+w=são	date-start	bfed1745d1745d17 -0.9090909090909091
+w=são	location-start	3fed1745d1745d17 0.9090909090909091
+p1w&c=new,ic	date-start	bfed1745d1745d17 -0.9090909090909091
+p1w&c=new,ic	location-cont	3fed1745d1745d17 0.9090909090909091
+p1w=new	date-start	bfed1745d1745d17 -0.9090909090909091
+p1w=new	location-cont	3fed1745d1745d17 0.9090909090909091
+pow=location-start,York	date-start	bfed1745d1745d17 -0.9090909090909091
+pow=location-start,York	location-cont	3fed1745d1745d17 0.9090909090909091
+pw,w=New,York	date-start	bfed1745d1745d17 -0.9090909090909091
+pw,w=New,York	location-cont	3fed1745d1745d17 0.9090909090909091
+w&c=york,ic	date-start	bfed1745d1745d17 -0.9090909090909091
+w&c=york,ic	location-cont	3fed1745d1745d17 0.9090909090909091
+w,nw=York,.	date-start	bfed1745d1745d17 -0.9090909090909091
+w,nw=York,.	location-cont	3fed1745d1745d17 0.9090909090909091
+w=york	date-start	bfed1745d1745d17 -0.9090909090909091
+w=york	location-cont	3fed1745d1745d17 0.9090909090909091
+end	turbo:name-weights

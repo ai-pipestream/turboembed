@@ -18,8 +18,14 @@ pub fn golden_dir() -> PathBuf {
 
 /// Every golden of the language detector, as (set, id, path), sorted.
 pub fn goldens() -> Vec<(String, String, PathBuf)> {
+    goldens_in(&golden_dir())
+}
+
+/// Every golden under `dir`, a model's directory, as (set, id, path),
+/// sorted.
+pub fn goldens_in(dir: &Path) -> Vec<(String, String, PathBuf)> {
     let mut out = Vec::new();
-    for set in std::fs::read_dir(golden_dir()).unwrap() {
+    for set in std::fs::read_dir(dir).unwrap() {
         let set = set.unwrap().path();
         for f in std::fs::read_dir(&set).unwrap() {
             let path = f.unwrap().path();

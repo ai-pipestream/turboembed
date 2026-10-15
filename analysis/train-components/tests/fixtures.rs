@@ -1,22 +1,30 @@
 //! The fixture models the JVM trained are trained again here, and the
 //! parts the JVM wrote come out byte for byte: the manifest, the
 //! dictionary entries, the descriptor and the model entry. The fixtures
-//! the Rust trainer wrote (`pos-fixture-rust.bin`, `lemma-fixture-rust.bin`)
-//! are trained here too and must be the checked in files byte for byte;
-//! the golden generator loads them in the JVM and tags with them
-//! (`analysis/postag/tests/golden.rs`, `analysis/lemmatizer/tests/golden.rs`).
+//! the Rust trainer wrote (`pos-fixture-rust.bin`, `lemma-fixture-rust.bin`,
+//! `chunker-fixture-rust.bin`, `langdetect-fixture-rust.bin`) are trained
+//! here too and must be the checked in files byte for byte; the golden
+//! generator loads them in the JVM and tags, lemmatizes, chunks or detects
+//! with them (`analysis/postag/tests/golden.rs`,
+//! `analysis/lemmatizer/tests/golden.rs`,
+//! `analysis/phrase-chunker/tests/golden.rs`,
+//! `analysis/langdetect/tests/fixture.rs`).
 //!
 //! With `TURBO_TRAIN_OUT` set to a directory, the Rust fixtures trained
 //! here are written there, which is how they were made.
 
 use std::path::{Path, PathBuf};
 
-use turbo_formats::native::{LemmaReader, WordTagReader};
+use turbo_formats::native::{ChunkReader, LanguageReader, LemmaReader, NameReader, WordTagReader};
 use turbo_goldens::data_dir;
 use turbo_maxent::{JavaString, ModelFile};
+use turbo_sequence::namefind::NameCodec;
 use turbo_train::package::MANIFEST_ENTRY;
-use turbo_train::{Key, TimeZone, TrainingConfiguration, TrainingParameters};
+use turbo_train::{Algorithm, Key, TimeZone, TrainingConfiguration, TrainingParameters};
+use turbo_train_components::chunk::{self, ChunkerFactory, train_chunker_model};
+use turbo_train_components::langdetect::{self, LanguageDetectorFactory, train_language_model};
 use turbo_train_components::lemmatize::{self, LemmatizerFactory, train_lemmatizer_model};
+use turbo_train_components::namefind::{self, TokenNameFinderFactory, train_name_model};
 use turbo_train_components::postag::{self, PosTaggerFactory, train_pos_model};
 use turbo_train_components::sentdetect::{self, SentenceDetectorFactory, train_sentence_model};
 use turbo_train_components::tokenize::{self, TokenizerFactory, train_tokenizer_model};
@@ -198,6 +206,67 @@ fn pos_fixture_is_trained_again_with_its_descriptor_and_tag_dictionary() {
     }
 }
 
+/// A name finder fixture of `analysis/goldens/data/fixtures` trained
+/// again from `train-fixtures/train-names.txt` as `FixtureModels.java`
+/// trains it:
+/// `NameFinderME.train("en", null, ...)` with `algorithm`, 50 iterations,
+/// cutoff 1 and one thread. Every entry must be the JVM's byte for byte.
+fn check_name_fixture(file: &str, algorithm: &str, descriptor: Option<&str>, codec: NameCodec) {
+    let theirs = fixture(file);
+    let text = read_text(&goldens_data("train-fixtures/train-names.txt"));
+    let samples: Vec<_> = NameReader::new(&text, WhitespaceMode::Unicode).unwrap().map(|s| s.unwrap()).collect();
+    let descriptor = descriptor.map(|d| read(&goldens_data(d)));
+    let factory = TokenNameFinderFactory::new("en", descriptor, codec).unwrap();
+    let mut p = tagger_parameters(50);
+    p.put_str(Key::ALGORITHM, algorithm);
+    let stamp = Stamp { timestamp_ms: timestamp(&theirs), version: "3.0.0-SNAPSHOT", zone: TimeZone::UTC };
+    let ours = train_name_model(&samples, &factory, None, &p, &mut TrainingConfiguration::default(), stamp).unwrap();
+    assert_eq!(ours.package.entry_names(), entry_names(&theirs), "{file}: the zip entries in the JVM's order");
+    let ours = ModelFile::open(ours.package.to_bytes()).unwrap();
+    for entry in [MANIFEST_ENTRY, namefind::MODEL_ENTRY, namefind::DESCRIPTOR_ENTRY] {
+        assert_eq!(&*ours.entry(entry).unwrap(), &*theirs.entry(entry).unwrap(), "{file}: {entry}");
+    }
+}
+
+#[test]
+fn the_bilou_name_fixture_is_trained_again_with_its_descriptor() {
+    // GIS, featuregen/nesting.xml (windows over several generators, a
+    // cache inside the tree, cache="TRUE" on the root), BILOU.
+    check_name_fixture("ner-bilou-fixture.bin", "MAXENT", Some("fixtures/featuregen/nesting.xml"), NameCodec::Bilou);
+}
+
+#[test]
+fn the_qn_name_fixture_is_trained_again_with_the_default_descriptor() {
+    // L-BFGS, no descriptor given, so the default one is loaded and
+    // stored; BIO.
+    check_name_fixture("ner-qn-fixture.bin", "MAXENT_QN", None, NameCodec::Bio);
+}
+
+#[test]
+fn chunker_fixture_is_trained_again_from_its_eight_sentences() {
+    // FixtureModels.java: ChunkerME.train over ChunkSampleStream with the
+    // perceptron, 50 iterations, cutoff 1, one thread.
+    let theirs = fixture("chunker-fixture.bin");
+    let text = read_text(&goldens_data("train-fixtures/train-chunk.txt"));
+    let samples: Vec<_> = ChunkReader::new(&text).unwrap().map(|s| s.unwrap()).collect();
+    assert_eq!(samples.len(), 8);
+    let mut p = TrainingParameters::new();
+    p.put_str(Key::ALGORITHM, Algorithm::Perceptron.name());
+    p.put(Key::ITERATIONS, 50);
+    p.put(Key::CUTOFF, 1);
+    p.put(Key::THREADS, 1);
+    let stamp = Stamp { timestamp_ms: timestamp(&theirs), version: "3.0.0-SNAPSHOT", zone: TimeZone::UTC };
+    let ours =
+        train_chunker_model(&samples, &ChunkerFactory::new("en"), &p, &mut TrainingConfiguration::default(), stamp)
+            .unwrap();
+    assert_eq!(ours.package.entry_names(), ["chunker.model", "manifest.properties"]);
+    assert_eq!(ours.package.entry_names(), entry_names(&theirs), "the zip entries in the JVM's order");
+    let ours = ModelFile::open(ours.package.to_bytes()).unwrap();
+    for entry in [MANIFEST_ENTRY, chunk::MODEL_ENTRY] {
+        assert_eq!(&*ours.entry(entry).unwrap(), &*theirs.entry(entry).unwrap(), "{entry}");
+    }
+}
+
 /// The tagged inputs the Rust fixtures are trained from.
 fn tagged(file: &str) -> String {
     read_text(&data_dir().join("inputs/tagged").join(file))
@@ -281,4 +350,105 @@ fn the_rust_lemma_fixture_is_the_bin_written_here() {
     let ok = JavaString::from_utf16(&[0x44, 0x31, 0xDC4D, 0x44, 0x30, 0xD83D]);
     assert!(outcomes.contains(&&smile) && outcomes.contains(&&ok), "{outcomes:?}");
     assert_eq!(model.outcome_texts(), Err(&smile));
+}
+
+#[test]
+fn the_rust_name_fixture_is_the_bin_written_here() {
+    // NameFinderME.train's defaults (MAXENT, 300 iterations, cutoff 0),
+    // the default descriptor, BIO, and the types of the samples.
+    let text = tagged("names.txt");
+    let samples: Vec<_> = NameReader::new(&text, WhitespaceMode::Unicode).unwrap().map(|s| s.unwrap()).collect();
+    assert_eq!(samples.len(), 23);
+    let factory = TokenNameFinderFactory::new("en", None, NameCodec::Bio).unwrap();
+    let ours = train_name_model(
+        &samples,
+        &factory,
+        None,
+        &TrainingParameters::new(),
+        &mut TrainingConfiguration::default(),
+        Stamp::at(RUST_FIXTURE_TIMESTAMP),
+    )
+    .unwrap();
+    assert_eq!(ours.params.get_int(Key::ITERATIONS).unwrap(), Some(300));
+    let bin = ours.package.to_bytes();
+    check_rust_fixture("ner-fixture-rust.bin", &bin);
+    let file = ModelFile::open(bin).unwrap();
+    assert_eq!(entry_names(&file), ["manifest.properties", "nameFinder.model", "generator.featuregen"]);
+    assert_eq!(file.manifest().get("Component-Name"), Some("NameFinderME"));
+    assert_eq!(file.manifest().get("sequenceCodecImplName"), Some("opennlp.tools.namefind.BioCodec"));
+    // turbo-sequence opens it and finds the names of a sentence it was
+    // trained on.
+    let model = file.maxent(namefind::MODEL_ENTRY).unwrap();
+    let mut finder =
+        turbo_sequence::namefind::NameFinder::new(&file, &model, turbo_sequence::PatternMode::Utf16Units).unwrap();
+    let found = finder.find(&["Ann", "met", "Bo", "in", "Oslo", "."]);
+    let spans: Vec<(usize, usize, Option<&str>)> =
+        found.iter().map(|f| (f.span.start, f.span.end, f.span.kind.as_deref())).collect();
+    assert_eq!(spans, [(0, 1, Some("person")), (2, 3, Some("person")), (4, 5, Some("location"))]);
+}
+
+#[test]
+fn the_rust_chunker_fixture_is_the_bin_written_here() {
+    let text = tagged("chunks.txt");
+    let samples: Vec<_> = ChunkReader::new(&text).unwrap().map(|s| s.unwrap()).collect();
+    assert_eq!(samples.len(), CHUNK_SAMPLES);
+    let factory = ChunkerFactory::new("en");
+    let ours = train_chunker_model(
+        &samples,
+        &factory,
+        &tagger_parameters(100),
+        &mut TrainingConfiguration::default(),
+        Stamp::at(RUST_FIXTURE_TIMESTAMP),
+    )
+    .unwrap();
+    let bin = ours.package.to_bytes();
+    check_rust_fixture("chunker-fixture-rust.bin", &bin);
+    let file = ModelFile::open(bin).unwrap();
+    assert_eq!(entry_names(&file), ["chunker.model", "manifest.properties"]);
+    assert_eq!(file.manifest().get("Component-Name"), Some("ChunkerME"));
+    assert_eq!(file.manifest().get("factory"), Some("opennlp.tools.chunker.ChunkerFactory"));
+    assert_eq!(file.manifest().get("BeamSize"), Some("10"));
+    // turbo-phrase-chunker opens it.
+    let model = turbo_phrase_chunker::ChunkerModel::open(file).unwrap();
+    let outcomes: Vec<&str> = model.maxent().outcome_texts().unwrap();
+    for tag in ["O", "B-NP", "I-NP", "B-VP", "I-VP", "B-PP", "B-ADJP", "B-ADVP", "B-SBAR", "B-PRT"] {
+        assert!(outcomes.contains(&tag), "{tag} is not an outcome of {outcomes:?}");
+    }
+}
+
+/// The samples of `inputs/tagged/chunks.txt`.
+const CHUNK_SAMPLES: usize = 30;
+
+#[test]
+fn the_rust_language_fixture_is_the_bin_written_here() {
+    // The parameters langdetect-183 was most likely trained with: those
+    // of the command line trainer when it is given none.
+    let text = read_text(&data_dir().join("inputs/langdetect/samples.txt"));
+    let samples: Vec<_> = LanguageReader::new(&text).unwrap().map(|s| s.unwrap()).collect();
+    assert_eq!(samples.len(), 56);
+    let ours = train_language_model(
+        &samples,
+        &LanguageDetectorFactory::new(),
+        &langdetect::default_training_parameters(),
+        &mut TrainingConfiguration::default(),
+        Stamp::at(RUST_FIXTURE_TIMESTAMP),
+    )
+    .unwrap();
+    assert_eq!(ours.inexact_events, 0);
+    let bin = ours.package.to_bytes();
+    check_rust_fixture("langdetect-fixture-rust.bin", &bin);
+    let file = ModelFile::open(bin).unwrap();
+    assert_eq!(entry_names(&file), ["manifest.properties", "langdetect.model"]);
+    assert_eq!(file.manifest().get("Component-Name"), Some("LanguageDetectorME"));
+    assert_eq!(file.manifest().get("Language"), Some("und"));
+    assert_eq!(file.manifest().get("factory"), Some("opennlp.tools.langdetect.LanguageDetectorFactory"));
+    assert_eq!(file.manifest().get("TrainerType"), Some("Event"));
+    let model = file.maxent(langdetect::MODEL_ENTRY).unwrap();
+    let outcomes: Vec<&str> = model.outcome_texts().unwrap();
+    for code in ["eng", "deu", "fra", "spa", "ita", "nld", "rus", "ell", "tur"] {
+        assert!(outcomes.contains(&code), "{code} is not an outcome of {outcomes:?}");
+    }
+    // turbo-langdetect opens it.
+    let detector = turbo_langdetect::LanguageModel::open(file).unwrap();
+    assert_eq!(detector.supported_languages().count(), 9);
 }

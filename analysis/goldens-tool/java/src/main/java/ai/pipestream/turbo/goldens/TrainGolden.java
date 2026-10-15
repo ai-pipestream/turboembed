@@ -532,7 +532,7 @@ final class TrainGolden implements AnnotatorGolden {
   }
 
   /** Records every iteration the trainer reports. */
-  private static final class Recorder implements TrainingProgressMonitor {
+  static final class Recorder implements TrainingProgressMonitor {
     final List<long[]> counts = new ArrayList<>();
     final List<Double> likelihoods = new ArrayList<>();
     String last;
@@ -621,7 +621,7 @@ final class TrainGolden implements AnnotatorGolden {
     return layers;
   }
 
-  private static AbstractModel train(DataIndexer<TrainingParameters> index, TrainingParameters params,
+  static AbstractModel train(DataIndexer<TrainingParameters> index, TrainingParameters params,
       Recorder recorder) throws InsufficientTrainingDataException {
     EventTrainer<TrainingParameters> trainer = TrainerFactory.getEventTrainer(params, new HashMap<>(),
         new TrainingConfiguration(recorder, null));

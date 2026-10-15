@@ -2,6 +2,7 @@ single
 <START:t> single <END>
 <START:t> <END>
 <START:a> <END> <START:b> <END> x
+a <START:x> <END>
 a <START:x> b c
 <START:a:b> x <END:y> <START:a>b
    leading  and   trailing   spaces   

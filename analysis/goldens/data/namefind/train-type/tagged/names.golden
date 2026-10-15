@@ -1,0 +1,2314 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	tagged/names	1970	1960	03cfebe70e1c2f6877930171d19affbb1de9868f23f7bf55322e8097a0b43ffd
+annotator	opennlp.tools.namefind.NameFinderEventStream	read
+config	codec	bio
+config	language	en
+config	run	train-type
+config	type	person
+layer	turbo:events	document	210	outcome:str	context:str	values:str
+person-start	wc=ic w&c=maria,ic n1wc=ic n1w&c=lindqvist,ic n2wc=lc n2w&c=joined,lc w=maria n1w=lindqvist n2w=joined def pd=null w,nw=Maria,Lindqvist wc,nc=ic,ic S=begin po=other pow=other,Maria powf=other,ic ppo=other	
+person-cont	wc=ic w&c=lindqvist,ic p1wc=ic p1w&c=maria,ic n1wc=lc n1w&c=joined,lc n2wc=ic n2w&c=harbor,ic w=lindqvist p1w=maria n1w=joined n2w=harbor def pd=null pw,w=Maria,Lindqvist pwc,wc=ic,ic w,nw=Lindqvist,joined wc,nc=ic,lc po=person-start pow=person-start,Lindqvist powf=person-start,ic ppo=other	
+other	wc=lc w&c=joined,lc p1wc=ic p1w&c=lindqvist,ic p2wc=ic p2w&c=maria,ic n1wc=ic n1w&c=harbor,ic n2wc=ic n2w&c=light,ic w=joined p1w=lindqvist p2w=maria n1w=harbor n2w=light def pd=null pw,w=Lindqvist,joined pwc,wc=ic,lc w,nw=joined,Harbor wc,nc=lc,ic po=person-cont pow=person-cont,joined powf=person-cont,lc ppo=person-start	
+person-start	wc=ic w&c=harbor,ic p1wc=lc p1w&c=joined,lc p2wc=ic p2w&c=lindqvist,ic n1wc=ic n1w&c=light,ic n2wc=ic n2w&c=systems,ic w=harbor p1w=joined p2w=lindqvist n1w=light n2w=systems def pd=null pw,w=joined,Harbor pwc,wc=lc,ic w,nw=Harbor,Light wc,nc=ic,ic po=other pow=other,Harbor powf=other,ic ppo=person-cont	
+person-cont	wc=ic w&c=light,ic p1wc=ic p1w&c=harbor,ic p2wc=lc p2w&c=joined,lc n1wc=ic n1w&c=systems,ic n2wc=lc n2w&c=in,lc w=light p1w=harbor p2w=joined n1w=systems n2w=in def pd=null pw,w=Harbor,Light pwc,wc=ic,ic w,nw=Light,Systems wc,nc=ic,ic po=person-start pow=person-start,Light powf=person-start,ic ppo=other	
+person-cont	wc=ic w&c=systems,ic p1wc=ic p1w&c=light,ic p2wc=ic p2w&c=harbor,ic n1wc=lc n1w&c=in,lc n2wc=ic n2w&c=march,ic w=systems p1w=light p2w=harbor n1w=in n2w=march def pd=null pw,w=Light,Systems pwc,wc=ic,ic w,nw=Systems,in wc,nc=ic,lc po=person-cont pow=person-cont,Systems powf=person-cont,ic ppo=person-start	
+other	wc=lc w&c=in,lc p1wc=ic p1w&c=systems,ic p2wc=ic p2w&c=light,ic n1wc=ic n1w&c=march,ic n2wc=4d n2w&c=2019,4d w=in p1w=systems p2w=light n1w=march n2w=2019 def pd=null pw,w=Systems,in pwc,wc=ic,lc w,nw=in,March wc,nc=lc,ic po=person-cont pow=person-cont,in powf=person-cont,lc ppo=person-cont	
+person-start	wc=ic w&c=march,ic p1wc=lc p1w&c=in,lc p2wc=ic p2w&c=systems,ic n1wc=4d n1w&c=2019,4d n2wc=other n2w&c=.,other w=march p1w=in p2w=systems n1w=2019 n2w=. def pd=null pw,w=in,March pwc,wc=lc,ic w,nw=March,2019 wc,nc=ic,4d po=other pow=other,March powf=other,ic ppo=person-cont	
+person-cont	wc=4d w&c=2019,4d p1wc=ic p1w&c=march,ic p2wc=lc p2w&c=in,lc n1wc=other n1w&c=.,other w=2019 p1w=march p2w=in n1w=. def pd=null pw,w=March,2019 pwc,wc=ic,4d w,nw=2019,. wc,nc=4d,other po=person-start pow=person-start,2019 powf=person-start,4d ppo=other	
+other	wc=other w&c=.,other p1wc=4d p1w&c=2019,4d p2wc=ic p2w&c=march,ic w=. p1w=2019 p2w=march def pd=null pw,w=2019,. pwc,wc=4d,other po=person-cont pow=person-cont,. powf=person-cont,other ppo=person-start	
+other	wc=ic w&c=she,ic n1wc=lc n1w&c=moved,lc n2wc=lc n2w&c=from,lc w=she n1w=moved n2w=from def pd=null w,nw=She,moved wc,nc=ic,lc S=begin po=other pow=other,She powf=other,ic ppo=other	
+other	wc=lc w&c=moved,lc p1wc=ic p1w&c=she,ic n1wc=lc n1w&c=from,lc n2wc=ic n2w&c=uppsala,ic w=moved p1w=she n1w=from n2w=uppsala def pd=null pw,w=She,moved pwc,wc=ic,lc w,nw=moved,from wc,nc=lc,lc po=other pow=other,moved powf=other,lc ppo=other	
+other	wc=lc w&c=from,lc p1wc=lc p1w&c=moved,lc p2wc=ic p2w&c=she,ic n1wc=ic n1w&c=uppsala,ic n2wc=lc n2w&c=to,lc w=from p1w=moved p2w=she n1w=uppsala n2w=to def pd=null pw,w=moved,from pwc,wc=lc,lc w,nw=from,Uppsala wc,nc=lc,ic po=other pow=other,from powf=other,lc ppo=other	
+person-start	wc=ic w&c=uppsala,ic p1wc=lc p1w&c=from,lc p2wc=lc p2w&c=moved,lc n1wc=lc n1w&c=to,lc n2wc=ic n2w&c=portland,ic w=uppsala p1w=from p2w=moved n1w=to n2w=portland def pd=null pw,w=from,Uppsala pwc,wc=lc,ic w,nw=Uppsala,to wc,nc=ic,lc po=other pow=other,Uppsala powf=other,ic ppo=other	
+other	wc=lc w&c=to,lc p1wc=ic p1w&c=uppsala,ic p2wc=lc p2w&c=from,lc n1wc=ic n1w&c=portland,ic n2wc=lc n2w&c=the,lc w=to p1w=uppsala p2w=from n1w=portland n2w=the def pd=null pw,w=Uppsala,to pwc,wc=ic,lc w,nw=to,Portland wc,nc=lc,ic po=person-start pow=person-start,to powf=person-start,lc ppo=other	
+person-start	wc=ic w&c=portland,ic p1wc=lc p1w&c=to,lc p2wc=ic p2w&c=uppsala,ic n1wc=lc n1w&c=the,lc n2wc=lc n2w&c=same,lc w=portland p1w=to p2w=uppsala n1w=the n2w=same def pd=null pw,w=to,Portland pwc,wc=lc,ic w,nw=Portland,the wc,nc=ic,lc po=other pow=other,Portland powf=other,ic ppo=person-start	
+other	wc=lc w&c=the,lc p1wc=ic p1w&c=portland,ic p2wc=lc p2w&c=to,lc n1wc=lc n1w&c=same,lc n2wc=lc n2w&c=year,lc w=the p1w=portland p2w=to n1w=same n2w=year def pd=null pw,w=Portland,the pwc,wc=ic,lc w,nw=the,same wc,nc=lc,lc po=person-start pow=person-start,the powf=person-start,lc ppo=other	
+other	wc=lc w&c=same,lc p1wc=lc p1w&c=the,lc p2wc=ic p2w&c=portland,ic n1wc=lc n1w&c=year,lc n2wc=other n2w&c=.,other w=same p1w=the p2w=portland n1w=year n2w=. def pd=null pw,w=the,same pwc,wc=lc,lc w,nw=same,year wc,nc=lc,lc po=other pow=other,same powf=other,lc ppo=person-start	
+other	wc=lc w&c=year,lc p1wc=lc p1w&c=same,lc p2wc=lc p2w&c=the,lc n1wc=other n1w&c=.,other w=year p1w=same p2w=the n1w=. def pd=null pw,w=same,year pwc,wc=lc,lc w,nw=year,. wc,nc=lc,other po=other pow=other,year powf=other,lc ppo=other	
+other	wc=other w&c=.,other p1wc=lc p1w&c=year,lc p2wc=lc p2w&c=same,lc w=. p1w=year p2w=same def pd=other pw,w=year,. pwc,wc=lc,other po=other pow=other,. powf=other,other ppo=other	
+person-start	wc=ic w&c=lindqvist,ic n1wc=lc n1w&c=said,lc n2wc=lc n2w&c=the,lc w=lindqvist n1w=said n2w=the def pd=person-cont w,nw=Lindqvist,said wc,nc=ic,lc S=begin po=other pow=other,Lindqvist powf=other,ic ppo=other	
+other	wc=lc w&c=said,lc p1wc=ic p1w&c=lindqvist,ic n1wc=lc n1w&c=the,lc n2wc=lc n2w&c=move,lc w=said p1w=lindqvist n1w=the n2w=move def pd=null pw,w=Lindqvist,said pwc,wc=ic,lc w,nw=said,the wc,nc=lc,lc po=person-start pow=person-start,said powf=person-start,lc ppo=other	
+other	wc=lc w&c=the,lc p1wc=lc p1w&c=said,lc p2wc=ic p2w&c=lindqvist,ic n1wc=lc n1w&c=move,lc n2wc=lc n2w&c=was,lc w=the p1w=said p2w=lindqvist n1w=move n2w=was def pd=other pw,w=said,the pwc,wc=lc,lc w,nw=the,move wc,nc=lc,lc po=other pow=other,the powf=other,lc ppo=person-start	
+other	wc=lc w&c=move,lc p1wc=lc p1w&c=the,lc p2wc=lc p2w&c=said,lc n1wc=lc n1w&c=was,lc n2wc=lc n2w&c=easy,lc w=move p1w=the p2w=said n1w=was n2w=easy def pd=null pw,w=the,move pwc,wc=lc,lc w,nw=move,was wc,nc=lc,lc po=other pow=other,move powf=other,lc ppo=other	
+other	wc=lc w&c=was,lc p1wc=lc p1w&c=move,lc p2wc=lc p2w&c=the,lc n1wc=lc n1w&c=easy,lc n2wc=other n2w&c=.,other w=was p1w=move p2w=the n1w=easy n2w=. def pd=null pw,w=move,was pwc,wc=lc,lc w,nw=was,easy wc,nc=lc,lc po=other pow=other,was powf=other,lc ppo=other	
+other	wc=lc w&c=easy,lc p1wc=lc p1w&c=was,lc p2wc=lc p2w&c=move,lc n1wc=other n1w&c=.,other w=easy p1w=was p2w=move n1w=. def pd=null pw,w=was,easy pwc,wc=lc,lc w,nw=easy,. wc,nc=lc,other po=other pow=other,easy powf=other,lc ppo=other	
+other	wc=other w&c=.,other p1wc=lc p1w&c=easy,lc p2wc=lc p2w&c=was,lc w=. p1w=easy p2w=was def pd=other pw,w=easy,. pwc,wc=lc,other po=other pow=other,. powf=other,other ppo=other	
+other	wc=ic w&c=the,ic n1wc=lc n1w&c=company,lc n2wc=lc n2w&c=opened,lc w=the n1w=company n2w=opened def pd=null w,nw=The,company wc,nc=ic,lc S=begin po=other pow=other,The powf=other,ic ppo=other	
+other	wc=lc w&c=company,lc p1wc=ic p1w&c=the,ic n1wc=lc n1w&c=opened,lc n2wc=lc n2w&c=a,lc w=company p1w=the n1w=opened n2w=a def pd=null pw,w=The,company pwc,wc=ic,lc w,nw=company,opened wc,nc=lc,lc po=other pow=other,company powf=other,lc ppo=other	
+other	wc=lc w&c=opened,lc p1wc=lc p1w&c=company,lc p2wc=ic p2w&c=the,ic n1wc=lc n1w&c=a,lc n2wc=lc n2w&c=second,lc w=opened p1w=company p2w=the n1w=a n2w=second def pd=null pw,w=company,opened pwc,wc=lc,lc w,nw=opened,a wc,nc=lc,lc po=other pow=other,opened powf=other,lc ppo=other	
+other	wc=lc w&c=a,lc p1wc=lc p1w&c=opened,lc p2wc=lc p2w&c=company,lc n1wc=lc n1w&c=second,lc n2wc=lc n2w&c=office,lc w=a p1w=opened p2w=company n1w=second n2w=office def pd=null pw,w=opened,a pwc,wc=lc,lc w,nw=a,second wc,nc=lc,lc po=other pow=other,a powf=other,lc ppo=other	
+other	wc=lc w&c=second,lc p1wc=lc p1w&c=a,lc p2wc=lc p2w&c=opened,lc n1wc=lc n1w&c=office,lc n2wc=lc n2w&c=in,lc w=second p1w=a p2w=opened n1w=office n2w=in def pd=null pw,w=a,second pwc,wc=lc,lc w,nw=second,office wc,nc=lc,lc po=other pow=other,second powf=other,lc ppo=other	
+other	wc=lc w&c=office,lc p1wc=lc p1w&c=second,lc p2wc=lc p2w&c=a,lc n1wc=lc n1w&c=in,lc n2wc=ic n2w&c=boise,ic w=office p1w=second p2w=a n1w=in n2w=boise def pd=null pw,w=second,office pwc,wc=lc,lc w,nw=office,in wc,nc=lc,lc po=other pow=other,office powf=other,lc ppo=other	
+other	wc=lc w&c=in,lc p1wc=lc p1w&c=office,lc p2wc=lc p2w&c=second,lc n1wc=ic n1w&c=boise,ic n2wc=lc n2w&c=on,lc w=in p1w=office p2w=second n1w=boise n2w=on def pd=other pw,w=office,in pwc,wc=lc,lc w,nw=in,Boise wc,nc=lc,ic po=other pow=other,in powf=other,lc ppo=other	
+person-start	wc=ic w&c=boise,ic p1wc=lc p1w&c=in,lc p2wc=lc p2w&c=office,lc n1wc=lc n1w&c=on,lc n2wc=ic n2w&c=june,ic w=boise p1w=in p2w=office n1w=on n2w=june def pd=null pw,w=in,Boise pwc,wc=lc,ic w,nw=Boise,on wc,nc=ic,lc po=other pow=other,Boise powf=other,ic ppo=other	
+other	wc=lc w&c=on,lc p1wc=ic p1w&c=boise,ic p2wc=lc p2w&c=in,lc n1wc=ic n1w&c=june,ic n2wc=num n2w&c=4,num w=on p1w=boise p2w=in n1w=june n2w=4 def pd=null pw,w=Boise,on pwc,wc=ic,lc w,nw=on,June wc,nc=lc,ic po=person-start pow=person-start,on powf=person-start,lc ppo=other	
+person-start	wc=ic w&c=june,ic p1wc=lc p1w&c=on,lc p2wc=ic p2w&c=boise,ic n1wc=num n1w&c=4,num n2wc=other n2w&c=.,other w=june p1w=on p2w=boise n1w=4 n2w=. def pd=null pw,w=on,June pwc,wc=lc,ic w,nw=June,4 wc,nc=ic,num po=other pow=other,June powf=other,ic ppo=person-start	
+person-cont	wc=num w&c=4,num p1wc=ic p1w&c=june,ic p2wc=lc p2w&c=on,lc n1wc=other n1w&c=.,other w=4 p1w=june p2w=on n1w=. def pd=null pw,w=June,4 pwc,wc=ic,num w,nw=4,. wc,nc=num,other po=person-start pow=person-start,4 powf=person-start,num ppo=other	
+other	wc=other w&c=.,other p1wc=num p1w&c=4,num p2wc=ic p2w&c=june,ic w=. p1w=4 p2w=june def pd=other pw,w=4,. pwc,wc=num,other po=person-cont pow=person-cont,. powf=person-cont,other ppo=person-start	
+person-start	wc=ic w&c=dr.,ic n1wc=ic n1w&c=okafor,ic n2wc=lc n2w&c=spoke,lc w=dr. n1w=okafor n2w=spoke def pd=null w,nw=Dr.,Okafor wc,nc=ic,ic S=begin po=other pow=other,Dr. powf=other,ic ppo=other	
+person-cont	wc=ic w&c=okafor,ic p1wc=ic p1w&c=dr.,ic n1wc=lc n1w&c=spoke,lc n2wc=lc n2w&c=at,lc w=okafor p1w=dr. n1w=spoke n2w=at def pd=null pw,w=Dr.,Okafor pwc,wc=ic,ic w,nw=Okafor,spoke wc,nc=ic,lc po=person-start pow=person-start,Okafor powf=person-start,ic ppo=other	
+other	wc=lc w&c=spoke,lc p1wc=ic p1w&c=okafor,ic p2wc=ic p2w&c=dr.,ic n1wc=lc n1w&c=at,lc n2wc=ic n2w&c=st.,ic w=spoke p1w=okafor p2w=dr. n1w=at n2w=st. def pd=null pw,w=Okafor,spoke pwc,wc=ic,lc w,nw=spoke,at wc,nc=lc,lc po=person-cont pow=person-cont,spoke powf=person-cont,lc ppo=person-start	
+other	wc=lc w&c=at,lc p1wc=lc p1w&c=spoke,lc p2wc=ic p2w&c=okafor,ic n1wc=ic n1w&c=st.,ic n2wc=ic n2w&c=agnes,ic w=at p1w=spoke p2w=okafor n1w=st. n2w=agnes def pd=null pw,w=spoke,at pwc,wc=lc,lc w,nw=at,St. wc,nc=lc,ic po=other pow=other,at powf=other,lc ppo=person-cont	
+person-start	wc=ic w&c=st.,ic p1wc=lc p1w&c=at,lc p2wc=lc p2w&c=spoke,lc n1wc=ic n1w&c=agnes,ic n2wc=ic n2w&c=hospital,ic w=st. p1w=at p2w=spoke n1w=agnes n2w=hospital def pd=null pw,w=at,St. pwc,wc=lc,ic w,nw=St.,Agnes wc,nc=ic,ic po=other pow=other,St. powf=other,ic ppo=other	
+person-cont	wc=ic w&c=agnes,ic p1wc=ic p1w&c=st.,ic p2wc=lc p2w&c=at,lc n1wc=ic n1w&c=hospital,ic n2wc=lc n2w&c=on,lc w=agnes p1w=st. p2w=at n1w=hospital n2w=on def pd=null pw,w=St.,Agnes pwc,wc=ic,ic w,nw=Agnes,Hospital wc,nc=ic,ic po=person-start pow=person-start,Agnes powf=person-start,ic ppo=other	
+person-cont	wc=ic w&c=hospital,ic p1wc=ic p1w&c=agnes,ic p2wc=ic p2w&c=st.,ic n1wc=lc n1w&c=on,lc n2wc=ic n2w&c=tuesday,ic w=hospital p1w=agnes p2w=st. n1w=on n2w=tuesday def pd=null pw,w=Agnes,Hospital pwc,wc=ic,ic w,nw=Hospital,on wc,nc=ic,lc po=person-cont pow=person-cont,Hospital powf=person-cont,ic ppo=person-start	
+other	wc=lc w&c=on,lc p1wc=ic p1w&c=hospital,ic p2wc=ic p2w&c=agnes,ic n1wc=ic n1w&c=tuesday,ic n2wc=other n2w&c=.,other w=on p1w=hospital p2w=agnes n1w=tuesday n2w=. def pd=null pw,w=Hospital,on pwc,wc=ic,lc w,nw=on,Tuesday wc,nc=lc,ic po=person-cont pow=person-cont,on powf=person-cont,lc ppo=person-cont	
+person-start	wc=ic w&c=tuesday,ic p1wc=lc p1w&c=on,lc p2wc=ic p2w&c=hospital,ic n1wc=other n1w&c=.,other w=tuesday p1w=on p2w=hospital n1w=. def pd=null pw,w=on,Tuesday pwc,wc=lc,ic w,nw=Tuesday,. wc,nc=ic,other po=other pow=other,Tuesday powf=other,ic ppo=person-cont	
+other	wc=other w&c=.,other p1wc=ic p1w&c=tuesday,ic p2wc=lc p2w&c=on,lc w=. p1w=tuesday p2w=on def pd=null pw,w=Tuesday,. pwc,wc=ic,other po=person-start pow=person-start,. powf=person-start,other ppo=other	
+person-start	wc=ic w&c=chidi,ic n1wc=ic n1w&c=okafor,ic n2wc=lc n2w&c=has,lc w=chidi n1w=okafor n2w=has def pd=null w,nw=Chidi,Okafor wc,nc=ic,ic S=begin po=other pow=other,Chidi powf=other,ic ppo=other	
+person-cont	wc=ic w&c=okafor,ic p1wc=ic p1w&c=chidi,ic n1wc=lc n1w&c=has,lc n2wc=lc n2w&c=worked,lc w=okafor p1w=chidi n1w=has n2w=worked def pd=person-cont pw,w=Chidi,Okafor pwc,wc=ic,ic w,nw=Okafor,has wc,nc=ic,lc po=person-start pow=person-start,Okafor powf=person-start,ic ppo=other	
+other	wc=lc w&c=has,lc p1wc=ic p1w&c=okafor,ic p2wc=ic p2w&c=chidi,ic n1wc=lc n1w&c=worked,lc n2wc=lc n2w&c=there,lc w=has p1w=okafor p2w=chidi n1w=worked n2w=there def pd=null pw,w=Okafor,has pwc,wc=ic,lc w,nw=has,worked wc,nc=lc,lc po=person-cont pow=person-cont,has powf=person-cont,lc ppo=person-start	
+other	wc=lc w&c=worked,lc p1wc=lc p1w&c=has,lc p2wc=ic p2w&c=okafor,ic n1wc=lc n1w&c=there,lc n2wc=lc n2w&c=since,lc w=worked p1w=has p2w=okafor n1w=there n2w=since def pd=null pw,w=has,worked pwc,wc=lc,lc w,nw=worked,there wc,nc=lc,lc po=other pow=other,worked powf=other,lc ppo=person-cont	
+other	wc=lc w&c=there,lc p1wc=lc p1w&c=worked,lc p2wc=lc p2w&c=has,lc n1wc=lc n1w&c=since,lc n2wc=4d n2w&c=2011,4d w=there p1w=worked p2w=has n1w=since n2w=2011 def pd=null pw,w=worked,there pwc,wc=lc,lc w,nw=there,since wc,nc=lc,lc po=other pow=other,there powf=other,lc ppo=other	
+other	wc=lc w&c=since,lc p1wc=lc p1w&c=there,lc p2wc=lc p2w&c=worked,lc n1wc=4d n1w&c=2011,4d n2wc=other n2w&c=.,other w=since p1w=there p2w=worked n1w=2011 n2w=. def pd=null pw,w=there,since pwc,wc=lc,lc w,nw=since,2011 wc,nc=lc,4d po=other pow=other,since powf=other,lc ppo=other	
+person-start	wc=4d w&c=2011,4d p1wc=lc p1w&c=since,lc p2wc=lc p2w&c=there,lc n1wc=other n1w&c=.,other w=2011 p1w=since p2w=there n1w=. def pd=null pw,w=since,2011 pwc,wc=lc,4d w,nw=2011,. wc,nc=4d,other po=other pow=other,2011 powf=other,4d ppo=other	
+other	wc=other w&c=.,other p1wc=4d p1w&c=2011,4d p2wc=lc p2w&c=since,lc w=. p1w=2011 p2w=since def pd=other pw,w=2011,. pwc,wc=4d,other po=person-start pow=person-start,. powf=person-start,other ppo=other	
+other	wc=ic w&c=patients,ic n1wc=lc n1w&c=from,lc n2wc=ic n2w&c=lagos,ic w=patients n1w=from n2w=lagos def pd=null w,nw=Patients,from wc,nc=ic,lc S=begin po=other pow=other,Patients powf=other,ic ppo=other	
+other	wc=lc w&c=from,lc p1wc=ic p1w&c=patients,ic n1wc=ic n1w&c=lagos,ic n2wc=lc n2w&c=and,lc w=from p1w=patients n1w=lagos n2w=and def pd=null pw,w=Patients,from pwc,wc=ic,lc w,nw=from,Lagos wc,nc=lc,ic po=other pow=other,from powf=other,lc ppo=other	
+person-start	wc=ic w&c=lagos,ic p1wc=lc p1w&c=from,lc p2wc=ic p2w&c=patients,ic n1wc=lc n1w&c=and,lc n2wc=ic n2w&c=accra,ic w=lagos p1w=from p2w=patients n1w=and n2w=accra def pd=null pw,w=from,Lagos pwc,wc=lc,ic w,nw=Lagos,and wc,nc=ic,lc po=other pow=other,Lagos powf=other,ic ppo=other	
+other	wc=lc w&c=and,lc p1wc=ic p1w&c=lagos,ic p2wc=lc p2w&c=from,lc n1wc=ic n1w&c=accra,ic n2wc=lc n2w&c=visit,lc w=and p1w=lagos p2w=from n1w=accra n2w=visit def pd=null pw,w=Lagos,and pwc,wc=ic,lc w,nw=and,Accra wc,nc=lc,ic po=person-start pow=person-start,and powf=person-start,lc ppo=other	
+person-start	wc=ic w&c=accra,ic p1wc=lc p1w&c=and,lc p2wc=ic p2w&c=lagos,ic n1wc=lc n1w&c=visit,lc n2wc=lc n2w&c=the,lc w=accra p1w=and p2w=lagos n1w=visit n2w=the def pd=null pw,w=and,Accra pwc,wc=lc,ic w,nw=Accra,visit wc,nc=ic,lc po=other pow=other,Accra powf=other,ic ppo=person-start	
+other	wc=lc w&c=visit,lc p1wc=ic p1w&c=accra,ic p2wc=lc p2w&c=and,lc n1wc=lc n1w&c=the,lc n2wc=lc n2w&c=clinic,lc w=visit p1w=accra p2w=and n1w=the n2w=clinic def pd=null pw,w=Accra,visit pwc,wc=ic,lc w,nw=visit,the wc,nc=lc,lc po=person-start pow=person-start,visit powf=person-start,lc ppo=other	
+other	wc=lc w&c=the,lc p1wc=lc p1w&c=visit,lc p2wc=ic p2w&c=accra,ic n1wc=lc n1w&c=clinic,lc n2wc=other n2w&c=.,other w=the p1w=visit p2w=accra n1w=clinic n2w=. def pd=null pw,w=visit,the pwc,wc=lc,lc w,nw=the,clinic wc,nc=lc,lc po=other pow=other,the powf=other,lc ppo=person-start	
+other	wc=lc w&c=clinic,lc p1wc=lc p1w&c=the,lc p2wc=lc p2w&c=visit,lc n1wc=other n1w&c=.,other w=clinic p1w=the p2w=visit n1w=. def pd=null pw,w=the,clinic pwc,wc=lc,lc w,nw=clinic,. wc,nc=lc,other po=other pow=other,clinic powf=other,lc ppo=other	
+other	wc=other w&c=.,other p1wc=lc p1w&c=clinic,lc p2wc=lc p2w&c=the,lc w=. p1w=clinic p2w=the def pd=other pw,w=clinic,. pwc,wc=lc,other po=other pow=other,. powf=other,other ppo=other	
+person-start	wc=ac w&c=who,ac n1wc=lc n1w&c=officials,lc n2wc=lc n2w&c=praised,lc w=who n1w=officials n2w=praised def pd=null w,nw=WHO,officials wc,nc=ac,lc S=begin po=other pow=other,WHO powf=other,ac ppo=other	
+other	wc=lc w&c=officials,lc p1wc=ac p1w&c=who,ac n1wc=lc n1w&c=praised,lc n2wc=lc n2w&c=the,lc w=officials p1w=who n1w=praised n2w=the def pd=null pw,w=WHO,officials pwc,wc=ac,lc w,nw=officials,praised wc,nc=lc,lc po=person-start pow=person-start,officials powf=person-start,lc ppo=other	
+other	wc=lc w&c=praised,lc p1wc=lc p1w&c=officials,lc p2wc=ac p2w&c=who,ac n1wc=lc n1w&c=the,lc n2wc=lc n2w&c=program,lc w=praised p1w=officials p2w=who n1w=the n2w=program def pd=null pw,w=officials,praised pwc,wc=lc,lc w,nw=praised,the wc,nc=lc,lc po=other pow=other,praised powf=other,lc ppo=person-start	
+other	wc=lc w&c=the,lc p1wc=lc p1w&c=praised,lc p2wc=lc p2w&c=officials,lc n1wc=lc n1w&c=program,lc n2wc=other n2w&c=.,other w=the p1w=praised p2w=officials n1w=program n2w=. def pd=other pw,w=praised,the pwc,wc=lc,lc w,nw=the,program wc,nc=lc,lc po=other pow=other,the powf=other,lc ppo=other	
+other	wc=lc w&c=program,lc p1wc=lc p1w&c=the,lc p2wc=lc p2w&c=praised,lc n1wc=other n1w&c=.,other w=program p1w=the p2w=praised n1w=. def pd=null pw,w=the,program pwc,wc=lc,lc w,nw=program,. wc,nc=lc,other po=other pow=other,program powf=other,lc ppo=other	
+other	wc=other w&c=.,other p1wc=lc p1w&c=program,lc p2wc=lc p2w&c=the,lc w=. p1w=program p2w=the def pd=other pw,w=program,. pwc,wc=lc,other po=other pow=other,. powf=other,other ppo=other	
+other	wc=ic w&c=nobody,ic n1wc=lc n1w&c=else,lc n2wc=lc n2w&c=was,lc w=nobody n1w=else n2w=was def pd=null w,nw=Nobody,else wc,nc=ic,lc S=begin po=other pow=other,Nobody powf=other,ic ppo=other	
+other	wc=lc w&c=else,lc p1wc=ic p1w&c=nobody,ic n1wc=lc n1w&c=was,lc n2wc=lc n2w&c=named,lc w=else p1w=nobody n1w=was n2w=named def pd=null pw,w=Nobody,else pwc,wc=ic,lc w,nw=else,was wc,nc=lc,lc po=other pow=other,else powf=other,lc ppo=other	
+other	wc=lc w&c=was,lc p1wc=lc p1w&c=else,lc p2wc=ic p2w&c=nobody,ic n1wc=lc n1w&c=named,lc n2wc=lc n2w&c=in,lc w=was p1w=else p2w=nobody n1w=named n2w=in def pd=null pw,w=else,was pwc,wc=lc,lc w,nw=was,named wc,nc=lc,lc po=other pow=other,was powf=other,lc ppo=other	
+other	wc=lc w&c=named,lc p1wc=lc p1w&c=was,lc p2wc=lc p2w&c=else,lc n1wc=lc n1w&c=in,lc n2wc=lc n2w&c=the,lc w=named p1w=was p2w=else n1w=in n2w=the def pd=null pw,w=was,named pwc,wc=lc,lc w,nw=named,in wc,nc=lc,lc po=other pow=other,named powf=other,lc ppo=other	
+other	wc=lc w&c=in,lc p1wc=lc p1w&c=named,lc p2wc=lc p2w&c=was,lc n1wc=lc n1w&c=the,lc n2wc=lc n2w&c=report,lc w=in p1w=named p2w=was n1w=the n2w=report def pd=null pw,w=named,in pwc,wc=lc,lc w,nw=in,the wc,nc=lc,lc po=other pow=other,in powf=other,lc ppo=other	
+other	wc=lc w&c=the,lc p1wc=lc p1w&c=in,lc p2wc=lc p2w&c=named,lc n1wc=lc n1w&c=report,lc n2wc=other n2w&c=.,other w=the p1w=in p2w=named n1w=report n2w=. def pd=other pw,w=in,the pwc,wc=lc,lc w,nw=the,report wc,nc=lc,lc po=other pow=other,the powf=other,lc ppo=other	
+other	wc=lc w&c=report,lc p1wc=lc p1w&c=the,lc p2wc=lc p2w&c=in,lc n1wc=other n1w&c=.,other w=report p1w=the p2w=in n1w=. def pd=null pw,w=the,report pwc,wc=lc,lc w,nw=report,. wc,nc=lc,other po=other pow=other,report powf=other,lc ppo=other	
+other	wc=other w&c=.,other p1wc=lc p1w&c=report,lc p2wc=lc p2w&c=the,lc w=. p1w=report p2w=the def pd=other pw,w=report,. pwc,wc=lc,other po=other pow=other,. powf=other,other ppo=other	
+person-start	wc=ic w&c=josé,ic n1wc=ic n1w&c=álvarez,ic n2wc=other n2w&c=,,other w=josé n1w=álvarez n2w=, def pd=null w,nw=José,Álvarez wc,nc=ic,ic S=begin po=other pow=other,José powf=other,ic ppo=other	
+person-cont	wc=ic w&c=álvarez,ic p1wc=ic p1w&c=josé,ic n1wc=other n1w&c=,,other n2wc=2d n2w&c=42,2d w=álvarez p1w=josé n1w=, n2w=42 def pd=null pw,w=José,Álvarez pwc,wc=ic,ic w,nw=Álvarez,, wc,nc=ic,other po=person-start pow=person-start,Álvarez powf=person-start,ic ppo=other	
+other	wc=other w&c=,,other p1wc=ic p1w&c=álvarez,ic p2wc=ic p2w&c=josé,ic n1wc=2d n1w&c=42,2d n2wc=other n2w&c=,,other w=, p1w=álvarez p2w=josé n1w=42 n2w=, def pd=null pw,w=Álvarez,, pwc,wc=ic,other w,nw=,,42 wc,nc=other,2d po=person-cont pow=person-cont,, powf=person-cont,other ppo=person-start	
+other	wc=2d w&c=42,2d p1wc=other p1w&c=,,other p2wc=ic p2w&c=álvarez,ic n1wc=other n1w&c=,,other n2wc=lc n2w&c=runs,lc w=42 p1w=, p2w=álvarez n1w=, n2w=runs def pd=null pw,w=,,42 pwc,wc=other,2d w,nw=42,, wc,nc=2d,other po=other pow=other,42 powf=other,2d ppo=person-cont	
+other	wc=other w&c=,,other p1wc=2d p1w&c=42,2d p2wc=other p2w&c=,,other n1wc=lc n1w&c=runs,lc n2wc=lc n2w&c=a,lc w=, p1w=42 p2w=, n1w=runs n2w=a def pd=null pw,w=42,, pwc,wc=2d,other w,nw=,,runs wc,nc=other,lc po=other pow=other,, powf=other,other ppo=other	
+other	wc=lc w&c=runs,lc p1wc=other p1w&c=,,other p2wc=2d p2w&c=42,2d n1wc=lc n1w&c=a,lc n2wc=lc n2w&c=café,lc w=runs p1w=, p2w=42 n1w=a n2w=café def pd=null pw,w=,,runs pwc,wc=other,lc w,nw=runs,a wc,nc=lc,lc po=other pow=other,runs powf=other,lc ppo=other	
+other	wc=lc w&c=a,lc p1wc=lc p1w&c=runs,lc p2wc=other p2w&c=,,other n1wc=lc n1w&c=café,lc n2wc=lc n2w&c=in,lc w=a p1w=runs p2w=, n1w=café n2w=in def pd=null pw,w=runs,a pwc,wc=lc,lc w,nw=a,café wc,nc=lc,lc po=other pow=other,a powf=other,lc ppo=other	
+other	wc=lc w&c=café,lc p1wc=lc p1w&c=a,lc p2wc=lc p2w&c=runs,lc n1wc=lc n1w&c=in,lc n2wc=ic n2w&c=são,ic w=café p1w=a p2w=runs n1w=in n2w=são def pd=null pw,w=a,café pwc,wc=lc,lc w,nw=café,in wc,nc=lc,lc po=other pow=other,café powf=other,lc ppo=other	
+other	wc=lc w&c=in,lc p1wc=lc p1w&c=café,lc p2wc=lc p2w&c=a,lc n1wc=ic n1w&c=são,ic n2wc=ic n2w&c=paulo,ic w=in p1w=café p2w=a n1w=são n2w=paulo def pd=null pw,w=café,in pwc,wc=lc,lc w,nw=in,São wc,nc=lc,ic po=other pow=other,in powf=other,lc ppo=other	
+person-start	wc=ic w&c=são,ic p1wc=lc p1w&c=in,lc p2wc=lc p2w&c=café,lc n1wc=ic n1w&c=paulo,ic n2wc=other n2w&c=.,other w=são p1w=in p2w=café n1w=paulo n2w=. def pd=null pw,w=in,São pwc,wc=lc,ic w,nw=São,Paulo wc,nc=ic,ic po=other pow=other,São powf=other,ic ppo=other	
+person-cont	wc=ic w&c=paulo,ic p1wc=ic p1w&c=são,ic p2wc=lc p2w&c=in,lc n1wc=other n1w&c=.,other w=paulo p1w=são p2w=in n1w=. def pd=null pw,w=São,Paulo pwc,wc=ic,ic w,nw=Paulo,. wc,nc=ic,other po=person-start pow=person-start,Paulo powf=person-start,ic ppo=other	
+other	wc=other w&c=.,other p1wc=ic p1w&c=paulo,ic p2wc=ic p2w&c=são,ic w=. p1w=paulo p2w=são def pd=null pw,w=Paulo,. pwc,wc=ic,other po=person-cont pow=person-cont,. powf=person-cont,other ppo=person-start	
+person-start	wc=ic w&c=álvarez,ic n1wc=lc n1w&c=buys,lc n2wc=lc n2w&c=beans,lc w=álvarez n1w=buys n2w=beans def pd=person-cont w,nw=Álvarez,buys wc,nc=ic,lc S=begin po=other pow=other,Álvarez powf=other,ic ppo=other	
+other	wc=lc w&c=buys,lc p1wc=ic p1w&c=álvarez,ic n1wc=lc n1w&c=beans,lc n2wc=lc n2w&c=from,lc w=buys p1w=álvarez n1w=beans n2w=from def pd=null pw,w=Álvarez,buys pwc,wc=ic,lc w,nw=buys,beans wc,nc=lc,lc po=person-start pow=person-start,buys powf=person-start,lc ppo=other	
+other	wc=lc w&c=beans,lc p1wc=lc p1w&c=buys,lc p2wc=ic p2w&c=álvarez,ic n1wc=lc n1w&c=from,lc n2wc=ic n2w&c=café,ic w=beans p1w=buys p2w=álvarez n1w=from n2w=café def pd=null pw,w=buys,beans pwc,wc=lc,lc w,nw=beans,from wc,nc=lc,lc po=other pow=other,beans powf=other,lc ppo=person-start	
+other	wc=lc w&c=from,lc p1wc=lc p1w&c=beans,lc p2wc=lc p2w&c=buys,lc n1wc=ic n1w&c=café,ic n2wc=ic n2w&c=monte,ic w=from p1w=beans p2w=buys n1w=café n2w=monte def pd=null pw,w=beans,from pwc,wc=lc,lc w,nw=from,Café wc,nc=lc,ic po=other pow=other,from powf=other,lc ppo=other	
+person-start	wc=ic w&c=café,ic p1wc=lc p1w&c=from,lc p2wc=lc p2w&c=beans,lc n1wc=ic n1w&c=monte,ic n2wc=ic n2w&c=verde,ic w=café p1w=from p2w=beans n1w=monte n2w=verde def pd=null pw,w=from,Café pwc,wc=lc,ic w,nw=Café,Monte wc,nc=ic,ic po=other pow=other,Café powf=other,ic ppo=other	
+person-cont	wc=ic w&c=monte,ic p1wc=ic p1w&c=café,ic p2wc=lc p2w&c=from,lc n1wc=ic n1w&c=verde,ic n2wc=ic n2w&c=s.a.,ic w=monte p1w=café p2w=from n1w=verde n2w=s.a. def pd=null pw,w=Café,Monte pwc,wc=ic,ic w,nw=Monte,Verde wc,nc=ic,ic po=person-start pow=person-start,Monte powf=person-start,ic ppo=other	
+person-cont	wc=ic w&c=verde,ic p1wc=ic p1w&c=monte,ic p2wc=ic p2w&c=café,ic n1wc=ic n1w&c=s.a.,ic n2wc=lc n2w&c=every,lc w=verde p1w=monte p2w=café n1w=s.a. n2w=every def pd=null pw,w=Monte,Verde pwc,wc=ic,ic w,nw=Verde,S.A. wc,nc=ic,ic po=person-cont pow=person-cont,Verde powf=person-cont,ic ppo=person-start	
+person-cont	wc=ic w&c=s.a.,ic p1wc=ic p1w&c=verde,ic p2wc=ic p2w&c=monte,ic n1wc=lc n1w&c=every,lc n2wc=ic n2w&c=monday,ic w=s.a. p1w=verde p2w=monte n1w=every n2w=monday def pd=null pw,w=Verde,S.A. pwc,wc=ic,ic w,nw=S.A.,every wc,nc=ic,lc po=person-cont pow=person-cont,S.A. powf=person-cont,ic ppo=person-cont	
+other	wc=lc w&c=every,lc p1wc=ic p1w&c=s.a.,ic p2wc=ic p2w&c=verde,ic n1wc=ic n1w&c=monday,ic n2wc=other n2w&c=.,other w=every p1w=s.a. p2w=verde n1w=monday n2w=. def pd=null pw,w=S.A.,every pwc,wc=ic,lc w,nw=every,Monday wc,nc=lc,ic po=person-cont pow=person-cont,every powf=person-cont,lc ppo=person-cont	
+person-start	wc=ic w&c=monday,ic p1wc=lc p1w&c=every,lc p2wc=ic p2w&c=s.a.,ic n1wc=other n1w&c=.,other w=monday p1w=every p2w=s.a. n1w=. def pd=null pw,w=every,Monday pwc,wc=lc,ic w,nw=Monday,. wc,nc=ic,other po=other pow=other,Monday powf=other,ic ppo=person-cont	
+other	wc=other w&c=.,other p1wc=ic p1w&c=monday,ic p2wc=lc p2w&c=every,lc w=. p1w=monday p2w=every def pd=other pw,w=Monday,. pwc,wc=ic,other po=person-start pow=person-start,. powf=person-start,other ppo=other	
+other	wc=ic w&c=his,ic n1wc=lc n1w&c=sister,lc n2wc=ic n2w&c=inês,ic w=his n1w=sister n2w=inês def pd=null w,nw=His,sister wc,nc=ic,lc S=begin po=other pow=other,His powf=other,ic ppo=other	
+other	wc=lc w&c=sister,lc p1wc=ic p1w&c=his,ic n1wc=ic n1w&c=inês,ic n2wc=lc n2w&c=lives,lc w=sister p1w=his n1w=inês n2w=lives def pd=null pw,w=His,sister pwc,wc=ic,lc w,nw=sister,Inês wc,nc=lc,ic po=other pow=other,sister powf=other,lc ppo=other	
+person-start	wc=ic w&c=inês,ic p1wc=lc p1w&c=sister,lc p2wc=ic p2w&c=his,ic n1wc=lc n1w&c=lives,lc n2wc=lc n2w&c=in,lc w=inês p1w=sister p2w=his n1w=lives n2w=in def pd=null pw,w=sister,Inês pwc,wc=lc,ic w,nw=Inês,lives wc,nc=ic,lc po=other pow=other,Inês powf=other,ic ppo=other	
+other	wc=lc w&c=lives,lc p1wc=ic p1w&c=inês,ic p2wc=lc p2w&c=sister,lc n1wc=lc n1w&c=in,lc n2wc=ic n2w&c=lisbon,ic w=lives p1w=inês p2w=sister n1w=in n2w=lisbon def pd=null pw,w=Inês,lives pwc,wc=ic,lc w,nw=lives,in wc,nc=lc,lc po=person-start pow=person-start,lives powf=person-start,lc ppo=other	
+other	wc=lc w&c=in,lc p1wc=lc p1w&c=lives,lc p2wc=ic p2w&c=inês,ic n1wc=ic n1w&c=lisbon,ic n2wc=other n2w&c=.,other w=in p1w=lives p2w=inês n1w=lisbon n2w=. def pd=other pw,w=lives,in pwc,wc=lc,lc w,nw=in,Lisbon wc,nc=lc,ic po=other pow=other,in powf=other,lc ppo=person-start	
+person-start	wc=ic w&c=lisbon,ic p1wc=lc p1w&c=in,lc p2wc=lc p2w&c=lives,lc n1wc=other n1w&c=.,other w=lisbon p1w=in p2w=lives n1w=. def pd=null pw,w=in,Lisbon pwc,wc=lc,ic w,nw=Lisbon,. wc,nc=ic,other po=other pow=other,Lisbon powf=other,ic ppo=other	
+other	wc=other w&c=.,other p1wc=ic p1w&c=lisbon,ic p2wc=lc p2w&c=in,lc w=. p1w=lisbon p2w=in def pd=other pw,w=Lisbon,. pwc,wc=ic,other po=person-start pow=person-start,. powf=person-start,other ppo=other	
+other	wc=ic w&c=on,ic n1wc=2d n1w&c=12,2d n2wc=ic n2w&c=october,ic w=on n1w=12 n2w=october def pd=null w,nw=On,12 wc,nc=ic,2d S=begin po=other pow=other,On powf=other,ic ppo=other	
+person-start	wc=2d w&c=12,2d p1wc=ic p1w&c=on,ic n1wc=ic n1w&c=october,ic n2wc=4d n2w&c=2023,4d w=12 p1w=on n1w=october n2w=2023 def pd=null pw,w=On,12 pwc,wc=ic,2d w,nw=12,October wc,nc=2d,ic po=other pow=other,12 powf=other,2d ppo=other	
+person-cont	wc=ic w&c=october,ic p1wc=2d p1w&c=12,2d p2wc=ic p2w&c=on,ic n1wc=4d n1w&c=2023,4d n2wc=lc n2w&c=the,lc w=october p1w=12 p2w=on n1w=2023 n2w=the def pd=null pw,w=12,October pwc,wc=2d,ic w,nw=October,2023 wc,nc=ic,4d po=person-start pow=person-start,October powf=person-start,ic ppo=other	
+person-cont	wc=4d w&c=2023,4d p1wc=ic p1w&c=october,ic p2wc=2d p2w&c=12,2d n1wc=lc n1w&c=the,lc n2wc=lc n2w&c=café,lc w=2023 p1w=october p2w=12 n1w=the n2w=café def pd=null pw,w=October,2023 pwc,wc=ic,4d w,nw=2023,the wc,nc=4d,lc po=person-cont pow=person-cont,2023 powf=person-cont,4d ppo=person-start	
+other	wc=lc w&c=the,lc p1wc=4d p1w&c=2023,4d p2wc=ic p2w&c=october,ic n1wc=lc n1w&c=café,lc n2wc=lc n2w&c=won,lc w=the p1w=2023 p2w=october n1w=café n2w=won def pd=null pw,w=2023,the pwc,wc=4d,lc w,nw=the,café wc,nc=lc,lc po=person-cont pow=person-cont,the powf=person-cont,lc ppo=person-cont	
+other	wc=lc w&c=café,lc p1wc=lc p1w&c=the,lc p2wc=4d p2w&c=2023,4d n1wc=lc n1w&c=won,lc n2wc=lc n2w&c=a,lc w=café p1w=the p2w=2023 n1w=won n2w=a def pd=other pw,w=the,café pwc,wc=lc,lc w,nw=café,won wc,nc=lc,lc po=other pow=other,café powf=other,lc ppo=person-cont	
+other	wc=lc w&c=won,lc p1wc=lc p1w&c=café,lc p2wc=lc p2w&c=the,lc n1wc=lc n1w&c=a,lc n2wc=lc n2w&c=prize,lc w=won p1w=café p2w=the n1w=a n2w=prize def pd=null pw,w=café,won pwc,wc=lc,lc w,nw=won,a wc,nc=lc,lc po=other pow=other,won powf=other,lc ppo=other	
+other	wc=lc w&c=a,lc p1wc=lc p1w&c=won,lc p2wc=lc p2w&c=café,lc n1wc=lc n1w&c=prize,lc n2wc=other n2w&c=🏆,other w=a p1w=won p2w=café n1w=prize n2w=🏆 def pd=other pw,w=won,a pwc,wc=lc,lc w,nw=a,prize wc,nc=lc,lc po=other pow=other,a powf=other,lc ppo=other	
+other	wc=lc w&c=prize,lc p1wc=lc p1w&c=a,lc p2wc=lc p2w&c=won,lc n1wc=other n1w&c=🏆,other n2wc=lc n2w&c=from,lc w=prize p1w=a p2w=won n1w=🏆 n2w=from def pd=null pw,w=a,prize pwc,wc=lc,lc w,nw=prize,🏆 wc,nc=lc,other po=other pow=other,prize powf=other,lc ppo=other	
+other	wc=other w&c=🏆,other p1wc=lc p1w&c=prize,lc p2wc=lc p2w&c=a,lc n1wc=lc n1w&c=from,lc n2wc=ic n2w&c=bean,ic w=🏆 p1w=prize p2w=a n1w=from n2w=bean def pd=null pw,w=prize,🏆 pwc,wc=lc,other w,nw=🏆,from wc,nc=other,lc po=other pow=other,🏆 powf=other,other ppo=other	
+other	wc=lc w&c=from,lc p1wc=other p1w&c=🏆,other p2wc=lc p2w&c=prize,lc n1wc=ic n1w&c=bean,ic n2wc=other n2w&c=&,other w=from p1w=🏆 p2w=prize n1w=bean n2w=& def pd=other pw,w=🏆,from pwc,wc=other,lc w,nw=from,Bean wc,nc=lc,ic po=other pow=other,from powf=other,lc ppo=other	
+person-start	wc=ic w&c=bean,ic p1wc=lc p1w&c=from,lc p2wc=other p2w&c=🏆,other n1wc=other n1w&c=&,other n2wc=ic n2w&c=leaf,ic w=bean p1w=from p2w=🏆 n1w=& n2w=leaf def pd=null pw,w=from,Bean pwc,wc=lc,ic w,nw=Bean,& wc,nc=ic,other po=other pow=other,Bean powf=other,ic ppo=other	
+person-cont	wc=other w&c=&,other p1wc=ic p1w&c=bean,ic p2wc=lc p2w&c=from,lc n1wc=ic n1w&c=leaf,ic n2wc=other n2w&c=.,other w=& p1w=bean p2w=from n1w=leaf n2w=. def pd=null pw,w=Bean,& pwc,wc=ic,other w,nw=&,Leaf wc,nc=other,ic po=person-start pow=person-start,& powf=person-start,other ppo=other	
+person-cont	wc=ic w&c=leaf,ic p1wc=other p1w&c=&,other p2wc=ic p2w&c=bean,ic n1wc=other n1w&c=.,other w=leaf p1w=& p2w=bean n1w=. def pd=null pw,w=&,Leaf pwc,wc=other,ic w,nw=Leaf,. wc,nc=ic,other po=person-cont pow=person-cont,Leaf powf=person-cont,ic ppo=person-start	
+other	wc=other w&c=.,other p1wc=ic p1w&c=leaf,ic p2wc=other p2w&c=&,other w=. p1w=leaf p2w=& def pd=other pw,w=Leaf,. pwc,wc=ic,other po=person-cont pow=person-cont,. powf=person-cont,other ppo=person-cont	
+person-start	wc=ac w&c=ibm,ac n1wc=lc n1w&c=and,lc n2wc=ic n2w&c=red,ic w=ibm n1w=and n2w=red def pd=null w,nw=IBM,and wc,nc=ac,lc S=begin po=other pow=other,IBM powf=other,ac ppo=other	
+other	wc=lc w&c=and,lc p1wc=ac p1w&c=ibm,ac n1wc=ic n1w&c=red,ic n2wc=ic n2w&c=hat,ic w=and p1w=ibm n1w=red n2w=hat def pd=null pw,w=IBM,and pwc,wc=ac,lc w,nw=and,Red wc,nc=lc,ic po=person-start pow=person-start,and powf=person-start,lc ppo=other	
+person-start	wc=ic w&c=red,ic p1wc=lc p1w&c=and,lc p2wc=ac p2w&c=ibm,ac n1wc=ic n1w&c=hat,ic n2wc=lc n2w&c=announced,lc w=red p1w=and p2w=ibm n1w=hat n2w=announced def pd=null pw,w=and,Red pwc,wc=lc,ic w,nw=Red,Hat wc,nc=ic,ic po=other pow=other,Red powf=other,ic ppo=person-start	
+person-cont	wc=ic w&c=hat,ic p1wc=ic p1w&c=red,ic p2wc=lc p2w&c=and,lc n1wc=lc n1w&c=announced,lc n2wc=lc n2w&c=the,lc w=hat p1w=red p2w=and n1w=announced n2w=the def pd=null pw,w=Red,Hat pwc,wc=ic,ic w,nw=Hat,announced wc,nc=ic,lc po=person-start pow=person-start,Hat powf=person-start,ic ppo=other	
+other	wc=lc w&c=announced,lc p1wc=ic p1w&c=hat,ic p2wc=ic p2w&c=red,ic n1wc=lc n1w&c=the,lc n2wc=lc n2w&c=deal,lc w=announced p1w=hat p2w=red n1w=the n2w=deal def pd=null pw,w=Hat,announced pwc,wc=ic,lc w,nw=announced,the wc,nc=lc,lc po=person-cont pow=person-cont,announced powf=person-cont,lc ppo=person-start	
+other	wc=lc w&c=the,lc p1wc=lc p1w&c=announced,lc p2wc=ic p2w&c=hat,ic n1wc=lc n1w&c=deal,lc n2wc=lc n2w&c=in,lc w=the p1w=announced p2w=hat n1w=deal n2w=in def pd=null pw,w=announced,the pwc,wc=lc,lc w,nw=the,deal wc,nc=lc,lc po=other pow=other,the powf=other,lc ppo=person-cont	
+other	wc=lc w&c=deal,lc p1wc=lc p1w&c=the,lc p2wc=lc p2w&c=announced,lc n1wc=lc n1w&c=in,lc n2wc=ic n2w&c=new,ic w=deal p1w=the p2w=announced n1w=in n2w=new def pd=null pw,w=the,deal pwc,wc=lc,lc w,nw=deal,in wc,nc=lc,lc po=other pow=other,deal powf=other,lc ppo=other	
+other	wc=lc w&c=in,lc p1wc=lc p1w&c=deal,lc p2wc=lc p2w&c=the,lc n1wc=ic n1w&c=new,ic n2wc=ic n2w&c=york,ic w=in p1w=deal p2w=the n1w=new n2w=york def pd=null pw,w=deal,in pwc,wc=lc,lc w,nw=in,New wc,nc=lc,ic po=other pow=other,in powf=other,lc ppo=other	
+person-start	wc=ic w&c=new,ic p1wc=lc p1w&c=in,lc p2wc=lc p2w&c=deal,lc n1wc=ic n1w&c=york,ic n2wc=other n2w&c=.,other w=new p1w=in p2w=deal n1w=york n2w=. def pd=null pw,w=in,New pwc,wc=lc,ic w,nw=New,York wc,nc=ic,ic po=other pow=other,New powf=other,ic ppo=other	
+person-cont	wc=ic w&c=york,ic p1wc=ic p1w&c=new,ic p2wc=lc p2w&c=in,lc n1wc=other n1w&c=.,other w=york p1w=new p2w=in n1w=. def pd=null pw,w=New,York pwc,wc=ic,ic w,nw=York,. wc,nc=ic,other po=person-start pow=person-start,York powf=person-start,ic ppo=other	
+other	wc=other w&c=.,other p1wc=ic p1w&c=york,ic p2wc=ic p2w&c=new,ic w=. p1w=york p2w=new def pd=null pw,w=York,. pwc,wc=ic,other po=person-cont pow=person-cont,. powf=person-cont,other ppo=person-start	
+person-start	wc=cp w&c=j.,cp n1wc=cp n1w&c=r.,cp n2wc=ic n2w&c=smith-jones,ic w=j. n1w=r. n2w=smith-jones def pd=null w,nw=J.,R. wc,nc=cp,cp S=begin po=other pow=other,J. powf=other,cp ppo=other	
+person-cont	wc=cp w&c=r.,cp p1wc=cp p1w&c=j.,cp n1wc=ic n1w&c=smith-jones,ic n2wc=other n2w&c=,,other w=r. p1w=j. n1w=smith-jones n2w=, def pd=null pw,w=J.,R. pwc,wc=cp,cp w,nw=R.,Smith-Jones wc,nc=cp,ic po=person-start pow=person-start,R. powf=person-start,cp ppo=other	
+person-cont	wc=ic w&c=smith-jones,ic p1wc=cp p1w&c=r.,cp p2wc=cp p2w&c=j.,cp n1wc=other n1w&c=,,other n2wc=lc n2w&c=a,lc w=smith-jones p1w=r. p2w=j. n1w=, n2w=a def pd=null pw,w=R.,Smith-Jones pwc,wc=cp,ic w,nw=Smith-Jones,, wc,nc=ic,other po=person-cont pow=person-cont,Smith-Jones powf=person-cont,ic ppo=person-start	
+other	wc=other w&c=,,other p1wc=ic p1w&c=smith-jones,ic p2wc=cp p2w&c=r.,cp n1wc=lc n1w&c=a,lc n2wc=lc n2w&c=spokesman,lc w=, p1w=smith-jones p2w=r. n1w=a n2w=spokesman def pd=null pw,w=Smith-Jones,, pwc,wc=ic,other w,nw=,,a wc,nc=other,lc po=person-cont pow=person-cont,, powf=person-cont,other ppo=person-cont	
+other	wc=lc w&c=a,lc p1wc=other p1w&c=,,other p2wc=ic p2w&c=smith-jones,ic n1wc=lc n1w&c=spokesman,lc n2wc=other n2w&c=,,other w=a p1w=, p2w=smith-jones n1w=spokesman n2w=, def pd=null pw,w=,,a pwc,wc=other,lc w,nw=a,spokesman wc,nc=lc,lc po=other pow=other,a powf=other,lc ppo=person-cont	
+other	wc=lc w&c=spokesman,lc p1wc=lc p1w&c=a,lc p2wc=other p2w&c=,,other n1wc=other n1w&c=,,other n2wc=lc n2w&c=confirmed,lc w=spokesman p1w=a p2w=, n1w=, n2w=confirmed def pd=null pw,w=a,spokesman pwc,wc=lc,lc w,nw=spokesman,, wc,nc=lc,other po=other pow=other,spokesman powf=other,lc ppo=other	
+other	wc=other w&c=,,other p1wc=lc p1w&c=spokesman,lc p2wc=lc p2w&c=a,lc n1wc=lc n1w&c=confirmed,lc n2wc=lc n2w&c=it,lc w=, p1w=spokesman p2w=a n1w=confirmed n2w=it def pd=null pw,w=spokesman,, pwc,wc=lc,other w,nw=,,confirmed wc,nc=other,lc po=other pow=other,, powf=other,other ppo=other	
+other	wc=lc w&c=confirmed,lc p1wc=other p1w&c=,,other p2wc=lc p2w&c=spokesman,lc n1wc=lc n1w&c=it,lc n2wc=lc n2w&c=on,lc w=confirmed p1w=, p2w=spokesman n1w=it n2w=on def pd=null pw,w=,,confirmed pwc,wc=other,lc w,nw=confirmed,it wc,nc=lc,lc po=other pow=other,confirmed powf=other,lc ppo=other	
+other	wc=lc w&c=it,lc p1wc=lc p1w&c=confirmed,lc p2wc=other p2w&c=,,other n1wc=lc n1w&c=on,lc n2wc=ic n2w&c=friday,ic w=it p1w=confirmed p2w=, n1w=on n2w=friday def pd=null pw,w=confirmed,it pwc,wc=lc,lc w,nw=it,on wc,nc=lc,lc po=other pow=other,it powf=other,lc ppo=other	
+other	wc=lc w&c=on,lc p1wc=lc p1w&c=it,lc p2wc=lc p2w&c=confirmed,lc n1wc=ic n1w&c=friday,ic n2wc=other n2w&c=.,other w=on p1w=it p2w=confirmed n1w=friday n2w=. def pd=null pw,w=it,on pwc,wc=lc,lc w,nw=on,Friday wc,nc=lc,ic po=other pow=other,on powf=other,lc ppo=other	
+person-start	wc=ic w&c=friday,ic p1wc=lc p1w&c=on,lc p2wc=lc p2w&c=it,lc n1wc=other n1w&c=.,other w=friday p1w=on p2w=it n1w=. def pd=null pw,w=on,Friday pwc,wc=lc,ic w,nw=Friday,. wc,nc=ic,other po=other pow=other,Friday powf=other,ic ppo=other	
+other	wc=other w&c=.,other p1wc=ic p1w&c=friday,ic p2wc=lc p2w&c=on,lc w=. p1w=friday p2w=on def pd=other pw,w=Friday,. pwc,wc=ic,other po=person-start pow=person-start,. powf=person-start,other ppo=other	
+other	wc=ic w&c=shares,ic n1wc=lc n1w&c=rose,lc n2wc=2d n2w&c=3.5,2d w=shares n1w=rose n2w=3.5 def pd=null w,nw=Shares,rose wc,nc=ic,lc S=begin po=other pow=other,Shares powf=other,ic ppo=other	
+other	wc=lc w&c=rose,lc p1wc=ic p1w&c=shares,ic n1wc=2d n1w&c=3.5,2d n2wc=other n2w&c=%,other w=rose p1w=shares n1w=3.5 n2w=% def pd=null pw,w=Shares,rose pwc,wc=ic,lc w,nw=rose,3.5 wc,nc=lc,2d po=other pow=other,rose powf=other,lc ppo=other	
+other	wc=2d w&c=3.5,2d p1wc=lc p1w&c=rose,lc p2wc=ic p2w&c=shares,ic n1wc=other n1w&c=%,other n2wc=lc n2w&c=in,lc w=3.5 p1w=rose p2w=shares n1w=% n2w=in def pd=null pw,w=rose,3.5 pwc,wc=lc,2d w,nw=3.5,% wc,nc=2d,other po=other pow=other,3.5 powf=other,2d ppo=other	
+other	wc=other w&c=%,other p1wc=2d p1w&c=3.5,2d p2wc=lc p2w&c=rose,lc n1wc=lc n1w&c=in,lc n2wc=lc n2w&c=early,lc w=% p1w=3.5 p2w=rose n1w=in n2w=early def pd=null pw,w=3.5,% pwc,wc=2d,other w,nw=%,in wc,nc=other,lc po=other pow=other,% powf=other,other ppo=other	
+other	wc=lc w&c=in,lc p1wc=other p1w&c=%,other p2wc=2d p2w&c=3.5,2d n1wc=lc n1w&c=early,lc n2wc=lc n2w&c=trading,lc w=in p1w=% p2w=3.5 n1w=early n2w=trading def pd=other pw,w=%,in pwc,wc=other,lc w,nw=in,early wc,nc=lc,lc po=other pow=other,in powf=other,lc ppo=other	
+other	wc=lc w&c=early,lc p1wc=lc p1w&c=in,lc p2wc=other p2w&c=%,other n1wc=lc n1w&c=trading,lc n2wc=other n2w&c=.,other w=early p1w=in p2w=% n1w=trading n2w=. def pd=null pw,w=in,early pwc,wc=lc,lc w,nw=early,trading wc,nc=lc,lc po=other pow=other,early powf=other,lc ppo=other	
+other	wc=lc w&c=trading,lc p1wc=lc p1w&c=early,lc p2wc=lc p2w&c=in,lc n1wc=other n1w&c=.,other w=trading p1w=early p2w=in n1w=. def pd=null pw,w=early,trading pwc,wc=lc,lc w,nw=trading,. wc,nc=lc,other po=other pow=other,trading powf=other,lc ppo=other	
+other	wc=other w&c=.,other p1wc=lc p1w&c=trading,lc p2wc=lc p2w&c=early,lc w=. p1w=trading p2w=early def pd=other pw,w=trading,. pwc,wc=lc,other po=other pow=other,. powf=other,other ppo=other	
+person-start	wc=ic w&c=smith-jones,ic n1wc=lc n1w&c=declined,lc n2wc=lc n2w&c=to,lc w=smith-jones n1w=declined n2w=to def pd=person-cont w,nw=Smith-Jones,declined wc,nc=ic,lc S=begin po=other pow=other,Smith-Jones powf=other,ic ppo=other	
+other	wc=lc w&c=declined,lc p1wc=ic p1w&c=smith-jones,ic n1wc=lc n1w&c=to,lc n2wc=lc n2w&c=comment,lc w=declined p1w=smith-jones n1w=to n2w=comment def pd=null pw,w=Smith-Jones,declined pwc,wc=ic,lc w,nw=declined,to wc,nc=lc,lc po=person-start pow=person-start,declined powf=person-start,lc ppo=other	
+other	wc=lc w&c=to,lc p1wc=lc p1w&c=declined,lc p2wc=ic p2w&c=smith-jones,ic n1wc=lc n1w&c=comment,lc n2wc=lc n2w&c=on,lc w=to p1w=declined p2w=smith-jones n1w=comment n2w=on def pd=null pw,w=declined,to pwc,wc=lc,lc w,nw=to,comment wc,nc=lc,lc po=other pow=other,to powf=other,lc ppo=person-start	
+other	wc=lc w&c=comment,lc p1wc=lc p1w&c=to,lc p2wc=lc p2w&c=declined,lc n1wc=lc n1w&c=on,lc n2wc=lc n2w&c=the,lc w=comment p1w=to p2w=declined n1w=on n2w=the def pd=null pw,w=to,comment pwc,wc=lc,lc w,nw=comment,on wc,nc=lc,lc po=other pow=other,comment powf=other,lc ppo=other	
+other	wc=lc w&c=on,lc p1wc=lc p1w&c=comment,lc p2wc=lc p2w&c=to,lc n1wc=lc n1w&c=the,lc n2wc=lc n2w&c=price,lc w=on p1w=comment p2w=to n1w=the n2w=price def pd=other pw,w=comment,on pwc,wc=lc,lc w,nw=on,the wc,nc=lc,lc po=other pow=other,on powf=other,lc ppo=other	
+other	wc=lc w&c=the,lc p1wc=lc p1w&c=on,lc p2wc=lc p2w&c=comment,lc n1wc=lc n1w&c=price,lc n2wc=other n2w&c=.,other w=the p1w=on p2w=comment n1w=price n2w=. def pd=other pw,w=on,the pwc,wc=lc,lc w,nw=the,price wc,nc=lc,lc po=other pow=other,the powf=other,lc ppo=other	
+other	wc=lc w&c=price,lc p1wc=lc p1w&c=the,lc p2wc=lc p2w&c=on,lc n1wc=other n1w&c=.,other w=price p1w=the p2w=on n1w=. def pd=null pw,w=the,price pwc,wc=lc,lc w,nw=price,. wc,nc=lc,other po=other pow=other,price powf=other,lc ppo=other	
+other	wc=other w&c=.,other p1wc=lc p1w&c=price,lc p2wc=lc p2w&c=the,lc w=. p1w=price p2w=the def pd=other pw,w=price,. pwc,wc=lc,other po=other pow=other,. powf=other,other ppo=other	
+other	wc=ic w&c=the,ic n1wc=lc n1w&c=deal,lc n2wc=lc n2w&c=closes,lc w=the n1w=deal n2w=closes def pd=null w,nw=The,deal wc,nc=ic,lc S=begin po=other pow=other,The powf=other,ic ppo=other	
+other	wc=lc w&c=deal,lc p1wc=ic p1w&c=the,ic n1wc=lc n1w&c=closes,lc n2wc=lc n2w&c=in,lc w=deal p1w=the n1w=closes n2w=in def pd=other pw,w=The,deal pwc,wc=ic,lc w,nw=deal,closes wc,nc=lc,lc po=other pow=other,deal powf=other,lc ppo=other	
+other	wc=lc w&c=closes,lc p1wc=lc p1w&c=deal,lc p2wc=ic p2w&c=the,ic n1wc=lc n1w&c=in,lc n2wc=lc n2w&c=the,lc w=closes p1w=deal p2w=the n1w=in n2w=the def pd=null pw,w=deal,closes pwc,wc=lc,lc w,nw=closes,in wc,nc=lc,lc po=other pow=other,closes powf=other,lc ppo=other	
+other	wc=lc w&c=in,lc p1wc=lc p1w&c=closes,lc p2wc=lc p2w&c=deal,lc n1wc=lc n1w&c=the,lc n2wc=lc n2w&c=second,lc w=in p1w=closes p2w=deal n1w=the n2w=second def pd=other pw,w=closes,in pwc,wc=lc,lc w,nw=in,the wc,nc=lc,lc po=other pow=other,in powf=other,lc ppo=other	
+person-start	wc=lc w&c=the,lc p1wc=lc p1w&c=in,lc p2wc=lc p2w&c=closes,lc n1wc=lc n1w&c=second,lc n2wc=lc n2w&c=quarter,lc w=the p1w=in p2w=closes n1w=second n2w=quarter def pd=other pw,w=in,the pwc,wc=lc,lc w,nw=the,second wc,nc=lc,lc po=other pow=other,the powf=other,lc ppo=other	
+person-cont	wc=lc w&c=second,lc p1wc=lc p1w&c=the,lc p2wc=lc p2w&c=in,lc n1wc=lc n1w&c=quarter,lc n2wc=other n2w&c=.,other w=second p1w=the p2w=in n1w=quarter n2w=. def pd=null pw,w=the,second pwc,wc=lc,lc w,nw=second,quarter wc,nc=lc,lc po=person-start pow=person-start,second powf=person-start,lc ppo=other	
+person-cont	wc=lc w&c=quarter,lc p1wc=lc p1w&c=second,lc p2wc=lc p2w&c=the,lc n1wc=other n1w&c=.,other w=quarter p1w=second p2w=the n1w=. def pd=null pw,w=second,quarter pwc,wc=lc,lc w,nw=quarter,. wc,nc=lc,other po=person-cont pow=person-cont,quarter powf=person-cont,lc ppo=person-start	
+other	wc=other w&c=.,other p1wc=lc p1w&c=quarter,lc p2wc=lc p2w&c=second,lc w=. p1w=quarter p2w=second def pd=other pw,w=quarter,. pwc,wc=lc,other po=person-cont pow=person-cont,. powf=person-cont,other ppo=person-cont	
+other	wc=ic w&c=analysts,ic n1wc=lc n1w&c=in,lc n2wc=ic n2w&c=london,ic w=analysts n1w=in n2w=london def pd=null w,nw=Analysts,in wc,nc=ic,lc S=begin po=other pow=other,Analysts powf=other,ic ppo=other	
+other	wc=lc w&c=in,lc p1wc=ic p1w&c=analysts,ic n1wc=ic n1w&c=london,ic n2wc=lc n2w&c=and,lc w=in p1w=analysts n1w=london n2w=and def pd=other pw,w=Analysts,in pwc,wc=ic,lc w,nw=in,London wc,nc=lc,ic po=other pow=other,in powf=other,lc ppo=other	
+person-start	wc=ic w&c=london,ic p1wc=lc p1w&c=in,lc p2wc=ic p2w&c=analysts,ic n1wc=lc n1w&c=and,lc n2wc=ic n2w&c=tokyo,ic w=london p1w=in p2w=analysts n1w=and n2w=tokyo def pd=null pw,w=in,London pwc,wc=lc,ic w,nw=London,and wc,nc=ic,lc po=other pow=other,London powf=other,ic ppo=other	
+other	wc=lc w&c=and,lc p1wc=ic p1w&c=london,ic p2wc=lc p2w&c=in,lc n1wc=ic n1w&c=tokyo,ic n2wc=lc n2w&c=expect,lc w=and p1w=london p2w=in n1w=tokyo n2w=expect def pd=other pw,w=London,and pwc,wc=ic,lc w,nw=and,Tokyo wc,nc=lc,ic po=person-start pow=person-start,and powf=person-start,lc ppo=other	
+person-start	wc=ic w&c=tokyo,ic p1wc=lc p1w&c=and,lc p2wc=ic p2w&c=london,ic n1wc=lc n1w&c=expect,lc n2wc=lc n2w&c=more,lc w=tokyo p1w=and p2w=london n1w=expect n2w=more def pd=null pw,w=and,Tokyo pwc,wc=lc,ic w,nw=Tokyo,expect wc,nc=ic,lc po=other pow=other,Tokyo powf=other,ic ppo=person-start	
+other	wc=lc w&c=expect,lc p1wc=ic p1w&c=tokyo,ic p2wc=lc p2w&c=and,lc n1wc=lc n1w&c=more,lc n2wc=lc n2w&c=deals,lc w=expect p1w=tokyo p2w=and n1w=more n2w=deals def pd=null pw,w=Tokyo,expect pwc,wc=ic,lc w,nw=expect,more wc,nc=lc,lc po=person-start pow=person-start,expect powf=person-start,lc ppo=other	
+other	wc=lc w&c=more,lc p1wc=lc p1w&c=expect,lc p2wc=ic p2w&c=tokyo,ic n1wc=lc n1w&c=deals,lc n2wc=other n2w&c=.,other w=more p1w=expect p2w=tokyo n1w=deals n2w=. def pd=null pw,w=expect,more pwc,wc=lc,lc w,nw=more,deals wc,nc=lc,lc po=other pow=other,more powf=other,lc ppo=person-start	
+other	wc=lc w&c=deals,lc p1wc=lc p1w&c=more,lc p2wc=lc p2w&c=expect,lc n1wc=other n1w&c=.,other w=deals p1w=more p2w=expect n1w=. def pd=null pw,w=more,deals pwc,wc=lc,lc w,nw=deals,. wc,nc=lc,other po=other pow=other,deals powf=other,lc ppo=other	
+other	wc=other w&c=.,other p1wc=lc p1w&c=deals,lc p2wc=lc p2w&c=more,lc w=. p1w=deals p2w=more def pd=other pw,w=deals,. pwc,wc=lc,other po=other pow=other,. powf=other,other ppo=other	
+person-start	wc=ic w&c=untyped,ic n1wc=lc n1w&c=names,lc n2wc=lc n2w&c=still,lc w=untyped n1w=names n2w=still def pd=null w,nw=Untyped,names wc,nc=ic,lc S=begin po=other pow=other,Untyped powf=other,ic ppo=other	
+other	wc=lc w&c=names,lc p1wc=ic p1w&c=untyped,ic n1wc=lc n1w&c=still,lc n2wc=lc n2w&c=train,lc w=names p1w=untyped n1w=still n2w=train def pd=null pw,w=Untyped,names pwc,wc=ic,lc w,nw=names,still wc,nc=lc,lc po=person-start pow=person-start,names powf=person-start,lc ppo=other	
+other	wc=lc w&c=still,lc p1wc=lc p1w&c=names,lc p2wc=ic p2w&c=untyped,ic n1wc=lc n1w&c=train,lc n2wc=lc n2w&c=with,lc w=still p1w=names p2w=untyped n1w=train n2w=with def pd=null pw,w=names,still pwc,wc=lc,lc w,nw=still,train wc,nc=lc,lc po=other pow=other,still powf=other,lc ppo=person-start	
+other	wc=lc w&c=train,lc p1wc=lc p1w&c=still,lc p2wc=lc p2w&c=names,lc n1wc=lc n1w&c=with,lc n2wc=lc n2w&c=the,lc w=train p1w=still p2w=names n1w=with n2w=the def pd=null pw,w=still,train pwc,wc=lc,lc w,nw=train,with wc,nc=lc,lc po=other pow=other,train powf=other,lc ppo=other	
+other	wc=lc w&c=with,lc p1wc=lc p1w&c=train,lc p2wc=lc p2w&c=still,lc n1wc=lc n1w&c=the,lc n2wc=lc n2w&c=default,lc w=with p1w=train p2w=still n1w=the n2w=default def pd=null pw,w=train,with pwc,wc=lc,lc w,nw=with,the wc,nc=lc,lc po=other pow=other,with powf=other,lc ppo=other	
+other	wc=lc w&c=the,lc p1wc=lc p1w&c=with,lc p2wc=lc p2w&c=train,lc n1wc=lc n1w&c=default,lc n2wc=lc n2w&c=type,lc w=the p1w=with p2w=train n1w=default n2w=type def pd=null pw,w=with,the pwc,wc=lc,lc w,nw=the,default wc,nc=lc,lc po=other pow=other,the powf=other,lc ppo=other	
+other	wc=lc w&c=default,lc p1wc=lc p1w&c=the,lc p2wc=lc p2w&c=with,lc n1wc=lc n1w&c=type,lc n2wc=other n2w&c=.,other w=default p1w=the p2w=with n1w=type n2w=. def pd=null pw,w=the,default pwc,wc=lc,lc w,nw=default,type wc,nc=lc,lc po=other pow=other,default powf=other,lc ppo=other	
+other	wc=lc w&c=type,lc p1wc=lc p1w&c=default,lc p2wc=lc p2w&c=the,lc n1wc=other n1w&c=.,other w=type p1w=default p2w=the n1w=. def pd=null pw,w=default,type pwc,wc=lc,lc w,nw=type,. wc,nc=lc,other po=other pow=other,type powf=other,lc ppo=other	
+other	wc=other w&c=.,other p1wc=lc p1w&c=type,lc p2wc=lc p2w&c=default,lc w=. p1w=type p2w=default def pd=null pw,w=type,. pwc,wc=lc,other po=other pow=other,. powf=other,other ppo=other	
+person-start	wc=ic w&c=ann,ic n1wc=lc n1w&c=met,lc n2wc=ic n2w&c=bo,ic w=ann n1w=met n2w=bo def pd=null w,nw=Ann,met wc,nc=ic,lc S=begin po=other pow=other,Ann powf=other,ic ppo=other	
+other	wc=lc w&c=met,lc p1wc=ic p1w&c=ann,ic n1wc=ic n1w&c=bo,ic n2wc=lc n2w&c=in,lc w=met p1w=ann n1w=bo n2w=in def pd=null pw,w=Ann,met pwc,wc=ic,lc w,nw=met,Bo wc,nc=lc,ic po=person-start pow=person-start,met powf=person-start,lc ppo=other	
+person-start	wc=ic w&c=bo,ic p1wc=lc p1w&c=met,lc p2wc=ic p2w&c=ann,ic n1wc=lc n1w&c=in,lc n2wc=ic n2w&c=oslo,ic w=bo p1w=met p2w=ann n1w=in n2w=oslo def pd=null pw,w=met,Bo pwc,wc=lc,ic w,nw=Bo,in wc,nc=ic,lc po=other pow=other,Bo powf=other,ic ppo=person-start	
+other	wc=lc w&c=in,lc p1wc=ic p1w&c=bo,ic p2wc=lc p2w&c=met,lc n1wc=ic n1w&c=oslo,ic n2wc=other n2w&c=.,other w=in p1w=bo p2w=met n1w=oslo n2w=. def pd=null pw,w=Bo,in pwc,wc=ic,lc w,nw=in,Oslo wc,nc=lc,ic po=person-start pow=person-start,in powf=person-start,lc ppo=other	
+person-start	wc=ic w&c=oslo,ic p1wc=lc p1w&c=in,lc p2wc=ic p2w&c=bo,ic n1wc=other n1w&c=.,other w=oslo p1w=in p2w=bo n1w=. def pd=null pw,w=in,Oslo pwc,wc=lc,ic w,nw=Oslo,. wc,nc=ic,other po=other pow=other,Oslo powf=other,ic ppo=person-start	
+other	wc=other w&c=.,other p1wc=ic p1w&c=oslo,ic p2wc=lc p2w&c=in,lc w=. p1w=oslo p2w=in def pd=other pw,w=Oslo,. pwc,wc=ic,other po=person-start pow=person-start,. powf=person-start,other ppo=other	
+person-start	wc=ic w&c=bo,ic n1wc=lc n1w&c=gave,lc n2wc=ic n2w&c=ann,ic w=bo n1w=gave n2w=ann def pd=person-start w,nw=Bo,gave wc,nc=ic,lc S=begin po=other pow=other,Bo powf=other,ic ppo=other	
+other	wc=lc w&c=gave,lc p1wc=ic p1w&c=bo,ic n1wc=ic n1w&c=ann,ic n2wc=lc n2w&c=a,lc w=gave p1w=bo n1w=ann n2w=a def pd=null pw,w=Bo,gave pwc,wc=ic,lc w,nw=gave,Ann wc,nc=lc,ic po=person-start pow=person-start,gave powf=person-start,lc ppo=other	
+person-start	wc=ic w&c=ann,ic p1wc=lc p1w&c=gave,lc p2wc=ic p2w&c=bo,ic n1wc=lc n1w&c=a,lc n2wc=lc n2w&c=map,lc w=ann p1w=gave p2w=bo n1w=a n2w=map def pd=person-start pw,w=gave,Ann pwc,wc=lc,ic w,nw=Ann,a wc,nc=ic,lc po=other pow=other,Ann powf=other,ic ppo=person-start	
+other	wc=lc w&c=a,lc p1wc=ic p1w&c=ann,ic p2wc=lc p2w&c=gave,lc n1wc=lc n1w&c=map,lc n2wc=lc n2w&c=of,lc w=a p1w=ann p2w=gave n1w=map n2w=of def pd=null pw,w=Ann,a pwc,wc=ic,lc w,nw=a,map wc,nc=lc,lc po=person-start pow=person-start,a powf=person-start,lc ppo=other	
+other	wc=lc w&c=map,lc p1wc=lc p1w&c=a,lc p2wc=ic p2w&c=ann,ic n1wc=lc n1w&c=of,lc n2wc=ic n2w&c=bergen,ic w=map p1w=a p2w=ann n1w=of n2w=bergen def pd=null pw,w=a,map pwc,wc=lc,lc w,nw=map,of wc,nc=lc,lc po=other pow=other,map powf=other,lc ppo=person-start	
+other	wc=lc w&c=of,lc p1wc=lc p1w&c=map,lc p2wc=lc p2w&c=a,lc n1wc=ic n1w&c=bergen,ic n2wc=other n2w&c=.,other w=of p1w=map p2w=a n1w=bergen n2w=. def pd=null pw,w=map,of pwc,wc=lc,lc w,nw=of,Bergen wc,nc=lc,ic po=other pow=other,of powf=other,lc ppo=other	
+person-start	wc=ic w&c=bergen,ic p1wc=lc p1w&c=of,lc p2wc=lc p2w&c=map,lc n1wc=other n1w&c=.,other w=bergen p1w=of p2w=map n1w=. def pd=null pw,w=of,Bergen pwc,wc=lc,ic w,nw=Bergen,. wc,nc=ic,other po=other pow=other,Bergen powf=other,ic ppo=other	
+other	wc=other w&c=.,other p1wc=ic p1w&c=bergen,ic p2wc=lc p2w&c=of,lc w=. p1w=bergen p2w=of def pd=other pw,w=Bergen,. pwc,wc=ic,other po=person-start pow=person-start,. powf=person-start,other ppo=other	
+other	wc=ic w&c=they,ic n1wc=lc n1w&c=flew,lc n2wc=lc n2w&c=home,lc w=they n1w=flew n2w=home def pd=null w,nw=They,flew wc,nc=ic,lc S=begin po=other pow=other,They powf=other,ic ppo=other	
+other	wc=lc w&c=flew,lc p1wc=ic p1w&c=they,ic n1wc=lc n1w&c=home,lc n2wc=lc n2w&c=on,lc w=flew p1w=they n1w=home n2w=on def pd=null pw,w=They,flew pwc,wc=ic,lc w,nw=flew,home wc,nc=lc,lc po=other pow=other,flew powf=other,lc ppo=other	
+other	wc=lc w&c=home,lc p1wc=lc p1w&c=flew,lc p2wc=ic p2w&c=they,ic n1wc=lc n1w&c=on,lc n2wc=ic n2w&c=sunday,ic w=home p1w=flew p2w=they n1w=on n2w=sunday def pd=null pw,w=flew,home pwc,wc=lc,lc w,nw=home,on wc,nc=lc,lc po=other pow=other,home powf=other,lc ppo=other	
+other	wc=lc w&c=on,lc p1wc=lc p1w&c=home,lc p2wc=lc p2w&c=flew,lc n1wc=ic n1w&c=sunday,ic n2wc=other n2w&c=.,other w=on p1w=home p2w=flew n1w=sunday n2w=. def pd=null pw,w=home,on pwc,wc=lc,lc w,nw=on,Sunday wc,nc=lc,ic po=other pow=other,on powf=other,lc ppo=other	
+person-start	wc=ic w&c=sunday,ic p1wc=lc p1w&c=on,lc p2wc=lc p2w&c=home,lc n1wc=other n1w&c=.,other w=sunday p1w=on p2w=home n1w=. def pd=null pw,w=on,Sunday pwc,wc=lc,ic w,nw=Sunday,. wc,nc=ic,other po=other pow=other,Sunday powf=other,ic ppo=other	
+other	wc=other w&c=.,other p1wc=ic p1w&c=sunday,ic p2wc=lc p2w&c=on,lc w=. p1w=sunday p2w=on def pd=other pw,w=Sunday,. pwc,wc=ic,other po=person-start pow=person-start,. powf=person-start,other ppo=other	
+end	turbo:events
+layer	turbo:stream-errors	document	0	after:u32	class:str	message:str
+end	turbo:stream-errors
+layer	turbo:event-checksum	document	1	crc32c:u32
+3081559004
+end	turbo:event-checksum
+layer	turbo:name-training	document	1	class:str	message:str
+	
+end	turbo:name-training
+layer	turbo:name-parameters	document	4	key:str	class:str	value:str
+Cutoff	java.lang.Integer	0
+sort	java.lang.Boolean	true
+Iterations	java.lang.Integer	300
+Algorithm	java.lang.String	MAXENT
+end	turbo:name-parameters
+layer	turbo:manifest	document	9	key:str	value:str
+BeamSize	3
+Component-Name	NameFinderME
+Language	en
+Manifest-Version	1.0
+OpenNLP-Version	3.0.0-SNAPSHOT
+TrainerType	Event
+Training-Eventhash	3081559004
+factory	opennlp.tools.namefind.TokenNameFinderFactory
+sequenceCodecImplName	opennlp.tools.namefind.BioCodec
+end	turbo:manifest
+layer	turbo:package-entries	document	3	name:str	length:u32
+manifest.properties	315
+nameFinder.model	43169
+generator.featuregen	1906
+end	turbo:package-entries
+layer	turbo:name-model	document	1	sha256:str	length:u32
+19ed2706b61b46679cb12e150d634ca90fdf2001dff034a9d9a2ed1408f074c9	43169
+end	turbo:name-model
+layer	turbo:name-weights	document	2056	predicate:str	outcome:str	value:f64
+n1w&c=&,other	person-start	3fd540becb44cace 0.33207673883877653
+n1w&c=2019,4d	person-start	3fd38f9ca9320544 0.3056403782175787
+n1w&c=4,num	person-start	3fd2c36f88066e93 0.29317844661429965
+n1w&c=agnes,ic	person-start	3fd4873e866aea12 0.3207546532318314
+n1w&c=and,lc	person-start	3fd73d74f201edd7 0.3631260264735067
+n1w&c=buys,lc	person-start	3fe12aa433d68c5e 0.5364552509748923
+n1w&c=declined,lc	person-start	3fe210c90f1b88be 0.5645489974088134
+n1w&c=expect,lc	person-start	3fd5078696d6150e 0.32858433466056247
+n1w&c=gave,lc	person-start	3fdfc9ced3728f83 0.4966923775593772
+n1w&c=hat,ic	person-start	3fd28c9bfe02e76a 0.28983211332125924
+n1w&c=light,ic	person-start	3fd313d5e8fddc59 0.2980856681164759
+n1w&c=lindqvist,ic	person-start	3fe0630bc66877ba 0.5120905757100822
+n1w&c=lives,lc	person-start	3fda88b94573cdcb 0.4145949533696835
+n1w&c=met,lc	person-start	3fe222e60ae311d5 0.5667600834499874
+n1w&c=monte,ic	person-start	3fd4f74f60f62be7 0.32759460896403286
+n1w&c=names,lc	person-start	3fe18c0fe2922c96 0.5483474183287338
+n1w&c=october,ic	person-start	3fe175ec62053647 0.545644942708983
+n1w&c=officials,lc	person-start	3fe07eb01fdbbc63 0.5154648420556324
+n1w&c=okafor,ic	person-start	3fe0630bc66877b8 0.512090575710082
+n1w&c=paulo,ic	person-start	3fd48b2c670cb1e8 0.3209944731086396
+n1w&c=r.,cp	person-start	3fdf3d7ed92d2979 0.4881283875335139
+n1w&c=said,lc	person-start	3fe4de4a9186c83f 0.6521351663889233
+n1w&c=visit,lc	person-start	3fd74889a2217110 0.363802345591254
+n1w&c=york,ic	person-start	3fd406e03a1b503c 0.3129196708152937
+n1w&c=álvarez,ic	person-start	3fe33d2671de95e4 0.6012146209729363
+n1w=&	person-start	3fd540becb44cace 0.33207673883877653
+n1w=2019	person-start	3fd38f9ca9320544 0.3056403782175787
+n1w=4	person-start	3fd2c36f88066e93 0.29317844661429965
+n1w=agnes	person-start	3fd4873e866aea12 0.3207546532318314
+n1w=and	person-start	3fd73d74f201edd7 0.3631260264735067
+n1w=buys	person-start	3fe12aa433d68c5e 0.5364552509748923
+n1w=declined	person-start	3fe210c90f1b88be 0.5645489974088134
+n1w=expect	person-start	3fd5078696d6150e 0.32858433466056247
+n1w=gave	person-start	3fdfc9ced3728f83 0.4966923775593772
+n1w=hat	person-start	3fd28c9bfe02e76a 0.28983211332125924
+n1w=light	person-start	3fd313d5e8fddc59 0.2980856681164759
+n1w=lindqvist	person-start	3fe0630bc66877ba 0.5120905757100822
+n1w=lives	person-start	3fda88b94573cdcb 0.4145949533696835
+n1w=met	person-start	3fe222e60ae311d5 0.5667600834499874
+n1w=monte	person-start	3fd4f74f60f62be7 0.32759460896403286
+n1w=names	person-start	3fe18c0fe2922c96 0.5483474183287338
+n1w=october	person-start	3fe175ec62053647 0.545644942708983
+n1w=officials	person-start	3fe07eb01fdbbc63 0.5154648420556324
+n1w=okafor	person-start	3fe0630bc66877b8 0.512090575710082
+n1w=paulo	person-start	3fd48b2c670cb1e8 0.3209944731086396
+n1w=r.	person-start	3fdf3d7ed92d2979 0.4881283875335139
+n1w=said	person-start	3fe4de4a9186c83f 0.6521351663889233
+n1w=visit	person-start	3fd74889a2217110 0.363802345591254
+n1w=york	person-start	3fd406e03a1b503c 0.3129196708152937
+n1w=álvarez	person-start	3fe33d2671de95e4 0.6012146209729363
+n1wc=cp	person-start	3fdf3d7ed92d2979 0.4881283875335139
+n1wc=num	person-start	3fd2c36f88066e93 0.29317844661429965
+n2w&c=2023,4d	person-start	3fe175ec62053647 0.545644942708983
+n2w&c=accra,ic	person-start	3fd46c4278352f8b 0.31910764445341816
+n2w&c=ann,ic	person-start	3fdfc9ced3728f83 0.4966923775593772
+n2w&c=announced,lc	person-start	3fd28c9bfe02e76a 0.28983211332125924
+n2w&c=beans,lc	person-start	3fe12aa433d68c5e 0.5364552509748923
+n2w&c=bo,ic	person-start	3fe222e60ae311d5 0.5667600834499874
+n2w&c=has,lc	person-start	3fe0630bc66877ba 0.5120905757100822
+n2w&c=hospital,ic	person-start	3fd4873e866aea12 0.3207546532318314
+n2w&c=joined,lc	person-start	3fe0630bc66877ba 0.5120905757100822
+n2w&c=june,ic	person-start	3fd433eb9a7e0c39 0.3156689652170744
+n2w&c=leaf,ic	person-start	3fd540becb44cace 0.33207673883877653
+n2w&c=map,lc	person-start	3fd4f93472b1d58b 0.32771025849009366
+n2w&c=more,lc	person-start	3fd5078696d6150e 0.32858433466056247
+n2w&c=oslo,ic	person-start	3fdb3693c687f906 0.4252061308651637
+n2w&c=portland,ic	person-start	3fd687b97b70671a 0.35203396849247925
+n2w&c=praised,lc	person-start	3fe07eb01fdbbc63 0.5154648420556324
+n2w&c=quarter,lc	person-start	3ff248ce141f9f54 1.1427746568751518
+n2w&c=red,ic	person-start	3fe0f43e497028ba 0.5298148569429693
+n2w&c=same,lc	person-start	3fd8afd34753c201 0.38573152509255243
+n2w&c=smith-jones,ic	person-start	3fdf3d7ed92d2979 0.4881283875335139
+n2w&c=spoke,lc	person-start	3fe0630bc66877ba 0.5120905757100822
+n2w&c=still,lc	person-start	3fe18c0fe2922c96 0.5483474183287338
+n2w&c=systems,ic	person-start	3fd313d5e8fddc59 0.2980856681164759
+n2w&c=tokyo,ic	person-start	3fcf72b80a160cf5 0.24568844311225005
+n2w&c=verde,ic	person-start	3fd4f74f60f62be7 0.32759460896403286
+n2w=2023	person-start	3fe175ec62053647 0.545644942708983
+n2w=accra	person-start	3fd46c4278352f8b 0.31910764445341816
+n2w=ann	person-start	3fdfc9ced3728f83 0.4966923775593772
+n2w=announced	person-start	3fd28c9bfe02e76a 0.28983211332125924
+n2w=beans	person-start	3fe12aa433d68c5e 0.5364552509748923
+n2w=bo	person-start	3fe222e60ae311d5 0.5667600834499874
+n2w=has	person-start	3fe0630bc66877ba 0.5120905757100822
+n2w=hospital	person-start	3fd4873e866aea12 0.3207546532318314
+n2w=joined	person-start	3fe0630bc66877ba 0.5120905757100822
+n2w=june	person-start	3fd433eb9a7e0c39 0.3156689652170744
+n2w=leaf	person-start	3fd540becb44cace 0.33207673883877653
+n2w=map	person-start	3fd4f93472b1d58b 0.32771025849009366
+n2w=more	person-start	3fd5078696d6150e 0.32858433466056247
+n2w=oslo	person-start	3fdb3693c687f906 0.4252061308651637
+n2w=portland	person-start	3fd687b97b70671a 0.35203396849247925
+n2w=praised	person-start	3fe07eb01fdbbc63 0.5154648420556324
+n2w=quarter	person-start	3ff248ce141f9f54 1.1427746568751518
+n2w=red	person-start	3fe0f43e497028ba 0.5298148569429693
+n2w=same	person-start	3fd8afd34753c201 0.38573152509255243
+n2w=smith-jones	person-start	3fdf3d7ed92d2979 0.4881283875335139
+n2w=spoke	person-start	3fe0630bc66877ba 0.5120905757100822
+n2w=still	person-start	3fe18c0fe2922c96 0.5483474183287338
+n2w=systems	person-start	3fd313d5e8fddc59 0.2980856681164759
+n2w=tokyo	person-start	3fcf72b80a160cf5 0.24568844311225005
+n2w=verde	person-start	3fd4f74f60f62be7 0.32759460896403286
+p1w&c=and,lc	person-start	3fd4f118f8bec4e8 0.3272154263641611
+p1w&c=at,lc	person-start	3fd4873e866aea12 0.3207546532318314
+p1w&c=every,lc	person-start	3fd7e65b1e1ef166 0.3734348100804453
+p1w&c=from,lc	person-start	3fd54a3f68ebd1b6 0.33265671964843635
+p1w&c=gave,lc	person-start	3fd4f93472b1d58b 0.32771025849009366
+p1w&c=joined,lc	person-start	3fd313d5e8fddc59 0.2980856681164759
+p1w&c=met,lc	person-start	3fdb3693c687f906 0.4252061308651637
+p1w&c=of,lc	person-start	3fda3e931e04b143 0.4100692551753761
+p1w&c=on,ic	person-start	3fe175ec62053647 0.545644942708983
+p1w&c=since,lc	person-start	3fdbed3c932048f1 0.43635477416786644
+p1w&c=sister,lc	person-start	3fda88b94573cdcb 0.4145949533696835
+p1w=and	person-start	3fd4f118f8bec4e8 0.3272154263641611
+p1w=at	person-start	3fd4873e866aea12 0.3207546532318314
+p1w=every	person-start	3fd7e65b1e1ef166 0.3734348100804453
+p1w=from	person-start	3fd54a3f68ebd1b6 0.33265671964843635
+p1w=gave	person-start	3fd4f93472b1d58b 0.32771025849009366
+p1w=joined	person-start	3fd313d5e8fddc59 0.2980856681164759
+p1w=met	person-start	3fdb3693c687f906 0.4252061308651637
+p1w=of	person-start	3fda3e931e04b143 0.4100692551753761
+p1w=since	person-start	3fdbed3c932048f1 0.43635477416786644
+p1w=sister	person-start	3fda88b94573cdcb 0.4145949533696835
+p2w&c=analysts,ic	person-start	3fcf72b80a160cf5 0.24568844311225005
+p2w&c=beans,lc	person-start	3fd4f74f60f62be7 0.32759460896403286
+p2w&c=bo,ic	person-start	3fd547f7e1d3fa17 0.3325175958015349
+p2w&c=boise,ic	person-start	3fd2c36f88066e93 0.29317844661429965
+p2w&c=closes,lc	person-start	3ff248ce141f9f54 1.1427746568751518
+p2w&c=his,ic	person-start	3fda88b94573cdcb 0.4145949533696835
+p2w&c=home,lc	person-start	3fd73f3721ad43b4 0.363233359229578
+p2w&c=hospital,ic	person-start	3fd45a836120de91 0.3180244873542302
+p2w&c=ibm,ac	person-start	3fd28c9bfe02e76a 0.28983211332125924
+p2w&c=it,lc	person-start	3fd73f3721ad43b4 0.363233359229578
+p2w&c=lagos,ic	person-start	3fd74889a2217110 0.363802345591254
+p2w&c=lives,lc	person-start	3fd66a7c54b0f58d 0.3502493693411786
+p2w&c=london,ic	person-start	3fd5078696d6150e 0.32858433466056247
+p2w&c=map,lc	person-start	3fda3e931e04b143 0.4100692551753761
+p2w&c=moved,lc	person-start	3fd687b97b70671a 0.35203396849247925
+p2w&c=office,lc	person-start	3fd433eb9a7e0c39 0.3156689652170744
+p2w&c=patients,ic	person-start	3fd46c4278352f8b 0.31910764445341816
+p2w&c=s.a.,ic	person-start	3fd7e65b1e1ef166 0.3734348100804453
+p2w&c=spoke,lc	person-start	3fd4873e866aea12 0.3207546532318314
+p2w&c=systems,ic	person-start	3fd38f9ca9320544 0.3056403782175787
+p2w&c=there,lc	person-start	3fdbed3c932048f1 0.43635477416786644
+p2w&c=uppsala,ic	person-start	3fd8afd34753c201 0.38573152509255243
+p2w&c=🏆,other	person-start	3fd540becb44cace 0.33207673883877653
+p2w=analysts	person-start	3fcf72b80a160cf5 0.24568844311225005
+p2w=beans	person-start	3fd4f74f60f62be7 0.32759460896403286
+p2w=bo	person-start	3fd547f7e1d3fa17 0.3325175958015349
+p2w=boise	person-start	3fd2c36f88066e93 0.29317844661429965
+p2w=closes	person-start	3ff248ce141f9f54 1.1427746568751518
+p2w=his	person-start	3fda88b94573cdcb 0.4145949533696835
+p2w=home	person-start	3fd73f3721ad43b4 0.363233359229578
+p2w=hospital	person-start	3fd45a836120de91 0.3180244873542302
+p2w=ibm	person-start	3fd28c9bfe02e76a 0.28983211332125924
+p2w=it	person-start	3fd73f3721ad43b4 0.363233359229578
+p2w=lagos	person-start	3fd74889a2217110 0.363802345591254
+p2w=lives	person-start	3fd66a7c54b0f58d 0.3502493693411786
+p2w=london	person-start	3fd5078696d6150e 0.32858433466056247
+p2w=map	person-start	3fda3e931e04b143 0.4100692551753761
+p2w=moved	person-start	3fd687b97b70671a 0.35203396849247925
+p2w=office	person-start	3fd433eb9a7e0c39 0.3156689652170744
+p2w=patients	person-start	3fd46c4278352f8b 0.31910764445341816
+p2w=s.a.	person-start	3fd7e65b1e1ef166 0.3734348100804453
+p2w=spoke	person-start	3fd4873e866aea12 0.3207546532318314
+p2w=systems	person-start	3fd38f9ca9320544 0.3056403782175787
+p2w=there	person-start	3fdbed3c932048f1 0.43635477416786644
+p2w=uppsala	person-start	3fd8afd34753c201 0.38573152509255243
+p2w=🏆	person-start	3fd540becb44cace 0.33207673883877653
+pd=person-start	person-start	3fda5746ce004935 0.4115769397477778
+pow=other,12	person-start	3fe175ec62053647 0.545644942708983
+pow=other,2011	person-start	3fdbed3c932048f1 0.43635477416786644
+pow=other,Accra	person-start	3fd74889a2217110 0.363802345591254
+pow=other,Ann	person-start	3fdc8a05757a4a5e 0.445924153065027
+pow=other,Bean	person-start	3fd540becb44cace 0.33207673883877653
+pow=other,Bergen	person-start	3fda3e931e04b143 0.4100692551753761
+pow=other,Bo	person-start	3fdd7e792ec5fd38 0.46084432189669
+pow=other,Boise	person-start	3fd433eb9a7e0c39 0.3156689652170744
+pow=other,Café	person-start	3fd4f74f60f62be7 0.32759460896403286
+pow=other,Chidi	person-start	3fe0630bc66877ba 0.5120905757100822
+pow=other,Dr.	person-start	3fe0630bc66877ba 0.5120905757100822
+pow=other,Friday	person-start	3fd73f3721ad43b4 0.363233359229578
+pow=other,Harbor	person-start	3fd313d5e8fddc59 0.2980856681164759
+pow=other,IBM	person-start	3fe0f43e497028ba 0.5298148569429693
+pow=other,Inês	person-start	3fda88b94573cdcb 0.4145949533696835
+pow=other,J.	person-start	3fdf3d7ed92d2979 0.4881283875335139
+pow=other,José	person-start	3fe33d2671de95e4 0.6012146209729363
+pow=other,June	person-start	3fd2c36f88066e93 0.29317844661429965
+pow=other,Lagos	person-start	3fd46c4278352f8b 0.31910764445341816
+pow=other,Lindqvist	person-start	3fe4de4a9186c83f 0.6521351663889233
+pow=other,Lisbon	person-start	3fd66a7c54b0f58d 0.3502493693411786
+pow=other,London	person-start	3fcf72b80a160cf5 0.24568844311225005
+pow=other,March	person-start	3fd38f9ca9320544 0.3056403782175787
+pow=other,Maria	person-start	3fe0630bc66877ba 0.5120905757100822
+pow=other,Monday	person-start	3fd7e65b1e1ef166 0.3734348100804453
+pow=other,New	person-start	3fd406e03a1b503c 0.3129196708152937
+pow=other,Oslo	person-start	3fd596e9d6bbea61 0.3373360249530944
+pow=other,Portland	person-start	3fd8afd34753c201 0.38573152509255243
+pow=other,Red	person-start	3fd28c9bfe02e76a 0.28983211332125924
+pow=other,Smith-Jones	person-start	3fe210c90f1b88be 0.5645489974088134
+pow=other,St.	person-start	3fd4873e866aea12 0.3207546532318314
+pow=other,Sunday	person-start	3fd73f3721ad43b4 0.363233359229578
+pow=other,São	person-start	3fd48b2c670cb1e8 0.3209944731086396
+pow=other,Tokyo	person-start	3fd5078696d6150e 0.32858433466056247
+pow=other,Tuesday	person-start	3fd45a836120de91 0.3180244873542302
+pow=other,Untyped	person-start	3fe18c0fe2922c96 0.5483474183287338
+pow=other,Uppsala	person-start	3fd687b97b70671a 0.35203396849247925
+pow=other,WHO	person-start	3fe07eb01fdbbc63 0.5154648420556324
+pow=other,Álvarez	person-start	3fe12aa433d68c5e 0.5364552509748923
+powf=other,4d	person-start	3fdbed3c932048f1 0.43635477416786644
+powf=other,ac	person-start	3fe0b964ab94ab79 0.5226310111223561
+powf=other,cp	person-start	3fdf3d7ed92d2979 0.4881283875335139
+pw,w=On,12	person-start	3fe175ec62053647 0.545644942708983
+pw,w=and,Accra	person-start	3fd74889a2217110 0.363802345591254
+pw,w=and,Red	person-start	3fd28c9bfe02e76a 0.28983211332125924
+pw,w=and,Tokyo	person-start	3fd5078696d6150e 0.32858433466056247
+pw,w=at,St.	person-start	3fd4873e866aea12 0.3207546532318314
+pw,w=every,Monday	person-start	3fd7e65b1e1ef166 0.3734348100804453
+pw,w=from,Bean	person-start	3fd540becb44cace 0.33207673883877653
+pw,w=from,Café	person-start	3fd4f74f60f62be7 0.32759460896403286
+pw,w=from,Lagos	person-start	3fd46c4278352f8b 0.31910764445341816
+pw,w=from,Uppsala	person-start	3fd687b97b70671a 0.35203396849247925
+pw,w=gave,Ann	person-start	3fd4f93472b1d58b 0.32771025849009366
+pw,w=in,Boise	person-start	3fd433eb9a7e0c39 0.3156689652170744
+pw,w=in,Lisbon	person-start	3fd66a7c54b0f58d 0.3502493693411786
+pw,w=in,London	person-start	3fcf72b80a160cf5 0.24568844311225005
+pw,w=in,March	person-start	3fd38f9ca9320544 0.3056403782175787
+pw,w=in,New	person-start	3fd406e03a1b503c 0.3129196708152937
+pw,w=in,Oslo	person-start	3fd596e9d6bbea61 0.3373360249530944
+pw,w=in,São	person-start	3fd48b2c670cb1e8 0.3209944731086396
+pw,w=joined,Harbor	person-start	3fd313d5e8fddc59 0.2980856681164759
+pw,w=met,Bo	person-start	3fdb3693c687f906 0.4252061308651637
+pw,w=of,Bergen	person-start	3fda3e931e04b143 0.4100692551753761
+pw,w=on,Friday	person-start	3fd73f3721ad43b4 0.363233359229578
+pw,w=on,June	person-start	3fd2c36f88066e93 0.29317844661429965
+pw,w=on,Sunday	person-start	3fd73f3721ad43b4 0.363233359229578
+pw,w=on,Tuesday	person-start	3fd45a836120de91 0.3180244873542302
+pw,w=since,2011	person-start	3fdbed3c932048f1 0.43635477416786644
+pw,w=sister,Inês	person-start	3fda88b94573cdcb 0.4145949533696835
+pw,w=to,Portland	person-start	3fd8afd34753c201 0.38573152509255243
+pwc,wc=ic,2d	person-start	3fe175ec62053647 0.545644942708983
+pwc,wc=lc,4d	person-start	3fdbed3c932048f1 0.43635477416786644
+pwc,wc=lc,ic	person-start	3fd5a10798a96c75 0.33795347126369474
+w&c=12,2d	person-start	3fe175ec62053647 0.545644942708983
+w&c=2011,4d	person-start	3fdbed3c932048f1 0.43635477416786644
+w&c=accra,ic	person-start	3fd74889a2217110 0.363802345591254
+w&c=ann,ic	person-start	3fdc8a05757a4a5e 0.445924153065027
+w&c=bean,ic	person-start	3fd540becb44cace 0.33207673883877653
+w&c=bergen,ic	person-start	3fda3e931e04b143 0.4100692551753761
+w&c=bo,ic	person-start	3fdd7e792ec5fd38 0.46084432189669
+w&c=boise,ic	person-start	3fd433eb9a7e0c39 0.3156689652170744
+w&c=café,ic	person-start	3fd4f74f60f62be7 0.32759460896403286
+w&c=chidi,ic	person-start	3fe0630bc66877ba 0.5120905757100822
+w&c=dr.,ic	person-start	3fe0630bc66877ba 0.5120905757100822
+w&c=friday,ic	person-start	3fd73f3721ad43b4 0.363233359229578
+w&c=harbor,ic	person-start	3fd313d5e8fddc59 0.2980856681164759
+w&c=ibm,ac	person-start	3fe0f43e497028ba 0.5298148569429693
+w&c=inês,ic	person-start	3fda88b94573cdcb 0.4145949533696835
+w&c=j.,cp	person-start	3fdf3d7ed92d2979 0.4881283875335139
+w&c=josé,ic	person-start	3fe33d2671de95e4 0.6012146209729363
+w&c=june,ic	person-start	3fd2c36f88066e93 0.29317844661429965
+w&c=lagos,ic	person-start	3fd46c4278352f8b 0.31910764445341816
+w&c=lisbon,ic	person-start	3fd66a7c54b0f58d 0.3502493693411786
+w&c=london,ic	person-start	3fcf72b80a160cf5 0.24568844311225005
+w&c=march,ic	person-start	3fd38f9ca9320544 0.3056403782175787
+w&c=maria,ic	person-start	3fe0630bc66877ba 0.5120905757100822
+w&c=monday,ic	person-start	3fd7e65b1e1ef166 0.3734348100804453
+w&c=new,ic	person-start	3fd406e03a1b503c 0.3129196708152937
+w&c=oslo,ic	person-start	3fd596e9d6bbea61 0.3373360249530944
+w&c=portland,ic	person-start	3fd8afd34753c201 0.38573152509255243
+w&c=red,ic	person-start	3fd28c9bfe02e76a 0.28983211332125924
+w&c=st.,ic	person-start	3fd4873e866aea12 0.3207546532318314
+w&c=sunday,ic	person-start	3fd73f3721ad43b4 0.363233359229578
+w&c=são,ic	person-start	3fd48b2c670cb1e8 0.3209944731086396
+w&c=tokyo,ic	person-start	3fd5078696d6150e 0.32858433466056247
+w&c=tuesday,ic	person-start	3fd45a836120de91 0.3180244873542302
+w&c=untyped,ic	person-start	3fe18c0fe2922c96 0.5483474183287338
+w&c=uppsala,ic	person-start	3fd687b97b70671a 0.35203396849247925
+w&c=who,ac	person-start	3fe07eb01fdbbc63 0.5154648420556324
+w,nw=12,October	person-start	3fe175ec62053647 0.545644942708983
+w,nw=2011,.	person-start	3fdbed3c932048f1 0.43635477416786644
+w,nw=Accra,visit	person-start	3fd74889a2217110 0.363802345591254
+w,nw=Ann,a	person-start	3fd4f93472b1d58b 0.32771025849009366
+w,nw=Ann,met	person-start	3fe222e60ae311d5 0.5667600834499874
+w,nw=Bean,&	person-start	3fd540becb44cace 0.33207673883877653
+w,nw=Bergen,.	person-start	3fda3e931e04b143 0.4100692551753761
+w,nw=Bo,gave	person-start	3fdfc9ced3728f83 0.4966923775593772
+w,nw=Bo,in	person-start	3fdb3693c687f906 0.4252061308651637
+w,nw=Boise,on	person-start	3fd433eb9a7e0c39 0.3156689652170744
+w,nw=Café,Monte	person-start	3fd4f74f60f62be7 0.32759460896403286
+w,nw=Chidi,Okafor	person-start	3fe0630bc66877ba 0.5120905757100822
+w,nw=Dr.,Okafor	person-start	3fe0630bc66877ba 0.5120905757100822
+w,nw=Friday,.	person-start	3fd73f3721ad43b4 0.363233359229578
+w,nw=Harbor,Light	person-start	3fd313d5e8fddc59 0.2980856681164759
+w,nw=IBM,and	person-start	3fe0f43e497028ba 0.5298148569429693
+w,nw=Inês,lives	person-start	3fda88b94573cdcb 0.4145949533696835
+w,nw=J.,R.	person-start	3fdf3d7ed92d2979 0.4881283875335139
+w,nw=José,Álvarez	person-start	3fe33d2671de95e4 0.6012146209729363
+w,nw=June,4	person-start	3fd2c36f88066e93 0.29317844661429965
+w,nw=Lagos,and	person-start	3fd46c4278352f8b 0.31910764445341816
+w,nw=Lindqvist,said	person-start	3fe4de4a9186c83f 0.6521351663889233
+w,nw=Lisbon,.	person-start	3fd66a7c54b0f58d 0.3502493693411786
+w,nw=London,and	person-start	3fcf72b80a160cf5 0.24568844311225005
+w,nw=March,2019	person-start	3fd38f9ca9320544 0.3056403782175787
+w,nw=Maria,Lindqvist	person-start	3fe0630bc66877ba 0.5120905757100822
+w,nw=Monday,.	person-start	3fd7e65b1e1ef166 0.3734348100804453
+w,nw=New,York	person-start	3fd406e03a1b503c 0.3129196708152937
+w,nw=Oslo,.	person-start	3fd596e9d6bbea61 0.3373360249530944
+w,nw=Portland,the	person-start	3fd8afd34753c201 0.38573152509255243
+w,nw=Red,Hat	person-start	3fd28c9bfe02e76a 0.28983211332125924
+w,nw=Smith-Jones,declined	person-start	3fe210c90f1b88be 0.5645489974088134
+w,nw=St.,Agnes	person-start	3fd4873e866aea12 0.3207546532318314
+w,nw=Sunday,.	person-start	3fd73f3721ad43b4 0.363233359229578
+w,nw=São,Paulo	person-start	3fd48b2c670cb1e8 0.3209944731086396
+w,nw=Tokyo,expect	person-start	3fd5078696d6150e 0.32858433466056247
+w,nw=Tuesday,.	person-start	3fd45a836120de91 0.3180244873542302
+w,nw=Untyped,names	person-start	3fe18c0fe2922c96 0.5483474183287338
+w,nw=Uppsala,to	person-start	3fd687b97b70671a 0.35203396849247925
+w,nw=WHO,officials	person-start	3fe07eb01fdbbc63 0.5154648420556324
+w,nw=the,second	person-start	3ff248ce141f9f54 1.1427746568751518
+w,nw=Álvarez,buys	person-start	3fe12aa433d68c5e 0.5364552509748923
+w=12	person-start	3fe175ec62053647 0.545644942708983
+w=2011	person-start	3fdbed3c932048f1 0.43635477416786644
+w=accra	person-start	3fd74889a2217110 0.363802345591254
+w=ann	person-start	3fdc8a05757a4a5e 0.445924153065027
+w=bean	person-start	3fd540becb44cace 0.33207673883877653
+w=bergen	person-start	3fda3e931e04b143 0.4100692551753761
+w=bo	person-start	3fdd7e792ec5fd38 0.46084432189669
+w=boise	person-start	3fd433eb9a7e0c39 0.3156689652170744
+w=chidi	person-start	3fe0630bc66877ba 0.5120905757100822
+w=dr.	person-start	3fe0630bc66877ba 0.5120905757100822
+w=friday	person-start	3fd73f3721ad43b4 0.363233359229578
+w=harbor	person-start	3fd313d5e8fddc59 0.2980856681164759
+w=ibm	person-start	3fe0f43e497028ba 0.5298148569429693
+w=inês	person-start	3fda88b94573cdcb 0.4145949533696835
+w=j.	person-start	3fdf3d7ed92d2979 0.4881283875335139
+w=josé	person-start	3fe33d2671de95e4 0.6012146209729363
+w=june	person-start	3fd2c36f88066e93 0.29317844661429965
+w=lagos	person-start	3fd46c4278352f8b 0.31910764445341816
+w=lisbon	person-start	3fd66a7c54b0f58d 0.3502493693411786
+w=london	person-start	3fcf72b80a160cf5 0.24568844311225005
+w=march	person-start	3fd38f9ca9320544 0.3056403782175787
+w=maria	person-start	3fe0630bc66877ba 0.5120905757100822
+w=monday	person-start	3fd7e65b1e1ef166 0.3734348100804453
+w=new	person-start	3fd406e03a1b503c 0.3129196708152937
+w=oslo	person-start	3fd596e9d6bbea61 0.3373360249530944
+w=portland	person-start	3fd8afd34753c201 0.38573152509255243
+w=red	person-start	3fd28c9bfe02e76a 0.28983211332125924
+w=st.	person-start	3fd4873e866aea12 0.3207546532318314
+w=sunday	person-start	3fd73f3721ad43b4 0.363233359229578
+w=são	person-start	3fd48b2c670cb1e8 0.3209944731086396
+w=tokyo	person-start	3fd5078696d6150e 0.32858433466056247
+w=tuesday	person-start	3fd45a836120de91 0.3180244873542302
+w=untyped	person-start	3fe18c0fe2922c96 0.5483474183287338
+w=uppsala	person-start	3fd687b97b70671a 0.35203396849247925
+w=who	person-start	3fe07eb01fdbbc63 0.5154648420556324
+wc,nc=2d,ic	person-start	3fe175ec62053647 0.545644942708983
+wc,nc=ac,lc	person-start	3fe0b964ab94ab79 0.5226310111223561
+wc,nc=cp,cp	person-start	3fdf3d7ed92d2979 0.4881283875335139
+wc,nc=ic,num	person-start	3fd2c36f88066e93 0.29317844661429965
+wc=ac	person-start	3fe0b964ab94ab79 0.5226310111223561
+pd=person-cont	person-start	3fe0a42dd5554962 0.520041386286078
+pd=person-cont	person-cont	bfc7a0a88c453255 -0.18459040497909265
+w&c=lindqvist,ic	person-start	3fdc74e80430d3fc 0.4446353951382773
+w&c=lindqvist,ic	person-cont	3fccefd6784108bc 0.22606926795748972
+w&c=smith-jones,ic	person-start	3fd23687591fb55e 0.2845781679487426
+w&c=smith-jones,ic	person-cont	3fcbba69fd91f21b 0.21662640458443225
+w&c=álvarez,ic	person-start	3fd7400862a9d485 0.3632832492360836
+w&c=álvarez,ic	person-cont	3fcc5f5bbef851c9 0.2216601068945592
+w=lindqvist	person-start	3fdc74e80430d3fc 0.4446353951382773
+w=lindqvist	person-cont	3fccefd6784108bc 0.22606926795748972
+w=smith-jones	person-start	3fd23687591fb55e 0.2845781679487426
+w=smith-jones	person-cont	3fcbba69fd91f21b 0.21662640458443225
+w=álvarez	person-start	3fd7400862a9d485 0.3632832492360836
+w=álvarez	person-cont	3fcc5f5bbef851c9 0.2216601068945592
+wc,nc=4d,other	person-start	3fd2d52ef8483be5 0.2942616867666728
+wc,nc=4d,other	person-cont	3fd1f6bad1b0a31a 0.28068418958223307
+wc,nc=ic,4d	person-start	3fb0a0a0b73b7885 0.06495098565526021
+wc,nc=ic,4d	person-cont	3fd4cfd8da4c5bed 0.32518597906294994
+wc,nc=ic,ic	person-start	3fd5d2ab5fe59053 0.3409832417003191
+wc,nc=ic,ic	person-cont	3fb4cc655cd12f12 0.08124383464854315
+wc,nc=ic,other	person-start	3fcc3106056b7fcb 0.22024607910770863
+wc,nc=ic,other	person-cont	3fc8fe72453f071e 0.19526508694803452
+wc=4d	person-start	3fcb18d2ca242693 0.2116950499551434
+wc=4d	person-cont	3fd65ee6d4add620 0.3495423390334924
+wc=cp	person-start	3fce96898fd8b6e6 0.23896903537518382
+wc=cp	person-cont	3fd2dc45aac89fc9 0.29469434431166214
+def	person-start	bfae8c7358e2dcb1 -0.059665302849162834
+def	person-cont	bfce3012003893da -0.23584198962012587
+def	other	3fb389edd2368a9e 0.07632337934641462
+n1w&c=.,other	person-start	3fc0867e3aea9ec0 0.12910440327435957
+n1w&c=.,other	person-cont	3fbee2793bbed1ec 0.12064321240070058
+n1w&c=.,other	other	bfc730dba37ede47 -0.1811785267179735
+n1w&c=in,lc	person-start	bfdd2044c405e79a -0.4550945200240847
+n1w&c=in,lc	person-cont	bfc4b225a9d1f40f -0.16168661872862386
+n1w&c=in,lc	other	3fbb96545f3e47e5 0.10776259732509137
+n1w&c=on,lc	person-start	3f91c6dc66bde2de 0.017360156794412933
+n1w&c=on,lc	person-cont	3fc11f4b1b6d4811 0.13376749839022797
+n1w&c=on,lc	other	bfa3c836a416fcdb -0.03863688233422532
+n1w&c=the,lc	person-start	bf8a857ff7e0a72c -0.012949943306086086
+n1w&c=the,lc	person-cont	bfb4552f6f3ee8e4 -0.07942482439003445
+n1w&c=the,lc	other	3fa3393a1f269e92 0.03754598264941679
+n1w=.	person-start	3fc0867e3aea9ec0 0.12910440327435957
+n1w=.	person-cont	3fbee2793bbed1ec 0.12064321240070058
+n1w=.	other	bfc730dba37ede47 -0.1811785267179735
+n1w=in	person-start	bfdd2044c405e79a -0.4550945200240847
+n1w=in	person-cont	bfc4b225a9d1f40f -0.16168661872862386
+n1w=in	other	3fbb96545f3e47e5 0.10776259732509137
+n1w=on	person-start	3f91c6dc66bde2de 0.017360156794412933
+n1w=on	person-cont	3fc11f4b1b6d4811 0.13376749839022797
+n1w=on	other	bfa3c836a416fcdb -0.03863688233422532
+n1w=the	person-start	bf8a857ff7e0a72c -0.012949943306086086
+n1w=the	person-cont	bfb4552f6f3ee8e4 -0.07942482439003445
+n1w=the	other	3fa3393a1f269e92 0.03754598264941679
+n1wc=4d	person-start	3f4cb41964a393b8 8.759616842125484E-4
+n1wc=4d	person-cont	3fcdebaaeca80426 0.23375450664028213
+n1wc=4d	other	bfcaaece2fe204a2 -0.2084596380046025
+n1wc=ic	person-start	3fc45af91b77f837 0.1590262779354263
+n1wc=ic	person-cont	bfcb3f082cffeb9c -0.21286108205080445
+n1wc=ic	other	bf6e10e87cf3129a -0.0036701718123331563
+n1wc=lc	person-start	bfaabf8216a1d8ea -0.05224234129211587
+n1wc=lc	person-cont	bfd229e7be27175b -0.2838076931915247
+n1wc=lc	other	3fb1d1e7a6f9892b 0.06960914446384396
+n1wc=other	person-start	3fa5ef035c6a0a1b 0.04283915045836669
+n1wc=other	person-cont	3fc1d2ef66539299 0.1392497300759217
+n1wc=other	other	bfbb688846bf7c8c -0.10706378676649048
+n2w&c=,,other	person-start	3fc169c6c425b01b 0.13604054048062228
+n2w&c=,,other	person-cont	3fa5d3393aae3144 0.04262713280977207
+n2w&c=,,other	other	bfb4d997b892312e -0.08144520050172296
+n2w&c=.,other	person-start	bf7f79b29104af55 -0.007684419179252296
+n2w&c=.,other	person-cont	3fba0f5fe07a9899 0.10179709654275583
+n2w&c=.,other	other	3f8758e15503a467 0.011399994284561467
+n2w&c=in,lc	person-start	bfc4a4f6d06425e6 -0.16128430533744548
+n2w&c=in,lc	person-cont	bfb8ac49e55ab184 -0.09637891625852119
+n2w&c=in,lc	other	3faf978a075ca7f0 0.06170302715175058
+n2w&c=the,lc	person-start	3fbd3f82457efdec 0.11425031849557116
+n2w&c=the,lc	person-cont	3fadf919900c4490 0.058541106065726045
+n2w&c=the,lc	other	bfa777fd4732ff75 -0.04583732122546184
+n2w=,	person-start	3fc169c6c425b01b 0.13604054048062228
+n2w=,	person-cont	3fa5d3393aae3144 0.04262713280977207
+n2w=,	other	bfb4d997b892312e -0.08144520050172296
+n2w=.	person-start	bf7f79b29104af55 -0.007684419179252296
+n2w=.	person-cont	3fba0f5fe07a9899 0.10179709654275583
+n2w=.	other	3f8758e15503a467 0.011399994284561467
+n2w=in	person-start	bfc4a4f6d06425e6 -0.16128430533744548
+n2w=in	person-cont	bfb8ac49e55ab184 -0.09637891625852119
+n2w=in	other	3faf978a075ca7f0 0.06170302715175058
+n2w=the	person-start	3fbd3f82457efdec 0.11425031849557116
+n2w=the	person-cont	3fadf919900c4490 0.058541106065726045
+n2w=the	other	bfa777fd4732ff75 -0.04583732122546184
+n2wc=ic	person-start	3fb399660a207275 0.07655942675814649
+n2wc=ic	person-cont	bfc662c49a245653 -0.1748891594549372
+n2wc=ic	other	3f802b2f617d5a34 0.00789486900582146
+n2wc=lc	person-start	bfa0134992f10298 -0.03139715117186376
+n2wc=lc	person-cont	bfd3b2f5aaa06098 -0.30779782927266686
+n2wc=lc	other	3fb2ba912584ab7e 0.07315928617451381
+n2wc=other	person-start	bf2a5cf3258b241f -2.0113437746818814E-4
+n2wc=other	person-cont	bf89d29f3239247e -0.012608760566893414
+n2wc=other	other	3f96d01816f833a1 0.02227819099612172
+p1wc=ic	person-start	c001a2f896b9f568 -2.204575707960135
+p1wc=ic	person-cont	3fbea19030362f14 0.11965275933306102
+p1wc=ic	other	3fb00aaabb3c1b17 0.0626627642742331
+p1wc=lc	person-start	3fb87844a9862bd8 0.09558514727375156
+p1wc=lc	person-cont	bff8458f508b1f8f -1.51698237859998
+p1wc=lc	other	3fa881d7a3c80f0e 0.047865618460518275
+p2w=café	person-start	3fc07dfaca6a89cc 0.12884459384538471
+p2w=café	person-cont	3fc748151d74e756 0.1818872827369044
+p2w=café	other	bfd1fd51417ff31c -0.2810862674376027
+p2wc=ic	person-start	3fa29c994b5140b1 0.036351004070298905
+p2wc=ic	person-cont	bfc818290366e86b -0.1882373110400438
+p2wc=ic	other	3fa1b86bafc849c4 0.03461014290600731
+p2wc=lc	person-start	bfcd34de9dd56525 -0.2281759520217658
+p2wc=lc	person-cont	bfbcfca935962c9b -0.11323030050532383
+p2wc=lc	other	3fb46665be399378 0.07968746084368472
+pd=null	person-start	bfb02fec32d3485c -0.06323124161579713
+pd=null	person-cont	bfbce17e5ff2c659 -0.11281576006401774
+pd=null	other	3fae55abff02897b 0.05924737441934532
+ppo=other	person-start	bfb31bf475c55b2b -0.07464530825869235
+ppo=other	person-cont	bfd61ccf619b42cd -0.3455084279239998
+ppo=other	other	3fb7b1e72e96ec28 0.09255833518447842
+ppo=person-cont	person-start	bf9f794c46f38cc8 -0.030736152487304463
+ppo=person-cont	person-cont	bfe82818119c7703 -0.7548942893951963
+ppo=person-cont	other	3fb99d1391459387 0.10005304619478582
+ppo=person-start	person-start	bf90d8263e2b405f -0.016449544472209584
+ppo=person-start	person-cont	3fc0d5955da621e7 0.13151804993346092
+ppo=person-start	other	bfa075308283ea6e -0.03214408486561103
+pwc,wc=lc,lc	person-start	bff4f3a7e034287f -1.3094862707098682
+pwc,wc=lc,lc	person-cont	bfe153b9ff8826de -0.5414705267769155
+pwc,wc=lc,lc	other	3fb7ea3537ce47ff 0.09341747868009519
+wc,nc=ic,lc	person-start	3fb3760699b0c578 0.07601968052110475
+wc,nc=ic,lc	person-cont	bfb10242e13282b4 -0.06644075391751408
+wc,nc=ic,lc	other	bfaeee447ecf3ba9 -0.06041158721892909
+wc,nc=lc,lc	person-start	bff000c0568e2b8a -1.0001834279125625
+wc,nc=lc,lc	person-cont	bff5e6e87971f865 -1.3688740486100184
+wc,nc=lc,lc	other	3fb90207984bcff6 0.09768722026984719
+wc=ic	person-start	3fc632210c446b7f 0.1734048185251957
+wc=ic	person-cont	3fa83beb7b2a5d32 0.04733215216145438
+wc=ic	other	bfe2007328957cd3 -0.5625549118666647
+wc=lc	person-start	c001276ef7e9fdd1 -2.144254624203065
+wc=lc	person-cont	bffc8e601aa08087 -1.7847596206775351
+wc=lc	other	3fc026531c9ce5b2 0.1261695756636932
+S=begin	person-start	3fc25e88910d63e2 0.14350993235237214
+S=begin	other	3fcbd5c462c6142f 0.21746115515648642
+n1w&c=a,lc	person-start	3fa525dab16dd708 0.041304430159398164
+n1w&c=a,lc	other	3fb55ee2e935d21d 0.0834791011200839
+n1w&c=second,lc	person-start	3feeafa84f6d3ab4 0.9589425612737927
+n1w&c=second,lc	other	bfe43f4c30a4518b -0.6327267599140652
+n1w&c=to,lc	person-start	3fd076c1a3ed08c1 0.25724831589117164
+n1w&c=to,lc	other	bfb72dcc350e4cc0 -0.09054256720837639
+n1w=a	person-start	3fa525dab16dd708 0.041304430159398164
+n1w=a	other	3fb55ee2e935d21d 0.0834791011200839
+n1w=second	person-start	3feeafa84f6d3ab4 0.9589425612737927
+n1w=second	other	bfe43f4c30a4518b -0.6327267599140652
+n1w=to	person-start	3fd076c1a3ed08c1 0.25724831589117164
+n1w=to	other	bfb72dcc350e4cc0 -0.09054256720837639
+n2w&c=to,lc	person-start	3fdc06fdc0417f78 0.4379267098902271
+n2w&c=to,lc	other	bfc26a706164165d -0.1438732600728824
+n2w=to	person-start	3fdc06fdc0417f78 0.4379267098902271
+n2w=to	other	bfc26a706164165d -0.1438732600728824
+n2wc=4d	person-start	3fd8a24b3303bcf3 0.384905624216983
+n2wc=4d	other	bf8e9a729a097cce -0.01494302303870967
+p1w&c=in,lc	person-start	3fd781307111d17c 0.3672600845523204
+p1w&c=in,lc	other	bfe66aeeb80f2ab3 -0.7005532832057128
+p1w&c=on,lc	person-start	3fd3f2daa4df604a 0.311697636612284
+p1w&c=on,lc	other	bfdd921c72961cb6 -0.4620429152495932
+p1w&c=to,lc	person-start	3fd2a0cdc7806225 0.2910646866089642
+p1w&c=to,lc	other	bfc1b4517b733d7d -0.13831537750091263
+p1w=in	person-start	3fd781307111d17c 0.3672600845523204
+p1w=in	other	bfe66aeeb80f2ab3 -0.7005532832057128
+p1w=on	person-start	3fd6ddda10e66140 0.35729076052077247
+p1w=on	other	bfe6fef77b00a2f8 -0.7186238672630614
+p1w=to	person-start	3fd2a0cdc7806225 0.2910646866089642
+p1w=to	other	bfc1b4517b733d7d -0.13831537750091263
+p2w&c=ann,ic	person-start	3fd51e9d72532b95 0.32999359287776403
+p2w&c=ann,ic	other	bfc658139ac4059b -0.17456288391990146
+p2w&c=café,lc	person-start	3fd0a05622e614c7 0.25978616149980066
+p2w&c=café,lc	other	bfb42258e807721e -0.07864909806034645
+p2w&c=deal,lc	person-start	3fd045da249bdc37 0.254263435126123
+p2w&c=deal,lc	other	bfb821c2a37c134a -0.09426514140438971
+p2w&c=lindqvist,ic	person-start	3fce41ddd572cad3 0.23638508722577586
+p2w&c=lindqvist,ic	other	bfbc6595dfad54b6 -0.1109250708662611
+p2w=ann	person-start	3fd51e9d72532b95 0.32999359287776403
+p2w=ann	other	bfc658139ac4059b -0.17456288391990146
+p2w=deal	person-start	3fd045da249bdc37 0.254263435126123
+p2w=deal	other	bfb821c2a37c134a -0.09426514140438971
+p2w=lindqvist	person-start	3fce41ddd572cad3 0.23638508722577586
+p2w=lindqvist	other	bfbc6595dfad54b6 -0.1109250708662611
+p2wc=ac	person-start	3fcc1bd561666027 0.2195994115434143
+p2wc=ac	other	bfb52522dd4ae48a -0.08259790327692165
+p2wc=other	person-start	bfc6d63f00020bfb -0.1784132719077148
+p2wc=other	other	3fc12a5ac5a798ac 0.1341050591574392
+pd=other	person-start	bff9eb8113c79c78 -1.6199961445470574
+pd=other	other	3fc90091b8571ee1 0.1953298711871332
+po=other	person-start	3fb8c76d158ffdca 0.09679300095012092
+po=other	other	3fb918264c4cff59 0.09802474367915916
+pow=other,the	person-start	3fe391147dc2e6a2 0.6114599663043985
+pow=other,the	other	3f56cda7c7916017 0.0013918055031094717
+powf=other,2d	person-start	3f999fe87b1bd5ff 0.025024063600502796
+powf=other,2d	other	3fc745b3c11148a4 0.181814641257522
+powf=other,ic	person-start	3fd00d89c577ee08 0.2508263042834362
+powf=other,ic	other	bfc8c679be64d410 -0.19355699345183597
+powf=other,lc	person-start	bff6dde506a0d65d -1.4291734942356904
+powf=other,lc	other	3fc09711719b6bc9 0.12961023375723205
+pw,w=in,the	person-start	3fee8e528a046b6e 0.9548733420991604
+pw,w=in,the	other	bfe2e33f021134d8 -0.5902400055289503
+w&c=the,lc	person-start	3fde61e39801d843 0.47472467274144864
+w&c=the,lc	other	3fa1220a76277f93 0.03346283619225612
+w=café	person-start	3fcc90eec69aae63 0.22317299554321143
+w=café	other	bf9b15f160e86f09 -0.0264508929632106
+w=the	person-start	bfdba934a9946d9b -0.43220249710585684
+w=the	other	3fc2fc71e5c3ff14 0.1483290073301694
+wc=2d	person-start	3f999fe87b1bd5ff 0.025024063600502796
+wc=2d	other	3fc745b3c11148a4 0.181814641257522
+n1w&c=2023,4d	person-cont	3fddc00d74879260 0.46484695796815423
+n1w&c=announced,lc	person-cont	3fdf4cda949225f2 0.4890657854926693
+n1w&c=every,lc	person-cont	3fdbf0947cbd62ff 0.4365588396226911
+n1w&c=has,lc	person-cont	3fdda97a72350f4b 0.4634691348367041
+n1w&c=hospital,ic	person-cont	3fdc7debbd6b5d99 0.4451855993078993
+n1w&c=joined,lc	person-cont	3fdfcae43ea9bc49 0.4967585193580289
+n1w&c=leaf,ic	person-cont	3fe8c5b9d86152bd 0.7741364694762393
+n1w&c=quarter,lc	person-cont	3ff4f76ee7dc2482 1.3104085022953602
+n1w&c=s.a.,ic	person-cont	3fd848a36f06862a 0.3794334968789338
+n1w&c=smith-jones,ic	person-cont	3fdebcc1da4e47c4 0.48027082747387007
+n1w&c=spoke,lc	person-cont	3fdd1a9478fc805f 0.4547473126895109
+n1w&c=systems,ic	person-cont	3fde709c2d040d41 0.47562317272259597
+n1w&c=verde,ic	person-cont	3fd8ea17d521aa2b 0.38928790868399926
+n1w=2023	person-cont	3fddc00d74879260 0.46484695796815423
+n1w=announced	person-cont	3fdf4cda949225f2 0.4890657854926693
+n1w=every	person-cont	3fdbf0947cbd62ff 0.4365588396226911
+n1w=has	person-cont	3fdda97a72350f4b 0.4634691348367041
+n1w=hospital	person-cont	3fdc7debbd6b5d99 0.4451855993078993
+n1w=joined	person-cont	3fdfcae43ea9bc49 0.4967585193580289
+n1w=leaf	person-cont	3fe8c5b9d86152bd 0.7741364694762393
+n1w=quarter	person-cont	3ff4f76ee7dc2482 1.3104085022953602
+n1w=s.a.	person-cont	3fd848a36f06862a 0.3794334968789338
+n1w=smith-jones	person-cont	3fdebcc1da4e47c4 0.48027082747387007
+n1w=spoke	person-cont	3fdd1a9478fc805f 0.4547473126895109
+n1w=systems	person-cont	3fde709c2d040d41 0.47562317272259597
+n1w=verde	person-cont	3fd8ea17d521aa2b 0.38928790868399926
+n2w&c=42,2d	person-cont	3fdc535ae3a943b7 0.4425875876668743
+n2w&c=at,lc	person-cont	3fdd1a9478fc805f 0.4547473126895109
+n2w&c=every,lc	person-cont	3fd848a36f06862a 0.3794334968789338
+n2w&c=harbor,ic	person-cont	3fdfcae43ea9bc49 0.4967585193580289
+n2w&c=march,ic	person-cont	3fdda1f9a2af59ec 0.46301117789462753
+n2w&c=monday,ic	person-cont	3fdbf0947cbd62ff 0.4365588396226911
+n2w&c=s.a.,ic	person-cont	3fd8ea17d521aa2b 0.38928790868399926
+n2w&c=tuesday,ic	person-cont	3fda62c057aecbc4 0.4122773033406555
+n2w&c=worked,lc	person-cont	3fdda97a72350f4b 0.4634691348367041
+n2w=42	person-cont	3fdc535ae3a943b7 0.4425875876668743
+n2w=at	person-cont	3fdd1a9478fc805f 0.4547473126895109
+n2w=every	person-cont	3fd848a36f06862a 0.3794334968789338
+n2w=harbor	person-cont	3fdfcae43ea9bc49 0.4967585193580289
+n2w=march	person-cont	3fdda1f9a2af59ec 0.46301117789462753
+n2w=monday	person-cont	3fdbf0947cbd62ff 0.4365588396226911
+n2w=s.a.	person-cont	3fd8ea17d521aa2b 0.38928790868399926
+n2w=tuesday	person-cont	3fda62c057aecbc4 0.4122773033406555
+n2w=worked	person-cont	3fdda97a72350f4b 0.4634691348367041
+p1w&c=&,other	person-cont	3fdfe425768a30e2 0.4982999475112263
+p1w&c=12,2d	person-cont	3fddc00d74879260 0.46484695796815423
+p1w&c=agnes,ic	person-cont	3fda62c057aecbc4 0.4122773033406555
+p1w&c=bean,ic	person-cont	3fe8c5b9d86152bd 0.7741364694762393
+p1w&c=café,ic	person-cont	3fd8ea17d521aa2b 0.38928790868399926
+p1w&c=chidi,ic	person-cont	3fdda97a72350f4b 0.4634691348367041
+p1w&c=dr.,ic	person-cont	3fdd1a9478fc805f 0.4547473126895109
+p1w&c=harbor,ic	person-cont	3fde709c2d040d41 0.47562317272259597
+p1w&c=j.,cp	person-cont	3fdebcc1da4e47c4 0.48027082747387007
+p1w&c=josé,ic	person-cont	3fdc535ae3a943b7 0.4425875876668743
+p1w&c=june,ic	person-cont	3fde7b9691778889 0.4762932224822483
+p1w&c=light,ic	person-cont	3fdda1f9a2af59ec 0.46301117789462753
+p1w&c=march,ic	person-cont	3fdc03d800e30a6d 0.4377346047078053
+p1w&c=maria,ic	person-cont	3fdfcae43ea9bc49 0.4967585193580289
+p1w&c=monte,ic	person-cont	3fd848a36f06862a 0.3794334968789338
+p1w&c=new,ic	person-cont	3fdbbb40e581a9ea 0.433304046752396
+p1w&c=october,ic	person-cont	3fdb595dd6258981 0.4273295012736967
+p1w&c=r.,cp	person-cont	3fdd85f012dc1f75 0.4612999138048431
+p1w&c=red,ic	person-cont	3fdf4cda949225f2 0.4890657854926693
+p1w&c=st.,ic	person-cont	3fdc7debbd6b5d99 0.4451855993078993
+p1w&c=são,ic	person-cont	3fdbbb40e581a9ea 0.433304046752396
+p1w&c=verde,ic	person-cont	3fdbf0947cbd62ff 0.4365588396226911
+p1w=&	person-cont	3fdfe425768a30e2 0.4982999475112263
+p1w=12	person-cont	3fddc00d74879260 0.46484695796815423
+p1w=agnes	person-cont	3fda62c057aecbc4 0.4122773033406555
+p1w=bean	person-cont	3fe8c5b9d86152bd 0.7741364694762393
+p1w=chidi	person-cont	3fdda97a72350f4b 0.4634691348367041
+p1w=dr.	person-cont	3fdd1a9478fc805f 0.4547473126895109
+p1w=harbor	person-cont	3fde709c2d040d41 0.47562317272259597
+p1w=j.	person-cont	3fdebcc1da4e47c4 0.48027082747387007
+p1w=josé	person-cont	3fdc535ae3a943b7 0.4425875876668743
+p1w=june	person-cont	3fde7b9691778889 0.4762932224822483
+p1w=light	person-cont	3fdda1f9a2af59ec 0.46301117789462753
+p1w=march	person-cont	3fdc03d800e30a6d 0.4377346047078053
+p1w=maria	person-cont	3fdfcae43ea9bc49 0.4967585193580289
+p1w=monte	person-cont	3fd848a36f06862a 0.3794334968789338
+p1w=new	person-cont	3fdbbb40e581a9ea 0.433304046752396
+p1w=october	person-cont	3fdb595dd6258981 0.4273295012736967
+p1w=r.	person-cont	3fdd85f012dc1f75 0.4612999138048431
+p1w=red	person-cont	3fdf4cda949225f2 0.4890657854926693
+p1w=st.	person-cont	3fdc7debbd6b5d99 0.4451855993078993
+p1w=são	person-cont	3fdbbb40e581a9ea 0.433304046752396
+p1w=verde	person-cont	3fdbf0947cbd62ff 0.4365588396226911
+p1wc=cp	person-cont	3fde20bf605c2f10 0.4707487526909384
+p2w&c=12,2d	person-cont	3fdb595dd6258981 0.4273295012736967
+p2w&c=at,lc	person-cont	3fdc7debbd6b5d99 0.4451855993078993
+p2w&c=bean,ic	person-cont	3fdfe425768a30e2 0.4982999475112263
+p2w&c=café,ic	person-cont	3fd848a36f06862a 0.3794334968789338
+p2w&c=harbor,ic	person-cont	3fdda1f9a2af59ec 0.46301117789462753
+p2w&c=j.,cp	person-cont	3fdd85f012dc1f75 0.4612999138048431
+p2w&c=joined,lc	person-cont	3fde709c2d040d41 0.47562317272259597
+p2w&c=monte,ic	person-cont	3fdbf0947cbd62ff 0.4365588396226911
+p2w&c=on,ic	person-cont	3fddc00d74879260 0.46484695796815423
+p2w&c=st.,ic	person-cont	3fda62c057aecbc4 0.4122773033406555
+p2w=12	person-cont	3fdb595dd6258981 0.4273295012736967
+p2w=at	person-cont	3fdc7debbd6b5d99 0.4451855993078993
+p2w=bean	person-cont	3fdfe425768a30e2 0.4982999475112263
+p2w=harbor	person-cont	3fdda1f9a2af59ec 0.46301117789462753
+p2w=j.	person-cont	3fdd85f012dc1f75 0.4612999138048431
+p2w=joined	person-cont	3fde709c2d040d41 0.47562317272259597
+p2w=monte	person-cont	3fdbf0947cbd62ff 0.4365588396226911
+p2w=st.	person-cont	3fda62c057aecbc4 0.4122773033406555
+pow=person-cont,2023	person-cont	3fdb595dd6258981 0.4273295012736967
+pow=person-cont,Hospital	person-cont	3fda62c057aecbc4 0.4122773033406555
+pow=person-cont,Leaf	person-cont	3fdfe425768a30e2 0.4982999475112263
+pow=person-cont,S.A.	person-cont	3fdbf0947cbd62ff 0.4365588396226911
+pow=person-cont,Smith-Jones	person-cont	3fdd85f012dc1f75 0.4612999138048431
+pow=person-cont,Systems	person-cont	3fdda1f9a2af59ec 0.46301117789462753
+pow=person-cont,Verde	person-cont	3fd848a36f06862a 0.3794334968789338
+pow=person-cont,quarter	person-cont	3ff0b5fa52b33317 1.044428179785603
+pow=person-start,&	person-cont	3fe8c5b9d86152bd 0.7741364694762393
+pow=person-start,2019	person-cont	3fdc03d800e30a6d 0.4377346047078053
+pow=person-start,4	person-cont	3fde7b9691778889 0.4762932224822483
+pow=person-start,Agnes	person-cont	3fdc7debbd6b5d99 0.4451855993078993
+pow=person-start,Hat	person-cont	3fdf4cda949225f2 0.4890657854926693
+pow=person-start,Light	person-cont	3fde709c2d040d41 0.47562317272259597
+pow=person-start,Lindqvist	person-cont	3fdfcae43ea9bc49 0.4967585193580289
+pow=person-start,Monte	person-cont	3fd8ea17d521aa2b 0.38928790868399926
+pow=person-start,October	person-cont	3fddc00d74879260 0.46484695796815423
+pow=person-start,Okafor	person-cont	3fdd61fb3e7b1b11 0.45910531140946015
+pow=person-start,Paulo	person-cont	3fdbbb40e581a9ea 0.433304046752396
+pow=person-start,R.	person-cont	3fdebcc1da4e47c4 0.48027082747387007
+pow=person-start,York	person-cont	3fdbbb40e581a9ea 0.433304046752396
+pow=person-start,second	person-cont	3ff4f76ee7dc2482 1.3104085022953602
+pow=person-start,Álvarez	person-cont	3fdc535ae3a943b7 0.4425875876668743
+powf=person-cont,4d	person-cont	3fdb595dd6258981 0.4273295012736967
+powf=person-cont,ic	person-cont	3fdc42c5bb20d426 0.4415754630493346
+powf=person-start,4d	person-cont	3fdc03d800e30a6d 0.4377346047078053
+powf=person-start,cp	person-cont	3fdebcc1da4e47c4 0.48027082747387007
+powf=person-start,ic	person-cont	3fdd02a5ed77446a 0.45328663053539364
+powf=person-start,num	person-cont	3fde7b9691778889 0.4762932224822483
+pw,w=&,Leaf	person-cont	3fdfe425768a30e2 0.4982999475112263
+pw,w=12,October	person-cont	3fddc00d74879260 0.46484695796815423
+pw,w=Agnes,Hospital	person-cont	3fda62c057aecbc4 0.4122773033406555
+pw,w=Bean,&	person-cont	3fe8c5b9d86152bd 0.7741364694762393
+pw,w=Café,Monte	person-cont	3fd8ea17d521aa2b 0.38928790868399926
+pw,w=Chidi,Okafor	person-cont	3fdda97a72350f4b 0.4634691348367041
+pw,w=Dr.,Okafor	person-cont	3fdd1a9478fc805f 0.4547473126895109
+pw,w=Harbor,Light	person-cont	3fde709c2d040d41 0.47562317272259597
+pw,w=J.,R.	person-cont	3fdebcc1da4e47c4 0.48027082747387007
+pw,w=José,Álvarez	person-cont	3fdc535ae3a943b7 0.4425875876668743
+pw,w=June,4	person-cont	3fde7b9691778889 0.4762932224822483
+pw,w=Light,Systems	person-cont	3fdda1f9a2af59ec 0.46301117789462753
+pw,w=March,2019	person-cont	3fdc03d800e30a6d 0.4377346047078053
+pw,w=Maria,Lindqvist	person-cont	3fdfcae43ea9bc49 0.4967585193580289
+pw,w=Monte,Verde	person-cont	3fd848a36f06862a 0.3794334968789338
+pw,w=New,York	person-cont	3fdbbb40e581a9ea 0.433304046752396
+pw,w=October,2023	person-cont	3fdb595dd6258981 0.4273295012736967
+pw,w=R.,Smith-Jones	person-cont	3fdd85f012dc1f75 0.4612999138048431
+pw,w=Red,Hat	person-cont	3fdf4cda949225f2 0.4890657854926693
+pw,w=St.,Agnes	person-cont	3fdc7debbd6b5d99 0.4451855993078993
+pw,w=São,Paulo	person-cont	3fdbbb40e581a9ea 0.433304046752396
+pw,w=Verde,S.A.	person-cont	3fdbf0947cbd62ff 0.4365588396226911
+pw,w=second,quarter	person-cont	3ff0b5fa52b33317 1.044428179785603
+pw,w=the,second	person-cont	3ff4f76ee7dc2482 1.3104085022953602
+pwc,wc=2d,ic	person-cont	3fddc00d74879260 0.46484695796815423
+pwc,wc=cp,cp	person-cont	3fdebcc1da4e47c4 0.48027082747387007
+pwc,wc=cp,ic	person-cont	3fdd85f012dc1f75 0.4612999138048431
+pwc,wc=ic,4d	person-cont	3fdbae8c300a6ab6 0.43252854052995404
+pwc,wc=ic,ic	person-cont	3fdc6516b3bf2179 0.4436699633920607
+pwc,wc=ic,num	person-cont	3fde7b9691778889 0.4762932224822483
+pwc,wc=other,ic	person-cont	3fdfe425768a30e2 0.4982999475112263
+w&c=&,other	person-cont	3fe8c5b9d86152bd 0.7741364694762393
+w&c=2019,4d	person-cont	3fdc03d800e30a6d 0.4377346047078053
+w&c=2023,4d	person-cont	3fdb595dd6258981 0.4273295012736967
+w&c=4,num	person-cont	3fde7b9691778889 0.4762932224822483
+w&c=agnes,ic	person-cont	3fdc7debbd6b5d99 0.4451855993078993
+w&c=hat,ic	person-cont	3fdf4cda949225f2 0.4890657854926693
+w&c=hospital,ic	person-cont	3fda62c057aecbc4 0.4122773033406555
+w&c=leaf,ic	person-cont	3fdfe425768a30e2 0.4982999475112263
+w&c=light,ic	person-cont	3fde709c2d040d41 0.47562317272259597
+w&c=monte,ic	person-cont	3fd8ea17d521aa2b 0.38928790868399926
+w&c=october,ic	person-cont	3fddc00d74879260 0.46484695796815423
+w&c=okafor,ic	person-cont	3fdd61fb3e7b1b11 0.45910531140946015
+w&c=paulo,ic	person-cont	3fdbbb40e581a9ea 0.433304046752396
+w&c=quarter,lc	person-cont	3ff0b5fa52b33317 1.044428179785603
+w&c=r.,cp	person-cont	3fdebcc1da4e47c4 0.48027082747387007
+w&c=s.a.,ic	person-cont	3fdbf0947cbd62ff 0.4365588396226911
+w&c=systems,ic	person-cont	3fdda1f9a2af59ec 0.46301117789462753
+w&c=verde,ic	person-cont	3fd848a36f06862a 0.3794334968789338
+w&c=york,ic	person-cont	3fdbbb40e581a9ea 0.433304046752396
+w,nw=&,Leaf	person-cont	3fe8c5b9d86152bd 0.7741364694762393
+w,nw=2019,.	person-cont	3fdc03d800e30a6d 0.4377346047078053
+w,nw=2023,the	person-cont	3fdb595dd6258981 0.4273295012736967
+w,nw=4,.	person-cont	3fde7b9691778889 0.4762932224822483
+w,nw=Agnes,Hospital	person-cont	3fdc7debbd6b5d99 0.4451855993078993
+w,nw=Hat,announced	person-cont	3fdf4cda949225f2 0.4890657854926693
+w,nw=Hospital,on	person-cont	3fda62c057aecbc4 0.4122773033406555
+w,nw=Leaf,.	person-cont	3fdfe425768a30e2 0.4982999475112263
+w,nw=Light,Systems	person-cont	3fde709c2d040d41 0.47562317272259597
+w,nw=Lindqvist,joined	person-cont	3fdfcae43ea9bc49 0.4967585193580289
+w,nw=Monte,Verde	person-cont	3fd8ea17d521aa2b 0.38928790868399926
+w,nw=October,2023	person-cont	3fddc00d74879260 0.46484695796815423
+w,nw=Okafor,has	person-cont	3fdda97a72350f4b 0.4634691348367041
+w,nw=Okafor,spoke	person-cont	3fdd1a9478fc805f 0.4547473126895109
+w,nw=Paulo,.	person-cont	3fdbbb40e581a9ea 0.433304046752396
+w,nw=R.,Smith-Jones	person-cont	3fdebcc1da4e47c4 0.48027082747387007
+w,nw=S.A.,every	person-cont	3fdbf0947cbd62ff 0.4365588396226911
+w,nw=Smith-Jones,,	person-cont	3fdd85f012dc1f75 0.4612999138048431
+w,nw=Systems,in	person-cont	3fdda1f9a2af59ec 0.46301117789462753
+w,nw=Verde,S.A.	person-cont	3fd848a36f06862a 0.3794334968789338
+w,nw=York,.	person-cont	3fdbbb40e581a9ea 0.433304046752396
+w,nw=quarter,.	person-cont	3ff0b5fa52b33317 1.044428179785603
+w,nw=second,quarter	person-cont	3ff4f76ee7dc2482 1.3104085022953602
+w,nw=Álvarez,,	person-cont	3fdc535ae3a943b7 0.4425875876668743
+w=&	person-cont	3fe8c5b9d86152bd 0.7741364694762393
+w=2019	person-cont	3fdc03d800e30a6d 0.4377346047078053
+w=2023	person-cont	3fdb595dd6258981 0.4273295012736967
+w=4	person-cont	3fde7b9691778889 0.4762932224822483
+w=agnes	person-cont	3fdc7debbd6b5d99 0.4451855993078993
+w=hat	person-cont	3fdf4cda949225f2 0.4890657854926693
+w=hospital	person-cont	3fda62c057aecbc4 0.4122773033406555
+w=leaf	person-cont	3fdfe425768a30e2 0.4982999475112263
+w=light	person-cont	3fde709c2d040d41 0.47562317272259597
+w=monte	person-cont	3fd8ea17d521aa2b 0.38928790868399926
+w=october	person-cont	3fddc00d74879260 0.46484695796815423
+w=okafor	person-cont	3fdd61fb3e7b1b11 0.45910531140946015
+w=paulo	person-cont	3fdbbb40e581a9ea 0.433304046752396
+w=quarter	person-cont	3ff0b5fa52b33317 1.044428179785603
+w=r.	person-cont	3fdebcc1da4e47c4 0.48027082747387007
+w=s.a.	person-cont	3fdbf0947cbd62ff 0.4365588396226911
+w=systems	person-cont	3fdda1f9a2af59ec 0.46301117789462753
+w=verde	person-cont	3fd848a36f06862a 0.3794334968789338
+w=york	person-cont	3fdbbb40e581a9ea 0.433304046752396
+wc,nc=4d,lc	person-cont	3fdb595dd6258981 0.4273295012736967
+wc,nc=cp,ic	person-cont	3fdebcc1da4e47c4 0.48027082747387007
+wc,nc=num,other	person-cont	3fde7b9691778889 0.4762932224822483
+wc,nc=other,ic	person-cont	3fe8c5b9d86152bd 0.7741364694762393
+wc=num	person-cont	3fde7b9691778889 0.4762932224822483
+n1w&c=,,other	person-cont	3fd407362d99bc94 0.31294016316582796
+n1w&c=,,other	other	3fa281d77334d00b 0.036146862805623035
+n1w=,	person-cont	3fd407362d99bc94 0.31294016316582796
+n1w=,	other	3fa281d77334d00b 0.036146862805623035
+n2w&c=a,lc	person-cont	3fb481d705b294c4 0.080106200114261
+n2w&c=a,lc	other	3fc1cae5a67e322a 0.13900442723787992
+n2w&c=café,lc	person-cont	3fd3118a387935b5 0.29794555201518885
+n2w&c=café,lc	other	bfc17910982b7150 -0.13650710516129516
+n2w&c=on,lc	person-cont	3fc13963a17b34a3 0.1345638788683675
+n2w&c=on,lc	other	3fa9002cde48085a 0.04882946217914315
+n2w=a	person-cont	3fb481d705b294c4 0.080106200114261
+n2w=a	other	3fc1cae5a67e322a 0.13900442723787992
+n2w=café	person-cont	3fcf1724eadc348e 0.24289380519659115
+n2w=café	other	bf9403cf30db7089 -0.01954578147602651
+n2w=on	person-cont	3fc13963a17b34a3 0.1345638788683675
+n2w=on	other	3fa9002cde48085a 0.04882946217914315
+n2wc=2d	person-cont	3fccbb8a3cd3e606 0.22447326631645143
+n2wc=2d	other	3fd532e76a3ff358 0.33123193145711616
+p1w&c=second,lc	person-cont	3fecda39f6dcd641 0.9016389676605244
+p1w&c=second,lc	other	bfe1feeb58c1a0c4 -0.5623680814287799
+p1w&c=the,lc	person-cont	3fd56d9a1ebc5f11 0.33481457711739987
+p1w&c=the,lc	other	3fac35a9d4c939ab 0.055096919274194654
+p1w=café	person-cont	3fcf7903afb75f8b 0.24588056640527287
+p1w=café	other	bf7bed3103d98234 -0.006818000283232584
+p1w=second	person-cont	3fecda39f6dcd641 0.9016389676605244
+p1w=second	other	bfe1feeb58c1a0c4 -0.5623680814287799
+p1w=the	person-cont	3fc50889468bbaec 0.16432300514812626
+p1w=the	other	3fb2414b024a5beb 0.07130879217071111
+p1wc=2d	person-cont	3fd1e6eb16ca3974 0.2797191355283737
+p1wc=2d	other	3fc34ea5cb01977e 0.1508376351586626
+p1wc=other	person-cont	bfb306f1ddd06ea6 -0.07432471909890612
+p1wc=other	other	3fc47c748845c898 0.16004807142195854
+p2w&c=and,lc	person-cont	3fd1afaf99118d79 0.2763480181513028
+p2w&c=and,lc	other	bf995b611931455b -0.02476264683020211
+p2w&c=from,lc	person-cont	3fd71e949a7d16b0 0.3612414845159533
+p2w&c=from,lc	other	bfc458ad90ea4250 -0.15895623756343236
+p2w&c=in,lc	person-cont	3fd3b347503ec7c7 0.3078172954220659
+p2w&c=in,lc	other	bfa26f99b4dae3ae -0.03600769360259136
+p2w&c=on,lc	person-cont	bfb8f660ba0bad55 -0.0975094274723934
+p2w&c=on,lc	other	3fc635d98ce7cd5e 0.17351836567068352
+p2w&c=the,lc	person-cont	3fccc4614146a6d3 0.22474303901008472
+p2w&c=the,lc	other	3fc1fda5b1908329 0.14055319948331516
+p2w=and	person-cont	3fd1afaf99118d79 0.2763480181513028
+p2w=and	other	bf995b611931455b -0.02476264683020211
+p2w=from	person-cont	3fd71e949a7d16b0 0.3612414845159533
+p2w=from	other	bfc458ad90ea4250 -0.15895623756343236
+p2w=in	person-cont	3fd3b347503ec7c7 0.3078172954220659
+p2w=in	other	bfa26f99b4dae3ae -0.03600769360259136
+p2w=on	person-cont	3fc3d9f3e6a962bd 0.1550888897206927
+p2w=on	other	3fbde4c0e93b0802 0.11677175230127548
+p2w=the	person-cont	3fc5fb4446c983f0 0.1717305513039089
+p2w=the	other	3fc105f032d2cd68 0.13299372178662883
+p2wc=2d	person-cont	3fcb4e9e099272f4 0.21333671061883985
+p2wc=2d	other	bf824827987ddda4 -0.008926686612297292
+p2wc=cp	person-cont	3fd6d0b58476ebf7 0.356488589630032
+p2wc=cp	other	3f7c5c6481364064 0.006924049946420128
+po=person-cont	person-cont	3fcdcedd9c3d094b 0.23287553910092593
+po=person-cont	other	3fb3a83aecd78b25 0.07678573877596458
+po=person-start	person-cont	3fd2271a6f5ca893 0.28363667369070206
+po=person-start	other	bf7fec9e4e6518b8 -0.007794016250335094
+powf=person-cont,lc	person-cont	3fb50ba538e06e89 0.082208944688711
+powf=person-cont,lc	other	3fb6b938d204a639 0.08876376273533361
+powf=person-start,lc	person-cont	bfe177d397a1b8ba -0.5458772622639778
+powf=person-start,lc	other	3fc06bdf3b3111a5 0.12829199209421663
+powf=person-start,other	person-cont	bfdb9af1219e023a -0.43133190424854073
+powf=person-start,other	other	3fca2e9d19541d7f 0.20454753624674635
+pwc,wc=ic,other	person-cont	bfe8c9c35d753b23 -0.7746292901373163
+pwc,wc=ic,other	other	3fcc86b9de32191d 0.2228615126552506
+w&c=second,lc	person-cont	3ff1bf03b920df09 1.1091344100549938
+w&c=second,lc	other	bfe6eda7229b48bf -0.716510360327696
+w=second	person-cont	3ff1bf03b920df09 1.1091344100549938
+w=second	other	bfe6eda7229b48bf -0.716510360327696
+wc,nc=lc,other	person-cont	bfd0d1462d3bed82 -0.2627730790843189
+wc,nc=lc,other	other	3fc1c5918a726229 0.13884181270692977
+wc=other	person-cont	bff90f9740e159a4 -1.5663063558946329
+wc=other	other	3fd1f35407fdfd8b 0.28047657757266425
+n1w&c=%,other	other	3fd4a12de6f0f2f3 0.32233760407306916
+n1w&c=12,2d	other	3fe3d3bc329a755e 0.6195965755793329
+n1w&c=2011,4d	other	3fc447e76e4ec322 0.1584443367587705
+n1w&c=3.5,2d	other	3fca580054ada263 0.20581058630638713
+n1w&c=42,2d	other	3fd01e874cb5fb64 0.251863312638241
+n1w&c=accra,ic	other	3fce173d663b6952 0.23508422366905762
+n1w&c=ann,ic	other	3fcc2c94b727521c 0.2201105016998931
+n1w&c=at,lc	other	3fc4eafaad3a007a 0.16342099626854517
+n1w&c=bean,ic	other	3fc65e5da0ccddac 0.1747548136861331
+n1w&c=beans,lc	other	3fc1a597c6f27487 0.13786599363530547
+n1w&c=bergen,ic	other	3fc1b53c18b8766b 0.1383433457094044
+n1w&c=bo,ic	other	3fcabab3821a388a 0.2088226685777424
+n1w&c=boise,ic	other	3fbe09d3299e9bd9 0.11733741537192034
+n1w&c=café,ic	other	3fc0f7729a9c83a1 0.13255150365241966
+n1w&c=café,lc	other	3fc082f13aacbb92 0.12899604191758535
+n1w&c=clinic,lc	other	3fc02210947a5b90 0.12603957414532063
+n1w&c=closes,lc	other	3fc1c73b5844dc80 0.1388925724984098
+n1w&c=comment,lc	other	3fbc1960791a916c 0.10976221996913232
+n1w&c=company,lc	other	3fe541bcadbb9dbf 0.6642745393009405
+n1w&c=confirmed,lc	other	3fd13153874a40f5 0.26863563739699653
+n1w&c=deal,lc	other	3fda6fb857c41635 0.4130688531007281
+n1w&c=deals,lc	other	3fbd96d0fcd0b556 0.11558252498862961
+n1w&c=default,lc	other	3fbae35144995325 0.10503108906534615
+n1w&c=early,lc	other	3fc0ae191e40da63 0.13031305291379444
+n1w&c=easy,lc	other	3fba7b6553c21e22 0.10344537062530226
+n1w&c=else,lc	other	3fe6fa592418330b 0.7180600838633792
+n1w&c=flew,lc	other	3fe4f59badd0bc92 0.654981460078391
+n1w&c=friday,ic	other	3fc1ba089869fe48 0.13848979417888274
+n1w&c=from,lc	other	3fd4198c4da5f119 0.31405932982285517
+n1w&c=harbor,ic	other	3fcd4f8a07b282a2 0.22898984313817033
+n1w&c=home,lc	other	3fc3ca4704023837 0.15461051650749066
+n1w&c=inês,ic	other	3fc9957ec16ba6a6 0.19987472957955282
+n1w&c=it,lc	other	3fc161aecfd37e1d 0.13579354427109616
+n1w&c=june,ic	other	3fcd3660222a2f80 0.2282219092197657
+n1w&c=lagos,ic	other	3fca2c930690517f 0.20448530025954523
+n1w&c=lisbon,ic	other	3fc25bde820bf339 0.1434286246293597
+n1w&c=london,ic	other	3fc9cd850b88aa6a 0.20158446372200284
+n1w&c=map,lc	other	3fc03be57d47bfe2 0.1268278943748547
+n1w&c=march,ic	other	3fca151a3022af9b 0.2037689909969885
+n1w&c=monday,ic	other	3fcb1037c36131d1 0.21143242874167226
+n1w&c=more,lc	other	3fc33922fef16da4 0.1501811737860922
+n1w&c=move,lc	other	3fbb3bafb25ff523 0.10637949089865066
+n1w&c=moved,lc	other	3fe7920800264c77 0.7365760806009253
+n1w&c=named,lc	other	3fb8d82345ed7b6a 0.09704800088137025
+n1w&c=new,ic	other	3fc199692a1b58a8 0.13749422603604455
+n1w&c=of,lc	other	3fc1939e879ff6c2 0.13731748220737044
+n1w&c=office,lc	other	3fc746f814b75c38 0.18185330401931465
+n1w&c=opened,lc	other	3fc382ad6998696c 0.1524254575350129
+n1w&c=oslo,ic	other	3fca9e143da1511b 0.20794919022831312
+n1w&c=portland,ic	other	3fd2623ec24f2d4f 0.28724640822902797
+n1w&c=praised,lc	other	3fca4dc9620d917a 0.2054988602423114
+n1w&c=price,lc	other	3fc29012736ddd24 0.1450217307681011
+n1w&c=prize,lc	other	3fbb69bef9ca1557 0.10708230589269384
+n1w&c=program,lc	other	3fb8dc01f2950504 0.09710704967894307
+n1w&c=red,ic	other	3fd08449d7095602 0.258074245449592
+n1w&c=report,lc	other	3fcce32f15da1b42 0.2256831032466043
+n1w&c=rose,lc	other	3fe4a633939686b2 0.6452882654741272
+n1w&c=runs,lc	other	3fd32f004835e0bc 0.2997437195949819
+n1w&c=same,lc	other	3fc0c772077b15a0 0.13108659138940215
+n1w&c=since,lc	other	3fbb57e164841e61 0.10680969909673756
+n1w&c=sister,lc	other	3fe5927b98252209 0.6741311999876994
+n1w&c=spokesman,lc	other	3fc3e61a345dec97 0.15545966679551235
+n1w&c=st.,ic	other	3fc186436aa7cd86 0.13690989215647792
+n1w&c=still,lc	other	3fc2feb3c71c3ef7 0.14839789602455486
+n1w&c=sunday,ic	other	3fc1ba089869fe48 0.13848979417888274
+n1w&c=são,ic	other	3fc21dd05c33b365 0.14153484823273313
+n1w&c=there,lc	other	3fb98f6e1bb2d835 0.09984481979594835
+n1w&c=tokyo,ic	other	3fca3c6bb398966d 0.2049688937124076
+n1w&c=trading,lc	other	3fc5a0fe74ee870c 0.16897564611013427
+n1w&c=train,lc	other	3fbbd8deff0cfabe 0.10877794005225902
+n1w&c=tuesday,ic	other	3fcb37ebe26f3fcd 0.21264408642173152
+n1w&c=type,lc	other	3fbbc74a8c65df46 0.10850969245609318
+n1w&c=uppsala,ic	other	3fc5de06d2935220 0.17083821565633261
+n1w&c=was,lc	other	3fbf4e997d8d7194 0.12229308428999836
+n1w&c=with,lc	other	3fbb22e9cd66b6d0 0.10600148453405756
+n1w&c=won,lc	other	3fb87bb4b6e201f2 0.09563760247147693
+n1w&c=worked,lc	other	3fc3f16b58887661 0.1558050329485239
+n1w&c=year,lc	other	3fbf717885d96502 0.12282517688563035
+n1w&c=🏆,other	other	3fc0104ec3a8c30c 0.1254976706855121
+n1w=%	other	3fd4a12de6f0f2f3 0.32233760407306916
+n1w=12	other	3fe3d3bc329a755e 0.6195965755793329
+n1w=2011	other	3fc447e76e4ec322 0.1584443367587705
+n1w=3.5	other	3fca580054ada263 0.20581058630638713
+n1w=42	other	3fd01e874cb5fb64 0.251863312638241
+n1w=accra	other	3fce173d663b6952 0.23508422366905762
+n1w=ann	other	3fcc2c94b727521c 0.2201105016998931
+n1w=at	other	3fc4eafaad3a007a 0.16342099626854517
+n1w=bean	other	3fc65e5da0ccddac 0.1747548136861331
+n1w=beans	other	3fc1a597c6f27487 0.13786599363530547
+n1w=bergen	other	3fc1b53c18b8766b 0.1383433457094044
+n1w=bo	other	3fcabab3821a388a 0.2088226685777424
+n1w=boise	other	3fbe09d3299e9bd9 0.11733741537192034
+n1w=café	other	3fc0a961f40f1075 0.1301691476529673
+n1w=clinic	other	3fc02210947a5b90 0.12603957414532063
+n1w=closes	other	3fc1c73b5844dc80 0.1388925724984098
+n1w=comment	other	3fbc1960791a916c 0.10976221996913232
+n1w=company	other	3fe541bcadbb9dbf 0.6642745393009405
+n1w=confirmed	other	3fd13153874a40f5 0.26863563739699653
+n1w=deal	other	3fda6fb857c41635 0.4130688531007281
+n1w=deals	other	3fbd96d0fcd0b556 0.11558252498862961
+n1w=default	other	3fbae35144995325 0.10503108906534615
+n1w=early	other	3fc0ae191e40da63 0.13031305291379444
+n1w=easy	other	3fba7b6553c21e22 0.10344537062530226
+n1w=else	other	3fe6fa592418330b 0.7180600838633792
+n1w=flew	other	3fe4f59badd0bc92 0.654981460078391
+n1w=friday	other	3fc1ba089869fe48 0.13848979417888274
+n1w=from	other	3fd4198c4da5f119 0.31405932982285517
+n1w=harbor	other	3fcd4f8a07b282a2 0.22898984313817033
+n1w=home	other	3fc3ca4704023837 0.15461051650749066
+n1w=inês	other	3fc9957ec16ba6a6 0.19987472957955282
+n1w=it	other	3fc161aecfd37e1d 0.13579354427109616
+n1w=june	other	3fcd3660222a2f80 0.2282219092197657
+n1w=lagos	other	3fca2c930690517f 0.20448530025954523
+n1w=lisbon	other	3fc25bde820bf339 0.1434286246293597
+n1w=london	other	3fc9cd850b88aa6a 0.20158446372200284
+n1w=map	other	3fc03be57d47bfe2 0.1268278943748547
+n1w=march	other	3fca151a3022af9b 0.2037689909969885
+n1w=monday	other	3fcb1037c36131d1 0.21143242874167226
+n1w=more	other	3fc33922fef16da4 0.1501811737860922
+n1w=move	other	3fbb3bafb25ff523 0.10637949089865066
+n1w=moved	other	3fe7920800264c77 0.7365760806009253
+n1w=named	other	3fb8d82345ed7b6a 0.09704800088137025
+n1w=new	other	3fc199692a1b58a8 0.13749422603604455
+n1w=of	other	3fc1939e879ff6c2 0.13731748220737044
+n1w=office	other	3fc746f814b75c38 0.18185330401931465
+n1w=opened	other	3fc382ad6998696c 0.1524254575350129
+n1w=oslo	other	3fca9e143da1511b 0.20794919022831312
+n1w=portland	other	3fd2623ec24f2d4f 0.28724640822902797
+n1w=praised	other	3fca4dc9620d917a 0.2054988602423114
+n1w=price	other	3fc29012736ddd24 0.1450217307681011
+n1w=prize	other	3fbb69bef9ca1557 0.10708230589269384
+n1w=program	other	3fb8dc01f2950504 0.09710704967894307
+n1w=red	other	3fd08449d7095602 0.258074245449592
+n1w=report	other	3fcce32f15da1b42 0.2256831032466043
+n1w=rose	other	3fe4a633939686b2 0.6452882654741272
+n1w=runs	other	3fd32f004835e0bc 0.2997437195949819
+n1w=same	other	3fc0c772077b15a0 0.13108659138940215
+n1w=since	other	3fbb57e164841e61 0.10680969909673756
+n1w=sister	other	3fe5927b98252209 0.6741311999876994
+n1w=spokesman	other	3fc3e61a345dec97 0.15545966679551235
+n1w=st.	other	3fc186436aa7cd86 0.13690989215647792
+n1w=still	other	3fc2feb3c71c3ef7 0.14839789602455486
+n1w=sunday	other	3fc1ba089869fe48 0.13848979417888274
+n1w=são	other	3fc21dd05c33b365 0.14153484823273313
+n1w=there	other	3fb98f6e1bb2d835 0.09984481979594835
+n1w=tokyo	other	3fca3c6bb398966d 0.2049688937124076
+n1w=trading	other	3fc5a0fe74ee870c 0.16897564611013427
+n1w=train	other	3fbbd8deff0cfabe 0.10877794005225902
+n1w=tuesday	other	3fcb37ebe26f3fcd 0.21264408642173152
+n1w=type	other	3fbbc74a8c65df46 0.10850969245609318
+n1w=uppsala	other	3fc5de06d2935220 0.17083821565633261
+n1w=was	other	3fbf4e997d8d7194 0.12229308428999836
+n1w=with	other	3fbb22e9cd66b6d0 0.10600148453405756
+n1w=won	other	3fb87bb4b6e201f2 0.09563760247147693
+n1w=worked	other	3fc3f16b58887661 0.1558050329485239
+n1w=year	other	3fbf717885d96502 0.12282517688563035
+n1w=🏆	other	3fc0104ec3a8c30c 0.1254976706855121
+n1wc=2d	other	3fd6aed01507d100 0.3544197278381631
+n2w&c=%,other	other	3fca580054ada263 0.20581058630638713
+n2w&c=&,other	other	3fc65e5da0ccddac 0.1747548136861331
+n2w&c=2011,4d	other	3fbb57e164841e61 0.10680969909673756
+n2w&c=2019,4d	other	3fca151a3022af9b 0.2037689909969885
+n2w&c=3.5,2d	other	3fe4a633939686b2 0.6452882654741272
+n2w&c=4,num	other	3fcd3660222a2f80 0.2282219092197657
+n2w&c=agnes,ic	other	3fc186436aa7cd86 0.13690989215647792
+n2w&c=and,lc	other	3fc9fcf112cc1286 0.20303166787939037
+n2w&c=bean,ic	other	3fd1a5c6c9b01261 0.27574319549629506
+n2w&c=bergen,ic	other	3fc1939e879ff6c2 0.13731748220737044
+n2w&c=boise,ic	other	3fc286a45a354411 0.14473394779864227
+n2w&c=café,ic	other	3fbbb5bdd6930e1d 0.10824190605767865
+n2w&c=clinic,lc	other	3fc2eedfcd12865b 0.14791486275958018
+n2w&c=closes,lc	other	3fe857a0c321a7db 0.7606967745934939
+n2w&c=comment,lc	other	3fc610e13316d276 0.17239012713038776
+n2w&c=confirmed,lc	other	3fc42d9e132b5762 0.15764213500977592
+n2w&c=deal,lc	other	3fc3ca2982d540f4 0.1546069992859952
+n2w&c=deals,lc	other	3fc33922fef16da4 0.1501811737860922
+n2w&c=default,lc	other	3fb88610e386857a 0.09579568438359401
+n2w&c=early,lc	other	3fcdefbb72033d7f 0.23387854640030167
+n2w&c=easy,lc	other	3fb9f155ae0b1068 0.10133872508146313
+n2w&c=expect,lc	other	3fca3c6bb398966d 0.2049688937124076
+n2w&c=friday,ic	other	3fbbfdd5292abf74 0.109341929007085
+n2w&c=from,lc	other	3fd4b9f61049489c 0.3238501700444745
+n2w&c=hat,ic	other	3fd08449d7095602 0.258074245449592
+n2w&c=home,lc	other	3fe4f59badd0bc92 0.654981460078391
+n2w&c=inês,ic	other	3fe5927b98252209 0.6741311999876994
+n2w&c=it,lc	other	3fd13153874a40f5 0.26863563739699653
+n2w&c=lagos,ic	other	3fe87636d22b0c49 0.7644304375502396
+n2w&c=light,ic	other	3fcd4f8a07b282a2 0.22898984313817033
+n2w&c=lisbon,ic	other	3fbf0a62d89f94c7 0.12125222958237024
+n2w&c=lives,lc	other	3fc9957ec16ba6a6 0.19987472957955282
+n2w&c=london,ic	other	3fe6c9e208ef8701 0.712143914654206
+n2w&c=monte,ic	other	3fc0f7729a9c83a1 0.13255150365241966
+n2w&c=move,lc	other	3fc26f40a56b4242 0.1440201575956213
+n2w&c=named,lc	other	3fc25ec036a2bf28 0.1435165659690878
+n2w&c=new,ic	other	3fb81e952b22f1c5 0.09421665480744597
+n2w&c=october,ic	other	3fe3d3bc329a755e 0.6195965755793329
+n2w&c=of,lc	other	3fc03be57d47bfe2 0.1268278943748547
+n2w&c=office,lc	other	3fc6d1bc0f12db31 0.17827559219377911
+n2w&c=opened,lc	other	3fe541bcadbb9dbf 0.6642745393009405
+n2w&c=paulo,ic	other	3fc21dd05c33b365 0.14153484823273313
+n2w&c=price,lc	other	3fb5b64d5f917ca3 0.08481296141825338
+n2w&c=prize,lc	other	3fba61632455a09a 0.10304851185867606
+n2w&c=program,lc	other	3fbcd23b75189d06 0.11258288964073779
+n2w&c=report,lc	other	3fb768a1104bd763 0.09144026420457645
+n2w&c=runs,lc	other	3fd97f8aa5e0960d 0.39840952109293043
+n2w&c=second,lc	other	3fb9532b97cacf19 0.09892532783379372
+n2w&c=since,lc	other	3fb98f6e1bb2d835 0.09984481979594835
+n2w&c=spokesman,lc	other	3fc9deac0ce1af81 0.20210791234000783
+n2w&c=st.,ic	other	3fc4eafaad3a007a 0.16342099626854517
+n2w&c=sunday,ic	other	3fbd07ba49e3a8e0 0.11339916519105797
+n2w&c=são,ic	other	3fb84eafb257b1ac 0.09495065788332252
+n2w&c=there,lc	other	3fc3f16b58887661 0.1558050329485239
+n2w&c=trading,lc	other	3fc0ae191e40da63 0.13031305291379444
+n2w&c=train,lc	other	3fc2feb3c71c3ef7 0.14839789602455486
+n2w&c=type,lc	other	3fbae35144995325 0.10503108906534615
+n2w&c=uppsala,ic	other	3fc20635774573e9 0.14081447910112324
+n2w&c=visit,lc	other	3fce173d663b6952 0.23508422366905762
+n2w&c=was,lc	other	3fd99f1569e340ba 0.4003346952495225
+n2w&c=with,lc	other	3fbbd8deff0cfabe 0.10877794005225902
+n2w&c=won,lc	other	3fc54eab0a9f356f 0.16646326082847504
+n2w&c=year,lc	other	3fc0c772077b15a0 0.13108659138940215
+n2w&c=york,ic	other	3fc199692a1b58a8 0.13749422603604455
+n2w&c=🏆,other	other	3fbb69bef9ca1557 0.10708230589269384
+n2w=%	other	3fca580054ada263 0.20581058630638713
+n2w=&	other	3fc65e5da0ccddac 0.1747548136861331
+n2w=2011	other	3fbb57e164841e61 0.10680969909673756
+n2w=2019	other	3fca151a3022af9b 0.2037689909969885
+n2w=3.5	other	3fe4a633939686b2 0.6452882654741272
+n2w=4	other	3fcd3660222a2f80 0.2282219092197657
+n2w=agnes	other	3fc186436aa7cd86 0.13690989215647792
+n2w=and	other	3fc9fcf112cc1286 0.20303166787939037
+n2w=bean	other	3fd1a5c6c9b01261 0.27574319549629506
+n2w=bergen	other	3fc1939e879ff6c2 0.13731748220737044
+n2w=boise	other	3fc286a45a354411 0.14473394779864227
+n2w=clinic	other	3fc2eedfcd12865b 0.14791486275958018
+n2w=closes	other	3fe857a0c321a7db 0.7606967745934939
+n2w=comment	other	3fc610e13316d276 0.17239012713038776
+n2w=confirmed	other	3fc42d9e132b5762 0.15764213500977592
+n2w=deal	other	3fc3ca2982d540f4 0.1546069992859952
+n2w=deals	other	3fc33922fef16da4 0.1501811737860922
+n2w=default	other	3fb88610e386857a 0.09579568438359401
+n2w=early	other	3fcdefbb72033d7f 0.23387854640030167
+n2w=easy	other	3fb9f155ae0b1068 0.10133872508146313
+n2w=expect	other	3fca3c6bb398966d 0.2049688937124076
+n2w=friday	other	3fbbfdd5292abf74 0.109341929007085
+n2w=from	other	3fd4b9f61049489c 0.3238501700444745
+n2w=hat	other	3fd08449d7095602 0.258074245449592
+n2w=home	other	3fe4f59badd0bc92 0.654981460078391
+n2w=inês	other	3fe5927b98252209 0.6741311999876994
+n2w=it	other	3fd13153874a40f5 0.26863563739699653
+n2w=lagos	other	3fe87636d22b0c49 0.7644304375502396
+n2w=light	other	3fcd4f8a07b282a2 0.22898984313817033
+n2w=lisbon	other	3fbf0a62d89f94c7 0.12125222958237024
+n2w=lives	other	3fc9957ec16ba6a6 0.19987472957955282
+n2w=london	other	3fe6c9e208ef8701 0.712143914654206
+n2w=monte	other	3fc0f7729a9c83a1 0.13255150365241966
+n2w=move	other	3fc26f40a56b4242 0.1440201575956213
+n2w=named	other	3fc25ec036a2bf28 0.1435165659690878
+n2w=new	other	3fb81e952b22f1c5 0.09421665480744597
+n2w=october	other	3fe3d3bc329a755e 0.6195965755793329
+n2w=of	other	3fc03be57d47bfe2 0.1268278943748547
+n2w=office	other	3fc6d1bc0f12db31 0.17827559219377911
+n2w=opened	other	3fe541bcadbb9dbf 0.6642745393009405
+n2w=paulo	other	3fc21dd05c33b365 0.14153484823273313
+n2w=price	other	3fb5b64d5f917ca3 0.08481296141825338
+n2w=prize	other	3fba61632455a09a 0.10304851185867606
+n2w=program	other	3fbcd23b75189d06 0.11258288964073779
+n2w=report	other	3fb768a1104bd763 0.09144026420457645
+n2w=runs	other	3fd97f8aa5e0960d 0.39840952109293043
+n2w=second	other	3fb9532b97cacf19 0.09892532783379372
+n2w=since	other	3fb98f6e1bb2d835 0.09984481979594835
+n2w=spokesman	other	3fc9deac0ce1af81 0.20210791234000783
+n2w=st.	other	3fc4eafaad3a007a 0.16342099626854517
+n2w=sunday	other	3fbd07ba49e3a8e0 0.11339916519105797
+n2w=são	other	3fb84eafb257b1ac 0.09495065788332252
+n2w=there	other	3fc3f16b58887661 0.1558050329485239
+n2w=trading	other	3fc0ae191e40da63 0.13031305291379444
+n2w=train	other	3fc2feb3c71c3ef7 0.14839789602455486
+n2w=type	other	3fbae35144995325 0.10503108906534615
+n2w=uppsala	other	3fc20635774573e9 0.14081447910112324
+n2w=visit	other	3fce173d663b6952 0.23508422366905762
+n2w=was	other	3fd99f1569e340ba 0.4003346952495225
+n2w=with	other	3fbbd8deff0cfabe 0.10877794005225902
+n2w=won	other	3fc54eab0a9f356f 0.16646326082847504
+n2w=year	other	3fc0c772077b15a0 0.13108659138940215
+n2w=york	other	3fc199692a1b58a8 0.13749422603604455
+n2w=🏆	other	3fbb69bef9ca1557 0.10708230589269384
+n2wc=num	other	3fcd3660222a2f80 0.2282219092197657
+p1w&c=%,other	other	3fc0ae191e40da63 0.13031305291379444
+p1w&c=,,other	other	3fcb93a9da9a0798 0.21544383214864804
+p1w&c=2011,4d	other	3fd3bf8a2749acc1 0.30856565319727386
+p1w&c=2019,4d	other	3fde4003916ac753 0.47265710068596894
+p1w&c=2023,4d	other	3fc54eab0a9f356f 0.16646326082847504
+p1w&c=3.5,2d	other	3fcdefbb72033d7f 0.23387854640030167
+p1w&c=4,num	other	3fd69c26d417bd2b 0.35328074180775343
+p1w&c=42,2d	other	3fd32f004835e0bc 0.2997437195949819
+p1w&c=a,lc	other	3fc1d5e7e46dd7b4 0.13934038785708724
+p1w&c=accra,ic	other	3fc2eedfcd12865b 0.14791486275958018
+p1w&c=analysts,ic	other	3fc9cd850b88aa6a 0.20158446372200284
+p1w&c=ann,ic	other	3fc573a0466f3a38 0.16759112776931473
+p1w&c=announced,lc	other	3fb7d2b3b9fd9bd6 0.09305880823886467
+p1w&c=beans,lc	other	3fc0f7729a9c83a1 0.13255150365241966
+p1w&c=bergen,ic	other	3fce5f455df0cf70 0.2372824391073851
+p1w&c=bo,ic	other	3fcb628d0233d69a 0.21394503219169253
+p1w&c=boise,ic	other	3fcd3660222a2f80 0.2282219092197657
+p1w&c=buys,lc	other	3fbbb5bdd6930e1d 0.10824190605767865
+p1w&c=café,lc	other	3fbf48519f148ecc 0.12219724782749636
+p1w&c=clinic,lc	other	3fd50fe35fbfe44d 0.32909473753494894
+p1w&c=closes,lc	other	3fb84ee24876c0d3 0.094953673068406
+p1w&c=comment,lc	other	3fb5b64d5f917ca3 0.08481296141825338
+p1w&c=company,lc	other	3fba57c961a27e30 0.10290201791439624
+p1w&c=confirmed,lc	other	3fbbfdd5292abf74 0.109341929007085
+p1w&c=deal,lc	other	3fbdd830ebce7ee9 0.11658006436345726
+p1w&c=deals,lc	other	3fd2e7f16299b1f6 0.2954066718000655
+p1w&c=declined,lc	other	3fbc1960791a916c 0.10976221996913232
+p1w&c=default,lc	other	3fca8e3508554807 0.20746481806651237
+p1w&c=early,lc	other	3fcfbb603ebd374c 0.2479057604163536
+p1w&c=easy,lc	other	3fd4156c03c88ed1 0.313807491011386
+p1w&c=else,lc	other	3fb8d82345ed7b6a 0.09704800088137025
+p1w&c=expect,lc	other	3fbd96d0fcd0b556 0.11558252498862961
+p1w&c=flew,lc	other	3fbd07ba49e3a8e0 0.11339916519105797
+p1w&c=friday,ic	other	3fd07359e8453e57 0.2570404785410338
+p1w&c=has,lc	other	3fb98f6e1bb2d835 0.09984481979594835
+p1w&c=hat,ic	other	3fc3ca2982d540f4 0.1546069992859952
+p1w&c=his,ic	other	3fc9957ec16ba6a6 0.19987472957955282
+p1w&c=home,lc	other	3fc1ba089869fe48 0.13848979417888274
+p1w&c=hospital,ic	other	3fcb37ebe26f3fcd 0.21264408642173152
+p1w&c=ibm,ac	other	3fd08449d7095602 0.258074245449592
+p1w&c=inês,ic	other	3fbf0a62d89f94c7 0.12125222958237024
+p1w&c=it,lc	other	3fc1ba089869fe48 0.13848979417888274
+p1w&c=lagos,ic	other	3fce173d663b6952 0.23508422366905762
+p1w&c=leaf,ic	other	3fcd50c42405da31 0.2290272880452036
+p1w&c=lindqvist,ic	other	3fc7d8d34541b2b0 0.186304482285228
+p1w&c=lisbon,ic	other	3fd538ceb3be33b1 0.33159225037598633
+p1w&c=lives,lc	other	3fc25bde820bf339 0.1434286246293597
+p1w&c=london,ic	other	3fca3c6bb398966d 0.2049688937124076
+p1w&c=map,lc	other	3fc1b53c18b8766b 0.1383433457094044
+p1w&c=monday,ic	other	3fce5f455df0cf70 0.2372824391073851
+p1w&c=more,lc	other	3fc8ffc237a1c2bc 0.19530513492965962
+p1w&c=move,lc	other	3fba7b6553c21e22 0.10344537062530226
+p1w&c=moved,lc	other	3fc5de06d2935220 0.17083821565633261
+p1w&c=named,lc	other	3fb768a1104bd763 0.09144026420457645
+p1w&c=names,lc	other	3fbbd8deff0cfabe 0.10877794005225902
+p1w&c=nobody,ic	other	3fc25ec036a2bf28 0.1435165659690878
+p1w&c=office,lc	other	3fbe09d3299e9bd9 0.11733741537192034
+p1w&c=officials,lc	other	3fbcd23b75189d06 0.11258288964073779
+p1w&c=okafor,ic	other	3fc46e1ece3ccaff 0.15961060590924345
+p1w&c=opened,lc	other	3fc6d1bc0f12db31 0.17827559219377911
+p1w&c=oslo,ic	other	3fd538ceb3be33b1 0.33159225037598633
+p1w&c=patients,ic	other	3fca2c930690517f 0.20448530025954523
+p1w&c=paulo,ic	other	3fd55c157fe7a600 0.3337453602858602
+p1w&c=portland,ic	other	3fc0c772077b15a0 0.13108659138940215
+p1w&c=praised,lc	other	3fb8dc01f2950504 0.09710704967894307
+p1w&c=price,lc	other	3fd50fe35fbfe44d 0.32909473753494894
+p1w&c=prize,lc	other	3fd1a5c6c9b01261 0.27574319549629506
+p1w&c=program,lc	other	3fd50fe35fbfe44d 0.32909473753494894
+p1w&c=quarter,lc	other	3fd369de5fec5f81 0.3033367096663753
+p1w&c=report,lc	other	3fd50fe35fbfe44d 0.32909473753494894
+p1w&c=rose,lc	other	3fd4a12de6f0f2f3 0.32233760407306916
+p1w&c=runs,lc	other	3fb78653fd9e4bdf 0.09189343397001391
+p1w&c=s.a.,ic	other	3fcb1037c36131d1 0.21143242874167226
+p1w&c=said,lc	other	3fbb3bafb25ff523 0.10637949089865066
+p1w&c=same,lc	other	3fca8e3508554807 0.20746481806651237
+p1w&c=shares,ic	other	3fca580054ada263 0.20581058630638713
+p1w&c=she,ic	other	3fc20635774573e9 0.14081447910112324
+p1w&c=smith-jones,ic	other	3fc7f6df66552e98 0.1872214555427163
+p1w&c=spoke,lc	other	3fc186436aa7cd86 0.13690989215647792
+p1w&c=spokesman,lc	other	3fd13153874a40f5 0.26863563739699653
+p1w&c=still,lc	other	3fbb22e9cd66b6d0 0.10600148453405756
+p1w&c=sunday,ic	other	3fd07359e8453e57 0.2570404785410338
+p1w&c=systems,ic	other	3fca151a3022af9b 0.2037689909969885
+p1w&c=the,ic	other	3fc2a460bbb20c8d 0.1456414143068269
+p1w&c=there,lc	other	3fc447e76e4ec322 0.1584443367587705
+p1w&c=they,ic	other	3fc3ca4704023837 0.15461051650749066
+p1w&c=tokyo,ic	other	3fc33922fef16da4 0.1501811737860922
+p1w&c=trading,lc	other	3fd2e7f16299b1f6 0.2954066718000655
+p1w&c=train,lc	other	3fb88610e386857a 0.09579568438359401
+p1w&c=tuesday,ic	other	3fd492c425ec3ccb 0.3214578981723661
+p1w&c=type,lc	other	3fdc4dfdba33708f 0.44226020034489805
+p1w&c=untyped,ic	other	3fc2feb3c71c3ef7 0.14839789602455486
+p1w&c=uppsala,ic	other	3fd2623ec24f2d4f 0.28724640822902797
+p1w&c=visit,lc	other	3fc02210947a5b90 0.12603957414532063
+p1w&c=was,lc	other	3fc2b64928c69534 0.14618792048455875
+p1w&c=who,ac	other	3fca4dc9620d917a 0.2054988602423114
+p1w&c=with,lc	other	3fbae35144995325 0.10503108906534615
+p1w&c=won,lc	other	3fbb69bef9ca1557 0.10708230589269384
+p1w&c=worked,lc	other	3fbb57e164841e61 0.10680969909673756
+p1w&c=year,lc	other	3fd2e7f16299b1f6 0.2954066718000655
+p1w&c=york,ic	other	3fd55c157fe7a600 0.3337453602858602
+p1w&c=álvarez,ic	other	3fc8e60677caa673 0.19451981400679905
+p1w&c=🏆,other	other	3fc65e5da0ccddac 0.1747548136861331
+p1w=%	other	3fc0ae191e40da63 0.13031305291379444
+p1w=,	other	3fcb93a9da9a0798 0.21544383214864804
+p1w=2011	other	3fd3bf8a2749acc1 0.30856565319727386
+p1w=2019	other	3fde4003916ac753 0.47265710068596894
+p1w=2023	other	3fc54eab0a9f356f 0.16646326082847504
+p1w=3.5	other	3fcdefbb72033d7f 0.23387854640030167
+p1w=4	other	3fd69c26d417bd2b 0.35328074180775343
+p1w=42	other	3fd32f004835e0bc 0.2997437195949819
+p1w=a	other	3fc1d5e7e46dd7b4 0.13934038785708724
+p1w=accra	other	3fc2eedfcd12865b 0.14791486275958018
+p1w=analysts	other	3fc9cd850b88aa6a 0.20158446372200284
+p1w=ann	other	3fc573a0466f3a38 0.16759112776931473
+p1w=announced	other	3fb7d2b3b9fd9bd6 0.09305880823886467
+p1w=beans	other	3fc0f7729a9c83a1 0.13255150365241966
+p1w=bergen	other	3fce5f455df0cf70 0.2372824391073851
+p1w=bo	other	3fcb628d0233d69a 0.21394503219169253
+p1w=boise	other	3fcd3660222a2f80 0.2282219092197657
+p1w=buys	other	3fbbb5bdd6930e1d 0.10824190605767865
+p1w=clinic	other	3fd50fe35fbfe44d 0.32909473753494894
+p1w=closes	other	3fb84ee24876c0d3 0.094953673068406
+p1w=comment	other	3fb5b64d5f917ca3 0.08481296141825338
+p1w=company	other	3fba57c961a27e30 0.10290201791439624
+p1w=confirmed	other	3fbbfdd5292abf74 0.109341929007085
+p1w=deal	other	3fbdd830ebce7ee9 0.11658006436345726
+p1w=deals	other	3fd2e7f16299b1f6 0.2954066718000655
+p1w=declined	other	3fbc1960791a916c 0.10976221996913232
+p1w=default	other	3fca8e3508554807 0.20746481806651237
+p1w=early	other	3fcfbb603ebd374c 0.2479057604163536
+p1w=easy	other	3fd4156c03c88ed1 0.313807491011386
+p1w=else	other	3fb8d82345ed7b6a 0.09704800088137025
+p1w=expect	other	3fbd96d0fcd0b556 0.11558252498862961
+p1w=flew	other	3fbd07ba49e3a8e0 0.11339916519105797
+p1w=friday	other	3fd07359e8453e57 0.2570404785410338
+p1w=has	other	3fb98f6e1bb2d835 0.09984481979594835
+p1w=hat	other	3fc3ca2982d540f4 0.1546069992859952
+p1w=his	other	3fc9957ec16ba6a6 0.19987472957955282
+p1w=home	other	3fc1ba089869fe48 0.13848979417888274
+p1w=hospital	other	3fcb37ebe26f3fcd 0.21264408642173152
+p1w=ibm	other	3fd08449d7095602 0.258074245449592
+p1w=inês	other	3fbf0a62d89f94c7 0.12125222958237024
+p1w=it	other	3fc1ba089869fe48 0.13848979417888274
+p1w=lagos	other	3fce173d663b6952 0.23508422366905762
+p1w=leaf	other	3fcd50c42405da31 0.2290272880452036
+p1w=lindqvist	other	3fc7d8d34541b2b0 0.186304482285228
+p1w=lisbon	other	3fd538ceb3be33b1 0.33159225037598633
+p1w=lives	other	3fc25bde820bf339 0.1434286246293597
+p1w=london	other	3fca3c6bb398966d 0.2049688937124076
+p1w=map	other	3fc1b53c18b8766b 0.1383433457094044
+p1w=monday	other	3fce5f455df0cf70 0.2372824391073851
+p1w=more	other	3fc8ffc237a1c2bc 0.19530513492965962
+p1w=move	other	3fba7b6553c21e22 0.10344537062530226
+p1w=moved	other	3fc5de06d2935220 0.17083821565633261
+p1w=named	other	3fb768a1104bd763 0.09144026420457645
+p1w=names	other	3fbbd8deff0cfabe 0.10877794005225902
+p1w=nobody	other	3fc25ec036a2bf28 0.1435165659690878
+p1w=office	other	3fbe09d3299e9bd9 0.11733741537192034
+p1w=officials	other	3fbcd23b75189d06 0.11258288964073779
+p1w=okafor	other	3fc46e1ece3ccaff 0.15961060590924345
+p1w=opened	other	3fc6d1bc0f12db31 0.17827559219377911
+p1w=oslo	other	3fd538ceb3be33b1 0.33159225037598633
+p1w=patients	other	3fca2c930690517f 0.20448530025954523
+p1w=paulo	other	3fd55c157fe7a600 0.3337453602858602
+p1w=portland	other	3fc0c772077b15a0 0.13108659138940215
+p1w=praised	other	3fb8dc01f2950504 0.09710704967894307
+p1w=price	other	3fd50fe35fbfe44d 0.32909473753494894
+p1w=prize	other	3fd1a5c6c9b01261 0.27574319549629506
+p1w=program	other	3fd50fe35fbfe44d 0.32909473753494894
+p1w=quarter	other	3fd369de5fec5f81 0.3033367096663753
+p1w=report	other	3fd50fe35fbfe44d 0.32909473753494894
+p1w=rose	other	3fd4a12de6f0f2f3 0.32233760407306916
+p1w=runs	other	3fb78653fd9e4bdf 0.09189343397001391
+p1w=s.a.	other	3fcb1037c36131d1 0.21143242874167226
+p1w=said	other	3fbb3bafb25ff523 0.10637949089865066
+p1w=same	other	3fca8e3508554807 0.20746481806651237
+p1w=shares	other	3fca580054ada263 0.20581058630638713
+p1w=she	other	3fc20635774573e9 0.14081447910112324
+p1w=smith-jones	other	3fc7f6df66552e98 0.1872214555427163
+p1w=spoke	other	3fc186436aa7cd86 0.13690989215647792
+p1w=spokesman	other	3fd13153874a40f5 0.26863563739699653
+p1w=still	other	3fbb22e9cd66b6d0 0.10600148453405756
+p1w=sunday	other	3fd07359e8453e57 0.2570404785410338
+p1w=systems	other	3fca151a3022af9b 0.2037689909969885
+p1w=there	other	3fc447e76e4ec322 0.1584443367587705
+p1w=they	other	3fc3ca4704023837 0.15461051650749066
+p1w=tokyo	other	3fc33922fef16da4 0.1501811737860922
+p1w=trading	other	3fd2e7f16299b1f6 0.2954066718000655
+p1w=train	other	3fb88610e386857a 0.09579568438359401
+p1w=tuesday	other	3fd492c425ec3ccb 0.3214578981723661
+p1w=type	other	3fdc4dfdba33708f 0.44226020034489805
+p1w=untyped	other	3fc2feb3c71c3ef7 0.14839789602455486
+p1w=uppsala	other	3fd2623ec24f2d4f 0.28724640822902797
+p1w=visit	other	3fc02210947a5b90 0.12603957414532063
+p1w=was	other	3fc2b64928c69534 0.14618792048455875
+p1w=who	other	3fca4dc9620d917a 0.2054988602423114
+p1w=with	other	3fbae35144995325 0.10503108906534615
+p1w=won	other	3fbb69bef9ca1557 0.10708230589269384
+p1w=worked	other	3fbb57e164841e61 0.10680969909673756
+p1w=year	other	3fd2e7f16299b1f6 0.2954066718000655
+p1w=york	other	3fd55c157fe7a600 0.3337453602858602
+p1w=álvarez	other	3fc8e60677caa673 0.19451981400679905
+p1w=🏆	other	3fc65e5da0ccddac 0.1747548136861331
+p1wc=4d	other	3fd41466a7c5a373 0.3137451780699429
+p1wc=ac	other	3fcda66bca4c9f17 0.23164126756568557
+p1wc=num	other	3fd69c26d417bd2b 0.35328074180775343
+p2w&c=%,other	other	3fc5a0fe74ee870c 0.16897564611013427
+p2w&c=&,other	other	3fcd50c42405da31 0.2290272880452036
+p2w&c=,,other	other	3fc4fa1328b6522e 0.16388167846584295
+p2w&c=2023,4d	other	3fb87bb4b6e201f2 0.09563760247147693
+p2w&c=3.5,2d	other	3fc0ae191e40da63 0.13031305291379444
+p2w&c=42,2d	other	3fc6b8028d2f7916 0.17749053853817348
+p2w&c=a,lc	other	3fc8bfc8bf00dc02 0.19335278822265428
+p2w&c=accra,ic	other	3fc02210947a5b90 0.12603957414532063
+p2w&c=agnes,ic	other	3fcb37ebe26f3fcd 0.21264408642173152
+p2w&c=announced,lc	other	3fb81e952b22f1c5 0.09421665480744597
+p2w&c=buys,lc	other	3fc0f7729a9c83a1 0.13255150365241966
+p2w&c=chidi,ic	other	3fc3f16b58887661 0.1558050329485239
+p2w&c=comment,lc	other	3fc29012736ddd24 0.1450217307681011
+p2w&c=company,lc	other	3fc6d1bc0f12db31 0.17827559219377911
+p2w&c=confirmed,lc	other	3fc1ba089869fe48 0.13848979417888274
+p2w&c=declined,lc	other	3fc1f17d66dd945b 0.14018218538982094
+p2w&c=default,lc	other	3fdc4dfdba33708f 0.44226020034489805
+p2w&c=dr.,ic	other	3fc4eafaad3a007a 0.16342099626854517
+p2w&c=early,lc	other	3fd2e7f16299b1f6 0.2954066718000655
+p2w&c=else,lc	other	3fb7e06ecdcea02a 0.09326832317913217
+p2w&c=every,lc	other	3fce5f455df0cf70 0.2372824391073851
+p2w&c=expect,lc	other	3fc8ffc237a1c2bc 0.19530513492965962
+p2w&c=flew,lc	other	3fc1ba089869fe48 0.13848979417888274
+p2w&c=gave,lc	other	3fc03be57d47bfe2 0.1268278943748547
+p2w&c=has,lc	other	3fbb57e164841e61 0.10680969909673756
+p2w&c=hat,ic	other	3fb7d2b3b9fd9bd6 0.09305880823886467
+p2w&c=inês,ic	other	3fc25bde820bf339 0.1434286246293597
+p2w&c=josé,ic	other	3fd01e874cb5fb64 0.251863312638241
+p2w&c=june,ic	other	3fd69c26d417bd2b 0.35328074180775343
+p2w&c=light,ic	other	3fca151a3022af9b 0.2037689909969885
+p2w&c=march,ic	other	3fde4003916ac753 0.47265710068596894
+p2w&c=maria,ic	other	3fcd4f8a07b282a2 0.22898984313817033
+p2w&c=met,lc	other	3fca9e143da1511b 0.20794919022831312
+p2w&c=more,lc	other	3fd2e7f16299b1f6 0.2954066718000655
+p2w&c=move,lc	other	3fc99dbfd206a5b1 0.20012662654089078
+p2w&c=named,lc	other	3fcce32f15da1b42 0.2256831032466043
+p2w&c=names,lc	other	3fbb22e9cd66b6d0 0.10600148453405756
+p2w&c=new,ic	other	3fd55c157fe7a600 0.3337453602858602
+p2w&c=nobody,ic	other	3fb8d82345ed7b6a 0.09704800088137025
+p2w&c=october,ic	other	3fc54eab0a9f356f 0.16646326082847504
+p2w&c=of,lc	other	3fce5f455df0cf70 0.2372824391073851
+p2w&c=officials,lc	other	3fb8dc01f2950504 0.09710704967894307
+p2w&c=okafor,ic	other	3fbe494cc74992a3 0.11830596795477759
+p2w&c=opened,lc	other	3fc746f814b75c38 0.18185330401931465
+p2w&c=portland,ic	other	3fbf717885d96502 0.12282517688563035
+p2w&c=praised,lc	other	3fcc8185c3d27eda 0.2227027136004754
+p2w&c=prize,lc	other	3fc65e5da0ccddac 0.1747548136861331
+p2w&c=r.,cp	other	3fc9deac0ce1af81 0.20210791234000783
+p2w&c=red,ic	other	3fc3ca2982d540f4 0.1546069992859952
+p2w&c=rose,lc	other	3fcdefbb72033d7f 0.23387854640030167
+p2w&c=runs,lc	other	3fb84eafb257b1ac 0.09495065788332252
+p2w&c=said,lc	other	3fb9f155ae0b1068 0.10133872508146313
+p2w&c=same,lc	other	3fd2e7f16299b1f6 0.2954066718000655
+p2w&c=second,lc	other	3fcabb0f2c80591a 0.20883359597127865
+p2w&c=shares,ic	other	3fd4a12de6f0f2f3 0.32233760407306916
+p2w&c=she,ic	other	3fc5de06d2935220 0.17083821565633261
+p2w&c=since,lc	other	3fd3bf8a2749acc1 0.30856565319727386
+p2w&c=sister,lc	other	3fbf0a62d89f94c7 0.12125222958237024
+p2w&c=smith-jones,ic	other	3fc0f7100d4006ec 0.13253975531556905
+p2w&c=spokesman,lc	other	3fc161aecfd37e1d 0.13579354427109616
+p2w&c=still,lc	other	3fb88610e386857a 0.09579568438359401
+p2w&c=são,ic	other	3fd55c157fe7a600 0.3337453602858602
+p2w&c=the,ic	other	3fb96fab23897bff 0.09936017625430792
+p2w&c=they,ic	other	3fbd07ba49e3a8e0 0.11339916519105797
+p2w&c=to,lc	other	3fbb9bcc1b6c206b 0.10784602803698966
+p2w&c=tokyo,ic	other	3fbd96d0fcd0b556 0.11558252498862961
+p2w&c=train,lc	other	3fbae35144995325 0.10503108906534615
+p2w&c=untyped,ic	other	3fbbd8deff0cfabe 0.10877794005225902
+p2w&c=verde,ic	other	3fcb1037c36131d1 0.21143242874167226
+p2w&c=visit,lc	other	3fcc8185c3d27eda 0.2227027136004754
+p2w&c=was,lc	other	3fc9a6b6d8cd9aba 0.20040021501627853
+p2w&c=who,ac	other	3fbcd23b75189d06 0.11258288964073779
+p2w&c=with,lc	other	3fbbc74a8c65df46 0.10850969245609318
+p2w&c=won,lc	other	3fc0104ec3a8c30c 0.1254976706855121
+p2w&c=worked,lc	other	3fc447e76e4ec322 0.1584443367587705
+p2w&c=álvarez,ic	other	3fd00d026a5a2059 0.2507940329164789
+p2w=%	other	3fc5a0fe74ee870c 0.16897564611013427
+p2w=&	other	3fcd50c42405da31 0.2290272880452036
+p2w=,	other	3fc4fa1328b6522e 0.16388167846584295
+p2w=2023	other	3fb87bb4b6e201f2 0.09563760247147693
+p2w=3.5	other	3fc0ae191e40da63 0.13031305291379444
+p2w=42	other	3fc6b8028d2f7916 0.17749053853817348
+p2w=a	other	3fc8bfc8bf00dc02 0.19335278822265428
+p2w=accra	other	3fc02210947a5b90 0.12603957414532063
+p2w=agnes	other	3fcb37ebe26f3fcd 0.21264408642173152
+p2w=announced	other	3fb81e952b22f1c5 0.09421665480744597
+p2w=buys	other	3fc0f7729a9c83a1 0.13255150365241966
+p2w=chidi	other	3fc3f16b58887661 0.1558050329485239
+p2w=comment	other	3fc29012736ddd24 0.1450217307681011
+p2w=company	other	3fc6d1bc0f12db31 0.17827559219377911
+p2w=confirmed	other	3fc1ba089869fe48 0.13848979417888274
+p2w=declined	other	3fc1f17d66dd945b 0.14018218538982094
+p2w=default	other	3fdc4dfdba33708f 0.44226020034489805
+p2w=dr.	other	3fc4eafaad3a007a 0.16342099626854517
+p2w=early	other	3fd2e7f16299b1f6 0.2954066718000655
+p2w=else	other	3fb7e06ecdcea02a 0.09326832317913217
+p2w=every	other	3fce5f455df0cf70 0.2372824391073851
+p2w=expect	other	3fc8ffc237a1c2bc 0.19530513492965962
+p2w=flew	other	3fc1ba089869fe48 0.13848979417888274
+p2w=gave	other	3fc03be57d47bfe2 0.1268278943748547
+p2w=has	other	3fbb57e164841e61 0.10680969909673756
+p2w=hat	other	3fb7d2b3b9fd9bd6 0.09305880823886467
+p2w=inês	other	3fc25bde820bf339 0.1434286246293597
+p2w=josé	other	3fd01e874cb5fb64 0.251863312638241
+p2w=june	other	3fd69c26d417bd2b 0.35328074180775343
+p2w=light	other	3fca151a3022af9b 0.2037689909969885
+p2w=march	other	3fde4003916ac753 0.47265710068596894
+p2w=maria	other	3fcd4f8a07b282a2 0.22898984313817033
+p2w=met	other	3fca9e143da1511b 0.20794919022831312
+p2w=more	other	3fd2e7f16299b1f6 0.2954066718000655
+p2w=move	other	3fc99dbfd206a5b1 0.20012662654089078
+p2w=named	other	3fcce32f15da1b42 0.2256831032466043
+p2w=names	other	3fbb22e9cd66b6d0 0.10600148453405756
+p2w=new	other	3fd55c157fe7a600 0.3337453602858602
+p2w=nobody	other	3fb8d82345ed7b6a 0.09704800088137025
+p2w=october	other	3fc54eab0a9f356f 0.16646326082847504
+p2w=of	other	3fce5f455df0cf70 0.2372824391073851
+p2w=officials	other	3fb8dc01f2950504 0.09710704967894307
+p2w=okafor	other	3fbe494cc74992a3 0.11830596795477759
+p2w=opened	other	3fc746f814b75c38 0.18185330401931465
+p2w=portland	other	3fbf717885d96502 0.12282517688563035
+p2w=praised	other	3fcc8185c3d27eda 0.2227027136004754
+p2w=prize	other	3fc65e5da0ccddac 0.1747548136861331
+p2w=r.	other	3fc9deac0ce1af81 0.20210791234000783
+p2w=red	other	3fc3ca2982d540f4 0.1546069992859952
+p2w=rose	other	3fcdefbb72033d7f 0.23387854640030167
+p2w=runs	other	3fb84eafb257b1ac 0.09495065788332252
+p2w=said	other	3fb9f155ae0b1068 0.10133872508146313
+p2w=same	other	3fd2e7f16299b1f6 0.2954066718000655
+p2w=second	other	3fcabb0f2c80591a 0.20883359597127865
+p2w=shares	other	3fd4a12de6f0f2f3 0.32233760407306916
+p2w=she	other	3fc5de06d2935220 0.17083821565633261
+p2w=since	other	3fd3bf8a2749acc1 0.30856565319727386
+p2w=sister	other	3fbf0a62d89f94c7 0.12125222958237024
+p2w=smith-jones	other	3fc0f7100d4006ec 0.13253975531556905
+p2w=spokesman	other	3fc161aecfd37e1d 0.13579354427109616
+p2w=still	other	3fb88610e386857a 0.09579568438359401
+p2w=são	other	3fd55c157fe7a600 0.3337453602858602
+p2w=they	other	3fbd07ba49e3a8e0 0.11339916519105797
+p2w=to	other	3fbb9bcc1b6c206b 0.10784602803698966
+p2w=tokyo	other	3fbd96d0fcd0b556 0.11558252498862961
+p2w=train	other	3fbae35144995325 0.10503108906534615
+p2w=untyped	other	3fbbd8deff0cfabe 0.10877794005225902
+p2w=verde	other	3fcb1037c36131d1 0.21143242874167226
+p2w=visit	other	3fcc8185c3d27eda 0.2227027136004754
+p2w=was	other	3fc9a6b6d8cd9aba 0.20040021501627853
+p2w=who	other	3fbcd23b75189d06 0.11258288964073779
+p2w=with	other	3fbbc74a8c65df46 0.10850969245609318
+p2w=won	other	3fc0104ec3a8c30c 0.1254976706855121
+p2w=worked	other	3fc447e76e4ec322 0.1584443367587705
+p2w=álvarez	other	3fd00d026a5a2059 0.2507940329164789
+p2wc=4d	other	3fb87bb4b6e201f2 0.09563760247147693
+pow=other,%	other	3fcdefbb72033d7f 0.23387854640030167
+pow=other,,	other	3fd22f6829f5502b 0.2841434869526462
+pow=other,.	other	3fd50826e6948db1 0.32862255590063244
+pow=other,3.5	other	3fd4a12de6f0f2f3 0.32233760407306916
+pow=other,42	other	3fd97f8aa5e0960d 0.39840952109293043
+pow=other,Analysts	other	3fe6c9e208ef8701 0.712143914654206
+pow=other,His	other	3fe5927b98252209 0.6741311999876994
+pow=other,Nobody	other	3fe6fa592418330b 0.7180600838633792
+pow=other,On	other	3fe3d3bc329a755e 0.6195965755793329
+pow=other,Patients	other	3fe87636d22b0c49 0.7644304375502396
+pow=other,Shares	other	3fe4a633939686b2 0.6452882654741272
+pow=other,She	other	3fe7920800264c77 0.7365760806009253
+pow=other,The	other	3fe6cb449a2f117d 0.7123129855540778
+pow=other,They	other	3fe4f59badd0bc92 0.654981460078391
+pow=other,a	other	3fc107f34589aad7 0.1330551232852801
+pow=other,at	other	3fc186436aa7cd86 0.13690989215647792
+pow=other,beans	other	3fbbb5bdd6930e1d 0.10824190605767865
+pow=other,café	other	3fb8652d6ae328ed 0.09529384479097631
+pow=other,clinic	other	3fcc8185c3d27eda 0.2227027136004754
+pow=other,closes	other	3fb8882dddc6db67 0.09582792915794656
+pow=other,comment	other	3fc1f17d66dd945b 0.14018218538982094
+pow=other,company	other	3fc382ad6998696c 0.1524254575350129
+pow=other,confirmed	other	3fc161aecfd37e1d 0.13579354427109616
+pow=other,deal	other	3fbdd13508129773 0.1164734978397897
+pow=other,deals	other	3fc8ffc237a1c2bc 0.19530513492965962
+pow=other,default	other	3fbbc74a8c65df46 0.10850969245609318
+pow=other,early	other	3fc5a0fe74ee870c 0.16897564611013427
+pow=other,easy	other	3fc99dbfd206a5b1 0.20012662654089078
+pow=other,else	other	3fc25ec036a2bf28 0.1435165659690878
+pow=other,flew	other	3fc3ca4704023837 0.15461051650749066
+pow=other,from	other	3fc5d4da05d3508f 0.17055821690030767
+pow=other,home	other	3fbd07ba49e3a8e0 0.11339916519105797
+pow=other,in	other	3fc0e85330c6aa99 0.13208999520914658
+pow=other,it	other	3fbbfdd5292abf74 0.109341929007085
+pow=other,map	other	3fc1939e879ff6c2 0.13731748220737044
+pow=other,more	other	3fbd96d0fcd0b556 0.11558252498862961
+pow=other,move	other	3fb9f155ae0b1068 0.10133872508146313
+pow=other,moved	other	3fc20635774573e9 0.14081447910112324
+pow=other,named	other	3fb7e06ecdcea02a 0.09326832317913217
+pow=other,of	other	3fc1b53c18b8766b 0.1383433457094044
+pow=other,office	other	3fc286a45a354411 0.14473394779864227
+pow=other,on	other	3fbed8ea10de86c2 0.12049734985205432
+pow=other,opened	other	3fba57c961a27e30 0.10290201791439624
+pow=other,praised	other	3fbcd23b75189d06 0.11258288964073779
+pow=other,price	other	3fce328234e31565 0.23591640074134115
+pow=other,prize	other	3fc0104ec3a8c30c 0.1254976706855121
+pow=other,program	other	3fcc8185c3d27eda 0.2227027136004754
+pow=other,report	other	3fd34a2eca544d5a 0.3014027572509882
+pow=other,rose	other	3fca580054ada263 0.20581058630638713
+pow=other,runs	other	3fc6b8028d2f7916 0.17749053853817348
+pow=other,same	other	3fbf717885d96502 0.12282517688563035
+pow=other,second	other	3fc746f814b75c38 0.18185330401931465
+pow=other,since	other	3fc447e76e4ec322 0.1584443367587705
+pow=other,sister	other	3fc9957ec16ba6a6 0.19987472957955282
+pow=other,spokesman	other	3fc42d9e132b5762 0.15764213500977592
+pow=other,still	other	3fbbd8deff0cfabe 0.10877794005225902
+pow=other,there	other	3fbb57e164841e61 0.10680969909673756
+pow=other,to	other	3fbc1960791a916c 0.10976221996913232
+pow=other,trading	other	3fcfbb603ebd374c 0.2479057604163536
+pow=other,train	other	3fbb22e9cd66b6d0 0.10600148453405756
+pow=other,type	other	3fca8e3508554807 0.20746481806651237
+pow=other,was	other	3fb9a99c64e60269 0.10024430716840417
+pow=other,with	other	3fb88610e386857a 0.09579568438359401
+pow=other,won	other	3fba61632455a09a 0.10304851185867606
+pow=other,worked	other	3fb98f6e1bb2d835 0.09984481979594835
+pow=other,year	other	3fca8e3508554807 0.20746481806651237
+pow=other,🏆	other	3fd1a5c6c9b01261 0.27574319549629506
+pow=person-cont,,	other	3fcd0c09a7a3c98e 0.22692986188446834
+pow=person-cont,.	other	3fd59462b7c6e256 0.33718173930131934
+pow=person-cont,announced	other	3fc3ca2982d540f4 0.1546069992859952
+pow=person-cont,every	other	3fcb1037c36131d1 0.21143242874167226
+pow=person-cont,has	other	3fc3f16b58887661 0.1558050329485239
+pow=person-cont,in	other	3fca151a3022af9b 0.2037689909969885
+pow=person-cont,joined	other	3fcd4f8a07b282a2 0.22898984313817033
+pow=person-cont,on	other	3fcb37ebe26f3fcd 0.21264408642173152
+pow=person-cont,spoke	other	3fc4eafaad3a007a 0.16342099626854517
+pow=person-cont,the	other	3fc54eab0a9f356f 0.16646326082847504
+pow=person-start,.	other	3fd23f092b2bb08f 0.28509740081677476
+pow=person-start,a	other	3fc03be57d47bfe2 0.1268278943748547
+pow=person-start,and	other	3fcdc56b1800a337 0.23258722946163754
+pow=person-start,buys	other	3fc1a597c6f27487 0.13786599363530547
+pow=person-start,declined	other	3fc610e13316d276 0.17239012713038776
+pow=person-start,expect	other	3fc33922fef16da4 0.1501811737860922
+pow=person-start,gave	other	3fcc2c94b727521c 0.2201105016998931
+pow=person-start,in	other	3fca9e143da1511b 0.20794919022831312
+pow=person-start,lives	other	3fbf0a62d89f94c7 0.12125222958237024
+pow=person-start,met	other	3fcabab3821a388a 0.2088226685777424
+pow=person-start,names	other	3fc2feb3c71c3ef7 0.14839789602455486
+pow=person-start,officials	other	3fca4dc9620d917a 0.2054988602423114
+pow=person-start,on	other	3fcd3660222a2f80 0.2282219092197657
+pow=person-start,said	other	3fc26f40a56b4242 0.1440201575956213
+pow=person-start,the	other	3fc0c772077b15a0 0.13108659138940215
+pow=person-start,to	other	3fd2623ec24f2d4f 0.28724640822902797
+pow=person-start,visit	other	3fc2eedfcd12865b 0.14791486275958018
+powf=other,other	other	3fd3d999e12d39dd 0.31015631666096316
+powf=person-cont,other	other	3fd3c99aa7a7fa77 0.3091799390094034
+pw,w=%,in	other	3fc0ae191e40da63 0.13031305291379444
+pw,w=,,42	other	3fd97f8aa5e0960d 0.39840952109293043
+pw,w=,,a	other	3fc3e61a345dec97 0.15545966679551235
+pw,w=,,confirmed	other	3fc161aecfd37e1d 0.13579354427109616
+pw,w=,,runs	other	3fc6b8028d2f7916 0.17749053853817348
+pw,w=2011,.	other	3fd3bf8a2749acc1 0.30856565319727386
+pw,w=2019,.	other	3fde4003916ac753 0.47265710068596894
+pw,w=2023,the	other	3fc54eab0a9f356f 0.16646326082847504
+pw,w=3.5,%	other	3fcdefbb72033d7f 0.23387854640030167
+pw,w=4,.	other	3fd69c26d417bd2b 0.35328074180775343
+pw,w=42,,	other	3fd32f004835e0bc 0.2997437195949819
+pw,w=Accra,visit	other	3fc2eedfcd12865b 0.14791486275958018
+pw,w=Analysts,in	other	3fc9cd850b88aa6a 0.20158446372200284
+pw,w=Ann,a	other	3fc03be57d47bfe2 0.1268278943748547
+pw,w=Ann,met	other	3fcabab3821a388a 0.2088226685777424
+pw,w=Bergen,.	other	3fce5f455df0cf70 0.2372824391073851
+pw,w=Bo,gave	other	3fcc2c94b727521c 0.2201105016998931
+pw,w=Bo,in	other	3fca9e143da1511b 0.20794919022831312
+pw,w=Boise,on	other	3fcd3660222a2f80 0.2282219092197657
+pw,w=Friday,.	other	3fd07359e8453e57 0.2570404785410338
+pw,w=Hat,announced	other	3fc3ca2982d540f4 0.1546069992859952
+pw,w=His,sister	other	3fc9957ec16ba6a6 0.19987472957955282
+pw,w=Hospital,on	other	3fcb37ebe26f3fcd 0.21264408642173152
+pw,w=IBM,and	other	3fd08449d7095602 0.258074245449592
+pw,w=Inês,lives	other	3fbf0a62d89f94c7 0.12125222958237024
+pw,w=Lagos,and	other	3fce173d663b6952 0.23508422366905762
+pw,w=Leaf,.	other	3fcd50c42405da31 0.2290272880452036
+pw,w=Lindqvist,joined	other	3fcd4f8a07b282a2 0.22898984313817033
+pw,w=Lindqvist,said	other	3fc26f40a56b4242 0.1440201575956213
+pw,w=Lisbon,.	other	3fd538ceb3be33b1 0.33159225037598633
+pw,w=London,and	other	3fca3c6bb398966d 0.2049688937124076
+pw,w=Monday,.	other	3fce5f455df0cf70 0.2372824391073851
+pw,w=Nobody,else	other	3fc25ec036a2bf28 0.1435165659690878
+pw,w=Okafor,has	other	3fc3f16b58887661 0.1558050329485239
+pw,w=Okafor,spoke	other	3fc4eafaad3a007a 0.16342099626854517
+pw,w=Oslo,.	other	3fd538ceb3be33b1 0.33159225037598633
+pw,w=Patients,from	other	3fca2c930690517f 0.20448530025954523
+pw,w=Paulo,.	other	3fd55c157fe7a600 0.3337453602858602
+pw,w=Portland,the	other	3fc0c772077b15a0 0.13108659138940215
+pw,w=S.A.,every	other	3fcb1037c36131d1 0.21143242874167226
+pw,w=Shares,rose	other	3fca580054ada263 0.20581058630638713
+pw,w=She,moved	other	3fc20635774573e9 0.14081447910112324
+pw,w=Smith-Jones,,	other	3fc9deac0ce1af81 0.20210791234000783
+pw,w=Smith-Jones,declined	other	3fc610e13316d276 0.17239012713038776
+pw,w=Sunday,.	other	3fd07359e8453e57 0.2570404785410338
+pw,w=Systems,in	other	3fca151a3022af9b 0.2037689909969885
+pw,w=The,company	other	3fc382ad6998696c 0.1524254575350129
+pw,w=The,deal	other	3fc1c73b5844dc80 0.1388925724984098
+pw,w=They,flew	other	3fc3ca4704023837 0.15461051650749066
+pw,w=Tokyo,expect	other	3fc33922fef16da4 0.1501811737860922
+pw,w=Tuesday,.	other	3fd492c425ec3ccb 0.3214578981723661
+pw,w=Untyped,names	other	3fc2feb3c71c3ef7 0.14839789602455486
+pw,w=Uppsala,to	other	3fd2623ec24f2d4f 0.28724640822902797
+pw,w=WHO,officials	other	3fca4dc9620d917a 0.2054988602423114
+pw,w=York,.	other	3fd55c157fe7a600 0.3337453602858602
+pw,w=a,café	other	3fb84eafb257b1ac 0.09495065788332252
+pw,w=a,map	other	3fc1939e879ff6c2 0.13731748220737044
+pw,w=a,prize	other	3fc0104ec3a8c30c 0.1254976706855121
+pw,w=a,second	other	3fc746f814b75c38 0.18185330401931465
+pw,w=a,spokesman	other	3fc42d9e132b5762 0.15764213500977592
+pw,w=announced,the	other	3fb7d2b3b9fd9bd6 0.09305880823886467
+pw,w=beans,from	other	3fc0f7729a9c83a1 0.13255150365241966
+pw,w=buys,beans	other	3fbbb5bdd6930e1d 0.10824190605767865
+pw,w=café,in	other	3fc21dd05c33b365 0.14153484823273313
+pw,w=café,won	other	3fba61632455a09a 0.10304851185867606
+pw,w=clinic,.	other	3fd50fe35fbfe44d 0.32909473753494894
+pw,w=closes,in	other	3fb84ee24876c0d3 0.094953673068406
+pw,w=comment,on	other	3fb5b64d5f917ca3 0.08481296141825338
+pw,w=company,opened	other	3fba57c961a27e30 0.10290201791439624
+pw,w=confirmed,it	other	3fbbfdd5292abf74 0.109341929007085
+pw,w=deal,closes	other	3fb8882dddc6db67 0.09582792915794656
+pw,w=deal,in	other	3fc199692a1b58a8 0.13749422603604455
+pw,w=deals,.	other	3fd2e7f16299b1f6 0.2954066718000655
+pw,w=declined,to	other	3fbc1960791a916c 0.10976221996913232
+pw,w=default,type	other	3fca8e3508554807 0.20746481806651237
+pw,w=early,trading	other	3fcfbb603ebd374c 0.2479057604163536
+pw,w=easy,.	other	3fd4156c03c88ed1 0.313807491011386
+pw,w=else,was	other	3fb8d82345ed7b6a 0.09704800088137025
+pw,w=expect,more	other	3fbd96d0fcd0b556 0.11558252498862961
+pw,w=flew,home	other	3fbd07ba49e3a8e0 0.11339916519105797
+pw,w=has,worked	other	3fb98f6e1bb2d835 0.09984481979594835
+pw,w=home,on	other	3fc1ba089869fe48 0.13848979417888274
+pw,w=in,early	other	3fc5a0fe74ee870c 0.16897564611013427
+pw,w=it,on	other	3fc1ba089869fe48 0.13848979417888274
+pw,w=lives,in	other	3fc25bde820bf339 0.1434286246293597
+pw,w=map,of	other	3fc1b53c18b8766b 0.1383433457094044
+pw,w=more,deals	other	3fc8ffc237a1c2bc 0.19530513492965962
+pw,w=move,was	other	3fba7b6553c21e22 0.10344537062530226
+pw,w=moved,from	other	3fc5de06d2935220 0.17083821565633261
+pw,w=named,in	other	3fb768a1104bd763 0.09144026420457645
+pw,w=names,still	other	3fbbd8deff0cfabe 0.10877794005225902
+pw,w=office,in	other	3fbe09d3299e9bd9 0.11733741537192034
+pw,w=officials,praised	other	3fbcd23b75189d06 0.11258288964073779
+pw,w=on,the	other	3fc29012736ddd24 0.1450217307681011
+pw,w=opened,a	other	3fc6d1bc0f12db31 0.17827559219377911
+pw,w=praised,the	other	3fb8dc01f2950504 0.09710704967894307
+pw,w=price,.	other	3fd50fe35fbfe44d 0.32909473753494894
+pw,w=prize,🏆	other	3fd1a5c6c9b01261 0.27574319549629506
+pw,w=program,.	other	3fd50fe35fbfe44d 0.32909473753494894
+pw,w=quarter,.	other	3fd369de5fec5f81 0.3033367096663753
+pw,w=report,.	other	3fd50fe35fbfe44d 0.32909473753494894
+pw,w=rose,3.5	other	3fd4a12de6f0f2f3 0.32233760407306916
+pw,w=runs,a	other	3fb78653fd9e4bdf 0.09189343397001391
+pw,w=said,the	other	3fbb3bafb25ff523 0.10637949089865066
+pw,w=same,year	other	3fca8e3508554807 0.20746481806651237
+pw,w=second,office	other	3fc286a45a354411 0.14473394779864227
+pw,w=spoke,at	other	3fc186436aa7cd86 0.13690989215647792
+pw,w=spokesman,,	other	3fd13153874a40f5 0.26863563739699653
+pw,w=still,train	other	3fbb22e9cd66b6d0 0.10600148453405756
+pw,w=the,café	other	3fb87bb4b6e201f2 0.09563760247147693
+pw,w=the,clinic	other	3fcc8185c3d27eda 0.2227027136004754
+pw,w=the,deal	other	3fb81e952b22f1c5 0.09421665480744597
+pw,w=the,default	other	3fbbc74a8c65df46 0.10850969245609318
+pw,w=the,move	other	3fb9f155ae0b1068 0.10133872508146313
+pw,w=the,price	other	3fce328234e31565 0.23591640074134115
+pw,w=the,program	other	3fcc8185c3d27eda 0.2227027136004754
+pw,w=the,report	other	3fd34a2eca544d5a 0.3014027572509882
+pw,w=the,same	other	3fbf717885d96502 0.12282517688563035
+pw,w=there,since	other	3fc447e76e4ec322 0.1584443367587705
+pw,w=to,comment	other	3fc1f17d66dd945b 0.14018218538982094
+pw,w=trading,.	other	3fd2e7f16299b1f6 0.2954066718000655
+pw,w=train,with	other	3fb88610e386857a 0.09579568438359401
+pw,w=type,.	other	3fdc4dfdba33708f 0.44226020034489805
+pw,w=visit,the	other	3fc02210947a5b90 0.12603957414532063
+pw,w=was,easy	other	3fc99dbfd206a5b1 0.20012662654089078
+pw,w=was,named	other	3fb7e06ecdcea02a 0.09326832317913217
+pw,w=with,the	other	3fbae35144995325 0.10503108906534615
+pw,w=won,a	other	3fbb69bef9ca1557 0.10708230589269384
+pw,w=worked,there	other	3fbb57e164841e61 0.10680969909673756
+pw,w=year,.	other	3fd2e7f16299b1f6 0.2954066718000655
+pw,w=Álvarez,,	other	3fd01e874cb5fb64 0.251863312638241
+pw,w=Álvarez,buys	other	3fc1a597c6f27487 0.13786599363530547
+pw,w=🏆,from	other	3fc65e5da0ccddac 0.1747548136861331
+pwc,wc=2d,other	other	3fd111db53055fa7 0.26671488864439613
+pwc,wc=4d,lc	other	3fc54eab0a9f356f 0.16646326082847504
+pwc,wc=4d,other	other	3fd8f705a0b9388f 0.39007702537208727
+pwc,wc=ac,lc	other	3fcda66bca4c9f17 0.23164126756568557
+pwc,wc=ic,lc	other	3fc6f490c0bd295c 0.17933854495124535
+pwc,wc=lc,2d	other	3fd4a12de6f0f2f3 0.32233760407306916
+pwc,wc=lc,other	other	3fd448870bc82a97 0.31692672873092803
+pwc,wc=num,other	other	3fd69c26d417bd2b 0.35328074180775343
+pwc,wc=other,2d	other	3fd97f8aa5e0960d 0.39840952109293043
+pwc,wc=other,lc	other	3fc3cdcfc8331107 0.15471837306370892
+w&c=%,other	other	3fcdefbb72033d7f 0.23387854640030167
+w&c=,,other	other	3fd059e5e879481f 0.2554869432689219
+w&c=.,other	other	3fd433db40b3bd6c 0.31566506689610807
+w&c=3.5,2d	other	3fd4a12de6f0f2f3 0.32233760407306916
+w&c=42,2d	other	3fd97f8aa5e0960d 0.39840952109293043
+w&c=a,lc	other	3fc0defd0d22ad95 0.1318050684106821
+w&c=analysts,ic	other	3fe6c9e208ef8701 0.712143914654206
+w&c=and,lc	other	3fcdc56b1800a337 0.23258722946163754
+w&c=announced,lc	other	3fc3ca2982d540f4 0.1546069992859952
+w&c=at,lc	other	3fc186436aa7cd86 0.13690989215647792
+w&c=beans,lc	other	3fbbb5bdd6930e1d 0.10824190605767865
+w&c=buys,lc	other	3fc1a597c6f27487 0.13786599363530547
+w&c=café,lc	other	3fb8652d6ae328ed 0.09529384479097631
+w&c=clinic,lc	other	3fcc8185c3d27eda 0.2227027136004754
+w&c=closes,lc	other	3fb8882dddc6db67 0.09582792915794656
+w&c=comment,lc	other	3fc1f17d66dd945b 0.14018218538982094
+w&c=company,lc	other	3fc382ad6998696c 0.1524254575350129
+w&c=confirmed,lc	other	3fc161aecfd37e1d 0.13579354427109616
+w&c=deal,lc	other	3fbdd13508129773 0.1164734978397897
+w&c=deals,lc	other	3fc8ffc237a1c2bc 0.19530513492965962
+w&c=declined,lc	other	3fc610e13316d276 0.17239012713038776
+w&c=default,lc	other	3fbbc74a8c65df46 0.10850969245609318
+w&c=early,lc	other	3fc5a0fe74ee870c 0.16897564611013427
+w&c=easy,lc	other	3fc99dbfd206a5b1 0.20012662654089078
+w&c=else,lc	other	3fc25ec036a2bf28 0.1435165659690878
+w&c=every,lc	other	3fcb1037c36131d1 0.21143242874167226
+w&c=expect,lc	other	3fc33922fef16da4 0.1501811737860922
+w&c=flew,lc	other	3fc3ca4704023837 0.15461051650749066
+w&c=from,lc	other	3fc5d4da05d3508f 0.17055821690030767
+w&c=gave,lc	other	3fcc2c94b727521c 0.2201105016998931
+w&c=has,lc	other	3fc3f16b58887661 0.1558050329485239
+w&c=his,ic	other	3fe5927b98252209 0.6741311999876994
+w&c=home,lc	other	3fbd07ba49e3a8e0 0.11339916519105797
+w&c=in,lc	other	3fc2c8393435c60f 0.14673533486670506
+w&c=it,lc	other	3fbbfdd5292abf74 0.109341929007085
+w&c=joined,lc	other	3fcd4f8a07b282a2 0.22898984313817033
+w&c=lives,lc	other	3fbf0a62d89f94c7 0.12125222958237024
+w&c=map,lc	other	3fc1939e879ff6c2 0.13731748220737044
+w&c=met,lc	other	3fcabab3821a388a 0.2088226685777424
+w&c=more,lc	other	3fbd96d0fcd0b556 0.11558252498862961
+w&c=move,lc	other	3fb9f155ae0b1068 0.10133872508146313
+w&c=moved,lc	other	3fc20635774573e9 0.14081447910112324
+w&c=named,lc	other	3fb7e06ecdcea02a 0.09326832317913217
+w&c=names,lc	other	3fc2feb3c71c3ef7 0.14839789602455486
+w&c=nobody,ic	other	3fe6fa592418330b 0.7180600838633792
+w&c=of,lc	other	3fc1b53c18b8766b 0.1383433457094044
+w&c=office,lc	other	3fc286a45a354411 0.14473394779864227
+w&c=officials,lc	other	3fca4dc9620d917a 0.2054988602423114
+w&c=on,ic	other	3fe3d3bc329a755e 0.6195965755793329
+w&c=on,lc	other	3fc47fc11249fd7c 0.1601487483312488
+w&c=opened,lc	other	3fba57c961a27e30 0.10290201791439624
+w&c=patients,ic	other	3fe87636d22b0c49 0.7644304375502396
+w&c=praised,lc	other	3fbcd23b75189d06 0.11258288964073779
+w&c=price,lc	other	3fce328234e31565 0.23591640074134115
+w&c=prize,lc	other	3fc0104ec3a8c30c 0.1254976706855121
+w&c=program,lc	other	3fcc8185c3d27eda 0.2227027136004754
+w&c=report,lc	other	3fd34a2eca544d5a 0.3014027572509882
+w&c=rose,lc	other	3fca580054ada263 0.20581058630638713
+w&c=runs,lc	other	3fc6b8028d2f7916 0.17749053853817348
+w&c=said,lc	other	3fc26f40a56b4242 0.1440201575956213
+w&c=same,lc	other	3fbf717885d96502 0.12282517688563035
+w&c=shares,ic	other	3fe4a633939686b2 0.6452882654741272
+w&c=she,ic	other	3fe7920800264c77 0.7365760806009253
+w&c=since,lc	other	3fc447e76e4ec322 0.1584443367587705
+w&c=sister,lc	other	3fc9957ec16ba6a6 0.19987472957955282
+w&c=spoke,lc	other	3fc4eafaad3a007a 0.16342099626854517
+w&c=spokesman,lc	other	3fc42d9e132b5762 0.15764213500977592
+w&c=still,lc	other	3fbbd8deff0cfabe 0.10877794005225902
+w&c=the,ic	other	3fe6cb449a2f117d 0.7123129855540778
+w&c=there,lc	other	3fbb57e164841e61 0.10680969909673756
+w&c=they,ic	other	3fe4f59badd0bc92 0.654981460078391
+w&c=to,lc	other	3fc94e8a30aeb05d 0.1977093446452071
+w&c=trading,lc	other	3fcfbb603ebd374c 0.2479057604163536
+w&c=train,lc	other	3fbb22e9cd66b6d0 0.10600148453405756
+w&c=type,lc	other	3fca8e3508554807 0.20746481806651237
+w&c=visit,lc	other	3fc2eedfcd12865b 0.14791486275958018
+w&c=was,lc	other	3fb9a99c64e60269 0.10024430716840417
+w&c=with,lc	other	3fb88610e386857a 0.09579568438359401
+w&c=won,lc	other	3fba61632455a09a 0.10304851185867606
+w&c=worked,lc	other	3fb98f6e1bb2d835 0.09984481979594835
+w&c=year,lc	other	3fca8e3508554807 0.20746481806651237
+w&c=🏆,other	other	3fd1a5c6c9b01261 0.27574319549629506
+w,nw=%,in	other	3fcdefbb72033d7f 0.23387854640030167
+w,nw=,,42	other	3fd01e874cb5fb64 0.251863312638241
+w,nw=,,a	other	3fc9deac0ce1af81 0.20210791234000783
+w,nw=,,confirmed	other	3fd13153874a40f5 0.26863563739699653
+w,nw=,,runs	other	3fd32f004835e0bc 0.2997437195949819
+w,nw=3.5,%	other	3fd4a12de6f0f2f3 0.32233760407306916
+w,nw=42,,	other	3fd97f8aa5e0960d 0.39840952109293043
+w,nw=Analysts,in	other	3fe6c9e208ef8701 0.712143914654206
+w,nw=His,sister	other	3fe5927b98252209 0.6741311999876994
+w,nw=Nobody,else	other	3fe6fa592418330b 0.7180600838633792
+w,nw=On,12	other	3fe3d3bc329a755e 0.6195965755793329
+w,nw=Patients,from	other	3fe87636d22b0c49 0.7644304375502396
+w,nw=Shares,rose	other	3fe4a633939686b2 0.6452882654741272
+w,nw=She,moved	other	3fe7920800264c77 0.7365760806009253
+w,nw=The,company	other	3fe541bcadbb9dbf 0.6642745393009405
+w,nw=The,deal	other	3fe857a0c321a7db 0.7606967745934939
+w,nw=They,flew	other	3fe4f59badd0bc92 0.654981460078391
+w,nw=a,café	other	3fb78653fd9e4bdf 0.09189343397001391
+w,nw=a,map	other	3fc03be57d47bfe2 0.1268278943748547
+w,nw=a,prize	other	3fbb69bef9ca1557 0.10708230589269384
+w,nw=a,second	other	3fc6d1bc0f12db31 0.17827559219377911
+w,nw=a,spokesman	other	3fc3e61a345dec97 0.15545966679551235
+w,nw=and,Accra	other	3fce173d663b6952 0.23508422366905762
+w,nw=and,Red	other	3fd08449d7095602 0.258074245449592
+w,nw=and,Tokyo	other	3fca3c6bb398966d 0.2049688937124076
+w,nw=announced,the	other	3fc3ca2982d540f4 0.1546069992859952
+w,nw=at,St.	other	3fc186436aa7cd86 0.13690989215647792
+w,nw=beans,from	other	3fbbb5bdd6930e1d 0.10824190605767865
+w,nw=buys,beans	other	3fc1a597c6f27487 0.13786599363530547
+w,nw=café,in	other	3fb84eafb257b1ac 0.09495065788332252
+w,nw=café,won	other	3fb87bb4b6e201f2 0.09563760247147693
+w,nw=clinic,.	other	3fcc8185c3d27eda 0.2227027136004754
+w,nw=closes,in	other	3fb8882dddc6db67 0.09582792915794656
+w,nw=comment,on	other	3fc1f17d66dd945b 0.14018218538982094
+w,nw=company,opened	other	3fc382ad6998696c 0.1524254575350129
+w,nw=confirmed,it	other	3fc161aecfd37e1d 0.13579354427109616
+w,nw=deal,closes	other	3fc1c73b5844dc80 0.1388925724984098
+w,nw=deal,in	other	3fb81e952b22f1c5 0.09421665480744597
+w,nw=deals,.	other	3fc8ffc237a1c2bc 0.19530513492965962
+w,nw=declined,to	other	3fc610e13316d276 0.17239012713038776
+w,nw=default,type	other	3fbbc74a8c65df46 0.10850969245609318
+w,nw=early,trading	other	3fc5a0fe74ee870c 0.16897564611013427
+w,nw=easy,.	other	3fc99dbfd206a5b1 0.20012662654089078
+w,nw=else,was	other	3fc25ec036a2bf28 0.1435165659690878
+w,nw=every,Monday	other	3fcb1037c36131d1 0.21143242874167226
+w,nw=expect,more	other	3fc33922fef16da4 0.1501811737860922
+w,nw=flew,home	other	3fc3ca4704023837 0.15461051650749066
+w,nw=from,Bean	other	3fc65e5da0ccddac 0.1747548136861331
+w,nw=from,Café	other	3fc0f7729a9c83a1 0.13255150365241966
+w,nw=from,Lagos	other	3fca2c930690517f 0.20448530025954523
+w,nw=from,Uppsala	other	3fc5de06d2935220 0.17083821565633261
+w,nw=gave,Ann	other	3fcc2c94b727521c 0.2201105016998931
+w,nw=has,worked	other	3fc3f16b58887661 0.1558050329485239
+w,nw=home,on	other	3fbd07ba49e3a8e0 0.11339916519105797
+w,nw=in,Boise	other	3fbe09d3299e9bd9 0.11733741537192034
+w,nw=in,Lisbon	other	3fc25bde820bf339 0.1434286246293597
+w,nw=in,London	other	3fc9cd850b88aa6a 0.20158446372200284
+w,nw=in,March	other	3fca151a3022af9b 0.2037689909969885
+w,nw=in,New	other	3fc199692a1b58a8 0.13749422603604455
+w,nw=in,Oslo	other	3fca9e143da1511b 0.20794919022831312
+w,nw=in,São	other	3fc21dd05c33b365 0.14153484823273313
+w,nw=in,early	other	3fc0ae191e40da63 0.13031305291379444
+w,nw=in,the	other	3fb7dba3a66117b2 0.0931951790999779
+w,nw=it,on	other	3fbbfdd5292abf74 0.109341929007085
+w,nw=joined,Harbor	other	3fcd4f8a07b282a2 0.22898984313817033
+w,nw=lives,in	other	3fbf0a62d89f94c7 0.12125222958237024
+w,nw=map,of	other	3fc1939e879ff6c2 0.13731748220737044
+w,nw=met,Bo	other	3fcabab3821a388a 0.2088226685777424
+w,nw=more,deals	other	3fbd96d0fcd0b556 0.11558252498862961
+w,nw=move,was	other	3fb9f155ae0b1068 0.10133872508146313
+w,nw=moved,from	other	3fc20635774573e9 0.14081447910112324
+w,nw=named,in	other	3fb7e06ecdcea02a 0.09326832317913217
+w,nw=names,still	other	3fc2feb3c71c3ef7 0.14839789602455486
+w,nw=of,Bergen	other	3fc1b53c18b8766b 0.1383433457094044
+w,nw=office,in	other	3fc286a45a354411 0.14473394779864227
+w,nw=officials,praised	other	3fca4dc9620d917a 0.2054988602423114
+w,nw=on,Friday	other	3fc1ba089869fe48 0.13848979417888274
+w,nw=on,June	other	3fcd3660222a2f80 0.2282219092197657
+w,nw=on,Sunday	other	3fc1ba089869fe48 0.13848979417888274
+w,nw=on,Tuesday	other	3fcb37ebe26f3fcd 0.21264408642173152
+w,nw=on,the	other	3fb5b64d5f917ca3 0.08481296141825338
+w,nw=opened,a	other	3fba57c961a27e30 0.10290201791439624
+w,nw=praised,the	other	3fbcd23b75189d06 0.11258288964073779
+w,nw=price,.	other	3fce328234e31565 0.23591640074134115
+w,nw=prize,🏆	other	3fc0104ec3a8c30c 0.1254976706855121
+w,nw=program,.	other	3fcc8185c3d27eda 0.2227027136004754
+w,nw=report,.	other	3fd34a2eca544d5a 0.3014027572509882
+w,nw=rose,3.5	other	3fca580054ada263 0.20581058630638713
+w,nw=runs,a	other	3fc6b8028d2f7916 0.17749053853817348
+w,nw=said,the	other	3fc26f40a56b4242 0.1440201575956213
+w,nw=same,year	other	3fbf717885d96502 0.12282517688563035
+w,nw=second,office	other	3fc746f814b75c38 0.18185330401931465
+w,nw=since,2011	other	3fc447e76e4ec322 0.1584443367587705
+w,nw=sister,Inês	other	3fc9957ec16ba6a6 0.19987472957955282
+w,nw=spoke,at	other	3fc4eafaad3a007a 0.16342099626854517
+w,nw=spokesman,,	other	3fc42d9e132b5762 0.15764213500977592
+w,nw=still,train	other	3fbbd8deff0cfabe 0.10877794005225902
+w,nw=the,café	other	3fc54eab0a9f356f 0.16646326082847504
+w,nw=the,clinic	other	3fc02210947a5b90 0.12603957414532063
+w,nw=the,deal	other	3fb7d2b3b9fd9bd6 0.09305880823886467
+w,nw=the,default	other	3fbae35144995325 0.10503108906534615
+w,nw=the,move	other	3fbb3bafb25ff523 0.10637949089865066
+w,nw=the,price	other	3fc29012736ddd24 0.1450217307681011
+w,nw=the,program	other	3fb8dc01f2950504 0.09710704967894307
+w,nw=the,report	other	3fcce32f15da1b42 0.2256831032466043
+w,nw=the,same	other	3fc0c772077b15a0 0.13108659138940215
+w,nw=there,since	other	3fbb57e164841e61 0.10680969909673756
+w,nw=to,Portland	other	3fd2623ec24f2d4f 0.28724640822902797
+w,nw=to,comment	other	3fbc1960791a916c 0.10976221996913232
+w,nw=trading,.	other	3fcfbb603ebd374c 0.2479057604163536
+w,nw=train,with	other	3fbb22e9cd66b6d0 0.10600148453405756
+w,nw=type,.	other	3fca8e3508554807 0.20746481806651237
+w,nw=visit,the	other	3fc2eedfcd12865b 0.14791486275958018
+w,nw=was,easy	other	3fba7b6553c21e22 0.10344537062530226
+w,nw=was,named	other	3fb8d82345ed7b6a 0.09704800088137025
+w,nw=with,the	other	3fb88610e386857a 0.09579568438359401
+w,nw=won,a	other	3fba61632455a09a 0.10304851185867606
+w,nw=worked,there	other	3fb98f6e1bb2d835 0.09984481979594835
+w,nw=year,.	other	3fca8e3508554807 0.20746481806651237
+w,nw=🏆,from	other	3fd1a5c6c9b01261 0.27574319549629506
+w=%	other	3fcdefbb72033d7f 0.23387854640030167
+w=,	other	3fd059e5e879481f 0.2554869432689219
+w=.	other	3fd433db40b3bd6c 0.31566506689610807
+w=3.5	other	3fd4a12de6f0f2f3 0.32233760407306916
+w=42	other	3fd97f8aa5e0960d 0.39840952109293043
+w=a	other	3fc0defd0d22ad95 0.1318050684106821
+w=analysts	other	3fe6c9e208ef8701 0.712143914654206
+w=and	other	3fcdc56b1800a337 0.23258722946163754
+w=announced	other	3fc3ca2982d540f4 0.1546069992859952
+w=at	other	3fc186436aa7cd86 0.13690989215647792
+w=beans	other	3fbbb5bdd6930e1d 0.10824190605767865
+w=buys	other	3fc1a597c6f27487 0.13786599363530547
+w=clinic	other	3fcc8185c3d27eda 0.2227027136004754
+w=closes	other	3fb8882dddc6db67 0.09582792915794656
+w=comment	other	3fc1f17d66dd945b 0.14018218538982094
+w=company	other	3fc382ad6998696c 0.1524254575350129
+w=confirmed	other	3fc161aecfd37e1d 0.13579354427109616
+w=deal	other	3fbdd13508129773 0.1164734978397897
+w=deals	other	3fc8ffc237a1c2bc 0.19530513492965962
+w=declined	other	3fc610e13316d276 0.17239012713038776
+w=default	other	3fbbc74a8c65df46 0.10850969245609318
+w=early	other	3fc5a0fe74ee870c 0.16897564611013427
+w=easy	other	3fc99dbfd206a5b1 0.20012662654089078
+w=else	other	3fc25ec036a2bf28 0.1435165659690878
+w=every	other	3fcb1037c36131d1 0.21143242874167226
+w=expect	other	3fc33922fef16da4 0.1501811737860922
+w=flew	other	3fc3ca4704023837 0.15461051650749066
+w=from	other	3fc5d4da05d3508f 0.17055821690030767
+w=gave	other	3fcc2c94b727521c 0.2201105016998931
+w=has	other	3fc3f16b58887661 0.1558050329485239
+w=his	other	3fe5927b98252209 0.6741311999876994
+w=home	other	3fbd07ba49e3a8e0 0.11339916519105797
+w=in	other	3fc2c8393435c60f 0.14673533486670506
+w=it	other	3fbbfdd5292abf74 0.109341929007085
+w=joined	other	3fcd4f8a07b282a2 0.22898984313817033
+w=lives	other	3fbf0a62d89f94c7 0.12125222958237024
+w=map	other	3fc1939e879ff6c2 0.13731748220737044
+w=met	other	3fcabab3821a388a 0.2088226685777424
+w=more	other	3fbd96d0fcd0b556 0.11558252498862961
+w=move	other	3fb9f155ae0b1068 0.10133872508146313
+w=moved	other	3fc20635774573e9 0.14081447910112324
+w=named	other	3fb7e06ecdcea02a 0.09326832317913217
+w=names	other	3fc2feb3c71c3ef7 0.14839789602455486
+w=nobody	other	3fe6fa592418330b 0.7180600838633792
+w=of	other	3fc1b53c18b8766b 0.1383433457094044
+w=office	other	3fc286a45a354411 0.14473394779864227
+w=officials	other	3fca4dc9620d917a 0.2054988602423114
+w=on	other	3fcdc8ace3a3d51e 0.23268662562592451
+w=opened	other	3fba57c961a27e30 0.10290201791439624
+w=patients	other	3fe87636d22b0c49 0.7644304375502396
+w=praised	other	3fbcd23b75189d06 0.11258288964073779
+w=price	other	3fce328234e31565 0.23591640074134115
+w=prize	other	3fc0104ec3a8c30c 0.1254976706855121
+w=program	other	3fcc8185c3d27eda 0.2227027136004754
+w=report	other	3fd34a2eca544d5a 0.3014027572509882
+w=rose	other	3fca580054ada263 0.20581058630638713
+w=runs	other	3fc6b8028d2f7916 0.17749053853817348
+w=said	other	3fc26f40a56b4242 0.1440201575956213
+w=same	other	3fbf717885d96502 0.12282517688563035
+w=shares	other	3fe4a633939686b2 0.6452882654741272
+w=she	other	3fe7920800264c77 0.7365760806009253
+w=since	other	3fc447e76e4ec322 0.1584443367587705
+w=sister	other	3fc9957ec16ba6a6 0.19987472957955282
+w=spoke	other	3fc4eafaad3a007a 0.16342099626854517
+w=spokesman	other	3fc42d9e132b5762 0.15764213500977592
+w=still	other	3fbbd8deff0cfabe 0.10877794005225902
+w=there	other	3fbb57e164841e61 0.10680969909673756
+w=they	other	3fe4f59badd0bc92 0.654981460078391
+w=to	other	3fc94e8a30aeb05d 0.1977093446452071
+w=trading	other	3fcfbb603ebd374c 0.2479057604163536
+w=train	other	3fbb22e9cd66b6d0 0.10600148453405756
+w=type	other	3fca8e3508554807 0.20746481806651237
+w=visit	other	3fc2eedfcd12865b 0.14791486275958018
+w=was	other	3fb9a99c64e60269 0.10024430716840417
+w=with	other	3fb88610e386857a 0.09579568438359401
+w=won	other	3fba61632455a09a 0.10304851185867606
+w=worked	other	3fb98f6e1bb2d835 0.09984481979594835
+w=year	other	3fca8e3508554807 0.20746481806651237
+w=🏆	other	3fd1a5c6c9b01261 0.27574319549629506
+wc,nc=2d,other	other	3fd70c67e0af7db9 0.3601321882433371
+wc,nc=ic,2d	other	3fe3d3bc329a755e 0.6195965755793329
+wc,nc=lc,2d	other	3fca580054ada263 0.20581058630638713
+wc,nc=lc,4d	other	3fc447e76e4ec322 0.1584443367587705
+wc,nc=lc,ic	other	3fc802301a575a08 0.1875667694682337
+wc,nc=other,2d	other	3fd01e874cb5fb64 0.251863312638241
+wc,nc=other,lc	other	3fd06131e81b2769 0.25593230883224877
+end	turbo:name-weights

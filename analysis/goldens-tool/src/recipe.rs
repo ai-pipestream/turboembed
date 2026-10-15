@@ -237,7 +237,7 @@ pub struct Fixture {
 /// the feature generator descriptors and their resources (`featuregen`) or
 /// of the name finder's dictionaries and patterns (`namefind`), and `Runs`
 /// opens the directory.
-pub const FIXTURES: [Fixture; 55] = [
+pub const FIXTURES: [Fixture; 58] = [
     Fixture {
         file: "en-abbrev.bin",
         sha512: "759ab1defc61351f53cdd82a26e708789a225feb6e1ec0cfd6e2e54f35f67c14\
@@ -284,6 +284,16 @@ pub const FIXTURES: [Fixture; 55] = [
                  61765d97a3c5e4ca0d22b251e4dc01401f432d6a394d6a6d3fd4b06fecb41402",
     },
     Fixture {
+        file: "ner-fixture-rust.bin",
+        sha512: "c9e30b48571cd106396a9f84c0692216b5934cd7cae4ec277ceb867b93a5b9ed\
+                 4285349d48c2e3d7c508bb824697a2e68055b54817b0f9fbc06e011c510ef070",
+    },
+    Fixture {
+        file: "langdetect-fixture-rust.bin",
+        sha512: "631c804500a2a2cbd3c1b88febdf21332487760abc40efcee217159e3e694a01\
+                 dbbc82ee9d5102dccc9f5a889775aad4c93efedf3621df9d4622448a1d58ae99",
+    },
+    Fixture {
         file: "tags.tagdict",
         sha512: "cbd3dee98987711b48b42967df8e6e3e8400dcba70336fa2c83bfdba03a8c42b\
                  3bd7d5f6f0c80c2f35dc01173795792e117489f11fd23f03f9fcba3fa453417d",
@@ -297,6 +307,11 @@ pub const FIXTURES: [Fixture; 55] = [
         file: "chunker-fixture.bin",
         sha512: "be8e0bfd341644705a652b85b978e4138056922ddb9caea1ac9a2395f0648e55\
                  ad1f1b035d90f6febc0f057f832cecac377f397552fdbdfefadaa27cfa232d6a",
+    },
+    Fixture {
+        file: "chunker-fixture-rust.bin",
+        sha512: "71caec6c87065f0872d0ef255ed95443b0c675acf273c2d19a1aefd6c006f1ab\
+                 99846bbb28b56d2e78abcb3f78074d00b1135a6dffc4e14ed3957101cf80ee44",
     },
     Fixture {
         file: "english-dictionary.xml",
@@ -516,7 +531,7 @@ pub const FIXTURES: [Fixture; 55] = [
 ];
 
 /// The input sets under `analysis/goldens/data/inputs`.
-pub const INPUT_SETS: [&str; 31] = [
+pub const INPUT_SETS: [&str; 32] = [
     "en",
     "multi",
     "norm",
@@ -541,6 +556,7 @@ pub const INPUT_SETS: [&str; 31] = [
     "ner",
     "parse",
     "head-rules",
+    "langdetect",
     "sequence",
     "descriptor-errors",
     "codec",
@@ -561,7 +577,7 @@ pub const GENERATOR_ARGS: [&str; 1] = ["--dumps"];
 /// replaces and `verify` compares. The data directory holds other things
 /// (the inputs, the fixtures, the rate snapshot, a README) that neither
 /// touches.
-pub const ANNOTATORS: [&str; 35] = [
+pub const ANNOTATORS: [&str; 36] = [
     "sentdetect",
     "tokenize",
     "postag",
@@ -582,6 +598,7 @@ pub const ANNOTATORS: [&str; 35] = [
     "lattice",
     "train",
     "train-events",
+    "train-langdetect",
     "formats",
     "evaluate",
     "masc",

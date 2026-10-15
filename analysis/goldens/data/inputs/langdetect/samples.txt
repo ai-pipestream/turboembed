@@ -1,0 +1,58 @@
+eng	The train leaves at seven every morning.
+deu	Der Zug fährt jeden Morgen um sieben ab.
+fra	Le train part tous les matins à sept heures.
+spa	El tren sale todas las mañanas a las siete.
+ita	Il treno parte ogni mattina alle sette.
+nld	De trein vertrekt elke ochtend om zeven uur.
+rus	Поезд отправляется каждое утро в семь.
+ell	Το τρένο φεύγει κάθε πρωί στις επτά.
+eng	My sister bought a red bicycle yesterday.
+deu	Meine Schwester hat gestern ein rotes Fahrrad gekauft.
+fra	Ma sœur a acheté un vélo rouge hier.
+spa	Mi hermana compró ayer una bicicleta roja.
+ita	Mia sorella ha comprato ieri una bicicletta rossa.
+nld	Mijn zus heeft gisteren een rode fiets gekocht.
+rus	Моя сестра вчера купила красный велосипед.
+ell	Η αδελφή μου αγόρασε χθες ένα κόκκινο ποδήλατο.
+eng	Could you close the window, please?
+deu	Könntest du bitte das Fenster schließen?
+fra	Pourrais-tu fermer la fenêtre, s'il te plaît ?
+spa	¿Podrías cerrar la ventana, por favor?
+ita	Potresti chiudere la finestra, per favore?
+nld	Kun je het raam dichtdoen, alsjeblieft?
+rus	Не мог бы ты закрыть окно, пожалуйста?
+ell	Μπορείς να κλείσεις το παράθυρο, σε παρακαλώ;
+eng	We are going to the market on Saturday.
+deu	Wir gehen am Samstag auf den Markt.
+fra	Nous allons au marché samedi.
+spa	Vamos al mercado el sábado.
+ita	Andiamo al mercato sabato.
+nld	We gaan zaterdag naar de markt.
+rus	В субботу мы идём на рынок.
+ell	Το Σάββατο πάμε στη λαϊκή αγορά.
+eng	The children were laughing in the garden.
+deu	Die Kinder lachten im Garten.
+fra	Les enfants riaient dans le jardin.
+spa	Los niños se reían en el jardín.
+ita	I bambini ridevano in giardino.
+nld	De kinderen lachten in de tuin.
+rus	Дети смеялись в саду.
+ell	Τα παιδιά γελούσαν στον κήπο.
+eng	This book costs 25 dollars, see https://example.org/books for more.
+deu	Das Buch kostet 25 Euro, mehr unter www.example.org/buch.
+fra	Ce livre coûte 25 euros, écrivez à info@example.org.
+spa	¡Qué bien! 😀 Nos vemos mañana. #fiesta @amigos
+ita	Ci vediamo alle 18:30 davanti alla stazione.
+nld	Ik heb 3 katten en 2 honden.
+rus	ЗДРАВСТВУЙТЕ, КАК ДЕЛА?
+ell	Ο ΚΟΣΜΟΣ ΕΙΝΑΙ ΜΙΚΡΟΣ.
+tur	İstanbul büyük ve kalabalık bir şehir.
+eng	
+	no language before the tab
+no tab on this line
+fra	un	deux	trois
+deu	   viele    Leerzeichen   hier   
+eng	aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+eng	Save it in C:\Users\me\notes.txt today.
+nld	Dit is een regel met een Windows-einde.
+ita	Ultima riga senza a capo.
