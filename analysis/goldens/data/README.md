@@ -271,6 +271,9 @@ are not taken from any corpus.
 - `inputs/stopword/`: words and language codes the stopword lookup is asked
   about besides the lists' own, written for this project
   (`analysis/stopword/README.md`).
+- `inputs/glossary/`: texts for the glossary matchers and comma separated,
+  tab separated and TBX glossaries, well formed and malformed, for the
+  glossary readers, written for this project (`analysis/glossary/README.md`).
 
 `analysis/goldens-tool/README.md` ("Runs") lists which run reads which set.
 
@@ -325,6 +328,7 @@ that differs.
 | `en-head-rules.txt` | Apache OpenNLP's English head rules (`opennlp-tools/lang/en/parser/en-head_rules` at the goldens' OpenNLP commit, the same bytes as the test resource `opennlp-core/opennlp-runtime/src/test/resources/opennlp/tools/parser/en_head_rules`; Apache License 2.0, rules after Collins and Magerman), unchanged |
 | `es-head-rules.txt` | Apache OpenNLP's AnCora Spanish head rules (`opennlp-tools/lang/es/parser/es-head-rules` at the same commit, Apache License 2.0), unchanged; its tags double their backslashes, so OpenNLP never matches those |
 | `es-regex-head-rules.txt` | AnCora head rules written for this project whose tags use classes, ranges, negation, `?`, `+`, `^`, `$` and escapes, for the patterns OpenNLP's file does not reach |
+| `glossary-terms.tsv` | a glossary of 40 entries written for this project, tab separated with an `id`, `term` header: terms of several words, case and spacing variants, punctuation, accented, Greek, Turkish, CJK, Korean and emoji terms and characters outside the BMP; the glossary matchers' goldens match with it (`analysis/glossary/README.md`) |
 
 `train-fixtures/` beside `fixtures/` holds the training data of the fixture
 models above (tagged sentences, chunks and names, written for this project);

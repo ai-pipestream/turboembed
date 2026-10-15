@@ -88,6 +88,8 @@ final class Runs {
   static final String EN_HEAD_RULES = "en-head-rules.txt";
   static final String ES_HEAD_RULES = "es-head-rules.txt";
   static final String ES_REGEX_HEAD_RULES = "es-regex-head-rules.txt";
+  /** The glossary the glossary matchers are built from, tab separated with a header. */
+  static final String GLOSSARY_TERMS = "glossary-terms.tsv";
   /** The name finder models OpenNLP trained for the beam search goldens. */
   static final String NER_BIO_FIXTURE = "ner-bio-fixture.bin";
   static final String NER_BILOU_FIXTURE = "ner-bilou-fixture.bin";
@@ -123,6 +125,8 @@ final class Runs {
   static final String NER = "ner";
   static final String PARSE = "parse";
   static final String HEAD_RULES = "head-rules";
+  /** Texts for the glossary matchers, and delimited lists and TBX termbases for the readers. */
+  static final String GLOSSARY = "glossary";
   /** The language samples the Rust language detector fixture was trained on. */
   static final String LANGDETECT = "langdetect";
   /** The tokenized sentences and the pattern tokens of the sequence goldens. */
@@ -352,6 +356,8 @@ final class Runs {
     annotators.addAll(NameFindGolden.all(fixtures));
     annotators.addAll(StemGolden.all());
     annotators.addAll(StopwordGolden.all());
+    // The glossary matchers over the fixture glossary, and the glossary readers.
+    annotators.addAll(GlossaryGolden.all(fixtures.resolve(GLOSSARY_TERMS)));
     return new All(annotators, recorders);
   }
 }

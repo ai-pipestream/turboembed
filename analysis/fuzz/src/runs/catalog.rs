@@ -18,12 +18,13 @@ use crate::resources::{Resources, Unavailable};
 /// not layers of a text; the evaluators compare scores; the detokenizer
 /// runs on token lists; the BPE trainer learns merges from a whole set; the
 /// sequence runs (`string-pattern`, `features`, `codec`, `beam`,
-/// `tag-dictionary`, `tag-format`), the name finders, the stemmers and the
-/// stopword lists read input sets of their own, which turbo-sequence,
-/// turbo-namefind, turbo-stem and turbo-stopword compare with; the other
+/// `tag-dictionary`, `tag-format`), the name finders, the stemmers, the
+/// stopword lists and the glossary matchers and readers read input sets of
+/// their own, which turbo-sequence, turbo-namefind, turbo-stem,
+/// turbo-stopword and turbo-glossary compare with; the other
 /// `namefind` runs train name finders from name samples and find names in
 /// them, which turbo-train-components compares with.
-pub const NOT_COVERED: [&str; 20] = [
+pub const NOT_COVERED: [&str; 21] = [
     "train",
     "train-events",
     "train-langdetect",
@@ -44,6 +45,7 @@ pub const NOT_COVERED: [&str; 20] = [
     "namefind",
     "stem",
     "stopword",
+    "glossary",
 ];
 
 /// Every run the differential covers, as `(annotator, run)`: the golden

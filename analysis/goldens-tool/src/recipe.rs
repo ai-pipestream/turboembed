@@ -237,7 +237,7 @@ pub struct Fixture {
 /// the feature generator descriptors and their resources (`featuregen`) or
 /// of the name finder's dictionaries and patterns (`namefind`), and `Runs`
 /// opens the directory.
-pub const FIXTURES: [Fixture; 58] = [
+pub const FIXTURES: [Fixture; 59] = [
     Fixture {
         file: "en-abbrev.bin",
         sha512: "759ab1defc61351f53cdd82a26e708789a225feb6e1ec0cfd6e2e54f35f67c14\
@@ -332,6 +332,11 @@ pub const FIXTURES: [Fixture; 58] = [
         file: "es-regex-head-rules.txt",
         sha512: "d75363b131a71c1b6fd243e9f339ee97393fe36a9ed89d857c49d89da793dc9b\
                  1e48b92ca0e67fb65c04305fba81d17754b896b2cba90a166348c00feff19a6b",
+    },
+    Fixture {
+        file: "glossary-terms.tsv",
+        sha512: "9356e730339664c7fcbf3cd6c0aef6287ac07f0db2e13d03927a9c5f05730596\
+                 5cb13a1b0df0d5f5e5072a9dded43c07f406cfad9fcad5416d07fef80fb0623a",
     },
     Fixture {
         file: "en-detokenizer.xml",
@@ -531,7 +536,7 @@ pub const FIXTURES: [Fixture; 58] = [
 ];
 
 /// The input sets under `analysis/goldens/data/inputs`.
-pub const INPUT_SETS: [&str; 32] = [
+pub const INPUT_SETS: [&str; 33] = [
     "en",
     "multi",
     "norm",
@@ -564,6 +569,7 @@ pub const INPUT_SETS: [&str; 32] = [
     "namefind",
     "stem",
     "stopword",
+    "glossary",
 ];
 
 /// The arguments the driver passes to the generator after the fixed ones
@@ -577,7 +583,7 @@ pub const GENERATOR_ARGS: [&str; 1] = ["--dumps"];
 /// replaces and `verify` compares. The data directory holds other things
 /// (the inputs, the fixtures, the rate snapshot, a README) that neither
 /// touches.
-pub const ANNOTATORS: [&str; 36] = [
+pub const ANNOTATORS: [&str; 37] = [
     "sentdetect",
     "tokenize",
     "postag",
@@ -614,6 +620,7 @@ pub const ANNOTATORS: [&str; 36] = [
     "namefind",
     "stem",
     "stopword",
+    "glossary",
 ];
 
 /// The annotators with runs that ask a maxent model for their decisions:
@@ -706,6 +713,7 @@ mod tests {
                     f.file.ends_with(".bin")
                         || f.file.ends_with(".xml")
                         || f.file.ends_with(".txt")
+                        || f.file.ends_with(".tsv")
                         || f.file.ends_with(".tagdict"),
                     "{}",
                     f.file
