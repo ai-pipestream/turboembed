@@ -13,14 +13,14 @@ use super::super::{FRAC_WORD, INT, NUMERAL};
 use super::{AMPM, BARE, CLOCK, DIG, PART, PARTD, PLURAL, clock_of, emit, emit_clock, r, term, term_value, tval};
 
 /// Lexeme `i` as written, when it is all ASCII digits.
-fn digits<'a>(c: &Ctx<'a>, i: usize) -> Option<&'a str> {
+pub(crate) fn digits<'a>(c: &Ctx<'a>, i: usize) -> Option<&'a str> {
     let raw = c.raw(i);
     raw.bytes().all(|b| b.is_ascii_digit()).then_some(raw)
 }
 
 /// A `DIG` term: the value, and the digit count with 16 added for a
 /// leading zero.
-fn b_dig(_: &[Value], c: &Ctx<'_>) -> Option<Value> {
+pub(crate) fn b_dig(_: &[Value], c: &Ctx<'_>) -> Option<Value> {
     let raw = digits(c, c.start)?;
     if raw.len() > 8 {
         return None;
@@ -38,11 +38,11 @@ pub(crate) fn dig_zero(v: &Value) -> bool {
 }
 
 /// The half of the day a written hour leaves open: none above 12 or at 0.
-fn open(hour: i64) -> Meridiem {
+pub(crate) fn open(hour: i64) -> Meridiem {
     if hour > 12 || hour == 0 { Meridiem::Day } else { Meridiem::Unknown }
 }
 
-fn hm(c: &Ctx<'_>, h: i64, m: i64, s: i64, shown: Shown) -> Option<Value> {
+pub(crate) fn hm(c: &Ctx<'_>, h: i64, m: i64, s: i64, shown: Shown) -> Option<Value> {
     if !(0..=24).contains(&h) {
         return None;
     }
@@ -50,7 +50,7 @@ fn hm(c: &Ctx<'_>, h: i64, m: i64, s: i64, shown: Shown) -> Option<Value> {
     emit_clock(c, Clock::new(h as u8, u8::try_from(m).ok()?, u8::try_from(s).ok()?, shown, open(h))?)
 }
 
-fn b_bare_dig(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
+pub(crate) fn b_bare_dig(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
     if dig_len(&v[0]) > 2 {
         return None;
     }
@@ -58,30 +58,30 @@ fn b_bare_dig(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
 }
 
 /// A spelled hour: `seven`, `twelve`.
-fn spelled_hour(v: &Value) -> Option<i64> {
+pub(crate) fn spelled_hour(v: &Value) -> Option<i64> {
     let n = v.num()?;
     (n.has(crate::value::flag::SPELLED) && !n.has(crate::value::flag::DIGITS)).then_some(())?;
     let h = n.value.to_i64()?;
     (1..=12).contains(&h).then_some(h)
 }
 
-fn spelled_minutes(v: &Value) -> Option<i64> {
+pub(crate) fn spelled_minutes(v: &Value) -> Option<i64> {
     let n = v.num()?;
     (n.has(crate::value::flag::SPELLED) && !n.has(crate::value::flag::DIGITS)).then_some(())?;
     let m = n.value.to_i64()?;
     (10..60).contains(&m).then_some(m)
 }
 
-fn b_bare_word(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
+pub(crate) fn b_bare_word(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
     hm(c, spelled_hour(&v[0])?, 0, 0, Shown::Hour)
 }
 
-fn b_bare_word_minutes(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
+pub(crate) fn b_bare_word_minutes(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
     hm(c, spelled_hour(&v[0])?, spelled_minutes(&v[1])?, 0, Shown::Minute)
 }
 
 /// `6.45`, `17.30`, `11.00`: an hour and two digits of minutes.
-fn b_bare_dot(_: &[Value], c: &Ctx<'_>) -> Option<Value> {
+pub(crate) fn b_bare_dot(_: &[Value], c: &Ctx<'_>) -> Option<Value> {
     let (h, m) = c.raw(c.start).split_once('.')?;
     if h.is_empty() || h.len() > 2 || m.len() != 2 || !(h.bytes().chain(m.bytes())).all(|b| b.is_ascii_digit()) {
         return None;
@@ -93,14 +93,14 @@ fn b_bare_dot(_: &[Value], c: &Ctx<'_>) -> Option<Value> {
     hm(c, h, m, 0, Shown::Minute)
 }
 
-fn b_hm(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
+pub(crate) fn b_hm(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
     if dig_len(&v[0]) > 2 || dig_len(&v[1]) != 2 {
         return None;
     }
     hm(c, term(&v[0]).0, term(&v[1]).0, 0, Shown::Minute)
 }
 
-fn b_hms(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
+pub(crate) fn b_hms(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
     if dig_len(&v[0]) > 2 || dig_len(&v[1]) != 2 || dig_len(&v[2]) != 2 {
         return None;
     }
@@ -108,7 +108,7 @@ fn b_hms(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
 }
 
 /// `0730`: four digits with a leading zero.
-fn b_hhmm_zero(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
+pub(crate) fn b_hhmm_zero(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
     if dig_len(&v[0]) != 4 || !dig_zero(&v[0]) {
         return None;
     }
@@ -116,7 +116,7 @@ fn b_hhmm_zero(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
     hm(c, n / 100, n % 100, 0, Shown::Minute)
 }
 
-fn meridiem(v: &Value) -> Meridiem {
+pub(crate) fn meridiem(v: &Value) -> Meridiem {
     match term(v).0 {
         1 => Meridiem::Am,
         2 => Meridiem::Pm,
@@ -125,7 +125,7 @@ fn meridiem(v: &Value) -> Meridiem {
 }
 
 /// A clock in the half of the day `m` says; a 24-hour time takes none.
-fn with_meridiem(c: &Ctx<'_>, k: Clock, m: Meridiem) -> Option<Value> {
+pub(crate) fn with_meridiem(c: &Ctx<'_>, k: Clock, m: Meridiem) -> Option<Value> {
     if m == Meridiem::Unknown {
         // `7ampm`: either half, said outright.
         return (k.hour <= 12).then(|| emit_clock(c, Clock { meridiem: Meridiem::Unknown, ..k }))?;
@@ -136,20 +136,20 @@ fn with_meridiem(c: &Ctx<'_>, k: Clock, m: Meridiem) -> Option<Value> {
     emit_clock(c, Clock::new(k.hour, k.minute, k.second, k.shown, m)?)
 }
 
-fn b_clock_ampm(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
+pub(crate) fn b_clock_ampm(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
     with_meridiem(c, clock_of(c, &v[0])?, meridiem(&v[1]))
 }
 
-fn b_clock_am(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
+pub(crate) fn b_clock_am(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
     with_meridiem(c, clock_of(c, &v[0])?, Meridiem::Am)
 }
 
-fn b_clock_pm(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
+pub(crate) fn b_clock_pm(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
     with_meridiem(c, clock_of(c, &v[0])?, Meridiem::Pm)
 }
 
 /// `1140 a.m.`: three or four digits and a half of the day.
-fn b_hhmm_ampm(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
+pub(crate) fn b_hhmm_ampm(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
     if !(3..=4).contains(&dig_len(&v[0])) {
         return None;
     }
@@ -159,17 +159,17 @@ fn b_hhmm_ampm(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
 }
 
 /// A clock as written, stated outright: `seven o'clock`.
-fn b_same_clock(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
+pub(crate) fn b_same_clock(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
     clock_of(c, &v[0]).and_then(|k| (k.shown == Shown::Hour).then_some(v[0]))
 }
 
 /// `11ish`, `noonish`: the hour as written.
-fn b_ish(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
+pub(crate) fn b_ish(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
     let k = clock_of(c, &v[0])?;
     emit_clock(c, Clock { meridiem: Meridiem::Day, ..k })
 }
 
-fn minutes_past(c: &Ctx<'_>, m: i64, v: &Value) -> Option<Value> {
+pub(crate) fn minutes_past(c: &Ctx<'_>, m: i64, v: &Value) -> Option<Value> {
     let k = clock_of(c, v)?;
     if k.shown != Shown::Hour || !(1..60).contains(&m) {
         return None;
@@ -177,33 +177,33 @@ fn minutes_past(c: &Ctx<'_>, m: i64, v: &Value) -> Option<Value> {
     emit_clock(c, Clock { minute: m as u8, shown: Shown::Minute, ..k })
 }
 
-fn b_half_past(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
+pub(crate) fn b_half_past(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
     minutes_past(c, 30, &v[0])
 }
 
-fn b_quarter_past(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
+pub(crate) fn b_quarter_past(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
     // The quarter word's child comes first.
     (term(&v[0]).0 == 4).then(|| minutes_past(c, 15, &v[1]))?
 }
 
-fn b_minutes_past(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
+pub(crate) fn b_minutes_past(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
     let m = v[0].num()?.value.to_i64()?;
     minutes_past(c, m, &v[1])
 }
 
-fn b_noon(_: &[Value], c: &Ctx<'_>) -> Option<Value> {
+pub(crate) fn b_noon(_: &[Value], c: &Ctx<'_>) -> Option<Value> {
     emit_clock(c, Clock::new(12, 0, 0, Shown::Hour, Meridiem::Pm)?)
 }
 
-fn b_twelve_noon(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
+pub(crate) fn b_twelve_noon(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
     (term(&v[0]).0 == 12).then(|| b_noon(v, c))?
 }
 
-fn b_midnight(_: &[Value], c: &Ctx<'_>) -> Option<Value> {
+pub(crate) fn b_midnight(_: &[Value], c: &Ctx<'_>) -> Option<Value> {
     emit_clock(c, Clock::new(0, 0, 0, Shown::Hour, Meridiem::Day)?)
 }
 
-const PARTS: [Part; 9] = [
+pub(crate) const PARTS: [Part; 9] = [
     Part::Morning,
     Part::Afternoon,
     Part::Evening,
@@ -219,28 +219,28 @@ pub(crate) fn part(v: &Value) -> Option<Part> {
     PARTS.get(usize::try_from(term(v).0).ok()?).copied()
 }
 
-fn emit_part(c: &Ctx<'_>, p: Part, modifier: Modifier) -> Option<Value> {
+pub(crate) fn emit_part(c: &Ctx<'_>, p: Part, modifier: Modifier) -> Option<Value> {
     emit(c, TimeValue::Point { point: Point::time(TimeOfDay::Part(p)), modifier, clip: false })
 }
 
 /// A part of the day; a plural only after `in the` (`mornings` alone
 /// recurs).
-fn b_part(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
+pub(crate) fn b_part(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
     if term(&v[0]).1 & PLURAL != 0 {
         return None;
     }
     emit_part(c, part(&v[0])?, Modifier::NONE)
 }
 
-fn b_part_any(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
+pub(crate) fn b_part_any(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
     emit_part(c, part(v.last()?)?, Modifier::NONE)
 }
 
-fn b_night_time(_: &[Value], c: &Ctx<'_>) -> Option<Value> {
+pub(crate) fn b_night_time(_: &[Value], c: &Ctx<'_>) -> Option<Value> {
     emit_part(c, Part::NightTime, Modifier::NONE)
 }
 
-fn portion_part(c: &Ctx<'_>, v: &Value, portion: Portion) -> Option<Value> {
+pub(crate) fn portion_part(c: &Ctx<'_>, v: &Value, portion: Portion) -> Option<Value> {
     let p = part(v)?;
     if !matches!(p, Part::Morning | Part::Afternoon | Part::Evening | Part::Night) {
         return None;
@@ -248,11 +248,11 @@ fn portion_part(c: &Ctx<'_>, v: &Value, portion: Portion) -> Option<Value> {
     emit_part(c, p, Modifier::portion(portion))
 }
 
-fn b_early_part(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
+pub(crate) fn b_early_part(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
     portion_part(c, v.last()?, Portion::Start)
 }
 
-fn b_late_part(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
+pub(crate) fn b_late_part(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
     portion_part(c, v.last()?, Portion::End)
 }
 
@@ -273,14 +273,14 @@ pub(crate) fn is_meal(p: Part) -> bool {
     matches!(p, Part::Breakfast | Part::Lunch | Part::Dinner)
 }
 
-fn part_value(c: &Ctx<'_>, v: &Value) -> Option<Part> {
+pub(crate) fn part_value(c: &Ctx<'_>, v: &Value) -> Option<Part> {
     match tval(c, v)? {
         TimeValue::Point { point: Point { time: TimeOfDay::Part(p), .. }, .. } => Some(p),
         _ => None,
     }
 }
 
-fn b_clock_part(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
+pub(crate) fn b_clock_part(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
     if is_meal(part_value(c, &v[1])?) {
         return None;
     }
@@ -289,28 +289,28 @@ fn b_clock_part(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
 
 /// An hour alone takes a part of the day said with `in` or `at`: `8 in
 /// the evening`, not `2 morning sessions`.
-fn b_bare_part(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
+pub(crate) fn b_bare_part(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
     let next = c.lexed.len().min(c.end);
     let at = (c.start + 1..next).find(|&i| matches!(c.word(i), "in" | "at"));
     at.is_some().then(|| b_clock_part(v, c))?
 }
 
-fn b_part_clock(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
+pub(crate) fn b_part_clock(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
     if is_meal(part_value(c, &v[0])?) {
         return None;
     }
     emit_clock(c, clock_in_part(c, &v[1], &v[0])?)
 }
 
-fn b_am(_: &[Value], _: &Ctx<'_>) -> Option<Value> {
+pub(crate) fn b_am(_: &[Value], _: &Ctx<'_>) -> Option<Value> {
     term_value(1, 0)
 }
 
-fn b_pm(_: &[Value], _: &Ctx<'_>) -> Option<Value> {
+pub(crate) fn b_pm(_: &[Value], _: &Ctx<'_>) -> Option<Value> {
     term_value(2, 0)
 }
 
-fn b_either(_: &[Value], _: &Ctx<'_>) -> Option<Value> {
+pub(crate) fn b_either(_: &[Value], _: &Ctx<'_>) -> Option<Value> {
     term_value(3, 0)
 }
 
@@ -415,11 +415,11 @@ pub(super) static RULES: &[Rule] = &[
 ];
 
 /// `at 6.45`: a dotted time takes its `at` along.
-fn b_at_dot(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
+pub(crate) fn b_at_dot(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
     c.raw(c.start + 1).contains('.').then_some(v[0])
 }
 
-fn b_at_dot_ampm(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
+pub(crate) fn b_at_dot_ampm(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
     if !c.raw(c.start + 1).contains('.') {
         return None;
     }
