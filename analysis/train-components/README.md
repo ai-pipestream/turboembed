@@ -14,7 +14,7 @@ reproduction of the published UD 1.3 models from their treebanks.
 | `tokenize` | `TokenizerFactory` (with the language's alphanumeric pattern), `TokSpanEventStream`, `TokenizerME.train`, `TokenizerModel` |
 | `postag` | `POSTaggerFactory` (the default feature generator descriptor or a given one, a tag dictionary or none), `POSSampleEventStream` over `ConfigurablePOSContextGenerator`, `POSTaggerME.train`, `POSModel` with its `generator.featuregen` and `tags.tagdict` entries |
 | `lemmatize` | `LemmatizerFactory`, `LemmatizerME.encodeLemmas`, `LemmaSampleEventStream` over `DefaultLemmatizerContextGenerator`, `LemmatizerME.train`, `LemmatizerModel` |
-| `chunk` | `ChunkerFactory`, `ChunkerEventStream` over `DefaultChunkerContextGenerator`, `ChunkerME.train` with any event trainer (`MAXENT`, `MAXENT_QN`, `PERCEPTRON`), `ChunkerModel` |
+| `chunk` | `ChunkerFactory`, `ChunkerEventStream` over `DefaultChunkerContextGenerator`, `ChunkerME.train` with `MAXENT`, `MAXENT_QN` or `PERCEPTRON` (`NAIVEBAYES`, which `ChunkerME.train` also takes, is not ported and fails with `turbo_train::Error::NotPorted`), `ChunkerModel` |
 | `dictionary` | `Dictionary` as `new Dictionary(InputStream)` reads it and `Dictionary.serialize` writes it, through the JDK's `ToStream` with indentation |
 | `tagdict` | `POSDictionary` as `POSDictionary.create` reads it (a case-insensitive one is lowercased into a second map in the first map's order) and `POSDictionary.serialize` writes it |
 | `java_hash` | `String.hashCode`, `StringList.hashCode`, and the iteration order of a `java.util.HashMap` |
@@ -148,11 +148,11 @@ holds the events, what the sample stream threw, the event checksum, and
 what training threw or the model it trained: its outcomes and
 predicates in order, every parameter, the `chunker.model` entry's length
 and SHA-256, the manifest and the zip entries. `tests/chunker.rs` trains
-on the same samples with the same parameters and compares all of it;
-every parameter must be within 1e-9 of the JVM's, and in the goldens
-every one (1,347 for the defaults, 94,545 each for the perceptron and
-`MAXENT_QN`) is the JVM's double, so the `chunker.model` entries are the
-JVM's bytes.
+on the same samples with the same parameters and compares all of it:
+every parameter must be the JVM's double, bit for bit (1,347 for the
+defaults, 94,545 each for the perceptron and `MAXENT_QN`), and the
+`chunker.model` entry's SHA-256 the JVM's, so the entries are the JVM's
+bytes.
 `tests/fixtures.rs` trains the fixture models `en-plain.bin`,
 `en-abbrev.bin`, `tokenizer-abbreviations.bin`, `pos-fixture.bin` and
 `chunker-fixture.bin` again from their training texts and checks the

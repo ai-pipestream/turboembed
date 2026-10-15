@@ -5,8 +5,8 @@
 //! the samples' events, what the stream threw and the event checksum are
 //! compared; then what `ChunkerME.train` threw, or the model it trained:
 //! the algorithm, the outcomes in order, the predicates in the order the
-//! model writes them, every parameter (within 1e-9 of the JVM's double,
-//! and counted when it is the same double), the `chunker.model` entry,
+//! model writes them, every parameter (the JVM's double, bit for bit; the
+//! issue asks for 1e-9), the `chunker.model` entry's length and SHA-256,
 //! the manifest without its timestamp and the zip entries.
 
 mod common;
@@ -24,9 +24,6 @@ use turbo_train::{Event, TrainingConfiguration, TrainingParameters};
 use turbo_train_components::chunk::{self, ChunkerFactory, train_chunker_model};
 use turbo_train_components::{Error, Stamp, postag};
 use turbo_zoo::Sha256;
-
-/// The most a parameter may differ from the JVM's.
-const TOLERANCE: f64 = 1e-9;
 
 /// When the models here are said to be trained, in milliseconds: thirteen
 /// digits, as the JVM's timestamp has, so the manifests have one length.
@@ -132,10 +129,9 @@ fn labels(g: &Golden, id: &str) -> Vec<String> {
 /// What one golden held: a trained model, or what training threw.
 #[derive(Debug, PartialEq, Eq)]
 enum Outcome {
-    /// The parameters compared, and how many were the JVM's double.
+    /// The parameters compared, each the JVM's double.
     Trained {
         parameters: usize,
-        same: usize,
     },
     Refused,
 }
@@ -194,20 +190,22 @@ fn check(path: &Path, g: &Golden) -> Outcome {
         }
     }
     assert_eq!(made.len(), l.len(), "{}: parameters", path.display());
-    let mut same = 0;
     for (i, &(p, o, v)) in made.iter().enumerate() {
         assert_eq!((predicate[i], outcome[i]), (p, o), "{}: parameter {i}", path.display());
         let jvm = value[i];
-        assert!((v - jvm).abs() <= TOLERANCE, "{}: parameter {i} is {v:e}, the JVM's {jvm:e}", path.display());
-        same += usize::from(v.to_bits() == jvm.to_bits());
+        assert_eq!(
+            v.to_bits(),
+            jvm.to_bits(),
+            "{}: parameter {i} is {v:e}, the JVM's {jvm:e}, {:e} apart",
+            path.display(),
+            (v - jvm).abs()
+        );
     }
 
     // The entry the model writes, and the file: the manifest (the JVM's
     // without its timestamp) and the zip entries with their lengths.
     let bytes = trained.package.entries().find(|(n, _)| *n == chunk::MODEL_ENTRY).unwrap().1.to_vec();
-    if same == made.len() {
-        assert_eq!(entry.strs("sha256").unwrap().get(0), Sha256::of(&bytes).to_string(), "{}", path.display());
-    }
+    assert_eq!(entry.strs("sha256").unwrap().get(0), Sha256::of(&bytes).to_string(), "{}: entry", path.display());
     assert_eq!(entry.u32s("length").unwrap()[0] as usize, bytes.len(), "{}: entry length", path.display());
     let l = common::layer(g, "turbo:manifest");
     let (keys, values) = (l.strs("key").unwrap(), l.strs("value").unwrap());
@@ -223,7 +221,7 @@ fn check(path: &Path, g: &Golden) -> Outcome {
     // the generator's JVM dates in UTC, as `Stamp::at` does, and both
     // timestamps have thirteen digits
     assert_eq!(lengths[at] as usize, manifest_length, "{}: manifest length", path.display());
-    Outcome::Trained { parameters: made.len(), same }
+    Outcome::Trained { parameters: made.len() }
 }
 
 #[test]
@@ -236,35 +234,32 @@ fn chunkers_trained_here_are_the_jvms_over_every_chunker_golden() {
             run.as_os_str().to_str().unwrap().starts_with("chunker-")
         })
         .collect();
-    let mut runs = std::collections::BTreeMap::<String, (usize, usize, usize, usize)>::new();
+    let mut runs = std::collections::BTreeMap::<String, (usize, usize, usize)>::new();
     for path in &files {
         let g = common::read(path);
         assert!(g.header.error.is_none(), "{}: the generator failed", path.display());
         let run = common::config(&g, "run").unwrap().to_owned();
         let counts = runs.entry(run).or_default();
         match check(path, &g) {
-            Outcome::Trained { parameters, same } => {
+            Outcome::Trained { parameters } => {
                 counts.0 += 1;
                 counts.2 += parameters;
-                counts.3 += same;
             }
             Outcome::Refused => counts.1 += 1,
         }
     }
-    for (run, (trained, refused, parameters, same)) in &runs {
-        println!("{run}: {trained} trained, {refused} refused, {same} of {parameters} parameters the JVM's doubles");
-    }
     // Cutoff 5 leaves `chunk-basic` no predicate; `chunk-empty-first` has
     // no sample, as `ChunkSampleStream` ends at an empty first line; and
-    // `ChunkerME.train` takes no sequence trainer.
-    let made: Vec<(&str, usize, usize)> = runs.iter().map(|(run, c)| (run.as_str(), c.0, c.1)).collect();
+    // `ChunkerME.train` takes no sequence trainer. Every parameter counted
+    // is the JVM's double.
+    let made: Vec<(&str, usize, usize, usize)> = runs.iter().map(|(run, c)| (run.as_str(), c.0, c.1, c.2)).collect();
     assert_eq!(
         made,
         [
-            ("chunker-defaults", 3, 2),
-            ("chunker-perceptron", 4, 1),
-            ("chunker-perceptron-sequence", 0, 5),
-            ("chunker-qn", 4, 1)
+            ("chunker-defaults", 3, 2, 1347),
+            ("chunker-perceptron", 4, 1, 94545),
+            ("chunker-perceptron-sequence", 0, 5, 0),
+            ("chunker-qn", 4, 1, 94545)
         ]
     );
 }

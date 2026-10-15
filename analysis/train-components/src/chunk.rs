@@ -15,7 +15,10 @@
 //! `ChunkerME.train` asks `TrainerFactory.getTrainerType` which kind of
 //! trainer the `Algorithm` parameter names. An event trainer (`MAXENT`,
 //! the default, `MAXENT_QN` or `PERCEPTRON`) is trained on the events
-//! ([`train_chunker_model`]). The sequence perceptron
+//! ([`train_chunker_model`]). `NAIVEBAYES` is an event trainer too, which
+//! `ChunkerME.train` takes and this port does not have: it passes the
+//! trainer type check and fails with `turbo_train::Error::NotPorted`
+//! ([`Error::Train`]). The sequence perceptron
 //! (`PERCEPTRON_SEQUENCE`) is an event model sequence trainer, which
 //! `ChunkerME.train` does not take: it throws
 //! `IllegalArgumentException("Trainer type is not supported:
@@ -181,7 +184,8 @@ pub fn package_chunker_model(
 ///
 /// [`Error::UnsupportedTrainerType`] for a parameter set that names no
 /// event trainer, checked before any event is made, as the JVM checks it
-/// before it reads a sample; what the trainer fails on.
+/// before it reads a sample; what the trainer fails on, among it
+/// `turbo_train::Error::NotPorted` for `NAIVEBAYES`.
 pub fn train_chunker_model<'a, 's>(
     samples: impl IntoIterator<Item = &'s ChunkSample<'a>>,
     factory: &ChunkerFactory,
@@ -293,7 +297,7 @@ mod tests {
     }
 
     #[test]
-    fn every_event_trainer_trains_and_the_sequence_perceptron_is_refused() {
+    fn the_ported_event_trainers_train_naive_bayes_is_not_ported_and_the_sequence_perceptron_is_refused() {
         let s = samples(TEXT);
         let f = ChunkerFactory::new("en");
         let mut p = TrainingParameters::new();
@@ -315,6 +319,11 @@ mod tests {
             let outcomes: Vec<&str> = maxent.outcome_texts().unwrap();
             assert_eq!(outcomes.len(), 4, "{outcomes:?}");
         }
+        // `ChunkerME.train` trains with `NAIVEBAYES` too, an event trainer
+        // this port does not have: the trainer type passes, training fails.
+        p.put_str(Key::ALGORITHM, Algorithm::NaiveBayes.name());
+        let e = train_chunker_model(&s, &f, &p, &mut TrainingConfiguration::default(), Stamp::at(0)).unwrap_err();
+        assert!(matches!(e, Error::Train(turbo_train::Error::NotPorted(Algorithm::NaiveBayes))), "{e}");
         p.put_str(Key::ALGORITHM, Algorithm::PerceptronSequence.name());
         let e = train_chunker_model(&s, &f, &p, &mut TrainingConfiguration::default(), Stamp::at(0)).unwrap_err();
         assert!(matches!(e, Error::UnsupportedTrainerType(Some(TrainerType::EventModelSequence))), "{e}");

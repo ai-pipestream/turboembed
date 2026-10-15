@@ -13,7 +13,9 @@
 //! - [`lemmatize`][]: `LemmatizerFactory`, the events of
 //!   `LemmaSampleEventStream`, and the `LemmatizerModel` file.
 //! - [`chunk`][]: `ChunkerFactory`, the events of `ChunkerEventStream`,
-//!   and the `ChunkerModel` file, from any event trainer.
+//!   and the `ChunkerModel` file, trained with `MAXENT`, `MAXENT_QN` or
+//!   `PERCEPTRON`; `NAIVEBAYES`, which `ChunkerME.train` also takes, is
+//!   not ported and fails with `turbo_train::Error::NotPorted`.
 //! - [`dictionary`][]: the abbreviation dictionary as `Dictionary.serialize`
 //!   writes it, entries in Java's hash set order.
 //! - [`tagdict`][]: the tag dictionary as `POSDictionary.serialize` writes
