@@ -16,7 +16,9 @@ everything that makes them:
   for the `quantity` set `QuantityAnnotator` with
   `CursorQuantityExtractor`, and for the `temporal` set `TemporalAnnotator`
   with `CursorTemporalExtractor` and `DocumentDateAnnotator`, and for the
-  `pii` set `PiiAnnotator` with each extractor of `PiiPacks` (see below). With `--dumps` it also writes a decision point dump
+  `pii` set `PiiAnnotator` with each extractor of `PiiPacks` and then
+  OpenNLP's masking, labels and audit report over what it found (see
+  below). With `--dumps` it also writes a decision point dump
   beside each golden of a run that asks a maxent model (the sentence
   detector, the tokenizer, the part-of-speech tagger, the maxent
   lemmatizer, the chunker and the language detector): every context the annotator gave
@@ -91,7 +93,7 @@ cargo run -p turbo-goldens-tool --features fuzz -- fuzz [--seed <n>] [--count <n
   threw on that input), which must have none. A golden that names no model
   (a tokenizer or sentence detector without one, a normalizer) has no dump,
   and neither has a detokenizer, number, money, quantity, temporal, PII,
-  unigram or lattice golden.
+  PII rewrite, unigram or lattice golden.
 - `verify` generates into a scratch directory and compares every golden
   and dump byte for byte with the checked in ones. It lists each file that
   differs, is missing or is extra, and exits non zero if there is any. It
@@ -146,6 +148,7 @@ a directory with the same model run without them, and its options are
 | `quantity` (`QuantityAnnotator`) | `latin-us`, `latin-eu` | `quantity` | `notation` |
 | `temporal` (`TemporalAnnotator`, `DocumentDateAnnotator`) | `dateline`, `fixed` | `temporal` | `reference` |
 | `pii` (`PiiAnnotator` over a `PiiPacks` extractor) | `payment`, `contact`, `network`, `secrets`, `crypto`, `us-identity`, `eu-identity`, `ca-identity`, `device`, `all-structured` | `pii` | `pack` |
+| `pii-rewrite` (`Masker`, `Pseudonymizer`, `HmacTokenizer`, `PiiAuditReport` over the `pii` runs' mentions) | the same packs | `pii` | `pack`, `key`, `mask`, `mask-all` |
 | `subwords` (`WordpieceEncoder`) | `all-minilm-l6-v2-vocab` (fixture) | `en`, `multi`, `edge`, `surrogate`, `subwords` | `lowerCase true`, `maxWordCodePoints 100` |
 | `bpe` (`BPETokenizerTrainer`, `BPETokenizer`) | `merges-40`, `merges-400` | `bpe` | `languageCode en`, `numMerges` |
 | `train` (the data indexers and `GISTrainer`) | `<source>-<indexer>-cutoff<n>`, with `-unsorted` when sorting is off, then `-threads2`, `-smoothing`, `-smoothing0.5`, `-gaussian` or `-gaussian0.5` when the trainer is given that: nineteen runs over the sources `sentdetect`, `tokenize`, `realvalue` and `postag` | `en`, `multi`, `edge`; `sentdetect` and `postag` also `train` | `source`, `DataIndexer`, `Cutoff`, `sort`, `Iterations`, and when set `Threads`, `Smoothing`, `SmoothingObservation`, `GaussianSmoothing`, `GaussianSmoothingSigma` |
@@ -840,8 +843,37 @@ order `PiiAnnotator` writes them: `start`, `end` (UTF-8 byte offsets),
 The `pii` inputs are written for the project and hold no real personal
 data: documented test IBANs and card numbers, `example.com` addresses,
 fictional phone ranges, documentation IP ranges and made up crypto
-addresses. Only the PII annotator runs on them, and it has no dumps.
-`analysis/pii/tests/goldens.rs` compares them with `turbo-pii`.
+addresses. Only the PII annotator and the PII rewrites run on them, and
+they have no dumps. `analysis/pii/tests/goldens.rs` compares them with
+`turbo-pii`.
+
+### PII rewrite goldens
+
+`pii-rewrite/<pack>/pii/<id>.golden` is what OpenNLP does with the
+mentions of the `pii` golden of the same pack and input. The header is
+that golden's, with three more `config` records: `key`, the HMAC key as
+text (32 ASCII bytes, a test key that protects nothing), `mask` (`*`,
+the mask of `MaskPolicies.byType()`) and `mask-all` (`#`). The layers, in
+order:
+
+| Layer | Anchor | Columns | From |
+|---|---|---|---|
+| `turbo:view` | text | `start:u32`, `end:u32`, `with:str` | `Masker.mask(document, PiiAnnotator.PII, MaskPolicies.byType())`: one row per character the mask changed |
+| `turbo:pii-mask-all` | document | `text:str` | `Masker.mask(document, PiiAnnotator.PII, '#')`, one row |
+| `turbo:pii-rewrites` | document | `operation:str`, `text:str`, `error:str` | `new Pseudonymizer().rewrite(document)` (`pseudonymize`) and `new HmacTokenizer(key).rewrite(document)` (`hmac`): the new text, or the message of the exception the rewrite threw (both refuse overlapping mentions) |
+| `turbo:pii-labels` | document | `operation:str`, `source_start:u32`, `source_end:u32`, `start:u32`, `end:u32`, `label:str` | per label of a rewrite that did not throw: the replaced mention in the input, the label in the new text |
+| `turbo:pii-audit` | document | `type:str`, `mentions:u32`, `distinct:u32`, `samples:str` | `PiiAuditReport.of(document, tokenizer)`, one row per type in its order, the sample tokens joined with `, ` |
+| `turbo:pii-audit-report` | document | `text:str` | the report's `toString()`, one row |
+
+Offsets are UTF-8 bytes: `start` and `end` of `turbo:pii-labels` in the
+new text, the others in the input. OpenNLP masks one UTF-16 unit with
+one mask character; the generator writes a masked character as one mask
+byte per UTF-8 byte of it, as `turbo-pii` masks, so the masked text keeps
+the input's byte length. Which characters are masked is OpenNLP's, read
+from where its masked text differs from the input. The error messages
+give UTF-16 offsets. `analysis/pii/tests/rewrite_goldens.rs` compares
+the goldens with `turbo-pii`; while `analysis/goldens/data/pii-rewrite`
+is absent it says so, naming the `generate` command, and passes.
 
 ## Fuzzing against the Rust ports
 

@@ -614,7 +614,7 @@ pub const GENERATOR_ARGS: [&str; 1] = ["--dumps"];
 /// replaces and `verify` compares. The data directory holds other things
 /// (the inputs, the fixtures, the rate snapshot, a README) that neither
 /// touches.
-pub const ANNOTATORS: [&str; 41] = [
+pub const ANNOTATORS: [&str; 42] = [
     "sentdetect",
     "tokenize",
     "postag",
@@ -629,6 +629,7 @@ pub const ANNOTATORS: [&str; 41] = [
     "quantity",
     "temporal",
     "pii",
+    "pii-rewrite",
     "detokenize",
     "subwords",
     "unigram",
@@ -663,8 +664,9 @@ pub const ANNOTATORS: [&str; 41] = [
 /// dump beside it. Their runs without a model (the simple, whitespace and
 /// UAX #29 tokenizers and the newline detector) have none, nor do the
 /// normalizers, the number scan, the money, quantity, temporal and PII
-/// annotators, the detokenizer, the WordPiece encoder, the unigram
-/// segmenter, the BPE trainer and the lattice tokenizer, which ask no model.
+/// annotators, the PII rewrites, the detokenizer, the WordPiece encoder,
+/// the unigram segmenter, the BPE trainer and the lattice tokenizer, which
+/// ask no model.
 pub const DUMPED_ANNOTATORS: [&str; 6] = ["sentdetect", "tokenize", "postag", "lemmatize", "chunk", "langdetect"];
 
 /// The input set the normalizers run on. They run on no other set, and the
@@ -693,8 +695,8 @@ pub const TEMPORAL_INPUT_SET: &str = "temporal";
 pub const SVM_DOCCAT_INPUT_SET: &str = "svm-doccat";
 pub const SVM_DOCCAT_TRAIN_SET: &str = "svm-doccat-train";
 
-/// The input set the PII packs run on. They run on no other set, and the
-/// other annotators do not run on this one.
+/// The input set the PII packs and the PII rewrites run on. They run on no
+/// other set, and the other annotators do not run on this one.
 pub const PII_INPUT_SET: &str = "pii";
 
 /// The rate snapshot the money conversion reads: a directory beside the
@@ -900,6 +902,24 @@ mod tests {
         let temporal = include_str!("../java/src/main/java/ai/pipestream/turbo/goldens/TemporalGolden.java");
         assert!(temporal.contains(&format!("INPUT_SET = \"{TEMPORAL_INPUT_SET}\"")));
         assert!(temporal.contains("ANNOTATOR = \"temporal\""));
+    }
+
+    #[test]
+    fn the_pii_packs_and_rewrites_have_their_own_input_set_and_no_dumps() {
+        assert!(INPUT_SETS.contains(&PII_INPUT_SET));
+        for annotator in ["pii", "pii-rewrite"] {
+            assert!(ANNOTATORS.contains(&annotator));
+            assert!(!DUMPED_ANNOTATORS.contains(&annotator));
+        }
+        let pii = include_str!("../java/src/main/java/ai/pipestream/turbo/goldens/PiiGolden.java");
+        assert!(pii.contains(&format!("INPUT_SET = \"{PII_INPUT_SET}\"")));
+        assert!(pii.contains("ANNOTATOR = \"pii\""));
+        let rewrite = include_str!("../java/src/main/java/ai/pipestream/turbo/goldens/PiiRewriteGolden.java");
+        assert!(rewrite.contains("ANNOTATOR = \"pii-rewrite\""));
+        assert!(rewrite.contains("Set.of(PiiGolden.INPUT_SET)"));
+        let runs = include_str!("../java/src/main/java/ai/pipestream/turbo/goldens/Runs.java");
+        assert!(runs.contains("annotators.addAll(PiiGolden.all());"));
+        assert!(runs.contains("annotators.addAll(PiiRewriteGolden.all());"));
     }
 
     #[test]
