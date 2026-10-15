@@ -1,0 +1,1 @@
+<featureGenerators><generator class="opennlp.tools.util.featuregen.WindowFeatureGeneratorFactory"><int name="prevLength">1</int><int name="nextLength">1</int></generator></featureGenerators>

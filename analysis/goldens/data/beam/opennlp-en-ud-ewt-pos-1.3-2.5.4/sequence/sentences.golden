@@ -1,0 +1,2714 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	sequence/sentences	905	851	32c8499cf1eb96c7d4c6e4c0c6ffc47a9e576be450d48537c36b2362c94e67d8
+model	opennlp-en-ud-ewt-pos-1.3-2.5.4.bin	fca85b38d996b7c422401054feedeb0f748cbc03856893cb27670da5d207315ec9af0c0f818c3107a741a2effca2499b5097ac0b46edf4a5ac10bf77a351ac3e
+annotator	opennlp.tools.ml.BeamSearch	bestSequences
+config	kind	pos
+layer	turbo:sentence-tokens	document	176	sentence:u32	token:str
+0	Pierre
+0	Vinken
+0	,
+0	61
+0	years
+0	old
+0	,
+0	will
+0	join
+0	the
+0	board
+0	as
+0	a
+0	nonexecutive
+0	director
+0	Nov.
+0	29
+0	.
+1	Mr.
+1	Smith
+1	went
+1	to
+1	Washington
+1	,
+1	D.C.
+1	,
+1	on
+1	1999-04-12
+1	with
+1	$
+1	1,000
+1	.
+2	The
+2	co-op
+2	's
+2	CEO
+2	,
+2	John
+2	O'Neil
+2	,
+2	said
+2	3.5
+2	%
+2	of
+2	U.S.
+2	sales
+2	fell
+2	.
+3	She
+3	paid
+3	12/31/2020
+3	invoices
+3	at
+3	4:30
+3	p.m.
+3	in
+3	New
+3	York
+3	City
+3	.
+4	Angela
+4	Merkel
+4	met
+4	Emmanuel
+4	Macron
+4	in
+4	Berlin
+4	and
+4	Paris
+4	last
+4	week
+4	.
+5	IBM
+5	and
+5	Microsoft
+5	Corp.
+5	reported
+5	earnings
+5	;
+5	A.
+5	B.
+5	Smith
+5	disagreed
+5	.
+6	Ünal
+6	Özdemir
+6	lives
+6	in
+6	Köln
+6	,
+6	not
+6	München
+6	.
+7	東京
+7	は
+7	ひらがな
+7	と
+7	カタカナ
+7	を
+7	使う
+7	。
+8	The
+8	𝐀𝐁𝐂
+8	index
+8	rose
+8	😀
+8	while
+8	café
+8	prices
+8	fell
+8	.
+9	e-mail
+9	me
+9	at
+9	john@example.com
+9	or
+9	visit
+9	www.example.com/a?b=1
+9	!
+10	Barack
+10	Obama
+10	was
+10	born
+10	in
+10	Honolulu
+10	,
+10	Hawaii
+10	.
+11	He
+11	said
+11	:
+11	"
+11	I
+11	'm
+11	not
+11	going
+11	to
+11	London
+11	.
+11	"
+12	ŁÓDŹ
+12	and
+12	ΑΘΗΝΑ
+12	are
+12	cities
+12	;
+12	ǅ
+12	is
+12	a
+12	titlecase
+12	letter
+12	.
+13	One
+13	more
+13	sentence
+13	about
+13	Dr.
+13	Jane
+13	Doe
+13	of
+13	Acme
+13	Inc.
+13	in
+13	Chicago
+13	.
+14	Smith
+14	said
+14	Smith
+14	would
+14	visit
+14	Paris
+14	again
+14	in
+14	2024
+14	.
+15	a
+end	turbo:sentence-tokens
+layer	turbo:beam-config	document	1	beam-size:u32	codec:str
+3	
+end	turbo:beam-config
+layer	turbo:beam-calls	document	80	call:u32	sentence:u32	index:u32
+0	0	0
+1	0	1
+2	0	1
+3	0	1
+4	0	2
+5	0	2
+6	0	2
+7	0	3
+8	0	3
+9	0	3
+10	0	4
+11	0	4
+12	0	4
+13	0	5
+14	0	5
+15	0	5
+16	0	6
+17	0	6
+18	0	6
+19	0	7
+20	0	7
+21	0	7
+22	0	8
+23	0	8
+24	0	8
+25	0	9
+26	0	9
+27	0	9
+28	0	10
+29	0	10
+30	0	10
+31	0	11
+32	0	11
+33	0	11
+34	0	12
+35	0	12
+36	0	12
+37	0	13
+38	0	13
+39	0	13
+40	0	14
+41	0	14
+42	0	14
+43	0	15
+44	0	15
+45	0	15
+46	0	16
+47	0	16
+48	0	16
+49	0	17
+50	0	17
+51	0	17
+52	8	0
+53	8	1
+54	8	1
+55	8	1
+56	8	2
+57	8	2
+58	8	2
+59	8	3
+60	8	3
+61	8	3
+62	8	4
+63	8	4
+64	8	4
+65	8	5
+66	8	5
+67	8	5
+68	8	6
+69	8	6
+70	8	6
+71	8	7
+72	8	7
+73	8	7
+74	8	8
+75	8	8
+76	8	8
+77	8	9
+78	8	9
+79	8	9
+end	turbo:beam-calls
+layer	turbo:beam-call-priors	document	594	call:u32	outcome:str
+1	PROPN
+2	NOUN
+3	ADJ
+4	PROPN
+4	PROPN
+5	NOUN
+5	PROPN
+6	ADJ
+6	PROPN
+7	PROPN
+7	PROPN
+7	PUNCT
+8	NOUN
+8	PROPN
+8	PUNCT
+9	ADJ
+9	PROPN
+9	PUNCT
+10	PROPN
+10	PROPN
+10	PUNCT
+10	NUM
+11	NOUN
+11	PROPN
+11	PUNCT
+11	NUM
+12	ADJ
+12	PROPN
+12	PUNCT
+12	NUM
+13	PROPN
+13	PROPN
+13	PUNCT
+13	NUM
+13	NOUN
+14	NOUN
+14	PROPN
+14	PUNCT
+14	NUM
+14	NOUN
+15	ADJ
+15	PROPN
+15	PUNCT
+15	NUM
+15	NOUN
+16	PROPN
+16	PROPN
+16	PUNCT
+16	NUM
+16	NOUN
+16	ADJ
+17	NOUN
+17	PROPN
+17	PUNCT
+17	NUM
+17	NOUN
+17	ADJ
+18	ADJ
+18	PROPN
+18	PUNCT
+18	NUM
+18	NOUN
+18	ADJ
+19	PROPN
+19	PROPN
+19	PUNCT
+19	NUM
+19	NOUN
+19	ADJ
+19	PUNCT
+20	NOUN
+20	PROPN
+20	PUNCT
+20	NUM
+20	NOUN
+20	ADJ
+20	PUNCT
+21	ADJ
+21	PROPN
+21	PUNCT
+21	NUM
+21	NOUN
+21	ADJ
+21	PUNCT
+22	PROPN
+22	PROPN
+22	PUNCT
+22	NUM
+22	NOUN
+22	ADJ
+22	PUNCT
+22	AUX
+23	NOUN
+23	PROPN
+23	PUNCT
+23	NUM
+23	NOUN
+23	ADJ
+23	PUNCT
+23	AUX
+24	ADJ
+24	PROPN
+24	PUNCT
+24	NUM
+24	NOUN
+24	ADJ
+24	PUNCT
+24	AUX
+25	PROPN
+25	PROPN
+25	PUNCT
+25	NUM
+25	NOUN
+25	ADJ
+25	PUNCT
+25	AUX
+25	VERB
+26	NOUN
+26	PROPN
+26	PUNCT
+26	NUM
+26	NOUN
+26	ADJ
+26	PUNCT
+26	AUX
+26	VERB
+27	ADJ
+27	PROPN
+27	PUNCT
+27	NUM
+27	NOUN
+27	ADJ
+27	PUNCT
+27	AUX
+27	VERB
+28	PROPN
+28	PROPN
+28	PUNCT
+28	NUM
+28	NOUN
+28	ADJ
+28	PUNCT
+28	AUX
+28	VERB
+28	DET
+29	NOUN
+29	PROPN
+29	PUNCT
+29	NUM
+29	NOUN
+29	ADJ
+29	PUNCT
+29	AUX
+29	VERB
+29	DET
+30	PROPN
+30	PROPN
+30	PUNCT
+30	NUM
+30	NOUN
+30	ADJ
+30	PUNCT
+30	AUX
+30	VERB
+30	ADV
+31	PROPN
+31	PROPN
+31	PUNCT
+31	NUM
+31	NOUN
+31	ADJ
+31	PUNCT
+31	AUX
+31	VERB
+31	DET
+31	NOUN
+32	NOUN
+32	PROPN
+32	PUNCT
+32	NUM
+32	NOUN
+32	ADJ
+32	PUNCT
+32	AUX
+32	VERB
+32	DET
+32	NOUN
+33	PROPN
+33	PROPN
+33	PUNCT
+33	NUM
+33	NOUN
+33	ADJ
+33	PUNCT
+33	AUX
+33	VERB
+33	ADV
+33	NOUN
+34	PROPN
+34	PROPN
+34	PUNCT
+34	NUM
+34	NOUN
+34	ADJ
+34	PUNCT
+34	AUX
+34	VERB
+34	DET
+34	NOUN
+34	ADP
+35	NOUN
+35	PROPN
+35	PUNCT
+35	NUM
+35	NOUN
+35	ADJ
+35	PUNCT
+35	AUX
+35	VERB
+35	DET
+35	NOUN
+35	ADP
+36	PROPN
+36	PROPN
+36	PUNCT
+36	NUM
+36	NOUN
+36	ADJ
+36	PUNCT
+36	AUX
+36	VERB
+36	ADV
+36	NOUN
+36	ADP
+37	PROPN
+37	PROPN
+37	PUNCT
+37	NUM
+37	NOUN
+37	ADJ
+37	PUNCT
+37	AUX
+37	VERB
+37	DET
+37	NOUN
+37	ADP
+37	DET
+38	NOUN
+38	PROPN
+38	PUNCT
+38	NUM
+38	NOUN
+38	ADJ
+38	PUNCT
+38	AUX
+38	VERB
+38	DET
+38	NOUN
+38	ADP
+38	DET
+39	PROPN
+39	PROPN
+39	PUNCT
+39	NUM
+39	NOUN
+39	ADJ
+39	PUNCT
+39	AUX
+39	VERB
+39	ADV
+39	NOUN
+39	ADP
+39	DET
+40	PROPN
+40	PROPN
+40	PUNCT
+40	NUM
+40	NOUN
+40	ADJ
+40	PUNCT
+40	AUX
+40	VERB
+40	DET
+40	NOUN
+40	ADP
+40	DET
+40	ADJ
+41	NOUN
+41	PROPN
+41	PUNCT
+41	NUM
+41	NOUN
+41	ADJ
+41	PUNCT
+41	AUX
+41	VERB
+41	DET
+41	NOUN
+41	ADP
+41	DET
+41	ADJ
+42	PROPN
+42	PROPN
+42	PUNCT
+42	NUM
+42	NOUN
+42	ADJ
+42	PUNCT
+42	AUX
+42	VERB
+42	ADV
+42	NOUN
+42	ADP
+42	DET
+42	ADJ
+43	PROPN
+43	PROPN
+43	PUNCT
+43	NUM
+43	NOUN
+43	ADJ
+43	PUNCT
+43	AUX
+43	VERB
+43	DET
+43	NOUN
+43	ADP
+43	DET
+43	ADJ
+43	NOUN
+44	NOUN
+44	PROPN
+44	PUNCT
+44	NUM
+44	NOUN
+44	ADJ
+44	PUNCT
+44	AUX
+44	VERB
+44	DET
+44	NOUN
+44	ADP
+44	DET
+44	ADJ
+44	NOUN
+45	PROPN
+45	PROPN
+45	PUNCT
+45	NUM
+45	NOUN
+45	ADJ
+45	PUNCT
+45	AUX
+45	VERB
+45	ADV
+45	NOUN
+45	ADP
+45	DET
+45	ADJ
+45	NOUN
+46	PROPN
+46	PROPN
+46	PUNCT
+46	NUM
+46	NOUN
+46	ADJ
+46	PUNCT
+46	AUX
+46	VERB
+46	DET
+46	NOUN
+46	ADP
+46	DET
+46	ADJ
+46	NOUN
+46	PROPN
+47	NOUN
+47	PROPN
+47	PUNCT
+47	NUM
+47	NOUN
+47	ADJ
+47	PUNCT
+47	AUX
+47	VERB
+47	DET
+47	NOUN
+47	ADP
+47	DET
+47	ADJ
+47	NOUN
+47	PROPN
+48	PROPN
+48	PROPN
+48	PUNCT
+48	NUM
+48	NOUN
+48	ADJ
+48	PUNCT
+48	AUX
+48	VERB
+48	ADV
+48	NOUN
+48	ADP
+48	DET
+48	ADJ
+48	NOUN
+48	PROPN
+49	PROPN
+49	PROPN
+49	PUNCT
+49	NUM
+49	NOUN
+49	ADJ
+49	PUNCT
+49	AUX
+49	VERB
+49	DET
+49	NOUN
+49	ADP
+49	DET
+49	ADJ
+49	NOUN
+49	PROPN
+49	NUM
+50	NOUN
+50	PROPN
+50	PUNCT
+50	NUM
+50	NOUN
+50	ADJ
+50	PUNCT
+50	AUX
+50	VERB
+50	DET
+50	NOUN
+50	ADP
+50	DET
+50	ADJ
+50	NOUN
+50	PROPN
+50	NUM
+51	PROPN
+51	PROPN
+51	PUNCT
+51	NUM
+51	NOUN
+51	ADJ
+51	PUNCT
+51	AUX
+51	VERB
+51	ADV
+51	NOUN
+51	ADP
+51	DET
+51	ADJ
+51	NOUN
+51	PROPN
+51	NUM
+53	DET
+54	PUNCT
+55	AUX
+56	DET
+56	PUNCT
+57	DET
+57	NUM
+58	DET
+58	NOUN
+59	DET
+59	PUNCT
+59	NOUN
+60	DET
+60	NUM
+60	NOUN
+61	DET
+61	PUNCT
+61	ADJ
+62	DET
+62	PUNCT
+62	NOUN
+62	NOUN
+63	DET
+63	PUNCT
+63	NOUN
+63	VERB
+64	DET
+64	NUM
+64	NOUN
+64	NOUN
+65	DET
+65	PUNCT
+65	NOUN
+65	NOUN
+65	PUNCT
+66	DET
+66	PUNCT
+66	NOUN
+66	VERB
+66	PUNCT
+67	DET
+67	NUM
+67	NOUN
+67	NOUN
+67	PUNCT
+68	DET
+68	PUNCT
+68	NOUN
+68	NOUN
+68	PUNCT
+68	SCONJ
+69	DET
+69	PUNCT
+69	NOUN
+69	VERB
+69	PUNCT
+69	SCONJ
+70	DET
+70	NUM
+70	NOUN
+70	NOUN
+70	PUNCT
+70	SCONJ
+71	DET
+71	PUNCT
+71	NOUN
+71	NOUN
+71	PUNCT
+71	SCONJ
+71	VERB
+72	DET
+72	PUNCT
+72	NOUN
+72	VERB
+72	PUNCT
+72	SCONJ
+72	VERB
+73	DET
+73	NUM
+73	NOUN
+73	NOUN
+73	PUNCT
+73	SCONJ
+73	VERB
+74	DET
+74	PUNCT
+74	NOUN
+74	NOUN
+74	PUNCT
+74	SCONJ
+74	VERB
+74	NOUN
+75	DET
+75	PUNCT
+75	NOUN
+75	VERB
+75	PUNCT
+75	SCONJ
+75	VERB
+75	NOUN
+76	DET
+76	NUM
+76	NOUN
+76	NOUN
+76	PUNCT
+76	SCONJ
+76	VERB
+76	NOUN
+77	DET
+77	PUNCT
+77	NOUN
+77	NOUN
+77	PUNCT
+77	SCONJ
+77	VERB
+77	NOUN
+77	NOUN
+78	DET
+78	PUNCT
+78	NOUN
+78	NOUN
+78	PUNCT
+78	SCONJ
+78	VERB
+78	NOUN
+78	ADJ
+79	DET
+79	PUNCT
+79	NOUN
+79	VERB
+79	PUNCT
+79	SCONJ
+79	VERB
+79	NOUN
+79	NOUN
+end	turbo:beam-call-priors
+layer	turbo:beam-call-features	document	1264	call:u32	feature:str
+0	def
+0	suf=e
+0	suf=re
+0	suf=rre
+0	suf=erre
+0	pre=P
+0	pre=Pi
+0	pre=Pie
+0	pre=Pier
+0	w=pierre
+0	n1w=vinken
+0	n2w=,
+0	S=begin
+0	wc=ic
+0	w&c=pierre,ic
+1	def
+1	suf=n
+1	suf=en
+1	suf=ken
+1	suf=nken
+1	pre=V
+1	pre=Vi
+1	pre=Vin
+1	pre=Vink
+1	w=vinken
+1	p1w=pierre
+1	n1w=,
+1	n2w=61
+1	p1S=begin
+1	wc=ic
+1	w&c=vinken,ic
+1	t=PROPN
+2	def
+2	suf=n
+2	suf=en
+2	suf=ken
+2	suf=nken
+2	pre=V
+2	pre=Vi
+2	pre=Vin
+2	pre=Vink
+2	w=vinken
+2	p1w=pierre
+2	n1w=,
+2	n2w=61
+2	p1S=begin
+2	wc=ic
+2	w&c=vinken,ic
+2	t=PROPN
+3	def
+3	suf=n
+3	suf=en
+3	suf=ken
+3	suf=nken
+3	pre=V
+3	pre=Vi
+3	pre=Vin
+3	pre=Vink
+3	w=vinken
+3	p1w=pierre
+3	n1w=,
+3	n2w=61
+3	p1S=begin
+3	wc=ic
+3	w&c=vinken,ic
+3	t=PROPN
+4	def
+4	suf=,
+4	pre=,
+4	w=,
+4	p1w=vinken
+4	p2w=pierre
+4	n1w=61
+4	n2w=years
+4	p2S=begin
+4	wc=other
+4	w&c=,,other
+4	t=PROPN
+4	t2=PROPN,PROPN
+5	def
+5	suf=,
+5	pre=,
+5	w=,
+5	p1w=vinken
+5	p2w=pierre
+5	n1w=61
+5	n2w=years
+5	p2S=begin
+5	wc=other
+5	w&c=,,other
+5	t=PROPN
+5	t2=PROPN,PROPN
+6	def
+6	suf=,
+6	pre=,
+6	w=,
+6	p1w=vinken
+6	p2w=pierre
+6	n1w=61
+6	n2w=years
+6	p2S=begin
+6	wc=other
+6	w&c=,,other
+6	t=PROPN
+6	t2=PROPN,PROPN
+7	def
+7	suf=1
+7	suf=61
+7	pre=6
+7	pre=61
+7	w=61
+7	p1w=,
+7	p2w=vinken
+7	n1w=years
+7	n2w=old
+7	wc=2d
+7	w&c=61,2d
+7	t=PUNCT
+7	t2=PROPN,PUNCT
+8	def
+8	suf=1
+8	suf=61
+8	pre=6
+8	pre=61
+8	w=61
+8	p1w=,
+8	p2w=vinken
+8	n1w=years
+8	n2w=old
+8	wc=2d
+8	w&c=61,2d
+8	t=PUNCT
+8	t2=PROPN,PUNCT
+9	def
+9	suf=1
+9	suf=61
+9	pre=6
+9	pre=61
+9	w=61
+9	p1w=,
+9	p2w=vinken
+9	n1w=years
+9	n2w=old
+9	wc=2d
+9	w&c=61,2d
+9	t=PUNCT
+9	t2=PROPN,PUNCT
+10	def
+10	suf=s
+10	suf=rs
+10	suf=ars
+10	suf=ears
+10	pre=y
+10	pre=ye
+10	pre=yea
+10	pre=year
+10	w=years
+10	p1w=61
+10	p2w=,
+10	n1w=old
+10	n2w=,
+10	wc=lc
+10	w&c=years,lc
+10	t=NUM
+10	t2=PUNCT,NUM
+11	def
+11	suf=s
+11	suf=rs
+11	suf=ars
+11	suf=ears
+11	pre=y
+11	pre=ye
+11	pre=yea
+11	pre=year
+11	w=years
+11	p1w=61
+11	p2w=,
+11	n1w=old
+11	n2w=,
+11	wc=lc
+11	w&c=years,lc
+11	t=NUM
+11	t2=PUNCT,NUM
+12	def
+12	suf=s
+12	suf=rs
+12	suf=ars
+12	suf=ears
+12	pre=y
+12	pre=ye
+12	pre=yea
+12	pre=year
+12	w=years
+12	p1w=61
+12	p2w=,
+12	n1w=old
+12	n2w=,
+12	wc=lc
+12	w&c=years,lc
+12	t=NUM
+12	t2=PUNCT,NUM
+13	def
+13	suf=d
+13	suf=ld
+13	suf=old
+13	pre=o
+13	pre=ol
+13	pre=old
+13	w=old
+13	p1w=years
+13	p2w=61
+13	n1w=,
+13	n2w=will
+13	wc=lc
+13	w&c=old,lc
+13	t=NOUN
+13	t2=NUM,NOUN
+14	def
+14	suf=d
+14	suf=ld
+14	suf=old
+14	pre=o
+14	pre=ol
+14	pre=old
+14	w=old
+14	p1w=years
+14	p2w=61
+14	n1w=,
+14	n2w=will
+14	wc=lc
+14	w&c=old,lc
+14	t=NOUN
+14	t2=NUM,NOUN
+15	def
+15	suf=d
+15	suf=ld
+15	suf=old
+15	pre=o
+15	pre=ol
+15	pre=old
+15	w=old
+15	p1w=years
+15	p2w=61
+15	n1w=,
+15	n2w=will
+15	wc=lc
+15	w&c=old,lc
+15	t=NOUN
+15	t2=NUM,NOUN
+16	def
+16	suf=,
+16	pre=,
+16	w=,
+16	p1w=old
+16	p2w=years
+16	n1w=will
+16	n2w=join
+16	wc=other
+16	w&c=,,other
+16	t=ADJ
+16	t2=NOUN,ADJ
+17	def
+17	suf=,
+17	pre=,
+17	w=,
+17	p1w=old
+17	p2w=years
+17	n1w=will
+17	n2w=join
+17	wc=other
+17	w&c=,,other
+17	t=ADJ
+17	t2=NOUN,ADJ
+18	def
+18	suf=,
+18	pre=,
+18	w=,
+18	p1w=old
+18	p2w=years
+18	n1w=will
+18	n2w=join
+18	wc=other
+18	w&c=,,other
+18	t=ADJ
+18	t2=NOUN,ADJ
+19	def
+19	suf=l
+19	suf=ll
+19	suf=ill
+19	suf=will
+19	pre=w
+19	pre=wi
+19	pre=wil
+19	pre=will
+19	w=will
+19	p1w=,
+19	p2w=old
+19	n1w=join
+19	n2w=the
+19	wc=lc
+19	w&c=will,lc
+19	t=PUNCT
+19	t2=ADJ,PUNCT
+20	def
+20	suf=l
+20	suf=ll
+20	suf=ill
+20	suf=will
+20	pre=w
+20	pre=wi
+20	pre=wil
+20	pre=will
+20	w=will
+20	p1w=,
+20	p2w=old
+20	n1w=join
+20	n2w=the
+20	wc=lc
+20	w&c=will,lc
+20	t=PUNCT
+20	t2=ADJ,PUNCT
+21	def
+21	suf=l
+21	suf=ll
+21	suf=ill
+21	suf=will
+21	pre=w
+21	pre=wi
+21	pre=wil
+21	pre=will
+21	w=will
+21	p1w=,
+21	p2w=old
+21	n1w=join
+21	n2w=the
+21	wc=lc
+21	w&c=will,lc
+21	t=PUNCT
+21	t2=ADJ,PUNCT
+22	def
+22	suf=n
+22	suf=in
+22	suf=oin
+22	suf=join
+22	pre=j
+22	pre=jo
+22	pre=joi
+22	pre=join
+22	w=join
+22	p1w=will
+22	p2w=,
+22	n1w=the
+22	n2w=board
+22	wc=lc
+22	w&c=join,lc
+22	t=AUX
+22	t2=PUNCT,AUX
+23	def
+23	suf=n
+23	suf=in
+23	suf=oin
+23	suf=join
+23	pre=j
+23	pre=jo
+23	pre=joi
+23	pre=join
+23	w=join
+23	p1w=will
+23	p2w=,
+23	n1w=the
+23	n2w=board
+23	wc=lc
+23	w&c=join,lc
+23	t=AUX
+23	t2=PUNCT,AUX
+24	def
+24	suf=n
+24	suf=in
+24	suf=oin
+24	suf=join
+24	pre=j
+24	pre=jo
+24	pre=joi
+24	pre=join
+24	w=join
+24	p1w=will
+24	p2w=,
+24	n1w=the
+24	n2w=board
+24	wc=lc
+24	w&c=join,lc
+24	t=AUX
+24	t2=PUNCT,AUX
+25	def
+25	suf=e
+25	suf=he
+25	suf=the
+25	pre=t
+25	pre=th
+25	pre=the
+25	w=the
+25	p1w=join
+25	p2w=will
+25	n1w=board
+25	n2w=as
+25	wc=lc
+25	w&c=the,lc
+25	t=VERB
+25	t2=AUX,VERB
+26	def
+26	suf=e
+26	suf=he
+26	suf=the
+26	pre=t
+26	pre=th
+26	pre=the
+26	w=the
+26	p1w=join
+26	p2w=will
+26	n1w=board
+26	n2w=as
+26	wc=lc
+26	w&c=the,lc
+26	t=VERB
+26	t2=AUX,VERB
+27	def
+27	suf=e
+27	suf=he
+27	suf=the
+27	pre=t
+27	pre=th
+27	pre=the
+27	w=the
+27	p1w=join
+27	p2w=will
+27	n1w=board
+27	n2w=as
+27	wc=lc
+27	w&c=the,lc
+27	t=VERB
+27	t2=AUX,VERB
+28	def
+28	suf=d
+28	suf=rd
+28	suf=ard
+28	suf=oard
+28	pre=b
+28	pre=bo
+28	pre=boa
+28	pre=boar
+28	w=board
+28	p1w=the
+28	p2w=join
+28	n1w=as
+28	n2w=a
+28	wc=lc
+28	w&c=board,lc
+28	t=DET
+28	t2=VERB,DET
+29	def
+29	suf=d
+29	suf=rd
+29	suf=ard
+29	suf=oard
+29	pre=b
+29	pre=bo
+29	pre=boa
+29	pre=boar
+29	w=board
+29	p1w=the
+29	p2w=join
+29	n1w=as
+29	n2w=a
+29	wc=lc
+29	w&c=board,lc
+29	t=DET
+29	t2=VERB,DET
+30	def
+30	suf=d
+30	suf=rd
+30	suf=ard
+30	suf=oard
+30	pre=b
+30	pre=bo
+30	pre=boa
+30	pre=boar
+30	w=board
+30	p1w=the
+30	p2w=join
+30	n1w=as
+30	n2w=a
+30	wc=lc
+30	w&c=board,lc
+30	t=DET
+30	t2=VERB,DET
+31	def
+31	suf=s
+31	suf=as
+31	pre=a
+31	pre=as
+31	w=as
+31	p1w=board
+31	p2w=the
+31	n1w=a
+31	n2w=nonexecutive
+31	wc=lc
+31	w&c=as,lc
+31	t=NOUN
+31	t2=DET,NOUN
+32	def
+32	suf=s
+32	suf=as
+32	pre=a
+32	pre=as
+32	w=as
+32	p1w=board
+32	p2w=the
+32	n1w=a
+32	n2w=nonexecutive
+32	wc=lc
+32	w&c=as,lc
+32	t=NOUN
+32	t2=DET,NOUN
+33	def
+33	suf=s
+33	suf=as
+33	pre=a
+33	pre=as
+33	w=as
+33	p1w=board
+33	p2w=the
+33	n1w=a
+33	n2w=nonexecutive
+33	wc=lc
+33	w&c=as,lc
+33	t=NOUN
+33	t2=DET,NOUN
+34	def
+34	suf=a
+34	pre=a
+34	w=a
+34	p1w=as
+34	p2w=board
+34	n1w=nonexecutive
+34	n2w=director
+34	wc=lc
+34	w&c=a,lc
+34	t=ADP
+34	t2=NOUN,ADP
+35	def
+35	suf=a
+35	pre=a
+35	w=a
+35	p1w=as
+35	p2w=board
+35	n1w=nonexecutive
+35	n2w=director
+35	wc=lc
+35	w&c=a,lc
+35	t=ADP
+35	t2=NOUN,ADP
+36	def
+36	suf=a
+36	pre=a
+36	w=a
+36	p1w=as
+36	p2w=board
+36	n1w=nonexecutive
+36	n2w=director
+36	wc=lc
+36	w&c=a,lc
+36	t=ADP
+36	t2=NOUN,ADP
+37	def
+37	suf=e
+37	suf=ve
+37	suf=ive
+37	suf=tive
+37	pre=n
+37	pre=no
+37	pre=non
+37	pre=none
+37	w=nonexecutive
+37	p1w=a
+37	p2w=as
+37	n1w=director
+37	n2w=nov.
+37	wc=lc
+37	w&c=nonexecutive,lc
+37	t=DET
+37	t2=ADP,DET
+38	def
+38	suf=e
+38	suf=ve
+38	suf=ive
+38	suf=tive
+38	pre=n
+38	pre=no
+38	pre=non
+38	pre=none
+38	w=nonexecutive
+38	p1w=a
+38	p2w=as
+38	n1w=director
+38	n2w=nov.
+38	wc=lc
+38	w&c=nonexecutive,lc
+38	t=DET
+38	t2=ADP,DET
+39	def
+39	suf=e
+39	suf=ve
+39	suf=ive
+39	suf=tive
+39	pre=n
+39	pre=no
+39	pre=non
+39	pre=none
+39	w=nonexecutive
+39	p1w=a
+39	p2w=as
+39	n1w=director
+39	n2w=nov.
+39	wc=lc
+39	w&c=nonexecutive,lc
+39	t=DET
+39	t2=ADP,DET
+40	def
+40	suf=r
+40	suf=or
+40	suf=tor
+40	suf=ctor
+40	pre=d
+40	pre=di
+40	pre=dir
+40	pre=dire
+40	w=director
+40	p1w=nonexecutive
+40	p2w=a
+40	n1w=nov.
+40	n2w=29
+40	wc=lc
+40	w&c=director,lc
+40	t=ADJ
+40	t2=DET,ADJ
+41	def
+41	suf=r
+41	suf=or
+41	suf=tor
+41	suf=ctor
+41	pre=d
+41	pre=di
+41	pre=dir
+41	pre=dire
+41	w=director
+41	p1w=nonexecutive
+41	p2w=a
+41	n1w=nov.
+41	n2w=29
+41	wc=lc
+41	w&c=director,lc
+41	t=ADJ
+41	t2=DET,ADJ
+42	def
+42	suf=r
+42	suf=or
+42	suf=tor
+42	suf=ctor
+42	pre=d
+42	pre=di
+42	pre=dir
+42	pre=dire
+42	w=director
+42	p1w=nonexecutive
+42	p2w=a
+42	n1w=nov.
+42	n2w=29
+42	wc=lc
+42	w&c=director,lc
+42	t=ADJ
+42	t2=DET,ADJ
+43	def
+43	suf=.
+43	suf=v.
+43	suf=ov.
+43	suf=Nov.
+43	pre=N
+43	pre=No
+43	pre=Nov
+43	pre=Nov.
+43	w=nov.
+43	p1w=director
+43	p2w=nonexecutive
+43	n1w=29
+43	n2w=.
+43	wc=ic
+43	w&c=nov.,ic
+43	t=NOUN
+43	t2=ADJ,NOUN
+44	def
+44	suf=.
+44	suf=v.
+44	suf=ov.
+44	suf=Nov.
+44	pre=N
+44	pre=No
+44	pre=Nov
+44	pre=Nov.
+44	w=nov.
+44	p1w=director
+44	p2w=nonexecutive
+44	n1w=29
+44	n2w=.
+44	wc=ic
+44	w&c=nov.,ic
+44	t=NOUN
+44	t2=ADJ,NOUN
+45	def
+45	suf=.
+45	suf=v.
+45	suf=ov.
+45	suf=Nov.
+45	pre=N
+45	pre=No
+45	pre=Nov
+45	pre=Nov.
+45	w=nov.
+45	p1w=director
+45	p2w=nonexecutive
+45	n1w=29
+45	n2w=.
+45	wc=ic
+45	w&c=nov.,ic
+45	t=NOUN
+45	t2=ADJ,NOUN
+46	def
+46	suf=9
+46	suf=29
+46	pre=2
+46	pre=29
+46	w=29
+46	p1w=nov.
+46	p2w=director
+46	n1w=.
+46	wc=2d
+46	w&c=29,2d
+46	t=PROPN
+46	t2=NOUN,PROPN
+47	def
+47	suf=9
+47	suf=29
+47	pre=2
+47	pre=29
+47	w=29
+47	p1w=nov.
+47	p2w=director
+47	n1w=.
+47	wc=2d
+47	w&c=29,2d
+47	t=PROPN
+47	t2=NOUN,PROPN
+48	def
+48	suf=9
+48	suf=29
+48	pre=2
+48	pre=29
+48	w=29
+48	p1w=nov.
+48	p2w=director
+48	n1w=.
+48	wc=2d
+48	w&c=29,2d
+48	t=PROPN
+48	t2=NOUN,PROPN
+49	def
+49	suf=.
+49	pre=.
+49	w=.
+49	p1w=29
+49	p2w=nov.
+49	wc=other
+49	w&c=.,other
+49	t=NUM
+49	t2=PROPN,NUM
+50	def
+50	suf=.
+50	pre=.
+50	w=.
+50	p1w=29
+50	p2w=nov.
+50	wc=other
+50	w&c=.,other
+50	t=NUM
+50	t2=PROPN,NUM
+51	def
+51	suf=.
+51	pre=.
+51	w=.
+51	p1w=29
+51	p2w=nov.
+51	wc=other
+51	w&c=.,other
+51	t=NUM
+51	t2=PROPN,NUM
+52	def
+52	suf=e
+52	suf=he
+52	suf=The
+52	pre=T
+52	pre=Th
+52	pre=The
+52	w=the
+52	n1w=𝐀𝐁𝐂
+52	n2w=index
+52	S=begin
+52	wc=ic
+52	w&c=the,ic
+53	def
+53	suf=\\udc02
+53	suf=𝐂
+53	suf=\\udc01𝐂
+53	suf=𝐁𝐂
+53	pre=\\ud835
+53	pre=𝐀
+53	pre=𝐀\\ud835
+53	pre=𝐀𝐁
+53	w=𝐀𝐁𝐂
+53	p1w=the
+53	n1w=index
+53	n2w=rose
+53	p1S=begin
+53	wc=other
+53	w&c=𝐀𝐁𝐂,other
+53	t=DET
+54	def
+54	suf=\\udc02
+54	suf=𝐂
+54	suf=\\udc01𝐂
+54	suf=𝐁𝐂
+54	pre=\\ud835
+54	pre=𝐀
+54	pre=𝐀\\ud835
+54	pre=𝐀𝐁
+54	w=𝐀𝐁𝐂
+54	p1w=the
+54	n1w=index
+54	n2w=rose
+54	p1S=begin
+54	wc=other
+54	w&c=𝐀𝐁𝐂,other
+54	t=DET
+55	def
+55	suf=\\udc02
+55	suf=𝐂
+55	suf=\\udc01𝐂
+55	suf=𝐁𝐂
+55	pre=\\ud835
+55	pre=𝐀
+55	pre=𝐀\\ud835
+55	pre=𝐀𝐁
+55	w=𝐀𝐁𝐂
+55	p1w=the
+55	n1w=index
+55	n2w=rose
+55	p1S=begin
+55	wc=other
+55	w&c=𝐀𝐁𝐂,other
+55	t=DET
+56	def
+56	suf=x
+56	suf=ex
+56	suf=dex
+56	suf=ndex
+56	pre=i
+56	pre=in
+56	pre=ind
+56	pre=inde
+56	w=index
+56	p1w=𝐀𝐁𝐂
+56	p2w=the
+56	n1w=rose
+56	n2w=😀
+56	p2S=begin
+56	wc=lc
+56	w&c=index,lc
+56	t=PUNCT
+56	t2=DET,PUNCT
+57	def
+57	suf=x
+57	suf=ex
+57	suf=dex
+57	suf=ndex
+57	pre=i
+57	pre=in
+57	pre=ind
+57	pre=inde
+57	w=index
+57	p1w=𝐀𝐁𝐂
+57	p2w=the
+57	n1w=rose
+57	n2w=😀
+57	p2S=begin
+57	wc=lc
+57	w&c=index,lc
+57	t=PUNCT
+57	t2=DET,PUNCT
+58	def
+58	suf=x
+58	suf=ex
+58	suf=dex
+58	suf=ndex
+58	pre=i
+58	pre=in
+58	pre=ind
+58	pre=inde
+58	w=index
+58	p1w=𝐀𝐁𝐂
+58	p2w=the
+58	n1w=rose
+58	n2w=😀
+58	p2S=begin
+58	wc=lc
+58	w&c=index,lc
+58	t=PUNCT
+58	t2=DET,PUNCT
+59	def
+59	suf=e
+59	suf=se
+59	suf=ose
+59	suf=rose
+59	pre=r
+59	pre=ro
+59	pre=ros
+59	pre=rose
+59	w=rose
+59	p1w=index
+59	p2w=𝐀𝐁𝐂
+59	n1w=😀
+59	n2w=while
+59	wc=lc
+59	w&c=rose,lc
+59	t=NOUN
+59	t2=PUNCT,NOUN
+60	def
+60	suf=e
+60	suf=se
+60	suf=ose
+60	suf=rose
+60	pre=r
+60	pre=ro
+60	pre=ros
+60	pre=rose
+60	w=rose
+60	p1w=index
+60	p2w=𝐀𝐁𝐂
+60	n1w=😀
+60	n2w=while
+60	wc=lc
+60	w&c=rose,lc
+60	t=NOUN
+60	t2=PUNCT,NOUN
+61	def
+61	suf=e
+61	suf=se
+61	suf=ose
+61	suf=rose
+61	pre=r
+61	pre=ro
+61	pre=ros
+61	pre=rose
+61	w=rose
+61	p1w=index
+61	p2w=𝐀𝐁𝐂
+61	n1w=😀
+61	n2w=while
+61	wc=lc
+61	w&c=rose,lc
+61	t=NOUN
+61	t2=PUNCT,NOUN
+62	def
+62	suf=\\ude00
+62	suf=😀
+62	pre=\\ud83d
+62	pre=😀
+62	w=😀
+62	p1w=rose
+62	p2w=index
+62	n1w=while
+62	n2w=café
+62	wc=other
+62	w&c=😀,other
+62	t=NOUN
+62	t2=NOUN,NOUN
+63	def
+63	suf=\\ude00
+63	suf=😀
+63	pre=\\ud83d
+63	pre=😀
+63	w=😀
+63	p1w=rose
+63	p2w=index
+63	n1w=while
+63	n2w=café
+63	wc=other
+63	w&c=😀,other
+63	t=NOUN
+63	t2=NOUN,NOUN
+64	def
+64	suf=\\ude00
+64	suf=😀
+64	pre=\\ud83d
+64	pre=😀
+64	w=😀
+64	p1w=rose
+64	p2w=index
+64	n1w=while
+64	n2w=café
+64	wc=other
+64	w&c=😀,other
+64	t=NOUN
+64	t2=NOUN,NOUN
+65	def
+65	suf=e
+65	suf=le
+65	suf=ile
+65	suf=hile
+65	pre=w
+65	pre=wh
+65	pre=whi
+65	pre=whil
+65	w=while
+65	p1w=😀
+65	p2w=rose
+65	n1w=café
+65	n2w=prices
+65	wc=lc
+65	w&c=while,lc
+65	t=PUNCT
+65	t2=NOUN,PUNCT
+66	def
+66	suf=e
+66	suf=le
+66	suf=ile
+66	suf=hile
+66	pre=w
+66	pre=wh
+66	pre=whi
+66	pre=whil
+66	w=while
+66	p1w=😀
+66	p2w=rose
+66	n1w=café
+66	n2w=prices
+66	wc=lc
+66	w&c=while,lc
+66	t=PUNCT
+66	t2=NOUN,PUNCT
+67	def
+67	suf=e
+67	suf=le
+67	suf=ile
+67	suf=hile
+67	pre=w
+67	pre=wh
+67	pre=whi
+67	pre=whil
+67	w=while
+67	p1w=😀
+67	p2w=rose
+67	n1w=café
+67	n2w=prices
+67	wc=lc
+67	w&c=while,lc
+67	t=PUNCT
+67	t2=NOUN,PUNCT
+68	def
+68	suf=é
+68	suf=fé
+68	suf=afé
+68	suf=café
+68	pre=c
+68	pre=ca
+68	pre=caf
+68	pre=café
+68	w=café
+68	p1w=while
+68	p2w=😀
+68	n1w=prices
+68	n2w=fell
+68	wc=lc
+68	w&c=café,lc
+68	t=SCONJ
+68	t2=PUNCT,SCONJ
+69	def
+69	suf=é
+69	suf=fé
+69	suf=afé
+69	suf=café
+69	pre=c
+69	pre=ca
+69	pre=caf
+69	pre=café
+69	w=café
+69	p1w=while
+69	p2w=😀
+69	n1w=prices
+69	n2w=fell
+69	wc=lc
+69	w&c=café,lc
+69	t=SCONJ
+69	t2=PUNCT,SCONJ
+70	def
+70	suf=é
+70	suf=fé
+70	suf=afé
+70	suf=café
+70	pre=c
+70	pre=ca
+70	pre=caf
+70	pre=café
+70	w=café
+70	p1w=while
+70	p2w=😀
+70	n1w=prices
+70	n2w=fell
+70	wc=lc
+70	w&c=café,lc
+70	t=SCONJ
+70	t2=PUNCT,SCONJ
+71	def
+71	suf=s
+71	suf=es
+71	suf=ces
+71	suf=ices
+71	pre=p
+71	pre=pr
+71	pre=pri
+71	pre=pric
+71	w=prices
+71	p1w=café
+71	p2w=while
+71	n1w=fell
+71	n2w=.
+71	wc=lc
+71	w&c=prices,lc
+71	t=VERB
+71	t2=SCONJ,VERB
+72	def
+72	suf=s
+72	suf=es
+72	suf=ces
+72	suf=ices
+72	pre=p
+72	pre=pr
+72	pre=pri
+72	pre=pric
+72	w=prices
+72	p1w=café
+72	p2w=while
+72	n1w=fell
+72	n2w=.
+72	wc=lc
+72	w&c=prices,lc
+72	t=VERB
+72	t2=SCONJ,VERB
+73	def
+73	suf=s
+73	suf=es
+73	suf=ces
+73	suf=ices
+73	pre=p
+73	pre=pr
+73	pre=pri
+73	pre=pric
+73	w=prices
+73	p1w=café
+73	p2w=while
+73	n1w=fell
+73	n2w=.
+73	wc=lc
+73	w&c=prices,lc
+73	t=VERB
+73	t2=SCONJ,VERB
+74	def
+74	suf=l
+74	suf=ll
+74	suf=ell
+74	suf=fell
+74	pre=f
+74	pre=fe
+74	pre=fel
+74	pre=fell
+74	w=fell
+74	p1w=prices
+74	p2w=café
+74	n1w=.
+74	wc=lc
+74	w&c=fell,lc
+74	t=NOUN
+74	t2=VERB,NOUN
+75	def
+75	suf=l
+75	suf=ll
+75	suf=ell
+75	suf=fell
+75	pre=f
+75	pre=fe
+75	pre=fel
+75	pre=fell
+75	w=fell
+75	p1w=prices
+75	p2w=café
+75	n1w=.
+75	wc=lc
+75	w&c=fell,lc
+75	t=NOUN
+75	t2=VERB,NOUN
+76	def
+76	suf=l
+76	suf=ll
+76	suf=ell
+76	suf=fell
+76	pre=f
+76	pre=fe
+76	pre=fel
+76	pre=fell
+76	w=fell
+76	p1w=prices
+76	p2w=café
+76	n1w=.
+76	wc=lc
+76	w&c=fell,lc
+76	t=NOUN
+76	t2=VERB,NOUN
+77	def
+77	suf=.
+77	pre=.
+77	w=.
+77	p1w=fell
+77	p2w=prices
+77	wc=other
+77	w&c=.,other
+77	t=NOUN
+77	t2=NOUN,NOUN
+78	def
+78	suf=.
+78	pre=.
+78	w=.
+78	p1w=fell
+78	p2w=prices
+78	wc=other
+78	w&c=.,other
+78	t=NOUN
+78	t2=NOUN,NOUN
+79	def
+79	suf=.
+79	pre=.
+79	w=.
+79	p1w=fell
+79	p2w=prices
+79	wc=other
+79	w&c=.,other
+79	t=NOUN
+79	t2=NOUN,NOUN
+end	turbo:beam-call-features
+layer	turbo:beam-sequences	document	48	sequence:u32	sentence:u32	score:f64
+0	0	bff0c9fe2029f94a -1.0493146187214557
+1	0	c0033ed7d2147392 -2.4056850826731955
+2	0	c00797a72aa43801 -2.94904931367546
+3	1	bfd11623a73c75a2 -0.2669762738385889
+4	1	c009c9eb803dece7 -3.2235937136552937
+5	1	c00d94e0fee218ef -3.697694770121522
+6	2	bff0e72f17762525 -1.0564413944687854
+7	2	bff6b147ed7ca6d0 -1.4182814862091853
+8	2	c00677f02bf35ce7 -2.8085635598796332
+9	3	bfc5535639da66c4 -0.16660573792323963
+10	3	c00f5edd3079b6b4 -3.9213203227180546
+11	3	c01135a6d3d80ebb -4.30239420896731
+12	4	bfd70fd26c33b7dc -0.3603406960163491
+13	4	c007488e8dba696d -2.9104281494630215
+14	4	c00b43c69d8cbd97 -3.4080936726165407
+15	5	bfe9d0a91172eaba -0.8067212429808344
+16	5	bffcebbddf57596e -1.8075541233316375
+17	5	c008a500d3b94c55 -3.0805679837153925
+18	6	c0006a2999988f96 -2.0518371581728827
+19	6	c009edcc0af9ef98 -3.241111837150992
+20	6	c009f95b117f51c1 -3.246755730340937
+21	7	c0233b48a71a5388 -9.615788671458873
+22	7	c0234740f80b796a -9.639167548561733
+23	7	c0235c29c40ea73d -9.680006148136835
+24	8	c009f47cf51a1189 -3.244378962381408
+25	8	c009f5f97f723ad9 -3.245104785607833
+26	8	c00e8cba021f3641 -3.818714157655251
+27	9	bfe8d6ab5783f48f -0.7762047490392819
+28	9	c001f53b3af4e17d -2.2447418790799802
+29	9	c004c1a6505f6e0f -2.5945554999468707
+30	10	bfe40017ccfc8ac7 -0.6250113490717347
+31	10	bff98162bbbeb27c -1.5940883001123032
+32	10	c00844a265bf6fc1 -3.0335128735586925
+33	11	bff5cce9ad1f430c -1.3625275385458648
+34	11	bffc9f92125d64ed -1.7889576642394858
+35	11	c0000b36666e0ceb -2.0054748537382827
+36	12	c0041d8e27befc97 -2.5144312958869466
+37	12	c004f2de0073010a -2.618587497243543
+38	12	c00c10c44f8f1ec6 -3.5081869330932447
+39	13	bff00c3c2f7045a6 -1.002987084681402
+40	13	bffe1028eee0249b -1.878945286853457
+41	13	bfff4188e9b0bd96 -1.9534997108965846
+42	14	bfd232bda7a1e000 -0.284346975043718
+43	14	c00417b3ed6187d1 -2.511573652781387
+44	14	c006c886b6238883 -2.847913191756619
+45	15	bf9df77b6d42036f -0.02926438192708097
+46	15	c011a816006dbe47 -4.414146429727743
+47	15	c0137b4df01c3d43 -4.8704144971118835
+end	turbo:beam-sequences
+layer	turbo:beam-outcomes	document	528	sequence:u32	outcome:str	probability:f64
+0	PROPN	3fe48da08be3c810 0.6422884685728167
+0	PROPN	3fef16c070d163d8 0.9715273097491446
+0	PUNCT	3fef932c8aeae525 0.9867155755265783
+0	NUM	3fefcb9ffb1f3c01 0.9936065582968469
+0	NOUN	3fefe7b4880e0709 0.9970343262977802
+0	ADJ	3fef02c1c775aaaf 0.9690865417190561
+0	PUNCT	3fef84fca1806c88 0.9849837450341434
+0	AUX	3fedaeb2e91bce87 0.9275755455878006
+0	VERB	3fef230021948e57 0.9730225234856772
+0	DET	3febbf07f96a93ea 0.8670692321217051
+0	NOUN	3feff1b03db68d8d 0.9982529836019453
+0	ADP	3fedcaed7d060a37 0.9310214464060839
+0	DET	3fefeff3eadc74ba 0.9980411135799365
+0	ADJ	3fefabebccde999c 0.9897364617689166
+0	NOUN	3fef77b522aec6c3 0.9833627393147356
+0	PROPN	3fefce1b7dc11d65 0.9939095932140104
+0	NUM	3feb7fc4b09d36ef 0.8593467187399407
+0	PUNCT	3fefe51adc3e4262 0.9967169095635422
+1	NOUN	3fc52d74767d2088 0.16544967446884962
+1	PROPN	3fef16c070d163d8 0.9715273097491446
+1	PUNCT	3fef932c8aeae525 0.9867155755265783
+1	NUM	3fefcb9ffb1f3c01 0.9936065582968469
+1	NOUN	3fefe7b4880e0709 0.9970343262977802
+1	ADJ	3fef02c1c775aaaf 0.9690865417190561
+1	PUNCT	3fef84fca1806c88 0.9849837450341434
+1	AUX	3fedaeb2e91bce87 0.9275755455878006
+1	VERB	3fef230021948e57 0.9730225234856772
+1	DET	3febbf07f96a93ea 0.8670692321217051
+1	NOUN	3feff1b03db68d8d 0.9982529836019453
+1	ADP	3fedcaed7d060a37 0.9310214464060839
+1	DET	3fefeff3eadc74ba 0.9980411135799365
+1	ADJ	3fefabebccde999c 0.9897364617689166
+1	NOUN	3fef77b522aec6c3 0.9833627393147356
+1	PROPN	3fefce1b7dc11d65 0.9939095932140104
+1	NUM	3feb7fc4b09d36ef 0.8593467187399407
+1	PUNCT	3fefe51adc3e4262 0.9967169095635422
+2	PROPN	3fe48da08be3c810 0.6422884685728167
+2	PROPN	3fef16c070d163d8 0.9715273097491446
+2	PUNCT	3fef932c8aeae525 0.9867155755265783
+2	NUM	3fefcb9ffb1f3c01 0.9936065582968469
+2	NOUN	3fefe7b4880e0709 0.9970343262977802
+2	ADJ	3fef02c1c775aaaf 0.9690865417190561
+2	PUNCT	3fef84fca1806c88 0.9849837450341434
+2	AUX	3fedaeb2e91bce87 0.9275755455878006
+2	VERB	3fef230021948e57 0.9730225234856772
+2	ADV	3fc09ab0986279aa 0.12972075882585204
+2	NOUN	3feff1b03db68d8d 0.9982529836019453
+2	ADP	3fedcaed7d060a37 0.9310214464060839
+2	DET	3fefeff3eadc74ba 0.9980411135799365
+2	ADJ	3fefabebccde999c 0.9897364617689166
+2	NOUN	3fef77b522aec6c3 0.9833627393147356
+2	PROPN	3fefce1b7dc11d65 0.9939095932140104
+2	NUM	3feb7fc4b09d36ef 0.8593467187399407
+2	PUNCT	3fefe51adc3e4262 0.9967169095635422
+3	PROPN	3feff63848578c2a 0.9988061345033021
+3	PROPN	3fefecfea3297dc9 0.9976800143012322
+3	VERB	3fefc5caede91cbc 0.9928946158114722
+3	ADP	3fef71273fa14b66 0.9825626604818865
+3	PROPN	3feffe6951abd00e 0.9998060794009704
+3	PUNCT	3fefc8e8face48c0 0.9932751558829054
+3	PROPN	3fef0f0557fb2245 0.9705836027506584
+3	PUNCT	3fefa119fd78469f 0.9884157133657999
+3	ADP	3fec884ec57bd826 0.8916391236405203
+3	NUM	3fef10e4fb52b855 0.9708123119978703
+3	ADP	3fef92222085f89d 0.9865885386677921
+3	SYM	3fef53e31dac1be5 0.978990133241379
+3	NUM	3fefd1885adfe4fb 0.9943277144331256
+3	PUNCT	3fefd2b209d76caa 0.9944696609703858
+4	PROPN	3feff63848578c2a 0.9988061345033021
+4	PROPN	3fefecfea3297dc9 0.9976800143012322
+4	VERB	3fefc5caede91cbc 0.9928946158114722
+4	ADP	3fef71273fa14b66 0.9825626604818865
+4	PROPN	3feffe6951abd00e 0.9998060794009704
+4	PUNCT	3fefc8e8face48c0 0.9932751558829054
+4	PROPN	3fef0f0557fb2245 0.9705836027506584
+4	PUNCT	3fefa119fd78469f 0.9884157133657999
+4	ADV	3fa7bc8a6444eda2 0.046360325565241625
+4	NUM	3fef10e4fb52b855 0.9708123119978703
+4	ADP	3fef92222085f89d 0.9865885386677921
+4	SYM	3fef53e31dac1be5 0.978990133241379
+4	NUM	3fefd1885adfe4fb 0.9943277144331256
+4	PUNCT	3fefd2b209d76caa 0.9944696609703858
+5	PROPN	3feff63848578c2a 0.9988061345033021
+5	PROPN	3fefecfea3297dc9 0.9976800143012322
+5	VERB	3fefc5caede91cbc 0.9928946158114722
+5	ADP	3fef71273fa14b66 0.9825626604818865
+5	PROPN	3feffe6951abd00e 0.9998060794009704
+5	PUNCT	3fefc8e8face48c0 0.9932751558829054
+5	PROPN	3fef0f0557fb2245 0.9705836027506584
+5	PUNCT	3fefa119fd78469f 0.9884157133657999
+5	DET	3f9d8c9ddf2cd4f0 0.028856722589996886
+5	NUM	3fef10e4fb52b855 0.9708123119978703
+5	ADP	3fef92222085f89d 0.9865885386677921
+5	SYM	3fef53e31dac1be5 0.978990133241379
+5	NUM	3fefd1885adfe4fb 0.9943277144331256
+5	PUNCT	3fefd2b209d76caa 0.9944696609703858
+6	DET	3fefaba182346034 0.9897010367449242
+6	NOUN	3fec7d454d525601 0.8902918348491654
+6	PUNCT	3fee5aa7798b4977 0.9485661863239291
+6	NOUN	3fefdcb72a88fa12 0.9956928091776851
+6	PUNCT	3fefe741b3e9a80e 0.9969795717163394
+6	PROPN	3fefe5422fc9f90a 0.996735661828809
+6	PROPN	3feff2e442c980d3 0.998399858897779
+6	PUNCT	3fefe2598906ec29 0.9963805843648333
+6	VERB	3fef8e01ce2f0d07 0.9860848452593992
+6	NUM	3fee95260b3dae9e 0.9557066173124047
+6	SYM	3fef091c0cb13ece 0.969862007894301
+6	ADP	3fed95478a614156 0.9244725897533879
+6	PROPN	3fefcdfb7cc29d28 0.9938943325732099
+6	NOUN	3fefd4ca01b01b66 0.9947252304999494
+6	NOUN	3fe03726ed4b1c71 0.5067324289929173
+6	PUNCT	3feff2dcd85c8910 0.9983963228044406
+7	DET	3fefaba182346034 0.9897010367449242
+7	NOUN	3fec7d454d525601 0.8902918348491654
+7	PUNCT	3fee5aa7798b4977 0.9485661863239291
+7	NOUN	3fefdcb72a88fa12 0.9956928091776851
+7	PUNCT	3fefe741b3e9a80e 0.9969795717163394
+7	PROPN	3fefe5422fc9f90a 0.996735661828809
+7	PROPN	3feff2e442c980d3 0.998399858897779
+7	PUNCT	3fefe2598906ec29 0.9963805843648333
+7	VERB	3fef8e01ce2f0d07 0.9860848452593992
+7	NUM	3fee95260b3dae9e 0.9557066173124047
+7	SYM	3fef091c0cb13ece 0.969862007894301
+7	ADP	3fed95478a614156 0.9244725897533879
+7	PROPN	3fefcdfb7cc29d28 0.9938943325732099
+7	NOUN	3fefd4ca01b01b66 0.9947252304999494
+7	VERB	3fd695ac2482f5a1 0.352885280280896
+7	PUNCT	3feff2dcd85c8910 0.9983963228044406
+8	DET	3fefaba182346034 0.9897010367449242
+8	NOUN	3fec7d454d525601 0.8902918348491654
+8	PUNCT	3fee5aa7798b4977 0.9485661863239291
+8	NOUN	3fefdcb72a88fa12 0.9956928091776851
+8	PUNCT	3fefe741b3e9a80e 0.9969795717163394
+8	PROPN	3fefe5422fc9f90a 0.996735661828809
+8	PROPN	3feff2e442c980d3 0.998399858897779
+8	PUNCT	3fefe2598906ec29 0.9963805843648333
+8	VERB	3fef8e01ce2f0d07 0.9860848452593992
+8	NUM	3fee95260b3dae9e 0.9557066173124047
+8	SYM	3fef091c0cb13ece 0.969862007894301
+8	ADP	3fed95478a614156 0.9244725897533879
+8	PROPN	3fefcdfb7cc29d28 0.9938943325732099
+8	NOUN	3fefd4ca01b01b66 0.9947252304999494
+8	ADJ	3fb67ea9a63fb24c 0.08787021931466049
+8	PUNCT	3feff2dcd85c8910 0.9983963228044406
+9	PRON	3fef63c14a0805a9 0.9809271284031428
+9	VERB	3fefc175d30d6842 0.9923657533756869
+9	NUM	3fedce93c0a18e00 0.9314669382405896
+9	NOUN	3fefafe7d7c0155d 0.990222855937343
+9	ADP	3fefadee8a2fc15a 0.9899819086986483
+9	NUM	3fefbdabe0789518 0.9919032463264186
+9	NOUN	3fef687b1bd2df3b 0.9815040152961737
+9	ADP	3feff895c4a46346 0.9990948525111001
+9	ADJ	3fefd9126cec5cbc 0.9952480437667854
+9	PROPN	3feffa86cc8ac1e2 0.9993318552934023
+9	PROPN	3fefa1485b8ea553 0.988437823126484
+9	PUNCT	3fefdf0b5bb44385 0.9959770957085402
+10	PRON	3fef63c14a0805a9 0.9809271284031428
+10	VERB	3fefc175d30d6842 0.9923657533756869
+10	ADJ	3f9653846ba95d91 0.021802968093053435
+10	NOUN	3fefafe7d7c0155d 0.990222855937343
+10	ADP	3fefadee8a2fc15a 0.9899819086986483
+10	NUM	3fefbdabe0789518 0.9919032463264186
+10	NOUN	3fef687b1bd2df3b 0.9815040152961737
+10	ADP	3feff895c4a46346 0.9990948525111001
+10	ADJ	3fefd9126cec5cbc 0.9952480437667854
+10	PROPN	3feffa86cc8ac1e2 0.9993318552934023
+10	PROPN	3fefa1485b8ea553 0.988437823126484
+10	PUNCT	3fefdf0b5bb44385 0.9959770957085402
+11	PRON	3fef63c14a0805a9 0.9809271284031428
+11	VERB	3fefc175d30d6842 0.9923657533756869
+11	NUM	3fedce93c0a18e00 0.9314669382405896
+11	NOUN	3fefafe7d7c0155d 0.990222855937343
+11	ADP	3fefadee8a2fc15a 0.9899819086986483
+11	NUM	3fefbdabe0789518 0.9919032463264186
+11	PUNCT	3f90122ab0f13acc 0.01569430069894899
+11	ADP	3feff895c4a46346 0.9990948525111001
+11	ADJ	3fefd9126cec5cbc 0.9952480437667854
+11	PROPN	3feffa86cc8ac1e2 0.9993318552934023
+11	PROPN	3fefa1485b8ea553 0.988437823126484
+11	PUNCT	3fefdf0b5bb44385 0.9959770957085402
+12	PROPN	3fef1a6deb9dc5ec 0.9719762422448048
+12	PROPN	3fef0bb626c6f28f 0.9701796300283422
+12	VERB	3fec8cc3cc07ddab 0.8921832070326919
+12	PROPN	3fef3b108a7062ec 0.9759600356947806
+12	PROPN	3fee1a8008d9ac27 0.9407348797661869
+12	ADP	3fef165a3b5804f3 0.971478572755727
+12	PROPN	3feffa35cd2a4b82 0.9992932326443766
+12	CCONJ	3fef80dcafdea124 0.9844802317575483
+12	PROPN	3feffdf3cf4929ec 0.9997500465918256
+12	ADJ	3fee5073a5306018 0.9473207689616201
+12	NOUN	3feff9de44ae75df 0.999251493590858
+12	PUNCT	3feff1d5e342effa 0.9982709349346799
+13	PROPN	3fef1a6deb9dc5ec 0.9719762422448048
+13	PROPN	3fef0bb626c6f28f 0.9701796300283422
+13	NOUN	3fb1d50b870ee140 0.0696570591670751
+13	PROPN	3fef3b108a7062ec 0.9759600356947806
+13	PROPN	3fee1a8008d9ac27 0.9407348797661869
+13	ADP	3fef165a3b5804f3 0.971478572755727
+13	PROPN	3feffa35cd2a4b82 0.9992932326443766
+13	CCONJ	3fef80dcafdea124 0.9844802317575483
+13	PROPN	3feffdf3cf4929ec 0.9997500465918256
+13	ADJ	3fee5073a5306018 0.9473207689616201
+13	NOUN	3feff9de44ae75df 0.999251493590858
+13	PUNCT	3feff1d5e342effa 0.9982709349346799
+14	PROPN	3fef1a6deb9dc5ec 0.9719762422448048
+14	PROPN	3fef0bb626c6f28f 0.9701796300283422
+14	VERB	3fec8cc3cc07ddab 0.8921832070326919
+14	PROPN	3fef3b108a7062ec 0.9759600356947806
+14	ADP	3fa6dcae673dc1f1 0.044652414419832705
+14	ADP	3fef165a3b5804f3 0.971478572755727
+14	PROPN	3feffa35cd2a4b82 0.9992932326443766
+14	CCONJ	3fef80dcafdea124 0.9844802317575483
+14	PROPN	3feffdf3cf4929ec 0.9997500465918256
+14	ADJ	3fee5073a5306018 0.9473207689616201
+14	NOUN	3feff9de44ae75df 0.999251493590858
+14	PUNCT	3feff1d5e342effa 0.9982709349346799
+15	PROPN	3fe2f71a6bbe1a24 0.5926639656398192
+15	CCONJ	3fef44741b476987 0.9771061451713628
+15	PROPN	3fef806bba1e1e80 0.9844263682470711
+15	PROPN	3fece209bb403b58 0.9025925309414147
+15	VERB	3fefefd600f98ffd 0.9980268496551613
+15	NOUN	3fef7b1d36127519 0.9837785774322213
+15	PUNCT	3fefb0217edfa3f5 0.990250346946708
+15	PROPN	3feed004bfab0610 0.9628928893582174
+15	PROPN	3fef75ada5c04606 0.9831150281262928
+15	PROPN	3fefe020a3259637 0.9961093126737016
+15	VERB	3fee55f6db56c08b 0.9479936870539104
+15	PUNCT	3fefefcf4215ebcb 0.9980236330733246
+16	NOUN	3fcbe26c355b8e2b 0.2178473721061079
+16	CCONJ	3fef44741b476987 0.9771061451713628
+16	PROPN	3fef806bba1e1e80 0.9844263682470711
+16	PROPN	3fece209bb403b58 0.9025925309414147
+16	VERB	3fefefd600f98ffd 0.9980268496551613
+16	NOUN	3fef7b1d36127519 0.9837785774322213
+16	PUNCT	3fefb0217edfa3f5 0.990250346946708
+16	PROPN	3feed004bfab0610 0.9628928893582174
+16	PROPN	3fef75ada5c04606 0.9831150281262928
+16	PROPN	3fefe020a3259637 0.9961093126737016
+16	VERB	3fee55f6db56c08b 0.9479936870539104
+16	PUNCT	3fefefcf4215ebcb 0.9980236330733246
+17	PROPN	3fe2f71a6bbe1a24 0.5926639656398192
+17	CCONJ	3fef44741b476987 0.9771061451713628
+17	PROPN	3fef806bba1e1e80 0.9844263682470711
+17	ADV	3fb7c7b0ccfe37fb 0.09289078716957981
+17	VERB	3fefefd600f98ffd 0.9980268496551613
+17	NOUN	3fef7b1d36127519 0.9837785774322213
+17	PUNCT	3fefb0217edfa3f5 0.990250346946708
+17	PROPN	3feed004bfab0610 0.9628928893582174
+17	PROPN	3fef75ada5c04606 0.9831150281262928
+17	PROPN	3fefe020a3259637 0.9961093126737016
+17	VERB	3fee55f6db56c08b 0.9479936870539104
+17	PUNCT	3fefefcf4215ebcb 0.9980236330733246
+18	ADJ	3fdfe884b8cb2e10 0.4985667996049594
+18	PROPN	3fe38efae8aa2226 0.6112036270361088
+18	NOUN	3fe85a690b997443 0.7610364176322338
+18	ADP	3fefb2282a03e89c 0.9904976673708634
+18	PROPN	3feef59a648241ed 0.9674808466971264
+18	PUNCT	3fefc4c95c9ed0b2 0.9927717980376853
+18	PART	3fef6a598739e79e 0.9817321435104878
+18	ADV	3fe31f6fe71e60df 0.597587539104122
+18	PUNCT	3fefc4aeef8324ee 0.9927591970419181
+19	ADJ	3fdfe884b8cb2e10 0.4985667996049594
+19	PROPN	3fe38efae8aa2226 0.6112036270361088
+19	VERB	3fcda810c1ce994b 0.2316914507220623
+19	ADP	3fefb2282a03e89c 0.9904976673708634
+19	PROPN	3feef59a648241ed 0.9674808466971264
+19	PUNCT	3fefc4c95c9ed0b2 0.9927717980376853
+19	PART	3fef6a598739e79e 0.9817321435104878
+19	ADV	3fe31f6fe71e60df 0.597587539104122
+19	PUNCT	3fefc4aeef8324ee 0.9927591970419181
+20	DET	3fc351b038c6d334 0.15093043110177862
+20	PROPN	3fe38efae8aa2226 0.6112036270361088
+20	NOUN	3fe85a690b997443 0.7610364176322338
+20	ADP	3fefb2282a03e89c 0.9904976673708634
+20	PROPN	3feef59a648241ed 0.9674808466971264
+20	PUNCT	3fefc4c95c9ed0b2 0.9927717980376853
+20	PART	3fef6a598739e79e 0.9817321435104878
+20	ADV	3fe31f6fe71e60df 0.597587539104122
+20	PUNCT	3fefc4aeef8324ee 0.9927591970419181
+21	PUNCT	3fdc7b44158ed009 0.4450235567594523
+21	NOUN	3fc1a4a7b9c4650d 0.13783737726843306
+21	NOUN	3fd2d80123b8d51d 0.29443386543728584
+21	NOUN	3fc76fcba990ad11 0.18309922961757555
+21	NOUN	3fc76fcba990ad11 0.18309922961757555
+21	NOUN	3fc76fcba990ad11 0.18309922961757555
+21	PUNCT	3fed941c3736a9c1 0.9243298605336393
+21	PUNCT	3fe4d170fd37cfd9 0.6505665727295266
+22	PUNCT	3fdc7b44158ed009 0.4450235567594523
+22	PROPN	3fc13c491edd420a 0.13465227133794172
+22	NOUN	3fd2d80123b8d51d 0.29443386543728584
+22	NOUN	3fc76fcba990ad11 0.18309922961757555
+22	NOUN	3fc76fcba990ad11 0.18309922961757555
+22	NOUN	3fc76fcba990ad11 0.18309922961757555
+22	PUNCT	3fed941c3736a9c1 0.9243298605336393
+22	PUNCT	3fe4d170fd37cfd9 0.6505665727295266
+23	PUNCT	3fdc7b44158ed009 0.4450235567594523
+23	NOUN	3fc1a4a7b9c4650d 0.13783737726843306
+23	NOUN	3fd2d80123b8d51d 0.29443386543728584
+23	NOUN	3fc76fcba990ad11 0.18309922961757555
+23	NOUN	3fc76fcba990ad11 0.18309922961757555
+23	ADP	3fc5fa9d4bc36fbb 0.17171064566980285
+23	PUNCT	3fed941c3736a9c1 0.9243298605336393
+23	PUNCT	3fe4d170fd37cfd9 0.6505665727295266
+24	DET	3fefaba182346034 0.9897010367449242
+24	PUNCT	3fe1263525740046 0.5359140140062741
+24	NOUN	3fe73a637bcc9166 0.7258775155974433
+24	NOUN	3fe2aa20dc4566cf 0.5832676222009584
+24	PUNCT	3fede9c19ab7a45f 0.9347847005675581
+24	SCONJ	3fef26a1f0b4ce7e 0.9734658910078478
+24	VERB	3fe20afd0e2e83d5 0.5638413693414984
+24	NOUN	3fefa44f0b579e86 0.9888072225121085
+24	NOUN	3fd5f03bcf2b3856 0.3427876971371736
+24	PUNCT	3feff353c4734de9 0.9984530293390296
+25	DET	3fefaba182346034 0.9897010367449242
+25	PUNCT	3fe1263525740046 0.5359140140062741
+25	NOUN	3fe73a637bcc9166 0.7258775155974433
+25	NOUN	3fe2aa20dc4566cf 0.5832676222009584
+25	PUNCT	3fede9c19ab7a45f 0.9347847005675581
+25	SCONJ	3fef26a1f0b4ce7e 0.9734658910078478
+25	VERB	3fe20afd0e2e83d5 0.5638413693414984
+25	NOUN	3fefa44f0b579e86 0.9888072225121085
+25	ADJ	3fd5ec28a19e3248 0.34253898413661377
+25	PUNCT	3feff353c4734de9 0.9984530293390296
+26	DET	3fefaba182346034 0.9897010367449242
+26	PUNCT	3fe1263525740046 0.5359140140062741
+26	NOUN	3fe73a637bcc9166 0.7258775155974433
+26	VERB	3fd504eda2a1fed5 0.3284257972918401
+26	PUNCT	3fede9c19ab7a45f 0.9347847005675581
+26	SCONJ	3fef26a1f0b4ce7e 0.9734658910078478
+26	VERB	3fe20afd0e2e83d5 0.5638413693414984
+26	NOUN	3fefa44f0b579e86 0.9888072225121085
+26	NOUN	3fd5f03bcf2b3856 0.3427876971371736
+26	PUNCT	3feff353c4734de9 0.9984530293390296
+27	NOUN	3fecd70623036648 0.9012480434277643
+27	PRON	3fed236db8e47a65 0.9105747805768486
+27	ADP	3fe952369bf7ff0b 0.7912858053459514
+27	PROPN	3feba8263affe319 0.8642760422072541
+27	CCONJ	3fefea9b1efa8f2b 0.9973884205869344
+27	VERB	3feab5139199b075 0.8346040576702892
+27	PROPN	3fefb92b18bf29c5 0.9913535579046814
+27	PUNCT	3fefcaf7b3756683 0.9935263161707585
+28	NOUN	3fecd70623036648 0.9012480434277643
+28	PRON	3fed236db8e47a65 0.9105747805768486
+28	VERB	3fc7526e870fca49 0.18220311732109654
+28	PROPN	3feba8263affe319 0.8642760422072541
+28	CCONJ	3fefea9b1efa8f2b 0.9973884205869344
+28	VERB	3feab5139199b075 0.8346040576702892
+28	PROPN	3fefb92b18bf29c5 0.9913535579046814
+28	PUNCT	3fefcaf7b3756683 0.9935263161707585
+29	NOUN	3fecd70623036648 0.9012480434277643
+29	PRON	3fed236db8e47a65 0.9105747805768486
+29	ADP	3fe952369bf7ff0b 0.7912858053459514
+29	PROPN	3feba8263affe319 0.8642760422072541
+29	CCONJ	3fefea9b1efa8f2b 0.9973884205869344
+29	NOUN	3fc156719fc75dae 0.13545055677125845
+29	PROPN	3fefb92b18bf29c5 0.9913535579046814
+29	PUNCT	3fefcaf7b3756683 0.9935263161707585
+30	NOUN	3fe50601eb526dce 0.6569833370335176
+30	PROPN	3fed2df36af9181e 0.9118592347447281
+30	AUX	3fefeec8cbe07652 0.9978984815567833
+30	VERB	3fefea325fc90404 0.997338473396781
+30	ADP	3fee0193351c82b5 0.9376922643023905
+30	PROPN	3fef5e94ea20cb3b 0.9802956173719858
+30	PUNCT	3fef78d91014f2f3 0.9835019411180767
+30	PROPN	3fefdd1bbe6a6e7f 0.9957407683427418
+30	PUNCT	3fefe99a72b7fb9c 0.9972660294150617
+31	PROPN	3fcfe872897b7d00 0.24928123200422903
+31	PROPN	3fed2df36af9181e 0.9118592347447281
+31	AUX	3fefeec8cbe07652 0.9978984815567833
+31	VERB	3fefea325fc90404 0.997338473396781
+31	ADP	3fee0193351c82b5 0.9376922643023905
+31	PROPN	3fef5e94ea20cb3b 0.9802956173719858
+31	PUNCT	3fef78d91014f2f3 0.9835019411180767
+31	PROPN	3fefdd1bbe6a6e7f 0.9957407683427418
+31	PUNCT	3fefe99a72b7fb9c 0.9972660294150617
+32	NOUN	3fe50601eb526dce 0.6569833370335176
+32	NOUN	3fb4ff6022722802 0.08202172127690235
+32	AUX	3fefeec8cbe07652 0.9978984815567833
+32	VERB	3fefea325fc90404 0.997338473396781
+32	ADP	3fee0193351c82b5 0.9376922643023905
+32	PROPN	3fef5e94ea20cb3b 0.9802956173719858
+32	PUNCT	3fef78d91014f2f3 0.9835019411180767
+32	PROPN	3fefdd1bbe6a6e7f 0.9957407683427418
+32	PUNCT	3fefe99a72b7fb9c 0.9972660294150617
+33	PRON	3fef2ae0e3f012b3 0.9739841892156477
+33	VERB	3feffc2f144b9671 0.9995341678993112
+33	PUNCT	3fefe26f2d0526c5 0.996390903406074
+33	PUNCT	3feff0f8bd1a469f 0.9981654828463496
+33	PRON	3fefa7e7a810e26f 0.9892462046182809
+33	AUX	3fdcfe4062c2fa1b 0.4530182804554969
+33	PART	3fefafd438e57c1b 0.990213500142889
+33	VERB	3feffca3bc52e6b5 0.9995897939872608
+33	ADP	3fe3342e4aeec7b2 0.600119730332372
+33	PROPN	3feff830cd78a283 0.9990467084035831
+33	PUNCT	3fefe1dabc309983 0.9963201213438854
+33	PUNCT	3fefeec9d8175c96 0.9978989811451295
+34	PRON	3fef2ae0e3f012b3 0.9739841892156477
+34	VERB	3feffc2f144b9671 0.9995341678993112
+34	PUNCT	3fefe26f2d0526c5 0.996390903406074
+34	PUNCT	3feff0f8bd1a469f 0.9981654828463496
+34	PRON	3fefa7e7a810e26f 0.9892462046182809
+34	AUX	3fdcfe4062c2fa1b 0.4530182804554969
+34	PART	3fefafd438e57c1b 0.990213500142889
+34	VERB	3feffca3bc52e6b5 0.9995897939872608
+34	PART	3fd912ea1fe23947 0.39177945245400675
+34	PROPN	3feff830cd78a283 0.9990467084035831
+34	PUNCT	3fefe1dabc309983 0.9963201213438854
+34	PUNCT	3fefeec9d8175c96 0.9978989811451295
+35	PRON	3fef2ae0e3f012b3 0.9739841892156477
+35	VERB	3feffc2f144b9671 0.9995341678993112
+35	PUNCT	3fefe26f2d0526c5 0.996390903406074
+35	PUNCT	3feff0f8bd1a469f 0.9981654828463496
+35	PRON	3fefa7e7a810e26f 0.9892462046182809
+35	PRON+AUX	3fce7c5baf5965cb 0.23817010938618774
+35	PART	3fefafd438e57c1b 0.990213500142889
+35	VERB	3feffca3bc52e6b5 0.9995897939872608
+35	ADP	3fe3342e4aeec7b2 0.600119730332372
+35	PROPN	3feff830cd78a283 0.9990467084035831
+35	PUNCT	3fefe1dabc309983 0.9963201213438854
+35	PUNCT	3fefeec9d8175c96 0.9978989811451295
+36	NOUN	3fd390509f588961 0.3056832843887119
+36	CCONJ	3fef72453d7525d6 0.9826990318626325
+36	NOUN	3fe18deb8cec9417 0.5485742332863336
+36	AUX	3fee72a9fb65539b 0.9514970693659167
+36	NOUN	3fef2e98cfaeee00 0.9744381004633738
+36	PUNCT	3fefca55ba83d095 0.9934490816945237
+36	PRON	3fe1f802c5d4fda2 0.5615247596651225
+36	AUX	3fef4707a447e6bc 0.9774206360445628
+36	DET	3fef78a2be1c6247 0.9834760392287273
+36	NOUN	3fefd0e9498d53c6 0.9942518650592482
+36	NOUN	3fefd994d10148d0 0.9953102190140957
+36	PUNCT	3fefeee599fe185b 0.9979122169177218
+37	PROPN	3fd1a0ea464bb678 0.27544648041553144
+37	CCONJ	3fef72453d7525d6 0.9826990318626325
+37	NOUN	3fe18deb8cec9417 0.5485742332863336
+37	AUX	3fee72a9fb65539b 0.9514970693659167
+37	NOUN	3fef2e98cfaeee00 0.9744381004633738
+37	PUNCT	3fefca55ba83d095 0.9934490816945237
+37	PRON	3fe1f802c5d4fda2 0.5615247596651225
+37	AUX	3fef4707a447e6bc 0.9774206360445628
+37	DET	3fef78a2be1c6247 0.9834760392287273
+37	NOUN	3fefd0e9498d53c6 0.9942518650592482
+37	NOUN	3fefd994d10148d0 0.9953102190140957
+37	PUNCT	3fefeee599fe185b 0.9979122169177218
+38	ADV	3fbcf7fcfcc31c18 0.11315900011969438
+38	CCONJ	3fef72453d7525d6 0.9826990318626325
+38	NOUN	3fe18deb8cec9417 0.5485742332863336
+38	AUX	3fee72a9fb65539b 0.9514970693659167
+38	NOUN	3fef2e98cfaeee00 0.9744381004633738
+38	PUNCT	3fefca55ba83d095 0.9934490816945237
+38	PRON	3fe1f802c5d4fda2 0.5615247596651225
+38	AUX	3fef4707a447e6bc 0.9774206360445628
+38	DET	3fef78a2be1c6247 0.9834760392287273
+38	NOUN	3fefd0e9498d53c6 0.9942518650592482
+38	NOUN	3fefd994d10148d0 0.9953102190140957
+38	PUNCT	3fefeee599fe185b 0.9979122169177218
+39	NUM	3feddb3ee659f494 0.9330133914042045
+39	ADJ	3fe653f8f4f7a910 0.6977505478401174
+39	NOUN	3fefe2f7edf12193 0.9964561126044366
+39	ADP	3fef2c26cc9b8e75 0.9741395946734445
+39	PROPN	3fefdfd5cd4a218d 0.9960736283838273
+39	PROPN	3feffd999d33438a 0.9997070379559869
+39	PROPN	3fee52540c1d483b 0.9475498425110865
+39	ADP	3fefdc5dafb67194 0.9956501418960664
+39	PROPN	3fe3eb68b0a1cafb 0.6224864435046976
+39	PROPN	3fefeee2f2782195 0.9979109512069494
+39	ADP	3fefe441409d0aab 0.9966131460172013
+39	PROPN	3feffe39138eac65 0.9997830755213611
+39	PUNCT	3feff12e90b8ad12 0.998191149386374
+40	NUM	3feddb3ee659f494 0.9330133914042045
+40	ADV	3fd298fac0c9e11a 0.29058712794314234
+40	NOUN	3fefe2f7edf12193 0.9964561126044366
+40	ADP	3fef2c26cc9b8e75 0.9741395946734445
+40	PROPN	3fefdfd5cd4a218d 0.9960736283838273
+40	PROPN	3feffd999d33438a 0.9997070379559869
+40	PROPN	3fee52540c1d483b 0.9475498425110865
+40	ADP	3fefdc5dafb67194 0.9956501418960664
+40	PROPN	3fe3eb68b0a1cafb 0.6224864435046976
+40	PROPN	3fefeee2f2782195 0.9979109512069494
+40	ADP	3fefe441409d0aab 0.9966131460172013
+40	PROPN	3feffe39138eac65 0.9997830755213611
+40	PUNCT	3feff12e90b8ad12 0.998191149386374
+41	NUM	3feddb3ee659f494 0.9330133914042045
+41	ADJ	3fe653f8f4f7a910 0.6977505478401174
+41	NOUN	3fefe2f7edf12193 0.9964561126044366
+41	ADP	3fef2c26cc9b8e75 0.9741395946734445
+41	PROPN	3fefdfd5cd4a218d 0.9960736283838273
+41	PROPN	3feffd999d33438a 0.9997070379559869
+41	PROPN	3fee52540c1d483b 0.9475498425110865
+41	ADP	3fefdc5dafb67194 0.9956501418960664
+41	DET	3fcecc8f4684a125 0.24061766570344748
+41	PROPN	3fefeee2f2782195 0.9979109512069494
+41	ADP	3fefe441409d0aab 0.9966131460172013
+41	PROPN	3feffe39138eac65 0.9997830755213611
+41	PUNCT	3feff12e90b8ad12 0.998191149386374
+42	PROPN	3fef77dac17b6518 0.9833806780763181
+42	VERB	3fefcaa9edad9cc8 0.9934892313148334
+42	PROPN	3fefd5a6f6c20c1f 0.9948305911533487
+42	AUX	3feef9788fd7f17f 0.9679529962009353
+42	VERB	3fefec9dc6e17fc3 0.9976338276282991
+42	PROPN	3feffa06b831804f 0.9992707822348253
+42	ADV	3fec455040ac6404 0.8834611189987531
+42	ADP	3fefadfb476e7171 0.9899879832405941
+42	NUM	3fed863c971280a7 0.9226363134985335
+42	PUNCT	3fefd156965f7803 0.9943039833995048
+43	PROPN	3fef77dac17b6518 0.9833806780763181
+43	VERB	3fefcaa9edad9cc8 0.9934892313148334
+43	PROPN	3fefd5a6f6c20c1f 0.9948305911533487
+43	AUX	3feef9788fd7f17f 0.9679529962009353
+43	VERB	3fefec9dc6e17fc3 0.9976338276282991
+43	PROPN	3feffa06b831804f 0.9992707822348253
+43	ADP	3fb863068d803211 0.0952610106907701
+43	ADP	3fefadfb476e7171 0.9899879832405941
+43	NUM	3fed863c971280a7 0.9226363134985335
+43	PUNCT	3fefd156965f7803 0.9943039833995048
+44	PROPN	3fef77dac17b6518 0.9833806780763181
+44	VERB	3fefcaa9edad9cc8 0.9934892313148334
+44	PROPN	3fefd5a6f6c20c1f 0.9948305911533487
+44	AUX	3feef9788fd7f17f 0.9679529962009353
+44	VERB	3fefec9dc6e17fc3 0.9976338276282991
+44	PROPN	3feffa06b831804f 0.9992707822348253
+44	ADV	3fec455040ac6404 0.8834611189987531
+44	ADP	3fefadfb476e7171 0.9899879832405941
+44	PROPN	3fb231a90aaaca8b 0.07107025633266965
+44	PUNCT	3fefd156965f7803 0.9943039833995048
+45	DET	3fef13bd73961855 0.9711596734566778
+46	PUNCT	3f88ca71c562d84c 0.012104882084127543
+47	SCONJ	3f7f6ac5b45aaa90 0.007670185359226381
+end	turbo:beam-outcomes
