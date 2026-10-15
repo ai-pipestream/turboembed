@@ -145,19 +145,36 @@ fn describe(input: &str, got: &[Mention]) -> String {
     s
 }
 
-/// Checks one file against its pass list, or with `bless` and `BLESS`
-/// set rewrites the list; returns (eligible, passing).
-fn check(spec: &Spec, bless: bool) -> (usize, usize) {
-    let dir = data().join("recognizers-text").join(spec.language).join(spec.kind);
-    let json = std::fs::read_to_string(dir.join(spec.file)).expect("a specification file");
-    let cases: Vec<Case> = serde_json::from_str(&json).expect("a specification parses");
-    let list_path = data().join("pass").join(spec.language).join(spec.file.replace(".json", ".txt"));
+/// Checks the passing cases of a file against its pass list, or with
+/// `bless` and `BLESS` set rewrites the list.
+fn ratchet(language: &str, file: &str, passing: &BTreeSet<usize>, bless: bool) {
+    let list_path = data().join("pass").join(language).join(file.replace(".json", ".txt"));
     let listed: BTreeSet<usize> = std::fs::read_to_string(&list_path)
         .unwrap_or_default()
         .lines()
         .filter(|l| !l.trim().is_empty())
         .map(|l| l.trim().parse().expect("a case index per line"))
         .collect();
+    if bless && std::env::var_os("BLESS").is_some() {
+        let body: String = passing.iter().map(|i| format!("{i}\n")).collect();
+        std::fs::create_dir_all(list_path.parent().expect("a directory")).expect("the pass directory");
+        std::fs::write(&list_path, body).expect("the pass list is written");
+    } else {
+        let lost: Vec<&usize> = listed.difference(passing).collect();
+        assert!(lost.is_empty(), "{file}: listed cases fail: {lost:?}");
+        let gained: Vec<&usize> = passing.difference(&listed).collect();
+        if !gained.is_empty() {
+            println!("{file}: passing but not listed (BLESS=1 adds them): {gained:?}");
+        }
+    }
+}
+
+/// Checks one file against its pass list, or with `bless` and `BLESS`
+/// set rewrites the list; returns (eligible, passing).
+fn check(spec: &Spec, bless: bool) -> (usize, usize) {
+    let dir = data().join("recognizers-text").join(spec.language).join(spec.kind);
+    let json = std::fs::read_to_string(dir.join(spec.file)).expect("a specification file");
+    let cases: Vec<Case> = serde_json::from_str(&json).expect("a specification parses");
     let show = std::env::var_os("SPEC_SHOW").is_some();
     let mut parser = Parser::new(&ENGLISH);
     let mut passing = BTreeSet::new();
@@ -174,18 +191,7 @@ fn check(spec: &Spec, bless: bool) -> (usize, usize) {
             println!("{} #{i} {:?} found{}", spec.file, case.input, describe(&case.input, &got));
         }
     }
-    if bless && std::env::var_os("BLESS").is_some() {
-        let body: String = passing.iter().map(|i| format!("{i}\n")).collect();
-        std::fs::create_dir_all(list_path.parent().expect("a directory")).expect("the pass directory");
-        std::fs::write(&list_path, body).expect("the pass list is written");
-    } else {
-        let lost: Vec<&usize> = listed.difference(&passing).collect();
-        assert!(lost.is_empty(), "{}: listed cases fail: {lost:?}", spec.file);
-        let gained: Vec<&usize> = passing.difference(&listed).collect();
-        if !gained.is_empty() {
-            println!("{}: passing but not listed (BLESS=1 adds them): {gained:?}", spec.file);
-        }
-    }
+    ratchet(spec.language, spec.file, &passing, bless);
     println!("{}/{}/{}: {} of {} eligible cases pass", spec.language, spec.kind, spec.file, passing.len(), eligible);
     (eligible, passing.len())
 }
@@ -212,6 +218,46 @@ fn english_percentages() {
     assert_eq!(eligible, 20);
 }
 
+#[path = "spec/units.rs"]
+mod units;
+
+/// The number-with-unit files: file, kind, eligible cases.
+const UNIT_FILES: [(&str, turbo_grammar::Measure, usize); 4] = [
+    ("AgeModel.json", turbo_grammar::Measure::Age, 19),
+    ("CurrencyModel.json", turbo_grammar::Measure::Currency, 177),
+    ("DimensionModel.json", turbo_grammar::Measure::Dimension, 100),
+    ("TemperatureModel.json", turbo_grammar::Measure::Temperature, 43),
+];
+
+fn check_units(k: usize, bless: bool) -> (usize, usize) {
+    let (file, measure, want) = UNIT_FILES[k];
+    let (eligible, passing) = units::run_file(file, measure);
+    ratchet("English", file, &passing, bless);
+    println!("English/NumberWithUnit/{file}: {} of {eligible} eligible cases pass", passing.len());
+    assert_eq!(eligible, want);
+    (eligible, passing.len())
+}
+
+#[test]
+fn english_ages() {
+    check_units(0, true);
+}
+
+#[test]
+fn english_currencies() {
+    check_units(1, true);
+}
+
+#[test]
+fn english_dimensions() {
+    check_units(2, true);
+}
+
+#[test]
+fn english_temperatures() {
+    check_units(3, true);
+}
+
 /// The pass rate of every file, in one table.
 #[test]
 fn summary() {
@@ -220,6 +266,10 @@ fn summary() {
         let (eligible, passing) = check(spec, false);
         let name = format!("{}/{}/{}", spec.language, spec.kind, spec.file);
         let _ = writeln!(table, "{name:<36}{eligible:>8}{passing:>9}");
+    }
+    for (k, (file, _, _)) in UNIT_FILES.iter().enumerate() {
+        let (eligible, passing) = check_units(k, false);
+        let _ = writeln!(table, "{:<36}{eligible:>8}{passing:>9}", format!("English/NumberWithUnit/{file}"));
     }
     println!("{table}");
 }
