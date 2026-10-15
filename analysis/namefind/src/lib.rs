@@ -101,6 +101,7 @@ pub use builtin::BuiltIn;
 pub use dictionary::DictionaryNameFinder;
 pub use error::{Error, Feature, TextLimit};
 pub use java_regex::{Flags, JavaRegex};
-pub use merge::{MergeEntities, drop_overlapping, merge};
+pub use merge::{FilterEntities, MergeEntities, drop_overlapping, merge};
 pub use name::{Name, TokenNameFinder};
 pub use regex_finder::{Pattern, RegexNameFinder};
+pub use turbo_analysis::FilterRule;
