@@ -14,7 +14,6 @@ use std::path::Path;
 use serde::{Deserialize, Serialize};
 use turbo_eval::model_gate::{ModelGateRecord, TagMapping};
 use turbo_postag::PosTagFormat;
-use turbo_train_components::ud;
 use turbo_zoo::{Artifact, File, Kind, Licence, LicenceClass, Sha256, Sha512, TrainingData, class_of, index::Format};
 
 use crate::error::{Error, Result, io};
@@ -22,10 +21,11 @@ use crate::masc::{self, Split};
 use crate::segmentation::{Component, LANGUAGE, SENTENCES_PER_SAMPLE, TIMESTAMP_MS};
 use crate::{Recipe, Trained, postag};
 
-/// The card's schema version: 3, with the held-out counts, the tag
+/// The card's schema version: 4, with the held-out counts, the tag
 /// formats and the reference's digest, the documents the split leaves
-/// out, and how a tagger's held-out tokens were scored.
-pub const CARD_VERSION: u32 = 3;
+/// out, how a tagger's held-out tokens were scored, and the chunks in no
+/// sentence a chunker's reader reads.
+pub const CARD_VERSION: u32 = 4;
 /// The card's file name in the model's directory.
 pub const CARD_FILE: &str = "card.json";
 /// The gate record's file name in the model's directory.
@@ -76,6 +76,31 @@ pub struct ParametersCard {
     pub threads: i32,
 }
 
+/// The chunks of one side of the split that are in no sentence the
+/// chunker's reader reads, by why ([`crate::chunk::chunk_counts`]), and
+/// the chunks of that side's chunk files. A sentence the reader skips
+/// loses the chunks it holds too; those are not counted here.
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ChunksCard {
+    /// The noun and verb chunks of the chunk files of the documents read
+    /// with Penn tokens.
+    pub chunks: u64,
+    /// Chunks that name a Penn token no kept sentence has
+    /// (`MascWarning::ChunkOutsideSentences`): MASC's sentence layer does
+    /// not cover all of the text, and a sentence region that does not end
+    /// before the next one starts is dropped, as OpenNLP drops it. The
+    /// other MASC recipes read the same sentences, so the text of these
+    /// chunks is in none of their samples either.
+    pub outside_sentences: u64,
+    /// Chunks whose tokens are all in kept sentences but not all in one
+    /// (`MascWarning::ChunkCrossesSentences`).
+    pub across_sentences: u64,
+    /// Chunks with no edge to a Penn token
+    /// (`MascWarning::ChunkWithoutTokens`).
+    pub without_tokens: u64,
+}
+
 /// What training read and made.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -85,8 +110,8 @@ pub struct TrainingCard {
     /// components.
     pub sentences_per_sample: Option<usize>,
     /// `legacy` (OpenNLP 2.5.4's `Character.isWhitespace` or `Zs`) for the
-    /// sentence detector and the tokenizer; `null` for the tagger, which
-    /// reads tokens.
+    /// sentence detector and the tokenizer; `null` for the tagger and the
+    /// chunker, which read tokens.
     pub whitespace: Option<String>,
     /// The manifest's `Timestamp`.
     pub timestamp_ms: i64,
@@ -97,6 +122,9 @@ pub struct TrainingCard {
     pub skipped_sentences: usize,
     pub events: usize,
     pub event_hash: u32,
+    /// For a chunker, the training documents' chunks in no sentence its
+    /// reader reads; `null` for the other components.
+    pub chunks: Option<ChunksCard>,
 }
 
 /// What the gate read from the held-out documents.
@@ -113,6 +141,9 @@ pub struct HeldOutCard {
     /// how its held-out tokens were scored; `null` for the other
     /// components.
     pub tokens: Option<TokenCoverage>,
+    /// For a chunker, the held-out documents' chunks in no sentence its
+    /// reader reads; `null` for the other components.
+    pub chunks: Option<ChunksCard>,
 }
 
 /// How a tagger's held-out tokens were scored: over the tokens whose tag
@@ -203,7 +234,7 @@ pub struct GateCard {
     pub reference: String,
     pub reference_sha256: String,
     /// For a tagger, the tags the trained model was scored in; `null`
-    /// for the other components.
+    /// for the other components (a chunker is given MASC's Penn tags).
     pub candidate_tag_format: Option<TagFormat>,
     /// For a tagger, the tags the reference was scored in; `null` for the
     /// other components.
@@ -281,6 +312,7 @@ impl ModelCard {
                 None,
             ),
             Recipe::Pos(p) => (None, None, TagFormat::of(postag::CANDIDATE_FORMAT), TagFormat::of(p.reference_format)),
+            Recipe::Chunk(_) => (None, None, None, None),
         };
         ModelCard {
             card_version: CARD_VERSION,
@@ -300,12 +332,7 @@ impl ModelCard {
             attribution: masc::ATTRIBUTION.to_owned(),
             corpus,
             training: TrainingCard {
-                parameters: ParametersCard {
-                    algorithm: "MAXENT".to_owned(),
-                    iterations: ud::ITERATIONS,
-                    cutoff: ud::CUTOFF,
-                    threads: ud::THREADS,
-                },
+                parameters: recipe.parameters(),
                 sentences_per_sample,
                 whitespace,
                 timestamp_ms: TIMESTAMP_MS,
@@ -314,6 +341,7 @@ impl ModelCard {
                 skipped_sentences: trained.skipped_sentences,
                 events: trained.events,
                 event_hash: trained.event_hash,
+                chunks: trained.chunks.clone(),
             },
             held_out,
             gate: GateCard::of(gate, candidate_tag_format, reference_tag_format),
@@ -439,8 +467,10 @@ pub enum LeftOutFor {
 /// What a run prints of a card before its gate record
 /// ([`ModelCard::summary`], and [`crate::ud_card::UdModelCard::summary`]):
 /// a line of the training and held-out samples and the sentences each
-/// side skipped, and for a tagger or a UD lemmatizer a second line of the
-/// held-out tokens left out of the scores, by their tags as written.
+/// side skipped; for a tagger or a UD lemmatizer a second line of the
+/// held-out tokens left out of the scores, by their tags as written; and
+/// for a chunker a line for each side of its chunks in no sentence its
+/// reader reads ([`ChunksCard`]).
 #[derive(Clone, Copy, Debug)]
 pub struct Summary<'c> {
     id: &'c str,
@@ -482,6 +512,15 @@ impl fmt::Display for Summary<'_> {
             }
             for (i, t) in tokens.left_out.iter().enumerate() {
                 write!(f, "{} {} ({})", if i == 0 { "" } else { "," }, t.tag, t.tokens)?;
+            }
+        }
+        for (side, chunks) in [("training", &training.chunks), ("held-out", &held_out.chunks)] {
+            if let Some(c) = chunks {
+                write!(
+                    f,
+                    "\n{id}: of {} {side} chunks, {} outside every kept sentence, {} across sentences, {} without tokens",
+                    c.chunks, c.outside_sentences, c.across_sentences, c.without_tokens
+                )?;
             }
         }
         Ok(())

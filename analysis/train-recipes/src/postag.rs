@@ -70,9 +70,7 @@
 use std::collections::{BTreeMap, HashSet};
 
 use turbo_analysis::{Tag, TagSet};
-use turbo_eval::model_gate::{
-    Counts, HeldOutSet, ModelGateRecord, ModelId, PairedUnit, Scoring, TagMapping, TagScoring, Task,
-};
+use turbo_eval::model_gate::{Counts, HeldOutSet, ModelGateRecord, ModelId, Scoring, TagMapping, TagScoring, Task};
 use turbo_formats::evaluate::PosEvaluator;
 use turbo_formats::masc::{MascCorpus, MascError, MascPosReader};
 use turbo_formats::sample::PosSample;
@@ -85,7 +83,7 @@ use turbo_zoo::Sha256;
 use crate::card::{HeldOutCard, Mismatch, TagCount, TokenCoverage};
 use crate::error::{Error, LeftOut, Result};
 use crate::segmentation::{LANGUAGE, TIMESTAMP_MS};
-use crate::{GateRun, Limit, MAX_TOKENS_LEFT_OUT, RecordedReference, Reference, Trained, check_skipped};
+use crate::{GateRun, Limit, MAX_TOKENS_LEFT_OUT, RecordedReference, Reference, Trained, check_skipped, spans};
 
 /// The format the trained model's tags are scored in: its outcomes as
 /// they are, MASC's Penn tags.
@@ -388,6 +386,7 @@ impl PosRecipe {
             skipped_sentences: skipped,
             events: events.len(),
             event_hash: t.report.event_hash.expect("trained from events"),
+            chunks: None,
         })
     }
 
@@ -516,11 +515,7 @@ impl PosRecipe {
         let left_out = self.check_coverage(reference_id, &tags, held_out)?;
         let candidate = self.score(trained, Scored::Candidate, held_out, &tags)?;
         let baseline = score_with(&reference_tagger, Scored::Reference, held_out, &tags)?;
-        let units = candidate
-            .into_iter()
-            .zip(baseline.units)
-            .map(|(candidate, reference)| PairedUnit { candidate, reference })
-            .collect();
+        let units = spans::pair(candidate, baseline.units);
         let reference_mappings = tag_mappings(self.reference_mappings);
         let set = HeldOutSet {
             name: set_name.to_owned(),
@@ -546,6 +541,7 @@ impl PosRecipe {
                 left_out,
                 reference_mismatches: baseline.mismatches,
             }),
+            chunks: None,
         };
         Ok(GateRun { record, held_out })
     }

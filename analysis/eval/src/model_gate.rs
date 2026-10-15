@@ -11,6 +11,19 @@
 //! scores both models on each draw, so each resample gives both scores
 //! and their difference.
 //!
+//! For an F-measure the bootstrap resamples whole units, the sentences
+//! or documents a recipe scores, and scores each draw as OpenNLP's
+//! `FMeasure` scores a set: it sums the true positives, predictions and
+//! references of the units drawn and computes precision, recall and
+//! their harmonic mean from those sums. It never averages the units' own
+//! F-measures. A mean of per unit values would weigh a sentence of one
+//! name as much as a sentence of ten, would not be the score OpenNLP's
+//! evaluators report for the whole set, and has no value at all for the
+//! many sentences with neither a reference nor a predicted span, where
+//! precision and recall are both undefined. The names of a sentence stay
+//! together in a draw, so the interval reflects how spans cluster in
+//! sentences.
+//!
 //! The gate is a non-inferiority test. The candidate passes when the low
 //! end of the 95 percent interval of the difference, candidate minus
 //! reference, is at least -[`MARGIN_POINTS`]: the data rule out, at that
@@ -42,9 +55,10 @@ use crate::record::is_hex;
 use crate::significance::{Bootstrap, percentile};
 pub use crate::significance::{RESAMPLES, SEED};
 
-/// The schema version of [`ModelGateRecord`]: 2, with the held-out
-/// sentences skipped and how the units were scored ([`HeldOutSet`]).
-pub const MODEL_GATE_RECORD_VERSION: u32 = 2;
+/// The schema version of [`ModelGateRecord`]: 3, with the name finder
+/// and chunker tasks and the scoring of typed spans
+/// ([`Scoring::TypedSpans`]).
+pub const MODEL_GATE_RECORD_VERSION: u32 = 3;
 
 /// The loss, in points, the candidate may be shown not to exceed: the low
 /// end of the difference's interval must be at least the negative of it.
@@ -102,10 +116,12 @@ pub enum ModelGateError {
     },
     /// A record whose result is not what the gate gives on its units.
     ResultMismatch,
-    /// A record whose scoring does not fit its measure: spans for an
-    /// F-measure, tags for an accuracy.
+    /// A record whose scoring is not its task's ([`Task::scoring`]):
+    /// spans for a sentence detector or tokenizer, typed spans for a name
+    /// finder or chunker, tags for a tagger.
     ScoringMismatch {
-        measure: Measure,
+        task: Task,
+        scoring: ScoringKind,
     },
     /// A tag scoring whose tokens, less those left out, are not the
     /// tokens a model's units count (`scored`).
@@ -113,6 +129,45 @@ pub enum ModelGateError {
         tokens: u64,
         left_out: u64,
         scored: u64,
+    },
+    /// A typed span scoring whose held-out spans are not the references a
+    /// model's units count (`scored`).
+    ScoredSpans {
+        spans: u64,
+        scored: u64,
+    },
+    /// A typed span scoring with no type scored.
+    NoSpanTypes,
+    /// A typed span scoring that lists the type `span_type` more than
+    /// once.
+    DuplicateSpanType {
+        span_type: String,
+    },
+    /// A typed span scoring that renames the held-out type `held_out` more
+    /// than once.
+    DuplicateRenaming {
+        held_out: String,
+    },
+    /// A typed span scoring that renames the held-out type `held_out` to
+    /// `scored`, a type it does not score.
+    RenamedToUnscored {
+        held_out: String,
+        scored: String,
+    },
+    /// A typed span scoring that renames the held-out type `held_out`,
+    /// which it also scores as written.
+    RenamedScoredType {
+        held_out: String,
+    },
+    /// A typed span scoring that gives the reference another tag for the
+    /// held-out input tag `held_out` more than once.
+    DuplicateReferenceInput {
+        held_out: String,
+    },
+    /// A typed span scoring that gives the reference the held-out input
+    /// tag `tag` for itself.
+    UnchangedReferenceInput {
+        tag: String,
     },
     /// A lemmatizer's record with tag mappings: its lemmas are compared as
     /// written.
@@ -165,11 +220,31 @@ impl fmt::Display for ModelGateError {
             ModelGateError::ResultMismatch => {
                 f.write_str("the recorded result is not what the gate gives on the recorded units")
             }
-            ModelGateError::ScoringMismatch { measure } => {
-                write!(f, "a record of the measure {measure:?} with a scoring of another kind")
+            ModelGateError::ScoringMismatch { task, scoring } => {
+                write!(f, "a {task:?} record with a scoring of {scoring:?}")
             }
             ModelGateError::ScoredTokens { tokens, left_out, scored } => {
                 write!(f, "{tokens} held-out tokens, {left_out} of them left out, but the units count {scored} tokens")
+            }
+            ModelGateError::ScoredSpans { spans, scored } => {
+                write!(f, "{spans} held-out spans scored, but the units count {scored} references")
+            }
+            ModelGateError::NoSpanTypes => f.write_str("a typed span scoring with no type scored"),
+            ModelGateError::DuplicateSpanType { span_type } => write!(f, "the span type {span_type:?} is scored twice"),
+            ModelGateError::DuplicateRenaming { held_out } => {
+                write!(f, "the held-out span type {held_out:?} is renamed twice")
+            }
+            ModelGateError::RenamedToUnscored { held_out, scored } => {
+                write!(f, "the held-out span type {held_out:?} is renamed {scored:?}, a type not scored")
+            }
+            ModelGateError::RenamedScoredType { held_out } => {
+                write!(f, "the held-out span type {held_out:?} is renamed, and also scored as written")
+            }
+            ModelGateError::DuplicateReferenceInput { held_out } => {
+                write!(f, "the reference is given another tag for the held-out tag {held_out:?} twice")
+            }
+            ModelGateError::UnchangedReferenceInput { tag } => {
+                write!(f, "the reference is given the held-out tag {tag:?} for itself")
             }
             ModelGateError::LemmatizerMappings { mappings } => {
                 write!(f, "a lemmatizer's record with {mappings} tag mappings; its lemmas are compared as written")
@@ -209,14 +284,40 @@ pub enum Task {
     /// A lemmatizer given the held-out tags, scored on its lemmas as a
     /// tagger is on its tags ([`TagScoring`]).
     Lemmatizer,
+    /// Names, scored by `TokenNameFinderEvaluator`.
+    NameFinder,
+    /// Phrase chunks, scored by `ChunkerEvaluator`.
+    Chunker,
+}
+
+/// What a task's units are scored on, and so which [`Scoring`] its
+/// record holds.
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
+pub enum ScoringKind {
+    /// Spans without a type: [`Scoring::Spans`].
+    Spans,
+    /// Spans with a type, of the types the gate scores:
+    /// [`Scoring::TypedSpans`].
+    TypedSpans,
+    /// Tags of tokens: [`Scoring::Tags`].
+    Tags,
 }
 
 impl Task {
     /// The measure OpenNLP's evaluator for the task reports.
     pub fn measure(self) -> Measure {
         match self {
-            Task::SentenceDetector | Task::Tokenizer => Measure::FMeasure,
+            Task::SentenceDetector | Task::Tokenizer | Task::NameFinder | Task::Chunker => Measure::FMeasure,
             Task::PartOfSpeechTagger | Task::Lemmatizer => Measure::Accuracy,
+        }
+    }
+
+    /// What the task's units are scored on.
+    pub fn scoring(self) -> ScoringKind {
+        match self {
+            Task::SentenceDetector | Task::Tokenizer => ScoringKind::Spans,
+            Task::NameFinder | Task::Chunker => ScoringKind::TypedSpans,
+            Task::PartOfSpeechTagger | Task::Lemmatizer => ScoringKind::Tags,
         }
     }
 }
@@ -396,8 +497,60 @@ pub enum Scoring {
     /// Spans, by the task's OpenNLP evaluator, against every reference
     /// span of the unit: an F-measure.
     Spans,
+    /// Spans with a type, by the task's OpenNLP evaluator, over the spans
+    /// of the types scored: an F-measure.
+    TypedSpans(TypedSpanScoring),
     /// Tags of tokens, or a lemmatizer's lemmas: an accuracy.
     Tags(TagScoring),
+}
+
+impl Scoring {
+    /// The kind of this scoring.
+    pub fn kind(&self) -> ScoringKind {
+        match self {
+            Scoring::Spans => ScoringKind::Spans,
+            Scoring::TypedSpans(_) => ScoringKind::TypedSpans,
+            Scoring::Tags(_) => ScoringKind::Tags,
+        }
+    }
+}
+
+/// How the typed spans of the held-out samples (names, chunks) were
+/// scored. Only spans of the `types` count, on both sides: a held-out
+/// span of another type is left out of the references, as OpenNLP's
+/// `NameSampleTypeFilter` leaves it out of a name sample, and a predicted
+/// span of another type is left out of the predictions, so neither model
+/// is scored on a type the other does not give. A held-out type that the
+/// models name otherwise is renamed first (`renamed`). The evaluator then
+/// counts each unit as OpenNLP's `FMeasure.updateScores` does: a
+/// prediction is right with the reference's tokens and type. A model
+/// that reads tags with its tokens (a chunker reads part-of-speech tags)
+/// is given the held-out tags, the reference through `reference_inputs`.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct TypedSpanScoring {
+    /// The span types scored, as the models name them.
+    pub types: Vec<String>,
+    /// Held-out span types renamed to the type scored before scoring.
+    pub renamed: Vec<TypeMapping>,
+    /// The held-out input tags the reference is given another tag for, as
+    /// the tag it is given; the trained model reads every held-out tag as
+    /// written. Empty when both models read the held-out input as written,
+    /// as a name finder does.
+    pub reference_inputs: Vec<TagMapping>,
+    /// The held-out spans of the types scored, after renaming: the
+    /// references every unit counts, summed.
+    pub spans: u64,
+    /// The held-out spans of other types, left out of both models' scores.
+    pub left_out: u64,
+}
+
+/// A held-out span type and the type it is scored as.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct TypeMapping {
+    pub held_out: String,
+    pub scored: String,
 }
 
 /// How a tagger's held-out tokens were scored: the tokens whose held-out
@@ -423,7 +576,9 @@ pub struct TagScoring {
     pub reference_mappings: Vec<TagMapping>,
 }
 
-/// A held-out tag and the reference's tag counted right for it.
+/// A held-out tag and the reference's tag for it: the tag counted right
+/// for it ([`TagScoring::reference_mappings`]), or the tag the reference
+/// is given in its place ([`TypedSpanScoring::reference_inputs`]).
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct TagMapping {
@@ -477,9 +632,14 @@ impl ModelGateRecord {
     /// Checks the version; that the names are not empty and the digests
     /// are 64 lower case hex; that the measure is the task's; that the
     /// record was drawn with [`RESAMPLES`] and [`SEED`]; that the scoring
-    /// fits the measure, and for tags, that each model's units count the
-    /// held-out tokens less those left out, and that a lemmatizer's record
-    /// has no mapping; and that the result is what the gate gives on the
+    /// is the task's ([`Task::scoring`]); for tags, that each model's
+    /// units count the held-out tokens less those left out, and that a
+    /// lemmatizer's record has no mapping; for typed
+    /// spans, that a type is scored and none twice, that each renaming
+    /// renames a type not scored as written, once, to a type scored, that
+    /// each reference input maps a held-out tag, once, to another tag, and
+    /// that each model's units count the held-out spans scored as
+    /// references; and that the result is what the gate gives on the
     /// recorded units, to the bit.
     pub fn check(&self) -> Result<()> {
         if self.record_version != MODEL_GATE_RECORD_VERSION {
@@ -505,10 +665,45 @@ impl ModelGateRecord {
         if self.measure != self.task.measure() {
             return Err(ModelGateError::MeasureMismatch { task: self.task, measure: self.measure });
         }
-        match (&self.set.scoring, self.measure) {
-            (Scoring::Spans, Measure::FMeasure) => {}
-            (Scoring::Tags(t), Measure::Accuracy) => {
-                let sides: [fn(&PairedUnit) -> u64; 2] = [|u| u.candidate.target, |u| u.reference.target];
+        if self.set.scoring.kind() != self.task.scoring() {
+            return Err(ModelGateError::ScoringMismatch { task: self.task, scoring: self.set.scoring.kind() });
+        }
+        let sides: [fn(&PairedUnit) -> u64; 2] = [|u| u.candidate.target, |u| u.reference.target];
+        match &self.set.scoring {
+            Scoring::Spans => {}
+            Scoring::TypedSpans(t) => {
+                if t.types.is_empty() {
+                    return Err(ModelGateError::NoSpanTypes);
+                }
+                if let Some(span_type) = first_repeat(t.types.iter()) {
+                    return Err(ModelGateError::DuplicateSpanType { span_type: span_type.clone() });
+                }
+                if let Some(held_out) = first_repeat(t.renamed.iter().map(|m| &m.held_out)) {
+                    return Err(ModelGateError::DuplicateRenaming { held_out: held_out.clone() });
+                }
+                for m in &t.renamed {
+                    if !t.types.contains(&m.scored) {
+                        let (held_out, scored) = (m.held_out.clone(), m.scored.clone());
+                        return Err(ModelGateError::RenamedToUnscored { held_out, scored });
+                    }
+                    if t.types.contains(&m.held_out) {
+                        return Err(ModelGateError::RenamedScoredType { held_out: m.held_out.clone() });
+                    }
+                }
+                if let Some(held_out) = first_repeat(t.reference_inputs.iter().map(|m| &m.held_out)) {
+                    return Err(ModelGateError::DuplicateReferenceInput { held_out: held_out.clone() });
+                }
+                if let Some(m) = t.reference_inputs.iter().find(|m| m.held_out == m.reference) {
+                    return Err(ModelGateError::UnchangedReferenceInput { tag: m.held_out.clone() });
+                }
+                for side in sides {
+                    let scored: u64 = self.units.iter().map(side).sum();
+                    if scored != t.spans {
+                        return Err(ModelGateError::ScoredSpans { spans: t.spans, scored });
+                    }
+                }
+            }
+            Scoring::Tags(t) => {
                 for side in sides {
                     let scored: u64 = self.units.iter().map(side).sum();
                     if t.left_out > t.tokens || scored != t.tokens - t.left_out {
@@ -519,7 +714,6 @@ impl ModelGateRecord {
                     return Err(ModelGateError::LemmatizerMappings { mappings: t.reference_mappings.len() });
                 }
             }
-            (_, measure) => return Err(ModelGateError::ScoringMismatch { measure }),
         }
         let again = gate_models(self.measure, &self.units, self.resamples, self.seed)?;
         if again != self.result {
@@ -594,6 +788,12 @@ impl fmt::Display for ModelGateRecord {
             )
         }
     }
+}
+
+/// The first item of `items` equal to an item before it.
+fn first_repeat<'a>(items: impl Iterator<Item = &'a String>) -> Option<&'a String> {
+    let mut seen = std::collections::BTreeSet::new();
+    items.into_iter().find(|item| !seen.insert(*item))
 }
 
 #[cfg(test)]
@@ -759,6 +959,162 @@ mod tests {
     }
 
     #[test]
+    fn an_f_measure_draw_is_scored_from_the_summed_counts_of_the_units_drawn() {
+        // 40 sentences: every fourth has three names, the candidate finding
+        // one of them and predicting two more spans; the others have no
+        // name, and the candidate predicts a span in every fifth of those.
+        let unit = |i: u64| {
+            let candidate = match (i % 4, i % 5) {
+                (0, _) => f(1, 3, 3),
+                (_, 0) => f(0, 1, 0),
+                _ => f(0, 0, 0),
+            };
+            let target = if i.is_multiple_of(4) { 3 } else { 0 };
+            PairedUnit { candidate, reference: f(target, target, target) }
+        };
+        let units: Vec<PairedUnit> = (0..40).map(unit).collect();
+        // One draw, so both ends of the interval are that draw's score:
+        // the F-measure of the drawn units' summed counts.
+        let mut r = JavaRandom::new(SEED);
+        let mut sum = Counts::default();
+        let mut unit_scores = Vec::new();
+        for _ in 0..units.len() {
+            let u = &units[r.next_int_bounded(units.len() as i32) as usize];
+            sum.add(&u.candidate);
+            // A per unit F-measure exists only where the unit has a
+            // reference or a prediction.
+            if u.candidate.selected + u.candidate.target > 0 {
+                unit_scores.push(u.candidate.score(Measure::FMeasure));
+            }
+        }
+        let want = sum.score(Measure::FMeasure);
+        let g = gate_models(Measure::FMeasure, &units, 1, SEED).unwrap();
+        assert_eq!((g.candidate.low, g.candidate.high), (want, want));
+        // Not the mean of the units' own F-measures, which differs here.
+        let mean_of_units = unit_scores.iter().sum::<f64>() / unit_scores.len() as f64;
+        assert!((mean_of_units - want).abs() > 1.0, "{mean_of_units} {want}");
+        // The whole set: 10 of 30 names right, 30 + 6 predictions.
+        let pooled = f(10, 36, 30).score(Measure::FMeasure);
+        assert_eq!(g.candidate.score, pooled);
+        assert_eq!(g.reference.score, 100.0);
+    }
+
+    fn typed(types: &[&str], renamed: &[(&str, &str)], inputs: &[(&str, &str)], spans: u64, left_out: u64) -> Scoring {
+        Scoring::TypedSpans(TypedSpanScoring {
+            types: types.iter().map(|t| t.to_string()).collect(),
+            renamed: renamed
+                .iter()
+                .map(|&(held_out, scored)| TypeMapping { held_out: held_out.into(), scored: scored.into() })
+                .collect(),
+            reference_inputs: inputs
+                .iter()
+                .map(|&(held_out, reference)| TagMapping { held_out: held_out.into(), reference: reference.into() })
+                .collect(),
+            spans,
+            left_out,
+        })
+    }
+
+    #[test]
+    fn a_typed_span_record_scores_its_types_and_counts_the_spans_scored() {
+        assert_eq!(Task::NameFinder.measure(), Measure::FMeasure);
+        assert_eq!(Task::Chunker.measure(), Measure::FMeasure);
+        assert_eq!(Task::NameFinder.scoring(), ScoringKind::TypedSpans);
+        assert_eq!(Task::Chunker.scoring(), ScoringKind::TypedSpans);
+        // 40 sentences of two names each, of which the candidate finds one.
+        let units: Vec<PairedUnit> =
+            (0..40).map(|_| PairedUnit { candidate: f(1, 2, 2), reference: f(2, 2, 2) }).collect();
+        let model = |id: &str| ModelId { id: id.into(), sha256: "c".repeat(64) };
+        let names = |task, scoring| {
+            ModelGateRecord::new(task, set("s", scoring), model("t"), model("r"), units.clone()).unwrap()
+        };
+        let r = names(Task::NameFinder, typed(&["organization"], &[("org", "organization")], &[], 80, 7));
+        r.check().unwrap();
+        assert_eq!(r.measure, Measure::FMeasure);
+        assert!(!r.result.pass);
+        let json = r.to_json();
+        assert!(json.contains("\"task\": \"name_finder\""), "{json}");
+        let scoring = r#""typed_spans": {
+        "types": [
+          "organization"
+        ],
+        "renamed": [
+          {
+            "held_out": "org",
+            "scored": "organization"
+          }
+        ],
+        "reference_inputs": [],
+        "spans": 80,
+        "left_out": 7
+      }"#;
+        assert!(json.contains(scoring), "{json}");
+        let back: ModelGateRecord = serde_json::from_str(&json).unwrap();
+        assert_eq!(back, r);
+        // A chunker's reference given `:` for two held-out tags.
+        let chunks = names(Task::Chunker, typed(&["NP", "VP"], &[], &[("-", ":"), ("...", ":")], 80, 0));
+        chunks.check().unwrap();
+        let inputs = r#""reference_inputs": [
+          {
+            "held_out": "-",
+            "reference": ":"
+          },
+          {
+            "held_out": "...",
+            "reference": ":"
+          }
+        ],"#;
+        assert!(chunks.to_json().contains(inputs), "{}", chunks.to_json());
+        assert_eq!(serde_json::from_str::<ModelGateRecord>(&chunks.to_json()).unwrap(), chunks);
+
+        // The spans scored must be the references of each model's units.
+        let mut more = r.clone();
+        more.set.scoring = typed(&["organization"], &[], &[], 81, 0);
+        assert_eq!(more.check(), Err(ModelGateError::ScoredSpans { spans: 81, scored: 80 }));
+        let refused = |scoring: Scoring| {
+            let mut bad = r.clone();
+            bad.set.scoring = scoring;
+            bad.check().unwrap_err()
+        };
+        assert_eq!(refused(typed(&[], &[], &[], 80, 0)), ModelGateError::NoSpanTypes);
+        let e = refused(typed(&["person", "organization", "person"], &[], &[], 80, 0));
+        assert_eq!(e, ModelGateError::DuplicateSpanType { span_type: "person".into() });
+        assert_eq!(e.to_string(), "the span type \"person\" is scored twice");
+        let twice = [("org", "organization"), ("pers", "person"), ("org", "person")];
+        let e = refused(typed(&["organization", "person"], &twice, &[], 80, 0));
+        assert_eq!(e, ModelGateError::DuplicateRenaming { held_out: "org".into() });
+        assert_eq!(e.to_string(), "the held-out span type \"org\" is renamed twice");
+        let e = refused(typed(&["organization"], &[("org", "company")], &[], 80, 0));
+        assert_eq!(e, ModelGateError::RenamedToUnscored { held_out: "org".into(), scored: "company".into() });
+        assert_eq!(e.to_string(), "the held-out span type \"org\" is renamed \"company\", a type not scored");
+        let e = refused(typed(&["organization", "person"], &[("person", "organization")], &[], 80, 0));
+        assert_eq!(e, ModelGateError::RenamedScoredType { held_out: "person".into() });
+        // A held-out tag the reference is given another tag for, twice
+        // (even the same tag twice), or for itself.
+        for inputs in [[("-", ":"), ("-", ",")], [("-", ":"), ("-", ":")]] {
+            let e = refused(typed(&["NP"], &[], &inputs, 80, 0));
+            assert_eq!(e, ModelGateError::DuplicateReferenceInput { held_out: "-".into() });
+            assert_eq!(e.to_string(), "the reference is given another tag for the held-out tag \"-\" twice");
+        }
+        let e = refused(typed(&["NP"], &[], &[("-", ":"), (";", ";")], 80, 0));
+        assert_eq!(e, ModelGateError::UnchangedReferenceInput { tag: ";".into() });
+        // Typed spans are the scoring of names and chunks only, and names
+        // are scored as typed spans.
+        let mut untyped = r.clone();
+        untyped.set.scoring = Scoring::Spans;
+        assert_eq!(
+            untyped.check(),
+            Err(ModelGateError::ScoringMismatch { task: Task::NameFinder, scoring: ScoringKind::Spans })
+        );
+        let mut tokens = record();
+        tokens.set.scoring = typed(&["x"], &[], &[], 0, 0);
+        assert_eq!(
+            tokens.check(),
+            Err(ModelGateError::ScoringMismatch { task: Task::Tokenizer, scoring: ScoringKind::TypedSpans })
+        );
+    }
+
+    #[test]
     fn bad_units_are_refused() {
         let ok = PairedUnit { candidate: f(1, 1, 1), reference: f(1, 1, 1) };
         let mut units = vec![ok; 30];
@@ -820,10 +1176,16 @@ mod tests {
         t.left_out = t.tokens + 1;
         assert!(matches!(over.check(), Err(ModelGateError::ScoredTokens { .. })));
         // Spans are an F-measure's scoring, tags an accuracy's.
-        assert_eq!(tagger(Scoring::Spans).check(), Err(ModelGateError::ScoringMismatch { measure: Measure::Accuracy }));
+        assert_eq!(
+            tagger(Scoring::Spans).check(),
+            Err(ModelGateError::ScoringMismatch { task: Task::PartOfSpeechTagger, scoring: ScoringKind::Spans })
+        );
         let mut spans = record();
         spans.set.scoring = tags_of(&spans.units, 0);
-        assert_eq!(spans.check(), Err(ModelGateError::ScoringMismatch { measure: Measure::FMeasure }));
+        assert_eq!(
+            spans.check(),
+            Err(ModelGateError::ScoringMismatch { task: Task::Tokenizer, scoring: ScoringKind::Tags })
+        );
         assert_eq!(serde_json::to_string(&Scoring::Spans).unwrap(), "\"spans\"");
         // A lemmatizer is scored as a tagger, tokens left out and counted
         // the same way, with no mapping.
@@ -839,7 +1201,7 @@ mod tests {
         lemmatizer(Scoring::Tags(lemmas.clone())).check().unwrap();
         assert_eq!(
             lemmatizer(Scoring::Spans).check(),
-            Err(ModelGateError::ScoringMismatch { measure: Measure::Accuracy })
+            Err(ModelGateError::ScoringMismatch { task: Task::Lemmatizer, scoring: ScoringKind::Spans })
         );
         let miscounted = TagScoring { left_out: 2, ..lemmas.clone() };
         assert!(matches!(lemmatizer(Scoring::Tags(miscounted)).check(), Err(ModelGateError::ScoredTokens { .. })));

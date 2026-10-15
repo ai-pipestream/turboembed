@@ -1,0 +1,2063 @@
+dump 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	edge/emoji-flags	50	32	b322415aacd6335bcb52b5f337296ec760bd4f0369a6af7b30317f0340b8a015
+model	chunker-fixture-rust.bin	71caec6c87065f0872d0ef255ed95443b0c675acf273c2d19a1aefd6c006f1ab99846bbb28b56d2e78abcb3f78074d00b1135a6dffc4e14ed3957101cf80ee44
+model	opennlp-en-ud-ewt-sentence-1.3-2.5.4.bin	fed5d53ea87bf66afeb08c084f89ca9b95a96de0920dca40487b2ab9972ee6b7ef211e477db480b7253431de079fd66dfd14329cd7d19ad1f565155eb0cf5191
+model	opennlp-en-ud-ewt-tokens-1.3-2.5.4.bin	147d1cdcb89ca5d9bd0ead8fddf2cc14ae543a9151803fe56b3c1fa152b986605e34fb6dda4819c68aa22fc9bffa6bfab14f916b7d0bf4892d452686af34778a
+model	opennlp-en-ud-ewt-pos-1.3-2.5.4.bin	fca85b38d996b7c422401054feedeb0f748cbc03856893cb27670da5d207315ec9af0c0f818c3107a741a2effca2499b5097ac0b46edf4a5ac10bf77a351ac3e
+annotator	opennlp.tools.chunker.ChunkerME	chunk
+point	0	0	41	11	0	none
+context	w_2=bos
+context	w_1=bos
+context	w0=Flags
+context	w1=🇩🇪🇫🇷🇺🇸
+context	w2=and
+context	w_1=bosw0=Flags
+context	w0=Flagsw1=🇩🇪🇫🇷🇺🇸
+context	t_2=bos
+context	t_1=bos
+context	t0=NNP
+context	t1=.
+context	t2=CC
+context	t_2=bost_1=bos
+context	t_1=bost0=NNP
+context	t0=NNPt1=.
+context	t1=.t2=CC
+context	t_2=bost_1=bost0=NNP
+context	t_1=bost0=NNPt1=.
+context	t0=NNPt1=.t2=CC
+context	p_2=bos
+context	p_1=bos
+context	p_2=bosp_1=bos
+context	p_1=bost_2=bos
+context	p_1=bost_1=bos
+context	p_1=bost0=NNP
+context	p_1=bost1=.
+context	p_1=bost2=CC
+context	p_1=bost_2=bost_1=bos
+context	p_1=bost_1=bost0=NNP
+context	p_1=bost0=NNPt1=.
+context	p_1=bost1=.t2=CC
+context	p_1=bost_2=bost_1=bost0=NNP
+context	p_1=bost_1=bost0=NNPt1=.
+context	p_1=bost0=NNPt1=.t2=CC
+context	p_1=bosw_2=bos
+context	p_1=bosw_1=bos
+context	p_1=bosw0=Flags
+context	p_1=bosw1=🇩🇪🇫🇷🇺🇸
+context	p_1=bosw2=and
+context	p_1=bosw_1=bosw0=Flags
+context	p_1=bosw0=Flagsw1=🇩🇪🇫🇷🇺🇸
+outcome	B-NP	3feb3afc44253477 0.8509503680194389
+outcome	I-NP	3f9d5503433179fb 0.028644610382224638
+outcome	B-PP	3f856372ef6c2eed 0.010443590098950984
+outcome	B-VP	3f94991fa9aca17c 0.020115370493984028
+outcome	I-VP	3f8ba8b06425fd44 0.01350534253719949
+outcome	O	3f8ece2cb94adc9e 0.015041684536625074
+outcome	B-ADVP	3f80fc495abff3fd 0.008293698389019605
+outcome	B-PRT	3f8ece2cb94adc9e 0.015041684536625074
+outcome	B-ADJP	3f8f41032626ebd8 0.015260719873244996
+outcome	I-ADJP	3f8f0061187b5ff0 0.015137442168835918
+outcome	B-SBAR	3f7efcfd7ad90bb8 0.007565488963851168
+end	0
+point	1	6	41	11	0	none
+context	w_2=bos
+context	w_1=Flags
+context	w0=🇩🇪🇫🇷🇺🇸
+context	w1=and
+context	w2=🇯🇵x
+context	w_1=Flagsw0=🇩🇪🇫🇷🇺🇸
+context	w0=🇩🇪🇫🇷🇺🇸w1=and
+context	t_2=bos
+context	t_1=NNP
+context	t0=.
+context	t1=CC
+context	t2=CD
+context	t_2=bost_1=NNP
+context	t_1=NNPt0=.
+context	t0=.t1=CC
+context	t1=CCt2=CD
+context	t_2=bost_1=NNPt0=.
+context	t_1=NNPt0=.t1=CC
+context	t0=.t1=CCt2=CD
+context	p_2=bos
+context	p_1=B-NP
+context	p_2=bosp_1=B-NP
+context	p_1=B-NPt_2=bos
+context	p_1=B-NPt_1=NNP
+context	p_1=B-NPt0=.
+context	p_1=B-NPt1=CC
+context	p_1=B-NPt2=CD
+context	p_1=B-NPt_2=bost_1=NNP
+context	p_1=B-NPt_1=NNPt0=.
+context	p_1=B-NPt0=.t1=CC
+context	p_1=B-NPt1=CCt2=CD
+context	p_1=B-NPt_2=bost_1=NNPt0=.
+context	p_1=B-NPt_1=NNPt0=.t1=CC
+context	p_1=B-NPt0=.t1=CCt2=CD
+context	p_1=B-NPw_2=bos
+context	p_1=B-NPw_1=Flags
+context	p_1=B-NPw0=🇩🇪🇫🇷🇺🇸
+context	p_1=B-NPw1=and
+context	p_1=B-NPw2=🇯🇵x
+context	p_1=B-NPw_1=Flagsw0=🇩🇪🇫🇷🇺🇸
+context	p_1=B-NPw0=🇩🇪🇫🇷🇺🇸w1=and
+outcome	B-NP	3fb4b3bf2503eca4 0.08086771634764262
+outcome	I-NP	3fcb4e22e75b9c59 0.21332203194399105
+outcome	B-PP	3fa908c8ac6ac69c 0.048895140692718914
+outcome	B-VP	3fc7d7de7f04b6e6 0.1862753029067143
+outcome	I-VP	3faf3bf09eeb338d 0.061004180335294846
+outcome	O	3fc653e467f41476 0.17443518710948397
+outcome	B-ADVP	3f9d17538f566fa1 0.028409295676837257
+outcome	B-PRT	3fabad8404865fac 0.054058194687228805
+outcome	B-ADJP	3fb2093bb96ba253 0.07045338894716595
+outcome	I-ADJP	3fabad8404865fac 0.054058194687228805
+outcome	B-SBAR	3f9ce60fdb82a401 0.02822136666569364
+end	1
+point	2	6	41	11	0	none
+context	w_2=bos
+context	w_1=Flags
+context	w0=🇩🇪🇫🇷🇺🇸
+context	w1=and
+context	w2=🇯🇵x
+context	w_1=Flagsw0=🇩🇪🇫🇷🇺🇸
+context	w0=🇩🇪🇫🇷🇺🇸w1=and
+context	t_2=bos
+context	t_1=NNP
+context	t0=.
+context	t1=CC
+context	t2=CD
+context	t_2=bost_1=NNP
+context	t_1=NNPt0=.
+context	t0=.t1=CC
+context	t1=CCt2=CD
+context	t_2=bost_1=NNPt0=.
+context	t_1=NNPt0=.t1=CC
+context	t0=.t1=CCt2=CD
+context	p_2=bos
+context	p_1=B-VP
+context	p_2=bosp_1=B-VP
+context	p_1=B-VPt_2=bos
+context	p_1=B-VPt_1=NNP
+context	p_1=B-VPt0=.
+context	p_1=B-VPt1=CC
+context	p_1=B-VPt2=CD
+context	p_1=B-VPt_2=bost_1=NNP
+context	p_1=B-VPt_1=NNPt0=.
+context	p_1=B-VPt0=.t1=CC
+context	p_1=B-VPt1=CCt2=CD
+context	p_1=B-VPt_2=bost_1=NNPt0=.
+context	p_1=B-VPt_1=NNPt0=.t1=CC
+context	p_1=B-VPt0=.t1=CCt2=CD
+context	p_1=B-VPw_2=bos
+context	p_1=B-VPw_1=Flags
+context	p_1=B-VPw0=🇩🇪🇫🇷🇺🇸
+context	p_1=B-VPw1=and
+context	p_1=B-VPw2=🇯🇵x
+context	p_1=B-VPw_1=Flagsw0=🇩🇪🇫🇷🇺🇸
+context	p_1=B-VPw0=🇩🇪🇫🇷🇺🇸w1=and
+outcome	B-NP	3fbdfc490ae0ed3c 0.11713081851569468
+outcome	I-NP	3fbef3f91f8be6c5 0.12091023464372615
+outcome	B-PP	3fad56541be5d2b5 0.05729925957249319
+outcome	B-VP	3fc01e9d5066bd82 0.1259342806419959
+outcome	I-VP	3fb84daab0670aca 0.09493510061933388
+outcome	O	3fbcb11bda304cdc 0.11207746579048056
+outcome	B-ADVP	3fa42a285784260b 0.039384136851435235
+outcome	B-PRT	3fb2427ef9491fd0 0.0713271483047031
+outcome	B-ADJP	3fc34c56b8da69ed 0.15076717401537057
+outcome	I-ADJP	3fb2c8ceb2e254a9 0.07337657801902488
+outcome	B-SBAR	3fa2df06a5322940 0.03685780302574182
+end	2
+point	3	6	41	11	0	none
+context	w_2=bos
+context	w_1=Flags
+context	w0=🇩🇪🇫🇷🇺🇸
+context	w1=and
+context	w2=🇯🇵x
+context	w_1=Flagsw0=🇩🇪🇫🇷🇺🇸
+context	w0=🇩🇪🇫🇷🇺🇸w1=and
+context	t_2=bos
+context	t_1=NNP
+context	t0=.
+context	t1=CC
+context	t2=CD
+context	t_2=bost_1=NNP
+context	t_1=NNPt0=.
+context	t0=.t1=CC
+context	t1=CCt2=CD
+context	t_2=bost_1=NNPt0=.
+context	t_1=NNPt0=.t1=CC
+context	t0=.t1=CCt2=CD
+context	p_2=bos
+context	p_1=B-ADJP
+context	p_2=bosp_1=B-ADJP
+context	p_1=B-ADJPt_2=bos
+context	p_1=B-ADJPt_1=NNP
+context	p_1=B-ADJPt0=.
+context	p_1=B-ADJPt1=CC
+context	p_1=B-ADJPt2=CD
+context	p_1=B-ADJPt_2=bost_1=NNP
+context	p_1=B-ADJPt_1=NNPt0=.
+context	p_1=B-ADJPt0=.t1=CC
+context	p_1=B-ADJPt1=CCt2=CD
+context	p_1=B-ADJPt_2=bost_1=NNPt0=.
+context	p_1=B-ADJPt_1=NNPt0=.t1=CC
+context	p_1=B-ADJPt0=.t1=CCt2=CD
+context	p_1=B-ADJPw_2=bos
+context	p_1=B-ADJPw_1=Flags
+context	p_1=B-ADJPw0=🇩🇪🇫🇷🇺🇸
+context	p_1=B-ADJPw1=and
+context	p_1=B-ADJPw2=🇯🇵x
+context	p_1=B-ADJPw_1=Flagsw0=🇩🇪🇫🇷🇺🇸
+context	p_1=B-ADJPw0=🇩🇪🇫🇷🇺🇸w1=and
+outcome	B-NP	3fbb5921b35abde3 0.10682879093905444
+outcome	I-NP	3fbe1fe10cc968da 0.11767393648316063
+outcome	B-PP	3faec662f6d5643f 0.06010731947998992
+outcome	B-VP	3fbf6052739e6064 0.12256350825043821
+outcome	I-VP	3fb4a1719b65e069 0.08058843654532812
+outcome	O	3fc7dcfa8be8b8c0 0.1864312346601249
+outcome	B-ADVP	3fa3371370d37979 0.03752957107802763
+outcome	B-PRT	3fb248182347558c 0.07141257153792518
+outcome	B-ADJP	3fb7d382945cfca9 0.0930711376395147
+outcome	I-ADJP	3fb625a9923d60ab 0.08651218242937612
+outcome	B-SBAR	3fa3168936a00a5b 0.037281310957059964
+end	3
+point	4	6	41	11	0	none
+context	w_2=bos
+context	w_1=Flags
+context	w0=🇩🇪🇫🇷🇺🇸
+context	w1=and
+context	w2=🇯🇵x
+context	w_1=Flagsw0=🇩🇪🇫🇷🇺🇸
+context	w0=🇩🇪🇫🇷🇺🇸w1=and
+context	t_2=bos
+context	t_1=NNP
+context	t0=.
+context	t1=CC
+context	t2=CD
+context	t_2=bost_1=NNP
+context	t_1=NNPt0=.
+context	t0=.t1=CC
+context	t1=CCt2=CD
+context	t_2=bost_1=NNPt0=.
+context	t_1=NNPt0=.t1=CC
+context	t0=.t1=CCt2=CD
+context	p_2=bos
+context	p_1=B-PRT
+context	p_2=bosp_1=B-PRT
+context	p_1=B-PRTt_2=bos
+context	p_1=B-PRTt_1=NNP
+context	p_1=B-PRTt0=.
+context	p_1=B-PRTt1=CC
+context	p_1=B-PRTt2=CD
+context	p_1=B-PRTt_2=bost_1=NNP
+context	p_1=B-PRTt_1=NNPt0=.
+context	p_1=B-PRTt0=.t1=CC
+context	p_1=B-PRTt1=CCt2=CD
+context	p_1=B-PRTt_2=bost_1=NNPt0=.
+context	p_1=B-PRTt_1=NNPt0=.t1=CC
+context	p_1=B-PRTt0=.t1=CCt2=CD
+context	p_1=B-PRTw_2=bos
+context	p_1=B-PRTw_1=Flags
+context	p_1=B-PRTw0=🇩🇪🇫🇷🇺🇸
+context	p_1=B-PRTw1=and
+context	p_1=B-PRTw2=🇯🇵x
+context	p_1=B-PRTw_1=Flagsw0=🇩🇪🇫🇷🇺🇸
+context	p_1=B-PRTw0=🇩🇪🇫🇷🇺🇸w1=and
+outcome	B-NP	3fc1033aeeaf3320 0.13291107801924174
+outcome	I-NP	3fbf842b0c1242c5 0.12311047596655118
+outcome	B-PP	3fb0192f23d552f0 0.0628842794879565
+outcome	B-VP	3fc069b5327fa864 0.1282259460998062
+outcome	I-VP	3fb595725726d58b 0.08431162479140235
+outcome	O	3fc25e093a61650c 0.14349475241287057
+outcome	B-ADVP	3fa41a565fd90027 0.03926343841567386
+outcome	B-PRT	3fb3205095f79bd4 0.07471183453854674
+outcome	B-ADJP	3fb8ed4ec0ccdf6d 0.09737102705991925
+outcome	I-ADJP	3fb3205095f79bd4 0.07471183453854674
+outcome	B-SBAR	3fa3f84b4a50f8e0 0.03900370866948477
+end	4
+point	5	6	41	11	0	none
+context	w_2=bos
+context	w_1=Flags
+context	w0=🇩🇪🇫🇷🇺🇸
+context	w1=and
+context	w2=🇯🇵x
+context	w_1=Flagsw0=🇩🇪🇫🇷🇺🇸
+context	w0=🇩🇪🇫🇷🇺🇸w1=and
+context	t_2=bos
+context	t_1=NNP
+context	t0=.
+context	t1=CC
+context	t2=CD
+context	t_2=bost_1=NNP
+context	t_1=NNPt0=.
+context	t0=.t1=CC
+context	t1=CCt2=CD
+context	t_2=bost_1=NNPt0=.
+context	t_1=NNPt0=.t1=CC
+context	t0=.t1=CCt2=CD
+context	p_2=bos
+context	p_1=O
+context	p_2=bosp_1=O
+context	p_1=Ot_2=bos
+context	p_1=Ot_1=NNP
+context	p_1=Ot0=.
+context	p_1=Ot1=CC
+context	p_1=Ot2=CD
+context	p_1=Ot_2=bost_1=NNP
+context	p_1=Ot_1=NNPt0=.
+context	p_1=Ot0=.t1=CC
+context	p_1=Ot1=CCt2=CD
+context	p_1=Ot_2=bost_1=NNPt0=.
+context	p_1=Ot_1=NNPt0=.t1=CC
+context	p_1=Ot0=.t1=CCt2=CD
+context	p_1=Ow_2=bos
+context	p_1=Ow_1=Flags
+context	p_1=Ow0=🇩🇪🇫🇷🇺🇸
+context	p_1=Ow1=and
+context	p_1=Ow2=🇯🇵x
+context	p_1=Ow_1=Flagsw0=🇩🇪🇫🇷🇺🇸
+context	p_1=Ow0=🇩🇪🇫🇷🇺🇸w1=and
+outcome	B-NP	3fc017d800e78dc1 0.12572765392461174
+outcome	I-NP	3fbebb96d5c18814 0.12004988402034683
+outcome	B-PP	3faf657568144910 0.06132094283579381
+outcome	B-VP	3fc24eb5805d4cbb 0.14302700774951468
+outcome	I-VP	3fb50c14c2dda054 0.0822155929323583
+outcome	O	3fc3496d12b18824 0.15067828572051767
+outcome	B-ADVP	3fa39a658f05f9ed 0.03828732844248237
+outcome	B-PRT	3fb2a696fcf12a08 0.07285445857375106
+outcome	B-ADJP	3fb84eaa389563f5 0.09495033151087269
+outcome	I-ADJP	3fb2a696fcf12a08 0.07285445857375106
+outcome	B-SBAR	3fa3793322de7196 0.038034055715999646
+end	5
+point	6	6	41	11	0	none
+context	w_2=bos
+context	w_1=Flags
+context	w0=🇩🇪🇫🇷🇺🇸
+context	w1=and
+context	w2=🇯🇵x
+context	w_1=Flagsw0=🇩🇪🇫🇷🇺🇸
+context	w0=🇩🇪🇫🇷🇺🇸w1=and
+context	t_2=bos
+context	t_1=NNP
+context	t0=.
+context	t1=CC
+context	t2=CD
+context	t_2=bost_1=NNP
+context	t_1=NNPt0=.
+context	t0=.t1=CC
+context	t1=CCt2=CD
+context	t_2=bost_1=NNPt0=.
+context	t_1=NNPt0=.t1=CC
+context	t0=.t1=CCt2=CD
+context	p_2=bos
+context	p_1=B-PP
+context	p_2=bosp_1=B-PP
+context	p_1=B-PPt_2=bos
+context	p_1=B-PPt_1=NNP
+context	p_1=B-PPt0=.
+context	p_1=B-PPt1=CC
+context	p_1=B-PPt2=CD
+context	p_1=B-PPt_2=bost_1=NNP
+context	p_1=B-PPt_1=NNPt0=.
+context	p_1=B-PPt0=.t1=CC
+context	p_1=B-PPt1=CCt2=CD
+context	p_1=B-PPt_2=bost_1=NNPt0=.
+context	p_1=B-PPt_1=NNPt0=.t1=CC
+context	p_1=B-PPt0=.t1=CCt2=CD
+context	p_1=B-PPw_2=bos
+context	p_1=B-PPw_1=Flags
+context	p_1=B-PPw0=🇩🇪🇫🇷🇺🇸
+context	p_1=B-PPw1=and
+context	p_1=B-PPw2=🇯🇵x
+context	p_1=B-PPw_1=Flagsw0=🇩🇪🇫🇷🇺🇸
+context	p_1=B-PPw0=🇩🇪🇫🇷🇺🇸w1=and
+outcome	B-NP	3fc10ee2d276fbd2 0.13326678539848885
+outcome	I-NP	3fbf80dbbbce7bd6 0.12305997214433204
+outcome	B-PP	3fb0177e56053942 0.06285848236186545
+outcome	B-VP	3fc067fbefcfbdcb 0.12817334374947928
+outcome	I-VP	3fb5932e0fd13ce2 0.08427703748860751
+outcome	O	3fc25c1b6c653b97 0.14343588631387824
+outcome	B-ADVP	3fa41839e8d84413 0.039247331307827114
+outcome	B-PRT	3fb31e4e60cf0a90 0.0746811853742122
+outcome	B-ADJP	3fb8eab097b085ba 0.09733108237607882
+outcome	I-ADJP	3fb31e4e60cf0a90 0.0746811853742122
+outcome	B-SBAR	3fa3f6326690cd7e 0.03898770811101836
+end	6
+point	7	6	41	11	0	none
+context	w_2=bos
+context	w_1=Flags
+context	w0=🇩🇪🇫🇷🇺🇸
+context	w1=and
+context	w2=🇯🇵x
+context	w_1=Flagsw0=🇩🇪🇫🇷🇺🇸
+context	w0=🇩🇪🇫🇷🇺🇸w1=and
+context	t_2=bos
+context	t_1=NNP
+context	t0=.
+context	t1=CC
+context	t2=CD
+context	t_2=bost_1=NNP
+context	t_1=NNPt0=.
+context	t0=.t1=CC
+context	t1=CCt2=CD
+context	t_2=bost_1=NNPt0=.
+context	t_1=NNPt0=.t1=CC
+context	t0=.t1=CCt2=CD
+context	p_2=bos
+context	p_1=B-ADVP
+context	p_2=bosp_1=B-ADVP
+context	p_1=B-ADVPt_2=bos
+context	p_1=B-ADVPt_1=NNP
+context	p_1=B-ADVPt0=.
+context	p_1=B-ADVPt1=CC
+context	p_1=B-ADVPt2=CD
+context	p_1=B-ADVPt_2=bost_1=NNP
+context	p_1=B-ADVPt_1=NNPt0=.
+context	p_1=B-ADVPt0=.t1=CC
+context	p_1=B-ADVPt1=CCt2=CD
+context	p_1=B-ADVPt_2=bost_1=NNPt0=.
+context	p_1=B-ADVPt_1=NNPt0=.t1=CC
+context	p_1=B-ADVPt0=.t1=CCt2=CD
+context	p_1=B-ADVPw_2=bos
+context	p_1=B-ADVPw_1=Flags
+context	p_1=B-ADVPw0=🇩🇪🇫🇷🇺🇸
+context	p_1=B-ADVPw1=and
+context	p_1=B-ADVPw2=🇯🇵x
+context	p_1=B-ADVPw_1=Flagsw0=🇩🇪🇫🇷🇺🇸
+context	p_1=B-ADVPw0=🇩🇪🇫🇷🇺🇸w1=and
+outcome	B-NP	3fc5ef43471bf18a 0.17136422130705525
+outcome	I-NP	3fbbee33f00eb650 0.10910343752649365
+outcome	B-PP	3faf4fc121da6099 0.06115535295720171
+outcome	B-VP	3fbe8319cfe2b2e0 0.11918793988543142
+outcome	I-VP	3fb320c850ff7157 0.07471897103773038
+outcome	O	3fc644cf417f606e 0.17397490213511752
+outcome	B-ADVP	3fa1d0ce8d254f86 0.03479619477243916
+outcome	B-PRT	3fb0f33b18a30ffe 0.06621140815246915
+outcome	B-ADJP	3fb6174452c3283d 0.08629252453388943
+outcome	I-ADJP	3fb0f33b18a30ffe 0.06621140815246915
+outcome	B-SBAR	3fa2ef85049ec2b0 0.03698363953970352
+end	7
+point	8	31	41	11	0	none
+context	w_2=Flags
+context	w_1=🇩🇪🇫🇷🇺🇸
+context	w0=and
+context	w1=🇯🇵x
+context	w2=🇩
+context	w_1=🇩🇪🇫🇷🇺🇸w0=and
+context	w0=andw1=🇯🇵x
+context	t_2=NNP
+context	t_1=.
+context	t0=CC
+context	t1=CD
+context	t2=.
+context	t_2=NNPt_1=.
+context	t_1=.t0=CC
+context	t0=CCt1=CD
+context	t1=CDt2=.
+context	t_2=NNPt_1=.t0=CC
+context	t_1=.t0=CCt1=CD
+context	t0=CCt1=CDt2=.
+context	p_2=B-NP
+context	p_1=I-NP
+context	p_2=B-NPp_1=I-NP
+context	p_1=I-NPt_2=NNP
+context	p_1=I-NPt_1=.
+context	p_1=I-NPt0=CC
+context	p_1=I-NPt1=CD
+context	p_1=I-NPt2=.
+context	p_1=I-NPt_2=NNPt_1=.
+context	p_1=I-NPt_1=.t0=CC
+context	p_1=I-NPt0=CCt1=CD
+context	p_1=I-NPt1=CDt2=.
+context	p_1=I-NPt_2=NNPt_1=.t0=CC
+context	p_1=I-NPt_1=.t0=CCt1=CD
+context	p_1=I-NPt0=CCt1=CDt2=.
+context	p_1=I-NPw_2=Flags
+context	p_1=I-NPw_1=🇩🇪🇫🇷🇺🇸
+context	p_1=I-NPw0=and
+context	p_1=I-NPw1=🇯🇵x
+context	p_1=I-NPw2=🇩
+context	p_1=I-NPw_1=🇩🇪🇫🇷🇺🇸w0=and
+context	p_1=I-NPw0=andw1=🇯🇵x
+outcome	B-NP	3fb2338f17379e31 0.0710992271120794
+outcome	I-NP	3fc2dbb5fadde9a5 0.14733004330976232
+outcome	B-PP	3fc3da29ececc7ff 0.15509532993888794
+outcome	B-VP	3fc276b6e716f954 0.14424787791899496
+outcome	I-VP	3fb0795b385d652d 0.06435175062269556
+outcome	O	3fc50b9f5531b0ab 0.16441718730800878
+outcome	B-ADVP	3fa7900c4daa728a 0.046020874481858945
+outcome	B-PRT	3faf1e46f046e141 0.06077787097041432
+outcome	B-ADJP	3f99c4d66e5d2413 0.025164938436578476
+outcome	I-ADJP	3fb424758d0cc9cf 0.07868132299044038
+outcome	B-SBAR	3fa5eba9414f115d 0.04281357691027907
+end	8
+point	9	31	41	11	0	none
+context	w_2=Flags
+context	w_1=🇩🇪🇫🇷🇺🇸
+context	w0=and
+context	w1=🇯🇵x
+context	w2=🇩
+context	w_1=🇩🇪🇫🇷🇺🇸w0=and
+context	w0=andw1=🇯🇵x
+context	t_2=NNP
+context	t_1=.
+context	t0=CC
+context	t1=CD
+context	t2=.
+context	t_2=NNPt_1=.
+context	t_1=.t0=CC
+context	t0=CCt1=CD
+context	t1=CDt2=.
+context	t_2=NNPt_1=.t0=CC
+context	t_1=.t0=CCt1=CD
+context	t0=CCt1=CDt2=.
+context	p_2=B-NP
+context	p_1=B-VP
+context	p_2=B-NPp_1=B-VP
+context	p_1=B-VPt_2=NNP
+context	p_1=B-VPt_1=.
+context	p_1=B-VPt0=CC
+context	p_1=B-VPt1=CD
+context	p_1=B-VPt2=.
+context	p_1=B-VPt_2=NNPt_1=.
+context	p_1=B-VPt_1=.t0=CC
+context	p_1=B-VPt0=CCt1=CD
+context	p_1=B-VPt1=CDt2=.
+context	p_1=B-VPt_2=NNPt_1=.t0=CC
+context	p_1=B-VPt_1=.t0=CCt1=CD
+context	p_1=B-VPt0=CCt1=CDt2=.
+context	p_1=B-VPw_2=Flags
+context	p_1=B-VPw_1=🇩🇪🇫🇷🇺🇸
+context	p_1=B-VPw0=and
+context	p_1=B-VPw1=🇯🇵x
+context	p_1=B-VPw2=🇩
+context	p_1=B-VPw_1=🇩🇪🇫🇷🇺🇸w0=and
+context	p_1=B-VPw0=andw1=🇯🇵x
+outcome	B-NP	3fba32b9c4ed7b31 0.10233651216320251
+outcome	I-NP	3fb90f15d53a9da8 0.09788643317971568
+outcome	B-PP	3fcbe1b55d0f8020 0.21782557529422863
+outcome	B-VP	3fb57d7233be1ef9 0.08394540560959375
+outcome	I-VP	3fbc72d18a0c1994 0.11112699146551669
+outcome	O	3fb41bac64d15784 0.07854726277704854
+outcome	B-ADVP	3faea47148ff7311 0.059848346863622955
+outcome	B-PRT	3fb361728b33a6a4 0.07570567987900262
+outcome	B-ADJP	3faaede1000162c7 0.05259612202707369
+outcome	I-ADJP	3fb3b056e6ff07c9 0.07690947665744753
+outcome	B-SBAR	3fa627c5e4d47b0b 0.04327219408354751
+end	9
+point	10	31	41	11	0	none
+context	w_2=Flags
+context	w_1=🇩🇪🇫🇷🇺🇸
+context	w0=and
+context	w1=🇯🇵x
+context	w2=🇩
+context	w_1=🇩🇪🇫🇷🇺🇸w0=and
+context	w0=andw1=🇯🇵x
+context	t_2=NNP
+context	t_1=.
+context	t0=CC
+context	t1=CD
+context	t2=.
+context	t_2=NNPt_1=.
+context	t_1=.t0=CC
+context	t0=CCt1=CD
+context	t1=CDt2=.
+context	t_2=NNPt_1=.t0=CC
+context	t_1=.t0=CCt1=CD
+context	t0=CCt1=CDt2=.
+context	p_2=B-NP
+context	p_1=O
+context	p_2=B-NPp_1=O
+context	p_1=Ot_2=NNP
+context	p_1=Ot_1=.
+context	p_1=Ot0=CC
+context	p_1=Ot1=CD
+context	p_1=Ot2=.
+context	p_1=Ot_2=NNPt_1=.
+context	p_1=Ot_1=.t0=CC
+context	p_1=Ot0=CCt1=CD
+context	p_1=Ot1=CDt2=.
+context	p_1=Ot_2=NNPt_1=.t0=CC
+context	p_1=Ot_1=.t0=CCt1=CD
+context	p_1=Ot0=CCt1=CDt2=.
+context	p_1=Ow_2=Flags
+context	p_1=Ow_1=🇩🇪🇫🇷🇺🇸
+context	p_1=Ow0=and
+context	p_1=Ow1=🇯🇵x
+context	p_1=Ow2=🇩
+context	p_1=Ow_1=🇩🇪🇫🇷🇺🇸w0=and
+context	p_1=Ow0=andw1=🇯🇵x
+outcome	B-NP	3fbf73fc1a3b94a2 0.12286353722045587
+outcome	I-NP	3fbbea1143f72972 0.10904033574403174
+outcome	B-PP	3fc10f4dba324eb0 0.13327952949167843
+outcome	B-VP	3fbb61fb910fd7de 0.10696384707975379
+outcome	I-VP	3fb1f01e936d4640 0.07007018183983238
+outcome	O	3fc28a3b077319af 0.14484346259832878
+outcome	B-ADVP	3fb0b5e9659f4c2a 0.06527575236332042
+outcome	B-PRT	3fb0f116ad1309b0 0.06617871976326373
+outcome	B-ADJP	3fa92fe2096a5126 0.04919344296391363
+outcome	I-ADJP	3fb5eeac45910251 0.08567310999297574
+outcome	B-SBAR	3fa7de533a19a4c6 0.046618080942445725
+end	10
+point	11	31	41	11	0	none
+context	w_2=Flags
+context	w_1=🇩🇪🇫🇷🇺🇸
+context	w0=and
+context	w1=🇯🇵x
+context	w2=🇩
+context	w_1=🇩🇪🇫🇷🇺🇸w0=and
+context	w0=andw1=🇯🇵x
+context	t_2=NNP
+context	t_1=.
+context	t0=CC
+context	t1=CD
+context	t2=.
+context	t_2=NNPt_1=.
+context	t_1=.t0=CC
+context	t0=CCt1=CD
+context	t1=CDt2=.
+context	t_2=NNPt_1=.t0=CC
+context	t_1=.t0=CCt1=CD
+context	t0=CCt1=CDt2=.
+context	p_2=B-NP
+context	p_1=B-NP
+context	p_2=B-NPp_1=B-NP
+context	p_1=B-NPt_2=NNP
+context	p_1=B-NPt_1=.
+context	p_1=B-NPt0=CC
+context	p_1=B-NPt1=CD
+context	p_1=B-NPt2=.
+context	p_1=B-NPt_2=NNPt_1=.
+context	p_1=B-NPt_1=.t0=CC
+context	p_1=B-NPt0=CCt1=CD
+context	p_1=B-NPt1=CDt2=.
+context	p_1=B-NPt_2=NNPt_1=.t0=CC
+context	p_1=B-NPt_1=.t0=CCt1=CD
+context	p_1=B-NPt0=CCt1=CDt2=.
+context	p_1=B-NPw_2=Flags
+context	p_1=B-NPw_1=🇩🇪🇫🇷🇺🇸
+context	p_1=B-NPw0=and
+context	p_1=B-NPw1=🇯🇵x
+context	p_1=B-NPw2=🇩
+context	p_1=B-NPw_1=🇩🇪🇫🇷🇺🇸w0=and
+context	p_1=B-NPw0=andw1=🇯🇵x
+outcome	B-NP	3fbc14cb2e970a59 0.10969228637171947
+outcome	I-NP	3fc44d393747f8bf 0.1586066741874159
+outcome	B-PP	3fc04e312b0dd87d 0.12738623239755845
+outcome	B-VP	3fb94d82e914c82d 0.09883897963007433
+outcome	I-VP	3fb279a19bea71e8 0.07216844612634754
+outcome	O	3fbc6a50f4fa5249 0.1109972570505501
+outcome	B-ADVP	3fb13603b96722cd 0.06723044659078
+outcome	B-PRT	3fb172f6a6b81918 0.06816045351306277
+outcome	B-ADJP	3fa9f0f74a68d2df 0.05066654952353188
+outcome	I-ADJP	3fb696ce2a675ab0 0.0882386067890859
+outcome	B-SBAR	3fa8954cc6118db0 0.04801406781987383
+end	11
+point	12	31	41	11	0	none
+context	w_2=Flags
+context	w_1=🇩🇪🇫🇷🇺🇸
+context	w0=and
+context	w1=🇯🇵x
+context	w2=🇩
+context	w_1=🇩🇪🇫🇷🇺🇸w0=and
+context	w0=andw1=🇯🇵x
+context	t_2=NNP
+context	t_1=.
+context	t0=CC
+context	t1=CD
+context	t2=.
+context	t_2=NNPt_1=.
+context	t_1=.t0=CC
+context	t0=CCt1=CD
+context	t1=CDt2=.
+context	t_2=NNPt_1=.t0=CC
+context	t_1=.t0=CCt1=CD
+context	t0=CCt1=CDt2=.
+context	p_2=B-NP
+context	p_1=B-ADJP
+context	p_2=B-NPp_1=B-ADJP
+context	p_1=B-ADJPt_2=NNP
+context	p_1=B-ADJPt_1=.
+context	p_1=B-ADJPt0=CC
+context	p_1=B-ADJPt1=CD
+context	p_1=B-ADJPt2=.
+context	p_1=B-ADJPt_2=NNPt_1=.
+context	p_1=B-ADJPt_1=.t0=CC
+context	p_1=B-ADJPt0=CCt1=CD
+context	p_1=B-ADJPt1=CDt2=.
+context	p_1=B-ADJPt_2=NNPt_1=.t0=CC
+context	p_1=B-ADJPt_1=.t0=CCt1=CD
+context	p_1=B-ADJPt0=CCt1=CDt2=.
+context	p_1=B-ADJPw_2=Flags
+context	p_1=B-ADJPw_1=🇩🇪🇫🇷🇺🇸
+context	p_1=B-ADJPw0=and
+context	p_1=B-ADJPw1=🇯🇵x
+context	p_1=B-ADJPw2=🇩
+context	p_1=B-ADJPw_1=🇩🇪🇫🇷🇺🇸w0=and
+context	p_1=B-ADJPw0=andw1=🇯🇵x
+outcome	B-NP	3fb9a0f668321b20 0.10011234325257279
+outcome	I-NP	3fba3d44ef90444c 0.10249739502639094
+outcome	B-PP	3fc0093e9b274c36 0.12528212142805878
+outcome	B-VP	3fb68097c9def7ca 0.0878996723031086
+outcome	I-VP	3fb0dc92024a4b04 0.06586563640511761
+outcome	O	3fbdf9eec9f9603e 0.11709492140778452
+outcome	B-ADVP	3faf6a6ee3b99019 0.06135889558643743
+outcome	B-PRT	3fafd9af63be9dc7 0.06220768063149822
+outcome	B-ADJP	3fa7acfaac929761 0.046241601530069294
+outcome	I-ADJP	3fc803e5e64d0fe1 0.18761895890395322
+outcome	B-SBAR	3fa66fad2a59c583 0.043820773525008704
+end	12
+point	13	31	41	11	0	none
+context	w_2=Flags
+context	w_1=🇩🇪🇫🇷🇺🇸
+context	w0=and
+context	w1=🇯🇵x
+context	w2=🇩
+context	w_1=🇩🇪🇫🇷🇺🇸w0=and
+context	w0=andw1=🇯🇵x
+context	t_2=NNP
+context	t_1=.
+context	t0=CC
+context	t1=CD
+context	t2=.
+context	t_2=NNPt_1=.
+context	t_1=.t0=CC
+context	t0=CCt1=CD
+context	t1=CDt2=.
+context	t_2=NNPt_1=.t0=CC
+context	t_1=.t0=CCt1=CD
+context	t0=CCt1=CDt2=.
+context	p_2=B-NP
+context	p_1=B-PRT
+context	p_2=B-NPp_1=B-PRT
+context	p_1=B-PRTt_2=NNP
+context	p_1=B-PRTt_1=.
+context	p_1=B-PRTt0=CC
+context	p_1=B-PRTt1=CD
+context	p_1=B-PRTt2=.
+context	p_1=B-PRTt_2=NNPt_1=.
+context	p_1=B-PRTt_1=.t0=CC
+context	p_1=B-PRTt0=CCt1=CD
+context	p_1=B-PRTt1=CDt2=.
+context	p_1=B-PRTt_2=NNPt_1=.t0=CC
+context	p_1=B-PRTt_1=.t0=CCt1=CD
+context	p_1=B-PRTt0=CCt1=CDt2=.
+context	p_1=B-PRTw_2=Flags
+context	p_1=B-PRTw_1=🇩🇪🇫🇷🇺🇸
+context	p_1=B-PRTw0=and
+context	p_1=B-PRTw1=🇯🇵x
+context	p_1=B-PRTw2=🇩
+context	p_1=B-PRTw_1=🇩🇪🇫🇷🇺🇸w0=and
+context	p_1=B-PRTw0=andw1=🇯🇵x
+outcome	B-NP	3fc3b8f2d0cf25a8 0.15408168025741742
+outcome	I-NP	3fbc7d1d93e65c4f 0.11128411160312733
+outcome	B-PP	3fc1692bf795cd0f 0.1360220869934001
+outcome	B-VP	3fb86e6d4a1a7fd8 0.0954349809567242
+outcome	I-VP	3fb24e9d1bca5347 0.0715120499465459
+outcome	O	3fbcbece9ab2a3fd 0.11228648449709051
+outcome	B-ADVP	3fb10df0bc1bd05c 0.0666189631700162
+outcome	B-PRT	3fb14a55bf7b0560 0.06754051136797079
+outcome	B-ADJP	3fa9b4906d746765 0.050205720292253266
+outcome	I-ADJP	3fb6623572dcaf46 0.087436047117703
+outcome	B-SBAR	3fa85c0f6b151cf6 0.04757736379775139
+end	13
+point	14	31	41	11	0	none
+context	w_2=Flags
+context	w_1=🇩🇪🇫🇷🇺🇸
+context	w0=and
+context	w1=🇯🇵x
+context	w2=🇩
+context	w_1=🇩🇪🇫🇷🇺🇸w0=and
+context	w0=andw1=🇯🇵x
+context	t_2=NNP
+context	t_1=.
+context	t0=CC
+context	t1=CD
+context	t2=.
+context	t_2=NNPt_1=.
+context	t_1=.t0=CC
+context	t0=CCt1=CD
+context	t1=CDt2=.
+context	t_2=NNPt_1=.t0=CC
+context	t_1=.t0=CCt1=CD
+context	t0=CCt1=CDt2=.
+context	p_2=B-NP
+context	p_1=B-PP
+context	p_2=B-NPp_1=B-PP
+context	p_1=B-PPt_2=NNP
+context	p_1=B-PPt_1=.
+context	p_1=B-PPt0=CC
+context	p_1=B-PPt1=CD
+context	p_1=B-PPt2=.
+context	p_1=B-PPt_2=NNPt_1=.
+context	p_1=B-PPt_1=.t0=CC
+context	p_1=B-PPt0=CCt1=CD
+context	p_1=B-PPt1=CDt2=.
+context	p_1=B-PPt_2=NNPt_1=.t0=CC
+context	p_1=B-PPt_1=.t0=CCt1=CD
+context	p_1=B-PPt0=CCt1=CDt2=.
+context	p_1=B-PPw_2=Flags
+context	p_1=B-PPw_1=🇩🇪🇫🇷🇺🇸
+context	p_1=B-PPw0=and
+context	p_1=B-PPw1=🇯🇵x
+context	p_1=B-PPw2=🇩
+context	p_1=B-PPw_1=🇩🇪🇫🇷🇺🇸w0=and
+context	p_1=B-PPw0=andw1=🇯🇵x
+outcome	B-NP	3fce5cd6e0e50403 0.2372082327001693
+outcome	I-NP	3fb9b06fdb9fe771 0.10034846412591293
+outcome	B-PP	3fbf6659b0ff0f9b 0.12265549250792988
+outcome	B-VP	3fb607d167c89327 0.08605679305817358
+outcome	I-VP	3fb08212041c2ad0 0.06448471641867148
+outcome	O	3fb9ebac4fd60e36 0.10125233601689207
+outcome	B-ADVP	3faec1d15cc935ee 0.0600724626316199
+outcome	B-PRT	3faf2ebcbfa0fca2 0.0609034522935812
+outcome	B-ADJP	3fa72de80d112bf7 0.04527211341390818
+outcome	I-ADJP	3fb42f1d17476baa 0.07884389704069741
+outcome	B-SBAR	3fa5f74193ae33b5 0.04290203979244415
+end	14
+point	15	31	41	11	0	none
+context	w_2=Flags
+context	w_1=🇩🇪🇫🇷🇺🇸
+context	w0=and
+context	w1=🇯🇵x
+context	w2=🇩
+context	w_1=🇩🇪🇫🇷🇺🇸w0=and
+context	w0=andw1=🇯🇵x
+context	t_2=NNP
+context	t_1=.
+context	t0=CC
+context	t1=CD
+context	t2=.
+context	t_2=NNPt_1=.
+context	t_1=.t0=CC
+context	t0=CCt1=CD
+context	t1=CDt2=.
+context	t_2=NNPt_1=.t0=CC
+context	t_1=.t0=CCt1=CD
+context	t0=CCt1=CDt2=.
+context	p_2=B-NP
+context	p_1=B-ADVP
+context	p_2=B-NPp_1=B-ADVP
+context	p_1=B-ADVPt_2=NNP
+context	p_1=B-ADVPt_1=.
+context	p_1=B-ADVPt0=CC
+context	p_1=B-ADVPt1=CD
+context	p_1=B-ADVPt2=.
+context	p_1=B-ADVPt_2=NNPt_1=.
+context	p_1=B-ADVPt_1=.t0=CC
+context	p_1=B-ADVPt0=CCt1=CD
+context	p_1=B-ADVPt1=CDt2=.
+context	p_1=B-ADVPt_2=NNPt_1=.t0=CC
+context	p_1=B-ADVPt_1=.t0=CCt1=CD
+context	p_1=B-ADVPt0=CCt1=CDt2=.
+context	p_1=B-ADVPw_2=Flags
+context	p_1=B-ADVPw_1=🇩🇪🇫🇷🇺🇸
+context	p_1=B-ADVPw0=and
+context	p_1=B-ADVPw1=🇯🇵x
+context	p_1=B-ADVPw2=🇩
+context	p_1=B-ADVPw_1=🇩🇪🇫🇷🇺🇸w0=and
+context	p_1=B-ADVPw0=andw1=🇯🇵x
+outcome	B-NP	3fbbd47a6afa03a9 0.1087109099553475
+outcome	I-NP	3fbbc841eb43973f 0.10852443689108514
+outcome	B-PP	3fc6891734fe0503 0.17605867469323053
+outcome	B-VP	3fb8fd45dc4723c9 0.09761463764074486
+outcome	I-VP	3fb1da6494f0ea1b 0.06973866115814824
+outcome	O	3fbfe8ffa673017f 0.12464902700140178
+outcome	B-ADVP	3fb0a1abf8fb15b6 0.06496691540367902
+outcome	B-PRT	3fb0dc9193903438 0.0658656106244998
+outcome	B-ADJP	3fa911605590331d 0.04896069569085724
+outcome	I-ADJP	3fb5d41bc1b22254 0.08526776770498518
+outcome	B-SBAR	3fa96ac35e2b8bbc 0.049642663236020707
+end	15
+point	16	31	41	11	0	none
+context	w_2=Flags
+context	w_1=🇩🇪🇫🇷🇺🇸
+context	w0=and
+context	w1=🇯🇵x
+context	w2=🇩
+context	w_1=🇩🇪🇫🇷🇺🇸w0=and
+context	w0=andw1=🇯🇵x
+context	t_2=NNP
+context	t_1=.
+context	t0=CC
+context	t1=CD
+context	t2=.
+context	t_2=NNPt_1=.
+context	t_1=.t0=CC
+context	t0=CCt1=CD
+context	t1=CDt2=.
+context	t_2=NNPt_1=.t0=CC
+context	t_1=.t0=CCt1=CD
+context	t0=CCt1=CDt2=.
+context	p_2=B-VP
+context	p_1=B-ADJP
+context	p_2=B-VPp_1=B-ADJP
+context	p_1=B-ADJPt_2=NNP
+context	p_1=B-ADJPt_1=.
+context	p_1=B-ADJPt0=CC
+context	p_1=B-ADJPt1=CD
+context	p_1=B-ADJPt2=.
+context	p_1=B-ADJPt_2=NNPt_1=.
+context	p_1=B-ADJPt_1=.t0=CC
+context	p_1=B-ADJPt0=CCt1=CD
+context	p_1=B-ADJPt1=CDt2=.
+context	p_1=B-ADJPt_2=NNPt_1=.t0=CC
+context	p_1=B-ADJPt_1=.t0=CCt1=CD
+context	p_1=B-ADJPt0=CCt1=CDt2=.
+context	p_1=B-ADJPw_2=Flags
+context	p_1=B-ADJPw_1=🇩🇪🇫🇷🇺🇸
+context	p_1=B-ADJPw0=and
+context	p_1=B-ADJPw1=🇯🇵x
+context	p_1=B-ADJPw2=🇩
+context	p_1=B-ADJPw_1=🇩🇪🇫🇷🇺🇸w0=and
+context	p_1=B-ADJPw0=andw1=🇯🇵x
+outcome	B-NP	3fb9e973dffbd538 0.10121845453598588
+outcome	I-NP	3fb730fff52e5c4f 0.09059142814509012
+outcome	B-PP	3fbdce1a603b41b7 0.1164261326732746
+outcome	B-VP	3fb29739dd7335f2 0.07262002617354549
+outcome	I-VP	3fb14fcf4b4720c1 0.06762405002439477
+outcome	O	3fc00ebcc5e26a14 0.12544974958730448
+outcome	B-ADVP	3faad9970f83f54e 0.05244133057019927
+outcome	B-PRT	3fb29ba6b8f3cedd 0.07268754973830079
+outcome	B-ADJP	3fadb8534c1d5517 0.05804691604741146
+outcome	I-ADJP	3fc8b0ce99361fb5 0.19289572220827514
+outcome	B-SBAR	3fa9996bf9d55ce3 0.049998640296218054
+end	16
+point	17	31	41	11	0	none
+context	w_2=Flags
+context	w_1=🇩🇪🇫🇷🇺🇸
+context	w0=and
+context	w1=🇯🇵x
+context	w2=🇩
+context	w_1=🇩🇪🇫🇷🇺🇸w0=and
+context	w0=andw1=🇯🇵x
+context	t_2=NNP
+context	t_1=.
+context	t0=CC
+context	t1=CD
+context	t2=.
+context	t_2=NNPt_1=.
+context	t_1=.t0=CC
+context	t0=CCt1=CD
+context	t1=CDt2=.
+context	t_2=NNPt_1=.t0=CC
+context	t_1=.t0=CCt1=CD
+context	t0=CCt1=CDt2=.
+context	p_2=B-ADJP
+context	p_1=O
+context	p_2=B-ADJPp_1=O
+context	p_1=Ot_2=NNP
+context	p_1=Ot_1=.
+context	p_1=Ot0=CC
+context	p_1=Ot1=CD
+context	p_1=Ot2=.
+context	p_1=Ot_2=NNPt_1=.
+context	p_1=Ot_1=.t0=CC
+context	p_1=Ot0=CCt1=CD
+context	p_1=Ot1=CDt2=.
+context	p_1=Ot_2=NNPt_1=.t0=CC
+context	p_1=Ot_1=.t0=CCt1=CD
+context	p_1=Ot0=CCt1=CDt2=.
+context	p_1=Ow_2=Flags
+context	p_1=Ow_1=🇩🇪🇫🇷🇺🇸
+context	p_1=Ow0=and
+context	p_1=Ow1=🇯🇵x
+context	p_1=Ow2=🇩
+context	p_1=Ow_1=🇩🇪🇫🇷🇺🇸w0=and
+context	p_1=Ow0=andw1=🇯🇵x
+outcome	B-NP	3fbc6420072b2d3a 0.11090278792396627
+outcome	I-NP	3fb7136d79fc69b2 0.09014019230054407
+outcome	B-PP	3fbdf52e1ad10412 0.11702240137766776
+outcome	B-VP	3fb9b993dd1b1ab3 0.10048793933956794
+outcome	I-VP	3fb12492a7a04267 0.06696430771285976
+outcome	O	3fc2935a83981cc9 0.14512187409875413
+outcome	B-ADVP	3fb1cbb2f1adecdc 0.06951445007682672
+outcome	B-PRT	3fb3b7acab8aa0db 0.07702140033746067
+outcome	B-ADJP	3faf7df4e707f7f6 0.06150784797863189
+outcome	I-ADJP	3fb7805bd5b157cc 0.09180234877689414
+outcome	B-SBAR	3fb1cbb2f1adecdc 0.06951445007682672
+end	17
+point	18	35	41	11	0	none
+context	w_2=🇩🇪🇫🇷🇺🇸
+context	w_1=and
+context	w0=🇯🇵x
+context	w1=🇩
+context	w2=eos
+context	w_1=andw0=🇯🇵x
+context	w0=🇯🇵xw1=🇩
+context	t_2=.
+context	t_1=CC
+context	t0=CD
+context	t1=.
+context	t2=eos
+context	t_2=.t_1=CC
+context	t_1=CCt0=CD
+context	t0=CDt1=.
+context	t1=.t2=eos
+context	t_2=.t_1=CCt0=CD
+context	t_1=CCt0=CDt1=.
+context	t0=CDt1=.t2=eos
+context	p_2=B-VP
+context	p_1=B-PP
+context	p_2=B-VPp_1=B-PP
+context	p_1=B-PPt_2=.
+context	p_1=B-PPt_1=CC
+context	p_1=B-PPt0=CD
+context	p_1=B-PPt1=.
+context	p_1=B-PPt2=eos
+context	p_1=B-PPt_2=.t_1=CC
+context	p_1=B-PPt_1=CCt0=CD
+context	p_1=B-PPt0=CDt1=.
+context	p_1=B-PPt1=.t2=eos
+context	p_1=B-PPt_2=.t_1=CCt0=CD
+context	p_1=B-PPt_1=CCt0=CDt1=.
+context	p_1=B-PPt0=CDt1=.t2=eos
+context	p_1=B-PPw_2=🇩🇪🇫🇷🇺🇸
+context	p_1=B-PPw_1=and
+context	p_1=B-PPw0=🇯🇵x
+context	p_1=B-PPw1=🇩
+context	p_1=B-PPw2=eos
+context	p_1=B-PPw_1=andw0=🇯🇵x
+context	p_1=B-PPw0=🇯🇵xw1=🇩
+outcome	B-NP	3fe1e873ffcea579 0.5596256252512567
+outcome	I-NP	3fb87d384f22577a 0.09566070491777437
+outcome	B-PP	3fa5839b74599c73 0.0420197085884916
+outcome	B-VP	3fab80cf38e5d956 0.053717113204515485
+outcome	I-VP	3f92e6a4e2de5b76 0.018457962367019097
+outcome	O	3faca4ee042ba289 0.055945814141357415
+outcome	B-ADVP	3fa155a61436d7a2 0.03385657307391844
+outcome	B-PRT	3fa46852fb8d59a9 0.039858430106210214
+outcome	B-ADJP	3fa0b481545ca91c 0.0326271453362372
+outcome	I-ADJP	3fa3617fe791dfae 0.03785323812274953
+outcome	B-SBAR	3f9f1b53ec87f27e 0.030377684890469762
+end	18
+point	19	35	41	11	0	none
+context	w_2=🇩🇪🇫🇷🇺🇸
+context	w_1=and
+context	w0=🇯🇵x
+context	w1=🇩
+context	w2=eos
+context	w_1=andw0=🇯🇵x
+context	w0=🇯🇵xw1=🇩
+context	t_2=.
+context	t_1=CC
+context	t0=CD
+context	t1=.
+context	t2=eos
+context	t_2=.t_1=CC
+context	t_1=CCt0=CD
+context	t0=CDt1=.
+context	t1=.t2=eos
+context	t_2=.t_1=CCt0=CD
+context	t_1=CCt0=CDt1=.
+context	t0=CDt1=.t2=eos
+context	p_2=I-NP
+context	p_1=O
+context	p_2=I-NPp_1=O
+context	p_1=Ot_2=.
+context	p_1=Ot_1=CC
+context	p_1=Ot0=CD
+context	p_1=Ot1=.
+context	p_1=Ot2=eos
+context	p_1=Ot_2=.t_1=CC
+context	p_1=Ot_1=CCt0=CD
+context	p_1=Ot0=CDt1=.
+context	p_1=Ot1=.t2=eos
+context	p_1=Ot_2=.t_1=CCt0=CD
+context	p_1=Ot_1=CCt0=CDt1=.
+context	p_1=Ot0=CDt1=.t2=eos
+context	p_1=Ow_2=🇩🇪🇫🇷🇺🇸
+context	p_1=Ow_1=and
+context	p_1=Ow0=🇯🇵x
+context	p_1=Ow1=🇩
+context	p_1=Ow2=eos
+context	p_1=Ow_1=andw0=🇯🇵x
+context	p_1=Ow0=🇯🇵xw1=🇩
+outcome	B-NP	3fcb068111dba27c 0.21113599178285714
+outcome	I-NP	3fc286ceccb4752b 0.1447390079055507
+outcome	B-PP	3faf00068aa50147 0.06054706995428432
+outcome	B-VP	3fc645c7bb44ae8d 0.17400452274283787
+outcome	I-VP	3f9e022e9157dbff 0.029305198308033905
+outcome	O	3fbd5e79c38b6792 0.11472283386265605
+outcome	B-ADVP	3fb0a5e5174f884a 0.06503135508640515
+outcome	B-PRT	3fb08ad22fc022cf 0.06461824098381473
+outcome	B-ADJP	3fa9a860562036f7 0.05011273433056645
+outcome	I-ADJP	3fa5e9726452d2f6 0.042796683069729655
+outcome	B-SBAR	3fa6024ef5b2c896 0.04298636197326393
+end	19
+point	20	35	41	11	0	none
+context	w_2=🇩🇪🇫🇷🇺🇸
+context	w_1=and
+context	w0=🇯🇵x
+context	w1=🇩
+context	w2=eos
+context	w_1=andw0=🇯🇵x
+context	w0=🇯🇵xw1=🇩
+context	t_2=.
+context	t_1=CC
+context	t0=CD
+context	t1=.
+context	t2=eos
+context	t_2=.t_1=CC
+context	t_1=CCt0=CD
+context	t0=CDt1=.
+context	t1=.t2=eos
+context	t_2=.t_1=CCt0=CD
+context	t_1=CCt0=CDt1=.
+context	t0=CDt1=.t2=eos
+context	p_2=I-NP
+context	p_1=B-PP
+context	p_2=I-NPp_1=B-PP
+context	p_1=B-PPt_2=.
+context	p_1=B-PPt_1=CC
+context	p_1=B-PPt0=CD
+context	p_1=B-PPt1=.
+context	p_1=B-PPt2=eos
+context	p_1=B-PPt_2=.t_1=CC
+context	p_1=B-PPt_1=CCt0=CD
+context	p_1=B-PPt0=CDt1=.
+context	p_1=B-PPt1=.t2=eos
+context	p_1=B-PPt_2=.t_1=CCt0=CD
+context	p_1=B-PPt_1=CCt0=CDt1=.
+context	p_1=B-PPt0=CDt1=.t2=eos
+context	p_1=B-PPw_2=🇩🇪🇫🇷🇺🇸
+context	p_1=B-PPw_1=and
+context	p_1=B-PPw0=🇯🇵x
+context	p_1=B-PPw1=🇩
+context	p_1=B-PPw2=eos
+context	p_1=B-PPw_1=andw0=🇯🇵x
+context	p_1=B-PPw0=🇯🇵xw1=🇩
+outcome	B-NP	3fe201cc96ec03ee 0.5627196262067835
+outcome	I-NP	3fb7ca5257aa2c68 0.09293093338253444
+outcome	B-PP	3fa3e764d8732b45 0.03887477056703984
+outcome	B-VP	3facf38cf68d0df0 0.05654564389854133
+outcome	I-VP	3f9344695287bc81 0.01881565633987892
+outcome	O	3fae8634c7a7d84a 0.05961766183092772
+outcome	B-ADVP	3fa560c5e5a6c3b0 0.041753944667454745
+outcome	B-PRT	3fa53e01cd72b06b 0.04148870118055544
+outcome	B-ADJP	3fa079486b898617 0.03217531502447118
+outcome	I-ADJP	3f9c23301653be97 0.027477980959644013
+outcome	B-SBAR	3f9c431cf0653df2 0.02759976594216868
+end	20
+point	21	35	41	11	0	none
+context	w_2=🇩🇪🇫🇷🇺🇸
+context	w_1=and
+context	w0=🇯🇵x
+context	w1=🇩
+context	w2=eos
+context	w_1=andw0=🇯🇵x
+context	w0=🇯🇵xw1=🇩
+context	t_2=.
+context	t_1=CC
+context	t0=CD
+context	t1=.
+context	t2=eos
+context	t_2=.t_1=CC
+context	t_1=CCt0=CD
+context	t0=CDt1=.
+context	t1=.t2=eos
+context	t_2=.t_1=CCt0=CD
+context	t_1=CCt0=CDt1=.
+context	t0=CDt1=.t2=eos
+context	p_2=I-NP
+context	p_1=I-NP
+context	p_2=I-NPp_1=I-NP
+context	p_1=I-NPt_2=.
+context	p_1=I-NPt_1=CC
+context	p_1=I-NPt0=CD
+context	p_1=I-NPt1=.
+context	p_1=I-NPt2=eos
+context	p_1=I-NPt_2=.t_1=CC
+context	p_1=I-NPt_1=CCt0=CD
+context	p_1=I-NPt0=CDt1=.
+context	p_1=I-NPt1=.t2=eos
+context	p_1=I-NPt_2=.t_1=CCt0=CD
+context	p_1=I-NPt_1=CCt0=CDt1=.
+context	p_1=I-NPt0=CDt1=.t2=eos
+context	p_1=I-NPw_2=🇩🇪🇫🇷🇺🇸
+context	p_1=I-NPw_1=and
+context	p_1=I-NPw0=🇯🇵x
+context	p_1=I-NPw1=🇩
+context	p_1=I-NPw2=eos
+context	p_1=I-NPw_1=andw0=🇯🇵x
+context	p_1=I-NPw0=🇯🇵xw1=🇩
+outcome	B-NP	3fbdbb7a37e8e2b7 0.11614192833884372
+outcome	I-NP	3fd9312ef59f52b0 0.39362691866453314
+outcome	B-PP	3fab11e6dc6876f5 0.052870954900056256
+outcome	B-VP	3fb53de1462a48f5 0.08297546351448999
+outcome	I-VP	3f97ce18fe7da522 0.02324713757790165
+outcome	O	3fbf9a841722d0f9 0.1234514767155054
+outcome	B-ADVP	3faf1aa840289345 0.06075025351700573
+outcome	B-PRT	3faa3ec588e98a78 0.05126015945713375
+outcome	B-ADJP	3f9c49fd49d2eae0 0.027625997191288998
+outcome	I-ADJP	3fa161d840c8b986 0.033949621113026615
+outcome	B-SBAR	3fa175911e2ddae7 0.0341000890102146
+end	21
+point	22	35	41	11	0	none
+context	w_2=🇩🇪🇫🇷🇺🇸
+context	w_1=and
+context	w0=🇯🇵x
+context	w1=🇩
+context	w2=eos
+context	w_1=andw0=🇯🇵x
+context	w0=🇯🇵xw1=🇩
+context	t_2=.
+context	t_1=CC
+context	t0=CD
+context	t1=.
+context	t2=eos
+context	t_2=.t_1=CC
+context	t_1=CCt0=CD
+context	t0=CDt1=.
+context	t1=.t2=eos
+context	t_2=.t_1=CCt0=CD
+context	t_1=CCt0=CDt1=.
+context	t0=CDt1=.t2=eos
+context	p_2=I-NP
+context	p_1=B-VP
+context	p_2=I-NPp_1=B-VP
+context	p_1=B-VPt_2=.
+context	p_1=B-VPt_1=CC
+context	p_1=B-VPt0=CD
+context	p_1=B-VPt1=.
+context	p_1=B-VPt2=eos
+context	p_1=B-VPt_2=.t_1=CC
+context	p_1=B-VPt_1=CCt0=CD
+context	p_1=B-VPt0=CDt1=.
+context	p_1=B-VPt1=.t2=eos
+context	p_1=B-VPt_2=.t_1=CCt0=CD
+context	p_1=B-VPt_1=CCt0=CDt1=.
+context	p_1=B-VPt0=CDt1=.t2=eos
+context	p_1=B-VPw_2=🇩🇪🇫🇷🇺🇸
+context	p_1=B-VPw_1=and
+context	p_1=B-VPw0=🇯🇵x
+context	p_1=B-VPw1=🇩
+context	p_1=B-VPw2=eos
+context	p_1=B-VPw_1=andw0=🇯🇵x
+context	p_1=B-VPw0=🇯🇵xw1=🇩
+outcome	B-NP	3fc84f268f215a3d 0.18991548527510985
+outcome	I-NP	3fc2d41fbe12284b 0.14709851055914877
+outcome	B-PP	3fa9ddecddb55f35 0.05052128034975426
+outcome	B-VP	3fb6e9cc241ada0a 0.08950496560542134
+outcome	I-VP	3fb0f09304d3493b 0.0661708723812681
+outcome	O	3fb13de3cbba506f 0.06735061382124895
+outcome	B-ADVP	3fbdebd857a3aac2 0.11687996043807927
+outcome	B-PRT	3fb057a5ed519099 0.06383740466987077
+outcome	B-ADJP	3fc0338453d8df44 0.12657217115497066
+outcome	I-ADJP	3fa644e40a2ccc0c 0.043494344942153956
+outcome	B-SBAR	3fa3ca8220b0ef76 0.0386543908029741
+end	22
+point	23	35	41	11	0	none
+context	w_2=🇩🇪🇫🇷🇺🇸
+context	w_1=and
+context	w0=🇯🇵x
+context	w1=🇩
+context	w2=eos
+context	w_1=andw0=🇯🇵x
+context	w0=🇯🇵xw1=🇩
+context	t_2=.
+context	t_1=CC
+context	t0=CD
+context	t1=.
+context	t2=eos
+context	t_2=.t_1=CC
+context	t_1=CCt0=CD
+context	t0=CDt1=.
+context	t1=.t2=eos
+context	t_2=.t_1=CCt0=CD
+context	t_1=CCt0=CDt1=.
+context	t0=CDt1=.t2=eos
+context	p_2=O
+context	p_1=O
+context	p_2=Op_1=O
+context	p_1=Ot_2=.
+context	p_1=Ot_1=CC
+context	p_1=Ot0=CD
+context	p_1=Ot1=.
+context	p_1=Ot2=eos
+context	p_1=Ot_2=.t_1=CC
+context	p_1=Ot_1=CCt0=CD
+context	p_1=Ot0=CDt1=.
+context	p_1=Ot1=.t2=eos
+context	p_1=Ot_2=.t_1=CCt0=CD
+context	p_1=Ot_1=CCt0=CDt1=.
+context	p_1=Ot0=CDt1=.t2=eos
+context	p_1=Ow_2=🇩🇪🇫🇷🇺🇸
+context	p_1=Ow_1=and
+context	p_1=Ow0=🇯🇵x
+context	p_1=Ow1=🇩
+context	p_1=Ow2=eos
+context	p_1=Ow_1=andw0=🇯🇵x
+context	p_1=Ow0=🇯🇵xw1=🇩
+outcome	B-NP	3fce94f7c133ad60 0.23892113622364786
+outcome	I-NP	3fc3319a4fbfbd2c 0.14995125669472864
+outcome	B-PP	3fb0db3fda9b6fc5 0.06584548079575743
+outcome	B-VP	3fc236542027e94d 0.14228297777283175
+outcome	I-VP	3f9a599daccae2b3 0.025732482596796568
+outcome	O	3fb616db3b201c1e 0.08628626054279251
+outcome	B-ADVP	3fb02cc284b4004a 0.06318298091719146
+outcome	B-PRT	3fae719582a24014 0.05946032733584175
+outcome	B-ADJP	3fa8eba39b37d436 0.048672783563155894
+outcome	I-ADJP	3faed30e8fd1d2a3 0.06020398622141456
+outcome	B-SBAR	3fae719582a24014 0.05946032733584175
+end	23
+point	24	35	41	11	0	none
+context	w_2=🇩🇪🇫🇷🇺🇸
+context	w_1=and
+context	w0=🇯🇵x
+context	w1=🇩
+context	w2=eos
+context	w_1=andw0=🇯🇵x
+context	w0=🇯🇵xw1=🇩
+context	t_2=.
+context	t_1=CC
+context	t0=CD
+context	t1=.
+context	t2=eos
+context	t_2=.t_1=CC
+context	t_1=CCt0=CD
+context	t0=CDt1=.
+context	t1=.t2=eos
+context	t_2=.t_1=CCt0=CD
+context	t_1=CCt0=CDt1=.
+context	t0=CDt1=.t2=eos
+context	p_2=O
+context	p_1=B-PP
+context	p_2=Op_1=B-PP
+context	p_1=B-PPt_2=.
+context	p_1=B-PPt_1=CC
+context	p_1=B-PPt0=CD
+context	p_1=B-PPt1=.
+context	p_1=B-PPt2=eos
+context	p_1=B-PPt_2=.t_1=CC
+context	p_1=B-PPt_1=CCt0=CD
+context	p_1=B-PPt0=CDt1=.
+context	p_1=B-PPt1=.t2=eos
+context	p_1=B-PPt_2=.t_1=CCt0=CD
+context	p_1=B-PPt_1=CCt0=CDt1=.
+context	p_1=B-PPt0=CDt1=.t2=eos
+context	p_1=B-PPw_2=🇩🇪🇫🇷🇺🇸
+context	p_1=B-PPw_1=and
+context	p_1=B-PPw0=🇯🇵x
+context	p_1=B-PPw1=🇩
+context	p_1=B-PPw2=eos
+context	p_1=B-PPw_1=andw0=🇯🇵x
+context	p_1=B-PPw0=🇯🇵xw1=🇩
+outcome	B-NP	3fdfdbb946379ab4 0.4977858720507513
+outcome	I-NP	3fbb99c23e9e1b8d 0.10781492260694688
+outcome	B-PP	3fa83d53af9316a5 0.047342887098733834
+outcome	B-VP	3faf9a9f5b78503a 0.06172655097557862
+outcome	I-VP	3f92f218b119d0cb 0.01850164967477567
+outcome	O	3fad7f7c6c4c1ef2 0.05761326620091535
+outcome	B-ADVP	3fa7426933225273 0.04542855023570249
+outcome	B-PRT	3fa5e395d687bb68 0.04275196307923218
+outcome	B-ADJP	3fa1eaf58d419db6 0.03499572133369659
+outcome	I-ADJP	3fa629ab13af1e24 0.04328665366443499
+outcome	B-SBAR	3fa5e395d687bb68 0.04275196307923218
+end	24
+point	25	35	41	11	0	none
+context	w_2=🇩🇪🇫🇷🇺🇸
+context	w_1=and
+context	w0=🇯🇵x
+context	w1=🇩
+context	w2=eos
+context	w_1=andw0=🇯🇵x
+context	w0=🇯🇵xw1=🇩
+context	t_2=.
+context	t_1=CC
+context	t0=CD
+context	t1=.
+context	t2=eos
+context	t_2=.t_1=CC
+context	t_1=CCt0=CD
+context	t0=CDt1=.
+context	t1=.t2=eos
+context	t_2=.t_1=CCt0=CD
+context	t_1=CCt0=CDt1=.
+context	t0=CDt1=.t2=eos
+context	p_2=O
+context	p_1=B-NP
+context	p_2=Op_1=B-NP
+context	p_1=B-NPt_2=.
+context	p_1=B-NPt_1=CC
+context	p_1=B-NPt0=CD
+context	p_1=B-NPt1=.
+context	p_1=B-NPt2=eos
+context	p_1=B-NPt_2=.t_1=CC
+context	p_1=B-NPt_1=CCt0=CD
+context	p_1=B-NPt0=CDt1=.
+context	p_1=B-NPt1=.t2=eos
+context	p_1=B-NPt_2=.t_1=CCt0=CD
+context	p_1=B-NPt_1=CCt0=CDt1=.
+context	p_1=B-NPt0=CDt1=.t2=eos
+context	p_1=B-NPw_2=🇩🇪🇫🇷🇺🇸
+context	p_1=B-NPw_1=and
+context	p_1=B-NPw0=🇯🇵x
+context	p_1=B-NPw1=🇩
+context	p_1=B-NPw2=eos
+context	p_1=B-NPw_1=andw0=🇯🇵x
+context	p_1=B-NPw0=🇯🇵xw1=🇩
+outcome	B-NP	3fc0387dc81da641 0.1267239787223833
+outcome	I-NP	3fd8da44671c54b7 0.38832197255517137
+outcome	B-PP	3fa9e73723b3b9f5 0.05059215842071644
+outcome	B-VP	3fb581b67fd7d97b 0.08401051160021737
+outcome	I-VP	3f95d1235785f63b 0.021305610863683305
+outcome	O	3fb68f4b5357f908 0.08812399658924985
+outcome	B-ADVP	3faac8d045565313 0.05231333586121969
+outcome	B-PRT	3fa934d1d2554f52 0.04923110668701604
+outcome	B-ADJP	3fa4a21f2faf5720 0.040299391337312196
+outcome	I-ADJP	3fa9858617201e6d 0.049846830676014565
+outcome	B-SBAR	3fa934d1d2554f52 0.04923110668701604
+end	25
+point	26	35	41	11	0	none
+context	w_2=🇩🇪🇫🇷🇺🇸
+context	w_1=and
+context	w0=🇯🇵x
+context	w1=🇩
+context	w2=eos
+context	w_1=andw0=🇯🇵x
+context	w0=🇯🇵xw1=🇩
+context	t_2=.
+context	t_1=CC
+context	t0=CD
+context	t1=.
+context	t2=eos
+context	t_2=.t_1=CC
+context	t_1=CCt0=CD
+context	t0=CDt1=.
+context	t1=.t2=eos
+context	t_2=.t_1=CCt0=CD
+context	t_1=CCt0=CDt1=.
+context	t0=CDt1=.t2=eos
+context	p_2=B-VP
+context	p_1=I-VP
+context	p_2=B-VPp_1=I-VP
+context	p_1=I-VPt_2=.
+context	p_1=I-VPt_1=CC
+context	p_1=I-VPt0=CD
+context	p_1=I-VPt1=.
+context	p_1=I-VPt2=eos
+context	p_1=I-VPt_2=.t_1=CC
+context	p_1=I-VPt_1=CCt0=CD
+context	p_1=I-VPt0=CDt1=.
+context	p_1=I-VPt1=.t2=eos
+context	p_1=I-VPt_2=.t_1=CCt0=CD
+context	p_1=I-VPt_1=CCt0=CDt1=.
+context	p_1=I-VPt0=CDt1=.t2=eos
+context	p_1=I-VPw_2=🇩🇪🇫🇷🇺🇸
+context	p_1=I-VPw_1=and
+context	p_1=I-VPw0=🇯🇵x
+context	p_1=I-VPw1=🇩
+context	p_1=I-VPw2=eos
+context	p_1=I-VPw_1=andw0=🇯🇵x
+context	p_1=I-VPw0=🇯🇵xw1=🇩
+outcome	B-NP	3fc8ce2ba28c681c 0.19379182278572749
+outcome	I-NP	3fc31191b4b9f987 0.14897366833242762
+outcome	B-PP	3fb35e99e9a7a79f 0.07566225008454673
+outcome	B-VP	3fb56a5f547f7181 0.0836543637555618
+outcome	I-VP	3fa2fac212637248 0.0370693824240545
+outcome	O	3fc0a224ee76f94f 0.1299482502344724
+outcome	B-ADVP	3fbdb97827ac8775 0.11611128777124498
+outcome	B-PRT	3fafc7e88d54750b 0.06207205510347976
+outcome	B-ADJP	3faa03db87531f92 0.05081068064606521
+outcome	I-ADJP	3fae2e9bbbce94d2 0.05894934337201509
+outcome	B-SBAR	3fa5fe723a89b760 0.04295689549040449
+end	26
+point	27	35	41	11	0	none
+context	w_2=🇩🇪🇫🇷🇺🇸
+context	w_1=and
+context	w0=🇯🇵x
+context	w1=🇩
+context	w2=eos
+context	w_1=andw0=🇯🇵x
+context	w0=🇯🇵xw1=🇩
+context	t_2=.
+context	t_1=CC
+context	t0=CD
+context	t1=.
+context	t2=eos
+context	t_2=.t_1=CC
+context	t_1=CCt0=CD
+context	t0=CDt1=.
+context	t1=.t2=eos
+context	t_2=.t_1=CCt0=CD
+context	t_1=CCt0=CDt1=.
+context	t0=CDt1=.t2=eos
+context	p_2=B-VP
+context	p_1=B-NP
+context	p_2=B-VPp_1=B-NP
+context	p_1=B-NPt_2=.
+context	p_1=B-NPt_1=CC
+context	p_1=B-NPt0=CD
+context	p_1=B-NPt1=.
+context	p_1=B-NPt2=eos
+context	p_1=B-NPt_2=.t_1=CC
+context	p_1=B-NPt_1=CCt0=CD
+context	p_1=B-NPt0=CDt1=.
+context	p_1=B-NPt1=.t2=eos
+context	p_1=B-NPt_2=.t_1=CCt0=CD
+context	p_1=B-NPt_1=CCt0=CDt1=.
+context	p_1=B-NPt0=CDt1=.t2=eos
+context	p_1=B-NPw_2=🇩🇪🇫🇷🇺🇸
+context	p_1=B-NPw_1=and
+context	p_1=B-NPw0=🇯🇵x
+context	p_1=B-NPw1=🇩
+context	p_1=B-NPw2=eos
+context	p_1=B-NPw_1=andw0=🇯🇵x
+context	p_1=B-NPw0=🇯🇵xw1=🇩
+outcome	B-NP	3fc0c7c7076e035f 0.1310967241552374
+outcome	I-NP	3fd96679d23d69ac 0.39687963038673035
+outcome	B-PP	3fab2017a9c53bd0 0.05297922084229578
+outcome	B-VP	3fb256caf3db7c76 0.07163685277508755
+outcome	I-VP	3f988fbeec5052eb 0.02398584668488272
+outcome	O	3fb8b89719d7e9c5 0.09656662350599905
+outcome	B-ADVP	3fa686a888658231 0.04399611153599315
+outcome	B-PRT	3faa84ee687f06e0 0.05179543519581187
+outcome	B-ADJP	3fa5b54133510f3d 0.04239848853515447
+outcome	I-ADJP	3fa92f650d5bf8a7 0.049189718132752795
+outcome	B-SBAR	3fa4361ce376e277 0.03947534825005488
+end	27
+point	28	45	41	11	0	none
+context	w_2=and
+context	w_1=🇯🇵x
+context	w0=🇩
+context	w1=eos
+context	w2=eos
+context	w_1=🇯🇵xw0=🇩
+context	w0=🇩w1=eos
+context	t_2=CC
+context	t_1=CD
+context	t0=.
+context	t1=eos
+context	t2=eos
+context	t_2=CCt_1=CD
+context	t_1=CDt0=.
+context	t0=.t1=eos
+context	t1=eost2=eos
+context	t_2=CCt_1=CDt0=.
+context	t_1=CDt0=.t1=eos
+context	t0=.t1=eost2=eos
+context	p_2=B-PP
+context	p_1=B-NP
+context	p_2=B-PPp_1=B-NP
+context	p_1=B-NPt_2=CC
+context	p_1=B-NPt_1=CD
+context	p_1=B-NPt0=.
+context	p_1=B-NPt1=eos
+context	p_1=B-NPt2=eos
+context	p_1=B-NPt_2=CCt_1=CD
+context	p_1=B-NPt_1=CDt0=.
+context	p_1=B-NPt0=.t1=eos
+context	p_1=B-NPt1=eost2=eos
+context	p_1=B-NPt_2=CCt_1=CDt0=.
+context	p_1=B-NPt_1=CDt0=.t1=eos
+context	p_1=B-NPt0=.t1=eost2=eos
+context	p_1=B-NPw_2=and
+context	p_1=B-NPw_1=🇯🇵x
+context	p_1=B-NPw0=🇩
+context	p_1=B-NPw1=eos
+context	p_1=B-NPw2=eos
+context	p_1=B-NPw_1=🇯🇵xw0=🇩
+context	p_1=B-NPw0=🇩w1=eos
+outcome	B-NP	3f8c5f5449623ee5 0.013853701104636193
+outcome	I-NP	3fa7d34997a0f2cd 0.046533870467532525
+outcome	B-PP	3f8b3a72955f1254 0.013295073684170301
+outcome	B-VP	3f8b60a6bc9aa408 0.013367941504229833
+outcome	I-VP	3f77f039230b2e75 0.0058443290624371385
+outcome	O	3feb780a2b1b61b6 0.8584032861645514
+outcome	B-ADVP	3f84a5b8aad32ac6 0.010081713402901992
+outcome	B-PRT	3f864bcbc581d06c 0.010886756863534873
+outcome	B-ADJP	3f81bb1ae97116ba 0.00865765595348066
+outcome	I-ADJP	3f80c5598e7a5842 0.008188914928990102
+outcome	B-SBAR	3f864bcbc581d06c 0.010886756863534873
+end	28
+point	29	45	41	11	0	none
+context	w_2=and
+context	w_1=🇯🇵x
+context	w0=🇩
+context	w1=eos
+context	w2=eos
+context	w_1=🇯🇵xw0=🇩
+context	w0=🇩w1=eos
+context	t_2=CC
+context	t_1=CD
+context	t0=.
+context	t1=eos
+context	t2=eos
+context	t_2=CCt_1=CD
+context	t_1=CDt0=.
+context	t0=.t1=eos
+context	t1=eost2=eos
+context	t_2=CCt_1=CDt0=.
+context	t_1=CDt0=.t1=eos
+context	t0=.t1=eost2=eos
+context	p_2=B-PP
+context	p_1=B-NP
+context	p_2=B-PPp_1=B-NP
+context	p_1=B-NPt_2=CC
+context	p_1=B-NPt_1=CD
+context	p_1=B-NPt0=.
+context	p_1=B-NPt1=eos
+context	p_1=B-NPt2=eos
+context	p_1=B-NPt_2=CCt_1=CD
+context	p_1=B-NPt_1=CDt0=.
+context	p_1=B-NPt0=.t1=eos
+context	p_1=B-NPt1=eost2=eos
+context	p_1=B-NPt_2=CCt_1=CDt0=.
+context	p_1=B-NPt_1=CDt0=.t1=eos
+context	p_1=B-NPt0=.t1=eost2=eos
+context	p_1=B-NPw_2=and
+context	p_1=B-NPw_1=🇯🇵x
+context	p_1=B-NPw0=🇩
+context	p_1=B-NPw1=eos
+context	p_1=B-NPw2=eos
+context	p_1=B-NPw_1=🇯🇵xw0=🇩
+context	p_1=B-NPw0=🇩w1=eos
+outcome	B-NP	3f8c5f5449623ee5 0.013853701104636193
+outcome	I-NP	3fa7d34997a0f2cd 0.046533870467532525
+outcome	B-PP	3f8b3a72955f1254 0.013295073684170301
+outcome	B-VP	3f8b60a6bc9aa408 0.013367941504229833
+outcome	I-VP	3f77f039230b2e75 0.0058443290624371385
+outcome	O	3feb780a2b1b61b6 0.8584032861645514
+outcome	B-ADVP	3f84a5b8aad32ac6 0.010081713402901992
+outcome	B-PRT	3f864bcbc581d06c 0.010886756863534873
+outcome	B-ADJP	3f81bb1ae97116ba 0.00865765595348066
+outcome	I-ADJP	3f80c5598e7a5842 0.008188914928990102
+outcome	B-SBAR	3f864bcbc581d06c 0.010886756863534873
+end	29
+point	30	45	41	11	0	none
+context	w_2=and
+context	w_1=🇯🇵x
+context	w0=🇩
+context	w1=eos
+context	w2=eos
+context	w_1=🇯🇵xw0=🇩
+context	w0=🇩w1=eos
+context	t_2=CC
+context	t_1=CD
+context	t0=.
+context	t1=eos
+context	t2=eos
+context	t_2=CCt_1=CD
+context	t_1=CDt0=.
+context	t0=.t1=eos
+context	t1=eost2=eos
+context	t_2=CCt_1=CDt0=.
+context	t_1=CDt0=.t1=eos
+context	t0=.t1=eost2=eos
+context	p_2=I-NP
+context	p_1=I-NP
+context	p_2=I-NPp_1=I-NP
+context	p_1=I-NPt_2=CC
+context	p_1=I-NPt_1=CD
+context	p_1=I-NPt0=.
+context	p_1=I-NPt1=eos
+context	p_1=I-NPt2=eos
+context	p_1=I-NPt_2=CCt_1=CD
+context	p_1=I-NPt_1=CDt0=.
+context	p_1=I-NPt0=.t1=eos
+context	p_1=I-NPt1=eost2=eos
+context	p_1=I-NPt_2=CCt_1=CDt0=.
+context	p_1=I-NPt_1=CDt0=.t1=eos
+context	p_1=I-NPt0=.t1=eost2=eos
+context	p_1=I-NPw_2=and
+context	p_1=I-NPw_1=🇯🇵x
+context	p_1=I-NPw0=🇩
+context	p_1=I-NPw1=eos
+context	p_1=I-NPw2=eos
+context	p_1=I-NPw_1=🇯🇵xw0=🇩
+context	p_1=I-NPw0=🇩w1=eos
+outcome	B-NP	3f95da6c55a768df 0.02134103081503091
+outcome	I-NP	3fa7cd5f01651657 0.04648873226191757
+outcome	B-PP	3f9756f2b76492bc 0.022792618220722302
+outcome	B-VP	3fa1f0f1bee1cda2 0.03504138426879001
+outcome	I-VP	3f8358cd2b4dc7ad 0.00944671905901714
+outcome	O	3fe9d591d43f2b51 0.8073205132908275
+outcome	B-ADVP	3f89b4aeaaea2077 0.01255165537919843
+outcome	B-PRT	3f9131fefa1825d6 0.016792282118364664
+outcome	B-ADJP	3f82019251bd545e 0.00879206001233451
+outcome	I-ADJP	3f80ebc2dae8c1aa 0.00826217871244313
+outcome	B-SBAR	3f86e0baddf35adf 0.011170825861353815
+end	30
+point	31	45	41	11	0	none
+context	w_2=and
+context	w_1=🇯🇵x
+context	w0=🇩
+context	w1=eos
+context	w2=eos
+context	w_1=🇯🇵xw0=🇩
+context	w0=🇩w1=eos
+context	t_2=CC
+context	t_1=CD
+context	t0=.
+context	t1=eos
+context	t2=eos
+context	t_2=CCt_1=CD
+context	t_1=CDt0=.
+context	t0=.t1=eos
+context	t1=eost2=eos
+context	t_2=CCt_1=CDt0=.
+context	t_1=CDt0=.t1=eos
+context	t0=.t1=eost2=eos
+context	p_2=B-PP
+context	p_1=B-NP
+context	p_2=B-PPp_1=B-NP
+context	p_1=B-NPt_2=CC
+context	p_1=B-NPt_1=CD
+context	p_1=B-NPt0=.
+context	p_1=B-NPt1=eos
+context	p_1=B-NPt2=eos
+context	p_1=B-NPt_2=CCt_1=CD
+context	p_1=B-NPt_1=CDt0=.
+context	p_1=B-NPt0=.t1=eos
+context	p_1=B-NPt1=eost2=eos
+context	p_1=B-NPt_2=CCt_1=CDt0=.
+context	p_1=B-NPt_1=CDt0=.t1=eos
+context	p_1=B-NPt0=.t1=eost2=eos
+context	p_1=B-NPw_2=and
+context	p_1=B-NPw_1=🇯🇵x
+context	p_1=B-NPw0=🇩
+context	p_1=B-NPw1=eos
+context	p_1=B-NPw2=eos
+context	p_1=B-NPw_1=🇯🇵xw0=🇩
+context	p_1=B-NPw0=🇩w1=eos
+outcome	B-NP	3f8c5f5449623ee5 0.013853701104636193
+outcome	I-NP	3fa7d34997a0f2cd 0.046533870467532525
+outcome	B-PP	3f8b3a72955f1254 0.013295073684170301
+outcome	B-VP	3f8b60a6bc9aa408 0.013367941504229833
+outcome	I-VP	3f77f039230b2e75 0.0058443290624371385
+outcome	O	3feb780a2b1b61b6 0.8584032861645514
+outcome	B-ADVP	3f84a5b8aad32ac6 0.010081713402901992
+outcome	B-PRT	3f864bcbc581d06c 0.010886756863534873
+outcome	B-ADJP	3f81bb1ae97116ba 0.00865765595348066
+outcome	I-ADJP	3f80c5598e7a5842 0.008188914928990102
+outcome	B-SBAR	3f864bcbc581d06c 0.010886756863534873
+end	31
+point	32	45	41	11	0	none
+context	w_2=and
+context	w_1=🇯🇵x
+context	w0=🇩
+context	w1=eos
+context	w2=eos
+context	w_1=🇯🇵xw0=🇩
+context	w0=🇩w1=eos
+context	t_2=CC
+context	t_1=CD
+context	t0=.
+context	t1=eos
+context	t2=eos
+context	t_2=CCt_1=CD
+context	t_1=CDt0=.
+context	t0=.t1=eos
+context	t1=eost2=eos
+context	t_2=CCt_1=CDt0=.
+context	t_1=CDt0=.t1=eos
+context	t0=.t1=eost2=eos
+context	p_2=B-NP
+context	p_1=I-NP
+context	p_2=B-NPp_1=I-NP
+context	p_1=I-NPt_2=CC
+context	p_1=I-NPt_1=CD
+context	p_1=I-NPt0=.
+context	p_1=I-NPt1=eos
+context	p_1=I-NPt2=eos
+context	p_1=I-NPt_2=CCt_1=CD
+context	p_1=I-NPt_1=CDt0=.
+context	p_1=I-NPt0=.t1=eos
+context	p_1=I-NPt1=eost2=eos
+context	p_1=I-NPt_2=CCt_1=CDt0=.
+context	p_1=I-NPt_1=CDt0=.t1=eos
+context	p_1=I-NPt0=.t1=eost2=eos
+context	p_1=I-NPw_2=and
+context	p_1=I-NPw_1=🇯🇵x
+context	p_1=I-NPw0=🇩
+context	p_1=I-NPw1=eos
+context	p_1=I-NPw2=eos
+context	p_1=I-NPw_1=🇯🇵xw0=🇩
+context	p_1=I-NPw0=🇩w1=eos
+outcome	B-NP	3f8ec6b508013e58 0.015027441317356935
+outcome	I-NP	3fae012c22d26803 0.058602694750518956
+outcome	B-PP	3f9cf48156671b44 0.02827646341190905
+outcome	B-VP	3fa6ae3275f8a372 0.04429776849821722
+outcome	I-VP	3f838921cc203280 0.00953890232269683
+outcome	O	3fe92c2b19c96cf5 0.7866416457794957
+outcome	B-ADVP	3f87960a382dde2e 0.011516647185756925
+outcome	B-PRT	3f8de1c9276fe40a 0.01459080840685269
+outcome	B-ADJP	3f78a44cc96c04ff 0.006016063641028468
+outcome	I-ADJP	3f8ce24577b7aace 0.014103453365313181
+outcome	B-SBAR	3f8752a66d7d7dfd 0.011388111320854039
+end	32
+point	33	45	41	11	0	none
+context	w_2=and
+context	w_1=🇯🇵x
+context	w0=🇩
+context	w1=eos
+context	w2=eos
+context	w_1=🇯🇵xw0=🇩
+context	w0=🇩w1=eos
+context	t_2=CC
+context	t_1=CD
+context	t0=.
+context	t1=eos
+context	t2=eos
+context	t_2=CCt_1=CD
+context	t_1=CDt0=.
+context	t0=.t1=eos
+context	t1=eost2=eos
+context	t_2=CCt_1=CDt0=.
+context	t_1=CDt0=.t1=eos
+context	t0=.t1=eost2=eos
+context	p_2=B-NP
+context	p_1=I-NP
+context	p_2=B-NPp_1=I-NP
+context	p_1=I-NPt_2=CC
+context	p_1=I-NPt_1=CD
+context	p_1=I-NPt0=.
+context	p_1=I-NPt1=eos
+context	p_1=I-NPt2=eos
+context	p_1=I-NPt_2=CCt_1=CD
+context	p_1=I-NPt_1=CDt0=.
+context	p_1=I-NPt0=.t1=eos
+context	p_1=I-NPt1=eost2=eos
+context	p_1=I-NPt_2=CCt_1=CDt0=.
+context	p_1=I-NPt_1=CDt0=.t1=eos
+context	p_1=I-NPt0=.t1=eost2=eos
+context	p_1=I-NPw_2=and
+context	p_1=I-NPw_1=🇯🇵x
+context	p_1=I-NPw0=🇩
+context	p_1=I-NPw1=eos
+context	p_1=I-NPw2=eos
+context	p_1=I-NPw_1=🇯🇵xw0=🇩
+context	p_1=I-NPw0=🇩w1=eos
+outcome	B-NP	3f8ec6b508013e58 0.015027441317356935
+outcome	I-NP	3fae012c22d26803 0.058602694750518956
+outcome	B-PP	3f9cf48156671b44 0.02827646341190905
+outcome	B-VP	3fa6ae3275f8a372 0.04429776849821722
+outcome	I-VP	3f838921cc203280 0.00953890232269683
+outcome	O	3fe92c2b19c96cf5 0.7866416457794957
+outcome	B-ADVP	3f87960a382dde2e 0.011516647185756925
+outcome	B-PRT	3f8de1c9276fe40a 0.01459080840685269
+outcome	B-ADJP	3f78a44cc96c04ff 0.006016063641028468
+outcome	I-ADJP	3f8ce24577b7aace 0.014103453365313181
+outcome	B-SBAR	3f8752a66d7d7dfd 0.011388111320854039
+end	33
+point	34	45	41	11	0	none
+context	w_2=and
+context	w_1=🇯🇵x
+context	w0=🇩
+context	w1=eos
+context	w2=eos
+context	w_1=🇯🇵xw0=🇩
+context	w0=🇩w1=eos
+context	t_2=CC
+context	t_1=CD
+context	t0=.
+context	t1=eos
+context	t2=eos
+context	t_2=CCt_1=CD
+context	t_1=CDt0=.
+context	t0=.t1=eos
+context	t1=eost2=eos
+context	t_2=CCt_1=CDt0=.
+context	t_1=CDt0=.t1=eos
+context	t0=.t1=eost2=eos
+context	p_2=O
+context	p_1=B-NP
+context	p_2=Op_1=B-NP
+context	p_1=B-NPt_2=CC
+context	p_1=B-NPt_1=CD
+context	p_1=B-NPt0=.
+context	p_1=B-NPt1=eos
+context	p_1=B-NPt2=eos
+context	p_1=B-NPt_2=CCt_1=CD
+context	p_1=B-NPt_1=CDt0=.
+context	p_1=B-NPt0=.t1=eos
+context	p_1=B-NPt1=eost2=eos
+context	p_1=B-NPt_2=CCt_1=CDt0=.
+context	p_1=B-NPt_1=CDt0=.t1=eos
+context	p_1=B-NPt0=.t1=eost2=eos
+context	p_1=B-NPw_2=and
+context	p_1=B-NPw_1=🇯🇵x
+context	p_1=B-NPw0=🇩
+context	p_1=B-NPw1=eos
+context	p_1=B-NPw2=eos
+context	p_1=B-NPw_1=🇯🇵xw0=🇩
+context	p_1=B-NPw0=🇩w1=eos
+outcome	B-NP	3f93589a4276890d 0.018892679506856292
+outcome	I-NP	3fab71cb5d4a0bb2 0.05360255731377296
+outcome	B-PP	3f921ed4d723c98c 0.01769573748692603
+outcome	B-VP	3f944cc2bd40ee2b 0.01982406883347047
+outcome	I-VP	3f7cc5b248287cff 0.007024475492044545
+outcome	O	3fea61af1cc90187 0.8244243204317606
+outcome	B-ADVP	3f88d1116a74a643 0.012117515622395497
+outcome	B-PRT	3f8acc5f4c972856 0.013085121655326198
+outcome	B-ADJP	3f854faffc89d8c3 0.010405897993433283
+outcome	I-ADJP	3f84284e869fdfb1 0.009842504008687887
+outcome	B-SBAR	3f8acc5f4c972856 0.013085121655326198
+end	34
+point	35	45	41	11	0	none
+context	w_2=and
+context	w_1=🇯🇵x
+context	w0=🇩
+context	w1=eos
+context	w2=eos
+context	w_1=🇯🇵xw0=🇩
+context	w0=🇩w1=eos
+context	t_2=CC
+context	t_1=CD
+context	t0=.
+context	t1=eos
+context	t2=eos
+context	t_2=CCt_1=CD
+context	t_1=CDt0=.
+context	t0=.t1=eos
+context	t1=eost2=eos
+context	t_2=CCt_1=CDt0=.
+context	t_1=CDt0=.t1=eos
+context	t0=.t1=eost2=eos
+context	p_2=O
+context	p_1=B-VP
+context	p_2=Op_1=B-VP
+context	p_1=B-VPt_2=CC
+context	p_1=B-VPt_1=CD
+context	p_1=B-VPt0=.
+context	p_1=B-VPt1=eos
+context	p_1=B-VPt2=eos
+context	p_1=B-VPt_2=CCt_1=CD
+context	p_1=B-VPt_1=CDt0=.
+context	p_1=B-VPt0=.t1=eos
+context	p_1=B-VPt1=eost2=eos
+context	p_1=B-VPt_2=CCt_1=CDt0=.
+context	p_1=B-VPt_1=CDt0=.t1=eos
+context	p_1=B-VPt0=.t1=eost2=eos
+context	p_1=B-VPw_2=and
+context	p_1=B-VPw_1=🇯🇵x
+context	p_1=B-VPw0=🇩
+context	p_1=B-VPw1=eos
+context	p_1=B-VPw2=eos
+context	p_1=B-VPw_1=🇯🇵xw0=🇩
+context	p_1=B-VPw0=🇩w1=eos
+outcome	B-NP	3fbea3f26bb59162 0.11968913201923706
+outcome	I-NP	3fb4f3c9af0f4e4c 0.08184490703507058
+outcome	B-PP	3fbeadec915553a2 0.119841371042027
+outcome	B-VP	3fb002c71e4cd89d 0.06254238595724577
+outcome	I-VP	3fa41954b15074c7 0.039255758900461006
+outcome	O	3fd4f9b2042c307e 0.32774019629938056
+outcome	B-ADVP	3fade51ff8c4d370 0.05838870918015615
+outcome	B-PRT	3fa8487bee303eef 0.04742800982068995
+outcome	B-ADJP	3fae87101d91edd7 0.05962419854128214
+outcome	I-ADJP	3fa2ca559271ecb6 0.036699937941159375
+outcome	B-SBAR	3fa8093a0187027b 0.04694539326329036
+end	35
+point	36	45	41	11	0	none
+context	w_2=and
+context	w_1=🇯🇵x
+context	w0=🇩
+context	w1=eos
+context	w2=eos
+context	w_1=🇯🇵xw0=🇩
+context	w0=🇩w1=eos
+context	t_2=CC
+context	t_1=CD
+context	t0=.
+context	t1=eos
+context	t2=eos
+context	t_2=CCt_1=CD
+context	t_1=CDt0=.
+context	t0=.t1=eos
+context	t1=eost2=eos
+context	t_2=CCt_1=CDt0=.
+context	t_1=CDt0=.t1=eos
+context	t0=.t1=eost2=eos
+context	p_2=O
+context	p_1=B-NP
+context	p_2=Op_1=B-NP
+context	p_1=B-NPt_2=CC
+context	p_1=B-NPt_1=CD
+context	p_1=B-NPt0=.
+context	p_1=B-NPt1=eos
+context	p_1=B-NPt2=eos
+context	p_1=B-NPt_2=CCt_1=CD
+context	p_1=B-NPt_1=CDt0=.
+context	p_1=B-NPt0=.t1=eos
+context	p_1=B-NPt1=eost2=eos
+context	p_1=B-NPt_2=CCt_1=CDt0=.
+context	p_1=B-NPt_1=CDt0=.t1=eos
+context	p_1=B-NPt0=.t1=eost2=eos
+context	p_1=B-NPw_2=and
+context	p_1=B-NPw_1=🇯🇵x
+context	p_1=B-NPw0=🇩
+context	p_1=B-NPw1=eos
+context	p_1=B-NPw2=eos
+context	p_1=B-NPw_1=🇯🇵xw0=🇩
+context	p_1=B-NPw0=🇩w1=eos
+outcome	B-NP	3f93589a4276890d 0.018892679506856292
+outcome	I-NP	3fab71cb5d4a0bb2 0.05360255731377296
+outcome	B-PP	3f921ed4d723c98c 0.01769573748692603
+outcome	B-VP	3f944cc2bd40ee2b 0.01982406883347047
+outcome	I-VP	3f7cc5b248287cff 0.007024475492044545
+outcome	O	3fea61af1cc90187 0.8244243204317606
+outcome	B-ADVP	3f88d1116a74a643 0.012117515622395497
+outcome	B-PRT	3f8acc5f4c972856 0.013085121655326198
+outcome	B-ADJP	3f854faffc89d8c3 0.010405897993433283
+outcome	I-ADJP	3f84284e869fdfb1 0.009842504008687887
+outcome	B-SBAR	3f8acc5f4c972856 0.013085121655326198
+end	36
+point	37	45	41	11	0	none
+context	w_2=and
+context	w_1=🇯🇵x
+context	w0=🇩
+context	w1=eos
+context	w2=eos
+context	w_1=🇯🇵xw0=🇩
+context	w0=🇩w1=eos
+context	t_2=CC
+context	t_1=CD
+context	t0=.
+context	t1=eos
+context	t2=eos
+context	t_2=CCt_1=CD
+context	t_1=CDt0=.
+context	t0=.t1=eos
+context	t1=eost2=eos
+context	t_2=CCt_1=CDt0=.
+context	t_1=CDt0=.t1=eos
+context	t0=.t1=eost2=eos
+context	p_2=B-VP
+context	p_1=B-NP
+context	p_2=B-VPp_1=B-NP
+context	p_1=B-NPt_2=CC
+context	p_1=B-NPt_1=CD
+context	p_1=B-NPt0=.
+context	p_1=B-NPt1=eos
+context	p_1=B-NPt2=eos
+context	p_1=B-NPt_2=CCt_1=CD
+context	p_1=B-NPt_1=CDt0=.
+context	p_1=B-NPt0=.t1=eos
+context	p_1=B-NPt1=eost2=eos
+context	p_1=B-NPt_2=CCt_1=CDt0=.
+context	p_1=B-NPt_1=CDt0=.t1=eos
+context	p_1=B-NPt0=.t1=eost2=eos
+context	p_1=B-NPw_2=and
+context	p_1=B-NPw_1=🇯🇵x
+context	p_1=B-NPw0=🇩
+context	p_1=B-NPw1=eos
+context	p_1=B-NPw2=eos
+context	p_1=B-NPw_1=🇯🇵xw0=🇩
+context	p_1=B-NPw0=🇩w1=eos
+outcome	B-NP	3f9298c6db23762c 0.018160922169832158
+outcome	I-NP	3faa1044ff22040d 0.050905376571798035
+outcome	B-PP	3f91a1cca0eefef1 0.017218777964216284
+outcome	B-VP	3f9015a03b36f3e4 0.01570749627511593
+outcome	I-VP	3f7e193d79246894 0.007348289613469689
+outcome	O	3feadcc6beb78aac 0.8394502377453441
+outcome	B-ADVP	3f8364bdf49d3546 0.009469493892221192
+outcome	B-PRT	3f8a32bb115e6ad6 0.012792073695711375
+outcome	B-ADJP	3f84d5812a2f354e 0.010172852611413898
+outcome	I-ADJP	3f827bc50cea3edd 0.009025134522090134
+outcome	B-SBAR	3f83f776ed5b2a6a 0.00974934493878728
+end	37

@@ -1,21 +1,24 @@
 //! The fixture models the JVM trained are trained again here, and the
 //! parts the JVM wrote come out byte for byte: the manifest, the
 //! dictionary entries, the descriptor and the model entry. The fixtures
-//! the Rust trainer wrote (`pos-fixture-rust.bin`, `lemma-fixture-rust.bin`)
-//! are trained here too and must be the checked in files byte for byte;
-//! the golden generator loads them in the JVM and tags with them
-//! (`analysis/postag/tests/golden.rs`, `analysis/lemmatizer/tests/golden.rs`).
+//! the Rust trainer wrote (`pos-fixture-rust.bin`, `lemma-fixture-rust.bin`,
+//! `chunker-fixture-rust.bin`) are trained here too and must be the checked
+//! in files byte for byte; the golden generator loads them in the JVM and
+//! tags, lemmatizes or chunks with them (`analysis/postag/tests/golden.rs`,
+//! `analysis/lemmatizer/tests/golden.rs`,
+//! `analysis/phrase-chunker/tests/golden.rs`).
 //!
 //! With `TURBO_TRAIN_OUT` set to a directory, the Rust fixtures trained
 //! here are written there, which is how they were made.
 
 use std::path::{Path, PathBuf};
 
-use turbo_formats::native::{LemmaReader, WordTagReader};
+use turbo_formats::native::{ChunkReader, LemmaReader, WordTagReader};
 use turbo_goldens::data_dir;
 use turbo_maxent::{JavaString, ModelFile};
 use turbo_train::package::MANIFEST_ENTRY;
-use turbo_train::{Key, TimeZone, TrainingConfiguration, TrainingParameters};
+use turbo_train::{Algorithm, Key, TimeZone, TrainingConfiguration, TrainingParameters};
+use turbo_train_components::chunk::{self, ChunkerFactory, train_chunker_model};
 use turbo_train_components::lemmatize::{self, LemmatizerFactory, train_lemmatizer_model};
 use turbo_train_components::postag::{self, PosTaggerFactory, train_pos_model};
 use turbo_train_components::sentdetect::{self, SentenceDetectorFactory, train_sentence_model};
@@ -198,6 +201,31 @@ fn pos_fixture_is_trained_again_with_its_descriptor_and_tag_dictionary() {
     }
 }
 
+#[test]
+fn chunker_fixture_is_trained_again_from_its_eight_sentences() {
+    // FixtureModels.java: ChunkerME.train over ChunkSampleStream with the
+    // perceptron, 50 iterations, cutoff 1, one thread.
+    let theirs = fixture("chunker-fixture.bin");
+    let text = read_text(&goldens_data("train-fixtures/train-chunk.txt"));
+    let samples: Vec<_> = ChunkReader::new(&text).unwrap().map(|s| s.unwrap()).collect();
+    assert_eq!(samples.len(), 8);
+    let mut p = TrainingParameters::new();
+    p.put_str(Key::ALGORITHM, Algorithm::Perceptron.name());
+    p.put(Key::ITERATIONS, 50);
+    p.put(Key::CUTOFF, 1);
+    p.put(Key::THREADS, 1);
+    let stamp = Stamp { timestamp_ms: timestamp(&theirs), version: "3.0.0-SNAPSHOT", zone: TimeZone::UTC };
+    let ours =
+        train_chunker_model(&samples, &ChunkerFactory::new("en"), &p, &mut TrainingConfiguration::default(), stamp)
+            .unwrap();
+    assert_eq!(ours.package.entry_names(), ["chunker.model", "manifest.properties"]);
+    assert_eq!(ours.package.entry_names(), entry_names(&theirs), "the zip entries in the JVM's order");
+    let ours = ModelFile::open(ours.package.to_bytes()).unwrap();
+    for entry in [MANIFEST_ENTRY, chunk::MODEL_ENTRY] {
+        assert_eq!(&*ours.entry(entry).unwrap(), &*theirs.entry(entry).unwrap(), "{entry}");
+    }
+}
+
 /// The tagged inputs the Rust fixtures are trained from.
 fn tagged(file: &str) -> String {
     read_text(&data_dir().join("inputs/tagged").join(file))
@@ -282,3 +310,35 @@ fn the_rust_lemma_fixture_is_the_bin_written_here() {
     assert!(outcomes.contains(&&smile) && outcomes.contains(&&ok), "{outcomes:?}");
     assert_eq!(model.outcome_texts(), Err(&smile));
 }
+
+#[test]
+fn the_rust_chunker_fixture_is_the_bin_written_here() {
+    let text = tagged("chunks.txt");
+    let samples: Vec<_> = ChunkReader::new(&text).unwrap().map(|s| s.unwrap()).collect();
+    assert_eq!(samples.len(), CHUNK_SAMPLES);
+    let factory = ChunkerFactory::new("en");
+    let ours = train_chunker_model(
+        &samples,
+        &factory,
+        &tagger_parameters(100),
+        &mut TrainingConfiguration::default(),
+        Stamp::at(RUST_FIXTURE_TIMESTAMP),
+    )
+    .unwrap();
+    let bin = ours.package.to_bytes();
+    check_rust_fixture("chunker-fixture-rust.bin", &bin);
+    let file = ModelFile::open(bin).unwrap();
+    assert_eq!(entry_names(&file), ["chunker.model", "manifest.properties"]);
+    assert_eq!(file.manifest().get("Component-Name"), Some("ChunkerME"));
+    assert_eq!(file.manifest().get("factory"), Some("opennlp.tools.chunker.ChunkerFactory"));
+    assert_eq!(file.manifest().get("BeamSize"), Some("10"));
+    // turbo-phrase-chunker opens it.
+    let model = turbo_phrase_chunker::ChunkerModel::open(file).unwrap();
+    let outcomes: Vec<&str> = model.maxent().outcome_texts().unwrap();
+    for tag in ["O", "B-NP", "I-NP", "B-VP", "I-VP", "B-PP", "B-ADJP", "B-ADVP", "B-SBAR", "B-PRT"] {
+        assert!(outcomes.contains(&tag), "{tag} is not an outcome of {outcomes:?}");
+    }
+}
+
+/// The samples of `inputs/tagged/chunks.txt`.
+const CHUNK_SAMPLES: usize = 30;
