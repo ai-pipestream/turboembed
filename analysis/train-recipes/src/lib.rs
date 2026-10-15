@@ -359,7 +359,6 @@ pub fn run(
         split: SPLIT,
         training_documents: split.train.documents().len(),
         held_out_documents: split.held_out_paths.clone(),
-        skipped_documents: split.skipped_paths.clone(),
     };
     let card = ModelCard::new(recipe, &trained, corpus, held_out, &gate);
     Ok(Outcome { trained, gate, card })

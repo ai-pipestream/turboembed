@@ -60,8 +60,6 @@ pub struct CorpusCard {
     pub training_documents: usize,
     /// The held-out documents, relative to the corpus directory.
     pub held_out_documents: Vec<String>,
-    /// Documents the corpus read logged and left out.
-    pub skipped_documents: Vec<String>,
 }
 
 /// The trainer's parameters, as the parameters file gives them.

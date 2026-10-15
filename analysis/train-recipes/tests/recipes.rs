@@ -52,10 +52,23 @@ fn the_split_holds_out_every_tenth_document_in_read_order() {
         [9, 19].iter().map(|&i| all[i].strip_prefix(&root).unwrap().to_string_lossy().into_owned()).collect();
     assert_eq!(split.held_out_paths, held);
     assert!(split.held_out_paths.iter().all(|p| !p.starts_with('/')), "{:?}", split.held_out_paths);
-    assert!(split.skipped_paths.is_empty());
     // The read order is the reader's: each directory's entries by name,
     // a directory's subdirectories after its files, the last pushed first.
     assert!(split.held_out_paths[0].starts_with("written/news/"), "{:?}", split.held_out_paths);
+
+    // A document the read skips (here, its header names no sentence
+    // file) would move the documents after it: the split refuses the
+    // corpus.
+    let header = root.join(&split.held_out_paths[1]);
+    let xml = std::fs::read_to_string(&header).unwrap();
+    let without = xml.lines().filter(|l| !l.contains("f.id=\"f.s\"")).collect::<Vec<_>>().join("\n");
+    assert_ne!(without, xml);
+    std::fs::write(&header, without).unwrap();
+    let corpus = MascCorpus::read(&root).unwrap();
+    assert_eq!(corpus.skipped().len(), 1);
+    let err = SPLIT.apply(corpus, &root).unwrap_err();
+    assert!(matches!(&err, Error::SkippedDocuments { documents } if documents.len() == 1), "{err:?}");
+    assert!(err.to_string().contains(&split.held_out_paths[1]), "{err}");
     std::fs::remove_dir_all(&root).unwrap();
 }
 

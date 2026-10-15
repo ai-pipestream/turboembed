@@ -282,9 +282,6 @@ pub struct SplitCorpus {
     pub held_out: MascCorpus,
     /// The held-out documents' paths relative to the corpus directory.
     pub held_out_paths: Vec<String>,
-    /// The documents the corpus read skipped (it logged and left them
-    /// out), relative to the corpus directory.
-    pub skipped_paths: Vec<String>,
 }
 
 impl Split {
@@ -306,19 +303,31 @@ impl Split {
         position % self.every == self.held_out_at
     }
 
-    /// Splits `corpus`, read from `root`, by the documents' places.
+    /// Splits `corpus`, read from `root`, by the documents' places. A
+    /// document the corpus read skipped (it logged its error and left it
+    /// out, as `MascDocumentStream` does) has no place, so it would move
+    /// every document read after it to the next place and change which
+    /// are held out: a corpus with one is refused. MASC 3.0.0 has none.
     ///
     /// # Errors
     ///
-    /// [`Error::OutsideCorpus`] for a document whose path is not under
-    /// `root`, which a corpus read from `root` does not have.
+    /// [`Error::SkippedDocuments`] for a corpus whose read skipped a
+    /// document, and [`Error::OutsideCorpus`] for a document whose path is
+    /// not under `root`, which a corpus read from `root` does not have.
     pub fn apply(&self, corpus: MascCorpus, root: &Path) -> Result<SplitCorpus> {
         let root = std::path::absolute(root).map_err(io(root))?;
         let rel = |p: &Path| -> Result<String> {
             let inside = p.strip_prefix(&root).map_err(|_| Error::OutsideCorpus { path: p.to_owned() })?;
             Ok(inside.to_string_lossy().into_owned())
         };
-        let skipped_paths = corpus.skipped().iter().map(|s| rel(&s.path)).collect::<Result<_>>()?;
+        if !corpus.skipped().is_empty() {
+            let documents = corpus
+                .skipped()
+                .iter()
+                .map(|s| Ok(format!("{} ({})", rel(&s.path)?, s.error)))
+                .collect::<Result<_>>()?;
+            return Err(Error::SkippedDocuments { documents });
+        }
         let (mut train, mut held_out): (Vec<MascDocument>, Vec<MascDocument>) = (Vec::new(), Vec::new());
         for (i, doc) in corpus.into_documents().into_iter().enumerate() {
             if self.is_held_out(i) { held_out.push(doc) } else { train.push(doc) }
@@ -328,7 +337,6 @@ impl Split {
             train: MascCorpus::from_documents(train),
             held_out: MascCorpus::from_documents(held_out),
             held_out_paths,
-            skipped_paths,
         })
     }
 }

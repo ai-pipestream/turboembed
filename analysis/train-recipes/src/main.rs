@@ -93,12 +93,7 @@ fn masc_command(a: Args) -> Result<bool, String> {
     let reference_bytes = check_before_training(&recipes, &references, &out)?;
     let corpus = MascCorpus::read(&corpus_dir).map_err(|e| Error::from(e).to_string())?;
     let split = masc::SPLIT.apply(corpus, &corpus_dir).map_err(|e| e.to_string())?;
-    println!(
-        "{} training documents, {} held out, {} skipped by the reader",
-        split.train.documents().len(),
-        split.held_out.documents().len(),
-        split.skipped_paths.len()
-    );
+    println!("{} training documents, {} held out", split.train.documents().len(), split.held_out.documents().len());
     let mut all_pass = true;
     for (recipe, reference) in recipes.iter().zip(&reference_bytes) {
         let outcome =

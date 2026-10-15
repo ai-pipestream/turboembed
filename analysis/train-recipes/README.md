@@ -44,7 +44,11 @@ error.
 
 - Split: the documents in the reader's order (each directory's headers
   by name); positions 9, 19, 29 and so on are held out, one in ten. No
-  randomness, so no seed.
+  randomness, so no seed. A document the reader skips (it logs the
+  error and leaves the document out, as OpenNLP's `MascDocumentStream`
+  does) would move every document after it to the next position, so a
+  corpus with one is refused (`Error::SkippedDocuments`); MASC 3.0.0
+  has none.
 - Parameters: those the UD 1.3 models were trained with
   (`ud::training_parameters`: GIS, 300 iterations, cutoff 5, 4 threads),
   the factory defaults for English (for the tagger: the default feature

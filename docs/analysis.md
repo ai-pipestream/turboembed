@@ -2079,7 +2079,9 @@ trained on MASC 3.0.0 (CC BY 3.0 US), gated against
   files). A run on any other directory needs `--unrecorded-corpus` and
   marks its cards as not a release.
 - The split: the documents in the order the reader reads them; every
-  tenth, from the tenth, is held out. No randomness, so no seed.
+  tenth, from the tenth, is held out. No randomness, so no seed. A
+  corpus with a document the reader skips is refused, since the skip
+  would move the documents after it.
 - The training: the factory defaults and the settings of the UD 1.3
   models (GIS, 300 iterations, cutoff 5, 4 threads, OpenNLP 2.5.4's
   whitespace, 10 sentences per sentence detector sample, the default

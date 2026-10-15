@@ -27,6 +27,9 @@ pub enum Error {
     InvalidCard { field: &'static str, message: String },
     /// A document whose path is not under the corpus directory.
     OutsideCorpus { path: PathBuf },
+    /// Documents the corpus read skipped, each with its error, which
+    /// would move the documents after them to other places of the split.
+    SkippedDocuments { documents: Vec<String> },
     /// A card that may not become a zoo entry: no recipe trains it, it was
     /// not gated against its recipe's reference, its gate failed, or its
     /// corpus is not the recorded release.
@@ -92,6 +95,13 @@ impl fmt::Display for Error {
             }
             Error::InvalidCard { field, message } => write!(f, "the model card's {field}: {message}"),
             Error::OutsideCorpus { path } => write!(f, "{}: not under the corpus directory", path.display()),
+            Error::SkippedDocuments { documents } => write!(
+                f,
+                "the corpus read skipped {} documents, which would move the documents after them to other places of \
+                 the split: {}",
+                documents.len(),
+                documents.join("; ")
+            ),
             Error::NotShippable { id, reason } => write!(f, "{id} is not shippable: {reason}"),
             Error::Json { path, message } => write!(f, "{}: {message}", path.display()),
             Error::CardVersion { path, found } => {
