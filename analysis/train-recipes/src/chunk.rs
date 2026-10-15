@@ -516,6 +516,7 @@ impl ChunkRecipe {
             skipped_sentences: skipped.total(),
             events: events.len(),
             event_hash: t.report.event_hash.expect("trained from events"),
+            names: None,
             chunks: Some(chunk_counts(train)),
         })
     }
@@ -631,6 +632,7 @@ impl ChunkRecipe {
             samples: held_out.len(),
             skipped_sentences: held_out.skipped().total(),
             tokens: None,
+            names: None,
             chunks: Some(held_out.chunks().clone()),
         };
         Ok(GateRun { record, held_out })

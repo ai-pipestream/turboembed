@@ -27,7 +27,8 @@ turbo-postag = { path = "../postag" }
 turbo-lemmatizer = { path = "../lemmatizer" }
 turbo-phrase-chunker = { path = "../phrase-chunker" }
 turbo-maxent = { path = "../maxent" }
-# The tokens and tags a chunker reads.
+# The tokens and tags a chunker reads, and running a trained name finder
+# and the reference one over held-out text.
 turbo-sequence = { path = "../sequence" }
 # Running the trained language detector and the reference over held-out
 # text, and java.util.Random for the language detector's split.
