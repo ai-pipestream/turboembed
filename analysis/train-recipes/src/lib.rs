@@ -13,16 +13,20 @@
 //!   (`en-pos-maxent.bin`).
 //! - [`card`]: the model card kept beside the gate record, and the
 //!   model's permissive zoo entry with its licence and attribution.
+//! - [`release`]: the release of this repository that publishes the
+//!   models, and their entries in the zoo's built-in index.
 //!
 //! [`run`] runs one recipe from a split corpus to the model, the card
 //! and the gate record; the `turbo-train-recipes` binary runs every
 //! recipe of [`RECIPES`] on a MASC directory and writes each model's
-//! directory.
+//! directory, and its `zoo-index` command makes the zoo's entries for the
+//! release that publishes them ([`release`]).
 
 pub mod card;
 pub mod error;
 pub mod masc;
 pub mod postag;
+pub mod release;
 pub mod segmentation;
 
 use std::fmt::{self, Write as _};

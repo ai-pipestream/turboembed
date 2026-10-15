@@ -3,6 +3,7 @@
 //! ```text
 //! turbo-train-recipes masc --corpus <dir> --references <dir> --out <dir> [--unrecorded-corpus] [--recipe <model id>]...
 //! turbo-train-recipes fetch-masc --home <dir>
+//! turbo-train-recipes zoo-index --models <dir> --release <tag> [--check]
 //! ```
 //!
 //! `masc` checks the extracted corpus against the recorded release, splits
@@ -26,6 +27,13 @@
 //!
 //! `fetch-masc` fetches the release archive through the zoo into
 //! `<home>/artifacts/`, checked against its recorded size and digests.
+//!
+//! `zoo-index` reads the model directories `masc` wrote into `--models`,
+//! checks each model file against its card, and prints the zoo's
+//! built-in index with each model's entry at its address in release
+//! `--release` (`release::index_with`). With `--check` it prints nothing
+//! of the index and exits with 1 unless the built-in index is already
+//! that one, naming the entries that differ.
 
 use std::path::{Path, PathBuf};
 use std::process::ExitCode;
@@ -33,11 +41,14 @@ use std::process::ExitCode;
 use turbo_formats::masc::MascCorpus;
 use turbo_train_recipes::card::write_model_dir;
 use turbo_train_recipes::masc::{self, RELEASE, SplitCorpus};
+use turbo_train_recipes::release::{self, ReleaseTag};
 use turbo_train_recipes::{Error, RECIPES, Recipe, run};
+use turbo_zoo::Index;
 
 const USAGE: &str = "usage:
   turbo-train-recipes masc --corpus <dir> --references <dir> --out <dir> [--unrecorded-corpus] [--recipe <model id>]...
-  turbo-train-recipes fetch-masc --home <dir>";
+  turbo-train-recipes fetch-masc --home <dir>
+  turbo-train-recipes zoo-index --models <dir> --release <tag> [--check]";
 
 struct Args {
     command: String,
@@ -45,15 +56,28 @@ struct Args {
     references: Option<PathBuf>,
     out: Option<PathBuf>,
     home: Option<PathBuf>,
+    models: Option<PathBuf>,
+    release: Option<ReleaseTag>,
     unrecorded: bool,
+    check: bool,
     recipes: Vec<Recipe>,
 }
 
 fn parse() -> Result<Args, String> {
     let mut it = std::env::args().skip(1);
     let command = it.next().ok_or(USAGE)?;
-    let mut a =
-        Args { command, corpus: None, references: None, out: None, home: None, unrecorded: false, recipes: Vec::new() };
+    let mut a = Args {
+        command,
+        corpus: None,
+        references: None,
+        out: None,
+        home: None,
+        models: None,
+        release: None,
+        unrecorded: false,
+        check: false,
+        recipes: Vec::new(),
+    };
     while let Some(flag) = it.next() {
         let mut value = || it.next().ok_or(format!("{flag} needs a value"));
         match flag.as_str() {
@@ -61,7 +85,10 @@ fn parse() -> Result<Args, String> {
             "--references" => a.references = Some(value()?.into()),
             "--out" => a.out = Some(value()?.into()),
             "--home" => a.home = Some(value()?.into()),
+            "--models" => a.models = Some(value()?.into()),
+            "--release" => a.release = Some(value()?.parse().map_err(|e: Error| e.to_string())?),
             "--unrecorded-corpus" => a.unrecorded = true,
+            "--check" => a.check = true,
             "--recipe" => {
                 let id = value()?;
                 let recipe = Recipe::trains(&id).ok_or_else(|| {
@@ -168,10 +195,36 @@ fn fetch_command(a: Args) -> Result<bool, String> {
     Ok(true)
 }
 
+fn zoo_index_command(a: Args) -> Result<bool, String> {
+    let models = need(a.models, "--models")?;
+    let tag = a.release.ok_or_else(|| format!("--release is required\n{USAGE}"))?;
+    let entries = release::entries(&models, &tag).map_err(|e| e.to_string())?;
+    let index = release::index_with(&Index::builtin(), &entries);
+    if !a.check {
+        print!("{index}");
+        return Ok(true);
+    }
+    if index == turbo_zoo::index::BUILTIN {
+        println!("the zoo's built-in index lists the {} models at their addresses in release {tag}", entries.len());
+        return Ok(true);
+    }
+    let builtin = Index::builtin();
+    for entry in &entries {
+        match builtin.get(entry.id.as_str()) {
+            Ok(listed) if listed == entry => {}
+            Ok(_) => println!("{}: the built-in index lists another entry", entry.id),
+            Err(_) => println!("{}: the built-in index does not list it", entry.id),
+        }
+    }
+    println!("the zoo's built-in index is not the one these models and release {tag} give");
+    Ok(false)
+}
+
 fn main() -> ExitCode {
     let result = parse().and_then(|a| match a.command.as_str() {
         "masc" => masc_command(a),
         "fetch-masc" => fetch_command(a),
+        "zoo-index" => zoo_index_command(a),
         _ => Err(USAGE.to_owned()),
     });
     match result {

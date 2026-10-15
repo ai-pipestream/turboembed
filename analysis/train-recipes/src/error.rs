@@ -61,6 +61,9 @@ pub enum Error {
     /// than [`crate::MAX_TOKENS_LEFT_OUT`] allows (`left_out`, by tag as
     /// written, of `of` tokens).
     TagsOutsideReference { reference: String, left_out: Vec<TagCount>, of: u64, limit: Limit },
+    /// A release tag that is not one segment of an address
+    /// ([`crate::release::ReleaseTag`]).
+    ReleaseTag { tag: String },
 }
 
 /// What a recipe leaves out, and [`Error::TooManyLeftOut`] counts.
@@ -140,6 +143,9 @@ impl fmt::Display for Error {
                     write!(f, " {} ({})", t.tag, t.tokens)?;
                 }
                 Ok(())
+            }
+            Error::ReleaseTag { tag } => {
+                write!(f, "release tag {tag:?}: a tag is ASCII letters, digits, `.`, `_` and `-`, and not `.` or `..`")
             }
         }
     }

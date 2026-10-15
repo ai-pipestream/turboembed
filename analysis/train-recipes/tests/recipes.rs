@@ -1,7 +1,8 @@
 //! The MASC recipes end to end on corpora written in MASC's layout: the
 //! split, training, scoring both models on the held-out samples, the
-//! gate, the card and the model's directory; and the part-of-speech
-//! recipe's samples on the MASC corpora checked in for the goldens.
+//! gate, the card, the model's directory and the zoo entries of a
+//! release; and the part-of-speech recipe's samples on the MASC corpora
+//! checked in for the goldens.
 
 /// The bundles the MASC goldens' inputs are written in, read as the
 /// `turbo-formats` tests read them.
@@ -23,6 +24,7 @@ use turbo_train_recipes::card::{
 };
 use turbo_train_recipes::masc::{self, ExcludedDocument, Exclusion, RELEASE, SPLIT, SplitCorpus};
 use turbo_train_recipes::postag::{self, POS, PosRecipe, ReferenceTags, Scored};
+use turbo_train_recipes::release::{self, MASC_MODELS, ReleaseTag};
 use turbo_train_recipes::segmentation::{SENTENCE, TOKENS, in_text_order, read_token_samples};
 use turbo_train_recipes::{Error, LeftOut, RECIPES, Recipe, Reference, held_out_name, run};
 use turbo_zoo::{Index, LicenceClass};
@@ -100,6 +102,7 @@ fn the_recipes_train_score_gate_and_write_their_cards() {
     let (rotated, _) = split_of(&rotated_root);
 
     let out = temp_dir("out");
+    let mut released_models = Vec::new();
     for recipe in RECIPES {
         let weak = match recipe {
             Recipe::Pos(_) => recipe.train(&rotated.train).unwrap(),
@@ -283,6 +286,7 @@ fn the_recipes_train_score_gate_and_write_their_cards() {
         assert_eq!(refused(&named_only), "it was not gated against its recipe's reference");
         let mut released = named_only.clone();
         released.gate.reference_sha256 = recipe.reference().sha256().unwrap();
+        released_models.push((released.clone(), outcome.trained.bytes.clone()));
         let mut unknown = released.clone();
         unknown.id = "turbo-en-masc-3.0.0-chunks-1".to_owned();
         assert_eq!(refused(&unknown), "no recipe trains it");
@@ -321,6 +325,7 @@ fn the_recipes_train_score_gate_and_write_their_cards() {
         mislabelled.class = LicenceClass::ShareAlike;
         assert!(matches!(mislabelled.artifact(&url), Err(Error::InvalidCard { field: "class", .. })));
     }
+    released_models_make_the_release_s_zoo_entries(&out.join("release"), &released_models);
     // A tagger trained on the plain corpus gives only `NN` and `.`: as the
     // reference it could never be right on most held-out tokens, and the
     // gate refuses it.
@@ -339,6 +344,68 @@ fn the_recipes_train_score_gate_and_write_their_cards() {
     }
     for dir in [root, plain_root, rotated_root, out] {
         std::fs::remove_dir_all(dir).unwrap();
+    }
+}
+
+/// The model directories of `models` (every recipe's card that may become
+/// a zoo entry, with its model) make the zoo entries of a release, in the
+/// recipes' order and each at its address there, and the built-in index
+/// with them added; a missing directory, a card in another model's
+/// directory or a model file that is not its card's makes none.
+fn released_models_make_the_release_s_zoo_entries(dir: &std::path::Path, models: &[(ModelCard, Vec<u8>)]) {
+    let tag: ReleaseTag = MASC_MODELS.parse().unwrap();
+    let write = |card: &ModelCard, bytes: &[u8]| {
+        let d = dir.join(&card.id);
+        std::fs::create_dir_all(&d).unwrap();
+        std::fs::write(d.join(CARD_FILE), card.to_json()).unwrap();
+        std::fs::write(d.join(&card.file.name), bytes).unwrap();
+    };
+    let (first, rest) = models.split_first().unwrap();
+    for (card, bytes) in rest {
+        write(card, bytes);
+    }
+    assert!(matches!(release::entries(dir, &tag), Err(Error::Io { .. })), "a recipe's directory is missing");
+    write(&first.0, &first.1);
+    let entries = release::entries(dir, &tag).unwrap();
+    let ids: Vec<&str> = entries.iter().map(|a| a.id.as_str()).collect();
+    assert_eq!(ids, RECIPES.map(|r| r.model_id()));
+    for (entry, (card, _)) in entries.iter().zip(models) {
+        assert_eq!(*entry, card.artifact(&tag.url(&card.file.name)).unwrap());
+        assert!(entry.files[0].url.as_str().starts_with(release::RELEASES));
+    }
+
+    // Added to an index without them, they follow its artifacts; added to
+    // the built-in index, which lists the MASC models trained on the
+    // recorded release, each replaces the entry of its id where it is.
+    let builtin = Index::builtin();
+    let one = Index::parse(Index::to_canonical_json(&builtin.list()[..1]).as_bytes()).unwrap();
+    let added = Index::parse(release::index_with(&one, &entries).as_bytes()).unwrap();
+    let added_ids: Vec<&str> = added.list().iter().map(|a| a.id.as_str()).collect();
+    assert_eq!(added_ids[0], builtin.list()[0].id.as_str());
+    assert_eq!(added_ids[1..], ids);
+    let replaced = Index::parse(release::index_with(&builtin, &entries).as_bytes()).unwrap();
+    assert_eq!(replaced.list().len(), builtin.list().len());
+    for (now, before) in replaced.list().iter().zip(builtin.list()) {
+        assert_eq!(now.id, before.id);
+        match entries.iter().find(|e| e.id == now.id) {
+            Some(entry) => assert_eq!(now, entry),
+            None => assert_eq!(now, before),
+        }
+    }
+
+    // A card in another model's directory, or a model file changed after
+    // its card was written, makes no entries.
+    let (card, bytes) = &models[1];
+    let moved_to = dir.join(models[0].0.id.as_str()).join(CARD_FILE);
+    std::fs::write(&moved_to, card.to_json()).unwrap();
+    assert!(matches!(release::entries(dir, &tag), Err(Error::InvalidCard { field: "id", .. })));
+    write(&first.0, &first.1);
+    let mut changed = bytes.clone();
+    *changed.last_mut().unwrap() ^= 1;
+    write(card, &changed);
+    match release::entries(dir, &tag) {
+        Err(Error::Zoo(turbo_zoo::ZooError::Integrity { id, .. })) => assert_eq!(id.as_str(), card.id),
+        other => panic!("{other:?}"),
     }
 }
 
@@ -1011,6 +1078,17 @@ fn the_binary_refuses_an_unrecorded_corpus_and_writes_each_model_s_directory() {
             assert_eq!(card.gate.reference, r.reference_id());
             assert_eq!(card.gate.reference_sha256, r.reference().sha256().unwrap());
         }
+        // Models trained on a corpus that is not the recorded release make
+        // no zoo entries, so the index is neither printed nor checked.
+        let index = std::process::Command::new(bin)
+            .args(["zoo-index", "--release", MASC_MODELS, "--models"])
+            .arg(out.join("models"))
+            .output()
+            .unwrap();
+        assert_eq!(index.status.code(), Some(2), "{index:?}");
+        let expected = if present.len() == RECIPES.len() { "not the recorded release" } else { CARD_FILE };
+        assert!(String::from_utf8_lossy(&index.stderr).contains(expected), "{index:?}");
+        assert!(index.stdout.is_empty(), "{index:?}");
     }
     for dir in [root, out] {
         std::fs::remove_dir_all(dir).unwrap();
