@@ -125,8 +125,11 @@ impl SequenceCodec for BioCodec {
     fn encode(&self, spans: &[Span], length: usize) -> Vec<String> {
         let mut outcomes = vec![Self::OTHER.to_owned(); length];
         for span in spans {
+            // An empty span marks its start token as a start, and none as
+            // a continuation: Java's loop from `start + 1` to `end` does
+            // not run.
             outcomes[span.start] = outcome(span, Self::START);
-            for slot in &mut outcomes[span.start + 1..span.end] {
+            for slot in outcomes.iter_mut().take(span.end).skip(span.start + 1) {
                 *slot = outcome(span, Self::CONTINUE);
             }
         }
@@ -331,6 +334,27 @@ mod tests {
         let refs: Vec<&str> = encoded.iter().map(String::as_str).collect();
         let decoded = BioCodec.decode(&refs);
         assert_eq!(decoded, [Span::new(0, 2, Some("person")), Span::new(3, 4, Some("default"))]);
+    }
+
+    #[test]
+    fn an_empty_bio_span_marks_its_start_token_and_nothing_else() {
+        let spans = [Span::new(1, 1, Some("x")), Span::new(2, 3, Some("y"))];
+        assert_eq!(BioCodec.encode(&spans, 4), ["other", "x-start", "y-start", "other"]);
+        // A later empty span at the same token replaces the outcome.
+        let spans = [Span::new(0, 0, Some("a")), Span::new(0, 0, Some("b"))];
+        assert_eq!(BioCodec.encode(&spans, 1), ["b-start"]);
+    }
+
+    #[test]
+    #[should_panic(expected = "index out of bounds")]
+    fn an_empty_bio_span_after_the_last_token_is_out_of_bounds() {
+        BioCodec.encode(&[Span::new(2, 2, None)], 2);
+    }
+
+    #[test]
+    fn an_empty_bilou_span_marks_the_token_before_it_as_a_unit() {
+        let spans = [Span::new(0, 2, Some("a")), Span::new(2, 2, Some("b"))];
+        assert_eq!(BilouCodec.encode(&spans, 3), ["a-start", "b-unit", "other"]);
     }
 
     #[test]
