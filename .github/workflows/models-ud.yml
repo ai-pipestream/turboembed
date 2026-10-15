@@ -38,21 +38,38 @@ jobs:
       - uses: actions/checkout@v7
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
+      # The release's models are the ones the zoo's index lists at its
+      # addresses; `zoo-index --check` below fails unless those are
+      # exactly release::UD_MODELS's.
+      - id: models
+        name: the release's models
+        run: |
+          set -euo pipefail
+          jq -r --arg p "$RELEASES$TAG/" '.artifacts[] | select(.files[0].url | startswith($p)) | .id' \
+            analysis/zoo/index/zoo.json > "$RUNNER_TEMP/ids"
+          [ -s "$RUNNER_TEMP/ids" ]
+          cat "$RUNNER_TEMP/ids"
+          echo "ids=$(sha256sum < "$RUNNER_TEMP/ids" | cut -d' ' -f1)" >> "$GITHUB_OUTPUT"
       # Every download is cached, and saved as soon as it is checked, so a
-      # run that fails later does not fetch it again. The treebanks'
-      # digests are in treebank.rs, so the cache's key changes with it.
-      # The zoo checks a cached file's size and digests and fetches it
-      # again only when they differ, and writes a fetched file only after
-      # checking it.
+      # run that fails later does not fetch it again. Only the treebanks
+      # the release's models are trained on are fetched; their digests are
+      # in treebank.rs, so the cache's key changes with it and with the
+      # models. The zoo checks a cached file's size and digests and fetches
+      # it again only when they differ, and writes a fetched file only
+      # after checking it.
       - id: treebanks-cache
         uses: actions/cache/restore@v4
         with:
           path: ${{ runner.temp }}/zoo/artifacts
-          key: ud-2.16-treebanks-${{ hashFiles('analysis/train-recipes/src/treebank.rs') }}
-      - name: fetch the UD 2.16 treebanks
+          key: ud-2.16-treebanks-${{ hashFiles('analysis/train-recipes/src/treebank.rs') }}-${{ steps.models.outputs.ids }}
+      - name: fetch the treebanks
         env:
           USER: runner
-        run: cargo run -q --release -p turbo-train-recipes -- fetch-ud --home "$RUNNER_TEMP/zoo"
+        run: |
+          set -euo pipefail
+          recipes=()
+          while read -r id; do recipes+=(--recipe "$id"); done < "$RUNNER_TEMP/ids"
+          cargo run -q --release -p turbo-train-recipes -- fetch-ud --home "$RUNNER_TEMP/zoo" "${recipes[@]}"
       - if: steps.treebanks-cache.outputs.cache-hit != 'true'
         uses: actions/cache/save@v4
         with:
@@ -83,16 +100,6 @@ jobs:
         with:
           path: ${{ runner.temp }}/references
           key: ${{ steps.references-cache.outputs.cache-primary-key }}
-      # The release's models are the ones the zoo's index lists at its
-      # addresses; `zoo-index --check` below fails unless those are
-      # exactly release::UD_MODELS's.
-      - name: the release's models
-        run: |
-          set -euo pipefail
-          jq -r --arg p "$RELEASES$TAG/" '.artifacts[] | select(.files[0].url | startswith($p)) | .id' \
-            analysis/zoo/index/zoo.json > "$RUNNER_TEMP/ids"
-          [ -s "$RUNNER_TEMP/ids" ]
-          cat "$RUNNER_TEMP/ids"
       - name: train and gate
         run: |
           set -euo pipefail

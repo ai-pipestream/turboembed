@@ -560,14 +560,28 @@ fn a_card_is_shippable_only_when_gated_against_its_recipe_s_reference_and_passed
     assert!(refused(&card, "it failed its gate"));
     card.gate.pass = true;
     // The card names the recipe's model, but the model was trained and
-    // gated on the test treebank.
-    assert!(refused(&card, "it was not trained and gated on its recipe's treebank"));
+    // gated on the test treebank: refused whichever of its training data
+    // and its treebank still names the test treebank.
+    let not_trained_there = "it was not trained and gated on its recipe's treebank";
+    assert!(refused(&card, not_trained_there));
+    let test_trained_on = card.trained_on.clone();
     card.trained_on = vec![SPANISH_ANCORA.training_data()];
-    assert!(refused(&card, "it was not trained and gated on its recipe's treebank"));
+    assert!(refused(&card, not_trained_there));
     card.treebank = TreebankCard::of(&SPANISH_ANCORA);
+    card.trained_on = test_trained_on;
+    assert!(refused(&card, not_trained_there));
+    card.trained_on = vec![SPANISH_ANCORA.training_data()];
     card.treebank.test.sha256 = treebank.test.sha256.to_owned();
-    assert!(refused(&card, "it was not trained and gated on its recipe's treebank"));
+    assert!(refused(&card, not_trained_there));
     card.treebank = TreebankCard::of(&SPANISH_ANCORA);
+    // Nor does a card of another component or language than its recipe's.
+    let invalid = |card: &UdModelCard, expected: &str| matches!(card.artifact("https://example.org/m.bin"), Err(Error::InvalidCard { field, .. }) if field == expected);
+    let mut other = card.clone();
+    other.component = turbo_zoo::Component::Pos;
+    assert!(invalid(&other, "component"));
+    let mut other = card.clone();
+    other.language = "ca".to_owned();
+    assert!(invalid(&other, "language"));
     let artifact = card.artifact("https://example.org/m.bin").unwrap();
     assert_eq!(artifact.version, MODEL_VERSION);
     assert_eq!(artifact.class, LicenceClass::Permissive);
@@ -601,12 +615,15 @@ fn a_card_is_shippable_only_when_gated_against_its_recipe_s_reference_and_passed
     let path = dir.join("card.json");
     std::fs::write(&path, r#"{"card_version": 1, "id": "x"}"#).unwrap();
     assert!(matches!(UdModelCard::read(&path), Err(Error::CardVersion { found: 1, expected: UD_CARD_VERSION, .. })));
-    // So is a card of version 3, without the chunk counts of the MASC
-    // card's parts.
+    // So is a card as version 3 wrote it, without the chunk and name
+    // counts of the MASC card's parts, though it reads to the same fields.
     let mut three: serde_json::Value = serde_json::from_str(&card.to_json()).unwrap();
     three["card_version"] = 3.into();
-    three["training"].as_object_mut().unwrap().remove("chunks");
-    three["held_out"].as_object_mut().unwrap().remove("chunks");
+    for part in ["training", "held_out"] {
+        for field in ["chunks", "names"] {
+            three[part].as_object_mut().unwrap().remove(field);
+        }
+    }
     std::fs::write(&path, serde_json::to_string_pretty(&three).unwrap()).unwrap();
     assert!(matches!(UdModelCard::read(&path), Err(Error::CardVersion { found: 3, .. })));
     std::fs::remove_dir_all(dir).unwrap();
@@ -794,6 +811,17 @@ fn the_ud_command_checks_every_reference_and_treebank_before_training() {
         String::from_utf8_lossy(&output.stderr).into_owned()
     };
     assert!(run(&out, &["--recipe", "turbo-en-ud-ewt-2.16-pos-1"]).contains("no recipe trains"));
+    // `fetch-ud` refuses a recipe there is none of before it fetches
+    // anything.
+    let fetch = std::process::Command::new(bin)
+        .args(["fetch-ud", "--home"])
+        .arg(out.join("zoo"))
+        .args(["--recipe", "turbo-es-ud-ancora-2.16-pos-1", "--recipe", "turbo-en-ud-ewt-2.16-pos-1"])
+        .output()
+        .unwrap();
+    assert_eq!(fetch.status.code(), Some(2), "{fetch:?}");
+    assert!(String::from_utf8_lossy(&fetch.stderr).contains("no recipe trains turbo-en-ud-ewt-2.16-pos-1"));
+    assert!(!out.join("zoo").exists());
     // No reference in the directory: every one is named, in the recipes'
     // order, and no treebank is read.
     let stderr =

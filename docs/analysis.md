@@ -2623,7 +2623,7 @@ models. `.github/workflows/models-ud.yml` trains them in CI, checks with
 index lists, and only then, run by hand on main, creates the release.
 `UdModelCard::artifact` makes an entry only for a card that names its
 recipe's treebank at release 2.16, with the sizes and digests of its
-files.
+files, and its recipe's component and language.
 
 - The data: each treebank's `LICENSE.txt`, README and UD `train`, `dev`
   and `test` files, with sizes, SHA-256 and SHA-512 recorded in
@@ -2682,7 +2682,7 @@ files.
   record. The run prints each card's summary, as the MASC run does.
 
 ```
-cargo run --release -p turbo-train-recipes -- fetch-ud --home <zoo-home>
+cargo run --release -p turbo-train-recipes -- fetch-ud --home <zoo-home> [--recipe <model id>]...
 cargo run --release -p turbo-train-recipes -- ud --treebanks <zoo-home>/artifacts \
     --references <dir with the OpenNLP UD models> --out <dir> [--recipe <model id>]...
 ```

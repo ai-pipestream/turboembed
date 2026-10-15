@@ -6,6 +6,12 @@ name: models-publish
 # the zoo's index and uploaded them as the artifact named by the tag. It
 # publishes exactly those files, from a job of its own, the only one that
 # may write to the repository.
+#
+# It sets no permissions of its own, so its job takes the calling job's
+# (`contents: write`). GitHub checks a called workflow's permissions
+# against its caller's when the run starts, and asking here for more than
+# a pull request from a fork may have (its token is read-only) can fail
+# the run there before the training job runs.
 
 on:
   workflow_call:
@@ -18,9 +24,6 @@ on:
         description: The first sentence of the release notes, saying what the models are.
         type: string
         required: true
-
-permissions:
-  contents: write
 
 jobs:
   publish:

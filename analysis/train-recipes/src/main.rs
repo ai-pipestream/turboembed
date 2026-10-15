@@ -4,7 +4,7 @@
 //! turbo-train-recipes masc --corpus <dir> --references <dir> --out <dir> [--unrecorded-corpus] [--recipe <model id>]...
 //! turbo-train-recipes fetch-masc --home <dir>
 //! turbo-train-recipes ud --treebanks <dir> --references <dir> --out <dir> [--recipe <model id>]...
-//! turbo-train-recipes fetch-ud --home <dir>
+//! turbo-train-recipes fetch-ud --home <dir> [--recipe <model id>]...
 //! turbo-train-recipes zoo-index --models <dir> --release <tag> [--check]
 //! turbo-train-recipes tatoeba --export <dir> --references <dir> --out <dir> [--unrecorded-export]
 //! ```
@@ -42,8 +42,9 @@
 //! then trains each model, gates it, writes `<out>/<model id>/` with the
 //! model, `card.json` and `gate.json`, and prints the card's summary, the
 //! gate record and the seconds the recipe took. The exit status is 1 when
-//! a gate fails and 2 on an error. `fetch-ud` fetches the treebanks'
-//! files at the release through the zoo into
+//! a gate fails and 2 on an error. `fetch-ud` fetches the files at the
+//! release of the treebanks the recipes `--recipe` names read (of every
+//! treebank without `--recipe`) through the zoo into
 //! `<home>/artifacts/<dataset id>/`.
 //!
 //! `zoo-index` reads the directories `masc` or `ud` wrote into `--models`
@@ -87,7 +88,7 @@ const USAGE: &str = "usage:
   turbo-train-recipes masc --corpus <dir> --references <dir> --out <dir> [--unrecorded-corpus] [--recipe <model id>]...
   turbo-train-recipes fetch-masc --home <dir>
   turbo-train-recipes ud --treebanks <dir> --references <dir> --out <dir> [--recipe <model id>]...
-  turbo-train-recipes fetch-ud --home <dir>
+  turbo-train-recipes fetch-ud --home <dir> [--recipe <model id>]...
   turbo-train-recipes zoo-index --models <dir> --release <tag> [--check]
   turbo-train-recipes tatoeba --export <dir> --references <dir> --out <dir> [--unrecorded-export]";
 
@@ -315,9 +316,10 @@ fn ud_command(a: Args) -> Result<bool, String> {
 }
 
 fn fetch_ud_command(a: Args) -> Result<bool, String> {
+    let recipes = chosen(&UD_RECIPES, &a.recipe_ids, |r: &UdRecipe| r.model_id)?;
     let home = need(a.home, "--home")?;
     let user = user()?;
-    for t in TREEBANKS {
+    for t in TREEBANKS.iter().filter(|t| recipes.iter().any(|r| r.treebank == **t)) {
         let dir = t.fetch(&home, &user).map_err(|e| e.to_string())?;
         println!("{}", dir.display());
     }

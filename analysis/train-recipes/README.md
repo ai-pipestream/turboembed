@@ -739,45 +739,47 @@ once published keeps its assets.
 
 `zoo-index --models <dir> --release <tag>` reads the directories `masc`
 or `ud` wrote into `<dir>` for the models the release `<tag>` publishes,
-checks each model file against its card and each card's gate against
-its gate record, makes each card's zoo entry at its address in the
-release, and prints the zoo's built-in index with those entries added
-or replaced. That is how `analysis/zoo/index/zoo.json` got them. The
-entry is made by `ModelCard::artifact` or `UdModelCard::artifact`, which
+checks each model file against its card and each card's gate against its
+gate record, makes each card's zoo entry at its address in the release,
+and prints the zoo's built-in index with those entries added or
+replaced. That is how `analysis/zoo/index/zoo.json` got them. The entry
+is made by `ModelCard::artifact` or `UdModelCard::artifact`, which
 refuse a model that failed its gate or was gated against another model
-than its recipe's reference; the first also refuses one not trained on
-the recorded MASC release, and the second one whose card does not give
-its recipe's treebank at release 2.16, with the sizes and digests of its
-files, and one of Porttinari. With `--check` it prints no index and
-exits with 1 unless the built-in index is already that one and lists no
-other model at the release's addresses, naming the entries that differ
-with the size, SHA-256 and address the index lists and the model's, and
-each other model listed there.
+than its recipe's reference. The first also refuses one not trained on
+the recorded MASC release; the second refuses one of Porttinari, and a
+card that does not give its recipe's treebank at release 2.16, with the
+sizes and digests of its files, or its recipe's component and language.
+With `--check` it prints no index and exits with 1 unless the built-in
+index is already that one and lists no other model at the release's
+addresses, naming the entries that differ with the size, SHA-256 and
+address the index lists and the model's, and each other model listed
+there.
 
 Each workflow makes its release. Its training job fetches the data
-through the zoo (MASC, or the UD treebanks), and the references from the
-addresses its list gives, each checked against the SHA-256 listed with
-it: for MASC, OpenNLP's UD 1.3 English sentence and token models from
-`archive.apache.org` and `en-pos-maxent.bin` and `en-chunker.bin` from
-SourceForge; for UD, OpenNLP's UD 1.3 models from `archive.apache.org`.
-The references are only scored, never shipped: the English, Spanish and
-Finnish UD models are trained on CC BY-SA treebanks, and the licences of
-the two 1.5 models are refused. It saves each download in the repository's Actions cache as soon as
-it is checked, so a run that fails later does not fetch it again. It
-then runs `masc` or `ud` for the models the zoo's index lists at the
-release's addresses, runs `zoo-index --check`, and uploads each model
-with its card and gate record (`<model id>.bin`, `<model id>.card.json`,
-`<model id>.gate.json`) and a `SHA256SUMS` file as an artifact. A pull
-request that changes the workflow, this crate or the zoo's index runs it
-that far. Run by hand on main, a second job,
-`.github/workflows/models-publish.yml`, the only one that may write to
-the repository, publishes exactly those files: it checks `SHA256SUMS`,
-stops if the tag exists, and creates the release at the run's commit,
-not marked as the repository's latest release, with notes that give the
-models' licence and the attribution of each card (MASC's, or each
-treebank's). Each `.card.json` asset carries its attribution as well. A
-release whose tag exists is not made again, so models trained otherwise
-need a new model version and tag.
+through the zoo (MASC, or the treebanks the release's UD models are
+trained on), and the references from the addresses its list gives, each
+checked against the SHA-256 listed with it: for MASC, OpenNLP's UD 1.3
+English sentence and token models from `archive.apache.org` and
+`en-pos-maxent.bin` and `en-chunker.bin` from SourceForge; for UD,
+OpenNLP's UD 1.3 models from `archive.apache.org`. The references are
+only scored, never shipped: the English, Spanish and Finnish UD models
+are trained on CC BY-SA treebanks, and the licences of the two 1.5
+models are refused. It saves each download in the repository's Actions
+cache as soon as it is checked, so a run that fails later does not fetch
+it again. It then runs `masc` or `ud` for the models the zoo's index
+lists at the release's addresses, runs `zoo-index --check`, and uploads
+each model with its card and gate record (`<model id>.bin`, `<model
+id>.card.json`, `<model id>.gate.json`) and a `SHA256SUMS` file as an
+artifact. A pull request that changes the workflow, this crate or the
+zoo's index runs it that far. Run by hand on main, a second job, the
+only one that may write to the repository, runs
+`.github/workflows/models-publish.yml`, which publishes exactly those
+files: it checks `SHA256SUMS`, stops if the tag exists, and creates the
+release at the run's commit, not marked as the repository's latest
+release, with notes that give the models' licence and the attribution of
+each card (MASC's, or each treebank's). Each `.card.json` asset carries
+its attribution as well. A release whose tag exists is not made again,
+so models trained otherwise need a new model version and tag.
 
 ## The UD recipes
 
@@ -809,7 +811,8 @@ read on 2026-10-14 (#415):
   `dev` and `test` files, with their sizes, SHA-256 and SHA-512 recorded
   in `treebank`, fetched through the zoo by digest from
   `raw.githubusercontent.com/UniversalDependencies/<repository>/r2.16/`
-  (`fetch-ud`) as permissive datasets (`ud-<language>-<name>-r2.16`).
+  (`fetch-ud`, which with `--recipe` fetches only the treebanks the named
+  recipes read) as permissive datasets (`ud-<language>-<name>-r2.16`).
   They are not checked in.
 - Licence check: `LICENSE.txt` must name the Creative Commons
   Attribution 4.0 International licence and its address, name no
@@ -893,10 +896,10 @@ read on 2026-10-14 (#415):
 - Card and record: `card.json` is a `UdModelCard` (version 4): the
   treebank and its files, licence, attribution and citation where the
   MASC card has the corpus, and the MASC card's `training`, `held_out`
-  and `gate` parts, their chunk counts `null`; it is read version first,
-  as the MASC card is. `gate.json` is the MASC recipes' `ModelGateRecord`
-  (version 3, with the held-out sentences skipped and the scoring;
-  `check` refuses a lemmatizer's record with a mapping). The run prints each
+  and `gate` parts, their chunk and name counts `null`; it is read
+  version first, as the MASC card is. `gate.json` is the MASC recipes'
+  `ModelGateRecord` (version 3; `check` refuses a lemmatizer's record
+  with a mapping). The run prints each
   card's summary (`UdModelCard::summary`, the lines
   `ModelCard::summary` prints), its gate record and the seconds the
   recipe took.
@@ -926,7 +929,7 @@ read on 2026-10-14 (#415):
   gate says.
 
 ```
-cargo run --release -p turbo-train-recipes -- fetch-ud --home <zoo-home>
+cargo run --release -p turbo-train-recipes -- fetch-ud --home <zoo-home> [--recipe <model id>]...
 cargo run --release -p turbo-train-recipes -- ud --treebanks <zoo-home>/artifacts \
     --references <dir> --out <dir> [--recipe <model id>]...
 ```

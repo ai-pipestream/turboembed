@@ -28,10 +28,10 @@ use crate::treebank::{Grant, RELEASE, TextRights, Treebank, TreebankFile};
 use crate::ud::{SENTENCES_PER_SAMPLE, TAG_FORMAT, UdRecipe};
 
 /// The schema version of [`UdModelCard`]: 4, with the training counts,
-/// held-out counts and gate of the MASC card's version 4
-/// ([`TrainingCard`], [`HeldOutCard`], [`GateCard`]), whose chunk counts a
-/// UD card leaves `null`, and a lemmatizer's held-out tokens counted as a
-/// tagger's are ([`crate::ud::ReferenceClasses`]).
+/// held-out counts and gate of the MASC card's version 5
+/// ([`TrainingCard`], [`HeldOutCard`], [`GateCard`]), whose chunk and name
+/// counts a UD card leaves `null`, and a lemmatizer's held-out tokens
+/// counted as a tagger's are ([`crate::ud::ReferenceClasses`]).
 pub const UD_CARD_VERSION: u32 = 4;
 
 /// One file of the treebank as read.
@@ -188,8 +188,9 @@ impl UdModelCard {
     /// (its id and SHA-256), the gate failed, or the card's treebank and
     /// training data are not the recipe's treebank at the release, as
     /// recorded with its files' sizes and digests; [`Error::InvalidCard`] for
-    /// a `class` other than the one the licences give, or an address or
-    /// field the index refuses.
+    /// a `class` other than the one the licences give, a component or
+    /// language other than its recipe's, or an address or field the index
+    /// refuses.
     pub fn artifact(&self, url: &str) -> Result<Artifact> {
         let class = class_of(std::iter::once(self.license).chain(self.trained_on.iter().map(|t| t.license)));
         if class != self.class {
@@ -215,6 +216,15 @@ impl UdModelCard {
             return Err(not("it was not trained and gated on its recipe's treebank"));
         }
         let bad = |field: &'static str, message: String| Error::InvalidCard { field, message };
+        if self.component != recipe.zoo_component() {
+            return Err(bad(
+                "component",
+                format!("{} is not {}, its recipe's", self.component, recipe.zoo_component()),
+            ));
+        }
+        if self.language != t.language {
+            return Err(bad("language", format!("{} is not {}, its recipe's", self.language, t.language)));
+        }
         Ok(Artifact {
             id: self.id.parse().map_err(|e| bad("id", e))?,
             kind: Kind::Model,
