@@ -1,9 +1,10 @@
 //! The gate a trained model passes against a reference model: the
 //! OpenNLP model for the same task, scored on the same held-out samples.
 //!
-//! Each held-out unit (a sentence, or a sample of sentences) is scored
-//! by both models as counts: true positives, predictions and references
-//! for an F-measure, or correct and total tokens for an accuracy. The
+//! Each held-out unit (a sentence, a sample of sentences, or a text whose
+//! language is known) is scored by both models as counts: true positives,
+//! predictions and references for an F-measure, or correct and total
+//! tokens or texts for an accuracy. The
 //! score of a set of units is that of their summed counts, as OpenNLP's
 //! `FMeasure` and `Mean` add them up. A paired bootstrap draws the units
 //! with replacement, [`RESAMPLES`] times with `java.util.Random` seeded
@@ -43,7 +44,10 @@ use crate::significance::{Bootstrap, percentile};
 pub use crate::significance::{RESAMPLES, SEED};
 
 /// The schema version of [`ModelGateRecord`]: 2, with the held-out
-/// sentences skipped and how the units were scored ([`HeldOutSet`]).
+/// sentences skipped and how the units were scored ([`HeldOutSet`]). A
+/// language detector's record ([`Task::LanguageDetector`],
+/// [`Scoring::Labels`]) adds values a version 2 record of the other tasks
+/// never holds, so every record written before it still reads.
 pub const MODEL_GATE_RECORD_VERSION: u32 = 2;
 
 /// The loss, in points, the candidate may be shown not to exceed: the low
@@ -114,6 +118,18 @@ pub enum ModelGateError {
         left_out: u64,
         scored: u64,
     },
+    /// A record whose scoring is not its task's: tags for a tagger,
+    /// labels for a language detector.
+    TaskScoringMismatch {
+        task: Task,
+    },
+    /// A label scoring whose samples are not the record's units, or a unit
+    /// that does not score one sample (`unit`, when one is the cause).
+    ScoredSamples {
+        samples: u64,
+        units: usize,
+        unit: Option<usize>,
+    },
     /// A record file that could not be read or written.
     Io {
         path: String,
@@ -166,6 +182,15 @@ impl fmt::Display for ModelGateError {
             ModelGateError::ScoredTokens { tokens, left_out, scored } => {
                 write!(f, "{tokens} held-out tokens, {left_out} of them left out, but the units count {scored} tokens")
             }
+            ModelGateError::TaskScoringMismatch { task } => {
+                write!(f, "a {task:?} record with a scoring of another task")
+            }
+            ModelGateError::ScoredSamples { samples, units, unit: None } => {
+                write!(f, "{samples} held-out samples scored, but {units} units")
+            }
+            ModelGateError::ScoredSamples { unit: Some(unit), .. } => {
+                write!(f, "unit {unit} does not score one held-out sample")
+            }
             ModelGateError::Io { path, message } | ModelGateError::Json { path, message } => {
                 write!(f, "{path}: {message}")
             }
@@ -185,9 +210,9 @@ pub enum Measure {
     /// `selected` the predictions and `target` the references; the score
     /// is the harmonic mean of precision and recall.
     FMeasure,
-    /// `true_positives` are the tokens given the reference's value and
-    /// `target` the tokens; `selected` equals `target`. The score is their
-    /// ratio.
+    /// `true_positives` are the tokens (or texts) given the reference's
+    /// value and `target` the tokens; `selected` equals `target`. The
+    /// score is their ratio.
     Accuracy,
 }
 
@@ -198,6 +223,9 @@ pub enum Task {
     SentenceDetector,
     Tokenizer,
     PartOfSpeechTagger,
+    /// One label per text, as `LanguageDetectorEvaluator` scores
+    /// `predictLanguage`.
+    LanguageDetector,
 }
 
 impl Task {
@@ -205,7 +233,7 @@ impl Task {
     pub fn measure(self) -> Measure {
         match self {
             Task::SentenceDetector | Task::Tokenizer => Measure::FMeasure,
-            Task::PartOfSpeechTagger => Measure::Accuracy,
+            Task::PartOfSpeechTagger | Task::LanguageDetector => Measure::Accuracy,
         }
     }
 }
@@ -387,6 +415,8 @@ pub enum Scoring {
     Spans,
     /// Tags of tokens: an accuracy.
     Tags(TagScoring),
+    /// One label per sample, a unit each: an accuracy.
+    Labels(LabelScoring),
 }
 
 /// How a tagger's held-out tokens were scored: the tokens whose held-out
@@ -410,6 +440,29 @@ pub struct TagScoring {
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct TagMapping {
+    pub held_out: String,
+    pub reference: String,
+}
+
+/// How a language detector's held-out samples were scored: one unit per
+/// sample, with the counts `Counts::accuracy(1, 1)` when the model's best
+/// label is right and `Counts::accuracy(0, 1)` when not. The candidate's
+/// label is compared with the held-out label as written, and the
+/// reference's also counted right where `reference_mappings` maps the
+/// held-out label to it.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct LabelScoring {
+    /// The held-out samples, each a unit of the gate.
+    pub samples: u64,
+    /// The reference's labels counted right for another held-out label.
+    pub reference_mappings: Vec<LabelMapping>,
+}
+
+/// A held-out label and a reference label counted right for it.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct LabelMapping {
     pub held_out: String,
     pub reference: String,
 }
@@ -460,9 +513,11 @@ impl ModelGateRecord {
     /// Checks the version; that the names are not empty and the digests
     /// are 64 lower case hex; that the measure is the task's; that the
     /// record was drawn with [`RESAMPLES`] and [`SEED`]; that the scoring
-    /// fits the measure, and for tags, that each model's units count the
-    /// held-out tokens less those left out; and that the result is what
-    /// the gate gives on the recorded units, to the bit.
+    /// fits the measure and the task; for tags, that each model's units
+    /// count the held-out tokens less those left out; for labels, that
+    /// there is one unit per held-out sample and each scores one sample;
+    /// and that the result is what the gate gives on the recorded units,
+    /// to the bit.
     pub fn check(&self) -> Result<()> {
         if self.record_version != MODEL_GATE_RECORD_VERSION {
             return Err(ModelGateError::Version { found: self.record_version });
@@ -498,7 +553,31 @@ impl ModelGateRecord {
                     }
                 }
             }
+            (Scoring::Labels(l), Measure::Accuracy) => {
+                if l.samples != self.units.len() as u64 {
+                    return Err(ModelGateError::ScoredSamples {
+                        samples: l.samples,
+                        units: self.units.len(),
+                        unit: None,
+                    });
+                }
+                if let Some(unit) = self.units.iter().position(|u| u.candidate.target != 1 || u.reference.target != 1) {
+                    return Err(ModelGateError::ScoredSamples {
+                        samples: l.samples,
+                        units: self.units.len(),
+                        unit: Some(unit),
+                    });
+                }
+            }
             (_, measure) => return Err(ModelGateError::ScoringMismatch { measure }),
+        }
+        let task_fits = match &self.set.scoring {
+            Scoring::Spans => true,
+            Scoring::Tags(_) => self.task == Task::PartOfSpeechTagger,
+            Scoring::Labels(_) => self.task == Task::LanguageDetector,
+        };
+        if !task_fits {
+            return Err(ModelGateError::TaskScoringMismatch { task: self.task });
         }
         let again = gate_models(self.measure, &self.units, self.resamples, self.seed)?;
         if again != self.result {
@@ -804,6 +883,66 @@ mod tests {
         spans.set.scoring = tags_of(&spans.units, 0);
         assert_eq!(spans.check(), Err(ModelGateError::ScoringMismatch { measure: Measure::FMeasure }));
         assert_eq!(serde_json::to_string(&Scoring::Spans).unwrap(), "\"spans\"");
+    }
+
+    /// `n` held-out texts, the reference right on all but every tenth and
+    /// the candidate on all but every `miss`th.
+    fn labels(n: usize, miss: usize) -> Vec<PairedUnit> {
+        (0..n)
+            .map(|i| PairedUnit {
+                candidate: Counts::accuracy(u64::from(i % miss != 0), 1),
+                reference: Counts::accuracy(u64::from(i % 10 != 0), 1),
+            })
+            .collect()
+    }
+
+    fn language_record(units: Vec<PairedUnit>, scoring: Scoring) -> ModelGateRecord {
+        let model = |id: &str| ModelId { id: id.into(), sha256: "c".repeat(64) };
+        ModelGateRecord::new(Task::LanguageDetector, set("s", scoring), model("t"), model("r"), units).unwrap()
+    }
+
+    fn labels_of(units: &[PairedUnit]) -> Scoring {
+        let mapping = LabelMapping { held_out: "est".into(), reference: "ekk".into() };
+        Scoring::Labels(LabelScoring { samples: units.len() as u64, reference_mappings: vec![mapping] })
+    }
+
+    #[test]
+    fn a_language_detector_is_scored_one_unit_per_text() {
+        assert_eq!(Task::LanguageDetector.measure(), Measure::Accuracy);
+        // 2,000 texts: the reference wrong on one in ten, the candidate on
+        // one in twenty, so the candidate is 5 points ahead.
+        let units = labels(2000, 20);
+        let r = language_record(units.clone(), labels_of(&units));
+        r.check().unwrap();
+        assert!((r.result.candidate.score - 95.0).abs() < 1e-9, "{:?}", r.result);
+        assert!((r.result.reference.score - 90.0).abs() < 1e-9, "{:?}", r.result);
+        assert!(r.result.pass);
+        let json = r.to_json();
+        assert!(json.contains("\"task\": \"language_detector\""), "{json}");
+        assert!(json.contains("\"labels\": {\n        \"samples\": 2000,"), "{json}");
+        let back: ModelGateRecord = serde_json::from_str(&json).unwrap();
+        assert_eq!(back, r);
+
+        // One unit per sample, each of one sample.
+        let mut more = r.clone();
+        let Scoring::Labels(l) = &mut more.set.scoring else { unreachable!() };
+        l.samples += 1;
+        assert_eq!(more.check(), Err(ModelGateError::ScoredSamples { samples: 2001, units: 2000, unit: None }));
+        let mut two = units.clone();
+        two[7] = PairedUnit { candidate: Counts::accuracy(2, 2), reference: Counts::accuracy(1, 2) };
+        let two = language_record(two.clone(), labels_of(&two));
+        assert_eq!(two.check(), Err(ModelGateError::ScoredSamples { samples: 2000, units: 2000, unit: Some(7) }));
+        // Labels are a language detector's scoring, and tags a tagger's.
+        let tags = language_record(units.clone(), tags_of(&units, 0));
+        assert_eq!(tags.check(), Err(ModelGateError::TaskScoringMismatch { task: Task::LanguageDetector }));
+        let model = |id: &str| ModelId { id: id.into(), sha256: "c".repeat(64) };
+        let tagger =
+            ModelGateRecord::new(Task::PartOfSpeechTagger, set("s", labels_of(&units)), model("t"), model("r"), units)
+                .unwrap();
+        assert_eq!(tagger.check(), Err(ModelGateError::TaskScoringMismatch { task: Task::PartOfSpeechTagger }));
+        let mut spans = record();
+        spans.set.scoring = labels_of(&spans.units);
+        assert_eq!(spans.check(), Err(ModelGateError::ScoringMismatch { measure: Measure::FMeasure }));
     }
 
     #[test]

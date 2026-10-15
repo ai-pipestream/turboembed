@@ -869,6 +869,7 @@ fn the_published_references_are_checked_and_scored_when_present() {
             Task::SentenceDetector => "63.16",
             Task::Tokenizer => "94.34",
             Task::PartOfSpeechTagger => "92.41",
+            Task::LanguageDetector => unreachable!("no MASC recipe trains a language detector"),
         };
         let scores = (outcome.gate.result.candidate.score, outcome.gate.result.reference.score);
         assert_eq!(format!("{:.2} {:.2}", scores.0, scores.1), format!("100.00 {expected}"), "{}", outcome.gate);
