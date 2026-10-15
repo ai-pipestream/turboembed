@@ -21,12 +21,13 @@ use crate::masc::{self, Split};
 use crate::segmentation::{Component, LANGUAGE, SENTENCES_PER_SAMPLE, TIMESTAMP_MS};
 use crate::{Recipe, Trained, postag};
 
-/// The card's schema version: 4, with the held-out counts, the tag
+/// The card's schema version: 5, with the held-out counts, the tag
 /// formats and the reference's digest, the documents the split leaves
 /// out, how a tagger's held-out tokens were scored, the parameters of
 /// each recipe, the chunks in no sentence a chunker's reader reads, and
-/// what a name finder's reader counted of the named entities.
-pub const CARD_VERSION: u32 = 4;
+/// what a name finder's reader counted of the named entities. Version 4
+/// had either the chunks or the names.
+pub const CARD_VERSION: u32 = 5;
 /// The card's file name in the model's directory.
 pub const CARD_FILE: &str = "card.json";
 /// The gate record's file name in the model's directory.

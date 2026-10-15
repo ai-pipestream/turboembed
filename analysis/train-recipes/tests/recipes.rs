@@ -367,6 +367,17 @@ fn the_recipes_train_score_gate_and_write_their_cards() {
         three["held_out"].as_object_mut().unwrap().remove("chunks");
         std::fs::write(&other, serde_json::to_string_pretty(&three).unwrap()).unwrap();
         assert!(matches!(ModelCard::read(&other), Err(Error::CardVersion { found: 3, .. })));
+        // Nor is a card of version 4, with the chunk counts or the name
+        // counts but not both.
+        for kept in ["chunks", "names"] {
+            let mut four: serde_json::Value = serde_json::from_str(&card.to_json()).unwrap();
+            four["card_version"] = 4.into();
+            let dropped = if kept == "chunks" { "names" } else { "chunks" };
+            four["training"].as_object_mut().unwrap().remove(dropped);
+            four["held_out"].as_object_mut().unwrap().remove(dropped);
+            std::fs::write(&other, serde_json::to_string_pretty(&four).unwrap()).unwrap();
+            assert!(matches!(ModelCard::read(&other), Err(Error::CardVersion { found: 4, .. })));
+        }
         // A card of this version with a field missing is not a card.
         old["card_version"] = CARD_VERSION.into();
         std::fs::write(&other, serde_json::to_string_pretty(&old).unwrap()).unwrap();
