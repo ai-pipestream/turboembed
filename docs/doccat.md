@@ -1,0 +1,246 @@
+# Document categorization
+
+`turbo-doccat` (`analysis/doccat/`) ports the SVM document categorizer of
+OpenNLP 3.x, `DocumentCategorizerSVM` in the `opennlp-ml-libsvm` module, at
+prediction. It reads a model OpenNLP trained, exported as two text files,
+and gives the categories and probabilities `categorize` gives on the JVM.
+It does not train.
+
+It depends on `turbo-analysis`, `turbo-analysis-layers`, `turbo-jvm`
+(Java's `Double.toString`, `Double.parseDouble`, `Integer.parseInt` and
+`Math.log`) and `turbo-maxent` (SHA-256, for the model reference), and on
+nothing outside the workspace.
+
+## What it does
+
+OpenNLP's categorizer turns a document's tokens into a sparse vector and
+asks LIBSVM for it. `turbo-doccat` follows it step by step:
+
+1. The feature generators run over the tokens, in the model's order:
+   `BagOfWordsFeatureGenerator` (`bow=` and the token) and
+   `NGramFeatureGenerator` (`ng=` and the tokens of each n-gram, each
+   after a `:`). `turbo_doccat::FeatureGenerator` is both.
+2. Each feature in the vocabulary is counted; the others are dropped.
+3. Each count is weighted by the model's `TermWeightingStrategy`: `BINARY`
+   (1), `TERM_FREQUENCY` (the count), `TF_IDF` (the count times the
+   feature's inverse document frequency) or `LOG_NORMALIZED_TF`
+   (`1 + Math.log(count)`, with `turbo-jvm`'s port of `Math.log`).
+4. With scaling on, each weight is scaled to the model's range from the
+   feature's training minimum and maximum, clamped first, as
+   `buildFeatureVector` does, and a feature whose minimum and maximum are
+   equal gets the lower end.
+5. A value that is zero by `Double.compare` is dropped, both after
+   weighting and after scaling, so -0.0 stays. The features go to LIBSVM
+   in index order, as OpenNLP's `TreeMap` gives them.
+6. LIBSVM's `svm_predict_probability`: the kernel against every support
+   vector, the decision value of each class pair, Platt's sigmoid on each
+   (`sigmoid_predict`, with its 1e-7 floor) and the pairwise coupling
+   (`multiclass_probability`). Each probability goes to the category whose
+   index is the LIBSVM label, and a category without a label scores 0.
+
+`svm::libsvm` is a port of `svm.java` 3.35, the Java LIBSVM that zlibsvm
+3.0.0 wraps: `k_function` (the linear, polynomial, RBF and sigmoid kernels,
+with LIBSVM's `powi` and its merge order for the RBF distance),
+`svm_predict_values`, `svm_predict_probability`, the one-class density
+marks and the regression Laplace parameter. The categorizer takes C-SVC and
+nu-SVC models; the reader takes every kind but the precomputed kernel.
+
+`SvmCategorizer` is the categorizer: `categorize`, `best_category`
+(`getBestCategory`, the first highest score), `index` (`getIndex`, `None`
+for -1), `category`, `num_categories` and `all_results` (`getAllResults`,
+scores written as `Double.toString` writes them). As an annotator
+(`turbo-doccat:svm`) it reads `opennlp:tokens` and writes
+`turbo:categories`: every category with its probability, best first,
+ties in category order. The tokens are the strings the categorizer gets,
+so the annotator gives what `categorize` gives for those tokens.
+
+```rust
+use std::path::Path;
+use turbo_doccat::{Scratch, SvmCategorizer, SvmDoccatModel};
+
+let model = SvmDoccatModel::open(Path::new("model.txt"), Path::new("sidecar.txt"))?;
+let categorizer = SvmCategorizer::new(model)?;
+let mut scratch = Scratch::new();
+let scores = categorizer.categorize(&["heavy", "rain", "tonight"], &mut scratch);
+let best = categorizer.best_category(scores);
+```
+
+The probabilities decide the category, not the pairwise vote. The two can
+disagree, and do on some of the golden documents; the decision values and
+the vote are there for comparison (`SvmDoccatModel::decision_values`).
+
+A model's `ModelRef` is `opennlp:SvmDoccatModel:<language>` (`und` without
+one), revision `1`, and the SHA-256 of the LIBSVM file's bytes followed by
+the sidecar's.
+
+### OpenNLP behaviour worth knowing
+
+- A model trained without probability estimates cannot categorize: zlibsvm
+  hands LIBSVM empty `probA` and `probB` arrays, and OpenNLP throws
+  `ArrayIndexOutOfBoundsException` on every document of a model with two
+  or more categories. `SvmCategorizer::new` refuses such a model
+  (`ModelError::NoProbabilityEstimates`).
+- A document with no token in the vocabulary is an empty vector, and its
+  decision values are the negated `rho` values, not zero.
+- Feature selection (`FeatureSelectionStrategy`) only chooses the
+  vocabulary at training; prediction never looks at it. The sidecar
+  records it for the reader.
+
+## The model files
+
+OpenNLP saves an `SvmDoccatModel` with Java serialization, which this port
+does not read. The golden generator writes each model as two text files
+instead, and `SvmDoccatModel::from_text` and `SvmDoccatModel::open` read
+them:
+
+- The LIBSVM model as `svm.svm_save_model` writes it. The reader is strict:
+  each keyword must be exact and given once, `nr_class` comes before the
+  records sized by it, counts must add up, each support vector's indexes
+  ascend, and each kernel's parameters must be given. Numbers are read with
+  Java's grammar, so the shortest decimals the Java writer prints and the
+  `%.17g` of the C library both read back to the bits written.
+- The sidecar, a line based format that holds the rest: the language, the
+  weighting, the selection, the scaling range, the generators, the
+  categories and, for each feature index, its inverse document frequency,
+  its training minimum and maximum and its string. `svm::sidecar`
+  documents the format; `Sidecar::write` writes it and reads back to the
+  same model.
+
+```text
+svm-doccat 1
+language	eng
+weighting	TF_IDF
+selection	NONE	-1
+scaling	0.0	1.0
+generator	bag-of-words
+category	0	weather
+category	1	cooking
+category	2	sports
+category	3	finance
+feature	1	2.2617630984737906	0.0	2.2617630984737906	bow=for
+feature	2	3.871201010907891	0.0	3.871201010907891	bow=up
+```
+
+(the start of the sidecar of the `topics-linear-tfidf-none` run)
+
+Fields are separated by one tab, numbers are written as `Double.toString`
+writes them, and a name is the last field, escaped as golden files escape
+a string.
+
+## Parity with the JVM
+
+### The goldens
+
+`SvmDoccatGolden.java` in `analysis/goldens-tool` trains 31 models with
+`DocumentCategorizerSVM.train` on two corpora written for this project
+(`inputs/svm-doccat-train`, 48 and 12 sentences): every term weighting
+with every feature selection on the linear kernel, then the RBF,
+polynomial and sigmoid kernels, nu-SVC, no scaling, the range -1 to 1,
+n-grams and a higher cost. It exports each model as the two files above
+and runs `categorize` on 12 documents (`inputs/svm-doccat`). Each golden
+records the tokens, the feature vector, the decision values, the vote and
+the categories with their probabilities.
+`analysis/goldens-tool/README.md` ("SVM document categorizer goldens")
+lists the runs and layers.
+
+`analysis/doccat/tests/goldens.rs` reads each run's model from its
+training golden and compares every document. The goldens are not checked
+in; while `analysis/goldens/data/svm-doccat` is absent the test passes with
+a message naming the command that writes them:
+
+```
+cargo run -p turbo-goldens-tool -- generate
+```
+
+Run against goldens written by the generator on a local JDK (Ubuntu's
+OpenJDK 21.0.12.1, not checked in), the test gave 31 runs, 372 documents,
+and 2,111 of 2,112 decision values with the JVM's bits; the other was
+1.8e-15 away.
+
+### The wider check
+
+A scratch program on the same JDK trained 114 models on generated corpora
+of 2, 3 and 5 categories (every weighting with every selection on the
+linear kernel; the RBF, polynomial and sigmoid kernels with every
+weighting; nu-SVC with the linear and RBF kernels; no scaling, the range
+-1 to 1, n-grams and a higher cost) and categorized 300 documents with
+each, 34,200 in all, empty documents and unknown tokens among them:
+
+| What | Same bits as the JVM | Largest difference |
+|---|---|---|
+| Feature vectors | 34,200 of 34,200 | none |
+| Votes and best categories | 34,200 of 34,200 | none |
+| Decision values, linear kernel | 100,800 of 100,800 | none |
+| Decision values, polynomial kernel | 16,800 of 16,800 | none |
+| Decision values, RBF kernel | 25,033 of 25,200 | 1.42e-14 |
+| Decision values, sigmoid kernel | 16,759 of 16,800 | 2.2e-16 |
+| Probabilities | 113,294 of 114,000 | 4.94e-15 |
+
+`getAllResults` gave the JVM's string wherever the probabilities had the
+JVM's bits.
+
+### Tolerances
+
+- Exact: the feature vector, the vote, the order of the categories and,
+  for the linear and polynomial kernels, the decision values. These are
+  sums and products in LIBSVM's order, which the port keeps.
+- Decision values of the RBF and sigmoid kernels: within 1e-12. The RBF
+  kernel calls `Math.exp` and the sigmoid kernel `Math.tanh`, and the port
+  calls the platform's `exp` and `tanh`. On 2,000,000 arguments,
+  `f64::exp` (glibc) differed from HotSpot's `Math.exp` in the last place
+  on 4,915, and `f64::tanh` from `Math.tanh` on 714. A last place error in
+  one kernel value moves a decision value by about the coefficient times
+  2.2e-16 per support vector; the largest seen was 1.42e-14, so 1e-12
+  leaves room for other platforms' `exp` without hiding a wrong kernel,
+  which moves values by far more.
+- Probabilities: within 1e-9. Platt's sigmoid calls `Math.exp` for every
+  kernel, and the pairwise coupling iterates on its results until a
+  stopping test, so a last place difference can carry through a different
+  number of iterations. The largest difference seen was 4.94e-15. 1e-9
+  leaves that room and still fails on a wrong sigmoid or coupling step,
+  which moves a probability by far more.
+
+`Math.exp` on HotSpot is an intrinsic, not fdlibm: `StrictMath.exp`
+(fdlibm, which `turbo-jvm` ports) differed from it on 192,922 of the same
+arguments, so the fdlibm port would be further from the JVM than the
+platform's `exp`. `Math.tanh` and `StrictMath.tanh` agreed on every
+argument, so a port of fdlibm's `tanh` would make the sigmoid kernel
+exact; it is not written.
+
+## Why a port and not linfa-svm
+
+The predictor is a port of LIBSVM's prediction code, a few hundred lines.
+The alternatives looked at:
+
+- linfa-svm (the SVM of the linfa toolkit) trains its own models with its
+  own solver and keeps them in its own types. It has no reader for LIBSVM
+  model files, so it cannot run a model OpenNLP trained; it classifies two
+  classes, with more through one-against-the-rest composition rather than
+  LIBSVM's one-against-one vote; its probabilities are Platt scaling for
+  two classes, without LIBSVM's pairwise coupling; and it has no sigmoid
+  kernel. Matching the JVM would mean rebuilding LIBSVM's model and
+  prediction around it, and it brings ndarray and the linfa crates, where
+  the workspace allows no new dependency.
+- ffsvm reads LIBSVM model files and predicts fast, but computes in `f32`
+  with SIMD, so its decision values are not LIBSVM's `f64` values.
+- smartcore trains its own SVMs, with no LIBSVM model reader.
+- Bindings to the C LIBSVM would read the files, but bring a C build and a
+  dependency, and the C library's `exp` is the platform's too.
+
+The port reads the file OpenNLP's LIBSVM writes, keeps LIBSVM's order of
+operations, so the linear and polynomial kernels give the JVM's bits, and
+depends on nothing new. It predicts only; training stays on the JVM.
+
+## What it does not do
+
+- Training and feature selection: models are trained by OpenNLP and
+  exported.
+- Java serialized `SvmDoccatModel` files: only the exported text files.
+- Feature generators other than `BagOfWordsFeatureGenerator()` and
+  `NGramFeatureGenerator`; the letters only variant of the bag of words
+  generator is package private in OpenNLP, and the sidecar has no form for
+  it.
+- The precomputed kernel, whose input is kernel values rather than
+  features.
+- Bit for bit RBF and sigmoid decision values and probabilities, for the
+  reasons under "Tolerances".
