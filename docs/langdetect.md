@@ -170,11 +170,56 @@ lowercase mapping does, for any code point
 generator lowercases into a buffer of the same length and there is no
 difference to record.
 
+## Training
+
+`turbo-train-components` (its `langdetect` module) trains a language
+detector as `LanguageDetectorME.train` does (issue #429):
+`LanguageDetectorFactory` with its default context generator; one event
+per sample (`LanguageDetectorEventStream`), whose predicates are the
+n-grams in the iteration order of the first hash map the generator fills
+(`ContextGenerator::training_features`), where `predictLanguages` uses
+the second map's order, which differs from it only when a bucket has
+become a tree; the `OnePass` indexer when the parameters name none; the
+event trainer the parameters name; and the model file `new
+LanguageDetectorModel(model, entries, factory)` writes, with the
+language `und` and the `langdetect.model` entry.
+`default_training_parameters()` are those of
+`ModelUtil.createDefaultTrainingParameters()` (`MAXENT`, 100 iterations,
+cutoff 5), which the command line trainer uses when given none:
+`langdetect-183.bin` records no parameters, so these are the ones it was
+most likely trained with.
+
+The goldens under `analysis/goldens/data/train-langdetect/` are the
+JVM's training (goldens-tool `LanguageTrainGolden`) in two runs,
+`default` (cutoff 5) and `cutoff1`, on samples written for them
+(`inputs/langdetect/samples.txt`: nine languages, and lines in
+capitals, with a tab or many spaces in the text, empty text, a backslash,
+CR LF, no final newline, and lines the sample stream skips) and on the
+language format input. `analysis/train-components/tests/langdetect.rs`
+compares the events, their checksum, the index, the log likelihood and a
+digest of every parameter after each GIS iteration, every weight after
+the first and the last iteration bit for bit, the written model's
+SHA-256 and length, the manifest and the zip entries.
+
+`analysis/goldens/data/fixtures/langdetect-fixture-rust.bin` is a model
+trained here from the same samples (`analysis/train-components/tests/fixtures.rs`
+checks that it is the file this crate writes). The goldens and dumps
+under `langdetect/langdetect-fixture-rust` are OpenNLP running it on the
+22 texts, which shows that the JVM reads it, and
+`analysis/langdetect/tests/fixture.rs` compares turbo-langdetect's
+probabilities with them bit for bit and its rankings exactly; the
+annotator declines the two texts in which the model knows no n-gram
+(Japanese and Chinese), where the JVM ranks every language equal.
+
+The recipe that trains a model on Tatoeba and gates it against
+`langdetect-183.bin` is in `analysis/train-recipes` (its README, "The
+language detector recipe").
+
 ## Not ported
 
 - `probingPredictLanguages`, which detects over growing chunks of the
   text and stops when the best language is stable: no golden covers it.
-- Training (`LanguageDetectorME.train`) and evaluation.
+- Evaluation (`LanguageDetectorEvaluator`) and cross validation.
 
 ## OpenNLP findings
 
@@ -184,3 +229,18 @@ difference to record.
 - `predictLanguages` gives no sign that a text had no n-gram the model
   knows; such a text is ranked like any other, with the model's first
   outcome first.
+- Training takes each event's predicates from the first of the two
+  `HashMap`s, and `predictLanguages` from the second, so a model is
+  trained on the n-grams in one order and run on them in another; the
+  orders differ only when a bucket has become a tree.
+- `langdetect-183.bin`'s manifest records no training parameters, only
+  `TrainerType=Event` and the event hash, and its README points at a
+  training script in a repository that could not be reached, so the
+  parameters it was trained with are not on record.
+  `ModelUtil.createDefaultTrainingParameters()`, which the command line
+  trainer falls back to, sets no `TrainerType`; the trainer factory
+  takes the algorithm for an event trainer.
+- Its `Training-Eventhash` is an MD5 digest in hexadecimal
+  (`fcf2dcf1bff70e8dc53ab4da7459bae5`, OpenNLP 1.8.3); OpenNLP 3.x writes
+  the CRC-32C of `ChecksumEventStream` as a decimal number, so a model
+  trained with 3.x cannot be compared with it by that field.

@@ -188,7 +188,7 @@ pub struct Fixture {
 /// file names are the ones the generator's `Runs` class opens there; a
 /// fixture in a subdirectory is a file of a dictionary directory, and
 /// `Runs` opens the directory.
-pub const FIXTURES: [Fixture; 38] = [
+pub const FIXTURES: [Fixture; 39] = [
     Fixture {
         file: "en-abbrev.bin",
         sha512: "759ab1defc61351f53cdd82a26e708789a225feb6e1ec0cfd6e2e54f35f67c14\
@@ -233,6 +233,11 @@ pub const FIXTURES: [Fixture; 38] = [
         file: "lemma-fixture-rust.bin",
         sha512: "4fa4c03da55e729af919a2d76a67db49ac0269d073ac05a5af3da9fd8d67ea82\
                  61765d97a3c5e4ca0d22b251e4dc01401f432d6a394d6a6d3fd4b06fecb41402",
+    },
+    Fixture {
+        file: "langdetect-fixture-rust.bin",
+        sha512: "631c804500a2a2cbd3c1b88febdf21332487760abc40efcee217159e3e694a01\
+                 dbbc82ee9d5102dccc9f5a889775aad4c93efedf3621df9d4622448a1d58ae99",
     },
     Fixture {
         file: "tags.tagdict",
@@ -382,7 +387,7 @@ pub const FIXTURES: [Fixture; 38] = [
 ];
 
 /// The input sets under `analysis/goldens/data/inputs`.
-pub const INPUT_SETS: [&str; 23] = [
+pub const INPUT_SETS: [&str; 24] = [
     "en",
     "multi",
     "norm",
@@ -406,6 +411,7 @@ pub const INPUT_SETS: [&str; 23] = [
     "ner",
     "parse",
     "head-rules",
+    "langdetect",
 ];
 
 /// The arguments the driver passes to the generator after the fixed ones
@@ -419,7 +425,7 @@ pub const GENERATOR_ARGS: [&str; 1] = ["--dumps"];
 /// replaces and `verify` compares. The data directory holds other things
 /// (the inputs, the fixtures, the rate snapshot, a README) that neither
 /// touches.
-pub const ANNOTATORS: [&str; 25] = [
+pub const ANNOTATORS: [&str; 26] = [
     "sentdetect",
     "tokenize",
     "postag",
@@ -439,6 +445,7 @@ pub const ANNOTATORS: [&str; 25] = [
     "lattice",
     "train",
     "train-events",
+    "train-langdetect",
     "formats",
     "evaluate",
     "masc",

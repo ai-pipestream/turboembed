@@ -1,0 +1,19 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	en/ellipsis	144	142	edebdc578afc31b3243270390028ab0b7d1fc7416c7a001521b11cf8167c1de7
+model	langdetect-fixture-rust.bin	631c804500a2a2cbd3c1b88febdf21332487760abc40efcee217159e3e694a01dbbc82ee9d5102dccc9f5a889775aad4c93efedf3621df9d4622448a1d58ae99
+annotator	opennlp.tools.langdetect.LanguageDetectorME	predictLanguages
+layer	opennlp:language	document	9	code:str	confidence:f64
+ita	3fdc18bcb12621d6 0.43900983142569083
+eng	3fd7c829c2e1a353 0.37159198790918885
+deu	3fb9e15a23bc76bd 0.10109485027757166
+fra	3fa37a97f720de6d 0.038044690053024556
+nld	3fa0a1e498bbe24c 0.0324851452296043
+spa	3f8ad51054c40845 0.013101699435086664
+tur	3f660b5605418a74 0.002690952309465639
+rus	3f525bec7a94f202 0.0011205491412759065
+ell	3f4c30abc4999313 8.602942190917027E-4
+end	opennlp:language

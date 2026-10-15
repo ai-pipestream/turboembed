@@ -112,6 +112,17 @@ are not taken from any corpus.
   them, and the `train-events` goldens of the tagger and the lemmatizer
   run on them.
 
+- `inputs/langdetect/samples.txt`: 56 language samples written for this
+  project, a language code, a tab and the text per line: six to nine
+  each of English, German, French, Spanish, Italian, Dutch, Russian and
+  Greek, among them numbers, a URL, an e-mail address and a hashtag, and
+  lines in capitals, a Turkish line with dotted capital I, an empty
+  text, text holding tabs, a run of spaces, a run of one letter, a
+  backslash, a CR LF line end and no newline at the end; and two lines
+  the sample stream skips (one starting with a tab, one without a tab).
+  The fixture `langdetect-fixture-rust.bin` was trained on them, and the
+  `train-langdetect` goldens run on them.
+
 - `inputs/formats/`: 41 small files in OpenNLP's native sample formats,
   in CoNLL-U, CoNLL-2002, CoNLL-2003, CoNLL-X and in MASC's layout, written for this project except as
   noted below; the part of the id before
@@ -242,6 +253,7 @@ that differs.
 | `tags.tagdict` | a copy of `analysis/sequence/golden/resources/tags.tagdict`, the case-insensitive tag dictionary above, as the generator reads it for the `postag-wordtag-tagdict` run and the Rust trainer for `pos-fixture-rust.bin` |
 | `pos-fixture-rust.bin` | the `.bin` the Rust trainer writes from `inputs/tagged/wordtag.txt` with the default descriptor and `tags.tagdict` (GIS, 100 iterations, cutoff 1, one thread; `analysis/train-components/tests/fixtures.rs`, which checks that the fixture is that file); the JVM loads it with `POSModel` so the goldens of the two taggers can be compared |
 | `lemma-fixture-rust.bin` | the `.bin` the Rust trainer writes from `inputs/tagged/lemmas.txt` (GIS, 100 iterations, cutoff 1, one thread; the same test); the JVM loads it with `LemmatizerModel` |
+| `langdetect-fixture-rust.bin` | the `.bin` the Rust trainer writes from `inputs/langdetect/samples.txt` as `LanguageDetectorME.train` does with the command line trainer's defaults (GIS, 100 iterations, cutoff 5, one thread; the same test); the JVM loads it with `LanguageDetectorModel`, and its `langdetect` goldens are compared by `analysis/langdetect/tests/fixture.rs` |
 | `lemmatizer-dictionary.txt` | a `DictionaryLemmatizer` dictionary written for this project: 48 `word<tab>tag<tab>lemma` lines with Universal Dependencies tags for words of the `en` and `multi` inputs, among them entries with several lemmas (`leave#leaf`), a word listed twice with one tag (the last wins), a word with two tags, an empty lemma field (`#`), fields after the lemma and a trailing tab (both ignored), entries with a capital letter (never found, since a lookup lowercases the token) and non-ASCII words |
 | `chunker-fixture.bin` | a copy of `analysis/sequence/golden/models/chunker-fixture.bin`, a chunker model OpenNLP trained by perceptron on 8 sentences with Penn Treebank tags and `B-`, `I-` and `O` chunk tags for `NP`, `VP`, `PP`, `ADJP` and `SBAR` (`analysis/sequence/golden/inputs/train-chunk.txt`, `analysis/sequence/README.md`); the only chunker model here, since the published chunker models are OpenNLP 1.5 models, which this project does not use |
 | `tokenizer-abbreviations.bin` | a copy of `analysis/maxent/tests/fixtures/models/tokenizer.bin`, a tokenizer model OpenNLP trained on six sentences with the case-insensitive dictionary `Dr.`, `U.S.`, `e.g.` (`analysis/maxent/tests/fixtures/README.md`) |
@@ -451,6 +463,13 @@ entries and dictionary entry of a model file built from the factory
 are the same for the tagger's and the lemmatizer's event streams, with
 the tag dictionary entry and `POSDictionary.serialize` cases.
 `analysis/train-components/tests/goldens.rs` compares with them.
+
+`train-langdetect/<run>/<set>/<id>.golden` is what
+`LanguageDetectorME.train` did on `inputs/<set>/<id>.txt` with cutoff 5
+(`default`) or 1 (`cutoff1`): the events, a row each and a row per
+predicate, the checksum, the index, the GIS training iteration by
+iteration, and the manifest and zip entries of the model file.
+`analysis/train-components/tests/langdetect.rs` compares with them.
 
 ## Normalizer goldens
 

@@ -57,6 +57,8 @@ final class Runs {
   static final String POS_FIXTURE_RUST = "pos-fixture-rust.bin";
   /** The lemmatizer model the Rust trainer wrote from inputs/tagged/lemmas.txt. */
   static final String LEMMA_FIXTURE_RUST = "lemma-fixture-rust.bin";
+  /** The language detector model the Rust trainer wrote from inputs/langdetect/samples.txt. */
+  static final String LANGUAGE_FIXTURE_RUST = "langdetect-fixture-rust.bin";
   /** The tag dictionary the tagger fixtures were trained with, a copy of analysis/sequence/golden/resources/tags.tagdict. */
   static final String TAG_DICTIONARY = "tags.tagdict";
   static final String CHUNKER_FIXTURE = "chunker-fixture.bin";
@@ -98,6 +100,8 @@ final class Runs {
   static final String NER = "ner";
   static final String PARSE = "parse";
   static final String HEAD_RULES = "head-rules";
+  /** The language samples the Rust language detector fixture was trained on. */
+  static final String LANGDETECT = "langdetect";
 
   /** The numbers of merges the BPE trainer runs with: few, so the tokens are pieces of words, and many. */
   static final List<Integer> BPE_MERGES = List.of(40, 400);
@@ -246,9 +250,11 @@ final class Runs {
       recorders.add(ChunkDump.of(c));
     }
 
-    LanguageGolden languages = LanguageGolden.load(models.resolve(LANGUAGE_MODEL), Set.of(EN, MULTI));
-    annotators.add(languages);
-    recorders.add(LanguageDump.of(languages));
+    for (LanguageGolden languages : List.of(LanguageGolden.load(models.resolve(LANGUAGE_MODEL), Set.of(EN, MULTI)),
+        LanguageGolden.load(fixtures.resolve(LANGUAGE_FIXTURE_RUST), Set.of(EN, MULTI)))) {
+      annotators.add(languages);
+      recorders.add(LanguageDump.of(languages));
+    }
 
     annotators.addAll(NormalizerGolden.all());
     annotators.addAll(NumberGolden.all());
@@ -268,6 +274,8 @@ final class Runs {
     annotators.addAll(EventGolden.all(fixtures.resolve(ENGLISH_ABBREVIATIONS)));
     // The tagger's and the lemmatizer's event streams, and the model files around them.
     annotators.addAll(TaggerEventGolden.all(fixtures.resolve(TAG_DICTIONARY)));
+    // The language detector's training, from the events to the model file.
+    annotators.addAll(LanguageTrainGolden.all());
     // The sample streams of OpenNLP's native formats, and the conversion streams, which
     // detokenize with the English dictionary.
     annotators.addAll(FormatGolden.all(fixtures.resolve(FORMAT_DETOKENIZER)));
