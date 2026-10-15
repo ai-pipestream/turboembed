@@ -8,14 +8,13 @@
 //! ignoring case, after the result before it. A negative `Start` or
 //! `End`, which only cases not run on .NET hold, is read as 0.
 
-use std::collections::BTreeSet;
 use std::fmt::Write as _;
 use std::path::PathBuf;
 
 use serde_json::Value;
-use turbo_grammar::{DUTCH, DUTCH_TIMES, Output, Parser};
+use turbo_grammar::{DUTCH, DUTCH_TIMES, Output};
 
-use super::{Case, data, datetime, describe, ratchet, run};
+use super::{Case, Spec, check_cases, data, datetime, ratchet};
 
 const LANGUAGE: &str = "Dutch";
 
@@ -78,28 +77,11 @@ fn cases(kind: &str, file: &str) -> Vec<Case> {
     cases
 }
 
-/// Checks one file against its pass list, or with `bless` and `BLESS` set
-/// rewrites the list; returns (eligible, passing).
-fn check(file: &str, output: Output, bless: bool) -> (usize, usize) {
-    let show = std::env::var_os("SPEC_SHOW").is_some();
-    let mut parser = Parser::new(&DUTCH);
-    let mut passing = BTreeSet::new();
-    let mut eligible = 0;
-    for (i, case) in cases("Number", file).iter().enumerate() {
-        if !case.eligible() {
-            continue;
-        }
-        eligible += 1;
-        let (pass, got) = run(&mut parser, output, case);
-        if pass {
-            passing.insert(i);
-        } else if show {
-            println!("{file} #{i} {:?} found{}", case.input, describe(&case.input, &got));
-        }
-    }
-    ratchet(LANGUAGE, file, &passing, bless);
-    println!("{LANGUAGE}/Number/{file}: {} of {eligible} eligible cases pass", passing.len());
-    (eligible, passing.len())
+/// Checks one number file against its pass list, or with `bless` and
+/// `BLESS` set rewrites the list; returns (eligible, passing).
+fn check(file: &'static str, output: Output, bless: bool) -> (usize, usize) {
+    let spec = Spec { language: LANGUAGE, kind: "Number", file, output };
+    check_cases(&DUTCH, &spec, &cases("Number", file), bless)
 }
 
 fn datetime_cases() -> Vec<datetime::TimeCase> {
