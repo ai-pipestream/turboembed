@@ -36,8 +36,16 @@
 //! reference has no outcome for is one it cannot get right, so such tokens
 //! are left out of both taggers' counts, and the card lists their tags and
 //! how many there were ([`tags_left_out`]); when they are more than
-//! [`LEFT_OUT_LIMIT_PERCENT`] of the tokens, the gate refuses to compare
-//! the two.
+//! [`MAX_TOKENS_LEFT_OUT`] of the tokens, the gate refuses to compare the
+//! two. The limit is wider than the MASC tagger's
+//! ([`crate::MAX_TOKENS_LEFT_OUT`]) because a reference trained on another
+//! treebank can lack whole tags: FTB's `test` file has 635 such tokens of
+//! 16,261 for the Finnish reference.
+//!
+//! A sentence a recipe's reader skips (one with no word once the empty
+//! nodes are left out) is counted, and the recipe fails when the training
+//! or the held-out sentences skipped are more than
+//! [`crate::MAX_SKIPPED_SENTENCES`] of those read.
 //!
 //! For Italian there is no reference the recipes may use
 //! ([`UdReference::NoReference`]): OpenNLP's Italian UD models are trained
@@ -48,16 +56,14 @@
 use std::collections::BTreeMap;
 use std::sync::Arc;
 
-use serde::{Deserialize, Serialize};
-
 use turbo_eval::model_gate::{Counts, HeldOutSet, ModelGateRecord, ModelId, PairedUnit, Task, UngatedRecord};
 use turbo_formats::FormatError;
 use turbo_formats::conllu::{ConlluReader, ConlluSentenceReader, ConlluTokenReader, Sentence, Tagset, WordLine};
-use turbo_formats::evaluate::LemmatizerEvaluator;
+use turbo_formats::evaluate::{LemmatizerEvaluator, PosEvaluator};
 use turbo_formats::sample::{LemmaSample, PosSample};
 use turbo_lemmatizer::{LemmatizerModel, MaxentLemmatizer, TokenTag, edit_script::decode_lemma};
 use turbo_maxent::ModelFile;
-use turbo_postag::PosTagFormat;
+use turbo_postag::{PosModel, PosTagFormat, PosTagger};
 use turbo_train::TrainingConfiguration;
 use turbo_train_components::ud::{self as published, Component};
 use turbo_train_components::{
@@ -66,14 +72,15 @@ use turbo_train_components::{
 };
 use turbo_zoo::Sha256;
 
-use crate::error::{Error, Result};
+use crate::card::TagCount;
+use crate::error::{Error, LeftOut, Result};
 use crate::segmentation::{self, HeldOut, TIMESTAMP_MS, WHITESPACE};
 use crate::treebank::TreebankText;
 use crate::treebank::{
     CATALAN_ANCORA, FINNISH_FTB, ITALIAN_MARKIT, PORTUGUESE_PORTTINARI, RELEASE, SPANISH_ANCORA, Treebank,
 };
 use crate::ud_card::UdModelCard;
-use crate::{Reference, Trained};
+use crate::{Limit, Reference, Trained, check_skipped};
 
 /// Sentences per sentence detector sample.
 pub const SENTENCES_PER_SAMPLE: usize = published::SENTENCES_PER_SAMPLE;
@@ -84,19 +91,10 @@ pub const TAGSET: Tagset = published::TAGSET;
 /// were trained on.
 pub const TAG_FORMAT: PosTagFormat = PosTagFormat::Custom;
 
-/// The share of a tagger's held-out tokens, in percent, that may be left
-/// out of the gate for tags the reference has no outcome for; more and
-/// the gate refuses ([`Error::ReferenceTags`]).
-pub const LEFT_OUT_LIMIT_PERCENT: f64 = 5.0;
-
-/// A held-out tag the reference tagger has no outcome for, and how many
-/// tokens have it.
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
-pub struct LeftOutTag {
-    pub tag: String,
-    pub tokens: u64,
-}
+/// The most held-out tokens a UD tagger's gate may leave out of both
+/// models' counts because the reference has no outcome for their tag: 5
+/// in 100. More and the gate refuses ([`Error::TagsOutsideReference`]).
+pub const MAX_TOKENS_LEFT_OUT: Limit = Limit { count: 5, of: 100 };
 
 /// The tags of `samples` the tagger in `reference` (asked for
 /// [`TAG_FORMAT`]) has no outcome for, with their token counts, in the
@@ -105,8 +103,8 @@ pub struct LeftOutTag {
 /// # Errors
 ///
 /// A model file that is not a part-of-speech model.
-pub fn tags_left_out(reference: &[u8], samples: &[PosSample<'_>]) -> Result<(Vec<LeftOutTag>, u64)> {
-    let model = crate::postag::open_tagger(reference, TAG_FORMAT)?;
+pub fn tags_left_out(reference: &[u8], samples: &[PosSample<'_>]) -> Result<(Vec<TagCount>, u64)> {
+    let model = open_tagger(reference, TAG_FORMAT)?;
     let tagset = model.tagset();
     let mut left_out: BTreeMap<&str, u64> = BTreeMap::new();
     let mut tokens = 0;
@@ -116,7 +114,63 @@ pub fn tags_left_out(reference: &[u8], samples: &[PosSample<'_>]) -> Result<(Vec
             *left_out.entry(tag.as_str()).or_default() += 1;
         }
     }
-    Ok((left_out.into_iter().map(|(tag, tokens)| LeftOutTag { tag: tag.to_owned(), tokens }).collect(), tokens))
+    Ok((left_out.into_iter().map(|(tag, tokens)| TagCount { tag: tag.to_owned(), tokens }).collect(), tokens))
+}
+
+/// The tagger in `bytes`, its tags asked for in `format`.
+///
+/// # Errors
+///
+/// A model file that is not a part-of-speech model.
+fn open_tagger(bytes: &[u8], format: PosTagFormat) -> Result<PosModel> {
+    let file = ModelFile::open(bytes.to_vec()).map_err(|e| Error::Model(e.to_string()))?;
+    PosModel::open_with_format(file, format).map_err(|e| Error::Model(e.to_string()))
+}
+
+/// Each sample's counts for the tagger in `bytes`, its tags asked for in
+/// [`TAG_FORMAT`], counting only the tokens whose gold tag `counted`
+/// accepts: the tagger still tags every token and `POSEvaluator` still
+/// reads every tag, but a token whose tag is not counted is in neither
+/// the right nor the total count. With every tag counted, these are the
+/// counts `POSEvaluator` makes.
+///
+/// # Errors
+///
+/// A model file that is not a part-of-speech model, a sentence no tag
+/// sequence scores above the search's minimum for, or what the evaluator
+/// throws on.
+pub fn score_tags_where(
+    bytes: &[u8],
+    samples: &[PosSample<'_>],
+    counted: impl Fn(&str) -> bool,
+) -> Result<Vec<Counts>> {
+    let tagger = PosTagger::new(open_tagger(bytes, TAG_FORMAT)?);
+    let tagset = tagger.pos_model().tagset().clone();
+    let mut out = Vec::with_capacity(samples.len());
+    let (mut tags, mut probs) = (Vec::new(), Vec::new());
+    let mut words: Vec<&str> = Vec::new();
+    let mut labels: Vec<&str> = Vec::new();
+    for sample in samples {
+        words.clear();
+        words.extend(sample.tokens().iter().map(|t| t.as_str()));
+        tags.clear();
+        probs.clear();
+        let found = tagger.tag(&words, &mut tags, &mut probs).map_err(|e| Error::Model(e.to_string()))?;
+        if !found {
+            return Err(Error::Model(format!("no tag sequence scored above the minimum for: {sample}")));
+        }
+        labels.clear();
+        labels.extend(tags.iter().map(|&t| tagset.label(t)));
+        let mut evaluator = PosEvaluator::default();
+        evaluator.evaluate(sample, &labels)?;
+        let (mut right, mut total) = (0, 0);
+        for (gold, given) in sample.tags().iter().zip(&labels).filter(|(gold, _)| counted(gold.as_str())) {
+            total += 1;
+            right += u64::from(gold.as_str() == *given);
+        }
+        out.push(Counts::accuracy(right, total));
+    }
+    Ok(out)
 }
 
 /// The model a UD recipe's model is gated against.
@@ -327,7 +381,7 @@ pub enum UdGate {
     /// both models' counts ([`tags_left_out`]).
     Gated {
         record: ModelGateRecord,
-        tags_left_out: Vec<LeftOutTag>,
+        tags_left_out: Vec<TagCount>,
     },
     Ungated(UngatedRecord),
 }
@@ -405,7 +459,8 @@ impl UdRecipe {
     ///
     /// # Errors
     ///
-    /// A sentence the reader refuses ([`Error::Conllu`], naming `file`).
+    /// A sentence the reader refuses ([`Error::Conllu`], naming `file`),
+    /// or no sample ([`Error::EmptySplit`]).
     pub fn samples<'c>(&self, conllu: &'c str, file: &'static str) -> Result<ReadSamples<'c>> {
         let conllu_error =
             |error: FormatError| Error::Conllu { treebank: self.treebank.repository, file, error: Box::new(error) };
@@ -420,12 +475,13 @@ impl UdRecipe {
                 0,
             ),
             Component::Tokens => (
-                UdSamples::Segments(HeldOut::Tokens(
-                    ConlluTokenReader::new(conllu, WHITESPACE)
+                UdSamples::Segments(HeldOut::Tokens {
+                    samples: ConlluTokenReader::new(conllu, WHITESPACE)
                         .map_err(conllu_error)?
                         .collect::<std::result::Result<_, _>>()
                         .map_err(conllu_error)?,
-                )),
+                    skipped: 0,
+                }),
                 0,
             ),
             Component::Pos => {
@@ -447,9 +503,12 @@ impl UdRecipe {
     ///
     /// # Errors
     ///
-    /// What reading the samples or training fails on.
+    /// What reading the samples fails on, more skipped sentences than
+    /// [`crate::MAX_SKIPPED_SENTENCES`] allows ([`Error::TooManyLeftOut`]),
+    /// or what training fails on.
     pub fn train(&self, train: &str) -> Result<Trained> {
         let read = self.samples(train, self.treebank.train.name)?;
+        check_skipped(LeftOut::TrainingSentences, read.skipped, read.samples.len())?;
         let language = self.treebank.language;
         let stamp = Stamp::at(TIMESTAMP_MS);
         let params = published::training_parameters();
@@ -463,7 +522,7 @@ impl UdRecipe {
                 let t = sentdetect::train_sentence_model_from_events(&events, &factory, &params, &mut config, stamp)?;
                 (t.package.to_bytes(), t.report)
             }
-            UdSamples::Segments(HeldOut::Tokens(samples)) => {
+            UdSamples::Segments(HeldOut::Tokens { samples, .. }) => {
                 let factory = TokenizerFactory::new(language, None, false, None)?;
                 let mut stream = TokSpanEventStream::new(&factory, WHITESPACE);
                 for s in samples {
@@ -506,16 +565,16 @@ impl UdRecipe {
     pub fn score(&self, bytes: &[u8], held_out: &UdSamples<'_>) -> Result<Vec<Counts>> {
         match (self.component, held_out) {
             (Component::Sentence, UdSamples::Segments(s @ HeldOut::Sentences(_)))
-            | (Component::Tokens, UdSamples::Segments(s @ HeldOut::Tokens(_))) => {
+            | (Component::Tokens, UdSamples::Segments(s @ HeldOut::Tokens { .. })) => {
                 segmentation::score_segments(bytes, s)
             }
-            (Component::Pos, UdSamples::Tags(samples)) => crate::postag::score_tags(bytes, TAG_FORMAT, samples),
+            (Component::Pos, UdSamples::Tags(samples)) => score_tags_where(bytes, samples, |_| true),
             (Component::Lemmas, UdSamples::Lemmas(samples)) => score_lemmas(bytes, samples),
             (component, samples) => Err(Error::ComponentMismatch {
                 recipe: component_name(component),
                 samples: match samples {
                     UdSamples::Segments(HeldOut::Sentences(_)) => "sentence",
-                    UdSamples::Segments(HeldOut::Tokens(_)) => "token",
+                    UdSamples::Segments(HeldOut::Tokens { .. }) => "token",
                     UdSamples::Tags(_) => "part-of-speech",
                     UdSamples::Lemmas(_) => "lemma",
                 },
@@ -531,8 +590,10 @@ impl UdRecipe {
     /// # Errors
     ///
     /// A reference given to a recipe without one or missing for one with
-    /// one ([`Error::Model`]), what [`UdRecipe::score`] fails on, or the
-    /// gate's errors.
+    /// one ([`Error::Model`]), a tagger's reference that has no outcome for
+    /// the tags of more than [`MAX_TOKENS_LEFT_OUT`] of the held-out tokens
+    /// ([`Error::TagsOutsideReference`]), what [`UdRecipe::score`] fails
+    /// on, or the gate's errors.
     pub fn gate(&self, trained: &[u8], reference: Option<&[u8]>, held_out: &UdSamples<'_>) -> Result<UdGate> {
         let set = HeldOutSet {
             name: self.held_out_name(),
@@ -545,12 +606,16 @@ impl UdRecipe {
                 let (candidate, baseline, tags_left_out) = match held_out {
                     UdSamples::Tags(samples) => {
                         let (left_out, tokens) = tags_left_out(reference, samples)?;
-                        let n: u64 = left_out.iter().map(|t| t.tokens).sum();
-                        if n as f64 > tokens as f64 * LEFT_OUT_LIMIT_PERCENT / 100.0 {
-                            return Err(Error::ReferenceTags { id: reference_id.to_owned(), left_out: n, tokens });
+                        if !MAX_TOKENS_LEFT_OUT.allows(left_out.iter().map(|t| t.tokens).sum(), tokens) {
+                            return Err(Error::TagsOutsideReference {
+                                reference: reference_id.to_owned(),
+                                left_out,
+                                of: tokens,
+                                limit: MAX_TOKENS_LEFT_OUT,
+                            });
                         }
                         let counted = |tag: &str| !left_out.iter().any(|t| t.tag == tag);
-                        let score = |bytes| crate::postag::score_tags_where(bytes, TAG_FORMAT, samples, counted);
+                        let score = |bytes| score_tags_where(bytes, samples, counted);
                         (score(trained)?, score(reference)?, left_out)
                     }
                     _ => (self.score(trained, held_out)?, self.score(reference, held_out)?, Vec::new()),
@@ -598,10 +663,13 @@ pub struct UdOutcome {
 ///
 /// # Errors
 ///
-/// What training, reading the samples, scoring or the gate fail on.
+/// What training, reading the samples, scoring or the gate fail on, or
+/// more skipped held-out sentences than [`crate::MAX_SKIPPED_SENTENCES`]
+/// allows ([`Error::TooManyLeftOut`]).
 pub fn run_ud(recipe: &UdRecipe, text: &TreebankText, reference: Option<&[u8]>) -> Result<UdOutcome> {
     let trained = recipe.train(&text.train)?;
     let held_out = recipe.samples(&text.test, recipe.treebank.test.name)?;
+    check_skipped(LeftOut::HeldOutSentences, held_out.skipped, held_out.samples.len())?;
     let gate = recipe.gate(&trained.bytes, reference, &held_out.samples)?;
     let card = UdModelCard::new(recipe, &trained, held_out.samples.len(), held_out.skipped, &gate);
     Ok(UdOutcome { trained, gate, card })

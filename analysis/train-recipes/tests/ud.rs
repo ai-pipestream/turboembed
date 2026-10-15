@@ -13,7 +13,7 @@ use turbo_train_recipes::Error;
 use turbo_train_recipes::card::{CARD_FILE, GATE_FILE, MODEL_VERSION, TagFormat};
 use turbo_train_recipes::treebank::{Grant, Treebank, TreebankFile};
 use turbo_train_recipes::ud::{
-    LEFT_OUT_LIMIT_PERCENT, UD_RECIPES, UdGate, UdRecipe, UdReference, UdSamples, lemma_samples, pos_samples, run_ud,
+    MAX_TOKENS_LEFT_OUT, UD_RECIPES, UdGate, UdRecipe, UdReference, UdSamples, lemma_samples, pos_samples, run_ud,
     tags_left_out,
 };
 use turbo_train_recipes::ud_card::{EXPERIMENTAL_VERSION, UdGateCard, UdModelCard, write_ud_model_dir};
@@ -216,7 +216,8 @@ fn the_ud_recipes_train_score_gate_and_write_their_cards() {
         if component == Component::Pos {
             assert!(matches!(
                 run_ud(&r, &text, Some(&weak_model)),
-                Err(Error::ReferenceTags { left_out, tokens, .. }) if left_out as f64 > tokens as f64 * LEFT_OUT_LIMIT_PERCENT / 100.0
+                Err(Error::TagsOutsideReference { left_out, of, limit, .. })
+                    if limit == MAX_TOKENS_LEFT_OUT && !limit.allows(left_out.iter().map(|t| t.tokens).sum(), of)
             ));
             continue;
         }

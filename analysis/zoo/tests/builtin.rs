@@ -56,8 +56,9 @@ const TREEBANKS: &[(&str, &str, Licence)] = &[
 ];
 
 /// The UD 1.3 treebanks OpenNLP publishes models for whose licences are
-/// non-commercial: none of their models may be in the index.
-const REFUSED_TREEBANKS: &[(&str, &str)] = &[
+/// non-commercial. A model trained on one is local-only (docs/licences.md),
+/// and the built-in index lists none of them.
+const NON_COMMERCIAL_TREEBANKS: &[(&str, &str)] = &[
     ("bg", "btb"),
     ("cs", "pdtc"),
     ("el", "gdt"),
@@ -108,7 +109,7 @@ fn the_ud_models_carry_their_treebank_licences() {
     }
     let listed: BTreeSet<String> = index.list().iter().map(|a| a.id.to_string()).collect();
     assert_eq!(listed, expected);
-    for (lang, tb) in REFUSED_TREEBANKS {
+    for (lang, tb) in NON_COMMERCIAL_TREEBANKS {
         assert!(!listed.iter().any(|id| id.starts_with(&format!("opennlp-{lang}-ud-{tb}-"))), "{lang}-{tb}");
     }
 }

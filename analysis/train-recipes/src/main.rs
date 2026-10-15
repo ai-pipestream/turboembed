@@ -15,23 +15,29 @@
 //! `--unrecorded-corpus` runs on a copy whose digest is not recorded yet,
 //! prints that digest, and marks the cards `release_recorded: false`.
 //! `--recipe` runs only the recipes named, by the trained model's id;
-//! without it every recipe runs. The exit status is 1 when a gate fails
+//! without it every recipe runs. The recipes run in the order of
+//! `RECIPES`, whatever the order they are named in. Before anything is
+//! trained, every reference the run needs is read and checked and every
+//! model directory it would write is checked not to exist, so a run that
+//! fails on one writes nothing. The exit status is 1 when a gate fails
 //! and 2 on an error.
 //!
 //! `fetch-masc` fetches the release archive through the zoo into
 //! `<home>/artifacts/`, once its digests are recorded.
 //!
-//! `ud` reads every reference model the chosen recipes are gated against
-//! from `--references` and checks it against the zoo's digest, then reads
-//! each treebank from `<treebanks>/<dataset id>/` (the layout `fetch-ud`
-//! writes, `<home>/artifacts`) with its licence check and file digests,
-//! all before any training; it then trains each model, gates it, and
-//! writes `<out>/<model id>/` with the model, `card.json` and `gate.json`.
-//! A model with no reference is scored alone. The exit status is 1 when a
+//! `ud` runs the UD recipes the same way, in the order of `UD_RECIPES`.
+//! Before anything is trained, it reads every reference model the chosen
+//! recipes are gated against from `--references` and checks it against
+//! the zoo's digest, checks that none of their model directories exists,
+//! and reads each treebank from `<treebanks>/<dataset id>/` (the layout
+//! `fetch-ud` writes, `<home>/artifacts`) with its licence check and file
+//! digests. It then trains each model, gates it, and writes
+//! `<out>/<model id>/` with the model, `card.json` and `gate.json`. A
+//! model with no reference is scored alone. The exit status is 1 when a
 //! gate fails and 2 on an error. `fetch-ud` fetches the treebanks' files
 //! at the release through the zoo into `<home>/artifacts/<dataset id>/`.
 
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 
 use turbo_formats::masc::MascCorpus;
@@ -60,27 +66,14 @@ struct Args {
     recipe_ids: Vec<String>,
 }
 
-/// The recipes of `all` that `ids` name, each once, in the order named;
-/// all of them when `ids` is empty.
-fn chosen<R: Copy + PartialEq>(
-    all: &[R],
-    ids: &[String],
-    model_id: impl Fn(&R) -> &'static str,
-) -> Result<Vec<R>, String> {
-    if ids.is_empty() {
-        return Ok(all.to_vec());
+/// The recipes of `all` that `ids` name, in the order of `all` whatever
+/// the order of `ids`; all of them when `ids` is empty.
+fn chosen<R: Copy>(all: &[R], ids: &[String], model_id: impl Fn(&R) -> &'static str) -> Result<Vec<R>, String> {
+    if let Some(id) = ids.iter().find(|id| !all.iter().any(|r| model_id(r) == id.as_str())) {
+        let known: Vec<&str> = all.iter().map(&model_id).collect();
+        return Err(format!("no recipe trains {id}; the recipes train {}", known.join(", ")));
     }
-    let mut out = Vec::new();
-    for id in ids {
-        let recipe = all.iter().find(|r| model_id(r) == id).ok_or_else(|| {
-            let known: Vec<&str> = all.iter().map(&model_id).collect();
-            format!("no recipe trains {id}; the recipes train {}", known.join(", "))
-        })?;
-        if !out.contains(recipe) {
-            out.push(*recipe);
-        }
-    }
-    Ok(out)
+    Ok(all.iter().filter(|r| ids.is_empty() || ids.iter().any(|id| model_id(r) == id.as_str())).copied().collect())
 }
 
 fn parse() -> Result<Args, String> {
@@ -127,6 +120,7 @@ fn masc_command(a: Args) -> Result<bool, String> {
     if !recorded {
         println!("the release is not recorded: this run is not a release of the models");
     }
+    let reference_bytes = check_before_training(&recipes, &references, &out)?;
     let corpus = MascCorpus::read(&corpus_dir).map_err(|e| Error::from(e).to_string())?;
     let split = masc::SPLIT.apply(corpus, &corpus_dir).map_err(|e| e.to_string())?;
     println!(
@@ -136,25 +130,58 @@ fn masc_command(a: Args) -> Result<bool, String> {
         split.skipped_paths.len()
     );
     let mut all_pass = true;
-    for recipe in &recipes {
-        let file = recipe.reference_file().map_err(|e| e.to_string())?;
-        let path = references.join(&file);
-        let reference = std::fs::read(&path).map_err(|e| format!("{}: {e}", path.display()))?;
-        recipe.check_reference(&reference).map_err(|e| e.to_string())?;
+    for (recipe, reference) in recipes.iter().zip(&reference_bytes) {
         let outcome =
-            run(recipe, &split, &digest, recorded, recipe.reference_id(), &reference).map_err(|e| e.to_string())?;
+            run(recipe, &split, &digest, recorded, recipe.reference_id(), reference).map_err(|e| e.to_string())?;
         write_model_dir(&out, &outcome.card, &outcome.trained.bytes, &outcome.gate).map_err(|e| e.to_string())?;
         println!(
-            "{}: {} samples, {} sentences skipped, {} events",
+            "{}: trained on {} samples, {} sentences skipped, {} events; held out {} samples, {} sentences skipped",
             recipe.model_id(),
             outcome.trained.samples,
             outcome.trained.skipped_sentences,
-            outcome.trained.events
+            outcome.trained.events,
+            outcome.card.held_out.samples,
+            outcome.card.held_out.skipped_sentences,
         );
+        if let Some(tokens) = &outcome.card.held_out.tokens {
+            let left_out: Vec<String> = tokens.left_out.iter().map(|t| format!("{} ({})", t.tag, t.tokens)).collect();
+            let count: u64 = tokens.left_out.iter().map(|t| t.tokens).sum();
+            println!(
+                "{}: {count} of {} held-out tokens left out, their tags not the reference's: {}",
+                recipe.model_id(),
+                tokens.tokens,
+                if left_out.is_empty() { "none".to_owned() } else { left_out.join(", ") }
+            );
+        }
         println!("{}", outcome.gate);
         all_pass &= outcome.gate.result.pass;
     }
     Ok(all_pass)
+}
+
+/// Reads and checks the reference of each recipe from `references`, and
+/// checks that `out` holds none of their model directories. Returns
+/// the references' bytes, in the recipes' order, or every problem found.
+fn check_before_training(recipes: &[Recipe], references: &Path, out: &Path) -> Result<Vec<Vec<u8>>, String> {
+    let mut bytes = Vec::with_capacity(recipes.len());
+    let mut problems = Vec::new();
+    for recipe in recipes {
+        let dir = out.join(recipe.model_id());
+        if dir.exists() {
+            problems.push(format!("{}: the model directory exists", dir.display()));
+        }
+        let read = recipe.reference_file().map_err(|e| e.to_string()).and_then(|file| {
+            let path = references.join(file);
+            let reference = std::fs::read(&path).map_err(|e| format!("{}: {e}", path.display()))?;
+            recipe.check_reference(&reference).map_err(|e| e.to_string())?;
+            Ok(reference)
+        });
+        match read {
+            Ok(reference) => bytes.push(reference),
+            Err(problem) => problems.push(problem),
+        }
+    }
+    if problems.is_empty() { Ok(bytes) } else { Err(problems.join("\n")) }
 }
 
 fn user() -> Result<turbo_zoo::UserId, String> {
@@ -172,26 +199,46 @@ fn fetch_command(a: Args) -> Result<bool, String> {
     Ok(true)
 }
 
+/// Reads and checks the reference of each UD recipe that has one from
+/// `references`, and checks that `out` holds none of their model
+/// directories. Returns the references' bytes, `None` for a recipe
+/// without a reference, in the recipes' order, or every problem found.
+fn check_ud_before_training(
+    recipes: &[UdRecipe],
+    references: &Path,
+    out: &Path,
+) -> Result<Vec<Option<Vec<u8>>>, String> {
+    let mut bytes = Vec::with_capacity(recipes.len());
+    let mut problems = Vec::new();
+    for recipe in recipes {
+        let dir = out.join(recipe.model_id);
+        if dir.exists() {
+            problems.push(format!("{}: the model directory exists", dir.display()));
+        }
+        let Some(reference) = recipe.reference_model() else {
+            bytes.push(None);
+            continue;
+        };
+        let read = reference.file().map_err(|e| e.to_string()).and_then(|file| {
+            let path = references.join(file);
+            let read = std::fs::read(&path).map_err(|e| format!("{}: {e}", path.display()))?;
+            reference.check(&read).map_err(|e| e.to_string())?;
+            Ok(read)
+        });
+        match read {
+            Ok(read) => bytes.push(Some(read)),
+            Err(problem) => problems.push(problem),
+        }
+    }
+    if problems.is_empty() { Ok(bytes) } else { Err(problems.join("\n")) }
+}
+
 fn ud_command(a: Args) -> Result<bool, String> {
     let recipes = chosen(&UD_RECIPES, &a.recipe_ids, |r: &UdRecipe| r.model_id)?;
     let treebanks = need(a.treebanks, "--treebanks")?;
     let references = need(a.references, "--references")?;
     let out = need(a.out, "--out")?;
-    // Every reference and every treebank is read and checked before any
-    // model is trained.
-    let mut reference_files = Vec::with_capacity(recipes.len());
-    for recipe in &recipes {
-        let bytes = match recipe.reference_model() {
-            Some(reference) => {
-                let path = references.join(reference.file().map_err(|e| e.to_string())?);
-                let bytes = std::fs::read(&path).map_err(|e| format!("{}: {e}", path.display()))?;
-                reference.check(&bytes).map_err(|e| e.to_string())?;
-                Some(bytes)
-            }
-            None => None,
-        };
-        reference_files.push(bytes);
-    }
+    let reference_files = check_ud_before_training(&recipes, &references, &out)?;
     let mut texts = Vec::new();
     for t in TREEBANKS.iter().filter(|t| recipes.iter().any(|r| r.treebank == **t)) {
         let dir = treebanks.join(t.dataset_id());
@@ -206,12 +253,13 @@ fn ud_command(a: Args) -> Result<bool, String> {
         let outcome = run_ud(recipe, text_of(&recipe.treebank), reference.as_deref()).map_err(|e| e.to_string())?;
         write_ud_model_dir(&out, &outcome.card, &outcome.trained.bytes, &outcome.gate).map_err(|e| e.to_string())?;
         println!(
-            "{}: {} samples, {} sentences skipped, {} events, {} held-out samples, {:.0} s",
+            "{}: trained on {} samples, {} sentences skipped, {} events; held out {} samples, {} sentences skipped; {:.0} s",
             recipe.model_id,
             outcome.trained.samples,
             outcome.trained.skipped_sentences,
             outcome.trained.events,
             outcome.card.treebank.held_out_samples,
+            outcome.card.treebank.held_out_skipped_sentences,
             started.elapsed().as_secs_f64()
         );
         println!("{}", outcome.gate);

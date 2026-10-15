@@ -21,13 +21,13 @@ use turbo_zoo::{
 
 use crate::Trained;
 use crate::card::{
-    CARD_FILE, GATE_FILE, MODEL_LICENCE, MODEL_LICENCE_TERMS, MODEL_VERSION, ModelFileCard, ParametersCard, TagFormat,
-    TrainingCard,
+    CARD_FILE, GATE_FILE, MODEL_LICENCE, MODEL_LICENCE_TERMS, MODEL_VERSION, ModelFileCard, ParametersCard, TagCount,
+    TagFormat, TrainingCard,
 };
 use crate::error::{Error, Result, io};
 use crate::segmentation::TIMESTAMP_MS;
 use crate::treebank::{Grant, RELEASE, TreebankFile};
-use crate::ud::{LeftOutTag, SENTENCES_PER_SAMPLE, TAG_FORMAT, UdGate, UdRecipe, UdReference};
+use crate::ud::{SENTENCES_PER_SAMPLE, TAG_FORMAT, UdGate, UdRecipe, UdReference};
 
 /// The schema version of [`UdModelCard`].
 pub const UD_CARD_VERSION: u32 = 1;
@@ -93,7 +93,7 @@ pub enum UdGateCard {
         tag_format: Option<TagFormat>,
         /// For a tagger, the held-out tags the reference has no outcome
         /// for, whose tokens were left out of both models' counts.
-        tags_left_out: Vec<LeftOutTag>,
+        tags_left_out: Vec<TagCount>,
         candidate_score: f64,
         reference_score: f64,
         difference_low: f64,
