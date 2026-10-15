@@ -37,14 +37,44 @@ def main(model_dir, cases_path, out_path, produced_by_path):
     worst = float(np.abs(embeddings - batched).max())
     if worst > 1e-4:
         sys.exit(f"batch {spec['max_batch']} differs from batch 1 by {worst}")
-    save_file(
-        {
-            "ids": np.ascontiguousarray(ids),
-            "lengths": np.ascontiguousarray(lengths),
-            "embeddings": np.ascontiguousarray(embeddings.astype(np.float32)),
-        },
-        out_path,
-    )
+    tensors = {
+        "ids": np.ascontiguousarray(ids),
+        "lengths": np.ascontiguousarray(lengths),
+        "embeddings": np.ascontiguousarray(embeddings.astype(np.float32)),
+    }
+    if "classifier" in spec:
+        kind = spec["classifier"]["kind"]
+        labels = spec["classifier"]["labels"]
+        if kind == "CLASSIFIER_TOKEN":
+            cls_model = transformers.AutoModelForTokenClassification.from_pretrained(
+                model_dir, local_files_only=True, torch_dtype=torch.float32
+            )
+        elif kind == "CLASSIFIER_SEQUENCE":
+            cls_model = transformers.AutoModelForSequenceClassification.from_pretrained(
+                model_dir, local_files_only=True, torch_dtype=torch.float32
+            )
+        else:
+            sys.exit(f"unknown classifier kind {kind!r}")
+        cls_model.eval()
+        id2label = getattr(cls_model.config, "id2label", None)
+        if id2label is not None:
+            got = [id2label.get(i, id2label.get(str(i))) for i in range(len(labels))]
+            if got != labels:
+                sys.exit(f"classifier labels {labels} do not match config.json id2label {got}")
+        rows = []
+        with torch.no_grad():
+            for i in range(len(texts)):
+                length = int(lengths[i])
+                row_ids = torch.from_numpy(ids[i : i + 1, :length]).to(torch.long)
+                mask = torch.ones_like(row_ids)
+                out = cls_model(input_ids=row_ids, attention_mask=mask).logits.numpy().astype(np.float32)
+                if kind == "CLASSIFIER_TOKEN":
+                    rows.append(out[0, :length, :])
+                else:
+                    rows.append(out)
+        logits = np.concatenate(rows, axis=0) if rows else np.zeros((0, len(labels)), dtype=np.float32)
+        tensors["logits"] = np.ascontiguousarray(logits)
+    save_file(tensors, out_path)
     with open(produced_by_path, "w", encoding="utf-8") as f:
         json.dump(
             {
