@@ -12,6 +12,7 @@ OpenNLP numeric add-on:
 | `EcbRates` | `EcbFxRates` |
 | `FxRates` | `FxRates` |
 | `MoneyConverter` | `MoneyConversionAnnotator`, fixed-date mode |
+| `DatedMoneyConverter` | `MoneyConversionAnnotator`, document-date mode |
 | `Decimal`, `Date` | `BigDecimal`, `LocalDate`, as far as these need them |
 
 The number inside a mention is read by the number scan of
@@ -145,9 +146,15 @@ the Java interface's default method does.
 
 `MoneyConverter` converts the default money instance into one target
 currency as of one date and is added to a pipeline with
-`MoneyConverter::bound`, which names its output instance. The Java
-annotator can instead read the date from a document date layer; there
-is no such layer here.
+`MoneyConverter::bound`, which names its output instance.
+
+`DatedMoneyConverter` is the Java annotator's document-date mode: it
+converts as of the date in the `turbo:document-date` layer, which
+`DocumentDateSelector` writes ([temporal.md](temporal.md)), and is added
+with `DatedMoneyConverter::bound` after that step. A pipeline without a
+step that writes the date layer is refused when it is built. A document
+without a date gets an empty converted layer and the rates are not
+asked, as in the Java.
 
 ## Differences from OpenNLP
 
