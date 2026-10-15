@@ -1,5 +1,8 @@
-//! Corpora in MASC's layout (GrAF headers, text, quarks, sentence regions
-//! and Penn tokens), written for the tests. They hold no MASC text.
+//! Corpora in MASC's layout (GrAF headers, text, quarks, sentence regions,
+//! Penn tokens and named entities), written for the tests. They hold no
+//! MASC text.
+
+#![allow(dead_code)]
 
 use std::fmt::Write as _;
 use std::path::{Path, PathBuf};
@@ -20,19 +23,71 @@ pub struct Token {
 /// such tokens has none. A token's Penn tag follows its last `/`, and a
 /// token that ends in `/` has no tag (no `msd` feature); a token without
 /// a `/` is tagged `.` when it is punctuation and `NN` otherwise.
+///
+/// After the tokens, each ` | ` starts a named entity, as MASC's named
+/// entity file links one to Penn tokens: its label, then the places of
+/// its tokens among the sentence's tokens. The labels are MASC's
+/// (`person`, `location`, `org`, `date`), and like MASC the sentences
+/// label pronouns that refer to a person `person`. An entity may overlap
+/// another, as `St. Louis` (a location) is inside `St. Louis team` (an
+/// organization).
 pub const SENTENCES: &[&str] = &[
-    "Dr./NNP Smith/NNP said/VBD that/IN the/DT dog/NN ~'s/POS food/NN costs/VBZ $/$ ~5.00/CD ~,/, not/RB more/JJR ~./.",
-    "Mr./NNP Jones/NNP left/VBD early/RB ~./.",
-    "It/PRP was/VBD cold/JJ in/IN the/DT U.S./NNP that/DT week/NN ~,/, and/CC it/PRP rained/VBD ~./.",
+    "Dr./NNP Smith/NNP said/VBD that/IN the/DT dog/NN ~'s/POS food/NN costs/VBZ $/$ ~5.00/CD ~,/, not/RB more/JJR ~./. \
+     | person 0 1",
+    "Mr./NNP Jones/NNP left/VBD early/RB ~./. | person 1",
+    "It/PRP was/VBD cold/JJ in/IN the/DT U.S./NNP that/DT week/NN ~,/, and/CC it/PRP rained/VBD ~./. | location 5 \
+     | date 6 7",
     "Who/WP called/VBD ~?/. Nobody/NN did/VBD ~!/.",
-    "The/DT St./NNP Louis/NNP team/NN won/VBD 3/CD ~-/: ~1/CD ~./.",
-    "Prices/NNS rose/VBD 4/CD ~%/NN in/IN May/NNP ~;/: they/PRP fell/VBD in/IN June/NNP ~./.",
-    "She/PRP did/VBD n't/RB go/VB ~,/, did/VBD she/PRP ~?/.",
-    "Ms./NNP Brown/NNP met/VBD Prof./NNP White/NNP at/IN 10/CD a.m./RB on/IN Monday/NNP ~./.",
+    "The/DT St./NNP Louis/NNP team/NN won/VBD 3/CD ~-/: ~1/CD ~./. | org 1 2 3 | location 1 2",
+    "Prices/NNS rose/VBD 4/CD ~%/NN in/IN May/NNP ~;/: they/PRP fell/VBD in/IN June/NNP ~./. | date 5 | date 10",
+    "She/PRP did/VBD n't/RB go/VB ~,/, did/VBD she/PRP ~?/. | person 0 | person 6",
+    "Ms./NNP Brown/NNP met/VBD Prof./NNP White/NNP at/IN 10/CD a.m./RB on/IN Monday/NNP ~./. | person 1 | person 4 \
+     | date 6 7 | date 9",
 ];
 
+/// A named entity of a sentence: its label and the places of its tokens
+/// among the sentence's tokens.
+pub struct Entity {
+    pub label: String,
+    pub tokens: Vec<usize>,
+}
+
+/// The tokens of `sentence`, and what follows them: its entities, each
+/// after ` | `.
+fn parts(sentence: &str) -> (&str, Vec<&str>) {
+    let mut parts = sentence.split(" | ");
+    let tokens = parts.next().unwrap_or_default();
+    (tokens, parts.collect())
+}
+
+/// The named entities of `sentence`.
+pub fn entities(sentence: &str) -> Vec<Entity> {
+    parts(sentence)
+        .1
+        .into_iter()
+        .map(|e| {
+            let mut words = e.split(' ');
+            let label = words.next().unwrap().to_owned();
+            Entity { label, tokens: words.map(|w| w.parse().unwrap()).collect() }
+        })
+        .collect()
+}
+
+/// Writes `entities` after `tokens` as [`SENTENCES`] does.
+fn with_entities(tokens: String, entities: &[Entity]) -> String {
+    let mut out = tokens;
+    for e in entities {
+        write!(out, " | {}", e.label).unwrap();
+        for t in &e.tokens {
+            write!(out, " {t}").unwrap();
+        }
+    }
+    out
+}
+
 pub fn tokens(sentence: &str) -> Vec<Token> {
-    sentence
+    parts(sentence)
+        .0
         .split(' ')
         .map(|t| {
             let (t, space_before) = match t.strip_prefix('~') {
@@ -72,26 +127,60 @@ pub fn with_tags_rotated(pool: &[&str]) -> Vec<String> {
                     format!("{space}{penn}{}/{tag}", t.text)
                 })
                 .collect();
-            written.join(" ")
+            with_entities(written.join(" "), &entities(sentence))
+        })
+        .collect()
+}
+
+/// `pool` with each named entity's tokens moved one token along, the last
+/// token's to the first: a name finder trained on it has learned to find
+/// names one token after where they are.
+pub fn with_names_shifted(pool: &[&str]) -> Vec<String> {
+    pool.iter()
+        .map(|sentence| {
+            let n = tokens(sentence).len();
+            let shifted: Vec<Entity> = entities(sentence)
+                .into_iter()
+                .map(|e| Entity { label: e.label, tokens: e.tokens.iter().map(|t| (t + 1) % n).collect() })
+                .collect();
+            with_entities(parts(sentence).0.to_owned(), &shifted)
         })
         .collect()
 }
 
 /// Writes one document of `sentences` (indices into `pool`) under `dir`
-/// as `<name>.hdr`, `<name>.txt`, `<name>-seg.xml`, `<name>-s.xml` and
-/// `<name>-penn.xml`.
+/// as `<name>.hdr`, `<name>.txt`, `<name>-seg.xml`, `<name>-s.xml`,
+/// `<name>-penn.xml` and `<name>-ne.xml`, the last with the sentences'
+/// named entities, if any.
 pub fn write_document(dir: &Path, name: &str, pool: &[&str], sentences: &[usize]) {
     std::fs::create_dir_all(dir).unwrap();
     let mut text = String::new();
     let mut seg = String::from("<graph xmlns=\"http://www.xces.org/ns/GrAF/1.0/\">\n");
     let mut s = seg.clone();
     let mut penn = seg.clone();
+    let mut ne = seg.clone();
+    let mut edges = String::new();
     let mut q = 0;
+    let mut e = 0;
     for (n, &i) in sentences.iter().enumerate() {
         if n > 0 {
             text.push_str("  ");
         }
         let start = text.len();
+        let first_quark = q;
+        for entity in entities(pool[i]) {
+            writeln!(
+                ne,
+                "  <node xml:id=\"ne-n{e}\"/>\n  <a xml:id=\"ne-N{e}\" label=\"{}\" ref=\"ne-n{e}\" as=\"anc\"><fs/></a>",
+                entity.label
+            )
+            .unwrap();
+            for t in entity.tokens {
+                writeln!(edges, "  <edge xml:id=\"ne-e{e}-{t}\" from=\"ne-n{e}\" to=\"penn-n{}\"/>", first_quark + t)
+                    .unwrap();
+            }
+            e += 1;
+        }
         for (k, t) in tokens(pool[i]).iter().enumerate() {
             if k > 0 && t.space_before {
                 text.push(' ');
@@ -118,7 +207,8 @@ pub fn write_document(dir: &Path, name: &str, pool: &[&str], sentences: &[usize]
         .unwrap();
     }
     text.push('\n');
-    for g in [&mut seg, &mut s, &mut penn] {
+    ne.push_str(&edges);
+    for g in [&mut seg, &mut s, &mut penn, &mut ne] {
         g.push_str("</graph>\n");
     }
     let header = format!(
@@ -127,7 +217,8 @@ pub fn write_document(dir: &Path, name: &str, pool: &[&str], sentences: &[usize]
          <primaryData f.id=\"f.text\" loc=\"{name}.txt\"/>\n    <annotations>\n      \
          <annotation loc=\"{name}-s.xml\" f.id=\"f.s\">annotation</annotation>\n      \
          <annotation loc=\"{name}-seg.xml\" f.id=\"f.seg\">annotation</annotation>\n      \
-         <annotation loc=\"{name}-penn.xml\" f.id=\"f.penn\">annotation</annotation>\n    </annotations>\n  \
+         <annotation loc=\"{name}-penn.xml\" f.id=\"f.penn\">annotation</annotation>\n      \
+         <annotation loc=\"{name}-ne.xml\" f.id=\"f.ne\">annotation</annotation>\n    </annotations>\n  \
          </profileDesc>\n</documentHeader>\n"
     );
     std::fs::write(dir.join(format!("{name}.hdr")), header).unwrap();
@@ -135,6 +226,7 @@ pub fn write_document(dir: &Path, name: &str, pool: &[&str], sentences: &[usize]
     std::fs::write(dir.join(format!("{name}-seg.xml")), seg).unwrap();
     std::fs::write(dir.join(format!("{name}-s.xml")), s).unwrap();
     std::fs::write(dir.join(format!("{name}-penn.xml")), penn).unwrap();
+    std::fs::write(dir.join(format!("{name}-ne.xml")), ne).unwrap();
 }
 
 /// A fresh directory under the system's temporary directory.

@@ -2161,6 +2161,7 @@ dependencies = [
  "turbo-maxent",
  "turbo-postag",
  "turbo-sentdetect",
+ "turbo-sequence",
  "turbo-tokenize",
  "turbo-train",
  "turbo-train-components",

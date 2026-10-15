@@ -23,6 +23,8 @@ turbo-train-components = { path = "../train-components" }
 turbo-sentdetect = { path = "../sentdetect" }
 turbo-tokenize = { path = "../tokenize" }
 turbo-postag = { path = "../postag" }
+# Running a trained name finder and the reference one over held-out text.
+turbo-sequence = { path = "../sequence" }
 turbo-maxent = { path = "../maxent" }
 # The span type the samples and models share.
 turbo-analysis = { path = "../core" }

@@ -17,6 +17,8 @@ pub enum Error {
     Train(turbo_train_components::Error),
     /// A model file could not be read.
     Model(String),
+    /// A sample built from a document that OpenNLP's sample class refuses.
+    Sample { path: PathBuf, message: String },
     /// The zoo refused or failed.
     Zoo(turbo_zoo::ZooError),
     /// The gate or its record failed.
@@ -91,6 +93,7 @@ impl fmt::Display for Error {
             Error::Eval(e) => write!(f, "evaluation: {e}"),
             Error::Train(e) => write!(f, "training: {e}"),
             Error::Model(e) => write!(f, "model: {e}"),
+            Error::Sample { path, message } => write!(f, "{}: a sample: {message}", path.display()),
             Error::Zoo(e) => write!(f, "zoo: {e}"),
             Error::Gate(e) => write!(f, "gate: {e}"),
             Error::InvalidRelease { field, value, message } => {

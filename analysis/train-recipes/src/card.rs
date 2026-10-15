@@ -14,7 +14,6 @@ use std::path::Path;
 use serde::{Deserialize, Serialize};
 use turbo_eval::model_gate::{ModelGateRecord, TagMapping};
 use turbo_postag::PosTagFormat;
-use turbo_train_components::ud;
 use turbo_zoo::{Artifact, File, Kind, Licence, LicenceClass, Sha256, Sha512, TrainingData, class_of, index::Format};
 
 use crate::error::{Error, Result, io};
@@ -22,10 +21,12 @@ use crate::masc::{self, Split};
 use crate::segmentation::{Component, LANGUAGE, SENTENCES_PER_SAMPLE, TIMESTAMP_MS};
 use crate::{Recipe, Trained, postag};
 
-/// The card's schema version: 3, with the held-out counts, the tag
+/// The card's schema version: 4, with the held-out counts, the tag
 /// formats and the reference's digest, the documents the split leaves
-/// out, and how a tagger's held-out tokens were scored.
-pub const CARD_VERSION: u32 = 3;
+/// out, how a tagger's held-out tokens were scored, the parameters of
+/// each recipe, and what a name finder's reader counted of the named
+/// entities.
+pub const CARD_VERSION: u32 = 4;
 /// The card's file name in the model's directory.
 pub const CARD_FILE: &str = "card.json";
 /// The gate record's file name in the model's directory.
@@ -66,7 +67,9 @@ pub struct CorpusCard {
     pub excluded_documents: Vec<masc::ExcludedDocument>,
 }
 
-/// The trainer's parameters, as the parameters file gives them.
+/// The trainer's parameters, as the parameters file gives them or, for a
+/// name finder, as `NameFinderME.train` puts its defaults into empty
+/// parameters (the trainer's default of one thread).
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct ParametersCard {
@@ -74,6 +77,26 @@ pub struct ParametersCard {
     pub iterations: i32,
     pub cutoff: i32,
     pub threads: i32,
+}
+
+/// What a name finder's reader counted of the named entities of one side
+/// of the split ([`crate::namefind::read_samples`]).
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct NamesCard {
+    /// The documents read: those with a named entity file.
+    pub documents: usize,
+    /// The names of the recipe's type in the samples.
+    pub names: u64,
+    /// Of those, names whose entity's tokens have a gap, kept as the span
+    /// from the first token to one past the last.
+    pub gapped: u64,
+    /// Entities of the recipe's type left out for overlapping a name kept
+    /// before them in `Span.compareTo` order, a repeat of the same tokens
+    /// among them.
+    pub overlapping: u64,
+    /// Entities of other types, left out.
+    pub other_types: u64,
 }
 
 /// What training read and made.
@@ -97,6 +120,9 @@ pub struct TrainingCard {
     pub skipped_sentences: usize,
     pub events: usize,
     pub event_hash: u32,
+    /// For a name finder, what its reader counted of the training
+    /// documents' named entities; `null` for the other components.
+    pub names: Option<NamesCard>,
 }
 
 /// What the gate read from the held-out documents.
@@ -112,6 +138,9 @@ pub struct HeldOutCard {
     /// For a tagger, how its held-out tokens were scored; `null` for the
     /// other components.
     pub tokens: Option<TokenCoverage>,
+    /// For a name finder, what its reader counted of the held-out
+    /// documents' named entities; `null` for the other components.
+    pub names: Option<NamesCard>,
 }
 
 /// How a tagger's held-out tokens were scored: over the tokens whose tag
@@ -250,6 +279,7 @@ impl ModelCard {
                 None,
             ),
             Recipe::Pos(p) => (None, None, TagFormat::of(postag::CANDIDATE_FORMAT), TagFormat::of(p.reference_format)),
+            Recipe::Name(_) => (None, None, None, None),
         };
         ModelCard {
             card_version: CARD_VERSION,
@@ -269,12 +299,7 @@ impl ModelCard {
             attribution: masc::ATTRIBUTION.to_owned(),
             corpus,
             training: TrainingCard {
-                parameters: ParametersCard {
-                    algorithm: "MAXENT".to_owned(),
-                    iterations: ud::ITERATIONS,
-                    cutoff: ud::CUTOFF,
-                    threads: ud::THREADS,
-                },
+                parameters: recipe.parameters(),
                 sentences_per_sample,
                 whitespace,
                 timestamp_ms: TIMESTAMP_MS,
@@ -283,6 +308,7 @@ impl ModelCard {
                 skipped_sentences: trained.skipped_sentences,
                 events: trained.events,
                 event_hash: trained.event_hash,
+                names: trained.names.clone(),
             },
             held_out,
             gate: GateCard {
@@ -427,6 +453,16 @@ impl fmt::Display for Summary<'_> {
             }
             for (i, t) in tokens.left_out.iter().enumerate() {
                 write!(f, "{} {} ({})", if i == 0 { "" } else { "," }, t.tag, t.tokens)?;
+            }
+        }
+        for (side, names) in [("training", &card.training.names), ("held-out", &card.held_out.names)] {
+            if let Some(n) = names {
+                write!(
+                    f,
+                    "\n{}: {} {side} names in {} documents, {} with a gap; {} overlapping and {} of other types left \
+                     out",
+                    card.id, n.names, n.documents, n.gapped, n.overlapping, n.other_types
+                )?;
             }
         }
         Ok(())

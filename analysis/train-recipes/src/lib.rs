@@ -11,6 +11,9 @@
 //! - [`postag`]: the English part-of-speech tagger trained on MASC's Penn
 //!   tags, gated the same way against OpenNLP 1.5's Penn tagger
 //!   (`en-pos-maxent.bin`).
+//! - [`namefind`]: English name finders trained on MASC's named entities,
+//!   one per type (person, location, organization, date), each gated
+//!   against OpenNLP 1.5's name finder of that type.
 //! - [`spans`]: a held-out unit's counts from OpenNLP's `FMeasure`, both
 //!   models' counts paired, and the types a gate of typed spans scores.
 //! - [`card`]: the model card kept beside the gate record, and the
@@ -24,6 +27,7 @@
 pub mod card;
 pub mod error;
 pub mod masc;
+pub mod namefind;
 pub mod postag;
 pub mod segmentation;
 pub mod spans;
@@ -36,8 +40,9 @@ use turbo_zoo::{Index, Sha256};
 
 pub use error::{Error, LeftOut, Result};
 
-use card::{CorpusCard, HeldOutCard, ModelCard};
+use card::{CorpusCard, HeldOutCard, ModelCard, NamesCard, ParametersCard};
 use masc::{CorpusDigest, SPLIT, SplitCorpus};
+use namefind::NameRecipe;
 use postag::PosRecipe;
 use segmentation::{Component, SegmentationRecipe};
 
@@ -50,13 +55,16 @@ pub struct Trained {
     pub samples: usize,
     /// Sentences left out of training: by the token stream for having no
     /// sample or tokens out of text order, by the tagger's for a token
-    /// without a tag or for having no token (always 0 for the sentence
-    /// detector). At most
+    /// without a tag or for having no token, by the name finder's for
+    /// having no token (always 0 for the sentence detector). At most
     /// [`MAX_SKIPPED_SENTENCES`] of those read.
     pub skipped_sentences: usize,
     pub events: usize,
     /// `Training-Eventhash`.
     pub event_hash: u32,
+    /// For a name finder, what its reader counted of the named entities;
+    /// `None` for the other components.
+    pub names: Option<NamesCard>,
 }
 
 /// A bound on how much a recipe may leave out: at most `count` in every
@@ -205,14 +213,20 @@ impl Reference {
 pub enum Recipe {
     Segmentation(SegmentationRecipe),
     Pos(PosRecipe),
+    Name(NameRecipe),
 }
 
 /// The recipes, in the order the binary runs them: the sentence detector,
-/// the tokenizer, the part-of-speech tagger.
-pub const RECIPES: [Recipe; 3] = [
+/// the tokenizer, the part-of-speech tagger, then the name finders of
+/// [`namefind::RECIPES`].
+pub const RECIPES: [Recipe; 7] = [
     Recipe::Segmentation(segmentation::SENTENCE),
     Recipe::Segmentation(segmentation::TOKENS),
     Recipe::Pos(postag::POS),
+    Recipe::Name(namefind::PERSON),
+    Recipe::Name(namefind::LOCATION),
+    Recipe::Name(namefind::ORGANIZATION),
+    Recipe::Name(namefind::DATE),
 ];
 
 impl Recipe {
@@ -226,6 +240,7 @@ impl Recipe {
         match self {
             Recipe::Segmentation(r) => r.model_id,
             Recipe::Pos(r) => r.model_id,
+            Recipe::Name(r) => r.model_id,
         }
     }
 
@@ -234,6 +249,7 @@ impl Recipe {
         match self {
             Recipe::Segmentation(r) => Reference::Zoo(r.reference_id),
             Recipe::Pos(r) => r.reference,
+            Recipe::Name(r) => r.reference,
         }
     }
 
@@ -247,6 +263,7 @@ impl Recipe {
         match self {
             Recipe::Segmentation(r) => r.task(),
             Recipe::Pos(r) => r.task(),
+            Recipe::Name(r) => r.task(),
         }
     }
 
@@ -258,6 +275,29 @@ impl Recipe {
                 Component::Tokens => turbo_zoo::Component::Tokenizer,
             },
             Recipe::Pos(_) => turbo_zoo::Component::Pos,
+            Recipe::Name(_) => turbo_zoo::Component::NameFinder,
+        }
+    }
+
+    /// The trainer's parameters: the UD models' for the segmentation
+    /// recipes and the tagger ([`turbo_train_components::ud`]), and
+    /// `NameFinderME.train`'s defaults for the name finders
+    /// ([`namefind::training_parameters`]).
+    pub fn parameters(&self) -> ParametersCard {
+        use turbo_train_components::{namefind as names, ud};
+        match self {
+            Recipe::Segmentation(_) | Recipe::Pos(_) => ParametersCard {
+                algorithm: "MAXENT".to_owned(),
+                iterations: ud::ITERATIONS,
+                cutoff: ud::CUTOFF,
+                threads: ud::THREADS,
+            },
+            Recipe::Name(_) => ParametersCard {
+                algorithm: "MAXENT".to_owned(),
+                iterations: names::DEFAULT_ITERATIONS,
+                cutoff: names::DEFAULT_CUTOFF,
+                threads: 1,
+            },
         }
     }
 
@@ -270,6 +310,7 @@ impl Recipe {
         match self {
             Recipe::Segmentation(r) => r.train(train),
             Recipe::Pos(r) => r.train(train),
+            Recipe::Name(r) => r.train(train),
         }
     }
 
@@ -295,6 +336,9 @@ impl Recipe {
                 r.gate(trained, reference_id, reference, &r.held_out(held_out)?, set_name, corpus_sha256)
             }
             Recipe::Pos(r) => r.gate(trained, reference_id, reference, &r.held_out(held_out)?, set_name, corpus_sha256),
+            Recipe::Name(r) => {
+                r.gate(trained, reference_id, reference, &r.held_out(held_out)?, set_name, corpus_sha256)
+            }
         }
     }
 
@@ -325,6 +369,10 @@ impl Recipe {
                 if let Some(reference) = reference {
                     r.check_coverage(reference_id, &r.reference_tags(reference)?, &held_out)?;
                 }
+            }
+            Recipe::Name(r) => {
+                r.check_training(&split.train)?;
+                r.held_out(&split.held_out)?;
             }
         }
         Ok(())
@@ -420,7 +468,15 @@ mod tests {
         let ids: Vec<&str> = RECIPES.iter().map(Recipe::model_id).collect();
         assert_eq!(
             ids,
-            ["turbo-en-masc-3.0.0-sentence-1", "turbo-en-masc-3.0.0-tokens-1", "turbo-en-masc-3.0.0-pos-1"]
+            [
+                "turbo-en-masc-3.0.0-sentence-1",
+                "turbo-en-masc-3.0.0-tokens-1",
+                "turbo-en-masc-3.0.0-pos-1",
+                "turbo-en-masc-3.0.0-ner-person-1",
+                "turbo-en-masc-3.0.0-ner-location-1",
+                "turbo-en-masc-3.0.0-ner-organization-1",
+                "turbo-en-masc-3.0.0-ner-date-1",
+            ]
         );
         for r in RECIPES {
             assert!(matches!(r.check_reference(b"not the model"), Err(Error::ReferenceDigest { .. })));
@@ -445,6 +501,18 @@ mod tests {
         assert_eq!(RECIPES[2].component(), turbo_zoo::Component::Pos);
         assert_eq!(RECIPES[2].reference_id(), "opennlp-en-pos-maxent-1.5");
         assert_eq!(RECIPES[2].reference().sha256().unwrap(), postag::EN_POS_MAXENT.sha256);
+        for r in &RECIPES[3..] {
+            assert_eq!(r.task(), Task::NameFinder);
+            assert_eq!(r.component(), turbo_zoo::Component::NameFinder);
+            assert_eq!(
+                r.parameters(),
+                ParametersCard { algorithm: "MAXENT".into(), iterations: 300, cutoff: 0, threads: 1 }
+            );
+        }
+        assert_eq!(
+            RECIPES[0].parameters(),
+            ParametersCard { algorithm: "MAXENT".into(), iterations: 300, cutoff: 5, threads: 4 }
+        );
         for r in RECIPES {
             assert_eq!(Recipe::trains(r.model_id()), Some(r));
         }

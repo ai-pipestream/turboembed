@@ -12,14 +12,16 @@ mod common;
 use std::path::PathBuf;
 
 use common::{
-    GATED_DOCUMENTS, SENTENCES, nest_token, rewrite_document, set_text_class, temp_dir, with_tags_rotated, write_corpus,
+    GATED_DOCUMENTS, SENTENCES, nest_token, rewrite_document, set_text_class, temp_dir, with_names_shifted,
+    with_tags_rotated, write_corpus,
 };
 use turbo_eval::model_gate::{Measure, ModelGateRecord, Scoring, Task};
 use turbo_formats::masc::{MascCorpus, MascTokenReader};
 use turbo_postag::PosTagFormat;
 use turbo_train_components::{TokSpanEventStream, TokenizerFactory};
 use turbo_train_recipes::card::{
-    CARD_FILE, CARD_VERSION, GATE_FILE, HeldOutCard, ModelCard, TagCount, TagFormat, TokenCoverage, write_model_dir,
+    CARD_FILE, CARD_VERSION, GATE_FILE, HeldOutCard, ModelCard, NamesCard, TagCount, TagFormat, TokenCoverage,
+    write_model_dir,
 };
 use turbo_train_recipes::masc::{self, ExcludedDocument, Exclusion, RELEASE, SPLIT, SplitCorpus};
 use turbo_train_recipes::postag::{self, POS, PosRecipe, ReferenceTags, Scored};
@@ -48,7 +50,7 @@ fn the_split_holds_out_every_tenth_document_in_read_order() {
     write_corpus(&root, 25, SENTENCES);
     let all: Vec<PathBuf> = MascCorpus::read(&root).unwrap().documents().iter().map(|d| d.path().to_owned()).collect();
     let (split, digest) = split_of(&root);
-    assert_eq!(digest.files, 25 * 5);
+    assert_eq!(digest.files, 25 * 6);
     assert_eq!(split.train.documents().len(), 23);
     let held: Vec<String> =
         [9, 19].iter().map(|&i| all[i].strip_prefix(&root).unwrap().to_string_lossy().into_owned()).collect();
@@ -87,7 +89,9 @@ fn the_recipes_train_score_gate_and_write_their_cards() {
     // abbreviations, contractions or attached punctuation; for the tagger,
     // which is scored only on tokens whose tag the reference can give, on
     // the same sentences with their tags moved one token along, so it can
-    // give every tag but has learned the wrong one for nearly every word.
+    // give every tag but has learned the wrong one for nearly every word;
+    // for a name finder, on the same sentences with each name moved one
+    // token along.
     // The check that tells the gate's rule apart from one that passes
     // everything is the swapped one below, where the weaker model is the
     // candidate.
@@ -98,12 +102,17 @@ fn the_recipes_train_score_gate_and_write_their_cards() {
     let rotated_pool = with_tags_rotated(SENTENCES);
     write_corpus(&rotated_root, 30, &rotated_pool.iter().map(String::as_str).collect::<Vec<_>>());
     let (rotated, _) = split_of(&rotated_root);
+    let shifted_root = temp_dir("shifted");
+    let shifted_pool = with_names_shifted(SENTENCES);
+    write_corpus(&shifted_root, 30, &shifted_pool.iter().map(String::as_str).collect::<Vec<_>>());
+    let (shifted, _) = split_of(&shifted_root);
 
     let out = temp_dir("out");
     for recipe in RECIPES {
         let weak = match recipe {
             Recipe::Pos(_) => recipe.train(&rotated.train).unwrap(),
             Recipe::Segmentation(_) => recipe.train(&plain.train).unwrap(),
+            Recipe::Name(_) => recipe.train(&shifted.train).unwrap(),
         };
         println!(
             "{}: the weak reference was trained on {} samples, {} events",
@@ -185,18 +194,29 @@ fn the_recipes_train_score_gate_and_write_their_cards() {
                     reference_mismatches: mismatches,
                 })
             }
-            Recipe::Segmentation(_) => None,
+            Recipe::Segmentation(_) | Recipe::Name(_) => None,
+        };
+        let names = match recipe {
+            Recipe::Name(n) => Some(n.held_out(&split.held_out).unwrap().counts().clone()),
+            Recipe::Segmentation(_) | Recipe::Pos(_) => None,
         };
         // The gate record holds the skipped sentences and the scoring too.
         assert_eq!(gate.set.skipped_sentences, 0);
-        match (&gate.set.scoring, &tokens) {
-            (Scoring::Tags(t), Some(c)) => {
+        match (&gate.set.scoring, &tokens, &names, recipe) {
+            (Scoring::Tags(t), Some(c), None, Recipe::Pos(_)) => {
                 assert_eq!((t.tokens, t.left_out, &t.reference_mappings), (c.tokens, 0, &c.reference_mappings));
             }
-            (Scoring::Spans, None) => {}
+            (Scoring::Spans, None, None, Recipe::Segmentation(_)) => {}
+            (Scoring::TypedSpans(t), None, Some(n), Recipe::Name(r)) => {
+                assert_eq!(t.types, [r.kind()]);
+                assert_eq!((t.spans, t.left_out), (n.names, n.other_types));
+                assert!(n.names > 0 && n.other_types > 0, "{n:?}");
+                assert_eq!(n.documents, split.held_out.documents().len());
+                assert_eq!(card.training.names.as_ref().unwrap().documents, split.train.documents().len());
+            }
             other => panic!("{other:?}"),
         }
-        assert_eq!(card.held_out, HeldOutCard { samples: gate.units.len(), skipped_sentences: 0, tokens });
+        assert_eq!(card.held_out, HeldOutCard { samples: gate.units.len(), skipped_sentences: 0, tokens, names });
         assert_eq!(card.training.sentences_per_sample.is_some(), recipe.task() == Task::SentenceDetector);
         assert_eq!(card.gate.pass, gate.result.pass);
         match recipe {
@@ -209,7 +229,12 @@ fn the_recipes_train_score_gate_and_write_their_cards() {
                 assert_eq!(card.training.whitespace.as_deref(), Some("legacy"));
                 assert_eq!((card.gate.candidate_tag_format, card.gate.reference_tag_format), (None, None));
             }
+            Recipe::Name(_) => {
+                assert_eq!(card.training.whitespace, None);
+                assert_eq!((card.gate.candidate_tag_format, card.gate.reference_tag_format), (None, None));
+            }
         }
+        assert_eq!(card.training.parameters, recipe.parameters());
 
         // What the binary prints of the card, with the counts of a run.
         let mut counted = card.clone();
@@ -220,7 +245,17 @@ fn the_recipes_train_score_gate_and_write_their_cards() {
              skipped",
             recipe.model_id()
         );
-        if counted.held_out.tokens.is_none() {
+        if let (Some(training), Some(held_out)) = (&mut counted.training.names, &mut counted.held_out.names) {
+            *training = NamesCard { documents: 351, names: 2934, gapped: 1, overlapping: 36, other_types: 11622 };
+            *held_out = NamesCard { documents: 39, names: 321, gapped: 0, overlapping: 0, other_types: 2157 };
+            let id = recipe.model_id();
+            let names = format!(
+                "{id}: 2934 training names in 351 documents, 1 with a gap; 36 overlapping and 11622 of other types \
+                 left out\n{id}: 321 held-out names in 39 documents, 0 with a gap; 0 overlapping and 2157 of other \
+                 types left out"
+            );
+            assert_eq!(counted.summary().to_string(), format!("{trained}\n{names}"));
+        } else if counted.held_out.tokens.is_none() {
             assert_eq!(counted.summary().to_string(), trained);
         } else {
             let id = recipe.model_id();
@@ -337,7 +372,7 @@ fn the_recipes_train_score_gate_and_write_their_cards() {
         }
         other => panic!("{other:?}"),
     }
-    for dir in [root, plain_root, rotated_root, out] {
+    for dir in [root, plain_root, rotated_root, shifted_root, out] {
         std::fs::remove_dir_all(dir).unwrap();
     }
 }
@@ -741,11 +776,11 @@ fn the_tagger_recipe_reads_the_jvm_s_samples_from_the_checked_in_masc_corpora() 
 /// test may skip. The OpenNLP UD models come from `TURBO_GOLDENS_MODELS`
 /// (`cargo run -p turbo-goldens-tool -- fetch-models <dir>` writes them),
 /// and are required when `TURBO_TEST_REQUIRE_OPENNLP_MODELS=1`, as CI sets
-/// it. The OpenNLP 1.5 tagger comes from `TURBO_TEST_OPENNLP_MODELS` and
-/// is local-only, as in turbo-sequence's tests (its training data is not
-/// documented, so CI does not fetch it): without that variable it is
-/// skipped even when the models are required, and with it a missing file
-/// fails.
+/// it. The OpenNLP 1.5 tagger and name finders come from
+/// `TURBO_TEST_OPENNLP_MODELS` and are local-only, as in turbo-sequence's
+/// tests (their training data is not documented, so CI does not fetch
+/// them): without that variable they are skipped even when the models are
+/// required, and with it a missing file fails.
 fn reference_path(recipe: &Recipe) -> Option<PathBuf> {
     let file = recipe.reference_file().unwrap();
     match recipe.reference() {
@@ -839,6 +874,30 @@ fn the_penn_reference_returns_its_own_outcomes() {
     assert_eq!(given[14], "''", "{given:?}");
 }
 
+/// Each name recipe's reference finds names of the recipe's type, and
+/// only those: its outcomes are `other` and that type's start and
+/// continuation, so the gate scores both models on the same type.
+#[test]
+fn each_name_reference_finds_the_type_of_its_recipe() {
+    for recipe in &RECIPES[3..] {
+        let Recipe::Name(r) = recipe else { panic!("{} is not a name recipe", recipe.model_id()) };
+        let Some(path) = reference_path(recipe) else { continue };
+        let bytes = std::fs::read(&path).unwrap();
+        recipe.check_reference(&bytes).unwrap();
+        let file = turbo_maxent::ModelFile::open(bytes).unwrap();
+        let model = file.maxent(turbo_sequence::namefind::MODEL_ENTRY_NAME).unwrap();
+        let kind = r.kind();
+        assert_eq!(
+            model.outcome_texts().unwrap(),
+            ["other".to_owned(), format!("{kind}-start"), format!("{kind}-cont")]
+        );
+        // A 1.5 model: no descriptor, so it runs with the feature
+        // generators OpenNLP gives a model without one.
+        assert!(file.entry("generator.featuregen").is_err());
+        assert_eq!(file.manifest().get("OpenNLP-Version"), Some("1.5.0"));
+    }
+}
+
 fn labels(tagset: &turbo_analysis::TagSet) -> Vec<&str> {
     let mut labels: Vec<&str> = (0..tagset.len()).map(|i| tagset.label(turbo_analysis::Tag(i as u16))).collect();
     labels.sort_unstable();
@@ -865,11 +924,17 @@ fn the_published_references_are_checked_and_scored_when_present() {
         outcome.gate.check().unwrap();
         assert_eq!(outcome.gate.reference.id, recipe.reference_id());
         println!("{}", outcome.gate);
-        let expected = match recipe.task() {
-            Task::SentenceDetector => "63.16",
-            Task::Tokenizer => "94.34",
-            Task::PartOfSpeechTagger => "92.41",
-            task @ (Task::NameFinder | Task::Chunker) => panic!("no recipe of the task {task:?}"),
+        let expected = match recipe {
+            Recipe::Segmentation(_) if recipe.task() == Task::SentenceDetector => "63.16",
+            Recipe::Segmentation(_) => "94.34",
+            Recipe::Pos(_) => "92.41",
+            // The 1.5 name finders find none of the test corpus's persons,
+            // locations and organizations; the date finder finds `Monday`,
+            // `May` and `June` but not `that week` or `10 a.m.`.
+            Recipe::Name(n) => match n.kind() {
+                "date" => "75.00",
+                _ => "0.00",
+            },
         };
         let scores = (outcome.gate.result.candidate.score, outcome.gate.result.reference.score);
         assert_eq!(format!("{:.2} {:.2}", scores.0, scores.1), format!("100.00 {expected}"), "{}", outcome.gate);
@@ -916,7 +981,7 @@ fn the_binary_checks_every_reference_model_directory_and_recipe_s_samples_before
     }
     std::fs::create_dir_all(models.join(tokens.model_id())).unwrap();
     let stderr = run(&[]);
-    assert_eq!(stderr.lines().count(), 4, "{stderr}");
+    assert_eq!(stderr.lines().count(), RECIPES.len() + 1, "{stderr}");
     for r in RECIPES {
         assert!(stderr.contains(&format!("reference model {}: SHA-256", r.reference_id())), "{stderr}");
     }
@@ -924,15 +989,15 @@ fn the_binary_checks_every_reference_model_directory_and_recipe_s_samples_before
     let written: Vec<_> = std::fs::read_dir(&models).unwrap().map(|e| e.unwrap().file_name()).collect();
     assert_eq!(written, [tokens.model_id()], "nothing else is written");
 
-    // A held-out sentence of no tokens, which the token and tagger
-    // recipes skip: one of 320 is more than one in a thousand, and both
-    // are named with the other problems, before anything is trained.
+    // A held-out sentence of no tokens, which the token, tagger and name
+    // recipes skip: one of 320 is more than one in a thousand, and each
+    // is named with the other problems, before anything is trained.
     let (split, _) = split_of(&root);
     let no_tokens = SENTENCES.len() + 1;
     rewrite_document(&root, &split.held_out_paths[0], &with_skipped_sentences(), &sentences_after(&[no_tokens]));
     let stderr = run(&[]);
-    assert_eq!(stderr.lines().count(), 6, "{stderr}");
-    for r in [tokens, pos] {
+    assert_eq!(stderr.lines().count(), 2 * RECIPES.len(), "{stderr}");
+    for r in [tokens, pos].into_iter().chain(RECIPES[3..].iter().copied()) {
         let line = format!("{}: 1 of 320 held-out sentences skipped, more than the limit of 1 in 1000", r.model_id());
         assert!(stderr.contains(&line), "{stderr}");
     }
