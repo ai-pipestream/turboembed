@@ -369,7 +369,7 @@ impl Layer for Entities {
             return Err(format!("a kind outside {}", self.kinds.name));
         }
         if self.score.iter().any(|s| s.is_nan()) {
-            return Err("a score that is not NaN".into());
+            return Err("a score that is NaN".into());
         }
         self.spans.check(Self::OVERLAP)?;
         Ok(())
@@ -416,6 +416,10 @@ pub struct PhraseChunks {
 
 impl Layer for PhraseChunks {
     const ID: &'static str = "opennlp:chunks";
+    /// Phrases are runs of tokens, and two UTF-16 tokens that split a
+    /// character outside the Basic Multilingual Plane are both widened to
+    /// it, so two phrases meeting there share its bytes.
+    const OVERLAP: Overlap = Overlap::Any;
     positional!(PhraseChunks);
     fn indexes(&self) -> Vec<(KeyId, usize)> {
         vec![(Key::<Tokens>::DEFAULT.id(), self.tokens.iter().map(|r| r.end.get()).max().unwrap_or(0))]
@@ -527,7 +531,10 @@ pub struct Chunks {
 impl Layer for Chunks {
     const ID: &'static str = "turbo:chunks";
     const SCHEMA: u16 = 2;
-    const OVERLAP: Overlap = Overlap::Nesting;
+    /// A chunk lies inside its parent, but two chunks at different levels
+    /// that are not parent and child can cross: a level 0 chunk under a
+    /// section row can run across the edge of a nested section's row.
+    const OVERLAP: Overlap = Overlap::Any;
     positional!(Chunks);
     fn indexes(&self) -> Vec<(KeyId, usize)> {
         vec![(Key::<Sentences>::DEFAULT.id(), self.sentences.iter().map(|r| r.end.get()).max().unwrap_or(0))]
@@ -557,7 +564,7 @@ impl Layer for Chunks {
                 return Err(format!("chunk {i} is outside its parent"));
             }
         }
-        self.spans.check(Overlap::Any)?;
+        self.spans.check(Self::OVERLAP)?;
         Ok(())
     }
 }

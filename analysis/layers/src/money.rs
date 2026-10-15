@@ -145,10 +145,7 @@ impl Layer for Money {
         if columns.iter().any(|&l| l != n) {
             return Err("every column as long as the spans".into());
         }
-        if !self.spans.is_ordered() {
-            return Err("money mentions in text order, not overlapping".into());
-        }
-        self.spans.check(Self::OVERLAP)?;
+        self.spans.check(Self::OVERLAP).map_err(|_| "money mentions in text order, not overlapping")?;
         for (i, span) in self.spans.iter() {
             let i = i.get();
             if span.is_empty() {

@@ -103,7 +103,6 @@ impl BratDocument {
         &self,
         tokens: &turbo_analysis_layers::Tokens,
     ) -> Result<turbo_analysis_layers::Entities, String> {
-        use std::fmt::Write as _;
         use std::sync::Arc;
         use turbo_analysis::{IxRange, Layer, Span, Spans};
         use turbo_analysis_layers::{Entities, TagSet};
@@ -111,6 +110,9 @@ impl BratDocument {
 
         let text = &self.text;
         let view = tokens.spans.view();
+        if view != turbo_analysis::ViewId::SOURCE {
+            return Err(format!("the tokens are in view {}, and the offsets are in the source text", view.0));
+        }
         let (tok_starts, tok_ends) = tokens.spans.columns();
 
         struct RawEntity<'a> {
@@ -136,19 +138,15 @@ impl BratDocument {
                     .map_err(|_| format!("annotation {} has negative start {}", a.id, f.start))?;
                 let end_u16 =
                     usize::try_from(f.end).map_err(|_| format!("annotation {} has negative end {}", a.id, f.end))?;
-                let start_b = utf16_to_byte(text, start_u16).ok_or_else(|| {
-                    let mut msg = String::new();
-                    let _ = write!(msg, "annotation {} start {} is not on a character boundary", a.id, f.start);
-                    msg
-                })? as u32;
-                let end_b = utf16_to_byte(text, end_u16).ok_or_else(|| {
-                    let mut msg = String::new();
-                    let _ = write!(msg, "annotation {} end {} is not on a character boundary", a.id, f.end);
-                    msg
-                })? as u32;
+                let start_b = utf16_to_byte(text, start_u16)
+                    .ok_or_else(|| format!("annotation {} start {} is not on a character boundary", a.id, f.start))?
+                    as u32;
+                let end_b = utf16_to_byte(text, end_u16)
+                    .ok_or_else(|| format!("annotation {} end {} is not on a character boundary", a.id, f.end))?
+                    as u32;
                 frags.push(Span::new(start_b, end_b));
             }
-            frags.sort_by(|x, y| x.start.cmp(&y.start).then(x.end.cmp(&y.end)));
+            frags.sort();
             // Coalesce touching or overlapping fragments within the same annotation.
             let mut merged: Vec<Span> = Vec::with_capacity(frags.len());
             for f in frags {
@@ -195,13 +193,19 @@ impl BratDocument {
 /// Formats an [`turbo_analysis_layers::Entities`] layer over `text` in brat
 /// standoff `.ann` syntax (`T1\t<kind> <start> <end>[;<start> <end>]\t<covered>\n`),
 /// converting UTF-8 byte spans to UTF-16 code-unit offsets and joining
-/// discontinuous fragments' covered text with a single space.
+/// discontinuous fragments' covered text with a single space. A line
+/// break inside the covered text is written as a space, as brat does,
+/// since the line is the record. An entity with no text is not written:
+/// brat has no line for it.
 pub fn write_brat_entities(text: &str, entities: &turbo_analysis_layers::Entities) -> String {
     use std::fmt::Write as _;
     use turbo_unicode::utf16::byte_to_utf16;
 
     let mut out = String::new();
-    for (ix, _) in entities.spans.iter() {
+    for (ix, span) in entities.spans.iter() {
+        if span.is_empty() {
+            continue;
+        }
         let i = ix.get();
         let label = entities.kinds.label(entities.kind[i]);
         let _ = write!(out, "T{}\t{label} ", i + 1);
@@ -218,7 +222,9 @@ pub fn write_brat_entities(text: &str, entities: &turbo_analysis_layers::Entitie
             if f_idx > 0 {
                 out.push(' ');
             }
-            out.push_str(&text[frag.range()]);
+            for c in text[frag.range()].chars() {
+                out.push(if c == '\n' || c == '\r' { ' ' } else { c });
+            }
         }
         out.push('\n');
     }

@@ -1023,9 +1023,19 @@ mod tests {
         bad.push_fragments(&[Span::new(0, 6), Span::new(15, 20)]);
         bad.push(Span::new(4, 10));
         let err = bad.check(Overlap::Nesting).unwrap_err();
-        assert!(err.contains("partially crosses") || err.contains("shares covered bytes"), "{err}");
+        assert!(err.contains("partially crosses"), "{err}");
         // Under Overlap::Any, the same spans are accepted.
         assert_eq!(bad.check(Overlap::Any), Ok(()));
+
+        // Invalid, and only the item-level check sees it: no fragment
+        // crosses another, but item 1 (2..4; 10..12) is neither inside
+        // item 0 (0..6; 15..20) nor outside it.
+        let mut bad = Spans::<Dummy>::new(ViewId::SOURCE);
+        bad.push_fragments(&[Span::new(0, 6), Span::new(15, 20)]);
+        bad.push_fragments(&[Span::new(2, 4), Span::new(10, 12)]);
+        assert_eq!(check_no_crossing(bad.frag_start.as_slice(), bad.frag_end.as_slice(), "fragment"), Ok(()));
+        let err = bad.check(Overlap::Nesting).unwrap_err();
+        assert!(err.contains("across fragments"), "{err}");
 
         // Invalid: item 0 has fragments 0..5 and 10..20, item 1 is 2..15
         // (shares bytes with both fragments of item 0 without either item

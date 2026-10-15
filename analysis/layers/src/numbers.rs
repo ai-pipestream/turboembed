@@ -187,10 +187,7 @@ impl Layer for Numbers {
         if columns.iter().any(|&l| l != n) {
             return Err("every column as long as the spans".into());
         }
-        if !self.spans.is_ordered() {
-            return Err("numbers in text order, not overlapping".into());
-        }
-        self.spans.check(Self::OVERLAP)?;
+        self.spans.check(Self::OVERLAP).map_err(|_| "numbers in text order, not overlapping")?;
         for (i, span) in self.spans.iter() {
             let i = i.get();
             let numeral_start = span.start + u32::from(self.negative[i]);

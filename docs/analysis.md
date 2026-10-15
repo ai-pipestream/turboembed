@@ -180,20 +180,27 @@ declares what overlap its items may have through `Layer::OVERLAP`
 (`Overlap` in `turbo-analysis`), which `Document::add` checks on
 `Layer::text_spans()` (`TextSpans`):
 
-- `Overlap::None` (the default, used by `Sentences`, `Tokens`,
-  `PhraseChunks`, `Numbers`, `Money`, `Quantities` and the normalizer
-  layers): continuous spans in text order (`start` non-decreasing) that
-  do not overlap (`end[i - 1] <= start[i]`).
-- `Overlap::Nesting` (`Structure`, `Chunks`, `Levels`): spans are in
-  text start order and may nest (`a.contains(b)` or `b.contains(a)`
-  whenever `a` and `b` share covered bytes), and never partially cross
-  (`a.start < b.start && b.start < a.end && a.end < b.end`), neither at
-  the envelope level nor across discontinuous fragments.
-- `Overlap::Any` (`Entities`, `Subwords`, or multi-tagger candidate
-  layers): spans in text start order that may nest or partially cross
-  (for example `"New York"` inside `"Bank of New York"`, or overlapping
-  matches from a multi-pattern `RegexNameFinder` before `MergeEntities`
-  or `FilterEntities` resolves them).
+- `Overlap::None` (the default, used by `Sentences`, `Numbers`, `Money`,
+  `Quantities` and the normalizer layers): continuous spans in text
+  order (`start` non-decreasing) that do not overlap
+  (`end[i - 1] <= start[i]`).
+- `Overlap::Nesting` (`Structure`): spans may nest (`a.contains(b)` or
+  `b.contains(a)` whenever `a` and `b` share covered bytes) and never
+  partially cross (`a.start < b.start && b.start < a.end && a.end <
+  b.end`), neither at the envelope level nor across discontinuous
+  fragments. The check does not need text order: unordered spans are
+  sorted first.
+- `Overlap::Any` (`Tokens`, `Subwords`, `PhraseChunks`, `Chunks`,
+  `Levels`, `Entities`, or multi-tagger candidate layers): any spans in
+  bounds. `Tokens` and `PhraseChunks` are here because two UTF-16 tokens
+  that split a character outside the Basic Multilingual Plane are both
+  widened to it; `Chunks` and `Levels` because a level 0 chunk can run
+  across the edge of a nested section; `Entities` for `"New York"`
+  inside `"Bank of New York"`, or overlapping matches from a
+  multi-pattern `RegexNameFinder` before `MergeEntities` or
+  `FilterEntities` resolves them. Each layer's own `check` adds what
+  it promises beyond that (`Tokens` and `Subwords` are in text order,
+  `Chunks` lie inside their parents).
 
 For discontinuous spans (such as split verbs `"take ... off"`, clinical
 mentions `"pain in the left ... and right knee"`, or brat standoff
@@ -213,11 +220,10 @@ rather than mapping the bounding envelope alone, because an edit inside
 the gap between fragments would otherwise shift or widen the gap.
 
 Retrieval chunking (`turbo-chunker`) cuts only at sentence boundaries
-and clauses, never reading `Entities` as a hard split constraint:
-named entities (continuous or discontinuous) stay inside their
-containing sentence, and if a long sentence is cut by the clause
-splitter, `Spans::overlapping` and `Spans::covering` identify any entity
-whose fragments touch a chunk.
+and never reads `Entities` as a split constraint: a named entity,
+continuous or discontinuous, stays inside its sentence, and
+`Spans::overlapping` and `Spans::covering` find the entities whose
+fragments touch a chunk.
 
 `Spans<L>` provides lookup and conflict-resolution helpers that work
 across continuous, nested, overlapping and discontinuous spans:

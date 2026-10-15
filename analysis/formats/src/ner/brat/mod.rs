@@ -104,4 +104,43 @@ mod tests {
             [Span::new(17, 21), Span::new(31, 34)],
         );
     }
+
+    #[test]
+    fn brat_offsets_are_utf16_units_and_line_breaks_are_written_as_spaces() {
+        // "é" is one unit of two bytes, the emoji two units of four bytes.
+        let text = "café 😀 New\nYork took it off";
+        let mut tok_spans = Spans::new(ViewId::SOURCE);
+        let mut pos = 0u32;
+        for w in text.split([' ', '\n']) {
+            let end = pos + w.len() as u32;
+            tok_spans.push(Span::new(pos, end));
+            pos = end + 1;
+        }
+        let tokens = Tokens { spans: tok_spans, sentence: None };
+        // "New\nYork" is units 7..15, bytes 11..19; "took" 16..20 and "off"
+        // 24..27 in units, 20..24 and 28..31 in bytes; the touching
+        // fragments "took" and " it" are one span once read.
+        let ann = concat!(
+            "T1\tLoc 7 15\tNew York\n",
+            "T2\tVerb 16 20;24 27\ttook off\n",
+            "T3\tVerb 16 20;20 23\ttook  it\n",
+        );
+        let doc = BratDocument::parse("doc1", text.as_bytes(), ann.as_bytes(), WhitespaceMode::Unicode).unwrap();
+        let entities = doc.to_entities(&tokens).unwrap();
+        assert_eq!(entities.spans.get(Ix::new(0)), Span::new(11, 19));
+        assert_eq!(entities.spans.fragments(Ix::new(1)).collect::<Vec<_>>(), [Span::new(20, 24), Span::new(28, 31)]);
+        assert_eq!(entities.spans.get(Ix::new(2)), Span::new(20, 27));
+        assert!(!entities.spans.is_discontinuous(Ix::new(2)));
+
+        let written = write_brat_entities(text, &entities);
+        assert_eq!(
+            written,
+            concat!("T1\tLoc 7 15\tNew York\n", "T2\tVerb 16 20;24 27\ttook off\n", "T3\tVerb 16 23\ttook it\n",)
+        );
+        let reparsed =
+            BratDocument::parse("doc1", text.as_bytes(), written.as_bytes(), WhitespaceMode::Unicode).unwrap();
+        let again = reparsed.to_entities(&tokens).unwrap();
+        assert_eq!(again.spans.get(Ix::new(0)), Span::new(11, 19));
+        assert_eq!(again.spans.fragments(Ix::new(1)).collect::<Vec<_>>(), [Span::new(20, 24), Span::new(28, 31)]);
+    }
 }
