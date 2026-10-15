@@ -176,6 +176,7 @@ a directory with the same model run without them, and its options are
 | `parse` (`ParseSampleStream`, `Parse.parseParse`) | `treebank`, `treebank+function-tags`; `en-head-rules`, `en-head-rules+possessives`, `es-head-rules`, `es-regex-head-rules` (fixtures) | `parse` | `useFunctionTags true`; `rules`, `fixPossesives true` |
 | `head-rules` (`HeadRules`, `AncoraSpanishHeadRules`) | `en`, `es` | `head-rules` | |
 | `gazetteer` (the addons `geo` module) | `naturalearth-populated-places` (the bundled table), `gazetteer-geonames`, `gazetteer-overture`, `gazetteer-user`, `overlay` (fixtures); `load-geonames`, `load-overture`, `load-user`, `load-suppressions` | `gazetteer`: the `names`, `ids` and `regions` inputs for the first five, the `table-<kind>-` inputs for the load runs | `source sites` for the user table |
+| `place-profiles` (`PlaceProfiles` of the addons `geo` module) | `place-profiles` | `place-profiles` | `profilesCommit` |
 | `string-pattern` (`StringPattern`, `FeatureGeneratorUtil.tokenFeature`) | `utf16-units`, `code-points` | `sequence` | `mode`; `branchCommit` for `code-points` |
 | `features` (`GeneratorFactory`, `DefaultPOSContextGenerator`) | `pos-default`, `ner-default`, `everything`, `nesting` (fixtures, `featuregen/`), `default-pos-context`, `default-pos-context+names-dictionary`; `errors` | `sequence` (the `sentences` input); `errors` on `descriptor-errors` | `adaptiveData` for the descriptors |
 | `codec` (`BioCodec`, `BilouCodec`) | `bio`, `bilou` | `codec`, the input of the codec's name | `compatibleOutcomes` |
@@ -635,6 +636,24 @@ compares every cell.
 The OpenNLP commit of the recipe has no `StringUtil.stripByteOrderMark`, which
 two readers of the module call; the Dockerfile replaces both calls with
 the expression the method returns before building the module.
+
+## Place profile goldens
+
+`place-profiles/place-profiles/place-profiles/<id>.golden` is what
+`PlaceProfiles.load` made of the table `inputs/place-profiles/<id>.txt`.
+The class is not in the addons commit the rest of the `geo` module is built
+from, so the Dockerfile takes `PlaceProfiles.java` from
+`PLACE_PROFILES_COMMIT` (`src/recipe.rs`, on the addons'
+`ready/geo-place-profiles` branch) and compiles it into the module; the
+golden's `profilesCommit` record names that commit. The layers are
+`turbo:profiles-load` (whether it loaded, or the exception),
+`turbo:profiles-metrics`, `turbo:profiles-places` (the ids sorted by
+`String.compareTo`, since the class keeps them in a map),
+`turbo:profiles-values` (the standardized profiles, read from the class's
+private map by reflection), `turbo:profiles-similarity` (every ordered pair)
+and `turbo:profiles-neighbors` (`mostSimilar` of every place with the
+counts 1, 2 and the number of places). `analysis/geo/tests/profile_goldens.rs`
+rebuilds every layer and compares the doubles bit for bit.
 
 ## Evaluator goldens
 

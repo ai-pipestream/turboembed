@@ -150,6 +150,8 @@ final class Runs {
   static final String STEM = "stem";
   /** The words and language codes of the stopword goldens. */
   static final String STOPWORD = "stopword";
+  /** Whole profile tables for PlaceProfiles of the addons geo module. */
+  static final String PLACE_PROFILES = "place-profiles";
 
   /** The numbers of merges the BPE trainer runs with: few, so the tokens are pieces of words, and many. */
   static final List<Integer> BPE_MERGES = List.of(40, 400);
@@ -351,6 +353,8 @@ final class Runs {
     // The gazetteers: the bundled table, the fixture tables and an overlay, asked for names,
     // record ids and regions, and the fixture loaders on whole tables.
     annotators.addAll(GazetteerGolden.all(fixtures));
+    // The numeric place profiles of the same module, over whole tables.
+    annotators.add(new PlaceProfilesGolden());
     // The sequence machinery turbo-sequence ports: StringPattern in both versions, the feature
     // generators and malformed descriptors, the BIO and BILOU codecs, the beam search of the
     // tagger, chunker and name finder over the fixture and published models, and the tag

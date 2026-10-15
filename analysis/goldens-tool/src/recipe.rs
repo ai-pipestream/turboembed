@@ -25,6 +25,12 @@ pub const ADDONS_COMMIT: &str = "33e95a4956f1535cdc074056b29246fe88b3c81a";
 /// the two it needs from this commit into a jar of their own.
 pub const STRING_PATTERN_COMMIT: &str = "b2473ca80d65ae2ef10a24b08b1d0ae6a9231109";
 
+/// The commit of the OpenNLP addons fork, on its `ready/geo-place-profiles`
+/// branch, whose `PlaceProfiles` the generator runs. The class is not in
+/// [`ADDONS_COMMIT`]; the container compiles its source from this commit
+/// into the `geo` module built from that one.
+pub const PLACE_PROFILES_COMMIT: &str = "07e1f670818917d74e9a94367080f51ae6365bfa";
+
 /// The tag `turbo-goldens image` gives the image it builds. It names the
 /// OpenNLP and addons commits, so an image built from other commits has
 /// another tag.
@@ -583,6 +589,7 @@ pub const INPUT_SETS: [&str; 34] = [
     "parse",
     "head-rules",
     "gazetteer",
+    "place-profiles",
     "langdetect",
     "sequence",
     "descriptor-errors",
@@ -635,6 +642,7 @@ pub const ANNOTATORS: [&str; 38] = [
     "parse",
     "head-rules",
     "gazetteer",
+    "place-profiles",
     "string-pattern",
     "features",
     "codec",
@@ -699,6 +707,7 @@ mod tests {
         assert!(is_lower_hex(OPENNLP_COMMIT, 40), "{OPENNLP_COMMIT}");
         assert!(is_lower_hex(ADDONS_COMMIT, 40), "{ADDONS_COMMIT}");
         assert!(is_lower_hex(STRING_PATTERN_COMMIT, 40), "{STRING_PATTERN_COMMIT}");
+        assert!(is_lower_hex(PLACE_PROFILES_COMMIT, 40), "{PLACE_PROFILES_COMMIT}");
         assert!(IMAGE_TAG.contains(&format!("opennlp-{}", &OPENNLP_COMMIT[..12])));
         assert!(IMAGE_TAG.ends_with(&format!("addons-{}", &ADDONS_COMMIT[..12])));
     }
@@ -730,6 +739,9 @@ mod tests {
         assert!(dockerfile.contains(&format!("\nARG STRING_PATTERN_COMMIT={STRING_PATTERN_COMMIT}\n")));
         let patterns = include_str!("../java/src/main/java/ai/pipestream/turbo/goldens/StringPatternGolden.java");
         assert!(patterns.contains(&format!("BRANCH_COMMIT = \"{STRING_PATTERN_COMMIT}\";")));
+        assert!(dockerfile.contains(&format!("\nARG PLACE_PROFILES_COMMIT={PLACE_PROFILES_COMMIT}\n")));
+        let profiles = include_str!("../java/src/main/java/ai/pipestream/turbo/goldens/PlaceProfilesGolden.java");
+        assert!(profiles.contains(&format!("PROFILES_COMMIT = \"{PLACE_PROFILES_COMMIT}\";")));
     }
 
     #[test]
