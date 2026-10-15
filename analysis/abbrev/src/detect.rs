@@ -180,12 +180,16 @@ pub fn best_long_form(text: &str, short: Span, long: Span) -> Option<Span> {
 /// first character), and trailing quotation marks.
 fn tidy(text: &str, long: Span) -> Span {
     let s = &text[long.range()];
+    // The last closer of each kind, found once: searching the rest of the
+    // long form at every leading bracket is quadratic in a run of them.
+    let closer = |b: char| s.rfind(b).unwrap_or(0);
+    let (paren, square, curly) = (closer(')'), closer(']'), closer('}'));
     let mut start = 0;
     for (i, c) in s.char_indices() {
         let closed = match c {
-            '(' => s[i..].contains(')'),
-            '[' => s[i..].contains(']'),
-            '{' => s[i..].contains('}'),
+            '(' => paren > i,
+            '[' => square > i,
+            '{' => curly > i,
             _ => false,
         };
         if is_letter_or_digit(c) || closed {
@@ -334,6 +338,14 @@ mod tests {
         assert_eq!(all("an \"astigmatic intensity equation\" (AIE)"), [("AIE", "astigmatic intensity equation")]);
         // A bracket the long form closes stays.
         assert_eq!(all("of [K+]e times (KE)"), [("KE", "[K+]e times")]);
+    }
+
+    #[test]
+    fn a_run_of_brackets_is_read_once() {
+        // Each unclosed '[' used to search the rest of the long form for a
+        // ']': a megabyte of them took minutes.
+        let text = format!("{}ab (AB)", "[".repeat(1 << 20));
+        assert_eq!(all(&text), [("AB", "ab")]);
     }
 
     #[test]

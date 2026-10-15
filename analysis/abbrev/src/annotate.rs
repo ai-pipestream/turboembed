@@ -69,30 +69,9 @@ pub fn detect(
         items.push((d.long, AbbreviationForm::Long, None));
         items.push((d.short, AbbreviationForm::Short, Some(items.len() - 1)));
     }
-    let mut longs: Vec<Span> = definitions.iter().map(|d| d.long).collect();
-    longs.sort_unstable();
-    // Each mention with the item of its long form.
-    let mut mentions: Vec<(Span, usize)> = Vec::new();
-    for (i, d) in definitions.iter().enumerate() {
-        let short = &text[d.short.range()];
-        let until = definitions[i + 1..]
-            .iter()
-            .find(|later| text[later.short.range()] == *short)
-            .map_or(text.len(), |later| later.start() as usize);
-        let from = d.end as usize;
-        if from >= until {
-            continue;
-        }
-        for (at, _) in text[from..until].match_indices(short) {
-            let span = Span::new((from + at) as u32, (from + at + short.len()) as u32);
-            if is_mention(text, span, &definitions, &longs, tokens) {
-                mentions.push((span, 2 * i));
-            }
-        }
-    }
+    let mentions = find_mentions(text, &definitions, tokens);
     // A mention inside a longer one ("IL" in "IL-2", both defined) is part
     // of that one, not a mention of its own.
-    mentions.sort_unstable_by_key(|&(s, _)| (s.start, std::cmp::Reverse(s.end)));
     let mut reach = 0;
     for (span, long) in mentions {
         if span.end <= reach {
@@ -117,13 +96,72 @@ pub fn detect(
     (layer, links)
 }
 
-fn is_mention(
-    text: &str,
-    span: Span,
-    definitions: &[Definition],
-    longs: &[Span],
-    tokens: Option<(&[u32], &[u32])>,
-) -> bool {
+/// Each mention with the item of its long form, sorted by start and then
+/// by end, longest first. One pass over the text from the first
+/// definition's end: a position is tried only when its first two bytes
+/// start some short form, and then only against those short forms.
+fn find_mentions(text: &str, definitions: &[Definition], tokens: Option<(&[u32], &[u32])>) -> Vec<(Span, usize)> {
+    let mut mentions = Vec::new();
+    let Some(first) = definitions.first() else { return mentions };
+    let bytes = text.as_bytes();
+    let short = |i: u32| &bytes[definitions[i as usize].short.range()];
+    let prefix = |b: &[u8]| usize::from(b[0]) << 8 | usize::from(b[1]);
+    // The definitions grouped by short form, each group in text order.
+    let mut by_short: Vec<u32> = (0..definitions.len() as u32).collect();
+    by_short.sort_by(|&a, &b| short(a).cmp(short(b)).then(a.cmp(&b)));
+    // Each group as (its short form's first two bytes, its range in
+    // `by_short`), sorted by those bytes; a short form has two characters
+    // or more, so two bytes or more.
+    let mut groups: Vec<(usize, usize, usize)> = Vec::new();
+    let mut seen = vec![0u64; 1 << 10];
+    let mut g = 0;
+    while g < by_short.len() {
+        let end = g + by_short[g..].partition_point(|&i| short(i) == short(by_short[g]));
+        let key = prefix(short(by_short[g]));
+        seen[key >> 6] |= 1 << (key & 63);
+        groups.push((key, g, end));
+        g = end;
+    }
+    groups.sort_unstable();
+    // Where the group's latest mention ends, so that matches of one short
+    // form do not overlap.
+    let mut free = vec![0usize; groups.len()];
+    for at in first.end as usize..bytes.len().saturating_sub(1) {
+        let key = prefix(&bytes[at..]);
+        if seen[key >> 6] & (1 << (key & 63)) == 0
+            || (bytes[at] & 0xC0) == 0x80
+            || text[..at].chars().next_back().is_some_and(is_letter_or_digit)
+        {
+            continue;
+        }
+        let lo = groups.partition_point(|g| g.0 < key);
+        for (k, &(_, g_start, g_end)) in groups.iter().enumerate().skip(lo).take_while(|(_, g)| g.0 == key) {
+            let group = &by_short[g_start..g_end];
+            let len = short(group[0]).len();
+            if at < free[k] || !bytes[at..].starts_with(short(group[0])) {
+                continue;
+            }
+            // The latest definition that closes at or before `at`, and
+            // the mention must end before the short form is defined again.
+            let n = group.partition_point(|&i| definitions[i as usize].end as usize <= at);
+            if n == 0 || group.get(n).is_some_and(|&i| (definitions[i as usize].start() as usize) < at + len) {
+                continue;
+            }
+            let span = Span::new(at as u32, (at + len) as u32);
+            if is_mention(text, span, definitions, tokens) {
+                free[k] = at + len;
+                mentions.push((span, 2 * group[n - 1] as usize));
+            }
+        }
+    }
+    mentions.sort_unstable_by_key(|&(s, _)| (s.start, std::cmp::Reverse(s.end)));
+    mentions
+}
+
+/// Whether a match of a short form at `span` is a mention: no letter or
+/// digit on either side, whole tokens when there are tokens, no overlap
+/// with a defining short form, and not a long form.
+fn is_mention(text: &str, span: Span, definitions: &[Definition], tokens: Option<(&[u32], &[u32])>) -> bool {
     let (start, end) = (span.start as usize, span.end as usize);
     if text[..start].chars().next_back().is_some_and(is_letter_or_digit)
         || text[end..].chars().next().is_some_and(is_letter_or_digit)
@@ -135,10 +173,11 @@ fn is_mention(
     {
         return false;
     }
-    // Definitions are in text order, so their short forms are too.
+    // Definitions are in text order, so their short forms and their long
+    // forms are too.
     let first = definitions.partition_point(|d| d.short.end <= span.start);
     if definitions.get(first).is_some_and(|d| d.short.start < span.end) {
         return false;
     }
-    longs.binary_search(&span).is_err()
+    definitions.binary_search_by(|d| d.long.cmp(&span)).is_err()
 }

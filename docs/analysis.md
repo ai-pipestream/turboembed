@@ -777,8 +777,7 @@ Characters are compared as `Character.isLetterOrDigit` and
 letter is general category Lu. Where it departs from the Java: any
 whitespace counts where the Java looks for a space, the candidates are
 read per sentence of the document where the Java reads a line at a
-time, and the long
-form loses the punctuation its word boundary can leave at its ends
+time, and the long form loses the punctuation its word boundary can leave at its ends
 (leading characters that are neither letters nor digits, unless an
 opening bracket the long form closes, and trailing quotation marks),
 so "[genioglossus (GG)" gives "genioglossus" and "(FEV1)/forced vital
@@ -793,8 +792,8 @@ also start and end on token boundaries, so "WHO's" as one token holds
 none. A mention refers to the latest definition of its short form
 before it, so a short form defined again takes its new long form from
 there on; uses before the first definition are not linked. Finding them
-is a substring search per definition over the rest of the view, so its
-cost is the number of definitions times the text length.
+is one pass over the text after the first definition: a position is
+compared only with the short forms that start with its first two bytes.
 
 ### Measured on MED1250
 
@@ -818,7 +817,8 @@ reference implementation reads a line at a time. A detected pair is the
 text of its two spans, compared exactly with the gold pairs after
 whitespace runs are made one space; the file's synonyms (`//*` lines,
 which its authors leave out of the gold standard) count neither way.
-The 1221 gold lines are 1203 distinct pairs per record.
+The file's 1221 gold lines hold 1203 pairs once a pair repeated within
+a record is counted once.
 
 | Long form punctuation dropped | True positives | False positives | False negatives | Precision | Recall | F1 |
 |---|---|---|---|---|---|---|
@@ -850,7 +850,9 @@ small texts worked out by hand (scispaCy's cases among them),
 `analysis/abbrev/tests/pipeline.rs` runs the step in an analyzer and
 checks every span's start and end against the source bytes (ASCII and
 non-ASCII), the links and their kinds, mentions with and without tokens,
-redefinition, nested short forms and named instances, and
+redefinition, nested short forms and named instances, that random
+strings of brackets and punctuation give valid layers, and that 50,000
+definitions take one pass, and
 `analysis/abbrev/tests/gold.rs` reads a small sample in MED1250's format
 with its quirks (carriage returns, a record split in two, synonyms,
 comments in Windows-1252) and checks the scoring. None needs the

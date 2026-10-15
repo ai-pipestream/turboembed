@@ -1,7 +1,7 @@
 //! The step in a pipeline: definitions and mentions with exact byte
 //! offsets, checked against the source text, and the links between them.
 
-use turbo_abbrev::{AbbreviationAnnotator, AbbreviationForm, Abbreviations, DEFINITION, MENTION};
+use turbo_abbrev::{AbbreviationAnnotator, AbbreviationForm, Abbreviations, DEFINITION, MENTION, detect};
 use turbo_analysis::{
     Analyzer, Bound, Document, Edges, Error, Ix, Key, Layer, Provenance, Span, Spans, Status, ViewId,
 };
@@ -211,4 +211,58 @@ fn sentences_in_another_view_fail_the_document() {
         panic!("sentences in another view are refused");
     };
     assert_eq!(detail, "the sentences are in another view");
+}
+
+#[test]
+fn many_definitions_are_found_in_one_pass() {
+    // 50,000 distinct short forms, each defined once and mentioned once.
+    // Searching the rest of the text once per definition took minutes.
+    let mut text = String::new();
+    let mut sentences = Vec::new();
+    for i in 0..50_000u32 {
+        let [a, b, c, d] = [i % 26, i / 26 % 26, i / 676 % 26, i / 17_576].map(|n| char::from(b'a' + n as u8));
+        let short: String = [a, b, c, d].map(|c| c.to_ascii_uppercase()).iter().collect();
+        let start = text.len() as u32;
+        text.push_str(&format!("{a}x {b}x {c}x {d}x ({short}) and {short}."));
+        sentences.push(Span::new(start, text.len() as u32));
+        text.push(' ');
+    }
+    let (layer, links) = detect(&text, ViewId::SOURCE, sentences, None);
+    assert_eq!(layer.check(), Ok(()));
+    assert_eq!(links.check(), Ok(()));
+    let count = |form| layer.spans.iter().filter(|&(i, _)| layer.form(i) == form).count();
+    assert_eq!(count(AbbreviationForm::Short), 50_000);
+    assert_eq!(count(AbbreviationForm::Mention), 50_000);
+}
+
+#[test]
+fn odd_input_gives_valid_layers() {
+    // Random strings of parentheses, punctuation, capitals and multi-byte
+    // letters, split into sentences at ". " and into tokens at spaces.
+    const PIECES: [&str; 18] =
+        ["A", "B", "a", "b", " ", " ", "(", ")", ". ", ",", "-", "é", "\"", "[", "AB", "ab", "É", "'s"];
+    let mut x: u64 = 0x2545_f491_4f6c_dd1d;
+    let mut next = || {
+        x ^= x << 13;
+        x ^= x >> 7;
+        x ^= x << 17;
+        x
+    };
+    for _ in 0..20_000 {
+        let text: String = (0..next() % 40).map(|_| PIECES[(next() % PIECES.len() as u64) as usize]).collect();
+        let sentences = sentences(&text);
+        let (mut starts, mut ends) = (Vec::new(), Vec::new());
+        for (_, s) in tokens(&text).spans.iter().filter(|(_, s)| !s.is_empty()) {
+            starts.push(s.start);
+            ends.push(s.end);
+        }
+        let (layer, links) =
+            detect(&text, ViewId::SOURCE, sentences.spans.iter().map(|(_, s)| s), Some((&starts, &ends)));
+        assert_eq!(layer.check(), Ok(()), "{text:?}");
+        assert_eq!(links.check(), Ok(()), "{text:?}");
+        for (i, s) in layer.spans.iter() {
+            assert!(text.is_char_boundary(s.start as usize) && text.is_char_boundary(s.end as usize), "{text:?}");
+            assert_eq!(layer.long_form(&links, i).is_none(), layer.form(i) == AbbreviationForm::Long, "{text:?}");
+        }
+    }
 }

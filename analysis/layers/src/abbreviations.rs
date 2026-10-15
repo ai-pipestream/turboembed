@@ -55,7 +55,7 @@ impl Abbreviations {
         self.form[i.get()]
     }
 
-    /// The long form short form or mention `i` stands for, read from the
+    /// The long form that short form or mention `i` stands for, read from the
     /// links written beside the layer: its one outgoing edge. `None` for a
     /// long form.
     pub fn long_form(
