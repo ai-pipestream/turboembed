@@ -257,6 +257,39 @@ impl SegmentationRecipe {
         })
     }
 
+    /// Reads the training samples as [`SegmentationRecipe::train`] does,
+    /// without making events, and checks them as it does.
+    ///
+    /// # Errors
+    ///
+    /// As [`SegmentationRecipe::train`], but for training.
+    pub fn check_training(&self, train: &MascCorpus) -> Result<()> {
+        match self.component {
+            Component::Sentence => {
+                let mut samples = 0;
+                for sample in MascSentenceReader::new(train, SENTENCES_PER_SAMPLE) {
+                    sample?;
+                    samples += 1;
+                }
+                if samples == 0 {
+                    return Err(Error::EmptySplit { what: "training sentence" });
+                }
+                Ok(())
+            }
+            Component::Tokens => {
+                let mut samples = 0;
+                let skipped = read_token_samples(train, |_| {
+                    samples += 1;
+                    Ok(())
+                })?;
+                if samples == 0 {
+                    return Err(Error::EmptySplit { what: "training token sample" });
+                }
+                check_skipped(LeftOut::TrainingSentences, skipped, samples)
+            }
+        }
+    }
+
     /// The held-out samples, read as the training samples are.
     ///
     /// # Errors

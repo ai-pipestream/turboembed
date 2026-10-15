@@ -2135,6 +2135,12 @@ cargo run --release -p turbo-train-recipes -- masc --corpus <masc-dir> \
     [--recipe <model id>]...
 ```
 
+Before it trains anything, the binary checks every reference the run
+needs, every model directory it would write, and every recipe's samples
+as training and the gate check them (the skipped sentences of each side
+and the held-out tokens whose tag the tagger's reference cannot give),
+and writes nothing when one of them fails.
+
 None of the recipes has been run on MASC itself yet. The crate's README
 has the rest.
 

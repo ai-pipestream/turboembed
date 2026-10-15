@@ -16,9 +16,12 @@
 //! `--recipe` runs only the recipes named, by the trained model's id;
 //! without it every recipe runs. The recipes run in the order of
 //! `RECIPES`, whatever the order they are named in. Before anything is
-//! trained, every reference the run needs is read and checked and every
-//! model directory it would write is checked not to exist, so a run that
-//! fails on one writes nothing. The exit status is 1 when a gate fails
+//! trained, every reference the run needs is read and checked, every
+//! model directory it would write is checked not to exist, and every
+//! recipe's training and held-out samples are read and checked
+//! (`Recipe::check_data`: skipped sentences, and the held-out tags the
+//! tagger's reference cannot give), so a run that fails on one writes
+//! nothing. The exit status is 1 when a gate fails
 //! and 2 on an error.
 //!
 //! `fetch-masc` fetches the release archive through the zoo into
@@ -29,7 +32,7 @@ use std::process::ExitCode;
 
 use turbo_formats::masc::MascCorpus;
 use turbo_train_recipes::card::write_model_dir;
-use turbo_train_recipes::masc::{self, RELEASE};
+use turbo_train_recipes::masc::{self, RELEASE, SplitCorpus};
 use turbo_train_recipes::{Error, RECIPES, Recipe, run};
 
 const USAGE: &str = "usage:
@@ -90,10 +93,10 @@ fn masc_command(a: Args) -> Result<bool, String> {
         println!("the corpus is not the recorded release: this run is not a release of the models");
     }
     let recipes: Vec<Recipe> = RECIPES.into_iter().filter(|r| a.recipes.is_empty() || a.recipes.contains(r)).collect();
-    let reference_bytes = check_before_training(&recipes, &references, &out)?;
     let corpus = MascCorpus::read(&corpus_dir).map_err(|e| Error::from(e).to_string())?;
     let split = masc::SPLIT.apply(corpus, &corpus_dir).map_err(|e| e.to_string())?;
     println!("{} training documents, {} held out", split.train.documents().len(), split.held_out.documents().len());
+    let reference_bytes = check_before_training(&recipes, &references, &out, &split)?;
     let mut all_pass = true;
     for (recipe, reference) in recipes.iter().zip(&reference_bytes) {
         let outcome =
@@ -124,10 +127,17 @@ fn masc_command(a: Args) -> Result<bool, String> {
     Ok(all_pass)
 }
 
-/// Reads and checks the reference of each recipe from `references`, and
-/// checks that `out` holds none of their model directories. Returns
-/// the references' bytes, in the recipes' order, or every problem found.
-fn check_before_training(recipes: &[Recipe], references: &Path, out: &Path) -> Result<Vec<Vec<u8>>, String> {
+/// Reads and checks the reference of each recipe from `references`,
+/// checks that `out` holds none of their model directories, and checks
+/// each recipe's data in `split` (`Recipe::check_data`, with the
+/// reference when it was read). Returns the references' bytes, in the
+/// recipes' order, or every problem found.
+fn check_before_training(
+    recipes: &[Recipe],
+    references: &Path,
+    out: &Path,
+    split: &SplitCorpus,
+) -> Result<Vec<Vec<u8>>, String> {
     let mut bytes = Vec::with_capacity(recipes.len());
     let mut problems = Vec::new();
     for recipe in recipes {
@@ -141,10 +151,17 @@ fn check_before_training(recipes: &[Recipe], references: &Path, out: &Path) -> R
             recipe.check_reference(&reference).map_err(|e| e.to_string())?;
             Ok(reference)
         });
-        match read {
-            Ok(reference) => bytes.push(reference),
-            Err(problem) => problems.push(problem),
+        let reference = match read {
+            Ok(reference) => Some(reference),
+            Err(problem) => {
+                problems.push(problem);
+                None
+            }
+        };
+        if let Err(e) = recipe.check_data(split, recipe.reference_id(), reference.as_deref()) {
+            problems.push(format!("{}: {e}", recipe.model_id()));
         }
+        bytes.extend(reference);
     }
     if problems.is_empty() { Ok(bytes) } else { Err(problems.join("\n")) }
 }

@@ -28,10 +28,13 @@ against the size and SHA-256 the recipe records (5,696,197 bytes,
 `--recipe` runs only the recipes named by the trained model's id; without
 it every recipe runs. The recipes run in the order of the table below,
 whatever the order they are named in. Before anything is trained, every
-reference the run needs is read and checked, and every model directory
-it would write is checked not to exist: a run with a reference missing
-or wrong, or a model directory already there, names every such problem
-and writes nothing. The exit status is 1 when a gate fails and 2 on an
+reference the run needs is read and checked, every model directory it
+would write is checked not to exist, and every recipe's training and
+held-out samples are read and checked as training and the gate check
+them (the skipped sentences of each side, and the held-out tokens whose
+tag the tagger's reference cannot give): a run with a reference missing
+or wrong, a model directory already there, or a recipe whose data fails
+those checks names every such problem and writes nothing. The exit status is 1 when a gate fails and 2 on an
 error.
 
 ## The recipes
@@ -188,8 +191,9 @@ by the token recipe alone; the tagger's tags compared as written and
 the reference's through the mapping of its tags, with the tokens of a
 tag the reference cannot give left out, and a
 reference that cannot give most tags refused; and the binary's refusal
-of an unrecorded corpus, of a missing or wrong reference and of an
-existing model directory before it trains anything, and its output. It
+of an unrecorded corpus, of a missing or wrong reference, of an
+existing model directory and of held-out data with too many skipped
+sentences before it trains anything, and its output. It
 also reads the MASC corpora checked in for the goldens
 (`analysis/goldens/data/inputs/formats/masc-*.txt`) with the tagger
 recipe's reader: it reads every sample OpenNLP's `MascPOSSampleStream`

@@ -357,6 +357,21 @@ impl PosRecipe {
         })
     }
 
+    /// Reads the training samples as [`PosRecipe::train`] does, without
+    /// making events, and checks them as it does.
+    ///
+    /// # Errors
+    ///
+    /// As [`PosRecipe::train`], but for training.
+    pub fn check_training(&self, train: &MascCorpus) -> Result<()> {
+        let mut samples = 0;
+        let skipped = read_samples(train, |_| samples += 1)?;
+        if samples == 0 {
+            return Err(Error::EmptySplit { what: "training part-of-speech sample" });
+        }
+        check_skipped(LeftOut::TrainingSentences, skipped, samples)
+    }
+
     /// The held-out samples, read as the training samples are.
     ///
     /// # Errors

@@ -573,6 +573,11 @@ fn the_tagger_is_scored_over_the_tags_the_reference_can_give_mapping_only_the_re
              1 in 1000: UH` (5)"
         )
     );
+    // The check made before training finds the same, given the
+    // reference; without it, it checks only the samples.
+    let checked = Recipe::Pos(POS).check_data(&split, "reference", Some(&reference.bytes)).unwrap_err();
+    assert_eq!(checked.to_string(), err.to_string());
+    Recipe::Pos(POS).check_data(&split, "reference", None).unwrap();
     for dir in [root, reference_root] {
         std::fs::remove_dir_all(dir).unwrap();
     }
@@ -803,7 +808,7 @@ fn the_published_references_are_checked_and_scored_when_present() {
 /// is, in the order the recipes run, `RECIPES`'s, whatever the order of
 /// `--recipe`.
 #[test]
-fn the_binary_checks_every_reference_and_model_directory_before_training() {
+fn the_binary_checks_every_reference_model_directory_and_recipe_s_samples_before_training() {
     let root = temp_dir("binary-checks");
     write_corpus(&root, GATED_DOCUMENTS, SENTENCES);
     let out = temp_dir("binary-checks-out");
@@ -841,6 +846,22 @@ fn the_binary_checks_every_reference_and_model_directory_before_training() {
         assert!(stderr.contains(&format!("reference model {}: SHA-256", r.reference_id())), "{stderr}");
     }
     assert!(stderr.contains(&format!("{}: the model directory exists", tokens.model_id())), "{stderr}");
+    let written: Vec<_> = std::fs::read_dir(&models).unwrap().map(|e| e.unwrap().file_name()).collect();
+    assert_eq!(written, [tokens.model_id()], "nothing else is written");
+
+    // A held-out sentence of no tokens, which the token and tagger
+    // recipes skip: one of 320 is more than one in a thousand, and both
+    // are named with the other problems, before anything is trained.
+    let (split, _) = split_of(&root);
+    let no_tokens = SENTENCES.len() + 1;
+    rewrite_document(&root, &split.held_out_paths[0], &with_skipped_sentences(), &sentences_after(&[no_tokens]));
+    let stderr = run(&[]);
+    assert_eq!(stderr.lines().count(), 6, "{stderr}");
+    for r in [tokens, pos] {
+        let line = format!("{}: 1 of 320 held-out sentences skipped, more than the limit of 1 in 1000", r.model_id());
+        assert!(stderr.contains(&line), "{stderr}");
+    }
+    assert!(!stderr.contains(&format!("{}: 1 of", sentence.model_id())), "{stderr}");
     let written: Vec<_> = std::fs::read_dir(&models).unwrap().map(|e| e.unwrap().file_name()).collect();
     assert_eq!(written, [tokens.model_id()], "nothing else is written");
     for dir in [root, out] {

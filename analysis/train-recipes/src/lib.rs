@@ -291,6 +291,38 @@ impl Recipe {
         }
     }
 
+    /// Reads the training and held-out samples the recipe reads from
+    /// `split`, without training or scoring, and checks what [`run`]
+    /// checks of them: each side has a sample, and the recipe's reader
+    /// skips at most [`MAX_SKIPPED_SENTENCES`] of the sentences of either
+    /// side; and for the tagger, given the bytes of its reference (named
+    /// `reference_id`), that the reference can give the tags of all but
+    /// [`MAX_TOKENS_LEFT_OUT`] of the held-out tokens. The binary runs it
+    /// for every recipe before it trains any, so a run that would fail on
+    /// its data writes nothing.
+    ///
+    /// # Errors
+    ///
+    /// [`Error::EmptySplit`], [`Error::TooManyLeftOut`],
+    /// [`Error::TagsOutsideReference`], a sample the corpus fails on, or a
+    /// reference that is not a part-of-speech model.
+    pub fn check_data(&self, split: &SplitCorpus, reference_id: &str, reference: Option<&[u8]>) -> Result<()> {
+        match self {
+            Recipe::Segmentation(r) => {
+                r.check_training(&split.train)?;
+                r.held_out(&split.held_out)?;
+            }
+            Recipe::Pos(r) => {
+                r.check_training(&split.train)?;
+                let held_out = r.held_out(&split.held_out)?;
+                if let Some(reference) = reference {
+                    r.check_coverage(reference_id, &r.reference_tags(reference)?, &held_out)?;
+                }
+            }
+        }
+        Ok(())
+    }
+
     /// The reference model's file name ([`Reference::file`]).
     ///
     /// # Errors
