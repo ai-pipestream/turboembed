@@ -16,13 +16,15 @@ path = "src/main.rs"
 # The MASC reader and OpenNLP's evaluators.
 turbo-formats = { path = "../formats" }
 # Training the sentence detector, the tokenizer, the part-of-speech
-# tagger and the chunker.
+# tagger, the lemmatizer and the chunker, with the parameters the
+# published UD models were trained with.
 turbo-train = { path = "../train" }
 turbo-train-components = { path = "../train-components" }
 # Running a trained model and the reference model over held-out text.
 turbo-sentdetect = { path = "../sentdetect" }
 turbo-tokenize = { path = "../tokenize" }
 turbo-postag = { path = "../postag" }
+turbo-lemmatizer = { path = "../lemmatizer" }
 turbo-phrase-chunker = { path = "../phrase-chunker" }
 turbo-maxent = { path = "../maxent" }
 # The tokens and tags a chunker reads.

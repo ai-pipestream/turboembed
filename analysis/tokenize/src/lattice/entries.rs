@@ -56,10 +56,46 @@ impl FeatureStore {
         Columns { store: self, next: self.first[r] as usize, end: self.first[r + 1] as usize }
     }
 
+    /// Record `r`, for reading several of its columns by index.
+    #[inline]
+    pub(crate) fn record(&self, r: u32) -> Record<'_> {
+        Record { store: self, first: self.first[r as usize] as usize, end: self.first[r as usize + 1] as usize }
+    }
+
+    /// Column `i` of record `r`, if it has one.
+    #[inline]
+    pub(crate) fn column(&self, r: u32, i: usize) -> Option<&str> {
+        self.record(r).column(i)
+    }
+
+    /// The number of columns of record `r`.
+    #[inline]
+    pub(crate) fn len(&self, r: u32) -> usize {
+        (self.first[r as usize + 1] - self.first[r as usize]) as usize
+    }
+
     pub(crate) fn shrink(&mut self) {
         self.text.shrink_to_fit();
         self.ends.shrink_to_fit();
         self.first.shrink_to_fit();
+    }
+}
+
+/// One record of a [`FeatureStore`], with its bounds looked up once.
+#[derive(Copy, Clone, Debug)]
+pub(crate) struct Record<'a> {
+    store: &'a FeatureStore,
+    first: usize,
+    end: usize,
+}
+
+impl<'a> Record<'a> {
+    /// Column `i`, if the record has one.
+    #[inline]
+    pub(crate) fn column(&self, i: usize) -> Option<&'a str> {
+        let at = self.first.checked_add(i).filter(|&at| at < self.end)?;
+        let start = if at == 0 { 0 } else { self.store.ends[at - 1] as usize };
+        Some(&self.store.text[start..self.store.ends[at] as usize])
     }
 }
 
@@ -252,6 +288,24 @@ mod tests {
         assert!(got[1].2.is_empty());
         // A trailing comma is an empty feature.
         assert_eq!(got[2].2, [""]);
+        // The columns one by one, as the iterator gives them.
+        let mut store = FeatureStore::new();
+        let mut count = 0;
+        let file = DictionaryFile::Lexicon("x.csv".into());
+        let text = "a,0,0,0,p,q\nb,0,0,0\nc,0,0,0,\"r,s\",,t\n";
+        let mut records = Vec::new();
+        read_entries(text, &file, Dimensions { rows: 1, cols: 1 }, 9, &mut count, &mut store, |_, e| {
+            records.push(e.features)
+        })
+        .unwrap();
+        let columns = |r: u32| (0..store.len(r) + 1).map(|i| store.column(r, i)).collect::<Vec<_>>();
+        assert_eq!(columns(records[0]), [Some("p"), Some("q"), None]);
+        assert_eq!(columns(records[1]), [None]);
+        assert_eq!(columns(records[2]), [Some("r,s"), Some(""), Some("t"), None]);
+        assert_eq!(store.column(records[2], usize::MAX), None);
+        for &r in &records {
+            assert!(store.columns(r).eq((0..store.len(r)).map(|i| store.column(r, i).unwrap())));
+        }
         // Lines are not trimmed: the space is part of the surface.
         assert_eq!(read(" a ,0,0,0").unwrap()[0].0, " a ");
     }

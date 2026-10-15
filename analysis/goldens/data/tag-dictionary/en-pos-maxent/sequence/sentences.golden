@@ -1,0 +1,514 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	sequence/sentences	905	851	32c8499cf1eb96c7d4c6e4c0c6ffc47a9e576be450d48537c36b2362c94e67d8
+model	en-pos-maxent.bin	7810d7e7c24ed1c6a202dad64ed021310ee62cf324ee866e2e63bf80541997162bb5fa2da91fdcfddda39ee275efcdbde738647274d586ba8896940a0467d6cc
+annotator	opennlp.tools.postag.POSDictionary	getTags
+layer	turbo:tagdict	document	1	present:u32	case-sensitive:u32	words:u32	sha256:str
+1	1	16204	bf0cceba048418884c84fe74ce6b688e0390e591df453b6e076bb6a2c24b912e
+end	turbo:tagdict
+layer	turbo:tagdict-lookups	document	277	lookup:u32	word:str	found:u32	tags:u32
+0	Pierre	1	1
+1	pierre	0	0
+2	PIERRE	0	0
+3	Vinken	0	0
+4	vinken	0	0
+5	VINKEN	0	0
+6	,	1	1
+7	61	1	1
+8	years	1	1
+9	YEARS	0	0
+10	old	1	1
+11	OLD	0	0
+12	will	1	4
+13	WILL	0	0
+14	join	1	2
+15	JOIN	0	0
+16	the	1	2
+17	THE	1	2
+18	board	1	2
+19	BOARD	0	0
+20	as	1	3
+21	AS	0	0
+22	a	1	5
+23	A	1	5
+24	nonexecutive	0	0
+25	NONEXECUTIVE	0	0
+26	director	1	1
+27	DIRECTOR	0	0
+28	Nov.	1	3
+29	nov.	0	0
+30	NOV.	0	0
+31	29	1	2
+32	.	1	1
+33	Mr.	1	1
+34	mr.	0	0
+35	MR.	0	0
+36	Smith	1	1
+37	smith	0	0
+38	SMITH	0	0
+39	went	1	2
+40	WENT	0	0
+41	to	1	1
+42	TO	0	0
+43	Washington	1	1
+44	washington	0	0
+45	WASHINGTON	0	0
+46	D.C.	1	1
+47	d.c.	0	0
+48	on	1	5
+49	ON	0	0
+50	1999-04-12	0	0
+51	with	1	4
+52	WITH	0	0
+53	$	1	1
+54	1,000	1	1
+55	The	1	3
+56	co-op	0	0
+57	CO-OP	0	0
+58	's	1	7
+59	'S	1	2
+60	CEO	1	2
+61	ceo	0	0
+62	John	1	1
+63	john	0	0
+64	JOHN	0	0
+65	O'Neil	0	0
+66	o'neil	0	0
+67	O'NEIL	0	0
+68	said	1	2
+69	SAID	0	0
+70	3.5	1	1
+71	%	1	2
+72	of	1	3
+73	OF	1	1
+74	U.S.	1	3
+75	u.s.	0	0
+76	sales	1	2
+77	SALES	0	0
+78	fell	1	4
+79	FELL	0	0
+80	She	1	2
+81	she	1	1
+82	SHE	0	0
+83	paid	1	2
+84	PAID	0	0
+85	12/31/2020	0	0
+86	invoices	0	0
+87	INVOICES	0	0
+88	at	1	2
+89	AT	0	0
+90	4:30	0	0
+91	p.m.	1	2
+92	P.M.	0	0
+93	in	1	6
+94	IN	1	1
+95	New	1	3
+96	new	1	1
+97	NEW	1	3
+98	York	1	1
+99	york	0	0
+100	YORK	0	0
+101	City	1	2
+102	city	1	1
+103	CITY	0	0
+104	Angela	0	0
+105	angela	0	0
+106	ANGELA	0	0
+107	Merkel	0	0
+108	merkel	0	0
+109	MERKEL	0	0
+110	met	1	2
+111	MET	0	0
+112	Emmanuel	0	0
+113	emmanuel	0	0
+114	EMMANUEL	0	0
+115	Macron	0	0
+116	macron	0	0
+117	MACRON	0	0
+118	Berlin	1	3
+119	berlin	0	0
+120	BERLIN	0	0
+121	and	1	2
+122	AND	1	1
+123	Paris	1	1
+124	paris	0	0
+125	PARIS	0	0
+126	last	1	5
+127	LAST	0	0
+128	week	1	1
+129	WEEK	0	0
+130	IBM	1	1
+131	ibm	0	0
+132	Microsoft	1	1
+133	microsoft	0	0
+134	MICROSOFT	0	0
+135	Corp.	1	2
+136	corp.	0	0
+137	CORP.	1	1
+138	reported	1	4
+139	REPORTED	0	0
+140	earnings	1	2
+141	EARNINGS	0	0
+142	;	1	1
+143	A.	1	3
+144	a.	0	0
+145	B.	1	1
+146	b.	0	0
+147	disagreed	1	2
+148	DISAGREED	0	0
+149	Ünal	0	0
+150	ünal	0	0
+151	ÜNAL	0	0
+152	Özdemir	0	0
+153	özdemir	0	0
+154	ÖZDEMIR	0	0
+155	lives	1	2
+156	LIVES	0	0
+157	Köln	0	0
+158	köln	0	0
+159	KÖLN	0	0
+160	not	1	1
+161	NOT	0	0
+162	München	0	0
+163	münchen	0	0
+164	MÜNCHEN	0	0
+165	東京	0	0
+166	は	0	0
+167	ひらがな	0	0
+168	と	0	0
+169	カタカナ	0	0
+170	を	0	0
+171	使う	0	0
+172	。	0	0
+173	𝐀𝐁𝐂	0	0
+174	index	1	1
+175	INDEX	0	0
+176	rose	1	3
+177	ROSE	0	0
+178	😀	0	0
+179	while	1	3
+180	WHILE	0	0
+181	café	0	0
+182	CAFÉ	0	0
+183	prices	1	1
+184	PRICES	0	0
+185	e-mail	0	0
+186	E-MAIL	0	0
+187	me	1	2
+188	ME	0	0
+189	john@example.com	0	0
+190	JOHN@EXAMPLE.COM	0	0
+191	or	1	1
+192	OR	0	0
+193	visit	1	3
+194	VISIT	0	0
+195	www.example.com/a?b=1	0	0
+196	WWW.EXAMPLE.COM/A?B=1	0	0
+197	!	1	1
+198	Barack	0	0
+199	barack	0	0
+200	BARACK	0	0
+201	Obama	0	0
+202	obama	0	0
+203	OBAMA	0	0
+204	was	1	1
+205	WAS	0	0
+206	born	1	1
+207	BORN	0	0
+208	Honolulu	1	1
+209	honolulu	0	0
+210	HONOLULU	0	0
+211	Hawaii	1	2
+212	hawaii	0	0
+213	HAWAII	0	0
+214	He	1	1
+215	he	1	1
+216	HE	0	0
+217	:	1	1
+218	"	1	2
+219	I	1	4
+220	i	0	0
+221	'm	1	1
+222	'M	0	0
+223	going	1	3
+224	GOING	0	0
+225	London	1	2
+226	london	0	0
+227	LONDON	1	1
+228	ŁÓDŹ	0	0
+229	łódź	0	0
+230	ΑΘΗΝΑ	0	0
+231	αθηνα	0	0
+232	are	1	2
+233	ARE	0	0
+234	cities	1	1
+235	CITIES	0	0
+236	ǅ	0	0
+237	ǆ	0	0
+238	Ǆ	0	0
+239	is	1	3
+240	IS	0	0
+241	titlecase	0	0
+242	TITLECASE	0	0
+243	letter	1	1
+244	LETTER	0	0
+245	One	1	5
+246	one	1	4
+247	ONE	0	0
+248	more	1	5
+249	MORE	0	0
+250	sentence	1	1
+251	SENTENCE	0	0
+252	about	1	4
+253	ABOUT	0	0
+254	Dr.	1	1
+255	dr.	0	0
+256	DR.	0	0
+257	Jane	1	2
+258	jane	0	0
+259	JANE	0	0
+260	Doe	0	0
+261	doe	0	0
+262	DOE	0	0
+263	Acme	0	0
+264	acme	0	0
+265	ACME	0	0
+266	Inc.	1	2
+267	inc.	0	0
+268	INC.	1	1
+269	Chicago	1	1
+270	chicago	0	0
+271	CHICAGO	0	0
+272	would	1	1
+273	WOULD	0	0
+274	again	1	1
+275	AGAIN	0	0
+276	2024	0	0
+end	turbo:tagdict-lookups
+layer	turbo:tagdict-lookup-tags	document	222	lookup:u32	tag:str
+0	NNP
+6	,
+7	CD
+8	NNS
+10	JJ
+12	MD
+12	VBP
+12	NN
+12	VB
+14	VBP
+14	VB
+16	DT
+16	NNP
+17	DT
+17	NNP
+18	NN
+18	VB
+20	JJ
+20	RB
+20	IN
+22	SYM
+22	DT
+22	LS
+22	FW
+22	NNP
+23	NN
+23	DT
+23	LS
+23	PRP
+23	NNP
+26	NN
+28	NN
+28	VB
+28	NNP
+31	CD
+31	NNP
+32	.
+33	NNP
+36	NNP
+39	VBD
+39	VBN
+41	TO
+43	NNP
+46	NNP
+48	JJ
+48	RB
+48	RBR
+48	RP
+48	IN
+51	JJ
+51	RB
+51	RP
+51	IN
+53	$
+54	CD
+55	VB
+55	DT
+55	NNP
+58	POS
+58	VBP
+58	VBZ
+58	NNS
+58	PRP
+58	NNP
+58	IN
+59	POS
+59	VBZ
+60	NN
+60	NNP
+62	NNP
+68	VBD
+68	VBN
+70	CD
+71	JJ
+71	NN
+72	RB
+72	RP
+72	IN
+73	IN
+74	JJ
+74	VBP
+74	NNP
+76	JJ
+76	NNS
+78	JJ
+78	VBD
+78	VBN
+78	NN
+80	NN
+80	PRP
+81	PRP
+83	VBD
+83	VBN
+88	RP
+88	IN
+91	RB
+91	NN
+93	RB
+93	RBR
+93	FW
+93	NNP
+93	RP
+93	IN
+94	IN
+95	JJ
+95	NNPS
+95	NNP
+96	JJ
+97	JJ
+97	NN
+97	NNP
+98	NNP
+101	NN
+101	NNP
+102	NN
+110	VBD
+110	VBN
+118	JJ
+118	NN
+118	NNP
+121	CC
+121	NNP
+122	CC
+123	NNP
+126	JJ
+126	RB
+126	VBP
+126	NN
+126	VB
+128	NN
+130	NNP
+132	NNP
+135	NN
+135	NNP
+137	NNP
+138	JJ
+138	VBD
+138	VBN
+138	VBP
+140	NN
+140	NNS
+142	:
+143	JJ
+143	NN
+143	NNP
+145	NNP
+147	VBD
+147	VBN
+155	VBZ
+155	NNS
+160	RB
+174	NN
+176	VBD
+176	VBP
+176	NN
+179	JJ
+179	NN
+179	IN
+183	NNS
+187	PRP
+187	FW
+191	CC
+193	VBP
+193	NN
+193	VB
+197	.
+204	VBD
+206	VBN
+208	NNP
+211	NNS
+211	NNP
+214	PRP
+215	PRP
+217	:
+218	''
+218	``
+219	NN
+219	CD
+219	PRP
+219	NNP
+221	VBP
+223	JJ
+223	VBG
+223	NN
+225	JJ
+225	NNP
+227	NNP
+232	VBP
+232	NNP
+234	NNS
+239	VBP
+239	VBZ
+239	NNS
+243	NN
+245	CC
+245	NN
+245	CD
+245	PRP
+245	NNP
+246	NN
+246	CD
+246	LS
+246	PRP
+248	JJ
+248	RB
+248	RBR
+248	JJR
+248	NN
+250	NN
+252	RB
+252	RBR
+252	RP
+252	IN
+254	NNP
+257	NN
+257	NNP
+266	NN
+266	NNP
+268	NNP
+269	NNP
+272	MD
+274	RB
+end	turbo:tagdict-lookup-tags

@@ -1,5 +1,5 @@
 //! Recipes that train models on permissive data, and the accuracy
-//! gate each model passes before it ships (issue #401).
+//! gate each model passes before it ships (issues #401 and #415).
 //!
 //! - [`masc`]: MASC 3.0.0 (CC BY 3.0 US), the record of its release, the digest of
 //!   an extracted copy, and the fixed split into training and held-out
@@ -18,11 +18,23 @@
 //!   models' counts paired, and the types a gate of typed spans scores.
 //! - [`card`]: the model card kept beside the gate record, and the
 //!   model's permissive zoo entry with its licence and attribution.
+//! - [`treebank`]: the Universal Dependencies treebanks licensed CC BY
+//!   4.0 at release 2.16, their files and digests, and the licence check
+//!   that reads `LICENSE.txt` and the README.
+//! - [`ud`]: the sentence detector, tokenizer, tagger and lemmatizer
+//!   trained on those treebanks' `train` files, gated on their `test`
+//!   files against the OpenNLP UD 1.3 models (the Italian ones local-only,
+//!   recorded by digest and only scored).
+//! - [`ud_card`]: the card of a model a UD recipe trained, with the
+//!   treebank's licence, attribution and citation, and its zoo entry,
+//!   which a treebank whose text rights are not settled (Porttinari) never
+//!   gets.
 //!
-//! [`run`] runs one recipe from a split corpus to the model, the card
-//! and the gate record; the `turbo-train-recipes` binary runs every
-//! recipe of [`RECIPES`] on a MASC directory and writes each model's
-//! directory.
+//! [`run`] runs one MASC recipe from a split corpus to the model, the
+//! card and the gate record, and [`ud::run_ud`] one UD recipe from a
+//! treebank; the `turbo-train-recipes` binary runs the recipes of
+//! [`RECIPES`] on a MASC directory, or those of [`ud::UD_RECIPES`] on the
+//! treebanks, and writes each model's directory.
 
 pub mod card;
 pub mod chunk;
@@ -31,6 +43,9 @@ pub mod masc;
 pub mod postag;
 pub mod segmentation;
 pub mod spans;
+pub mod treebank;
+pub mod ud;
+pub mod ud_card;
 
 use std::fmt::{self, Write as _};
 

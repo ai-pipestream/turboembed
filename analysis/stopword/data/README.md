@@ -3,8 +3,9 @@
 These are the eleven stopword lists OpenNLP bundles, copied unchanged from
 `opennlp-core/opennlp-runtime/src/main/resources/opennlp/tools/stopword/` at
 commit `cdf33c653d5d61d5af7d37ffee189a83bd8392ea` of the OpenNLP fork.
-`SHA256SUMS` lists each file's digest, and `golden/generate.sh` fails if a file
-here differs from the resource in the OpenNLP jar.
+`SHA256SUMS` lists each file's digest, and `tests/golden.rs` fails if a file
+here differs from the resource in the OpenNLP jar, whose SHA-256 the `lists`
+golden records.
 
 They are used under the BSD license reproduced in `LICENSE` in this directory,
 which is the text OpenNLP's own `LICENSE` file gives for them. OpenNLP's
@@ -28,4 +29,4 @@ header, kept as OpenNLP ships it, names its origin.
 | `ru.txt` | Russian | Snowball, `algorithms/russian/stop.txt`, BSD license | As for Danish | 159 |
 
 The word counts are the distinct words OpenNLP loads (`StopwordFilter.stopwords()`),
-which `golden/expected/lists.txt` records.
+which the `lists` golden (`analysis/goldens/data/stopword/lists`) records.

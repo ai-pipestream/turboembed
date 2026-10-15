@@ -1,0 +1,468 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	sequence/sentences	905	851	32c8499cf1eb96c7d4c6e4c0c6ffc47a9e576be450d48537c36b2362c94e67d8
+model	tags-exact.tagdict	6f0d506cb466377bc9e583c25365ad11a9dfd14dafc5cc0d3c6ac18d3442374e697c313cc0fdec7df62a7306671baac2e6da35c4ee969c04e795f167be109eba
+annotator	opennlp.tools.postag.POSDictionary	getTags
+layer	turbo:tagdict	document	1	present:u32	case-sensitive:u32	words:u32	sha256:str
+1	1	39	655a170bc364a7397bd4152a07185d71d393ccb4e29671f7eadb113907212f29
+end	turbo:tagdict
+layer	turbo:tagdict-entries	document	39	entry:u32	word:str	tags:u32
+0	A	3
+1	APPLE	2
+2	Apple	1
+3	CO-OP	1
+4	Fell	1
+5	I	2
+6	PARIS	1
+7	Paris	1
+8	RUN	1
+9	Run	2
+10	STRASSE	1
+11	Straße	1
+12	The	2
+13	WASHINGTON	2
+14	Washington	1
+15	a	1
+16	apple	1
+17	co-op	1
+18	empty	1
+19	fell	3
+20	i	1
+21	istanbul	1
+22	leading	2
+23	rUN	1
+24	run	1
+25	spaced	3
+26	the	1
+27	trailing	1
+28	washington	1
+29	ÄRGER	1
+30	Ärger	1
+31	İstanbul	1
+32	Ǆ	1
+33	ǅ	1
+34	ǆ	1
+35	ΣΟΦΙΑ	1
+36	σοφια	1
+37	𐐀𐐁	1
+38	𐐨𐐩	1
+end	turbo:tagdict-entries
+layer	turbo:tagdict-entry-tags	document	51	entry:u32	tag:str
+0	DT
+0	NNP
+0	LS
+1	NNP
+1	NN
+2	NNP
+3	NNP
+4	VBD
+5	PRP
+5	CD
+6	NNPS
+7	NNP
+8	VBP
+9	NN
+9	VB
+10	NNP
+11	NN
+12	DT
+12	JJ
+13	NNP
+13	NN
+14	NNP
+15	DT
+16	NN
+17	NN
+18	
+19	VBD
+19	VBN
+19	JJ
+20	PRP
+21	NN
+22	
+22	RB
+23	NN
+24	VBZ
+25	NN
+25	
+25	VB
+26	DT
+27	JJ
+28	NN
+29	NNP
+30	NN
+31	NNP
+32	FW
+33	LS
+34	SYM
+35	NNP
+36	NN
+37	FW
+38	SYM
+end	turbo:tagdict-entry-tags
+layer	turbo:tagdict-lookups	document	308	lookup:u32	word:str	found:u32	tags:u32
+0	Pierre	0	0
+1	pierre	0	0
+2	PIERRE	0	0
+3	Vinken	0	0
+4	vinken	0	0
+5	VINKEN	0	0
+6	,	0	0
+7	61	0	0
+8	years	0	0
+9	YEARS	0	0
+10	old	0	0
+11	OLD	0	0
+12	will	0	0
+13	WILL	0	0
+14	join	0	0
+15	JOIN	0	0
+16	the	1	1
+17	THE	0	0
+18	board	0	0
+19	BOARD	0	0
+20	as	0	0
+21	AS	0	0
+22	a	1	1
+23	A	1	3
+24	nonexecutive	0	0
+25	NONEXECUTIVE	0	0
+26	director	0	0
+27	DIRECTOR	0	0
+28	Nov.	0	0
+29	nov.	0	0
+30	NOV.	0	0
+31	29	0	0
+32	.	0	0
+33	Mr.	0	0
+34	mr.	0	0
+35	MR.	0	0
+36	Smith	0	0
+37	smith	0	0
+38	SMITH	0	0
+39	went	0	0
+40	WENT	0	0
+41	to	0	0
+42	TO	0	0
+43	Washington	1	1
+44	washington	1	1
+45	WASHINGTON	1	2
+46	D.C.	0	0
+47	d.c.	0	0
+48	on	0	0
+49	ON	0	0
+50	1999-04-12	0	0
+51	with	0	0
+52	WITH	0	0
+53	$	0	0
+54	1,000	0	0
+55	The	1	2
+56	co-op	1	1
+57	CO-OP	1	1
+58	's	0	0
+59	'S	0	0
+60	CEO	0	0
+61	ceo	0	0
+62	John	0	0
+63	john	0	0
+64	JOHN	0	0
+65	O'Neil	0	0
+66	o'neil	0	0
+67	O'NEIL	0	0
+68	said	0	0
+69	SAID	0	0
+70	3.5	0	0
+71	%	0	0
+72	of	0	0
+73	OF	0	0
+74	U.S.	0	0
+75	u.s.	0	0
+76	sales	0	0
+77	SALES	0	0
+78	fell	1	3
+79	FELL	0	0
+80	She	0	0
+81	she	0	0
+82	SHE	0	0
+83	paid	0	0
+84	PAID	0	0
+85	12/31/2020	0	0
+86	invoices	0	0
+87	INVOICES	0	0
+88	at	0	0
+89	AT	0	0
+90	4:30	0	0
+91	p.m.	0	0
+92	P.M.	0	0
+93	in	0	0
+94	IN	0	0
+95	New	0	0
+96	new	0	0
+97	NEW	0	0
+98	York	0	0
+99	york	0	0
+100	YORK	0	0
+101	City	0	0
+102	city	0	0
+103	CITY	0	0
+104	Angela	0	0
+105	angela	0	0
+106	ANGELA	0	0
+107	Merkel	0	0
+108	merkel	0	0
+109	MERKEL	0	0
+110	met	0	0
+111	MET	0	0
+112	Emmanuel	0	0
+113	emmanuel	0	0
+114	EMMANUEL	0	0
+115	Macron	0	0
+116	macron	0	0
+117	MACRON	0	0
+118	Berlin	0	0
+119	berlin	0	0
+120	BERLIN	0	0
+121	and	0	0
+122	AND	0	0
+123	Paris	1	1
+124	paris	0	0
+125	PARIS	1	1
+126	last	0	0
+127	LAST	0	0
+128	week	0	0
+129	WEEK	0	0
+130	IBM	0	0
+131	ibm	0	0
+132	Microsoft	0	0
+133	microsoft	0	0
+134	MICROSOFT	0	0
+135	Corp.	0	0
+136	corp.	0	0
+137	CORP.	0	0
+138	reported	0	0
+139	REPORTED	0	0
+140	earnings	0	0
+141	EARNINGS	0	0
+142	;	0	0
+143	A.	0	0
+144	a.	0	0
+145	B.	0	0
+146	b.	0	0
+147	disagreed	0	0
+148	DISAGREED	0	0
+149	Ünal	0	0
+150	ünal	0	0
+151	ÜNAL	0	0
+152	Özdemir	0	0
+153	özdemir	0	0
+154	ÖZDEMIR	0	0
+155	lives	0	0
+156	LIVES	0	0
+157	Köln	0	0
+158	köln	0	0
+159	KÖLN	0	0
+160	not	0	0
+161	NOT	0	0
+162	München	0	0
+163	münchen	0	0
+164	MÜNCHEN	0	0
+165	東京	0	0
+166	は	0	0
+167	ひらがな	0	0
+168	と	0	0
+169	カタカナ	0	0
+170	を	0	0
+171	使う	0	0
+172	。	0	0
+173	𝐀𝐁𝐂	0	0
+174	index	0	0
+175	INDEX	0	0
+176	rose	0	0
+177	ROSE	0	0
+178	😀	0	0
+179	while	0	0
+180	WHILE	0	0
+181	café	0	0
+182	CAFÉ	0	0
+183	prices	0	0
+184	PRICES	0	0
+185	e-mail	0	0
+186	E-MAIL	0	0
+187	me	0	0
+188	ME	0	0
+189	john@example.com	0	0
+190	JOHN@EXAMPLE.COM	0	0
+191	or	0	0
+192	OR	0	0
+193	visit	0	0
+194	VISIT	0	0
+195	www.example.com/a?b=1	0	0
+196	WWW.EXAMPLE.COM/A?B=1	0	0
+197	!	0	0
+198	Barack	0	0
+199	barack	0	0
+200	BARACK	0	0
+201	Obama	0	0
+202	obama	0	0
+203	OBAMA	0	0
+204	was	0	0
+205	WAS	0	0
+206	born	0	0
+207	BORN	0	0
+208	Honolulu	0	0
+209	honolulu	0	0
+210	HONOLULU	0	0
+211	Hawaii	0	0
+212	hawaii	0	0
+213	HAWAII	0	0
+214	He	0	0
+215	he	0	0
+216	HE	0	0
+217	:	0	0
+218	"	0	0
+219	I	1	2
+220	i	1	1
+221	'm	0	0
+222	'M	0	0
+223	going	0	0
+224	GOING	0	0
+225	London	0	0
+226	london	0	0
+227	LONDON	0	0
+228	ŁÓDŹ	0	0
+229	łódź	0	0
+230	ΑΘΗΝΑ	0	0
+231	αθηνα	0	0
+232	are	0	0
+233	ARE	0	0
+234	cities	0	0
+235	CITIES	0	0
+236	ǅ	1	1
+237	ǆ	1	1
+238	Ǆ	1	1
+239	is	0	0
+240	IS	0	0
+241	titlecase	0	0
+242	TITLECASE	0	0
+243	letter	0	0
+244	LETTER	0	0
+245	One	0	0
+246	one	0	0
+247	ONE	0	0
+248	more	0	0
+249	MORE	0	0
+250	sentence	0	0
+251	SENTENCE	0	0
+252	about	0	0
+253	ABOUT	0	0
+254	Dr.	0	0
+255	dr.	0	0
+256	DR.	0	0
+257	Jane	0	0
+258	jane	0	0
+259	JANE	0	0
+260	Doe	0	0
+261	doe	0	0
+262	DOE	0	0
+263	Acme	0	0
+264	acme	0	0
+265	ACME	0	0
+266	Inc.	0	0
+267	inc.	0	0
+268	INC.	0	0
+269	Chicago	0	0
+270	chicago	0	0
+271	CHICAGO	0	0
+272	would	0	0
+273	WOULD	0	0
+274	again	0	0
+275	AGAIN	0	0
+276	2024	0	0
+277	Run	1	2
+278	run	1	1
+279	RUN	1	1
+280	rUN	1	1
+281	Fell	1	1
+282	Apple	1	1
+283	apple	1	1
+284	APPLE	1	2
+285	Ärger	1	1
+286	ärger	0	0
+287	ÄRGER	1	1
+288	İstanbul	1	1
+289	istanbul	1	1
+290	İSTANBUL	0	0
+291	ISTANBUL	0	0
+292	ΣΟΦΙΑ	1	1
+293	σοφια	1	1
+294	Straße	1	1
+295	straße	0	0
+296	STRASSE	1	1
+297	strasse	0	0
+298	𐐀𐐁	1	1
+299	𐐨𐐩	1	1
+300	spaced	1	3
+301	SPACED	0	0
+302	trailing	1	1
+303	TRAILING	0	0
+304	leading	1	2
+305	LEADING	0	0
+306	empty	1	1
+307	EMPTY	0	0
+end	turbo:tagdict-lookups
+layer	turbo:tagdict-lookup-tags	document	51	lookup:u32	tag:str
+16	DT
+22	DT
+23	DT
+23	NNP
+23	LS
+43	NNP
+44	NN
+45	NNP
+45	NN
+55	DT
+55	JJ
+56	NN
+57	NNP
+78	VBD
+78	VBN
+78	JJ
+123	NNP
+125	NNPS
+219	PRP
+219	CD
+220	PRP
+236	LS
+237	SYM
+238	FW
+277	NN
+277	VB
+278	VBZ
+279	VBP
+280	NN
+281	VBD
+282	NNP
+283	NN
+284	NNP
+284	NN
+285	NN
+287	NNP
+288	NNP
+289	NN
+292	NNP
+293	NN
+294	NN
+296	NNP
+298	FW
+299	SYM
+300	NN
+300	
+300	VB
+302	JJ
+304	
+304	RB
+306	
+end	turbo:tagdict-lookup-tags

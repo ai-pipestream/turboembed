@@ -169,6 +169,11 @@ pub enum ModelGateError {
     UnchangedReferenceInput {
         tag: String,
     },
+    /// A lemmatizer's record with tag mappings: its lemmas are compared as
+    /// written.
+    LemmatizerMappings {
+        mappings: usize,
+    },
     /// A record file that could not be read or written.
     Io {
         path: String,
@@ -241,6 +246,9 @@ impl fmt::Display for ModelGateError {
             ModelGateError::UnchangedReferenceInput { tag } => {
                 write!(f, "the reference is given the held-out tag {tag:?} for itself")
             }
+            ModelGateError::LemmatizerMappings { mappings } => {
+                write!(f, "a lemmatizer's record with {mappings} tag mappings; its lemmas are compared as written")
+            }
             ModelGateError::Io { path, message } | ModelGateError::Json { path, message } => {
                 write!(f, "{path}: {message}")
             }
@@ -273,6 +281,9 @@ pub enum Task {
     SentenceDetector,
     Tokenizer,
     PartOfSpeechTagger,
+    /// A lemmatizer given the held-out tags, scored on its lemmas as a
+    /// tagger is on its tags ([`TagScoring`]).
+    Lemmatizer,
     /// Names, scored by `TokenNameFinderEvaluator`.
     NameFinder,
     /// Phrase chunks, scored by `ChunkerEvaluator`.
@@ -297,7 +308,7 @@ impl Task {
     pub fn measure(self) -> Measure {
         match self {
             Task::SentenceDetector | Task::Tokenizer | Task::NameFinder | Task::Chunker => Measure::FMeasure,
-            Task::PartOfSpeechTagger => Measure::Accuracy,
+            Task::PartOfSpeechTagger | Task::Lemmatizer => Measure::Accuracy,
         }
     }
 
@@ -306,7 +317,7 @@ impl Task {
         match self {
             Task::SentenceDetector | Task::Tokenizer => ScoringKind::Spans,
             Task::NameFinder | Task::Chunker => ScoringKind::TypedSpans,
-            Task::PartOfSpeechTagger => ScoringKind::Tags,
+            Task::PartOfSpeechTagger | Task::Lemmatizer => ScoringKind::Tags,
         }
     }
 }
@@ -489,7 +500,7 @@ pub enum Scoring {
     /// Spans with a type, by the task's OpenNLP evaluator, over the spans
     /// of the types scored: an F-measure.
     TypedSpans(TypedSpanScoring),
-    /// Tags of tokens: an accuracy.
+    /// Tags of tokens, or a lemmatizer's lemmas: an accuracy.
     Tags(TagScoring),
 }
 
@@ -546,14 +557,20 @@ pub struct TypeMapping {
 /// tag the reference can give, as written or through `reference_mappings`;
 /// the candidate's tag compared with the held-out tag as written, and the
 /// reference's also counted right where `reference_mappings` maps the
-/// held-out tag to it.
+/// held-out tag to it. A lemmatizer's lemmas are scored the same way, with
+/// no mapping: both models' lemmas are compared with the held-out lemma as
+/// written, over the tokens the reference can get right or the candidate
+/// cannot be taught (a token is left out when its gold lemma class, the
+/// edit script from the token to its held-out lemma, gives that lemma and
+/// none of the reference's classes does).
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct TagScoring {
     /// The tokens of the held-out samples.
     pub tokens: u64,
     /// The tokens left out of both models' scores: the reference cannot
-    /// give their tag.
+    /// give their tag, or for a lemmatizer, cannot give the lemma their
+    /// gold lemma class gives.
     pub left_out: u64,
     /// The reference's tags counted right for another held-out tag.
     pub reference_mappings: Vec<TagMapping>,
@@ -616,7 +633,8 @@ impl ModelGateRecord {
     /// are 64 lower case hex; that the measure is the task's; that the
     /// record was drawn with [`RESAMPLES`] and [`SEED`]; that the scoring
     /// is the task's ([`Task::scoring`]); for tags, that each model's
-    /// units count the held-out tokens less those left out; for typed
+    /// units count the held-out tokens less those left out, and that a
+    /// lemmatizer's record has no mapping; for typed
     /// spans, that a type is scored and none twice, that each renaming
     /// renames a type not scored as written, once, to a type scored, that
     /// each reference input maps a held-out tag, once, to another tag, and
@@ -691,6 +709,9 @@ impl ModelGateRecord {
                     if t.left_out > t.tokens || scored != t.tokens - t.left_out {
                         return Err(ModelGateError::ScoredTokens { tokens: t.tokens, left_out: t.left_out, scored });
                     }
+                }
+                if self.task == Task::Lemmatizer && !t.reference_mappings.is_empty() {
+                    return Err(ModelGateError::LemmatizerMappings { mappings: t.reference_mappings.len() });
                 }
             }
         }
@@ -1166,6 +1187,27 @@ mod tests {
             Err(ModelGateError::ScoringMismatch { task: Task::Tokenizer, scoring: ScoringKind::Tags })
         );
         assert_eq!(serde_json::to_string(&Scoring::Spans).unwrap(), "\"spans\"");
+        // A lemmatizer is scored as a tagger, tokens left out and counted
+        // the same way, with no mapping.
+        let lemmas = TagScoring {
+            tokens: units.iter().map(|u| u.candidate.target).sum::<u64>() + 3,
+            left_out: 3,
+            reference_mappings: vec![],
+        };
+        let lemmatizer = |scoring| {
+            ModelGateRecord::new(Task::Lemmatizer, set("s", scoring), model("t"), model("r"), units.clone()).unwrap()
+        };
+        assert_eq!(Task::Lemmatizer.measure(), Measure::Accuracy);
+        lemmatizer(Scoring::Tags(lemmas.clone())).check().unwrap();
+        assert_eq!(
+            lemmatizer(Scoring::Spans).check(),
+            Err(ModelGateError::ScoringMismatch { task: Task::Lemmatizer, scoring: ScoringKind::Spans })
+        );
+        let miscounted = TagScoring { left_out: 2, ..lemmas.clone() };
+        assert!(matches!(lemmatizer(Scoring::Tags(miscounted)).check(), Err(ModelGateError::ScoredTokens { .. })));
+        // The tagger's record with its mapping passes; as a lemmatizer's it
+        // is refused.
+        assert_eq!(lemmatizer(tags_of(&units, 3)).check(), Err(ModelGateError::LemmatizerMappings { mappings: 1 }));
     }
 
     #[test]

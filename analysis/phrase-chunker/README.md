@@ -18,8 +18,8 @@ The chunker models Apache OpenNLP publishes are OpenNLP 1.5 models, which this
 project does not ship; the chunker recipe of `turbo-train-recipes` loads
 `en-chunker.bin` only to score it as the reference of its gate. The tests run `chunker-fixture.bin`, a small perceptron
 model trained for this project on eight sentences with Penn Treebank tags
-(`analysis/sequence/golden/inputs/train-chunk.txt`, `analysis/sequence/README.md`),
-copied to `analysis/goldens/data/fixtures` for the golden generator, and
+(`analysis/goldens/data/train-fixtures/train-chunk.txt`, `analysis/sequence/README.md`),
+checked in as `analysis/goldens/data/fixtures/chunker-fixture.bin`, and
 `chunker-fixture-rust.bin`, the model `turbo-train-components` trains from 30
 sentences written for this project (`analysis/goldens/data/README.md`). Their
 features name Penn Treebank tags (`t0=NN`), so they run on the Penn Treebank

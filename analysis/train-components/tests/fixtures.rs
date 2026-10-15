@@ -38,10 +38,10 @@ fn entry_names(file: &ModelFile) -> Vec<String> {
     file.archive().names().map(|n| String::from_utf8(n.to_vec()).unwrap()).collect()
 }
 
-/// A file of `analysis/sequence/golden`, where the tagger fixture's
-/// training data, descriptor and tag dictionary are.
-fn sequence_golden(path: &str) -> PathBuf {
-    Path::new(env!("CARGO_MANIFEST_DIR")).join("../sequence/golden").join(path)
+/// A file of `analysis/goldens/data`, where the tagger fixture's training
+/// data (`train-fixtures`), descriptor and tag dictionary (`fixtures`) are.
+fn goldens_data(path: &str) -> PathBuf {
+    data_dir().join(path)
 }
 
 fn read(path: &Path) -> Vec<u8> {
@@ -52,7 +52,7 @@ fn read_text(path: &Path) -> String {
     String::from_utf8(read(path)).unwrap()
 }
 
-/// `analysis/sequence/golden/src/FixtureModels.java`, and the settings
+/// `FixtureModels.java` in `analysis/goldens-tool`, and the settings
 /// of the Rust fixtures.
 fn tagger_parameters(iterations: i32) -> TrainingParameters {
     let mut p = TrainingParameters::new();
@@ -179,10 +179,10 @@ fn the_tokenizer_fixture_is_trained_again_from_its_six_samples() {
 #[test]
 fn pos_fixture_is_trained_again_with_its_descriptor_and_tag_dictionary() {
     let theirs = fixture("pos-fixture.bin");
-    let text = read_text(&sequence_golden("inputs/train-pos.txt"));
+    let text = read_text(&goldens_data("train-fixtures/train-pos.txt"));
     let samples: Vec<_> = WordTagReader::new(&text, WhitespaceMode::Unicode).unwrap().map(|s| s.unwrap()).collect();
-    let descriptor = read(&sequence_golden("descriptors/pos-default.xml"));
-    let dictionary = PosDictionary::read(&read(&sequence_golden("resources/tags.tagdict"))).unwrap();
+    let descriptor = read(&goldens_data("fixtures/featuregen/pos-default.xml"));
+    let dictionary = PosDictionary::read(&read(&goldens_data("fixtures/tags.tagdict"))).unwrap();
     let factory = PosTaggerFactory::new("en", Some(descriptor), Some(dictionary)).unwrap();
     // The fixture was written by the fork at 3.0.0-SNAPSHOT, in UTC.
     let stamp = Stamp { timestamp_ms: timestamp(&theirs), version: "3.0.0-SNAPSHOT", zone: TimeZone::UTC };
@@ -206,7 +206,7 @@ fn chunker_fixture_is_trained_again_from_its_eight_sentences() {
     // FixtureModels.java: ChunkerME.train over ChunkSampleStream with the
     // perceptron, 50 iterations, cutoff 1, one thread.
     let theirs = fixture("chunker-fixture.bin");
-    let text = read_text(&sequence_golden("inputs/train-chunk.txt"));
+    let text = read_text(&goldens_data("train-fixtures/train-chunk.txt"));
     let samples: Vec<_> = ChunkReader::new(&text).unwrap().map(|s| s.unwrap()).collect();
     assert_eq!(samples.len(), 8);
     let mut p = TrainingParameters::new();

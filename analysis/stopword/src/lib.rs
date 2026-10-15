@@ -16,8 +16,8 @@
 //! hashing.
 //!
 //! It follows OpenNLP at commit `cdf33c653d5d61d5af7d37ffee189a83bd8392ea`
-//! of the OpenNLP fork, run on JDK 21; `README.md` describes the JVM golden
-//! files the tests compare with.
+//! of the OpenNLP fork, run on JDK 21; `README.md` describes the JVM
+//! goldens the tests compare with.
 //!
 //! # What OpenNLP does that may surprise
 //!

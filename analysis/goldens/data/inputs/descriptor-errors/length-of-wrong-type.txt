@@ -1,0 +1,1 @@
+<featureGenerators><generator class="opennlp.tools.util.featuregen.PrefixFeatureGeneratorFactory"><str name="length">2</str></generator></featureGenerators>

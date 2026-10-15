@@ -1,0 +1,23 @@
+[package]
+name = "turbo-langspan"
+version = "0.1.0"
+edition.workspace = true
+license.workspace = true
+publish = false
+
+[lib]
+name = "turbo_langspan"
+
+[dependencies]
+turbo-analysis = { path = "../core" }
+turbo-analysis-layers = { path = "../layers" }
+# The n-gram scorer: OpenNLP's language detector and its model.
+turbo-langdetect = { path = "../langdetect" }
+# The normalizers OpenNLP's detector runs, to drop what it would not see.
+turbo-normalize = { path = "../normalize" }
+# The Script property, for script runs.
+turbo-unicode = { path = "../unicode" }
+
+[dev-dependencies]
+turbo-goldens = { path = "../goldens" }
+turbo-maxent = { path = "../maxent" }

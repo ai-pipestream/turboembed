@@ -1,0 +1,3 @@
+# The cases of the uax29 suite that the uax29 detector gets wrong, and what
+# differs. tests/conformance.rs writes this file and fails when a run differs
+# from it. 0 of 512 cases fail.

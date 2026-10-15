@@ -15,3 +15,7 @@ turbo-analysis-layers = { path = "../layers" }
 turbo-stopword-layers = { path = "../stopword-layers" }
 # Character.toLowerCase(int), which OpenNLP's case-insensitive lookup applies.
 turbo-unicode = { path = "../unicode" }
+
+[dev-dependencies]
+# The goldens of the lists and the lookup, made by OpenNLP on a JVM.
+turbo-goldens = { path = "../goldens" }

@@ -1,6 +1,6 @@
 //! Differential tests of the matchers against the `regex` crate
 //! translations they replaced ([`old_java_regex`] and [`old_builtin`]),
-//! which the golden files check against Java. Both sides must report the
+//! which the goldens check against Java. Both sides must report the
 //! same match, at the same offsets, from every start offset tried, on the
 //! golden sentences and on generated patterns and texts.
 //!
@@ -9,8 +9,6 @@
 
 mod old_builtin;
 mod old_java_regex;
-
-use std::path::Path;
 
 use crate::builtin::{self, BuiltIn};
 use crate::java_regex::{Engine, Flags, JavaRegex, Scratch};
@@ -54,46 +52,35 @@ fn rounds() -> usize {
     std::env::var("TURBO_TEST_PARITY_ROUNDS").ok().and_then(|r| r.parse().ok()).unwrap_or(1)
 }
 
-/// A string escaped by the golden generator: `\uXXXX` per UTF-16 unit
-/// outside printable ASCII, `\\`, `\t`, `\n` and `\r`.
-fn unescape(s: &str) -> String {
-    let mut units = Vec::with_capacity(s.len());
-    let mut chars = s.chars();
-    while let Some(c) = chars.next() {
-        if c != '\\' {
-            units.push(c as u16);
-            continue;
-        }
-        match chars.next() {
-            Some('\\') => units.push(0x5C),
-            Some('t') => units.push(0x09),
-            Some('n') => units.push(0x0A),
-            Some('r') => units.push(0x0D),
-            Some('u') => {
-                let hex: String = chars.by_ref().take(4).collect();
-                units.push(u16::from_str_radix(&hex, 16).unwrap());
-            }
-            other => panic!("bad escape {other:?} in {s}"),
-        }
-    }
-    String::from_utf16(&units).unwrap()
-}
-
-fn read_golden(relative: &str) -> String {
-    let path = Path::new(env!("CARGO_MANIFEST_DIR")).join("golden").join(relative);
+fn read_data(relative: &str) -> String {
+    let path = turbo_goldens::data_dir().join(relative);
     std::fs::read_to_string(&path).unwrap_or_else(|e| panic!("{}: {e}", path.display()))
 }
 
-/// The golden sentences, their tokens joined by spaces as
-/// `RegexNameFinder.find` joins them.
+/// The golden sentences, the hand-made ones and those the `generated`
+/// golden lists, their tokens joined by spaces as `RegexNameFinder.find`
+/// joins them.
 fn golden_texts() -> Vec<String> {
-    let mut texts: Vec<String> = read_golden("inputs/sentences.txt").lines().map(String::from).collect();
-    let generated = read_golden("expected/sentences.txt");
-    for line in generated.lines().skip(3) {
-        let (_, tokens) = line.split_once('\t').unwrap();
-        let tokens: Vec<String> = tokens.split('\t').map(unescape).collect();
-        texts.push(tokens.join(" "));
+    use turbo_goldens::{ColumnSpec, ColumnType, Golden, GoldenAnchor, Shape};
+    let mut texts: Vec<String> = read_data("inputs/namefind/sentences.txt").lines().map(String::from).collect();
+    const SENTENCES: &[ColumnSpec] =
+        &[ColumnSpec::new("sentence", ColumnType::Str), ColumnSpec::new("token", ColumnType::Str)];
+    let shape = Shape { id: "turbo:sentences".into(), anchor: GoldenAnchor::Document, columns: SENTENCES };
+    let path = turbo_goldens::data_dir().join("namefind/generated/namefind/sentences.golden");
+    let g = Golden::read_with(&path, &[shape]).unwrap_or_else(|e| panic!("{e}"));
+    let l = g.layer("turbo:sentences").unwrap();
+    let (keys, tokens) = (l.strs("sentence").unwrap(), l.strs("token").unwrap());
+    let mut last: Option<&str> = None;
+    let mut sentence: Vec<&str> = Vec::new();
+    for (key, token) in keys.iter().zip(tokens.iter()) {
+        if last.is_some_and(|k| k != key) {
+            texts.push(sentence.join(" "));
+            sentence.clear();
+        }
+        last = Some(key);
+        sentence.push(token);
     }
+    texts.push(sentence.join(" "));
     texts
 }
 
@@ -657,14 +644,16 @@ fn golden_patterns_match_the_regex_translation() {
     let short: Vec<String> = golden_texts().into_iter().filter(|t| t.chars().count() <= 80).take(300).collect();
     let mut scratch = Scratch::default();
     let mut compiled = 0;
-    let expected = read_golden("expected/regex-user.txt");
-    for line in expected.lines().filter(|l| l.starts_with("pattern\t")) {
-        let fields: Vec<&str> = line.split('\t').collect();
+    // The patterns of the `regex-user` golden: an expectation, the flags
+    // and the pattern on each line, separated by tabs.
+    let patterns = read_data("fixtures/namefind/patterns.txt");
+    for line in patterns.lines() {
+        let fields: Vec<&str> = line.splitn(3, '\t').collect();
         let (f, pattern) = (fields[1], fields[2]);
         let flags = Flags { case_insensitive: f.contains('i'), dotall: f.contains('s') };
         let mut texts = short.clone();
         texts.extend((0..20).map(|_| random_text(&mut rng)));
-        compiled += usize::from(check_java(&unescape(pattern), flags, &texts, &mut rng, &mut scratch));
+        compiled += usize::from(check_java(pattern, flags, &texts, &mut rng, &mut scratch));
     }
     assert!(compiled >= 65, "{compiled}");
 }

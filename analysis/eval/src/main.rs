@@ -33,7 +33,7 @@ usage:
 
 The cache root is --cache, or $TURBO_EVAL_CACHE when it is not given.
 Sets: scifact, nfcorpus, arguana, legalbench-rag-mini, conteb-covid-qa,
-gutenqa, hicbench, qasper (docs/analysis.md, \"The sets\").
+conteb-squad, gutenqa, hicbench, qasper (docs/analysis.md, \"The sets\").
 
 run options:
   --bundle <dir>          the embedder's bundle; the reference embedder is
