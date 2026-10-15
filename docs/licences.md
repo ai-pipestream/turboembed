@@ -89,16 +89,21 @@ stay checked in.
 
 Trained by the recipes in `analysis/train-recipes` only on permissive
 data, each gated against the OpenNLP model for the same task, under
-Apache-2.0. The index lists each at its address in this repository's
-release `models-masc-3.0.0-1`, which `.github/workflows/models.yml`
-creates, with each model's card and gate record, when it is run by hand
-on main. Until it has been, those addresses answer 404 and fetching
-these models through the zoo fails. Every file's size, SHA-256 and
-SHA-512 in the index are the ones its card records, and the workflow
-publishes nothing unless the models it trains have them. MASC's CC BY
-attribution is in each model's card (the `attribution` field, published
-as `<model id>.card.json` beside the model) and in the release notes;
-the zoo's entries have no field for it.
+Apache-2.0. The index lists each at its address in a release of this
+repository: `models-masc-3.0.0-1` for the MASC models, which
+`.github/workflows/models.yml` creates, and `models-ud-2.16-1` for the
+UD models, which `.github/workflows/models-ud.yml` creates, each with
+every model's card and gate record, when it is run by hand on main.
+Until it has been, the release's addresses answer 404 and fetching its
+models through the zoo fails. Every file's size, SHA-256 and SHA-512 in
+the index are the ones its card records, and a workflow publishes
+nothing unless the models it trains have them. The CC BY attribution of
+the data (MASC's, or the treebank's) is in each model's card (the
+`attribution` field, published as `<model id>.card.json` beside the
+model) and in the release notes; the zoo's entries have no field for
+it. The Portuguese Porttinari models and the Italian MarkIT models are
+in neither release (the first for the rights to the text, the second
+for failing their gates).
 
 | Model | Trained on | Licence of the data | Class | Checked |
 |---|---|---|---|---|
@@ -106,6 +111,16 @@ the zoo's entries have no field for it.
 | `turbo-en-masc-3.0.0-tokens-1` | [MASC](https://anc.org/data/masc/) 3.0.0, its Twitter genre left out | CC BY 3.0 US | permissive | as MASC's row under Datasets |
 | `turbo-en-masc-3.0.0-pos-1` | [MASC](https://anc.org/data/masc/) 3.0.0, its Twitter genre left out | CC BY 3.0 US | permissive | as MASC's row under Datasets |
 | `turbo-en-masc-3.0.0-chunks-1` | [MASC](https://anc.org/data/masc/) 3.0.0, its Twitter genre left out | CC BY 3.0 US | permissive | as MASC's row under Datasets |
+| `turbo-es-ud-ancora-2.16-sentence-1` | [UD_Spanish-AnCora r2.16](https://github.com/UniversalDependencies/UD_Spanish-AnCora/blob/r2.16/README.md) | CC BY 4.0 | permissive | as UD_Spanish-AnCora's row under Datasets |
+| `turbo-es-ud-ancora-2.16-tokens-1` | [UD_Spanish-AnCora r2.16](https://github.com/UniversalDependencies/UD_Spanish-AnCora/blob/r2.16/README.md) | CC BY 4.0 | permissive | as UD_Spanish-AnCora's row under Datasets |
+| `turbo-es-ud-ancora-2.16-pos-1` | [UD_Spanish-AnCora r2.16](https://github.com/UniversalDependencies/UD_Spanish-AnCora/blob/r2.16/README.md) | CC BY 4.0 | permissive | as UD_Spanish-AnCora's row under Datasets |
+| `turbo-es-ud-ancora-2.16-lemmas-1` | [UD_Spanish-AnCora r2.16](https://github.com/UniversalDependencies/UD_Spanish-AnCora/blob/r2.16/README.md) | CC BY 4.0 | permissive | as UD_Spanish-AnCora's row under Datasets |
+| `turbo-ca-ud-ancora-2.16-sentence-1` | [UD_Catalan-AnCora r2.16](https://github.com/UniversalDependencies/UD_Catalan-AnCora/blob/r2.16/README.md) | CC BY 4.0 | permissive | as UD_Catalan-AnCora's row under Datasets |
+| `turbo-ca-ud-ancora-2.16-tokens-1` | [UD_Catalan-AnCora r2.16](https://github.com/UniversalDependencies/UD_Catalan-AnCora/blob/r2.16/README.md) | CC BY 4.0 | permissive | as UD_Catalan-AnCora's row under Datasets |
+| `turbo-ca-ud-ancora-2.16-pos-1` | [UD_Catalan-AnCora r2.16](https://github.com/UniversalDependencies/UD_Catalan-AnCora/blob/r2.16/README.md) | CC BY 4.0 | permissive | as UD_Catalan-AnCora's row under Datasets |
+| `turbo-ca-ud-ancora-2.16-lemmas-1` | [UD_Catalan-AnCora r2.16](https://github.com/UniversalDependencies/UD_Catalan-AnCora/blob/r2.16/README.md) | CC BY 4.0 | permissive | as UD_Catalan-AnCora's row under Datasets |
+| `turbo-fi-ud-ftb-2.16-pos-1` | [UD_Finnish-FTB r2.16](https://github.com/UniversalDependencies/UD_Finnish-FTB/blob/r2.16/README.md) | CC BY 4.0 | permissive | as UD_Finnish-FTB's row under Datasets |
+| `turbo-fi-ud-ftb-2.16-lemmas-1` | [UD_Finnish-FTB r2.16](https://github.com/UniversalDependencies/UD_Finnish-FTB/blob/r2.16/README.md) | CC BY 4.0 | permissive | as UD_Finnish-FTB's row under Datasets |
 
 ## OpenNLP models (refused)
 
