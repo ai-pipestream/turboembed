@@ -59,6 +59,21 @@ pub enum Error {
     /// wrapping the `InvalidFormatException` of `validatePOSDictionary`,
     /// and writes no model.
     UnknownDictionaryTags(Vec<String>),
+    /// A name the codec would write outside the sentence: with BIO an
+    /// empty name after the last token, with BILOU an empty name at the
+    /// first token. Java's codec throws `ArrayIndexOutOfBoundsException`
+    /// for outcome `index` of a sentence of `length` tokens, and the
+    /// sample gives no events.
+    UnencodableName { index: i64, length: usize },
+    /// The trained name finder model has outcomes its codec cannot decode
+    /// (with BIO, no `start` outcome at all): `TokenNameFinderModel`'s
+    /// constructor throws `IllegalArgumentException` and no model is
+    /// written.
+    IncompatibleOutcomes,
+    /// A name finder trained with a trainer that does not train from
+    /// events (`PERCEPTRON_SEQUENCE`), which `NameFinderME.train` feeds
+    /// with `NameSampleSequenceStream`; not ported.
+    NameSequenceTraining(turbo_train::TrainerType),
     /// The treebank or a published model could not be fetched or verified.
     Zoo(turbo_zoo::ZooError),
     /// A published model file could not be read.
@@ -97,6 +112,13 @@ impl fmt::Display for Error {
                     write!(f, "{t} ")?;
                 }
                 Ok(())
+            }
+            Error::UnencodableName { index, length } => {
+                write!(f, "Index {index} out of bounds for length {length}")
+            }
+            Error::IncompatibleOutcomes => f.write_str(crate::namefind::INCOMPATIBLE_MESSAGE),
+            Error::NameSequenceTraining(t) => {
+                write!(f, "training a name finder with a {} trainer is not ported", t.value())
             }
             Error::Zoo(e) => write!(f, "zoo: {e}"),
             Error::Model(e) => write!(f, "model file: {e}"),

@@ -1,7 +1,7 @@
 //! Training OpenNLP's components: the event streams, the factories that
 //! set them up, the model files the `train` methods of `SentenceDetectorME`,
-//! `TokenizerME`, `POSTaggerME` and `LemmatizerME` return, and the
-//! reproduction of the published UD 1.3 models.
+//! `TokenizerME`, `POSTaggerME`, `LemmatizerME` and `NameFinderME` return,
+//! and the reproduction of the published UD 1.3 models.
 //!
 //! - [`sentdetect`][]: `SentenceDetectorFactory`, the events of
 //!   `SDEventStream`, and the `SentenceModel` file.
@@ -12,6 +12,9 @@
 //!   dictionary.
 //! - [`lemmatize`][]: `LemmatizerFactory`, the events of
 //!   `LemmaSampleEventStream`, and the `LemmatizerModel` file.
+//! - [`namefind`][]: `TokenNameFinderFactory` without resources, the
+//!   events of `NameFinderEventStream`, the defaults `NameFinderME.train`
+//!   puts into the parameters, and the `TokenNameFinderModel` file.
 //! - [`dictionary`][]: the abbreviation dictionary as `Dictionary.serialize`
 //!   writes it, entries in Java's hash set order.
 //! - [`tagdict`][]: the tag dictionary as `POSDictionary.serialize` writes
@@ -93,11 +96,31 @@
 //!   as the JVM's modified UTF-8.
 //! - The published UD 1.3 models were trained with 300 iterations, not
 //!   the 150 their training configuration file says ([`ud`][]).
+//! - `NameFinderME.train` puts `Algorithm=MAXENT`, `Cutoff=0` and
+//!   `Iterations=300` into the caller's parameters where they are absent,
+//!   so a name finder trained without a parameters file uses cutoff 0,
+//!   not the trainer's default of 5.
+//! - `NameFinderEventStream` gives a name without a type the type
+//!   `default`, and with a type given to the stream gives every name that
+//!   type. An empty name (`<START> <END>`) marks its first token's place
+//!   as a start with the BIO codec, and the token before it as a unit
+//!   with the BILOU codec; at the sentence's end, or at its start with
+//!   BILOU, that place is outside the outcomes and the JVM throws
+//!   `ArrayIndexOutOfBoundsException`, which ends training
+//!   ([`Error::UnencodableName`]). With BILOU, an empty name right after a
+//!   name overwrites that name's last outcome with a unit, which leaves a
+//!   start without a last; when no other name of that type has a last,
+//!   `TokenNameFinderModel` refuses the outcomes
+//!   ([`Error::IncompatibleOutcomes`]).
+//! - The trainers put `sort` into the caller's parameters before they read
+//!   the events (`false` for the perceptron); this crate's trainers put it
+//!   into a copy, so the parameters a caller passes are left as they were.
 
 pub mod dictionary;
 pub mod error;
 pub mod java_hash;
 pub mod lemmatize;
+pub mod namefind;
 pub mod package;
 pub mod postag;
 pub mod sentdetect;
@@ -108,6 +131,7 @@ pub mod ud;
 pub use dictionary::AbbreviationDictionary;
 pub use error::{Error, Result};
 pub use lemmatize::{LemmaEventStream, LemmatizerFactory, lemma_events, train_lemmatizer_model};
+pub use namefind::{NameEventStream, TokenNameFinderFactory, name_events, train_name_model};
 pub use package::Stamp;
 pub use postag::{PosEventStream, PosTaggerFactory, pos_events, train_pos_model};
 pub use sentdetect::{SdEventStream, SentenceDetectorFactory, sd_events, train_sentence_model};
