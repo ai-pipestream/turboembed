@@ -1,6 +1,8 @@
 //! Glossary terms found by their tokens' normalized values, OpenNLP's
 //! `TermAnalyzingGlossaryMatcher`, on the phrase matcher of turbo-matcher.
 
+use std::hash::{DefaultHasher, Hash, Hasher};
+
 use turbo_analysis::{Span, Spans};
 use turbo_analysis_layers::{Strs, Tokens};
 use turbo_glossary_layers::{EntryIx, Glossary, is_blank};
@@ -40,6 +42,8 @@ pub struct TokenMatcher {
     /// Per phrase, the first entry that gave it and its length in tokens.
     entry_of_phrase: Vec<EntryIx>,
     len_of_phrase: Vec<u32>,
+    /// A hash of the phrases and the entry each one reports.
+    fingerprint: u64,
 }
 
 impl TokenMatcher {
@@ -83,7 +87,10 @@ impl TokenMatcher {
             value,
             entry_of_phrase: Vec::new(),
             len_of_phrase: Vec::new(),
+            fingerprint: 0,
         };
+        let mut h = DefaultHasher::new();
+        value.hash(&mut h);
         let mut tokens = Vec::new();
         for &ix in entries {
             tokens.clear();
@@ -102,13 +109,23 @@ impl TokenMatcher {
             if id.0 as usize == m.entry_of_phrase.len() {
                 m.entry_of_phrase.push(ix);
                 m.len_of_phrase.push(refs.len() as u32);
+                ix.hash(&mut h);
+                refs.hash(&mut h);
             }
         }
+        m.fingerprint = h.finish();
         Ok(m)
     }
 
     pub fn value(&self) -> TokenValue {
         self.value
+    }
+
+    /// A hash of the phrases the matcher holds and the entry each one
+    /// reports, which differs between matchers built with different
+    /// analyzers.
+    pub(crate) fn fingerprint(&self) -> u64 {
+        self.fingerprint
     }
 
     /// The bytes the matcher holds on the heap.

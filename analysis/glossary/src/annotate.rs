@@ -10,14 +10,13 @@ use turbo_stem_layers::Stems;
 
 use crate::boundaries::Boundaries;
 use crate::matcher::{GlossaryMatcher, MatchInput};
-use crate::text::Case;
-use crate::token::TokenValue;
 
 /// Writes the glossary terms a matcher finds in a text view as
 /// [`GlossaryTerms`] (`turbo:glossary-terms`): OpenNLP's
 /// `GlossaryAnnotator`. It reads the view and its tokens, and
 /// `turbo:stems` when a token matcher in it matches by
-/// [`TokenValue::Values`], which then stand for each token's value.
+/// [`TokenValue::Values`](crate::TokenValue::Values), which then stand
+/// for each token's value.
 ///
 /// A character match is kept when it starts and ends at a token's start
 /// or end or at an end of the text ([`Boundaries::of_tokens`]). With
@@ -60,17 +59,18 @@ impl GlossaryAnnotator {
     }
 }
 
-/// Feeds the matcher's shape and options to the configuration hash.
+/// Feeds the matcher's shape and patterns to the configuration hash, so
+/// matchers built with other normalizers, case or analyzers hash
+/// differently.
 fn describe(m: &GlossaryMatcher, h: &mut DefaultHasher) {
     match m {
         GlossaryMatcher::Text(t) => {
             "text".hash(h);
-            (t.case() == Case::Insensitive).hash(h);
-            t.states().hash(h);
+            t.fingerprint().hash(h);
         }
         GlossaryMatcher::Tokens(t) => {
             "tokens".hash(h);
-            (t.value() == TokenValue::Values).hash(h);
+            t.fingerprint().hash(h);
         }
         GlossaryMatcher::Composite(ms) => {
             "composite".hash(h);

@@ -2,6 +2,7 @@
 //! over code points, OpenNLP's `AhoCorasickGlossaryMatcher`.
 
 use std::borrow::Cow;
+use std::hash::{DefaultHasher, Hash, Hasher};
 
 use turbo_analysis::Span;
 use turbo_glossary_layers::{EntryIx, Glossary, is_blank};
@@ -139,6 +140,8 @@ pub struct TextMatcher {
     dict: Vec<u32>,
     leaf: Vec<bool>,
     longest: u32,
+    /// A hash of the patterns as stored and the entry each one reports.
+    fingerprint: u64,
 }
 
 impl TextMatcher {
@@ -169,7 +172,10 @@ impl TextMatcher {
             dict: vec![NO],
             leaf: vec![true],
             longest: 0,
+            fingerprint: 0,
         };
+        let mut h = DefaultHasher::new();
+        case.hash(&mut h);
         // The children of each state as a linked list, for the breadth
         // first pass below: the first child, and each child's next
         // sibling with the code point that leads to it.
@@ -210,9 +216,13 @@ impl TextMatcher {
             }
             if m.entry[state as usize] == NO {
                 m.entry[state as usize] = ix.0;
+                ix.hash(&mut h);
+                state.hash(&mut h);
+                pattern.chars().map(|c| case.fold(c)).for_each(|cp| cp.hash(&mut h));
             }
             m.longest = m.longest.max(m.depth[state as usize]);
         }
+        m.fingerprint = h.finish();
         // Failure links breadth first, so a state's link is set before
         // its children's.
         let mut queue = std::collections::VecDeque::new();
@@ -264,6 +274,13 @@ impl TextMatcher {
         self.case
     }
 
+    /// A hash of the patterns the automaton holds and the entry each one
+    /// reports, which differs between matchers built with different
+    /// normalizers or case.
+    pub(crate) fn fingerprint(&self) -> u64 {
+        self.fingerprint
+    }
+
     /// How many states, the root included.
     pub fn states(&self) -> usize {
         self.fail.len()
@@ -286,8 +303,9 @@ impl TextMatcher {
     /// overlap resolution. Spans are byte offsets into `text`.
     pub fn scan(&self, text: &str, mut hit: impl FnMut(Span, EntryIx)) {
         // The byte offset of each of the last `ring.len()` characters, so
-        // a hit's start is found from its length in characters.
-        let size = (self.longest as usize + 1).next_power_of_two();
+        // a hit's start is found from its length in characters. No hit is
+        // longer than the text.
+        let size = ((self.longest as usize).min(text.len()) + 1).next_power_of_two();
         let mask = size - 1;
         let mut ring = vec![0u32; size];
         let mut seen = 0usize;
@@ -387,6 +405,17 @@ mod tests {
         m.find(text, &Boundaries::from_offsets(text.len() as u32, words), &mut out);
         let got: Vec<&str> = out.iter().map(|x| &text[x.span.range()]).collect();
         assert_eq!(got, ["New York City", "cat"]);
+    }
+
+    #[test]
+    fn a_long_term_and_a_short_text() {
+        let long = "ab".repeat(50_000);
+        let g = glossary(&[("long", &long), ("ab", "ab"), ("é", "éé")]);
+        let m = TextMatcher::new(&g, Case::Sensitive).unwrap();
+        // The text is shorter than the longest term, and every hit fits it.
+        assert_eq!(hits(&m, "abéé"), [(0, 2, 1), (2, 6, 2)]);
+        assert_eq!(hits(&m, "ab"), [(0, 2, 1)]);
+        assert_eq!(hits(&m, &long).len(), 50_001);
     }
 
     #[test]

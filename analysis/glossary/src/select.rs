@@ -165,12 +165,18 @@ mod tests {
         assert_eq!(accepted, [m(0, 5, 0), m(5, 8, 1)]);
     }
 
-    /// `CompositeGlossaryMatcher` as written: each candidate against every
-    /// accepted match and the last one added, then a stable merge by start.
+    /// `CompositeGlossaryMatcher.filterOverlaps` as written: each
+    /// candidate against the first accepted match that does not end at or
+    /// before its start without intersecting it, and against the last one
+    /// added; then a stable merge by start.
     fn merge_by_rule(accepted: &[GlossaryMatch], candidates: &[GlossaryMatch]) -> Vec<GlossaryMatch> {
         let mut added: Vec<GlossaryMatch> = Vec::new();
+        let mut a = 0;
         for &c in candidates {
-            if accepted.iter().any(|a| intersects(a.span, c.span)) {
+            while a < accepted.len() && accepted[a].span.end <= c.span.start && !intersects(accepted[a].span, c.span) {
+                a += 1;
+            }
+            if a < accepted.len() && intersects(accepted[a].span, c.span) {
                 continue;
             }
             if added.last().is_some_and(|p| intersects(p.span, c.span)) {

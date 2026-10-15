@@ -170,3 +170,28 @@ fn the_step_matches_at_token_edges() {
     let doc = run(GlossaryAnnotator::new(g.clone(), GlossaryMatcher::Text(m)), "C++ and C+");
     assert_eq!(found(&doc), triples(&[("C+", &["c"], "c1")]));
 }
+
+#[test]
+fn the_configuration_hash_follows_the_patterns() {
+    use turbo_analysis::Annotator;
+    let g = glossary(&[("c1", "Hot Dog"), ("c2", "dogs")]);
+    let text = |case, norm: bool| {
+        let m = if norm {
+            TextMatcher::with_normalizer(&g, case, |t| Cow::Owned(fold(t))).unwrap()
+        } else {
+            TextMatcher::new(&g, case).unwrap()
+        };
+        GlossaryAnnotator::new(g.clone(), GlossaryMatcher::Text(m)).config_hash()
+    };
+    // The same automaton shape, other patterns.
+    assert_ne!(text(Case::Sensitive, false), text(Case::Sensitive, true));
+    assert_ne!(text(Case::Sensitive, false), text(Case::Insensitive, false));
+    assert_eq!(text(Case::Insensitive, true), text(Case::Insensitive, true));
+    let tokens = |analyze: fn(&str, &mut Vec<String>)| {
+        let m = TokenMatcher::new(&g, TokenValue::Values, analyze).unwrap();
+        GlossaryAnnotator::new(g.clone(), GlossaryMatcher::Tokens(m)).config_hash()
+    };
+    let words: fn(&str, &mut Vec<String>) = |t, out| out.extend(t.split(' ').map(str::to_string));
+    assert_ne!(tokens(stems), tokens(words));
+    assert_eq!(tokens(stems), tokens(stems));
+}
