@@ -80,12 +80,13 @@ jobs:
           cargo test -p turbo-train-recipes --test recipes
       # fetch-models also unpacks the MeCab dictionaries into the same
       # directory (IPADIC with its UTF-8 copy). The lattice tokenizer's
-      # IPADIC and mecab-ko-dic golden tests are ignored by default; here
-      # they run, and a missing dictionary fails them.
+      # IPADIC and mecab-ko-dic golden tests, and the readings tests over
+      # the same goldens, are ignored by default; here they run, and a
+      # missing dictionary fails them.
       - name: lattice tokenizer parity against the JVM, dictionaries required
         env:
           TURBO_MECAB_DICTIONARIES: ${{ github.workspace }}/.opennlp-models
-        run: cargo test -p turbo-tokenize --test lattice_golden -- --ignored
+        run: cargo test -p turbo-tokenize --test lattice_golden --test lattice_readings -- --ignored
       # Host-only. This runner is ubuntu-24.04 and has no Intel NPU.
       # The job does not pass --include-ignored and does not set
       # TURBO_TEST_REQUIRE_NPU, so the device tests in core/tests/npu.rs
