@@ -210,22 +210,13 @@ exact; it is not written.
 ## Why a port and not linfa-svm
 
 The predictor is a port of LIBSVM's prediction code, a few hundred lines.
-The alternatives looked at:
-
-- linfa-svm (the SVM of the linfa toolkit) trains its own models with its
-  own solver and keeps them in its own types. It has no reader for LIBSVM
-  model files, so it cannot run a model OpenNLP trained; it classifies two
-  classes, with more through one-against-the-rest composition rather than
-  LIBSVM's one-against-one vote; its probabilities are Platt scaling for
-  two classes, without LIBSVM's pairwise coupling; and it has no sigmoid
-  kernel. Matching the JVM would mean rebuilding LIBSVM's model and
-  prediction around it, and it brings ndarray and the linfa crates, where
-  the workspace allows no new dependency.
-- ffsvm reads LIBSVM model files and predicts fast, but computes in `f32`
-  with SIMD, so its decision values are not LIBSVM's `f64` values.
-- smartcore trains its own SVMs, with no LIBSVM model reader.
-- Bindings to the C LIBSVM would read the files, but bring a C build and a
-  dependency, and the C library's `exp` is the platform's too.
+Running a model OpenNLP trained with the JVM's numbers needs three things:
+a reader for LIBSVM's model file, LIBSVM's one-against-one vote and
+pairwise probability coupling, and LIBSVM's order of `f64` operations.
+General-purpose Rust SVM crates such as linfa-svm and smartcore train and
+store their own models, and any of them would be a new dependency, which
+the workspace does not allow. Bindings to the C LIBSVM would bring a C
+build, and the C library's `exp` is the platform's too.
 
 The port reads the file OpenNLP's LIBSVM writes, keeps LIBSVM's order of
 operations, so the linear and polynomial kernels give the JVM's bits, and
