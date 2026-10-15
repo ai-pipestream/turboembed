@@ -44,9 +44,10 @@ pub enum Error {
     /// model; the set is refused rather than reproduced.
     EmptyEos,
     /// A token sample whose tokens are not in text order (a token starting
-    /// or ending before the one before it), which `TokSpanEventStream`
-    /// would index the text with at a negative offset. `token` is the
-    /// index of the token out of order.
+    /// or ending before the one before it), which the port's
+    /// `TokSpanEventStream` refuses (`TokSpanEventStream::events` says what
+    /// the Java does with one). `token` is the index of the token out of
+    /// order.
     TokensOutOfOrder { token: usize },
     /// A part-of-speech descriptor whose generators cannot be built.
     Sequence(turbo_sequence::Error),

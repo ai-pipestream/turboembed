@@ -149,8 +149,13 @@ impl<'f> TokSpanEventStream<'f> {
     }
 
     /// `createEvents(sample)`: appends the sample's events to `out`. The
-    /// tokens must be in text order ([`Error::TokensOutOfOrder`]); the
-    /// Java indexes the text with a negative offset otherwise.
+    /// tokens must be in text order ([`Error::TokensOutOfOrder`]), which
+    /// the Java does not check. It throws only when the last token ends
+    /// before the first starts (`String.substring`); for other orders it
+    /// makes events of the tokens each whitespace unit contains, in their
+    /// order, so a token inside the one before it (as MASC 3.0.0 has once)
+    /// gives a split inside the outer token where that token gave a
+    /// no-split. The port refuses every such sample.
     pub fn events(&mut self, sample: &TokenSample<'_>, out: &mut Vec<Event>) -> Result<()> {
         let tokens = sample.tokens();
         let (Some(first), Some(last)) = (tokens.first(), tokens.last()) else {

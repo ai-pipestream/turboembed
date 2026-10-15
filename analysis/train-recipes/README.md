@@ -59,11 +59,18 @@ error.
   settings together.
 - Samples: what OpenNLP's MASC streams read, except that the token
   stream skips a sentence without a sample (no tokens, or an empty
-  token) alone, where OpenNLP's stops reading the corpus, and the
-  part-of-speech stream skips a sentence with a token without a tag
+  token) alone, where OpenNLP's stops reading the corpus, and a sentence
+  whose tokens are out of text order alone, which the port's
+  `TokSpanEventStream` refuses (`segmentation::read_token_samples`); and
+  the part-of-speech stream skips a sentence with a token without a tag
   alone, where OpenNLP's throws and ends the training run; a sentence of
   no tokens gives the tagger no event and no held-out unit, and is
-  skipped too. Held-out sentences are skipped the same way. The card
+  skipped too. MASC 3.0.0 has one sentence whose tokens are out of text
+  order, in `data/spoken/face-to-face/Bed012`: its Penn layer has a
+  token `non-deterministic` over three quarks and a token `-` over the
+  second, inside it. OpenNLP's `TokSpanEventStream` would make events of
+  it, among them a split inside `non-deterministic` after `non-`, where
+  it also gave a no-split. Held-out sentences are skipped the same way. The card
   records how many training sentences (`training.skipped_sentences`) and
   how many held-out sentences (`held_out.skipped_sentences`) were
   skipped, and a recipe fails when its reader skips more than one in a
@@ -161,7 +168,8 @@ MASC text, Penn tags written for the tests) and runs everything on
 them: the split in the reader's order; the three recipes trained,
 scored and gated; the same bytes from a second training; the card, the
 model's directory and its zoo entry; the skipped sentences recorded and
-bounded on both sides; the tagger scored in the reference's spelling
+bounded on both sides; a sentence with a token inside another skipped
+by the token recipe alone; the tagger scored in the reference's spelling
 with the tokens of a tag the reference cannot give left out, and a
 reference that cannot give most tags refused; and the binary's refusal
 of an unrecorded corpus, of a missing or wrong reference and of an

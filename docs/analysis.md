@@ -2091,8 +2091,10 @@ trained on MASC 3.0.0 (CC BY 3.0 US), gated against
   descriptor), so its gate compares data and settings together. The
   token stream skips a sentence without a sample alone
   (`EmptySentence::Skipped`) rather than end the corpus there as
-  OpenNLP's does, and the tagger's skips a sentence with a token without
-  a tag, or with no token, alone rather than throw. Held-out sentences
+  OpenNLP's does, and a sentence whose tokens are out of text order (a
+  token inside another, which MASC 3.0.0 has once) alone, which the
+  port's `TokSpanEventStream` refuses; the tagger's skips a sentence
+  with a token without a tag, or with no token, alone rather than throw. Held-out sentences
   are skipped the same way; the card records both counts, and a recipe
   fails when its reader skips more than one sentence in a thousand on
   either side. The manifest's `Timestamp` is fixed, so a run gives the

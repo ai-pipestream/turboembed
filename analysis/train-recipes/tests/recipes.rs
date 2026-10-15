@@ -11,16 +11,17 @@ mod common;
 
 use std::path::PathBuf;
 
-use common::{GATED_DOCUMENTS, SENTENCES, rewrite_document, temp_dir, with_tags_rotated, write_corpus};
+use common::{GATED_DOCUMENTS, SENTENCES, nest_token, rewrite_document, temp_dir, with_tags_rotated, write_corpus};
 use turbo_eval::model_gate::{Measure, ModelGateRecord, Task};
-use turbo_formats::masc::MascCorpus;
+use turbo_formats::masc::{MascCorpus, MascTokenReader};
 use turbo_postag::PosTagFormat;
+use turbo_train_components::{TokSpanEventStream, TokenizerFactory};
 use turbo_train_recipes::card::{
     CARD_FILE, GATE_FILE, HeldOutCard, ModelCard, SpellingCard, TagCount, TagFormat, TokenCoverage, write_model_dir,
 };
 use turbo_train_recipes::masc::{self, RELEASE, SPLIT, SplitCorpus};
 use turbo_train_recipes::postag::{self, CANDIDATE_FORMAT, POS, PosRecipe, ReferenceTags};
-use turbo_train_recipes::segmentation::{SENTENCE, TOKENS};
+use turbo_train_recipes::segmentation::{SENTENCE, TOKENS, in_text_order, read_token_samples};
 use turbo_train_recipes::{Error, LeftOut, RECIPES, Recipe, Reference, held_out_name, run};
 use turbo_zoo::{Index, LicenceClass};
 
@@ -335,6 +336,57 @@ fn skipped_sentences_are_recorded_and_bounded() {
     let (split, _) = split_of(&root);
     too_many(POS.train(&split.train).err(), LeftOut::TrainingSentences, 40, 9000);
     too_many(TOKENS.train(&split.train).err(), LeftOut::TrainingSentences, 20, 9000);
+    for dir in [root, small] {
+        std::fs::remove_dir_all(dir).unwrap();
+    }
+}
+
+/// A sentence whose tokens are out of text order (a token inside the one
+/// before it) is skipped alone by the token recipe's reader, on both
+/// sides, and counted with the other skipped sentences, where
+/// `TokSpanEventStream` would refuse it; the tagger's reader reads it.
+#[test]
+fn a_sentence_with_a_token_inside_another_is_skipped_by_the_token_recipe() {
+    // 250 documents of 40 sentences: 1,000 held-out sentences.
+    let root = temp_dir("nested");
+    write_corpus(&root, 250, SENTENCES);
+    let (split, _) = split_of(&root);
+    nest_token(&root, &split.held_out_paths[0], 0);
+    let (split, _) = split_of(&root);
+    let tokens = TOKENS.held_out(&split.held_out).unwrap();
+    assert_eq!((tokens.len(), tokens.skipped()), (999, 1));
+    let tags = POS.held_out(&split.held_out).unwrap();
+    assert_eq!((tags.len(), tags.skipped()), (1000, 0));
+
+    let mut refused = 0;
+    let skipped = read_token_samples(&split.held_out, |sample| {
+        assert!(in_text_order(sample.tokens()));
+        Ok(())
+    })
+    .unwrap();
+    assert_eq!(skipped, 1);
+    let factory = TokenizerFactory::new("en", None, false, None).unwrap();
+    let mut stream = TokSpanEventStream::new(&factory, turbo_train_recipes::segmentation::WHITESPACE);
+    for read in MascTokenReader::new(&split.held_out).unwrap() {
+        let sample = read.unwrap().sample;
+        if !in_text_order(sample.tokens()) {
+            let err = stream.events(&sample, &mut Vec::new()).unwrap_err();
+            assert!(matches!(err, turbo_train_components::Error::TokensOutOfOrder { token: 1 }), "{err}");
+            refused += 1;
+        }
+    }
+    assert_eq!(refused, 1);
+
+    // A training sentence is skipped the same way, and training goes on.
+    let small = temp_dir("nested-train");
+    write_corpus(&small, GATED_DOCUMENTS, SENTENCES);
+    let (split, _) = split_of(&small);
+    let first = split.train.documents()[0].path().strip_prefix(&small).unwrap().to_string_lossy().into_owned();
+    let all = split.train.documents().len() * common::SENTENCES_PER_DOCUMENT;
+    nest_token(&small, &first, 0);
+    let (split, _) = split_of(&small);
+    let trained = TOKENS.train(&split.train).unwrap();
+    assert_eq!((trained.samples, trained.skipped_sentences), (all - 1, 1));
     for dir in [root, small] {
         std::fs::remove_dir_all(dir).unwrap();
     }

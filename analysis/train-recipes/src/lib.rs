@@ -46,8 +46,9 @@ pub struct Trained {
     /// The samples read from the training documents.
     pub samples: usize,
     /// Sentences left out of training: by the token stream for having no
-    /// sample, by the tagger's for a token without a tag or for having no
-    /// token (always 0 for the sentence detector). At most
+    /// sample or tokens out of text order, by the tagger's for a token
+    /// without a tag or for having no token (always 0 for the sentence
+    /// detector). At most
     /// [`MAX_SKIPPED_SENTENCES`] of those read.
     pub skipped_sentences: usize,
     pub events: usize,
