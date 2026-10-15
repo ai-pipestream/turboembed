@@ -1,0 +1,77 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	glossary/text-edge	3	3	77af778b51abd4a3c51c5ddd97204a9c3ae614ebccb75a606c3b6865aed6744e
+annotator	opennlp.tools.glossary.CompositeGlossaryMatcher	match
+config	analyzer	caseFold stem(PorterStemmer)
+layer	turbo:analyzed-terms	text	1	start:u32	end:u32	normalized:str
+0	3	cat
+end	turbo:analyzed-terms
+layer	turbo:analyzed-entries	document	61	entry:u32	token:str
+0	hot
+0	dog
+1	frankfurt
+2	new
+2	york
+3	new
+3	york
+3	citi
+4	york
+5	cat
+6	can
+7	c
+8	u.
+9	e
+9	mail
+10	größe
+11	東
+11	京
+12	東
+12	京
+12	タワー
+13	カタカナ
+14	서울
+15	naïv
+16	machin
+16	learn
+17	neural
+17	network
+18	neural
+18	net
+19	hot
+19	dog
+20	dog
+21	über
+22	hot
+22	dog
+23	σίσυφος
+24	i̇stanbul
+25	🙂
+26	data
+26	driven
+27	a
+28	a.b
+29	run
+29	dog
+30	can't
+31	york
+31	citi
+32	ic
+32	cream
+33	ic
+33	cream
+34	ic
+34	cream
+35	x
+36	gmbh
+36	co
+37	3.5
+38	𝐀𝐁
+39	são
+39	paulo
+end	turbo:analyzed-entries
+layer	turbo:glossary-terms	text	1	start:u32	end:u32	entry:u32
+0	3	5
+end	turbo:glossary-terms

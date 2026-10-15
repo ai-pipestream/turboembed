@@ -17,7 +17,7 @@ use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
-use turbo_eval::model_gate::{Measure, ModelGateRecord, Scoring, Task};
+use turbo_eval::model_gate::{Counts, Measure, ModelGateRecord, ModelId, PairedUnit, Scoring, Task};
 use turbo_jvm::random::JavaRandom;
 use turbo_langdetect::LanguageModel;
 use turbo_maxent::ModelFile;
@@ -26,6 +26,7 @@ use turbo_train_recipes::langdetect::{
     LanguagePair, LanguageRecipe, MODEL_ID, SENTENCE_URL, SENTENCES_FILE, Split, check_export, run, sentences_file,
     write_language_dir,
 };
+use turbo_train_recipes::release::{self, TATOEBA_MODELS};
 use turbo_train_recipes::tatoeba::{Export, SentenceLicence, TatoebaError};
 use turbo_train_recipes::{Error, RecordedReference, Reference, card::GATE_FILE};
 use turbo_zoo::{Licence, LicenceClass};
@@ -413,6 +414,66 @@ fn the_card_records_the_run_and_is_shippable_only_from_the_recorded_export() {
     assert!(matches!(card.artifact(url, ids_url), Err(Error::InvalidCard { field: "class", .. })));
 }
 
+/// The release's entry is made from the model's directory with both its
+/// files, the model and the ids of its training sentences, each checked
+/// against the card. The test model stands in for the release's: its card
+/// and gate record are rewritten to name the release's model and
+/// reference, with a passing gate, and to come from the recorded export.
+#[test]
+fn the_release_entry_checks_the_model_and_its_training_sentences() {
+    let mut outcome = run(&TEST, &export(), false, &fixture()).unwrap();
+    let card = &mut outcome.card;
+    card.id = MODEL_ID.to_owned();
+    card.file.name = format!("{MODEL_ID}.bin");
+    card.export.recorded = true;
+    let candidate = ModelId { id: MODEL_ID.to_owned(), sha256: card.file.sha256.clone() };
+    let reference = ModelId { id: LANGDETECT_183.id.to_owned(), sha256: LANGDETECT_183.sha256.to_owned() };
+    let right = PairedUnit { candidate: Counts::accuracy(1, 1), reference: Counts::accuracy(1, 1) };
+    let units = vec![right; outcome.gate.units.len()];
+    let gate =
+        ModelGateRecord::new(Task::LanguageDetector, outcome.gate.set.clone(), candidate, reference, units).unwrap();
+    assert!(gate.result.pass);
+    card.gate.reference = gate.reference.id.clone();
+    card.gate.reference_sha256 = gate.reference.sha256.clone();
+    card.gate.candidate_score = gate.result.candidate.score;
+    card.gate.reference_score = gate.result.reference.score;
+    card.gate.difference_low = gate.result.difference.low;
+    card.gate.difference_high = gate.result.difference.high;
+    card.gate.pass = gate.result.pass;
+    outcome.gate = gate;
+
+    let out = temp_dir("release");
+    write_language_dir(&out, &outcome).unwrap();
+    let card = &outcome.card;
+    let entries = release::entries(&out, &TATOEBA_MODELS).unwrap();
+    let model_url = TATOEBA_MODELS.url(&card.file.name);
+    assert_eq!(entries, [card.artifact(&model_url, &TATOEBA_MODELS.url(SENTENCES_FILE)).unwrap()]);
+    let files: Vec<(&str, &str)> = entries[0].files.iter().map(|f| (f.path.as_str(), f.url.as_str())).collect();
+    assert_eq!(
+        files,
+        [
+            (card.file.name.as_str(), model_url.as_str()),
+            (
+                SENTENCES_FILE,
+                "https://github.com/ai-pipestream/turboembed/releases/download/models-tatoeba-2026-10-10-1/training-sentences.txt"
+            ),
+        ]
+    );
+
+    // A changed or missing sentences file makes no entry.
+    let ids = out.join(MODEL_ID).join(SENTENCES_FILE);
+    let mut changed = outcome.trained.sentences.clone();
+    changed[0] = if changed[0] == b'1' { b'2' } else { b'1' };
+    std::fs::write(&ids, &changed).unwrap();
+    match release::entries(&out, &TATOEBA_MODELS) {
+        Err(Error::Zoo(turbo_zoo::ZooError::Integrity { id, .. })) => assert_eq!(id.as_str(), MODEL_ID),
+        other => panic!("{other:?}"),
+    }
+    std::fs::remove_file(&ids).unwrap();
+    assert!(matches!(release::entries(&out, &TATOEBA_MODELS), Err(Error::Io { .. })));
+    std::fs::remove_dir_all(&out).unwrap();
+}
+
 #[test]
 fn an_export_is_a_release_only_when_it_is_the_recorded_one() {
     let export = export();
@@ -427,8 +488,10 @@ fn an_export_is_a_release_only_when_it_is_the_recorded_one() {
         "{err:?}"
     );
     assert!(!check_export(&export, other, true).unwrap());
-    // The recipe records none.
-    assert_eq!(EXPORT, ExportRecord::NotRecorded);
+    assert_eq!(ExportRecord::NotRecorded.digest(), None);
+    // The recipe records Tatoeba's export of 2026-10-10, not this one.
+    assert_eq!(EXPORT.digest(), Some("4421126b36dc0ce206b222296d696aff04a399620f1ca5dbefbfa50a1890aa92"));
+    assert!(!EXPORT.is(EXPORT_DIGEST));
 }
 
 /// The recipe's reference has exactly the codes its table maps to, and
@@ -463,7 +526,8 @@ fn the_binary_needs_the_reference_and_the_recorded_export() {
     let references = path.parent().unwrap();
     let refused = binary(&data(), references, &out, &[]);
     assert_eq!(refused.status.code(), Some(2), "{refused:?}");
-    assert!(String::from_utf8_lossy(&refused.stderr).contains("no Tatoeba export is recorded"), "{refused:?}");
+    let expected = format!("the export's digest is {EXPORT_DIGEST}, not the recorded {}", EXPORT.digest().unwrap());
+    assert!(String::from_utf8_lossy(&refused.stderr).contains(&expected), "{refused:?}");
     assert!(String::from_utf8_lossy(&refused.stdout).contains(EXPORT_DIGEST), "{refused:?}");
     // With --unrecorded-export the recipe runs, and the export's few
     // sentences per language leave none of its languages.

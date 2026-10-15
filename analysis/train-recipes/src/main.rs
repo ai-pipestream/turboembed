@@ -1,4 +1,5 @@
-//! `turbo-train-recipes`: runs the MASC recipes and the UD recipes.
+//! `turbo-train-recipes`: runs the MASC recipes, the UD recipes and the
+//! language detector recipe.
 //!
 //! ```text
 //! turbo-train-recipes masc --corpus <dir> --references <dir> --out <dir> [--unrecorded-corpus] [--recipe <model id>]...
@@ -47,17 +48,17 @@
 //! treebank without `--recipe`) through the zoo into
 //! `<home>/artifacts/<dataset id>/`.
 //!
-//! `zoo-index` reads the directories `masc` or `ud` wrote into `--models`
-//! for the models the release `--release` publishes
-//! (`release::MODELS_RELEASES`),
-//! checks each model file and gate record against its card, and prints
-//! the zoo's built-in index with each model's entry at its address in the
-//! release (`release::index_with`). With `--check` it prints nothing of
-//! the index and exits with 1 unless the built-in index is already that
-//! one and lists nothing else at the release's addresses, naming each
-//! entry that differs with the size and SHA-256 the index lists and the
-//! ones the model has, and each other model listed there
-//! (`release::differences`).
+//! `zoo-index` reads the directories `masc`, `ud` or `tatoeba` wrote into
+//! `--models` for the models the release `--release` publishes
+//! (`release::MODELS_RELEASES`), checks each file (the model, and the
+//! language detector's `training-sentences.txt`) and gate record against
+//! its card, and prints the zoo's built-in index with each model's entry
+//! at its address in the release (`release::index_with`). With `--check`
+//! it prints nothing of the index and exits with 1 unless the built-in
+//! index is already that one and lists nothing else at the release's
+//! addresses, naming each entry that differs with the size and SHA-256 of
+//! each file the index lists and the model has, and each other model
+//! listed there (`release::differences`).
 //!
 //! `tatoeba` runs the language detector recipe (`langdetect::LANGDETECT`)
 //! on the Tatoeba export extracted into `--export` (`sentences_detailed.csv`
@@ -65,9 +66,11 @@
 //! from `--references` and checked against its recorded size and digest,
 //! and writes `<out>/<model id>/` with the model,
 //! `training-sentences.txt` (the ids of the sentences trained on),
-//! `card.json` and `gate.json`. No export is recorded, so it needs
-//! `--unrecorded-export`, and its card is marked `recorded: false`. The
-//! exit status is 1 when the gate fails and 2 on an error.
+//! `card.json` and `gate.json`. It refuses any export but the recorded
+//! one (`langdetect::EXPORT`) unless given `--unrecorded-export`; the
+//! card of another export is marked `recorded: false`, so its model is
+//! not a release. The exit status is 1 when the gate fails and 2 on an
+//! error.
 
 use std::path::{Path, PathBuf};
 use std::process::ExitCode;

@@ -1,0 +1,14 @@
+<?xml version="1.0"?>
+<!DOCTYPE martif [
+  <!ENTITY co "Company">
+  <!ENTITY full "&co; &amp; Sons">
+  <!ELEMENT martif ANY>
+  <!-- a comment in the subset -->
+]>
+<martif>
+  <text><body>
+    <termEntry id="e1"><langSet xml:lang="en"><tig><term>&full;</term></tig></langSet></termEntry>
+    <termEntry id="e2"><langSet xml:lang="en"><tig><term><![CDATA[a <b> & c]]> &#x1F642; &lt;tag&gt;</term></tig></langSet></termEntry>
+    <termEntry id="e3"><langSet xml:lang="en"><tig><term>one<!-- comment --> two<?pi data?></term></tig></langSet></termEntry>
+  </body></text>
+</martif>

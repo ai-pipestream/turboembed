@@ -28,11 +28,14 @@ let model_path = fetched.single().unwrap();
 `index/zoo.json` is the built-in index: the 112 OpenNLP 1.3 UD models
 trained on permissive and share-alike treebanks, the four English models
 the MASC recipes train (`analysis/train-recipes`), at their addresses in
-this repository's release `models-masc-3.0.0-1`, and the ten Spanish,
+this repository's release `models-masc-3.0.0-1`, the ten Spanish,
 Catalan and Finnish models the UD recipes train, at their addresses in
-its release `models-ud-2.16-1`. `.github/workflows/models.yml` and
-`.github/workflows/models-ud.yml` create those releases when they are
-run by hand on main; until then fetching those models fails. The recipes
+its release `models-ud-2.16-1`, and the language detector the Tatoeba
+recipe trains, with `training-sentences.txt` (the ids of the sentences
+it was trained on) as its second file, at their addresses in its release
+`models-tatoeba-2026-10-10-1`. `.github/workflows/models.yml`,
+`models-ud.yml` and `models-tatoeba.yml` create those releases when they
+are run by hand on main; until then fetching those models fails. The recipes
 write their entries: `turbo-train-recipes zoo-index` prints this index
 with them added. The 32 models trained
 on the eight non-commercial treebanks (four per treebank) are
