@@ -20,6 +20,7 @@ pub use turbo_analysis::{
 use turbo_analysis::{Anchor, Ix, IxRange, Key, KeyId, Layer, LayerName, ModelRef, Span, Spans};
 
 pub use abbreviations::{AbbreviationForm, Abbreviations, DEFINITION, MENTION, abbreviation_links};
+pub use language_spans::{LanguageSpan, LanguageSpans, UNDETERMINED};
 pub use levels::{Level, Levels, Unit, VectorKind};
 pub use money::{CONVERTED_MONEY, Currency, Money, MoneyMention};
 pub use numbers::{DecimalRef, Multiplier, NumberMention, NumberNotation, Numbers, ScaleMarker};
@@ -82,6 +83,7 @@ macro_rules! positional {
 }
 
 mod abbreviations;
+mod language_spans;
 mod levels;
 mod money;
 mod numbers;
@@ -773,8 +775,10 @@ impl<L: Layer> Layer for Utf16Spans<L> {
 }
 
 /// The document's language: a document-scoped layer holding every
-/// language the detector ranked, best first, each with its score (the
-/// detector's probability). Item 0 is the best language.
+/// language the detector ranked, best first, each with its score. Item 0
+/// is the best language. OpenNLP's detector scores each language with
+/// its probability; a step that finds the language by span
+/// ([`LanguageSpans`]) scores each with its share of the text.
 ///
 /// Schema 2: schema 1 held the best language alone.
 pub struct Language {

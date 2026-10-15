@@ -1777,6 +1777,7 @@ name = "turbo-analysis-layers"
 version = "0.1.0"
 dependencies = [
  "turbo-analysis",
+ "turbo-unicode",
 ]
 
 [[package]]
@@ -1940,6 +1941,19 @@ dependencies = [
  "turbo-analysis-layers",
  "turbo-goldens",
  "turbo-jvm",
+ "turbo-maxent",
+ "turbo-normalize",
+ "turbo-unicode",
+]
+
+[[package]]
+name = "turbo-langspan"
+version = "0.1.0"
+dependencies = [
+ "turbo-analysis",
+ "turbo-analysis-layers",
+ "turbo-goldens",
+ "turbo-langdetect",
  "turbo-maxent",
  "turbo-normalize",
  "turbo-unicode",
