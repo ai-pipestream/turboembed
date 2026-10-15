@@ -2070,10 +2070,14 @@ trained on MASC 3.0.0 (CC BY 3.0 US), gated against
   dataset and read from its extracted directory with the MASC reader of
   `turbo-formats`; it is not checked in. The digest of the directory
   (`masc::corpus_digest`, a `sha256sum` manifest of every file) must be
-  the recorded one. The release's digests are not recorded yet: MASC could
-  not be downloaded where the recipes were written, so `masc::RELEASE`
-  is `NotRecorded`, nothing is fetched, and a run needs `--unrecorded-corpus`
-  and marks its cards as not a release.
+  the recorded one. `masc::RELEASE` records the archive anc.org's MASC
+  download page links to (`MASC-3.0.0.zip`, a release asset of the ANC
+  website's repository on GitHub: 36,358,521 bytes, SHA-256
+  `0b300d96016233c7c79b43559b477a6bb0ed16bb416d5c517eccb108a6228493`) and
+  the digest of the `MASC-3.0.0` directory it extracts to
+  (`445449f535cac62e74b2712ad975d7b727e72b8276720dd27492266565ae0afd`, 4,425
+  files). A run on any other directory needs `--unrecorded-corpus` and
+  marks its cards as not a release.
 - The split: the documents in the order the reader reads them; every
   tenth, from the tenth, is held out. No randomness, so no seed.
 - The training: the factory defaults and the settings of the UD 1.3

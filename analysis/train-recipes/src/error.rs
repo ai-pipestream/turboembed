@@ -40,8 +40,9 @@ pub enum Error {
     /// The release has no digest recorded yet, so it cannot be fetched
     /// or checked ([`crate::masc::RELEASE`]).
     NotRecorded,
-    /// The corpus directory is not the recorded release.
-    CorpusDigest { expected: String, found: String },
+    /// The corpus directory is not the recorded release, the directory
+    /// `corpus_dir` its archive extracts to.
+    CorpusDigest { expected: String, corpus_dir: &'static str, found: String },
     /// A reference model file is not the one recorded for it: its SHA-256
     /// is not the one the zoo's index or the recipe records, or its size
     /// is not the one the recipe records.
@@ -102,9 +103,11 @@ impl fmt::Display for Error {
             Error::NotRecorded => {
                 f.write_str("the MASC release has no recorded digest yet; see turbo_train_recipes::masc::RELEASE")
             }
-            Error::CorpusDigest { expected, found } => {
-                write!(f, "the corpus directory has the digest {found}, the recorded release {expected}")
-            }
+            Error::CorpusDigest { expected, corpus_dir, found } => write!(
+                f,
+                "the corpus directory has the digest {found}, not the recorded release's {expected} (the directory \
+                 {corpus_dir} its archive extracts to); --unrecorded-corpus runs on another corpus"
+            ),
             Error::ReferenceDigest { id, expected, found } => {
                 write!(f, "reference model {id}: SHA-256 {found}, expected {expected}")
             }

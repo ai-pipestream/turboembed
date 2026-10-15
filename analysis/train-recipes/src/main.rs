@@ -10,8 +10,9 @@
 //! task (read from `--references` by its file name, the zoo's or the
 //! recorded one, and checked against its digest), and writes
 //! `<out>/<model id>/` with the model, `card.json` and `gate.json`.
-//! `--unrecorded-corpus` runs on a copy whose digest is not recorded yet,
-//! prints that digest, and marks the cards `release_recorded: false`.
+//! `--unrecorded-corpus` runs on a corpus directory that is not the
+//! recorded release (`masc::RELEASE`), and marks the cards
+//! `release_recorded: false`. The run prints the directory's digest.
 //! `--recipe` runs only the recipes named, by the trained model's id;
 //! without it every recipe runs. The recipes run in the order of
 //! `RECIPES`, whatever the order they are named in. Before anything is
@@ -21,14 +22,14 @@
 //! and 2 on an error.
 //!
 //! `fetch-masc` fetches the release archive through the zoo into
-//! `<home>/artifacts/`, once its digests are recorded.
+//! `<home>/artifacts/`, checked against its recorded size and digests.
 
 use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 
 use turbo_formats::masc::MascCorpus;
 use turbo_train_recipes::card::write_model_dir;
-use turbo_train_recipes::masc::{self, RELEASE, Release};
+use turbo_train_recipes::masc::{self, RELEASE};
 use turbo_train_recipes::{Error, RECIPES, Recipe, run};
 
 const USAGE: &str = "usage:
@@ -83,10 +84,10 @@ fn masc_command(a: Args) -> Result<bool, String> {
     let references = need(a.references, "--references")?;
     let out = need(a.out, "--out")?;
     let digest = masc::check_corpus(&corpus_dir, RELEASE, a.unrecorded).map_err(|e| e.to_string())?;
-    let recorded = matches!(RELEASE, Release::Recorded(_));
+    let recorded = RELEASE.is(&digest);
     println!("corpus {}: {} files, digest {}", corpus_dir.display(), digest.files, digest.sha256);
     if !recorded {
-        println!("the release is not recorded: this run is not a release of the models");
+        println!("the corpus is not the recorded release: this run is not a release of the models");
     }
     let recipes: Vec<Recipe> = RECIPES.into_iter().filter(|r| a.recipes.is_empty() || a.recipes.contains(r)).collect();
     let reference_bytes = check_before_training(&recipes, &references, &out)?;

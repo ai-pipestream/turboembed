@@ -730,7 +730,7 @@ fn the_binary_refuses_an_unrecorded_corpus_and_writes_each_model_s_directory() {
     };
     let refused = args(&[]);
     assert_eq!(refused.status.code(), Some(2));
-    assert!(String::from_utf8_lossy(&refused.stderr).contains("no recorded digest"), "{refused:?}");
+    assert!(String::from_utf8_lossy(&refused.stderr).contains("not the recorded release's"), "{refused:?}");
     assert!(!out.join("models").exists());
     let unknown = args(&["--unrecorded-corpus", "--recipe", "turbo-en-masc-3.0.0-chunks-1"]);
     assert_eq!(unknown.status.code(), Some(2));

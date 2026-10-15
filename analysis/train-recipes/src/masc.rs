@@ -7,12 +7,12 @@
 //! CC BY allows it with attribution, but the policy prefers fetching by
 //! digest, and the corpus is far larger than the repository's test data.
 //!
-//! [`RELEASE`] has no digest yet. The release could not be downloaded
-//! where the recipes were written (`anc.org` was not reachable), so its
-//! size and digests are not known, and a recipe refuses to fetch it
-//! ([`crate::Error::NotRecorded`]) or to treat a directory as the release.
-//! Running the binary with `--unrecorded-corpus` on an extracted copy
-//! prints the corpus digest to record here.
+//! [`RELEASE`] records the archive, `MASC-3.0.0.zip`, as anc.org's MASC
+//! page links to it (a release asset of the ANC website's repository on
+//! GitHub), and the digest of the directory it extracts to,
+//! `MASC-3.0.0` ([`corpus_digest`]). A run on another directory is not a
+//! release of the models: the binary refuses it unless given
+//! `--unrecorded-corpus`, and marks its cards `release_recorded: false`.
 
 use std::fmt::Write as _;
 use std::path::{Path, PathBuf};
@@ -64,7 +64,10 @@ pub struct RecordedRelease {
     pub size: u64,
     pub sha256: &'static str,
     pub sha512: &'static str,
-    /// The [`corpus_digest`] of the extracted directory.
+    /// The directory the archive extracts to, which holds every file of
+    /// the release: the corpus directory a run is given.
+    pub corpus_dir: &'static str,
+    /// The [`corpus_digest`] of that directory.
     pub corpus_sha256: &'static str,
 }
 
@@ -76,9 +79,29 @@ pub enum Release {
     Recorded(RecordedRelease),
 }
 
-/// The MASC release the recipes train on: not recorded until a copy of the
-/// release has been downloaded and its digests recorded.
-pub const RELEASE: Release = Release::NotRecorded;
+impl Release {
+    /// Whether `digest` is the recorded release's corpus digest; never for
+    /// a release not recorded.
+    pub fn is(&self, digest: &CorpusDigest) -> bool {
+        matches!(self, Release::Recorded(r) if r.corpus_sha256 == digest.sha256)
+    }
+}
+
+/// The MASC release the recipes train on: MASC 3.0.0 as the archive
+/// anc.org's MASC page links to, downloaded and checked on 2026-10-14.
+/// The archive's entries are the directory `MASC-3.0.0` and 4,425
+/// regular files under it (no links); its corpus digest covers those
+/// files.
+pub const RELEASE: Release = Release::Recorded(RecordedRelease {
+    file: "MASC-3.0.0.zip",
+    format: Format::Zip,
+    url: "https://github.com/nancyide/anc-website/releases/download/datasets-2026-09-25/MASC-3.0.0.zip",
+    size: 36_358_521,
+    sha256: "0b300d96016233c7c79b43559b477a6bb0ed16bb416d5c517eccb108a6228493",
+    sha512: "a88795055fab5c600f26215cbe6143c2325627adaf9ae80d06c7e815a76834debd4b7728a745aa67608ee1d028b35ca139b2b90760e69d0e7227af83bf05d6a9",
+    corpus_dir: "MASC-3.0.0",
+    corpus_sha256: "445449f535cac62e74b2712ad975d7b727e72b8276720dd27492266565ae0afd",
+});
 
 /// MASC as the zoo's permissive training data entry of a model.
 pub fn training_data() -> TrainingData {
@@ -180,12 +203,15 @@ pub struct CorpusDigest {
     pub files: usize,
 }
 
-/// Checks that `dir` is the recorded release.
+/// Checks that `dir` is the recorded release, or, when
+/// `allow_unrecorded`, takes any corpus directory; [`Release::is`] on the
+/// digest returned tells which it is.
 ///
 /// # Errors
 ///
-/// [`Error::NotRecorded`] while the release is not recorded, unless
-/// `allow_unrecorded`, and [`Error::CorpusDigest`] for another corpus.
+/// Unless `allow_unrecorded`: [`Error::CorpusDigest`] for a corpus that is
+/// not the recorded release, and [`Error::NotRecorded`] while the release
+/// is not recorded.
 pub fn check_corpus(dir: &Path, release: Release, allow_unrecorded: bool) -> Result<CorpusDigest> {
     check_digest(corpus_digest(dir)?, release, allow_unrecorded)
 }
@@ -197,11 +223,12 @@ pub fn check_corpus(dir: &Path, release: Release, allow_unrecorded: bool) -> Res
 /// As [`check_corpus`].
 pub fn check_digest(digest: CorpusDigest, release: Release, allow_unrecorded: bool) -> Result<CorpusDigest> {
     match release {
-        Release::Recorded(r) if r.corpus_sha256 != digest.sha256 => {
-            Err(Error::CorpusDigest { expected: r.corpus_sha256.to_owned(), found: digest.sha256 })
-        }
-        Release::Recorded(_) => Ok(digest),
-        Release::NotRecorded if allow_unrecorded => Ok(digest),
+        _ if release.is(&digest) || allow_unrecorded => Ok(digest),
+        Release::Recorded(r) => Err(Error::CorpusDigest {
+            expected: r.corpus_sha256.to_owned(),
+            corpus_dir: r.corpus_dir,
+            found: digest.sha256,
+        }),
         Release::NotRecorded => Err(Error::NotRecorded),
     }
 }
@@ -345,11 +372,26 @@ mod tests {
 
     #[test]
     fn an_unrecorded_release_is_neither_fetched_nor_taken_for_a_corpus() {
-        assert_eq!(RELEASE, Release::NotRecorded);
-        assert!(matches!(dataset(RELEASE), Err(Error::NotRecorded)));
+        let unrecorded = Release::NotRecorded;
+        assert!(matches!(dataset(unrecorded), Err(Error::NotRecorded)));
         let home = std::env::temp_dir();
         let user: UserId = "tester".parse().unwrap();
-        assert!(matches!(fetch_release(RELEASE, &home, &user), Err(Error::NotRecorded)));
+        assert!(matches!(fetch_release(unrecorded, &home, &user), Err(Error::NotRecorded)));
+        let any = CorpusDigest { sha256: String::new(), files: 0 };
+        assert!(!unrecorded.is(&any));
+    }
+
+    #[test]
+    fn the_release_is_recorded_as_a_permissive_dataset_of_the_zoo() {
+        let Release::Recorded(r) = RELEASE else { panic!("the release is recorded") };
+        let a = dataset(RELEASE).unwrap();
+        let index = Index::parse(Index::to_canonical_json(std::slice::from_ref(&a)).as_bytes()).unwrap();
+        let got = index.get(DATASET_ID).unwrap();
+        assert_eq!(got.class, LicenceClass::Permissive);
+        assert_eq!((got.files[0].size, got.files[0].sha256.to_string()), (r.size, r.sha256.to_owned()));
+        assert_eq!(r.corpus_sha256.len(), 64);
+        assert!(r.corpus_sha256.bytes().all(|b| b.is_ascii_hexdigit() && !b.is_ascii_uppercase()));
+        assert!(RELEASE.is(&CorpusDigest { sha256: r.corpus_sha256.to_owned(), files: 4425 }));
     }
 
     const RECORDED: RecordedRelease = RecordedRelease {
@@ -359,6 +401,7 @@ mod tests {
         size: 3,
         sha256: "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad",
         sha512: "ddaf35a193617abacc417349ae20413112e6fa4e89a97ea20a9eeee64b55d39a2192992a274fc1a836ba3c23a3feebbd454d4423643ce80e2a9ac94fa54ca49f",
+        corpus_dir: "MASC-3.0.0",
         corpus_sha256: "0000000000000000000000000000000000000000000000000000000000000000",
     };
 
@@ -385,11 +428,19 @@ mod tests {
                         e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855  b/c.txt\n";
         assert_eq!(d, CorpusDigest { sha256: Sha256::of(manifest.as_bytes()).to_string(), files: 2 });
 
-        assert!(matches!(check_corpus(&dir, RELEASE, false), Err(Error::NotRecorded)));
-        assert_eq!(check_corpus(&dir, RELEASE, true).unwrap(), d);
-        assert!(matches!(check_corpus(&dir, Release::Recorded(RECORDED), true), Err(Error::CorpusDigest { .. })));
+        assert!(matches!(check_corpus(&dir, Release::NotRecorded, false), Err(Error::NotRecorded)));
+        assert_eq!(check_corpus(&dir, Release::NotRecorded, true).unwrap(), d);
+        // Another corpus than the recorded release: refused, unless asked
+        // for, and then not taken for the release.
+        let other = check_corpus(&dir, Release::Recorded(RECORDED), false).unwrap_err();
+        assert!(matches!(other, Error::CorpusDigest { .. }), "{other}");
+        assert!(other.to_string().contains("MASC-3.0.0"), "{other}");
+        assert_eq!(check_corpus(&dir, Release::Recorded(RECORDED), true).unwrap(), d);
+        assert!(!Release::Recorded(RECORDED).is(&d));
+        assert!(matches!(check_corpus(&dir, RELEASE, false), Err(Error::CorpusDigest { .. })));
         let same = CorpusDigest { sha256: RECORDED.corpus_sha256.to_owned(), files: 2 };
         assert_eq!(check_digest(same.clone(), Release::Recorded(RECORDED), false).unwrap(), same);
+        assert!(Release::Recorded(RECORDED).is(&same));
 
         std::fs::write(dir.join("b/c.txt"), "x").unwrap();
         assert_ne!(corpus_digest(&dir).unwrap().sha256, d.sha256);

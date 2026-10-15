@@ -52,7 +52,7 @@ pub struct CorpusCard {
     /// [`masc::corpus_digest`] of the directory read.
     pub corpus_sha256: String,
     /// Whether that digest is the recorded release's ([`masc::RELEASE`]).
-    /// A model trained on an unrecorded copy is not a release.
+    /// A model trained on another corpus is not a release.
     pub release_recorded: bool,
     pub split: Split,
     pub training_documents: usize,

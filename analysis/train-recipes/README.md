@@ -113,25 +113,46 @@ error.
 
 MASC is fetched through the zoo by digest and read from its extracted
 directory. It is not checked in: CC BY would allow it with attribution,
-but the policy prefers fetching by digest. `masc::RELEASE` is `NotRecorded`:
-the release could not be downloaded where the recipes were written
-(`anc.org` was not reachable), so its archive's size and digests and the
-extracted directory's digest are not known. Until they are recorded:
+but the policy prefers fetching by digest. `masc::RELEASE` records the
+release:
 
-- `fetch-masc` and `masc::dataset` refuse (`Error::NotRecorded`);
-- `masc` refuses a corpus directory unless given `--unrecorded-corpus`,
-  prints the directory's digest, and writes cards with
-  `release_recorded: false`, which are not a release of the models.
+| Field | Value |
+|---|---|
+| Archive | `MASC-3.0.0.zip`, zip |
+| Address | <https://github.com/nancyide/anc-website/releases/download/datasets-2026-09-25/MASC-3.0.0.zip> |
+| Size | 36,358,521 bytes |
+| SHA-256 | `0b300d96016233c7c79b43559b477a6bb0ed16bb416d5c517eccb108a6228493` |
+| SHA-512 | `a88795055fab5c600f26215cbe6143c2325627adaf9ae80d06c7e815a76834debd4b7728a745aa67608ee1d028b35ca139b2b90760e69d0e7227af83bf05d6a9` |
+| Corpus directory | `MASC-3.0.0`, 4,425 files |
+| Corpus digest | `445449f535cac62e74b2712ad975d7b727e72b8276720dd27492266565ae0afd` |
 
-To record it: download the release, record the archive (file name, format,
-URL, size, SHA-256, SHA-512) and the digest `masc --unrecorded-corpus`
-prints in `masc::RELEASE`. The zoo has no tar format yet, so a release
-published as a gzip tar needs one before it can be listed.
+The address is the one anc.org's MASC download page gives: a release
+asset of the ANC website's repository on GitHub (`nancyide/anc-website`,
+release `datasets-2026-09-25`), not a file on anc.org itself. The
+archive holds one directory, `MASC-3.0.0`, with 4,425 regular files and
+no links; its README dates the release 2012-12-15. The corpus digest
+(`masc::corpus_digest`) is the SHA-256 of a `sha256sum` manifest of
+every file under that directory, so this gives the same digest:
+
+```
+cd MASC-3.0.0 && find . -type f -printf '%P\n' | LC_ALL=C sort |
+  while IFS= read -r f; do printf '%s  %s\n' "$(sha256sum -- "$f" | cut -d' ' -f1)" "$f"; done |
+  sha256sum
+```
+
+`fetch-masc --home <zoo-home>` fetches the archive into
+`<zoo-home>/artifacts/masc-3.0.0/` and checks its size and digests; the
+zoo does not extract archives, so it is unzipped by hand, and `masc
+--corpus` names the `MASC-3.0.0` directory it extracts to. `masc`
+refuses a corpus directory whose digest is not the recorded one unless
+given `--unrecorded-corpus`, and then writes cards with
+`release_recorded: false`, which are not a release of the models (the
+tests run the binary on their own corpora that way).
 
 ## Not here yet
 
-- Scores on MASC: none are recorded until the release is recorded and
-  the recipes are run on it. No recipe has been run on MASC itself.
+- Scores on MASC: none are recorded until the recipes are run on the
+  recorded release.
 
 ## Tests
 
