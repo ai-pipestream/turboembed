@@ -206,6 +206,12 @@ pub trait Grammar: Send + Sync + 'static {
     fn keep(&self, _output: Output, _node: &super::chart::Node, _ctx: &Ctx<'_>) -> bool {
         true
     }
+
+    /// Whether a chosen ordinal hides the numbers that lie inside it. The
+    /// default hides them.
+    fn shadows(&self, _ordinal: &super::chart::Node) -> bool {
+        true
+    }
 }
 
 #[cfg(test)]

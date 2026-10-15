@@ -120,6 +120,10 @@ pub struct Parser {
     values: Vec<Value>,
     taken: Vec<bool>,
     cands: Vec<(u32, u32, u32)>,
+    /// The ordinals chosen before numbers are, and per lexeme the index of
+    /// the one covering it (or [`NONE`]).
+    shadows: Vec<Mention>,
+    shadowed: Vec<u32>,
 }
 
 impl Parser {
@@ -153,6 +157,8 @@ impl Parser {
             values: Vec::new(),
             taken: Vec::new(),
             cands: Vec::new(),
+            shadows: Vec::new(),
+            shadowed: Vec::new(),
         }
     }
 
@@ -309,7 +315,30 @@ impl Parser {
     /// fewer applications, earlier start and lower rule index), each taken
     /// when it overlaps none taken before. Appends them to `out` in text
     /// order.
+    ///
+    /// A number that lies inside a chosen ordinal is part of that ordinal,
+    /// not a value the text states (`twenty` in `the twenty first`), so it
+    /// is left out unless the grammar's [`Grammar::shadows`] says the
+    /// ordinal leaves its numbers standing.
     pub fn select(&mut self, text: &str, output: Output, out: &mut Vec<Mention>) {
+        self.shadowed.clear();
+        if output == Output::Number {
+            let mut shadows = std::mem::take(&mut self.shadows);
+            shadows.clear();
+            self.pick(text, Output::Ordinal, &mut shadows);
+            self.shadowed.resize(self.lexed.len(), NONE);
+            for (i, m) in shadows.iter().enumerate() {
+                let node = &self.chart.nodes[m.node as usize];
+                if self.grammar.shadows(node) {
+                    self.shadowed[node.start as usize..node.end as usize].fill(i as u32);
+                }
+            }
+            self.shadows = shadows;
+        }
+        self.pick(text, output, out);
+    }
+
+    fn pick(&mut self, text: &str, output: Output, out: &mut Vec<Mention>) {
         let n = self.lexed.len();
         let lex = &self.lexed.lexemes;
         self.cands.clear();
@@ -325,6 +354,14 @@ impl Parser {
             }
             if e < n && lex[e].glued && lex[e].is_alnum() && lex[e - 1].is_alnum() {
                 continue;
+            }
+            // Chosen ordinals do not overlap, so one index at both ends
+            // means one ordinal covers the whole span.
+            if output == Output::Number && !self.shadowed.is_empty() {
+                let owner = self.shadowed[s];
+                if owner != NONE && owner == self.shadowed[e - 1] {
+                    continue;
+                }
             }
             let ctx = Ctx { text, lexed: &self.lexed, start: s, end: e };
             if !self.grammar.keep(output, node, &ctx) {

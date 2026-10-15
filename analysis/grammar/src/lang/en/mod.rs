@@ -55,7 +55,8 @@ pub(crate) const TO_END: u8 = 1;
 pub(crate) const TO_CURRENT: u8 = 2;
 
 /// Words after which a lone `one` is a pronoun, not a number: `the one
-/// you mentioned`, `which one`.
+/// you mentioned`, `which one`. Ordinal words do the same (see
+/// [`English::picks_out`]).
 const DETERMINERS: &[&str] = &["any", "each", "every", "no", "that", "the", "this", "which"];
 
 /// The English grammar.
@@ -65,6 +66,21 @@ pub struct English {
 
 /// The one instance; its lexicon is sorted on first use.
 pub static ENGLISH: English = English { lexicon: OnceLock::new() };
+
+impl English {
+    /// Whether the lexeme at `i` makes a `one` after it a pronoun: a
+    /// determiner, an ordinal (`the first one`, `the 3rd one`) or a
+    /// relative ordinal (`the last one`).
+    fn picks_out(&self, ctx: &Ctx<'_>, i: usize) -> bool {
+        let word = ctx.word(i);
+        DETERMINERS.contains(&word)
+            || self.lexicon().lookup(word).iter().any(|e| match e.dim {
+                ORD_WORD | ORD_TENS | ORD_SCALE | REL_WORD => true,
+                ORD_SUFFIX => ctx.lexeme(i).glued,
+                _ => false,
+            })
+    }
+}
 
 impl Grammar for English {
     fn name(&self) -> &'static str {
@@ -105,7 +121,7 @@ impl Grammar for English {
         match output {
             Output::Number => {
                 let lone_one = ctx.end - ctx.start == 1 && ctx.word(ctx.start) == "one";
-                !(lone_one && before.is_some_and(|w| DETERMINERS.contains(&w)))
+                !(lone_one && ctx.before().is_some_and(|p| self.picks_out(ctx, p)))
             }
             Output::Ordinal => match node.value {
                 // `fifths` is a denominator, never a position.
@@ -120,6 +136,12 @@ impl Grammar for English {
             },
             Output::Percent => true,
         }
+    }
+
+    /// A count before a scale ordinal stands as a number: `two millionth`
+    /// also reads as two millionths, as `100 millionths` does.
+    fn shadows(&self, ordinal: &Node) -> bool {
+        self.rules().get(usize::from(ordinal.rule)).is_none_or(|r| r.name != "ord_scale")
     }
 }
 

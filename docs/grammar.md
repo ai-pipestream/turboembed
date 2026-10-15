@@ -90,6 +90,11 @@ before. The result is the same for the same text and grammar.
 Because the outputs are chosen separately, the number of a percentage is
 also a number, and `forty two and a third` holds the ordinal `third` as
 well as the number 42.333…, as the Recognizers-Text models report them.
+Numbers are chosen after ordinals, and a number that lies inside a chosen
+ordinal is left out: `the twenty first` gives the ordinal 21 and no
+number 20. A grammar can let an ordinal keep its numbers; English does so
+for a count before a scale ordinal, since `two millionth` also reads as
+two millionths and the Recognizers-Text model reports the number 2.
 
 ## English
 
@@ -155,8 +160,9 @@ denominator over a longer numerator (`one hundred thirty fifths` is
 100/35).
 
 The grammar drops two kinds of candidates: a lone `one` after `the`,
-`this`, `that`, `which`, `each`, `every`, `any` or `no` (a pronoun:
-`which one`), and from the ordinals a plural ordinal (a denominator) and
+`this`, `that`, `which`, `each`, `every`, `any` or `no`, or after an
+ordinal or relative ordinal (a pronoun: `which one`, `the last one`, `the
+3rd one`), and from the ordinals a plural ordinal (a denominator) and
 a scale ordinal alone after `a` or `an` (`a hundredth` is a fraction).
 
 A number's subtype is `fraction` for every fraction, `power` for an

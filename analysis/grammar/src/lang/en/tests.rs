@@ -212,6 +212,10 @@ fn lone_one_after_a_determiner_is_a_pronoun() {
     assert!(numbers("no one came").is_empty());
     assert_eq!(numbers("one apple").len(), 1);
     assert_eq!(values("the one hundred days"), ["100 integer"]);
+    assert!(numbers("the last one").is_empty());
+    assert!(numbers("the first one").is_empty());
+    assert!(numbers("the 3rd one").is_empty());
+    assert_eq!(values("the first one hundred"), ["100 integer"]);
 }
 
 #[test]
@@ -236,6 +240,30 @@ fn ordinals() {
     // `a hundredth` is a fraction; a plural is a denominator.
     assert!(ord("a hundredth").is_empty());
     assert!(ord("fifths").is_empty());
+}
+
+#[test]
+fn numbers_inside_an_ordinal_are_left_out() {
+    let ord = |t: &str| found(t, Output::Ordinal);
+    let text = "She came in 3rd, he was the twenty first, and the last one.";
+    assert!(numbers(text).is_empty(), "{:?}", numbers(text));
+    assert_eq!(ord("the twenty first"), pair("twenty first", "#21"));
+    assert!(numbers("the twenty first").is_empty());
+    assert_eq!(ord("4th"), pair("4th", "#4"));
+    assert!(numbers("4th").is_empty());
+    assert_eq!(ord("twenty-third"), pair("twenty-third", "#23"));
+    assert!(numbers("twenty-third").is_empty());
+    assert_eq!(ord("one hundred and third"), pair("one hundred and third", "#103"));
+    assert!(numbers("one hundred and third").is_empty());
+    assert!(numbers("the one before the last").is_empty());
+    // A count before a scale ordinal also reads as a count of parts.
+    assert_eq!(ord("two millionth"), pair("two millionth", "#2000000"));
+    assert_eq!(numbers("two millionth"), pair("two", "2 integer"));
+    // A fraction holds its ordinal and is still a number.
+    assert_eq!(numbers("forty two and a third").len(), 1);
+    assert_eq!(numbers("one third").len(), 1);
+    // Numbers outside the ordinal stay.
+    assert_eq!(values("5 of the twenty first"), ["5 integer"]);
 }
 
 #[test]
