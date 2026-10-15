@@ -1,0 +1,6 @@
+Customer record
+email: customer.one@example.com
+phone: +44 20 7946 0000
+card: 4111-1111-1111-1111
+iban: GB82 WEST 1234 5698 7654 32
+ip: 203.0.113.9

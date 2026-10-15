@@ -1,0 +1,1 @@
+Not addresses: user@localhost, a@b, user@@example.com, user@example.invalidtld, @example.com, .user@example.com
