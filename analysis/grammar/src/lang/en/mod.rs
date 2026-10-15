@@ -4,7 +4,7 @@
 //! docs/grammar.md lists what the rules read and how a reading is chosen.
 
 mod lexicon;
-mod rules;
+pub(crate) mod rules;
 pub(crate) mod time;
 
 pub use time::{ENGLISH_TIMES, EnglishTimes};
