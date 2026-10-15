@@ -11,9 +11,12 @@
 //! The samples are what OpenNLP's MASC streams read, with one change: the
 //! token stream skips a sentence without a sample alone
 //! ([`EmptySentence::Skipped`]) instead of ending the corpus there, so one
-//! such sentence does not lose the rest of the training data. The
-//! sentence stream joins [`SENTENCES_PER_SAMPLE`] sentences with a space,
-//! as `SentenceDetectorTrainer` reads MASC.
+//! such sentence does not lose the rest of the training data. It skips
+//! held-out sentences the same way; the card records both counts, and a
+//! recipe fails when either is more than [`crate::MAX_SKIPPED_SENTENCES`]
+//! of the sentences read. The sentence stream joins
+//! [`SENTENCES_PER_SAMPLE`] sentences with a space, as
+//! `SentenceDetectorTrainer` reads MASC.
 //!
 //! Both models are scored on the same held-out samples with OpenNLP's
 //! evaluators (`SentenceDetectorEvaluator`, `TokenizerEvaluator`), one
@@ -36,8 +39,9 @@ use turbo_train_components::ud;
 use turbo_train_components::{SentenceDetectorFactory, Stamp, TokenizerFactory, sentdetect, tokenize};
 use turbo_zoo::Sha256;
 
-use crate::Trained;
-use crate::error::{Error, Result};
+use crate::card::HeldOutCard;
+use crate::error::{Error, LeftOut, Result};
+use crate::{GateRun, Trained, check_skipped};
 
 /// The segmentation component a recipe trains.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -86,14 +90,28 @@ pub const RECIPES: [SegmentationRecipe; 2] = [SENTENCE, TOKENS];
 #[derive(Debug, Clone)]
 pub enum HeldOut<'c> {
     Sentences(Vec<SentenceSample<'c>>),
-    Tokens(Vec<TokenSample<'c>>),
+    Tokens {
+        samples: Vec<TokenSample<'c>>,
+        /// The held-out sentences the token stream skipped for having no
+        /// sample.
+        skipped: usize,
+    },
 }
 
 impl HeldOut<'_> {
     pub fn len(&self) -> usize {
         match self {
             HeldOut::Sentences(s) => s.len(),
-            HeldOut::Tokens(t) => t.len(),
+            HeldOut::Tokens { samples, .. } => samples.len(),
+        }
+    }
+
+    /// The held-out sentences the stream skipped: always 0 for the
+    /// sentence detector's.
+    pub fn skipped(&self) -> usize {
+        match self {
+            HeldOut::Sentences(_) => 0,
+            HeldOut::Tokens { skipped, .. } => *skipped,
         }
     }
 
@@ -118,7 +136,7 @@ impl HeldOut<'_> {
         };
         match self {
             HeldOut::Sentences(s) => s.iter().for_each(|s| put(s.document(), s.sentences())),
-            HeldOut::Tokens(t) => t.iter().for_each(|t| put(t.text(), t.tokens())),
+            HeldOut::Tokens { samples, .. } => samples.iter().for_each(|t| put(t.text(), t.tokens())),
         }
         Sha256::of(&bytes).to_string()
     }
@@ -148,7 +166,9 @@ impl SegmentationRecipe {
     /// # Errors
     ///
     /// A sample the corpus fails on, a corpus without a sample
-    /// ([`Error::EmptySplit`]), or what training fails on.
+    /// ([`Error::EmptySplit`]), more skipped sentences than
+    /// [`crate::MAX_SKIPPED_SENTENCES`] allows ([`Error::TooManyLeftOut`]),
+    /// or what training fails on.
     pub fn train(&self, train: &MascCorpus) -> Result<Trained> {
         let stamp = Stamp::at(TIMESTAMP_MS);
         let params = ud::training_parameters();
@@ -181,6 +201,7 @@ impl SegmentationRecipe {
                 if samples == 0 {
                     return Err(Error::EmptySplit { what: "training token sample" });
                 }
+                check_skipped(LeftOut::TrainingSentences, reader.skipped(), samples)?;
                 let t = tokenize::train_tokenizer_model_from_events(&events, &factory, &params, &mut config, stamp)?;
                 (samples, reader.skipped(), t.package, t.report)
             }
@@ -198,7 +219,9 @@ impl SegmentationRecipe {
     ///
     /// # Errors
     ///
-    /// A sample the corpus fails on, or no sample ([`Error::EmptySplit`]).
+    /// A sample the corpus fails on, no sample ([`Error::EmptySplit`]), or
+    /// more skipped sentences than [`crate::MAX_SKIPPED_SENTENCES`] allows
+    /// ([`Error::TooManyLeftOut`]).
     pub fn held_out<'c>(&self, held_out: &'c MascCorpus) -> Result<HeldOut<'c>> {
         let samples = match self.component {
             Component::Sentence => HeldOut::Sentences(
@@ -212,12 +235,13 @@ impl SegmentationRecipe {
                 while let Some(s) = reader.read()? {
                     tokens.push(s.sample);
                 }
-                HeldOut::Tokens(tokens)
+                HeldOut::Tokens { samples: tokens, skipped: reader.skipped() }
             }
         };
         if samples.is_empty() {
             return Err(Error::EmptySplit { what: "held-out sample" });
         }
+        check_skipped(LeftOut::HeldOutSentences, samples.skipped(), samples.len())?;
         Ok(samples)
     }
 
@@ -251,7 +275,7 @@ impl SegmentationRecipe {
                     out.push(counts(evaluator.fmeasure()));
                 }
             }
-            (Component::Tokens, HeldOut::Tokens(samples)) => {
+            (Component::Tokens, HeldOut::Tokens { samples, .. }) => {
                 let model = TokenizerModel::open(file).map_err(|e| Error::Model(e.to_string()))?;
                 let tokenizer =
                     TokenizerMe::new(model, TokenizerOptions { whitespace: WHITESPACE, keep_newlines: false });
@@ -272,7 +296,7 @@ impl SegmentationRecipe {
                 };
                 let samples = match samples {
                     HeldOut::Sentences(_) => "sentence",
-                    HeldOut::Tokens(_) => "token",
+                    HeldOut::Tokens { .. } => "token",
                 };
                 return Err(Error::ComponentMismatch { recipe: name(component), samples });
             }
@@ -296,7 +320,7 @@ impl SegmentationRecipe {
         held_out: &HeldOut<'_>,
         set_name: &str,
         corpus_sha256: &str,
-    ) -> Result<ModelGateRecord> {
+    ) -> Result<GateRun> {
         let candidate = self.score(trained, held_out)?;
         let baseline = self.score(reference, held_out)?;
         let units = candidate
@@ -310,8 +334,11 @@ impl SegmentationRecipe {
             samples_sha256: held_out.sha256(),
         };
         let id = |id: &str, bytes: &[u8]| ModelId { id: id.to_owned(), sha256: Sha256::of(bytes).to_string() };
-        ModelGateRecord::new(self.task(), set, id(self.model_id, trained), id(reference_id, reference), units)
-            .map_err(Error::Gate)
+        let record =
+            ModelGateRecord::new(self.task(), set, id(self.model_id, trained), id(reference_id, reference), units)
+                .map_err(Error::Gate)?;
+        let held_out = HeldOutCard { samples: held_out.len(), skipped_sentences: held_out.skipped(), tokens: None };
+        Ok(GateRun { record, held_out })
     }
 
     /// Checks that `bytes` are the reference model the zoo's built-in

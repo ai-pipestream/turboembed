@@ -32,4 +32,6 @@ pub use error::{Check, ZooError};
 pub use fetch::Http;
 pub use fetch::{Fetched, Offline, Transport, Zoo, verify};
 pub use index::{Artifact, ArtifactId, Component, File, Format, Index, Kind, Language, TrainingData, Url};
-pub use licence::{GplAcceptance, Licence, LicenceClass, Policy, RefusalReason, Requirement, class_of};
+pub use licence::{
+    GplAcceptance, Licence, LicenceClass, LocalOnlyReason, Policy, RefusalReason, Requirement, class_of,
+};

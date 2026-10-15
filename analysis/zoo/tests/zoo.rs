@@ -95,14 +95,17 @@ fn sample() -> String {
         entry("trained-on-share-alike", Apache2, &[CcBySa40], ShareAlike, BYTES),
         entry("lgpl", Lgpl30Only, &[], Lgpl, BYTES),
         entry("gpl", Gpl30Only, &[], Gpl, BYTES),
-        entry("non-commercial", CcByNcSa40, &[], Refused, BYTES),
-        entry("trained-on-non-commercial", Apache2, &[CcByNcSa40], Refused, BYTES),
+        with_origin(entry("non-commercial", CcByNcSa40, &[], LocalOnly, BYTES)),
+        with_origin(entry("trained-on-non-commercial", Apache2, &[CcByNcSa40], LocalOnly, BYTES)),
         entry("unconfirmed", Apache2, &[Unconfirmed], Refused, BYTES),
         entry("lgpl-and-share-alike", Lgpl21Only, &[CcBySa30], ShareAlike, BYTES),
         with_origin(entry("restricted", RestrictedPublic, &[], LocalOnly, BYTES)),
         with_origin(entry("trained-on-restricted", Apache2, &[RestrictedPublic], LocalOnly, BYTES)),
         with_origin(entry("restricted-and-share-alike", Apache2, &[CcBySa40, RestrictedPublic], LocalOnly, BYTES)),
-        entry("restricted-and-non-commercial", RestrictedPublic, &[CcByNcSa40], Refused, BYTES),
+        with_origin(entry("restricted-and-non-commercial", RestrictedPublic, &[CcByNcSa40], LocalOnly, BYTES)),
+        entry("no-derivatives", CcByNd40, &[], Refused, BYTES),
+        entry("trained-on-non-commercial-no-derivatives", Apache2, &[CcByNcNd40], Refused, BYTES),
+        entry("non-commercial-and-no-derivatives", Apache2, &[CcByNcSa40, CcByNcNd40], Refused, BYTES),
     ])
 }
 
@@ -141,6 +144,9 @@ fn transport() -> Memory {
         "trained-on-restricted",
         "restricted-and-share-alike",
         "restricted-and-non-commercial",
+        "no-derivatives",
+        "trained-on-non-commercial-no-derivatives",
+        "non-commercial-and-no-derivatives",
     ];
     let urls: Vec<String> = ids.iter().map(|i| url(i)).collect();
     Memory::new(&urls.iter().map(|u| (u.as_str(), BYTES)).collect::<Vec<_>>())
@@ -197,16 +203,19 @@ fn refused_artifacts_are_not_listed_and_never_fetched() {
             "trained-on-share-alike",
             "lgpl",
             "gpl",
+            "non-commercial",
+            "trained-on-non-commercial",
             "lgpl-and-share-alike",
             "restricted",
             "trained-on-restricted",
             "restricted-and-share-alike",
+            "restricted-and-non-commercial",
         ]
     );
     for (id, licence) in [
-        ("non-commercial", Licence::CcByNcSa40),
-        ("trained-on-non-commercial", Licence::CcByNcSa40),
-        ("restricted-and-non-commercial", Licence::CcByNcSa40),
+        ("no-derivatives", Licence::CcByNd40),
+        ("trained-on-non-commercial-no-derivatives", Licence::CcByNcNd40),
+        ("non-commercial-and-no-derivatives", Licence::CcByNcNd40),
         ("unconfirmed", Licence::Unconfirmed),
     ] {
         match zoo.fetch(id, &alice(), &Acceptances::default()) {
@@ -218,8 +227,11 @@ fn refused_artifacts_are_not_listed_and_never_fetched() {
         }
     }
     assert_eq!(t.gets.get(), 0);
-    let msg = zoo.fetch("non-commercial", &alice(), &Acceptances::default()).unwrap_err().to_string();
-    assert!(msg.contains("refused") && msg.contains("non-commercial"), "{msg}");
+    let msg = zoo
+        .fetch("trained-on-non-commercial-no-derivatives", &alice(), &Acceptances::default())
+        .unwrap_err()
+        .to_string();
+    assert!(msg.contains("refused") && msg.contains("CC-BY-NC-ND-4.0 (no-derivatives terms)"), "{msg}");
 }
 
 #[test]
@@ -318,46 +330,218 @@ fn restricted_data_needs_its_hosts_terms_accepted() {
     zoo.fetch("restricted-and-share-alike", &alice(), &acc).unwrap();
 }
 
+/// Non-commercial data, and every model trained on it, is local-only: the
+/// zoo fetches it from its origin after the user accepts the licence's
+/// legal code, under either GPL policy, and per user.
 #[test]
-fn restricted_data_and_models_trained_on_it_are_never_shippable() {
+fn non_commercial_data_needs_its_licence_accepted() {
+    let nc = Requirement::of(Licence::CcByNcSa40).unwrap();
+    let host = restricted_terms(Some("restricted-and-non-commercial"));
+    for policy in [Policy::default(), Policy { gpl: GplAcceptance::NotRequired }] {
+        let dir = TempDir::new(&format!("non-commercial-{:?}", policy.gpl));
+        let t = transport();
+        let zoo = Zoo::new(Index::parse(sample().as_bytes()).unwrap(), dir.0.clone(), policy, &t);
+        let none = Acceptances::default();
+        for (id, missing) in [
+            ("non-commercial", vec![nc.clone()]),
+            ("trained-on-non-commercial", vec![nc.clone()]),
+            ("restricted-and-non-commercial", vec![host.clone(), nc.clone()]),
+        ] {
+            match zoo.fetch(id, &alice(), &none) {
+                Err(ZooError::NotAccepted { class, missing: m, .. }) => {
+                    assert_eq!(class, LicenceClass::LocalOnly, "{id}");
+                    assert_eq!(m, missing, "{id}");
+                }
+                other => panic!("{id}: {other:?}"),
+            }
+        }
+        assert_eq!(t.gets.get(), 0, "nothing is fetched before the licence is accepted");
+        assert!(!dir.0.join("non-commercial").exists());
+
+        // Another non-commercial licence does not cover it.
+        let mut acc = Acceptances::default();
+        acc.accept(&alice(), Licence::CcByNc40, 0).unwrap();
+        acc.accept(&alice(), Licence::CcByNcSa30, 0).unwrap();
+        assert!(matches!(
+            zoo.fetch("non-commercial", &alice(), &acc),
+            Err(ZooError::NotAccepted { ref missing, .. }) if missing == std::slice::from_ref(&nc)
+        ));
+        assert_eq!(t.gets.get(), 0);
+
+        acc.accept(&alice(), Licence::CcByNcSa40, 1_792_000_000).unwrap();
+        let got = zoo.fetch("non-commercial", &alice(), &acc).unwrap();
+        assert_eq!(got.single().unwrap(), dir.0.join("non-commercial").join("non-commercial.bin"));
+        assert_eq!(fs::read(got.single().unwrap()).unwrap(), BYTES);
+        zoo.fetch("trained-on-non-commercial", &alice(), &acc).unwrap();
+        assert_eq!(t.gets.get(), 2);
+        // Restricted data beside it still needs its host's terms.
+        assert!(matches!(
+            zoo.fetch("restricted-and-non-commercial", &alice(), &acc),
+            Err(ZooError::NotAccepted { ref missing, .. }) if missing == std::slice::from_ref(&host)
+        ));
+        acc.accept_terms(&alice(), &host, 0).unwrap();
+        zoo.fetch("restricted-and-non-commercial", &alice(), &acc).unwrap();
+        assert_eq!(t.gets.get(), 3);
+
+        // Acceptance is per user and checked on every call, cached file
+        // or not.
+        let bob: UserId = "bob".parse().unwrap();
+        assert!(matches!(zoo.fetch("non-commercial", &bob, &acc), Err(ZooError::NotAccepted { .. })));
+        acc.revoke(&alice(), &nc);
+        assert!(matches!(zoo.fetch("non-commercial", &alice(), &acc), Err(ZooError::NotAccepted { .. })));
+    }
+}
+
+#[test]
+fn local_only_data_and_models_trained_on_it_are_never_shippable() {
     let index = Index::parse(sample().as_bytes()).unwrap();
     let shippable: Vec<&str> = index.shippable().map(|a| a.id.as_str()).collect();
     assert_eq!(shippable, ["permissive"]);
-    for id in ["restricted", "trained-on-restricted", "restricted-and-share-alike"] {
+    for id in [
+        "restricted",
+        "trained-on-restricted",
+        "restricted-and-share-alike",
+        "non-commercial",
+        "trained-on-non-commercial",
+        "restricted-and-non-commercial",
+    ] {
         let a = index.get(id).unwrap();
         assert_eq!(a.class, LicenceClass::LocalOnly, "{id}");
         assert!(!a.class.may_bundle() && !a.class.may_redistribute(), "{id}");
     }
-    // A model trained locally on restricted data is restricted too.
+    // A model trained locally on restricted or non-commercial data is
+    // local-only too.
     assert_eq!(turbo_zoo::class_of([Licence::Apache2, Licence::RestrictedPublic]), LicenceClass::LocalOnly);
+    assert_eq!(turbo_zoo::class_of([Licence::Apache2, Licence::CcByNcSa40]), LicenceClass::LocalOnly);
+    assert_eq!(turbo_zoo::class_of([Licence::Apache2, Licence::CcByNc40]), LicenceClass::LocalOnly);
+    assert_eq!(turbo_zoo::class_of([Licence::Apache2, Licence::CcByNcNd40]), LicenceClass::Refused);
 }
 
 #[test]
-fn restricted_artifacts_are_fetched_from_their_origin_only() {
+fn local_only_artifacts_are_fetched_from_their_origin_only() {
     use Licence::*;
     use LicenceClass::*;
     let restricted = entry("r", RestrictedPublic, &[], LocalOnly, BYTES);
-    assert!(Index::parse(index_of(&[with_origin(restricted.clone())]).as_bytes()).is_ok());
+    let non_commercial = entry("r", CcByNcSa40, &[], LocalOnly, BYTES);
+    let trained_on_non_commercial = entry("r", Apache2, &[CcByNc40], LocalOnly, BYTES);
+    for e in [&restricted, &non_commercial, &trained_on_non_commercial] {
+        assert!(Index::parse(index_of(&[with_origin(e.clone())]).as_bytes()).is_ok(), "{e}");
+    }
     let bad = [
         // No origin.
         restricted.clone(),
+        non_commercial.clone(),
+        trained_on_non_commercial.clone(),
         // A file on another host than the origin's.
         with_origin(restricted.replace("https://example.org/r.bin", "https://mirror.example.net/r.bin")),
+        with_origin(non_commercial.replace("https://example.org/r.bin", "https://mirror.example.net/r.bin")),
         // An origin on an artifact that is not restricted.
         with_origin(entry("p", Apache2, &[], Permissive, BYTES)),
         with_origin(entry("s", Apache2, &[CcBySa40], ShareAlike, BYTES)),
         // The class must still be the most restrictive one.
         with_origin(entry("r", Apache2, &[RestrictedPublic], Gpl, BYTES)),
         with_origin(entry("r", RestrictedPublic, &[Gpl30Only], Gpl, BYTES)),
-        entry("r", RestrictedPublic, &[CcByNcSa40], LocalOnly, BYTES),
+        with_origin(entry("r", Apache2, &[CcByNcSa40], ShareAlike, BYTES)),
+        with_origin(entry("r", RestrictedPublic, &[CcByNcNd40], LocalOnly, BYTES)),
+        with_origin(entry("r", CcByNcSa40, &[CcByNd40], LocalOnly, BYTES)),
     ];
     for b in bad {
         let text = index_of(&[b]);
         assert!(matches!(Index::parse(text.as_bytes()), Err(ZooError::Index(_))), "{text}");
     }
-    // The host is compared without regard to case or path.
-    let upper = with_origin(restricted).replace("\"https://example.org/\"", "\"https://EXAMPLE.org/terms\"");
+    // The host is compared without regard to case, but the path is not
+    // ignored: a file must lie under the origin's path.
+    let upper = with_origin(restricted.clone()).replace("\"https://example.org/\"", "\"https://EXAMPLE.org/\"");
     assert!(Index::parse(index_of(&[upper]).as_bytes()).is_ok());
+    let elsewhere = with_origin(restricted).replace("\"https://example.org/\"", "\"https://example.org/terms\"");
+    assert!(matches!(Index::parse(index_of(&[elsewhere]).as_bytes()), Err(ZooError::Index(_))));
+}
+
+/// A non-commercial entry for UD English GUM whose origin is `origin` and
+/// whose only file is fetched from `url`.
+fn gum(origin: &str, url: &str) -> String {
+    entry("gum", Licence::CcByNcSa40, &[], LicenceClass::LocalOnly, BYTES)
+        .replace("https://example.org/gum.bin", url)
+        .replace("\"files\": [", &format!("\"origin\": \"{origin}\",\n      \"files\": ["))
+}
+
+/// The origin is the publisher's own location, not its whole host: a copy
+/// on the same host, or at a path that only shares a string prefix with
+/// the origin's, is not the original.
+#[test]
+fn an_origin_is_a_location_not_a_host() {
+    const REPO: &str = "https://raw.githubusercontent.com/UniversalDependencies/UD_English-GUM";
+    let file = format!("{REPO}/r2.16/en_gum-ud-train.conllu");
+    let parses = |origin: &str, url: &str| Index::parse(index_of(&[gum(origin, url)]).as_bytes());
+    let with_slash = format!("{REPO}/");
+    for origin in [REPO, with_slash.as_str()] {
+        // Under the origin's path, with or without its trailing `/`.
+        for ok in [file.clone(), format!("{REPO}/en_gum-ud-train.conllu"), format!("{file}?raw=true"), REPO.to_owned()]
+        {
+            assert!(parses(origin, &ok).is_ok(), "{origin} {ok}");
+        }
+        for bad in [
+            // A mirror on the same host.
+            "https://raw.githubusercontent.com/someone/UD_English-GUM/r2.16/en_gum-ud-train.conllu".to_owned(),
+            // A sibling path that shares a string prefix with the origin's.
+            format!("{REPO}-copy/r2.16/en_gum-ud-train.conllu"),
+            format!("{REPO}2/en_gum-ud-train.conllu"),
+            // Paths compare case for case.
+            "https://raw.githubusercontent.com/universaldependencies/UD_English-GUM/r2.16/x.conllu".to_owned(),
+            // Another host, and one written to look like the origin's.
+            "https://github.com/UniversalDependencies/UD_English-GUM/raw/r2.16/en_gum-ud-train.conllu".to_owned(),
+            "https://raw.githubusercontent.com@mirror.example.net/UniversalDependencies/UD_English-GUM/x".to_owned(),
+            "https://raw.githubusercontent.com:8443/UniversalDependencies/UD_English-GUM/x".to_owned(),
+            // Steps out of the origin's path, plain or encoded.
+            format!("{REPO}/../UD_English-GUM-copy/en_gum-ud-train.conllu"),
+            format!("{REPO}/%2e%2e/UD_English-GUM-copy/en_gum-ud-train.conllu"),
+            format!("{REPO}/%2E./UD_English-GUM-copy/en_gum-ud-train.conllu"),
+            format!("{REPO}/./en_gum-ud-train.conllu"),
+            format!("{REPO}/..%2fUD_English-GUM-copy/en_gum-ud-train.conllu"),
+            format!("{REPO}/..%5CUD_English-GUM-copy/en_gum-ud-train.conllu"),
+            // A backslash, escaped once for Rust and once for JSON.
+            format!("{REPO}/..\\\\UD_English-GUM-copy/en_gum-ud-train.conllu"),
+            // A query on the origin's path is not a path under it.
+            format!("{REPO}?file=en_gum-ud-train.conllu"),
+        ] {
+            match parses(origin, &bad) {
+                Err(ZooError::Index(m)) => assert!(m.contains("not under its origin"), "{origin} {bad}: {m}"),
+                other => panic!("{origin} {bad}: {other:?}"),
+            }
+        }
+    }
+    // The host of the origin is compared without regard to case.
+    let upper = "https://RAW.GitHubUserContent.com/UniversalDependencies/UD_English-GUM/";
+    assert!(parses(upper, &file).is_ok());
+    // An origin is a location: no user information, query, fragment or
+    // step out of its path.
+    for origin in [
+        format!("{REPO}?ref=r2.16"),
+        format!("{REPO}#readme"),
+        format!("{REPO}/r2.16/.."),
+        format!("{REPO}/%2E%2E/"),
+        // On `mirror.example.net`, though it reads as GitHub's host.
+        "https://raw.githubusercontent.com@mirror.example.net/UniversalDependencies/UD_English-GUM/".to_owned(),
+    ] {
+        match parses(&origin, &file) {
+            Err(ZooError::Index(m)) => assert!(m.contains("is not a location"), "{origin}: {m}"),
+            other => panic!("{origin}: {other:?}"),
+        }
+    }
+    // Every file must lie under it, not one of them.
+    let two = gum(&with_slash, &file).replace(
+        "\"files\": [{",
+        &format!(
+            "\"files\": [{{\"path\": \"copy.conllu\", \"url\": \"{REPO}-copy/x.conllu\", \"size\": {}, \"sha256\": \"{}\", \"sha512\": \"{}\"}}, {{",
+            BYTES.len(),
+            Sha256::of(BYTES),
+            Sha512::of(BYTES)
+        ),
+    );
+    match Index::parse(index_of(&[two]).as_bytes()) {
+        Err(ZooError::Index(m)) => assert!(m.contains("copy.conllu") && m.contains("not under its origin"), "{m}"),
+        other => panic!("{other:?}"),
+    }
 }
 
 #[test]
@@ -367,8 +551,10 @@ fn gpl_acceptance_can_be_turned_off() {
     let lax = Policy { gpl: GplAcceptance::NotRequired };
     let zoo = Zoo::new(Index::parse(sample().as_bytes()).unwrap(), dir.0.clone(), lax, &t);
     zoo.fetch("gpl", &alice(), &Acceptances::default()).unwrap();
-    // LGPL, CC BY-SA and restricted data still need it.
-    for id in ["lgpl", "share-alike", "restricted", "trained-on-restricted"] {
+    // LGPL, CC BY-SA, restricted and non-commercial data still need it.
+    for id in
+        ["lgpl", "share-alike", "restricted", "trained-on-restricted", "non-commercial", "trained-on-non-commercial"]
+    {
         assert!(matches!(zoo.fetch(id, &alice(), &Acceptances::default()), Err(ZooError::NotAccepted { .. })), "{id}");
     }
 }
