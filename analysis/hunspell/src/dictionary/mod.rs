@@ -91,6 +91,9 @@ pub struct Dictionary {
     /// The longest UTF-16 length a word with a space can have a reading at,
     /// `None` when none can.
     longest_spaced_form: Option<usize>,
+    /// The longest UTF-16 length any word can have a direct or affixed
+    /// reading at.
+    longest_reading: usize,
     /// A hash of both files and the load mode.
     fingerprint: u64,
 }
@@ -198,5 +201,19 @@ impl Dictionary {
     /// a reading.
     pub(crate) fn may_read_spaced_form(&self, utf16_len: usize) -> bool {
         self.longest_spaced_form.is_some_and(|max| utf16_len <= max)
+    }
+
+    /// Whether a word `utf16_len` units long can have a direct or affixed
+    /// reading. OpenNLP has no such bound; it reads such a word and finds
+    /// nothing.
+    pub(crate) fn may_read(&self, utf16_len: usize) -> bool {
+        utf16_len <= self.longest_reading
+    }
+
+    /// Whether `text` is too long for [`Dictionary::may_read`], judged by
+    /// its length in bytes alone: three bytes of UTF-8 are at least one
+    /// UTF-16 unit, so this answers false for some texts it allows.
+    pub(crate) fn too_long_to_read(&self, text: &str) -> bool {
+        text.len() / 3 > self.longest_reading
     }
 }

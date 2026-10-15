@@ -140,7 +140,7 @@ impl<'d> Stemmer<'d> {
 
     /// Whether `word` has a direct or affixed reading.
     fn is_noncompound_form(&self, word: &str) -> bool {
-        if word.is_empty() {
+        if word.is_empty() || !self.dictionary.may_read(utf16_len(word)) {
             return false;
         }
         let mut results = Results::new(false);

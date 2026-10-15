@@ -4,7 +4,7 @@
 
 use crate::error::LoadError;
 use crate::read::table;
-use crate::text::upper_unit;
+use crate::text::{upper_unit, utf16_len};
 
 /// One conversion: text and its replacement, optionally bound to the start
 /// or the end of the input.
@@ -25,6 +25,8 @@ pub(crate) struct Conversion {
     /// begin. A text is tried only against the rules of its byte.
     order: Vec<u32>,
     starts: Vec<u32>,
+    /// The UTF-16 length of the longest pattern.
+    longest: usize,
 }
 
 /// Which table a conversion was read from; `REP` marks its anchors with `^`
@@ -94,6 +96,12 @@ impl Conversion {
         for b in 0..256 {
             self.starts[b + 1] += self.starts[b];
         }
+        self.longest = self.rules.iter().map(|r| utf16_len(&r.from)).max().unwrap_or(0);
+    }
+
+    /// The UTF-16 length of the longest pattern, 0 for an empty table.
+    pub(crate) fn longest_pattern(&self) -> usize {
+        self.longest
     }
 
     /// The rules whose text starts with the byte at `offset`, in table

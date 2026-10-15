@@ -278,3 +278,27 @@ fn files_over_the_limit_are_refused() {
     assert!(matches!(Dictionary::from_bytes(&big, b"1\nx\n", LoadMode::Strict), Err(LoadError::TooLarge { .. })));
     assert!(matches!(Dictionary::from_bytes(b"", &big, LoadMode::Strict), Err(LoadError::TooLarge { .. })));
 }
+
+#[test]
+fn long_affix_texts_do_not_walk_long_words() {
+    // Texts of 63 bytes and more share one bit of the length mask, so they
+    // are looked up by their own lengths.
+    let affix = format!("SFX A Y 1\nSFX A 0 {} .\nPFX B Y 1\nPFX B 0 {} .\n", "a".repeat(70), "a".repeat(80));
+    let d = load(&affix, "1\nb/AB\n");
+    let s = Stemmer::new(&d);
+    assert_eq!(stems(&d, &format!("b{}", "a".repeat(70))), ["b"]);
+    assert_eq!(stems(&d, &format!("{}b", "a".repeat(80))), ["b"]);
+    within(Duration::from_secs(20), "long affix text", || s.stems(&"a".repeat(200_000)));
+}
+
+#[test]
+fn compound_replacement_checks_skip_words_too_long_to_read() {
+    // CHECKCOMPOUNDREP asks whether each replacement reads as a word, at
+    // every compound level; a word longer than any reading is not tried.
+    let d = load("COMPOUNDFLAG Y\nCOMPOUNDMIN 1\nCHECKCOMPOUNDREP\nREP 2\nREP ^ac x\nREP a b\n", "3\na/Y\nc/Y\nx\n");
+    let s = Stemmer::new(&d);
+    // "ac" replaced is "x", a word, so "ac" is no compound; "ca" is.
+    assert!(stems(&d, "ac").is_empty());
+    assert_eq!(stems(&d, "ca"), ["c", "a"]);
+    within(Duration::from_secs(20), "CHECKCOMPOUNDREP", || s.analyze(&"a".repeat(20_000)));
+}

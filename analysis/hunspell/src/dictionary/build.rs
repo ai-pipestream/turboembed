@@ -62,6 +62,7 @@ impl Dictionary {
 
         let longest_spaced_form = longest_spaced_form(&words, &affix.prefixes, &affix.suffixes);
         let hidden = hidden_capitalized(&words, &entries, &flag_sets, affix.settings.forbidden_word, case);
+        let longest_reading = longest_reading(&words, &hidden, &affix.prefixes, &affix.suffixes);
         let listed: FoldMap<Box<str>, Box<[EntryId]>> = words.into_iter().collect();
 
         Dictionary {
@@ -83,6 +84,7 @@ impl Dictionary {
             word_breaks: affix.word_breaks.into(),
             unsupported: unsupported.into(),
             longest_spaced_form,
+            longest_reading,
             fingerprint,
         }
     }
@@ -121,13 +123,33 @@ fn drop_last_char(s: &str) -> &str {
 /// at least half as long as the input (the sharp s variant writes two
 /// letters as one). `None` when no word with a space can have a reading.
 fn longest_spaced_form(words: &[(Box<str>, Box<[EntryId]>)], prefixes: &[Affix], suffixes: &[Affix]) -> Option<usize> {
-    let longest = |rules: &[Affix]| rules.iter().map(|a| utf16_len(&a.add)).max().unwrap_or(0);
     let spaced_affix = prefixes.iter().chain(suffixes).any(|a| a.add.contains(' '));
-    let prefix_material = longest(prefixes);
-    let suffix_material = longest(suffixes);
     let longest_word =
         words.iter().filter(|(w, _)| spaced_affix || w.contains(' ')).map(|(w, _)| utf16_len(w)).max()?;
-    Some(2 * (longest_word + 2 * prefix_material + 2 * suffix_material))
+    Some(readable_length(longest_word, prefixes, suffixes))
+}
+
+/// The longest UTF-16 length of any word that can have a direct or affixed
+/// reading, by the bound of [`longest_spaced_form`]: a listed or hidden
+/// word, at most two prefixes and two suffixes, from a case variant at
+/// least half as long as the input. A longer word has no such reading, so
+/// the compound checks that ask for one need not read it.
+fn longest_reading(
+    words: &[(Box<str>, Box<[EntryId]>)],
+    hidden: &FoldMap<Box<str>, Box<[EntryId]>>,
+    prefixes: &[Affix],
+    suffixes: &[Affix],
+) -> usize {
+    let longest_word = words.iter().map(|(w, _)| w).chain(hidden.keys()).map(|w| utf16_len(w)).max().unwrap_or(0);
+    readable_length(longest_word, prefixes, suffixes)
+}
+
+/// The longest input a word of `longest_word` UTF-16 units can be read
+/// from: two prefixes and two suffixes of the longest affix texts added,
+/// doubled for the sharp s variant.
+fn readable_length(longest_word: usize, prefixes: &[Affix], suffixes: &[Affix]) -> usize {
+    let longest = |rules: &[Affix]| rules.iter().map(|a| utf16_len(&a.add)).max().unwrap_or(0);
+    2 * (longest_word + 2 * longest(prefixes) + 2 * longest(suffixes))
 }
 
 /// The capitalized forms of the mixed-case words and of the all-uppercase

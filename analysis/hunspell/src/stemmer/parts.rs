@@ -43,6 +43,10 @@ impl<'d> Stemmer<'d> {
     ) -> Vec<CompoundPart<'d>> {
         let d = self.dictionary;
         let mut readings = Vec::new();
+        // every reading is an entry with at most three affixes
+        if d.too_long_to_read(part) {
+            return readings;
+        }
         if !last && !moving_rule && d.forbids_compound_start(d.lookup(part)) {
             return readings;
         }
@@ -248,6 +252,9 @@ impl<'d> Stemmer<'d> {
     /// part its entries with one suffix undone.
     pub(crate) fn rule_parts(&self, text: &str, surface: &str, last: bool) -> Vec<CompoundPart<'d>> {
         let mut result = Vec::new();
+        if self.dictionary.too_long_to_read(text) {
+            return result;
+        }
         self.add_rule_part(text, text, surface, last, &[], &mut result);
         if last {
             for suffix in self.dictionary.suffixes.candidates(text) {

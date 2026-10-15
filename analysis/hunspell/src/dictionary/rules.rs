@@ -5,7 +5,7 @@
 
 use crate::affix::Affix;
 use crate::flag::{Flag, FlagSet};
-use crate::text::{is_title, is_upper};
+use crate::text::{is_title, is_upper, utf16_len};
 
 use super::case::{CaseType, case_type};
 use super::{Dictionary, Homonyms};
@@ -297,7 +297,12 @@ impl Dictionary {
 
     /// Whether a `CHECKCOMPOUNDREP` replacement turns `word` into a word
     /// `recognized` accepts, which rules out reading it as a compound.
+    /// A replacement shortens the word by at most its longest pattern, so a
+    /// word longer than that and [`Dictionary::may_read`] allows is not
+    /// tried: no replacement can give a word with a reading.
     pub(crate) fn rejects_compound_replacement(&self, word: &str, recognized: impl FnMut(&str) -> bool) -> bool {
-        self.settings.check_compound_rep && self.replacements.any_replacement(word, recognized)
+        self.settings.check_compound_rep
+            && self.may_read(utf16_len(word).saturating_sub(self.replacements.longest_pattern()))
+            && self.replacements.any_replacement(word, recognized)
     }
 }

@@ -25,16 +25,22 @@ pub(crate) struct AffixIndex {
     by_text: FoldMap<Box<str>, Box<[u32]>>,
     /// The boundary characters of the texts, ascending, and for each the
     /// lengths in bytes its texts have: bit `n` for length `n`, bit 63 for
-    /// 63 and longer. A word is looked up only at those lengths.
+    /// 63 and longer, and those longer lengths themselves, ascending. A
+    /// word is looked up only at those lengths.
     boundaries: Box<[char]>,
     lengths: Box<[u64]>,
+    long_lengths: Box<[Box<[usize]>]>,
     suffix: bool,
 }
+
+/// The length in bytes from which a text's length is kept in
+/// [`AffixIndex::long_lengths`] as well as in bit 63 of the mask.
+const LONG_TEXT: usize = 63;
 
 /// The bit of a text of `len` bytes in [`AffixIndex::lengths`].
 #[inline]
 fn length_bit(len: usize) -> u64 {
-    1 << len.min(63)
+    1 << len.min(LONG_TEXT)
 }
 
 impl AffixIndex {
@@ -52,21 +58,30 @@ impl AffixIndex {
         for (i, a) in rules[..material_end].iter().enumerate() {
             lists.entry(a.add.clone()).or_default().push(i as u32);
         }
-        let mut lengths: Vec<(char, u64)> = Vec::new();
+        let mut lengths: Vec<(char, u64, Vec<usize>)> = Vec::new();
         for a in &rules[..material_end] {
             let c = boundary(a).expect("the rule has affix text");
-            match lengths.last_mut() {
-                Some((last, mask)) if *last == c => *mask |= length_bit(a.add.len()),
-                _ => lengths.push((c, length_bit(a.add.len()))),
+            if lengths.last().is_none_or(|(last, _, _)| *last != c) {
+                lengths.push((c, 0, Vec::new()));
             }
+            let (_, mask, long) = lengths.last_mut().expect("pushed above");
+            *mask |= length_bit(a.add.len());
+            if a.add.len() >= LONG_TEXT {
+                long.push(a.add.len());
+            }
+        }
+        for (_, _, long) in &mut lengths {
+            long.sort_unstable();
+            long.dedup();
         }
         let by_text = lists.into_iter().map(|(k, v)| (k, v.into_boxed_slice())).collect();
         AffixIndex {
             rules,
             material_end,
             by_text,
-            boundaries: lengths.iter().map(|&(c, _)| c).collect(),
-            lengths: lengths.iter().map(|&(_, m)| m).collect(),
+            boundaries: lengths.iter().map(|(c, _, _)| *c).collect(),
+            lengths: lengths.iter().map(|(_, m, _)| *m).collect(),
+            long_lengths: lengths.into_iter().map(|(_, _, l)| l.into_boxed_slice()).collect(),
             suffix,
         }
     }
@@ -79,12 +94,14 @@ impl AffixIndex {
         // several lists are merged into group order.
         let mut lists = Lists { first: &[], merged: Vec::new() };
         let boundary = if self.suffix { word.chars().next_back() } else { word.chars().next() };
-        let mask = boundary.and_then(|c| self.boundaries.binary_search(&c).ok()).map_or(0, |i| self.lengths[i]);
+        let group = boundary.and_then(|c| self.boundaries.binary_search(&c).ok());
+        let mask = group.map_or(0, |i| self.lengths[i]);
         if mask != 0 {
+            // the lengths below LONG_TEXT by the mask, character by character
             if self.suffix {
                 for (at, _) in word.char_indices().rev() {
                     let len = word.len() - at;
-                    if mask >> len.min(63) == 0 {
+                    if len >= LONG_TEXT || mask >> len == 0 {
                         break;
                     }
                     if mask & length_bit(len) != 0 {
@@ -94,11 +111,22 @@ impl AffixIndex {
             } else {
                 for (at, c) in word.char_indices() {
                     let len = at + c.len_utf8();
-                    if mask >> len.min(63) == 0 {
+                    if len >= LONG_TEXT || mask >> len == 0 {
                         break;
                     }
                     if mask & length_bit(len) != 0 {
                         lists.add(self.by_text.get(&word[..len]).map(|l| &**l));
+                    }
+                }
+            }
+            // the longer ones by their list, so a long word is not walked to
+            // its other end
+            if let Some(i) = group {
+                for &len in self.long_lengths[i].iter().take_while(|&&len| len <= word.len()) {
+                    let at = if self.suffix { word.len() - len } else { len };
+                    if word.is_char_boundary(at) {
+                        let text = if self.suffix { &word[at..] } else { &word[..at] };
+                        lists.add(self.by_text.get(text).map(|l| &**l));
                     }
                 }
             }
@@ -218,5 +246,20 @@ mod tests {
         assert_eq!(flags(index.candidates("undo")), "AB");
         assert_eq!(flags(index.candidates("redo")), "C");
         assert_eq!(flags(index.candidates("u")), "B");
+    }
+
+    #[test]
+    fn long_texts_are_found_without_walking_the_word() {
+        let s = AffixKind::Suffix;
+        let long = "\u{e9}".repeat(40);
+        let longer = format!("x{long}");
+        let index = AffixIndex::new(vec![rule(s, 'A', &longer), rule(s, 'B', "\u{e9}"), rule(s, 'C', &long)], true);
+        assert_eq!(flags(index.candidates(&format!("ab{longer}"))), "ABC");
+        assert_eq!(flags(index.candidates(&format!("ab{long}"))), "BC");
+        assert_eq!(flags(index.candidates(&long[2..])), "B");
+        let p = AffixKind::Prefix;
+        let index = AffixIndex::new(vec![rule(p, 'A', &long), rule(p, 'B', "\u{e9}")], false);
+        assert_eq!(flags(index.candidates(&format!("{long}{long}"))), "AB");
+        assert_eq!(flags(index.candidates(&long[..78])), "B");
     }
 }
