@@ -241,3 +241,53 @@ fn the_analyzer_writes_what_the_step_finds() {
         assert_eq!(layer, sentences(&direct, t), "{t:?}");
     }
 }
+
+/// Texts made to break the cuts: characters the tokenizer drops or
+/// expands, marks with no base, lone carriage returns, special-token
+/// strings, a window's worth of one character, and whitespace of every
+/// kind between them. Every sentence is a non-empty run on grapheme
+/// cluster boundaries, trimmed, in order and apart, at every threshold.
+#[test]
+fn hostile_texts_give_well_formed_sentences() {
+    let long_mark = format!("a{}", "\u{301}".repeat(300));
+    let many = "\u{337f}".repeat(200);
+    let texts = [
+        "\u{1}",
+        "\u{200b}",
+        "\u{feff}x",
+        "\u{301}",
+        "\u{301}. \u{301}",
+        "\r",
+        "a\rb\r\r\nc",
+        "\u{1c}\u{1d}a\u{1e}\u{1f}",
+        "<s></s><pad><mask><unk>",
+        " <pad> x <pad>",
+        "\u{2028}\u{2029}\u{85}a\u{85}",
+        "x\u{200d}\u{200d}\u{200d}.",
+        "👨\u{200d}👩\u{200d}👧. 🇯🇵🇩🇪!",
+        "\n\n\n.\n\n\n",
+        "..........",
+        &long_mark,
+        &many,
+    ];
+    for threshold in [0.0, 0.25, 0.5, 1.0] {
+        for block_size in [1, 3, 0] {
+            let a = sat(SatOptions { threshold, block_size, stride: block_size.min(2), ..SatOptions::default() });
+            for t in texts {
+                let got = a.scores(&[t]).remove(0).unwrap();
+                let mut out = Vec::new();
+                a.sentences(t, &got.0, &got.1, &mut out);
+                let g = cuts::grapheme_index(t);
+                let mut last = 0;
+                for s in &out {
+                    assert!(s.start >= last && s.end > s.start, "{t:?}: {s:?} after {last}");
+                    assert!(g.binary_search(&s.start).is_ok() && g.binary_search(&s.end).is_ok(), "{t:?}: {s:?}");
+                    let piece = &t[s.start as usize..s.end as usize];
+                    assert!(!piece.starts_with(cuts::is_python_space), "{t:?}: {piece:?}");
+                    assert!(!piece.ends_with(cuts::is_python_space), "{t:?}: {piece:?}");
+                    last = s.end;
+                }
+            }
+        }
+    }
+}

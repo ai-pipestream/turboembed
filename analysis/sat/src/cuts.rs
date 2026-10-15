@@ -68,11 +68,14 @@ pub fn sigmoid(x: f32) -> f32 {
 /// end of its last character. A token is put at the end of its span, as
 /// wtpsplit puts its score on its last character; when two tokens end at
 /// one offset, the later one's score is the one read there. A token with
-/// an empty span covers no character and is left out. `scores` holds
+/// an empty span covers no character and is left out. The probability
+/// is compared with the threshold in f32, as NumPy 2 compares wtpsplit's
+/// float32 probabilities with a Python float. `scores` holds
 /// one stitched score per token, `spans` the tokens' spans in text
 /// order. The result is in text order, each offset once.
 pub fn boundaries(spans: &[[u32; 2]], scores: &[f32], threshold: f64, out: &mut Vec<u32>) {
     debug_assert_eq!(spans.len(), scores.len());
+    let threshold = threshold as f32;
     for (k, (&[start, end], &score)) in spans.iter().zip(scores).enumerate() {
         if end <= start {
             continue;
@@ -81,7 +84,7 @@ pub fn boundaries(spans: &[[u32; 2]], scores: &[f32], threshold: f64, out: &mut 
         if spans[k + 1..].iter().take_while(|s| s[0] < end).any(|s| s[1] == end && s[1] > s[0]) {
             continue;
         }
-        if f64::from(sigmoid(score)) > threshold {
+        if sigmoid(score) > threshold {
             out.push(end);
         }
     }
@@ -267,6 +270,20 @@ mod tests {
         out.clear();
         boundaries(&spans, &scores, 0.4, &mut out);
         assert_eq!(out, [3, 8, 12]);
+    }
+
+    #[test]
+    fn the_threshold_is_compared_in_f32() {
+        // A threshold just under a probability in f64 that rounds to it
+        // in f32 is not passed, as in wtpsplit.
+        let p = sigmoid(-2.0);
+        let threshold = f64::from(p) - 1e-12;
+        assert_eq!(threshold as f32, p);
+        let mut out = Vec::new();
+        boundaries(&[[0, 1]], &[-2.0], threshold, &mut out);
+        assert!(out.is_empty());
+        boundaries(&[[0, 1]], &[-2.0], f64::from(p) - 1e-6, &mut out);
+        assert_eq!(out, [1]);
     }
 
     #[test]

@@ -9,8 +9,7 @@
 //!
 //! TURBO_SAT_BUNDLE names the bundle (default testdata/tiny-sat-bundle,
 //! whose two layers of width 32 say little about a real model);
-//! TURBO_SPEED_RUNS the timed runs (default 5). analysis/sat/README.md
-//! says how to make a bundle of a real SaT model's shape to time.
+//! TURBO_SPEED_RUNS the timed runs (default 5).
 
 use std::path::{Path, PathBuf};
 use std::time::Instant;

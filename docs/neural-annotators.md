@@ -10,10 +10,11 @@ embedding pass.
 
 The answer this page records:
 
-- SaT runs on the runtime as it is. Its encoder is XLM-RoBERTa, which
-  the core runs as `FAMILY_ROBERTA`; its head is one linear layer. The
-  `turbo-sat` crate (`analysis/sat/`) is that annotator, on the CPU,
-  compared with wtpsplit itself (below).
+- SaT's `-sm` checkpoints need nothing the runtime lacks. Their encoder
+  is XLM-RoBERTa, which the core runs as `FAMILY_ROBERTA`; the head is
+  one linear layer. The `turbo-sat` crate (`analysis/sat/`) is that
+  annotator, on the CPU, compared with wtpsplit itself on a small model
+  with random weights (below); no real checkpoint has been run yet.
 - GLiNER does not. Every GLiNER checkpoint with a permissive licence is
   built on DeBERTa-v3, whose attention the core does not have, and its
   head is a BiLSTM and span scorer the analysis crates do not have.
@@ -29,7 +30,7 @@ annotator that needs a state per token asks for ranges of one token:
 `turbo_embed_write_ranges` with `POOLING_MEAN` over `[t, t + 1)` is the
 final state of token `t`. `turbo_analysis_embed::Encoder::run_ranges`
 wraps that, and the head runs on the host over those states. Nothing in
-the core changes for an annotator built this way, and every backend
+the core's encoder changes for an annotator built this way, and every backend
 that supports range writes can run it; the backends that do not refuse
 the range write with an error that says so.
 
@@ -61,7 +62,8 @@ Face hub):
   `sat-3l`'s config). The core has no banded attention mask, so these
   do not run yet; adding one is a change to every backend's attention.
 - `sat-1l-sm` to `sat-12l-sm`: the supervised mixture models, with no
-  lookahead and one label. These run on the core as they are.
+  lookahead and one label. These need nothing the core lacks; none has
+  been run here yet (Not done, below).
 
 ### The step
 
@@ -104,14 +106,17 @@ stride and block size (0.5, 16, 62; 0.25, 62, 62; 0.5, 7, 30):
 
 - The ids and offsets are wtpsplit tokenizer's on every text.
 - The largest difference of a character's probability, on every text
-  but the one below, is 1.2e-4,
-  3.2e-4 and 2.5e-4 for the three settings. wtpsplit averages the
-  windows' scores in float16; the test allows 4e-3.
-- The pieces are `split`'s on every text but the one below, except one
-  text at threshold 0.25 whose probability is within the tolerance of
-  the threshold.
+  but the one below, is 3.2e-4, 1.2e-4 and 2.5e-4 for the three
+  settings. wtpsplit sums and averages the windows' scores in float16,
+  which moves a probability by less than about 6.6e-4 at these settings
+  (`tests/parity.rs`); the test allows 1e-3.
+- The same characters are over the threshold on every text but the one
+  below, except one character at threshold 0.25 whose probability is
+  3.8e-6 from it; where they are the same, the pieces are `split`'s.
 - The layer is `split`'s pieces with each cut moved to the end of its
-  cluster and trimmed, on 89 texts; the one left is below.
+  cluster and trimmed, on 89 texts at each threshold of 0.5 and 88 at
+  0.25; the one left out at 0.5 is below, and at 0.25 also the text
+  with the character at the threshold.
 - `TURBO_TEST_BUNDLE=testdata/tiny-sat-bundle cargo test -p turbo
   --test conformance` checks the encoder against the mean of wtpsplit's
   encoder states for the recipe's cases.

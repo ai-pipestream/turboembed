@@ -7,10 +7,11 @@
 //! For every text the tokens must be the same ids at the same offsets
 //! (upstream's trimmed of whitespace, as the core's spans are), every
 //! character's boundary probability within `PROB_TOLERANCE` of
-//! wtpsplit's, and the pieces `split` returned the same strings, except
-//! where wtpsplit's probability is within that tolerance of the
-//! threshold, where the two sides may fall either way. Two known
-//! differences are allowed and counted:
+//! wtpsplit's, the same characters over the threshold except those
+//! whose probability in wtpsplit is within that tolerance of it, and,
+//! where the same characters are over it, the pieces `split` returned.
+//! Two known differences are allowed, and each fixture's count of them
+//! and of the characters near the threshold is checked:
 //!
 //! - where upstream's offset ends inside a grapheme cluster that XLM-R's
 //!   character map replaced whole, the core's span covers the cluster,
@@ -27,10 +28,14 @@ use turbo_analysis::{Analyzer, Document, Span};
 use turbo_analysis_layers::Sentences;
 use turbo_sat::{SatAnnotator, SatOptions, cuts};
 
-/// wtpsplit averages the windows' scores in float16 (`extract`), so a
-/// score of magnitude x is off by up to about x / 2048 there; the
-/// logistic's slope is at most 1/4.
-const PROB_TOLERANCE: f64 = 4e-3;
+/// wtpsplit sums the windows' scores in float16 and rounds the mean to
+/// float16 (`extract`). Each of those roundings moves the mean score x
+/// by at most about |x| / 2048; with at most five windows over a token
+/// here (block 30, stride 7) there are six, and the logistic's slope
+/// times |x| is at most 0.224, so a probability moves by less than
+/// 0.224 * 6 / 2048, about 6.6e-4. The encoders' own float32
+/// differences are far smaller.
+const PROB_TOLERANCE: f64 = 1e-3;
 
 /// The bundle's pad token, `<pad>`.
 const PAD_ID: i64 = 1;
@@ -102,9 +107,15 @@ fn trimmed(text: &str, [a, b]: [u32; 2]) -> [u32; 2] {
 struct Seen {
     texts: usize,
     worst_prob: f64,
+    /// Characters over the threshold on one side only, each within the
+    /// tolerance of it in wtpsplit.
     near_threshold: usize,
     widened: usize,
     pad_in_text: usize,
+    /// Per text, whether a character is over the threshold on one side
+    /// only, or the text has a pad token in it: the texts whose pieces
+    /// are not compared.
+    skipped: Vec<bool>,
 }
 
 fn compare(name: &str) -> Seen {
@@ -163,6 +174,7 @@ fn compare(name: &str) -> Seen {
         // its tokens.
         if r["ids"].as_array().unwrap().iter().any(|v| v.as_i64() == Some(PAD_ID)) {
             seen.pad_in_text += 1;
+            seen.skipped.push(true);
             continue;
         }
 
@@ -170,7 +182,10 @@ fn compare(name: &str) -> Seen {
         // token's on its last character, 0 where no token ends.
         let n = text.chars().count();
         let theirs: Vec<f64> = r["probs"].as_array().unwrap().iter().map(|v| v.as_f64().unwrap()).collect();
-        let mut near = Vec::new();
+        // wtpsplit compares its float32 probabilities with the threshold
+        // in float32 (NumPy 2 casts the Python float down).
+        let over = |p: f64| p as f32 > f.threshold as f32;
+        let mut differ = 0;
         if !blank {
             let cp = code_points(text);
             let mut ours = vec![0f64; n];
@@ -184,11 +199,18 @@ fn compare(name: &str) -> Seen {
                 let d = (o - t).abs();
                 seen.worst_prob = seen.worst_prob.max(d);
                 assert!(d <= PROB_TOLERANCE, "{name}: {text:?}: character {i}: {o} here, {t} in wtpsplit");
-                if (t - f.threshold).abs() <= PROB_TOLERANCE {
-                    near.push(i);
+                if over(o) != over(t) {
+                    assert!(
+                        (t - f.threshold).abs() <= PROB_TOLERANCE,
+                        "{name}: {text:?}: character {i}: {o} here, {t} in wtpsplit, threshold {}",
+                        f.threshold
+                    );
+                    differ += 1;
                 }
             }
         }
+        seen.near_threshold += differ;
+        seen.skipped.push(differ > 0);
 
         // The same pieces, before snapping, which wtpsplit does not do.
         let mut b = Vec::new();
@@ -199,9 +221,8 @@ fn compare(name: &str) -> Seen {
         cuts::pieces(text, &c, true, &mut p);
         let ours: Vec<&str> = p.iter().map(|s| &text[s.start as usize..s.end as usize]).collect();
         let theirs: Vec<&str> = r["split"].as_array().unwrap().iter().map(|v| v.as_str().unwrap()).collect();
-        if ours != theirs {
-            assert!(!near.is_empty(), "{name}: {text:?}: pieces\n here    {ours:?}\n wtpsplit {theirs:?}");
-            seen.near_threshold += 1;
+        if differ == 0 {
+            assert_eq!(ours, theirs, "{name}: {text:?}: pieces");
         }
     }
     seen
@@ -211,21 +232,21 @@ fn compare(name: &str) -> Seen {
 fn stride_16_block_62_matches_wtpsplit() {
     let s = compare("t0.5-s16-b62.jsonl");
     eprintln!("t0.5-s16-b62: {s:?}");
-    assert_eq!(s.texts, 90);
+    assert_eq!((s.texts, s.near_threshold, s.widened, s.pad_in_text), (90, 0, 6, 1));
 }
 
 #[test]
 fn windows_without_overlap_match_wtpsplit() {
     let s = compare("t0.25-s62-b62.jsonl");
     eprintln!("t0.25-s62-b62: {s:?}");
-    assert_eq!(s.texts, 90);
+    assert_eq!((s.texts, s.near_threshold, s.widened, s.pad_in_text), (90, 1, 6, 1));
 }
 
 #[test]
 fn many_overlapping_windows_match_wtpsplit() {
     let s = compare("t0.5-s7-b30.jsonl");
     eprintln!("t0.5-s7-b30: {s:?}");
-    assert_eq!(s.texts, 90);
+    assert_eq!((s.texts, s.near_threshold, s.widened, s.pad_in_text), (90, 0, 6, 1));
 }
 
 /// The cuts between wtpsplit's pieces, as byte offsets: where each piece
@@ -251,16 +272,18 @@ fn cuts_of(text: &str, pieces: &[&str]) -> Vec<u32> {
 /// The layer the step writes holds wtpsplit's sentences with each cut
 /// moved to the end of the grapheme cluster it falls in, trimmed of
 /// whitespace, the empty ones left out: on every text but the one with a
-/// pad token in it, whose scores differ (`compare`).
-#[test]
-fn the_layer_is_wtpsplit_s_pieces_snapped_and_trimmed() {
-    let f = fixture("t0.5-s16-b62.jsonl");
+/// pad token in it, whose scores differ, and those with a character on
+/// the other side of the threshold (`compare` counts both). Returns the
+/// texts compared and those with a cut that moved.
+fn layer_matches(name: &str) -> (usize, usize) {
+    let skipped = compare(name).skipped;
+    let f = fixture(name);
     let analyzer = Analyzer::builder().add(open(&f)).build().unwrap();
     let mut docs: Vec<Document> =
         f.records.iter().map(|r| Document::new(r["text"].as_str().unwrap().to_owned())).collect();
     let results = analyzer.run(&mut docs);
     let (mut compared, mut snapped) = (0, 0);
-    for ((r, d), res) in f.records.iter().zip(&docs).zip(results) {
+    for (((r, d), res), &skip) in f.records.iter().zip(&docs).zip(results).zip(&skipped) {
         res.unwrap();
         let text = r["text"].as_str().unwrap();
         let s = d.get::<Sentences>().unwrap();
@@ -269,7 +292,7 @@ fn the_layer_is_wtpsplit_s_pieces_snapped_and_trimmed() {
         for w in &ours {
             assert!(!w.is_empty() && !w.starts_with(cuts::is_python_space) && !w.ends_with(cuts::is_python_space));
         }
-        if r["ids"].as_array().unwrap().iter().any(|v| v.as_i64() == Some(PAD_ID)) {
+        if skip {
             continue;
         }
         let pieces: Vec<&str> = r["split"].as_array().unwrap().iter().map(|v| v.as_str().unwrap()).collect();
@@ -285,9 +308,19 @@ fn the_layer_is_wtpsplit_s_pieces_snapped_and_trimmed() {
             .filter_map(|sp| cuts::trim(text, &g, sp))
             .map(|sp| &text[sp.start as usize..sp.end as usize])
             .collect();
-        assert_eq!(ours, theirs, "{text:?}");
+        assert_eq!(ours, theirs, "{name}: {text:?}");
         compared += 1;
     }
-    assert_eq!(compared, 89);
-    assert!(snapped > 5, "{snapped} texts have a cut inside a cluster");
+    (compared, snapped)
+}
+
+#[test]
+fn the_layer_is_wtpsplit_s_pieces_snapped_and_trimmed() {
+    for name in ["t0.5-s16-b62.jsonl", "t0.25-s62-b62.jsonl", "t0.5-s7-b30.jsonl"] {
+        let (compared, snapped) = layer_matches(name);
+        eprintln!("{name}: {compared} texts, {snapped} with a cut inside a cluster");
+        let want = if name.starts_with("t0.25") { 88 } else { 89 };
+        assert_eq!(compared, want, "{name}: texts compared");
+        assert!(snapped > 5, "{name}: {snapped} texts have a cut inside a cluster");
+    }
 }
