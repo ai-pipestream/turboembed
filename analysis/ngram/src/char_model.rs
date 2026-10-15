@@ -123,8 +123,7 @@ impl NGramCharModel {
     /// strictly greater than `cutoff_over`.
     pub fn cutoff(&mut self, cutoff_under: i32, cutoff_over: i32) {
         if cutoff_under > 0 || cutoff_over < i32::MAX {
-            self.ngrams
-                .retain(|_, count| *count >= cutoff_under && *count <= cutoff_over);
+            self.ngrams.retain(|_, count| *count >= cutoff_under && *count <= cutoff_over);
         }
     }
 
@@ -153,7 +152,5 @@ fn needs_java_lowercase(text: &str) -> bool {
 }
 
 fn java_lowercase(text: &str) -> String {
-    text.chars()
-        .map(|c| char::from_u32(to_lower_case(u32::from(c))).unwrap_or(c))
-        .collect()
+    text.chars().map(|c| char::from_u32(to_lower_case(u32::from(c))).unwrap_or(c)).collect()
 }

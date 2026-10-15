@@ -45,10 +45,7 @@ pub struct NGramLanguageModel {
 
 impl Default for NGramLanguageModel {
     fn default() -> Self {
-        Self {
-            n: DEFAULT_N,
-            model: NGramModel::new(),
-        }
+        Self { n: DEFAULT_N, model: NGramModel::new() }
     }
 }
 
@@ -62,10 +59,7 @@ impl NGramLanguageModel {
         if n == 0 {
             return Err(Error::InvalidOrder(n));
         }
-        Ok(Self {
-            n,
-            model: NGramModel::new(),
-        })
+        Ok(Self { n, model: NGramModel::new() })
     }
 
     /// Reads an [`NGramLanguageModel`] with default order [`DEFAULT_N`] (`3`)

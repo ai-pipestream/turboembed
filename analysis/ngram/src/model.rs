@@ -55,10 +55,7 @@ impl NGramModel {
                 return Err(Error::MissingCountAttribute { entry_index });
             };
             let Ok(count) = parse_int(raw_count) else {
-                return Err(Error::InvalidCountAttribute {
-                    entry_index,
-                    value: raw_count.to_string(),
-                });
+                return Err(Error::InvalidCountAttribute { entry_index, value: raw_count.to_string() });
             };
             model.add(&entry.tokens)?;
             model.set_count(&entry.tokens, count)?;
@@ -68,9 +65,7 @@ impl NGramModel {
 
     /// Returns the count of `ngram`, or `0` if `ngram` is not present.
     pub fn get_count<S: AsRef<str>>(&self, ngram: &[S]) -> i32 {
-        self.find_slot(ngram)
-            .and_then(|(_, slot)| self.entries[slot].as_ref())
-            .map_or(0, |(_, count)| *count)
+        self.find_slot(ngram).and_then(|(_, slot)| self.entries[slot].as_ref()).map_or(0, |(_, count)| *count)
     }
 
     /// Sets the count of an existing `ngram` to `count`.
@@ -129,12 +124,7 @@ impl NGramModel {
     ///
     /// Returns [`Error::InvalidLengthRange`] if `min_length < 1`, `max_length < 1`,
     /// or `min_length > max_length`, or [`Error::EmptyNGram`] if `ngram` is empty.
-    pub fn add_range<S: AsRef<str>>(
-        &mut self,
-        ngram: &[S],
-        min_length: usize,
-        max_length: usize,
-    ) -> Result<()> {
+    pub fn add_range<S: AsRef<str>>(&mut self, ngram: &[S], min_length: usize, max_length: usize) -> Result<()> {
         if min_length < 1 || max_length < 1 || min_length > max_length {
             return Err(Error::InvalidLengthRange { min_length, max_length });
         }
@@ -216,10 +206,7 @@ impl NGramModel {
     /// Returns the sum of counts across all n-grams in the model
     /// (`NGramModel.numberOfGrams()`).
     pub fn number_of_grams(&self) -> i32 {
-        self.entries
-            .iter()
-            .filter_map(|slot| slot.as_ref().map(|(_, count)| *count))
-            .fold(0_i32, i32::wrapping_add)
+        self.entries.iter().filter_map(|slot| slot.as_ref().map(|(_, count)| *count)).fold(0_i32, i32::wrapping_add)
     }
 
     /// Removes every n-gram whose count is strictly less than `cutoff_under` or
@@ -255,16 +242,12 @@ impl NGramModel {
 
     /// Iterates over the distinct n-grams in insertion order.
     pub fn iter(&self) -> impl Iterator<Item = &[String]> {
-        self.entries
-            .iter()
-            .filter_map(|slot| slot.as_ref().map(|(tokens, _)| tokens.as_slice()))
+        self.entries.iter().filter_map(|slot| slot.as_ref().map(|(tokens, _)| tokens.as_slice()))
     }
 
     /// Iterates over `(ngram, count)` pairs in insertion order.
     pub fn iter_with_counts(&self) -> impl Iterator<Item = (&[String], i32)> {
-        self.entries
-            .iter()
-            .filter_map(|slot| slot.as_ref().map(|(tokens, count)| (tokens.as_slice(), *count)))
+        self.entries.iter().filter_map(|slot| slot.as_ref().map(|(tokens, count)| (tokens.as_slice(), *count)))
     }
 
     /// Serializes the model to OpenNLP dictionary XML bytes
@@ -273,8 +256,7 @@ impl NGramModel {
     /// Note that `NGramModel.serialize` always writes `case_sensitive="false"` on
     /// the root `<dictionary>` element (`DictionaryEntryPersistor.serialize(..., false)`).
     pub fn serialize(&self) -> Result<Vec<u8>> {
-        let mut out =
-            String::from("<?xml version=\"1.0\" encoding=\"UTF-8\"?><dictionary case_sensitive=\"false\"");
+        let mut out = String::from("<?xml version=\"1.0\" encoding=\"UTF-8\"?><dictionary case_sensitive=\"false\"");
         let mut any = false;
         for (tokens, count) in self.iter_with_counts() {
             if !any {
@@ -347,11 +329,7 @@ impl fmt::Display for NGramModel {
 }
 
 fn tokens_eq<S: AsRef<str>>(stored: &[String], probe: &[S]) -> bool {
-    stored.len() == probe.len()
-        && stored
-            .iter()
-            .zip(probe)
-            .all(|(a, b)| a.as_str() == b.as_ref())
+    stored.len() == probe.len() && stored.iter().zip(probe).all(|(a, b)| a.as_str() == b.as_ref())
 }
 
 /// Converts `text` to UTF-16 code units after lowercasing each code point with
@@ -379,8 +357,7 @@ pub(crate) fn decode_utf16_slice(units: &[u16], out: &mut String) {
 }
 
 fn xml_can_carry(c: char) -> bool {
-    !(((c as u32) < 0x20 && !matches!(c, '\t' | '\n' | '\r'))
-        || matches!(c, '\u{FFFE}' | '\u{FFFF}'))
+    !(((c as u32) < 0x20 && !matches!(c, '\t' | '\n' | '\r')) || matches!(c, '\u{FFFE}' | '\u{FFFF}'))
 }
 
 fn push_xml_text(out: &mut String, text: &str) -> Result<()> {

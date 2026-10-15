@@ -65,17 +65,12 @@ impl NGramUtils {
     /// smoothing constant `k` (`NGramUtils.calculateLaplaceSmoothingProbability`):
     ///
     /// `(count(ngram, set) + k) / (count(prefix(ngram), set) + k * 1.0)`
-    pub fn calculate_laplace_smoothing_probability<T, S>(
-        ngram: &[T],
-        set: &[S],
-        k: f64,
-    ) -> f64
+    pub fn calculate_laplace_smoothing_probability<T, S>(ngram: &[T], set: &[S], k: f64) -> f64
     where
         T: PartialEq,
         S: AsRef<[T]>,
     {
-        (Self::count(ngram, set) + k)
-            / (Self::count(Self::get_n_minus_one_token_first(ngram), set) + k * 1.0)
+        (Self::count(ngram, set) + k) / (Self::count(Self::get_n_minus_one_token_first(ngram), set) + k * 1.0)
     }
 
     /// Calculates the Maximum Likelihood (ML) unigram probability of `word` in
@@ -122,12 +117,7 @@ impl NGramUtils {
 
     /// Calculates the prior-smoothed bigram probability of `(x0, x1)` with
     /// smoothing weight `k` (`NGramUtils.calculateBigramPriorSmoothingProbability`).
-    pub fn calculate_bigram_prior_smoothing_probability<T, S>(
-        x0: &T,
-        x1: &T,
-        set: &[S],
-        k: f64,
-    ) -> f64
+    pub fn calculate_bigram_prior_smoothing_probability<T, S>(x0: &T, x1: &T, set: &[S], k: f64) -> f64
     where
         T: PartialEq + Clone,
         S: AsRef<[T]>,
@@ -158,11 +148,7 @@ impl NGramUtils {
         T: PartialEq + Clone,
         S: AsRef<[T]>,
     {
-        if lambda1 <= 0.0
-            || lambda2 <= 0.0
-            || lambda3 <= 0.0
-            || (lambda1 + lambda2 + lambda3 - 1.0).abs() > 0.0001
-        {
+        if lambda1 <= 0.0 || lambda2 <= 0.0 || lambda3 <= 0.0 || (lambda1 + lambda2 + lambda3 - 1.0).abs() > 0.0001 {
             return Err(Error::InvalidInterpolationWeights { lambda1, lambda2, lambda3 });
         }
         Ok(lambda1 * Self::calculate_trigram_ml_probability(x0, x1, x2, set)
@@ -172,11 +158,7 @@ impl NGramUtils {
 
     /// Calculates the missing probability mass for `ngram` under `discount` over
     /// `set` (`NGramUtils.calculateMissingNgramProbabilityMass`).
-    pub fn calculate_missing_ngram_probability_mass<T, S>(
-        ngram: &[T],
-        discount: f64,
-        set: &[S],
-    ) -> f64
+    pub fn calculate_missing_ngram_probability_mass<T, S>(ngram: &[T], discount: f64, set: &[S]) -> f64
     where
         T: PartialEq + Eq + Hash + Clone,
         S: AsRef<[T]>,
@@ -203,11 +185,7 @@ impl NGramUtils {
     ///
     /// Returns an empty slice if `ngram` is empty.
     pub fn get_n_minus_one_token_first<T>(ngram: &[T]) -> &[T] {
-        if ngram.is_empty() {
-            &[]
-        } else {
-            &ngram[..ngram.len() - 1]
-        }
+        if ngram.is_empty() { &[] } else { &ngram[..ngram.len() - 1] }
     }
 
     /// Returns the `(n - 1)`-token suffix of `ngram` (`ngram[1..]`),
@@ -215,11 +193,7 @@ impl NGramUtils {
     ///
     /// Returns an empty slice if `ngram` is empty.
     pub fn get_n_minus_one_token_last<T>(ngram: &[T]) -> &[T] {
-        if ngram.is_empty() {
-            &[]
-        } else {
-            &ngram[1..]
-        }
+        if ngram.is_empty() { &[] } else { &ngram[1..] }
     }
 
     /// Returns all contiguous slices of length `size` from `sequence`

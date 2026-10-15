@@ -52,46 +52,23 @@ pub enum Error {
 impl PartialEq for Error {
     fn eq(&self, other: &Self) -> bool {
         match (self, other) {
-            (Error::EmptyNGram, Error::EmptyNGram) | (Error::NoSuchNGram, Error::NoSuchNGram) => {
-                true
-            }
+            (Error::EmptyNGram, Error::EmptyNGram) | (Error::NoSuchNGram, Error::NoSuchNGram) => true,
             (
-                Error::InvalidLengthRange {
-                    min_length: a_min,
-                    max_length: a_max,
-                },
-                Error::InvalidLengthRange {
-                    min_length: b_min,
-                    max_length: b_max,
-                },
+                Error::InvalidLengthRange { min_length: a_min, max_length: a_max },
+                Error::InvalidLengthRange { min_length: b_min, max_length: b_max },
             ) => a_min == b_min && a_max == b_max,
             (Error::InvalidOrder(a), Error::InvalidOrder(b)) => a == b,
             (
-                Error::InvalidInterpolationWeights {
-                    lambda1: a1,
-                    lambda2: a2,
-                    lambda3: a3,
-                },
-                Error::InvalidInterpolationWeights {
-                    lambda1: b1,
-                    lambda2: b2,
-                    lambda3: b3,
-                },
+                Error::InvalidInterpolationWeights { lambda1: a1, lambda2: a2, lambda3: a3 },
+                Error::InvalidInterpolationWeights { lambda1: b1, lambda2: b2, lambda3: b3 },
             ) => a1 == b1 && a2 == b2 && a3 == b3,
             (Error::DictionaryXml(a), Error::DictionaryXml(b)) => a.to_string() == b.to_string(),
+            (Error::MissingCountAttribute { entry_index: a }, Error::MissingCountAttribute { entry_index: b }) => {
+                a == b
+            }
             (
-                Error::MissingCountAttribute { entry_index: a },
-                Error::MissingCountAttribute { entry_index: b },
-            ) => a == b,
-            (
-                Error::InvalidCountAttribute {
-                    entry_index: ai,
-                    value: av,
-                },
-                Error::InvalidCountAttribute {
-                    entry_index: bi,
-                    value: bv,
-                },
+                Error::InvalidCountAttribute { entry_index: ai, value: av },
+                Error::InvalidCountAttribute { entry_index: bi, value: bv },
             ) => ai == bi && av == bv,
             (Error::InvalidXmlCharacter(a), Error::InvalidXmlCharacter(b)) => a == b,
             _ => false,
@@ -109,10 +86,9 @@ impl fmt::Display for Error {
                 "minLength ({min_length}) and maxLength ({max_length}) must be at least 1, and minLength must not exceed maxLength"
             ),
             Error::InvalidOrder(n) => write!(f, "Parameter 'n' must be greater than 0 (got {n})."),
-            Error::InvalidInterpolationWeights { lambda1, lambda2, lambda3 } => write!(
-                f,
-                "lambdas sum should be equal to 1 (got {lambda1} + {lambda2} + {lambda3})"
-            ),
+            Error::InvalidInterpolationWeights { lambda1, lambda2, lambda3 } => {
+                write!(f, "lambdas sum should be equal to 1 (got {lambda1} + {lambda2} + {lambda3})")
+            }
             Error::DictionaryXml(err) => write!(f, "dictionary XML error: {err}"),
             Error::MissingCountAttribute { entry_index } => {
                 write!(f, "The count attribute must be set (entry {entry_index})!")

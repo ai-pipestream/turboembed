@@ -3,8 +3,7 @@
 //! `NgramLanguageModelTest`.
 
 use turbo_ngram::{
-    DEFAULT_N, Error, LanguageModel, NGramCharModel, NGramGenerator, NGramLanguageModel,
-    NGramModel, NGramUtils,
+    DEFAULT_N, Error, LanguageModel, NGramCharModel, NGramGenerator, NGramLanguageModel, NGramModel, NGramUtils,
 };
 
 const NGRAM_MODEL_XML: &[u8] = br#"<?xml version="1.0" encoding="UTF-8"?>
@@ -109,9 +108,7 @@ fn ngram_model_same_add() {
 #[test]
 fn ngram_model_multi_add_range() {
     let mut model = NGramModel::new();
-    model
-        .add_range(&["the", "brown", "fox", "jumped"], 1, 3)
-        .unwrap();
+    model.add_range(&["the", "brown", "fox", "jumped"], 1, 3).unwrap();
     for i in 1..=3 {
         let tokens = &["the", "brown", "fox", "jumped"][..i];
         assert_eq!(model.get_count(tokens), 1);
@@ -167,12 +164,8 @@ fn ngram_model_cutoff_2() {
 #[test]
 fn ngram_model_to_dictionary() {
     let mut model = NGramModel::new();
-    model
-        .add_range(&["the", "brown", "fox", "jumped"], 1, 3)
-        .unwrap();
-    model
-        .add_range(&["the", "brown", "Fox", "jumped"], 1, 3)
-        .unwrap();
+    model.add_range(&["the", "brown", "fox", "jumped"], 1, 3).unwrap();
+    model.add_range(&["the", "brown", "Fox", "jumped"], 1, 3).unwrap();
     let dict = model.to_dictionary(false);
     assert!(!dict.is_case_sensitive());
     assert_eq!(dict.len(), 9);
@@ -183,12 +176,8 @@ fn ngram_model_to_dictionary() {
 #[test]
 fn ngram_model_to_dictionary_case_sensitive() {
     let mut model = NGramModel::new();
-    model
-        .add_range(&["the", "brown", "fox", "jumped"], 1, 3)
-        .unwrap();
-    model
-        .add_range(&["the", "brown", "Fox", "jumped"], 1, 3)
-        .unwrap();
+    model.add_range(&["the", "brown", "fox", "jumped"], 1, 3).unwrap();
+    model.add_range(&["the", "brown", "Fox", "jumped"], 1, 3).unwrap();
     let dict = model.to_dictionary(true);
     assert!(dict.is_case_sensitive());
     assert_eq!(dict.len(), 14);
@@ -199,22 +188,13 @@ fn ngram_model_to_dictionary_case_sensitive() {
 #[test]
 fn ngram_model_invalid_format_missing_count() {
     let xml = b"<dictionary case_sensitive=\"false\"><entry><token>the</token></entry></dictionary>";
-    assert_eq!(
-        NGramModel::read(xml),
-        Err(Error::MissingCountAttribute { entry_index: 0 })
-    );
+    assert_eq!(NGramModel::read(xml), Err(Error::MissingCountAttribute { entry_index: 0 }));
 }
 
 #[test]
 fn ngram_model_invalid_format_not_a_number() {
     let xml = b"<dictionary case_sensitive=\"false\"><entry count=\"two\"><token>the</token></entry></dictionary>";
-    assert_eq!(
-        NGramModel::read(xml),
-        Err(Error::InvalidCountAttribute {
-            entry_index: 0,
-            value: "two".to_string()
-        })
-    );
+    assert_eq!(NGramModel::read(xml), Err(Error::InvalidCountAttribute { entry_index: 0, value: "two".to_string() }));
 }
 
 #[test]
@@ -236,12 +216,8 @@ fn ngram_model_from_chars() {
 fn ngram_model_serialize_and_read_roundtrip() {
     let model1 = NGramModel::read(NGRAM_MODEL_XML).unwrap();
     let mut model2 = NGramModel::new();
-    model2
-        .add_range(&["the", "brown", "fox", "jumped"], 1, 3)
-        .unwrap();
-    model2
-        .add_range(&["the", "brown", "Fox", "jumped"], 1, 3)
-        .unwrap();
+    model2.add_range(&["the", "brown", "fox", "jumped"], 1, 3).unwrap();
+    model2.add_range(&["the", "brown", "Fox", "jumped"], 1, 3).unwrap();
     assert_eq!(model1, model2);
     assert_eq!(model1.size(), 14);
     assert_eq!(model1.number_of_grams(), 18);
@@ -357,10 +333,7 @@ fn ngram_utils_probabilities_and_slices() {
     .unwrap();
     assert_eq!(d, 0.5714285714285714);
 
-    let interp_set2 = [
-        vec!["D", "N", "V", "STOP"],
-        vec!["D", "N", "V", "STOP"],
-    ];
+    let interp_set2 = [vec!["D", "N", "V", "STOP"], vec!["D", "N", "V", "STOP"]];
     let d2 = NGramUtils::calculate_trigram_linear_interpolation_probability(
         &"N",
         &"V",
@@ -390,17 +363,12 @@ fn ngram_utils_probabilities_and_slices() {
     let ngrams = NGramUtils::get_ngrams(&tokens, 2);
     assert_eq!(ngrams, vec![&["I", "saw"][..], &["saw", "brown"][..], &["brown", "fox"][..]]);
     let ngrams3 = NGramUtils::get_ngrams(&tokens, 3);
-    assert_eq!(
-        ngrams3,
-        vec![&["I", "saw", "brown"][..], &["saw", "brown", "fox"][..]]
-    );
+    assert_eq!(ngrams3, vec![&["I", "saw", "brown"][..], &["saw", "brown", "fox"][..]]);
 }
 
 #[test]
 fn ngram_generator_token_and_char_slices() {
-    let list = [
-        "This", "is", "a", "sentence", "for", "testing", "the", "NGram", "generator",
-    ];
+    let list = ["This", "is", "a", "sentence", "for", "testing", "the", "NGram", "generator"];
     let unigrams = NGramGenerator::generate(&list, 1, "-");
     assert_eq!(unigrams, list);
 
@@ -450,22 +418,10 @@ fn ngram_generator_token_and_char_slices() {
     assert!(NGramGenerator::generate::<&str>(&[], 1, "-").is_empty());
 
     let chars = ['T', 'e', 's', 't', 'i', 'n', 'g'];
-    assert_eq!(
-        NGramGenerator::generate_chars(&chars, 1, "-"),
-        vec!["T", "e", "s", "t", "i", "n", "g"]
-    );
-    assert_eq!(
-        NGramGenerator::generate_chars(&chars, 2, "-"),
-        vec!["T-e", "e-s", "s-t", "t-i", "i-n", "n-g"]
-    );
-    assert_eq!(
-        NGramGenerator::generate_chars(&chars, 3, "-"),
-        vec!["T-e-s", "e-s-t", "s-t-i", "t-i-n", "i-n-g"]
-    );
-    assert_eq!(
-        NGramGenerator::generate_chars(&chars, 4, "-"),
-        vec!["T-e-s-t", "e-s-t-i", "s-t-i-n", "t-i-n-g"]
-    );
+    assert_eq!(NGramGenerator::generate_chars(&chars, 1, "-"), vec!["T", "e", "s", "t", "i", "n", "g"]);
+    assert_eq!(NGramGenerator::generate_chars(&chars, 2, "-"), vec!["T-e", "e-s", "s-t", "t-i", "i-n", "n-g"]);
+    assert_eq!(NGramGenerator::generate_chars(&chars, 3, "-"), vec!["T-e-s", "e-s-t", "s-t-i", "t-i-n", "i-n-g"]);
+    assert_eq!(NGramGenerator::generate_chars(&chars, 4, "-"), vec!["T-e-s-t", "e-s-t-i", "s-t-i-n", "t-i-n-g"]);
     assert!(NGramGenerator::generate_chars(&chars, 8, "-").is_empty());
     assert!(NGramGenerator::generate_chars(&[], 1, "-").is_empty());
 }
@@ -474,40 +430,23 @@ fn ngram_generator_token_and_char_slices() {
 fn language_model_empty_vocabulary_probability() {
     let model = NGramLanguageModel::default();
     assert_eq!(model.order(), DEFAULT_N);
-    assert_eq!(
-        model.calculate_probability::<&str>(&[]),
-        0.0,
-        "probability with an empty vocabulary is always 0"
-    );
-    assert_eq!(
-        model.calculate_probability(&["1", "2", "3"]),
-        0.0,
-        "probability with an empty vocabulary is always 0"
-    );
+    assert_eq!(model.calculate_probability::<&str>(&[]), 0.0, "probability with an empty vocabulary is always 0");
+    assert_eq!(model.calculate_probability(&["1", "2", "3"]), 0.0, "probability with an empty vocabulary is always 0");
     assert_eq!(model.predict_next_tokens(&["1"]), None);
 }
 
 #[test]
 fn language_model_invalid_order_rejected() {
     assert_eq!(NGramLanguageModel::new(0), Err(Error::InvalidOrder(0)));
-    assert_eq!(
-        NGramLanguageModel::from_xml_with_order(NGRAM_MODEL_XML, 0),
-        Err(Error::InvalidOrder(0))
-    );
+    assert_eq!(NGramLanguageModel::from_xml_with_order(NGRAM_MODEL_XML, 0), Err(Error::InvalidOrder(0)));
 }
 
 #[test]
 fn language_model_trigram_and_bigram_predictions() {
     let mut model = NGramLanguageModel::default();
-    model
-        .add(&["the", "green", "house"])
-        .unwrap();
-    model
-        .add(&["my", "red", "house"])
-        .unwrap();
-    model
-        .add(&["his", "green", "shirt"])
-        .unwrap();
+    model.add(&["the", "green", "house"]).unwrap();
+    model.add(&["my", "red", "house"]).unwrap();
+    model.add(&["his", "green", "shirt"]).unwrap();
 
     let prob = model.calculate_probability(&["the", "green", "house"]);
     assert_eq!(prob.to_bits(), 0x3FF0_0000_0000_0000);
