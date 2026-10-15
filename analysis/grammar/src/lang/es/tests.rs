@@ -149,3 +149,17 @@ fn compounds_split_into_number_words() {
     assert_eq!(pieces("casamiento"), ["casamiento"]);
     assert_eq!(pieces("doscientosiavos"), ["doscientosiavos"]);
 }
+
+#[test]
+fn un_before_a_count_is_an_article() {
+    let text = "Las ventas subieron un 12,5 por ciento";
+    assert_eq!(found(text, Output::Number), pair("12,5", "12.5 decimal"));
+    assert_eq!(found(text, Output::Percent), pair("12,5 por ciento", "12.5%"));
+    assert!(found("hubo una 20 personas", Output::Number).iter().all(|(s, _)| s != "una"));
+    // Alone, or as part of a larger number, it counts one.
+    assert_eq!(found("tirate un paso", Output::Number), pair("un", "1 integer"));
+    assert_eq!(found("solo una vaca", Output::Number), pair("una", "1 integer"));
+    assert_eq!(one("un millon"), "1000000 integer");
+    assert_eq!(one("ciento un"), "101 integer");
+    assert_eq!(found("quedan uno 5 veces", Output::Number).len(), 2);
+}

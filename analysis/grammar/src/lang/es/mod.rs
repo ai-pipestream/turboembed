@@ -150,8 +150,15 @@ pub(crate) fn keep(rules: &[Rule], output: Output, node: &Node, ctx: &Ctx<'_>) -
     let before = ctx.before().map(|p| ctx.word(p));
     let one_word = ctx.end - ctx.start == 1;
     match output {
-        // `por ciento` and `por cien` name a percentage, not a hundred.
-        Output::Number => !(one_word && before == Some("por") && matches!(ctx.word(ctx.start), "cien" | "ciento")),
+        Output::Number => {
+            let word = ctx.word(ctx.start);
+            // `por ciento` and `por cien` name a percentage, not a hundred.
+            let hundred_of_pct = before == Some("por") && matches!(word, "cien" | "ciento");
+            // `un` or `una` before a count is an article: `subieron un 12,5
+            // por ciento`. Alone it counts one: `tirate un paso`.
+            let article = matches!(word, "un" | "una") && ctx.after().is_some_and(|a| counts(ctx, a));
+            !(one_word && (hundred_of_pct || article))
+        }
         // `un quinto` and `tres quintos` are fractions; `un primer paso`
         // holds an ordinal.
         Output::Ordinal => match node.value {
