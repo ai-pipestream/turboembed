@@ -109,7 +109,7 @@ stride and block size (0.5, 16, 62; 0.25, 62, 62; 0.5, 7, 30):
   but the one below, is 3.2e-4, 1.2e-4 and 2.5e-4 for the three
   settings. wtpsplit sums and averages the windows' scores in float16,
   which moves a probability by less than about 6.6e-4 at these settings
-  (`tests/parity.rs`); the test allows 1e-3.
+  (`analysis/sat/tests/parity.rs`); the test allows 1e-3.
 - The same characters are over the threshold on every text but the one
   below, except one character at threshold 0.25 whose probability is
   3.8e-6 from it; where they are the same, the pieces are `split`'s.
