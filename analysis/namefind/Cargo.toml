@@ -23,3 +23,5 @@ turbo-jvm = { path = "../jvm" }
 # the reference the differential tests compare against. Not used outside
 # the tests.
 regex = "1"
+# The goldens of the finders and the merge, made by OpenNLP on a JVM.
+turbo-goldens = { path = "../goldens" }

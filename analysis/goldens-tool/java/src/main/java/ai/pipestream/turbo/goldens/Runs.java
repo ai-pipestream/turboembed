@@ -30,6 +30,13 @@ final class Runs {
   static final String LEMMA_MODEL_EN = "opennlp-en-ud-ewt-lemmas-1.3-2.5.4.bin";
   static final String LEMMA_MODEL_DE = "opennlp-de-ud-gsd-lemmas-1.3-2.5.4.bin";
 
+  /** The OpenNLP 1.5 English models the beam search, tag dictionary and tag format goldens run. */
+  static final String POS_MODEL_EN_15_MAXENT = "en-pos-maxent.bin";
+  static final String POS_MODEL_EN_15_PERCEPTRON = "en-pos-perceptron.bin";
+  static final String CHUNKER_MODEL_EN_15 = "en-chunker.bin";
+  static final String PERSON_MODEL_EN_15 = "en-ner-person.bin";
+  static final String LOCATION_MODEL_EN_15 = "en-ner-location.bin";
+
   /**
    * The MeCab dictionaries the generator loads from the models directory, each unpacked from its
    * published archive, and the UTF-8 copy of the one that is not UTF-8.
@@ -57,7 +64,7 @@ final class Runs {
   static final String POS_FIXTURE_RUST = "pos-fixture-rust.bin";
   /** The lemmatizer model the Rust trainer wrote from inputs/tagged/lemmas.txt. */
   static final String LEMMA_FIXTURE_RUST = "lemma-fixture-rust.bin";
-  /** The tag dictionary the tagger fixtures were trained with, a copy of analysis/sequence/golden/resources/tags.tagdict. */
+  /** The tag dictionary the tagger fixtures were trained with. */
   static final String TAG_DICTIONARY = "tags.tagdict";
   static final String CHUNKER_FIXTURE = "chunker-fixture.bin";
   static final String LEMMA_DICTIONARY = "lemmatizer-dictionary.txt";
@@ -75,6 +82,18 @@ final class Runs {
   static final String EN_HEAD_RULES = "en-head-rules.txt";
   static final String ES_HEAD_RULES = "es-head-rules.txt";
   static final String ES_REGEX_HEAD_RULES = "es-regex-head-rules.txt";
+  /** The name finder models OpenNLP trained for the beam search goldens. */
+  static final String NER_BIO_FIXTURE = "ner-bio-fixture.bin";
+  static final String NER_BILOU_FIXTURE = "ner-bilou-fixture.bin";
+  static final String NER_QN_FIXTURE = "ner-qn-fixture.bin";
+  /** The tag dictionary's 40 entries, case insensitive and case sensitive. */
+  static final String TAG_DICTIONARY_CASES = "tags-cases.tagdict";
+  static final String TAG_DICTIONARY_EXACT = "tags-exact.tagdict";
+  /** The directory of the feature generator descriptors and the resources they name. */
+  static final String FEATUREGEN = "featuregen";
+  /** The directory of the name finder dictionaries and the user patterns. */
+  static final String NAMEFIND_FIXTURES = "namefind";
+  static final String NAMEFIND_PATTERNS = "patterns.txt";
 
   /** The input sets, the directories of the inputs directory. */
   static final String EN = "en";
@@ -98,6 +117,20 @@ final class Runs {
   static final String NER = "ner";
   static final String PARSE = "parse";
   static final String HEAD_RULES = "head-rules";
+  /** The tokenized sentences and the pattern tokens of the sequence goldens. */
+  static final String SEQUENCE = "sequence";
+  /** One malformed feature generator descriptor per input. */
+  static final String DESCRIPTOR_ERRORS = "descriptor-errors";
+  /** The label alphabets of the BIO and BILOU codecs. */
+  static final String CODEC = "codec";
+  /** Lists of outcomes for the tag format guess. */
+  static final String TAG_FORMAT = "tag-format";
+  /** The hand-made sentences of the name finder goldens. */
+  static final String NAMEFIND = "namefind";
+  /** The words the stemmers stem. */
+  static final String STEM = "stem";
+  /** The words and language codes of the stopword goldens. */
+  static final String STOPWORD = "stopword";
 
   /** The numbers of merges the BPE trainer runs with: few, so the tokens are pieces of words, and many. */
   static final List<Integer> BPE_MERGES = List.of(40, 400);
@@ -285,6 +318,22 @@ final class Runs {
     annotators.addAll(ParserGolden.all(fixtures.resolve(EN_HEAD_RULES), fixtures.resolve(ES_HEAD_RULES),
         fixtures.resolve(ES_REGEX_HEAD_RULES)));
     annotators.addAll(ParserGolden.Rules.all());
+    // The sequence machinery turbo-sequence ports: StringPattern in both versions, the feature
+    // generators and malformed descriptors, the BIO and BILOU codecs, the beam search of the
+    // tagger, chunker and name finder over the fixture and published models, and the tag
+    // dictionary and tag format mapper.
+    annotators.addAll(StringPatternGolden.all());
+    annotators.addAll(FeatureGolden.all(fixtures));
+    annotators.add(new DescriptorErrorGolden());
+    annotators.addAll(CodecGolden.all());
+    annotators.addAll(BeamGolden.all(models, fixtures));
+    annotators.addAll(TagDictionaryGolden.all(models, fixtures));
+    annotators.addAll(TagFormatGolden.all(models, fixtures));
+    // The name finders without a model and the merge of overlapping names (turbo-namefind), the
+    // stemmers (turbo-stem) and the stopword lists (turbo-stopword).
+    annotators.addAll(NameFindGolden.all(fixtures));
+    annotators.addAll(StemGolden.all());
+    annotators.addAll(StopwordGolden.all());
     return new All(annotators, recorders);
   }
 }

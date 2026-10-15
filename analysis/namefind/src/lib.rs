@@ -10,9 +10,10 @@
 //!
 //! The behaviour follows OpenNLP at commit
 //! `cdf33c653d5d61d5af7d37ffee189a83bd8392ea` and `java.util.regex` in JDK
-//! 21, and the tests compare it with what they return (`golden/`, see
-//! `README.md`). On the token level the finders are [`TokenNameFinder`]s,
-//! which take a sentence's tokens as strings, as the Java `find` does.
+//! 21, and the tests compare it with what they return (the goldens under
+//! `analysis/goldens/data/namefind`, see `README.md`). On the token level
+//! the finders are [`TokenNameFinder`]s, which take a sentence's tokens as
+//! strings, as the Java `find` does.
 //!
 //! # Modules
 //!
@@ -101,6 +102,7 @@ pub use builtin::BuiltIn;
 pub use dictionary::DictionaryNameFinder;
 pub use error::{Error, Feature, TextLimit};
 pub use java_regex::{Flags, JavaRegex};
-pub use merge::{MergeEntities, drop_overlapping, merge};
+pub use merge::{FilterEntities, MergeEntities, drop_overlapping, merge};
 pub use name::{Name, TokenNameFinder};
 pub use regex_finder::{Pattern, RegexNameFinder};
+pub use turbo_analysis::FilterRule;

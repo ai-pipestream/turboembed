@@ -30,5 +30,5 @@ pub const SET: Set = Set {
         },
     ]),
     span_unit: None,
-    read: beir::read,
+    read: beir::read_in,
 };

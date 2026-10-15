@@ -35,7 +35,7 @@ fn golden_spans(g: &GoldenLayer) -> SpanCols<'_> {
 
 /// The items of a layer that is nothing but spans.
 fn spans_only<'a, L: Layer>(layer: &'a L) -> Items<'a> {
-    let spans = layer.text_spans().map(|(view, start, end)| SpanCols { view, start, end });
+    let spans = layer.text_spans().map(|ts| SpanCols { view: ts.view, start: ts.start, end: ts.end });
     Items { len: layer.len(), spans, context: None, tokens: None, units: None, labels: None, values: None }
 }
 

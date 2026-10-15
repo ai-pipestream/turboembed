@@ -182,7 +182,7 @@ pub fn run(opts: &Options) -> Result<Summary, String> {
             opts.sets.len(),
             inputs.display()
         );
-        models::fetch(&opts.models)?;
+        models::fetch(&opts.models, models::Models::WithLocal)?;
         models::check_fixtures(&paths::fixtures_dir())?;
         fresh_dir(&jvm)?;
         let skipped = skipped_annotators();

@@ -1,0 +1,1730 @@
+# Converted from tests/lang/test_english_clean.py of pySBD
+# (github.com/nipunsadvilkar/pySBD, commit 5905f13be4fc95f407b98392e0ec303617a33d86),
+# MIT License, Copyright (c) 2019 Nipun Sadvilkar (LICENSE in this directory).
+# One case per entry of each test list, in file order; `name` is the list's name and,
+# for the regression tests, the issue number; `option` the segmenter options its test uses.
+
+case pysbd/test_english_clean/001
+lang en
+name TESTS_WITH_CLEAN
+option clean=true
+text Alice was beginning to get very tired of sitting by her sister on the bank, and of having nothing to do: once or twice she had peeped into the book her sister was reading, but it had no pictures or conversations in it, 'and what is the use of a book,' thought Alice 'without pictures or conversations?'\nSo she was considering in her own mind (as well as she could, for the hot day made her feel very sleepy and stupid), whether the pleasure of making a daisy-chain would be worth the trouble of getting up and picking the daisies, when suddenly a White Rabbit with pink eyes ran close by her.
+sentence Alice was beginning to get very tired of sitting by her sister on the bank, and of having nothing to do: once or twice she had peeped into the book her sister was reading, but it had no pictures or conversations in it, 'and what is the use of a book,' thought Alice 'without pictures or conversations?'
+sentence So she was considering in her own mind (as well as she could, for the hot day made her feel very sleepy and stupid), whether the pleasure of making a daisy-chain would be worth the trouble of getting up and picking the daisies, when suddenly a White Rabbit with pink eyes ran close by her.
+end
+
+case pysbd/test_english_clean/002
+lang en
+name TESTS_WITH_CLEAN
+option clean=true
+text 'Well!' thought Alice to herself, 'after such a fall as this, I shall think nothing of tumbling down stairs! How brave they'll all think me at home! Why, I wouldn't say anything about it, even if I fell off the top of the house!' (Which was very likely true.)
+sentence 'Well!' thought Alice to herself, 'after such a fall as this, I shall think nothing of tumbling down stairs! How brave they'll all think me at home! Why, I wouldn't say anything about it, even if I fell off the top of the house!' (Which was very likely true.)
+end
+
+case pysbd/test_english_clean/003
+lang en
+name TESTS_WITH_CLEAN
+option clean=true
+text Down, down, down. Would the fall NEVER come to an ! 'I wonder how many miles I've fallen by this time?' she said aloud.
+sentence Down, down, down.
+sentence Would the fall NEVER come to an !
+sentence 'I wonder how many miles I've fallen by this time?' she said aloud.
+end
+
+case pysbd/test_english_clean/004
+lang en
+name TESTS_WITH_CLEAN
+option clean=true
+text Either the well was very deep, or she fell very slowly, for she had plenty of time as she went down to look about her and to wonder what was going to happen next. First, she tried to look down and make out what she was coming to, but it was too dark to see anything; then she looked at the sides of the well, and noticed that they were filled with cupboards and book-shelves; here and there she saw maps and pictures hung upon pegs. She took down a jar from one of the shelves as she passed; it was labelled 'ORANGE MARMALADE', but to her great disappointment it was empty: she did not like to drop the jar for fear of killing somebody, so managed to put it into one of the cupboards as she fell past it. 'Well!' thought Alice to herself, 'after such a fall as this, I shall think nothing of tumbling down stairs! How brave they'll all think me at home! Why, I wouldn't say anything about it, even if I fell off the top of the house!' (Which was very likely true.)
+sentence Either the well was very deep, or she fell very slowly, for she had plenty of time as she went down to look about her and to wonder what was going to happen next.
+sentence First, she tried to look down and make out what she was coming to, but it was too dark to see anything; then she looked at the sides of the well, and noticed that they were filled with cupboards and book-shelves; here and there she saw maps and pictures hung upon pegs.
+sentence She took down a jar from one of the shelves as she passed; it was labelled 'ORANGE MARMALADE', but to her great disappointment it was empty: she did not like to drop the jar for fear of killing somebody, so managed to put it into one of the cupboards as she fell past it.
+sentence 'Well!' thought Alice to herself, 'after such a fall as this, I shall think nothing of tumbling down stairs! How brave they'll all think me at home! Why, I wouldn't say anything about it, even if I fell off the top of the house!' (Which was very likely true.)
+end
+
+case pysbd/test_english_clean/005
+lang en
+name TESTS_WITH_CLEAN
+option clean=true
+text A minute is a unit of measurement of time or of angle. The minute is a unit of time equal to 1/60th of an hour or 60 seconds by 1. In the UTC time scale, a minute occasionally has 59 or 61 seconds; see leap second. The minute is not an SI unit; however, it is accepted for use with SI units. The symbol for minute or minutes is min. The fact that an hour contains 60 minutes is probably due to influences from the Babylonians, who used a base-60 or sexagesimal counting system. Colloquially, a min. may also refer to an indefinite amount of time substantially longer than the standardized length.
+sentence A minute is a unit of measurement of time or of angle.
+sentence The minute is a unit of time equal to 1/60th of an hour or 60 seconds by 1.
+sentence In the UTC time scale, a minute occasionally has 59 or 61 seconds; see leap second.
+sentence The minute is not an SI unit; however, it is accepted for use with SI units.
+sentence The symbol for minute or minutes is min.
+sentence The fact that an hour contains 60 minutes is probably due to influences from the Babylonians, who used a base-60 or sexagesimal counting system.
+sentence Colloquially, a min. may also refer to an indefinite amount of time substantially longer than the standardized length.
+end
+
+case pysbd/test_english_clean/006
+lang en
+name TESTS_WITH_CLEAN
+option clean=true
+text It was a cold \nnight in the city.
+sentence It was a cold night in the city.
+end
+
+case pysbd/test_english_clean/007
+lang en
+name TESTS_WITH_CLEAN
+option clean=true
+text features\ncontact manager\nevents, activities\n
+sentence features
+sentence contact manager
+sentence events, activities
+end
+
+case pysbd/test_english_clean/008
+lang en
+name TESTS_WITH_CLEAN
+option clean=true
+text Hello world.Today is Tuesday.Mr. Smith went to the store and bought 1,000.That is a lot.
+sentence Hello world.
+sentence Today is Tuesday.
+sentence Mr. Smith went to the store and bought 1,000.
+sentence That is a lot.
+end
+
+case pysbd/test_english_clean/009
+lang en
+name TESTS_WITH_CLEAN
+option clean=true
+text About Me...............................................................................................5\n        Chapter 2 ...................................................................... 6\n        Three Weeks Later............................................................................ 7\n        Better Eating........................................................................................ 8\n        What's the Score?.............................................................. 9\n        How To Calculate the Score................... 16-17
+sentence About Me
+sentence Chapter 2
+sentence Three Weeks Later
+sentence Better Eating
+sentence What's the Score?
+sentence How To Calculate the Score
+end
+
+case pysbd/test_english_clean/010
+lang en
+name TESTS_WITH_CLEAN
+option clean=true
+text I think Jun. is a great month, said Mr. Suzuki.
+sentence I think Jun. is a great month, said Mr. Suzuki.
+end
+
+case pysbd/test_english_clean/011
+lang en
+name TESTS_WITH_CLEAN
+option clean=true
+text Jun. is a great month, said Mr. Suzuki.
+sentence Jun. is a great month, said Mr. Suzuki.
+end
+
+case pysbd/test_english_clean/012
+lang en
+name TESTS_WITH_CLEAN
+option clean=true
+text I have 1.000.00. Yay $.50 and .50! That's 600.
+sentence I have 1.000.00.
+sentence Yay $.50 and .50!
+sentence That's 600.
+end
+
+case pysbd/test_english_clean/013
+lang en
+name TESTS_WITH_CLEAN
+option clean=true
+text 1.) This is a list item with a parens.
+sentence 1.) This is a list item with a parens.
+end
+
+case pysbd/test_english_clean/014
+lang en
+name TESTS_WITH_CLEAN
+option clean=true
+text 1. This is a list item.
+sentence 1. This is a list item.
+end
+
+case pysbd/test_english_clean/015
+lang en
+name TESTS_WITH_CLEAN
+option clean=true
+text I live in the U.S.A. I went to J.C. Penney.
+sentence I live in the U.S.A.
+sentence I went to J.C. Penney.
+end
+
+case pysbd/test_english_clean/016
+lang en
+name TESTS_WITH_CLEAN
+option clean=true
+text His name is Alfred E. Sloan.
+sentence His name is Alfred E. Sloan.
+end
+
+case pysbd/test_english_clean/017
+lang en
+name TESTS_WITH_CLEAN
+option clean=true
+text Q. What is his name? A. His name is Alfred E. Sloan.
+sentence Q. What is his name?
+sentence A. His name is Alfred E. Sloan.
+end
+
+case pysbd/test_english_clean/018
+lang en
+name TESTS_WITH_CLEAN
+option clean=true
+text Today is 11.18.2014.
+sentence Today is 11.18.2014.
+end
+
+case pysbd/test_english_clean/019
+lang en
+name TESTS_WITH_CLEAN
+option clean=true
+text I need you to find 3 items, e.g. a hat, a coat, and a bag.
+sentence I need you to find 3 items, e.g. a hat, a coat, and a bag.
+end
+
+case pysbd/test_english_clean/020
+lang en
+name TESTS_WITH_CLEAN
+option clean=true
+text The game is the Giants vs. the Tigers at 10 p.m. I'm going are you?
+sentence The game is the Giants vs. the Tigers at 10 p.m.
+sentence I'm going are you?
+end
+
+case pysbd/test_english_clean/021
+lang en
+name TESTS_WITH_CLEAN
+option clean=true
+text He is no. 5, the shortstop.
+sentence He is no. 5, the shortstop.
+end
+
+case pysbd/test_english_clean/022
+lang en
+name TESTS_WITH_CLEAN
+option clean=true
+text Remove long strings of dots........please.
+sentence Remove long strings of dots please.
+end
+
+case pysbd/test_english_clean/023
+lang en
+name TESTS_WITH_CLEAN
+option clean=true
+text See our additional services section or contact us for pricing\n.\n\n\nPricing Additionl Info\n
+sentence See our additional services section or contact us for pricing.
+sentence Pricing Additionl Info
+end
+
+case pysbd/test_english_clean/024
+lang en
+name TESTS_WITH_CLEAN
+option clean=true
+text As payment for 1. above, pay us a commission fee of 0 yen and for 2. above, no fee will be paid.
+sentence As payment for 1. above, pay us a commission fee of 0 yen and for 2. above, no fee will be paid.
+end
+
+case pysbd/test_english_clean/025
+lang en
+name TESTS_WITH_CLEAN
+option clean=true
+text See our additional services section or contact us for pricing\n. Pricing Additionl Info
+sentence See our additional services section or contact us for pricing.
+sentence Pricing Additionl Info
+end
+
+case pysbd/test_english_clean/026
+lang en
+name TESTS_WITH_CLEAN
+option clean=true
+text I have 600. How many do you have?
+sentence I have 600.
+sentence How many do you have?
+end
+
+case pysbd/test_english_clean/027
+lang en
+name TESTS_WITH_CLEAN
+option clean=true
+text \n3\n\nIntroduction\n\n
+sentence 3
+sentence Introduction
+end
+
+case pysbd/test_english_clean/028
+lang en
+name TESTS_WITH_CLEAN
+option clean=true
+text \nW\nA\nRN\nI\nNG\n
+sentence WARNING
+end
+
+case pysbd/test_english_clean/029
+lang en
+name TESTS_WITH_CLEAN
+option clean=true
+text \n\n\nW\nA\nRN\nI\nNG\n \n/\n \nA\nV\nE\nR\nT\nI\nS\nE\nM\nE\nNT\n
+sentence WARNING
+sentence /
+sentence AVERTISEMENT
+end
+
+case pysbd/test_english_clean/030
+lang en
+name TESTS_WITH_CLEAN
+option clean=true
+text "Help yourself, sweetie," shouted Candy and gave her the cookie.
+sentence "Help yourself, sweetie," shouted Candy and gave her the cookie.
+end
+
+case pysbd/test_english_clean/031
+lang en
+name TESTS_WITH_CLEAN
+option clean=true
+text Until its release, a generic mechanism was known, where the sear keeps the hammer in back position, and when one pulls the trigger, the sear slips out of hammer’s notches, the hammer falls initiating \na shot.
+sentence Until its release, a generic mechanism was known, where the sear keeps the hammer in back position, and when one pulls the trigger, the sear slips out of hammer’s notches, the hammer falls initiating a shot.
+end
+
+case pysbd/test_english_clean/032
+lang en
+name TESTS_WITH_CLEAN
+option clean=true
+text This is a test. Until its release, a generic mechanism was known, where the sear keeps the hammer in back position, and when one pulls the trigger, the sear slips out of hammer’s notches, the hammer falls initiating \na shot.
+sentence This is a test.
+sentence Until its release, a generic mechanism was known, where the sear keeps the hammer in back position, and when one pulls the trigger, the sear slips out of hammer’s notches, the hammer falls initiating a shot.
+end
+
+case pysbd/test_english_clean/033
+lang en
+name TESTS_WITH_CLEAN
+option clean=true
+text This was because it was an offensive weapon, designed to fight at a distance up to 400 yd \n( 365.8 m ).
+sentence This was because it was an offensive weapon, designed to fight at a distance up to 400 yd ( 365.8 m ).
+end
+
+case pysbd/test_english_clean/034
+lang en
+name TESTS_WITH_CLEAN
+option clean=true
+text “Are demonstrations are evidence of the public anger and frustration at opaque environmental management and decision-making?” Others yet say: "Should we be scared about these 'protests'?"
+sentence “Are demonstrations are evidence of the public anger and frustration at opaque environmental management and decision-making?”
+sentence Others yet say: "Should we be scared about these 'protests'?"
+end
+
+case pysbd/test_english_clean/035
+lang en
+name TESTS_WITH_CLEAN
+option clean=true
+text www.testurl.Awesome.com
+sentence www.testurl.Awesome.com
+end
+
+case pysbd/test_english_clean/036
+lang en
+name TESTS_WITH_CLEAN
+option clean=true
+text http://testurl.Awesome.com
+sentence http://testurl.Awesome.com
+end
+
+case pysbd/test_english_clean/037
+lang en
+name TESTS_WITH_CLEAN
+option clean=true
+text St. Michael's Church in is a church.
+sentence St. Michael's Church in is a church.
+end
+
+case pysbd/test_english_clean/038
+lang en
+name TESTS_WITH_CLEAN
+option clean=true
+text JFK Jr.'s book is on sale.
+sentence JFK Jr.'s book is on sale.
+end
+
+case pysbd/test_english_clean/039
+lang en
+name TESTS_WITH_CLEAN
+option clean=true
+text This is e.g. Mr. Smith, who talks slowly... And this is another sentence.
+sentence This is e.g. Mr. Smith, who talks slowly...
+sentence And this is another sentence.
+end
+
+case pysbd/test_english_clean/040
+lang en
+name TESTS_WITH_CLEAN
+option clean=true
+text Leave me alone!, he yelled. I am in the U.S. Army. Charles (Ind.) said he.
+sentence Leave me alone!, he yelled.
+sentence I am in the U.S. Army.
+sentence Charles (Ind.) said he.
+end
+
+case pysbd/test_english_clean/041
+lang en
+name TESTS_WITH_CLEAN
+option clean=true
+text This is the U.S. Senate my friends. <em>Yes.</em> <em>It is</em>!
+sentence This is the U.S. Senate my friends.
+sentence Yes.
+sentence It is!
+end
+
+case pysbd/test_english_clean/042
+lang en
+name TESTS_WITH_CLEAN
+option clean=true
+text Send it to P.O. box 6554
+sentence Send it to P.O. box 6554
+end
+
+case pysbd/test_english_clean/043
+lang en
+name TESTS_WITH_CLEAN
+option clean=true
+text There were 500 cases in the U.S. The U.S. Commission asked the U.S. Government to give their opinion on the issue.
+sentence There were 500 cases in the U.S.
+sentence The U.S. Commission asked the U.S. Government to give their opinion on the issue.
+end
+
+case pysbd/test_english_clean/044
+lang en
+name TESTS_WITH_CLEAN
+option clean=true
+text CELLULAR COMMUNICATIONS INC. sold 1,550,000 common shares at $21.75 each yesterday, according to lead underwriter L.F. Rothschild & Co. (cited from WSJ 05/29/1987)
+sentence CELLULAR COMMUNICATIONS INC. sold 1,550,000 common shares at $21.75 each yesterday, according to lead underwriter L.F. Rothschild & Co. (cited from WSJ 05/29/1987)
+end
+
+case pysbd/test_english_clean/045
+lang en
+name TESTS_WITH_CLEAN
+option clean=true
+text Rolls-Royce Motor Cars Inc. said it expects its U.S. sales to remain steady at about 1,200 cars in 1990. `So what if you miss 50 tanks somewhere?' asks Rep. Norman Dicks (D., Wash.), a member of the House group that visited the talks in Vienna. Later, he recalls the words of his Marxist mentor: `The people! Theft! The holy fire!'
+sentence Rolls-Royce Motor Cars Inc. said it expects its U.S. sales to remain steady at about 1,200 cars in 1990.
+sentence 'So what if you miss 50 tanks somewhere?' asks Rep. Norman Dicks (D., Wash.), a member of the House group that visited the talks in Vienna.
+sentence Later, he recalls the words of his Marxist mentor: 'The people! Theft! The holy fire!'
+end
+
+case pysbd/test_english_clean/046
+lang en
+name TESTS_WITH_CLEAN
+option clean=true
+text He climbed Mt. Fuji.
+sentence He climbed Mt. Fuji.
+end
+
+case pysbd/test_english_clean/047
+lang en
+name TESTS_WITH_CLEAN
+option clean=true
+text He speaks !Xũ, !Kung, ǃʼOǃKung, !Xuun, !Kung-Ekoka, ǃHu, ǃKhung, ǃKu, ǃung, ǃXo, ǃXû, ǃXung, ǃXũ, and !Xun.
+sentence He speaks !Xũ, !Kung, ǃʼOǃKung, !Xuun, !Kung-Ekoka, ǃHu, ǃKhung, ǃKu, ǃung, ǃXo, ǃXû, ǃXung, ǃXũ, and !Xun.
+end
+
+case pysbd/test_english_clean/048
+lang en
+name TESTS_WITH_CLEAN
+option clean=true
+text Test strange period．Does it segment correctly．
+sentence Test strange period．
+sentence Does it segment correctly．
+end
+
+case pysbd/test_english_clean/049
+lang en
+name TESTS_WITH_CLEAN
+option clean=true
+text <h2 class="lined">Hello</h2>\n<p>This is a test. Another test.</p>\n<div class="center"><p>\n<img src="/images/content/example.jpg">\n</p></div>
+sentence Hello
+sentence This is a test.
+sentence Another test.
+end
+
+case pysbd/test_english_clean/050
+lang en
+name TESTS_WITH_CLEAN
+option clean=true
+text This sentence ends with the psuedo-number x10. This one with the psuedo-number %3.00. One last sentence.
+sentence This sentence ends with the psuedo-number x10.
+sentence This one with the psuedo-number %3.00.
+sentence One last sentence.
+end
+
+case pysbd/test_english_clean/051
+lang en
+name TESTS_WITH_CLEAN
+option clean=true
+text Testing mixed numbers Jahr10. And another 0.3 %11. That's weird.
+sentence Testing mixed numbers Jahr10.
+sentence And another 0.3 %11.
+sentence That's weird.
+end
+
+case pysbd/test_english_clean/052
+lang en
+name TESTS_WITH_CLEAN
+option clean=true
+text Were Jane and co. at the party?
+sentence Were Jane and co. at the party?
+end
+
+case pysbd/test_english_clean/053
+lang en
+name TESTS_WITH_CLEAN
+option clean=true
+text St. Michael's Church is on 5th st. near the light.
+sentence St. Michael's Church is on 5th st. near the light.
+end
+
+case pysbd/test_english_clean/054
+lang en
+name TESTS_WITH_CLEAN
+option clean=true
+text Let's ask Jane and co. They should know.
+sentence Let's ask Jane and co.
+sentence They should know.
+end
+
+case pysbd/test_english_clean/055
+lang en
+name TESTS_WITH_CLEAN
+option clean=true
+text He works at Yahoo! and Y!J.
+sentence He works at Yahoo! and Y!J.
+end
+
+case pysbd/test_english_clean/056
+lang en
+name TESTS_WITH_CLEAN
+option clean=true
+text The Scavenger Hunt ends on Dec. 31st, 2011.
+sentence The Scavenger Hunt ends on Dec. 31st, 2011.
+end
+
+case pysbd/test_english_clean/057
+lang en
+name TESTS_WITH_CLEAN
+option clean=true
+text Putter King Scavenger Hunt Trophy\n(6 3/4" Engraved Crystal Trophy - Picture Coming Soon)\nThe Putter King team will judge the scavenger hunt and all decisions will be final.  The scavenger hunt is open to anyone and everyone.  The scavenger hunt ends on Dec. 31st, 2011.
+sentence Putter King Scavenger Hunt Trophy
+sentence (6 3/4" Engraved Crystal Trophy - Picture Coming Soon)
+sentence The Putter King team will judge the scavenger hunt and all decisions will be final.
+sentence The scavenger hunt is open to anyone and everyone.
+sentence The scavenger hunt ends on Dec. 31st, 2011.
+end
+
+case pysbd/test_english_clean/058
+lang en
+name TESTS_WITH_CLEAN
+option clean=true
+text Unauthorized modifications, alterations or installations of or to this equipment are prohibited and are in violation of AR 750-10. Any such unauthorized modifications, alterations or installations could result in death, injury or damage to the equipment.
+sentence Unauthorized modifications, alterations or installations of or to this equipment are prohibited and are in violation of AR 750-10.
+sentence Any such unauthorized modifications, alterations or installations could result in death, injury or damage to the equipment.
+end
+
+case pysbd/test_english_clean/059
+lang en
+name TESTS_WITH_CLEAN
+option clean=true
+text Header 1.2; Attachment Z\n\n\td. Compliance Log – Volume 12 \n\tAttachment A\n\n\te. Additional Logistics Data\n\tSection 10
+sentence Header 1.2; Attachment Z
+sentence d. Compliance Log – Volume 12
+sentence Attachment A
+sentence e. Additional Logistics Data
+sentence Section 10
+end
+
+case pysbd/test_english_clean/060
+lang en
+name TESTS_WITH_CLEAN
+option clean=true
+text a.) The first item b.) The second item c.) The third list item
+sentence a.) The first item
+sentence b.) The second item
+sentence c.) The third list item
+end
+
+case pysbd/test_english_clean/061
+lang en
+name TESTS_WITH_CLEAN
+option clean=true
+text a) The first item b) The second item c) The third list item
+sentence a) The first item
+sentence b) The second item
+sentence c) The third list item
+end
+
+case pysbd/test_english_clean/062
+lang en
+name TESTS_WITH_CLEAN
+option clean=true
+text Hello Wolrd. Here is a secret code AS750-10. Another sentence. Finally, this. 1. The first item 2. The second item 3. The third list item 4. Hello 5. Hello 6. Hello 7. Hello 8. Hello 9. Hello 10. Hello 11. Hello
+sentence Hello Wolrd.
+sentence Here is a secret code AS750-10.
+sentence Another sentence.
+sentence Finally, this.
+sentence 1. The first item
+sentence 2. The second item
+sentence 3. The third list item
+sentence 4. Hello
+sentence 5. Hello
+sentence 6. Hello
+sentence 7. Hello
+sentence 8. Hello
+sentence 9. Hello
+sentence 10. Hello
+sentence 11. Hello
+end
+
+case pysbd/test_english_clean/063
+lang en
+name TESTS_WITH_CLEAN
+option clean=true
+text He works for ABC Ltd. and sometimes for BCD Ltd. She works for ABC Co. and BCD Co. They work for ABC Corp. and BCD Corp.
+sentence He works for ABC Ltd. and sometimes for BCD Ltd.
+sentence She works for ABC Co. and BCD Co.
+sentence They work for ABC Corp. and BCD Corp.
+end
+
+case pysbd/test_english_clean/064
+lang en
+name TESTS_WITH_CLEAN
+option clean=true
+text <bpt i="0" type="bold">&lt;b&gt;</bpt>J1.txt<ept i="1">&lt;/b&gt;</ept>
+sentence J1.txt
+end
+
+case pysbd/test_english_clean/065
+lang en
+name TESTS_WITH_CLEAN
+option clean=true
+text On Jan. 20, former Sen. Barack Obama became the 44th President of the U.S. Millions attended the Inauguration.
+sentence On Jan. 20, former Sen. Barack Obama became the 44th President of the U.S.
+sentence Millions attended the Inauguration.
+end
+
+case pysbd/test_english_clean/066
+lang en
+name TESTS_WITH_CLEAN
+option clean=true
+text The U.K. Panel on enivronmental issues said it was true. Finally he left the U.K. He went to a new location.
+sentence The U.K. Panel on enivronmental issues said it was true.
+sentence Finally he left the U.K.
+sentence He went to a new location.
+end
+
+case pysbd/test_english_clean/067
+lang en
+name TESTS_WITH_CLEAN
+option clean=true
+text He left at 6 P.M. Travelers who didn't get the warning at 5 P.M. left later.
+sentence He left at 6 P.M.
+sentence Travelers who didn't get the warning at 5 P.M. left later.
+end
+
+case pysbd/test_english_clean/068
+lang en
+name TESTS_WITH_CLEAN
+option clean=true
+text He left at 6 a.m. Travelers who didn't get the warning at 5 a.m. left later.
+sentence He left at 6 a.m.
+sentence Travelers who didn't get the warning at 5 a.m. left later.
+end
+
+case pysbd/test_english_clean/069
+lang en
+name TESTS_WITH_CLEAN
+option clean=true
+text He left at 6 A.M. Travelers who didn't get the warning at 5 A.M. left later.
+sentence He left at 6 A.M.
+sentence Travelers who didn't get the warning at 5 A.M. left later.
+end
+
+case pysbd/test_english_clean/070
+lang en
+name TESTS_WITH_CLEAN
+option clean=true
+text Hello World. My name is Jonas. What is your name? My name is Jonas. There it is! I found it. My name is Jonas E. Smith. Please turn to p. 55. Were Jane and co. at the party? They closed the deal with Pitt, Briggs & Co. at noon. Let's ask Jane and co. They should know. They closed the deal with Pitt, Briggs & Co. It closed yesterday. I can see Mt. Fuji from here. St. Michael's Church is on 5th st. near the light. That is JFK Jr.'s book. I visited the U.S.A. last year. I live in the E.U. How about you? I live in the U.S. How about you? I work for the U.S. Government in Virginia. I have lived in the U.S. for 20 years. She has $100.00 in her bag. She has $100.00. It is in her bag. He teaches science (He previously worked for 5 years as an engineer.) at the local University. Her email is Jane.Doe@example.com. I sent her an email. The site is: https://www.example.50.com/new-site/awesome_content.html. Please check it out. She turned to him, 'This is great.' she said. She turned to him, "This is great." she said. She turned to him, "This is great." She held the book out to show him. Hello!! Long time no see. Hello?? Who is there? Hello!? Is that you? Hello?! Is that you? 1.) The first item 2.) The second item 1.) The first item. 2.) The second item. 1) The first item 2) The second item 1) The first item. 2) The second item. 1. The first item 2. The second item 1. The first item. 2. The second item. • 9. The first item • 10. The second item ⁃9. The first item ⁃10. The second item a. The first item b. The second item c. The third list item \rIt was a cold \nnight in the city. features\ncontact manager\nevents, activities\n You can find it at N°. 1026.253.553. That is where the treasure is. She works at Yahoo! in the accounting department. We make a good team, you and I. Did you see Albert I. Jones yesterday? Thoreau argues that by simplifying one’s life, “the laws of the universe will appear less complex. . . .”. "Bohr [...] used the analogy of parallel stairways [...]" (Smith 55). If words are left off at the end of a sentence, and that is all that is omitted, indicate the omission with ellipsis marks (preceded and followed by a space) and then indicate the end of the sentence with a period . . . . Next sentence. I never meant that.... She left the store. I wasn’t really ... well, what I mean...see . . . what I'm saying, the thing is . . . I didn’t mean it. One further habit which was somewhat weakened . . . was that of combining words into self-interpreting compounds. . . . The practice was not abandoned. . . .
+sentence Hello World.
+sentence My name is Jonas.
+sentence What is your name?
+sentence My name is Jonas.
+sentence There it is!
+sentence I found it.
+sentence My name is Jonas E. Smith.
+sentence Please turn to p. 55.
+sentence Were Jane and co. at the party?
+sentence They closed the deal with Pitt, Briggs & Co. at noon.
+sentence Let's ask Jane and co.
+sentence They should know.
+sentence They closed the deal with Pitt, Briggs & Co.
+sentence It closed yesterday.
+sentence I can see Mt. Fuji from here.
+sentence St. Michael's Church is on 5th st. near the light.
+sentence That is JFK Jr.'s book.
+sentence I visited the U.S.A. last year.
+sentence I live in the E.U.
+sentence How about you?
+sentence I live in the U.S.
+sentence How about you?
+sentence I work for the U.S. Government in Virginia.
+sentence I have lived in the U.S. for 20 years.
+sentence She has $100.00 in her bag.
+sentence She has $100.00.
+sentence It is in her bag.
+sentence He teaches science (He previously worked for 5 years as an engineer.) at the local University.
+sentence Her email is Jane.Doe@example.com.
+sentence I sent her an email.
+sentence The site is: https://www.example.50.com/new-site/awesome_content.html.
+sentence Please check it out.
+sentence She turned to him, 'This is great.' she said.
+sentence She turned to him, "This is great." she said.
+sentence She turned to him, "This is great."
+sentence She held the book out to show him.
+sentence Hello!!
+sentence Long time no see.
+sentence Hello??
+sentence Who is there?
+sentence Hello!?
+sentence Is that you?
+sentence Hello?!
+sentence Is that you?
+sentence 1.) The first item
+sentence 2.) The second item
+sentence 1.) The first item.
+sentence 2.) The second item.
+sentence 1) The first item
+sentence 2) The second item
+sentence 1) The first item.
+sentence 2) The second item.
+sentence 1. The first item
+sentence 2. The second item
+sentence 1. The first item.
+sentence 2. The second item.
+sentence • 9. The first item
+sentence • 10. The second item
+sentence ⁃9. The first item
+sentence ⁃10. The second item
+sentence a. The first item
+sentence b. The second item
+sentence c. The third list item
+sentence It was a cold night in the city.
+sentence features
+sentence contact manager
+sentence events, activities
+sentence You can find it at N°. 1026.253.553.
+sentence That is where the treasure is.
+sentence She works at Yahoo! in the accounting department.
+sentence We make a good team, you and I.
+sentence Did you see Albert I. Jones yesterday?
+sentence Thoreau argues that by simplifying one’s life, “the laws of the universe will appear less complex. . . .”.
+sentence "Bohr [...] used the analogy of parallel stairways [...]" (Smith 55).
+sentence If words are left off at the end of a sentence, and that is all that is omitted, indicate the omission with ellipsis marks (preceded and followed by a space) and then indicate the end of the sentence with a period . . . .
+sentence Next sentence.
+sentence I never meant that....
+sentence She left the store.
+sentence I wasn’t really ... well, what I mean...see . . . what I'm saying, the thing is . . . I didn’t mean it.
+sentence One further habit which was somewhat weakened . . . was that of combining words into self-interpreting compounds.
+sentence . . . The practice was not abandoned. . . .
+end
+
+case pysbd/test_english_clean/071
+lang en
+name TESTS_WITH_CLEAN
+option clean=true
+text His name is Mark E. Smith. a. here it is b. another c. one more\n They went to the store. It was John A. Smith. She was Jane B. Smith.
+sentence His name is Mark E. Smith.
+sentence a. here it is
+sentence b. another
+sentence c. one more
+sentence They went to the store.
+sentence It was John A. Smith.
+sentence She was Jane B. Smith.
+end
+
+case pysbd/test_english_clean/072
+lang en
+name TESTS_WITH_CLEAN
+option clean=true
+text Hello{b^&gt;1&lt;b^} hello{b^>1<b^}.
+sentence Hello hello.
+end
+
+case pysbd/test_english_clean/073
+lang en
+name TESTS_WITH_CLEAN
+option clean=true
+text 'Well?' thought Alice to herself, 'after such a fall as this, I shall think nothing of tumbling down stairs? How brave they'll all think me at home! Why, I wouldn't say anything about it, even if I fell off the top of the house!' (Which was very likely true.)
+sentence 'Well?' thought Alice to herself, 'after such a fall as this, I shall think nothing of tumbling down stairs? How brave they'll all think me at home! Why, I wouldn't say anything about it, even if I fell off the top of the house!' (Which was very likely true.)
+end
+
+case pysbd/test_english_clean/074
+lang en
+name TESTS_WITH_CLEAN
+option clean=true
+text Leave me alone! he yelled. I am in the U.S. Army. Charles (Ind.) said he.
+sentence Leave me alone! he yelled.
+sentence I am in the U.S. Army.
+sentence Charles (Ind.) said he.
+end
+
+case pysbd/test_english_clean/075
+lang en
+name TESTS_WITH_CLEAN
+option clean=true
+text She turned to him, “This is great.” She held the book out to show him.
+sentence She turned to him, “This is great.”
+sentence She held the book out to show him.
+end
+
+case pysbd/test_english_clean/076
+lang en
+name TESTS_WITH_CLEAN
+option clean=true
+text ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////Header starts here\r////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+sentence Header starts here
+end
+
+case pysbd/test_english_clean/077
+lang en
+name TESTS_WITH_CLEAN
+option clean=true
+text Hello World. \r\n Hello.
+sentence Hello World.
+sentence Hello.
+end
+
+case pysbd/test_english_clean/078
+lang en
+name TESTS_WITH_CLEAN
+option clean=true
+text a) here it is b) another c) one more\n They went to the store. w) hello x) hello y) hello
+sentence a) here it is
+sentence b) another
+sentence c) one more
+sentence They went to the store.
+sentence w) hello
+sentence x) hello
+sentence y) hello
+end
+
+case pysbd/test_english_clean/079
+lang en
+name TESTS_WITH_CLEAN
+option clean=true
+text Hello World. \\ r \\ nHello.
+sentence Hello World.
+sentence Hello.
+end
+
+case pysbd/test_english_clean/080
+lang en
+name TESTS_WITH_CLEAN
+option clean=true
+text The nurse gave him the i.v. in his vein. She gave him the i.v. It was a great I.V. that she gave him. She gave him the I.V. It was night.
+sentence The nurse gave him the i.v. in his vein.
+sentence She gave him the i.v.
+sentence It was a great I.V. that she gave him.
+sentence She gave him the I.V.
+sentence It was night.
+end
+
+case pysbd/test_english_clean/081
+lang en
+name TESTS_WITH_CLEAN
+option clean=true
+text (i) Hello world. \n(ii) Hello world.\n(iii) Hello world.\n(iv) Hello world.\n(v) Hello world.\n(vi) Hello world.
+sentence (i) Hello world.
+sentence (ii) Hello world.
+sentence (iii) Hello world.
+sentence (iv) Hello world.
+sentence (v) Hello world.
+sentence (vi) Hello world.
+end
+
+case pysbd/test_english_clean/082
+lang en
+name TESTS_WITH_CLEAN
+option clean=true
+text i) Hello world. \nii) Hello world.\niii) Hello world.\niv) Hello world.\nv) Hello world.\nvi) Hello world.
+sentence i) Hello world.
+sentence ii) Hello world.
+sentence iii) Hello world.
+sentence iv) Hello world.
+sentence v) Hello world.
+sentence vi) Hello world.
+end
+
+case pysbd/test_english_clean/083
+lang en
+name TESTS_WITH_CLEAN
+option clean=true
+text (a) Hello world. (b) Hello world. (c) Hello world. (d) Hello world. (e) Hello world.\n(f) Hello world.
+sentence (a) Hello world.
+sentence (b) Hello world.
+sentence (c) Hello world.
+sentence (d) Hello world.
+sentence (e) Hello world.
+sentence (f) Hello world.
+end
+
+case pysbd/test_english_clean/084
+lang en
+name TESTS_WITH_CLEAN
+option clean=true
+text (A) Hello world. \n(B) Hello world.\n(C) Hello world.\n(D) Hello world.\n(E) Hello world.\n(F) Hello world.
+sentence (A) Hello world.
+sentence (B) Hello world.
+sentence (C) Hello world.
+sentence (D) Hello world.
+sentence (E) Hello world.
+sentence (F) Hello world.
+end
+
+case pysbd/test_english_clean/085
+lang en
+name TESTS_WITH_CLEAN
+option clean=true
+text A) Hello world. \nB) Hello world.\nC) Hello world.\nD) Hello world.\nE) Hello world.\nF) Hello world.
+sentence A) Hello world.
+sentence B) Hello world.
+sentence C) Hello world.
+sentence D) Hello world.
+sentence E) Hello world.
+sentence F) Hello world.
+end
+
+case pysbd/test_english_clean/086
+lang en
+name TESTS_WITH_CLEAN
+option clean=true
+text The GmbH & Co. KG is a limited partnership with, typically, the sole general partner being a limited liability company.
+sentence The GmbH & Co. KG is a limited partnership with, typically, the sole general partner being a limited liability company.
+end
+
+case pysbd/test_english_clean/087
+lang en
+name TESTS_WITH_CLEAN
+option clean=true
+text [?][footnoteRef:6] This is a footnote.
+sentence [?][footnoteRef:6] This is a footnote.
+end
+
+case pysbd/test_english_clean/088
+lang en
+name TESTS_WITH_CLEAN
+option clean=true
+text [15:  12:32]  [16:  firma? 13:28]
+sentence [15:  12:32]  [16:  firma? 13:28]
+end
+
+case pysbd/test_english_clean/089
+lang en
+name TESTS_WITH_CLEAN
+option clean=true
+text "It's a good thing that the water is really calm," I answered ironically.
+sentence "It's a good thing that the water is really calm," I answered ironically.
+end
+
+case pysbd/test_english_clean/090
+lang en
+name TESTS_WITH_CLEAN
+option clean=true
+text December 31, 1988. Hello world. It's great! \nBorn April 05, 1989.
+sentence December 31, 1988.
+sentence Hello world.
+sentence It's great!
+sentence Born April 05, 1989.
+end
+
+case pysbd/test_english_clean/091
+lang en
+name TESTS_WITH_CLEAN
+option clean=true
+text "Dear, dear! How queer everything is to-day! And yesterday things went on just as usual. _Was_ I the same when I got up this morning? But if I'm not the same, the next question is, 'Who in the world am I?' Ah, _that's_ the great puzzle!"
+sentence "Dear, dear! How queer everything is to-day! And yesterday things went on just as usual. _Was_ I the same when I got up this morning? But if I'm not the same, the next question is, 'Who in the world am I?' Ah, _that's_ the great puzzle!"
+end
+
+case pysbd/test_english_clean/092
+lang en
+name TESTS_WITH_CLEAN
+option clean=true
+text Two began, in a low voice, "Why, the fact is, you see, Miss, this here ought to have been a _red_ rose-tree, and we put a white one in by mistake; and, if the Queen was to find it out, we should all have our heads cut off, you know. So you see, Miss, we're doing our best, afore she comes, to--" At this moment, Five, who had been anxiously looking across the garden, called out, "The Queen! The Queen!" and the three gardeners instantly threw themselves flat upon their faces.
+sentence Two began, in a low voice, "Why, the fact is, you see, Miss, this here ought to have been a _red_ rose-tree, and we put a white one in by mistake; and, if the Queen was to find it out, we should all have our heads cut off, you know. So you see, Miss, we're doing our best, afore she comes, to--"
+sentence At this moment, Five, who had been anxiously looking across the garden, called out, "The Queen! The Queen!" and the three gardeners instantly threw themselves flat upon their faces.
+end
+
+case pysbd/test_english_clean/093
+lang en
+name TESTS_WITH_CLEAN
+option clean=true
+text "Dinah'll miss me very much to-night, I should think!" (Dinah was the cat.) "I hope they'll remember her saucer of milk at tea-time. Dinah, my dear, I wish you were down here with me!"
+sentence "Dinah'll miss me very much to-night, I should think!"
+sentence (Dinah was the cat.)
+sentence "I hope they'll remember her saucer of milk at tea-time. Dinah, my dear, I wish you were down here with me!"
+end
+
+case pysbd/test_english_clean/094
+lang en
+name TESTS_WITH_CLEAN
+option clean=true
+text Hello. 'This is a test of single quotes.' A new sentence.
+sentence Hello.
+sentence 'This is a test of single quotes.'
+sentence A new sentence.
+end
+
+case pysbd/test_english_clean/095
+lang en
+name TESTS_WITH_CLEAN
+option clean=true
+text [A sentence in square brackets.]
+sentence [A sentence in square brackets.]
+end
+
+case pysbd/test_english_clean/096
+lang en
+name TESTS_WITH_CLEAN
+option clean=true
+text (iii) List item number 3.
+sentence (iii) List item number 3.
+end
+
+case pysbd/test_english_clean/097
+lang en
+name TESTS_WITH_CLEAN
+option clean=true
+text (iii) List item number 3.
+sentence (iii) List item number 3.
+end
+
+case pysbd/test_english_clean/098
+lang en
+name TESTS_WITH_CLEAN
+option clean=true
+text Unbelievable??!?!
+sentence Unbelievable??!?!
+end
+
+case pysbd/test_english_clean/099
+lang en
+name TESTS_WITH_CLEAN
+option clean=true
+text This abbreviation f.e. means for example.
+sentence This abbreviation f.e. means for example.
+end
+
+case pysbd/test_english_clean/100
+lang en
+name TESTS_WITH_CLEAN
+option clean=true
+text The med. staff here is very kind.
+sentence The med. staff here is very kind.
+end
+
+case pysbd/test_english_clean/101
+lang en
+name TESTS_WITH_CLEAN
+option clean=true
+text What did you order btw., she wondered.
+sentence What did you order btw., she wondered.
+end
+
+case pysbd/test_english_clean/102
+lang en
+name TESTS_WITH_CLEAN
+option clean=true
+text SEC. 1262 AUTHORIZATION OF APPROPRIATIONS.
+sentence SEC. 1262 AUTHORIZATION OF APPROPRIATIONS.
+end
+
+case pysbd/test_english_clean/103
+lang en
+name TESTS_WITH_CLEAN
+option clean=true
+text a
+sentence a
+end
+
+case pysbd/test_english_clean/104
+lang en
+name TESTS_WITH_CLEAN
+option clean=true
+text I wrote this in the 'nineties.  It has four sentences.  This is the third, isn't it?  And this is the last
+sentence I wrote this in the 'nineties.
+sentence It has four sentences.
+sentence This is the third, isn't it?
+sentence And this is the last
+end
+
+case pysbd/test_english_clean/105
+lang en
+name TESTS_WITH_CLEAN
+option clean=true
+text I wrote this in the ’nineties.  It has four sentences.  This is the third, isn't it?  And this is the last
+sentence I wrote this in the ’nineties.
+sentence It has four sentences.
+sentence This is the third, isn't it?
+sentence And this is the last
+end
+
+case pysbd/test_english_clean/106
+lang en
+name TESTS_WITH_CLEAN
+option clean=true
+text Unlike the abbreviations i.e. and e.g., viz. is used to indicate a detailed description of something stated before.
+sentence Unlike the abbreviations i.e. and e.g., viz. is used to indicate a detailed description of something stated before.
+end
+
+case pysbd/test_english_clean/107
+lang en
+name TESTS_WITH_CLEAN
+option clean=true
+text For example, ‘dragonswort… is said that it should be grown in dragon’s blood. It grows at the tops of mountains where there are groves of trees, chiefly in holy places and in the country that is called Apulia’ (translated by Anne Van Arsdall, in Medieval Herbal Remedies: The Old English Herbarium and Anglo-Saxon Medicine p. 154). The Herbal also includes lore about other plants, such as the mandrake.
+sentence For example, ‘dragonswort… is said that it should be grown in dragon’s blood. It grows at the tops of mountains where there are groves of trees, chiefly in holy places and in the country that is called Apulia’ (translated by Anne Van Arsdall, in Medieval Herbal Remedies: The Old English Herbarium and Anglo-Saxon Medicine p. 154).
+sentence The Herbal also includes lore about other plants, such as the mandrake.
+end
+
+case pysbd/test_english_clean/108
+lang en
+name TESTS_WITH_CLEAN
+option clean=true
+text Here’s the - ahem - official citation: Baker, C., Anderson, Kenneth, Martin, James, & Palen, Leysia. Modeling Open Source Software Communities, ProQuest Dissertations and Theses.
+sentence Here’s the - ahem - official citation: Baker, C., Anderson, Kenneth, Martin, James, & Palen, Leysia.
+sentence Modeling Open Source Software Communities, ProQuest Dissertations and Theses.
+end
+
+case pysbd/test_english_clean/109
+lang en
+name TESTS_WITH_CLEAN
+option clean=true
+text These include images of various modes of transport and members of the team, all available in .jpeg format. Images can be downloaded from our website. We also offer archives as .zip files.
+sentence These include images of various modes of transport and members of the team, all available in .jpeg format.
+sentence Images can be downloaded from our website.
+sentence We also offer archives as .zip files.
+end
+
+case pysbd/test_english_clean/110
+lang en
+name TESTS_WITH_CLEAN
+option clean=true
+text Saint Maximus (died 250) is a Christian saint and martyr.[1] The emperor Decius published a decree ordering the veneration of busts of the deified emperors.
+sentence Saint Maximus (died 250) is a Christian saint and martyr.[1]
+sentence The emperor Decius published a decree ordering the veneration of busts of the deified emperors.
+end
+
+case pysbd/test_english_clean/111
+lang en
+name TESTS_WITH_CLEAN
+option clean=true
+text Differing agendas can potentially create an understanding gap in a consultation.11 12 Take the example of one of the most common presentations in ill health: the common cold.
+sentence Differing agendas can potentially create an understanding gap in a consultation.11 12
+sentence Take the example of one of the most common presentations in ill health: the common cold.
+end
+
+case pysbd/test_english_clean/112
+lang en
+name TESTS_WITH_CLEAN
+option clean=true
+text Daniel Kahneman popularised the concept of fast and slow thinking: the distinction between instinctive (type 1 thinking) and reflective, analytical cognition (type 2).10 This model relates to doctors achieving a balance between efficiency and effectiveness.
+sentence Daniel Kahneman popularised the concept of fast and slow thinking: the distinction between instinctive (type 1 thinking) and reflective, analytical cognition (type 2).10
+sentence This model relates to doctors achieving a balance between efficiency and effectiveness.
+end
+
+case pysbd/test_english_clean/113
+lang en
+name TESTS_WITH_CLEAN
+option clean=true
+text Its traditional use[1] is well documented in the ethnobotanical literature [2–11]. Leaves, buds, tar and essential oils are used to treat a wide spectrum of diseases.
+sentence Its traditional use[1] is well documented in the ethnobotanical literature [2–11].
+sentence Leaves, buds, tar and essential oils are used to treat a wide spectrum of diseases.
+end
+
+case pysbd/test_english_clean/114
+lang en
+name TESTS_WITH_CLEAN
+option clean=true
+text Thus increasing the desire for political reform both in Lancashire and in the country at large.[7][8] This was a serious misdemeanour,[16] encouraging them to declare the assembly illegal as soon as it was announced on 31 July.[17][18] The radicals sought a second opinion on the meeting's legality.
+sentence Thus increasing the desire for political reform both in Lancashire and in the country at large.[7][8]
+sentence This was a serious misdemeanour,[16] encouraging them to declare the assembly illegal as soon as it was announced on 31 July.[17][18]
+sentence The radicals sought a second opinion on the meeting's legality.
+end
+
+case pysbd/test_english_clean/115
+lang en
+name TESTS_WITH_CLEAN
+option clean=true
+text The table in (4) is a sample from the Wall Street Journal (1987).1 According to the distribution all the pairs given in (4) count as candidates for abbreviations.
+sentence The table in (4) is a sample from the Wall Street Journal (1987).1
+sentence According to the distribution all the pairs given in (4) count as candidates for abbreviations.
+end
+
+case pysbd/test_english_clean/116
+lang en
+name TESTS_WITH_CLEAN
+option clean=true
+text DOWN THE RABBIT-HOLE\n\n        Alice was beginning to get very tired of sitting by her sister on the bank, and of having nothing to do. Once or twice she had peeped into the book her sister was reading, but it had no pictures or conversations in it, "and what is the use of a book," thought Alice, "without pictures or conversations?"\n\n        So she was considering in her own mind (as well as she could, for the day made her feel very sleepy and stupid), whether the pleasure of making a daisy-chain would be worth the trouble of getting up and picking the daisies, when suddenly a White Rabbit with pink eyes ran close by her.\n\n        There was nothing so very remarkable in that, nor did Alice think it so very much out of the way to hear the Rabbit say to itself, "Oh dear! Oh dear! I shall be too late!" But when the Rabbit actually took a watch out of its waistcoat-pocket and looked at it and then hurried on, Alice started to her feet, for it flashed across her mind that she had never before seen a rabbit with either a waistcoat-pocket, or a watch to take out of it, and, burning with curiosity, she ran across the field after it and was just in time to see it pop down a large rabbit-hole, under the hedge. In another moment, down went Alice after it!\n\n        The rabbit-hole went straight on like a tunnel for some way and then dipped suddenly down, so suddenly that Alice had not a moment to think about stopping herself before she found herself falling down what seemed to be a very deep well.\n\n        Either the well was very deep, or she fell very slowly, for she had plenty of time, as she went down, to look about her. First, she tried to make out what she was coming to, but it was too dark to see anything; then she looked at the sides of the well and noticed that they were filled with cupboards and book-shelves; here and there she saw maps and pictures hung upon pegs. She took down a jar from one of the shelves as she passed. It was labeled "ORANGE MARMALADE," but, to her great disappointment, it was empty; she did not like to drop the jar, so managed to put it into one of the cupboards as she fell past it.\n\n        Down, down, down! Would the fall never come to an end? There was nothing else to do, so Alice soon began talking to herself. "Dinah'll miss me very much to-night, I should think!" (Dinah was the cat.) "I hope they'll remember her saucer of milk at tea-time. Dinah, my dear, I wish you were down here with me!" Alice felt that she was dozing off, when suddenly, thump! thump! down she came upon a heap of sticks and dry leaves, and the fall was over.\n\n        Alice was not a bit hurt, and she jumped up in a moment. She looked up, but it was all dark overhead; before her was another long passage and the White Rabbit was still in sight, hurrying down it. There was not a moment to be lost. Away went Alice like the wind and was just in time to hear it say, as it turned a corner, "Oh, my ears and whiskers, how late it's getting!" She was close behind it when she turned the corner, but the Rabbit was no longer to be seen.\n\n        She found herself in a long, low hall, which was lit up by a row of lamps hanging from the roof. There were doors all 'round the hall, but they were all locked; and when Alice had been all the way down one side and up the other, trying every door, she walked sadly down the middle, wondering how she was ever to get out again.\n\n        Suddenly she came upon a little table, all made of solid glass. There was nothing on it but a tiny golden key, and Alice's first idea was that this might belong to one of the doors of the hall; but, alas! either the locks were too large, or the key was too small, but, at any rate, it would not open any of them. However, on the second time 'round, she came upon a low curtain she had not noticed before, and behind it was a little door about fifteen inches high. She tried the little golden key in the lock, and to her great delight, it fitted!\n\n        Alice opened the door and found that it led into a small passage, not much larger than a rat-hole; she knelt down and looked along the passage into the loveliest garden you ever saw. How she longed to get out of that dark hall and wander about among those beds of bright flowers and those cool fountains, but she could not even get her head through the doorway. "Oh," said Alice, "how I wish I could shut up like a telescope! I think I could, if I only knew how to begin."\n\n        Alice went back to the table, half hoping she might find another key on it, or at any rate, a book of rules for shutting people up like telescopes. This time she found a little bottle on it ("which certainly was not here before," said Alice), and tied 'round the neck of the bottle was a paper label, with the words "DRINK ME" beautifully printed on it in large letters.\n\n        "No, I'll look first," she said, "and see whether it's marked '_poison_' or not," for she had never forgotten that, if you drink from a bottle marked "poison," it is almost certain to disagree with you, sooner or later. However, this bottle was _not_ marked "poison," so Alice ventured to taste it, and, finding it very nice (it had a sort of mixed flavor of cherry-tart, custard, pineapple, roast turkey, toffy and hot buttered toast), she very soon finished it off.\n\n               *       *       *       *       *\n\n        "What a curious feeling!" said Alice. "I must be shutting up like a telescope!"\n\n        And so it was indeed! She was now only ten inches high, and her face brightened up at the thought that she was now the right size for going through the little door into that lovely garden.\n\n        After awhile, finding that nothing more happened, she decided on going into the garden at once; but, alas for poor Alice! When she got to the door, she found she had forgotten the little golden key, and when she went back to the table for it, she found she could not possibly reach it: she could see it quite plainly through the glass and she tried her best to climb up one of the legs of the table, but it was too slippery, and when she had tired herself out with trying, the poor little thing sat down and cried.\n\n        "Come, there's no use in crying like that!" said Alice to herself rather sharply. "I advise you to leave off this minute!" She generally gave herself very good advice (though she very seldom followed it), and sometimes she scolded herself so severely as to bring tears into her eyes.\n\n        Soon her eye fell on a little glass box that was lying under the table: she opened it and found in it a very small cake, on which the words "EAT ME" were beautifully marked in currants. "Well, I'll eat it," said Alice, "and if it makes me grow larger, I can reach the key; and if it makes me grow smaller, I can creep under the door: so either way I'll get into the garden, and I don't care which happens!"\n\n        She ate a little bit and said anxiously to herself, "Which way? Which way?" holding her hand on the top of her head to feel which way she was growing; and she was quite surprised to find that she remained the same size. So she set to work and very soon finished off the cake.\n\n        II--THE POOL OF TEARS\n\n        "Curiouser and curiouser!" cried Alice (she was so much surprised that for the moment she quite forgot how to speak good English). "Now I'm opening out like the largest telescope that ever was! Good-by, feet! Oh, my poor little feet, I wonder who will put on your shoes and stockings for you now, dears? I shall be a great deal too far off to trouble myself about you."\n\n        Just at this moment her head struck against the roof of the hall; in fact, she was now rather more than nine feet high, and she at once took up the little golden key and hurried off to the garden door.\n\n        Poor Alice! It was as much as she could do, lying down on one side, to look through into the garden with one eye; but to get through was more hopeless than ever. She sat down and began to cry again.\n\n        She went on shedding gallons of tears, until there was a large pool all 'round her and reaching half down the hall.\n\n        After a time, she heard a little pattering of feet in the distance and she hastily dried her eyes to see what was coming. It was the White Rabbit returning, splendidly dressed, with a pair of white kid-gloves in one hand and a large fan in the other. He came trotting along in a great hurry, muttering to himself, "Oh! the Duchess, the Duchess! Oh! _won't_ she be savage if I've kept her waiting!"\n\n        When the Rabbit came near her, Alice began, in a low, timid voice, "If you please, sir--" The Rabbit started violently, dropped the white kid-gloves and the fan and skurried away into the darkness as hard as he could go.\n\n        Alice took up the fan and gloves and she kept fanning herself all the time she went on talking. "Dear, dear! How queer everything is to-day! And yesterday things went on just as usual. _Was_ I the same when I got up this morning? But if I'm not the same, the next question is, 'Who in the world am I?' Ah, _that's_ the great puzzle!"\n\n        As she said this, she looked down at her hands and was surprised to see that she had put on one of the Rabbit's little white kid-gloves while she was talking. "How _can_ I have done that?" she thought. "I must be growing small again." She got up and went to the table to measure herself by it and found that she was now about two feet high and was going on shrinking rapidly. She soon found out that the cause of this was the fan she was holding and she dropped it hastily, just in time to save herself from shrinking away altogether.\n\n        "That _was_ a narrow escape!" said Alice, a good deal frightened at the sudden change, but very glad to find herself still in existence. "And now for the garden!" And she ran with all speed back to the little door; but, alas! the little door was shut again and the little golden key was lying on the glass table as before. "Things are worse than ever," thought the poor child, "for I never was so small as this before, never!"\n\n        As she said these words, her foot slipped, and in another moment, splash! she was up to her chin in salt-water. Her first idea was that she had somehow fallen into the sea. However, she soon made out that she was in the pool of tears which she had wept when she was nine feet high.\n\n        Just then she heard something splashing about in the pool a little way off, and she swam nearer to see what it was: she soon made out that it was only a mouse that had slipped in like herself.\n\n        "Would it be of any use, now," thought Alice, "to speak to this mouse? Everything is so out-of-the-way down here that I should think very likely it can talk; at any rate, there's no harm in trying." So she began, "O Mouse, do you know the way out of this pool? I am very tired of swimming about here, O Mouse!" The Mouse looked at her rather inquisitively and seemed to her to wink with one of its little eyes, but it said nothing.\n\n        "Perhaps it doesn't understand English," thought Alice. "I dare say it's a French mouse, come over with William the Conqueror." So she began again: "Où est ma chatte?" which was the first sentence in her French lesson-book. The Mouse gave a sudden leap out of the water and seemed to quiver all over with fright. "Oh, I beg your pardon!" cried Alice hastily, afraid that she had hurt the poor animal's feelings. "I quite forgot you didn't like cats."\n\n        "Not like cats!" cried the Mouse in a shrill, passionate voice. "Would _you_ like cats, if you were me?"\n\n        "Well, perhaps not," said Alice in a soothing tone; "don't be angry about it. And yet I wish I could show you our cat Dinah. I think you'd take a fancy to cats, if you could only see her. She is such a dear, quiet thing." The Mouse was bristling all over and she felt certain it must be really offended. "We won't talk about her any more, if you'd rather not."\n\n        "We, indeed!" cried the Mouse, who was trembling down to the end of its tail. "As if _I_ would talk on such a subject! Our family always _hated_ cats--nasty, low, vulgar things! Don't let me hear the name again!"\n\n        "I won't indeed!" said Alice, in a great hurry to change the subject of conversation. "Are you--are you fond--of--of dogs? There is such a nice little dog near our house, I should like to show you! It kills all the rats and--oh, dear!" cried Alice in a sorrowful tone. "I'm afraid I've offended it again!" For the Mouse was swimming away from her as hard as it could go, and making quite a commotion in the pool as it went.\n\n        So she called softly after it, "Mouse dear! Do come back again, and we won't talk about cats, or dogs either, if you don't like them!" When the Mouse heard this, it turned 'round and swam slowly back to her; its face was quite pale, and it said, in a low, trembling voice, "Let us get to the shore and then I'll tell you my history and you'll understand why it is I hate cats and dogs."\n\n        It was high time to go, for the pool was getting quite crowded with the birds and animals that had fallen into it; there were a Duck and a Dodo, a Lory and an Eaglet, and several other curious creatures. Alice led the way and the whole party swam to the shore.\n\n        III--A CAUCUS-RACE AND A LONG TALE\n\n        They were indeed a queer-looking party that assembled on the bank--the birds with draggled feathers, the animals with their fur clinging close to them, and all dripping wet, cross and uncomfortable.\n\n        The first question, of course, was how to get dry again. They had a consultation about this and after a few minutes, it seemed quite natural to Alice to find herself talking familiarly with them, as if she had known them all her life.\n\n        At last the Mouse, who seemed to be a person of some authority among them, called out, "Sit down, all of you, and listen to me! _I'll_ soon make you dry enough!" They all sat down at once, in a large ring, with the Mouse in the middle.\n\n        "Ahem!" said the Mouse with an important air. "Are you all ready? This is the driest thing I know. Silence all 'round, if you please! 'William the Conqueror, whose cause was favored by the pope, was soon submitted to by the English, who wanted leaders, and had been of late much accustomed to usurpation and conquest. Edwin and Morcar, the Earls of Mercia and Northumbria'--"\n\n        "Ugh!" said the Lory, with a shiver.\n\n        "--'And even Stigand, the patriotic archbishop of Canterbury, found it advisable'--"\n\n        "Found _what_?" said the Duck.\n\n        "Found _it_," the Mouse replied rather crossly; "of course, you know what 'it' means."\n\n        "I know what 'it' means well enough, when _I_ find a thing," said the Duck; "it's generally a frog or a worm. The question is, what did the archbishop find?"\n\n        The Mouse did not notice this question, but hurriedly went on, "'--found it advisable to go with Edgar Atheling to meet William and offer him the crown.'--How are you getting on now, my dear?" it continued, turning to Alice as it spoke.\n\n        "As wet as ever," said Alice in a melancholy tone; "it doesn't seem to dry me at all."\n\n        "In that case," said the Dodo solemnly, rising to its feet, "I move that the meeting adjourn, for the immediate adoption of more energetic remedies--"\n\n        "Speak English!" said the Eaglet. "I don't know the meaning of half those long words, and, what's more, I don't believe you do either!"\n\n        "What I was going to say," said the Dodo in an offended tone, "is that the best thing to get us dry would be a Caucus-race."\n\n        "What _is_ a Caucus-race?" said Alice.\n\n        "Why," said the Dodo, "the best way to explain it is to do it." First it marked out a race-course, in a sort of circle, and then all the party were placed along the course, here and there. There was no "One, two, three and away!" but they began running when they liked and left off when they liked, so that it was not easy to know when the race was over. However, when they had been running half an hour or so and were quite dry again, the Dodo suddenly called out, "The race is over!" and they all crowded 'round it, panting and asking, "But who has won?"\n\n        This question the Dodo could not answer without a great deal of thought. At last it said, "_Everybody_ has won, and _all_ must have prizes."\n\n        "But who is to give the prizes?" quite a chorus of voices asked.\n\n        "Why, _she_, of course," said the Dodo, pointing to Alice with one finger; and the whole party at once crowded 'round her, calling out, in a confused way, "Prizes! Prizes!"\n\n        Alice had no idea what to do, and in despair she put her hand into her pocket and pulled out a box of comfits (luckily the salt-water had not got into it) and handed them 'round as prizes. There was exactly one a-piece, all 'round.\n\n        The next thing was to eat the comfits; this caused some noise and confusion, as the large birds complained that they could not taste theirs, and the small ones choked and had to be patted on the back. However, it was over at last and they sat down again in a ring and begged the Mouse to tell them something more.\n\n        "You promised to tell me your history, you know," said Alice, "and why it is you hate--C and D," she added in a whisper, half afraid that it would be offended again.\n\n        "Mine is a long and a sad tale!" said the Mouse, turning to Alice and sighing.\n\n        "It _is_ a long tail, certainly," said Alice, looking down with wonder at the Mouse's tail, "but why do you call it sad?" And she kept on puzzling about it while the Mouse was speaking, so that her idea of the tale was something like this:--\n\n        "You are not attending!" said the Mouse to Alice, severely. "What are you thinking of?"\n\n        "I beg your pardon," said Alice very humbly, "you had got to the fifth bend, I think?"\n\n        "You insult me by talking such nonsense!" said the Mouse, getting up and walking away.\n\n        "Please come back and finish your story!" Alice called after it. And the others all joined in chorus, "Yes, please do!" But the Mouse only shook its head impatiently and walked a little quicker.\n\n        "I wish I had Dinah, our cat, here!" said Alice. This caused a remarkable sensation among the party. Some of the birds hurried off at once, and a Canary called out in a trembling voice, to its children, "Come away, my dears! It's high time you were all in bed!" On various pretexts they all moved off and Alice was soon left alone.\n\n        "I wish I hadn't mentioned Dinah! Nobody seems to like her down here and I'm sure she's the best cat in the world!" Poor Alice began to cry again, for she felt very lonely and low-spirited. In a little while, however, she again heard a little pattering of footsteps in the distance and she looked up eagerly.\n\n        IV--THE RABBIT SENDS IN A LITTLE BILL\n\n        It was the White Rabbit, trotting slowly back again and looking anxiously about as it went, as if it had lost something; Alice heard it muttering to itself, "The Duchess! The Duchess! Oh, my dear paws! Oh, my fur and whiskers! She'll get me executed, as sure as ferrets are ferrets! Where _can_ I have dropped them, I wonder?" Alice guessed in a moment that it was looking for the fan and the pair of white kid-gloves and she very good-naturedly began hunting about for them, but they were nowhere to be seen--everything seemed to have changed since her swim in the pool, and the great hall, with the glass table and the little door, had vanished completely.\n\n        Very soon the Rabbit noticed Alice, and called to her, in an angry tone, "Why, Mary Ann, what _are_ you doing out here? Run home this moment and fetch me a pair of gloves and a fan! Quick, now!"\n\n        "He took me for his housemaid!" said Alice, as she ran off. "How surprised he'll be when he finds out who I am!" As she said this, she came upon a neat little house, on the door of which was a bright brass plate with the name "W. RABBIT" engraved upon it. She went in without knocking and hurried upstairs, in great fear lest she should meet the real Mary Ann and be turned out of the house before she had found the fan and gloves.\n\n        By this time, Alice had found her way into a tidy little room with a table in the window, and on it a fan and two or three pairs of tiny white kid-gloves; she took up the fan and a pair of the gloves and was just going to leave the room, when her eyes fell upon a little bottle that stood near the looking-glass. She uncorked it and put it to her lips, saying to herself, "I do hope it'll make me grow large again, for, really, I'm quite tired of being such a tiny little thing!"\n\n        Before she had drunk half the bottle, she found her head pressing against the ceiling, and had to stoop to save her neck from being broken. She hastily put down the bottle, remarking, "That's quite enough--I hope I sha'n't grow any more."\n\n        Alas! It was too late to wish that! She went on growing and growing and very soon she had to kneel down on the floor. Still she went on growing, and, as a last resource, she put one arm out of the window and one foot up the chimney, and said to herself, "Now I can do no more, whatever happens. What _will_ become of me?"\n\n        Luckily for Alice, the little magic bottle had now had its full effect and she grew no larger. After a few minutes she heard a voice outside and stopped to listen.\n\n        "Mary Ann! Mary Ann!" said the voice. "Fetch me my gloves this moment!" Then came a little pattering of feet on the stairs. Alice knew it was the Rabbit coming to look for her and she trembled till she shook the house, quite forgetting that she was now about a thousand times as large as the Rabbit and had no reason to be afraid of it.\n\n        Presently the Rabbit came up to the door and tried to open it; but as the door opened inwards and Alice's elbow was pressed hard against it, that attempt proved a failure. Alice heard it say to itself, "Then I'll go 'round and get in at the window."\n\n        "_That_ you won't!" thought Alice; and after waiting till she fancied she heard the Rabbit just under the window, she suddenly spread out her hand and made a snatch in the air. She did not get hold of anything, but she heard a little shriek and a fall and a crash of broken glass, from which she concluded that it was just possible it had fallen into a cucumber-frame or something of that sort.\n\n        Next came an angry voice--the Rabbit's--"Pat! Pat! Where are you?" And then a voice she had never heard before, "Sure then, I'm here! Digging for apples, yer honor!"\n\n        "Here! Come and help me out of this! Now tell me, Pat, what's that in the window?"\n\n        "Sure, it's an arm, yer honor!"\n\n        "Well, it's got no business there, at any rate; go and take it away!"\n\n        There was a long silence after this and Alice could only hear whispers now and then, and at last she spread out her hand again and made another snatch in the air. This time there were _two_ little shrieks and more sounds of broken glass. "I wonder what they'll do next!" thought Alice. "As for pulling me out of the window, I only wish they _could_!"\n\n        She waited for some time without hearing anything more. At last came a rumbling of little cart-wheels and the sound of a good many voices all talking together. She made out the words: "Where's the other ladder? Bill's got the other--Bill! Here, Bill! Will the roof bear?--Who's to go down the chimney?--Nay, _I_ sha'n't! _You_ do it! Here, Bill! The master says you've got to go down the chimney!"\n\n        Alice drew her foot as far down the chimney as she could and waited till she heard a little animal scratching and scrambling about in the chimney close above her; then she gave one sharp kick and waited to see what would happen next.\n\n        The first thing she heard was a general chorus of "There goes Bill!" then the Rabbit's voice alone--"Catch him, you by the hedge!" Then silence and then another confusion of voices--"Hold up his head--Brandy now--Don't choke him--What happened to you?"\n\n        Last came a little feeble, squeaking voice, "Well, I hardly know--No more, thank ye. I'm better now--all I know is, something comes at me like a Jack-in-the-box and up I goes like a sky-rocket!"\n\n        After a minute or two of silence, they began moving about again, and Alice heard the Rabbit say, "A barrowful will do, to begin with."\n\n        "A barrowful of _what_?" thought Alice. But she had not long to doubt, for the next moment a shower of little pebbles came rattling in at the window and some of them hit her in the face. Alice noticed, with some surprise, that the pebbles were all turning into little cakes as they lay on the floor and a bright idea came into her head. "If I eat one of these cakes," she thought, "it's sure to make _some_ change in my size."\n\n        So she swallowed one of the cakes and was delighted to find that she began shrinking directly. As soon as she was small enough to get through the door, she ran out of the house and found quite a crowd of little animals and birds waiting outside. They all made a rush at Alice the moment she appeared, but she ran off as hard as she could and soon found herself safe in a thick wood.\n\n        "The first thing I've got to do," said Alice to herself, as she wandered about in the wood, "is to grow to my right size again; and the second thing is to find my way into that lovely garden. I suppose I ought to eat or drink something or other, but the great question is 'What?'"\n\n        Alice looked all around her at the flowers and the blades of grass, but she could not see anything that looked like the right thing to eat or drink under the circumstances. There was a large mushroom growing near her, about the same height as herself. She stretched herself up on tiptoe and peeped over the edge and her eyes immediately met those of a large blue caterpillar, that was sitting on the top, with its arms folded, quietly smoking a long hookah and taking not the smallest notice of her or of anything else.\n\n        V--ADVICE FROM A CATERPILLAR\n\n        At last the Caterpillar took the hookah out of its mouth and addressed Alice in a languid, sleepy voice.\n\n        "Who are _you_?" said the Caterpillar.\n\n        Alice replied, rather shyly, "I--I hardly know, sir, just at present--at least I know who I _was_ when I got up this morning, but I think I must have changed several times since then."\n\n        "What do you mean by that?" said the Caterpillar, sternly. "Explain yourself!"\n\n        "I can't explain _myself_, I'm afraid, sir," said Alice, "because I'm not myself, you see--being so many different sizes in a day is very confusing." She drew herself up and said very gravely, "I think you ought to tell me who _you_ are, first."\n\n        "Why?" said the Caterpillar.\n\n        As Alice could not think of any good reason and the Caterpillar seemed to be in a _very_ unpleasant state of mind, she turned away.\n\n        "Come back!" the Caterpillar called after her. "I've something important to say!" Alice turned and came back again.\n\n        "Keep your temper," said the Caterpillar.\n\n        "Is that all?" said Alice, swallowing down her anger as well as she could.\n\n        "No," said the Caterpillar.\n\n        It unfolded its arms, took the hookah out of its mouth again, and said, "So you think you're changed, do you?"\n\n        "I'm afraid, I am, sir," said Alice. "I can't remember things as I used--and I don't keep the same size for ten minutes together!"\n\n        "What size do you want to be?" asked the Caterpillar.\n\n        "Oh, I'm not particular as to size," Alice hastily replied, "only one doesn't like changing so often, you know. I should like to be a _little_ larger, sir, if you wouldn't mind," said Alice. "Three inches is such a wretched height to be."\n\n        "It is a very good height indeed!" said the Caterpillar angrily, rearing itself upright as it spoke (it was exactly three inches high).\n\n        In a minute or two, the Caterpillar got down off the mushroom and crawled away into the grass, merely remarking, as it went, "One side will make you grow taller, and the other side will make you grow shorter."\n\n        "One side of _what_? The other side of _what_?" thought Alice to herself.\n\n        "Of the mushroom," said the Caterpillar, just as if she had asked it aloud; and in another moment, it was out of sight.\n\n        Alice remained looking thoughtfully at the mushroom for a minute, trying to make out which were the two sides of it. At last she stretched her arms 'round it as far as they would go, and broke off a bit of the edge with each hand.\n\n        "And now which is which?" she said to herself, and nibbled a little of the right-hand bit to try the effect. The next moment she felt a violent blow underneath her chin--it had struck her foot!\n\n        She was a good deal frightened by this very sudden change, as she was shrinking rapidly; so she set to work at once to eat some of the other bit. Her chin was pressed so closely against her foot that there was hardly room to open her mouth; but she did it at last and managed to swallow a morsel of the left-hand bit....\n\n        "Come, my head's free at last!" said Alice; but all she could see, when she looked down, was an immense length of neck, which seemed to rise like a stalk out of a sea of green leaves that lay far below her.\n\n        "Where _have_ my shoulders got to? And oh, my poor hands, how is it I can't see you?" She was delighted to find that her neck would bend about easily in any direction, like a serpent. She had just succeeded in curving it down into a graceful zigzag and was going to dive in among the leaves, when a sharp hiss made her draw back in a hurry--a large pigeon had flown into her face and was beating her violently with its wings.\n\n        "Serpent!" cried the Pigeon.\n\n        "I'm _not_ a serpent!" said Alice indignantly. "Let me alone!"\n\n        "I've tried the roots of trees, and I've tried banks, and I've tried hedges," the Pigeon went on, "but those serpents! There's no pleasing them!"\n\n        Alice was more and more puzzled.\n\n        "As if it wasn't trouble enough hatching the eggs," said the Pigeon, "but I must be on the look-out for serpents, night and day! And just as I'd taken the highest tree in the wood," continued the Pigeon, raising its voice to a shriek, "and just as I was thinking I should be free of them at last, they must needs come wriggling down from the sky! Ugh, Serpent!"\n\n        "But I'm _not_ a serpent, I tell you!" said Alice. "I'm a--I'm a--I'm a little girl," she added rather doubtfully, as she remembered the number of changes she had gone through that day.\n\n        "You're looking for eggs, I know _that_ well enough," said the Pigeon; "and what does it matter to me whether you're a little girl or a serpent?"\n\n        "It matters a good deal to _me_," said Alice hastily; "but I'm not looking for eggs, as it happens, and if I was, I shouldn't want _yours_--I don't like them raw."\n\n        "Well, be off, then!" said the Pigeon in a sulky tone, as it settled down again into its nest. Alice crouched down among the trees as well as she could, for her neck kept getting entangled among the branches, and every now and then she had to stop and untwist it. After awhile she remembered that she still held the pieces of mushroom in her hands, and she set to work very carefully, nibbling first at one and then at the other, and growing sometimes taller and sometimes shorter, until she had succeeded in bringing herself down to her usual height.\n\n        It was so long since she had been anything near the right size that it felt quite strange at first. "The next thing is to get into that beautiful garden--how _is_ that to be done, I wonder?" As she said this, she came suddenly upon an open place, with a little house in it about four feet high. "Whoever lives there," thought Alice, "it'll never do to come upon them _this_ size; why, I should frighten them out of their wits!" She did not venture to go near the house till she had brought herself down to nine inches high.\n\n        VI--PIG AND PEPPER\n\n        For a minute or two she stood looking at the house, when suddenly a footman in livery came running out of the wood (judging by his face only, she would have called him a fish)--and rapped loudly at the door with his knuckles. It was opened by another footman in livery, with a round face and large eyes like a frog.\n\n        The Fish-Footman began by producing from under his arm a great letter, and this he handed over to the other, saying, in a solemn tone, "For the Duchess. An invitation from the Queen to play croquet." The Frog-Footman repeated, in the same solemn tone, "From the Queen. An invitation for the Duchess to play croquet." Then they both bowed low and their curls got entangled together.\n\n        When Alice next peeped out, the Fish-Footman was gone, and the other was sitting on the ground near the door, staring stupidly up into the sky. Alice went timidly up to the door and knocked.\n\n        "There's no sort of use in knocking," said the Footman, "and that for two reasons. First, because I'm on the same side of the door as you are; secondly, because they're making such a noise inside, no one could possibly hear you." And certainly there _was_ a most extraordinary noise going on within--a constant howling and sneezing, and every now and then a great crash, as if a dish or kettle had been broken to pieces.\n\n        "How am I to get in?" asked Alice.\n\n        "_Are_ you to get in at all?" said the Footman. "That's the first question, you know."\n\n        Alice opened the door and went in. The door led right into a large kitchen, which was full of smoke from one end to the other; the Duchess was sitting on a three-legged stool in the middle, nursing a baby; the cook was leaning over the fire, stirring a large caldron which seemed to be full of soup.\n\n        "There's certainly too much pepper in that soup!" Alice said to herself, as well as she could for sneezing. Even the Duchess sneezed occasionally; and as for the baby, it was sneezing and howling alternately without a moment's pause. The only two creatures in the kitchen that did _not_ sneeze were the cook and a large cat, which was grinning from ear to ear.\n\n        "Please would you tell me," said Alice, a little timidly, "why your cat grins like that?"\n\n        "It's a Cheshire-Cat," said the Duchess, "and that's why."\n\n        "I didn't know that Cheshire-Cats always grinned; in fact, I didn't know that cats _could_ grin," said Alice.\n\n        "You don't know much," said the Duchess, "and that's a fact."\n\n        Just then the cook took the caldron of soup off the fire, and at once set to work throwing everything within her reach at the Duchess and the baby--the fire-irons came first; then followed a shower of saucepans, plates and dishes. The Duchess took no notice of them, even when they hit her, and the baby was howling so much already that it was quite impossible to say whether the blows hurt it or not.\n\n        "Oh, _please_ mind what you're doing!" cried Alice, jumping up and down in an agony of terror.\n\n        "Here! You may nurse it a bit, if you like!" the Duchess said to Alice, flinging the baby at her as she spoke. "I must go and get ready to play croquet with the Queen," and she hurried out of the room.\n\n        Alice caught the baby with some difficulty, as it was a queer-shaped little creature and held out its arms and legs in all directions. "If I don't take this child away with me," thought Alice, "they're sure to kill it in a day or two. Wouldn't it be murder to leave it behind?" She said the last words out loud and the little thing grunted in reply.\n\n        "If you're going to turn into a pig, my dear," said Alice, "I'll have nothing more to do with you. Mind now!"\n\n        Alice was just beginning to think to herself, "Now, what am I to do with this creature, when I get it home?" when it grunted again so violently that Alice looked down into its face in some alarm. This time there could be _no_ mistake about it--it was neither more nor less than a pig; so she set the little creature down and felt quite relieved to see it trot away quietly into the wood.\n\n        Alice was a little startled by seeing the Cheshire-Cat sitting on a bough of a tree a few yards off. The Cat only grinned when it saw her. "Cheshire-Puss," began Alice, rather timidly, "would you please tell me which way I ought to go from here?"\n\n        "In _that_ direction," the Cat said, waving the right paw 'round, "lives a Hatter; and in _that_ direction," waving the other paw, "lives a March Hare. Visit either you like; they're both mad."\n\n        "But I don't want to go among mad people," Alice remarked.\n\n        "Oh, you can't help that," said the Cat; "we're all mad here. Do you play croquet with the Queen to-day?"\n\n        "I should like it very much," said Alice, "but I haven't been invited yet."\n\n        "You'll see me there," said the Cat, and vanished.\n\n        Alice had not gone much farther before she came in sight of the house of the March Hare; it was so large a house that she did not like to go near till she had nibbled some more of the left-hand bit of mushroom.\n\n        VII--A MAD TEA-PARTY\n\n        There was a table set out under a tree in front of the house, and the March Hare and the Hatter were having tea at it; a Dormouse was sitting between them, fast asleep.\n\n        The table was a large one, but the three were all crowded together at one corner of it. "No room! No room!" they cried out when they saw Alice coming. "There's _plenty_ of room!" said Alice indignantly, and she sat down in a large arm-chair at one end of the table.\n\n        The Hatter opened his eyes very wide on hearing this, but all he said was "Why is a raven like a writing-desk?"\n\n        "I'm glad they've begun asking riddles--I believe I can guess that," she added aloud.\n\n        "Do you mean that you think you can find out the answer to it?" said the March Hare.\n\n        "Exactly so," said Alice.\n\n        "Then you should say what you mean," the March Hare went on.\n\n        "I do," Alice hastily replied; "at least--at least I mean what I say--that's the same thing, you know."\n\n        "You might just as well say," added the Dormouse, which seemed to be talking in its sleep, "that 'I breathe when I sleep' is the same thing as 'I sleep when I breathe!'"\n\n        "It _is_ the same thing with you," said the Hatter, and he poured a little hot tea upon its nose. The Dormouse shook its head impatiently and said, without opening its eyes, "Of course, of course; just what I was going to remark myself."\n\n        "Have you guessed the riddle yet?" the Hatter said, turning to Alice again.\n\n        "No, I give it up," Alice replied. "What's the answer?"\n\n        "I haven't the slightest idea," said the Hatter.\n\n        "Nor I," said the March Hare.\n\n        Alice gave a weary sigh. "I think you might do something better with the time," she said, "than wasting it in asking riddles that have no answers."\n\n        "Take some more tea," the March Hare said to Alice, very earnestly.\n\n        "I've had nothing yet," Alice replied in an offended tone, "so I can't take more."\n\n        "You mean you can't take _less_," said the Hatter; "it's very easy to take _more_ than nothing."\n\n        At this, Alice got up and walked off. The Dormouse fell asleep instantly and neither of the others took the least notice of her going, though she looked back once or twice; the last time she saw them, they were trying to put the Dormouse into the tea-pot.\n\n        "At any rate, I'll never go _there_ again!" said Alice, as she picked her way through the wood. "It's the stupidest tea-party I ever was at in all my life!" Just as she said this, she noticed that one of the trees had a door leading right into it. "That's very curious!" she thought. "I think I may as well go in at once." And in she went.\n\n        Once more she found herself in the long hall and close to the little glass table. Taking the little golden key, she unlocked the door that led into the garden. Then she set to work nibbling at the mushroom (she had kept a piece of it in her pocket) till she was about a foot high; then she walked down the little passage; and _then_--she found herself at last in the beautiful garden, among the bright flower-beds and the cool fountains.\n\n        VIII--THE QUEEN'S CROQUET GROUND\n\n        A large rose-tree stood near the entrance of the garden; the roses growing on it were white, but there were three gardeners at it, busily painting them red. Suddenly their eyes chanced to fall upon Alice, as she stood watching them. "Would you tell me, please," said Alice, a little timidly, "why you are painting those roses?"\n\n        Five and Seven said nothing, but looked at Two. Two began, in a low voice, "Why, the fact is, you see, Miss, this here ought to have been a _red_ rose-tree, and we put a white one in by mistake; and, if the Queen was to find it out, we should all have our heads cut off, you know. So you see, Miss, we're doing our best, afore she comes, to--" At this moment, Five, who had been anxiously looking across the garden, called out, "The Queen! The Queen!" and the three gardeners instantly threw themselves flat upon their faces. There was a sound of many footsteps and Alice looked 'round, eager to see the Queen.\n\n        First came ten soldiers carrying clubs, with their hands and feet at the corners: next the ten courtiers; these were ornamented all over with diamonds. After these came the royal children; there were ten of them, all ornamented with hearts. Next came the guests, mostly Kings and Queens, and among them Alice recognized the White Rabbit. Then followed the Knave of Hearts, carrying the King's crown on a crimson velvet cushion; and last of all this grand procession came THE KING AND THE QUEEN OF HEARTS.\n\n        When the procession came opposite to Alice, they all stopped and looked at her, and the Queen said severely, "Who is this?" She said it to the Knave of Hearts, who only bowed and smiled in reply.\n\n        "My name is Alice, so please Your Majesty," said Alice very politely; but she added to herself, "Why, they're only a pack of cards, after all!"\n\n        "Can you play croquet?" shouted the Queen. The question was evidently meant for Alice.\n\n        "Yes!" said Alice loudly.\n\n        "Come on, then!" roared the Queen.\n\n        "It's--it's a very fine day!" said a timid voice to Alice. She was walking by the White Rabbit, who was peeping anxiously into her face.\n\n        "Very," said Alice. "Where's the Duchess?"\n\n        "Hush! Hush!" said the Rabbit. "She's under sentence of execution."\n\n        "What for?" said Alice.\n\n        "She boxed the Queen's ears--" the Rabbit began.\n\n        "Get to your places!" shouted the Queen in a voice of thunder, and people began running about in all directions, tumbling up against each other. However, they got settled down in a minute or two, and the game began.\n\n        Alice thought she had never seen such a curious croquet-ground in her life; it was all ridges and furrows. The croquet balls were live hedgehogs, and the mallets live flamingos and the soldiers had to double themselves up and stand on their hands and feet, to make the arches.\n\n        The players all played at once, without waiting for turns, quarrelling all the while and fighting for the hedgehogs; and in a very short time, the Queen was in a furious passion and went stamping about and shouting, "Off with his head!" or "Off with her head!" about once in a minute.\n\n        "They're dreadfully fond of beheading people here," thought Alice; "the great wonder is that there's anyone left alive!"\n\n        She was looking about for some way of escape, when she noticed a curious appearance in the air. "It's the Cheshire-Cat," she said to herself; "now I shall have somebody to talk to."\n\n        "How are you getting on?" said the Cat.\n\n        "I don't think they play at all fairly," Alice said, in a rather complaining tone; "and they all quarrel so dreadfully one can't hear oneself speak--and they don't seem to have any rules in particular."\n\n        "How do you like the Queen?" said the Cat in a low voice.\n\n        "Not at all," said Alice.\n\n        Alice thought she might as well go back and see how the game was going on. So she went off in search of her hedgehog. The hedgehog was engaged in a fight with another hedgehog, which seemed to Alice an excellent opportunity for croqueting one of them with the other; the only difficulty was that her flamingo was gone across to the other side of the garden, where Alice could see it trying, in a helpless sort of way, to fly up into a tree. She caught the flamingo and tucked it away under her arm, that it might not escape again.\n\n        Just then Alice ran across the Duchess (who was now out of prison). She tucked her arm affectionately into Alice's and they walked off together. Alice was very glad to find her in such a pleasant temper. She was a little startled, however, when she heard the voice of the Duchess close to her ear. "You're thinking about something, my dear, and that makes you forget to talk."\n\n        "The game's going on rather better now," Alice said, by way of keeping up the conversation a little.\n\n        "'Tis so," said the Duchess; "and the moral of that is--'Oh, 'tis love, 'tis love that makes the world go 'round!'"\n\n        "Somebody said," Alice whispered, "that it's done by everybody minding his own business!"\n\n        "Ah, well! It means much the same thing," said the Duchess, digging her sharp little chin into Alice's shoulder, as she added "and the moral of _that_ is--'Take care of the sense and the sounds will take care of themselves.'"\n\n        To Alice's great surprise, the Duchess's arm that was linked into hers began to tremble. Alice looked up and there stood the Queen in front of them, with her arms folded, frowning like a thunderstorm!\n\n        "Now, I give you fair warning," shouted the Queen, stamping on the ground as she spoke, "either you or your head must be off, and that in about half no time. Take your choice!" The Duchess took her choice, and was gone in a moment.\n\n        "Let's go on with the game," the Queen said to Alice; and Alice was too much frightened to say a word, but slowly followed her back to the croquet-ground.\n\n        All the time they were playing, the Queen never left off quarreling with the other players and shouting, "Off with his head!" or "Off with her head!" By the end of half an hour or so, all the players, except the King, the Queen and Alice, were in custody of the soldiers and under sentence of execution.\n\n        Then the Queen left off, quite out of breath, and walked away with Alice.\n\n        Alice heard the King say in a low voice to the company generally, "You are all pardoned."\n\n        Suddenly the cry "The Trial's beginning!" was heard in the distance, and Alice ran along with the others.\n\n        IX--WHO STOLE THE TARTS?\n\n        The King and Queen of Hearts were seated on their throne when they arrived, with a great crowd assembled about them--all sorts of little birds and beasts, as well as the whole pack of cards: the Knave was standing before them, in chains, with a soldier on each side to guard him; and near the King was the White Rabbit, with a trumpet in one hand and a scroll of parchment in the other. In the very middle of the court was a table, with a large dish of tarts upon it. "I wish they'd get the trial done," Alice thought, "and hand 'round the refreshments!"\n\n        The judge, by the way, was the King and he wore his crown over his great wig. "That's the jury-box," thought Alice; "and those twelve creatures (some were animals and some were birds) I suppose they are the jurors."\n\n        Just then the White Rabbit cried out "Silence in the court!"\n\n        "Herald, read the accusation!" said the King.\n\n        On this, the White Rabbit blew three blasts on the trumpet, then unrolled the parchment-scroll and read as follows:\n\n        "Call the first witness," said the King; and the White Rabbit blew three blasts on the trumpet and called out, "First witness!"\n\n        The first witness was the Hatter. He came in with a teacup in one hand and a piece of bread and butter in the other.\n\n        "You ought to have finished," said the King. "When did you begin?"\n\n        The Hatter looked at the March Hare, who had followed him into the court, arm in arm with the Dormouse. "Fourteenth of March, I _think_ it was," he said.\n\n        "Give your evidence," said the King, "and don't be nervous, or I'll have you executed on the spot."\n\n        This did not seem to encourage the witness at all; he kept shifting from one foot to the other, looking uneasily at the Queen, and, in his confusion, he bit a large piece out of his teacup instead of the bread and butter.\n\n        Just at this moment Alice felt a very curious sensation--she was beginning to grow larger again.\n\n        The miserable Hatter dropped his teacup and bread and butter and went down on one knee. "I'm a poor man, Your Majesty," he began.\n\n        "You're a _very_ poor _speaker_," said the King.\n\n        "You may go," said the King, and the Hatter hurriedly left the court.\n\n        "Call the next witness!" said the King.\n\n        The next witness was the Duchess's cook. She carried the pepper-box in her hand and the people near the door began sneezing all at once.\n\n        "Give your evidence," said the King.\n\n        "Sha'n't," said the cook.\n\n        The King looked anxiously at the White Rabbit, who said, in a low voice, "Your Majesty must cross-examine _this_ witness."\n\n        "Well, if I must, I must," the King said. "What are tarts made of?"\n\n        "Pepper, mostly," said the cook.\n\n        For some minutes the whole court was in confusion and by the time they had settled down again, the cook had disappeared.\n\n        "Never mind!" said the King, "call the next witness."\n\n        Alice watched the White Rabbit as he fumbled over the list. Imagine her surprise when he read out, at the top of his shrill little voice, the name "Alice!"\n\n        X--ALICE'S EVIDENCE\n\n        "Here!" cried Alice. She jumped up in such a hurry that she tipped over the jury-box, upsetting all the jurymen on to the heads of the crowd below.\n\n        "Oh, I _beg_ your pardon!" she exclaimed in a tone of great dismay.\n\n        "The trial cannot proceed," said the King, "until all the jurymen are back in their proper places--_all_," he repeated with great emphasis, looking hard at Alice.\n\n        "What do you know about this business?" the King said to Alice.\n\n        "Nothing whatever," said Alice.\n\n        The King then read from his book: "Rule forty-two. _All persons more than a mile high to leave the court_."\n\n        "_I'm_ not a mile high," said Alice.\n\n        "Nearly two miles high," said the Queen.\n\n        "Well, I sha'n't go, at any rate," said Alice.\n\n        The King turned pale and shut his note-book hastily. "Consider your verdict," he said to the jury, in a low, trembling voice.\n\n        "There's more evidence to come yet, please Your Majesty," said the White Rabbit, jumping up in a great hurry. "This paper has just been picked up. It seems to be a letter written by the prisoner to--to somebody." He unfolded the paper as he spoke and added, "It isn't a letter, after all; it's a set of verses."\n\n        "Please, Your Majesty," said the Knave, "I didn't write it and they can't prove that I did; there's no name signed at the end."\n\n        "You _must_ have meant some mischief, or else you'd have signed your name like an honest man," said the King. There was a general clapping of hands at this.\n\n        "Read them," he added, turning to the White Rabbit.\n\n        There was dead silence in the court whilst the White Rabbit read out the verses.\n\n        "That's the most important piece of evidence we've heard yet," said the King.\n\n        "_I_ don't believe there's an atom of meaning in it," ventured Alice.\n\n        "If there's no meaning in it," said the King, "that saves a world of trouble, you know, as we needn't try to find any. Let the jury consider their verdict."\n\n        "No, no!" said the Queen. "Sentence first--verdict afterwards."\n\n        "Stuff and nonsense!" said Alice loudly. "The idea of having the sentence first!"\n\n        "Hold your tongue!" said the Queen, turning purple.\n\n        "I won't!" said Alice.\n\n        "Off with her head!" the Queen shouted at the top of her voice. Nobody moved.\n\n        "Who cares for _you_?" said Alice (she had grown to her full size by this time). "You're nothing but a pack of cards!"\n\n        At this, the whole pack rose up in the air and came flying down upon her; she gave a little scream, half of fright and half of anger, and tried to beat them off, and found herself lying on the bank, with her head in the lap of her sister, who was gently brushing away some dead leaves that had fluttered down from the trees upon her face.\n\n        "Wake up, Alice dear!" said her sister. "Why, what a long sleep you've had!"\n\n        "Oh, I've had such a curious dream!" said Alice. And she told her sister, as well as she could remember them, all these strange adventures of hers that you have just been reading about. Alice got up and ran off, thinking while she ran, as well she might, what a wonderful dream it had been.
+sentence DOWN THE RABBIT-HOLE
+sentence Alice was beginning to get very tired of sitting by her sister on the bank, and of having nothing to do.
+sentence Once or twice she had peeped into the book her sister was reading, but it had no pictures or conversations in it, "and what is the use of a book," thought Alice, "without pictures or conversations?"
+sentence So she was considering in her own mind (as well as she could, for the day made her feel very sleepy and stupid), whether the pleasure of making a daisy-chain would be worth the trouble of getting up and picking the daisies, when suddenly a White Rabbit with pink eyes ran close by her.
+sentence There was nothing so very remarkable in that, nor did Alice think it so very much out of the way to hear the Rabbit say to itself, "Oh dear! Oh dear! I shall be too late!"
+sentence But when the Rabbit actually took a watch out of its waistcoat-pocket and looked at it and then hurried on, Alice started to her feet, for it flashed across her mind that she had never before seen a rabbit with either a waistcoat-pocket, or a watch to take out of it, and, burning with curiosity, she ran across the field after it and was just in time to see it pop down a large rabbit-hole, under the hedge.
+sentence In another moment, down went Alice after it!
+sentence The rabbit-hole went straight on like a tunnel for some way and then dipped suddenly down, so suddenly that Alice had not a moment to think about stopping herself before she found herself falling down what seemed to be a very deep well.
+sentence Either the well was very deep, or she fell very slowly, for she had plenty of time, as she went down, to look about her.
+sentence First, she tried to make out what she was coming to, but it was too dark to see anything; then she looked at the sides of the well and noticed that they were filled with cupboards and book-shelves; here and there she saw maps and pictures hung upon pegs.
+sentence She took down a jar from one of the shelves as she passed.
+sentence It was labeled "ORANGE MARMALADE," but, to her great disappointment, it was empty; she did not like to drop the jar, so managed to put it into one of the cupboards as she fell past it.
+sentence Down, down, down!
+sentence Would the fall never come to an end?
+sentence There was nothing else to do, so Alice soon began talking to herself.
+sentence "Dinah'll miss me very much to-night, I should think!"
+sentence (Dinah was the cat.)
+sentence "I hope they'll remember her saucer of milk at tea-time. Dinah, my dear, I wish you were down here with me!"
+sentence Alice felt that she was dozing off, when suddenly, thump! thump! down she came upon a heap of sticks and dry leaves, and the fall was over.
+sentence Alice was not a bit hurt, and she jumped up in a moment.
+sentence She looked up, but it was all dark overhead; before her was another long passage and the White Rabbit was still in sight, hurrying down it.
+sentence There was not a moment to be lost.
+sentence Away went Alice like the wind and was just in time to hear it say, as it turned a corner, "Oh, my ears and whiskers, how late it's getting!"
+sentence She was close behind it when she turned the corner, but the Rabbit was no longer to be seen.
+sentence She found herself in a long, low hall, which was lit up by a row of lamps hanging from the roof.
+sentence There were doors all 'round the hall, but they were all locked; and when Alice had been all the way down one side and up the other, trying every door, she walked sadly down the middle, wondering how she was ever to get out again.
+sentence Suddenly she came upon a little table, all made of solid glass.
+sentence There was nothing on it but a tiny golden key, and Alice's first idea was that this might belong to one of the doors of the hall; but, alas! either the locks were too large, or the key was too small, but, at any rate, it would not open any of them.
+sentence However, on the second time 'round, she came upon a low curtain she had not noticed before, and behind it was a little door about fifteen inches high.
+sentence She tried the little golden key in the lock, and to her great delight, it fitted!
+sentence Alice opened the door and found that it led into a small passage, not much larger than a rat-hole; she knelt down and looked along the passage into the loveliest garden you ever saw.
+sentence How she longed to get out of that dark hall and wander about among those beds of bright flowers and those cool fountains, but she could not even get her head through the doorway.
+sentence "Oh," said Alice, "how I wish I could shut up like a telescope! I think I could, if I only knew how to begin."
+sentence Alice went back to the table, half hoping she might find another key on it, or at any rate, a book of rules for shutting people up like telescopes.
+sentence This time she found a little bottle on it ("which certainly was not here before," said Alice), and tied 'round the neck of the bottle was a paper label, with the words "DRINK ME" beautifully printed on it in large letters.
+sentence "No, I'll look first," she said, "and see whether it's marked '_poison_' or not," for she had never forgotten that, if you drink from a bottle marked "poison," it is almost certain to disagree with you, sooner or later.
+sentence However, this bottle was _not_ marked "poison," so Alice ventured to taste it, and, finding it very nice (it had a sort of mixed flavor of cherry-tart, custard, pineapple, roast turkey, toffy and hot buttered toast), she very soon finished it off.
+sentence *       *       *       *       *
+sentence "What a curious feeling!" said Alice.
+sentence "I must be shutting up like a telescope!"
+sentence And so it was indeed!
+sentence She was now only ten inches high, and her face brightened up at the thought that she was now the right size for going through the little door into that lovely garden.
+sentence After awhile, finding that nothing more happened, she decided on going into the garden at once; but, alas for poor Alice!
+sentence When she got to the door, she found she had forgotten the little golden key, and when she went back to the table for it, she found she could not possibly reach it: she could see it quite plainly through the glass and she tried her best to climb up one of the legs of the table, but it was too slippery, and when she had tired herself out with trying, the poor little thing sat down and cried.
+sentence "Come, there's no use in crying like that!" said Alice to herself rather sharply.
+sentence "I advise you to leave off this minute!"
+sentence She generally gave herself very good advice (though she very seldom followed it), and sometimes she scolded herself so severely as to bring tears into her eyes.
+sentence Soon her eye fell on a little glass box that was lying under the table: she opened it and found in it a very small cake, on which the words "EAT ME" were beautifully marked in currants.
+sentence "Well, I'll eat it," said Alice, "and if it makes me grow larger, I can reach the key; and if it makes me grow smaller, I can creep under the door: so either way I'll get into the garden, and I don't care which happens!"
+sentence She ate a little bit and said anxiously to herself, "Which way? Which way?" holding her hand on the top of her head to feel which way she was growing; and she was quite surprised to find that she remained the same size.
+sentence So she set to work and very soon finished off the cake.
+sentence II--THE POOL OF TEARS
+sentence "Curiouser and curiouser!" cried Alice (she was so much surprised that for the moment she quite forgot how to speak good English).
+sentence "Now I'm opening out like the largest telescope that ever was! Good-by, feet! Oh, my poor little feet, I wonder who will put on your shoes and stockings for you now, dears? I shall be a great deal too far off to trouble myself about you."
+sentence Just at this moment her head struck against the roof of the hall; in fact, she was now rather more than nine feet high, and she at once took up the little golden key and hurried off to the garden door.
+sentence Poor Alice!
+sentence It was as much as she could do, lying down on one side, to look through into the garden with one eye; but to get through was more hopeless than ever.
+sentence She sat down and began to cry again.
+sentence She went on shedding gallons of tears, until there was a large pool all 'round her and reaching half down the hall.
+sentence After a time, she heard a little pattering of feet in the distance and she hastily dried her eyes to see what was coming.
+sentence It was the White Rabbit returning, splendidly dressed, with a pair of white kid-gloves in one hand and a large fan in the other.
+sentence He came trotting along in a great hurry, muttering to himself, "Oh! the Duchess, the Duchess! Oh! _won't_ she be savage if I've kept her waiting!"
+sentence When the Rabbit came near her, Alice began, in a low, timid voice, "If you please, sir--"
+sentence The Rabbit started violently, dropped the white kid-gloves and the fan and skurried away into the darkness as hard as he could go.
+sentence Alice took up the fan and gloves and she kept fanning herself all the time she went on talking.
+sentence "Dear, dear! How queer everything is to-day! And yesterday things went on just as usual. _Was_ I the same when I got up this morning? But if I'm not the same, the next question is, 'Who in the world am I?' Ah, _that's_ the great puzzle!"
+sentence As she said this, she looked down at her hands and was surprised to see that she had put on one of the Rabbit's little white kid-gloves while she was talking.
+sentence "How _can_ I have done that?" she thought.
+sentence "I must be growing small again."
+sentence She got up and went to the table to measure herself by it and found that she was now about two feet high and was going on shrinking rapidly.
+sentence She soon found out that the cause of this was the fan she was holding and she dropped it hastily, just in time to save herself from shrinking away altogether.
+sentence "That _was_ a narrow escape!" said Alice, a good deal frightened at the sudden change, but very glad to find herself still in existence.
+sentence "And now for the garden!"
+sentence And she ran with all speed back to the little door; but, alas! the little door was shut again and the little golden key was lying on the glass table as before.
+sentence "Things are worse than ever," thought the poor child, "for I never was so small as this before, never!"
+sentence As she said these words, her foot slipped, and in another moment, splash! she was up to her chin in salt-water.
+sentence Her first idea was that she had somehow fallen into the sea.
+sentence However, she soon made out that she was in the pool of tears which she had wept when she was nine feet high.
+sentence Just then she heard something splashing about in the pool a little way off, and she swam nearer to see what it was: she soon made out that it was only a mouse that had slipped in like herself.
+sentence "Would it be of any use, now," thought Alice, "to speak to this mouse? Everything is so out-of-the-way down here that I should think very likely it can talk; at any rate, there's no harm in trying."
+sentence So she began, "O Mouse, do you know the way out of this pool? I am very tired of swimming about here, O Mouse!"
+sentence The Mouse looked at her rather inquisitively and seemed to her to wink with one of its little eyes, but it said nothing.
+sentence "Perhaps it doesn't understand English," thought Alice.
+sentence "I dare say it's a French mouse, come over with William the Conqueror."
+sentence So she began again: "Où est ma chatte?" which was the first sentence in her French lesson-book.
+sentence The Mouse gave a sudden leap out of the water and seemed to quiver all over with fright.
+sentence "Oh, I beg your pardon!" cried Alice hastily, afraid that she had hurt the poor animal's feelings.
+sentence "I quite forgot you didn't like cats."
+sentence "Not like cats!" cried the Mouse in a shrill, passionate voice.
+sentence "Would _you_ like cats, if you were me?"
+sentence "Well, perhaps not," said Alice in a soothing tone; "don't be angry about it. And yet I wish I could show you our cat Dinah. I think you'd take a fancy to cats, if you could only see her. She is such a dear, quiet thing."
+sentence The Mouse was bristling all over and she felt certain it must be really offended.
+sentence "We won't talk about her any more, if you'd rather not."
+sentence "We, indeed!" cried the Mouse, who was trembling down to the end of its tail.
+sentence "As if _I_ would talk on such a subject! Our family always _hated_ cats--nasty, low, vulgar things! Don't let me hear the name again!"
+sentence "I won't indeed!" said Alice, in a great hurry to change the subject of conversation.
+sentence "Are you--are you fond--of--of dogs? There is such a nice little dog near our house, I should like to show you! It kills all the rats and--oh, dear!" cried Alice in a sorrowful tone.
+sentence "I'm afraid I've offended it again!"
+sentence For the Mouse was swimming away from her as hard as it could go, and making quite a commotion in the pool as it went.
+sentence So she called softly after it, "Mouse dear! Do come back again, and we won't talk about cats, or dogs either, if you don't like them!"
+sentence When the Mouse heard this, it turned 'round and swam slowly back to her; its face was quite pale, and it said, in a low, trembling voice, "Let us get to the shore and then I'll tell you my history and you'll understand why it is I hate cats and dogs."
+sentence It was high time to go, for the pool was getting quite crowded with the birds and animals that had fallen into it; there were a Duck and a Dodo, a Lory and an Eaglet, and several other curious creatures.
+sentence Alice led the way and the whole party swam to the shore.
+sentence III--A CAUCUS-RACE AND A LONG TALE
+sentence They were indeed a queer-looking party that assembled on the bank--the birds with draggled feathers, the animals with their fur clinging close to them, and all dripping wet, cross and uncomfortable.
+sentence The first question, of course, was how to get dry again.
+sentence They had a consultation about this and after a few minutes, it seemed quite natural to Alice to find herself talking familiarly with them, as if she had known them all her life.
+sentence At last the Mouse, who seemed to be a person of some authority among them, called out, "Sit down, all of you, and listen to me! _I'll_ soon make you dry enough!"
+sentence They all sat down at once, in a large ring, with the Mouse in the middle.
+sentence "Ahem!" said the Mouse with an important air.
+sentence "Are you all ready? This is the driest thing I know. Silence all 'round, if you please! 'William the Conqueror, whose cause was favored by the pope, was soon submitted to by the English, who wanted leaders, and had been of late much accustomed to usurpation and conquest. Edwin and Morcar, the Earls of Mercia and Northumbria'--"
+sentence "Ugh!" said the Lory, with a shiver.
+sentence "--'And even Stigand, the patriotic archbishop of Canterbury, found it advisable'--"
+sentence "Found _what_?" said the Duck.
+sentence "Found _it_," the Mouse replied rather crossly; "of course, you know what 'it' means."
+sentence "I know what 'it' means well enough, when _I_ find a thing," said the Duck; "it's generally a frog or a worm. The question is, what did the archbishop find?"
+sentence The Mouse did not notice this question, but hurriedly went on, "'--found it advisable to go with Edgar Atheling to meet William and offer him the crown.'--How are you getting on now, my dear?" it continued, turning to Alice as it spoke.
+sentence "As wet as ever," said Alice in a melancholy tone; "it doesn't seem to dry me at all."
+sentence "In that case," said the Dodo solemnly, rising to its feet, "I move that the meeting adjourn, for the immediate adoption of more energetic remedies--"
+sentence "Speak English!" said the Eaglet.
+sentence "I don't know the meaning of half those long words, and, what's more, I don't believe you do either!"
+sentence "What I was going to say," said the Dodo in an offended tone, "is that the best thing to get us dry would be a Caucus-race."
+sentence "What _is_ a Caucus-race?" said Alice.
+sentence "Why," said the Dodo, "the best way to explain it is to do it."
+sentence First it marked out a race-course, in a sort of circle, and then all the party were placed along the course, here and there.
+sentence There was no "One, two, three and away!" but they began running when they liked and left off when they liked, so that it was not easy to know when the race was over.
+sentence However, when they had been running half an hour or so and were quite dry again, the Dodo suddenly called out, "The race is over!" and they all crowded 'round it, panting and asking, "But who has won?"
+sentence This question the Dodo could not answer without a great deal of thought.
+sentence At last it said, "_Everybody_ has won, and _all_ must have prizes."
+sentence "But who is to give the prizes?" quite a chorus of voices asked.
+sentence "Why, _she_, of course," said the Dodo, pointing to Alice with one finger; and the whole party at once crowded 'round her, calling out, in a confused way, "Prizes! Prizes!"
+sentence Alice had no idea what to do, and in despair she put her hand into her pocket and pulled out a box of comfits (luckily the salt-water had not got into it) and handed them 'round as prizes.
+sentence There was exactly one a-piece, all 'round.
+sentence The next thing was to eat the comfits; this caused some noise and confusion, as the large birds complained that they could not taste theirs, and the small ones choked and had to be patted on the back.
+sentence However, it was over at last and they sat down again in a ring and begged the Mouse to tell them something more.
+sentence "You promised to tell me your history, you know," said Alice, "and why it is you hate--C and D," she added in a whisper, half afraid that it would be offended again.
+sentence "Mine is a long and a sad tale!" said the Mouse, turning to Alice and sighing.
+sentence "It _is_ a long tail, certainly," said Alice, looking down with wonder at the Mouse's tail, "but why do you call it sad?"
+sentence And she kept on puzzling about it while the Mouse was speaking, so that her idea of the tale was something like this:--
+sentence "You are not attending!" said the Mouse to Alice, severely.
+sentence "What are you thinking of?"
+sentence "I beg your pardon," said Alice very humbly, "you had got to the fifth bend, I think?"
+sentence "You insult me by talking such nonsense!" said the Mouse, getting up and walking away.
+sentence "Please come back and finish your story!"
+sentence Alice called after it.
+sentence And the others all joined in chorus, "Yes, please do!"
+sentence But the Mouse only shook its head impatiently and walked a little quicker.
+sentence "I wish I had Dinah, our cat, here!" said Alice.
+sentence This caused a remarkable sensation among the party.
+sentence Some of the birds hurried off at once, and a Canary called out in a trembling voice, to its children, "Come away, my dears! It's high time you were all in bed!"
+sentence On various pretexts they all moved off and Alice was soon left alone.
+sentence "I wish I hadn't mentioned Dinah! Nobody seems to like her down here and I'm sure she's the best cat in the world!"
+sentence Poor Alice began to cry again, for she felt very lonely and low-spirited.
+sentence In a little while, however, she again heard a little pattering of footsteps in the distance and she looked up eagerly.
+sentence IV--THE RABBIT SENDS IN A LITTLE BILL
+sentence It was the White Rabbit, trotting slowly back again and looking anxiously about as it went, as if it had lost something; Alice heard it muttering to itself, "The Duchess! The Duchess! Oh, my dear paws! Oh, my fur and whiskers! She'll get me executed, as sure as ferrets are ferrets! Where _can_ I have dropped them, I wonder?"
+sentence Alice guessed in a moment that it was looking for the fan and the pair of white kid-gloves and she very good-naturedly began hunting about for them, but they were nowhere to be seen--everything seemed to have changed since her swim in the pool, and the great hall, with the glass table and the little door, had vanished completely.
+sentence Very soon the Rabbit noticed Alice, and called to her, in an angry tone, "Why, Mary Ann, what _are_ you doing out here? Run home this moment and fetch me a pair of gloves and a fan! Quick, now!"
+sentence "He took me for his housemaid!" said Alice, as she ran off.
+sentence "How surprised he'll be when he finds out who I am!"
+sentence As she said this, she came upon a neat little house, on the door of which was a bright brass plate with the name "W. RABBIT" engraved upon it.
+sentence She went in without knocking and hurried upstairs, in great fear lest she should meet the real Mary Ann and be turned out of the house before she had found the fan and gloves.
+sentence By this time, Alice had found her way into a tidy little room with a table in the window, and on it a fan and two or three pairs of tiny white kid-gloves; she took up the fan and a pair of the gloves and was just going to leave the room, when her eyes fell upon a little bottle that stood near the looking-glass.
+sentence She uncorked it and put it to her lips, saying to herself, "I do hope it'll make me grow large again, for, really, I'm quite tired of being such a tiny little thing!"
+sentence Before she had drunk half the bottle, she found her head pressing against the ceiling, and had to stoop to save her neck from being broken.
+sentence She hastily put down the bottle, remarking, "That's quite enough--I hope I sha'n't grow any more."
+sentence Alas!
+sentence It was too late to wish that!
+sentence She went on growing and growing and very soon she had to kneel down on the floor.
+sentence Still she went on growing, and, as a last resource, she put one arm out of the window and one foot up the chimney, and said to herself, "Now I can do no more, whatever happens. What _will_ become of me?"
+sentence Luckily for Alice, the little magic bottle had now had its full effect and she grew no larger.
+sentence After a few minutes she heard a voice outside and stopped to listen.
+sentence "Mary Ann! Mary Ann!" said the voice.
+sentence "Fetch me my gloves this moment!"
+sentence Then came a little pattering of feet on the stairs.
+sentence Alice knew it was the Rabbit coming to look for her and she trembled till she shook the house, quite forgetting that she was now about a thousand times as large as the Rabbit and had no reason to be afraid of it.
+sentence Presently the Rabbit came up to the door and tried to open it; but as the door opened inwards and Alice's elbow was pressed hard against it, that attempt proved a failure.
+sentence Alice heard it say to itself, "Then I'll go 'round and get in at the window."
+sentence "_That_ you won't!" thought Alice; and after waiting till she fancied she heard the Rabbit just under the window, she suddenly spread out her hand and made a snatch in the air.
+sentence She did not get hold of anything, but she heard a little shriek and a fall and a crash of broken glass, from which she concluded that it was just possible it had fallen into a cucumber-frame or something of that sort.
+sentence Next came an angry voice--the Rabbit's--"Pat! Pat! Where are you?"
+sentence And then a voice she had never heard before, "Sure then, I'm here! Digging for apples, yer honor!"
+sentence "Here! Come and help me out of this! Now tell me, Pat, what's that in the window?"
+sentence "Sure, it's an arm, yer honor!"
+sentence "Well, it's got no business there, at any rate; go and take it away!"
+sentence There was a long silence after this and Alice could only hear whispers now and then, and at last she spread out her hand again and made another snatch in the air.
+sentence This time there were _two_ little shrieks and more sounds of broken glass.
+sentence "I wonder what they'll do next!" thought Alice.
+sentence "As for pulling me out of the window, I only wish they _could_!"
+sentence She waited for some time without hearing anything more.
+sentence At last came a rumbling of little cart-wheels and the sound of a good many voices all talking together.
+sentence She made out the words: "Where's the other ladder? Bill's got the other--Bill! Here, Bill! Will the roof bear?--Who's to go down the chimney?--Nay, _I_ sha'n't! _You_ do it! Here, Bill! The master says you've got to go down the chimney!"
+sentence Alice drew her foot as far down the chimney as she could and waited till she heard a little animal scratching and scrambling about in the chimney close above her; then she gave one sharp kick and waited to see what would happen next.
+sentence The first thing she heard was a general chorus of "There goes Bill!" then the Rabbit's voice alone--"Catch him, you by the hedge!"
+sentence Then silence and then another confusion of voices--"Hold up his head--Brandy now--Don't choke him--What happened to you?"
+sentence Last came a little feeble, squeaking voice, "Well, I hardly know--No more, thank ye. I'm better now--all I know is, something comes at me like a Jack-in-the-box and up I goes like a sky-rocket!"
+sentence After a minute or two of silence, they began moving about again, and Alice heard the Rabbit say, "A barrowful will do, to begin with."
+sentence "A barrowful of _what_?" thought Alice.
+sentence But she had not long to doubt, for the next moment a shower of little pebbles came rattling in at the window and some of them hit her in the face.
+sentence Alice noticed, with some surprise, that the pebbles were all turning into little cakes as they lay on the floor and a bright idea came into her head.
+sentence "If I eat one of these cakes," she thought, "it's sure to make _some_ change in my size."
+sentence So she swallowed one of the cakes and was delighted to find that she began shrinking directly.
+sentence As soon as she was small enough to get through the door, she ran out of the house and found quite a crowd of little animals and birds waiting outside.
+sentence They all made a rush at Alice the moment she appeared, but she ran off as hard as she could and soon found herself safe in a thick wood.
+sentence "The first thing I've got to do," said Alice to herself, as she wandered about in the wood, "is to grow to my right size again; and the second thing is to find my way into that lovely garden. I suppose I ought to eat or drink something or other, but the great question is 'What?'"
+sentence Alice looked all around her at the flowers and the blades of grass, but she could not see anything that looked like the right thing to eat or drink under the circumstances.
+sentence There was a large mushroom growing near her, about the same height as herself.
+sentence She stretched herself up on tiptoe and peeped over the edge and her eyes immediately met those of a large blue caterpillar, that was sitting on the top, with its arms folded, quietly smoking a long hookah and taking not the smallest notice of her or of anything else.
+sentence V--ADVICE FROM A CATERPILLAR
+sentence At last the Caterpillar took the hookah out of its mouth and addressed Alice in a languid, sleepy voice.
+sentence "Who are _you_?" said the Caterpillar.
+sentence Alice replied, rather shyly, "I--I hardly know, sir, just at present--at least I know who I _was_ when I got up this morning, but I think I must have changed several times since then."
+sentence "What do you mean by that?" said the Caterpillar, sternly.
+sentence "Explain yourself!"
+sentence "I can't explain _myself_, I'm afraid, sir," said Alice, "because I'm not myself, you see--being so many different sizes in a day is very confusing."
+sentence She drew herself up and said very gravely, "I think you ought to tell me who _you_ are, first."
+sentence "Why?" said the Caterpillar.
+sentence As Alice could not think of any good reason and the Caterpillar seemed to be in a _very_ unpleasant state of mind, she turned away.
+sentence "Come back!" the Caterpillar called after her.
+sentence "I've something important to say!"
+sentence Alice turned and came back again.
+sentence "Keep your temper," said the Caterpillar.
+sentence "Is that all?" said Alice, swallowing down her anger as well as she could.
+sentence "No," said the Caterpillar.
+sentence It unfolded its arms, took the hookah out of its mouth again, and said, "So you think you're changed, do you?"
+sentence "I'm afraid, I am, sir," said Alice.
+sentence "I can't remember things as I used--and I don't keep the same size for ten minutes together!"
+sentence "What size do you want to be?" asked the Caterpillar.
+sentence "Oh, I'm not particular as to size," Alice hastily replied, "only one doesn't like changing so often, you know. I should like to be a _little_ larger, sir, if you wouldn't mind," said Alice.
+sentence "Three inches is such a wretched height to be."
+sentence "It is a very good height indeed!" said the Caterpillar angrily, rearing itself upright as it spoke (it was exactly three inches high).
+sentence In a minute or two, the Caterpillar got down off the mushroom and crawled away into the grass, merely remarking, as it went, "One side will make you grow taller, and the other side will make you grow shorter."
+sentence "One side of _what_? The other side of _what_?" thought Alice to herself.
+sentence "Of the mushroom," said the Caterpillar, just as if she had asked it aloud; and in another moment, it was out of sight.
+sentence Alice remained looking thoughtfully at the mushroom for a minute, trying to make out which were the two sides of it.
+sentence At last she stretched her arms 'round it as far as they would go, and broke off a bit of the edge with each hand.
+sentence "And now which is which?" she said to herself, and nibbled a little of the right-hand bit to try the effect.
+sentence The next moment she felt a violent blow underneath her chin--it had struck her foot!
+sentence She was a good deal frightened by this very sudden change, as she was shrinking rapidly; so she set to work at once to eat some of the other bit.
+sentence Her chin was pressed so closely against her foot that there was hardly room to open her mouth; but she did it at last and managed to swallow a morsel of the left-hand bit....
+sentence "Come, my head's free at last!" said Alice; but all she could see, when she looked down, was an immense length of neck, which seemed to rise like a stalk out of a sea of green leaves that lay far below her.
+sentence "Where _have_ my shoulders got to? And oh, my poor hands, how is it I can't see you?"
+sentence She was delighted to find that her neck would bend about easily in any direction, like a serpent.
+sentence She had just succeeded in curving it down into a graceful zigzag and was going to dive in among the leaves, when a sharp hiss made her draw back in a hurry--a large pigeon had flown into her face and was beating her violently with its wings.
+sentence "Serpent!" cried the Pigeon.
+sentence "I'm _not_ a serpent!" said Alice indignantly.
+sentence "Let me alone!"
+sentence "I've tried the roots of trees, and I've tried banks, and I've tried hedges," the Pigeon went on, "but those serpents! There's no pleasing them!"
+sentence Alice was more and more puzzled.
+sentence "As if it wasn't trouble enough hatching the eggs," said the Pigeon, "but I must be on the look-out for serpents, night and day! And just as I'd taken the highest tree in the wood," continued the Pigeon, raising its voice to a shriek, "and just as I was thinking I should be free of them at last, they must needs come wriggling down from the sky! Ugh, Serpent!"
+sentence "But I'm _not_ a serpent, I tell you!" said Alice.
+sentence "I'm a--I'm a--I'm a little girl," she added rather doubtfully, as she remembered the number of changes she had gone through that day.
+sentence "You're looking for eggs, I know _that_ well enough," said the Pigeon; "and what does it matter to me whether you're a little girl or a serpent?"
+sentence "It matters a good deal to _me_," said Alice hastily; "but I'm not looking for eggs, as it happens, and if I was, I shouldn't want _yours_--I don't like them raw."
+sentence "Well, be off, then!" said the Pigeon in a sulky tone, as it settled down again into its nest.
+sentence Alice crouched down among the trees as well as she could, for her neck kept getting entangled among the branches, and every now and then she had to stop and untwist it.
+sentence After awhile she remembered that she still held the pieces of mushroom in her hands, and she set to work very carefully, nibbling first at one and then at the other, and growing sometimes taller and sometimes shorter, until she had succeeded in bringing herself down to her usual height.
+sentence It was so long since she had been anything near the right size that it felt quite strange at first.
+sentence "The next thing is to get into that beautiful garden--how _is_ that to be done, I wonder?"
+sentence As she said this, she came suddenly upon an open place, with a little house in it about four feet high.
+sentence "Whoever lives there," thought Alice, "it'll never do to come upon them _this_ size; why, I should frighten them out of their wits!"
+sentence She did not venture to go near the house till she had brought herself down to nine inches high.
+sentence VI--PIG AND PEPPER
+sentence For a minute or two she stood looking at the house, when suddenly a footman in livery came running out of the wood (judging by his face only, she would have called him a fish)--and rapped loudly at the door with his knuckles.
+sentence It was opened by another footman in livery, with a round face and large eyes like a frog.
+sentence The Fish-Footman began by producing from under his arm a great letter, and this he handed over to the other, saying, in a solemn tone, "For the Duchess. An invitation from the Queen to play croquet."
+sentence The Frog-Footman repeated, in the same solemn tone, "From the Queen. An invitation for the Duchess to play croquet."
+sentence Then they both bowed low and their curls got entangled together.
+sentence When Alice next peeped out, the Fish-Footman was gone, and the other was sitting on the ground near the door, staring stupidly up into the sky.
+sentence Alice went timidly up to the door and knocked.
+sentence "There's no sort of use in knocking," said the Footman, "and that for two reasons. First, because I'm on the same side of the door as you are; secondly, because they're making such a noise inside, no one could possibly hear you."
+sentence And certainly there _was_ a most extraordinary noise going on within--a constant howling and sneezing, and every now and then a great crash, as if a dish or kettle had been broken to pieces.
+sentence "How am I to get in?" asked Alice.
+sentence "_Are_ you to get in at all?" said the Footman.
+sentence "That's the first question, you know."
+sentence Alice opened the door and went in.
+sentence The door led right into a large kitchen, which was full of smoke from one end to the other; the Duchess was sitting on a three-legged stool in the middle, nursing a baby; the cook was leaning over the fire, stirring a large caldron which seemed to be full of soup.
+sentence "There's certainly too much pepper in that soup!"
+sentence Alice said to herself, as well as she could for sneezing.
+sentence Even the Duchess sneezed occasionally; and as for the baby, it was sneezing and howling alternately without a moment's pause.
+sentence The only two creatures in the kitchen that did _not_ sneeze were the cook and a large cat, which was grinning from ear to ear.
+sentence "Please would you tell me," said Alice, a little timidly, "why your cat grins like that?"
+sentence "It's a Cheshire-Cat," said the Duchess, "and that's why."
+sentence "I didn't know that Cheshire-Cats always grinned; in fact, I didn't know that cats _could_ grin," said Alice.
+sentence "You don't know much," said the Duchess, "and that's a fact."
+sentence Just then the cook took the caldron of soup off the fire, and at once set to work throwing everything within her reach at the Duchess and the baby--the fire-irons came first; then followed a shower of saucepans, plates and dishes.
+sentence The Duchess took no notice of them, even when they hit her, and the baby was howling so much already that it was quite impossible to say whether the blows hurt it or not.
+sentence "Oh, _please_ mind what you're doing!" cried Alice, jumping up and down in an agony of terror.
+sentence "Here! You may nurse it a bit, if you like!" the Duchess said to Alice, flinging the baby at her as she spoke.
+sentence "I must go and get ready to play croquet with the Queen," and she hurried out of the room.
+sentence Alice caught the baby with some difficulty, as it was a queer-shaped little creature and held out its arms and legs in all directions.
+sentence "If I don't take this child away with me," thought Alice, "they're sure to kill it in a day or two. Wouldn't it be murder to leave it behind?"
+sentence She said the last words out loud and the little thing grunted in reply.
+sentence "If you're going to turn into a pig, my dear," said Alice, "I'll have nothing more to do with you. Mind now!"
+sentence Alice was just beginning to think to herself, "Now, what am I to do with this creature, when I get it home?" when it grunted again so violently that Alice looked down into its face in some alarm.
+sentence This time there could be _no_ mistake about it--it was neither more nor less than a pig; so she set the little creature down and felt quite relieved to see it trot away quietly into the wood.
+sentence Alice was a little startled by seeing the Cheshire-Cat sitting on a bough of a tree a few yards off.
+sentence The Cat only grinned when it saw her.
+sentence "Cheshire-Puss," began Alice, rather timidly, "would you please tell me which way I ought to go from here?"
+sentence "In _that_ direction," the Cat said, waving the right paw 'round, "lives a Hatter; and in _that_ direction," waving the other paw, "lives a March Hare. Visit either you like; they're both mad."
+sentence "But I don't want to go among mad people," Alice remarked.
+sentence "Oh, you can't help that," said the Cat; "we're all mad here. Do you play croquet with the Queen to-day?"
+sentence "I should like it very much," said Alice, "but I haven't been invited yet."
+sentence "You'll see me there," said the Cat, and vanished.
+sentence Alice had not gone much farther before she came in sight of the house of the March Hare; it was so large a house that she did not like to go near till she had nibbled some more of the left-hand bit of mushroom.
+sentence VII--A MAD TEA-PARTY
+sentence There was a table set out under a tree in front of the house, and the March Hare and the Hatter were having tea at it; a Dormouse was sitting between them, fast asleep.
+sentence The table was a large one, but the three were all crowded together at one corner of it.
+sentence "No room! No room!" they cried out when they saw Alice coming.
+sentence "There's _plenty_ of room!" said Alice indignantly, and she sat down in a large arm-chair at one end of the table.
+sentence The Hatter opened his eyes very wide on hearing this, but all he said was "Why is a raven like a writing-desk?"
+sentence "I'm glad they've begun asking riddles--I believe I can guess that," she added aloud.
+sentence "Do you mean that you think you can find out the answer to it?" said the March Hare.
+sentence "Exactly so," said Alice.
+sentence "Then you should say what you mean," the March Hare went on.
+sentence "I do," Alice hastily replied; "at least--at least I mean what I say--that's the same thing, you know."
+sentence "You might just as well say," added the Dormouse, which seemed to be talking in its sleep, "that 'I breathe when I sleep' is the same thing as 'I sleep when I breathe!'"
+sentence "It _is_ the same thing with you," said the Hatter, and he poured a little hot tea upon its nose.
+sentence The Dormouse shook its head impatiently and said, without opening its eyes, "Of course, of course; just what I was going to remark myself."
+sentence "Have you guessed the riddle yet?" the Hatter said, turning to Alice again.
+sentence "No, I give it up," Alice replied.
+sentence "What's the answer?"
+sentence "I haven't the slightest idea," said the Hatter.
+sentence "Nor I," said the March Hare.
+sentence Alice gave a weary sigh.
+sentence "I think you might do something better with the time," she said, "than wasting it in asking riddles that have no answers."
+sentence "Take some more tea," the March Hare said to Alice, very earnestly.
+sentence "I've had nothing yet," Alice replied in an offended tone, "so I can't take more."
+sentence "You mean you can't take _less_," said the Hatter; "it's very easy to take _more_ than nothing."
+sentence At this, Alice got up and walked off.
+sentence The Dormouse fell asleep instantly and neither of the others took the least notice of her going, though she looked back once or twice; the last time she saw them, they were trying to put the Dormouse into the tea-pot.
+sentence "At any rate, I'll never go _there_ again!" said Alice, as she picked her way through the wood.
+sentence "It's the stupidest tea-party I ever was at in all my life!"
+sentence Just as she said this, she noticed that one of the trees had a door leading right into it.
+sentence "That's very curious!" she thought.
+sentence "I think I may as well go in at once."
+sentence And in she went.
+sentence Once more she found herself in the long hall and close to the little glass table.
+sentence Taking the little golden key, she unlocked the door that led into the garden.
+sentence Then she set to work nibbling at the mushroom (she had kept a piece of it in her pocket) till she was about a foot high; then she walked down the little passage; and _then_--she found herself at last in the beautiful garden, among the bright flower-beds and the cool fountains.
+sentence VIII--THE QUEEN'S CROQUET GROUND
+sentence A large rose-tree stood near the entrance of the garden; the roses growing on it were white, but there were three gardeners at it, busily painting them red.
+sentence Suddenly their eyes chanced to fall upon Alice, as she stood watching them.
+sentence "Would you tell me, please," said Alice, a little timidly, "why you are painting those roses?"
+sentence Five and Seven said nothing, but looked at Two.
+sentence Two began, in a low voice, "Why, the fact is, you see, Miss, this here ought to have been a _red_ rose-tree, and we put a white one in by mistake; and, if the Queen was to find it out, we should all have our heads cut off, you know. So you see, Miss, we're doing our best, afore she comes, to--"
+sentence At this moment, Five, who had been anxiously looking across the garden, called out, "The Queen! The Queen!" and the three gardeners instantly threw themselves flat upon their faces.
+sentence There was a sound of many footsteps and Alice looked 'round, eager to see the Queen.
+sentence First came ten soldiers carrying clubs, with their hands and feet at the corners: next the ten courtiers; these were ornamented all over with diamonds.
+sentence After these came the royal children; there were ten of them, all ornamented with hearts.
+sentence Next came the guests, mostly Kings and Queens, and among them Alice recognized the White Rabbit.
+sentence Then followed the Knave of Hearts, carrying the King's crown on a crimson velvet cushion; and last of all this grand procession came THE KING AND THE QUEEN OF HEARTS.
+sentence When the procession came opposite to Alice, they all stopped and looked at her, and the Queen said severely, "Who is this?"
+sentence She said it to the Knave of Hearts, who only bowed and smiled in reply.
+sentence "My name is Alice, so please Your Majesty," said Alice very politely; but she added to herself, "Why, they're only a pack of cards, after all!"
+sentence "Can you play croquet?" shouted the Queen.
+sentence The question was evidently meant for Alice.
+sentence "Yes!" said Alice loudly.
+sentence "Come on, then!" roared the Queen.
+sentence "It's--it's a very fine day!" said a timid voice to Alice.
+sentence She was walking by the White Rabbit, who was peeping anxiously into her face.
+sentence "Very," said Alice.
+sentence "Where's the Duchess?"
+sentence "Hush! Hush!" said the Rabbit.
+sentence "She's under sentence of execution."
+sentence "What for?" said Alice.
+sentence "She boxed the Queen's ears--" the Rabbit began.
+sentence "Get to your places!" shouted the Queen in a voice of thunder, and people began running about in all directions, tumbling up against each other.
+sentence However, they got settled down in a minute or two, and the game began.
+sentence Alice thought she had never seen such a curious croquet-ground in her life; it was all ridges and furrows.
+sentence The croquet balls were live hedgehogs, and the mallets live flamingos and the soldiers had to double themselves up and stand on their hands and feet, to make the arches.
+sentence The players all played at once, without waiting for turns, quarrelling all the while and fighting for the hedgehogs; and in a very short time, the Queen was in a furious passion and went stamping about and shouting, "Off with his head!" or "Off with her head!" about once in a minute.
+sentence "They're dreadfully fond of beheading people here," thought Alice; "the great wonder is that there's anyone left alive!"
+sentence She was looking about for some way of escape, when she noticed a curious appearance in the air.
+sentence "It's the Cheshire-Cat," she said to herself; "now I shall have somebody to talk to."
+sentence "How are you getting on?" said the Cat.
+sentence "I don't think they play at all fairly," Alice said, in a rather complaining tone; "and they all quarrel so dreadfully one can't hear oneself speak--and they don't seem to have any rules in particular."
+sentence "How do you like the Queen?" said the Cat in a low voice.
+sentence "Not at all," said Alice.
+sentence Alice thought she might as well go back and see how the game was going on.
+sentence So she went off in search of her hedgehog.
+sentence The hedgehog was engaged in a fight with another hedgehog, which seemed to Alice an excellent opportunity for croqueting one of them with the other; the only difficulty was that her flamingo was gone across to the other side of the garden, where Alice could see it trying, in a helpless sort of way, to fly up into a tree.
+sentence She caught the flamingo and tucked it away under her arm, that it might not escape again.
+sentence Just then Alice ran across the Duchess (who was now out of prison).
+sentence She tucked her arm affectionately into Alice's and they walked off together.
+sentence Alice was very glad to find her in such a pleasant temper.
+sentence She was a little startled, however, when she heard the voice of the Duchess close to her ear.
+sentence "You're thinking about something, my dear, and that makes you forget to talk."
+sentence "The game's going on rather better now," Alice said, by way of keeping up the conversation a little.
+sentence "'Tis so," said the Duchess; "and the moral of that is--'Oh, 'tis love, 'tis love that makes the world go 'round!'"
+sentence "Somebody said," Alice whispered, "that it's done by everybody minding his own business!"
+sentence "Ah, well! It means much the same thing," said the Duchess, digging her sharp little chin into Alice's shoulder, as she added "and the moral of _that_ is--'Take care of the sense and the sounds will take care of themselves.'"
+sentence To Alice's great surprise, the Duchess's arm that was linked into hers began to tremble.
+sentence Alice looked up and there stood the Queen in front of them, with her arms folded, frowning like a thunderstorm!
+sentence "Now, I give you fair warning," shouted the Queen, stamping on the ground as she spoke, "either you or your head must be off, and that in about half no time. Take your choice!"
+sentence The Duchess took her choice, and was gone in a moment.
+sentence "Let's go on with the game," the Queen said to Alice; and Alice was too much frightened to say a word, but slowly followed her back to the croquet-ground.
+sentence All the time they were playing, the Queen never left off quarreling with the other players and shouting, "Off with his head!" or "Off with her head!"
+sentence By the end of half an hour or so, all the players, except the King, the Queen and Alice, were in custody of the soldiers and under sentence of execution.
+sentence Then the Queen left off, quite out of breath, and walked away with Alice.
+sentence Alice heard the King say in a low voice to the company generally, "You are all pardoned."
+sentence Suddenly the cry "The Trial's beginning!" was heard in the distance, and Alice ran along with the others.
+sentence IX--WHO STOLE THE TARTS?
+sentence The King and Queen of Hearts were seated on their throne when they arrived, with a great crowd assembled about them--all sorts of little birds and beasts, as well as the whole pack of cards: the Knave was standing before them, in chains, with a soldier on each side to guard him; and near the King was the White Rabbit, with a trumpet in one hand and a scroll of parchment in the other.
+sentence In the very middle of the court was a table, with a large dish of tarts upon it.
+sentence "I wish they'd get the trial done," Alice thought, "and hand 'round the refreshments!"
+sentence The judge, by the way, was the King and he wore his crown over his great wig.
+sentence "That's the jury-box," thought Alice; "and those twelve creatures (some were animals and some were birds) I suppose they are the jurors."
+sentence Just then the White Rabbit cried out "Silence in the court!"
+sentence "Herald, read the accusation!" said the King.
+sentence On this, the White Rabbit blew three blasts on the trumpet, then unrolled the parchment-scroll and read as follows:
+sentence "Call the first witness," said the King; and the White Rabbit blew three blasts on the trumpet and called out, "First witness!"
+sentence The first witness was the Hatter.
+sentence He came in with a teacup in one hand and a piece of bread and butter in the other.
+sentence "You ought to have finished," said the King.
+sentence "When did you begin?"
+sentence The Hatter looked at the March Hare, who had followed him into the court, arm in arm with the Dormouse.
+sentence "Fourteenth of March, I _think_ it was," he said.
+sentence "Give your evidence," said the King, "and don't be nervous, or I'll have you executed on the spot."
+sentence This did not seem to encourage the witness at all; he kept shifting from one foot to the other, looking uneasily at the Queen, and, in his confusion, he bit a large piece out of his teacup instead of the bread and butter.
+sentence Just at this moment Alice felt a very curious sensation--she was beginning to grow larger again.
+sentence The miserable Hatter dropped his teacup and bread and butter and went down on one knee.
+sentence "I'm a poor man, Your Majesty," he began.
+sentence "You're a _very_ poor _speaker_," said the King.
+sentence "You may go," said the King, and the Hatter hurriedly left the court.
+sentence "Call the next witness!" said the King.
+sentence The next witness was the Duchess's cook.
+sentence She carried the pepper-box in her hand and the people near the door began sneezing all at once.
+sentence "Give your evidence," said the King.
+sentence "Sha'n't," said the cook.
+sentence The King looked anxiously at the White Rabbit, who said, in a low voice, "Your Majesty must cross-examine _this_ witness."
+sentence "Well, if I must, I must," the King said.
+sentence "What are tarts made of?"
+sentence "Pepper, mostly," said the cook.
+sentence For some minutes the whole court was in confusion and by the time they had settled down again, the cook had disappeared.
+sentence "Never mind!" said the King, "call the next witness."
+sentence Alice watched the White Rabbit as he fumbled over the list.
+sentence Imagine her surprise when he read out, at the top of his shrill little voice, the name "Alice!"
+sentence X--ALICE'S EVIDENCE
+sentence "Here!" cried Alice.
+sentence She jumped up in such a hurry that she tipped over the jury-box, upsetting all the jurymen on to the heads of the crowd below.
+sentence "Oh, I _beg_ your pardon!" she exclaimed in a tone of great dismay.
+sentence "The trial cannot proceed," said the King, "until all the jurymen are back in their proper places--_all_," he repeated with great emphasis, looking hard at Alice.
+sentence "What do you know about this business?" the King said to Alice.
+sentence "Nothing whatever," said Alice.
+sentence The King then read from his book: "Rule forty-two. _All persons more than a mile high to leave the court_."
+sentence "_I'm_ not a mile high," said Alice.
+sentence "Nearly two miles high," said the Queen.
+sentence "Well, I sha'n't go, at any rate," said Alice.
+sentence The King turned pale and shut his note-book hastily.
+sentence "Consider your verdict," he said to the jury, in a low, trembling voice.
+sentence "There's more evidence to come yet, please Your Majesty," said the White Rabbit, jumping up in a great hurry.
+sentence "This paper has just been picked up. It seems to be a letter written by the prisoner to--to somebody."
+sentence He unfolded the paper as he spoke and added, "It isn't a letter, after all; it's a set of verses."
+sentence "Please, Your Majesty," said the Knave, "I didn't write it and they can't prove that I did; there's no name signed at the end."
+sentence "You _must_ have meant some mischief, or else you'd have signed your name like an honest man," said the King.
+sentence There was a general clapping of hands at this.
+sentence "Read them," he added, turning to the White Rabbit.
+sentence There was dead silence in the court whilst the White Rabbit read out the verses.
+sentence "That's the most important piece of evidence we've heard yet," said the King.
+sentence "_I_ don't believe there's an atom of meaning in it," ventured Alice.
+sentence "If there's no meaning in it," said the King, "that saves a world of trouble, you know, as we needn't try to find any. Let the jury consider their verdict."
+sentence "No, no!" said the Queen.
+sentence "Sentence first--verdict afterwards."
+sentence "Stuff and nonsense!" said Alice loudly.
+sentence "The idea of having the sentence first!"
+sentence "Hold your tongue!" said the Queen, turning purple.
+sentence "I won't!" said Alice.
+sentence "Off with her head!" the Queen shouted at the top of her voice.
+sentence Nobody moved.
+sentence "Who cares for _you_?" said Alice (she had grown to her full size by this time).
+sentence "You're nothing but a pack of cards!"
+sentence At this, the whole pack rose up in the air and came flying down upon her; she gave a little scream, half of fright and half of anger, and tried to beat them off, and found herself lying on the bank, with her head in the lap of her sister, who was gently brushing away some dead leaves that had fluttered down from the trees upon her face.
+sentence "Wake up, Alice dear!" said her sister.
+sentence "Why, what a long sleep you've had!"
+sentence "Oh, I've had such a curious dream!" said Alice.
+sentence And she told her sister, as well as she could remember them, all these strange adventures of hers that you have just been reading about.
+sentence Alice got up and ran off, thinking while she ran, as well she might, what a wonderful dream it had been.
+end
+
+case pysbd/test_english_clean/117
+lang en
+name TESTS_WO_CLEAN
+option clean=false
+text He has Ph.D.-level training
+sentence He has Ph.D.-level training
+end
+
+case pysbd/test_english_clean/118
+lang en
+name TESTS_WO_CLEAN
+option clean=false
+text He has Ph.D. level training
+sentence He has Ph.D. level training
+end
+
+case pysbd/test_english_clean/119
+lang en
+name TESTS_WO_CLEAN
+option clean=false
+text I will be paid Rs. 16720/- in total for the time spent and the inconvenience caused to me, only after completion of all aspects of the study.
+sentence I will be paid Rs. 16720/- in total for the time spent and the inconvenience caused to me, only after completion of all aspects of the study.
+end
+
+case pysbd/test_english_clean/120
+lang en
+name TESTS_WO_CLEAN
+option clean=false
+text If I decide to withdraw from the study for other reasons, I will be paid only up to the extent of my participation amount according to the approved procedure of Apotex BEC. If I complete all aspects in Period 1, I will be paid Rs. 3520 and if I complete all aspects in Period 1 and Period 2, I will be paid Rs. 7790 and if I complete all aspects in Period 1, Period 2 and Period 3, I will be paid Rs. 12060 at the end of the study.
+sentence If I decide to withdraw from the study for other reasons, I will be paid only up to the extent of my participation amount according to the approved procedure of Apotex BEC.
+sentence If I complete all aspects in Period 1, I will be paid Rs. 3520 and if I complete all aspects in Period 1 and Period 2, I will be paid Rs. 7790 and if I complete all aspects in Period 1, Period 2 and Period 3, I will be paid Rs. 12060 at the end of the study.
+end
+
+case pysbd/test_english_clean/121
+lang en
+name TESTS_WO_CLEAN
+option clean=false
+text After completion of each Period, I will be paid an advance amount of rs. 1000 and this amount will be deducted from my final study compensation.
+sentence After completion of each Period, I will be paid an advance amount of rs. 1000 and this amount will be deducted from my final study compensation.
+end
+
+case pysbd/test_english_clean/122
+lang en
+name TESTS_WO_CLEAN
+option clean=false
+text Mix it, put it in the oven, and -- voila! -- you have cake.
+sentence Mix it, put it in the oven, and -- voila! -- you have cake.
+end
+
+case pysbd/test_english_clean/123
+lang en
+name TESTS_WO_CLEAN
+option clean=false
+text Some can be -- if I may say so? -- a bit questionable.
+sentence Some can be -- if I may say so? -- a bit questionable.
+end
+
+case pysbd/test_english_clean/124
+lang en
+name TESTS_WO_CLEAN
+option clean=false
+text What do you see? - Posted like silent sentinels all around the town, stand thousands upon thousands of mortal men fixed in ocean reveries.
+sentence What do you see?
+sentence - Posted like silent sentinels all around the town, stand thousands upon thousands of mortal men fixed in ocean reveries.
+end
+
+case pysbd/test_english_clean/125
+lang en
+name TESTS_WO_CLEAN
+option clean=false
+text In placebo-controlled studies of all uses of Tracleer, marked decreases in hemoglobin (>15% decrease from baseline resulting in values <11 g/ dL) were observed in 6% of Tracleer-treated patients and 3% of placebo-treated patients. Bosentan is highly bound (>98%) to plasma proteins, mainly albumin.
+sentence In placebo-controlled studies of all uses of Tracleer, marked decreases in hemoglobin (>15% decrease from baseline resulting in values <11 g/ dL) were observed in 6% of Tracleer-treated patients and 3% of placebo-treated patients.
+sentence Bosentan is highly bound (>98%) to plasma proteins, mainly albumin.
+end
+
+case pysbd/test_english_clean/126
+lang en
+name TESTS_WO_CLEAN
+option clean=false
+text The parties to this Agreement are PragmaticSegmenterExampleCompanyA Inc. (“Company A”), and PragmaticSegmenterExampleCompanyB Inc. (“Company B”).
+sentence The parties to this Agreement are PragmaticSegmenterExampleCompanyA Inc. (“Company A”), and PragmaticSegmenterExampleCompanyB Inc. (“Company B”).
+end

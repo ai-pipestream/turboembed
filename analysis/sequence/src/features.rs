@@ -169,8 +169,9 @@ impl Features {
 
     /// Feature `i` with every UTF-16 code unit outside U+0020..U+007E,
     /// and the backslash, written as `\uXXXX` (upper case hex), and the
-    /// tab, line feed and carriage return as `\t`, `\n` and `\r`. This is
-    /// how the golden files write strings.
+    /// tab, line feed and carriage return as `\t`, `\n` and `\r`: the
+    /// escaping the tag dictionary goldens hash a dictionary's words and
+    /// tags in, and the tests compare and print features in.
     pub fn escaped(&self, i: usize) -> String {
         let mut out = String::new();
         for unit in utf16_units(self.get(i)) {
@@ -250,7 +251,7 @@ mod tests {
     }
 
     #[test]
-    fn escaping_matches_the_golden_files() {
+    fn escaping_writes_each_unit_outside_printable_ascii_in_hex() {
         let mut f = Features::new();
         f.add("a\\b\t\n\r~\u{7F}\u{1F600}");
         assert_eq!(f.escaped(0), "a\\\\b\\t\\n\\r~\\u007F\\uD83D\\uDE00");

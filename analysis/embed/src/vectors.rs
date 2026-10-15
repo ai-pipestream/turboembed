@@ -325,14 +325,14 @@ impl VectorAnnotator {
     /// ends before it starts.
     fn output_for(&self, annotator: &'static str, i: &Input<'_>) -> Result<Output, Error> {
         let fail = |detail: String| Err(Error::Annotator { annotator, detail });
+        let (starts, ends) = i.subwords.spans.columns();
+        if let Some(k) = starts.iter().zip(ends).position(|(s, e)| s > e) {
+            return fail(format!("subword {k} ends before it starts: {}..{}", starts[k], ends[k]));
+        }
         // The subwords' own check: an id per piece, starts and ends in
         // text order, which the binary searches over them rely on.
         if let Err(e) = i.subwords.check() {
             return fail(format!("the subwords: {e}"));
-        }
-        let (starts, ends) = i.subwords.spans.columns();
-        if let Some(k) = starts.iter().zip(ends).position(|(s, e)| s > e) {
-            return fail(format!("subword {k} ends before it starts: {}..{}", starts[k], ends[k]));
         }
         // The levels' own check: a parent for every unit, before it and
         // around it, which placing each unit in its parent relies on.
