@@ -171,3 +171,31 @@ pub fn rewrite_document(root: &Path, header: &str, pool: &[&str], sentences: &[u
     let name = path.file_stem().unwrap().to_str().unwrap().to_owned();
     write_document(path.parent().unwrap(), &name, pool, sentences);
 }
+
+/// Makes the Penn token of quark `quark` of the document whose header is
+/// `header` (relative to `root`) cover that quark and the two after it,
+/// whose own tokens are left as they are, so they lie inside it: a
+/// sentence whose tokens are out of text order, as MASC 3.0.0's Penn layer
+/// has once (`non-deterministic` over three quarks and `-` over the
+/// second).
+pub fn nest_token(root: &Path, header: &str, quark: usize) {
+    let header = root.join(header);
+    let name = header.file_stem().unwrap().to_str().unwrap();
+    let penn = header.with_file_name(format!("{name}-penn.xml"));
+    let xml = std::fs::read_to_string(&penn).unwrap();
+    let one = format!("<link targets=\"seg-r{quark}\"/>");
+    let three = format!("<link targets=\"seg-r{quark} seg-r{} seg-r{}\"/>", quark + 1, quark + 2);
+    assert_eq!(xml.matches(&one).count(), 1, "{}", penn.display());
+    std::fs::write(&penn, xml.replace(&one, &three)).unwrap();
+}
+
+/// Gives the header `header` (relative to `root`) a `textClass` naming the
+/// categories `cat_ref` of MASC's taxonomy, as MASC's headers do (`WR TW`
+/// for a document of the Twitter genre).
+pub fn set_text_class(root: &Path, header: &str, cat_ref: &str) {
+    let path = root.join(header);
+    let xml = std::fs::read_to_string(&path).unwrap();
+    let text_class = format!("<profileDesc>\n    <textClass catRef=\"{cat_ref}\"><domain>Test</domain></textClass>");
+    assert_eq!(xml.matches("<profileDesc>").count(), 1, "{}", path.display());
+    std::fs::write(&path, xml.replace("<profileDesc>", &text_class)).unwrap();
+}

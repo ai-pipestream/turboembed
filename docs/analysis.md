@@ -2070,12 +2070,27 @@ trained on MASC 3.0.0 (CC BY 3.0 US), gated against
   dataset and read from its extracted directory with the MASC reader of
   `turbo-formats`; it is not checked in. The digest of the directory
   (`masc::corpus_digest`, a `sha256sum` manifest of every file) must be
-  the recorded one. The release's digests are not recorded yet: MASC could
-  not be downloaded where the recipes were written, so `masc::RELEASE`
-  is `NotRecorded`, nothing is fetched, and a run needs `--unrecorded-corpus`
-  and marks its cards as not a release.
+  the recorded one. `masc::RELEASE` records the archive
+  `MASC-3.0.0.zip`, a release asset of `github.com/nancyide/anc-website`
+  (tag `datasets-2026-09-25`), as downloaded and checked: 36,358,521
+  bytes, SHA-256
+  `0b300d96016233c7c79b43559b477a6bb0ed16bb416d5c517eccb108a6228493`, and
+  the digest of the `MASC-3.0.0` directory it extracts to
+  (`445449f535cac62e74b2712ad975d7b727e72b8276720dd27492266565ae0afd`, 4,425
+  files). That anc.org's MASC download page links to the asset was
+  reported but not checked: anc.org could not be reached from the
+  machine the recipes were run on. A run on any other directory needs `--unrecorded-corpus` and
+  marks its cards as not a release.
 - The split: the documents in the order the reader reads them; every
-  tenth, from the tenth, is held out. No randomness, so no seed.
+  tenth, from the tenth, is held out. No randomness, so no seed. A
+  corpus with a document the reader skips is refused, since the skip
+  would move the documents after it. MASC's Twitter genre (the
+  documents whose header's `textClass` names the category `TW`, the two
+  of `data/written/twitter`) is left out of both sides, as Kristian
+  Rickert decided on 2026-10-15: whether Twitter's terms reach the
+  tweets is not settled, and the licence policy refuses data under a
+  platform's terms. The places count every document read, so no other
+  document changes side, and the card lists the documents left out.
 - The training: the factory defaults and the settings of the UD 1.3
   models (GIS, 300 iterations, cutoff 5, 4 threads, OpenNLP 2.5.4's
   whitespace, 10 sentences per sentence detector sample, the default
@@ -2087,25 +2102,35 @@ trained on MASC 3.0.0 (CC BY 3.0 US), gated against
   descriptor), so its gate compares data and settings together. The
   token stream skips a sentence without a sample alone
   (`EmptySentence::Skipped`) rather than end the corpus there as
-  OpenNLP's does, and the tagger's skips a sentence with a token without
-  a tag, or with no token, alone rather than throw. Held-out sentences
-  are skipped the same way; the card records both counts, and a recipe
-  fails when its reader skips more than one sentence in a thousand on
-  either side. The manifest's `Timestamp` is fixed, so a run gives the
-  same bytes.
+  OpenNLP's does, and a sentence whose tokens are out of text order (a
+  token inside another, which MASC 3.0.0 has once) alone, which the
+  port's `TokSpanEventStream` refuses; the tagger's skips a sentence
+  with a token without a tag, or with no token, alone rather than
+  throw. Held-out sentences are skipped the same way; the card records
+  both counts, and a recipe fails when its reader skips more than one
+  sentence in a thousand on either side. The manifest's `Timestamp` is
+  fixed, so a run gives the same bytes.
 - The gate: both models scored with OpenNLP's `SentenceDetectorEvaluator`,
   `TokenizerEvaluator` and `POSEvaluator` on the same held-out samples,
   gated by `turbo_eval::model_gate`. MASC's tags are Penn tags, so the
   tagger's reference is OpenNLP's English maxent tagger trained on Penn
   tags, `en-pos-maxent.bin` of the 1.5 models, scored in its own
-  outcomes. The tags are compared in its spelling where MASC writes them
-  another way (`(` and `)` for `-LRB-` and `-RRB-`; `-`, `...` and `;`
-  for `:`), over the held-out tokens whose tag it can give: the others,
-  6 of the 85,292 tokens of MASC 3.0.0's held-out documents, are left
-  out of both models' scores and listed on the card, and more than one
-  in a thousand fails the recipe. Its training data is not published
-  and the zoo does not list it; the recipe records its size and
-  SHA-256, reads it only to score it, and never ships or bundles it. The
+  outcomes. The trained model's tags are compared with the held-out
+  tags as written; the reference's through a mapping of its tags
+  (`postag::REFERENCE_MAPPINGS`) where MASC follows another convention
+  (`-LRB-` and `-RRB-` for MASC's `(` and `)`; `:` for MASC's `-`,
+  `...` and `;`; ``` `` ``` for an opening quotation mark, which MASC tags
+  `''`). The mapping is by tag, so it also counts the reference's
+  ``` `` ``` right on a closing quotation mark MASC tags `''` (34
+  held-out tokens, and 30 neither opening nor closing plainly); it only
+  ever favours the reference, by at most 0.08 points. Only the held-out
+  tokens whose tag it can give, as written or
+  through the mapping, are scored: the others are left out of both
+  models' scores and listed on the card, with the reference's ten most
+  frequent mismatches, and more than one in a thousand fails the
+  recipe. Its training data is not published and the zoo does not list
+  it; the recipe records its size and SHA-256, reads it only to score
+  it, and never ships or bundles it. The
   English UD tagger asked for Penn tags would be no reference: it gives
   one Penn tag per UD tag, never `VBD`, `NNS` or `,`.
 - The output: `<out>/<model id>/` with the model, `card.json` (the
@@ -2123,8 +2148,24 @@ cargo run --release -p turbo-train-recipes -- masc --corpus <masc-dir> \
     [--recipe <model id>]...
 ```
 
-None of the recipes has been run on MASC itself yet. The crate's README
-has the rest.
+Before it trains anything, the binary checks every reference the run
+needs, every model directory it would write, and every recipe's samples
+as training and the gate check them (the skipped sentences of each side
+and the held-out tokens whose tag the tagger's reference cannot give),
+and writes nothing when one of them fails.
+
+On the recorded release (the Twitter genre left out) every gate passes:
+the sentence detector scores 79.94 against 77.67 (F-measure, 639 units,
+difference +2.28, 95% interval +1.66 to +2.92), the tokenizer 98.83
+against 94.61 (F-measure, 6,384 units, +4.21, +3.97 to +4.47), and the
+tagger 95.16 against 91.70 (accuracy over 85,286 tokens of 6,384
+units, +3.46, +3.21 to +3.71). About 1.10 points of the tagger's lead
+come from 1,309 held-out punctuation tokens MASC tags `NN` (`[`, `]`,
+curly quotation marks, dashes, `*`), on which the reference, which does
+not know punctuation outside ASCII, is mostly wrong; scored without
+them the lead is +2.39 (+2.18 to +2.63), and the gate still passes. Two
+runs write the same model bytes. The crate's README has the counts, the
+models' digests and the rest.
 
 ## Differential fuzzing
 
@@ -2485,12 +2526,16 @@ beside the difference. The F-measure is 0 where precision and recall are
 both 0 (OpenNLP's is -1).
 
 `ModelGateRecord` is the record kept beside the model card: the task
-and measure, the held-out set (its name, the corpus digest and the
-SHA-256 of the samples as scored), both models by id and SHA-256, the
-resamples and seed, the result, and both models' counts per sample.
-`check` refuses empty names, digests that are not 64 lower case hex,
-and resamples or a seed other than the gate's, then recomputes the
-result from the counts. It is strict JSON, as
+and measure, the held-out set (its name, the corpus digest, the SHA-256
+of the samples as scored, the held-out sentences the recipe's reader
+skipped, and how the units were scored: spans, or tags with the tokens,
+the tokens left out and the mapping of the reference's tags), both
+models by id and SHA-256, the resamples and seed, the result, and both
+models' counts per sample. `check` refuses empty names, digests that
+are not 64 lower case hex, resamples or a seed other than the gate's, a
+scoring that does not fit the measure, and a tag scoring whose tokens
+less those left out are not what each model's units count, then
+recomputes the result from the counts. It is strict JSON, as
 the evaluation record is, and is never replaced once written.
 
 ### The sets

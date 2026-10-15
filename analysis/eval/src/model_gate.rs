@@ -42,8 +42,9 @@ use crate::record::is_hex;
 use crate::significance::{Bootstrap, percentile};
 pub use crate::significance::{RESAMPLES, SEED};
 
-/// The schema version of [`ModelGateRecord`].
-pub const MODEL_GATE_RECORD_VERSION: u32 = 1;
+/// The schema version of [`ModelGateRecord`]: 2, with the held-out
+/// sentences skipped and how the units were scored ([`HeldOutSet`]).
+pub const MODEL_GATE_RECORD_VERSION: u32 = 2;
 
 /// The loss, in points, the candidate may be shown not to exceed: the low
 /// end of the difference's interval must be at least the negative of it.
@@ -101,6 +102,18 @@ pub enum ModelGateError {
     },
     /// A record whose result is not what the gate gives on its units.
     ResultMismatch,
+    /// A record whose scoring does not fit its measure: spans for an
+    /// F-measure, tags for an accuracy.
+    ScoringMismatch {
+        measure: Measure,
+    },
+    /// A tag scoring whose tokens, less those left out, are not the
+    /// tokens a model's units count (`scored`).
+    ScoredTokens {
+        tokens: u64,
+        left_out: u64,
+        scored: u64,
+    },
     /// A record file that could not be read or written.
     Io {
         path: String,
@@ -146,6 +159,12 @@ impl fmt::Display for ModelGateError {
             }
             ModelGateError::ResultMismatch => {
                 f.write_str("the recorded result is not what the gate gives on the recorded units")
+            }
+            ModelGateError::ScoringMismatch { measure } => {
+                write!(f, "a record of the measure {measure:?} with a scoring of another kind")
+            }
+            ModelGateError::ScoredTokens { tokens, left_out, scored } => {
+                write!(f, "{tokens} held-out tokens, {left_out} of them left out, but the units count {scored} tokens")
             }
             ModelGateError::Io { path, message } | ModelGateError::Json { path, message } => {
                 write!(f, "{path}: {message}")
@@ -352,6 +371,47 @@ pub struct HeldOutSet {
     /// computes it, so two records of the same set can be seen to score
     /// the same samples.
     pub samples_sha256: String,
+    /// The sentences of the held-out documents the recipe's reader
+    /// skipped, which no unit scores.
+    pub skipped_sentences: u64,
+    /// How each unit's counts were made from the two models' output.
+    pub scoring: Scoring,
+}
+
+/// How a gate's units were scored.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case", deny_unknown_fields)]
+pub enum Scoring {
+    /// Spans, by the task's OpenNLP evaluator, against every reference
+    /// span of the unit: an F-measure.
+    Spans,
+    /// Tags of tokens: an accuracy.
+    Tags(TagScoring),
+}
+
+/// How a tagger's held-out tokens were scored: the tokens whose held-out
+/// tag the reference can give, as written or through `reference_mappings`;
+/// the candidate's tag compared with the held-out tag as written, and the
+/// reference's also counted right where `reference_mappings` maps the
+/// held-out tag to it.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct TagScoring {
+    /// The tokens of the held-out samples.
+    pub tokens: u64,
+    /// The tokens left out of both models' scores: the reference cannot
+    /// give their tag.
+    pub left_out: u64,
+    /// The reference's tags counted right for another held-out tag.
+    pub reference_mappings: Vec<TagMapping>,
+}
+
+/// A held-out tag and the reference's tag counted right for it.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct TagMapping {
+    pub held_out: String,
+    pub reference: String,
 }
 
 /// The record of one gate run, kept beside the model card.
@@ -399,8 +459,10 @@ impl ModelGateRecord {
 
     /// Checks the version; that the names are not empty and the digests
     /// are 64 lower case hex; that the measure is the task's; that the
-    /// record was drawn with [`RESAMPLES`] and [`SEED`]; and that the
-    /// result is what the gate gives on the recorded units, to the bit.
+    /// record was drawn with [`RESAMPLES`] and [`SEED`]; that the scoring
+    /// fits the measure, and for tags, that each model's units count the
+    /// held-out tokens less those left out; and that the result is what
+    /// the gate gives on the recorded units, to the bit.
     pub fn check(&self) -> Result<()> {
         if self.record_version != MODEL_GATE_RECORD_VERSION {
             return Err(ModelGateError::Version { found: self.record_version });
@@ -424,6 +486,19 @@ impl ModelGateRecord {
         }
         if self.measure != self.task.measure() {
             return Err(ModelGateError::MeasureMismatch { task: self.task, measure: self.measure });
+        }
+        match (&self.set.scoring, self.measure) {
+            (Scoring::Spans, Measure::FMeasure) => {}
+            (Scoring::Tags(t), Measure::Accuracy) => {
+                let sides: [fn(&PairedUnit) -> u64; 2] = [|u| u.candidate.target, |u| u.reference.target];
+                for side in sides {
+                    let scored: u64 = self.units.iter().map(side).sum();
+                    if t.left_out > t.tokens || scored != t.tokens - t.left_out {
+                        return Err(ModelGateError::ScoredTokens { tokens: t.tokens, left_out: t.left_out, scored });
+                    }
+                }
+            }
+            (_, measure) => return Err(ModelGateError::ScoringMismatch { measure }),
         }
         let again = gate_models(self.measure, &self.units, self.resamples, self.seed)?;
         if again != self.result {
@@ -594,8 +669,26 @@ mod tests {
         assert!(!g.pass);
     }
 
+    /// A held-out set scored `scoring`, with nothing skipped.
+    fn set(name: &str, scoring: Scoring) -> HeldOutSet {
+        HeldOutSet {
+            name: name.into(),
+            corpus_sha256: "a".repeat(64),
+            samples_sha256: "b".repeat(64),
+            skipped_sentences: 0,
+            scoring,
+        }
+    }
+
+    /// The tag scoring of `units`, `left_out` tokens left out.
+    fn tags_of(units: &[PairedUnit], left_out: u64) -> Scoring {
+        let scored: u64 = units.iter().map(|u| u.candidate.target).sum();
+        let mapping = TagMapping { held_out: "(".into(), reference: "-LRB-".into() };
+        Scoring::Tags(TagScoring { tokens: scored + left_out, left_out, reference_mappings: vec![mapping] })
+    }
+
     fn record_text(units: Vec<PairedUnit>) -> String {
-        let set = HeldOutSet { name: "s".into(), corpus_sha256: "a".repeat(64), samples_sha256: "b".repeat(64) };
+        let set = set("s", tags_of(&units, 0));
         let model = |id: &str| ModelId { id: id.into(), sha256: "c".repeat(64) };
         ModelGateRecord::new(Task::PartOfSpeechTagger, set, model("t"), model("r"), units).unwrap().to_string()
     }
@@ -669,14 +762,48 @@ mod tests {
     }
 
     fn record() -> ModelGateRecord {
-        let set = HeldOutSet {
-            name: "corpus-1.0 held out".into(),
-            corpus_sha256: "a".repeat(64),
-            samples_sha256: "b".repeat(64),
-        };
+        let set = set("corpus-1.0 held out", Scoring::Spans);
         let model = |id: &str| ModelId { id: id.into(), sha256: "c".repeat(64) };
         ModelGateRecord::new(Task::Tokenizer, set, model("trained"), model("published"), tagging(40, |i| 8 + i % 3))
             .unwrap()
+    }
+
+    #[test]
+    fn a_record_s_scoring_fits_its_measure_and_counts_the_scored_tokens() {
+        let units = tagging(40, |i| 8 + i % 3);
+        let model = |id: &str| ModelId { id: id.into(), sha256: "c".repeat(64) };
+        let tagger = |scoring| {
+            ModelGateRecord::new(Task::PartOfSpeechTagger, set("s", scoring), model("t"), model("r"), units.clone())
+                .unwrap()
+        };
+        let r = tagger(tags_of(&units, 3));
+        r.check().unwrap();
+        assert_eq!(r.set.skipped_sentences, 0);
+        let json = r.to_json();
+        assert!(
+            json.contains("\"scoring\": {\n      \"tags\": {\n        \"tokens\": 403,\n        \"left_out\": 3,"),
+            "{json}"
+        );
+        assert!(json.contains("\"held_out\": \"(\",\n            \"reference\": \"-LRB-\""), "{json}");
+        let back: ModelGateRecord = serde_json::from_str(&json).unwrap();
+        assert_eq!(back, r);
+
+        // The tokens less those left out must be what each model's units
+        // count.
+        let mut more = r.clone();
+        let Scoring::Tags(t) = &mut more.set.scoring else { unreachable!() };
+        t.tokens += 1;
+        assert_eq!(more.check(), Err(ModelGateError::ScoredTokens { tokens: 404, left_out: 3, scored: 400 }));
+        let mut over = r.clone();
+        let Scoring::Tags(t) = &mut over.set.scoring else { unreachable!() };
+        t.left_out = t.tokens + 1;
+        assert!(matches!(over.check(), Err(ModelGateError::ScoredTokens { .. })));
+        // Spans are an F-measure's scoring, tags an accuracy's.
+        assert_eq!(tagger(Scoring::Spans).check(), Err(ModelGateError::ScoringMismatch { measure: Measure::Accuracy }));
+        let mut spans = record();
+        spans.set.scoring = tags_of(&spans.units, 0);
+        assert_eq!(spans.check(), Err(ModelGateError::ScoringMismatch { measure: Measure::FMeasure }));
+        assert_eq!(serde_json::to_string(&Scoring::Spans).unwrap(), "\"spans\"");
     }
 
     #[test]

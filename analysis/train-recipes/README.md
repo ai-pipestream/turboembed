@@ -6,7 +6,7 @@ accuracy gate each model passes before it ships (#401). docs/analysis.md
 
 | Module | What it holds |
 |---|---|
-| `masc` | MASC 3.0.0 (CC BY 3.0 US): the release record, its zoo dataset entry and fetch, the digest of an extracted copy, the fixed split |
+| `masc` | MASC 3.0.0 (CC BY 3.0 US): the release record, its zoo dataset entry and fetch, the digest of an extracted copy, the fixed split, and the Twitter genre left out of it |
 | `segmentation` | The English sentence detector and tokenizer recipes: training on the split's training documents, the held-out samples, scoring a model with OpenNLP's evaluators, the gate against the OpenNLP English UD model |
 | `postag` | The English part-of-speech tagger recipe, the same way: training on MASC's Penn tags, the held-out samples, scoring with `POSEvaluator`, the gate against OpenNLP's English Penn tagger (`en-pos-maxent.bin`, OpenNLP 1.5) |
 | `card` | The model card, the model's directory (model, `card.json`, `gate.json`) and its permissive zoo entry, made only for a card whose gate against its recipe's reference (by id and SHA-256) passed on the recorded release |
@@ -28,11 +28,14 @@ against the size and SHA-256 the recipe records (5,696,197 bytes,
 `--recipe` runs only the recipes named by the trained model's id; without
 it every recipe runs. The recipes run in the order of the table below,
 whatever the order they are named in. Before anything is trained, every
-reference the run needs is read and checked, and every model directory
-it would write is checked not to exist: a run with a reference missing
-or wrong, or a model directory already there, names every such problem
-and writes nothing. The exit status is 1 when a gate fails and 2 on an
-error.
+reference the run needs is read and checked, every model directory it
+would write is checked not to exist, and every recipe's training and
+held-out samples are read and checked as training and the gate check
+them (the skipped sentences of each side, and the held-out tokens whose
+tag the tagger's reference cannot give): a run with a reference missing
+or wrong, a model directory already there, or a recipe whose data fails
+those checks names every such problem and writes nothing. The exit
+status is 1 when a gate fails and 2 on an error.
 
 ## The recipes
 
@@ -44,7 +47,20 @@ error.
 
 - Split: the documents in the reader's order (each directory's headers
   by name); positions 9, 19, 29 and so on are held out, one in ten. No
-  randomness, so no seed.
+  randomness, so no seed. A document the reader skips (it logs the
+  error and leaves the document out, as OpenNLP's `MascDocumentStream`
+  does) would move every document after it to the next position, so a
+  corpus with one is refused (`Error::SkippedDocuments`); MASC 3.0.0
+  has none. MASC's Twitter genre is left out of both sides
+  (`masc::EXCLUSIONS`, `Exclusion::TwitterGenre`), as Kristian Rickert
+  decided on 2026-10-15: a document whose header's `textClass` names
+  the category `TW` of MASC's taxonomy (`catRef="WR TW"`, "tweets"),
+  which in MASC 3.0.0 are the two documents of `data/written/twitter`
+  and no other. The positions are counted over every document read, so
+  leaving the genre out moves no other document from one side to the
+  other. The card lists the documents left out
+  (`corpus.excluded_documents`), and the gate record's held-out set is
+  named with the exclusion.
 - Parameters: those the UD 1.3 models were trained with
   (`ud::training_parameters`: GIS, 300 iterations, cutoff 5, 4 threads),
   the factory defaults for English (for the tagger: the default feature
@@ -59,36 +75,65 @@ error.
   settings together.
 - Samples: what OpenNLP's MASC streams read, except that the token
   stream skips a sentence without a sample (no tokens, or an empty
-  token) alone, where OpenNLP's stops reading the corpus, and the
-  part-of-speech stream skips a sentence with a token without a tag
+  token) alone, where OpenNLP's stops reading the corpus, and a sentence
+  whose tokens are out of text order alone, which the port's
+  `TokSpanEventStream` refuses (`segmentation::read_token_samples`); and
+  the part-of-speech stream skips a sentence with a token without a tag
   alone, where OpenNLP's throws and ends the training run; a sentence of
   no tokens gives the tagger no event and no held-out unit, and is
-  skipped too. Held-out sentences are skipped the same way. The card
-  records how many training sentences (`training.skipped_sentences`) and
-  how many held-out sentences (`held_out.skipped_sentences`) were
-  skipped, and a recipe fails when its reader skips more than one in a
-  thousand of either (`MAX_SKIPPED_SENTENCES`), so a held-out document
-  whose tags are missing cannot drop out of the gate.
+  skipped too. MASC 3.0.0 has one sentence whose tokens are out of text
+  order, in `data/spoken/face-to-face/Bed012`: its Penn layer has a
+  token `non-deterministic` over three quarks and a token `-` over the
+  second, inside it. OpenNLP's `TokSpanEventStream` would make events of
+  it, among them a split inside `non-deterministic` after `non-`, where
+  it also gave a no-split. Held-out sentences are skipped the same way.
+  The card records how many training sentences
+  (`training.skipped_sentences`) and how many held-out sentences
+  (`held_out.skipped_sentences`) were skipped, and a recipe fails when
+  its reader skips more than one in a thousand of either
+  (`MAX_SKIPPED_SENTENCES`), so a held-out document whose tags are
+  missing cannot drop out of the gate. In the recorded release (corpus
+  digest `445449f5...`, the Twitter genre left out), the token recipe
+  skips that one training sentence of 24,958 and the tagger none; of
+  the 6,385 held-out sentences the token and tagger recipes each skip
+  one, a sentence of no tokens; the sentence detector skips none.
 - The tagger's gate: MASC's tags are Penn tags, so the reference is
   OpenNLP's English maxent tagger of the 1.5 models, `en-pos-maxent.bin`.
   OpenNLP's only English taggers trained on Penn tags are that one and
   the 1.5 perceptron tagger; the maxent one is trained with the
-  algorithm the recipe uses. Both models are scored in the reference's
-  tag set: the reference asked for Penn tags (`PosTagFormat::Penn`), its
-  own outcomes, which come out unconverted, and the trained model with its
-  outcomes as they are, MASC's tags. The card records both formats.
-  MASC 3.0.0 writes some tags another way than the reference: brackets
-  `(` and `)` where the reference has `-LRB-` and `-RRB-`, and tags of its
-  own for hyphens and dashes (`-`), ellipses (`...`) and semicolons
-  (`;`), tokens the reference tags `:`. The held-out tags and both
-  models' tags are compared in the reference's spelling
-  (`postag::REFERENCE_SPELLINGS`). A held-out token whose tag the
-  reference cannot give even so would count against it whatever it did,
-  so it is left out of both models' scores; the card lists those tokens
-  by tag (`held_out.tokens.left_out`), and the recipe fails when they are
-  more than one in a thousand of the held-out tokens
-  (`MAX_TOKENS_LEFT_OUT`). MASC 3.0.0's held-out documents have 6 of
-  85,292: ``UH` `` (3), `"` (2) and `PRN` (1). The reference's
+  algorithm the recipe uses. The reference is asked for Penn tags
+  (`PosTagFormat::Penn`), its own outcomes, which come out unconverted,
+  and the trained model for its outcomes as they are, MASC's tags; the
+  card records both formats. The trained model's tag is compared with
+  the held-out tag as written. The reference's tag is compared through a
+  mapping of its tags (`postag::REFERENCE_MAPPINGS`), where MASC 3.0.0
+  follows another convention than the reference: brackets, which MASC
+  tags `(` and `)` and the reference `-LRB-` and `-RRB-`; hyphens,
+  which MASC tags `-` or `:` and the reference `:` (MASC tags most en
+  and em dashes `NN`, which the mapping does not touch); ellipses, `...`
+  in MASC and `:` in the reference; the two semicolons MASC tags `;` (it
+  tags the other 725 `:`, as the reference does); and opening quotation
+  marks, which MASC tags `''` as it tags closing ones (``` `` ``` only
+  for a backtick), and the reference ``` `` ```. For those held-out tags
+  the reference's tag of the other convention counts as right too; the
+  trained model is not given that. The mapping is by tag, not by token,
+  so it is lenient: the reference's ``` `` ``` counts right on every
+  held-out `''`, also on a closing quotation mark (34 of the held-out
+  `"` tokens it credits close a quotation and 30 are neither opening
+  nor closing plainly). It only ever favours the reference, and those
+  64 tokens are at most 0.08 points. A held-out token whose tag the
+  reference cannot give, as written or through the mapping, would count
+  against it whatever it did, so it is left out of both models' scores;
+  the card lists those tokens by tag (`held_out.tokens.left_out`), and
+  the recipe fails when they are more than one in a thousand of the
+  held-out tokens (`MAX_TOKENS_LEFT_OUT`). The card also lists the
+  reference's ten most frequent mismatches on the scored tokens
+  (`held_out.tokens.reference_mismatches`), so a gap of convention the
+  mapping does not cover, or an effect of the reference's tag
+  dictionary, shows. The gate record (`gate.json`) holds the skipped
+  held-out sentences and the scoring too (the tokens, those left out and
+  the mapping), and its samples digest covers which tokens were scored
+  and the mapping as well as the tokens and their tags. The reference's
   training data is not published, and the zoo does not list it: the
   recipe records its
   address, size and SHA-256 (`postag::EN_POS_MAXENT`), a run reads it
@@ -103,48 +148,150 @@ error.
   their zoo class is permissive; the card carries the attribution CC BY
   asks for, which ships with the model: MASC 3.0.0, by the American
   National Corpus project (anc.org), its address and its licence.
-  MASC's Twitter genre (two documents, 24,180 words) is trained on with
-  the rest: neither the release nor anc.org gives it terms of its own
+  MASC's Twitter genre (two documents, 24,180 words, tweets from 2008
+  whose headers give their source as unknown) is neither trained on nor
+  scored, as Kristian Rickert decided on 2026-10-15: the licence policy
+  refuses data under a platform's terms, and neither the release nor
+  anc.org says whether Twitter's terms reach the tweets' text
   (docs/licences.md, "Datasets").
   Whether the ANC asks for a particular citation is to be confirmed on
-  their site, which could not be reached when the recipes were written.
+  their site, which could not be reached from the machine the recipes
+  were written and run on.
 
 ## The release record
 
 MASC is fetched through the zoo by digest and read from its extracted
 directory. It is not checked in: CC BY would allow it with attribution,
-but the policy prefers fetching by digest. `masc::RELEASE` is `NotRecorded`:
-the release could not be downloaded where the recipes were written
-(`anc.org` was not reachable), so its archive's size and digests and the
-extracted directory's digest are not known. Until they are recorded:
+but the policy prefers fetching by digest. `masc::RELEASE` records the
+release:
 
-- `fetch-masc` and `masc::dataset` refuse (`Error::NotRecorded`);
-- `masc` refuses a corpus directory unless given `--unrecorded-corpus`,
-  prints the directory's digest, and writes cards with
-  `release_recorded: false`, which are not a release of the models.
+| Field | Value |
+|---|---|
+| Archive | `MASC-3.0.0.zip`, zip |
+| Address | <https://github.com/nancyide/anc-website/releases/download/datasets-2026-09-25/MASC-3.0.0.zip> |
+| Size | 36,358,521 bytes |
+| SHA-256 | `0b300d96016233c7c79b43559b477a6bb0ed16bb416d5c517eccb108a6228493` |
+| SHA-512 | `a88795055fab5c600f26215cbe6143c2325627adaf9ae80d06c7e815a76834debd4b7728a745aa67608ee1d028b35ca139b2b90760e69d0e7227af83bf05d6a9` |
+| Corpus directory | `MASC-3.0.0`, 4,425 files |
+| Corpus digest | `445449f535cac62e74b2712ad975d7b727e72b8276720dd27492266565ae0afd` |
 
-To record it: download the release, record the archive (file name, format,
-URL, size, SHA-256, SHA-512) and the digest `masc --unrecorded-corpus`
-prints in `masc::RELEASE`. The zoo has no tar format yet, so a release
-published as a gzip tar needs one before it can be listed.
+The archive is a release asset of the GitHub repository
+`github.com/nancyide/anc-website` (tag `datasets-2026-09-25`), not a
+file on anc.org itself. That anc.org's MASC download page links to it
+was reported but not checked: anc.org could not be reached from the
+machine the recipes were run on. What was checked there, on the
+downloaded archive: its size, SHA-256 and SHA-512 above; it holds one
+directory, `MASC-3.0.0`, with 4,425 regular files and no links; its
+README dates the release 2012-12-15; and the corpus digest above. The
+corpus digest (`masc::corpus_digest`) is the SHA-256 of a `sha256sum`
+manifest of every file under that directory, so this gives the same
+digest:
 
-## Not here yet
+```
+cd MASC-3.0.0 && find . -type f -printf '%P\n' | LC_ALL=C sort |
+  while IFS= read -r f; do printf '%s  %s\n' "$(sha256sum -- "$f" | cut -d' ' -f1)" "$f"; done |
+  sha256sum
+```
 
-- Scores on MASC: none are recorded until the release is recorded and
-  the recipes are run on it. No recipe has been run on MASC itself.
+`fetch-masc --home <zoo-home>` fetches the archive into
+`<zoo-home>/artifacts/masc-3.0.0/` and checks its size and digests; the
+zoo does not extract archives, so it is unzipped by hand, and `masc
+--corpus` names the `MASC-3.0.0` directory it extracts to. `masc`
+refuses a corpus directory whose digest is not the recorded one unless
+given `--unrecorded-corpus`, and then writes cards with
+`release_recorded: false`, which are not a release of the models (the
+tests run the binary on their own corpora that way).
+
+## Gates on the recorded release
+
+`masc` run on the recorded release (corpus digest
+`445449f535cac62e74b2712ad975d7b727e72b8276720dd27492266565ae0afd`: 351
+training documents and 39 held out, the two of the Twitter genre left
+out) with the three references from `--references`. Every gate passed.
+The scores are in points, rounded to two places from the gate records'
+values (`result.candidate.score`, `result.reference.score` and
+`result.difference.mean`, `low` and `high` in `gate.json`; the card
+repeats all of them but the difference's mean); the difference is the
+paired bootstrap's mean with its 95% interval (10,000 resamples, seed
+154), and a gate passes when the interval does not start below -0.5.
+
+| Model | Units | Measure | Model's score | Reference's score | Difference (95% interval) | Gate |
+|---|---|---|---|---|---|---|
+| `turbo-en-masc-3.0.0-sentence-1` | 639 samples of 10 sentences | F-measure | 79.94 | 77.67 | +2.28 (+1.66 to +2.92) | pass |
+| `turbo-en-masc-3.0.0-tokens-1` | 6,384 sentences | F-measure | 98.83 | 94.61 | +4.21 (+3.97 to +4.47) | pass |
+| `turbo-en-masc-3.0.0-pos-1` | 6,384 sentences, 85,286 tokens scored | accuracy | 95.16 | 91.70 | +3.46 (+3.21 to +3.71) | pass |
+
+Both models of a gate are scored on the same held-out samples, so the
+held-out sentences skipped are skipped for both.
+
+| Model | Training samples | Training sentences skipped | Events | Held-out sentences skipped | Held-out tokens left out |
+|---|---|---|---|---|---|
+| `turbo-en-masc-3.0.0-sentence-1` | 2,496 | 0 | 25,490 | 0 | |
+| `turbo-en-masc-3.0.0-tokens-1` | 24,957 | 1 | 1,408,312 | 1 | |
+| `turbo-en-masc-3.0.0-pos-1` | 24,958 | 0 | 431,637 | 1 | 6 of 85,292: `"` (2), `PRN` (1), ``UH` `` (3) |
+
+The trained models are not checked in or published. A second run into
+another directory wrote the same bytes:
+
+| Model | Size | SHA-256 |
+|---|---|---|
+| `turbo-en-masc-3.0.0-sentence-1.bin` | 44,601 bytes | `d03253a5559a230d1f42e1cf881119204302fbb7fefb613ff1af11bcbd3c261e` |
+| `turbo-en-masc-3.0.0-tokens-1.bin` | 916,027 bytes | `2c5fe73121c41300e6eae4a3c4d7a2247ade20a1e182d8e36d7781124aa9b7db` |
+| `turbo-en-masc-3.0.0-pos-1.bin` | 3,671,103 bytes | `391d7f79c7246e9e56ed9d8849fde129c5bed8683fa33af31e532cb0c37f96ea` |
+
+The mapping of ``` `` ``` to MASC's `''` makes the tagger's reference
+right on 336 more held-out tokens, 0.39 points: of the 644 held-out `"`
+tokens MASC tags `''`, it tags 336 ``` `` ``` (272 that open a
+quotation, 34 that close one and 30 neither plainly). The mapping is
+lenient, by tag and not by token: a rule that knew which marks open
+would not credit the 64 that do not, 0.08 points that only ever favour
+the reference. Its ten most
+frequent mismatches on the scored tokens, as the card lists them
+(held-out tag, then the reference's): `NN` as `JJ` 446, `NN` as `NNP`
+333, `NN` as `VB` 263, `JJ` as `NN` 230, `VBP` as `VB` 225, `NNP` as
+`NN` 187, `NN` as `RB` 178, `IN` as `RB` 169, `NN` as `.` 146 and `NN`
+as `VBP` 137.
+
+Many of the `NN` rows are punctuation, which MASC tags `NN`: over the
+split's documents it tags `[` (301) and `]` (312) `NN` every time, and
+mostly `NN` the curly quotation marks (`“` 993 of 1,010 times, `”`
+1,031 of 1,047, `‘` all 100, `’` 1,259 of 1,264), en dashes (91 of
+100), em dashes (114 of 120) and `*` (all 307). On the held-out set
+these are 1,309 `NN` tokens. The reference is wrong on 947 of them,
+mostly because it does not know punctuation outside ASCII (it tags `”`
+`.` 100 times and `''` 118 times), and the trained model, which learned
+MASC's tags, on 7, so about 1.10 points of the 3.46-point lead come
+from these tokens. Of them, only `”` as `''` is a Penn convention a rule
+that looked at the token could credit; the recipe adds no mapping for
+them. Scored without the 1,309 tokens, the gate still passes: 95.09
+against 92.70, a lead of +2.39 (95% interval +2.18 to +2.63). The `NN`
+rows also hold words that are not nouns, such as `pray`, `make`,
+`right` and `fine`, many of them from a few held-out documents
+(`data/written/fiction/Nathans_Bylichka`,
+`data/written/movie-script/pirates`, `data/written/ficlets/1402` and
+`data/spoken/debate-transcript/3rd_Bush-Kerry`). The `VBP` rows are
+verbs such as `do`, `think` and `have`, and the `IN` rows words such as
+`so`, `around`, `on`, `out` and `up`.
 
 ## Tests
 
 `tests/recipes.rs` writes corpora in MASC's layout (`tests/common`, no
 MASC text, Penn tags written for the tests) and runs everything on
-them: the split in the reader's order; the three recipes trained,
+them: the split in the reader's order; the Twitter genre left out of
+both sides without moving another document; the three recipes trained,
 scored and gated; the same bytes from a second training; the card, the
 model's directory and its zoo entry; the skipped sentences recorded and
-bounded on both sides; the tagger scored in the reference's spelling
-with the tokens of a tag the reference cannot give left out, and a
+bounded on both sides; a sentence with a token inside another skipped
+by the token recipe alone; the tagger's tags compared as written and
+the reference's through the mapping of its tags, with the tokens of a
+tag the reference cannot give left out, and a
 reference that cannot give most tags refused; and the binary's refusal
-of an unrecorded corpus, of a missing or wrong reference and of an
-existing model directory before it trains anything, and its output. It
+of an unrecorded corpus, of a missing or wrong reference, of an
+existing model directory and of held-out data with too many skipped
+sentences before it trains anything, and its output, with the lines it
+prints of each card (`ModelCard::summary`: the samples and skipped
+sentences of both sides, and the held-out tokens left out with their
+tags) checked word for word. It
 also reads the MASC corpora checked in for the goldens
 (`analysis/goldens/data/inputs/formats/masc-*.txt`) with the tagger
 recipe's reader: it reads every sample OpenNLP's `MascPOSSampleStream`
@@ -177,9 +324,9 @@ published, so CI does not fetch it. The parts that need it run when
 there fails), and skip without it even with
 `TURBO_TEST_REQUIRE_OPENNLP_MODELS=1`. With it, it is checked against the
 recorded digest, shown to return its 45 Penn outcomes unconverted and
-to tag brackets, hyphens, ellipses and semicolons as
-`postag::REFERENCE_SPELLINGS` says, scored and gated, and the binary
-runs all three recipes.
+to tag brackets, hyphens, ellipses, semicolons and an opening quotation
+mark as `postag::REFERENCE_MAPPINGS` says, and a closing quotation mark
+`''`, scored and gated, and the binary runs all three recipes.
 
 On the test corpus, with both directories set, the published references
 score 63.16 (sentences, F-measure), 94.34 (tokens, F-measure) and 92.41
