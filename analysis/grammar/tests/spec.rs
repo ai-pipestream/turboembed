@@ -10,10 +10,15 @@
 //! specifications print .NET doubles to 15 digits, and its subtype is
 //! compared when the case gives one.
 //!
+//! Dates and times are compared by [`datetime`].
+//!
 //! `tests/data/pass/<Language>/<File>.txt` lists the indices of the cases
 //! that pass. A listed case that fails fails the test; a case that passes
 //! and is not listed is printed. `BLESS=1` rewrites the lists from the
 //! run. `SPEC_SHOW=1` prints every failing case with what was found.
+
+#[path = "spec/datetime.rs"]
+mod datetime;
 
 use std::collections::BTreeSet;
 use std::fmt::Write as _;
@@ -258,19 +263,43 @@ fn english_temperatures() {
     check_units(3, true);
 }
 
+fn datetime_cases() -> Vec<datetime::TimeCase> {
+    let path = data().join("recognizers-text/English/DateTime/DateTimeModel.json");
+    let json = std::fs::read_to_string(path).expect("a specification file");
+    serde_json::from_str(json.trim_start_matches('\u{feff}')).expect("a specification parses")
+}
+
+/// Dates and times, with the cases whose spans alone match and the
+/// counts by expected type.
+#[test]
+fn english_datetimes() {
+    let cases = datetime_cases();
+    let run = datetime::run_all(&cases, std::env::var_os("SPEC_SHOW").is_some());
+    println!("English/DateTime/DateTimeModel.json: {} of {} eligible cases pass", run.passing.len(), run.eligible);
+    println!("spans match but values differ: {}", run.spans_only);
+    for (name, (eligible, passing)) in &run.by_type {
+        println!("  {name:<28}{eligible:>5}{passing:>6}");
+    }
+    ratchet("English", "DateTimeModel.json", &run.passing, true);
+    assert_eq!(run.eligible, 970);
+}
+
 /// The pass rate of every file, in one table.
 #[test]
 fn summary() {
-    let mut table = String::from("file                                eligible  passing\n");
+    let mut table = format!("{:<46}eligible  passing\n", "file");
     for spec in [&NUMBER, &ORDINAL, &PERCENT] {
         let (eligible, passing) = check(spec, false);
         let name = format!("{}/{}/{}", spec.language, spec.kind, spec.file);
-        let _ = writeln!(table, "{name:<36}{eligible:>8}{passing:>9}");
+        let _ = writeln!(table, "{name:<46}{eligible:>8}{passing:>9}");
     }
     for (k, (file, _, _)) in UNIT_FILES.iter().enumerate() {
         let (eligible, passing) = check_units(k, false);
-        let _ = writeln!(table, "{:<36}{eligible:>8}{passing:>9}", format!("English/NumberWithUnit/{file}"));
+        let _ = writeln!(table, "{:<46}{eligible:>8}{passing:>9}", format!("English/NumberWithUnit/{file}"));
     }
+    let run = datetime::run_all(&datetime_cases(), false);
+    ratchet("English", "DateTimeModel.json", &run.passing, false);
+    let _ = writeln!(table, "{:<46}{:>8}{:>9}", "English/DateTime/DateTimeModel.json", run.eligible, run.passing.len());
     println!("{table}");
 }
 

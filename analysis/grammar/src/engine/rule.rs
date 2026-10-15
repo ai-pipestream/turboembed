@@ -3,6 +3,7 @@
 
 use crate::value::Value;
 
+use super::interned::Interned;
 use super::lexer::{Kind, Lexed, Lexeme};
 use super::numeral::NumeralStyle;
 
@@ -135,6 +136,7 @@ pub enum Output {
     Percent,
     /// Amounts with a unit, money included, and units named alone.
     Quantity,
+    Time,
 }
 
 /// Where a match lies, for a rule's `build` or a grammar's filter that
@@ -147,6 +149,8 @@ pub struct Ctx<'a> {
     pub start: usize,
     /// One past its last lexeme.
     pub end: usize,
+    /// The parse's time values.
+    pub times: &'a Interned,
 }
 
 impl<'a> Ctx<'a> {
@@ -173,6 +177,21 @@ impl<'a> Ctx<'a> {
     pub fn is_punct(&self, i: usize, c: char) -> bool {
         let l = self.lexeme(i);
         l.kind == Kind::Punct && self.text[l.start as usize..].starts_with(c) && l.end - l.start == c.len_utf8() as u32
+    }
+
+    /// The text of lexeme `i` as written.
+    pub fn raw(&self, i: usize) -> &'a str {
+        self.lexed.raw(self.text, i)
+    }
+
+    /// A node value for the time value `v`.
+    pub fn time(&self, v: crate::time::TimeValue) -> Option<Value> {
+        Some(self.times.intern(v))
+    }
+
+    /// The time value of a child.
+    pub fn time_of(&self, v: &Value) -> Option<crate::time::TimeValue> {
+        self.times.get(v)
     }
 
     /// The character of punctuation lexeme `i`.
@@ -246,7 +265,8 @@ mod tests {
         let mut lexed = Lexed::default();
         let text = "$2000 over 3";
         lexed.lex(text, &style);
-        let ctx = Ctx { text, lexed: &lexed, start: 1, end: 4 };
+        let times = Interned::default();
+        let ctx = Ctx { text, lexed: &lexed, start: 1, end: 4, times: &times };
         assert_eq!(ctx.before(), Some(0));
         assert_eq!(ctx.after(), None);
         assert!(ctx.is_punct(0, '$'));

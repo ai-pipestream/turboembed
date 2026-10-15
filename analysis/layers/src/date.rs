@@ -190,6 +190,119 @@ impl Date {
     }
 }
 
+/// A date and a time of day with no time zone, to the second, as Java's
+/// `LocalDateTime` holds one without its fraction of a second. Orders by
+/// time.
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
+pub struct DateTime {
+    date: Date,
+    /// Seconds since midnight, below 86400.
+    second_of_day: u32,
+}
+
+/// Seconds in a day.
+pub const DAY_SECONDS: i64 = 86_400;
+
+impl DateTime {
+    /// Midnight at the start of `date`.
+    pub fn midnight(date: Date) -> DateTime {
+        DateTime { date, second_of_day: 0 }
+    }
+
+    /// The date-time, when the hour, minute and second are on a clock.
+    pub fn new(date: Date, hour: u8, minute: u8, second: u8) -> Option<DateTime> {
+        (hour < 24 && minute < 60 && second < 60).then(|| DateTime {
+            date,
+            second_of_day: u32::from(hour) * 3600 + u32::from(minute) * 60 + u32::from(second),
+        })
+    }
+
+    /// `date` at `second_of_day` seconds after its midnight, when that is
+    /// below a day.
+    pub fn at(date: Date, second_of_day: u32) -> Option<DateTime> {
+        (i64::from(second_of_day) < DAY_SECONDS).then_some(DateTime { date, second_of_day })
+    }
+
+    pub fn date(self) -> Date {
+        self.date
+    }
+
+    pub fn second_of_day(self) -> u32 {
+        self.second_of_day
+    }
+
+    pub fn hour(self) -> u8 {
+        (self.second_of_day / 3600) as u8
+    }
+
+    pub fn minute(self) -> u8 {
+        (self.second_of_day / 60 % 60) as u8
+    }
+
+    pub fn second(self) -> u8 {
+        (self.second_of_day % 60) as u8
+    }
+
+    /// Seconds since 1970-01-01T00:00 on the same clock: no time zone and
+    /// no leap seconds.
+    pub fn local_seconds(self) -> i64 {
+        self.date.epoch_day() * DAY_SECONDS + i64::from(self.second_of_day)
+    }
+
+    /// The date-time `seconds` after 1970-01-01T00:00, when its date is in
+    /// range.
+    pub fn from_local_seconds(seconds: i64) -> Option<DateTime> {
+        let date = Date::from_epoch_day(seconds.div_euclid(DAY_SECONDS))?;
+        Some(DateTime { date, second_of_day: seconds.rem_euclid(DAY_SECONDS) as u32 })
+    }
+
+    /// The date-time `seconds` later, or earlier, when it is in range.
+    pub fn plus_seconds(self, seconds: i64) -> Option<DateTime> {
+        DateTime::from_local_seconds(self.local_seconds().checked_add(seconds)?)
+    }
+
+    /// Reads `yyyy-MM-ddTHH:mm`, with optional `:ss` and a fraction of a
+    /// second, which is dropped: `2016-11-07T16:12:00`,
+    /// `2017-09-28T14:11:10.9626841`. The date is read as [`Date::parse`]
+    /// reads one.
+    pub fn parse(s: &str) -> Option<DateTime> {
+        let (date, time) = s.split_once('T')?;
+        let date = Date::parse(date)?;
+        let b = time.as_bytes();
+        let two = |at: usize| -> Option<u8> {
+            let (h, l) = (*b.get(at)?, *b.get(at + 1)?);
+            (h.is_ascii_digit() && l.is_ascii_digit()).then(|| (h - b'0') * 10 + (l - b'0'))
+        };
+        if b.get(2) != Some(&b':') {
+            return None;
+        }
+        let (hour, minute) = (two(0)?, two(3)?);
+        let second = match b.get(5) {
+            None => 0,
+            Some(b':') => {
+                let second = two(6)?;
+                let rest = &b[8..];
+                let fraction_ok =
+                    rest.is_empty() || (rest[0] == b'.' && rest.len() > 1 && rest[1..].iter().all(u8::is_ascii_digit));
+                if !fraction_ok {
+                    return None;
+                }
+                second
+            }
+            Some(_) => return None,
+        };
+        DateTime::new(date, hour, minute, second)
+    }
+}
+
+/// Writes `2016-11-07T16:12:00`: the date as [`Date`] writes it, a `T`
+/// and the time with its seconds.
+impl fmt::Display for DateTime {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}T{:02}:{:02}:{:02}", self.date, self.hour(), self.minute(), self.second())
+    }
+}
+
 /// Writes the date as `LocalDate.toString` does: `2026-07-14`, `-0001-01-01`
 /// for a year before year 0 and `+10000-01-01` past year 9999.
 impl fmt::Display for Date {
@@ -350,5 +463,31 @@ mod tests {
             s.push(' ');
         }
         assert_eq!(s, "0000 0007 0999 2026 9999 +10000 -0001 -10000 ");
+    }
+
+    #[test]
+    fn date_times_read_write_and_count_seconds() {
+        let t = DateTime::parse("2016-11-07T16:12:00").unwrap();
+        assert_eq!((t.hour(), t.minute(), t.second()), (16, 12, 0));
+        assert_eq!(t.to_string(), "2016-11-07T16:12:00");
+        assert_eq!(DateTime::parse("2017-09-28T14:11:10.9626841").unwrap().to_string(), "2017-09-28T14:11:10");
+        assert_eq!(DateTime::parse("2016-11-07T16:12").unwrap(), t);
+        for bad in [
+            "2016-11-07",
+            "2016-11-07T24:00:00",
+            "2016-11-07T16:60",
+            "2016-11-07T16:12:00.",
+            "2016-11-07T1:12",
+            "2016-11-07T16:12:0",
+        ] {
+            assert_eq!(DateTime::parse(bad), None, "{bad:?}");
+        }
+        assert_eq!(DateTime::midnight(d("1970-01-02")).local_seconds(), 86_400);
+        assert_eq!(DateTime::from_local_seconds(-1).unwrap().to_string(), "1969-12-31T23:59:59");
+        assert_eq!(t.plus_seconds(8 * 3600).unwrap().to_string(), "2016-11-08T00:12:00");
+        assert_eq!(DateTime::at(d("2016-11-07"), 86_400), None);
+        assert_eq!(DateTime::new(d("2016-11-07"), 23, 59, 59).unwrap().second_of_day(), 86_399);
+        assert!(DateTime::midnight(d("2016-11-07")) < t);
+        assert_eq!(t.date(), d("2016-11-07"));
     }
 }

@@ -117,6 +117,9 @@ pub enum Value {
     Quantity(Quantity),
     /// A unit named with no amount: `convert it to fahrenheit`.
     Unit(Unit),
+    /// A time expression, kept in the parse's [`crate::engine::Interned`]
+    /// table.
+    Time(TimeId),
 }
 
 /// An amount and its unit. The amount is kept as the parts of a [`Dec`]
@@ -141,6 +144,10 @@ impl Quantity {
         self.unit
     }
 }
+
+/// The index of a time value in its parse's table.
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
+pub struct TimeId(pub u32);
 
 impl Value {
     pub fn num(&self) -> Option<&Num> {

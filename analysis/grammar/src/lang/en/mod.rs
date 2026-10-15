@@ -5,7 +5,10 @@
 
 mod lexicon;
 mod rules;
+pub(crate) mod time;
 pub(crate) mod unit;
+
+pub use time::{ENGLISH_TIMES, EnglishTimes};
 
 use std::sync::OnceLock;
 
@@ -135,7 +138,7 @@ impl Grammar for English {
                 }
                 _ => true,
             },
-            Output::Percent | Output::Quantity => true,
+            Output::Percent | Output::Quantity | Output::Time => true,
         }
     }
 
