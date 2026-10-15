@@ -287,6 +287,7 @@ final class Runs {
     annotators.addAll(NumberGolden.all());
     annotators.addAll(MoneyGolden.all(moneySnapshot));
     annotators.addAll(QuantityGolden.all());
+    annotators.addAll(TemporalGolden.all());
 
     // The training stack: the events of the sentence detector, the tokenizer and a real valued
     // source on the texts, indexed and trained; the sentence detector runs on the fixture

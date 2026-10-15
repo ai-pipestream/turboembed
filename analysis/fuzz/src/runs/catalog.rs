@@ -6,6 +6,7 @@ use super::numeric::{MoneyLayer, Numeric};
 use super::sentences::{MaxentSentences, NewlineSentences};
 use super::subwords::{VOCABULARY, WordPiece};
 use super::tagging::{Chunker, Lemmatizer, Tagger};
+use super::temporal::Temporal;
 use super::tokens::{Lattice, Maxent, Plain, Uax29, Unigram};
 use super::{Run, split_options};
 use crate::resources::{Resources, Unavailable};
@@ -144,6 +145,8 @@ pub const RUNS: &[(&str, &str)] = &[
     ("money-convert", "latin-us"),
     ("quantity", "latin-eu"),
     ("quantity", "latin-us"),
+    ("temporal", "dateline"),
+    ("temporal", "fixed"),
     ("subwords", VOCABULARY),
 ];
 
@@ -172,6 +175,7 @@ pub fn open(annotator: &str, run: &str, res: &Resources) -> Result<Box<dyn Run>,
         "money" => Numeric::open_money(run, MoneyLayer::Extracted, res),
         "money-convert" => Numeric::open_money(run, MoneyLayer::Converted, res),
         "quantity" => Numeric::open_quantities(run),
+        "temporal" => Temporal::open(run),
         "subwords" if run == VOCABULARY => WordPiece::open(res),
         _ => Err(not_covered()),
     }

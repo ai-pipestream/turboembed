@@ -22,7 +22,7 @@ nothing here is in the C header or the gRPC server.
 | `turbo-structure` | `analysis/structure/` | Document structure (`turbo:structure`) from plain text and Markdown |
 | `turbo-abbrev` | `analysis/abbrev/` | Abbreviation and acronym definitions found with the Schwartz and Hearst algorithm, and the later mentions of each short form, as `turbo:abbreviations` and the edges from each short form to its long form; the reader and scoring of Ab3P's MED1250 set (Abbreviations, below) |
 | `turbo-analysis-embed` | `analysis/embed/` | The embedding model as analysis steps: the subwords of a text view from the bundle's tokenizer, and a vector per sentence and per chunk |
-| `turbo-numeric` | `analysis/numeric/` | The number scanner, which writes `turbo:numbers` ([numbers.md](numbers.md)); the money extractor, which writes `turbo:money`, the ECB rate table and the conversion step, which writes the `converted` instance of `turbo:money` ([money.md](money.md)); the quantity extractor, which writes `turbo:quantities` ([quantities.md](quantities.md)) |
+| `turbo-numeric` | `analysis/numeric/` | The number scanner, which writes `turbo:numbers` ([numbers.md](numbers.md)); the money extractor, which writes `turbo:money`, the ECB rate table and the conversion step, which writes the `converted` instance of `turbo:money` ([money.md](money.md)); the quantity extractor, which writes `turbo:quantities` ([quantities.md](quantities.md)); the temporal extractor, which writes `turbo:temporal`, the document date selector, which writes `turbo:document-date`, and the conversion step that reads it ([temporal.md](temporal.md)) |
 | `turbo-jvm` | `analysis/jvm/` | JVM behaviour the OpenNLP ports must reproduce bit for bit |
 | `turbo-goldens` | `analysis/goldens/` | Golden layer files from the JVM: the reader, the writer, the comparison, loading golden layers as test inputs, SHA-256 and SHA-512 |
 | `turbo-sequence` | `analysis/sequence/` | OpenNLP's beam search, BIO and BILOU codecs and feature generation framework (generators, `StringPattern` and the XML descriptors), with the context generators and validators of the part-of-speech tagger, chunker and name finder, the part-of-speech tag dictionary (`tags.tagdict`) and the Penn Treebank and Universal Dependencies tag mapping. Its crate documentation lists the OpenNLP behaviour it reproduces that is surprising, and the one it does not yet (QN models in a beam search); `analysis/sequence/README.md` describes its JVM golden files |
@@ -510,6 +510,8 @@ fields mean bumps its `SCHEMA`.
 | `Numbers` | `turbo:numbers` | text | `turbo-analysis-layers` |
 | `Money` | `turbo:money` (and the instance `converted`) | text | `turbo-analysis-layers` |
 | `Quantities` | `turbo:quantities` | text | `turbo-analysis-layers` |
+| `Temporals` | `turbo:temporal` | text | `turbo-analysis-layers` |
+| `DocumentDate` | `turbo:document-date` | the document (indexes `Temporals`) | `turbo-analysis-layers` |
 | `Abbreviations` | `turbo:abbreviations` | text | `turbo-analysis-layers` |
 | `Stopwords` | `turbo:stopwords` | tokens | `turbo-stopword-layers` |
 | `Vectors<L>` | `opennlp:embeddings<L>` | `L` | `turbo-analysis-layers` |
@@ -1672,6 +1674,8 @@ The layers and their columns, in order:
 | `turbo:numbers` | `text` | `start:u32`, `end:u32`, `numeral_end:u32`, `negative:u32`, `coefficient:str`, `scale:u32`, `plain:str` |
 | `turbo:money` | `text` | `start:u32`, `end:u32`, `coefficient:str`, `negative:u32`, `scale:u32`, `plain:str`, `currency:str` |
 | `turbo:quantities` | `text` | `start:u32`, `end:u32`, `coefficient:str`, `negative:u32`, `scale:u32`, `plain:str`, `unit:str` |
+| `turbo:temporal` | `text` | `start:u32`, `end:u32`, `value:str`, `granularity:str`, `origin:str` |
+| `turbo:document-date` | `document` | `date:str`, `mention:u32` |
 | `turbo:view` | `text` | `start:u32`, `end:u32`, `with:str` |
 | `opennlp:subwords` | `text` | `start:u32`, `end:u32`, `id:u32` |
 | `turbo:word-types` | `aligned:opennlp:tokens` | `kind:str` |
@@ -2156,6 +2160,7 @@ The generator writes these layers, in this order within a golden:
 | `money` (`CursorMoneyExtractor.extract` in `MoneyAnnotator`, per notation) | `turbo:money` |
 | `money-convert` (`EcbFxRates.convert` in `MoneyConversionAnnotator`, per notation) | `turbo:money` |
 | `quantity` (`CursorQuantityExtractor.extract` in `QuantityAnnotator`, per notation) | `turbo:quantities` |
+| `temporal` (`CursorTemporalExtractor.extract` in `TemporalAnnotator`, then `DocumentDateAnnotator`, per reference mode) | `turbo:temporal`, `turbo:document-date` |
 | `subwords` (`WordpieceEncoder.encode`) | `opennlp:subwords` |
 | `unigram` (`UnigramSegmenter.tokenizePos`) | `opennlp:tokens` |
 | `lattice` (`LatticeTokenizer.analyze`) | `opennlp:tokens`, `turbo:morphemes` |
@@ -2194,6 +2199,17 @@ the `-` or first digit to the end of the unit), `coefficient`, `negative`,
 `scale`, `plain` (as for `turbo:money`) and `unit` (the unit token, `%` for
 a percentage), and a `config notation` record. See
 [quantities.md](quantities.md#golden-files).
+
+`temporal/<mode>/temporal/<id>.golden` (`dateline`, `fixed`) holds
+`turbo:temporal`, one row per mention, with the columns `start`, `end`
+(UTF-8 byte offsets; for a timestamp, its date only), `value`
+(`TemporalExpression.value()`, such as `2026-07-14`, `2026-W29`,
+`2026-07`, `2024-Q3` or `2026`), `granularity` and `origin` (the enum
+constants' names), and `turbo:document-date`, anchored on the document,
+with no row or one: `date` and `mention`, the index of the mention it
+came from. The `config reference` record is `dateline` (the reference date
+of relative mentions is the text's first absolute day) or `2026-03-15`.
+See [temporal.md](temporal.md#golden-files).
 
 When the OpenNLP annotator throws on an input, the golden holds the
 header records, the `config` records and then, as its last line,
@@ -2611,8 +2627,8 @@ cargo run -p turbo-goldens-tool --features fuzz -- fuzz --seed 1 --count 1000
 ```
 
 writes the inputs of the corpus into `<out>/inputs/<set>/<id>.txt` for
-each set of `--sets` (`en`, `edge`, `norm`, `num`, `money`, `quantity`
-and `sentence-fixture` by default: between them every covered run reads
+each set of `--sets` (`en`, `edge`, `norm`, `num`, `money`, `quantity`,
+`temporal` and `sentence-fixture` by default: between them every covered run reads
 each text), runs the generator in the container over that inputs
 directory with `--skip-annotators` naming those annotators, writes the
 goldens under `<out>/jvm/`, compares them, writes the report
@@ -2662,7 +2678,7 @@ boundaries, mapping it forward covers the span, mapping that back gives
 the same source span, and where the span touches no edit the source
 bytes are the view's bytes. `check_document` finds every instance of the
 shared layer types that have spans (sentences, tokens, subwords, chunks,
-phrase chunks, entities, numbers, money, quantities, structure);
+phrase chunks, entities, numbers, money, quantities, temporal mentions, structure);
 `check_spans` takes any span columns. A `Violation` names the layer, the
 view, the span and what failed.
 
