@@ -87,8 +87,11 @@ impl Detector {
     }
 }
 
-/// The rule splitter's tailorings, each as a change that turns it off.
-const TAILORINGS: [(&str, fn(RuleSplitter) -> RuleSplitter); 8] = [
+/// A change to a rule splitter that turns one tailoring off.
+type TurnOff = fn(RuleSplitter) -> RuleSplitter;
+
+/// The rule splitter's tailorings, each with the change that turns it off.
+const TAILORINGS: [(&str, TurnOff); 8] = [
     ("terminators", |s| s.with_rules(Rules { terminators: false, ..s.rules() })),
     ("references", |s| s.with_rules(Rules { references: false, ..s.rules() })),
     ("continuation", |s| s.with_rules(Rules { continuation: false, ..s.rules() })),
