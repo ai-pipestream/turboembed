@@ -1,0 +1,13 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	gazetteer/table-user-box-range	24	24	741ad8b1a556a1824e28324634dc4d2c9f6769cf739d83fb7bca0a4a04f85709
+annotator	opennlp.geo.UserGazetteer	load
+config	source	sites
+layer	turbo:gazetteer-load	document	1	loaded:u32	error-class:str	error-message:str
+0	opennlp.tools.util.InvalidFormatException	line 1 is not a gazetteer row: east must be in [-180, 180], got: 181.0
+end	turbo:gazetteer-load
+layer	turbo:gazetteer-suppressions	document	0	name:str	has-country:u32	country:str	has-feature-class:u32	feature-class:str
+end	turbo:gazetteer-suppressions

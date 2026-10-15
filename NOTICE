@@ -74,3 +74,11 @@ The Unicode Character Database files in analysis/unicode/ucd/, and the
 tables generated from them, are used under the Unicode License v3.
 Copyright (c) 2001-2024 Unicode, Inc. The full license text is in
 analysis/unicode/ucd/LICENSE.
+
+------------------------------------------------------------------------
+Natural Earth
+------------------------------------------------------------------------
+
+The bundled gazetteer table in analysis/geo/data/ is Apache OpenNLP's
+derivation of the Natural Earth "Populated Places" dataset. Natural
+Earth is in the public domain; made with Natural Earth.

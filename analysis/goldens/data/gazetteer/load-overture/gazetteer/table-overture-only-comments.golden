@@ -1,0 +1,12 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	gazetteer/table-overture-only-comments	12	12	617545f8b3826e7f6c068f7c65333a4c060de1b53a615255d31a8cf267417c61
+annotator	opennlp.geo.OvertureGazetteer	load
+layer	turbo:gazetteer-load	document	1	loaded:u32	error-class:str	error-message:str
+0	opennlp.tools.util.InvalidFormatException	the table contains no rows
+end	turbo:gazetteer-load
+layer	turbo:gazetteer-suppressions	document	0	name:str	has-country:u32	country:str	has-feature-class:u32	feature-class:str
+end	turbo:gazetteer-suppressions

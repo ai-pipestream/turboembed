@@ -1,0 +1,343 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	gazetteer/names-edge	3555	3106	f71855175cc07e6d48d452d4e2fcef03c16477834ca440cc71fc56c2873816ea
+model	gazetteer-user.txt	68f44c6be8bbc9c3d3d697681eb121f0593087066eaf3dba7b5e6a44780f0c05bcfe79894c8cc26d609459c8362ab1f65d8540ba4799468d69356746e72aac49
+annotator	opennlp.geo.UserGazetteer	lookup
+config	source	sites
+layer	turbo:gazetteer-sources	document	1	source:str
+sites
+end	turbo:gazetteer-sources
+layer	turbo:gazetteer-queries	document	275	found:u32	error-class:str	error-message:str
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+1		
+1		
+1		
+1		
+1		
+1		
+0		
+1		
+1		
+0		
+1		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+1		
+1		
+0		
+0		
+1		
+1		
+1		
+1		
+1		
+1		
+1		
+1		
+1		
+1		
+1		
+1		
+1		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+end	turbo:gazetteer-queries
+layer	turbo:gazetteer-candidates	document	24	query:u32	entry:u32
+7	0
+8	0
+9	0
+10	0
+11	0
+12	0
+14	0
+15	0
+17	0
+143	1
+144	1
+147	2
+148	2
+149	2
+150	2
+151	2
+152	1
+153	3
+154	0
+155	0
+156	4
+157	5
+158	5
+159	5
+end	turbo:gazetteer-candidates
+layer	turbo:gazetteer-entries	document	6	source:str	record-id:str	name:str	latitude:f64	longitude:f64	has-box:u32	west:f64	south:f64	east:f64	north:f64	has-country:u32	country:str	population:str	has-feature-class:u32	feature-class:str
+sites	paris-lab	Paris	40486da5119ce076 48.8566	4002d14e3bcd35a8 2.3522	0	0000000000000000 0.0	0000000000000000 0.0	0000000000000000 0.0	0000000000000000 0.0	1	FR	9904000	1	CITY
+sites	plant-1	Springfield Plant	4043e66666666666 39.8	c056666666666666 -89.6	1	c0566ccccccccccd -89.7	4043d9999999999a 39.7	c056600000000000 -89.5	4043f33333333333 39.9	1	US	250	1	POI
+sites	hq	Acme Headquarters	40445b3d07c84b5e 40.7128	c05280624dd2f1aa -74.006	0	0000000000000000 0.0	0000000000000000 0.0	0000000000000000 0.0	0000000000000000 0.0	1	US	0	1	POI
+sites	dateline	Dateline Depot	c030800000000000 -16.5	4066800000000000 180.0	1	4066600000000000 179.0	c031000000000000 -17.0	c066600000000000 -179.0	c030000000000000 -16.0	1	FJ	12	1	city
+sites	tiny	Tiny Place	3ff8000000000000 1.5	4004000000000000 2.5	0	0000000000000000 0.0	0000000000000000 0.0	0000000000000000 0.0	0000000000000000 0.0	0		0	0	
+sites	zz	São Paulo Office	c037800000000000 -23.5	c0474ccccccccccd -46.6	0	0000000000000000 0.0	0000000000000000 0.0	0000000000000000 0.0	0000000000000000 0.0	0		7	1	ADMIN
+end	turbo:gazetteer-entries
+layer	turbo:gazetteer-alternates	document	7	entry:u32	name:str
+0	Paris Lab
+0	Laboratoire de Paris
+1	Springfield
+2	Acme HQ
+2	HQ
+2	Head Office
+5	SP Office
+end	turbo:gazetteer-alternates
+layer	turbo:gazetteer-containment	document	4	entry:u32	name:str
+1	Illinois
+1	Sangamon County
+2	New York
+2	Manhattan
+end	turbo:gazetteer-containment
+layer	turbo:gazetteer-attributes	document	3	entry:u32	key:str	value:str	source:str	notes:str
+1	wikidata	Q123	sites	
+2	fips	36061	sites	
+2	note	main site	sites	
+end	turbo:gazetteer-attributes
