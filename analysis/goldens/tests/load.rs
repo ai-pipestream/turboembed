@@ -9,7 +9,11 @@ use std::path::PathBuf;
 use std::sync::Arc;
 
 use turbo_analysis::{Analyzer, Annotator, Bound, Document, Error, Ix, IxRange, Key, Layer, Refs, View};
-use turbo_analysis_layers::{Confidence, Entities, Language, Lemmas, PosTags, Sentences, Tag, TagSet, Tokens};
+use turbo_analysis_layers::{
+    Aspect, AspectTarget, Aspects, Confidence, Entities, Incivility, IncivilityItem, IncivilityLabel, IncivilityScores,
+    IncivilityTarget, Incongruity, Language, Lemmas, Opinion, Opinions, PolarityScores, PosTags, Pragmatics,
+    PragmaticsItem, Sentences, Tag, TagSet, Tokens,
+};
 use turbo_goldens::*;
 
 fn fixtures() -> PathBuf {
@@ -346,4 +350,140 @@ fn a_token_outside_the_sentences_is_refused() {
     sentences.columns[1].data = ColumnData::U32(vec![26, 36]);
     let e = load_document(&bad, &text(&g)).err().unwrap();
     assert_eq!(e, LoadError::OutsideSentences { layer: golden_key::<Tokens>().id(), token: 8, start: 36, end: 37 });
+}
+
+#[test]
+fn sentiment_layers_round_trip_through_golden_text_and_check_tolerance_and_bounds() {
+    let mut g = golden();
+    let source = text(&g);
+    let base_doc = load_document(&g, &source).unwrap();
+    let sentences = base_doc.get_key(&golden_key::<Sentences>()).unwrap();
+    let tokens = base_doc.get_key(&golden_key::<Tokens>()).unwrap();
+
+    let opinions = Opinions::from_items_on(
+        golden_key::<Tokens>(),
+        tokens,
+        [
+            Opinion { tokens: IxRange::new(2, 3), polarity: -0.6, intensity: 1.5, negated: true },
+            Opinion { tokens: IxRange::new(7, 8), polarity: 0.4, intensity: 1.0, negated: false },
+        ],
+    )
+    .unwrap();
+
+    let cats = TagSet::new("absa", &["travel#destination", "weather"]);
+    let aspects = Aspects::from_items_on(
+        golden_key::<Tokens>(),
+        golden_key::<Sentences>(),
+        golden_key::<Opinions>(),
+        tokens,
+        Some(sentences),
+        Some(&opinions),
+        cats.clone(),
+        [
+            Aspect {
+                target: AspectTarget::Term { tokens: IxRange::new(4, 5), sentence: Some(Ix::new(0)) },
+                category: cats.tag("travel#destination"),
+                polarity: PolarityScores::new(0.85, 0.05, 0.10),
+                opinions: &[Ix::new(0)],
+            },
+            Aspect {
+                target: AspectTarget::Implicit { sentence: Ix::new(1) },
+                category: cats.tag("weather"),
+                polarity: PolarityScores::new(0.10, 0.70, 0.20),
+                opinions: &[Ix::new(1)],
+            },
+        ],
+    )
+    .unwrap();
+
+    let mut scores0 = IncivilityScores::default();
+    scores0.set(IncivilityLabel::Insult, 0.125);
+    scores0.set(IncivilityLabel::Profanity, 0.02);
+    let incivility = Incivility::from_items_on(
+        golden_key::<Tokens>(),
+        golden_key::<Sentences>(),
+        Key::DEFAULT,
+        Key::DEFAULT,
+        tokens,
+        Some(sentences),
+        None,
+        None,
+        [
+            IncivilityItem {
+                target: IncivilityTarget::Sentence(Ix::new(0)),
+                scores: scores0,
+                evidence: &[(IncivilityLabel::Insult, IxRange::new(1, 3))],
+            },
+            IncivilityItem {
+                target: IncivilityTarget::Sentence(Ix::new(1)),
+                scores: IncivilityScores::default(),
+                evidence: &[],
+            },
+        ],
+    )
+    .unwrap();
+
+    let pragmatics = Pragmatics::from_items_on(
+        golden_key::<Tokens>(),
+        sentences,
+        tokens,
+        [
+            PragmaticsItem {
+                score: 0.75,
+                evidence: Some(Incongruity { positive: IxRange::new(2, 3), negative: IxRange::new(4, 5) }),
+            },
+            PragmaticsItem { score: 0.05, evidence: None },
+        ],
+    )
+    .unwrap();
+
+    g.layers.push(GoldenLayer::from(&opinions));
+    g.layers.push(GoldenLayer::from(&aspects));
+    g.layers.push(GoldenLayer::from(&incivility));
+    g.layers.push(GoldenLayer::from(&pragmatics));
+
+    let serialized = g.to_text().unwrap();
+    let parsed = Golden::parse(&serialized).unwrap();
+    assert_eq!(parsed, g);
+
+    let loaded = load_document(&parsed, &source).unwrap();
+    let exact = Tolerance::exact();
+    assert_matches_golden_key(&loaded, &golden_key::<Opinions>(), &parsed, exact);
+    assert_matches_golden_key(&loaded, &golden_key::<Aspects>(), &parsed, exact);
+    assert_matches_golden_key(&loaded, &golden_key::<Incivility>(), &parsed, exact);
+    assert_matches_golden_key(&loaded, &golden_key::<Pragmatics>(), &parsed, exact);
+
+    assert_eq!(loaded.made_on(golden_key::<Opinions>().id()), [golden_key::<Tokens>().id()]);
+    assert_eq!(
+        loaded.made_on(golden_key::<Aspects>().id()),
+        [golden_key::<Tokens>().id(), golden_key::<Sentences>().id(), golden_key::<Opinions>().id(),]
+    );
+    assert_eq!(
+        loaded.made_on(golden_key::<Incivility>().id()),
+        [golden_key::<Tokens>().id(), golden_key::<Sentences>().id()]
+    );
+    assert_eq!(
+        loaded.made_on(golden_key::<Pragmatics>().id()),
+        [golden_key::<Sentences>().id(), golden_key::<Tokens>().id()]
+    );
+
+    // Perturb a secondary float column (intensity in Opinions, negative in Aspects, profanity in Incivility)
+    // by 5e-10: passes within 1e-9 tolerance and fails under Exact or 1e-10.
+    let mut perturbed = parsed.clone();
+    if let ColumnData::F64(v) =
+        &mut perturbed.layers.iter_mut().find(|l| l.id == "turbo:opinions").unwrap().columns[3].data
+    {
+        v[0] += 5e-10;
+    }
+    assert_eq!(matches_golden_key(&loaded, &golden_key::<Opinions>(), &perturbed, Tolerance::abs(1e-9)), Ok(()));
+    let m = matches_golden_key(&loaded, &golden_key::<Opinions>(), &perturbed, Tolerance::abs(1e-10)).unwrap_err();
+    assert!(matches!(m, Mismatch::Item { index: 0, what: "intensity", .. }), "{m:?}");
+
+    // Out-of-bounds token range in a golden block is rejected by GoldenLoad.
+    let mut bad = parsed.clone();
+    if let ColumnData::U32(v) = &mut bad.layers.iter_mut().find(|l| l.id == "turbo:opinions").unwrap().columns[1].data {
+        v[1] = 99;
+    }
+    let e = load_document(&bad, &source).err().unwrap();
+    assert_eq!(e, LoadError::TokenRange { layer: golden_key::<Opinions>().id(), row: 1, start: 7, end: 99, tokens: 9 });
 }

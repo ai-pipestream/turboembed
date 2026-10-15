@@ -28,6 +28,10 @@ pub use money::{CONVERTED_MONEY, Currency, Money, MoneyMention};
 pub use numbers::{DecimalRef, Multiplier, NumberMention, NumberNotation, Numbers, ScaleMarker};
 pub use ordinals::{OrdinalBase, OrdinalMention, Ordinals};
 pub use quantities::{PERCENT, Quantities, QuantityMention};
+pub use sentiment::{
+    Aspect, AspectTarget, Aspects, Incivility, IncivilityItem, IncivilityLabel, IncivilityScores, IncivilityTarget,
+    Incongruity, Opinion, Opinions, Polarity, PolarityScores, Pragmatics, PragmaticsItem,
+};
 pub use temporal::{DocumentDate, Granularity, Origin, TemporalMention, TemporalValue, Temporals};
 pub use times::{Modifier, Portion, Relation, TimeGrain, TimeKind, TimeMention, Times};
 pub use words::{
@@ -96,6 +100,7 @@ mod money;
 mod numbers;
 mod ordinals;
 mod quantities;
+mod sentiment;
 mod temporal;
 mod times;
 mod words;
