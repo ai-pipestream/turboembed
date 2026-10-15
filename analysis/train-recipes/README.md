@@ -169,13 +169,17 @@ release:
 | Corpus directory | `MASC-3.0.0`, 4,425 files |
 | Corpus digest | `445449f535cac62e74b2712ad975d7b727e72b8276720dd27492266565ae0afd` |
 
-The address is the one anc.org's MASC download page gives: a release
-asset of the ANC website's repository on GitHub (`nancyide/anc-website`,
-release `datasets-2026-09-25`), not a file on anc.org itself. The
-archive holds one directory, `MASC-3.0.0`, with 4,425 regular files and
-no links; its README dates the release 2012-12-15. The corpus digest
-(`masc::corpus_digest`) is the SHA-256 of a `sha256sum` manifest of
-every file under that directory, so this gives the same digest:
+The archive is a release asset of the GitHub repository
+`github.com/nancyide/anc-website` (tag `datasets-2026-09-25`), not a
+file on anc.org itself. That anc.org's MASC download page links to it
+was reported but not checked: anc.org could not be reached from the
+machine the recipes were run on. What was checked there, on the
+downloaded archive: its size, SHA-256 and SHA-512 above; it holds one
+directory, `MASC-3.0.0`, with 4,425 regular files and no links; its
+README dates the release 2012-12-15; and the corpus digest above. The
+corpus digest (`masc::corpus_digest`) is the SHA-256 of a `sha256sum`
+manifest of every file under that directory, so this gives the same
+digest:
 
 ```
 cd MASC-3.0.0 && find . -type f -printf '%P\n' | LC_ALL=C sort |

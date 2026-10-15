@@ -7,12 +7,16 @@
 //! CC BY allows it with attribution, but the policy prefers fetching by
 //! digest, and the corpus is far larger than the repository's test data.
 //!
-//! [`RELEASE`] records the archive, `MASC-3.0.0.zip`, as anc.org's MASC
-//! page links to it (a release asset of the ANC website's repository on
-//! GitHub), and the digest of the directory it extracts to,
-//! `MASC-3.0.0` ([`corpus_digest`]). A run on another directory is not a
-//! release of the models: the binary refuses it unless given
-//! `--unrecorded-corpus`, and marks its cards `release_recorded: false`.
+//! [`RELEASE`] records the archive `MASC-3.0.0.zip`, a release asset of
+//! the GitHub repository `nancyide/anc-website` (tag
+//! `datasets-2026-09-25`), and the digest of the directory it extracts
+//! to, `MASC-3.0.0` ([`corpus_digest`]). That anc.org's MASC download page
+//! links to the asset was reported but not checked: anc.org could not be
+//! reached from the machine the recipes were run on, where the archive's
+//! size and digests and the corpus digest were checked. A run on another
+//! directory is not a release of the models: the binary refuses it
+//! unless given `--unrecorded-corpus`, and marks its cards
+//! `release_recorded: false`.
 
 use std::fmt::{self, Write as _};
 use std::path::{Path, PathBuf};
@@ -91,10 +95,13 @@ impl Release {
     }
 }
 
-/// The MASC release the recipes train on: MASC 3.0.0 as the archive
-/// anc.org's MASC page links to, downloaded and checked on 2026-10-14.
-/// The archive's entries are the directory `MASC-3.0.0` and 4,425
-/// regular files under it (no links); its corpus digest covers those
+/// The MASC release the recipes train on: the archive `MASC-3.0.0.zip`
+/// released on GitHub as an asset of `nancyide/anc-website` (tag
+/// `datasets-2026-09-25`), downloaded and checked on 2026-10-14; that
+/// anc.org's MASC page links to it was reported, not checked (the
+/// module's documentation). The archive's entries are the directory
+/// `MASC-3.0.0` and 4,425 regular files under it (no links), its README
+/// dates the release 2012-12-15, and its corpus digest covers those
 /// files.
 pub const RELEASE: Release = Release::Recorded(RecordedRelease {
     file: "MASC-3.0.0.zip",
