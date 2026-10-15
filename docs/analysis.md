@@ -35,8 +35,8 @@ nothing here is in the C header or the gRPC server.
 | `turbo-stopword-layers` | `analysis/stopword-layers/` | The `turbo:stopwords` layer and the languages that have a list (`StopwordLanguage`) |
 | `turbo-bpe-trainer` | `analysis/bpe-trainer/` | BPE trainers, a tool and not an annotator: byte-level BPE as upstream `tokenizers` trains it, SentencePiece BPE as the sentencepiece library trains it, and OpenNLP's `BPETokenizerTrainer` with its `BPETokenizer` ([bpe-trainer.md](bpe-trainer.md)) |
 | `turbo-train` | `analysis/train/` | Training OpenNLP maxent models, the event side: `Event`, the `FileEventStream` and `RealValueFileEventStream` formats, the CRC-32C event checksum, the three data indexers with their cutoffs, sorting and merging, `TrainingParameters` with typed values and OpenNLP's parameters file, `AlgorithmType` and the trainer types, the progress monitors and stop criteria, the GIS trainer (`GISTrainer`, parameters bit for bit the JVM's after every iteration), the binary model writer (`GenericModelWriter`, bytes the JVM's) and the `.bin` packaging with its manifest (`BaseModel.serialize`; the entries are the JVM's bytes, the archive around them is written here and loads in both). Sample types belong to the formats crate; this one starts at events. Its crate documentation lists the OpenNLP behaviour that is surprising, and "Training goldens" below describes its JVM reference |
-| `turbo-train-components` | `analysis/train-components/` | Training the sentence detector, the tokenizer, the part-of-speech tagger and the lemmatizer: `SDEventStream`, `TokSpanEventStream`, `POSSampleEventStream` and `LemmaSampleEventStream` with their factories (end characters, alphanumeric pattern, abbreviation dictionary, feature generator descriptor, tag dictionary), the `SentenceModel`, `TokenizerModel`, `POSModel` and `LemmatizerModel` files with every manifest entry and artifact the JVM writes (the dictionaries as `Dictionary.serialize` and `POSDictionary.serialize` write them, zip entries in the JVM's order), and the recipes that train the eighteen published UD 1.3 models again from their treebanks and compare them with the published files. Its own crate because `turbo-formats` depends on `turbo-tokenize`; "Training the components" below |
-| `turbo-train-recipes` | `analysis/train-recipes/` | Recipes that train models on permissive data and gate them: MASC 3.0.0 (CC BY 3.0 US) with the record of its release and fixed split, the English sentence detector, tokenizer and part-of-speech tagger trained on it, their gates against the OpenNLP English UD models and OpenNLP 1.5's Penn tagger (`en-pos-maxent.bin`), the model card and the permissive zoo entry, and the `turbo-train-recipes` binary ("Models trained on permissive data", below) |
+| `turbo-train-components` | `analysis/train-components/` | Training the sentence detector, the tokenizer, the part-of-speech tagger, the lemmatizer and the phrase chunker: `SDEventStream`, `TokSpanEventStream`, `POSSampleEventStream`, `LemmaSampleEventStream` and `ChunkerEventStream` with their factories (end characters, alphanumeric pattern, abbreviation dictionary, feature generator descriptor, tag dictionary), the `SentenceModel`, `TokenizerModel`, `POSModel`, `LemmatizerModel` and `ChunkerModel` files with every manifest entry and artifact the JVM writes (the dictionaries as `Dictionary.serialize` and `POSDictionary.serialize` write them, zip entries in the JVM's order), and the recipes that train the eighteen published UD 1.3 models again from their treebanks and compare them with the published files. Its own crate because `turbo-formats` depends on `turbo-tokenize`; "Training the components" below |
+| `turbo-train-recipes` | `analysis/train-recipes/` | Recipes that train models on permissive data and gate them: MASC 3.0.0 (CC BY 3.0 US) with the record of its release and fixed split, the English sentence detector, tokenizer, part-of-speech tagger and chunker trained on it, their gates against the OpenNLP English UD models and OpenNLP 1.5's Penn tagger and chunker (`en-pos-maxent.bin`, `en-chunker.bin`), the model card and the permissive zoo entry, and the `turbo-train-recipes` binary ("Models trained on permissive data", below) |
 | `turbo-formats` | `analysis/formats/` | OpenNLP's training samples (name, part-of-speech, lemma, chunk, token, sentence, document category and language samples), a reader per native format that reproduces OpenNLP's sample stream over the same text, the conversion of name and part-of-speech samples into token and sentence samples, the CoNLL-U readers of part-of-speech, lemma, sentence and token samples, the CoNLL-2002 and CoNLL-2003 name readers and the CoNLL-X part-of-speech reader, the MASC corpus reader and its part-of-speech, token, sentence and name samples, the named entity corpus readers (GermEval 2014, BioNLP 2004, Evalita, the 1990 census names, MUC-6 and brat), the format registry, and the evaluators and cross-validation folds (`FMeasure`, `Mean`, an evaluator per component). Every token and tag keeps its byte span in the source; the crate documentation lists the OpenNLP behaviour that is surprising, and its tests compare with the `formats`, `masc`, `ner` and `evaluate` goldens |
 | `turbo-parser` | `analysis/parser/` | OpenNLP's constituency `Parse` tree and Penn Treebank bracket I/O (`Parse::parse`, `Parse::show`, `ParseSampleStream`, `ParserPosSample`, `ParserChunkSample`, `space_untokenized_parens`), the `HeadRules` and `GapLabeler` traits, `EnglishHeadRules` (`opennlp.tools.parser.lang.en.HeadRules`), and `AncoraSpanishHeadRules` (`opennlp.tools.parser.lang.es.AncoraSpanishHeadRules`), whose tags are Java regular expressions (`TagPattern`). `analysis/parser/README.md` describes where it differs from OpenNLP and its JVM golden files |
 | `turbo-eval` | `analysis/eval/` | The evaluation harness: the evaluation sets with their fetch by checksum and typed readers, the pipeline, the baseline chunkers, measures, significance tests, records, the gate and the `turbo-eval` binary (Evaluation, below) |
@@ -1745,6 +1745,27 @@ that `analysis/postag/tests/golden.rs` and
 `analysis/lemmatizer/tests/golden.rs` compare the JVM's tags, lemmas and
 probabilities with them against the Rust annotators'.
 
+The `chunk` module is `ChunkerME.train` with `ChunkerFactory`: the
+events of `ChunkerEventStream` over the default context generator of
+`turbo-sequence`, which `turbo-phrase-chunker` infers with, trained by
+any event trainer (`MAXENT`, the default, `MAXENT_QN` or `PERCEPTRON`),
+in a model file with `chunker.model` before `manifest.properties`, as
+the JVM's artifact map orders them. `ChunkerME.train` refuses the
+sequence perceptron, an event model sequence trainer, with
+`IllegalArgumentException`, and so does the port. The goldens of
+`ChunkerTrainGolden` (`train-events/chunker-*`) are `ChunkerME.train`
+itself over the chunk inputs with OpenNLP's default parameters, the
+perceptron, `MAXENT_QN` and the sequence perceptron;
+`analysis/train-components/tests/chunker.rs` compares the events, the
+stream errors, what training threw, and the trained model's outcomes,
+predicates, every parameter (within 1e-9; every one is the JVM's
+double), the model entry, the manifest and the zip entries. The fixture
+`chunker-fixture.bin` is trained again byte for byte, and
+`chunker-fixture-rust.bin`, trained from
+`analysis/goldens/data/inputs/tagged/chunks.txt`, is loaded and run in
+the JVM (`chunk/chunker-fixture-rust`), where its tags, probabilities
+and decision points are those `turbo-phrase-chunker` gives.
+
 The `ud` module holds the recipes of the eighteen published
 `opennlp-{en,de,es,fr,pt}-ud-{ewt,gsd}-{sentence,tokens,pos,lemmas}-1.3-2.5.4.bin`
 models as typed data: the treebank (`UniversalDependencies/UD_*` at
@@ -2060,11 +2081,11 @@ checked in dumps were made in the same container run as the goldens.
 `analysis/train-recipes` (`turbo-train-recipes`) trains models only on
 data the licence policy lets the project ship, and gates each one
 against the OpenNLP model for the same task (#401). The first recipes
-are the English sentence detector, tokenizer and part-of-speech tagger
+are the English sentence detector, tokenizer, part-of-speech tagger and chunker
 trained on MASC 3.0.0 (CC BY 3.0 US), gated against
 `opennlp-en-ud-ewt-sentence-1.3-2.5.4`,
 `opennlp-en-ud-ewt-tokens-1.3-2.5.4` and OpenNLP 1.5's
-`en-pos-maxent.bin`:
+`en-pos-maxent.bin` and `en-chunker.bin`:
 
 - The data: MASC is fetched through the zoo by digest as a permissive
   dataset and read from its extracted directory with the MASC reader of
@@ -2108,8 +2129,16 @@ trained on MASC 3.0.0 (CC BY 3.0 US), gated against
   with a token without a tag, or with no token, alone rather than
   throw. Held-out sentences are skipped the same way; the card records
   both counts, and a recipe fails when its reader skips more than one
-  sentence in a thousand on either side. The manifest's `Timestamp` is
-  fixed, so a run gives the same bytes.
+  sentence in a thousand on either side. The chunker is trained as
+  `ChunkerME.train` trains with `TrainingParameters.defaultParams()`
+  (GIS, 100 iterations, cutoff 5, one thread, beam size 10) on MASC's
+  noun and verb chunks (`f.nc` and `f.vc`, which OpenNLP has no reader
+  for, read by `turbo-formats`); a sentence with chunks that chunk tags
+  cannot express (part of a chunk that crosses sentences, or chunks that
+  share a token, which MASC's chunk layers, made automatically and then
+  validated, hold in about one sentence in fourteen) is skipped, with a
+  bound of one in ten of its own. The manifest's `Timestamp` is fixed, so a run gives the same
+  bytes.
 - The gate: both models scored with OpenNLP's `SentenceDetectorEvaluator`,
   `TokenizerEvaluator` and `POSEvaluator` on the same held-out samples,
   gated by `turbo_eval::model_gate`. MASC's tags are Penn tags, so the
@@ -2132,7 +2161,18 @@ trained on MASC 3.0.0 (CC BY 3.0 US), gated against
   it; the recipe records its size and SHA-256, reads it only to score
   it, and never ships or bundles it. The
   English UD tagger asked for Penn tags would be no reference: it gives
-  one Penn tag per UD tag, never `VBD`, `NNS` or `,`.
+  one Penn tag per UD tag, never `VBD`, `NNS` or `,`. The chunker's
+  reference is `en-chunker.bin` of the 1.5 models, trained on CoNLL-2000
+  chunks (the Wall Street Journal part of the Penn Treebank, an LDC
+  corpus), recorded and only scored like the tagger's. Both chunkers are
+  scored with `ChunkerEvaluator` on the chunk types both give, `NP` and
+  `VP`, the only ones MASC has; the reference's chunks of its other
+  types are made `O` before it is scored, and it is given `:` for MASC's
+  `-`, `...` and `;`. MASC's chunks follow other conventions than
+  CoNLL-2000's (verb groups split where CoNLL-2000 keeps them whole,
+  predicate adjectives inside verb chunks, coordinations of single nouns
+  split), and every such difference counts against the reference, so
+  this gate leans towards the trained model.
 - The output: `<out>/<model id>/` with the model, `card.json` (the
   data, its licence and attribution, the split, the parameters, the
   training counts, the tag formats a tagger was scored in and the
@@ -2163,8 +2203,11 @@ units, +3.46, +3.21 to +3.71). About 1.10 points of the tagger's lead
 come from 1,309 held-out punctuation tokens MASC tags `NN` (`[`, `]`,
 curly quotation marks, dashes, `*`), on which the reference, which does
 not know punctuation outside ASCII, is mostly wrong; scored without
-them the lead is +2.39 (+2.18 to +2.63), and the gate still passes. Two
-runs write the same model bytes. The crate's README has the counts, the
+them the lead is +2.39 (+2.18 to +2.63), and the gate still passes. The
+chunker scores 89.74 against 82.46 (F-measure of `NP` and `VP` chunks,
+6,036 units, +7.29, +6.84 to +7.75), a lead that measures how closely
+each model follows MASC's chunk conventions as well as how well it
+chunks. Two runs write the same model bytes. The crate's README has the counts, the
 models' digests and the rest.
 
 ## Differential fuzzing

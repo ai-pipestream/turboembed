@@ -93,7 +93,8 @@ fn masc_command(a: Args) -> Result<bool, String> {
         println!("the corpus is not the recorded release: this run is not a release of the models");
     }
     let recipes: Vec<Recipe> = RECIPES.into_iter().filter(|r| a.recipes.is_empty() || a.recipes.contains(r)).collect();
-    let corpus = MascCorpus::read(&corpus_dir).map_err(|e| Error::from(e).to_string())?;
+    let read = if recipes.iter().any(Recipe::reads_chunks) { MascCorpus::read_with_chunks } else { MascCorpus::read };
+    let corpus = read(&corpus_dir).map_err(|e| Error::from(e).to_string())?;
     let split = masc::SPLIT.apply(corpus, &corpus_dir).map_err(|e| e.to_string())?;
     println!(
         "{} training documents, {} held out, {} excluded",

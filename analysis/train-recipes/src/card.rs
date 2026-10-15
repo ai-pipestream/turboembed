@@ -14,7 +14,6 @@ use std::path::Path;
 use serde::{Deserialize, Serialize};
 use turbo_eval::model_gate::{ModelGateRecord, TagMapping};
 use turbo_postag::PosTagFormat;
-use turbo_train_components::ud;
 use turbo_zoo::{Artifact, File, Kind, Licence, LicenceClass, Sha256, Sha512, TrainingData, class_of, index::Format};
 
 use crate::error::{Error, Result, io};
@@ -85,8 +84,8 @@ pub struct TrainingCard {
     /// components.
     pub sentences_per_sample: Option<usize>,
     /// `legacy` (OpenNLP 2.5.4's `Character.isWhitespace` or `Zs`) for the
-    /// sentence detector and the tokenizer; `null` for the tagger, which
-    /// reads tokens.
+    /// sentence detector and the tokenizer; `null` for the tagger and the
+    /// chunker, which read tokens.
     pub whitespace: Option<String>,
     /// The manifest's `Timestamp`.
     pub timestamp_ms: i64,
@@ -195,7 +194,7 @@ pub struct GateCard {
     pub reference: String,
     pub reference_sha256: String,
     /// For a tagger, the tags the trained model was scored in; `null`
-    /// for the other components.
+    /// for the other components (a chunker is given MASC's Penn tags).
     pub candidate_tag_format: Option<TagFormat>,
     /// For a tagger, the tags the reference was scored in; `null` for the
     /// other components.
@@ -250,6 +249,7 @@ impl ModelCard {
                 None,
             ),
             Recipe::Pos(p) => (None, None, TagFormat::of(postag::CANDIDATE_FORMAT), TagFormat::of(p.reference_format)),
+            Recipe::Chunk(_) => (None, None, None, None),
         };
         ModelCard {
             card_version: CARD_VERSION,
@@ -269,12 +269,7 @@ impl ModelCard {
             attribution: masc::ATTRIBUTION.to_owned(),
             corpus,
             training: TrainingCard {
-                parameters: ParametersCard {
-                    algorithm: "MAXENT".to_owned(),
-                    iterations: ud::ITERATIONS,
-                    cutoff: ud::CUTOFF,
-                    threads: ud::THREADS,
-                },
+                parameters: recipe.parameters(),
                 sentences_per_sample,
                 whitespace,
                 timestamp_ms: TIMESTAMP_MS,

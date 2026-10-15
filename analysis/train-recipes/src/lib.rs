@@ -11,6 +11,9 @@
 //! - [`postag`]: the English part-of-speech tagger trained on MASC's Penn
 //!   tags, gated the same way against OpenNLP 1.5's Penn tagger
 //!   (`en-pos-maxent.bin`).
+//! - [`chunk`]: the English chunker trained on MASC's noun and verb
+//!   chunks, gated on those two chunk types against OpenNLP 1.5's
+//!   chunker (`en-chunker.bin`).
 //! - [`spans`]: a held-out unit's counts from OpenNLP's `FMeasure`, both
 //!   models' counts paired, and the types a gate of typed spans scores.
 //! - [`card`]: the model card kept beside the gate record, and the
@@ -22,6 +25,7 @@
 //! directory.
 
 pub mod card;
+pub mod chunk;
 pub mod error;
 pub mod masc;
 pub mod postag;
@@ -36,7 +40,8 @@ use turbo_zoo::{Index, Sha256};
 
 pub use error::{Error, LeftOut, Result};
 
-use card::{CorpusCard, HeldOutCard, ModelCard};
+use card::{CorpusCard, HeldOutCard, ModelCard, ParametersCard};
+use chunk::ChunkRecipe;
 use masc::{CorpusDigest, SPLIT, SplitCorpus};
 use postag::PosRecipe;
 use segmentation::{Component, SegmentationRecipe};
@@ -51,8 +56,9 @@ pub struct Trained {
     /// Sentences left out of training: by the token stream for having no
     /// sample or tokens out of text order, by the tagger's for a token
     /// without a tag or for having no token (always 0 for the sentence
-    /// detector). At most
-    /// [`MAX_SKIPPED_SENTENCES`] of those read.
+    /// detector), by the chunker's for those and for chunks that chunk
+    /// tags cannot express. At most [`MAX_SKIPPED_SENTENCES`] of those
+    /// read, or [`chunk::MAX_SKIPPED_SENTENCES`] for the chunker.
     pub skipped_sentences: usize,
     pub events: usize,
     /// `Training-Eventhash`.
@@ -205,14 +211,16 @@ impl Reference {
 pub enum Recipe {
     Segmentation(SegmentationRecipe),
     Pos(PosRecipe),
+    Chunk(ChunkRecipe),
 }
 
 /// The recipes, in the order the binary runs them: the sentence detector,
-/// the tokenizer, the part-of-speech tagger.
-pub const RECIPES: [Recipe; 3] = [
+/// the tokenizer, the part-of-speech tagger, the chunker.
+pub const RECIPES: [Recipe; 4] = [
     Recipe::Segmentation(segmentation::SENTENCE),
     Recipe::Segmentation(segmentation::TOKENS),
     Recipe::Pos(postag::POS),
+    Recipe::Chunk(chunk::CHUNKS),
 ];
 
 impl Recipe {
@@ -226,6 +234,7 @@ impl Recipe {
         match self {
             Recipe::Segmentation(r) => r.model_id,
             Recipe::Pos(r) => r.model_id,
+            Recipe::Chunk(r) => r.model_id,
         }
     }
 
@@ -234,6 +243,7 @@ impl Recipe {
         match self {
             Recipe::Segmentation(r) => Reference::Zoo(r.reference_id),
             Recipe::Pos(r) => r.reference,
+            Recipe::Chunk(r) => r.reference,
         }
     }
 
@@ -247,6 +257,7 @@ impl Recipe {
         match self {
             Recipe::Segmentation(r) => r.task(),
             Recipe::Pos(r) => r.task(),
+            Recipe::Chunk(r) => r.task(),
         }
     }
 
@@ -258,7 +269,25 @@ impl Recipe {
                 Component::Tokens => turbo_zoo::Component::Tokenizer,
             },
             Recipe::Pos(_) => turbo_zoo::Component::Pos,
+            Recipe::Chunk(_) => turbo_zoo::Component::Chunker,
         }
+    }
+
+    /// Whether the recipe reads the corpus's noun and verb chunks, so the
+    /// corpus is to be read with its chunk files
+    /// ([`MascCorpus::read_with_chunks`]).
+    pub fn reads_chunks(&self) -> bool {
+        matches!(self, Recipe::Chunk(_))
+    }
+
+    /// The training parameters, as the card records them.
+    pub fn parameters(&self) -> ParametersCard {
+        use turbo_train_components::ud;
+        let (iterations, cutoff, threads) = match self {
+            Recipe::Segmentation(_) | Recipe::Pos(_) => (ud::ITERATIONS, ud::CUTOFF, ud::THREADS),
+            Recipe::Chunk(_) => (chunk::ITERATIONS, chunk::CUTOFF, chunk::THREADS),
+        };
+        ParametersCard { algorithm: "MAXENT".to_owned(), iterations, cutoff, threads }
     }
 
     /// Trains the model from the training documents.
@@ -270,6 +299,7 @@ impl Recipe {
         match self {
             Recipe::Segmentation(r) => r.train(train),
             Recipe::Pos(r) => r.train(train),
+            Recipe::Chunk(r) => r.train(train),
         }
     }
 
@@ -295,6 +325,9 @@ impl Recipe {
                 r.gate(trained, reference_id, reference, &r.held_out(held_out)?, set_name, corpus_sha256)
             }
             Recipe::Pos(r) => r.gate(trained, reference_id, reference, &r.held_out(held_out)?, set_name, corpus_sha256),
+            Recipe::Chunk(r) => {
+                r.gate(trained, reference_id, reference, &r.held_out(held_out)?, set_name, corpus_sha256)
+            }
         }
     }
 
@@ -325,6 +358,10 @@ impl Recipe {
                 if let Some(reference) = reference {
                     r.check_coverage(reference_id, &r.reference_tags(reference)?, &held_out)?;
                 }
+            }
+            Recipe::Chunk(r) => {
+                r.check_training(&split.train)?;
+                r.held_out(&split.held_out)?;
             }
         }
         Ok(())
@@ -420,7 +457,12 @@ mod tests {
         let ids: Vec<&str> = RECIPES.iter().map(Recipe::model_id).collect();
         assert_eq!(
             ids,
-            ["turbo-en-masc-3.0.0-sentence-1", "turbo-en-masc-3.0.0-tokens-1", "turbo-en-masc-3.0.0-pos-1"]
+            [
+                "turbo-en-masc-3.0.0-sentence-1",
+                "turbo-en-masc-3.0.0-tokens-1",
+                "turbo-en-masc-3.0.0-pos-1",
+                "turbo-en-masc-3.0.0-chunks-1"
+            ]
         );
         for r in RECIPES {
             assert!(matches!(r.check_reference(b"not the model"), Err(Error::ReferenceDigest { .. })));
@@ -448,7 +490,16 @@ mod tests {
         for r in RECIPES {
             assert_eq!(Recipe::trains(r.model_id()), Some(r));
         }
-        assert_eq!(Recipe::trains("turbo-en-masc-3.0.0-chunks-1"), None);
+        assert_eq!(RECIPES[3].task(), Task::Chunker);
+        assert_eq!(RECIPES[3].component(), turbo_zoo::Component::Chunker);
+        assert_eq!(RECIPES[3].reference_id(), "opennlp-en-chunker-1.5");
+        assert_eq!(RECIPES[3].reference().sha256().unwrap(), chunk::EN_CHUNKER.sha256);
+        let p = RECIPES[3].parameters();
+        assert_eq!((p.algorithm.as_str(), p.iterations, p.cutoff, p.threads), ("MAXENT", 100, 5, 1));
+        let p = RECIPES[2].parameters();
+        assert_eq!((p.algorithm.as_str(), p.iterations, p.cutoff, p.threads), ("MAXENT", 300, 5, 4));
+        assert!(RECIPES[3].reads_chunks() && !RECIPES[2].reads_chunks());
+        assert_eq!(Recipe::trains("turbo-en-masc-3.0.0-unknown-1"), None);
         assert!(Reference::Zoo("not-in-the-zoo").file().is_err());
     }
 
