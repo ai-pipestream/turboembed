@@ -1,0 +1,75 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	formats/name-edge	420	408	ef594ec59eb49dc9e4bf1e1819c596c164edb9ccb5ec6e80349236624e5d7ff6
+annotator	opennlp.tools.namefind.NameFinderEventStream	read
+config	algorithm	PERCEPTRON
+config	codec	bio
+config	language	en
+config	run	train-perceptron
+layer	turbo:events	document	47	outcome:str	context:str	values:str
+other	wc=lc w&c=single,lc w=single def pd=null S=begin po=other pow=other,single powf=other,lc ppo=other	
+t-start	wc=lc w&c=single,lc w=single def pd=other S=begin po=other pow=other,single powf=other,lc ppo=other	
+b-start	wc=lc w&c=x,lc w=x def pd=null S=begin po=other pow=other,x powf=other,lc ppo=other	
+other	wc=lc w&c=a,lc n1wc=lc n1w&c=b,lc n2wc=lc n2w&c=c,lc w=a n1w=b n2w=c def pd=null w,nw=a,b wc,nc=lc,lc S=begin po=other pow=other,a powf=other,lc ppo=other	
+other	wc=lc w&c=b,lc p1wc=lc p1w&c=a,lc n1wc=lc n1w&c=c,lc w=b p1w=a n1w=c def pd=null pw,w=a,b pwc,wc=lc,lc w,nw=b,c wc,nc=lc,lc po=other pow=other,b powf=other,lc ppo=other	
+other	wc=lc w&c=c,lc p1wc=lc p1w&c=b,lc p2wc=lc p2w&c=a,lc w=c p1w=b p2w=a def pd=null pw,w=b,c pwc,wc=lc,lc po=other pow=other,c powf=other,lc ppo=other	
+other	wc=other w&c=<start:a:b>,other n1wc=lc n1w&c=x,lc n2wc=other n2w&c=<end:y>,other w=<start:a:b> n1w=x n2w=<end:y> def pd=null w,nw=<START:a:b>,x wc,nc=other,lc S=begin po=other pow=other,<START:a:b> powf=other,other ppo=other	
+other	wc=lc w&c=x,lc p1wc=other p1w&c=<start:a:b>,other n1wc=other n1w&c=<end:y>,other n2wc=other n2w&c=<start:a>b,other w=x p1w=<start:a:b> n1w=<end:y> n2w=<start:a>b def pd=b-start pw,w=<START:a:b>,x pwc,wc=other,lc w,nw=x,<END:y> wc,nc=lc,other po=other pow=other,x powf=other,lc ppo=other	
+other	wc=other w&c=<end:y>,other p1wc=lc p1w&c=x,lc p2wc=other p2w&c=<start:a:b>,other n1wc=other n1w&c=<start:a>b,other w=<end:y> p1w=x p2w=<start:a:b> n1w=<start:a>b def pd=null pw,w=x,<END:y> pwc,wc=lc,other w,nw=<END:y>,<START:a>b wc,nc=other,other po=other pow=other,<END:y> powf=other,other ppo=other	
+other	wc=other w&c=<start:a>b,other p1wc=other p1w&c=<end:y>,other p2wc=lc p2w&c=x,lc w=<start:a>b p1w=<end:y> p2w=x def pd=null pw,w=<END:y>,<START:a>b pwc,wc=other,other po=other pow=other,<START:a>b powf=other,other ppo=other	
+other	wc=lc w&c=leading,lc n1wc=lc n1w&c=and,lc n2wc=lc n2w&c=trailing,lc w=leading n1w=and n2w=trailing def pd=null w,nw=leading,and wc,nc=lc,lc S=begin po=other pow=other,leading powf=other,lc ppo=other	
+other	wc=lc w&c=and,lc p1wc=lc p1w&c=leading,lc n1wc=lc n1w&c=trailing,lc n2wc=lc n2w&c=spaces,lc w=and p1w=leading n1w=trailing n2w=spaces def pd=null pw,w=leading,and pwc,wc=lc,lc w,nw=and,trailing wc,nc=lc,lc po=other pow=other,and powf=other,lc ppo=other	
+other	wc=lc w&c=trailing,lc p1wc=lc p1w&c=and,lc p2wc=lc p2w&c=leading,lc n1wc=lc n1w&c=spaces,lc w=trailing p1w=and p2w=leading n1w=spaces def pd=null pw,w=and,trailing pwc,wc=lc,lc w,nw=trailing,spaces wc,nc=lc,lc po=other pow=other,trailing powf=other,lc ppo=other	
+other	wc=lc w&c=spaces,lc p1wc=lc p1w&c=trailing,lc p2wc=lc p2w&c=and,lc w=spaces p1w=trailing p2w=and def pd=null pw,w=trailing,spaces pwc,wc=lc,lc po=other pow=other,spaces powf=other,lc ppo=other	
+other	wc=lc w&c=tab,lc n1wc=lc n1w&c=separated,lc n2wc=other n2w&c=no-break,other w=tab n1w=separated n2w=no-break def pd=null w,nw=tab,separated wc,nc=lc,lc S=begin po=other pow=other,tab powf=other,lc ppo=other	
+other	wc=lc w&c=separated,lc p1wc=lc p1w&c=tab,lc n1wc=other n1w&c=no-break,other n2wc=lc n2w&c=em,lc w=separated p1w=tab n1w=no-break n2w=em def pd=null pw,w=tab,separated pwc,wc=lc,lc w,nw=separated,no-break wc,nc=lc,other po=other pow=other,separated powf=other,lc ppo=other	
+other	wc=other w&c=no-break,other p1wc=lc p1w&c=separated,lc p2wc=lc p2w&c=tab,lc n1wc=lc n1w&c=em,lc n2wc=other n2w&c=nel\u001cfs,other w=no-break p1w=separated p2w=tab n1w=em n2w=nel\u001cfs def pd=null pw,w=separated,no-break pwc,wc=lc,other w,nw=no-break,em wc,nc=other,lc po=other pow=other,no-break powf=other,other ppo=other	
+other	wc=lc w&c=em,lc p1wc=other p1w&c=no-break,other p2wc=lc p2w&c=separated,lc n1wc=other n1w&c=nel\u001cfs,other n2wc=lc n2w&c=x,lc w=em p1w=no-break p2w=separated n1w=nel\u001cfs n2w=x def pd=null pw,w=no-break,em pwc,wc=other,lc w,nw=em,nel\u001cfs wc,nc=lc,other po=other pow=other,em powf=other,lc ppo=other	
+other	wc=other w&c=nel\u001cfs,other p1wc=lc p1w&c=em,lc p2wc=other p2w&c=no-break,other n1wc=lc n1w&c=x,lc w=nel\u001cfs p1w=em p2w=no-break n1w=x def pd=null pw,w=em,nel\u001cfs pwc,wc=lc,other w,nw=nel\u001cfs,x wc,nc=other,lc po=other pow=other,nel\u001cfs powf=other,other ppo=other	
+p-start	wc=lc w&c=x,lc p1wc=other p1w&c=nel\u001cfs,other p2wc=lc p2w&c=em,lc w=x p1w=nel\u001cfs p2w=em def pd=other pw,w=nel\u001cfs,x pwc,wc=other,lc po=other pow=other,x powf=other,lc ppo=other	
+é😀-start	wc=lc w&c=ünïcode,lc n1wc=other n1w&c=😀,other n2wc=other n2w&c=.,other w=ünïcode n1w=😀 n2w=. def pd=null w,nw=ünïcode,😀 wc,nc=lc,other S=begin po=other pow=other,ünïcode powf=other,lc ppo=other	
+é😀-cont	wc=other w&c=😀,other p1wc=lc p1w&c=ünïcode,lc n1wc=other n1w&c=.,other w=😀 p1w=ünïcode n1w=. def pd=null pw,w=ünïcode,😀 pwc,wc=lc,other w,nw=😀,. wc,nc=other,other po=é😀-start pow=é😀-start,😀 powf=é😀-start,other ppo=other	
+other	wc=other w&c=.,other p1wc=other p1w&c=😀,other p2wc=lc p2w&c=ünïcode,lc w=. p1w=😀 p2w=ünïcode def pd=null pw,w=😀,. pwc,wc=other,other po=é😀-cont pow=é😀-cont,. powf=é😀-cont,other ppo=é😀-start	
+other	wc=lc w&c=after,lc n1wc=lc n1w&c=blanks,lc w=after n1w=blanks def pd=null w,nw=after,blanks wc,nc=lc,lc S=begin po=other pow=other,after powf=other,lc ppo=other	
+other	wc=lc w&c=blanks,lc p1wc=lc p1w&c=after,lc w=blanks p1w=after def pd=null pw,w=after,blanks pwc,wc=lc,lc po=other pow=other,blanks powf=other,lc ppo=other	
+other	wc=lc w&c=after,lc n1wc=lc n1w&c=a,lc n2wc=lc n2w&c=whitespace,lc w=after n1w=a n2w=whitespace def pd=null w,nw=after,a wc,nc=lc,lc S=begin po=other pow=other,after powf=other,lc ppo=other	
+other	wc=lc w&c=a,lc p1wc=lc p1w&c=after,lc n1wc=lc n1w&c=whitespace,lc n2wc=lc n2w&c=only,lc w=a p1w=after n1w=whitespace n2w=only def pd=null pw,w=after,a pwc,wc=lc,lc w,nw=a,whitespace wc,nc=lc,lc po=other pow=other,a powf=other,lc ppo=other	
+other	wc=lc w&c=whitespace,lc p1wc=lc p1w&c=a,lc p2wc=lc p2w&c=after,lc n1wc=lc n1w&c=only,lc n2wc=lc n2w&c=line,lc w=whitespace p1w=a p2w=after n1w=only n2w=line def pd=null pw,w=a,whitespace pwc,wc=lc,lc w,nw=whitespace,only wc,nc=lc,lc po=other pow=other,whitespace powf=other,lc ppo=other	
+other	wc=lc w&c=only,lc p1wc=lc p1w&c=whitespace,lc p2wc=lc p2w&c=a,lc n1wc=lc n1w&c=line,lc w=only p1w=whitespace p2w=a n1w=line def pd=null pw,w=whitespace,only pwc,wc=lc,lc w,nw=only,line wc,nc=lc,lc po=other pow=other,only powf=other,lc ppo=other	
+other	wc=lc w&c=line,lc p1wc=lc p1w&c=only,lc p2wc=lc p2w&c=whitespace,lc w=line p1w=only p2w=whitespace def pd=null pw,w=only,line pwc,wc=lc,lc po=other pow=other,line powf=other,lc ppo=other	
+x-start	wc=lc w&c=a,lc n1wc=other n1w&c=<end><start:y>,other n2wc=lc n2w&c=b,lc w=a n1w=<end><start:y> n2w=b def pd=other w,nw=a,<END><START:y> wc,nc=lc,other S=begin po=other pow=other,a powf=other,lc ppo=other	
+x-cont	wc=other w&c=<end><start:y>,other p1wc=lc p1w&c=a,lc n1wc=lc n1w&c=b,lc w=<end><start:y> p1w=a n1w=b def pd=null pw,w=a,<END><START:y> pwc,wc=lc,other w,nw=<END><START:y>,b wc,nc=other,lc po=x-start pow=x-start,<END><START:y> powf=x-start,other ppo=other	
+x-cont	wc=lc w&c=b,lc p1wc=other p1w&c=<end><start:y>,other p2wc=lc p2w&c=a,lc w=b p1w=<end><start:y> p2w=a def pd=null pw,w=<END><START:y>,b pwc,wc=other,lc po=x-cont pow=x-cont,b powf=x-cont,lc ppo=x-start	
+other	wc=lc w&c=after,lc n1wc=lc n1w&c=a,lc n2wc=lc n2w&c=next,lc w=after n1w=a n2w=next def pd=other w,nw=after,a wc,nc=lc,lc S=begin po=other pow=other,after powf=other,lc ppo=other	
+other	wc=lc w&c=a,lc p1wc=lc p1w&c=after,lc n1wc=lc n1w&c=next,lc n2wc=lc n2w&c=line,lc w=a p1w=after n1w=next n2w=line def pd=x-start pw,w=after,a pwc,wc=lc,lc w,nw=a,next wc,nc=lc,lc po=other pow=other,a powf=other,lc ppo=other	
+other	wc=lc w&c=next,lc p1wc=lc p1w&c=a,lc p2wc=lc p2w&c=after,lc n1wc=lc n1w&c=line,lc w=next p1w=a p2w=after n1w=line def pd=null pw,w=a,next pwc,wc=lc,lc w,nw=next,line wc,nc=lc,lc po=other pow=other,next powf=other,lc ppo=other	
+other	wc=lc w&c=line,lc p1wc=lc p1w&c=next,lc p2wc=lc p2w&c=a,lc w=line p1w=next p2w=a def pd=other pw,w=next,line pwc,wc=lc,lc po=other pow=other,line powf=other,lc ppo=other	
+other	wc=lc w&c=after,lc n1wc=lc n1w&c=a,lc n2wc=lc n2w&c=file,lc w=after n1w=a n2w=file def pd=null w,nw=after,a wc,nc=lc,lc S=begin po=other pow=other,after powf=other,lc ppo=other	
+other	wc=lc w&c=a,lc p1wc=lc p1w&c=after,lc n1wc=lc n1w&c=file,lc n2wc=lc n2w&c=separator,lc w=a p1w=after n1w=file n2w=separator def pd=null pw,w=after,a pwc,wc=lc,lc w,nw=a,file wc,nc=lc,lc po=other pow=other,a powf=other,lc ppo=other	
+other	wc=lc w&c=file,lc p1wc=lc p1w&c=a,lc p2wc=lc p2w&c=after,lc n1wc=lc n1w&c=separator,lc w=file p1w=a p2w=after n1w=separator def pd=null pw,w=a,file pwc,wc=lc,lc w,nw=file,separator wc,nc=lc,lc po=other pow=other,file powf=other,lc ppo=other	
+other	wc=lc w&c=separator,lc p1wc=lc p1w&c=file,lc p2wc=lc p2w&c=a,lc w=separator p1w=file p2w=a def pd=null pw,w=file,separator pwc,wc=lc,lc po=other pow=other,separator powf=other,lc ppo=other	
+other	wc=lc w&c=final,lc n1wc=lc n1w&c=line,lc n2wc=lc n2w&c=without,lc w=final n1w=line n2w=without def pd=null w,nw=final,line wc,nc=lc,lc S=begin po=other pow=other,final powf=other,lc ppo=other	
+other	wc=lc w&c=line,lc p1wc=lc p1w&c=final,lc n1wc=lc n1w&c=without,lc n2wc=lc n2w&c=a,lc w=line p1w=final n1w=without n2w=a def pd=null pw,w=final,line pwc,wc=lc,lc w,nw=line,without wc,nc=lc,lc po=other pow=other,line powf=other,lc ppo=other	
+other	wc=lc w&c=without,lc p1wc=lc p1w&c=line,lc p2wc=lc p2w&c=final,lc n1wc=lc n1w&c=a,lc n2wc=lc n2w&c=line,lc w=without p1w=line p2w=final n1w=a n2w=line def pd=null pw,w=line,without pwc,wc=lc,lc w,nw=without,a wc,nc=lc,lc po=other pow=other,without powf=other,lc ppo=other	
+other	wc=lc w&c=a,lc p1wc=lc p1w&c=without,lc p2wc=lc p2w&c=line,lc n1wc=lc n1w&c=line,lc n2wc=lc n2w&c=feed,lc w=a p1w=without p2w=line n1w=line n2w=feed def pd=other pw,w=without,a pwc,wc=lc,lc w,nw=a,line wc,nc=lc,lc po=other pow=other,a powf=other,lc ppo=other	
+other	wc=lc w&c=line,lc p1wc=lc p1w&c=a,lc p2wc=lc p2w&c=without,lc n1wc=lc n1w&c=feed,lc w=line p1w=a p2w=without n1w=feed def pd=null pw,w=a,line pwc,wc=lc,lc w,nw=line,feed wc,nc=lc,lc po=other pow=other,line powf=other,lc ppo=other	
+other	wc=lc w&c=feed,lc p1wc=lc p1w&c=line,lc p2wc=lc p2w&c=a,lc w=feed p1w=line p2w=a def pd=null pw,w=line,feed pwc,wc=lc,lc po=other pow=other,feed powf=other,lc ppo=other	
+end	turbo:events
+layer	turbo:stream-errors	document	1	after:u32	class:str	message:str
+2	java.lang.ArrayIndexOutOfBoundsException	Index 0 out of bounds for length 0
+end	turbo:stream-errors
+layer	turbo:event-checksum	document	1	crc32c:u32
+3870665631
+end	turbo:event-checksum
+layer	turbo:name-training	document	1	class:str	message:str
+java.lang.ArrayIndexOutOfBoundsException	Index 0 out of bounds for length 0
+end	turbo:name-training
+layer	turbo:name-parameters	document	4	key:str	class:str	value:str
+Cutoff	java.lang.Integer	0
+sort	java.lang.Boolean	false
+Iterations	java.lang.Integer	300
+Algorithm	java.lang.String	PERCEPTRON
+end	turbo:name-parameters

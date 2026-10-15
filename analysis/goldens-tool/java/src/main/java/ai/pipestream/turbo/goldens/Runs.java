@@ -57,6 +57,8 @@ final class Runs {
   static final String POS_FIXTURE_RUST = "pos-fixture-rust.bin";
   /** The lemmatizer model the Rust trainer wrote from inputs/tagged/lemmas.txt. */
   static final String LEMMA_FIXTURE_RUST = "lemma-fixture-rust.bin";
+  /** The name finder model the Rust trainer wrote from inputs/tagged/names.txt. */
+  static final String NAME_FIXTURE_RUST = "ner-fixture-rust.bin";
   /** The tag dictionary the tagger fixtures were trained with, a copy of analysis/sequence/golden/resources/tags.tagdict. */
   static final String TAG_DICTIONARY = "tags.tagdict";
   static final String CHUNKER_FIXTURE = "chunker-fixture.bin";
@@ -268,6 +270,8 @@ final class Runs {
     annotators.addAll(EventGolden.all(fixtures.resolve(ENGLISH_ABBREVIATIONS)));
     // The tagger's and the lemmatizer's event streams, and the model files around them.
     annotators.addAll(TaggerEventGolden.all(fixtures.resolve(TAG_DICTIONARY)));
+    // The name finder's event stream and NameFinderME.train, and NameFinderME over the Rust fixture.
+    annotators.addAll(NameEventGolden.all(fixtures.resolve(NAME_FIXTURE_RUST)));
     // The sample streams of OpenNLP's native formats, and the conversion streams, which
     // detokenize with the English dictionary.
     annotators.addAll(FormatGolden.all(fixtures.resolve(FORMAT_DETOKENIZER)));

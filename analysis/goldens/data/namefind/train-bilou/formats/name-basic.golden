@@ -1,0 +1,784 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	formats/name-basic	422	422	694e2045c62b46e5c02f94f64318a251c77da0c7cc4c74064d138dde455d714a
+annotator	opennlp.tools.namefind.NameFinderEventStream	read
+config	codec	bilou
+config	language	en
+config	run	train-bilou
+layer	turbo:events	document	52	outcome:str	context:str	values:str
+person-start	wc=ic w&c=pierre,ic n1wc=ic n1w&c=vinken,ic n2wc=other n2w&c=,,other w=pierre n1w=vinken n2w=, def pd=null w,nw=Pierre,Vinken wc,nc=ic,ic S=begin po=other pow=other,Pierre powf=other,ic ppo=other	
+person-last	wc=ic w&c=vinken,ic p1wc=ic p1w&c=pierre,ic n1wc=other n1w&c=,,other n2wc=2d n2w&c=61,2d w=vinken p1w=pierre n1w=, n2w=61 def pd=null pw,w=Pierre,Vinken pwc,wc=ic,ic w,nw=Vinken,, wc,nc=ic,other po=person-start pow=person-start,Vinken powf=person-start,ic ppo=other	
+other	wc=other w&c=,,other p1wc=ic p1w&c=vinken,ic p2wc=ic p2w&c=pierre,ic n1wc=2d n1w&c=61,2d n2wc=lc n2w&c=years,lc w=, p1w=vinken p2w=pierre n1w=61 n2w=years def pd=null pw,w=Vinken,, pwc,wc=ic,other w,nw=,,61 wc,nc=other,2d po=person-last pow=person-last,, powf=person-last,other ppo=person-start	
+other	wc=2d w&c=61,2d p1wc=other p1w&c=,,other p2wc=ic p2w&c=vinken,ic n1wc=lc n1w&c=years,lc n2wc=lc n2w&c=old,lc w=61 p1w=, p2w=vinken n1w=years n2w=old def pd=null pw,w=,,61 pwc,wc=other,2d w,nw=61,years wc,nc=2d,lc po=other pow=other,61 powf=other,2d ppo=person-last	
+other	wc=lc w&c=years,lc p1wc=2d p1w&c=61,2d p2wc=other p2w&c=,,other n1wc=lc n1w&c=old,lc n2wc=other n2w&c=,,other w=years p1w=61 p2w=, n1w=old n2w=, def pd=null pw,w=61,years pwc,wc=2d,lc w,nw=years,old wc,nc=lc,lc po=other pow=other,years powf=other,lc ppo=other	
+other	wc=lc w&c=old,lc p1wc=lc p1w&c=years,lc p2wc=2d p2w&c=61,2d n1wc=other n1w&c=,,other n2wc=lc n2w&c=will,lc w=old p1w=years p2w=61 n1w=, n2w=will def pd=null pw,w=years,old pwc,wc=lc,lc w,nw=old,, wc,nc=lc,other po=other pow=other,old powf=other,lc ppo=other	
+other	wc=other w&c=,,other p1wc=lc p1w&c=old,lc p2wc=lc p2w&c=years,lc n1wc=lc n1w&c=will,lc n2wc=lc n2w&c=join,lc w=, p1w=old p2w=years n1w=will n2w=join def pd=null pw,w=old,, pwc,wc=lc,other w,nw=,,will wc,nc=other,lc po=other pow=other,, powf=other,other ppo=other	
+other	wc=lc w&c=will,lc p1wc=other p1w&c=,,other p2wc=lc p2w&c=old,lc n1wc=lc n1w&c=join,lc n2wc=lc n2w&c=the,lc w=will p1w=, p2w=old n1w=join n2w=the def pd=null pw,w=,,will pwc,wc=other,lc w,nw=will,join wc,nc=lc,lc po=other pow=other,will powf=other,lc ppo=other	
+other	wc=lc w&c=join,lc p1wc=lc p1w&c=will,lc p2wc=other p2w&c=,,other n1wc=lc n1w&c=the,lc n2wc=lc n2w&c=board,lc w=join p1w=will p2w=, n1w=the n2w=board def pd=null pw,w=will,join pwc,wc=lc,lc w,nw=join,the wc,nc=lc,lc po=other pow=other,join powf=other,lc ppo=other	
+other	wc=lc w&c=the,lc p1wc=lc p1w&c=join,lc p2wc=lc p2w&c=will,lc n1wc=lc n1w&c=board,lc n2wc=lc n2w&c=as,lc w=the p1w=join p2w=will n1w=board n2w=as def pd=null pw,w=join,the pwc,wc=lc,lc w,nw=the,board wc,nc=lc,lc po=other pow=other,the powf=other,lc ppo=other	
+other	wc=lc w&c=board,lc p1wc=lc p1w&c=the,lc p2wc=lc p2w&c=join,lc n1wc=lc n1w&c=as,lc n2wc=lc n2w&c=a,lc w=board p1w=the p2w=join n1w=as n2w=a def pd=null pw,w=the,board pwc,wc=lc,lc w,nw=board,as wc,nc=lc,lc po=other pow=other,board powf=other,lc ppo=other	
+other	wc=lc w&c=as,lc p1wc=lc p1w&c=board,lc p2wc=lc p2w&c=the,lc n1wc=lc n1w&c=a,lc n2wc=lc n2w&c=nonexecutive,lc w=as p1w=board p2w=the n1w=a n2w=nonexecutive def pd=null pw,w=board,as pwc,wc=lc,lc w,nw=as,a wc,nc=lc,lc po=other pow=other,as powf=other,lc ppo=other	
+other	wc=lc w&c=a,lc p1wc=lc p1w&c=as,lc p2wc=lc p2w&c=board,lc n1wc=lc n1w&c=nonexecutive,lc n2wc=lc n2w&c=director,lc w=a p1w=as p2w=board n1w=nonexecutive n2w=director def pd=null pw,w=as,a pwc,wc=lc,lc w,nw=a,nonexecutive wc,nc=lc,lc po=other pow=other,a powf=other,lc ppo=other	
+other	wc=lc w&c=nonexecutive,lc p1wc=lc p1w&c=a,lc p2wc=lc p2w&c=as,lc n1wc=lc n1w&c=director,lc n2wc=ic n2w&c=nov.,ic w=nonexecutive p1w=a p2w=as n1w=director n2w=nov. def pd=null pw,w=a,nonexecutive pwc,wc=lc,lc w,nw=nonexecutive,director wc,nc=lc,lc po=other pow=other,nonexecutive powf=other,lc ppo=other	
+other	wc=lc w&c=director,lc p1wc=lc p1w&c=nonexecutive,lc p2wc=lc p2w&c=a,lc n1wc=ic n1w&c=nov.,ic n2wc=2d n2w&c=29,2d w=director p1w=nonexecutive p2w=a n1w=nov. n2w=29 def pd=null pw,w=nonexecutive,director pwc,wc=lc,lc w,nw=director,Nov. wc,nc=lc,ic po=other pow=other,director powf=other,lc ppo=other	
+other	wc=ic w&c=nov.,ic p1wc=lc p1w&c=director,lc p2wc=lc p2w&c=nonexecutive,lc n1wc=2d n1w&c=29,2d n2wc=other n2w&c=.,other w=nov. p1w=director p2w=nonexecutive n1w=29 n2w=. def pd=null pw,w=director,Nov. pwc,wc=lc,ic w,nw=Nov.,29 wc,nc=ic,2d po=other pow=other,Nov. powf=other,ic ppo=other	
+other	wc=2d w&c=29,2d p1wc=ic p1w&c=nov.,ic p2wc=lc p2w&c=director,lc n1wc=other n1w&c=.,other w=29 p1w=nov. p2w=director n1w=. def pd=null pw,w=Nov.,29 pwc,wc=ic,2d w,nw=29,. wc,nc=2d,other po=other pow=other,29 powf=other,2d ppo=other	
+other	wc=other w&c=.,other p1wc=2d p1w&c=29,2d p2wc=ic p2w&c=nov.,ic w=. p1w=29 p2w=nov. def pd=null pw,w=29,. pwc,wc=2d,other po=other pow=other,. powf=other,other ppo=other	
+other	wc=ic w&c=mr,ic n1wc=other n1w&c=.,other n2wc=ic n2w&c=vinken,ic w=mr n1w=. n2w=vinken def pd=null w,nw=Mr,. wc,nc=ic,other S=begin po=other pow=other,Mr powf=other,ic ppo=other	
+other	wc=other w&c=.,other p1wc=ic p1w&c=mr,ic n1wc=ic n1w&c=vinken,ic n2wc=lc n2w&c=is,lc w=. p1w=mr n1w=vinken n2w=is def pd=other pw,w=Mr,. pwc,wc=ic,other w,nw=.,Vinken wc,nc=other,ic po=other pow=other,. powf=other,other ppo=other	
+person-unit	wc=ic w&c=vinken,ic p1wc=other p1w&c=.,other p2wc=ic p2w&c=mr,ic n1wc=lc n1w&c=is,lc n2wc=lc n2w&c=chairman,lc w=vinken p1w=. p2w=mr n1w=is n2w=chairman def pd=person-last pw,w=.,Vinken pwc,wc=other,ic w,nw=Vinken,is wc,nc=ic,lc po=other pow=other,Vinken powf=other,ic ppo=other	
+other	wc=lc w&c=is,lc p1wc=ic p1w&c=vinken,ic p2wc=other p2w&c=.,other n1wc=lc n1w&c=chairman,lc n2wc=lc n2w&c=of,lc w=is p1w=vinken p2w=. n1w=chairman n2w=of def pd=null pw,w=Vinken,is pwc,wc=ic,lc w,nw=is,chairman wc,nc=lc,lc po=person-unit pow=person-unit,is powf=person-unit,lc ppo=other	
+other	wc=lc w&c=chairman,lc p1wc=lc p1w&c=is,lc p2wc=ic p2w&c=vinken,ic n1wc=lc n1w&c=of,lc n2wc=ic n2w&c=elsevier,ic w=chairman p1w=is p2w=vinken n1w=of n2w=elsevier def pd=null pw,w=is,chairman pwc,wc=lc,lc w,nw=chairman,of wc,nc=lc,lc po=other pow=other,chairman powf=other,lc ppo=person-unit	
+other	wc=lc w&c=of,lc p1wc=lc p1w&c=chairman,lc p2wc=lc p2w&c=is,lc n1wc=ic n1w&c=elsevier,ic n2wc=ic n2w&c=n.v.,ic w=of p1w=chairman p2w=is n1w=elsevier n2w=n.v. def pd=null pw,w=chairman,of pwc,wc=lc,lc w,nw=of,Elsevier wc,nc=lc,ic po=other pow=other,of powf=other,lc ppo=other	
+organization-start	wc=ic w&c=elsevier,ic p1wc=lc p1w&c=of,lc p2wc=lc p2w&c=chairman,lc n1wc=ic n1w&c=n.v.,ic n2wc=other n2w&c=,,other w=elsevier p1w=of p2w=chairman n1w=n.v. n2w=, def pd=null pw,w=of,Elsevier pwc,wc=lc,ic w,nw=Elsevier,N.V. wc,nc=ic,ic po=other pow=other,Elsevier powf=other,ic ppo=other	
+organization-last	wc=ic w&c=n.v.,ic p1wc=ic p1w&c=elsevier,ic p2wc=lc p2w&c=of,lc n1wc=other n1w&c=,,other n2wc=lc n2w&c=the,lc w=n.v. p1w=elsevier p2w=of n1w=, n2w=the def pd=null pw,w=Elsevier,N.V. pwc,wc=ic,ic w,nw=N.V.,, wc,nc=ic,other po=organization-start pow=organization-start,N.V. powf=organization-start,ic ppo=other	
+other	wc=other w&c=,,other p1wc=ic p1w&c=n.v.,ic p2wc=ic p2w&c=elsevier,ic n1wc=lc n1w&c=the,lc n2wc=ic n2w&c=dutch,ic w=, p1w=n.v. p2w=elsevier n1w=the n2w=dutch def pd=other pw,w=N.V.,, pwc,wc=ic,other w,nw=,,the wc,nc=other,lc po=organization-last pow=organization-last,, powf=organization-last,other ppo=organization-start	
+other	wc=lc w&c=the,lc p1wc=other p1w&c=,,other p2wc=ic p2w&c=n.v.,ic n1wc=ic n1w&c=dutch,ic n2wc=lc n2w&c=publishing,lc w=the p1w=, p2w=n.v. n1w=dutch n2w=publishing def pd=other pw,w=,,the pwc,wc=other,lc w,nw=the,Dutch wc,nc=lc,ic po=other pow=other,the powf=other,lc ppo=organization-last	
+other	wc=ic w&c=dutch,ic p1wc=lc p1w&c=the,lc p2wc=other p2w&c=,,other n1wc=lc n1w&c=publishing,lc n2wc=lc n2w&c=group,lc w=dutch p1w=the p2w=, n1w=publishing n2w=group def pd=null pw,w=the,Dutch pwc,wc=lc,ic w,nw=Dutch,publishing wc,nc=ic,lc po=other pow=other,Dutch powf=other,ic ppo=other	
+other	wc=lc w&c=publishing,lc p1wc=ic p1w&c=dutch,ic p2wc=lc p2w&c=the,lc n1wc=lc n1w&c=group,lc n2wc=other n2w&c=.,other w=publishing p1w=dutch p2w=the n1w=group n2w=. def pd=null pw,w=Dutch,publishing pwc,wc=ic,lc w,nw=publishing,group wc,nc=lc,lc po=other pow=other,publishing powf=other,lc ppo=other	
+other	wc=lc w&c=group,lc p1wc=lc p1w&c=publishing,lc p2wc=ic p2w&c=dutch,ic n1wc=other n1w&c=.,other w=group p1w=publishing p2w=dutch n1w=. def pd=null pw,w=publishing,group pwc,wc=lc,lc w,nw=group,. wc,nc=lc,other po=other pow=other,group powf=other,lc ppo=other	
+other	wc=other w&c=.,other p1wc=lc p1w&c=group,lc p2wc=lc p2w&c=publishing,lc w=. p1w=group p2w=publishing def pd=other pw,w=group,. pwc,wc=lc,other po=other pow=other,. powf=other,other ppo=other	
+location-unit	wc=ic w&c=paris,ic n1wc=lc n1w&c=is,lc n2wc=lc n2w&c=in,lc w=paris n1w=is n2w=in def pd=null w,nw=Paris,is wc,nc=ic,lc S=begin po=other pow=other,Paris powf=other,ic ppo=other	
+other	wc=lc w&c=is,lc p1wc=ic p1w&c=paris,ic n1wc=lc n1w&c=in,lc n2wc=ic n2w&c=france,ic w=is p1w=paris n1w=in n2w=france def pd=null pw,w=Paris,is pwc,wc=ic,lc w,nw=is,in wc,nc=lc,lc po=location-unit pow=location-unit,is powf=location-unit,lc ppo=other	
+other	wc=lc w&c=in,lc p1wc=lc p1w&c=is,lc p2wc=ic p2w&c=paris,ic n1wc=ic n1w&c=france,ic n2wc=other n2w&c=.,other w=in p1w=is p2w=paris n1w=france n2w=. def pd=null pw,w=is,in pwc,wc=lc,lc w,nw=in,France wc,nc=lc,ic po=other pow=other,in powf=other,lc ppo=location-unit	
+location-unit	wc=ic w&c=france,ic p1wc=lc p1w&c=in,lc p2wc=lc p2w&c=is,lc n1wc=other n1w&c=.,other w=france p1w=in p2w=is n1w=. def pd=null pw,w=in,France pwc,wc=lc,ic w,nw=France,. wc,nc=ic,other po=other pow=other,France powf=other,ic ppo=other	
+other	wc=other w&c=.,other p1wc=ic p1w&c=france,ic p2wc=lc p2w&c=in,lc w=. p1w=france p2w=in def pd=null pw,w=France,. pwc,wc=ic,other po=location-unit pow=location-unit,. powf=location-unit,other ppo=other	
+default-unit	wc=ic w&c=untyped,ic n1wc=lc n1w&c=names,lc n2wc=lc n2w&c=get,lc w=untyped n1w=names n2w=get def pd=null w,nw=Untyped,names wc,nc=ic,lc S=begin po=other pow=other,Untyped powf=other,ic ppo=other	
+other	wc=lc w&c=names,lc p1wc=ic p1w&c=untyped,ic n1wc=lc n1w&c=get,lc n2wc=lc n2w&c=the,lc w=names p1w=untyped n1w=get n2w=the def pd=null pw,w=Untyped,names pwc,wc=ic,lc w,nw=names,get wc,nc=lc,lc po=default-unit pow=default-unit,names powf=default-unit,lc ppo=other	
+other	wc=lc w&c=get,lc p1wc=lc p1w&c=names,lc p2wc=ic p2w&c=untyped,ic n1wc=lc n1w&c=the,lc n2wc=lc n2w&c=default,lc w=get p1w=names p2w=untyped n1w=the n2w=default def pd=null pw,w=names,get pwc,wc=lc,lc w,nw=get,the wc,nc=lc,lc po=other pow=other,get powf=other,lc ppo=default-unit	
+other	wc=lc w&c=the,lc p1wc=lc p1w&c=get,lc p2wc=lc p2w&c=names,lc n1wc=lc n1w&c=default,lc n2wc=lc n2w&c=type,lc w=the p1w=get p2w=names n1w=default n2w=type def pd=null pw,w=get,the pwc,wc=lc,lc w,nw=the,default wc,nc=lc,lc po=other pow=other,the powf=other,lc ppo=other	
+other	wc=lc w&c=default,lc p1wc=lc p1w&c=the,lc p2wc=lc p2w&c=get,lc n1wc=lc n1w&c=type,lc n2wc=other n2w&c=.,other w=default p1w=the p2w=get n1w=type n2w=. def pd=null pw,w=the,default pwc,wc=lc,lc w,nw=default,type wc,nc=lc,lc po=other pow=other,default powf=other,lc ppo=other	
+other	wc=lc w&c=type,lc p1wc=lc p1w&c=default,lc p2wc=lc p2w&c=the,lc n1wc=other n1w&c=.,other w=type p1w=default p2w=the n1w=. def pd=null pw,w=default,type pwc,wc=lc,lc w,nw=type,. wc,nc=lc,other po=other pow=other,type powf=other,lc ppo=other	
+other	wc=other w&c=.,other p1wc=lc p1w&c=type,lc p2wc=lc p2w&c=default,lc w=. p1w=type p2w=default def pd=other pw,w=type,. pwc,wc=lc,other po=other pow=other,. powf=other,other ppo=other	
+city-unit	wc=ic w&c=berlin,ic n1wc=lc n1w&c=and,lc n2wc=ic n2w&c=potsdam,ic w=berlin n1w=and n2w=potsdam def pd=null w,nw=Berlin,and wc,nc=ic,lc S=begin po=other pow=other,Berlin powf=other,ic ppo=other	
+other	wc=lc w&c=and,lc p1wc=ic p1w&c=berlin,ic n1wc=ic n1w&c=potsdam,ic n2wc=lc n2w&c=share,lc w=and p1w=berlin n1w=potsdam n2w=share def pd=null pw,w=Berlin,and pwc,wc=ic,lc w,nw=and,Potsdam wc,nc=lc,ic po=city-unit pow=city-unit,and powf=city-unit,lc ppo=other	
+city-unit	wc=ic w&c=potsdam,ic p1wc=lc p1w&c=and,lc p2wc=ic p2w&c=berlin,ic n1wc=lc n1w&c=share,lc n2wc=lc n2w&c=the,lc w=potsdam p1w=and p2w=berlin n1w=share n2w=the def pd=null pw,w=and,Potsdam pwc,wc=lc,ic w,nw=Potsdam,share wc,nc=ic,lc po=other pow=other,Potsdam powf=other,ic ppo=city-unit	
+other	wc=lc w&c=share,lc p1wc=ic p1w&c=potsdam,ic p2wc=lc p2w&c=and,lc n1wc=lc n1w&c=the,lc n2wc=lc n2w&c=last,lc w=share p1w=potsdam p2w=and n1w=the n2w=last def pd=null pw,w=Potsdam,share pwc,wc=ic,lc w,nw=share,the wc,nc=lc,lc po=city-unit pow=city-unit,share powf=city-unit,lc ppo=other	
+other	wc=lc w&c=the,lc p1wc=lc p1w&c=share,lc p2wc=ic p2w&c=potsdam,ic n1wc=lc n1w&c=last,lc n2wc=lc n2w&c=type,lc w=the p1w=share p2w=potsdam n1w=last n2w=type def pd=other pw,w=share,the pwc,wc=lc,lc w,nw=the,last wc,nc=lc,lc po=other pow=other,the powf=other,lc ppo=city-unit	
+other	wc=lc w&c=last,lc p1wc=lc p1w&c=the,lc p2wc=lc p2w&c=share,lc n1wc=lc n1w&c=type,lc n2wc=other n2w&c=.,other w=last p1w=the p2w=share n1w=type n2w=. def pd=null pw,w=the,last pwc,wc=lc,lc w,nw=last,type wc,nc=lc,lc po=other pow=other,last powf=other,lc ppo=other	
+other	wc=lc w&c=type,lc p1wc=lc p1w&c=last,lc p2wc=lc p2w&c=the,lc n1wc=other n1w&c=.,other w=type p1w=last p2w=the n1w=. def pd=other pw,w=last,type pwc,wc=lc,lc w,nw=type,. wc,nc=lc,other po=other pow=other,type powf=other,lc ppo=other	
+other	wc=other w&c=.,other p1wc=lc p1w&c=type,lc p2wc=lc p2w&c=last,lc w=. p1w=type p2w=last def pd=other pw,w=type,. pwc,wc=lc,other po=other pow=other,. powf=other,other ppo=other	
+end	turbo:events
+layer	turbo:stream-errors	document	0	after:u32	class:str	message:str
+end	turbo:stream-errors
+layer	turbo:event-checksum	document	1	crc32c:u32
+2963788643
+end	turbo:event-checksum
+layer	turbo:name-training	document	1	class:str	message:str
+	
+end	turbo:name-training
+layer	turbo:name-parameters	document	4	key:str	class:str	value:str
+Cutoff	java.lang.Integer	0
+sort	java.lang.Boolean	true
+Iterations	java.lang.Integer	300
+Algorithm	java.lang.String	MAXENT
+end	turbo:name-parameters
+layer	turbo:manifest	document	9	key:str	value:str
+BeamSize	3
+Component-Name	NameFinderME
+Language	en
+Manifest-Version	1.0
+OpenNLP-Version	3.0.0-SNAPSHOT
+TrainerType	Event
+Training-Eventhash	2963788643
+factory	opennlp.tools.namefind.TokenNameFinderFactory
+sequenceCodecImplName	opennlp.tools.namefind.BilouCodec
+end	turbo:manifest
+layer	turbo:package-entries	document	3	name:str	length:u32
+manifest.properties	317
+nameFinder.model	13944
+generator.featuregen	1906
+end	turbo:package-entries
+layer	turbo:name-model	document	1	sha256:str	length:u32
+ba056877d160ca3b313fe4a01456f458e0bf8751fc371834f1ba0a517fccc960	13944
+end	turbo:name-model
+layer	turbo:name-weights	document	685	predicate:str	outcome:str	value:f64
+pow=other,Pierre	person-start	3feb0bdb49358830 0.8451973371377388
+w&c=pierre,ic	person-start	3feb0bdb49358830 0.8451973371377388
+w,nw=Pierre,Vinken	person-start	3feb0bdb49358830 0.8451973371377388
+w=pierre	person-start	3feb0bdb49358830 0.8451973371377388
+def	person-start	bfe7482f31f5c339 -0.727561566904206
+def	person-last	bfeab56d20fb3cc7 -0.8346467632453817
+def	other	3fcefd32adf60e43 0.24210198873707797
+def	person-unit	bfe8f348d7ffc318 -0.7796978205425118
+def	organization-start	bfe64876826fb523 -0.6963455722413169
+def	organization-last	bfe98bdaadf15034 -0.7983220479313844
+def	location-unit	bfda5af281ff69f6 -0.4118009824284451
+def	default-unit	bfe54d21eb46ca25 -0.6656655879253931
+def	city-unit	bfd75924ebdf211b -0.3648159316476424
+ppo=other	person-start	bfe201d98cb45725 -0.5627258060583001
+ppo=other	person-last	bfe550d07228b6e2 -0.6661150197666894
+ppo=other	other	3fce904a8a34ea2d 0.23877841709493577
+ppo=other	person-unit	bfe3b17872b6c96c -0.6154138794429804
+ppo=other	organization-start	bfe14e248d49fcd7 -0.5407889136839924
+ppo=other	organization-last	bfe40bd719a7df17 -0.6264453412140679
+ppo=other	location-unit	bfd34d9def942220 -0.3016123618731701
+ppo=other	default-unit	bfe01df3f949898e -0.50365637482564
+ppo=other	city-unit	bfe969199e6381c1 -0.7940795987633963
+wc=ic	person-start	3fbe6c5bcc137433 0.11884092075656909
+wc=ic	person-last	bf93250eb8305b0b -0.018696050636289246
+wc=ic	other	bfd14d6a4c8a8203 -0.2703500506850391
+wc=ic	person-unit	bf949a04b6f703b7 -0.02011878363350991
+wc=ic	organization-start	3f99ac58be8b27eb 0.025071512822968527
+wc=ic	organization-last	bf8b84d2649165c3 -0.013436931318369432
+wc=ic	location-unit	3fc7ca744f6561ac 0.18586591603049152
+wc=ic	default-unit	3fbff1c3fefe4b10 0.12478280044005552
+wc=ic	city-unit	3fc75a789fb10283 0.18244846150811975
+pd=null	person-start	bfdf8c5cc173e436 -0.4929420365511449
+pd=null	person-last	bfe30393f651c105 -0.5941867648053011
+pd=null	other	3fcca25347cb1a6b 0.22370377545867667
+pd=null	organization-start	bfe06942ccc64403 -0.5128492354871245
+pd=null	organization-last	bfe2c89ff24e6eb7 -0.5869903309389518
+pd=null	location-unit	bfcefb5aa36bfb0d -0.2420457170446401
+pd=null	default-unit	bfdcf68c214a2570 -0.45254805804196163
+pd=null	city-unit	bfcd37457cfc3532 -0.22824925043861694
+n1w&c=vinken,ic	person-start	3fe72640d74e3391 0.7234195904908224
+n1w&c=vinken,ic	other	3fb1984ea545d0b6 0.06873027358034531
+n1w=vinken	person-start	3fe72640d74e3391 0.7234195904908224
+n1w=vinken	other	3fb1984ea545d0b6 0.06873027358034531
+po=other	person-start	bfe0f66a1b67aa97 -0.5300798926594606
+po=other	other	3fcebe6fa0ab6186 0.24018664689243624
+po=other	person-unit	bfe1da80507af7e3 -0.5579225131875741
+po=other	organization-start	bfe02bb24b9c7d52 -0.5053340412886576
+po=other	location-unit	bfd01731d6f982f7 -0.2514156913148748
+po=other	default-unit	bfddab44717453dc -0.4635783298447771
+po=other	city-unit	bfcb5864af394b61 -0.21363504939889835
+powf=other,ic	person-start	3fc70fd37ae87609 0.1801704740654915
+powf=other,ic	other	bfc456fb289a24b9 -0.15890445215726404
+powf=other,ic	person-unit	3fb00c2c61f5bf10 0.06268575088119754
+powf=other,ic	organization-start	3fb476b2573d5ace 0.0799361670482128
+powf=other,ic	location-unit	3fcfc85e21853017 0.24830223690730754
+powf=other,ic	default-unit	3fc8428b7fab59ae 0.18953078969816545
+powf=other,ic	city-unit	3fcd96ca13c1e60c 0.23116422619550325
+n1wc=ic	person-start	3fd7e99a7b17c971 0.3736330225066445
+n1wc=ic	other	3fcb006da8af0b6d 0.21095057236206163
+n1wc=ic	organization-start	3fd0316e432458a7 0.25301701123079073
+n2w&c=,,other	person-start	3fe344795063186d 0.6021086282787685
+n2w&c=,,other	other	bfc43ae8ab8ca2ac -0.15804775597032028
+n2w&c=,,other	organization-start	3fdab5511733c3f5 0.4173166967948981
+n2w=,	person-start	3fe344795063186d 0.6021086282787685
+n2w=,	other	bfc43ae8ab8ca2ac -0.15804775597032028
+n2w=,	organization-start	3fdab5511733c3f5 0.4173166967948981
+n2wc=other	person-start	3fd9e41b32e6afc3 0.4045475003319973
+n2wc=other	other	3fc86d5aa03fe152 0.19083721947368787
+n2wc=other	organization-start	3fd0711f3d623fcf 0.2569044208003079
+S=begin	person-start	3fdea7c2175898b6 0.4789891460408272
+S=begin	other	bfd078eeb3415a7a -0.2573811293163214
+S=begin	location-unit	3fc9b675a5394cbe 0.20088072364396753
+S=begin	default-unit	3fdbbf7604f36656 0.4335608528468574
+S=begin	city-unit	3fd02733c5769b8d 0.2523927143433234
+wc,nc=ic,ic	person-start	3fe5c15edc9bc84e 0.6798548039207704
+wc,nc=ic,ic	organization-start	3fde8229355c9a08 0.4766943951712226
+n2w&c=61,2d	person-last	3fe2d3d9b57a324d 0.5883606476286986
+n2w=61	person-last	3fe2d3d9b57a324d 0.5883606476286986
+p1w&c=pierre,ic	person-last	3fe2d3d9b57a324d 0.5883606476286986
+p1w=pierre	person-last	3fe2d3d9b57a324d 0.5883606476286986
+po=person-start	person-last	3fe2d3d9b57a324d 0.5883606476286986
+pow=person-start,Vinken	person-last	3fe2d3d9b57a324d 0.5883606476286986
+powf=person-start,ic	person-last	3fe2d3d9b57a324d 0.5883606476286986
+pw,w=Pierre,Vinken	person-last	3fe2d3d9b57a324d 0.5883606476286986
+w,nw=Vinken,,	person-last	3fe2d3d9b57a324d 0.5883606476286986
+n2wc=2d	person-last	3fe0b945eed4b9f7 0.52261635443375
+n2wc=2d	other	3fb4b1240a08a5e8 0.08082795376744623
+n1w&c=,,other	person-last	3fdaf8af4cfcd1da 0.4214285137016113
+n1w&c=,,other	other	bfb964f9915452a3 -0.09919700429993354
+n1w&c=,,other	organization-last	3fda73ef5d7d0bab 0.4133261120770679
+n1w=,	person-last	3fdaf8af4cfcd1da 0.4214285137016113
+n1w=,	other	bfb964f9915452a3 -0.09919700429993354
+n1w=,	organization-last	3fda73ef5d7d0bab 0.4133261120770679
+p1wc=ic	person-last	3fbe66794e7ea325 0.11875112692235897
+p1wc=ic	other	3fd0ce69f35dec6f 0.26259850279138325
+p1wc=ic	organization-last	3fbc1fd6bd32528f 0.10986082190567913
+n1wc=other	person-last	3fc47912c54b014e 0.159944864592044
+n1wc=other	other	3fcd21e9dab5128e 0.2275974576861199
+n1wc=other	organization-last	3fc3e3ebcc393330 0.15539309951636815
+n1wc=other	location-unit	3fb2c6ce8a3b9fbb 0.07334605097605522
+wc,nc=ic,other	person-last	3fd67f38231d7bcc 0.35151484898773044
+wc,nc=ic,other	other	bfb4de1144eb2a55 -0.0815134804972016
+wc,nc=ic,other	organization-last	3fd5c12f96f33973 0.3399161314126992
+wc,nc=ic,other	location-unit	3fd4c1fec0af63fe 0.3243405229273434
+w&c=vinken,ic	person-last	3fdf80112f15ceff 0.4921915969673449
+w&c=vinken,ic	person-unit	3fde9f445212e5bf 0.47847087874432853
+w=vinken	person-last	3fdf80112f15ceff 0.4921915969673449
+w=vinken	person-unit	3fde9f445212e5bf 0.47847087874432853
+pwc,wc=ic,ic	person-last	3fdf0a603f174a98 0.4850082985041495
+pwc,wc=ic,ic	organization-last	3fde500f5880f144 0.47363647120416297
+n1w&c=29,2d	other	3fd5426c9b9fb005 0.33217921445498205
+n1w&c=61,2d	other	3fd1d92ddabf559b 0.2788805614667013
+n1w&c=a,lc	other	3fce229c99c5db00 0.23543126591149388
+n1w&c=as,lc	other	3fce29d598332e6b 0.23565168315541327
+n1w&c=board,lc	other	3fce1e02b4648402 0.23529084976419773
+n1w&c=chairman,lc	other	3fd045f35cf6a763 0.25426944807497004
+n1w&c=default,lc	other	3fcdcf229fcfa7d5 0.23288376620558773
+n1w&c=director,lc	other	3fcf1dafb9657363 0.24309345772317234
+n1w&c=dutch,ic	other	3fd321893f8a97bc 0.29892188267910647
+n1w&c=elsevier,ic	other	3fd2ed4094eb607d 0.29573072951234974
+n1w&c=france,ic	other	3fd2424d8ee314d7 0.28529681161701376
+n1w&c=get,lc	other	3fd5b627353ddb7e 0.3392427463472173
+n1w&c=group,lc	other	3fcff13c5eb5fde6 0.2495494329887002
+n1w&c=in,lc	other	3fd3ae13c2f0c8c0 0.30749982869305015
+n1w&c=join,lc	other	3fd17e66e9e742ec 0.27333996622205237
+n1w&c=last,lc	other	3fd3320e67d5d99f 0.2999301923768147
+n1w&c=nonexecutive,lc	other	3fce88c0edd6332e 0.23854838955994623
+n1w&c=nov.,ic	other	3fd099fc5379e919 0.25939853813146524
+n1w&c=of,lc	other	3fd1599b7e59c1ad 0.27109420145918756
+n1w&c=old,lc	other	3fd3d45033ad73f6 0.30983357473979767
+n1w&c=potsdam,ic	other	3fd3ff44b955165a 0.31245534991135104
+n1w&c=publishing,lc	other	3fd9596ba4e16b61 0.3960827932511873
+n1w&c=the,lc	other	3fd0d3e6f4d83c3a 0.26293348227131086
+n1w&c=type,lc	other	3fcf468118d88bc9 0.2443391200368679
+n1w&c=will,lc	other	3fccd328deef3e84 0.22519408116794548
+n1w&c=years,lc	other	3fd1743de8846c5b 0.27271983820691553
+n1w=29	other	3fd5426c9b9fb005 0.33217921445498205
+n1w=61	other	3fd1d92ddabf559b 0.2788805614667013
+n1w=a	other	3fce229c99c5db00 0.23543126591149388
+n1w=as	other	3fce29d598332e6b 0.23565168315541327
+n1w=board	other	3fce1e02b4648402 0.23529084976419773
+n1w=chairman	other	3fd045f35cf6a763 0.25426944807497004
+n1w=default	other	3fcdcf229fcfa7d5 0.23288376620558773
+n1w=director	other	3fcf1dafb9657363 0.24309345772317234
+n1w=dutch	other	3fd321893f8a97bc 0.29892188267910647
+n1w=elsevier	other	3fd2ed4094eb607d 0.29573072951234974
+n1w=france	other	3fd2424d8ee314d7 0.28529681161701376
+n1w=get	other	3fd5b627353ddb7e 0.3392427463472173
+n1w=group	other	3fcff13c5eb5fde6 0.2495494329887002
+n1w=in	other	3fd3ae13c2f0c8c0 0.30749982869305015
+n1w=join	other	3fd17e66e9e742ec 0.27333996622205237
+n1w=last	other	3fd3320e67d5d99f 0.2999301923768147
+n1w=nonexecutive	other	3fce88c0edd6332e 0.23854838955994623
+n1w=nov.	other	3fd099fc5379e919 0.25939853813146524
+n1w=of	other	3fd1599b7e59c1ad 0.27109420145918756
+n1w=old	other	3fd3d45033ad73f6 0.30983357473979767
+n1w=potsdam	other	3fd3ff44b955165a 0.31245534991135104
+n1w=publishing	other	3fd9596ba4e16b61 0.3960827932511873
+n1w=the	other	3fd0d3e6f4d83c3a 0.26293348227131086
+n1w=type	other	3fcf468118d88bc9 0.2443391200368679
+n1w=will	other	3fccd328deef3e84 0.22519408116794548
+n1w=years	other	3fd1743de8846c5b 0.27271983820691553
+n1wc=2d	other	3fd38c94611d8207 0.30545529827034595
+n2w&c=.,other	other	3fd1581778d1835e 0.2710016898982327
+n2w&c=29,2d	other	3fd099fc5379e919 0.25939853813146524
+n2w&c=a,lc	other	3fce29d598332e6b 0.23565168315541327
+n2w&c=as,lc	other	3fce1e02b4648402 0.23529084976419773
+n2w&c=board,lc	other	3fcdbf53da0becc9 0.2324013533287597
+n2w&c=default,lc	other	3fd10f16b35a5d28 0.266545939587973
+n2w&c=director,lc	other	3fce88c0edd6332e 0.23854838955994623
+n2w&c=dutch,ic	other	3fd32ef67836f4f4 0.2997413801165998
+n2w&c=elsevier,ic	other	3fd1599b7e59c1ad 0.27109420145918756
+n2w&c=france,ic	other	3fd3ae13c2f0c8c0 0.30749982869305015
+n2w&c=group,lc	other	3fd9596ba4e16b61 0.3960827932511873
+n2w&c=is,lc	other	3fd5b6a69f0bf958 0.3392731240454814
+n2w&c=join,lc	other	3fccd328deef3e84 0.22519408116794548
+n2w&c=last,lc	other	3fd0376a9677e0af 0.2533823460976334
+n2w&c=n.v.,ic	other	3fd2ed4094eb607d 0.29573072951234974
+n2w&c=nonexecutive,lc	other	3fce229c99c5db00 0.23543126591149388
+n2w&c=nov.,ic	other	3fcf1dafb9657363 0.24309345772317234
+n2w&c=of,lc	other	3fd045f35cf6a763 0.25426944807497004
+n2w&c=old,lc	other	3fd1743de8846c5b 0.27271983820691553
+n2w&c=publishing,lc	other	3fd321893f8a97bc 0.29892188267910647
+n2w&c=share,lc	other	3fd3ff44b955165a 0.31245534991135104
+n2w&c=type,lc	other	3fd10a76e6eddd21 0.26626370002436955
+n2w&c=vinken,ic	other	3fe6df292cc3e297 0.7147413133926247
+n2w&c=will,lc	other	3fd2bd45d8a6d996 0.2928022971858807
+n2w&c=years,lc	other	3fd1d92ddabf559b 0.2788805614667013
+n2w=.	other	3fd1581778d1835e 0.2710016898982327
+n2w=29	other	3fd099fc5379e919 0.25939853813146524
+n2w=a	other	3fce29d598332e6b 0.23565168315541327
+n2w=as	other	3fce1e02b4648402 0.23529084976419773
+n2w=board	other	3fcdbf53da0becc9 0.2324013533287597
+n2w=default	other	3fd10f16b35a5d28 0.266545939587973
+n2w=director	other	3fce88c0edd6332e 0.23854838955994623
+n2w=dutch	other	3fd32ef67836f4f4 0.2997413801165998
+n2w=elsevier	other	3fd1599b7e59c1ad 0.27109420145918756
+n2w=france	other	3fd3ae13c2f0c8c0 0.30749982869305015
+n2w=group	other	3fd9596ba4e16b61 0.3960827932511873
+n2w=is	other	3fd5b6a69f0bf958 0.3392731240454814
+n2w=join	other	3fccd328deef3e84 0.22519408116794548
+n2w=last	other	3fd0376a9677e0af 0.2533823460976334
+n2w=n.v.	other	3fd2ed4094eb607d 0.29573072951234974
+n2w=nonexecutive	other	3fce229c99c5db00 0.23543126591149388
+n2w=nov.	other	3fcf1dafb9657363 0.24309345772317234
+n2w=of	other	3fd045f35cf6a763 0.25426944807497004
+n2w=old	other	3fd1743de8846c5b 0.27271983820691553
+n2w=publishing	other	3fd321893f8a97bc 0.29892188267910647
+n2w=share	other	3fd3ff44b955165a 0.31245534991135104
+n2w=type	other	3fd10a76e6eddd21 0.26626370002436955
+n2w=vinken	other	3fe6df292cc3e297 0.7147413133926247
+n2w=will	other	3fd2bd45d8a6d996 0.2928022971858807
+n2w=years	other	3fd1d92ddabf559b 0.2788805614667013
+p1w&c=,,other	other	3fd2065c6b346976 0.2816382452889664
+p1w&c=29,2d	other	3fd8dcb097082c5d 0.3884698367043649
+p1w&c=61,2d	other	3fd3d45033ad73f6 0.30983357473979767
+p1w&c=a,lc	other	3fcf1dafb9657363 0.24309345772317234
+p1w&c=as,lc	other	3fce88c0edd6332e 0.23854838955994623
+p1w&c=berlin,ic	other	3fd3ff44b955165a 0.31245534991135104
+p1w&c=board,lc	other	3fce229c99c5db00 0.23543126591149388
+p1w&c=chairman,lc	other	3fd2ed4094eb607d 0.29573072951234974
+p1w&c=default,lc	other	3fd3078897ca0887 0.2973348123852095
+p1w&c=director,lc	other	3fd5426c9b9fb005 0.33217921445498205
+p1w&c=dutch,ic	other	3fcff13c5eb5fde6 0.2495494329887002
+p1w&c=france,ic	other	3fda1c92f63551f2 0.4079940227868796
+p1w&c=get,lc	other	3fcdcf229fcfa7d5 0.23288376620558773
+p1w&c=group,lc	other	3fd9f039fb76a988 0.4052872615526657
+p1w&c=is,lc	other	3fd1cdd640cc6d6e 0.2781882889555253
+p1w&c=join,lc	other	3fce1e02b4648402 0.23529084976419773
+p1w&c=last,lc	other	3fd4824a81879e9b 0.3204523339213467
+p1w&c=mr,ic	other	3fd5b6a69f0bf958 0.3392731240454814
+p1w&c=n.v.,ic	other	3fd32ef67836f4f4 0.2997413801165998
+p1w&c=names,lc	other	3fd10f16b35a5d28 0.266545939587973
+p1w&c=nonexecutive,lc	other	3fd099fc5379e919 0.25939853813146524
+p1w&c=nov.,ic	other	3fd34937daa756ea 0.30134388306519944
+p1w&c=old,lc	other	3fccd328deef3e84 0.22519408116794548
+p1w&c=paris,ic	other	3fd3ae13c2f0c8c0 0.30749982869305015
+p1w&c=potsdam,ic	other	3fd0376a9677e0af 0.2533823460976334
+p1w&c=publishing,lc	other	3fd3641781be9f95 0.30298412008641523
+p1w&c=share,lc	other	3fd3320e67d5d99f 0.2999301923768147
+p1w&c=the,lc	other	3fd1e5ae13c7007f 0.2796435540331074
+p1w&c=type,lc	other	3fd9f039fb76a984 0.4052872615526655
+p1w&c=untyped,ic	other	3fd5b627353ddb7e 0.3392427463472173
+p1w&c=vinken,ic	other	3fd10f3078caeed1 0.26655208393252133
+p1w&c=will,lc	other	3fcdbf53da0becc9 0.2324013533287597
+p1w&c=years,lc	other	3fd2bd45d8a6d996 0.2928022971858807
+p1w=,	other	3fd2065c6b346976 0.2816382452889664
+p1w=29	other	3fd8dcb097082c5d 0.3884698367043649
+p1w=61	other	3fd3d45033ad73f6 0.30983357473979767
+p1w=a	other	3fcf1dafb9657363 0.24309345772317234
+p1w=as	other	3fce88c0edd6332e 0.23854838955994623
+p1w=berlin	other	3fd3ff44b955165a 0.31245534991135104
+p1w=board	other	3fce229c99c5db00 0.23543126591149388
+p1w=chairman	other	3fd2ed4094eb607d 0.29573072951234974
+p1w=default	other	3fd3078897ca0887 0.2973348123852095
+p1w=director	other	3fd5426c9b9fb005 0.33217921445498205
+p1w=dutch	other	3fcff13c5eb5fde6 0.2495494329887002
+p1w=france	other	3fda1c92f63551f2 0.4079940227868796
+p1w=get	other	3fcdcf229fcfa7d5 0.23288376620558773
+p1w=group	other	3fd9f039fb76a988 0.4052872615526657
+p1w=is	other	3fd1cdd640cc6d6e 0.2781882889555253
+p1w=join	other	3fce1e02b4648402 0.23529084976419773
+p1w=last	other	3fd4824a81879e9b 0.3204523339213467
+p1w=mr	other	3fd5b6a69f0bf958 0.3392731240454814
+p1w=n.v.	other	3fd32ef67836f4f4 0.2997413801165998
+p1w=names	other	3fd10f16b35a5d28 0.266545939587973
+p1w=nonexecutive	other	3fd099fc5379e919 0.25939853813146524
+p1w=nov.	other	3fd34937daa756ea 0.30134388306519944
+p1w=old	other	3fccd328deef3e84 0.22519408116794548
+p1w=paris	other	3fd3ae13c2f0c8c0 0.30749982869305015
+p1w=potsdam	other	3fd0376a9677e0af 0.2533823460976334
+p1w=publishing	other	3fd3641781be9f95 0.30298412008641523
+p1w=share	other	3fd3320e67d5d99f 0.2999301923768147
+p1w=the	other	3fd1e5ae13c7007f 0.2796435540331074
+p1w=type	other	3fd9f039fb76a984 0.4052872615526655
+p1w=untyped	other	3fd5b627353ddb7e 0.3392427463472173
+p1w=vinken	other	3fd10f3078caeed1 0.26655208393252133
+p1w=will	other	3fcdbf53da0becc9 0.2324013533287597
+p1w=years	other	3fd2bd45d8a6d996 0.2928022971858807
+p1wc=2d	other	3fd646efaa182526 0.34807960139058236
+p2w&c=,,other	other	3fd3fcf6567fcf02 0.31231459090416547
+p2w&c=.,other	other	3fd045f35cf6a763 0.25426944807497004
+p2w&c=61,2d	other	3fd2bd45d8a6d996 0.2928022971858807
+p2w&c=a,lc	other	3fd099fc5379e919 0.25939853813146524
+p2w&c=and,lc	other	3fd0376a9677e0af 0.2533823460976334
+p2w&c=as,lc	other	3fcf1dafb9657363 0.24309345772317234
+p2w&c=board,lc	other	3fce88c0edd6332e 0.23854838955994623
+p2w&c=default,lc	other	3fd9f039fb76a989 0.40528726155266576
+p2w&c=director,lc	other	3fd34937daa756ea 0.30134388306519944
+p2w&c=dutch,ic	other	3fd3641781be9f95 0.30298412008641523
+p2w&c=elsevier,ic	other	3fd32ef67836f4f4 0.2997413801165998
+p2w&c=get,lc	other	3fcf468118d88bd4 0.2443391200368682
+p2w&c=in,lc	other	3fda1c92f63551f2 0.4079940227868796
+p2w&c=join,lc	other	3fce29d598332e6b 0.23565168315541327
+p2w&c=last,lc	other	3fd9f039fb76a989 0.40528726155266576
+p2w&c=n.v.,ic	other	3fd321893f8a97bc 0.29892188267910647
+p2w&c=names,lc	other	3fcdcf229fcfa7d5 0.23288376620558773
+p2w&c=nonexecutive,lc	other	3fd5426c9b9fb005 0.33217921445498205
+p2w&c=nov.,ic	other	3fd8dcb097082c5d 0.3884698367043649
+p2w&c=old,lc	other	3fd17e66e9e742ec 0.27333996622205237
+p2w&c=paris,ic	other	3fd2424d8ee314d7 0.28529681161701376
+p2w&c=pierre,ic	other	3fd1d92ddabf559b 0.2788805614667013
+p2w&c=potsdam,ic	other	3fd3320e67d5d99f 0.2999301923768147
+p2w&c=publishing,lc	other	3fd9f039fb76a988 0.4052872615526657
+p2w&c=share,lc	other	3fcf468118d88bd4 0.2443391200368682
+p2w&c=the,lc	other	3fd19f7a2b3359e7 0.2753587171440856
+p2w&c=untyped,ic	other	3fd10f16b35a5d28 0.266545939587973
+p2w&c=vinken,ic	other	3fd166ec557f82b4 0.2719069323484675
+p2w&c=will,lc	other	3fce1e02b4648402 0.23529084976419773
+p2w&c=years,lc	other	3fccd328deef3e84 0.22519408116794548
+p2w=,	other	3fd3fcf6567fcf02 0.31231459090416547
+p2w=.	other	3fd045f35cf6a763 0.25426944807497004
+p2w=61	other	3fd2bd45d8a6d996 0.2928022971858807
+p2w=a	other	3fd099fc5379e919 0.25939853813146524
+p2w=and	other	3fd0376a9677e0af 0.2533823460976334
+p2w=as	other	3fcf1dafb9657363 0.24309345772317234
+p2w=board	other	3fce88c0edd6332e 0.23854838955994623
+p2w=default	other	3fd9f039fb76a989 0.40528726155266576
+p2w=director	other	3fd34937daa756ea 0.30134388306519944
+p2w=dutch	other	3fd3641781be9f95 0.30298412008641523
+p2w=elsevier	other	3fd32ef67836f4f4 0.2997413801165998
+p2w=get	other	3fcf468118d88bd4 0.2443391200368682
+p2w=in	other	3fda1c92f63551f2 0.4079940227868796
+p2w=join	other	3fce29d598332e6b 0.23565168315541327
+p2w=last	other	3fd9f039fb76a989 0.40528726155266576
+p2w=n.v.	other	3fd321893f8a97bc 0.29892188267910647
+p2w=names	other	3fcdcf229fcfa7d5 0.23288376620558773
+p2w=nonexecutive	other	3fd5426c9b9fb005 0.33217921445498205
+p2w=nov.	other	3fd8dcb097082c5d 0.3884698367043649
+p2w=old	other	3fd17e66e9e742ec 0.27333996622205237
+p2w=paris	other	3fd2424d8ee314d7 0.28529681161701376
+p2w=pierre	other	3fd1d92ddabf559b 0.2788805614667013
+p2w=potsdam	other	3fd3320e67d5d99f 0.2999301923768147
+p2w=publishing	other	3fd9f039fb76a988 0.4052872615526657
+p2w=share	other	3fcf468118d88bd4 0.2443391200368682
+p2w=the	other	3fd19f7a2b3359e7 0.2753587171440856
+p2w=untyped	other	3fd10f16b35a5d28 0.266545939587973
+p2w=vinken	other	3fd166ec557f82b4 0.2719069323484675
+p2w=will	other	3fce1e02b4648402 0.23529084976419773
+p2w=years	other	3fccd328deef3e84 0.22519408116794548
+p2wc=2d	other	3fd2bd45d8a6d996 0.2928022971858807
+p2wc=other	other	3fd30e1f933efc84 0.29773702029701377
+pd=other	other	3fd6216161bad346 0.345787377776379
+po=city-unit	other	3fd21706816c2f37 0.2826553596394094
+po=default-unit	other	3fd5b627353ddb7e 0.3392427463472173
+po=location-unit	other	3fd6d7d30334ddd9 0.3569228679002357
+po=organization-last	other	3fd32ef67836f4f4 0.2997413801165998
+po=person-last	other	3fd1d92ddabf559b 0.2788805614667013
+po=person-unit	other	3fd045f35cf6a763 0.25426944807497004
+pow=city-unit,and	other	3fd3ff44b955165a 0.31245534991135104
+pow=city-unit,share	other	3fd0376a9677e0af 0.2533823460976334
+pow=default-unit,names	other	3fd5b627353ddb7e 0.3392427463472173
+pow=location-unit,.	other	3fda1c92f63551f2 0.4079940227868796
+pow=location-unit,is	other	3fd3ae13c2f0c8c0 0.30749982869305015
+pow=organization-last,,	other	3fd32ef67836f4f4 0.2997413801165998
+pow=other,,	other	3fccd328deef3e84 0.22519408116794548
+pow=other,.	other	3fd8db48e04c3c8b 0.3883840742500488
+pow=other,29	other	3fd34937daa756ea 0.30134388306519944
+pow=other,61	other	3fd1743de8846c5b 0.27271983820691553
+pow=other,Dutch	other	3fd9596ba4e16b61 0.3960827932511873
+pow=other,Mr	other	3fe6df292cc3e297 0.7147413133926247
+pow=other,Nov.	other	3fd5426c9b9fb005 0.33217921445498205
+pow=other,a	other	3fce88c0edd6332e 0.23854838955994623
+pow=other,as	other	3fce229c99c5db00 0.23543126591149388
+pow=other,board	other	3fce29d598332e6b 0.23565168315541327
+pow=other,chairman	other	3fd1599b7e59c1ad 0.27109420145918756
+pow=other,default	other	3fcf468118d88bd4 0.2443391200368682
+pow=other,director	other	3fd099fc5379e919 0.25939853813146524
+pow=other,get	other	3fd10f16b35a5d28 0.266545939587973
+pow=other,group	other	3fd3641781be9f95 0.30298412008641523
+pow=other,in	other	3fd2424d8ee314d7 0.28529681161701376
+pow=other,join	other	3fcdbf53da0becc9 0.2324013533287597
+pow=other,last	other	3fcf468118d88bd4 0.2443391200368682
+pow=other,nonexecutive	other	3fcf1dafb9657363 0.24309345772317234
+pow=other,of	other	3fd2ed4094eb607d 0.29573072951234974
+pow=other,old	other	3fd2bd45d8a6d996 0.2928022971858807
+pow=other,publishing	other	3fcff13c5eb5fde6 0.2495494329887002
+pow=other,the	other	3fd11024576416fd 0.2666102269580362
+pow=other,type	other	3fd3c4a6b948a637 0.3088776406681037
+pow=other,will	other	3fd17e66e9e742ec 0.27333996622205237
+pow=other,years	other	3fd3d45033ad73f6 0.30983357473979767
+pow=person-last,,	other	3fd1d92ddabf559b 0.2788805614667013
+pow=person-unit,is	other	3fd045f35cf6a763 0.25426944807497004
+powf=city-unit,lc	other	3fd21706816c2f37 0.2826553596394094
+powf=default-unit,lc	other	3fd5b627353ddb7e 0.3392427463472173
+powf=location-unit,lc	other	3fd3ae13c2f0c8c0 0.30749982869305015
+powf=location-unit,other	other	3fda1c92f63551f2 0.4079940227868796
+powf=organization-last,other	other	3fd32ef67836f4f4 0.2997413801165998
+powf=other,2d	other	3fd25c89de73f358 0.28689810489577416
+powf=other,lc	other	3fd124fc5d1aca71 0.26788243381739735
+powf=other,other	other	3fd70be4e8be430b 0.3601009629137912
+powf=person-last,other	other	3fd1d92ddabf559b 0.2788805614667013
+powf=person-unit,lc	other	3fd045f35cf6a763 0.25426944807497004
+ppo=default-unit	other	3fd10f16b35a5d28 0.266545939587973
+ppo=location-unit	other	3fd2424d8ee314d7 0.28529681161701376
+ppo=organization-last	other	3fd321893f8a97bc 0.29892188267910647
+ppo=organization-start	other	3fd32ef67836f4f4 0.2997413801165998
+ppo=person-last	other	3fd1743de8846c5b 0.27271983820691553
+ppo=person-start	other	3fd1d92ddabf559b 0.2788805614667013
+ppo=person-unit	other	3fd1599b7e59c1ad 0.27109420145918756
+pw,w=,,61	other	3fd1743de8846c5b 0.27271983820691553
+pw,w=,,the	other	3fd321893f8a97bc 0.29892188267910647
+pw,w=,,will	other	3fd17e66e9e742ec 0.27333996622205237
+pw,w=29,.	other	3fd8dcb097082c5d 0.3884698367043649
+pw,w=61,years	other	3fd3d45033ad73f6 0.30983357473979767
+pw,w=Berlin,and	other	3fd3ff44b955165a 0.31245534991135104
+pw,w=Dutch,publishing	other	3fcff13c5eb5fde6 0.2495494329887002
+pw,w=France,.	other	3fda1c92f63551f2 0.4079940227868796
+pw,w=Mr,.	other	3fd5b6a69f0bf958 0.3392731240454814
+pw,w=N.V.,,	other	3fd32ef67836f4f4 0.2997413801165998
+pw,w=Nov.,29	other	3fd34937daa756ea 0.30134388306519944
+pw,w=Paris,is	other	3fd3ae13c2f0c8c0 0.30749982869305015
+pw,w=Potsdam,share	other	3fd0376a9677e0af 0.2533823460976334
+pw,w=Untyped,names	other	3fd5b627353ddb7e 0.3392427463472173
+pw,w=Vinken,,	other	3fd1d92ddabf559b 0.2788805614667013
+pw,w=Vinken,is	other	3fd045f35cf6a763 0.25426944807497004
+pw,w=a,nonexecutive	other	3fcf1dafb9657363 0.24309345772317234
+pw,w=as,a	other	3fce88c0edd6332e 0.23854838955994623
+pw,w=board,as	other	3fce229c99c5db00 0.23543126591149388
+pw,w=chairman,of	other	3fd2ed4094eb607d 0.29573072951234974
+pw,w=default,type	other	3fd3078897ca0887 0.2973348123852095
+pw,w=director,Nov.	other	3fd5426c9b9fb005 0.33217921445498205
+pw,w=get,the	other	3fcdcf229fcfa7d5 0.23288376620558773
+pw,w=group,.	other	3fd9f039fb76a988 0.4052872615526657
+pw,w=is,chairman	other	3fd1599b7e59c1ad 0.27109420145918756
+pw,w=is,in	other	3fd2424d8ee314d7 0.28529681161701376
+pw,w=join,the	other	3fce1e02b4648402 0.23529084976419773
+pw,w=last,type	other	3fd4824a81879e9b 0.3204523339213467
+pw,w=names,get	other	3fd10f16b35a5d28 0.266545939587973
+pw,w=nonexecutive,director	other	3fd099fc5379e919 0.25939853813146524
+pw,w=old,,	other	3fccd328deef3e84 0.22519408116794548
+pw,w=publishing,group	other	3fd3641781be9f95 0.30298412008641523
+pw,w=share,the	other	3fd3320e67d5d99f 0.2999301923768147
+pw,w=the,Dutch	other	3fd9596ba4e16b61 0.3960827932511873
+pw,w=the,board	other	3fce29d598332e6b 0.23565168315541327
+pw,w=the,default	other	3fcf468118d88bd4 0.2443391200368682
+pw,w=the,last	other	3fcf468118d88bd4 0.2443391200368682
+pw,w=type,.	other	3fd9f039fb76a984 0.4052872615526655
+pw,w=will,join	other	3fcdbf53da0becc9 0.2324013533287597
+pw,w=years,old	other	3fd2bd45d8a6d996 0.2928022971858807
+pwc,wc=2d,lc	other	3fd3d45033ad73f6 0.30983357473979767
+pwc,wc=2d,other	other	3fd8dcb097082c5d 0.3884698367043649
+pwc,wc=ic,2d	other	3fd34937daa756ea 0.30134388306519944
+pwc,wc=ic,lc	other	3fd249ad2dd9202d 0.2857468555198491
+pwc,wc=ic,other	other	3fd527acb5290dd9 0.3305465478080954
+pwc,wc=lc,lc	other	3fd0f17db0e51b2f 0.2647394397248943
+pwc,wc=lc,other	other	3fd6f09c663a1ef8 0.3584357260046853
+pwc,wc=other,2d	other	3fd1743de8846c5b 0.27271983820691553
+pwc,wc=other,lc	other	3fd24f92361f3eaa 0.2861066368613857
+w&c=,,other	other	3fd12391e5b8eb50 0.2677960151083214
+w&c=.,other	other	3fd91088b3456ee1 0.3916341543860949
+w&c=29,2d	other	3fd34937daa756ea 0.30134388306519944
+w&c=61,2d	other	3fd1743de8846c5b 0.27271983820691553
+w&c=a,lc	other	3fce88c0edd6332e 0.23854838955994623
+w&c=and,lc	other	3fd3ff44b955165a 0.31245534991135104
+w&c=as,lc	other	3fce229c99c5db00 0.23543126591149388
+w&c=board,lc	other	3fce29d598332e6b 0.23565168315541327
+w&c=chairman,lc	other	3fd1599b7e59c1ad 0.27109420145918756
+w&c=default,lc	other	3fcf468118d88bd4 0.2443391200368682
+w&c=director,lc	other	3fd099fc5379e919 0.25939853813146524
+w&c=dutch,ic	other	3fd9596ba4e16b61 0.3960827932511873
+w&c=get,lc	other	3fd10f16b35a5d28 0.266545939587973
+w&c=group,lc	other	3fd3641781be9f95 0.30298412008641523
+w&c=in,lc	other	3fd2424d8ee314d7 0.28529681161701376
+w&c=is,lc	other	3fd1f63f1f7dd84e 0.28065469813680444
+w&c=join,lc	other	3fcdbf53da0becc9 0.2324013533287597
+w&c=last,lc	other	3fcf468118d88bd4 0.2443391200368682
+w&c=mr,ic	other	3fe6df292cc3e297 0.7147413133926247
+w&c=names,lc	other	3fd5b627353ddb7e 0.3392427463472173
+w&c=nonexecutive,lc	other	3fcf1dafb9657363 0.24309345772317234
+w&c=nov.,ic	other	3fd5426c9b9fb005 0.33217921445498205
+w&c=of,lc	other	3fd2ed4094eb607d 0.29573072951234974
+w&c=old,lc	other	3fd2bd45d8a6d996 0.2928022971858807
+w&c=publishing,lc	other	3fcff13c5eb5fde6 0.2495494329887002
+w&c=share,lc	other	3fd0376a9677e0af 0.2533823460976334
+w&c=the,lc	other	3fd11024576416fd 0.2666102269580362
+w&c=type,lc	other	3fd3c4a6b948a637 0.3088776406681037
+w&c=will,lc	other	3fd17e66e9e742ec 0.27333996622205237
+w&c=years,lc	other	3fd3d45033ad73f6 0.30983357473979767
+w,nw=,,61	other	3fd1d92ddabf559b 0.2788805614667013
+w,nw=,,the	other	3fd32ef67836f4f4 0.2997413801165998
+w,nw=,,will	other	3fccd328deef3e84 0.22519408116794548
+w,nw=.,Vinken	other	3fd5b6a69f0bf958 0.3392731240454814
+w,nw=29,.	other	3fd34937daa756ea 0.30134388306519944
+w,nw=61,years	other	3fd1743de8846c5b 0.27271983820691553
+w,nw=Dutch,publishing	other	3fd9596ba4e16b61 0.3960827932511873
+w,nw=Mr,.	other	3fe6df292cc3e297 0.7147413133926247
+w,nw=Nov.,29	other	3fd5426c9b9fb005 0.33217921445498205
+w,nw=a,nonexecutive	other	3fce88c0edd6332e 0.23854838955994623
+w,nw=and,Potsdam	other	3fd3ff44b955165a 0.31245534991135104
+w,nw=as,a	other	3fce229c99c5db00 0.23543126591149388
+w,nw=board,as	other	3fce29d598332e6b 0.23565168315541327
+w,nw=chairman,of	other	3fd1599b7e59c1ad 0.27109420145918756
+w,nw=default,type	other	3fcf468118d88bd4 0.2443391200368682
+w,nw=director,Nov.	other	3fd099fc5379e919 0.25939853813146524
+w,nw=get,the	other	3fd10f16b35a5d28 0.266545939587973
+w,nw=group,.	other	3fd3641781be9f95 0.30298412008641523
+w,nw=in,France	other	3fd2424d8ee314d7 0.28529681161701376
+w,nw=is,chairman	other	3fd045f35cf6a763 0.25426944807497004
+w,nw=is,in	other	3fd3ae13c2f0c8c0 0.30749982869305015
+w,nw=join,the	other	3fcdbf53da0becc9 0.2324013533287597
+w,nw=last,type	other	3fcf468118d88bd4 0.2443391200368682
+w,nw=names,get	other	3fd5b627353ddb7e 0.3392427463472173
+w,nw=nonexecutive,director	other	3fcf1dafb9657363 0.24309345772317234
+w,nw=of,Elsevier	other	3fd2ed4094eb607d 0.29573072951234974
+w,nw=old,,	other	3fd2bd45d8a6d996 0.2928022971858807
+w,nw=publishing,group	other	3fcff13c5eb5fde6 0.2495494329887002
+w,nw=share,the	other	3fd0376a9677e0af 0.2533823460976334
+w,nw=the,Dutch	other	3fd321893f8a97bc 0.29892188267910647
+w,nw=the,board	other	3fce1e02b4648402 0.23529084976419773
+w,nw=the,default	other	3fcdcf229fcfa7d5 0.23288376620558773
+w,nw=the,last	other	3fd3320e67d5d99f 0.2999301923768147
+w,nw=type,.	other	3fd3c4a6b948a637 0.3088776406681037
+w,nw=will,join	other	3fd17e66e9e742ec 0.27333996622205237
+w,nw=years,old	other	3fd3d45033ad73f6 0.30983357473979767
+w=,	other	3fd12391e5b8eb50 0.2677960151083214
+w=.	other	3fd91088b3456ee1 0.3916341543860949
+w=29	other	3fd34937daa756ea 0.30134388306519944
+w=61	other	3fd1743de8846c5b 0.27271983820691553
+w=a	other	3fce88c0edd6332e 0.23854838955994623
+w=and	other	3fd3ff44b955165a 0.31245534991135104
+w=as	other	3fce229c99c5db00 0.23543126591149388
+w=board	other	3fce29d598332e6b 0.23565168315541327
+w=chairman	other	3fd1599b7e59c1ad 0.27109420145918756
+w=default	other	3fcf468118d88bd4 0.2443391200368682
+w=director	other	3fd099fc5379e919 0.25939853813146524
+w=dutch	other	3fd9596ba4e16b61 0.3960827932511873
+w=get	other	3fd10f16b35a5d28 0.266545939587973
+w=group	other	3fd3641781be9f95 0.30298412008641523
+w=in	other	3fd2424d8ee314d7 0.28529681161701376
+w=is	other	3fd1f63f1f7dd84e 0.28065469813680444
+w=join	other	3fcdbf53da0becc9 0.2324013533287597
+w=last	other	3fcf468118d88bd4 0.2443391200368682
+w=mr	other	3fe6df292cc3e297 0.7147413133926247
+w=names	other	3fd5b627353ddb7e 0.3392427463472173
+w=nonexecutive	other	3fcf1dafb9657363 0.24309345772317234
+w=nov.	other	3fd5426c9b9fb005 0.33217921445498205
+w=of	other	3fd2ed4094eb607d 0.29573072951234974
+w=old	other	3fd2bd45d8a6d996 0.2928022971858807
+w=publishing	other	3fcff13c5eb5fde6 0.2495494329887002
+w=share	other	3fd0376a9677e0af 0.2533823460976334
+w=the	other	3fd11024576416fd 0.2666102269580362
+w=type	other	3fd3c4a6b948a637 0.3088776406681037
+w=will	other	3fd17e66e9e742ec 0.27333996622205237
+w=years	other	3fd3d45033ad73f6 0.30983357473979767
+wc,nc=2d,lc	other	3fd1743de8846c5b 0.27271983820691553
+wc,nc=2d,other	other	3fd34937daa756ea 0.30134388306519944
+wc,nc=ic,2d	other	3fd5426c9b9fb005 0.33217921445498205
+wc,nc=lc,ic	other	3fd293a970ebfda3 0.29026256587527594
+wc,nc=lc,lc	other	3fd0b7dc74d35f45 0.2612219944835384
+wc,nc=lc,other	other	3fd3699e945f0b98 0.30332149972326183
+wc,nc=other,2d	other	3fd1d92ddabf559b 0.2788805614667013
+wc,nc=other,ic	other	3fd5b6a69f0bf958 0.3392731240454814
+wc,nc=other,lc	other	3fd0c8fc04f55045 0.2622671173496694
+wc=2d	other	3fd25c89de73f358 0.28689810489577416
+wc=lc	other	3fd16e30c275117f 0.2723504923817685
+wc=other	other	3fd6586ac302d2ed 0.3491465477375602
+p1wc=other	other	3fcc73dab29bd5b2 0.22228559228066797
+p1wc=other	person-unit	3fdb317c022c8fc5 0.4248952885848179
+n2wc=lc	other	3fcbaa7d3fda37b1 0.21614041917604035
+n2wc=lc	person-unit	bfc5aea58f8425e7 -0.16939229495646588
+n2wc=lc	organization-last	bfc584c56ad52f02 -0.1681143542904167
+n2wc=lc	location-unit	bfc7e7afcf027ec4 -0.18675801856897156
+n2wc=lc	default-unit	bf3ddabd8019fbba -4.555428168728188E-4
+n2wc=lc	city-unit	bfd7ee6ffcce4dc0 -0.3739280670935976
+n1wc=lc	other	3fcba5c48ebb3e1e 0.21599633187587214
+n1wc=lc	person-unit	bfcc57f14a410f04 -0.221433793312933
+n1wc=lc	location-unit	bfd1be5ee9145179 -0.2772443081060128
+n1wc=lc	default-unit	bfb41d6de3ede03e -0.07857405485799604
+n1wc=lc	city-unit	3fa7a7a143042e87 0.04620078986235137
+wc,nc=ic,lc	other	bfe22afafa59bd95 -0.5677466287287866
+wc,nc=ic,lc	person-unit	3fd00a5fb68fc0fc 0.25063317135119667
+wc,nc=ic,lc	location-unit	3fd10ee346aff003 0.26653367903759334
+wc,nc=ic,lc	default-unit	3fdb3eb63f5eab58 0.42570263088662363
+wc,nc=ic,lc	city-unit	3fda8b33073057ce 0.41474605276141296
+p2wc=ic	other	3fd05cdffec512aa 0.25566863899102066
+p2wc=ic	person-unit	3fc30e8b822c3ac6 0.14888137680141805
+p2wc=ic	city-unit	3fa749aa6eaf01d4 0.04548390008085659
+p2wc=lc	other	3fcf79ee698b61e7 0.24590854791200842
+p2wc=lc	organization-start	bfaa33188a2e3105 -0.05117108046315092
+p2wc=lc	organization-last	bfc1af146afba3fe -0.13815551017549405
+p2wc=lc	location-unit	bfcb8c15dcbc80c9 -0.21521256712094886
+p1wc=lc	other	3fd0245dd7ce62d7 0.2522196395380382
+p1wc=lc	organization-start	bfbcd7acb6fff6c1 -0.11266593425531381
+p1wc=lc	location-unit	bfd3313eb7010a98 -0.299880675043974
+p1wc=lc	city-unit	bfd605eb448c263a -0.3441112679871342
+pwc,wc=lc,ic	other	bfa276f4f83af1f5 -0.03606381921915506
+pwc,wc=lc,ic	organization-start	3fd9dce389e26672 0.4041069838072878
+pwc,wc=lc,ic	location-unit	3fda506c9f2784a3 0.4111587099305984
+pwc,wc=lc,ic	city-unit	3fd0fabe70ee605f 0.2653041937678661
+n2w&c=the,lc	other	3fb5acc99ddb42f1 0.08466777900617807
+n2w&c=the,lc	organization-last	3fd95a54a3617b6a 0.39613834338336196
+n2w&c=the,lc	city-unit	3fd54dee789eeb8f 0.33288156298993327
+n2w=the	other	3fb5acc99ddb42f1 0.08466777900617807
+n2w=the	organization-last	3fd95a54a3617b6a 0.39613834338336196
+n2w=the	city-unit	3fd54dee789eeb8f 0.33288156298993327
+n1w&c=.,other	other	3fd3450c253e3eaf 0.30108932148957995
+n1w&c=.,other	location-unit	3fcd6ab33a61bb26 0.229818728930206
+n1w=.	other	3fd3450c253e3eaf 0.30108932148957995
+n1w=.	location-unit	3fcd6ab33a61bb26 0.229818728930206
+p2w&c=is,lc	other	bfb50133bbdddd27 -0.08204959236706043
+p2w&c=is,lc	location-unit	3fe45adfcd876e87 0.6360930456389305
+p2w=is	other	bfb50133bbdddd27 -0.08204959236706043
+p2w=is	location-unit	3fe45adfcd876e87 0.6360930456389305
+n2wc=ic	other	3fd3c06f7f49291c 0.3086203330064039
+n2wc=ic	city-unit	3fd57adf90624b62 0.33562459087368357
+ppo=city-unit	other	3fb84b723ff7d2da 0.09490121900291673
+ppo=city-unit	city-unit	3fddba46054ce339 0.4644942332993654
+n2w&c=chairman,lc	person-unit	3fe2872b8cb267cd 0.5790002582536943
+n2w=chairman	person-unit	3fe2872b8cb267cd 0.5790002582536943
+p1w&c=.,other	person-unit	3fe2872b8cb267cd 0.5790002582536943
+p1w=.	person-unit	3fe2872b8cb267cd 0.5790002582536943
+p2w&c=mr,ic	person-unit	3fe2872b8cb267cd 0.5790002582536943
+p2w=mr	person-unit	3fe2872b8cb267cd 0.5790002582536943
+pd=person-last	person-unit	3fe2872b8cb267cd 0.5790002582536943
+pow=other,Vinken	person-unit	3fe2872b8cb267cd 0.5790002582536943
+pw,w=.,Vinken	person-unit	3fe2872b8cb267cd 0.5790002582536943
+pwc,wc=other,ic	person-unit	3fe2872b8cb267cd 0.5790002582536943
+w,nw=Vinken,is	person-unit	3fe2872b8cb267cd 0.5790002582536943
+n1w&c=is,lc	person-unit	3fdd6ee0e927dd6c 0.4598924900924064
+n1w&c=is,lc	location-unit	3fe56305e7e25f43 0.6683377770413944
+n1w=is	person-unit	3fdd6ee0e927dd6c 0.4598924900924064
+n1w=is	location-unit	3fe56305e7e25f43 0.6683377770413944
+n1w&c=n.v.,ic	organization-start	3fe3dd878f9fe197 0.6207921796004027
+n1w=n.v.	organization-start	3fe3dd878f9fe197 0.6207921796004027
+p1w&c=of,lc	organization-start	3fe3dd878f9fe197 0.6207921796004027
+p1w=of	organization-start	3fe3dd878f9fe197 0.6207921796004027
+p2w&c=chairman,lc	organization-start	3fe3dd878f9fe197 0.6207921796004027
+p2w=chairman	organization-start	3fe3dd878f9fe197 0.6207921796004027
+pow=other,Elsevier	organization-start	3fe3dd878f9fe197 0.6207921796004027
+pw,w=of,Elsevier	organization-start	3fe3dd878f9fe197 0.6207921796004027
+w&c=elsevier,ic	organization-start	3fe3dd878f9fe197 0.6207921796004027
+w,nw=Elsevier,N.V.	organization-start	3fe3dd878f9fe197 0.6207921796004027
+w=elsevier	organization-start	3fe3dd878f9fe197 0.6207921796004027
+p1w&c=elsevier,ic	organization-last	3fe2c3a17122db65 0.5863806924524907
+p1w=elsevier	organization-last	3fe2c3a17122db65 0.5863806924524907
+p2w&c=of,lc	organization-last	3fe2c3a17122db65 0.5863806924524907
+p2w=of	organization-last	3fe2c3a17122db65 0.5863806924524907
+po=organization-start	organization-last	3fe2c3a17122db65 0.5863806924524907
+pow=organization-start,N.V.	organization-last	3fe2c3a17122db65 0.5863806924524907
+powf=organization-start,ic	organization-last	3fe2c3a17122db65 0.5863806924524907
+pw,w=Elsevier,N.V.	organization-last	3fe2c3a17122db65 0.5863806924524907
+w&c=n.v.,ic	organization-last	3fe2c3a17122db65 0.5863806924524907
+w,nw=N.V.,,	organization-last	3fe2c3a17122db65 0.5863806924524907
+w=n.v.	organization-last	3fe2c3a17122db65 0.5863806924524907
+n2w&c=in,lc	location-unit	3fea7c7eeed91698 0.8276972451210041
+n2w=in	location-unit	3fea7c7eeed91698 0.8276972451210041
+p1w&c=in,lc	location-unit	3fe79a936094a1b2 0.7376191030826276
+p1w=in	location-unit	3fe79a936094a1b2 0.7376191030826276
+pow=other,France	location-unit	3fe79a936094a1b2 0.7376191030826276
+pow=other,Paris	location-unit	3fea7c7eeed91698 0.8276972451210041
+pw,w=in,France	location-unit	3fe79a936094a1b2 0.7376191030826276
+w&c=france,ic	location-unit	3fe79a936094a1b2 0.7376191030826276
+w&c=paris,ic	location-unit	3fea7c7eeed91698 0.8276972451210041
+w,nw=France,.	location-unit	3fe79a936094a1b2 0.7376191030826276
+w,nw=Paris,is	location-unit	3fea7c7eeed91698 0.8276972451210041
+w=france	location-unit	3fe79a936094a1b2 0.7376191030826276
+w=paris	location-unit	3fea7c7eeed91698 0.8276972451210041
+n1w&c=names,lc	default-unit	3fea6abbeab0990b 0.8255290588174672
+n1w=names	default-unit	3fea6abbeab0990b 0.8255290588174672
+n2w&c=get,lc	default-unit	3fea6abbeab0990b 0.8255290588174672
+n2w=get	default-unit	3fea6abbeab0990b 0.8255290588174672
+pow=other,Untyped	default-unit	3fea6abbeab0990b 0.8255290588174672
+w&c=untyped,ic	default-unit	3fea6abbeab0990b 0.8255290588174672
+w,nw=Untyped,names	default-unit	3fea6abbeab0990b 0.8255290588174672
+w=untyped	default-unit	3fea6abbeab0990b 0.8255290588174672
+n1w&c=and,lc	city-unit	3fe790dc7805a0aa 0.7364332527331687
+n1w&c=share,lc	city-unit	3fe12a4c2fecc4ec 0.5364132820160683
+n1w=and	city-unit	3fe790dc7805a0aa 0.7364332527331687
+n1w=share	city-unit	3fe12a4c2fecc4ec 0.5364132820160683
+n2w&c=potsdam,ic	city-unit	3fe790dc7805a0aa 0.7364332527331687
+n2w=potsdam	city-unit	3fe790dc7805a0aa 0.7364332527331687
+p1w&c=and,lc	city-unit	3fe12a4c2fecc4ec 0.5364132820160683
+p1w=and	city-unit	3fe12a4c2fecc4ec 0.5364132820160683
+p2w&c=berlin,ic	city-unit	3fe12a4c2fecc4ec 0.5364132820160683
+p2w=berlin	city-unit	3fe12a4c2fecc4ec 0.5364132820160683
+pow=other,Berlin	city-unit	3fe790dc7805a0aa 0.7364332527331687
+pow=other,Potsdam	city-unit	3fe12a4c2fecc4ec 0.5364132820160683
+pw,w=and,Potsdam	city-unit	3fe12a4c2fecc4ec 0.5364132820160683
+w&c=berlin,ic	city-unit	3fe790dc7805a0aa 0.7364332527331687
+w&c=potsdam,ic	city-unit	3fe12a4c2fecc4ec 0.5364132820160683
+w,nw=Berlin,and	city-unit	3fe790dc7805a0aa 0.7364332527331687
+w,nw=Potsdam,share	city-unit	3fe12a4c2fecc4ec 0.5364132820160683
+w=berlin	city-unit	3fe790dc7805a0aa 0.7364332527331687
+w=potsdam	city-unit	3fe12a4c2fecc4ec 0.5364132820160683
+end	turbo:name-weights

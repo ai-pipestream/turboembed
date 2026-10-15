@@ -140,6 +140,8 @@ a directory with the same model run without them, and its options are
 | `train` (`SimplePerceptronSequenceTrainer`) | the same, with `-perceptron-sequence` appended, then `-raw` without averaging: three runs over sequences of five events of `sentdetect` and `postag` | `en`, `multi`, `edge`; one `sentdetect` run also `train` | `source`, `DataIndexer`, `Cutoff`, `sort`, `Algorithm`, `Iterations`, `UseAverage` |
 | `train-events` (`SDEventStream`, `TokSpanEventStream` with factory options) | `sentdetect-dictionary-pt`, `sentdetect-th`, `sentdetect-conllu`, `tokenize-dictionary-alnum-de`, `tokenize-conllu` | `en`, `multi`, `edge`, `train`, `abbreviations`, `alphanumeric`, `formats` by run | `run`, `source`, `language`, `format`, and when given `abbreviations`, `useTokenEnd`, `eosCharacters`, `useAlphaNumericOptimization`, `alphaNumericPattern`, `sentencesPerSample` |
 | `train-events` (`POSSampleEventStream`, `LemmaSampleEventStream`) | `postag-wordtag`, `postag-wordtag-tagdict`, `postag-conllu-u`, `postag-conllu-x`, `lemma-text`, `lemma-conllu-u` | `tagged`, `formats` by run; the `wordtag`, `lemma` or `conllu` inputs by source and format | `run`, `source`, `language`, `format`, and when given `tagset`, `tagDictionary` |
+| `namefind` (`NameFinderEventStream`, `NameFinderME.train`) | `train-bio`, `train-bilou`, `train-type`, `train-perceptron`, `train-qn` | `tagged`, `formats`: the inputs whose id starts with `name` | `run`, `language`, `codec`, and when given `type`, `algorithm` |
+| `namefind` (`NameFinderME`) | `ner-fixture-rust` (fixture) | the same | `run find` |
 | `unigram` (`UnigramSegmenter`) | `zh-unigram-fixture` (fixture), also `+legacy` | `zh`, `multi`, `edge`, `surrogate` | `whitespace legacy` |
 | | `jieba-dict-subset` (fixture), also `+legacy` | `zh`, `multi`, `edge` | `whitespace legacy` |
 | | `zh-unigram-modes` (fixture), also `+legacy` | `zh` | `whitespace legacy` |
@@ -253,6 +255,26 @@ a directory with the same model run without them, and its options are
   `tags.tagdict`) and `inputs/tagged/lemmas.txt`
   (`analysis/train-components/tests/fixtures.rs`); the JVM loads them with
   `POSModel` and `LemmatizerModel` and tags with them.
+- A `namefind` training run (`NameEventGolden`) reads the input with
+  `NameSampleDataStream` and makes the events of `NameFinderEventStream`
+  over the context generator and codec of a `TokenNameFinderFactory` with
+  the default descriptor, with or without a type given to every name; it
+  records the events, the checksum and `turbo:stream-errors` as a
+  `train-events` run does. It then trains with `NameFinderME.train` from
+  a fresh read of the input with empty parameters (or only `Algorithm`),
+  and records `turbo:name-training` (the exception that ended training,
+  or an empty row), `turbo:name-parameters` (the parameters afterwards,
+  with their Java classes: the defaults `NameFinderME.train` puts in and
+  the trainer's `sort`) and, for a trained model, `turbo:manifest`,
+  `turbo:package-entries`, `turbo:name-model` (the SHA-256 and length of
+  `nameFinder.model`) and `turbo:name-weights` (every predicate, outcome
+  and weight as `GenericModelReader` reads the entry back).
+  `ner-fixture-rust.bin` is the `.bin` the Rust trainer writes from
+  `inputs/tagged/names.txt`; `NameFindGolden` loads it with
+  `TokenNameFinderModel` and records `turbo:name-found` and
+  `turbo:name-probs`, the names `find` returns and `probs()` for each
+  sample, clearing the adaptive data where a sample follows an empty
+  line.
 - A `postag` run cuts the input with the English (or, for the German
   model, German) sentence and tokenizer models, which are its second and
   third `model` records, and tags each sentence with `tag`; its golden has

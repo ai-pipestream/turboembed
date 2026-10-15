@@ -1,0 +1,698 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	formats/name-basic	422	422	694e2045c62b46e5c02f94f64318a251c77da0c7cc4c74064d138dde455d714a
+annotator	opennlp.tools.namefind.NameFinderEventStream	read
+config	algorithm	PERCEPTRON
+config	codec	bio
+config	language	en
+config	run	train-perceptron
+layer	turbo:events	document	52	outcome:str	context:str	values:str
+person-start	wc=ic w&c=pierre,ic n1wc=ic n1w&c=vinken,ic n2wc=other n2w&c=,,other w=pierre n1w=vinken n2w=, def pd=null w,nw=Pierre,Vinken wc,nc=ic,ic S=begin po=other pow=other,Pierre powf=other,ic ppo=other	
+person-cont	wc=ic w&c=vinken,ic p1wc=ic p1w&c=pierre,ic n1wc=other n1w&c=,,other n2wc=2d n2w&c=61,2d w=vinken p1w=pierre n1w=, n2w=61 def pd=null pw,w=Pierre,Vinken pwc,wc=ic,ic w,nw=Vinken,, wc,nc=ic,other po=person-start pow=person-start,Vinken powf=person-start,ic ppo=other	
+other	wc=other w&c=,,other p1wc=ic p1w&c=vinken,ic p2wc=ic p2w&c=pierre,ic n1wc=2d n1w&c=61,2d n2wc=lc n2w&c=years,lc w=, p1w=vinken p2w=pierre n1w=61 n2w=years def pd=null pw,w=Vinken,, pwc,wc=ic,other w,nw=,,61 wc,nc=other,2d po=person-cont pow=person-cont,, powf=person-cont,other ppo=person-start	
+other	wc=2d w&c=61,2d p1wc=other p1w&c=,,other p2wc=ic p2w&c=vinken,ic n1wc=lc n1w&c=years,lc n2wc=lc n2w&c=old,lc w=61 p1w=, p2w=vinken n1w=years n2w=old def pd=null pw,w=,,61 pwc,wc=other,2d w,nw=61,years wc,nc=2d,lc po=other pow=other,61 powf=other,2d ppo=person-cont	
+other	wc=lc w&c=years,lc p1wc=2d p1w&c=61,2d p2wc=other p2w&c=,,other n1wc=lc n1w&c=old,lc n2wc=other n2w&c=,,other w=years p1w=61 p2w=, n1w=old n2w=, def pd=null pw,w=61,years pwc,wc=2d,lc w,nw=years,old wc,nc=lc,lc po=other pow=other,years powf=other,lc ppo=other	
+other	wc=lc w&c=old,lc p1wc=lc p1w&c=years,lc p2wc=2d p2w&c=61,2d n1wc=other n1w&c=,,other n2wc=lc n2w&c=will,lc w=old p1w=years p2w=61 n1w=, n2w=will def pd=null pw,w=years,old pwc,wc=lc,lc w,nw=old,, wc,nc=lc,other po=other pow=other,old powf=other,lc ppo=other	
+other	wc=other w&c=,,other p1wc=lc p1w&c=old,lc p2wc=lc p2w&c=years,lc n1wc=lc n1w&c=will,lc n2wc=lc n2w&c=join,lc w=, p1w=old p2w=years n1w=will n2w=join def pd=null pw,w=old,, pwc,wc=lc,other w,nw=,,will wc,nc=other,lc po=other pow=other,, powf=other,other ppo=other	
+other	wc=lc w&c=will,lc p1wc=other p1w&c=,,other p2wc=lc p2w&c=old,lc n1wc=lc n1w&c=join,lc n2wc=lc n2w&c=the,lc w=will p1w=, p2w=old n1w=join n2w=the def pd=null pw,w=,,will pwc,wc=other,lc w,nw=will,join wc,nc=lc,lc po=other pow=other,will powf=other,lc ppo=other	
+other	wc=lc w&c=join,lc p1wc=lc p1w&c=will,lc p2wc=other p2w&c=,,other n1wc=lc n1w&c=the,lc n2wc=lc n2w&c=board,lc w=join p1w=will p2w=, n1w=the n2w=board def pd=null pw,w=will,join pwc,wc=lc,lc w,nw=join,the wc,nc=lc,lc po=other pow=other,join powf=other,lc ppo=other	
+other	wc=lc w&c=the,lc p1wc=lc p1w&c=join,lc p2wc=lc p2w&c=will,lc n1wc=lc n1w&c=board,lc n2wc=lc n2w&c=as,lc w=the p1w=join p2w=will n1w=board n2w=as def pd=null pw,w=join,the pwc,wc=lc,lc w,nw=the,board wc,nc=lc,lc po=other pow=other,the powf=other,lc ppo=other	
+other	wc=lc w&c=board,lc p1wc=lc p1w&c=the,lc p2wc=lc p2w&c=join,lc n1wc=lc n1w&c=as,lc n2wc=lc n2w&c=a,lc w=board p1w=the p2w=join n1w=as n2w=a def pd=null pw,w=the,board pwc,wc=lc,lc w,nw=board,as wc,nc=lc,lc po=other pow=other,board powf=other,lc ppo=other	
+other	wc=lc w&c=as,lc p1wc=lc p1w&c=board,lc p2wc=lc p2w&c=the,lc n1wc=lc n1w&c=a,lc n2wc=lc n2w&c=nonexecutive,lc w=as p1w=board p2w=the n1w=a n2w=nonexecutive def pd=null pw,w=board,as pwc,wc=lc,lc w,nw=as,a wc,nc=lc,lc po=other pow=other,as powf=other,lc ppo=other	
+other	wc=lc w&c=a,lc p1wc=lc p1w&c=as,lc p2wc=lc p2w&c=board,lc n1wc=lc n1w&c=nonexecutive,lc n2wc=lc n2w&c=director,lc w=a p1w=as p2w=board n1w=nonexecutive n2w=director def pd=null pw,w=as,a pwc,wc=lc,lc w,nw=a,nonexecutive wc,nc=lc,lc po=other pow=other,a powf=other,lc ppo=other	
+other	wc=lc w&c=nonexecutive,lc p1wc=lc p1w&c=a,lc p2wc=lc p2w&c=as,lc n1wc=lc n1w&c=director,lc n2wc=ic n2w&c=nov.,ic w=nonexecutive p1w=a p2w=as n1w=director n2w=nov. def pd=null pw,w=a,nonexecutive pwc,wc=lc,lc w,nw=nonexecutive,director wc,nc=lc,lc po=other pow=other,nonexecutive powf=other,lc ppo=other	
+other	wc=lc w&c=director,lc p1wc=lc p1w&c=nonexecutive,lc p2wc=lc p2w&c=a,lc n1wc=ic n1w&c=nov.,ic n2wc=2d n2w&c=29,2d w=director p1w=nonexecutive p2w=a n1w=nov. n2w=29 def pd=null pw,w=nonexecutive,director pwc,wc=lc,lc w,nw=director,Nov. wc,nc=lc,ic po=other pow=other,director powf=other,lc ppo=other	
+other	wc=ic w&c=nov.,ic p1wc=lc p1w&c=director,lc p2wc=lc p2w&c=nonexecutive,lc n1wc=2d n1w&c=29,2d n2wc=other n2w&c=.,other w=nov. p1w=director p2w=nonexecutive n1w=29 n2w=. def pd=null pw,w=director,Nov. pwc,wc=lc,ic w,nw=Nov.,29 wc,nc=ic,2d po=other pow=other,Nov. powf=other,ic ppo=other	
+other	wc=2d w&c=29,2d p1wc=ic p1w&c=nov.,ic p2wc=lc p2w&c=director,lc n1wc=other n1w&c=.,other w=29 p1w=nov. p2w=director n1w=. def pd=null pw,w=Nov.,29 pwc,wc=ic,2d w,nw=29,. wc,nc=2d,other po=other pow=other,29 powf=other,2d ppo=other	
+other	wc=other w&c=.,other p1wc=2d p1w&c=29,2d p2wc=ic p2w&c=nov.,ic w=. p1w=29 p2w=nov. def pd=null pw,w=29,. pwc,wc=2d,other po=other pow=other,. powf=other,other ppo=other	
+other	wc=ic w&c=mr,ic n1wc=other n1w&c=.,other n2wc=ic n2w&c=vinken,ic w=mr n1w=. n2w=vinken def pd=null w,nw=Mr,. wc,nc=ic,other S=begin po=other pow=other,Mr powf=other,ic ppo=other	
+other	wc=other w&c=.,other p1wc=ic p1w&c=mr,ic n1wc=ic n1w&c=vinken,ic n2wc=lc n2w&c=is,lc w=. p1w=mr n1w=vinken n2w=is def pd=other pw,w=Mr,. pwc,wc=ic,other w,nw=.,Vinken wc,nc=other,ic po=other pow=other,. powf=other,other ppo=other	
+person-start	wc=ic w&c=vinken,ic p1wc=other p1w&c=.,other p2wc=ic p2w&c=mr,ic n1wc=lc n1w&c=is,lc n2wc=lc n2w&c=chairman,lc w=vinken p1w=. p2w=mr n1w=is n2w=chairman def pd=person-cont pw,w=.,Vinken pwc,wc=other,ic w,nw=Vinken,is wc,nc=ic,lc po=other pow=other,Vinken powf=other,ic ppo=other	
+other	wc=lc w&c=is,lc p1wc=ic p1w&c=vinken,ic p2wc=other p2w&c=.,other n1wc=lc n1w&c=chairman,lc n2wc=lc n2w&c=of,lc w=is p1w=vinken p2w=. n1w=chairman n2w=of def pd=null pw,w=Vinken,is pwc,wc=ic,lc w,nw=is,chairman wc,nc=lc,lc po=person-start pow=person-start,is powf=person-start,lc ppo=other	
+other	wc=lc w&c=chairman,lc p1wc=lc p1w&c=is,lc p2wc=ic p2w&c=vinken,ic n1wc=lc n1w&c=of,lc n2wc=ic n2w&c=elsevier,ic w=chairman p1w=is p2w=vinken n1w=of n2w=elsevier def pd=null pw,w=is,chairman pwc,wc=lc,lc w,nw=chairman,of wc,nc=lc,lc po=other pow=other,chairman powf=other,lc ppo=person-start	
+other	wc=lc w&c=of,lc p1wc=lc p1w&c=chairman,lc p2wc=lc p2w&c=is,lc n1wc=ic n1w&c=elsevier,ic n2wc=ic n2w&c=n.v.,ic w=of p1w=chairman p2w=is n1w=elsevier n2w=n.v. def pd=null pw,w=chairman,of pwc,wc=lc,lc w,nw=of,Elsevier wc,nc=lc,ic po=other pow=other,of powf=other,lc ppo=other	
+organization-start	wc=ic w&c=elsevier,ic p1wc=lc p1w&c=of,lc p2wc=lc p2w&c=chairman,lc n1wc=ic n1w&c=n.v.,ic n2wc=other n2w&c=,,other w=elsevier p1w=of p2w=chairman n1w=n.v. n2w=, def pd=null pw,w=of,Elsevier pwc,wc=lc,ic w,nw=Elsevier,N.V. wc,nc=ic,ic po=other pow=other,Elsevier powf=other,ic ppo=other	
+organization-cont	wc=ic w&c=n.v.,ic p1wc=ic p1w&c=elsevier,ic p2wc=lc p2w&c=of,lc n1wc=other n1w&c=,,other n2wc=lc n2w&c=the,lc w=n.v. p1w=elsevier p2w=of n1w=, n2w=the def pd=null pw,w=Elsevier,N.V. pwc,wc=ic,ic w,nw=N.V.,, wc,nc=ic,other po=organization-start pow=organization-start,N.V. powf=organization-start,ic ppo=other	
+other	wc=other w&c=,,other p1wc=ic p1w&c=n.v.,ic p2wc=ic p2w&c=elsevier,ic n1wc=lc n1w&c=the,lc n2wc=ic n2w&c=dutch,ic w=, p1w=n.v. p2w=elsevier n1w=the n2w=dutch def pd=other pw,w=N.V.,, pwc,wc=ic,other w,nw=,,the wc,nc=other,lc po=organization-cont pow=organization-cont,, powf=organization-cont,other ppo=organization-start	
+other	wc=lc w&c=the,lc p1wc=other p1w&c=,,other p2wc=ic p2w&c=n.v.,ic n1wc=ic n1w&c=dutch,ic n2wc=lc n2w&c=publishing,lc w=the p1w=, p2w=n.v. n1w=dutch n2w=publishing def pd=other pw,w=,,the pwc,wc=other,lc w,nw=the,Dutch wc,nc=lc,ic po=other pow=other,the powf=other,lc ppo=organization-cont	
+other	wc=ic w&c=dutch,ic p1wc=lc p1w&c=the,lc p2wc=other p2w&c=,,other n1wc=lc n1w&c=publishing,lc n2wc=lc n2w&c=group,lc w=dutch p1w=the p2w=, n1w=publishing n2w=group def pd=null pw,w=the,Dutch pwc,wc=lc,ic w,nw=Dutch,publishing wc,nc=ic,lc po=other pow=other,Dutch powf=other,ic ppo=other	
+other	wc=lc w&c=publishing,lc p1wc=ic p1w&c=dutch,ic p2wc=lc p2w&c=the,lc n1wc=lc n1w&c=group,lc n2wc=other n2w&c=.,other w=publishing p1w=dutch p2w=the n1w=group n2w=. def pd=null pw,w=Dutch,publishing pwc,wc=ic,lc w,nw=publishing,group wc,nc=lc,lc po=other pow=other,publishing powf=other,lc ppo=other	
+other	wc=lc w&c=group,lc p1wc=lc p1w&c=publishing,lc p2wc=ic p2w&c=dutch,ic n1wc=other n1w&c=.,other w=group p1w=publishing p2w=dutch n1w=. def pd=null pw,w=publishing,group pwc,wc=lc,lc w,nw=group,. wc,nc=lc,other po=other pow=other,group powf=other,lc ppo=other	
+other	wc=other w&c=.,other p1wc=lc p1w&c=group,lc p2wc=lc p2w&c=publishing,lc w=. p1w=group p2w=publishing def pd=other pw,w=group,. pwc,wc=lc,other po=other pow=other,. powf=other,other ppo=other	
+location-start	wc=ic w&c=paris,ic n1wc=lc n1w&c=is,lc n2wc=lc n2w&c=in,lc w=paris n1w=is n2w=in def pd=null w,nw=Paris,is wc,nc=ic,lc S=begin po=other pow=other,Paris powf=other,ic ppo=other	
+other	wc=lc w&c=is,lc p1wc=ic p1w&c=paris,ic n1wc=lc n1w&c=in,lc n2wc=ic n2w&c=france,ic w=is p1w=paris n1w=in n2w=france def pd=null pw,w=Paris,is pwc,wc=ic,lc w,nw=is,in wc,nc=lc,lc po=location-start pow=location-start,is powf=location-start,lc ppo=other	
+other	wc=lc w&c=in,lc p1wc=lc p1w&c=is,lc p2wc=ic p2w&c=paris,ic n1wc=ic n1w&c=france,ic n2wc=other n2w&c=.,other w=in p1w=is p2w=paris n1w=france n2w=. def pd=null pw,w=is,in pwc,wc=lc,lc w,nw=in,France wc,nc=lc,ic po=other pow=other,in powf=other,lc ppo=location-start	
+location-start	wc=ic w&c=france,ic p1wc=lc p1w&c=in,lc p2wc=lc p2w&c=is,lc n1wc=other n1w&c=.,other w=france p1w=in p2w=is n1w=. def pd=null pw,w=in,France pwc,wc=lc,ic w,nw=France,. wc,nc=ic,other po=other pow=other,France powf=other,ic ppo=other	
+other	wc=other w&c=.,other p1wc=ic p1w&c=france,ic p2wc=lc p2w&c=in,lc w=. p1w=france p2w=in def pd=null pw,w=France,. pwc,wc=ic,other po=location-start pow=location-start,. powf=location-start,other ppo=other	
+default-start	wc=ic w&c=untyped,ic n1wc=lc n1w&c=names,lc n2wc=lc n2w&c=get,lc w=untyped n1w=names n2w=get def pd=null w,nw=Untyped,names wc,nc=ic,lc S=begin po=other pow=other,Untyped powf=other,ic ppo=other	
+other	wc=lc w&c=names,lc p1wc=ic p1w&c=untyped,ic n1wc=lc n1w&c=get,lc n2wc=lc n2w&c=the,lc w=names p1w=untyped n1w=get n2w=the def pd=null pw,w=Untyped,names pwc,wc=ic,lc w,nw=names,get wc,nc=lc,lc po=default-start pow=default-start,names powf=default-start,lc ppo=other	
+other	wc=lc w&c=get,lc p1wc=lc p1w&c=names,lc p2wc=ic p2w&c=untyped,ic n1wc=lc n1w&c=the,lc n2wc=lc n2w&c=default,lc w=get p1w=names p2w=untyped n1w=the n2w=default def pd=null pw,w=names,get pwc,wc=lc,lc w,nw=get,the wc,nc=lc,lc po=other pow=other,get powf=other,lc ppo=default-start	
+other	wc=lc w&c=the,lc p1wc=lc p1w&c=get,lc p2wc=lc p2w&c=names,lc n1wc=lc n1w&c=default,lc n2wc=lc n2w&c=type,lc w=the p1w=get p2w=names n1w=default n2w=type def pd=null pw,w=get,the pwc,wc=lc,lc w,nw=the,default wc,nc=lc,lc po=other pow=other,the powf=other,lc ppo=other	
+other	wc=lc w&c=default,lc p1wc=lc p1w&c=the,lc p2wc=lc p2w&c=get,lc n1wc=lc n1w&c=type,lc n2wc=other n2w&c=.,other w=default p1w=the p2w=get n1w=type n2w=. def pd=null pw,w=the,default pwc,wc=lc,lc w,nw=default,type wc,nc=lc,lc po=other pow=other,default powf=other,lc ppo=other	
+other	wc=lc w&c=type,lc p1wc=lc p1w&c=default,lc p2wc=lc p2w&c=the,lc n1wc=other n1w&c=.,other w=type p1w=default p2w=the n1w=. def pd=null pw,w=default,type pwc,wc=lc,lc w,nw=type,. wc,nc=lc,other po=other pow=other,type powf=other,lc ppo=other	
+other	wc=other w&c=.,other p1wc=lc p1w&c=type,lc p2wc=lc p2w&c=default,lc w=. p1w=type p2w=default def pd=other pw,w=type,. pwc,wc=lc,other po=other pow=other,. powf=other,other ppo=other	
+city-start	wc=ic w&c=berlin,ic n1wc=lc n1w&c=and,lc n2wc=ic n2w&c=potsdam,ic w=berlin n1w=and n2w=potsdam def pd=null w,nw=Berlin,and wc,nc=ic,lc S=begin po=other pow=other,Berlin powf=other,ic ppo=other	
+other	wc=lc w&c=and,lc p1wc=ic p1w&c=berlin,ic n1wc=ic n1w&c=potsdam,ic n2wc=lc n2w&c=share,lc w=and p1w=berlin n1w=potsdam n2w=share def pd=null pw,w=Berlin,and pwc,wc=ic,lc w,nw=and,Potsdam wc,nc=lc,ic po=city-start pow=city-start,and powf=city-start,lc ppo=other	
+city-start	wc=ic w&c=potsdam,ic p1wc=lc p1w&c=and,lc p2wc=ic p2w&c=berlin,ic n1wc=lc n1w&c=share,lc n2wc=lc n2w&c=the,lc w=potsdam p1w=and p2w=berlin n1w=share n2w=the def pd=null pw,w=and,Potsdam pwc,wc=lc,ic w,nw=Potsdam,share wc,nc=ic,lc po=other pow=other,Potsdam powf=other,ic ppo=city-start	
+other	wc=lc w&c=share,lc p1wc=ic p1w&c=potsdam,ic p2wc=lc p2w&c=and,lc n1wc=lc n1w&c=the,lc n2wc=lc n2w&c=last,lc w=share p1w=potsdam p2w=and n1w=the n2w=last def pd=null pw,w=Potsdam,share pwc,wc=ic,lc w,nw=share,the wc,nc=lc,lc po=city-start pow=city-start,share powf=city-start,lc ppo=other	
+other	wc=lc w&c=the,lc p1wc=lc p1w&c=share,lc p2wc=ic p2w&c=potsdam,ic n1wc=lc n1w&c=last,lc n2wc=lc n2w&c=type,lc w=the p1w=share p2w=potsdam n1w=last n2w=type def pd=other pw,w=share,the pwc,wc=lc,lc w,nw=the,last wc,nc=lc,lc po=other pow=other,the powf=other,lc ppo=city-start	
+other	wc=lc w&c=last,lc p1wc=lc p1w&c=the,lc p2wc=lc p2w&c=share,lc n1wc=lc n1w&c=type,lc n2wc=other n2w&c=.,other w=last p1w=the p2w=share n1w=type n2w=. def pd=null pw,w=the,last pwc,wc=lc,lc w,nw=last,type wc,nc=lc,lc po=other pow=other,last powf=other,lc ppo=other	
+other	wc=lc w&c=type,lc p1wc=lc p1w&c=last,lc p2wc=lc p2w&c=the,lc n1wc=other n1w&c=.,other w=type p1w=last p2w=the n1w=. def pd=other pw,w=last,type pwc,wc=lc,lc w,nw=type,. wc,nc=lc,other po=other pow=other,type powf=other,lc ppo=other	
+other	wc=other w&c=.,other p1wc=lc p1w&c=type,lc p2wc=lc p2w&c=last,lc w=. p1w=type p2w=last def pd=other pw,w=type,. pwc,wc=lc,other po=other pow=other,. powf=other,other ppo=other	
+end	turbo:events
+layer	turbo:stream-errors	document	0	after:u32	class:str	message:str
+end	turbo:stream-errors
+layer	turbo:event-checksum	document	1	crc32c:u32
+1634851161
+end	turbo:event-checksum
+layer	turbo:name-training	document	1	class:str	message:str
+	
+end	turbo:name-training
+layer	turbo:name-parameters	document	4	key:str	class:str	value:str
+Cutoff	java.lang.Integer	0
+sort	java.lang.Boolean	false
+Iterations	java.lang.Integer	300
+Algorithm	java.lang.String	PERCEPTRON
+end	turbo:name-parameters
+layer	turbo:manifest	document	9	key:str	value:str
+BeamSize	3
+Component-Name	NameFinderME
+Language	en
+Manifest-Version	1.0
+OpenNLP-Version	3.0.0-SNAPSHOT
+TrainerType	Event
+Training-Eventhash	1634851161
+factory	opennlp.tools.namefind.TokenNameFinderFactory
+sequenceCodecImplName	opennlp.tools.namefind.BioCodec
+end	turbo:manifest
+layer	turbo:package-entries	document	3	name:str	length:u32
+manifest.properties	315
+nameFinder.model	8606
+generator.featuregen	1906
+end	turbo:package-entries
+layer	turbo:name-model	document	1	sha256:str	length:u32
+a0764ef6a6461d0286e95af2951fe1e757492865194c87516f7763ea6a806810	8606
+end	turbo:name-model
+layer	turbo:name-weights	document	598	predicate:str	outcome:str	value:f64
+n2w&c=61,2d	person-start	bff0000000000000 -1.0
+n2w&c=61,2d	person-cont	3ff0000000000000 1.0
+n2w=61	person-start	bff0000000000000 -1.0
+n2w=61	person-cont	3ff0000000000000 1.0
+n2wc=2d	person-start	bff0000000000000 -1.0
+n2wc=2d	person-cont	3ff0000000000000 1.0
+p1w&c=pierre,ic	person-start	bff0000000000000 -1.0
+p1w&c=pierre,ic	person-cont	3ff0000000000000 1.0
+p1w=pierre	person-start	bff0000000000000 -1.0
+p1w=pierre	person-cont	3ff0000000000000 1.0
+po=person-start	person-start	bff0000000000000 -1.0
+po=person-start	person-cont	3ff0000000000000 1.0
+pow=person-start,Vinken	person-start	bff0000000000000 -1.0
+pow=person-start,Vinken	person-cont	3ff0000000000000 1.0
+powf=person-start,ic	person-start	bff0000000000000 -1.0
+powf=person-start,ic	person-cont	3ff0000000000000 1.0
+pw,w=Pierre,Vinken	person-start	bff0000000000000 -1.0
+pw,w=Pierre,Vinken	person-cont	3ff0000000000000 1.0
+w,nw=Vinken,,	person-start	bff0000000000000 -1.0
+w,nw=Vinken,,	person-cont	3ff0000000000000 1.0
+n1wc=2d	person-start	bfec000000000000 -0.875
+n1wc=2d	person-cont	bff0000000000000 -1.0
+n1wc=2d	other	3ffe000000000000 1.875
+powf=other,lc	person-start	bff0000000000000 -1.0
+powf=other,lc	person-cont	bff0000000000000 -1.0
+powf=other,lc	other	4000000000000000 2.0
+p1wc=lc	person-start	bfec000000000000 -0.875
+p1wc=lc	person-cont	bff0000000000000 -1.0
+p1wc=lc	other	3fd0000000000000 0.25
+p1wc=lc	organization-start	3ff0000000000000 1.0
+p1wc=lc	organization-cont	bff0000000000000 -1.0
+p1wc=lc	location-start	3fec000000000000 0.875
+p1wc=lc	city-start	3fe8000000000000 0.75
+po=other	person-start	bfc0000000000000 -0.125
+po=other	person-cont	bff0000000000000 -1.0
+po=other	other	3fe8000000000000 0.75
+po=other	organization-start	3fc0000000000000 0.125
+po=other	organization-cont	bff0000000000000 -1.0
+po=other	location-start	3fec000000000000 0.875
+po=other	city-start	3fd8000000000000 0.375
+n2wc=lc	person-start	bfec000000000000 -0.875
+n2wc=lc	person-cont	c000000000000000 -2.0
+n2wc=lc	other	3ffe000000000000 1.875
+n2wc=lc	organization-start	bff0000000000000 -1.0
+n2wc=lc	location-start	3fec000000000000 0.875
+n2wc=lc	default-start	3ff0000000000000 1.0
+n2wc=lc	city-start	3fc0000000000000 0.125
+def	person-start	bff2000000000000 -1.125
+def	person-cont	bff0000000000000 -1.0
+def	other	4006000000000000 2.75
+def	organization-start	bfec000000000000 -0.875
+def	location-start	bfc0000000000000 -0.125
+def	city-start	3fd8000000000000 0.375
+pd=null	person-start	bff2000000000000 -1.125
+pd=null	person-cont	bff0000000000000 -1.0
+pd=null	other	4006000000000000 2.75
+pd=null	organization-start	bfec000000000000 -0.875
+pd=null	location-start	bfc0000000000000 -0.125
+pd=null	city-start	3fd8000000000000 0.375
+wc=ic	person-start	bfc0000000000000 -0.125
+wc=ic	person-cont	3ff0000000000000 1.0
+wc=ic	other	bffe000000000000 -1.875
+wc=ic	organization-start	bfec000000000000 -0.875
+wc=ic	location-start	3fec000000000000 0.875
+wc=ic	city-start	3ff0000000000000 1.0
+wc=lc	person-start	bff0000000000000 -1.0
+wc=lc	person-cont	bff0000000000000 -1.0
+wc=lc	other	4008000000000000 3.0
+wc=lc	location-start	bff0000000000000 -1.0
+pwc,wc=ic,ic	person-start	bff0000000000000 -1.0
+pwc,wc=ic,ic	person-cont	3ff0000000000000 1.0
+pwc,wc=ic,ic	organization-start	bff0000000000000 -1.0
+pwc,wc=ic,ic	organization-cont	3ff0000000000000 1.0
+wc,nc=ic,other	person-start	bff0000000000000 -1.0
+wc,nc=ic,other	person-cont	3ff0000000000000 1.0
+wc,nc=ic,other	organization-start	bff0000000000000 -1.0
+wc,nc=ic,other	organization-cont	3ff0000000000000 1.0
+wc,nc=ic,other	location-start	3fec000000000000 0.875
+wc,nc=ic,other	city-start	bfec000000000000 -0.875
+n1w&c=29,2d	person-start	bfec000000000000 -0.875
+n1w&c=29,2d	other	3fec000000000000 0.875
+n1w&c=dutch,ic	person-start	bff0000000000000 -1.0
+n1w&c=dutch,ic	other	3ff0000000000000 1.0
+n1w=29	person-start	bfec000000000000 -0.875
+n1w=29	other	3fec000000000000 0.875
+n1w=dutch	person-start	bff0000000000000 -1.0
+n1w=dutch	other	3ff0000000000000 1.0
+n2w&c=.,other	person-start	bfec000000000000 -0.875
+n2w&c=.,other	other	3fec000000000000 0.875
+n2w&c=chairman,lc	person-start	3ff0000000000000 1.0
+n2w&c=chairman,lc	other	bff0000000000000 -1.0
+n2w&c=publishing,lc	person-start	bff0000000000000 -1.0
+n2w&c=publishing,lc	other	3ff0000000000000 1.0
+n2w=.	person-start	bfec000000000000 -0.875
+n2w=.	other	3fec000000000000 0.875
+n2w=chairman	person-start	3ff0000000000000 1.0
+n2w=chairman	other	bff0000000000000 -1.0
+n2w=publishing	person-start	bff0000000000000 -1.0
+n2w=publishing	other	3ff0000000000000 1.0
+p1w&c=.,other	person-start	3ff0000000000000 1.0
+p1w&c=.,other	other	bff0000000000000 -1.0
+p1w&c=director,lc	person-start	bfec000000000000 -0.875
+p1w&c=director,lc	other	3fec000000000000 0.875
+p1w=.	person-start	3ff0000000000000 1.0
+p1w=.	other	bff0000000000000 -1.0
+p1w=director	person-start	bfec000000000000 -0.875
+p1w=director	other	3fec000000000000 0.875
+p2w&c=mr,ic	person-start	3ff0000000000000 1.0
+p2w&c=mr,ic	other	bff0000000000000 -1.0
+p2w&c=n.v.,ic	person-start	bff0000000000000 -1.0
+p2w&c=n.v.,ic	other	3ff0000000000000 1.0
+p2w&c=nonexecutive,lc	person-start	bfec000000000000 -0.875
+p2w&c=nonexecutive,lc	other	3fec000000000000 0.875
+p2w=mr	person-start	3ff0000000000000 1.0
+p2w=mr	other	bff0000000000000 -1.0
+p2w=n.v.	person-start	bff0000000000000 -1.0
+p2w=n.v.	other	3ff0000000000000 1.0
+p2w=nonexecutive	person-start	bfec000000000000 -0.875
+p2w=nonexecutive	other	3fec000000000000 0.875
+pd=other	person-start	bff0000000000000 -1.0
+pd=other	other	3ff0000000000000 1.0
+pd=person-cont	person-start	3ff0000000000000 1.0
+pd=person-cont	other	bff0000000000000 -1.0
+pow=other,Nov.	person-start	bfec000000000000 -0.875
+pow=other,Nov.	other	3fec000000000000 0.875
+pow=other,Vinken	person-start	3ff0000000000000 1.0
+pow=other,Vinken	other	bff0000000000000 -1.0
+pow=other,the	person-start	bff0000000000000 -1.0
+pow=other,the	other	3ff0000000000000 1.0
+ppo=organization-cont	person-start	bff0000000000000 -1.0
+ppo=organization-cont	other	3ff0000000000000 1.0
+pw,w=,,the	person-start	bff0000000000000 -1.0
+pw,w=,,the	other	3ff0000000000000 1.0
+pw,w=.,Vinken	person-start	3ff0000000000000 1.0
+pw,w=.,Vinken	other	bff0000000000000 -1.0
+pw,w=director,Nov.	person-start	bfec000000000000 -0.875
+pw,w=director,Nov.	other	3fec000000000000 0.875
+pwc,wc=other,ic	person-start	3ff0000000000000 1.0
+pwc,wc=other,ic	other	bff0000000000000 -1.0
+pwc,wc=other,lc	person-start	bff0000000000000 -1.0
+pwc,wc=other,lc	other	3ff0000000000000 1.0
+w&c=nov.,ic	person-start	bfec000000000000 -0.875
+w&c=nov.,ic	other	3fec000000000000 0.875
+w&c=the,lc	person-start	bff0000000000000 -1.0
+w&c=the,lc	other	3ff0000000000000 1.0
+w,nw=Nov.,29	person-start	bfec000000000000 -0.875
+w,nw=Nov.,29	other	3fec000000000000 0.875
+w,nw=Vinken,is	person-start	3ff0000000000000 1.0
+w,nw=Vinken,is	other	bff0000000000000 -1.0
+w,nw=the,Dutch	person-start	bff0000000000000 -1.0
+w,nw=the,Dutch	other	3ff0000000000000 1.0
+w=nov.	person-start	bfec000000000000 -0.875
+w=nov.	other	3fec000000000000 0.875
+w=the	person-start	bff0000000000000 -1.0
+w=the	other	3ff0000000000000 1.0
+wc,nc=ic,2d	person-start	bfec000000000000 -0.875
+wc,nc=ic,2d	other	3fec000000000000 0.875
+wc,nc=lc,ic	person-start	bff0000000000000 -1.0
+wc,nc=lc,ic	other	3ff0000000000000 1.0
+n1w&c=,,other	person-start	bff0000000000000 -1.0
+n1w&c=,,other	other	3ff0000000000000 1.0
+n1w&c=,,other	organization-start	bff0000000000000 -1.0
+n1w&c=,,other	organization-cont	3ff0000000000000 1.0
+n1w=,	person-start	bff0000000000000 -1.0
+n1w=,	other	3ff0000000000000 1.0
+n1w=,	organization-start	bff0000000000000 -1.0
+n1w=,	organization-cont	3ff0000000000000 1.0
+p1wc=ic	person-start	bff0000000000000 -1.0
+p1wc=ic	other	4000000000000000 2.0
+p1wc=ic	organization-start	bff0000000000000 -1.0
+p1wc=ic	organization-cont	3ff0000000000000 1.0
+p1wc=ic	location-start	bff0000000000000 -1.0
+n1wc=other	person-start	bff0000000000000 -1.0
+n1wc=other	other	3ff0000000000000 1.0
+n1wc=other	organization-start	bff0000000000000 -1.0
+n1wc=other	organization-cont	3ff0000000000000 1.0
+n1wc=other	location-start	3fec000000000000 0.875
+n1wc=other	city-start	bfec000000000000 -0.875
+powf=other,ic	person-start	3fec000000000000 0.875
+powf=other,ic	other	bffe000000000000 -1.875
+powf=other,ic	organization-start	3fc0000000000000 0.125
+powf=other,ic	organization-cont	bff0000000000000 -1.0
+powf=other,ic	location-start	3fec000000000000 0.875
+powf=other,ic	city-start	3ff0000000000000 1.0
+pwc,wc=lc,ic	person-start	bfec000000000000 -0.875
+pwc,wc=lc,ic	other	bfe8000000000000 -0.75
+pwc,wc=lc,ic	organization-start	3ff0000000000000 1.0
+pwc,wc=lc,ic	organization-cont	bff0000000000000 -1.0
+pwc,wc=lc,ic	location-start	3fec000000000000 0.875
+pwc,wc=lc,ic	city-start	3fe8000000000000 0.75
+ppo=other	person-start	bfc0000000000000 -0.125
+ppo=other	other	3fec000000000000 0.875
+ppo=other	organization-start	bfec000000000000 -0.875
+ppo=other	location-start	bfc0000000000000 -0.125
+ppo=other	city-start	3fd0000000000000 0.25
+S=begin	person-start	3fe8000000000000 0.75
+S=begin	other	bfc0000000000000 -0.125
+S=begin	organization-start	bfec000000000000 -0.875
+S=begin	city-start	3fd0000000000000 0.25
+n2w&c=,,other	person-start	3ffa000000000000 1.625
+n2w&c=,,other	other	bff0000000000000 -1.0
+n2w&c=,,other	organization-start	3fc0000000000000 0.125
+n2w&c=,,other	city-start	bfe8000000000000 -0.75
+n2w=,	person-start	3ffa000000000000 1.625
+n2w=,	other	bff0000000000000 -1.0
+n2w=,	organization-start	3fc0000000000000 0.125
+n2w=,	city-start	bfe8000000000000 -0.75
+n2wc=other	person-start	3fe8000000000000 0.75
+n2wc=other	other	bfc0000000000000 -0.125
+n2wc=other	organization-start	3fc0000000000000 0.125
+n2wc=other	city-start	bfe8000000000000 -0.75
+wc,nc=ic,ic	person-start	3ffa000000000000 1.625
+wc,nc=ic,ic	other	bff0000000000000 -1.0
+wc,nc=ic,ic	organization-start	3fc0000000000000 0.125
+wc,nc=ic,ic	city-start	bfe8000000000000 -0.75
+p2wc=lc	person-start	bfec000000000000 -0.875
+p2wc=lc	other	bff0000000000000 -1.0
+p2wc=lc	organization-cont	3ff0000000000000 1.0
+p2wc=lc	location-start	3fec000000000000 0.875
+n1wc=lc	person-start	3fc0000000000000 0.125
+n1wc=lc	other	bfc0000000000000 -0.125
+n1wc=lc	organization-cont	bff0000000000000 -1.0
+n1wc=lc	location-start	bff0000000000000 -1.0
+n1wc=lc	city-start	4000000000000000 2.0
+wc,nc=ic,lc	person-start	3fc0000000000000 0.125
+wc,nc=ic,lc	other	bffc000000000000 -1.75
+wc,nc=ic,lc	organization-cont	bff0000000000000 -1.0
+wc,nc=ic,lc	city-start	4005000000000000 2.625
+n1w&c=is,lc	person-start	3fc0000000000000 0.125
+n1w&c=is,lc	other	c000000000000000 -2.0
+n1w&c=is,lc	location-start	3ffe000000000000 1.875
+n1w=is	person-start	3fc0000000000000 0.125
+n1w=is	other	c000000000000000 -2.0
+n1w=is	location-start	3ffe000000000000 1.875
+n2w&c=in,lc	person-start	bfec000000000000 -0.875
+n2w&c=in,lc	other	bff0000000000000 -1.0
+n2w&c=in,lc	location-start	3ffe000000000000 1.875
+n2w=in	person-start	bfec000000000000 -0.875
+n2w=in	other	bff0000000000000 -1.0
+n2w=in	location-start	3ffe000000000000 1.875
+pow=other,Paris	person-start	bfec000000000000 -0.875
+pow=other,Paris	other	bff0000000000000 -1.0
+pow=other,Paris	location-start	3ffe000000000000 1.875
+w&c=paris,ic	person-start	bfec000000000000 -0.875
+w&c=paris,ic	other	bff0000000000000 -1.0
+w&c=paris,ic	location-start	3ffe000000000000 1.875
+w,nw=Paris,is	person-start	bfec000000000000 -0.875
+w,nw=Paris,is	other	bff0000000000000 -1.0
+w,nw=Paris,is	location-start	3ffe000000000000 1.875
+w=paris	person-start	bfec000000000000 -0.875
+w=paris	other	bff0000000000000 -1.0
+w=paris	location-start	3ffe000000000000 1.875
+p1w&c=,,other	person-start	bff0000000000000 -1.0
+p1w&c=,,other	other	3ffa000000000000 1.625
+p1w&c=,,other	city-start	bfe4000000000000 -0.625
+p1w=,	person-start	bff0000000000000 -1.0
+p1w=,	other	3ffa000000000000 1.625
+p1w=,	city-start	bfe4000000000000 -0.625
+n1w&c=vinken,ic	person-start	3ffa000000000000 1.625
+n1w&c=vinken,ic	organization-start	bfec000000000000 -0.875
+n1w&c=vinken,ic	city-start	bfe8000000000000 -0.75
+n1w=vinken	person-start	3ffa000000000000 1.625
+n1w=vinken	organization-start	bfec000000000000 -0.875
+n1w=vinken	city-start	bfe8000000000000 -0.75
+n1wc=ic	person-start	3fe4000000000000 0.625
+n1wc=ic	organization-start	3fc0000000000000 0.125
+n1wc=ic	city-start	bfe8000000000000 -0.75
+pow=other,Pierre	person-start	3ffa000000000000 1.625
+pow=other,Pierre	organization-start	bfec000000000000 -0.875
+pow=other,Pierre	city-start	bfe8000000000000 -0.75
+w&c=pierre,ic	person-start	3ffa000000000000 1.625
+w&c=pierre,ic	organization-start	bfec000000000000 -0.875
+w&c=pierre,ic	city-start	bfe8000000000000 -0.75
+w,nw=Pierre,Vinken	person-start	3ffa000000000000 1.625
+w,nw=Pierre,Vinken	organization-start	bfec000000000000 -0.875
+w,nw=Pierre,Vinken	city-start	bfe8000000000000 -0.75
+w=pierre	person-start	3ffa000000000000 1.625
+w=pierre	organization-start	bfec000000000000 -0.875
+w=pierre	city-start	bfe8000000000000 -0.75
+n1w&c=61,2d	person-cont	bff0000000000000 -1.0
+n1w&c=61,2d	other	3ff0000000000000 1.0
+n1w=61	person-cont	bff0000000000000 -1.0
+n1w=61	other	3ff0000000000000 1.0
+n2w&c=will,lc	person-cont	bff0000000000000 -1.0
+n2w&c=will,lc	other	3ff0000000000000 1.0
+n2w&c=years,lc	person-cont	bff0000000000000 -1.0
+n2w&c=years,lc	other	3ff0000000000000 1.0
+n2w=will	person-cont	bff0000000000000 -1.0
+n2w=will	other	3ff0000000000000 1.0
+n2w=years	person-cont	bff0000000000000 -1.0
+n2w=years	other	3ff0000000000000 1.0
+p1w&c=vinken,ic	person-cont	bff0000000000000 -1.0
+p1w&c=vinken,ic	other	3ff0000000000000 1.0
+p1w&c=years,lc	person-cont	bff0000000000000 -1.0
+p1w&c=years,lc	other	3ff0000000000000 1.0
+p1w=vinken	person-cont	bff0000000000000 -1.0
+p1w=vinken	other	3ff0000000000000 1.0
+p1w=years	person-cont	bff0000000000000 -1.0
+p1w=years	other	3ff0000000000000 1.0
+p2w&c=61,2d	person-cont	bff0000000000000 -1.0
+p2w&c=61,2d	other	3ff0000000000000 1.0
+p2w&c=pierre,ic	person-cont	bff0000000000000 -1.0
+p2w&c=pierre,ic	other	3ff0000000000000 1.0
+p2w=61	person-cont	bff0000000000000 -1.0
+p2w=61	other	3ff0000000000000 1.0
+p2w=pierre	person-cont	bff0000000000000 -1.0
+p2w=pierre	other	3ff0000000000000 1.0
+p2wc=2d	person-cont	bff0000000000000 -1.0
+p2wc=2d	other	3ff0000000000000 1.0
+po=person-cont	person-cont	bff0000000000000 -1.0
+po=person-cont	other	3ff0000000000000 1.0
+pow=other,old	person-cont	bff0000000000000 -1.0
+pow=other,old	other	3ff0000000000000 1.0
+pow=person-cont,,	person-cont	bff0000000000000 -1.0
+pow=person-cont,,	other	3ff0000000000000 1.0
+powf=person-cont,other	person-cont	bff0000000000000 -1.0
+powf=person-cont,other	other	3ff0000000000000 1.0
+ppo=person-start	person-cont	bff0000000000000 -1.0
+ppo=person-start	other	3ff0000000000000 1.0
+pw,w=Vinken,,	person-cont	bff0000000000000 -1.0
+pw,w=Vinken,,	other	3ff0000000000000 1.0
+pw,w=years,old	person-cont	bff0000000000000 -1.0
+pw,w=years,old	other	3ff0000000000000 1.0
+pwc,wc=ic,other	person-cont	bff0000000000000 -1.0
+pwc,wc=ic,other	other	3ff0000000000000 1.0
+pwc,wc=lc,lc	person-cont	bff0000000000000 -1.0
+pwc,wc=lc,lc	other	3ff0000000000000 1.0
+w&c=,,other	person-cont	bff0000000000000 -1.0
+w&c=,,other	other	3ff0000000000000 1.0
+w&c=old,lc	person-cont	bff0000000000000 -1.0
+w&c=old,lc	other	3ff0000000000000 1.0
+w&c=vinken,ic	person-cont	3ff0000000000000 1.0
+w&c=vinken,ic	other	bff0000000000000 -1.0
+w,nw=,,61	person-cont	bff0000000000000 -1.0
+w,nw=,,61	other	3ff0000000000000 1.0
+w,nw=old,,	person-cont	bff0000000000000 -1.0
+w,nw=old,,	other	3ff0000000000000 1.0
+w=,	person-cont	bff0000000000000 -1.0
+w=,	other	3ff0000000000000 1.0
+w=old	person-cont	bff0000000000000 -1.0
+w=old	other	3ff0000000000000 1.0
+w=vinken	person-cont	3ff0000000000000 1.0
+w=vinken	other	bff0000000000000 -1.0
+wc,nc=lc,other	person-cont	bff0000000000000 -1.0
+wc,nc=lc,other	other	3ff0000000000000 1.0
+wc,nc=other,2d	person-cont	bff0000000000000 -1.0
+wc,nc=other,2d	other	3ff0000000000000 1.0
+wc=other	person-cont	bff0000000000000 -1.0
+wc=other	other	3ff0000000000000 1.0
+p2wc=ic	person-cont	bff0000000000000 -1.0
+p2wc=ic	other	3fec000000000000 0.875
+p2wc=ic	city-start	3fc0000000000000 0.125
+n1w&c=n.v.,ic	other	bff0000000000000 -1.0
+n1w&c=n.v.,ic	organization-start	3ff0000000000000 1.0
+n1w=n.v.	other	bff0000000000000 -1.0
+n1w=n.v.	organization-start	3ff0000000000000 1.0
+p1w&c=of,lc	other	bff0000000000000 -1.0
+p1w&c=of,lc	organization-start	3ff0000000000000 1.0
+p1w=of	other	bff0000000000000 -1.0
+p1w=of	organization-start	3ff0000000000000 1.0
+p2w&c=chairman,lc	other	bff0000000000000 -1.0
+p2w&c=chairman,lc	organization-start	3ff0000000000000 1.0
+p2w=chairman	other	bff0000000000000 -1.0
+p2w=chairman	organization-start	3ff0000000000000 1.0
+pow=other,Elsevier	other	bff0000000000000 -1.0
+pow=other,Elsevier	organization-start	3ff0000000000000 1.0
+pw,w=of,Elsevier	other	bff0000000000000 -1.0
+pw,w=of,Elsevier	organization-start	3ff0000000000000 1.0
+w&c=elsevier,ic	other	bff0000000000000 -1.0
+w&c=elsevier,ic	organization-start	3ff0000000000000 1.0
+w,nw=Elsevier,N.V.	other	bff0000000000000 -1.0
+w,nw=Elsevier,N.V.	organization-start	3ff0000000000000 1.0
+w=elsevier	other	bff0000000000000 -1.0
+w=elsevier	organization-start	3ff0000000000000 1.0
+n2w&c=the,lc	other	bfe8000000000000 -0.75
+n2w&c=the,lc	organization-start	bff0000000000000 -1.0
+n2w&c=the,lc	organization-cont	3ff0000000000000 1.0
+n2w&c=the,lc	city-start	3fe8000000000000 0.75
+n2w=the	other	bfe8000000000000 -0.75
+n2w=the	organization-start	bff0000000000000 -1.0
+n2w=the	organization-cont	3ff0000000000000 1.0
+n2w=the	city-start	3fe8000000000000 0.75
+n1w&c=publishing,lc	other	3ff0000000000000 1.0
+n1w&c=publishing,lc	organization-cont	bff0000000000000 -1.0
+n1w=publishing	other	3ff0000000000000 1.0
+n1w=publishing	organization-cont	bff0000000000000 -1.0
+n2w&c=group,lc	other	3ff0000000000000 1.0
+n2w&c=group,lc	organization-cont	bff0000000000000 -1.0
+n2w=group	other	3ff0000000000000 1.0
+n2w=group	organization-cont	bff0000000000000 -1.0
+p1w&c=the,lc	other	3ff0000000000000 1.0
+p1w&c=the,lc	organization-cont	bff0000000000000 -1.0
+p1w=the	other	3ff0000000000000 1.0
+p1w=the	organization-cont	bff0000000000000 -1.0
+p2w&c=,,other	other	3ff0000000000000 1.0
+p2w&c=,,other	organization-cont	bff0000000000000 -1.0
+p2w=,	other	3ff0000000000000 1.0
+p2w=,	organization-cont	bff0000000000000 -1.0
+p2wc=other	other	3ff0000000000000 1.0
+p2wc=other	organization-cont	bff0000000000000 -1.0
+pow=other,Dutch	other	3ff0000000000000 1.0
+pow=other,Dutch	organization-cont	bff0000000000000 -1.0
+pw,w=the,Dutch	other	3ff0000000000000 1.0
+pw,w=the,Dutch	organization-cont	bff0000000000000 -1.0
+w&c=dutch,ic	other	3ff0000000000000 1.0
+w&c=dutch,ic	organization-cont	bff0000000000000 -1.0
+w,nw=Dutch,publishing	other	3ff0000000000000 1.0
+w,nw=Dutch,publishing	organization-cont	bff0000000000000 -1.0
+w=dutch	other	3ff0000000000000 1.0
+w=dutch	organization-cont	bff0000000000000 -1.0
+n1w&c=in,lc	other	3ff0000000000000 1.0
+n1w&c=in,lc	location-start	bff0000000000000 -1.0
+n1w=in	other	3ff0000000000000 1.0
+n1w=in	location-start	bff0000000000000 -1.0
+n2w&c=france,ic	other	3ff0000000000000 1.0
+n2w&c=france,ic	location-start	bff0000000000000 -1.0
+n2w=france	other	3ff0000000000000 1.0
+n2w=france	location-start	bff0000000000000 -1.0
+p1w&c=in,lc	other	bfec000000000000 -0.875
+p1w&c=in,lc	location-start	3fec000000000000 0.875
+p1w&c=paris,ic	other	3ff0000000000000 1.0
+p1w&c=paris,ic	location-start	bff0000000000000 -1.0
+p1w=in	other	bfec000000000000 -0.875
+p1w=in	location-start	3fec000000000000 0.875
+p1w=paris	other	3ff0000000000000 1.0
+p1w=paris	location-start	bff0000000000000 -1.0
+p2w&c=is,lc	other	bfec000000000000 -0.875
+p2w&c=is,lc	location-start	3fec000000000000 0.875
+p2w=is	other	bfec000000000000 -0.875
+p2w=is	location-start	3fec000000000000 0.875
+po=location-start	other	3ff0000000000000 1.0
+po=location-start	location-start	bff0000000000000 -1.0
+pow=location-start,is	other	3ff0000000000000 1.0
+pow=location-start,is	location-start	bff0000000000000 -1.0
+pow=other,France	other	bfec000000000000 -0.875
+pow=other,France	location-start	3fec000000000000 0.875
+powf=location-start,lc	other	3ff0000000000000 1.0
+powf=location-start,lc	location-start	bff0000000000000 -1.0
+pw,w=Paris,is	other	3ff0000000000000 1.0
+pw,w=Paris,is	location-start	bff0000000000000 -1.0
+pw,w=in,France	other	bfec000000000000 -0.875
+pw,w=in,France	location-start	3fec000000000000 0.875
+pwc,wc=ic,lc	other	3ff0000000000000 1.0
+pwc,wc=ic,lc	location-start	bff0000000000000 -1.0
+w&c=france,ic	other	bfec000000000000 -0.875
+w&c=france,ic	location-start	3fec000000000000 0.875
+w&c=is,lc	other	3ff0000000000000 1.0
+w&c=is,lc	location-start	bff0000000000000 -1.0
+w,nw=France,.	other	bfec000000000000 -0.875
+w,nw=France,.	location-start	3fec000000000000 0.875
+w,nw=is,in	other	3ff0000000000000 1.0
+w,nw=is,in	location-start	bff0000000000000 -1.0
+w=france	other	bfec000000000000 -0.875
+w=france	location-start	3fec000000000000 0.875
+w=is	other	3ff0000000000000 1.0
+w=is	location-start	bff0000000000000 -1.0
+wc,nc=lc,lc	other	3ff0000000000000 1.0
+wc,nc=lc,lc	location-start	bff0000000000000 -1.0
+n2wc=ic	other	3ffe000000000000 1.875
+n2wc=ic	location-start	bffe000000000000 -1.875
+n2wc=ic	default-start	bff0000000000000 -1.0
+n2wc=ic	city-start	3ff0000000000000 1.0
+n1w&c=share,lc	other	bfe8000000000000 -0.75
+n1w&c=share,lc	city-start	3fe8000000000000 0.75
+n1w&c=years,lc	other	3fe4000000000000 0.625
+n1w&c=years,lc	city-start	bfe4000000000000 -0.625
+n1w=share	other	bfe8000000000000 -0.75
+n1w=share	city-start	3fe8000000000000 0.75
+n1w=years	other	3fe4000000000000 0.625
+n1w=years	city-start	bfe4000000000000 -0.625
+n2w&c=old,lc	other	3fe4000000000000 0.625
+n2w&c=old,lc	city-start	bfe4000000000000 -0.625
+n2w&c=vinken,ic	other	3fec000000000000 0.875
+n2w&c=vinken,ic	city-start	bfec000000000000 -0.875
+n2w=old	other	3fe4000000000000 0.625
+n2w=old	city-start	bfe4000000000000 -0.625
+n2w=vinken	other	3fec000000000000 0.875
+n2w=vinken	city-start	bfec000000000000 -0.875
+p1w&c=and,lc	other	bfe8000000000000 -0.75
+p1w&c=and,lc	city-start	3fe8000000000000 0.75
+p1w=and	other	bfe8000000000000 -0.75
+p1w=and	city-start	3fe8000000000000 0.75
+p1wc=other	other	3fe4000000000000 0.625
+p1wc=other	city-start	bfe4000000000000 -0.625
+p2w&c=berlin,ic	other	bfe8000000000000 -0.75
+p2w&c=berlin,ic	city-start	3fe8000000000000 0.75
+p2w&c=vinken,ic	other	3fe4000000000000 0.625
+p2w&c=vinken,ic	city-start	bfe4000000000000 -0.625
+p2w=berlin	other	bfe8000000000000 -0.75
+p2w=berlin	city-start	3fe8000000000000 0.75
+p2w=vinken	other	3fe4000000000000 0.625
+p2w=vinken	city-start	bfe4000000000000 -0.625
+pow=other,61	other	3fe4000000000000 0.625
+pow=other,61	city-start	bfe4000000000000 -0.625
+pow=other,Mr	other	3fec000000000000 0.875
+pow=other,Mr	city-start	bfec000000000000 -0.875
+pow=other,Potsdam	other	bfe8000000000000 -0.75
+pow=other,Potsdam	city-start	3fe8000000000000 0.75
+powf=other,2d	other	3fe4000000000000 0.625
+powf=other,2d	city-start	bfe4000000000000 -0.625
+ppo=city-start	other	bfe8000000000000 -0.75
+ppo=city-start	city-start	3fe8000000000000 0.75
+ppo=person-cont	other	3fe4000000000000 0.625
+ppo=person-cont	city-start	bfe4000000000000 -0.625
+pw,w=,,61	other	3fe4000000000000 0.625
+pw,w=,,61	city-start	bfe4000000000000 -0.625
+pw,w=and,Potsdam	other	bfe8000000000000 -0.75
+pw,w=and,Potsdam	city-start	3fe8000000000000 0.75
+pwc,wc=other,2d	other	3fe4000000000000 0.625
+pwc,wc=other,2d	city-start	bfe4000000000000 -0.625
+w&c=61,2d	other	3fe4000000000000 0.625
+w&c=61,2d	city-start	bfe4000000000000 -0.625
+w&c=mr,ic	other	3fec000000000000 0.875
+w&c=mr,ic	city-start	bfec000000000000 -0.875
+w&c=potsdam,ic	other	bfe8000000000000 -0.75
+w&c=potsdam,ic	city-start	3fe8000000000000 0.75
+w,nw=61,years	other	3fe4000000000000 0.625
+w,nw=61,years	city-start	bfe4000000000000 -0.625
+w,nw=Mr,.	other	3fec000000000000 0.875
+w,nw=Mr,.	city-start	bfec000000000000 -0.875
+w,nw=Potsdam,share	other	bfe8000000000000 -0.75
+w,nw=Potsdam,share	city-start	3fe8000000000000 0.75
+w=61	other	3fe4000000000000 0.625
+w=61	city-start	bfe4000000000000 -0.625
+w=mr	other	3fec000000000000 0.875
+w=mr	city-start	bfec000000000000 -0.875
+w=potsdam	other	bfe8000000000000 -0.75
+w=potsdam	city-start	3fe8000000000000 0.75
+wc,nc=2d,lc	other	3fe4000000000000 0.625
+wc,nc=2d,lc	city-start	bfe4000000000000 -0.625
+wc=2d	other	3fe4000000000000 0.625
+wc=2d	city-start	bfe4000000000000 -0.625
+p1w&c=elsevier,ic	organization-start	bff0000000000000 -1.0
+p1w&c=elsevier,ic	organization-cont	3ff0000000000000 1.0
+p1w=elsevier	organization-start	bff0000000000000 -1.0
+p1w=elsevier	organization-cont	3ff0000000000000 1.0
+p2w&c=of,lc	organization-start	bff0000000000000 -1.0
+p2w&c=of,lc	organization-cont	3ff0000000000000 1.0
+p2w=of	organization-start	bff0000000000000 -1.0
+p2w=of	organization-cont	3ff0000000000000 1.0
+po=organization-start	organization-start	bff0000000000000 -1.0
+po=organization-start	organization-cont	3ff0000000000000 1.0
+pow=organization-start,N.V.	organization-start	bff0000000000000 -1.0
+pow=organization-start,N.V.	organization-cont	3ff0000000000000 1.0
+powf=organization-start,ic	organization-start	bff0000000000000 -1.0
+powf=organization-start,ic	organization-cont	3ff0000000000000 1.0
+pw,w=Elsevier,N.V.	organization-start	bff0000000000000 -1.0
+pw,w=Elsevier,N.V.	organization-cont	3ff0000000000000 1.0
+w&c=n.v.,ic	organization-start	bff0000000000000 -1.0
+w&c=n.v.,ic	organization-cont	3ff0000000000000 1.0
+w,nw=N.V.,,	organization-start	bff0000000000000 -1.0
+w,nw=N.V.,,	organization-cont	3ff0000000000000 1.0
+w=n.v.	organization-start	bff0000000000000 -1.0
+w=n.v.	organization-cont	3ff0000000000000 1.0
+n1w&c=names,lc	location-start	bff0000000000000 -1.0
+n1w&c=names,lc	default-start	3ff0000000000000 1.0
+n1w=names	location-start	bff0000000000000 -1.0
+n1w=names	default-start	3ff0000000000000 1.0
+n2w&c=get,lc	location-start	bff0000000000000 -1.0
+n2w&c=get,lc	default-start	3ff0000000000000 1.0
+n2w=get	location-start	bff0000000000000 -1.0
+n2w=get	default-start	3ff0000000000000 1.0
+pow=other,Untyped	location-start	bff0000000000000 -1.0
+pow=other,Untyped	default-start	3ff0000000000000 1.0
+w&c=untyped,ic	location-start	bff0000000000000 -1.0
+w&c=untyped,ic	default-start	3ff0000000000000 1.0
+w,nw=Untyped,names	location-start	bff0000000000000 -1.0
+w,nw=Untyped,names	default-start	3ff0000000000000 1.0
+w=untyped	location-start	bff0000000000000 -1.0
+w=untyped	default-start	3ff0000000000000 1.0
+n1w&c=and,lc	location-start	bfec000000000000 -0.875
+n1w&c=and,lc	default-start	bff0000000000000 -1.0
+n1w&c=and,lc	city-start	3ffe000000000000 1.875
+n1w=and	location-start	bfec000000000000 -0.875
+n1w=and	default-start	bff0000000000000 -1.0
+n1w=and	city-start	3ffe000000000000 1.875
+n2w&c=potsdam,ic	location-start	bfec000000000000 -0.875
+n2w&c=potsdam,ic	default-start	bff0000000000000 -1.0
+n2w&c=potsdam,ic	city-start	3ffe000000000000 1.875
+n2w=potsdam	location-start	bfec000000000000 -0.875
+n2w=potsdam	default-start	bff0000000000000 -1.0
+n2w=potsdam	city-start	3ffe000000000000 1.875
+pow=other,Berlin	location-start	bfec000000000000 -0.875
+pow=other,Berlin	default-start	bff0000000000000 -1.0
+pow=other,Berlin	city-start	3ffe000000000000 1.875
+w&c=berlin,ic	location-start	bfec000000000000 -0.875
+w&c=berlin,ic	default-start	bff0000000000000 -1.0
+w&c=berlin,ic	city-start	3ffe000000000000 1.875
+w,nw=Berlin,and	location-start	bfec000000000000 -0.875
+w,nw=Berlin,and	default-start	bff0000000000000 -1.0
+w,nw=Berlin,and	city-start	3ffe000000000000 1.875
+w=berlin	location-start	bfec000000000000 -0.875
+w=berlin	default-start	bff0000000000000 -1.0
+w=berlin	city-start	3ffe000000000000 1.875
+n1w&c=.,other	location-start	3fec000000000000 0.875
+n1w&c=.,other	city-start	bfec000000000000 -0.875
+n1w=.	location-start	3fec000000000000 0.875
+n1w=.	city-start	bfec000000000000 -0.875
+end	turbo:name-weights
