@@ -1,0 +1,226 @@
+//! Writes what a grammar finds as layers.
+//!
+//! One parse of the view gives three outputs, each chosen on its own (see
+//! [`crate::Parser::select`]), so a percentage's number is also in the
+//! numbers and `forty two and a third` holds the ordinal `third` as well
+//! as the number:
+//!
+//! - numbers go to a [`Numbers`] instance under [`GRAMMAR_NUMBERS`], never
+//!   the default one, which `turbo-numeric`'s scanner writes. A mention's
+//!   numeral ends where its span ends, with the multiplier `One` and no
+//!   scale marker; `negative` says whether the value is below zero, as a
+//!   spelled `minus five` has no minus sign to start with.
+//! - percentages go to a [`Quantities`] instance under
+//!   [`GRAMMAR_PERCENTS`], each with the unit [`PERCENT`].
+//! - ordinals go to the default [`Ordinals`] instance.
+
+use std::sync::Mutex;
+
+use turbo_analysis::{Annotator, Bound, Error, Key, Refs, Span, View};
+use turbo_analysis_layers::{
+    Multiplier, NumberMention, NumberNotation, Numbers, OrdinalBase, OrdinalMention, Ordinals, PERCENT, Quantities,
+    QuantityMention, ScaleMarker,
+};
+
+use crate::dec::Dec;
+use crate::engine::{Grammar, Mention, Output, Parser};
+use crate::lang::en::ENGLISH;
+use crate::value::Value;
+
+/// The instance name the grammar's numbers and percentages are written
+/// under.
+pub const GRAMMAR: &str = "grammar";
+pub const GRAMMAR_NUMBERS: Key<Numbers> = Key::named(GRAMMAR);
+pub const GRAMMAR_PERCENTS: Key<Quantities> = Key::named(GRAMMAR);
+
+/// Runs a [`Grammar`] over a text view and writes numbers, percentages and
+/// ordinals. Parsers are pooled, so their buffers are reused between
+/// documents.
+pub struct GrammarAnnotator {
+    grammar: &'static dyn Grammar,
+    pool: Mutex<Vec<Parser>>,
+}
+
+/// What one text gives, layer by layer.
+pub struct Found {
+    pub numbers: Numbers,
+    pub percents: Quantities,
+    pub ordinals: Ordinals,
+}
+
+impl GrammarAnnotator {
+    pub fn new(grammar: &'static dyn Grammar) -> GrammarAnnotator {
+        GrammarAnnotator { grammar, pool: Mutex::new(Vec::new()) }
+    }
+
+    pub fn english() -> GrammarAnnotator {
+        GrammarAnnotator::new(&ENGLISH)
+    }
+
+    /// The step for a pipeline: writes numbers under [`GRAMMAR_NUMBERS`],
+    /// percentages under [`GRAMMAR_PERCENTS`] and ordinals to the default
+    /// instance.
+    pub fn bound(self) -> Bound<GrammarAnnotator> {
+        Bound::new(self).write(0, GRAMMAR).write(1, GRAMMAR)
+    }
+
+    /// Finds everything in `text`, with spans in view `view`.
+    ///
+    /// # Panics
+    ///
+    /// When `text` is longer than `u32::MAX` bytes.
+    pub fn find(&self, text: &str, view: turbo_analysis::ViewId) -> Found {
+        let mut parser = self.pool.lock().ok().and_then(|mut p| p.pop()).unwrap_or_else(|| Parser::new(self.grammar));
+        parser.parse(text);
+        let mut mentions = Vec::new();
+        let mut found =
+            Found { numbers: Numbers::new(view), percents: Quantities::new(view), ordinals: Ordinals::new(view) };
+        let mut digits = String::new();
+        parser.select(text, Output::Number, &mut mentions);
+        for m in &mentions {
+            if let Value::Num(n) = m.value {
+                push_number(&mut found.numbers, m, n.value, &mut digits);
+            }
+        }
+        mentions.clear();
+        parser.select(text, Output::Percent, &mut mentions);
+        for m in &mentions {
+            if let Value::Percent(v) = m.value {
+                digits.clear();
+                let scale = v.write_coefficient(&mut digits);
+                found.percents.push(QuantityMention {
+                    span: Span::new(m.start, m.end),
+                    negative: v.is_negative(),
+                    coefficient: &digits,
+                    scale: i32::try_from(scale).unwrap_or(i32::MAX),
+                    unit: PERCENT,
+                });
+            }
+        }
+        mentions.clear();
+        parser.select(text, Output::Ordinal, &mut mentions);
+        for m in &mentions {
+            let (base, offset) = match m.value {
+                Value::Ordinal(o) => (OrdinalBase::Start, o.value),
+                Value::Relative(r) => (r.to, i64::from(r.offset)),
+                _ => continue,
+            };
+            found.ordinals.push(OrdinalMention { span: Span::new(m.start, m.end), base, offset });
+        }
+        if let Ok(mut pool) = self.pool.lock() {
+            pool.push(parser);
+        }
+        found
+    }
+}
+
+fn push_number(numbers: &mut Numbers, m: &Mention, value: Dec, digits: &mut String) {
+    digits.clear();
+    let scale = value.write_coefficient(digits);
+    numbers.push(NumberMention {
+        span: Span::new(m.start, m.end),
+        numeral_end: m.end,
+        negative: value.is_negative(),
+        coefficient: digits,
+        scale,
+        multiplier: Multiplier::One,
+        marker: ScaleMarker::None,
+        notation: NumberNotation::LatinUs,
+    });
+}
+
+impl Annotator for GrammarAnnotator {
+    const ID: &'static str = "turbo-grammar:numbers";
+    type Reads = (View,);
+    type Writes = (Numbers, Quantities, Ordinals);
+
+    fn annotate(&self, (view,): Refs<'_, Self>) -> Result<(Numbers, Quantities, Ordinals), Error> {
+        let text = view.text();
+        if u32::try_from(text.len()).is_err() {
+            return Err(Error::Annotator {
+                annotator: Self::ID,
+                detail: format!("a text of {} bytes is past the u32 offset range", text.len()),
+            });
+        }
+        let f = self.find(text, view.id());
+        Ok((f.numbers, f.percents, f.ordinals))
+    }
+
+    /// FNV-1a over the grammar's name, fixed so that stored provenance
+    /// stays comparable across builds.
+    fn config_hash(&self) -> u64 {
+        self.grammar
+            .name()
+            .bytes()
+            .fold(0xcbf2_9ce4_8422_2325, |h, b| (h ^ u64::from(b)).wrapping_mul(0x0100_0000_01b3))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use turbo_analysis::{Analyzer, Document, Ix, Layer, ViewId};
+
+    use super::*;
+
+    #[test]
+    fn layers_hold_what_the_grammar_finds() {
+        let text = "minus five percent of the second batch, twenty-one and a half, 1.5k";
+        let f = GrammarAnnotator::english().find(text, ViewId::SOURCE);
+        assert_eq!(f.numbers.check(), Ok(()));
+        assert_eq!(f.percents.check(), Ok(()));
+        assert_eq!(f.ordinals.check(), Ok(()));
+        let numbers: Vec<(String, String)> = (0..f.numbers.len())
+            .map(|i| {
+                let s = f.numbers.spans.get(Ix::new(i as u32));
+                (text[s.range()].to_string(), f.numbers.value(Ix::new(i as u32)).to_plain_string())
+            })
+            .collect();
+        assert_eq!(
+            numbers,
+            [
+                ("minus five".to_string(), "-5".to_string()),
+                ("twenty-one and a half".into(), "21.5".into()),
+                ("1.5k".into(), "1500".into()),
+            ]
+        );
+        assert!(f.numbers.negative[0]);
+        assert_eq!(f.percents.len(), 1);
+        assert_eq!(f.percents.value(Ix::new(0)).to_plain_string(), "-5");
+        assert!(f.percents.is_percent(Ix::new(0)));
+        assert_eq!(text[f.percents.spans.get(Ix::new(0)).range()].to_string(), "minus five percent");
+        assert_eq!(f.ordinals.len(), 1);
+        assert_eq!(f.ordinals.get(Ix::new(0)).base, OrdinalBase::Start);
+        assert_eq!(f.ordinals.get(Ix::new(0)).offset, 2);
+    }
+
+    #[test]
+    fn large_and_fractional_values_fill_the_columns() {
+        let text = "1e10 and two thirds";
+        let f = GrammarAnnotator::english().find(text, ViewId::SOURCE);
+        assert_eq!(f.numbers.check(), Ok(()));
+        assert_eq!(f.numbers.coefficient.get(0), "10000000000");
+        assert_eq!(f.numbers.scale[0], 0);
+        assert_eq!(f.numbers.scale[1], 34);
+        assert!(f.numbers.value(Ix::new(1)).to_plain_string().starts_with("0.6666"));
+    }
+
+    #[test]
+    fn a_pipeline_writes_the_named_instances() {
+        let analyzer = Analyzer::builder().step(GrammarAnnotator::english().bound()).build().unwrap();
+        let mut docs = vec![Document::new("the next three hundred and five percent")];
+        let results = analyzer.run(&mut docs);
+        assert!(results.iter().all(Result::is_ok), "{results:?}");
+        let doc = &docs[0];
+        assert!(doc.get::<Numbers>().is_none(), "the default numbers instance is turbo-numeric's");
+        assert_eq!(doc.get_key(&GRAMMAR_NUMBERS).unwrap().len(), 1);
+        assert_eq!(doc.get_key(&GRAMMAR_PERCENTS).unwrap().len(), 1);
+        let ordinals = doc.get::<Ordinals>().unwrap();
+        assert_eq!(ordinals.get(Ix::new(0)).base, OrdinalBase::Current);
+    }
+
+    #[test]
+    fn the_config_hash_names_the_grammar() {
+        assert_eq!(GrammarAnnotator::english().config_hash(), GrammarAnnotator::english().config_hash());
+        assert_ne!(GrammarAnnotator::english().config_hash(), 0);
+    }
+}

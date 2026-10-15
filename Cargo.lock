@@ -1897,6 +1897,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "turbo-grammar"
+version = "0.1.0"
+dependencies = [
+ "serde",
+ "serde_json",
+ "turbo-analysis",
+ "turbo-analysis-layers",
+ "turbo-unicode",
+]
+
+[[package]]
 name = "turbo-jvm"
 version = "0.1.0"
 
