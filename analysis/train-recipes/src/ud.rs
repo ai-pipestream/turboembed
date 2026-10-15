@@ -29,20 +29,21 @@
 //!
 //! Each model is gated against the OpenNLP UD 1.3 model for its language
 //! and component ([`UdReference::Zoo`]), both scored on the same `test`
-//! samples with OpenNLP's evaluators. A tagger's reference was trained on
-//! another treebank (except for Catalan), which may not use every tag the
-//! `test` file has: FTB tags determiners `DET` and particles `PART`, and
-//! the Finnish reference has neither. A token with a tag the reference
-//! has no outcome for is one it cannot get right, so such tokens are left
-//! out of both models' counts, and the card lists their tags and how many
-//! there were ([`tags_left_out`]); when they are more than
+//! samples with OpenNLP's evaluators. Except for Catalan, the reference
+//! was trained on another treebank, whose tagger may not have every tag
+//! the `test` file uses: FTB tags determiners `DET` and particles `PART`,
+//! and the Finnish reference has neither. A token with a tag the
+//! reference has no outcome for is one it cannot get right, so such tokens
+//! are left out of both taggers' counts, and the card lists their tags and
+//! how many there were ([`tags_left_out`]); when they are more than
 //! [`LEFT_OUT_LIMIT_PERCENT`] of the tokens, the gate refuses to compare
-//! the models. For Italian there is none the
-//! recipes may use ([`UdReference::NotPublished`]): OpenNLP's Italian UD
-//! models are trained on UD_Italian-VIT, which is CC BY-NC-SA 3.0, and
-//! the data policy uses no non-commercial data, so the zoo refuses those
-//! models. Such a model gets an [`UngatedRecord`] and ships only as
-//! experimental.
+//! the two.
+//!
+//! For Italian there is no reference the recipes may use
+//! ([`UdReference::NoReference`]): OpenNLP's Italian UD models are trained
+//! on UD_Italian-VIT, which is CC BY-NC-SA 3.0, the data policy uses no
+//! non-commercial data, and the zoo refuses those models. Such a model gets
+//! an [`UngatedRecord`] and ships only as experimental.
 
 use std::collections::BTreeMap;
 use std::sync::Arc;
@@ -123,8 +124,10 @@ pub fn tags_left_out(reference: &[u8], samples: &[PosSample<'_>]) -> Result<(Vec
 pub enum UdReference {
     /// An OpenNLP UD 1.3 model of the zoo's built-in index, by its id.
     Zoo(&'static str),
-    /// OpenNLP publishes no model the recipe may be gated against; why.
-    NotPublished(&'static str),
+    /// No model the recipe may be gated against, and why: OpenNLP
+    /// publishes none, or the one it publishes is trained on data the
+    /// policy does not use.
+    NoReference(&'static str),
 }
 
 /// Why the Italian recipes have no reference.
@@ -147,7 +150,7 @@ const fn recipe(model_id: &'static str, treebank: Treebank, component: Component
 }
 
 use Component::{Lemmas, Pos, Sentence as Sentences, Tokens};
-use UdReference::{NotPublished, Zoo};
+use UdReference::{NoReference, Zoo};
 
 /// The recipes, by treebank, in the order the binary runs them.
 pub const UD_RECIPES: [UdRecipe; 16] = [
@@ -190,8 +193,8 @@ pub const UD_RECIPES: [UdRecipe; 16] = [
     ),
     recipe("turbo-fi-ud-ftb-2.16-pos-1", FINNISH_FTB, Pos, Zoo("opennlp-fi-ud-tdt-pos-1.3-2.5.4")),
     recipe("turbo-fi-ud-ftb-2.16-lemmas-1", FINNISH_FTB, Lemmas, Zoo("opennlp-fi-ud-tdt-lemmas-1.3-2.5.4")),
-    recipe("turbo-it-ud-markit-2.16-pos-1", ITALIAN_MARKIT, Pos, NotPublished(NO_ITALIAN_REFERENCE)),
-    recipe("turbo-it-ud-markit-2.16-lemmas-1", ITALIAN_MARKIT, Lemmas, NotPublished(NO_ITALIAN_REFERENCE)),
+    recipe("turbo-it-ud-markit-2.16-pos-1", ITALIAN_MARKIT, Pos, NoReference(NO_ITALIAN_REFERENCE)),
+    recipe("turbo-it-ud-markit-2.16-lemmas-1", ITALIAN_MARKIT, Lemmas, NoReference(NO_ITALIAN_REFERENCE)),
 ];
 
 /// The words of a sentence the tagger and the lemmatizer read: its word
@@ -388,7 +391,7 @@ impl UdRecipe {
     pub fn reference_model(&self) -> Option<Reference> {
         match self.reference {
             UdReference::Zoo(id) => Some(Reference::Zoo(id)),
-            UdReference::NotPublished(_) => None,
+            UdReference::NoReference(_) => None,
         }
     }
 
@@ -404,7 +407,8 @@ impl UdRecipe {
     ///
     /// A sentence the reader refuses ([`Error::Conllu`], naming `file`).
     pub fn samples<'c>(&self, conllu: &'c str, file: &'static str) -> Result<ReadSamples<'c>> {
-        let conllu_error = |error: FormatError| Error::Conllu { treebank: self.treebank.repository, file, error };
+        let conllu_error =
+            |error: FormatError| Error::Conllu { treebank: self.treebank.repository, file, error: Box::new(error) };
         let (samples, skipped) = match self.component {
             Component::Sentence => (
                 UdSamples::Segments(HeldOut::Sentences(
@@ -478,9 +482,7 @@ impl UdRecipe {
             UdSamples::Lemmas(samples) => {
                 let factory = LemmatizerFactory::new(language);
                 let mut stream = LemmaEventStream::new(&factory);
-                for s in samples {
-                    stream.events(s, &mut events)?;
-                }
+                samples.iter().for_each(|s| stream.events(s, &mut events));
                 let t = lemmatize::train_lemmatizer_model_from_events(&events, &factory, &params, &mut config, stamp)?;
                 (t.package.to_bytes(), t.report)
             }
@@ -567,7 +569,7 @@ impl UdRecipe {
                 )?;
                 Ok(UdGate::Gated { record, tags_left_out })
             }
-            (UdReference::NotPublished(why), None) => Ok(UdGate::Ungated(UngatedRecord::new(
+            (UdReference::NoReference(why), None) => Ok(UdGate::Ungated(UngatedRecord::new(
                 self.task(),
                 set,
                 id(self.model_id, trained),
@@ -575,7 +577,7 @@ impl UdRecipe {
                 self.score(trained, held_out)?,
             )?)),
             (UdReference::Zoo(id), None) => Err(Error::Model(format!("{}: no file given for {id}", self.model_id))),
-            (UdReference::NotPublished(_), Some(_)) => {
+            (UdReference::NoReference(_), Some(_)) => {
                 Err(Error::Model(format!("{}: a reference given to a recipe that has none", self.model_id)))
             }
         }
@@ -669,13 +671,14 @@ mod tests {
             assert_eq!(parsed.as_str(), r.model_id);
             match r.reference {
                 UdReference::Zoo(reference) => {
-                    let a = turbo_zoo::Index::builtin().get(reference).unwrap();
+                    let index = turbo_zoo::Index::builtin();
+                    let a = index.get(reference).unwrap();
                     assert_eq!(a.component, Some(r.zoo_component()), "{reference}");
                     assert_eq!(a.language.as_ref().unwrap().as_str(), t.language, "{reference}");
                     assert!(reference.ends_with(&format!("-{}-1.3-2.5.4", r.component.name())));
                     assert_eq!(r.reference_model(), Some(Reference::Zoo(reference)));
                 }
-                UdReference::NotPublished(why) => {
+                UdReference::NoReference(why) => {
                     assert_eq!(t.language, "it");
                     assert!(why.contains("CC BY-NC-SA 3.0"));
                     assert_eq!(r.reference_model(), None);

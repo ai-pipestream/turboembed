@@ -36,7 +36,7 @@ nothing here is in the C header or the gRPC server.
 | `turbo-bpe-trainer` | `analysis/bpe-trainer/` | BPE trainers, a tool and not an annotator: byte-level BPE as upstream `tokenizers` trains it, SentencePiece BPE as the sentencepiece library trains it, and OpenNLP's `BPETokenizerTrainer` with its `BPETokenizer` ([bpe-trainer.md](bpe-trainer.md)) |
 | `turbo-train` | `analysis/train/` | Training OpenNLP maxent models, the event side: `Event`, the `FileEventStream` and `RealValueFileEventStream` formats, the CRC-32C event checksum, the three data indexers with their cutoffs, sorting and merging, `TrainingParameters` with typed values and OpenNLP's parameters file, `AlgorithmType` and the trainer types, the progress monitors and stop criteria, the GIS trainer (`GISTrainer`, parameters bit for bit the JVM's after every iteration), the binary model writer (`GenericModelWriter`, bytes the JVM's) and the `.bin` packaging with its manifest (`BaseModel.serialize`; the entries are the JVM's bytes, the archive around them is written here and loads in both). Sample types belong to the formats crate; this one starts at events. Its crate documentation lists the OpenNLP behaviour that is surprising, and "Training goldens" below describes its JVM reference |
 | `turbo-train-components` | `analysis/train-components/` | Training the sentence detector, the tokenizer, the part-of-speech tagger and the lemmatizer: `SDEventStream`, `TokSpanEventStream`, `POSSampleEventStream` and `LemmaSampleEventStream` with their factories (end characters, alphanumeric pattern, abbreviation dictionary, feature generator descriptor, tag dictionary), the `SentenceModel`, `TokenizerModel`, `POSModel` and `LemmatizerModel` files with every manifest entry and artifact the JVM writes (the dictionaries as `Dictionary.serialize` and `POSDictionary.serialize` write them, zip entries in the JVM's order), and the recipes that train the eighteen published UD 1.3 models again from their treebanks and compare them with the published files. Its own crate because `turbo-formats` depends on `turbo-tokenize`; "Training the components" below |
-| `turbo-train-recipes` | `analysis/train-recipes/` | Recipes that train models on permissive data and gate them: MASC 3.0.0 (CC BY 3.0 US) with the record of its release and fixed split, the English sentence detector, tokenizer and part-of-speech tagger trained on it, their gates against the OpenNLP English UD models and OpenNLP 1.5's Penn tagger (`en-pos-maxent.bin`), the model card and the permissive zoo entry, and the `turbo-train-recipes` binary ("Models trained on permissive data", below) |
+| `turbo-train-recipes` | `analysis/train-recipes/` | Recipes that train models on permissive data and gate them: MASC 3.0.0 (CC BY 3.0 US) with the record of its release and fixed split, the English sentence detector, tokenizer and part-of-speech tagger trained on it, their gates against the OpenNLP English UD models and OpenNLP 1.5's Penn tagger (`en-pos-maxent.bin`); the CC BY 4.0 UD treebanks at release 2.16 (Spanish and Catalan AnCora, Portuguese Porttinari, Finnish FTB, Italian MarkIT) with their file digests and licence check, the sentence detectors, tokenizers, taggers and lemmatizers trained on them and their gates against the OpenNLP UD 1.3 models; the model cards and the permissive zoo entries, and the `turbo-train-recipes` binary ("Models trained on permissive data", below) |
 | `turbo-formats` | `analysis/formats/` | OpenNLP's training samples (name, part-of-speech, lemma, chunk, token, sentence, document category and language samples), a reader per native format that reproduces OpenNLP's sample stream over the same text, the conversion of name and part-of-speech samples into token and sentence samples, the CoNLL-U readers of part-of-speech, lemma, sentence and token samples, the CoNLL-2002 and CoNLL-2003 name readers and the CoNLL-X part-of-speech reader, the MASC corpus reader and its part-of-speech, token, sentence and name samples, the named entity corpus readers (GermEval 2014, BioNLP 2004, Evalita, the 1990 census names, MUC-6 and brat), the format registry, and the evaluators and cross-validation folds (`FMeasure`, `Mean`, an evaluator per component). Every token and tag keeps its byte span in the source; the crate documentation lists the OpenNLP behaviour that is surprising, and its tests compare with the `formats`, `masc`, `ner` and `evaluate` goldens |
 | `turbo-parser` | `analysis/parser/` | OpenNLP's constituency `Parse` tree and Penn Treebank bracket I/O (`Parse::parse`, `Parse::show`, `ParseSampleStream`, `ParserPosSample`, `ParserChunkSample`, `space_untokenized_parens`), the `HeadRules` and `GapLabeler` traits, `EnglishHeadRules` (`opennlp.tools.parser.lang.en.HeadRules`), and `AncoraSpanishHeadRules` (`opennlp.tools.parser.lang.es.AncoraSpanishHeadRules`), whose tags are Java regular expressions (`TagPattern`). `analysis/parser/README.md` describes where it differs from OpenNLP and its JVM golden files |
 | `turbo-eval` | `analysis/eval/` | The evaluation harness: the evaluation sets with their fetch by checksum and typed readers, the pipeline, the baseline chunkers, measures, significance tests, records, the gate and the `turbo-eval` binary (Evaluation, below) |
@@ -2113,6 +2113,72 @@ cargo run --release -p turbo-train-recipes -- masc --corpus <masc-dir> \
 None of the recipes has been run on MASC itself yet. The crate's README
 has the rest.
 
+### The UD treebanks
+
+The UD recipes (#415) train the sentence detector, tokenizer, tagger
+and lemmatizer on the Universal Dependencies treebanks of release 2.16
+whose own `LICENSE.txt` and README say CC BY 4.0: Spanish AnCora,
+Catalan AnCora and Portuguese Porttinari (all four components), and
+Finnish FTB and Italian MarkIT (tagger and lemmatizer; their `text`
+comments put a space between every two tokens, so they hold no sentence
+ends or tokenization of running text). Portuguese DANTEStocks is CC BY
+4.0 too, but its text is tweets, which the data policy keeps out with
+other data under a platform's terms, so it has no recipe.
+
+- The data: each treebank's `LICENSE.txt`, README and UD `train`, `dev`
+  and `test` files, with sizes, SHA-256 and SHA-512 recorded in
+  `treebank`, fetched through the zoo by digest from the repository's
+  `r2.16` tag. The licence check reads `LICENSE.txt` (it must grant CC BY
+  4.0 and name no NonCommercial, ShareAlike or NoDerivatives element,
+  and a GNU licence only as a recorded alternative, as FTB's LGPL is)
+  and the README's `License: CC BY 4.0` line, before every file is
+  checked against its record.
+- The split: UD's own, trained on `train` and gated on `test`, `dev`
+  not read. The training has the settings of the MASC recipes (those of
+  the UD 1.3 models) with the factory defaults of the treebank's
+  language. The samples are those of OpenNLP's CoNLL-U streams, except
+  that the tagger's and lemmatizer's leave out empty nodes, which are
+  not words of the text.
+- The gate: against the OpenNLP UD 1.3 model for the language and
+  component (`es-ud-gsd`, `ca-ud-ancora`, `pt-ud-gsd`, `fi-ud-tdt`) on the
+  `test` samples. A tagger's tokens whose tag the reference has no
+  outcome for are left out of both models' counts and listed on the card
+  (FTB's `DET` and `PART`, which the Finnish reference never gives); over
+  5 percent and the gate refuses. OpenNLP's Italian models are trained
+  on UD_Italian-VIT, which is non-commercial, so the Italian models are
+  scored alone (`UngatedRecord`) and listed as experimental.
+- The output: `<out>/<model id>/` with the model, `card.json` (the
+  treebank, its files and licence, the attribution and the citation its
+  README asks for, the parameters, the counts, and the gate's outcome)
+  and `gate.json`.
+
+```
+cargo run --release -p turbo-train-recipes -- fetch-ud --home <zoo-home>
+cargo run --release -p turbo-train-recipes -- ud --treebanks <zoo-home>/artifacts \
+    --references <dir with the OpenNLP UD models> --out <dir> [--recipe <model id>]...
+```
+
+Results of one release-mode run of all sixteen recipes, in points
+(F-measure for sentences and tokens, accuracy for tags and lemmas),
+with the 95 percent interval of the difference from the gate's paired
+bootstrap; the README has every interval and the times:
+
+| Treebank | Sentences | Tokens | Tags | Lemmas |
+|---|---|---|---|---|
+| Spanish AnCora vs `es-ud-gsd` | 97.99 vs 96.27, +0.85 to +2.72 | 99.96 vs 99.89, +0.04 to +0.11 | 97.40 vs 92.73, +4.44 to +4.91 | 91.32 vs 90.54, +0.67 to +0.87 |
+| Catalan AnCora vs `ca-ud-ancora` | 99.16 vs 99.16, +0.00 to +0.00 | 99.92 vs 99.92, +0.00 to +0.00 | 97.28 vs 97.24, -0.01 to +0.08 | 89.74 vs 89.74, -0.01 to +0.01 |
+| Portuguese Porttinari vs `pt-ud-gsd` | 99.11 vs 98.26, +0.06 to +1.70 | 99.84 vs 99.20, +0.52 to +0.77 | 95.82 vs 91.49, +3.99 to +4.68 | 91.28 vs 81.12, +9.76 to +10.55 |
+| Finnish FTB vs `fi-ud-tdt` | | | 89.25 vs 87.25, +1.47 to +2.53 | 88.24 vs 83.06, +4.62 to +5.74 |
+| Italian MarkIT, scored alone | | | 89.93 (89.19 to 90.67) | 82.39 (81.48 to 83.27) |
+
+Every gated model passes. The Finnish tagger's gate leaves out 635 of
+16,261 test tokens (3.91 percent: `DET`, `PART` and `SCONJ+VERB`) and
+the Portuguese one 6 of 31,451. The Catalan references are OpenNLP's
+models of the same treebank, so that gate checks the recipes against a
+model of the same data; the others are trained on another treebank of
+the language, so a gap there can come from the treebanks' annotation as
+well as from the models.
+
 ## Differential fuzzing
 
 The golden tests compare the ports with what OpenNLP wrote for a few
@@ -2479,6 +2545,16 @@ resamples and seed, the result, and both models' counts per sample.
 and resamples or a seed other than the gate's, then recomputes the
 result from the counts. It is strict JSON, as
 the evaluation record is, and is never replaced once written.
+
+The tasks are the sentence detector and the tokenizer, scored by
+F-measure, and the part-of-speech tagger and the lemmatizer, scored by
+accuracy as `POSEvaluator` and `LemmatizerEvaluator` count it (#415).
+`UngatedRecord` is the record of a model with no reference to score: its
+own score on the held-out set with the interval of the same draws
+(`score_model`, which gives the interval the gate reports for a
+candidate with the same counts), the held-out set, the counts per unit
+and the reason there is no reference. `check` recomputes it the same
+way. A model with such a record has passed no gate.
 
 ### The sets
 

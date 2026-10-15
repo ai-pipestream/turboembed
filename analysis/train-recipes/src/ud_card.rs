@@ -246,8 +246,8 @@ impl UdModelCard {
                 }
                 MODEL_VERSION
             }
-            (UdGateCard::Ungated { .. }, UdReference::NotPublished(_)) => EXPERIMENTAL_VERSION,
-            (UdGateCard::Gated { .. }, UdReference::NotPublished(_)) => {
+            (UdGateCard::Ungated { .. }, UdReference::NoReference(_)) => EXPERIMENTAL_VERSION,
+            (UdGateCard::Gated { .. }, UdReference::NoReference(_)) => {
                 return Err(refuse("it was gated though the recipe has no reference"));
             }
             (UdGateCard::Ungated { .. }, UdReference::Zoo(_)) => {

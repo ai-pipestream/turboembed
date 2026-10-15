@@ -47,7 +47,7 @@ pub enum Error {
     /// A treebank file that is not the recorded one.
     TreebankFile { treebank: &'static str, file: &'static str, expected: String, found: String },
     /// A sentence of a treebank file the CoNLL-U reader refuses.
-    Conllu { treebank: &'static str, file: &'static str, error: turbo_formats::FormatError },
+    Conllu { treebank: &'static str, file: &'static str, error: Box<turbo_formats::FormatError> },
     /// More held-out tokens than the limit have tags the reference tagger
     /// has no outcome for ([`crate::ud::LEFT_OUT_LIMIT_PERCENT`]).
     ReferenceTags { id: String, left_out: u64, tokens: u64 },
