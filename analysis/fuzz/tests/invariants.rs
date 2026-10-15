@@ -47,6 +47,8 @@ const FED: &[&str] = &[
     "stopword",
     "subwords",
     "surrogate",
+    "svm-doccat",
+    "svm-doccat-train",
     "tag-format",
     "tagged",
     "temporal",

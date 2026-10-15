@@ -286,6 +286,16 @@ are not taken from any corpus.
 - `inputs/stopword/`: words and language codes the stopword lookup is asked
   about besides the lists' own, written for this project
   (`analysis/stopword/README.md`).
+- `inputs/svm-doccat-train/`: the corpora the SVM document categorizer
+  goldens train their models on, written for this project, one sample per
+  line (the category, a space and the text): `topics.txt`, 48 sentences,
+  12 each about weather, cooking, sports and finance, and `pair.txt`, 12
+  about weather and cooking.
+- `inputs/svm-doccat/`: 12 documents those models categorize, written for
+  this project: one per topic, a mixed one, repeated words, words no
+  corpus has, whitespace alone, punctuation, a long text, accents, an
+  ellipsis and emoji, and one word without a line end
+  (`docs/doccat.md`).
 
 `analysis/goldens-tool/README.md` ("Runs") lists which run reads which set.
 

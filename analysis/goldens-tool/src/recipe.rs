@@ -551,7 +551,7 @@ pub const FIXTURES: [Fixture; 62] = [
 ];
 
 /// The input sets under `analysis/goldens/data/inputs`.
-pub const INPUT_SETS: [&str; 33] = [
+pub const INPUT_SETS: [&str; 35] = [
     "en",
     "multi",
     "norm",
@@ -585,6 +585,8 @@ pub const INPUT_SETS: [&str; 33] = [
     "namefind",
     "stem",
     "stopword",
+    "svm-doccat",
+    "svm-doccat-train",
 ];
 
 /// The arguments the driver passes to the generator after the fixed ones
@@ -598,7 +600,7 @@ pub const GENERATOR_ARGS: [&str; 1] = ["--dumps"];
 /// replaces and `verify` compares. The data directory holds other things
 /// (the inputs, the fixtures, the rate snapshot, a README) that neither
 /// touches.
-pub const ANNOTATORS: [&str; 37] = [
+pub const ANNOTATORS: [&str; 38] = [
     "sentdetect",
     "tokenize",
     "postag",
@@ -636,6 +638,7 @@ pub const ANNOTATORS: [&str; 37] = [
     "namefind",
     "stem",
     "stopword",
+    "svm-doccat",
 ];
 
 /// The annotators with runs that ask a maxent model for their decisions:
@@ -666,6 +669,12 @@ pub const QUANTITY_INPUT_SET: &str = "quantity";
 /// The input set the temporal extractor runs on. It runs on no other set,
 /// and the other annotators do not run on this one.
 pub const TEMPORAL_INPUT_SET: &str = "temporal";
+
+/// The input sets of the SVM document categorizer: the documents its models
+/// categorize, and the corpora they are trained on. No other annotator runs
+/// on them.
+pub const SVM_DOCCAT_INPUT_SET: &str = "svm-doccat";
+pub const SVM_DOCCAT_TRAIN_SET: &str = "svm-doccat-train";
 
 /// The rate snapshot the money conversion reads: a directory beside the
 /// inputs directory under `analysis/goldens/data`, which the container gets
@@ -789,8 +798,16 @@ mod tests {
     fn the_generator_names_the_same_input_sets() {
         let runs = include_str!("../java/src/main/java/ai/pipestream/turbo/goldens/Runs.java");
         for set in INPUT_SETS.iter().filter(|s| {
-            ![NORMALIZER_INPUT_SET, NUMBER_INPUT_SET, MONEY_INPUT_SET, QUANTITY_INPUT_SET, TEMPORAL_INPUT_SET]
-                .contains(s)
+            ![
+                NORMALIZER_INPUT_SET,
+                NUMBER_INPUT_SET,
+                MONEY_INPUT_SET,
+                QUANTITY_INPUT_SET,
+                TEMPORAL_INPUT_SET,
+                SVM_DOCCAT_INPUT_SET,
+                SVM_DOCCAT_TRAIN_SET,
+            ]
+            .contains(s)
         }) {
             assert!(runs.contains(&format!("= \"{set}\";")), "Runs.java does not name the input set {set}");
         }
@@ -856,6 +873,18 @@ mod tests {
         let temporal = include_str!("../java/src/main/java/ai/pipestream/turbo/goldens/TemporalGolden.java");
         assert!(temporal.contains(&format!("INPUT_SET = \"{TEMPORAL_INPUT_SET}\"")));
         assert!(temporal.contains("ANNOTATOR = \"temporal\""));
+    }
+
+    #[test]
+    fn the_svm_categorizer_has_its_own_input_sets_and_no_dumps() {
+        assert!(INPUT_SETS.contains(&SVM_DOCCAT_INPUT_SET));
+        assert!(INPUT_SETS.contains(&SVM_DOCCAT_TRAIN_SET));
+        assert!(ANNOTATORS.contains(&"svm-doccat"));
+        assert!(!DUMPED_ANNOTATORS.contains(&"svm-doccat"));
+        let svm = include_str!("../java/src/main/java/ai/pipestream/turbo/goldens/SvmDoccatGolden.java");
+        assert!(svm.contains(&format!("INPUT_SET = \"{SVM_DOCCAT_INPUT_SET}\"")));
+        assert!(svm.contains(&format!("TRAIN_SET = \"{SVM_DOCCAT_TRAIN_SET}\"")));
+        assert!(svm.contains("ANNOTATOR = \"svm-doccat\""));
     }
 
     #[test]
