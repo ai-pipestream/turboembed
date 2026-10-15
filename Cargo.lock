@@ -2141,6 +2141,7 @@ dependencies = [
  "turbo-jvm",
  "turbo-lemmatizer",
  "turbo-maxent",
+ "turbo-phrase-chunker",
  "turbo-sentdetect",
  "turbo-sequence",
  "turbo-tokenize",

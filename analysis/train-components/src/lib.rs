@@ -1,7 +1,7 @@
 //! Training OpenNLP's components: the event streams, the factories that
 //! set them up, the model files the `train` methods of `SentenceDetectorME`,
-//! `TokenizerME`, `POSTaggerME` and `LemmatizerME` return, and the
-//! reproduction of the published UD 1.3 models.
+//! `TokenizerME`, `POSTaggerME`, `LemmatizerME` and `ChunkerME` return, and
+//! the reproduction of the published UD 1.3 models.
 //!
 //! - [`sentdetect`][]: `SentenceDetectorFactory`, the events of
 //!   `SDEventStream`, and the `SentenceModel` file.
@@ -12,6 +12,8 @@
 //!   dictionary.
 //! - [`lemmatize`][]: `LemmatizerFactory`, the events of
 //!   `LemmaSampleEventStream`, and the `LemmatizerModel` file.
+//! - [`chunk`][]: `ChunkerFactory`, the events of `ChunkerEventStream`,
+//!   and the `ChunkerModel` file, from any event trainer.
 //! - [`dictionary`][]: the abbreviation dictionary as `Dictionary.serialize`
 //!   writes it, entries in Java's hash set order.
 //! - [`tagdict`][]: the tag dictionary as `POSDictionary.serialize` writes
@@ -24,11 +26,11 @@
 //!   with, as typed recipes, and the comparison with the published files.
 //!
 //! The samples come from `turbo-formats`, the context generators from
-//! `turbo-sentdetect`, `turbo-tokenize`, `turbo-sequence` and
-//! `turbo-lemmatizer`, and the trainer, writer and packaging from
-//! `turbo-train`; this crate connects them as the `train` methods do, so
-//! training and inference share one implementation of each context
-//! generator. It is a crate of its own because `turbo-formats` depends on
+//! `turbo-sentdetect`, `turbo-tokenize`, `turbo-sequence` (the tagger's
+//! and the chunker's) and `turbo-lemmatizer`, and the trainer, writer and
+//! packaging from `turbo-train`; this crate connects them as the `train`
+//! methods do, so training and inference share one implementation of each
+//! context generator. It is a crate of its own because `turbo-formats` depends on
 //! `turbo-tokenize`, so a training module inside the annotator crates
 //! would close a cycle.
 //!
@@ -93,7 +95,14 @@
 //!   as the JVM's modified UTF-8.
 //! - The published UD 1.3 models were trained with 300 iterations, not
 //!   the 150 their training configuration file says ([`ud`][]).
+//! - `ChunkerME.train` takes only event trainers: the sequence perceptron,
+//!   which the tagger and the name finder train with, is refused with
+//!   `Trainer type is not supported: EVENT_MODEL_SEQUENCE_TRAINER`
+//!   ([`Error::UnsupportedTrainerType`]). The chunker model file has
+//!   `chunker.model` before `manifest.properties`, the order of the JVM's
+//!   artifact map.
 
+pub mod chunk;
 pub mod dictionary;
 pub mod error;
 pub mod java_hash;
@@ -105,6 +114,7 @@ pub mod tagdict;
 pub mod tokenize;
 pub mod ud;
 
+pub use chunk::{ChunkerEventStream, ChunkerFactory, chunk_events, train_chunker_model};
 pub use dictionary::AbbreviationDictionary;
 pub use error::{Error, Result};
 pub use lemmatize::{LemmaEventStream, LemmatizerFactory, lemma_events, train_lemmatizer_model};
