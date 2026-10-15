@@ -1,0 +1,8 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	descriptor-errors/ngram-without-max	161	161	f5a509cf68cca4dd17e1a122a848d1016d4e199c3b259d06b425e0260e2be355
+annotator	opennlp.tools.util.featuregen.GeneratorFactory	create
+error	opennlp.tools.util.InvalidFormatException	parameter max must be set!

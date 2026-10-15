@@ -1,7 +1,7 @@
 //! Retrieval units at three levels over one text: the chunks, the
 //! sections they sit in and the whole document, as one tree.
 
-use turbo_analysis::{Ix, Key, KeyId, Layer, Spans, ViewId};
+use turbo_analysis::{Ix, Key, KeyId, Layer, Overlap, Spans, TextSpans, ViewId};
 
 use crate::{Chunks, Structure, Vectors};
 
@@ -68,12 +68,12 @@ impl Levels {
 
 impl Layer for Levels {
     const ID: &'static str = "turbo:levels";
+    const OVERLAP: Overlap = Overlap::Any;
     fn len(&self) -> usize {
         self.spans.len()
     }
-    fn text_spans(&self) -> Option<(ViewId, &[u32], &[u32])> {
-        let (start, end) = self.spans.columns();
-        Some((self.spans.view(), start, end))
+    fn text_spans(&self) -> Option<TextSpans<'_>> {
+        Some(self.spans.text_spans())
     }
     /// Only the layers some unit points into are indexed: a text with no
     /// sections has no `Structure` to point into.
@@ -121,6 +121,7 @@ impl Layer for Levels {
                 return Err(format!("unit {i} is outside its parent"));
             }
         }
+        self.spans.check(Self::OVERLAP)?;
         Ok(())
     }
 }

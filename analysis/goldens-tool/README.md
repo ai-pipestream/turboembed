@@ -44,7 +44,7 @@ Run from the repository's root. Each needs Docker except `fetch-models`.
 
 ```
 cargo run -p turbo-goldens-tool -- image
-cargo run -p turbo-goldens-tool -- fetch-models <dir>
+cargo run -p turbo-goldens-tool -- fetch-models <dir> [--local]
 cargo run -p turbo-goldens-tool -- generate [--out <dir>] [--models <dir>]
 cargo run -p turbo-goldens-tool -- verify [--models <dir>]
 cargo run -p turbo-goldens-tool --features fuzz -- fuzz [--seed <n>] [--count <n>] [--sets <a,b>] [--out <dir>] [--models <dir>] [--image <tag>] [--reduce <n>] [--no-reduce] [--reduce-documented] [--rounds <n>] [--reuse]
@@ -55,6 +55,12 @@ cargo run -p turbo-goldens-tool --features fuzz -- fuzz [--seed <n>] [--count <n
 - `fetch-models <dir>` downloads the published models into `<dir>` with `curl`
   and checks each one's SHA-512 against the value published beside it on
   downloads.apache.org. A model already there with the right hash is kept.
+  With `--local` it also downloads the OpenNLP 1.5 English models
+  (`LOCAL_MODELS` in `src/recipe.rs`) from opennlp.sourceforge.net, which
+  publishes no hash beside them: the recipe has the SHA-512 of the files
+  whose SHA-256 the sequence crate's README lists. Their training corpora
+  are LDC corpora or undocumented, so CI does not fetch them; `generate`,
+  `verify` and `fuzz` always do, since the generator runs them.
   It also fetches the MeCab dictionaries (`DICTIONARIES` in `src/recipe.rs`)
   as archives, checks each archive's SHA-512 (neither project publishes
   one; these are the hashes OpenNLP's dictionary catalog test resource
@@ -157,6 +163,15 @@ a directory with the same model run without them, and its options are
 | `ner` (the named entity corpus streams) | `germeval-outer`, `germeval-inner`, `germeval-outer-loc-misc`, `bionlp`, `bionlp-cell-line`, `bionlp-dna-cell-type`, `evalita`, `evalita-per-gpe`, `census`, `muc6-whitespace` (also `+legacy`), `muc6-simple`, `brat-whitespace` (also `+legacy`), `brat-simple`, `brat-recursive-person-location`, `brat-config` | `ner`, the inputs whose id starts with the corpus's prefix (`germeval-`, `bionlp-`, `evalita-`, `census-`, `muc-`, `brat-`) | `types`, `layer`, `lang it`, `tokenizer`, `recursive true`, `nameTypes`, `whitespace legacy` |
 | `parse` (`ParseSampleStream`, `Parse.parseParse`) | `treebank`, `treebank+function-tags`; `en-head-rules`, `en-head-rules+possessives`, `es-head-rules`, `es-regex-head-rules` (fixtures) | `parse` | `useFunctionTags true`; `rules`, `fixPossesives true` |
 | `head-rules` (`HeadRules`, `AncoraSpanishHeadRules`) | `en`, `es` | `head-rules` | |
+| `string-pattern` (`StringPattern`, `FeatureGeneratorUtil.tokenFeature`) | `utf16-units`, `code-points` | `sequence` | `mode`; `branchCommit` for `code-points` |
+| `features` (`GeneratorFactory`, `DefaultPOSContextGenerator`) | `pos-default`, `ner-default`, `everything`, `nesting` (fixtures, `featuregen/`), `default-pos-context`, `default-pos-context+names-dictionary`; `errors` | `sequence` (the `sentences` input); `errors` on `descriptor-errors` | `adaptiveData` for the descriptors |
+| `codec` (`BioCodec`, `BilouCodec`) | `bio`, `bilou` | `codec`, the input of the codec's name | `compatibleOutcomes` |
+| `beam` (`BeamSearch` as `POSTaggerME`, `ChunkerME` and `NameFinderME` wire it) | `pos-fixture`, `pos-fixture+default-context`, `chunker-fixture`, `ner-bio-fixture`, `ner-bilou-fixture`, `ner-qn-fixture`, `ner-qn-fixture+fresh-sums` (fixtures); `opennlp-en-ud-ewt-pos-1.3-2.5.4`; `en-pos-maxent`, `en-pos-perceptron`, `en-chunker`, `en-ner-person`, `en-ner-location` (OpenNLP 1.5) | `sequence` (the `sentences` input) | `kind` |
+| `tag-dictionary` (`POSDictionary`) | `tags`, `tags-cases`, `tags-exact`, `pos-fixture` (fixtures); `opennlp-en-ud-ewt-pos-1.3-2.5.4`, `en-pos-maxent`, `en-pos-perceptron` | `sequence` (the `sentences` input) | |
+| `tag-format` (`POSTagFormatMapper`) | `pos-fixture` (fixture), `opennlp-en-ud-ewt-pos-1.3-2.5.4`, `en-pos-maxent`, `en-pos-perceptron`; `guesses` | `sequence` (the `sentences` input); `guesses` on `tag-format` | |
+| `namefind` (`DictionaryNameFinder`, `RegexNameFinder`, `NameFinderME.dropOverlappingSpans`) | `generated`, `dictionary`, `regex-builtin`, `regex-factory`, `regex-user`, `merge`, with the fixtures in `namefind/` | `namefind` | |
+| `stem` (`PorterStemmer`, `SnowballStemmer`, the light and minimal stemmers) | `porter`, `snowball-<language>`, `snowball-<language>-repeat2`, `<language>-light`, `<language>-minimal`, and the Norwegian ones by variety | `stem`: `edge`, the stemmer's language and `generated-<language>` | `stemmer` |
+| `stopword` (`StopwordLists`, `StopwordFilter`, `StopwordFilteringTokenizer`) | `lists`, `codes`, `words`, `filter`, `letters` | `stopword`: `codes` for `codes`, `words` for the others | |
 
 - `+english-dictionary` is the English model rebuilt through
   `TokenizerModel(MaxentModel, Map, TokenizerFactory)` with the
@@ -662,7 +677,9 @@ The command:
 2. runs the generator in the container (`--image`, the recipe's tag by
    default) over that inputs directory with the models, the fixtures and
    the rate snapshot mounted as `generate` mounts them, and with
-   `--skip-annotators train,train-events,formats,evaluate,detokenize,bpe,masc,ner,parse,head-rules`,
+   `--skip-annotators` set to `turbo_fuzz::runs::NOT_COVERED` (the training,
+   format reader, evaluator, detokenizer, BPE, parse, sequence, name finder,
+   stemmer and stopword annotators),
    the annotators the differential does not cover; the goldens go under
    `<out>/jvm/`;
 3. compares every golden with the Rust side (`turbo_fuzz::compare_tree`),
@@ -716,6 +733,43 @@ The generator's two options behind this are general: `--skip-annotators
 follow the five positional arguments, in any order with `--dumps`, and
 the inputs directory may hold any subset of the sets.
 
+## Sequence, name finder, stemmer and stopword goldens
+
+These runs are the parity tests of `turbo-sequence`, `turbo-namefind`,
+`turbo-stem` and `turbo-stopword`; each crate's README describes its inputs,
+fixtures and layers, and the Java class of each run says what it records. All
+their layers are anchored to the document, and a string that can hold half of
+a surrogate pair is written as `TrainGolden.lossless` writes it.
+
+The `code-points` run of `string-pattern` runs the code point
+`StringPattern` of the fork's `ready/string-pattern-unicode` branch
+(`STRING_PATTERN_COMMIT` in `src/recipe.rs`). The image compiles that commit's
+`StringPattern`, `FeatureGeneratorUtil` and `ParamChecks` against the
+generator's OpenNLP build into `/string-pattern/string-pattern.jar`, and the
+entrypoint names the jar in the system property
+`turbo.goldens.stringPatternJar`; the run loads the three classes from it in a
+class loader that looks there first, beside the generator's own. Run outside
+the container, the generator needs that property.
+
+The fixture models `pos-fixture.bin`, `chunker-fixture.bin` and
+`ner-{bio,bilou,qn}-fixture.bin` are trained by `FixtureModels.java` from
+`analysis/goldens/data/train-fixtures/`. It is not one of the runs; it is run
+by hand in the image, and the models it writes have a new manifest timestamp,
+so the recipe's SHA-512 of each and every golden made from it change:
+
+```
+docker run --rm --network none --entrypoint java \
+    -v "$PWD/analysis/goldens/data/train-fixtures:/train:ro" \
+    -v "$PWD/analysis/goldens/data/fixtures:/fixtures" \
+    <image> -cp /generator/target/turbo-goldens-java.jar \
+    ai.pipestream.turbo.goldens.FixtureModels /train /fixtures
+```
+
+`ner-bio-fixture.bin` stores its cluster resources through
+`golden.StoredClusters`, whose serializers its manifest names, so OpenNLP loads
+it only with that class on the class path and its package registered with
+`ExtensionLoader`; the generator does both.
+
 ## How the checked in goldens and dumps were made
 
 The goldens and dumps checked in now were made in the container, with
@@ -749,8 +803,8 @@ GIT_LFS_SKIP_SMUDGE=1 git checkout FETCH_HEAD
 ../opennlp/mvnw -q -DskipTests -pl numeric -am install
 cd <repository>/analysis/goldens-tool/java
 mvn -q package
-cargo run -p turbo-goldens-tool -- fetch-models <models dir>
-java -jar target/turbo-goldens-java.jar ../../goldens/data/inputs <models dir> ../../goldens/data/fixtures \
+cargo run -p turbo-goldens-tool -- fetch-models <models dir> --local
+java -Dturbo.goldens.stringPatternJar=<string-pattern.jar> -jar target/turbo-goldens-java.jar ../../goldens/data/inputs <models dir> ../../goldens/data/fixtures \
     <empty out dir> cdf33c653d5d61d5af7d37ffee189a83bd8392ea --dumps
 ```
 

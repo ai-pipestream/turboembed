@@ -13,24 +13,20 @@ OpenNLP fork, run on JDK 21.
 
 ## Golden files
 
-`tests/golden.rs` compares the crate with files a JVM running OpenNLP wrote. The
-Java program and its outputs are under `golden/`; nothing calls the JVM at test
-time. `golden/generate.sh` rebuilds the outputs from OpenNLP built at the commit
-above and installed into the local Maven repository; two runs write the same
-bytes. Before writing anything it checks that every file in `data/` is the
-jar's resource byte for byte.
+`tests/golden.rs` compares the crate with goldens a JVM running OpenNLP wrote:
+the `stopword` runs of `analysis/goldens-tool` (`StopwordGolden.java`), made in
+its container by `turbo-goldens generate` and checked by `turbo-goldens
+verify`. Nothing calls the JVM at test time. A run's golden is
+`analysis/goldens/data/stopword/<run>/stopword/<input>.golden`; the inputs are
+`analysis/goldens/data/inputs/stopword/words.txt` (words the lookup is asked
+about besides the lists' own, one per line, escaped: `\uXXXX` for one UTF-16
+unit, `\\`, `\t`, `\n` and `\r`) and `codes.txt` (malformed and other
+language codes, one per line).
 
-| Path | Contents |
+| Run | Contents |
 |---|---|
-| `expected/lists.txt` | For each language in `StopwordLists.supportedLanguages()` order: its code, the size of `stopwords()`, `isCaseSensitive()`, then the words sorted |
-| `expected/codes.txt` | What `StopwordLists.forLanguage` returns (the list's code, or `-` where it throws) for every code `LanguageCodeValidator` accepts, rebuilt the way it builds its set from the JDK's locales, and for upper and title case forms of the supported codes and a few malformed ones |
-| `expected/words.txt` | 21,414 words: every word of every list, its upper case (`String.toUpperCase` and per code point), title case, decomposed and accent-stripped forms, spellings with other characters that lowercase to one of its letters (such as U+0130, U+212A, U+212B and U+1E9E) or that only `compareToIgnoreCase` equates with one (such as U+017F, U+0131 and U+1C80), forms with a character outside the BMP, an apostrophe, a space or a zero-width joiner added, and a few other words |
-| `expected/flags.txt` | For each language, the indices of the words in `words.txt` that `isStopword` accepts (checked against `isStopword(String...)` with one token, which must agree) |
-| `expected/filter.txt` | 150 random token sequences per language, from that language's words and all words without white space, with the positions `StopwordFilter.filter` keeps and the positions of the spans `StopwordFilteringTokenizer.tokenizePos` keeps over `WhitespaceTokenizer` (`StopwordFilterStream` is run too and must agree with `filter`) |
-| `expected/letters.txt` | Every code point whose `Character.toLowerCase` is a character of a bundled word, with that lowercase |
-
-A word is escaped: every UTF-16 code unit outside U+0020..U+007E, and the
-backslash, is `\uXXXX`, and tab, line feed and carriage return are `\t`, `\n`
-and `\r`. The lines of `filter.txt` are the language, the word indices of the
-tokens, the positions `filter` keeps and the positions `tokenizePos` keeps,
-separated by tabs.
+| `lists` | For each language in `StopwordLists.supportedLanguages()` order: its code, the size of `stopwords()`, `isCaseSensitive()` and the SHA-256 of its resource in the OpenNLP jar, which the test checks against the file in `data/`; then the words sorted |
+| `codes` | What `StopwordLists.forLanguage` returns (the list's code, or an empty string where it throws) for every code `LanguageCodeValidator` accepts, rebuilt the way it builds its set from the JDK's locales, for upper and title case forms of the supported codes, and for the codes of `codes.txt` |
+| `words` | 21,414 words: the words of `words.txt`, then every word of every list, its upper case (`String.toUpperCase` and per code point), title case, decomposed and accent-stripped forms, spellings with other characters that lowercase to one of its letters (such as U+0130, U+212A, U+212B and U+1E9E) or that only `compareToIgnoreCase` equates with one (such as U+017F, U+0131 and U+1C80), and forms with a character outside the BMP, an apostrophe, a space or a zero-width joiner added; and for each language the words `isStopword` accepts, by index (checked against `isStopword(String...)` with one token, which must agree) |
+| `filter` | 150 random token sequences per language, from that language's words and all words without white space, each token by its index in the `words` golden, with whether `StopwordFilter.filter` keeps it and whether a span of `StopwordFilteringTokenizer.tokenizePos` over `WhitespaceTokenizer` starts at it (`StopwordFilterStream` is run too and must agree with `filter`) |
+| `letters` | Every code point whose `Character.toLowerCase` is a character of a bundled word, with that lowercase |

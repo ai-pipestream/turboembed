@@ -21,5 +21,5 @@ pub const SET: Set = Set {
                  benchmarks/<name>.json and corpus/<dataset>/<file> are under the set's directory",
     },
     span_unit: Some(SpanUnit::CodePoints),
-    read: legalbench_rag::read,
+    read: legalbench_rag::read_in,
 };

@@ -1,0 +1,1 @@
+<featureGenerators><generator class="opennlp.tools.util.featuregen.BrownClusterTokenFeatureGeneratorFactory"><str name="dict">nothing</str></generator></featureGenerators>

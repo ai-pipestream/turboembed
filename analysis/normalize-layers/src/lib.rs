@@ -2,7 +2,7 @@
 //! add-on can read what a normalizer found without depending on the
 //! normalizer itself.
 
-use turbo_analysis::{Layer, Spans, ViewId};
+use turbo_analysis::{Layer, Spans, TextSpans, ViewId};
 use turbo_analysis_layers::Strs;
 
 mod asset_format;
@@ -46,9 +46,8 @@ impl Layer for Placeholders {
         self.spans.len()
     }
 
-    fn text_spans(&self) -> Option<(ViewId, &[u32], &[u32])> {
-        let (start, end) = self.spans.columns();
-        Some((self.spans.view(), start, end))
+    fn text_spans(&self) -> Option<TextSpans<'_>> {
+        Some(self.spans.text_spans())
     }
 
     fn check(&self) -> Result<(), String> {
@@ -58,6 +57,7 @@ impl Layer for Placeholders {
         if !self.spans.is_ordered() {
             return Err("placeholders in text order, not overlapping".into());
         }
+        self.spans.check(Self::OVERLAP)?;
         Ok(())
     }
 }
@@ -104,9 +104,8 @@ impl Layer for Emoji {
         self.spans.len()
     }
 
-    fn text_spans(&self) -> Option<(ViewId, &[u32], &[u32])> {
-        let (start, end) = self.spans.columns();
-        Some((self.spans.view(), start, end))
+    fn text_spans(&self) -> Option<TextSpans<'_>> {
+        Some(self.spans.text_spans())
     }
 
     fn check(&self) -> Result<(), String> {
@@ -117,6 +116,7 @@ impl Layer for Emoji {
         if !self.spans.is_ordered() {
             return Err("emoji in text order, not overlapping".into());
         }
+        self.spans.check(Self::OVERLAP)?;
         Ok(())
     }
 }
@@ -241,9 +241,8 @@ impl Layer for Artifacts {
         self.spans.len()
     }
 
-    fn text_spans(&self) -> Option<(ViewId, &[u32], &[u32])> {
-        let (start, end) = self.spans.columns();
-        Some((self.spans.view(), start, end))
+    fn text_spans(&self) -> Option<TextSpans<'_>> {
+        Some(self.spans.text_spans())
     }
 
     fn check(&self) -> Result<(), String> {
@@ -253,6 +252,7 @@ impl Layer for Artifacts {
         if !self.spans.is_ordered() {
             return Err("artifacts in text order, not overlapping".into());
         }
+        self.spans.check(Self::OVERLAP)?;
         if self.spans.iter().any(|(_, s)| s.is_empty()) {
             return Err("no empty artifact".into());
         }
@@ -316,9 +316,8 @@ impl Layer for Noise {
         self.spans.len()
     }
 
-    fn text_spans(&self) -> Option<(ViewId, &[u32], &[u32])> {
-        let (start, end) = self.spans.columns();
-        Some((self.spans.view(), start, end))
+    fn text_spans(&self) -> Option<TextSpans<'_>> {
+        Some(self.spans.text_spans())
     }
 
     fn check(&self) -> Result<(), String> {
@@ -329,6 +328,7 @@ impl Layer for Noise {
         if !self.spans.is_ordered() {
             return Err("noise spans in text order, not overlapping".into());
         }
+        self.spans.check(Self::OVERLAP)?;
         if let Some(bad) = self.score.iter().find(|&&s| !(s > 0.0 && s <= 1.0)) {
             return Err(format!("noise scores in (0, 1], got {bad}"));
         }
@@ -408,9 +408,8 @@ impl Layer for Assets {
         self.spans.len()
     }
 
-    fn text_spans(&self) -> Option<(ViewId, &[u32], &[u32])> {
-        let (start, end) = self.spans.columns();
-        Some((self.spans.view(), start, end))
+    fn text_spans(&self) -> Option<TextSpans<'_>> {
+        Some(self.spans.text_spans())
     }
 
     fn check(&self) -> Result<(), String> {
@@ -430,6 +429,7 @@ impl Layer for Assets {
         if !self.spans.is_ordered() {
             return Err("assets in text order, not overlapping".into());
         }
+        self.spans.check(Self::OVERLAP)?;
         for (ix, span) in self.spans.iter() {
             let i = ix.get();
             let payload = self.payload[i];
@@ -477,9 +477,8 @@ impl Layer for Corrections {
         self.spans.len()
     }
 
-    fn text_spans(&self) -> Option<(ViewId, &[u32], &[u32])> {
-        let (start, end) = self.spans.columns();
-        Some((self.spans.view(), start, end))
+    fn text_spans(&self) -> Option<TextSpans<'_>> {
+        Some(self.spans.text_spans())
     }
 
     fn check(&self) -> Result<(), String> {
@@ -490,6 +489,7 @@ impl Layer for Corrections {
         if !self.spans.is_ordered() {
             return Err("corrections in text order, not overlapping".into());
         }
+        self.spans.check(Self::OVERLAP)?;
         if self.spans.iter().any(|(_, s)| s.is_empty()) {
             return Err("no empty correction".into());
         }

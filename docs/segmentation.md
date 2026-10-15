@@ -5,8 +5,10 @@ sentences (`opennlp:sentences`) and the word tokens (`opennlp:tokens`).
 They are ports of the OpenNLP 3.x sentence detectors and tokenizers onto
 the analysis API (docs/analysis.md), reading OpenNLP's own models. A
 model-free tokenizer gives tokens before any model is loaded, the
-UAX #29 tokenizer handles text in any script, and a rule sentence
-splitter gives sentences in languages that have no sentence model.
+UAX #29 tokenizer handles text in any script, the dictionary word
+tokenizer adds the words of Thai, Lao, Khmer and Burmese (which are
+written without spaces), and a rule sentence splitter gives sentences in
+languages that have no sentence model.
 
 OpenNLP is the reference. Where the Rust side matches it, a golden file
 made by the JVM proves it. Where it differs on purpose, this page says
@@ -16,11 +18,11 @@ where and why.
 
 | Crate | Path | Contents |
 |---|---|---|
-| `turbo-unicode` | `analysis/unicode/` | Character data: Java's character classes, the Unicode `White_Space` set, `Word_Break`, `Sentence_Break` and `Extended_Pictographic` properties, a UTF-16 code unit cursor over UTF-8 text |
+| `turbo-unicode` | `analysis/unicode/` | Character data: Java's character classes, the Unicode `White_Space` set, `Word_Break`, `Sentence_Break` and `Extended_Pictographic` properties, extended grapheme cluster boundaries, `Line_Break=SA`, a UTF-16 code unit cursor over UTF-8 text |
 | `turbo-jvm` | `analysis/jvm/` | JDK routines ported bit for bit; `turbo-maxent` uses `strict_math::exp` and `strict_math::log`, the fdlibm functions behind `StrictMath.exp` and `StrictMath.log`; `math::log` is a correctly rounded logarithm, which matched `Math.log` of the JVM the goldens are made with on the integers compared (its documentation says which) |
 | `turbo-maxent` | `analysis/maxent/` | OpenNLP model files: the zip container, the manifest, maxent and perceptron models and their evaluation, the dictionary XML |
 | `turbo-sentdetect` | `analysis/sentdetect/` | The newline detector, the paragraph detector, the maxent sentence detector and the rule sentence splitter (UAX #29 with per-language tailorings) |
-| `turbo-tokenize` | `analysis/tokenize/` | The simple, whitespace and UAX #29 word tokenizers, the maxent tokenizer, the unigram frequency segmenter for Chinese, the MeCab dictionary lattice tokenizer for Japanese and Korean, and the dictionary detokenizer |
+| `turbo-tokenize` | `analysis/tokenize/` | The simple, whitespace and UAX #29 word tokenizers, the dictionary word tokenizer for Thai, Lao, Khmer and Burmese, the maxent tokenizer, the unigram frequency segmenter for Chinese, the MeCab dictionary lattice tokenizer for Japanese and Korean, and the dictionary detokenizer |
 | `turbo-tokenize-layers` | `analysis/tokenize-layers/` | The tokenizers' own layer: the word type of each token |
 
 They depend on the standard library, `turbo-analysis` and
@@ -522,6 +524,141 @@ long as the tokens when it stores them. `UntypedWordTokenizer` writes
 the same tokens without the types, for a pipeline that has no use for
 them.
 
+### `DictionaryWordTokenizer` (Thai, Lao, Khmer, Burmese)
+
+Thai, Lao, Khmer and Burmese are written without spaces between words,
+and UAX #29 does not find the words inside a run of their letters. `DictionaryWordTokenizer` is the
+UAX #29 word tokenizer with those runs handed to a word dictionary, a
+port of ICU4X's dictionary word segmenter (`icu_segmenter`, the
+`DictionaryBreakIterator` with its `ZeroTrieSimpleAscii` word lists)
+with no dependency on the ICU4X crates. It writes `Tokens` and
+`WordTypes` (a word of a run has the type southeast asian), cuts long
+words as `WordTokenizer` does, and has the same untyped variant,
+`UntypedDictionaryWordTokenizer`. `ComplexSegmenter` is the segmenter
+under it, over a `&str`, and `Dictionary` is one script's word list.
+
+A complex run is a maximal run of characters of one script among Thai,
+Lao, Khmer and Myanmar that have `Line_Break=SA`: the sets
+`[:sc=Thai:]&[:lb=SA:]` and so on that ICU4X's data generator gives its
+segmenter. Digits, punctuation and the other characters of those scripts
+are not `SA` and stay with the UAX #29 rules. The text between runs is
+segmented by the UAX #29 rules on its own, so the state machine starts
+afresh after each run, as ICU4X's does. Inside a run the dictionary is
+walked from each position, one character at a time: a word that no
+longer word continues is taken at once; otherwise the longest word seen
+that ends on a grapheme cluster boundary is taken when the walk can go
+no further; where no word starts, the piece read until the walk failed
+is one segment, or the rest of the run when the run ended first.
+
+Data: the four word lists of ICU4X's baked segmenter data at commit
+`bb3e1f9a0c966f7334aa400066f520f64f3dc3d6`, generated with CLDR
+49.0.0-BETA4 and Unicode 18.0.0 from ICU's export data `release-79.1rc`.
+The CLDR release is a beta, but CLDR does not supply these lists: they
+are ICU4C's `brkitr/dictionaries/*dict.txt`, and the words of each file
+equal ICU4C's lists at `release-79.1rc` exactly (an ignored test checks
+this when given the files). The published `icu_segmenter_data` 2.3.0 is
+older (CLDR 48.2.1) and is not used. Each file in
+`analysis/tokenize/data/icu4x-segmenter/` is the entry's alphabet (an
+inversion list of at most 128 characters; a character's position in it
+is the byte the trie steps on) and its trie bytes, unchanged, behind a
+small header; the dictionaries are read in place from the `include_bytes!`
+data, with no decoding and no allocation. Thai has 26383 words, Lao
+30550, Khmer 81028 and Burmese 41120. The data are under the Unicode
+License v3, with ICU's notices for the Thai and Khmer lists and BSD
+style licences for the Lao and Burmese lists; `LICENSE` beside the data
+has all of them, and the data README says how to rebuild the files from
+ICU4X's source (`regenerate_from_icu4x`, ignored, rebuilds them byte for
+byte).
+
+The proofs: every line of ICU4X's `WordBreakDictionary.txt` without CJK
+(81 of 88; ICU4X segments Chinese and Japanese with a different
+dictionary, which this tokenizer leaves to `UnigramSegmenter` and
+`LatticeTokenizer`) gives the same boundaries byte for byte
+(`analysis/tokenize/tests/complex_icu4x.rs`); every boundary is an extended grapheme
+cluster boundary by the Unicode 18.0 rules, including GB9c (except where
+one cluster spans runs of two scripts, deviation 3), in 200 000
+random texts of the four scripts' characters and 200 000 runs of
+dictionary words with letters dropped, doubled or inserted (`analysis/tokenize/tests/complex_graphemes.rs`).
+The grapheme cluster boundaries are those of `turbo_unicode::grapheme`,
+checked against every case of `GraphemeBreakTest.txt`.
+
+Deviations from ICU4X, each with a test:
+
+1. ICU4X takes a word that no longer word continues, and the piece read
+   where no word starts, without looking at grapheme clusters, so a
+   boundary can fall between a letter and its marks (in Burmese and
+   Khmer, also inside a conjunct joined by the virama, which GB9c now
+   keeps together). Here such a boundary moves forward to the end of its
+   cluster and the next word is looked for from there
+   (`a_boundary_never_splits_a_grapheme_cluster` and
+   `a_word_inside_a_grapheme_cluster_is_not_taken` in `analysis/tokenize/src/complex/dictionary.rs`).
+   Where ICU4X's boundary is on a cluster boundary, the two agree.
+2. A run that starts with marks belonging to the cluster before it (a
+   Thai vowel sign after a Latin letter) starts at the next cluster
+   boundary, and the marks join the segment before: `a\u{0E31}ภาษา` gives
+   `a\u{0E31}`, `ภาษา`, where ICU4X starts the run at the mark. A run
+   inside one cluster gives no word of its own.
+3. Marks or joiners of no script after a run's last letter are in its
+   cluster and join the last word: `ภาษา\u{0300} b` gives `ภาษา\u{0300}`,
+   ` `, `b`, where ICU4X makes the mark a segment of its own. The
+   dictionary still sees the run alone, so the words do not change
+   (`runs_are_trimmed_to_grapheme_clusters` in `analysis/tokenize/src/complex/mod.rs`).
+   The one place a boundary still falls inside a cluster: GB9c joins a
+   consonant to the linker before it whatever their scripts, so a Khmer
+   COENG followed by a Myanmar letter is one cluster. Extending the
+   Khmer run to the cluster's end would give its last word the Myanmar
+   letter, so the run stops where the Myanmar run starts and the Burmese
+   dictionary sees its whole run: `ក្កខ` (U+1780 U+17D2 U+1000 U+1001)
+   gives `ក្`, `က`, `ခ`
+   (`a_cluster_across_two_runs_is_cut_where_the_second_starts`).
+4. ICU4X's older (1.x) segmenter hardcoded the script ranges and left out
+   U+0EA3 LAO LETTER LO LING; the sets here come from the Unicode 18.0
+   `Script` and `Line_Break` properties, and a test counts them (73 Thai,
+   73 Lao, 87 Khmer, 187 Myanmar characters).
+5. The other `SA` scripts (Tai Tham, Tai Viet, New Tai Lue, Ahom and
+   others) have no dictionary here, and ICU4X has none for them either.
+   Here their characters keep their `Word_Break` values and the UAX #29
+   rules segment them like any other text
+   (`a_script_without_a_dictionary_keeps_the_uax29_rules`). ICU4X's
+   rule data treats `Line_Break=SA` characters apart (it takes them out
+   of `Extend`), so its boundaries in these scripts can differ from
+   these.
+
+Accuracy. ICU4X also has an LSTM model for these scripts. It was
+compared with the dictionary on gold segmentations, scoring the words
+inside complex runs only (a word is correct when the gold has a word over the same
+characters): UD Thai PUD (commit
+`670083cd185a2ae215ce7aef1127c2b63640217d`, 1000 sentences, 21640 gold
+words in Thai runs) and myPOS 3.0 for Burmese (commit
+`f1a620ba271cae3d8658441eb626450fca09cdfa`, 43196 sentences, 468105 gold
+words). The dictionary rows come from
+`analysis/tokenize/tests/complex_eval.rs` (ignored, since neither corpus
+can be bundled), which asserts them. The LSTM rows and the newmm numbers
+below cannot be reproduced from the repository: the LSTM rows came from
+a scratch port of ICU4X's LSTM (checked against ICU4X's
+`WordBreakLstm.txt`, all 71 runs identical) and newmm from a run
+outside the repository, and both were used only to decide whether to
+port the LSTM.
+
+| Segmenter | Corpus | Precision | Recall | F1 |
+|---|---|---|---|---|
+| Dictionary | Thai PUD | 0.690 | 0.790 | 0.737 |
+| LSTM | Thai PUD | 0.764 | 0.825 | 0.793 |
+| Dictionary | myPOS | 0.641 | 0.765 | 0.698 |
+| LSTM | myPOS | 0.532 | 0.635 | 0.579 |
+
+The LSTM is better on Thai and worse on Burmese, and there is no gold
+data at hand for Lao or Khmer, so it is not ported: it does not win
+over the dictionary, and it would add a second model format and a
+floating point evaluation to keep deterministic.
+
+For reference, PyThaiNLP's newmm (nlpo3 1.4.0 with the PyThaiNLP 5.4.0
+word list; neither is bundled) scores
+precision 0.698, recall 0.645, F1 0.671 on the same Thai PUD runs.
+Scored against newmm as if it were the gold, the dictionary segmenter
+has precision 0.583, recall 0.722 and F1 0.645; the two give the same
+words for 24 of the 1000 sentences.
+
 ### `TokenizerMe` (maxent)
 
 `TokenizerME`: whitespace tokens are the units; a unit of one code unit,
@@ -864,11 +1001,136 @@ fixture runs always run. The IPADIC and mecab-ko-dic tests are ignored
 by default and read the dictionaries `turbo-goldens fetch-models`
 fetched, from `TURBO_MECAB_DICTIONARIES` or
 `target/turbo-goldens/models`. CI runs them after `fetch-models`, with
-the dictionaries required. UniDic is not in the goldens: the
-package checked (unidic-lite 1.0.8) holds only a compiled dictionary,
-which neither reader reads.
+the dictionaries required. UniDic is not in the goldens. The package
+checked first (unidic-lite 1.0.8) holds only a compiled dictionary,
+which neither reader reads; the UniDic source distribution, which both
+read, is not fetched (see "Compiled dictionaries" below).
 
-Speed is not measured here, so this section makes no speed claim.
+#### Readings
+
+OpenNLP leaves an entry's features as one string. `LatticeAnalyzer` is
+the lattice tokenizer together with the dictionary's format
+(`DictionaryFormat`), and writes a third layer beside `Tokens` and
+`PosTags`: `Readings` (`turbo:readings`, in `turbo-tokenize-layers`),
+aligned to the tokens, so its offsets are the tokens' own. It has three
+columns, each `None` where the format has no such column:
+
+| Format | Reading | Pronunciation | Lemma | Columns |
+|---|---|---|---|---|
+| `Ipadic` | 読み | 発音 | 原形 | 9 |
+| `MecabKoDic` | 읽기 | none | none | 8 |
+| `Unidic(Source17)` | none | `pron` | `orthBase` | 17 |
+| `Unidic(Full26)` | `kana` (column 17) | `pron` | `orthBase` | 26 |
+| `Unidic(Full29)` | `kana` (column 20) | `pron` | `orthBase` | 29 |
+
+Each format's columns are an enum in file order (`IpadicColumn`,
+`KoDicColumn`, and `UnidicColumn` for the 17 columns every UniDic
+layout starts with), and `DictionaryFormat::map` names the three columns
+from them, so no column is looked up by a string. The UniDic layouts are
+the 2.1.2 source distribution (17 columns), the 2.1.2 binary
+distribution and unidic-lite (as the 26 fields of unidic-lite's `bos-feature`),
+and 2.2.0 and later (29). The format is given, not guessed:
+`LatticeAnalyzer::new` checks that every lexicon entry has the format's
+number of columns and refuses the dictionary otherwise (`FormatError`).
+The `unk.def` templates are not checked, since they usually have fewer
+columns (IPADIC's have seven). For a dictionary known to be UniDic,
+`UnidicLayout::of` picks the layout whose column count a lexicon entry
+has, and returns it only if every lexicon entry passes that check.
+
+An item is an empty string where the token's entry leaves the column
+out: an unknown word whose template lacks it, or a value that is empty
+or `*`, which the published dictionaries write for none (mecab-ko-dic's
+symbols have `*` for 읽기). `FeatureMap::reading`, `pronunciation` and
+`lemma` give the same values for one entry, as `Option<&str>`, outside a
+pipeline. For UniDic the lemma is `orthBase`, the base form as written,
+which is what IPADIC's 原形 holds. UniDic's own `lemma` column is the
+lexeme in a standard spelling with an English gloss on some loanwords
+(為る for する, `テスト-test`), and stays in the features.
+
+`analysis/tokenize/tests/lattice_readings.rs` runs the analyzer on every
+golden of `mecab-fixture-ko` (in mecab-ko-dic's layout),
+`mecab-ipadic-2.7.0-20070801` and `mecab-ko-dic-2.1.1-20180720`, and
+checks each token's three items against the columns of the feature
+string the JVM printed for it. The fetched dictionaries' tests run in CI
+with the lattice goldens. No UniDic is fetched, so the UniDic layouts are
+tested on entries written in each layout
+(`analysis/tokenize/src/lattice/format.rs`):
+
+| Dictionary | Tokens | With a reading | With a pronunciation | With a lemma |
+|---|---|---|---|---|
+| `mecab-fixture-ko` | 1310 | 46 | none | none |
+| `mecab-ipadic-2.7.0-20070801` | 1512 | 444 | 444 | 444 |
+| `mecab-ko-dic-2.1.1-20180720` | 1360 | 211 | none | none |
+
+On IPADIC the 444 are the tokens that are not unknown words. On the
+Korean dictionaries the other known tokens are mostly punctuation.
+
+#### Compiled dictionaries, lindera and vibrato
+
+Two Rust MeCab-style tokenizers were read for this comparison: lindera
+6.2.0 with lindera-dictionary 6.2.0 (MIT) and vibrato 0.5.2 (MIT or
+Apache-2.0). Neither is a dependency, and no code was taken from either.
+
+| | turbo `lattice` | lindera 6.2.0 | vibrato 0.5.2 |
+|---|---|---|---|
+| Input | MeCab source directory: `*.csv`, `matrix.def`, `char.def`, `unk.def` | MeCab source directory, with a `metadata.json` per dictionary that names its columns, encoding and options | MeCab source files, given as readers (the lexicon as one concatenated `lex.csv`) |
+| Encodings | UTF-8 only (IPADIC from a UTF-8 copy) | any `encoding_rs` encoding the metadata names | UTF-8 |
+| MeCab's compiled `sys.dic`, `matrix.bin`, `char.bin`, `unk.dic` | not read | not read | not read |
+| Own compiled format | none: the source is parsed at load | yes (built with `rkyv`) | yes (built with `bincode`) |
+| Dictionaries packaged | none | IPADIC, IPADIC-NEologd, UniDic 2.1.2 (from the source distribution), mecab-ko-dic, CC-CEDICT, Jieba, SudachiDict | none in the crate |
+| Feature columns | the string; typed readings via `DictionaryFormat` | the string, and named fields from `metadata.json` (`token.get("reading")`) | the string |
+| Origin | a port of OpenNLP's `LatticeTokenizer`, checked against JVM goldens | a fork of kuromoji-rs | its own, with options for MeCab-compatible output |
+
+Neither reads MeCab's compiled files: both build from the source
+distribution into a format of their own. UniDic is published in source
+form as well as compiled: lindera-unidic builds from
+`unidic-mecab-2.1.2.tar.gz`, the 17-column source distribution, under
+UniDic's BSD licence (UniDic is offered under BSD, GPL or LGPL). Only
+unidic-lite was found to ship compiled files alone. So every dictionary
+this reader is meant for can be read from source, and reading compiled
+dictionaries is not added. What reading one would take, from unidic-lite's
+files:
+
+- `sys.dic` and `unk.dic`: a 72-byte header (ten little-endian `u32`,
+  the first the file size XOR `0xEF718F77`, the second the
+  version, 102, then the entry count, the left and right id counts and
+  the sizes of the next three parts, and a 32-byte charset name), then a
+  Darts double array mapping each surface to a run of entries, the
+  entries (16 bytes each: left id, right id, part-of-speech id, cost,
+  feature offset, compound), and the NUL-terminated features.
+  unidic-lite's has 756264 entries and 5981 context ids each side.
+- `matrix.bin`: two `u16` dimensions and the costs as `i16`.
+- `char.bin`: the category count, 32-byte category names and a packed
+  `u32` per code point from U+0000 to U+FFFE. It has no entry for a
+  supplementary character, where `char.def` can map one.
+
+That is a Darts reader and four small parsers, a few hundred lines with
+tests, but with no reference to check them against: OpenNLP reads only
+the source, so no golden covers the compiled path. The entries of one
+surface are in the order `mecab-dict-index` wrote them, and that order
+decides ties, so a compiled dictionary could segment differently from
+its source here without any test noticing. The source distributions
+remain the input; adding UniDic's to `turbo-goldens fetch-models` and to
+the lattice goldens is the way to cover UniDic.
+
+#### Throughput
+
+No speed is claimed here: no benchmark record of the lattice tokenizer is
+committed. `turbo-bench` records embedding runs only. The command for a
+lattice run is
+
+```text
+cargo run --release -p turbo-tokenize --example lattice_throughput [ipadic|ko-dic] [readings]
+```
+
+with the dictionaries in `TURBO_MECAB_DICTIONARIES` or
+`target/turbo-goldens/models`. It reads the golden inputs of the
+language (`inputs/ja` or `inputs/ko`) repeated to 10 MiB and prints the
+dictionary's manifest digest, the text's SHA-256 and size, the morpheme
+count, and the best of five timed runs after a warm one, and with
+`readings` also the analyzer through a document. lindera and vibrato are
+not part of it; a matched run of them reads the same text and the same
+dictionary directory (IPADIC's UTF-8 copy) outside the workspace.
 
 ### `Detokenizer`
 
