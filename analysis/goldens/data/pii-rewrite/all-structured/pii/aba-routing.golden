@@ -1,0 +1,50 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	pii/aba-routing	59	59	e499e8922bf7c7c4d07411d368be0362f7a5286003dcfd57102dc1131605e4ef
+annotator	opennlp.tools.pii.PiiPacks	allStructured
+config	key	0123456789abcdef0123456789abcdef
+config	mask	*
+config	mask-all	#
+config	pack	all-structured
+layer	turbo:view	text	18	start:u32	end:u32	with:str
+8	9	*
+9	10	*
+10	11	*
+11	12	*
+12	13	*
+13	14	*
+14	15	*
+15	16	*
+16	17	*
+44	45	*
+45	46	*
+46	47	*
+47	48	*
+48	49	*
+49	50	*
+50	51	*
+51	52	*
+52	53	*
+end	turbo:view
+layer	turbo:pii-mask-all	document	1	text:str
+Routing ######### confirmed; routing number ######### too.\n
+end	turbo:pii-mask-all
+layer	turbo:pii-rewrites	document	2	operation:str	text:str	error:str
+pseudonymize	Routing ABA-ROUTING-1 confirmed; routing number ABA-ROUTING-2 too.\n	
+hmac	Routing ABA-ROUTING-0859865aa445ca3a confirmed; routing number ABA-ROUTING-f656c7b677d87732 too.\n	
+end	turbo:pii-rewrites
+layer	turbo:pii-labels	document	4	operation:str	source_start:u32	source_end:u32	start:u32	end:u32	label:str
+pseudonymize	8	17	8	21	ABA-ROUTING-1
+pseudonymize	44	53	48	61	ABA-ROUTING-2
+hmac	8	17	8	36	ABA-ROUTING-0859865aa445ca3a
+hmac	44	53	63	91	ABA-ROUTING-f656c7b677d87732
+end	turbo:pii-labels
+layer	turbo:pii-audit	document	1	type:str	mentions:u32	distinct:u32	samples:str
+aba-routing	2	2	ABA-ROUTING-0859865aa445ca3a, ABA-ROUTING-f656c7b677d87732
+end	turbo:pii-audit
+layer	turbo:pii-audit-report	document	1	text:str
+aba-routing: 2 mentions, 2 distinct [ABA-ROUTING-0859865aa445ca3a, ABA-ROUTING-f656c7b677d87732]
+end	turbo:pii-audit-report
