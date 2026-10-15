@@ -28,7 +28,7 @@ pub(super) static RULES: &[Rule] = &[
     rr("dur_whole", DUR, &[word("hele"), node(UNIT)], en::b_dur_one),
     rr("dur_whole_het", DUR, &[word("het"), word("hele"), node(UNIT)], en::b_dur_one),
     rr("dur_whole_de", DUR, &[word("de"), word("hele"), node(UNIT)], en::b_dur_one),
-    rr("dur_whole_heel", DUR, &[word("heel"), word("de"), node(UNIT)], en::b_dur_one),
+    rr("dur_whole_all_the", DUR, &[word("heel"), word("de"), node(UNIT)], en::b_dur_one),
     rr("dur_another", DUR, &[word("andere"), node(UNIT)], en::b_dur_one),
     rr("dur_sum", DUR, &[node(DUR), opt_word(","), opt_word("en"), node(DUR)], en::b_dur_sum),
     rr("dur_and_half", DUR, &[node(DUR), word("en"), opt_word("een"), word("half")], en::b_dur_and_half),
