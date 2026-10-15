@@ -1,0 +1,11 @@
+# The cases of the uax29 suite that the rules detector gets wrong, and what
+# differs. tests/conformance.rs writes this file and fails when a run differs
+# from it. 8 of 512 cases fail.
+uax29/SentenceBreakTest-18.0.0/line-369	misses the break rule 11.0 makes between U+0021 (STerm) and U+0061 (Lower); passes without the continuation rule
+uax29/SentenceBreakTest-18.0.0/line-370	misses the break rule 11.0 makes between U+0308 (Extend) and U+0061 (Lower); passes without the continuation rule
+uax29/SentenceBreakTest-18.0.0/line-498	misses the break rule 4.0 makes between U+000A (LF) and U+0308 (Extend); passes without the paragraph line breaks rule
+uax29/SentenceBreakTest-18.0.0/line-508	misses the break rule 4.0 makes between U+000A (LF) and U+0061 (Lower); passes without the paragraph line breaks rule
+uax29/SentenceBreakTest-18.0.0/line-509	misses the break rule 4.0 makes between U+000A (LF) and U+0041 (Upper); passes without the paragraph line breaks rule
+uax29/SentenceBreakTest-18.0.0/line-527	misses the break rule 4.0 makes between U+000A (LF) and U+2060 (Format); passes without the paragraph line breaks rule
+uax29/SentenceBreakTest-18.0.0/line-537	misses the break rule 4.0 makes between U+000A (LF) and U+0061 (Lower); passes without the paragraph line breaks rule
+uax29/SentenceBreakTest-18.0.0/line-538	misses the break rule 4.0 makes between U+000A (LF) and U+0041 (Upper); passes without the paragraph line breaks rule

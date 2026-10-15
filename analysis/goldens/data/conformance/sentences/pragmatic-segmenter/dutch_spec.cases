@@ -1,0 +1,28 @@
+# Converted from spec/pragmatic_segmenter/languages/dutch_spec.rb of Pragmatic Segmenter
+# (github.com/diasks2/pragmatic_segmenter, commit 358fe97e62902cd86fa6b85063c3bf91aa6c156a),
+# MIT License, Copyright (c) 2015 Kevin S. Dias (LICENSE in this directory).
+# One case per expectation, in file order; `name` is the spec's context and test name,
+# `option` the segmenter options the spec passes, `skipped-upstream` a test the spec skips.
+
+case pragmatic-segmenter/dutch_spec/001
+lang nl
+name Golden Rules: Sentence starting with a number #001
+text Hij schoot op de JP8-brandstof toen de Surface-to-Air (sam)-missiles op hem af kwamen. 81 procent van de schoten was raak.
+sentence Hij schoot op de JP8-brandstof toen de Surface-to-Air (sam)-missiles op hem af kwamen.
+sentence 81 procent van de schoten was raak.
+end
+
+case pragmatic-segmenter/dutch_spec/002
+lang nl
+name Golden Rules: Sentence starting with an ellipsis #002
+text 81 procent van de schoten was raak. ...en toen barste de hel los.
+sentence 81 procent van de schoten was raak.
+sentence ...en toen barste de hel los.
+end
+
+case pragmatic-segmenter/dutch_spec/003
+lang nl
+name #segment: correctly segments text #001
+text Afkorting aanw. vnw.
+sentence Afkorting aanw. vnw.
+end

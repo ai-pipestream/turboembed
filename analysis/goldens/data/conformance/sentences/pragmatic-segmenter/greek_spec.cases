@@ -1,0 +1,23 @@
+# Converted from spec/pragmatic_segmenter/languages/greek_spec.rb of Pragmatic Segmenter
+# (github.com/diasks2/pragmatic_segmenter, commit 358fe97e62902cd86fa6b85063c3bf91aa6c156a),
+# MIT License, Copyright (c) 2015 Kevin S. Dias (LICENSE in this directory).
+# One case per expectation, in file order; `name` is the spec's context and test name,
+# `option` the segmenter options the spec passes, `skipped-upstream` a test the spec skips.
+
+case pragmatic-segmenter/greek_spec/001
+lang el
+name Golden Rules: Question mark to end sentence #001
+text Με συγχωρείτε· πού είναι οι τουαλέτες; Τις Κυριακές δε δούλευε κανένας. το κόστος του σπιτιού ήταν £260.950,00.
+sentence Με συγχωρείτε· πού είναι οι τουαλέτες;
+sentence Τις Κυριακές δε δούλευε κανένας.
+sentence το κόστος του σπιτιού ήταν £260.950,00.
+end
+
+case pragmatic-segmenter/greek_spec/002
+lang el
+name #segment: correctly segments text #001
+text Με συγχωρείτε· πού είναι οι τουαλέτες; Τις Κυριακές δε δούλευε κανένας. το κόστος του σπιτιού ήταν £260.950,00.
+sentence Με συγχωρείτε· πού είναι οι τουαλέτες;
+sentence Τις Κυριακές δε δούλευε κανένας.
+sentence το κόστος του σπιτιού ήταν £260.950,00.
+end

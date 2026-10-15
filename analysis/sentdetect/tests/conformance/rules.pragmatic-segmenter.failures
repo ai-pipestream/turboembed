@@ -1,0 +1,161 @@
+# The cases of the pragmatic-segmenter suite that the rules detector gets wrong, and what
+# differs. tests/conformance.rs writes this file and fails when a run differs
+# from it. 158 of 585 cases fail.
+pragmatic-segmenter/arabic_spec/001	1 missing, first after "سؤال وجواب:"
+pragmatic-segmenter/arabic_spec/002	1 extra, first after "وقال د‪.‬"
+pragmatic-segmenter/arabic_spec/004	1 missing, first after "...05:01 GMT الصنداي تايمز:"
+pragmatic-segmenter/arabic_spec/005	3 missing, first after "...ارتفاع ضغط الدم، والقلب،"
+pragmatic-segmenter/arabic_spec/006	1 missing, first after "سؤال وجواب:"
+pragmatic-segmenter/arabic_spec/007	1 extra, first after "وقال د‪.‬"
+pragmatic-segmenter/arabic_spec/009	1 missing, first after "...05:01 GMT الصنداي تايمز:"
+pragmatic-segmenter/arabic_spec/010	3 missing, first after "...ارتفاع ضغط الدم، والقلب،"
+pragmatic-segmenter/danish_spec/008	1 missing, first after "...ad os spørge Jane og co."; passes without the abbreviations rule
+pragmatic-segmenter/danish_spec/009	1 missing, first after "...n med Pitt, Briggs & Co."; passes without the abbreviations rule
+pragmatic-segmenter/danish_spec/014	1 missing, first after "Jeg bor i E.U."; passes without the initials rule
+pragmatic-segmenter/danish_spec/015	1 missing, first after "I live in the U.S."; passes without the initials rule
+pragmatic-segmenter/danish_spec/018	1 missing, first after "... left the bank at 6 P.M."; 1 extra, first after "At 5 a.m." [skipped-upstream]
+pragmatic-segmenter/danish_spec/042	2 missing, first after "features"; passes without the paragraph line breaks rule
+pragmatic-segmenter/danish_spec/043	1 extra, first after "You can find it at N°."
+pragmatic-segmenter/danish_spec/049	1 extra, first after "...ying, the thing is . . ."
+pragmatic-segmenter/danish_spec/050	1 missing, first after "...-interpreting compounds."; 1 extra, first after "...preting compounds. . . ."
+pragmatic-segmenter/danish_spec/051	2 missing, first after "Hello world."; 1 extra, first after "...rld.I dag is Tuesday.Hr."
+pragmatic-segmenter/danish_spec/053	1 extra, first after "...f the top of the house!'" [doc_type=pdf]
+pragmatic-segmenter/danish_spec/054	1 extra, first after "...f the top of the house!'" [doc_type=pdf]
+pragmatic-segmenter/danish_spec/055	1 extra, first after "...f the top of the house!'"
+pragmatic-segmenter/danish_spec/057	1 extra, first after "...f the top of the house!'"
+pragmatic-segmenter/danish_spec/059	the expected sentences rewrite the text
+pragmatic-segmenter/danish_spec/065	1 missing, first after "I live in the U.S.A."
+pragmatic-segmenter/danish_spec/067	1 extra, first after "A."
+pragmatic-segmenter/danish_spec/072	the expected sentences rewrite the text
+pragmatic-segmenter/danish_spec/073	the same breaks, different text
+pragmatic-segmenter/danish_spec/074	2 extra, first after "As payment for"; passes without the lists rule
+pragmatic-segmenter/danish_spec/075	2 missing, first after "features"; passes without the paragraph line breaks rule
+pragmatic-segmenter/danish_spec/077	the same breaks, different text
+pragmatic-segmenter/danish_spec/082	the expected sentences rewrite the text
+pragmatic-segmenter/danish_spec/083	the same breaks, different text
+pragmatic-segmenter/danish_spec/084	the expected sentences rewrite the text
+pragmatic-segmenter/danish_spec/092	1 extra, first after "St."
+pragmatic-segmenter/danish_spec/094	1 extra, first after "This is e.g."
+pragmatic-segmenter/danish_spec/096	the expected sentences rewrite the text
+pragmatic-segmenter/danish_spec/100	the expected sentences rewrite the text
+pragmatic-segmenter/danish_spec/102	5 extra, first after "He speaks !"
+pragmatic-segmenter/danish_spec/103	1 missing, first after "Test strange period．"
+pragmatic-segmenter/danish_spec/104	the expected sentences rewrite the text
+pragmatic-segmenter/danish_spec/108	1 extra, first after "St."
+pragmatic-segmenter/danish_spec/110	1 extra, first after "...e works at Yahoo! and Y!"
+pragmatic-segmenter/danish_spec/112	2 missing, first after "...ng Scavenger Hunt Trophy"; passes without the paragraph line breaks rule
+pragmatic-segmenter/danish_spec/114	2 missing, first after "...mpliance Log – Volume 12"; passes without the paragraph line breaks rule
+pragmatic-segmenter/danish_spec/119	the expected sentences rewrite the text
+pragmatic-segmenter/danish_spec/120	1 missing, first after "...th President of the U.S."; 1 extra, first after "On Jan. 20, former Sen."
+pragmatic-segmenter/danish_spec/122	1 missing, first after "He left at 6 P.M."
+pragmatic-segmenter/danish_spec/123	1 missing, first after "He left at 6 a.m."; passes without the abbreviations rule
+pragmatic-segmenter/danish_spec/124	1 missing, first after "He left at 6 A.M."
+pragmatic-segmenter/danish_spec/125	6 missing, first after "c. The third list item"; 5 extra, first after "Please turn to p."
+pragmatic-segmenter/danish_spec/126	1 missing, first after "c. one more"; 2 extra, first after "It was John"
+pragmatic-segmenter/danish_spec/127	1 missing, first after "c) one more"; passes without the paragraph line breaks rule
+pragmatic-segmenter/danish_spec/128	the expected sentences rewrite the text
+pragmatic-segmenter/danish_spec/129	1 extra, first after "...f the top of the house!'"
+pragmatic-segmenter/danish_spec/132	the expected sentences rewrite the text
+pragmatic-segmenter/danish_spec/133	the expected sentences rewrite the text
+pragmatic-segmenter/danish_spec/134	the expected sentences rewrite the text
+pragmatic-segmenter/danish_spec/135	2 missing, first after "She gave him the s.u."
+pragmatic-segmenter/danish_spec/136	4 missing, first after "(i) Hello world."; passes without the paragraph line breaks rule
+pragmatic-segmenter/danish_spec/137	4 missing, first after "i) Hello world."; passes without the paragraph line breaks rule
+pragmatic-segmenter/danish_spec/141	1 extra, first after "The GmbH & Co."
+pragmatic-segmenter/danish_spec/146	2 missing, first after "..., "If you please, sir--""
+pragmatic-segmenter/danish_spec/148	1 missing, first after "..., afore she comes, to--""
+pragmatic-segmenter/danish_spec/157	1 extra, first after "SEC."
+pragmatic-segmenter/danish_spec/168	1 missing, first after "What do you see?"
+pragmatic-segmenter/deutsch_spec/004	1 missing, first after "...tion steht auf Seite 12." [skipped-upstream]
+pragmatic-segmenter/deutsch_spec/014	1 extra, first after "Wir trafen Dr. med."
+pragmatic-segmenter/deutsch_spec/017	1 extra, first after "Frau Prof."
+pragmatic-segmenter/deutsch_spec/020	1 extra, first after "Das finden Sie auf S."
+pragmatic-segmenter/deutsch_spec/026	1 missing, first after "...rfasst von Anna Anderson"; passes without the paragraph line breaks rule
+pragmatic-segmenter/deutsch_spec/032	14 missing, first after "1. Ich ___ gern Tennis." [doc_type=docx]; passes without the paragraph line breaks rule
+pragmatic-segmenter/dutch_spec/001	1 missing, first after "...ssiles op hem af kwamen."
+pragmatic-segmenter/dutch_spec/002	1 missing, first after "...van de schoten was raak."
+pragmatic-segmenter/english_spec/005	1 extra, first after "Please turn to p."
+pragmatic-segmenter/english_spec/011	1 extra, first after "St."
+pragmatic-segmenter/english_spec/018	1 missing, first after "... left the bank at 6 P.M." [skipped-upstream]
+pragmatic-segmenter/english_spec/042	2 missing, first after "features"; passes without the paragraph line breaks rule
+pragmatic-segmenter/english_spec/043	1 extra, first after "You can find it at N°."
+pragmatic-segmenter/english_spec/050	1 extra, first after "...ying, the thing is . . ."
+pragmatic-segmenter/english_spec/051	1 missing, first after "...-interpreting compounds."; 1 extra, first after "...preting compounds. . . ."
+pragmatic-segmenter/english_spec/052	2 missing, first after "Hello world."; 1 extra, first after "...rld.Today is Tuesday.Mr."
+pragmatic-segmenter/english_spec/054	1 extra, first after "...f the top of the house!'" [doc_type=pdf]
+pragmatic-segmenter/english_spec/055	1 extra, first after "...f the top of the house!'" [doc_type=pdf]
+pragmatic-segmenter/english_spec/056	1 extra, first after "...f the top of the house!'"
+pragmatic-segmenter/english_spec/058	1 extra, first after "...f the top of the house!'"
+pragmatic-segmenter/english_spec/060	the expected sentences rewrite the text
+pragmatic-segmenter/english_spec/066	1 missing, first after "I live in the U.S.A."
+pragmatic-segmenter/english_spec/068	1 extra, first after "A."
+pragmatic-segmenter/english_spec/073	the expected sentences rewrite the text
+pragmatic-segmenter/english_spec/074	the same breaks, different text
+pragmatic-segmenter/english_spec/075	2 extra, first after "As payment for"; passes without the lists rule
+pragmatic-segmenter/english_spec/076	2 missing, first after "features"; passes without the paragraph line breaks rule
+pragmatic-segmenter/english_spec/078	the same breaks, different text
+pragmatic-segmenter/english_spec/083	the expected sentences rewrite the text
+pragmatic-segmenter/english_spec/084	the same breaks, different text
+pragmatic-segmenter/english_spec/085	the expected sentences rewrite the text
+pragmatic-segmenter/english_spec/093	1 extra, first after "St."
+pragmatic-segmenter/english_spec/095	1 extra, first after "This is e.g."
+pragmatic-segmenter/english_spec/097	the expected sentences rewrite the text
+pragmatic-segmenter/english_spec/101	the expected sentences rewrite the text
+pragmatic-segmenter/english_spec/103	5 extra, first after "He speaks !"
+pragmatic-segmenter/english_spec/104	1 missing, first after "Test strange period．"
+pragmatic-segmenter/english_spec/105	the expected sentences rewrite the text
+pragmatic-segmenter/english_spec/109	1 extra, first after "St."
+pragmatic-segmenter/english_spec/111	1 extra, first after "...e works at Yahoo! and Y!"
+pragmatic-segmenter/english_spec/113	2 missing, first after "...ng Scavenger Hunt Trophy"; passes without the paragraph line breaks rule
+pragmatic-segmenter/english_spec/115	2 missing, first after "...mpliance Log – Volume 12"; passes without the paragraph line breaks rule
+pragmatic-segmenter/english_spec/120	the expected sentences rewrite the text
+pragmatic-segmenter/english_spec/121	1 missing, first after "...th President of the U.S."; 1 extra, first after "On Jan. 20, former Sen."
+pragmatic-segmenter/english_spec/123	1 missing, first after "He left at 6 P.M."
+pragmatic-segmenter/english_spec/124	1 missing, first after "He left at 6 a.m."; passes without the abbreviations rule
+pragmatic-segmenter/english_spec/125	1 missing, first after "He left at 6 A.M."
+pragmatic-segmenter/english_spec/126	6 missing, first after "c. The third list item"; 5 extra, first after "Please turn to p."
+pragmatic-segmenter/english_spec/127	1 missing, first after "c. one more"; 2 extra, first after "It was John"
+pragmatic-segmenter/english_spec/128	1 missing, first after "c) one more"; passes without the paragraph line breaks rule
+pragmatic-segmenter/english_spec/129	the expected sentences rewrite the text
+pragmatic-segmenter/english_spec/130	1 extra, first after "...f the top of the house!'"
+pragmatic-segmenter/english_spec/133	the expected sentences rewrite the text
+pragmatic-segmenter/english_spec/134	the expected sentences rewrite the text
+pragmatic-segmenter/english_spec/135	the expected sentences rewrite the text
+pragmatic-segmenter/english_spec/137	4 missing, first after "(i) Hello world."; passes without the paragraph line breaks rule
+pragmatic-segmenter/english_spec/138	4 missing, first after "i) Hello world."; passes without the paragraph line breaks rule
+pragmatic-segmenter/english_spec/142	1 extra, first after "The GmbH & Co."
+pragmatic-segmenter/english_spec/147	2 missing, first after "..., "If you please, sir--""
+pragmatic-segmenter/english_spec/149	1 missing, first after "..., afore she comes, to--""
+pragmatic-segmenter/english_spec/158	1 extra, first after "SEC."
+pragmatic-segmenter/english_spec/169	1 missing, first after "What do you see?"
+pragmatic-segmenter/english_spec/171	2 extra, first after "...nterExampleCompanyA Inc."
+pragmatic-segmenter/english_spec/177	1 missing, first after "... in a consultation.11 12"
+pragmatic-segmenter/english_spec/178	1 missing, first after "...al cognition (type 2).10"
+pragmatic-segmenter/english_spec/181	1 missing, first after "... Street Journal (1987).1"
+pragmatic-segmenter/greek_spec/001	1 missing, first after "...ακές δε δούλευε κανένας."
+pragmatic-segmenter/greek_spec/002	1 missing, first after "...ακές δε δούλευε κανένας."
+pragmatic-segmenter/italian_spec/005	2 extra, first after "Sono l'Ing."
+pragmatic-segmenter/italian_spec/006	1 extra, first after "...un appuntamento per mar."
+pragmatic-segmenter/italian_spec/009	1 extra, first after "Si ringrazia lo psicol."
+pragmatic-segmenter/italian_spec/012	1 extra, first after "...ia di TR quando il Dott."
+pragmatic-segmenter/italian_spec/013	1 extra, first after "Egregio Dir."
+pragmatic-segmenter/italian_spec/017	1 extra, first after "Nel tribunale, l'Avv."
+pragmatic-segmenter/japanese_spec/005	the same breaks, different text
+pragmatic-segmenter/japanese_spec/006	4 missing, first after "これは山です"; 4 extra, first after "1.）"
+pragmatic-segmenter/japanese_spec/007	the same breaks, different text
+pragmatic-segmenter/japanese_spec/008	4 missing, first after "これは山です"; 4 extra, first after "1.）"
+pragmatic-segmenter/japanese_spec/009	4 missing, first after "これは山です"; 4 extra, first after "1.）"
+pragmatic-segmenter/kazakh_spec/002	1 missing, first after "... ауыл шаруашылығы – кім?"; passes without the continuation rule
+pragmatic-segmenter/kazakh_spec/006	1 missing, first after "...iк-экономикалық жағдайы."
+pragmatic-segmenter/russian_spec/030	1 extra, first after "...и 90 км/ч в сторону пгт."
+pragmatic-segmenter/russian_spec/036	2 extra, first after "В 2010-2012 гг."
+pragmatic-segmenter/russian_spec/042	1 extra, first after "...лся Л.Н.Толстой, 1898 г."
+pragmatic-segmenter/spanish_spec/016	1 extra, first after "...n el cantar se consuela."
+pragmatic-segmenter/spanish_spec/019	1 extra, first after "... constitución de los EE."
+pragmatic-segmenter/spanish_spec/029	3 extra, first after "...ras para el almuerzo: 1."
+pragmatic-segmenter/spanish_spec/030	1 missing, first after "1 + 1 es 2."
+pragmatic-segmenter/spanish_spec/032	1 missing, first after "Señores:"; 4 extra, first after "Cra."
+pragmatic-segmenter/spanish_spec/033	1 extra, first after "N°."
+pragmatic-segmenter/spanish_spec/034	1 extra, first after "...ada con el documento N°." [doc_type=pdf]
+pragmatic-segmenter/spanish_spec/035	the expected sentences rewrite the text
+pragmatic-segmenter/spanish_spec/036	1 extra, first after "...pital de Northern en Mt."

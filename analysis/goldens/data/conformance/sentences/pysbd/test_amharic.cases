@@ -1,0 +1,14 @@
+# Converted from tests/lang/test_amharic.py of pySBD
+# (github.com/nipunsadvilkar/pySBD, commit 5905f13be4fc95f407b98392e0ec303617a33d86),
+# MIT License, Copyright (c) 2019 Nipun Sadvilkar (LICENSE in this directory).
+# One case per entry of each test list, in file order; `name` is the list's name and,
+# for the regression tests, the issue number; `option` the segmenter options its test uses.
+
+case pysbd/test_amharic/001
+lang am
+name GOLDEN_AM_RULES_TEST_CASES
+text እንደምን አለህ፧መልካም ቀን ይሁንልህ።እባክሽ ያልሽዉን ድገሚልኝ።
+sentence እንደምን አለህ፧
+sentence መልካም ቀን ይሁንልህ።
+sentence እባክሽ ያልሽዉን ድገሚልኝ።
+end
