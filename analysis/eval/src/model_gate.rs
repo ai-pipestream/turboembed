@@ -43,12 +43,14 @@ use crate::record::is_hex;
 use crate::significance::{Bootstrap, percentile};
 pub use crate::significance::{RESAMPLES, SEED};
 
-/// The schema version of [`ModelGateRecord`]: 2, with the held-out
-/// sentences skipped and how the units were scored ([`HeldOutSet`]). A
-/// language detector's record ([`Task::LanguageDetector`],
-/// [`Scoring::Labels`]) adds values a version 2 record of the other tasks
-/// never holds, so every record written before it still reads.
-pub const MODEL_GATE_RECORD_VERSION: u32 = 2;
+/// The schema version of [`ModelGateRecord`]: 3, with the language
+/// detector's task and scoring ([`Task::LanguageDetector`],
+/// [`Scoring::Labels`]). Version 2 added the held-out sentences skipped
+/// and how the units were scored ([`HeldOutSet`]). [`ModelGateRecord::read`]
+/// reads the version before the rest, so a record of another version is
+/// refused for its version, not for a task or scoring this build does not
+/// know.
+pub const MODEL_GATE_RECORD_VERSION: u32 = 3;
 
 /// The loss, in points, the candidate may be shown not to exceed: the low
 /// end of the difference's interval must be at least the negative of it.
@@ -130,6 +132,17 @@ pub enum ModelGateError {
         units: usize,
         unit: Option<usize>,
     },
+    /// A label scoring with held-out sentences skipped: every held-out
+    /// sample is a unit.
+    SkippedSamples {
+        skipped: u64,
+    },
+    /// A label mapping with an empty label, mapping a label to itself, or
+    /// listed twice.
+    LabelMapping {
+        held_out: String,
+        reference: String,
+    },
     /// A record file that could not be read or written.
     Io {
         path: String,
@@ -191,6 +204,13 @@ impl fmt::Display for ModelGateError {
             ModelGateError::ScoredSamples { unit: Some(unit), .. } => {
                 write!(f, "unit {unit} does not score one held-out sample")
             }
+            ModelGateError::SkippedSamples { skipped } => {
+                write!(f, "a label scoring with {skipped} held-out sentences skipped")
+            }
+            ModelGateError::LabelMapping { held_out, reference } => write!(
+                f,
+                "the label mapping {held_out:?} to {reference:?} is empty, maps a label to itself, or is listed twice"
+            ),
             ModelGateError::Io { path, message } | ModelGateError::Json { path, message } => {
                 write!(f, "{path}: {message}")
             }
@@ -467,6 +487,13 @@ pub struct LabelMapping {
     pub reference: String,
 }
 
+/// A record's version, read before the rest of it; its other fields are
+/// ignored.
+#[derive(Deserialize)]
+struct RecordVersion {
+    record_version: u32,
+}
+
 /// The record of one gate run, kept beside the model card.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -515,9 +542,10 @@ impl ModelGateRecord {
     /// record was drawn with [`RESAMPLES`] and [`SEED`]; that the scoring
     /// fits the measure and the task; for tags, that each model's units
     /// count the held-out tokens less those left out; for labels, that
-    /// there is one unit per held-out sample and each scores one sample;
-    /// and that the result is what the gate gives on the recorded units,
-    /// to the bit.
+    /// no sentence was skipped, that there is one unit per held-out sample
+    /// and each scores one sample, and that each mapping has two labels
+    /// that differ and is listed once; and that the result is what the
+    /// gate gives on the recorded units, to the bit.
     pub fn check(&self) -> Result<()> {
         if self.record_version != MODEL_GATE_RECORD_VERSION {
             return Err(ModelGateError::Version { found: self.record_version });
@@ -554,6 +582,19 @@ impl ModelGateRecord {
                 }
             }
             (Scoring::Labels(l), Measure::Accuracy) => {
+                if self.set.skipped_sentences != 0 {
+                    return Err(ModelGateError::SkippedSamples { skipped: self.set.skipped_sentences });
+                }
+                let mut seen = std::collections::HashSet::new();
+                for m in &l.reference_mappings {
+                    let bad = m.held_out.is_empty() || m.reference.is_empty() || m.held_out == m.reference;
+                    if bad || !seen.insert((&m.held_out, &m.reference)) {
+                        return Err(ModelGateError::LabelMapping {
+                            held_out: m.held_out.clone(),
+                            reference: m.reference.clone(),
+                        });
+                    }
+                }
                 if l.samples != self.units.len() as u64 {
                     return Err(ModelGateError::ScoredSamples {
                         samples: l.samples,
@@ -593,17 +634,19 @@ impl ModelGateRecord {
         s
     }
 
-    /// Reads and checks a record.
+    /// Reads and checks a record. The version is read first, alone, so a
+    /// record of another version is refused with
+    /// [`ModelGateError::Version`] whatever its other fields hold.
     pub fn read(path: &Path) -> Result<ModelGateRecord> {
-        let named = |message: String| (path.display().to_string(), message);
-        let bytes = fs::read(path).map_err(|e| {
-            let (path, message) = named(e.to_string());
-            ModelGateError::Io { path, message }
-        })?;
-        let record: ModelGateRecord = serde_json::from_slice(&bytes).map_err(|e| {
-            let (path, message) = named(e.to_string());
-            ModelGateError::Json { path, message }
-        })?;
+        let json =
+            |e: serde_json::Error| ModelGateError::Json { path: path.display().to_string(), message: e.to_string() };
+        let bytes = fs::read(path)
+            .map_err(|e| ModelGateError::Io { path: path.display().to_string(), message: e.to_string() })?;
+        let version: RecordVersion = serde_json::from_slice(&bytes).map_err(json)?;
+        if version.record_version != MODEL_GATE_RECORD_VERSION {
+            return Err(ModelGateError::Version { found: version.record_version });
+        }
+        let record: ModelGateRecord = serde_json::from_slice(&bytes).map_err(json)?;
         record.check()?;
         Ok(record)
     }
@@ -943,6 +986,70 @@ mod tests {
         let mut spans = record();
         spans.set.scoring = labels_of(&spans.units);
         assert_eq!(spans.check(), Err(ModelGateError::ScoringMismatch { measure: Measure::FMeasure }));
+    }
+
+    #[test]
+    fn a_label_scoring_skips_nothing_and_maps_each_label_once_to_another() {
+        let units = labels(40, 20);
+        let r = language_record(units.clone(), labels_of(&units));
+        r.check().unwrap();
+        let mut skipped = r.clone();
+        skipped.set.skipped_sentences = 2;
+        assert_eq!(skipped.check(), Err(ModelGateError::SkippedSamples { skipped: 2 }));
+        let mapping =
+            |held_out: &str, reference: &str| LabelMapping { held_out: held_out.into(), reference: reference.into() };
+        let with = |mappings: Vec<LabelMapping>| {
+            let mut m = r.clone();
+            let Scoring::Labels(l) = &mut m.set.scoring else { unreachable!() };
+            l.reference_mappings = mappings;
+            m.check()
+        };
+        assert_eq!(with(vec![]), Ok(()));
+        assert_eq!(with(vec![mapping("est", "ekk"), mapping("est", "et"), mapping("lvs", "lav")]), Ok(()));
+        let refused = |held_out: &str, reference: &str| {
+            Err(ModelGateError::LabelMapping { held_out: held_out.into(), reference: reference.into() })
+        };
+        assert_eq!(with(vec![mapping("", "ekk")]), refused("", "ekk"));
+        assert_eq!(with(vec![mapping("est", "")]), refused("est", ""));
+        assert_eq!(with(vec![mapping("lvs", "lav"), mapping("est", "est")]), refused("est", "est"));
+        assert_eq!(
+            with(vec![mapping("est", "ekk"), mapping("lvs", "lav"), mapping("est", "ekk")]),
+            refused("est", "ekk")
+        );
+    }
+
+    #[test]
+    fn a_record_of_another_version_is_refused_for_its_version_before_its_fields_are_read() {
+        assert_eq!(MODEL_GATE_RECORD_VERSION, 3);
+        let units = labels(40, 20);
+        let r = language_record(units.clone(), labels_of(&units));
+        let json = r.to_json();
+        assert!(json.starts_with("{\n  \"record_version\": 3,\n"), "{json}");
+        let dir = std::env::temp_dir().join(format!("turbo-eval-model-gate-version-{}", std::process::id()));
+        fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("gate.json");
+        let read = |text: &str| {
+            fs::write(&path, text).unwrap();
+            ModelGateRecord::read(&path)
+        };
+        assert_eq!(read(&json).unwrap(), r);
+        // A record of version 2 holds no language detector; a later one
+        // may hold a task this build does not know. Both are refused for
+        // their version, not as JSON this build cannot parse.
+        let two = json.replacen("\"record_version\": 3", "\"record_version\": 2", 1);
+        assert_eq!(read(&two), Err(ModelGateError::Version { found: 2 }));
+        let later = json
+            .replacen("\"record_version\": 3", "\"record_version\": 4", 1)
+            .replacen("\"language_detector\"", "\"a_later_task\"", 1)
+            .replacen("\"labels\": {", "\"a_later_scoring\": {", 1);
+        assert_eq!(read(&later), Err(ModelGateError::Version { found: 4 }));
+        // At this version, the same values are refused as JSON.
+        let unknown = later.replacen("\"record_version\": 4", "\"record_version\": 3", 1);
+        let Err(ModelGateError::Json { message, .. }) = read(&unknown) else { panic!("{unknown}") };
+        assert!(message.contains("unknown variant `a_later_task`"), "{message}");
+        // No version at all is not a record.
+        assert!(matches!(read("{\"task\": \"tokenizer\"}"), Err(ModelGateError::Json { .. })));
+        fs::remove_dir_all(&dir).unwrap();
     }
 
     #[test]
