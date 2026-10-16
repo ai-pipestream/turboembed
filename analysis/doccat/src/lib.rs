@@ -61,7 +61,10 @@ pub use layer::SpanCategorizable;
 pub use model::{
     COMPONENT_NAME, DoccatModel, FACTORY_NAME, FEATURE_GENERATORS_KEY, MODEL_ENTRY, parse_feature_generators,
 };
-pub use sentiment::{SentimentFactory, SentimentMe, SentimentModel};
+pub use sentiment::{
+    LexiconSentiment, NegationMode, SENTENCE_SENTIMENT, SentenceSentiment, SentimentFactory, SentimentMe,
+    SentimentModel, VaderLexicon, VaderScore,
+};
 pub use svm::{ModelError, Scratch, SvmCategorizer, SvmDoccatModel};
 pub use train::{DoccatEventStream, DoccatFactory, doccat_events, doccat_index};
 

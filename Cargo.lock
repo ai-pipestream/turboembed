@@ -1836,6 +1836,7 @@ dependencies = [
  "turbo-jvm",
  "turbo-maxent",
  "turbo-normalize",
+ "turbo-normalize-layers",
  "turbo-sequence",
  "turbo-train",
 ]
