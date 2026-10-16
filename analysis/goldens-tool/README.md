@@ -929,6 +929,15 @@ generators are built with their public constructors, which are the ones
 Only these runs read the `doccat` and `doccat-train` sets, and they have
 no dumps.
 
+Two tests read them. `analysis/doccat/tests/maxent_goldens.rs` needs no
+corpus: it compares the features of every document. The goldens hold no
+model file, so `analysis/train-components/tests/doccat_goldens.rs` trains
+each run's model on the downloaded corpus (from `TURBO_GOLDENS_MODELS`)
+and requires the `doccat.model` entry byte for byte, the manifest, the
+zip entries, and every document's features and probabilities with the
+JVM's bits. Without the corpus it skips, unless
+`TURBO_TEST_REQUIRE_OPENNLP_MODELS=1`, as in CI, where it fails.
+
 ## PII goldens
 
 `pii/<pack>/pii/<id>.golden` is what `PiiAnnotator` found in
