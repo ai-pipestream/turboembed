@@ -113,6 +113,11 @@ impl AbbreviationDictionary {
     /// reads a 1990 US Census name list with [`CensusReader`] and builds a
     /// case-sensitive dictionary of single-token recased names, stopping at
     /// the first empty line or line without a space.
+    ///
+    /// Two names that recase to entries differing only in case (possible
+    /// only when the list is not all upper case, such as `McDONALD` and
+    /// `MCDONALD`) are refused with [`Error::CaseVariants`], as
+    /// [`new`](Self::new) refuses them, where the JVM would keep both.
     pub fn from_census_names(source: &str) -> Result<AbbreviationDictionary> {
         let mut entries: Vec<Vec<String>> = Vec::new();
         for field in CensusReader::new(source)? {
@@ -514,6 +519,12 @@ mod tests {
         assert_eq!(String::from_utf8(xml.clone()).unwrap(), expected);
         let round_trip = AbbreviationDictionary::read(&xml).unwrap().serialize().unwrap();
         assert_eq!(round_trip, xml);
+    }
+
+    #[test]
+    fn from_census_names_refuses_names_that_differ_only_in_case() {
+        let census = "MCDONALD 0.140 32.149 101\nMcDONALD 0.140 32.289 102\n";
+        assert!(matches!(AbbreviationDictionary::from_census_names(census), Err(Error::CaseVariants { .. })));
     }
 
     #[test]
