@@ -180,6 +180,7 @@ a directory with the same model run without them, and its options are
 | `formats` (the CoNLL streams) | `conll02-nld`, `conll02-spa`, `conll02-spa-per-loc`, `conll03-eng`, `conll03-deu`, `conll03-eng-org-misc`, `conllx-pos`, `conllx-token` and `conllx-sentence` (with `en-detokenizer`, fixture) | `formats`, the `conll02`, `conll03` and `conllx` inputs | `lang`, `types`; `chunkSize 2` for `conllx-sentence` |
 | `conllu` (`ConlluDependencySampleStream` of the `ready/agents-md` branch, `ConlluCorefDocumentStream` of the addons' `ready/coref` branch) | `dependency-u`, `dependency-x`, `dependency-u+legacy`; `corefud-u`, `corefud-x` | `conllu`, the inputs whose id starts with `dependency-` or `corefud-` | `tagset u` or `x`, `whitespace legacy`; `branchCommit`, `addonsCommit` |
 | `masc` (the MASC readers) | `documents` (`MascDocument.parseDocument`), `pos`, `token`, `sentence`, `name` (the sample streams) | `formats`, the `masc-` inputs | `sentencesPerSample 2` for `sentence` |
+| `corpora` (the sentence, language and document corpus streams) | `moses`, `letsmt`, `letsmt-detokenized`, `nkjp`, `irish-sentences`, `irish-tokens`, `leipzig-2x3`, `leipzig-1x4-skip2`, `20newsgroup-whitespace` (also `+legacy`), `20newsgroup-simple` | `corpora`, the inputs whose id starts with the corpus's prefix (`moses-`, `letsmt-`, `nkjp-`, `irish-`, `leipzig-`, `newsgroups-`) | `detokenizer`; `sentencesPerSample`, `samplesPerLanguage`, `samplesToSkip`; `tokenizer`, `dataDir`, `whitespace legacy` |
 | `ner` (the named entity corpus streams) | `germeval-outer`, `germeval-inner`, `germeval-outer-loc-misc`, `bionlp`, `bionlp-cell-line`, `bionlp-dna-cell-type`, `evalita`, `evalita-per-gpe`, `census`, `muc6-whitespace` (also `+legacy`), `muc6-simple`, `brat-whitespace` (also `+legacy`), `brat-simple`, `brat-recursive-person-location`, `brat-config` | `ner`, the inputs whose id starts with the corpus's prefix (`germeval-`, `bionlp-`, `evalita-`, `census-`, `muc-`, `brat-`) | `types`, `layer`, `lang it`, `tokenizer`, `recursive true`, `nameTypes`, `whitespace legacy` |
 | `parse` (`ParseSampleStream`, `Parse.parseParse`) | `treebank`, `treebank+function-tags`; `en-head-rules`, `en-head-rules+possessives`, `es-head-rules`, `es-regex-head-rules` (fixtures) | `parse` | `useFunctionTags true`; `rules`, `fixPossesives true` |
 | `head-rules` (`HeadRules`, `AncoraSpanishHeadRules`) | `en`, `es` | `head-rules` | |
@@ -641,6 +642,47 @@ and reading goes on. The layers are `turbo:samples`,
 `turbo:read-errors`, `turbo:sample-tokens` and `turbo:names`, as the
 format goldens write them. `analysis/formats/tests/ner.rs` compares the
 Rust readers with these goldens.
+
+## Corpora goldens
+
+`corpora/<run>/corpora/<id>.golden` is what one of OpenNLP's sentence,
+language or document corpus streams read from `inputs/corpora/<id>.txt`.
+`CorporaGolden` makes each stream as its factory does:
+`MosesSentenceSampleStream` over the file's lines; `LetsmtSentenceStream`
+over the parsed document, alone and behind
+`DetokenizeSentenceSampleStream` with the dictionary of the `detokenizer`
+record; `NKJPSentenceSampleStream` over the `ann_segmentation.xml` and
+`text.xml` of a bundle; `IrishSentenceBankSentenceStream` and
+`IrishSentenceBankTokenSampleStream`; `LeipzigLanguageSampleStream` behind
+`SampleShuffleStream` and `SampleSkipStream` over a bundled directory, with
+the counts of the `sentencesPerSample`, `samplesPerLanguage` and
+`samplesToSkip` records; and `TwentyNewsgroupSampleStream` over a bundled
+directory with the tokenizer of the `tokenizer` record. The bundles are
+those of the MASC inputs.
+
+What the factory does before the stream reads (parsing a document, and
+for Leipzig reading every file) is recorded as a read error before any
+sample when it throws. The stream is then read until `read` returns null;
+an exception is recorded and reading goes on. The layers are
+`turbo:samples` and `turbo:read-errors`, then for sentence and token
+samples `turbo:sample-texts` and `turbo:sample-spans`, for language
+samples `turbo:sample-labels` and `turbo:sample-texts`, and for document
+samples `turbo:sample-labels` and `turbo:sample-tokens`, as in the format
+goldens.
+
+The 20 Newsgroups stream keeps its files in a `HashMap` keyed by path, so
+the order of its samples depends on where the corpus is: the runs write it
+under `java.io.tmpdir` and give the directory as the `dataDir` record, and
+add `turbo:listing` (the files in the order the directories list them) and
+`turbo:files` (the order the map gives them) after the read errors. A
+Leipzig message that names a file writes the corpus directory as
+`<corpus>`.
+
+`analysis/formats/tests/corpora.rs` compares the readers of
+`turbo_formats::corpora` with these goldens. Only these runs read the
+`corpora` set, and they have no dumps. The goldens are not checked in; the
+test skips, naming the `generate` command, while
+`analysis/goldens/data/corpora` is absent.
 
 ## Parse goldens
 
