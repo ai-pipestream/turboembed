@@ -23,6 +23,7 @@
 mod detector;
 pub mod lexicon;
 mod model;
+pub mod pragmatics;
 
 pub use detector::{SENTIMENT, Scratch, SentimentMe};
 pub use lexicon::{
@@ -31,4 +32,8 @@ pub use lexicon::{
 };
 pub use model::{
     COMPONENT, EMOJI_FACTORY, MODEL_ENTRY, SentimentFactory, SentimentModel, SentimentModelError, TOKEN_FACTORY,
+};
+pub use pragmatics::{
+    DEFAULT_MIN_NEGATIVE_POLARITY, DEFAULT_MIN_POSITIVE_POLARITY, DEFAULT_PRAGMATICS_THRESHOLD, PragmaticsAnnotator,
+    PragmaticsVectorScorer,
 };

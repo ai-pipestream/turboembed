@@ -23,6 +23,8 @@ turbo-chunker = { path = "../chunker" }
 turbo-doccat = { path = "../doccat" }
 # The JVM's WordPiece goldens, which the pieces are compared with.
 turbo-goldens = { path = "../goldens" }
+# Emoji layer (#183) for sarcasm/irony pragmatics integration tests (#324).
+turbo-normalize = { path = "../normalize" }
 # Tokenization for the lexicon sentiment baseline comparison.
 turbo-tokenize = { path = "../tokenize" }
 # Unicode's nonspacing marks, which the JVM's spans run over and ours
